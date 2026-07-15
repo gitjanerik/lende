@@ -1,0 +1,70 @@
+name: Build map and deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Generate Vardåsen SVG from OSM
+        run: |
+          node scripts/build-vardasen-svg.js
+          echo "--- SVG-fil ---"
+          ls -la public/maps/
+
+      - name: Build app
+        run: |
+          npm run build
+          echo "--- dist innhold ---"
+          ls -la dist/
+          ls -la dist/maps/ || echo "ingen maps-mappe i dist"
+
+      - name: Deploy to gh-pages
+        run: |
+          set -e
+          APP_VERSION=$(node -p "require('./package.json').version")
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          SOURCE_MSG=$(git log -1 --pretty=%s)
+          git fetch origin gh-pages || true
+          if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
+            git worktree add /tmp/ghp gh-pages
+          else
+            git worktree add --orphan -b gh-pages /tmp/ghp
+          fi
+          find /tmp/ghp -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+          cp -r dist/. /tmp/ghp/
+          touch /tmp/ghp/.nojekyll
+          cp /tmp/ghp/index.html /tmp/ghp/404.html
+          cd /tmp/ghp
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --staged --quiet; then
+            echo "Ingen endringer i dist — hopper over deploy"
+          else
+            git -c commit.gpgsign=false commit \
+              --author="Deploy <deploy@lende>" \
+              -m "deploy v${APP_VERSION} (${SHORT_SHA}): ${SOURCE_MSG}"
+            git push -u origin gh-pages
+            echo "Deployet v${APP_VERSION} til gh-pages"
+          fi

@@ -1,0 +1,162 @@
+/**
+ * sw.js — Service worker for Lende.
+ *
+ * Strategy:
+ *   - Versioned cache: bump CACHE_VERSION on each deploy to invalidate
+ *   - Install: pre-cache the shell (index.html + offline essentials). Does NOT
+ *     skipWaiting — a new version waits until the user confirms via the
+ *     "Ny versjon"-banner (which posts SKIP_WAITING; see message handler below).
+ *   - Activate: delete old caches so stale bundles don't linger, then claim
+ *     clients so the reload after SKIP_WAITING lands on the new SW.
+ *   - Fetch:
+ *       HTML (navigation)  → network first, fall back to cached index.html
+ *       Hashed assets (/assets/*-HASH.ext) → cache first, forever
+ *       Map data (/maps/*.svg) → network first, fall back to cache (offline)
+ *       Icons, manifest, favicon → stale-while-revalidate
+ *       Everything else → network only (Google Fonts, opentype from CDN, etc.)
+ */
+
+const CACHE_VERSION = 'lende-v1.0.0'
+const SHELL_CACHE   = `${CACHE_VERSION}-shell`
+const ASSET_CACHE   = `${CACHE_VERSION}-assets`
+const BASE = '/lende/'
+
+// Absolute minimum to boot the app offline
+const SHELL_URLS = [
+  `${BASE}`,
+  `${BASE}index.html`,
+  `${BASE}favicon.svg`,
+  `${BASE}icon.svg`,
+  `${BASE}icon-192.png`,
+  `${BASE}icon-512.png`,
+  `${BASE}manifest.webmanifest`,
+]
+
+self.addEventListener('install', (e) => {
+  // Merk: vi kaller IKKE skipWaiting() her. En ny versjon skal stå og VENTE til
+  // brukeren bekrefter via «Oppdater»-banneret (som sender SKIP_WAITING, se
+  // message-handleren nederst). Første installasjon (ingen gammel SW som
+  // kontrollerer) aktiveres uansett umiddelbart — «waiting» oppstår kun når en
+  // gammel SW allerede styrer klientene.
+  e.waitUntil(
+    caches.open(SHELL_CACHE).then((c) =>
+      c.addAll(SHELL_URLS).catch(() => {
+        // Ignore individual failures — a missing icon shouldn't block install
+      })
+    )
+  )
+})
+
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys().then((names) =>
+      Promise.all(
+        names
+          .filter((n) => n.startsWith('lende-') && !n.startsWith(CACHE_VERSION))
+          .map((n) => caches.delete(n))
+      )
+    ).then(() => self.clients.claim())
+  )
+})
+
+self.addEventListener('fetch', (e) => {
+  const req = e.request
+  if (req.method !== 'GET') return
+
+  const url = new URL(req.url)
+  // Only handle our origin
+  if (url.origin !== self.location.origin) return
+
+  // Navigation → network-first with index.html fallback (SPA routing)
+  if (req.mode === 'navigate') {
+    e.respondWith(
+      fetch(req)
+        .then((res) => {
+          // Cache fresh copy of index.html
+          const copy = res.clone()
+          caches.open(SHELL_CACHE).then((c) => c.put(`${BASE}index.html`, copy))
+          return res
+        })
+        .catch(() => caches.match(`${BASE}index.html`))
+    )
+    return
+  }
+
+  // Hashed assets → cache-first (safe: filename changes when content changes)
+  if (url.pathname.startsWith(`${BASE}assets/`)) {
+    e.respondWith(
+      caches.match(req).then((hit) => {
+        if (hit) return hit
+        return fetch(req).then((res) => {
+          if (res && res.ok) {
+            const copy = res.clone()
+            caches.open(ASSET_CACHE).then((c) => c.put(req, copy))
+          }
+          return res
+        })
+      })
+    )
+    return
+  }
+
+  // Map data (built SVG kart, e.g. maps/vardasen.svg) → network-first.
+  // These are large data payloads that the app parses as XML — they must NOT
+  // go through the icon stale-while-revalidate branch below, which could serve
+  // a stale or truncated cached copy on first load ("Ugyldig SVG"; a refresh
+  // then succeeds once the background revalidation has replaced the entry).
+  // Always prefer fresh network; fall back to cache only when offline.
+  if (url.pathname.startsWith(`${BASE}maps/`)) {
+    e.respondWith(
+      fetch(req).then((res) => {
+        if (res && res.ok) {
+          const copy = res.clone()
+          caches.open(ASSET_CACHE).then((c) => c.put(req, copy))
+        }
+        return res
+      }).catch(() => caches.match(req))
+    )
+    return
+  }
+
+  // Icons, manifest, favicon → stale-while-revalidate
+  if (/\.(svg|png|webmanifest|ico)$/.test(url.pathname)) {
+    e.respondWith(
+      caches.match(req).then((hit) => {
+        const fetching = fetch(req).then((res) => {
+          if (res && res.ok) {
+            const copy = res.clone()
+            caches.open(SHELL_CACHE).then((c) => c.put(req, copy))
+          }
+          return res
+        }).catch(() => hit)
+        return hit || fetching
+      })
+    )
+    return
+  }
+
+  // Everything else (fallback): network, let browser handle errors
+})
+
+// Optional: allow the page to ask the SW to activate immediately after update
+self.addEventListener('message', (e) => {
+  if (e.data === 'SKIP_WAITING') self.skipWaiting()
+})
+
+// Nærhetsvarsel: brukeren trykker på notification-en (eller dens «Avbryt»-
+// knapp) → lukk den, fokuser kart-vinduet og be siden avbryte alarmen. Både
+// body-klikk og action behandles som avbryt (tap-for-å-stoppe).
+self.addEventListener('notificationclick', (e) => {
+  const n = e.notification
+  if (!n || n.tag !== 'proximity-alert') return
+  n.close()
+  e.waitUntil((async () => {
+    const cs = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    for (const c of cs) c.postMessage({ type: 'PROXIMITY_CANCEL' })
+    if (cs.length && 'focus' in cs[0]) {
+      try { await cs[0].focus() } catch { /* ignore */ }
+    } else if (self.clients.openWindow) {
+      try { await self.clients.openWindow(BASE) } catch { /* ignore */ }
+    }
+  })())
+})

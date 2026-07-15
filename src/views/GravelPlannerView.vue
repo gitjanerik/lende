@@ -1,0 +1,2316 @@
+<script setup>
+// Ruteplanlegger (v12.1.0) — grusvei-turplanlegging for MC over lange
+// avstander. ÉN modus (v12.1.11 — Utforsk/Planlegg-segmentkontrollen er
+// fjernet): grusvei-overlayen (Overpass, zoom-gatet) vises alltid ved
+// innzooming, og A→B-planlegging med tre ruteforslag fra BRouter (Mest grus /
+// Balansert / Kortest) skjer i samme bilde — fargekodet per segment,
+// grus/asfalt-bar, stat-fliser (tid / grus-strekk / luftlinje), GPX og
+// lagrede ruter.
+// Interaksjonskoden (pan/pinch/wheel/tiles) er forket fra MapPickerView —
+// picker-en er halfKm-drevet med 8 km-tak; her trengs fri heltalls-zoom z5–z15.
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { tileMosaic, metersPerPixel } from '../lib/tileBackground.js'
+import { lonLatToWorldPx, worldPxToLonLat, lonLatToScreenPx, screenPxToLonLat, viewBbox, bboxAreaKm2, TILE_SIZE } from '../lib/webMercator.js'
+import { buildGravelQuery, extractGravelWays, extractBarrierNodes, extractParkingSpots, bboxContains, padBbox, MIN_OVERLAY_ZOOM, MAX_OVERLAY_AREA_KM2 } from '../lib/gravelOverlay.js'
+import { thinParkering, PARKERING_MIN_SEP_M } from '../lib/parkingRules.js'
+import { buildUtNoUrl } from '../lib/utNoLink.js'
+import { gmapsUrl, streetViewUrl, buildVegkartUrl } from '../lib/externalMapLinks.js'
+import { fetchOverpassWithRetry } from '../lib/overpassClient.js'
+import { simplifyDP } from '../lib/pathUtils.js'
+import { estimateMcTimeS, fmtAvstandM, MAX_SNAP_DIST_M } from '../lib/brouterClient.js'
+import { useNominatim } from '../composables/useNominatim.js'
+import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
+import { reverseNearestPlace } from '../lib/nominatimReverse.js'
+import { routeShareToken, parseRouteToken, MAX_SHARE_ROUTES } from '../lib/routeShare.js'
+import { useGravelPlanner } from '../composables/useGravelPlanner.js'
+import { buildMapFromCenter } from '../lib/createMapFlow.js'
+import { useMapSizePreference, equidistanceForWidthKm, defaultMapDims } from '../composables/useMapSizePreference.js'
+import { useRouteElevation } from '../composables/useRouteElevation.js'
+import { useDraggableDrawer } from '../composables/useDraggableDrawer.js'
+import { usePwaInstall } from '../composables/usePwaInstall.js'
+import RouteElevationProfile from '../components/RouteElevationProfile.vue'
+
+const router = useRouter()
+const currentRoute = useRoute()
+const planner = useGravelPlanner()
+const {
+  pointA, pointB, route, proposals, selectedId, routeState, routeError, savedRoutes,
+  includeAssumed,
+} = planner
+
+// Høydeprofil for valgt rute: BRouter-høyder når geometrien har dem,
+// Kartverket-DTM-fallback for lagrede ruter (uten høyde i lagringen).
+const { profile: elevProfile, state: elevState, source: elevSource } = useRouteElevation(route)
+
+// Forslags-farger (design) pr profil-id: grus-maks oransje, balansert lilla,
+// bilprofil rød. (Brukervendte navn er nøytrale «Rute 1–3» + data-badges.)
+const PROPOSAL_COLORS = { 'mest-grus': '#e8802b', balansert: '#8b5cf6', kortest: '#ef4444' }
+
+// ── Planlegg-skuff: samme drag-UX som turkartets skuffer (useDraggableDrawer:
+// standard 45 dvh, minimert peek med håndtak + header, maksimert med 56 px
+// kart-stripe igjen i toppen, retnings-basert snap-følsomhet). ──────────────
+const MAX_DRAWER_TOP_GAP_PX = 56
+const PLANNER_DRAWER_PEEK_PX = 76
+const drawer = useDraggableDrawer({
+  expandedHeight: 0.45,
+  minimizedPeek: PLANNER_DRAWER_PEEK_PX,
+  maxTopGapPx: MAX_DRAWER_TOP_GAP_PX,
+  allowMinimize: true,
+})
+// «Mine ruter» er også en dra-bar skuff (v12.1.4) — samme tre snap-punkter.
+// Kun maksimert tilstand dimmer kartet (samme mønster som FAB-panelene i
+// turkartet); ellers kan man titte på kartet bak lista.
+const savedDrawer = useDraggableDrawer({
+  expandedHeight: 0.45,
+  minimizedPeek: PLANNER_DRAWER_PEEK_PX,
+  maxTopGapPx: MAX_DRAWER_TOP_GAP_PX,
+  allowMinimize: true,
+})
+
+// ── Kart-tilstand ───────────────────────────────────────────────────────────
+const VIEW_LS_KEY = 'lende-ruteplanlegger-view'
+const ZOOM_MIN = 5
+const ZOOM_MAX = 15
+
+function loadView() {
+  try {
+    const v = JSON.parse(localStorage.getItem(VIEW_LS_KEY) ?? 'null')
+    if (v && Number.isFinite(v.lat) && Number.isFinite(v.lon) && Number.isFinite(v.zoom)) {
+      return { lat: v.lat, lon: v.lon, zoom: Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(v.zoom))) }
+    }
+  } catch { /* noop */ }
+  // Default: Sør-Norge-oversikt.
+  return { lat: 61.0, lon: 9.5, zoom: 6 }
+}
+// Intern snarvei INN (v12.1.34): ?lat=&lon=(&z=) fra turkartets long-press-ark
+// overstyrer sist lagrede utsnitt — planleggeren åpner sentrert på punktet.
+function parseCenterQuery() {
+  const q = currentRoute.query
+  if (q.r || q.alat) return null   // dele-lenke (parseRouteInvite) vinner
+  const lat = parseFloat(q.lat); const lon = parseFloat(q.lon)
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
+  const z = parseInt(q.z, 10)
+  return { lat, lon, zoom: Number.isFinite(z) ? Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z)) : 12 }
+}
+const centerQuery = parseCenterQuery()
+const initial = centerQuery ?? loadView()
+const center = ref({ lat: initial.lat, lon: initial.lon })
+const zoom = ref(initial.zoom)
+watch([center, zoom], () => {
+  try { localStorage.setItem(VIEW_LS_KEY, JSON.stringify({ lat: center.value.lat, lon: center.value.lon, zoom: zoom.value })) } catch { /* noop */ }
+})
+
+const mapRef = ref(null)
+const mapSize = ref({ w: 0, h: 0 })
+function measureMap() {
+  const r = mapRef.value?.getBoundingClientRect()
+  if (r) mapSize.value = { w: r.width, h: r.height }
+}
+// Skuffen ligger i flex-flyten, så kart-flaten endrer størrelse kontinuerlig
+// mens den dras — ResizeObserver holder projeksjonene i synk (window-resize
+// alene fanger ikke dette).
+let mapResizeObs = null
+
+const view = computed(() => ({
+  centerLat: center.value.lat, centerLon: center.value.lon,
+  zoom: zoom.value, wPx: mapSize.value.w, hPx: mapSize.value.h,
+}))
+
+const tiles = computed(() => {
+  if (!mapSize.value.w) return []
+  return tileMosaic(center.value.lat, center.value.lon, zoom.value, mapSize.value)
+})
+
+// Kartverket-topo dekker bare Norge — feilede fliser skjules så OSM-underlaget
+// viser gjennom (samme mønster som MapPickerView).
+function onTopoTileError(e) {
+  e.target.style.display = 'none'
+}
+
+// ── Pan / pinch / wheel / tap (forket fra MapPickerView, fri zoom) ─────────
+let lastDist = 0
+let pinching = false
+let panning = false
+let panStart = null
+let pinchRatio = 1
+let tapStart = null
+// Mobil-nettlesere syntetiserer mousedown/mouseup ETTER touchend — uten denne
+// sperren ble ett fysisk tap til TO onMapTap-kall (A og B på nøyaktig samme
+// punkt, A «gjemt» under B). Mouse-handlerne ignorerer alt like etter touch.
+let lastTouchEndAt = 0
+const SYNTH_MOUSE_SUPPRESS_MS = 800
+
+// ── UT.no-pin: hold inne et punkt (long-press, 600 ms uten bevegelse) eller
+// høyreklikk → pin med koordinater + «Åpne i UT.no»-lenke. Kort tap er
+// fortsatt A/B-setting (< 400 ms); spennet 400–600 ms gjør ingenting, så de
+// to gestene ikke kolliderer. Pinnen følger kartet ved pan/zoom (geo-ankret),
+// og et vanlig tap lukker den uten å sette A/B.
+const LONG_PRESS_MS = 600
+const utNoPin = ref(null)            // { lat, lon } | null
+let longPressTimer = null
+
+function cancelLongPress() {
+  if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null }
+}
+
+function openUtNoPinAt(px) {
+  const geo = screenPxToLonLat(px.x, px.y, view.value)
+  utNoPin.value = { lat: geo.lat, lon: geo.lon }
+  try { navigator.vibrate?.(15) } catch { /* noop */ }
+}
+
+function armLongPress(clientX, clientY) {
+  cancelLongPress()
+  longPressTimer = setTimeout(() => {
+    longPressTimer = null
+    const p = localPoint(clientX, clientY)
+    if (!p) return
+    openUtNoPinAt(p)
+    // Gesten er konsumert: ikke pan videre, og ikke tolk slippet som tap.
+    panning = false; panStart = null; tapStart = null
+  }, LONG_PRESS_MS)
+}
+
+function onContextMenu(e) {
+  const p = localPoint(e.clientX, e.clientY)
+  if (!p) return
+  cancelLongPress()
+  panning = false; panStart = null; tapStart = null
+  openUtNoPinAt(p)
+}
+
+function panShiftToCenter(dxPx, dyPx) {
+  const mPerPx = metersPerPixel(center.value.lat, zoom.value)
+  const dLat = (dyPx * mPerPx) / 111111
+  const dLon = -(dxPx * mPerPx) / (111111 * Math.cos(center.value.lat * Math.PI / 180))
+  return { dLat, dLon }
+}
+
+function stepZoom(delta, focusPx) {
+  const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom.value + delta))
+  if (next === zoom.value) return
+  // Zoom rundt fokuspunktet (finger/markør): hold geo-punktet under fokus fast.
+  if (focusPx && mapSize.value.w) {
+    const geo = screenPxToLonLat(focusPx.x, focusPx.y, view.value)
+    zoom.value = next
+    const after = lonLatToScreenPx(geo.lon, geo.lat, view.value)
+    const { dLat, dLon } = panShiftToCenter(focusPx.x - after.x, focusPx.y - after.y)
+    center.value = { lat: center.value.lat + dLat, lon: center.value.lon + dLon }
+  } else {
+    zoom.value = next
+  }
+}
+
+function localPoint(clientX, clientY) {
+  const r = mapRef.value?.getBoundingClientRect()
+  return r ? { x: clientX - r.left, y: clientY - r.top } : null
+}
+
+function touchDist(e) {
+  const dx = e.touches[0].clientX - e.touches[1].clientX
+  const dy = e.touches[0].clientY - e.touches[1].clientY
+  return Math.sqrt(dx * dx + dy * dy)
+}
+
+function onTouchStart(e) {
+  if (e.touches.length === 2) {
+    pinching = true; panning = false; tapStart = null
+    cancelLongPress()
+    lastDist = touchDist(e); pinchRatio = 1
+    e.preventDefault()
+  } else if (e.touches.length === 1) {
+    panning = true; pinching = false
+    const t = e.touches[0]
+    panStart = { x: t.clientX, y: t.clientY, lat: center.value.lat, lon: center.value.lon }
+    tapStart = { x: t.clientX, y: t.clientY, t: Date.now() }
+    armLongPress(t.clientX, t.clientY)
+  }
+}
+function onTouchMove(e) {
+  if (pinching && e.touches.length === 2) {
+    e.preventDefault()
+    const d = touchDist(e)
+    pinchRatio *= d / lastDist
+    lastDist = d
+    // Diskret zoom-trapp: step når akkumulert ratio passerer terskel, re-anchor.
+    const mid = localPoint(
+      (e.touches[0].clientX + e.touches[1].clientX) / 2,
+      (e.touches[0].clientY + e.touches[1].clientY) / 2,
+    )
+    if (pinchRatio > 1.4) { stepZoom(1, mid); pinchRatio = 1 }
+    else if (pinchRatio < 0.7) { stepZoom(-1, mid); pinchRatio = 1 }
+  } else if (panning && e.touches.length === 1 && panStart) {
+    e.preventDefault()
+    const dxPx = e.touches[0].clientX - panStart.x
+    const dyPx = e.touches[0].clientY - panStart.y
+    if (tapStart && Math.hypot(dxPx, dyPx) > 8) { tapStart = null; cancelLongPress() }
+    const { dLat, dLon } = panShiftToCenter(dxPx, dyPx)
+    center.value = { lat: panStart.lat + dLat, lon: panStart.lon + dLon }
+  }
+}
+function onTouchEnd(e) {
+  cancelLongPress()
+  if (e.touches.length < 2) { pinching = false; pinchRatio = 1 }
+  if (e.touches.length < 1) {
+    lastTouchEndAt = Date.now()
+    if (tapStart && Date.now() - tapStart.t < 400) {
+      const p = localPoint(tapStart.x, tapStart.y)
+      if (p) onMapTap(p)
+    }
+    panning = false; panStart = null; tapStart = null
+  }
+}
+function onMouseDown(e) {
+  if (e.button !== 0) return
+  if (Date.now() - lastTouchEndAt < SYNTH_MOUSE_SUPPRESS_MS) return
+  panning = true
+  panStart = { x: e.clientX, y: e.clientY, lat: center.value.lat, lon: center.value.lon }
+  tapStart = { x: e.clientX, y: e.clientY, t: Date.now() }
+  armLongPress(e.clientX, e.clientY)
+  e.preventDefault()
+}
+function onMouseMove(e) {
+  if (!panning || !panStart) return
+  e.preventDefault()
+  const dxPx = e.clientX - panStart.x
+  const dyPx = e.clientY - panStart.y
+  if (tapStart && Math.hypot(dxPx, dyPx) > 8) { tapStart = null; cancelLongPress() }
+  const { dLat, dLon } = panShiftToCenter(dxPx, dyPx)
+  center.value = { lat: panStart.lat + dLat, lon: panStart.lon + dLon }
+}
+function onMouseUp(e) {
+  cancelLongPress()
+  if (Date.now() - lastTouchEndAt < SYNTH_MOUSE_SUPPRESS_MS) return
+  if (panning && tapStart && Date.now() - tapStart.t < 400) {
+    const p = localPoint(e.clientX, e.clientY)
+    if (p) onMapTap(p)
+  }
+  panning = false; panStart = null; tapStart = null
+}
+let wheelThrottle = 0
+function onWheel(e) {
+  e.preventDefault()
+  const now = Date.now()
+  if (now - wheelThrottle < 150) return
+  wheelThrottle = now
+  stepZoom(e.deltaY > 0 ? -1 : 1, localPoint(e.clientX, e.clientY))
+}
+
+// ── Fra/Til-valg: søk, GPS, bytt, tap-to-set ────────────────────────────────
+const searchA = useNominatim()
+const searchB = useNominatim()
+const activeSearch = ref(null)       // 'A' | 'B' | null — hvilken dropdown vises
+const armedField = ref(null)         // 'A' | 'B' | null — «velg i kartet»
+
+function labelFor(p) {
+  return p?.name ?? (p ? `${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}` : '')
+}
+
+function setPoint(field, p, { pan = false } = {}) {
+  if (field === 'A') { pointA.value = p; searchA.query.value = p ? labelFor(p) : '' }
+  else { pointB.value = p; searchB.query.value = p ? labelFor(p) : '' }
+  activeSearch.value = null
+  armedField.value = null
+  if (pan && p) {
+    center.value = { lat: p.lat, lon: p.lon }
+    if (zoom.value < 9) zoom.value = 9
+  }
+}
+
+function swapPoints() {
+  const a = pointA.value
+  setPoint('A', pointB.value)
+  setPoint('B', a)
+}
+
+function selectResult(field, r) {
+  setPoint(field, { lat: r.lat, lon: r.lon, name: r.shortName ?? r.name }, { pan: true })
+}
+
+// Tastaturnavigasjon (desktop) for begge feltene. Bare én dropdown vises av
+// gangen (activeSearch), så vi navigerer den aktives treffliste. Fokus blir i
+// input-en så Escape alltid virker — der nullstiller den søkefeltet.
+const activeSearchResults = computed(() => {
+  if (activeSearch.value === 'A') return searchA.results.value
+  if (activeSearch.value === 'B') return searchB.results.value
+  return []
+})
+const { activeIndex: searchActiveIndex, onKeydown: onSearchKeydown } = useSearchKeyboard(activeSearchResults, {
+  onSelect: (r) => { if (activeSearch.value) selectResult(activeSearch.value, r) },
+  onClear: () => {
+    const s = activeSearch.value === 'A' ? searchA : activeSearch.value === 'B' ? searchB : null
+    if (s) s.query.value = ''
+    activeSearch.value = null
+  },
+  optionId: (i) => `route-opt-${i}`,
+})
+
+// Cooldown mellom tap-to-set: minst 1 s mellom at A og B settes fra kartet,
+// så et dobbelt-registrert tap aldri setter begge på samme punkt.
+let lastMapTapSetAt = 0
+const MAP_TAP_COOLDOWN_MS = 1000
+
+function onMapTap(px) {
+  // Åpen UT.no-pin: tap lukker pinnen i stedet for å sette A/B.
+  if (utNoPin.value) { utNoPin.value = null; return }
+  if (routeInvite.value) return
+  if (Date.now() - lastMapTapSetAt < MAP_TAP_COOLDOWN_MS) return
+  // Tap setter armert felt, ellers første tomme (A først, så B).
+  const field = armedField.value ?? (!pointA.value ? 'A' : (!pointB.value ? 'B' : null))
+  if (!field) return
+  const geo = screenPxToLonLat(px.x, px.y, view.value)
+  lastMapTapSetAt = Date.now()
+  setPoint(field, {
+    lat: geo.lat, lon: geo.lon,
+    name: `Punkt ${geo.lat.toFixed(4)}, ${geo.lon.toFixed(4)}`,
+  })
+}
+
+const gpsState = ref({ status: 'idle', error: '' })
+function onGpsForA() {
+  if (!navigator.geolocation) { gpsState.value = { status: 'idle', error: 'GPS er ikke tilgjengelig' }; return }
+  gpsState.value = { status: 'locating', error: '' }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      gpsState.value = { status: 'idle', error: '' }
+      setPoint('A', { lat: pos.coords.latitude, lon: pos.coords.longitude, name: 'Min posisjon' }, { pan: true })
+    },
+    () => { gpsState.value = { status: 'idle', error: 'Fikk ikke posisjon — sjekk stedstillatelsen' } },
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 },
+  )
+}
+
+// ── Kartlag-toggles (v12.1.16): bekreftet grus / antatt grus / parkering ────
+// Grus-togglene filtrerer klient-side (dataene er alltid hentet); parkering
+// er default AV og hentes først når laget skrus på (samme Overpass-kall som
+// grusveiene, se buildGravelQuery includeParking).
+const LAYERS_LS_KEY = 'lende-ruteplanlegger-lag'
+const LAYER_DEFAULTS = { surfaced: true, assumed: true, parking: false }
+function loadLayers() {
+  try {
+    const v = JSON.parse(localStorage.getItem(LAYERS_LS_KEY) ?? 'null')
+    if (v && typeof v === 'object') return { ...LAYER_DEFAULTS, ...v }
+  } catch { /* noop */ }
+  return { ...LAYER_DEFAULTS }
+}
+const layers = ref(loadLayers())
+watch(layers, () => {
+  try { localStorage.setItem(LAYERS_LS_KEY, JSON.stringify(layers.value)) } catch { /* noop */ }
+}, { deep: true })
+function toggleLayer(key) {
+  layers.value = { ...layers.value, [key]: !layers.value[key] }
+}
+// Panelet er kollapset til en liten lag-knapp som default (v12.1.17 — det
+// alltid-åpne panelet spiste kartflate og kolliderte visuelt med P-markører,
+// se mobil-skjermbildet). Åpen tilstand persisteres ikke — kartet skal alltid
+// starte ryddig.
+const layersPanelOpen = ref(false)
+
+// ── Grusvei-overlay: hent + tegn (alltid aktiv, zoom-gatet) ─────────────────
+const overlayState = ref('idle')     // 'idle' | 'loading' | 'error'
+const overlayWays = ref([])          // [{id, kind, worldPts:[[x,y]…]}] i world-px ved fetchZoom
+const overlayBarriers = ref([])      // stengte bommer: [{id, worldPt:[x,y]}] ved fetchZoom
+const overlayParking = ref([])       // [{id, lat, lon, p:{x,y} meter, utfart}] — uttynnes pr zoom
+const overlayHasParking = ref(false) // om forrige henting inkluderte parkering
+const overlayFetchZoom = ref(null)
+let overlayFetchedBbox = null
+let overlayAbort = null
+let overlayDebounce = null
+
+const overlayGated = computed(() =>
+  zoom.value < MIN_OVERLAY_ZOOM ||
+  (mapSize.value.w > 0 && bboxAreaKm2(viewBbox(view.value)) > MAX_OVERLAY_AREA_KM2))
+
+async function refreshOverlay() {
+  if (!mapSize.value.w) return
+  if (overlayGated.value) {
+    overlayAbort?.abort()
+    overlayWays.value = []
+    overlayBarriers.value = []
+    overlayParking.value = []
+    overlayHasParking.value = false
+    overlayFetchedBbox = null
+    overlayState.value = 'idle'
+    return
+  }
+  const visible = viewBbox(view.value)
+  const sameBand = overlayFetchZoom.value != null && Math.abs(zoom.value - overlayFetchZoom.value) < 2
+  // Dekket av forrige henting → kun re-projisering. Unntak: parkering-laget
+  // er skrudd på etter en henting UTEN parkering — da må vi hente på nytt.
+  const parkingSatisfied = !layers.value.parking || overlayHasParking.value
+  if (sameBand && bboxContains(overlayFetchedBbox, visible) && parkingSatisfied) return
+  overlayAbort?.abort()
+  const ac = new AbortController()
+  overlayAbort = ac
+  overlayState.value = 'loading'
+  const fetchBbox = padBbox(visible, 1.5)
+  const fetchZoom = zoom.value
+  const includeParking = layers.value.parking
+  try {
+    const json = await fetchOverpassWithRetry(
+      'data=' + encodeURIComponent(buildGravelQuery(fetchBbox, { includeParking })),
+      { signal: ac.signal, timeoutMs: 25000 },
+    )
+    if (ac.signal.aborted) return
+    overlayWays.value = extractGravelWays(json).map((w) => ({
+      id: w.id,
+      kind: w.kind,
+      worldPts: simplifyDP(
+        w.points.map(([lon, lat]) => { const p = lonLatToWorldPx(lon, lat, fetchZoom); return [p.x, p.y] }),
+        0.75,
+      ),
+    }))
+    // Stengte bommer på de samme veiene («grusvei bak bom») — markeres i
+    // kartet; ruteprofilene (v6) nekter samtidig å rute gjennom dem.
+    overlayBarriers.value = extractBarrierNodes(json)
+      .filter((b) => b.kind === 'closed')
+      .map((b) => { const p = lonLatToWorldPx(b.lon, b.lat, fetchZoom); return { id: b.id, worldPt: [p.x, p.y] } })
+    overlayParking.value = includeParking ? extractParkingSpots(json) : []
+    overlayHasParking.value = includeParking
+    overlayFetchedBbox = fetchBbox
+    overlayFetchZoom.value = fetchZoom
+    overlayState.value = 'idle'
+  } catch (e) {
+    if (ac.signal.aborted) return
+    console.warn('[Ruteplanlegger] overlay-henting feilet:', e?.message ?? e)
+    overlayState.value = 'error'
+    setTimeout(() => { if (overlayState.value === 'error') overlayState.value = 'idle' }, 4000)
+  }
+}
+
+watch([center, zoom, mapSize], () => {
+  if (overlayDebounce) clearTimeout(overlayDebounce)
+  overlayDebounce = setTimeout(refreshOverlay, 400)
+}, { deep: true })
+
+// Parkering-laget skrus på etter en henting uten parkering → hent på nytt
+// (refreshOverlay ser selv at cachen ikke dekker parkering).
+watch(() => layers.value.parking, (on) => {
+  if (on && !overlayHasParking.value) void refreshOverlay()
+})
+
+// world-px (fetchZoom) → skjerm-px path-streng for gjeldende view.
+const overlayPaths = computed(() => {
+  if (!overlayWays.value.length || !mapSize.value.w) return []
+  const scale = Math.pow(2, zoom.value - overlayFetchZoom.value)
+  const c = lonLatToWorldPx(center.value.lon, center.value.lat, zoom.value)
+  const ox = mapSize.value.w / 2 - c.x
+  const oy = mapSize.value.h / 2 - c.y
+  return overlayWays.value.map((w) => ({
+    id: w.id,
+    kind: w.kind,
+    d: 'M' + w.worldPts.map(([x, y]) => `${(x * scale + ox).toFixed(1)} ${(y * scale + oy).toFixed(1)}`).join(' L'),
+  }))
+})
+
+// Kartlag-filtrert variant til tegning: kind ('surfaced'|'assumed') matcher
+// toggle-nøklene direkte.
+const visibleOverlayPaths = computed(() =>
+  overlayPaths.value.filter((w) => layers.value[w.kind] !== false))
+
+// Parkering i skjerm-px: turkartets uttynningsregel (thinParkering — utfart
+// vises ALLTID, vanlige P min 50 m fra hverandre), generalisert til zoombar
+// visning ved at min-avstanden aldri er mindre enn ~28 skjerm-px, så P-skilt
+// ikke smelter sammen ved utzooming. Kulles til synlig flate (+30 px margin).
+const PARKING_MIN_SEP_PX = 28
+const parkingMarkers = computed(() => {
+  if (!layers.value.parking || !overlayParking.value.length || !mapSize.value.w) return []
+  const mPerPx = metersPerPixel(center.value.lat, zoom.value)
+  const minSepM = Math.max(PARKERING_MIN_SEP_M, mPerPx * PARKING_MIN_SEP_PX)
+  const { w, h } = mapSize.value
+  const out = []
+  for (const s of thinParkering(overlayParking.value, minSepM)) {
+    const p = lonLatToScreenPx(s.lon, s.lat, view.value)
+    if (p.x < -30 || p.y < -30 || p.x > w + 30 || p.y > h + 30) continue
+    out.push({ id: s.id, x: p.x, y: p.y, utfart: s.utfart })
+  }
+  return out
+})
+
+// Fire frittstående hjørne-braketter rundt utfarts-P (samme visuelle språk
+// som turkartets 534u — sorte braketter, se mapBuilder for begrunnelsen).
+function utfartBracketPath(x, y) {
+  const o = 12, l = 5
+  return `M${x - o + l} ${y - o} L${x - o} ${y - o} L${x - o} ${y - o + l}` +
+         ` M${x + o - l} ${y - o} L${x + o} ${y - o} L${x + o} ${y - o + l}` +
+         ` M${x - o + l} ${y + o} L${x - o} ${y + o} L${x - o} ${y + o - l}` +
+         ` M${x + o - l} ${y + o} L${x + o} ${y + o} L${x + o} ${y + o - l}`
+}
+
+// Stengte bommer i skjerm-px (samme projisering som overlayPaths).
+const overlayBarrierPts = computed(() => {
+  if (!overlayBarriers.value.length || !mapSize.value.w || overlayFetchZoom.value == null) return []
+  const scale = Math.pow(2, zoom.value - overlayFetchZoom.value)
+  const c = lonLatToWorldPx(center.value.lon, center.value.lat, zoom.value)
+  const ox = mapSize.value.w / 2 - c.x
+  const oy = mapSize.value.h / 2 - c.y
+  return overlayBarriers.value.map((b) => ({
+    id: b.id,
+    x: b.worldPt[0] * scale + ox,
+    y: b.worldPt[1] * scale + oy,
+  }))
+})
+
+// ── Rute-tegning ────────────────────────────────────────────────────────────
+const routePaths = computed(() => {
+  const r = route.value
+  if (!r || !mapSize.value.w) return []
+  const toPx = ([lon, lat]) => {
+    const p = lonLatToScreenPx(lon, lat, view.value)
+    return `${p.x.toFixed(1)} ${p.y.toFixed(1)}`
+  }
+  if (!r.segments) {
+    return [{ key: 'hele', gravel: true, d: 'M' + r.points.map(toPx).join(' L') }]
+  }
+  return r.segments
+    .filter((s) => s.toIdx > s.fromIdx)
+    .map((s, i) => ({
+      key: `${i}-${s.fromIdx}`,
+      gravel: s.gravel,
+      d: 'M' + r.points.slice(s.fromIdx, s.toIdx + 1).map(toPx).join(' L'),
+    }))
+})
+
+// UT.no-pin i skjerm-px (geo-ankret — følger kartet) + ferdig bygde lenker.
+// UT.no og Vegkart tar med gjeldende zoom så de åpner samme utsnitt;
+// Google Maps/Street View er punkt-lenker (samme som turkartets ark).
+const utNoPinPx = computed(() => utNoPin.value && mapSize.value.w
+  ? lonLatToScreenPx(utNoPin.value.lon, utNoPin.value.lat, view.value) : null)
+const pinLinks = computed(() => {
+  const p = utNoPin.value
+  if (!p) return []
+  return [
+    { label: 'UT.no', href: buildUtNoUrl({ lat: p.lat, lon: p.lon, zoom: zoom.value }) },
+    { label: 'Vegkart', href: buildVegkartUrl({ lat: p.lat, lon: p.lon, zoom: zoom.value }) },
+    { label: 'Google Maps', href: gmapsUrl(p.lat, p.lon) },
+    { label: 'Street View', href: streetViewUrl(p.lat, p.lon) },
+  ].filter((l) => l.href)
+})
+
+// Intern snarvei (v12.1.36): «Åpne turkart» øverst i pin-kortet bygger ALLTID
+// et nytt turkart sentrert på punktet og åpner det direkte — ingen mellomside
+// i byggeren. Standard størrelse fra brukerens kart-preferanse (samme som
+// «søk et sted»-flyten på Turkart-forsiden), navn «<nærmeste sted> <dato>» via
+// reverse-geokoding (dato-fallback om oppslaget svikter), og ?slat/slon så
+// punktet markeres i det ferdige kartet. Full-skjerm-loader mens pipelinen
+// kjører (Overpass, N50, Sjøkart, DEM, buildSvg, saveMap).
+const { mapSizeKm } = useMapSizePreference()
+function squareDims() {
+  return mapSizeKm.value ? { halfKm: mapSizeKm.value / 2, aspect: 1 } : defaultMapDims()
+}
+const buildingTurkart = ref(false)
+const buildTurkartProgress = ref('')
+// AbortController for den pågående byggingen — Avbryt-knappen i loaderen kaller
+// .abort(), som får buildMapFromCenter (og fetch-ene den orkestrerer) til å
+// kaste AbortError. `finally` er gated på identitet så en avbrutt bygg ikke
+// nullstiller loaderen for en påfølgende ny bygg (race ved rask re-start).
+let turkartAbort = null
+async function openTurkartFromPin() {
+  const p = utNoPin.value
+  if (!p || buildingTurkart.value) return
+  utNoPin.value = null
+  buildingTurkart.value = true
+  buildTurkartProgress.value = 'Finner stedsnavn …'
+  const ac = new AbortController()
+  turkartAbort = ac
+  const stamp = new Date().toLocaleDateString('no-NO', { day: '2-digit', month: 'short' })
+  try {
+    let name = null
+    // reverseNearestPlace har egen intern timeout og tar ikke signal; sjekk
+    // aborted etterpå så et avbrudd under navneoppslaget hopper over byggingen.
+    try { name = await reverseNearestPlace(p.lat, p.lon) } catch { /* dato-fallback */ }
+    if (ac.signal.aborted) throw new DOMException('Avbrutt', 'AbortError')
+    const { id } = await buildMapFromCenter({
+      center: { lat: p.lat, lon: p.lon, name: name ?? '' },
+      ...squareDims(),   // standard kvadratisk utsnitt (brukerens kart-preferanse)
+      equidistanceM: equidistanceForWidthKm(mapSizeKm.value),
+      navn: name ? `${name} ${stamp}` : `Turkart ${stamp}`,
+      terrainFirst: true,   // vis terreng straks, fyll inn OSM i bakgrunnen
+      signal: ac.signal,
+      onProgress: (msg) => { buildTurkartProgress.value = msg },
+    })
+    router.push({ name: 'kart-vis', params: { id },
+      query: { slat: p.lat.toFixed(6), slon: p.lon.toFixed(6) } })
+  } catch (e) {
+    if (e?.name !== 'AbortError') {
+      console.error('Turkart-bygging fra ruteplanlegger feilet:', e)
+      alert('Kunne ikke opprette kart: ' + (e.message ?? 'ukjent feil'))
+    }
+  } finally {
+    if (turkartAbort === ac) {
+      turkartAbort = null
+      buildingTurkart.value = false
+      buildTurkartProgress.value = ''
+    }
+  }
+}
+// Avbryt en pågående turkart-bygging: skjul loaderen straks og signaliser
+// abort til pipelinen (best-effort — som resten av appens abort-håndtering).
+function cancelTurkart() {
+  turkartAbort?.abort()
+  buildingTurkart.value = false
+  buildTurkartProgress.value = ''
+}
+
+// Kort-plassering (v12.1.18): clamp horisontalt så kortet aldri klippes mot
+// viewport-kantene (mobil-skjermbilde: long-press nær høyre kant skar av
+// kortet), og flipp under pinnen når det ikke er plass over. Pilen skyves
+// motsatt vei av clampingen så den fortsatt peker på pinnen.
+const PIN_CARD_W = 212
+const PIN_CARD_EST_H = 262   // + turkart-snarveien (v12.1.34)
+const PIN_CARD_MARGIN = 8
+const pinCardPlacement = computed(() => {
+  const px = utNoPinPx.value
+  if (!px || !mapSize.value.w) return null
+  const half = PIN_CARD_W / 2
+  const left = Math.min(
+    Math.max(px.x, PIN_CARD_MARGIN + half),
+    Math.max(PIN_CARD_MARGIN + half, mapSize.value.w - PIN_CARD_MARGIN - half),
+  )
+  const below = px.y - 16 - PIN_CARD_EST_H < PIN_CARD_MARGIN
+  const arrowShift = Math.max(-(half - 18), Math.min(half - 18, px.x - left))
+  return { left, below, arrowShift }
+})
+
+// «Kopier koordinater» i pin-kortet (samme feedback-mønster som turkartets
+// long-press-ark: ikon → hake i 1,4 s).
+const pinCopyState = ref('idle')   // 'idle' | 'copied' | 'failed'
+let pinCopyTimer = null
+async function onCopyPinCoords() {
+  const p = utNoPin.value
+  if (!p) return
+  try {
+    await navigator.clipboard.writeText(`${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`)
+    pinCopyState.value = 'copied'
+  } catch { pinCopyState.value = 'failed' }
+  if (pinCopyTimer) clearTimeout(pinCopyTimer)
+  pinCopyTimer = setTimeout(() => { pinCopyState.value = 'idle' }, 1400)
+}
+watch(utNoPin, () => { pinCopyState.value = 'idle' })
+
+const markerA = computed(() => pointA.value && mapSize.value.w
+  ? lonLatToScreenPx(pointA.value.lon, pointA.value.lat, view.value) : null)
+const markerB = computed(() => pointB.value && mapSize.value.w
+  ? lonLatToScreenPx(pointB.value.lon, pointB.value.lat, view.value) : null)
+
+// Stiplede forbindelseslinjer A → rutestart / ruteslutt → B når BRouter måtte
+// snappe punktet et stykke bort til nærmeste kjørbare vei — gapet skal SYNES
+// i kartet, ikke bare stå i et varsel.
+const snapConnectorPaths = computed(() => {
+  const r = route.value
+  if (!r?.points?.length || !mapSize.value.w) return []
+  const out = []
+  const ends = [
+    [pointA.value, r.points[0], r.snapStartM],
+    [pointB.value, r.points[r.points.length - 1], r.snapEndM],
+  ]
+  for (const [wp, pt, gapM] of ends) {
+    if (!wp || !(gapM > 30)) continue
+    const a = lonLatToScreenPx(wp.lon, wp.lat, view.value)
+    const b = lonLatToScreenPx(pt[0], pt[1], view.value)
+    out.push(`M${a.x.toFixed(1)} ${a.y.toFixed(1)} L${b.x.toFixed(1)} ${b.y.toFixed(1)}`)
+  }
+  return out
+})
+
+// Amber-varsel i rutekortet når ruta ikke starter/slutter ved A/B.
+const snapWarning = computed(() => {
+  const r = route.value
+  if (!r) return null
+  const parts = []
+  if (r.snapStartM > MAX_SNAP_DIST_M) parts.push(`starter ${fmtAvstandM(r.snapStartM)} fra A`)
+  if (r.snapEndM > MAX_SNAP_DIST_M) parts.push(`slutter ${fmtAvstandM(r.snapEndM)} fra B`)
+  if (!parts.length) return null
+  return `Ruta ${parts.join(' og ')} — nærmeste kjørbare vei ligger et stykke fra punktet ditt (stiplet linje i kartet).`
+})
+
+// «Les mer»-toggle for hvordan-hintet i skjemaet (v12.1.21): default lukket
+// hver gang view-et åpnes — bevisst IKKE persistert.
+const hintOpen = ref(false)
+
+// ── Rute-kort, forslag + lagring ────────────────────────────────────────────
+const showSaved = ref(false)
+// Flytende kart-elementer (FAB, lag-knapp, attribusjon, feilbanner) ankres til
+// den AKTIVE skuffen: mens «Mine ruter» er åpen er planlegg-skuffen skjult
+// (én skuff om gangen, v12.1.20), så de følger savedDrawer i stedet.
+const floatBottomPx = computed(() =>
+  (showSaved.value ? savedDrawer : drawer).visibleHeightPx.value)
+// Refresh lista hver gang arket åpnes — ruter kan være lagret i en annen
+// fane/økt siden mount. Skuffen starter alltid i standard-høyde.
+watch(showSaved, (open) => {
+  if (open) {
+    savedDrawer.reset()
+    void planner.refreshSaved()
+  } else {
+    shareSelectMode.value = false
+    shareSelected.value = []
+  }
+})
+const saveName = ref('')
+const savingName = ref(false)
+const savedFlash = ref('')
+const confirmDeleteId = ref(null)
+const confirmDeleteAll = ref(false)
+
+function fmtKm(m) {
+  if (m == null) return '–'
+  const km = m / 1000
+  return km >= 100 ? km.toFixed(0) : km.toFixed(1)
+}
+function fmtTid(s) {
+  if (!s) return null
+  const min = Math.round(s / 60)
+  const t = Math.floor(min / 60)
+  return t > 0 ? `${t} t ${String(min % 60).padStart(2, '0')} min` : `${min} min`
+}
+function fmtGrus(share) {
+  return share != null ? `${Math.round(share * 100)} %` : null
+}
+// Lagrede ruter fra før v12.1.10 mangler estimatedTimeS — regn ut fra
+// grusandelen (samme modell som parseRoute bruker).
+function recTidS(rec) {
+  return rec.estimatedTimeS ?? estimateMcTimeS(rec.lengthM, {
+    gravelM: rec.gravelShare != null ? rec.gravelShare * rec.lengthM : null,
+  })
+}
+
+// ── «Vis hele ruten»-FAB: nullstill zoom/senter så hele ruta (inkl. A/B)
+// rammes inn med margin — mye utzooming på lange ruter. ────────────────────
+function fitPointsView(lonLatPts, { topObstructPx = 0 } = {}) {
+  if (!lonLatPts?.length || !mapSize.value.w) return
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const [lon, lat] of lonLatPts) {
+    const p = lonLatToWorldPx(lon, lat, 0)
+    if (p.x < minX) minX = p.x
+    if (p.x > maxX) maxX = p.x
+    if (p.y < minY) minY = p.y
+    if (p.y > maxY) maxY = p.y
+  }
+  const spanX = Math.max(maxX - minX, 1e-9)
+  const spanY = Math.max(maxY - minY, 1e-9)
+  // Skuffen flyter over kartets nedre del (og delings-banneret ev. over den
+  // øvre, v12.1.27) — sikt innrammingen på den synlige flaten mellom dem, og
+  // skyv senteret slik at innholdet sentreres der.
+  const obstructPx = Math.min(drawer.visibleHeightPx.value, mapSize.value.h * 0.7)
+  const topPx = Math.min(Math.max(0, topObstructPx), mapSize.value.h * 0.5)
+  const effH = Math.max(80, mapSize.value.h - obstructPx - topPx)
+  // Største heltalls-zoom der world-px-spennet (zoom 0 × 2^z) får 15 % margin.
+  const margin = 0.85
+  const zFit = Math.floor(Math.min(
+    Math.log2((mapSize.value.w * margin) / spanX),
+    Math.log2((effH * margin) / spanY),
+  ))
+  zoom.value = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zFit))
+  const scale = Math.pow(2, zoom.value)
+  const c = worldPxToLonLat(
+    ((minX + maxX) / 2) * scale,
+    ((minY + maxY) / 2) * scale + obstructPx / 2 - topPx / 2,
+    zoom.value,
+  )
+  center.value = { lat: c.lat, lon: c.lon }
+}
+
+function fitRouteView() {
+  const pts = [...(route.value?.points?.map((p) => [p[0], p[1]]) ?? [])]
+  for (const m of [pointA.value, pointB.value]) if (m) pts.push([m.lon, m.lat])
+  fitPointsView(pts, { topObstructPx: routeInvite.value ? inviteTopObstructPx() : 0 })
+}
+
+async function onFindRoute() {
+  activeSearch.value = null
+  // Snarvei-flyten (v12.1.24): trykkes «Finn grusrute» fra den MINIMERTE
+  // skuffen (hurtigknappen i peek-headeren), skal skuffen FORBLI minimert —
+  // brukeren har bevisst valgt maksimal kartflate, og peek-headeren viser
+  // uansett km + grusandel. Fra skjemaets sticky footer ekspanderes som før.
+  const wasMinimized = drawer.isMinimized.value
+  // Mottaker av delt rute kan ha huket av «Installer appen» i banneret —
+  // trigg install-prompten først (best-effort, samme mønster som kartvelgeren).
+  if (installRequested.value && canInstall.value) {
+    try { await promptInstall() } catch { /* avvist / utilgjengelig — rut likevel */ }
+  }
+  await planner.computeRoute()
+  if (route.value) {
+    const inv = inviteActive.value
+    if (inv?.proposalId) planner.selectProposal(inv.proposalId)
+    // Delt navn følger med den beregnede ruta (vises i header + foreslås ved
+    // lagring) — selectProposal bygde route.value på nytt, så sett etterpå.
+    if (inv?.navn) route.value = { ...route.value, navn: inv.navn }
+    // Enkelt-deling er fullført når ruta er beregnet — fjern banneret og lås
+    // opp UI-et. Ved FLER-deling består banneret så mottakeren kan velge og
+    // beregne neste rute; X lukker når som helst.
+    if (routeInvite.value && inviteRoutes.value.length === 1) dismissRouteInvite()
+    if (!wasMinimized) drawer.reset()
+    nextTick(() => { measureMap(); fitRouteView() })
+  }
+}
+
+// ── Deling av rute: sender-side URL + mottaker-banner (speiler turkartets
+// «Del kart»-flyt — navigator.share med clipboard-fallback, og hos mottaker
+// et banner med «installer som app»-sjekkboks når appen ikke er standalone). ─
+const { canInstall, isStandalone, promptInstall } = usePwaInstall()
+const installRequested = ref(false)
+const showInstallInfo = ref(false)
+const routeInvite = ref(null)     // { routes: [{ a, b, navn, proposalId }] } | null
+const invitePicked = ref(0)       // indeks i routes som er prefylt som A/B
+const shareState = ref('idle')    // 'idle' | 'copied' | 'error'
+let shareResetTimer = null
+
+const inviteRoutes = computed(() => routeInvite.value?.routes ?? [])
+const inviteActive = computed(() => inviteRoutes.value[invitePicked.value] ?? null)
+// Banneret kan minifiseres til én linje (v12.1.28) — X-en (lukk helt) bor i
+// footeren; pil opp/ned toggler. Ikke persistert, nytt invite starter utvidet.
+const inviteCollapsed = ref(false)
+
+// Banneret flyter oppå kartets øvre del — mål den reelle høyden så
+// innrammingen av valgt rute havner i den SYNLIGE flaten under banneret
+// (v12.1.27: A/B lå gjemt bak banneret).
+const inviteBannerRef = ref(null)
+function inviteTopObstructPx() {
+  const b = inviteBannerRef.value?.getBoundingClientRect()
+  const m = mapRef.value?.getBoundingClientRect()
+  return b && m ? Math.max(0, b.bottom - m.top + 8) : 0
+}
+
+// Reaktiv banner-underkant (v12.1.31): zoom-kontrollene (+/−/nivå) flyttes
+// under banneret så de aldri skjules — banneret har to størrelser (kollapset/
+// utvidet) og kan endre høyde (install-info, rutevalg), så høyden observeres
+// live med ResizeObserver i stedet for å utledes av tilstander.
+const inviteBannerBottomPx = ref(0)
+const zoomCtrlTopPx = computed(() =>
+  inviteBannerBottomPx.value > 0 ? inviteBannerBottomPx.value + 10 : 12)
+let inviteBannerObs = null
+watch(routeInvite, (inv) => {
+  inviteBannerObs?.disconnect()
+  inviteBannerObs = null
+  if (!inv) { inviteBannerBottomPx.value = 0; return }
+  nextTick(() => {
+    const el = inviteBannerRef.value
+    if (!el) return
+    const update = () => {
+      const b = el.getBoundingClientRect()
+      const m = mapRef.value?.getBoundingClientRect()
+      inviteBannerBottomPx.value = b && m ? Math.max(0, b.bottom - m.top) : 0
+    }
+    update()
+    if (typeof ResizeObserver !== 'undefined') {
+      inviteBannerObs = new ResizeObserver(update)
+      inviteBannerObs.observe(el)
+    }
+  })
+}, { immediate: true })
+
+// Velg en delt rute fra banner-lista (flerdelings-mottak): prefyller A/B og
+// nullstiller ev. forrige beregning så «Finn grusrute» gjelder valget.
+function pickInviteRoute(i) {
+  const r = inviteRoutes.value[i]
+  if (!r) return
+  invitePicked.value = i
+  if (route.value) planner.clearRoute()
+  setPoint('A', r.a)
+  setPoint('B', r.b)
+  nextTick(() => {
+    measureMap()
+    fitPointsView([[r.a.lon, r.a.lat], [r.b.lon, r.b.lat]],
+      { topObstructPx: inviteTopObstructPx() })
+  })
+}
+
+function buildRouteShareUrl({ a, b, navn, proposalId }) {
+  if (!a || !b) return null
+  const base = `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, '')}`
+  const params = new URLSearchParams({
+    alat: a.lat.toFixed(6), alon: a.lon.toFixed(6),
+    blat: b.lat.toFixed(6), blon: b.lon.toFixed(6),
+  })
+  if (a.name) params.set('an', String(a.name).slice(0, 60))
+  if (b.name) params.set('bn', String(b.name).slice(0, 60))
+  if (navn) params.set('rn', String(navn).slice(0, 60))
+  if (proposalId) params.set('p', proposalId)
+  return `${base}/ruteplanlegger?${params.toString()}`
+}
+
+async function performShare(url, title, text) {
+  if (!url) return
+  const shareData = { title, text, url }
+  if (typeof navigator.share === 'function') {
+    try {
+      if (typeof navigator.canShare === 'function' && !navigator.canShare(shareData)) {
+        throw new Error('share-data-rejected')
+      }
+      await navigator.share(shareData)
+      return
+    } catch (err) {
+      if (err?.name === 'AbortError') return
+      // fall gjennom til clipboard-fallback
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url)
+    shareState.value = 'copied'
+  } catch {
+    shareState.value = 'error'
+  }
+  if (shareResetTimer) clearTimeout(shareResetTimer)
+  shareResetTimer = setTimeout(() => { shareState.value = 'idle' }, 2200)
+}
+
+// Delingstekst = kun navnet (v12.1.26) — «Grusrute:»-ledeteksten var støy;
+// navn + URL er alt mottakeren trenger.
+function onShareRoute() {
+  const r = route.value
+  if (!r) return
+  const navn = r.navn ?? `${labelFor(pointA.value)} → ${labelFor(pointB.value)}`
+  void performShare(
+    buildRouteShareUrl({ a: pointA.value, b: pointB.value, navn, proposalId: r.id }),
+    navn, navn,
+  )
+}
+
+function onShareSaved(rec) {
+  const a = rec.waypoints?.[0]
+  const b = rec.waypoints?.at(-1)
+  void performShare(
+    buildRouteShareUrl({ a, b, navn: rec.navn, proposalId: rec.proposalId }),
+    rec.navn, rec.navn,
+  )
+}
+
+// ── «Del mine ruter» (v12.1.26): velg inntil 10 lagrede ruter og del som ÉN
+// URL (?r=<token>&r=<token>…, se lib/routeShare.js). ────────────────────────
+const shareSelectMode = ref(false)
+const shareSelected = ref([])          // rute-id-er i valgt rekkefølge
+
+function startShareSelect() {
+  shareSelectMode.value = true
+  shareSelected.value = []
+}
+function cancelShareSelect() {
+  shareSelectMode.value = false
+  shareSelected.value = []
+}
+function toggleShareSelect(id) {
+  const cur = shareSelected.value
+  if (cur.includes(id)) shareSelected.value = cur.filter((x) => x !== id)
+  else if (cur.length < MAX_SHARE_ROUTES) shareSelected.value = [...cur, id]
+}
+// ── Sortering + stjernefilter for «Mine ruter» (v12.1.28). Sorteringen
+// persisteres i localStorage; filteret er økt-lokalt. «Km grusvei» beregnes
+// fra grusandel × totallengde (samme tall som gravelM i rutevisningen). ────
+const SORT_LS_KEY = 'lende-ruteplanlegger-sortering'
+const SORT_FIELDS = [
+  { key: 'opprettet', label: 'Dato' },
+  { key: 'lengde', label: 'Lengde' },
+  { key: 'grus-km', label: 'Km grus' },
+  { key: 'grus', label: '% grus' },
+  { key: 'stjerner', label: 'Stjerner' },
+]
+function loadSort() {
+  try {
+    const v = JSON.parse(localStorage.getItem(SORT_LS_KEY) ?? 'null')
+    if (v && SORT_FIELDS.some((f) => f.key === v.key) && ['asc', 'desc'].includes(v.dir)) return v
+  } catch { /* noop */ }
+  return { key: 'opprettet', dir: 'desc' }
+}
+const savedSort = ref(loadSort())
+watch(savedSort, (v) => {
+  try { localStorage.setItem(SORT_LS_KEY, JSON.stringify(v)) } catch { /* noop */ }
+}, { deep: true })
+const starFilter = ref(0)              // 0 = alle, -1 = uvurderte, ellers EKSAKT antall stjerner
+
+const SORT_VALUE = {
+  opprettet: (r) => r.opprettet ?? 0,
+  lengde: (r) => r.lengthM ?? 0,
+  'grus-km': (r) => (r.gravelShare ?? 0) * (r.lengthM ?? 0),
+  grus: (r) => r.gravelShare ?? -1,
+  stjerner: (r) => r.stjerner ?? 0,
+}
+const visibleSavedRoutes = computed(() => {
+  const val = SORT_VALUE[savedSort.value.key] ?? SORT_VALUE.opprettet
+  const dir = savedSort.value.dir === 'asc' ? 1 : -1
+  // Eksakt stjerne-match (v12.1.30, var «X eller flere»): hva brukeren legger
+  // i tre vs fire stjerner er deres egen vurdering — filteret skal ikke tolke.
+  // «Ingen» (v12.1.32, verdi -1) viser rutene som ennå ikke er vurdert.
+  return savedRoutes.value
+    .filter((r) => {
+      if (!starFilter.value) return true
+      const s = r.stjerner ?? 0
+      return starFilter.value === -1 ? s === 0 : s === starFilter.value
+    })
+    .slice()
+    .sort((a, b) => dir * (val(a) - val(b)) || (b.opprettet - a.opprettet))
+})
+
+function onShareSelectedRoutes() {
+  const recs = shareSelected.value
+    .map((id) => savedRoutes.value.find((r) => r.id === id))
+    .filter(Boolean)
+  const tokens = recs.map(routeShareToken).filter(Boolean)
+  if (!tokens.length) return
+  const base = `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, '')}`
+  const url = `${base}/ruteplanlegger?${tokens.map((t) => 'r=' + encodeURIComponent(t)).join('&')}`
+  const navn = recs.map((r) => r.navn).filter(Boolean)
+  const tekst = tokens.length === 1
+    ? (navn[0] ?? 'Grusrute')
+    : `${tokens.length} grusruter: ${navn.slice(0, 3).join(', ')}${navn.length > 3 ? ' …' : ''}`
+  void performShare(url, tekst, tekst)
+}
+
+// Mottaker: enten fler-rute-format ?r=<token>&r=<token>… (v12.1.26, se
+// lib/routeShare.js) eller legacy enkelt-rute ?alat/alon/blat/blon(+an/bn/
+// rn/p). Begge gir { routes: [...] } — første rute prefylles som A/B, og ved
+// flere ruter velger mottakeren fra banner-lista. Rutene beregnes én og én
+// når mottakeren trykker «Finn grusrute» (ett BRouter-kall per bruker-
+// handling — samme fair-use-holdning som ellers).
+function parseRouteInvite() {
+  const q = currentRoute.query
+  const rRaw = q.r == null ? [] : (Array.isArray(q.r) ? q.r : [q.r])
+  const routes = rRaw.map(parseRouteToken).filter(Boolean).slice(0, MAX_SHARE_ROUTES)
+  if (routes.length) return { routes }
+  const alat = parseFloat(q.alat); const alon = parseFloat(q.alon)
+  const blat = parseFloat(q.blat); const blon = parseFloat(q.blon)
+  if (![alat, alon, blat, blon].every(Number.isFinite)) return null
+  return {
+    routes: [{
+      a: { lat: alat, lon: alon, name: q.an ? String(q.an).slice(0, 60) : 'Delt start' },
+      b: { lat: blat, lon: blon, name: q.bn ? String(q.bn).slice(0, 60) : 'Delt mål' },
+      navn: q.rn ? String(q.rn).slice(0, 60) : null,
+      proposalId: q.p ? String(q.p) : null,
+    }],
+  }
+}
+
+function dismissRouteInvite() {
+  routeInvite.value = null
+  invitePicked.value = 0
+  inviteCollapsed.value = false
+  installRequested.value = false
+  router.replace({ query: {} })
+}
+
+const saveNameInput = ref(null)
+
+// Navneforslag (v12.1.26): «Punkt 59.92, 9.88 – Punkt …» er ubrukelig å holde
+// oversikt over. Foreslå «Fra <sted> til <sted>»: bruk punktets eget navn når
+// det finnes (stedssøk/GPS), ellers nærmeste stedsnavn via Nominatim reverse.
+// Kjøres i bakgrunnen etter at input-en er åpnet med fallback-navnet — og
+// overskriver KUN hvis brukeren ikke har rukket å redigere.
+const COORD_POINT_RE = /^(Punkt|Delt)\s/
+function shortPointName(p) {
+  const n = (p?.name ?? '').trim()
+  if (!n || COORD_POINT_RE.test(n)) return null
+  return n.split(',')[0].trim() || null
+}
+async function suggestSaveName(fallback) {
+  const a = pointA.value
+  const b = pointB.value
+  if (!a || !b) return
+  let na = shortPointName(a)
+  let nb = shortPointName(b)
+  try {
+    // Sekvensielt, ikke parallelt — Nominatims fair-use er ~1 kall/s.
+    if (!na) na = await reverseNearestPlace(a.lat, a.lon)
+    if (!nb) nb = await reverseNearestPlace(b.lat, b.lon)
+  } catch { return }
+  if (!na || !nb) return
+  if (savingName.value && saveName.value === fallback) {
+    saveName.value = `Fra ${na} til ${nb}`
+  }
+}
+function startSave() {
+  const fallback = route.value?.navn ??
+    `${pointA.value?.name ?? 'A'} – ${pointB.value?.name ?? 'B'}`
+  saveName.value = fallback
+  savingName.value = true
+  nextTick(() => saveNameInput.value?.focus())
+  if (!route.value?.navn) void suggestSaveName(fallback)
+}
+async function confirmSave() {
+  const rec = await planner.saveCurrentRoute(saveName.value.trim())
+  savingName.value = false
+  if (rec) { savedFlash.value = 'Ruta er lagret'; setTimeout(() => { savedFlash.value = '' }, 2000) }
+}
+
+function onOpenSaved(rec) {
+  planner.openSaved(rec)
+  showSaved.value = false
+  searchA.query.value = labelFor(pointA.value)
+  searchB.query.value = labelFor(pointB.value)
+  drawer.reset()
+  nextTick(() => { measureMap(); fitPointsView(rec.points) })
+}
+
+async function onDeleteSaved(id) {
+  if (confirmDeleteId.value !== id) { confirmDeleteId.value = id; return }
+  confirmDeleteId.value = null
+  await planner.deleteSaved(id)
+}
+async function onDeleteAll() {
+  if (!confirmDeleteAll.value) { confirmDeleteAll.value = true; return }
+  confirmDeleteAll.value = false
+  await planner.deleteAllSaved()
+}
+
+function onReset() {
+  planner.clearRoute()
+  setPoint('A', null)
+  setPoint('B', null)
+}
+
+const isOffline = ref(!navigator.onLine)
+const onlineHandler = () => { isOffline.value = false }
+const offlineHandler = () => { isOffline.value = true }
+
+// Lås dokument-scroll mens planleggeren er åpen (samme fiks som MapView):
+// roten er h-[100dvh] overflow-hidden, men på mobil kan body likevel få en
+// residual scroll-offset (SPA-navigasjon, tastatur-fokus i søkefeltene,
+// adresselinje-kollaps) som skyver toppbaren ut av synsfeltet.
+let prevHtmlOverflow = ''
+let prevBodyOverflow = ''
+function lockBodyScroll() {
+  const html = document.documentElement
+  prevHtmlOverflow = html.style.overflow
+  prevBodyOverflow = document.body.style.overflow
+  html.style.overflow = 'hidden'
+  document.body.style.overflow = 'hidden'
+  window.scrollTo(0, 0)
+}
+function unlockBodyScroll() {
+  document.documentElement.style.overflow = prevHtmlOverflow
+  document.body.style.overflow = prevBodyOverflow
+}
+
+onMounted(() => {
+  lockBodyScroll()
+  // Snarvei-query er konsumert (utsnittet er satt) — rens URL-en så F5 /
+  // tilbake-navigasjon ikke hopper tilbake til punktet etter at brukeren
+  // har panorert videre. Samme mønster som dismissInvite i MapPickerView.
+  if (centerQuery) router.replace({ name: 'ruteplanlegger', query: {} })
+  nextTick(() => {
+    measureMap()
+    if (typeof ResizeObserver !== 'undefined' && mapRef.value) {
+      mapResizeObs = new ResizeObserver(measureMap)
+      mapResizeObs.observe(mapRef.value)
+    }
+    // Delt(e) rute(r) i URL-en: prefill første som A/B og ram inn ALLE
+    // punktene så mottakeren ser hele omfanget av det som er delt.
+    const invite = parseRouteInvite()
+    if (invite) {
+      routeInvite.value = invite
+      invitePicked.value = 0
+      const first = invite.routes[0]
+      setPoint('A', first.a)
+      setPoint('B', first.b)
+      nextTick(() => {
+        measureMap()
+        fitPointsView(invite.routes.flatMap((r) => [[r.a.lon, r.a.lat], [r.b.lon, r.b.lat]]),
+          { topObstructPx: inviteTopObstructPx() })
+      })
+    }
+  })
+  window.addEventListener('resize', measureMap)
+  window.addEventListener('online', onlineHandler)
+  window.addEventListener('offline', offlineHandler)
+  void planner.refreshSaved()
+})
+onUnmounted(() => {
+  unlockBodyScroll()
+  mapResizeObs?.disconnect()
+  inviteBannerObs?.disconnect()
+  window.removeEventListener('resize', measureMap)
+  window.removeEventListener('online', onlineHandler)
+  window.removeEventListener('offline', offlineHandler)
+  overlayAbort?.abort()
+  if (overlayDebounce) clearTimeout(overlayDebounce)
+  if (shareResetTimer) clearTimeout(shareResetTimer)
+  if (pinCopyTimer) clearTimeout(pinCopyTimer)
+  cancelLongPress()
+})
+</script>
+
+<template>
+  <div class="relative h-[100dvh] bg-[#0e1116] text-white/90 overflow-hidden flex flex-col">
+
+    <!-- Toppbar: tilbake · tittel · lagrede ruter (badge) -->
+    <div class="shrink-0 z-30 bg-zinc-950/90 backdrop-blur border-b border-white/10">
+      <div class="flex items-center gap-2 px-3 py-2.5">
+        <button @click="router.push('/')" aria-label="Tilbake" :disabled="!!routeInvite"
+                class="w-9 h-9 rounded-full flex items-center justify-center bg-white/5 border border-white/10
+                       text-white/70 active:scale-95 transition shrink-0 disabled:opacity-35">
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div class="flex-1 text-center text-[15px] font-semibold text-white truncate">Ruteplanlegger</div>
+        <button @click="showSaved = true" aria-label="Lagrede ruter" :disabled="!!routeInvite"
+                class="w-9 h-9 rounded-full flex items-center justify-center bg-white/5 border border-white/10
+                       text-white/70 active:scale-95 transition shrink-0 relative disabled:opacity-35">
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          <span v-if="savedRoutes.length"
+                class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-sky-500 text-[9px]
+                       font-bold text-white flex items-center justify-center">{{ savedRoutes.length }}</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Kart -->
+    <div ref="mapRef"
+         class="relative flex-1 overflow-hidden bg-zinc-800 cursor-move touch-none select-none"
+         @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd" @touchcancel="onTouchEnd"
+         @mousedown="onMouseDown" @mousemove="onMouseMove" @mouseup="onMouseUp" @mouseleave="onMouseUp"
+         @wheel="onWheel" @contextmenu.prevent="onContextMenu">
+      <!-- OSM-underlag (global dekning) + Kartverket-topo over (skjules ved feil) -->
+      <img v-for="t in tiles" :key="'osm-' + t.url" :src="t.osmUrl" alt=""
+           class="absolute pointer-events-none select-none"
+           :style="{ left: t.leftPx + 'px', top: t.topPx + 'px', width: TILE_SIZE + 'px', height: TILE_SIZE + 'px' }"
+           draggable="false" />
+      <img v-for="t in tiles" :key="t.url" :src="t.url" alt=""
+           class="absolute pointer-events-none select-none"
+           :style="{ left: t.leftPx + 'px', top: t.topPx + 'px', width: TILE_SIZE + 'px', height: TILE_SIZE + 'px' }"
+           draggable="false" @error="onTopoTileError" />
+
+      <!-- Grusvei-overlay + rute (skjerm-px-rom, samme som tilene).
+           Bekreftet grus: heltrukket. Antatt grus: stiplet — SAMME farge og
+           bredde som bekreftet (v12.1.14; den tynnere/lysere varianten leste
+           som en annen veitype, ikke som usikkerhet). Stiplingen alene
+           skiller klassene, og virker også for fargeblinde.
+           Hvit halo UNDER begge (v12.1.11) løfter dem fra topoens småveier;
+           antatt-haloen bruker samme dasharray på samme path så dashene
+           ligger perfekt oppå hverandre og gapene forblir gjennomsiktige.
+           Farge (v12.1.12): cyan — oransje smeltet sammen med topoens
+           stier/skiløyper og rute-oransjen (#e8802b); cyan finnes ikke i
+           Kartverket-topoen og skiller også overlay fra beregnet rute. -->
+      <svg class="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true">
+        <path v-for="w in visibleOverlayPaths" :key="'ovh-' + w.id" :d="w.d" fill="none"
+              stroke="#ffffff" stroke-width="5.5"
+              stroke-linecap="round" stroke-linejoin="round"
+              :stroke-dasharray="w.kind === 'assumed' ? '4 7' : undefined"
+              opacity="0.85" />
+        <path v-for="w in visibleOverlayPaths" :key="'ov-' + w.id" :d="w.d" fill="none"
+              stroke="#0e7490" stroke-width="3.5"
+              stroke-linecap="round" stroke-linejoin="round"
+              :stroke-dasharray="w.kind === 'assumed' ? '4 7' : undefined"
+              opacity="0.95" />
+        <!-- Stengte bommer (v12.1.15): mini «innkjøring forbudt»-skilt der
+             grusveien har bom/sperring uten lovlig motor-tilgang. -->
+        <g v-for="b in overlayBarrierPts" :key="'bar-' + b.id" aria-hidden="true">
+          <circle :cx="b.x" :cy="b.y" r="5.5" fill="#dc2626" stroke="#ffffff" stroke-width="1.5" />
+          <rect :x="b.x - 3.2" :y="b.y - 1" width="6.4" height="2" rx="1" fill="#ffffff" />
+        </g>
+        <!-- Parkering (v12.1.16, samme regler som turkartets 534/534u): blått
+             P-skilt; utfartsparkering får fire sorte hjørne-braketter (med
+             hvit halo så de leses mot mørk topo). -->
+        <g v-for="pk in parkingMarkers" :key="'pk-' + pk.id" aria-hidden="true">
+          <template v-if="pk.utfart">
+            <path :d="utfartBracketPath(pk.x, pk.y)" fill="none" stroke="#ffffff"
+                  stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.85" />
+            <path :d="utfartBracketPath(pk.x, pk.y)" fill="none" stroke="#111827"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </template>
+          <rect :x="pk.x - 8" :y="pk.y - 8" width="16" height="16" rx="3.5"
+                fill="#1d4ed8" stroke="#ffffff" stroke-width="1.5" />
+          <text :x="pk.x" :y="pk.y + 4.5" text-anchor="middle" fill="#ffffff"
+                font-size="12" font-weight="700"
+                font-family="system-ui, -apple-system, sans-serif">P</text>
+        </g>
+        <template v-if="routePaths.length">
+          <path v-for="s in routePaths" :key="'halo-' + s.key" :d="s.d" fill="none"
+                stroke="#0e1116" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.55" />
+          <path v-for="s in routePaths" :key="'rt-' + s.key" :d="s.d" fill="none"
+                :stroke="s.gravel ? '#e8802b' : '#94a3b8'" stroke-width="4.5"
+                stroke-linecap="round" stroke-linejoin="round" />
+          <path v-for="(d, i) in snapConnectorPaths" :key="'snap-' + i" :d="d" fill="none"
+                stroke="#fbbf24" stroke-width="2.5" stroke-dasharray="2 7"
+                stroke-linecap="round" opacity="0.9" />
+        </template>
+      </svg>
+
+      <!-- A/B-markører -->
+      <div v-if="markerA" class="absolute pointer-events-none -translate-x-1/2 -translate-y-full"
+           :style="{ left: markerA.x + 'px', top: markerA.y + 'px' }">
+        <div class="w-6 h-6 rounded-full bg-emerald-500 border-2 border-white shadow-lg flex items-center
+                    justify-center text-[11px] font-bold text-white">A</div>
+      </div>
+      <div v-if="markerB" class="absolute pointer-events-none -translate-x-1/2 -translate-y-full"
+           :style="{ left: markerB.x + 'px', top: markerB.y + 'px' }">
+        <div class="w-6 h-6 rounded-full bg-rose-500 border-2 border-white shadow-lg flex items-center
+                    justify-center text-[11px] font-bold text-white">B</div>
+      </div>
+
+      <!-- UT.no-pin (v12.1.16): long-press / høyreklikk i kartet. Geo-ankret
+           trådkors + kort med koordinater og «Åpne i UT.no»-lenke som tar med
+           gjeldende zoom (ut.no/kart#zoom/lat/lon). Tap i kartet lukker. -->
+      <template v-if="utNoPin && utNoPinPx">
+        <div class="absolute pointer-events-none -translate-x-1/2 -translate-y-1/2"
+             :style="{ left: utNoPinPx.x + 'px', top: utNoPinPx.y + 'px' }">
+          <div class="w-5 h-5 rounded-full border-2 border-sky-400 bg-sky-400/25 shadow-lg
+                      flex items-center justify-center">
+            <div class="w-1.5 h-1.5 rounded-full bg-sky-300"></div>
+          </div>
+        </div>
+        <div v-if="pinCardPlacement" class="absolute z-20"
+             @mousedown.stop @touchstart.stop @wheel.stop @contextmenu.stop.prevent
+             :style="{ left: pinCardPlacement.left + 'px',
+                       top: (pinCardPlacement.below ? utNoPinPx.y + 16 : utNoPinPx.y - 16) + 'px',
+                       transform: pinCardPlacement.below ? 'translate(-50%, 0)' : 'translate(-50%, -100%)' }">
+          <!-- pil opp mot pinnen (kort UNDER pinnen) -->
+          <div v-if="pinCardPlacement.below"
+               class="mx-auto w-2.5 h-2.5 -mb-[5px] relative bg-zinc-950/95 border-l border-t border-white/15"
+               :style="{ transform: `translateX(${pinCardPlacement.arrowShift}px) rotate(45deg)` }"></div>
+          <div class="rounded-xl bg-zinc-950/95 backdrop-blur border border-white/15 shadow-2xl
+                      px-3 py-2.5" :style="{ width: PIN_CARD_W + 'px' }">
+            <div class="flex items-center gap-1.5">
+              <div class="flex-1 text-[10px] text-white/80 font-mono tabular-nums truncate">
+                {{ utNoPin.lat.toFixed(5) }}, {{ utNoPin.lon.toFixed(5) }}
+              </div>
+              <button @click="onCopyPinCoords" aria-label="Kopier koordinater"
+                      class="w-6 h-6 shrink-0 rounded-full flex items-center justify-center border
+                             active:scale-90 transition"
+                      :class="pinCopyState === 'copied'
+                              ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-200'
+                              : pinCopyState === 'failed'
+                                ? 'bg-rose-500/20 border-rose-400/50 text-rose-200'
+                                : 'bg-white/5 border-white/10 text-white/55'">
+                <svg v-if="pinCopyState !== 'copied'" viewBox="0 0 24 24" class="w-3 h-3" fill="none"
+                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="11" height="11" rx="2"/>
+                  <path d="M5 15 V5 a2 2 0 0 1 2 -2 h10"/>
+                </svg>
+                <svg v-else viewBox="0 0 24 24" class="w-3 h-3" fill="none" stroke="currentColor"
+                     stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              </button>
+              <button @click="utNoPin = null" aria-label="Lukk"
+                      class="w-6 h-6 -mr-1 shrink-0 rounded-full flex items-center justify-center
+                             text-white/50 hover:text-white/80 active:scale-90 transition">
+                <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+              </button>
+            </div>
+            <!-- Intern snarvei øverst (v12.1.34/36): bygger ALLTID et nytt turkart
+                 sentrert på punktet og åpner det. Startside-ikonet + chevron (ikke
+                 ekstern-pil) viser at lenken er intern i Lende. -->
+            <button @click="openTurkartFromPin" :disabled="buildingTurkart"
+                    class="mt-2 w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px]
+                           border bg-sky-500/[0.12] border-sky-400/35 text-sky-100
+                           active:scale-[0.98] transition disabled:opacity-60">
+              <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
+                   stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6 L9 4 L15 6 L21 4 L21 18 L15 20 L9 18 L3 20 Z"/>
+                <path d="M9 4 V18 M15 6 V20"/>
+              </svg>
+              <span class="flex-1 min-w-0 text-left">
+                <span class="font-medium">Åpne turkart</span>
+                <span class="block text-[9px] text-sky-200/60 truncate">Lende — nytt kart her</span>
+              </span>
+              <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0 text-sky-200/60" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </button>
+            <div class="mt-1.5 text-[9px] uppercase tracking-wide text-white/45">Åpne i</div>
+            <div class="mt-1 space-y-1">
+              <a v-for="l in pinLinks" :key="l.label" :href="l.href"
+                 target="_blank" rel="noopener noreferrer" @click="utNoPin = null"
+                 class="flex items-center justify-between gap-3 px-3 py-1.5 rounded-lg text-[12px]
+                        font-medium border bg-white/[0.06] border-white/15 text-white/85
+                        active:scale-[0.98] transition">
+                {{ l.label }}
+                <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0 text-white/50" fill="none"
+                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                  <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+              </a>
+            </div>
+          </div>
+          <!-- pil ned mot pinnen (kort OVER pinnen) -->
+          <div v-if="!pinCardPlacement.below"
+               class="mx-auto w-2.5 h-2.5 -mt-[5px] relative bg-zinc-950/95 border-r border-b border-white/15"
+               :style="{ transform: `translateX(${pinCardPlacement.arrowShift}px) rotate(45deg)` }"></div>
+        </div>
+      </template>
+
+      <!-- Zoom-knapper + nivå-badge. mousedown/touchstart stoppes så knappe-
+           trykk ikke tolkes som kart-tap (tap-to-set for A/B). Toppen følger
+           delings-banneret dynamisk (v12.1.31): default topp-høyre, men under
+           banneret når det vises — både kollapset og utvidet størrelse måles
+           live (ResizeObserver), så +/−/nivå alltid er synlige. -->
+      <div class="absolute right-3 z-10 flex flex-col items-center gap-1.5 transition-[top] duration-200"
+           :style="{ top: zoomCtrlTopPx + 'px' }"
+           @mousedown.stop @touchstart.stop>
+        <button @click.stop="stepZoom(1)" aria-label="Zoom inn"
+                class="w-9 h-9 rounded-lg bg-zinc-950/90 border border-white/15 text-white text-lg font-medium
+                       flex items-center justify-center active:scale-95 transition">+</button>
+        <button @click.stop="stepZoom(-1)" aria-label="Zoom ut"
+                class="w-9 h-9 rounded-lg bg-zinc-950/90 border border-white/15 text-white text-lg font-medium
+                       flex items-center justify-center active:scale-95 transition">−</button>
+        <div class="px-1.5 py-0.5 rounded-md bg-zinc-950/85 border border-white/15 text-white/60 text-[10px]
+                    tabular-nums pointer-events-none">z{{ zoom }}</div>
+      </div>
+
+      <!-- FAB: nullstill zoom og vis hele ruten.
+           Følger skuffens overkant siden skuffen flyter over kartet. -->
+      <button v-if="route" @click.stop="fitRouteView"
+              @mousedown.stop @touchstart.stop
+              aria-label="Vis hele ruten"
+              :style="{ bottom: (floatBottomPx + 12) + 'px' }"
+              class="absolute right-3 z-10 w-12 h-12 rounded-full bg-zinc-950/90 border
+                     border-white/15 text-white shadow-lg flex items-center justify-center
+                     active:scale-95 transition">
+        <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/>
+          <path d="M16 21h3a2 2 0 0 0 2-2v-3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/>
+          <path d="M8 15 C9.5 12 14.5 12 16 9" opacity="0.9"/>
+        </svg>
+      </button>
+
+      <!-- Mottaker av delt rute: banner som flyter OPPÅ kartet (v12.1.3 — lå
+           før i flyten og dyttet kartet ned). Delingsmodus låser resten av
+           UI-et (toppbar-knapper, modus-pille, Fra/Til) til CTA eller X —
+           men kart-pan/zoom og skuff-drag er fortsatt fritt. -->
+      <!-- z-[15] (v12.1.31, var z-30): banneret skal ligge over kartet men
+           UNDER skuffen (z-20), så en maksimert skuff dekker det i stedet for
+           å klinsje. -->
+      <div v-if="routeInvite" class="absolute top-3 left-3 right-3 z-[15] flex justify-center"
+           @mousedown.stop @touchstart.stop @wheel.stop>
+        <div ref="inviteBannerRef"
+             class="relative w-full max-w-[560px] rounded-xl border border-sky-300/40 bg-zinc-950/92
+                    backdrop-blur shadow-2xl"
+             :class="inviteCollapsed ? 'px-3 py-2' : 'px-4 py-3'">
+          <!-- Minifisert (v12.1.28): én linje + pil ned — trykk for å utvide.
+               Frigjør kartflaten mens man studerer den valgte ruta. -->
+          <button v-if="inviteCollapsed" @click="inviteCollapsed = false"
+                  aria-label="Utvid delings-panelet" :aria-expanded="false"
+                  class="w-full flex items-center gap-2 text-left active:opacity-70 transition">
+            <!-- Mini-utgave av delingsikonet (w-5 = radhøyden, øker ikke
+                 kollapset høyde) -->
+            <span class="shrink-0 w-5 h-5 -my-1 rounded-full bg-sky-400/20 border border-sky-300/40
+                         flex items-center justify-center text-sky-200">
+              <svg viewBox="0 0 24 24" class="w-3 h-3" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+              </svg>
+            </span>
+            <span class="flex-1 truncate text-[12px] font-semibold text-sky-100">
+              Noen har delt {{ inviteRoutes.length > 1 ? `${inviteRoutes.length} grusruter` : 'en grusrute' }} med deg!
+            </span>
+            <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0 text-sky-200/80" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                 stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <template v-else>
+          <!-- Minimer-pil øverst til høyre (X-en bor i footeren, v12.1.28) -->
+          <button @click="inviteCollapsed = true" aria-label="Minimer delings-panelet"
+                  :aria-expanded="true"
+                  class="absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center
+                         text-sky-200/70 hover:text-sky-100 hover:bg-sky-400/15 active:scale-95 transition">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round"><polyline points="6 15 12 9 18 15"/></svg>
+          </button>
+          <div class="flex items-center gap-3 pr-8">
+            <div class="shrink-0 w-10 h-10 rounded-full bg-sky-400/20 border border-sky-300/40
+                        flex items-center justify-center text-sky-200">
+              <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[13px] font-semibold text-sky-100">
+                Noen har delt {{ inviteRoutes.length > 1 ? `${inviteRoutes.length} grusruter` : 'en grusrute' }} med deg!
+              </div>
+              <div v-if="inviteRoutes.length === 1 && inviteActive?.navn"
+                   class="text-[11px] text-sky-100/75 truncate">
+                Rute: {{ inviteActive.navn }}
+              </div>
+            </div>
+          </div>
+          <!-- Flerdeling: velg rute fra lista — én beregnes om gangen. Maks
+               ~3 rader synlige (v12.1.27), resten scroller — banneret skal
+               ikke spise kartflaten der den valgte ruta rammes inn. -->
+          <div v-if="inviteRoutes.length > 1" class="mt-2.5 space-y-1 max-h-[6.75rem] overflow-y-auto">
+            <button v-for="(r, i) in inviteRoutes" :key="i" @click="pickInviteRoute(i)"
+                    class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg border text-left
+                           text-[12px] font-medium active:scale-[0.99] transition"
+                    :class="invitePicked === i
+                            ? 'bg-sky-400/20 border-sky-300/50 text-sky-100'
+                            : 'bg-white/[0.05] border-white/15 text-white/75'">
+              <span class="flex-1 truncate">{{ r.navn ?? `Rute ${i + 1}` }}</span>
+              <svg v-if="invitePicked === i" viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0"
+                   fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                   stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+          </div>
+          <!-- Footer: infotekst + Lukk (X) — samlet nederst (v12.1.28) -->
+          <div class="mt-2 flex items-center gap-2">
+            <div class="flex-1 text-[11px] text-white/70 leading-relaxed">
+              <template v-if="inviteRoutes.length > 1">
+                Velg en rute og trykk «Finn grusrute» — rutene beregnes én om gangen. God tur!
+              </template>
+              <template v-else>
+                Start og mål er fylt inn. Trykk «Finn grusrute», så beregnes den samme grusruta for deg. God tur!
+              </template>
+            </div>
+            <button @click="dismissRouteInvite" aria-label="Avbryt delt rute"
+                    class="shrink-0 w-8 h-8 rounded-full border border-white/15 bg-white/5
+                           flex items-center justify-center text-sky-200/70 hover:text-sky-100
+                           active:scale-95 transition">
+              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+          <div v-if="!isStandalone" class="mt-2.5 pt-2.5 border-t border-sky-300/15">
+            <label class="flex items-start gap-2.5 cursor-pointer">
+              <input type="checkbox" v-model="installRequested"
+                     class="mt-0.5 w-4 h-4 shrink-0 accent-sky-400 cursor-pointer" />
+              <span class="flex-1 text-[11px] text-sky-100/85 leading-relaxed">
+                Installer appen for en bedre opplevelse
+                <button type="button" @click.prevent="showInstallInfo = !showInstallInfo"
+                        aria-label="Hva betyr det?" :aria-expanded="showInstallInfo"
+                        class="inline-flex items-center justify-center align-middle ml-1
+                               w-4 h-4 rounded-full border border-sky-300/50 text-sky-200/90
+                               text-[9px] font-bold leading-none active:scale-90 transition">
+                  i
+                </button>
+              </span>
+            </label>
+            <Transition name="overlay-fade">
+              <div v-if="showInstallInfo"
+                   class="mt-2 ml-[26px] text-[10px] text-sky-100/60 leading-relaxed">
+                Installasjon legger appen på hjemskjermen din, så den åpner i fullskjerm og fungerer
+                offline. Du kan også gjøre dette senere fra forsiden.
+              </div>
+            </Transition>
+          </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Status-chips: armert tap-to-set / overlay-gate / lasting / feil
+           (modus-pillen er fjernet i v12.1.11 — chipsene flyter øverst) -->
+      <div class="absolute left-1/2 -translate-x-1/2 top-3 z-10 flex flex-col items-center gap-1.5 pointer-events-none">
+        <div v-if="armedField"
+             class="px-3 py-1.5 rounded-full bg-sky-500/90 text-white text-[12px] font-medium shadow-lg">
+          Trykk i kartet for å sette {{ armedField === 'A' ? 'start' : 'mål' }}
+        </div>
+        <div v-else-if="overlayGated && !route"
+             class="px-3 py-1.5 rounded-full bg-zinc-950/85 border border-white/15 text-white/75 text-[11px] shadow">
+          Zoom inn for å se grusveier
+        </div>
+        <div v-if="overlayState === 'loading'"
+             class="px-3 py-1.5 rounded-full bg-zinc-950/85 border border-white/15 text-white/75 text-[11px]
+                    shadow flex items-center gap-2">
+          <span class="w-3 h-3 border-2 border-white/20 border-t-white/80 rounded-full animate-spin"></span>
+          Henter kartlag …
+        </div>
+        <div v-if="overlayState === 'error'"
+             class="px-3 py-1.5 rounded-full bg-amber-500/90 text-zinc-950 text-[11px] font-medium shadow">
+          Fikk ikke lastet grusvei-laget
+        </div>
+      </div>
+
+      <!-- Kartlag (v12.1.16, kollapset v12.1.17): tegnforklaring OG lag-velger
+           i ett — hver rad er en toggle (bekreftet grus / antatt grus /
+           parkering). Default vises bare en liten lag-knapp; panelet åpnes on
+           demand og lukkes med X. Solid bakgrunn + z-20 så kart-markører aldri
+           skinner gjennom. Valg huskes i localStorage. -->
+      <button v-if="!overlayGated && !layersPanelOpen" @click.stop="layersPanelOpen = true"
+              @mousedown.stop @touchstart.stop
+              aria-label="Kartlag" :aria-expanded="false"
+              :style="{ bottom: (floatBottomPx + 12) + 'px' }"
+              class="absolute left-3 z-20 w-10 h-10 rounded-lg bg-zinc-950/90 border border-white/15
+                     text-white/80 shadow-lg flex items-center justify-center active:scale-95 transition">
+        <svg viewBox="0 0 24 24" class="w-4.5 h-4.5" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 22 8.5 12 15 2 8.5"/>
+          <polyline points="2 14 12 20.5 22 14"/>
+        </svg>
+      </button>
+      <div v-else-if="!overlayGated"
+           :style="{ bottom: (floatBottomPx + 12) + 'px' }"
+           class="absolute left-3 z-20 rounded-lg bg-zinc-950/95 backdrop-blur border border-white/15
+                  px-2.5 py-2 shadow-xl"
+           @mousedown.stop @touchstart.stop @wheel.stop>
+        <div class="flex items-center justify-between gap-4 mb-1">
+          <div class="text-[9px] uppercase tracking-wide text-white/45">Kartlag</div>
+          <button @click.stop="layersPanelOpen = false" aria-label="Lukk kartlag"
+                  class="w-5 h-5 -mr-1 rounded-full flex items-center justify-center text-white/50
+                         hover:text-white/80 active:scale-90 transition">
+            <svg viewBox="0 0 24 24" class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.4"
+                 stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="text-[10px] text-white/75 space-y-0.5">
+          <button @click="toggleLayer('surfaced')" :aria-pressed="layers.surfaced"
+                  class="flex items-center gap-1.5 w-full text-left py-0.5 active:opacity-60 transition"
+                  :class="layers.surfaced ? '' : 'opacity-40'">
+            <span class="inline-block w-5 h-0 border-t-[3.5px] border-[#0e7490] rounded shrink-0"></span>
+            <span class="flex-1 pr-1">Bekreftet grus</span>
+            <span class="w-3.5 h-3.5 shrink-0 rounded border flex items-center justify-center"
+                  :class="layers.surfaced ? 'bg-sky-500 border-sky-400' : 'border-white/30'">
+              <svg v-if="layers.surfaced" viewBox="0 0 24 24" class="w-2.5 h-2.5 text-white" fill="none"
+                   stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
+                   stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </span>
+          </button>
+          <button @click="toggleLayer('assumed')" :aria-pressed="layers.assumed"
+                  class="flex items-center gap-1.5 w-full text-left py-0.5 active:opacity-60 transition"
+                  :class="layers.assumed ? '' : 'opacity-40'">
+            <span class="inline-block w-5 h-0 border-t-[3.5px] border-dashed border-[#0e7490] rounded shrink-0"></span>
+            <span class="flex-1 pr-1">Antatt grus (skogsbilvei)</span>
+            <span class="w-3.5 h-3.5 shrink-0 rounded border flex items-center justify-center"
+                  :class="layers.assumed ? 'bg-sky-500 border-sky-400' : 'border-white/30'">
+              <svg v-if="layers.assumed" viewBox="0 0 24 24" class="w-2.5 h-2.5 text-white" fill="none"
+                   stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
+                   stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </span>
+          </button>
+          <button @click="toggleLayer('parking')" :aria-pressed="layers.parking"
+                  class="flex items-center gap-1.5 w-full text-left py-0.5 active:opacity-60 transition"
+                  :class="layers.parking ? '' : 'opacity-40'">
+            <span class="inline-flex w-5 justify-center shrink-0">
+              <span class="w-3.5 h-3.5 rounded-[3px] bg-[#1d4ed8] border border-white text-white
+                           text-[8px] font-bold flex items-center justify-center leading-none">P</span>
+            </span>
+            <span class="flex-1 pr-1">Parkering</span>
+            <span class="w-3.5 h-3.5 shrink-0 rounded border flex items-center justify-center"
+                  :class="layers.parking ? 'bg-sky-500 border-sky-400' : 'border-white/30'">
+              <svg v-if="layers.parking" viewBox="0 0 24 24" class="w-2.5 h-2.5 text-white" fill="none"
+                   stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
+                   stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </span>
+          </button>
+          <div v-if="overlayBarrierPts.length && (layers.surfaced || layers.assumed)"
+               class="flex items-center gap-1.5 py-0.5 pointer-events-none">
+            <span class="inline-flex w-5 justify-center shrink-0">
+              <span class="w-3 h-3 rounded-full bg-[#dc2626] border border-white flex items-center justify-center">
+                <span class="block w-1.5 h-[2px] rounded bg-white"></span>
+              </span>
+            </span>
+            Bom — stengt for motorkjøretøy
+          </div>
+        </div>
+      </div>
+
+      <!-- Attribusjon (løftes over skuffen) -->
+      <div class="absolute right-1 px-1.5 py-0.5 rounded bg-zinc-900/85 text-white/60 text-[8px]
+                  border border-white/15 leading-tight pointer-events-none z-10"
+           :style="{ bottom: (floatBottomPx + 4) + 'px' }">
+        © Kartverket · © OpenStreetMap-bidragsytere · Ruting: BRouter (brouter.de)
+      </div>
+    </div>
+
+    <!-- Feilbanner (ruting / offline) — flyter over skuffen uansett høyde -->
+    <div v-if="isOffline || routeState === 'error'"
+         class="absolute left-3 right-3 z-30 max-w-[560px] mx-auto rounded-xl border px-4 py-3
+                text-[13px] shadow-2xl"
+         :style="{ bottom: (floatBottomPx + 12) + 'px' }"
+         :class="isOffline ? 'bg-zinc-900/95 border-white/15 text-white/80'
+                           : 'bg-rose-950/95 border-rose-500/40 text-rose-100'">
+      <template v-if="isOffline">Ruteplanleggeren krever nettilkobling.</template>
+      <template v-else>
+        {{ routeError }}
+        <button @click="onFindRoute" class="ml-2 underline underline-offset-2 font-medium">Prøv igjen</button>
+      </template>
+    </div>
+
+    <!-- Dra-bar bunn-skuff (samme UX som turkartets skuffer): dra i håndtaket
+         for å minimere (peek med håndtak + header) eller maksimere
+         (kart-stripe på 56 px igjen i toppen). -->
+    <!-- Skuffen flyter OVER kartet (absolute, v12.1.6) i stedet for å ligge i
+         flex-flyten: kartflaten er da konstant uansett om skuffen er åpen,
+         minimert eller maksimert. -->
+    <!-- Kun ÉN skuff om gangen (v12.1.20): mens «Mine ruter» er åpen skjules
+         planlegg-skuffen midlertidig (v-show — tilstanden består) og vises
+         igjen når lista lukkes. -->
+    <div v-show="!showSaved"
+         class="absolute inset-x-0 bottom-0 z-20 backdrop-blur-md bg-zinc-900/92 border-t border-white/10
+                rounded-t-2xl flex flex-col overflow-hidden shadow-2xl"
+         :style="drawer.drawerHeightStyle.value">
+      <div class="shrink-0 select-none touch-none cursor-grab active:cursor-grabbing"
+           @pointerdown="drawer.onPointerDown($event)"
+           @pointermove="drawer.onPointerMove($event)"
+           @pointerup="drawer.onPointerUp($event)"
+           @pointercancel="drawer.onPointerUp($event)">
+        <div class="pt-3 pb-1.5 flex justify-center">
+          <div class="w-12 h-1.5 rounded-full bg-white/40"
+               :style="{ opacity: drawer.handleOpacity.value }"></div>
+        </div>
+        <!-- Header i drag-sonen: synlig også minimert -->
+        <div class="px-4 pb-2 w-full max-w-[560px] mx-auto flex items-center gap-2">
+          <div class="flex-1 min-w-0">
+            <template v-if="route && routeState !== 'routing'">
+              <div class="text-[10px] uppercase tracking-wide text-white/45">Grusrute</div>
+              <div class="flex items-baseline gap-2 mt-0.5">
+                <span class="text-[26px] leading-none font-bold text-white tabular-nums">{{ fmtKm(route.lengthM) }} km</span>
+                <span v-if="fmtGrus(route.gravelShare)" class="text-[14px] font-semibold text-[#e8802b]">
+                  · Grus {{ fmtGrus(route.gravelShare) }}</span>
+                <span v-else class="text-[12px] text-white/45">· Grusandel utilgjengelig</span>
+              </div>
+            </template>
+            <div v-else class="text-[14px] font-semibold text-white">Planlegg grusrute</div>
+          </div>
+          <!-- Snarveier (v12.1.23) — KUN i minimert tilstand. Kjentbruker-flyt:
+               minimer skuffen, sett A og B rett i kartet med størst mulig
+               kartflate, og trykk «Finn grusrute» uten å åpne skuffen; X
+               nullstiller punktene for et nytt forsøk. @pointerdown.stop så
+               knappe-trykk ikke starter skuff-drag (samme mønster som
+               lukkeknappen i «Mine ruter»). -->
+          <template v-if="drawer.isMinimized.value">
+            <button @pointerdown.stop @click.stop="onReset" aria-label="Nullstill"
+                    class="shrink-0 w-9 h-9 rounded-xl bg-white/5 border border-white/15 text-white/60
+                           flex items-center justify-center active:scale-95 transition">
+              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+            </button>
+            <button @pointerdown.stop @click.stop="onFindRoute"
+                    :disabled="!pointA || !pointB || routeState === 'routing'"
+                    class="shrink-0 h-9 px-3 rounded-xl text-[12px] font-semibold border transition
+                           active:scale-95 disabled:opacity-40 bg-emerald-500/20 border-emerald-400/50
+                           text-emerald-100 flex items-center gap-1.5">
+              <span v-if="routeState === 'routing'"
+                    class="w-3.5 h-3.5 border-2 border-emerald-200/30 border-t-emerald-100 rounded-full animate-spin"></span>
+              Finn grusrute
+            </button>
+          </template>
+        </div>
+      </div>
+
+      <!-- Fra/Til-skjema (før rute / under beregning). «Finn grusrute» ligger
+           i en sticky footer under scroll-regionen (v12.1.20) så den alltid
+           er synlig — den scrollet før ut av syne i lav skuff. -->
+      <template v-if="!route || routeState === 'routing'">
+      <div class="flex-1 min-h-0 overflow-y-auto px-4 pt-1 pb-3">
+      <div class="max-w-[560px] mx-auto">
+        <!-- Hvordan-hint: to trykk i kartet setter A og B; grusvei-overlayen
+             vises direkte i kartet ved innzooming. Skjules i delingsmodus
+             (der er punktene låst og banneret forklarer flyten).
+             Kollapset som default (v12.1.21) med «Les mer»-toggle — full tekst
+             dyttet sjekkboksen under folden ved standard skuffhøyde (45 dvh).
+             Åpen/lukket persisteres bevisst IKKE. -->
+        <div v-if="!routeInvite"
+             class="mb-2.5 px-3 py-2 rounded-lg bg-sky-500/[0.07] border border-sky-400/15
+                    text-[11px] text-white/60 leading-snug">
+          <template v-if="hintOpen">
+            Trykk i kartet for å sette start
+            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-500
+                         text-white text-[9px] font-bold align-middle">A</span>
+            og trykk en gang til for mål
+            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-rose-500
+                         text-white text-[9px] font-bold align-middle">B</span>
+            — eller bruk søk/GPS. Tips: zoom inn, så viser kartet hvor det er grus
+            (heltrukket) og mulig grus (stiplet). Hold inne et punkt i kartet for å
+            åpne det i UT.no, Vegkart eller Google Maps.
+          </template>
+          <template v-else>
+            Trykk i kartet for å sette start og mål.
+          </template>
+          <button type="button" @click="hintOpen = !hintOpen" :aria-expanded="hintOpen"
+                  class="text-sky-300 font-medium underline underline-offset-2 active:opacity-60 transition">
+            {{ hintOpen ? 'Les mindre' : 'Les mer' }}
+          </button>
+        </div>
+        <div v-for="field in ['A', 'B']" :key="field" class="relative">
+          <div v-if="field === 'B'" class="flex justify-center -my-1 relative z-10">
+            <button @click="swapPoints" aria-label="Bytt start og mål" :disabled="!!routeInvite"
+                    class="w-8 h-8 rounded-full bg-zinc-800 border border-white/15 text-white/70
+                           flex items-center justify-center active:scale-90 transition disabled:opacity-35">
+              <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 4v13M8 4 5 7M8 4l3 3"/><path d="M16 20V7m0 13 3-3m-3 3-3-3"/>
+              </svg>
+            </button>
+          </div>
+          <div class="flex items-center gap-2 rounded-xl bg-white/[0.05] border border-white/10 px-3 py-1"
+               :class="field === 'B' ? '' : 'mb-0'">
+            <span class="w-2.5 h-2.5 shrink-0 rounded-full"
+                  :class="field === 'A' ? 'bg-emerald-500' : 'bg-rose-500'"></span>
+            <input :value="field === 'A' ? searchA.query.value : searchB.query.value"
+                   @input="routeInvite || ((field === 'A' ? searchA : searchB).query.value = $event.target.value, activeSearch = field)"
+                   @focus="activeSearch = routeInvite ? null : field"
+                   @keydown="onSearchKeydown"
+                   role="combobox" aria-autocomplete="list"
+                   :aria-expanded="activeSearch === field && (field === 'A' ? searchA : searchB).results.value.length > 0"
+                   :aria-controls="`route-results-${field}`"
+                   :aria-activedescendant="activeSearch === field && searchActiveIndex >= 0 ? `route-opt-${searchActiveIndex}` : undefined"
+                   type="search" autocomplete="off" :readonly="!!routeInvite"
+                   :placeholder="field === 'A' ? 'Fra — startsted' : 'Til — destinasjon'"
+                   class="flex-1 min-w-0 py-2 bg-transparent text-[13px] placeholder-white/35
+                          focus:outline-none" />
+            <!-- Angre: fjern satt punkt (skjult i delingsmodus) -->
+            <button v-if="(field === 'A' ? pointA : pointB) && !routeInvite"
+                    @click="setPoint(field, null)"
+                    :aria-label="`Fjern ${field === 'A' ? 'start' : 'mål'}`"
+                    class="w-8 h-8 shrink-0 rounded-lg bg-white/5 border border-white/10 text-white/50
+                           flex items-center justify-center active:scale-95 transition">
+              <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+            </button>
+            <button v-if="field === 'A'" @click="onGpsForA" aria-label="Bruk min posisjon som start"
+                    :disabled="gpsState.status === 'locating' || !!routeInvite"
+                    class="w-8 h-8 shrink-0 rounded-lg bg-sky-500/15 border border-sky-400/30 text-sky-300
+                           flex items-center justify-center active:scale-95 transition disabled:opacity-50">
+              <svg viewBox="0 0 24 24" class="w-4 h-4" :class="gpsState.status === 'locating' ? 'animate-spin' : ''"
+                   fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <template v-if="gpsState.status === 'locating'"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></template>
+                <template v-else>
+                  <circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/>
+                  <line x1="12" y1="1" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="23"/>
+                  <line x1="1" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="23" y2="12"/>
+                </template>
+              </svg>
+            </button>
+            <button @click="armedField = armedField === field ? null : field"
+                    :aria-pressed="armedField === field" :disabled="!!routeInvite"
+                    :aria-label="`Velg ${field === 'A' ? 'start' : 'mål'} i kartet`"
+                    class="w-8 h-8 shrink-0 rounded-lg border flex items-center justify-center
+                           active:scale-95 transition disabled:opacity-35"
+                    :class="armedField === field ? 'bg-sky-500/25 border-sky-400/50 text-sky-200' : 'bg-white/5 border-white/10 text-white/60'">
+              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+              </svg>
+            </button>
+          </div>
+          <!-- Nominatim-treff (åpner NEDOVER — skuffens innhold scroller, så
+               treff over feltet ville klippes mot scroll-toppen) -->
+          <div v-if="activeSearch === field && (field === 'A' ? searchA : searchB).results.value.length"
+               :id="`route-results-${field}`" role="listbox"
+               class="absolute left-0 right-0 top-full mt-1 rounded-xl bg-zinc-900/98 backdrop-blur
+                      border border-white/10 shadow-2xl max-h-[36dvh] overflow-y-auto z-30">
+            <button v-for="(r, index) in (field === 'A' ? searchA : searchB).results.value" :key="r.id"
+                    :id="`route-opt-${index}`" role="option"
+                    :aria-selected="index === searchActiveIndex"
+                    @click="selectResult(field, r)"
+                    @mousemove="searchActiveIndex = index"
+                    class="w-full text-left px-3 py-2 transition border-b border-white/8 last:border-0"
+                    :class="index === searchActiveIndex ? 'bg-white/12' : 'active:bg-white/10'">
+              <div class="text-[13px] font-medium text-white truncate">{{ r.shortName }}</div>
+              <div class="text-[11px] text-white/50 truncate">{{ r.name }}</div>
+            </button>
+          </div>
+        </div>
+        <div v-if="gpsState.error" class="mt-1.5 text-[11px] text-amber-300">{{ gpsState.error }}</div>
+        <!-- Antatt grus i ruteforslag (v12.1.19, default AV): track uten
+             registrert dekke kan i praksis være skiløype/turdrag — brukeren
+             velger selv om ruteren får bruke dem. Gjelder kun rutingen;
+             overlay-tegningen styres av Kartlag-panelet. -->
+        <label class="flex items-start gap-2.5 mt-2.5 px-1 cursor-pointer select-none"
+               :class="routeInvite ? 'opacity-40 pointer-events-none' : ''">
+          <input type="checkbox" v-model="includeAssumed" :disabled="!!routeInvite"
+                 class="mt-0.5 w-4 h-4 shrink-0 accent-sky-400 cursor-pointer" />
+          <span class="text-[12px] text-white/75 leading-snug">
+            Inkluder antatt grusvei i ruteforslag
+            <span class="block text-[10px] text-white/45">
+              Stiplet i kartet — kan være skiløype/turdrag
+            </span>
+          </span>
+        </label>
+      </div>
+      </div>
+      <!-- Sticky bunn-footer: skjules når skuffen er minimert (peek-høyden
+           skal kun romme håndtak + header). -->
+      <div v-show="!drawer.isMinimized.value"
+           class="shrink-0 border-t border-white/10 px-4 pt-2.5
+                  pb-[max(env(safe-area-inset-bottom,0px),0.75rem)]">
+        <div class="max-w-[560px] mx-auto">
+          <button @click="onFindRoute" :disabled="!pointA || !pointB || routeState === 'routing'"
+                  class="w-full px-3 py-2.5 rounded-xl text-[13px] font-semibold border transition
+                         active:scale-[0.99] disabled:opacity-40
+                         bg-emerald-500/20 border-emerald-400/50 text-emerald-100 flex items-center justify-center gap-2">
+            <span v-if="routeState === 'routing'"
+                  class="w-4 h-4 border-2 border-emerald-200/30 border-t-emerald-100 rounded-full animate-spin"></span>
+            {{ routeState === 'routing' ? 'Beregner tre ruteforslag …'
+               : (installRequested && canInstall ? 'Installer som app og finn grusrute' : 'Finn grusrute') }}
+          </button>
+        </div>
+      </div>
+      </template>
+
+      <!-- Rute-resultat (tre forslag + stat-fliser). Lagre/Nullstill står i en
+           sticky footer (v12.1.20); eksport (GPX/Del) blir i scroll-innholdet. -->
+      <template v-else>
+      <div class="flex-1 min-h-0 overflow-y-auto px-4 pb-3">
+      <div class="max-w-[560px] mx-auto">
+        <div class="text-[12px] text-white/50 truncate">
+          {{ route.navn ?? `${labelFor(pointA)} → ${labelFor(pointB)}` }}
+        </div>
+        <!-- Fallback-varsel: grusprofilen kunne ikke brukes → standard
+             bilprofil (lovlige kjøreveier, men ingen grus-prioritering). -->
+        <div v-if="route.usedFallbackProfile"
+             class="mt-2 px-3 py-2 rounded-lg bg-amber-500/[0.08] border border-amber-400/20
+                    text-amber-200/85 text-[11px] leading-snug">
+          Grusprofilen kunne ikke lastes hos rutetjenesten — ruta bruker standard bilprofil.
+          Lovlige kjøreveier, men uten grus-prioritering. Prøv igjen senere for full grusrute.
+          <div v-if="route.fallbackReason" class="mt-1 text-[10px] text-amber-200/55 break-words">
+            Teknisk årsak: {{ route.fallbackReason }}
+          </div>
+        </div>
+
+        <!-- Snap-varsel: ruta traff ikke A/B eksakt — vis hvor stort gapet er. -->
+        <div v-if="snapWarning"
+             class="mt-2 px-3 py-2 rounded-lg bg-amber-500/[0.08] border border-amber-400/20
+                    text-amber-200/85 text-[11px] leading-snug">
+          {{ snapWarning }}
+        </div>
+
+        <!-- Ruteforslag -->
+        <template v-if="proposals.length > 1">
+          <div class="flex items-center justify-between mt-3 mb-1.5">
+            <div class="text-[10px] uppercase tracking-wide text-white/45">{{ proposals.length }} ruteforslag</div>
+            <div v-if="route.directM" class="text-[11px] text-white/45 tabular-nums">Luftlinje {{ fmtKm(route.directM) }} km</div>
+          </div>
+          <button v-for="p in proposals" :key="p.id" @click="planner.selectProposal(p.id)"
+                  class="w-full rounded-lg px-3 py-2.5 mb-1.5 flex items-center gap-3 text-left border transition
+                         active:scale-[0.99]"
+                  :class="selectedId === p.id ? 'bg-white/[0.08] border-white/25' : 'bg-white/[0.03] border-white/10'">
+            <span class="w-2.5 h-2.5 shrink-0 rounded-full" :style="{ background: PROPOSAL_COLORS[p.id] ?? '#e8802b' }"></span>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-[13px] text-white font-medium">{{ p.label }}</span>
+                <span v-for="b in p.badges" :key="b.text"
+                      class="px-1.5 py-0.5 rounded-md border text-[9px] font-bold tracking-wide"
+                      :class="b.tone === 'green'
+                              ? 'bg-emerald-500/25 border-emerald-400/40 text-emerald-200'
+                              : 'bg-sky-500/25 border-sky-400/40 text-sky-200'">{{ b.text }}</span>
+              </div>
+              <div class="text-[11px] text-white/50 tabular-nums">
+                {{ fmtKm(p.lengthM) }} km<template v-if="fmtGrus(p.gravelShare)"> · Grus {{ fmtGrus(p.gravelShare) }}</template><template v-if="fmtTid(p.estimatedTimeS)"> · {{ fmtTid(p.estimatedTimeS) }}</template>
+              </div>
+            </div>
+            <svg v-if="selectedId === p.id" viewBox="0 0 24 24" class="w-4 h-4 text-emerald-400 shrink-0"
+                 fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                 stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </button>
+        </template>
+
+        <!-- Grus/asfalt-bar -->
+        <template v-if="route.gravelShare != null">
+          <div class="mt-2 h-2 rounded-full overflow-hidden bg-[#94a3b8]/60 flex">
+            <div class="h-full bg-[#e8802b]" :style="{ width: Math.round(route.gravelShare * 100) + '%' }"></div>
+          </div>
+          <div class="flex justify-between mt-1 text-[11px] text-white/55">
+            <span><span class="inline-block w-2 h-2 rounded-sm bg-[#e8802b] mr-1"></span>Grus {{ fmtGrus(route.gravelShare) }}</span>
+            <span><span class="inline-block w-2 h-2 rounded-sm bg-[#94a3b8] mr-1"></span>Asfalt {{ Math.round((1 - route.gravelShare) * 100) }} %</span>
+          </div>
+        </template>
+
+        <!-- Stat-fliser -->
+        <div class="grid grid-cols-3 gap-2 mt-3">
+          <div class="rounded-lg bg-white/5 px-2.5 py-2">
+            <div class="text-[10px] text-white/45">Estimert tid</div>
+            <div class="text-[13px] font-semibold text-white tabular-nums">{{ fmtTid(route.estimatedTimeS) ?? '–' }}</div>
+          </div>
+          <div class="rounded-lg bg-white/5 px-2.5 py-2">
+            <div class="text-[10px] text-white/45">Grus-strekk</div>
+            <div class="text-[13px] font-semibold text-white tabular-nums">
+              {{ route.gravelM != null ? fmtKm(route.gravelM) + ' km' : '–' }}</div>
+          </div>
+          <div class="rounded-lg bg-white/5 px-2.5 py-2">
+            <div class="text-[10px] text-white/45">Luftlinje</div>
+            <div class="text-[13px] font-semibold text-white tabular-nums">
+              {{ route.directM != null ? fmtKm(route.directM) + ' km' : '–' }}</div>
+          </div>
+        </div>
+
+        <!-- Høydeprofil (v12.1.14) — interaktiv SVG: dra i grafen for å lese
+             km/moh, linja er fargekodet grus/asfalt som kartet. -->
+        <RouteElevationProfile class="mt-2" :profile="elevProfile" :state="elevState" :source="elevSource" />
+
+        <!-- Eksport (GPX/Del) i scroll-innholdet. SVG-eksporten er fjernet i
+             v12.1.20 (begrenset nytte); Lagre/Nullstill står i sticky footer. -->
+        <div class="mt-3 flex gap-1.5">
+          <button @click="planner.exportGpx()" aria-label="Last ned GPX"
+                  class="flex-1 px-3 py-2 rounded-lg text-[12px] font-medium border bg-white/5 border-white/15
+                         text-white/80 active:scale-95 transition">GPX</button>
+          <button @click="onShareRoute" aria-label="Del rute"
+                  class="flex-1 px-3 py-2 rounded-lg text-[12px] font-medium border bg-white/5 border-white/15
+                         text-white/80 active:scale-95 transition">
+            {{ shareState === 'copied' ? 'Kopiert!' : (shareState === 'error' ? 'Feilet' : 'Del') }}</button>
+        </div>
+      </div>
+      </div>
+      <!-- Sticky bunn-footer: Nullstill + Lagre (grønn, høyre) 50/50. Lagre-
+           trykket bytter footer-innholdet til navngivnings-steget («Lagre …»-
+           ellipsen signaliserer at et steg følger). Skjules når skuffen er
+           minimert — peek-høyden rommer kun håndtak + header. -->
+      <div v-show="!drawer.isMinimized.value"
+           class="shrink-0 border-t border-white/10 px-4 pt-2.5
+                  pb-[max(env(safe-area-inset-bottom,0px),0.75rem)]">
+        <div class="max-w-[560px] mx-auto">
+          <div v-if="!savingName" class="flex gap-1.5">
+            <button @click="onReset" aria-label="Nullstill rute"
+                    class="flex-1 px-3 py-2.5 rounded-xl text-[13px] font-medium border bg-white/5 border-white/15
+                           text-white/60 active:scale-95 transition">Nullstill</button>
+            <button @click="startSave" aria-label="Lagre rute"
+                    class="flex-1 px-3 py-2.5 rounded-xl text-[13px] font-semibold border bg-emerald-500/20
+                           border-emerald-400/50 text-emerald-100 active:scale-95 transition">Lagre …</button>
+          </div>
+          <div v-else class="rounded-xl bg-white/[0.04] border border-emerald-400/25 px-3 py-2.5">
+            <div class="text-[11px] text-emerald-200/80 font-medium mb-1.5">Gi ruta et navn</div>
+            <input ref="saveNameInput" v-model="saveName" type="text" placeholder="Navn på ruta"
+                   @keyup.enter="confirmSave"
+                   class="w-full px-3 py-2 rounded-lg bg-white/[0.06] border border-white/15 text-[13px]
+                          placeholder-white/30 focus:outline-none focus:border-emerald-300/50 transition" />
+            <div class="flex gap-1.5 mt-2">
+              <button @click="confirmSave"
+                      class="flex-1 px-4 py-2 rounded-lg text-[12px] font-semibold bg-emerald-500 text-white
+                             active:scale-95 transition">Lagre rute</button>
+              <button @click="savingName = false"
+                      class="px-4 py-2 rounded-lg text-[12px] border bg-white/5 border-white/15 text-white/60
+                             active:scale-95 transition">Avbryt</button>
+            </div>
+          </div>
+          <div v-if="savedFlash" class="mt-1.5 text-center text-[11px] text-emerald-300">{{ savedFlash }}</div>
+        </div>
+      </div>
+      </template>
+    </div>
+
+    <!-- Mine ruter — dra-bar skuff med samme design/UX som infodraweren i
+         turkart (v12.1.4): avrundede topphjørner, håndtak, minimer/standard/
+         maksimer. Kun maksimert tilstand dimmer kartet bak. -->
+    <Transition name="overlay-fade">
+      <div v-if="showSaved" class="absolute inset-0 z-40 pointer-events-none">
+        <div v-if="savedDrawer.isMaximized.value"
+             class="absolute inset-0 bg-black/60 pointer-events-auto"
+             @click="showSaved = false"></div>
+        <div class="absolute inset-x-0 bottom-0 mx-auto w-full max-w-[560px] pointer-events-auto
+                    backdrop-blur-md bg-zinc-900/95 border-t border-white/10 rounded-t-2xl
+                    flex flex-col overflow-hidden shadow-2xl"
+             :style="savedDrawer.drawerHeightStyle.value">
+          <div class="shrink-0 select-none touch-none cursor-grab active:cursor-grabbing"
+               @pointerdown="savedDrawer.onPointerDown($event)"
+               @pointermove="savedDrawer.onPointerMove($event)"
+               @pointerup="savedDrawer.onPointerUp($event)"
+               @pointercancel="savedDrawer.onPointerUp($event)">
+            <div class="pt-3 pb-1.5 flex justify-center">
+              <div class="w-12 h-1.5 rounded-full bg-white/40"
+                   :style="{ opacity: savedDrawer.handleOpacity.value }"></div>
+            </div>
+            <div class="px-4 pb-2.5 flex items-center gap-2">
+              <div class="flex-1 min-w-0 text-white text-[14px] font-semibold truncate">Mine ruter
+                <span v-if="savedRoutes.length" class="text-white/45 font-normal text-[12px]">·
+                  {{ starFilter ? `${visibleSavedRoutes.length} av ${savedRoutes.length}` : savedRoutes.length }} ruter</span>
+              </div>
+              <!-- Kompakt del-knapp i tittelraden (v12.1.30) — blå som
+                   selekteringsfargen i velg-modus, så den «topper». -->
+              <button v-if="savedRoutes.length > 1 && !shareSelectMode"
+                      @pointerdown.stop @click.stop="startShareSelect"
+                      class="shrink-0 px-3 py-1.5 rounded-lg text-[12px] font-semibold border
+                             bg-sky-500/25 border-sky-400/60 text-sky-100 active:scale-95 transition">
+                Del mine ruter …
+              </button>
+              <button @pointerdown.stop @click.stop="showSaved = false" aria-label="Lukk"
+                      class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center bg-white/5
+                             border border-white/10 text-white/60 active:scale-90 transition">
+                <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+              </button>
+            </div>
+            <!-- Verktøylinje i headeren (v12.1.28) — forblir synlig ved scroll:
+                 velg-modus-handlinger ELLER sortering (persistert i
+                 localStorage) + stjernefilter. -->
+            <div v-if="savedRoutes.length > 1" class="px-4 pb-2.5 space-y-1.5"
+                 @pointerdown.stop>
+              <template v-if="shareSelectMode">
+                <div class="flex gap-1.5">
+                  <button @click="onShareSelectedRoutes" :disabled="!shareSelected.length"
+                          class="flex-1 px-3 py-2 rounded-lg text-[12px] font-semibold border transition
+                                 active:scale-95 disabled:opacity-40 bg-emerald-500/20
+                                 border-emerald-400/50 text-emerald-100">
+                    {{ shareState === 'copied' ? 'Lenke kopiert!'
+                       : `Del ${shareSelected.length ? `(${shareSelected.length})` : ''} ruter` }}
+                  </button>
+                  <button @click="cancelShareSelect"
+                          class="px-3 py-2 rounded-lg text-[12px] font-medium border bg-white/5
+                                 border-white/15 text-white/60 active:scale-95 transition">Avbryt</button>
+                </div>
+                <div class="text-[10px] text-white/45">
+                  Trykk på rutene du vil dele (inntil {{ MAX_SHARE_ROUTES }}) — mottakeren får alle i én lenke.
+                </div>
+              </template>
+              <div v-else class="flex gap-1.5 items-center">
+                <label class="sr-only" for="rute-sortering">Sorter etter</label>
+                <select id="rute-sortering" v-model="savedSort.key"
+                        class="flex-1 min-w-0 px-2 py-1.5 rounded-lg text-[11px] bg-zinc-800 border
+                               border-white/15 text-white/80 focus:outline-none">
+                  <option v-for="f in SORT_FIELDS" :key="f.key" :value="f.key">{{ f.label }}</option>
+                </select>
+                <button @click="savedSort.dir = savedSort.dir === 'desc' ? 'asc' : 'desc'"
+                        :aria-label="savedSort.dir === 'desc' ? 'Synkende — bytt til stigende' : 'Stigende — bytt til synkende'"
+                        class="shrink-0 w-8 h-8 rounded-lg border bg-white/5 border-white/15 text-white/70
+                               flex items-center justify-center active:scale-95 transition">
+                  <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+                       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <template v-if="savedSort.dir === 'desc'">
+                      <line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>
+                    </template>
+                    <template v-else>
+                      <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+                    </template>
+                  </svg>
+                </button>
+                <label class="sr-only" for="rute-stjernefilter">Stjernefilter</label>
+                <select id="rute-stjernefilter" v-model.number="starFilter"
+                        class="shrink-0 w-[5.5rem] px-2 py-1.5 rounded-lg text-[11px] bg-zinc-800 border
+                               border-white/15 focus:outline-none"
+                        :class="starFilter ? 'text-amber-300 border-amber-400/40' : 'text-white/80'">
+                  <option :value="-1">Ingen</option>
+                  <option :value="0">★ Alle</option>
+                  <option :value="5">★ 5</option>
+                  <option :value="4">★ 4</option>
+                  <option :value="3">★ 3</option>
+                  <option :value="2">★ 2</option>
+                  <option :value="1">★ 1</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="flex-1 overflow-y-auto px-4 pb-3 border-t border-white/8 pt-3">
+            <!-- Vises kun med mange lagrede ruter. Handler om ryddighet og at
+                 veinettet endrer seg (ruter kan trenge re-beregning), ikke MB
+                 — samme varseltype som i lagrede turkart. -->
+            <div v-if="savedRoutes.length > 9"
+                 class="mb-2 px-3 py-2 rounded-lg bg-amber-500/[0.08] border border-amber-400/20
+                        text-amber-200/80 text-[11px] leading-snug">
+              Du har mange og potensielt utdaterte ruter. Veinettet endrer seg over tid — slett
+              ruter du ikke trenger lenger, og beregn viktige ruter på nytt før tur.
+            </div>
+            <div v-if="!savedRoutes.length" class="text-[13px] text-white/50 text-center py-6">
+              Ingen lagrede ruter ennå. Beregn en rute og trykk «Lagre».
+            </div>
+            <div v-else-if="!visibleSavedRoutes.length" class="text-[13px] text-white/50 text-center py-6">
+              <template v-if="starFilter === -1">Alle rutene er vurdert — ingen uten stjerner.</template>
+              <template v-else>Ingen ruter med {{ starFilter }} {{ starFilter === 1 ? 'stjerne' : 'stjerner' }} ennå.</template>
+            </div>
+            <!-- I velg-modus toggler HELE kortet (v12.1.27 — kun navnefeltet
+                 var klikkbart, mens sjekkboks-siden var død: kontraintuitivt).
+                 Navne-knappen gjør ingenting selv i velg-modus; klikket bobler
+                 til kort-diven. -->
+            <div v-for="rec in visibleSavedRoutes" :key="rec.id"
+                 class="rounded-lg bg-white/5 px-3 py-2.5 mb-2"
+                 :class="[shareSelectMode ? 'cursor-pointer active:opacity-80 transition' : '',
+                          shareSelectMode && shareSelected.includes(rec.id) ? 'ring-1 ring-sky-400/70 bg-sky-500/[0.08]' : '']"
+                 @click="shareSelectMode && toggleShareSelect(rec.id)">
+              <div class="flex items-center gap-3">
+                <div class="shrink-0 w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center
+                            justify-center text-white/60">
+                  <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8"
+                       stroke-linecap="round"><path d="M5 19 C5 13 10 13 12 11 C14 9 19 9 19 5"/>
+                    <circle cx="5" cy="19" r="1.5" fill="currentColor" stroke="none"/>
+                    <circle cx="19" cy="5" r="1.5" fill="currentColor" stroke="none"/></svg>
+                </div>
+                <button @click="shareSelectMode || onOpenSaved(rec)"
+                        class="flex-1 min-w-0 text-left active:opacity-70 transition">
+                  <div class="text-[13px] text-white font-medium truncate">{{ rec.navn }}</div>
+                  <div class="text-[11px] text-white/50 tabular-nums">
+                    {{ fmtKm(rec.lengthM) }} km<template v-if="rec.gravelShare != null"> · Grus {{ Math.round(rec.gravelShare * 100) }} %</template><template v-if="fmtTid(recTidS(rec))"> · {{ fmtTid(recTidS(rec)) }}</template>
+                  </div>
+                  <div class="text-[10px] text-white/35 tabular-nums">
+                    {{ new Date(rec.opprettet).toLocaleDateString('no-NO') }} ·
+                    {{ new Date(rec.opprettet).toLocaleTimeString('no-NO', { hour: '2-digit', minute: '2-digit' }) }}
+                  </div>
+                </button>
+                <!-- Velg-modus: sjekkboks-visual i stedet for del/slett -->
+                <div v-if="shareSelectMode"
+                     class="shrink-0 w-6 h-6 rounded-md border flex items-center justify-center transition"
+                     :class="shareSelected.includes(rec.id) ? 'bg-sky-500 border-sky-400' : 'border-white/30'">
+                  <svg v-if="shareSelected.includes(rec.id)" viewBox="0 0 24 24" class="w-4 h-4 text-white"
+                       fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"
+                       stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+                <template v-else>
+                  <button @click="onShareSaved(rec)" aria-label="Del rute"
+                          class="shrink-0 w-9 h-9 rounded-lg border bg-white/5 border-white/10 text-white/60
+                                 flex items-center justify-center active:scale-95 transition">
+                    <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                    </svg>
+                  </button>
+                  <button @click="onDeleteSaved(rec.id)"
+                          :aria-label="confirmDeleteId === rec.id ? 'Bekreft sletting' : 'Slett rute'"
+                          class="shrink-0 px-2.5 py-1.5 rounded-lg text-[11px] font-medium border active:scale-95 transition"
+                          :class="confirmDeleteId === rec.id
+                                  ? 'bg-rose-500/20 border-rose-400/50 text-rose-200'
+                                  : 'bg-white/5 border-white/10 text-white/50'">
+                    {{ confirmDeleteId === rec.id ? 'Sikker?' : 'Slett' }}
+                  </button>
+                </template>
+              </div>
+              <!-- Stjernemerking 1–5 (v12.1.26): samme stjerne igjen = fjern.
+                   Stjernemerkede sorteres øverst i lista. -->
+              <div v-if="!shareSelectMode" class="mt-1 flex items-center gap-0.5 pl-12">
+                <button v-for="s in 5" :key="s"
+                        @click="planner.setSavedStars(rec.id, (rec.stjerner ?? 0) === s ? 0 : s)"
+                        :aria-label="`Gi ${s} ${s === 1 ? 'stjerne' : 'stjerner'}`"
+                        :aria-pressed="(rec.stjerner ?? 0) >= s"
+                        class="w-7 h-7 -my-0.5 flex items-center justify-center active:scale-90 transition"
+                        :class="(rec.stjerner ?? 0) >= s ? 'text-amber-400' : 'text-white/25'">
+                  <svg viewBox="0 0 24 24" class="w-4 h-4"
+                       :fill="(rec.stjerner ?? 0) >= s ? 'currentColor' : 'none'"
+                       stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <button v-if="savedRoutes.length > 1 && !shareSelectMode" @click="onDeleteAll"
+                    class="w-full mt-1 px-3 py-2.5 rounded-xl text-[13px] font-medium border transition
+                           active:scale-[0.99]"
+                    :class="confirmDeleteAll
+                            ? 'bg-rose-500/25 border-rose-400/60 text-rose-100'
+                            : 'bg-rose-500/10 border-rose-400/30 text-rose-300'">
+              {{ confirmDeleteAll ? `Bekreft: slett alle ${savedRoutes.length} rutene` : `Slett alle (${savedRoutes.length}) ruter` }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Full-skjerm-loader mens et nytt turkart bygges fra pin-punktet
+         (v12.1.36). Samme mønster som Turkart-forsidens on-the-fly-bygging. -->
+    <Transition name="overlay-fade">
+      <div v-if="buildingTurkart"
+           class="fixed inset-0 z-[60] bg-zinc-950/92 backdrop-blur-sm
+                  flex flex-col items-center justify-center text-white">
+        <div class="w-16 h-16 mb-4">
+          <svg viewBox="0 0 50 50" class="w-full h-full animate-spin"
+               fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round">
+            <circle cx="25" cy="25" r="20" stroke-opacity="0.18"/>
+            <path d="M25 5 a20 20 0 0 1 20 20"/>
+          </svg>
+        </div>
+        <div class="text-[16px] font-semibold mb-1">Oppretter turkart</div>
+        <div class="text-[12px] text-white/65 px-6 text-center max-w-[280px]
+                    min-h-[18px] leading-snug">
+          {{ buildTurkartProgress }}
+        </div>
+        <button @click="cancelTurkart"
+                class="mt-6 px-5 py-2.5 rounded-xl text-[13px] font-medium border
+                       bg-white/5 border-white/15 text-white/80
+                       active:bg-white/10 active:scale-[0.98] transition">
+          Avbryt
+        </button>
+      </div>
+    </Transition>
+  </div>
+</template>
+
+<style scoped>
+.overlay-fade-enter-active, .overlay-fade-leave-active { transition: opacity 0.22s ease; }
+.overlay-fade-enter-from, .overlay-fade-leave-to { opacity: 0; }
+.overlay-fade-leave-active { pointer-events: none; }
+</style>
