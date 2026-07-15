@@ -10,6 +10,13 @@
          ignorerer nøkkelordet (iOS beholder overlay-oppførselen sin). -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#0e1116" />
+    <!-- Chromium «Auto Dark Theme» (Edge Android: «Dark mode for nettsteder»,
+         Chrome Android: auto-mørking) tvangs-inverterer mørke farger på sider
+         som ikke deklarerer fargeskjema — svarte stedsnavn og stiplede stier i
+         kart-SVG-en ble hvite/usynlige. «only light» er den dokumenterte
+         opt-out-en; appens egen mørke UI styres av eksplisitte farger og er
+         upåvirket. -->
+    <meta name="color-scheme" content="only light" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="description" content="Lende — turkart og ruteplanlegging fra ekte norske kartdata" />
