@@ -1,17 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Slate-800 bakgrunn (full bleed for maskable safe zone) -->
-  <rect width="512" height="512" fill="#1e293b"/>
-  <!-- Sentrert logo i 80% safe zone -->
-  <g transform="translate(96, 96)">
-    <!-- Sirkel-ring i gul (subtilt) -->
-    <circle cx="160" cy="160" r="148" fill="none" stroke="#facc15" stroke-width="4" opacity="0.5"/>
-    <!-- Strektegning-kurve i gul -->
-    <path d="M40 240 L80 100 L130 200 L190 50 L250 170 L290 100"
-          fill="none" stroke="#facc15" stroke-width="14"
-          stroke-linecap="round" stroke-linejoin="round"/>
-    <!-- Gule ankerprikker -->
-    <circle cx="80" cy="100" r="10" fill="#facc15"/>
-    <circle cx="190" cy="50" r="10" fill="#facc15"/>
-    <circle cx="290" cy="100" r="10" fill="#facc15"/>
+  <!-- Lende — «Høydekurve». ISOM-kartspråk: kremgul land (001) + konturbrun.
+       Full bleed for maskable safe zone; hele merket ligger innenfor sirkel-
+       masken (r≈205 fra sentrum), så ingenting viktig klippes på Android. -->
+  <rect width="512" height="512" fill="#FBF2DA"/>
+  <defs>
+    <!-- Normalisert konturblob, radius ~100 sentrert i origo -->
+    <path id="blob" d="M0,-100 C58,-100 100,-58 97,-4 C94,50 58,99 2,97 C-54,95 -99,52 -97,-2 C-99,-56 -58,-100 0,-100 Z"/>
+  </defs>
+  <!-- Konsentriske høydekurver med topp forskjøvet opp mot høyre.
+       stroke-width kompenseres for scale slik at streken er ~9 i 512-rommet. -->
+  <g fill="none" stroke="#B4651E" stroke-linejoin="round">
+    <use href="#blob" transform="translate(252,272) scale(1.55)" stroke-width="5.81"/>
+    <use href="#blob" transform="translate(255,263) scale(1.18)" stroke-width="7.63"/>
+    <use href="#blob" transform="translate(259,252) scale(0.84)" stroke-width="10.7"/>
+    <use href="#blob" transform="translate(266,240) scale(0.50)" stroke-width="18"/>
   </g>
+  <!-- Topp-punkt -->
+  <circle cx="272" cy="231" r="13" fill="#B4651E"/>
 </svg>
