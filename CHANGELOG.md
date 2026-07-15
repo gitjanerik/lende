@@ -1,5 +1,33 @@
 # Endringslogg
 
+## 2026-07-15 — v1.0.7: Opprydning — status/feil-overlays skilt ut
+
+Fjerde steg i oppdelingen av `MapView.vue`: de transiente status- og feil-
+overlayene (kart-skjelett/laste-pille, «kunne ikke laste», posisjons-status,
+«utenfor kartet», detalj-feil og lav GPS-nøyaktighet) er samlet i
+`src/components/MapStatusOverlays.vue`. Komponenten tar imot all tilstand som
+props og sender ut handlinger (`retry-load`, `retry-details`, `dismiss-*`),
+og reproduserer de tre uavhengige v-if/v-else-if-kjedene internt.
+Lasteskjelettets scoped-CSS følger med til komponenten. Ingen funksjonell
+endring.
+
+---
+
+## 2026-07-15 — v1.0.6: Opprydning — søke-overlay skilt ut
+
+Tredje steg i oppdelingen av `MapView.vue`: søke-overlayet (søkefelt +
+treffliste med Nominatim-fallback) er trukket ut til
+`src/components/MapSearchOverlay.vue`. Komponenten er presentasjonell — den
+tar imot søketilstand som props (`open`, `query`, `results`, `active-index`,
+globale treff) og sender ut intensjoner (`select`, `select-global`, `close`,
+`keydown`), mens all logikk (indeksering, sentrering, bygg nytt kart,
+highlight) blir i forelderen. `query` og `active-index` er toveis via
+`v-model`. Komponenten eier sin egen fade-transition og fokuserer feltet når
+det åpnes, så `searchInputRef` er borte fra `MapView.vue`. Ingen funksjonell
+endring.
+
+---
+
 ## 2026-07-15 — v1.0.5: Opprydning — perf-logg-modal skilt ut
 
 Andre steg i oppdelingen av `MapView.vue`: perf-logg-modalen (byggetider fra
