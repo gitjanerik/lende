@@ -55,7 +55,11 @@ async function refresh() {
   }
 }
 
-onMounted(refresh)
+onMounted(() => {
+  refresh()
+  // Sist brukte modus (app-start havner der brukeren var sist — se router.js).
+  try { localStorage.setItem('lende-last-mode', 'kart') } catch { /* noop */ }
+})
 onActivated(refresh)
 
 function openMap(id) {
@@ -65,6 +69,11 @@ function openMap(id) {
 async function onDelete(id, navn) {
   if (!confirm(`Slett kart "${navn}"?`)) return
   await deleteMap(id)
+  // Ikke la app-start (router.js) peke på et slettet kart.
+  try {
+    if (localStorage.getItem('lende-last-map') === id) localStorage.removeItem('lende-last-map')
+    localStorage.removeItem(`lende-view:${id}`)
+  } catch { /* noop */ }
   await refresh()
 }
 
@@ -272,10 +281,36 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
 <template>
   <div class="kart-ui relative w-full min-h-[100dvh] flex flex-col bg-[#0e1116] text-white/90">
 
-    <!-- Toppbar. Dette er appens forside — ingen tilbake-knapp. -->
-    <div class="shrink-0 px-3 py-3 flex items-center justify-center
+    <!-- Toppbar. Rute-knappen til venstre er snarveien til Ruteplanleggeren
+         (speiler tilbake-knappen i Ruteplanleggerens header). Bak: diskrete
+         kontur-ringer fra logoen, spredt fra øvre venstre hjørne. -->
+    <div class="relative overflow-hidden shrink-0 px-3 py-2.5 flex items-center gap-2
                 bg-zinc-900/80 border-b border-white/10">
-      <div class="text-[14px] font-semibold tracking-wide">Lende</div>
+      <svg viewBox="0 0 400 60" preserveAspectRatio="xMinYMin slice" aria-hidden="true"
+           class="absolute inset-0 w-full h-full pointer-events-none">
+        <defs>
+          <path id="hdr-blob" d="M0,-100 C58,-100 100,-58 97,-4 C94,50 58,99 2,97 C-54,95 -99,52 -97,-2 C-99,-56 -58,-100 0,-100 Z"/>
+        </defs>
+        <g fill="none" stroke="#3a3d45" stroke-width="1.4" opacity="0.55">
+          <use href="#hdr-blob" transform="translate(0,0) scale(0.18)"/>
+          <use href="#hdr-blob" transform="translate(0,0) scale(0.34)"/>
+          <use href="#hdr-blob" transform="translate(0,0) scale(0.52)"/>
+          <use href="#hdr-blob" transform="translate(0,0) scale(0.72)"/>
+        </g>
+      </svg>
+      <button @click="router.push('/rute')" aria-label="Bytt til Ruteplanlegger"
+              class="relative w-9 h-9 rounded-full flex items-center justify-center bg-white/5 border border-white/10
+                     text-white/70 active:scale-95 transition shrink-0">
+        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+             stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 20 C4 14 9 14 12 12"/>
+          <path d="M12 12 C15 10 20 10 20 4" stroke-dasharray="2.4 2"/>
+          <circle cx="4" cy="20" r="2.2" fill="#10b981" stroke="none"/>
+          <circle cx="20" cy="4" r="2.2" fill="#f43f5e" stroke="none"/>
+        </svg>
+      </button>
+      <div class="relative flex-1 text-center text-[14px] font-semibold tracking-wide">Lende: Turkart</div>
+      <div class="w-9 shrink-0"></div><!-- balanse for sentrert tittel -->
     </div>
 
     <!-- Innhold -->

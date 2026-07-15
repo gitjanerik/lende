@@ -35,4 +35,33 @@ const router = createRouter({
   },
 })
 
+// App-start: gjenoppta der brukeren var sist. Kun ved FERSK last på forsiden
+// («/»); deep-lenker (delte kart, /rute?..., /kart/...) og all navigasjon
+// inne i appen røres ikke. Sist-modus/kart settes av MapHomeView, MapView og
+// GravelPlannerView; kartutsnittet (senter/zoom/rotasjon) gjenopprettes ved å
+// seede samme sessionStorage-init-prefs som mosaikk-promoteringen bruker
+// (promoteView → loadMap panorerer punktet til skjermsenter uten loader).
+let bootChecked = false
+router.beforeEach((to) => {
+  if (bootChecked) return
+  bootChecked = true
+  if (to.path !== '/') return
+  try {
+    const mode = localStorage.getItem('lende-last-mode')
+    if (mode === 'rute') return { name: 'ruteplanlegger' }
+    if (mode === 'kart') {
+      const id = localStorage.getItem('lende-last-map')
+      if (!id) return
+      const view = JSON.parse(localStorage.getItem(`lende-view:${id}`) ?? 'null')
+      if (view && typeof view.x === 'number') {
+        sessionStorage.setItem(`mapview-init-prefs:${id}`, JSON.stringify({
+          promoteView: { x: view.x, y: view.y, scale: view.scale ?? 1, rotation: view.rotation ?? 0 },
+          isAutoMap: !!view.isAuto,
+        }))
+      }
+      return { name: 'kart-vis', params: { id } }
+    }
+  } catch { /* noop — fall til forsiden */ }
+})
+
 export default router

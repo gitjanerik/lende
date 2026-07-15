@@ -8,7 +8,7 @@
   "scope": "/lende/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#1e293b",
+  "background_color": "#1b1e24",
   "theme_color": "#0e1116",
   "categories": ["navigation", "sports", "travel"],
   "icons": [
