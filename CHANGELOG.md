@@ -1,6 +1,16 @@
 # Endringslogg
 
-## 2026-07-15 — v1.0.3: Nytt ikon — «Høydekurve»
+## 2026-07-15 — v1.0.4: Opprydning — høydeprofil-modal skilt ut
+
+Første steg i å bryte den massive `MapView.vue` (9000+ linjer) i mindre biter:
+den store høydeprofil-modalen som åpnes ved tap på en turs sparkline er trukket
+ut til en egen presentasjonskomponent, `src/components/TrackElevationSheet.vue`.
+Komponenten tar imot valgt spor og en ferdig beregnet profil som props og
+sender ut `close`; forelderen eier fortsatt DEM-en og profil-cachen. Ingen
+funksjonell endring — ren strukturell opprydning som etablerer props-inn/
+emit-ut-mønsteret for videre oppdeling.
+
+---
 
 Lende fikk et eget ikon tegnet i kartets eget språk: konsentriske høydekurver i
 ISOM-konturbrun på kremgul land (ISOM 001), med toppen forskjøvet opp mot høyre
