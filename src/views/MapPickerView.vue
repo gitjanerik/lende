@@ -728,7 +728,7 @@ onMounted(() => {
       <button @click="generateMap" :disabled="buildState !== 'idle' && buildState !== 'error'"
               class="w-full py-4 rounded-xl text-white font-semibold flex items-center justify-center gap-2
                      active:scale-[0.99] transition disabled:opacity-60
-                     bg-slate-600 hover:bg-slate-500 disabled:bg-slate-800">
+                     bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-900">
         <div v-if="buildState !== 'idle' && buildState !== 'error'"
              class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
         <span v-if="buildState !== 'idle' && buildState !== 'error'">{{ buildProgress }}</span>
