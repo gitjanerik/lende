@@ -1,5 +1,21 @@
 # Endringslogg
 
+## 2026-07-15 — v1.0.11: Edge-mørkemodus-fiks + delings-frys på mottakersiden
+
+To feilrettinger. (1) Edge på Android («Dark mode for nettsteder») og Chromiums
+Auto Dark Theme tvangs-inverterte kart-SVG-en: svarte stedsnavn og stiplede
+stier ble hvite/usynlige. Siden deklarerer nå `color-scheme: only light`
+(meta i index.html + CSS på :root) — den dokumenterte opt-out-en; appens egen
+mørke UI bruker eksplisitte farger og er upåvirket. (2) «Del kart og sted»-
+lenker manglet avsenderens kart-aspekt, så mottakerens picker falt tilbake til
+eget skjermaspekt: en mobil-mottaker av et 10 km-kart ville bygget 8,0 × 17,1
+km (137 km²) — klient-side-byggingen av det frøs telefonen. Delingslenken
+bærer nå `asp=` (høyde/bredde), og mottakeren bygger samme utsnitt-form
+(verifisert i browser: 8,0 × 4,4 km med aspektet, mot 17,1 uten). Gamle lenker
+uten `asp` beholder dagens oppførsel.
+
+---
+
 ## 2026-07-15 — v1.0.10: Opprydning fullført — renderere, kontekst-oppslag og laste-pipeline i composables
 
 Siste etappe av MapView-oppdelingen: de tre bevisst utsatte blokkene er nå
