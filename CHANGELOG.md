@@ -1,5 +1,16 @@
 # Endringslogg
 
+## 2026-07-15 — v1.0.5: Opprydning — perf-logg-modal skilt ut
+
+Andre steg i oppdelingen av `MapView.vue`: perf-logg-modalen (byggetider fra
+localStorage, kun tilgjengelig fra Utvikler-fanen) er trukket ut til
+`src/components/PerfLogModal.vue`. Komponenten eier hele perf-logg-konseptet —
+den henter og tømmer loggen selv — og forelderen styrer bare synligheten via
+`v-model:open`. Både `getPerfLog`/`clearPerfLog`-importen og de fire
+hjelpefunksjonene er dermed borte fra `MapView.vue`. Ingen funksjonell endring.
+
+---
+
 ## 2026-07-15 — v1.0.4: Opprydning — høydeprofil-modal skilt ut
 
 Første steg i å bryte den massive `MapView.vue` (9000+ linjer) i mindre biter:
