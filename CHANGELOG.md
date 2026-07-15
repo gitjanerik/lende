@@ -1,5 +1,20 @@
 # Endringslogg
 
+## 2026-07-15 — v1.0.6: Opprydning — søke-overlay skilt ut
+
+Tredje steg i oppdelingen av `MapView.vue`: søke-overlayet (søkefelt +
+treffliste med Nominatim-fallback) er trukket ut til
+`src/components/MapSearchOverlay.vue`. Komponenten er presentasjonell — den
+tar imot søketilstand som props (`open`, `query`, `results`, `active-index`,
+globale treff) og sender ut intensjoner (`select`, `select-global`, `close`,
+`keydown`), mens all logikk (indeksering, sentrering, bygg nytt kart,
+highlight) blir i forelderen. `query` og `active-index` er toveis via
+`v-model`. Komponenten eier sin egen fade-transition og fokuserer feltet når
+det åpnes, så `searchInputRef` er borte fra `MapView.vue`. Ingen funksjonell
+endring.
+
+---
+
 ## 2026-07-15 — v1.0.5: Opprydning — perf-logg-modal skilt ut
 
 Andre steg i oppdelingen av `MapView.vue`: perf-logg-modalen (byggetider fra
