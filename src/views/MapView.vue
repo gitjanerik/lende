@@ -58,7 +58,7 @@ import { unpackDem } from '../lib/demSampling.js'
 import { sampleProfile } from '../lib/elevationProfile.js'
 import { fetchDEM } from '../lib/demFetcher.js'
 import { buildMapFromCenter, consumeMapFinalize } from '../lib/createMapFlow.js'
-import { pruneAutoTiles, countAutoTiles, rectOverlapFraction } from '../lib/tileCache.js'
+import { pruneAutoTiles, countAutoTiles } from '../lib/tileCache.js'
 import {
   viewRectSvg, expandRect, rectContains, buildCullIndex,
   needsRecull, computeCullDiff, parseBboxAttr,
