@@ -1,0 +1,151 @@
+# grusprofil-balansert.brf — Lende Ruteplanlegger (versjon 7, matcher
+# PROFILE_VERSION i brouterClient.js — bump begge ved endring).
+#
+# Formål: BALANSERT variant — foretrekker grus, men tar asfalt-snarveier
+# der grus-omveien blir stor (paved ~2x mot grus-maks ~4-5x).
+# Strategi: grus-familien + track ~1.0; fast dekke ~2-2.8x (mildere enn
+# grus-maks-profilen — gir kortere totalrute med lavere grusandel). Motorvei
+# forbudt. Ukjent
+# dekke på unclassified/tertiary får lett rabatt.
+#
+# Tuning-notater: costfactor-verdiene er startverdier — juster etter felttest.
+# Attribusjon: BRouter (brouter.de), data (c) OpenStreetMap-bidragsytere.
+
+---context:global
+assign processUnusedTags = false
+assign validForCars = true
+assign turnInstructionMode = 0
+
+# Snapping (v5): samme fiks som grusprofil.brf — se kommentaren der.
+assign use_dynamic_range = false
+assign waypointCatchingRange = 500
+
+---context:way
+
+assign ispaved = or surface=asphalt or surface=paved or surface=concrete or surface=paving_stones surface=sett
+assign isgravel = or surface=gravel or surface=compacted or surface=fine_gravel or surface=unpaved or surface=ground or surface=dirt surface=pebblestone
+assign nosurface = not or ispaved or isgravel surface=
+
+assign turncost = 0
+assign initialcost = 0
+
+# Tilgang: bil/MC-lovlige veier. Forby private/stengte, landbruks-/skogsdrift-
+# begrensede og rene gangarealer — ruta skal være LOVLIG for motorisert ferdsel.
+# VIKTIG (v4): BRouter-lookups tillater KUN primaer-verdier i uttrykk —
+# aliaser gir parse-feil ved opplasting (forestry = alias for agricultural,
+# delivery = alias for destination pa motor_vehicle). v2/v3 brukte aliaser og
+# hele profilen ble avvist -> stille fallback til feil profil.
+assign defaultaccess =
+  switch access=no|private|agricultural|military|customers|delivery|permit false
+  switch vehicle=no|private|agricultural false
+  switch motor_vehicle=no|private|agricultural|permit false
+  switch motorcycle=no|private|agricultural false
+  true
+
+# Gang-/sykkelvei-heuristikk (v3, generalisert fra track-only): ALT som er
+# dedikert gående/syklende (foot/bicycle=designated) uten eksplisitt
+# motor-access er ulovlig for MC — også med grusdekke og tagget
+# unclassified/service/track (jf. grusstien langs Drammenselva).
+assign gangsykkel =
+  and or foot=designated bicycle=designated
+  not motor_vehicle=yes
+
+# Lysløype (v7): samme sperre som grusprofil.brf — se kommentaren der.
+assign islysloype =
+  and piste:type=nordic
+  and not lit= not lit=no
+
+# Antatt grusvei i ruteforslag — styres av UI-sjekkboksen, klienten bytter
+# true/false ved opplasting (applyProfileFlags i brouterClient.js).
+assign inkluder_antatt_grus = true
+
+assign onlyroads =
+  switch gangsykkel false
+  switch islysloype false
+  switch highway=motorway|motorway_link false
+  switch highway=trunk|trunk_link false
+  switch highway=footway|pedestrian|cycleway|path|bridleway|steps|construction|proposed false
+  switch highway= false
+  defaultaccess
+
+assign costfactor =
+  switch not onlyroads 100000
+  switch route=ferry 8
+
+  # Skogsbilvei / track: kjernen i grusnettet. grade1 = fast dekke -> dyrere;
+  # grade5 kan være ukjørbart for tur-MC -> straffes. Track uten bekreftet
+  # grus-dekke (antatt grus) er kun med når inkluder_antatt_grus er true.
+  switch highway=track (
+    switch tracktype=grade1 ( switch ispaved 2.2 1.6 )
+    switch ispaved 2.4
+    switch isgravel 1.0
+    switch not inkluder_antatt_grus 100000
+    switch tracktype=grade5 6
+    1.0
+  )
+
+  # Eksplisitt grus på vanlig vei: like bra som track.
+  switch isgravel 1.0
+
+  # Fast dekke: dyrt — vi VIL bort fra asfalten.
+  switch ispaved (
+    switch highway=primary|primary_link 2.6
+    switch highway=secondary|secondary_link 2.3
+    2
+  )
+
+  # Ukjent dekke: sannsynlighets-heuristikk for distrikts-Norge.
+  switch nosurface (
+    switch highway=unclassified 1.4
+    switch highway=tertiary|tertiary_link 1.8
+    switch highway=service ( switch service=driveway 5 2.4 )
+    switch highway=residential|living_street 2.6
+    switch highway=secondary|secondary_link 2.4
+    switch highway=primary|primary_link 2.6
+    2
+  )
+
+  2.4
+
+# Lett straff for svært dårlig jevnhet (tur-MC, ikke enduro).
+assign costfactor =
+  switch smoothness=very_bad multiply costfactor 1.3
+  switch smoothness=horrible|very_horrible|impassable multiply costfactor 3
+  costfactor
+
+# destination = kun lovlig ved kjøring TIL eiendom — kraftig straff for
+# gjennomkjøring, men ikke forbud siden start/mål kan ligge der.
+assign costfactor =
+  switch or access=destination motor_vehicle=destination multiply costfactor 4
+  costfactor
+
+---context:node
+
+# Kun primaer-verdier og tags som finnes i node-lookups (locked finnes IKKE
+# og ga parse-feil; swing_gate/block er usikre -> droppet).
+assign defaultaccess =
+  switch access=no|private false
+  switch motor_vehicle=no|private false
+  switch vehicle=no|private false
+  switch motorcycle=no false
+  true
+
+# Eksplisitt aapen motor-tilgang paa selve noden (bom merket som kjoerbar).
+assign nodeopen =
+  or access=yes
+  or vehicle=yes
+  or motor_vehicle=yes
+  motorcycle=yes
+
+# BOM = STENGT (v6): bom paa norsk skogsbilvei betyr stengt for allmenn
+# motorferdsel, og taggingen ligger som regel KUN paa noden. v5 ga
+# gate/lift_gate initialcost 300 (~300 m ekvivalent) -- ingenting paa en
+# mils rute, saa forslagene rutet gladelig "bak bommen". Naa: bom uten
+# eksplisitt aapen tilgang er i praksis forbudt (1000000); eksplisitt aapen
+# bom koster 60 (stopp-og-aapne). Dette ekskluderer automatisk HELE
+# veinettet bak bommen -- eneste vei inn gaar gjennom noden.
+assign initialcost =
+  switch not defaultaccess 1000000
+  switch barrier=bollard|cycle_barrier 1000000
+  switch barrier=gate|lift_gate ( switch nodeopen 60 1000000 )
+  0
