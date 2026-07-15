@@ -30,6 +30,7 @@ import { trackLengthM, trackDurationMs, downloadGpx } from '../lib/gpxExport.js'
 import { norwegianName } from '../lib/placeName.js'
 import AnnotationIcon from '../components/AnnotationIcon.vue'
 import TrackElevationSheet from '../components/TrackElevationSheet.vue'
+import PerfLogModal from '../components/PerfLogModal.vue'
 import { loadMap as loadStoredMap, listMaps as listStoredMaps, deleteMap as deleteStoredMap } from '../lib/mapStorage.js'
 import { isomCatalog, buildPointSymbolDef, buildIsomDefs, buildIsomCss } from '../lib/symbolizer.js'
 import { printDocument, exportSvgFile, exportPngFile, exportPdfFile } from '../lib/printExport.js'
@@ -40,7 +41,6 @@ import { sampleProfile, buildProfilePath } from '../lib/elevationProfile.js'
 import { fetchDEM } from '../lib/demFetcher.js'
 import { buildMapFromCenter, consumeMapFinalize } from '../lib/createMapFlow.js'
 import { pruneAutoTiles, countAutoTiles, tileOffset, rectOverlapFraction, tilesAreGridCompatible } from '../lib/tileCache.js'
-import { getPerfLog, clearPerfLog } from '../lib/perfLog.js'
 import {
   viewRectSvg, expandRect, rectContains, buildCullIndex,
   needsRecull, computeCullDiff, parseBboxAttr,
@@ -246,36 +246,9 @@ const mapDataLabel = computed(() => {
   return parts.join(' · ')
 })
 
-// Perf-logg-modal (byggetider). Brukeren på mobil kan ikke lese konsollen, så
-// vi viser localStorage-loggen her med kopier-knapp.
+// Perf-logg-modal (byggetider) — se PerfLogModal.vue. Forelderen eier bare
+// synligheten; åpnes fra Utvikler-fanen.
 const showPerfLog = ref(false)
-const perfEntries = ref([])
-const perfCopied = ref(false)
-function openPerfLog() {
-  perfEntries.value = getPerfLog().slice().reverse()  // nyeste øverst
-  perfCopied.value = false
-  showPerfLog.value = true
-}
-function perfLogText() {
-  return getPerfLog()
-    .map(e => `${new Date(e.t).toLocaleString('no-NO')}  ${e.msg}`)
-    .join('\n')
-}
-async function copyPerfLog() {
-  const text = perfLogText()
-  try {
-    await navigator.clipboard.writeText(text)
-    perfCopied.value = true
-    setTimeout(() => { perfCopied.value = false }, 2000)
-  } catch {
-    // Clipboard-API utilgjengelig (eldre WebView) — vis råtekst for manuell kopiering.
-    window.prompt('Kopier perf-loggen:', text)
-  }
-}
-function clearPerfLogAndRefresh() {
-  clearPerfLog()
-  perfEntries.value = []
-}
 const showControls = ref(false)
 
 // Drawer-faner (v8.9.6) — drawer-en hadde vokst seg ulesbar med 10+ vertikale
@@ -7884,7 +7857,7 @@ onUnmounted(() => {
             </button>
             <!-- Byggetider (perf): viser localStorage-loggen så den kan kopieres
                  og deles — mobil-konsollen er upraktisk. -->
-            <button @click="openPerfLog"
+            <button @click="showPerfLog = true"
                     class="w-full px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98]
                            bg-white/5 border-white/10 text-white/75">
               Byggetider (perf-logg)
@@ -8874,53 +8847,9 @@ onUnmounted(() => {
       </div>
     </Transition>
 
-    <!-- Perf-logg-modal: byggetider fra localStorage, med kopier-knapp så de
-         kan deles (mobil-konsollen er upraktisk). Bottom-sheet stil. -->
-    <div v-if="showPerfLog"
-         class="absolute inset-0 z-[55] bg-black/60 backdrop-blur-sm flex items-end justify-center"
-         @click.self="showPerfLog = false">
-      <div class="w-full max-w-[560px] bg-zinc-900 border-t border-white/10 rounded-t-2xl p-4 max-h-[75dvh] flex flex-col">
-        <div class="flex items-center justify-between mb-3">
-          <div class="text-white text-sm font-semibold">Byggetider (perf-logg)</div>
-          <button @click="showPerfLog = false" aria-label="Lukk"
-                  class="w-8 h-8 rounded-full bg-white/5 border border-white/10
-                         text-white/65 flex items-center justify-center active:scale-90">
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-            </svg>
-          </button>
-        </div>
-
-        <div class="flex gap-2 mb-3">
-          <button @click="copyPerfLog"
-                  class="flex-1 px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98]"
-                  :class="perfCopied
-                          ? 'bg-emerald-500/20 border-emerald-400/50 text-white'
-                          : 'bg-white/5 border-white/10 text-white/80'">
-            {{ perfCopied ? 'Kopiert ✓' : 'Kopier alt' }}
-          </button>
-          <button @click="clearPerfLogAndRefresh"
-                  class="px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98]
-                         bg-white/5 border-white/10 text-white/60">
-            Tøm
-          </button>
-        </div>
-
-        <div v-if="!perfEntries.length" class="text-[12px] text-white/50 py-6 text-center">
-          Ingen byggetider ennå. Lag et nytt kart (auto-kart eller «lag her»), så dukker tallene opp her.
-        </div>
-        <div v-else class="overflow-y-auto -mx-1 px-1">
-          <div v-for="(e, i) in perfEntries" :key="i"
-               class="mb-2 rounded-lg bg-zinc-950/70 border border-white/5 px-2.5 py-2">
-            <div class="text-[9px] text-white/40 tabular-nums mb-0.5">
-              {{ new Date(e.t).toLocaleString('no-NO') }}
-            </div>
-            <div class="text-[11px] text-emerald-200/90 font-mono break-all leading-snug">{{ e.msg }}</div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- Perf-logg-modal: byggetider fra localStorage (kun utvikler).
+         Trekt ut til PerfLogModal (v1.0.5). -->
+    <PerfLogModal v-model:open="showPerfLog" />
 
     <!-- Høydeprofil-modal: stor profil + stats for valgt spor.
          Trekt ut til TrackElevationSheet (v1.0.4). -->
