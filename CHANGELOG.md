@@ -1,5 +1,24 @@
 # Endringslogg
 
+## 2026-07-15 — v1.0.8: Stor opprydning — MapView delt i komponenter og composables
+
+Hoveddelen av den planlagte oppdelingen av `MapView.vue`, samlet i én stor
+endring: hele fila er redusert fra 8756 til ca. 5550 linjer uten funksjonelle
+endringer. Template-siden er skilt ut i egne komponenter — skalabar/attribusjon,
+modus-chips og -bannere, FAB-innstillingspanelet, kulturminne-arket, alle åtte
+drawer-fanene (`src/components/drawer/`) og hele long-press-kontekstmenyen
+(`src/components/context-menu/`). Script-siden har fått fem nye composables som
+mottar forelderens refs destrukturert med uendrede funksjonskropper:
+`useDetailInset` (detalj-lupen), `useHeritageLayers` (fredet/kulturminne-WFS),
+`useReliefRender` (hillshade), `useGhostTiles` (mosaikk-naboer) og
+`useMapExtend` (kant-soner + auto-promotering). Kart-SVG-verten, transform-
+eierskapet, watchene og laste-pipelinen ligger fortsatt i `MapView.vue`;
+kontekst-oppslagene, symbol-rendererne og laste-pipelinen er kandidater for
+senere oppdeling. Alle komponent-grensesnitt er verifisert med automatisk
+identifikator-revisjon, og bygg + hele testsuiten er grønn.
+
+---
+
 ## 2026-07-15 — v1.0.7: Opprydning — status/feil-overlays skilt ut
 
 Fjerde steg i oppdelingen av `MapView.vue`: de transiente status- og feil-
@@ -50,6 +69,8 @@ funksjonell endring — ren strukturell opprydning som etablerer props-inn/
 emit-ut-mønsteret for videre oppdeling.
 
 ---
+
+## 2026-07-15 — v1.0.3: Nytt ikon — «Høydekurve»
 
 Lende fikk et eget ikon tegnet i kartets eget språk: konsentriske høydekurver i
 ISOM-konturbrun på kremgul land (ISOM 001), med toppen forskjøvet opp mot høyre
