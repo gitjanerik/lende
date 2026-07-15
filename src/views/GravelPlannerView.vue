@@ -1181,6 +1181,8 @@ function unlockBodyScroll() {
 }
 
 onMounted(() => {
+  // Sist brukte modus (app-start havner der brukeren var sist — se router.js).
+  try { localStorage.setItem('lende-last-mode', 'rute') } catch { /* noop */ }
   lockBodyScroll()
   // Snarvei-query er konsumert (utsnittet er satt) — rens URL-en så F5 /
   // tilbake-navigasjon ikke hopper tilbake til punktet etter at brukeren
@@ -1231,16 +1233,29 @@ onUnmounted(() => {
 <template>
   <div class="relative h-[100dvh] bg-[#0e1116] text-white/90 overflow-hidden flex flex-col">
 
-    <!-- Toppbar: tilbake · tittel · lagrede ruter (badge) -->
-    <div class="shrink-0 z-30 bg-zinc-950/90 backdrop-blur border-b border-white/10">
-      <div class="flex items-center gap-2 px-3 py-2.5">
+    <!-- Toppbar: tilbake · tittel · lagrede ruter (badge). Bak: diskrete
+         kontur-ringer fra logoen, spredt fra øvre venstre hjørne. -->
+    <div class="relative overflow-hidden shrink-0 z-30 bg-zinc-950/90 backdrop-blur border-b border-white/10">
+      <svg viewBox="0 0 400 60" preserveAspectRatio="xMinYMin slice" aria-hidden="true"
+           class="absolute inset-0 w-full h-full pointer-events-none">
+        <defs>
+          <path id="hdr-blob-rute" d="M0,-100 C58,-100 100,-58 97,-4 C94,50 58,99 2,97 C-54,95 -99,52 -97,-2 C-99,-56 -58,-100 0,-100 Z"/>
+        </defs>
+        <g fill="none" stroke="#3a3d45" stroke-width="1.4" opacity="0.55">
+          <use href="#hdr-blob-rute" transform="translate(0,0) scale(0.18)"/>
+          <use href="#hdr-blob-rute" transform="translate(0,0) scale(0.34)"/>
+          <use href="#hdr-blob-rute" transform="translate(0,0) scale(0.52)"/>
+          <use href="#hdr-blob-rute" transform="translate(0,0) scale(0.72)"/>
+        </g>
+      </svg>
+      <div class="relative flex items-center gap-2 px-3 py-2.5">
         <button @click="router.push('/')" aria-label="Tilbake" :disabled="!!routeInvite"
                 class="w-9 h-9 rounded-full flex items-center justify-center bg-white/5 border border-white/10
                        text-white/70 active:scale-95 transition shrink-0 disabled:opacity-35">
           <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
                stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
-        <div class="flex-1 text-center text-[15px] font-semibold text-white truncate">Ruteplanlegger</div>
+        <div class="flex-1 text-center text-[15px] font-semibold text-white truncate">Lende: Ruteplanlegger</div>
         <button @click="showSaved = true" aria-label="Lagrede ruter" :disabled="!!routeInvite"
                 class="w-9 h-9 rounded-full flex items-center justify-center bg-white/5 border border-white/10
                        text-white/70 active:scale-95 transition shrink-0 relative disabled:opacity-35">

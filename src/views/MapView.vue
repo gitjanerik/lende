@@ -2061,6 +2061,36 @@ watch(ghostRects, () => { renderExtendZones() }, { deep: true })
 watch(scale, updateExtendZoneScale)
 watch([scale, translateX, translateY, rotation], scheduleActivatableCheck)
 
+// ── Gjenoppta-ved-app-start (v1.0.12) ────────────────────────────────────
+// Husk sist brukte modus/kart + utsnitt (senter/zoom/rotasjon), så router.js
+// kan gjenopprette nøyaktig visning når appen startes på nytt etter
+// inaktivitet. Debounced — skriver først når visningen har roet seg.
+let viewSaveTimer = null
+function scheduleViewSave() {
+  if (viewSaveTimer) clearTimeout(viewSaveTimer)
+  viewSaveTimer = setTimeout(() => {
+    viewSaveTimer = null
+    if (!meta.value) return
+    const c = visibleCenterSvg()
+    if (!c) return
+    try {
+      localStorage.setItem(`lende-view:${mapId.value}`, JSON.stringify({
+        x: +c.x.toFixed(1), y: +c.y.toFixed(1),
+        scale: +(scale.value || 1).toFixed(3),
+        rotation: +(rotation.value || 0).toFixed(1),
+        isAuto: currentMapIsAuto.value,
+      }))
+    } catch { /* noop */ }
+  }, 800)
+}
+watch([scale, translateX, translateY, rotation], scheduleViewSave)
+watch(mapId, (id) => {
+  try {
+    localStorage.setItem('lende-last-mode', 'kart')
+    localStorage.setItem('lende-last-map', id)
+  } catch { /* noop */ }
+}, { immediate: true })
+
 // ── Long-press kontekstmeny — flyttet til useContextLookups ─────────────
 // Inset-refene og de detachede detalj-lagene blir her (setupHostSvg
 // re-tilordner detachedDetailLayers, og useDetailInset bruker dem).
@@ -2924,6 +2954,7 @@ onUnmounted(() => {
   if (skeletonTimer) clearTimeout(skeletonTimer)
   if (loadPillTimer) clearTimeout(loadPillTimer)
   teardownMapExtend()
+  if (viewSaveTimer) clearTimeout(viewSaveTimer)
 })
 </script>
 

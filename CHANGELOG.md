@@ -1,5 +1,21 @@
 # Endringslogg
 
+## 2026-07-15 — v1.0.12: Gjenoppta ved app-start, ny ikon-drakt og UI-polering
+
+Appen starter nå der du slapp: sist brukte modus (turkart eller ruteplanlegger)
+gjenopptas ved fersk start, og i turkart-modus åpnes sist brukte kart med
+gjenopprettet utsnitt (senter/zoom/rotasjon — lagres debounced per kart og
+gjenopprettes via samme mekanisme som mosaikk-promoteringen). Deep-lenker og
+navigasjon inne i appen berøres ikke. Forsiden fikk modus-knapp i headeren
+(snarvei til Ruteplanleggeren, speiler tilbake-knappen der), og headerne heter
+nå «Lende: Turkart» og «Lende: Ruteplanlegger» med diskrete kontur-ringer fra
+logoen spredt fra øvre venstre hjørne. «Lag turkart»-knappen er grønn.
+Logo/favicon/PNG-ikoner er tegnet om: mørkegrå bakgrunn (header-grå) med
+høydekurver i Curves-temaets varme gul — PNG-ene er rasterert på nytt fra
+icon.svg, og manifestets background_color matcher.
+
+---
+
 ## 2026-07-15 — v1.0.11: Edge-mørkemodus-fiks + delings-frys på mottakersiden
 
 To feilrettinger. (1) Edge på Android («Dark mode for nettsteder») og Chromiums
