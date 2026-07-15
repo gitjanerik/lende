@@ -1,5 +1,18 @@
 # Endringslogg
 
+## 2026-07-15 — v1.0.9: Hurtigfiks — «autoMapArmed is not defined» ved kart-lasting
+
+v1.0.8-oppdelingen etterlot fire referanser i `MapView.vue` til variabler som
+var flyttet inn i composables: `autoMapArmed` (re-armering i loadMap — ga
+«Kunne ikke laste kartet» på alle kart), `extendZonesBounds` (mosaikk-
+minsteskala), `cachedBandsKey` (relieff-stil-bytte) og timer-oppryddingen i
+onUnmounted. Composablene eksponerer nå `armAutoMap`, `extendZonesBounds`,
+`invalidateReliefBands` og `teardownMapExtend`, og forelder-scriptet er
+verifisert med samme ESLint `no-undef`-sjekk som composablene (den forrige
+revisjonen dekket kun template-siden — det var blindsonen).
+
+---
+
 ## 2026-07-15 — v1.0.8: Stor opprydning — MapView delt i komponenter og composables
 
 Hoveddelen av den planlagte oppdelingen av `MapView.vue`, samlet i én stor
