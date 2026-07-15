@@ -1,5 +1,17 @@
 # Endringslogg
 
+## 2026-07-15 — v1.0.2: «Installer som app» på forsiden
+
+Forsiden (`MapHomeView`) fikk en «Installer som app»-knapp. Den kobler på den
+eksisterende composablen `usePwaInstall` (samme som `MapPickerView` og
+`GravelPlannerView` bruker), så ingen ny install-logikk er skrevet. Knappen
+vises kun når nettleseren faktisk tilbyr PWA-install (Chrome/Edge/Android) eller
+på iOS (der den viser en kort manuell veiledning via Del-menyen), og skjules når
+appen allerede kjører installert. Klikk gir først en bekreftelses-dialog
+(«Installer Lende som webapp?») før nettleserens egen install-prompt utløses.
+
+---
+
 ## 2026-07-15 — v1.0.1: Automatisk root-sjekk etter deploy
 
 Deploy-workflowen (`build-vardasen-map.yml`) fikk et nytt steg som poller
