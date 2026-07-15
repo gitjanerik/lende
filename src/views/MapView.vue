@@ -12,7 +12,7 @@ import { useStifinner } from '../composables/useStifinner.js'
 import { useMapSearch, findByName } from '../composables/useMapSearch.js'
 import { useNominatim } from '../composables/useNominatim.js'
 import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
-import { useTrackRecorder, TRACK_STYLES } from '../composables/useTrackRecorder.js'
+import { useTrackRecorder } from '../composables/useTrackRecorder.js'
 import { useScreenWakeLock } from '../composables/useScreenWakeLock.js'
 import { useMapSizePreference, equidistanceForWidthKm, defaultMapDims, DEFAULT_MAP_WIDTH_KM, MAP_SIZE_MIN_KM, MAP_SIZE_MAX_KM } from '../composables/useMapSizePreference.js'
 import { useLodTuning } from '../composables/useLodTuning.js'
@@ -26,7 +26,7 @@ import {
 } from '../lib/mapLayerCatalog.js'
 import { themeVarEntries, allThemeVarNames } from '../lib/mapSettingsApply.js'
 import { declutter, makeMinZoomOf } from '../lib/labelDeclutter.js'
-import { trackLengthM, trackDurationMs, downloadGpx } from '../lib/gpxExport.js'
+import { trackLengthM, downloadGpx } from '../lib/gpxExport.js'
 import { norwegianName } from '../lib/placeName.js'
 import AnnotationIcon from '../components/AnnotationIcon.vue'
 import TrackElevationSheet from '../components/TrackElevationSheet.vue'
@@ -37,13 +37,21 @@ import MapScaleAttribution from '../components/MapScaleAttribution.vue'
 import KulturminneSheet from '../components/KulturminneSheet.vue'
 import FabSettingsPanel from '../components/FabSettingsPanel.vue'
 import MapModeChips from '../components/MapModeChips.vue'
+import DrawerLayersTab from '../components/drawer/DrawerLayersTab.vue'
+import DrawerThemeTab from '../components/drawer/DrawerThemeTab.vue'
+import DrawerAnnotateTab from '../components/drawer/DrawerAnnotateTab.vue'
+import DrawerMeasureTab from '../components/drawer/DrawerMeasureTab.vue'
+import DrawerTracksTab from '../components/drawer/DrawerTracksTab.vue'
+import DrawerExportTab from '../components/drawer/DrawerExportTab.vue'
+import DrawerAboutTab from '../components/drawer/DrawerAboutTab.vue'
+import DrawerDevTab from '../components/drawer/DrawerDevTab.vue'
 import { loadMap as loadStoredMap, listMaps as listStoredMaps, deleteMap as deleteStoredMap } from '../lib/mapStorage.js'
 import { isomCatalog, buildPointSymbolDef, buildIsomDefs, buildIsomCss } from '../lib/symbolizer.js'
 import { printDocument, exportSvgFile, exportPngFile, exportPdfFile } from '../lib/printExport.js'
 import { unpackDem } from '../lib/demSampling.js'
 import { computeHillshade, hillshadeToDataURL } from '../lib/hillshade.js'
 import { buildReliefBands } from '../lib/reliefBands.js'
-import { sampleProfile, buildProfilePath } from '../lib/elevationProfile.js'
+import { sampleProfile } from '../lib/elevationProfile.js'
 import { fetchDEM } from '../lib/demFetcher.js'
 import { buildMapFromCenter, consumeMapFinalize } from '../lib/createMapFlow.js'
 import { pruneAutoTiles, countAutoTiles, tileOffset, rectOverlapFraction, tilesAreGridCompatible } from '../lib/tileCache.js'
@@ -73,7 +81,6 @@ import {
   bearingDeg, bearingToCompass, formatDistanceM,
   findNearestPlace, pointToPolylineDist,
 } from '../lib/mapContext.js'
-import { APP_VERSION } from '../version.js'
 import {
   STEDSMERKE_KEY_TIMES, STEDSMERKE_DUR, STEDSMERKE_SHADOW_OPACITY,
   PIN_SCALE_VALUES, SHADOW_SCALE_VALUES,
@@ -979,7 +986,7 @@ watch(isGesturing, (g) => {
 // (selectSearchResult), så et valgt navn alltid blir synlig.
 const ZOOMED_IN_THRESHOLD = 1.3
 const {
-  zoomNearThreshold, nameBudgetFar, nameBudgetMid, nameBudgetNear, resetLodTuning, LOD_DEFAULTS,
+  zoomNearThreshold, nameBudgetFar, nameBudgetMid, nameBudgetNear, resetLodTuning,
 } = useLodTuning()
 // Brukervalgbart font-par for kart-navn (Innstillinger-fanen). Settes som
 // --land-font / --water-font på SVG-host-en → live bytte uten re-render.
@@ -2230,16 +2237,6 @@ function formatDistance(m) {
   if (m < 1000) return `${Math.round(m)} m`
   return `${(m / 1000).toFixed(2)} km`
 }
-function formatDuration(ms) {
-  if (!ms || ms < 1000) return '0 s'
-  const sec = Math.floor(ms / 1000)
-  const h = Math.floor(sec / 3600)
-  const m = Math.floor((sec % 3600) / 60)
-  const s = sec % 60
-  if (h > 0) return `${h}t ${m}m`
-  if (m > 0) return `${m}m ${s}s`
-  return `${s}s`
-}
 
 // Reliefskygge (hill-shading, v8.9.4) — DEM regnes til grayscale-PNG og
 // embeddes som SVG <image> i bunnen av lag-stacken. Cached så bytte AV/PÅ
@@ -2434,12 +2431,6 @@ const measureStats = computed(() => {
   }
   return { distM, areaM2 }
 })
-
-function formatArea(m2) {
-  if (m2 < 10_000) return `${Math.round(m2)} m²`
-  if (m2 < 1_000_000) return `${(m2 / 10_000).toFixed(2)} ha`
-  return `${(m2 / 1_000_000).toFixed(2)} km²`
-}
 
 // ── Long-press kontekstmeny ──────────────────────────────────────────────
 // Long-press (~550ms hold uten bevegelse) eller høyreklikk på kartet åpner
@@ -3239,11 +3230,6 @@ const stiElevationDiffM = computed(() => {
   if (!Number.isFinite(ea) || !Number.isFinite(eb)) return null
   return eb - ea
 })
-function formatElevationDiff(m) {
-  const r = Math.round(m)
-  if (r === 0) return '0 m'
-  return `${r > 0 ? '+' : '−'}${Math.abs(r)} m`
-}
 
 // Samlet stigning/fall langs HVER rute (parallelt array til sti.routes, til
 // forskjell fra netto-diffen over). sampleProfile sampler DEM jevnt langs
@@ -6578,827 +6564,75 @@ onUnmounted(() => {
         <div v-show="!drawer.isMinimized.value"
              class="flex-1 overflow-y-auto px-4 pb-6" :style="{ zoom: uiTextScale }">
           <!-- ── Tab: Lag ─────────────────────────────────────────── -->
-          <div v-show="activeTab === 'lag'">
-            <!-- Forhåndsvalg: ett trykk til en sammenhengende lag-tilstand.
-                 Hele toggle-listen ligger under for finjustering. -->
-            <div class="text-[11px] font-semibold text-white/55 uppercase tracking-wide mb-1.5">
-              Forhåndsvalg
-            </div>
-            <div class="grid grid-cols-4 gap-2 mb-3">
-              <button v-for="p in LAYER_PRESETS" :key="p.key"
-                      @click="applyPreset(p)"
-                      :aria-pressed="activePreset === p.key"
-                      class="px-2 py-2 rounded-lg border text-center active:scale-[0.98] transition"
-                      :class="activePreset === p.key
-                              ? 'bg-emerald-500/25 border-emerald-300/60 text-white font-medium'
-                              : 'bg-white/5 border-white/10 text-white/65'">
-                <span class="text-[12px]">{{ p.label }}</span>
-              </button>
-            </div>
-            <div class="text-[11px] font-semibold text-white/55 uppercase tracking-wide mb-1.5">
-              Enkeltlag
-            </div>
-            <div class="grid grid-cols-2 gap-2 mb-2">
-              <!-- Knapp #1: Nullstill lag-synlighet. Default disabled; blir
-                   aktiv først når minst ett lag avviker fra default-tilstand. -->
-              <button @click="resetLayers"
-                      :disabled="!layersDirty"
-                      class="px-3 py-2 rounded-lg border text-left transition"
-                      :class="layersDirty
-                              ? 'bg-amber-400/20 border-amber-300/50 text-white active:scale-[0.98]'
-                              : 'bg-white/5 border-white/5 text-white/25 cursor-default'">
-                <span class="text-[12px]">↺ Nullstill</span>
-              </button>
-              <button v-for="lay in landLayerButtons" :key="lay.key"
-                      @click="toggleLayer(lay.key)"
-                      class="px-3 py-2 rounded-lg border text-left active:scale-[0.98] transition"
-                      :class="visibleLayers.has(lay.key)
-                              ? 'bg-slate-400/25 border-slate-300/50 text-white'
-                              : 'bg-white/5 border-white/10 text-white/45'">
-                <span class="text-[12px]">{{ lay.label }}</span>
-                <span v-if="lay.key === 'kulturminne'"
-                      class="ml-1 text-[10px] tabular-nums"
-                      :class="kulturminneCount ? 'text-emerald-300/80' : 'text-white/30'">({{ kulturminneCount }})</span>
-                <span v-else-if="lay.key === 'fredet-kulturminne' && (fredetLoading || fredetCount != null)"
-                      class="ml-1 text-[10px] tabular-nums"
-                      :class="fredetCount ? 'text-emerald-300/80' : 'text-white/30'">{{ fredetLoading ? '…' : '(' + fredetCount + ')' }}</span>
-              </button>
-            </div>
-            <!-- Gruppert seksjon: Sjø & padling -->
-            <div class="mt-3 mb-1 text-[11px] font-semibold text-sky-300/80 uppercase tracking-wide">
-              Sjø &amp; padling
-            </div>
-            <div class="grid grid-cols-2 gap-2 mb-1">
-              <button v-for="lay in marineLayerButtons" :key="lay.key"
-                      @click="toggleLayer(lay.key)"
-                      class="px-3 py-2 rounded-lg border text-left active:scale-[0.98] transition"
-                      :class="visibleLayers.has(lay.key)
-                              ? 'bg-sky-400/25 border-sky-300/50 text-white'
-                              : 'bg-white/5 border-white/10 text-white/45'">
-                <span class="text-[12px]">{{ lay.label }}</span>
-              </button>
-              <!-- Dybde-lag (v11.0.54): kun når kartet har ekte Sjøkart-dybde.
-                   Default av — løfter soundings + dybdekurver fra long-press-
-                   inset til hovedkartet. -->
-              <button v-if="meta?.depthSource === 'sjokart'"
-                      @click="toggleDepth()"
-                      class="px-3 py-2 rounded-lg border text-left active:scale-[0.98] transition"
-                      :class="visibleLayers.has('dybde')
-                              ? 'bg-sky-400/25 border-sky-300/50 text-white'
-                              : 'bg-white/5 border-white/10 text-white/45'">
-                <span class="text-[12px]">Dybde (Sjøkart)</span>
-              </button>
-            </div>
-            <div class="text-[10px] text-white/40 leading-snug mb-2">
-              Fyr, sjømerker, skjær, småbåthavner, landingssteder, toalett og
-              drikkevann. «Sjønavn» viser geografiske navn i sjøen (bukt, vik,
-              sund, nes, grunne, holme, skjær). Dybdetall vises ved å holde inne
-              et punkt på kartet.
-            </div>
-            <div class="text-[10px] text-white/40 leading-snug mt-2">
-              Reliefskygge er DEM-derivert hill-shading rendret som grayscale-
-              PNG inne i SVG-en med <code>mix-blend-mode: multiply</code>.
-            </div>
-          </div>
+          <!-- Fane-innholdet er skilt ut i egne komponenter (v1.0.8):
+               src/components/drawer/. v-show (ikke v-if) beholder DOM-en
+               levende ved fanebytte, som før. -->
+          <DrawerLayersTab v-show="activeTab === 'lag'"
+            :apply-preset="applyPreset" :active-preset="activePreset"
+            :reset-layers="resetLayers" :layers-dirty="layersDirty"
+            :land-layer-buttons="landLayerButtons" :marine-layer-buttons="marineLayerButtons"
+            :toggle-layer="toggleLayer" :toggle-depth="toggleDepth"
+            :visible-layers="visibleLayers" :kulturminne-count="kulturminneCount"
+            :fredet-loading="fredetLoading" :fredet-count="fredetCount" :meta="meta" />
 
-          <!-- ── Tab: Tema ────────────────────────────────────────── -->
-          <div v-show="activeTab === 'tema'">
-            <div class="grid grid-cols-3 gap-2 mb-3">
-              <button v-for="t in THEMES" :key="t.key"
-                      @click="onThemeTap(t.key)"
-                      class="px-3 py-2 rounded-lg border text-[11px] active:scale-[0.98] transition text-center"
-                      :class="currentTheme === t.key
-                              ? 'bg-slate-400/25 border-slate-300/50 text-white font-medium'
-                              : 'bg-white/5 border-white/10 text-white/65'">
-                {{ t.label }}
-              </button>
-            </div>
+          <DrawerThemeTab v-show="activeTab === 'tema'"
+            :themes="THEMES" :current-theme="currentTheme" :on-theme-tap="onThemeTap"
+            :land-font="landFont" :water-font="waterFont"
+            v-model:font-pair-id="fontPairId" />
 
-            <!-- Font-par for kart-navn (Stedsnavn-typografi). Land = sans
-                 (bebyggelse/topp/område), vann = kursiv serif. Byttes live.
-                 Flyttet hit fra Innstillinger-fanen (v12.1.40) — hører tematisk
-                 sammen med tema-valget. -->
-            <div class="rounded-lg bg-white/5 px-3 py-2.5 mb-3">
-              <div class="text-[13px] text-white font-medium mb-2">Skrift på kart-navn</div>
-              <select v-model="fontPairId" aria-label="Font-par for kart-navn"
-                      class="w-full rounded-md bg-white/10 text-white text-[12px] px-2 py-1.5
-                             border border-white/10 focus:outline-none focus:ring-1 focus:ring-emerald-400
-                             [&>option]:text-zinc-900 [&>option]:bg-white">
-                <option v-for="p in FONT_PAIRS" :key="p.id" :value="p.id">{{ p.id }}</option>
-              </select>
-              <div class="mt-2 flex items-baseline gap-2" aria-hidden="true">
-                <span class="text-white/85 text-[14px]" :style="{ fontFamily: landFont }">Stubdalskampen</span>
-                <span class="text-sky-300 text-[14px] italic" :style="{ fontFamily: waterFont }">Damtjern</span>
-              </div>
-              <div class="text-[11px] text-white/55 leading-snug mt-1.5">
-                Bebyggelse, topp og område settes i sans; vann-navn i kursiv serif.
-                Gjelder kart bygd etter denne oppdateringen — eldre kart må regenereres.
-              </div>
-            </div>
-          </div>
+          <DrawerAnnotateTab v-show="activeTab === 'annotering'"
+            :annot="annot" :select-symbol="selectSymbol"
+            :label-for-annotation="labelForAnnotation" />
 
-          <!-- ── Tab: Annotering (kun bruker-kart) ───────────────── -->
-          <div v-show="activeTab === 'annotering'">
-            <div class="space-y-2 mb-3">
-              <div class="grid grid-cols-2 gap-2">
-                <button v-for="s in ANNOTATION_SYMBOLS" :key="s.code"
-                        @click="selectSymbol(s.symbolKey)"
-                        class="px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98] transition flex items-center gap-2"
-                        :class="annot.selectedSymbol.value === s.symbolKey
-                                ? 'bg-slate-400/30 border-slate-200/60 text-white'
-                                : 'bg-white/5 border-white/10 text-white/70'">
-                  <AnnotationIcon :symbol-key="s.symbolKey"/>
-                  {{ s.label }}
-                </button>
-              </div>
-              <div class="flex gap-2 text-[11px] text-white/55">
-                <span>{{ annot.annotations.value.length }} symbol(er)</span>
-                <button v-if="annot.annotations.value.length"
-                        @click="annot.clearAll(); annot.persist()"
-                        class="ml-auto text-red-300 active:text-red-100">Slett alle</button>
-              </div>
-            </div>
+          <DrawerMeasureTab v-show="activeTab === 'maaling'"
+            :measure-mode="measureMode" :measure-stats="measureStats"
+            :measure-closed="measureClosed" :measure-vertices="measureVertices"
+            :start-measure="startMeasure" :stop-measure="stopMeasure"
+            :close-measure="closeMeasure" :undo-measure-vertex="undoMeasureVertex"
+            :clear-measure="clearMeasure" />
 
-            <!-- Lay-toggles pr type — kun synlig når noe er plassert -->
-            <template v-if="annot.annotations.value.length">
-              <div class="text-white/55 text-[11px] uppercase tracking-wide mb-2">Synlighet pr type</div>
-              <div class="grid grid-cols-2 gap-2 mb-3">
-                <button v-for="s in ANNOTATION_SYMBOLS.filter(x => annot.countByType.value[x.symbolKey] > 0)"
-                        :key="s.code"
-                        @click="annot.toggleTypeVisibility(s.symbolKey)"
-                        class="px-3 py-2 rounded-lg border text-left active:scale-[0.98] transition
-                               flex items-center gap-2"
-                        :class="annot.visibleTypes.value.has(s.symbolKey)
-                                ? 'bg-slate-400/25 border-slate-300/50 text-white'
-                                : 'bg-white/5 border-white/10 text-white/45'">
-                  <AnnotationIcon :symbol-key="s.symbolKey"/>
-                  <span class="text-[12px]">{{ s.label }} ({{ annot.countByType.value[s.symbolKey] }})</span>
-                </button>
-              </div>
+          <DrawerTracksTab v-show="activeTab === 'sporing'"
+            :tracker="tracker" :user-pos="userPos" :live-track-stats="liveTrackStats"
+            :on-toggle-recording="onToggleRecording" :on-export-track-gpx="onExportTrackGpx"
+            :on-delete-track="onDeleteTrack" :profile-for="profileFor"
+            v-model:expanded-track-id="expandedTrackId"
+            :gps-debug-line="gpsDebugLine" :copy-gps-coords="copyGpsCoords"
+            :copy-state="copyState" :show-gps-tip="showGpsTip"
+            :dismiss-gps-tip="dismissGpsTip" />
 
-              <div class="text-white/55 text-[11px] uppercase tracking-wide mb-2">Alle plasserte</div>
-              <div class="space-y-1 mb-2 max-h-56 overflow-y-auto pr-1">
-                <div v-for="a in annot.annotations.value" :key="a.id"
-                     class="flex items-center gap-2 px-2.5 py-1.5 rounded-md
-                            bg-white/5 border border-white/10 text-white/75">
-                  <AnnotationIcon :symbol-key="labelForAnnotation(a).symbolKey"/>
-                  <span class="text-[12px] flex-1 truncate">{{ labelForAnnotation(a).label }}</span>
-                  <span class="text-[10px] text-white/35 tabular-nums shrink-0">
-                    {{ Math.round(a.x) }},&nbsp;{{ Math.round(a.y) }}
-                  </span>
-                  <button @click="annot.remove(a.id); annot.persist()"
-                          class="w-6 h-6 flex items-center justify-center rounded-md
-                                 text-white/55 active:scale-90 active:bg-rose-500/20
-                                 active:text-rose-200 shrink-0"
-                          aria-label="Slett annotering">
-                    <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
-                         stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                      <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </template>
-            <div v-else class="text-[10px] text-white/40 leading-snug">
-              Velg et symbol over og tap på kartet for å plassere.
-            </div>
-          </div>
+          <DrawerExportTab v-show="activeTab === 'eksport'"
+            :share-state="shareState" :highlighted-feature="highlightedFeature"
+            :exporting="exporting" :on-share-map="onShareMap"
+            :on-share-map-with-place="onShareMapWithPlace"
+            :on-export-svg="onExportSvg" :on-export-png="onExportPng"
+            :on-export-pdf="onExportPdf" :on-print="onPrint" />
 
-          <!-- ── Tab: Måling ─────────────────────────────────────── -->
-          <div v-show="activeTab === 'maaling'">
-            <div class="space-y-2 mb-2">
-              <button v-if="!measureMode"
-                      @click="startMeasure"
-                      class="w-full px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                             bg-white/5 border-white/10 text-white/75 flex items-center justify-center gap-2">
-                <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="3 21 9 15 13 19 21 11"/>
-                  <path d="M5 19 V21 H7 M19 11 V13 H21"/>
-                </svg>
-                Mål distanse og areal
-              </button>
-              <div v-else class="rounded-lg border border-emerald-400/40 bg-emerald-500/10 p-3 space-y-2">
-                <div class="flex items-baseline justify-between">
-                  <div class="text-[11px] text-emerald-100/85 uppercase tracking-wide">
-                    Tap på kartet for å plassere punkter
-                  </div>
-                  <button @click="stopMeasure"
-                          aria-label="Avslutt måling"
-                          class="text-white/70 active:scale-90 text-[10px] px-1.5 py-0.5 rounded
-                                 bg-white/10 hover:bg-white/15">
-                    Lukk
-                  </button>
-                </div>
-                <div class="text-white text-[14px] tabular-nums font-medium">
-                  {{ formatDistance(measureStats.distM) }}
-                  <span v-if="measureClosed" class="text-emerald-200/85">
-                    · {{ formatArea(measureStats.areaM2) }}
-                  </span>
-                  <span v-if="measureVertices.length === 0"
-                        class="text-white/45 text-[11px] font-normal">
-                    (ingen punkter ennå)
-                  </span>
-                </div>
-                <div class="flex gap-1.5">
-                  <button @click="closeMeasure"
-                          :disabled="measureVertices.length < 3 || measureClosed"
-                          class="flex-1 px-2 py-1.5 rounded-md text-[11px] border active:scale-[0.98]
-                                 bg-emerald-500/20 border-emerald-300/40 text-white
-                                 disabled:opacity-40 disabled:cursor-not-allowed">
-                    Lukk polygon
-                  </button>
-                  <button @click="undoMeasureVertex"
-                          :disabled="!measureVertices.length"
-                          class="flex-1 px-2 py-1.5 rounded-md text-[11px] border active:scale-[0.98]
-                                 bg-white/5 border-white/15 text-white/75 disabled:opacity-40">
-                    Angre
-                  </button>
-                  <button @click="clearMeasure"
-                          :disabled="!measureVertices.length"
-                          class="flex-1 px-2 py-1.5 rounded-md text-[11px] border active:scale-[0.98]
-                                 bg-white/5 border-white/15 text-white/75 disabled:opacity-40">
-                    Tøm
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div class="text-[10px] text-white/40 leading-snug">
-              Distanse summeres som rette linjer mellom punkter. Areal beregnes
-              med shoelace-formelen når polygonen er lukket. m² · ha · km² —
-              det som passer best for areal-størrelsen.
-            </div>
-          </div>
+          <DrawerAboutTab v-show="activeTab === 'om'"
+            v-model:map-size-slider="mapSizeSlider"
+            v-model:show-full-names="showFullNames"
+            v-model:max-tile-index="maxTileIndex"
+            v-model:global-relief-enabled="globalReliefEnabled"
+            v-model:global-relief-mode="globalReliefMode"
+            v-model:density-id="densityId"
+            v-model:density-apply-to-all="densityApplyToAll"
+            :map-size-km="mapSizeKm" :rebuild-at-chosen-size="rebuildAtChosenSize"
+            :building="buildingOnTheFly" :can-rebuild="!!meta?.bbox"
+            :screen-wake="screenWake" :max-tiles="maxTiles"
+            :max-tile-index-max="MAX_TILE_STEPS.length - 1" />
 
-          <!-- ── Tab: Sporing (kun bruker-kart) ─────────────────── -->
-          <div v-show="activeTab === 'sporing'">
-          <div class="space-y-2 mb-3">
-            <button @click="onToggleRecording"
-                    class="w-full px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98] flex items-center justify-between gap-2"
-                    :class="tracker.isRecording.value
-                            ? 'bg-pink-500/25 border-pink-300/50 text-white'
-                            : 'bg-white/5 border-white/10 text-white/75'">
-              <span class="flex items-center gap-2">
-                <span v-if="tracker.isRecording.value"
-                      class="w-2 h-2 rounded-full bg-pink-400 animate-pulse"></span>
-                <svg v-else viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="3" fill="currentColor"/>
-                </svg>
-                {{ tracker.isRecording.value ? 'Stopp opptak' : (userPos.isWatching ? 'Start opptak' : 'Start GPS + opptak') }}
-              </span>
-              <span v-if="liveTrackStats" class="text-[11px] text-pink-100/85 tabular-nums">
-                {{ formatDistance(liveTrackStats.meters) }} · {{ formatDuration(liveTrackStats.ms) }}
-              </span>
-            </button>
-
-            <!-- Stil-velger: linje / fotspor / brødsmuler. Påvirker
-                 alle synlige spor med en gang. -->
-            <div class="grid grid-cols-3 gap-1.5">
-              <button v-for="s in TRACK_STYLES" :key="s.key"
-                      @click="tracker.setStyle(s.key)"
-                      :title="s.desc"
-                      class="px-2 py-1.5 rounded-md border text-[11px] active:scale-[0.98] transition"
-                      :class="tracker.trackStyle.value === s.key
-                              ? 'bg-pink-400/20 border-pink-300/50 text-white'
-                              : 'bg-white/5 border-white/10 text-white/65'">
-                {{ s.label }}
-              </button>
-            </div>
-            <div class="text-[10px] text-white/40 leading-snug">
-              Punkter samples ned til hver 5. m. Lave-nøyaktighets-fixer (over
-              50 m) ignoreres så støy ikke blir sti. Spor lagres med kartet.
-            </div>
-            <div v-if="tracker.isRecording.value"
-                 class="text-[10px] leading-snug rounded-md px-2 py-1.5 bg-pink-500/10
-                        border border-pink-300/20 text-pink-100/85">
-              <span v-if="tracker.wakeLockActive.value">
-                Skjermen holdes våken så GPS ikke stopper. Hold appen åpen
-                under turen — nettleseren kan ikke spore i bakgrunnen.
-              </span>
-              <span v-else>
-                Hold appen åpen og skjermen våken under turen — nettleseren
-                kan ikke spore i bakgrunnen, og GPS-en stopper når skjermen
-                sovner.
-              </span>
-            </div>
-          </div>
-
-          <!-- Liste over lagrede spor + det aktive sporet. -->
-          <div v-if="tracker.tracks.value.length"
-               class="text-white/55 text-[11px] uppercase tracking-wide mb-2">Mine spor</div>
-          <div v-if="tracker.tracks.value.length"
-               class="space-y-1.5 mb-3 max-h-56 overflow-y-auto pr-1">
-            <div v-for="tr in tracker.tracks.value" :key="tr.id"
-                 class="px-2.5 py-1.5 rounded-md bg-white/5 border border-white/10">
-              <div class="flex items-center gap-2">
-                <button @click="tracker.toggleVisibility(tr.id)"
-                        :aria-label="tracker.visibleTrackIds.value.has(tr.id) ? 'Skjul spor' : 'Vis spor'"
-                        class="w-5 h-5 flex items-center justify-center rounded-sm shrink-0"
-                        :class="tracker.visibleTrackIds.value.has(tr.id)
-                                ? 'text-pink-300'
-                                : 'text-white/30'">
-                  <svg v-if="tracker.visibleTrackIds.value.has(tr.id)" viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M2 12 s4 -7 10 -7 s10 7 10 7 s-4 7 -10 7 s-10 -7 -10 -7"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                  <svg v-else viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M3 3 L21 21"/>
-                    <path d="M10.5 6.2 Q12 6 13.5 6.2 Q19 7 22 12 Q21 13.5 19 15.2"/>
-                    <path d="M2 12 Q5 7 9 6"/>
-                  </svg>
-                </button>
-                <div class="flex-1 min-w-0">
-                  <div class="text-[12px] text-white/85 truncate">
-                    {{ tr.navn || ('Tur ' + new Date(tr.opprettet).toLocaleDateString('no-NO', { day: '2-digit', month: 'short' })) }}
-                    <span v-if="tracker.isRecording.value && tracker.activeTrack.value?.id === tr.id"
-                          class="ml-1 text-pink-300 text-[10px] uppercase">● opptak</span>
-                  </div>
-                  <div class="text-[10px] text-white/45 tabular-nums">
-                    {{ formatDistance(trackLengthM(tr)) }} ·
-                    {{ formatDuration(trackDurationMs(tr)) }} ·
-                    {{ tr.points.length }} punkter
-                  </div>
-                </div>
-                <button @click="onExportTrackGpx(tr)"
-                        aria-label="Eksporter som GPX"
-                        :disabled="!tr.points.length"
-                        class="w-7 h-7 flex items-center justify-center rounded-md text-white/55
-                               active:scale-90 active:bg-white/10 disabled:opacity-30">
-                  <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
-                       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 5 V19"/><polyline points="6 13 12 19 18 13"/>
-                    <line x1="5" y1="21" x2="19" y2="21"/>
-                  </svg>
-                </button>
-                <button @click="onDeleteTrack(tr.id)"
-                        aria-label="Slett spor"
-                        class="w-7 h-7 flex items-center justify-center rounded-md text-white/55
-                               active:scale-90 active:bg-rose-500/20 active:text-rose-200">
-                  <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
-                       stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-                  </svg>
-                </button>
-              </div>
-
-              <!-- Høydeprofil-sparkline (v8.9.4). Tap for å zoome.
-                   Krever ≥ 2 punkter og at DEM er lastet. -->
-              <button v-if="profileFor(tr)"
-                      @click="expandedTrackId = tr.id"
-                      class="mt-1.5 w-full block rounded-sm overflow-hidden active:opacity-80"
-                      aria-label="Vis høydeprofil i full størrelse">
-                <svg viewBox="0 0 200 36" preserveAspectRatio="none"
-                     class="w-full h-9 block">
-                  <defs>
-                    <linearGradient :id="'pf-grad-' + tr.id" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%" stop-color="#ec4899" stop-opacity="0.55"/>
-                      <stop offset="100%" stop-color="#ec4899" stop-opacity="0.05"/>
-                    </linearGradient>
-                  </defs>
-                  <path :d="buildProfilePath(profileFor(tr), 200, 36, 2).area"
-                        :fill="'url(#pf-grad-' + tr.id + ')'"/>
-                  <path :d="buildProfilePath(profileFor(tr), 200, 36, 2).line"
-                        fill="none" stroke="#ec4899" stroke-width="1.2"
-                        stroke-linecap="round" stroke-linejoin="round"
-                        vector-effect="non-scaling-stroke"/>
-                </svg>
-                <div class="text-[10px] text-white/55 tabular-nums leading-tight px-0.5 mt-0.5 text-left">
-                  ↗ {{ Math.round(profileFor(tr).totalAscent) }} m ·
-                  ↘ {{ Math.round(profileFor(tr).totalDescent) }} m ·
-                  {{ Math.round(profileFor(tr).minElev) }}–{{ Math.round(profileFor(tr).maxElev) }} moh
-                </div>
-              </button>
-            </div>
-          </div>
-
-          <!-- GPS-debug-readout (synlig kun når GPS er på) -->
-          <div v-if="userPos.isWatching"
-               class="flex items-stretch gap-2 mb-2">
-            <div class="flex-1 text-white/60 text-[10.5px] font-mono leading-snug
-                        bg-white/5 border border-white/10 rounded-lg px-3 py-2 tabular-nums
-                        flex items-center">
-              {{ gpsDebugLine }}
-            </div>
-            <button @click="copyGpsCoords"
-                    :disabled="userPos.latRaw == null"
-                    :aria-label="copyState === 'copied' ? 'Kopiert' : 'Kopier posisjon som Google Maps-lenke'"
-                    class="px-3 rounded-lg border text-[11px] active:scale-[0.98] transition disabled:opacity-40"
-                    :class="copyState === 'copied'
-                            ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-100'
-                            : copyState === 'failed'
-                              ? 'bg-rose-500/20 border-rose-400/50 text-rose-100'
-                              : 'bg-white/5 border-white/10 text-white/75'">
-              {{ copyState === 'copied' ? 'Kopiert' : copyState === 'failed' ? 'Feil' : 'Kopier' }}
-            </button>
-          </div>
-
-          <!-- v8.5.6: førstegangs-tips om Android «Presis posisjon». -->
-          <div v-if="showGpsTip"
-               class="relative text-[11px] leading-snug bg-amber-500/15 border border-amber-400/40
-                      text-amber-50/95 rounded-lg px-3 py-2.5 mb-2 pr-8">
-            <button @click="dismissGpsTip"
-                    aria-label="Skjul tips"
-                    class="absolute top-1.5 right-1.5 w-6 h-6 flex items-center justify-center
-                           rounded-md text-amber-100/70 active:scale-90 hover:bg-white/10">
-              <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
-                   stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-              </svg>
-            </button>
-            <div class="font-semibold text-amber-100 mb-0.5">Tips: Sjekk «Presis posisjon»</div>
-            Hvis prikken ligger langt unna deg, har nettleseren sannsynligvis bare «Omtrentlig»
-            posisjon (~2 km nøyaktighet). På Android 12+: Innstillinger → Apper → din nettleser →
-            Tillatelser → Posisjon → velg <b>Presis</b>.
-          </div>
-          </div>
-
-          <!-- ── Tab: Eksport ─────────────────────────────────────── -->
-          <div v-show="activeTab === 'eksport'">
-            <!-- Del kart — bruker Web Share API på iOS/Android med fallback
-                 til clipboard. Inkluderer ?hl=<navn> hvis et søkeresultat er
-                 highlightet, slik at mottaker ser samme markering. -->
-            <button @click="onShareMap"
-                    class="w-full mb-3 px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                           flex items-center justify-center gap-2 transition"
-                    :class="shareState === 'copied'
-                            ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-100'
-                            : 'bg-sky-500/15 border-sky-400/40 text-sky-100'">
-              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <template v-if="shareState === 'copied'">
-                  <polyline points="20 6 9 17 4 12"/>
-                </template>
-                <template v-else>
-                  <circle cx="18" cy="5" r="3"/>
-                  <circle cx="6" cy="12" r="3"/>
-                  <circle cx="18" cy="19" r="3"/>
-                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-                </template>
-              </svg>
-              <span class="font-medium">
-                <template v-if="shareState === 'copied'">Lenke kopiert ✓</template>
-                <template v-else-if="shareState === 'sharing'">Åpner delings-dialog …</template>
-                <template v-else-if="shareState === 'error'">Kunne ikke dele — prøv igjen</template>
-                <template v-else>Del kart</template>
-              </span>
-            </button>
-            <!-- Del kart og sted — vises kun når et sted er markert (rosa puls).
-                 Mottakeren får utsnittet låst + samme rosa markering på stedet. -->
-            <button v-if="highlightedFeature" @click="onShareMapWithPlace"
-                    class="w-full mb-2 px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                           flex items-center justify-center gap-2 transition
-                           bg-pink-500/15 border-pink-400/40 text-pink-100">
-              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>
-                <circle cx="12" cy="10" r="3"/>
-              </svg>
-              <span class="font-medium">Del kart og sted</span>
-            </button>
-            <div v-if="highlightedFeature"
-                 class="text-[10px] text-white/55 leading-snug mb-3 px-1 -mt-1">
-              Markert sted: <span class="text-pink-300 font-medium">{{ highlightedFeature.name }}</span>.
-              Mottakeren ser samme markering, og utsnittet er låst så stedet ikke går tapt.
-            </div>
-
-            <div class="grid grid-cols-2 gap-2 mb-3">
-              <button @click="onExportSvg" :disabled="!!exporting"
-                      class="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white/75
-                             text-[11px] active:scale-[0.98] disabled:opacity-50
-                             flex items-center justify-center gap-1.5">
-                <span v-if="exporting === 'svg'"
-                      class="w-3 h-3 rounded-full border-2 border-white/25 border-t-white/80 animate-spin shrink-0"></span>
-                {{ exporting === 'svg' ? 'Lagrer …' : 'Lagre .svg' }}
-              </button>
-              <button @click="onExportPng" :disabled="!!exporting"
-                      class="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white/75
-                             text-[11px] active:scale-[0.98] disabled:opacity-50
-                             flex items-center justify-center gap-1.5">
-                <span v-if="exporting === 'png'"
-                      class="w-3 h-3 rounded-full border-2 border-white/25 border-t-white/80 animate-spin shrink-0"></span>
-                {{ exporting === 'png' ? 'Lager PNG …' : 'Lagre .png (300 dpi)' }}
-              </button>
-              <button @click="onExportPdf" :disabled="!!exporting"
-                      class="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white/75
-                             text-[11px] active:scale-[0.98] disabled:opacity-50
-                             flex items-center justify-center gap-1.5">
-                <span v-if="exporting === 'pdf'"
-                      class="w-3 h-3 rounded-full border-2 border-white/25 border-t-white/80 animate-spin shrink-0"></span>
-                {{ exporting === 'pdf' ? 'Lager PDF …' : 'Lagre som PDF' }}
-              </button>
-              <button @click="onPrint" :disabled="!!exporting"
-                      class="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white/75
-                             text-[11px] active:scale-[0.98] disabled:opacity-50
-                             flex items-center justify-center gap-1.5">
-                <span v-if="exporting === 'print'"
-                      class="w-3 h-3 rounded-full border-2 border-white/25 border-t-white/80 animate-spin shrink-0"></span>
-                {{ exporting === 'print' ? 'Forbereder …' : 'Skriv ut' }}
-              </button>
-            </div>
-
-            <!-- Debug-info + diagnose/byggetider er flyttet til «Utvikler»-fanen. -->
-          </div>
-
-          <!-- ── Tab: Om ──────────────────────────────────────────── -->
-          <div v-show="activeTab === 'om'">
-            <!-- Kartstørrelse for NYE kart (søk/GPS på forsiden). Slider 1–20 km,
-                 default 10 km. Ekvidistansen settes automatisk til den fineste
-                 tillatte for bredden (samme regel som «Flere valg»). Påvirker
-                 ikke kartet som vises nå, kun neste nye kart. -->
-            <div class="rounded-lg bg-white/5 px-3 py-2.5 mb-3">
-              <div class="flex items-baseline justify-between mb-0.5">
-                <div class="text-[13px] text-white font-medium">Kartstørrelse (nye kart)</div>
-                <div class="text-[13px] text-white font-semibold tabular-nums">{{ mapSizeSlider }} × {{ mapSizeSlider }} km</div>
-              </div>
-              <div class="text-[11px] text-white/55 leading-snug mb-2">
-                Bredde på nye kvadratiske kart fra søk/GPS. Ekvidistanse settes
-                automatisk — fineste tillatte for bredden
-                ({{ equidistanceForWidthKm(mapSizeSlider) }} m for {{ mapSizeSlider }} km).
-                Større kart tar lengre tid å bygge.
-              </div>
-              <div class="flex items-center gap-2">
-                <input type="range" :min="MAP_SIZE_MIN_KM" :max="MAP_SIZE_MAX_KM" step="1"
-                       v-model.number="mapSizeSlider"
-                       aria-label="Kartstørrelse i km (bredde på nye kart)"
-                       class="flex-1 accent-emerald-400 cursor-pointer" />
-                <button @click="mapSizeSlider = DEFAULT_MAP_WIDTH_KM"
-                        class="shrink-0 px-2 py-1 rounded-lg text-[11px] font-medium border transition active:scale-95"
-                        :class="mapSizeKm == null
-                                ? 'bg-emerald-500/20 text-white border-emerald-400/50'
-                                : 'bg-white/5 text-white/70 border-white/10'">
-                  Standard
-                </button>
-              </div>
-              <div class="flex justify-between text-[10px] text-white/35 tabular-nums mt-1 px-0.5">
-                <span>{{ MAP_SIZE_MIN_KM }} km</span>
-                <span>{{ MAP_SIZE_MAX_KM }} km</span>
-              </div>
-              <!-- Bygg om gjeldende område i valgt størrelse — slipper å gå til
-                   forsiden for å teste samme sted ved en annen bredde. -->
-              <button @click="rebuildAtChosenSize()" :disabled="buildingOnTheFly || !meta?.bbox"
-                      class="w-full mt-2 px-3 py-2 rounded-lg text-[12px] font-medium border transition
-                             active:scale-[0.98] disabled:opacity-50
-                             bg-sky-500/15 border-sky-400/40 text-sky-100">
-                Bygg om dette området i valgt størrelse
-              </button>
-            </div>
-            <!-- Flerspråklige navn (norsk - samisk - finsk) i Nord-Norge.
-                 Default AV = vis kun det norske navnet for et renere kart.
-                 PÅ = vis hele det flerspråklige navnet. Søk finner alle språk
-                 uansett. -->
-            <div class="rounded-lg bg-white/5 px-3 py-2.5 mb-3 flex items-center gap-3">
-              <div class="flex-1 min-w-0">
-                <div class="text-[13px] text-white font-medium">Vis fulle navn</div>
-                <div class="text-[11px] text-white/55 leading-snug">
-                  I Nord-Norge har mange steder navn på norsk, samisk og kvensk.
-                  Av: vis kun det norske navnet (renere kart). På: vis hele det
-                  flerspråklige navnet. Søk finner alle språk uansett.
-                </div>
-              </div>
-              <button @click="showFullNames = !showFullNames"
-                      :aria-pressed="showFullNames"
-                      :aria-label="showFullNames ? 'Vis kun norske navn' : 'Vis fulle navn'"
-                      class="relative w-11 h-6 rounded-full transition-colors shrink-0"
-                      :class="showFullNames ? 'bg-emerald-500' : 'bg-white/15'">
-                <span class="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
-                      :class="showFullNames ? 'left-5' : 'left-0.5'" />
-              </button>
-            </div>
-            <!-- Innstillinger: hold skjerm våken. Default PÅ — nyttig når
-                 brukeren bruker kartet til orientering ute og ikke vil at
-                 telefonen skal låse skjermen midt i navigasjonen. -->
-            <div v-if="screenWake.supported"
-                 class="rounded-lg bg-white/5 px-3 py-2.5 mb-3 flex items-center gap-3">
-              <div class="flex-1 min-w-0">
-                <div class="text-[13px] text-white font-medium">Hold skjerm våken</div>
-                <div class="text-[11px] text-white/55 leading-snug">
-                  Hindrer at telefonen låser skjermen mens du bruker kartet. Slipper automatisk etter 2 min uten berøring så batteriet spares — tar seg igjen straks du tar på kartet. Slå av helt om du vil. <span class="text-white/70">Et aktivt nærhetsvarsel overstyrer 2-min-grensen og holder skjermen våken sammenhengende til varselet avbrytes — uavhengig av denne bryteren.</span>
-                </div>
-              </div>
-              <button @click="screenWake.setEnabled(!screenWake.enabled.value)"
-                      :aria-pressed="screenWake.enabled.value"
-                      :aria-label="screenWake.enabled.value ? 'Slå av skjerm-våken' : 'Slå på skjerm-våken'"
-                      class="relative w-11 h-6 rounded-full transition-colors shrink-0"
-                      :class="screenWake.enabled.value ? 'bg-emerald-500' : 'bg-white/15'">
-                <span class="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
-                      :class="screenWake.enabled.value ? 'left-5' : 'left-0.5'" />
-              </button>
-            </div>
-            <!-- Maks kartfliser: hvor mange utsnitt mosaikk-cachen beholder.
-                 Trinn 4/9/16/25/36 (n×n), default 16. Påvirker mest lagring. -->
-            <div class="rounded-lg bg-white/5 px-3 py-2.5 mb-3">
-              <div class="flex items-center justify-between gap-3 mb-1.5">
-                <div class="text-[13px] text-white font-medium">Maks kartfliser</div>
-                <span class="text-white/60 text-[12px] tabular-nums">{{ maxTiles }}</span>
-              </div>
-              <input type="range" min="0" :max="MAX_TILE_STEPS.length - 1" step="1"
-                     v-model.number="maxTileIndex"
-                     aria-label="Maks antall kartfliser i mosaikken"
-                     class="w-full accent-sky-400"/>
-              <div class="text-[11px] text-white/55 leading-snug mt-1.5">
-                Hvor mange kart-utsnitt som beholdes i mosaikken. Flere = større sammenhengende
-                område, men mer lagringsplass på enheten. De fjerneste fra der du er kappes først.
-              </div>
-            </div>
-            <!-- Relieff av/på (GLOBAL standard — per-kart-overstyring gjøres i
-                 relieff-FAB-panelet via long-press): hillshade lages som ett
-                 bilde per kartflis og bruker minne/GPU. -->
-            <div class="rounded-lg bg-white/5 px-3 py-2.5 mb-3 flex items-center gap-3">
-              <div class="flex-1 min-w-0">
-                <div class="text-[13px] text-white font-medium">Relieff (terrengskygge)</div>
-                <div class="text-[11px] text-white/55 leading-snug">
-                  Standard for alle kart. Lages som ett bilde per kartflis og bruker mer
-                  minne/GPU — slå av (eller senk antall fliser) på svake enheter.
-                  Hold relieff-knappen på kartet for å overstyre kun dette kartet.
-                </div>
-              </div>
-              <button @click="globalReliefEnabled = !globalReliefEnabled"
-                      :aria-pressed="globalReliefEnabled"
-                      :aria-label="globalReliefEnabled ? 'Slå av relieff' : 'Slå på relieff'"
-                      class="relative w-11 h-6 rounded-full transition-colors shrink-0"
-                      :class="globalReliefEnabled ? 'bg-emerald-500' : 'bg-white/15'">
-                <span class="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
-                      :class="globalReliefEnabled ? 'left-5' : 'left-0.5'" />
-              </button>
-            </div>
-            <!-- Relieff-stil (global standard): vektor (skarpe tone-bånd, liten fil,
-                 best print) vs mjuk (myk PNG-gradient, men multi-MB i fil/eksport). -->
-            <div v-if="globalReliefEnabled" class="rounded-lg bg-white/5 px-3 py-2.5 mb-3">
-              <div class="text-[13px] text-white font-medium mb-2">Relieff-stil</div>
-              <div class="flex gap-2" role="group" aria-label="Relieff-stil">
-                <button @click="globalReliefMode = 'vektor'"
-                        :aria-pressed="globalReliefMode === 'vektor'"
-                        class="flex-1 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors"
-                        :class="globalReliefMode === 'vektor' ? 'bg-emerald-500 text-white' : 'bg-white/10 text-white/70'">
-                  Skarp (vektor)
-                </button>
-                <button @click="globalReliefMode = 'mjuk'"
-                        :aria-pressed="globalReliefMode === 'mjuk'"
-                        class="flex-1 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors"
-                        :class="globalReliefMode === 'mjuk' ? 'bg-emerald-500 text-white' : 'bg-white/10 text-white/70'">
-                  Mjuk (bilde)
-                </button>
-              </div>
-              <div class="text-[11px] text-white/55 leading-snug mt-1.5">
-                Skarp = tone-bånd som vektor: liten fil, knivskarpt ved zoom og print.
-                Mjuk = myk gradient (foto-relieff), men gir et tungt bilde i kart-fila.
-              </div>
-            </div>
-            <!-- Navnetetthet: rutenett-kvoten i tetthets-budsjettet. Lavere =
-                 roligere kart, høyere = flere navn. Byttes live (vrakes på nytt). -->
-            <div class="rounded-lg bg-white/5 px-3 py-2.5 mb-3">
-              <div class="text-[13px] text-white font-medium mb-2">Navnetetthet</div>
-              <div class="flex gap-2" role="group" aria-label="Navnetetthet">
-                <button v-for="p in DENSITY_PRESETS" :key="p.id" @click="densityId = p.id"
-                        :aria-pressed="densityId === p.id"
-                        class="flex-1 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors"
-                        :class="densityId === p.id ? 'bg-emerald-500 text-white' : 'bg-white/10 text-white/70'">
-                  {{ p.label }}
-                </button>
-              </div>
-              <div class="text-[11px] text-white/55 leading-snug mt-1.5">
-                Hvor mange navn som vises samtidig. Kartet avdekker flere når du zoomer inn;
-                topp, vann og område prioriteres, og et søketreff vises alltid.
-              </div>
-              <!-- PÅ: tettheten gjelder konsekvent for alle kart. AV: valget over
-                   gjelder kun kartet du ser på nå (per-kart-overstyring). -->
-              <label class="flex items-center justify-between gap-3 mt-3 cursor-pointer">
-                <span class="text-[12px] text-white/80 leading-snug">
-                  Bruk på alle kart
-                  <span class="block text-[11px] text-white/45">
-                    {{ densityApplyToAll ? 'Samme tetthet overalt' : 'Gjelder kun dette kartet' }}
-                  </span>
-                </span>
-                <button type="button" role="switch" :aria-checked="densityApplyToAll"
-                        @click="densityApplyToAll = !densityApplyToAll"
-                        class="relative w-11 h-6 rounded-full transition-colors shrink-0"
-                        :class="densityApplyToAll ? 'bg-emerald-500' : 'bg-white/15'">
-                  <span class="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
-                        :class="densityApplyToAll ? 'left-5' : 'left-0.5'" />
-                </button>
-              </label>
-            </div>
-            <p class="text-white/35 text-[10px] mt-1">v{{ APP_VERSION }}</p>
-          </div>
-
-          <!-- ── Tab: Utvikler (debug-hjelp) ──────────────────────── -->
-          <div v-show="activeTab === 'utvikler'">
-            <!-- Vardåsen-referansekartet: flyttet hit fra forsiden. Bygges fra
-                 ekte Kartverket-data i CI og er nyttig som fast fasit ved feilsøk. -->
-            <button @click="router.push({ name: 'kart-vis', params: { id: 'vardasen' } })"
-                    class="w-full mb-3 px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                           flex items-center justify-center gap-2 transition
-                           bg-white/5 border-white/10 text-white/80">
-              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                   stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 6 L9 4 L15 6 L21 4 L21 18 L15 20 L9 18 L3 20 Z"/>
-                <path d="M9 4 V18 M15 6 V20"/>
-              </svg>
-              <span class="font-medium">Åpne Vardåsen-referansekart</span>
-            </button>
-
-            <!-- Zoom-LOD: live-indikator + justerbare terskler. Endrer kun
-                 RUNTIME-parametre (når .zoom-near settes + navne-budsjett). Hvilke
-                 lag som gates er bakt inn i kartets CSS ved bygging. -->
-            <div class="rounded-lg bg-white/5 px-3 py-2.5 mb-3">
-              <div class="flex items-baseline justify-between gap-2 mb-1.5">
-                <span class="text-white/55 text-[11px] uppercase tracking-wide">Zoom-LOD</span>
-                <span class="text-[11px] tabular-nums"
-                      :class="{ 'text-white/45': zoomTier === 'far', 'text-sky-300': zoomTier === 'mid', 'text-emerald-300': zoomTier === 'near' }">
-                  {{ (scale || 1).toFixed(2) }}× · {{ zoomTier }}
-                </span>
-              </div>
-              <div class="flex items-center justify-between gap-3 mb-0.5">
-                <span class="text-white/55 text-[11px]">Detalj-terskel (.zoom-near)</span>
-                <span class="text-white/55 text-[11px] tabular-nums">{{ zoomNearThreshold.toFixed(1) }}×</span>
-              </div>
-              <input type="range" min="1.5" max="5" step="0.1" v-model.number="zoomNearThreshold"
-                     aria-label="Detalj-terskel" class="w-full accent-emerald-400 mb-2"/>
-              <div class="flex items-center justify-between gap-3 mb-0.5">
-                <span class="text-white/55 text-[11px]">Navne-budsjett (far/mid/near)</span>
-                <span class="text-white/55 text-[11px] tabular-nums">{{ nameBudgetFar }}/{{ nameBudgetMid }}/{{ nameBudgetNear }}</span>
-              </div>
-              <input type="range" min="20" max="150" step="10" v-model.number="nameBudgetFar"
-                     aria-label="Navne-budsjett oversikt" class="w-full accent-white/40"/>
-              <input type="range" min="40" max="250" step="10" v-model.number="nameBudgetMid"
-                     aria-label="Navne-budsjett mellomnivå" class="w-full accent-sky-400"/>
-              <input type="range" min="80" max="500" step="10" v-model.number="nameBudgetNear"
-                     aria-label="Navne-budsjett detalj" class="w-full accent-emerald-400"/>
-              <button @click="resetLodTuning"
-                      class="mt-1.5 w-full px-3 py-1.5 rounded-lg text-[11px] border
-                             bg-white/5 border-white/10 text-white/70 active:scale-[0.98]">
-                Nullstill ({{ LOD_DEFAULTS.near }}× · {{ LOD_DEFAULTS.budgetFar }}/{{ LOD_DEFAULTS.budgetMid }}/{{ LOD_DEFAULTS.budgetNear }})
-              </button>
-            </div>
-
-            <div class="flex items-baseline justify-between gap-2 mb-2">
-              <span class="text-white/55 text-[11px] uppercase tracking-wide">Debug</span>
-              <span v-if="mapDataLabel" class="text-white/45 text-[11px] tabular-nums">{{ mapDataLabel }}</span>
-            </div>
-            <!-- Tile-cache: antall auto-fliser lagret (scroll-tilbake-mosaikk). -->
-            <div class="flex items-baseline justify-between gap-2 mb-2 px-1">
-              <span class="text-white/45 text-[11px]">Auto-fliser i cache</span>
-              <span class="text-white/55 text-[11px] tabular-nums">{{ autoTileCount }} / {{ maxTiles }}</span>
-            </div>
-            <!-- Viewport-culling: hvor mange indekserte elementer som er skjult
-                 utenfor utsnittet akkurat nå + siste cull-beregning i ms. -->
-            <div v-if="cullStats.indexed" class="flex items-baseline justify-between gap-2 mb-2 px-1">
-              <span class="text-white/45 text-[11px]">Viewport-culling</span>
-              <span class="text-white/55 text-[11px] tabular-nums">
-                {{ cullStats.culled }} / {{ cullStats.indexed }} skjult · {{ cullStats.ms }} ms
-              </span>
-            </div>
-            <!-- Sjøkart-status: WFS-hentingen feiler stille (timeout/CORS/tom) —
-                 her vises HVORFOR dybdetall/kai mangler på kystkart. -->
-            <div v-if="sjokartStatusText" class="mb-2 px-1">
-              <div class="flex items-baseline justify-between gap-2">
-                <span class="text-white/45 text-[11px]">Sjøkart-WFS</span>
-                <span class="text-[11px]"
-                      :class="meta?.sjokartStatus?.state === 'ok' ? 'text-white/55' : 'text-amber-300/80'">
-                  {{ sjokartStatusText }}
-                </span>
-              </div>
-              <div v-for="(err, i) in (meta?.sjokartStatus?.errors ?? [])" :key="i"
-                   class="text-white/35 text-[10px] leading-tight break-all">
-                {{ err.endpoint }}{{ err.typeName ? ` ${err.typeName}` : '' }} · {{ err.kind }}: {{ err.message }}
-              </div>
-            </div>
-            <button @click="diagnose = !diagnose"
-                    class="w-full px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98] mb-2"
-                    :class="diagnose
-                            ? 'bg-slate-400/20 border-slate-300/50 text-white'
-                            : 'bg-white/5 border-white/10 text-white/75'">
-              {{ diagnose ? 'Diagnose: AV' : 'Diagnose-modus' }}
-            </button>
-            <div v-if="diagnose" class="text-[10px] text-white/55 leading-relaxed mb-3 px-1">
-              Polygon-fargen viser kilden:
-              <span class="inline-block w-3 h-3 rounded-sm align-middle" style="background: hsl(180, 80%, 55%);"></span> N50,
-              <span class="inline-block w-3 h-3 rounded-sm align-middle" style="background: hsl(140, 70%, 45%);"></span> NVE innsjø,
-              <span class="inline-block w-3 h-3 rounded-sm align-middle" style="background: hsl(220, 80%, 60%);"></span> OSM way,
-              <span class="inline-block w-3 h-3 rounded-sm align-middle" style="background: hsl(300, 80%, 60%);"></span> OSM relation,
-              <span class="inline-block w-3 h-3 rounded-sm align-middle" style="background: hsl(45, 90%, 55%);"></span> merged.
-            </div>
-            <!-- Lilla stier: live A/B-test av CD-forslaget (#7a4fa3) uten rebuild.
-                 Svart er default; knotten overstyrer via --iso-505/506/507-stroke. -->
-            <button @click="togglePurpleTrails"
-                    class="w-full px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98] mb-2"
-                    :class="purpleTrails
-                            ? 'bg-purple-400/20 border-purple-300/50 text-white'
-                            : 'bg-white/5 border-white/10 text-white/75'">
-              {{ purpleTrails ? 'Lilla stier: PÅ' : 'Lilla stier (test)' }}
-            </button>
-            <!-- Byggetider (perf): viser localStorage-loggen så den kan kopieres
-                 og deles — mobil-konsollen er upraktisk. -->
-            <button @click="showPerfLog = true"
-                    class="w-full px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98]
-                           bg-white/5 border-white/10 text-white/75">
-              Byggetider (perf-logg)
-            </button>
-          </div>
+          <DrawerDevTab v-show="activeTab === 'utvikler'"
+            :scale="scale" :zoom-tier="zoomTier"
+            v-model:zoom-near-threshold="zoomNearThreshold"
+            v-model:name-budget-far="nameBudgetFar"
+            v-model:name-budget-mid="nameBudgetMid"
+            v-model:name-budget-near="nameBudgetNear"
+            v-model:diagnose="diagnose"
+            :reset-lod-tuning="resetLodTuning" :map-data-label="mapDataLabel"
+            :auto-tile-count="autoTileCount" :max-tiles="maxTiles"
+            :cull-stats="cullStats" :sjokart-status-text="sjokartStatusText" :meta="meta"
+            :purple-trails="purpleTrails" :toggle-purple-trails="togglePurpleTrails"
+            :open-vardasen="() => router.push({ name: 'kart-vis', params: { id: 'vardasen' } })"
+            :open-perf-log="() => { showPerfLog = true }" />
         </div>
       </div>
     </Transition>
