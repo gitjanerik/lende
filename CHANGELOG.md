@@ -1,5 +1,17 @@
 # Endringslogg
 
+## 2026-07-15 — v1.0.3: Nytt ikon — «Høydekurve»
+
+Lende fikk et eget ikon tegnet i kartets eget språk: konsentriske høydekurver i
+ISOM-konturbrun på kremgul land (ISOM 001), med toppen forskjøvet opp mot høyre
+for en ekte terreng-følelse. Det erstatter det arvede svg-insights-ikonet (gul
+topplinje på skifergrå), som var laget for tegneverktøyet, ikke et turkart. Hele
+merket ligger innenfor maskable-sirkelen, så ingenting klippes på Android. Nye
+`icon.svg` og `favicon.svg` (ren SVG) er kilden; PNG-ene (192/512/maskable-512
+og apple-touch 180) er rasterisert fra `icon.svg`.
+
+---
+
 ## 2026-07-15 — v1.0.2: «Installer som app» på forsiden
 
 Forsiden (`MapHomeView`) fikk en «Installer som app»-knapp. Den kobler på den
