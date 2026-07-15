@@ -1105,7 +1105,7 @@ watch(reliefEnabled, () => {
 // gates på modus i buildGhostSvg).
 watch(reliefMode, () => {
   svgHostRef.value?.querySelector('svg #hillshade-layer')?.remove()
-  cachedBandsKey = null
+  invalidateReliefBands()
   applyHillshade()
   void renderGhostTiles()
   flashKnobHint(reliefMode.value === 'vektor' ? 'Skarpt relieff (vektor)' : 'Mjukt relieff (bilde)')
@@ -2038,7 +2038,7 @@ function formatDistance(m) {
 }
 
 // Relieff-rendering — flyttet til useReliefRender; watchene blir her.
-const { applyHillshade, reliefBlendMode } = useReliefRender({
+const { applyHillshade, reliefBlendMode, invalidateReliefBands } = useReliefRender({
   svgHostRef, meta, storedDem, ensureDem, currentTheme,
   reliefEnabled, reliefMode, reliefOpacity, RELIEF_BANDS,
 })
@@ -3896,7 +3896,8 @@ const {
   drawerCoversCanvas, extendZonesVisible, activatableTile,
   renderExtendZones, updateExtendZoneScale, showAutoMapToast,
   visibleCenterSvg, scheduleActivatableCheck, autoMapModeBusy,
-  autoMapBuildOpts, promoteTile, extendMap,
+  autoMapBuildOpts, promoteTile, extendMap, armAutoMap,
+  extendZonesBounds, teardownMapExtend,
 } = useMapExtend({
   svgHostRef, wrapperRef, meta, mapId, router,
   scale, rotation, translateX, translateY, isGesturing, panTo,
@@ -4188,7 +4189,7 @@ async function loadMap({ silent = false } = {}) {
         targetScale: pendingRestoreView.scale, keepRotation: true,
       })
     }
-    autoMapArmed = true
+    armAutoMap()
     if (pendingMovedToast) showAutoMapToast('Flyttet sentrum hit')
     // Mosaikk: tegn nabo-fliser så man kan utvide/gjøre dem aktive.
     // Async + fail-safe; setupHostSvg har tømt evt. gamle spøkelser.
@@ -4751,11 +4752,9 @@ onUnmounted(() => {
   window.removeEventListener('resize', scheduleNameLOD)
   desktopMq?.removeEventListener('change', updateIsDesktop)
   if (nameLodTimer) clearTimeout(nameLodTimer)
-  if (activatableTimer) clearTimeout(activatableTimer)
   if (skeletonTimer) clearTimeout(skeletonTimer)
   if (loadPillTimer) clearTimeout(loadPillTimer)
-  clearAutoPromote()
-  if (autoMapToastTimer) clearTimeout(autoMapToastTimer)
+  teardownMapExtend()
 })
 </script>
 

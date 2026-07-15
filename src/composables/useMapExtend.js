@@ -30,6 +30,16 @@ export function useMapExtend({
   let autoMapToastTimer = null
   let autoMapOfflineNotified = false   // offline-toast vises kun én gang
   let autoMapArmed = true              // bygge-lås (extendMap/promoteTile)
+  // loadMap re-armerer låsen etter hvert kart-bytte (flyttet hit v1.0.9 —
+  // v1.0.8 mistet variabelen ut av forelder-scopet: «autoMapArmed is not
+  // defined» ved kart-lasting).
+  function armAutoMap() { autoMapArmed = true }
+  // Rydd timerne ved unmount (kalles fra MapViews onUnmounted).
+  function teardownMapExtend() {
+    if (activatableTimer) clearTimeout(activatableTimer)
+    clearAutoPromote()
+    if (autoMapToastTimer) clearTimeout(autoMapToastTimer)
+  }
   // Om kartet som vises NÅ ble auto-/utvidelses-generert (settes fra init-prefs).
   const currentMapIsAuto = ref(false)
 
@@ -466,6 +476,7 @@ export function useMapExtend({
     drawerCoversCanvas, extendZonesVisible, activatableTile,
     renderExtendZones, updateExtendZoneScale, showAutoMapToast,
     visibleCenterSvg, scheduleActivatableCheck, autoMapModeBusy,
-    autoMapBuildOpts, promoteTile, extendMap,
+    autoMapBuildOpts, promoteTile, extendMap, armAutoMap,
+    extendZonesBounds, teardownMapExtend,
   }
 }
