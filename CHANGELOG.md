@@ -1,5 +1,18 @@
 # Endringslogg
 
+## 2026-07-15 — v1.0.1: Automatisk root-sjekk etter deploy
+
+Deploy-workflowen (`build-vardasen-map.yml`) fikk et nytt steg som poller
+`https://gitjanerik.github.io/lende/` etter push til `gh-pages` og feiler
+bygget hvis root ikke svarer 200 innen ~200 sekunder. Bakgrunn: innholdet
+deployes korrekt til `gh-pages` (index.html, assets, `.nojekyll`, `404.html`),
+men en manglende Pages-aktivering ga 404 på selve siden uten at noe fanget det.
+Sjekken gjør slike konfigurasjonsbrudd synlige i CI med en tydelig feilmelding
+som peker på Settings → Pages. CI har full nettverkstilgang, så dette
+verifiseres faktisk der (det kan ikke sjekkes fra sandkassen).
+
+---
+
 ## 2026-07-15 — v1.0.0: Lende fødes — kart og ruteplanlegging skilt ut fra svg-insights
 
 Lende er en rendyrket turkart- og ruteplanleggingsapp, skilt ut fra

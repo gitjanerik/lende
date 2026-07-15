@@ -68,3 +68,23 @@ jobs:
             git push -u origin gh-pages
             echo "Deployet v${APP_VERSION} til gh-pages"
           fi
+
+      - name: Verify gh-pages root is live
+        run: |
+          URL="https://gitjanerik.github.io/lende/"
+          echo "Sjekker at root svarer 200: $URL"
+          for i in $(seq 1 20); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -L "$URL" || echo 000)
+            echo "  forsøk $i: HTTP $code"
+            if [ "$code" = "200" ]; then
+              echo "✅ Root er tilgjengelig (HTTP $code)"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::Root ($URL) svarte ikke 200 etter deploy."
+          echo "Innholdet er pushet til gh-pages (index.html + .nojekyll ligger der),"
+          echo "men GitHub Pages serverer det ikke — typisk at Pages ikke er aktivert."
+          echo "Fiks: Settings → Pages → Source = 'Deploy from a branch',"
+          echo "Branch = 'gh-pages' / '(root)'."
+          exit 1
