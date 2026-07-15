@@ -145,5 +145,8 @@ export function useReliefRender({
     else applyReliefRaster(svg, mode)
   }
 
-  return { applyHillshade, reliefBlendMode }
+  // Relieff-stil-watchen i MapView nullstiller bånd-cachen ved bytte.
+  function invalidateReliefBands() { cachedBandsKey = null }
+
+  return { applyHillshade, reliefBlendMode, invalidateReliefBands }
 }
