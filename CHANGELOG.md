@@ -1,5 +1,18 @@
 # Endringslogg
 
+## 2026-07-15 — v1.0.7: Opprydning — status/feil-overlays skilt ut
+
+Fjerde steg i oppdelingen av `MapView.vue`: de transiente status- og feil-
+overlayene (kart-skjelett/laste-pille, «kunne ikke laste», posisjons-status,
+«utenfor kartet», detalj-feil og lav GPS-nøyaktighet) er samlet i
+`src/components/MapStatusOverlays.vue`. Komponenten tar imot all tilstand som
+props og sender ut handlinger (`retry-load`, `retry-details`, `dismiss-*`),
+og reproduserer de tre uavhengige v-if/v-else-if-kjedene internt.
+Lasteskjelettets scoped-CSS følger med til komponenten. Ingen funksjonell
+endring.
+
+---
+
 ## 2026-07-15 — v1.0.6: Opprydning — søke-overlay skilt ut
 
 Tredje steg i oppdelingen av `MapView.vue`: søke-overlayet (søkefelt +
