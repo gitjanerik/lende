@@ -1,5 +1,24 @@
 # Endringslogg
 
+## 2026-07-15 — v1.0.10: Opprydning fullført — renderere, kontekst-oppslag og laste-pipeline i composables
+
+Siste etappe av MapView-oppdelingen: de tre bevisst utsatte blokkene er nå
+skilt ut. `useSymbolRenderers` samler alle de imperative SVG-rendererne
+(søke-highlight, nærhetsvarsel-markør, måling, stifinner-ruter, annoteringer
+med stedsmerke-animasjon, opp-rettede etiketter, GPS-spor, bruker-prikk og
+pxToUserUnits). `useContextLookups` eier long-press-gesten, punkt-geometrien
+og alle datakilde-oppslagene (NVE, Naturbase/GBIF, NiN, SNL/Wikipedia) med
+sine watches. `useMapLoadPipeline` bærer selve orkestreringen — loadMap,
+setupHostSvg, terreng-finalize, retry og reveal-animasjonen. `MapView.vue` er
+nå 3714 linjer (fra 9123 ved starten — −59 %) og er redusert til skall:
+refs, composable-sammenkobling, watch-tabellen og kart-verten. I tillegg til
+lint/bygg/testsuite er endringene verifisert med en Playwright-røyktest i
+ekte Chromium mot dev-serveren: kart-lasting, alle åtte drawer-faner, søk og
+kontekstmenyen (inkl. detalj-inset) kjøres gjennom uten konsollfeil — testen
+fanget og fikset to TDZ-feil underveis.
+
+---
+
 ## 2026-07-15 — v1.0.9: Hurtigfiks — «autoMapArmed is not defined» ved kart-lasting
 
 v1.0.8-oppdelingen etterlot fire referanser i `MapView.vue` til variabler som
