@@ -31,6 +31,7 @@ import { norwegianName } from '../lib/placeName.js'
 import AnnotationIcon from '../components/AnnotationIcon.vue'
 import TrackElevationSheet from '../components/TrackElevationSheet.vue'
 import PerfLogModal from '../components/PerfLogModal.vue'
+import MapSearchOverlay from '../components/MapSearchOverlay.vue'
 import { loadMap as loadStoredMap, listMaps as listStoredMaps, deleteMap as deleteStoredMap } from '../lib/mapStorage.js'
 import { isomCatalog, buildPointSymbolDef, buildIsomDefs, buildIsomCss } from '../lib/symbolizer.js'
 import { printDocument, exportSvgFile, exportPngFile, exportPdfFile } from '../lib/printExport.js'
@@ -82,7 +83,6 @@ const svgHostRef = ref(null)
 // (--iso-*, --bg, --label-*) settes her, ikke på SVG-en, så de arves ned via
 // CSS custom property-arv.
 const mapInnerRef = ref(null)
-const searchInputRef = ref(null)
 
 const loading = ref(true)
 const loadError = ref(null)
@@ -1497,8 +1497,7 @@ watch([searchResults, searchQuery], ([res, q]) => {
 function openSearch() {
   searchOpen.value = true
   closeDrawer()
-  // Fokuser input etter at Transition har latt elementet bli mountet
-  nextTick(() => { searchInputRef.value?.focus() })
+  // Fokus håndteres av MapSearchOverlay når open blir true.
 }
 function closeSearch() {
   searchOpen.value = false
@@ -6162,107 +6161,20 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Søke-overlay — synlig når searchOpen=true. Lukker drawer og legger
-         seg under topbar slik at brukeren kan se kartet bak. -->
-    <Transition name="search-fade">
-      <div v-if="searchOpen"
-           class="absolute top-16 left-3 right-3 z-40 rounded-2xl bg-zinc-950/95 backdrop-blur
-                  border border-white/10 shadow-2xl overflow-hidden flex flex-col"
-           style="max-height: calc(100dvh - 6rem);">
-        <div class="px-3 py-2.5 flex items-center gap-2 border-b border-white/10">
-          <svg viewBox="0 0 24 24" class="w-4 h-4 text-white/55 shrink-0" fill="none"
-               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="7"/>
-            <line x1="20" y1="20" x2="16.65" y2="16.65"/>
-          </svg>
-          <input v-model="searchQuery" type="search" autocomplete="off"
-                 autocorrect="off" autocapitalize="off" spellcheck="false"
-                 placeholder="Søk i dette kartet — steder, vann, øyer …"
-                 ref="searchInputRef"
-                 @keydown="onSearchKeydown"
-                 role="combobox" aria-autocomplete="list"
-                 :aria-expanded="searchResults.length > 0" aria-controls="mapsearch-results"
-                 :aria-activedescendant="searchActiveIndex >= 0 ? `mapsearch-opt-${searchActiveIndex}` : undefined"
-                 class="flex-1 bg-transparent text-[14px] text-white placeholder-white/35
-                        focus:outline-none"/>
-          <button @click="closeSearch" aria-label="Lukk søk"
-                  class="w-7 h-7 -mr-1 rounded-full flex items-center justify-center
-                         text-white/65 active:bg-white/10">
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-            </svg>
-          </button>
-        </div>
-        <div class="flex-1 overflow-y-auto" id="mapsearch-results" role="listbox">
-          <!-- Ingen treff i DETTE kartet → globalt fallback (Nominatim). -->
-          <template v-if="searchQuery && searchResults.length === 0">
-            <div class="px-4 pt-4 pb-1 text-[11px] text-white/55 leading-relaxed">
-              Ingen treff i dette kartet.
-              <span class="text-white/40">Andre steder i Norge:</span>
-            </div>
-            <div v-if="globalSearching" class="px-4 py-3 text-[11px] text-white/40">
-              Søker …
-            </div>
-            <button v-for="r in globalResults" :key="'g' + r.id"
-                    @click="onSelectGlobalPlace(r)"
-                    class="w-full text-left px-3 py-2.5 transition border-b border-white/8
-                           last:border-0 flex items-center gap-2 active:bg-white/10">
-              <svg viewBox="0 0 24 24" class="w-4 h-4 text-white/40 shrink-0" fill="none"
-                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>
-                <circle cx="12" cy="10" r="3"/>
-              </svg>
-              <div class="flex-1 min-w-0">
-                <div class="text-[13px] font-medium text-white truncate">{{ r.shortName }}</div>
-                <div class="text-[10px] text-white/45 uppercase tracking-wide">Bygg nytt kart her</div>
-              </div>
-              <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-white/35 shrink-0" fill="none"
-                   stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="9 18 15 12 9 6"/>
-              </svg>
-            </button>
-            <div v-if="!globalSearching && globalResults.length === 0"
-                 class="px-4 py-6 text-center text-[12px] text-white/45">
-              Ingen treff på «{{ searchQuery }}»
-            </div>
-          </template>
-          <div v-else-if="!searchQuery"
-               class="px-4 py-4 text-[11px] text-white/45 leading-relaxed">
-            Søker i navn i <span class="text-white/70">dette kartet</span> — steder, vann,
-            topper og områder ({{ searchIndex.length }} treffbare).
-            Skriv «vann» for å se alle innsjøer i utsnittet.
-            Skriv «parkering» for å liste utfartsparkeringene.
-            Skriv «topp» for kartets ti høyeste punkter.
-            Steder utenfor kartet dukker opp som forslag når det ikke er treff.
-          </div>
-          <button v-for="(r, index) in searchResults" :key="r.id"
-                  :id="`mapsearch-opt-${index}`" role="option"
-                  :aria-selected="index === searchActiveIndex"
-                  @click="selectSearchResult(r)"
-                  @mousemove="searchActiveIndex = index"
-                  class="w-full text-left px-3 py-2.5 transition border-b
-                         border-white/8 last:border-0 flex items-center gap-2"
-                  :class="index === searchActiveIndex ? 'bg-white/12' : 'active:bg-white/10'">
-            <div class="flex-1 min-w-0">
-              <div class="text-[13px] font-medium text-white truncate">
-                {{ r.name }}<span v-if="r.kind === 'parkering'" aria-hidden="true"> *</span>
-              </div>
-              <div class="text-[10px] text-white/45 uppercase tracking-wide">
-                {{ r.label }}<span v-if="r.ele != null"> · {{ r.ele }} moh</span>
-              </div>
-              <div v-if="r.kind === 'parkering'" class="text-[10px] text-white/45 leading-tight mt-0.5">
-                * Navnet er utledet fra nærmeste sted, ikke et offisielt navn
-              </div>
-            </div>
-            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-white/35 shrink-0" fill="none"
-                 stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="9 18 15 12 9 6"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </Transition>
+    <!-- Søke-overlay — trekt ut til MapSearchOverlay (v1.0.6). Logikk
+         (indeksering, sentrering, bygg nytt kart, highlight) blir her. -->
+    <MapSearchOverlay
+      :open="searchOpen"
+      v-model:query="searchQuery"
+      v-model:active-index="searchActiveIndex"
+      :results="searchResults"
+      :index-count="searchIndex.length"
+      :global-results="globalResults"
+      :global-searching="globalSearching"
+      @keydown="onSearchKeydown"
+      @close="closeSearch"
+      @select="selectSearchResult"
+      @select-global="onSelectGlobalPlace" />
 
     <!-- Kompass-rose. På desktop skyves den til venstre for side-panelet
          når drawer er åpen så den ikke havner bak. -->
@@ -8907,13 +8819,6 @@ onUnmounted(() => {
 .drawer-side-enter-from, .drawer-side-leave-to       { transform: translateX(100%); }
 /* Skjul scrollbar på tab-strip — fortsatt scrollbar med touch / wheel */
 .map-tabs::-webkit-scrollbar { display: none; }
-/* Søke-overlay — kort fade + svak slide ovenfra */
-.search-fade-enter-active, .search-fade-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease;
-}
-.search-fade-enter-from, .search-fade-leave-to {
-  opacity: 0; transform: translateY(-6px);
-}
 /* Highlight-chip — kun fade, så Tailwinds -translate-x-1/2 bevares */
 .chip-fade-enter-active, .chip-fade-leave-active { transition: opacity 0.18s ease; }
 .chip-fade-enter-from, .chip-fade-leave-to       { opacity: 0; }
