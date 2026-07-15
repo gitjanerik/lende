@@ -1793,6 +1793,13 @@ function buildShareUrl(place = null) {
   const s = shareInfo.value
   params.set('lat', s.lat.toFixed(5))
   params.set('lon', s.lon.toFixed(5))
+  // Aspekt (høyde/bredde) så mottakeren bygger SAMME utsnitt-form. Uten den
+  // falt mottakeren tilbake til sitt eget skjermaspekt — en mobil (~2.1) kunne
+  // få over dobbelt så stort areal som avsenderens kart, og klient-side-
+  // byggingen frøs telefonen (rapportert for 10 km-kart).
+  if (meta.value?.heightM && meta.value?.widthM) {
+    params.set('asp', (meta.value.heightM / meta.value.widthM).toFixed(3))
+  }
   params.set('km', String(s.sizeKm))
   params.set('eq', String(s.equidistanceM))
   return `${base}/kart/nytt?${params.toString()}`
