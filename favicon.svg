@@ -1,6 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="6" fill="#1e293b"/>
-  <path d="M6 24 L11 8 L16 19 L21 6 L26 24" stroke="#facc15" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-  <circle cx="11" cy="8" r="1.4" fill="#facc15"/>
-  <circle cx="21" cy="6" r="1.4" fill="#facc15"/>
+  <!-- Lende — «Høydekurve», favicon. Samme konturblob som icon.svg, forenklet
+       til tre ringer + topp så det holder seg lesbart på 16–32 px. -->
+  <rect width="32" height="32" rx="6" fill="#FBF2DA"/>
+  <defs>
+    <path id="fblob" d="M0,-100 C58,-100 100,-58 97,-4 C94,50 58,99 2,97 C-54,95 -99,52 -97,-2 C-99,-56 -58,-100 0,-100 Z"/>
+  </defs>
+  <g fill="none" stroke="#B4651E" stroke-linejoin="round">
+    <use href="#fblob" transform="translate(15,18) scale(0.115)" stroke-width="15.6"/>
+    <use href="#fblob" transform="translate(16,16.4) scale(0.076)" stroke-width="23.7"/>
+    <use href="#fblob" transform="translate(17.2,14.6) scale(0.042)" stroke-width="42.8"/>
+  </g>
+  <circle cx="18" cy="12.4" r="1.7" fill="#B4651E"/>
 </svg>
