@@ -25,6 +25,9 @@ import { useHeritageLayers } from '../composables/useHeritageLayers.js'
 import { useReliefRender } from '../composables/useReliefRender.js'
 import { useGhostTiles } from '../composables/useGhostTiles.js'
 import { useMapExtend } from '../composables/useMapExtend.js'
+import { useSymbolRenderers } from '../composables/useSymbolRenderers.js'
+import { useContextLookups } from '../composables/useContextLookups.js'
+import { useMapLoadPipeline } from '../composables/useMapLoadPipeline.js'
 import { buildStrokeOverrideCss } from '../lib/strokeOverrides.js'
 import {
   LAYERS, MARINE_LAYER_KEYS, DEFAULT_VISIBLE_LAYER_KEYS, LAYER_PRESETS,
@@ -51,13 +54,11 @@ import DrawerExportTab from '../components/drawer/DrawerExportTab.vue'
 import DrawerAboutTab from '../components/drawer/DrawerAboutTab.vue'
 import DrawerDevTab from '../components/drawer/DrawerDevTab.vue'
 import ContextMenuSheet from '../components/context-menu/ContextMenuSheet.vue'
-import { loadMap as loadStoredMap, listMaps as listStoredMaps, deleteMap as deleteStoredMap } from '../lib/mapStorage.js'
 import { isomCatalog, buildPointSymbolDef } from '../lib/symbolizer.js'
 import { printDocument, exportSvgFile, exportPngFile, exportPdfFile } from '../lib/printExport.js'
-import { unpackDem } from '../lib/demSampling.js'
 import { sampleProfile } from '../lib/elevationProfile.js'
 import { fetchDEM } from '../lib/demFetcher.js'
-import { buildMapFromCenter, consumeMapFinalize } from '../lib/createMapFlow.js'
+import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { pruneAutoTiles, countAutoTiles } from '../lib/tileCache.js'
 import {
   viewRectSvg, expandRect, rectContains, buildCullIndex,
@@ -69,21 +70,7 @@ import { gmapsUrl, streetViewUrl, buildVegkartUrl } from '../lib/externalMapLink
 import { fetchKulturminneById } from '../lib/kulturminneFetcher.js'
 import { polylineToPath } from '../lib/pathUtils.js'
 import { sampleElevation } from '../lib/demSampling.js'
-import { fetchLakeData } from '../lib/nveLakeFetcher.js'
-import { fetchLiveWater } from '../lib/nveHydApi.js'
-import { fetchProtectedArea } from '../lib/verneFetcher.js'
-import { fetchNaturtypes } from '../lib/naturtypeFetcher.js'
-import { fetchSpeciesSummary } from '../lib/gbifSpecies.js'
-import { summarizeRedListed } from '../lib/redListNo.js'
-import { groupSpecies } from '../lib/speciesGroups.js'
-import { fetchWikiSummary, titleMatches } from '../lib/wikiSummary.js'
-import { fetchNearestWikiPlace, placeNameMatches } from '../lib/wikiPlace.js'
-import { fetchSnlSummary } from '../lib/snlFetcher.js'
-import { cacheGet, cacheSet, pointKey, naturtypePointKey, placePointKey, kulturminneIdKey, TTL } from '../lib/protectedAreaCache.js'
-import {
-  bearingDeg, bearingToCompass, formatDistanceM,
-  findNearestPlace, pointToPolylineDist,
-} from '../lib/mapContext.js'
+import { cacheGet, cacheSet, kulturminneIdKey, TTL } from '../lib/protectedAreaCache.js'
 import {
   STEDSMERKE_KEY_TIMES, STEDSMERKE_DUR, STEDSMERKE_SHADOW_OPACITY,
   PIN_SCALE_VALUES, SHADOW_SCALE_VALUES,
@@ -98,6 +85,13 @@ const svgHostRef = ref(null)
 // (--iso-*, --bg, --label-*) settes her, ikke på SVG-en, så de arves ned via
 // CSS custom property-arv.
 const mapInnerRef = ref(null)
+// Wrapper-mål (brukes av pxToUserUnits i useSymbolRenderers + skalabaren).
+const wrapperSize = ref({ w: 0, h: 0 })
+function measureWrapper() {
+  const r = wrapperRef.value?.getBoundingClientRect()
+  if (r) wrapperSize.value = { w: r.width, h: r.height }
+}
+
 
 const loading = ref(true)
 const loadError = ref(null)
@@ -530,7 +524,11 @@ const {
   applyFredetKulturminneLayer, applyKulturminneFallback,
   openFredetDetailFromEl, refreshFredetCount,
 } = useHeritageLayers({
-  svgHostRef, visibleLayers, meta, applyUprightLabels, kulturminneCount,
+  svgHostRef, visibleLayers, meta,
+  // Lazy wrapper: applyUprightLabels destruktureres fra useSymbolRenderers
+  // lenger nede — direkte referanse her ville truffet TDZ ved setup.
+  applyUprightLabels: (...a) => applyUprightLabels(...a),
+  kulturminneCount,
   kulturminneDetail, kulturminneLoading, kulturminneOpen, kulturminneDrawer,
 })
 // Nytt kart lastet → nullstill og hent antall for badgen (liten WFS hits-spørring).
@@ -1518,6 +1516,9 @@ function measureLabelBoxes() {
 // Forrige passs synlige navn — hysterese (hindrer blinking ved pan/zoom rundt
 // en LOD-grense). minZoom-tabellen gjenbruker .zoom-near-terskelen.
 let prevShownNames = new Set()
+// Kalles av loadMap (useMapLoadPipeline) ved nytt kart — reassignment kan
+// ikke gjøres gjennom en destrukturert dep.
+function resetPrevShownNames() { prevShownNames = new Set() }
 const nameMinZoomOf = (score) => makeMinZoomOf(zoomNearThreshold.value)(score)
 
 // Tetthets-budsjett: score → LOD (m/hysterese) → grådig kollisjon (rbush) +
@@ -1743,110 +1744,12 @@ function scheduleViewportCull() {
 watch([scale, translateX, translateY, rotation], scheduleViewportCull)
 watch(isGesturing, (g) => { if (!g) applyViewportCull() })
 
-// Pulsering tegnes som SVG-circle i et eget overlay-lag, lik annoteringer.
-// Holder konstant skjerm-størrelse ved å konvertere CSS-px til user-units via
-// scale.value.
-function renderHighlight() {
-  const svg = svgHostRef.value?.querySelector('svg')
-  if (!svg) return
-  const ns = 'http://www.w3.org/2000/svg'
-  let layer = svg.querySelector('#search-highlight-layer')
-  const h = highlightedFeature.value
-  if (!h) {
-    if (layer) layer.remove()
-    return
-  }
-  if (!layer) {
-    layer = document.createElementNS(ns, 'g')
-    layer.setAttribute('id', 'search-highlight-layer')
-    layer.setAttribute('data-layer', 'search-highlight')
-    layer.setAttribute('pointer-events', 'none')
-    svg.appendChild(layer)
-  }
-  layer.replaceChildren()
-  const r1 = pxToUserUnits(18)
-  const r2 = pxToUserUnits(34)
-  const sw = pxToUserUnits(2.5)
-
-  // Indre ring — solid stroke, sterk farge
-  const inner = document.createElementNS(ns, 'circle')
-  inner.setAttribute('cx', h.x); inner.setAttribute('cy', h.y)
-  inner.setAttribute('r', r1)
-  inner.setAttribute('fill', 'rgba(244, 114, 182, 0.18)')
-  inner.setAttribute('stroke', '#f472b6')
-  inner.setAttribute('stroke-width', String(sw))
-  layer.appendChild(inner)
-
-  // Ytre puls-ring — SMIL-animasjon, ekspanderer + fader
-  const pulse = document.createElementNS(ns, 'circle')
-  pulse.setAttribute('cx', h.x); pulse.setAttribute('cy', h.y)
-  pulse.setAttribute('r', String(r1))
-  pulse.setAttribute('fill', 'none')
-  pulse.setAttribute('stroke', '#f472b6')
-  pulse.setAttribute('stroke-width', String(sw))
-  pulse.setAttribute('opacity', '0.8')
-  const anR = document.createElementNS(ns, 'animate')
-  anR.setAttribute('attributeName', 'r')
-  anR.setAttribute('values', `${r1};${r2}`)
-  anR.setAttribute('dur', '1.4s')
-  anR.setAttribute('repeatCount', 'indefinite')
-  pulse.appendChild(anR)
-  const anO = document.createElementNS(ns, 'animate')
-  anO.setAttribute('attributeName', 'opacity')
-  anO.setAttribute('values', '0.85;0')
-  anO.setAttribute('dur', '1.4s')
-  anO.setAttribute('repeatCount', 'indefinite')
-  pulse.appendChild(anO)
-  layer.appendChild(pulse)
-}
 
 // Hold ringen på konstant skjerm-størrelse ved zoom.
 watch(scale, () => { if (highlightedFeature.value) renderHighlight() })
 
-// Mål-markør for et aktivt nærhetsvarsel: en fast-skjerm-størrelse pin pluss
-// en sirkel som viser den ekte utløsnings-radiusen (i meter = user-units).
-function renderProximityTarget() {
-  const svg = svgHostRef.value?.querySelector('svg')
-  if (!svg) return
-  const ns = 'http://www.w3.org/2000/svg'
-  let layer = svg.querySelector('#proximity-layer')
-  const a = proximity.active.value
-  if (!a) {
-    if (layer) layer.remove()
-    return
-  }
-  if (!layer) {
-    layer = document.createElementNS(ns, 'g')
-    layer.setAttribute('id', 'proximity-layer')
-    layer.setAttribute('data-layer', 'proximity')
-    layer.setAttribute('pointer-events', 'none')
-    svg.appendChild(layer)
-  }
-  layer.replaceChildren()
-  const sw = pxToUserUnits(2)
-  const dot = pxToUserUnits(5)
 
-  // Utløsnings-radius i ekte meter
-  const radius = document.createElementNS(ns, 'circle')
-  radius.setAttribute('cx', a.svgX); radius.setAttribute('cy', a.svgY)
-  radius.setAttribute('r', String(a.distanceM))
-  radius.setAttribute('fill', 'rgba(56, 189, 248, 0.12)')
-  radius.setAttribute('stroke', '#38bdf8')
-  radius.setAttribute('stroke-width', String(sw))
-  radius.setAttribute('stroke-dasharray', `${pxToUserUnits(4)} ${pxToUserUnits(4)}`)
-  layer.appendChild(radius)
-
-  // Senter-prikk (fast skjermstørrelse)
-  const center = document.createElementNS(ns, 'circle')
-  center.setAttribute('cx', a.svgX); center.setAttribute('cy', a.svgY)
-  center.setAttribute('r', String(dot))
-  center.setAttribute('fill', '#0284c7')
-  center.setAttribute('stroke', '#ffffff')
-  center.setAttribute('stroke-width', String(pxToUserUnits(1.5)))
-  layer.appendChild(center)
-}
-
-watch(() => proximity.active.value, renderProximityTarget, { deep: true })
+watch(() => proximity.active.value, () => renderProximityTarget(), { deep: true })
 watch(scale, () => { if (proximity.active.value) renderProximityTarget() })
 
 // ── Share-flow ────────────────────────────────────────────────────────────
@@ -2063,6 +1966,21 @@ watch([storedDem, currentTheme], () => { applyHillshade() })
 const measureMode = ref(false)
 const measureVertices = ref([])
 const measureClosed = ref(false)
+
+// Symbol-/overlay-rendererne — flyttet til useSymbolRenderers; watchene
+// som kaller dem blir her.
+const {
+  pxToUserUnits, renderHighlight, renderProximityTarget, renderMeasure,
+  renderRoutes, ensureAnnotationDefs, renderAnnotations,
+  applyUprightLabels, roadRefUprightDeg, renderTracks, updateUserDot,
+} = useSymbolRenderers({
+  svgHostRef, wrapperRef, wrapperSize, scale, rotation,
+  highlightedFeature, proximity,
+  measureVertices, measureClosed,
+  sti, onSelectRoute, annot, tracker, userPos, compass,
+})
+
+watch([measureVertices, measureClosed, scale], () => renderMeasure(), { deep: true })
 function startMeasure() {
   measureMode.value = true
   measureVertices.value = []
@@ -2113,38 +2031,32 @@ const measureStats = computed(() => {
   return { distM, areaM2 }
 })
 
-// ── Long-press kontekstmeny ──────────────────────────────────────────────
-// Long-press (~550ms hold uten bevegelse) eller høyreklikk på kartet åpner
-// en bottom-sheet med koordinater, stedsinfo og handlinger (kopier, del,
-// start måling, åpne i Google Maps/Street View, plasser annotering).
-//
-// Implementasjon: vi binder pointer-events på wrapperRef. Pinch-zoom binder
-// touch-events (touchstart/move/end) via egne addEventListener, så de to
-// håndterer-settene konkurrerer ikke. Vi sporer kun primær-pointer'en og
-// avbryter timeren ved bevegelse (>10 px) eller en sekundær pointer (pinch).
-const contextMenuOpen = ref(false)
-const contextMenuPoint = ref(null)     // { svgX, svgY, clientX, clientY }
-// NVE Innsjødatabase-oppslag for long-press-punktet. Status: 'loading' |
-// 'done' (med hoyde+navn) | 'empty' (ikke en registrert innsjø) | 'error'.
-// Token-nøkkel forkaster trege svar når brukeren long-presser et nytt punkt.
-const lakeQuery = ref(null)
-let lakeQueryToken = 0
-// Verneområde-oppslag (Naturbase + GBIF + Wikipedia) ved long-press.
-// null = ingen verneområde her | { status:'loading' } | { status:'done',
-// area, species, wiki }. species/wiki: 'loading' | objekt | null (utilgjengelig).
-const verneQuery = ref(null)
-let verneQueryToken = 0
-// Hvilken rødliste-kategori (CR/EN/VU/NT) som er foldet ut i kortet. Accordion:
-// kun én åpen om gangen. Nullstilles når et nytt verneområde slås opp.
-const expandedRedCat = ref(null)
-// NiN-naturtype-oppslag ved long-press (uavhengig av verneområde — naturtyper
-// finnes overalt). null = ingen treff/ikke spurt | { status:'done', items:[…] }.
-const naturtypeQuery = ref(null)
-let naturtypeQueryToken = 0
-// Nærmeste Wikipedia-sted (geosearch) ved long-press — uavhengig av verneområde.
-// null = ikke spurt | { status:'loading' } | { status:'done', place } | { status:'empty' }.
-const placeWikiQuery = ref(null)
-let placeWikiToken = 0
+// Mosaikk + manuell utvidelse — flyttet til useMapExtend; watchene blir her.
+const {
+  buildingOnTheFly, buildingProgress, autoMapToast, currentMapIsAuto,
+  drawerCoversCanvas, extendZonesVisible, activatableTile,
+  renderExtendZones, updateExtendZoneScale, showAutoMapToast,
+  visibleCenterSvg, scheduleActivatableCheck, autoMapModeBusy,
+  autoMapBuildOpts, promoteTile, extendMap, armAutoMap,
+  extendZonesBounds, teardownMapExtend,
+} = useMapExtend({
+  svgHostRef, wrapperRef, meta, mapId, router,
+  scale, rotation, translateX, translateY, isGesturing, panTo,
+  loading, loadError, fillingInDetails,
+  annot, measureMode, sti, searchOpen, showControls, drawer,
+  ghostRects, GHOST_TRIGGER_SUPPRESS_FRAC, renderGhostTiles,
+  currentTheme, visibleLayers, userPos, maxTiles, refreshAutoTileCount,
+  closeDrawer, closeSearch,
+})
+watch(extendZonesVisible, () => { renderExtendZones() })
+// Mosaikken endret seg (ny flis bygd / scroll-tilbake) → re-anker prikkene.
+watch(ghostRects, () => { renderExtendZones() }, { deep: true })
+watch(scale, updateExtendZoneScale)
+watch([scale, translateX, translateY, rotation], scheduleActivatableCheck)
+
+// ── Long-press kontekstmeny — flyttet til useContextLookups ─────────────
+// Inset-refene og de detachede detalj-lagene blir her (setupHostSvg
+// re-tilordner detachedDetailLayers, og useDetailInset bruker dem).
 const contextSheetRef = ref(null)      // bottom-sheet-elementet (for into-focus)
 const detailInsetRef = ref(null)       // mini-SVG detalj-inset i bottom-sheeten
 const DETAIL_INSET_M = 1000            // 1×1 km roambart vindu rundt punktet
@@ -2152,581 +2064,29 @@ const DETAIL_INSET_M = 1000            // 1×1 km roambart vindu rundt punktet
 // (perf — de er usynlige der men kostet parse/recalc/clone). Inset-en kloner
 // inn herfra. Erstattes ved hver setupHostSvg (nytt kart = nye noder).
 let detachedDetailLayers = []
-const LONG_PRESS_MS = 550
-const LONG_PRESS_MOVE_PX = 10
 
-let lpTimer = null
-let lpPointerId = null
-let lpStartX = 0
-let lpStartY = 0
-let lpEvent = null      // siste pointerdown-event så vi kan re-projisere ved fire
+// Deklarert FØR useContextLookups-kallet (closeContextMenu lukker panelet).
+const proximityPanelOpen = ref(false)
 
-function clearLongPress() {
-  if (lpTimer) { clearTimeout(lpTimer); lpTimer = null }
-  lpPointerId = null
-  lpEvent = null
-}
-
-function clientToSvgPoint(clientX, clientY) {
-  const svg = svgHostRef.value?.querySelector('svg')
-  if (!svg) return null
-  const pt = svg.createSVGPoint()
-  pt.x = clientX
-  pt.y = clientY
-  const ctm = svg.getScreenCTM()
-  if (!ctm) return null
-  return pt.matrixTransform(ctm.inverse())
-}
-
-function openContextMenuAt(clientX, clientY) {
-  // Long-press skal være no-op mens et annet overlay (søk, on-the-fly) eier
-  // UI-en, eller mens et ferskt kart fortsatt fyller inn detaljer
-  // (detalj-insetet ville ellers vist halvbygd data).
-  if (buildingOnTheFly.value || searchOpen.value ||
-      fillingInDetails.value || sti.active.value) return
-  const local = clientToSvgPoint(clientX, clientY)
-  if (!local) return
-  contextMenuPoint.value = {
-    svgX: local.x, svgY: local.y,
-    clientX, clientY,
-  }
-  contextMenuOpen.value = true
-  contextDrawer.reset()
-  closeDrawer()
-  knobPanel.value = null   // FAB-panelet viker for kontekst-arket (unngå stablede sheets)
-  // v9.3.3: INGEN auto-pan av hovedkartet. Brukeren har allerede plassert/
-  // zoomet/rotert kartet slik de vil — å flytte det ved long-press var
-  // forvirrende og ødela oversikten. Punktet vises i pin + detalj-inset.
-}
-
-function closeContextMenu() {
-  contextMenuOpen.value = false
-  contextMenuPoint.value = null
-  contextActionState.value = 'idle'
-  proximityPanelOpen.value = false
-}
-
-function onPointerDownLongPress(e) {
-  // Kun primær single-pointer. Hvis en annen pointer allerede er aktiv (pinch),
-  // avbryt timeren — det er en gest, ikke en long-press.
-  if (lpPointerId != null) { clearLongPress(); return }
-  // Ignorer høyreklikk her — den håndteres av contextmenu-eventet (som også
-  // gir oss preventDefault på native browsermenyen).
-  if (e.pointerType === 'mouse' && e.button !== 0) return
-  // Ignorer tap inne på interaktive UI-elementer (knapper, drawer-håndtak,
-  // kant-soner) — disse har egne klikk-handlere.
-  if (e.target.closest('button, input, textarea, select, a, [data-extend-dir]')) return
-  lpPointerId = e.pointerId
-  lpStartX = e.clientX
-  lpStartY = e.clientY
-  lpEvent = { clientX: e.clientX, clientY: e.clientY }
-  lpTimer = setTimeout(() => {
-    if (lpEvent) openContextMenuAt(lpEvent.clientX, lpEvent.clientY)
-    clearLongPress()
-  }, LONG_PRESS_MS)
-}
-function onPointerMoveLongPress(e) {
-  if (lpPointerId == null || e.pointerId !== lpPointerId) return
-  const dx = e.clientX - lpStartX
-  const dy = e.clientY - lpStartY
-  if (Math.hypot(dx, dy) > LONG_PRESS_MOVE_PX) clearLongPress()
-}
-function onPointerUpLongPress(e) {
-  if (lpPointerId != null && e.pointerId === lpPointerId) clearLongPress()
-}
-function onContextMenuEvent(e) {
-  // Høyreklikk på desktop. preventDefault stopper browser-menyen.
-  e.preventDefault()
-  openContextMenuAt(e.clientX, e.clientY)
-}
-
-// Ligger SVG-punktet (meter-rom) inni et ferskvanns-polygon (ISOM 301 innsjø /
-// 302 tjern)? Brukes til å være ærlig om høyde: NHM_DTM er en bar-bakke-modell
-// uten retur over vann, så vannflater leses som nodata-fylt-til-0 («0 moh»).
-// Over innsjøer er den 0-en meningsløs (Tyrifjorden ligger på ~63 m, ikke 0),
-// så vi viser «ikke tilgjengelig» istedenfor en falsk høyde. Saltvann (303)
-// utelates med vilje — der ER havnivå ≈ 0 riktig.
-function pointOnFreshwater(svgX, svgY) {
-  const svg = svgHostRef.value?.querySelector('svg')
-  if (!svg || typeof svg.createSVGPoint !== 'function') return false
-  const paths = svg.querySelectorAll('g[data-iso="301"] path, g[data-iso="302"] path')
-  if (!paths.length) return false
-  const rootPt = svg.createSVGPoint()
-  rootPt.x = svgX
-  rootPt.y = svgY
-  for (const path of paths) {
-    if (typeof path.isPointInFill !== 'function') continue
-    // getCTM(): path-lokalt → SVG-rot-bruker-rom (= viewBox-meter, der svgX/svgY
-    // bor). Invers mapper punktet ned til path-ens eget rom før fill-testen, så
-    // evt. transform på mellomliggende grupper håndteres. fill-rule evenodd
-    // respekteres → øy-hull i innsjøen teller korrekt som land.
-    const ctm = typeof path.getCTM === 'function' ? path.getCTM() : null
-    let local = rootPt
-    if (ctm) {
-      try { local = rootPt.matrixTransform(ctm.inverse()) } catch { continue }
-    }
-    if (path.isPointInFill(local)) return true
-  }
-  return false
-}
-
-// Ligger punktet PÅ en vannflate (sjø ELLER ferskvann)? Punkt-i-fyll mot alle
-// vann-AREAL-koder (POLYGON_CODES-vannet i mapBuilder): 301/302 innsjø+elv-areal,
-// 303 sjø, 307 dybdeareal, 308/309. Linjer (304/305 elv/bekk) telles ikke — vi
-// vil bare avvise selve vannflaten. Brukes av Stifinner til å nekte start-/mål-
-// punkt i vann. Samme CTM-invers-mønster som pointOnFreshwater (øy-hull via
-// fill-rule evenodd teller som land).
-const WATER_AREA_SELECTOR = ['301', '302', '303', '307', '308', '309']
-  .map(c => `g[data-iso="${c}"] path`).join(', ')
-function pointOnWater(svgX, svgY) {
-  const svg = svgHostRef.value?.querySelector('svg')
-  if (!svg || typeof svg.createSVGPoint !== 'function') return false
-  const paths = svg.querySelectorAll(WATER_AREA_SELECTOR)
-  if (!paths.length) return false
-  const rootPt = svg.createSVGPoint()
-  rootPt.x = svgX
-  rootPt.y = svgY
-  for (const path of paths) {
-    if (typeof path.isPointInFill !== 'function') continue
-    const ctm = typeof path.getCTM === 'function' ? path.getCTM() : null
-    let local = rootPt
-    if (ctm) {
-      try { local = rootPt.matrixTransform(ctm.inverse()) } catch { continue }
-    }
-    if (path.isPointInFill(local)) return true
-  }
-  return false
-}
-
-// Parse en linje-path-d ("M x,y L x,y ... M ...") til lister av [x,y]-punkter,
-// én per subpath. mapBuilder skriver kun M/L med komma-separerte tall.
-function parseLinePoints(d) {
-  const subs = []
-  for (const part of String(d).split('M')) {
-    if (!part.trim()) continue
-    const pts = []
-    const re = /(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/g
-    let mm
-    while ((mm = re.exec(part)) !== null) {
-      const x = parseFloat(mm[1]), y = parseFloat(mm[2])
-      if (Number.isFinite(x) && Number.isFinite(y)) pts.push([x, y])
-    }
-    if (pts.length) subs.push(pts)
-  }
-  return subs
-}
-
-// Finn en navngitt vann-feature (elv/innsjø/bekk) som long-press-punktet ligger
-// PÅ — uavhengig av hvor feature-ens navne-anker (sentroid) er. Løser at en lang
-// elv (f.eks. Drammenselva) ellers taper mot et nærmere stedsnavn fordi
-// findNearestPlace kun måler avstand til anker-punktet, ikke til geometrien.
-//   1. Navngitte vann-AREALER (301/302/303): punkt-i-fyll. Velg minste areal
-//      ved overlapp (mest spesifikk feature).
-//   2. Navngitte vann-LINJER (304/305 elv/bekk): nærmeste punkt på polylinjen,
-//      ren matematikk (ingen layout-tvingende getPointAtLength). Toleransen
-//      skalerer med zoom (~14 px finger-treff) og clampes til [8, 60] m.
-function findWaterFeatureAtPoint(svgX, svgY) {
-  const svg = svgHostRef.value?.querySelector('svg')
-  if (!svg || typeof svg.createSVGPoint !== 'function') return null
-  const pt = svg.createSVGPoint()
-  pt.x = svgX
-  pt.y = svgY
-
-  // 1) Vann-arealer — punkt-i-fyll (samme CTM-invers-mønster som pointOnFreshwater).
-  let bestArea = null
-  for (const path of svg.querySelectorAll(
-    'g[data-iso="301"] path[data-name], g[data-iso="302"] path[data-name], g[data-iso="303"] path[data-name]')) {
-    const name = path.getAttribute('data-name')?.trim()
-    if (!name || typeof path.isPointInFill !== 'function') continue
-    const ctm = typeof path.getCTM === 'function' ? path.getCTM() : null
-    let local = pt
-    if (ctm) { try { local = pt.matrixTransform(ctm.inverse()) } catch { continue } }
-    if (!path.isPointInFill(local)) continue
-    let area = Infinity
-    try { const bb = path.getBBox(); area = bb.width * bb.height } catch { /* keep Infinity */ }
-    if (!bestArea || area < bestArea.area) bestArea = { name, area }
-  }
-  if (bestArea) return { name: bestArea.name, kind: 'vann', onFeature: true, distM: 0, x: svgX, y: svgY }
-
-  // 2) Vann-linjer — nærmeste-punkt-på-polylinje, zoom-skalert toleranse.
-  let tolM = 30
-  const wrap = wrapperRef.value?.getBoundingClientRect()
-  const m = meta.value
-  if (wrap && m && m.widthM && m.heightM) {
-    const fit = Math.min(wrap.width / m.widthM, wrap.height / m.heightM)
-    const mPerPx = 1 / (fit * (scale.value || 1))
-    if (Number.isFinite(mPerPx) && mPerPx > 0) tolM = Math.min(60, Math.max(8, 14 * mPerPx))
-  }
-  let bestLine = null
-  for (const path of svg.querySelectorAll('g[data-iso="304"] path[data-name], g[data-iso="305"] path[data-name]')) {
-    const name = path.getAttribute('data-name')?.trim()
-    if (!name) continue
-    const d = path.getAttribute('d')
-    if (!d) continue
-    for (const sub of parseLinePoints(d)) {
-      const dist = pointToPolylineDist(svgX, svgY, sub)
-      if (dist <= tolM && (!bestLine || dist < bestLine.distM)) bestLine = { name, distM: dist }
-    }
-  }
-  if (bestLine) return { name: bestLine.name, kind: 'vann', onFeature: true, distM: bestLine.distM, x: svgX, y: svgY }
-  return null
-}
-
-// Info-utregning når menyen er åpen. Cachet via computed slik at en åpen meny
-// ikke re-evaluerer på hver pinch (kun når contextMenuPoint, searchIndex eller
-// DEM endrer seg).
-const contextMenuInfo = computed(() => {
-  const p = contextMenuPoint.value
-  if (!p || !meta.value) return null
-  const m = meta.value
-  // Klamp til kart-bounds — long-press kan treffe utenfor SVG-content
-  // pga letterboxing ved bredt aspekt-ratio.
-  const inside = p.svgX >= 0 && p.svgX <= m.widthM && p.svgY >= 0 && p.svgY <= m.heightM
-  const { lat, lon } = svgToWgs84(p.svgX, p.svgY, m)
-  const ele = (storedDem.value && inside)
-    ? sampleElevation(storedDem.value, p.svgX, p.svgY)
-    : NaN
-
-  // Geometri-bevisst stedsoppslag: ligger punktet PÅ en navngitt elv/innsjø/bekk,
-  // vinner den over nærmeste navne-anker (ellers tapte lange elver mot et nærmere
-  // stedsnavn). Faller tilbake til nærmeste-anker-heuristikken ellers.
-  const waterHit = inside ? findWaterFeatureAtPoint(p.svgX, p.svgY) : null
-  const place = waterHit ?? (inside ? findNearestPlace(mapSearch.index.value, p.svgX, p.svgY) : null)
-
-  // NB: «nærmeste sti/vei»-utregningen er bevisst fjernet (v9.1.22).
-  // findNearestPath sampler hver path i sti/vei/bekk-lagene med
-  // getPointAtLength — en synkron, layout-tvingende operasjon som blokkerte
-  // hovedtråden i sekunder på den ekte (CI-bygde) Vardåsen og frøs store
-  // bruker-kart helt. Informasjonen er uansett synlig direkte på kartet.
-
-  // Avstand fra brukerens GPS-posisjon (kun synlig når GPS-en er aktiv
-  // og brukeren er på kartet). Retning fra meg → punktet.
-  let fromUser = null
-  if (userPos.isWatching && userPos.svgX != null && userPos.svgY != null) {
-    const dx = p.svgX - userPos.svgX
-    const dy = p.svgY - userPos.svgY
-    const distM = Math.hypot(dx, dy)
-    const deg = bearingDeg(userPos.svgX, userPos.svgY, p.svgX, p.svgY)
-    fromUser = { distM, deg, compass: bearingToCompass(deg) }
-  }
-
-  // Over en innlands-vannflate er DEM-en nodata-fylt-til-0 → ikke vis falsk
-  // høyde. To uavhengige signaler (robust mot at det ene svikter):
-  //   1. SVG-treff i et ferskvanns-polygon (ISOM 301/302).
-  //   2. DEM-artefakt: på et bekreftet INNLANDS-kart (meta.coastal === false)
-  //      er en måling ≈ 0 m nødvendigvis vannflate-artefakten — ekte norsk
-  //      innlands-terreng ligger aldri på havnivå. Fanger store innsjøer
-  //      (Mjøsa/Tyrifjorden) selv når 301-treffet glipper. På kyst-/ukjente
-  //      kart er 0 m ekte havnivå, så da slår ikke (2) inn.
-  const onFreshwater = inside ? pointOnFreshwater(p.svgX, p.svgY) : false
-  const inlandWaterArtifact = inside && Number.isFinite(ele) &&
-    Math.abs(ele) < 0.5 && meta.value?.coastal === false
-  const isWater = onFreshwater || inlandWaterArtifact
-
-  return {
-    lat, lon, inside,
-    elevationM: (Number.isFinite(ele) && !isWater) ? ele : null,
-    isWater,
-    place,
-    fromUser,
-  }
+const {
+  contextMenuOpen, contextMenuPoint, contextMenuInfo,
+  lakeQuery, verneQuery, naturtypeQuery, placeWikiCard, expandedRedCat,
+  clearLongPress, clientToSvgPoint, openContextMenuAt, closeContextMenu,
+  onPointerDownLongPress, onPointerMoveLongPress, onPointerUpLongPress,
+  onContextMenuEvent,
+  pointOnFreshwater, pointOnWater, findWaterFeatureAtPoint,
+  sourceLabel, naturtypeVerdiClass, formatVernedato, formatCount,
+  redListCats, redListGroups, toggleRedCat, formatAreaKm2, formatVolum,
+  contextActionState, flashContextAction,
+} = useContextLookups({
+  svgHostRef, wrapperRef, meta, storedDem, ensureDem, userPos, searchIndex,
+  buildingOnTheFly, searchOpen, fillingInDetails, sti, scale, mapSearch,
+  contextDrawer, mapId, closeDrawer, knobPanel, proximityPanelOpen,
 })
-
-// HydAPI-nøkkel (sanntids vannstand/temp). DVALE uten nøkkel: registreres
-// gratis på hydapi.nve.no og settes som VITE_NVE_HYDAPI_KEY ved bygg.
-const HYDAPI_KEY = import.meta.env.VITE_NVE_HYDAPI_KEY ?? ''
-
-// Long-press over (sannsynlig) vann → hent innsjø-data fra NVE Innsjødatabase
-// (vannflate-høyde + dyp/areal/volum/magasin når oppmålt). NHM_DTM leser ~0 m
-// over vann; NVE har de autoritative verdiene (Mjøsa ~123 m / 453 m dyp,
-// Tyrifjorden ~63 m). Token forkaster trege svar. Feiler NVE → 'error'/'empty'
-// → UI viser «ikke tilgjengelig» (aldri 0). Når innsjøen er funnet og en
-// HydAPI-nøkkel er satt, hentes sanntids vannstand/temperatur i et andre,
-// ikke-blokkerende steg (fyller lakeQuery.live når den lander).
-watch(contextMenuPoint, async (p) => {
-  const token = ++lakeQueryToken
-  lakeQuery.value = null
-  if (!p || !contextMenuOpen.value) return
-  const info = contextMenuInfo.value
-  if (!info?.inside || !info.isWater) return   // bare slå opp når punktet er vann
-  lakeQuery.value = { status: 'loading', live: null }
-  try {
-    const lake = await fetchLakeData(info.lat, info.lon)
-    if (token !== lakeQueryToken) return        // brukeren har flyttet punktet
-    if (!lake || !Number.isFinite(lake.hoyde)) {
-      lakeQuery.value = { status: 'empty', live: null }
-      return
-    }
-    lakeQuery.value = { status: 'done', lake, live: null }
-    // Sanntids vannstand/temp — kun når en HydAPI-nøkkel finnes (ellers dvale).
-    if (HYDAPI_KEY) {
-      fetchLiveWater(info.lat, info.lon, { apiKey: HYDAPI_KEY, lakeHoyde: lake.hoyde })
-        .then((live) => {
-          if (token === lakeQueryToken && live && lakeQuery.value?.status === 'done') {
-            lakeQuery.value = { ...lakeQuery.value, live }
-          }
-        })
-        .catch(() => { /* graceful: ingen sanntidslinje */ })
-    }
-  } catch {
-    if (token === lakeQueryToken) lakeQuery.value = { status: 'error', live: null }
-  }
-})
-
-// Long-press hvor som helst på kartet → slå opp om punktet ligger i et
-// verneområde (Naturbase via Miljødirektoratet). Ved treff vises navn/verneform/
-// vernedato/areal umiddelbart, og to ikke-blokkerende kall fyller arts-/
-// observasjons-tellere (GBIF) og Wikipedia-ingress når de lander. Ingen treff →
-// ingen verne-seksjon. Token forkaster trege svar; cache gjør gjentatte oppslag
-// momentane (IndexedDB + minne, TTL pr kilde).
-watch(contextMenuPoint, async (p) => {
-  const token = ++verneQueryToken
-  verneQuery.value = null
-  expandedRedCat.value = null
-  if (!p || !contextMenuOpen.value) return
-  const info = contextMenuInfo.value
-  if (!info?.inside) return
-  verneQuery.value = { status: 'loading' }
-  try {
-    const ptKey = pointKey(info.lat, info.lon)
-    let area = await cacheGet(ptKey)
-    if (!area) {
-      area = await fetchProtectedArea(info.lat, info.lon)
-      if (area) cacheSet(ptKey, area, TTL.vern)
-    }
-    if (token !== verneQueryToken) return
-    if (!area) { verneQuery.value = null; return }
-    verneQuery.value = { status: 'done', area, species: 'loading', wiki: 'loading' }
-    loadVerneSpecies(token, area, info.lat, info.lon)
-    loadVerneWiki(token, area)
-  } catch {
-    if (token === verneQueryToken) verneQuery.value = null
-  }
-})
-
-// Long-press → slå opp NiN-naturtype-lokaliteter for punktet (Miljødirektoratet
-// «Naturtyper på land»). Uavhengig av verneområde-oppslaget over: naturtyper er
-// kartlagt i hele landet, ikke bare i verneområder. Cachet 30 dager. Ingen treff
-// (tom liste) eller utilgjengelig → ingen naturtype-seksjon.
-watch(contextMenuPoint, async (p) => {
-  const token = ++naturtypeQueryToken
-  naturtypeQuery.value = null
-  if (!p || !contextMenuOpen.value) return
-  const info = contextMenuInfo.value
-  if (!info?.inside) return
-  try {
-    const key = naturtypePointKey(info.lat, info.lon)
-    let items = await cacheGet(key)
-    if (!items) {
-      items = await fetchNaturtypes(info.lat, info.lon)
-      if (items && items.length) cacheSet(key, items, TTL.naturtype)
-    }
-    if (token !== naturtypeQueryToken) return
-    naturtypeQuery.value = (items && items.length) ? { status: 'done', items } : null
-  } catch {
-    if (token === naturtypeQueryToken) naturtypeQuery.value = null
-  }
-})
-
-// Long-press hvor som helst → nærmeste Wikipedia-sted (geosearch). Gir fakta om
-// innsjø/fjelltopp/grend/elv/stedsnavn også UTENFOR verneområder. Cachet 7 dager
-// på ~100 m-grid. Ingen treff/utilgjengelig → ingen sted-seksjon. Kjører også
-// utenfor kart-bounds (koordinaten er gyldig uansett).
-watch(contextMenuPoint, async (p) => {
-  const token = ++placeWikiToken
-  placeWikiQuery.value = null
-  if (!p || !contextMenuOpen.value) return
-  const info = contextMenuInfo.value
-  if (!info) return
-  placeWikiQuery.value = { status: 'loading' }
-  try {
-    const key = placePointKey(info.lat, info.lon)
-    let place = await cacheGet(key)
-    if (!place) {
-      // Nærmeste kartlabel (f.eks. «Glitre», «Bondivannet») som navne-hint, så
-      // navn-søket kan disambiguere store features og bestemt/ubestemt form.
-      place = await fetchNearestWikiPlace(info.lat, info.lon, { hintName: info.place?.name })
-      if (place) {
-        // SNL foretrekkes for TEKSTEN: Wikipedia-geosearch har allerede
-        // identifisert og lokalisert featuren (koordinat-trygt), så her bytter vi
-        // bare inn SNLs ingress/lenke for det bekreftede navnet og BEHOLDER
-        // avstanden fra Wikipedia-ankeret. SNL har ingen koordinater.
-        const snl = await fetchSnlSummary(place.title, { accept: placeNameMatches })
-        if (snl) {
-          place = { ...place, source: 'snl', title: snl.title, extract: snl.extract,
-                    url: snl.url, thumbnail: snl.thumbnail ?? place.thumbnail }
-        }
-        // Den overordnede «første del»-artikkelen (selve stedet ved siden av
-        // stasjonen/toppen): foretrekk SNL-lenken her også. KUN lenke + tittel —
-        // ingen ingress-tekst, siden kortet viser teksten for den mest spesifikke.
-        // Faller tilbake til Wikipedia-lenken fra wikiPlace; droppes hvis den
-        // ender på samme URL som primær-lenken.
-        if (place.secondary) {
-          const snl2 = await fetchSnlSummary(place.secondary.title, { accept: placeNameMatches })
-          const sec = snl2
-            ? { ...place.secondary, source: 'snl', title: snl2.title, url: snl2.url }
-            : place.secondary
-          place = (sec.url && sec.url !== place.url)
-            ? { ...place, secondary: sec }
-            : { ...place, secondary: null }
-        }
-      } else if (info.place?.name) {
-        // Ingen Wikipedia-treff i nærheten, men vi har et stedsnavn → siste utvei:
-        // slå opp navnet i SNL (uten avstand, ingen koordinat-verifisering).
-        const snl = await fetchSnlSummary(info.place.name, { accept: placeNameMatches })
-        if (snl) place = { ...snl, lat: null, lon: null, distanceM: null }
-      }
-      if (place) cacheSet(key, place, TTL.wiki)
-    }
-    if (token !== placeWikiToken) return
-    placeWikiQuery.value = place ? { status: 'done', place } : { status: 'empty' }
-  } catch {
-    if (token === placeWikiToken) placeWikiQuery.value = { status: 'empty' }
-  }
-})
-
-// Sted-kortet vises kun når geosearch fant en artikkel, og IKKE når den er
-// identisk med verneområdets egen Wikipedia-lenke (unngå duplikat).
-const placeWikiCard = computed(() => {
-  if (placeWikiQuery.value?.status !== 'done') return null
-  const place = placeWikiQuery.value.place
-  const w = verneQuery.value?.wiki
-  const verneUrl = (w && w !== 'loading') ? w.url : null
-  if (verneUrl && place.url && verneUrl === place.url) return null
-  return place
-})
-
-// Kilde-etikett for lenke-/status-tekst. Oppslag kan komme fra SNL (foretrukket)
-// eller Wikipedia (fallback). Default Wikipedia for gamle cachede objekter uten kilde.
-const SOURCE_LABEL = { snl: 'Store norske leksikon', wikipedia: 'Wikipedia' }
-function sourceLabel(s) { return SOURCE_LABEL[s] ?? 'Wikipedia' }
-
-// Verdi-klasse for naturtype-badge: «svært høy»/«høy»/«svært viktig» → sterk
-// grønn, «moderat»/«viktig» → gulgrønn, «lav»/«lokalt» → dempet. Ukjent → nøytral.
-function naturtypeVerdiClass(verdi) {
-  const v = String(verdi ?? '').toLowerCase()
-  if (/sv[æa]rt h[øo]y|^h[øo]y|sv[æa]rt viktig/.test(v)) return 'bg-emerald-500/25 text-emerald-100 border-emerald-400/40'
-  if (/moderat|^viktig/.test(v)) return 'bg-lime-500/20 text-lime-100 border-lime-400/35'
-  if (/lav|lokalt/.test(v)) return 'bg-white/8 text-white/60 border-white/15'
-  return 'bg-white/8 text-white/70 border-white/15'
-}
-
-// Arts-/observasjons-telling fra GBIF for verneområdet. Cachet 24 t på område-ID.
-// Bruker Naturbase-polygonet når det er i lon/lat, ellers en bbox rundt klikk-
-// punktet (robust mot at WFS-en leverer projiserte UTM-meter). Setter species
-// til objekt (treff) eller null (utilgjengelig).
-async function loadVerneSpecies(token, area, lat, lon) {
-  const key = `species:${area.id}`
-  try {
-    let sp = await cacheGet(key)
-    if (!sp) {
-      sp = await fetchSpeciesSummary({ rings: area.rings, lat, lon, areaKm2: area.arealKm2 })
-      if (sp) cacheSet(key, sp, TTL.species)
-    }
-    // Norsk rødliste: snitt GBIF-artene mot den bundlede Artsdatabanken-lista.
-    // Dvale (returnerer null) hvis bundelen ennå ikke er generert → ingen linje.
-    if (sp?.speciesKeys && !sp.redListNo) {
-      const rl = await summarizeRedListed(sp.speciesKeys)
-      if (rl) sp = { ...sp, redListNo: rl }
-    }
-    patchVerne(token, { species: sp ?? null })
-  } catch {
-    patchVerne(token, { species: null })
-  }
-}
-
-// Wikipedia-ingress for verneområdet. Slår opp på fullt navn (navn + verneform)
-// før bart navn, så vi treffer «Storøya biotopvernområde» og ikke øya på
-// Svalbard. Cachet 7 dager på navn + verneform (nøkkelen forbi-cacher gamle
-// feil-treff lagret under bart navn).
-async function loadVerneWiki(token, area) {
-  const navn = area?.navn
-  if (!navn) { patchVerne(token, { wiki: null }); return }
-  const key = `wiki2:${navn}|${area.verneform ?? ''}`   // v2: invaliderer pre-SNL cache
-  try {
-    let wiki = await cacheGet(key)
-    if (!wiki) {
-      // SNL foretrekkes; Wikipedia som fallback.
-      wiki = await fetchSnlSummary(navn, { accept: titleMatches })
-        ?? await fetchWikiSummary(navn, { verneform: area.verneform })
-      if (wiki) cacheSet(key, wiki, TTL.wiki)
-    }
-    patchVerne(token, { wiki: wiki ?? null })
-  } catch {
-    patchVerne(token, { wiki: null })
-  }
-}
-
-// Slå sammen et delvis resultat inn i verneQuery — kun hvis token fortsatt
-// gjelder og oppslaget er i 'done'-tilstand (brukeren kan ha flyttet punktet).
-function patchVerne(token, patch) {
-  if (token === verneQueryToken && verneQuery.value?.status === 'done') {
-    verneQuery.value = { ...verneQuery.value, ...patch }
-  }
-}
-
-// Vernedato (ISO YYYY-MM-DD) → norsk dd.mm.yyyy. Faller tilbake til råverdi.
-function formatVernedato(iso) {
-  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  return m ? `${m[3]}.${m[2]}.${m[1]}` : iso
-}
-
-// Heltall med tusenskille (norsk: mellomrom). 1342 → «1 342».
-function formatCount(n) {
-  return Number(n).toLocaleString('nb-NO')
-}
-
-// Rødliste-kategorier i alvorlighets-rekkefølge, med fullt norsk navn (tooltip) og
-// fargeklasse for kategori-chipene i kortet.
-const RED_CATS = [
-  { code: 'CR', label: 'Kritisk truet', cls: 'text-rose-100 border-rose-400/50 bg-rose-500/20' },
-  { code: 'EN', label: 'Sterkt truet', cls: 'text-rose-200 border-rose-400/40 bg-rose-500/15' },
-  { code: 'VU', label: 'Sårbar', cls: 'text-amber-200 border-amber-400/40 bg-amber-500/15' },
-  { code: 'NT', label: 'Nær truet', cls: 'text-amber-100/90 border-amber-300/30 bg-amber-400/10' },
-]
-
-// Rødliste-kategorier som faktisk har treff, til kategori-chipene.
-function redListCats(byCat) {
-  return RED_CATS.filter((c) => byCat?.[c.code] > 0)
-}
-
-// Artene i den utvidede kategorien, gruppert etter grov dyre-/plantegruppe.
-function redListGroups(redListNo, cat) {
-  if (!redListNo || !cat) return []
-  const inCat = (redListNo.species ?? []).filter((s) => s.category === cat)
-  return groupSpecies(inCat)
-}
-
-// Veksle hvilken kategori som er foldet ut (accordion).
-function toggleRedCat(code) {
-  expandedRedCat.value = expandedRedCat.value === code ? null : code
-}
-
-// Areal: under 1 km² vises med to desimaler (små vann), ellers heltall/én desimal.
-function formatAreaKm2(km2) {
-  if (km2 < 1) return km2.toFixed(2)
-  if (km2 < 100) return km2.toFixed(1)
-  return String(Math.round(km2))
-}
-// Volum kommer i mill. m³ fra NVE. Store volum vises i km³ (1 km³ = 1000 mill m³).
-function formatVolum(millM3) {
-  if (millM3 >= 1000) return `${(millM3 / 1000).toFixed(1)} km³`
-  if (millM3 >= 1) return `${Math.round(millM3)} mill. m³`
-  return `${(millM3 * 1e6).toFixed(0)} m³`
-}
-
-const contextActionState = ref('idle')   // 'idle' | 'copied' | 'failed'
-let contextActionTimer = null
-function flashContextAction(state) {
-  contextActionState.value = state
-  if (contextActionTimer) clearTimeout(contextActionTimer)
-  contextActionTimer = setTimeout(() => { contextActionState.value = 'idle' }, 1400)
-}
 
 // ── Nærhetsvarsel (proximity alert) ──────────────────────────────────────
 // Inline config-panel i kontekst-draweren. Lokal redigerings-state speiler
 // proximity.prefs (sist brukte valg) til brukeren bekrefter med «Aktiver».
-const proximityPanelOpen = ref(false)
 const proximityCfg = ref({ distanceM: 10, sound: true, vibration: true })
 
 function toggleProximityPanel() {
@@ -3100,42 +2460,6 @@ watch(() => tracker.tracks.value, () => renderTracks(), { deep: true })
 watch(() => tracker.trackStyle.value, () => renderTracks())
 watch(() => tracker.visibleTrackIds.value, () => renderTracks())
 
-/**
- * Konverter CSS-piksler til SVG user-units. Brukes til å holde symboler
- * (annoterings-ikoner, GPS-prikk) på konstant skjerm-størrelse uansett zoom.
- *
- * v8.9.2: tidligere brukte vi svg.getBoundingClientRect() som inkluderer CSS-
- * transformer. Det ga en subtil bug: når man tappet «Nullstill zoom» midt
- * under en pinch-transition, returnerte rect-en mid-animasjons-verdier — vi
- * malte stedsmerker basert på rect ved scale=20 selv om scale-ref var 1,
- * og så ble pin-ene ekstremt små etter at animasjonen var ferdig.
- *
- * Nå bruker vi wrapperSize (fast container målt på mount/resize) + scale.value
- * (mål-skala fra pinch-state) som er garantert konsistent uansett om CSS-
- * transitionen er ferdig eller ikke.
- */
-function pxToUserUnits(cssPx) {
-  const svg = svgHostRef.value?.querySelector('svg')
-  if (!svg) return cssPx
-  const vb = svg.viewBox.baseVal
-  // v11.0.31: mål wrapperen LIVE i stedet for det snapshot-ede wrapperSize.
-  // wrapperRef har ingen CSS-transform (pinch-transformen ligger på det indre
-  // mapInnerRef), så rect-en er alltid den ekte viewport-størrelsen — upåvirket
-  // av pinch/anim, så v8.9.2-fellen (mid-animasjons-rect) gjelder ikke her.
-  // Snapshot-et kunne fryse en for-tidlig / for liten måling på iOS Safari der
-  // resize-eventet ikke fyrer etter at layouten settler eller toolbaren skjuler
-  // seg; da ble pxPerUnit altfor liten og alle skjerm-låste symboler (GPS-prikk,
-  // accuracy-ring, annoterings-ikoner) ballong-blåste til halve skjermen.
-  const r = wrapperRef.value?.getBoundingClientRect()
-  const w = r?.width || wrapperSize.value.w
-  const h = r?.height || wrapperSize.value.h
-  if (!w || !h || !vb.width || !vb.height) return cssPx
-  // SVG fits-with-meet til wrapperen: minste dim bestemmer pxPerUnit
-  const fitPxPerUnit = Math.min(w / vb.width, h / vb.height)
-  const pxPerUnit = fitPxPerUnit * (scale.value || 1)
-  if (!pxPerUnit) return cssPx
-  return cssPx / pxPerUnit
-}
 
 // Klikk på kart i annoteringsmodus → plasser symbol
 function onMapClick(e) {
@@ -3177,680 +2501,22 @@ function onMapClick(e) {
   annot.persist()
 }
 
-function renderMeasure() {
-  const svg = svgHostRef.value?.querySelector('svg')
-  if (!svg) return
-  const ns = 'http://www.w3.org/2000/svg'
-  let layer = svg.querySelector('#measure-layer')
-  if (!layer) {
-    layer = document.createElementNS(ns, 'g')
-    layer.setAttribute('id', 'measure-layer')
-    layer.setAttribute('data-layer', 'maaling')
-    layer.setAttribute('pointer-events', 'none')
-    svg.appendChild(layer)
-  }
-  layer.replaceChildren()
-  const v = measureVertices.value
-  if (!v.length) return
 
-  // Stroke-widths: paths inne i [data-layer] arver vector-effect:
-  // non-scaling-stroke fra global SVG-CSS (symbolizer.js linje 394). Det
-  // betyr at stroke-width tolkes i CSS-px, ikke i user-units — så
-  // pxToUserUnits ville gjort linjene ~10× for tykke (v8.9.5).
-  // For å holde konstant skjerm-tykkelse under pinch-zoom: del på scale.
-  const s = scale.value || 1
-  const haloW = 6 / s
-  const lineW = 2.5 / s
-  // Vertices er circles, IKKE paths — de arver ikke non-scaling-stroke,
-  // så radius må fortsatt konverteres via pxToUserUnits.
-  const vertR = pxToUserUnits(4)
 
-  // Areal-polygon (fill) hvis lukket
-  if (measureClosed.value && v.length >= 3) {
-    const ptsAttr = v.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
-    const poly = document.createElementNS(ns, 'polygon')
-    poly.setAttribute('points', ptsAttr)
-    poly.setAttribute('fill', 'rgba(34, 197, 94, 0.22)')
-    poly.setAttribute('stroke', 'none')
-    layer.appendChild(poly)
-  }
-
-  // To-lags polyline: hvit halo + grønn linje
-  if (v.length >= 2) {
-    let d = `M${v[0].x.toFixed(1)},${v[0].y.toFixed(1)}`
-    for (let i = 1; i < v.length; i++) d += ` L${v[i].x.toFixed(1)},${v[i].y.toFixed(1)}`
-    if (measureClosed.value) d += ' Z'
-    const halo = document.createElementNS(ns, 'path')
-    halo.setAttribute('d', d); halo.setAttribute('fill', 'none')
-    halo.setAttribute('stroke', 'rgba(255,255,255,0.9)')
-    halo.setAttribute('stroke-width', String(haloW))
-    halo.setAttribute('stroke-linecap', 'round')
-    halo.setAttribute('stroke-linejoin', 'round')
-    layer.appendChild(halo)
-    const line = document.createElementNS(ns, 'path')
-    line.setAttribute('d', d); line.setAttribute('fill', 'none')
-    line.setAttribute('stroke', '#16a34a')
-    line.setAttribute('stroke-width', String(lineW))
-    line.setAttribute('stroke-linecap', 'round')
-    line.setAttribute('stroke-linejoin', 'round')
-    layer.appendChild(line)
-  }
-
-  // Vertices (circles — får ikke non-scaling-stroke fra CSS-regelen som
-  // kun matcher `path`, så vi gir dem den eksplisitt for å unngå at
-  // strok-bredden vokser ved zoom inn).
-  for (let i = 0; i < v.length; i++) {
-    const c = document.createElementNS(ns, 'circle')
-    c.setAttribute('cx', v[i].x); c.setAttribute('cy', v[i].y)
-    c.setAttribute('r', vertR)
-    c.setAttribute('fill', '#16a34a')
-    c.setAttribute('stroke', '#fff')
-    c.setAttribute('stroke-width', String(1.5 / s))
-    c.setAttribute('vector-effect', 'non-scaling-stroke')
-    layer.appendChild(c)
-  }
-}
-
-watch([measureVertices, measureClosed, scale], () => renderMeasure(), { deep: true })
-
-// Stifinner-overlay: 1–3 fargede ruter + start/mål-markører + connector-
-// strek fra valgt punkt til snappet sti-node. Tegnes i et eget <g> på SVG-en
-// (mønster fra renderMeasure). Stroke-bredder deles på scale for konstant
-// skjerm-tykkelse. Valgt rute er kraftig; øvrige dempet og tynnere.
-const ROUTE_COLORS = ['#dc2626', '#7c3aed', '#0891b2'] // rød, lilla, cyan
-function renderRoutes() {
-  const svg = svgHostRef.value?.querySelector('svg')
-  if (!svg) return
-  const ns = 'http://www.w3.org/2000/svg'
-  let layer = svg.querySelector('#stifinner-layer')
-  if (!layer) {
-    layer = document.createElementNS(ns, 'g')
-    layer.setAttribute('id', 'stifinner-layer')
-    layer.setAttribute('data-layer', 'stifinner')
-    svg.appendChild(layer)
-  }
-  layer.replaceChildren()
-  // Tegn i både 'showing' og 'pickingVia' (behold ruten synlig mens brukeren
-  // sikter et nytt via-punkt).
-  if (sti.mode.value !== 'showing' && sti.mode.value !== 'pickingVia') return
-
-  const s = scale.value || 1
-  const mk = (d, stroke, width, opts = {}) => {
-    const p = document.createElementNS(ns, 'path')
-    p.setAttribute('d', d)
-    p.setAttribute('fill', 'none')
-    p.setAttribute('stroke', stroke)
-    p.setAttribute('stroke-width', String(width / s))
-    p.setAttribute('stroke-linecap', 'round')
-    p.setAttribute('stroke-linejoin', 'round')
-    if (opts.dash) p.setAttribute('stroke-dasharray', `${opts.dash / s} ${opts.dash / s}`)
-    if (opts.opacity != null) p.setAttribute('opacity', String(opts.opacity))
-    if (opts.pe) p.setAttribute('pointer-events', opts.pe)
-    return p
-  }
-
-  // Connector-strek (valgt punkt → snappet node). Stiplet grå. Ved rundtur er
-  // start == mål (samme origo), så mål-connectoren droppes (den overlapper).
-  const a = sti.start.value, b = sti.destination.value
-  const aSnap = sti.startSnap.value, bSnap = sti.destSnap.value
-  if (a && aSnap) layer.appendChild(mk(`M${a.svgX},${a.svgY}L${aSnap.x},${aSnap.y}`, '#64748b', 1.5, { dash: 3, pe: 'none' }))
-  if (!sti.isLoop.value && b && bSnap) layer.appendChild(mk(`M${b.svgX},${b.svgY}L${bSnap.x},${bSnap.y}`, '#64748b', 1.5, { dash: 3, pe: 'none' }))
-  const viaPts = sti.via.value, viaSnapArr = sti.viaSnaps.value
-  for (let i = 0; i < viaPts.length; i++) {
-    const v = viaPts[i], vs = viaSnapArr[i]
-    if (v && vs) layer.appendChild(mk(`M${v.svgX},${v.svgY}L${vs.x},${vs.y}`, '#64748b', 1.5, { dash: 3, pe: 'none' }))
-  }
-
-  // Tegn ikke-valgte ruter først (under), valgt rute øverst.
-  const order = sti.routes.value.map((_, i) => i)
-    .sort((i, j) => (i === sti.selectedRouteIdx.value ? 1 : 0) - (j === sti.selectedRouteIdx.value ? 1 : 0))
-  for (const i of order) {
-    const r = sti.routes.value[i]
-    const d = polylineToPath(r.coordinates, false)
-    const selected = i === sti.selectedRouteIdx.value
-    const color = ROUTE_COLORS[i % ROUTE_COLORS.length]
-    // Hvit halo
-    layer.appendChild(mk(d, 'rgba(255,255,255,0.9)', selected ? 7 : 5, { pe: 'none', opacity: selected ? 1 : 0.6 }))
-    // Farget linje
-    layer.appendChild(mk(d, color, selected ? 3.5 : 2.2, { pe: 'none', opacity: selected ? 1 : 0.55 }))
-    // Bred usynlig hit-path for lett tapp-treff
-    const hit = mk(d, 'transparent', 16, { pe: 'stroke' })
-    hit.style.cursor = 'pointer'
-    hit.addEventListener('click', (ev) => { ev.stopPropagation(); onSelectRoute(i) })
-    layer.appendChild(hit)
-  }
-
-  // Start (A, grønn) og mål (B, rød) markører.
-  const dot = (x, y, fill) => {
-    const c = document.createElementNS(ns, 'circle')
-    c.setAttribute('cx', x); c.setAttribute('cy', y)
-    c.setAttribute('r', String(pxToUserUnits(6)))
-    c.setAttribute('fill', fill)
-    c.setAttribute('stroke', '#fff')
-    c.setAttribute('stroke-width', String(2 / s))
-    c.setAttribute('pointer-events', 'none')
-    return c
-  }
-  if (a) layer.appendChild(dot(a.svgX, a.svgY, '#16a34a'))
-  for (const v of viaPts) if (v) layer.appendChild(dot(v.svgX, v.svgY, '#f59e0b'))
-  // Ved rundtur er mål == origo (grønn prikk allerede tegnet) → ingen egen rød.
-  if (!sti.isLoop.value && b) layer.appendChild(dot(b.svgX, b.svgY, '#dc2626'))
-}
 watch([() => sti.routes.value, () => sti.selectedRouteIdx.value, () => sti.mode.value,
        () => sti.via.value, scale],
   () => renderRoutes(), { deep: true })
 
-// Sørg for at annoterings-symbolenes <symbol id="iso-sym-X"> finnes i kart-
-// SVG-ens <defs>. Nødvendig fordi mapBuilder (v9.1.10+) kun emitterer defs
-// for symboler som faktisk BRUKES av auto-features i body — annoterings-
-// symboler (knaus/stein/brønn/bro) plasseres klient-side og er typisk ikke
-// auto-brukt, så <use href="#iso-sym-knaus"> fant ingenting (kun stedsmerke,
-// som har egen custom-rendering, virket). Vi injiserer de manglende defs-ene
-// fra katalogen. Stedsmerke hoppes over (rendres via appendStedsmerkeSymbol).
-function ensureAnnotationDefs(svg) {
-  const ns = 'http://www.w3.org/2000/svg'
-  let defs = svg.querySelector('defs')
-  if (!defs) {
-    defs = document.createElementNS(ns, 'defs')
-    svg.insertBefore(defs, svg.firstChild)
-  }
-  for (const s of ANNOTATION_SYMBOLS) {
-    if (s.symbolKey === 'stedsmerke') continue
-    const id = `iso-sym-${s.symbolKey}`
-    if (svg.querySelector(`[id="${id}"]`)) continue
-    const spec = isomCatalog.pointSymbols?.[s.symbolKey]
-    if (!spec) continue
-    const parsed = new DOMParser().parseFromString(
-      `<svg xmlns="${ns}">${buildPointSymbolDef(id, spec)}</svg>`, 'image/svg+xml')
-    const symEl = parsed.querySelector('symbol')
-    if (symEl) defs.appendChild(document.importNode(symEl, true))
-  }
-}
-
-function renderAnnotations() {
-  const svg = svgHostRef.value?.querySelector('svg')
-  if (!svg) return
-  ensureAnnotationDefs(svg)
-  const ns = 'http://www.w3.org/2000/svg'
-  const xlink = 'http://www.w3.org/1999/xlink'
-  let layer = svg.querySelector('#annotation-layer')
-  if (!layer) {
-    layer = document.createElementNS(ns, 'g')
-    layer.setAttribute('id', 'annotation-layer')
-    layer.setAttribute('data-layer', 'annotering')
-    layer.setAttribute('pointer-events', 'none')
-    svg.appendChild(layer)
-  }
-  layer.replaceChildren()
-
-  // Symbol-størrelse: ~32 CSS px på skjerm uansett zoom-nivå. ISOM-print-
-  // størrelse (1.5–2 mm = 6–7.5 px) er usynlig på telefon ved standard
-  // kart-zoom (5 km bbox i ~380 px container → 1 m ≈ 0.076 CSS px).
-  // pxToUserUnits konverterer ønsket skjerm-px til user-units (meter)
-  // basert på faktisk getBoundingClientRect — inkluderer pinch-zoom CSS-
-  // transform så symbolet holder konstant skjerm-størrelse.
-  const SYMBOL_M = pxToUserUnits(32)
-  const HALF = SYMBOL_M / 2
-
-  for (const a of annot.annotations.value) {
-    if (a.type !== 'point') continue
-    const sym = ANNOTATION_SYMBOLS.find(s => s.code === a.isomCode)
-    if (!sym) continue
-    // Per-type synlighet (drawer-laget «Annoteringer»). Når brukeren skjuler
-    // f.eks. alle «Knaus» beholdes annotasjonen i lagring men ikke rendres.
-    if (!annot.visibleTypes.value.has(sym.symbolKey)) continue
-
-    const g = document.createElementNS(ns, 'g')
-    // Stedsmerke (rød dråpe-pin) og stedsnavn skal alltid vises «opp» på
-    // skjermen selv om kartet er rotert. Counter-rotate g-en med samme
-    // mengde som kartets rotasjon, rundt anker-punktet (som nå er (0,0)
-    // etter translate). applyUprightLabels() oppdaterer transformen ved
-    // hver rotasjons-endring uten å re-rendre noden (v8.9.3).
-    if (sym.symbolKey === 'stedsmerke') {
-      g.setAttribute('transform', `translate(${a.x},${a.y}) rotate(${-rotation.value})`)
-    } else {
-      g.setAttribute('transform', `translate(${a.x},${a.y})`)
-    }
-    g.setAttribute('data-annot-id', a.id)
-    g.setAttribute('data-annot-type', sym.symbolKey)
-
-    // Lys ring (lilla) bak symbolet er et editor-hint som vises kun mens
-    // brukeren er i annoteringsmodus. Når modusen lukkes (deselect i
-    // drawer) forsvinner ringen og symbolet rendres «rent» som på print.
-    if (annot.isAnnotateMode.value) {
-      const halo = document.createElementNS(ns, 'circle')
-      halo.setAttribute('cx', '0')
-      halo.setAttribute('cy', '0')
-      halo.setAttribute('r', String(HALF * 0.95))
-      halo.setAttribute('fill', '#fffef0')
-      halo.setAttribute('fill-opacity', '0.9')
-      halo.setAttribute('stroke', '#7a3aa3')
-      halo.setAttribute('stroke-width', '2')
-      halo.setAttribute('vector-effect', 'non-scaling-stroke')
-      g.appendChild(halo)
-    }
-
-    if (sym.symbolKey === 'stedsmerke') {
-      // I annoteringsmodus tegnes pin-en statisk (brukeren plasserer/
-      // justerer — animasjon ville vært forstyrrende). Når kartet
-      // gjenåpnes fra lagring rendres med squash & stretch hver 5s, med
-      // tilfeldig pre-roll pr instans så ikke alle spretter i takt.
-      // (Spillmodus skjules tidligere via early return ovenfor.)
-      appendStedsmerkeSymbol(g, HALF, !annot.isAnnotateMode.value)
-    } else {
-      const use = document.createElementNS(ns, 'use')
-      const href = `#iso-sym-${sym.symbolKey}`
-      use.setAttribute('href', href)
-      use.setAttributeNS(xlink, 'xlink:href', href)
-      use.setAttribute('x', String(-HALF))
-      use.setAttribute('y', String(-HALF))
-      use.setAttribute('width', String(SYMBOL_M))
-      use.setAttribute('height', String(SYMBOL_M))
-      g.appendChild(use)
-    }
-
-    layer.appendChild(g)
-  }
-}
-
-/**
- * Bygg Stedsmerke-symbolet inn i en eksisterende g-node.
- * - s        = halv symbol-bredde (user-units, ~16 CSS-px på skjerm)
- * - animated = true → squash & stretch + random pre-roll. false → ren hvile-
- *              positur (brukes i annoteringsmodus mens brukeren plasserer)
- * - parent g er allerede translate-positionert til annotasjonens (x,y)
- *
- * Visuell design: klassisk rød dråpe-pin med hvit prikk og halvgjennom-
- * siktig skygge under. Pin-tip-en peker presist på annotasjonens (x, y) —
- * pin-en strekker seg oppover derfra. SMIL — ingen JS-timer.
- *
- * Animasjonen er nestet g-er: ytterste plasserer pin-tip-en, midtre
- * animerer translate Y (sprett), innerste animerer scale (squash &
- * stretch). `animateTransform type` må være translate eller scale —
- * `type="matrix"` finnes IKKE i SVG SMIL.
- */
-function appendStedsmerkeSymbol(parent, s, animated) {
-  const ns = 'http://www.w3.org/2000/svg'
-  const mk = (tag, attrs) => {
-    const el = document.createElementNS(ns, tag)
-    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v)
-    return el
-  }
-
-  // s = half-symbol-bredde. Pin head-radius på 0.55*s gir kompakt pin
-  // som passer i symbol-boksen uten å dominere kartet.
-  const r = s * 0.55
-  const shadowRx = r
-  const shadowRy = r * 0.22
-  const shadowPy = r * 0.18  // Like under pin-tip-en (annotasjonspunktet).
-
-  // Skygge: outer g plasserer + skalerer til ønsket størrelse.
-  const shadowOuter = mk('g', {
-    transform: `translate(0 ${shadowPy}) scale(${shadowRx} ${shadowRy})`,
-  })
-  const shadowEl = mk('ellipse', {
-    cx: '0', cy: '0', rx: '1', ry: '1',
-    fill: '#000', opacity: '0.55',
-  })
-
-  // Pin: outer g (rest-pos er allerede annotasjonspunkt, så ingen translate).
-  // v9.1.1: ingen border — pin-en er en ren rød silhuett (samme stil som
-  // parkering-P). Tidligere mørkerød kontur dempet hodets distinkte form.
-  const pinPosG = mk('g', {})
-  const pinPathEl = mk('path', {
-    d: pinPath(r),
-    fill: '#dc2626',
-  })
-  const pinDotEl = mk('circle', {
-    cx: '0', cy: String(-1.85 * r), r: String(r * 0.38),
-    fill: '#fff',
-  })
-
-  if (!animated) {
-    // Statisk: ingen sprett, ingen scale, ingen random offset.
-    shadowOuter.appendChild(shadowEl)
-    pinPosG.appendChild(pinPathEl)
-    pinPosG.appendChild(pinDotEl)
-    parent.appendChild(shadowOuter)
-    parent.appendChild(pinPosG)
-    return
-  }
-
-  // Animert: shadow får inner-g for scale, pin får mid-g for translate
-  // og inner-g for scale. Felles random begin på alle 4 animatorer.
-  const begin = randomBegin()
-
-  const shadowAnim = mk('g', {})
-  shadowAnim.appendChild(mk('animateTransform', {
-    attributeName: 'transform', type: 'scale',
-    values: SHADOW_SCALE_VALUES, keyTimes: STEDSMERKE_KEY_TIMES,
-    dur: STEDSMERKE_DUR, repeatCount: 'indefinite', begin,
-  }))
-  shadowEl.appendChild(mk('animate', {
-    attributeName: 'opacity',
-    values: STEDSMERKE_SHADOW_OPACITY,
-    keyTimes: STEDSMERKE_KEY_TIMES,
-    dur: STEDSMERKE_DUR, repeatCount: 'indefinite', begin,
-  }))
-  shadowAnim.appendChild(shadowEl)
-  shadowOuter.appendChild(shadowAnim)
-  parent.appendChild(shadowOuter)
-
-  const pinTranslateG = mk('g', {})
-  pinTranslateG.appendChild(mk('animateTransform', {
-    attributeName: 'transform', type: 'translate',
-    values: pinTranslateValues(r), keyTimes: STEDSMERKE_KEY_TIMES,
-    dur: STEDSMERKE_DUR, repeatCount: 'indefinite', begin,
-  }))
-  const pinScaleG = mk('g', {})
-  pinScaleG.appendChild(mk('animateTransform', {
-    attributeName: 'transform', type: 'scale',
-    values: PIN_SCALE_VALUES, keyTimes: STEDSMERKE_KEY_TIMES,
-    dur: STEDSMERKE_DUR, repeatCount: 'indefinite', begin,
-  }))
-  pinScaleG.appendChild(pinPathEl)
-  pinScaleG.appendChild(pinDotEl)
-  pinTranslateG.appendChild(pinScaleG)
-  pinPosG.appendChild(pinTranslateG)
-  parent.appendChild(pinPosG)
-}
 
 function selectSymbol(key) {
   annot.selectedSymbol.value = annot.selectedSymbol.value === key ? null : key
   annot.isAnnotateMode.value = annot.selectedSymbol.value !== null
 }
 
-/**
- * Hold ALL tekst i kart-SVG-en samt stedsmerke-piner stående «opp» på
- * skjermen mens resten av kartet roterer. Counter-rotation appliseres
- * rundt hver etikets eget ankerpunkt slik at de blir lesbare uansett
- * kart-vinkel.
- *
- * v8.9.3: kun stedsnavn + stedsmerke. v8.9.7: utvidet til alle <text>
- * (vann-navn, kontur-tall, dybde-tall, peak, peak-ele, lanterne-tall,
- * skjaer-navn, dybde-kontur-tall, slipp-navn …). Symboler (use/path)
- * roterer fortsatt med terrenget — kun tekst og pin holdes opp.
- *
- * Bruker text.x.baseVal[0].value som gir resolved numeric verdi i
- * user-units uansett om attributtet er "2mm" eller et tall — browseren
- * konverterer mm → user-units for oss. Faller tilbake til 0 hvis x/y
- * mangler (multi-coordinate texts og defaults).
- *
- * Kjøres som lett attributt-oppdatering ved hver rotasjons-endring —
- * ingen DOM-creation, så det er trygt å kalle hver touchmove-frame.
- */
-function applyUprightLabels() {
-  const svg = svgHostRef.value?.querySelector('svg')
-  if (!svg) return
-  const rot = -rotation.value
-  // Alle tekst-labels i kart-innholdet
-  const texts = svg.querySelectorAll('text')
-  for (const el of texts) {
-    // v9.3.6 — Hopp over <text> som er en symbol-mal i <defs> (f.eks. «WC»-
-    // teksten i ISOM 554-symbolet). Slike instansieres via <use> inne i en
-    // <g data-upright="1">-gruppe som ALLEREDE counter-roteres lenger ned;
-    // å rotere mal-teksten i tillegg ga dobbel counter-rotation, så WC endte
-    // på -rotation (roterte «feil vei») i stedet for å stå rett opp.
-    let inDefs = el.__indefs
-    if (inDefs === undefined) {
-      inDefs = !!el.closest('defs')
-      el.__indefs = inDefs
-    }
-    if (inDefs) continue
-    // v12.0.16 — Veinummer-skilt håndteres som HEL gruppe (rect + tekst)
-    // lenger ned: å counter-rotere teksten alene skjevstiller den mot
-    // skilt-boksen (rapportert etter v12.0.15).
-    if (el.dataset.label === 'veinummer') continue
-    // v9.1.11 — Perf: cache BÅDE lag-referansen og x/y per element. closest()
-    // og baseVal er dyrt; å kjøre dem for hver av 1000+ labels HVER rotasjons-
-    // /kompass-frame ga jank (v9.1.10-regresjon: closest per frame). Statisk
-    // per element, så vi regner det ut én gang og leser deretter bare den
-    // billige inline `style.display` per frame.
-    let layerG = el.__layer
-    if (layerG === undefined) {
-      layerG = el.closest('[data-layer]')
-      el.__layer = layerG
-    }
-    // Hopp over labels i skjulte lag (stedsnavn default av → 1000+ noder
-    // itereres ikke). Re-orienteres når laget slås på (applyLayerVisibility).
-    if (layerG && layerG.style.display === 'none') continue
-    let xVal = el.__ux
-    if (xVal === undefined) {
-      xVal = el.x?.baseVal?.[0]?.value ?? 0
-      el.__ux = xVal
-      el.__uy = el.y?.baseVal?.[0]?.value ?? 0
-    }
-    el.setAttribute('transform', `rotate(${rot} ${xVal} ${el.__uy})`)
-  }
-  // Stedsmerke-annoteringer (rød dråpe-pin). G-en har allerede
-  // translate(x,y) — counter-rotate rundt (0,0) i lokalt rom holder
-  // pin-tipp-en forankret mens hodet vippes opp.
-  const pins = svg.querySelectorAll('[data-annot-type="stedsmerke"]')
-  for (const el of pins) {
-    // Bevarer eksisterende translate, bytter ut/setter rotate-segment
-    const existing = el.getAttribute('transform') ?? ''
-    const m = existing.match(/translate\([^)]+\)/)
-    const trans = m ? m[0] : ''
-    el.setAttribute('transform', `${trans} rotate(${rot})`)
-  }
-  // Auto-genererte symboler markert med data-upright (foreløpig kun
-  // parkerings-P) skal leses vannrett med skjermens topp — bruker samme
-  // mønster som stedsmerke: bevar translate, bytt rotate-segmentet.
-  const upright = svg.querySelectorAll('[data-upright="1"]')
-  for (const el of upright) {
-    const existing = el.getAttribute('transform') ?? ''
-    const m = existing.match(/translate\([^)]+\)/)
-    const trans = m ? m[0] : ''
-    el.setAttribute('transform', `${trans} rotate(${rot})`)
-  }
-  // v12.0.16 — Veinummer-skilt: beholder vei-bæringen sin (ikke billboard),
-  // men flippes 180° når kart-rotasjonen ville lagt teksten på hodet.
-  // Skiltet ligger dermed alltid LANGS veien og er alltid lesbart. Bygge-
-  // vinkelen caches fra transform-strengen første gang (virker dermed også
-  // på kart generert før denne fiksen).
-  const badges = svg.querySelectorAll('[data-layer="veinummer"] > g')
-  for (const el of badges) {
-    if (el.__deg === undefined) {
-      const t = el.getAttribute('transform') ?? ''
-      el.__trans = t.match(/translate\([^)]+\)/)?.[0] ?? ''
-      el.__deg = Number(t.match(/rotate\((-?[\d.]+)/)?.[1] ?? 0)
-      // Kart lagret mens v12.0.15-buggen var aktiv kan ha en gammel
-      // counter-rotation baket inn på selve teksten — fjern den.
-      el.querySelector('text')?.removeAttribute('transform')
-    }
-    el.setAttribute('transform', `${el.__trans} rotate(${roadRefUprightDeg(el.__deg, rotation.value)})`)
-  }
-}
-
-// Skilt-vinkel som holder veinummer-teksten lesbar: behold bygge-vinkelen
-// hvis effektiv skjermvinkel (bygge + kart-rotasjon) er innenfor ±90°,
-// ellers flipp 180°. Returnerer vinkel i kart-rom.
-function roadRefUprightDeg(bakedDeg, mapRotDeg) {
-  const eff = ((bakedDeg + mapRotDeg) % 360 + 540) % 360 - 180
-  return (eff > 90 || eff <= -90) ? bakedDeg + 180 : bakedDeg
-}
 
 // Watch rotasjon — billig attributt-oppdatering, ingen full re-render.
-watch(rotation, applyUprightLabels)
+watch(rotation, () => applyUprightLabels())
 
-/**
- * Render alle synlige GPS-spor i et eget SVG-lag som ligger mellom kart-
- * innholdet og annotation/user-laget. Stilen styres av tracker.trackStyle
- * — 'line' (polyline med marsjerende prikker), 'footprints' eller
- * 'breadcrumbs'. Live-tracket (det som spilles inn nå) har ekstra
- * pulserende hode-markør så brukeren ser at opptaket lever.
- */
-function renderTracks() {
-  const svg = svgHostRef.value?.querySelector('svg')
-  if (!svg) return
-  const ns = 'http://www.w3.org/2000/svg'
-  let layer = svg.querySelector('#track-layer')
-  if (!layer) {
-    layer = document.createElementNS(ns, 'g')
-    layer.setAttribute('id', 'track-layer')
-    layer.setAttribute('data-layer', 'spor')
-    layer.setAttribute('pointer-events', 'none')
-    // Plasser før user-layer + annotation-layer hvis de finnes,
-    // ellers append. Spor skal ligge UNDER GPS-dot/annoteringer.
-    const userLayer = svg.querySelector('#user-layer')
-    const annotLayer = svg.querySelector('#annotation-layer')
-    const ref = userLayer ?? annotLayer
-    if (ref) svg.insertBefore(layer, ref)
-    else svg.appendChild(layer)
-  }
-  layer.replaceChildren()
-
-  // v8.9.5: paths inne i [data-layer] arver vector-effect: non-scaling-
-  // stroke fra global SVG-CSS, så stroke-width tolkes i CSS-px. Del kun på
-  // pinch-scale for å kompensere for CSS-transform-zoom. (Tidligere brukte
-  // vi pxToUserUnits her — det ga ~10× for tykk linje på 4 km-kart.)
-  const s = scale.value || 1
-  const haloW = 7 / s
-  const lineW = 3.5 / s
-  // Circle/ellipse-radii er geometri, ikke stroke → fortsatt user-units
-  const dotR  = pxToUserUnits(2.5)
-  const footW = pxToUserUnits(5)
-
-  const TRACK_COLOR = '#ec4899'         // magenta — kontrasterer mot ISOM
-  const HALO_COLOR  = 'rgba(255,255,255,0.85)'
-
-  const style = tracker.trackStyle.value
-  for (const tr of tracker.tracks.value) {
-    if (!tracker.visibleTrackIds.value.has(tr.id)) continue
-    if (!tr.points || tr.points.length === 0) continue
-    const isActive = tracker.isRecording.value && (tracker.activeTrack.value?.id === tr.id)
-    const g = document.createElementNS(ns, 'g')
-    g.setAttribute('data-track-id', tr.id)
-
-    if (style === 'breadcrumbs') {
-      // Diskrete prikker hver ~10 m. Bruk avstands-basert sampling så
-      // tett-pakkede punkter ikke gir cluster.
-      const pts = sampleByDistance(tr.points, 10)
-      for (const p of pts) {
-        const c = document.createElementNS(ns, 'circle')
-        c.setAttribute('cx', p.x); c.setAttribute('cy', p.y)
-        c.setAttribute('r', dotR)
-        c.setAttribute('fill', TRACK_COLOR)
-        c.setAttribute('stroke', HALO_COLOR)
-        c.setAttribute('stroke-width', pxToUserUnits(1.5))
-        g.appendChild(c)
-      }
-    } else if (style === 'footprints') {
-      // Fotavtrykk: små elliptiske prikker alternerende venstre/høyre av
-      // bevegelses-retningen, ~5 m mellomrom. Rotasjon følger lokal vinkel.
-      const pts = sampleByDistance(tr.points, 5)
-      for (let i = 0; i < pts.length; i++) {
-        const p = pts[i]
-        const next = pts[i + 1] ?? pts[i - 1] ?? p
-        const dx = next.x - p.x
-        const dy = next.y - p.y
-        const angDeg = Math.atan2(dy, dx) * 180 / Math.PI
-        const side = (i % 2 === 0) ? 1 : -1
-        const off = footW * 0.6
-        const perpAng = (angDeg + 90) * Math.PI / 180
-        const fx = p.x + Math.cos(perpAng) * off * side
-        const fy = p.y + Math.sin(perpAng) * off * side
-        const fp = document.createElementNS(ns, 'ellipse')
-        fp.setAttribute('cx', fx); fp.setAttribute('cy', fy)
-        fp.setAttribute('rx', footW * 0.45)
-        fp.setAttribute('ry', footW * 0.85)
-        fp.setAttribute('transform', `rotate(${angDeg},${fx},${fy})`)
-        fp.setAttribute('fill', TRACK_COLOR)
-        fp.setAttribute('stroke', HALO_COLOR)
-        fp.setAttribute('stroke-width', pxToUserUnits(1))
-        fp.setAttribute('opacity', '0.9')
-        g.appendChild(fp)
-      }
-    } else {
-      // Default: to-lags polyline med marsjerende prikker. Halo bak gir
-      // lesbarhet på både lyse og mørke kart-temaer.
-      const d = pointsToPathD(tr.points)
-      const halo = document.createElementNS(ns, 'path')
-      halo.setAttribute('d', d)
-      halo.setAttribute('fill', 'none')
-      halo.setAttribute('stroke', HALO_COLOR)
-      halo.setAttribute('stroke-width', haloW)
-      halo.setAttribute('stroke-linecap', 'round')
-      halo.setAttribute('stroke-linejoin', 'round')
-      g.appendChild(halo)
-
-      const line = document.createElementNS(ns, 'path')
-      line.setAttribute('d', d)
-      line.setAttribute('fill', 'none')
-      line.setAttribute('stroke', TRACK_COLOR)
-      line.setAttribute('stroke-width', lineW)
-      line.setAttribute('stroke-linecap', 'round')
-      line.setAttribute('stroke-linejoin', 'round')
-      // Marsjerende prikker: stiplet + animasjon på offset. Dasharray
-      // arver også non-scaling-stroke, så CSS-px / pinch-scale.
-      const dash = 6 / s
-      const gap = 8 / s
-      line.setAttribute('stroke-dasharray', `${dash} ${gap}`)
-      const anim = document.createElementNS(ns, 'animate')
-      anim.setAttribute('attributeName', 'stroke-dashoffset')
-      anim.setAttribute('from', String(dash + gap))
-      anim.setAttribute('to', '0')
-      anim.setAttribute('dur', '1.4s')
-      anim.setAttribute('repeatCount', 'indefinite')
-      line.appendChild(anim)
-      g.appendChild(line)
-    }
-
-    // Live-puls på siste punkt mens opptaket pågår. Gjør det visuelt
-    // tydelig at hovedet av sporet er "her og nå" og at appen henter
-    // friske GPS-fix-er.
-    if (isActive && tr.points.length > 0) {
-      const last = tr.points[tr.points.length - 1]
-      const headR = pxToUserUnits(8)
-      const pulse = document.createElementNS(ns, 'circle')
-      pulse.setAttribute('cx', last.x); pulse.setAttribute('cy', last.y)
-      pulse.setAttribute('r', headR)
-      pulse.setAttribute('fill', 'none')
-      pulse.setAttribute('stroke', TRACK_COLOR)
-      pulse.setAttribute('stroke-width', pxToUserUnits(2))
-      const aR = document.createElementNS(ns, 'animate')
-      aR.setAttribute('attributeName', 'r')
-      aR.setAttribute('values', `${headR};${headR * 2.4};${headR}`)
-      aR.setAttribute('dur', '1.6s'); aR.setAttribute('repeatCount', 'indefinite')
-      pulse.appendChild(aR)
-      const aO = document.createElementNS(ns, 'animate')
-      aO.setAttribute('attributeName', 'opacity')
-      aO.setAttribute('values', '0.9;0;0.9'); aO.setAttribute('dur', '1.6s')
-      aO.setAttribute('repeatCount', 'indefinite')
-      pulse.appendChild(aO)
-      g.appendChild(pulse)
-    }
-
-    layer.appendChild(g)
-  }
-}
-
-/** Forenkle path til "M x,y L x,y L ..." fra point-array. */
-function pointsToPathD(points) {
-  if (!points.length) return ''
-  let d = `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`
-  for (let i = 1; i < points.length; i++) {
-    d += ` L${points[i].x.toFixed(1)},${points[i].y.toFixed(1)}`
-  }
-  return d
-}
-
-/** Sample punkter med min-avstand i SVG-meter. Beholder første og siste. */
-function sampleByDistance(points, minDistM) {
-  if (points.length <= 1) return points.slice()
-  const out = [points[0]]
-  for (let i = 1; i < points.length; i++) {
-    const last = out[out.length - 1]
-    const dx = points[i].x - last.x
-    const dy = points[i].y - last.y
-    if (Math.hypot(dx, dy) >= minDistM) out.push(points[i])
-  }
-  // Sørg for at siste punkt alltid er med (viktig for live-puls)
-  if (out[out.length - 1] !== points[points.length - 1]) {
-    out.push(points[points.length - 1])
-  }
-  return out
-}
 
 // Start GPS + kompass i samme bruker-gest. Kompasset driver retnings-kjegla
 // (se updateUserDot); det MÅ startes fra et klikk/tap fordi iOS krever at
@@ -3890,28 +2556,6 @@ function onExportTrackGpx(tr) {
   downloadGpx(tr, meta.value, mapTitle.value)
 }
 
-// Mosaikk + manuell utvidelse — flyttet til useMapExtend; watchene blir her.
-const {
-  buildingOnTheFly, buildingProgress, autoMapToast, currentMapIsAuto,
-  drawerCoversCanvas, extendZonesVisible, activatableTile,
-  renderExtendZones, updateExtendZoneScale, showAutoMapToast,
-  visibleCenterSvg, scheduleActivatableCheck, autoMapModeBusy,
-  autoMapBuildOpts, promoteTile, extendMap, armAutoMap,
-  extendZonesBounds, teardownMapExtend,
-} = useMapExtend({
-  svgHostRef, wrapperRef, meta, mapId, router,
-  scale, rotation, translateX, translateY, isGesturing, panTo,
-  loading, loadError, fillingInDetails,
-  annot, measureMode, sti, searchOpen, showControls, drawer,
-  ghostRects, GHOST_TRIGGER_SUPPRESS_FRAC, renderGhostTiles,
-  currentTheme, visibleLayers, userPos, maxTiles, refreshAutoTileCount,
-  closeDrawer, closeSearch,
-})
-watch(extendZonesVisible, () => { renderExtendZones() })
-// Mosaikken endret seg (ny flis bygd / scroll-tilbake) → re-anker prikkene.
-watch(ghostRects, () => { renderExtendZones() }, { deep: true })
-watch(scale, updateExtendZoneScale)
-watch([scale, translateX, translateY, rotation], scheduleActivatableCheck)
 
 // Slå opp symbolKey + label for en lagret annotering. Faller tilbake til
 // råverdien fra entry hvis isomCode ikke matcher noen kjent type (skulle
@@ -3975,434 +2619,25 @@ function onPrint() {
   runExport('print', (m) => printDocument(m, { title: mapTitle.value }))
 }
 
-// Innebygde kart hentes som rå SVG-fil. Eldre service workers serverte denne
-// via stale-while-revalidate og kunne returnere en utdatert/avkuttet kopi på
-// første last → DOMParser ga «Ugyldig SVG», mens en refresh / «Prøv igjen»
-// traff den revaliderte (friske) kopien. Den nye SW-en henter maps/* network-
-// first, men en allerede-aktiv gammel SW i klienten retter seg ikke før den
-// byttes ut. For å være robust UANSETT SW-tilstand: valider at svaret faktisk
-// parser som SVG med data-meta, og prøv på nytt med cache-bust (query-param
-// som hverken SW-cache eller HTTP-cache matcher) før vi gir opp.
-async function fetchBuiltinSvg(file) {
-  const baseUrl = `${import.meta.env.BASE_URL}maps/${file}`
-  let lastErr = null
-  for (let attempt = 0; attempt < 3; attempt++) {
-    // Cache-bust f.o.m. forsøk 2 — tvinger forbi en gammel SWR-service-worker.
-    const url = attempt === 0 ? baseUrl : `${baseUrl}?v=${Date.now()}`
-    try {
-      const res = await fetch(url, { cache: 'reload' })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const text = await res.text()
-      const doc = new DOMParser().parseFromString(text, 'image/svg+xml')
-      const root = doc.documentElement
-      const bad = !root || root.nodeName === 'parsererror' || root.querySelector('parsererror')
-      if (!bad && root.getAttribute('data-meta')) return text
-      lastErr = new Error('Ugyldig SVG')
-    } catch (e) {
-      lastErr = e
-    }
-    // Kort backoff — gir en bakgrunns-revalidering tid til å fullføre.
-    if (attempt < 2) await new Promise((r) => setTimeout(r, 150))
-  }
-  throw lastErr ?? new Error('Ugyldig SVG')
-}
-
-// Peek (uten å konsumere) om det finnes en promoteView-pref for `id` — da er
-// dette en «gjør aktiv»-promotering, og vi hopper over full-skjerm-loaderen så
-// byttet føles sømløst (flisa er allerede bygd/lagret).
-function hasPromotePref(id) {
-  try {
-    const raw = sessionStorage.getItem(`mapview-init-prefs:${id}`)
-    return !!raw && !!JSON.parse(raw)?.promoteView
-  } catch { return false }
-}
-
-// Generasjonsteller for utsatte etter-paint-pass: en silent re-load (terreng-
-// finalize) kan lande mens et utsatt pass venter — da skal det gamle passet
-// droppes i stedet for å kjøre mot en utbyttet SVG-DOM.
-let loadGeneration = 0
-
-async function loadMap({ silent = false } = {}) {
-  // silent = re-render av samme kart (terreng → full) uten full-skjerm-loader;
-  // beholder zoom/pan og hopper over init-prefs (alt konsumert ved første last).
-  // Promotering (gjør-aktiv): hopp også over loaderen, men prefs leses fortsatt.
-  const gen = ++loadGeneration
-  const isPromote = !silent && hasPromotePref(route.params.id ?? 'vardasen')
-  if (!silent && !isPromote) loading.value = true
-  loadError.value = null
-  try {
-    const id = route.params.id ?? 'vardasen'
-    let text
-    let demBytes = 0
-    let stored = null
-    if (BUILTIN[id]) {
-      mapTitle.value = BUILTIN[id].navn
-      text = await fetchBuiltinSvg(BUILTIN[id].file)
-    } else {
-      stored = await loadStoredMap(id)
-      if (!stored) throw new Error('Kart ikke funnet i lagring')
-      mapTitle.value = stored.navn
-      text = stored.svg
-      // Hent DEM hvis lagret (brukes av relieff og høydeprofil)
-      if (stored.dem) {
-        try { storedDem.value = unpackDem(stored.dem) } catch { storedDem.value = null }
-        demBytes = stored.dem.buffer?.byteLength ?? 0
-      }
-    }
-    // Datamengde for dette kartet (vises i drawer-ens Debug + long-press-arket).
-    // SVG-en er hoved-payloaden; DEM-en lagres separat (pakket Float32-buffer).
-    // text.length ≈ bytes (ASCII-dominert SVG, samme konvensjon som mapStorage) —
-    // slipper å allokere en Blob-kopi av hele strengen på åpne-stien.
-    mapDataSize.value = { svgBytes: text.length, demBytes }
-    void refreshAutoTileCount()
-    const parser = new DOMParser()
-    const doc = parser.parseFromString(text, 'image/svg+xml')
-    const root = doc.documentElement
-    if (root.nodeName === 'parsererror' || root.querySelector('parsererror')) {
-      throw new Error('Ugyldig SVG')
-    }
-    const metaRaw = root.getAttribute('data-meta')
-    if (!metaRaw) throw new Error('Mangler data-meta i SVG')
-    const m = JSON.parse(metaRaw)
-    meta.value = {
-      minE: m.utmBbox.minE,
-      minN: m.utmBbox.minN,
-      maxE: m.utmBbox.maxE,
-      maxN: m.utmBbox.maxN,
-      widthM: m.widthM,
-      heightM: m.heightM,
-      bbox: m.bbox,
-      equidistance: m.equidistance ?? null,
-      isomVersion: m.isomVersion ?? null,
-      scaleDenom: m.scaleDenom ?? 10000,
-      source: m.source,
-      demSource: m.demSource ?? null,
-      demResolutionM: m.demResolutionM ?? null, // grid-oppløsning (m) — diagnostikk for kyst-presisjon
-      depthSource: m.depthSource ?? null, // 'sjokart' | 'dem-estimat' | 'ingen' | null (eldre kart)
-      contoursSkipped: m.contoursSkipped ?? null,
-      coastal: m.coastal ?? null,        // true=kyst, false=innland, null=ukjent (eldre kart)
-      sjokartStatus: m.sjokartStatus ?? null, // utfall av Sjøkart-WFS ved bygging (Utvikler-fanen)
-    }
-    // Forbruk init-prefs fra auto-kart / on-the-fly (tema + synlige lag, GPS,
-    // auto-modus, bevart zoom/rotasjon). Én gang per ny mapId.
-    let pendingAutoStartGps = false
-    let pendingRestoreView = null   // {scale, rotation} — bevar visning over hopp
-    let pendingPromoteView = null   // {x, y, scale, rotation} — mosaikk-promotering
-    let pendingMovedToast = false
-    let pendingResumeRecording = false   // gjenoppta GPS-opptak etter auto-kart-bytte
-    try {
-      const k = `mapview-init-prefs:${mapId.value}`
-      const raw = sessionStorage.getItem(k)
-      if (raw) {
-        sessionStorage.removeItem(k)
-        const prefs = JSON.parse(raw)
-        if (prefs.theme) currentTheme.value = prefs.theme
-        if (Array.isArray(prefs.layers)) visibleLayers.value = new Set(prefs.layers)
-        if (prefs.autoStartGps) pendingAutoStartGps = true
-        if (prefs.resumeRecording) pendingResumeRecording = true
-        // «Gjør aktiv»-promotering setter isAutoMap eksplisitt (true/false), så å
-        // promotere til opprinnelig kart nullstiller flagget korrekt.
-        if (prefs.promoteView) currentMapIsAuto.value = !!prefs.isAutoMap
-        else if (prefs.isAutoMap) currentMapIsAuto.value = true
-        if (prefs.promoteView && typeof prefs.promoteView.x === 'number') {
-          pendingPromoteView = prefs.promoteView
-        } else if (typeof prefs.scale === 'number' || typeof prefs.rotation === 'number') {
-          pendingRestoreView = { scale: prefs.scale ?? 1, rotation: prefs.rotation ?? 0 }
-        }
-        if (prefs.movedCenterToast) pendingMovedToast = true
-      }
-    } catch { /* noop */ }
-    // Fersk-kart-baseline: garanter «litt kontur + litt relieff» på nye kart så
-    // de ikke blir blast hvis relieff er globalt skrudd av. Consume-on-read.
-    let isFreshBuild = false
-    if (!silent) {
-      try {
-        const fk = `mapview-freshlook:${mapId.value}`
-        if (sessionStorage.getItem(fk)) {
-          sessionStorage.removeItem(fk)
-          isFreshBuild = true
-          if (reliefStepIndex.value === 0) reliefStepIndex.value = FRESH_RELIEF_MIN_IDX
-          if (!visibleLayers.value.has('kontur')) {
-            visibleLayers.value = new Set(visibleLayers.value).add('kontur')
-          }
-        }
-      } catch { /* noop */ }
-    }
-    // Full trinnvis avsløring kun der den har en jobb: ferske bygg (masker den
-    // første tunge painten) og silent finalize-swaps (masker DOM-byttet). En
-    // vanlig åpning av et allerede-bygget kart får en kort enkelt-fade.
-    setupHostSvg(root, { staged: isFreshBuild || silent })
-    loading.value = false
-    await nextTick()
-    applyLayerVisibility()
-    applyDepthLayer()              // dybde-toggle (default av) — kun synlig om Sjøkart-dybde finnes
-    applyTheme()
-    applyPurpleTrails()            // Utvikler-test: lilla stier oppå tema-fargen
-    applyStrokeScale()
-    applyStrokeOverrides()         // per-element strek (Strek-FAB-panelet)
-    applyLabelScale()
-    applyLabelFonts()
-    userPos.recompute()
-    // Auto-start GPS når init-prefs ber om det (kommer fra on-the-fly-
-    // snarveien i MapHomeView, der bruker ikke har annen vei til å slå
-    // GPS på). Trygt å kalle flere ganger — start() er idempotent.
-    if (pendingAutoStartGps) userPos.start()
-    await annot.load(stored)
-    renderAnnotations()
-    await tracker.load(stored)
-    renderTracks()
-    // Gjenoppta GPS-opptak etter et auto-kart-bytte. userPos.start() er allerede
-    // kalt over (pendingAutoStartGps) og setter isWatching synkront, så
-    // startRecording() lykkes. Sporet fortsetter som et nytt segment på denne flisa.
-    if (pendingResumeRecording && userPos.isWatching) tracker.startRecording()
-    applyUprightLabels()
-    renderMeasure()
-    restoreProximityAlert()
-    renderProximityTarget()
-    // Hill-shading (med innbakt knaus-relieff) er default ON — fire-and-forget.
-    // Lazy DEM-load skjer internt hvis nødvendig (Vardåsen).
-    applyHillshade()
-    // Flerspråklige navn → vis kun norsk (eller fullt, etter innstilling).
-    // Må kjøre FØR søkeindeksen bygges: applyNameLanguage stempler det fulle
-    // navnet i data-name-full, som useMapSearch indekserer (alle språk søkbare).
-    applyNameLanguage()
-    // De getBBox-tunge indeks-passene (søk, navn-LOD, culling) utsettes til
-    // etter første paint — de bestemmer ikke hva første frame viser, men
-    // tvang tidligere synkron layout av hele multi-MB-SVG-en før kartet kom
-    // på skjerm. Labels holdes skjult av .lod-pending til passet er kjørt.
-    scheduleDeferredMapPasses(gen)
-    if (pendingPromoteView) {
-      // «Gjør aktiv»-promotering: pan slik at det samme geografiske punktet (uttrykt
-      // i den nye flisas meter-rom) blir liggende under skjermsenter — sømløst,
-      // ingen hopp i forhold til der brukeren scrollet.
-      rotation.value = pendingPromoteView.rotation ?? 0
-      await nextTick()
-      panTo(pendingPromoteView.x, pendingPromoteView.y, {
-        vbWidth: meta.value.widthM, vbHeight: meta.value.heightM,
-        targetScale: pendingPromoteView.scale ?? 1, keepRotation: true,
-      })
-    } else if (pendingRestoreView) {
-      rotation.value = pendingRestoreView.rotation
-      await nextTick()
-      panTo(meta.value.widthM / 2, meta.value.heightM / 2, {
-        vbWidth: meta.value.widthM, vbHeight: meta.value.heightM,
-        targetScale: pendingRestoreView.scale, keepRotation: true,
-      })
-    }
-    armAutoMap()
-    if (pendingMovedToast) showAutoMapToast('Flyttet sentrum hit')
-    // Mosaikk: tegn nabo-fliser så man kan utvide/gjøre dem aktive.
-    // Async + fail-safe; setupHostSvg har tømt evt. gamle spøkelser.
-    void renderGhostTiles()
-    // Kant-soner (manuell utvidelse) — tegnes inn i den ferske SVG-en.
-    renderExtendZones()
-    // Terreng-først: hvis dette kartet ble vist som terreng-skjelett, konsumér
-    // finalize-promisen og re-render (stille) når full SVG med OSM er klar.
-    if (!silent) consumeTerrainFinalize()
-  } catch (e) {
-    loading.value = false
-    loadError.value = e.message ?? 'Kunne ikke laste kart'
-  }
-}
-
-// Vent på terreng-først-finalize (full bygging i bakgrunnen) og re-render når
-// klar. Beholder gjeldende zoom/pan (silent re-load). Tåler at brukeren har
-// navigert videre (componentAlive-sjekk).
-function consumeTerrainFinalize() {
-  const fin = consumeMapFinalize(mapId.value)
-  if (!fin) return
-  fillingInDetails.value = true
-  detailsFailed.value = false
-  fin.then(() => {
-    if (!componentAlive) return
-    return loadMap({ silent: true })
-  }).catch(() => {
-    // Bakgrunns-byggingen feilet (oftest Overpass nede). Vis en lesbar banner
-    // med en «Prøv på nytt»-knapp i stedet for en teknisk toast.
-    if (componentAlive) detailsFailed.value = true
-  }).finally(() => {
-    if (componentAlive) fillingInDetails.value = false
-  })
-}
-
-// «Prøv på nytt» fra detalj-feil-banneret: bygg kartet på nytt fra samme senter
-// (samme størrelse/ekvidistanse/navn), erstatt det delvise kartet.
-async function retryMapDetails() {
-  if (!meta.value || buildingOnTheFly.value) return
-  detailsFailed.value = false
-  const prevId = mapId.value
-  const centerSvg = { x: meta.value.widthM / 2, y: meta.value.heightM / 2 }
-  buildingOnTheFly.value = true
-  buildingProgress.value = 'Prøver på nytt …'
-  try {
-    const { lat, lon } = svgToWgs84(centerSvg.x, centerSvg.y, meta.value)
-    const { id } = await buildMapFromCenter({
-      center: { lat, lon, name: mapTitle.value },
-      halfKm: +(meta.value.widthM / 2000).toFixed(3),
-      // Reproduser SAMME utsnitt — behold flisas aspekt (ellers falt høyden
-      // tilbake til viewportAspect() og «prøv på nytt» ga et annet utsnitt).
-      aspect: +(meta.value.heightM / meta.value.widthM).toFixed(5),
-      equidistanceM: meta.value.equidistance ?? 20,
-      navn: mapTitle.value,
-      terrainFirst: true,
-      isAuto: currentMapIsAuto.value,
-      onProgress: (msg) => { buildingProgress.value = msg },
-    })
-    try {
-      sessionStorage.setItem(`mapview-init-prefs:${id}`, JSON.stringify({
-        theme: currentTheme.value,
-        layers: Array.from(visibleLayers.value),
-        autoStartGps: userPos.isWatching,
-        isAutoMap: currentMapIsAuto.value,
-        scale: scale.value,
-        rotation: rotation.value,
-      }))
-    } catch { /* noop */ }
-    if (prevId && prevId !== 'vardasen') { try { await deleteStoredMap(prevId) } catch { /* noop */ } }
-    router.replace({ name: 'kart-vis', params: { id } })
-  } catch (e) {
-    console.error('Regenerering feilet:', e)
-    buildingOnTheFly.value = false
-    buildingProgress.value = ''
-    detailsFailed.value = true
-  }
-}
-
-// Utsatte etter-paint-pass (søkeindeks, POI-telling, navn-LOD, cull-indeks,
-// ?hl=-highlight). Dobbel-rAF garanterer at første frame av kartet er malt før
-// getBBox-stormene tvinger layout. Generasjonstelleren dropper passet hvis en
-// nyere loadMap (silent finalize-swap, flis-bytte) har byttet ut SVG-en.
-function scheduleDeferredMapPasses(gen) {
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    if (gen !== loadGeneration || !componentAlive) return
-    const svg = svgHostRef.value?.querySelector('svg')
-    if (!svg) return
-    // Bygg søkeindeks fra ferdig-loaded SVG-DOM (getBBox()+getCTM() krever
-    // attached element).
-    mapSearch.rebuild(svg)
-    // Tell POI pr type så «nærmeste»-snarveiene i PUNKT-arket kan gråes ut
-    // når kartet mangler typen (f.eks. ingen holdeplass).
-    computePoiAvailability()
-    // Kjør navn-LOD nå som indeksen finnes (skjuler overflødige navn i tette
-    // utsnitt). Videre på zoom/pan via watch.
-    applyNameLOD()
-    // Viewport-culling: bygg rbush-indeks fra fersk SVG-DOM og kjør første
-    // pass (force — ingen prevState å hysterese mot).
-    buildCullDomIndex()
-    applyViewportCull(true)
-    // Auto-highlight hvis ?hl=<navn> i URL (delings-flow).
-    maybeHighlightFromQuery()
-    svg.classList.remove('lod-pending')
-  }))
-}
-
-// Trinnvis kart-avsløring (v11.0.45). Struktur fades inn først, så tekstur +
-// labels et hakk etter — gir en «levende» ankomst i stedet for én tung paint.
-// Hopper helt over (vis straks) ved prefers-reduced-motion.
-const prefersReducedMotion = (() => {
-  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches } catch { return false }
-})()
-function startMapReveal(svg, staged) {
-  if (prefersReducedMotion) return
-  if (!staged) {
-    // Allerede-bygget kart: kort enkelt-fade i stedet for full to-trinns
-    // avsløring — labels maskeres uansett av .lod-pending til LOD-passet.
-    svg.classList.add('cb-reveal')
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      svg.classList.add('cb-reveal-quick', 'cb-revealing')
-      svg.classList.remove('cb-reveal')
-      setTimeout(() => svg.classList.remove('cb-revealing', 'cb-reveal-quick'), 200)
-    }))
-    return
-  }
-  svg.classList.add('cb-reveal', 'cb-reveal-late')
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    svg.classList.add('cb-revealing')      // skru på opacity-transition
-    svg.classList.remove('cb-reveal')      // struktur fader 0 → 1
-    setTimeout(() => svg.classList.remove('cb-reveal-late'), 130)  // tekstur/labels etter
-    setTimeout(() => svg.classList.remove('cb-revealing'), 540)    // rydd transitions
-  }))
-}
-
-function setupHostSvg(sourceRoot, { staged = true } = {}) {
-  const ns = 'http://www.w3.org/2000/svg'
-  const host = svgHostRef.value
-  host.replaceChildren()
-  // Ny SVG-DOM → element-referansene i culling-indeksen er foreldede.
-  // Indeksen bygges på nytt etter at lasting er ferdig (buildCullDomIndex).
-  resetViewportCull()
-  // Samme for navn-LOD-statens el-referanser og boks-cache: tømmes HER (ikke
-  // i det utsatte passet) så stale refs aldri overlever et SVG-bytte.
-  forcedVisibleNameEls.clear()
-  labelBoxCache.clear()
-  prevShownNames = new Set()
-  const svg = document.createElementNS(ns, 'svg')
-  svg.setAttribute('viewBox', sourceRoot.getAttribute('viewBox'))
-  svg.setAttribute('xmlns', ns)
-  // v8.9.26: xmlns:xlink må deklareres her — hill-shading og dybde-skygge
-  // legger til `xlink:href` på <image>-elementer via setAttributeNS, og
-  // uten denne deklarasjonen på root får serialisert eksport "Namespace
-  // prefix xlink for href on image is not defined" i Chrome (Android).
-  svg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
-  svg.setAttribute('class', 'isom-map')
-  svg.setAttribute('width', '100%')
-  svg.setAttribute('height', '100%')
-  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet')
-  // v10.x mosaikk: la innhold utenfor viewBox (spøkelses-nabofliser) vises i
-  // stedet for å klippes ved SVG-viewporten. Skjermkanten (kart-flate-wrapperen)
-  // klipper fortsatt, og UI-chrome ligger over (høyere z-index).
-  svg.style.overflow = 'visible'
-  // Kart-innholdet (bakgrunn + vegetasjon + kurver + relieff osv.) adopteres
-  // direkte inn i SVG-roten — adoptNode re-homer nodene fra DOMParser-
-  // dokumentet uten å kopiere (den gamle cloneNode(true)-loopen traverserte
-  // hele multi-MB-treet en gang til). Parse-dokumentet brukes aldri etterpå
-  // (ghost tiles re-leser lagret SVG-tekst selv). Overlays (GPS/annotering/
-  // spor/måling/søk) appendes ETTERPÅ så de ligger øverst. Relieffet
-  // (#hillshade-layer) settes inn foran [data-layer="vann"].
-  while (sourceRoot.firstChild) {
-    svg.appendChild(document.adoptNode(sourceRoot.firstChild))
-  }
-  // v10.2.9 (perf): detalj-lagene (data-detail="1": dybdepunkt/dybdekurve)
-  // er usynlige på hovedkartet (display:none) men kostet likevel parse,
-  // style-recalc og deep-clone ved hver buildDetailInset. Løft dem UT av
-  // live-DOM-en og hold dem i en modul-ref — inset-en (eneste konsument)
-  // appender kloner derfra i stedet.
-  detachedDetailLayers = []
-  for (const g of svg.querySelectorAll('[data-detail="1"]')) {
-    detachedDetailLayers.push(g)
-    g.remove()
-  }
-  // Tell kulturminne-ikoner (til toggel-badgen). Gjøres her siden SVG-en nå er
-  // fullt populert; gamle kart uten laget gir 0.
-  kulturminneCount.value = svg.querySelectorAll('[data-kulturminne-id]').length
-  const userLayer = document.createElementNS(ns, 'g')
-  userLayer.setAttribute('id', 'user-layer')
-  // v8.5.2: GPS-laget skal aldri sluke pinch-to-zoom-gester når brukerens
-  // finger lander på prikken/ringen.
-  userLayer.setAttribute('pointer-events', 'none')
-  svg.appendChild(userLayer)
-  // Navn-lagene holdes usynlige til det utsatte navn-LOD-passet har kjørt —
-  // ellers ville ALLE navn blinke frem i 1–2 frames før decluttering. Dekker
-  // også prefers-reduced-motion (der reveal-fade hoppes helt over).
-  svg.classList.add('lod-pending')
-  host.appendChild(svg)
-  // v11.0.45: trinnvis avsløring — strukturen (bakgrunn/vann/kurver/veier) males
-  // først, så toner tekstur (vegetasjon/relieff) og labels inn et lite øyeblikk
-  // etter. Selv om total tid er lik, leses en trinnvis ankomst som «snappy»
-  // mens én blokkerende paint leses som treg. Ren CSS-klasse-sekvens.
-  startMapReveal(svg, staged)
-  // v8.10.4: SVG-en er ny-bygget her — applikér evt. allerede-aktive
-  // perf-klasser (.zoomed-in / .zoom-near / .is-zooming) basert på nåværende
-  // state, siden watcheren bare reagerer på endringer.
-  applyZoomTierClasses(svg, scale.value)
-  if (isGesturing && isGesturing.value) svg.classList.add('is-zooming')
-  // Stifinner: nytt kart → avbryt evt. aktiv modus + rydd rute-overlay, og
-  // avgjør om kartet har routbare sti-/vei-lag (styrer «Naviger hit»).
-  if (sti.active.value) sti.cancel()
-  mapHasTrails.value = !!svg.querySelector(
-    '[data-iso="501"],[data-iso="502"],[data-iso="503"],[data-iso="504"],[data-iso="505"],[data-iso="506"],[data-iso="507"],[data-iso="509"]'
-  )
-}
+// Kart-laste-pipelinen — flyttet til useMapLoadPipeline.
+const { loadMap, retryMapDetails } = useMapLoadPipeline({
+  route, router, svgHostRef, meta, storedDem, mapId, mapTitle, mapDataSize,
+  loading, loadError, isAlive: () => componentAlive, isGesturing, scale, rotation, panTo,
+  BUILTIN, kulturminneCount, mapHasTrails, currentMapIsAuto,
+  fillingInDetails, detailsFailed, buildingOnTheFly, buildingProgress,
+  visibleLayers, currentTheme, applyTheme, applyPurpleTrails,
+  applyLayerVisibility, applyDepthLayer, applyNameLanguage,
+  applyStrokeScale, applyStrokeOverrides, applyLabelScale, applyLabelFonts,
+  applyHillshade, applyZoomTierClasses, applyUprightLabels, applyNameLOD,
+  applyViewportCull, buildCullDomIndex, resetViewportCull,
+  forcedVisibleNameEls, labelBoxCache, resetPrevShownNames,
+  renderGhostTiles, renderExtendZones, renderAnnotations, renderTracks,
+  renderMeasure, renderProximityTarget, refreshAutoTileCount,
+  computePoiAvailability, maybeHighlightFromQuery, mapSearch,
+  annot, tracker, sti, userPos, restoreProximityAlert,
+  detachedDetailLayers, showAutoMapToast, armAutoMap,
+  reliefStepIndex, FRESH_RELIEF_MIN_IDX,
+})
 
 
 watch(
@@ -4411,73 +2646,6 @@ watch(
   () => updateUserDot()
 )
 
-function updateUserDot() {
-  const svg = svgHostRef.value?.querySelector('svg')
-  const layer = svg?.querySelector('#user-layer')
-  if (!layer) return
-  const x = userPos.svgX
-  const y = userPos.svgY
-  const acc = userPos.accuracyM ?? 30
-  // Kjegla peker dit telefonen vender (kompass/magnetometer via DeviceOrientation)
-  // når kompasset er aktivt — det er retningen orienteringsbrukeren vil ha, og
-  // det virker også stillestående. GPS-kurs (coords.heading) er fallback når
-  // kompasset mangler/avvist; den er kun definert i bevegelse og peker dit du
-  // er på vei, ikke dit du vender.
-  const heading = (compass.isActive && Number.isFinite(compass.headingDeg))
-    ? compass.headingDeg
-    : userPos.headingDeg
-  layer.replaceChildren()
-  if (x == null || y == null) return
-  const ns = 'http://www.w3.org/2000/svg'
-
-  // Dynamiske skjerm-størrelser. Dot er fast 14 CSS-px, kjegle 60 CSS-px
-  // ut fra dot. Accuracy-ringen reflekterer ekte fysisk usikkerhet (i meter)
-  // men cappes på ~28 CSS-px radius slik at dårlig GPS (urban / tog / tunnel)
-  // ikke språker ringen utover halve skjermen og dømmer kart-innholdet.
-  // v8.5.3: stroke-bredder via pxToUserUnits — non-scaling-stroke virker
-  // ikke når SVG-en CSS-transformeres av pinch-zoom-wrapperen, så stroke
-  // ble fete på høy zoom og det blå fyllet forsvant under den hvite kant-
-  // linjen. Nå skaleres bredden eksplisitt på samme måte som radius.
-  const dotR = pxToUserUnits(7)         // ~14 CSS-px diameter
-  const dotStroke = pxToUserUnits(1.6)  // tynn hvit halo
-  const coneR = pxToUserUnits(30)       // ~60 CSS-px ut fra dot
-  const minRingR = pxToUserUnits(12)    // ringen blir aldri mindre enn dot+halo
-  const maxRingR = pxToUserUnits(28)    // visuelt cap
-  const ringR = Math.min(maxRingR, Math.max(minRingR, acc))
-  const ringStroke = pxToUserUnits(0.8)
-
-  const ring = document.createElementNS(ns, 'circle')
-  ring.setAttribute('cx', x)
-  ring.setAttribute('cy', y)
-  ring.setAttribute('r', ringR)
-  ring.setAttribute('fill', 'rgba(56, 189, 248, 0.10)')
-  ring.setAttribute('stroke', 'rgba(56, 189, 248, 0.40)')
-  ring.setAttribute('stroke-width', ringStroke)
-  layer.appendChild(ring)
-
-  if (Number.isFinite(heading)) {
-    const cone = document.createElementNS(ns, 'path')
-    const ang = (heading - 90) * Math.PI / 180
-    const ang1 = ang - 0.35
-    const ang2 = ang + 0.35
-    const x1 = x + Math.cos(ang1) * coneR
-    const y1 = y + Math.sin(ang1) * coneR
-    const x2 = x + Math.cos(ang2) * coneR
-    const y2 = y + Math.sin(ang2) * coneR
-    cone.setAttribute('d', `M${x},${y} L${x1},${y1} A${coneR},${coneR} 0 0 1 ${x2},${y2} Z`)
-    cone.setAttribute('fill', 'rgba(56, 189, 248, 0.35)')
-    layer.appendChild(cone)
-  }
-
-  const dot = document.createElementNS(ns, 'circle')
-  dot.setAttribute('cx', x)
-  dot.setAttribute('cy', y)
-  dot.setAttribute('r', dotR)
-  dot.setAttribute('fill', '#0ea5e9')
-  dot.setAttribute('stroke', '#fff')
-  dot.setAttribute('stroke-width', dotStroke)
-  layer.appendChild(dot)
-}
 
 const equidistanceLabel = computed(() => {
   if (!meta.value) return ''
@@ -4486,12 +2654,6 @@ const equidistanceLabel = computed(() => {
   if (meta.value.contoursSkipped) return 'Høydekurver: kun på innebygde kart'
   return 'Høydekurver ikke tilgjengelig'
 })
-
-const wrapperSize = ref({ w: 0, h: 0 })
-function measureWrapper() {
-  const r = wrapperRef.value?.getBoundingClientRect()
-  if (r) wrapperSize.value = { w: r.width, h: r.height }
-}
 
 const SCALE_BAR_MAX_PX = 180
 const scaleBar = computed(() => {
