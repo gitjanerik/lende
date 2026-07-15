@@ -42,7 +42,14 @@ const FORMAT_OPTIONS = [
   { value: 'print',    label: 'Utskrift',   sub: 'A4' },
 ]
 const format = ref('square')
+// «Del kart og sted»-invitasjoner bærer avsenderens aspekt (?asp=) så
+// mottakeren bygger samme utsnitt-FORM — ikke sitt eget skjermaspekt, som på
+// mobil (~2.1) kunne doble arealet og fryse byggingen. Nullstilles hvis
+// brukeren aktivt velger et annet format.
+const inviteAspect = ref(null)
+watch(format, () => { inviteAspect.value = null })
 const effectiveAspect = computed(() => {
+  if (inviteAspect.value) return inviteAspect.value
   if (format.value === 'portrait') return mapAspect.value
   if (format.value === 'print') return PRINT_ASPECT
   return 1
@@ -114,6 +121,12 @@ function parseShareInvite() {
   if (Number.isFinite(km) && km >= 1 && km <= 12) halfKm.value = Math.min(km, 8) / 2
   if (Number.isFinite(eq) && [5, 10, 20, 25, 50].includes(eq)) equidistanceM.value = eq
   format.value = 'portrait'
+  // Avsenderens aspekt (clampet til fornuftig spenn). Settes ETTER format-
+  // tilordningen over — format-watchen nullstiller inviteAspect.
+  const asp = parseFloat(q.asp)
+  if (Number.isFinite(asp) && asp >= 0.3 && asp <= 3) {
+    nextTick(() => { inviteAspect.value = asp })
+  }
   if (q.hl) customName.value = String(q.hl).slice(0, 60)
   // «Del kart og sted»: slat/slon er stedets eksakte koordinater. Forwardes
   // til MapView så mottakeren får en rosa markering på nøyaktig samme punkt.

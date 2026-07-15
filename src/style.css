@@ -18,6 +18,11 @@
 @import "@fontsource-variable/source-serif-4/wght-italic.css";
 @import "@fontsource-variable/literata/wght-italic.css";
 
+/* Belte og bukser mot Chromium force-dark (se meta color-scheme i
+   index.html): per-element-deklarasjonen stopper auto-inverteringen også
+   der meta-taggen ikke plukkes opp (f.eks. eldre WebView). */
+:root { color-scheme: only light; }
+
 /* Inter-scope for turkart-sporet. font-weight: 400 er base; spesifikke labels
    og UI-elementer overstyrer via Tailwind eller egne CSS-regler. tabular-nums
    gir monospasede sifre i hele kart-UI-et (høyder, dybder, lengder, kontur-tall). */
