@@ -22,6 +22,7 @@ import { useStrokeTuning } from '../composables/useStrokeTuning.js'
 import { useReliefSettings } from '../composables/useReliefSettings.js'
 import { useDetailInset } from '../composables/useDetailInset.js'
 import { useHeritageLayers } from '../composables/useHeritageLayers.js'
+import { useHydroStations } from '../composables/useHydroStations.js'
 import { useReliefRender } from '../composables/useReliefRender.js'
 import { useGhostTiles } from '../composables/useGhostTiles.js'
 import { useMapExtend } from '../composables/useMapExtend.js'
@@ -43,6 +44,7 @@ import MapSearchOverlay from '../components/MapSearchOverlay.vue'
 import MapStatusOverlays from '../components/MapStatusOverlays.vue'
 import MapScaleAttribution from '../components/MapScaleAttribution.vue'
 import KulturminneSheet from '../components/KulturminneSheet.vue'
+import HydroStationSheet from '../components/HydroStationSheet.vue'
 import FabSettingsPanel from '../components/FabSettingsPanel.vue'
 import MapModeChips from '../components/MapModeChips.vue'
 import DrawerLayersTab from '../components/drawer/DrawerLayersTab.vue'
@@ -534,6 +536,22 @@ const {
 // Nytt kart lastet → nullstill og hent antall for badgen (liten WFS hits-spørring).
 watch(meta, (m) => { fredetCount.value = null; refreshFredetCount(m) })
 
+// Hydrologiske målestasjoner (NVE HydAPI) — eget togglebart lag (blå dråper).
+const hydroOpen = ref(false)
+const hydroLoading = ref(false)
+const hydroDetail = ref(null)
+const HYDRO_DRAWER_PEEK_PX = 76
+const hydroDrawer = useDraggableDrawer({ expandedHeight: 0.45, minimizedPeek: HYDRO_DRAWER_PEEK_PX, maxTopGapPx: MAX_DRAWER_TOP_GAP_PX, allowMinimize: true })
+const {
+  hydroCount, hydroLoadingLayer,
+  applyHydroStationLayer, openHydroDetailFromEl, refreshHydroCount,
+} = useHydroStations({
+  svgHostRef, visibleLayers, meta,
+  applyUprightLabels: (...a) => applyUprightLabels(...a),
+  hydroDetail, hydroLoading, hydroOpen, hydroDrawer,
+})
+watch(meta, (m) => { hydroCount.value = null; refreshHydroCount(m) })
+
 function applyLayerVisibility() {
   const root = svgHostRef.value?.querySelector('svg')
   if (!root) return
@@ -570,6 +588,8 @@ function applyLayerVisibility() {
   // Brukerminne-fallback: hent live hvis laget er på men ingen ikoner er innbakt
   // (typisk mobil der bygge-tids-hentingen glapp).
   applyKulturminneFallback()
+  // Hydrologiske målestasjoner (NVE HydAPI) — injiser/skjul dråpe-laget.
+  applyHydroStationLayer()
 }
 
 // Navne-labels som kan være flerspråklige (norsk - samisk - finsk). Tall-labels
@@ -2511,6 +2531,8 @@ function onMapClick(e) {
     if (kmHit) { openKulturminneDetail(kmHit); return }
     const fmHit = e.target?.closest?.('[data-fredet-id]')
     if (fmHit) { openFredetDetailFromEl(fmHit); return }
+    const hydroHit = e.target?.closest?.('[data-hydro-station-id]')
+    if (hydroHit) { openHydroDetailFromEl(hydroHit); return }
   }
   // Stifinner eier tap-eventet mens den er aktiv: startpunkt velges via det
   // faste midt-siktet (bekreft-knapp), og rute-tapp håndteres av egne DOM-
@@ -3496,7 +3518,8 @@ onUnmounted(() => {
             :land-layer-buttons="landLayerButtons" :marine-layer-buttons="marineLayerButtons"
             :toggle-layer="toggleLayer" :toggle-depth="toggleDepth"
             :visible-layers="visibleLayers" :kulturminne-count="kulturminneCount"
-            :fredet-loading="fredetLoading" :fredet-count="fredetCount" :meta="meta" />
+            :fredet-loading="fredetLoading" :fredet-count="fredetCount"
+            :hydro-loading="hydroLoadingLayer" :hydro-count="hydroCount" :meta="meta" />
 
           <DrawerThemeTab v-show="activeTab === 'tema'"
             :themes="THEMES" :current-theme="currentTheme" :on-theme-tap="onThemeTap"
@@ -3604,6 +3627,14 @@ onUnmounted(() => {
       :loading="kulturminneLoading"
       :drawer="kulturminneDrawer"
       @close="closeKulturminneDetail" />
+
+    <!-- Hydrologisk målestasjon (NVE HydAPI) — blått tema, sanntidsverdier. -->
+    <HydroStationSheet
+      :open="hydroOpen"
+      :detail="hydroDetail"
+      :loading="hydroLoading"
+      :drawer="hydroDrawer"
+      @close="hydroOpen = false" />
 
     <!-- Long-press kontekstmeny (bottom-sheet) — egen Transition: to uavhengige
          v-if-søsken i samme <Transition> er en dev-kompileringsfeil (krever

@@ -17,6 +17,8 @@ defineProps({
   kulturminneCount: { type: Number, default: 0 },
   fredetLoading: { type: Boolean, default: false },
   fredetCount: { type: Number, default: null },
+  hydroLoading: { type: Boolean, default: false },
+  hydroCount: { type: Number, default: null },
   meta: { type: Object, default: null },
 })
 </script>
@@ -66,6 +68,9 @@ defineProps({
         <span v-else-if="lay.key === 'fredet-kulturminne' && (fredetLoading || fredetCount != null)"
               class="ml-1 text-[10px] tabular-nums"
               :class="fredetCount ? 'text-emerald-300/80' : 'text-white/30'">{{ fredetLoading ? '…' : '(' + fredetCount + ')' }}</span>
+        <span v-else-if="lay.key === 'vannstasjon' && (hydroLoading || hydroCount != null)"
+              class="ml-1 text-[10px] tabular-nums"
+              :class="hydroCount ? 'text-sky-300/80' : 'text-white/30'">{{ hydroLoading ? '…' : '(' + hydroCount + ')' }}</span>
       </button>
     </div>
     <!-- Gruppert seksjon: Sjø & padling -->

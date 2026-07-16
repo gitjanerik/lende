@@ -46,6 +46,9 @@ export const LAYERS = [
   { key: 'kulturminne', label: 'Kulturminner' },
   // Offisielle fredede kulturminner (Riksantikvaren/Askeladden).
   { key: 'fredet-kulturminne', label: 'Fredede kulturminner' },
+  // Hydrologiske målestasjoner (NVE HydAPI) — blå vanndråper, klikk for
+  // vannføring/temperatur + lenke til NVE. Live-lag, krever API-nøkkel.
+  { key: 'vannstasjon', label: 'Vannmålestasjoner' },
   // Navn — samlet mot slutten.
   { key: 'navn',       label: 'Navn' },
   // Stedsnavn delt i tre viktighets-nivåer — egne lag så de kan toggles
@@ -73,7 +76,7 @@ export const LAYERS = [
 // Lag som hører til den marine «Sjø & padling»-seksjonen i drawer-en.
 export const MARINE_LAYER_KEYS = new Set(['kai', 'sjo-poi', 'sjo-navn'])
 
-export const DEFAULT_OFF_LAYERS = new Set(['lysloype'])
+export const DEFAULT_OFF_LAYERS = new Set(['lysloype', 'vannstasjon'])
 
 // Kanonisk default-synlighet (alt PÅ unntatt DEFAULT_OFF_LAYERS). Brukes både
 // til init, art-mode-restaurering og «Nullstill»-knappen i Lag-fanen.
@@ -95,6 +98,7 @@ const _turExclude = new Set([
   'kai', 'sjo-poi', 'sjo-navn',           // marine — egen Padling-preset
   'lysloype', 'heistrase', 'slalombakke', // vinter-ting
   'idrettsanlegg',                        // dekkende flate, sjelden ønsket i oversikt
+  'vannstasjon',                          // live NVE-lag, spesial-interesse
   'stedsnavn-minor', 'linje',             // navne-/strek-rot (grend/gård, gjerde/kraft)
 ])
 const PRESET_TUR = ALL_LAYER_KEYS.filter((k) => !_turExclude.has(k))
