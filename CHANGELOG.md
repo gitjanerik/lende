@@ -1,5 +1,16 @@
 # Endringslogg
 
+## 2026-07-16 — v1.0.20: Øy-navn dupliseres ikke lenger (blått + brunt)
+
+Navngitte øyer og holmer (place=island/islet) ble tidligere skrevet ut to
+ganger: ett blått, kursivt sjø-navn (sjo-navn-laget) OPPÅ ett brunt, versal
+land-navn (omrade-navn-laget). Øyer er land, så navnet hører hjemme i det brune
+land-navn-laget — de er nå tatt ut av det blå sjø-navn-laget. Holme-noder uten
+egen flate får fortsatt navnet sitt (nå som brunt land-navn på selve punktet),
+så ingen øy mister etiketten. Bukt/sund/nes/grunne/skjær er uendret i sjø-navn.
+
+---
+
 ## 2026-07-16 — v1.0.19: Nytt kartlag «Vannmålestasjoner» (NVE HydAPI)
 
 Nytt togglebart lag som viser NVEs hydrologiske målestasjoner i kartutsnittet
