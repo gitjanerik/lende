@@ -9,6 +9,26 @@ import { svgToWgs84 } from '../lib/utm.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { pruneAutoTiles, rectOverlapFraction } from '../lib/tileCache.js'
 
+// Retnings-vokabular for de 8 kant-sonene (utvidelses-knappene). Norske ord for
+// toast + kompassrose-tekst, og arm-vinkelen (SVG-grader, opp = nord = 0°, med
+// klokka) som avgjør hvilken kompassrose-arm som males rød.
+export const EXTEND_DIR_WORD = {
+  N: 'nord', S: 'sør', E: 'øst', W: 'vest',
+  NE: 'nordøst', NW: 'nordvest', SE: 'sørøst', SW: 'sørvest',
+}
+export const EXTEND_DIR_DEG = {
+  N: 0, NE: 45, E: 90, SE: 135, S: 180, SW: 225, W: 270, NW: 315,
+}
+// Kompassrose-farger (faste, uavhengig av tema — som dagens kant-sone-farge).
+export const EXTEND_ROSE = { grey: '#7d7566', red: '#d8392c', dark: '#4a4436', disc: 'rgba(251,247,236,0.72)' }
+
+// Synlig knapp-tekst: «<Retning> i lende» (navne-flørt). aria-label beholder
+// handlingen «Utvid mot <retning>». Ukjent retning → tom streng.
+export function extendZoneLabelText(dir) {
+  const w = EXTEND_DIR_WORD[dir]
+  return w ? `${w.charAt(0).toUpperCase()}${w.slice(1)} i lende` : ''
+}
+
 export function useMapExtend({
   svgHostRef, wrapperRef, meta, mapId, router,
   scale, rotation, translateX, translateY, isGesturing, panTo,
@@ -43,20 +63,25 @@ export function useMapExtend({
   // Om kartet som vises NÅ ble auto-/utvidelses-generert (settes fra init-prefs).
   const currentMapIsAuto = ref(false)
 
-  // Kant-soner (manuell utvidelse, auto-kart AV): 8 diskrete prikker tegnet som
-  // EKTE SVG-elementer i kart-SVG-en (gruppe #extend-zones). De lever i kart-rommet
-  // og panner/zoomer/roterer med kartet, så de er IKKE synlige før brukeren enten
-  // zoomer ut eller panorerer forbi en kant (da kommer canvas-marginen utenfor
+  // Kant-soner (manuell utvidelse, auto-kart AV): 8 diskrete kompassroser tegnet
+  // som EKTE SVG-elementer i kart-SVG-en (gruppe #extend-zones). De lever i kart-
+  // rommet og panner/zoomer/roterer med kartet, så de er IKKE synlige før brukeren
+  // enten zoomer ut eller panorerer forbi en kant (da kommer canvas-marginen utenfor
   // flisa til syne). De fjernes ved eksport/utskrift (se mapSvgMarkupForExport +
-  // stripRuntimeOverlays). Prikkene mot-skaleres til konstant skjermstørrelse.
+  // stripRuntimeOverlays). Rosene mot-skaleres til konstant skjermstørrelse.
   const EXTEND_ZONE_DIRS = ['N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW']
   const EXTEND_ZONE_LABEL = {
     N: 'Utvid mot nord', S: 'Utvid mot sør', E: 'Utvid mot øst', W: 'Utvid mot vest',
     NE: 'Utvid mot nordøst', NW: 'Utvid mot nordvest',
     SE: 'Utvid mot sørøst', SW: 'Utvid mot sørvest',
   }
-  const EXTEND_ZONE_R = 16      // prikk-radius i skjermpiksler (mot-skalert)
-  const EXTEND_ZONE_OFF = 30    // hvor langt UTENFOR kanten prikken sitter (px)
+  const EXTEND_ZONE_OFF = 30    // hvor langt UTENFOR kanten knappen sitter (px)
+  // Kompassrose-knapper: hver kant-sone er en liten 8-armet kompassrose med ÉN
+  // rød arm som peker retningen den utvider, pluss teksten «<Retning> i lende».
+  // Rosa ligger i kart-rommet → den roterer med kartet (rød arm følger terrenget);
+  // teksten mot-roteres til vannrett av applyUprightLabels (samme som stedsnavn).
+  // SVG-y vokser nedover, arm-base peker opp = nord = 0°, med klokka.
+  // (EXTEND_DIR_DEG / EXTEND_ROSE / EXTEND_DIR_WORD ligger på modul-nivå, testbare.)
   // Drawer-en dekker kant-sonene kun når den er ÅPEN og i ekspandert tilstand
   // (mobil-bunnark). Når den er minimert titter bare fane-stripen opp (~32 px), så
   // prikkene som sitter utenfor kart-kanten er fortsatt synlige og klikkbare —
@@ -157,22 +182,49 @@ export function useMapExtend({
       zone.setAttribute('cursor', 'pointer')
       zone.setAttribute('role', 'button')
       zone.setAttribute('aria-label', EXTEND_ZONE_LABEL[dir])
-      const circle = document.createElementNS(ns, 'circle')
-      circle.setAttribute('cx', String(a.ox))
-      circle.setAttribute('cy', String(a.oy))
-      circle.setAttribute('r', String(EXTEND_ZONE_R))
-      circle.setAttribute('fill', '#0ea5e9')
-      circle.setAttribute('fill-opacity', '0.92')
-      circle.setAttribute('stroke', '#ffffff')
-      circle.setAttribute('stroke-width', '2.5')
-      const plus = document.createElementNS(ns, 'path')
-      const h = 7
-      plus.setAttribute('d', `M ${a.ox - h} ${a.oy} H ${a.ox + h} M ${a.ox} ${a.oy - h} V ${a.oy + h}`)
-      plus.setAttribute('stroke', '#ffffff')
-      plus.setAttribute('stroke-width', '2.5')
-      plus.setAttribute('stroke-linecap', 'round')
-      zone.appendChild(circle)
-      zone.appendChild(plus)
+      const mk = (tag, attrs) => {
+        const e = document.createElementNS(ns, tag)
+        for (const [an, av] of Object.entries(attrs)) e.setAttribute(an, String(av))
+        return e
+      }
+      // 8-armet kompassrose sentrert på (a.ox, a.oy). Armen på dir-vinkelen er rød.
+      const rose = mk('g', { transform: `translate(${a.ox} ${a.oy})` })
+      rose.appendChild(mk('circle', { r: 21, fill: EXTEND_ROSE.disc }))
+      rose.appendChild(mk('circle', { r: 19, fill: 'none', stroke: EXTEND_ROSE.grey, 'stroke-width': 1, opacity: 0.5 }))
+      const dirDeg = EXTEND_DIR_DEG[dir]
+      for (let i = 0; i < 8; i++) {
+        const ang = i * 45
+        const card = i % 2 === 0
+        const len = card ? 18 : 11.5
+        const w = card ? 3.6 : 2.8
+        const active = ang === dirDeg
+        const yb = (-len * 0.42).toFixed(2)
+        rose.appendChild(mk('polygon', {
+          transform: `rotate(${ang})`,
+          points: `0,0 ${w},${yb} 0,${-len} ${-w},${yb}`,
+          fill: active ? EXTEND_ROSE.red : EXTEND_ROSE.grey,
+          opacity: active ? 1 : (card ? 0.8 : 0.5),
+        }))
+      }
+      rose.appendChild(mk('circle', { r: 2.4, fill: EXTEND_ROSE.dark }))
+      zone.appendChild(rose)
+      // Tekst «<Retning> i lende» like utenfor rosa (utover fra kartsenter).
+      const TD = 30
+      const norm = Math.hypot(a.ox, a.oy) || 1
+      const ux = a.ox / norm, uy = a.oy / norm
+      const anchor = ux > 0.3 ? 'start' : ux < -0.3 ? 'end' : 'middle'
+      const text = mk('text', {
+        x: (a.ox + ux * TD).toFixed(1),
+        y: (a.oy + uy * TD).toFixed(1),
+        'data-extend-text': dir,
+        'text-anchor': anchor,
+        'dominant-baseline': 'central',
+        style: "font-family: var(--land-font, 'Inter Variable'), system-ui, sans-serif;"
+          + ' font-size: 13px; font-weight: 700; fill: #161616;'
+          + ' stroke: #fbf7ec; stroke-width: 3; paint-order: stroke; stroke-linejoin: round;',
+      })
+      text.textContent = extendZoneLabelText(dir)
+      zone.appendChild(text)
       zone.addEventListener('click', (ev) => { ev.stopPropagation(); extendMap(dir) })
       g.appendChild(zone)
     }
@@ -304,10 +356,6 @@ export function useMapExtend({
   // fliser hoppes over (centerOverExistingTile), så man betaler kun for det som
   // mangler. Sentrum flyttes til grensen/hjørnet; zoom beholdes. Gjenbruker
   // mosaikken: buildMapFromCenter (isAuto) + renderGhostTiles.
-  const EXTEND_DIR_WORD = {
-    N: 'nord', S: 'sør', E: 'øst', W: 'vest',
-    NE: 'nordøst', NW: 'nordvest', SE: 'sørøst', SW: 'sørvest',
-  }
 
   // Geometri for en kant-sone i aktiv-flisas SVG-meter-rom, basert på YTTERGRENSA
   // til hele bruttokartet (aktiv flis ∪ alle nabofliser). Returnerer senter for hver

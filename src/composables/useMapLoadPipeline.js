@@ -252,7 +252,10 @@ export function useMapLoadPipeline(deps) {
       // Async + fail-safe; setupHostSvg har tømt evt. gamle spøkelser.
       void renderGhostTiles()
       // Kant-soner (manuell utvidelse) — tegnes inn i den ferske SVG-en.
+      // applyUprightLabels ETTER så kompassrose-tekstene er vannrette med én gang
+      // (viktig når kartet lastes allerede rotert, f.eks. via promoteView).
       renderExtendZones()
+      applyUprightLabels()
       // Terreng-først: hvis dette kartet ble vist som terreng-skjelett, konsumér
       // finalize-promisen og re-render (stille) når full SVG med OSM er klar.
       if (!silent) consumeTerrainFinalize()
