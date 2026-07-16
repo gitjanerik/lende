@@ -112,7 +112,7 @@ const tab = ref('turkart')
           seg og bli kjent med landskapet du beveger deg i.
         </p>
         <p class="text-[12px] leading-relaxed text-sky-100/70 border-t border-white/10 pt-2.5 mt-1">
-          💾 <strong class="text-white/90">Fungerer offline:</strong> kartene du lager
+          <strong class="text-white/90">Fungerer offline:</strong> kartene du lager
           lagres på enheten og virker uten dekning. Å bygge et <em>nytt</em> kart
           krever nett — så last ned områdene du skal til mens du har mobildata,
           før du drar dit dekningen tar slutt.
