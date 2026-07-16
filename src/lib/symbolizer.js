@@ -152,13 +152,18 @@ export function isOsmWaterSalty(tags) {
   return false
 }
 
-// Maritime navne-features: geografiske navn i/ved sjøen som hører hjemme i et
-// eget «Sjønavn»-lag — bukt/vik/kile (natural=bay), nes/odde (natural=cape),
-// sund (natural=strait), grunne (natural=shoal), rev (natural=reef), halvøy
-// (natural=peninsula), holme/øy (place=islet/island) og navngitte skjær
-// (seamark:type=rock). Brukes KUN til etikett-innsamling — geometrien (øy-
-// overlay 001, bukt-flate 303, sjømerke-symbol 211) klassifiseres som før via
-// classifyToIsom. Krever name-tag hos kalleren; predikatet ser kun på type.
+// Maritime navne-features: geografiske navn i/ved sjøen — bukt/vik/kile
+// (natural=bay), nes/odde (natural=cape), sund (natural=strait), grunne
+// (natural=shoal), rev (natural=reef), halvøy (natural=peninsula), holme/øy
+// (place=islet/island) og navngitte skjær (seamark:type=rock). Predikatet
+// brukes til to ting: (1) å hoppe over navn-only-noder i geometri-
+// klassifiseringen (isMaritimeNameOnlyNode), og (2) tidligere til det blå
+// «Sjønavn»-laget. MERK: holme/øy holdes fortsatt her (så node-øyer ikke
+// klassifiseres som generisk place), men RENDRES nå som brunt land-navn
+// (omrade-navn), ikke blått sjo-navn — øyer er land, og et blått navn oppå det
+// brune ga et duplikat. mapBuilder gjør den ekskluderingen ved etikett-bygging.
+// Geometrien (øy-overlay 001, bukt-flate 303, sjømerke-symbol 211) klassifiseres
+// som før via classifyToIsom. Krever name-tag hos kalleren; ser kun på type.
 const MARITIME_NAME_NATURAL = new Set(['bay', 'cape', 'strait', 'shoal', 'reef', 'peninsula', 'isthmus'])
 export function isMaritimeNameFeature(tags) {
   const t = tags ?? {}
