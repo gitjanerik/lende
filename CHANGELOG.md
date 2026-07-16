@@ -1,5 +1,15 @@
 # Endringslogg
 
+## 2026-07-16 — v1.0.16: Om-siden virker offline
+
+Om-siden var lazy-lastet, så JS-chunken lå ikke i offline-cachen før man hadde
+åpnet `/om` mens man var på nett — resultatet var at info-knappen «ikke gjorde
+noe» uten nettforbindelse. Om-siden importeres nå eagerly (bakt inn i oppstarts-
+grafen som service-workeren cacher), så den alltid er tilgjengelig offline.
+Versjonsnummeret vises fortsatt nederst på siden.
+
+---
+
 ## 2026-07-16 — v1.0.15: Ryddet rute-ikonet på turkart-forsiden
 
 Den siste gjenværende forekomsten av det gamle krusedull-rute-ikonet (buet

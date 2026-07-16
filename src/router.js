@@ -1,8 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 // Kart-hjem er hele appens forside — eager import så forsiden rendrer uten
-// ekstra chunk-rundtur. Alt annet lazy-lastes.
+// ekstra chunk-rundtur. Alt annet lazy-lastes — UNNTATT Om-siden: den er liten,
+// statisk og MÅ virke offline. Som lazy chunk lastes den først ved klikk, og en
+// bruker som aldri åpnet /om mens de var på nett hadde ingen cachet chunk →
+// knappen «gjorde ingenting» offline. Eager import baker den inn i oppstarts-
+// grafen som service-workeren cacher, så den alltid er tilgjengelig uten nett.
 import MapHomeView from './views/MapHomeView.vue'
+import AboutView from './views/AboutView.vue'
 
 const routes = [
   { path: '/',               name: 'kart-hjem',      component: MapHomeView },
@@ -10,7 +15,7 @@ const routes = [
   { path: '/kart/:id',       name: 'kart-vis',       component: () => import('./views/MapView.vue') },
   { path: '/rute',           name: 'ruteplanlegger', component: () => import('./views/GravelPlannerView.vue') },
   { path: '/tegnforklaring', name: 'tegnforklaring', component: () => import('./views/LegendView.vue') },
-  { path: '/om',             name: 'om',             component: () => import('./views/AboutView.vue') },
+  { path: '/om',             name: 'om',             component: AboutView },
   { path: '/about',          redirect: { name: 'om' } },
 
   // Bakoverkompatible stier fra svg-insights-tiden — gamle bokmerker,
