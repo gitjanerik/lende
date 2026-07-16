@@ -309,8 +309,15 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
           <circle cx="20" cy="4" r="2.2" fill="#f43f5e" stroke="none"/>
         </svg>
       </button>
-      <div class="relative flex-1 text-center text-[14px] font-semibold tracking-wide">Lende: Turkart</div>
-      <div class="w-9 shrink-0"></div><!-- balanse for sentrert tittel -->
+      <div class="relative flex-1 text-center text-[14px] font-semibold tracking-wide">Så i lende: turkart</div>
+      <button @click="router.push('/om')" aria-label="Om appen"
+              class="relative w-9 h-9 rounded-full flex items-center justify-center bg-white/5 border border-white/10
+                     text-white/70 active:scale-95 transition shrink-0">
+        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r="0.6" fill="currentColor"/>
+        </svg>
+      </button>
     </div>
 
     <!-- Innhold -->
