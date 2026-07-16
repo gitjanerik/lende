@@ -67,7 +67,7 @@ describe('buildSettingsCss', () => {
   })
 
   it('alt synlig gir tom CSS', () => {
-    expect(buildSettingsCss({ lag: { lysloype: true }, strekSkala: 1 })).toBe('')
+    expect(buildSettingsCss({ lag: { lysloype: true, vannstasjon: true }, strekSkala: 1 })).toBe('')
   })
 
   it('lag av → display:none-regel scoped til .isom-map (også ghost-fliser)', () => {
@@ -175,7 +175,7 @@ describe('applyMapSettings', () => {
   })
 
   it('alt-synlig-innstillinger fjerner eksisterende blokk og lar SVG-en ellers stå', () => {
-    const allOn = { lag: { lysloype: true } }
+    const allOn = { lag: { lysloype: true, vannstasjon: true } }
     const once = applyMapSettings(SVG, { lag: { kontur: false } })
     expect(applyMapSettings(once, allOn)).toBe(SVG)
     expect(applyMapSettings(SVG, allOn)).toBe(SVG)
