@@ -1,5 +1,21 @@
 # Endringslogg
 
+## 2026-07-16 — v1.0.14: Appnavn «Så i lende», Om-side og ryddede headere
+
+Appen har fått sitt egentlige navn i bruk: skrivebordsikonet og alle titler
+heter nå «Så i lende» (uttrykket for noe som brer seg utover landskapet — der
+«lende» er terrenget), og PWA-snarveien «Rute» heter nå «Ruteplanlegger».
+Begge modus-headere viser «Så i lende: turkart» og «Så i lende: ruteplanlegger».
+Ny Om-side (`/om`) nås fra en høyrestilt info-knapp i begge headere; i
+ruteplanleggeren er lagringsknappen flyttet ett hakk inn for å gi plass. Om-siden
+åpner med logoen og forklarer høydekurve-symbolikken og navnets norrøne opphav,
+og har to faner — Turkart og Ruteplanlegger — som beskriver hva som er laget,
+hvilken teknikk (Kartverket-DEM → d3-contour-høydekurver, canopy-høyde til
+vegetasjon, OSM/N50/Sjøkart, graphology/BRouter-ruting, vektor-SVG) og hvilke
+rammeverk og datakilder/lisenser som ligger bak.
+
+---
+
 ## 2026-07-16 — v1.0.13: Flyplass-kartlag, ryddet rute-snarvei og bedre GPS-hint
 
 Turkartet har fått et nytt togglebart lag «Flyplass» (ISOM-utvidelse 514):

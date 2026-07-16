@@ -1255,7 +1255,7 @@ onUnmounted(() => {
           <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
                stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
-        <div class="flex-1 text-center text-[15px] font-semibold text-white truncate">Lende: Ruteplanlegger</div>
+        <div class="flex-1 text-center text-[15px] font-semibold text-white truncate">Så i lende: ruteplanlegger</div>
         <button @click="showSaved = true" aria-label="Lagrede ruter" :disabled="!!routeInvite"
                 class="w-9 h-9 rounded-full flex items-center justify-center bg-white/5 border border-white/10
                        text-white/70 active:scale-95 transition shrink-0 relative disabled:opacity-35">
@@ -1264,6 +1264,14 @@ onUnmounted(() => {
           <span v-if="savedRoutes.length"
                 class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-sky-500 text-[9px]
                        font-bold text-white flex items-center justify-center">{{ savedRoutes.length }}</span>
+        </button>
+        <button @click="router.push('/om')" aria-label="Om appen" :disabled="!!routeInvite"
+                class="w-9 h-9 rounded-full flex items-center justify-center bg-white/5 border border-white/10
+                       text-white/70 active:scale-95 transition shrink-0 disabled:opacity-35">
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r="0.6" fill="currentColor"/>
+          </svg>
         </button>
       </div>
     </div>
