@@ -22,7 +22,13 @@ const HYDAPI_BASE = 'https://hydapi.nve.no/api/v1'
 
 // HydAPI parameter-koder.
 export const PARAM_WATER_LEVEL = 1000  // Vannstand (m)
+export const PARAM_DISCHARGE = 1001    // Vannføring (m³/s)
 export const PARAM_WATER_TEMP = 1003   // Vanntemperatur (°C)
+
+// Offentlig stasjonsside hos NVE (Sildre) for en gitt stasjons-id.
+export function sildreStationUrl(stationId) {
+  return `https://sildre.nve.no/station/${encodeURIComponent(stationId)}`
+}
 
 /** Haversine-avstand i km mellom to WGS84-punkt. */
 export function haversineKm(lat1, lon1, lat2, lon2) {
@@ -213,6 +219,72 @@ export async function fetchLiveWater(lat, lon, opts = {}) {
     console.warn(`[HydAPI] sanntids-oppslag feilet: ${e?.message ?? e}`)
     return null
   }
+}
+
+// ── Kartlag: hydrologiske målestasjoner i kartutsnittet ────────────────────
+// Ren, testbar filtrering av stasjonslista mot en WGS84-bbox. Vi tar bare med
+// stasjoner som måler noe brukeren bryr seg om (vannføring, vannstand eller
+// temperatur) og som har gyldige koordinater innenfor utsnittet.
+const HYDRO_LAYER_PARAMS = [PARAM_DISCHARGE, PARAM_WATER_LEVEL, PARAM_WATER_TEMP]
+
+export function stationsInBbox(stations, bbox) {
+  if (!Array.isArray(stations) || !bbox) return []
+  const { south, west, north, east } = bbox
+  const out = []
+  for (const st of stations) {
+    const lat = Number(st?.latitude)
+    const lon = Number(st?.longitude)
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue
+    if (lat < south || lat > north || lon < west || lon > east) continue
+    if (!HYDRO_LAYER_PARAMS.some(pr => stationHasParameter(st, pr))) continue
+    out.push(st)
+  }
+  return out
+}
+
+/**
+ * Hent alle relevante målestasjoner innenfor en bbox. DVALE uten API-nøkkel
+ * (returnerer []). Graceful ved nett-/CORS-feil.
+ *
+ * @param {{south:number,west:number,north:number,east:number}} bbox
+ * @param {{ apiKey?: string, signal?: AbortSignal }} [opts]
+ * @returns {Promise<Array<object>>}
+ */
+export async function fetchStationsForBbox(bbox, { apiKey, signal } = {}) {
+  if (!apiKey || !bbox) return []
+  try {
+    const stations = await fetchStations(apiKey, signal)
+    return stationsInBbox(stations, bbox)
+  } catch (e) {
+    if (signal?.aborted) return []
+    console.warn(`[HydAPI] stasjon-liste feilet: ${e?.message ?? e}`)
+    return []
+  }
+}
+
+/**
+ * Hent siste vannføring / vannstand / vanntemperatur for én stasjon. Kun
+ * parametere stasjonen faktisk måler spørres. Returnerer et objekt med de
+ * verdiene som fantes (kan være tomt).
+ *
+ * @param {object} station  stasjons-objekt fra stasjonslista (har seriesList)
+ * @param {{ apiKey?: string, signal?: AbortSignal }} [opts]
+ * @returns {Promise<{ discharge?: {value,time}, waterLevel?: {value,time}, waterTemp?: {value,time} }>}
+ */
+export async function fetchStationLatest(station, { apiKey, signal } = {}) {
+  const out = {}
+  if (!apiKey || !station?.stationId) return out
+  const id = station.stationId
+  const wanted = [
+    ['discharge', PARAM_DISCHARGE],
+    ['waterLevel', PARAM_WATER_LEVEL],
+    ['waterTemp', PARAM_WATER_TEMP],
+  ].filter(([, pr]) => stationHasParameter(station, pr))
+  const results = await Promise.all(
+    wanted.map(([, pr]) => fetchLatest(id, pr, apiKey, signal).catch(() => null)),
+  )
+  wanted.forEach(([key], i) => { if (results[i]) out[key] = results[i] })
+  return out
 }
 
 // For test: nullstill stasjons-cache.

@@ -1,5 +1,19 @@
 # Endringslogg
 
+## 2026-07-16 — v1.0.19: Nytt kartlag «Vannmålestasjoner» (NVE HydAPI)
+
+Nytt togglebart lag som viser NVEs hydrologiske målestasjoner i kartutsnittet
+som blå vanndråper. Trykk på en dråpe for siste vannføring (m³/s), vannstand og
+vanntemperatur, med lenke til stasjonens side hos NVE (Sildre). Bygger på den
+eksisterende HydAPI-integrasjonen (nveHydApi.js): stasjonslista hentes og caches
+per sesjon, filtreres til utsnittet, og markørene tegnes runtime som fredet-
+kulturminne-laget. Default av; henter data live og krever en gratis NVE HydAPI-
+nøkkel (`VITE_NVE_HYDAPI_KEY`). Laget er i dvale til nøkkelen er satt — og siden
+Vite inliner `VITE_`-variabler i det offentlige bundle-t, er aktivering i deploy
+en bevisst avgjørelse som ikke er gjort her ennå. Blått tema med egen detalj-skuff.
+
+---
+
 ## 2026-07-16 — v1.0.18: «Mer enn bare kart» på Om-siden
 
 Ny infoboks på Om-siden som forklarer long-press-oppslagene: hold på et punkt
