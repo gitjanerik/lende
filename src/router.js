@@ -10,6 +10,8 @@ const routes = [
   { path: '/kart/:id',       name: 'kart-vis',       component: () => import('./views/MapView.vue') },
   { path: '/rute',           name: 'ruteplanlegger', component: () => import('./views/GravelPlannerView.vue') },
   { path: '/tegnforklaring', name: 'tegnforklaring', component: () => import('./views/LegendView.vue') },
+  { path: '/om',             name: 'om',             component: () => import('./views/AboutView.vue') },
+  { path: '/about',          redirect: { name: 'om' } },
 
   // Bakoverkompatible stier fra svg-insights-tiden — gamle bokmerker,
   // interne literal-pushes og delte lenker lander fortsatt riktig.
