@@ -39,6 +39,7 @@ export const LAYERS = [
   { key: 'vei-liten',  label: 'Småveg' },
   { key: 'veinummer',  label: 'Veinummer' },
   { key: 'tog',        label: 'Jernbane' },
+  { key: 'flyplass',   label: 'Flyplass' },
   { key: 'linje',      label: 'Gjerde / kraft' },
   { key: 'trig',       label: 'Trigpunkter' },
   // Kulturminne-overlegg (Kulturminnesøk brukerminner) — klikkbare tema-ikoner.
