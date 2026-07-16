@@ -1,5 +1,18 @@
 # Endringslogg
 
+## 2026-07-16 — v1.0.21: Kompassrose på «Utvid kart»-knappene
+
+De åtte «Utvid kart»-knappene rundt kartet var store, dominerende blå «+»-sirkler.
+De er nå små, diskrete kompassroser — én per himmelretning — der den ene armen
+peker retningen knappen utvider og males rød, med teksten «Nord i lende»,
+«Nordøst i lende» osv. ved siden (en flørt med app-navnet). Rosene ligger i
+kart-rommet og roterer med kartet, så den røde armen alltid viser rett vei i
+terrenget, mens teksten mot-roteres til vannrett av samme mekanikk som stedsnavn.
+Knappenes funksjon er uendret (bygger ny kartflis i valgt retning), aria-label er
+fortsatt «Utvid mot <retning>», og laget fjernes ved print/eksport som før.
+
+---
+
 ## 2026-07-16 — v1.0.20: Øy-navn dupliseres ikke lenger (blått + brunt)
 
 Navngitte øyer og holmer (place=island/islet) ble tidligere skrevet ut to

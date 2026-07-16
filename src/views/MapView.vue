@@ -2075,9 +2075,11 @@ const {
   currentTheme, visibleLayers, userPos, maxTiles, refreshAutoTileCount,
   closeDrawer, closeSearch,
 })
-watch(extendZonesVisible, () => { renderExtendZones() })
+// applyUprightLabels ETTER render så kant-sonenes «… i lende»-tekst er vannrett
+// umiddelbart når kartet allerede er rotert (rosa selv roterer med kart-laget).
+watch(extendZonesVisible, () => { renderExtendZones(); applyUprightLabels() })
 // Mosaikken endret seg (ny flis bygd / scroll-tilbake) → re-anker prikkene.
-watch(ghostRects, () => { renderExtendZones() }, { deep: true })
+watch(ghostRects, () => { renderExtendZones(); applyUprightLabels() }, { deep: true })
 watch(scale, updateExtendZoneScale)
 watch([scale, translateX, translateY, rotation], scheduleActivatableCheck)
 
