@@ -87,6 +87,26 @@ const tab = ref('turkart')
         </blockquote>
       </section>
 
+      <!-- Mer enn bare kart: long-press-oppslagene. -->
+      <section class="rounded-2xl bg-white/5 border border-white/10 p-4 space-y-2">
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-white/55">Mer enn bare kart</h3>
+        <p class="text-[13px] leading-relaxed text-white/70">
+          Hold fingeren på et punkt på kartet, så henter Lende fakta om stedet fra
+          åpne kilder: stedsnavn og leksikon-ingress fra
+          <strong class="text-white/90">Store norske leksikon</strong> og
+          <strong class="text-white/90">Wikipedia</strong>, arter og rødliste-status
+          fra <strong class="text-white/90">Artsdatabanken</strong>, naturtyper og
+          verneområder, og vann-data fra <strong class="text-white/90">NVE</strong>.
+          Kulturminne-markørene (fra <strong class="text-white/90">Kulturminnesøk</strong>)
+          og fredede minner kan trykkes for detaljer og lenker videre.
+        </p>
+        <p class="text-[13px] leading-relaxed text-white/70">
+          Det gjør turen til litt av en oppdagelsesferd — hva heter tjernet, hva
+          slags skog går du gjennom, hvem bodde her før? En morsom måte å orientere
+          seg og bli kjent med landskapet du beveger deg i.
+        </p>
+      </section>
+
       <!-- Faner: én per hovedfunksjon. -->
       <section class="space-y-4">
         <div class="flex gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
