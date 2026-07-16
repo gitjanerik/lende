@@ -1,6 +1,6 @@
 {
-  "name": "Lende",
-  "short_name": "Lende",
+  "name": "Så i lende",
+  "short_name": "Så i lende",
   "description": "Turkart og ruteplanlegging — ISOM-inspirerte sportskart fra ekte norske kartdata",
   "lang": "no",
   "dir": "ltr",
@@ -47,7 +47,7 @@
     },
     {
       "name": "Planlegg rute",
-      "short_name": "Rute",
+      "short_name": "Ruteplanlegger",
       "description": "Ruteplanlegger for grus og sti",
       "url": "/lende/rute",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
