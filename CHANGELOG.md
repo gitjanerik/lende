@@ -1,5 +1,15 @@
 # Endringslogg
 
+## 2026-07-16 — v1.0.18: «Mer enn bare kart» på Om-siden
+
+Ny infoboks på Om-siden som forklarer long-press-oppslagene: hold på et punkt
+og få fakta om stedet fra Store norske leksikon, Wikipedia, Artsdatabanken,
+naturtyper/verneområder og NVE — pluss trykkbare kulturminne- og fredet-markører
+fra Kulturminnesøk. Vinkler det som en morsom måte å orientere seg og bli kjent
+med landskapet på tur.
+
+---
+
 ## 2026-07-16 — v1.0.17: Strammet inn Om-teksten
 
 To presiseringer på Om-siden. Navne-forklaringen tar nå bare for seg «lende»
