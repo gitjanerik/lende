@@ -85,6 +85,8 @@ export function buildOverpassQuery(bbox, { timeoutS = 90, includeBuildings = tru
   way["landuse"~"^(forest|meadow|grass|farmland)$"];
 ${includeBuildings ? '  way["building"];' : ''}
   way["leisure"~"^(park|pitch|playground|stadium|sports_centre|track|horse_racing)$"];
+  way["aeroway"~"^(aerodrome|apron|helipad)$"];
+  relation["aeroway"="aerodrome"];
   way["landuse"="recreation_ground"];
   way["building"="stadium"];
   way["sport"="ski_jumping"];
@@ -613,7 +615,7 @@ function unionByName(elements, project) {
 // 513 (idrettsanlegg: stadion/idrettsbane/travbane/hoppbakke/arena) rendres
 // samme sted — et bunn-areal med anleggets «baneform» som stier/konturer/
 // veier legger seg lesbart oppå. Eget toggle-lag («Idrettsanlegg»).
-const GROUND_CODES = ['401', '403', '404', '406', '407', '408', '409', '210', '512', '513']
+const GROUND_CODES = ['401', '403', '404', '406', '407', '408', '409', '210', '512', '513', '514']
 // Vann-stack: dybdeareal (Sjøkart 307, diskrete blå-bånd pr dybde) først,
 // så myr-pattern, så ISOM 303/301/302 (mer mettete blå overstyrer for navn-
 // gitte vann), så bekker.
@@ -720,7 +722,7 @@ export function clusterLandingssteder(placed, minSepM = 40) {
   return placed.filter((q, i) => q.code !== '550' || keep.has(i))
 }
 
-const POLYGON_CODES = new Set(['001', '401', '403', '404', '406', '407', '408', '409', '210', '301', '302', '303', '307', '308', '309', '512', '513', '520', '521', '522', '551', '552', '556'])
+const POLYGON_CODES = new Set(['001', '401', '403', '404', '406', '407', '408', '409', '210', '301', '302', '303', '307', '308', '309', '512', '513', '514', '520', '521', '522', '551', '552', '556'])
 const LINE_CODES = new Set(['304', '305', '501', '502', '503', '504', '505', '506', '507', '510', '511', '515', '525', '528', '201', '203', '101', '102', '103', '104'])
 
 /**
@@ -3155,6 +3157,7 @@ function categoryFor(code) {
     case '511':                                  return 'heistrase'
     case '512':                                  return 'slalombakke'
     case '513':                                  return 'idrettsanlegg'
+    case '514':                                  return 'flyplass'
     case '515':                                  return 'tog'
     case '201': case '203':                     return 'stupkant'
     case '210': case '213':

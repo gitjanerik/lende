@@ -2565,6 +2565,15 @@ function startPositioning() {
   if (!compass.isActive) compass.start()
 }
 
+// «Prøv igjen» fra GPS-feil-toasten. Nettleseren kan ikke skru på enhetens
+// stedstjenester, men et nytt forsøk trigger enten tillatelses-dialogen på nytt
+// eller fanger opp at brukeren nettopp slo på GPS. start() er idempotent
+// (returnerer tidlig hvis vi alt følger), så vi tvinger i tillegg en fersk fix.
+function onRetryGps() {
+  startPositioning()
+  userPos.refresh()
+}
+
 // Track-action-handlers for drawer
 function onToggleRecording() {
   if (!userPos.isWatching) { startPositioning(); return }
@@ -3319,7 +3328,8 @@ onUnmounted(() => {
       @dismiss-outside="dismissOutsideMap"
       @dismiss-details="detailsFailed = false"
       @retry-details="retryMapDetails"
-      @dismiss-low-accuracy="dismissLowAccuracy" />
+      @dismiss-low-accuracy="dismissLowAccuracy"
+      @retry-gps="onRetryGps" />
 
     <!-- Skala/ekvidistanse + attribusjon — trekt ut til MapScaleAttribution (v1.0.8). -->
     <MapScaleAttribution
