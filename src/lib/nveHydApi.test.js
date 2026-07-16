@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
-  haversineKm, findNearestStation, latestObservation,
-  PARAM_WATER_LEVEL, PARAM_WATER_TEMP,
+  haversineKm, findNearestStation, latestObservation, stationsInBbox, sildreStationUrl,
+  PARAM_WATER_LEVEL, PARAM_DISCHARGE, PARAM_WATER_TEMP,
 } from './nveHydApi.js'
 
 describe('haversineKm', () => {
@@ -86,5 +86,51 @@ describe('latestObservation', () => {
     expect(latestObservation({ data: [] })).toBeNull()
     expect(latestObservation({})).toBeNull()
     expect(latestObservation(null)).toBeNull()
+  })
+})
+
+describe('stationsInBbox', () => {
+  const bbox = { south: 60.70, west: 10.80, north: 60.80, east: 10.90 }
+  const st = (extra) => ({ seriesList: [{ parameter: PARAM_DISCHARGE }], ...extra })
+
+  it('tar med stasjoner innenfor bbox som måler relevant parameter', () => {
+    const stations = [
+      st({ stationId: 'INNI', latitude: 60.75, longitude: 10.85 }),
+      st({ stationId: 'UTENFOR', latitude: 61.20, longitude: 10.85 }),
+    ]
+    const r = stationsInBbox(stations, bbox)
+    expect(r.map(s => s.stationId)).toEqual(['INNI'])
+  })
+
+  it('hopper over stasjoner uten relevant parameter', () => {
+    const stations = [
+      { stationId: 'IRRELEVANT', latitude: 60.75, longitude: 10.85, seriesList: [{ parameter: 9999 }] },
+      st({ stationId: 'OK', latitude: 60.75, longitude: 10.85 }),
+    ]
+    expect(stationsInBbox(stations, bbox).map(s => s.stationId)).toEqual(['OK'])
+  })
+
+  it('godtar vannstand og temperatur, ikke bare vannføring', () => {
+    const stations = [
+      { stationId: 'LVL', latitude: 60.75, longitude: 10.85, seriesList: [{ parameter: PARAM_WATER_LEVEL }] },
+      { stationId: 'TEMP', latitude: 60.75, longitude: 10.85, seriesList: [{ parameter: PARAM_WATER_TEMP }] },
+    ]
+    expect(stationsInBbox(stations, bbox).length).toBe(2)
+  })
+
+  it('hopper over ugyldige koordinater', () => {
+    const stations = [st({ stationId: 'BAD', latitude: 'x', longitude: 10.85 })]
+    expect(stationsInBbox(stations, bbox)).toEqual([])
+  })
+
+  it('tåler tomt/ugyldig input', () => {
+    expect(stationsInBbox(null, bbox)).toEqual([])
+    expect(stationsInBbox([], null)).toEqual([])
+  })
+})
+
+describe('sildreStationUrl', () => {
+  it('bygger NVE-stasjonslenke', () => {
+    expect(sildreStationUrl('12.209.0')).toBe('https://sildre.nve.no/station/12.209.0')
   })
 })

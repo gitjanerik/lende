@@ -101,9 +101,21 @@ const tab = ref('turkart')
           og fredede minner kan trykkes for detaljer og lenker videre.
         </p>
         <p class="text-[13px] leading-relaxed text-white/70">
+          Slår du på kartlaget <strong class="text-white/90">Vannmålestasjoner</strong>
+          dukker NVEs hydrologiske stasjoner i området opp som blå dråper — trykk
+          for sanntids vannføring, vannstand og temperatur, med lenke videre til
+          <strong class="text-white/90">NVE</strong>.
+        </p>
+        <p class="text-[13px] leading-relaxed text-white/70">
           Det gjør turen til litt av en oppdagelsesferd — hva heter tjernet, hva
-          slags skog går du gjennom, hvem bodde her før? En morsom måte å orientere
+          slags skog går du gjennom, hvor kaldt er elva? En morsom måte å orientere
           seg og bli kjent med landskapet du beveger deg i.
+        </p>
+        <p class="text-[12px] leading-relaxed text-sky-100/70 border-t border-white/10 pt-2.5 mt-1">
+          <strong class="text-white/90">Fungerer offline:</strong> kartene du lager
+          lagres på enheten og virker uten dekning. Å bygge et <em>nytt</em> kart
+          krever nett — så last ned områdene du skal til mens du har mobildata,
+          før du drar dit dekningen tar slutt.
         </p>
       </section>
 
