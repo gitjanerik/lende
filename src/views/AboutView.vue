@@ -46,7 +46,7 @@ const tab = ref('turkart')
         </div>
         <h2 class="text-2xl font-semibold text-white">Så i lende</h2>
         <p class="text-[13px] leading-relaxed text-white/60">
-          Turkart og ruteplanlegging bygget fra ekte norske kartdata, rendret som
+          Turkart og ruteplanlegging bygget fra ekte kartdata, rendret som
           print-kvalitets vektorkart rett i nettleseren.
         </p>
       </section>
@@ -73,8 +73,7 @@ const tab = ref('turkart')
           landskapsskildringer, som i «det var skog så i lende».
         </p>
         <p class="text-[13px] leading-relaxed text-white/70">
-          Ordene er gamle: <strong class="text-white/90">så</strong> forsterker
-          utstrekningen (som i «så langt»), og <strong class="text-white/90">lende</strong>
+          <strong class="text-white/90">Lende</strong>
           betyr terreng eller landstrekning, beslektet med norrønt <em>lendi</em> —
           «land», «jordstykke». Opprinnelig beskrev uttrykket noe som strakte seg
           utover landskapet; etter hvert ble det et fast idiom for <em>overalt</em>,
