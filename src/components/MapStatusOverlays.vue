@@ -20,6 +20,7 @@ defineProps({
 })
 defineEmits([
   'retryLoad', 'dismissOutside', 'dismissDetails', 'retryDetails', 'dismissLowAccuracy',
+  'retryGps',
 ])
 </script>
 
@@ -62,14 +63,23 @@ defineEmits([
     </button>
   </div>
 
-  <!-- Posisjons-status -->
+  <!-- Posisjons-status. GPS-feil (typisk stedstjenester av eller tillatelse
+       avvist) får en «Prøv igjen»-knapp som re-utløser posisjons-forespørselen
+       — nettleseren kan ikke skru på GPS selv, men et nytt forsøk trigger enten
+       tillatelses-dialogen på nytt eller fanger opp at brukeren nå har slått på
+       stedstjenester. -->
   <div v-if="!loading && positionError"
        class="absolute bottom-32 left-1/2 -translate-x-1/2 z-20 max-w-[90%] px-3 py-2
               rounded-lg backdrop-blur bg-amber-600/95 border border-slate-300/40
-              text-white text-[12px] shadow-lg text-center whitespace-nowrap
+              text-white text-[12px] shadow-lg text-center flex flex-col items-center gap-2
               transition-[left] duration-200"
        :style="mapCenterStyle">
-    {{ positionError }}
+    <span>{{ positionError }}</span>
+    <button @click="$emit('retryGps')"
+            class="px-3 py-1 rounded-md bg-white/20 border border-white/30 text-white
+                   text-[12px] font-medium active:scale-95 transition">
+      Prøv igjen
+    </button>
   </div>
   <div v-else-if="!loading && showOutsideMap"
        class="absolute bottom-32 left-1/2 -translate-x-1/2 z-20 max-w-[90%]

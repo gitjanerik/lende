@@ -369,6 +369,16 @@ export function classifyToIsom(el) {
   ) {
     return { code: '513', cat: 'manmade' }
   }
+  // Flyplass (Norge-spesifikk ISOM-utvidelse 514): hele flyplass-arealet, apron
+  // og helikopterplass (OSM aeroway=aerodrome/apron/helipad). Kun areal-typene —
+  // rullebane/taxebane er som regel linje-ways og ville blitt degenererte
+  // slivere i polygon-rendereren; aerodrome-flaten dekker uansett hele feltet.
+  // Rendres som et dempet grått bunn-areal — konvensjonen for asfaltert flyplass-
+  // flate på topografiske kart — som stier/konturer/veier legger seg lesbart
+  // oppå. Eget toggle-lag («Flyplass»). Sjekkes FØR generell landuse/vegetasjon.
+  if (t.aeroway && ['aerodrome', 'apron', 'helipad'].includes(t.aeroway)) {
+    return { code: '514', cat: 'manmade' }
+  }
   if (t.building)                                   return { code: '521', cat: 'manmade' }
   // Saltvann / fjord / sjø → ISOM 303 (mørkere, mer mettet blå).
   // Eksplisitte tags først, deretter navn-heuristikk for fjord-polygoner

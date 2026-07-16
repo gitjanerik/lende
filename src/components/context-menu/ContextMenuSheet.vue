@@ -155,29 +155,23 @@ function formatDistance(m) {
            :style="{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0.75rem)' }">
 
       <!-- Intern snarvei øverst (v12.1.34): åpne Ruteplanleggeren på dette
-           punktet. Startside-ikonet + chevron (ikke ekstern-pil) signaliserer
-           at dette er en lenke INNE i Lende, ikke ut av appen. -->
+           punktet. Ledende ikon = samme «pil venstre i sirkelformet knapp» som
+           Ruteplanleggerens header-navigasjon, så de to modus-snarveiene deler
+           samme visuelle kontroll (v1.0.13). Intern lenke (ikke ekstern-pil). -->
       <div class="px-4 pt-3">
         <button @click="onOpenRoutePlanner"
                 class="w-full px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
                        flex items-center gap-2.5 transition
                        bg-sky-500/[0.12] border-sky-400/35 text-sky-100">
-          <!-- Samme rute-ikon som Ruteplanlegger-kortet på startsiden -->
-          <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
-               stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 20 C4 14 9 14 12 12"/>
-            <path d="M12 12 C15 10 20 10 20 4" stroke-dasharray="2.4 2"/>
-            <circle cx="4" cy="20" r="2.2" fill="#10b981" stroke="none"/>
-            <circle cx="20" cy="4" r="2.2" fill="#f43f5e" stroke="none"/>
-          </svg>
+          <span class="w-7 h-7 rounded-full flex items-center justify-center shrink-0
+                       bg-white/5 border border-white/10 text-sky-100">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </span>
           <span class="flex-1 text-left">
             <span class="font-medium">Åpne ruteplanlegger</span>
             <span class="block text-[10px] text-sky-200/60">Lende — sentrert på punktet</span>
           </span>
-          <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0 text-sky-200/60" fill="none"
-               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="9 18 15 12 9 6"/>
-          </svg>
         </button>
       </div>
 

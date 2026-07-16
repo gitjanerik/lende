@@ -458,6 +458,18 @@
           "linejoin": "round"
         }
       },
+      "514": {
+        "label": "Flyplass",
+        "$comment": "Norge-spesifikk ISOM-utvidelse for flyplass-areal (OSM aeroway=aerodrome/apron/runway/taxiway/helipad). Dempet, nøytral grå fyll — konvensjonen for paret/asfaltert flyplass-flate på topografiske kart — med litt mørkere grå omriss så flaten leses tydelig under stier/konturer/veier. Eget toggle-lag; rendres som bunn-areal sammen med idrettsanlegg/slalombakke.",
+        "fill": {
+          "color": "#d9dadd"
+        },
+        "stroke": {
+          "color": "#9a9ca1",
+          "widthMm": 0.14,
+          "linejoin": "round"
+        }
+      },
       "515": {
         "label": "Jernbane",
         "$comment": "Tradisjonell jernbane-symbolikk: solid sort linje (rail) med hvite ladder-stripes (sviller) overlaid via overlayStroke. Begge paths rendres for samme geometri når overlayStroke finnes.",
@@ -1747,6 +1759,14 @@
         },
         "stroke": {
           "color": "#b5912f"
+        }
+      },
+      "514": {
+        "fill": {
+          "color": "#3a3c40"
+        },
+        "stroke": {
+          "color": "#6f7176"
         }
       },
       "515": {

@@ -18,6 +18,7 @@ export function useUserPosition(getMeta) {
     headingDeg: null,
     speedMs: null,
     error: null,
+    errorCode: null,    // Geolocation-feilkode (1/2/3) for målrettet UI-hint
     isWatching: false,
     isOutsideMap: false,
     lastFixAt: null,    // ms (Date.now) da fix-en ble brukt
@@ -68,6 +69,7 @@ export function useUserPosition(getMeta) {
     state.headingDeg = Number.isFinite(c.heading) ? c.heading : null
     state.speedMs = Number.isFinite(c.speed) ? c.speed : null
     state.error = null
+    state.errorCode = null
     state.lastFixAt = Date.now()
     state.lastFixSource = source
     recompute()
@@ -81,16 +83,23 @@ export function useUserPosition(getMeta) {
     if (watchId !== null) return
     state.isWatching = true
     state.error = null
+    state.errorCode = null
 
     watchId = navigator.geolocation.watchPosition(
       (pos) => applyPos(pos, 'watch'),
       (err) => {
+        // Nettleseren kan ikke lese om enhetens stedstjenester er av/på eller
+        // skru dem på — vi får bare feilkoden ETTER at vi ba om posisjon.
+        // Kode 2 (POSITION_UNAVAILABLE) betyr som regel at GPS/Stedstjenester
+        // er slått av på enheten, så meldingen guider brukeren dit i stedet
+        // for en blindvei. Kode 1 handler om nettsted-tillatelse.
         const map = {
-          1: 'Du har avvist GPS-tillatelse',
-          2: 'GPS-posisjon ikke tilgjengelig',
-          3: 'GPS-forespørsel tok for lang tid',
+          1: 'GPS er blokkert for Lende — tillat posisjon for nettstedet og prøv igjen',
+          2: 'Fant ingen posisjon — sjekk at Stedstjenester/GPS er slått på i enhetsinnstillingene',
+          3: 'GPS-forespørsel tok for lang tid — prøv igjen',
         }
         state.error = map[err.code] ?? 'GPS-feil'
+        state.errorCode = err.code ?? null
       },
       { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
     )

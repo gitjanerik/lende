@@ -1,5 +1,25 @@
 # Endringslogg
 
+## 2026-07-16 — v1.0.13: Flyplass-kartlag, ryddet rute-snarvei og bedre GPS-hint
+
+Turkartet har fått et nytt togglebart lag «Flyplass» (ISOM-utvidelse 514):
+flyplass-areal, apron og helikopterplass (OSM aeroway=aerodrome/apron/helipad)
+males som en dempet, nøytral grå flate i terrenget — konvensjonen for asfaltert
+flyplass — som stier, konturer og veier legger seg lesbart oppå. Rullebane/
+taxebane utelates bevisst siden de som regel er linje-ways som ville blitt
+degenererte slivere i polygon-rendereren; aerodrome-flaten dekker uansett hele
+feltet. «Åpne ruteplanlegger»-snarveien i turkartets long-press-ark hadde et
+rotete rute-glyf-ikon; det er byttet ut med samme «pil venstre i sirkelformet
+knapp» som Ruteplanleggerens header-navigasjon, så de to modus-snarveiene deler
+samme visuelle kontroll. Til slutt er GPS-feilmeldingen gjort handlingsrettet:
+når posisjon ikke finnes (typisk fordi Stedstjenester/GPS er slått av på
+enheten) eller tillatelsen er avvist, forklarer toasten hva som må gjøres og gir
+en «Prøv igjen»-knapp som re-utløser forespørselen — nettleseren kan ikke skru
+på enhetens GPS selv, men et nytt forsøk fanger opp at brukeren nettopp slo den
+på.
+
+---
+
 ## 2026-07-15 — v1.0.12: Gjenoppta ved app-start, ny ikon-drakt og UI-polering
 
 Appen starter nå der du slapp: sist brukte modus (turkart eller ruteplanlegger)
