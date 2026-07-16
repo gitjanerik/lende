@@ -4,8 +4,10 @@ import { isMaritimeNameFeature, isMaritimeNameOnlyNode } from './symbolizer.js'
 
 // «Vi har ingen navn i sjøen» — sjønavn-laget (data-layer="sjo-navn").
 // Geografiske navn i/ved sjøen: bukt/vik (natural=bay), nes (natural=cape),
-// sund (natural=strait), grunne (natural=shoal), holme/øy (place=islet/island),
-// skjær (seamark:type=rock). Default PÅ, eget marint lag.
+// sund (natural=strait), grunne (natural=shoal), skjær (seamark:type=rock).
+// Default PÅ, eget marint lag. MERK: holme/øy (place=islet/island) er land og
+// navngis i det brune land-navn-laget (omrade-navn), IKKE her — ellers ble
+// øy-navnet duplisert (blått sjo-navn oppå brunt land-navn).
 
 const bbox = { south: 59.0, west: 10.0, north: 59.05, east: 10.1 }
 const node = (id, lat, lon, tags) => ({ type: 'node', id, lat, lon, tags })
@@ -54,16 +56,19 @@ describe('buildSvg — sjønavn-laget', () => {
     expect(svg).not.toMatch(/data-label="stedsnavn"[^>]*>Vesle bukta/)
   })
 
-  it('place=islet-node (holme) og place=island-node (øy) gir sjønavn', () => {
+  it('place=islet-node (holme) og place=island-node (øy) gir brunt land-navn, IKKE blått sjønavn', () => {
     const holme = node(2, 59.02, 10.03, { place: 'islet', name: 'Litjholmen' })
     const oy = node(3, 59.03, 10.06, { place: 'island', name: 'Storøya' })
     const { svg } = buildSvg([holme, oy], bbox, {})
+    // Øyer er land: navnet rendres som brunt omrade-navn, ikke i det blå sjo-navn-laget.
     const seaG = svg.match(/<g data-layer="sjo-navn">[\s\S]*?<\/g>/)[0]
-    expect(seaG).toContain('Litjholmen')
-    expect(seaG).toContain('Storøya')
+    expect(seaG).not.toContain('Litjholmen')
+    expect(seaG).not.toContain('Storøya')
+    expect(svg).toMatch(/data-label="omrade-navn"[^>]*>Litjholmen/)
+    expect(svg).toMatch(/data-label="omrade-navn"[^>]*>Storøya/)
   })
 
-  it('place=islet-WAY beholder 001 land-overlay OG får navn i sjo-navn', () => {
+  it('place=islet-WAY beholder 001 land-overlay OG får brunt land-navn (ikke blått sjønavn)', () => {
     const holmeWay = {
       type: 'way', id: 10,
       tags: { place: 'islet', name: 'Skjærholmen' },
@@ -72,7 +77,8 @@ describe('buildSvg — sjønavn-laget', () => {
     const { svg } = buildSvg([holmeWay], bbox, {})
     expect(svg).toContain('data-iso="001"')           // geometri-overlay beholdt
     const seaG = svg.match(/<g data-layer="sjo-navn">[\s\S]*?<\/g>/)[0]
-    expect(seaG).toContain('Skjærholmen')             // navnet i sjønavn-laget
+    expect(seaG).not.toContain('Skjærholmen')          // ikke lenger i sjønavn-laget
+    expect(svg).toMatch(/data-label="omrade-navn"[^>]*>Skjærholmen/)  // brunt land-navn
   })
 
   it('navngitt skjær (seamark:type=rock) beholder 211-symbolet OG får navn', () => {

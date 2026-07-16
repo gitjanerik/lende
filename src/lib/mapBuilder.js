@@ -2011,8 +2011,12 @@ export function buildSvg(elements, bbox, options = {}) {
     if (isWater) continue
     // Fjelltopper rendrer egen label via peaksSvg
     if (tags.natural === 'peak' || tags.natural === 'saddle') continue
-    // place=*-noder rendrer egen label via stedsnavnSvg / places
-    if (el.type === 'node' && tags.place) continue
+    // place=*-noder rendrer egen label via stedsnavnSvg / places — UNNTATT
+    // øy/holme (place=island/islet). Øyer er LAND: navnet hører i dette brune
+    // land-navn-laget, ikke det blå sjo-navn-laget (som ellers ga ett blått
+    // navn duplisert oppå det brune). Node-øyer får label på selve punktet.
+    const isIslandFeat = tags.place === 'island' || tags.place === 'islet'
+    if (el.type === 'node' && tags.place && !isIslandFeat) continue
     // Lineære features (vei, sti, jernbane, gjerde, kraftlinje) og rute-
     // relasjoner (busslinjer o.l.) er IKKE arealer og skal aldri få et
     // areal-navn. Rute-relasjonens way-medlemmer har TOM rolle, så
@@ -2047,7 +2051,7 @@ export function buildSvg(elements, bbox, options = {}) {
         areaM2 = polygonAreaM2(el.geometry)
         cent = polygonCentroid(el.geometry)
       }
-    } else if (el.type === 'node' && isSkiJump) {
+    } else if (el.type === 'node' && (isSkiJump || isIslandFeat)) {
       cent = project(el.lat, el.lon)
     } else if (el.type === 'way' && el.geometry && el.geometry.length === 2 && isSkiJump) {
       const gm = el.geometry[0]
@@ -2089,7 +2093,7 @@ export function buildSvg(elements, bbox, options = {}) {
     // Hytter rendrer som lite symbol (13×13 m kvadrat) — minst krav er at
     // bygget er gjenkjent. Andre arealer trenger større minimum for å unngå
     // å spamme bbox med navn på tiny features.
-    const minArea = isBuilding || isSkiJump ? 0 : 1000
+    const minArea = isBuilding || isSkiJump || isIslandFeat ? 0 : 1000
     if (areaM2 < minArea) continue
     // Naturreservat-mistags (gigantiske polygoner) labels også droppes —
     // speiler maxAreaM2-cappingen i POLYGON_FILTER.naturreservat.
@@ -2914,8 +2918,11 @@ export function buildSvg(elements, bbox, options = {}) {
   // ── Sjønavn — geografiske navn i/ved sjøen (eget marint lag) ──────────
   // «Vi har ingen navn i sjøen»: bukt/vik/kile (natural=bay), nes/odde
   // (natural=cape), sund (natural=strait), grunne (natural=shoal), rev
-  // (natural=reef), halvøy (natural=peninsula), holme/øy (place=islet/island)
-  // og navngitte skjær (seamark:type=rock). Etikett-ankret er node-punktet,
+  // (natural=reef), halvøy (natural=peninsula) og navngitte skjær
+  // (seamark:type=rock). Holme/øy (place=islet/island) er UTELATT: øyer er
+  // land, så navnet rendres i det brune land-navn-laget (omrade-navn) — ellers
+  // ble øy-navnet duplisert (blått sjo-navn oppå brunt land-navn).
+  // Etikett-ankret er node-punktet,
   // way-sentroiden eller relasjonens største outer-ring-sentroid. Bruker
   // samme blå/italic vann-navn-stil (themed), men ligger i et eget
   // data-layer="sjo-navn" så det kan toggles fra «Sjø & padling»-seksjonen
@@ -2925,6 +2932,10 @@ export function buildSvg(elements, bbox, options = {}) {
   for (const el of elements) {
     const name = (el.tags?.name ?? '').trim()
     if (!name || !isMaritimeNameFeature(el.tags)) continue
+    // Øy/holme (place=island/islet) er LAND og navngis i det brune land-navn-
+    // laget (omrade-navn), ikke her. Tidligere fikk en navngitt øy BÅDE et blått
+    // sjo-navn og et brunt områdenavn = samme navn duplisert. Vi dropper det blå.
+    if (el.tags.place === 'island' || el.tags.place === 'islet') continue
     let p = null
     if (el.type === 'node') {
       p = project(el.lat, el.lon)
