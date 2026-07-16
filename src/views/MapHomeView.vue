@@ -301,13 +301,8 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
       <button @click="router.push('/rute')" aria-label="Bytt til Ruteplanlegger"
               class="relative w-9 h-9 rounded-full flex items-center justify-center bg-white/5 border border-white/10
                      text-white/70 active:scale-95 transition shrink-0">
-        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-             stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 20 C4 14 9 14 12 12"/>
-          <path d="M12 12 C15 10 20 10 20 4" stroke-dasharray="2.4 2"/>
-          <circle cx="4" cy="20" r="2.2" fill="#10b981" stroke="none"/>
-          <circle cx="20" cy="4" r="2.2" fill="#f43f5e" stroke="none"/>
-        </svg>
+        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
       <div class="relative flex-1 text-center text-[14px] font-semibold tracking-wide">Så i lende: turkart</div>
       <button @click="router.push('/om')" aria-label="Om appen"

@@ -1,5 +1,15 @@
 # Endringslogg
 
+## 2026-07-16 — v1.0.15: Ryddet rute-ikonet på turkart-forsiden
+
+Den siste gjenværende forekomsten av det gamle krusedull-rute-ikonet (buet
+linje med grønn/rød endepunkt-prikk) satt fortsatt på «Bytt til ruteplanlegger»-
+knappen øverst til venstre på turkart-forsiden. Byttet ut med samme rene pil-
+venstre-i-sirkel som resten av modus-navigasjonen bruker, så knappen speiler
+tilbake-knappen i ruteplanleggerens header.
+
+---
+
 ## 2026-07-16 — v1.0.14: Appnavn «Så i lende», Om-side og ryddede headere
 
 Appen har fått sitt egentlige navn i bruk: skrivebordsikonet og alle titler
