@@ -1,5 +1,15 @@
 # Endringslogg
 
+## 2026-07-16 — v1.0.17: Strammet inn Om-teksten
+
+To presiseringer på Om-siden. Navne-forklaringen tar nå bare for seg «lende»
+(terreng/landstrekning, av norrønt «lendi») og dropper utgreiingen om «så».
+Innledningen sier «bygget fra ekte kartdata» i stedet for «ekte norske
+kartdata» — kartdataene kommer fra flere kilder (bl.a. OpenStreetMap, som er
+global), så «norske» overdrev opphavet.
+
+---
+
 ## 2026-07-16 — v1.0.16: Om-siden virker offline
 
 Om-siden var lazy-lastet, så JS-chunken lå ikke i offline-cachen før man hadde
