@@ -46,8 +46,9 @@ const tab = ref('turkart')
         </div>
         <h2 class="text-2xl font-semibold text-white">Så i lende</h2>
         <p class="text-[13px] leading-relaxed text-white/60">
-          Turkart og ruteplanlegging bygget fra ekte kartdata, rendret som
-          print-kvalitets vektorkart rett i nettleseren.
+          Turkart og ruteplanlegging bygget fra ymse kartdata. Turkartene bygges
+          som print-kvalitets vektorkart rett i nettleseren, og ruteplanleggeren
+          tar deg ut i lende med stil – med mest mulig grusvei fra A til B.
         </p>
       </section>
 
