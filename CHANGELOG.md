@@ -1,10 +1,12 @@
 # Endringslogg
 
-## 2026-07-17 — v1.0.26: Utheving i Om-teksten
+## 2026-07-17 — v1.0.26: Utheving i Om-teksten + CI på pull requests
 
 Innledningsteksten på Om-siden fremhever nå «ymse kartdata» og «ut i lende» i
 halvfet, litt lysere skrift, så nøkkelordene (og lende-ordspillet) bærer
-setningen ved rask lesing.
+setningen ved rask lesing. I tillegg er CI aktivert: en ny GitHub-workflow
+kjører testsuiten og produksjonsbygget på hver pull request mot master, så
+regresjoner fanges før merge.
 
 ---
 
