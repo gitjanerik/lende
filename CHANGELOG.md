@@ -1,5 +1,13 @@
 # Endringslogg
 
+## 2026-07-17 — v1.0.26: Utheving i Om-teksten
+
+Innledningsteksten på Om-siden fremhever nå «ymse kartdata» og «ut i lende» i
+halvfet, litt lysere skrift, så nøkkelordene (og lende-ordspillet) bærer
+setningen ved rask lesing.
+
+---
+
 ## 2026-07-17 — v1.0.25: Fikser oppdatering, kartbygging og hull-fylling
 
 Tre feil fra forrige runde rettet. (1) Kartbygging feilet av og til med
