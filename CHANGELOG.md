@@ -1,5 +1,18 @@
 # Endringslogg
 
+## 2026-07-17 — v1.0.24: Fullfør ufullstendige kart og fyll mosaikk-hull
+
+To ikke-destruktive reparasjons-verktøy for kart der en bygging ble avbrutt
+(reload eller app-lukking midt i flisleggingen). Åpner du et kart som aldri ble
+ferdig bygd (kun terreng, `partial`-flagget satt), tilbyr et banner nå «Fullfør
+kartet» som bygger det om og fyller inn stier og detaljer. Har mosaikken et hull
+— en manglende flis inni det rektangulære bruttokartet — oppdages det ved åpning
+og et banner tilbyr «Fyll hullene», som bygger kun de manglende cellene uten å
+røre eksisterende fliser. Begge krever nett (knappen gråes ut offline) og sletter
+aldri noe. About-teksten er også oppdatert.
+
+---
+
 ## 2026-07-17 — v1.0.23: «Oppdater» venter til kartbygging er ferdig
 
 Trykket man «Oppdater» på ny-versjon-banneret mens en flis ble bygd eller

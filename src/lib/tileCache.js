@@ -124,6 +124,52 @@ export function tilesAreGridCompatible(active, ghost, { tolM = 1 } = {}) {
 }
 
 /**
+ * Finn HULL i en flis-mosaikk: rutenett-celler som mangler innenfor mosaikkens
+ * omsluttende rektangel. Kant-sone-utvidelsen holder alltid bruttokartet
+ * rektangulært, så en manglende celle inni rektangelet er et ekte hull (typisk
+ * etter en avbrutt bygging — reload/app-lukking midt i flisleggingen).
+ *
+ * Alle rektangler er i den aktive flisas meter-rom (aktiv flis = origo 0,0), og
+ * deler samme W×H (kun gitter-kompatible spøkelser tegnes, se buildGhostSvg).
+ * Ren funksjon (enhetstestet).
+ *
+ * @param {{w:number,h:number}} activeRect  aktiv flis' størrelse (x/y antas 0)
+ * @param {Array<{x:number,y:number}>} ghostRects  nabo-flisenes offset-rektangler
+ * @param {{tolFrac?:number}} [opts]  hvor nær gitteret en celle må ligge (andel av W/H)
+ * @returns {Array<{col:number,row:number,x:number,y:number}>}  manglende celler
+ */
+export function findGridGaps(activeRect, ghostRects, { tolFrac = 0.25 } = {}) {
+  const W = activeRect?.w, H = activeRect?.h
+  if (!(W > 0) || !(H > 0)) return []
+  const occupied = new Map()   // "col,row" → { col, row }
+  const mark = (x, y) => {
+    const col = Math.round(x / W)
+    const row = Math.round(y / H)
+    // Kun celler som faktisk ligger på gitteret (ellers ikke en mosaikk-nabo).
+    if (Math.abs(x - col * W) > W * tolFrac) return
+    if (Math.abs(y - row * H) > H * tolFrac) return
+    occupied.set(`${col},${row}`, { col, row })
+  }
+  mark(0, 0)
+  for (const r of ghostRects ?? []) mark(r.x, r.y)
+  if (occupied.size < 2) return []   // bare aktiv flis → ingen mosaikk, ingen hull
+  let minCol = Infinity, maxCol = -Infinity, minRow = Infinity, maxRow = -Infinity
+  for (const { col, row } of occupied.values()) {
+    if (col < minCol) minCol = col
+    if (col > maxCol) maxCol = col
+    if (row < minRow) minRow = row
+    if (row > maxRow) maxRow = row
+  }
+  const gaps = []
+  for (let row = minRow; row <= maxRow; row++) {
+    for (let col = minCol; col <= maxCol; col++) {
+      if (!occupied.has(`${col},${row}`)) gaps.push({ col, row, x: col * W, y: row * H })
+    }
+  }
+  return gaps
+}
+
+/**
  * Andel av rektangel `a` som overlappes av `b` (0..1). Brukes for å avgjøre om
  * et nytt auto-kart (sentrert der man ser) ville duplisere en flis vi allerede
  * har — da skal auto-kart-triggeren undertrykkes (man «scroller tilbake», ikke
