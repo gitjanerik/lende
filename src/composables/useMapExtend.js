@@ -570,40 +570,59 @@ export function useMapExtend({
     closeDrawer()
     closeSearch()
     const builtIds = []
+    let failed = 0
     try {
+      // Per-flis feilhåndtering: én flis som feiler (f.eks. Overpass nede) skal
+      // ikke forkaste flisene som lyktes — vi bygger så mange som mulig og
+      // tegner mosaikken på nytt uansett i finally.
       for (let i = 0; i < cells.length; i++) {
         const prefix = cells.length > 1 ? `Hull ${i + 1}/${cells.length}` : ''
         buildingProgress.value = cells.length > 1
           ? `Fyller hull ${i + 1} av ${cells.length} …`
           : 'Fyller hull i kartet …'
-        const { id } = await buildMapFromCenter({
-          ...autoMapBuildOpts(cells[i].center),
-          utmBbox: cells[i].utmBbox,
-          terrainFirst: false,
-          onProgress: (msg) => {
-            buildingProgress.value = prefix ? `${prefix}: ${msg}` : msg
-          },
-        })
-        if (id) builtIds.push(id)
+        try {
+          const { id } = await buildMapFromCenter({
+            ...autoMapBuildOpts(cells[i].center),
+            utmBbox: cells[i].utmBbox,
+            terrainFirst: false,
+            onProgress: (msg) => {
+              buildingProgress.value = prefix ? `${prefix}: ${msg}` : msg
+            },
+          })
+          if (id) builtIds.push(id)
+          else failed++
+        } catch (e) {
+          console.error('Hull-flis feilet:', e)
+          failed++
+        }
       }
-      await renderGhostTiles()
-      await nextTick()
-      try {
-        const ll = svgToWgs84(m.widthM / 2, m.heightM / 2, m)
-        pruneAutoTiles({ center: { lat: ll.lat, lon: ll.lon }, max: maxTiles.value, protectIds: [mapId.value, ...builtIds] })
-          .then(() => { void refreshAutoTileCount() })
-          .catch(() => {})
-      } catch { /* svgToWgs84 feilet → hopp over pruning */ }
-      refreshMosaicGaps()
-      showAutoMapToast(builtIds.length === 1 ? 'Fylte 1 hull i kartet' : `Fylte ${builtIds.length} hull i kartet`)
-    } catch (e) {
-      console.error('Hull-reparasjon feilet:', e)
-      showAutoMapToast('Kunne ikke fylle alle hull')
     } finally {
+      // Tegn mosaikken på nytt så det som FAKTISK ble bygd vises (også ved delvis
+      // feil), kapp cachen og re-tell hull → banneret speiler ny tilstand.
+      try {
+        await renderGhostTiles()
+        await nextTick()
+      } catch { /* noop — mosaikk-render er fail-safe */ }
+      if (builtIds.length) {
+        try {
+          const ll = svgToWgs84(m.widthM / 2, m.heightM / 2, m)
+          pruneAutoTiles({ center: { lat: ll.lat, lon: ll.lon }, max: maxTiles.value, protectIds: [mapId.value, ...builtIds] })
+            .then(() => { void refreshAutoTileCount() })
+            .catch(() => {})
+        } catch { /* svgToWgs84 feilet → hopp over pruning */ }
+      }
       buildingOnTheFly.value = false
       buildingProgress.value = ''
       autoMapArmed = true
       extendingMap = false
+      refreshMosaicGaps()
+      if (builtIds.length && !failed) {
+        showAutoMapToast(builtIds.length === 1 ? 'Fylte hullet i kartet' : `Fylte ${builtIds.length} hull i kartet`)
+      } else if (builtIds.length && failed) {
+        showAutoMapToast(`Fylte ${builtIds.length} hull, ${failed} gjenstår`)
+      } else {
+        showAutoMapToast('Kunne ikke fylle hull — prøv igjen')
+      }
     }
   }
 
