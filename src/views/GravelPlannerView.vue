@@ -25,7 +25,7 @@ import { reverseNearestPlace } from '../lib/nominatimReverse.js'
 import { routeShareToken, parseRouteToken, MAX_SHARE_ROUTES } from '../lib/routeShare.js'
 import { useGravelPlanner } from '../composables/useGravelPlanner.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
-import { useMapSizePreference, equidistanceForWidthKm, defaultMapDims } from '../composables/useMapSizePreference.js'
+import { useMapSizePreference, effectiveEquidistanceForWidthKm, defaultMapDims, aspectForFormat } from '../composables/useMapSizePreference.js'
 import { useRouteElevation } from '../composables/useRouteElevation.js'
 import { useDraggableDrawer } from '../composables/useDraggableDrawer.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
@@ -595,9 +595,10 @@ const pinLinks = computed(() => {
 // reverse-geokoding (dato-fallback om oppslaget svikter), og ?slat/slon så
 // punktet markeres i det ferdige kartet. Full-skjerm-loader mens pipelinen
 // kjører (Overpass, N50, Sjøkart, DEM, buildSvg, saveMap).
-const { mapSizeKm } = useMapSizePreference()
+const { mapSizeKm, mapFormat } = useMapSizePreference()
 function squareDims() {
-  return mapSizeKm.value ? { halfKm: mapSizeKm.value / 2, aspect: 1 } : defaultMapDims()
+  const base = mapSizeKm.value ? { halfKm: mapSizeKm.value / 2 } : defaultMapDims()
+  return { ...base, aspect: aspectForFormat(mapFormat.value) }
 }
 const buildingTurkart = ref(false)
 const buildTurkartProgress = ref('')
@@ -624,7 +625,7 @@ async function openTurkartFromPin() {
     const { id } = await buildMapFromCenter({
       center: { lat: p.lat, lon: p.lon, name: name ?? '' },
       ...squareDims(),   // standard kvadratisk utsnitt (brukerens kart-preferanse)
-      equidistanceM: equidistanceForWidthKm(mapSizeKm.value),
+      equidistanceM: effectiveEquidistanceForWidthKm(mapSizeKm.value),
       navn: name ? `${name} ${stamp}` : `Turkart ${stamp}`,
       terrainFirst: true,   // vis terreng straks, fyll inn OSM i bakgrunnen
       signal: ac.signal,
