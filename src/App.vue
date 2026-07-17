@@ -1,13 +1,21 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { RouterView } from 'vue-router'
-import { updateAvailable, applyUpdate } from './lib/swUpdate.js'
+import { updateAvailable, applyUpdate, buildBusy, updateDeferred } from './lib/swUpdate.js'
 
 const updating = ref(false)
+// Trykk «Oppdater»: pågår en bygging setter applyUpdate updateDeferred i stedet
+// for å reloade (unngår hull i et halvbygd kart). Da byttes knappe-teksten til
+// en ventende status; reloaden skjer automatisk når byggingen er ferdig.
 function onUpdate() {
-  updating.value = true
-  applyUpdate()   // → SKIP_WAITING → controllerchange → location.reload()
+  applyUpdate()
+  if (!updateDeferred.value) updating.value = true
 }
+const updateLabel = computed(() => {
+  if (updateDeferred.value) return 'Oppdaterer når kartet er ferdig …'
+  if (updating.value) return 'Oppdaterer …'
+  return 'Oppdater'
+})
 </script>
 
 <template>
@@ -35,11 +43,14 @@ function onUpdate() {
                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/>
           </svg>
-          <span class="flex-1 leading-snug">Ny versjon tilgjengelig</span>
-          <button @click="onUpdate" :disabled="updating"
+          <span class="flex-1 leading-snug">
+            {{ updateDeferred ? 'Ny versjon klar — venter på at kartet blir ferdig'
+                              : 'Ny versjon tilgjengelig' }}
+          </span>
+          <button @click="onUpdate" :disabled="updating || updateDeferred"
                   class="shrink-0 px-3 py-1.5 rounded-lg font-medium bg-emerald-500 text-white
                          active:scale-95 transition disabled:opacity-60">
-            {{ updating ? 'Oppdaterer …' : 'Oppdater' }}
+            {{ updateLabel }}
           </button>
         </div>
       </div>
