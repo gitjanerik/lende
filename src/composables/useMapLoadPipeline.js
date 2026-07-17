@@ -18,7 +18,7 @@ export function useMapLoadPipeline(deps) {
     route, router, svgHostRef, meta, storedDem, mapId, mapTitle, mapDataSize,
     loading, loadError, isAlive, isGesturing, scale, rotation, panTo,
     BUILTIN, kulturminneCount, mapHasTrails, currentMapIsAuto,
-    fillingInDetails, detailsFailed, buildingOnTheFly, buildingProgress,
+    fillingInDetails, detailsFailed, mapIsPartial, buildingOnTheFly, buildingProgress,
     visibleLayers, currentTheme, applyTheme, applyPurpleTrails,
     applyLayerVisibility, applyDepthLayer, applyNameLanguage,
     applyStrokeScale, applyStrokeOverrides, applyLabelScale, applyLabelFonts,
@@ -92,6 +92,9 @@ export function useMapLoadPipeline(deps) {
       let text
       let demBytes = 0
       let stored = null
+      // Ufullstendig-flagg nullstilles ved hver last; settes fra lagret entry
+      // under. Innebygde kart er alltid komplette.
+      mapIsPartial.value = false
       if (BUILTIN[id]) {
         mapTitle.value = BUILTIN[id].navn
         text = await fetchBuiltinSvg(BUILTIN[id].file)
@@ -100,6 +103,10 @@ export function useMapLoadPipeline(deps) {
         if (!stored) throw new Error('Kart ikke funnet i lagring')
         mapTitle.value = stored.navn
         text = stored.svg
+        // Bygging avbrutt (reload/lukking) før OSM-detaljene ble fylt inn lagrer
+        // entry-en med partial:true. MapView tilbyr «Fullfør» (B) — med mindre
+        // en finalize allerede fyller inn nå (consumeTerrainFinalize under).
+        mapIsPartial.value = !!stored.partial
         // Hent DEM hvis lagret (brukes av relieff og høydeprofil)
         if (stored.dem) {
           try { storedDem.value = unpackDem(stored.dem) } catch { storedDem.value = null }

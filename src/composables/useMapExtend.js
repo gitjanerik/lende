@@ -7,7 +7,7 @@
 import { ref, computed, nextTick } from 'vue'
 import { svgToWgs84 } from '../lib/utm.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
-import { pruneAutoTiles, rectOverlapFraction } from '../lib/tileCache.js'
+import { pruneAutoTiles, rectOverlapFraction, findGridGaps } from '../lib/tileCache.js'
 
 // Retnings-vokabular for de 8 kant-sonene (utvidelses-knappene). Norske ord for
 // toast + kompassrose-tekst, og arm-vinkelen (SVG-grader, opp = nord = 0°, med
@@ -62,6 +62,10 @@ export function useMapExtend({
   }
   // Om kartet som vises NÅ ble auto-/utvidelses-generert (settes fra init-prefs).
   const currentMapIsAuto = ref(false)
+  // Antall HULL i mosaikken akkurat nå (manglende gitter-celler inni bruttoens
+  // omsluttende rektangel). Oppdateres når mosaikken endrer seg; > 0 → MapView
+  // tilbyr «Reparer» (C). Typisk etter en bygging avbrutt av reload/app-lukking.
+  const mosaicGapCount = ref(0)
 
   // Kant-soner (manuell utvidelse, auto-kart AV): 8 diskrete kompassroser tegnet
   // som EKTE SVG-elementer i kart-SVG-en (gruppe #extend-zones). De lever i kart-
@@ -519,12 +523,97 @@ export function useMapExtend({
     }
   }
 
+  // ── Mosaikk-hull-reparasjon (C) ─────────────────────────────────────────────
+  // Bygging avbrutt av reload/app-lukking (eller en feilet nabo-flis) etterlater
+  // et hull i mosaikken. Kant-sone-utvidelsen holder alltid bruttoen rektangulær
+  // og fyller kun perimeteret, så et indre hull blir aldri tettet av den. Her
+  // finner vi manglende gitter-celler (findGridGaps) og tilbyr å bygge KUN dem.
+
+  // Manglende gitter-celler → byggespesifikasjoner (SVG-senter + eksakt UTM-bbox,
+  // utledet identisk med extendMapGeometry så de flukter bit-eksakt med aktiv flis).
+  function mosaicGapCells() {
+    const m = meta.value
+    if (!m || m.minE == null) return []
+    const gaps = findGridGaps({ w: m.widthM, h: m.heightM }, ghostRects.value)
+    return gaps.map((g) => {
+      const sx = g.col * m.widthM, sy = g.row * m.heightM
+      const minE = Math.round(m.minE + sx)
+      const maxN = Math.round(m.maxN - sy)
+      return {
+        center: { x: sx + m.widthM / 2, y: sy + m.heightM / 2 },
+        utmBbox: { minE, maxE: minE + Math.round(m.widthM), minN: maxN - Math.round(m.heightM), maxN },
+      }
+    })
+  }
+  function refreshMosaicGaps() {
+    mosaicGapCount.value = mosaicGapCells().length
+  }
+
+  // Fyll alle mosaikk-hull. Bygger hver manglende celle (samme flyt som extendMap:
+  // buildMapFromCenter isAuto + eksakt utmBbox), tegner mosaikken på nytt og kapper
+  // cachen. Ikke-destruktivt — rører aldri eksisterende fliser. Krever nett.
+  async function repairMosaicGaps() {
+    if (extendingMap || buildingOnTheFly.value || fillingInDetails.value) return
+    if (autoMapModeBusy()) return
+    const m = meta.value
+    if (!m) return
+    const cells = mosaicGapCells()
+    if (!cells.length) { refreshMosaicGaps(); return }
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      showAutoMapToast('Offline — kan ikke fylle hull')
+      return
+    }
+    extendingMap = true
+    autoMapArmed = false
+    buildingOnTheFly.value = true
+    buildingProgress.value = 'Forbereder …'
+    closeDrawer()
+    closeSearch()
+    const builtIds = []
+    try {
+      for (let i = 0; i < cells.length; i++) {
+        const prefix = cells.length > 1 ? `Hull ${i + 1}/${cells.length}` : ''
+        buildingProgress.value = cells.length > 1
+          ? `Fyller hull ${i + 1} av ${cells.length} …`
+          : 'Fyller hull i kartet …'
+        const { id } = await buildMapFromCenter({
+          ...autoMapBuildOpts(cells[i].center),
+          utmBbox: cells[i].utmBbox,
+          terrainFirst: false,
+          onProgress: (msg) => {
+            buildingProgress.value = prefix ? `${prefix}: ${msg}` : msg
+          },
+        })
+        if (id) builtIds.push(id)
+      }
+      await renderGhostTiles()
+      await nextTick()
+      try {
+        const ll = svgToWgs84(m.widthM / 2, m.heightM / 2, m)
+        pruneAutoTiles({ center: { lat: ll.lat, lon: ll.lon }, max: maxTiles.value, protectIds: [mapId.value, ...builtIds] })
+          .then(() => { void refreshAutoTileCount() })
+          .catch(() => {})
+      } catch { /* svgToWgs84 feilet → hopp over pruning */ }
+      refreshMosaicGaps()
+      showAutoMapToast(builtIds.length === 1 ? 'Fylte 1 hull i kartet' : `Fylte ${builtIds.length} hull i kartet`)
+    } catch (e) {
+      console.error('Hull-reparasjon feilet:', e)
+      showAutoMapToast('Kunne ikke fylle alle hull')
+    } finally {
+      buildingOnTheFly.value = false
+      buildingProgress.value = ''
+      autoMapArmed = true
+      extendingMap = false
+    }
+  }
+
   return {
     buildingOnTheFly, buildingProgress, autoMapToast, currentMapIsAuto,
-    drawerCoversCanvas, extendZonesVisible, activatableTile,
+    drawerCoversCanvas, extendZonesVisible, activatableTile, mosaicGapCount,
     renderExtendZones, updateExtendZoneScale, showAutoMapToast,
     visibleCenterSvg, scheduleActivatableCheck, autoMapModeBusy,
     autoMapBuildOpts, promoteTile, extendMap, armAutoMap,
     extendZonesBounds, teardownMapExtend,
+    refreshMosaicGaps, repairMosaicGaps,
   }
 }
