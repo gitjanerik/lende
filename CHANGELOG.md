@@ -1,5 +1,18 @@
 # Endringslogg
 
+## 2026-07-17 — v1.0.27: Kartformat og høydekurver i Innstillinger + felles Nullstill
+
+Innstillinger-fanen har nå de samme format-knappene som «Flere valg» i byggeren
+(Kvadratisk / Portrett / Utskrift A4) og høydekurve-knappene (5–50 m, med samme
+bredde-gating: tette kurver krever smalere kart), plassert rett under
+størrelse-slideren. Valgene gjelder alle nye kart fra søk/GPS, «Lag kart der du
+er» og «Bygg om»-knappen. En felles «Nullstill»-knapp setter standarden:
+4 km bredde, 10 m høydekurver og kvadratisk format — app-standarden for nye
+kart er samtidig endret fra 8 til 4 km (raskere bygging). Vardåsen-demokartet
+bygges nå i samme standardutsnitt (4 km kvadrat, 10 m).
+
+---
+
 ## 2026-07-17 — v1.0.26: Utheving i Om-teksten + CI på pull requests
 
 Innledningsteksten på Om-siden fremhever nå «ymse kartdata» og «ut i lende» i

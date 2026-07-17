@@ -18,7 +18,9 @@ import { utm32BboxFromWgs84 } from '../src/lib/utm.js'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const CENTER = { lat: 59.813746, lon: 10.414616 }
-const HALF_KM = 2.5
+// Samme utsnitt som app-standarden (v1.0.27): 4 km bredt kvadrat med 10 m
+// ekvidistanse — demokartet viser nøyaktig det en «standard»-bygging gir.
+const HALF_KM = 2
 const bbox = bboxFromCenter(CENTER.lat, CENTER.lon, HALF_KM)
 
 console.log(`Henter OSM for bbox: ${bbox.south.toFixed(4)}, ${bbox.west.toFixed(4)} → ${bbox.north.toFixed(4)}, ${bbox.east.toFixed(4)}`)

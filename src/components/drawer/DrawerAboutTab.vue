@@ -1,16 +1,20 @@
 <script setup>
-// Drawer-fane «Om» (innstillinger), skilt ut fra MapView v1.0.8. Kartstørrelse
-// for nye kart, fulle navn, skjerm-våken, maks fliser, global relieff-standard
-// og navnetetthet. Innstillingene bindes toveis via v-model; composable-
-// objektet screenWake sendes inn som prop.
+// Drawer-fane «Om» (innstillinger), skilt ut fra MapView v1.0.8. Kartstørrelse/
+// format/høydekurver for nye kart, fulle navn, skjerm-våken, maks fliser,
+// global relieff-standard og navnetetthet. Størrelsen bindes toveis via
+// v-model (MapView eier slider-computeden); format- og ekvidistanse-refene er
+// modul-singletons og hentes rett fra composablen.
+import { computed } from 'vue'
 import {
-  equidistanceForWidthKm, DEFAULT_MAP_WIDTH_KM, MAP_SIZE_MIN_KM, MAP_SIZE_MAX_KM,
+  useMapSizePreference, resetMapPreferences,
+  minEquidistanceForWidthKm, effectiveEquidistanceForWidthKm,
+  MAP_SIZE_MIN_KM, MAP_SIZE_MAX_KM, DEFAULT_MAP_WIDTH_KM,
+  MAP_FORMAT_OPTIONS, MAP_EQ_OPTIONS,
 } from '../../composables/useMapSizePreference.js'
 import { DENSITY_PRESETS } from '../../composables/useLabelDensity.js'
 import { APP_VERSION } from '../../version.js'
 
 defineProps({
-  mapSizeKm: { type: Number, default: null },
   rebuildAtChosenSize: { type: Function, required: true },
   building: { type: Boolean, default: false },
   canRebuild: { type: Boolean, default: false },
@@ -20,6 +24,29 @@ defineProps({
 })
 const mapSizeSlider = defineModel('mapSizeSlider', { type: Number, default: 10 })
 const showFullNames = defineModel('showFullNames', { type: Boolean, default: false })
+
+// Format- og høydekurve-standard for nye kart (delte singleton-refs).
+const { mapFormat, mapEquidistance } = useMapSizePreference()
+// Gating: samme bredde→ekvidistanse-regel som «Flere valg» i pickeren.
+const minEq = computed(() => minEquidistanceForWidthKm(mapSizeSlider.value))
+// Effektiv (markert) verdi: brukerens valg klampet til tillatt, auto ellers.
+const effectiveEq = computed(() => effectiveEquidistanceForWidthKm(mapSizeSlider.value))
+function eqHintFor(value) {
+  if (value === 5)  return 'Krever bredde < 4 km'
+  if (value === 10) return 'Krever bredde < 6 km'
+  return ''
+}
+// Felles «Nullstill»: 4 km + 10 m + kvadratisk. Slider-modellen settes via
+// MapView-computeden (som lagrer null når verdien er default).
+function onReset() {
+  resetMapPreferences()
+  mapSizeSlider.value = DEFAULT_MAP_WIDTH_KM
+}
+const isAtDefaults = computed(() =>
+  mapSizeSlider.value === DEFAULT_MAP_WIDTH_KM &&
+  mapFormat.value === 'square' &&
+  mapEquidistance.value == null
+)
 const maxTileIndex = defineModel('maxTileIndex', { type: Number, default: 0 })
 const globalReliefEnabled = defineModel('globalReliefEnabled', { type: Boolean, default: true })
 const globalReliefMode = defineModel('globalReliefMode', { type: String, default: 'vektor' })
@@ -29,45 +56,74 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
 
 <template>
   <div>
-    <!-- Kartstørrelse for NYE kart (søk/GPS på forsiden). Slider 1–20 km,
-         default 10 km. Ekvidistansen settes automatisk til den fineste
-         tillatte for bredden (samme regel som «Flere valg»). Påvirker
-         ikke kartet som vises nå, kun neste nye kart. -->
+    <!-- Standarder for NYE kart (søk/GPS på forsiden): bredde-slider, format
+         (kvadrat/portrett/A4) og høydekurve-intervall — samme tre valg som
+         «Flere valg» i pickeren, med samme bredde-gating for høydekurvene.
+         Påvirker ikke kartet som vises nå, kun neste nye kart. -->
     <div class="rounded-lg bg-white/5 px-3 py-2.5 mb-3">
       <div class="flex items-baseline justify-between mb-0.5">
         <div class="text-[13px] text-white font-medium">Kartstørrelse (nye kart)</div>
         <div class="text-[13px] text-white font-semibold tabular-nums">{{ mapSizeSlider }} × {{ mapSizeSlider }} km</div>
       </div>
       <div class="text-[11px] text-white/55 leading-snug mb-2">
-        Bredde på nye kvadratiske kart fra søk/GPS. Ekvidistanse settes
-        automatisk — fineste tillatte for bredden
-        ({{ equidistanceForWidthKm(mapSizeSlider) }} m for {{ mapSizeSlider }} km).
-        Større kart tar lengre tid å bygge.
+        Bredde på nye kart fra søk/GPS. Større kart tar lengre tid å bygge.
       </div>
-      <div class="flex items-center gap-2">
-        <input type="range" :min="MAP_SIZE_MIN_KM" :max="MAP_SIZE_MAX_KM" step="1"
-               v-model.number="mapSizeSlider"
-               aria-label="Kartstørrelse i km (bredde på nye kart)"
-               class="flex-1 accent-emerald-400 cursor-pointer" />
-        <button @click="mapSizeSlider = DEFAULT_MAP_WIDTH_KM"
-                class="shrink-0 px-2 py-1 rounded-lg text-[11px] font-medium border transition active:scale-95"
-                :class="mapSizeKm == null
-                        ? 'bg-emerald-500/20 text-white border-emerald-400/50'
-                        : 'bg-white/5 text-white/70 border-white/10'">
-          Standard
-        </button>
-      </div>
+      <input type="range" :min="MAP_SIZE_MIN_KM" :max="MAP_SIZE_MAX_KM" step="1"
+             v-model.number="mapSizeSlider"
+             aria-label="Kartstørrelse i km (bredde på nye kart)"
+             class="w-full accent-emerald-400 cursor-pointer" />
       <div class="flex justify-between text-[10px] text-white/35 tabular-nums mt-1 px-0.5">
         <span>{{ MAP_SIZE_MIN_KM }} km</span>
         <span>{{ MAP_SIZE_MAX_KM }} km</span>
       </div>
+      <!-- Kartformat: samme trippel som «Flere valg». -->
+      <div class="text-[13px] text-white font-medium mt-3 mb-1.5">Kartformat</div>
+      <div class="flex gap-2" role="group" aria-label="Kartformat for nye kart">
+        <button v-for="opt in MAP_FORMAT_OPTIONS" :key="opt.value"
+                @click="mapFormat = opt.value"
+                :aria-pressed="mapFormat === opt.value"
+                class="flex-1 rounded-md px-1 py-1.5 text-[12px] font-medium transition-colors leading-tight"
+                :class="mapFormat === opt.value ? 'bg-emerald-500 text-white' : 'bg-white/10 text-white/70'">
+          {{ opt.label }}
+          <span v-if="opt.sub" class="block text-[10px] font-normal opacity-75">{{ opt.sub }}</span>
+        </button>
+      </div>
+      <!-- Høydekurver: samme valg og bredde-gating som «Flere valg»
+           (< 4 km: alle; 4–6 km: min 10 m; ≥ 6 km: min 20 m). -->
+      <div class="flex items-baseline justify-between mt-3 mb-1.5">
+        <div class="text-[13px] text-white font-medium">Høydekurver</div>
+        <div class="text-[12px] text-white/60 tabular-nums">hver {{ effectiveEq }} m</div>
+      </div>
+      <div class="flex gap-1.5" role="group" aria-label="Høydekurve-intervall for nye kart">
+        <button v-for="eq in MAP_EQ_OPTIONS" :key="eq"
+                :disabled="eq < minEq"
+                :title="eq < minEq ? eqHintFor(eq) : ''"
+                @click="mapEquidistance = eq"
+                :aria-pressed="effectiveEq === eq"
+                class="flex-1 rounded-md px-1 py-1.5 text-[12px] font-medium transition-colors tabular-nums
+                       disabled:opacity-35 disabled:cursor-not-allowed"
+                :class="effectiveEq === eq ? 'bg-emerald-500 text-white' : 'bg-white/10 text-white/70'">
+          {{ eq }} m
+        </button>
+      </div>
+      <div v-if="minEq > 5" class="text-[10px] text-white/40 leading-snug mt-1">
+        Tette kurver ({{ minEq === 20 ? '5 og 10 m' : '5 m' }}) krever smalere kart
+        — dra slideren ned for å låse opp.
+      </div>
+      <!-- Felles standard: 4 km + 10 m + kvadratisk. -->
+      <button @click="onReset()" :disabled="isAtDefaults"
+              class="w-full mt-3 px-3 py-2 rounded-lg text-[12px] font-medium border transition
+                     active:scale-[0.98] disabled:opacity-40
+                     bg-white/5 border-white/15 text-white/85">
+        Nullstill til standard (4 km · 10 m · kvadratisk)
+      </button>
       <!-- Bygg om gjeldende område i valgt størrelse — slipper å gå til
            forsiden for å teste samme sted ved en annen bredde. -->
       <button @click="rebuildAtChosenSize()" :disabled="building || !canRebuild"
               class="w-full mt-2 px-3 py-2 rounded-lg text-[12px] font-medium border transition
                      active:scale-[0.98] disabled:opacity-50
                      bg-sky-500/15 border-sky-400/40 text-sky-100">
-        Bygg om dette området i valgt størrelse
+        Bygg om dette området med valgte innstillinger
       </button>
     </div>
     <!-- Flerspråklige navn (norsk - samisk - finsk) i Nord-Norge.
