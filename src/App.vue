@@ -5,17 +5,18 @@ import { updateAvailable, applyUpdate, buildBusy, updateDeferred } from './lib/s
 
 const updating = ref(false)
 // Trykk «Oppdater»: pågår en bygging setter applyUpdate updateDeferred i stedet
-// for å reloade (unngår hull i et halvbygd kart). Da byttes knappe-teksten til
-// en ventende status; reloaden skjer automatisk når byggingen er ferdig.
+// for å reloade (unngår hull i et halvbygd kart). Da bytter banneret til en ren
+// «venter»-linje med spinner; reloaden skjer automatisk når byggingen er ferdig.
 function onUpdate() {
   applyUpdate()
   if (!updateDeferred.value) updating.value = true
 }
-const updateLabel = computed(() => {
-  if (updateDeferred.value) return 'Oppdaterer når kartet er ferdig …'
-  if (updating.value) return 'Oppdaterer …'
-  return 'Oppdater'
-})
+// Banneret har to layouter: én ledig (tekst + grønn knapp) og én i arbeid
+// (spinner + status-linje, ingen knapp). Å skjule knappen i arbeid-tilstand gir
+// statusteksten full bredde i stedet for å presses til flere korte linjer.
+const busy = computed(() => updating.value || updateDeferred.value)
+const busyLabel = computed(() =>
+  updateDeferred.value ? 'Oppdaterer straks kartet er ferdig …' : 'Oppdaterer …')
 </script>
 
 <template>
@@ -39,18 +40,21 @@ const updateLabel = computed(() => {
         <div class="pointer-events-auto w-full max-w-[420px] flex items-center gap-3
                     rounded-xl px-4 py-3 bg-zinc-800/95 backdrop-blur border border-white/15
                     shadow-2xl text-[13px]">
-          <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0 text-emerald-300" fill="none"
+          <!-- I arbeid: spinner. Ledig: oppdater-ikon. -->
+          <span v-if="busy"
+                class="w-5 h-5 shrink-0 rounded-full border-2 border-emerald-300/30
+                       border-t-emerald-300 animate-spin"/>
+          <svg v-else viewBox="0 0 24 24" class="w-5 h-5 shrink-0 text-emerald-300" fill="none"
                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/>
           </svg>
           <span class="flex-1 leading-snug">
-            {{ updateDeferred ? 'Ny versjon klar — venter på at kartet blir ferdig'
-                              : 'Ny versjon tilgjengelig' }}
+            {{ busy ? busyLabel : 'Ny versjon tilgjengelig' }}
           </span>
-          <button @click="onUpdate" :disabled="updating || updateDeferred"
-                  class="shrink-0 px-3 py-1.5 rounded-lg font-medium bg-emerald-500 text-white
-                         active:scale-95 transition disabled:opacity-60">
-            {{ updateLabel }}
+          <button v-if="!busy" @click="onUpdate"
+                  class="shrink-0 px-3.5 py-1.5 rounded-lg font-medium bg-emerald-500 text-white
+                         active:scale-95 transition">
+            Oppdater
           </button>
         </div>
       </div>

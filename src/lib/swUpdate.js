@@ -29,14 +29,20 @@ export function setWaitingWorker(worker) {
   updateAvailable.value = true
 }
 
-// Selve byttet: be den ventende workeren ta over (utløser 'controllerchange' i
-// main.js → reload), ellers reload direkte (network-first index.html → ny bundle).
+// Selve byttet. Happy path: be den ventende workeren ta over → 'controllerchange'
+// i main.js reloader inn i den nye bundlen. Men den kan glippe (ingen/stale
+// ventende worker, eller SKIP_WAITING gir ingen aktivering) — da ville banneret
+// blitt hengende på «Oppdaterer …» for alltid. Derfor garanterer vi ALLTID en
+// reload via en kort timeout. index.html er network-first, så en vanlig reload
+// henter den nye bundlen uansett SW-tilstand. (controllerchange-reloaden i
+// main.js er guardet mot dobbel-reload, så den som kommer først vinner.)
 function performUpdate() {
   if (waitingWorker) {
-    waitingWorker.postMessage('SKIP_WAITING')
-  } else {
-    window.location.reload()
+    try { waitingWorker.postMessage('SKIP_WAITING') } catch { /* noop */ }
   }
+  setTimeout(() => {
+    try { window.location.reload() } catch { /* noop */ }
+  }, 1200)
 }
 
 // Brukeren trykket «Oppdater». Pågår en bygging, utsetter vi reloaden til den er
