@@ -3093,7 +3093,7 @@ onUnmounted(() => {
         <svg viewBox="-50 -50 100 100" class="w-12 h-12"
              :style="{ transform: compass.isActive && compass.headingDeg !== null
                                   ? `rotate(${-compass.headingDeg}deg)`
-                                  : `rotate(${-rotation}deg)`,
+                                  : `rotate(${rotation}deg)`,
                        transition: 'transform 0.2s linear' }">
           <circle r="44" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.6"/>
           <polygon points="0,-38 6,0 0,8 -6,0" fill="#ef4444"/>
