@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onActivated, onUnmounted, onDeactivated } fro
 import { useRouter } from 'vue-router'
 import { listMaps, deleteMap, clearAll } from '../lib/mapStorage.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
-import { useMapSizePreference, equidistanceForWidthKm, defaultMapDims } from '../composables/useMapSizePreference.js'
+import { useMapSizePreference, effectiveEquidistanceForWidthKm, defaultMapDims, aspectForFormat } from '../composables/useMapSizePreference.js'
 import { useNominatim } from '../composables/useNominatim.js'
 import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
@@ -32,16 +32,17 @@ async function onInstallClick() {
 const maps = ref([])
 const loading = ref(true)
 
-// Standard kartstørrelse (settes i MapView «Innstillinger»). null = fast 10 km
-// kvadrat (defaultMapDims). Tall = fast kvadrat-bredde i km. Brukes av søk-/GPS-flyten.
-const { mapSizeKm } = useMapSizePreference()
+// Standard kartstørrelse/format/ekvidistanse (settes i MapView «Innstillinger»).
+// Størrelse: null = DEFAULT_MAP_WIDTH_KM. Format styrer aspektet (kvadrat/
+// portrett/A4). Ekvidistanse: brukerens valg klampet til tillatt for bredden,
+// null = auto (fineste tillatte). Brukes av søk-/GPS-flyten.
+const { mapSizeKm, mapFormat } = useMapSizePreference()
 function squareDims() {
-  return mapSizeKm.value ? { halfKm: mapSizeKm.value / 2, aspect: 1 } : defaultMapDims()
+  const base = mapSizeKm.value ? { halfKm: mapSizeKm.value / 2 } : defaultMapDims()
+  return { ...base, aspect: aspectForFormat(mapFormat.value) }
 }
-// Ekvidistanse trappes opp med størrelsen (se equidistanceForWidthKm) så store
-// kart ikke drukner i kurver. Standard (10 km) holder 20 m.
 function squareEquidistance() {
-  return equidistanceForWidthKm(mapSizeKm.value)
+  return effectiveEquidistanceForWidthKm(mapSizeKm.value)
 }
 
 async function refresh() {
@@ -222,7 +223,7 @@ async function onSelectSearchResult(r) {
     const stamp = new Date().toLocaleDateString('no-NO', { day: '2-digit', month: 'short' })
     const { id } = await buildMapFromCenter({
       center: { lat: r.lat, lon: r.lon, name: r.shortName },
-      ...squareDims(),   // kvadratisk utsnitt — standard 10 km, eller valgt fast bredde
+      ...squareDims(),   // valgt format/bredde — standard 4 km kvadrat
       equidistanceM: squareEquidistance(), // auto: 20/25/50 m etter bredde
       navn: `${r.shortName} ${stamp}`,
       terrainFirst: true,   // vis terreng straks, fyll inn OSM i bakgrunnen

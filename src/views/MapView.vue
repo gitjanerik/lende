@@ -14,7 +14,7 @@ import { useNominatim } from '../composables/useNominatim.js'
 import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
 import { useTrackRecorder } from '../composables/useTrackRecorder.js'
 import { useScreenWakeLock } from '../composables/useScreenWakeLock.js'
-import { useMapSizePreference, equidistanceForWidthKm, defaultMapDims, DEFAULT_MAP_WIDTH_KM, MAP_SIZE_MIN_KM, MAP_SIZE_MAX_KM } from '../composables/useMapSizePreference.js'
+import { useMapSizePreference, effectiveEquidistanceForWidthKm, aspectForFormat, DEFAULT_MAP_WIDTH_KM, MAP_SIZE_MIN_KM, MAP_SIZE_MAX_KM } from '../composables/useMapSizePreference.js'
 import { useLodTuning } from '../composables/useLodTuning.js'
 import { useLabelFonts } from '../composables/useLabelFonts.js'
 import { useLabelDensity } from '../composables/useLabelDensity.js'
@@ -892,10 +892,10 @@ function strokeSizeBase(widthM) {
 const strokeStepIndex = ref(loadKnobStep(STROKE_LS_KEY, STROKE_DEFAULT_IDX, STROKE_STEPS.length))
 const reliefStepIndex = ref(loadKnobStep(RELIEF_LS_KEY, RELIEF_DEFAULT_IDX, RELIEF_STEPS.length))
 
-// Standard kartstørrelse for NYE kart (forsidens søk/GPS-flyt). Velges med en
-// slider (1–20 km) i «Innstillinger»-fanen. null = DEFAULT_MAP_WIDTH_KM (10 km).
+// Standarder for NYE kart (forsidens søk/GPS-flyt): bredde-slider + format- og
+// ekvidistanse-knapper i «Innstillinger»-fanen. null-bredde = DEFAULT_MAP_WIDTH_KM.
 // Endrer ikke kartet som vises nå — kun neste nye kart.
-const { mapSizeKm } = useMapSizePreference()
+const { mapSizeKm, mapFormat } = useMapSizePreference()
 // Slider-binding: viser 10 km når intet er valgt; lagrer null når brukeren
 // står på default (så en framtidig default-endring slår gjennom), ellers tallet.
 const mapSizeSlider = computed({
@@ -904,15 +904,18 @@ const mapSizeSlider = computed({
 })
 
 // «Bygg om dette området i valgt størrelse» (Innstillinger-fanen): rebygger
-// samme senter på nytt i den valgte kartstørrelsen, så man kan teste LOD-en på
-// samme sted ved ulik bredde uten å gå tilbake til forsiden. Lager et NYTT kart
-// (ny id) og navigerer dit. «Standard» = fast 10 km kvadrat (defaultMapDims).
+// samme senter på nytt med valgt størrelse/format/ekvidistanse, så man kan
+// teste samme sted uten å gå tilbake til forsiden. Lager et NYTT kart (ny id)
+// og navigerer dit. «Nullstill» = 4 km kvadrat med 10 m ekvidistanse.
 async function rebuildAtChosenSize(km = mapSizeKm.value) {
   const m = meta.value
   if (!m?.bbox || buildingOnTheFly.value) return
   const lat = (m.bbox.south + m.bbox.north) / 2
   const lon = (m.bbox.west + m.bbox.east) / 2
-  const dims = km ? { halfKm: km / 2, aspect: 1 } : defaultMapDims()
+  const dims = {
+    halfKm: (km ?? DEFAULT_MAP_WIDTH_KM) / 2,
+    aspect: aspectForFormat(mapFormat.value),
+  }
   closeDrawer()
   knobPanel.value = null
   buildingOnTheFly.value = true
@@ -921,7 +924,7 @@ async function rebuildAtChosenSize(km = mapSizeKm.value) {
     const { id } = await buildMapFromCenter({
       center: { lat, lon, name: m.navn ?? 'Kart' },
       ...dims,
-      equidistanceM: equidistanceForWidthKm(km),
+      equidistanceM: effectiveEquidistanceForWidthKm(km),
       navn: m.navn ?? 'Kart',
       terrainFirst: true,
       onProgress: (msg) => { buildingProgress.value = msg },
@@ -1374,21 +1377,21 @@ function selectSearchResult(r) {
 
 // Globalt treff valgt (utenfor dette kartet) → bygg et nytt kart sentrert der.
 // Gjenbruker buildMapFromCenter (samme flyt som on-the-fly-bygging og
-// rebuildAtChosenSize) med standard kartstørrelse.
+// rebuildAtChosenSize) med brukerens standarder (størrelse/format/ekvidistanse).
 async function onSelectGlobalPlace(hit) {
   if (buildingOnTheFly.value) return
   searchOpen.value = false
   mapSearch.clear()
   placeSearch.query.value = ''
-  const dims = defaultMapDims()
-  const widthKm = (dims.halfKm ?? DEFAULT_MAP_WIDTH_KM / 2) * 2
+  const widthKm = mapSizeKm.value ?? DEFAULT_MAP_WIDTH_KM
+  const dims = { halfKm: widthKm / 2, aspect: aspectForFormat(mapFormat.value) }
   buildingOnTheFly.value = true
   buildingProgress.value = `Bygger kart ved ${hit.shortName} …`
   try {
     const { id } = await buildMapFromCenter({
       center: { lat: hit.lat, lon: hit.lon, name: hit.shortName },
       ...dims,
-      equidistanceM: equidistanceForWidthKm(widthKm),
+      equidistanceM: effectiveEquidistanceForWidthKm(widthKm),
       navn: hit.shortName,
       terrainFirst: true,
       onProgress: (msg) => { buildingProgress.value = msg },
@@ -3587,7 +3590,7 @@ onUnmounted(() => {
             v-model:global-relief-mode="globalReliefMode"
             v-model:density-id="densityId"
             v-model:density-apply-to-all="densityApplyToAll"
-            :map-size-km="mapSizeKm" :rebuild-at-chosen-size="rebuildAtChosenSize"
+            :rebuild-at-chosen-size="rebuildAtChosenSize"
             :building="buildingOnTheFly" :can-rebuild="!!meta?.bbox"
             :screen-wake="screenWake" :max-tiles="maxTiles"
             :max-tile-index-max="MAX_TILE_STEPS.length - 1" />
