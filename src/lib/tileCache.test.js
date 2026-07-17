@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { tileDistance, selectTilesToEvict, tileOffset, rectOverlapFraction, tilesAreGridCompatible } from './tileCache.js'
+import { tileDistance, selectTilesToEvict, tileOffset, rectOverlapFraction, tilesAreGridCompatible, findGridGaps } from './tileCache.js'
 
 const at = (id, lat, lon) => ({ id, center: { lat, lon } })
 
@@ -171,5 +171,52 @@ describe('rectOverlapFraction', () => {
   it('er 0 for ugyldig/0-areal input', () => {
     expect(rectOverlapFraction(null, a)).toBe(0)
     expect(rectOverlapFraction({ x: 0, y: 0, w: 0, h: 100 }, a)).toBe(0)
+  })
+})
+
+describe('findGridGaps', () => {
+  const W = 4000, H = 6000
+  const active = { w: W, h: H }
+  // Nabo-flis i celle (col,row) uttrykt i aktiv-flis-meter-rom.
+  const cell = (col, row) => ({ x: col * W, y: row * H })
+
+  it('gir ingen hull for bare aktiv flis', () => {
+    expect(findGridGaps(active, [])).toEqual([])
+  })
+
+  it('gir ingen hull for et komplett 2×2', () => {
+    // aktiv = (0,0); naboer = (1,0),(0,1),(1,1)
+    const gaps = findGridGaps(active, [cell(1, 0), cell(0, 1), cell(1, 1)])
+    expect(gaps).toEqual([])
+  })
+
+  it('finner en manglende senter-celle i et 3×3', () => {
+    const ghosts = []
+    for (let r = -1; r <= 1; r++) for (let c = -1; c <= 1; c++) {
+      if (c === 0 && r === 0) continue          // aktiv flis
+      if (c === 0 && r === -1) continue          // hull-cellen droppes
+      ghosts.push(cell(c, r))
+    }
+    const gaps = findGridGaps(active, ghosts)
+    expect(gaps).toHaveLength(1)
+    expect(gaps[0]).toMatchObject({ col: 0, row: -1, x: 0, y: -H })
+  })
+
+  it('finner flere hull', () => {
+    // rektangel col 0..1, row 0..1; kun aktiv (0,0) + (1,1) finnes → 2 hull
+    const gaps = findGridGaps(active, [cell(1, 1)])
+    const keys = gaps.map(g => `${g.col},${g.row}`).sort()
+    expect(keys).toEqual(['0,1', '1,0'])
+  })
+
+  it('ignorerer rektangler som ikke ligger på gitteret', () => {
+    // en flis forskjøvet en halv celle (ikke en gitter-nabo) teller ikke
+    const gaps = findGridGaps(active, [{ x: W * 0.5, y: 0 }])
+    expect(gaps).toEqual([])
+  })
+
+  it('toler liten float-rest i offset', () => {
+    const gaps = findGridGaps(active, [{ x: W + 0.3, y: 0 }, { x: 0, y: H - 0.2 }, cell(1, 1)])
+    expect(gaps).toEqual([])
   })
 })

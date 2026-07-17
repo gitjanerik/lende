@@ -211,6 +211,12 @@ const fillingInDetails = ref(false)
 // Settes hvis bakgrunns-byggingen (Overpass) feilet → vis banner med «Prøv på
 // nytt»-knapp i stedet for en teknisk, overflytende toast.
 const detailsFailed = ref(false)
+// Satt fra lagret entry (stored.partial): kartet ble aldri ferdig bygd (bygging
+// avbrutt av reload/app-lukking) → viser bare terreng. MapView tilbyr «Fullfør» (B).
+const mapIsPartial = ref(false)
+// Offline-tilstand (reaktiv) — «Fullfør»/«Reparer» krever nett; knappene gråes ut.
+const isOffline = ref(typeof navigator !== 'undefined' && navigator.onLine === false)
+function updateOnlineState() { isOffline.value = navigator.onLine === false }
 let componentAlive = true
 
 // Datamengde lastet for kartet (SVG + lagret DEM). Vises i drawer-ens Debug og
@@ -2062,11 +2068,12 @@ const measureStats = computed(() => {
 // Mosaikk + manuell utvidelse — flyttet til useMapExtend; watchene blir her.
 const {
   buildingOnTheFly, buildingProgress, autoMapToast, currentMapIsAuto,
-  drawerCoversCanvas, extendZonesVisible, activatableTile,
+  drawerCoversCanvas, extendZonesVisible, activatableTile, mosaicGapCount,
   renderExtendZones, updateExtendZoneScale, showAutoMapToast,
   visibleCenterSvg, scheduleActivatableCheck, autoMapModeBusy,
   autoMapBuildOpts, promoteTile, extendMap, armAutoMap,
   extendZonesBounds, teardownMapExtend,
+  refreshMosaicGaps, repairMosaicGaps,
 } = useMapExtend({
   svgHostRef, wrapperRef, meta, mapId, router,
   scale, rotation, translateX, translateY, isGesturing, panTo,
@@ -2079,8 +2086,9 @@ const {
 // applyUprightLabels ETTER render så kant-sonenes «… i lende»-tekst er vannrett
 // umiddelbart når kartet allerede er rotert (rosa selv roterer med kart-laget).
 watch(extendZonesVisible, () => { renderExtendZones(); applyUprightLabels() })
-// Mosaikken endret seg (ny flis bygd / scroll-tilbake) → re-anker prikkene.
-watch(ghostRects, () => { renderExtendZones(); applyUprightLabels() }, { deep: true })
+// Mosaikken endret seg (ny flis bygd / scroll-tilbake) → re-anker prikkene og
+// re-tell hull (C) så «Reparer»-banneret dukker opp/forsvinner i takt.
+watch(ghostRects, () => { renderExtendZones(); applyUprightLabels(); refreshMosaicGaps() }, { deep: true })
 watch(scale, updateExtendZoneScale)
 watch([scale, translateX, translateY, rotation], scheduleActivatableCheck)
 // Bygge-lås for SW-oppdatering: mens en flis bygges/utvides eller detaljer fylles
@@ -2701,7 +2709,7 @@ const { loadMap, retryMapDetails } = useMapLoadPipeline({
   route, router, svgHostRef, meta, storedDem, mapId, mapTitle, mapDataSize,
   loading, loadError, isAlive: () => componentAlive, isGesturing, scale, rotation, panTo,
   BUILTIN, kulturminneCount, mapHasTrails, currentMapIsAuto,
-  fillingInDetails, detailsFailed, buildingOnTheFly, buildingProgress,
+  fillingInDetails, detailsFailed, mapIsPartial, buildingOnTheFly, buildingProgress,
   visibleLayers, currentTheme, applyTheme, applyPurpleTrails,
   applyLayerVisibility, applyDepthLayer, applyNameLanguage,
   applyStrokeScale, applyStrokeOverrides, applyLabelScale, applyLabelFonts,
@@ -2976,6 +2984,8 @@ onMounted(() => {
   }
   window.addEventListener('resize', measureWrapper)
   window.addEventListener('resize', scheduleNameLOD)
+  window.addEventListener('online', updateOnlineState)
+  window.addEventListener('offline', updateOnlineState)
   loadMap()
   screenWake.start()
 })
@@ -2989,6 +2999,8 @@ onUnmounted(() => {
   wrapperResizeObs?.disconnect()
   componentAlive = false
   window.removeEventListener('resize', scheduleNameLOD)
+  window.removeEventListener('online', updateOnlineState)
+  window.removeEventListener('offline', updateOnlineState)
   desktopMq?.removeEventListener('change', updateIsDesktop)
   if (nameLodTimer) clearTimeout(nameLodTimer)
   if (skeletonTimer) clearTimeout(skeletonTimer)
@@ -3353,12 +3365,17 @@ onUnmounted(() => {
       :map-center-style="mapCenterStyle"
       :show-outside-map="showOutsideMapBanner"
       :details-failed="detailsFailed"
+      :map-is-partial="mapIsPartial && !buildingOnTheFly && !fillingInDetails"
+      :mosaic-gap-count="(buildingOnTheFly || fillingInDetails) ? 0 : mosaicGapCount"
+      :is-offline="isOffline"
       :show-low-accuracy="showLowAccuracyBanner"
       :accuracy-m="userPos.accuracyM ?? 0"
       @retry-load="loadMap"
       @dismiss-outside="dismissOutsideMap"
       @dismiss-details="detailsFailed = false"
       @retry-details="retryMapDetails"
+      @complete-partial="retryMapDetails"
+      @repair-mosaic="repairMosaicGaps"
       @dismiss-low-accuracy="dismissLowAccuracy"
       @retry-gps="onRetryGps" />
 
