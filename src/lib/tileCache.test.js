@@ -202,11 +202,35 @@ describe('findGridGaps', () => {
     expect(gaps[0]).toMatchObject({ col: 0, row: -1, x: 0, y: -H })
   })
 
-  it('finner flere hull', () => {
-    // rektangel col 0..1, row 0..1; kun aktiv (0,0) + (1,1) finnes → 2 hull
-    const gaps = findGridGaps(active, [cell(1, 1)])
+  it('finner flere innelukkede hull i en rad', () => {
+    // rad col 0..3 på row 0: aktiv (0,0) + (2,0) + (3,0); (1,0) mangler og er
+    // omsluttet (vest (0,0) + øst (2,0)). Kun (1,0) er et hull.
+    const gaps = findGridGaps(active, [cell(2, 0), cell(3, 0)])
     const keys = gaps.map(g => `${g.col},${g.row}`).sort()
-    expect(keys).toEqual(['0,1', '1,0'])
+    expect(keys).toEqual(['1,0'])
+  })
+
+  it('rapporterer IKKE fantom-hull for en diagonal mosaikk', () => {
+    // (0,0)+(1,-1)+(2,-2): bounding-box-logikken ga før 6 fantom-hull. Ingen
+    // celle er omsluttet på en hel akse → ingen hull.
+    const gaps = findGridGaps(active, [cell(1, -1), cell(2, -2)])
+    expect(gaps).toEqual([])
+  })
+
+  it('rapporterer IKKE hull for et L-formet sett (kun hjørne-nabofliser)', () => {
+    // (0,0)+(1,1): hjørne-cellene (1,0)/(0,1) har bare én nabo på hver akse →
+    // perimeter, ikke hull.
+    const gaps = findGridGaps(active, [cell(1, 1)])
+    expect(gaps).toEqual([])
+  })
+
+  it('fanger et kant-hakk omsluttet horisontalt (avbrutt rad-utvidelse)', () => {
+    // nesten-komplett 2×3: topp-raden bygd unntatt midt-cellen (1,-1), som er
+    // omsluttet vest (0,-1) + øst (2,-1). Se 3×3-testen — samme mønster.
+    const ghosts = [cell(1, 0), cell(2, 0), cell(0, -1), cell(2, -1)]
+    const gaps = findGridGaps(active, ghosts)
+    const keys = gaps.map(g => `${g.col},${g.row}`).sort()
+    expect(keys).toEqual(['1,-1'])
   })
 
   it('ignorerer rektangler som ikke ligger på gitteret', () => {
