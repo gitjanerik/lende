@@ -1,5 +1,21 @@
 # Endringslogg
 
+## 2026-07-17 — v1.0.28: Slutt på fantom-«hull» ved utvidelse og scrolling
+
+«Fyll hullene»-banneret dukket stadig opp med hull som ikke fantes — også når
+ingen utvidelse var avbrutt. Årsaken var hull-deteksjonen: den regnet ENHVER
+tom celle inni mosaikkens omsluttende rektangel som et hull. Etter en avbrutt
+utvidelse, eller bare ved fri panorering (der en nabo-flis auto-promoteres til
+aktiv og cachen kappes), blir flis-settet ikke-rektangulært — og en diagonal
+rekke fliser (f.eks. tre fliser på skrå) ga da flere «hull» for celler brukeren
+aldri bygde. «Fyll hullene» prøvde så å bygge utsnitt ingen ba om. Nå regnes en
+celle kun som hull hvis den er OMSLUTTET av bygde fliser på en hel akse (flis i
+vest OG øst, eller nord OG sør) — genuint innelukkede hull midt i kartet fanges
+fortsatt, mens diagonale/L-formede perimeter-celler ikke lenger utløser
+banneret.
+
+---
+
 ## 2026-07-17 — v1.0.27: Kartformat og høydekurver i Innstillinger + felles Nullstill
 
 Innstillinger-fanen har nå de samme format-knappene som «Flere valg» i byggeren

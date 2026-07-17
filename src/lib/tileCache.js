@@ -124,10 +124,23 @@ export function tilesAreGridCompatible(active, ghost, { tolM = 1 } = {}) {
 }
 
 /**
- * Finn HULL i en flis-mosaikk: rutenett-celler som mangler innenfor mosaikkens
- * omsluttende rektangel. Kant-sone-utvidelsen holder alltid bruttokartet
- * rektangulært, så en manglende celle inni rektangelet er et ekte hull (typisk
- * etter en avbrutt bygging — reload/app-lukking midt i flisleggingen).
+ * Finn HULL i en flis-mosaikk: manglende rutenett-celler som er OMSLUTTET av
+ * bygde fliser — dvs. celler med en flis på begge sider langs minst én akse
+ * (nabo i vest OG øst, eller nord OG sør). Slike celler er ekte hull, typisk
+ * etter en avbrutt utvidelse (reload/app-lukking midt i flisleggingen), og de
+ * vises som et krem-farget «hakk» midt inne i kartet.
+ *
+ * Hvorfor ikke bare «alle tomme celler i mosaikkens omsluttende rektangel»
+ * (tidligere logikk): fri panorering med auto-promotering + cache-kapping gjør
+ * mosaikken ikke-rektangulær (diagonale/L-formede sett). Bounding-box-fyllet
+ * rapporterte da FANTOM-hull for celler brukeren aldri bygde — f.eks. gir tre
+ * fliser på en diagonal (0,0)+(1,-1)+(2,-2) seks «hull» i et 3×3-rektangel selv
+ * om ingenting er avbrutt. «Fyll hullene» dukket da opp under normal scrolling
+ * og bygde utsnitt brukeren ikke ba om. Straddle-kravet (flis på hver side langs
+ * en akse) rapporterer aldri slike perimeter-/diagonal-celler, kun genuint
+ * innelukkede hull. Kompromiss: et rent HJØRNE-hakk (kun to nabofliser i L) langs
+ * ytterkanten regnes ikke som hull — det er en kant, ikke et hull midt i kartet,
+ * og presisjon (ingen falske hull) veier tyngre enn å fange hvert kant-hakk.
  *
  * Alle rektangler er i den aktive flisas meter-rom (aktiv flis = origo 0,0), og
  * deler samme W×H (kun gitter-kompatible spøkelser tegnes, se buildGhostSvg).
@@ -141,20 +154,22 @@ export function tilesAreGridCompatible(active, ghost, { tolM = 1 } = {}) {
 export function findGridGaps(activeRect, ghostRects, { tolFrac = 0.25 } = {}) {
   const W = activeRect?.w, H = activeRect?.h
   if (!(W > 0) || !(H > 0)) return []
-  const occupied = new Map()   // "col,row" → { col, row }
+  const occupied = new Set()   // "col,row"
   const mark = (x, y) => {
     const col = Math.round(x / W)
     const row = Math.round(y / H)
     // Kun celler som faktisk ligger på gitteret (ellers ikke en mosaikk-nabo).
     if (Math.abs(x - col * W) > W * tolFrac) return
     if (Math.abs(y - row * H) > H * tolFrac) return
-    occupied.set(`${col},${row}`, { col, row })
+    occupied.add(`${col},${row}`)
   }
   mark(0, 0)
   for (const r of ghostRects ?? []) mark(r.x, r.y)
   if (occupied.size < 2) return []   // bare aktiv flis → ingen mosaikk, ingen hull
+  const has = (col, row) => occupied.has(`${col},${row}`)
   let minCol = Infinity, maxCol = -Infinity, minRow = Infinity, maxRow = -Infinity
-  for (const { col, row } of occupied.values()) {
+  for (const key of occupied) {
+    const [col, row] = key.split(',').map(Number)
     if (col < minCol) minCol = col
     if (col > maxCol) maxCol = col
     if (row < minRow) minRow = row
@@ -163,7 +178,12 @@ export function findGridGaps(activeRect, ghostRects, { tolFrac = 0.25 } = {}) {
   const gaps = []
   for (let row = minRow; row <= maxRow; row++) {
     for (let col = minCol; col <= maxCol; col++) {
-      if (!occupied.has(`${col},${row}`)) gaps.push({ col, row, x: col * W, y: row * H })
+      if (has(col, row)) continue
+      // Innelukket = flis på begge sider langs minst én akse (vest+øst ELLER
+      // nord+sør). Ellers er cellen en perimeter-/diagonal-celle, ikke et hull.
+      const spannedH = has(col - 1, row) && has(col + 1, row)
+      const spannedV = has(col, row - 1) && has(col, row + 1)
+      if (spannedH || spannedV) gaps.push({ col, row, x: col * W, y: row * H })
     }
   }
   return gaps
