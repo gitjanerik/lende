@@ -61,6 +61,7 @@ import { printDocument, exportSvgFile, exportPngFile, exportPdfFile } from '../l
 import { sampleProfile } from '../lib/elevationProfile.js'
 import { fetchDEM } from '../lib/demFetcher.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
+import { setBuildBusy } from '../lib/swUpdate.js'
 import { pruneAutoTiles, countAutoTiles } from '../lib/tileCache.js'
 import {
   viewRectSvg, expandRect, rectContains, buildCullIndex,
@@ -2082,6 +2083,12 @@ watch(extendZonesVisible, () => { renderExtendZones(); applyUprightLabels() })
 watch(ghostRects, () => { renderExtendZones(); applyUprightLabels() }, { deep: true })
 watch(scale, updateExtendZoneScale)
 watch([scale, translateX, translateY, rotation], scheduleActivatableCheck)
+// Bygge-lås for SW-oppdatering: mens en flis bygges/utvides eller detaljer fylles
+// inn, skal en «Oppdater»-reload vente (ellers etterlater den et hull i den
+// halvbygde mosaikken). Blir byggingen ferdig med en oppdatering på vent, utfører
+// setBuildBusy(false) reloaden da.
+watch([buildingOnTheFly, fillingInDetails], ([b, f]) => setBuildBusy(b || f), { immediate: true })
+onUnmounted(() => setBuildBusy(false))
 
 // ── Gjenoppta-ved-app-start (v1.0.12) ────────────────────────────────────
 // Husk sist brukte modus/kart + utsnitt (senter/zoom/rotasjon), så router.js
