@@ -11,6 +11,15 @@ import { ref } from 'vue'
 // brukeren bekrefter, og main.js sjekker periodisk etter oppdateringer.
 export const updateAvailable = ref(false)
 
+// Bygge-lås: settes av MapView mens en flis bygges/utvides eller et terreng-
+// først-kart fyller inn detaljer. En reload MIDT i en slik bygging dreper
+// JS-konteksten før mosaikken er tegnet/lagret ferdig → hull i kartet. Så lenge
+// dette er sant utsetter vi en «Oppdater»-reload (updateDeferred).
+export const buildBusy = ref(false)
+// Brukeren har trykket «Oppdater», men en bygging pågår → reloaden venter til
+// byggingen er ferdig. App.vue viser en «oppdaterer når kartet er ferdig»-status.
+export const updateDeferred = ref(false)
+
 let waitingWorker = null
 
 // Kalles av main.js når en ny SW står klar (ventende) og en gammel SW fortsatt
@@ -20,15 +29,33 @@ export function setWaitingWorker(worker) {
   updateAvailable.value = true
 }
 
-// Brukeren trykket «Oppdater»: be den ventende workeren ta over. Det utløser
-// 'controllerchange' i main.js, som reloader siden inn i den nye bundlen.
-export function applyUpdate() {
+// Selve byttet: be den ventende workeren ta over (utløser 'controllerchange' i
+// main.js → reload), ellers reload direkte (network-first index.html → ny bundle).
+function performUpdate() {
   if (waitingWorker) {
     waitingWorker.postMessage('SKIP_WAITING')
   } else {
-    // Ingen referanse (sjelden race) — reload uansett. Navigasjons-fetchen er
-    // network-first på index.html, så ny bundle hentes.
     window.location.reload()
+  }
+}
+
+// Brukeren trykket «Oppdater». Pågår en bygging, utsetter vi reloaden til den er
+// ferdig (setBuildBusy(false) fullfører den da) — ellers bytter vi straks.
+export function applyUpdate() {
+  if (buildBusy.value) {
+    updateDeferred.value = true
+    return
+  }
+  performUpdate()
+}
+
+// Kalles av MapView når bygge-/utvidelses-status endres. Blir byggingen ferdig
+// mens en oppdatering står og venter, utfører vi den utsatte reloaden nå.
+export function setBuildBusy(busy) {
+  buildBusy.value = !!busy
+  if (!buildBusy.value && updateDeferred.value) {
+    updateDeferred.value = false
+    performUpdate()
   }
 }
 

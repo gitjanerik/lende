@@ -1,5 +1,16 @@
 # Endringslogg
 
+## 2026-07-17 — v1.0.23: «Oppdater» venter til kartbygging er ferdig
+
+Trykket man «Oppdater» på ny-versjon-banneret mens en flis ble bygd eller
+utvidet, reloadet appen midt i byggingen og etterlot et hull i den halvbygde
+mosaikken. Nå settes en reload på vent så lenge en bygging pågår: banneret viser
+«Ny versjon klar — venter på at kartet blir ferdig», og reloaden utføres
+automatisk straks flisleggingen er komplett. Byggestatusen deles mellom MapView
+og oppdaterings-banneret via et lite signal i swUpdate.
+
+---
+
 ## 2026-07-17 — v1.0.22: Kompassnåla i FAB pekte 180° feil ved rotasjon
 
 Kompass-FAB-en oppe til høyre roterte nåla med feil fortegn (`rotate(-rotation)`)
