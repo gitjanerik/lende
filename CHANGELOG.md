@@ -1,5 +1,20 @@
 # Endringslogg
 
+## 2026-07-17 — v1.0.25: Fikser oppdatering, kartbygging og hull-fylling
+
+Tre feil fra forrige runde rettet. (1) Kartbygging feilet av og til med
+«buildSvg-worker-feil» — typisk en transient modul-last i web-workeren rett etter
+en deploy; nå faller vi tilbake til synkron bygging i stedet for å feile hardt, så
+kartet blir bygd uansett. (2) «Fyll hullene» startet, men fullførte ikke og lot
+den oransje meldingen komme tilbake: reparasjonen håndterer nå hver flis for seg,
+tegner mosaikken på nytt selv ved delvis feil, og teller hull på nytt etterpå.
+(3) «Oppdater» kunne henge på «Oppdaterer …» uten å laste ny versjon (ingen/stale
+ventende service worker); nå garanterer vi alltid en reload etter kort tid. Selve
+oppdaterings-banneret er dessuten ryddet opp — i arbeid vises én ren linje med
+spinner i stedet for en trang knapp med tekst på flere linjer.
+
+---
+
 ## 2026-07-17 — v1.0.24: Fullfør ufullstendige kart og fyll mosaikk-hull
 
 To ikke-destruktive reparasjons-verktøy for kart der en bygging ble avbrutt
