@@ -1,5 +1,16 @@
 # Endringslogg
 
+## 2026-07-17 — v1.0.22: Kompassnåla i FAB pekte 180° feil ved rotasjon
+
+Kompass-FAB-en oppe til høyre roterte nåla med feil fortegn (`rotate(-rotation)`)
+i forhold til kart-transformen (`rotate(+rotation)`). Ved nullstilt kart så det
+riktig ut, men så snart kartet ble rotert speilet nåla seg og pekte motsatt vei
+av de trykte «i lende»-kompassrosene — nøyaktig 180° feil ved 90°-rotasjoner.
+Nåla bruker nå samme fortegn som kartet, så den peker mot skjerm-nord i takt med
+rosene. Heading-modus (enhetskompass) var uendret korrekt og er ikke rørt.
+
+---
+
 ## 2026-07-16 — v1.0.21: Kompassrose på «Utvid kart»-knappene
 
 De åtte «Utvid kart»-knappene rundt kartet var store, dominerende blå «+»-sirkler.
