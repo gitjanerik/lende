@@ -1,5 +1,17 @@
 # Endringslogg
 
+## 2026-07-18 — v1.0.29: Fjernet omtale av Vannmålestasjoner i Om-siden
+
+Om-siden («Mer enn bare kart») reklamerte for kartlaget Vannmålestasjoner med
+sanntids vannføring, vannstand og temperatur fra NVE HydAPI. Laget ligger
+imidlertid i dvale i produksjon fordi HydAPI krever en API-nøkkel som ikke bør
+bakes inn i den offentlige, statiske bundelen på GitHub Pages — så funksjonen
+gir ingenting for vanlige brukere ennå. Avsnittet er fjernet inntil en
+server-side proxy er på plass som holder nøkkelen skjult. Innsjø-fakta ved
+long-press (NVE Innsjødatabase, virker uten nøkkel) er ikke berørt.
+
+---
+
 ## 2026-07-17 — v1.0.28: Slutt på fantom-«hull» ved utvidelse og scrolling
 
 «Fyll hullene»-banneret dukket stadig opp med hull som ikke fantes — også når
