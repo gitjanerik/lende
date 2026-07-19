@@ -1,7 +1,38 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { RouterView } from 'vue-router'
 import { updateAvailable, applyUpdate, buildBusy, updateDeferred } from './lib/swUpdate.js'
+import { usePwaInstall } from './composables/usePwaInstall.js'
+
+// ── Første-gangs installasjonsvarsel ───────────────────────────────────────
+// Uansett hvilken URL brukeren lander på: første gang appen åpnes uinstallert,
+// og så snart nettleseren faktisk kan installere (beforeinstallprompt fyrt →
+// canInstall, eller iOS), viser vi ett native dialog-varsel. Ved dismiss lagres
+// et flagg i localStorage så meldingen aldri kommer igjen. Forsiden og Om-siden
+// har i tillegg en permanent «Installer som app»-knapp.
+const INSTALL_PROMPT_KEY = 'lende-install-prompt-dismissed'
+const { canInstall, isIOS, isStandalone, promptInstall } = usePwaInstall()
+
+let firstVisitHandled = false
+function maybeShowFirstVisitPrompt() {
+  if (firstVisitHandled || isStandalone.value) return
+  if (!(canInstall.value || isIOS.value)) return
+  try {
+    if (localStorage.getItem(INSTALL_PROMPT_KEY)) { firstVisitHandled = true; return }
+  } catch { /* privat modus e.l. — kan ikke lese, vis likevel én gang */ }
+  firstVisitHandled = true
+  // Marker som sett med én gang: dialogen skal vises nøyaktig én gang, uansett
+  // om brukeren installerer eller avviser.
+  try { localStorage.setItem(INSTALL_PROMPT_KEY, '1') } catch { /* ignorer */ }
+  if (isIOS.value) {
+    alert('Så i lende fungerer best som app.\n\nSlik installerer du på iPhone/iPad:\n1. Trykk Del-ikonet nederst i Safari.\n2. Velg «Legg til på Hjem-skjerm».')
+    return
+  }
+  if (confirm('Så i lende fungerer best som installert app – raskere start og full offline-tilgang.\n\nInstaller som app nå?')) {
+    promptInstall().catch(() => { /* avvist eller utilgjengelig — ingen handling */ })
+  }
+}
+watch([canInstall, isIOS, isStandalone], maybeShowFirstVisitPrompt, { immediate: true })
 
 const updating = ref(false)
 // Trykk «Oppdater»: pågår en bygging setter applyUpdate updateDeferred i stedet
