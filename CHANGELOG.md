@@ -1,5 +1,18 @@
 # Endringslogg
 
+## 2026-07-19 — v1.0.32: «Installer som app»-knappen dukker nå faktisk opp
+
+Knappen manglet i Chrome/Edge på Android. Årsaken var timing: `beforeinstallprompt`
+fyres nøyaktig én gang og ofte før Vue er montert, mens `usePwaInstall` festet
+lytteren sin i `onMounted` og holdt privat state per kall. Fyrte eventet før
+mount — eller navigerte du til en side (som Om) som ble montert etter at eventet
+alt var fyrt — mistet vi det og `canInstall` ble aldri sann. Nå fanges eventet av
+en tidlig inline-lytter i `index.html` (før bundelen lastes) og stashes på
+`window`, og `usePwaInstall` er gjort om til en delt singleton som leser stashen
+ved oppstart og deler samme reaktive state på tvers av alle sider.
+
+---
+
 ## 2026-07-19 — v1.0.31: Bedre iPad-deteksjon for installasjonsveiledning
 
 iPad på iPadOS 13+ melder seg som «Macintosh» i user agent-strengen, så den
