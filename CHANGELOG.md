@@ -1,5 +1,18 @@
 # Endringslogg
 
+## 2026-07-19 — v1.0.30: Installasjonsknapp på Om-siden + første-gangs varsel
+
+Å installere Så i lende som app er nå gjort mer intuitivt. Om-siden har fått en
+«Installer som app»-knapp rett under innledningsteksten — samme diskrete drakt
+og tekst som forsiden — som kun vises når appen ikke alt kjører installert
+(standalone) og nettleseren faktisk tilbyr install (Chrome/Edge/Android) eller
+på iOS med manuell veiledning. I tillegg viser appen ett native dialog-varsel
+første gang den åpnes uinstallert, uansett hvilken URL brukeren lander på; ved
+avvisning lagres et flagg i localStorage (`lende-install-prompt-dismissed`) så
+meldingen aldri kommer igjen.
+
+---
+
 ## 2026-07-18 — v1.0.29: Fjernet omtale av Vannmålestasjoner i Om-siden
 
 Om-siden («Mer enn bare kart») reklamerte for kartlaget Vannmålestasjoner med

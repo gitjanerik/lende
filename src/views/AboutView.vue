@@ -1,13 +1,34 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { APP_VERSION } from '../version.js'
+import { usePwaInstall } from '../composables/usePwaInstall.js'
 
 const router = useRouter()
 
 // To faner — én per hovedfunksjon. Innholdet beskriver hva som er laget,
 // hvilken teknikk som brukes og hvilke datakilder/rammeverk som ligger bak.
 const tab = ref('turkart')
+
+// ── «Installer som app» ───────────────────────────────────────────────────
+// Om-siden tilbyr PWA-install rett under innledningen. Knappen vises når
+// nettleseren har fyrt av beforeinstallprompt (Chrome/Edge/Android → canInstall)
+// eller på iOS (der install er manuell via Del-menyen). Skjules når appen alt
+// kjører installert (standalone). Samme drakt og tekst som forsiden.
+const { canInstall, isIOS, isStandalone, promptInstall } = usePwaInstall()
+const showInstallButton = computed(() => !isStandalone.value && (canInstall.value || isIOS.value))
+
+async function onInstallClick() {
+  if (isIOS.value) {
+    alert('Slik installerer du Lende på iPhone/iPad:\n\n1. Trykk Del-ikonet nederst i Safari.\n2. Velg «Legg til på Hjem-skjerm».')
+    return
+  }
+  if (!canInstall.value) return
+  if (!confirm('Installer Lende som webapp?')) return
+  try {
+    await promptInstall()
+  } catch { /* avvist eller utilgjengelig — ingen handling */ }
+}
 </script>
 
 <template>
@@ -53,6 +74,22 @@ const tab = ref('turkart')
           <strong class="font-semibold text-white/80">ut i lende</strong>
           med stil – med mest mulig grusvei fra A til B.
         </p>
+
+        <!-- «Installer som app»: rett under innledningen, vises kun når appen
+             ikke alt kjører installert (standalone) og nettleseren tilbyr
+             install (Chrome/Edge/Android → canInstall) eller på iOS (manuell
+             veiledning). Samme diskrete outline-stil og tekst som forsiden. -->
+        <button v-if="showInstallButton"
+                @click="onInstallClick"
+                class="w-full mt-1 py-3 rounded-xl bg-white/[0.06] border border-white/20
+                       text-white/85 text-[14px] font-medium flex items-center justify-center gap-2
+                       active:bg-white/[0.1] active:scale-[0.99] transition">
+          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/>
+          </svg>
+          <span>Installer som app</span>
+        </button>
       </section>
 
       <!-- Symbolikk: hva ikonet betyr. -->
