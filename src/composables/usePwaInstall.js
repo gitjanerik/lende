@@ -47,9 +47,15 @@ export function usePwaInstall() {
   }
 
   onMounted(() => {
-    // Detect iOS (no programmatic install — show manual hint)
+    // Detect iOS (no programmatic install — show manual hint).
+    // iPadOS 13+ later melder seg som «Macintosh» (desktop-UA), så ren UA-sjekk
+    // bommer på iPad. Vi fanger dem via touch: en Mac med flerpunkts-touch og
+    // uten MSStream er i praksis en iPad. maxTouchPoints > 1 skiller iPad fra
+    // ekte pekeskjerm-frie Mac-er (som gir 0).
     const ua = navigator.userAgent || ''
-    isIOS.value = /iPad|iPhone|iPod/.test(ua) && !window.MSStream
+    const iOSbyUA = /iPad|iPhone|iPod/.test(ua)
+    const iPadAsMac = /Macintosh/.test(ua) && (navigator.maxTouchPoints || 0) > 1
+    isIOS.value = (iOSbyUA || iPadAsMac) && !window.MSStream
 
     // Detect already-installed (running as PWA)
     isStandalone.value =
