@@ -32,6 +32,21 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-title" content="Så i lende" />
     <title>Så i lende</title>
+    <!-- Fang `beforeinstallprompt` så tidlig som mulig. Eventet fyres ÉN gang,
+         ofte FØR JS-bundelen og Vue er lastet — skjer det, mister vi det for
+         godt og «Installer som app»-knappen dukker aldri opp i Chrome/Edge på
+         Android. Vi stasher det på window; usePwaInstall plukker det opp ved
+         oppstart (og lytter selv på senere fyringer). -->
+    <script>
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault()
+        window.__deferredInstallPrompt = e
+      })
+      window.addEventListener('appinstalled', function () {
+        window.__deferredInstallPrompt = null
+        window.__appInstalled = true
+      })
+    </script>
   </head>
   <body class="bg-[#0e1116] text-white/90 overscroll-none">
     <div id="app"></div>
