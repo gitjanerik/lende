@@ -1,5 +1,17 @@
 # Endringslogg
 
+## 2026-07-19 — v1.0.33: Gi kart nytt navn
+
+Kart kan nå døpes om — både fra «Mine kart» på forsiden og inne i et åpent kart.
+På forsiden har hvert kort fått en blyant-knapp ved siden av søppelbøtta; i kart-
+visningen er navne-chipen i toppbaren blitt trykkbar (innebygde kart som Vardåsen
+kan ikke gis nytt navn siden de ikke ligger i lagringen). Begge åpner det samme
+bunn-arket (`RenameMapDialog`) med feltet forhåndsutfylt. Lagringen fikk en ny
+`renameMap(id, navn)` som oppdaterer både `maps` (kilden) og det lette `meta`-
+storet i samme transaksjon, så lista og det åpne kartet viser samme navn straks.
+
+---
+
 ## 2026-07-19 — v1.0.32: «Installer som app»-knappen dukker nå faktisk opp
 
 Knappen manglet i Chrome/Edge på Android. Årsaken var timing: `beforeinstallprompt`

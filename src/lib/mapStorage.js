@@ -115,6 +115,38 @@ export async function listMaps() {
   return projected.sort((a, b) => b.opprettet - a.opprettet)
 }
 
+// Gi et lagret kart nytt navn. Oppdaterer BÅDE 'maps' (source of truth) og det
+// lette 'meta'-storet i samme readwrite-transaksjon, så hjemskjermens liste og
+// det åpne kartet ser samme navn uten en full re-projeksjon. Trimmer og klamper
+// til 80 tegn; tomt navn avvises (returnerer null). Returnerer det oppdaterte
+// navnet ved suksess.
+export async function renameMap(id, navn) {
+  const trimmed = (navn ?? '').trim().slice(0, 80)
+  if (!trimmed) return null
+  const t = await tx('readwrite', [STORE, META_STORE])
+  const store = t.objectStore(STORE)
+  const metaStore = t.objectStore(META_STORE)
+  const [entry, metaEntry] = await Promise.all([
+    asPromise(store.get(id)),
+    asPromise(metaStore.get(id)),
+  ])
+  if (!entry) return null
+  entry.navn = trimmed
+  store.put(entry)
+  if (metaEntry) {
+    metaEntry.navn = trimmed
+    metaStore.put(metaEntry)
+  } else {
+    metaStore.put(projectMetaEntry(entry))
+  }
+  await new Promise((resolve, reject) => {
+    t.oncomplete = resolve
+    t.onerror = () => reject(t.error)
+    t.onabort = () => reject(t.error)
+  })
+  return trimmed
+}
+
 export async function deleteMap(id) {
   const t = await tx('readwrite', [STORE, META_STORE])
   t.objectStore(STORE).delete(id)
