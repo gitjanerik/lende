@@ -1,5 +1,16 @@
 # Endringslogg
 
+## 2026-07-19 — v1.0.34: Stedsnavn på «lag kart der jeg står»
+
+Nye kart laget fra egen GPS-posisjon får nå navn etter nærmeste stedsnavn i
+stedet for «Din posisjon». Et reverse-geokall (Nominatim) slår opp koordinaten
+og velger det mest lokale leddet — grend/gård før tettsted før kommune — så
+kartet blir f.eks. «Stormoen 19. juli». Oppslaget er best-effort: feiler det
+(offline eller tjeneste nede) faller vi tilbake til «Min posisjon» som før.
+Lagt til `reverseGeocode` og `nearestPlaceLabel` i `lib/geocode.js`.
+
+---
+
 ## 2026-07-19 — v1.0.33: Gi kart nytt navn
 
 Kart kan nå døpes om — både fra «Mine kart» på forsiden og inne i et åpent kart.
