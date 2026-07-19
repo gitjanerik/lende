@@ -1,5 +1,16 @@
 # Endringslogg
 
+## 2026-07-19 — v1.0.31: Bedre iPad-deteksjon for installasjonsveiledning
+
+iPad på iPadOS 13+ melder seg som «Macintosh» i user agent-strengen, så den
+rene `/iPad|iPhone|iPod/`-sjekken i `usePwaInstall` bommet på iPad — brukeren
+fikk verken «Installer som app»-knappen eller iOS-veiledningen. Deteksjonen
+fanger nå også opp en «Macintosh»-UA med flerpunkts-touch (`maxTouchPoints > 1`),
+som i praksis er en iPad, mens ekte pekeskjerm-frie Mac-er (0 touch-punkter)
+holdes utenfor.
+
+---
+
 ## 2026-07-19 — v1.0.30: Installasjonsknapp på Om-siden + første-gangs varsel
 
 Å installere Så i lende som app er nå gjort mer intuitivt. Om-siden har fått en
