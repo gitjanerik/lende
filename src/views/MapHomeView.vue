@@ -6,6 +6,7 @@ import RenameMapDialog from '../components/RenameMapDialog.vue'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { useMapSizePreference, effectiveEquidistanceForWidthKm, defaultMapDims, aspectForFormat } from '../composables/useMapSizePreference.js'
 import { useNominatim } from '../composables/useNominatim.js'
+import { reverseGeocode } from '../lib/geocode.js'
 import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
 
@@ -183,17 +184,26 @@ async function onCreateHere() {
   }
   try {
     const stamp = new Date().toLocaleDateString('no-NO', { day: '2-digit', month: 'short' })
+    // Slå opp nærmeste stedsnavn så kartet får et gjenkjennelig navn («Stormoen
+    // 19. juli») i stedet for «Din posisjon». Best-effort — feiler oppslaget
+    // (offline / Nominatim nede) faller vi tilbake til «Min posisjon».
+    buildingProgress.value = 'Finner stedsnavn …'
+    let placeName = 'Min posisjon'
+    try {
+      const rev = await reverseGeocode(coords.coords.latitude, coords.coords.longitude)
+      if (rev?.placeLabel) placeName = rev.placeLabel
+    } catch { /* behold fallback */ }
     const { id } = await buildMapFromCenter({
       center: {
         lat: coords.coords.latitude,
         lon: coords.coords.longitude,
-        name: 'Min posisjon',
+        name: placeName,
       },
       // Kvadratisk utsnitt: beholder den skjerm-utledede høyden og utvider
       // bredden så kartet blir kvadratisk (mer slingringsrom øst/vest).
       ...squareDims(),
       equidistanceM: squareEquidistance(), // auto: 20/25/50 m etter bredde
-      navn: `Din posisjon ${stamp}`,
+      navn: `${placeName} ${stamp}`,
       terrainFirst: true,   // vis terreng straks, fyll inn OSM i bakgrunnen
       onProgress: (msg) => { buildingProgress.value = msg },
     })
