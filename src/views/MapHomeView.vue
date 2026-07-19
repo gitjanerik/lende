@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, onActivated, onUnmounted, onDeactivated } from 'vue'
 import { useRouter } from 'vue-router'
-import { listMaps, deleteMap, clearAll } from '../lib/mapStorage.js'
+import { listMaps, deleteMap, clearAll, renameMap } from '../lib/mapStorage.js'
+import RenameMapDialog from '../components/RenameMapDialog.vue'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { useMapSizePreference, effectiveEquidistanceForWidthKm, defaultMapDims, aspectForFormat } from '../composables/useMapSizePreference.js'
 import { useNominatim } from '../composables/useNominatim.js'
@@ -75,6 +76,19 @@ async function onDelete(id, navn) {
     if (localStorage.getItem('lende-last-map') === id) localStorage.removeItem('lende-last-map')
     localStorage.removeItem(`lende-view:${id}`)
   } catch { /* noop */ }
+  await refresh()
+}
+
+// ── Gi nytt navn ─────────────────────────────────────────────────────────
+const renaming = ref(null)   // { id, navn } — kartet som redigeres, eller null
+function onRename(id, navn) {
+  renaming.value = { id, navn }
+}
+async function onRenameSave(navn) {
+  const target = renaming.value
+  if (!target) return
+  await renameMap(target.id, navn)
+  renaming.value = null
   await refresh()
 }
 
@@ -480,7 +494,18 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
               {{ formatDateTime(m.opprettet) }}<template v-if="formatBytes(m.sizeBytes)"> · {{ formatBytes(m.sizeBytes) }}</template>
             </div>
           </div>
+          <button @click.stop="onRename(m.id, m.navn)"
+                  aria-label="Gi kart nytt navn"
+                  class="w-9 h-9 rounded-lg flex items-center justify-center text-white/35
+                         active:bg-white/10 active:text-white/70">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 20h9"/>
+              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+            </svg>
+          </button>
           <button @click.stop="onDelete(m.id, m.navn)"
+                  aria-label="Slett kart"
                   class="w-9 h-9 rounded-lg flex items-center justify-center text-white/35
                          active:bg-white/10 active:text-white/70">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
@@ -560,6 +585,13 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
         </div>
       </div>
     </Transition>
+
+    <!-- Gi kart nytt navn (bunn-ark) -->
+    <RenameMapDialog
+      :open="renaming !== null"
+      :navn="renaming?.navn ?? ''"
+      @update:open="v => { if (!v) renaming = null }"
+      @save="onRenameSave" />
   </div>
 </template>
 

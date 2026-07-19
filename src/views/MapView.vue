@@ -40,6 +40,7 @@ import { norwegianName } from '../lib/placeName.js'
 import AnnotationIcon from '../components/AnnotationIcon.vue'
 import TrackElevationSheet from '../components/TrackElevationSheet.vue'
 import PerfLogModal from '../components/PerfLogModal.vue'
+import RenameMapDialog from '../components/RenameMapDialog.vue'
 import MapSearchOverlay from '../components/MapSearchOverlay.vue'
 import MapStatusOverlays from '../components/MapStatusOverlays.vue'
 import MapScaleAttribution from '../components/MapScaleAttribution.vue'
@@ -63,6 +64,7 @@ import { fetchDEM } from '../lib/demFetcher.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { setBuildBusy } from '../lib/swUpdate.js'
 import { pruneAutoTiles, countAutoTiles } from '../lib/tileCache.js'
+import { renameMap } from '../lib/mapStorage.js'
 import {
   viewRectSvg, expandRect, rectContains, buildCullIndex,
   needsRecull, computeCullDiff, parseBboxAttr,
@@ -1260,6 +1262,18 @@ function pointNorth() {
 
 // Annoteringsmodus — point-symboler over auto-generert kart
 const mapId = computed(() => route.params.id ?? 'vardasen')
+
+// ── Gi kart nytt navn ─────────────────────────────────────────────────────
+// Innebygde kart (Vardåsen) ligger ikke i lagringen og kan ikke gis nytt navn.
+const canRenameMap = computed(() => !BUILTIN[mapId.value])
+const renameOpen = ref(false)
+function openRename() {
+  if (canRenameMap.value) renameOpen.value = true
+}
+async function onRenameSave(navn) {
+  const saved = await renameMap(mapId.value, navn)
+  if (saved) mapTitle.value = saved
+}
 // Bind per-kart-overstyringene (navnetetthet, strek-tuning, relieff) til
 // kartet som vises.
 watch(mapId, (id) => {
@@ -3060,7 +3074,19 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <div class="pointer-events-none px-3 py-1.5 rounded-full bg-zinc-950
+      <button v-if="canRenameMap" @click="openRename"
+              aria-label="Gi kart nytt navn"
+              class="pointer-events-auto px-3 py-1.5 rounded-full bg-zinc-950
+                     text-[12px] text-white font-medium shadow-lg max-w-[42%]
+                     flex items-center gap-1.5 active:scale-95 transition">
+        <span class="truncate">{{ mapTitle }}</span>
+        <svg viewBox="0 0 24 24" class="w-3 h-3 shrink-0 text-white/50" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 20h9"/>
+          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+        </svg>
+      </button>
+      <div v-else class="pointer-events-none px-3 py-1.5 rounded-full bg-zinc-950
                   text-[12px] text-white font-medium shadow-lg max-w-[42%] truncate">
         {{ mapTitle }}
       </div>
@@ -3730,6 +3756,12 @@ onUnmounted(() => {
     <!-- Perf-logg-modal: byggetider fra localStorage (kun utvikler).
          Trekt ut til PerfLogModal (v1.0.5). -->
     <PerfLogModal v-model:open="showPerfLog" />
+
+    <!-- Gi kart nytt navn (bunn-ark) -->
+    <RenameMapDialog
+      v-model:open="renameOpen"
+      :navn="mapTitle"
+      @save="onRenameSave" />
 
     <!-- Høydeprofil-modal: stor profil + stats for valgt spor.
          Trekt ut til TrackElevationSheet (v1.0.4). -->
