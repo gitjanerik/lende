@@ -1,14 +1,15 @@
-// N50-vann fra Kartverket, servert som statiske FlatGeobuf-filer per fylke.
+// N50-innsjøer fra Kartverket, servert som statiske FlatGeobuf-filer per fylke.
 //
-// Kartverkets N50 vektor-WFS (wfs.n50_kartdata) er avviklet. N50-ferskvann
-// bakes derfor i CI (scripts/build-n50-water.mjs) til ÉN FlatGeobuf per fylke
-// (public/data/n50-water/<fylkeskode>.fgb) i EPSG:4326, pluss et manifest
-// (index.json) som lister hver fils bbox. Klienten leser manifestet, velger
-// fylkes-fila(ene) som overlapper kart-bboxen, og spør hver på bbox via HTTP
-// Range (flatgeobuf har spatial-indeks → laster bare utsnittet). Vann-
-// polygonene beholder øyer som INDRE RINGER, så øyer blir ekte hull i kartet
-// (Kolstadøya i Setten) — helt uten terskler/DEM-heuristikk. Havflate (sjø)
-// bakes ikke (DEM/Sjøkart eier sjøen) → dette er ferskvann.
+// Kartverkets N50 vektor-WFS (wfs.n50_kartdata) er avviklet. N50-innsjøer
+// (Innsjø + InnsjøRegulert) bakes derfor i CI (scripts/build-n50-water.mjs) til
+// ÉN FlatGeobuf per fylke (public/data/n50-water/<fylkeskode>.fgb, store fylker
+// i bbox-fliser <fylke>-<n>.fgb) i EPSG:4326, pluss et manifest (index.json)
+// som lister hver fils bbox. Klienten leser manifestet, velger fila(ene) som
+// overlapper kart-bboxen, og spør hver på bbox via HTTP Range (flatgeobuf har
+// spatial-indeks → laster bare utsnittet). Innsjø-polygonene beholder øyer som
+// INDRE RINGER, så øyer blir ekte hull i kartet (Kolstadøya i Setten) — helt
+// uten terskler/DEM-heuristikk. Elver/bekker (OSM-linjer) og sjø (DEM/Sjøkart)
+// bakes ikke → dette er innsjøer.
 //
 // Feiler aldri hardt: mangler manifest/fil (eller vi er utenfor bakt dekning)
 // → tom liste, og NVE/OSM-vann tar over som før.

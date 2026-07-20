@@ -1,17 +1,19 @@
 # Endringslogg
 
-## 2026-07-20 — v1.0.43: N50-ferskvann for hele landet (per-fylke)
+## 2026-07-20 — v1.0.43: N50-innsjøer for hele landet (per-fylke)
 
 N50-vann-datasettet dekket bare Akershus (én FlatGeobuf). Nå bakes hele landet:
 CI-scriptet laster ned N50 for alle fylker og skriver ÉN FlatGeobuf per fylke
 (`public/data/n50-water/<fylkeskode>.fgb`) pluss et manifest (`index.json`) med
-hver fils bbox. Klienten leser manifestet, velger fylkes-fila(ene) som
-overlapper kart-bboxen, og spør hver på bbox via HTTP Range — så bare relevante
-utsnitt lastes. Per-fylke holder hver fil godt under GitHubs 100 MB/fil-grense.
-Havflate (sjø) bakes bevisst ikke: sjøen kommer autoritativt fra DEM
-(`seaFromDem.js`) + Sjøkart, og nasjonal Havflate ville sprengt fil-grensen.
-Innsjø-øyer beholdes som ekte hull (Kolstadøya i Setten) i hele landet, uten
-terskler eller heuristikk.
+hver fils bbox. Klienten leser manifestet, velger fila(ene) som overlapper
+kart-bboxen, og spør hver på bbox via HTTP Range — så bare relevante utsnitt
+lastes. For å holde hver fil under GitHubs 100 MB/fil-grense bakes KUN innsjøer
+(Innsjø + InnsjøRegulert): elve-/bekkeflater tegnes fra OSM-linjer som før, og
+sjøen kommer autoritativt fra DEM (`seaFromDem.js`) + Sjøkart. Skulle et
+innsjø-tett fylke likevel bli for stort, deles fila i bbox-fliser (`<fylke>-
+<n>.fgb`) — hele innsjøflater tas med i hver flis (ingen klipping), så øy-hull
+forblir intakte. Innsjø-øyer beholdes som ekte hull (Kolstadøya i Setten) i
+hele landet, uten terskler eller heuristikk.
 
 ---
 

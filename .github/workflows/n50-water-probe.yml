@@ -1,12 +1,13 @@
 name: N50 water bake
 
 # Laster ned N50 Kartdata for ALLE fylker via Geonorge Nedlasting-API, trekker
-# ut ferskvann-flater (innsjø/regulert/elvebekk/tørrfall) med ogr2ogr,
-# reprojiserer til EPSG:4326 og skriver ÉN FlatGeobuf per fylke + et manifest
-# (public/data/n50-water/index.json). Kjøres i CI (nedlasting.geonorge.no er
-# blokkert fra utviklingssandkassen). Havflate droppes bevisst (sjø kommer fra
-# DEM/Sjøkart, og nasjonal Havflate ville sprenge GitHubs 100 MB/fil-grense).
-# Committer datasettet på branchen. Trigges når bake-script/workflow endres.
+# ut INNSJØER (Innsjø + InnsjøRegulert) med ogr2ogr, reprojiserer til EPSG:4326
+# og skriver ÉN FlatGeobuf per fylke + et manifest (public/data/n50-water/
+# index.json). Store fylker deles i bbox-fliser < 100 MB. Kjøres i CI
+# (nedlasting.geonorge.no er blokkert fra utviklingssandkassen). Elve-/
+# bekkeflater og havflate droppes bevisst (elver fra OSM, sjø fra DEM/Sjøkart);
+# alt ferskvann ville sprengt GitHubs 100 MB/fil-grense. Committer datasettet
+# på branchen. Trigges når bake-script/workflow endres.
 
 on:
   workflow_dispatch:
@@ -35,7 +36,7 @@ jobs:
           node-version: '22'
       - name: Install GDAL
         run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin unzip
-      - name: Bake N50 water (alle fylker)
+      - name: Bake N50 innsjøer (alle fylker)
         env:
           BAKE_DATE: ${{ github.event.repository.updated_at }}
         run: node scripts/build-n50-water.mjs --area "${{ github.event.inputs.area || 'all' }}" --out public/data/n50-water
@@ -59,7 +60,7 @@ jobs:
           else
             git -c commit.gpgsign=false commit \
               --author="Deploy <deploy@lende>" \
-              -m "N50-ferskvann per fylke — auto-generert fra Geonorge"
+              -m "N50-innsjøer per fylke — auto-generert fra Geonorge"
             git push origin HEAD:${GITHUB_REF_NAME}
             echo "Committet oppdatert N50-vann-datasett"
           fi
