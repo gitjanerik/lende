@@ -98,9 +98,10 @@ function elementRepPoint(el) {
 // I nettleseren feiler WFS-kildene ofte (CORS) → ingen NVE-ringer / alle flagg
 // false → alt OSM-vann beholdes uendret.
 export function filterOsmWaterElements(elements, flags = {}) {
-  const { n50HasSea = false, n50HasFreshwater = false, nveLakeRings = null } = flags
-  const rings = Array.isArray(nveLakeRings) ? nveLakeRings : null
-  const coveredByNve = (el) => {
+  const { n50HasSea = false, n50HasFreshwater = false, nveLakeRings = null, n50WaterRings = null } = flags
+  const nveRings = Array.isArray(nveLakeRings) ? nveLakeRings : null
+  const n50Rings = Array.isArray(n50WaterRings) ? n50WaterRings : null
+  const coveredBy = (el, rings) => {
     if (!rings || rings.length === 0) return false
     const p = elementRepPoint(el)
     if (!p) return false
@@ -116,8 +117,12 @@ export function filterOsmWaterElements(elements, flags = {}) {
       if (isOsmWaterSalty(tags)) return !n50HasSea
       // Elveløp som flate — verken NVE eller N50 har den, så aldri undertrykk.
       if (isFlowingWaterArea(tags)) return true
+      // N50 (FGB) er autoritativ DER den har innsjøen, og har de riktige øy-
+      // hullene. Overlappende OSM-innsjø (også NAVNGITT, f.eks. Setten) droppes
+      // så den hull-løse OSM-kopien ikke males opakt over øya (Kolstadøya).
+      if (coveredBy(el, n50Rings)) return false
       // Ferskvanns-polygon: NVE er autoritativ KUN der den faktisk har innsjøen.
-      if (coveredByNve(el)) return false
+      if (coveredBy(el, nveRings)) return false
       if (tags.name) return true
       return !n50HasFreshwater
     }
@@ -569,9 +574,40 @@ export async function buildMapFromCenter({
       }
     }
 
-    const elements = filterOsmWaterElements(osmData.elements, { n50HasSea, n50HasFreshwater, nveLakeRings })
+    // N50-vann (FlatGeobuf) er den AUTORITATIVE ferskvanns-kilden der den har
+    // dekning: den modellerer innsjø-øyer som ekte hull (Kolstadøya i Setten).
+    // OSM og NVE leverer ofte SAMME innsjø UTEN de riktige hullene, og siden
+    // hvert vann-polygon males opakt, kan en slik hull-løs kopi males OPPÅ og
+    // dekke øya igjen. Vi samler N50-vannets ytre ringer og undertrykker
+    // OSM/NVE-ferskvann som overlapper dem (per-flate, så vi bare fjerner der
+    // N50 faktisk har data — utenfor N50-dekning beholdes OSM/NVE som før).
+    const n50WaterRings = []
+    for (const el of n50Water) {
+      if (el.type === 'way' && Array.isArray(el.geometry) && el.geometry.length >= 3) {
+        n50WaterRings.push(el.geometry.map(g => [g.lon, g.lat]))
+      } else if (Array.isArray(el.members)) {
+        for (const m of el.members) {
+          if ((m.role === 'outer' || !m.role) && Array.isArray(m.geometry) && m.geometry.length >= 3) {
+            n50WaterRings.push(m.geometry.map(g => [g.lon, g.lat]))
+          }
+        }
+      }
+    }
+    const coveredByRings = (el, rings) => {
+      if (!rings.length) return false
+      const p = elementRepPoint(el)
+      if (!p) return false
+      for (const ring of rings) if (pointInRing(p[0], p[1], ring)) return true
+      return false
+    }
+
+    const elements = filterOsmWaterElements(osmData.elements, { n50HasSea, n50HasFreshwater, nveLakeRings, n50WaterRings })
     if (n50Water.length > 0) elements.push(...n50Water)
-    if (nveLakes.length > 0) elements.push(...nveLakes)
+    // NVE-innsjøer som N50 alt dekker droppes (N50 har de korrekte øy-hullene).
+    const nveLakesKept = n50WaterRings.length
+      ? nveLakes.filter(l => !coveredByRings(l, n50WaterRings))
+      : nveLakes
+    if (nveLakesKept.length > 0) elements.push(...nveLakesKept)
     if (sjokartElements.length > 0) elements.push(...sjokartElements)
 
     const sourceParts = ['OSM']
