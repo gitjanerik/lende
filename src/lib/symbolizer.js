@@ -435,7 +435,7 @@ export function classifyToIsom(el) {
     return { code: '505', cat: 'manmade' }
   }
   if (t.highway === 'steps')                        return { code: '506', cat: 'manmade' }
-  if (t.power === 'line')                           return { code: '528', cat: 'manmade' }
+  if (t.power === 'line' || t.power === 'minor_line') return { code: '528', cat: 'manmade' }
   if (t.barrier === 'fence' || t.barrier === 'wall') return { code: '525', cat: 'manmade' }
   // Jernbane (ISOM 515) — solid sort linje med hvite ladder-stripes
   if (t.railway && ['rail', 'tram', 'narrow_gauge', 'light_rail', 'subway', 'funicular', 'monorail'].includes(t.railway)) {

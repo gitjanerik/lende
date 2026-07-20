@@ -1,5 +1,18 @@
 # Endringslogg
 
+## 2026-07-20 — v1.0.36: Kraftlinjer som eget kartlag
+
+Kraftlinjer er nå et eget kartlag («Kraftlinjer», default PÅ) og tegnes som på
+ut.no/Norgeskart — en tynn svart strek med jevne, tverrgående kryssmerker — så
+laget skiller seg ut og fungerer som orienterings-landemerke. Tidligere lå
+kraftlinjer sammen med gjerder i «Gjerde / kraft»-laget, som er skrudd av i
+Tur-forhåndsvalget, så de forsvant på vanlige turkart. Overpass-spørringen
+henter nå både `power=line` og `power=minor_line` (distribusjonslinjer), så alle
+kraftlinjer kommer med, ikke bare de store transmisjonslinjene. «Gjerde / kraft»
+heter nå bare «Gjerde».
+
+---
+
 ## 2026-07-20 — v1.0.35: Øyer i innsjøer forsvant ikke lenger
 
 Innsjøer med øyer (f.eks. Kolstadøya og Bolstadøya i Setten) ble malt som én
