@@ -47,6 +47,30 @@ describe('fetchN50Water — leser FGB og bevarer øy-hull', () => {
   it('lesefeil → tom liste (NVE/OSM tar over, ingen hard feil)', async () => {
     expect(await fetchN50Water(bbox, { fgbUrl: 'boom' })).toEqual([])
   })
+
+  it('manifest: leser kun fylkes-filer som overlapper bboxen', async () => {
+    const manifest = {
+      fylker: [
+        { code: '32', file: '32.fgb', bbox: [11.0, 59.5, 12.0, 60.0] }, // overlapper
+        { code: '11', file: '11.fgb', bbox: [5.0, 58.0, 6.5, 59.0] },   // overlapper ikke
+      ],
+    }
+    const seen = []
+    global.fetch = vi.fn(async (u) => {
+      seen.push(String(u))
+      return { ok: true, json: async () => manifest }
+    })
+    const els = await fetchN50Water(bbox, { dirUrl: 'https://x/data/n50-water/' })
+    // Bare Akershus (32) treffer bboxen → ett vann-element fra FGB-mocken.
+    expect(els).toHaveLength(1)
+    expect(els[0].type).toBe('relation')
+    expect(seen).toContain('https://x/data/n50-water/index.json')
+  })
+
+  it('manifest utilgjengelig → tom liste', async () => {
+    global.fetch = vi.fn(async () => ({ ok: false, status: 404 }))
+    expect(await fetchN50Water(bbox, { dirUrl: 'https://x/data/n50-water/' })).toEqual([])
+  })
 })
 
 describe('geojsonToWays — øy-hull i innsjø', () => {
