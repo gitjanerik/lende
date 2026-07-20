@@ -50,6 +50,20 @@ describe('filterOsmWaterElements — elve-flater overlever autoritativt ferskvan
     expect(filterOsmWaterElements([lake], flagsWithNve)).toEqual([lake])
   })
 
+  it('navngitt innsjø (Setten) undertrykkes når N50 dekker den — så N50s øy-hull vinner (Kolstadøya)', () => {
+    // OSM «Setten» uten øy-hull ville ellers males opakt over Kolstadøya. Når
+    // N50-vann dekker flata, droppes OSM-kopien (selv om den er navngitt).
+    const lake = lakeInsideNve({ natural: 'water', name: 'Setten' })
+    const flags = { n50HasSea: false, n50HasFreshwater: true, nveLakeRings: null, n50WaterRings: [NVE_RING] }
+    expect(filterOsmWaterElements([lake], flags)).toEqual([])
+  })
+
+  it('navngitt innsjø UTENFOR N50-dekning beholdes (per-flate, ikke blankett)', () => {
+    const lake = lakeOutsideNve({ natural: 'water', name: 'Fjerntjern' })
+    const flags = { n50HasSea: false, n50HasFreshwater: true, nveLakeRings: null, n50WaterRings: [NVE_RING] }
+    expect(filterOsmWaterElements([lake], flags)).toEqual([lake])
+  })
+
   it('navnløst tjern NVE ikke dekker beholdes når N50 mangler ferskvann', () => {
     const tjern = lakeOutsideNve({ natural: 'water' })
     expect(filterOsmWaterElements([tjern], flagsWithNve)).toEqual([tjern])
