@@ -1,5 +1,24 @@
 # Endringslogg
 
+## 2026-07-20 — v1.0.43: N50-innsjøer for hele landet (per-fylke)
+
+N50-vann-datasettet dekket bare Akershus (én FlatGeobuf). Nå bakes hele landet:
+CI-scriptet laster ned N50 for alle fylker og skriver ÉN FlatGeobuf per fylke
+(`public/data/n50-water/<fylkeskode>.fgb`) pluss et manifest (`index.json`) med
+hver fils bbox. Klienten leser manifestet, velger fila(ene) som overlapper
+kart-bboxen, og spør hver på bbox via HTTP Range — så bare relevante utsnitt
+lastes. Datasettet er KUN innsjøer (Innsjø + InnsjøRegulert): elve-/bekkeflater
+tegnes fra OSM-linjer som før, og sjøen kommer autoritativt fra DEM
+(`seaFromDem.js`) + Sjøkart. Innsjøene er selve tyngden (Norge er ekstremt
+innsjø-tett), så omrissene forenkles til ~5 m — sub-piksel i kartskala, men
+halverer datasettet til ~350 MB. Ekte øyer (Kolstadøya i Setten) beholdes som
+ekte hull i hele landet, uten terskler eller heuristikk; kun holmer < ~5 m
+glattes bort. Skulle et innsjø-tett fylke likevel bli > 95 MB, deles fila i
+bbox-fliser (`<fylke>-<n>.fgb`) — hele innsjøflater tas med i hver flis (ingen
+klipping), så øy-hull forblir intakte.
+
+---
+
 ## 2026-07-20 — v1.0.42: Behold kartnavn ved ombygging
 
 «Bygg om dette området i valgt størrelse» (long-press på nullstill-knotten)
