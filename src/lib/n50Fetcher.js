@@ -1,31 +1,33 @@
-// N50-vann fra Kartverket, servert som statisk FlatGeobuf.
+// N50-vann fra Kartverket, servert som statiske FlatGeobuf-filer per fylke.
 //
-// Kartverkets N50 vektor-WFS (wfs.n50_kartdata) er avviklet. N50-vann bakes
-// derfor i CI (scripts/build-n50-water.mjs) til én statisk FlatGeobuf-fil
-// (public/data/n50-water.fgb) i EPSG:4326, og klienten spør den på bbox via
-// HTTP Range (flatgeobuf har spatial-indeks → laster bare utsnittet). Vann-
+// Kartverkets N50 vektor-WFS (wfs.n50_kartdata) er avviklet. N50-ferskvann
+// bakes derfor i CI (scripts/build-n50-water.mjs) til ÉN FlatGeobuf per fylke
+// (public/data/n50-water/<fylkeskode>.fgb) i EPSG:4326, pluss et manifest
+// (index.json) som lister hver fils bbox. Klienten leser manifestet, velger
+// fylkes-fila(ene) som overlapper kart-bboxen, og spør hver på bbox via HTTP
+// Range (flatgeobuf har spatial-indeks → laster bare utsnittet). Vann-
 // polygonene beholder øyer som INDRE RINGER, så øyer blir ekte hull i kartet
-// (Kolstadøya i Setten) — helt uten terskler/DEM-heuristikk.
+// (Kolstadøya i Setten) — helt uten terskler/DEM-heuristikk. Havflate (sjø)
+// bakes ikke (DEM/Sjøkart eier sjøen) → dette er ferskvann.
 //
-// Feiler aldri hardt: mangler fila (eller vi er utenfor bakt dekning) →
-// tom liste, og NVE/OSM-vann tar over som før.
+// Feiler aldri hardt: mangler manifest/fil (eller vi er utenfor bakt dekning)
+// → tom liste, og NVE/OSM-vann tar over som før.
 
 import { geojson as fgbGeojson } from 'flatgeobuf'
 
-// URL til den statiske FGB-en. I nettleseren ligger den under Vite BASE_URL;
-// i Node/CI kan N50_WATER_FGB_URL settes (ellers → ingen N50-vann herfra).
-function fgbUrl() {
+// Katalog der manifest (index.json) + fylkes-FGB ligger. I nettleseren under
+// Vite BASE_URL; i Node/CI kan N50_WATER_DIR_URL settes.
+function baseDirUrl() {
   try {
     if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL) {
-      return `${import.meta.env.BASE_URL}data/n50-water.fgb`
+      return `${import.meta.env.BASE_URL}data/n50-water/`
     }
   } catch { /* import.meta.env ikke tilgjengelig (Node) */ }
-  return (globalThis.process && globalThis.process.env && globalThis.process.env.N50_WATER_FGB_URL) || null
+  return (globalThis.process && globalThis.process.env && globalThis.process.env.N50_WATER_DIR_URL) || null
 }
 
-// N50 Arealdekke-objtype → OSM-aktig vann-tagging. Havflate = saltvann
-// (sjø-stacken), resten (Innsjø, InnsjøRegulert, ElvBekk, FerskvannTørrfall)
-// = ferskvann.
+// N50 Arealdekke-objtype → OSM-aktig vann-tagging. Bare ferskvann bakes, men
+// vi beholder Havflate-grenen defensivt (skulle en havflate dukke opp).
 function mappingForObjtype(objtype) {
   if (objtype === 'Havflate') {
     return { tag: 'natural', value: 'water', extraTags: { water: 'sea', salt: 'yes' } }
@@ -33,30 +35,69 @@ function mappingForObjtype(objtype) {
   return { tag: 'natural', value: 'water' }
 }
 
+// [minLon, minLat, maxLon, maxLat] overlapper rect {minX,minY,maxX,maxY}?
+function bboxOverlapsRect(bbox, rect) {
+  return bbox[0] <= rect.maxX && bbox[2] >= rect.minX && bbox[1] <= rect.maxY && bbox[3] >= rect.minY
+}
+
+// Les én FGB på bbox-rect og skyv OSM-aktige elementer inn i `into`.
+async function readFgbInto(url, rect, into) {
+  for await (const feat of fgbGeojson.deserialize(url, rect)) {
+    const mapping = mappingForObjtype(feat?.properties?.objtype)
+    for (const el of geojsonToWays(feat, mapping)) into.push(el)
+  }
+}
+
 /**
- * Hent N50-vann for et bbox fra den statiske FlatGeobuf-fila. Returnerer
+ * Hent N50-ferskvann for et bbox fra de statiske FlatGeobuf-filene. Returnerer
  * OSM-aktige `natural=water`-elementer (way/relation med øy-hull), klare for
  * buildSvg(). Feiler aldri hardt → [] (da tar NVE/OSM over).
  *
  * @param {{south:number,west:number,north:number,east:number}} bbox  WGS84
- * @param {{ fgbUrl?: string }} [opts]
+ * @param {{ dirUrl?: string, fgbUrl?: string }} [opts]  fgbUrl = les én
+ *        eksplisitt FGB direkte (test/direktemodus, hopper over manifestet)
  * @returns {Promise<Array>}  OSM-aktige elementer
  */
 export async function fetchN50Water(bbox, opts = {}) {
-  const url = opts.fgbUrl ?? fgbUrl()
-  if (!url || !bbox) return []
+  if (!bbox) return []
   const rect = { minX: bbox.west, minY: bbox.south, maxX: bbox.east, maxY: bbox.north }
   const elements = []
-  try {
-    for await (const feat of fgbGeojson.deserialize(url, rect)) {
-      const mapping = mappingForObjtype(feat?.properties?.objtype)
-      for (const el of geojsonToWays(feat, mapping)) elements.push(el)
+
+  // Direktemodus: én eksplisitt FGB-URL, ingen manifest (brukes i test).
+  if (opts.fgbUrl) {
+    try {
+      await readFgbInto(opts.fgbUrl, rect, elements)
+    } catch (e) {
+      console.warn(`[N50] FGB-vann utilgjengelig (${opts.fgbUrl}): ${e?.message ?? e}`)
+      return []
     }
+    return elements
+  }
+
+  const dirUrl = opts.dirUrl ?? baseDirUrl()
+  if (!dirUrl) return []
+
+  let manifest
+  try {
+    const res = await fetch(`${dirUrl}index.json`)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    manifest = await res.json()
   } catch (e) {
-    console.warn(`[N50] FGB-vann utilgjengelig (${url}): ${e?.message ?? e}`)
+    console.warn(`[N50] manifest utilgjengelig (${dirUrl}index.json): ${e?.message ?? e}`)
     return []
   }
-  console.log(`[N50] ${elements.length} vann-elementer fra FGB`)
+
+  const hits = (manifest?.fylker ?? []).filter(f =>
+    Array.isArray(f.bbox) && f.bbox.length === 4 && f.file && bboxOverlapsRect(f.bbox, rect)
+  )
+  for (const f of hits) {
+    try {
+      await readFgbInto(`${dirUrl}${f.file}`, rect, elements)
+    } catch (e) {
+      console.warn(`[N50] fylke ${f.code} (${f.file}) utilgjengelig: ${e?.message ?? e}`)
+    }
+  }
+  console.log(`[N50] ${elements.length} vann-elementer fra ${hits.length} fylke(r)`)
   return elements
 }
 
