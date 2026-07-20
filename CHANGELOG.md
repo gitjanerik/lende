@@ -1,5 +1,18 @@
 # Endringslogg
 
+## 2026-07-20 — v1.0.35: Øyer i innsjøer forsvant ikke lenger
+
+Innsjøer med øyer (f.eks. Kolstadøya og Bolstadøya i Setten) ble malt som én
+solid vannflate der øyene manglet helt, sammenlignet med ut.no. Årsaken var at
+N50-vann-konverteringen (`geojsonToWays`) bare tok ytre ring og forkastet
+hull-ringene i GeoJSON-polygonene — øyene er nettopp hull i vannet. Nå
+emitteres polygoner med hull som en relation med `outer`- og `inner`-ringer,
+slik at mapBuilder klipper øy-hullene via evenodd (samme vei som OSM-
+multipolygoner). Polygoner uten hull forblir `way` så navn-baserte
+sammenslåinger (Hestesund-splittede innsjøer) fungerer som før.
+
+---
+
 ## 2026-07-19 — v1.0.34: Stedsnavn på «lag kart der jeg står»
 
 Nye kart laget fra egen GPS-posisjon får nå navn etter nærmeste stedsnavn i
