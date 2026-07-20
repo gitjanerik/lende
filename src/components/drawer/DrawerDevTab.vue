@@ -14,6 +14,7 @@ defineProps({
   maxTiles: { type: Number, default: 0 },
   cullStats: { type: Object, default: () => ({ indexed: 0, culled: 0, ms: 0 }) },
   sjokartStatusText: { type: String, default: '' },
+  nveInnsjoStatusText: { type: String, default: '' },
   meta: { type: Object, default: null },
   purpleTrails: { type: Boolean, default: false },
   togglePurpleTrails: { type: Function, required: true },
@@ -107,6 +108,17 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
       <div v-for="(err, i) in (meta?.sjokartStatus?.errors ?? [])" :key="i"
            class="text-white/35 text-[10px] leading-tight break-all">
         {{ err.endpoint }}{{ err.typeName ? ` ${err.typeName}` : '' }} · {{ err.kind }}: {{ err.message }}
+      </div>
+    </div>
+    <!-- NVE-innsjø-status: innsjøene hentes live ved bygging — her vises
+         HVORFOR innsjøer eventuelt mangler (stille nett-/CORS-feil på mobil). -->
+    <div v-if="nveInnsjoStatusText" class="mb-2 px-1">
+      <div class="flex items-baseline justify-between gap-2">
+        <span class="text-white/45 text-[11px]">NVE-innsjø</span>
+        <span class="text-[11px] text-right break-all"
+              :class="meta?.nveInnsjoStatus?.state === 'ok' ? 'text-white/55' : 'text-amber-300/80'">
+          {{ nveInnsjoStatusText }}
+        </span>
       </div>
     </div>
     <button @click="diagnose = !diagnose"

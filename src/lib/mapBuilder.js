@@ -757,6 +757,7 @@ export function buildSvg(elements, bbox, options = {}) {
                                    // saltvann). Brukes av MapView til å være ærlig om at
                                    // ~0 m over en innlands-vannflate er en DEM-artefakt.
     sjokartStatus = null,          // utfall av Sjøkart-WFS-hentingen (summarizeSjokartStatus)
+    nveInnsjoStatus = null,        // utfall av NVE-innsjø-hentingen (n50Fetcher onStatus)
     kulturminner = [],             // Kulturminnesøk brukerminner (hentet i createMapFlow)
   } = options
 
@@ -2551,6 +2552,7 @@ export function buildSvg(elements, bbox, options = {}) {
       : (demSeaPolygons.length > 0 ? 'dem-estimat' : 'ingen'),
     coastal,                       // kyst vs innland (se options). MapView leser denne.
     sjokartStatus,                 // ok/tom/timeout/feil/innlands + evt. WFS-feil (Utvikler-fanen)
+    nveInnsjoStatus,               // ok (N innsjøer) / feil + melding (Utvikler-fanen)
     demResolutionM: dem?.transform
       ? Math.round((Math.abs(dem.transform.pixelWidth) + Math.abs(dem.transform.pixelHeight)) / 2) || null
       : null,

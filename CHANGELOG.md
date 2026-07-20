@@ -1,5 +1,20 @@
 # Endringslogg
 
+## 2026-07-20 — v1.0.45: NVE-innsjø-status i Utvikler-fanen + retry
+
+Etter v1.0.44 manglet innsjøer på kart bygd rett etter deployen (Nesøytjern,
+Setten). CI-verifisering viser at hele NVE-løypa er frisk (query gir Setten
+med 38 øy-hull, CORS ok, full headless-bygging gir vann) — feilen skjer stille
+på enheten i hente-øyeblikket. To sannsynlige årsaker: klienten kjørte fortsatt
+v1.0.43 (som leter etter FGB-filene som ble fjernet fra gh-pages), eller et
+forbigående nett-/NVE-glipp. Nå: (1) `fetchN50Water` prøver to ganger før den
+gir opp, og (2) utfallet rapporteres i kart-metaen og vises i Utvikler-fanen
+som «NVE-innsjø: OK — N innsjøer» eller «FEILET: <melding>» — samme grep som
+Sjøkart-WFS-statusen, så mobil-feil ikke lenger er usynlige. Kart som mangler
+innsjøer må bygges på nytt (SVG-en er lagret uten dem).
+
+---
+
 ## 2026-07-20 — v1.0.44: Innsjøer live fra NVE — full detalj, bake-apparatet fjernet
 
 v1.0.43s ~5 m-forenkling gjorde små øyer/skjær komisk kantete (Munkeskjæra i

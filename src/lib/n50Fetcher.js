@@ -52,31 +52,43 @@ async function queryPage(base, bbox, offset) {
  * Hent innsjø-polygoner (med øy-hull) for et bbox fra NVE Innsjødatabasen.
  * Returnerer OSM-aktige `natural=water`-elementer (way/relation med
  * outer+inner), klare for buildSvg(). Feiler aldri hardt → [] (da tar
- * NVE-identify/OSM over som før).
+ * NVE-identify/OSM over som før), men rapporterer utfallet via opts.onStatus
+ * så Utvikler-fanen kan vise HVORFOR innsjøer eventuelt mangler (samme grep
+ * som sjokartStatus — mobil-feil er ellers usynlige). Prøver to ganger:
+ * ett forbigående nett-glipp skal ikke koste innsjøene på et helt kart.
  *
  * @param {{south:number,west:number,north:number,east:number}} bbox  WGS84
- * @param {{ queryBase?: string }} [opts]  overstyr tjeneste-URL (test)
+ * @param {{ queryBase?: string, onStatus?: (s:object)=>void }} [opts]
  * @returns {Promise<Array>}  OSM-aktige elementer
  */
 export async function fetchN50Water(bbox, opts = {}) {
   if (!bbox) return []
   const base = opts.queryBase ?? NVE_LAKE_QUERY_BASE
+  const onStatus = typeof opts.onStatus === 'function' ? opts.onStatus : () => {}
   const mapping = { tag: 'natural', value: 'water' }
-  const elements = []
-  try {
-    for (let page = 0; page < MAX_PAGES; page++) {
-      const features = await queryPage(base, bbox, page * PAGE_SIZE)
-      for (const feat of features) {
-        for (const el of geojsonToWays(feat, mapping)) elements.push(el)
+  let lastError = null
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0) await new Promise(r => setTimeout(r, 800))
+    const elements = []
+    try {
+      for (let page = 0; page < MAX_PAGES; page++) {
+        const features = await queryPage(base, bbox, page * PAGE_SIZE)
+        for (const feat of features) {
+          for (const el of geojsonToWays(feat, mapping)) elements.push(el)
+        }
+        if (features.length < PAGE_SIZE) break
       }
-      if (features.length < PAGE_SIZE) break
+      console.log(`[N50] ${elements.length} innsjø-elementer fra NVE Innsjødatabasen`)
+      onStatus({ state: 'ok', features: elements.length, retried: attempt > 0 })
+      return elements
+    } catch (e) {
+      lastError = e
     }
-  } catch (e) {
-    console.warn(`[N50] NVE-innsjøer utilgjengelig: ${e?.message ?? e}`)
-    return []
   }
-  console.log(`[N50] ${elements.length} innsjø-elementer fra NVE Innsjødatabasen`)
-  return elements
+  const message = String(lastError?.message ?? lastError)
+  console.warn(`[N50] NVE-innsjøer utilgjengelig (etter retry): ${message}`)
+  onStatus({ state: 'feil', message })
+  return []
 }
 
 function ringToGeometry(ring) {
