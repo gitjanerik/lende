@@ -1,5 +1,27 @@
-import { describe, it, expect } from 'vitest'
-import { geojsonToWays } from './n50Fetcher.js'
+import { describe, it, expect, vi } from 'vitest'
+
+// Mock flatgeobuf-leseren: yield en Setten-lignende innsjø (MultiPolygon) med
+// én øy (hull), og la url==='boom' kaste (for graceful-fallback-testen).
+vi.mock('flatgeobuf', () => ({
+  geojson: {
+    deserialize: async function* (url) {
+      if (url === 'boom') throw new Error('nett nede')
+      yield {
+        type: 'Feature',
+        properties: { objtype: 'InnsjøRegulert' },
+        geometry: {
+          type: 'MultiPolygon',
+          coordinates: [[
+            [[11.6, 59.79], [11.7, 59.79], [11.7, 59.83], [11.6, 59.83], [11.6, 59.79]],
+            [[11.66, 59.80], [11.68, 59.80], [11.68, 59.81], [11.66, 59.81], [11.66, 59.80]],
+          ]],
+        },
+      }
+    },
+  },
+}))
+
+import { geojsonToWays, fetchN50Water } from './n50Fetcher.js'
 
 const mapping = { tag: 'natural', value: 'water' }
 
@@ -10,6 +32,22 @@ const ring = (pts) => pts.map(([lon, lat]) => [lon, lat])
 const box = (lon0, lat0, s) => ring([
   [lon0, lat0], [lon0 + s, lat0], [lon0 + s, lat0 + s], [lon0, lat0 + s], [lon0, lat0],
 ])
+
+describe('fetchN50Water — leser FGB og bevarer øy-hull', () => {
+  const bbox = { south: 59.79, west: 11.6, north: 59.83, east: 11.7 }
+
+  it('MultiPolygon med øy-hull → relation med inner-ring (natural=water)', async () => {
+    const els = await fetchN50Water(bbox, { fgbUrl: 'http://example/n50.fgb' })
+    expect(els).toHaveLength(1)
+    expect(els[0].type).toBe('relation')
+    expect(els[0].members.filter(m => m.role === 'inner')).toHaveLength(1)
+    expect(els[0].tags.natural).toBe('water')
+  })
+
+  it('lesefeil → tom liste (NVE/OSM tar over, ingen hard feil)', async () => {
+    expect(await fetchN50Water(bbox, { fgbUrl: 'boom' })).toEqual([])
+  })
+})
 
 describe('geojsonToWays — øy-hull i innsjø', () => {
   it('Polygon uten hull → way', () => {

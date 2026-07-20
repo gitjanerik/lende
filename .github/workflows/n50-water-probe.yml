@@ -1,0 +1,48 @@
+name: N50 water bake
+
+# Laster ned N50 Kartdata for et fylke via Geonorge Nedlasting-API, trekker ut
+# vann-flater (innsjø/regulert/elvebekk/hav) med ogr2ogr, reprojiserer til
+# EPSG:4326 og skriver FlatGeobuf. Kjøres i CI (nedlasting.geonorge.no er
+# blokkert fra utviklingssandkassen). Laster opp FGB som artefakt for
+# verifisering FØR vi committer den. Trigges når bake-script/workflow endres.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['**']
+    paths:
+      - 'scripts/build-n50-water.mjs'
+      - '.github/workflows/n50-water-probe.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  bake:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install GDAL
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin unzip
+      - name: Bake N50 water (Akershus = 32)
+        run: node scripts/build-n50-water.mjs --area 32 --out public/data/n50-water.fgb
+      - name: Report size
+        run: ls -lh public/data/n50-water.fgb
+      - name: Commit FGB if changed
+        run: |
+          set -e
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add public/data/n50-water.fgb
+          if git diff --staged --quiet; then
+            echo "Ingen endring i n50-water.fgb"
+          else
+            git -c commit.gpgsign=false commit \
+              --author="Deploy <deploy@lende>" \
+              -m "N50-vann-datasett (Akershus) — auto-generert fra Geonorge"
+            git push origin HEAD:${GITHUB_REF_NAME}
+            echo "Committet oppdatert n50-water.fgb"
+          fi
