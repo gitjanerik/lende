@@ -1,5 +1,20 @@
 # Endringslogg
 
+## 2026-07-20 — v1.0.37: Behold øy-hull fra NVE-innsjøer
+
+NVE-innsjøer med øyer (f.eks. Kolstadøya i Setten) kunne miste øya og bli malt
+som én solid vannflate. Årsaken: NVEs `identify?layers=all` returnerer samme
+innsjø fra flere lag — noen generalisert uten øy-hull, andre med — og dedup-en
+beholdt alltid den FØRSTE varianten. Kom den hull-løse først, ble øya forkastet.
+Nå beholdes varianten med FLEST ringer (dvs. med øy-hull) når duplikater slås
+sammen, uansett rekkefølge; navnet løftes fortsatt med fra et duplikat-lag.
+
+Merk: dette forutsetter at NVE faktisk leverer øya som hull i minst ett lag.
+Bakgrunn: N50-vektor-WFS-en (`wfs.n50_kartdata`) er avviklet av Kartverket, så
+NVE er nå eneste autoritative vektorkilde for innlands-innsjøer med øyer.
+
+---
+
 ## 2026-07-20 — v1.0.36: Kraftlinjer som eget kartlag
 
 Kraftlinjer er nå et eget kartlag («Kraftlinjer», default PÅ) og tegnes som på
