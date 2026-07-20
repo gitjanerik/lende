@@ -1,5 +1,19 @@
 # Endringslogg
 
+## 2026-07-20 — v1.0.49: Meta-hviteliste fikset — versjonsstempel og NVE-status var usynlige
+
+`useMapLoadPipeline` kopierer kart-metaen fra SVG-ens `data-meta` inn i appen
+via en eksplisitt hviteliste — og feltene fra v1.0.45/47 (`appVersion`,
+`nveInnsjoStatus`) manglet i den. Konsekvens: Utvikler-fanen viste «bygd med
+eldre versjon» og «ingen status» på ALLE kart, også splitter ferske — hele
+kveldens feilsøking gikk i blinde. Nå følger feltene med, og radene er endelig
+til å stole på. E2E-verifisert i ekte Chromium mot deployet app: ferskbygd
+Setten-kart har 29 innsjø-pather i både lagret SVG og DOM, synlige med ISOM
+301-blått (skjermbilde-artefakt i CI). Nye meta-felter MÅ legges til i
+hvitelisten — det står nå en advarsel i koden.
+
+---
+
 ## 2026-07-20 — v1.0.48: Auto-flis-cachen versjons-gates (gamle fliser i «nye» kart)
 
 Siste brikke i «innsjøer borte»-saken: selv HELT NYE kart viste gamle data.
