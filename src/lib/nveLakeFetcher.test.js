@@ -228,6 +228,32 @@ describe('nveIdentifyToWater — identify-respons → vann-elementer', () => {
     expect(els[0].tags.name).toBe('Suoidnejávri')
   })
 
+  it('beholder øy-hull-varianten når et lag har den og et annet ikke (Kolstadøya/Setten)', () => {
+    // Stor kvadratisk innsjø; øy = mindre CCW-ring inni (hull). Ett NVE-lag
+    // leverer innsjøen UTEN øya (generalisert), et annet MED. Uansett hvilket
+    // som kommer først skal resultatet beholde varianten med øy-hullet.
+    const outer = [[0, 0], [0, 10], [10, 10], [10, 0], [0, 0]]
+    const islandHole = [[4, 4], [6, 4], [6, 6], [4, 6], [4, 4]] // CCW = hull
+    const withHole = { rings: [outer, islandHole] }
+    const withoutHole = { rings: [outer] }
+
+    const holeFirst = nveIdentifyToWater({ results: [
+      { layerName: 'Innsjø detaljert', geometry: withHole, attributes: { vatnLnr: 99, navn: 'Setten' } },
+      { layerName: 'Innsjø grov', geometry: withoutHole, attributes: { vatnLnr: 99 } },
+    ] })
+    const holeLast = nveIdentifyToWater({ results: [
+      { layerName: 'Innsjø grov', geometry: withoutHole, attributes: { vatnLnr: 99 } },
+      { layerName: 'Innsjø detaljert', geometry: withHole, attributes: { vatnLnr: 99, navn: 'Setten' } },
+    ] })
+
+    for (const els of [holeFirst, holeLast]) {
+      expect(els).toHaveLength(1)
+      const inner = els[0].members.filter(m => m.role === 'inner')
+      expect(inner).toHaveLength(1)           // øy-hullet bevart
+      expect(els[0].tags.name).toBe('Setten') // navn løftet med
+    }
+  })
+
   it('beholder distinkte innsjøer (ulik geometri) som separate elementer', () => {
     const a = [[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]
     const b = [[5, 5], [5, 6], [6, 6], [6, 5], [5, 5]]
