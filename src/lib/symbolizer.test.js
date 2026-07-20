@@ -122,6 +122,13 @@ describe('classifyToIsom — idrettsanlegg (ISOM 513)', () => {
   })
 })
 
+describe('classifyToIsom — kraftlinje (ISOM 528)', () => {
+  it('power=line og power=minor_line → 528 (begge kraftlinje-typer med)', () => {
+    expect(classifyToIsom({ type: 'way', tags: { power: 'line' } })).toEqual({ code: '528', cat: 'manmade' })
+    expect(classifyToIsom({ type: 'way', tags: { power: 'minor_line' } })).toEqual({ code: '528', cat: 'manmade' })
+  })
+})
+
 describe('buildPointSymbolDef', () => {
   it('renders rect-elementer (ISOM 540 stake-port)', () => {
     const spec = {

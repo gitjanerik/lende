@@ -40,7 +40,8 @@ export const LAYERS = [
   { key: 'veinummer',  label: 'Veinummer' },
   { key: 'tog',        label: 'Jernbane' },
   { key: 'flyplass',   label: 'Flyplass' },
-  { key: 'linje',      label: 'Gjerde / kraft' },
+  { key: 'linje',      label: 'Gjerde' },
+  { key: 'kraftlinje', label: 'Kraftlinjer' },
   { key: 'trig',       label: 'Trigpunkter' },
   // Kulturminne-overlegg (Kulturminnesøk brukerminner) — klikkbare tema-ikoner.
   { key: 'kulturminne', label: 'Kulturminner' },
@@ -99,7 +100,9 @@ const _turExclude = new Set([
   'lysloype', 'heistrase', 'slalombakke', // vinter-ting
   'idrettsanlegg',                        // dekkende flate, sjelden ønsket i oversikt
   'vannstasjon',                          // live NVE-lag, spesial-interesse
-  'stedsnavn-minor', 'linje',             // navne-/strek-rot (grend/gård, gjerde/kraft)
+  'stedsnavn-minor', 'linje',             // navne-/strek-rot (grend/gård, gjerde)
+  // MERK: 'kraftlinje' er BEVISST ikke ekskludert — kraftlinjer er ønsket
+  // synlige som orienterings-landemerke også i Tur-presetet (default PÅ).
 ])
 const PRESET_TUR = ALL_LAYER_KEYS.filter((k) => !_turExclude.has(k))
 export const LAYER_PRESETS = [
