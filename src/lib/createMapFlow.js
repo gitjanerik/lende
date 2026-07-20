@@ -373,8 +373,12 @@ export async function buildMapFromCenter({
   // så OSM-hentingen (flaskehalsen) starter samtidig med DEM. Deklarert FØR
   // kyst-deteksjonen siden den trenger OSM-saltvanns-signalet.
   const overpassP = timeAsync('overpass', fetchOverpass(bbox, { signal, onProgress }))
-  const n50P = timeAsync('n50', fetchN50Water(bbox).catch(e => {
+  // Utfall av NVE-innsjø-hentingen → meta.nveInnsjoStatus (Utvikler-fanen):
+  // feiler den stille på mobil (nett/CORS/utfall), er dette eneste sporet.
+  let nveInnsjoStatus = null
+  const n50P = timeAsync('n50', fetchN50Water(bbox, { onStatus: s => { nveInnsjoStatus = s } }).catch(e => {
     console.warn('N50-vann ikke tilgjengelig:', e.message)
+    nveInnsjoStatus = { state: 'feil', message: String(e?.message ?? e) }
     return []
   }))
   // NVE innsjø-flater: CORS-pålitelig autoritativ innlands-vannkilde. Brukes
@@ -641,6 +645,7 @@ export async function buildMapFromCenter({
       // Sjøkart-utfall → meta.sjokartStatus (Utvikler-fanen): gjør den stille
       // WFS-fallbacken synlig — hvorfor dybdetall/kai mangler.
       sjokartStatus: summarizeSjokartStatus(sjokart, sjokartElements.length),
+      nveInnsjoStatus,               // NVE-innsjø-utfall → meta (Utvikler-fanen)
       kulturminner,
     }, { signal }))
 

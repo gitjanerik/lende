@@ -143,6 +143,16 @@ const sjokartStatusText = computed(() => {
   }
 })
 
+// NVE-innsjø-utfall (Utvikler-fanen): innsjøene hentes live fra NVE
+// Innsjødatabasen ved bygging — feiler den stille på mobil, er dette
+// eneste sporet av HVORFOR innsjøer mangler (innsjøer borte-saken).
+const nveInnsjoStatusText = computed(() => {
+  const s = meta.value?.nveInnsjoStatus
+  if (!s) return null
+  if (s.state === 'ok') return `OK — ${s.features} innsjøer${s.retried ? ' (etter retry)' : ''}`
+  return `FEILET: ${s.message ?? 'ukjent feil'} — innsjøer mangler; bygg kartet på nytt`
+})
+
 const storedDem = ref(null)             // unpacked DEM, eller null hvis ikke tilgjengelig
 
 
@@ -3634,7 +3644,8 @@ onUnmounted(() => {
             v-model:diagnose="diagnose"
             :reset-lod-tuning="resetLodTuning" :map-data-label="mapDataLabel"
             :auto-tile-count="autoTileCount" :max-tiles="maxTiles"
-            :cull-stats="cullStats" :sjokart-status-text="sjokartStatusText" :meta="meta"
+            :cull-stats="cullStats" :sjokart-status-text="sjokartStatusText"
+            :nve-innsjo-status-text="nveInnsjoStatusText" :meta="meta"
             :purple-trails="purpleTrails" :toggle-purple-trails="togglePurpleTrails"
             :open-vardasen="() => router.push({ name: 'kart-vis', params: { id: 'vardasen' } })"
             :open-perf-log="() => { showPerfLog = true }" />

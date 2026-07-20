@@ -68,17 +68,50 @@ describe('fetchN50Water — NVE Innsjødatabasen query på bbox', () => {
     expect(els).toHaveLength(2001)
   })
 
-  it('nettfeil → tom liste (identify/OSM tar over, ingen hard feil)', async () => {
+  it('nettfeil (begge forsøk) → tom liste + feil-status (identify/OSM tar over)', async () => {
+    vi.useFakeTimers()
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('nett nede') }))
-    expect(await fetchN50Water(bbox, { queryBase: 'https://x/MapServer/5' })).toEqual([])
+    const statuses = []
+    const p = fetchN50Water(bbox, { queryBase: 'https://x/MapServer/5', onStatus: s => statuses.push(s) })
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(await p).toEqual([])
+    expect(statuses).toEqual([{ state: 'feil', message: 'nett nede' }])
+    vi.useRealTimers()
+  })
+
+  it('forbigående feil → retry lykkes (status ok m/retried)', async () => {
+    vi.useFakeTimers()
+    let call = 0
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      if (++call === 1) throw new Error('blipp')
+      return okResponse([settenFeature])
+    }))
+    const statuses = []
+    const p = fetchN50Water(bbox, { queryBase: 'https://x/MapServer/5', onStatus: s => statuses.push(s) })
+    await vi.advanceTimersByTimeAsync(1000)
+    const els = await p
+    expect(els).toHaveLength(1)
+    expect(statuses).toEqual([{ state: 'ok', features: 1, retried: true }])
+    vi.useRealTimers()
   })
 
   it('ArcGIS-feilobjekt (HTTP 200 med error) → tom liste', async () => {
+    vi.useFakeTimers()
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: true,
       json: async () => ({ error: { code: 500, message: 'Kaboom' } }),
     })))
-    expect(await fetchN50Water(bbox, { queryBase: 'https://x/MapServer/5' })).toEqual([])
+    const p = fetchN50Water(bbox, { queryBase: 'https://x/MapServer/5' })
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(await p).toEqual([])
+    vi.useRealTimers()
+  })
+
+  it('vellykket henting rapporterer ok-status', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => okResponse([settenFeature])))
+    const statuses = []
+    await fetchN50Water(bbox, { queryBase: 'https://x/MapServer/5', onStatus: s => statuses.push(s) })
+    expect(statuses).toEqual([{ state: 'ok', features: 1, retried: false }])
   })
 })
 
