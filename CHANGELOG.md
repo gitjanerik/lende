@@ -1,5 +1,16 @@
 # Endringslogg
 
+## 2026-07-20 — v1.0.41: N50-vann vinner over OSM/NVE der det finnes (Kolstadøya)
+
+Kolstadøya i Setten manglet fortsatt selv om N50-datasettet har øya som et ekte
+hull. Årsaken: OSM (og NVE) leverer SAMME innsjø uten de riktige hullene, og
+siden hvert vann-polygon males opakt kunne en slik hull-løs kopi males OPPÅ og
+dekke øya igjen (Landøya/Bolstadøya traff tilfeldigvis ikke). Nå er N50-vann
+autoritativt der det har dekning: `createMapFlow` samler N50-vannets ytre ringer
+og undertrykker overlappende OSM- (også navngitte) og NVE-ferskvann per flate,
+så bare N50-polygonet med de korrekte øy-hullene rendres. Utenfor N50-dekning
+beholdes OSM/NVE som før.
+
 ## 2026-07-20 — v1.0.40: N50-vann fra eget statisk datasett (øyer som ekte hull)
 
 Innsjø-øyer (Kolstadøya i Setten) kommer nå fra autoritativ N50-geometri der
