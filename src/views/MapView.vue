@@ -923,11 +923,15 @@ async function rebuildAtChosenSize(km = mapSizeKm.value) {
   buildingOnTheFly.value = true
   buildingProgress.value = 'Bygger om i valgt størrelse …'
   try {
+    // Behold kartets navn (stedsnavn + dato, f.eks. «Mjøsa 19. juli») ved
+    // ombygging. Navnet ligger i mapTitle (fra lagringen), IKKE i meta —
+    // meta.navn er undefined, så det gamle `m.navn ?? 'Kart'` ga alltid «Kart».
+    const keepName = mapTitle.value?.trim() || 'Kart'
     const { id } = await buildMapFromCenter({
-      center: { lat, lon, name: m.navn ?? 'Kart' },
+      center: { lat, lon, name: keepName },
       ...dims,
       equidistanceM: effectiveEquidistanceForWidthKm(km),
-      navn: m.navn ?? 'Kart',
+      navn: keepName,
       terrainFirst: true,
       onProgress: (msg) => { buildingProgress.value = msg },
     })

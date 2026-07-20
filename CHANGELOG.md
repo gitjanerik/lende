@@ -1,5 +1,12 @@
 # Endringslogg
 
+## 2026-07-20 — v1.0.42: Behold kartnavn ved ombygging
+
+«Bygg om dette området i valgt størrelse» (long-press på nullstill-knotten)
+døpte kartet om til «Kart». Årsaken: koden leste navnet fra `meta` (som ikke
+har det), ikke fra `mapTitle` (lagringen). Nå beholdes kartets navn — stedsnavn
++ dato, f.eks. «Mjøsa 19. juli» — ved ombygging.
+
 ## 2026-07-20 — v1.0.41: N50-vann vinner over OSM/NVE der det finnes (Kolstadøya)
 
 Kolstadøya i Setten manglet fortsatt selv om N50-datasettet har øya som et ekte
