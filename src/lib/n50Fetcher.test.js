@@ -1,26 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
-
-// Mock flatgeobuf-leseren: yield en Setten-lignende innsjø (MultiPolygon) med
-// én øy (hull), og la url==='boom' kaste (for graceful-fallback-testen).
-vi.mock('flatgeobuf', () => ({
-  geojson: {
-    deserialize: async function* (url) {
-      if (url === 'boom') throw new Error('nett nede')
-      yield {
-        type: 'Feature',
-        properties: { objtype: 'InnsjøRegulert' },
-        geometry: {
-          type: 'MultiPolygon',
-          coordinates: [[
-            [[11.6, 59.79], [11.7, 59.79], [11.7, 59.83], [11.6, 59.83], [11.6, 59.79]],
-            [[11.66, 59.80], [11.68, 59.80], [11.68, 59.81], [11.66, 59.81], [11.66, 59.80]],
-          ]],
-        },
-      }
-    },
-  },
-}))
-
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { geojsonToWays, fetchN50Water } from './n50Fetcher.js'
 
 const mapping = { tag: 'natural', value: 'water' }
@@ -33,43 +11,74 @@ const box = (lon0, lat0, s) => ring([
   [lon0, lat0], [lon0 + s, lat0], [lon0 + s, lat0 + s], [lon0, lat0 + s], [lon0, lat0],
 ])
 
-describe('fetchN50Water — leser FGB og bevarer øy-hull', () => {
+// Setten-lignende innsjø (MultiPolygon) med én øy (hull), slik NVE-queryen
+// leverer den som GeoJSON.
+const settenFeature = {
+  type: 'Feature',
+  properties: { navn: 'Setten', vatnLnr: 123 },
+  geometry: {
+    type: 'MultiPolygon',
+    coordinates: [[
+      [[11.6, 59.79], [11.7, 59.79], [11.7, 59.83], [11.6, 59.83], [11.6, 59.79]],
+      [[11.66, 59.80], [11.68, 59.80], [11.68, 59.81], [11.66, 59.81], [11.66, 59.80]],
+    ]],
+  },
+}
+
+const okResponse = (features) => ({
+  ok: true,
+  json: async () => ({ type: 'FeatureCollection', features }),
+})
+
+describe('fetchN50Water — NVE Innsjødatabasen query på bbox', () => {
   const bbox = { south: 59.79, west: 11.6, north: 59.83, east: 11.7 }
 
-  it('MultiPolygon med øy-hull → relation med inner-ring (natural=water)', async () => {
-    const els = await fetchN50Water(bbox, { fgbUrl: 'http://example/n50.fgb' })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('innsjø med øy-hull → relation med inner-ring (natural=water)', async () => {
+    const seen = []
+    vi.stubGlobal('fetch', vi.fn(async (u) => { seen.push(String(u)); return okResponse([settenFeature]) }))
+    const els = await fetchN50Water(bbox, { queryBase: 'https://x/MapServer/5' })
     expect(els).toHaveLength(1)
     expect(els[0].type).toBe('relation')
     expect(els[0].members.filter(m => m.role === 'inner')).toHaveLength(1)
     expect(els[0].tags.natural).toBe('water')
+    expect(els[0]._source).toBe('n50')
+    // Query-URL: riktig endepunkt, bbox som envelope, geojson ut.
+    expect(seen[0]).toContain('https://x/MapServer/5/query?')
+    expect(seen[0]).toContain('geometryType=esriGeometryEnvelope')
+    expect(seen[0]).toContain('f=geojson')
+    // Én side under PAGE_SIZE → ingen side 2.
+    expect(seen).toHaveLength(1)
   })
 
-  it('lesefeil → tom liste (NVE/OSM tar over, ingen hard feil)', async () => {
-    expect(await fetchN50Water(bbox, { fgbUrl: 'boom' })).toEqual([])
+  it('paginerer når en side er full (2000), stopper på kort side', async () => {
+    const full = Array.from({ length: 2000 }, (_, i) => ({
+      type: 'Feature',
+      properties: {},
+      geometry: { type: 'Polygon', coordinates: [box(11.6 + i * 1e-6, 59.79, 0.001)] },
+    }))
+    const calls = []
+    vi.stubGlobal('fetch', vi.fn(async (u) => {
+      calls.push(new URL(String(u)).searchParams.get('resultOffset'))
+      return okResponse(calls.length === 1 ? full : [settenFeature])
+    }))
+    const els = await fetchN50Water(bbox, { queryBase: 'https://x/MapServer/5' })
+    expect(calls).toEqual(['0', '2000'])
+    expect(els).toHaveLength(2001)
   })
 
-  it('manifest: leser kun fylkes-filer som overlapper bboxen', async () => {
-    const manifest = {
-      fylker: [
-        { code: '32', file: '32.fgb', bbox: [11.0, 59.5, 12.0, 60.0] }, // overlapper
-        { code: '11', file: '11.fgb', bbox: [5.0, 58.0, 6.5, 59.0] },   // overlapper ikke
-      ],
-    }
-    const seen = []
-    global.fetch = vi.fn(async (u) => {
-      seen.push(String(u))
-      return { ok: true, json: async () => manifest }
-    })
-    const els = await fetchN50Water(bbox, { dirUrl: 'https://x/data/n50-water/' })
-    // Bare Akershus (32) treffer bboxen → ett vann-element fra FGB-mocken.
-    expect(els).toHaveLength(1)
-    expect(els[0].type).toBe('relation')
-    expect(seen).toContain('https://x/data/n50-water/index.json')
+  it('nettfeil → tom liste (identify/OSM tar over, ingen hard feil)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('nett nede') }))
+    expect(await fetchN50Water(bbox, { queryBase: 'https://x/MapServer/5' })).toEqual([])
   })
 
-  it('manifest utilgjengelig → tom liste', async () => {
-    global.fetch = vi.fn(async () => ({ ok: false, status: 404 }))
-    expect(await fetchN50Water(bbox, { dirUrl: 'https://x/data/n50-water/' })).toEqual([])
+  it('ArcGIS-feilobjekt (HTTP 200 med error) → tom liste', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ error: { code: 500, message: 'Kaboom' } }),
+    })))
+    expect(await fetchN50Water(bbox, { queryBase: 'https://x/MapServer/5' })).toEqual([])
   })
 })
 
