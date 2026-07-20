@@ -1,5 +1,19 @@
 # Endringslogg
 
+## 2026-07-20 — v1.0.40: N50-vann fra eget statisk datasett (øyer som ekte hull)
+
+Innsjø-øyer (Kolstadøya i Setten) kommer nå fra autoritativ N50-geometri der
+øya er et ekte hull i vannet — ingen terskler eller DEM-gjetting. Siden
+Kartverkets N50 vektor-WFS er avviklet, bakes N50-vann i CI
+(`scripts/build-n50-water.mjs` + workflow) fra Geonorges Nedlasting-API: vann-
+flatene (Innsjø/InnsjøRegulert/ElvBekk/Havflate) trekkes ut med `ogr2ogr`,
+reprojiseres til EPSG:4326 og skrives til `public/data/n50-water.fgb`
+(FlatGeobuf). `fetchN50Water` leser fila på bbox via `flatgeobuf` (HTTP Range,
+laster bare utsnittet) og konverterer gjennom den hull-bevarende
+`geojsonToWays` → relation(outer+inner) → mapBuilder klipper øyene via evenodd.
+Første datasett dekker Akershus (~4,5 MB); flere fylker kan bakes ved å kjøre
+workflowen med annen `--area`. Den avviklede WFS-koden er fjernet.
+
 ## 2026-07-20 — v1.0.39: Fjernet DEM-basert øy-gjetting
 
 Reverterer den DEM-avledede øy-karvingen fra v1.0.38. Den løste ikke Kolstadøya

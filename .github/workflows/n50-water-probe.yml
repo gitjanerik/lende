@@ -15,7 +15,7 @@ on:
       - '.github/workflows/n50-water-probe.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   bake:
@@ -31,8 +31,18 @@ jobs:
         run: node scripts/build-n50-water.mjs --area 32 --out public/data/n50-water.fgb
       - name: Report size
         run: ls -lh public/data/n50-water.fgb
-      - uses: actions/upload-artifact@v4
-        with:
-          name: n50-water-fgb
-          path: public/data/n50-water.fgb
-          if-no-files-found: error
+      - name: Commit FGB if changed
+        run: |
+          set -e
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add public/data/n50-water.fgb
+          if git diff --staged --quiet; then
+            echo "Ingen endring i n50-water.fgb"
+          else
+            git -c commit.gpgsign=false commit \
+              --author="Deploy <deploy@lende>" \
+              -m "N50-vann-datasett (Akershus) — auto-generert fra Geonorge"
+            git push origin HEAD:${GITHUB_REF_NAME}
+            echo "Committet oppdatert n50-water.fgb"
+          fi
