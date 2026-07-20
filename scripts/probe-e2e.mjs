@@ -1,10 +1,8 @@
-// E2E-DIAGNOSE (CI, kun logg + skjermbilde-artefakt): kjør HELE bruker-flyten
-// i ekte Chromium mot den deployede appen — åpne kart-velgeren med Setten-
-// koordinater (del-lenke-format), trykk «Bygg», vent på ferdig kart, og les
-// fasiten rett fra DOM-en: kartets appVersion-stempel, nveInnsjoStatus og om
-// vann-laget faktisk har geometri. Fjerner brukeren fra feilsøkings-løkka:
-// enten er alt bevist friskt ende-til-ende i nettleser, eller så er feilen
-// endelig reproduserbar her.
+// E2E-DIAGNOSE v2 (CI, kun logg + skjermbilder): reproduserte i v1 at DOM-en
+// viser terreng-arket (uten stempel/vann) LENGE etter at full bygging er
+// ferdig og lagret. Nå: dump nøyaktig DOM-tilstand (alle svg, data-meta,
+// data-layer-grupper), og test om en RELOAD henter det fulle arket fra
+// lagringen — det skiller «stille re-render feiler» fra «fullt ark aldri lagret».
 
 import { chromium } from 'playwright'
 
@@ -15,50 +13,65 @@ const ctx = await browser.newContext({ viewport: { width: 412, height: 915 } })
 const page = await ctx.newPage()
 page.on('console', m => {
   const t = m.text()
-  if (/N50|NVE|feil|error|vann/i.test(t)) console.log('[console]', t.slice(0, 220))
+  if (/N50|NVE|perf|Terreng|feil|error|finalize|partial/i.test(t)) console.log('[console]', t.slice(0, 220))
 })
-page.on('pageerror', e => console.log('[pageerror]', e.message.slice(0, 220)))
+page.on('pageerror', e => console.log('[pageerror]', e.message.slice(0, 300)))
+
+async function dumpState(label) {
+  const s = await page.evaluate(() => {
+    const svgs = [...document.querySelectorAll('svg.isom-map')]
+    const layers = [...document.querySelectorAll('[data-layer]')].map(g => g.getAttribute('data-layer'))
+    const uniq = [...new Set(layers)]
+    const main = svgs[0]
+    const rawMeta = main?.getAttribute('data-meta') ?? null
+    let meta = null
+    try { meta = rawMeta ? JSON.parse(rawMeta) : null } catch { meta = { PARSE_ERROR: true } }
+    const vann = document.querySelector('g[data-layer="vann"]')
+    return {
+      antallIsomSvg: svgs.length,
+      harDataMeta: rawMeta != null,
+      metaHode: rawMeta ? rawMeta.slice(0, 120) : null,
+      appVersion: meta?.appVersion ?? null,
+      nveInnsjoStatus: meta?.nveInnsjoStatus ?? null,
+      partialSource: meta?.source ?? null,
+      dataLayers: uniq.slice(0, 20),
+      vannPaths: vann ? vann.querySelectorAll('path').length : -1,
+    }
+  })
+  console.log(`=== ${label} ===`)
+  console.log(JSON.stringify(s, null, 1))
+  return s
+}
 
 console.log('goto', URL)
 await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 60000 })
 await page.waitForTimeout(3000)
-
-console.log('klikker Bygg …')
 await page.click('button.bg-emerald-600', { timeout: 20000 })
 await page.waitForURL(/\/kart\//, { timeout: 180000 })
 console.log('på kart-visning:', page.url())
 
-// Terreng-først: vent til den FULLE byggingen (med nveInnsjoStatus i meta) har
-// erstattet terreng-arket.
-let meta = null
-for (let i = 0; i < 90; i++) {
-  meta = await page.evaluate(() => {
-    const svg = document.querySelector('svg.isom-map')
-    const raw = svg?.getAttribute('data-meta')
-    try { return raw ? JSON.parse(raw) : null } catch { return null }
-  })
-  if (meta?.nveInnsjoStatus) break
+// Vent til full bygging bør være ferdig (perf-linja kom etter ~5 s i v1), og
+// poll DOM i inntil 60 s.
+let state = null
+for (let i = 0; i < 30; i++) {
   await page.waitForTimeout(2000)
+  state = await page.evaluate(() => {
+    const raw = document.querySelector('svg.isom-map')?.getAttribute('data-meta')
+    try { return raw ? (JSON.parse(raw)?.nveInnsjoStatus ?? null) : null } catch { return null }
+  })
+  if (state) break
 }
+await dumpState('DOM etter bygging + 60 s poll')
+await page.screenshot({ path: 'e2e-1-live.png' })
 
-console.log('=== FASIT fra DOM ===')
-console.log('kartets appVersion-stempel:', meta?.appVersion ?? '(mangler!)')
-console.log('nveInnsjoStatus:', JSON.stringify(meta?.nveInnsjoStatus ?? null))
-console.log('sjokartStatus.state:', meta?.sjokartStatus?.state)
+console.log('--- RELOAD-TEST: henter reload det fulle arket fra lagringen? ---')
+await page.reload({ waitUntil: 'domcontentloaded' })
+await page.waitForTimeout(8000)
+const after = await dumpState('DOM etter reload')
+await page.screenshot({ path: 'e2e-2-reload.png' })
 
-const water = await page.evaluate(() => {
-  const g = document.querySelector('g[data-layer="vann"]')
-  const paths = g ? [...g.querySelectorAll('path')] : []
-  return {
-    vannPaths: paths.length,
-    dTegnTotalt: paths.reduce((s, p) => s + (p.getAttribute('d')?.length ?? 0), 0),
-    subpather: paths.reduce((s, p) => s + ((p.getAttribute('d') ?? '').match(/M/g)?.length ?? 0), 0),
-  }
-})
-console.log('vann-lag i DOM:', JSON.stringify(water))
-
-await page.screenshot({ path: 'e2e-setten.png' })
-const frisk = meta?.appVersion && meta?.nveInnsjoStatus?.state === 'ok' && water.vannPaths > 0
-console.log(frisk ? 'KONKLUSJON: FRISK ✅ — appen bygger korrekt i ekte nettleser'
-  : 'KONKLUSJON: PROBLEM ❌ — reproduserbart her, se over')
+console.log('KONKLUSJON:',
+  after.appVersion && after.nveInnsjoStatus?.state === 'ok' && after.vannPaths > 0
+    ? 'Fullt ark FINNES i lagringen — kun den stille re-renderingen feiler'
+    : 'Fullt ark mangler også etter reload — finalize-lagringen feiler')
 await browser.close()
