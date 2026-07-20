@@ -1,5 +1,15 @@
 # Endringslogg
 
+## 2026-07-20 — v1.0.39: Fjernet DEM-basert øy-gjetting
+
+Reverterer den DEM-avledede øy-karvingen fra v1.0.38. Den løste ikke Kolstadøya
+i praksis, og den hvilte på terskelverdier («meter over vann», «minimum
+øystørrelse») som er skjøre og feil verktøy for å avgjøre om en øy finnes — en
+øy skal komme fra autoritativ vektor-geometri, ikke gjettes fra høydemodellen.
+Fjernet `lib/lakeIslands.js` og krokene i `mapBuilder`. Øy-problemet løses i
+stedet ved å gi den eksisterende pipelinen ekte N50-vann-geometri (der øyer er
+indre ringer) fra et eget, statisk hostet datasett — se plan.
+
 ## 2026-07-20 — v1.0.38: Øyer i innsjøer karves ut fra høydemodellen
 
 Innsjøer med øyer (Kolstadøya i Setten) ble malt som én solid blå flate over
