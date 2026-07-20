@@ -1,5 +1,20 @@
 # Endringslogg
 
+## 2026-07-20 — v1.0.46: Robust NVE-paginering, verifisert mot 33 400 innsjøer
+
+NVE-pagineringen antok sidestørrelse («fikk færre enn forespurt → siste
+side») — skjørt mot enhver server-konfigurasjon. Nå pagineres det på serverens
+eget `exceededTransferLimit`-flagg med objectid-dedup (en server som ignorerer
+`resultOffset` gir stopp, ikke dobling), og eventuell avkutting rapporteres i
+NVE-innsjø-statusen («AVKUTTET»). CI-verifisert mot ekte NVE: gigantisk bbox
+(halve Østlandet) ga 33 400 innsjøer over 17 sider på 66 s, med flagget
+bekreftet til stede i geojson-svar. Merk: «innsjøer borte»-kartene fra tidligere
+i kveld skyldtes IKKE paginering, men kart-fliser bygd i overgangsvinduet rett
+etter v1.0.44-deployen (gammel klient lette etter FGB-filer som var fjernet fra
+gh-pages) — kart bygd HELT på nytt med oppdatert app henter alt live fra NVE.
+
+---
+
 ## 2026-07-20 — v1.0.45: NVE-innsjø-status i Utvikler-fanen + retry
 
 Etter v1.0.44 manglet innsjøer på kart bygd rett etter deployen (Nesøytjern,
