@@ -1,0 +1,66 @@
+name: N50 water probe (discovery)
+
+# Engangs-diagnose: lærer Geonorges Nedlasting-API-struktur for N50 Kartdata
+# (formater, områder, projeksjoner, bestillings-lenker) og bekrefter at GDAL er
+# tilgjengelig i CI. Kjøres i CI fordi nedlasting.geonorge.no er blokkert fra
+# utviklingssandkassen. Skriver INGEN artefakt — kun logg vi leser.
+# Trigges når selve probe-filen endres (så en push kjører den).
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['**']
+    paths:
+      - '.github/workflows/n50-water-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: GDAL-tilgjengelighet
+        run: |
+          set +e
+          echo "::group::apt gdal-bin"
+          sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin
+          echo "::endgroup::"
+          echo "ogr2ogr: $(ogr2ogr --version 2>&1)"
+          echo "ogr formats (FlatGeobuf/GML/GPKG):"
+          ogr2ogr --formats 2>&1 | grep -iE "flatgeobuf|\bGML\b|GPKG|GeoJSON" || true
+
+      - name: Nedlasting-API capabilities + codelists
+        run: |
+          set +e
+          UUID=ea192681-d039-42ec-b1bc-f3ce04c189ac
+          BASE=https://nedlasting.geonorge.no/api
+          hdr='-H Accept:application/json -H User-Agent:lende-probe/1.0'
+          echo "===== CAPABILITIES ====="
+          curl -sS $hdr "$BASE/capabilities/$UUID" | head -c 4000
+          echo ""
+          echo "===== FORMAT CODELIST ====="
+          curl -sS $hdr "$BASE/codelists/format/$UUID" | head -c 3000
+          echo ""
+          echo "===== PROJECTION CODELIST ====="
+          curl -sS $hdr "$BASE/codelists/projection/$UUID" | head -c 2000
+          echo ""
+          echo "===== AREA CODELIST (head) ====="
+          curl -sS $hdr "$BASE/codelists/area/$UUID" > /tmp/areas.json
+          echo "areas bytes: $(wc -c < /tmp/areas.json)"
+          head -c 2500 /tmp/areas.json
+          echo ""
+          echo "===== AREAS matching Aurskog/Høland/Setskog/Akershus ====="
+          grep -oiE '\{[^{}]*(aurskog|høland|holand|setskog|akershus)[^{}]*\}' /tmp/areas.json | head -c 2000 || echo "ingen treff"
+          echo ""
+
+      - name: Atom-feed alternativ (INSPIRE predefined download)
+        run: |
+          set +e
+          UUID=ea192681-d039-42ec-b1bc-f3ce04c189ac
+          echo "===== ATOM DOWNLOAD FEED ====="
+          curl -sS -H 'User-Agent:lende-probe/1.0' "https://nedlasting.geonorge.no/geonorge/Basisdata/N50Kartdata.xml" | head -c 2000
+          echo ""
+          echo "(prøver også api/download/feeds)"
+          curl -sS -H 'User-Agent:lende-probe/1.0' "https://nedlasting.geonorge.no/api/download/feeds/$UUID.xml" | head -c 1500
+          echo ""
