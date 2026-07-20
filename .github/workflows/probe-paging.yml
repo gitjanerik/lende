@@ -1,0 +1,25 @@
+name: Probe NVE paging
+
+# Diagnose (kun logg): bevis at exceededTransferLimit-pagineringen henter alt
+# på et stort Setskog-bbox og at Setten er med. Midlertidig — slettes før merge.
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'scripts/probe-paging.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: node scripts/probe-paging.mjs

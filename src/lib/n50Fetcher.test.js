@@ -52,20 +52,45 @@ describe('fetchN50Water — NVE Innsjødatabasen query på bbox', () => {
     expect(seen).toHaveLength(1)
   })
 
-  it('paginerer når en side er full (2000), stopper på kort side', async () => {
-    const full = Array.from({ length: 2000 }, (_, i) => ({
+  it('paginerer på exceededTransferLimit — uavhengig av serverens sidestørrelse', async () => {
+    // Server med maxRecordCount=3 (mini-utgave av NVEs ~1000): to fulle sider
+    // + én kort. Uten flagg-basert paginering mistes side 2 og 3 (Setten-bugen).
+    const feat = (oid) => ({
       type: 'Feature',
-      properties: {},
-      geometry: { type: 'Polygon', coordinates: [box(11.6 + i * 1e-6, 59.79, 0.001)] },
-    }))
-    const calls = []
+      properties: { objectid: oid },
+      geometry: { type: 'Polygon', coordinates: [box(11.6 + oid * 1e-4, 59.79, 0.001)] },
+    })
+    const pages = [
+      { features: [feat(1), feat(2), feat(3)], exceededTransferLimit: true },
+      { features: [feat(4), feat(5), feat(6)], exceededTransferLimit: true },
+      { features: [feat(7)], exceededTransferLimit: false },
+    ]
+    const offsets = []
     vi.stubGlobal('fetch', vi.fn(async (u) => {
-      calls.push(new URL(String(u)).searchParams.get('resultOffset'))
-      return okResponse(calls.length === 1 ? full : [settenFeature])
+      offsets.push(new URL(String(u)).searchParams.get('resultOffset'))
+      return { ok: true, json: async () => ({ type: 'FeatureCollection', ...pages[offsets.length - 1] }) }
     }))
     const els = await fetchN50Water(bbox, { queryBase: 'https://x/MapServer/5' })
-    expect(calls).toEqual(['0', '2000'])
-    expect(els).toHaveLength(2001)
+    expect(offsets).toEqual(['0', '3', '6'])
+    expect(els).toHaveLength(7)
+  })
+
+  it('server som ignorerer resultOffset → dedup stopper løkka (ingen dobling)', async () => {
+    const feat = (oid) => ({
+      type: 'Feature',
+      properties: { objectid: oid },
+      geometry: { type: 'Polygon', coordinates: [box(11.6, 59.79, 0.001)] },
+    })
+    let calls = 0
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      calls++
+      return { ok: true, json: async () => ({ type: 'FeatureCollection', features: [feat(1), feat(2)], exceededTransferLimit: true }) }
+    }))
+    const statuses = []
+    const els = await fetchN50Water(bbox, { queryBase: 'https://x/MapServer/5', onStatus: s => statuses.push(s) })
+    expect(els).toHaveLength(2)
+    expect(calls).toBe(2)
+    expect(statuses[0].truncated).toBe(true)
   })
 
   it('nettfeil (begge forsøk) → tom liste + feil-status (identify/OSM tar over)', async () => {
