@@ -35,9 +35,11 @@ const API = 'https://nedlasting.geonorge.no/api'
 // Havflate + FerskvannTørrfall er BEVISST utelatt — se topp.
 const WATER_OBJTYPES = ['Innsjø', 'InnsjøRegulert']
 const WHERE = `objtype IN (${WATER_OBJTYPES.map(o => `'${o}'`).join(',')})`
-// Lett forenkling (~2 m i grader) — under klientens egen DP (2 m i mapBuilder)
-// → ingen synlig tap, men holder filene små.
-const SIMPLIFY_DEG = '0.00002'
+// Forenkling (~5 m i grader). Innsjøer er selve tyngden i datasettet (Norge er
+// ekstremt innsjø-tett): på ~2 m ble hele landet ~815 MB. ~5 m halverer det til
+// ~350 MB, er sub-piksel i kartskala (1:10 000–1:50 000) og beholder ekte øyer
+// (Kolstadøya) — kun holmer < ~5 m glattes bort.
+const SIMPLIFY_DEG = '0.00005'
 // Del en fylkes-fil hvis den overstiger dette (GitHubs harde grense er 100 MB).
 const SPLIT_LIMIT_MB = 95
 // Slutt å dele under ~5 km — unngå patologisk oppdeling av én stor flate.

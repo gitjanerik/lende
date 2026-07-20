@@ -7,13 +7,15 @@ CI-scriptet laster ned N50 for alle fylker og skriver ÉN FlatGeobuf per fylke
 (`public/data/n50-water/<fylkeskode>.fgb`) pluss et manifest (`index.json`) med
 hver fils bbox. Klienten leser manifestet, velger fila(ene) som overlapper
 kart-bboxen, og spør hver på bbox via HTTP Range — så bare relevante utsnitt
-lastes. For å holde hver fil under GitHubs 100 MB/fil-grense bakes KUN innsjøer
-(Innsjø + InnsjøRegulert): elve-/bekkeflater tegnes fra OSM-linjer som før, og
-sjøen kommer autoritativt fra DEM (`seaFromDem.js`) + Sjøkart. Skulle et
-innsjø-tett fylke likevel bli for stort, deles fila i bbox-fliser (`<fylke>-
-<n>.fgb`) — hele innsjøflater tas med i hver flis (ingen klipping), så øy-hull
-forblir intakte. Innsjø-øyer beholdes som ekte hull (Kolstadøya i Setten) i
-hele landet, uten terskler eller heuristikk.
+lastes. Datasettet er KUN innsjøer (Innsjø + InnsjøRegulert): elve-/bekkeflater
+tegnes fra OSM-linjer som før, og sjøen kommer autoritativt fra DEM
+(`seaFromDem.js`) + Sjøkart. Innsjøene er selve tyngden (Norge er ekstremt
+innsjø-tett), så omrissene forenkles til ~5 m — sub-piksel i kartskala, men
+halverer datasettet til ~350 MB. Ekte øyer (Kolstadøya i Setten) beholdes som
+ekte hull i hele landet, uten terskler eller heuristikk; kun holmer < ~5 m
+glattes bort. Skulle et innsjø-tett fylke likevel bli > 95 MB, deles fila i
+bbox-fliser (`<fylke>-<n>.fgb`) — hele innsjøflater tas med i hver flis (ingen
+klipping), så øy-hull forblir intakte.
 
 ---
 
