@@ -4,7 +4,9 @@
 // tilbake». Composablen eier ghostRects + cachene; forelderen eier SVG-verten,
 // relieff-innstillingene og lag-/pan-funksjonene (destrukturert inn).
 import { ref } from 'vue'
-import { listMaps as listStoredMaps, loadMap as loadStoredMap } from '../lib/mapStorage.js'
+import { listMaps as listStoredMaps, loadMap as loadStoredMap, deleteMap as deleteStoredMap } from '../lib/mapStorage.js'
+import { tileIsCurrent } from '../lib/tileCache.js'
+import { APP_VERSION } from '../version.js'
 import { isomCatalog, buildIsomDefs, buildIsomCss } from '../lib/symbolizer.js'
 import { unpackDem } from '../lib/demSampling.js'
 import { computeHillshade, hillshadeToDataURL } from '../lib/hillshade.js'
@@ -260,7 +262,17 @@ export function useGhostTiles({
     const radiusDeg = activeCenter
       ? (GHOST_RENDER_RADIUS_TILES + 1) * (m.widthM / 111320)
       : Infinity
+    // Stale AUTO-fliser (bygd med annen app-versjon) er ubrukelige som cache:
+    // gjenbruk serverte gamle data i «helt nye» kart. Usynliggjør dem her (så
+    // de verken rendres, undertrykker nybygging eller kan promoteres) og rydd
+    // dem fra IndexedDB i bakgrunnen. Brukerens egne kart røres aldri.
+    for (const t of tiles) {
+      if (t.isAuto && !tileIsCurrent(t, APP_VERSION)) {
+        deleteStoredMap(t.id).catch(() => {})
+      }
+    }
     const cands = tiles
+      .filter(t => tileIsCurrent(t, APP_VERSION))
       .filter(t => t.id !== mapId.value && t.center && (!activeCenter ||
         Math.abs(t.center.lat - activeCenter.lat) < radiusDeg))
       .map(t => ({ t, d: activeCenter ? Math.hypot(t.center.lat - activeCenter.lat, t.center.lon - activeCenter.lon) : 0 }))

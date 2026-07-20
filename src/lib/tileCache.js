@@ -18,6 +18,25 @@ import { listMaps, deleteMap } from './mapStorage.js'
 // raus uten å koste framerate.
 export const MAX_AUTO_TILES = 16
 
+/**
+ * Kan denne lagrede flisa gjenbrukes av appen som kjører nå?
+ * Brukerens egne kart (ikke-auto) gjenbrukes alltid — de er eksplisitt lagret
+ * og har «Kart bygd med»-merking i Utvikler-fanen. AUTO-fliser er derimot en
+ * ren cache, og en cache av ark bygd med gammel kode serverte gamle data i
+ * «helt nye» kart (innsjøer borte-saken 2026-07-20): centerOverExistingTile
+ * undertrykte nybygging, og promoteTile gjorde gamle fliser til aktivt ark.
+ * Derfor: auto-flis bygd med en annen (eller ustemplet, dvs. før-v1.0.48)
+ * app-versjon er IKKE gjenbrukbar — den skal hoppes over og ryddes.
+ *
+ * @param {{isAuto?:boolean, appVersion?:string}} entry
+ * @param {string} appVersion  kjørende APP_VERSION
+ * @returns {boolean}
+ */
+export function tileIsCurrent(entry, appVersion) {
+  if (!entry?.isAuto) return true
+  return entry.appVersion === appVersion
+}
+
 // Equirektangulær tilnærming til avstand mellom to lat/lon-punkter. Distansene
 // her er på km-skala (nabofliser), så vi trenger ikke ekte haversine — bare et
 // monotont mål for «hvilken flis er lengst unna». lon vektes med cos(lat) så
