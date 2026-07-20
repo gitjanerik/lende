@@ -294,33 +294,60 @@ function sameShape(a, b, tolM = 30) {
  * @param {{ results?: Array<{ geometry?: object, attributes?: object }> }} json
  * @returns {Array} OSM-aktige relation-elementer
  */
+// Antall gyldige ringer i en Esri-polygon (lukket ring = ≥ 4 punkter). Flere
+// ringer = ytre omriss + øy-hull; brukes til å velge den rikeste duplikat-
+// varianten (se dedup under).
+function esriRingCount(geom) {
+  const rings = geom?.rings
+  if (!Array.isArray(rings)) return 0
+  let n = 0
+  for (const r of rings) if (Array.isArray(r) && r.length >= 4) n++
+  return n
+}
+
 export function nveIdentifyToWater(json) {
   const results = json?.results
   if (!Array.isArray(results)) return []
-  const out = []
-  const kept = []   // { desc, lnr, el }
-  let i = 0
+  // Samle beste variant pr innsjø FØR vi bygger relations, så vi kan bytte til
+  // en rikere geometri når et senere lag har den.
+  const kept = []   // { desc, lnr, ringCount, geometry, attributes, name }
   for (const r of results) {
     if (!r?.geometry?.rings) continue
     const f = scanAttributes(r.attributes ?? {})
     const lnr = Number.isFinite(f.vatnLnr) ? f.vatnLnr : null
     const desc = shapeDescriptor(r.geometry.rings)
     if (!desc) continue
+    const ringCount = esriRingCount(r.geometry)
     // Finn et allerede beholdt duplikat: samme vatnLnr, ellers samme form.
     let dup = null
     for (const k of kept) {
       if ((lnr != null && k.lnr === lnr) || sameShape(desc, k.desc)) { dup = k; break }
     }
     if (dup) {
-      // Behold den første, men ta vare på et navn fra et senere duplikat-lag,
-      // og lås vatnLnr på den beholdte hvis vi nettopp lærte den.
-      if (!dup.el.tags.name && f.navn) dup.el.tags.name = f.navn
+      // Ta vare på navn fra et duplikat-lag og lås vatnLnr hvis vi nettopp lærte den.
+      if (!dup.name && f.navn) dup.name = f.navn
       if (lnr != null && dup.lnr == null) dup.lnr = lnr
+      // NVE identify (layers:all) returnerer SAMME innsjø fra flere lag — noen
+      // generalisert UTEN øy-hull, noen med. Å alltid beholde den første kunne
+      // låse oss til den hull-løse varianten, så øyer (Kolstadøya i Setten)
+      // forsvant selv om et annet lag hadde dem. Behold i stedet varianten med
+      // FLEST ringer (= med øy-hull); ved likhet beholdes den første som før.
+      if (ringCount > dup.ringCount) {
+        dup.geometry = r.geometry
+        dup.attributes = r.attributes
+        dup.ringCount = ringCount
+        dup.desc = desc
+      }
       continue
     }
-    const el = esriPolygonToRelation(r.geometry, r.attributes, String(i++))
+    kept.push({ desc, lnr, ringCount, geometry: r.geometry, attributes: r.attributes, name: f.navn ?? null })
+  }
+  const out = []
+  let i = 0
+  for (const k of kept) {
+    const el = esriPolygonToRelation(k.geometry, k.attributes, String(i++))
     if (!el) continue
-    kept.push({ desc, lnr, el })
+    if (!el.tags.name && k.name) el.tags.name = k.name
     out.push(el)
   }
   return out
