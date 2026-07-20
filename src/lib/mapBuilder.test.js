@@ -257,6 +257,44 @@ describe('OSM-vann rendres uten størrelses-filtrering (velprøvd norsk oppførs
   })
 })
 
+describe('kraftlinje (528) — eget lag med tverrgående kryssmerker (ut.no-stil)', () => {
+  const powerLine = {
+    type: 'way', id: 700, tags: { power: 'line' },
+    geometry: [
+      { lat: 59.01, lon: 10.02 },
+      { lat: 59.04, lon: 10.08 },
+    ],
+  }
+  const minorLine = {
+    type: 'way', id: 701, tags: { power: 'minor_line' },
+    geometry: [
+      { lat: 59.02, lon: 10.03 },
+      { lat: 59.03, lon: 10.07 },
+    ],
+  }
+
+  it('rendres i eget data-layer="kraftlinje" (ikke slått sammen med gjerde)', () => {
+    const { svg } = buildSvg([powerLine], bbox, {})
+    expect(svg).toMatch(/data-layer="kraftlinje"[^>]*data-iso="528">(?!<\/g>)/)
+  })
+
+  it('får en base-strek OG en egen kryssmerke-path (data-kraft-tick)', () => {
+    const { svg } = buildSvg([powerLine], bbox, {})
+    const m = svg.match(/data-layer="kraftlinje"[\s\S]*?<\/g>/)
+    expect(m).toBeTruthy()
+    const layer = m[0]
+    expect(layer).toContain('data-kraft-tick="1"')
+    // Kryssmerkene er mange korte segmenter langs en fleire-km linje.
+    const d = layer.match(/<path d="([^"]*)" data-kraft-tick/)
+    expect((d[1].match(/M/g) || []).length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('power=minor_line tas med (alle kraftlinjer synlige)', () => {
+    const { svg } = buildSvg([minorLine], bbox, {})
+    expect(svg).toMatch(/data-layer="kraftlinje"[^>]*data-iso="528">(?!<\/g>)/)
+  })
+})
+
 describe('område-navn — lineære features får ALDRI areal-label (tullenavn-fiks v10.2.43)', () => {
   // En busslinje-relasjon: type=route, way-medlemmer med TOM rolle. Tidligere
   // plukket assembleRelationRings(..,'outer') opp trasé-wayene som «outer» og

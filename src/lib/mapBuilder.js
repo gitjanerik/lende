@@ -97,7 +97,7 @@ ${includeBuildings ? '  way["building"];' : ''}
   way["boundary"="protected_area"]["protect_class"~"^(1|1a|1b|4)$"]["name"];
   way["boundary"="national_park"]["name"];
   way["barrier"~"^(fence|wall)$"];
-  way["power"="line"];
+  way["power"~"^(line|minor_line)$"];
   way["place"~"^(island|islet)$"];
   way["aerialway"];
   way["railway"~"^(rail|tram|narrow_gauge|light_rail|subway|funicular|monorail)$"];
@@ -1570,6 +1570,52 @@ export function buildSvg(elements, bbox, options = {}) {
           pathParts.push(`    <line x1="${fmt(x1)}" y1="${fmt(y1)}" x2="${fmt(x2)}" y2="${fmt(y2)}" class="tunnel-portal"/>`)
         }
         return `  <g data-layer="${cat}" data-iso="${code}">\n${pathParts.join('\n')}\n  </g>\n`
+      }
+      // Kraftlinje (528): base-strek + periodiske tverrgående kryssmerker
+      // slik ut.no/Norgeskart tegner dem — de små tverrstrekene gjør at laget
+      // skiller seg ut fra veier/stier og fungerer som orienterings-landemerke.
+      // Merkene sitter sentrert på linja (halvt på hver side) med jevn avstand
+      // i bakke-meter, uavhengig av segment-lengde. Base + merker deler samme
+      // 528-strek (samme data-iso-gruppe) så CSS-vekten matcher.
+      if (code === '528') {
+        const SPACING_M = 45   // ~4.5 mm @ 1:10 000 mellom kryssmerkene
+        const TICK_HALF_M = 4  // 8 m totalt ≈ 0.8 mm — synlig men diskret
+        const dsBase = []
+        const tickParts = []
+        let bb = null
+        for (const el of els) {
+          const { d, bbox } = pathAndBboxFromGeometry(el.geometry, false, tol)
+          if (!d) continue
+          dsBase.push(d)
+          bb = unionBbox(bb, bbox)
+          const g = el.geometry
+          if (!Array.isArray(g) || g.length < 2) continue
+          const pts = g.map(pt => project(pt.lat, pt.lon))
+          let acc = SPACING_M
+          for (let i = 1; i < pts.length; i++) {
+            const x0 = pts[i - 1].x, y0 = pts[i - 1].y
+            const x1 = pts[i].x, y1 = pts[i].y
+            const dx = x1 - x0, dy = y1 - y0
+            const segLen = Math.hypot(dx, dy)
+            if (segLen < 1) continue
+            const ux = dx / segLen, uy = dy / segLen
+            const px = -uy, py = ux           // enhets-normal
+            while (acc <= segLen) {
+              const t = acc / segLen
+              const cx = x0 + dx * t, cy = y0 + dy * t
+              const ax = cx - px * TICK_HALF_M, ay = cy - py * TICK_HALF_M
+              const bx = cx + px * TICK_HALF_M, by = cy + py * TICK_HALF_M
+              tickParts.push(`M${fmt(ax)},${fmt(ay)}L${fmt(bx)},${fmt(by)}`)
+              acc += SPACING_M
+            }
+            acc -= segLen
+            if (acc < 0) acc = SPACING_M
+          }
+        }
+        if (!dsBase.length) return `  <g data-layer="${cat}" data-iso="${code}"></g>\n`
+        const parts = [`    <path d="${dsBase.join(' ')}"${bboxAttr(bb, fmt)}/>`]
+        if (tickParts.length) parts.push(`    <path d="${tickParts.join(' ')}" data-kraft-tick="1"${bboxAttr(bb, fmt)}/>`)
+        return `  <g data-layer="${cat}" data-iso="${code}">\n${parts.join('\n')}\n  </g>\n`
       }
       // v8.10.4: alle linjer i samme code/phase deler stil → kombinér til
       // stor <path d="..."> i stedet for N enkelt-paths. Hver M starter
@@ -3173,7 +3219,8 @@ function categoryFor(code) {
     case '201': case '203':                     return 'stupkant'
     case '210': case '213':
     case '215': case '216':                          return 'stein'
-    case '525': case '528':                     return 'linje'
+    case '525':                                  return 'linje'
+    case '528':                                  return 'kraftlinje'
     case '113':                                  return 'trig'
     case '509':                                  return 'bro'
     case '526':                                  return 'bom'
