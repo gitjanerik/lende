@@ -146,6 +146,12 @@ export function useMapLoadPipeline(deps) {
         contoursSkipped: m.contoursSkipped ?? null,
         coastal: m.coastal ?? null,        // true=kyst, false=innland, null=ukjent (eldre kart)
         sjokartStatus: m.sjokartStatus ?? null, // utfall av Sjøkart-WFS ved bygging (Utvikler-fanen)
+        // VIKTIG: denne hvitelisten STRIPPET appVersion/nveInnsjoStatus da de
+        // ble innført (v1.0.45/47) — Utvikler-fanen viste «bygd med eldre
+        // versjon» og «ingen status» på ALLE kart, også splitter ferske, og
+        // gjorde en hel feilsøkingskveld blind. Nye meta-felter MÅ legges til her.
+        appVersion: m.appVersion ?? null,       // app-versjonen arket ble bygd med
+        nveInnsjoStatus: m.nveInnsjoStatus ?? null, // NVE-innsjø-utfall ved bygging
       }
       // Forbruk init-prefs fra auto-kart / on-the-fly (tema + synlige lag, GPS,
       // auto-modus, bevart zoom/rotasjon). Én gang per ny mapId.
