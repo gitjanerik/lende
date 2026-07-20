@@ -1,5 +1,20 @@
 # Endringslogg
 
+## 2026-07-20 — v1.0.48: Auto-flis-cachen versjons-gates (gamle fliser i «nye» kart)
+
+Siste brikke i «innsjøer borte»-saken: selv HELT NYE kart viste gamle data.
+Årsak: auto-flis-mosaikk-cachen i IndexedDB overlever app-oppdateringer —
+`centerOverExistingTile` undertrykker nybygging der en spøkelses-flis alt
+finnes («Allerede bygd — flytter dit»), og promotering gjør gamle fliser til
+aktivt ark. Fliser bygd med ødelagt kode tidligere på kvelden ble dermed
+servert på nytt i ferske kart. Nå stemples hver lagret flis med app-versjonen
+(`appVersion` i lagringsposten), og auto-fliser bygd med en ANNEN versjon
+usynliggjøres (gjenbrukes aldri, blokkerer aldri nybygging, kan aldri
+promoteres) og ryddes fra IndexedDB i bakgrunnen. Brukerens egne lagrede kart
+røres aldri — de har «Kart bygd med»-merkingen fra v1.0.47.
+
+---
+
 ## 2026-07-20 — v1.0.47: Kart stemples med byggeversjon; NVE-rad alltid synlig
 
 Kveldens feilsøking av «innsjøer borte» strandet gjentatte ganger på samme

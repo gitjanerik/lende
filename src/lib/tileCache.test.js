@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { tileDistance, selectTilesToEvict, tileOffset, rectOverlapFraction, tilesAreGridCompatible, findGridGaps } from './tileCache.js'
+import { tileDistance, selectTilesToEvict, tileOffset, rectOverlapFraction, tilesAreGridCompatible, findGridGaps, tileIsCurrent } from './tileCache.js'
 
 const at = (id, lat, lon) => ({ id, center: { lat, lon } })
 
@@ -242,5 +242,22 @@ describe('findGridGaps', () => {
   it('toler liten float-rest i offset', () => {
     const gaps = findGridGaps(active, [{ x: W + 0.3, y: 0 }, { x: 0, y: H - 0.2 }, cell(1, 1)])
     expect(gaps).toEqual([])
+  })
+})
+
+describe('tileIsCurrent — versjons-gate for auto-flis-cachen', () => {
+  it('brukerens egne kart (ikke-auto) gjenbrukes alltid', () => {
+    expect(tileIsCurrent({ isAuto: false }, '1.0.48')).toBe(true)
+    expect(tileIsCurrent({ isAuto: false, appVersion: '1.0.40' }, '1.0.48')).toBe(true)
+    expect(tileIsCurrent({}, '1.0.48')).toBe(true)
+  })
+
+  it('auto-flis med samme versjon gjenbrukes', () => {
+    expect(tileIsCurrent({ isAuto: true, appVersion: '1.0.48' }, '1.0.48')).toBe(true)
+  })
+
+  it('auto-flis med annen eller manglende versjon er stale', () => {
+    expect(tileIsCurrent({ isAuto: true, appVersion: '1.0.44' }, '1.0.48')).toBe(false)
+    expect(tileIsCurrent({ isAuto: true }, '1.0.48')).toBe(false)
   })
 })

@@ -16,6 +16,7 @@
 //   router.push({ name: 'kart-vis', params: { id } })
 
 import { fetchOverpass, probeCoastline, bboxFromCenter, viewportAspect } from './mapBuilder.js'
+import { APP_VERSION } from '../version.js'
 import { buildSvgClient } from './buildSvgClient.js'
 import { fetchN50Water } from './n50Fetcher.js'
 import { fetchNveLakePolygons } from './nveLakeFetcher.js'
@@ -546,6 +547,11 @@ export async function buildMapFromCenter({
     // Auto-genererte fliser markeres så tileCache kan kappe dem (de fjerneste
     // først) uten å røre brukerens egne kart fra picker/hjem-FAB.
     isAuto: !!isAuto,
+    // App-versjonen flisa ble bygd med. Auto-fliser fra ANDRE versjoner
+    // gjenbrukes aldri (useGhostTiles hopper over + rydder dem) — en cache av
+    // ark bygd med gammel kode serverte ellers gamle data i «helt nye» kart
+    // (innsjøer borte-saken 2026-07-20).
+    appVersion: APP_VERSION,
   })
 
   // Full bygging: vent på alle kilder, slå sammen, bygg full SVG (worker).
