@@ -18,6 +18,7 @@ import {
   isomCatalog,
 } from './symbolizer.js'
 import { buildContours, detectCliffs, detectKnauser, detectSummits } from './dem.js'
+import { islandHolesForLake } from './lakeIslands.js'
 import { buildSeaFromDem, buildSeaShallowBands } from './seaFromDem.js'
 import { depthBandClass } from './sjokartFetcher.js'
 import {
@@ -1436,6 +1437,18 @@ export function buildSvg(elements, bbox, options = {}) {
           }
           d = subpaths.join(' ')
         }
+        // DEM-avledede øy-hull (innlands-innsjø 301): append som egne lukkede
+        // subpaths. Innsjø-pathen males med fill-rule=evenodd (navngitt eller
+        // vann-grenen under), så øyene kuttes ut og land/relieff/konturer under
+        // vannet skinner gjennom.
+        if (code === '301' && d && el._islandHoleRings) {
+          for (const ring of el._islandHoleRings) {
+            if (ring.length < 3) continue
+            let hd = `M${fmt(ring[0][0])},${fmt(ring[0][1])}`
+            for (let i = 1; i < ring.length; i++) hd += `L${fmt(ring[i][0])},${fmt(ring[i][1])}`
+            d += ' ' + hd + 'Z'
+          }
+        }
         // Dybdeareal (307) rendres med Sjøkarts EGEN geometri — øy-hull bevares
         // nå i sjokartFetcher (relation m/ inner-ringer), så dybde males ikke
         // over øyer (Holmen i Drammen). Tidligere ble 307 klippet mot den DEM-
@@ -1855,6 +1868,43 @@ export function buildSvg(elements, bbox, options = {}) {
     }
     if (Math.abs(a) < 1e-6) return null
     return { areaM2: Math.abs(a) / 2, x: cx / (3 * a), y: cy / (3 * a) }
+  }
+
+  // ── Øy-hull i innlands-innsjøer avledet fra DEM ──────────────────────
+  // N50-vektor-WFS (som modellerte innsjø-øyer som hull) er avviklet, og
+  // NVE/OSM leverer dem ikke pålitelig → innsjøer ble malt solid over øyene
+  // (Kolstadøya i Setten). Øyene stiger over vannflaten, og det ser DEM-en:
+  // vi karver dem ut som hull. Kun ekte DEM, kun større innsjøer (301), og
+  // KUN når polygonet ikke allerede har øy-hull fra kilden (da stoler vi på
+  // kilden). Hullene lagres i SVG-meter på el._islandHoleRings og appendes
+  // til vann-pathen i layerSvg (fill-rule=evenodd kutter dem).
+  if (usableDem && sampleDem && !isSyntheticDEM) {
+    const demRes = Math.max(
+      Math.abs(usableDem.transform.pixelWidth),
+      Math.abs(usableDem.transform.pixelHeight),
+    ) || 20
+    const cellM = Math.max(15, demRes)
+    const MIN_LAKE_M2 = 50000 // ~5 ha — øyer er kun relevante i større innsjøer
+    const toMeterRing = (geom) => geom.map(g => { const p = project(g.lat, g.lon); return [p.x, p.y] })
+    for (const el of (buckets['301'] ?? [])) {
+      if (el._islandHoleRings) continue
+      let outerRings = []
+      if (el.type === 'way' && Array.isArray(el.geometry) && el.geometry.length >= 4) {
+        outerRings = [toMeterRing(el.geometry)]
+      } else if (el.type === 'relation' && Array.isArray(el.members)) {
+        if (assembleRelationRings(el.members, 'inner').length) continue // kilden har allerede øyer
+        outerRings = assembleRelationRings(el.members, 'outer').map(toMeterRing)
+      } else {
+        continue
+      }
+      const holes = []
+      for (const outer of outerRings) {
+        const ac = ringAreaCentroid(outer)
+        if (!ac || ac.areaM2 < MIN_LAKE_M2) continue
+        for (const h of islandHolesForLake(outer, sampleDem, { cellM })) holes.push(h)
+      }
+      if (holes.length) el._islandHoleRings = holes
+    }
   }
 
   // v11.0.79: navne-plassering for vann som bare delvis er i utsnittet.

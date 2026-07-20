@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildSvg, bboxFromCenter, viewportAspect, autoMapAFormat, autoMapSquare, PRINT_ASPECT, makeLabelNameClaimer } from './mapBuilder.js'
 import { syntheticDEM } from './dem.js'
-import { wgs84ToUtm32 } from './utm.js'
+import { wgs84ToUtm32, utm32BboxFromWgs84 } from './utm.js'
 
 describe('bboxFromCenter — aspekt strekker N/S, ikke E/V (v10.1.10)', () => {
   const lat = 59.9, lon = 10.75, halfKm = 2
@@ -254,6 +254,57 @@ describe('OSM-vann rendres uten størrelses-filtrering (velprøvd norsk oppførs
     const { svg } = buildSvg([bigWater, nestedWater], bbox, {})
     const wayPaths = svg.split('data-src="way"').length - 1
     expect(wayPaths).toBe(2)
+  })
+})
+
+describe('innlands-innsjø — øy karves fra DEM som hull (Kolstadøya/Setten)', () => {
+  // Bygg en syntetisk DEM: innsjø-flate på 100 m, øy i midten på 160 m.
+  const lakeBbox = { south: 59.0, west: 10.0, north: 59.009, east: 10.018 }
+  const ub = utm32BboxFromWgs84(lakeBbox)
+  const widthM = ub.maxE - ub.minE, heightM = ub.maxN - ub.minN
+  const res = 20
+  const cols = Math.ceil(widthM / res), rows = Math.ceil(heightM / res)
+  const data = new Float32Array(cols * rows)
+  const cxM = widthM / 2, cyM = heightM / 2
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const d = Math.hypot(c * res - cxM, r * res - cyM)
+      data[r * cols + c] = d < 120 ? 160 : 100 // øy=160, vann=100
+    }
+  }
+  const dem = {
+    data, cols, rows, noData: -9999, source: 'test',
+    transform: { originX: 0, originY: 0, pixelWidth: res, pixelHeight: res },
+  }
+  const pad = 0.0008
+  const lakeRing = [
+    { lat: 59.0 + pad, lon: 10.0 + pad }, { lat: 59.0 + pad, lon: 10.018 - pad },
+    { lat: 59.009 - pad, lon: 10.018 - pad }, { lat: 59.009 - pad, lon: 10.0 + pad },
+    { lat: 59.0 + pad, lon: 10.0 + pad },
+  ]
+  // Fersk innsjø pr test — buildSvg fester _islandHoleRings på elementet, og et
+  // delt objekt ville lekket hull mellom testene (i produksjon er elementene
+  // ferske pr bygg).
+  const makeLake = () => ({ type: 'way', id: 1, tags: { natural: 'water', name: 'Testvatn' }, geometry: lakeRing })
+
+  it('innsjø-pathen får et ekstra hull-subpath (evenodd) over øya', () => {
+    const { svg } = buildSvg([makeLake()], lakeBbox, { dem, utmBbox: ub, contourIntervalM: 20, scaleDenom: 10000 })
+    const m = svg.match(/data-iso="301">([\s\S]*?)<\/g>/)
+    expect(m).toBeTruthy()
+    const layer = m[1]
+    expect(layer).toContain('fill-rule="evenodd"')
+    const pathD = layer.match(/ d="([^"]*)"/)[1]
+    // Ytre ring + minst ett øy-hull = ≥ 2 lukkede subpaths.
+    expect((pathD.match(/M/g) || []).length).toBeGreaterThanOrEqual(2)
+    expect((pathD.match(/Z/g) || []).length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('flat innsjø (ingen øy) gir ingen ekstra hull', () => {
+    const flat = { ...dem, data: new Float32Array(cols * rows).fill(100) }
+    const { svg } = buildSvg([makeLake()], lakeBbox, { dem: flat, utmBbox: ub, contourIntervalM: 20, scaleDenom: 10000 })
+    const layer = svg.match(/data-iso="301">([\s\S]*?)<\/g>/)[1]
+    const pathD = layer.match(/ d="([^"]*)"/)[1]
+    expect((pathD.match(/M/g) || []).length).toBe(1) // bare ytre ring
   })
 })
 
