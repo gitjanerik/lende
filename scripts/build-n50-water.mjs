@@ -221,6 +221,12 @@ async function main() {
   }
 
   mkdirSync(OUTDIR, { recursive: true })
+  // Rydd gamle artefakter FØR baking, ellers hoper stale filer seg opp — f.eks.
+  // fliser (46-0.fgb) fra en tidligere kjøring som nå lages som én fil (46.fgb),
+  // eller motsatt. Uten dette blir treet dobbelt så stort som manifestet tilsier.
+  for (const f of readdirSync(OUTDIR)) {
+    if (f.endsWith('.fgb') || f === 'index.json') rmSync(join(OUTDIR, f), { force: true })
+  }
   const manifest = { generated: process.env.BAKE_DATE || null, objtypes: WATER_OBJTYPES, fylker: [] }
 
   for (const area of areas) {

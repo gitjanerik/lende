@@ -54,7 +54,9 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           # Fjern det gamle enkeltfil-datasettet hvis det fortsatt ligger der.
           git rm -q --ignore-unmatch public/data/n50-water.fgb || true
-          git add public/data/n50-water
+          # -A tar med SLETTINGER (stale fliser fra tidligere kjøringer som
+          # bake-scriptet nå har ryddet bort), ikke bare nye/endrede filer.
+          git add -A public/data/n50-water
           if git diff --staged --quiet; then
             echo "Ingen endring i N50-vann-datasettet"
           else
