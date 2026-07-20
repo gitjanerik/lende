@@ -1,5 +1,19 @@
 # Endringslogg
 
+## 2026-07-20 — v1.0.38: Øyer i innsjøer karves ut fra høydemodellen
+
+Innsjøer med øyer (Kolstadøya i Setten) ble malt som én solid blå flate over
+øyene. Kartverkets N50 vektor-WFS — som modellerte innsjø-øyer som hull — er
+avviklet, og verken NVE-innsjødatabasen eller OSM leverer øyene pålitelig. Men
+øyene stiger over vannflaten, og det ser høydemodellen (DEM) vi allerede
+henter. Ny `lib/lakeIslands.js` (`islandHolesForLake`) detekterer terreng som
+stikker opp over innsjøens vannivå innenfor innsjø-polygonet — robust mot både
+«vann leses som en flat høyde» og «vann er nodata» i NHM_DTM — og mapBuilder
+karver de områdene ut som hull (fill-rule=evenodd) i innsjø-flaten (ISOM 301).
+Da skinner land, relieff og høydekurver under vannet gjennom der øya ligger.
+Kun ekte DEM, kun innsjøer over ~5 ha, og kun der kilden ikke allerede har
+øy-hull. Løser øyene uten runtime-avhengighet til Kartverkets vektortjenester.
+
 ## 2026-07-20 — v1.0.37: Behold øy-hull fra NVE-innsjøer
 
 NVE-innsjøer med øyer (f.eks. Kolstadøya i Setten) kunne miste øya og bli malt
