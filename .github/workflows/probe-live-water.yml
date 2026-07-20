@@ -1,0 +1,29 @@
+name: Probe live water APIs
+
+# Diagnose (kun logg, committer ingenting): finnes en levende vektor-kilde
+# for innsjøer med øy-hull, spørrbar på bbox, med CORS? Kjøres i CI fordi
+# utviklingssandkassen ikke når Kartverket/Geonorge/NVE. Midlertidig —
+# slettes når datakilde-valget er tatt.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['**']
+    paths:
+      - 'scripts/probe-live-water.mjs'
+      - '.github/workflows/probe-live-water.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Kjør probe
+        run: node scripts/probe-live-water.mjs
