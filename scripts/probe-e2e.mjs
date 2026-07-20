@@ -1,8 +1,7 @@
-// E2E-DIAGNOSE v3 (CI, kun logg): v2 viste FULLT kart i DOM (alle OSM-lag) men
-// TOM vann-gruppe, og data-meta borte fra DOM-svg. Nå: les det LAGREDE arket
-// rett fra IndexedDB (lende-maps/maps) — har SVG-STRENGEN vann-pather,
-// data-meta og counts['301']? Skiller bygge-feil (vann mangler i lagret SVG)
-// fra visnings-feil (vann finnes lagret men strippes i DOM).
+// E2E-DIAGNOSE v4 (CI): v3 avslørte at «tom vann-gruppe» var en måle-artefakt
+// (fire data-layer="vann"-grupper; querySelector/regex traff den første, tomme
+// 307-gruppa). Nå: mål 301-GRUPPA spesifikt i DOM og lagret SVG, og ta
+// skjermbilde (e2e-setten.png — riktig navn for artefakt-opplasting).
 
 import { chromium } from 'playwright'
 
@@ -13,7 +12,7 @@ const ctx = await browser.newContext({ viewport: { width: 412, height: 915 } })
 const page = await ctx.newPage()
 page.on('console', m => {
   const t = m.text()
-  if (/N50|NVE|perf|Terreng|feil|error/i.test(t)) console.log('[console]', t.slice(0, 220))
+  if (/N50|NVE|perf|feil|error/i.test(t)) console.log('[console]', t.slice(0, 200))
 })
 page.on('pageerror', e => console.log('[pageerror]', e.message.slice(0, 300)))
 
@@ -22,12 +21,9 @@ await page.waitForTimeout(3000)
 await page.click('button.bg-emerald-600', { timeout: 20000 })
 await page.waitForURL(/\/kart\//, { timeout: 180000 })
 const mapId = page.url().match(/\/kart\/([^?#]+)/)?.[1]
-console.log('kart-id:', mapId)
+await page.waitForTimeout(25000)
 
-// Vent på at full bygging + lagring er ferdig (perf-linja ~5 s; gi 30 s).
-await page.waitForTimeout(30000)
-
-const stored = await page.evaluate(async (id) => {
+const fasit = await page.evaluate(async (id) => {
   const db = await new Promise((res, rej) => {
     const rq = indexedDB.open('lende-maps')
     rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error)
@@ -37,37 +33,28 @@ const stored = await page.evaluate(async (id) => {
     const rq = tx.objectStore('maps').get(id)
     rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error)
   })
-  if (!entry) return { finnes: false }
-  const svg = entry.svg ?? ''
-  const vannMatch = svg.match(/<g data-layer="vann"[^>]*>([\s\S]*?)<\/g>/)
-  const vannInnhold = vannMatch ? vannMatch[1] : null
-  const metaMatch = svg.match(/data-meta='([^']*)'/)
-  let meta = null
-  try { meta = metaMatch ? JSON.parse(metaMatch[1].replace(/&apos;/g, "'")) : null } catch { meta = { PARSE_ERROR: true } }
+  const svg = entry?.svg ?? ''
+  const g301 = svg.match(/<g data-layer="vann" data-iso="301">([\s\S]*?)<\/g>/)
+  const domG301 = document.querySelector('g[data-layer="vann"][data-iso="301"]')
+  const domPaths = domG301 ? domG301.querySelectorAll('path').length : -1
+  const domVisible = domG301 ? getComputedStyle(domG301).display !== 'none' : null
+  const firstD = domG301?.querySelector('path')?.getAttribute('d') ?? ''
   return {
-    finnes: true,
-    partial: entry.partial,
-    entryAppVersion: entry.appVersion ?? null,
-    counts301: entry.counts?.['301'] ?? null,
-    counts304: entry.counts?.['304'] ?? null,
-    svgLengde: svg.length,
-    harDataMetaILagretSvg: !!metaMatch,
-    metaAppVersion: meta?.appVersion ?? null,
-    metaNveStatus: meta?.nveInnsjoStatus ?? null,
-    vannGruppeFinnes: !!vannMatch,
-    vannPatherILagretSvg: vannInnhold ? (vannInnhold.match(/<path/g) ?? []).length : 0,
-    kilde: entry.source ?? null,
+    counts301: entry?.counts?.['301'] ?? null,
+    lagret301Pather: g301 ? (g301[1].match(/<path/g) ?? []).length : -1,
+    dom301Pather: domPaths,
+    dom301Synlig: domVisible,
+    dom301FørstePathLen: firstD.length,
+    fillIComputedStyle: domG301?.querySelector('path')
+      ? getComputedStyle(domG301.querySelector('path')).fill : null,
   }
 }, mapId)
-console.log('=== LAGRET ENTRY (IndexedDB) ===')
-console.log(JSON.stringify(stored, null, 1))
+console.log('=== FASIT (301-gruppa spesifikt) ===')
+console.log(JSON.stringify(fasit, null, 1))
 
-const dom = await page.evaluate(() => {
-  const vann = document.querySelector('g[data-layer="vann"]')
-  return { vannPatherIDom: vann ? vann.querySelectorAll('path').length : -1 }
-})
-console.log('DOM:', JSON.stringify(dom))
-console.log('KONKLUSJON:', stored.vannPatherILagretSvg > 0
-  ? (dom.vannPatherIDom > 0 ? 'ALT OK?!' : 'VISNINGS-FEIL — vann i lagret SVG, strippes i DOM')
-  : 'BYGGE-FEIL — vann mangler allerede i lagret SVG (counts301=' + stored.counts301 + ')')
+await page.screenshot({ path: 'e2e-setten.png' })
+const ok = fasit.lagret301Pather > 0 && fasit.dom301Pather > 0 && fasit.dom301Synlig
+console.log('KONKLUSJON:', ok
+  ? 'FRISK ✅ — innsjøene ER i både lagret SVG og DOM, synlige med fill'
+  : 'PROBLEM ❌ — se felt over for hvor det svikter')
 await browser.close()
