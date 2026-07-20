@@ -1,104 +1,81 @@
-// N50-innsjøer fra Kartverket, servert som statiske FlatGeobuf-filer per fylke.
+// Innsjø-polygoner med øy-hull, hentet LIVE fra NVE Innsjødatabasen.
 //
-// Kartverkets N50 vektor-WFS (wfs.n50_kartdata) er avviklet. N50-innsjøer
-// (Innsjø + InnsjøRegulert) bakes derfor i CI (scripts/build-n50-water.mjs) til
-// ÉN FlatGeobuf per fylke (public/data/n50-water/<fylkeskode>.fgb, store fylker
-// i bbox-fliser <fylke>-<n>.fgb) i EPSG:4326, pluss et manifest (index.json)
-// som lister hver fils bbox. Klienten leser manifestet, velger fila(ene) som
-// overlapper kart-bboxen, og spør hver på bbox via HTTP Range (flatgeobuf har
-// spatial-indeks → laster bare utsnittet). Innsjø-polygonene beholder øyer som
-// INDRE RINGER, så øyer blir ekte hull i kartet (Kolstadøya i Setten) — helt
-// uten terskler/DEM-heuristikk. Elver/bekker (OSM-linjer) og sjø (DEM/Sjøkart)
-// bakes ikke → dette er innsjøer.
+// Historikk: Kartverkets N50 vektor-WFS ble avviklet, og en periode bakte vi
+// N50-innsjøer til statiske FlatGeobuf-filer i git (~400-800 MB, med
+// kvalitets-ødeleggende forenkling for å komme under GitHubs 100 MB/fil-
+// grense — «Munkeskjæra-problemet»). CI-diagnose (2026-07-20) viste at NVE
+// Innsjødatabasen, spurt via ArcGIS REST `query` på bbox (IKKE `identify`,
+// som mister hull), leverer innsjø-polygoner med øy-hullene INTAKTE, i full
+// N50-detalj (Setten-ringen: 1861 punkter — identisk med uforenklet N50), med
+// CORS for appens origin. Derfor: hent live ved kart-bygging (som Overpass og
+// DEM allerede gjør) — ingen statisk bake, ingen forenkling, ingen terskler.
 //
-// Feiler aldri hardt: mangler manifest/fil (eller vi er utenfor bakt dekning)
-// → tom liste, og NVE/OSM-vann tar over som før.
+// Geometrien er N50-avledet (NVE bygger innsjødatabasen på N50-vann), så
+// elementene beholder `_source: 'n50'` — mapBuilder/diagnose behandler dem som
+// N50-vann. NVE har ingen Havflate; sjø kommer fra DEM/Sjøkart som før.
+//
+// Merk: `gis3.nve.no`-basen er død (404) — kun kart.nve.no lever.
+// Feiler aldri hardt: nede/utilgjengelig → tom liste, NVE-identify/OSM tar over.
 
-import { geojson as fgbGeojson } from 'flatgeobuf'
+const NVE_LAKE_QUERY_BASE =
+  'https://kart.nve.no/enterprise/rest/services/Innsjodatabase2/MapServer/5'
 
-// Katalog der manifest (index.json) + fylkes-FGB ligger. I nettleseren under
-// Vite BASE_URL; i Node/CI kan N50_WATER_DIR_URL settes.
-function baseDirUrl() {
-  try {
-    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL) {
-      return `${import.meta.env.BASE_URL}data/n50-water/`
-    }
-  } catch { /* import.meta.env ikke tilgjengelig (Node) */ }
-  return (globalThis.process && globalThis.process.env && globalThis.process.env.N50_WATER_DIR_URL) || null
+const PAGE_SIZE = 2000
+const MAX_PAGES = 5
+
+function timeoutSignal(ms) {
+  try { return AbortSignal.timeout(ms) } catch { return undefined }
 }
 
-// N50 Arealdekke-objtype → OSM-aktig vann-tagging. Bare ferskvann bakes, men
-// vi beholder Havflate-grenen defensivt (skulle en havflate dukke opp).
-function mappingForObjtype(objtype) {
-  if (objtype === 'Havflate') {
-    return { tag: 'natural', value: 'water', extraTags: { water: 'sea', salt: 'yes' } }
-  }
-  return { tag: 'natural', value: 'water' }
-}
-
-// [minLon, minLat, maxLon, maxLat] overlapper rect {minX,minY,maxX,maxY}?
-function bboxOverlapsRect(bbox, rect) {
-  return bbox[0] <= rect.maxX && bbox[2] >= rect.minX && bbox[1] <= rect.maxY && bbox[3] >= rect.minY
-}
-
-// Les én FGB på bbox-rect og skyv OSM-aktige elementer inn i `into`.
-async function readFgbInto(url, rect, into) {
-  for await (const feat of fgbGeojson.deserialize(url, rect)) {
-    const mapping = mappingForObjtype(feat?.properties?.objtype)
-    for (const el of geojsonToWays(feat, mapping)) into.push(el)
-  }
+async function queryPage(base, bbox, offset) {
+  const params = new URLSearchParams({
+    geometry: `${bbox.west},${bbox.south},${bbox.east},${bbox.north}`,
+    geometryType: 'esriGeometryEnvelope',
+    inSR: '4326',
+    spatialRel: 'esriSpatialRelIntersects',
+    outFields: '*',
+    returnGeometry: 'true',
+    outSR: '4326',
+    geometryPrecision: '6',
+    resultOffset: String(offset),
+    resultRecordCount: String(PAGE_SIZE),
+    f: 'geojson',
+  })
+  const res = await fetch(`${base}/query?${params}`, { signal: timeoutSignal(45000) })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const json = await res.json()
+  if (json.error) throw new Error(`ArcGIS: ${json.error.message ?? json.error.code}`)
+  return json.features ?? []
 }
 
 /**
- * Hent N50-ferskvann for et bbox fra de statiske FlatGeobuf-filene. Returnerer
- * OSM-aktige `natural=water`-elementer (way/relation med øy-hull), klare for
- * buildSvg(). Feiler aldri hardt → [] (da tar NVE/OSM over).
+ * Hent innsjø-polygoner (med øy-hull) for et bbox fra NVE Innsjødatabasen.
+ * Returnerer OSM-aktige `natural=water`-elementer (way/relation med
+ * outer+inner), klare for buildSvg(). Feiler aldri hardt → [] (da tar
+ * NVE-identify/OSM over som før).
  *
  * @param {{south:number,west:number,north:number,east:number}} bbox  WGS84
- * @param {{ dirUrl?: string, fgbUrl?: string }} [opts]  fgbUrl = les én
- *        eksplisitt FGB direkte (test/direktemodus, hopper over manifestet)
+ * @param {{ queryBase?: string }} [opts]  overstyr tjeneste-URL (test)
  * @returns {Promise<Array>}  OSM-aktige elementer
  */
 export async function fetchN50Water(bbox, opts = {}) {
   if (!bbox) return []
-  const rect = { minX: bbox.west, minY: bbox.south, maxX: bbox.east, maxY: bbox.north }
+  const base = opts.queryBase ?? NVE_LAKE_QUERY_BASE
+  const mapping = { tag: 'natural', value: 'water' }
   const elements = []
-
-  // Direktemodus: én eksplisitt FGB-URL, ingen manifest (brukes i test).
-  if (opts.fgbUrl) {
-    try {
-      await readFgbInto(opts.fgbUrl, rect, elements)
-    } catch (e) {
-      console.warn(`[N50] FGB-vann utilgjengelig (${opts.fgbUrl}): ${e?.message ?? e}`)
-      return []
-    }
-    return elements
-  }
-
-  const dirUrl = opts.dirUrl ?? baseDirUrl()
-  if (!dirUrl) return []
-
-  let manifest
   try {
-    const res = await fetch(`${dirUrl}index.json`)
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    manifest = await res.json()
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const features = await queryPage(base, bbox, page * PAGE_SIZE)
+      for (const feat of features) {
+        for (const el of geojsonToWays(feat, mapping)) elements.push(el)
+      }
+      if (features.length < PAGE_SIZE) break
+    }
   } catch (e) {
-    console.warn(`[N50] manifest utilgjengelig (${dirUrl}index.json): ${e?.message ?? e}`)
+    console.warn(`[N50] NVE-innsjøer utilgjengelig: ${e?.message ?? e}`)
     return []
   }
-
-  const hits = (manifest?.fylker ?? []).filter(f =>
-    Array.isArray(f.bbox) && f.bbox.length === 4 && f.file && bboxOverlapsRect(f.bbox, rect)
-  )
-  for (const f of hits) {
-    try {
-      await readFgbInto(`${dirUrl}${f.file}`, rect, elements)
-    } catch (e) {
-      console.warn(`[N50] fylke ${f.code} (${f.file}) utilgjengelig: ${e?.message ?? e}`)
-    }
-  }
-  console.log(`[N50] ${elements.length} vann-elementer fra ${hits.length} fylke(r)`)
+  console.log(`[N50] ${elements.length} innsjø-elementer fra NVE Innsjødatabasen`)
   return elements
 }
 
