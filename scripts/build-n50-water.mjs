@@ -145,7 +145,11 @@ function featureCount(fgb) {
 // -spat tar med HELE flater som skjærer rektangelet (ingen klipping) → hull
 // intakte. Returnerer størrelse i MB (0 hvis ingen fil).
 function writeFgb(gpkg, rect, outFile) {
-  const args = ['-f', 'FlatGeobuf', '-nln', 'n50_water', '-nlt', 'MULTIPOLYGON']
+  // -simplify KJØRES HER (gpkg er allerede EPSG:4326, ingen reprojisering) →
+  // toleransen er entydig i GRADER. Gjøres den i gdb→gpkg-steget (som også
+  // reprojiserer), tolkes den i kilde-UTM-METER og 0.00005 blir ~0 (ingen
+  // forenkling — det var bug-en som holdt datasettet på 815 MB).
+  const args = ['-f', 'FlatGeobuf', '-simplify', SIMPLIFY_DEG, '-nln', 'n50_water', '-nlt', 'MULTIPOLYGON']
   if (rect) args.push('-spat', String(rect[0]), String(rect[1]), String(rect[2]), String(rect[3]))
   args.push(outFile, gpkg, 'n50_water')
   sh('ogr2ogr', args)
@@ -184,7 +188,7 @@ function processFylke(gdb, layer, area, work, entries) {
   const gpkg = join(work, `${area.code}.gpkg`)
   sh('ogr2ogr', [
     '-f', 'GPKG', '-t_srs', 'EPSG:4326',
-    '-simplify', SIMPLIFY_DEG, '-makevalid',
+    '-makevalid',
     '-nln', 'n50_water', '-nlt', 'MULTIPOLYGON',
     '-where', WHERE,
     gpkg, gdb, layer,
