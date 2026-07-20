@@ -223,6 +223,27 @@ describe('OSM-vann rendres uten størrelses-filtrering (velprøvd norsk oppførs
     expect(freshShown(buildSvg([osmLakeRel], bbox, {}).svg)).toBe(true)
   })
 
+  it('innsjø-relasjon med øy-hull rendres med evenodd + inner-ring (Kolstadøya/Setten-fiks)', () => {
+    // N50 leverer innsjøer med øyer som hull i vann-polygonet. geojsonToWays
+    // emitterer da en relation med outer + inner; mapBuilder skal klippe øya.
+    const lakeWithIsland = {
+      type: 'relation', id: 70, tags: { natural: 'water', name: 'Setten' },
+      members: [
+        { type: 'way', role: 'outer', geometry: ring(59.01, 10.02, 59.04, 10.08) },
+        { type: 'way', role: 'inner', geometry: ring(59.02, 10.04, 59.03, 10.06) },
+      ],
+    }
+    const { svg } = buildSvg([lakeWithIsland], bbox, {})
+    const m = svg.match(/data-layer="vann"[^>]*data-iso="301"[^>]*>([\s\S]*?)<\/g>/)
+    expect(m).toBeTruthy()
+    const layer = m[1]
+    expect(layer).toContain('fill-rule="evenodd"')
+    // Outer + inner = to lukkede subpaths (M…Z M…Z) i samme path.
+    const pathD = layer.match(/ d="([^"]*)"/)[1]
+    expect((pathD.match(/Z/g) || []).length).toBeGreaterThanOrEqual(2)
+    expect((pathD.match(/M/g) || []).length).toBeGreaterThanOrEqual(2)
+  })
+
   it('overlappende navnløse vann-flater (samme kilde) males som EGNE paths — ikke ett evenodd-hull (Ulvenvann-fiks)', () => {
     // To konsentriske navnløse OSM-vann-ways (samme bbox-senter → samme bucket-
     // celle). Slått sammen i én fill-rule="evenodd"-path ville den indre blitt

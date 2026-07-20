@@ -170,7 +170,27 @@ async function fetchSingleLayer(bbox, typeName, opts = {}) {
   return json.features ?? []
 }
 
-function geojsonToWays(feat, mapping) {
+function ringToGeometry(ring) {
+  return ring.map(([lon, lat]) => ({ lat, lon }))
+}
+
+// Konverter GeoJSON Polygon-koordinater ([outer, ...holes]) til ett
+// map-element. Uten hull → way; med hull → relation (outer + inner) så
+// mapBuilder klipper øy-hullene.
+function polygonToElement(coordinates, id, tags) {
+  const outer = coordinates[0]
+  if (coordinates.length === 1) {
+    return { type: 'way', id, geometry: ringToGeometry(outer), tags, _source: 'n50' }
+  }
+  const members = [{ type: 'way', role: 'outer', geometry: ringToGeometry(outer) }]
+  for (let h = 1; h < coordinates.length; h++) {
+    if (coordinates[h].length < 3) continue
+    members.push({ type: 'way', role: 'inner', geometry: ringToGeometry(coordinates[h]) })
+  }
+  return { type: 'relation', id, members, tags, _source: 'n50' }
+}
+
+export function geojsonToWays(feat, mapping) {
   const g = feat.geometry
   if (!g) return []
   const tags = {
@@ -201,24 +221,41 @@ function geojsonToWays(feat, mapping) {
       })
     }
   } else if (g.type === 'Polygon' && g.coordinates[0]?.length >= 3) {
-    result.push({
-      type: 'way',
-      id: baseId,
-      geometry: g.coordinates[0].map(([lon, lat]) => ({ lat, lon })),
-      tags,
-      _source: 'n50',
-    })
+    // Én-ring polygon → way (kan slås sammen på navn av unionByName).
+    // Har polygonet hull (øyer i innsjøen) → relation med outer + inner
+    // så mapBuilder klipper øy-hullene via evenodd. Slippes hullene her,
+    // fylles innsjøen opakt over øyene (Kolstadøya/Setten-tilfellet).
+    result.push(polygonToElement(g.coordinates, baseId, tags))
   } else if (g.type === 'MultiPolygon') {
-    for (let i = 0; i < g.coordinates.length; i++) {
-      const poly = g.coordinates[i]
-      if (!poly[0] || poly[0].length < 3) continue
-      result.push({
-        type: 'way',
-        id: `${baseId}-${i}`,
-        geometry: poly[0].map(([lon, lat]) => ({ lat, lon })),
-        tags,
-        _source: 'n50',
-      })
+    // Uten hull i noen del: én way per del (bevarer unionByName-fletting).
+    // Med hull i minst én del: én relation som samler alle outer/inner-
+    // ringer så øyene klippes.
+    const hasHoles = g.coordinates.some(poly => poly.length > 1)
+    if (hasHoles) {
+      const members = []
+      for (const poly of g.coordinates) {
+        if (!poly[0] || poly[0].length < 3) continue
+        members.push({ type: 'way', role: 'outer', geometry: ringToGeometry(poly[0]) })
+        for (let h = 1; h < poly.length; h++) {
+          if (poly[h].length < 3) continue
+          members.push({ type: 'way', role: 'inner', geometry: ringToGeometry(poly[h]) })
+        }
+      }
+      if (members.length) {
+        result.push({ type: 'relation', id: baseId, members, tags, _source: 'n50' })
+      }
+    } else {
+      for (let i = 0; i < g.coordinates.length; i++) {
+        const poly = g.coordinates[i]
+        if (!poly[0] || poly[0].length < 3) continue
+        result.push({
+          type: 'way',
+          id: `${baseId}-${i}`,
+          geometry: ringToGeometry(poly[0]),
+          tags,
+          _source: 'n50',
+        })
+      }
     }
   } else if (g.type === 'Point') {
     result.push({
