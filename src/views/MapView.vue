@@ -147,8 +147,11 @@ const sjokartStatusText = computed(() => {
 // Innsjødatabasen ved bygging — feiler den stille på mobil, er dette
 // eneste sporet av HVORFOR innsjøer mangler (innsjøer borte-saken).
 const nveInnsjoStatusText = computed(() => {
-  const s = meta.value?.nveInnsjoStatus
-  if (!s) return null
+  if (!meta.value) return null
+  const s = meta.value.nveInnsjoStatus
+  // Kart bygd før v1.0.45 har ingen status — si det EKSPLISITT i stedet for å
+  // skjule raden (en usynlig rad var umulig å skille fra «alt ok»).
+  if (!s) return `ingen status — kartet er bygd med ${meta.value.appVersion ? 'v' + meta.value.appVersion : 'app eldre enn v1.0.45'}; bygg kartet på nytt`
   if (s.state === 'ok') {
     return `OK — ${s.features} innsjøer${s.retried ? ' (etter retry)' : ''}` +
       (s.truncated ? ' (AVKUTTET — noen kan mangle)' : '')

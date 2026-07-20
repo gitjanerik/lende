@@ -6,6 +6,7 @@
 // (klient-side ved kart-generering).
 
 import { wgs84ToUtm32, utm32BboxFromWgs84 } from './utm.js'
+import { APP_VERSION } from '../version.js'
 import {
   classifyToIsom,
   isTrigPoint,
@@ -2563,6 +2564,10 @@ export function buildSvg(elements, bbox, options = {}) {
     isomVersion: '2017-2-derived',
     source: 'OpenStreetMap (ODbL) + ISOM-katalog v6.5' + (usableDem ? ` + DEM (${dem.source})` : ''),
     generated: new Date().toISOString(),
+    // App-versjonen kartet ble BYGD med (≠ appen som viser det). Utvikler-
+    // fanen viser den — uvurderlig når «kartet mangler X»-feil viser seg å
+    // være et ark bygd med eldre kode (innsjøer borte-saken 2026-07-20).
+    appVersion: APP_VERSION,
   }
 
   // ViewBox = meter (1 SVG-enhet = 1 m)

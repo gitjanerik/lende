@@ -3,9 +3,13 @@
 // Vardåsen-referansekart, Zoom-LOD-tuning (runtime-parametre), debug-tellere
 // (fliser, viewport-culling, Sjøkart-WFS), diagnose-modus, lilla-stier-A/B og
 // perf-logg-åpner.
+import { computed } from 'vue'
 import { LOD_DEFAULTS } from '../../composables/useLodTuning.js'
+import { APP_VERSION } from '../../version.js'
 
-defineProps({
+const appVersion = APP_VERSION
+
+const props = defineProps({
   scale: { type: Number, default: 1 },
   zoomTier: { type: String, default: 'far' },
   resetLodTuning: { type: Function, required: true },
@@ -21,6 +25,8 @@ defineProps({
   openVardasen: { type: Function, required: true },
   openPerfLog: { type: Function, required: true },
 })
+const metaAppVersionText = computed(() => props.meta?.appVersion ?? null)
+
 const zoomNearThreshold = defineModel('zoomNearThreshold', { type: Number, default: 2.5 })
 const nameBudgetFar = defineModel('nameBudgetFar', { type: Number, default: 60 })
 const nameBudgetMid = defineModel('nameBudgetMid', { type: Number, default: 130 })
@@ -110,8 +116,19 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
         {{ err.endpoint }}{{ err.typeName ? ` ${err.typeName}` : '' }} · {{ err.kind }}: {{ err.message }}
       </div>
     </div>
+    <!-- Hvilken app-versjon ARKET ble bygd med (≠ appen som viser det).
+         Avgjør på sekundet om en «kartet mangler X»-feil bare er et gammelt
+         ark: bygd-med ≠ kjørende versjon → bygg kartet på nytt. -->
+    <div v-if="meta" class="flex items-baseline justify-between gap-2 mb-2 px-1">
+      <span class="text-white/45 text-[11px]">Kart bygd med</span>
+      <span class="text-[11px]" :class="metaAppVersionText === appVersion ? 'text-white/55' : 'text-amber-300/80'">
+        {{ metaAppVersionText === appVersion ? `v${metaAppVersionText}` : `${metaAppVersionText ? 'v' + metaAppVersionText : 'eldre enn v1.0.47'} — app kjører v${appVersion}; bygg på nytt for ferske data` }}
+      </span>
+    </div>
     <!-- NVE-innsjø-status: innsjøene hentes live ved bygging — her vises
-         HVORFOR innsjøer eventuelt mangler (stille nett-/CORS-feil på mobil). -->
+         HVORFOR innsjøer eventuelt mangler (stille nett-/CORS-feil på mobil).
+         Vises ALLTID når kart-meta finnes; mangler status er det i seg selv
+         diagnosen (ark bygd før v1.0.45). -->
     <div v-if="nveInnsjoStatusText" class="mb-2 px-1">
       <div class="flex items-baseline justify-between gap-2">
         <span class="text-white/45 text-[11px]">NVE-innsjø</span>
