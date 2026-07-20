@@ -20,8 +20,14 @@
 const NVE_LAKE_QUERY_BASE =
   'https://kart.nve.no/enterprise/rest/services/Innsjodatabase2/MapServer/5'
 
-const PAGE_SIZE = 2000
-const MAX_PAGES = 5
+// Sikkerhetstak for paginering (30 sider à server-maks ~1000 = 30 000 innsjøer
+// — langt over noe reelt kart-bbox). VIKTIG: vi ber IKKE om resultRecordCount
+// og antar ALDRI sidestørrelse — ArcGIS-servere har sin egen maxRecordCount
+// (typisk 1000), og å be om mer gir stille trunkering: serveren leverer maks,
+// en «kort side»-sjekk tror det var siste side, og store innsjøer (Setten!)
+// faller vilkårlig ut på innsjø-tette kart. Vi paginerer i stedet på serverens
+// eget exceededTransferLimit-flagg + objectid-dedup.
+const MAX_PAGES = 30
 
 function timeoutSignal(ms) {
   try { return AbortSignal.timeout(ms) } catch { return undefined }
@@ -37,15 +43,18 @@ async function queryPage(base, bbox, offset) {
     returnGeometry: 'true',
     outSR: '4326',
     geometryPrecision: '6',
+    orderByFields: 'objectid',
     resultOffset: String(offset),
-    resultRecordCount: String(PAGE_SIZE),
     f: 'geojson',
   })
   const res = await fetch(`${base}/query?${params}`, { signal: timeoutSignal(45000) })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   const json = await res.json()
   if (json.error) throw new Error(`ArcGIS: ${json.error.message ?? json.error.code}`)
-  return json.features ?? []
+  // exceededTransferLimit ligger toppnivå eller under properties avhengig av
+  // server-versjon — sjekk begge. Kun dette flagget avgjør om det finnes mer.
+  const exceeded = json.exceededTransferLimit === true || json.properties?.exceededTransferLimit === true
+  return { features: json.features ?? [], exceeded }
 }
 
 /**
@@ -71,15 +80,33 @@ export async function fetchN50Water(bbox, opts = {}) {
     if (attempt > 0) await new Promise(r => setTimeout(r, 800))
     const elements = []
     try {
+      const seen = new Set()
+      let offset = 0
+      let truncated = false
       for (let page = 0; page < MAX_PAGES; page++) {
-        const features = await queryPage(base, bbox, page * PAGE_SIZE)
+        const { features, exceeded } = await queryPage(base, bbox, offset)
+        let fresh = 0
         for (const feat of features) {
+          // Dedup på objectid: hvis serveren ikke støtter resultOffset,
+          // returnerer den samme side igjen — da må vi stoppe, ikke doble.
+          const oid = feat?.properties?.objectid ?? feat?.id
+          if (oid != null) {
+            if (seen.has(oid)) continue
+            seen.add(oid)
+          }
+          fresh++
           for (const el of geojsonToWays(feat, mapping)) elements.push(el)
         }
-        if (features.length < PAGE_SIZE) break
+        offset += features.length
+        if (!exceeded || features.length === 0 || fresh === 0) {
+          truncated = exceeded && fresh === 0
+          break
+        }
+        if (page === MAX_PAGES - 1) truncated = true
       }
+      if (truncated) console.warn('[N50] ADVARSEL: NVE-paginering stoppet før alt var hentet — noen innsjøer kan mangle')
       console.log(`[N50] ${elements.length} innsjø-elementer fra NVE Innsjødatabasen`)
-      onStatus({ state: 'ok', features: elements.length, retried: attempt > 0 })
+      onStatus({ state: 'ok', features: elements.length, retried: attempt > 0, truncated: truncated || undefined })
       return elements
     } catch (e) {
       lastError = e

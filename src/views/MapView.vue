@@ -149,7 +149,10 @@ const sjokartStatusText = computed(() => {
 const nveInnsjoStatusText = computed(() => {
   const s = meta.value?.nveInnsjoStatus
   if (!s) return null
-  if (s.state === 'ok') return `OK — ${s.features} innsjøer${s.retried ? ' (etter retry)' : ''}`
+  if (s.state === 'ok') {
+    return `OK — ${s.features} innsjøer${s.retried ? ' (etter retry)' : ''}` +
+      (s.truncated ? ' (AVKUTTET — noen kan mangle)' : '')
+  }
   return `FEILET: ${s.message ?? 'ukjent feil'} — innsjøer mangler; bygg kartet på nytt`
 })
 
