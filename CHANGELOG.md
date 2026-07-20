@@ -1,5 +1,20 @@
 # Endringslogg
 
+## 2026-07-20 — v1.0.44: Innsjøer live fra NVE — full detalj, bake-apparatet fjernet
+
+v1.0.43s ~5 m-forenkling gjorde små øyer/skjær komisk kantete (Munkeskjæra i
+Setten: hytter «utenfor» øya). Rot-årsaken til hele det statiske apparatet var
+at N50 vektor-WFS ble avviklet — men CI-diagnose viste at NVE Innsjødatabasen,
+spurt via ArcGIS REST `query` på bbox (ikke `identify`, som mister hull),
+leverer innsjø-polygoner med øy-hullene intakte i FULL N50-detalj
+(Setten-ringen: 1861 punkter, identisk med uforenklet N50) og med CORS.
+`fetchN50Water` henter nå innsjøene live ved kart-bygging (som Overpass og DEM
+allerede gjør). Hele FGB-bake-apparatet er fjernet: bake-script, workflows og
+~408 MB statiske data ut av repoet, `flatgeobuf`-avhengigheten droppet. Ingen
+forenkling, ingen terskler — og kartet virker i hele landet uten bakte filer.
+
+---
+
 ## 2026-07-20 — v1.0.43: N50-innsjøer for hele landet (per-fylke)
 
 N50-vann-datasettet dekket bare Akershus (én FlatGeobuf). Nå bakes hele landet:

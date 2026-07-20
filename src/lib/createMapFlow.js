@@ -574,8 +574,9 @@ export async function buildMapFromCenter({
       }
     }
 
-    // N50-vann (FlatGeobuf) er den AUTORITATIVE ferskvanns-kilden der den har
-    // dekning: den modellerer innsjø-øyer som ekte hull (Kolstadøya i Setten).
+    // N50-vann (live fra NVE Innsjødatabasen, N50-avledet geometri) er den
+    // AUTORITATIVE ferskvanns-kilden der den har dekning: den modellerer
+    // innsjø-øyer som ekte hull (Kolstadøya i Setten).
     // OSM og NVE leverer ofte SAMME innsjø UTEN de riktige hullene, og siden
     // hvert vann-polygon males opakt, kan en slik hull-løs kopi males OPPÅ og
     // dekke øya igjen. Vi samler N50-vannets ytre ringer og undertrykker
@@ -611,7 +612,7 @@ export async function buildMapFromCenter({
     if (sjokartElements.length > 0) elements.push(...sjokartElements)
 
     const sourceParts = ['OSM']
-    if (n50Water.length > 0) sourceParts.push(`N50 (${n50Water.length} vann${n50HasSea ? ', m/sjø' : ''})`)
+    if (n50Water.length > 0) sourceParts.push(`N50/NVE-innsjø (${n50Water.length} vann${n50HasSea ? ', m/sjø' : ''})`)
     if (nveLakes.length > 0) sourceParts.push(`NVE (${nveLakes.length} innsjø)`)
     if (sjokartElements.length > 0) sourceParts.push(`Sjøkart (${sjokartElements.length} dybde-features)`)
     sourceParts.push('DEM-sjø (NHM_DTM_25832)')
