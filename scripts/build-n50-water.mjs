@@ -102,18 +102,23 @@ async function main() {
   console.log('datasett funnet:', found)
   if (found.length === 0) throw new Error('fant ingen .gdb/.gml etter utpakking')
   const src = found[0]
+  // 5. Finn areal-/vann-laget. FGDB-ogrinfo skriver «Layer: <navn> (<geom>)».
+  const info = sh('ogrinfo', ['-so', src])
   console.log('=== ogrinfo lag ===')
-  console.log(sh('ogrinfo', ['-so', src]).slice(0, 3000))
-
-  // 5. Finn areal-/vann-laget. N50-Arealdekke-flate heter typisk
-  // «*_arealdekke_omrade» / «*Arealdekke*». Velg det laget som har objtype.
-  const layers = sh('ogrinfo', ['-so', src])
-    .split('\n').map(l => l.match(/^\s*\d+:\s+(\S+)/)?.[1]).filter(Boolean)
+  console.log(info.slice(0, 3000))
+  const layers = [...info.matchAll(/^Layer:\s+(\S+)/gm)].map(m => m[1])
   console.log('lag:', layers)
   const arealLayer = layers.find(l => /arealdekke.*(omr|flate|område)/i.test(l))
     || layers.find(l => /arealdekke/i.test(l))
   if (!arealLayer) throw new Error(`fant ikke arealdekke-lag blant: ${layers.join(', ')}`)
   console.log('bruker arealdekke-lag:', arealLayer)
+
+  // Logg distinkte objtype-verdier så vi ser eksakt staving (Innsjø/InnsjøRegulert…).
+  console.log('=== distinkte objtype i arealdekke ===')
+  try {
+    console.log(sh('ogrinfo', ['-ro', '-q', '-dialect', 'OGRSQL',
+      '-sql', `SELECT DISTINCT objtype FROM "${arealLayer}"`, src]).slice(0, 2000))
+  } catch (e) { console.log('objtype-spørring feilet:', e.message) }
 
   // 6. ogr2ogr → FlatGeobuf, EPSG:4326, kun vann-objtyper.
   mkdirSync(dirname(OUT), { recursive: true })
