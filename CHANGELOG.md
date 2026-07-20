@@ -1,5 +1,19 @@
 # Endringslogg
 
+## 2026-07-20 — v1.0.47: Kart stemples med byggeversjon; NVE-rad alltid synlig
+
+Kveldens feilsøking av «innsjøer borte» strandet gjentatte ganger på samme
+spørsmål: hvilken app-versjon ble DETTE arket bygd med? Et kart bygd med gammel
+kode ser identisk ut med et ferskt — og NVE-innsjø-raden fra v1.0.45 var
+usynlig på gamle ark, som var umulig å skille fra «alt ok». Nå: (1) hvert kart
+stemples med app-versjonen i metaen (`meta.appVersion`), og Utvikler-fanen
+viser «Kart bygd med vX» — i gult med «bygg på nytt for ferske data» når den
+avviker fra kjørende app; (2) NVE-innsjø-raden vises alltid når kart-meta
+finnes — mangler status, står det eksplisitt at arket er bygd før v1.0.45 og
+må bygges på nytt.
+
+---
+
 ## 2026-07-20 — v1.0.46: Robust NVE-paginering, verifisert mot 33 400 innsjøer
 
 NVE-pagineringen antok sidestørrelse («fikk færre enn forespurt → siste
