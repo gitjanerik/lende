@@ -1,5 +1,13 @@
 # Endringslogg
 
+## 2026-07-21 — v1.0.57: Fjernet ikonet i målestasjon-skuffen
+
+Det lille stasjons-ikonet ved siden av navnet i detalj-skuffen er fjernet —
+overskriften «Målestasjon · NVE» sier allerede hva det er, så merket var
+overflødig. Kartmarkøren (ikonet på selve kartet) er uendret.
+
+---
+
 ## 2026-07-21 — v1.0.56: Vannstand er lokal peilehøyde, ikke moh
 
 Vannstand-raden i målestasjon-skuffen var merket «moh», men HydAPI-verdien
