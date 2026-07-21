@@ -1,5 +1,25 @@
 # Endringslogg
 
+## 2026-07-21 — v1.0.61: content-visibility — nettleseren dropper av-skjerm-geometri selv
+
+Andre steg i mobil-ytelse-sporet, og forberedelse til å kunne heve default
+kartstørrelse. De merge-de bucket-pathene (skog, myr, konturer, veier osv. —
+tyngden av kart-geometrien) får `content-visibility: auto`, så nettleseren
+hopper over layout og maling av det som ligger utenfor utsnittet — helt selv,
+kontinuerlig og fra første paint, uten JS. Dette utfyller den eksisterende
+viewport-cullingen: cullingen gir det harde `display:none`-kuttet ved gest-slutt,
+mens content-visibility tar det løpende arbeidet imellom og gjør større kart
+lettere å rendre og panne. Verifisert empirisk i Chromium at egenskapen faktisk
+engasjerer på SVG-paths, skjuler når pan/zoom-transformen skyver geometrien ut av
+utsnittet, og at synlige paths rendres piksel-identisk (den impliserte
+`contain: paint` klipper ingenting). Regelen treffer kun ren, unavngitt
+bucket-geometri: navngitte (søkbare) vann-paths og tekst-labels er utelatt fordi
+søkeindeksen måler dem med `getBBox` (en skippet node ville gitt (0,0)). Den bor
+i app-CSS-en, ikke i SVG-ens egen `<style>`, så SVG-/PDF-eksport fortsatt rendrer
+HELE kartet. Ukjent i eldre Safari (< 18) → egenskapen ignoreres, trygt no-op.
+
+---
+
 ## 2026-07-21 — v1.0.60: Opprydding etter vann-jakten — probefiler fjernet
 
 «Vannet forsvinner»-saken er bekreftet løst på enhet (v1.0.51), så de
