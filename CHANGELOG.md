@@ -1,5 +1,14 @@
 # Endringslogg
 
+## 2026-07-21 — v1.0.58: Vannmålestasjoner default på
+
+Kartlaget «Vannmålestasjoner» er nå på som standard (fjernet fra
+`DEFAULT_OFF_LAYERS`). Det er også tatt inn i «Tur»-presetet — ellers ville
+«Tur»-knappen slått laget av igjen, i strid med at det nå er et standard-lag.
+Laget vises dermed rett fra start på nye kart.
+
+---
+
 ## 2026-07-21 — v1.0.57: Fjernet ikonet i målestasjon-skuffen
 
 Det lille stasjons-ikonet ved siden av navnet i detalj-skuffen er fjernet —
