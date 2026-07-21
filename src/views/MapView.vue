@@ -3961,6 +3961,20 @@ onUnmounted(() => {
 .isom-map .name-lod-off { display: none !important; }
 .isom-map .vp-cull { display: none !important; }
 
+/* Perf: content-visibility lar nettleseren HOPPE OVER layout/paint av av-skjerm
+   bucket-geometri (de merge-de data-bbox-pathene) helt selv, kontinuerlig og fra
+   første paint — uten JS. Utfyller viewport-cullingen (.vp-cull, som kjøres ved
+   gest-slutt og gir det harde display:none-kuttet): c-v tar det løpende arbeidet
+   mellom cull-passene, og gjør større kart lettere å rendre. Empirisk verifisert
+   i Chromium: engasjerer på SVG <path>, skjuler når pan/zoom-transformen skyver
+   pathen ut av utsnittet, og synlige paths rendres piksel-identisk (den impliserte
+   `contain: paint` klipper ikke geometrien). Ekskluderer [data-name]-paths
+   (søkeindeksens getBBox måler dem — en skippet path ville gitt (0,0)) og treffer
+   kun ren geometri (ikke tekst/symbol-grupper). Lever her, IKKE i SVG-ens egen
+   <style>, så eksport/print (cloneNode.outerHTML) fortsatt rendrer HELE kartet.
+   Ukjent i eldre Safari (< 18) → egenskapen ignoreres, trygt no-op. */
+.isom-map [data-layer] path[data-bbox]:not([data-name]) { content-visibility: auto; }
+
 /* Navn-lagene holdes usynlige til det utsatte navn-LOD-passet har kjørt
    (scheduleDeferredMapPasses fjerner klassen) — hindrer at ALLE navn blinker
    frem i 1–2 frames før decluttering. visibility (ikke opacity) så den ikke
