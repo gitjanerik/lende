@@ -1,5 +1,22 @@
 # Endringslogg
 
+## 2026-07-21 — v1.0.52: «Bruk rute» — følg valgt rundtur med fritt kart
+
+Stifinner/rundtur får en «Bruk rute»-knapp i den grønne boksen. Den tar valgt
+rute inn i en ny følge-modus: boksen minimeres til en liten pill, kun den
+valgte ruta blir stående på kartet (samme farge som forslaget, litt kraftigere,
+under GPS-prikken), og kartet slippes helt fri igjen — long-press, POI-tapp og
+måling virker som normalt mens du går ruta. Pillen kan utvides til et panel med
+distanse, estimert tid og høydemeter, og med GPS aktiv (startes automatisk ved
+«Bruk rute») vises fremdrift langs ruta: «Gått X av Y · Z igjen», eller
+«Utenfor ruta (NN m unna)» om du har forvillet deg bort. «Til forslag» går
+tilbake til rutelisten; X avslutter. Rundtur-tvetydigheten der start == mål
+løses med et monotont fremdrifts-anker (ny ren util `routeProgress.js`, testet)
+så turen starter på 0 m og ikke «full runde». Kjente begrensninger: bytte/
+utvidelse av kart avslutter ruta, og den overlever ikke en sideoppfriskning.
+
+---
+
 ## 2026-07-21 — v1.0.51: LØST — «vannet forsvinner»: navn-LOD skjulte NVE-innsjøpolygonene
 
 Gåten er løst, og vannet var aldri borte fra kartet. NVE-innsjøer bærer navnet

@@ -8,6 +8,12 @@
 // 1–3 alternative ruter.
 //
 // Modus-maskin:  idle → pickingStart → showing ⇄ pickingVia  (X-knapp → idle)
+//                                      showing ⇄ following   («Bruk rute» / «Til forslag»)
+//
+// 'following' («Bruk rute»): valgt rute beholdes tegnet på kartet, men kartet
+// slipper fri — long-press, POI-tapp og måling virker igjen. Guards i MapView/
+// useContextLookups skal derfor sjekke `blocking` (interaktiv plukk/visning),
+// ikke `active` (som også er sann under following og styrer banner/rendering).
 //
 // All DOM-tilgang skjer i featuresFromSvg(svgElement); parsing/graf/k-ruter er
 // ren, testet lib (routing.js + pathUtils.parsePathSubpaths).
@@ -35,7 +41,7 @@ const ASCENT_M_PER_MIN = 10
 const DESCENT_M_PER_MIN = 30
 
 export function useStifinner() {
-  const mode = ref('idle')          // 'idle' | 'pickingStart' | 'showing' | 'pickingVia'
+  const mode = ref('idle')          // 'idle' | 'pickingStart' | 'showing' | 'pickingVia' | 'following'
   const isLoop = ref(false)         // rundtur (origo = start = mål); via = vendepunkt(er)
   const destination = ref(null)     // { svgX, svgY } — B (== start når isLoop)
   const start = ref(null)           // { svgX, svgY } — A
@@ -56,6 +62,8 @@ export function useStifinner() {
   let lastSvg = null
 
   const active = computed(() => mode.value !== 'idle')
+  // Eier Stifinner tap-/long-press-eventene? Under 'following' er svaret nei.
+  const blocking = computed(() => mode.value !== 'idle' && mode.value !== 'following')
   const canAddVia = computed(() =>
     (mode.value === 'showing' || mode.value === 'pickingVia') &&
     !!start.value && via.value.length < MAX_VIA)
@@ -179,6 +187,7 @@ export function useStifinner() {
   // Reberegn ruter gjennom [start, ...via, mål] mot cachet graf. Setter routes/
   // snaps/error. Kalles av confirmStart og alle via-endringer.
   function recompute() {
+    if (mode.value === 'following') return   // ruta i bruk skal aldri endres under føttene
     error.value = ''
     routes.value = []
     selectedRouteIdx.value = 0
@@ -312,6 +321,18 @@ export function useStifinner() {
     if (idx >= 0 && idx < routes.value.length) selectedRouteIdx.value = idx
   }
 
+  // «Bruk rute»: gå til following-modus med valgt rute. Ruteforslag/via/snaps
+  // beholdes urørt så «Til forslag» (stopFollowing) er gratis.
+  function follow() {
+    if (mode.value !== 'showing' || !routes.value.length || error.value) return
+    mode.value = 'following'
+  }
+
+  function stopFollowing() {
+    if (mode.value !== 'following') return
+    mode.value = 'showing'
+  }
+
   // Estimert gangtid. Basis er flat gange 4 km/t; med høydeprofil (DEM-sampla
   // ascent/descent langs ruta) legges Naismith-tillegg på, så 1,5 km med 450
   // stigningsmeter estimeres ~67 min i stedet for urealistiske 22. Uten profil
@@ -326,9 +347,9 @@ export function useStifinner() {
   }
 
   return {
-    mode, active, isLoop, destination, start, via, routes, selectedRouteIdx, error,
+    mode, active, blocking, isLoop, destination, start, via, routes, selectedRouteIdx, error,
     startSnap, destSnap, viaSnaps, directDistanceM, canAddVia, MAX_VIA,
     begin, beginLoop, cancel, confirmStart, beginAddVia, confirmVia, removeVia, clearVia,
-    selectRoute, estWalkMinutes,
+    selectRoute, follow, stopFollowing, estWalkMinutes,
   }
 }
