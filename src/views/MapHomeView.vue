@@ -155,7 +155,8 @@ function infoLine(sizeStr, eq, demRes, demSource) {
 }
 
 // ── On-the-fly snarvei: «Lag kart der jeg er» ───────────────────────────
-// Krever GPS. Ett trykk → hent posisjon → bygg standard 10×10 km, 20 m ekvidistanse,
+// Krever GPS. Ett trykk → hent posisjon → bygg standard-kartet (squareDims/
+// squareEquidistance — 5 km kvadrat + 10 m med mindre brukeren har valgt annet),
 // åpne nytt kart sentrert på brukeren. Full-screen loader vises mens
 // pipelinen kjører (Overpass, N50, Sjøkart, WMS, DEM, buildSvg, saveMap).
 const supportsGeolocation = typeof navigator !== 'undefined' && !!navigator.geolocation
@@ -210,7 +211,7 @@ async function onCreateHere() {
       // Kvadratisk utsnitt: beholder den skjerm-utledede høyden og utvider
       // bredden så kartet blir kvadratisk (mer slingringsrom øst/vest).
       ...squareDims(),
-      equidistanceM: squareEquidistance(), // auto: 20/25/50 m etter bredde
+      equidistanceM: squareEquidistance(), // auto: fineste tillatte for bredden (5/10/20 m)
       navn: `${placeName} ${stamp}`,
       terrainFirst: true,   // vis terreng straks, fyll inn OSM i bakgrunnen
       onProgress: (msg) => { buildingProgress.value = msg },
@@ -255,8 +256,8 @@ async function onSelectSearchResult(r) {
     const stamp = new Date().toLocaleDateString('no-NO', { day: '2-digit', month: 'short' })
     const { id } = await buildMapFromCenter({
       center: { lat: r.lat, lon: r.lon, name: r.shortName },
-      ...squareDims(),   // valgt format/bredde — standard 4 km kvadrat
-      equidistanceM: squareEquidistance(), // auto: 20/25/50 m etter bredde
+      ...squareDims(),   // valgt format/bredde — standard 5 km kvadrat
+      equidistanceM: squareEquidistance(), // auto: fineste tillatte for bredden (5/10/20 m)
       navn: `${r.shortName} ${stamp}`,
       terrainFirst: true,   // vis terreng straks, fyll inn OSM i bakgrunnen
       onProgress: (msg) => { buildingProgress.value = msg },

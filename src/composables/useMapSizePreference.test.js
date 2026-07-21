@@ -8,12 +8,12 @@ import {
 } from './useMapSizePreference.js'
 import { PRINT_ASPECT } from '../lib/mapBuilder.js'
 
-describe('defaultMapDims — Standard-kartet er et fast 4 km kvadrat (v1.0.27)', () => {
-  it('er 4 km bredt (ikke skjerm-skalert)', () => {
-    expect(DEFAULT_MAP_WIDTH_KM).toBe(4)
+describe('defaultMapDims — Standard-kartet er et fast 5 km kvadrat (v1.0.63)', () => {
+  it('er 5 km bredt (ikke skjerm-skalert)', () => {
+    expect(DEFAULT_MAP_WIDTH_KM).toBe(5)
     const d = defaultMapDims()
-    expect(d.halfKm).toBe(2)        // 4 km bredde
-    expect(2 * d.halfKm).toBe(4)
+    expect(d.halfKm).toBe(2.5)      // 5 km bredde
+    expect(2 * d.halfKm).toBe(5)
   })
   it('er et kvadrat (aspect = 1), uavhengig av skjermformat', () => {
     expect(defaultMapDims().aspect).toBe(1)
@@ -28,7 +28,7 @@ describe('slider-grenser', () => {
 })
 
 describe('equidistanceForWidthKm — fineste tillatte (samme gulv som «Flere valg»)', () => {
-  it('Standard (null → 4 km) → 10 m', () => {
+  it('Standard (null → 5 km) → 10 m — 5 km er største bredde med 10 m-kurver', () => {
     expect(equidistanceForWidthKm(null)).toBe(10)
     expect(equidistanceForWidthKm(DEFAULT_MAP_WIDTH_KM)).toBe(10)
   })
@@ -85,13 +85,13 @@ describe('effektiv ekvidistanse + Nullstill', () => {
     expect(effectiveEquidistanceForWidthKm(3)).toBe(50)   // grovere enn min er alltid lov
     resetMapPreferences()
   })
-  it('Nullstill setter 4 km + auto (10 m) + kvadratisk', () => {
+  it('Nullstill setter 5 km + auto (10 m) + kvadratisk', () => {
     const { mapSizeKm, mapFormat, mapEquidistance } = useMapSizePreference()
     mapSizeKm.value = 7
     mapFormat.value = 'print'
     mapEquidistance.value = 50
     resetMapPreferences()
-    expect(mapSizeKm.value).toBeNull()                       // null = 4 km-default
+    expect(mapSizeKm.value).toBeNull()                       // null = 5 km-default
     expect(mapFormat.value).toBe('square')
     expect(mapEquidistance.value).toBeNull()                 // null = auto
     expect(effectiveEquidistanceForWidthKm(DEFAULT_MAP_WIDTH_KM)).toBe(10)

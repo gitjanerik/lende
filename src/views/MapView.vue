@@ -978,7 +978,7 @@ const mapSizeSlider = computed({
 // «Bygg om dette området i valgt størrelse» (Innstillinger-fanen): rebygger
 // samme senter på nytt med valgt størrelse/format/ekvidistanse, så man kan
 // teste samme sted uten å gå tilbake til forsiden. Lager et NYTT kart (ny id)
-// og navigerer dit. «Nullstill» = 4 km kvadrat med 10 m ekvidistanse.
+// og navigerer dit. «Nullstill» = 5 km kvadrat med 10 m ekvidistanse.
 async function rebuildAtChosenSize(km = mapSizeKm.value) {
   const m = meta.value
   if (!m?.bbox || buildingOnTheFly.value) return
