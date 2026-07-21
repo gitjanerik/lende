@@ -71,16 +71,9 @@ function onOpenNve() {
           <div class="w-12 h-1.5 rounded-full bg-white/40"
                :style="{ opacity: drawer.handleOpacity.value }"></div>
         </div>
-        <!-- Header: dråpe-merke + stasjonsnavn + lukk -->
+        <!-- Header: stasjonsnavn + lukk -->
         <div class="shrink-0 px-4 pb-2.5 bg-zinc-900/95 border-b border-white/8 flex items-start justify-between gap-3">
           <div class="min-w-0 flex items-start gap-2.5">
-            <span class="mt-0.5 shrink-0 text-sky-400">
-              <svg viewBox="-12 -12 24 24" class="w-4 h-4" aria-hidden="true">
-                <circle cx="0" cy="0" r="10.5" fill="currentColor" stroke="#0c4a6e" stroke-width="2"/>
-                <path d="M-6.5,-2 q3.25,-3.6 6.5,0 t6.5,0" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
-                <path d="M-6.5,3.5 q3.25,-3.6 6.5,0 t6.5,0" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.75"/>
-              </svg>
-            </span>
             <div class="min-w-0">
               <div class="text-[10px] uppercase tracking-wide text-sky-300/60">Målestasjon · NVE</div>
               <div class="text-white text-[15px] font-medium leading-snug break-words">{{ detail.stationName }}</div>
