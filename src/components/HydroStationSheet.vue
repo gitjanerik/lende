@@ -35,6 +35,21 @@ const rows = computed(() => {
 })
 const hasAnyValue = computed(() => rows.value.length > 0)
 
+// Stasjons-/nedbørfelt-info (fra stasjonsobjektet, ingen ekstra oppslag). Kun
+// felt NVE faktisk har med vises.
+const infoRows = computed(() => {
+  const i = props.detail?.info
+  if (!i) return []
+  const r = []
+  if (i.stationType) r.push({ label: 'Stasjonstype', value: i.stationType })
+  if (Number.isFinite(Number(i.basinArea))) r.push({ label: 'Nedbørfelt', value: `${fmtNum(i.basinArea, 1)} km²` })
+  if (Number.isFinite(Number(i.riverLength))) r.push({ label: 'Elvelengde', value: `${fmtNum(i.riverLength, 1)} km` })
+  if (Number.isFinite(Number(i.masl))) r.push({ label: 'Høyde', value: `${fmtNum(i.masl, 0)} moh` })
+  if (i.council) r.push({ label: 'Kommune', value: i.council })
+  if (i.owner) r.push({ label: 'Eier', value: i.owner })
+  return r
+})
+
 function onOpenNve() {
   if (props.detail?.link) window.open(props.detail.link, '_blank', 'noopener')
 }
@@ -60,9 +75,10 @@ function onOpenNve() {
         <div class="shrink-0 px-4 pb-2.5 bg-zinc-900/95 border-b border-white/8 flex items-start justify-between gap-3">
           <div class="min-w-0 flex items-start gap-2.5">
             <span class="mt-0.5 shrink-0 text-sky-400">
-              <svg viewBox="-1 -1 2 2" class="w-4 h-4" aria-hidden="true">
-                <path d="M0,-0.9 C0.5,-0.25 0.72,0.28 0.72,0.5 A0.72,0.72 0 1 1 -0.72,0.5 C-0.72,0.28 -0.5,-0.25 0,-0.9 Z"
-                      fill="currentColor" stroke="#0c4a6e" stroke-width="0.12"/>
+              <svg viewBox="-12 -12 24 24" class="w-4 h-4" aria-hidden="true">
+                <circle cx="0" cy="0" r="10.5" fill="currentColor" stroke="#0c4a6e" stroke-width="2"/>
+                <path d="M-6.5,-2 q3.25,-3.6 6.5,0 t6.5,0" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+                <path d="M-6.5,3.5 q3.25,-3.6 6.5,0 t6.5,0" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.75"/>
               </svg>
             </span>
             <div class="min-w-0">
@@ -100,6 +116,17 @@ function onOpenNve() {
 
           <div v-else-if="!loading" class="text-[12px] text-white/50 py-3">
             Ingen ferske måledata for denne stasjonen akkurat nå.
+          </div>
+
+          <div v-if="infoRows.length" class="mt-4 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1">
+            <div class="text-[10px] uppercase tracking-wide text-sky-300/60 pt-2 pb-1.5">Om stasjonen</div>
+            <dl>
+              <div v-for="row in infoRows" :key="row.label"
+                   class="flex items-baseline justify-between gap-3 py-1.5 border-t border-white/5 first:border-t-0">
+                <dt class="text-[12px] text-white/50 shrink-0">{{ row.label }}</dt>
+                <dd class="text-[12px] text-white/85 text-right break-words">{{ row.value }}</dd>
+              </div>
+            </dl>
           </div>
 
           <button @click="onOpenNve" :disabled="!detail.link"

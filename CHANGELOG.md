@@ -1,5 +1,18 @@
 # Endringslogg
 
+## 2026-07-21 — v1.0.55: Nytt målestasjon-ikon + nedbørfelt-info
+
+Vannmålestasjonene fikk et nytt kartikon: en rund blå medaljong med to hvite
+bølger, i stedet for vanndråpen. Den gamle dråpen ble tegnet med en for trang
+`viewBox` slik at nedre spiss ble klippet bort på enkelte skjermer; den runde
+formen er symmetrisk og klippes aldri, og leses like godt uansett rotasjon.
+Detalj-skuffen viser nå også en «Om stasjonen»-seksjon med nedbørfeltets areal,
+elvelengde, høyde, kommune, stasjonstype og eier. Dataene ligger allerede i
+stasjonsobjektet fra NVE, så seksjonen krever ingen ekstra API-kall, og hvert
+felt vises kun når NVE faktisk har verdien.
+
+---
+
 ## 2026-07-21 — v1.0.54: NVE-proxyens produksjons-URL bakt inn
 
 Standard-URL-en i `nveHydApi.js` pekte på en placeholder (`<SUBDOMENE>`) i påvente

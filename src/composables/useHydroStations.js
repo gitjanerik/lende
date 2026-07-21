@@ -1,8 +1,8 @@
 // Hydrologiske målestasjoner (NVE HydAPI) som et togglebart kartlag — bygget
 // etter samme mønster som fredet-kulturminne-laget (useHeritageLayers). Når
 // laget slås på, hentes NVEs aktive stasjoner (cachet per sesjon), filtreres
-// til kartutsnittet, og tegnes som blå vanndråpe-ikoner INNE i kart-SVG-en
-// (data-upright → roterer/zoomer/print-trygt). Klikk på en dråpe henter siste
+// til kartutsnittet, og tegnes som blå stasjons-ikoner INNE i kart-SVG-en
+// (data-upright → roterer/zoomer/print-trygt). Klikk på et ikon henter siste
 // vannføring / vannstand / vanntemperatur og åpner en detalj-skuff med lenke
 // til stasjonens side hos NVE (Sildre).
 //
@@ -11,7 +11,7 @@
 // En VITE_NVE_HYDAPI_KEY brukes kun i lokal dev mot NVE direkte.
 import { ref } from 'vue'
 import { svgToWgs84, wgs84ToSvg } from '../lib/utm.js'
-import { fetchStationsForBbox, fetchStationLatest, sildreStationUrl } from '../lib/nveHydApi.js'
+import { fetchStationsForBbox, fetchStationLatest, sildreStationUrl, pickStationInfo } from '../lib/nveHydApi.js'
 
 export function useHydroStations({
   svgHostRef, visibleLayers, meta, applyUprightLabels,
@@ -25,6 +25,10 @@ export function useHydroStations({
   const hydroLoadingLayer = ref(false)
   let reqSeq = 0        // lag-bygging (applyHydroStationLayer)
   let detailSeq = 0     // detalj-oppslag (openHydroDetailFromEl)
+  // stasjons-id → normalisert nedbørfelt/stasjon-info (fra stasjonsobjektet vi
+  // allerede har lastet). Fylles ved lag-bygging, leses ved klikk — ingen ekstra
+  // API-kall for metadataen.
+  const stationInfoById = new Map()
 
   // WGS84-bbox fra kartets fire hjørner (SVG-meter → WGS84).
   function bboxFromMeta(m) {
@@ -42,22 +46,29 @@ export function useHydroStations({
     return { south, west, north, east }
   }
 
+  // Stasjons-ikon: rund blå medaljong med to hvite bølger (vann-nivå). Rund og
+  // sentrert i en symmetrisk viewBox — i motsetning til den gamle vanndråpen
+  // klippes ingenting bort, og formen leses like godt i alle rotasjoner.
   function ensureHydroDefs(svg) {
     const ns = 'http://www.w3.org/2000/svg'
     if (svg.querySelector('#hydro-sym')) return
     let defs = svg.querySelector('defs')
     if (!defs) { defs = document.createElementNS(ns, 'defs'); svg.insertBefore(defs, svg.firstChild) }
     const sym = document.createElementNS(ns, 'symbol')
-    sym.setAttribute('id', 'hydro-sym'); sym.setAttribute('viewBox', '-1 -1 2 2')
-    // Vanndråpe: spiss topp, rund bunn.
-    const drop = document.createElementNS(ns, 'path')
-    drop.setAttribute('d', 'M0,-0.9 C0.5,-0.25 0.72,0.28 0.72,0.5 A0.72,0.72 0 1 1 -0.72,0.5 C-0.72,0.28 -0.5,-0.25 0,-0.9 Z')
-    drop.setAttribute('fill', 'currentColor'); drop.setAttribute('stroke', '#0c4a6e'); drop.setAttribute('stroke-width', '0.12')
-    // Lite hvitt gløtt.
-    const glint = document.createElementNS(ns, 'circle')
-    glint.setAttribute('cx', '-0.22'); glint.setAttribute('cy', '0.32'); glint.setAttribute('r', '0.18')
-    glint.setAttribute('fill', '#fff'); glint.setAttribute('opacity', '0.55')
-    sym.appendChild(drop); sym.appendChild(glint); defs.appendChild(sym)
+    sym.setAttribute('id', 'hydro-sym'); sym.setAttribute('viewBox', '-12 -12 24 24')
+    const disc = document.createElementNS(ns, 'circle')
+    disc.setAttribute('cx', '0'); disc.setAttribute('cy', '0'); disc.setAttribute('r', '10.5')
+    disc.setAttribute('fill', 'currentColor'); disc.setAttribute('stroke', '#0c4a6e'); disc.setAttribute('stroke-width', '2')
+    sym.appendChild(disc)
+    for (const [y, opacity] of [['-2', '1'], ['3.5', '0.75']]) {
+      const wave = document.createElementNS(ns, 'path')
+      wave.setAttribute('d', `M-6.5,${y} q3.25,-3.6 6.5,0 t6.5,0`)
+      wave.setAttribute('fill', 'none'); wave.setAttribute('stroke', '#fff')
+      wave.setAttribute('stroke-width', '2'); wave.setAttribute('stroke-linecap', 'round')
+      wave.setAttribute('opacity', opacity)
+      sym.appendChild(wave)
+    }
+    defs.appendChild(sym)
   }
 
   async function applyHydroStationLayer() {
@@ -83,11 +94,13 @@ export function useHydroStations({
       g.setAttribute('id', 'hydro-layer'); g.setAttribute('data-layer', 'vannstasjon')
       const half = HYDRO_SIZE_MM / 2
       let placed = 0
+      stationInfoById.clear()
       for (const st of stations) {
         const p = wgs84ToSvg(Number(st.latitude), Number(st.longitude), m)
         if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue
         // Kun stasjoner som faktisk faller innenfor kart-rektangelet.
         if (p.x < 0 || p.x > m.widthM || p.y < 0 || p.y > m.heightM) continue
+        if (st.stationId) stationInfoById.set(st.stationId, pickStationInfo(st))
         const mk = document.createElementNS(ns, 'g')
         mk.setAttribute('data-hydro-station-id', st.stationId || '')
         mk.setAttribute('data-upright', '1')
@@ -112,7 +125,7 @@ export function useHydroStations({
     }
   }
 
-  // Klikk på en dråpe → åpne detalj-skuff og hent siste verdier.
+  // Klikk på et ikon → åpne detalj-skuff og hent siste verdier.
   async function openHydroDetailFromEl(el) {
     const stationId = el.getAttribute('data-hydro-station-id') || null
     const masl = el.getAttribute('data-masl')
@@ -122,6 +135,7 @@ export function useHydroStations({
       riverName: el.getAttribute('data-elv') || null,
       masl: masl != null ? Number(masl) : null,
       link: stationId ? sildreStationUrl(stationId) : null,
+      info: (stationId && stationInfoById.get(stationId)) || {},
       discharge: null, waterLevel: null, waterTemp: null,
     }
     hydroOpen.value = true
