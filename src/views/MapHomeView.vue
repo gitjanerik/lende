@@ -98,6 +98,14 @@ async function onDeleteAll() {
   if (n === 0) return
   if (!confirm(`Vil du slette ${n} kart?`)) return
   await clearAll()
+  // Ikke la app-start (router.js) gjenoppta et slettet kart etter refresh —
+  // rydd gjenopptaks-nøkkelen og alle lagrede kartutsnitt.
+  try {
+    localStorage.removeItem('lende-last-map')
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('lende-view:')) localStorage.removeItem(key)
+    }
+  } catch { /* noop */ }
   await refresh()
 }
 

@@ -1,5 +1,22 @@
 # Endringslogg
 
+## 2026-07-21 — v1.0.50: Slett-alle + hard refresh fikset, culling-bryter og eldre-ark-varsel
+
+Tre ting i vann-jakten. (1) «Slett alle kart» + hard refresh ga «Kart ikke
+funnet i lagring»: app-start gjenopptok sist viste kart via `lende-last-map`,
+men slett-alle ryddet aldri nøkkelen. Nå ryddes gjenopptaks-nøklene ved
+slett-alle, og lander appen likevel på et slettet kart, går den stille til
+forsiden i stedet for feilsiden. (2) Utvikler-fanen har fått en
+viewport-culling-bryter (av/på uten reload): forsvinner vann på telefonen,
+slå culling AV — kommer vannet tilbake, er culling synderen; hvis ikke, er
+det arkets data. Bygge-siden og cull-matematikken er verifisert konsistente
+lokalt og i CI-E2E, så bryteren avgjør saken på telefonen. (3) Sømløs
+auto-promotering til et ark bygd med en ELDRE app-versjon sier nå fra med en
+toast — før så byttet ut som at innsjøer plutselig «forsvant». Midlertidige
+E2E-probefiler er fjernet fra branchen.
+
+---
+
 ## 2026-07-20 — v1.0.49: Meta-hviteliste fikset — versjonsstempel og NVE-status var usynlige
 
 `useMapLoadPipeline` kopierer kart-metaen fra SVG-ens `data-meta` inn i appen
