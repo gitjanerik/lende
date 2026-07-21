@@ -4,11 +4,13 @@
 // sanntids- og historiske serier pr MÅLESTASJON (ikke pr innsjø), så vi må
 // matche punktet/innsjøen til nærmeste relevante stasjon.
 //
-// KREVER API-NØKKEL: HydAPI krever en gratis nøkkel (registreres på
-// hydapi.nve.no) sendt som `X-API-Key`-header. Uten nøkkel er denne modulen
-// DVALE — `fetchLiveWater` returnerer null og UI viser ingenting ekstra.
-// Nøkkelen leses i klienten fra `import.meta.env.VITE_NVE_HYDAPI_KEY` og
-// sendes inn hit, så modulen selv er ren og testbar i Node.
+// KREVER API-NØKKEL, men den bor SERVER-SIDE: HydAPI krever en nøkkel sendt som
+// `X-API-Key`. Nøkkelen kan ikke bakes inn i den offentlige klient-bundelen, så
+// kallene går som standard gjennom en Cloudflare Worker-proxy
+// (`cloudflare/nve-proxy/`) som legger på nøkkelen. Basen overstyres med
+// `VITE_NVE_HYDAPI_URL`. Settes en `apiKey` inn hit (lokal dev mot hydapi.nve.no
+// direkte), sendes den som `X-API-Key` — ellers utelates headeren og proxyen
+// står for nøkkelen.
 //
 // CORS/nett: som de andre eksterne kildene kan dette feile; da returneres
 // null (graceful). Stasjonslista caches pr sesjon (den er stor).
@@ -18,7 +20,21 @@
 // foretrekker vi en stasjon hvis høyde (masl) matcher innsjøens vannflate-
 // høyde (±`maslTolM`) — en vannstands-stasjon i innsjøen ligger på flata.
 
-const HYDAPI_BASE = 'https://hydapi.nve.no/api/v1'
+// Standard = Cloudflare Worker-proxyen (offentlig URL, ikke hemmelig). Bytt
+// <SUBDOMENE> til ditt workers.dev-subdomene etter deploy, eller sett
+// VITE_NVE_HYDAPI_URL ved bygg. Lokal dev direkte mot NVE:
+// VITE_NVE_HYDAPI_URL=https://hydapi.nve.no/api/v1 + VITE_NVE_HYDAPI_KEY.
+const HYDAPI_BASE =
+  import.meta.env?.VITE_NVE_HYDAPI_URL ??
+  'https://lende-nve-proxy.<SUBDOMENE>.workers.dev/api/v1'
+
+// X-API-Key kun når en nøkkel faktisk er gitt (dev-modus mot NVE direkte).
+// Via proxyen sendes ingen nøkkel fra klienten — Worker-en legger den på.
+function apiHeaders(apiKey) {
+  const h = { Accept: 'application/json' }
+  if (apiKey) h['X-API-Key'] = apiKey
+  return h
+}
 
 // HydAPI parameter-koder.
 export const PARAM_WATER_LEVEL = 1000  // Vannstand (m)
@@ -141,7 +157,7 @@ async function fetchStations(apiKey, signal) {
   if (_stationsPromise) return _stationsPromise
   _stationsPromise = (async () => {
     const res = await fetch(`${HYDAPI_BASE}/Stations?Active=1`, {
-      headers: { Accept: 'application/json', 'X-API-Key': apiKey },
+      headers: apiHeaders(apiKey),
       signal,
     })
     if (!res.ok) throw new Error(`Stations HTTP ${res.status}`)
@@ -167,7 +183,7 @@ async function fetchLatest(stationId, parameter, apiKey, signal) {
     ReferenceTime: `${start.toISOString()}/${end.toISOString()}`,
   })
   const res = await fetch(`${HYDAPI_BASE}/Observations?${params}`, {
-    headers: { Accept: 'application/json', 'X-API-Key': apiKey },
+    headers: apiHeaders(apiKey),
     signal,
   })
   if (!res.ok) return null
@@ -181,7 +197,7 @@ async function fetchLatest(stationId, parameter, apiKey, signal) {
  * @param {number} lat
  * @param {number} lon
  * @param {object} opts
- * @param {string} opts.apiKey                HydAPI-nøkkel (tom/undefined → null)
+ * @param {string} [opts.apiKey]              HydAPI-nøkkel (utelates ved proxy-bruk)
  * @param {number} [opts.lakeHoyde]           innsjøhøyde (moh) for stasjons-match
  * @param {AbortSignal} [opts.signal]
  * @returns {Promise<{ stationName: string, distanceKm: number,
@@ -190,7 +206,7 @@ async function fetchLatest(stationId, parameter, apiKey, signal) {
  */
 export async function fetchLiveWater(lat, lon, opts = {}) {
   const { apiKey, lakeHoyde, signal } = opts
-  if (!apiKey || !Number.isFinite(lat) || !Number.isFinite(lon)) return null
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
   try {
     const stations = await fetchStations(apiKey, signal)
     // Match på vannstand først (definerer «stasjonen på denne innsjøen»).
@@ -251,7 +267,7 @@ export function stationsInBbox(stations, bbox) {
  * @returns {Promise<Array<object>>}
  */
 export async function fetchStationsForBbox(bbox, { apiKey, signal } = {}) {
-  if (!apiKey || !bbox) return []
+  if (!bbox) return []
   try {
     const stations = await fetchStations(apiKey, signal)
     return stationsInBbox(stations, bbox)
@@ -273,7 +289,7 @@ export async function fetchStationsForBbox(bbox, { apiKey, signal } = {}) {
  */
 export async function fetchStationLatest(station, { apiKey, signal } = {}) {
   const out = {}
-  if (!apiKey || !station?.stationId) return out
+  if (!station?.stationId) return out
   const id = station.stationId
   const wanted = [
     ['discharge', PARAM_DISCHARGE],

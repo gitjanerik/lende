@@ -1,5 +1,21 @@
 # Endringslogg
 
+## 2026-07-21 — v1.0.53: Cloudflare-proxy vekker NVE-målestasjonene fra dvale
+
+Kartlaget «Vannmålestasjoner» og sanntids vannstand/temperatur ved long-press har
+ligget i dvale fordi NVE HydAPI krever en API-nøkkel som ikke kan bakes inn i den
+offentlige, statiske bundelen på GitHub Pages. Nå finnes en frittstående Cloudflare
+Worker (`cloudflare/nve-proxy/`) som speiler de to HydAPI-endepunktene appen bruker,
+injiserer nøkkelen server-side (som en kryptert Cloudflare-secret `NVE_HYDAPI_KEY`)
+og legger på CORS. Klienten (`nveHydApi.js`) peker som standard mot proxyen —
+overstyrbar med `VITE_NVE_HYDAPI_URL` — og sender ingen nøkkel selv; dvale-portene i
+komposablene er fjernet. Nøkkelen forlater dermed aldri Cloudflare. Worker-en er
+bevisst ingen åpen proxy (kun `GET` mot `/Stations` og `/Observations`, CORS låst til
+Lende-originene). Se `cloudflare/nve-proxy/README.md` for oppsett fra
+Cloudflare-dashbordet (mobilvennlig, ingen kommandolinje).
+
+---
+
 ## 2026-07-21 — v1.0.52: «Bruk rute» — følg valgt rundtur med fritt kart
 
 Stifinner/rundtur får en «Bruk rute»-knapp i den grønne boksen. Den tar valgt

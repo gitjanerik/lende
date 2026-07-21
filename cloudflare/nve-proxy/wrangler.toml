@@ -1,0 +1,7 @@
+name = "lende-nve-proxy"
+main = "src/index.js"
+compatibility_date = "2025-07-01"
+
+# Secret settes IKKE her. Bruk enten Cloudflare-dashbordet
+# (Worker → Settings → Variables → Add → «Encrypt») eller
+# `npx wrangler secret put NVE_HYDAPI_KEY`. Se README.md.
