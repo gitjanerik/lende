@@ -1,5 +1,17 @@
 # Endringslogg
 
+## 2026-07-21 — v1.0.60: Opprydding etter vann-jakten — probefiler fjernet
+
+«Vannet forsvinner»-saken er bekreftet løst på enhet (v1.0.51), så de
+midlertidige feilsøkingsfilene ryddes: NVE-helseproben (`scripts/probe-nve.mjs`)
+og E2E-proben mot deployet app (`scripts/probe-e2e.mjs`) — begge med sine
+GitHub-workflows — er fjernet fra repoet. Ingen endringer i appens oppførsel;
+culling-bryteren i Utvikler-fanen (v1.0.50) beholdes som permanent
+feilsøkingsverktøy. (Denne oppryddingen lå i en gammel PR fra før v1.0.53–59
+landet; gjenskapt oppå fersk master med korrekt versjons-bump.)
+
+---
+
 ## 2026-07-21 — v1.0.59: Snappere pinch/rotasjon — tungt arbeid ut av gest-frames
 
 Første steg i mobil-ytelse-sporet før default kartstørrelse eventuelt heves.
