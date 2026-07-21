@@ -1680,7 +1680,7 @@ watch([scale, translateX, translateY, rotation], scheduleNameLOD)
 //
 // Kill switch: localStorage 'vp-cull-off' = '1'. Debug-tint (vis i rødt i
 // stedet for å skjule): localStorage 'cull-debug' = '1'.
-const cullDisabled = (() => { try { return localStorage.getItem('vp-cull-off') === '1' } catch { return false } })()
+const cullDisabled = ref((() => { try { return localStorage.getItem('vp-cull-off') === '1' } catch { return false } })())
 const cullDebugTint = (() => { try { return localStorage.getItem('cull-debug') === '1' } catch { return false } })()
 let cullIndex = null
 let cullPrevVisible = null
@@ -1703,7 +1703,7 @@ function resetViewportCull() {
 // `[data-layer]`-scopingen holder dem (og user-layer/overlays) utenfor.
 function buildCullDomIndex() {
   resetViewportCull()
-  if (cullDisabled) return
+  if (cullDisabled.value) return
   const svg = svgHostRef.value?.querySelector('svg')
   const m = meta.value
   if (!svg || !m) return
@@ -1756,7 +1756,7 @@ function buildCullDomIndex() {
 }
 
 function applyViewportCull(force = false) {
-  if (cullDisabled || !cullIndex) return
+  if (cullDisabled.value || !cullIndex) return
   const m = meta.value
   const wrap = wrapperRef.value?.getBoundingClientRect()
   const svg = svgHostRef.value?.querySelector('svg')
@@ -1794,6 +1794,27 @@ function applyViewportCull(force = false) {
     indexed: cullStats.value.indexed,
     culled: Math.max(0, cullStats.value.indexed - visible.size),
     ms: Math.round((performance.now() - t0) * 10) / 10,
+  }
+}
+
+// Runtime-bryter i Utvikler-fanen: slå culling AV uten reload for å avgjøre
+// på stedet om «forsvunnet innhold» skyldes culling (av → innholdet tilbake
+// umiddelbart = culling er synderen) eller kart-dataene selv. Valget
+// persisteres (vp-cull-off) så det overlever reload/nybygg under feilsøk.
+function toggleCull() {
+  const off = !cullDisabled.value
+  cullDisabled.value = off
+  try {
+    if (off) localStorage.setItem('vp-cull-off', '1')
+    else localStorage.removeItem('vp-cull-off')
+  } catch { /* noop */ }
+  if (off) {
+    const svg = svgHostRef.value?.querySelector('svg')
+    if (svg) for (const el of svg.querySelectorAll('.vp-cull')) el.classList.remove('vp-cull')
+    resetViewportCull()
+  } else {
+    buildCullDomIndex()
+    applyViewportCull(true)
   }
 }
 
@@ -3650,7 +3671,8 @@ onUnmounted(() => {
             v-model:diagnose="diagnose"
             :reset-lod-tuning="resetLodTuning" :map-data-label="mapDataLabel"
             :auto-tile-count="autoTileCount" :max-tiles="maxTiles"
-            :cull-stats="cullStats" :sjokart-status-text="sjokartStatusText"
+            :cull-stats="cullStats" :cull-disabled="cullDisabled" :toggle-cull="toggleCull"
+            :sjokart-status-text="sjokartStatusText"
             :nve-innsjo-status-text="nveInnsjoStatusText" :meta="meta"
             :purple-trails="purpleTrails" :toggle-purple-trails="togglePurpleTrails"
             :open-vardasen="() => router.push({ name: 'kart-vis', params: { id: 'vardasen' } })"
