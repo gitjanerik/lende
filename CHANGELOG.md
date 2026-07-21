@@ -1,5 +1,24 @@
 # Endringslogg
 
+## 2026-07-21 — v1.0.59: Snappere pinch/rotasjon — tungt arbeid ut av gest-frames
+
+Første steg i mobil-ytelse-sporet før default kartstørrelse eventuelt heves.
+Tre watchere i MapView kjørte tungt arbeid på HVER pinch-/rotasjons-frame i
+stedet for ved gest-slutt. Verst: `watch(scale)` bygde GPS-prikk, alle spor og
+alle annoteringer helt om (`layer.replaceChildren()`) per frame — merkbar jank
+under zoom med aktivt spor-opptak. Nå hoppes de tunge om-byggingene over mens en
+gest pågår (symbolene følger kart-transformen som streker/relieff allerede gjør)
+og snapper til riktig skjerm-størrelse straks gesten slipper. `applyUprightLabels`
+(itererer 1000+ tekst-noder for å holde dem loddrett) gates likt: labels vippes
+med kartet under rotasjon og snapper opp ved gest-slutt. Til slutt fikk
+`applyZoomTierClasses` en tidlig-retur så den slipper `querySelector` + klasse-
+toggle på frames der zoom-trinnet ikke faktisk krysser terskelen. Ingen ny
+arkitektur, ingen endring i hva som vises når gesten er over — kun mindre arbeid
+underveis. Regresjonsvakt beholdt: navn-LOD toggler fortsatt aldri geometri
+(v1.0.51), og GPS-prikk/ring/kjegle + spor holder konstant skjerm-størrelse i ro.
+
+---
+
 ## 2026-07-21 — v1.0.58: Vannmålestasjoner default på
 
 Kartlaget «Vannmålestasjoner» er nå på som standard (fjernet fra
