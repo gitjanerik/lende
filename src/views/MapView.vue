@@ -842,7 +842,16 @@ function applyZoomTierClasses(svg, s) {
   svg.classList.toggle('zoomed-in', s >= ZOOMED_IN_THRESHOLD)
   svg.classList.toggle('zoom-near', s >= zoomNearThreshold.value)
 }
+// Perf: watcheren fyrer på hver pinch-frame, men trinnene endrer seg maks to
+// ganger under en zoom. Hopp over querySelector + toggle når verken .zoomed-in
+// eller .zoom-near krysser terskelen sin. Direkte kall (SVG-bytte i
+// useMapLoadPipeline) applikerer fortsatt klassene på fersk SVG uavhengig.
+let prevZoomTier = { zoomedIn: null, near: null }
 watch(scale, (s) => {
+  const zoomedIn = s >= ZOOMED_IN_THRESHOLD
+  const near = s >= zoomNearThreshold.value
+  if (zoomedIn === prevZoomTier.zoomedIn && near === prevZoomTier.near) return
+  prevZoomTier = { zoomedIn, near }
   applyZoomTierClasses(svgHostRef.value?.querySelector('svg'), s)
 }, { immediate: true })
 // Gjeldende zoom-trinn (debug-indikator i Utvikler-fanen).
@@ -2631,7 +2640,35 @@ watch(() => annot.visibleTypes.value, () => renderAnnotations())
 
 // Re-render symboler (annoteringer + bruker-pos dot + spor) når pinch-zoom
 // endrer seg, slik at de holder konstant skjerm-størrelse uansett zoom-nivå.
-watch(scale, () => { renderAnnotations(); updateUserDot(); renderTracks() })
+// Perf: IKKE midt i en gest — hver av disse gjør en full layer.replaceChildren()-
+// ombygging, og med aktivt spor-opptak ble det merkbar jank per pinch-frame.
+// Symbolene skalerer med kart-transformen mens gesten varer (samme aksepterte
+// avvik som strek-/relieff-perf-modus) og snapper til riktig skjerm-størrelse
+// straks gesten slipper (gest-slutt-watcheren under).
+watch(scale, () => {
+  if (isGesturing.value) return
+  renderAnnotations(); updateUserDot(); renderTracks()
+})
+// Gest-slutt: snapp de skjerm-konstante/opprett-orienterte symbolene tilbake til
+// riktig størrelse/vinkel etter at de fikk følge kart-transformen under gesten.
+// Bare det som faktisk endret seg bygges om: ren panorering endrer verken zoom
+// eller rotasjon → ingen om-bygging (bevarer pan-billigheten fra før). Endret
+// zoom → spor/annoteringer/prikk (skjerm-størrelse). Endret rotasjon ELLER en
+// annoterings-om-bygging → applyUprightLabels (replaceChildren nullstiller
+// pin-orienteringen, så den må re-appliseres når annoteringene er bygd om).
+let gestureStartScale = null
+let gestureStartRotation = null
+watch(isGesturing, (g) => {
+  if (g) {
+    gestureStartScale = scale.value
+    gestureStartRotation = rotation.value
+    return
+  }
+  const scaleChanged = scale.value !== gestureStartScale
+  const rotationChanged = rotation.value !== gestureStartRotation
+  if (scaleChanged) { renderAnnotations(); updateUserDot(); renderTracks() }
+  if (scaleChanged || rotationChanged) applyUprightLabels()
+})
 
 // Tracks: re-render når spor endres, stil endres, eller synlighet toggles.
 // Deep watch på tracks fordi vi pusher nye punkter inn i samme array under
@@ -2696,8 +2733,12 @@ function selectSymbol(key) {
 }
 
 
-// Watch rotasjon — billig attributt-oppdatering, ingen full re-render.
-watch(rotation, () => applyUprightLabels())
+// Watch rotasjon — counter-roterer alle <text>/pins så de står rett opp. Perf:
+// itererer 1000+ noder og skriver transform per endring, så vi hopper over det
+// midt i en rotasjons-gest (labels vippes med kartet og snapper opp ved gest-
+// slutt, jf. gest-slutt-watcheren) og kjører kun på hvile-endringer (f.eks.
+// programmatisk reset til 0).
+watch(rotation, () => { if (!isGesturing.value) applyUprightLabels() })
 
 
 // Start GPS + kompass i samme bruker-gest. Kompasset driver retnings-kjegla
