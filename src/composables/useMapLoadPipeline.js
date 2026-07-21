@@ -12,6 +12,7 @@ import { svgToWgs84 } from '../lib/utm.js'
 import { unpackDem } from '../lib/demSampling.js'
 import { buildMapFromCenter, consumeMapFinalize } from '../lib/createMapFlow.js'
 import { loadMap as loadStoredMap, deleteMap as deleteStoredMap } from '../lib/mapStorage.js'
+import { APP_VERSION } from '../version.js'
 
 export function useMapLoadPipeline(deps) {
   const {
@@ -100,7 +101,18 @@ export function useMapLoadPipeline(deps) {
         text = await fetchBuiltinSvg(BUILTIN[id].file)
       } else {
         stored = await loadStoredMap(id)
-        if (!stored) throw new Error('Kart ikke funnet i lagring')
+        if (!stored) {
+          // Kartet finnes ikke lenger (typisk: slettet + hard refresh der
+          // router.js gjenopptok en foreldet lende-last-map). En feilside er
+          // en blindvei her — rydd gjenopptaks-nøklene og gå til forsiden.
+          try {
+            if (localStorage.getItem('lende-last-map') === id) localStorage.removeItem('lende-last-map')
+            localStorage.removeItem(`lende-view:${id}`)
+          } catch { /* noop */ }
+          loading.value = false
+          router.replace({ name: 'kart-hjem' })
+          return
+        }
         mapTitle.value = stored.navn
         text = stored.svg
         // Bygging avbrutt (reload/lukking) før OSM-detaljene ble fylt inn lagrer
@@ -251,6 +263,12 @@ export function useMapLoadPipeline(deps) {
           vbWidth: meta.value.widthM, vbHeight: meta.value.heightM,
           targetScale: pendingPromoteView.scale ?? 1, keepRotation: true,
         })
+        // Auto-promoteringen er med vilje usynlig (ingen spinner/hopp) — men da
+        // ser et bytte til et ARK BYGD MED ELDRE APP ut som at innhold plutselig
+        // «forsvinner» (f.eks. innsjøer bygd før NVE-kilden fantes). Si fra.
+        if (meta.value.appVersion !== APP_VERSION && !BUILTIN[mapId.value]) {
+          showAutoMapToast(`Viser eldre ark (bygd med ${meta.value.appVersion ? 'v' + meta.value.appVersion : 'eldre app'}) — bygg på nytt for ferske data`)
+        }
       } else if (pendingRestoreView) {
         rotation.value = pendingRestoreView.rotation
         await nextTick()

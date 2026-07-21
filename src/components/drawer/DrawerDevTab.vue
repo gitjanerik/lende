@@ -17,6 +17,8 @@ const props = defineProps({
   autoTileCount: { type: Number, default: 0 },
   maxTiles: { type: Number, default: 0 },
   cullStats: { type: Object, default: () => ({ indexed: 0, culled: 0, ms: 0 }) },
+  cullDisabled: { type: Boolean, default: false },
+  toggleCull: { type: Function, required: true },
   sjokartStatusText: { type: String, default: '' },
   nveInnsjoStatusText: { type: String, default: '' },
   meta: { type: Object, default: null },
@@ -95,11 +97,20 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
     </div>
     <!-- Viewport-culling: hvor mange indekserte elementer som er skjult
          utenfor utsnittet akkurat nå + siste cull-beregning i ms. -->
-    <div v-if="cullStats.indexed" class="flex items-baseline justify-between gap-2 mb-2 px-1">
+    <div class="flex items-center justify-between gap-2 mb-2 px-1">
       <span class="text-white/45 text-[11px]">Viewport-culling</span>
-      <span class="text-white/55 text-[11px] tabular-nums">
+      <span v-if="!cullDisabled && cullStats.indexed" class="text-white/55 text-[11px] tabular-nums">
         {{ cullStats.culled }} / {{ cullStats.indexed }} skjult · {{ cullStats.ms }} ms
       </span>
+      <!-- Feilsøk: culling av/på uten reload. Forsvinner «borte» innhold
+           tilbake når den slås AV, er culling synderen — ellers dataene. -->
+      <button @click="toggleCull()"
+              class="px-2 py-1 rounded-md border text-[11px] active:scale-[0.98]"
+              :class="cullDisabled
+                      ? 'bg-amber-400/20 border-amber-300/50 text-amber-200'
+                      : 'bg-white/5 border-white/10 text-white/70'">
+        {{ cullDisabled ? 'AV — slå på' : 'Slå av' }}
+      </button>
     </div>
     <!-- Sjøkart-status: WFS-hentingen feiler stille (timeout/CORS/tom) —
          her vises HVORFOR dybdetall/kai mangler på kystkart. -->
