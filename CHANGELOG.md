@@ -1,5 +1,22 @@
 # Endringslogg
 
+## 2026-07-21 — v1.0.62: Perf-loggen måler nå åpning og gest-jank, ikke bare bygging
+
+Tredje steg i mobil-ytelse-sporet: måling. Perf-loggen (Utvikler-fanen →
+Byggetider) har til nå kun vist byggetider fra createMapFlow — nå logges også
+selve ÅPNINGEN av et kart: én linje per last med tid til første malte frame,
+brutt ned i hent (IndexedDB/nett), parse (DOMParser over hele SVG-strengen),
+DOM-innsetting, apply-passene og de utsatte indeks-passene (søk/navn-LOD/
+culling), pluss node-tall og SVG-størrelse. I tillegg måles gester: en lett
+rAF-teller under pinch/pan/rotasjon logger snitt-fps og verste enkelt-frame —
+men KUN når gesten faktisk hakket (< 45 fps over ≥ 0,4 s), så jevne gester
+ikke fyller ring-bufferen. Dette er datagrunnlaget for å vurdere hvor mye
+større default-kart mobilen tåler: bygg/åpne kart på 4/6/8 km og sammenlign
+linjene. Også rettet: utdatert status-kommentar i demTileCache.js (cachen er
+PÅ, headeren sa fortsatt AV).
+
+---
+
 ## 2026-07-21 — v1.0.61: content-visibility — nettleseren dropper av-skjerm-geometri selv
 
 Andre steg i mobil-ytelse-sporet, og forberedelse til å kunne heve default

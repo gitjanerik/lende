@@ -12,6 +12,7 @@ import { svgToWgs84 } from '../lib/utm.js'
 import { unpackDem } from '../lib/demSampling.js'
 import { buildMapFromCenter, consumeMapFinalize } from '../lib/createMapFlow.js'
 import { loadMap as loadStoredMap, deleteMap as deleteStoredMap } from '../lib/mapStorage.js'
+import { logPerf } from '../lib/perfLog.js'
 import { APP_VERSION } from '../version.js'
 
 export function useMapLoadPipeline(deps) {
@@ -80,11 +81,21 @@ export function useMapLoadPipeline(deps) {
   // droppes i stedet for å kjøre mot en utbyttet SVG-DOM.
   let loadGeneration = 0
 
+  // Render-perf for ÅPNING av kart (motstykket til createMapFlows byggetider):
+  // loadMap fyller inn hent/parse/DOM/pass-tider, og det utsatte etter-paint-
+  // passet (scheduleDeferredMapPasses) fullfører med første-paint- og indeks-tid
+  // + node-tall, og skriver ÉN perfLog-linje. Grunnlaget for å vurdere hvor mye
+  // større default-kart mobilen tåler — leses fra PerfLogModal (Utvikler-fanen).
+  let renderPerf = null
+  const _now = () => performance.now()
+
   async function loadMap({ silent = false } = {}) {
     // silent = re-render av samme kart (terreng → full) uten full-skjerm-loader;
     // beholder zoom/pan og hopper over init-prefs (alt konsumert ved første last).
     // Promotering (gjør-aktiv): hopp også over loaderen, men prefs leses fortsatt.
     const gen = ++loadGeneration
+    const t0 = _now()
+    renderPerf = null
     const isPromote = !silent && hasPromotePref(route.params.id ?? 'vardasen')
     if (!silent && !isPromote) loading.value = true
     loadError.value = null
@@ -131,8 +142,10 @@ export function useMapLoadPipeline(deps) {
       // slipper å allokere en Blob-kopi av hele strengen på åpne-stien.
       mapDataSize.value = { svgBytes: text.length, demBytes }
       void refreshAutoTileCount()
+      const tHent = _now()                 // IDB-les / builtin-fetch ferdig
       const parser = new DOMParser()
       const doc = parser.parseFromString(text, 'image/svg+xml')
+      const tParse = _now()                // DOMParser over hele SVG-strengen
       const root = doc.documentElement
       if (root.nodeName === 'parsererror' || root.querySelector('parsererror')) {
         throw new Error('Ugyldig SVG')
@@ -213,7 +226,9 @@ export function useMapLoadPipeline(deps) {
       // Full trinnvis avsløring kun der den har en jobb: ferske bygg (masker den
       // første tunge painten) og silent finalize-swaps (masker DOM-byttet). En
       // vanlig åpning av et allerede-bygget kart får en kort enkelt-fade.
+      const tDomStart = _now()
       setupHostSvg(root, { staged: isFreshBuild || silent })
+      const tDom = _now()                  // adoptNode-innsetting + detalj-detach
       loading.value = false
       await nextTick()
       applyLayerVisibility()
@@ -248,6 +263,19 @@ export function useMapLoadPipeline(deps) {
       // Må kjøre FØR søkeindeksen bygges: applyNameLanguage stempler det fulle
       // navnet i data-name-full, som useMapSearch indekserer (alle språk søkbare).
       applyNameLanguage()
+      // Overlever til det utsatte passet, som fullfører og logger linjen.
+      // hent = IDB/nett, parse = DOMParser, dom = adoptNode-innsetting,
+      // pass = apply-passene (inkl. annotering/spor-IDB-les).
+      renderPerf = {
+        gen, t0,
+        hent: Math.round(tHent - t0),
+        parse: Math.round(tParse - tHent),
+        dom: Math.round(tDom - tDomStart),
+        pass: Math.round(_now() - tDom),
+        widthKm: (m.widthM ?? 0) / 1000,
+        svgBytes: text.length,
+        silent,
+      }
       // De getBBox-tunge indeks-passene (søk, navn-LOD, culling) utsettes til
       // etter første paint — de bestemmer ikke hva første frame viser, men
       // tvang tidligere synkron layout av hele multi-MB-SVG-en før kartet kom
@@ -368,6 +396,9 @@ export function useMapLoadPipeline(deps) {
       if (gen !== loadGeneration || !isAlive()) return
       const svg = svgHostRef.value?.querySelector('svg')
       if (!svg) return
+      // Dobbel-rAF-en over har latt første kart-frame males — tidspunktet HER er
+      // dermed «kartet er på skjermen» sett fra brukeren (≈ første paint).
+      const tPaint = _now()
       // Bygg søkeindeks fra ferdig-loaded SVG-DOM (getBBox()+getCTM() krever
       // attached element).
       mapSearch.rebuild(svg)
@@ -384,6 +415,20 @@ export function useMapLoadPipeline(deps) {
       // Auto-highlight hvis ?hl=<navn> i URL (delings-flow).
       maybeHighlightFromQuery()
       svg.classList.remove('lod-pending')
+      // Fullfør render-perf-linjen fra loadMap: paint = t0 → første malte frame,
+      // indeks = getBBox-passene over. Node-tallet (live collection, billig
+      // .length) er den direkte driveren for DOM-kostnaden ved økt kartstørrelse.
+      if (renderPerf?.gen === gen) {
+        const p = renderPerf
+        renderPerf = null
+        logPerf(
+          `[perf] åpne ${p.widthKm.toFixed(1)}km paint ${Math.round(tPaint - p.t0)}ms ` +
+          `(hent ${p.hent} | parse ${p.parse} | dom ${p.dom} | pass ${p.pass}) ` +
+          `indeks ${Math.round(_now() - tPaint)}ms | ` +
+          `${svg.getElementsByTagName('*').length} noder, ${(p.svgBytes / 1048576).toFixed(1)} MB` +
+          `${p.silent ? ' [finalize]' : ''} [ms]`
+        )
+      }
     }))
   }
 
