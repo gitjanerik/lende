@@ -1,5 +1,22 @@
 # Endringslogg
 
+## 2026-07-21 — v1.0.51: LØST — «vannet forsvinner»: navn-LOD skjulte NVE-innsjøpolygonene
+
+Gåten er løst, og vannet var aldri borte fra kartet. NVE-innsjøer bærer navnet
+i `navn`-feltet (ArcGIS), ikke `name` — så `lakeLabels` ga dem aldri en egen
+vann-navn-tekst. Søkeindeksen registrerte da SELVE POLYGONET som navnebærer,
+og navn-LOD-en (declutter-budsjettet) satte `display:none` på hele innsjøen
+når navnet tapte plasskampen: synlig ved 200 m-zoom (raust budsjett), borte i
+oversikt (budsjett 60), flimrende ved panorering. Utvidelses-fliser viste
+vannet fordi spøkelses-fliser stripper `data-name` og står utenfor indeksen —
+nøkkelobservasjonen som løste saken. To fikser: (1) navn-LOD toggler ALDRI
+geometri-paths, kun tekst-/gruppe-etiketter; (2) `lakeLabels` leser nå
+`navn`-fallback, så NVE-innsjøer får ekte navnetekster som OSM-innsjøer.
+E2E-bekreftet at Setten/Nesøytjernet lå i SVG-en med `display:none` fra
+`name-lod-off`. Viewport-culling og NVE-hentingen var uskyldige hele veien.
+
+---
+
 ## 2026-07-21 — v1.0.50: Slett-alle + hard refresh fikset, culling-bryter og eldre-ark-varsel
 
 Tre ting i vann-jakten. (1) «Slett alle kart» + hard refresh ga «Kart ikke

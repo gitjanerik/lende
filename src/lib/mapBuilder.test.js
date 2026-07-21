@@ -535,3 +535,22 @@ describe('makeLabelNameClaimer — navn-dedup med type- og avstands-unntak (v12.
     expect(claim(null, 'topp', 0, 0)).toBe(true)
   })
 })
+
+describe('NVE-innsjøer (navn-tag, ikke name) får vann-navn-label (v1.0.51)', () => {
+  // NVE Innsjødatabasen leverer navnet i `navn` (ArcGIS-feltnavn). Uten
+  // fallback fikk NVE-innsjøer ingen vann-navn-tekst — og navn-LOD-en i
+  // MapView toglet i stedet SELVE POLYGONET (søkeindeksens el for navngitte
+  // polygoner uten egen tekst), så hele innsjøen forsvant ved utzoom/pan
+  // («vannet forsvinner»-saken 2026-07-21).
+  const nveLake = {
+    type: 'way', id: 900,
+    tags: { natural: 'water', navn: 'Testvannet' },
+    geometry: ring(59.01, 10.02, 59.04, 10.07),
+    _source: 'n50',
+  }
+  it('polygonet rendres med data-name OG en vann-navn-tekst med navnet', () => {
+    const { svg } = buildSvg([nveLake], bbox, {})
+    expect(svg).toContain('data-name="Testvannet"')
+    expect(svg).toMatch(/data-label="vann-navn"[^>]*>Testvannet</)
+  })
+})
