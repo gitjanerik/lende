@@ -29,7 +29,7 @@ const rows = computed(() => {
   if (!d) return []
   const r = []
   if (d.discharge) r.push({ label: 'Vannføring', value: fmtNum(d.discharge.value, 1), unit: 'm³/s', time: d.discharge.time })
-  if (d.waterLevel) r.push({ label: 'Vannstand', value: fmtNum(d.waterLevel.value, 2), unit: 'moh', time: d.waterLevel.time })
+  if (d.waterLevel) r.push({ label: 'Vannstand', value: fmtNum(d.waterLevel.value, 2), unit: 'm', note: 'rel. lokalt nullpunkt', time: d.waterLevel.time })
   if (d.waterTemp) r.push({ label: 'Vanntemperatur', value: fmtNum(d.waterTemp.value, 1), unit: '°C', time: d.waterTemp.time })
   return r
 })
@@ -105,8 +105,11 @@ function onOpenNve() {
           <div v-if="hasAnyValue" class="space-y-2">
             <div v-for="r in rows" :key="r.label"
                  class="flex items-baseline justify-between gap-3 rounded-lg bg-sky-500/[0.08] border border-sky-400/20 px-3 py-2">
-              <span class="text-[12px] text-sky-100/80">{{ r.label }}</span>
-              <span class="text-right">
+              <span class="min-w-0">
+                <span class="block text-[12px] text-sky-100/80">{{ r.label }}</span>
+                <span v-if="r.note" class="block text-[10px] text-white/35">{{ r.note }}</span>
+              </span>
+              <span class="text-right shrink-0">
                 <span class="text-[17px] font-semibold text-white tabular-nums">{{ r.value }}</span>
                 <span class="ml-1 text-[11px] text-white/50">{{ r.unit }}</span>
                 <span v-if="fmtTime(r.time)" class="block text-[10px] text-white/35">{{ fmtTime(r.time) }}</span>

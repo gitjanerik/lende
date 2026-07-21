@@ -1,5 +1,16 @@
 # Endringslogg
 
+## 2026-07-21 — v1.0.56: Vannstand er lokal peilehøyde, ikke moh
+
+Vannstand-raden i målestasjon-skuffen var merket «moh», men HydAPI-verdien
+(parameter 1000) er vannstand relativt til stasjonens lokale nullpunkt — ikke
+meter over havet. En verdi som −0,02 er altså peilehøyden over/under nullpunktet,
+og Sildre må legge til en stasjonsspesifikk offset for å få NN2000-høyde. Enheten
+er rettet til «m» med en liten merknad «rel. lokalt nullpunkt». Stasjonens egen
+høyde i «Om stasjonen» er fortsatt moh (det er korrekt der).
+
+---
+
 ## 2026-07-21 — v1.0.55: Nytt målestasjon-ikon + nedbørfelt-info
 
 Vannmålestasjonene fikk et nytt kartikon: en rund blå medaljong med to hvite
