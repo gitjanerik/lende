@@ -242,6 +242,55 @@ export async function fetchLiveWater(lat, lon, opts = {}) {
 // temperatur) og som har gyldige koordinater innenfor utsnittet.
 const HYDRO_LAYER_PARAMS = [PARAM_DISCHARGE, PARAM_WATER_LEVEL, PARAM_WATER_TEMP]
 
+/** Første endelige tall blant kandidat-nøklene, ellers null. Null/tom streng
+ *  regnes som fraværende (Number(null) === 0!). */
+function firstFinite(obj, keys) {
+  for (const k of keys) {
+    const v = obj?.[k]
+    if (v == null || v === '') continue
+    const n = Number(v)
+    if (Number.isFinite(n)) return n
+  }
+  return null
+}
+
+/** Første ikke-tomme streng blant kandidat-nøklene, ellers null. */
+function firstNonEmpty(obj, keys) {
+  for (const k of keys) {
+    const v = obj?.[k]
+    if (v != null && String(v).trim() !== '') return String(v).trim()
+  }
+  return null
+}
+
+/**
+ * Normaliser lesbar stasjons-/nedbørfelt-info fra et HydAPI-stasjonsobjekt.
+ * Feltnavn kan variere, så vi prøver kandidat-nøkler og tar KUN med det som
+ * faktisk finnes (endelig tall / ikke-tom streng) — UI viser aldri en tom
+ * eller oppdiktet verdi. Alle felt er valgfrie.
+ *
+ * @param {object} station  stasjonsobjekt fra HydAPI /Stations
+ * @returns {{ basinArea?: number, riverLength?: number, masl?: number,
+ *   council?: string, stationType?: string, owner?: string }}
+ */
+export function pickStationInfo(station) {
+  if (!station || typeof station !== 'object') return {}
+  const info = {}
+  const basinArea = firstFinite(station, ['drainageBasinArea', 'drainageBasinAreaNorway'])
+  if (basinArea != null) info.basinArea = basinArea
+  const riverLength = firstFinite(station, ['lengthKmRiver', 'riverLength'])
+  if (riverLength != null) info.riverLength = riverLength
+  const masl = firstFinite(station, ['masl'])
+  if (masl != null) info.masl = masl
+  const council = firstNonEmpty(station, ['councilName', 'municipalityName'])
+  if (council) info.council = council
+  const stationType = firstNonEmpty(station, ['stationTypeName', 'stationType'])
+  if (stationType) info.stationType = stationType
+  const owner = firstNonEmpty(station, ['owner', 'ownerName'])
+  if (owner) info.owner = owner
+  return info
+}
+
 export function stationsInBbox(stations, bbox) {
   if (!Array.isArray(stations) || !bbox) return []
   const { south, west, north, east } = bbox

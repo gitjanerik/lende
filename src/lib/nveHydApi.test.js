@@ -1,8 +1,40 @@
 import { describe, it, expect } from 'vitest'
 import {
   haversineKm, findNearestStation, latestObservation, stationsInBbox, sildreStationUrl,
+  pickStationInfo,
   PARAM_WATER_LEVEL, PARAM_DISCHARGE, PARAM_WATER_TEMP,
 } from './nveHydApi.js'
+
+describe('pickStationInfo', () => {
+  it('trekker ut nedbørfelt-/stasjon-felt fra et HydAPI-objekt', () => {
+    const st = {
+      stationId: '12.534.0', stationName: 'Mjøndalen bru',
+      drainageBasinArea: 16989.23, lengthKmRiver: 295.47, masl: 4,
+      councilName: 'Drammen', stationTypeName: 'Forvaltningsstasjon',
+      owner: 'HH. Hydrologisk avd./Hydrometri',
+    }
+    expect(pickStationInfo(st)).toEqual({
+      basinArea: 16989.23, riverLength: 295.47, masl: 4,
+      council: 'Drammen', stationType: 'Forvaltningsstasjon',
+      owner: 'HH. Hydrologisk avd./Hydrometri',
+    })
+  })
+
+  it('utelater felt som mangler eller ikke er tall', () => {
+    expect(pickStationInfo({ masl: 4, drainageBasinArea: null, councilName: '' }))
+      .toEqual({ masl: 4 })
+  })
+
+  it('faller tilbake til alternative nøkkelnavn', () => {
+    expect(pickStationInfo({ drainageBasinAreaNorway: 500, riverLength: 12 }))
+      .toEqual({ basinArea: 500, riverLength: 12 })
+  })
+
+  it('gir tomt objekt for ugyldig input', () => {
+    expect(pickStationInfo(null)).toEqual({})
+    expect(pickStationInfo('nei')).toEqual({})
+  })
+})
 
 describe('haversineKm', () => {
   it('gir ~0 for samme punkt', () => {
