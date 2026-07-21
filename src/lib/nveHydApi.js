@@ -20,13 +20,12 @@
 // foretrekker vi en stasjon hvis høyde (masl) matcher innsjøens vannflate-
 // høyde (±`maslTolM`) — en vannstands-stasjon i innsjøen ligger på flata.
 
-// Standard = Cloudflare Worker-proxyen (offentlig URL, ikke hemmelig). Bytt
-// <SUBDOMENE> til ditt workers.dev-subdomene etter deploy, eller sett
-// VITE_NVE_HYDAPI_URL ved bygg. Lokal dev direkte mot NVE:
+// Standard = Cloudflare Worker-proxyen (offentlig URL, ikke hemmelig).
+// Overstyrbar med VITE_NVE_HYDAPI_URL ved bygg. Lokal dev direkte mot NVE:
 // VITE_NVE_HYDAPI_URL=https://hydapi.nve.no/api/v1 + VITE_NVE_HYDAPI_KEY.
 const HYDAPI_BASE =
   import.meta.env?.VITE_NVE_HYDAPI_URL ??
-  'https://lende-nve-proxy.<SUBDOMENE>.workers.dev/api/v1'
+  'https://lende-nve-proxy.jepedersen73.workers.dev/api/v1'
 
 // X-API-Key kun når en nøkkel faktisk er gitt (dev-modus mot NVE direkte).
 // Via proxyen sendes ingen nøkkel fra klienten — Worker-en legger den på.
