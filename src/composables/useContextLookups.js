@@ -341,8 +341,9 @@ export function useContextLookups({
     }
   })
 
-  // HydAPI-nøkkel (sanntids vannstand/temp). DVALE uten nøkkel: registreres
-  // gratis på hydapi.nve.no og settes som VITE_NVE_HYDAPI_KEY ved bygg.
+  // HydAPI-nøkkel — kun for lokal dev mot NVE direkte. I produksjon er den tom
+  // og kallene går via Cloudflare-proxyen (cloudflare/nve-proxy/) som holder
+  // nøkkelen server-side.
   const HYDAPI_KEY = import.meta.env.VITE_NVE_HYDAPI_KEY ?? ''
 
   // Long-press over (sannsynlig) vann → hent innsjø-data fra NVE Innsjødatabase
@@ -367,16 +368,14 @@ export function useContextLookups({
         return
       }
       lakeQuery.value = { status: 'done', lake, live: null }
-      // Sanntids vannstand/temp — kun når en HydAPI-nøkkel finnes (ellers dvale).
-      if (HYDAPI_KEY) {
-        fetchLiveWater(info.lat, info.lon, { apiKey: HYDAPI_KEY, lakeHoyde: lake.hoyde })
-          .then((live) => {
-            if (token === lakeQueryToken && live && lakeQuery.value?.status === 'done') {
-              lakeQuery.value = { ...lakeQuery.value, live }
-            }
-          })
-          .catch(() => { /* graceful: ingen sanntidslinje */ })
-      }
+      // Sanntids vannstand/temp via NVE-proxyen (ikke-blokkerende, graceful).
+      fetchLiveWater(info.lat, info.lon, { apiKey: HYDAPI_KEY, lakeHoyde: lake.hoyde })
+        .then((live) => {
+          if (token === lakeQueryToken && live && lakeQuery.value?.status === 'done') {
+            lakeQuery.value = { ...lakeQuery.value, live }
+          }
+        })
+        .catch(() => { /* graceful: ingen sanntidslinje */ })
     } catch {
       if (token === lakeQueryToken) lakeQuery.value = { status: 'error', live: null }
     }

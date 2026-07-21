@@ -6,8 +6,9 @@
 // vannføring / vannstand / vanntemperatur og åpner en detalj-skuff med lenke
 // til stasjonens side hos NVE (Sildre).
 //
-// DVALE uten API-nøkkel: HydAPI krever en gratis nøkkel (VITE_NVE_HYDAPI_KEY).
-// Uten den henter fetch-funksjonene ingenting, og laget forblir tomt.
+// Kallene går gjennom Cloudflare-proxyen (cloudflare/nve-proxy/) som holder
+// NVE-nøkkelen server-side, så laget virker i produksjon uten nøkkel i klienten.
+// En VITE_NVE_HYDAPI_KEY brukes kun i lokal dev mot NVE direkte.
 import { ref } from 'vue'
 import { svgToWgs84, wgs84ToSvg } from '../lib/utm.js'
 import { fetchStationsForBbox, fetchStationLatest, sildreStationUrl } from '../lib/nveHydApi.js'
@@ -67,7 +68,7 @@ export function useHydroStations({
     if (!on) { if (layer) layer.style.display = 'none'; return }
     if (layer) { layer.style.display = ''; return }   // allerede bygd
     const m = meta.value
-    if (!m || !HYDAPI_KEY) return
+    if (!m) return
     const reqId = ++reqSeq
     hydroLoadingLayer.value = true
     try {
@@ -140,7 +141,7 @@ export function useHydroStations({
 
   // Badge-teller: antall stasjoner i utsnittet (billig — cachet stasjonsliste).
   async function refreshHydroCount(m) {
-    if (!m || !HYDAPI_KEY) { hydroCount.value = null; return }
+    if (!m) { hydroCount.value = null; return }
     try {
       const stations = await fetchStationsForBbox(bboxFromMeta(m), { apiKey: HYDAPI_KEY })
       if (meta.value === m) hydroCount.value = stations.length

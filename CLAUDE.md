@@ -117,6 +117,11 @@ et lag mellom trinn krever kode-endring + nybygd kart.
   og pusher `dist/` til `gh-pages` via git worktree. Ikke deploy manuelt.
 - `build-redlist.yml` regenererer `public/data/redlist-no.json` fra GBIF ved
   endring i script/CSV.
+- **NVE HydAPI-proxy** (`cloudflare/nve-proxy/`): en frittstående Cloudflare
+  Worker som speiler HydAPI (`/Stations`, `/Observations`) og holder NVE-nøkkelen
+  som en Cloudflare-secret (`NVE_HYDAPI_KEY`) — aldri i bundelen. Klienten peker
+  hit via standard-URL i `nveHydApi.js` (overstyrbar med `VITE_NVE_HYDAPI_URL`).
+  Deployes separat fra GitHub Pages; se `cloudflare/nve-proxy/README.md`.
 
 ## Konvensjoner
 
