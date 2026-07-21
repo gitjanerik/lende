@@ -94,6 +94,8 @@ export function useMapExtend({
   const drawerCoversCanvas = computed(() =>
     showControls.value && !drawer.isMinimized.value
   )
+  // Bevisst sti.active (ikke sti.blocking): kartutvidelse bygger ny SVG med
+  // nytt koordinat-origo og ville invalidert en rute i bruk (following).
   const extendZonesVisible = computed(() =>
     !loading.value && !loadError.value && !!meta.value &&
     !buildingOnTheFly.value && !fillingInDetails.value &&

@@ -92,7 +92,7 @@ export function useContextLookups({
     // UI-en, eller mens et ferskt kart fortsatt fyller inn detaljer
     // (detalj-insetet ville ellers vist halvbygd data).
     if (buildingOnTheFly.value || searchOpen.value ||
-        fillingInDetails.value || sti.active.value) return
+        fillingInDetails.value || sti.blocking.value) return
     const local = clientToSvgPoint(clientX, clientY)
     if (!local) return
     contextMenuPoint.value = {

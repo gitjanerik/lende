@@ -5,9 +5,10 @@
 // nærhetsvarsel-alert. Composable-objektene (annot/sti/proximity) sendes inn
 // som props og leses med .value-idiomet, som ellers i appen. Handlinger som
 // involverer andre delsystemer sendes ut som events.
+import { computed, ref, watch } from 'vue'
 import { ANNOTATION_SYMBOLS } from '../composables/useMapAnnotations.js'
 
-defineProps({
+const props = defineProps({
   autoMapToast: { type: String, default: '' },
   searchOpen: { type: Boolean, default: false },
   mapCenterStyle: { type: Object, default: () => ({}) },
@@ -21,12 +22,24 @@ defineProps({
   stiElevationDiffM: { type: Number, default: null },
   stiRouteClimbs: { type: Array, default: () => [] },
   stiSelectedClimb: { type: Object, default: null },
+  stiProgress: { type: Object, default: null },
+  gpsWatching: { type: Boolean, default: false },
   proximity: { type: Object, required: true },
 })
 defineEmits([
   'clearHighlight', 'stopMeasure',
   'selectRoute', 'removeVia', 'beginAddVia', 'cancelStifinner',
+  'followRoute', 'stopFollowing', 'startGps',
 ])
+
+// Følg rute-panelet: minimert pill som standard; utvid for detaljer/fremdrift.
+const followExpanded = ref(false)
+watch(() => props.sti.mode.value, (m) => { if (m !== 'following') followExpanded.value = false })
+
+const followedRoute = computed(() =>
+  props.sti.routes.value[props.sti.selectedRouteIdx.value] ?? null)
+// GPS-fremdrift regnes som «på ruta» innenfor 75 m (GPS-slingring + snapping).
+const onRoute = computed(() => props.stiProgress && props.stiProgress.offRouteM <= 75)
 
 function formatDistance(m) {
   if (!m) return '0 m'
@@ -161,7 +174,7 @@ function formatElevationDiff(m) {
   <!-- Stifinner-alert (grønn, X-knapp avslutter — samme mønster som måling).
        To faser: velg startpunkt → ruter funnet. Egen rute-liste (tappbar,
        viser lengde + estimert gangtid). -->
-  <div v-if="sti.active.value"
+  <div v-if="sti.active.value && sti.mode.value !== 'following'"
        class="absolute top-16 left-3 z-20 rounded-md bg-emerald-600
               text-white text-[11px] font-medium shadow-lg
               max-w-[70%] flex items-start gap-1.5 pl-3 pr-1 py-2">
@@ -244,6 +257,18 @@ function formatElevationDiff(m) {
           <div v-if="stiSelectedClimb" class="text-[10px] text-emerald-100/80 tabular-nums">
             Valgt rute: ↑{{ Math.round(stiSelectedClimb.ascent) }} m ↓{{ Math.round(stiSelectedClimb.descent) }} m
           </div>
+          <!-- «Bruk rute»: gå til following-modus — ruta beholdes på kartet,
+               boksen minimeres til pill og kartet slipper fri igjen. -->
+          <button @click="$emit('followRoute')"
+                  class="mt-1.5 w-full flex items-center justify-center gap-1.5 rounded
+                         bg-white text-emerald-700 font-semibold text-[12px] py-1.5
+                         active:scale-[0.98] shadow">
+            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+                 stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            Bruk rute
+          </button>
         </template>
       </template>
     </div>
@@ -257,13 +282,99 @@ function formatElevationDiff(m) {
     </button>
   </div>
 
+  <!-- Følg rute (v1.0.52): minimert pill mens brukeren går ruta — kartet er
+       fritt (long-press/POI/måling virker). Tap utvider til panel med
+       distanse/tid/høydemeter + GPS-fremdrift, «Til forslag» og X. -->
+  <!-- Måling kan pågå samtidig (samme hjørne) → still pillen under readouten. -->
+  <div v-if="sti.mode.value === 'following'" class="absolute left-3 z-20 max-w-[70%]"
+       :class="measureMode ? 'top-[7.5rem]' : 'top-16'">
+    <button v-if="!followExpanded" @click="followExpanded = true"
+            class="flex items-center gap-1.5 rounded-full bg-emerald-600 text-white
+                   text-[11px] font-semibold shadow-lg pl-3 pr-2 py-1.5 active:scale-[0.97]
+                   tabular-nums">
+      <span>{{ sti.isLoop.value ? 'Rundtur' : 'Rute' }}</span>
+      <span v-if="followedRoute" class="font-normal text-emerald-100/95">
+        · {{ onRoute ? formatDistance(stiProgress.remainingM) + ' igjen' : formatDistance(followedRoute.lengthM) }}
+      </span>
+      <svg viewBox="0 0 24 24" class="w-3 h-3 shrink-0" fill="none" stroke="currentColor"
+           stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+    </button>
+    <div v-else
+         class="rounded-md bg-emerald-600 text-white text-[11px] font-medium shadow-lg
+                flex items-start gap-1.5 pl-3 pr-1 py-2">
+      <div class="flex-1 min-w-0">
+        <div class="text-[9px] uppercase tracking-wide text-emerald-100/90">
+          {{ sti.isLoop.value ? 'Følger rundtur' : 'Følger rute' }}
+        </div>
+        <div v-if="followedRoute" class="text-[13px] font-semibold tabular-nums">
+          {{ formatDistance(followedRoute.lengthM) }}
+          · {{ sti.estWalkMinutes(followedRoute.lengthM, stiSelectedClimb) }} min
+        </div>
+        <div v-if="stiSelectedClimb" class="text-[10px] text-emerald-100/80 tabular-nums">
+          ↑{{ Math.round(stiSelectedClimb.ascent) }} m ↓{{ Math.round(stiSelectedClimb.descent) }} m
+        </div>
+        <!-- Fremdrift: krever GPS. Utenfor ruta (>75 m) vises avstanden dit. -->
+        <div v-if="onRoute" class="text-[11px] text-emerald-50 mt-0.5 tabular-nums">
+          Gått {{ formatDistance(stiProgress.alongM) }} av {{ formatDistance(stiProgress.totalM) }}
+          · {{ formatDistance(stiProgress.remainingM) }} igjen
+        </div>
+        <div v-else-if="stiProgress" class="text-[11px] text-amber-200 mt-0.5 tabular-nums">
+          Utenfor ruta ({{ formatDistance(stiProgress.offRouteM) }} unna)
+        </div>
+        <div v-else-if="gpsWatching" class="text-[10px] text-emerald-100/80 mt-0.5">
+          Venter på GPS-posisjon …
+        </div>
+        <button v-else @click="$emit('startGps')"
+                class="mt-1 flex items-center gap-1 bg-white/15 rounded px-1.5 py-0.5
+                       text-[10px] font-medium active:scale-95">
+          <svg viewBox="0 0 24 24" class="w-3 h-3" fill="none" stroke="currentColor"
+               stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+          </svg>
+          Slå på GPS for fremdrift
+        </button>
+        <button @click="$emit('stopFollowing')"
+                class="mt-1.5 flex items-center gap-1 bg-white/15 rounded px-1.5 py-0.5
+                       text-[10px] font-medium active:scale-95">
+          <svg viewBox="0 0 24 24" class="w-3 h-3" fill="none" stroke="currentColor"
+               stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          Til forslag
+        </button>
+      </div>
+      <div class="flex flex-col shrink-0">
+        <button @click="followExpanded = false" aria-label="Minimer"
+                class="-mt-0.5 -mr-0.5 w-6 h-6 flex items-center justify-center rounded-md
+                       text-white/90 active:scale-90 active:bg-white/10">
+          <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+               stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="18 15 12 9 6 15"/>
+          </svg>
+        </button>
+        <button @click="$emit('cancelStifinner')" aria-label="Avslutt rute"
+                class="-mr-0.5 w-6 h-6 flex items-center justify-center rounded-md
+                       text-white/90 active:scale-90 active:bg-white/10">
+          <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+               stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Nærhetsvarsel-alert (blå, X-knapp avbryter). Stables under måle-/sti-
        banneret hvis et av dem er aktivt (begge ligger på top-16 left-3). -->
   <div v-if="proximity.active.value"
        class="absolute left-3 z-20 rounded-md bg-sky-600
               text-white text-[11px] font-medium shadow-lg
               tabular-nums max-w-[60%] flex items-start gap-1.5 pl-3 pr-1 py-2"
-       :class="(measureMode || sti.active.value) ? 'top-[7.5rem]' : 'top-16'">
+       :class="(measureMode && sti.mode.value === 'following') ? 'top-[12rem]'
+               : (measureMode || sti.active.value) ? 'top-[7.5rem]' : 'top-16'">
     <div class="flex-1 min-w-0">
       <div class="text-[9px] uppercase tracking-wide text-sky-100/90">Nærhetsvarsel</div>
       <div class="text-[12px] font-semibold truncate">{{ proximity.active.value.label }}</div>

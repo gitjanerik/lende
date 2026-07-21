@@ -245,12 +245,18 @@ export function useSymbolRenderers({
       layer = document.createElementNS(ns, 'g')
       layer.setAttribute('id', 'stifinner-layer')
       layer.setAttribute('data-layer', 'stifinner')
-      svg.appendChild(layer)
+      // Under GPS-laget, så den blå posisjons-prikken alltid synes oppå ruta
+      // (viktig i following-modus: «hvor på ruta er jeg?»).
+      const userLayer = svg.querySelector('#user-layer')
+      if (userLayer) svg.insertBefore(layer, userLayer)
+      else svg.appendChild(layer)
     }
     layer.replaceChildren()
-    // Tegn i både 'showing' og 'pickingVia' (behold ruten synlig mens brukeren
-    // sikter et nytt via-punkt).
-    if (sti.mode.value !== 'showing' && sti.mode.value !== 'pickingVia') return
+    // Tegn i 'showing' og 'pickingVia' (behold ruten synlig mens brukeren
+    // sikter et nytt via-punkt) samt 'following' (rute i bruk).
+    if (sti.mode.value !== 'showing' && sti.mode.value !== 'pickingVia' &&
+        sti.mode.value !== 'following') return
+    const following = sti.mode.value === 'following'
 
     const s = scale.value || 1
     const mk = (d, stroke, width, opts = {}) => {
@@ -269,28 +275,35 @@ export function useSymbolRenderers({
 
     // Connector-strek (valgt punkt → snappet node). Stiplet grå. Ved rundtur er
     // start == mål (samme origo), så mål-connectoren droppes (den overlapper).
+    // I following-modus droppes connectorene helt — kun ruta i bruk vises.
     const a = sti.start.value, b = sti.destination.value
     const aSnap = sti.startSnap.value, bSnap = sti.destSnap.value
-    if (a && aSnap) layer.appendChild(mk(`M${a.svgX},${a.svgY}L${aSnap.x},${aSnap.y}`, '#64748b', 1.5, { dash: 3, pe: 'none' }))
-    if (!sti.isLoop.value && b && bSnap) layer.appendChild(mk(`M${b.svgX},${b.svgY}L${bSnap.x},${bSnap.y}`, '#64748b', 1.5, { dash: 3, pe: 'none' }))
     const viaPts = sti.via.value, viaSnapArr = sti.viaSnaps.value
-    for (let i = 0; i < viaPts.length; i++) {
-      const v = viaPts[i], vs = viaSnapArr[i]
-      if (v && vs) layer.appendChild(mk(`M${v.svgX},${v.svgY}L${vs.x},${vs.y}`, '#64748b', 1.5, { dash: 3, pe: 'none' }))
+    if (!following) {
+      if (a && aSnap) layer.appendChild(mk(`M${a.svgX},${a.svgY}L${aSnap.x},${aSnap.y}`, '#64748b', 1.5, { dash: 3, pe: 'none' }))
+      if (!sti.isLoop.value && b && bSnap) layer.appendChild(mk(`M${b.svgX},${b.svgY}L${bSnap.x},${bSnap.y}`, '#64748b', 1.5, { dash: 3, pe: 'none' }))
+      for (let i = 0; i < viaPts.length; i++) {
+        const v = viaPts[i], vs = viaSnapArr[i]
+        if (v && vs) layer.appendChild(mk(`M${v.svgX},${v.svgY}L${vs.x},${vs.y}`, '#64748b', 1.5, { dash: 3, pe: 'none' }))
+      }
     }
 
-    // Tegn ikke-valgte ruter først (under), valgt rute øverst.
+    // Tegn ikke-valgte ruter først (under), valgt rute øverst. I following-
+    // modus tegnes KUN den valgte ruta (samme farge som forslaget, litt
+    // kraftigere) og uten hit-path — laget skal ikke spise tap-eventer.
     const order = sti.routes.value.map((_, i) => i)
       .sort((i, j) => (i === sti.selectedRouteIdx.value ? 1 : 0) - (j === sti.selectedRouteIdx.value ? 1 : 0))
     for (const i of order) {
+      const selected = i === sti.selectedRouteIdx.value
+      if (following && !selected) continue
       const r = sti.routes.value[i]
       const d = polylineToPath(r.coordinates, false)
-      const selected = i === sti.selectedRouteIdx.value
       const color = ROUTE_COLORS[i % ROUTE_COLORS.length]
       // Hvit halo
-      layer.appendChild(mk(d, 'rgba(255,255,255,0.9)', selected ? 7 : 5, { pe: 'none', opacity: selected ? 1 : 0.6 }))
+      layer.appendChild(mk(d, 'rgba(255,255,255,0.9)', following ? 8 : selected ? 7 : 5, { pe: 'none', opacity: selected ? 1 : 0.6 }))
       // Farget linje
-      layer.appendChild(mk(d, color, selected ? 3.5 : 2.2, { pe: 'none', opacity: selected ? 1 : 0.55 }))
+      layer.appendChild(mk(d, color, following ? 4 : selected ? 3.5 : 2.2, { pe: 'none', opacity: selected ? 1 : 0.55 }))
+      if (following) continue
       // Bred usynlig hit-path for lett tapp-treff
       const hit = mk(d, 'transparent', 16, { pe: 'stroke' })
       hit.style.cursor = 'pointer'

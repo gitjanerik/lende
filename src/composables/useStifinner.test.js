@@ -238,3 +238,88 @@ describe('useStifinner – rundtur (loop)', () => {
     expect(sti.via.value).toEqual([])
   })
 })
+
+// Hjelper: sett opp en rundtur i 'showing' med gyldige ruter.
+function showingLoop() {
+  const sti = useStifinner()
+  sti.beginLoop({ svgX: 0, svgY: 0 })
+  sti.confirmVia({ x: 1000, y: 1000 }, loopSvg())
+  return sti
+}
+
+describe('useStifinner – følg rute (following)', () => {
+  it('follow() fra showing → following; ruter/via/valg beholdes', () => {
+    const sti = showingLoop()
+    sti.selectRoute(0)
+    const routesBefore = sti.routes.value
+    sti.follow()
+    expect(sti.mode.value).toBe('following')
+    expect(sti.active.value).toBe(true)
+    expect(sti.routes.value).toBe(routesBefore)
+    expect(sti.via.value.length).toBe(1)
+  })
+
+  it('follow() er no-op utenfor showing og ved feil/tomme ruter', () => {
+    const sti = useStifinner()
+    sti.follow()
+    expect(sti.mode.value).toBe('idle')
+
+    sti.beginLoop({ svgX: 0, svgY: 0 })
+    sti.follow()
+    expect(sti.mode.value).toBe('pickingVia')   // ingen ruter ennå
+
+    const sti2 = useStifinner()
+    sti2.begin({ svgX: 100, svgY: 100 })
+    sti2.confirmStart({ x: 50, y: 50 }, null, { startOnWater: true })
+    sti2.follow()                                // showing, men error + tomme ruter
+    expect(sti2.mode.value).toBe('showing')
+  })
+
+  it('blocking er false i idle og following, true i interaktive moduser', () => {
+    const sti = useStifinner()
+    expect(sti.blocking.value).toBe(false)
+    sti.beginLoop({ svgX: 0, svgY: 0 })
+    expect(sti.blocking.value).toBe(true)        // pickingVia
+    sti.confirmVia({ x: 1000, y: 1000 }, loopSvg())
+    expect(sti.blocking.value).toBe(true)        // showing
+    sti.follow()
+    expect(sti.blocking.value).toBe(false)       // following: kartet er fritt
+  })
+
+  it('canAddVia er false under following', () => {
+    const sti = showingLoop()
+    expect(sti.canAddVia.value).toBe(true)
+    sti.follow()
+    expect(sti.canAddVia.value).toBe(false)
+  })
+
+  it('recompute() endrer ingenting under following', () => {
+    const sti = showingLoop()
+    sti.follow()
+    const routesBefore = sti.routes.value
+    sti.removeVia(0)                             // ville normalt reberegnet
+    expect(sti.routes.value).toBe(routesBefore)  // urørt — recompute() returnerte tidlig
+    expect(sti.error.value).toBe('')
+  })
+
+  it('stopFollowing() → tilbake til showing med ruter intakt; no-op ellers', () => {
+    const sti = showingLoop()
+    sti.follow()
+    sti.stopFollowing()
+    expect(sti.mode.value).toBe('showing')
+    expect(sti.routes.value.length).toBeGreaterThan(0)
+
+    sti.stopFollowing()                          // allerede showing → no-op
+    expect(sti.mode.value).toBe('showing')
+  })
+
+  it('cancel() fra following nullstiller alt', () => {
+    const sti = showingLoop()
+    sti.follow()
+    sti.cancel()
+    expect(sti.mode.value).toBe('idle')
+    expect(sti.blocking.value).toBe(false)
+    expect(sti.routes.value).toEqual([])
+    expect(sti.via.value).toEqual([])
+  })
+})

@@ -75,6 +75,7 @@ import { gmapsUrl, streetViewUrl, buildVegkartUrl } from '../lib/externalMapLink
 import { fetchKulturminneById } from '../lib/kulturminneFetcher.js'
 import { polylineToPath } from '../lib/pathUtils.js'
 import { sampleElevation } from '../lib/demSampling.js'
+import { routeProgress } from '../lib/routeProgress.js'
 import { cacheGet, cacheSet, kulturminneIdKey, TTL } from '../lib/protectedAreaCache.js'
 import {
   STEDSMERKE_KEY_TIMES, STEDSMERKE_DUR, STEDSMERKE_SHADOW_OPACITY,
@@ -2086,10 +2087,11 @@ function startMeasure() {
   measureMode.value = true
   measureVertices.value = []
   measureClosed.value = false
-  // Sørg for at annoterings-/stifinner-modus ikke konkurrerer om tap-eventet
+  // Sørg for at annoterings-/stifinner-modus ikke konkurrerer om tap-eventet.
+  // Rute i bruk (following) beholdes — måling skal kunne sameksistere med den.
   annot.selectedSymbol.value = null
   annot.isAnnotateMode.value = false
-  if (sti.active.value) { sti.cancel(); renderRoutes() }
+  if (sti.blocking.value) { sti.cancel(); renderRoutes() }
 }
 function stopMeasure() {
   measureMode.value = false
@@ -2376,6 +2378,18 @@ function onCancelStifinner() {
   sti.cancel()
   renderRoutes()
 }
+// «Bruk rute»: gå til following-modus (kartet slippes fri, boksen blir pill).
+// GPS startes i samme bruker-gest så fremdriften langs ruta vises straks —
+// startPositioning er idempotent og feil håndteres av eksisterende GPS-toast.
+function onFollowRoute() {
+  sti.follow()
+  startPositioning()
+  renderRoutes()
+}
+function onStopFollowing() {
+  sti.stopFollowing()
+  renderRoutes()
+}
 function onSelectRoute(idx) {
   sti.selectRoute(idx)
   renderRoutes()
@@ -2420,7 +2434,7 @@ const stiElevationDiffM = computed(() => {
 // og «Valgt rute»-linja. Tomt array / null-innslag når DEM mangler.
 const stiRouteClimbs = computed(() => {
   const dem = storedDem.value
-  if (sti.mode.value !== 'showing' || !dem) return []
+  if ((sti.mode.value !== 'showing' && sti.mode.value !== 'following') || !dem) return []
   return sti.routes.value.map((r) => {
     if (!r?.coordinates?.length) return null
     const prof = sampleProfile({ points: r.coordinates.map(c => ({ x: c[0], y: c[1] })) }, dem)
@@ -2428,6 +2442,31 @@ const stiRouteClimbs = computed(() => {
   })
 })
 const stiSelectedClimb = computed(() => stiRouteClimbs.value[sti.selectedRouteIdx.value] ?? null)
+
+// Fremdrift langs fulgt rute (following-modus): GPS-posisjonen prosjekteres på
+// rute-polylinjen. Monotont anker (stiPrevAlongM) løser rundtur-tvetydigheten
+// der start == mål — seedes til 0 ved følge-start så turen begynner på 0 m,
+// og oppdateres kun når brukeren faktisk er på ruta (≤100 m unna).
+const stiProgress = ref(null)
+let stiPrevAlongM = null
+watch([() => userPos.svgX, () => userPos.svgY, () => sti.mode.value,
+       () => sti.selectedRouteIdx.value], () => {
+  if (sti.mode.value !== 'following') {
+    stiProgress.value = null
+    stiPrevAlongM = null
+    return
+  }
+  const r = sti.routes.value[sti.selectedRouteIdx.value]
+  if (!r?.coordinates?.length || userPos.svgX == null || userPos.isOutsideMap) {
+    stiProgress.value = null
+    return
+  }
+  const p = routeProgress(r.coordinates, userPos.svgX, userPos.svgY,
+    { prevAlongM: stiPrevAlongM ?? 0 })
+  stiProgress.value = p
+  if (p && p.offRouteM <= 100) stiPrevAlongM = p.alongM
+})
+
 function onOpenGoogleMaps() {
   const info = contextMenuInfo.value
   if (!info) return
@@ -2486,7 +2525,7 @@ function onPlaceAnnotationFromContext(symbolKey) {
 // Tilgjengelighet pr handling. Sporing eller måling pågår → noen valg er
 // blokkert (Start måling her, Plasser annotering — disse ville kollidere
 // med den pågående modusen).
-const ctxBusy = computed(() => measureMode.value || tracker.isRecording.value || sti.active.value)
+const ctxBusy = computed(() => measureMode.value || tracker.isRecording.value || sti.blocking.value)
 const ctxCanMeasure = computed(() => !ctxBusy.value)
 const ctxCanAnnotate = computed(() => {
   const isBuiltin = (route.params.id ?? 'vardasen').startsWith('vardasen')
@@ -2610,7 +2649,7 @@ function onMapClick(e) {
   if (fillingInDetails.value || buildingOnTheFly.value) return
   // Kulturminne-ikon tappet → åpne detalj-skuff (uavhengig av verktøy, men ikke
   // mens et aktivt plasserings-/måle-/stifinner-verktøy eier tappet).
-  if (!measureMode.value && !annot.isAnnotateMode.value && !sti.active.value) {
+  if (!measureMode.value && !annot.isAnnotateMode.value && !sti.blocking.value) {
     const kmHit = e.target?.closest?.('[data-kulturminne-id]')
     if (kmHit) { openKulturminneDetail(kmHit); return }
     const fmHit = e.target?.closest?.('[data-fredet-id]')
@@ -2618,10 +2657,10 @@ function onMapClick(e) {
     const hydroHit = e.target?.closest?.('[data-hydro-station-id]')
     if (hydroHit) { openHydroDetailFromEl(hydroHit); return }
   }
-  // Stifinner eier tap-eventet mens den er aktiv: startpunkt velges via det
-  // faste midt-siktet (bekreft-knapp), og rute-tapp håndteres av egne DOM-
-  // listenere på rute-linjene. Generelle kart-tapp gjør ingenting her.
-  if (sti.active.value) return
+  // Stifinner eier tap-eventet mens den er interaktiv (blocking): startpunkt
+  // velges via det faste midt-siktet (bekreft-knapp), og rute-tapp håndteres
+  // av egne DOM-listenere på rute-linjene. I following-modus er kartet fritt.
+  if (sti.blocking.value) return
   // Måleverktøy har prioritet over annotering siden brukeren eksplisitt
   // har slått det på (annoteringsmodus blir tvunget av i startMeasure).
   const svg = svgHostRef.value?.querySelector('svg')
@@ -3422,13 +3461,18 @@ onUnmounted(() => {
       :sti-elevation-diff-m="stiElevationDiffM"
       :sti-route-climbs="stiRouteClimbs"
       :sti-selected-climb="stiSelectedClimb"
+      :sti-progress="stiProgress"
+      :gps-watching="userPos.isWatching"
       :proximity="proximity"
       @clear-highlight="clearHighlight"
       @stop-measure="stopMeasure"
       @select-route="onSelectRoute"
       @remove-via="onRemoveVia"
       @begin-add-via="onBeginAddVia"
-      @cancel-stifinner="onCancelStifinner" />
+      @cancel-stifinner="onCancelStifinner"
+      @follow-route="onFollowRoute"
+      @stop-following="onStopFollowing"
+      @start-gps="startPositioning" />
 
     <!-- Status/feil-overlays: lasting, last-feil, posisjons-status,
          detalj-feil og lav GPS-nøyaktighet. Trekt ut til MapStatusOverlays
