@@ -2,10 +2,12 @@
 // overlappende kart (auto-kart forskyver senteret ~37,5 %, så påfølgende kart
 // overlapper ~62 %).
 //
-// STATUS: AV som default (se DEM_TILE_CACHE_ENABLED i createMapFlow.js). Slås
-// på etter verifisering av kontur-justering på ekte enhet, siden sandkassen
-// ikke har WCS-tilgang. De rene funksjonene (snap/dekning/montering/slicing)
-// er enhetstestet i demTileCache.test.js.
+// STATUS: PÅ (DEM_TILE_CACHE_ENABLED = true i createMapFlow.js). Fallback-en
+// i fetchDEMWithCache degraderer til én full fetchDEM ved enhver feil, så
+// verste fall er identisk med cache av. Sjekkpunkt ved feilsøk: høydekurver
+// skal flukte med stier/vann (ingen forskyvning) på nabo-kart. De rene
+// funksjonene (snap/dekning/montering/slicing) er enhetstestet i
+// demTileCache.test.js.
 //
 // DESIGN:
 //  - Fliser ligger på et globalt UTM32-rutenett (TILE_M, multiplum av res), så

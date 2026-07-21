@@ -59,6 +59,7 @@ import DrawerDevTab from '../components/drawer/DrawerDevTab.vue'
 import ContextMenuSheet from '../components/context-menu/ContextMenuSheet.vue'
 import { isomCatalog, buildPointSymbolDef } from '../lib/symbolizer.js'
 import { printDocument, exportSvgFile, exportPngFile, exportPdfFile } from '../lib/printExport.js'
+import { logPerf } from '../lib/perfLog.js'
 import { sampleProfile } from '../lib/elevationProfile.js'
 import { fetchDEM } from '../lib/demFetcher.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
@@ -816,6 +817,49 @@ watch(isGesturing, (g) => {
     }, 120)
   }
 })
+
+// Gest-jank-måler: teller rAF-frames under aktiv gest og logger til perf-loggen
+// KUN når gesten faktisk hakket (snitt < 45 fps over ≥ 400 ms) — jevne gester
+// støyer ikke ned ring-bufferen. Verste enkelt-frame-gap avslører om janken er
+// jevnt tung raster eller enkeltstående main-thread-blokkeringer (GC, indeks-
+// pass). Sammen med «[perf] åpne»-linjene gir dette mobil-budsjettet for økt
+// kartstørrelse — leses fra PerfLogModal (Utvikler-fanen).
+let gestFrames = 0
+let gestT0 = 0
+let gestLastT = 0
+let gestWorstGap = 0
+let gestRafId = 0
+function gestRafLoop(t) {
+  if (!isGesturing.value) { gestRafId = 0; return }
+  if (gestLastT) {
+    gestFrames++
+    const gap = t - gestLastT
+    if (gap > gestWorstGap) gestWorstGap = gap
+  }
+  gestLastT = t
+  gestRafId = requestAnimationFrame(gestRafLoop)
+}
+watch(isGesturing, (g) => {
+  if (g) {
+    gestFrames = 0
+    gestLastT = 0
+    gestWorstGap = 0
+    gestT0 = performance.now()
+    if (!gestRafId) gestRafId = requestAnimationFrame(gestRafLoop)
+    return
+  }
+  if (gestRafId) { cancelAnimationFrame(gestRafId); gestRafId = 0 }
+  const durMs = performance.now() - gestT0
+  if (durMs < 400 || gestFrames < 2) return
+  const fps = gestFrames / (durMs / 1000)
+  if (fps < 45) {
+    logPerf(
+      `[perf] gest ${(durMs / 1000).toFixed(1)}s ~${Math.round(fps)} fps ` +
+      `(verste frame ${Math.round(gestWorstGap)}ms) @ ${(meta.value?.widthM ?? 0) / 1000}km`
+    )
+  }
+})
+onUnmounted(() => { if (gestRafId) { cancelAnimationFrame(gestRafId); gestRafId = 0 } })
 
 // v8.10.4 / v11.0.34: zoom-trappet detalj-LOD via klasser på SVG-host. CSS i
 // symbolizer.js gjør selve skjulingen. Tre trinn:
