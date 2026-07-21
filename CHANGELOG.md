@@ -1,5 +1,16 @@
 # Endringslogg
 
+## 2026-07-21 — v1.0.54: NVE-proxyens produksjons-URL bakt inn
+
+Standard-URL-en i `nveHydApi.js` pekte på en placeholder (`<SUBDOMENE>`) i påvente
+av at Cloudflare Worker-en ble deployet. Worker-en er nå oppe, og den faktiske
+produksjons-URL-en (`lende-nve-proxy.jepedersen73.workers.dev`) er bakt inn som
+standard. Kartlaget «Vannmålestasjoner» og sanntids vannstand/temperatur ved
+long-press virker dermed for alle brukere uten ekstra oppsett — så lenge secret-en
+`NVE_HYDAPI_KEY` er satt i Worker-en. Fortsatt overstyrbar med `VITE_NVE_HYDAPI_URL`.
+
+---
+
 ## 2026-07-21 — v1.0.53: Cloudflare-proxy vekker NVE-målestasjonene fra dvale
 
 Kartlaget «Vannmålestasjoner» og sanntids vannstand/temperatur ved long-press har
