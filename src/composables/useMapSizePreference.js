@@ -24,6 +24,10 @@ import { viewportAspect, PRINT_ASPECT } from '../lib/mapBuilder.js'
 // v1.0.27 (lende): default redusert fra 8 til 4 km («Nullstill»-standarden er
 // 4 km + 10 m + kvadratisk), og preferansen utvidet med FORMAT og
 // EKVIDISTANSE — samme tre valg som «Flere valg» i kart-pickeren.
+// v1.0.63: default hevet fra 4 til 5 km etter mobil-ytelse-sporet v1.0.59–62
+// (gest-gating, content-visibility, måling). 5 km er største bredde som
+// beholder 10 m auto-ekvidistanse (tabellen under: ≥ 6 km → 20 m), så
+// standard-kartet får 56 % mer areal uten grovere høydekurver.
 //
 // Modul-nivå refs ⇒ delte singletons mellom MapHomeView (leser), MapView og
 // DrawerAboutTab (skriver).
@@ -35,7 +39,7 @@ export const MAP_SIZE_MIN_KM = 1
 export const MAP_SIZE_MAX_KM = 8
 // «Standard»-bredden (km) for nye kart når brukeren ikke har valgt noe.
 // Fast kvadrat — IKKE skjerm-skalert (se v11.0.59-merknaden over).
-export const DEFAULT_MAP_WIDTH_KM = 4
+export const DEFAULT_MAP_WIDTH_KM = 5
 
 // Format-valg for nye kart — samme trippel som «Flere valg» i pickeren.
 //   'square'   → kvadrat (aspect = 1) — standard
@@ -143,8 +147,8 @@ export function effectiveEquidistanceForWidthKm(km) {
   return Math.max(chosen, min)
 }
 
-// Felles «Nullstill»-standard: 4 km bredde + 10 m ekvidistanse + kvadratisk.
-// (null-verdiene ER standarden: 4 km-default og auto-ekvidistanse for 4 km = 10 m.)
+// Felles «Nullstill»-standard: 5 km bredde + 10 m ekvidistanse + kvadratisk.
+// (null-verdiene ER standarden: 5 km-default og auto-ekvidistanse for 5 km = 10 m.)
 export function resetMapPreferences() {
   mapSizeKm.value = null
   mapFormat.value = DEFAULT_MAP_FORMAT

@@ -36,7 +36,7 @@ function eqHintFor(value) {
   if (value === 10) return 'Krever bredde < 6 km'
   return ''
 }
-// Felles «Nullstill»: 4 km + 10 m + kvadratisk. Slider-modellen settes via
+// Felles «Nullstill»: 5 km + 10 m + kvadratisk. Slider-modellen settes via
 // MapView-computeden (som lagrer null når verdien er default).
 function onReset() {
   resetMapPreferences()
@@ -110,12 +110,12 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
         Tette kurver ({{ minEq === 20 ? '5 og 10 m' : '5 m' }}) krever smalere kart
         — dra slideren ned for å låse opp.
       </div>
-      <!-- Felles standard: 4 km + 10 m + kvadratisk. -->
+      <!-- Felles standard: 5 km + 10 m + kvadratisk. -->
       <button @click="onReset()" :disabled="isAtDefaults"
               class="w-full mt-3 px-3 py-2 rounded-lg text-[12px] font-medium border transition
                      active:scale-[0.98] disabled:opacity-40
                      bg-white/5 border-white/15 text-white/85">
-        Nullstill til standard (4 km · 10 m · kvadratisk)
+        Nullstill til standard ({{ DEFAULT_MAP_WIDTH_KM }} km · 10 m · kvadratisk)
       </button>
       <!-- Bygg om gjeldende område i valgt størrelse — slipper å gå til
            forsiden for å teste samme sted ved en annen bredde. -->

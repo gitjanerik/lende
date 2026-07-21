@@ -23,7 +23,7 @@ const showInstallInfo = ref(false)    // info-tooltip toggle
 const DEFAULT_CENTER = { lat: 59.9139, lon: 10.7522, name: 'Oslo' }
 
 const center = ref({ ...DEFAULT_CENTER })
-const halfKm = ref(2.0)  // halv-bredde av bbox i km (E/V). Kart blir 2*halfKm bredt
+const halfKm = ref(2.5)  // halv-bredde av bbox i km (E/V). Kart blir 2*halfKm bredt (5 km = standarden, jf. DEFAULT_MAP_WIDTH_KM)
 // Skjerm-format (høyde/bredde): kartet strekkes N/S til dette så det fyller
 // fullskjerm uten letterbox (v10.1.10). Settes på mount + resize. buildMapFrom-
 // Center utleder samme aspekt selv, så previewen viser det faktiske utsnittet.

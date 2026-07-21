@@ -1,5 +1,22 @@
 # Endringslogg
 
+## 2026-07-21 — v1.0.63: Default kartstørrelse hevet fra 4 til 5 km
+
+Målet for hele mobil-ytelse-sporet: standard-kartet (søk/GPS-flyten på
+forsiden, «Bygg om» og «Nullstill») er nå et 5 km-kvadrat i stedet for 4 km —
+56 % mer areal. 5 km er bevisst valgt som største bredde som beholder 10 m
+auto-ekvidistanse (tabellen gir 20 m fra 6 km), så terrenget er like detaljert
+som før. Grunnlaget ble lagt i v1.0.59 (gest-arbeid ut av frames), v1.0.61
+(content-visibility dropper av-skjerm-geometri) og v1.0.62 (åpnings-/jank-
+måling i perf-loggen — sammenlign gjerne «åpne»-linjene før/etter). «Flere
+valg»-pickeren starter også på 5 km, og Nullstill-knappen viser nå bredden fra
+konstanten så teksten aldri kan drifte igjen. Kyst-DEM-taket er verifisert:
+5 km kvadrat = 1M celler, verste portrett (5 × 11 km) = 2,2M — begge under
+2,6M-taket, så 5 m-oppgraderingen virker fortsatt på alle formater. En lagret
+størrelse-preferanse påvirkes ikke (den overstyrer defaulten som før).
+
+---
+
 ## 2026-07-21 — v1.0.62: Perf-loggen måler nå åpning og gest-jank, ikke bare bygging
 
 Tredje steg i mobil-ytelse-sporet: måling. Perf-loggen (Utvikler-fanen →
