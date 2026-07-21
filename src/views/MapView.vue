@@ -1614,6 +1614,15 @@ function applyNameLOD() {
   const candidates = []
   for (const e of idx) {
     if (!e.el) continue   // unavngitte vann-polygoner har ingen tekst å toggle
+    // ALDRI toggle GEOMETRI: navngitte polygoner (data-name på <path>) står i
+    // søkeindeksen med selve polygonet som el. NVE-innsjøer fikk ingen egen
+    // vann-navn-tekst (navn-taggen ble ikke lest av lakeLabels) → indeksen
+    // beholdt POLYGONET som toggle-mål, og navn-LOD-en skjulte hele innsjøen
+    // når navnet tapte declutter-budsjettet. Det var «vannet forsvinner ved
+    // zoom/pan»-saken (2026-07-21): blått ved 200 m (raust budsjett), borte i
+    // oversikt, flimret ved panorering. Navn-LOD skal kun styre etiketter
+    // (<text>/<g>-grupper) — geometri er alltid synlig.
+    if ((e.el.tagName ?? '').toLowerCase() === 'path') continue
     const px = offX + e.x * fit
     const py = offY + e.y * fit
     const sx = tx + s * (px * cos - py * sin)

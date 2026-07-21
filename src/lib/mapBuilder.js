@@ -2014,7 +2014,10 @@ export function buildSvg(elements, bbox, options = {}) {
       // "Bukta" er like viktig for orientering som en stor fjord.
       const minArea = isSeawater ? Math.max(MIN_AREA / 4, 500) : MIN_AREA
       if (areaM2 < minArea) continue
-      const name = (el.tags?.name ?? '').trim()
+      // NVE-innsjøer bærer navnet i `navn` (ArcGIS-feltnavn), ikke `name` —
+      // uten fallback fikk de ingen vann-navn-tekst, og navn-LOD-en toglet i
+      // stedet selve polygonet (se applyNameLOD i MapView).
+      const name = (el.tags?.name ?? el.tags?.navn ?? '').trim()
       // Saltvann uten navn er ikke verdt å rendre (brukeren ser jo at
       // det er sjø). Innsjøer uten navn kan likevel ha elev som info.
       if (isSeawater && !name) continue
