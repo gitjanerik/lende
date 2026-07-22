@@ -5,6 +5,7 @@
 // nytt kart, highlight — blir i forelderen. Eier sin egen fade-transition og
 // fokuserer feltet når overlayet åpnes.
 import { ref, watch, nextTick } from 'vue'
+import { useSpeechInput } from '../composables/useSpeechInput.js'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -24,6 +25,12 @@ const inputRef = ref(null)
 watch(() => props.open, (isOpen) => {
   if (isOpen) nextTick(() => inputRef.value?.focus())
 })
+
+// Tale-til-tekst for kart-søket. Skjules der nettleseren mangler støtte
+// (samme graceful mønster som forsidens og velgerens søk). Transkriptet mates
+// inn som om det ble skrevet — forelderen eier query, så vi emitter update:query.
+const { isSupported: micSupported, isListening: micListening, toggle: toggleMic } =
+  useSpeechInput({ onResult: (t) => emit('update:query', t) })
 </script>
 
 <template>
@@ -49,6 +56,18 @@ watch(() => props.open, (isOpen) => {
                :aria-activedescendant="activeIndex >= 0 ? `mapsearch-opt-${activeIndex}` : undefined"
                class="flex-1 bg-transparent text-[14px] text-white placeholder-white/35
                       focus:outline-none"/>
+        <!-- Tale-til-tekst — vises bare når nettleseren støtter SpeechRecognition -->
+        <button v-if="micSupported" type="button" @click="toggleMic"
+                :aria-label="micListening ? 'Stopp diktering' : 'Diktér søk (tale til tekst)'"
+                :aria-pressed="micListening"
+                :class="['w-7 h-7 rounded-full flex items-center justify-center transition active:scale-95 shrink-0',
+                         micListening ? 'bg-red-500/90 text-white animate-pulse' : 'text-white/65 active:bg-white/10']">
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/>
+          </svg>
+        </button>
         <button @click="emit('close')" aria-label="Lukk søk"
                 class="w-7 h-7 -mr-1 rounded-full flex items-center justify-center
                        text-white/65 active:bg-white/10">
