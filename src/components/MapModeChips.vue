@@ -76,7 +76,7 @@ function formatElevationDiff(m) {
        stier og detaljer fylles inn i bakgrunnen (Overpass laster). -->
   <Transition name="chip-fade">
     <div v-if="fillingInDetails && !searchOpen"
-         class="absolute top-16 left-1/2 -translate-x-1/2 z-30 pl-2 pr-3.5 py-1.5 rounded-2xl
+         class="absolute top-[var(--ovl-top)] left-1/2 -translate-x-1/2 z-30 pl-2 pr-3.5 py-1.5 rounded-2xl
                 bg-zinc-950/90 text-white text-[12.5px] font-medium shadow-lg backdrop-blur
                 flex items-center gap-2 pointer-events-none border border-white/10
                 transition-[left] duration-200"
@@ -111,7 +111,7 @@ function formatElevationDiff(m) {
        markør. Tap fjerner highlight og dropper søkemodus. -->
   <Transition name="chip-fade">
     <div v-if="highlightedFeature && !searchOpen"
-         class="absolute top-16 left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 rounded-2xl
+         class="absolute top-[var(--ovl-top)] left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 rounded-2xl
                 bg-pink-500/95 text-white text-[12px] font-medium shadow-lg
                 flex items-center gap-2 max-w-[85%] pointer-events-auto
                 transition-[left] duration-200"
@@ -139,7 +139,7 @@ function formatElevationDiff(m) {
 
   <!-- Annoteringsmodus indikator. -->
   <div v-if="annot.isAnnotateMode.value && annot.selectedSymbol.value"
-       class="absolute top-[16rem] right-3 z-20 px-2.5 py-1.5 rounded-md bg-slate-600
+       class="absolute top-[var(--ovl-poi)] right-3 z-20 px-2.5 py-1.5 rounded-md bg-slate-600
               text-white text-[11px] font-medium shadow-lg pointer-events-none">
     Trykk på kartet for å plassere
     <div class="text-[9px] text-white/80 mt-0.5">
@@ -151,7 +151,7 @@ function formatElevationDiff(m) {
        back-knappen) så den ikke ligger bak FAB-stacken. X-knappen avslutter
        målingen direkte fra kartet uten å åpne drawer-en. -->
   <div v-if="measureMode"
-       class="absolute top-16 left-3 z-20 rounded-md bg-emerald-600
+       class="absolute top-[var(--ovl-top)] left-3 z-20 rounded-md bg-emerald-600
               text-white text-[11px] font-medium shadow-lg
               tabular-nums max-w-[55%] flex items-start gap-1.5 pl-3 pr-1 py-2">
     <div class="flex-1 min-w-0">
@@ -175,7 +175,7 @@ function formatElevationDiff(m) {
        To faser: velg startpunkt → ruter funnet. Egen rute-liste (tappbar,
        viser lengde + estimert gangtid). -->
   <div v-if="sti.active.value && sti.mode.value !== 'following'"
-       class="absolute top-16 left-3 z-20 rounded-md bg-emerald-600
+       class="absolute top-[var(--ovl-top)] left-3 z-20 rounded-md bg-emerald-600
               text-white text-[11px] font-medium shadow-lg
               max-w-[70%] flex items-start gap-1.5 pl-3 pr-1 py-2">
     <div class="flex-1 min-w-0">
@@ -290,7 +290,7 @@ function formatElevationDiff(m) {
        distanse/tid/høydemeter + GPS-fremdrift, «Til forslag» og X. -->
   <!-- Måling kan pågå samtidig (samme hjørne) → still pillen under readouten. -->
   <div v-if="sti.mode.value === 'following'" class="absolute left-3 z-20 max-w-[70%]"
-       :class="measureMode ? 'top-[7.5rem]' : 'top-16'">
+       :class="measureMode ? 'top-[var(--ovl-top-2)]' : 'top-[var(--ovl-top)]'">
     <button v-if="!followExpanded" @click="followExpanded = true"
             class="flex items-center gap-1.5 rounded-full bg-emerald-600 text-white
                    text-[11px] font-semibold shadow-lg pl-3 pr-2 py-1.5 active:scale-[0.97]
@@ -371,13 +371,13 @@ function formatElevationDiff(m) {
   </div>
 
   <!-- Nærhetsvarsel-alert (blå, X-knapp avbryter). Stables under måle-/sti-
-       banneret hvis et av dem er aktivt (begge ligger på top-16 left-3). -->
+       banneret hvis et av dem er aktivt (begge ligger på samme topp-offset, left-3). -->
   <div v-if="proximity.active.value"
        class="absolute left-3 z-20 rounded-md bg-sky-600
               text-white text-[11px] font-medium shadow-lg
               tabular-nums max-w-[60%] flex items-start gap-1.5 pl-3 pr-1 py-2"
-       :class="(measureMode && sti.mode.value === 'following') ? 'top-[12rem]'
-               : (measureMode || sti.active.value) ? 'top-[7.5rem]' : 'top-16'">
+       :class="(measureMode && sti.mode.value === 'following') ? 'top-[var(--ovl-top-3)]'
+               : (measureMode || sti.active.value) ? 'top-[var(--ovl-top-2)]' : 'top-[var(--ovl-top)]'">
     <div class="flex-1 min-w-0">
       <div class="text-[9px] uppercase tracking-wide text-sky-100/90">Nærhetsvarsel</div>
       <div class="text-[12px] font-semibold truncate">{{ proximity.active.value.label }}</div>
