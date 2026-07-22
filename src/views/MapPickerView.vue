@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useNominatim } from '../composables/useNominatim.js'
+import { useSpeechInput } from '../composables/useSpeechInput.js'
 import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
 import { bboxFromCenter, viewportAspect, PRINT_ASPECT } from '../lib/mapBuilder.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
@@ -180,6 +181,10 @@ watch(minEquidistance, (minEq) => {
 })
 
 const { query, results, isSearching, error: searchError } = useNominatim()
+
+// Tale-til-tekst for stedssøket (skjules der nettleseren ikke støtter det).
+const { isSupported: micSupported, isListening: micListening, toggle: toggleMic } =
+  useSpeechInput({ onResult: (t) => { query.value = t } })
 
 const showResults = computed(() =>
   query.value.trim().length >= 2 && (results.value.length > 0 || isSearching.value)
@@ -506,12 +511,26 @@ onMounted(() => {
                aria-controls="mappicker-results"
                :aria-activedescendant="searchActiveIndex >= 0 ? `mappicker-opt-${searchActiveIndex}` : undefined"
                :placeholder="controlsLocked ? lockedSearchPlaceholder : 'f.eks. Sognsvann, 0855, Vardåsen Asker'"
-               class="w-full pl-10 pr-3 py-3 rounded-xl bg-white/[0.06] border border-white/15
-                      text-[14px] placeholder-white/30 focus:outline-none focus:bg-white/12
-                      focus:border-slate-300/50 transition disabled:opacity-50 disabled:cursor-not-allowed" />
+               :class="['w-full pl-10 py-3 rounded-xl bg-white/[0.06] border border-white/15',
+                        'text-[14px] placeholder-white/30 focus:outline-none focus:bg-white/12',
+                        'focus:border-slate-300/50 transition disabled:opacity-50 disabled:cursor-not-allowed',
+                        micSupported ? 'pr-12' : 'pr-3']" />
         <div v-if="isSearching"
-             class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-white/15
-                    border-t-white/70 rounded-full animate-spin" />
+             :class="['absolute top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-white/15',
+                      'border-t-white/70 rounded-full animate-spin', micSupported ? 'right-12' : 'right-3']" />
+        <!-- Tale-til-tekst -->
+        <button v-if="micSupported && !controlsLocked" type="button" @click="toggleMic"
+                :aria-label="micListening ? 'Stopp diktering' : 'Diktér søk (tale til tekst)'"
+                :aria-pressed="micListening"
+                :class="['absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-lg flex items-center',
+                         'justify-center transition active:scale-95',
+                         micListening ? 'bg-red-500/90 text-white animate-pulse' : 'bg-white/10 text-white/70']">
+          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/>
+          </svg>
+        </button>
       </div>
 
       <!-- Søkeresultater -->

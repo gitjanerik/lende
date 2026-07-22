@@ -100,21 +100,25 @@ export function dedupeByName(areas) {
  *   toWgs84:(x:number,y:number)=>{lat:number,lon:number},
  *   toSvg:(lat:number,lon:number)=>{x:number,y:number},
  *   bufferM?:number, sampleStepM?:number, maxAreaSamples?:number, maxSpecies?:number,
- *   fetchers:{ fetchFredaKulturminner:Function, fetchProtectedArea:Function, fetchSpeciesSummary:Function },
- *   collectRedListed:Function, redListLookup?:object|null, signal?:AbortSignal,
+ *   fetchers:{ fetchFredaKulturminner:Function, fetchProtectedArea:Function, fetchSpeciesSummary:Function,
+ *     fetchHydroStations?:Function, fetchStationLatest?:Function },
+ *   collectRedListed:Function, redListLookup?:object|null,
+ *   mapHydroStation?:(station:object, meta:{distM:number,alongM:number,latest:object})=>object,
+ *   signal?:AbortSignal,
  * }} opts
- * @returns {Promise<{kulturminner:Array, reservater:Array, arter:object|null, kilder:object}>}
+ * @returns {Promise<{kulturminner:Array, reservater:Array, arter:object|null, vannstasjoner:Array, kilder:object}>}
  */
 export async function enrichRoute(routeSvg, opts) {
   const {
     toWgs84, toSvg, bufferM = 150, sampleStepM = 350, maxAreaSamples = 10, maxSpecies = 12,
-    areaTimeoutMs = 5000, fetchers, collectRedListed, redListLookup = null, signal,
+    areaTimeoutMs = 5000, fetchers, collectRedListed, redListLookup = null,
+    mapHydroStation = null, signal,
   } = opts
   const route = routeSvg
   const cum = cumulativeLengths(route)
   const routeWgs = route.map(([x, y]) => { const ll = toWgs84(x, y); return [ll.lon, ll.lat] })
   const bbox = routeBboxWgs84(routeWgs, bufferM)
-  const kilder = { kulturminne: false, vern: false, arter: false }
+  const kilder = { kulturminne: false, vern: false, arter: false, hydrologi: false }
 
   // 1. Fredede kulturminner i bbox → behold de innen bufferM fra traséen.
   let kulturminner = []
@@ -180,5 +184,34 @@ export async function enrichRoute(routeSvg, opts) {
     }
   } catch { /* kilde nede → null */ }
 
-  return { kulturminner, reservater, arter, kilder }
+  // 4. Hydrologiske målestasjoner (NVE HydAPI) i korridoren. Bare når en
+  // stasjons-fetcher er injisert — appen og tester uten NVE hopper over, så
+  // dette er en ren tilleggs-seksjon (ingen endring for eksisterende kallere).
+  let vannstasjoner = []
+  if (fetchers.fetchHydroStations) {
+    try {
+      const raw = await fetchers.fetchHydroStations(bbox, { signal })
+      kilder.hydrologi = Array.isArray(raw)
+      const near = []
+      for (const st of raw ?? []) {
+        const slat = Number(st?.latitude), slon = Number(st?.longitude)
+        if (!Number.isFinite(slat) || !Number.isFinite(slon)) continue
+        const s = toSvg(slat, slon)
+        const { distM, alongM } = distanceToRoute([s.x, s.y], route, cum)
+        if (distM <= bufferM) near.push({ st, distM, alongM })
+      }
+      near.sort((a, b) => a.alongM - b.alongM)
+      // Siste måleverdier hentes parallelt (ett kall pr stasjon).
+      vannstasjoner = await Promise.all(near.map(async ({ st, distM, alongM }) => {
+        const latest = fetchers.fetchStationLatest
+          ? await fetchers.fetchStationLatest(st, { signal }).catch(() => ({}))
+          : {}
+        return mapHydroStation
+          ? mapHydroStation(st, { distM, alongM, latest })
+          : { navn: st.stationName ?? 'NVE-stasjon', avstandM: Math.round(distM), langsM: Math.round(alongM) }
+      }))
+    } catch { /* kilde nede → tom */ }
+  }
+
+  return { kulturminner, reservater, arter, vannstasjoner, kilder }
 }
