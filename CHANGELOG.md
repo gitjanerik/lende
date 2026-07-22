@@ -1,6 +1,23 @@
 # Endringslogg
 
-## 2026-07-22 — v1.0.70: På-enhet diagnose for Stifinner («finner ingen stier»)
+## 2026-07-22 — v1.0.71: Fiks long-press-koordinat på iOS (Stifinner-mål på avveie)
+
+Rotårsaken bak «Stifinner finner ingen stier» på iPhone: long-press-punktet
+(mål i Stifinner, via-punkt, måle-/annoterings-tapp) ble regnet ut med
+`svg.getScreenCTM()`, som på iOS/Safari ikke tar med CSS-transformen (pan/zoom/
+rotasjon) på kartets forelder-wrapper. Når kartet var panorert havnet punktet
+kilometer på avveie — diagnosen fra v1.0.70 viste en frisk graf (824 features,
+~3000 noder) men mål snappet 11,5 km unna og luftlinje A→B på 16,4 km. Start-
+punktet var upåvirket fordi det bruker skjermsenteret via `visibleCenterSvg`,
+som allerede regnet ren aritmetikk. Vi erstatter getScreenCTM-veiene med den
+samme browser-uavhengige matte-inversen: nye eksporterte kjerner
+`screenToViewBox`/`viewBoxToScreen` i useMapExtend, eksponert som
+`clientToSvg`/`svgToClient` og brukt av long-press, kart-tapp og pin-plassering.
+Enhetstester dekker round-trip (pan+zoom+rotasjon+letterbox) og at pan faktisk
+tas med. Gjaldt også måle- og annoteringstapp på iOS.
+
+---
+
 
 Feilsøkingshjelp for en rapport der Stifinner/«Gå en runde» ikke fant ruter på
 iPhone (Safari) selv om stiene vises på kartet, mens samme punkter fungerte på

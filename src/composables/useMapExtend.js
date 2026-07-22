@@ -29,6 +29,44 @@ export function extendZoneLabelText(dir) {
   return w ? `${w.charAt(0).toUpperCase()}${w.slice(1)} i lende` : ''
 }
 
+// ── Skjerm ⇄ viewBox — rene matte-kjerner (ingen Vue-refs, testbare) ──────────
+// Inverterer den unified CSS-transformen på kart-wrapperen (translate ∘ rotate ∘
+// scale, transform-origin 0 0) pluss viewBox-letterboxen. Vi gjør dette i ren
+// aritmetikk i STEDET for svg.getScreenCTM() fordi getScreenCTM på iOS/Safari
+// ikke regner med CSS-transformen på kartets forelder-wrapper — long-press-punkt
+// (og dermed Stifinner-mål) havnet kilometer på avveie når kartet var panorert.
+// v = { w, h, widthM, heightM, scale, rotationDeg, tx, ty }.
+
+// Wrapper-lokal skjerm-px (sx,sy fra wrapperens topp-venstre) → viewBox-meter.
+export function screenToViewBox(sx, sy, v) {
+  const fit = Math.min(v.w / v.widthM, v.h / v.heightM)
+  const offX = (v.w - v.widthM * fit) / 2
+  const offY = (v.h - v.heightM * fit) / 2
+  const s = v.scale || 1
+  const rot = (v.rotationDeg || 0) * Math.PI / 180
+  const cos = Math.cos(rot), sin = Math.sin(rot)
+  const A = (sx - v.tx) / s
+  const B = (sy - v.ty) / s
+  const px = A * cos + B * sin
+  const py = -A * sin + B * cos
+  return { x: (px - offX) / fit, y: (py - offY) / fit }
+}
+
+// Invers: viewBox-meter (vx,vy) → wrapper-lokal skjerm-px.
+export function viewBoxToScreen(vx, vy, v) {
+  const fit = Math.min(v.w / v.widthM, v.h / v.heightM)
+  const offX = (v.w - v.widthM * fit) / 2
+  const offY = (v.h - v.heightM * fit) / 2
+  const s = v.scale || 1
+  const rot = (v.rotationDeg || 0) * Math.PI / 180
+  const cos = Math.cos(rot), sin = Math.sin(rot)
+  const px = vx * fit + offX
+  const py = vy * fit + offY
+  const rx = px * cos - py * sin
+  const ry = px * sin + py * cos
+  return { x: v.tx + s * rx, y: v.ty + s * ry }
+}
+
 export function useMapExtend({
   svgHostRef, wrapperRef, meta, mapId, router,
   scale, rotation, translateX, translateY, isGesturing, panTo,
@@ -246,25 +284,35 @@ export function useMapExtend({
   // Viewbox-koordinaten (SVG-meter) som ligger midt på skjermen akkurat nå.
   // Invers av forward-transformen i applyNameLOD/panTo: SVG fyller wrapperen med
   // preserveAspectRatio="xMidYMid meet", deretter M = T(tx,ty)∘R(rot)∘S(s).
-  function visibleCenterSvg() {
+  // Nåværende transform-tilstand for de rene matte-kjernene (screenToViewBox /
+  // viewBoxToScreen). null når kartet ikke er målbart ennå.
+  function transformView() {
     const m = meta.value
     const wrap = wrapperRef.value?.getBoundingClientRect()
     if (!m || !wrap || !wrap.width || !wrap.height) return null
-    const w = wrap.width, h = wrap.height
-    const fit = Math.min(w / m.widthM, h / m.heightM)
-    const offX = (w - m.widthM * fit) / 2
-    const offY = (h - m.heightM * fit) / 2
-    const s = scale.value || 1
-    const rot = (rotation.value || 0) * Math.PI / 180
-    const cos = Math.cos(rot), sin = Math.sin(rot)
-    const tx = translateX.value, ty = translateY.value
-    // Skjermsenter (wrapper-lokalt). Løs (X,Y) = T + s·R·(px,py) for (px,py),
-    // deretter trekk fra letterbox-offset / del på fit for viewBox-koordinat.
-    const A = (w / 2 - tx) / s
-    const B = (h / 2 - ty) / s
-    const px = A * cos + B * sin
-    const py = -A * sin + B * cos
-    return { x: (px - offX) / fit, y: (py - offY) / fit }
+    return {
+      wrap, w: wrap.width, h: wrap.height, widthM: m.widthM, heightM: m.heightM,
+      scale: scale.value || 1, rotationDeg: rotation.value || 0,
+      tx: translateX.value, ty: translateY.value,
+    }
+  }
+  function visibleCenterSvg() {
+    const v = transformView()
+    return v ? screenToViewBox(v.w / 2, v.h / 2, v) : null
+  }
+  // Klient-koordinat (viewport-px fra en pointer-event) → viewBox-meter.
+  // Browser-uavhengig (se screenToViewBox); brukes av long-press og kart-tapp.
+  function clientToSvg(clientX, clientY) {
+    const v = transformView()
+    return v ? screenToViewBox(clientX - v.wrap.left, clientY - v.wrap.top, v) : null
+  }
+  // Invers av clientToSvg: viewBox-meter → klient-koordinat (viewport-px).
+  // Plasserer long-press-pinnen browser-uavhengig (matcher clientToSvg eksakt).
+  function svgToClient(vx, vy) {
+    const v = transformView()
+    if (!v) return null
+    const local = viewBoxToScreen(vx, vy, v)
+    return { x: v.wrap.left + local.x, y: v.wrap.top + local.y }
   }
 
   // «Gjør aktiv»-deteksjon: når skjermsenteret glir inn på en nabo-flis (utenfor
@@ -632,7 +680,7 @@ export function useMapExtend({
     buildingOnTheFly, buildingProgress, autoMapToast, currentMapIsAuto,
     drawerCoversCanvas, extendZonesVisible, activatableTile, mosaicGapCount,
     renderExtendZones, updateExtendZoneScale, showAutoMapToast,
-    visibleCenterSvg, scheduleActivatableCheck, autoMapModeBusy,
+    visibleCenterSvg, clientToSvg, svgToClient, scheduleActivatableCheck, autoMapModeBusy,
     autoMapBuildOpts, promoteTile, extendMap, armAutoMap,
     extendZonesBounds, teardownMapExtend,
     refreshMosaicGaps, repairMosaicGaps,
