@@ -1,9 +1,10 @@
 import { ref, watch } from 'vue'
-import { geocodePlace } from '../lib/geocode.js'
+import { searchPlaces } from '../lib/geocode.js'
 
-// Stedssøk via OpenStreetMap Nominatim. Free service, krever User-Agent og
-// rate-limit-vennlig bruk. Vi debouncer og begrenser til Norge. Selve søket +
-// normaliseringen bor i lib/geocode.js (delt med MCP-serveren).
+// Stedssøk som fletter Kartverket SSR (norske stedsnavn) og OpenStreetMap
+// Nominatim (adresser/POI). Gratis tjenester — vi debouncer og begrenser
+// Nominatim til Norge. Selve søket + flettingen bor i lib/geocode.js (delt med
+// MCP-serveren).
 
 export function useNominatim({ debounceMs = 350, countryCode = 'no' } = {}) {
   const query = ref('')
@@ -25,7 +26,7 @@ export function useNominatim({ debounceMs = 350, countryCode = 'no' } = {}) {
     error.value = null
 
     try {
-      results.value = await geocodePlace(q, { countryCode, signal: abortController.signal })
+      results.value = await searchPlaces(q, { countryCode, signal: abortController.signal })
     } catch (e) {
       if (e.name !== 'AbortError') {
         error.value = e.message ?? 'Søk feilet'
