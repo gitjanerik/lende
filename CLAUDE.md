@@ -133,8 +133,10 @@ et lag mellom trinn krever kode-endring + nybygd kart.
 ## Versjonshåndtering — PR-per-endring, alltid bump
 
 1. Hver endring brukeren skal teste → **ny PR fra fresh `origin/master`**.
-2. Hver PR → bump versjon i tre filer som må matche:
+2. Hver PR → bump versjon i fire filer som må matche:
    - `package.json` (`"version"`)
+   - `package-lock.json` (`"version"` to steder) — ellers re-synker
+     `npm install` den ved neste sesjon og lager en evig 2-linjers diff
    - `src/version.js` (`APP_VERSION`)
    - `public/sw.js` (`CACHE_VERSION`) — kritisk for at mobil-klienten henter
      ferske assets etter deploy

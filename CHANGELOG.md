@@ -1,6 +1,18 @@
 # Endringslogg
 
-## 2026-07-22 — v1.0.67: Tale-til-tekst i kartets interne søkeboks
+## 2026-07-22 — v1.0.68: KI-arkitekturnotat + lockfile-synk i versjonsritualet
+
+Nytt beslutningsnotat `docs/AI_ARKITEKTUR.md` fryser retningen for KI i Lende
+(serverless Cloudflare-proxy etter NVE-proxy-malen, «Spør KI om dette
+stedet»-knapp, gjenbruk av eksisterende MCP-verktøy, og bevisst *ingen*
+hosting-migrering) slik at tråden kan tas opp senere uten å re-derivere alt.
+Samtidig er den evige `package-lock.json`-diff-en løst: lockfile-ens
+`"version"` lå på 1.0.63 mens `package.json` for lengst var bumpet, så
+`npm install` re-synket den ved hver sesjons-oppstart. Lockfile-en er nå i
+sync, og `package-lock.json` er lagt inn som fjerde fil i bump-ritualet i
+CLAUDE.md så det ikke driver ut av sync igjen.
+
+---
 
 Søke-overlayet i kartet (`MapSearchOverlay`) har fått en mikrofon-knapp for
 diktering, slik forsidesøket og kartvelgeren allerede har. Den gjenbruker
