@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { geocodePlace, normalizeNominatim, shortNameFor, nearestPlaceLabel, reverseGeocode } from './geocode.js'
+import {
+  geocodePlace, geocodeKartverket, searchPlaces,
+  normalizeNominatim, normalizeKartverket,
+  shortNameFor, nearestPlaceLabel, reverseGeocode,
+} from './geocode.js'
 
 const sample = {
   place_id: 123,
@@ -13,11 +17,31 @@ const sample = {
   address: { municipality: 'Asker' },
 }
 
+const ssrSample = {
+  stedsnummer: 987654,
+  'skrivemåte': 'Bøseter',
+  navneobjekttype: 'Seter',
+  kommuner: [{ kommunenavn: 'Ringerike', kommunenummer: '3007' }],
+  representasjonspunkt: { 'øst': 10.201, nord: 60.312, koordsys: 4258 },
+}
+
 function fakeFetch(payload, { ok = true, status = 200 } = {}) {
   const calls = []
   const fn = async (url, init) => {
     calls.push({ url, init })
     return { ok, status, json: async () => payload }
+  }
+  fn.calls = calls
+  return fn
+}
+
+// Ruter mot rett kilde ut fra URL: Geonorge → SSR-payload, ellers Nominatim.
+function routedFetch(ssrPayload, nomPayload) {
+  const calls = []
+  const fn = async (url, init) => {
+    calls.push({ url, init })
+    const payload = String(url).includes('ws.geonorge.no') ? ssrPayload : nomPayload
+    return { ok: true, status: 200, json: async () => payload }
   }
   fn.calls = calls
   return fn
@@ -39,6 +63,23 @@ describe('normalizeNominatim', () => {
     expect(n.lon).toBeCloseTo(10.4145)
     expect(n.bbox).toEqual([59.81, 59.82, 10.41, 10.42])
     expect(n.id).toBe(123)
+    expect(n.source).toBe('nominatim')
+  })
+})
+
+describe('normalizeKartverket', () => {
+  it('parser skrivemåte, kommune og representasjonspunkt', () => {
+    const n = normalizeKartverket(ssrSample)
+    expect(n.shortName).toBe('Bøseter, Ringerike')
+    expect(n.lat).toBeCloseTo(60.312)
+    expect(n.lon).toBeCloseTo(10.201)
+    expect(n.type).toBe('seter')
+    expect(n.bbox).toBeNull()
+    expect(n.id).toBe('ssr:987654')
+    expect(n.source).toBe('kartverket')
+  })
+  it('returnerer null uten gyldig representasjonspunkt', () => {
+    expect(normalizeKartverket({ 'skrivemåte': 'X', representasjonspunkt: {} })).toBeNull()
   })
 })
 
@@ -69,6 +110,85 @@ describe('geocodePlace', () => {
   it('kaster ved ikke-ok svar', async () => {
     const fetchImpl = fakeFetch([], { ok: false, status: 429 })
     await expect(geocodePlace('Oslo', { fetchImpl })).rejects.toThrow('Nominatim 429')
+  })
+})
+
+describe('geocodeKartverket', () => {
+  it('parser data.navn til normaliserte treff', async () => {
+    const fetchImpl = fakeFetch({ navn: [ssrSample] })
+    const out = await geocodeKartverket('Bøseter', { fetchImpl })
+    expect(out).toHaveLength(1)
+    expect(out[0].shortName).toBe('Bøseter, Ringerike')
+    expect(out[0].source).toBe('kartverket')
+  })
+
+  it('sender fuzzy, utkoordsys og sok i forespørselen', async () => {
+    const fetchImpl = fakeFetch({ navn: [] })
+    await geocodeKartverket('Bøseter', { fetchImpl, limit: 5 })
+    const url = fetchImpl.calls[0].url
+    expect(url).toContain('fuzzy=true')
+    expect(url).toContain('utkoordsys=4258')
+    expect(url).toContain('treffPerSide=5')
+    expect(decodeURIComponent(url)).toContain('sok=Bøseter')
+  })
+
+  it('returnerer tom liste for for korte søk uten å kalle fetch', async () => {
+    const fetchImpl = fakeFetch({ navn: [ssrSample] })
+    expect(await geocodeKartverket('a', { fetchImpl })).toEqual([])
+    expect(fetchImpl.calls).toHaveLength(0)
+  })
+
+  it('kaster ved ikke-ok svar', async () => {
+    const fetchImpl = fakeFetch({ navn: [] }, { ok: false, status: 500 })
+    await expect(geocodeKartverket('Oslo', { fetchImpl })).rejects.toThrow('Kartverket 500')
+  })
+})
+
+describe('searchPlaces', () => {
+  it('fletter begge kilder', async () => {
+    const fetchImpl = routedFetch({ navn: [ssrSample] }, [sample])
+    const out = await searchPlaces('Bøseter', { fetchImpl })
+    const sources = out.map(r => r.source)
+    expect(sources).toContain('kartverket')
+    expect(sources).toContain('nominatim')
+  })
+
+  it('rangerer eksakt SSR-treff øverst', async () => {
+    const fetchImpl = routedFetch({ navn: [ssrSample] }, [sample])
+    const out = await searchPlaces('Bøseter', { fetchImpl })
+    expect(out[0].shortName).toBe('Bøseter, Ringerike')
+  })
+
+  it('overlever at én kilde feiler (SSR nede → Nominatim alene)', async () => {
+    const fn = async (url) => {
+      if (String(url).includes('ws.geonorge.no')) return { ok: false, status: 503, json: async () => ({}) }
+      return { ok: true, status: 200, json: async () => [sample] }
+    }
+    const out = await searchPlaces('Vardåsen', { fetchImpl: fn })
+    expect(out).toHaveLength(1)
+    expect(out[0].source).toBe('nominatim')
+  })
+
+  it('dedupliserer samme sted fra begge kilder', async () => {
+    const dupNom = { ...sample, display_name: 'Bøseter, Ringerike', name: 'Bøseter',
+      lat: '60.3121', lon: '10.2009', address: { municipality: 'Ringerike' } }
+    const fetchImpl = routedFetch({ navn: [ssrSample] }, [dupNom])
+    const out = await searchPlaces('Bøseter', { fetchImpl })
+    const boseter = out.filter(r => r.shortName.startsWith('Bøseter'))
+    expect(boseter).toHaveLength(1)
+    expect(boseter[0].source).toBe('kartverket')
+  })
+
+  it('returnerer tom liste for for korte søk uten å kalle fetch', async () => {
+    const fetchImpl = routedFetch({ navn: [ssrSample] }, [sample])
+    expect(await searchPlaces('a', { fetchImpl })).toEqual([])
+    expect(fetchImpl.calls).toHaveLength(0)
+  })
+
+  it('fjerner internt _order-felt fra resultatet', async () => {
+    const fetchImpl = routedFetch({ navn: [ssrSample] }, [sample])
+    const out = await searchPlaces('Bøseter', { fetchImpl })
+    expect(out.every(r => !('_order' in r))).toBe(true)
   })
 })
 

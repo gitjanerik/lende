@@ -18,7 +18,7 @@ import { wgs84ToSvg, svgToWgs84, utm32BboxFromWgs84 } from '../src/lib/utm.js'
 import { sampleProfile } from '../src/lib/elevationProfile.js'
 import { sampleElevation } from '../src/lib/demSampling.js'
 import { buildRouteGpx } from '../src/lib/gpxExport.js'
-import { geocodePlace } from '../src/lib/geocode.js'
+import { searchPlaces } from '../src/lib/geocode.js'
 import { buildRouteOverlaySvg, injectOverlay, DEFAULT_OVERLAY_STYLE } from '../src/lib/routeOverlay.js'
 import { applyMapSettings, resolveVisibleLayers, buildSettingsCss, listThemes } from '../src/lib/mapSettingsApply.js'
 import { LAYERS, LAYER_PRESETS } from '../src/lib/mapLayerCatalog.js'
@@ -310,7 +310,7 @@ server.registerTool(
     let geokodet = null
     if (lat == null || lon == null) {
       if (!sted) throw new Error('Oppgi enten lat+lon eller et stedsnavn i «sted».')
-      const treff = await geocodePlace(sted, { limit: 1, userAgent: GEOCODE_UA })
+      const treff = await searchPlaces(sted, { limit: 1, userAgent: GEOCODE_UA })
       if (!treff.length) throw new Error(`Fant ikke stedet «${sted}» via geokoding.`)
       geokodet = treff[0]
       lat = geokodet.lat
@@ -584,9 +584,10 @@ server.registerTool(
   {
     title: 'Søk sted (geokoding)',
     description:
-      'Geokoder et fritekst-stedsnavn til koordinater via OpenStreetMap Nominatim ' +
-      '(begrenset til Norge). Returnerer inntil `antall` treff med lat/lon OG stedets ' +
-      'utstrekning: bredde/høyde/areal i km² (fra Nominatims bounding box) og en anbefalt ' +
+      'Geokoder et fritekst-stedsnavn til koordinater ved å flette Kartverket SSR ' +
+      '(autoritativt norsk stedsnavnregister) og OpenStreetMap Nominatim (begrenset til Norge). ' +
+      'Returnerer inntil `antall` treff med lat/lon OG stedets utstrekning: bredde/høyde/areal ' +
+      'i km² (fra Nominatims bounding box; SSR-treff er punkt og gir null her) og en anbefalt ' +
       '«halfKm» som dekker hele stedet. Bruk anbefaltHalfKm rett i bygg_kart for store ' +
       'områder (f.eks. «hele Vestmarka» eller en nasjonalpark). Slipper manuell koordinat-oppslag.',
     inputSchema: {
@@ -595,7 +596,7 @@ server.registerTool(
     },
   },
   async ({ sok, antall }) => {
-    const treff = await geocodePlace(sok, { limit: antall, userAgent: GEOCODE_UA })
+    const treff = await searchPlaces(sok, { limit: antall, userAgent: GEOCODE_UA })
     if (!treff.length) throw new Error(`Ingen treff for «${sok}».`)
     return jsonResult({
       status: 'ok',

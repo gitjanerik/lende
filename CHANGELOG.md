@@ -1,5 +1,23 @@
 # Endringslogg
 
+## 2026-07-22 — v1.0.73: Kartverket SSR i stedssøket
+
+Stedssøket gikk før utelukkende mot OpenStreetMap Nominatim, som har mangelfull
+og inkonsekvent dekning av norske stedsnavn — «Bøseter» fantes f.eks. ikke, kun
+«Bøsetra». Vi legger til Kartverkets SSR (Sentralt stedsnavnregister, via
+Geonorge) som autoritativ kilde for norske stedsnavn (fjell, setre, gårder,
+grender, vann) med fuzzy-søk, og fletter det sammen med Nominatim (som fortsatt
+dekker adresser og POI-er). `src/lib/geocode.js` får `geocodeKartverket` +
+`normalizeKartverket` og en `searchPlaces`-orkestrator som kjører begge kilder
+parallelt med `Promise.allSettled` (blokkeres/feiler den ene — f.eks. SSR ved
+CORS i nettleser — brukes den andre alene), dedupliserer på navn + koordinat
+(SSR foretrekkes for korrekt norsk skrivemåte) og rangerer etter match-kvalitet,
+kilde og importance. UI-composablen `useNominatim` og MCP-verktøyene `sok_sted`
+og `bygg_kart` bruker nå `searchPlaces`. SSR-treff er punkt uten bounding box, som
+`extentInfo()` allerede tåler (`anbefaltHalfKm` blir null → 2 km-default).
+
+---
+
 ## 2026-07-22 — v1.0.72: Topp-ankrede kart-overlays klarer iOS-statuslinja
 
 Følgefiks etter v1.0.69 (toppbaren fikk sikker-sone-margin på iOS). De topp-
