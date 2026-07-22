@@ -2192,7 +2192,7 @@ const {
   buildingOnTheFly, buildingProgress, autoMapToast, currentMapIsAuto,
   drawerCoversCanvas, extendZonesVisible, activatableTile, mosaicGapCount,
   renderExtendZones, updateExtendZoneScale, showAutoMapToast,
-  visibleCenterSvg, scheduleActivatableCheck, autoMapModeBusy,
+  visibleCenterSvg, clientToSvg, svgToClient, scheduleActivatableCheck, autoMapModeBusy,
   autoMapBuildOpts, promoteTile, extendMap, armAutoMap,
   extendZonesBounds, teardownMapExtend,
   refreshMosaicGaps, repairMosaicGaps,
@@ -2277,7 +2277,7 @@ const {
 } = useContextLookups({
   svgHostRef, wrapperRef, meta, storedDem, ensureDem, userPos, searchIndex,
   buildingOnTheFly, searchOpen, fillingInDetails, sti, scale, mapSearch,
-  contextDrawer, mapId, closeDrawer, knobPanel, proximityPanelOpen,
+  contextDrawer, mapId, closeDrawer, knobPanel, proximityPanelOpen, clientToSvg,
 })
 
 // ── Nærhetsvarsel (proximity alert) ──────────────────────────────────────
@@ -2605,21 +2605,17 @@ const ctxCanNavigate = computed(() =>
 // skalaen → markøren ballong-blåste. Som et HTML-element har den en LITERAL
 // CSS-piksel-størrelse (se template) som FYSISK ikke kan blåses opp uansett zoom.
 // Vi flytter den bare i posisjon: long-press-punktets skjerm-koordinat via
-// getScreenCTM (samme matrise som mapper trykk → kart-koordinat, så den er
-// pålitelig), oversatt til wrapperRef-rommet.
+// svgToClient (ren forover-matte, browser-uavhengig — matcher clientToSvg som
+// fanget punktet), oversatt til wrapperRef-rommet.
 const contextPinElRef = ref(null)
 function positionContextPin() {
   const el = contextPinElRef.value
   if (!el) return
   const p = contextMenuPoint.value
-  const svg = svgHostRef.value?.querySelector('svg')
   const wrap = wrapperRef.value?.getBoundingClientRect()
-  if (!p || !contextMenuOpen.value || !svg || !wrap) return
-  const ctm = svg.getScreenCTM()
-  if (!ctm) return
-  const pt = svg.createSVGPoint()
-  pt.x = p.svgX; pt.y = p.svgY
-  const scr = pt.matrixTransform(ctm)   // viewport (skjerm)-koordinat
+  if (!p || !contextMenuOpen.value || !wrap) return
+  const scr = svgToClient(p.svgX, p.svgY)   // viewport (skjerm)-koordinat
+  if (!scr) return
   el.style.left = (scr.x - wrap.left) + 'px'
   el.style.top = (scr.y - wrap.top) + 'px'
 }
@@ -2744,14 +2740,8 @@ function onMapClick(e) {
   if (sti.blocking.value) return
   // Måleverktøy har prioritet over annotering siden brukeren eksplisitt
   // har slått det på (annoteringsmodus blir tvunget av i startMeasure).
-  const svg = svgHostRef.value?.querySelector('svg')
-  if (!svg) return
-  const pt = svg.createSVGPoint()
-  pt.x = e.clientX
-  pt.y = e.clientY
-  const ctm = svg.getScreenCTM()
-  if (!ctm) return
-  const local = pt.matrixTransform(ctm.inverse())
+  const local = clientToSvg(e.clientX, e.clientY)
+  if (!local) return
   if (measureMode.value) {
     if (measureClosed.value) return  // ingen flere vertices etter lukking
     measureVertices.value = [...measureVertices.value, { x: local.x, y: local.y }]
@@ -3469,7 +3459,7 @@ onUnmounted(() => {
       <!-- Long-press-sikte: HTML-overlay UTENFOR pinch-transformen (søsken av det
            transformerte mapInnerRef), så størrelsen er en LITERAL CSS-piksel-
            verdi som ikke kan skaleres/blåses opp av zoom. Posisjoneres via
-           positionContextPin (getScreenCTM). 34px boks, sentrert på punktet. -->
+           positionContextPin (svgToClient). 34px boks, sentrert på punktet. -->
       <div v-show="contextMenuOpen && contextMenuPoint"
            ref="contextPinElRef"
            class="absolute top-0 left-0 pointer-events-none z-[6]"

@@ -27,7 +27,7 @@ import {
 export function useContextLookups({
   svgHostRef, wrapperRef, meta, storedDem, ensureDem, userPos, searchIndex,
   buildingOnTheFly, searchOpen, fillingInDetails, sti, scale, mapSearch,
-  contextDrawer, mapId, closeDrawer, knobPanel, proximityPanelOpen,
+  contextDrawer, mapId, closeDrawer, knobPanel, proximityPanelOpen, clientToSvg,
 }) {
   // ── Long-press kontekstmeny ──────────────────────────────────────────────
   // Long-press (~550ms hold uten bevegelse) eller høyreklikk på kartet åpner
@@ -76,15 +76,13 @@ export function useContextLookups({
     lpEvent = null
   }
 
+  // Klient-koordinat → viewBox-meter. Bruker den browser-uavhengige matte-
+  // inversen fra useMapExtend (clientToSvg) i stedet for svg.getScreenCTM():
+  // sistnevnte regner IKKE med CSS-transformen (pan/zoom/rotasjon) på kartets
+  // forelder-wrapper på iOS/Safari, så long-press-punktet — og dermed Stifinner-
+  // målet — havnet kilometer på avveie når kartet var panorert (v1.0.71).
   function clientToSvgPoint(clientX, clientY) {
-    const svg = svgHostRef.value?.querySelector('svg')
-    if (!svg) return null
-    const pt = svg.createSVGPoint()
-    pt.x = clientX
-    pt.y = clientY
-    const ctm = svg.getScreenCTM()
-    if (!ctm) return null
-    return pt.matrixTransform(ctm.inverse())
+    return clientToSvg ? clientToSvg(clientX, clientY) : null
   }
 
   function openContextMenuAt(clientX, clientY) {
