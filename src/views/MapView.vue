@@ -3296,7 +3296,7 @@ onUnmounted(() => {
 
     <!-- Kompass-rose. På desktop skyves den til venstre for side-panelet
          når drawer er åpen så den ikke havner bak. -->
-    <div class="absolute top-20 z-20 pointer-events-auto select-none flex flex-col items-end
+    <div class="absolute top-[var(--ovl-rose)] z-20 pointer-events-auto select-none flex flex-col items-end
                 transition-[right] duration-200"
          :style="floatRightStyle">
       <button @click="pointNorth"
@@ -3949,7 +3949,7 @@ onUnmounted(() => {
          konkurrerende bygg. z-[60] holder chippen over drawer/søk visuelt. -->
     <Transition name="chip-fade">
       <div v-if="buildingOnTheFly && !searchOpen"
-           class="absolute top-16 left-1/2 -translate-x-1/2 z-[60] px-3 py-1.5 rounded-2xl
+           class="absolute top-[var(--ovl-top)] left-1/2 -translate-x-1/2 z-[60] px-3 py-1.5 rounded-2xl
                   bg-zinc-950/90 text-white text-[12px] font-medium shadow-lg backdrop-blur
                   flex items-center gap-2 pointer-events-none border border-white/10 max-w-[85%]
                   transition-[left] duration-200"

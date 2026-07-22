@@ -36,9 +36,9 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
 <template>
   <Transition name="search-fade">
     <div v-if="open"
-         class="absolute top-16 left-3 right-3 z-40 rounded-2xl bg-zinc-950/95 backdrop-blur
+         class="absolute top-[var(--ovl-top)] left-3 right-3 z-40 rounded-2xl bg-zinc-950/95 backdrop-blur
                 border border-white/10 shadow-2xl overflow-hidden flex flex-col"
-         style="max-height: calc(100dvh - 6rem);">
+         style="max-height: calc(100dvh - 6rem - var(--safe-top));">
       <div class="px-3 py-2.5 flex items-center gap-2 border-b border-white/10">
         <svg viewBox="0 0 24 24" class="w-4 h-4 text-white/55 shrink-0" fill="none"
              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

@@ -1,6 +1,22 @@
 # Endringslogg
 
-## 2026-07-22 — v1.0.71: Fiks long-press-koordinat på iOS (Stifinner-mål på avveie)
+## 2026-07-22 — v1.0.72: Topp-ankrede kart-overlays klarer iOS-statuslinja
+
+Følgefiks etter v1.0.69 (toppbaren fikk sikker-sone-margin på iOS). De topp-
+ankrede overlayene på kartflaten — Stifinner/Rundtur-boksen, måle-readouten,
+highlight-/feature-pillene, «tegner inn detaljer»-chippen, nærhetsvarselet,
+kompassrosen, søke-panelet og bygge-toasten — lå på faste `top-16`/`top-20`-
+offset som var stilt inn mot den GAMLE (kortere) toppbaren. Etter at baren ble
+skjøvet ned med `env(safe-area-inset-top)` havnet de bak knapperaden på iPhone
+(den grønne Stifinner-boksen fikk øverste linje gjemt under tilbake-/meny-
+knappene). Vi introduserer én CSS-variabel `--safe-top` (= statuslinje-høyden)
+og avledede `--ovl-*`-offset i `style.css`, og lar alle overlayene bruke
+`top-[var(--ovl-*)]` i stedet for de bakte tallene. Calc-en bor i CSS-fila
+(Tailwind-klasse-tokens kan ikke ha mellomrom, som calc krever rundt «+»). I
+vanlig nettleser er `--safe-top` 0, så plasseringen er uendret der.
+
+---
+
 
 Rotårsaken bak «Stifinner finner ingen stier» på iPhone: long-press-punktet
 (mål i Stifinner, via-punkt, måle-/annoterings-tapp) ble regnet ut med
