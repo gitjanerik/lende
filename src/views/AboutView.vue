@@ -143,7 +143,7 @@ async function onInstallClick() {
         </p>
         <p class="text-[13px] leading-relaxed text-white/70">
           Slår du på kartlaget <strong class="text-white/90">Vannmålestasjoner</strong>,
-          dukker NVEs hydrologiske stasjoner opp som blå vanndråper. Trykk på en, så
+          dukker NVEs hydrologiske stasjoner opp som blå medaljonger med hvite bølger. Trykk på en, så
           henter Lende siste <strong class="text-white/90">vannføring, vannstand og
           vanntemperatur</strong> fra NVE HydAPI, med lenke videre til stasjonens side.
         </p>

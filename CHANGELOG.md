@@ -1,5 +1,14 @@
 # Endringslogg
 
+## 2026-07-22 — v1.0.65: Rettet Om-teksten for vannmålestasjon-ikonet
+
+Beskrivelsen på Om-siden sa fortsatt at NVEs hydrologiske stasjoner dukker opp
+som «blå vanndråper», men ikonet ble byttet til en rund blå medaljong med to
+hvite bølger. Teksten er nå oppdatert til å matche det ikonet brukeren faktisk
+ser i kartet.
+
+---
+
 ## 2026-07-22 — v1.0.64: MCP tetter hull mot appen + tale-til-tekst i søk
 
 MCP-serveren har fått tre nye evner som lukker gapet mot appens nyutvikling.
