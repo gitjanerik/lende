@@ -1,5 +1,22 @@
 # Endringslogg
 
+## 2026-07-22 — v1.0.74: Global hovedmeny + flytende kart-chrome
+
+Appen manglet en felles meny — hver visning hadde sin egen mørkegrå header-bar
+med «Så i lende: …»-tittel og sprikende knapper. Nå finnes én global slide-in-
+meny (hamburger→X-animasjon) på forsiden, i turkartet og i ruteplanleggeren, med
+veksling turkart↔ruteplanlegger, Hjem/Mine kart, Tegnforklaring og Om appen
+(versjon). De grå header-barene og titlene er fjernet; kontrollene flyter nå oppå
+kartet. Info-ikonet er flyttet inn i menyen. I turkartet er innstillinger-
+hamburgeren erstattet av et tannhjul-ikon (skiller den fra meny-hamburgeren), og
+det er lagt til en snarvei-rad med de mest brukte funksjonene: Stifinner, Gå en
+runde, Måling, Sporing og Info om stedet. Stifinner/rundtur fra snarveien lar deg
+velge både mål og startpunkt med kikkertsiktet (nye `pickingDest`/`pickingOrigin`-
+steg i `useStifinner`), mens long-press-inngangen består. Nye delte komponenter:
+`useAppMenu`, `AppMenu` (montert i `App.vue`) og `AppMenuButton`.
+
+---
+
 ## 2026-07-22 — v1.0.73: Kartverket SSR i stedssøket
 
 Stedssøket gikk før utelukkende mot OpenStreetMap Nominatim, som har mangelfull

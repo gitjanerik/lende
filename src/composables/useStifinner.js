@@ -41,7 +41,10 @@ const ASCENT_M_PER_MIN = 10
 const DESCENT_M_PER_MIN = 30
 
 export function useStifinner() {
-  const mode = ref('idle')          // 'idle' | 'pickingStart' | 'showing' | 'pickingVia' | 'following'
+  // 'pickingDest'/'pickingOrigin' er snarvei-inngangene: velg B (hhv. rundtur-
+  // origo) med kikkertsikte FØR startpunktet, i motsetning til long-press-
+  // inngangen (begin/beginLoop) der B/origo er selve long-press-punktet.
+  const mode = ref('idle')          // 'idle' | 'pickingDest' | 'pickingOrigin' | 'pickingStart' | 'showing' | 'pickingVia' | 'following'
   const isLoop = ref(false)         // rundtur (origo = start = mål); via = vendepunkt(er)
   const destination = ref(null)     // { svgX, svgY } — B (== start når isLoop)
   const start = ref(null)           // { svgX, svgY } — A
@@ -114,6 +117,49 @@ export function useStifinner() {
     startSnap.value = null
     destSnap.value = null
     viaSnaps.value = []
+    mode.value = 'pickingVia'
+  }
+
+  // Snarvei-inngang for A→B: velg mål (B) med kikkertsikte først. Ingen
+  // destinasjon ennå — confirmDest setter den og går videre til startpunkt-plukk.
+  function beginPickDest() {
+    isLoop.value = false
+    destination.value = null
+    start.value = null
+    via.value = []
+    routes.value = []
+    selectedRouteIdx.value = 0
+    error.value = ''
+    startSnap.value = null
+    destSnap.value = null
+    viaSnaps.value = []
+    mode.value = 'pickingDest'
+  }
+
+  function confirmDest(svgPoint) {
+    destination.value = { svgX: svgPoint.x, svgY: svgPoint.y }
+    mode.value = 'pickingStart'
+  }
+
+  // Snarvei-inngang for rundtur: velg origo (= start = mål) med kikkertsikte,
+  // deretter vendepunkt (pickingVia), som beginLoop.
+  function beginPickLoop() {
+    isLoop.value = true
+    destination.value = null
+    start.value = null
+    via.value = []
+    routes.value = []
+    selectedRouteIdx.value = 0
+    error.value = ''
+    startSnap.value = null
+    destSnap.value = null
+    viaSnaps.value = []
+    mode.value = 'pickingOrigin'
+  }
+
+  function confirmLoopOrigin(svgPoint) {
+    destination.value = { svgX: svgPoint.x, svgY: svgPoint.y }
+    start.value = { svgX: svgPoint.x, svgY: svgPoint.y }
     mode.value = 'pickingVia'
   }
 
@@ -370,7 +416,8 @@ export function useStifinner() {
   return {
     mode, active, blocking, isLoop, destination, start, via, routes, selectedRouteIdx, error, diag,
     startSnap, destSnap, viaSnaps, directDistanceM, canAddVia, MAX_VIA,
-    begin, beginLoop, cancel, confirmStart, beginAddVia, confirmVia, removeVia, clearVia,
+    begin, beginLoop, beginPickDest, confirmDest, beginPickLoop, confirmLoopOrigin,
+    cancel, confirmStart, beginAddVia, confirmVia, removeVia, clearVia,
     selectRoute, follow, stopFollowing, estWalkMinutes,
   }
 }

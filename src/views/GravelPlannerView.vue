@@ -25,6 +25,7 @@ import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
 import { reverseNearestPlace } from '../lib/nominatimReverse.js'
 import { routeShareToken, parseRouteToken, MAX_SHARE_ROUTES } from '../lib/routeShare.js'
 import { useGravelPlanner } from '../composables/useGravelPlanner.js'
+import AppMenuButton from '../components/AppMenuButton.vue'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { useMapSizePreference, effectiveEquidistanceForWidthKm, defaultMapDims, aspectForFormat } from '../composables/useMapSizePreference.js'
 import { useRouteElevation } from '../composables/useRouteElevation.js'
@@ -1239,47 +1240,21 @@ onUnmounted(() => {
 <template>
   <div class="relative h-[100dvh] bg-[#0e1116] text-white/90 overflow-hidden flex flex-col">
 
-    <!-- Toppbar: tilbake · tittel · lagrede ruter (badge). Bak: diskrete
-         kontur-ringer fra logoen, spredt fra øvre venstre hjørne. -->
-    <div class="relative overflow-hidden shrink-0 z-30 bg-zinc-950/90 backdrop-blur border-b border-white/10">
-      <svg viewBox="0 0 400 60" preserveAspectRatio="xMinYMin slice" aria-hidden="true"
-           class="absolute inset-0 w-full h-full pointer-events-none">
-        <defs>
-          <path id="hdr-blob-rute" d="M0,-100 C58,-100 100,-58 97,-4 C94,50 58,99 2,97 C-54,95 -99,52 -97,-2 C-99,-56 -58,-100 0,-100 Z"/>
-        </defs>
-        <g fill="none" stroke="#3a3d45" stroke-width="1.4" opacity="0.55">
-          <use href="#hdr-blob-rute" transform="translate(0,0) scale(0.18)"/>
-          <use href="#hdr-blob-rute" transform="translate(0,0) scale(0.34)"/>
-          <use href="#hdr-blob-rute" transform="translate(0,0) scale(0.52)"/>
-          <use href="#hdr-blob-rute" transform="translate(0,0) scale(0.72)"/>
-        </g>
-      </svg>
-      <div class="relative flex items-center gap-2 px-3 py-2.5">
-        <button @click="router.push('/')" aria-label="Tilbake" :disabled="!!routeInvite"
-                class="w-9 h-9 rounded-full flex items-center justify-center bg-white/5 border border-white/10
-                       text-white/70 active:scale-95 transition shrink-0 disabled:opacity-35">
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-        </button>
-        <div class="flex-1 text-center text-[15px] font-semibold text-white truncate">Så i lende: ruteplanlegger</div>
-        <button @click="showSaved = true" aria-label="Lagrede ruter" :disabled="!!routeInvite"
-                class="w-9 h-9 rounded-full flex items-center justify-center bg-white/5 border border-white/10
-                       text-white/70 active:scale-95 transition shrink-0 relative disabled:opacity-35">
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-          <span v-if="savedRoutes.length"
-                class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-sky-500 text-[9px]
-                       font-bold text-white flex items-center justify-center">{{ savedRoutes.length }}</span>
-        </button>
-        <button @click="router.push('/om')" aria-label="Om appen" :disabled="!!routeInvite"
-                class="w-9 h-9 rounded-full flex items-center justify-center bg-white/5 border border-white/10
-                       text-white/70 active:scale-95 transition shrink-0 disabled:opacity-35">
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r="0.6" fill="currentColor"/>
-          </svg>
-        </button>
-      </div>
+    <!-- Flytende chrome oppå kartet: hovedmeny (venstre) · lagrede ruter med
+         badge (høyre). Den tidligere grå toppbaren + «Så i lende: ruteplanlegger»-
+         tittelen er fjernet — kartet fyller nå hele flaten. -->
+    <div class="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-3 pointer-events-none"
+         :style="{ paddingTop: 'max(env(safe-area-inset-top, 0px), 0.75rem)' }">
+      <div class="pointer-events-auto"><AppMenuButton variant="float" /></div>
+      <button @click="showSaved = true" aria-label="Lagrede ruter" :disabled="!!routeInvite"
+              class="pointer-events-auto relative w-10 h-10 rounded-full flex items-center justify-center
+                     bg-zinc-950 text-white shadow-lg active:scale-95 transition disabled:opacity-35">
+        <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.4"
+             stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        <span v-if="savedRoutes.length"
+              class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-sky-500 text-[9px]
+                     font-bold text-white flex items-center justify-center">{{ savedRoutes.length }}</span>
+      </button>
     </div>
 
     <!-- Kart -->

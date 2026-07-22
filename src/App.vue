@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { RouterView } from 'vue-router'
 import { updateAvailable, applyUpdate, buildBusy, updateDeferred } from './lib/swUpdate.js'
 import { usePwaInstall } from './composables/usePwaInstall.js'
+import AppMenu from './components/AppMenu.vue'
 
 // ── Første-gangs installasjonsvarsel ───────────────────────────────────────
 // Uansett hvilken URL brukeren lander på: første gang appen åpnes uinstallert,
@@ -60,6 +61,8 @@ const busyLabel = computed(() =>
         <component :is="Component" :key="route.path" />
       </Transition>
     </RouterView>
+
+    <AppMenu />
 
     <!-- «Ny versjon tilgjengelig»-banner. Vises når service workeren har en ny,
          ventende versjon (se lib/swUpdate.js). Brukerstyrt — vi reloader ikke

@@ -57,6 +57,7 @@ import DrawerExportTab from '../components/drawer/DrawerExportTab.vue'
 import DrawerAboutTab from '../components/drawer/DrawerAboutTab.vue'
 import DrawerDevTab from '../components/drawer/DrawerDevTab.vue'
 import ContextMenuSheet from '../components/context-menu/ContextMenuSheet.vue'
+import AppMenuButton from '../components/AppMenuButton.vue'
 import { isomCatalog, buildPointSymbolDef } from '../lib/symbolizer.js'
 import { printDocument, exportSvgFile, exportPngFile, exportPdfFile } from '../lib/printExport.js'
 import { logPerf } from '../lib/perfLog.js'
@@ -2458,6 +2459,51 @@ function onConfirmVia() {
   sti.confirmVia(c, svg)
   renderRoutes()
 }
+
+// ── Snarvei-rad (mest brukte funksjoner) ──────────────────────────────────
+// Stifinner/rundtur fra snarveien: velg både mål (B/origo) OG startpunkt med
+// kikkertsiktet, i motsetning til long-press-inngangen. Måling/annotering av.
+function stifinnerReset() {
+  measureMode.value = false
+  annot.isAnnotateMode.value = false
+  annot.selectedSymbol.value = null
+  renderMeasure()
+  closeContextMenu()
+  closeDrawer()
+}
+function onShortcutStifinner() {
+  stifinnerReset()
+  sti.beginPickDest()
+}
+function onShortcutRoundTrip() {
+  stifinnerReset()
+  sti.beginPickLoop()
+}
+// Bekreft mål (B) = skjermsenteret → videre til startpunkt-plukk.
+function onConfirmDest() {
+  const c = visibleCenterSvg()
+  if (!c) return
+  sti.confirmDest(c)
+}
+// Bekreft rundtur-origo = skjermsenteret → videre til vendepunkt-plukk.
+function onConfirmLoopOrigin() {
+  const c = visibleCenterSvg()
+  if (!c) return
+  sti.confirmLoopOrigin(c)
+}
+function onShortcutMeasure() {
+  measureMode.value || startMeasure()
+  activeTab.value = 'maaling'
+  openDrawer()
+}
+// Info om stedet: åpne kontekst/info-arket på kartets senter (supplement til
+// long-press). openContextMenuAt tar skjerm-koordinater.
+function onShortcutInfo() {
+  const el = wrapperRef.value
+  if (!el) return
+  const r = el.getBoundingClientRect()
+  openContextMenuAt(r.left + r.width / 2, r.top + r.height / 2)
+}
 function onRemoveVia(i) {
   sti.removeVia(i)
   renderRoutes()
@@ -3209,34 +3255,7 @@ onUnmounted(() => {
          :style="{ right: panelOffsetPx + 'px',
                    paddingTop: 'max(env(safe-area-inset-top, 0px), 0.75rem)' }">
       <div class="flex items-center gap-2 pointer-events-auto">
-        <button @click="router.push('/kart')"
-                aria-label="Tilbake til kart-lista"
-                class="rounded-full w-10 h-10 flex items-center justify-center
-                       bg-zinc-950 text-white shadow-lg active:scale-95 transition">
-          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.4"
-               stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="15 18 9 12 15 6"/>
-          </svg>
-        </button>
-        <button @click="onHeaderTrackShortcut"
-                :aria-label="tracker.isRecording.value ? 'Stopp sporing' : 'Start GPS og sporing'"
-                class="rounded-full w-10 h-10 flex items-center justify-center
-                       shadow-lg active:scale-95 transition relative"
-                :class="tracker.isRecording.value
-                        ? 'bg-pink-500 text-white'
-                        : (userPos.isWatching
-                            ? 'bg-sky-500 text-white'
-                            : 'bg-zinc-950 text-white')">
-          <!-- Recording: «stopp»-firkant. Idle: «play»-trekant (peker til høyre)
-               så den klassiske start/stopp-semantikken er åpenbar uansett om
-               GPS er på (blå knapp = GPS aktiv, klar til å starte ny tur). -->
-          <svg v-if="tracker.isRecording.value" viewBox="0 0 24 24" class="w-4 h-4" fill="currentColor">
-            <rect x="6" y="6" width="12" height="12" rx="1.5"/>
-          </svg>
-          <svg v-else viewBox="0 0 24 24" class="w-5 h-5" fill="currentColor">
-            <polygon points="8,5 8,19 19,12"/>
-          </svg>
-        </button>
+        <AppMenuButton variant="float" />
       </div>
 
       <button v-if="canRenameMap" @click="openRename"
@@ -3269,12 +3288,58 @@ onUnmounted(() => {
         <button @click="openDrawer" aria-label="Innstillinger"
                 class="rounded-full w-10 h-10 flex items-center justify-center
                        bg-zinc-950 text-white shadow-lg active:scale-95 transition">
-          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.4"
+          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
                stroke-linecap="round" stroke-linejoin="round">
-            <line x1="4" y1="6" x2="20" y2="6"/>
-            <line x1="4" y1="12" x2="20" y2="12"/>
-            <line x1="4" y1="18" x2="20" y2="18"/>
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Snarvei-rad: de mest brukte kart-funksjonene (stifinner, rundtur,
+         måling, sporing, info om stedet). Skjules når en modus (stifinner/
+         måling/annotering) eller søk er aktiv, så den ikke kolliderer med
+         modus-bannerne som bruker de samme --ovl-*-slotene. -->
+    <div v-if="!sti.active.value && !measureMode && !searchOpen && !annot.isAnnotateMode.value"
+         class="absolute -translate-x-1/2 top-[var(--ovl-top)] z-20 pointer-events-none
+                transition-[left] duration-200"
+         :style="mapCenterStyle">
+      <div class="pointer-events-auto flex items-stretch gap-1 px-1.5 py-1.5 rounded-2xl
+                  bg-zinc-950/90 backdrop-blur shadow-lg">
+        <button @click="onShortcutStifinner" class="shortcut-btn" aria-label="Stifinner">
+          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+          <span>Stifinner</span>
+        </button>
+        <button @click="onShortcutRoundTrip" class="shortcut-btn" aria-label="Gå en runde">
+          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 4 3 9 8 9"/></svg>
+          <span>Runde</span>
+        </button>
+        <button @click="onShortcutMeasure" class="shortcut-btn" aria-label="Måling">
+          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/>
+            <line x1="6.4" y1="17.6" x2="17.6" y2="6.4" stroke-dasharray="2 2.5"/></svg>
+          <span>Måling</span>
+        </button>
+        <button @click="onHeaderTrackShortcut" class="shortcut-btn"
+                :class="{ 'text-pink-400': tracker.isRecording.value,
+                          'text-sky-400': !tracker.isRecording.value && userPos.isWatching }"
+                :aria-label="tracker.isRecording.value ? 'Stopp sporing' : 'Start sporing'">
+          <svg v-if="tracker.isRecording.value" viewBox="0 0 24 24" class="w-5 h-5" fill="currentColor">
+            <rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>
+          <svg v-else viewBox="0 0 24 24" class="w-5 h-5" fill="currentColor"><polygon points="8,5 8,19 19,12"/></svg>
+          <span>Sporing</span>
+        </button>
+        <button @click="onShortcutInfo" class="shortcut-btn" aria-label="Informasjon om stedet">
+          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/>
+            <circle cx="12" cy="8" r="0.6" fill="currentColor"/></svg>
+          <span>Info</span>
         </button>
       </div>
     </div>
@@ -3481,7 +3546,7 @@ onUnmounted(() => {
          panorerer kartet til siktet står på ønsket start, så «Bekreft». Ligger
          over kartet (pointer-events none) sentrert i kart-flaten (samme right-
          offset som wrapperen så det treffer visibleCenterSvg). -->
-    <div v-if="sti.mode.value === 'pickingStart' || sti.mode.value === 'pickingVia'"
+    <div v-if="['pickingStart', 'pickingVia', 'pickingDest', 'pickingOrigin'].includes(sti.mode.value)"
          class="absolute inset-0 z-20 pointer-events-none flex items-center justify-center"
          :style="{ right: panelOffsetPx + 'px' }">
       <svg viewBox="0 0 80 80" class="w-20 h-20 drop-shadow"
@@ -3499,11 +3564,14 @@ onUnmounted(() => {
         <line x1="58" y1="40" x2="74" y2="40"/>
       </svg>
     </div>
-    <!-- «Bekreft»-knapp (start- eller via-plukk). -->
-    <div v-if="sti.mode.value === 'pickingStart' || sti.mode.value === 'pickingVia'"
+    <!-- «Bekreft»-knapp (mål-, start-, origo- eller via-plukk). -->
+    <div v-if="['pickingStart', 'pickingVia', 'pickingDest', 'pickingOrigin'].includes(sti.mode.value)"
          class="absolute left-1/2 -translate-x-1/2 z-30 transition-[left] duration-200"
          :style="[mapCenterStyle, { bottom: 'calc(env(safe-area-inset-bottom, 0px) + 5rem)' }]">
-      <button @click="sti.mode.value === 'pickingVia' ? onConfirmVia() : onConfirmStart()"
+      <button @click="sti.mode.value === 'pickingVia' ? onConfirmVia()
+                      : sti.mode.value === 'pickingDest' ? onConfirmDest()
+                      : sti.mode.value === 'pickingOrigin' ? onConfirmLoopOrigin()
+                      : onConfirmStart()"
               class="px-5 py-3 rounded-full text-white text-[14px] font-semibold
                      shadow-lg active:scale-95 flex items-center gap-2"
               :class="sti.mode.value === 'pickingVia' ? 'bg-amber-500' : 'bg-emerald-600'">
@@ -3513,6 +3581,7 @@ onUnmounted(() => {
         </svg>
         {{ sti.mode.value === 'pickingVia'
             ? (sti.isLoop.value ? 'Bekreft vendepunkt' : 'Bekreft via-punkt')
+            : sti.mode.value === 'pickingDest' ? 'Bekreft mål'
             : 'Bekreft startpunkt' }}
       </button>
     </div>
@@ -3962,6 +4031,23 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* Snarvei-rad-knapp: ikon over liten etikett, mørk flytende pille. */
+.shortcut-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 54px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.shortcut-btn:active { transform: scale(0.94); }
+.shortcut-btn:hover { background: rgba(255, 255, 255, 0.08); }
+
 .drawer-enter-active, .drawer-leave-active { transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
 .drawer-enter-from, .drawer-leave-to       { transform: translateY(100%); }
 /* Desktop: side-panelet glir inn fra høyre i stedet for opp fra bunnen. */

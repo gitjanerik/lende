@@ -10,6 +10,7 @@ import { useSpeechInput } from '../composables/useSpeechInput.js'
 import { reverseGeocode } from '../lib/geocode.js'
 import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
+import AppMenuButton from '../components/AppMenuButton.vue'
 
 const router = useRouter()
 
@@ -346,21 +347,8 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
           <use href="#hdr-blob" transform="translate(0,0) scale(0.72)"/>
         </g>
       </svg>
-      <button @click="router.push('/rute')" aria-label="Bytt til Ruteplanlegger"
-              class="relative w-9 h-9 rounded-full flex items-center justify-center bg-white/5 border border-white/10
-                     text-white/70 active:scale-95 transition shrink-0">
-        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-      </button>
-      <div class="relative flex-1 text-center text-[14px] font-semibold tracking-wide">Så i lende: turkart</div>
-      <button @click="router.push('/om')" aria-label="Om appen"
-              class="relative w-9 h-9 rounded-full flex items-center justify-center bg-white/5 border border-white/10
-                     text-white/70 active:scale-95 transition shrink-0">
-        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r="0.6" fill="currentColor"/>
-        </svg>
-      </button>
+      <div class="relative"><AppMenuButton variant="header" /></div>
+      <div class="relative flex-1"></div>
     </div>
 
     <!-- Innhold -->
