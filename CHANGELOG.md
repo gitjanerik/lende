@@ -1,6 +1,19 @@
 # Endringslogg
 
-## 2026-07-22 — v1.0.68: KI-arkitekturnotat + lockfile-synk i versjonsritualet
+## 2026-07-22 — v1.0.69: Toppbaren respekterer iOS-statuslinja i app-modus
+
+Toppbaren i kartvisningen (tilbake-/spor-knapp, tittel-badge og meny-/søk-knappene
+til høyre) lå limt til `top-0` og havnet under iOS-statuslinja i frittstående
+app-modus — klokka og batteriindikatoren overlappet knappene («i clinch med
+OS-et»). Med `apple-mobile-web-app-status-bar-style: black-translucent` tegnes
+innholdet bak statuslinja, så toppbaren trenger sikker-sone-margen selv. Vi
+bytter det statiske toppmarget mot `max(env(safe-area-inset-top, 0px), 0.75rem)`,
+samme mønster som bunn-UI-et allerede bruker for `safe-area-inset-bottom`, så
+baren skyves ned under notch/statuslinje på iPhone og beholder 0.75rem i vanlig
+nettleser.
+
+---
+
 
 Nytt beslutningsnotat `docs/AI_ARKITEKTUR.md` fryser retningen for KI i Lende
 (serverless Cloudflare-proxy etter NVE-proxy-malen, «Spør KI om dette

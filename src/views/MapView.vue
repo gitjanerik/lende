@@ -3214,9 +3214,10 @@ onUnmounted(() => {
          panelbredden) så den midtstilte tittel-badgen re-sentreres responsivt
          når side-panelet endrer bredde, og søke-/meny-knappene ikke havner bak
          panelet. Mobil/lukket: full bredde (panelOffsetPx = 0). -->
-    <div class="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-3 py-3
+    <div class="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-3 pb-3
                 pointer-events-none transition-[right] duration-200"
-         :style="{ right: panelOffsetPx + 'px' }">
+         :style="{ right: panelOffsetPx + 'px',
+                   paddingTop: 'max(env(safe-area-inset-top, 0px), 0.75rem)' }">
       <div class="flex items-center gap-2 pointer-events-auto">
         <button @click="router.push('/kart')"
                 aria-label="Tilbake til kart-lista"
