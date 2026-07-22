@@ -1,6 +1,17 @@
 # Endringslogg
 
-## 2026-07-22 — v1.0.66: Nestede SVG-viewporter flates ut før print/PDF
+## 2026-07-22 — v1.0.67: Tale-til-tekst i kartets interne søkeboks
+
+Søke-overlayet i kartet (`MapSearchOverlay`) har fått en mikrofon-knapp for
+diktering, slik forsidesøket og kartvelgeren allerede har. Den gjenbruker
+`useSpeechInput`-komposabelen — gjenkjenning skjer i nettleseren (nb-NO), ingen
+lyd lastes opp — og mater transkriptet inn i søkefeltet via `update:query`, som
+om det ble skrevet. Knappen skjules automatisk der nettleseren mangler
+SpeechRecognition (samme graceful mønster som geolokasjon), og lyser rødt med
+puls mens den lytter.
+
+---
+
 
 Kart med detalj-inset og turrapporter nester et kart-`<svg>` med egen viewBox
 inne i det ytre SVG-et. Nettleseren viser dette riktig på skjerm, men Chromiums
