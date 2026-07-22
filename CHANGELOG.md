@@ -1,6 +1,21 @@
 # Endringslogg
 
-## 2026-07-22 — v1.0.69: Toppbaren respekterer iOS-statuslinja i app-modus
+## 2026-07-22 — v1.0.70: På-enhet diagnose for Stifinner («finner ingen stier»)
+
+Feilsøkingshjelp for en rapport der Stifinner/«Gå en runde» ikke fant ruter på
+iPhone (Safari) selv om stiene vises på kartet, mens samme punkter fungerte på
+Android. Ruteberegningen er ren klientside-graf-logikk lest fra kart-SVG-en —
+GPS er ikke involvert — så feilen måtte lokaliseres på selve enheten (uten
+devtools på mobil). Stifinner eksponerer nå en `diag`-streng som vises under
+feilmeldingen i modus-chipen: antall `data-iso`-grupper, hvor mange som er
+routbare (501–509), antall parsede features, og graf-noder/kanter — pluss
+nærmeste snap-avstand når et punkt ligger for langt fra nettet. Da ser man med
+det samme om det er et kode-mismatch (grupper>0, routbare 0), en path-parse-feil
+(routbare>0, features 0) eller et koordinat-avvik (features>0 men snap-avstanden
+er urimelig stor). Ingen endring i selve rute-logikken.
+
+---
+
 
 Toppbaren i kartvisningen (tilbake-/spor-knapp, tittel-badge og meny-/søk-knappene
 til høyre) lå limt til `top-0` og havnet under iOS-statuslinja i frittstående
