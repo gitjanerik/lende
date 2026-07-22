@@ -1,5 +1,18 @@
 # Endringslogg
 
+## 2026-07-22 — v1.0.66: Nestede SVG-viewporter flates ut før print/PDF
+
+Kart med detalj-inset og turrapporter nester et kart-`<svg>` med egen viewBox
+inne i det ytre SVG-et. Nettleseren viser dette riktig på skjerm, men Chromiums
+print-sti («Lagre som PDF» og `window.print()`) håndterer ikke nestede
+SVG-viewporter — kartet flommet utover eller skaleres feil. Ny `flattenNestedSvg`
+erstatter hvert nestede element med en klippet `<g transform>` som reproduserer
+viewBox- og preserveAspectRatio-avbildningen selv, slik at ingen nestet viewport
+står igjen. `printDocument` bruker den nå, så vektor-PDF via nettleseren blir
+korrekt. Resultatet er visuelt identisk for skjerm/canvas og forblir ren vektor.
+
+---
+
 ## 2026-07-22 — v1.0.65: Rettet Om-teksten for vannmålestasjon-ikonet
 
 Beskrivelsen på Om-siden sa fortsatt at NVEs hydrologiske stasjoner dukker opp

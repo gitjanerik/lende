@@ -13,7 +13,11 @@
 //
 //   printDocument(svgString, options)
 //      Åpner et nytt vindu og triggrer window.print() — for de som vil
-//      printe på papir. Dropper kombinasjon med PDF (egen funksjon).
+//      printe på papir eller «Lagre som PDF» (vektor). Flater nestede
+//      <svg>-viewporter først (se flattenNestedSvg) så Chromiums print-sti
+//      ikke skalerer/klipper kart-inset eller turrapport-kart feil.
+
+import { flattenNestedSvg } from './flattenNestedSvg.js'
 
 // v8.9.25: max canvas-dimensjon (px). Chrome Android OOM-feilet på
 // fullscale 5–10 km kart ved 300 dpi (canvas-bytes = px² × 4 — et
@@ -188,7 +192,7 @@ export async function exportPdfFile(svgString, filename = 'turkart.pdf', { dpi =
 export function printDocument(svgString, { title = 'Turkart' } = {}) {
   const w = window.open('', '_blank', 'width=1200,height=900')
   if (!w) { alert('Tillat popup for å printe'); return }
-  const cleanedSvg = stripRuntimeOverlays(svgString)
+  const cleanedSvg = flattenNestedSvg(stripRuntimeOverlays(svgString))
   // Sett inn SVG i et minimalt dokument
   w.document.write(`<!doctype html><html><head>
     <title>${title}</title>
