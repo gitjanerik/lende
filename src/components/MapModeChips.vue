@@ -197,6 +197,9 @@ function formatElevationDiff(m) {
       <template v-else>
         <template v-if="sti.error.value">
           <div class="text-[12px] font-semibold">{{ sti.error.value }}</div>
+          <div v-if="sti.diag.value" class="text-[9px] text-emerald-100/70 mt-0.5 tabular-nums break-all">
+            {{ sti.diag.value }}
+          </div>
           <div v-if="sti.directDistanceM.value" class="text-[10px] text-emerald-100/90 mt-0.5 tabular-nums">
             Luftlinje A→B: {{ formatDistance(sti.directDistanceM.value) }}
           </div>

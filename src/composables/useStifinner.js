@@ -49,6 +49,12 @@ export function useStifinner() {
   const routes = ref([])            // [{ coordinates, lengthM, costM }]
   const selectedRouteIdx = ref(0)
   const error = ref('')             // brukervendt feilmelding
+  // Diagnose-streng (kun satt ved feil): antall data-iso-grupper, routbare
+  // grupper, features og graf-noder/kanter + snap-avstand. Vises i modus-chipen
+  // så feilsøking kan skje PÅ enheten (iPhone/Safari uten devtools).
+  const diag = ref('')
+  // Fylles av featuresFromSvg/graphFor for diag-strengen.
+  let lastGraphStats = null         // { grupper, routbare, features, noder, kanter }
   // Snappede graf-noder (for connector-strek fra valgt punkt til stien).
   const startSnap = ref(null)       // { x, y } i SVG-rom
   const destSnap = ref(null)
@@ -151,9 +157,11 @@ export function useStifinner() {
   function featuresFromSvg(svgElement) {
     const features = []
     const groups = svgElement.querySelectorAll('[data-iso]')
+    let routableGroups = 0
     for (const g of groups) {
       const code = g.getAttribute('data-iso')
       if (!ROUTABLE_CODES.has(code)) continue
+      routableGroups++
       const { dx, dy } = nestedSvgOffset(g, svgElement)
       const paths = g.tagName.toLowerCase() === 'path' ? [g] : g.querySelectorAll('path')
       for (const p of paths) {
@@ -168,6 +176,10 @@ export function useStifinner() {
         }
       }
     }
+    lastGraphStats = {
+      grupper: groups.length, routbare: routableGroups, features: features.length,
+      noder: 0, kanter: 0,
+    }
     return features
   }
 
@@ -180,6 +192,10 @@ export function useStifinner() {
     const features = featuresFromSvg(svgElement)
     if (!features.length) return null
     cachedRg = buildRoutingGraph(features, { snapM: 6, componentBridgeM: 80 })
+    if (lastGraphStats) {
+      lastGraphStats.noder = cachedRg.nodes
+      lastGraphStats.kanter = cachedRg.edges
+    }
     cachedSvg = svgElement
     return cachedRg
   }
@@ -189,6 +205,7 @@ export function useStifinner() {
   function recompute() {
     if (mode.value === 'following') return   // ruta i bruk skal aldri endres under føttene
     error.value = ''
+    diag.value = ''
     routes.value = []
     selectedRouteIdx.value = 0
     startSnap.value = null
@@ -200,6 +217,8 @@ export function useStifinner() {
       return
     }
     const rg = graphFor(lastSvg)
+    const s = lastGraphStats
+    if (s) diag.value = `grupper ${s.grupper} · routbare ${s.routbare} · features ${s.features} · noder ${s.noder} · kanter ${s.kanter}`
     if (!rg) {
       error.value = 'Fant ingen sti eller vei på kartet'
       return
@@ -215,6 +234,7 @@ export function useStifinner() {
         if (!n || n.distM > MAX_SNAP_M) {
           error.value = i === 0 ? 'Ingen sti eller vei i nærheten av startpunktet'
             : `Ingen sti eller vei i nærheten av vendepunkt ${i}`
+          diag.value += ` · nærmeste ${n ? Math.round(n.distM) : '∞'} m (maks ${MAX_SNAP_M})`
           return
         }
       }
@@ -239,6 +259,7 @@ export function useStifinner() {
         error.value = i === 0 ? 'Ingen sti eller vei i nærheten av startpunktet'
           : i === snapped.length - 1 ? 'Ingen sti eller vei i nærheten av målet'
             : `Ingen sti eller vei i nærheten av via-punkt ${i}`
+        diag.value += ` · nærmeste ${n ? Math.round(n.distM) : '∞'} m (maks ${MAX_SNAP_M})`
         return
       }
     }
@@ -347,7 +368,7 @@ export function useStifinner() {
   }
 
   return {
-    mode, active, blocking, isLoop, destination, start, via, routes, selectedRouteIdx, error,
+    mode, active, blocking, isLoop, destination, start, via, routes, selectedRouteIdx, error, diag,
     startSnap, destSnap, viaSnaps, directDistanceM, canAddVia, MAX_VIA,
     begin, beginLoop, cancel, confirmStart, beginAddVia, confirmVia, removeVia, clearVia,
     selectRoute, follow, stopFollowing, estWalkMinutes,

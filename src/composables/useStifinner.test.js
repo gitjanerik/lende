@@ -323,3 +323,34 @@ describe('useStifinner – følg rute (following)', () => {
     expect(sti.via.value).toEqual([])
   })
 })
+
+describe('useStifinner – diagnose (på-enhet feilsøking)', () => {
+  it('kart med kun ikke-routbare data-iso-grupper: diag viser grupper>0, routbare 0', () => {
+    const veg = fakeEl('g', { 'data-iso': '405' }, [fakeEl('path', { d: 'M0,0L100,0' })])
+    const svg = fakeEl('svg', {}, [veg])
+    const sti = useStifinner()
+    sti.begin({ svgX: 100, svgY: 0 })
+    sti.confirmStart({ x: 0, y: 0 }, svg, {})
+    expect(sti.error.value).toBe('Fant ingen sti eller vei på kartet')
+    expect(sti.diag.value).toContain('grupper 1')
+    expect(sti.diag.value).toContain('routbare 0')
+    expect(sti.diag.value).toContain('features 0')
+  })
+
+  it('startpunkt langt fra stien: diag viser nærmeste-avstand', () => {
+    const sti = useStifinner()
+    sti.begin({ svgX: 500, svgY: 0 })
+    sti.confirmStart({ x: 500, y: 5000 }, lineSvg(), {})
+    expect(sti.error.value).toMatch(/i nærheten/)
+    expect(sti.diag.value).toMatch(/nærmeste \d+ m/)
+  })
+
+  it('vellykket rute: diag rapporterer noder og kanter > 0', () => {
+    const sti = useStifinner()
+    sti.begin({ svgX: 1000, svgY: 0 })
+    sti.confirmStart({ x: 0, y: 0 }, lineSvg(), {})
+    expect(sti.error.value).toBe('')
+    expect(sti.diag.value).toMatch(/noder [1-9]/)
+    expect(sti.diag.value).toMatch(/kanter [1-9]/)
+  })
+})
