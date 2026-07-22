@@ -1,5 +1,24 @@
 # Endringslogg
 
+## 2026-07-22 — v1.0.64: MCP tetter hull mot appen + tale-til-tekst i søk
+
+MCP-serveren har fått tre nye evner som lukker gapet mot appens nyutvikling.
+Nytt verktøy `vannmalestasjoner` henter NVE-målestasjoner (siste vannføring,
+vannstand og vanntemperatur, pluss nedbørfelt/moh/kommune/eier og Sildre-lenke)
+for kartutsnittet, et senterpunkt med radius eller en eksplisitt bbox — via
+Cloudflare-proxyen, uten nøkkel siden Node ignorerer CORS. Samme hydrologi er
+lagt til som en fjerde funn-seksjon i `berik_rute` og `turrapport_svg`. Nytt
+verktøy `planlegg_rundtur` planlegger ekte sløyfer (utturen straffes så hjemveien
+blir en annen sti) via den ferdig testede `planLoop`, og `planlegg_rute` tar nå
+valgfrie via-punkter for paritet med de andre rute-verktøyene. I appen kan de tre
+stedssøk-feltene (forsiden, Nytt turkart, ruteplanleggerens Fra/Til) dikteres med
+tale-til-tekst via et nytt `useSpeechInput`-composable (Web Speech API, nb-NO);
+mikrofon-knappen vises kun der nettleseren støtter det (feature-detect), så iOS
+faller pent tilbake til tastatur. Ny utredning `docs/MCP_REMOTE_CHAT.md` veier
+remote-MCP mot et chat-view uten å bygge noe ennå.
+
+---
+
 ## 2026-07-21 — v1.0.63: Default kartstørrelse hevet fra 4 til 5 km
 
 Målet for hele mobil-ytelse-sporet: standard-kartet (søk/GPS-flyten på

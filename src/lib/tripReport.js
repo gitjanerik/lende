@@ -52,6 +52,15 @@ function profilePanel(profile, x, y, w, h) {
 
 const RED_COLORS = { CR: '#b91c1c', EN: '#ea580c', VU: '#f59e0b', NT: '#eab308' }
 
+// Kompakt «vannføring, vannstand, temp» av de verdiene en stasjon faktisk har.
+function hydroVals(v) {
+  const out = []
+  if (v.vannforing) out.push(`${v.vannforing.verdi} m³/s`)
+  if (v.vannstand) out.push(`${v.vannstand.verdi} m`)
+  if (v.vanntemp) out.push(`${v.vanntemp.verdi} °C`)
+  return out.join(', ')
+}
+
 /**
  * Bygg turrapporten som SVG-streng.
  * @param {{
@@ -103,6 +112,12 @@ export function buildTripReportSvg(opts = {}) {
       push('Rødliste-data utilgjengelig', 'muted')
     }
   }
+
+  const vann = enrichment.vannstasjoner ?? []
+  push('Vannmålestasjoner (NVE)', 'h')
+  if (!enrichment.kilder?.hydrologi) push('Kilde utilgjengelig (NVE HydAPI)', 'muted')
+  else if (!vann.length) push('Ingen målestasjoner langs ruten', 'muted')
+  else for (const v of vann.slice(0, 8)) push(`• ${v.navn}${hydroVals(v) ? ` — ${hydroVals(v)}` : ''}  (${fmtKm(v.langsM)} inn, ${v.avstandM} m fra sti)`)
 
   push('Veibeskrivelse', 'h')
   if (!cues.length) push('Ingen tydelige kryss-valg oppdaget', 'muted')
@@ -202,6 +217,13 @@ export function buildTripReportMarkdown(opts = {}) {
       for (const sp of arter.rodliste.arter.slice(0, 12)) L.push(`- ${sp.norsk || sp.vitenskapelig || 'art'} (${sp.kategori}${sp.gruppe ? ', ' + sp.gruppe : ''})`)
     }
   }
+  L.push('')
+
+  const vann = enrichment.vannstasjoner ?? []
+  L.push('## Vannmålestasjoner (NVE)')
+  if (!k.hydrologi) L.push('_Kilde utilgjengelig (NVE HydAPI)_')
+  else if (!vann.length) L.push('_Ingen langs ruten_')
+  else for (const v of vann.slice(0, 12)) L.push(`- ${v.navn}${hydroVals(v) ? ` — ${hydroVals(v)}` : ''} (${fmtKm(v.langsM)} inn, ${v.avstandM} m fra sti)`)
   L.push('')
 
   L.push('## Veibeskrivelse')

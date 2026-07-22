@@ -20,6 +20,7 @@ import { fetchOverpassWithRetry } from '../lib/overpassClient.js'
 import { simplifyDP } from '../lib/pathUtils.js'
 import { estimateMcTimeS, fmtAvstandM, MAX_SNAP_DIST_M } from '../lib/brouterClient.js'
 import { useNominatim } from '../composables/useNominatim.js'
+import { useSpeechInput } from '../composables/useSpeechInput.js'
 import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
 import { reverseNearestPlace } from '../lib/nominatimReverse.js'
 import { routeShareToken, parseRouteToken, MAX_SHARE_ROUTES } from '../lib/routeShare.js'
@@ -302,6 +303,10 @@ const searchA = useNominatim()
 const searchB = useNominatim()
 const activeSearch = ref(null)       // 'A' | 'B' | null — hvilken dropdown vises
 const armedField = ref(null)         // 'A' | 'B' | null — «velg i kartet»
+// Tale-til-tekst pr felt (samme nettleser-støtte, egen lytte-tilstand).
+const speechA = useSpeechInput({ onResult: (t) => { searchA.query.value = t; activeSearch.value = 'A' } })
+const speechB = useSpeechInput({ onResult: (t) => { searchB.query.value = t; activeSearch.value = 'B' } })
+const micSupported = speechA.isSupported
 
 function labelFor(p) {
   return p?.name ?? (p ? `${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}` : '')
@@ -1870,6 +1875,21 @@ onUnmounted(() => {
                    :placeholder="field === 'A' ? 'Fra — startsted' : 'Til — destinasjon'"
                    class="flex-1 min-w-0 py-2 bg-transparent text-[13px] placeholder-white/35
                           focus:outline-none" />
+            <!-- Tale-til-tekst: diktér Fra/Til (skjult uten nettleser-støtte / i delingsmodus) -->
+            <button v-if="micSupported && !routeInvite" type="button"
+                    @click="(field === 'A' ? speechA : speechB).toggle()"
+                    :aria-pressed="(field === 'A' ? speechA : speechB).isListening.value"
+                    :aria-label="`Diktér ${field === 'A' ? 'startsted' : 'destinasjon'}`"
+                    :class="['w-8 h-8 shrink-0 rounded-lg border flex items-center justify-center active:scale-95 transition',
+                             (field === 'A' ? speechA : speechB).isListening.value
+                               ? 'bg-red-500/90 border-red-400/40 text-white animate-pulse'
+                               : 'bg-white/5 border-white/10 text-white/50']">
+              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/>
+              </svg>
+            </button>
             <!-- Angre: fjern satt punkt (skjult i delingsmodus) -->
             <button v-if="(field === 'A' ? pointA : pointB) && !routeInvite"
                     @click="setPoint(field, null)"

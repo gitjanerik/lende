@@ -97,4 +97,41 @@ describe('enrichRoute', () => {
     const r = await enrichRoute(route, { toWgs84, toSvg, fetchers, collectRedListed, redListLookup: null })
     expect(r.arter.rodliste).toBeNull()
   })
+
+  it('uten hydro-fetcher: tom vannstasjon-liste og kilde false (bakoverkompatibelt)', async () => {
+    const r = await enrichRoute(route, { toWgs84, toSvg, fetchers, collectRedListed, redListLookup })
+    expect(r.vannstasjoner).toEqual([])
+    expect(r.kilder.hydrologi).toBe(false)
+  })
+
+  it('beholder hydro-stasjoner innen buffer, sortert langs ruten, med siste verdier', async () => {
+    const hydroFetchers = {
+      ...fetchers,
+      fetchHydroStations: async () => ([
+        { stationId: '2.11', stationName: 'Nær elv', latitude: 0.05, lon: undefined, longitude: 0.6 },
+        { stationId: '2.12', stationName: 'Fjern', latitude: 0.5, longitude: 0.2 },
+        { stationId: '2.13', stationName: 'Tidlig', latitude: 0.02, longitude: 0.2 },
+      ]),
+      fetchStationLatest: async (st) => st.stationId === '2.11'
+        ? { discharge: { value: 12.3, time: '2026-07-22T10:00:00Z' } }
+        : {},
+    }
+    const mapHydroStation = (st, { distM, alongM, latest }) => ({
+      navn: st.stationName, avstandM: Math.round(distM), langsM: Math.round(alongM),
+      ...(latest.discharge ? { vannforing: { verdi: latest.discharge.value, tid: latest.discharge.time } } : {}),
+    })
+    const r = await enrichRoute(route, {
+      toWgs84, toSvg, bufferM: 150, fetchers: hydroFetchers, collectRedListed, redListLookup, mapHydroStation,
+    })
+    expect(r.kilder.hydrologi).toBe(true)
+    expect(r.vannstasjoner.map(v => v.navn)).toEqual(['Tidlig', 'Nær elv'])
+    expect(r.vannstasjoner.find(v => v.navn === 'Nær elv').vannforing.verdi).toBe(12.3)
+  })
+
+  it('svelger hydro-feil (graceful)', async () => {
+    const broken = { ...fetchers, fetchHydroStations: async () => { throw new Error('HydAPI nede') } }
+    const r = await enrichRoute(route, { toWgs84, toSvg, fetchers: broken, collectRedListed, redListLookup })
+    expect(r.vannstasjoner).toEqual([])
+    expect(r.kilder.hydrologi).toBe(false)
+  })
 })

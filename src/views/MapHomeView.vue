@@ -6,6 +6,7 @@ import RenameMapDialog from '../components/RenameMapDialog.vue'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { useMapSizePreference, effectiveEquidistanceForWidthKm, defaultMapDims, aspectForFormat } from '../composables/useMapSizePreference.js'
 import { useNominatim } from '../composables/useNominatim.js'
+import { useSpeechInput } from '../composables/useSpeechInput.js'
 import { reverseGeocode } from '../lib/geocode.js'
 import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
@@ -242,6 +243,19 @@ async function onCreateHere() {
 // (MapPickerView) for de som vil finjustere.
 const { query, results, isSearching, error: searchError } = useNominatim()
 
+// Tale-til-tekst: diktér søket. Knappen vises kun der nettleseren støtter det.
+const { isSupported: micSupported, isListening: micListening, toggle: toggleMic } =
+  useSpeechInput({ onResult: (t) => { query.value = t } })
+
+// Høyre-padding + spinner-plassering avhenger av hvor mange kontroll-knapper
+// (mikrofon + GPS) som faktisk vises.
+const rightControlCount = computed(() =>
+  (supportsGeolocation ? 1 : 0) + (micSupported.value ? 1 : 0))
+const searchRightPad = computed(() =>
+  rightControlCount.value === 2 ? 'pr-24' : rightControlCount.value === 1 ? 'pr-14' : 'pr-3')
+const spinnerRight = computed(() =>
+  rightControlCount.value === 2 ? 'right-[5.9rem]' : rightControlCount.value === 1 ? 'right-[3.4rem]' : 'right-3.5')
+
 const showResults = computed(() =>
   query.value.trim().length >= 2 && (results.value.length > 0 || isSearching.value)
 )
@@ -387,29 +401,40 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
                  aria-controls="maphome-results"
                  :aria-activedescendant="searchActiveIndex >= 0 ? `maphome-opt-${searchActiveIndex}` : undefined"
                  placeholder="Søk etter sted, postnummer eller adresse"
-                 :class="['w-full pl-11 py-3.5 rounded-xl bg-white/[0.06] border text-[15px]',
+                 :class="['w-full pl-11 py-3.5 rounded-xl bg-white/[0.06] border border-white/20 text-[15px]',
                           'placeholder-white/35 focus:outline-none focus:bg-white/[0.1]',
                           'focus:border-emerald-300/40 focus:ring-2 focus:ring-emerald-400/15 transition',
-                          supportsGeolocation ? 'pr-14 border-white/20' : 'pr-3 border-white/20']" />
-          <!-- Søke-spinner (forskjøvet til venstre for GPS-knappen) -->
+                          searchRightPad]" />
+          <!-- Søke-spinner (til venstre for kontroll-knappene) -->
           <div v-if="isSearching"
                :class="['absolute top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-white/15',
-                        'border-t-white/70 rounded-full animate-spin',
-                        supportsGeolocation ? 'right-[3.4rem]' : 'right-3.5']" />
-          <!-- Integrert GPS-knapp: lag kart der jeg er -->
-          <button v-if="supportsGeolocation"
-                  @click="onCreateHere"
-                  :disabled="buildingOnTheFly"
-                  aria-label="Lag kart der jeg står (GPS)"
-                  class="absolute right-1.5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-lg
-                         bg-emerald-500 text-white flex items-center justify-center
-                         shadow-md active:scale-95 transition disabled:opacity-60">
-            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="10" r="3"/>
-              <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>
-            </svg>
-          </button>
+                        'border-t-white/70 rounded-full animate-spin', spinnerRight]" />
+          <!-- Kontroll-knapper: mikrofon (diktér søk) + GPS (lag kart der jeg er) -->
+          <div class="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            <button v-if="micSupported" type="button" @click="toggleMic"
+                    :aria-label="micListening ? 'Stopp diktering' : 'Diktér søk (tale til tekst)'"
+                    :aria-pressed="micListening"
+                    :class="['w-9 h-9 rounded-lg flex items-center justify-center transition active:scale-95',
+                             micListening ? 'bg-red-500/90 text-white animate-pulse' : 'bg-white/10 text-white/70']">
+              <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/>
+              </svg>
+            </button>
+            <button v-if="supportsGeolocation"
+                    @click="onCreateHere"
+                    :disabled="buildingOnTheFly"
+                    aria-label="Lag kart der jeg står (GPS)"
+                    class="w-10 h-10 rounded-lg bg-emerald-500 text-white flex items-center justify-center
+                           shadow-md active:scale-95 transition disabled:opacity-60">
+              <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="10" r="3"/>
+                <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
         <!-- Søkeresultater -->

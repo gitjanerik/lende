@@ -13,7 +13,7 @@ import { z } from 'zod'
 import { buildMapHeadless, routableFeaturesFromSvg, extractMapPoiFromSvg, searchMapSvg } from './headless.js'
 import { filterPoi, POI_LABELS } from '../src/lib/mapPoi.js'
 import { formatAreaShort } from '../src/composables/useMapSearch.js'
-import { buildRoutingGraph, planRoutes, planRoutesThrough } from '../src/lib/routing.js'
+import { buildRoutingGraph, planRoutes, planRoutesThrough, planLoop } from '../src/lib/routing.js'
 import { wgs84ToSvg, svgToWgs84, utm32BboxFromWgs84 } from '../src/lib/utm.js'
 import { sampleProfile } from '../src/lib/elevationProfile.js'
 import { sampleElevation } from '../src/lib/demSampling.js'
@@ -30,6 +30,9 @@ import { collectRedListed } from '../src/lib/redListNo.js'
 import { fetchFredaKulturminner } from '../src/lib/kulturminneWfs.js'
 import { fetchProtectedArea } from '../src/lib/verneFetcher.js'
 import { fetchSpeciesSummary } from '../src/lib/gbifSpecies.js'
+import {
+  fetchStationsForBbox, fetchStationLatest, pickStationInfo, sildreStationUrl,
+} from '../src/lib/nveHydApi.js'
 
 // Sist bygde kart + avledet tilstand, så rute-verktøyene slipper re-bygging.
 const state = {
@@ -149,6 +152,26 @@ function insideMap(p) {
   return p.x >= 0 && p.y >= 0 && p.x <= meta.widthM && p.y <= meta.heightM
 }
 
+// WGS84-bbox for sist bygde kart, utledet fra de fire hjørnene (meta bærer
+// ikke en ferdig lat/lon-bbox). Brukes av vannmalestasjoner uten eksplisitt
+// område.
+function mapBboxWgs84() {
+  const meta = svgMeta()
+  const corners = [
+    svgToWgs84(0, 0, meta), svgToWgs84(meta.widthM, 0, meta),
+    svgToWgs84(0, meta.heightM, meta), svgToWgs84(meta.widthM, meta.heightM, meta),
+  ]
+  const lats = corners.map(c => c.lat), lons = corners.map(c => c.lon)
+  return { south: Math.min(...lats), north: Math.max(...lats), west: Math.min(...lons), east: Math.max(...lons) }
+}
+
+// Kvadratisk WGS84-bbox rundt et senter med radius i km (grov grad-omregning).
+function bboxAround(lat, lon, radiusKm) {
+  const dLat = radiusKm / 111
+  const dLon = radiusKm / (111 * Math.max(0.1, Math.cos(lat * Math.PI / 180)))
+  return { south: lat - dLat, north: lat + dLat, west: lon - dLon, east: lon + dLon }
+}
+
 // Gangtid etter Naismith — samme konstanter som useStifinner.estWalkMinutes.
 function estWalkMinutes(lengthM, ascent = 0, descent = 0) {
   const min = lengthM / (4000 / 60) + ascent / 10 + descent / 30
@@ -205,10 +228,38 @@ function loadRedListDisk() {
 }
 
 // De ekte fetcherne pakket for enrichRoute (injiseres så lib-en er testbar).
+// NVE-stasjonene går via Cloudflare-proxyen (standard-URL i nveHydApi) — Node
+// ignorerer CORS, så ingen nøkkel trengs her.
 const ENRICH_FETCHERS = {
   fetchFredaKulturminner: (bbox, o) => fetchFredaKulturminner(bbox, o),
   fetchProtectedArea: (lat, lon, o) => fetchProtectedArea(lat, lon, o),
   fetchSpeciesSummary: (geom, o) => fetchSpeciesSummary(geom, o),
+  fetchHydroStations: (bbox, o) => fetchStationsForBbox(bbox, o),
+  fetchStationLatest: (station, o) => fetchStationLatest(station, o),
+}
+
+// Normaliser en HydAPI-stasjon (+ siste måleverdier + korridor-posisjon) til
+// MCP-retur. Tar bare med felt som faktisk finnes (aldri oppdiktet verdi).
+function mapHydroStation(st, { distM, alongM, latest }) {
+  const info = pickStationInfo(st)
+  const o = {
+    navn: st.stationName ?? 'NVE-stasjon',
+    stasjonsId: st.stationId,
+    lat: Number(Number(st.latitude).toFixed(6)),
+    lon: Number(Number(st.longitude).toFixed(6)),
+    avstandM: Math.round(distM),
+    langsM: Math.round(alongM),
+    sildreUrl: sildreStationUrl(st.stationId),
+  }
+  if (latest?.discharge) o.vannforing = { verdi: latest.discharge.value, tid: latest.discharge.time }
+  if (latest?.waterLevel) o.vannstand = { verdi: latest.waterLevel.value, tid: latest.waterLevel.time }
+  if (latest?.waterTemp) o.vanntemp = { verdi: latest.waterTemp.value, tid: latest.waterTemp.time }
+  if (info.basinArea != null) o.nedborfeltKm2 = info.basinArea
+  if (info.masl != null) o.moh = info.masl
+  if (info.council) o.kommune = info.council
+  if (info.stationType) o.stasjonstype = info.stationType
+  if (info.owner) o.eier = info.owner
+  return o
 }
 
 // Planlegg rute gjennom punktene [start, ...via, maal], velg én, og berik den
@@ -224,6 +275,7 @@ async function planAndEnrich(points, { bufferM = 150, ruteIndeks = 0 } = {}) {
     fetchers: ENRICH_FETCHERS,
     collectRedListed,
     redListLookup: loadRedListDisk(),
+    mapHydroStation,
   })
   return { found, sel, route, meta, snaps, enrichment }
 }
@@ -310,22 +362,36 @@ server.registerTool(
   {
     title: 'Planlegg fotrute',
     description:
-      'Planlegger 1–3 fotruter mellom to punkter på sist bygde kart, langs stier og veier ' +
-      '(ISOM-vektet Dijkstra — sti foretrekkes over vei, motorvei ekskluderes). Returnerer ' +
-      'distanse, stigning/fall, estimert gangtid (Naismith) og rutepunkter i WGS84.',
+      'Planlegger 1–3 fotruter mellom to punkter (valgfritt innom via-punkter) på sist bygde ' +
+      'kart, langs stier og veier (ISOM-vektet Dijkstra — sti foretrekkes over vei, motorvei ' +
+      'ekskluderes). Returnerer distanse, stigning/fall, estimert gangtid (Naismith) og ' +
+      'rutepunkter i WGS84.',
     inputSchema: {
       start: z.object({ lat: z.number(), lon: z.number() }).describe('Startpunkt'),
       maal: z.object({ lat: z.number(), lon: z.number() }).describe('Målpunkt'),
+      via: z.array(z.object({ lat: z.number(), lon: z.number(), navn: z.string().optional() }))
+        .optional().describe('Via-punkter ruten må innom, i rekkefølge'),
     },
   },
-  async ({ start, maal }) => {
+  async ({ start, maal, via }) => {
     requireMap()
-    const { found, meta, aNode, bNode } = planBetween(start, maal)
+    const viaPts = via ?? []
+    let found, meta, startDist, maalDist
+    if (viaPts.length) {
+      const r = planThrough([start, ...viaPts, maal])
+      found = r.found; meta = r.meta
+      startDist = r.snaps[0].node.distM
+      maalDist = r.snaps[r.snaps.length - 1].node.distM
+    } else {
+      const r = planBetween(start, maal)
+      found = r.found; meta = r.meta
+      startDist = r.aNode.distM; maalDist = r.bNode.distM
+    }
 
     state.routes = found
     return jsonResult({
       status: 'ok',
-      snappingM: { start: Math.round(aNode.distM), maal: Math.round(bNode.distM) },
+      snappingM: { start: Math.round(startDist), maal: Math.round(maalDist) },
       ruter: found.map((r, i) => {
         const climb = climbFor(r.coordinates)
         return {
@@ -342,6 +408,99 @@ server.registerTool(
         }
       }),
     })
+  },
+)
+
+server.registerTool(
+  'planlegg_rundtur',
+  {
+    title: 'Planlegg rundtur (sløyfe)',
+    description:
+      'Planlegger en RUNDTUR (sløyfe) fra et startpunkt innom ett eller flere vendepunkt og ' +
+      'tilbake til start på sist bygde kart. Hjemveien straffes mot utturen, så det blir en ekte ' +
+      'runde og ikke tur/retur der en alternativ sti finnes. Returnerer 1–3 sløyfe-alternativer ' +
+      '(lengde, stigning/fall, gangtid, rutepunkter i WGS84) og kan valgfritt tegne sløyfen inn i ' +
+      'kart-SVG-en (som tegn_rute_svg, med gule vendepunkt-markører). Ruten kan eksporteres med ' +
+      'eksporter_gpx etterpå.',
+    inputSchema: {
+      origo: z.object({ lat: z.number(), lon: z.number() }).describe('Startpunkt = mål (sløyfens origo)'),
+      via: z.array(z.object({ lat: z.number(), lon: z.number(), navn: z.string().optional() }))
+        .min(1).describe('Vendepunkt sløyfen må innom (minst ett), i rekkefølge'),
+      tegnSvg: z.boolean().default(false).describe('Tegn sløyfen inn i kart-SVG og skriv fil'),
+      ruteIndeks: z.number().int().min(0).default(0).describe('Hvilken sløyfe som markeres (ved tegnSvg)'),
+      visAlle: z.boolean().default(true).describe('Tegn alle sløyfe-alternativer (ellers kun den valgte)'),
+      origoNavn: z.string().optional().describe('Etikett ved startpunktet'),
+      rutebreddeFaktor: z.number().min(0.1).max(3).default(1)
+        .describe('Skalerer rutestrekens bredde (1 = appens standard)'),
+      navn: z.string().default('mcp-kart-rundtur').describe('Kartnavn, brukes i filnavn'),
+      filsti: z.string().optional().describe('Hvor SVG-en skrives (default: tmp)'),
+    },
+  },
+  async ({ origo, via, tegnSvg, ruteIndeks, visAlle, origoNavn, rutebreddeFaktor, navn, filsti }) => {
+    requireMap()
+    const rg = ensureRoutingGraph()
+    const meta = svgMeta()
+    // Snap origo + vendepunkt til grafen (samme mønster som planThrough).
+    const snaps = [origo, ...via].map((ll, i) => {
+      const p = wgs84ToSvg(ll.lat, ll.lon, meta)
+      if (!insideMap(p)) throw new Error(`Punkt ${i + 1} ligger utenfor kartet — bygg et større kart eller flytt punktet.`)
+      const node = rg.nearestNode([p.x, p.y])
+      if (!node || node.distM > MAX_SNAP_M) throw new Error(`Ingen sti/vei nær punkt ${i + 1} (>150 m).`)
+      return { p, node }
+    })
+    const loops = planLoop(rg, snaps[0].node.id, snaps.slice(1).map(s => s.node.id))
+    if (!loops.length) throw new Error('Fant ingen rundtur (vendepunkt uten stiforbindelse eller blindvei?).')
+    state.routes = loops
+
+    const svar = {
+      status: 'ok',
+      snappingM: { origo: Math.round(snaps[0].node.distM) },
+      ruter: loops.map((r, i) => {
+        const climb = climbFor(r.coordinates)
+        return {
+          indeks: i,
+          type: r.shortest ? 'korteste sløyfe' : 'sløyfe',
+          lengdeM: Math.round(r.lengthM),
+          stigningM: climb?.ascent ?? null,
+          fallM: climb?.descent ?? null,
+          estimertGangtidMin: estWalkMinutes(r.lengthM, climb?.ascent, climb?.descent),
+          punkterWgs84: downsample(r.coordinates).map(([x, y]) => {
+            const ll = svgToWgs84(x, y, meta)
+            return [Number(ll.lon.toFixed(6)), Number(ll.lat.toFixed(6))]
+          }),
+        }
+      }),
+    }
+
+    if (tegnSvg) {
+      const sel = Math.min(ruteIndeks, loops.length - 1)
+      const routes = visAlle ? loops : [loops[sel]]
+      const selectedIndex = visAlle ? sel : 0
+      const o = snaps[0].p
+      const connectors = [{ from: [o.x, o.y], to: snaps[0].node.pos }]
+      const markers = []
+      if (origoNavn) markers.push({ x: o.x, y: o.y, color: '#16a34a', label: origoNavn, anchor: 'start' })
+      via.forEach((v, i) => {
+        const s = snaps[i + 1]
+        markers.push({ x: s.p.x, y: s.p.y, color: '#f59e0b', label: v.navn, anchor: 'start' })
+      })
+      const overlay = buildRouteOverlaySvg({
+        routes: routes.map(r => ({ coordinates: r.coordinates, shortest: r.shortest })),
+        selectedIndex, connectors, markers,
+        start: [o.x, o.y], dest: [o.x, o.y],
+        style: overlayStyleFor(rutebreddeFaktor),
+      })
+      const svg = injectOverlay(svgForOutput(state.map.svg), overlay)
+      const slug = navn.replace(/[^a-z0-9æøå]+/gi, '-').toLowerCase()
+      const svgPath = resolve(filsti ?? resolve(tmpdir(), 'lende-mcp', `${slug}.svg`))
+      mkdirSync(dirname(svgPath), { recursive: true })
+      writeFileSync(svgPath, svg)
+      svar.svgPath = svgPath
+      svar.svgKb = Math.round(svg.length / 1024)
+      svar.antallRuterTegnet = routes.length
+    }
+
+    return jsonResult(svar)
   },
 )
 
@@ -581,6 +740,7 @@ server.registerTool(
       kulturminner: enrichment.kulturminner,
       reservater: enrichment.reservater,
       arter: enrichment.arter,
+      vannstasjoner: enrichment.vannstasjoner,
       kilder: enrichment.kilder,
     })
   },
@@ -680,6 +840,7 @@ server.registerTool(
         kulturminner: enrichment.kulturminner.length,
         reservater: enrichment.reservater.length,
         rodliste: enrichment.arter?.rodliste?.antall ?? null,
+        vannstasjoner: enrichment.vannstasjoner.length,
         veibeskrivelseSteg: cues.length,
       },
       kilder: enrichment.kilder,
@@ -838,6 +999,60 @@ server.registerTool(
       return o
     })
     return jsonResult({ status: 'ok', sok, antall: treff.length, treff })
+  },
+)
+
+server.registerTool(
+  'vannmalestasjoner',
+  {
+    title: 'NVE vannmålestasjoner (sanntid)',
+    description:
+      'Henter hydrologiske målestasjoner (NVE HydAPI) i et område med SISTE vannføring ' +
+      '(m³/s), vannstand (m) og vanntemperatur (°C), pluss nedbørfelt-areal, moh, kommune og ' +
+      'eier + lenke til NVEs Sildre-side. Område velges på én av tre måter: (1) utelat alt → ' +
+      'bruk sist bygde kart sitt utsnitt, (2) senter {lat,lon} + radiusKm, eller (3) eksplisitt ' +
+      'bbox. Går via Cloudflare-proxyen (ingen nøkkel nødvendig); tom liste ved nettfeil.',
+    inputSchema: {
+      senter: z.object({ lat: z.number(), lon: z.number() }).optional()
+        .describe('Senterpunkt for søket (brukes med radiusKm)'),
+      radiusKm: z.number().min(0.5).max(50).default(10)
+        .describe('Søkeradius i km rundt senter (default 10)'),
+      bbox: z.object({
+        south: z.number(), west: z.number(), north: z.number(), east: z.number(),
+      }).optional().describe('Eksplisitt WGS84-bbox — overstyrer senter/kart'),
+      maks: z.number().int().min(1).max(200).default(60).describe('Maks antall stasjoner'),
+    },
+  },
+  async ({ senter, radiusKm, bbox, maks }) => {
+    const omrade = bbox
+      ? bbox
+      : senter
+        ? bboxAround(senter.lat, senter.lon, radiusKm)
+        : (requireMap(), mapBboxWgs84())
+    const stations = await fetchStationsForBbox(omrade)
+    const stasjoner = (await Promise.all(
+      stations.slice(0, maks).map(async st => {
+        const latest = await fetchStationLatest(st).catch(() => ({}))
+        const info = pickStationInfo(st)
+        const o = {
+          navn: st.stationName ?? 'NVE-stasjon',
+          stasjonsId: st.stationId,
+          lat: Number(Number(st.latitude).toFixed(6)),
+          lon: Number(Number(st.longitude).toFixed(6)),
+          sildreUrl: sildreStationUrl(st.stationId),
+        }
+        if (latest?.discharge) o.vannforing = { verdi: latest.discharge.value, tid: latest.discharge.time }
+        if (latest?.waterLevel) o.vannstand = { verdi: latest.waterLevel.value, tid: latest.waterLevel.time }
+        if (latest?.waterTemp) o.vanntemp = { verdi: latest.waterTemp.value, tid: latest.waterTemp.time }
+        if (info.basinArea != null) o.nedborfeltKm2 = info.basinArea
+        if (info.masl != null) o.moh = info.masl
+        if (info.council) o.kommune = info.council
+        if (info.stationType) o.stasjonstype = info.stationType
+        if (info.owner) o.eier = info.owner
+        return o
+      }),
+    ))
+    return jsonResult({ status: 'ok', omrade, antall: stasjoner.length, stasjoner })
   },
 )
 
