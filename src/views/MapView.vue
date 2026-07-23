@@ -3036,7 +3036,8 @@ watch(() => userPos.isWatching, (on) => on ? startGpsTick() : stopGpsTick())
 
 const gpsDebugLine = computed(() => {
   if (!userPos.isWatching) return ''
-  if (userPos.latRaw == null || userPos.lonRaw == null) return 'Venter på fix …'
+  if (userPos.error) return 'Ingen GPS-posisjon'
+  if (userPos.latRaw == null || userPos.lonRaw == null) return 'Venter på GPS-signal …'
   const lat = userPos.latRaw.toFixed(6)
   const lon = userPos.lonRaw.toFixed(6)
   const acc = userPos.accuracyM != null ? `±${Math.round(userPos.accuracyM)} m` : '±? m'
