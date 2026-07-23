@@ -172,6 +172,20 @@ export function vernInfo(code) {
   return { text: v ? v[0] : (code || null), kategori: v ? v[1] : 'annet' }
 }
 
+// `enkeltminnekategori` er en SOSI-kode (E-*). Vi kartlegger de vi er trygge på;
+// E-ARK dekker ~96 % av enkeltminnene. Ukjente koder → null (faller tilbake på
+// generisk «Kulturminne» i visningen), så vi aldri viser feil etikett.
+// Merk: de finkornede kodene `datering`/`enkeltminneart` er også SOSI-koder, men
+// deres offisielle kodelister ligger bak register.geonorge.no og lot seg ikke
+// verifisere — de dekodes bevisst IKKE her (heller ingen datering enn feil).
+const ENKELTMINNEKATEGORI = {
+  'E-ARK': 'Arkeologisk minne',
+  'E-BYG': 'Bygning',
+}
+export function enkeltminnekategoriLabel(code) {
+  return ENKELTMINNEKATEGORI[String(code ?? '').toUpperCase()] ?? null
+}
+
 /**
  * Parse GML 3.2 fra WFS til enkeltminne-objekter. Ett pr <app:Enkeltminne>.
  * Hvert enkeltminne har eget navn + informasjon → detalj pr koordinat.
@@ -203,6 +217,9 @@ export function parseWfsKulturminner(gml) {
       // lesbar info ligger i `informasjon` og bak kulturminnesok-lenken.
       vernetype: vi.text,
       kategori: vi.kategori,
+      kategoriLabel: enkeltminnekategoriLabel(firstTag(block, 'enkeltminnekategori')),
+      opphav: firstTag(block, 'opphav'),
+      noyaktighetM: (() => { const n = Number(firstTag(block, 'nøyaktighet')); return Number.isFinite(n) && n > 0 ? n : null })(),
       ...(() => { const s = splitInformasjon(firstTag(block, 'informasjon')); return { informasjon: s.enkeltminne, lokalitetInfo: s.lokalitet } })(),
       kommune: firstTag(block, 'kommune'),
       link: link && /^https?:\/\//i.test(link) ? link : null,

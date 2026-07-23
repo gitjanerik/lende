@@ -96,6 +96,9 @@ export function useHeritageLayers({
         mk.setAttribute('data-upright', '1')
         if (it.navn) mk.setAttribute('data-navn', it.navn)
         if (it.vernetype) mk.setAttribute('data-vernetype', it.vernetype)
+        if (it.kategoriLabel) mk.setAttribute('data-kategori-label', it.kategoriLabel)
+        if (it.opphav) mk.setAttribute('data-opphav', it.opphav)
+        if (it.noyaktighetM) mk.setAttribute('data-noyaktighet', String(it.noyaktighetM))
         if (it.informasjon) mk.setAttribute('data-informasjon', it.informasjon)
         if (it.lokalitetInfo) mk.setAttribute('data-lokinfo', it.lokalitetInfo)
         if (it.kommune) mk.setAttribute('data-kommune', it.kommune)
@@ -186,13 +189,17 @@ export function useHeritageLayers({
   // Detalj-skuff for et fredet-kulturminne (leser data-attributter fra ikonet).
   function openFredetDetailFromEl(el) {
     const link = el.getAttribute('data-link') || null
+    const noyaktighet = Number(el.getAttribute('data-noyaktighet'))
     kulturminneDetail.value = {
       id: null, kategori: 'annet',
       tittel: el.getAttribute('data-navn') || 'Fredet kulturminne',
+      kategoriLabel: el.getAttribute('data-kategori-label') || null,
       vernestatus: el.getAttribute('data-vernetype') || 'Fredet kulturminne',
       beskrivelse: el.getAttribute('data-informasjon') || '',
       lokalitetInfo: el.getAttribute('data-lokinfo') || null,
-      kommune: el.getAttribute('data-kommune'), fylke: null, opprettetAv: null,
+      kommune: el.getAttribute('data-kommune'), fylke: null,
+      opprettetAv: el.getAttribute('data-opphav') || null,
+      noyaktighetM: Number.isFinite(noyaktighet) && noyaktighet > 0 ? noyaktighet : null,
       link, bilder: [],
     }
     kulturminneLoading.value = false

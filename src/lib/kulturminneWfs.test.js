@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   buildWfsUrl, centroidFromPosList, vernInfo, parseWfsKulturminner, splitInformasjon,
+  enkeltminnekategoriLabel,
 } from './kulturminneWfs.js'
 
 describe('splitInformasjon', () => {
@@ -62,6 +63,15 @@ describe('vernInfo', () => {
   })
 })
 
+describe('enkeltminnekategoriLabel', () => {
+  it('kartlegger kjente E-koder og faller tilbake til null', () => {
+    expect(enkeltminnekategoriLabel('E-ARK')).toBe('Arkeologisk minne')
+    expect(enkeltminnekategoriLabel('E-BYG')).toBe('Bygning')
+    expect(enkeltminnekategoriLabel('E-MAR')).toBeNull()   // ukjent → null, aldri feil etikett
+    expect(enkeltminnekategoriLabel(null)).toBeNull()
+  })
+})
+
 const GML = `<?xml version="1.0"?>
 <wfs:FeatureCollection xmlns:wfs="http://www.opengis.net/wfs/2.0" numberMatched="2" numberReturned="2">
  <wfs:member>
@@ -76,6 +86,9 @@ const GML = `<?xml version="1.0"?>
     </app:område>
     <app:navn>Gravfelt Håøya</app:navn>
     <app:kulturminneId>140269</app:kulturminneId>
+    <app:enkeltminnekategori>E-ARK</app:enkeltminnekategori>
+    <app:opphav>Viken fylkeskommune</app:opphav>
+    <app:kvalitet><app:Posisjonskvalitet><app:nøyaktighet>500</app:nøyaktighet></app:Posisjonskvalitet></app:kvalitet>
     <app:kommune>Frogn</app:kommune>
     <app:vernetype>AUT</app:vernetype>
     <app:linkKulturminnesøk>https://kulturminnesok.no/ra/lokalitet/140269</app:linkKulturminnesøk>
@@ -100,6 +113,9 @@ describe('parseWfsKulturminner', () => {
     expect(g.vernetype).toBe('Automatisk fredet')   // AUT-kode → lesbar tekst
     expect(g.kategori).toBe('automatisk')
     expect(g.informasjon).toBe('Gravfelt.')
+    expect(g.kategoriLabel).toBe('Arkeologisk minne')   // E-ARK → lesbar
+    expect(g.opphav).toBe('Viken fylkeskommune')
+    expect(g.noyaktighetM).toBe(500)
     expect(g.kommune).toBe('Frogn')
     expect(g.link).toBe('https://kulturminnesok.no/ra/lokalitet/140269')
     expect(g.lat).toBeCloseTo(59.675, 2)
@@ -113,6 +129,9 @@ describe('parseWfsKulturminner', () => {
     expect(o.lon).toBeCloseTo(10.55, 5)
     expect(o.link).toBeNull()
     expect(o.kategori).toBe('vedtak')
+    expect(o.kategoriLabel).toBeNull()   // ingen enkeltminnekategori → null
+    expect(o.opphav).toBeNull()
+    expect(o.noyaktighetM).toBeNull()
   })
 
   it('returnerer [] for tomt/ugyldig', () => {
