@@ -100,7 +100,6 @@ export function useHeritageLayers({
         if (it.art) mk.setAttribute('data-art', it.art)
         if (it.datering) mk.setAttribute('data-datering', it.datering)
         if (it.opphav) mk.setAttribute('data-opphav', it.opphav)
-        if (it.noyaktighetM) mk.setAttribute('data-noyaktighet', String(it.noyaktighetM))
         if (it.informasjon) mk.setAttribute('data-informasjon', it.informasjon)
         if (it.lokalitetInfo) mk.setAttribute('data-lokinfo', it.lokalitetInfo)
         if (it.kommune) mk.setAttribute('data-kommune', it.kommune)
@@ -191,7 +190,6 @@ export function useHeritageLayers({
   // Detalj-skuff for et fredet-kulturminne (leser data-attributter fra ikonet).
   function openFredetDetailFromEl(el) {
     const link = el.getAttribute('data-link') || null
-    const noyaktighet = Number(el.getAttribute('data-noyaktighet'))
     const art = el.getAttribute('data-art') || null
     kulturminneDetail.value = {
       id: null, kategori: 'annet',
@@ -205,7 +203,6 @@ export function useHeritageLayers({
       lokalitetInfo: el.getAttribute('data-lokinfo') || null,
       kommune: el.getAttribute('data-kommune'), fylke: null,
       opprettetAv: el.getAttribute('data-opphav') || null,
-      noyaktighetM: Number.isFinite(noyaktighet) && noyaktighet > 0 ? noyaktighet : null,
       link, bilder: [],
     }
     kulturminneLoading.value = false

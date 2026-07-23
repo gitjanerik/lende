@@ -112,7 +112,6 @@ const GML = `<?xml version="1.0"?>
     <app:enkeltminneart>1703</app:enkeltminneart>
     <app:datering><app:Datering><app:datering>047</app:datering><app:dateringKvalitet>2</app:dateringKvalitet></app:Datering></app:datering>
     <app:opphav>Viken fylkeskommune</app:opphav>
-    <app:kvalitet><app:Posisjonskvalitet><app:nøyaktighet>500</app:nøyaktighet></app:Posisjonskvalitet></app:kvalitet>
     <app:kommune>Frogn</app:kommune>
     <app:vernetype>AUT</app:vernetype>
     <app:linkKulturminnesøk>https://kulturminnesok.no/ra/lokalitet/140269</app:linkKulturminnesøk>
@@ -141,7 +140,6 @@ describe('parseWfsKulturminner', () => {
     expect(g.art).toBe('Gravrøys')                      // 1703 → lesbar
     expect(g.datering).toBe('Vikingtid')                // nøstet 047 → lesbar
     expect(g.opphav).toBe('Viken fylkeskommune')
-    expect(g.noyaktighetM).toBe(500)
     expect(g.kommune).toBe('Frogn')
     expect(g.link).toBe('https://kulturminnesok.no/ra/lokalitet/140269')
     expect(g.lat).toBeCloseTo(59.675, 2)
@@ -159,7 +157,6 @@ describe('parseWfsKulturminner', () => {
     expect(o.art).toBeNull()
     expect(o.datering).toBeNull()
     expect(o.opphav).toBeNull()
-    expect(o.noyaktighetM).toBeNull()
   })
 
   it('returnerer [] for tomt/ugyldig', () => {

@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-23 — v1.0.87: Fjernet Posisjonsnøyaktighet fra kulturminne-arket
+
+Posisjonsnøyaktighet-raden er fjernet fra fakta-blokka. Verdien kom fra Askeladdens nominelle posisjonskvalitet (ofte ±200 m eller mer), som i kartsammenheng er misvisende grovt og ikke tilførte reell verdi. Datering, Type, Kategori, Vernestatus, Beliggenhet og «Lagt inn av» står igjen.
+
+---
+
 ## 2026-07-23 — v1.0.86: Datering og type på fredede kulturminner
 
 Fakta-blokka for fredede kulturminner viser nå **Datering** (f.eks. «Yngre steinalder», «Vikingtid», «1800–1899») og **Type** (f.eks. «Gravrøys», «Tuft», «Kokegrop»), i tillegg til full **Kategori**-dekning (alle seks E-koder). Manglet et enkeltminne eget navn, brukes nå typen som tittel i stedet for et generisk «Fredet kulturminne». Verdiene kommer fra Riksantikvarens offisielle SOSI-kodelister, bakt inn som statiske, verifiserte tabeller (datering, enkeltminneart, enkeltminnekategori) — så dekodingen fungerer offline uten ekstra nettverkskall. Ukjente koder faller trygt tilbake i stedet for å vise en gjettet etikett.

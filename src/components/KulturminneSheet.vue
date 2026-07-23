@@ -55,7 +55,6 @@ const facts = computed(() => {
     { label: 'Vernestatus', value: d.vernestatus || null },
     { label: 'Beliggenhet', value: beliggenhet.value || null },
     { label: 'Lagt inn av', value: d.opprettetAv || null },
-    { label: 'Posisjonsnøyaktighet', value: d.noyaktighetM ? `±${d.noyaktighetM} m` : null },
   ].filter((r) => r.value)
 })
 
