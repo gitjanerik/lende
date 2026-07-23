@@ -1,5 +1,19 @@
 # Endringslogg
 
+## 2026-07-23 — v1.0.77: Kompass-FAB slått sammen med Sentrer-knappen
+
+Kompass-FAB-en øverst til høyre var funksjonelt ~50 % overlappende med
+«Sentrer»-knappen nederst (som allerede nullstiller både zoom og rotasjon) —
+og kolliderte visuelt med snarvei-raden på smale skjermer. Den er fjernet, og
+kompassnåla bor nå som ikon PÅ Sentrer-knappen: nåla roterer med kompass-
+heading/kartrotasjon som før, og knappen er flyttet øverst av de tre FAB-ene
+nede til høyre (over strek- og relieff-knottene). Tap = sentrer + nord opp
+(+ GPS-refresh); lang-trykk = zoom-panelet som før. Sentrer-handlingen slår
+også av kompass-følge først (samme semantikk som den gamle kompass-FAB-en).
+Desktop-sliderne for rotasjon/tekststørrelse ligger igjen der rosen satt.
+
+---
+
 ## 2026-07-23 — v1.0.76: Hjem-fanene ryddet — lista eier siden
 
 Oppfølging av fane-hjemmen (v1.0.75): layouten var rotete med søkefelt,
