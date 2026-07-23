@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-23 — v1.0.81: Oppdagbarhets-tips for long-press i info-panelet
+
+Long-press på kartet er lite oppdagbart. Nå vises et blått tips øverst i info-panelet når det åpnes via Info-knappen i snarveiene: det forklarer at man kan trykke-og-holde et par sekunder i kartet for å åpne panelet, og at det samme fungerer på de tre knottene nede til høyre for å finjustere kantlinjer, relieff og zoom. Tipset kan lukkes med en X og huskes globalt i localStorage, så det ikke dukker opp igjen. Det vises bevisst ikke ved faktisk long-press — da kan brukeren allerede grepet.
+
+---
+
 ## 2026-07-23 — v1.0.80: Lukkeknapp på GPS-feil og tydeligere posisjons-readout
 
 Den oransje «GPS er blokkert for Lende»-varselboksen manglet en måte å lukkes på — nå har den en X-knapp ved siden av teksten, i tråd med de andre varselboksene, og «Prøv igjen» ligger under. Varselet dukker opp igjen hvis en ny GPS-feil oppstår. I Sporing-fanen fikk koordinat-feltet en tydelig etikett («Din GPS-posisjon»), og den kryptiske teksten «Venter på fix …» er byttet til «Venter på GPS-signal …» — og når GPS er blokkert vises «Ingen GPS-posisjon» i stedet for en villedende venter-melding.
