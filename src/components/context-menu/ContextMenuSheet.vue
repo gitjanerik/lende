@@ -57,6 +57,8 @@ defineProps({
   startPositioning: { type: Function, required: true },
   nearestPoiFromPoint: { type: Function, required: true },
   onPlaceAnnotationFromContext: { type: Function, required: true },
+  showInfoTip: { type: Boolean, default: false },
+  dismissInfoTip: { type: Function, required: true },
 })
 
 function formatDistance(m) {
@@ -139,6 +141,32 @@ function formatDistance(m) {
       <div v-show="!contextDrawer.isMinimized.value"
            class="flex-1 overflow-y-auto"
            :style="{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0.75rem)' }">
+
+      <!-- Blått oppdagbarhets-tips: vises kun når arket åpnes via Info-snarveien
+           (ikke ved faktisk long-press). Dismissible, husket i localStorage. -->
+      <div v-if="showInfoTip" class="px-4 pt-3">
+        <div class="relative flex items-start gap-2.5 rounded-lg px-3 py-2.5 pr-9
+                    bg-sky-500/15 border border-sky-400/40 text-sky-50/95 text-[12px] leading-snug">
+          <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0 mt-0.5 text-sky-300" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/>
+            <line x1="12" y1="8" x2="12" y2="8"/>
+          </svg>
+          <div>
+            <span class="font-semibold">Tips:</span> du kan trykke-og-holde et par
+            sekunder i kartet for å åpne infopanelet du ser her. Det samme fungerer på
+            de tre knottene nede til høyre for å finjustere kantlinjer, relieff og zoom.
+          </div>
+          <button @click="dismissInfoTip" aria-label="Skjul tips"
+                  class="absolute top-1.5 right-1.5 w-6 h-6 flex items-center justify-center rounded-md
+                         text-sky-100/80 active:scale-90 active:bg-white/10">
+            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+                 stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      </div>
 
       <!-- Detalj-inset: roambart 500×500 m utsnitt (start 250 m) med alle
            detaljer (dybdetall, dybdekurver, sjø-POI) avslørt. Pan + zoom,

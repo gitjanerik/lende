@@ -2484,7 +2484,33 @@ function onShortcutInfo() {
   const el = wrapperRef.value
   if (!el) return
   const r = el.getBoundingClientRect()
+  infoTipRequested.value = true
   openContextMenuAt(r.left + r.width / 2, r.top + r.height / 2)
+}
+
+// Long-press er lite oppdagbart. Vis et blått tips øverst i info-arket når det
+// åpnes via Info-snarveien — men IKKE ved faktisk long-press (da kan brukeren
+// det allerede). infoTipRequested settes kun av snarveien og nullstilles så
+// snart en kart-gest (mulig long-press) starter. Dismissible, husket globalt
+// i localStorage så det ikke dukker opp igjen.
+const INFO_TIP_KEY = 'lende-info-longpress-tip-seen'
+const infoTipDismissed = ref(false)
+try { infoTipDismissed.value = localStorage.getItem(INFO_TIP_KEY) === '1' } catch {}
+const infoTipRequested = ref(false)
+const showInfoTip = computed(() =>
+  infoTipRequested.value && contextMenuOpen.value && !infoTipDismissed.value
+)
+function dismissInfoTip() {
+  infoTipDismissed.value = true
+  try { localStorage.setItem(INFO_TIP_KEY, '1') } catch {}
+}
+function onMapPointerDownLongPress(e) {
+  infoTipRequested.value = false
+  onPointerDownLongPress(e)
+}
+function onMapContextMenuEvent(e) {
+  infoTipRequested.value = false
+  onContextMenuEvent(e)
 }
 function onRemoveVia(i) {
   sti.removeVia(i)
@@ -3453,11 +3479,11 @@ onUnmounted(() => {
     <div ref="wrapperRef" class="absolute inset-0 touch-none select-none transition-[right] duration-200"
          :class="annot.isAnnotateMode.value ? 'cursor-crosshair' : ''"
          :style="{ right: panelOffsetPx + 'px' }"
-         @pointerdown="onPointerDownLongPress"
+         @pointerdown="onMapPointerDownLongPress"
          @pointermove="onPointerMoveLongPress"
          @pointerup="onPointerUpLongPress"
          @pointercancel="onPointerUpLongPress"
-         @contextmenu="onContextMenuEvent">
+         @contextmenu="onMapContextMenuEvent">
       <div ref="mapInnerRef" class="w-full h-full relative" :style="mapTransformStyle">
         <div ref="svgHostRef" class="w-full h-full" @click="onMapClick"></div>
       </div>
@@ -3918,7 +3944,9 @@ onUnmounted(() => {
       :arm-proximity-alert="armProximityAlert"
       :start-positioning="startPositioning"
       :nearest-poi-from-point="nearestPoiFromPoint"
-      :on-place-annotation-from-context="onPlaceAnnotationFromContext" />
+      :on-place-annotation-from-context="onPlaceAnnotationFromContext"
+      :show-info-tip="showInfoTip"
+      :dismiss-info-tip="dismissInfoTip" />
 
     <!-- Perf-logg-modal: byggetider fra localStorage (kun utvikler).
          Trekt ut til PerfLogModal (v1.0.5). -->
