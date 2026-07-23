@@ -32,6 +32,27 @@ const KAT_COLOR = {
   fangst: '#b8730f', gravminne: '#7d3c98', stein: '#5d6d7e', bygning: '#b03a2e', annet: '#6d4c41',
 }
 const katColor = computed(() => KAT_COLOR[props.detail?.kategori] ?? KAT_COLOR.annet)
+
+// Strukturert fakta-blokk øverst (før beskrivelse/bilder). Datadrevet: kun
+// felt med faktisk verdi vises. Kildene har ulike felt — brukerminner
+// (api.ra.no) har kategori/sted/«lagt inn av», mens fredede minner (WFS) har
+// vernestatus. Datering leveres ikke av noen av kildene ennå, men taes med her
+// så den dukker opp automatisk om feltet fylles senere.
+const beliggenhet = computed(() =>
+  [props.detail?.kommune, props.detail?.fylke].filter(Boolean).join(', ')
+)
+const facts = computed(() => {
+  const d = props.detail
+  if (!d) return []
+  return [
+    { label: 'Kategori', value: katLabel.value },
+    { label: 'Vernestatus', value: d.vernestatus || null },
+    { label: 'Beliggenhet', value: beliggenhet.value || null },
+    { label: 'Datering', value: d.datering || null },
+    { label: 'Lagt inn av', value: d.opprettetAv || null },
+  ].filter((r) => r.value)
+})
+
 const bilde = computed(() => props.detail?.bilder?.[0] ?? null)
 const link = computed(() => {
   const d = props.detail
@@ -64,7 +85,6 @@ function onOpenKulturminnesok() {
           <div class="min-w-0 flex items-start gap-2.5">
             <span class="mt-0.5 w-3.5 h-3.5 shrink-0 rounded-sm" :style="{ background: katColor }"></span>
             <div class="min-w-0">
-              <div class="text-[10px] uppercase tracking-wide text-white/45">{{ detail.subtittel || katLabel }}</div>
               <div class="text-white text-[15px] font-medium leading-snug break-words">{{ detail.tittel }}</div>
             </div>
           </div>
@@ -82,6 +102,16 @@ function onOpenKulturminnesok() {
         <div v-show="!drawer.isMinimized.value"
              class="flex-1 overflow-y-auto px-4 pt-3"
              :style="{ zoom: uiTextScale, paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0.75rem)' }">
+          <!-- Fakta om selve funnet, før beskrivelse/bilder. To-kolonners
+               definisjons-grid; kun felt med verdi vises (kildene har ulike felt). -->
+          <dl v-if="facts.length"
+              class="grid grid-cols-2 gap-x-4 gap-y-2.5 pb-3 mb-3 border-b border-white/8">
+            <div v-for="f in facts" :key="f.label" class="min-w-0">
+              <dt class="text-[10px] uppercase tracking-wide text-white/40">{{ f.label }}</dt>
+              <dd class="text-[12.5px] text-white/85 leading-snug break-words">{{ f.value }}</dd>
+            </div>
+          </dl>
+
           <div v-if="loading && !detail.beskrivelse"
                class="text-[12px] text-white/50 py-3">Henter detaljer …</div>
 
@@ -94,14 +124,6 @@ function onOpenKulturminnesok() {
           <div v-if="detail.lokalitetInfo" class="mt-3">
             <div class="text-[10px] uppercase tracking-wide text-white/40 mb-0.5">Om lokaliteten</div>
             <p class="text-[12px] text-white/55 leading-relaxed whitespace-pre-line break-words">{{ detail.lokalitetInfo }}</p>
-          </div>
-
-          <div v-if="detail.kommune || detail.fylke"
-               class="mt-2.5 text-[12px] text-white/55">
-            {{ [detail.kommune, detail.fylke].filter(Boolean).join(' · ') }}
-          </div>
-          <div v-if="detail.opprettetAv" class="mt-0.5 text-[11px] text-white/40">
-            Registrert av {{ detail.opprettetAv }}
           </div>
 
           <figure v-if="bilde" class="mt-3">

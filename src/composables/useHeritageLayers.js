@@ -189,7 +189,7 @@ export function useHeritageLayers({
     kulturminneDetail.value = {
       id: null, kategori: 'annet',
       tittel: el.getAttribute('data-navn') || 'Fredet kulturminne',
-      subtittel: el.getAttribute('data-vernetype') || 'Fredet kulturminne',
+      vernestatus: el.getAttribute('data-vernetype') || 'Fredet kulturminne',
       beskrivelse: el.getAttribute('data-informasjon') || '',
       lokalitetInfo: el.getAttribute('data-lokinfo') || null,
       kommune: el.getAttribute('data-kommune'), fylke: null, opprettetAv: null,
