@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   buildWfsUrl, centroidFromPosList, vernInfo, parseWfsKulturminner, splitInformasjon,
-  enkeltminnekategoriLabel,
+  enkeltminnekategoriLabel, dateringLabel, enkeltminneartLabel,
 } from './kulturminneWfs.js'
 
 describe('splitInformasjon', () => {
@@ -65,10 +65,32 @@ describe('vernInfo', () => {
 
 describe('enkeltminnekategoriLabel', () => {
   it('kartlegger kjente E-koder og faller tilbake til null', () => {
-    expect(enkeltminnekategoriLabel('E-ARK')).toBe('Arkeologisk minne')
-    expect(enkeltminnekategoriLabel('E-BYG')).toBe('Bygning')
-    expect(enkeltminnekategoriLabel('E-MAR')).toBeNull()   // ukjent → null, aldri feil etikett
+    expect(enkeltminnekategoriLabel('E-ARK')).toBe('Arkeologisk enkeltminne')
+    expect(enkeltminnekategoriLabel('E-BER')).toBe('Bergkunst')
+    expect(enkeltminnekategoriLabel('E-UTE')).toBe('Utomhuselement')
+    expect(enkeltminnekategoriLabel('E-XXX')).toBeNull()   // ukjent → null, aldri feil etikett
     expect(enkeltminnekategoriLabel(null)).toBeNull()
+  })
+})
+
+describe('dateringLabel', () => {
+  it('kartlegger periodekoder og faller tilbake til null', () => {
+    expect(dateringLabel('022')).toBe('Yngre steinalder')
+    expect(dateringLabel('047')).toBe('Vikingtid')
+    expect(dateringLabel('999')).toBe('Uviss tid')
+    expect(dateringLabel('  050 ')).toBe('Middelalder')   // trimmes
+    expect(dateringLabel('abc')).toBeNull()
+    expect(dateringLabel(null)).toBeNull()
+  })
+})
+
+describe('enkeltminneartLabel', () => {
+  it('kartlegger art-koder (3-,4-,5-sifret) og faller tilbake til null', () => {
+    expect(enkeltminneartLabel('1703')).toBe('Gravrøys')
+    expect(enkeltminneartLabel('9915')).toBe('Tuft')
+    expect(enkeltminneartLabel('10204')).toBe('Bunker')
+    expect(enkeltminneartLabel('0000')).toBeNull()
+    expect(enkeltminneartLabel(null)).toBeNull()
   })
 })
 
@@ -87,6 +109,8 @@ const GML = `<?xml version="1.0"?>
     <app:navn>Gravfelt Håøya</app:navn>
     <app:kulturminneId>140269</app:kulturminneId>
     <app:enkeltminnekategori>E-ARK</app:enkeltminnekategori>
+    <app:enkeltminneart>1703</app:enkeltminneart>
+    <app:datering><app:Datering><app:datering>047</app:datering><app:dateringKvalitet>2</app:dateringKvalitet></app:Datering></app:datering>
     <app:opphav>Viken fylkeskommune</app:opphav>
     <app:kvalitet><app:Posisjonskvalitet><app:nøyaktighet>500</app:nøyaktighet></app:Posisjonskvalitet></app:kvalitet>
     <app:kommune>Frogn</app:kommune>
@@ -113,7 +137,9 @@ describe('parseWfsKulturminner', () => {
     expect(g.vernetype).toBe('Automatisk fredet')   // AUT-kode → lesbar tekst
     expect(g.kategori).toBe('automatisk')
     expect(g.informasjon).toBe('Gravfelt.')
-    expect(g.kategoriLabel).toBe('Arkeologisk minne')   // E-ARK → lesbar
+    expect(g.kategoriLabel).toBe('Arkeologisk enkeltminne')   // E-ARK → lesbar
+    expect(g.art).toBe('Gravrøys')                      // 1703 → lesbar
+    expect(g.datering).toBe('Vikingtid')                // nøstet 047 → lesbar
     expect(g.opphav).toBe('Viken fylkeskommune')
     expect(g.noyaktighetM).toBe(500)
     expect(g.kommune).toBe('Frogn')
@@ -130,6 +156,8 @@ describe('parseWfsKulturminner', () => {
     expect(o.link).toBeNull()
     expect(o.kategori).toBe('vedtak')
     expect(o.kategoriLabel).toBeNull()   // ingen enkeltminnekategori → null
+    expect(o.art).toBeNull()
+    expect(o.datering).toBeNull()
     expect(o.opphav).toBeNull()
     expect(o.noyaktighetM).toBeNull()
   })

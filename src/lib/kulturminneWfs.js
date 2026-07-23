@@ -172,18 +172,67 @@ export function vernInfo(code) {
   return { text: v ? v[0] : (code || null), kategori: v ? v[1] : 'annet' }
 }
 
-// `enkeltminnekategori` er en SOSI-kode (E-*). Vi kartlegger de vi er trygge på;
-// E-ARK dekker ~96 % av enkeltminnene. Ukjente koder → null (faller tilbake på
-// generisk «Kulturminne» i visningen), så vi aldri viser feil etikett.
-// Merk: de finkornede kodene `datering`/`enkeltminneart` er også SOSI-koder, men
-// deres offisielle kodelister ligger bak register.geonorge.no og lot seg ikke
-// verifisere — de dekodes bevisst IKKE her (heller ingen datering enn feil).
+// SOSI-kodelister fra Riksantikvarens produkt «Lokaliteter, enkeltminner og
+// sikringssoner» (v20210217). Kodene kommer som tall/E-strenger i WFS-en; vi
+// oversetter til lesbar bokmål her. Ukjente koder → null (visningen faller
+// tilbake / hopper over feltet), så vi aldri viser en gjettet etikett.
 const ENKELTMINNEKATEGORI = {
-  'E-ARK': 'Arkeologisk minne',
+  'E-ARK': 'Arkeologisk enkeltminne',
+  'E-BER': 'Bergkunst',
   'E-BYG': 'Bygning',
+  'E-MAR': 'Kulturminne under vann',
+  'E-TEK': 'Teknisk/industrielt enkeltminne',
+  'E-UTE': 'Utomhuselement',
 }
 export function enkeltminnekategoriLabel(code) {
   return ENKELTMINNEKATEGORI[String(code ?? '').toUpperCase()] ?? null
+}
+
+// Datering (arkeologisk periode / tidsrom). Verifisert mot RA/Geonorge-kodelisten.
+const DATERING = {
+  '000': 'Førreformatorisk tid', '020': 'Steinalder', '021': 'Eldre steinalder',
+  '022': 'Yngre steinalder', '030': 'Bronsealder', '031': 'Eldre bronsealder',
+  '032': 'Yngre bronsealder', '040': 'Jernalder', '041': 'Eldre jernalder',
+  '042': 'Førromersk jernalder', '043': 'Romertid', '044': 'Folkevandringstid',
+  '045': 'Yngre jernalder', '046': 'Merovingertid', '047': 'Vikingtid',
+  '050': 'Middelalder', '053': 'Senmiddelalder', '060': 'Sein steinbrukende tid',
+  '061': 'Tidlig metalltid', '063': 'Eldre enn 100 år', '070': 'Steinalder – bronsealder',
+  '071': 'Senneolitikum – bronsealder', '072': 'Bronsealder – jernalder',
+  '073': 'Jernalder – middelalder', '075': 'Vikingtid – middelalder',
+  '100': 'Etterreformatorisk tid', '150': '1537–1599', '160': '1600–1699',
+  '163': '1650–1674', '170': '1700–1799', '171': '1700–1724', '172': '1725–1749',
+  '174': '1775–1799', '180': '1800–1899', '182': '1825–1849', '184': '1875–1899',
+  '190': '1900–1999', '191': '1900–1924', '192': '1925–1949', '193': '1950–1974',
+  '999': 'Uviss tid',
+}
+export function dateringLabel(code) {
+  return DATERING[String(code ?? '').trim()] ?? null
+}
+
+// Enkeltminneart (finkornet type). Verifisert mot RA/Geonorge-kodelisten.
+const ENKELTMINNEART = {
+  '10109': 'Bolig', '10119': 'Fjøs/stall', '10123': 'Garasje', '10134': 'Kontor',
+  '10137': 'Lagerbygning', '10155': 'Bur/stabbur/loft', '10159': 'Teknisk bygning',
+  '10164': 'Uthus/skjul', '10165': 'Vaktstue', '10194': 'Ukjent', '10204': 'Bunker',
+  '1102': 'Helleristning', '1104': 'Skålgrop', '1201': 'Boplass', '1202': 'Bosetningsspor',
+  '1203': 'Heller', '1204': 'Kulturlag', '1210': 'Gammetuft', '1211': 'Hustuft',
+  '1215': 'Ildsted', '1216': 'Kokegrop', '1225': 'Port/portal', '1226': 'Stolpehull',
+  '1228': 'Veggrille', '1402': 'Nausttuft', '1515': 'Forsvarsverk/installasjon',
+  '1601': 'Park', '1701': 'Grav', '1702': 'Gravhaug', '1703': 'Gravrøys',
+  '1704': 'Flatmarksgrav', '1707': 'Steinsetning', '2037': 'Båtstø', '2038': 'Ankerplass',
+  '2039': 'Båtfunn', '2040': 'Anker', '2045': 'Skipslast', '2046': 'Marint løsfunn',
+  '2056': 'Skipsdel', '2211': 'Tradisjon', '2232': 'Bautastein', '2306': 'Kalkbrudd',
+  '2308': 'Klebersteinsbrudd', '2313': 'Kalkovn', '2321': 'Kullgrop', '2322': 'Kullmile',
+  '2323': 'Slaggforekomst', '2348': 'Blestertuft', '2352': 'Jernvinneovn',
+  '2401': 'Fangstgrav', '2402': 'Fangstgrop', '2409': 'Bogastelle', '2507': 'Rydningsrøys',
+  '2509': 'Åkerrein', '2521': 'Steingard/gjerde', '2523': 'Steinstreng',
+  '2524': 'Dyrkingsflate', '9903': 'Løsfunn', '9905': 'Grop', '9906': 'Haug',
+  '9907': 'Mur', '9909': 'Røys', '9913': 'Plass/gårdsrom', '9915': 'Tuft',
+  '9917': 'Naturdannelse', '9921': 'Kullforekomst', '9923': 'Grophus',
+  '9927': 'Utomhuselement (andre)', '9990': 'Annet arkeologisk enkeltminne',
+}
+export function enkeltminneartLabel(code) {
+  return ENKELTMINNEART[String(code ?? '').trim()] ?? null
 }
 
 /**
@@ -218,6 +267,10 @@ export function parseWfsKulturminner(gml) {
       vernetype: vi.text,
       kategori: vi.kategori,
       kategoriLabel: enkeltminnekategoriLabel(firstTag(block, 'enkeltminnekategori')),
+      art: enkeltminneartLabel(firstTag(block, 'enkeltminneart')),
+      // `datering` er nøstet: <app:datering><app:Datering><app:datering>KODE</…>.
+      // Ta den indre 3-sifrede koden (første datering hvis flere).
+      datering: dateringLabel((block.match(/<app:datering>\s*(\d{3})\s*<\/app:datering>/i) || [])[1]),
       opphav: firstTag(block, 'opphav'),
       noyaktighetM: (() => { const n = Number(firstTag(block, 'nøyaktighet')); return Number.isFinite(n) && n > 0 ? n : null })(),
       ...(() => { const s = splitInformasjon(firstTag(block, 'informasjon')); return { informasjon: s.enkeltminne, lokalitetInfo: s.lokalitet } })(),
