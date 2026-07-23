@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-23 — v1.0.84: Fakta-blokk øverst i kulturminne-arket
+
+Kulturminne-arket viser nå en strukturert fakta-blokk øverst — før beskrivelse og bilder — med et to-kolonners oppsett à la kulturminnesok.no: Kategori, Vernestatus, Beliggenhet, Datering og «Lagt inn av». Blokken er datadrevet og viser kun felt som faktisk har verdi, siden de to kildene har ulike felt: brukerminner (api.ra.no) gir kategori, sted og hvem som la det inn, mens fredede minner (WFS) gir vernestatus. Datering leveres ikke av kildene ennå, men feltet er med så det dukker opp automatisk om det fylles senere. Den spredte kommune/«registrert av»-teksten lenger nede er fjernet siden den nå ligger i fakta-blokken.
+
+---
+
 ## 2026-07-23 — v1.0.83: Tekststørrelse i Tegnforklaring og kulturminne, wrap på forhåndsvalg
 
 Tegnforklaring-siden og kulturminne-POI-arket følger nå den globale tekststørrelse-innstillingen fra hovedmenyen (samme zoom-mekanikk som forsiden og info-panelet). Forhåndsvalg-knappene i lag-fanen bruker nå flex-wrap i stedet for en fast 4-kolonners grid: ved stor tekststørrelse ble fire på rad for trangt, så knappene bryter nå pent til flere linjer (typisk 2 × 2), mens de fortsatt ligger fire på rad ved normal størrelse.
