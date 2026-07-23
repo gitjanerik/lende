@@ -12,6 +12,7 @@ import {
   MAP_FORMAT_OPTIONS, MAP_EQ_OPTIONS,
 } from '../../composables/useMapSizePreference.js'
 import { DENSITY_PRESETS } from '../../composables/useLabelDensity.js'
+import { useMapDetail } from '../../composables/useMapDetail.js'
 import { APP_VERSION } from '../../version.js'
 
 defineProps({
@@ -52,6 +53,10 @@ const globalReliefEnabled = defineModel('globalReliefEnabled', { type: Boolean, 
 const globalReliefMode = defineModel('globalReliefMode', { type: String, default: 'vektor' })
 const densityId = defineModel('densityId', { type: String, default: 'normal' })
 const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, default: true })
+
+// Kartdetalj / kvalitet for NYE kart (global singleton). Styrer DEM-oppløsning
+// (høydekurve-detalj) + skog-nyanse, mot nedlastet datamengde per kart.
+const { qualityId, preset: qualityPreset, QUALITY_PRESETS } = useMapDetail()
 </script>
 
 <template>
@@ -226,6 +231,26 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
       <div class="text-[11px] text-white/55 leading-snug mt-1.5">
         Skarp = tone-bånd som vektor: liten fil, knivskarpt ved zoom og print.
         Mjuk = myk gradient (foto-relieff), men gir et tungt bilde i kart-fila.
+      </div>
+    </div>
+    <!-- Kartdetalj / kvalitet for NYE kart: DEM-oppløsning (høydekurve-detalj)
+         + skog-nyanse (CHM), mot nedlastet datamengde per kart. Gjelder kart du
+         bygger etterpå — lagrede kart beholder sin detalj til de bygges på nytt. -->
+    <div class="rounded-lg bg-white/5 px-3 py-2.5 mb-3">
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-[13px] text-white font-medium">Kartdetalj</div>
+        <div class="text-[12px] text-white/60 tabular-nums">{{ qualityPreset.mbHint }} / kart</div>
+      </div>
+      <div class="grid grid-cols-4 gap-1.5" role="group" aria-label="Kartdetalj">
+        <button v-for="p in QUALITY_PRESETS" :key="p.id" @click="qualityId = p.id"
+                :aria-pressed="qualityId === p.id" :title="p.desc"
+                class="rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors"
+                :class="qualityId === p.id ? 'bg-emerald-500 text-white' : 'bg-white/10 text-white/70'">
+          {{ p.label }}
+        </button>
+      </div>
+      <div class="text-[11px] text-white/55 leading-snug mt-1.5">
+        {{ qualityPreset.desc }}
       </div>
     </div>
     <!-- Navnetetthet: rutenett-kvoten i tetthets-budsjettet. Lavere =

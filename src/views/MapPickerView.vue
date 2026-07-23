@@ -8,6 +8,7 @@ import { bboxFromCenter, viewportAspect, PRINT_ASPECT } from '../lib/mapBuilder.
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { tileMosaic, zoomForKm, metersPerPixel } from '../lib/tileBackground.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
+import { useMapDetail } from '../composables/useMapDetail.js'
 import { t } from '../lib/i18n.js'
 
 const router = useRouter()
@@ -31,6 +32,10 @@ const halfKm = ref(2.5)  // halv-bredde av bbox i km (E/V). Kart blir 2*halfKm b
 const mapAspect = ref(viewportAspect())
 const equidistanceM = ref(20)  // høydekurve-intervall, 5/10/20/25/50 m
 const customName = ref('')
+
+// Kartdetalj / kvalitet (global bruker-preferanse, useMapDetail). Styrer DEM-
+// oppløsning + skog-nyanse ved bygging. Velges her og under Innstillinger.
+const { qualityId, preset: qualityPreset, QUALITY_PRESETS } = useMapDetail()
 
 // Format-velger (trippel toggle). Styrer utsnittets høyde/bredde-forhold;
 // bredden styres uansett av slideren, høyden utledes av valgt aspekt.
@@ -236,6 +241,8 @@ async function generateMap() {
       halfKm: halfKm.value,
       aspect: effectiveAspect.value,   // følg previewen (A-format når «tilpass til utskrift» er på)
       equidistanceM: equidistanceM.value,
+      demTargetResM: qualityPreset.value.demResM,   // bruker-valgt kartdetalj
+      chm: qualityPreset.value.chm,
       navn,
       terrainFirst: true,   // vis terreng straks, fyll inn OSM i bakgrunnen
       onProgress: (msg) => {
@@ -642,6 +649,32 @@ onMounted(() => {
         </div>
         <div class="text-[10px] text-white/40 mt-1.5">
           {{ EQUIDISTANCE_OPTIONS.find(o => o.value === equidistanceM)?.desc }}
+        </div>
+      </div>
+
+      <!-- Kartdetalj / kvalitet: DEM-oppløsning + skog-nyanse. Høyere = mer
+           nedlastet høydedata per kart (mbHint). Global preferanse (deles med
+           Innstillinger). -->
+      <div class="rounded-xl bg-white/[0.04] border border-white/10 px-4 py-3">
+        <div class="flex items-center justify-between mb-2">
+          <div class="text-[11px] text-white/50 uppercase tracking-wide">Kartdetalj</div>
+          <div class="text-[13px] font-medium tabular-nums">{{ qualityPreset.mbHint }}</div>
+        </div>
+        <div class="grid grid-cols-4 gap-1.5">
+          <button v-for="p in QUALITY_PRESETS" :key="p.id"
+                  :disabled="controlsLocked"
+                  :title="p.desc"
+                  @click="qualityId = p.id"
+                  class="px-2 py-1.5 rounded-md border text-[11px] font-medium active:scale-95 transition
+                         disabled:cursor-not-allowed disabled:opacity-40"
+                  :class="qualityId === p.id
+                          ? 'bg-emerald-500/20 border-emerald-300/60 text-emerald-100'
+                          : 'bg-white/5 border-white/10 text-white/65'">
+            {{ p.label }}
+          </button>
+        </div>
+        <div class="text-[10px] text-white/40 mt-1.5">
+          {{ qualityPreset.desc }}
         </div>
       </div>
 

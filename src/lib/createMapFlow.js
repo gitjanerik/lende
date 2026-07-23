@@ -25,6 +25,7 @@ import { fetchSjokart, sjokartToElements, sjokartTimeoutForBbox, summarizeSjokar
 import { isOsmWaterSalty, isFlowingWaterArea } from './symbolizer.js'
 import { pointInRing } from './marineTopology.js'
 import { fetchDEM } from './demFetcher.js'
+import { fetchDOM } from './canopyHeight.js'
 import { fillDemVoidsFromTerrarium } from './terrariumDem.js'
 import { findHighestPoint, packDem } from './demSampling.js'
 import { utm32ToWgs84, utm32BboxFromWgs84 } from './utm.js'
@@ -183,17 +184,21 @@ export function coastalTargetResFor(utmBbox, maxCells = COASTAL_MAX_CELLS) {
 // Fin-DEM-trappa for fine-ekvidistanse-kart (≤ 5 m). Kartverkets NHM_DTM er
 // nativt 1 m — vi har historisk under-bestilt rutenettet (10/20 m) og latt
 // serveren nedskalere, så konturene ble kantete (10 m-fasetter). Her velger vi
-// fineste trinn som holder seg under celletaket, konservativt aldri finere enn
-// 2 m (et 3×3 km-kart @ 2 m ≈ 2,25M celler / ~9 MB — tungt nok på mobil). For
-// store kart over taket → null (behold probe-oppløsningen).
-// Trinnene MÅ dele TILE_M (1000) jevnt så flis-cachen fluktter (2→500,
-// 5→200 celler pr flis); 3 m ville gitt off-by-one i sliceIntoTiles.
-const FINE_DEM_STEPS_M = [2, 5]
-export function fineDemResFor(halfKm, aspect = 1, maxCells = COASTAL_MAX_CELLS) {
+// fineste trinn ≥ minResM (bruker-valgt kvalitet) som holder seg under celletaket.
+// For store kart over taket → grovere trinn, evt. null (behold probe).
+// Trinnene MÅ dele TILE_M (1000) jevnt så flis-cachen fluktter (1→1000,
+// 2→500, 5→200 celler pr flis); 3 m ville gitt off-by-one i sliceIntoTiles.
+const FINE_DEM_STEPS_M = [1, 2, 5]
+// Eget, romsligere celletak for den bruker-styrte fin-trappa (Maks-nivå): et
+// 3×3 km-kart @ 1 m = 9M celler (~36 MB + kontur-kost). Over dette degraderes
+// oppløsningen ett trinn. (COASTAL_MAX_CELLS er strengere og gjelder kun kyst.)
+export const FINE_MAX_CELLS = 1.0e7
+export function fineDemResFor(halfKm, aspect = 1, minResM = 2, maxCells = FINE_MAX_CELLS) {
   if (!(halfKm > 0)) return null
   const widthM = halfKm * 2 * 1000
   const areaM2 = widthM * widthM * (aspect > 0 ? aspect : 1)
   for (const res of FINE_DEM_STEPS_M) {
+    if (res < minResM) continue
     if (areaM2 / (res * res) <= maxCells) return res
   }
   return null
@@ -279,6 +284,11 @@ export async function buildMapFromCenter({
   terrainFirst = false,
   isAuto = false,
   utmBbox: explicitUtmBbox = null,
+  // Bruker-valgt kartdetalj (useMapDetail-preset). demTargetResM = ønsket fineste
+  // DEM-oppløsning; chm = beregn skog-nyanse (henter DOM). Defaults = dagens
+  // «Standard» (2 m, ingen CHM) så eksisterende kallere er uendret.
+  demTargetResM = 2,
+  chm = false,
 }) {
   const throwIfAborted = () => {
     if (signal?.aborted) throw new DOMException('Avbrutt', 'AbortError')
@@ -311,11 +321,12 @@ export async function buildMapFromCenter({
   const resolutionM = equidistanceM <= 5 ? 10 : 20
 
   // Fin-innlands DEM-mål: for fine-ekvidistanse-kart henter vi et mye finere
-  // rutenett (2–3 m) fra samme NHM_DTM-endepunkt, så konturene blir glatte og
-  // detaljerte i stedet for 10 m-fasetterte. Gjelder uansett kyst/innland;
-  // null = for stort kart → ingen fin-oppgradering (behold probe).
-  const fineInlandTargetResM = equidistanceM <= 5
-    ? fineDemResFor(halfKm, mapAspect)
+  // rutenett (1/2 m, bruker-valgt via demTargetResM) fra samme NHM_DTM-endepunkt,
+  // så konturene blir glatte og detaljerte i stedet for 10 m-fasetterte. Gjelder
+  // uansett kyst/innland. demTargetResM > 5 (kvalitet «Rask») ⇒ ingen fin-
+  // oppgradering (behold 10 m-proben). null = for stort kart for valgt nivå.
+  const fineInlandTargetResM = (equidistanceM <= 5 && demTargetResM <= 5)
+    ? fineDemResFor(halfKm, mapAspect, demTargetResM)
     : null
 
   // Recompute WGS84-bbox fra ALLE fire UTM-hjørner (ikke bare SW+NE) så Overpass
@@ -545,6 +556,21 @@ export async function buildMapFromCenter({
     return probeDem
   }))
   const demPromise = demCorePromise.then(maybeFillFromTerrarium)
+  // DOM (overflate-modell) for skog-nyanse (CHM = DOM − DTM). Kun når brukeren
+  // har valgt en kvalitet med chm=true. Hentes på SAMME utmBbox og SAMME faktisk-
+  // resolverte oppløsning som DTM-en (computeCHM krever like cols/rows), så vi
+  // venter på kjerne-DEM-et og bruker dets resolution. Feiler trygt → null (CHM-
+  // blokka i mapBuilder no-op-er da). Kun for fullbygget — CHM påvirker ikke
+  // konturer, så terreng-previewen trenger den ikke.
+  const domPromise = chm
+    ? demCorePromise.then((dem) => {
+        if (!dem || dem.source?.startsWith('synthetic')) return null
+        return timeAsync('dom', fetchDOM(utmBbox, dem.resolution, { signal }).catch((e) => {
+          console.warn(`[DOM] henting feilet — hopper over skog-nyanse: ${e?.message ?? e}`)
+          return null
+        }))
+      })
+    : Promise.resolve(null)
   // Sjøkart gates på samme kyst-signal (DEM-havflate + OSM-saltvann). For
   // innlands-bbox (inkl. store innsjøer) hoppes WFS-hentingen helt over.
   const sjokartPromise = timeAsync('sjøkart', coastalPromise.then(coastal => {
@@ -610,7 +636,7 @@ export async function buildMapFromCenter({
 
   // Full bygging: vent på alle kilder, slå sammen, bygg full SVG (worker).
   const assembleAndBuildFull = async () => {
-    const [osmData, n50Water, nveLakes, dem, sjokart, kulturminner] = await Promise.all([overpassP, n50P, nveLakesP, demPromise, sjokartPromise, kulturminneP])
+    const [osmData, n50Water, nveLakes, dem, sjokart, kulturminner, dom] = await Promise.all([overpassP, n50P, nveLakesP, demPromise, sjokartPromise, kulturminneP, domPromise])
     const sjokartElements = sjokartToElements(sjokart)
 
     const n50HasFreshwater = n50Water.some(el =>
@@ -689,6 +715,7 @@ export async function buildMapFromCenter({
     // avbryter (terminerer workeren) ved prefetch-bom.
     const { svg, counts, timings } = await timeAsync('buildSvg', buildSvgClient(elements, bbox, {
       dem,
+      dom,                           // overflate-modell for CHM skog-nyanse (null når kvalitet uten chm, eller henting feilet)
       utmBbox,                       // authoritativ extent (samme som DEM-fetch) → kvadratisk + bit-eksakt
       contourIntervalM: equidistanceM,
       scaleDenom: 10000,
