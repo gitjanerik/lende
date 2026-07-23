@@ -25,6 +25,8 @@ import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
 import { reverseNearestPlace } from '../lib/nominatimReverse.js'
 import { routeShareToken, parseRouteToken, MAX_SHARE_ROUTES } from '../lib/routeShare.js'
 import { useGravelPlanner } from '../composables/useGravelPlanner.js'
+import { loadGravelRoute } from '../lib/mapStorage.js'
+import { useMapContext } from '../composables/useMapContext.js'
 import AppMenuButton from '../components/AppMenuButton.vue'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { useMapSizePreference, effectiveEquidistanceForWidthKm, defaultMapDims, aspectForFormat } from '../composables/useMapSizePreference.js'
@@ -118,6 +120,13 @@ const view = computed(() => ({
   centerLat: center.value.lat, centerLon: center.value.lon,
   zoom: zoom.value, wPx: mapSize.value.w, hPx: mapSize.value.h,
 }))
+
+// Punkt-provider for hovedmenyens eksterne karttjenester (Google/UT.no/
+// Vegkart): synlig kartsenter + web-zoom. Registrert i onMounted.
+const mapCtx = useMapContext()
+function menuMapPoint() {
+  return { lat: center.value.lat, lon: center.value.lon, zoom: zoom.value }
+}
 
 const tiles = computed(() => {
   if (!mapSize.value.w) return []
@@ -1221,8 +1230,25 @@ onMounted(() => {
   window.addEventListener('online', onlineHandler)
   window.addEventListener('offline', offlineHandler)
   void planner.refreshSaved()
+  mapCtx.register(menuMapPoint)
+  // ?open=<id> fra hjem-sidens Ruteplanlegger-fane: åpne lagret rute direkte.
+  const openId = currentRoute.query.open
+  if (openId && !routeInvite.value) {
+    loadGravelRoute(String(openId))
+      .then((rec) => {
+        if (!rec) return
+        planner.openSaved(rec)
+        nextTick(() => {
+          measureMap()
+          fitPointsView(rec.points.map((p) => [p[0], p[1]]))
+        })
+      })
+      .catch(() => { /* slettet/ukjent id — behold vanlig oppstart */ })
+      .finally(() => router.replace({ name: 'ruteplanlegger', query: {} }))
+  }
 })
 onUnmounted(() => {
+  mapCtx.unregister(menuMapPoint)
   unlockBodyScroll()
   mapResizeObs?.disconnect()
   inviteBannerObs?.disconnect()
@@ -1240,21 +1266,12 @@ onUnmounted(() => {
 <template>
   <div class="relative h-[100dvh] bg-[#0e1116] text-white/90 overflow-hidden flex flex-col">
 
-    <!-- Flytende chrome oppå kartet: hovedmeny (venstre) · lagrede ruter med
-         badge (høyre). Den tidligere grå toppbaren + «Så i lende: ruteplanlegger»-
-         tittelen er fjernet — kartet fyller nå hele flaten. -->
-    <div class="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-3 pointer-events-none"
+    <!-- Flytende chrome oppå kartet: kun hovedmenyen (venstre). Lagrede-ruter-
+         FAB-en øverst til høyre er fjernet (kolliderte med +/−-zoomknappene);
+         «Mine ruter» nås nå fra hjem-sidens Ruteplanlegger-fane og hovedmenyen. -->
+    <div class="absolute top-0 left-0 z-30 px-3 pointer-events-none"
          :style="{ paddingTop: 'max(env(safe-area-inset-top, 0px), 0.75rem)' }">
       <div class="pointer-events-auto"><AppMenuButton variant="float" /></div>
-      <button @click="showSaved = true" aria-label="Lagrede ruter" :disabled="!!routeInvite"
-              class="pointer-events-auto relative w-10 h-10 rounded-full flex items-center justify-center
-                     bg-zinc-950 text-white shadow-lg active:scale-95 transition disabled:opacity-35">
-        <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.4"
-             stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-        <span v-if="savedRoutes.length"
-              class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-sky-500 text-[9px]
-                     font-bold text-white flex items-center justify-center">{{ savedRoutes.length }}</span>
-      </button>
     </div>
 
     <!-- Kart -->

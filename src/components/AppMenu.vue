@@ -2,6 +2,10 @@
 import { watch, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppMenu } from '../composables/useAppMenu.js'
+import { useMapContext } from '../composables/useMapContext.js'
+import AppMenuButton from './AppMenuButton.vue'
+import { gmapsUrl, streetViewUrl, buildVegkartUrl } from '../lib/externalMapLinks.js'
+import { buildUtNoUrl } from '../lib/utNoLink.js'
 import { APP_VERSION } from '../version.js'
 
 // Global hovedmeny — slide-in fra venstre. Montert én gang i App.vue og styrt av
@@ -9,21 +13,39 @@ import { APP_VERSION } from '../version.js'
 // Lukkes på valg, backdrop-klikk, Escape og rute-endring.
 
 const { menuOpen, close } = useAppMenu()
+const { hasMapContext, getPoint } = useMapContext()
 const route = useRoute()
 const router = useRouter()
 
 // Er vi i ruteplanleggeren? Da tilbyr mode-vekslingen «Turkart», ellers «Ruteplanlegger».
 const isRute = computed(() => route.name === 'ruteplanlegger')
 
-function go(path, mode) {
+function go(to, mode) {
   close()
   if (mode) { try { localStorage.setItem('lende-last-mode', mode) } catch { /* ignorer */ } }
-  if (route.path !== path) router.push(path)
+  router.push(to)
 }
 
 function toggleMode() {
   if (isRute.value) go('/', 'kart')
   else go('/rute', 'rute')
+}
+
+// Eksterne karttjenester på synlig kartsenter — kun når en kartvisning har
+// registrert en punkt-provider (useMapContext), dvs. brukeren er inne i et kart.
+const EXTERNAL_SERVICES = [
+  { key: 'gmaps', label: 'Google Maps', url: (p) => gmapsUrl(p.lat, p.lon) },
+  { key: 'streetview', label: 'Street View', url: (p) => streetViewUrl(p.lat, p.lon) },
+  { key: 'utno', label: 'UT.no-kart', url: (p) => buildUtNoUrl(p) },
+  { key: 'vegkart', label: 'Vegkart (Vegvesen.no)', url: (p) => buildVegkartUrl(p) },
+]
+
+function openExternal(svc) {
+  const p = getPoint()
+  if (!p) return
+  const url = svc.url(p)
+  if (url) window.open(url, '_blank', 'noopener')
+  close()
 }
 
 // Lukk ved rute-endring (f.eks. maskinvare-tilbake) og på Escape.
@@ -44,40 +66,42 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
            class="fixed top-0 left-0 bottom-0 z-[201] w-[82%] max-w-[320px] flex flex-col
                   bg-zinc-900 border-r border-white/10 shadow-2xl"
            :style="{ paddingTop: 'max(env(safe-area-inset-top, 0px), 0.75rem)' }">
-      <div class="flex items-center justify-between px-4 pb-3 pt-1">
+      <!-- Panelets egen meny-knapp ligger på samme sted som trigger-knappen i
+           visningen under (venstre, px-3) — delt tilstand gjør at den viser
+           X-animasjonen, så det ser ut som om knappen står stille mens panelet
+           glir inn under den. Den ER lukkekontrollen; ingen separat X. -->
+      <div class="flex items-center gap-3 px-3 pb-3">
+        <AppMenuButton variant="float" />
         <span class="text-[15px] font-semibold text-white">Så i lende</span>
-        <button @click="close" aria-label="Lukk meny"
-                class="w-8 h-8 rounded-full flex items-center justify-center bg-white/5 border
-                       border-white/10 text-white/70 active:scale-95 transition">
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round">
-            <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-          </svg>
-        </button>
       </div>
 
       <nav class="flex-1 overflow-y-auto px-2 py-1 flex flex-col gap-1">
-        <!-- Mode-veksling: turkart ↔ ruteplanlegger -->
-        <button @click="toggleMode" class="menu-item">
-          <svg v-if="isRute" viewBox="0 0 24 24" class="menu-icon" fill="none" stroke="currentColor"
+        <button @click="go({ path: '/', query: { tab: 'kart' } })" class="menu-item">
+          <svg viewBox="0 0 24 24" class="menu-icon" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="1 6 8 3 16 6 23 3 23 18 16 21 8 18 1 21 1 6"/>
             <line x1="8" y1="3" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="21"/>
           </svg>
-          <svg v-else viewBox="0 0 24 24" class="menu-icon" fill="none" stroke="currentColor"
+          <span>Mine kart</span>
+        </button>
+
+        <button @click="go({ path: '/', query: { tab: 'rute' } })" class="menu-item">
+          <svg viewBox="0 0 24 24" class="menu-icon" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/>
             <path d="M9 19h6a3 3 0 0 0 3-3V8"/><path d="M6 16V8a3 3 0 0 1 3-3h6"/>
           </svg>
-          <span>{{ isRute ? 'Turkart' : 'Ruteplanlegger' }}</span>
+          <span>Mine ruter</span>
         </button>
 
-        <button @click="go('/', 'kart')" class="menu-item">
+        <!-- Mode-veksling: turkart ↔ ruteplanlegger -->
+        <button @click="toggleMode" class="menu-item">
           <svg viewBox="0 0 24 24" class="menu-icon" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>
+            <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+            <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
           </svg>
-          <span>Hjem / Mine kart</span>
+          <span>{{ isRute ? 'Bytt til turkart' : 'Bytt til ruteplanlegger' }}</span>
         </button>
 
         <button @click="go('/tegnforklaring')" class="menu-item">
@@ -98,6 +122,23 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           </svg>
           <span>Om appen</span>
         </button>
+
+        <!-- Eksterne karttjenester på synlig kartsenter — kun inne i et kart
+             (turkart eller ruteplanlegger), skjult på Hjem/Mine kart. -->
+        <template v-if="hasMapContext">
+          <div class="px-3 pt-4 pb-1 text-[10px] uppercase tracking-wide text-white/40">
+            Åpne stedet i
+          </div>
+          <button v-for="svc in EXTERNAL_SERVICES" :key="svc.key"
+                  @click="openExternal(svc)" class="menu-item">
+            <svg viewBox="0 0 24 24" class="menu-icon" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+            <span>{{ svc.label }}</span>
+          </button>
+        </template>
       </nav>
 
       <div class="px-4 py-3 border-t border-white/10 text-[11px] text-white/35"

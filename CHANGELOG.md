@@ -1,5 +1,28 @@
 # Endringslogg
 
+## 2026-07-23 — v1.0.75: Hjem med faner, ryddet infodrawer og meny-finpuss
+
+UX-oppfølging av hovedmenyen (v1.0.74) basert på bruk på mobil. Hjem-siden er
+nå fellesside for begge modusene med to faner — «Turkart (N)» og
+«Ruteplanlegger (N)» — der rute-fanen lister lagrede ruter (åpne/slett) og
+turkart-fanen har alt fra før; hovedmenyens to øverste valg «Mine kart» og
+«Mine ruter» åpner riktig fane, med modus-vekslingen som valg #3. Lagrede-
+ruter-FAB-en i planleggeren (kolliderte med zoom-knappene) er fjernet.
+Infodraweren er ryddet: «Åpne ruteplanlegger»-knappen, «Kopier koordinater» og
+«Del koordinater» er fjernet (kopiering finnes ved koordinatene; deling dekkes
+av Del kart-knappene), farge-bakgrunnene på «Del kart og sted»/«Naviger hit»/
+«Gå en runde herfra» er nøytralisert, «Nærhetsvarsel» ligger nå rett etter
+«Start måling her», og minikartet vises kun når draweren er maksimert (unngår
+dobbelt crosshair-utsnitt). De fire eksterne karttjeneste-lenkene (Google
+Maps, Street View, UT.no, Vegkart) er flyttet til et eget panel i hovedmenyen
+som kun vises inne i et kart (ny delt `useMapContext`). Snarvei-raden i
+turkartet skjules mens kartet bygges/utvides (kolliderte med bygge-chipen) og
+«Sporing»-snarveien er fjernet (plassmangel mot kompasset). Hovedmenyen glir
+nå inn under meny-knappen — hamburgeren→X-en selv er lukkekontrollen, uten
+egen X i panelet.
+
+---
+
 ## 2026-07-22 — v1.0.74: Global hovedmeny + flytende kart-chrome
 
 Appen manglet en felles meny — hver visning hadde sin egen mørkegrå header-bar
