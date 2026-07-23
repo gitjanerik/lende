@@ -489,6 +489,10 @@ watch(defaultZoomScale, (v) => {
 // hvis GPS er aktivert. På toget kan watchPosition henge på en cached
 // koordinat — getCurrentPosition med maximumAge=0 gir alltid ny måling.
 function onResetAndRefreshGps() {
+  // Kompass-FØLGE roterer kartet etter enhetens retning — å «nullstille til
+  // nord» mens den er på gir ingen mening, så den slås av først (samme
+  // semantikk som den gamle kompass-FAB-en, som denne knappen har absorbert).
+  if (compass.isActive) compass.stop()
   const z = defaultZoomScale.value
   const m = meta.value
   if (z > 1 && m?.widthM && m?.heightM) {
@@ -1324,16 +1328,10 @@ const userPos = useUserPosition(() => meta.value)
 const proximity = useProximityAlert(() => userPos)
 const compass = useCompass()
 
-// Kompass-rosen (oppe til høyre): tap setter kart-NORD som «opp» (rotateTo 0).
-// Supplerer «Sentrer»-FAB-en nederst (som nullstiller zoom OG rotasjon) ved å
-// kun uvri rotasjonen — zoom/posisjon beholdes. Kompass-FØLGE (heading-modus)
-// roterer kartet etter enhetens retning, så det gir ingen mening å «låse nord»
-// mens den er på → vi slår den av først. Følge-toggelen finnes fortsatt som
-// «Kompass»-knappen i Innstillinger-skuffen.
-function pointNorth() {
-  if (compass.isActive) compass.stop()
-  rotateTo(0)
-}
+// Kompass-FAB-en (pointNorth) er fjernet (v1.0.77): «Sentrer»-knappen i FAB-
+// stacken nullstiller allerede zoom OG rotasjon, og bærer nå kompassnåla som
+// ikon. Kompass-FØLGE (heading-modus) toggles fortsatt via «Kompass»-knappen i
+// Innstillinger-skuffen.
 
 // Annoteringsmodus — point-symboler over auto-generert kart
 const mapId = computed(() => route.params.id ?? 'vardasen')
@@ -3297,27 +3295,12 @@ onUnmounted(() => {
       @select="selectSearchResult"
       @select-global="onSelectGlobalPlace" />
 
-    <!-- Kompass-rose. På desktop skyves den til venstre for side-panelet
-         når drawer er åpen så den ikke havner bak. -->
+    <!-- Kompass-FAB-en er fjernet (v1.0.77) — nåla bor nå som ikon på
+         «Sentrer»-knappen i FAB-stacken (som uansett nullstiller rotasjonen).
+         Containeren består for desktop-sliderne + kompass-feilmelding. -->
     <div class="absolute top-[var(--ovl-rose)] z-20 pointer-events-auto select-none flex flex-col items-end
                 transition-[right] duration-200"
          :style="floatRightStyle">
-      <button @click="pointNorth"
-              aria-label="Sett nord opp (nullstill rotasjon)"
-              class="w-14 h-14 rounded-full bg-zinc-950
-                     flex items-center justify-center text-white shadow-lg active:scale-95 transition">
-        <svg viewBox="-50 -50 100 100" class="w-12 h-12"
-             :style="{ transform: compass.isActive && compass.headingDeg !== null
-                                  ? `rotate(${-compass.headingDeg}deg)`
-                                  : `rotate(${rotation}deg)`,
-                       transition: 'transform 0.2s linear' }">
-          <circle r="44" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.6"/>
-          <polygon points="0,-38 6,0 0,8 -6,0" fill="#ef4444"/>
-          <polygon points="0,38 6,0 0,-8 -6,0" fill="currentColor" opacity="0.85"/>
-          <text y="-28" text-anchor="middle" font-size="14" font-weight="700"
-                fill="currentColor">N</text>
-        </svg>
-      </button>
       <div v-if="compass.error"
            class="text-[10px] text-red-300 mt-1 max-w-[80px] text-right leading-tight
                   px-1.5 py-0.5 rounded bg-zinc-950">
@@ -3387,6 +3370,31 @@ onUnmounted(() => {
       <!-- Auto-kart-FAB fjernet (v9.3.38): funksjonen er default PÅ og styres
            via bryteren i Innstillinger-fanen. Runtime-toasts (offline, «flyttet
            sentrum») rendres som et eget element nederst på kartet. -->
+      <!-- Sentrer-knapp (øverst, med kompassnål som ikon — v1.0.77): tap =
+           sentrer + nord opp (+ GPS-refresh), lang-trykk = åpne zoom-panelet.
+           Nåla roterer med kompass-heading/kartrotasjon og erstatter den gamle
+           kompass-FAB-en øverst til høyre (funksjonelt overlappende).
+           Pointer-events (ikke @click) så lang-trykk ikke utløser sentrering
+           ved release — samme knobSettled-mønster. -->
+      <button @pointerdown="knobDown('center')" @pointerup="knobUp('center')"
+              @pointercancel="knobUp('center')"
+              :aria-label="userPos.isWatching ? 'Sentrer og nord opp + oppdater GPS — hold for innstillinger' : 'Sentrer og nord opp — hold for innstillinger'"
+              class="w-12 h-12 rounded-full bg-zinc-950 text-white shadow-lg touch-none
+                     flex items-center justify-center active:scale-95 transition relative">
+        <svg viewBox="-50 -50 100 100" class="w-8 h-8"
+             :style="{ transform: compass.isActive && compass.headingDeg !== null
+                                  ? `rotate(${-compass.headingDeg}deg)`
+                                  : `rotate(${rotation}deg)`,
+                       transition: 'transform 0.2s linear' }">
+          <circle r="44" fill="none" stroke="currentColor" stroke-width="4" opacity="0.35"/>
+          <polygon points="0,-40 10,0 0,12 -10,0" fill="#ef4444"/>
+          <polygon points="0,40 10,0 0,-12 -10,0" fill="currentColor" opacity="0.85"/>
+        </svg>
+        <!-- v8.5.2: liten GPS-indikator-prikk i hjørnet når GPS er aktiv,
+             så brukeren ser at knappen også refresher posisjonen. -->
+        <span v-if="userPos.isWatching"
+              class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-sky-400 shadow-[0_0_4px_rgba(56,189,248,0.8)]" />
+      </button>
       <!-- Strek-knott: tap = tykkere (wrapper til tynnest etter tykkest),
            lang-trykk = åpne strek-panelet (per-element-sliders). Bua viser nivå;
            senter-streken tegnes i faktisk valgt tykkelse (selv-demonstrerende). -->
@@ -3421,27 +3429,6 @@ onUnmounted(() => {
                 fill="currentColor" :fill-opacity="reliefGlyphOpacity"
                 stroke="currentColor" stroke-width="0.8" stroke-linejoin="round"/>
         </svg>
-      </button>
-      <!-- Sentrer-knapp: tap = sentrer (+ GPS-refresh), lang-trykk = åpne
-           zoom-panelet. Pointer-events (ikke @click) så lang-trykk ikke
-           utløser sentrering ved release — samme knobSettled-mønster. -->
-      <button @pointerdown="knobDown('center')" @pointerup="knobUp('center')"
-              @pointercancel="knobUp('center')"
-              :aria-label="userPos.isWatching ? 'Sentrer + oppdater GPS — hold for innstillinger' : 'Sentrer — hold for innstillinger'"
-              class="w-12 h-12 rounded-full bg-zinc-950 text-white shadow-lg touch-none
-                     flex items-center justify-center active:scale-95 transition relative">
-        <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3"/>
-          <line x1="12" y1="2" x2="12" y2="5"/>
-          <line x1="12" y1="19" x2="12" y2="22"/>
-          <line x1="2" y1="12" x2="5" y2="12"/>
-          <line x1="19" y1="12" x2="22" y2="12"/>
-        </svg>
-        <!-- v8.5.2: liten GPS-indikator-prikk i hjørnet når GPS er aktiv,
-             så brukeren ser at knappen også refresher posisjonen. -->
-        <span v-if="userPos.isWatching"
-              class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-sky-400 shadow-[0_0_4px_rgba(56,189,248,0.8)]" />
       </button>
     </div>
 
