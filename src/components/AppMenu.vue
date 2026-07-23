@@ -3,6 +3,7 @@ import { watch, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppMenu } from '../composables/useAppMenu.js'
 import { useMapContext } from '../composables/useMapContext.js'
+import { useUiTextScale } from '../composables/useUiTextScale.js'
 import AppMenuButton from './AppMenuButton.vue'
 import { gmapsUrl, streetViewUrl, buildVegkartUrl } from '../lib/externalMapLinks.js'
 import { buildUtNoUrl } from '../lib/utNoLink.js'
@@ -14,6 +15,7 @@ import { APP_VERSION } from '../version.js'
 
 const { menuOpen, close } = useAppMenu()
 const { hasMapContext, getPoint } = useMapContext()
+const { uiTextScale, cycleTextScale } = useUiTextScale()
 const route = useRoute()
 const router = useRouter()
 
@@ -75,7 +77,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <span class="text-[15px] font-semibold text-white">Så i lende</span>
       </div>
 
-      <nav class="flex-1 overflow-y-auto px-2 py-1 flex flex-col gap-1">
+      <nav class="flex-1 overflow-y-auto px-2 py-1 flex flex-col gap-1"
+           :style="{ zoom: uiTextScale }">
         <button @click="go({ path: '/', query: { tab: 'kart' } })" class="menu-item">
           <svg viewBox="0 0 24 24" class="menu-icon" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -121,6 +124,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             <circle cx="12" cy="8" r="0.6" fill="currentColor"/>
           </svg>
           <span>Om appen</span>
+        </button>
+
+        <!-- Global tekststørrelse (flyttet fra skuffe-headerne): sykler
+             100 % → 125 % → 150 %. Menyen selv skaleres, så effekten vises
+             umiddelbart; menyen holdes åpen. -->
+        <button @click="cycleTextScale" class="menu-item" aria-label="Tekststørrelse">
+          <span class="menu-icon flex items-end justify-center font-semibold leading-none">
+            <span class="text-[11px]">A</span><span class="text-[16px]">A</span>
+          </span>
+          <span>Tekststørrelse</span>
+          <span class="ml-auto text-[12px] tabular-nums text-white/45">
+            {{ Math.round(uiTextScale * 100) }} %
+          </span>
         </button>
 
         <!-- Eksterne karttjenester på synlig kartsenter — kun inne i et kart

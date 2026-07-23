@@ -1,5 +1,18 @@
 # Endringslogg
 
+## 2026-07-23 — v1.0.79: Global tekststørrelse i hovedmenyen
+
+Tekststørrelse-knappen (AA) satt gjemt i headerne på Innstillinger-skuffen og
+info-arket, og virket bare der. Den er nå én global innstilling i hovedmenyen
+(«Tekststørrelse», sykler 100 % → 125 % → 150 %, persistert på tvers av økter
+via ny delt `useUiTextScale`; gammel per-kart-verdi migreres). Skalaen
+påvirker nå det meste av lese-UI-et: hjem-fanene (kart-/rutelistene), selve
+hovedmenyen (så effekten vises umiddelbart), Om-siden, Innstillinger-skuffen
+og info-arket som før, og ruteplanleggerens planlegg-/resultatskuff. Knapper,
+flytende chrome og stedsnavn i selve kartet er bevisst uberørt inntil videre.
+
+---
+
 ## 2026-07-23 — v1.0.78: «Sporing» tilbake i snarvei-raden
 
 Etter at kompass-FAB-en forsvant (v1.0.77) har snarvei-raden plassen for seg

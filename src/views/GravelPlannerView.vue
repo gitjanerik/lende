@@ -27,6 +27,7 @@ import { routeShareToken, parseRouteToken, MAX_SHARE_ROUTES } from '../lib/route
 import { useGravelPlanner } from '../composables/useGravelPlanner.js'
 import { loadGravelRoute } from '../lib/mapStorage.js'
 import { useMapContext } from '../composables/useMapContext.js'
+import { useUiTextScale } from '../composables/useUiTextScale.js'
 import AppMenuButton from '../components/AppMenuButton.vue'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { useMapSizePreference, effectiveEquidistanceForWidthKm, defaultMapDims, aspectForFormat } from '../composables/useMapSizePreference.js'
@@ -37,6 +38,7 @@ import RouteElevationProfile from '../components/RouteElevationProfile.vue'
 
 const router = useRouter()
 const currentRoute = useRoute()
+const { uiTextScale } = useUiTextScale()
 const planner = useGravelPlanner()
 const {
   pointA, pointB, route, proposals, selectedId, routeState, routeError, savedRoutes,
@@ -1810,7 +1812,7 @@ onUnmounted(() => {
            i en sticky footer under scroll-regionen (v12.1.20) så den alltid
            er synlig — den scrollet før ut av syne i lav skuff. -->
       <template v-if="!route || routeState === 'routing'">
-      <div class="flex-1 min-h-0 overflow-y-auto px-4 pt-1 pb-3">
+      <div class="flex-1 min-h-0 overflow-y-auto px-4 pt-1 pb-3" :style="{ zoom: uiTextScale }">
       <div class="max-w-[560px] mx-auto">
         <!-- Hvordan-hint: to trykk i kartet setter A og B; grusvei-overlayen
              vises direkte i kartet ved innzooming. Skjules i delingsmodus
@@ -1975,7 +1977,7 @@ onUnmounted(() => {
       <!-- Rute-resultat (tre forslag + stat-fliser). Lagre/Nullstill står i en
            sticky footer (v12.1.20); eksport (GPX/Del) blir i scroll-innholdet. -->
       <template v-else>
-      <div class="flex-1 min-h-0 overflow-y-auto px-4 pb-3">
+      <div class="flex-1 min-h-0 overflow-y-auto px-4 pb-3" :style="{ zoom: uiTextScale }">
       <div class="max-w-[560px] mx-auto">
         <div class="text-[12px] text-white/50 truncate">
           {{ route.navn ?? `${labelFor(pointA)} → ${labelFor(pointB)}` }}
