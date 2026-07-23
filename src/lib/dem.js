@@ -102,12 +102,67 @@ export function fillNoData(dem) {
 }
 
 /**
+ * Separabel gaussisk uskarphet på et høyde-rutenett. Kant-celler klampes
+ * (nærmeste gyldige indeks). Antar en void-fylt grid (ingen NaN/noData) — kall
+ * etter fillNoData. Returnerer en NY Float32Array; sigma ≤ 0.3 celler → uendret
+ * referanse (for svakt til å telle).
+ *
+ * @param {Float32Array} data
+ * @param {number} cols
+ * @param {number} rows
+ * @param {number} sigmaCells   standardavvik i celler
+ * @returns {Float32Array}
+ */
+export function smoothGridGaussian(data, cols, rows, sigmaCells) {
+  if (!(sigmaCells > 0.3)) return data
+  const radius = Math.max(1, Math.ceil(sigmaCells * 3))
+  const kernel = new Float32Array(radius * 2 + 1)
+  let sum = 0
+  for (let i = -radius; i <= radius; i++) {
+    const w = Math.exp(-(i * i) / (2 * sigmaCells * sigmaCells))
+    kernel[i + radius] = w
+    sum += w
+  }
+  for (let i = 0; i < kernel.length; i++) kernel[i] /= sum
+
+  const tmp = new Float32Array(data.length)
+  for (let r = 0; r < rows; r++) {
+    const base = r * cols
+    for (let c = 0; c < cols; c++) {
+      let acc = 0
+      for (let k = -radius; k <= radius; k++) {
+        let cc = c + k
+        if (cc < 0) cc = 0
+        else if (cc >= cols) cc = cols - 1
+        acc += data[base + cc] * kernel[k + radius]
+      }
+      tmp[base + c] = acc
+    }
+  }
+  const out = new Float32Array(data.length)
+  for (let c = 0; c < cols; c++) {
+    for (let r = 0; r < rows; r++) {
+      let acc = 0
+      for (let k = -radius; k <= radius; k++) {
+        let rr = r + k
+        if (rr < 0) rr = 0
+        else if (rr >= rows) rr = rows - 1
+        acc += tmp[rr * cols + c] * kernel[k + radius]
+      }
+      out[r * cols + c] = acc
+    }
+  }
+  return out
+}
+
+/**
  * Generer konturer fra et DEM. Bruker marching squares (d3-contour).
  * Returnerer features med polylines i UTM-koordinater.
  *
  * @param {DEM} dem
  * @param {number} intervalM        Ekvidistanse, typisk 5 m for ISOM
  * @param {number} indexEvery       Hver N-te kontur er indekskontur (5 → hver 25 m)
+ * @param {{ smoothingM?: number }} [options]  Gaussisk rutenett-glatting (bakke-meter) før konturering; 0 = av
  * @returns {{
  *   features: Array,
  *   intervalM: number,
@@ -116,12 +171,26 @@ export function fillNoData(dem) {
  *   maxElevM: number
  * }}
  */
-export function buildContours(dem, intervalM = 20, indexEvery = 5) {
+export function buildContours(dem, intervalM = 20, indexEvery = 5, options = {}) {
+  const { smoothingM = 0 } = options
   const { cols, rows, transform, noData } = dem
   // Glatt ut noData FØR marching squares så periferien ikke får konsentriske
   // høydekurve-blink rundt -9999-klyngene (se fillNoData). Ingen noData → samme
   // array, og resten av funksjonen er uendret.
-  const { data } = fillNoData(dem)
+  const { data: filled } = fillNoData(dem)
+  // Lett gaussisk lavpass på høyde-rutenettet FØR marching squares. Kartverkets
+  // NHM_DTM er nativt 1 m; på fine rutenett (2 m) gir ekte mikro-relieff (grøfter,
+  // steinblokker, rotvelt) bølgete «spaghetti»-konturer på slake partier. Et lett
+  // glattepass gir kartografisk glatte kurver uten å miste terrengform — som de
+  // profesjonelle kurvene på UT.no. smoothingM (bakke-meter) → sigma i celler via
+  // pikselstørrelsen. Default 0 (av) ⇒ eksisterende 10 m/syntetiske kart er byte-
+  // identiske; mapBuilder skrur den kun på for fine rutenett.
+  const sigmaCells = smoothingM > 0
+    ? smoothingM / Math.abs(transform.pixelWidth || 1)
+    : 0
+  const data = sigmaCells > 0.3
+    ? smoothGridGaussian(filled, cols, rows, sigmaCells)
+    : filled
 
   // Periferi-maske (v9.3.37): fillNoData dilaterer gyldige verdier inn i
   // noData-voids ved snitt av naboer. Det fjerner blink-ringene, men når et

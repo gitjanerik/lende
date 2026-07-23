@@ -1107,7 +1107,14 @@ export function buildSvg(elements, bbox, options = {}) {
   let demSeaBands = []
   let demSummits = []
   if (usableDem) {
-    const c = _time('contours', () => buildContours(usableDem, contourIntervalM, 5))
+    // Lett gaussisk rutenett-glatting KUN på fine rutenett (2 m fra fin-
+    // oppgraderingen i createMapFlow): nativt 1 m NHM_DTM har mikro-relieff som
+    // ellers lager bølgete konturer på slake partier. ~1,5× cellestørrelse er
+    // et lett pass. Grovere rutenett (≥ 5 m, bl.a. headless/Vardåsen) er alt
+    // glatte nok → 0 (av) ⇒ byte-identisk med før.
+    const demResM = Math.abs(usableDem.transform?.pixelWidth || usableDem.resolution || contourIntervalM)
+    const contourSmoothingM = demResM <= 3.5 ? demResM * 1.5 : 0
+    const c = _time('contours', () => buildContours(usableDem, contourIntervalM, 5, { smoothingM: contourSmoothingM }))
     const cl = includeCliffs ? _time('cliffs', () => detectCliffs(usableDem, 45, 10)) : []
     // v9.1.17 — knauser tilbake som ÉN merged vektor-<path> (ISOM 213). Etter
     // raster-eksperimentet (v9.1.7–9.1.16, blurry «vorter» + mobil-GPU-kost):

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fillNoData, buildContours, detectSummits } from './dem.js'
+import { fillNoData, buildContours, detectSummits, smoothGridGaussian } from './dem.js'
 
 const NO_DATA = -9999
 
@@ -13,6 +13,41 @@ function makeDem(values, cols, rows, { noData = NO_DATA, res = 10 } = {}) {
     resolution: res,
   }
 }
+
+describe('smoothGridGaussian', () => {
+  it('sigma ≤ 0.3 celler returnerer uendret referanse (for svakt)', () => {
+    const data = Float32Array.from([1, 2, 3, 4])
+    expect(smoothGridGaussian(data, 2, 2, 0.2)).toBe(data)
+  })
+
+  it('reduserer høyfrekvent varians (demper mikro-relieff)', () => {
+    // Sjakkbrett-mønster = maks høyfrekvens. Glatting skal trekke det mot snittet.
+    const cols = 16, rows = 16
+    const data = new Float32Array(cols * rows)
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++)
+        data[r * cols + c] = (r + c) % 2 === 0 ? 10 : 0
+    const variance = (arr) => {
+      const m = arr.reduce((a, b) => a + b, 0) / arr.length
+      return arr.reduce((a, b) => a + (b - m) ** 2, 0) / arr.length
+    }
+    const out = smoothGridGaussian(data, cols, rows, 1.0)
+    expect(out).not.toBe(data)
+    expect(variance(out)).toBeLessThan(variance(data) * 0.5)
+  })
+
+  it('bevarer omtrent snittet (ingen bias) på en helning', () => {
+    const cols = 32, rows = 32
+    const data = new Float32Array(cols * rows)
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++)
+        data[r * cols + c] = c * 2   // jevn øst-helning
+    const mean = (arr) => arr.reduce((a, b) => a + b, 0) / arr.length
+    const out = smoothGridGaussian(data, cols, rows, 1.5)
+    // Kant-klamping gir en bitteliten drift; snittet skal holde seg nær.
+    expect(Math.abs(mean(out) - mean(data))).toBeLessThan(0.5)
+  })
+})
 
 describe('fillNoData', () => {
   it('returnerer samme data-referanse når det ikke finnes noData', () => {
