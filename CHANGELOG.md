@@ -1,5 +1,13 @@
 # Endringslogg
 
+## 2026-07-23 — v1.0.85: Rikere fakta for fredede kulturminner (Askeladden)
+
+Fredede kulturminner (Geonorge/Askeladden-WFS-en vi allerede henter) viser nå flere felt i fakta-blokken: **Kategori** (E-ARK → «Arkeologisk minne», E-BYG → «Bygning»), **Lagt inn av** (opphav, f.eks. «Byantikvaren i Oslo») og **Posisjonsnøyaktighet** (f.eks. «±500 m» — nyttig for å vite hvor presist punktet er plassert). Vernestatus vises som før. Kommune-koden («0301») skjules i «Beliggenhet» siden den er en tallkode og ikke lesbar; brukerminner viser fortsatt stedsnavn.
+
+Bevisst utelatt: **Datering** og finkornet minnetype er SOSI-tallkoder (f.eks. datering «072») hvis offisielle kodelister ligger bak `register.geonorge.no`, som ikke er tilgjengelig fra byggemiljøet — og de lot seg ikke rekonstruere trygt fra dataene. Vi viser heller ingenting enn feil datering. Datering-feltet er allerede kodet inn i visningen, så det dukker opp automatisk når vi får en pålitelig kodeliste (kan hentes i nettleseren i en senere runde).
+
+---
+
 ## 2026-07-23 — v1.0.84: Fakta-blokk øverst i kulturminne-arket
 
 Kulturminne-arket viser nå en strukturert fakta-blokk øverst — før beskrivelse og bilder — med et to-kolonners oppsett à la kulturminnesok.no: Kategori, Vernestatus, Beliggenhet, Datering og «Lagt inn av». Blokken er datadrevet og viser kun felt som faktisk har verdi, siden de to kildene har ulike felt: brukerminner (api.ra.no) gir kategori, sted og hvem som la det inn, mens fredede minner (WFS) gir vernestatus. Datering leveres ikke av kildene ennå, men feltet er med så det dukker opp automatisk om det fylles senere. Den spredte kommune/«registrert av»-teksten lenger nede er fjernet siden den nå ligger i fakta-blokken.

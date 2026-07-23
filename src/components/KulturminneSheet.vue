@@ -38,18 +38,23 @@ const katColor = computed(() => KAT_COLOR[props.detail?.kategori] ?? KAT_COLOR.a
 // (api.ra.no) har kategori/sted/«lagt inn av», mens fredede minner (WFS) har
 // vernestatus. Datering leveres ikke av noen av kildene ennå, men taes med her
 // så den dukker opp automatisk om feltet fylles senere.
-const beliggenhet = computed(() =>
-  [props.detail?.kommune, props.detail?.fylke].filter(Boolean).join(', ')
-)
+const beliggenhet = computed(() => {
+  // Fredet-WFS gir kommune som SOSI-tallkode («0301») — ikke lesbart, så den
+  // hoppes over. Brukerminner gir stedsnavn («Oslo»), som vises.
+  const komm = props.detail?.kommune
+  const readableKomm = komm && !/^\d+$/.test(String(komm).trim()) ? komm : null
+  return [readableKomm, props.detail?.fylke].filter(Boolean).join(', ')
+})
 const facts = computed(() => {
   const d = props.detail
   if (!d) return []
   return [
-    { label: 'Kategori', value: katLabel.value },
+    { label: 'Kategori', value: d.kategoriLabel || katLabel.value },
     { label: 'Vernestatus', value: d.vernestatus || null },
     { label: 'Beliggenhet', value: beliggenhet.value || null },
     { label: 'Datering', value: d.datering || null },
     { label: 'Lagt inn av', value: d.opprettetAv || null },
+    { label: 'Posisjonsnøyaktighet', value: d.noyaktighetM ? `±${d.noyaktighetM} m` : null },
   ].filter((r) => r.value)
 })
 
