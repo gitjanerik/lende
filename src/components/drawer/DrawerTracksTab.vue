@@ -184,25 +184,30 @@ function formatDuration(ms) {
     </div>
   </div>
 
-  <!-- GPS-debug-readout (synlig kun når GPS er på) -->
-  <div v-if="userPos.isWatching"
-       class="flex items-stretch gap-2 mb-2">
-    <div class="flex-1 text-white/60 text-[10.5px] font-mono leading-snug
-                bg-white/5 border border-white/10 rounded-lg px-3 py-2 tabular-nums
-                flex items-center">
-      {{ gpsDebugLine }}
+  <!-- GPS-posisjon-readout (synlig kun når GPS er på): rå koordinater for din
+       nåværende posisjon, med knapp for å kopiere dem som Google Maps-lenke. -->
+  <div v-if="userPos.isWatching" class="mb-2">
+    <div class="text-white/45 text-[10px] uppercase tracking-wide mb-1 px-0.5">
+      Din GPS-posisjon
     </div>
-    <button @click="copyGpsCoords"
-            :disabled="userPos.latRaw == null"
-            :aria-label="copyState === 'copied' ? 'Kopiert' : 'Kopier posisjon som Google Maps-lenke'"
-            class="px-3 rounded-lg border text-[11px] active:scale-[0.98] transition disabled:opacity-40"
-            :class="copyState === 'copied'
-                    ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-100'
-                    : copyState === 'failed'
-                      ? 'bg-rose-500/20 border-rose-400/50 text-rose-100'
-                      : 'bg-white/5 border-white/10 text-white/75'">
-      {{ copyState === 'copied' ? 'Kopiert' : copyState === 'failed' ? 'Feil' : 'Kopier' }}
-    </button>
+    <div class="flex items-stretch gap-2">
+      <div class="flex-1 text-white/60 text-[10.5px] font-mono leading-snug
+                  bg-white/5 border border-white/10 rounded-lg px-3 py-2 tabular-nums
+                  flex items-center">
+        {{ gpsDebugLine }}
+      </div>
+      <button @click="copyGpsCoords"
+              :disabled="userPos.latRaw == null"
+              :aria-label="copyState === 'copied' ? 'Kopiert' : 'Kopier posisjon som Google Maps-lenke'"
+              class="px-3 rounded-lg border text-[11px] active:scale-[0.98] transition disabled:opacity-40"
+              :class="copyState === 'copied'
+                      ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-100'
+                      : copyState === 'failed'
+                        ? 'bg-rose-500/20 border-rose-400/50 text-rose-100'
+                        : 'bg-white/5 border-white/10 text-white/75'">
+        {{ copyState === 'copied' ? 'Kopiert' : copyState === 'failed' ? 'Feil' : 'Kopier' }}
+      </button>
+    </div>
   </div>
 
   <!-- Førstegangs-tips om Android «Presis posisjon». -->

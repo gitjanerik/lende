@@ -27,12 +27,14 @@ defineEmits([
   'retryGps', 'completePartial', 'repairMosaic',
 ])
 
-// Lokal «lukket for denne økta»-tilstand for de to reparasjons-bannerne. De
-// re-vises hvis tilstanden dukker opp på nytt (nytt kart / nye hull oppdaget).
+// Lokal «lukket for denne økta»-tilstand for reparasjons-bannerne og GPS-feil.
+// De re-vises hvis tilstanden dukker opp på nytt (nytt kart / nye hull / ny feil).
 const partialDismissed = ref(false)
 const gapsDismissed = ref(false)
+const positionErrorDismissed = ref(false)
 watch(() => props.mapIsPartial, (v) => { if (v) partialDismissed.value = false })
 watch(() => props.mosaicGapCount, (v) => { if (v > 0) gapsDismissed.value = false })
+watch(() => props.positionError, () => { positionErrorDismissed.value = false })
 </script>
 
 <template>
@@ -79,16 +81,26 @@ watch(() => props.mosaicGapCount, (v) => { if (v > 0) gapsDismissed.value = fals
        — nettleseren kan ikke skru på GPS selv, men et nytt forsøk trigger enten
        tillatelses-dialogen på nytt eller fanger opp at brukeren nå har slått på
        stedstjenester. -->
-  <div v-if="!loading && positionError"
-       class="absolute bottom-32 left-1/2 -translate-x-1/2 z-20 max-w-[90%] px-3 py-2
+  <div v-if="!loading && positionError && !positionErrorDismissed"
+       class="absolute bottom-32 left-1/2 -translate-x-1/2 z-20 max-w-[90%] pl-3 pr-1 py-2
               rounded-lg backdrop-blur bg-amber-600/95 border border-slate-300/40
-              text-white text-[12px] shadow-lg text-center flex flex-col items-center gap-2
+              text-white text-[12px] shadow-lg
               transition-[left] duration-200"
        :style="mapCenterStyle">
-    <span>{{ positionError }}</span>
+    <div class="flex items-start gap-1.5">
+      <span class="flex-1 min-w-0 leading-snug pt-0.5">{{ positionError }}</span>
+      <button @click="positionErrorDismissed = true" aria-label="Lukk"
+              class="w-6 h-6 -mt-0.5 flex items-center justify-center rounded-md
+                     text-white/90 active:scale-90 active:bg-white/10 shrink-0">
+        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+             stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+        </svg>
+      </button>
+    </div>
     <button @click="$emit('retryGps')"
-            class="px-3 py-1 rounded-md bg-white/20 border border-white/30 text-white
-                   text-[12px] font-medium active:scale-95 transition">
+            class="mt-1.5 mb-0.5 w-full px-3 py-1 rounded-md bg-white/20 border border-white/30 text-white
+                   text-[12px] font-medium active:scale-[0.98] transition">
       Prøv igjen
     </button>
   </div>

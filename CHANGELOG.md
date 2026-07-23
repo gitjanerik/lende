@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-23 — v1.0.80: Lukkeknapp på GPS-feil og tydeligere posisjons-readout
+
+Den oransje «GPS er blokkert for Lende»-varselboksen manglet en måte å lukkes på — nå har den en X-knapp ved siden av teksten, i tråd med de andre varselboksene, og «Prøv igjen» ligger under. Varselet dukker opp igjen hvis en ny GPS-feil oppstår. I Sporing-fanen fikk koordinat-feltet en tydelig etikett («Din GPS-posisjon»), og den kryptiske teksten «Venter på fix …» er byttet til «Venter på GPS-signal …» — og når GPS er blokkert vises «Ingen GPS-posisjon» i stedet for en villedende venter-melding.
+
+---
+
 ## 2026-07-23 — v1.0.79: Global tekststørrelse i hovedmenyen
 
 Tekststørrelse-knappen (AA) satt gjemt i headerne på Innstillinger-skuffen og
