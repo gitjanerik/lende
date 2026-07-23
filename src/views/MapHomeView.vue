@@ -44,6 +44,14 @@ const route = useRoute()
 const activeTab = ref(route.query.tab === 'rute' ? 'rute' : 'kart')
 watch(() => route.query.tab, (t) => { if (t === 'rute' || t === 'kart') activeTab.value = t })
 
+// Lista eier fanene; lag-nytt-flyten (søk/GPS/Flere valg) ligger bak et lite
+// «+ Nytt kart» og foldes kun ut på forespørsel. Unntak: tom liste → vis
+// lag-nytt direkte, så førstegangsbrukeren sparer et klikk.
+const showCreateMap = ref(false)
+const createMapVisible = computed(() =>
+  showCreateMap.value || (!loading.value && maps.value.length === 0))
+watch(activeTab, () => { showCreateMap.value = false })
+
 const savedRoutes = ref([])
 
 function formatRouteInfo(r) {
@@ -403,10 +411,35 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
       </div>
 
       <template v-if="activeTab === 'kart'">
-      <!-- Seksjons-overskrift «Lag nytt kart» (matcher «Innebygd»/«Mine kart»-
-           etikettene under). «Flere valg» (full picker) ligger som en høyrestilt
-           handling her i stedet for en løs knapp mellom seksjonene. -->
-      <div class="flex items-center justify-between mb-2">
+      <!-- Lista eier fanen: «Mine kart» øverst, med et lite «+ Nytt kart» som
+           folder ut lag-nytt-flyten (søk/GPS/Flere valg). Tom liste → lag-nytt
+           vises direkte (createMapVisible). -->
+      <div class="mb-2 flex items-center justify-between gap-2">
+        <span class="text-white/45 text-[11px] uppercase tracking-wide">Mine kart</span>
+        <div class="flex items-center gap-3">
+          <span v-if="totalBytes > 0" class="text-white/35 text-[11px] tabular-nums">
+            {{ formatBytes(totalBytes) }}
+          </span>
+          <button v-if="!loading && maps.length > 0"
+                  @click="showCreateMap = !showCreateMap"
+                  :aria-expanded="createMapVisible"
+                  class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[12px] font-medium
+                         transition active:scale-95"
+                  :class="showCreateMap
+                    ? 'bg-[#ffd84a] text-zinc-900'
+                    : 'bg-white/[0.06] border border-white/15 text-white/75'">
+            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 transition-transform duration-200"
+                 :class="{ 'rotate-45': showCreateMap }" fill="none" stroke="currentColor"
+                 stroke-width="2.4" stroke-linecap="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Nytt kart
+          </button>
+        </div>
+      </div>
+
+      <template v-if="createMapVisible">
+      <div class="flex items-center justify-between mb-2 mt-3">
         <div class="text-white/45 text-[11px] uppercase tracking-wide">Lag nytt kart</div>
         <button @click="router.push('/kart/nytt')"
                 class="text-[11px] font-medium text-white/55 active:text-white/85
@@ -507,35 +540,10 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
         <span>Søk etter et sted — eller trykk den grønne knappen for å lage kart der du står.</span>
       </div>
       <div v-if="searchError" class="-mt-2 mb-4 px-1 text-[11px] text-slate-300">{{ searchError }}</div>
-
-      <!-- «Installer som app»: vises når nettleseren tilbyr PWA-install
-           (Chrome/Edge/Android → canInstall) eller på iOS (manuell veiledning).
-           Skjult når appen alt kjører installert (standalone). Diskret outline-
-           stil så den ikke konkurrerer med den grønne GPS-CTA-en. Klikk →
-           confirm() → nettleserens egen install-prompt (se onInstallClick). -->
-      <button v-if="showInstallButton"
-              @click="onInstallClick"
-              class="w-full mb-4 py-3 rounded-xl bg-white/[0.06] border border-white/20
-                     text-white/85 text-[14px] font-medium flex items-center justify-center gap-2
-                     active:bg-white/[0.1] active:scale-[0.99] transition">
-        <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/>
-        </svg>
-        <span>Installer som app</span>
-      </button>
+      </template>
 
       <!-- Vardåsen-referansekartet er flyttet til «Utvikler»-fanen inne i kart-
            visningen (debug-hjelp) — det fyller ikke lenger forsiden. -->
-
-      <!-- Brukergenererte kart -->
-      <div v-if="maps.length > 0 || loading"
-           class="mt-6 mb-2 flex items-baseline justify-between gap-2">
-        <span class="text-white/45 text-[11px] uppercase tracking-wide">Mine kart</span>
-        <span v-if="totalBytes > 0" class="text-white/35 text-[11px] tabular-nums">
-          {{ formatBytes(totalBytes) }} totalt
-        </span>
-      </div>
 
       <!-- Vises kun når brukeren har samlet opp mange kart. Filene er små,
            så dette handler om ryddighet/utdaterte kart, ikke lagringsplass. -->
@@ -647,22 +655,22 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
            fortsatt som hurtigvalg inne i kart-visningen (MapView-drawer). -->
       </template>
 
-      <!-- Ruteplanlegger-fanen: Mine ruter + åpne planleggeren. -->
+      <!-- Ruteplanlegger-fanen: Mine ruter øverst, «+ Ny rute» som diskret
+           handling. Tom liste → stor CTA i tom-tilstanden i stedet. -->
       <template v-else>
-        <button @click="router.push('/rute')"
-                class="w-full py-3.5 rounded-xl bg-emerald-500 text-white font-semibold
-                       flex items-center justify-center gap-2 shadow-md
-                       active:scale-[0.99] transition">
-          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/>
-            <path d="M9 19h6a3 3 0 0 0 3-3V8"/><path d="M6 16V8a3 3 0 0 1 3-3h6"/>
-          </svg>
-          <span>Åpne ruteplanleggeren</span>
-        </button>
-
-        <div v-if="savedRoutes.length > 0" class="mt-6 mb-2">
+        <div class="mb-2 flex items-center justify-between gap-2">
           <span class="text-white/45 text-[11px] uppercase tracking-wide">Mine ruter</span>
+          <button v-if="!loading && savedRoutes.length > 0"
+                  @click="router.push('/rute')"
+                  class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[12px] font-medium
+                         bg-white/[0.06] border border-white/15 text-white/75
+                         transition active:scale-95">
+            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+                 stroke-width="2.4" stroke-linecap="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Ny rute
+          </button>
         </div>
 
         <div v-for="rec in savedRoutes" :key="rec.id"
@@ -703,8 +711,34 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
           <div class="mt-1.5 text-[13px] text-white/45 leading-relaxed max-w-[18rem]">
             Planlegg en rute fra A til B i ruteplanleggeren og lagre den — så finner du den igjen her.
           </div>
+          <button @click="router.push('/rute')"
+                  class="mt-5 w-full py-3.5 rounded-xl bg-emerald-500 text-white font-semibold
+                         flex items-center justify-center gap-2 shadow-md
+                         active:scale-[0.99] transition">
+            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/>
+              <path d="M9 19h6a3 3 0 0 0 3-3V8"/><path d="M6 16V8a3 3 0 0 1 3-3h6"/>
+            </svg>
+            <span>Åpne ruteplanleggeren</span>
+          </button>
         </div>
       </template>
+
+      <!-- «Installer som app»: nederst, diskret — skal ikke konkurrere med
+           listene. Vises når nettleseren tilbyr PWA-install (canInstall) eller
+           på iOS (manuell veiledning); skjult når appen kjører installert. -->
+      <button v-if="showInstallButton"
+              @click="onInstallClick"
+              class="w-full mt-6 py-3 rounded-xl bg-white/[0.06] border border-white/20
+                     text-white/85 text-[14px] font-medium flex items-center justify-center gap-2
+                     active:bg-white/[0.1] active:scale-[0.99] transition">
+        <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/>
+        </svg>
+        <span>Installer som app</span>
+      </button>
     </div>
 
     <!-- Full-screen loader for on-the-fly kart-bygging -->

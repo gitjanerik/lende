@@ -3244,10 +3244,11 @@ onUnmounted(() => {
 
     <!-- Snarvei-rad: de mest brukte kart-funksjonene (stifinner, rundtur,
          måling, info om stedet). Skjules når en modus (stifinner/måling/
-         annotering) eller søk er aktiv, og mens kartet bygges/utvides —
-         bygge-chipen bruker samme --ovl-top-slot og ville kollidert. -->
+         annotering) eller søk er aktiv, mens kartet bygges/utvides, og når
+         highlight-pillen vises — bygge-chipen og pillen bruker samme
+         --ovl-top-slot og ville kollidert. -->
     <div v-if="!sti.active.value && !measureMode && !searchOpen && !annot.isAnnotateMode.value
-               && !buildingOnTheFly && !fillingInDetails"
+               && !buildingOnTheFly && !fillingInDetails && !highlightedFeature"
          class="absolute -translate-x-1/2 top-[var(--ovl-top)] z-20 pointer-events-none
                 transition-[left] duration-200"
          :style="mapCenterStyle">

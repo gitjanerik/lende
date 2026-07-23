@@ -1,5 +1,20 @@
 # Endringslogg
 
+## 2026-07-23 — v1.0.76: Hjem-fanene ryddet — lista eier siden
+
+Oppfølging av fane-hjemmen (v1.0.75): layouten var rotete med søkefelt,
+hjelpetekst, install-knapp og stor grønn CTA stablet FØR listene. Nå eier
+listene fanene: «Mine kart» og «Mine ruter» ligger øverst, og lag-nytt-flyten
+er foldet bak et lite «+ Nytt kart»/«+ Ny rute» oppe til høyre (plussen
+roterer til × når blokka er utfoldet). Unntak: når lista er tom vises
+lag-nytt/CTA-en direkte, så førstegangsbrukeren sparer et klikk — kart-fanen
+viser søk/GPS-flyten, rute-fanen den grønne «Åpne ruteplanleggeren»-knappen i
+tom-tilstanden. «Installer som app»-knappen er flyttet nederst på siden så den
+ikke konkurrerer med innholdet. I turkartet skjules snarvei-raden også når den
+rosa highlight-pillen (søketreff/nærmeste-POI) vises — samme overlay-slot.
+
+---
+
 ## 2026-07-23 — v1.0.75: Hjem med faner, ryddet infodrawer og meny-finpuss
 
 UX-oppfølging av hovedmenyen (v1.0.74) basert på bruk på mobil. Hjem-siden er
