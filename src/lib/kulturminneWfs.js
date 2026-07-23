@@ -272,7 +272,6 @@ export function parseWfsKulturminner(gml) {
       // Ta den indre 3-sifrede koden (første datering hvis flere).
       datering: dateringLabel((block.match(/<app:datering>\s*(\d{3})\s*<\/app:datering>/i) || [])[1]),
       opphav: firstTag(block, 'opphav'),
-      noyaktighetM: (() => { const n = Number(firstTag(block, 'nøyaktighet')); return Number.isFinite(n) && n > 0 ? n : null })(),
       ...(() => { const s = splitInformasjon(firstTag(block, 'informasjon')); return { informasjon: s.enkeltminne, lokalitetInfo: s.lokalitet } })(),
       kommune: firstTag(block, 'kommune'),
       link: link && /^https?:\/\//i.test(link) ? link : null,
