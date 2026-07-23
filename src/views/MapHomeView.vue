@@ -11,8 +11,10 @@ import { reverseGeocode } from '../lib/geocode.js'
 import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
 import AppMenuButton from '../components/AppMenuButton.vue'
+import { useUiTextScale } from '../composables/useUiTextScale.js'
 
 const router = useRouter()
+const { uiTextScale } = useUiTextScale()
 
 // ── «Installer som app» ───────────────────────────────────────────────────
 // Forsiden tilbyr PWA-install. Knappen vises når nettleseren har fyrt av
@@ -392,8 +394,8 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
       <div class="relative flex-1"></div>
     </div>
 
-    <!-- Innhold -->
-    <div class="flex-1 px-4 pt-4 pb-32 overflow-y-auto">
+    <!-- Innhold. Global tekststørrelse (hovedmenyen) skalerer hele flaten. -->
+    <div class="flex-1 px-4 pt-4 pb-32 overflow-y-auto" :style="{ zoom: uiTextScale }">
 
       <!-- Fane-veksler (samme segment-stil som Om-siden): hjem-siden er felles
            for turkart (Mine kart) og ruteplanlegger (Mine ruter). -->

@@ -38,7 +38,6 @@ defineProps({
   measureMode: { type: [Boolean, String], default: false },
   closeContextMenu: { type: Function, required: true },
   onCopyCoords: { type: Function, required: true },
-  cycleTextScale: { type: Function, required: true },
   formatAreaKm2: { type: Function, required: true },
   formatVolum: { type: Function, required: true },
   formatVernedato: { type: Function, required: true },
@@ -123,13 +122,6 @@ function formatDistance(m) {
           </div>
         </div>
         <div class="flex items-center gap-1.5 shrink-0">
-          <button @click="cycleTextScale"
-                  aria-label="Tekststørrelse"
-                  class="h-8 px-2 rounded-full flex items-center gap-1
-                         bg-white/5 border border-white/10 text-white/70 active:scale-90">
-            <span class="font-semibold leading-none"><span class="text-[12px]">A</span><span class="text-[16px]">A</span></span>
-            <span v-if="uiTextScale !== 1" class="text-[10px] tabular-nums text-white/50">{{ Math.round(uiTextScale * 100) }}%</span>
-          </button>
           <button @click="closeContextMenu"
                   aria-label="Lukk"
                   class="w-8 h-8 -mr-1 -mt-0.5 rounded-full flex items-center justify-center

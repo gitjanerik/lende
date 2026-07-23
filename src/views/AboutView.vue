@@ -3,8 +3,10 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { APP_VERSION } from '../version.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
+import { useUiTextScale } from '../composables/useUiTextScale.js'
 
 const router = useRouter()
+const { uiTextScale } = useUiTextScale()
 
 // To faner — én per hovedfunksjon. Innholdet beskriver hva som er laget,
 // hvilken teknikk som brukes og hvilke datakilder/rammeverk som ligger bak.
@@ -46,7 +48,7 @@ async function onInstallClick() {
       </div>
     </header>
 
-    <div class="px-4 py-6 max-w-2xl mx-auto space-y-8 pb-24">
+    <div class="px-4 py-6 max-w-2xl mx-auto space-y-8 pb-24" :style="{ zoom: uiTextScale }">
 
       <!-- Innledning: logoen + symbolikk + navnets språklige opphav. -->
       <section class="flex flex-col items-center text-center gap-4">

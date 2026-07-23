@@ -74,6 +74,7 @@ import {
 import { svgToWgs84, wgs84ToSvg } from '../lib/utm.js'
 import { utNoZoomForMPerPx, UTNO_DEFAULT_ZOOM } from '../lib/utNoLink.js'
 import { useMapContext } from '../composables/useMapContext.js'
+import { useUiTextScale } from '../composables/useUiTextScale.js'
 import { fetchKulturminneById } from '../lib/kulturminneFetcher.js'
 import { polylineToPath } from '../lib/pathUtils.js'
 import { sampleElevation } from '../lib/demSampling.js'
@@ -411,17 +412,11 @@ function closeKulturminneDetail() {
 }
 
 
-// Tekststørrelse i appen (drawer + info-ark). CSS `zoom` skalerer hele blokken
-// — nødvendig fordi UI bruker faste Tailwind-px-størrelser som ikke arver
-// container-font-size. Erstatter behovet for browser-pinch-zoom (som ikke kan
-// nullstilles i standalone-PWA).
-const UI_TEXT_SCALES = [1, 1.25, 1.5]
-const uiTextScale = ref(Number(localStorage.getItem('map-ui-text-scale')) || 1)
-function cycleTextScale() {
-  const i = UI_TEXT_SCALES.indexOf(uiTextScale.value)
-  uiTextScale.value = UI_TEXT_SCALES[(i + 1) % UI_TEXT_SCALES.length]
-  try { localStorage.setItem('map-ui-text-scale', String(uiTextScale.value)) } catch {}
-}
+// Tekststørrelse i appen (drawer + info-ark): global, styres fra hovedmenyens
+// «Tekststørrelse»-knapp (useUiTextScale). CSS `zoom` skalerer hele blokken —
+// nødvendig fordi UI bruker faste Tailwind-px-størrelser som ikke arver
+// container-font-size.
+const { uiTextScale } = useUiTextScale()
 // Desktop: drawer er et høyrestilt side-panel med dra-bar venstrekant
 // (min 360px, maks 50vw, bredde lagret i localStorage per spor).
 const panel = useResizablePanel('map-panel-width')
@@ -3631,13 +3626,6 @@ onUnmounted(() => {
                :class="isDesktop ? 'pt-3' : ''">
             <div class="text-white text-sm font-semibold">Innstillinger</div>
             <div class="flex items-center gap-1">
-              <button @pointerdown.stop @click.stop="cycleTextScale"
-                      aria-label="Tekststørrelse"
-                      class="h-8 px-2 -mr-0.5 rounded-full flex items-center gap-1
-                             text-white/70 active:bg-white/10">
-                <span class="font-semibold leading-none"><span class="text-[12px]">A</span><span class="text-[16px]">A</span></span>
-                <span v-if="uiTextScale !== 1" class="text-[10px] tabular-nums text-white/50">{{ Math.round(uiTextScale * 100) }}%</span>
-              </button>
               <button @pointerdown.stop @click.stop="closeDrawer"
                       class="w-8 h-8 -mr-1 rounded-full flex items-center justify-center
                              text-white/70 active:bg-white/10">
@@ -3911,7 +3899,6 @@ onUnmounted(() => {
       :measure-mode="measureMode"
       :close-context-menu="closeContextMenu"
       :on-copy-coords="onCopyCoords"
-      :cycle-text-scale="cycleTextScale"
       :format-area-km2="formatAreaKm2"
       :format-volum="formatVolum"
       :format-vernedato="formatVernedato"
