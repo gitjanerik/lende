@@ -50,9 +50,10 @@ const facts = computed(() => {
   if (!d) return []
   return [
     { label: 'Kategori', value: d.kategoriLabel || katLabel.value },
+    { label: 'Type', value: d.art || null },
+    { label: 'Datering', value: d.datering || null },
     { label: 'Vernestatus', value: d.vernestatus || null },
     { label: 'Beliggenhet', value: beliggenhet.value || null },
-    { label: 'Datering', value: d.datering || null },
     { label: 'Lagt inn av', value: d.opprettetAv || null },
     { label: 'Posisjonsnøyaktighet', value: d.noyaktighetM ? `±${d.noyaktighetM} m` : null },
   ].filter((r) => r.value)

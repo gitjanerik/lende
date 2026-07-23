@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-23 — v1.0.86: Datering og type på fredede kulturminner
+
+Fakta-blokka for fredede kulturminner viser nå **Datering** (f.eks. «Yngre steinalder», «Vikingtid», «1800–1899») og **Type** (f.eks. «Gravrøys», «Tuft», «Kokegrop»), i tillegg til full **Kategori**-dekning (alle seks E-koder). Manglet et enkeltminne eget navn, brukes nå typen som tittel i stedet for et generisk «Fredet kulturminne». Verdiene kommer fra Riksantikvarens offisielle SOSI-kodelister, bakt inn som statiske, verifiserte tabeller (datering, enkeltminneart, enkeltminnekategori) — så dekodingen fungerer offline uten ekstra nettverkskall. Ukjente koder faller trygt tilbake i stedet for å vise en gjettet etikett.
+
+---
+
 ## 2026-07-23 — v1.0.85: Rikere fakta for fredede kulturminner (Askeladden)
 
 Fredede kulturminner (Geonorge/Askeladden-WFS-en vi allerede henter) viser nå flere felt i fakta-blokken: **Kategori** (E-ARK → «Arkeologisk minne», E-BYG → «Bygning»), **Lagt inn av** (opphav, f.eks. «Byantikvaren i Oslo») og **Posisjonsnøyaktighet** (f.eks. «±500 m» — nyttig for å vite hvor presist punktet er plassert). Vernestatus vises som før. Kommune-koden («0301») skjules i «Beliggenhet» siden den er en tallkode og ikke lesbar; brukerminner viser fortsatt stedsnavn.

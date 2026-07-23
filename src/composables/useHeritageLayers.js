@@ -97,6 +97,8 @@ export function useHeritageLayers({
         if (it.navn) mk.setAttribute('data-navn', it.navn)
         if (it.vernetype) mk.setAttribute('data-vernetype', it.vernetype)
         if (it.kategoriLabel) mk.setAttribute('data-kategori-label', it.kategoriLabel)
+        if (it.art) mk.setAttribute('data-art', it.art)
+        if (it.datering) mk.setAttribute('data-datering', it.datering)
         if (it.opphav) mk.setAttribute('data-opphav', it.opphav)
         if (it.noyaktighetM) mk.setAttribute('data-noyaktighet', String(it.noyaktighetM))
         if (it.informasjon) mk.setAttribute('data-informasjon', it.informasjon)
@@ -190,10 +192,14 @@ export function useHeritageLayers({
   function openFredetDetailFromEl(el) {
     const link = el.getAttribute('data-link') || null
     const noyaktighet = Number(el.getAttribute('data-noyaktighet'))
+    const art = el.getAttribute('data-art') || null
     kulturminneDetail.value = {
       id: null, kategori: 'annet',
-      tittel: el.getAttribute('data-navn') || 'Fredet kulturminne',
+      // Mange enkeltminner mangler eget navn → bruk arten («Gravrøys») som tittel.
+      tittel: el.getAttribute('data-navn') || art || 'Fredet kulturminne',
       kategoriLabel: el.getAttribute('data-kategori-label') || null,
+      art,
+      datering: el.getAttribute('data-datering') || null,
       vernestatus: el.getAttribute('data-vernetype') || 'Fredet kulturminne',
       beskrivelse: el.getAttribute('data-informasjon') || '',
       lokalitetInfo: el.getAttribute('data-lokinfo') || null,
