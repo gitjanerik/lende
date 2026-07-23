@@ -3,8 +3,10 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import isomCatalog from '../lib/isomCatalog.json'
 import { buildIsomDefs, buildIsomCss } from '../lib/symbolizer.js'
+import { useUiTextScale } from '../composables/useUiTextScale.js'
 
 const router = useRouter()
+const { uiTextScale } = useUiTextScale()
 
 // Bygg pattern-defs + CSS som mapBuilder gjør, så samples i tegnforklaringen
 // får eksakt samme visuelle uttrykk som ekte kart
@@ -133,7 +135,7 @@ function sampleSvg(category, code) {
       </p>
     </header>
 
-    <div class="px-4 py-4 space-y-6">
+    <div class="px-4 py-4 space-y-6" :style="{ zoom: uiTextScale }">
       <section v-for="section in SECTIONS" :key="section.title">
         <h2 class="text-sm font-semibold uppercase tracking-wide mb-2"
             :class="isDark ? 'text-white/55' : 'text-zinc-500'">

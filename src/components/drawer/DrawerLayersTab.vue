@@ -30,11 +30,14 @@ defineProps({
     <div class="text-[11px] font-semibold text-white/55 uppercase tracking-wide mb-1.5">
       Forhåndsvalg
     </div>
-    <div class="grid grid-cols-4 gap-2 mb-3">
+    <!-- Flex-wrap (ikke fast 4-kol grid): ved stor tekststørrelse (zoom) blir
+         det for trangt med 4 på rad, og knappene bryter til flere linjer —
+         typisk 2 × 2. basis + grow gir 4 på rad ved normal størrelse. -->
+    <div class="flex flex-wrap gap-2 mb-3">
       <button v-for="p in LAYER_PRESETS" :key="p.key"
               @click="applyPreset(p)"
               :aria-pressed="activePreset === p.key"
-              class="px-2 py-2 rounded-lg border text-center active:scale-[0.98] transition"
+              class="grow basis-[4.75rem] px-2 py-2 rounded-lg border text-center active:scale-[0.98] transition"
               :class="activePreset === p.key
                       ? 'bg-emerald-500/25 border-emerald-300/60 text-white font-medium'
                       : 'bg-white/5 border-white/10 text-white/65'">
