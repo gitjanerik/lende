@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-23 — v1.0.82: Grønne «Nytt kart»/«Ny rute» og plussknapper i hovedmenyen
+
+«Nytt kart»- og «Ny rute»-knappene på forsiden er nå grønne (emerald), i tråd med de store lag-nytt-CTA-ene. I hovedmenyen (slide-in fra venstre) er det lagt til to små grønne, kvadratiske plussknapper på linjene for «Mine kart» og «Mine ruter» — en rask snarvei til å starte et nytt kart eller en ny rute uten å åpne lista først.
+
+---
+
 ## 2026-07-23 — v1.0.81: Oppdagbarhets-tips for long-press i info-panelet
 
 Long-press på kartet er lite oppdagbart. Nå vises et blått tips øverst i info-panelet når det åpnes via Info-knappen i snarveiene: det forklarer at man kan trykke-og-holde et par sekunder i kartet for å åpne panelet, og at det samme fungerer på de tre knottene nede til høyre for å finjustere kantlinjer, relieff og zoom. Tipset kan lukkes med en X og huskes globalt i localStorage, så det ikke dukker opp igjen. Det vises bevisst ikke ved faktisk long-press — da kan brukeren allerede grepet.

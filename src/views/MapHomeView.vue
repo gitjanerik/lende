@@ -426,10 +426,8 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
                   @click="showCreateMap = !showCreateMap"
                   :aria-expanded="createMapVisible"
                   class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[12px] font-medium
-                         transition active:scale-95"
-                  :class="showCreateMap
-                    ? 'bg-[#ffd84a] text-zinc-900'
-                    : 'bg-white/[0.06] border border-white/15 text-white/75'">
+                         text-white transition active:scale-95"
+                  :class="showCreateMap ? 'bg-emerald-600' : 'bg-emerald-500'">
             <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 transition-transform duration-200"
                  :class="{ 'rotate-45': showCreateMap }" fill="none" stroke="currentColor"
                  stroke-width="2.4" stroke-linecap="round">
@@ -665,7 +663,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
           <button v-if="!loading && savedRoutes.length > 0"
                   @click="router.push('/rute')"
                   class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[12px] font-medium
-                         bg-white/[0.06] border border-white/15 text-white/75
+                         bg-emerald-500 text-white
                          transition active:scale-95">
             <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
                  stroke-width="2.4" stroke-linecap="round">

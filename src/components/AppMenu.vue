@@ -79,23 +79,43 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
       <nav class="flex-1 overflow-y-auto px-2 py-1 flex flex-col gap-1"
            :style="{ zoom: uiTextScale }">
-        <button @click="go({ path: '/', query: { tab: 'kart' } })" class="menu-item">
-          <svg viewBox="0 0 24 24" class="menu-icon" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="1 6 8 3 16 6 23 3 23 18 16 21 8 18 1 21 1 6"/>
-            <line x1="8" y1="3" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="21"/>
-          </svg>
-          <span>Mine kart</span>
-        </button>
+        <div class="flex items-center gap-1">
+          <button @click="go({ path: '/', query: { tab: 'kart' } })" class="menu-item flex-1">
+            <svg viewBox="0 0 24 24" class="menu-icon" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="1 6 8 3 16 6 23 3 23 18 16 21 8 18 1 21 1 6"/>
+              <line x1="8" y1="3" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="21"/>
+            </svg>
+            <span>Mine kart</span>
+          </button>
+          <button @click="go('/nytt', 'kart')" aria-label="Nytt kart"
+                  class="w-[34px] h-[34px] shrink-0 flex items-center justify-center rounded-lg
+                         bg-emerald-500 hover:bg-emerald-600 text-white transition active:scale-90">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                 stroke-width="2.6" stroke-linecap="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </button>
+        </div>
 
-        <button @click="go({ path: '/', query: { tab: 'rute' } })" class="menu-item">
-          <svg viewBox="0 0 24 24" class="menu-icon" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/>
-            <path d="M9 19h6a3 3 0 0 0 3-3V8"/><path d="M6 16V8a3 3 0 0 1 3-3h6"/>
-          </svg>
-          <span>Mine ruter</span>
-        </button>
+        <div class="flex items-center gap-1">
+          <button @click="go({ path: '/', query: { tab: 'rute' } })" class="menu-item flex-1">
+            <svg viewBox="0 0 24 24" class="menu-icon" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/>
+              <path d="M9 19h6a3 3 0 0 0 3-3V8"/><path d="M6 16V8a3 3 0 0 1 3-3h6"/>
+            </svg>
+            <span>Mine ruter</span>
+          </button>
+          <button @click="go('/rute', 'rute')" aria-label="Ny rute"
+                  class="w-[34px] h-[34px] shrink-0 flex items-center justify-center rounded-lg
+                         bg-emerald-500 hover:bg-emerald-600 text-white transition active:scale-90">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                 stroke-width="2.6" stroke-linecap="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </button>
+        </div>
 
         <!-- Mode-veksling: turkart ↔ ruteplanlegger -->
         <button @click="toggleMode" class="menu-item">
