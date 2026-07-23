@@ -1,5 +1,15 @@
 # Endringslogg
 
+## 2026-07-23 — v1.0.78: «Sporing» tilbake i snarvei-raden
+
+Etter at kompass-FAB-en forsvant (v1.0.77) har snarvei-raden plassen for seg
+selv — «Sporing»-snarveien (fjernet i v1.0.75 pga. plassmangel) er tilbake,
+plassert nest lengst til høyre (før «Info»). Samme oppførsel som før: ett
+trykk starter GPS + sporingsopptak, nytt trykk stopper opptaket (GPS forblir
+på). Ikonet er play-trekanten, som blir blått stopp-ikon mens opptak pågår.
+
+---
+
 ## 2026-07-23 — v1.0.77: Kompass-FAB slått sammen med Sentrer-knappen
 
 Kompass-FAB-en øverst til høyre var funksjonelt ~50 % overlappende med
