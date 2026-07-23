@@ -6,7 +6,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { buildCoastProbeQuery, probeCoastline } from './mapBuilder.js'
 import { isOsmWaterSalty } from './symbolizer.js'
-import { coastalTargetResFor } from './createMapFlow.js'
+import { coastalTargetResFor, fineDemResFor } from './createMapFlow.js'
 
 const bbox = { south: 59, north: 59.05, west: 10, east: 10.05 }
 
@@ -92,5 +92,30 @@ describe('coastalTargetResFor — celletak i stedet for bredde-trapp', () => {
   it('tåler manglende/degenerert bbox', () => {
     expect(coastalTargetResFor(null)).toBe(null)
     expect(coastalTargetResFor(box(0, 0))).toBe(null)
+  })
+})
+
+describe('fineDemResFor — fin-oppgraderingstrapp for fine-ekvidistanse-kart', () => {
+  it('typisk 3×3 km-kart → 2 m (den vanligste fine-ekvidistanse-størrelsen)', () => {
+    expect(fineDemResFor(1.5, 1)).toBe(2)
+  })
+  it('lite 1×1 km-kart → 2 m', () => {
+    expect(fineDemResFor(0.5, 1)).toBe(2)
+  })
+  it('større kart der 2 m er over taket → 5 m', () => {
+    expect(fineDemResFor(1.75, 1)).toBe(5)
+  })
+  it('portrett-aspekt kan skyve 3 km over 2 m-taket → 5 m', () => {
+    expect(fineDemResFor(1.5, 2)).toBe(5)
+  })
+  it('gigantisk kart over også 5 m-taket → null (behold probe)', () => {
+    expect(fineDemResFor(5, 1)).toBe(null)
+  })
+  it('aldri finere enn 2 m (steget er [2, 5], ingen 1 m)', () => {
+    expect(fineDemResFor(0.1, 1)).toBe(2)
+  })
+  it('tåler degenerert halfKm', () => {
+    expect(fineDemResFor(0, 1)).toBe(null)
+    expect(fineDemResFor(-1, 1)).toBe(null)
   })
 })

@@ -180,6 +180,25 @@ export function coastalTargetResFor(utmBbox, maxCells = COASTAL_MAX_CELLS) {
   return null
 }
 
+// Fin-DEM-trappa for fine-ekvidistanse-kart (≤ 5 m). Kartverkets NHM_DTM er
+// nativt 1 m — vi har historisk under-bestilt rutenettet (10/20 m) og latt
+// serveren nedskalere, så konturene ble kantete (10 m-fasetter). Her velger vi
+// fineste trinn som holder seg under celletaket, konservativt aldri finere enn
+// 2 m (et 3×3 km-kart @ 2 m ≈ 2,25M celler / ~9 MB — tungt nok på mobil). For
+// store kart over taket → null (behold probe-oppløsningen).
+// Trinnene MÅ dele TILE_M (1000) jevnt så flis-cachen fluktter (2→500,
+// 5→200 celler pr flis); 3 m ville gitt off-by-one i sliceIntoTiles.
+const FINE_DEM_STEPS_M = [2, 5]
+export function fineDemResFor(halfKm, aspect = 1, maxCells = COASTAL_MAX_CELLS) {
+  if (!(halfKm > 0)) return null
+  const widthM = halfKm * 2 * 1000
+  const areaM2 = widthM * widthM * (aspect > 0 ? aspect : 1)
+  for (const res of FINE_DEM_STEPS_M) {
+    if (areaM2 / (res * res) <= maxCells) return res
+  }
+  return null
+}
+
 function hasNearSeaLevelPixels(dem) {
   if (!dem?.data) return false
   const { data, noData } = dem
@@ -287,7 +306,17 @@ export async function buildMapFromCenter({
   // DEM-oppløsning (probe). 10 m ved fine konturer (≤ 5 m ekvidistanse),
   // ellers 20 m. Beregnes her oppe fordi flis-cachen snapper bbox til dette
   // rutenettet (multiplum av 5/10/20 → også 5 m-justert for kyst-oppgraderingen).
+  // Proben holdes bevisst billig + pålitelig: den brukes til kyst-deteksjon OG
+  // som fallback hvis fin-oppgraderingen under feiler/timer ut (aldri verre enn før).
   const resolutionM = equidistanceM <= 5 ? 10 : 20
+
+  // Fin-innlands DEM-mål: for fine-ekvidistanse-kart henter vi et mye finere
+  // rutenett (2–3 m) fra samme NHM_DTM-endepunkt, så konturene blir glatte og
+  // detaljerte i stedet for 10 m-fasetterte. Gjelder uansett kyst/innland;
+  // null = for stort kart → ingen fin-oppgradering (behold probe).
+  const fineInlandTargetResM = equidistanceM <= 5
+    ? fineDemResFor(halfKm, mapAspect)
+    : null
 
   // Recompute WGS84-bbox fra ALLE fire UTM-hjørner (ikke bare SW+NE) så Overpass
   // dekker hele det rektangulære utsnittet — med bare diagonalen ble hjørnene
@@ -456,6 +485,31 @@ export async function buildMapFromCenter({
   // det fylte DEM-et. Terrarium-fyllet (opptil 64 ekstra flis-fetches på
   // grensekart) lå tidligere på kritisk sti for previewen.
   const demCorePromise = timeAsync('dem', probeDemPromise.then(async (probeDem) => {
+    // Fin-innlands oppgradering (fine-ekvidistanse-kart): hent et mye finere
+    // rutenett (2–3 m) uansett kyst/innland. Gjøres FØR kyst-grenen og venter
+    // IKKE på kyst-signalet — dette gjelder alle fine kart. Fallback-trapp:
+    // prøv målet, så gradvis grovere trinn, og behold til slutt probe-DEM-et
+    // (aldri verre enn før) hvis alt feiler/timer ut. 2 m er allerede finere
+    // enn kyst-oppgraderingens 5 m, så dette subsumerer kysten for fine kart.
+    if (fineInlandTargetResM != null && fineInlandTargetResM < resolutionM) {
+      const fineSteps = FINE_DEM_STEPS_M.filter(
+        r => r >= fineInlandTargetResM && r < resolutionM)
+      for (const res of fineSteps) {
+        onProgress(`Henter detaljert høydedata i ${res} m for glattere høydekurver …`)
+        try {
+          const fine = await fetchDemFor(res)
+          if (fine && !fine.source?.startsWith('synthetic')) {
+            console.log(`[DEM] ✓ fin-oppgradering til ${res} m (${fine.cols}×${fine.rows})`)
+            return fine
+          }
+          console.warn(`[DEM] ${res} m fin-oppgradering ga syntetisk DEM`)
+        } catch (e) {
+          console.warn(`[DEM] ${res} m fin-oppgradering feilet (${e?.message ?? e})`)
+        }
+      }
+      console.warn(`[DEM] fin-oppgradering feilet — beholder probe ${resolutionM} m`)
+      return probeDem
+    }
     // Ingen oppgradering mulig (for stort/allerede fint) → returnér probe-DEM-et
     // med en gang; vent IKKE på kyst-signalet (som blokkerer på Overpass).
     if (!canUpgradeToFineDem) {

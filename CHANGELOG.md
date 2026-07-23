@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-23 — v2.0.0: 1 m-detaljerte, glatte høydekurver
+
+Høydekurvene bygges nå fra et mye finere høyde-rutenett. Kartverkets NHM_DTM-dekning er nativt 1 m, men vi har historisk under-bestilt WCS-rutenettet (10/20 m) og latt serveren nedskalere — det ga kantete, 10 m-fasetterte kurver. For fine-ekvidistanse-kart (≤ 5 m) henter interaktiv app nå et 2 m-rutenett (konservativt celletak-gated: 2 m for kart opp til ~3 km, 5 m for større, aldri finere enn 2 m for å holde mobil-nedlastingen nede; typisk 3×3 km ≈ 9 MB, flis-cachet). Hentingen er en oppgradering oppå den billige 10 m-proben med fallback til proben, så et kart aldri blir dårligere enn før hvis fin-hentingen feiler. Samme CORS-trygge geonorge-endepunkt som før — ingen ny datakilde. Et lett gaussisk lavpass legges på rutenettet før marching squares, så ekte 1 m-mikrorelieff (grøfter, steinblokker) ikke lager bølgete «spaghetti»-kurver: resultatet er kartografisk glatte kurver som samtidig er mer nøyaktige, og som faktisk får litt færre path-punkter enn dagens 10 m-kurver. Grove kart (≥ 10 m ekvidistanse) og headless/CI-bygg (5 m) er uendret.
+
+---
+
 ## 2026-07-23 — v1.0.87: Fjernet Posisjonsnøyaktighet fra kulturminne-arket
 
 Posisjonsnøyaktighet-raden er fjernet fra fakta-blokka. Verdien kom fra Askeladdens nominelle posisjonskvalitet (ofte ±200 m eller mer), som i kartsammenheng er misvisende grovt og ikke tilførte reell verdi. Datering, Type, Kategori, Vernestatus, Beliggenhet og «Lagt inn av» står igjen.
