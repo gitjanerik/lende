@@ -72,8 +72,8 @@ import {
   needsRecull, computeCullDiff, parseBboxAttr,
 } from '../lib/viewportCull.js'
 import { svgToWgs84, wgs84ToSvg } from '../lib/utm.js'
-import { buildUtNoUrl, utNoZoomForMPerPx, UTNO_DEFAULT_ZOOM } from '../lib/utNoLink.js'
-import { gmapsUrl, streetViewUrl, buildVegkartUrl } from '../lib/externalMapLinks.js'
+import { utNoZoomForMPerPx, UTNO_DEFAULT_ZOOM } from '../lib/utNoLink.js'
+import { useMapContext } from '../composables/useMapContext.js'
 import { fetchKulturminneById } from '../lib/kulturminneFetcher.js'
 import { polylineToPath } from '../lib/pathUtils.js'
 import { sampleElevation } from '../lib/demSampling.js'
@@ -1360,6 +1360,7 @@ const annot = useMapAnnotations(mapId.value)
 // Stifinner — rutenavigasjon A→B på sti-laget. Egen modus-maskin (idle →
 // pickingStart → showing); gjensidig utelukkende med måling/annotering.
 const sti = useStifinner()
+const mapCtx = useMapContext()
 // Settes ved setupHostSvg: har kartet routbare sti-/vei-lag? Styrer om
 // «Naviger hit» vises.
 const mapHasTrails = ref(false)
@@ -2360,29 +2361,6 @@ async function onCopyCoords() {
     flashContextAction('copied')
   } catch { flashContextAction('failed') }
 }
-async function onShareCoords() {
-  const info = contextMenuInfo.value
-  if (!info) return
-  const url = gmapsUrl(info.lat, info.lon)
-  const shareData = {
-    title: 'Posisjon',
-    text: `${info.lat.toFixed(6)}, ${info.lon.toFixed(6)}`,
-    url,
-  }
-  if (typeof navigator.share === 'function') {
-    try {
-      await navigator.share(shareData)
-      return
-    } catch (err) {
-      if (err && err.name === 'AbortError') return
-      // Fall gjennom til clipboard-fallback
-    }
-  }
-  try {
-    await navigator.clipboard.writeText(url)
-    flashContextAction('copied')
-  } catch { flashContextAction('failed') }
-}
 function onStartMeasureHere() {
   const p = contextMenuPoint.value
   if (!p) return
@@ -2566,19 +2544,9 @@ watch([() => userPos.svgX, () => userPos.svgY, () => sti.mode.value,
   if (p && p.offRouteM <= 100) stiPrevAlongM = p.alongM
 })
 
-function onOpenGoogleMaps() {
-  const info = contextMenuInfo.value
-  if (!info) return
-  window.open(gmapsUrl(info.lat, info.lon), '_blank', 'noopener')
-}
-function onOpenStreetView() {
-  const info = contextMenuInfo.value
-  if (!info) return
-  window.open(streetViewUrl(info.lat, info.lon), '_blank', 'noopener')
-}
 // Web-zoom som matcher gjeldende visnings bakkeoppløsning (SVG-viewBox-meter
 // pr rendret px, inkl. pinch-zoom via getBoundingClientRect) — så eksterne
-// kart (UT.no, Vegkart) åpner på omtrent samme utsnitt som brukeren ser her.
+// kart (UT.no, Vegkart via hovedmenyen) åpner på omtrent samme utsnitt.
 function currentViewWebZoom(lat) {
   try {
     const svg = svgHostRef.value?.querySelector('svg')
@@ -2588,29 +2556,14 @@ function currentViewWebZoom(lat) {
   } catch { /* fall tilbake til default-zoom */ }
   return UTNO_DEFAULT_ZOOM
 }
-// Åpne punktet på UT.no sitt turkart (ut.no/kart#zoom/lat/lon).
-function onOpenUtNo() {
-  const info = contextMenuInfo.value
-  if (!info) return
-  const url = buildUtNoUrl({ lat: info.lat, lon: info.lon, zoom: currentViewWebZoom(info.lat) })
-  if (url) window.open(url, '_blank', 'noopener')
-}
-// Intern snarvei (v12.1.34): åpne Ruteplanleggeren sentrert på long-press-
-// punktet. In-app-navigasjon (ikke ekstern lenke) — GravelPlannerView leser
-// ?lat/lon/z og sentrerer kartet der istedenfor sist lagrede utsnitt.
-function onOpenRoutePlanner() {
-  const info = contextMenuInfo.value
-  if (!info) return
-  router.push({ name: 'ruteplanlegger', query: {
-    lat: info.lat.toFixed(6), lon: info.lon.toFixed(6), z: '12',
-  } })
-}
-// Åpne punktet i Vegvesenets Vegkart (UTM 33N-hash, se externalMapLinks.js).
-function onOpenVegkart() {
-  const info = contextMenuInfo.value
-  if (!info) return
-  const url = buildVegkartUrl({ lat: info.lat, lon: info.lon, zoom: currentViewWebZoom(info.lat) })
-  if (url) window.open(url, '_blank', 'noopener')
+// Punkt-provider for hovedmenyens eksterne karttjenester: synlig kartsenter
+// som lat/lon + web-zoom. Registrert så lenge denne visningen lever.
+function menuMapPoint() {
+  const m = meta.value
+  const c = visibleCenterSvg()
+  if (!m || !c) return null
+  const { lat, lon } = svgToWgs84(c.x, c.y, m)
+  return { lat, lon, zoom: currentViewWebZoom(lat) }
 }
 function onPlaceAnnotationFromContext(symbolKey) {
   const p = contextMenuPoint.value
@@ -2689,7 +2642,9 @@ const { buildDetailInset } = useDetailInset({
   rotation, roadRefUprightDeg, meta, DETAIL_INSET_M,
 })
 
-watch([contextMenuOpen, contextMenuPoint], async () => {
+// isMaximized er med fordi inset-verten er v-if-gated på maksimert skuffe
+// (unngår dobbelt crosshair-utsnitt) — elementet finnes først da.
+watch([contextMenuOpen, contextMenuPoint, () => contextDrawer.isMaximized.value], async () => {
   if (!contextMenuOpen.value) return
   await nextTick()
   buildDetailInset()
@@ -2847,18 +2802,6 @@ function onToggleRecording() {
   else tracker.startRecording()
 }
 
-// Header-shortcut: ett trykk = GPS + sporing av/på.
-// Idle → start GPS + start opptak (sist-brukte stil).
-// GPS på, ikke opptak → start opptak.
-// Opptak → stopp opptak (GPS forblir aktivt så ikonen viser posisjon).
-function onHeaderTrackShortcut() {
-  if (tracker.isRecording.value) {
-    void tracker.stopRecording()
-    return
-  }
-  if (!userPos.isWatching) startPositioning()
-  tracker.startRecording()
-}
 async function onDeleteTrack(id) {
   if (!confirm('Slett dette sporet?')) return
   await tracker.deleteTrack(id)
@@ -3215,6 +3158,7 @@ onMounted(() => {
   window.addEventListener('offline', updateOnlineState)
   loadMap()
   screenWake.start()
+  mapCtx.register(menuMapPoint)
 })
 
 onUnmounted(() => {
@@ -3234,6 +3178,7 @@ onUnmounted(() => {
   if (loadPillTimer) clearTimeout(loadPillTimer)
   teardownMapExtend()
   if (viewSaveTimer) clearTimeout(viewSaveTimer)
+  mapCtx.unregister(menuMapPoint)
 })
 </script>
 
@@ -3298,10 +3243,11 @@ onUnmounted(() => {
     </div>
 
     <!-- Snarvei-rad: de mest brukte kart-funksjonene (stifinner, rundtur,
-         måling, sporing, info om stedet). Skjules når en modus (stifinner/
-         måling/annotering) eller søk er aktiv, så den ikke kolliderer med
-         modus-bannerne som bruker de samme --ovl-*-slotene. -->
-    <div v-if="!sti.active.value && !measureMode && !searchOpen && !annot.isAnnotateMode.value"
+         måling, info om stedet). Skjules når en modus (stifinner/måling/
+         annotering) eller søk er aktiv, og mens kartet bygges/utvides —
+         bygge-chipen bruker samme --ovl-top-slot og ville kollidert. -->
+    <div v-if="!sti.active.value && !measureMode && !searchOpen && !annot.isAnnotateMode.value
+               && !buildingOnTheFly && !fillingInDetails"
          class="absolute -translate-x-1/2 top-[var(--ovl-top)] z-20 pointer-events-none
                 transition-[left] duration-200"
          :style="mapCenterStyle">
@@ -3324,15 +3270,6 @@ onUnmounted(() => {
             <circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/>
             <line x1="6.4" y1="17.6" x2="17.6" y2="6.4" stroke-dasharray="2 2.5"/></svg>
           <span>Måling</span>
-        </button>
-        <button @click="onHeaderTrackShortcut" class="shortcut-btn"
-                :class="{ 'text-pink-400': tracker.isRecording.value,
-                          'text-sky-400': !tracker.isRecording.value && userPos.isWatching }"
-                :aria-label="tracker.isRecording.value ? 'Stopp sporing' : 'Start sporing'">
-          <svg v-if="tracker.isRecording.value" viewBox="0 0 24 24" class="w-5 h-5" fill="currentColor">
-            <rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>
-          <svg v-else viewBox="0 0 24 24" class="w-5 h-5" fill="currentColor"><polygon points="8,5 8,19 19,12"/></svg>
-          <span>Sporing</span>
         </button>
         <button @click="onShortcutInfo" class="shortcut-btn" aria-label="Informasjon om stedet">
           <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
@@ -3968,7 +3905,6 @@ onUnmounted(() => {
       :close-context-menu="closeContextMenu"
       :on-copy-coords="onCopyCoords"
       :cycle-text-scale="cycleTextScale"
-      :on-open-route-planner="onOpenRoutePlanner"
       :format-area-km2="formatAreaKm2"
       :format-volum="formatVolum"
       :format-vernedato="formatVernedato"
@@ -3978,16 +3914,11 @@ onUnmounted(() => {
       :toggle-red-cat="toggleRedCat"
       :source-label="sourceLabel"
       :naturtype-verdi-class="naturtypeVerdiClass"
-      :on-share-coords="onShareCoords"
       :on-share-map="onShareMap"
       :on-share-map-with-context-place="onShareMapWithContextPlace"
       :on-navigate-here="onNavigateHere"
       :on-round-trip-here="onRoundTripHere"
       :on-start-measure-here="onStartMeasureHere"
-      :on-open-google-maps="onOpenGoogleMaps"
-      :on-open-street-view="onOpenStreetView"
-      :on-open-ut-no="onOpenUtNo"
-      :on-open-vegkart="onOpenVegkart"
       :toggle-proximity-panel="toggleProximityPanel"
       :arm-proximity-alert="armProximityAlert"
       :start-positioning="startPositioning"

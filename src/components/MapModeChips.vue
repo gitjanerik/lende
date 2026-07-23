@@ -264,7 +264,7 @@ function formatElevationDiff(m) {
                boksen minimeres til pill og kartet slipper fri igjen. -->
           <button @click="$emit('followRoute')"
                   class="mt-1.5 w-full flex items-center justify-center gap-1.5 rounded
-                         bg-white text-emerald-700 font-semibold text-[12px] py-1.5
+                         bg-white text-emerald-700 font-semibold text-[12px] py-1.5 px-3
                          active:scale-[0.98] shadow">
             <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
                  stroke-width="3" stroke-linecap="round" stroke-linejoin="round">

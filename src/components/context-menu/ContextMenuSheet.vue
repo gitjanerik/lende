@@ -39,7 +39,6 @@ defineProps({
   closeContextMenu: { type: Function, required: true },
   onCopyCoords: { type: Function, required: true },
   cycleTextScale: { type: Function, required: true },
-  onOpenRoutePlanner: { type: Function, required: true },
   formatAreaKm2: { type: Function, required: true },
   formatVolum: { type: Function, required: true },
   formatVernedato: { type: Function, required: true },
@@ -49,16 +48,11 @@ defineProps({
   toggleRedCat: { type: Function, required: true },
   sourceLabel: { type: Function, required: true },
   naturtypeVerdiClass: { type: Function, required: true },
-  onShareCoords: { type: Function, required: true },
   onShareMap: { type: Function, required: true },
   onShareMapWithContextPlace: { type: Function, required: true },
   onNavigateHere: { type: Function, required: true },
   onRoundTripHere: { type: Function, required: true },
   onStartMeasureHere: { type: Function, required: true },
-  onOpenGoogleMaps: { type: Function, required: true },
-  onOpenStreetView: { type: Function, required: true },
-  onOpenUtNo: { type: Function, required: true },
-  onOpenVegkart: { type: Function, required: true },
   toggleProximityPanel: { type: Function, required: true },
   armProximityAlert: { type: Function, required: true },
   startPositioning: { type: Function, required: true },
@@ -154,31 +148,12 @@ function formatDistance(m) {
            class="flex-1 overflow-y-auto"
            :style="{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0.75rem)' }">
 
-      <!-- Intern snarvei øverst (v12.1.34): åpne Ruteplanleggeren på dette
-           punktet. Ledende ikon = samme «pil venstre i sirkelformet knapp» som
-           Ruteplanleggerens header-navigasjon, så de to modus-snarveiene deler
-           samme visuelle kontroll (v1.0.13). Intern lenke (ikke ekstern-pil). -->
-      <div class="px-4 pt-3">
-        <button @click="onOpenRoutePlanner"
-                class="w-full px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                       flex items-center gap-2.5 transition
-                       bg-sky-500/[0.12] border-sky-400/35 text-sky-100">
-          <span class="w-7 h-7 rounded-full flex items-center justify-center shrink-0
-                       bg-white/5 border border-white/10 text-sky-100">
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
-                 stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-          </span>
-          <span class="flex-1 text-left">
-            <span class="font-medium">Åpne ruteplanlegger</span>
-            <span class="block text-[10px] text-sky-200/60">Lende — sentrert på punktet</span>
-          </span>
-        </button>
-      </div>
-
       <!-- Detalj-inset: roambart 500×500 m utsnitt (start 250 m) med alle
            detaljer (dybdetall, dybdekurver, sjø-POI) avslørt. Pan + zoom,
-           ingen rotasjon. Fungerer uten GPS. -->
-      <div class="px-4 pt-3">
+           ingen rotasjon. Fungerer uten GPS. Vises KUN når skuffen er
+           maksimert — ellers ser man samme utsnitt/crosshair dobbelt (kartet
+           bak + minikartet). -->
+      <div v-if="contextDrawer.isMaximized.value" class="px-4 pt-3">
         <div class="flex items-baseline justify-between mb-1">
           <span class="text-[10px] uppercase tracking-wide text-white/45">
             Detaljer · {{ DETAIL_INSET_M }} × {{ DETAIL_INSET_M }} m
@@ -465,36 +440,9 @@ function formatDistance(m) {
         </div>
       </div>
 
-      <!-- Handlinger -->
+      <!-- Handlinger. Koordinat-kopiering bor i headeren (ved tallene);
+           eksterne karttjenester (Google/UT.no/Vegkart) bor i hovedmenyen. -->
       <div class="px-4 pt-4 grid grid-cols-2 gap-2">
-        <button @click="onCopyCoords"
-                class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                       flex items-center gap-2 transition"
-                :class="contextActionState === 'copied'
-                        ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-100'
-                        : contextActionState === 'failed'
-                          ? 'bg-rose-500/20 border-rose-400/50 text-rose-100'
-                          : 'bg-white/5 border-white/10 text-white/80'">
-          <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="9" y="9" width="11" height="11" rx="2"/>
-            <path d="M5 15 V5 a2 2 0 0 1 2 -2 h10"/>
-          </svg>
-          <span>{{ contextActionState === 'copied' ? 'Kopiert ✓' : 'Kopier koordinater' }}</span>
-        </button>
-        <button @click="onShareCoords"
-                class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                       flex items-center gap-2 bg-white/5 border-white/10 text-white/80">
-          <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="18" cy="5" r="3"/>
-            <circle cx="6" cy="12" r="3"/>
-            <circle cx="18" cy="19" r="3"/>
-            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-          </svg>
-          <span>Del koordinater</span>
-        </button>
         <button @click="onShareMap"
                 class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
                        flex items-center gap-2 bg-white/5 border-white/10 text-white/80">
@@ -507,7 +455,7 @@ function formatDistance(m) {
         </button>
         <button @click="onShareMapWithContextPlace"
                 class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                       flex items-center gap-2 bg-pink-500/15 border-pink-400/40 text-pink-100">
+                       flex items-center gap-2 bg-white/5 border-white/10 text-white/80">
           <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>
@@ -517,7 +465,7 @@ function formatDistance(m) {
         </button>
         <button v-if="ctxCanNavigate" @click="onNavigateHere"
                 class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                       flex items-center gap-2 bg-emerald-500/15 border-emerald-400/40 text-emerald-100">
+                       flex items-center gap-2 bg-white/5 border-white/10 text-white/80">
           <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="3 11 22 2 13 21 11 13 3 11"/>
@@ -526,7 +474,7 @@ function formatDistance(m) {
         </button>
         <button v-if="ctxCanNavigate" @click="onRoundTripHere"
                 class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                       flex items-center gap-2 bg-emerald-500/15 border-emerald-400/40 text-emerald-100">
+                       flex items-center gap-2 bg-white/5 border-white/10 text-white/80">
           <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M17 2.1 21 6l-4 3.9"/>
@@ -544,47 +492,6 @@ function formatDistance(m) {
             <path d="M5 19 V21 H7 M19 11 V13 H21"/>
           </svg>
           <span>Start måling her</span>
-        </button>
-        <button @click="onOpenGoogleMaps"
-                class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                       flex items-center gap-2 bg-white/5 border-white/10 text-white/80">
-          <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="10" r="3"/>
-            <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>
-          </svg>
-          <span>Google Maps</span>
-        </button>
-        <button @click="onOpenStreetView"
-                class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                       flex items-center gap-2 bg-white/5 border-white/10 text-white/80">
-          <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="9" r="3"/>
-            <path d="M12 12 v9"/>
-            <path d="M6 18 c2 -1.5 4 -2 6 -2 s4 0.5 6 2"/>
-          </svg>
-          <span>Street View</span>
-        </button>
-        <button @click="onOpenUtNo"
-                class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                       flex items-center gap-2 bg-white/5 border-white/10 text-white/80">
-          <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 19 L9 8 L13 14 L16 10 L21 19 Z"/>
-            <path d="M7.5 11 L9 12.5 L10.5 11"/>
-          </svg>
-          <span>UT.no-kart</span>
-        </button>
-        <button @click="onOpenVegkart"
-                class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                       flex items-center gap-2 bg-white/5 border-white/10 text-white/80">
-          <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 21 C8 15 8 9 12 9 s4 6 8 12"/>
-            <path d="M12 3 v3 M12 9 v3 M12 15 v3"/>
-          </svg>
-          <span>Vegkart (Vegvesen.no)</span>
         </button>
         <button @click="toggleProximityPanel"
                 :aria-expanded="proximityPanelOpen"

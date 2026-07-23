@@ -1,7 +1,7 @@
 <script setup>
-import { ref, computed, onMounted, onActivated, onUnmounted, onDeactivated } from 'vue'
-import { useRouter } from 'vue-router'
-import { listMaps, deleteMap, clearAll, renameMap } from '../lib/mapStorage.js'
+import { ref, computed, watch, onMounted, onActivated, onUnmounted, onDeactivated } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { listMaps, deleteMap, clearAll, renameMap, listGravelRoutes, deleteGravelRoute } from '../lib/mapStorage.js'
 import RenameMapDialog from '../components/RenameMapDialog.vue'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { useMapSizePreference, effectiveEquidistanceForWidthKm, defaultMapDims, aspectForFormat } from '../composables/useMapSizePreference.js'
@@ -36,6 +36,36 @@ async function onInstallClick() {
 const maps = ref([])
 const loading = ref(true)
 
+// ── Faner: Turkart / Ruteplanlegger ───────────────────────────────────────
+// Hjem-siden er fellesside for begge modusene: «Turkart»-fanen viser lag-nytt +
+// Mine kart, «Ruteplanlegger»-fanen viser Mine ruter. Hovedmenyen navigerer hit
+// med ?tab=kart|rute.
+const route = useRoute()
+const activeTab = ref(route.query.tab === 'rute' ? 'rute' : 'kart')
+watch(() => route.query.tab, (t) => { if (t === 'rute' || t === 'kart') activeTab.value = t })
+
+const savedRoutes = ref([])
+
+function formatRouteInfo(r) {
+  const parts = []
+  if (Number.isFinite(r.lengthM)) parts.push(`${(r.lengthM / 1000).toFixed(1)} km`)
+  if (Number.isFinite(r.gravelShare)) parts.push(`${Math.round(r.gravelShare * 100)} % grus`)
+  if (r.opprettet) {
+    parts.push(new Date(r.opprettet).toLocaleDateString('no-NO', { day: '2-digit', month: 'short', year: 'numeric' }))
+  }
+  return parts.join(' · ')
+}
+
+function openRoute(id) {
+  router.push({ name: 'ruteplanlegger', query: { open: id } })
+}
+
+async function onDeleteRoute(id, navn) {
+  if (!confirm(`Slett rute "${navn}"?`)) return
+  await deleteGravelRoute(id)
+  savedRoutes.value = savedRoutes.value.filter(r => r.id !== id)
+}
+
 // Standard kartstørrelse/format/ekvidistanse (settes i MapView «Innstillinger»).
 // Størrelse: null = DEFAULT_MAP_WIDTH_KM. Format styrer aspektet (kvadrat/
 // portrett/A4). Ekvidistanse: brukerens valg klampet til tillatt for bredden,
@@ -55,6 +85,9 @@ async function refresh() {
     // Auto-fliser (isAuto) er en intern scroll-tilbake-cache, ikke kart brukeren
     // bevisst har laget — de skal ikke fylle opp «lagrede kart»-lista.
     maps.value = (await listMaps()).filter(m => !m.isAuto)
+    savedRoutes.value = await listGravelRoutes()
+  } catch {
+    savedRoutes.value = []
   } finally {
     loading.value = false
   }
@@ -354,6 +387,22 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
     <!-- Innhold -->
     <div class="flex-1 px-4 pt-4 pb-32 overflow-y-auto">
 
+      <!-- Fane-veksler (samme segment-stil som Om-siden): hjem-siden er felles
+           for turkart (Mine kart) og ruteplanlegger (Mine ruter). -->
+      <div class="flex gap-1 p-1 rounded-xl bg-white/5 border border-white/10 mb-4">
+        <button @click="activeTab = 'kart'"
+                class="flex-1 py-2 rounded-lg text-[13px] font-medium transition"
+                :class="activeTab === 'kart' ? 'bg-[#ffd84a] text-zinc-900' : 'text-white/60 active:text-white/90'">
+          Turkart{{ maps.length ? ` (${maps.length})` : '' }}
+        </button>
+        <button @click="activeTab = 'rute'"
+                class="flex-1 py-2 rounded-lg text-[13px] font-medium transition"
+                :class="activeTab === 'rute' ? 'bg-[#ffd84a] text-zinc-900' : 'text-white/60 active:text-white/90'">
+          Ruteplanlegger{{ savedRoutes.length ? ` (${savedRoutes.length})` : '' }}
+        </button>
+      </div>
+
+      <template v-if="activeTab === 'kart'">
       <!-- Seksjons-overskrift «Lag nytt kart» (matcher «Innebygd»/«Mine kart»-
            etikettene under). «Flere valg» (full picker) ligger som en høyrestilt
            handling her i stedet for en løs knapp mellom seksjonene. -->
@@ -596,6 +645,66 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
 
       <!-- Tegnforklaring-knappen er fjernet fra forsiden (v9.3.38) — den finnes
            fortsatt som hurtigvalg inne i kart-visningen (MapView-drawer). -->
+      </template>
+
+      <!-- Ruteplanlegger-fanen: Mine ruter + åpne planleggeren. -->
+      <template v-else>
+        <button @click="router.push('/rute')"
+                class="w-full py-3.5 rounded-xl bg-emerald-500 text-white font-semibold
+                       flex items-center justify-center gap-2 shadow-md
+                       active:scale-[0.99] transition">
+          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/>
+            <path d="M9 19h6a3 3 0 0 0 3-3V8"/><path d="M6 16V8a3 3 0 0 1 3-3h6"/>
+          </svg>
+          <span>Åpne ruteplanleggeren</span>
+        </button>
+
+        <div v-if="savedRoutes.length > 0" class="mt-6 mb-2">
+          <span class="text-white/45 text-[11px] uppercase tracking-wide">Mine ruter</span>
+        </div>
+
+        <div v-for="rec in savedRoutes" :key="rec.id"
+             class="mb-2 rounded-lg border border-white/10 bg-white/[0.03] overflow-hidden">
+          <div class="flex items-center gap-3 px-4 py-3 active:bg-white/[0.07]"
+               @click="openRoute(rec.id)">
+            <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0 text-white/40" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/>
+              <path d="M9 19h6a3 3 0 0 0 3-3V8"/><path d="M6 16V8a3 3 0 0 1 3-3h6"/>
+            </svg>
+            <div class="flex-1 min-w-0">
+              <div class="font-medium text-[14px] truncate text-white">{{ rec.navn }}</div>
+              <div class="text-[12px] text-white/50 truncate">
+                {{ formatRouteInfo(rec) }}<template v-if="rec.stars"> · {{ '★'.repeat(rec.stars) }}</template>
+              </div>
+            </div>
+            <button @click.stop="onDeleteRoute(rec.id, rec.navn)" aria-label="Slett rute"
+                    class="w-8 h-8 rounded-full flex items-center justify-center text-white/40
+                           active:text-rose-300 active:bg-rose-500/10 transition shrink-0">
+              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div v-if="!loading && savedRoutes.length === 0"
+             class="mt-10 flex flex-col items-center text-center">
+          <svg viewBox="0 0 24 24" class="w-14 h-14 text-white/20" fill="none"
+               stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/>
+            <path d="M9 19h6a3 3 0 0 0 3-3V8"/><path d="M6 16V8a3 3 0 0 1 3-3h6"/>
+          </svg>
+          <div class="mt-4 text-[15px] font-semibold text-white/80">Ingen lagrede ruter ennå</div>
+          <div class="mt-1.5 text-[13px] text-white/45 leading-relaxed max-w-[18rem]">
+            Planlegg en rute fra A til B i ruteplanleggeren og lagre den — så finner du den igjen her.
+          </div>
+        </div>
+      </template>
     </div>
 
     <!-- Full-screen loader for on-the-fly kart-bygging -->
