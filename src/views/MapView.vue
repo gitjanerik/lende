@@ -2472,6 +2472,17 @@ function onShortcutMeasure() {
   activeTab.value = 'maaling'
   openDrawer()
 }
+// Sporing-snarvei: ett trykk = GPS + sporing av/på.
+// Idle → start GPS + start opptak (sist-brukte stil). Opptak → stopp opptak
+// (GPS forblir aktivt så posisjons-prikken vises videre).
+function onShortcutTrack() {
+  if (tracker.isRecording.value) {
+    void tracker.stopRecording()
+    return
+  }
+  if (!userPos.isWatching) startPositioning()
+  tracker.startRecording()
+}
 // Info om stedet: åpne kontekst/info-arket på kartets senter (supplement til
 // long-press). openContextMenuAt tar skjerm-koordinater.
 function onShortcutInfo() {
@@ -3241,7 +3252,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Snarvei-rad: de mest brukte kart-funksjonene (stifinner, rundtur,
-         måling, info om stedet). Skjules når en modus (stifinner/måling/
+         måling, sporing, info om stedet). Skjules når en modus (stifinner/måling/
          annotering) eller søk er aktiv, mens kartet bygges/utvides, og når
          highlight-pillen vises — bygge-chipen og pillen bruker samme
          --ovl-top-slot og ville kollidert. -->
@@ -3269,6 +3280,14 @@ onUnmounted(() => {
             <circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/>
             <line x1="6.4" y1="17.6" x2="17.6" y2="6.4" stroke-dasharray="2 2.5"/></svg>
           <span>Måling</span>
+        </button>
+        <button @click="onShortcutTrack" class="shortcut-btn"
+                :class="{ 'text-sky-400': tracker.isRecording.value }"
+                :aria-label="tracker.isRecording.value ? 'Stopp sporing' : 'Start sporing'">
+          <svg v-if="tracker.isRecording.value" viewBox="0 0 24 24" class="w-5 h-5" fill="currentColor">
+            <rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>
+          <svg v-else viewBox="0 0 24 24" class="w-5 h-5" fill="currentColor"><polygon points="8,5 8,19 19,12"/></svg>
+          <span>Sporing</span>
         </button>
         <button @click="onShortcutInfo" class="shortcut-btn" aria-label="Informasjon om stedet">
           <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
