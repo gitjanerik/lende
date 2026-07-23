@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-23 — v1.0.83: Tekststørrelse i Tegnforklaring og kulturminne, wrap på forhåndsvalg
+
+Tegnforklaring-siden og kulturminne-POI-arket følger nå den globale tekststørrelse-innstillingen fra hovedmenyen (samme zoom-mekanikk som forsiden og info-panelet). Forhåndsvalg-knappene i lag-fanen bruker nå flex-wrap i stedet for en fast 4-kolonners grid: ved stor tekststørrelse ble fire på rad for trangt, så knappene bryter nå pent til flere linjer (typisk 2 × 2), mens de fortsatt ligger fire på rad ved normal størrelse.
+
+---
+
 ## 2026-07-23 — v1.0.82: Grønne «Nytt kart»/«Ny rute» og plussknapper i hovedmenyen
 
 «Nytt kart»- og «Ny rute»-knappene på forsiden er nå grønne (emerald), i tråd med de store lag-nytt-CTA-ene. I hovedmenyen (slide-in fra venstre) er det lagt til to små grønne, kvadratiske plussknapper på linjene for «Mine kart» og «Mine ruter» — en rask snarvei til å starte et nytt kart eller en ny rute uten å åpne lista først.
