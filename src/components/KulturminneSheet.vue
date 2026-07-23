@@ -7,6 +7,9 @@
 // (useDraggableDrawer) — samme .value-idiom som ellers i appen.
 import { computed } from 'vue'
 import { buildKulturminnesokUrl } from '../lib/externalMapLinks.js'
+import { useUiTextScale } from '../composables/useUiTextScale.js'
+
+const { uiTextScale } = useUiTextScale()
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -78,7 +81,7 @@ function onOpenKulturminnesok() {
         <!-- Kropp: beskrivelse/sted/bilde + lenke -->
         <div v-show="!drawer.isMinimized.value"
              class="flex-1 overflow-y-auto px-4 pt-3"
-             :style="{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0.75rem)' }">
+             :style="{ zoom: uiTextScale, paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0.75rem)' }">
           <div v-if="loading && !detail.beskrivelse"
                class="text-[12px] text-white/50 py-3">Henter detaljer …</div>
 
