@@ -1115,10 +1115,12 @@ export function buildSvg(elements, bbox, options = {}) {
     // glatte nok → 0 (av) ⇒ byte-identisk med før.
     const demResM = Math.abs(usableDem.transform?.pixelWidth || usableDem.resolution || contourIntervalM)
     const contourSmoothingM = demResM <= 3.5 ? demResM * 1.5 : 0
-    // Hjelpekurver (ISOM 103): bygg på halv ekvidistanse (2,5 m) og la kontur-
-    // loopen klassifisere de mellomliggende kurvene som formlinjer. Krever et
-    // fint nok rutenett (≤ 3,5 m) — 2,5 m-kurver fra 10 m-DEM blir trappetrinn.
-    const useFormLines = formLines && demResM <= 3.5 && contourIntervalM >= 5
+    // Hjelpekurver (ISOM 103): bygg på halv ekvidistanse og la kontur-loopen
+    // klassifisere de mellomliggende kurvene som formlinjer. Krever et fint nok
+    // rutenett (≤ 5,5 m, dvs. 2 m eller 5 m fin-DEM) — hjelpekurver fra 10/20 m-
+    // DEM blir trappetrinn. createMapFlow henter fint DEM når formLines er på,
+    // uansett ekvidistanse, så bryteren virker også på grove kart.
+    const useFormLines = formLines && demResM <= 5.5 && contourIntervalM >= 5
     const buildIntervalM = useFormLines ? contourIntervalM / 2 : contourIntervalM
     const c = _time('contours', () => buildContours(usableDem, buildIntervalM, useFormLines ? 10 : 5, { smoothingM: contourSmoothingM }))
     const cl = includeCliffs ? _time('cliffs', () => detectCliffs(usableDem, 45, 10)) : []

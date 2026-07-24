@@ -318,12 +318,14 @@ export async function buildMapFromCenter({
   // som fallback hvis fin-oppgraderingen under feiler/timer ut (aldri verre enn før).
   const resolutionM = equidistanceM <= 5 ? 10 : 20
 
-  // Fin-innlands DEM-mål: for fine-ekvidistanse-kart henter vi et mye finere
-  // rutenett (1/2 m, bruker-valgt via demTargetResM) fra samme NHM_DTM-endepunkt,
-  // så konturene blir glatte og detaljerte i stedet for 10 m-fasetterte. Gjelder
-  // uansett kyst/innland. demTargetResM > 5 (kvalitet «Rask») ⇒ ingen fin-
-  // oppgradering (behold 10 m-proben). null = for stort kart for valgt nivå.
-  const fineInlandTargetResM = (equidistanceM <= 5 && demTargetResM <= 5)
+  // Fin-innlands DEM-mål: henter et mye finere rutenett (2 m, evt. 5 m for store
+  // kart) fra samme NHM_DTM-endepunkt, så konturene blir glatte/detaljerte i
+  // stedet for 10/20 m-fasetterte. Trigges ved fine-ekvidistanse-kart (≤ 5 m)
+  // ELLER når brukeren har slått på hjelpekurver (som trenger fint DEM uansett
+  // ekvidistanse — ellers ble bryteren en stille no-op på default 20 m). Gjelder
+  // uansett kyst/innland. demTargetResM > 5 («Rask») ⇒ ingen oppgradering.
+  const wantFineDem = (equidistanceM <= 5 || formLines) && demTargetResM <= 5
+  const fineInlandTargetResM = wantFineDem
     ? fineDemResFor(halfKm, mapAspect, demTargetResM)
     : null
 

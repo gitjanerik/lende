@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-24 — v2.2.2: Hjelpekurver virker ved alle ekvidistanser
+
+«Hjelpekurver»-bryteren var en stille no-op på default-ekvidistansen (20 m): hjelpekurver bygges bare fra et fint DEM, og det fine DEM-et ble hentet KUN ved ≤ 5 m ekvidistanse — så et 20 m-kart med bryteren på fikk aldri hjelpekurver (uansett zoom). To fikser: (1) `createMapFlow` henter nå fint DEM når hjelpekurver er på, uansett ekvidistanse; (2) `mapBuilder`-porten er løsnet fra `demResM ≤ 3,5` til `≤ 5,5` så hjelpekurver bygges fra både 2 m- og 5 m-rutenett (men fortsatt ikke fra 10/20 m, som ville blitt trappetrinn). Hjelpekurve-intervallet er halve ekvidistansen (2,5 m ved 5 m-kart, 10 m ved 20 m-kart). Ny regresjonstest dekker default-fella (grov ekvidistanse + bryter på → hjelpekurver til stede). Tekstene i velger/innstillinger er oppdatert (ikke lenger «vises ved innzoom»).
+
+---
+
 ## 2026-07-24 — v2.2.1: Hjelpekurver vises uten zoom-krav
 
 Hjelpekurvene (v2.2.0) ble bygget riktig, men var gated bak innzoom (`.zoomed-in`, 1,3×), så et kart bygget med bryteren på så tomt ut ved vanlig zoom — forvirrende når man nettopp har skrudd dem på. Zoom-gatingen er fjernet: når «Hjelpekurver»-bryteren er på (og kartet er bygget på nytt), vises de på alle zoom-nivåer. De er fortsatt tynne/stiplede så de leser som en bratthets-/form-indikasjon uten å overdøve hovedkurvene.

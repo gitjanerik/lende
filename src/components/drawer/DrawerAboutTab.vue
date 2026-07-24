@@ -252,7 +252,7 @@ const { qualityId, preset: qualityPreset, QUALITY_PRESETS, formLines, chm } = us
       <div class="text-[11px] text-white/55 leading-snug mt-1.5">{{ qualityPreset.desc }}</div>
       <label class="flex items-center justify-between gap-3 mt-3 cursor-pointer">
         <span class="text-[12px] text-white/85">Hjelpekurver
-          <span class="block text-[11px] text-white/45">Stiplede 2,5 m-kurver mellom hovedkurvene — leser bratthet/form, vises ved innzoom. Nesten ingen ekstra data.</span></span>
+          <span class="block text-[11px] text-white/45">Stiplede kurver på halv ekvidistanse mellom hovedkurvene — leser bratthet/form. Henter finere høydedata når nødvendig.</span></span>
         <button type="button" role="switch" :aria-checked="formLines" @click="formLines = !formLines"
                 class="shrink-0 w-11 h-6 rounded-full transition-colors relative"
                 :class="formLines ? 'bg-emerald-500' : 'bg-white/20'">

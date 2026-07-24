@@ -676,7 +676,7 @@ onMounted(() => {
         </div>
         <label class="flex items-center justify-between gap-3 mt-2.5 cursor-pointer">
           <span class="text-[12px] text-white/80">Hjelpekurver
-            <span class="block text-[10px] text-white/45">2,5 m-kurver, vises ved innzoom</span></span>
+            <span class="block text-[10px] text-white/45">ekstra kurver på halv ekvidistanse — mer form</span></span>
           <input type="checkbox" v-model="formLines" :disabled="controlsLocked" class="accent-emerald-500 w-4 h-4" />
         </label>
         <label class="flex items-center justify-between gap-3 mt-2 cursor-pointer">
