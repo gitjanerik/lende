@@ -12,7 +12,6 @@ import {
   MAP_FORMAT_OPTIONS, MAP_EQ_OPTIONS,
 } from '../../composables/useMapSizePreference.js'
 import { DENSITY_PRESETS } from '../../composables/useLabelDensity.js'
-import { useMapDetail } from '../../composables/useMapDetail.js'
 import { APP_VERSION } from '../../version.js'
 
 defineProps({
@@ -33,6 +32,7 @@ const minEq = computed(() => minEquidistanceForWidthKm(mapSizeSlider.value))
 // Effektiv (markert) verdi: brukerens valg klampet til tillatt, auto ellers.
 const effectiveEq = computed(() => effectiveEquidistanceForWidthKm(mapSizeSlider.value))
 function eqHintFor(value) {
+  if (value === 2.5) return 'Krever bredde ≤ 2 km'
   if (value === 5)  return 'Krever bredde < 4 km'
   if (value === 10) return 'Krever bredde < 6 km'
   return ''
@@ -53,10 +53,6 @@ const globalReliefEnabled = defineModel('globalReliefEnabled', { type: Boolean, 
 const globalReliefMode = defineModel('globalReliefMode', { type: String, default: 'vektor' })
 const densityId = defineModel('densityId', { type: String, default: 'normal' })
 const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, default: true })
-
-// Kartdetalj / kvalitet for NYE kart (global singleton). Styrer DEM-oppløsning
-// (høydekurve-detalj) + skog-nyanse, mot nedlastet datamengde per kart.
-const { qualityId, preset: qualityPreset, QUALITY_PRESETS, formLines, chm } = useMapDetail()
 </script>
 
 <template>
@@ -232,44 +228,6 @@ const { qualityId, preset: qualityPreset, QUALITY_PRESETS, formLines, chm } = us
         Skarp = tone-bånd som vektor: liten fil, knivskarpt ved zoom og print.
         Mjuk = myk gradient (foto-relieff), men gir et tungt bilde i kart-fila.
       </div>
-    </div>
-    <!-- Kartdetalj for NYE kart: oppløsning (data) + to av/på-brytere.
-         Hjelpekurver er ~gratis (samme data), skog-nyanse dobler nedlastingen.
-         Gjelder kart du bygger etterpå — lagrede beholder sin detalj til rebygg. -->
-    <div class="rounded-lg bg-white/5 px-3 py-2.5 mb-3">
-      <div class="flex items-center justify-between mb-2">
-        <div class="text-[13px] text-white font-medium">Kartdetalj</div>
-        <div class="text-[12px] text-white/60 tabular-nums">{{ qualityPreset.mbHint }}{{ chm ? ' ×2' : '' }} / kart</div>
-      </div>
-      <div class="grid grid-cols-2 gap-1.5" role="group" aria-label="Oppløsning">
-        <button v-for="p in QUALITY_PRESETS" :key="p.id" @click="qualityId = p.id"
-                :aria-pressed="qualityId === p.id" :title="p.desc"
-                class="rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors"
-                :class="qualityId === p.id ? 'bg-emerald-500 text-white' : 'bg-white/10 text-white/70'">
-          {{ p.label }}
-        </button>
-      </div>
-      <div class="text-[11px] text-white/55 leading-snug mt-1.5">{{ qualityPreset.desc }}</div>
-      <label class="flex items-center justify-between gap-3 mt-3 cursor-pointer">
-        <span class="text-[12px] text-white/85">Hjelpekurver
-          <span class="block text-[11px] text-white/45">Stiplede kurver på halv ekvidistanse mellom hovedkurvene — leser bratthet/form. Henter finere høydedata når nødvendig.</span></span>
-        <button type="button" role="switch" :aria-checked="formLines" @click="formLines = !formLines"
-                class="shrink-0 w-11 h-6 rounded-full transition-colors relative"
-                :class="formLines ? 'bg-emerald-500' : 'bg-white/20'">
-          <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform"
-                :class="formLines ? 'translate-x-5' : ''"></span>
-        </button>
-      </label>
-      <label class="flex items-center justify-between gap-3 mt-2.5 cursor-pointer">
-        <span class="text-[12px] text-white/85">Skog-nyanse
-          <span class="block text-[11px] text-white/45">Deler skog i åpen/normal/tett fra kronehøyde. Dobler nedlastingen per kart.</span></span>
-        <button type="button" role="switch" :aria-checked="chm" @click="chm = !chm"
-                class="shrink-0 w-11 h-6 rounded-full transition-colors relative"
-                :class="chm ? 'bg-emerald-500' : 'bg-white/20'">
-          <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform"
-                :class="chm ? 'translate-x-5' : ''"></span>
-        </button>
-      </label>
     </div>
     <!-- Navnetetthet: rutenett-kvoten i tetthets-budsjettet. Lavere =
          roligere kart, høyere = flere navn. Byttes live (vrakes på nytt). -->

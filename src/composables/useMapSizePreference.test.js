@@ -45,10 +45,16 @@ describe('equidistanceForWidthKm — fineste tillatte (samme gulv som «Flere va
     expect(equidistanceForWidthKm(14)).toBe(20)
     expect(equidistanceForWidthKm(20)).toBe(20)
   })
-  it('minEquidistanceForWidthKm er samme tabell', () => {
-    for (const km of [1, 3, 4, 5, 6, 8]) {
+  it('minEquidistanceForWidthKm er samme tabell for km > 2', () => {
+    for (const km of [3, 4, 5, 6, 8]) {
       expect(minEquidistanceForWidthKm(km)).toBe(equidistanceForWidthKm(km))
     }
+  })
+  it('≤ 2 km: 2,5 m er manuelt tillatt, men auto floorer på 5 m', () => {
+    expect(minEquidistanceForWidthKm(2)).toBe(2.5)     // manuelt valgbart
+    expect(minEquidistanceForWidthKm(1.5)).toBe(2.5)
+    expect(equidistanceForWidthKm(2)).toBe(5)          // auto tar aldri 2,5 m uoppfordret
+    expect(minEquidistanceForWidthKm(2.5)).toBe(5)     // > 2 km → 5 m
   })
 })
 
@@ -95,6 +101,6 @@ describe('effektiv ekvidistanse + Nullstill', () => {
     expect(mapFormat.value).toBe('square')
     expect(mapEquidistance.value).toBeNull()                 // null = auto
     expect(effectiveEquidistanceForWidthKm(DEFAULT_MAP_WIDTH_KM)).toBe(10)
-    expect(MAP_EQ_OPTIONS).toEqual([5, 10, 20, 25, 50])
+    expect(MAP_EQ_OPTIONS).toEqual([2.5, 5, 10, 20, 25, 50])
   })
 })

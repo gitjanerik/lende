@@ -32,7 +32,6 @@ import { polylineToPath, simplifyDP, isPointNearPolylines } from './pathUtils.js
 import { thinParkering, PARKERING_MIN_SEP_M } from './parkingRules.js'
 import { bboxOfPoints, unionBbox, cellKeyFor, bboxAttr } from './spatialBucket.js'
 import { classifyBuildings, multiPolyToPath } from './buildingMass.js'
-import { computeCHM, sampleCHMInPolygon, classifyVegetationFromCHM } from './canopyHeight.js'
 import polygonClipping from 'polygon-clipping'
 import {
   raceOverpassMirrors, fetchOverpassWithRetry,
@@ -746,9 +745,7 @@ export function buildSvg(elements, bbox, options = {}) {
     scaleDenom = 10000,
     printSize = true,
     dem = null,
-    dom = null,                    // Digital overflate-modell for CHM/vegetasjon
     contourIntervalM = 5,
-    formLines = false,             // ISOM 103 hjelpekurver på halv ekvidistanse (2,5 m)
     includeCliffs = true,
     includeKnauser = true,
     includeBuildingMass = true,    // ISOM 522 tett-bebyggelse (tung union)
@@ -1026,46 +1023,6 @@ export function buildSvg(elements, bbox, options = {}) {
     buckets[code] = unionByName(buckets[code], project)
   }
 
-  // ── Vegetasjons-klassifisering via CHM (DOM − DTM) ───────────────────
-  // For hvert OSM-skog-polygon: sample CHM og bestem ISOM-kode basert
-  // på vegetasjonshøyde og varians. Beveger features mellom buckets.
-  let chm = null
-  let vegReclassified = 0
-  if (dem && dom) {
-    try {
-      chm = computeCHM(dem, dom)
-      console.log(`[CHM] Beregnet ${chm.cols}×${chm.rows} celler`)
-      const oldSkogCodes = ['405', '406', '407', '408', '409']
-      const allSkog = []
-      for (const c of oldSkogCodes) {
-        for (const el of buckets[c] ?? []) allSkog.push({ code: c, el })
-        buckets[c] = []
-        counts[c] = 0
-      }
-      for (const { code, el } of allSkog) {
-        if (el.type === 'way' && el.geometry) {
-          const ring = el.geometry.map(g => {
-            const p = project(g.lat, g.lon)
-            return [p.x, p.y]
-          })
-          const stats = sampleCHMInPolygon(chm, ring)
-          const newCode = classifyVegetationFromCHM(stats, code)
-          if (buckets[newCode]) {
-            buckets[newCode].push(el)
-            counts[newCode]++
-            if (newCode !== code) vegReclassified++
-          }
-        } else {
-          buckets[code].push(el)
-          counts[code]++
-        }
-      }
-      console.log(`[CHM] Re-klassifiserte ${vegReclassified} vegetasjons-features`)
-    } catch (e) {
-      console.warn(`[CHM] Klassifisering feilet: ${e.message}`)
-    }
-  }
-
   // ── ISOM 522: tette bebyggelse-klynger ───────────────────────────────
   // Slå sammen tett bebygde områder til urbanmasse-multipolygoner med
   // pattern-fyll. Kritisk for å holde SVG-størrelsen i sjakk i tette
@@ -1116,14 +1073,7 @@ export function buildSvg(elements, bbox, options = {}) {
     // glatte nok → 0 (av) ⇒ byte-identisk med før.
     const demResM = Math.abs(usableDem.transform?.pixelWidth || usableDem.resolution || contourIntervalM)
     const contourSmoothingM = demResM <= 3.5 ? demResM * 1.5 : 0
-    // Hjelpekurver (ISOM 103): bygg på halv ekvidistanse og la kontur-loopen
-    // klassifisere de mellomliggende kurvene som formlinjer. Krever et fint nok
-    // rutenett (≤ 5,5 m, dvs. 2 m eller 5 m fin-DEM) — hjelpekurver fra 10/20 m-
-    // DEM blir trappetrinn. createMapFlow henter fint DEM når formLines er på,
-    // uansett ekvidistanse, så bryteren virker også på grove kart.
-    const useFormLines = formLines && demResM <= 5.5 && contourIntervalM >= 5
-    const buildIntervalM = useFormLines ? contourIntervalM / 2 : contourIntervalM
-    const c = _time('contours', () => buildContours(usableDem, buildIntervalM, useFormLines ? 10 : 5, { smoothingM: contourSmoothingM }))
+    const c = _time('contours', () => buildContours(usableDem, contourIntervalM, 5, { smoothingM: contourSmoothingM }))
     const cl = includeCliffs ? _time('cliffs', () => detectCliffs(usableDem, 45, 10)) : []
     // v9.1.17 — knauser tilbake som ÉN merged vektor-<path> (ISOM 213). Etter
     // raster-eksperimentet (v9.1.7–9.1.16, blurry «vorter» + mobil-GPU-kost):
@@ -1134,7 +1084,7 @@ export function buildSvg(elements, bbox, options = {}) {
     // grovere ekvidistanse (10/20/25/50/100 m) er kartet oversiktspreget og
     // knaus-detalj hører ikke hjemme.
     const k = (includeKnauser && contourIntervalM === 5) ? _time('knauser', () => detectKnauser(usableDem, 5, 2.5)) : []
-    demFeatures = { contours: c, cliffs: cl, knauser: k, equidistanceM: contourIntervalM, formLines: useFormLines }
+    demFeatures = { contours: c, cliffs: cl, knauser: k, equidistanceM: contourIntervalM }
     // Ekte topper (lokale høyde-maksima) for «topp»-søket. Brukes kun når kartet
     // ikke har OSM-toppmarkører; emitteres som skjult søkbart lag uansett.
     // Topp-deteksjon på et ~10 m-nedskalert DEM. detectSummits' vindu er i METER
@@ -1809,12 +1759,7 @@ export function buildSvg(elements, bbox, options = {}) {
   // — akseptert; geometri splittes ikke.
   const contourMinorBuckets = new Map()  // cellKey → { ds: [], bbox }
   const contourIndexBuckets = new Map()
-  const contourFormBuckets = new Map()   // ISOM 103 hjelpekurver (halv ekvidistanse)
   const contourLabels = []
-  // Klassifisering ved hjelpekurver: index hver 5. hovedkurve (25 m @ 5 m ekv.),
-  // hovedkurve på hel ekvidistanse, ellers hjelpekurve (mellomliggende 2,5 m).
-  const eqM = demFeatures.equidistanceM || 5
-  const nearMult = (v, m) => Math.abs(v / m - Math.round(v / m)) < 1e-4
   const pushContour = (buckets, d, bbox) => {
     const key = cellKeyFor(bbox)
     let b = buckets.get(key)
@@ -1833,24 +1778,11 @@ export function buildSvg(elements, bbox, options = {}) {
     // skal IKKE lukkes med Z — ellers trekkes en korde tvers over voidet.
     const d = polylineToPath(projected, f.closed !== false)
     const bbox = bboxOfPoints(projected)
-    // Ved hjelpekurver reklassifiseres etter elevasjon (buildContours kjørte på
-    // halv ekvidistanse og satte index/minor relativt til det): hel ekvidistanse
-    // = hovedkurve, mellomliggende = hjelpekurve (103), hver 5. hoved = index.
-    let tier
-    if (demFeatures.formLines) {
-      if (nearMult(f.elevation, eqM * 5)) tier = 'index'
-      else if (nearMult(f.elevation, eqM)) tier = 'minor'
-      else tier = 'form'
-    } else {
-      tier = f.isIndex ? 'index' : 'minor'
-    }
-    if (tier === 'index') {
+    if (f.isIndex) {
       pushContour(contourIndexBuckets, d, bbox)
       // Legg på elevasjons-tall midt på kurven (forenklet — bare første punkt)
       const mid = projected[Math.floor(projected.length / 2)]
       contourLabels.push({ x: mid[0], y: mid[1], elev: Math.round(f.elevation) })
-    } else if (tier === 'form') {
-      pushContour(contourFormBuckets, d, bbox)
     } else {
       pushContour(contourMinorBuckets, d, bbox)
     }
@@ -2602,8 +2534,6 @@ export function buildSvg(elements, bbox, options = {}) {
     demResolutionM: dem?.transform
       ? Math.round((Math.abs(dem.transform.pixelWidth) + Math.abs(dem.transform.pixelHeight)) / 2) || null
       : null,
-    domSource: dom?.source ?? null,
-    vegReclassified: chm ? vegReclassified : null,
     lakeLabels: lakeLabels.length,
     contoursSkipped: dem && !usableDem ? 'syntetisk DEM — ingen ekte høydekurver tilgjengelig' : null,
     isomVersion: '2017-2-derived',
@@ -2739,11 +2669,8 @@ export function buildSvg(elements, bbox, options = {}) {
 
   const contourBucketPaths = (buckets) =>
     [...buckets.values()].map(b => `<path d="${b.ds.join(' ')}"${bboxAttr(b.bbox, fmt)} />`).join('')
-  const contourLayerSvg = (contourMinorBuckets.size || contourIndexBuckets.size || contourFormBuckets.size)
+  const contourLayerSvg = (contourMinorBuckets.size || contourIndexBuckets.size)
     ? `  <g data-layer="kontur">\n` +
-      (contourFormBuckets.size
-        ? `    <g data-iso="103">${contourBucketPaths(contourFormBuckets)}</g>\n`
-        : '') +
       `    <g data-iso="101">${contourBucketPaths(contourMinorBuckets)}</g>\n` +
       `    <g data-iso="102">${contourBucketPaths(contourIndexBuckets)}</g>\n` +
       (contourLabels.length
