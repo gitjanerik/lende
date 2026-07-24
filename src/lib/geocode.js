@@ -121,7 +121,7 @@ export async function reverseGeocode(lat, lon, opts = {}) {
  * @returns {Promise<Array<{id,name,shortName,type,importance,lat,lon,bbox}>>}
  */
 export async function geocodePlace(query, opts = {}) {
-  const { countryCode = 'no', limit = 8, signal, fetchImpl, endpoint = NOMINATIM, userAgent } = opts
+  const { countryCode = 'no', limit = 20, signal, fetchImpl, endpoint = NOMINATIM, userAgent } = opts
   const q = (query ?? '').trim()
   if (q.length < 2) return []
 
@@ -150,7 +150,7 @@ export async function geocodePlace(query, opts = {}) {
  * @returns {Promise<Array<{id,name,shortName,type,importance,lat,lon,bbox,source}>>}
  */
 export async function geocodeKartverket(query, opts = {}) {
-  const { limit = 8, signal, fetchImpl, endpoint = STEDSNAVN, userAgent } = opts
+  const { limit = 20, signal, fetchImpl, endpoint = STEDSNAVN, userAgent } = opts
   const q = (query ?? '').trim()
   if (q.length < 2) return []
 
@@ -201,7 +201,7 @@ function dedupKey(r) {
  * @returns {Promise<Array<{id,name,shortName,type,importance,lat,lon,bbox,source}>>}
  */
 export async function searchPlaces(query, opts = {}) {
-  const { limit = 8 } = opts
+  const { limit = 20 } = opts
   const q = (query ?? '').trim()
   if (q.length < 2) return []
 

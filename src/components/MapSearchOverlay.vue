@@ -81,46 +81,15 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
       </div>
       <div class="flex-1 overflow-y-auto" id="mapsearch-results" role="listbox"
            :style="{ zoom: uiTextScale }">
-        <!-- Ingen treff i DETTE kartet → globalt fallback (Nominatim). -->
-        <template v-if="query && results.length === 0">
-          <div class="px-4 pt-4 pb-1 text-[11px] text-white/55 leading-relaxed">
-            Ingen treff i dette kartet.
-            <span class="text-white/40">Andre steder i Norge:</span>
-          </div>
-          <div v-if="globalSearching" class="px-4 py-3 text-[11px] text-white/40">
-            Søker …
-          </div>
-          <button v-for="r in globalResults" :key="'g' + r.id"
-                  @click="emit('selectGlobal', r)"
-                  class="w-full text-left px-3 py-2.5 transition border-b border-white/8
-                         last:border-0 flex items-center gap-2 active:bg-white/10">
-            <svg viewBox="0 0 24 24" class="w-4 h-4 text-white/40 shrink-0" fill="none"
-                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>
-              <circle cx="12" cy="10" r="3"/>
-            </svg>
-            <div class="flex-1 min-w-0">
-              <div class="text-[13px] font-medium text-white truncate">{{ r.shortName }}</div>
-              <div class="text-[10px] text-white/45 uppercase tracking-wide">Bygg nytt kart her</div>
-            </div>
-            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-white/35 shrink-0" fill="none"
-                 stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="9 18 15 12 9 6"/>
-            </svg>
-          </button>
-          <div v-if="!globalSearching && globalResults.length === 0"
-               class="px-4 py-6 text-center text-[12px] text-white/45">
-            Ingen treff på «{{ query }}»
-          </div>
-        </template>
-        <div v-else-if="!query"
+        <div v-if="!query"
              class="px-4 py-4 text-[11px] text-white/45 leading-relaxed">
           Søker i navn i <span class="text-white/70">dette kartet</span> — steder, vann,
           topper og områder ({{ indexCount }} treffbare).
           Skriv «vann» for å se alle innsjøer i utsnittet.
           Skriv «parkering» for å liste utfartsparkeringene.
           Skriv «topp» for kartets ti høyeste punkter.
-          Steder utenfor kartet dukker opp som forslag når det ikke er treff.
+          Steder ellers i Norge foreslås alltid nederst — velg ett for å bygge
+          nytt kart der.
         </div>
         <button v-for="(r, index) in results" :key="r.id"
                 :id="`mapsearch-opt-${index}`" role="option"
@@ -146,6 +115,42 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
             <polyline points="9 18 15 12 9 6"/>
           </svg>
         </button>
+
+        <!-- Andre steder (Kartverket SSR + OSM) — vises ALLTID under kart-
+             treffene, ikke bare ved null treff: at søkeordet også finnes i
+             kartet er uviktig, et valgt globalt treff bygger nytt kart med
+             navn etter treffet. -->
+        <template v-if="query && (globalSearching || globalResults.length || results.length === 0)">
+          <div class="px-4 pt-4 pb-1 text-[11px] text-white/55 leading-relaxed">
+            <template v-if="results.length === 0">Ingen treff i dette kartet. </template>
+            <span class="text-white/40">Andre steder i Norge:</span>
+          </div>
+          <div v-if="globalSearching" class="px-4 py-3 text-[11px] text-white/40">
+            Søker …
+          </div>
+          <button v-for="r in globalResults" :key="'g' + r.id"
+                  @click="emit('selectGlobal', r)"
+                  class="w-full text-left px-3 py-2.5 transition border-b border-white/8
+                         last:border-0 flex items-center gap-2 active:bg-white/10">
+            <svg viewBox="0 0 24 24" class="w-4 h-4 text-white/40 shrink-0" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+            <div class="flex-1 min-w-0">
+              <div class="text-[13px] font-medium text-white truncate">{{ r.shortName }}</div>
+              <div class="text-[10px] text-white/45 uppercase tracking-wide">Bygg nytt kart her</div>
+            </div>
+            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-white/35 shrink-0" fill="none"
+                 stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+          <div v-if="!globalSearching && globalResults.length === 0 && results.length === 0"
+               class="px-4 py-6 text-center text-[12px] text-white/45">
+            Ingen treff på «{{ query }}»
+          </div>
+        </template>
       </div>
     </div>
   </Transition>

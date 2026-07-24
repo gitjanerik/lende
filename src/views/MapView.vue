@@ -1375,16 +1375,16 @@ const searchIndex = mapSearch.index
 const searchOpen = ref(false)
 const highlightedFeature = ref(null)   // { name, x, y, kind } eller null
 
-// Globalt stedssøk (Nominatim) som FALLBACK: kart-søket ser bare navn i det
-// rendrede SVG-et, så et sted utenfor utsnittet gir 0 treff. Da tilbyr vi
-// globale forslag — velges ett, bygges et nytt kart der. Kobles kun når
-// kart-søket er tomt (og query ≥ 2 tegn) så vi ikke fyrer unødige Nominatim-
-// kall når kartet allerede har treff. Debounce/abort ligger i composablen.
+// Globalt stedssøk (Kartverket SSR + Nominatim) PARALLELT med kart-søket:
+// kart-søket ser bare navn i det rendrede SVG-et, så globale forslag vises
+// alltid i tillegg («Andre steder») — velges ett, bygges et nytt kart der.
+// At søkeordet også finnes i kartet er uviktig; det nye kartet får uansett
+// navn etter treffet. Debounce/abort ligger i composablen.
 const placeSearch = useNominatim({ debounceMs: 350 })
 const globalResults = placeSearch.results
 const globalSearching = placeSearch.isSearching
-watch([searchResults, searchQuery], ([res, q]) => {
-  placeSearch.query.value = (res.length === 0 && (q ?? '').trim().length >= 2) ? q : ''
+watch(searchQuery, (q) => {
+  placeSearch.query.value = (q ?? '').trim().length >= 2 ? q : ''
 })
 
 function openSearch() {
