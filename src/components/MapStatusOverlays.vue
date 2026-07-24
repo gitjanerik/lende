@@ -4,7 +4,7 @@
 // (GPS-feil / utenfor kart), (3) detalj-feil / ufullstendig kart / mosaikk-hull /
 // lav GPS-nøyaktighet. Rent presentasjonelt — all tilstand kommer inn som props,
 // brukerhandlinger sendes ut som events. Lasteskjelettets CSS følger med hit (scoped).
-import { ref, watch } from 'vue'
+import { ref, watch, onBeforeUnmount } from 'vue'
 const props = defineProps({
   loading: { type: Boolean, default: false },
   hasMeta: { type: Boolean, default: false },
@@ -21,6 +21,9 @@ const props = defineProps({
   isOffline: { type: Boolean, default: false },
   showLowAccuracy: { type: Boolean, default: false },
   accuracyM: { type: Number, default: 0 },
+  fredetTruncated: { type: Boolean, default: false },
+  fredetCount: { type: Number, default: 0 },
+  fredetShown: { type: Number, default: 0 },
 })
 defineEmits([
   'retryLoad', 'dismissOutside', 'dismissDetails', 'retryDetails', 'dismissLowAccuracy',
@@ -32,9 +35,21 @@ defineEmits([
 const partialDismissed = ref(false)
 const gapsDismissed = ref(false)
 const positionErrorDismissed = ref(false)
+const fredetTruncDismissed = ref(false)
 watch(() => props.mapIsPartial, (v) => { if (v) partialDismissed.value = false })
 watch(() => props.mosaicGapCount, (v) => { if (v > 0) gapsDismissed.value = false })
 watch(() => props.positionError, () => { positionErrorDismissed.value = false })
+// Toast «mange arkeologiske kulturminner»: vises når laget kappet utvalget,
+// auto-skjules etter noen sekunder (kan også lukkes manuelt). Re-vises hver
+// gang truncated-tilstanden dukker opp på nytt (nytt kart / nytt utsnitt).
+let fredetTimer = null
+watch(() => props.fredetTruncated, (v) => {
+  if (!v) return
+  fredetTruncDismissed.value = false
+  clearTimeout(fredetTimer)
+  fredetTimer = setTimeout(() => { fredetTruncDismissed.value = true }, 8000)
+})
+onBeforeUnmount(() => clearTimeout(fredetTimer))
 </script>
 
 <template>
@@ -75,6 +90,34 @@ watch(() => props.positionError, () => { positionErrorDismissed.value = false })
       Prøv igjen
     </button>
   </div>
+
+  <!-- Toast: utsnittet har flere arkeologiske kulturminner enn vi henter, så
+       kartet viser et utvalg. Ren info (ingen handling) — auto-skjules. Egen
+       v-if utenfor feil-kjedene: kan sameksistere, men er sjelden samtidig. -->
+  <Transition name="fredet-toast">
+    <div v-if="fredetTruncated && !fredetTruncDismissed && !loading"
+         class="absolute bottom-20 left-3 right-3 z-20 max-w-[420px] mx-auto
+                rounded-lg backdrop-blur bg-zinc-900/95 border border-amber-400/30
+                text-white text-[12px] shadow-2xl flex items-start gap-2 pl-3 pr-1 py-2.5">
+      <svg viewBox="0 0 24 24" class="w-4 h-4 mt-0.5 text-amber-300 shrink-0" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/>
+        <circle cx="12" cy="8" r="0.6" fill="currentColor"/>
+      </svg>
+      <span class="flex-1 leading-snug">
+        {{ fredetCount }} arkeologiske kulturminner i dette utsnittet — viser
+        de første {{ fredetShown }}. Zoom inn på et mindre område for å se resten.
+      </span>
+      <button @click="fredetTruncDismissed = true" aria-label="Lukk"
+              class="w-6 h-6 -mt-0.5 flex items-center justify-center rounded-md
+                     text-white/80 active:scale-90 active:bg-white/10 shrink-0">
+        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+             stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  </Transition>
 
   <!-- Posisjons-status. GPS-feil (typisk stedstjenester av eller tillatelse
        avvist) får en «Prøv igjen»-knapp som re-utløser posisjons-forespørselen
@@ -252,5 +295,12 @@ watch(() => props.positionError, () => { positionErrorDismissed.value = false })
 @keyframes cb-shimmer { to { transform: translateX(100%); } }
 @media (prefers-reduced-motion: reduce) {
   .cb-skeleton-shimmer { animation: none; }
+}
+
+.fredet-toast-enter-active, .fredet-toast-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.fredet-toast-enter-from, .fredet-toast-leave-to {
+  opacity: 0; transform: translateY(12px);
 }
 </style>

@@ -549,7 +549,7 @@ function toggleDepth() {
 // Fredet-kulturminne-lag + brukerminne-fallback — flyttet til
 // useHeritageLayers; meta-watchen under blir her.
 const {
-  fredetCount, fredetLoading,
+  fredetCount, fredetShown, fredetTruncated, fredetLoading,
   applyFredetKulturminneLayer, applyKulturminneFallback,
   openFredetDetailFromEl, refreshFredetCount,
 } = useHeritageLayers({
@@ -561,7 +561,10 @@ const {
   kulturminneDetail, kulturminneLoading, kulturminneOpen, kulturminneDrawer,
 })
 // Nytt kart lastet → nullstill og hent antall for badgen (liten WFS hits-spørring).
-watch(meta, (m) => { fredetCount.value = null; refreshFredetCount(m) })
+watch(meta, (m) => { fredetCount.value = null; fredetShown.value = null; refreshFredetCount(m) })
+// Toast «mange arkeologiske kulturminner» — kun når laget er på og vi kappet.
+const showFredetToast = computed(() =>
+  fredetTruncated.value && visibleLayers.value.has('fredet-kulturminne'))
 
 // Hydrologiske målestasjoner (NVE HydAPI) — eget togglebart lag (blå dråper).
 const hydroOpen = ref(false)
@@ -3605,6 +3608,9 @@ onUnmounted(() => {
       :is-offline="isOffline"
       :show-low-accuracy="showLowAccuracyBanner"
       :accuracy-m="userPos.accuracyM ?? 0"
+      :fredet-truncated="showFredetToast"
+      :fredet-count="fredetCount ?? 0"
+      :fredet-shown="fredetShown ?? 0"
       @retry-load="loadMap"
       @dismiss-outside="dismissOutsideMap"
       @dismiss-details="detailsFailed = false"

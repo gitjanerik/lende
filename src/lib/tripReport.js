@@ -86,9 +86,9 @@ export function buildTripReportSvg(opts = {}) {
   const push = (text, kind = 'row', color) => blocks.push({ text, kind, color })
 
   const km = enrichment.kulturminner ?? []
-  push(`Fredede kulturminner${enrichment.kilder?.kulturminne ? ` (${km.length})` : ''}`, 'h')
+  push(`Arkeologiske kulturminner${enrichment.kilder?.kulturminne ? ` (${km.length})` : ''}`, 'h')
   if (!enrichment.kilder?.kulturminne) push('Kilde utilgjengelig (Riksantikvaren WFS)', 'muted')
-  else if (!km.length) push('Ingen fredede kulturminner langs ruten', 'muted')
+  else if (!km.length) push('Ingen arkeologiske kulturminner langs ruten', 'muted')
   else for (const k of km.slice(0, 8)) push(`• ${k.navn ?? 'Kulturminne'}${k.vernetype ? ` — ${k.vernetype}` : ''}  (${fmtKm(k.langsM)} inn, ${k.avstandM} m fra sti)`)
 
   const res = enrichment.reservater ?? []
@@ -193,7 +193,7 @@ export function buildTripReportMarkdown(opts = {}) {
 
   const k = enrichment.kilder ?? {}
   const km = enrichment.kulturminner ?? []
-  L.push(`## Fredede kulturminner${k.kulturminne ? ` (${km.length})` : ''}`)
+  L.push(`## Arkeologiske kulturminner${k.kulturminne ? ` (${km.length})` : ''}`)
   if (!k.kulturminne) L.push('_Kilde utilgjengelig (Riksantikvaren)_')
   else if (!km.length) L.push('_Ingen langs ruten_')
   else for (const it of km.slice(0, 12)) L.push(`- ${it.navn ?? 'Kulturminne'}${it.vernetype ? ` — ${it.vernetype}` : ''} (${fmtKm(it.langsM)} inn, ${it.avstandM} m fra sti)`)

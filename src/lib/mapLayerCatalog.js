@@ -45,8 +45,10 @@ export const LAYERS = [
   { key: 'trig',       label: 'Trigpunkter' },
   // Kulturminne-overlegg (Kulturminnesøk brukerminner) — klikkbare tema-ikoner.
   { key: 'kulturminne', label: 'Kulturminner' },
-  // Offisielle fredede kulturminner (Riksantikvaren/Askeladden).
-  { key: 'fredet-kulturminne', label: 'Fredede kulturminner' },
+  // Arkeologiske kulturminner (Riksantikvaren/Askeladden WFS) — server-side
+  // filtrert til arkeologiske funn, bergkunst og kulturminner under vann
+  // (se kulturminneWfs.js). Layer-key beholdes for bakoverkompatibilitet.
+  { key: 'fredet-kulturminne', label: 'Arkeologiske kulturminner' },
   // Hydrologiske målestasjoner (NVE HydAPI) — blå medaljong-ikoner, klikk for
   // vannføring/vannstand/temperatur + lenke til NVE. Live-lag via proxy.
   { key: 'vannstasjon', label: 'Vannmålestasjoner' },

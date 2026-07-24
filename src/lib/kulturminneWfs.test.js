@@ -22,18 +22,37 @@ describe('splitInformasjon', () => {
 const bbox = { south: 59.66, west: 10.53, north: 59.71, east: 10.62 }
 
 describe('buildWfsUrl', () => {
-  it('bygger WFS 2.0.0 GetFeature med lat,lon-bbox i EPSG:4258', () => {
+  it('bygger WFS 2.0.0 GetFeature med FES-filter (bbox + arkeologi-kategorier)', () => {
     const q = new URL(buildWfsUrl(bbox)).searchParams
     expect(q.get('version')).toBe('2.0.0')
     expect(q.get('typeNames')).toBe('app:Enkeltminne')
-    expect(q.get('bbox')).toBe('59.66,10.53,59.71,10.62,urn:ogc:def:crs:EPSG::4258')
     expect(q.get('count')).toBe('400')
     expect(q.get('resultType')).toBeNull()
+    // Ingen egen bbox=-param lenger — bbox ligger i FES-filteret.
+    expect(q.get('bbox')).toBeNull()
+    const filter = q.get('filter')
+    // Envelope i lat,lon (EPSG:4258): lowerCorner=sør vest, upperCorner=nord øst.
+    expect(filter).toContain('<gml:lowerCorner>59.66 10.53</gml:lowerCorner>')
+    expect(filter).toContain('<gml:upperCorner>59.71 10.62</gml:upperCorner>')
+    expect(filter).toContain('app:område')
+    // Default arkeologi-kategorier, kombinert med Or.
+    expect(filter).toContain('<fes:Or>')
+    expect(filter).toContain('<fes:Literal>E-ARK</fes:Literal>')
+    expect(filter).toContain('<fes:Literal>E-BER</fes:Literal>')
+    expect(filter).toContain('<fes:Literal>E-MAR</fes:Literal>')
   })
   it('hits-modus setter resultType=hits uten count', () => {
     const q = new URL(buildWfsUrl(bbox, { hits: true })).searchParams
     expect(q.get('resultType')).toBe('hits')
     expect(q.get('count')).toBeNull()
+  })
+  it('én kategori dropper <fes:Or>; ingen kategorier gir rent bbox-filter', () => {
+    const one = new URL(buildWfsUrl(bbox, { categories: ['E-ARK'] })).searchParams.get('filter')
+    expect(one).toContain('<fes:Literal>E-ARK</fes:Literal>')
+    expect(one).not.toContain('<fes:Or>')
+    const none = new URL(buildWfsUrl(bbox, { categories: [] })).searchParams.get('filter')
+    expect(none).not.toContain('enkeltminnekategori')
+    expect(none).toContain('<fes:BBOX>')
   })
 })
 
