@@ -56,7 +56,7 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
 
 // Kartdetalj / kvalitet for NYE kart (global singleton). Styrer DEM-oppløsning
 // (høydekurve-detalj) + skog-nyanse, mot nedlastet datamengde per kart.
-const { qualityId, preset: qualityPreset, QUALITY_PRESETS } = useMapDetail()
+const { qualityId, preset: qualityPreset, QUALITY_PRESETS, formLines, chm } = useMapDetail()
 </script>
 
 <template>
@@ -233,15 +233,15 @@ const { qualityId, preset: qualityPreset, QUALITY_PRESETS } = useMapDetail()
         Mjuk = myk gradient (foto-relieff), men gir et tungt bilde i kart-fila.
       </div>
     </div>
-    <!-- Kartdetalj / kvalitet for NYE kart: DEM-oppløsning (høydekurve-detalj)
-         + skog-nyanse (CHM), mot nedlastet datamengde per kart. Gjelder kart du
-         bygger etterpå — lagrede kart beholder sin detalj til de bygges på nytt. -->
+    <!-- Kartdetalj for NYE kart: oppløsning (data) + to av/på-brytere.
+         Hjelpekurver er ~gratis (samme data), skog-nyanse dobler nedlastingen.
+         Gjelder kart du bygger etterpå — lagrede beholder sin detalj til rebygg. -->
     <div class="rounded-lg bg-white/5 px-3 py-2.5 mb-3">
       <div class="flex items-center justify-between mb-2">
         <div class="text-[13px] text-white font-medium">Kartdetalj</div>
-        <div class="text-[12px] text-white/60 tabular-nums">{{ qualityPreset.mbHint }} / kart</div>
+        <div class="text-[12px] text-white/60 tabular-nums">{{ qualityPreset.mbHint }}{{ chm ? ' ×2' : '' }} / kart</div>
       </div>
-      <div class="grid grid-cols-4 gap-1.5" role="group" aria-label="Kartdetalj">
+      <div class="grid grid-cols-2 gap-1.5" role="group" aria-label="Oppløsning">
         <button v-for="p in QUALITY_PRESETS" :key="p.id" @click="qualityId = p.id"
                 :aria-pressed="qualityId === p.id" :title="p.desc"
                 class="rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors"
@@ -249,9 +249,27 @@ const { qualityId, preset: qualityPreset, QUALITY_PRESETS } = useMapDetail()
           {{ p.label }}
         </button>
       </div>
-      <div class="text-[11px] text-white/55 leading-snug mt-1.5">
-        {{ qualityPreset.desc }}
-      </div>
+      <div class="text-[11px] text-white/55 leading-snug mt-1.5">{{ qualityPreset.desc }}</div>
+      <label class="flex items-center justify-between gap-3 mt-3 cursor-pointer">
+        <span class="text-[12px] text-white/85">Hjelpekurver
+          <span class="block text-[11px] text-white/45">Stiplede 2,5 m-kurver mellom hovedkurvene — leser bratthet/form, vises ved innzoom. Nesten ingen ekstra data.</span></span>
+        <button type="button" role="switch" :aria-checked="formLines" @click="formLines = !formLines"
+                class="shrink-0 w-11 h-6 rounded-full transition-colors relative"
+                :class="formLines ? 'bg-emerald-500' : 'bg-white/20'">
+          <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform"
+                :class="formLines ? 'translate-x-5' : ''"></span>
+        </button>
+      </label>
+      <label class="flex items-center justify-between gap-3 mt-2.5 cursor-pointer">
+        <span class="text-[12px] text-white/85">Skog-nyanse
+          <span class="block text-[11px] text-white/45">Deler skog i åpen/normal/tett fra kronehøyde. Dobler nedlastingen per kart.</span></span>
+        <button type="button" role="switch" :aria-checked="chm" @click="chm = !chm"
+                class="shrink-0 w-11 h-6 rounded-full transition-colors relative"
+                :class="chm ? 'bg-emerald-500' : 'bg-white/20'">
+          <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform"
+                :class="chm ? 'translate-x-5' : ''"></span>
+        </button>
+      </label>
     </div>
     <!-- Navnetetthet: rutenett-kvoten i tetthets-budsjettet. Lavere =
          roligere kart, høyere = flere navn. Byttes live (vrakes på nytt). -->

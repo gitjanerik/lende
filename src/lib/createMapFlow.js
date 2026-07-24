@@ -27,7 +27,7 @@ import { pointInRing } from './marineTopology.js'
 import { fetchDEM } from './demFetcher.js'
 import { fetchDOM } from './canopyHeight.js'
 import { fillDemVoidsFromTerrarium } from './terrariumDem.js'
-import { findHighestPoint, packDem } from './demSampling.js'
+import { findHighestPoint, packDem, downsampleDem } from './demSampling.js'
 import { utm32ToWgs84, utm32BboxFromWgs84 } from './utm.js'
 import { saveMap, generateMapId } from './mapStorage.js'
 import { snapUtmBboxToGrid, fetchDEMWithCache } from './demTileCache.js'
@@ -186,14 +186,11 @@ export function coastalTargetResFor(utmBbox, maxCells = COASTAL_MAX_CELLS) {
 // serveren nedskalere, så konturene ble kantete (10 m-fasetter). Her velger vi
 // fineste trinn ≥ minResM (bruker-valgt kvalitet) som holder seg under celletaket.
 // For store kart over taket → grovere trinn, evt. null (behold probe).
-// Trinnene MÅ dele TILE_M (1000) jevnt så flis-cachen fluktter (1→1000,
-// 2→500, 5→200 celler pr flis); 3 m ville gitt off-by-one i sliceIntoTiles.
-const FINE_DEM_STEPS_M = [1, 2, 5]
-// Eget, romsligere celletak for den bruker-styrte fin-trappa (Maks-nivå): et
-// 3×3 km-kart @ 1 m = 9M celler (~36 MB + kontur-kost). Over dette degraderes
-// oppløsningen ett trinn. (COASTAL_MAX_CELLS er strengere og gjelder kun kyst.)
-export const FINE_MAX_CELLS = 1.0e7
-export function fineDemResFor(halfKm, aspect = 1, minResM = 2, maxCells = FINE_MAX_CELLS) {
+// Trinnene MÅ dele TILE_M (1000) jevnt så flis-cachen fluktter (2→500,
+// 5→200 celler pr flis); 3 m ville gitt off-by-one i sliceIntoTiles. (1 m er
+// bevisst utelatt — usynlig ekstra ved 5 m ekvidistanse, men 4× data/tid.)
+const FINE_DEM_STEPS_M = [2, 5]
+export function fineDemResFor(halfKm, aspect = 1, minResM = 2, maxCells = COASTAL_MAX_CELLS) {
   if (!(halfKm > 0)) return null
   const widthM = halfKm * 2 * 1000
   const areaM2 = widthM * widthM * (aspect > 0 ? aspect : 1)
@@ -289,6 +286,7 @@ export async function buildMapFromCenter({
   // «Standard» (2 m, ingen CHM) så eksisterende kallere er uendret.
   demTargetResM = 2,
   chm = false,
+  formLines = false,   // ISOM 103 hjelpekurver (2,5 m) — bygges fra samme fine DEM
 }) {
   const throwIfAborted = () => {
     if (signal?.aborted) throw new DOMException('Avbrutt', 'AbortError')
@@ -620,7 +618,10 @@ export async function buildMapFromCenter({
     svg,
     source,
     annotations: [],
-    dem: isRealDem(dem) ? packDem(dem) : null,
+    // Lagret DEM kappes til ~10 m: kartet er alt bakt med full oppløsning, og
+    // det innebygde rutenettet trengs bare til høyde-ved-trykk/ruteprofil. Kutter
+    // kartfila kraftig (1 m/1 km ≈ 4 MB → ~40 KB) uten merkbart tap.
+    dem: isRealDem(dem) ? packDem(downsampleDem(dem, 10)) : null,
     highestPoint: isRealDem(dem) ? findHighestPoint(dem) : null,
     opprettet: Date.now(),
     partial: !!partial,
@@ -716,6 +717,7 @@ export async function buildMapFromCenter({
     const { svg, counts, timings } = await timeAsync('buildSvg', buildSvgClient(elements, bbox, {
       dem,
       dom,                           // overflate-modell for CHM skog-nyanse (null når kvalitet uten chm, eller henting feilet)
+      formLines,                     // ISOM 103 hjelpekurver (bruker-valg)
       utmBbox,                       // authoritativ extent (samme som DEM-fetch) → kvadratisk + bit-eksakt
       contourIntervalM: equidistanceM,
       scaleDenom: 10000,
@@ -761,6 +763,7 @@ export async function buildMapFromCenter({
       if (isRealDem(dem)) {
         const terrain = await timeAsync('terreng', buildSvgClient([], bbox, {
           dem,
+          formLines,                 // hjelpekurver også i terreng-previewen
           utmBbox,                   // samme authoritative extent som full-bygget
           contourIntervalM: equidistanceM,
           scaleDenom: 10000,

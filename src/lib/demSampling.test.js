@@ -6,6 +6,7 @@ import {
   cropDem,
   packDem,
   unpackDem,
+  downsampleDem,
 } from './demSampling.js'
 
 // Helper: bygger en DEM med 4×4-grid og pixelWidth = 10m.
@@ -30,6 +31,37 @@ function makeDem(values, opts = {}) {
     noData: -9999,
   }
 }
+
+describe('downsampleDem', () => {
+  it('returnerer samme referanse når DEM alt er ≥ mål (factor ≤ 1)', () => {
+    const dem = makeDem([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], { pixelWidth: 10, pixelHeight: -10 })
+    expect(downsampleDem(dem, 10)).toBe(dem)
+  })
+
+  it('box-snitter et 2 m-rutenett ned til ~10 m (factor 5) og oppdaterer transform', () => {
+    const cols = 10, rows = 10
+    const vals = new Float32Array(cols * rows)
+    for (let i = 0; i < vals.length; i++) vals[i] = 100   // flatt → snitt = 100
+    const dem = { data: vals, cols, rows, transform: { originX: 0, originY: 0, pixelWidth: 2, pixelHeight: -2 }, noData: -9999 }
+    const out = downsampleDem(dem, 10)   // factor = round(10/2) = 5
+    expect(out.cols).toBe(2)
+    expect(out.rows).toBe(2)
+    expect(out.transform.pixelWidth).toBe(10)
+    expect(out.transform.pixelHeight).toBe(-10)
+    for (const v of out.data) expect(v).toBeCloseTo(100)
+    // Kraftig reduksjon i celletall (kartfil-vekt): 100 → 4 celler.
+    expect(out.data.length).toBeLessThan(vals.length / 10)
+  })
+
+  it('hopper over noData-celler i snittet', () => {
+    const cols = 4, rows = 4
+    const vals = new Float32Array(cols * rows).fill(50)
+    vals[0] = -9999   // én noData i første 2×2-blokk
+    const dem = { data: vals, cols, rows, transform: { originX: 0, originY: 0, pixelWidth: 5, pixelHeight: -5 }, noData: -9999 }
+    const out = downsampleDem(dem, 10)   // factor 2 → 2×2 ut
+    expect(out.data[0]).toBeCloseTo(50)  // snitt av de tre gyldige 50-ene
+  })
+})
 
 describe('sampleElevation', () => {
   it('returns exact grid value at integer cell centers', () => {

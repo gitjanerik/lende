@@ -35,7 +35,7 @@ const customName = ref('')
 
 // Kartdetalj / kvalitet (global bruker-preferanse, useMapDetail). Styrer DEM-
 // oppløsning + skog-nyanse ved bygging. Velges her og under Innstillinger.
-const { qualityId, preset: qualityPreset, QUALITY_PRESETS } = useMapDetail()
+const { qualityId, preset: qualityPreset, QUALITY_PRESETS, formLines, chm } = useMapDetail()
 
 // Format-velger (trippel toggle). Styrer utsnittets høyde/bredde-forhold;
 // bredden styres uansett av slideren, høyden utledes av valgt aspekt.
@@ -242,7 +242,8 @@ async function generateMap() {
       aspect: effectiveAspect.value,   // følg previewen (A-format når «tilpass til utskrift» er på)
       equidistanceM: equidistanceM.value,
       demTargetResM: qualityPreset.value.demResM,   // bruker-valgt kartdetalj
-      chm: qualityPreset.value.chm,
+      chm: chm.value,
+      formLines: formLines.value,
       navn,
       terrainFirst: true,   // vis terreng straks, fyll inn OSM i bakgrunnen
       onProgress: (msg) => {
@@ -652,15 +653,15 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Kartdetalj / kvalitet: DEM-oppløsning + skog-nyanse. Høyere = mer
-           nedlastet høydedata per kart (mbHint). Global preferanse (deles med
-           Innstillinger). -->
+      <!-- Kartdetalj: oppløsning (data) + to av/på-brytere. Hjelpekurver er
+           ~gratis (samme 2 m-data); skog-nyanse dobler nedlastingen. Global
+           preferanse (deles med Innstillinger). -->
       <div class="rounded-xl bg-white/[0.04] border border-white/10 px-4 py-3">
         <div class="flex items-center justify-between mb-2">
           <div class="text-[11px] text-white/50 uppercase tracking-wide">Kartdetalj</div>
-          <div class="text-[13px] font-medium tabular-nums">{{ qualityPreset.mbHint }}</div>
+          <div class="text-[13px] font-medium tabular-nums">{{ qualityPreset.mbHint }}{{ chm ? ' ×2' : '' }}</div>
         </div>
-        <div class="grid grid-cols-4 gap-1.5">
+        <div class="grid grid-cols-2 gap-1.5">
           <button v-for="p in QUALITY_PRESETS" :key="p.id"
                   :disabled="controlsLocked"
                   :title="p.desc"
@@ -673,9 +674,16 @@ onMounted(() => {
             {{ p.label }}
           </button>
         </div>
-        <div class="text-[10px] text-white/40 mt-1.5">
-          {{ qualityPreset.desc }}
-        </div>
+        <label class="flex items-center justify-between gap-3 mt-2.5 cursor-pointer">
+          <span class="text-[12px] text-white/80">Hjelpekurver
+            <span class="block text-[10px] text-white/45">2,5 m-kurver, vises ved innzoom</span></span>
+          <input type="checkbox" v-model="formLines" :disabled="controlsLocked" class="accent-emerald-500 w-4 h-4" />
+        </label>
+        <label class="flex items-center justify-between gap-3 mt-2 cursor-pointer">
+          <span class="text-[12px] text-white/80">Skog-nyanse
+            <span class="block text-[10px] text-white/45">differensiert skog · dobler nedlasting</span></span>
+          <input type="checkbox" v-model="chm" :disabled="controlsLocked" class="accent-emerald-500 w-4 h-4" />
+        </label>
       </div>
 
       <!-- Format-velger (trippel toggle). Styrer utsnittets høyde/bredde-forhold:
