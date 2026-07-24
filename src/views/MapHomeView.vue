@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, watch, onMounted, onActivated, onUnmounted, onDeactivated } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { listMaps, deleteMap, clearAll, renameMap, listGravelRoutes, deleteGravelRoute } from '../lib/mapStorage.js'
+import { listMaps, deleteMap, clearAll, renameMap, listGravelRoutes, deleteGravelRoute, updateGravelRoute } from '../lib/mapStorage.js'
+import { routeShareToken, MAX_SHARE_ROUTES } from '../lib/routeShare.js'
 import RenameMapDialog from '../components/RenameMapDialog.vue'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { useMapSizePreference, effectiveEquidistanceForWidthKm, defaultMapDims, aspectForFormat } from '../composables/useMapSizePreference.js'
@@ -80,6 +81,135 @@ async function onDeleteRoute(id, navn) {
   await deleteGravelRoute(id)
   savedRoutes.value = savedRoutes.value.filter(r => r.id !== id)
 }
+
+async function onDeleteAllRoutes() {
+  if (!confirm(`Slett alle ${savedRoutes.value.length} rutene?`)) return
+  for (const r of savedRoutes.value) await deleteGravelRoute(r.id)
+  savedRoutes.value = []
+}
+
+// Stjernemerking 1–5 (portert fra planleggerens «Mine ruter»-ark): samme
+// stjerne igjen = fjern. Feltet heter `stjerner` i lagringen.
+async function onSetStars(id, stjerner) {
+  const n = Math.max(0, Math.min(5, Math.round(stjerner)))
+  const updated = await updateGravelRoute(id, { stjerner: n || null })
+  if (updated) savedRoutes.value = savedRoutes.value.map(r => (r.id === id ? updated : r))
+}
+
+// ── Sortering + stjernefilter (portert fra arket; samme localStorage-nøkkel
+// så preferansen overlever flyttingen). Filteret er økt-lokalt. ─────────────
+const SORT_LS_KEY = 'lende-ruteplanlegger-sortering'
+const SORT_FIELDS = [
+  { key: 'opprettet', label: 'Dato' },
+  { key: 'lengde', label: 'Lengde' },
+  { key: 'grus-km', label: 'Km grus' },
+  { key: 'grus', label: '% grus' },
+  { key: 'stjerner', label: 'Stjerner' },
+]
+function loadSort() {
+  try {
+    const v = JSON.parse(localStorage.getItem(SORT_LS_KEY) ?? 'null')
+    if (v && SORT_FIELDS.some((f) => f.key === v.key) && ['asc', 'desc'].includes(v.dir)) return v
+  } catch { /* noop */ }
+  return { key: 'opprettet', dir: 'desc' }
+}
+const savedSort = ref(loadSort())
+watch(savedSort, (v) => {
+  try { localStorage.setItem(SORT_LS_KEY, JSON.stringify(v)) } catch { /* noop */ }
+}, { deep: true })
+const starFilter = ref(0)              // 0 = alle, -1 = uvurderte, ellers EKSAKT antall stjerner
+
+const SORT_VALUE = {
+  opprettet: (r) => r.opprettet ?? 0,
+  lengde: (r) => r.lengthM ?? 0,
+  'grus-km': (r) => (r.gravelShare ?? 0) * (r.lengthM ?? 0),
+  grus: (r) => r.gravelShare ?? -1,
+  stjerner: (r) => r.stjerner ?? 0,
+}
+const visibleSavedRoutes = computed(() => {
+  const val = SORT_VALUE[savedSort.value.key] ?? SORT_VALUE.opprettet
+  const dir = savedSort.value.dir === 'asc' ? 1 : -1
+  // Eksakt stjerne-match; «Ingen» (-1) viser rutene som ennå ikke er vurdert.
+  return savedRoutes.value
+    .filter((r) => {
+      if (!starFilter.value) return true
+      const s = r.stjerner ?? 0
+      return starFilter.value === -1 ? s === 0 : s === starFilter.value
+    })
+    .slice()
+    .sort((a, b) => dir * (val(a) - val(b)) || (b.opprettet - a.opprettet))
+})
+
+// ── Deling (portert fra arket): én rute eller «Del mine ruter …»-velgemodus —
+// inntil MAX_SHARE_ROUTES i ÉN lenke (?r=<token>&r=…, se lib/routeShare.js).
+const shareState = ref('idle')    // 'idle' | 'copied' | 'error'
+let shareResetTimer = null
+
+async function performShare(url, title, text) {
+  if (!url) return
+  const shareData = { title, text, url }
+  if (typeof navigator.share === 'function') {
+    try {
+      if (typeof navigator.canShare === 'function' && !navigator.canShare(shareData)) {
+        throw new Error('share-data-rejected')
+      }
+      await navigator.share(shareData)
+      return
+    } catch (err) {
+      if (err?.name === 'AbortError') return
+      // fall gjennom til clipboard-fallback
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url)
+    shareState.value = 'copied'
+  } catch {
+    shareState.value = 'error'
+  }
+  if (shareResetTimer) clearTimeout(shareResetTimer)
+  shareResetTimer = setTimeout(() => { shareState.value = 'idle' }, 2200)
+}
+
+function shareUrlForTokens(tokens) {
+  const base = `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, '')}`
+  return `${base}/ruteplanlegger?${tokens.map((t) => 'r=' + encodeURIComponent(t)).join('&')}`
+}
+
+function onShareRoute(rec) {
+  const token = routeShareToken(rec)
+  if (!token) return
+  void performShare(shareUrlForTokens([token]), rec.navn, rec.navn)
+}
+
+const shareSelectMode = ref(false)
+const shareSelected = ref([])          // rute-id-er i valgt rekkefølge
+
+function startShareSelect() {
+  shareSelectMode.value = true
+  shareSelected.value = []
+}
+function cancelShareSelect() {
+  shareSelectMode.value = false
+  shareSelected.value = []
+}
+function toggleShareSelect(id) {
+  const cur = shareSelected.value
+  if (cur.includes(id)) shareSelected.value = cur.filter((x) => x !== id)
+  else if (cur.length < MAX_SHARE_ROUTES) shareSelected.value = [...cur, id]
+}
+function onShareSelectedRoutes() {
+  const recs = shareSelected.value
+    .map((id) => savedRoutes.value.find((r) => r.id === id))
+    .filter(Boolean)
+  const tokens = recs.map(routeShareToken).filter(Boolean)
+  if (!tokens.length) return
+  const navn = recs.map((r) => r.navn).filter(Boolean)
+  const tekst = tokens.length === 1
+    ? (navn[0] ?? 'Grusrute')
+    : `${tokens.length} grusruter: ${navn.slice(0, 3).join(', ')}${navn.length > 3 ? ' …' : ''}`
+  void performShare(shareUrlForTokens(tokens), tekst, tekst)
+}
+watch(activeTab, () => { cancelShareSelect() })
 
 // Standard kartstørrelse/format/ekvidistanse (settes i MapView «Innstillinger»).
 // Størrelse: null = DEFAULT_MAP_WIDTH_KM. Format styrer aspektet (kvadrat/
@@ -371,7 +501,10 @@ function onWindowKeydown(e) {
 // activated kan begge legge til — viewet lever i keep-alive.
 onMounted(() => window.addEventListener('keydown', onWindowKeydown))
 onActivated(() => window.addEventListener('keydown', onWindowKeydown))
-onUnmounted(() => window.removeEventListener('keydown', onWindowKeydown))
+onUnmounted(() => {
+  window.removeEventListener('keydown', onWindowKeydown)
+  if (shareResetTimer) clearTimeout(shareResetTimer)
+})
 onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
 </script>
 
@@ -670,10 +803,14 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
       </template>
 
       <!-- Ruteplanlegger-fanen: Mine ruter øverst, «+ Ny rute» som diskret
-           handling. Tom liste → stor CTA i tom-tilstanden i stedet. -->
+           handling. Hele forvaltnings-flyten (stjerner/sortering/deling) bor
+           HER — portert fra planleggerens gamle «Mine ruter»-ark. -->
       <template v-else>
         <div class="mb-2 flex items-center justify-between gap-2">
-          <span class="text-white/45 text-[11px] uppercase tracking-wide">Mine ruter</span>
+          <span class="text-white/45 text-[11px] uppercase tracking-wide">Mine ruter
+            <span v-if="starFilter && savedRoutes.length"
+                  class="normal-case tracking-normal">· {{ visibleSavedRoutes.length }} av {{ savedRoutes.length }}</span>
+          </span>
           <button v-if="!loading && savedRoutes.length > 0"
                   @click="router.push('/rute')"
                   class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[12px] font-medium
@@ -687,32 +824,148 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
           </button>
         </div>
 
-        <div v-for="rec in savedRoutes" :key="rec.id"
-             class="mb-2 rounded-lg border border-white/10 bg-white/[0.03] overflow-hidden">
-          <div class="flex items-center gap-3 px-4 py-3 active:bg-white/[0.07]"
-               @click="openRoute(rec.id)">
+        <!-- Verktøylinje (kun med flere ruter): velg-modus-handlinger ELLER
+             sortering (persistert) + stjernefilter + dele-inngang. -->
+        <div v-if="savedRoutes.length > 1" class="mb-3 space-y-1.5">
+          <template v-if="shareSelectMode">
+            <div class="flex gap-1.5">
+              <button @click="onShareSelectedRoutes" :disabled="!shareSelected.length"
+                      class="flex-1 px-3 py-2 rounded-lg text-[12px] font-semibold border transition
+                             active:scale-95 disabled:opacity-40 bg-emerald-500/20
+                             border-emerald-400/50 text-emerald-100">
+                {{ shareState === 'copied' ? 'Lenke kopiert!'
+                   : `Del ${shareSelected.length ? `(${shareSelected.length})` : ''} ruter` }}
+              </button>
+              <button @click="cancelShareSelect"
+                      class="px-3 py-2 rounded-lg text-[12px] font-medium border bg-white/5
+                             border-white/15 text-white/60 active:scale-95 transition">Avbryt</button>
+            </div>
+            <div class="text-[10px] text-white/45">
+              Trykk på rutene du vil dele (inntil {{ MAX_SHARE_ROUTES }}) — mottakeren får alle i én lenke.
+            </div>
+          </template>
+          <div v-else class="flex gap-1.5 items-center">
+            <label class="sr-only" for="hjem-rute-sortering">Sorter etter</label>
+            <select id="hjem-rute-sortering" v-model="savedSort.key"
+                    class="flex-1 min-w-0 px-2 py-1.5 rounded-lg text-[11px] bg-zinc-800 border
+                           border-white/15 text-white/80 focus:outline-none">
+              <option v-for="f in SORT_FIELDS" :key="f.key" :value="f.key">{{ f.label }}</option>
+            </select>
+            <button @click="savedSort.dir = savedSort.dir === 'desc' ? 'asc' : 'desc'"
+                    :aria-label="savedSort.dir === 'desc' ? 'Synkende — bytt til stigende' : 'Stigende — bytt til synkende'"
+                    class="shrink-0 w-8 h-8 rounded-lg border bg-white/5 border-white/15 text-white/70
+                           flex items-center justify-center active:scale-95 transition">
+              <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <template v-if="savedSort.dir === 'desc'">
+                  <line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>
+                </template>
+                <template v-else>
+                  <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+                </template>
+              </svg>
+            </button>
+            <label class="sr-only" for="hjem-rute-stjernefilter">Stjernefilter</label>
+            <select id="hjem-rute-stjernefilter" v-model.number="starFilter"
+                    class="shrink-0 w-[5.5rem] px-2 py-1.5 rounded-lg text-[11px] bg-zinc-800 border
+                           border-white/15 focus:outline-none"
+                    :class="starFilter ? 'text-amber-300 border-amber-400/40' : 'text-white/80'">
+              <option :value="-1">Ingen</option>
+              <option :value="0">★ Alle</option>
+              <option :value="5">★ 5</option>
+              <option :value="4">★ 4</option>
+              <option :value="3">★ 3</option>
+              <option :value="2">★ 2</option>
+              <option :value="1">★ 1</option>
+            </select>
+            <button @click="startShareSelect"
+                    class="shrink-0 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border
+                           bg-sky-500/25 border-sky-400/60 text-sky-100 active:scale-95 transition">
+              Del …
+            </button>
+          </div>
+        </div>
+
+        <div v-if="savedRoutes.length && !visibleSavedRoutes.length"
+             class="text-[13px] text-white/50 text-center py-6">
+          <template v-if="starFilter === -1">Alle rutene er vurdert — ingen uten stjerner.</template>
+          <template v-else>Ingen ruter med {{ starFilter }} {{ starFilter === 1 ? 'stjerne' : 'stjerner' }} ennå.</template>
+        </div>
+
+        <!-- I velg-modus toggler HELE kortet valget (samme UX som arket). -->
+        <div v-for="rec in visibleSavedRoutes" :key="rec.id"
+             class="mb-2 rounded-lg border overflow-hidden"
+             :class="[shareSelectMode ? 'cursor-pointer active:opacity-80 transition' : '',
+                      shareSelectMode && shareSelected.includes(rec.id)
+                        ? 'ring-1 ring-sky-400/70 bg-sky-500/[0.08] border-sky-400/40'
+                        : 'border-white/10 bg-white/[0.03]']"
+             @click="shareSelectMode && toggleShareSelect(rec.id)">
+          <div class="flex items-center gap-3 px-4 pt-3"
+               :class="shareSelectMode ? 'pb-3' : ''">
             <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0 text-white/40" fill="none"
                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/>
               <path d="M9 19h6a3 3 0 0 0 3-3V8"/><path d="M6 16V8a3 3 0 0 1 3-3h6"/>
             </svg>
-            <div class="flex-1 min-w-0">
+            <button class="flex-1 min-w-0 text-left active:opacity-70 transition"
+                    @click="shareSelectMode || openRoute(rec.id)">
               <div class="font-medium text-[14px] truncate text-white">{{ rec.navn }}</div>
-              <div class="text-[12px] text-white/50 truncate">
-                {{ formatRouteInfo(rec) }}<template v-if="rec.stars"> · {{ '★'.repeat(rec.stars) }}</template>
-              </div>
+              <div class="text-[12px] text-white/50 truncate">{{ formatRouteInfo(rec) }}</div>
+            </button>
+            <!-- Velg-modus: sjekkboks-visual i stedet for del/slett -->
+            <div v-if="shareSelectMode"
+                 class="shrink-0 w-6 h-6 rounded-md border flex items-center justify-center transition"
+                 :class="shareSelected.includes(rec.id) ? 'bg-sky-500 border-sky-400' : 'border-white/30'">
+              <svg v-if="shareSelected.includes(rec.id)" viewBox="0 0 24 24" class="w-4 h-4 text-white"
+                   fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"
+                   stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             </div>
-            <button @click.stop="onDeleteRoute(rec.id, rec.navn)" aria-label="Slett rute"
-                    class="w-8 h-8 rounded-full flex items-center justify-center text-white/40
-                           active:text-rose-300 active:bg-rose-500/10 transition shrink-0">
-              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="3 6 5 6 21 6"/>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+            <template v-else>
+              <button @click.stop="onShareRoute(rec)" aria-label="Del rute"
+                      class="w-8 h-8 rounded-full flex items-center justify-center text-white/40
+                             active:text-sky-300 active:bg-sky-500/10 transition shrink-0">
+                <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                </svg>
+              </button>
+              <button @click.stop="onDeleteRoute(rec.id, rec.navn)" aria-label="Slett rute"
+                      class="w-8 h-8 rounded-full flex items-center justify-center text-white/40
+                             active:text-rose-300 active:bg-rose-500/10 transition shrink-0">
+                <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+              </button>
+            </template>
+          </div>
+          <!-- Stjernemerking 1–5: samme stjerne igjen = fjern. -->
+          <div v-if="!shareSelectMode" class="pb-2 pl-11 flex items-center gap-0.5">
+            <button v-for="s in 5" :key="s"
+                    @click.stop="onSetStars(rec.id, (rec.stjerner ?? 0) === s ? 0 : s)"
+                    :aria-label="`Gi ${s} ${s === 1 ? 'stjerne' : 'stjerner'}`"
+                    :aria-pressed="(rec.stjerner ?? 0) >= s"
+                    class="w-7 h-7 flex items-center justify-center active:scale-90 transition"
+                    :class="(rec.stjerner ?? 0) >= s ? 'text-amber-400' : 'text-white/25'">
+              <svg viewBox="0 0 24 24" class="w-4 h-4"
+                   :fill="(rec.stjerner ?? 0) >= s ? 'currentColor' : 'none'"
+                   stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/>
               </svg>
             </button>
           </div>
         </div>
+
+        <button v-if="!loading && savedRoutes.length > 1 && !shareSelectMode"
+                @click="onDeleteAllRoutes"
+                class="w-full mt-3 rounded-lg px-4 py-2.5 text-[13px] font-medium
+                       text-rose-300 border border-rose-400/25 bg-rose-500/10
+                       active:bg-rose-500/15 active:scale-[0.99] transition">
+          Slett alle ({{ savedRoutes.length }}) ruter
+        </button>
 
         <div v-if="!loading && savedRoutes.length === 0"
              class="mt-10 flex flex-col items-center text-center">

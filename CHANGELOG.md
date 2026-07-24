@@ -1,5 +1,22 @@
 # Endringslogg
 
+## 2026-07-24 — v2.3.6: «Mine ruter»-flyten samlet i hjem-fanen
+
+Stjernesetting, sortering, stjernefilter og dele-flyten for lagrede ruter
+bodde i planleggerens «Mine ruter»-ark — som mistet inngangen sin da FAB-en
+røk i v1.0.75 (arket ble utilgjengelig dødkode). Nå bor hele flyten ETT sted:
+hjem-sidens Ruteplanlegger-fane. Radene har trykkbare stjerner (1–5, samme
+stjerne igjen = fjern), verktøylinja har sortering (Dato/Lengde/Km grus/
+% grus/Stjerner, persistert med samme localStorage-nøkkel som før) og eksakt
+stjernefilter, og deling finnes både per rute og som «Del …»-velgemodus der
+inntil 5 ruter pakkes i én lenke (?r=token — mottaker-parseren er uendret).
+«Slett alle» er også på plass. Det gamle arket + tilhørende tilstand er
+slettet fra planleggeren (som beholder lagring, aktiv-rutens Del/GPX og
+?open=-dyplenken), og stjerne-visningsbuggen i hjem-lista (leste `stars`,
+feltet heter `stjerner`) er borte på kjøpet.
+
+---
+
 ## 2026-07-24 — v2.3.5: Bredere stedssøk — flere treff, alltid globale forslag
 
 Stedssøket var i praksis kappet på 8 treff (SSR treffPerSide=8, Nominatim
