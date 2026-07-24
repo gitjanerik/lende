@@ -2198,10 +2198,12 @@ export function buildSvg(elements, bbox, options = {}) {
     return `    <g transform="translate(${fmt(p.x)},${fmt(p.y)})"><use href="#${sid}" x="-0.8mm" y="-0.8mm" width="1.6mm" height="1.6mm"/></g>`
   }).filter(Boolean).join('\n')
 
-  // Kirke (ISOM 532-derivert): hytte-stil rektangulær ramme med kors 2.6mm.
+  // Kirke (ISOM 532-derivert): sort latinsk kors med hvit halo, 2.6mm.
   // Node-kirker plasseres direkte på OSM-noden; way-kirker (building=church
   // polygon) plasseres på centroid og rendres OVER bygnings-laget så
   // symbolet er synlig over den brune bygnings-fyllen.
+  // data-upright="1" gjør at MapView counter-roterer symbolet ved kart-
+  // rotasjon, så korset alltid står rettvendt mot skjermens topp.
   const kirkeSize = 2.6
   const kirkeSvg = kirker.map(el => {
     let p = null
@@ -2211,7 +2213,7 @@ export function buildSvg(elements, bbox, options = {}) {
     const sid = symbolIds.get('kirke')
     if (!sid) return ''
     const half = kirkeSize / 2
-    return `    <g transform="translate(${fmt(p.x)},${fmt(p.y)})"><use href="#${sid}" x="-${half}mm" y="-${half}mm" width="${kirkeSize}mm" height="${kirkeSize}mm"/></g>`
+    return `    <g data-upright="1" data-iso="532" transform="translate(${fmt(p.x)},${fmt(p.y)})"><use href="#${sid}" x="-${half}mm" y="-${half}mm" width="${kirkeSize}mm" height="${kirkeSize}mm"/></g>`
   }).filter(Boolean).join('\n')
 
   // Parkering (ISOM 534-derivert): blå P-symbol 7.2mm (300% av v8.10.2-
