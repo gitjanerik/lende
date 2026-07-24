@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-24 — v2.2.3: Fikset treg bygging på fine kart (topp-deteksjon)
+
+Fine kart (≤ 5 m ekvidistanse → 2 m DEM) tok minutter å bygge på mobil. Profilering avslørte at `detectSummits` alene sto for ~48 av ~52 sekunder på et 3 km-kart: topp-søket bruker et 250 m vindu, som på et 2 m-rutenett blir 125 celler i radius → ~1,5·10¹¹ operasjoner. Fiksen kjører topp-deteksjonen på et ~10 m-nedskalert DEM (topper trenger ikke 2 m-presisjon; verifisert at samme topper finnes, ±2 m høyde). `summits` faller fra ~48 000 ms til ~100 ms, og total byggetid for et 3 km/2 m-kart fra ~52 s til ~4 s. Kontur-kvaliteten er uendret (konturene bygges fortsatt fra fullt 2 m-rutenett). Dette er en ren ytelsesfiks; ingen UI-endring.
+
+---
+
 ## 2026-07-24 — v2.2.2: Hjelpekurver virker ved alle ekvidistanser
 
 «Hjelpekurver»-bryteren var en stille no-op på default-ekvidistansen (20 m): hjelpekurver bygges bare fra et fint DEM, og det fine DEM-et ble hentet KUN ved ≤ 5 m ekvidistanse — så et 20 m-kart med bryteren på fikk aldri hjelpekurver (uansett zoom). To fikser: (1) `createMapFlow` henter nå fint DEM når hjelpekurver er på, uansett ekvidistanse; (2) `mapBuilder`-porten er løsnet fra `demResM ≤ 3,5` til `≤ 5,5` så hjelpekurver bygges fra både 2 m- og 5 m-rutenett (men fortsatt ikke fra 10/20 m, som ville blitt trappetrinn). Hjelpekurve-intervallet er halve ekvidistansen (2,5 m ved 5 m-kart, 10 m ved 20 m-kart). Ny regresjonstest dekker default-fella (grov ekvidistanse + bryter på → hjelpekurver til stede). Tekstene i velger/innstillinger er oppdatert (ikke lenger «vises ved innzoom»).
