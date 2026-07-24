@@ -592,7 +592,7 @@ server.registerTool(
       'områder (f.eks. «hele Vestmarka» eller en nasjonalpark). Slipper manuell koordinat-oppslag.',
     inputSchema: {
       sok: z.string().min(2).describe('Stedsnavn å søke etter (f.eks. «Wentzelhytta»)'),
-      antall: z.number().int().min(1).max(10).default(5).describe('Maks antall treff'),
+      antall: z.number().int().min(1).max(20).default(5).describe('Maks antall treff'),
     },
   },
   async ({ sok, antall }) => {

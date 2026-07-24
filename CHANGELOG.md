@@ -1,5 +1,19 @@
 # Endringslogg
 
+## 2026-07-24 — v2.3.5: Bredere stedssøk — flere treff, alltid globale forslag
+
+Stedssøket var i praksis kappet på 8 treff (SSR treffPerSide=8, Nominatim
+limit=8, flette-tak 8) — nå hentes og vises inntil 20 fra hver kilde (fortsatt
+flettet, deduplisert og rangert; MCP-verktøyet sok_sted kan be om inntil 20).
+Viktigere: i kartvisningen ble globale treff (Kartverket SSR + OSM) bare vist
+når kartets interne søk ga NULL treff — fantes søkeordet i kartet, så brukeren
+aldri andre steder. Gaten er fjernet: «Andre steder i Norge»-seksjonen vises
+nå alltid nederst i trefflista, under kart-treffene, med «Bygg nytt kart
+her»-handling per treff. At søkeordet også finnes i kartet er uviktig — det
+nye kartet får uansett navn etter treffet som velges.
+
+---
+
 ## 2026-07-24 — v2.3.4: Kirke-symbol — rent kors, alltid rettvendt
 
 Kirke-symbolet (ISOM 532) er endret fra den gamle hytte-stil rammen-med-kors til et rent, sort latinsk kors med hvit halo. Haloen (en litt bredere hvit «casing» bak korset) gir lesbarhet også oppå brun bygnings-fyll og veier, uten en boks rundt. Symbolet er nå også `data-upright` i kartet, så MapView mot-roterer det ved kart-rotasjon — korset står alltid rettvendt mot skjermens topp (samme mekanikk som topper, parkerings-P og fredet-markørene) i stedet for å vippe med kartet. Symbolene bakes inn i hvert lagrede kart-SVG ved bygging, så endringen gjelder kart som bygges fra nå av; eksisterende kart viser det gamle symbolet til de bygges på nytt.

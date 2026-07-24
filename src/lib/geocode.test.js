@@ -99,6 +99,7 @@ describe('geocodePlace', () => {
     expect(url).toContain('countrycodes=no')
     expect(url).toContain('q=Oslo')
     expect(url).toContain('format=jsonv2')
+    expect(url).toContain('limit=20')
   })
 
   it('returnerer tom liste for for korte søk uten å kalle fetch', async () => {
@@ -136,6 +137,12 @@ describe('geocodeKartverket', () => {
     const fetchImpl = fakeFetch({ navn: [ssrSample] })
     expect(await geocodeKartverket('a', { fetchImpl })).toEqual([])
     expect(fetchImpl.calls).toHaveLength(0)
+  })
+
+  it('henter 20 treff som default (bredt søk)', async () => {
+    const fetchImpl = fakeFetch({ navn: [] })
+    await geocodeKartverket('Bøseter', { fetchImpl })
+    expect(fetchImpl.calls[0].url).toContain('treffPerSide=20')
   })
 
   it('kaster ved ikke-ok svar', async () => {
@@ -183,6 +190,18 @@ describe('searchPlaces', () => {
     const fetchImpl = routedFetch({ navn: [ssrSample] }, [sample])
     expect(await searchPlaces('a', { fetchImpl })).toEqual([])
     expect(fetchImpl.calls).toHaveLength(0)
+  })
+
+  it('flette-taket er 20 som default og respekterer eksplisitt limit', async () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({
+      ...ssrSample,
+      stedsnummer: i,
+      'skrivemåte': `Sted${i}`,
+      representasjonspunkt: { 'øst': 10 + i * 0.01, nord: 60 + i * 0.01 },
+    }))
+    const fetchImpl = routedFetch({ navn: many }, [])
+    expect((await searchPlaces('Sted', { fetchImpl })).length).toBe(20)
+    expect((await searchPlaces('Sted', { fetchImpl, limit: 5 })).length).toBe(5)
   })
 
   it('fjerner internt _order-felt fra resultatet', async () => {
