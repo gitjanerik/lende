@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { fillNoData, buildContours, detectSummits, smoothGridGaussian } from './dem.js'
+import { fillNoData, buildContours, detectSummits, smoothGridGaussian, syntheticDEM } from './dem.js'
+import { downsampleDem } from './demSampling.js'
 
 const NO_DATA = -9999
 
@@ -125,6 +126,19 @@ describe('detectSummits', () => {
     // ren skråning har ingen lokale maksima i et 100 m-vindu.
     const onRamp = summits.some(s => s.gx === 30 && s.gy === 25)
     expect(onRamp).toBe(false)
+  })
+
+  it('finner toppen på et ~10 m-nedskalert fint (2 m) DEM (perf-fiks)', () => {
+    // mapBuilder kjører detectSummits på et nedskalert DEM fordi 250 m-vinduet
+    // på et 2 m-rutenett blir 125 celler ⇒ ~48 s. Nedskalering til 10 m må
+    // fortsatt finne toppen (world-koord bevart av downsampleDem).
+    const fine = syntheticDEM(720, 720, { originX: 0, originY: 0, pixelWidth: 2, pixelHeight: 2 },
+      [{ x: 360, y: 360, h: 200, sigma: 120 }], 100)
+    const summits = detectSummits(downsampleDem(fine, 10), { windowM: 250, minProminenceM: 15, maxCount: 5 })
+    expect(summits.length).toBeGreaterThan(0)
+    // Toppen ligger i sentrum (world ~360, 360).
+    const near = summits.find(s => Math.abs(s.x - 360) < 80 && Math.abs(s.y - 360) < 80)
+    expect(near).toBeTruthy()
   })
 
   it('kollapser doble maksima i samme kolle til ett punkt', () => {

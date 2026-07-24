@@ -19,6 +19,7 @@ import {
   isomCatalog,
 } from './symbolizer.js'
 import { buildContours, detectCliffs, detectKnauser, detectSummits } from './dem.js'
+import { downsampleDem } from './demSampling.js'
 import { buildSeaFromDem, buildSeaShallowBands } from './seaFromDem.js'
 import { depthBandClass } from './sjokartFetcher.js'
 import {
@@ -1136,7 +1137,15 @@ export function buildSvg(elements, bbox, options = {}) {
     demFeatures = { contours: c, cliffs: cl, knauser: k, equidistanceM: contourIntervalM, formLines: useFormLines }
     // Ekte topper (lokale høyde-maksima) for «topp»-søket. Brukes kun når kartet
     // ikke har OSM-toppmarkører; emitteres som skjult søkbart lag uansett.
-    demSummits = _time('summits', () => detectSummits(usableDem, { windowM: 250, minProminenceM: 15, maxCount: 60 }))
+    // Topp-deteksjon på et ~10 m-nedskalert DEM. detectSummits' vindu er i METER
+    // (250 m); på et fint rutenett (2 m) blir det et 125-cellers vindu pr celle =
+    // ~1,5e11 ops ≈ 48 s (minutter på mobil). Topper trenger ikke 2 m-presisjon —
+    // 10 m finner dem like godt, og world-koordinatene er uendret (downsampleDem
+    // bevarer origin). Kutter «summits» fra ~48 s til < 1 s på fine kart.
+    const summitDem = Math.abs(usableDem.transform?.pixelWidth || 10) < 8
+      ? downsampleDem(usableDem, 10)
+      : usableDem
+    demSummits = _time('summits', () => detectSummits(summitDem, { windowM: 250, minProminenceM: 15, maxCount: 60 }))
     // Sjø-deteksjon fra DTM: Kartverket NHM_DTM_25832 returnerer havflaten på
     // 0 m. Områder ≤ 0.5 m blir blå sjø-polygon (ISOM 303). FALLBACK når
     // WMTS-vannmaske ikke leverte data — heuristikken kan "smitte" inn på
