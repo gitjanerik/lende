@@ -44,14 +44,16 @@ export const LAYERS = [
   { key: 'kraftlinje', label: 'Kraftlinjer' },
   { key: 'trig',       label: 'Trigpunkter' },
   // Kulturminne-overlegg (Kulturminnesøk brukerminner) — klikkbare tema-ikoner.
-  { key: 'kulturminne', label: 'Kulturminner' },
+  // ­ = myk bindestrek (&shy;): eksplisitt orddelingspunkt så det lange
+  // ordet bryter pent på den trange lag-knappen i stedet for å flyte over.
+  { key: 'kulturminne', label: 'Kultur­minner' },
   // Arkeologiske kulturminner (Riksantikvaren/Askeladden WFS) — server-side
   // filtrert til arkeologiske funn, bergkunst og kulturminner under vann
   // (se kulturminneWfs.js). Layer-key beholdes for bakoverkompatibilitet.
   { key: 'fredet-kulturminne', label: 'Arkeologiske kulturminner' },
   // Hydrologiske målestasjoner (NVE HydAPI) — blå medaljong-ikoner, klikk for
   // vannføring/vannstand/temperatur + lenke til NVE. Live-lag via proxy.
-  { key: 'vannstasjon', label: 'Vannmålestasjoner' },
+  { key: 'vannstasjon', label: 'Vannmåle­stasjoner' },
   // Navn — samlet mot slutten.
   { key: 'navn',       label: 'Navn' },
   // Stedsnavn delt i tre viktighets-nivåer — egne lag så de kan toggles
