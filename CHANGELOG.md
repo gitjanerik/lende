@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-24 — v2.3.1: UU — utvidet tekststørrelse-støtte, bindestrek og luftigere kart-rader
+
+Videreført arbeidet med brukerens valgte tekststørrelse. **Innstillinger-skuffen** følger den nå fullt ut: de tre hurtigvalg-knappene (Tegnforklaring / Start GPS / Kompass) og fane-raden (Kartlag, Tema, …) skaleres nå med samme zoom som fane-innholdet allerede gjorde. **Kart-søket** (søkefelt, hjelpetekst og trefflista inne i et kart) følger nå også valgt tekststørrelse. Generelt har UI-et fått `hyphens: auto` (norsk orddeling via `html lang="no"`), så lange ord som «Vannmålestasjoner» og «Fredede kulturminner» deler seg pent med bindestrek på trange knapper i stedet for å flyte stygt over — kartets egne stedsnavn er holdt utenfor. Den gule «mange kart»-advarselen på forsiden har fått en klikkbar «slett alle kart»-lenke. Og på Mine kart-lista hopper «blyant»- og «søppel»-knappene ned på egen linje under kartnavnet når tekststørrelsen er større enn 100 %, så navnet får plass.
+
+---
+
 ## 2026-07-24 — v2.3.0: Forenklet kartdetalj — 2,5 m ekvidistanse, fjernet Kartdetalj + canopy
 
 Detalj-oppsettet er kraftig forenklet etter testing viste at ekstra-funksjonene ikke bar sin egen kompleksitet. **«Kartdetalj»-seksjonen er fjernet** (Rask/Standard-nivåene, hjelpekurve-bryteren og skog-nyanse-bryteren). **Hjelpekurver er erstattet av en ren ekvidistanse-knapp «2,5 m»** — for hjelpekurver *er* egentlig bare finere ekvidistanse — som tegnes som vanlige heltrukne røde høydekurver (ikke stiplet), tilgjengelig kun på kart ≤ 2 km bredde (der finere kurver er lesbare). Fine kart (≤ 5 m, inkl. 2,5 m) henter fortsatt automatisk et 2 m-rutenett med glatte kurver, og bygger nå raskt takket være topp-fiksen i v2.2.3. **Canopy/skog-nyanse (CHM/DOM) er fjernet helt** — fra interaktiv app, headless-bygg og Vardåsen-scriptet — siden den aldri ga synlig verdi. Auto-ekvidistanse (søk/GPS-kart) tar aldri 2,5 m uoppfordret; det er et bevisst manuelt valg. Standard-kartkvaliteten (glatte 2 m-kurver ved fin ekvidistanse) er uendret.

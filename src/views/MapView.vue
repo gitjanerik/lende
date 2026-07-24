@@ -3331,6 +3331,7 @@ onUnmounted(() => {
       :index-count="searchIndex.length"
       :global-results="globalResults"
       :global-searching="globalSearching"
+      :ui-text-scale="uiTextScale"
       @keydown="onSearchKeydown"
       @close="closeSearch"
       @select="selectSearchResult"
@@ -3666,8 +3667,9 @@ onUnmounted(() => {
         </div>
 
         <!-- Hurtigvalg: alltid synlig over fanene (v8.9.6). Tegnforklaring +
-             GPS/kompass-toggles trengs hyppig uavhengig av aktiv fane. -->
-        <div class="shrink-0 px-4 pb-2 grid grid-cols-3 gap-1.5">
+             GPS/kompass-toggles trengs hyppig uavhengig av aktiv fane. Følger
+             global tekststørrelse (zoom) som fanene og fane-innholdet under. -->
+        <div class="shrink-0 px-4 pb-2 grid grid-cols-3 gap-1.5" :style="{ zoom: uiTextScale }">
           <button @click="router.push('/tegnforklaring')"
                   class="px-2 py-2 rounded-lg bg-white/5 border border-white/10 text-white/80
                          text-[11px] font-medium active:scale-[0.98] flex flex-col items-center gap-1">
@@ -3715,7 +3717,8 @@ onUnmounted(() => {
              og disables i hver ende. Skjult når skuffen er minimert (v11.0.61)
              så minimert-peeken viser kun håndtak + tittel + hurtigvalg. -->
         <div v-show="!drawer.isMinimized.value"
-             class="shrink-0 mx-4 mb-2 flex items-stretch border-b border-white/10">
+             class="shrink-0 mx-4 mb-2 flex items-stretch border-b border-white/10"
+             :style="{ zoom: uiTextScale }">
           <!-- Pil venstre -->
           <button type="button" @click="scrollTabs(-1)"
                   :disabled="!canScrollTabsLeft"

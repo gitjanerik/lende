@@ -15,6 +15,7 @@ const props = defineProps({
   activeIndex: { type: Number, default: -1 },
   globalResults: { type: Array, default: () => [] },
   globalSearching: { type: Boolean, default: false },
+  uiTextScale: { type: Number, default: 1 },     // global tekststørrelse (zoom)
 })
 const emit = defineEmits([
   'update:query', 'update:activeIndex',
@@ -39,7 +40,8 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
          class="absolute top-[var(--ovl-top)] left-3 right-3 z-40 rounded-2xl bg-zinc-950/95 backdrop-blur
                 border border-white/10 shadow-2xl overflow-hidden flex flex-col"
          style="max-height: calc(100dvh - 6rem - var(--safe-top));">
-      <div class="px-3 py-2.5 flex items-center gap-2 border-b border-white/10">
+      <div class="px-3 py-2.5 flex items-center gap-2 border-b border-white/10"
+           :style="{ zoom: uiTextScale }">
         <svg viewBox="0 0 24 24" class="w-4 h-4 text-white/55 shrink-0" fill="none"
              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="11" cy="11" r="7"/>
@@ -77,7 +79,8 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
           </svg>
         </button>
       </div>
-      <div class="flex-1 overflow-y-auto" id="mapsearch-results" role="listbox">
+      <div class="flex-1 overflow-y-auto" id="mapsearch-results" role="listbox"
+           :style="{ zoom: uiTextScale }">
         <!-- Ingen treff i DETTE kartet → globalt fallback (Nominatim). -->
         <template v-if="query && results.length === 0">
           <div class="px-4 pt-4 pb-1 text-[11px] text-white/55 leading-relaxed">

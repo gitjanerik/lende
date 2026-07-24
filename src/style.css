@@ -47,3 +47,11 @@
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'liga' 1, 'calt' 1;
 }
+
+/* UU: la lange norske UI-ord dele seg med bindestrek når de brytes over flere
+   linjer (f.eks. «Vannmålestasjoner», «Fredede kulturminner» på trange
+   lag-knapper). html lang="no" gir riktig norsk orddeling. Gjelder UI-chrome —
+   kartets egne stedsnavn er SVG <text> i .isom-map (brytes ikke) og holdes
+   utenfor eksplisitt. */
+#app { hyphens: auto; }
+.isom-map { hyphens: manual; }
