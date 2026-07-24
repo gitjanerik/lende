@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-24 — v2.3.3: Orddeling-finpuss — snarveiene bryter ikke, myke bindestreker på lag-knapper
+
+To finjusteringer av orddelingen fra v2.3.1. Snarvei-raden på kartet (Stifinner / Runde / Måling / Sporing / Info) er nå unntatt det globale `hyphens: auto` — etikettene er ett kort ord hver og skal aldri deles («Stifin-ner»); de holdes på én linje (`hyphens: manual` + `white-space: nowrap`). På de trange lag-knappene i Innstillinger sprakk de lengste ordene ut av knappen fordi et flex-ledd ikke krymper under sitt lengste ord — så automatisk orddeling aldri fikk et bruddpunkt. Vi har lagt inn en myk bindestrek (`&shy;`, U+00AD) i «Kultur­minner» og «Vannmåle­stasjoner», som gir et eksplisitt, usynlig bruddpunkt slik at ordene deler seg pent i stedet for å flyte over.
+
+---
+
 ## 2026-07-24 — v2.3.2: Arkeologiske kulturminner — filtrert kilde, ærlig antall, toast ved mange
 
 «Fredede kulturminner»-laget viste ingenting i tette utsnitt (Oslo: 16 421 → tomt kart). Årsaken var ikke en bevisst sperre: badge-tallet hentes med en pytteliten `hits`-spørring (virker alltid), mens selve laget dro ~1,9 MB features som timet ut på mobil og bakte inn en tom liste. I tillegg var «fredet» misvisende — datasettet domineres av SEFRAK-bygg med kommunal/plan-status, ikke arkeologiske funn. Nå filtrerer vi **server-side** (WFS FES-filter) til de arkeologiske kategoriene — arkeologiske funn (E-ARK), bergkunst (E-BER) og kulturminner under vann (E-MAR) — så både badge-tallet og laget blir ærlige og små (Oslo: 16 421 → 825). Laget er døpt om til **«Arkeologiske kulturminner»**. Når utsnittet fortsatt har flere enn vi henter (tak på 600), viser vi en toast rett etter lasting: «825 arkeologiske kulturminner i dette utsnittet — viser de første 600. Zoom inn …», som auto-skjules. Turrapporten bruker samme, ærlige overskrift. Henting har fått lengre timeout (20 s) siden geometri-payloaden er stor på tette utsnitt.

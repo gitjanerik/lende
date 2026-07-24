@@ -4007,6 +4007,10 @@ onUnmounted(() => {
   font-size: 10px;
   line-height: 1;
   transition: background 0.15s ease, transform 0.1s ease;
+  /* Snarvei-etikettene er ett kort ord hver — de skal aldri orddeles/brytes
+     («Stifin-ner»). Overstyrer det globale hyphens: auto på #app. */
+  hyphens: manual;
+  white-space: nowrap;
 }
 .shortcut-btn:active { transform: scale(0.94); }
 .shortcut-btn:hover { background: rgba(255, 255, 255, 0.08); }
