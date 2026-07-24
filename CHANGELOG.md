@@ -1,5 +1,15 @@
 # Endringslogg
 
+## 2026-07-24 — v2.3.7: Bedre plassering av kulturminne-toasten
+
+Toasten «N arkeologiske kulturminner i dette utsnittet» lå for lavt (`bottom-20`)
+og strakte seg helt ut til høyre kant (`right-3`), så den kolliderte med kompass-,
+zoom- og fjell-kontrollene og klemte seg inntil målestokken. Nå bruker den samme
+plassering som «ikke ferdig bygd»-boksen — `bottom-32 left-3 right-20` — løftet
+over målestokken og med plass til kontroll-stabelen på høyre side.
+
+---
+
 ## 2026-07-24 — v2.3.6: «Mine ruter»-flyten samlet i hjem-fanen
 
 Stjernesetting, sortering, stjernefilter og dele-flyten for lagrede ruter

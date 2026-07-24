@@ -96,7 +96,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
        v-if utenfor feil-kjedene: kan sameksistere, men er sjelden samtidig. -->
   <Transition name="fredet-toast">
     <div v-if="fredetTruncated && !fredetTruncDismissed && !loading"
-         class="absolute bottom-20 left-3 right-3 z-20 max-w-[420px] mx-auto
+         class="absolute bottom-32 left-3 right-20 z-20 max-w-[420px]
                 rounded-lg backdrop-blur bg-zinc-900/95 border border-amber-400/30
                 text-white text-[12px] shadow-2xl flex items-start gap-2 pl-3 pr-1 py-2.5">
       <svg viewBox="0 0 24 24" class="w-4 h-4 mt-0.5 text-amber-300 shrink-0" fill="none"
