@@ -16,6 +16,11 @@ import { useUiTextScale } from '../composables/useUiTextScale.js'
 const router = useRouter()
 const { uiTextScale } = useUiTextScale()
 
+// Ved forstørret tekst (> 100 %) blir kart-radene trange: kartnavnet får nesten
+// ikke plass ved siden av «blyant»/«søppel»-knappene. Da legger vi knappene på
+// egen linje under navnet i stedet (se kort-radens layout under).
+const isEnlarged = computed(() => uiTextScale.value > 1)
+
 // ── «Installer som app» ───────────────────────────────────────────────────
 // Forsiden tilbyr PWA-install. Knappen vises når nettleseren har fyrt av
 // beforeinstallprompt (Chrome/Edge/Android → canInstall) eller på iOS (der
@@ -551,7 +556,9 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
            class="mb-2 px-3 py-2 rounded-lg bg-amber-500/[0.08] border border-amber-400/20
                   text-amber-200/80 text-[11px] leading-snug">
         Du har mange og potensielt utdaterte kart. Slett kart du ikke trenger lenger for å
-        holde lista ryddig.
+        holde lista ryddig — eller
+        <button type="button" @click="onDeleteAll"
+                class="underline font-medium text-amber-100 active:text-white">slett alle kart</button>.
       </div>
 
       <div v-if="loading" class="flex justify-center py-6">
@@ -564,46 +571,53 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
            :class="index === mapsActiveIndex
              ? 'border-emerald-300/50 bg-white/[0.08]'
              : 'border-white/10 bg-white/[0.04]'">
-        <div class="flex items-center gap-3 px-4 py-3 active:bg-white/[0.07]"
+        <div class="flex gap-3 px-4 py-3 active:bg-white/[0.07]"
+             :class="isEnlarged ? 'flex-col' : 'items-center'"
              @click="openMap(m.id)">
-          <div class="shrink-0 w-10 h-10 rounded-lg bg-slate-500/15 border border-slate-300/25
-                      flex items-center justify-center text-slate-300">
-            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
-                 stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 6 L9 4 L15 6 L21 4 L21 18 L15 20 L9 18 L3 20 Z"/>
-              <path d="M9 4 V18 M15 6 V20"/>
-            </svg>
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="font-medium text-[14px] truncate text-white">{{ m.navn }}</div>
-            <div class="text-[12px] text-white/50 truncate">
-              {{ infoLine((m.halfKm * 2).toFixed(1), m.equidistanceM, m.demResolutionM, m.demSource) }}
+          <div class="flex items-center gap-3 min-w-0" :class="isEnlarged ? '' : 'flex-1'">
+            <div class="shrink-0 w-10 h-10 rounded-lg bg-slate-500/15 border border-slate-300/25
+                        flex items-center justify-center text-slate-300">
+              <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+                   stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6 L9 4 L15 6 L21 4 L21 18 L15 20 L9 18 L3 20 Z"/>
+                <path d="M9 4 V18 M15 6 V20"/>
+              </svg>
             </div>
-            <div class="text-[11px] text-white/35 truncate">
-              {{ formatDateTime(m.opprettet) }}<template v-if="formatBytes(m.sizeBytes)"> · {{ formatBytes(m.sizeBytes) }}</template>
+            <div class="flex-1 min-w-0">
+              <div class="font-medium text-[14px] truncate text-white">{{ m.navn }}</div>
+              <div class="text-[12px] text-white/50 truncate">
+                {{ infoLine((m.halfKm * 2).toFixed(1), m.equidistanceM, m.demResolutionM, m.demSource) }}
+              </div>
+              <div class="text-[11px] text-white/35 truncate">
+                {{ formatDateTime(m.opprettet) }}<template v-if="formatBytes(m.sizeBytes)"> · {{ formatBytes(m.sizeBytes) }}</template>
+              </div>
             </div>
           </div>
-          <button @click.stop="onRename(m.id, m.navn)"
-                  aria-label="Gi kart nytt navn"
-                  class="w-9 h-9 rounded-lg flex items-center justify-center text-white/35
-                         active:bg-white/10 active:text-white/70">
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 20h9"/>
-              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
-            </svg>
-          </button>
-          <button @click.stop="onDelete(m.id, m.navn)"
-                  aria-label="Slett kart"
-                  class="w-9 h-9 rounded-lg flex items-center justify-center text-white/35
-                         active:bg-white/10 active:text-white/70">
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6 L18 20 a2 2 0 0 1 -2 2 H8 a2 2 0 0 1 -2 -2 L5 6"/>
-              <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
-            </svg>
-          </button>
+          <!-- Blyant/søppel: på egen linje (høyrestilt) når teksten er forstørret,
+               ellers til høyre for navnet som før. -->
+          <div class="shrink-0 flex items-center gap-1" :class="isEnlarged ? 'justify-end -mr-1' : ''">
+            <button @click.stop="onRename(m.id, m.navn)"
+                    aria-label="Gi kart nytt navn"
+                    class="w-9 h-9 rounded-lg flex items-center justify-center text-white/35
+                           active:bg-white/10 active:text-white/70">
+              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                   stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 20h9"/>
+                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+              </svg>
+            </button>
+            <button @click.stop="onDelete(m.id, m.navn)"
+                    aria-label="Slett kart"
+                    class="w-9 h-9 rounded-lg flex items-center justify-center text-white/35
+                           active:bg-white/10 active:text-white/70">
+              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                   stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6 L18 20 a2 2 0 0 1 -2 2 H8 a2 2 0 0 1 -2 -2 L5 6"/>
+                <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
