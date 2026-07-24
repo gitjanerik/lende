@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-24 — v2.3.4: Kirke-symbol — rent kors, alltid rettvendt
+
+Kirke-symbolet (ISOM 532) er endret fra den gamle hytte-stil rammen-med-kors til et rent, sort latinsk kors med hvit halo. Haloen (en litt bredere hvit «casing» bak korset) gir lesbarhet også oppå brun bygnings-fyll og veier, uten en boks rundt. Symbolet er nå også `data-upright` i kartet, så MapView mot-roterer det ved kart-rotasjon — korset står alltid rettvendt mot skjermens topp (samme mekanikk som topper, parkerings-P og fredet-markørene) i stedet for å vippe med kartet. Symbolene bakes inn i hvert lagrede kart-SVG ved bygging, så endringen gjelder kart som bygges fra nå av; eksisterende kart viser det gamle symbolet til de bygges på nytt.
+
+---
+
 ## 2026-07-24 — v2.3.3: Orddeling-finpuss — snarveiene bryter ikke, myke bindestreker på lag-knapper
 
 To finjusteringer av orddelingen fra v2.3.1. Snarvei-raden på kartet (Stifinner / Runde / Måling / Sporing / Info) er nå unntatt det globale `hyphens: auto` — etikettene er ett kort ord hver og skal aldri deles («Stifin-ner»); de holdes på én linje (`hyphens: manual` + `white-space: nowrap`). På de trange lag-knappene i Innstillinger sprakk de lengste ordene ut av knappen fordi et flex-ledd ikke krymper under sitt lengste ord — så automatisk orddeling aldri fikk et bruddpunkt. Vi har lagt inn en myk bindestrek (`&shy;`, U+00AD) i «Kultur­minner» og «Vannmåle­stasjoner», som gir et eksplisitt, usynlig bruddpunkt slik at ordene deler seg pent i stedet for å flyte over.

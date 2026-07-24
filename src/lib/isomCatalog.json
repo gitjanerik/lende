@@ -1150,33 +1150,39 @@
       ]
     },
     "kirke": {
-      "$comment": "Kirke (ISOM 532-derivert): rektangulær hvit ramme (hytte-stil) med sort omriss + sort kors. Korset stikker over toppen av rammen for å antyde tårn/spir. Plasseres på OSM-node (amenity=place_of_worship) eller centroid av building=church-polygon.",
+      "$comment": "Kirke (ISOM 532-derivert): sort latinsk kors med hvit halo (kravebredde-casing bak) for lesbarhet over bygnings-/vei-fyll. Ingen ramme lenger. Symbolet er data-upright i kartet så korset alltid står rettvendt mot skjermens topp uansett kart-rotasjon. Plasseres på OSM-node (amenity=place_of_worship) eller centroid av building=church-polygon.",
       "viewBox": "-1 -1 2 2",
       "elements": [
         {
           "type": "rect",
-          "x": -0.55,
-          "y": -0.4,
-          "width": 1.1,
-          "height": 0.85,
-          "fill": "#fff",
-          "stroke": "#000",
-          "widthMm": 0.13
+          "x": -0.24,
+          "y": -0.92,
+          "width": 0.48,
+          "height": 1.74,
+          "fill": "#fff"
         },
         {
           "type": "rect",
-          "x": -0.09,
-          "y": -0.85,
-          "width": 0.18,
-          "height": 1.15,
+          "x": -0.6,
+          "y": -0.52,
+          "width": 1.2,
+          "height": 0.46,
+          "fill": "#fff"
+        },
+        {
+          "type": "rect",
+          "x": -0.14,
+          "y": -0.82,
+          "width": 0.28,
+          "height": 1.6,
           "fill": "#000"
         },
         {
           "type": "rect",
-          "x": -0.38,
-          "y": -0.55,
-          "width": 0.76,
-          "height": 0.18,
+          "x": -0.5,
+          "y": -0.42,
+          "width": 1.0,
+          "height": 0.28,
           "fill": "#000"
         }
       ]
