@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-24 — v2.2.1: Hjelpekurver vises uten zoom-krav
+
+Hjelpekurvene (v2.2.0) ble bygget riktig, men var gated bak innzoom (`.zoomed-in`, 1,3×), så et kart bygget med bryteren på så tomt ut ved vanlig zoom — forvirrende når man nettopp har skrudd dem på. Zoom-gatingen er fjernet: når «Hjelpekurver»-bryteren er på (og kartet er bygget på nytt), vises de på alle zoom-nivåer. De er fortsatt tynne/stiplede så de leser som en bratthets-/form-indikasjon uten å overdøve hovedkurvene.
+
+---
+
 ## 2026-07-24 — v2.2.0: Hjelpekurver + ærlige detaljvalg
 
 Kartdetalj er ryddet opp etter at «Maks» (1 m) viste seg å koste 40× filstørrelse og ~10 minutters bygging for et praktisk talt identisk kart — ved 5 m ekvidistanse gir finere DEM enn 2 m ingen synlige ekstra kurver. Nå er det to uavhengige valg under Innstillinger (og i kart-velgeren): en oppløsnings-akse (Rask 10 m / Standard 2 m ≈ UT.no) og to av/på-brytere. **Hjelpekurver** tegner stiplede 2,5 m-kurver (ISOM 103) mellom 5 m-hovedkurvene, bygget fra det samme 2 m-rutenettet Standard alt bruker — altså nesten gratis (bare flere linjer i SVG-en, ingen ekstra nedlasting) — og vises fra `.zoomed-in` så oversiktsbildet holdes rolig mens innzoom avdekker mer terrengform, à la UT.no. **Skog-nyanse** (CHM) er nå en egen bryter, tydelig merket som det eneste valget som dobler nedlastingen (henter DOM). Rå-1 m «Maks» er fjernet. I tillegg kappes det innebygde høyde-rutenettet som lagres i kartet til ~10 m (nok for høyde-ved-trykk og ruteprofil): det alene fjernet 4 MB-blåsingen og den lange byggetiden. Konturene selv bakes fortsatt med full oppløsning.
