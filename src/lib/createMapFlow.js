@@ -25,7 +25,6 @@ import { fetchSjokart, sjokartToElements, sjokartTimeoutForBbox, summarizeSjokar
 import { isOsmWaterSalty, isFlowingWaterArea } from './symbolizer.js'
 import { pointInRing } from './marineTopology.js'
 import { fetchDEM } from './demFetcher.js'
-import { fetchDOM } from './canopyHeight.js'
 import { fillDemVoidsFromTerrarium } from './terrariumDem.js'
 import { findHighestPoint, packDem, downsampleDem } from './demSampling.js'
 import { utm32ToWgs84, utm32BboxFromWgs84 } from './utm.js'
@@ -281,12 +280,6 @@ export async function buildMapFromCenter({
   terrainFirst = false,
   isAuto = false,
   utmBbox: explicitUtmBbox = null,
-  // Bruker-valgt kartdetalj (useMapDetail-preset). demTargetResM = ønsket fineste
-  // DEM-oppløsning; chm = beregn skog-nyanse (henter DOM). Defaults = dagens
-  // «Standard» (2 m, ingen CHM) så eksisterende kallere er uendret.
-  demTargetResM = 2,
-  chm = false,
-  formLines = false,   // ISOM 103 hjelpekurver (2,5 m) — bygges fra samme fine DEM
 }) {
   const throwIfAborted = () => {
     if (signal?.aborted) throw new DOMException('Avbrutt', 'AbortError')
@@ -318,15 +311,12 @@ export async function buildMapFromCenter({
   // som fallback hvis fin-oppgraderingen under feiler/timer ut (aldri verre enn før).
   const resolutionM = equidistanceM <= 5 ? 10 : 20
 
-  // Fin-innlands DEM-mål: henter et mye finere rutenett (2 m, evt. 5 m for store
-  // kart) fra samme NHM_DTM-endepunkt, så konturene blir glatte/detaljerte i
-  // stedet for 10/20 m-fasetterte. Trigges ved fine-ekvidistanse-kart (≤ 5 m)
-  // ELLER når brukeren har slått på hjelpekurver (som trenger fint DEM uansett
-  // ekvidistanse — ellers ble bryteren en stille no-op på default 20 m). Gjelder
-  // uansett kyst/innland. demTargetResM > 5 («Rask») ⇒ ingen oppgradering.
-  const wantFineDem = (equidistanceM <= 5 || formLines) && demTargetResM <= 5
-  const fineInlandTargetResM = wantFineDem
-    ? fineDemResFor(halfKm, mapAspect, demTargetResM)
+  // Fin-innlands DEM-mål: for fine-ekvidistanse-kart (≤ 5 m, inkl. 2,5 m) henter
+  // vi et mye finere rutenett (2 m, evt. 5 m for større kart) fra samme NHM_DTM-
+  // endepunkt, så konturene blir glatte/detaljerte i stedet for fasetterte.
+  // Gjelder uansett kyst/innland. null = grovt kart → ingen oppgradering.
+  const fineInlandTargetResM = equidistanceM <= 5
+    ? fineDemResFor(halfKm, mapAspect)
     : null
 
   // Recompute WGS84-bbox fra ALLE fire UTM-hjørner (ikke bare SW+NE) så Overpass
@@ -556,21 +546,6 @@ export async function buildMapFromCenter({
     return probeDem
   }))
   const demPromise = demCorePromise.then(maybeFillFromTerrarium)
-  // DOM (overflate-modell) for skog-nyanse (CHM = DOM − DTM). Kun når brukeren
-  // har valgt en kvalitet med chm=true. Hentes på SAMME utmBbox og SAMME faktisk-
-  // resolverte oppløsning som DTM-en (computeCHM krever like cols/rows), så vi
-  // venter på kjerne-DEM-et og bruker dets resolution. Feiler trygt → null (CHM-
-  // blokka i mapBuilder no-op-er da). Kun for fullbygget — CHM påvirker ikke
-  // konturer, så terreng-previewen trenger den ikke.
-  const domPromise = chm
-    ? demCorePromise.then((dem) => {
-        if (!dem || dem.source?.startsWith('synthetic')) return null
-        return timeAsync('dom', fetchDOM(utmBbox, dem.resolution, { signal }).catch((e) => {
-          console.warn(`[DOM] henting feilet — hopper over skog-nyanse: ${e?.message ?? e}`)
-          return null
-        }))
-      })
-    : Promise.resolve(null)
   // Sjøkart gates på samme kyst-signal (DEM-havflate + OSM-saltvann). For
   // innlands-bbox (inkl. store innsjøer) hoppes WFS-hentingen helt over.
   const sjokartPromise = timeAsync('sjøkart', coastalPromise.then(coastal => {
@@ -639,7 +614,7 @@ export async function buildMapFromCenter({
 
   // Full bygging: vent på alle kilder, slå sammen, bygg full SVG (worker).
   const assembleAndBuildFull = async () => {
-    const [osmData, n50Water, nveLakes, dem, sjokart, kulturminner, dom] = await Promise.all([overpassP, n50P, nveLakesP, demPromise, sjokartPromise, kulturminneP, domPromise])
+    const [osmData, n50Water, nveLakes, dem, sjokart, kulturminner] = await Promise.all([overpassP, n50P, nveLakesP, demPromise, sjokartPromise, kulturminneP])
     const sjokartElements = sjokartToElements(sjokart)
 
     const n50HasFreshwater = n50Water.some(el =>
@@ -718,8 +693,6 @@ export async function buildMapFromCenter({
     // avbryter (terminerer workeren) ved prefetch-bom.
     const { svg, counts, timings } = await timeAsync('buildSvg', buildSvgClient(elements, bbox, {
       dem,
-      dom,                           // overflate-modell for CHM skog-nyanse (null når kvalitet uten chm, eller henting feilet)
-      formLines,                     // ISOM 103 hjelpekurver (bruker-valg)
       utmBbox,                       // authoritativ extent (samme som DEM-fetch) → kvadratisk + bit-eksakt
       contourIntervalM: equidistanceM,
       scaleDenom: 10000,
@@ -765,7 +738,6 @@ export async function buildMapFromCenter({
       if (isRealDem(dem)) {
         const terrain = await timeAsync('terreng', buildSvgClient([], bbox, {
           dem,
-          formLines,                 // hjelpekurver også i terreng-previewen
           utmBbox,                   // samme authoritative extent som full-bygget
           contourIntervalM: equidistanceM,
           scaleDenom: 10000,

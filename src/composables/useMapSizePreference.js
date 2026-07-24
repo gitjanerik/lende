@@ -53,7 +53,7 @@ export const MAP_FORMAT_OPTIONS = [
 export const DEFAULT_MAP_FORMAT = 'square'
 
 // Ekvidistanse-valg — samme liste som «Flere valg» (MapPickerView).
-export const MAP_EQ_OPTIONS = [5, 10, 20, 25, 50]
+export const MAP_EQ_OPTIONS = [2.5, 5, 10, 20, 25, 50]
 
 // Høyde/bredde-forhold for et format-valg. Portrett leses ved KALL (ikke
 // modul-last) så rotasjon/resize fanges opp.
@@ -87,7 +87,7 @@ function loadFormat() {
 
 function loadEq() {
   try {
-    const n = parseInt(localStorage.getItem(EQ_KEY), 10)
+    const n = parseFloat(localStorage.getItem(EQ_KEY))   // parseFloat: 2,5 m er ikke heltall
     if (MAP_EQ_OPTIONS.includes(n)) return n
   } catch { /* private mode */ }
   return null   // null = auto (fineste tillatte for bredden)
@@ -96,6 +96,7 @@ function loadEq() {
 // Minste TILLATTE ekvidistanse for en kart-bredde — samme tabell som «Flere
 // valg»-gatingen (MapPickerView.minEquidistance): tette kurver drukner på
 // store kart.
+//   ≤ 2 km  → 2,5 m   (ISOM-sprint — kun små kart)
 //   < 4 km  → 5 m
 //   4–6 km  → 10 m
 //   ≥ 6 km  → 20 m
@@ -103,14 +104,15 @@ export function minEquidistanceForWidthKm(km) {
   const w = km || DEFAULT_MAP_WIDTH_KM
   if (w >= 6) return 20
   if (w >= 4) return 10
-  return 5
+  if (w > 2) return 5
+  return 2.5
 }
 
 // Auto-ekvidistanse for snarvei-kart (søk/GPS): den FINESTE tillatte for
-// bredden — tette kurver der det er plass, grovere først når kartet blir så
-// stort at fine kurver drukner. (Identisk med gulvet i minEquidistanceForWidthKm.)
+// bredden, men ALDRI finere enn 5 m automatisk — 2,5 m er et bevisst manuelt
+// valg (dobbelt så tette kurver), ikke noe snarvei-kart skal få uoppfordret.
 export function equidistanceForWidthKm(km) {
-  return minEquidistanceForWidthKm(km)
+  return Math.max(5, minEquidistanceForWidthKm(km))
 }
 
 const mapSizeKm = ref(load())

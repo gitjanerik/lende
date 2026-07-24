@@ -11,7 +11,6 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { fetchOverpass, buildSvg, bboxFromCenter } from '../src/lib/mapBuilder.js'
 import { fetchDEM } from '../src/lib/demFetcher.js'
-import { fetchDOM } from '../src/lib/canopyHeight.js'
 import { fetchN50Water } from '../src/lib/n50Fetcher.js'
 import { utm32BboxFromWgs84 } from '../src/lib/utm.js'
 
@@ -71,11 +70,7 @@ const dem = await fetchDEM(bbox, utmBbox, {
 })
 console.log(`DEM: ${dem.cols} × ${dem.rows} (oppløsning ${dem.resolution.toFixed(1)} m, kilde: ${dem.source})`)
 
-// DOM (overflate-modell) — grunnlag for CHM og vegetasjons-klassifisering
-const dom = await fetchDOM(utmBbox, 5)
-if (dom) console.log(`DOM: ${dom.cols} × ${dom.rows} (kilde: ${dom.source})`)
-
-const { svg, counts, meta } = buildSvg(elements, bbox, { dem, dom, utmBbox, contourIntervalM: 10 })
+const { svg, counts, meta } = buildSvg(elements, bbox, { dem, utmBbox, contourIntervalM: 10 })
 console.log('Klassifisering:', counts)
 console.log(`Konturer: ekvidistanse ${meta.equidistance} m, høyde ${meta.elevationRange?.min}–${meta.elevationRange?.max} m`)
 

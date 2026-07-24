@@ -5,7 +5,6 @@
 import { DOMParser, parseHTML } from 'linkedom'
 import { fetchOverpass, buildSvg, bboxFromCenter } from '../src/lib/mapBuilder.js'
 import { fetchDEM } from '../src/lib/demFetcher.js'
-import { fetchDOM } from '../src/lib/canopyHeight.js'
 import { fetchN50Water } from '../src/lib/n50Fetcher.js'
 import { utm32BboxFromWgs84 } from '../src/lib/utm.js'
 import { parsePathSubpaths } from '../src/lib/pathUtils.js'
@@ -49,7 +48,6 @@ export async function buildMapHeadless({ lat, lon, halfKm, equidistanceM }) {
     fetchN50Water(bbox).catch(() => []),
     fetchDEM(bbox, utmBbox, { resolutionM, useReal: true }),
   ])
-  const dom = await fetchDOM(utmBbox, resolutionM).catch(() => null)
 
   // N50 er autoritativ vannkilde når den leverer (samme filter som CI-scriptet).
   const useN50 = n50Water.length > 0
@@ -66,7 +64,6 @@ export async function buildMapHeadless({ lat, lon, halfKm, equidistanceM }) {
 
   const { svg, counts, meta } = buildSvg(elements, bbox, {
     dem,
-    dom,
     utmBbox,
     contourIntervalM: equidistanceM,
     skipContoursIfSynthetic: true,

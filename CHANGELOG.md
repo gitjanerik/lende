@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-24 — v2.3.0: Forenklet kartdetalj — 2,5 m ekvidistanse, fjernet Kartdetalj + canopy
+
+Detalj-oppsettet er kraftig forenklet etter testing viste at ekstra-funksjonene ikke bar sin egen kompleksitet. **«Kartdetalj»-seksjonen er fjernet** (Rask/Standard-nivåene, hjelpekurve-bryteren og skog-nyanse-bryteren). **Hjelpekurver er erstattet av en ren ekvidistanse-knapp «2,5 m»** — for hjelpekurver *er* egentlig bare finere ekvidistanse — som tegnes som vanlige heltrukne røde høydekurver (ikke stiplet), tilgjengelig kun på kart ≤ 2 km bredde (der finere kurver er lesbare). Fine kart (≤ 5 m, inkl. 2,5 m) henter fortsatt automatisk et 2 m-rutenett med glatte kurver, og bygger nå raskt takket være topp-fiksen i v2.2.3. **Canopy/skog-nyanse (CHM/DOM) er fjernet helt** — fra interaktiv app, headless-bygg og Vardåsen-scriptet — siden den aldri ga synlig verdi. Auto-ekvidistanse (søk/GPS-kart) tar aldri 2,5 m uoppfordret; det er et bevisst manuelt valg. Standard-kartkvaliteten (glatte 2 m-kurver ved fin ekvidistanse) er uendret.
+
+---
+
 ## 2026-07-24 — v2.2.3: Fikset treg bygging på fine kart (topp-deteksjon)
 
 Fine kart (≤ 5 m ekvidistanse → 2 m DEM) tok minutter å bygge på mobil. Profilering avslørte at `detectSummits` alene sto for ~48 av ~52 sekunder på et 3 km-kart: topp-søket bruker et 250 m vindu, som på et 2 m-rutenett blir 125 celler i radius → ~1,5·10¹¹ operasjoner. Fiksen kjører topp-deteksjonen på et ~10 m-nedskalert DEM (topper trenger ikke 2 m-presisjon; verifisert at samme topper finnes, ±2 m høyde). `summits` faller fra ~48 000 ms til ~100 ms, og total byggetid for et 3 km/2 m-kart fra ~52 s til ~4 s. Kontur-kvaliteten er uendret (konturene bygges fortsatt fra fullt 2 m-rutenett). Dette er en ren ytelsesfiks; ingen UI-endring.

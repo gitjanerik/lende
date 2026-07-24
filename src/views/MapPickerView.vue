@@ -8,7 +8,6 @@ import { bboxFromCenter, viewportAspect, PRINT_ASPECT } from '../lib/mapBuilder.
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { tileMosaic, zoomForKm, metersPerPixel } from '../lib/tileBackground.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
-import { useMapDetail } from '../composables/useMapDetail.js'
 import { t } from '../lib/i18n.js'
 
 const router = useRouter()
@@ -32,10 +31,6 @@ const halfKm = ref(2.5)  // halv-bredde av bbox i km (E/V). Kart blir 2*halfKm b
 const mapAspect = ref(viewportAspect())
 const equidistanceM = ref(20)  // høydekurve-intervall, 5/10/20/25/50 m
 const customName = ref('')
-
-// Kartdetalj / kvalitet (global bruker-preferanse, useMapDetail). Styrer DEM-
-// oppløsning + skog-nyanse ved bygging. Velges her og under Innstillinger.
-const { qualityId, preset: qualityPreset, QUALITY_PRESETS, formLines, chm } = useMapDetail()
 
 // Format-velger (trippel toggle). Styrer utsnittets høyde/bredde-forhold;
 // bredden styres uansett av slideren, høyden utledes av valgt aspekt.
@@ -120,12 +115,12 @@ function parseShareInvite() {
   const lat = parseFloat(q.lat)
   const lon = parseFloat(q.lon)
   const km = parseFloat(q.km)
-  const eq = parseInt(q.eq, 10)
+  const eq = parseFloat(q.eq)
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
   center.value = { lat, lon, name: q.hl ? String(q.hl).slice(0, 60) : '' }
   // Eldre delte lenker kan ha km opptil 12 — clamp til dagens 8 km-tak.
   if (Number.isFinite(km) && km >= 1 && km <= 12) halfKm.value = Math.min(km, 8) / 2
-  if (Number.isFinite(eq) && [5, 10, 20, 25, 50].includes(eq)) equidistanceM.value = eq
+  if (Number.isFinite(eq) && [2.5, 5, 10, 20, 25, 50].includes(eq)) equidistanceM.value = eq
   format.value = 'portrait'
   // Avsenderens aspekt (clampet til fornuftig spenn). Settes ETTER format-
   // tilordningen over — format-watchen nullstiller inviteAspect.
@@ -148,6 +143,7 @@ function parseShareInvite() {
 }
 
 const EQUIDISTANCE_OPTIONS = [
+  { value: 2.5, label: '2,5 m', desc: 'ISOM-sprint — kun kart ≤ 2 km' },
   { value: 5,   label: '5 m',   desc: 'ISOM-orientering — krever 1m DTM' },
   { value: 10,  label: '10 m',  desc: 'tett — for små områder' },
   { value: 20,  label: '20 m',  desc: 'turkart-standard' },
@@ -167,11 +163,13 @@ const minEquidistance = computed(() => {
   const km = halfKm.value * 2
   if (km >= 6) return 20
   if (km >= 4) return 10
-  return 5
+  if (km > 2) return 5
+  return 2.5
 })
 
 // Forklarende tooltip når et ekvidistanse-valg er utelukket av gjeldende bredde.
 function widthHintFor(value) {
+  if (value === 2.5) return 'Krever bredde ≤ 2 km'
   if (value === 5)  return 'Krever bredde < 4 km'
   if (value === 10) return 'Krever bredde < 6 km'
   return ''
@@ -241,9 +239,6 @@ async function generateMap() {
       halfKm: halfKm.value,
       aspect: effectiveAspect.value,   // følg previewen (A-format når «tilpass til utskrift» er på)
       equidistanceM: equidistanceM.value,
-      demTargetResM: qualityPreset.value.demResM,   // bruker-valgt kartdetalj
-      chm: chm.value,
-      formLines: formLines.value,
       navn,
       terrainFirst: true,   // vis terreng straks, fyll inn OSM i bakgrunnen
       onProgress: (msg) => {
@@ -635,7 +630,7 @@ onMounted(() => {
           <div class="text-[11px] text-white/50 uppercase tracking-wide">Høydekurver</div>
           <div class="text-[13px] font-medium tabular-nums">hver {{ equidistanceM }} m</div>
         </div>
-        <div class="grid grid-cols-5 gap-1.5">
+        <div class="grid grid-cols-3 gap-1.5">
           <button v-for="opt in EQUIDISTANCE_OPTIONS" :key="opt.value"
                   :disabled="controlsLocked || opt.value < minEquidistance"
                   :title="opt.value < minEquidistance ? widthHintFor(opt.value) : opt.desc"
@@ -651,39 +646,6 @@ onMounted(() => {
         <div class="text-[10px] text-white/40 mt-1.5">
           {{ EQUIDISTANCE_OPTIONS.find(o => o.value === equidistanceM)?.desc }}
         </div>
-      </div>
-
-      <!-- Kartdetalj: oppløsning (data) + to av/på-brytere. Hjelpekurver er
-           ~gratis (samme 2 m-data); skog-nyanse dobler nedlastingen. Global
-           preferanse (deles med Innstillinger). -->
-      <div class="rounded-xl bg-white/[0.04] border border-white/10 px-4 py-3">
-        <div class="flex items-center justify-between mb-2">
-          <div class="text-[11px] text-white/50 uppercase tracking-wide">Kartdetalj</div>
-          <div class="text-[13px] font-medium tabular-nums">{{ qualityPreset.mbHint }}{{ chm ? ' ×2' : '' }}</div>
-        </div>
-        <div class="grid grid-cols-2 gap-1.5">
-          <button v-for="p in QUALITY_PRESETS" :key="p.id"
-                  :disabled="controlsLocked"
-                  :title="p.desc"
-                  @click="qualityId = p.id"
-                  class="px-2 py-1.5 rounded-md border text-[11px] font-medium active:scale-95 transition
-                         disabled:cursor-not-allowed disabled:opacity-40"
-                  :class="qualityId === p.id
-                          ? 'bg-emerald-500/20 border-emerald-300/60 text-emerald-100'
-                          : 'bg-white/5 border-white/10 text-white/65'">
-            {{ p.label }}
-          </button>
-        </div>
-        <label class="flex items-center justify-between gap-3 mt-2.5 cursor-pointer">
-          <span class="text-[12px] text-white/80">Hjelpekurver
-            <span class="block text-[10px] text-white/45">ekstra kurver på halv ekvidistanse — mer form</span></span>
-          <input type="checkbox" v-model="formLines" :disabled="controlsLocked" class="accent-emerald-500 w-4 h-4" />
-        </label>
-        <label class="flex items-center justify-between gap-3 mt-2 cursor-pointer">
-          <span class="text-[12px] text-white/80">Skog-nyanse
-            <span class="block text-[10px] text-white/45">differensiert skog · dobler nedlasting</span></span>
-          <input type="checkbox" v-model="chm" :disabled="controlsLocked" class="accent-emerald-500 w-4 h-4" />
-        </label>
       </div>
 
       <!-- Format-velger (trippel toggle). Styrer utsnittets høyde/bredde-forhold:
