@@ -3,9 +3,9 @@
 // eier fredet-tellerne og render-funksjonene; forelderen eier fortsatt
 // kart-SVG-en (svgHostRef), lag-togglingen og kulturminne-skuffens tilstand,
 // som kommer inn destrukturert.
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { svgToWgs84, wgs84ToSvg } from '../lib/utm.js'
-import { fetchFredaKulturminner, fetchFredaCount, clusterByMinMeters } from '../lib/kulturminneWfs.js'
+import { fetchFredaKulturminner, fetchFredaCount, clusterByMinMeters, FREDET_FETCH_CAP } from '../lib/kulturminneWfs.js'
 import { fetchKulturminner } from '../lib/kulturminneFetcher.js'
 import { cacheGet, cacheSet, kulturminneBboxKey, fredetKulturminneBboxKey, TTL } from '../lib/protectedAreaCache.js'
 import { isomCatalog, buildPointSymbolDef } from '../lib/symbolizer.js'
@@ -24,9 +24,15 @@ export function useHeritageLayers({
     automatisk: '#8e44ad', forskrift: '#c0392b', vedtak: '#d35400',
     listefort: '#138d75', annet: '#7f8c8d',
   }
-  const fredetCount = ref(null)     // antall lokaliteter i bbox (WFS) — badge
+  const fredetCount = ref(null)     // eksakt antall i bbox (WFS hits) — badge
+  const fredetShown = ref(null)     // antall vi faktisk hentet/tegnet (≤ taket)
   const fredetLoading = ref(false)
   let fredetReqId = 0
+
+  // Sant når utsnittet har flere arkeologiske kulturminner enn vi henter (taket)
+  // — driver en toast som ber brukeren zoome inn for å se resten.
+  const fredetTruncated = computed(() =>
+    fredetCount.value != null && fredetShown.value != null && fredetCount.value > fredetShown.value)
 
   // WGS84-bbox fra kartets fire hjørner (SVG-meter → WGS84) til WFS-spørring.
   function fredetBboxFromMeta(m) {
@@ -81,7 +87,10 @@ export function useHeritageLayers({
       // Bruker kan ha skrudd av / byttet kart mens vi lastet.
       if (reqId !== fredetReqId || !visibleLayers.value.has('fredet-kulturminne')) return
       if (!svgHostRef.value?.querySelector('svg')?.isSameNode(svg)) return
-      fredetCount.value = data.length
+      // Antall vi hentet (kappet ved taket). Badge-tallet (fredetCount) settes av
+      // det eksakte hits-kallet i refreshFredetCount — de to sammen gir truncated.
+      fredetShown.value = data.length
+      if (data.length >= FREDET_FETCH_CAP) refreshFredetCount(m)
       const ns = 'http://www.w3.org/2000/svg'
       ensureFredetDefs(svg)
       const g = document.createElementNS(ns, 'g')
@@ -220,7 +229,7 @@ export function useHeritageLayers({
   }
 
   return {
-    fredetCount, fredetLoading,
+    fredetCount, fredetShown, fredetTruncated, fredetLoading,
     applyFredetKulturminneLayer, applyKulturminneFallback,
     openFredetDetailFromEl, refreshFredetCount,
   }

@@ -71,7 +71,7 @@ describe('buildTripReportMarkdown', () => {
     const md = buildTripReportMarkdown(base)
     expect(md).toContain('# Bondivann → Vardåsen')
     expect(md).toContain('**2,9 km · ↑283 m · ~73 min · via Wentzelhytta**')
-    expect(md).toContain('## Fredede kulturminner (1)')
+    expect(md).toContain('## Arkeologiske kulturminner (1)')
     expect(md).toContain('- Gravrøys — Automatisk fredet')
     expect(md).toContain('## Verneområder')
     expect(md).toContain('- Oppsjømyrene — Naturreservat, 1.2 km²')

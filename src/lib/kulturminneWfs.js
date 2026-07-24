@@ -22,16 +22,47 @@ const APP_NS = 'http://skjema.geonorge.no/SOSI/produktspesifikasjon/LokaliteterE
 const TYPE = 'app:Enkeltminne'
 const CRS = 'urn:ogc:def:crs:EPSG::4258'
 
-function bboxParam(bbox) {
-  // EPSG:4258 → lat,lon-rekkefølge, med CRS-URI som femte ledd (WFS 2.0.0).
-  return `${bbox.south},${bbox.west},${bbox.north},${bbox.east},${CRS}`
+// «Fredede kulturminner»-datasettet inneholder ALT fra arkeologiske funn til
+// SEFRAK-bygg med kommunal/plan-status. Oslo alene har >16 000 enkeltminner —
+// for mange å hente (payloaden timer ut på mobil) og ikke det brukeren er ute
+// etter. Vi filtrerer server-side til de arkeologiske/historiske kategoriene:
+// arkeologisk enkeltminne, bergkunst og kulturminne under vann.
+export const ARKEOLOGI_KATEGORIER = ['E-ARK', 'E-BER', 'E-MAR']
+
+// FES 2.0 <gml:Envelope> for bbox-predikatet. EPSG:4258 (urn) → lat,lon-akse:
+// lowerCorner = «sør vest», upperCorner = «nord øst».
+function envelopeXml(bbox) {
+  return `<gml:Envelope srsName="${CRS}">` +
+    `<gml:lowerCorner>${bbox.south} ${bbox.west}</gml:lowerCorner>` +
+    `<gml:upperCorner>${bbox.north} ${bbox.east}</gml:upperCorner></gml:Envelope>`
+}
+
+// Bygg et FES 2.0-filter: bbox OG (kategori = A ELLER B …). Én kategori droppes
+// <fes:Or> (som krever ≥ 2 ledd); ingen kategorier → rent bbox-filter.
+function buildFilterXml(bbox, categories) {
+  const bboxPred =
+    `<fes:BBOX><fes:ValueReference>app:område</fes:ValueReference>${envelopeXml(bbox)}</fes:BBOX>`
+  const cats = Array.isArray(categories) ? categories.filter(Boolean) : []
+  let body = bboxPred
+  if (cats.length) {
+    const eqs = cats.map((c) =>
+      `<fes:PropertyIsEqualTo><fes:ValueReference>app:enkeltminnekategori</fes:ValueReference>` +
+      `<fes:Literal>${c}</fes:Literal></fes:PropertyIsEqualTo>`).join('')
+    const catPred = cats.length > 1 ? `<fes:Or>${eqs}</fes:Or>` : eqs
+    body = `<fes:And>${bboxPred}${catPred}</fes:And>`
+  }
+  return `<fes:Filter xmlns:fes="http://www.opengis.net/fes/2.0"` +
+    ` xmlns:gml="http://www.opengis.net/gml/3.2" xmlns:app="${APP_NS}">${body}</fes:Filter>`
 }
 
 /**
  * Bygg WFS GetFeature-URL. `hits: true` gir kun antall (numberMatched), ellers
- * hentes inntil `count` features med geometri.
+ * hentes inntil `count` features med geometri. `categories` filtrerer på
+ * enkeltminnekategori server-side (default: arkeologiske kategorier); `null`/[]
+ * gir alle kategorier. bbox pushes inn i FES-filteret (kan ikke kombinere
+ * `bbox=`-param med `filter=`).
  */
-export function buildWfsUrl(bbox, { hits = false, count = 400 } = {}) {
+export function buildWfsUrl(bbox, { hits = false, count = 400, categories = ARKEOLOGI_KATEGORIER } = {}) {
   const p = new URLSearchParams({
     service: 'WFS',
     version: '2.0.0',
@@ -39,7 +70,7 @@ export function buildWfsUrl(bbox, { hits = false, count = 400 } = {}) {
     typeNames: TYPE,
     namespaces: `xmlns(app,${APP_NS})`,
     srsName: CRS,
-    bbox: bboxParam(bbox),
+    filter: buildFilterXml(bbox, categories),
   })
   if (hits) p.set('resultType', 'hits')
   else p.set('count', String(count))
@@ -77,13 +108,22 @@ export async function fetchFredaCount(bbox, opts = {}) {
   return m ? Number(m[1]) : null
 }
 
+// Tak på antall features vi henter med geometri. Selv arkeologi-filtrert kan
+// tette utsnitt (Oslo: ~825) gi flere hundre poster à lang beskrivelse → payload
+// på et par MB. Vi kutter ved taket og lar en toast be brukeren zoome inn.
+export const FREDET_FETCH_CAP = 600
+
 /**
- * Hent lokaliteter i bbox som flate objekter.
+ * Hent enkeltminner i bbox som flate objekter (arkeologi-filtrert som default).
  * @returns {Promise<Array<{id,lat,lon,navn,art,vernetype,kommune,link,kategori}>>}
  */
 export async function fetchFredaKulturminner(bbox, opts = {}) {
   if (!bbox || ![bbox.south, bbox.west, bbox.north, bbox.east].every(Number.isFinite)) return []
-  const txt = await safeFetchText(buildWfsUrl(bbox, { count: opts.maxTotal ?? 600 }), opts)
+  // Lengre timeout enn count-kallet: geometri-payloaden er stor på tette utsnitt
+  // og et for kort timeout bakte tidligere 0 kulturminner inn (tomt kart-symptom).
+  const txt = await safeFetchText(
+    buildWfsUrl(bbox, { count: opts.maxTotal ?? FREDET_FETCH_CAP }),
+    { timeoutMs: 20000, ...opts })
   if (!txt) return []
   return parseWfsKulturminner(txt)
 }

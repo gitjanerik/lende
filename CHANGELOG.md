@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-24 — v2.3.2: Arkeologiske kulturminner — filtrert kilde, ærlig antall, toast ved mange
+
+«Fredede kulturminner»-laget viste ingenting i tette utsnitt (Oslo: 16 421 → tomt kart). Årsaken var ikke en bevisst sperre: badge-tallet hentes med en pytteliten `hits`-spørring (virker alltid), mens selve laget dro ~1,9 MB features som timet ut på mobil og bakte inn en tom liste. I tillegg var «fredet» misvisende — datasettet domineres av SEFRAK-bygg med kommunal/plan-status, ikke arkeologiske funn. Nå filtrerer vi **server-side** (WFS FES-filter) til de arkeologiske kategoriene — arkeologiske funn (E-ARK), bergkunst (E-BER) og kulturminner under vann (E-MAR) — så både badge-tallet og laget blir ærlige og små (Oslo: 16 421 → 825). Laget er døpt om til **«Arkeologiske kulturminner»**. Når utsnittet fortsatt har flere enn vi henter (tak på 600), viser vi en toast rett etter lasting: «825 arkeologiske kulturminner i dette utsnittet — viser de første 600. Zoom inn …», som auto-skjules. Turrapporten bruker samme, ærlige overskrift. Henting har fått lengre timeout (20 s) siden geometri-payloaden er stor på tette utsnitt.
+
+---
+
 ## 2026-07-24 — v2.3.1: UU — utvidet tekststørrelse-støtte, bindestrek og luftigere kart-rader
 
 Videreført arbeidet med brukerens valgte tekststørrelse. **Innstillinger-skuffen** følger den nå fullt ut: de tre hurtigvalg-knappene (Tegnforklaring / Start GPS / Kompass) og fane-raden (Kartlag, Tema, …) skaleres nå med samme zoom som fane-innholdet allerede gjorde. **Kart-søket** (søkefelt, hjelpetekst og trefflista inne i et kart) følger nå også valgt tekststørrelse. Generelt har UI-et fått `hyphens: auto` (norsk orddeling via `html lang="no"`), så lange ord som «Vannmålestasjoner» og «Fredede kulturminner» deler seg pent med bindestrek på trange knapper i stedet for å flyte stygt over — kartets egne stedsnavn er holdt utenfor. Den gule «mange kart»-advarselen på forsiden har fått en klikkbar «slett alle kart»-lenke. Og på Mine kart-lista hopper «blyant»- og «søppel»-knappene ned på egen linje under kartnavnet når tekststørrelsen er større enn 100 %, så navnet får plass.
