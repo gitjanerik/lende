@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-24 — v2.2.0: Hjelpekurver + ærlige detaljvalg
+
+Kartdetalj er ryddet opp etter at «Maks» (1 m) viste seg å koste 40× filstørrelse og ~10 minutters bygging for et praktisk talt identisk kart — ved 5 m ekvidistanse gir finere DEM enn 2 m ingen synlige ekstra kurver. Nå er det to uavhengige valg under Innstillinger (og i kart-velgeren): en oppløsnings-akse (Rask 10 m / Standard 2 m ≈ UT.no) og to av/på-brytere. **Hjelpekurver** tegner stiplede 2,5 m-kurver (ISOM 103) mellom 5 m-hovedkurvene, bygget fra det samme 2 m-rutenettet Standard alt bruker — altså nesten gratis (bare flere linjer i SVG-en, ingen ekstra nedlasting) — og vises fra `.zoomed-in` så oversiktsbildet holdes rolig mens innzoom avdekker mer terrengform, à la UT.no. **Skog-nyanse** (CHM) er nå en egen bryter, tydelig merket som det eneste valget som dobler nedlastingen (henter DOM). Rå-1 m «Maks» er fjernet. I tillegg kappes det innebygde høyde-rutenettet som lagres i kartet til ~10 m (nok for høyde-ved-trykk og ruteprofil): det alene fjernet 4 MB-blåsingen og den lange byggetiden. Konturene selv bakes fortsatt med full oppløsning.
+
+---
+
 ## 2026-07-23 — v2.1.0: Bruker-valgt kartdetalj (opptil 1 m) + skog-nyanse
 
 Detaljgraden er nå et bruker-valg under Innstillinger (og i kart-velgeren), så man kan tilpasse etter mobil og datamengde. Fire nivåer: Rask (10 m, ~0,4 MB/kart), Standard (2 m — som før, default), Detaljert (2 m + skog-nyanse) og Maks (1 m + skog-nyanse, ~74 MB/kart). Oppløsnings-trappa er utvidet til å inkludere 1 m (`NHM_DTM` er nativt 1 m på samme geonorge-endepunkt vi alt bruker); et eget, romsligere celletak lar 3×3 km @ 1 m gå, mens større kart degraderes automatisk. «Skog-nyanse» henter i tillegg overflate-modellen (`NHM_DOM`, også nativt 1 m) og beregner kronehøyde (CHM = DOM − DTM) for å dele skog i differensierte ISOM-grønt (åpen/normal/tett) — samme motor som headless/CI alt bruker, nå tilgjengelig interaktivt. DOM-hentingen følger DTM-ens faktiske oppløsning og dobler dermed nedlastingen på nivåene der den er på. Valget brukes ved bygging, så det gjelder nye kart; lagrede kart beholder sin detalj til de bygges på nytt. Default er uendret fra v2.0.0.

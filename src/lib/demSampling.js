@@ -162,6 +162,59 @@ export function packDem(dem) {
 }
 
 /**
+ * Nedskaler et DEM til ~targetResM ved box-snitt, for LAGRING i kartet.
+ *
+ * Kartet bakes med full DEM-oppløsning (konturer/CHM), men det innebygde
+ * rutenettet trengs bare til høyde-ved-trykk og rute-høydeprofil — der er
+ * ~10 m rikelig. Rå Float32 er 4 byte/celle, så et 1–2 m-rutenett blåser
+ * kartfila (1 m/1 km ≈ 4 MB). Nedskalering til 10 m kutter det ~25–100×
+ * uten merkbart tap for høydeoppslag. Er DEM-et alt ≥ targetResM (factor ≤ 1)
+ * returneres samme referanse.
+ *
+ * @param {DEM} dem
+ * @param {number} targetResM
+ * @returns {DEM}
+ */
+export function downsampleDem(dem, targetResM = 10) {
+  const curRes = Math.abs(dem.transform?.pixelWidth || dem.resolution || targetResM)
+  const factor = Math.max(1, Math.round(targetResM / curRes))
+  if (factor <= 1) return dem
+  const { data, cols, rows, noData } = dem
+  const nc = Math.max(1, Math.floor(cols / factor))
+  const nr = Math.max(1, Math.floor(rows / factor))
+  const out = new Float32Array(nc * nr)
+  for (let r = 0; r < nr; r++) {
+    for (let c = 0; c < nc; c++) {
+      let sum = 0, n = 0
+      for (let dy = 0; dy < factor; dy++) {
+        const sr = r * factor + dy
+        if (sr >= rows) break
+        for (let dx = 0; dx < factor; dx++) {
+          const sc = c * factor + dx
+          if (sc >= cols) break
+          const v = data[sr * cols + sc]
+          if (v === noData || !Number.isFinite(v)) continue
+          sum += v; n++
+        }
+      }
+      out[r * nc + c] = n ? sum / n : noData
+    }
+  }
+  return {
+    data: out,
+    cols: nc,
+    rows: nr,
+    transform: {
+      ...dem.transform,
+      pixelWidth: dem.transform.pixelWidth * factor,
+      pixelHeight: dem.transform.pixelHeight * factor,
+    },
+    noData,
+    resolution: Math.abs(dem.transform.pixelWidth * factor),
+  }
+}
+
+/**
  * Pakk ut igjen til DEM-form med Float32Array-view.
  *
  * @param {{buffer: ArrayBuffer, cols: number, rows: number, transform: object, noData: number}} packed

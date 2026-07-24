@@ -606,6 +606,9 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
       rules.push(`${root} [data-iso="307"] path.${cls} { fill: ${fill}; }`)
     }
   }
+  // Hjelpekurver (ISOM 103): skjult i oversikt, vises fra .zoomed-in — mer
+  // terrengform når du zoomer inn (holder oversiktsbildet rolig, som UT.no).
+  rules.push(`${root}:not(.zoomed-in) [data-iso="103"] { display: none; }`)
   rules.push(`${root}:not(.zoom-near) [data-label="kontur-tall"] { display: none; }`)
   rules.push(`${root}:not(.zoom-near) [data-label="vann-tall"] { display: none; }`)
   rules.push(`${root}:not(.zoom-near) [data-layer="bekk"] text { display: none; }`)
