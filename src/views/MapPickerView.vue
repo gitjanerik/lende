@@ -153,8 +153,8 @@ const EQUIDISTANCE_OPTIONS = [
 
 // v10.1.x: minste tillatte ekvidistanse skaleres med bbox-bredde. Tett
 // kontur-rendering er meningsløst på store kart (overlappende streker,
-// rotete kart uten lesbarhet). Maks kartstørrelse er nå 12×12 km, men terskel-
-// tabellen topper på 20 m: store kart (≥ 6 km, inkl. de nye 7–12 km) beholder
+// rotete kart uten lesbarhet). Maks kartstørrelse er nå 16×16 km, men terskel-
+// tabellen topper på 20 m: store kart (≥ 6 km, inkl. de nye 7–16 km) beholder
 // 20/25/50 m som aktive valg, slik at 25 og 50 m alltid er tilgjengelig:
 //   bredde <  4 km  → alle valg (5/10/20/25/50)
 //   4 ≤ bredde < 6  → min 10 m (5 m utelukket)
@@ -620,7 +620,7 @@ onMounted(() => {
                :disabled="controlsLocked"
                class="w-full accent-slate-400 disabled:opacity-50 disabled:cursor-not-allowed" />
         <div class="flex justify-between text-[10px] text-white/40 mt-1">
-          <span>1 km</span><span>4,5 km</span><span>8 km</span>
+          <span>1 km</span><span>8,5 km</span><span>16 km</span>
         </div>
       </div>
 

@@ -1,5 +1,14 @@
 # Endringslogg
 
+## 2026-07-25 — v2.3.9: Rett slider-skala i «Nytt kart» til 16 km
+
+Skala-etikettene under bredde-slideren i kart-pickeren (`/nytt`) viste fortsatt
+det gamle taket (1 / 4,5 / 8 km) etter at maks ble hevet til 16 km i v2.3.8.
+Nå viser de 1 / 8,5 / 16 km, i tråd med det slideren faktisk tillater.
+«Innstillinger»-slideren var allerede riktig (den leser MAP_SIZE_MAX_KM).
+
+---
+
 ## 2026-07-25 — v2.3.8: Større standardkart (8 km) og høyere maks (16 km)
 
 Default kartstørrelse for nye kart er hevet fra 5 til 8 km, og maks bredde fra
