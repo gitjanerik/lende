@@ -1,5 +1,18 @@
 # Endringslogg
 
+## 2026-07-25 — v2.3.8: Større standardkart (8 km) og høyere maks (16 km)
+
+Default kartstørrelse for nye kart er hevet fra 5 til 8 km, og maks bredde fra
+8 til 16 km — appen er nå responsiv nok, også på eldre mobil (testet på Samsung
+S22+), til å tåle større standardkart. Både «Innstillinger»-slideren (nye kart
+fra søk/GPS) og «Flere valg»-pickeren (`/nytt`) går nå opp til 16 km, og pickeren
+starter på 8 km. 8 km-standarden gir 20 m auto-ekvidistanse (tabellen ≥ 6 km →
+20 m), som «Nullstill»-teksten nå viser dynamisk. 16 km-kart avvises aldri — de
+faller tilbake til grovere DEM via celletaket i `createMapFlow`. Justeres ned
+igjen hvis 16 km viser seg for tregt i praksis.
+
+---
+
 ## 2026-07-24 — v2.3.7: Bedre plassering av kulturminne-toasten
 
 Toasten «N arkeologiske kulturminner i dette utsnittet» lå for lavt (`bottom-20`)

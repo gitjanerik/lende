@@ -24,7 +24,7 @@ const showInstallInfo = ref(false)    // info-tooltip toggle
 const DEFAULT_CENTER = { lat: 59.9139, lon: 10.7522, name: 'Oslo' }
 
 const center = ref({ ...DEFAULT_CENTER })
-const halfKm = ref(2.5)  // halv-bredde av bbox i km (E/V). Kart blir 2*halfKm bredt (5 km = standarden, jf. DEFAULT_MAP_WIDTH_KM)
+const halfKm = ref(4)  // halv-bredde av bbox i km (E/V). Kart blir 2*halfKm bredt (8 km = standarden, jf. DEFAULT_MAP_WIDTH_KM)
 // Skjerm-format (høyde/bredde): kartet strekkes N/S til dette så det fyller
 // fullskjerm uten letterbox (v10.1.10). Settes på mount + resize. buildMapFrom-
 // Center utleder samme aspekt selv, så previewen viser det faktiske utsnittet.
@@ -118,8 +118,8 @@ function parseShareInvite() {
   const eq = parseFloat(q.eq)
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
   center.value = { lat, lon, name: q.hl ? String(q.hl).slice(0, 60) : '' }
-  // Eldre delte lenker kan ha km opptil 12 — clamp til dagens 8 km-tak.
-  if (Number.isFinite(km) && km >= 1 && km <= 12) halfKm.value = Math.min(km, 8) / 2
+  // Eldre delte lenker kan ha km opptil 12 — clamp til dagens 16 km-tak.
+  if (Number.isFinite(km) && km >= 1 && km <= 24) halfKm.value = Math.min(km, 16) / 2
   if (Number.isFinite(eq) && [2.5, 5, 10, 20, 25, 50].includes(eq)) equidistanceM.value = eq
   format.value = 'portrait'
   // Avsenderens aspekt (clampet til fornuftig spenn). Settes ETTER format-
@@ -349,7 +349,7 @@ function onPreviewTouchMove(e) {
     const d = touchDist(e)
     const ratio = d / lastDist
     const next = halfKm.value / ratio
-    halfKm.value = Math.max(0.5, Math.min(4, next))
+    halfKm.value = Math.max(0.5, Math.min(8, next))
     lastDist = d
   } else if (panning && e.touches.length === 1 && panStart) {
     e.preventDefault()
@@ -399,7 +399,7 @@ function onPreviewWheel(e) {
   e.preventDefault()
   const delta = e.deltaY > 0 ? 1.1 : 0.9
   const next = halfKm.value * delta
-  halfKm.value = Math.max(0.5, Math.min(4, next))
+  halfKm.value = Math.max(0.5, Math.min(8, next))
 }
 
 onMounted(() => {
@@ -616,7 +616,7 @@ onMounted(() => {
           <div class="text-[11px] text-white/50 uppercase tracking-wide">Bredde</div>
           <div class="text-[13px] font-medium tabular-nums">{{ sizeKm }} km</div>
         </div>
-        <input type="range" min="0.5" max="4" step="0.25" v-model.number="halfKm"
+        <input type="range" min="0.5" max="8" step="0.25" v-model.number="halfKm"
                :disabled="controlsLocked"
                class="w-full accent-slate-400 disabled:opacity-50 disabled:cursor-not-allowed" />
         <div class="flex justify-between text-[10px] text-white/40 mt-1">
