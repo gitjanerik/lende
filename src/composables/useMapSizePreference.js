@@ -28,6 +28,11 @@ import { viewportAspect, PRINT_ASPECT } from '../lib/mapBuilder.js'
 // (gest-gating, content-visibility, måling). 5 km er største bredde som
 // beholder 10 m auto-ekvidistanse (tabellen under: ≥ 6 km → 20 m), så
 // standard-kartet får 56 % mer areal uten grovere høydekurver.
+// v2.3.8: default hevet fra 5 til 8 km og maks fra 8 til 16 km — appen er nå
+// responsiv nok (også på eldre mobil, testet på Samsung S22+) til å tåle større
+// standardkart. 8 km-default gir 20 m auto-ekvidistanse (≥ 6 km → 20 m). 16 km-
+// kart faller tilbake til grovere DEM via celletaket (createMapFlow), aldri
+// avvist. Lagrede preferanser > 16 km ugyldiggjøres i load() → faller til DEFAULT.
 //
 // Modul-nivå refs ⇒ delte singletons mellom MapHomeView (leser), MapView og
 // DrawerAboutTab (skriver).
@@ -36,10 +41,10 @@ const FORMAT_KEY = 'lende-map-format'
 const EQ_KEY = 'lende-map-eq'
 
 export const MAP_SIZE_MIN_KM = 1
-export const MAP_SIZE_MAX_KM = 8
+export const MAP_SIZE_MAX_KM = 16
 // «Standard»-bredden (km) for nye kart når brukeren ikke har valgt noe.
 // Fast kvadrat — IKKE skjerm-skalert (se v11.0.59-merknaden over).
-export const DEFAULT_MAP_WIDTH_KM = 5
+export const DEFAULT_MAP_WIDTH_KM = 8
 
 // Format-valg for nye kart — samme trippel som «Flere valg» i pickeren.
 //   'square'   → kvadrat (aspect = 1) — standard
@@ -149,8 +154,8 @@ export function effectiveEquidistanceForWidthKm(km) {
   return Math.max(chosen, min)
 }
 
-// Felles «Nullstill»-standard: 5 km bredde + 10 m ekvidistanse + kvadratisk.
-// (null-verdiene ER standarden: 5 km-default og auto-ekvidistanse for 5 km = 10 m.)
+// Felles «Nullstill»-standard: 8 km bredde + 20 m ekvidistanse + kvadratisk.
+// (null-verdiene ER standarden: 8 km-default og auto-ekvidistanse for 8 km = 20 m.)
 export function resetMapPreferences() {
   mapSizeKm.value = null
   mapFormat.value = DEFAULT_MAP_FORMAT
