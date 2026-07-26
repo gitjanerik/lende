@@ -1,5 +1,15 @@
 # Endringslogg
 
+## 2026-07-26 — v2.3.11: Eget invitt-banner for delt rundtur
+
+Når noen åpner en delt rundtur i kart-pickeren, viste banneret samme tekst som
+for et vanlig delt kart («Noen har delt et kart med deg!»). Nå fremhever
+banneret at det er et turforslag som er delt («Noen har delt et turforslag med
+deg!») og at kartet kommer med rundturen tegnet inn og klar til å følges.
+Stedsdeling og vanlig kartdeling beholder sine egne tekster.
+
+---
+
 ## 2026-07-26 — v2.3.10: Del rundtur
 
 «Gå en runde herfra» kunne ikke deles slik man deler «Del kart og sted». Nå har

@@ -474,7 +474,9 @@ onMounted(() => {
         </div>
         <div class="flex-1 min-w-0">
           <div class="text-[13px] font-semibold text-sky-100">
-            {{ shareInvite.hasPlace ? t('share.invite.titlePlace') : t('share.invite.title') }}
+            {{ shareInvite.hasRoundTrip ? t('share.invite.titleRoundTrip')
+               : shareInvite.hasPlace ? t('share.invite.titlePlace')
+               : t('share.invite.title') }}
           </div>
           <div v-if="shareInvite.hl" class="text-[11px] text-sky-100/75 truncate">
             {{ t('share.invite.marking', { name: shareInvite.hl }) }}
@@ -482,7 +484,9 @@ onMounted(() => {
         </div>
       </div>
       <div class="mt-2 text-[11px] text-white/70 leading-relaxed">
-        {{ shareInvite.hasPlace ? t('share.invite.bodyPlace') : t('share.invite.body') }}
+        {{ shareInvite.hasRoundTrip ? t('share.invite.bodyRoundTrip')
+           : shareInvite.hasPlace ? t('share.invite.bodyPlace')
+           : t('share.invite.body') }}
       </div>
 
       <!-- v9.1.x: Install-hint. Vises kun når appen IKKE alt kjører som PWA

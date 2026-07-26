@@ -32,8 +32,10 @@ const no = {
   // ── Del-kart-banner (shareInvite — mottaker av et delt kart) ───────
   'share.invite.title': 'Noen har delt et kart med deg!',
   'share.invite.titlePlace': 'Noen har delt et kart og et sted med deg!',
+  'share.invite.titleRoundTrip': 'Noen har delt et turforslag med deg!',
   'share.invite.body': 'Trykk «Lag turkart», så får du en nøyaktig kopi. God tur!',
   'share.invite.bodyPlace': 'Trykk «Lag turkart» — du får en nøyaktig kopi med stedet markert. Utsnittet er låst så stedet ikke går tapt.',
+  'share.invite.bodyRoundTrip': 'Trykk «Lag turkart» — du får samme kart med rundturen tegnet inn og klar til å følges. God tur!',
   'share.invite.marking': 'Markering: {name}',
   'share.invite.cancel': 'Avbryt delt kart',
   'share.invite.installCheckbox': 'Installer kartappen for en bedre opplevelse',
@@ -54,8 +56,10 @@ const no = {
 const en = {
   'share.invite.title': 'Someone shared a map with you!',
   'share.invite.titlePlace': 'Someone shared a map and a place with you!',
+  'share.invite.titleRoundTrip': 'Someone shared a route suggestion with you!',
   'share.invite.body': 'Tap «Generate map» to get an exact copy. Enjoy the trip!',
   'share.invite.bodyPlace': 'Tap «Generate map» to get an exact copy with the place marked. The map area is locked so the place is never lost.',
+  'share.invite.bodyRoundTrip': 'Tap «Generate map» to get the same map with the round trip drawn in, ready to follow. Enjoy the trip!',
   'share.invite.marking': 'Marking: {name}',
   'share.invite.cancel': 'Dismiss shared map',
   'share.invite.installCheckbox': 'Install the map app for a better experience',
