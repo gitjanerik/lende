@@ -29,7 +29,7 @@ export function useMapLoadPipeline(deps) {
     forcedVisibleNameEls, labelBoxCache, resetPrevShownNames,
     renderGhostTiles, renderExtendZones, renderAnnotations, renderTracks,
     renderMeasure, renderProximityTarget, refreshAutoTileCount,
-    computePoiAvailability, maybeHighlightFromQuery, mapSearch,
+    computePoiAvailability, maybeHighlightFromQuery, maybeRestoreRoundTripFromQuery, mapSearch,
     annot, tracker, sti, userPos, restoreProximityAlert,
     detachedDetailLayers, showAutoMapToast, armAutoMap,
     reliefStepIndex, FRESH_RELIEF_MIN_IDX,
@@ -414,6 +414,8 @@ export function useMapLoadPipeline(deps) {
       applyViewportCull(true)
       // Auto-highlight hvis ?hl=<navn> i URL (delings-flow).
       maybeHighlightFromQuery()
+      // Gjenskap delt rundtur hvis ?olat=&olon=&rtv= i URL (delings-flow).
+      maybeRestoreRoundTripFromQuery?.()
       svg.classList.remove('lod-pending')
       // Fullfør render-perf-linjen fra loadMap: paint = t0 → første malte frame,
       // indeks = getBBox-passene over. Node-tallet (live collection, billig

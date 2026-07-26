@@ -134,11 +134,21 @@ function parseShareInvite() {
   const slat = parseFloat(q.slat)
   const slon = parseFloat(q.slon)
   const hasPlace = Number.isFinite(slat) && Number.isFinite(slon)
+  // «Del rundtur»: olat/olon (origo) + rtv (vendepunkt) + ri (valgt rute).
+  // Forwardes til MapView så mottakeren gjenskaper rundturen på kartet.
+  const olat = parseFloat(q.olat)
+  const olon = parseFloat(q.olon)
+  const hasRoundTrip = Number.isFinite(olat) && Number.isFinite(olon) && !!q.rtv
   return {
     hl: q.hl ? String(q.hl).slice(0, 60) : null,
     slat: hasPlace ? slat : null,
     slon: hasPlace ? slon : null,
     hasPlace,
+    hasRoundTrip,
+    olat: hasRoundTrip ? olat : null,
+    olon: hasRoundTrip ? olon : null,
+    rtv: hasRoundTrip ? String(q.rtv) : null,
+    ri: hasRoundTrip && q.ri != null ? String(q.ri) : null,
   }
 }
 
@@ -254,10 +264,16 @@ async function generateMap() {
     // utfordrings-share).
     const nav = { name: 'kart-vis', params: { id } }
     const inv = shareInvite.value
-    if (inv?.hl || inv?.hasPlace) {
+    if (inv?.hl || inv?.hasPlace || inv?.hasRoundTrip) {
       nav.query = {}
       if (inv.hl) nav.query.hl = inv.hl
       if (inv.hasPlace) { nav.query.slat = String(inv.slat); nav.query.slon = String(inv.slon) }
+      if (inv.hasRoundTrip) {
+        nav.query.olat = String(inv.olat)
+        nav.query.olon = String(inv.olon)
+        nav.query.rtv = inv.rtv
+        if (inv.ri != null) nav.query.ri = inv.ri
+      }
     }
     router.push(nav)
   } catch (e) {
