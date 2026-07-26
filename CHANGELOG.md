@@ -1,5 +1,18 @@
 # Endringslogg
 
+## 2026-07-26 — v2.3.10: Del rundtur
+
+«Gå en runde herfra» kunne ikke deles slik man deler «Del kart og sted». Nå har
+den grønne «Følger rundtur»-boksen en liten «Del rundtur»-knapp som lager en
+delings-lenke via samme mekanikk som stedsdeling (native share-sheet på mobil,
+kopier-til-utklippstavle på desktop). Lenken bærer kart-utsnittet pluss
+rundturens origo og vendepunkt(er) som eksakte koordinater, så mottakeren får
+opp samme kart og lander i samme modus — rundturen er tegnet inn og markert.
+Ruten deles parametrisk (origo + vendepunkt + valgt rute-indeks) og re-planlegges
+hos mottakeren, akkurat som kart-utsnittet regenereres, så URL-en holder seg liten.
+
+---
+
 ## 2026-07-25 — v2.3.9: Rett slider-skala i «Nytt kart» til 16 km
 
 Skala-etikettene under bredde-slideren i kart-pickeren (`/nytt`) viste fortsatt

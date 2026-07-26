@@ -1918,7 +1918,7 @@ const shareInfo = computed(() => {
   return { lat, lon, sizeKm, equidistanceM }
 })
 
-function buildShareUrl(place = null) {
+function buildShareUrl(place = null, extraParams = null) {
   if (!shareInfo.value) return null
   const base = `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, '')}`
   const id = route.params.id ?? 'vardasen'
@@ -1928,6 +1928,13 @@ function buildShareUrl(place = null) {
     if (place.name) params.set('hl', place.name)
     params.set('slat', place.lat.toFixed(6))
     params.set('slon', place.lon.toFixed(6))
+  }
+  // Ekstra params (f.eks. rundtur: olat/olon/rtv/ri) — appendes både på
+  // innebygd-kart-URL-en og lagret-kart-URL-en, så mottaker-parsingen er lik.
+  if (extraParams) {
+    for (const [k, v] of Object.entries(extraParams)) {
+      if (v != null && v !== '') params.set(k, String(v))
+    }
   }
   if (isBuiltin) {
     // Built-in: del direkte view-URL — mottaker ser nøyaktig samme kart.
@@ -2062,6 +2069,62 @@ function maybeHighlightFromQuery() {
     panTo(match.x, match.y, { vbWidth: meta.value.widthM, vbHeight: meta.value.heightM, targetScale: zoomNearThreshold.value })
   }
   renderHighlight()
+}
+
+// «Del rundtur» — deler den aktive Stifinner-rundturen slik «Del kart og sted»
+// deler et sted. Rundturen beregnes deterministisk fra origo (start == mål) +
+// vendepunkt(er), så vi deler kun de punktene + valgt rute-indeks (som eksakte
+// WGS84-koordinater oppå det vanlige kart-utsnittet). Mottakeren re-planlegger
+// mot sitt eget (identiske) kart og lander i samme «Følger rundtur»-modus.
+function onShareRoundTrip() {
+  if (!meta.value || !sti.start.value || !sti.via.value.length) return
+  const o = svgToWgs84(sti.start.value.svgX, sti.start.value.svgY, meta.value)
+  const rtv = sti.via.value
+    .map((v) => {
+      const w = svgToWgs84(v.svgX, v.svgY, meta.value)
+      return `${w.lat.toFixed(6)},${w.lon.toFixed(6)}`
+    })
+    .join(';')
+  const extra = {
+    olat: o.lat.toFixed(6),
+    olon: o.lon.toFixed(6),
+    rtv,
+    ri: sti.selectedRouteIdx.value,
+  }
+  performShare(
+    buildShareUrl(null, extra),
+    mapTitle.value || 'Lende — turkart',
+    `${mapTitle.value} — rundtur`,
+  )
+}
+
+// Mottaker-side: gjenskap en delt rundtur fra ?olat=&olon=&rtv=&ri=. Kjøres
+// etter at kartet er rendret (svg-paths finnes), så Stifinner kan lese ruting-
+// grafen. Driver den ekte modus-maskinen (beginLoop → confirmVia → follow) så
+// resultatet er identisk med at avsenderen selv la inn rundturen.
+function maybeRestoreRoundTripFromQuery() {
+  const olat = parseFloat(route.query.olat)
+  const olon = parseFloat(route.query.olon)
+  if (!Number.isFinite(olat) || !Number.isFinite(olon) || !meta.value) return
+  const svg = svgHostRef.value?.querySelector('svg')
+  if (!svg) return
+
+  const viaPts = String(route.query.rtv ?? '')
+    .split(';')
+    .map((s) => s.split(',').map(parseFloat))
+    .filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon))
+  if (!viaPts.length) return
+
+  const origin = wgs84ToSvg(olat, olon, meta.value)
+  sti.beginLoop({ svgX: origin.x, svgY: origin.y })
+  for (const [lat, lon] of viaPts.slice(0, sti.MAX_VIA)) {
+    const p = wgs84ToSvg(lat, lon, meta.value)
+    sti.confirmVia({ x: p.x, y: p.y }, svg)
+  }
+  const ri = parseInt(route.query.ri, 10)
+  if (Number.isFinite(ri)) sti.selectRoute(ri)
+  sti.follow()   // no-op hvis ruting feilet — banneret viser da feilen
+  renderRoutes()
 }
 
 // GPS-spor — opptak + rendering av rutene brukeren går (v8.9.2)
@@ -2921,7 +2984,7 @@ const { loadMap, retryMapDetails } = useMapLoadPipeline({
   forcedVisibleNameEls, labelBoxCache, resetPrevShownNames,
   renderGhostTiles, renderExtendZones, renderAnnotations, renderTracks,
   renderMeasure, renderProximityTarget, refreshAutoTileCount,
-  computePoiAvailability, maybeHighlightFromQuery, mapSearch,
+  computePoiAvailability, maybeHighlightFromQuery, maybeRestoreRoundTripFromQuery, mapSearch,
   annot, tracker, sti, userPos, restoreProximityAlert,
   detachedDetailLayers, showAutoMapToast, armAutoMap,
   reliefStepIndex, FRESH_RELIEF_MIN_IDX,
@@ -3573,6 +3636,7 @@ onUnmounted(() => {
       :measure-closed="measureClosed"
       :measure-stats="measureStats"
       :sti="sti"
+      :share-state="shareState"
       :sti-elevation-diff-m="stiElevationDiffM"
       :sti-route-climbs="stiRouteClimbs"
       :sti-selected-climb="stiSelectedClimb"
@@ -3587,6 +3651,7 @@ onUnmounted(() => {
       @cancel-stifinner="onCancelStifinner"
       @follow-route="onFollowRoute"
       @stop-following="onStopFollowing"
+      @share-round-trip="onShareRoundTrip"
       @start-gps="startPositioning" />
 
     <!-- Status/feil-overlays: lasting, last-feil, posisjons-status,

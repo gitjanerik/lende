@@ -23,14 +23,23 @@ const props = defineProps({
   stiRouteClimbs: { type: Array, default: () => [] },
   stiSelectedClimb: { type: Object, default: null },
   stiProgress: { type: Object, default: null },
+  shareState: { type: String, default: 'idle' },
   gpsWatching: { type: Boolean, default: false },
   proximity: { type: Object, required: true },
 })
 defineEmits([
   'clearHighlight', 'stopMeasure',
   'selectRoute', 'removeVia', 'beginAddVia', 'cancelStifinner',
-  'followRoute', 'stopFollowing', 'startGps',
+  'followRoute', 'stopFollowing', 'shareRoundTrip', 'startGps',
 ])
+
+// «Del rundtur»-knappens tekst følger delings-tilstanden (native share-sheet
+// på mobil, clipboard-fallback på desktop) — samme mønster som drawer-knappene.
+const shareLabel = computed(() => ({
+  sharing: 'Deler …',
+  copied: 'Lenke kopiert ✓',
+  error: 'Kunne ikke dele',
+}[props.shareState] ?? 'Del rundtur'))
 
 // Følg rute-panelet: minimert pill som standard; utvid for detaljer/fremdrift.
 const followExpanded = ref(false)
@@ -339,15 +348,29 @@ function formatElevationDiff(m) {
           </svg>
           Slå på GPS for fremdrift
         </button>
-        <button @click="$emit('stopFollowing')"
-                class="mt-1.5 flex items-center gap-1 bg-white/15 rounded px-1.5 py-0.5
-                       text-[10px] font-medium active:scale-95">
-          <svg viewBox="0 0 24 24" class="w-3 h-3" fill="none" stroke="currentColor"
-               stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="15 18 9 12 15 6"/>
-          </svg>
-          Til forslag
-        </button>
+        <div class="flex flex-wrap items-center gap-1 mt-1.5">
+          <button @click="$emit('stopFollowing')"
+                  class="flex items-center gap-1 bg-white/15 rounded px-1.5 py-0.5
+                         text-[10px] font-medium active:scale-95">
+            <svg viewBox="0 0 24 24" class="w-3 h-3" fill="none" stroke="currentColor"
+                 stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            Til forslag
+          </button>
+          <!-- «Del rundtur»: deler rundturen så mottakeren får samme kart og
+               lander i samme «Følger rundtur»-modus. -->
+          <button @click="$emit('shareRoundTrip')" :aria-label="shareLabel"
+                  class="flex items-center gap-1 bg-white/15 rounded px-1.5 py-0.5
+                         text-[10px] font-medium active:scale-95 tabular-nums">
+            <svg viewBox="0 0 24 24" class="w-3 h-3 shrink-0" fill="none" stroke="currentColor"
+                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+              <line x1="8.6" y1="10.5" x2="15.4" y2="6.5"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/>
+            </svg>
+            {{ shareLabel }}
+          </button>
+        </div>
       </div>
       <div class="flex flex-col shrink-0">
         <button @click="followExpanded = false" aria-label="Minimer"
