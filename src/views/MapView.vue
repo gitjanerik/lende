@@ -3367,7 +3367,7 @@ onUnmounted(() => {
 
 <template>
   <div class="kart-ui relative w-full h-[100dvh] overflow-hidden"
-       :class="isDark ? 'bg-zinc-900' : 'bg-stone-100'">
+       :class="isDark ? 'bg-surface' : 'bg-stone-100'">
 
     <!-- Toppbar. v8.7.1: skjult i Curve Invaders-modus — den lå tidligere
          halvveis bak game-HUD-en, og hamburger-knappen i høyre hjørne var
@@ -3388,25 +3388,25 @@ onUnmounted(() => {
 
       <button v-if="canRenameMap" @click="openRename"
               aria-label="Gi kart nytt navn"
-              class="pointer-events-auto px-3 py-1.5 rounded-full bg-zinc-950
-                     text-[12px] text-white font-medium shadow-lg max-w-[42%]
+              class="pointer-events-auto px-3 py-1.5 rounded-full bg-overlay
+                     text-[12px] text-ink font-medium shadow-lg max-w-[42%]
                      flex items-center gap-1.5 active:scale-95 transition">
         <span class="truncate">{{ mapTitle }}</span>
-        <svg viewBox="0 0 24 24" class="w-3 h-3 shrink-0 text-white/50" fill="none"
+        <svg viewBox="0 0 24 24" class="w-3 h-3 shrink-0 text-ink/50" fill="none"
              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 20h9"/>
           <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
         </svg>
       </button>
-      <div v-else class="pointer-events-none px-3 py-1.5 rounded-full bg-zinc-950
-                  text-[12px] text-white font-medium shadow-lg max-w-[42%] truncate">
+      <div v-else class="pointer-events-none px-3 py-1.5 rounded-full bg-overlay
+                  text-[12px] text-ink font-medium shadow-lg max-w-[42%] truncate">
         {{ mapTitle }}
       </div>
 
       <div class="flex items-center gap-2 pointer-events-auto">
         <button @click="openSearch" aria-label="Søk i kart"
                 class="rounded-full w-10 h-10 flex items-center justify-center
-                       bg-zinc-950 text-white shadow-lg active:scale-95 transition">
+                       bg-overlay text-ink shadow-lg active:scale-95 transition">
           <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.4"
                stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="7"/>
@@ -3415,7 +3415,7 @@ onUnmounted(() => {
         </button>
         <button @click="openDrawer" aria-label="Innstillinger"
                 class="rounded-full w-10 h-10 flex items-center justify-center
-                       bg-zinc-950 text-white shadow-lg active:scale-95 transition">
+                       bg-overlay text-ink shadow-lg active:scale-95 transition">
           <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
                stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"/>
@@ -3436,7 +3436,7 @@ onUnmounted(() => {
                 transition-[left] duration-200"
          :style="mapCenterStyle">
       <div class="pointer-events-auto flex items-stretch gap-1 px-1.5 py-1.5 rounded-2xl
-                  bg-zinc-950/90 backdrop-blur shadow-lg">
+                  bg-overlay/90 backdrop-blur shadow-lg">
         <button @click="onShortcutStifinner" class="shortcut-btn" aria-label="Stifinner">
           <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
                stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
@@ -3497,16 +3497,16 @@ onUnmounted(() => {
          :style="floatRightStyle">
       <div v-if="compass.error"
            class="text-[10px] text-red-300 mt-1 max-w-[80px] text-right leading-tight
-                  px-1.5 py-0.5 rounded bg-zinc-950">
+                  px-1.5 py-0.5 rounded bg-overlay">
         {{ compass.error }}
       </div>
       <!-- Rotasjons-slider (kun desktop/uten touch — touch roterer med to fingre).
            −180…180°, midtstilt = 0 (kart-nord opp). Roterer rundt viewport-senter.
            Dobbeltklikk = nullstill til nord. -->
       <div v-if="!hasTouch"
-           class="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-950
+           class="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-overlay
                   shadow-lg select-none">
-        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-white/55 shrink-0" fill="none"
+        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-ink/55 shrink-0" fill="none"
              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v5h-5"/>
         </svg>
@@ -3514,7 +3514,7 @@ onUnmounted(() => {
                @input="onRotateSlider" @dblclick="rotateTo(0)"
                aria-label="Roter kartet (dobbeltklikk = nullstill til nord)"
                class="w-24 accent-sky-400 cursor-pointer" />
-        <span class="text-[10px] text-white/55 tabular-nums w-9 text-right">{{ rotationSliderDeg }}°</span>
+        <span class="text-[10px] text-ink/55 tabular-nums w-9 text-right">{{ rotationSliderDeg }}°</span>
       </div>
       <!-- Tekststørrelse-slider (kun desktop, søsken til rotasjons-sliden).
            −100…100 med midtstilt = normal (100%); skala 0.5×…2.0×. Brukeren
@@ -3522,9 +3522,9 @@ onUnmounted(() => {
            høyde, stedsnavn, naturreservat, vann osv). Dobbeltklikk = normal.
            På mobil vises ingen slider — pinch holder til zoom. -->
       <div v-if="!hasTouch"
-           class="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-950
+           class="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-overlay
                   shadow-lg select-none">
-        <svg viewBox="0 0 28 24" class="w-4 h-3.5 text-white/55 shrink-0" fill="currentColor">
+        <svg viewBox="0 0 28 24" class="w-4 h-3.5 text-ink/55 shrink-0" fill="currentColor">
           <text x="0" y="20" font-size="12" font-weight="800" font-family="ui-sans-serif, sans-serif">A</text>
           <text x="11" y="20" font-size="20" font-weight="800" font-family="ui-sans-serif, sans-serif">A</text>
         </svg>
@@ -3532,7 +3532,7 @@ onUnmounted(() => {
                v-model.number="labelScaleSlider" @dblclick="labelScaleSlider = 0"
                aria-label="Tekststørrelse på kart-etiketter (dobbeltklikk = normal)"
                class="w-24 accent-sky-400 cursor-pointer" />
-        <span class="text-[10px] text-white/55 tabular-nums w-9 text-right">{{ labelScalePct }}%</span>
+        <span class="text-[10px] text-ink/55 tabular-nums w-9 text-right">{{ labelScalePct }}%</span>
       </div>
     </div>
 
@@ -3556,8 +3556,8 @@ onUnmounted(() => {
       <Transition name="hint-fade">
         <div v-if="knobHint"
              class="absolute right-14 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg
-                    bg-zinc-950/95 text-white text-[11px] font-medium leading-tight shadow-lg
-                    whitespace-nowrap pointer-events-none border border-white/10">
+                    bg-overlay/95 text-ink text-[11px] font-medium leading-tight shadow-lg
+                    whitespace-nowrap pointer-events-none border border-ink/10">
           {{ knobHint }}
         </div>
       </Transition>
@@ -3573,7 +3573,7 @@ onUnmounted(() => {
       <button @pointerdown="knobDown('center')" @pointerup="knobUp('center')"
               @pointercancel="knobUp('center')"
               :aria-label="userPos.isWatching ? 'Sentrer og nord opp + oppdater GPS — hold for innstillinger' : 'Sentrer og nord opp — hold for innstillinger'"
-              class="w-12 h-12 rounded-full bg-zinc-950 text-white shadow-lg touch-none
+              class="w-12 h-12 rounded-full bg-overlay text-ink shadow-lg touch-none
                      flex items-center justify-center active:scale-95 transition relative">
         <svg viewBox="-50 -50 100 100" class="w-8 h-8"
              :style="{ transform: compass.isActive && compass.headingDeg !== null
@@ -3595,7 +3595,7 @@ onUnmounted(() => {
       <button @pointerdown="knobDown('stroke')" @pointerup="knobUp('stroke')"
               @pointercancel="knobUp('stroke')"
               aria-label="Strektykkelse — tap for å justere, hold for innstillinger"
-              class="w-12 h-12 rounded-full bg-zinc-950 text-white shadow-lg touch-none
+              class="w-12 h-12 rounded-full bg-overlay text-ink shadow-lg touch-none
                      flex items-center justify-center active:scale-95 transition">
         <svg viewBox="0 0 24 24" class="w-7 h-7" fill="none">
           <path :d="knobTrackD" stroke="currentColor" stroke-width="2"
@@ -3612,7 +3612,7 @@ onUnmounted(() => {
       <button @pointerdown="knobDown('relief')" @pointerup="knobUp('relief')"
               @pointercancel="knobUp('relief')"
               aria-label="Relieff-styrke — tap for å justere, hold for innstillinger"
-              class="w-12 h-12 rounded-full bg-zinc-950 text-white shadow-lg touch-none
+              class="w-12 h-12 rounded-full bg-overlay text-ink shadow-lg touch-none
                      flex items-center justify-center active:scale-95 transition"
               :class="reliefActive ? '' : 'opacity-40'">
         <svg viewBox="0 0 24 24" class="w-7 h-7" fill="none">
@@ -3691,7 +3691,7 @@ onUnmounted(() => {
                       : sti.mode.value === 'pickingDest' ? onConfirmDest()
                       : sti.mode.value === 'pickingOrigin' ? onConfirmLoopOrigin()
                       : onConfirmStart()"
-              class="px-5 py-3 rounded-full text-white text-[14px] font-semibold
+              class="px-5 py-3 rounded-full text-ink text-[14px] font-semibold
                      shadow-lg active:scale-95 flex items-center gap-2"
               :class="sti.mode.value === 'pickingVia' ? 'bg-amber-500' : 'bg-emerald-600'">
         <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
@@ -3782,10 +3782,10 @@ onUnmounted(() => {
          panel (som illustrasjons-sporet). Mobil: dragbart bunn-ark. -->
     <Transition :name="isDesktop ? 'drawer-side' : 'drawer'">
       <div v-if="showControls"
-           :class="['absolute z-30 backdrop-blur-md bg-zinc-900/92 flex flex-col shadow-2xl',
+           :class="['absolute z-30 backdrop-blur-md bg-surface/92 flex flex-col shadow-2xl',
                     isDesktop
-                      ? 'top-0 right-0 bottom-0 border-l border-white/10'
-                      : 'inset-x-0 bottom-0 border-t border-white/10 rounded-t-2xl']"
+                      ? 'top-0 right-0 bottom-0 border-l border-ink/10'
+                      : 'inset-x-0 bottom-0 border-t border-ink/10 rounded-t-2xl']"
            :style="isDesktop
                      ? { width: panel.width.value + 'px', transition: panel.isResizing.value ? 'none' : undefined }
                      : drawer.drawerHeightStyle.value">
@@ -3793,7 +3793,7 @@ onUnmounted(() => {
         <div v-if="isDesktop"
              class="absolute left-0 top-0 bottom-0 w-1.5 -ml-0.5 z-10 cursor-col-resize group"
              @pointerdown="panel.onResizeStart($event)">
-          <div class="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-white/10
+          <div class="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-ink/10
                       group-hover:bg-sky-400/60 transition-colors"
                :class="panel.isResizing.value ? 'bg-sky-400/80' : ''"></div>
         </div>
@@ -3804,16 +3804,16 @@ onUnmounted(() => {
              @pointerup="isDesktop || drawer.onPointerUp($event)"
              @pointercancel="isDesktop || drawer.onPointerUp($event)">
           <div v-if="!isDesktop" class="pt-3.5 pb-2 flex justify-center">
-            <div class="w-12 h-1.5 rounded-full bg-white/40"
+            <div class="w-12 h-1.5 rounded-full bg-ink/40"
                  :style="{ opacity: drawer.handleOpacity.value }"></div>
           </div>
           <div class="px-4 pb-2 flex items-center justify-between"
                :class="isDesktop ? 'pt-3' : ''">
-            <div class="text-white text-sm font-semibold">Innstillinger</div>
+            <div class="text-ink text-sm font-semibold">Innstillinger</div>
             <div class="flex items-center gap-1">
               <button @pointerdown.stop @click.stop="closeDrawer"
                       class="w-8 h-8 -mr-1 rounded-full flex items-center justify-center
-                             text-white/70 active:bg-white/10">
+                             text-ink/70 active:bg-ink/10">
                 <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -3828,7 +3828,7 @@ onUnmounted(() => {
              global tekststørrelse (zoom) som fanene og fane-innholdet under. -->
         <div class="shrink-0 px-4 pb-2 grid grid-cols-3 gap-1.5" :style="{ zoom: uiTextScale }">
           <button @click="router.push('/tegnforklaring')"
-                  class="px-2 py-2 rounded-lg bg-white/5 border border-white/10 text-white/80
+                  class="px-2 py-2 rounded-lg bg-ink/5 border border-ink/10 text-ink/80
                          text-[11px] font-medium active:scale-[0.98] flex flex-col items-center gap-1">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -3843,8 +3843,8 @@ onUnmounted(() => {
                   class="px-2 py-2 rounded-lg border text-[11px] font-medium active:scale-[0.98]
                          flex flex-col items-center gap-1"
                   :class="userPos.isWatching
-                          ? 'bg-sky-500/20 border-sky-400/50 text-white'
-                          : 'bg-white/5 border-white/10 text-white/80'">
+                          ? 'bg-sky-500/20 border-sky-400/50 text-ink'
+                          : 'bg-ink/5 border-ink/10 text-ink/80'">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="10" r="3"/>
@@ -3856,8 +3856,8 @@ onUnmounted(() => {
                   class="px-2 py-2 rounded-lg border text-[11px] font-medium active:scale-[0.98]
                          flex flex-col items-center gap-1"
                   :class="compass.isActive
-                          ? 'bg-sky-500/20 border-sky-400/50 text-white'
-                          : 'bg-white/5 border-white/10 text-white/80'">
+                          ? 'bg-sky-500/20 border-sky-400/50 text-ink'
+                          : 'bg-ink/5 border-ink/10 text-ink/80'">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="9"/>
@@ -3874,7 +3874,7 @@ onUnmounted(() => {
              og disables i hver ende. Skjult når skuffen er minimert (v11.0.61)
              så minimert-peeken viser kun håndtak + tittel + hurtigvalg. -->
         <div v-show="!drawer.isMinimized.value"
-             class="shrink-0 mx-4 mb-2 flex items-stretch border-b border-white/10"
+             class="shrink-0 mx-4 mb-2 flex items-stretch border-b border-ink/10"
              :style="{ zoom: uiTextScale }">
           <!-- Pil venstre -->
           <button type="button" @click="scrollTabs(-1)"
@@ -3882,8 +3882,8 @@ onUnmounted(() => {
                   aria-label="Vis faner til venstre"
                   class="shrink-0 px-1 flex items-center transition-colors"
                   :class="canScrollTabsLeft
-                          ? 'text-white/70 active:scale-90 cursor-pointer'
-                          : 'text-white/15 cursor-default'">
+                          ? 'text-ink/70 active:scale-90 cursor-pointer'
+                          : 'text-ink/15 cursor-default'">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="15 18 9 12 15 6"/>
@@ -3898,8 +3898,8 @@ onUnmounted(() => {
                     class="px-3 py-2.5 text-[10px] uppercase tracking-wider whitespace-nowrap shrink-0
                            transition-colors"
                     :class="activeTab === tab.key
-                            ? 'text-white border-b-2 border-slate-200'
-                            : 'text-white/40'">
+                            ? 'text-ink border-b-2 border-slate-200'
+                            : 'text-ink/40'">
               {{ tab.label }}
             </button>
           </div>
@@ -3910,8 +3910,8 @@ onUnmounted(() => {
                   aria-label="Vis faner til høyre"
                   class="shrink-0 px-1 flex items-center transition-colors"
                   :class="canScrollTabsRight
-                          ? 'text-white/70 active:scale-90 cursor-pointer'
-                          : 'text-white/15 cursor-default'">
+                          ? 'text-ink/70 active:scale-90 cursor-pointer'
+                          : 'text-ink/15 cursor-default'">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="9 18 15 12 9 6"/>
@@ -4136,11 +4136,11 @@ onUnmounted(() => {
     <Transition name="chip-fade">
       <div v-if="buildingOnTheFly && !searchOpen"
            class="absolute top-[var(--ovl-top)] left-1/2 -translate-x-1/2 z-[60] px-3 py-1.5 rounded-2xl
-                  bg-zinc-950/90 text-white text-[12px] font-medium shadow-lg backdrop-blur
-                  flex items-center gap-2 pointer-events-none border border-white/10 max-w-[85%]
+                  bg-overlay/90 text-ink text-[12px] font-medium shadow-lg backdrop-blur
+                  flex items-center gap-2 pointer-events-none border border-ink/10 max-w-[85%]
                   transition-[left] duration-200"
            :style="mapCenterStyle">
-        <span class="w-3.5 h-3.5 rounded-full border-2 border-white/25 border-t-white/80 animate-spin shrink-0"></span>
+        <span class="w-3.5 h-3.5 rounded-full border-2 border-ink/25 border-t-ink/80 animate-spin shrink-0"></span>
         <span class="truncate">{{ buildingProgress || 'Oppretter kart …' }}</span>
       </div>
     </Transition>
@@ -4167,7 +4167,7 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 .shortcut-btn:active { transform: scale(0.94); }
-.shortcut-btn:hover { background: rgba(255, 255, 255, 0.08); }
+.shortcut-btn:hover { background: color-mix(in oklab, var(--color-ink) 8%, transparent); }
 
 .drawer-enter-active, .drawer-leave-active { transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
 .drawer-enter-from, .drawer-leave-to       { transform: translateY(100%); }

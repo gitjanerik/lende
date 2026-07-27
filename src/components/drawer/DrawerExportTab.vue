@@ -60,42 +60,42 @@ defineProps({
       <span class="font-medium">Del kart og sted</span>
     </button>
     <div v-if="highlightedFeature"
-         class="text-[10px] text-white/55 leading-snug mb-3 px-1 -mt-1">
+         class="text-[10px] text-ink/55 leading-snug mb-3 px-1 -mt-1">
       Markert sted: <span class="text-pink-300 font-medium">{{ highlightedFeature.name }}</span>.
       Mottakeren ser samme markering, og utsnittet er låst så stedet ikke går tapt.
     </div>
 
     <div class="grid grid-cols-2 gap-2 mb-3">
       <button @click="onExportSvg" :disabled="!!exporting"
-              class="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white/75
+              class="px-3 py-2 rounded-lg bg-ink/5 border border-ink/10 text-ink/75
                      text-[11px] active:scale-[0.98] disabled:opacity-50
                      flex items-center justify-center gap-1.5">
         <span v-if="exporting === 'svg'"
-              class="w-3 h-3 rounded-full border-2 border-white/25 border-t-white/80 animate-spin shrink-0"></span>
+              class="w-3 h-3 rounded-full border-2 border-ink/25 border-t-ink/80 animate-spin shrink-0"></span>
         {{ exporting === 'svg' ? 'Lagrer …' : 'Lagre .svg' }}
       </button>
       <button @click="onExportPng" :disabled="!!exporting"
-              class="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white/75
+              class="px-3 py-2 rounded-lg bg-ink/5 border border-ink/10 text-ink/75
                      text-[11px] active:scale-[0.98] disabled:opacity-50
                      flex items-center justify-center gap-1.5">
         <span v-if="exporting === 'png'"
-              class="w-3 h-3 rounded-full border-2 border-white/25 border-t-white/80 animate-spin shrink-0"></span>
+              class="w-3 h-3 rounded-full border-2 border-ink/25 border-t-ink/80 animate-spin shrink-0"></span>
         {{ exporting === 'png' ? 'Lager PNG …' : 'Lagre .png (300 dpi)' }}
       </button>
       <button @click="onExportPdf" :disabled="!!exporting"
-              class="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white/75
+              class="px-3 py-2 rounded-lg bg-ink/5 border border-ink/10 text-ink/75
                      text-[11px] active:scale-[0.98] disabled:opacity-50
                      flex items-center justify-center gap-1.5">
         <span v-if="exporting === 'pdf'"
-              class="w-3 h-3 rounded-full border-2 border-white/25 border-t-white/80 animate-spin shrink-0"></span>
+              class="w-3 h-3 rounded-full border-2 border-ink/25 border-t-ink/80 animate-spin shrink-0"></span>
         {{ exporting === 'pdf' ? 'Lager PDF …' : 'Lagre som PDF' }}
       </button>
       <button @click="onPrint" :disabled="!!exporting"
-              class="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white/75
+              class="px-3 py-2 rounded-lg bg-ink/5 border border-ink/10 text-ink/75
                      text-[11px] active:scale-[0.98] disabled:opacity-50
                      flex items-center justify-center gap-1.5">
         <span v-if="exporting === 'print'"
-              class="w-3 h-3 rounded-full border-2 border-white/25 border-t-white/80 animate-spin shrink-0"></span>
+              class="w-3 h-3 rounded-full border-2 border-ink/25 border-t-ink/80 animate-spin shrink-0"></span>
         {{ exporting === 'print' ? 'Forbereder …' : 'Skriv ut' }}
       </button>
     </div>

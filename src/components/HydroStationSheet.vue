@@ -61,28 +61,28 @@ function onOpenNve() {
          class="absolute inset-0 z-40 flex items-end justify-center transition-colors duration-200"
          :class="drawer.isMaximized.value ? 'bg-black/60' : 'bg-transparent pointer-events-none'"
          @click.self="$emit('close')">
-      <div class="w-full bg-zinc-900 border-t border-sky-400/20 rounded-t-2xl flex flex-col pointer-events-auto"
+      <div class="w-full bg-surface border-t border-sky-400/20 rounded-t-2xl flex flex-col pointer-events-auto"
            :style="drawer.drawerHeightStyle.value">
         <div class="shrink-0 touch-none cursor-grab active:cursor-grabbing pt-3.5 pb-3 flex justify-center"
              @pointerdown="drawer.onPointerDown($event)"
              @pointermove="drawer.onPointerMove($event)"
              @pointerup="drawer.onPointerUp($event)"
              @pointercancel="drawer.onPointerUp($event)">
-          <div class="w-12 h-1.5 rounded-full bg-white/40"
+          <div class="w-12 h-1.5 rounded-full bg-ink/40"
                :style="{ opacity: drawer.handleOpacity.value }"></div>
         </div>
         <!-- Header: stasjonsnavn + lukk -->
-        <div class="shrink-0 px-4 pb-2.5 bg-zinc-900/95 border-b border-white/8 flex items-start justify-between gap-3">
+        <div class="shrink-0 px-4 pb-2.5 bg-surface/95 border-b border-ink/8 flex items-start justify-between gap-3">
           <div class="min-w-0 flex items-start gap-2.5">
             <div class="min-w-0">
               <div class="text-[10px] uppercase tracking-wide text-sky-300/60">Målestasjon · NVE</div>
-              <div class="text-white text-[15px] font-medium leading-snug break-words">{{ detail.stationName }}</div>
-              <div v-if="detail.riverName" class="text-[11px] text-white/45">{{ detail.riverName }}</div>
+              <div class="text-ink text-[15px] font-medium leading-snug break-words">{{ detail.stationName }}</div>
+              <div v-if="detail.riverName" class="text-[11px] text-ink/45">{{ detail.riverName }}</div>
             </div>
           </div>
           <button @click="$emit('close')" aria-label="Lukk"
                   class="w-8 h-8 -mr-1 -mt-0.5 shrink-0 rounded-full flex items-center justify-center
-                         bg-white/5 border border-white/10 text-white/70 active:scale-90">
+                         bg-ink/5 border border-ink/10 text-ink/70 active:scale-90">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
               <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -93,34 +93,34 @@ function onOpenNve() {
         <div v-show="!drawer.isMinimized.value"
              class="flex-1 overflow-y-auto px-4 pt-3"
              :style="{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0.75rem)' }">
-          <div v-if="loading && !hasAnyValue" class="text-[12px] text-white/50 py-3">Henter sanntidsdata …</div>
+          <div v-if="loading && !hasAnyValue" class="text-[12px] text-ink/50 py-3">Henter sanntidsdata …</div>
 
           <div v-if="hasAnyValue" class="space-y-2">
             <div v-for="r in rows" :key="r.label"
                  class="flex items-baseline justify-between gap-3 rounded-lg bg-sky-500/[0.08] border border-sky-400/20 px-3 py-2">
               <span class="min-w-0">
                 <span class="block text-[12px] text-sky-100/80">{{ r.label }}</span>
-                <span v-if="r.note" class="block text-[10px] text-white/35">{{ r.note }}</span>
+                <span v-if="r.note" class="block text-[10px] text-ink/35">{{ r.note }}</span>
               </span>
               <span class="text-right shrink-0">
-                <span class="text-[17px] font-semibold text-white tabular-nums">{{ r.value }}</span>
-                <span class="ml-1 text-[11px] text-white/50">{{ r.unit }}</span>
-                <span v-if="fmtTime(r.time)" class="block text-[10px] text-white/35">{{ fmtTime(r.time) }}</span>
+                <span class="text-[17px] font-semibold text-ink tabular-nums">{{ r.value }}</span>
+                <span class="ml-1 text-[11px] text-ink/50">{{ r.unit }}</span>
+                <span v-if="fmtTime(r.time)" class="block text-[10px] text-ink/35">{{ fmtTime(r.time) }}</span>
               </span>
             </div>
           </div>
 
-          <div v-else-if="!loading" class="text-[12px] text-white/50 py-3">
+          <div v-else-if="!loading" class="text-[12px] text-ink/50 py-3">
             Ingen ferske måledata for denne stasjonen akkurat nå.
           </div>
 
-          <div v-if="infoRows.length" class="mt-4 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1">
+          <div v-if="infoRows.length" class="mt-4 rounded-lg border border-ink/10 bg-ink/[0.03] px-3 py-1">
             <div class="text-[10px] uppercase tracking-wide text-sky-300/60 pt-2 pb-1.5">Om stasjonen</div>
             <dl>
               <div v-for="row in infoRows" :key="row.label"
-                   class="flex items-baseline justify-between gap-3 py-1.5 border-t border-white/5 first:border-t-0">
-                <dt class="text-[12px] text-white/50 shrink-0">{{ row.label }}</dt>
-                <dd class="text-[12px] text-white/85 text-right break-words">{{ row.value }}</dd>
+                   class="flex items-baseline justify-between gap-3 py-1.5 border-t border-ink/5 first:border-t-0">
+                <dt class="text-[12px] text-ink/50 shrink-0">{{ row.label }}</dt>
+                <dd class="text-[12px] text-ink/85 text-right break-words">{{ row.value }}</dd>
               </div>
             </dl>
           </div>
@@ -138,7 +138,7 @@ function onOpenNve() {
             <span class="flex-1 text-left font-medium">Åpne stasjonen hos NVE</span>
           </button>
 
-          <p class="mt-3 text-[10px] text-white/35 leading-relaxed">
+          <p class="mt-3 text-[10px] text-ink/35 leading-relaxed">
             Sanntidsdata: NVE HydAPI ·
             <a href="https://hydapi.nve.no/UserDocumentation/" target="_blank" rel="noopener" class="underline">dokumentasjon</a>.
             Verdiene er foreløpige og ikke kvalitetssikret.

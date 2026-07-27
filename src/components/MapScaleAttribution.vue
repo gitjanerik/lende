@@ -15,7 +15,7 @@ defineProps({
        ikke ligger under treff-listen). -->
   <div v-if="visible"
        class="absolute bottom-3 left-3 z-20 pointer-events-none">
-    <div class="px-3 py-2 rounded-lg bg-zinc-950 text-white text-[11px]
+    <div class="px-3 py-2 rounded-lg bg-overlay text-ink text-[11px]
                 font-medium space-y-1.5 shadow-lg">
       <div v-if="scaleBar.px > 0">
         <div class="flex items-end gap-2">
@@ -28,21 +28,21 @@ defineProps({
           </svg>
           <div>{{ scaleBar.label }}</div>
         </div>
-        <div v-if="meta?.scaleDenom" class="text-[9px] text-white/55 mt-0.5">
+        <div v-if="meta?.scaleDenom" class="text-[9px] text-ink/55 mt-0.5">
           print 1:{{ meta.scaleDenom.toLocaleString('no-NO') }}
         </div>
       </div>
-      <div class="text-white/70">{{ equidistanceLabel }}</div>
+      <div class="text-ink/70">{{ equidistanceLabel }}</div>
     </div>
   </div>
 
   <!-- Attribusjon (skjult under aktivt søk) -->
   <div v-if="visible"
-       class="absolute bottom-3 right-3 z-20 px-2 py-1 rounded-md bg-zinc-950
-              text-white/85 text-[9px] leading-tight pointer-events-none shadow-lg max-w-[180px]">
+       class="absolute bottom-3 right-3 z-20 px-2 py-1 rounded-md bg-overlay
+              text-ink/85 text-[9px] leading-tight pointer-events-none shadow-lg max-w-[180px]">
     © OpenStreetMap-bidragsytere<br>
-    <span class="text-white/50">{{ meta?.isomVersion ? `ISOM ${meta.isomVersion}` : '' }}</span><br>
-    <span class="text-white/50">DEM: {{ meta?.demSource ?? '—' }}{{ meta?.demResolutionM ? ` · ${meta.demResolutionM} m` : '' }}</span>
+    <span class="text-ink/50">{{ meta?.isomVersion ? `ISOM ${meta.isomVersion}` : '' }}</span><br>
+    <span class="text-ink/50">DEM: {{ meta?.demSource ?? '—' }}{{ meta?.demResolutionM ? ` · ${meta.demResolutionM} m` : '' }}</span>
     <!-- Dybde-provenens-badge: ekte Sjøkart vs DEM-estimat. Det fragile
          Sjøkart-WFS faller stille tilbake til estimatet — padleren må vite
          hva dybden faktisk er. -->

@@ -52,7 +52,7 @@ const busyLabel = computed(() =>
 </script>
 
 <template>
-  <div class="min-h-[100dvh] bg-[#0e1116] text-white/90 antialiased">
+  <div class="min-h-[100dvh] bg-app text-ink/90 antialiased">
     <RouterView v-slot="{ Component, route }">
       <Transition
         :name="route.meta.transition || 'fade'"
@@ -72,7 +72,7 @@ const busyLabel = computed(() =>
            class="fixed inset-x-0 z-[100] flex justify-center px-3 pointer-events-none"
            :style="{ bottom: 'max(env(safe-area-inset-bottom, 0px), 0.75rem)' }">
         <div class="pointer-events-auto w-full max-w-[420px] flex items-center gap-3
-                    rounded-xl px-4 py-3 bg-zinc-800/95 backdrop-blur border border-white/15
+                    rounded-xl px-4 py-3 bg-surface-2/95 backdrop-blur border border-ink/15
                     shadow-2xl text-[13px]">
           <!-- I arbeid: spinner. Ledig: oppdater-ikon. -->
           <span v-if="busy"

@@ -461,14 +461,14 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="kart-ui relative w-full min-h-[100dvh] flex flex-col bg-[#0e1116] text-white/90">
+  <div class="kart-ui relative w-full min-h-[100dvh] flex flex-col bg-app text-ink/90">
 
     <!-- Toppbar -->
     <div class="relative shrink-0 px-3 py-3 flex items-center justify-between
-                bg-zinc-900/80 border-b border-white/10 z-30">
+                bg-surface/80 border-b border-ink/10 z-30">
       <button @click="router.push('/kart')"
               class="rounded-full w-10 h-10 flex items-center justify-center
-                     bg-white/[0.04] border border-white/10 active:scale-95 transition">
+                     bg-ink/[0.04] border border-ink/10 active:scale-95 transition">
         <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
              stroke-linecap="round" stroke-linejoin="round">
           <polyline points="15 18 9 12 15 6"/>
@@ -518,7 +518,7 @@ onMounted(() => {
           </div>
         </div>
       </div>
-      <div class="mt-2 text-[11px] text-white/70 leading-relaxed">
+      <div class="mt-2 text-[11px] text-ink/70 leading-relaxed">
         {{ shareInvite.hasRoundTrip ? t('share.invite.bodyRoundTrip')
            : shareInvite.hasPlace ? t('share.invite.bodyPlace')
            : t('share.invite.body') }}
@@ -556,9 +556,9 @@ onMounted(() => {
     <!-- Søkefelt. v9.1.x: skjult i delingsmodus — mottakeren skal bare se og
          lage det delte kartet, ikke søke/velge sted. -->
     <div v-if="!shareInvite" class="px-4 pt-4 pb-3 relative z-20">
-      <label class="text-white/65 text-[11px] uppercase tracking-wide block mb-2">Sted, postnummer eller adresse</label>
+      <label class="text-ink/65 text-[11px] uppercase tracking-wide block mb-2">Sted, postnummer eller adresse</label>
       <div class="relative">
-        <svg viewBox="0 0 24 24" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50"
+        <svg viewBox="0 0 24 24" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/50"
              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.65" y2="16.65"/>
         </svg>
@@ -569,13 +569,13 @@ onMounted(() => {
                aria-controls="mappicker-results"
                :aria-activedescendant="searchActiveIndex >= 0 ? `mappicker-opt-${searchActiveIndex}` : undefined"
                :placeholder="controlsLocked ? lockedSearchPlaceholder : 'f.eks. Sognsvann, 0855, Vardåsen Asker'"
-               :class="['w-full pl-10 py-3 rounded-xl bg-white/[0.06] border border-white/15',
-                        'text-[14px] placeholder-white/30 focus:outline-none focus:bg-white/12',
+               :class="['w-full pl-10 py-3 rounded-xl bg-ink/[0.06] border border-ink/15',
+                        'text-[14px] placeholder-ink/30 focus:outline-none focus:bg-ink/12',
                         'focus:border-slate-300/50 transition disabled:opacity-50 disabled:cursor-not-allowed',
                         searchRightPad]" />
         <div v-if="isSearching"
-             :class="['absolute top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-white/15',
-                      'border-t-white/70 rounded-full animate-spin', spinnerRight]" />
+             :class="['absolute top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-ink/15',
+                      'border-t-ink/70 rounded-full animate-spin', spinnerRight]" />
         <!-- Kontroll-knapper: mikrofon (diktér søk) + GPS (sentrer på meg).
              Samme mønster som forsidens søkefelt — den grønne pinnen ligger
              ytterst til høyre. -->
@@ -584,7 +584,7 @@ onMounted(() => {
                   :aria-label="micListening ? 'Stopp diktering' : 'Diktér søk (tale til tekst)'"
                   :aria-pressed="micListening"
                   :class="['w-9 h-9 rounded-lg flex items-center justify-center transition active:scale-95',
-                           micListening ? 'bg-red-500/90 text-white animate-pulse' : 'bg-white/10 text-white/70']">
+                           micListening ? 'bg-red-500/90 text-ink animate-pulse' : 'bg-ink/10 text-ink/70']">
             <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
@@ -614,20 +614,20 @@ onMounted(() => {
       <!-- Søkeresultater -->
       <Transition name="fade">
         <div v-if="showResults" id="mappicker-results" role="listbox"
-             class="absolute left-4 right-4 mt-1 rounded-xl bg-zinc-900/98 backdrop-blur
-                    border border-white/10 shadow-2xl max-h-[50dvh] overflow-y-auto z-30">
+             class="absolute left-4 right-4 mt-1 rounded-xl bg-surface/98 backdrop-blur
+                    border border-ink/10 shadow-2xl max-h-[50dvh] overflow-y-auto z-30">
           <div v-if="results.length === 0 && !isSearching"
-               class="px-4 py-3 text-[13px] text-white/50">Ingen treff</div>
+               class="px-4 py-3 text-[13px] text-ink/50">Ingen treff</div>
           <button v-for="(r, index) in results" :key="r.id"
                   :id="`mappicker-opt-${index}`" role="option"
                   :aria-selected="index === searchActiveIndex"
                   @click="selectResult(r)"
                   @mousemove="searchActiveIndex = index"
                   class="w-full text-left px-4 py-2.5 transition border-b
-                         border-white/8 last:border-0"
-                  :class="index === searchActiveIndex ? 'bg-white/12' : 'active:bg-white/10'">
-            <div class="text-[13px] font-medium text-white truncate">{{ r.shortName }}</div>
-            <div class="text-[11px] text-white/50 truncate">{{ r.name }}</div>
+                         border-ink/8 last:border-0"
+                  :class="index === searchActiveIndex ? 'bg-ink/12' : 'active:bg-ink/10'">
+            <div class="text-[13px] font-medium text-ink truncate">{{ r.shortName }}</div>
+            <div class="text-[11px] text-ink/50 truncate">{{ r.name }}</div>
           </button>
         </div>
       </Transition>
@@ -637,7 +637,7 @@ onMounted(() => {
       <!-- Hjelpetekst som forklarer den integrerte GPS-pinnen (samme mønster
            som forsiden — pin-ikonet alene er ikke helt selvforklarende). -->
       <div v-if="supportsGeolocation && !controlsLocked"
-           class="mt-2 px-1 text-[11.5px] text-white/45 flex items-center gap-1.5 leading-snug">
+           class="mt-2 px-1 text-[11.5px] text-ink/45 flex items-center gap-1.5 leading-snug">
         <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-emerald-300/80 shrink-0" fill="none"
              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="10" r="3"/>
@@ -654,14 +654,14 @@ onMounted(() => {
          v2.4.4: også skjult når GPS ikke fant et navngitt sted (nameHidden) —
          kartet får navn + dato fra byggeflyten, tomt navnefelt er bare støy. -->
     <div v-if="!shareInvite && !nameHidden" class="px-4 pb-2">
-      <div class="rounded-xl bg-white/[0.04] border border-white/10 px-4 py-3">
-        <div class="text-[11px] text-white/50 uppercase tracking-wide mb-1">Sentrum av kart</div>
+      <div class="rounded-xl bg-ink/[0.04] border border-ink/10 px-4 py-3">
+        <div class="text-[11px] text-ink/50 uppercase tracking-wide mb-1">Sentrum av kart</div>
         <input v-model="customName"
                type="text" placeholder="Navn på kart"
                :readonly="controlsLocked"
                class="w-full bg-transparent text-[15px] font-semibold focus:outline-none
-                      placeholder-white/25 read-only:opacity-70" />
-        <div class="mt-1 text-[11px] text-white/45 tabular-nums">
+                      placeholder-ink/25 read-only:opacity-70" />
+        <div class="mt-1 text-[11px] text-ink/45 tabular-nums">
           {{ center.lat.toFixed(4) }}°N, {{ center.lon.toFixed(4) }}°E
         </div>
       </div>
@@ -672,23 +672,23 @@ onMounted(() => {
          hen ruller ned til CTA-knappen nederst. -->
     <div class="px-4 pb-3 flex flex-col gap-3">
       <!-- Slider for størrelse -->
-      <div class="rounded-xl bg-white/[0.04] border border-white/10 px-4 py-3">
+      <div class="rounded-xl bg-ink/[0.04] border border-ink/10 px-4 py-3">
         <div class="flex items-center justify-between mb-2">
-          <div class="text-[11px] text-white/50 uppercase tracking-wide">Bredde</div>
+          <div class="text-[11px] text-ink/50 uppercase tracking-wide">Bredde</div>
           <div class="text-[13px] font-medium tabular-nums">{{ sizeKm }} km</div>
         </div>
         <input type="range" min="0.5" max="8" step="0.25" v-model.number="halfKm"
                :disabled="controlsLocked"
                class="w-full accent-slate-400 disabled:opacity-50 disabled:cursor-not-allowed" />
-        <div class="flex justify-between text-[10px] text-white/40 mt-1">
+        <div class="flex justify-between text-[10px] text-ink/40 mt-1">
           <span>1 km</span><span>8,5 km</span><span>16 km</span>
         </div>
       </div>
 
       <!-- Ekvidistanse-velger -->
-      <div class="rounded-xl bg-white/[0.04] border border-white/10 px-4 py-3">
+      <div class="rounded-xl bg-ink/[0.04] border border-ink/10 px-4 py-3">
         <div class="flex items-center justify-between mb-2">
-          <div class="text-[11px] text-white/50 uppercase tracking-wide">Høydekurver</div>
+          <div class="text-[11px] text-ink/50 uppercase tracking-wide">Høydekurver</div>
           <div class="text-[13px] font-medium tabular-nums">hver {{ equidistanceM }} m</div>
         </div>
         <div class="grid grid-cols-3 gap-1.5">
@@ -700,11 +700,11 @@ onMounted(() => {
                          disabled:cursor-not-allowed disabled:opacity-40"
                   :class="equidistanceM === opt.value
                           ? 'bg-slate-400/20 border-slate-300/60 text-slate-100'
-                          : 'bg-white/5 border-white/10 text-white/65'">
+                          : 'bg-ink/5 border-ink/10 text-ink/65'">
             {{ opt.label }}
           </button>
         </div>
-        <div class="text-[10px] text-white/40 mt-1.5">
+        <div class="text-[10px] text-ink/40 mt-1.5">
           {{ EQUIDISTANCE_OPTIONS.find(o => o.value === equidistanceM)?.desc }}
         </div>
       </div>
@@ -713,8 +713,8 @@ onMounted(() => {
            Kvadratisk (default), Portrett (mobilskjerm) eller Utskrift (stående
            A-format √2 for ren utskrift / PDF / SVG). Previewen og det genererte
            kartet følger valget. -->
-      <div class="rounded-xl bg-white/[0.04] border border-white/10 px-4 py-3">
-        <div class="text-[11px] text-white/50 uppercase tracking-wide mb-2">Format</div>
+      <div class="rounded-xl bg-ink/[0.04] border border-ink/10 px-4 py-3">
+        <div class="text-[11px] text-ink/50 uppercase tracking-wide mb-2">Format</div>
         <div class="grid grid-cols-3 gap-1.5">
           <button v-for="opt in FORMAT_OPTIONS" :key="opt.value"
                   :disabled="controlsLocked"
@@ -724,14 +724,14 @@ onMounted(() => {
                          disabled:cursor-not-allowed disabled:opacity-40"
                   :class="format === opt.value
                           ? 'bg-slate-400/20 border-slate-300/60 text-slate-100'
-                          : 'bg-white/5 border-white/10 text-white/65'">
+                          : 'bg-ink/5 border-ink/10 text-ink/65'">
             <span>{{ opt.label }}</span>
-            <span v-if="opt.sub" class="text-[9px] font-normal text-white/45 leading-none">{{ opt.sub }}</span>
+            <span v-if="opt.sub" class="text-[9px] font-normal text-ink/45 leading-none">{{ opt.sub }}</span>
           </button>
         </div>
       </div>
 
-      <div v-if="!shareInvite" class="text-white/65 text-[11px] uppercase tracking-wide">
+      <div v-if="!shareInvite" class="text-ink/65 text-[11px] uppercase tracking-wide">
         <template v-if="controlsLocked">{{ lockedPreviewHint }}</template>
         <template v-else>Forhåndsvisning — dra kartet for å plassere, pinch / scroll for størrelse</template>
       </div>
@@ -747,7 +747,7 @@ onMounted(() => {
            Derfor `touch-auto` ved lås, `touch-none` (fang gesten) ellers.
            Touch-/wheel-handlerne early-returner alt på controlsLocked. -->
       <div ref="previewRef"
-           class="aspect-square w-full rounded-xl bg-zinc-800 border border-white/10 overflow-hidden
+           class="aspect-square w-full rounded-xl bg-surface-2 border border-ink/10 overflow-hidden
                   relative"
            :class="controlsLocked ? 'cursor-not-allowed opacity-90 touch-auto' : 'cursor-move touch-none'"
            @touchstart="onPreviewTouchStart"
@@ -790,30 +790,30 @@ onMounted(() => {
              }">
           <!-- Senter-kryss -->
           <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none">
-            <div class="absolute top-1/2 left-0 right-0 h-0.5 bg-white/85 -translate-y-1/2 shadow-[0_0_2px_rgba(0,0,0,0.7)]"></div>
-            <div class="absolute left-1/2 top-0 bottom-0 w-0.5 bg-white/85 -translate-x-1/2 shadow-[0_0_2px_rgba(0,0,0,0.7)]"></div>
+            <div class="absolute top-1/2 left-0 right-0 h-0.5 bg-ink/85 -translate-y-1/2 shadow-[0_0_2px_rgba(0,0,0,0.7)]"></div>
+            <div class="absolute left-1/2 top-0 bottom-0 w-0.5 bg-ink/85 -translate-x-1/2 shadow-[0_0_2px_rgba(0,0,0,0.7)]"></div>
           </div>
         </div>
 
-        <div class="absolute top-3 left-3 px-2.5 py-1 rounded-md bg-zinc-900 text-[11px]
-                    text-white border border-white/30 font-medium shadow-lg z-10">
+        <div class="absolute top-3 left-3 px-2.5 py-1 rounded-md bg-surface text-[11px]
+                    text-ink border border-ink/30 font-medium shadow-lg z-10">
           {{ sizeKm }} × {{ sizeHeightKm }} km
         </div>
-        <div class="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-zinc-900/85 text-white/70 text-[8px]
-                    text-white/75 border border-white/15 leading-tight pointer-events-none">
+        <div class="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-surface/85 text-ink/70 text-[8px]
+                    text-ink/75 border border-ink/15 leading-tight pointer-events-none">
           © Kartverket
         </div>
       </div>
     </div>
 
     <!-- Bygg-knapp. -->
-    <div class="sticky bottom-0 z-30 shrink-0 p-4 pb-6 bg-zinc-900/95 backdrop-blur border-t border-white/10">
+    <div class="sticky bottom-0 z-30 shrink-0 p-4 pb-6 bg-surface/95 backdrop-blur border-t border-ink/10">
       <button @click="generateMap" :disabled="buildState !== 'idle' && buildState !== 'error'"
-              class="w-full py-4 rounded-xl text-white font-semibold flex items-center justify-center gap-2
+              class="w-full py-4 rounded-xl text-ink font-semibold flex items-center justify-center gap-2
                      active:scale-[0.99] transition disabled:opacity-60
                      bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-900">
         <div v-if="buildState !== 'idle' && buildState !== 'error'"
-             class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
+             class="w-4 h-4 border-2 border-ink/30 border-t-white rounded-full animate-spin"/>
         <span v-if="buildState !== 'idle' && buildState !== 'error'">{{ buildProgress }}</span>
         <template v-else>
           <!-- v9.1.x: når mottakeren har huket av install i del-kart-banneret
@@ -831,11 +831,11 @@ onMounted(() => {
                   text-slate-100 text-[11px]">
         {{ buildError }}
       </div>
-      <div class="mt-3 text-[10px] text-white/40 text-center">
+      <div class="mt-3 text-[10px] text-ink/40 text-center">
         Henter data fra OpenStreetMap (ODbL) via Overpass API.
-        <span class="text-white/25">·</span>
+        <span class="text-ink/25">·</span>
         <button @click="router.push({ name: 'kart-vis', params: { id: 'vardasen' } })"
-                class="underline decoration-dotted underline-offset-2 hover:text-white/70 transition">
+                class="underline decoration-dotted underline-offset-2 hover:text-ink/70 transition">
           Åpne innebygd kart
         </button>
       </div>
@@ -849,7 +849,7 @@ onMounted(() => {
 
 input[type="range"]::-webkit-slider-runnable-track {
   height: 4px; border-radius: 999px;
-  background: rgba(255,255,255,0.15);
+  background: color-mix(in oklab, var(--color-ink) 15%, transparent);
 }
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;

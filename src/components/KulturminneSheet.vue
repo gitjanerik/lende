@@ -75,28 +75,28 @@ function onOpenKulturminnesok() {
          class="absolute inset-0 z-40 flex items-end justify-center transition-colors duration-200"
          :class="drawer.isMaximized.value ? 'bg-black/60' : 'bg-transparent pointer-events-none'"
          @click.self="$emit('close')">
-      <div class="w-full bg-zinc-900 border-t border-white/10 rounded-t-2xl flex flex-col pointer-events-auto"
+      <div class="w-full bg-surface border-t border-ink/10 rounded-t-2xl flex flex-col pointer-events-auto"
            :style="drawer.drawerHeightStyle.value">
         <div class="shrink-0 touch-none cursor-grab active:cursor-grabbing pt-3.5 pb-3 flex justify-center"
              @pointerdown="drawer.onPointerDown($event)"
              @pointermove="drawer.onPointerMove($event)"
              @pointerup="drawer.onPointerUp($event)"
              @pointercancel="drawer.onPointerUp($event)">
-          <div class="w-12 h-1.5 rounded-full bg-white/40"
+          <div class="w-12 h-1.5 rounded-full bg-ink/40"
                :style="{ opacity: drawer.handleOpacity.value }"></div>
         </div>
         <!-- Header: kategori-merke + tittel + lukk -->
-        <div class="shrink-0 px-4 pb-2.5 bg-zinc-900/95 border-b border-white/8 flex items-start justify-between gap-3">
+        <div class="shrink-0 px-4 pb-2.5 bg-surface/95 border-b border-ink/8 flex items-start justify-between gap-3">
           <div class="min-w-0 flex items-start gap-2.5">
             <span class="mt-0.5 w-3.5 h-3.5 shrink-0 rounded-sm" :style="{ background: katColor }"></span>
             <div class="min-w-0">
-              <div class="text-white text-[15px] font-medium leading-snug break-words">{{ detail.tittel }}</div>
+              <div class="text-ink text-[15px] font-medium leading-snug break-words">{{ detail.tittel }}</div>
             </div>
           </div>
           <button @click="$emit('close')"
                   aria-label="Lukk"
                   class="w-8 h-8 -mr-1 -mt-0.5 shrink-0 rounded-full flex items-center justify-center
-                         bg-white/5 border border-white/10 text-white/70 active:scale-90">
+                         bg-ink/5 border border-ink/10 text-ink/70 active:scale-90">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
               <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -110,32 +110,32 @@ function onOpenKulturminnesok() {
           <!-- Fakta om selve funnet, før beskrivelse/bilder. To-kolonners
                definisjons-grid; kun felt med verdi vises (kildene har ulike felt). -->
           <dl v-if="facts.length"
-              class="grid grid-cols-2 gap-x-4 gap-y-2.5 pb-3 mb-3 border-b border-white/8">
+              class="grid grid-cols-2 gap-x-4 gap-y-2.5 pb-3 mb-3 border-b border-ink/8">
             <div v-for="f in facts" :key="f.label" class="min-w-0">
-              <dt class="text-[10px] uppercase tracking-wide text-white/40">{{ f.label }}</dt>
-              <dd class="text-[12.5px] text-white/85 leading-snug break-words">{{ f.value }}</dd>
+              <dt class="text-[10px] uppercase tracking-wide text-ink/40">{{ f.label }}</dt>
+              <dd class="text-[12.5px] text-ink/85 leading-snug break-words">{{ f.value }}</dd>
             </div>
           </dl>
 
           <div v-if="loading && !detail.beskrivelse"
-               class="text-[12px] text-white/50 py-3">Henter detaljer …</div>
+               class="text-[12px] text-ink/50 py-3">Henter detaljer …</div>
 
           <p v-if="detail.beskrivelse"
-             class="text-[13px] text-white/85 leading-relaxed whitespace-pre-line break-words">{{ detail.beskrivelse }}</p>
+             class="text-[13px] text-ink/85 leading-relaxed whitespace-pre-line break-words">{{ detail.beskrivelse }}</p>
 
           <!-- Sekundær kontekst: felles beskrivelse for hele lokaliteten
                (f.eks. «Oscarsborg festning»), skilt fra den unike enkeltminne-
                teksten over. -->
           <div v-if="detail.lokalitetInfo" class="mt-3">
-            <div class="text-[10px] uppercase tracking-wide text-white/40 mb-0.5">Om lokaliteten</div>
-            <p class="text-[12px] text-white/55 leading-relaxed whitespace-pre-line break-words">{{ detail.lokalitetInfo }}</p>
+            <div class="text-[10px] uppercase tracking-wide text-ink/40 mb-0.5">Om lokaliteten</div>
+            <p class="text-[12px] text-ink/55 leading-relaxed whitespace-pre-line break-words">{{ detail.lokalitetInfo }}</p>
           </div>
 
           <figure v-if="bilde" class="mt-3">
             <img :src="bilde.url" :alt="detail.tittel"
                  loading="lazy" referrerpolicy="no-referrer"
-                 class="w-full rounded-lg border border-white/10 bg-black/20" />
-            <figcaption class="mt-1 text-[10px] text-white/40">
+                 class="w-full rounded-lg border border-ink/10 bg-black/20" />
+            <figcaption class="mt-1 text-[10px] text-ink/40">
               © Kulturminnesøk{{ bilde.fotograf ? ' / ' + bilde.fotograf : '' }}{{ bilde.lisens ? ', ' + bilde.lisens : ', CC BY' }}
             </figcaption>
           </figure>
@@ -154,7 +154,7 @@ function onOpenKulturminnesok() {
             <span class="flex-1 text-left font-medium">Åpne på kulturminnesok.no</span>
           </button>
 
-          <p class="mt-3 text-[10px] text-white/35 leading-relaxed">
+          <p class="mt-3 text-[10px] text-ink/35 leading-relaxed">
             Data: Kulturminnesøk (Riksantikvaren) ·
             <a href="https://data.norge.no/nlod" target="_blank" rel="noopener" class="underline">NLOD</a>
           </p>

@@ -1,5 +1,21 @@
 # Endringslogg
 
+## 2026-07-27 — v2.4.5: Lyst/mørkt/automatisk UI-tema
+
+Ny «Utseende»-velger i hovedmenyen med tre valg — Lyst (sol), Mørkt (halvmåne)
+og Automatisk (lyn, følger telefonens systemtema). Default er mørkt, som er
+dagens utseende, så ingenting endres før man aktivt velger noe annet. Valget
+lagres i localStorage og settes før første paint (ingen blink), og alle sider,
+skuffer og paneler følger temaet via et nytt semantisk token-lag (`--color-app`,
+`--color-surface`, `--color-ink` m.fl.). Lyst tema bruker en varm papirtone som
+ekko av kartet. Kartets egne ISOM-farger er uavhengige og styres fortsatt i
+«Tema»-skuffen, og Tegnforklaringen beholder sin egen tema-velger. «Om appen» er
+flyttet nederst i menyen. App-ikonet, favicon og iOS-ikonet er uendret (mørk
+bakgrunn, gule ringer); logo-motivet i forsidens topplinje tegnes med røde
+konsentriske ringer i lyst tema. PWA-ens `theme-color` følger nå aktivt tema.
+
+---
+
 ## 2026-07-27 — v2.4.4: Riktig zoom-fiks i kart-søket + GPS-navn i kartvelgeren
 
 Rettet overflow-feilen i kart-søkefeltet på ordentlig ved 125/150 %
