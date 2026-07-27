@@ -1,5 +1,15 @@
 # Endringslogg
 
+## 2026-07-27 — v2.4.6: Snarvei-raden følger tema i lyst modus
+
+Snarvei-raden over kartet (Stifinner, Runde, Måling, Sporing, Info) hadde
+hardkodet hvit ikon- og tekstfarge i den scopede CSS-en, så på den hvite
+pillen i lyst tema ble ikonene og etikettene usynlige (hvitt på hvitt). Byttet
+til `var(--color-ink)` så raden følger temaet — mørk tekst i lyst, hvit i mørkt
+(uendret).
+
+---
+
 ## 2026-07-27 — v2.4.5: Lyst/mørkt/automatisk UI-tema
 
 Ny «Utseende»-velger i hovedmenyen med tre valg — Lyst (sol), Mørkt (halvmåne)
