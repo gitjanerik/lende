@@ -4,7 +4,27 @@ import App from './App.vue'
 import router from './router'
 import { setWaitingWorker } from './lib/swUpdate.js'
 
-createApp(App).use(router).mount('#app')
+const app = createApp(App)
+
+// Siste skanse mot en blank/fanget app: en ukjent render-/setup-feil (typisk på
+// en kart-rute man ble gjenopptatt til) skal ikke etterlate brukeren på en tom
+// side de ikke kommer seg ut av. Rydd gjenopptaks-pekerne så neste last havner
+// på forsiden, og send brukeren dit med én gang hvis de står på en kart-rute.
+app.config.errorHandler = (err, _instance, info) => {
+  console.error('[lende] uhåndtert feil:', err, info)
+  try {
+    localStorage.removeItem('lende-boot-pending')
+    if (location.pathname.includes('/kart/')) {
+      localStorage.removeItem('lende-last-map')
+      if (!sessionStorage.getItem('lende-recovered')) {
+        sessionStorage.setItem('lende-recovered', '1')
+        router.replace({ name: 'kart-hjem' })
+      }
+    }
+  } catch { /* noop */ }
+}
+
+app.use(router).mount('#app')
 
 // Register service worker for PWA / offline support. Production only — in dev
 // the SW would cache stale Vite HMR bundles and make rebuilds confusing.

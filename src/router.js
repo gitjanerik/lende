@@ -59,6 +59,20 @@ router.beforeEach((to) => {
     if (mode === 'kart') {
       const id = localStorage.getItem('lende-last-map')
       if (!id) return
+      // Boot-loop-vern: hvis forrige gjenopptak til DETTE kartet aldri fullførte
+      // (blank/krasj før MapView rakk å montere — f.eks. ødelagt lagret kart
+      // eller stale service-worker-skall), ikke send brukeren tilbake i fella.
+      // Rydd pekerne og gå til forsiden i stedet — én reload er nok til å komme
+      // seg ut. Flagget settes rett før redirect og fjernes av MapView (onMounted)
+      // ved vellykket montering.
+      try {
+        if (localStorage.getItem('lende-boot-pending') === id) {
+          localStorage.removeItem('lende-boot-pending')
+          localStorage.removeItem('lende-last-map')
+          return
+        }
+        localStorage.setItem('lende-boot-pending', id)
+      } catch { /* noop */ }
       const view = JSON.parse(localStorage.getItem(`lende-view:${id}`) ?? 'null')
       if (view && typeof view.x === 'number') {
         sessionStorage.setItem(`mapview-init-prefs:${id}`, JSON.stringify({

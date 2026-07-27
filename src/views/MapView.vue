@@ -3318,6 +3318,10 @@ function unlockBodyScroll() {
 }
 
 onMounted(() => {
+  // MapView rakk å montere → gjenopptaket til dette kartet lyktes (ikke blank).
+  // Fjern boot-loop-vernets flagg (satt i router.js) så et neste normalt
+  // gjenopptak ikke feilaktig hoppes over.
+  try { localStorage.removeItem('lende-boot-pending') } catch { /* noop */ }
   hasTouch.value = typeof window !== 'undefined' &&
     ('ontouchstart' in window || (navigator.maxTouchPoints ?? 0) > 0)
   if (typeof window !== 'undefined' && window.matchMedia) {

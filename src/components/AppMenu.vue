@@ -5,6 +5,7 @@ import { useAppMenu } from '../composables/useAppMenu.js'
 import { useMapContext } from '../composables/useMapContext.js'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
 import { useUiTheme } from '../composables/useUiTheme.js'
+import { usePwaInstall } from '../composables/usePwaInstall.js'
 import AppMenuButton from './AppMenuButton.vue'
 import { gmapsUrl, streetViewUrl, buildVegkartUrl } from '../lib/externalMapLinks.js'
 import { buildUtNoUrl } from '../lib/utNoLink.js'
@@ -18,6 +19,22 @@ const { menuOpen, close } = useAppMenu()
 const { hasMapContext, getPoint } = useMapContext()
 const { uiTextScale, cycleTextScale } = useUiTextScale()
 const { theme, options: themeOptions, setTheme } = useUiTheme()
+
+// «Installer som app» — vises nederst i menyen kun når appen IKKE alt kjører
+// installert (standalone) og nettleseren støtter install (Chrome/Edge/Samsung
+// via beforeinstallprompt → canInstall, eller iOS der install er manuell).
+const { canInstall, isIOS, isStandalone, promptInstall } = usePwaInstall()
+const showInstall = computed(() => !isStandalone.value && (canInstall.value || isIOS.value))
+async function onInstall() {
+  if (isIOS.value) {
+    close()
+    alert('Slik installerer du «Så i lende» på iPhone/iPad:\n\n1. Trykk Del-ikonet nederst i Safari.\n2. Velg «Legg til på Hjem-skjerm».')
+    return
+  }
+  if (!canInstall.value) return
+  try { await promptInstall() } catch { /* avvist/utilgjengelig */ } finally { close() }
+}
+
 const route = useRoute()
 const router = useRouter()
 
@@ -209,6 +226,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             <circle cx="12" cy="8" r="0.6" fill="currentColor"/>
           </svg>
           <span>Om appen</span>
+        </button>
+
+        <!-- «Installer som app» — helt nederst, kun når ikke alt installert. -->
+        <button v-if="showInstall" @click="onInstall" class="menu-item">
+          <svg viewBox="0 0 24 24" class="menu-icon !text-emerald-500" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/>
+            <path d="M5 19h14"/>
+          </svg>
+          <span>Installer som app</span>
         </button>
       </nav>
 
