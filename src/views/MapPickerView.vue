@@ -6,6 +6,7 @@ import { useSpeechInput } from '../composables/useSpeechInput.js'
 import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
 import { bboxFromCenter, viewportAspect, PRINT_ASPECT } from '../lib/mapBuilder.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
+import { reverseGeocode } from '../lib/geocode.js'
 import { tileMosaic, zoomForKm, metersPerPixel } from '../lib/tileBackground.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
 import { t } from '../lib/i18n.js'
@@ -61,31 +62,53 @@ const effectiveAspect = computed(() => {
 // hvor brukeren faktisk står), og dermed får GPS-prikken utenfor sitt eget
 // kart når de bruker det. Ingen watcher — én engangs hent på request.
 const gpsState = ref({ status: 'idle', error: null })  // idle | locating | ok | error
+// Når GPS-oppslaget ikke finner et navngitt sted skjuler vi «Sentrum av kart»-
+// boksen helt: kartet får uansett navn («Min posisjon») + dato fra byggeflyten,
+// og et tomt navnefelt gir bare støy. Settes tilbake så snart et navn finnes
+// (GPS med treff, eller et valgt søketreff).
+const nameHidden = ref(false)
 
-function onCenterOnMe() {
+async function onCenterOnMe() {
   if (controlsLocked.value) return
   if (!navigator.geolocation) {
     gpsState.value = { status: 'error', error: 'Nettleseren støtter ikke GPS' }
     return
   }
   gpsState.value = { status: 'locating', error: null }
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      const lat = pos.coords.latitude
-      const lon = pos.coords.longitude
-      center.value = { lat, lon, name: customName.value || 'Min posisjon' }
-      gpsState.value = { status: 'ok', error: null }
-    },
-    (err) => {
-      const map = {
-        1: 'GPS-tillatelse avvist',
-        2: 'GPS-posisjon ikke tilgjengelig',
-        3: 'GPS-forespørsel tok for lang tid',
-      }
-      gpsState.value = { status: 'error', error: map[err.code] ?? 'GPS-feil' }
-    },
-    { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
-  )
+  let pos
+  try {
+    pos = await new Promise((resolve, reject) =>
+      navigator.geolocation.getCurrentPosition(resolve, reject,
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }))
+  } catch (err) {
+    const map = {
+      1: 'GPS-tillatelse avvist',
+      2: 'GPS-posisjon ikke tilgjengelig',
+      3: 'GPS-forespørsel tok for lang tid',
+    }
+    gpsState.value = { status: 'error', error: map[err.code] ?? 'GPS-feil' }
+    return
+  }
+  const lat = pos.coords.latitude
+  const lon = pos.coords.longitude
+  // Slå opp nærmeste stedsnavn så kartet får et gjenkjennelig navn (samme flyt
+  // som forsidens «Lag kart der jeg er»). Best-effort: feiler oppslaget eller
+  // finnes ingen navngitt plass, skjuler vi navnefeltet.
+  let placeName = null
+  try {
+    const rev = await reverseGeocode(lat, lon)
+    if (rev?.placeLabel) placeName = rev.placeLabel
+  } catch { /* behold null → skjul feltet */ }
+  if (placeName) {
+    customName.value = placeName
+    center.value = { lat, lon, name: placeName }
+    nameHidden.value = false
+  } else {
+    customName.value = ''
+    center.value = { lat, lon, name: 'Min posisjon' }
+    nameHidden.value = true
+  }
+  gpsState.value = { status: 'ok', error: null }
 }
 
 const shareInvite = ref(null) // { hl } — del-flyt fra delingslenke
@@ -217,6 +240,7 @@ const showResults = computed(() =>
 function selectResult(r) {
   center.value = { lat: r.lat, lon: r.lon, name: r.shortName }
   customName.value = r.shortName
+  nameHidden.value = false
   query.value = ''
   results.value = []
 }
@@ -626,8 +650,10 @@ onMounted(() => {
     </div>
 
     <!-- Valgt sted. v9.1.x: skjult i delingsmodus — navn/koordinater er låst
-         til det delte kartet, ingen grunn til å vise redigerings-feltet. -->
-    <div v-if="!shareInvite" class="px-4 pb-2">
+         til det delte kartet, ingen grunn til å vise redigerings-feltet.
+         v2.4.4: også skjult når GPS ikke fant et navngitt sted (nameHidden) —
+         kartet får navn + dato fra byggeflyten, tomt navnefelt er bare støy. -->
+    <div v-if="!shareInvite && !nameHidden" class="px-4 pb-2">
       <div class="rounded-xl bg-white/[0.04] border border-white/10 px-4 py-3">
         <div class="text-[11px] text-white/50 uppercase tracking-wide mb-1">Sentrum av kart</div>
         <input v-model="customName"

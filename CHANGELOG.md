@@ -1,5 +1,19 @@
 # Endringslogg
 
+## 2026-07-27 — v2.4.4: Riktig zoom-fiks i kart-søket + GPS-navn i kartvelgeren
+
+Rettet overflow-feilen i kart-søkefeltet på ordentlig ved 125/150 %
+tekststørrelse. Forrige forsøk (width-kompensasjon) var feil — den krympet raden
+til 66 % OG ikonene forsvant fortsatt ut. Rotårsaken var en klassisk flexbox-
+felle: input-feltet manglet `min-width: 0`, så det holdt sin innholdsbaserte
+min-bredde og skjøv kontroll-ikonene utenfor skjermen. Verifisert med Chromium på
+begge tekststørrelser. I «Nytt turkart» fyller den grønne GPS-pinnen nå «Navn på
+kart» automatisk med nærmeste stedsnavn (revers-geokoding, samme flyt som
+forsiden). Finnes ingen navngitt plass, skjules hele «Sentrum av kart»-boksen —
+kartet får uansett navn og dato fra byggeflyten.
+
+---
+
 ## 2026-07-27 — v2.4.3: Søke-UI-finpuss og GPS-pin i kartvelgeren
 
 Gruppe-overskriftene i kart-søket er nå fargekodede og fremhevet: «I dette

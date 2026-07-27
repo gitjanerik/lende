@@ -40,11 +40,12 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
          class="absolute top-[var(--ovl-top)] left-3 right-3 z-40 rounded-2xl bg-zinc-950/95 backdrop-blur
                 border border-white/10 shadow-2xl overflow-hidden flex flex-col"
          style="max-height: calc(100dvh - 6rem - var(--safe-top));">
-      <!-- zoom skalerer også bredden, så uten width-kompensasjon skyves
-           kontroll-ikonene ut av skjermen ved 125/150 % tekststørrelse.
-           width = 100/scale % gir eksakt full bredde etter zoom. -->
+      <!-- zoom skalerer tekst + ikoner opp ved 125/150 % tekststørrelse. For at
+           input-feltet skal kunne krympe (flex) og ikke skyve kontroll-ikonene
+           ut av raden, MÅ det ha min-w-0 — ellers holder input sin innholds-
+           baserte min-bredde og ikonene havner utenfor skjermen. -->
       <div class="px-3 py-2.5 flex items-center gap-2 border-b border-white/10"
-           :style="{ zoom: uiTextScale, width: (100 / uiTextScale) + '%' }">
+           :style="{ zoom: uiTextScale }">
         <svg viewBox="0 0 24 24" class="w-4 h-4 text-white/55 shrink-0" fill="none"
              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="11" cy="11" r="7"/>
@@ -59,7 +60,7 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
                role="combobox" aria-autocomplete="list"
                :aria-expanded="results.length > 0" aria-controls="mapsearch-results"
                :aria-activedescendant="activeIndex >= 0 ? `mapsearch-opt-${activeIndex}` : undefined"
-               class="flex-1 bg-transparent text-[14px] text-white placeholder-white/35
+               class="flex-1 min-w-0 bg-transparent text-[14px] text-white placeholder-white/35
                       focus:outline-none"/>
         <!-- Tale-til-tekst — vises bare når nettleseren støtter SpeechRecognition -->
         <button v-if="micSupported" type="button" @click="toggleMic"
@@ -74,7 +75,7 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
           </svg>
         </button>
         <button @click="emit('close')" aria-label="Lukk søk"
-                class="w-7 h-7 -mr-1 rounded-full flex items-center justify-center
+                class="w-7 h-7 -mr-1 shrink-0 rounded-full flex items-center justify-center
                        text-white/65 active:bg-white/10">
           <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
@@ -83,7 +84,7 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
         </button>
       </div>
       <div class="flex-1 overflow-y-auto" id="mapsearch-results" role="listbox"
-           :style="{ zoom: uiTextScale, width: (100 / uiTextScale) + '%' }">
+           :style="{ zoom: uiTextScale }">
         <div v-if="!query"
              class="px-4 py-4 text-[11px] text-white/45 leading-relaxed">
           Søker i navn i <span class="text-white/70">dette kartet</span> — steder, vann,
