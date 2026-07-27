@@ -67,6 +67,47 @@ describe('useStifinner – vann-guard for startpunkt', () => {
   })
 })
 
+describe('useStifinner – snarvei-inngang (start FØR mål)', () => {
+  it('beginPickStart går til startpunkt-plukk uten mål satt', () => {
+    const sti = useStifinner()
+    sti.beginPickStart()
+    expect(sti.mode.value).toBe('pickingStart')
+    expect(sti.start.value).toBe(null)
+    expect(sti.destination.value).toBe(null)
+    expect(sti.isLoop.value).toBe(false)
+  })
+
+  it('confirmStart uten mål → pickingDest (venter på målet, ingen ruter ennå)', () => {
+    const sti = useStifinner()
+    sti.beginPickStart()
+    sti.confirmStart({ x: 0, y: 0 }, lineSvg(), {})
+    expect(sti.mode.value).toBe('pickingDest')
+    expect(sti.start.value).toEqual({ svgX: 0, svgY: 0 })
+    expect(sti.routes.value).toEqual([])
+    expect(sti.error.value).toBe('')
+  })
+
+  it('confirmDest etter start → showing med ruter A→B', () => {
+    const sti = useStifinner()
+    sti.beginPickStart()
+    sti.confirmStart({ x: 0, y: 0 }, lineSvg(), {})
+    sti.confirmDest({ x: 1000, y: 0 })
+    expect(sti.mode.value).toBe('showing')
+    expect(sti.error.value).toBe('')
+    expect(sti.routes.value.length).toBeGreaterThan(0)
+    expect(sti.routes.value[0].lengthM).toBeCloseTo(1000, 0)
+  })
+
+  it('startpunkt i vann i snarvei-inngangen → feil, går ikke videre til mål', () => {
+    const sti = useStifinner()
+    sti.beginPickStart()
+    sti.confirmStart({ x: 50, y: 50 }, lineSvg(), { startOnWater: true })
+    expect(sti.mode.value).toBe('showing')
+    expect(sti.start.value).toBe(null)
+    expect(sti.error.value).toMatch(/vann/i)
+  })
+})
+
 describe('useStifinner – estWalkMinutes (Naismith)', () => {
   it('flatt (uten høydeprofil): ren distanse ved 4 km/t', () => {
     const sti = useStifinner()

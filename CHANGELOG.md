@@ -1,5 +1,16 @@
 # Endringslogg
 
+## 2026-07-27 — v2.4.1: Stifinner-snarveien plukker startpunkt før mål
+
+Snarvei-inngangen til Stifinner sikter nå inn punktene i naturlig rekkefølge:
+FØRST startpunktet (A), så målet (B) — motsatt av før, der målet ble valgt
+først. Modus-maskinen er snudd tilsvarende (pickingStart → pickingDest →
+showing), og modus-banneret viser et eget «Velg mål»-steg. Long-press-
+inngangen «Naviger hit» er urørt — der er det trykkede punktet fortsatt målet,
+siden «hit» nettopp betyr destinasjonen.
+
+---
+
 ## 2026-07-27 — v2.4.0: Ryddet fargepalett, ekte høykontrast-mørk og sti-farger
 
 Tema-menyen er delt i to: «Lys (ISOM)» og «Mørk» står som hovedtemaer, mens

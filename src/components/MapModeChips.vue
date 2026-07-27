@@ -181,8 +181,8 @@ function formatElevationDiff(m) {
   </div>
 
   <!-- Stifinner-alert (grønn, X-knapp avslutter — samme mønster som måling).
-       To faser: velg startpunkt → ruter funnet. Egen rute-liste (tappbar,
-       viser lengde + estimert gangtid). -->
+       Snarvei-faser: velg startpunkt → velg mål → ruter funnet. Egen rute-liste
+       (tappbar, viser lengde + estimert gangtid). -->
   <div v-if="sti.active.value && sti.mode.value !== 'following'"
        class="absolute top-[var(--ovl-top)] left-3 z-20 rounded-md bg-emerald-600
               text-white text-[11px] font-medium shadow-lg
@@ -193,6 +193,10 @@ function formatElevationDiff(m) {
       </div>
       <template v-if="sti.mode.value === 'pickingStart'">
         <div class="text-[12px] font-semibold">Velg startpunkt</div>
+        <div class="text-[10px] text-emerald-100/90">Sikt med krysset, trykk Bekreft</div>
+      </template>
+      <template v-else-if="sti.mode.value === 'pickingDest'">
+        <div class="text-[12px] font-semibold">Velg mål</div>
         <div class="text-[10px] text-emerald-100/90">Sikt med krysset, trykk Bekreft</div>
       </template>
       <template v-else-if="sti.mode.value === 'pickingVia'">

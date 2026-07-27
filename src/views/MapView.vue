@@ -2554,8 +2554,9 @@ function onConfirmVia() {
 }
 
 // ── Snarvei-rad (mest brukte funksjoner) ──────────────────────────────────
-// Stifinner/rundtur fra snarveien: velg både mål (B/origo) OG startpunkt med
-// kikkertsiktet, i motsetning til long-press-inngangen. Måling/annotering av.
+// Stifinner/rundtur fra snarveien: sikt inn punktene med kikkertsiktet — FØRST
+// startpunktet, så målet (B/origo) — i motsetning til long-press-inngangen.
+// Måling/annotering av.
 function stifinnerReset() {
   measureMode.value = false
   annot.isAnnotateMode.value = false
@@ -2566,17 +2567,19 @@ function stifinnerReset() {
 }
 function onShortcutStifinner() {
   stifinnerReset()
-  sti.beginPickDest()
+  sti.beginPickStart()
 }
 function onShortcutRoundTrip() {
   stifinnerReset()
   sti.beginPickLoop()
 }
-// Bekreft mål (B) = skjermsenteret → videre til startpunkt-plukk.
+// Bekreft mål (B) = skjermsenteret. Startpunktet er alt valgt (snarvei-
+// inngangen plukker start FØR mål) → ruter beregnes og tegnes nå.
 function onConfirmDest() {
   const c = visibleCenterSvg()
   if (!c) return
   sti.confirmDest(c)
+  renderRoutes()
 }
 // Bekreft rundtur-origo = skjermsenteret → videre til vendepunkt-plukk.
 function onConfirmLoopOrigin() {
