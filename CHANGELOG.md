@@ -1,5 +1,16 @@
 # Endringslogg
 
+## 2026-07-27 — v2.4.9: «Installer som app» i hovedmenyen
+
+Lagt en «Installer som app»-knapp nederst i hovedmenyen, vist kun når appen ikke
+alt kjører installert (standalone) og nettleseren støtter install — Chrome/Edge/
+Samsung via `beforeinstallprompt`, eller iOS med manuell «Legg til på Hjem-skjerm»-
+veiledning. Fra før lå install-knappen bare på forsiden og i del-kart/rute-flyten;
+nå er den tilgjengelig fra hvor som helst i appen. Bruker samme `usePwaInstall`-
+singleton som resten.
+
+---
+
 ## 2026-07-27 — v2.4.8: Boot-loop-vern mot blank/fanget app
 
 Appen gjenopptar sist brukte kart ved oppstart (`/` → `/kart/:id`). Havnet den
