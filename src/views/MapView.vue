@@ -4157,7 +4157,7 @@ onUnmounted(() => {
   min-width: 54px;
   padding: 6px 8px;
   border-radius: 12px;
-  color: #fff;
+  color: var(--color-ink);
   font-size: 10px;
   line-height: 1;
   transition: background 0.15s ease, transform 0.1s ease;
