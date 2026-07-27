@@ -1633,7 +1633,7 @@ export function buildSvg(elements, bbox, options = {}) {
       // v8.1.2 fix: bruker getIsomDef som slår opp på ISOM-kategori (manmade),
       // ikke UI-kategorien (vei-stor) som ble brukt i v8.1.0/v8.1.1 — derfor
       // ble aldri overlay-pathene emittet og roads ble bare sort casing.
-      const hasOverlay = !!getIsomDef(code, isomCatalog, false)?.overlayStroke
+      const hasOverlay = !!getIsomDef(code)?.overlayStroke
       if (hasOverlay) {
         // v8.5.7: To-fase rendering støtter "casing pattern". Når veier
         // emitteres separat som casing- og overlay-pass over flere koder,
@@ -1655,7 +1655,7 @@ export function buildSvg(elements, bbox, options = {}) {
       // lys underlinje-tvilling FØRST i gruppen (samme d/bbox, class="casing")
       // så den stiplede streken tegnes oppå. CSS-regelen for `.casing` settes
       // i symbolizer.js (farge faller tilbake på var(--bg)).
-      const hasCasing = !!getIsomDef(code, isomCatalog, false)?.casingStroke
+      const hasCasing = !!getIsomDef(code)?.casingStroke
       const casingLines = hasCasing
         ? lineBuckets.map(b => `    <path d="${b.ds.join(' ')}" class="casing"${bboxAttr(b.bbox, fmt)}/>`)
         : []
@@ -2388,7 +2388,7 @@ export function buildSvg(elements, bbox, options = {}) {
       if (mpc.flagIfDry) uncertain = true
       else return ''
     }
-    const def = getIsomDef(code, isomCatalog, false)
+    const def = getIsomDef(code)
     const sym = def?.point
     if (!sym) return ''
     const sid = symbolIds.get(sym.symbol)
@@ -2642,7 +2642,7 @@ export function buildSvg(elements, bbox, options = {}) {
   // i kryss: motorvei (501) > hovedvei (502) > småvei (503). Jernbane (515)
   // og trail-koder (504-511) beholder dagens enkel-stroke-rendering.
   const roadOverlayCodes = ROAD_CODES.filter(c =>
-    c !== '515' && !!getIsomDef(c, isomCatalog, false)?.overlayStroke
+    c !== '515' && !!getIsomDef(c)?.overlayStroke
   )
   const roadOtherCodes = ROAD_CODES.filter(c => !roadOverlayCodes.includes(c))
   const roadLayers =

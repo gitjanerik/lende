@@ -22,8 +22,6 @@ const props = defineProps({
   sjokartStatusText: { type: String, default: '' },
   nveInnsjoStatusText: { type: String, default: '' },
   meta: { type: Object, default: null },
-  purpleTrails: { type: Boolean, default: false },
-  togglePurpleTrails: { type: Function, required: true },
   openVardasen: { type: Function, required: true },
   openPerfLog: { type: Function, required: true },
 })
@@ -164,15 +162,6 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
       <span class="inline-block w-3 h-3 rounded-sm align-middle" style="background: hsl(300, 80%, 60%);"></span> OSM relation,
       <span class="inline-block w-3 h-3 rounded-sm align-middle" style="background: hsl(45, 90%, 55%);"></span> merged.
     </div>
-    <!-- Lilla stier: live A/B-test av CD-forslaget (#7a4fa3) uten rebuild.
-         Svart er default; knotten overstyrer via --iso-505/506/507-stroke. -->
-    <button @click="togglePurpleTrails"
-            class="w-full px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98] mb-2"
-            :class="purpleTrails
-                    ? 'bg-purple-400/20 border-purple-300/50 text-white'
-                    : 'bg-white/5 border-white/10 text-white/75'">
-      {{ purpleTrails ? 'Lilla stier: PÅ' : 'Lilla stier (test)' }}
-    </button>
     <!-- Byggetider (perf): viser localStorage-loggen så den kan kopieres
          og deles — mobil-konsollen er upraktisk. -->
     <button @click="openPerfLog"

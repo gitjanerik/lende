@@ -486,23 +486,17 @@ export function buildIsomDefs(catalog = isomCatalogDefault) {
   return { defs, patternIds, symbolIds, patternDefs, symbolDefs }
 }
 
-/** Returnerer ISOM-spec for en kode med valgfri darkMode-overstyring. */
-export function getIsomDef(code, catalog = isomCatalogDefault, dark = false) {
-  const entry = ISOM_CATEGORY_BY_CODE[code]
-  if (!entry) return null
-  let def = entry.def
-  if (dark && catalog.darkMode?.categories?.[code]) {
-    def = { ...def, ...catalog.darkMode.categories[code] }
-  }
-  return def
+/** Returnerer ISOM-spec for en kode. */
+export function getIsomDef(code) {
+  return ISOM_CATEGORY_BY_CODE[code]?.def ?? null
 }
 
 /**
  * Bygg path-attributter for en feature med gitt ISOM-kode.
  * Returnerer { fill, stroke } som er klare attribut-strenger.
  */
-export function pathAttrsForIsomCode(code, catalog = isomCatalogDefault, patternIds, dark = false) {
-  const def = getIsomDef(code, catalog, dark)
+export function pathAttrsForIsomCode(code, catalog = isomCatalogDefault, patternIds) {
+  const def = getIsomDef(code)
   if (!def) return null
   let fill = ''
   if (def.fill) {
@@ -730,7 +724,13 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
     ].filter(Boolean).join('; ')
     rules.push(`${root} [data-label="peak-ele"] { ${styleProps} }`)
   }
-  rules.push(`${root} [data-label="kontur-tall"] { font-size: ${fs(lab['kontur-tall'].fontSizeMm)}; fill: var(--label-kontur-tall-fill, ${lab['kontur-tall'].color}); font-style: italic; }`)
+  // Halo på høydetallene: katalogen har alltid definert haloColor/haloWidthMm
+  // her, men regelen brukte dem ikke — tallet lå nakent oppå selve høydekurven
+  // det merker, og --label-kontur-tall-halo var en død tema-variabel.
+  {
+    const kt = lab['kontur-tall']
+    rules.push(`${root} [data-label="kontur-tall"] { font-size: ${fs(kt.fontSizeMm)}; fill: var(--label-kontur-tall-fill, ${kt.color}); font-style: italic; stroke: var(--label-kontur-tall-halo, ${kt.haloColor}); stroke-width: ${haloMm(kt.haloWidthMm)}; paint-order: stroke; stroke-linejoin: round; }`)
+  }
   if (lab['vann-navn']) {
     const vn = lab['vann-navn']
     const styleProps = [
@@ -752,7 +752,7 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
     rules.push(`${root} [data-layer="bekk"] [data-label="vann-navn"] { font-weight: 400; }`)
   }
   if (lab['vann-tall']) {
-    rules.push(`${root} [data-label="vann-tall"] { font-size: ${fs(lab['vann-tall'].fontSizeMm)}; fill: var(--label-vann-tall-fill, ${lab['vann-tall'].color}); font-family: var(--water-font, 'Inter Variable'), Georgia, serif; font-style: italic; stroke: var(--label-vann-tall-halo, ${lab['vann-tall'].haloColor}); stroke-width: ${haloMm(lab['vann-tall'].haloWidthMm)}; }`)
+    rules.push(`${root} [data-label="vann-tall"] { font-size: ${fs(lab['vann-tall'].fontSizeMm)}; fill: var(--label-vann-tall-fill, ${lab['vann-tall'].color}); font-family: var(--water-font, 'Inter Variable'), Georgia, serif; font-style: italic; stroke: var(--label-vann-tall-halo, ${lab['vann-tall'].haloColor}); stroke-width: ${haloMm(lab['vann-tall'].haloWidthMm)}; paint-order: stroke; stroke-linejoin: round; }`)
   }
   // Dybde-tall (Sjøkart-soundings). Uten denne regelen falt de gjennom til den
   // generiske [data-label]-regelen = place-størrelse (4 mm), så dybde-tallene

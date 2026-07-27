@@ -43,7 +43,7 @@ const state = {
   // tilstanden i appen (Kartlag-fanen + Strek-knott/-panel). Holdes på tvers
   // av kall og påføres hver SVG som skrives; state.map.svg forblir urørt
   // (som i appen, der kartet er komplett og drawer-en styrer visningen).
-  innstillinger: null,  // { preset?, lag?, strekSkala?, strek? } | null = urørt
+  innstillinger: null,  // { tema?, preset?, lag?, strekSkala?, strek?, stiFarger? } | null = urørt
 }
 
 // Påfør gjeldende innstillinger på en SVG som skal skrives til fil.
@@ -857,7 +857,7 @@ const STREK_DOC = STROKE_GROUPS.map(g => `${g.id} (${g.label})`).join(', ')
 const THEMES = listThemes()
 const TEMA_KEYS = THEMES.map(t => t.key)
 const TEMA_DOC = THEMES
-  .map(t => `«${t.key}» (${t.label}): ${t.beskrivelse}${t.autoHideLayers ? ' Skjuler automatisk alle lag unntatt høydekurver; relieff er uansett ikke med i MCP-bygde kart.' : ''}`)
+  .map(t => `«${t.key}» (${t.label}, ${t.group}): ${t.beskrivelse}${t.autoHideLayers ? ' Skjuler automatisk alle lag unntatt høydekurver.' : ''}`)
   .join(' ')
 
 server.registerTool(
@@ -885,11 +885,16 @@ server.registerTool(
         .describe('Global strek-skala (--stroke-scale), 1 = som bygget'),
       strek: z.record(z.number().min(0.4).max(3)).optional()
         .describe('Per-gruppe strek-multiplikator, f.eks. {"sti": 0.6} (0.4–3, 1 = nøytral)'),
+      stiFarger: z.object({
+        fg: z.string().optional().describe('Farge på den stiplede sti-streken (505/506/507)'),
+        bg: z.string().optional().describe('Farge på den kontinuerlige underlinja (505/506)'),
+      }).optional()
+        .describe('Sti-farger som 6-sifret hex, f.eks. {"fg": "#7a4fa3"} — utelatt = følg temaet'),
       nullstill: z.boolean().default(false)
         .describe('Fjern alle innstillinger først (som «Nullstill» i Lag-fanen)'),
     },
   },
-  async ({ tema, preset, lag, strekSkala, strek, nullstill }) => {
+  async ({ tema, preset, lag, strekSkala, strek, stiFarger, nullstill }) => {
     const prev = nullstill ? {} : (state.innstillinger ?? {})
     // Tema-bytte nullstiller enkelt-lag-valg når temaet auto-skjuler lag
     // (Curves) — speiler appens onThemeChange.
@@ -902,6 +907,7 @@ server.registerTool(
       lag: (preset || temaResetsLag) ? { ...(lag ?? {}) } : { ...(prev.lag ?? {}), ...(lag ?? {}) },
       strekSkala: strekSkala ?? prev.strekSkala,
       strek: { ...(prev.strek ?? {}), ...(strek ?? {}) },
+      stiFarger: { ...(prev.stiFarger ?? {}), ...(stiFarger ?? {}) },
     }
     // Validerer nøkler (kaster med liste over gyldige ved feil).
     const visible = resolveVisibleLayers(next)
@@ -909,6 +915,7 @@ server.registerTool(
 
     const neutral = !next.tema && !next.preset && !Object.keys(next.lag).length
       && next.strekSkala == null && !Object.keys(next.strek).length
+      && !Object.keys(next.stiFarger).length
     state.innstillinger = neutral ? null : next
 
     let svgPath = null

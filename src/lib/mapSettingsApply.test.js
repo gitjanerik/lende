@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   resolveVisibleLayers, buildSettingsCss, applyMapSettings, SETTINGS_STYLE_ID,
-  buildThemeCss, listThemes,
+  buildThemeCss, listThemes, THEME_GROUPS,
 } from './mapSettingsApply.js'
 import {
   LAYERS, ALL_LAYER_KEYS, DEFAULT_VISIBLE_LAYER_KEYS, DEFAULT_OFF_LAYERS,
@@ -112,8 +112,21 @@ describe('tema', () => {
       expect(t.label).toBeTruthy()
       expect(t.beskrivelse).toBeTruthy()
     }
-    expect(themes.find((t) => t.key === 'curves').autoHideLayers).toBe(true)
+    expect(themes.find((t) => t.key === 'curves').autoHideLayers).toBe(false)
     expect(themes.find((t) => t.key === 'dark').autoHideLayers).toBe(false)
+  })
+
+  it('temaene er delt i hovedtemaer og monokrom-familien', () => {
+    const byKey = Object.fromEntries(listThemes().map((t) => [t.key, t]))
+    expect(byKey.light.group).toBe('hoved')
+    expect(byKey.dark.group).toBe('hoved')
+    expect(byKey.light.monochrome).toBe(false)
+    expect(byKey.dark.monochrome).toBe(false)
+    for (const k of ['mono-sepia', 'mono-indigo', 'mono-slate', 'mocha', 'forest', 'curves']) {
+      expect(byKey[k].group).toBe('monokrom')
+      expect(byKey[k].monochrome).toBe(true)
+    }
+    expect(THEME_GROUPS.map((g) => g.key)).toEqual(['hoved', 'monokrom'])
   })
 
   it('light = katalog-defaults → ingen CSS', () => {
@@ -122,32 +135,71 @@ describe('tema', () => {
 
   it('dark setter samme CSS-variabler som appens applyTheme', () => {
     const css = buildThemeCss('dark')
-    expect(css).toContain('--bg: #2a1f15')
-    expect(css).toContain('--iso-101-stroke: #f0c275')
-    expect(css).toContain('--art-fill-opacity: 0.85')
-    expect(css).toContain('--iso-depth-1: #356f8c')
-    expect(css).toContain('--label-place-fill: #e8e0d0')
+    expect(css).toContain('--bg: #14181c')
+    expect(css).toContain('--iso-101-stroke: #edc891')
+    expect(css).toContain('--iso-depth-1: #295970')
+    expect(css).toContain('--label-place-fill: #eeeff0')
+    expect(css).toContain('--label-place-halo: #0a0d10')
     expect(css.startsWith('.isom-map {')).toBe(true)
+    // fillOpacity 1 → ingen global demper. Høykontrast-temaet skal ikke blande
+    // flatene mot bakgrunnen; variabelen emitteres kun når verdien er < 1.
+    expect(css).not.toContain('--art-fill-opacity')
+  })
+
+  it('dark lar myra beholde katalogens to mønstre', () => {
+    // 308 fast / 309 utrygg skilles KUN av mønster-tettheten. En flat farge på
+    // begge (som før) gjorde dem identiske, så temaet overstyrer dem ikke.
+    const css = buildThemeCss('dark')
+    expect(css).not.toContain('--iso-308-fill')
+    expect(css).not.toContain('--iso-309-fill')
+  })
+
+  it('veier i dark farger kjernen, ikke bare casingen', () => {
+    // Uten overlayStroke ble lys-temaets røde vegbane liggende igjen på toppen.
+    const css = buildThemeCss('dark')
+    expect(css).toContain('--iso-501-overlay-stroke: #eca688')
+    expect(css).toContain('--iso-501-stroke: #0b0e11')
+  })
+
+  it('stiFarger bakes inn i innstillings-CSS-en (MCP-paritet med appen)', () => {
+    const css = buildSettingsCss({ stiFarger: { fg: '#7a4fa3', bg: '#ffee88' } })
+    expect(css).toContain('stroke: #7a4fa3 !important')
+    expect(css).toContain('[data-iso="505"] path.casing')
+    // Tomt objekt = «følg tema» → ingen ekstra regler utover baselinjen.
+    expect(buildSettingsCss({ stiFarger: {} })).toBe(buildSettingsCss({}))
+    expect(() => buildSettingsCss({ stiFarger: { fg: 'lilla' } }))
+      .toThrow(/Ugyldig sti-farge/)
   })
 
   it('ukjent tema kaster med liste over gyldige', () => {
     expect(() => buildThemeCss('neon')).toThrow(/Ukjent tema .*curves/)
   })
 
-  it('curves auto-skjuler alle lag unntatt høydekurver (gul)', () => {
+  it('curves beholder de gule kurvene, men skjuler ikke lenger resten', () => {
     const v = resolveVisibleLayers({ tema: 'curves' })
-    expect([...v]).toEqual(['kontur'])
+    expect(v.has('sti')).toBe(true)
+    expect(v.has('vann')).toBe(true)
     const css = buildSettingsCss({ tema: 'curves' })
     expect(css).toContain('--iso-101-stroke: #ffd84a')
-    expect(css).toContain('[data-layer="sti"]')
-    expect(css).toContain('[data-layer="vann"]')
-    expect(css).not.toContain('[data-layer="kontur"], ')
+    expect(css).not.toContain('[data-layer="sti"]')
+    expect(css).not.toContain('[data-layer="vann"]')
   })
 
-  it('lag-overstyring og preset vinner over curves-basen', () => {
-    const medVann = resolveVisibleLayers({ tema: 'curves', lag: { vann: true } })
-    expect(medVann.has('vann')).toBe(true)
-    expect(medVann.has('sti')).toBe(false)
+  it('curves hvisker: øvrige elementer ligger tett opptil bakgrunnen', () => {
+    // «Hviskende» er tallfestet — kurvene skal dominere. Sti-valøren ligger
+    // langt under kurve-gulen, og flatene nesten oppå bakgrunnen.
+    const css = buildThemeCss('curves')
+    expect(css).toContain('--bg: #0d0520')
+    expect(css).toContain('--iso-505-stroke: #5d5c65')
+    expect(css).toContain('--iso-406-fill: #0a031d')
+    // Dempingen ligger i valørene, ikke i en global opacity — den ville også
+    // ha svekket de gule kurvene.
+    expect(css).not.toContain('--art-fill-opacity')
+  })
+
+  it('lag-overstyring og preset virker som før', () => {
+    const utenVann = resolveVisibleLayers({ tema: 'curves', lag: { vann: false } })
+    expect(utenVann.has('vann')).toBe(false)
     const medPreset = resolveVisibleLayers({ tema: 'curves', preset: 'tur' })
     expect(medPreset.has('sti')).toBe(true)
   })

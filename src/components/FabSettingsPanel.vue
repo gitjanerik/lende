@@ -13,6 +13,8 @@ const props = defineProps({
   panel: { type: String, default: null },          // 'stroke' | 'relief' | 'zoom' | null
   drawer: { type: Object, required: true },        // useDraggableDrawer-objekt
   strokeEffective: { type: Object, default: () => ({}) },
+  trailSwatches: { type: Object, default: () => ({ fg: '#000000', bg: '#fbf7ec' }) },
+  trailColorsOverridden: { type: Boolean, default: false },
   zoomMin: { type: Number, default: 1 },
   zoomMax: { type: Number, default: 5 },
   maxTiles: { type: Number, default: 0 },
@@ -22,7 +24,8 @@ const props = defineProps({
   hint: { type: String, default: '' },
 })
 const emit = defineEmits([
-  'close', 'setStrokeGroup', 'saveDefault', 'reset', 'rebuild',
+  'close', 'setStrokeGroup', 'setTrailColor', 'resetTrailColors',
+  'saveDefault', 'reset', 'rebuild',
 ])
 
 const reliefEnabled = defineModel('reliefEnabled', { type: Boolean, default: false })
@@ -86,6 +89,41 @@ const title = computed(() => (
                      @input="emit('setStrokeGroup', g.id, Number($event.target.value))"
                      :aria-label="`Strekbredde ${g.label}`"
                      class="w-full accent-sky-400"/>
+
+              <!-- Sti-farger: forgrunn = den stiplede streken (505/506/507),
+                   bakgrunn = den kontinuerlige casing-linjen under (505/506).
+                   Uten overstyring følger begge temaet. -->
+              <template v-if="g.id === 'sti'">
+                <div class="grid grid-cols-2 gap-2 mt-3">
+                  <label class="flex items-center gap-2 rounded-md bg-white/5 px-2 py-1.5">
+                    <input type="color" :value="trailSwatches.fg"
+                           @input="emit('setTrailColor', 'fg', $event.target.value)"
+                           aria-label="Farge på sti-strek"
+                           class="w-7 h-7 rounded shrink-0 bg-transparent border-0 p-0 cursor-pointer"/>
+                    <span class="text-[11px] text-white/70 leading-tight">Strek</span>
+                  </label>
+                  <label class="flex items-center gap-2 rounded-md bg-white/5 px-2 py-1.5">
+                    <input type="color" :value="trailSwatches.bg"
+                           @input="emit('setTrailColor', 'bg', $event.target.value)"
+                           aria-label="Farge på sti-bakgrunn"
+                           class="w-7 h-7 rounded shrink-0 bg-transparent border-0 p-0 cursor-pointer"/>
+                    <span class="text-[11px] text-white/70 leading-tight">Bakgrunn</span>
+                  </label>
+                </div>
+                <button @click="emit('resetTrailColors')"
+                        :disabled="!trailColorsOverridden"
+                        class="w-full mt-2 px-3 py-1.5 rounded-md border text-[11px] active:scale-[0.98]"
+                        :class="trailColorsOverridden
+                                ? 'bg-amber-400/15 border-amber-300/40 text-white'
+                                : 'bg-white/5 border-white/10 text-white/35'">
+                  ↺ Nullstill farger
+                </button>
+                <div class="text-[11px] text-white/45 leading-snug mt-1.5">
+                  Nullstill gir temaets sti-farger — svart stiplet strek på hvit
+                  bakgrunn i Lys (ISOM). Stitråkk (svakeste sti) har ingen
+                  bakgrunnslinje og påvirkes bare av strek-fargen.
+                </div>
+              </template>
             </div>
           </template>
 

@@ -1574,287 +1574,12 @@
       "haloWidthMm": 0.7
     }
   },
-  "darkMode": {
-    "$comment": "Fullstendig invertert dark mode for nattvisning. Land = mørkebrun (#2a1f15), konturer cream/varm gul, vegetasjon i dempede grønntoner, vann mørkeblå, stier og veier i lys cream. Aktiveres via Mørk modus-toggle i drawer.",
-    "background": "#2a1f15",
-    "categories": {
-      "101": {
-        "stroke": {
-          "color": "#f0c275"
-        }
-      },
-      "102": {
-        "stroke": {
-          "color": "#ffd28a"
-        }
-      },
-      "103": {
-        "stroke": {
-          "color": "#f0c275"
-        }
-      },
-      "104": {
-        "stroke": {
-          "color": "#f0c275"
-        }
-      },
-      "201": {
-        "stroke": {
-          "color": "#f0e6d0"
-        }
-      },
-      "203": {
-        "stroke": {
-          "color": "#f0e6d0"
-        }
-      },
-      "301": {
-        "fill": {
-          "color": "#1a3340"
-        },
-        "stroke": {
-          "color": "#5aa9d8"
-        }
-      },
-      "302": {
-        "fill": {
-          "color": "#1a3340"
-        },
-        "stroke": {
-          "color": "#5aa9d8"
-        }
-      },
-      "303": {
-        "fill": {
-          "color": "#0e2330"
-        },
-        "stroke": {
-          "color": "#3a8db8"
-        }
-      },
-      "304": {
-        "stroke": {
-          "color": "#5aa9d8"
-        }
-      },
-      "305": {
-        "stroke": {
-          "color": "#5aa9d8"
-        }
-      },
-      "306": {
-        "stroke": {
-          "color": "#4a7a98"
-        }
-      },
-      "307": {
-        "fill": {
-          "color": "#1f4a63"
-        }
-      },
-      "308": {
-        "fill": {
-          "color": "#243a45"
-        }
-      },
-      "309": {
-        "fill": {
-          "color": "#243a45"
-        }
-      },
-      "401": {
-        "fill": {
-          "color": "#7a5e2a"
-        }
-      },
-      "404": {
-        "fill": {
-          "color": "#5a4a30"
-        }
-      },
-      "405": {
-        "fill": {
-          "color": "#2a1f15"
-        }
-      },
-      "406": {
-        "fill": {
-          "color": "#3d4d2e"
-        }
-      },
-      "407": {
-        "fill": {
-          "color": "#2d3f24"
-        }
-      },
-      "408": {
-        "fill": {
-          "color": "#1c2a17"
-        }
-      },
-      "501": {
-        "stroke": {
-          "color": "#4a3520"
-        },
-        "overlayStroke": {
-          "color": "#d09a5e"
-        }
-      },
-      "502": {
-        "stroke": {
-          "color": "#3e2e1c"
-        },
-        "overlayStroke": {
-          "color": "#b88a52"
-        }
-      },
-      "503": {
-        "stroke": {
-          "color": "#352818"
-        },
-        "overlayStroke": {
-          "color": "#9a7d5a"
-        }
-      },
-      "504": {
-        "stroke": {
-          "color": "#e8d9b8"
-        }
-      },
-      "505": {
-        "stroke": {
-          "color": "#e8d9b8"
-        }
-      },
-      "506": {
-        "stroke": {
-          "color": "#e8d9b8"
-        }
-      },
-      "507": {
-        "stroke": {
-          "color": "#e8d9b8"
-        }
-      },
-      "508": {
-        "stroke": {
-          "color": "#d8d8d8"
-        }
-      },
-      "510": {
-        "stroke": {
-          "color": "#e8d9b8"
-        }
-      },
-      "511": {
-        "stroke": {
-          "color": "#d8d8d8"
-        }
-      },
-      "512": {
-        "fill": {
-          "color": "#5a4a1c"
-        },
-        "stroke": {
-          "color": "#a89048"
-        }
-      },
-      "513": {
-        "fill": {
-          "color": "#4a4424"
-        },
-        "stroke": {
-          "color": "#b5912f"
-        }
-      },
-      "514": {
-        "fill": {
-          "color": "#3a3c40"
-        },
-        "stroke": {
-          "color": "#6f7176"
-        }
-      },
-      "515": {
-        "stroke": {
-          "color": "#e8d9b8"
-        },
-        "overlayStroke": {
-          "color": "#2a1f15"
-        }
-      },
-      "521": {
-        "fill": {
-          "color": "#5a4530"
-        },
-        "stroke": {
-          "color": "#1a1208"
-        }
-      },
-      "522": {
-        "fill": {
-          "color": "#3a2f22"
-        }
-      },
-      "520": {
-        "fill": {
-          "color": "rgba(120, 180, 90, 0.28)"
-        },
-        "stroke": {
-          "color": "#8bc26b"
-        }
-      },
-      "525": {
-        "stroke": {
-          "color": "#c8c8c8"
-        }
-      },
-      "528": {
-        "stroke": {
-          "color": "#c8c8c8"
-        }
-      },
-      "001": {
-        "fill": {
-          "color": "#2a1f15"
-        }
-      }
-    },
-    "labels": {
-      "place": {
-        "color": "#e8e0d0",
-        "haloColor": "#2a1f15"
-      },
-      "peak": {
-        "color": "#f5c97b",
-        "haloColor": "#2a1f15"
-      },
-      "peak-ele": {
-        "color": "#f5c97b",
-        "haloColor": "#2a1f15"
-      },
-      "kontur-tall": {
-        "color": "#f0c275",
-        "haloColor": "#2a1f15"
-      },
-      "vann-navn": {
-        "color": "#88c2e0",
-        "haloColor": "#2a1f15"
-      },
-      "vann-tall": {
-        "color": "#6da6c5",
-        "haloColor": "#2a1f15"
-      },
-      "dybde-tall": {
-        "color": "#88c2e0",
-        "haloColor": "#2a1f15"
-      }
-    }
-  },
   "themes": {
     "light": {
       "$comment": "Default ISOM-2017-2: kremgul land, multifargete features. Ingen overstyringer (bruker katalog-defaults).",
       "label": "Lys (ISOM)",
+      "group": "hoved",
+      "monochrome": false,
       "background": "#fefae0",
       "categories": {},
       "labels": {},
@@ -1863,1515 +1588,1932 @@
       "autoHideLayers": false
     },
     "dark": {
-      "$comment": "Fullstendig invertert nattvisning. Land = mørkebrun, alle features re-fargelagt.",
+      "$comment": "Høykontrast nattvisning (WCAG AA–AAA). Mørk nøytral bakgrunn; vegetasjonstetthet stiger i valør (invertert ift. lys ISOM) så tett skog leses som lysere, ikke mørkere. Vann ligger under hele landrampen, slik at screen-relieffet øker land/vann-separasjonen i stedet for å viske den ut. Halo #0a0d10 på labels bærer lesbarheten over broket underlag.",
       "label": "Mørk",
-      "background": "#2a1f15",
-      "depthScale": ["#356f8c", "#2c5f7a", "#234d63", "#193c4f", "#11303f"],
+      "group": "hoved",
+      "monochrome": false,
+      "background": "#14181c",
+      "depthScale": ["#295970", "#255169", "#214a64", "#1d415d", "#1a3856"],
       "categories": {
+        "001": {
+          "fill": {
+            "color": "#14181c"
+          }
+        },
         "101": {
           "stroke": {
-            "color": "#f0c275"
+            "color": "#edc891"
           }
         },
         "102": {
           "stroke": {
-            "color": "#ffd28a"
+            "color": "#f6dcba"
           }
         },
         "103": {
           "stroke": {
-            "color": "#f0c275"
+            "color": "#cfa05a"
           }
         },
         "104": {
           "stroke": {
-            "color": "#f0c275"
+            "color": "#edc891"
           }
         },
         "201": {
           "stroke": {
-            "color": "#f0e6d0"
+            "color": "#cad0d5"
           }
         },
         "203": {
           "stroke": {
-            "color": "#f0e6d0"
+            "color": "#f3f4f5"
+          }
+        },
+        "210": {
+          "fill": {
+            "color": "#60564e"
           }
         },
         "301": {
           "fill": {
-            "color": "#1a3340"
+            "color": "#1e465f"
           },
           "stroke": {
-            "color": "#5aa9d8"
+            "color": "#82c8e2"
           }
         },
         "302": {
           "fill": {
-            "color": "#1a3340"
+            "color": "#1e465f"
           },
           "stroke": {
-            "color": "#5aa9d8"
+            "color": "#82c8e2"
           }
         },
         "303": {
           "fill": {
-            "color": "#0e2330"
+            "color": "#1a3958"
           },
           "stroke": {
-            "color": "#3a8db8"
+            "color": "#6eb7d6"
           }
         },
         "304": {
           "stroke": {
-            "color": "#5aa9d8"
+            "color": "#7bc2e0"
           }
         },
         "305": {
           "stroke": {
-            "color": "#5aa9d8"
+            "color": "#51a4c8"
           }
         },
         "306": {
           "stroke": {
-            "color": "#4a7a98"
+            "color": "#5e9dbd"
           }
         },
         "307": {
           "fill": {
-            "color": "#1f4a63"
-          }
-        },
-        "308": {
-          "fill": {
-            "color": "#243a45"
-          }
-        },
-        "309": {
-          "fill": {
-            "color": "#243a45"
+            "color": "#1e4059"
           }
         },
         "401": {
           "fill": {
-            "color": "#7a5e2a"
+            "color": "#2e2a22"
+          }
+        },
+        "403": {
+          "fill": {
+            "color": "#3d3721"
           }
         },
         "404": {
           "fill": {
-            "color": "#5a4a30"
+            "color": "#494122"
           }
         },
         "405": {
           "fill": {
-            "color": "#2a1f15"
+            "color": "#14181c"
           }
         },
         "406": {
           "fill": {
-            "color": "#3d4d2e"
+            "color": "#2e5935"
           }
         },
         "407": {
           "fill": {
-            "color": "#2d3f24"
+            "color": "#316e3a"
           }
         },
         "408": {
           "fill": {
-            "color": "#1c2a17"
+            "color": "#33823d"
+          }
+        },
+        "409": {
+          "fill": {
+            "color": "#348c34"
           }
         },
         "501": {
           "stroke": {
-            "color": "#d09a5e"
+            "color": "#0b0e11"
+          },
+          "overlayStroke": {
+            "color": "#eca688"
           }
         },
         "502": {
           "stroke": {
-            "color": "#b88a52"
+            "color": "#0b0e11"
+          },
+          "overlayStroke": {
+            "color": "#e0925e"
           }
         },
         "503": {
           "stroke": {
-            "color": "#9a7d5a"
+            "color": "#0b0e11"
+          },
+          "overlayStroke": {
+            "color": "#c1833d"
           }
         },
         "504": {
           "stroke": {
-            "color": "#e8d9b8"
+            "color": "#dac7a1"
           }
         },
         "505": {
           "stroke": {
-            "color": "#e8d9b8"
+            "color": "#eee1c4"
           }
         },
         "506": {
           "stroke": {
-            "color": "#e8d9b8"
+            "color": "#cab482"
           }
         },
         "507": {
           "stroke": {
-            "color": "#e8d9b8"
+            "color": "#ac9664"
           }
         },
         "508": {
           "stroke": {
-            "color": "#d8d8d8"
+            "color": "#9fb3bf"
           }
         },
         "510": {
           "stroke": {
-            "color": "#e8d9b8"
+            "color": "#ef973f"
           }
         },
         "511": {
           "stroke": {
-            "color": "#d8d8d8"
+            "color": "#969ea6"
           }
         },
         "512": {
           "fill": {
-            "color": "#5a4a1c"
+            "color": "#4b5055"
           },
           "stroke": {
-            "color": "#a89048"
+            "color": "#9f8c56"
+          }
+        },
+        "513": {
+          "fill": {
+            "color": "#504936"
+          },
+          "stroke": {
+            "color": "#ae9347"
+          }
+        },
+        "514": {
+          "fill": {
+            "color": "#4f5357"
+          },
+          "stroke": {
+            "color": "#7f8992"
           }
         },
         "515": {
           "stroke": {
-            "color": "#e8d9b8"
+            "color": "#e6e9ec"
           },
           "overlayStroke": {
-            "color": "#2a1f15"
-          }
-        },
-        "521": {
-          "fill": {
-            "color": "#5a4530"
-          },
-          "stroke": {
-            "color": "#1a1208"
-          }
-        },
-        "522": {
-          "fill": {
-            "color": "#3a2f22"
+            "color": "#14181c"
           }
         },
         "520": {
           "fill": {
-            "color": "rgba(120, 180, 90, 0.28)"
+            "color": "rgba(85, 176, 67, 0.22)"
           },
           "stroke": {
-            "color": "#8bc26b"
+            "color": "#55b043"
+          }
+        },
+        "521": {
+          "fill": {
+            "color": "#907e6d"
+          },
+          "stroke": {
+            "color": "#0b0e11"
+          }
+        },
+        "522": {
+          "fill": {
+            "color": "#5b544b"
           }
         },
         "525": {
           "stroke": {
-            "color": "#c8c8c8"
+            "color": "#998f7d"
           }
         },
         "528": {
           "stroke": {
-            "color": "#c8c8c8"
+            "color": "#8a97a3"
           }
         },
-        "001": {
+        "551": {
           "fill": {
-            "color": "#2a1f15"
+            "color": "#7b8085"
+          }
+        },
+        "556": {
+          "fill": {
+            "color": "#726238"
+          },
+          "stroke": {
+            "color": "#b79035"
           }
         }
       },
       "labels": {
         "place": {
-          "color": "#e8e0d0",
-          "haloColor": "#2a1f15"
+          "color": "#eeeff0",
+          "haloColor": "#0a0d10"
         },
         "peak": {
-          "color": "#f5c97b",
-          "haloColor": "#2a1f15"
+          "color": "#efd69b",
+          "haloColor": "#0a0d10"
         },
         "peak-ele": {
-          "color": "#f5c97b",
-          "haloColor": "#2a1f15"
+          "color": "#dab976",
+          "haloColor": "#0a0d10"
         },
         "kontur-tall": {
-          "color": "#f0c275",
-          "haloColor": "#2a1f15"
+          "color": "#e9c083",
+          "haloColor": "#0a0d10"
         },
         "vann-navn": {
-          "color": "#88c2e0",
-          "haloColor": "#2a1f15"
+          "color": "#a9d6ea",
+          "haloColor": "#0a0d10"
         },
         "vann-tall": {
-          "color": "#6da6c5",
-          "haloColor": "#2a1f15"
+          "color": "#84bad6",
+          "haloColor": "#0a0d10"
         },
         "dybde-tall": {
-          "color": "#88c2e0",
-          "haloColor": "#2a1f15"
+          "color": "#9dcee3",
+          "haloColor": "#0a0d10"
         }
       },
       "artMode": false,
-      "fillOpacity": 0.85,
+      "fillOpacity": 1,
       "autoHideLayers": false
     },
     "mono-sepia": {
-      "$comment": "Sepia varm cream, stier og kurver i mørk sepia for kontrast. Vintage paper-map look.",
+      "$comment": "Varmt papir. Én okerhue i seks valører, jernoksidrøde kurver og teal vann — trykt kart, ikke skjermkart.",
       "label": "Sepia",
-      "background": "#f3e8d0",
-      "depthScale": ["#dcd3b8", "#d0c6a8", "#c4b99a", "#b8af90", "#a89e7d"],
+      "group": "monokrom",
+      "monochrome": true,
+      "artMode": false,
+      "fillOpacity": 1,
+      "background": "#f4e7ce",
+      "depthScale": ["#afe4df", "#9fd9d3", "#8fcec8", "#7fc3bd", "#6eb9b2"],
       "categories": {
+        "001": {
+          "fill": {
+            "color": "#f4e7ce"
+          }
+        },
         "101": {
           "stroke": {
-            "color": "#5a3a1a"
+            "color": "#a4311e"
           }
         },
         "102": {
           "stroke": {
-            "color": "#3d2812"
+            "color": "#941903"
           }
         },
         "103": {
           "stroke": {
-            "color": "#5a3a1a"
+            "color": "#b35645"
           }
         },
         "104": {
           "stroke": {
-            "color": "#5a3a1a"
+            "color": "#b35645"
           }
         },
         "201": {
           "stroke": {
-            "color": "#3d2812"
+            "color": "#26221c"
           }
         },
         "203": {
           "stroke": {
-            "color": "#3d2812"
+            "color": "#13110f"
+          }
+        },
+        "210": {
+          "fill": {
+            "color": "#e9e3d6"
+          }
+        },
+        "214": {
+          "fill": {
+            "color": "#a0d8d2"
+          },
+          "stroke": {
+            "color": "#076c66"
           }
         },
         "301": {
           "fill": {
-            "color": "#cfc7ad"
+            "color": "#abe0da"
           },
           "stroke": {
-            "color": "#7a6e4f"
+            "color": "#076c66"
           }
         },
         "302": {
           "fill": {
-            "color": "#cfc7ad"
+            "color": "#abe0da"
           },
           "stroke": {
-            "color": "#7a6e4f"
+            "color": "#076c66"
           }
         },
         "303": {
           "fill": {
-            "color": "#b8af90"
+            "color": "#98d4ce"
           },
           "stroke": {
-            "color": "#7a6e4f"
+            "color": "#076c66"
           }
         },
         "304": {
           "stroke": {
-            "color": "#7a6e4f"
+            "color": "#05635d"
           }
         },
         "305": {
           "stroke": {
-            "color": "#7a6e4f"
+            "color": "#257b74"
           }
         },
         "306": {
           "stroke": {
-            "color": "#9a8c68"
+            "color": "#598b86"
           }
         },
         "307": {
           "fill": {
-            "color": "#c8c0a4"
+            "color": "#a0d8d2"
           }
         },
         "308": {
           "fill": {
-            "color": "#cfc7ad"
+            "color": "#c6e7e3"
           }
         },
         "309": {
           "fill": {
-            "color": "#cfc7ad"
+            "color": "#b7e2dd"
           }
         },
         "401": {
           "fill": {
-            "color": "#e3cd9c"
+            "color": "#f7ddaa"
+          }
+        },
+        "403": {
+          "fill": {
+            "color": "#f1e0bf"
           }
         },
         "404": {
           "fill": {
-            "color": "#e8c66a"
+            "color": "#f4d699"
           }
         },
         "405": {
           "fill": {
-            "color": "#f3e8d0"
+            "color": "#f4e7ce"
           }
         },
         "406": {
           "fill": {
-            "color": "#d8c8a0"
+            "color": "#e8dabd"
           }
         },
         "407": {
           "fill": {
-            "color": "#c2af86"
+            "color": "#deccab"
           }
         },
         "408": {
           "fill": {
-            "color": "#a89770"
+            "color": "#d1be97"
+          }
+        },
+        "409": {
+          "fill": {
+            "color": "#d8c6a2"
           }
         },
         "501": {
           "stroke": {
-            "color": "#8b5a30"
+            "color": "#353024"
+          },
+          "overlayStroke": {
+            "color": "#e2ddd5"
           }
         },
         "502": {
           "stroke": {
-            "color": "#9a7050"
+            "color": "#353024"
+          },
+          "overlayStroke": {
+            "color": "#ece7df"
           }
         },
         "503": {
           "stroke": {
-            "color": "#a88868"
+            "color": "#353024"
+          },
+          "overlayStroke": {
+            "color": "#f2eee6"
           }
         },
         "504": {
           "stroke": {
-            "color": "#3d2812"
+            "color": "#312d27"
           }
         },
         "505": {
           "stroke": {
-            "color": "#3d2812"
+            "color": "#211e18"
           }
         },
         "506": {
           "stroke": {
-            "color": "#3d2812"
+            "color": "#47433d"
           }
         },
         "507": {
           "stroke": {
-            "color": "#3d2812"
+            "color": "#68645d"
           }
         },
         "508": {
           "stroke": {
-            "color": "#3d2812"
+            "color": "#524e47"
           }
         },
         "510": {
           "stroke": {
-            "color": "#3d2812"
+            "color": "#3c3932"
           }
         },
         "511": {
           "stroke": {
-            "color": "#3d2812"
+            "color": "#5b5851"
           }
         },
         "512": {
           "fill": {
-            "color": "#e3cd9c"
+            "color": "#f4d699"
           },
           "stroke": {
-            "color": "#8b6f3a"
+            "color": "#7e7a72"
+          }
+        },
+        "513": {
+          "fill": {
+            "color": "#f4dcab"
+          },
+          "stroke": {
+            "color": "#615d56"
+          }
+        },
+        "514": {
+          "fill": {
+            "color": "#e0ddd6"
+          },
+          "stroke": {
+            "color": "#848078"
           }
         },
         "515": {
           "stroke": {
-            "color": "#3d2812"
+            "color": "#100d08"
           },
           "overlayStroke": {
-            "color": "#f3e8d0"
+            "color": "#f4e7ce"
+          }
+        },
+        "520": {
+          "fill": {
+            "color": "#fcdfa6"
+          },
+          "stroke": {
+            "color": "#66635c"
           }
         },
         "521": {
           "fill": {
-            "color": "#a88868"
+            "color": "#958f84"
           },
           "stroke": {
-            "color": "#3d2812"
+            "color": "#312d27"
           }
         },
         "522": {
           "fill": {
-            "color": "#e8dcc2"
+            "color": "#dcd8d1"
           }
         },
         "525": {
           "stroke": {
-            "color": "#3d2812"
+            "color": "#737068"
           }
         },
         "528": {
           "stroke": {
-            "color": "#3d2812"
+            "color": "#7f7b74"
           }
         },
-        "001": {
+        "551": {
           "fill": {
-            "color": "#f3e8d0"
+            "color": "#c5c1ba"
+          }
+        },
+        "552": {
+          "stroke": {
+            "color": "#726e67"
+          }
+        },
+        "556": {
+          "fill": {
+            "color": "#f2dcb1"
           }
         }
       },
       "labels": {
         "place": {
-          "color": "#3d2812",
-          "haloColor": "#f3e8d0"
+          "color": "#17150f",
+          "haloColor": "#f4e7ce"
         },
         "peak": {
-          "color": "#3d2812",
-          "haloColor": "#f3e8d0"
+          "color": "#841200",
+          "haloColor": "#f4e7ce"
         },
         "peak-ele": {
-          "color": "#5a3a1a",
-          "haloColor": "#f3e8d0"
+          "color": "#943626",
+          "haloColor": "#f4e7ce"
         },
         "kontur-tall": {
-          "color": "#3d2812",
-          "haloColor": "#f3e8d0"
+          "color": "#901b06",
+          "haloColor": "#f4e7ce"
         },
         "vann-navn": {
-          "color": "#5a4a3a",
-          "haloColor": "#f3e8d0"
+          "color": "#045954",
+          "haloColor": "#f4e7ce"
         },
         "vann-tall": {
-          "color": "#5a4a3a",
-          "haloColor": "#f3e8d0"
+          "color": "#2c6b66",
+          "haloColor": "#f4e7ce"
         },
         "dybde-tall": {
-          "color": "#5a4a3a",
-          "haloColor": "#f3e8d0"
+          "color": "#18625c",
+          "haloColor": "#f4e7ce"
         }
       },
-      "artMode": false,
-      "fillOpacity": 0.7,
       "autoHideLayers": false
     },
     "mono-indigo": {
-      "$comment": "Kjølig indigo blueprint-look. Stier og kurver i varm cream gull for sterk kontrast.",
+      "$comment": "Blåkopi ved natt. Dyp indigo, karminrøde kurver, isblått vann — teknisk og kald.",
       "label": "Indigo",
-      "background": "#1a2238",
-      "depthScale": ["#4a5d8c", "#3f4f78", "#344164", "#2a3656", "#1f2c4d"],
+      "group": "monokrom",
+      "monochrome": true,
+      "artMode": false,
+      "fillOpacity": 1,
+      "background": "#16203c",
+      "depthScale": ["#153d48", "#023945", "#00333f", "#002e39", "#002933"],
       "categories": {
+        "001": {
+          "fill": {
+            "color": "#16203c"
+          }
+        },
         "101": {
           "stroke": {
-            "color": "#f0c275"
+            "color": "#dd5561"
           }
         },
         "102": {
           "stroke": {
-            "color": "#ffd28a"
+            "color": "#f36d77"
           }
         },
         "103": {
           "stroke": {
-            "color": "#f0c275"
+            "color": "#b5454f"
           }
         },
         "104": {
           "stroke": {
-            "color": "#f0c275"
+            "color": "#b5454f"
           }
         },
         "201": {
           "stroke": {
-            "color": "#f0e6d0"
+            "color": "#d6d9e1"
           }
         },
         "203": {
           "stroke": {
-            "color": "#f0e6d0"
+            "color": "#edeef3"
+          }
+        },
+        "210": {
+          "fill": {
+            "color": "#171c2a"
+          }
+        },
+        "214": {
+          "fill": {
+            "color": "#00333f"
+          },
+          "stroke": {
+            "color": "#4b90a3"
           }
         },
         "301": {
           "fill": {
-            "color": "#2a3a5f"
+            "color": "#0b3842"
           },
           "stroke": {
-            "color": "#5a78a8"
+            "color": "#4b90a3"
           }
         },
         "302": {
           "fill": {
-            "color": "#2a3a5f"
+            "color": "#0b3842"
           },
           "stroke": {
-            "color": "#5a78a8"
+            "color": "#4b90a3"
           }
         },
         "303": {
           "fill": {
-            "color": "#1f2c4d"
+            "color": "#00313c"
           },
           "stroke": {
-            "color": "#4a6298"
+            "color": "#4b90a3"
           }
         },
         "304": {
           "stroke": {
-            "color": "#5a78a8"
+            "color": "#4fadc6"
           }
         },
         "305": {
           "stroke": {
-            "color": "#5a78a8"
+            "color": "#4d98ad"
           }
         },
         "306": {
           "stroke": {
-            "color": "#3a548a"
+            "color": "#386c7a"
           }
         },
         "307": {
           "fill": {
-            "color": "#26365e"
+            "color": "#00333f"
           }
         },
         "308": {
           "fill": {
-            "color": "#28385a"
+            "color": "#1e3136"
           }
         },
         "309": {
           "fill": {
-            "color": "#28385a"
+            "color": "#1d373e"
           }
         },
         "401": {
           "fill": {
-            "color": "#2e3a5e"
+            "color": "#1c2a56"
+          }
+        },
+        "403": {
+          "fill": {
+            "color": "#19254b"
           }
         },
         "404": {
           "fill": {
-            "color": "#283354"
+            "color": "#182654"
           }
         },
         "405": {
           "fill": {
-            "color": "#1a2238"
+            "color": "#16203c"
           }
         },
         "406": {
           "fill": {
-            "color": "#22305a"
+            "color": "#0d1737"
           }
         },
         "407": {
           "fill": {
-            "color": "#1d2a4f"
+            "color": "#050d31"
           }
         },
         "408": {
           "fill": {
-            "color": "#162542"
+            "color": "#02032b"
+          }
+        },
+        "409": {
+          "fill": {
+            "color": "#03072f"
           }
         },
         "501": {
           "stroke": {
-            "color": "#d09a5e"
+            "color": "#040716"
+          },
+          "overlayStroke": {
+            "color": "#e3e6ef"
           }
         },
         "502": {
           "stroke": {
-            "color": "#b88a52"
+            "color": "#040716"
+          },
+          "overlayStroke": {
+            "color": "#c9ccd4"
           }
         },
         "503": {
           "stroke": {
-            "color": "#a88062"
+            "color": "#040716"
+          },
+          "overlayStroke": {
+            "color": "#afb3bb"
           }
         },
         "504": {
           "stroke": {
-            "color": "#f0e6d0"
+            "color": "#cccfd7"
           }
         },
         "505": {
           "stroke": {
-            "color": "#f0e6d0"
+            "color": "#dce0e8"
           }
         },
         "506": {
           "stroke": {
-            "color": "#f0e6d0"
+            "color": "#b2b6be"
           }
         },
         "507": {
           "stroke": {
-            "color": "#f0e6d0"
+            "color": "#8f929a"
           }
         },
         "508": {
           "stroke": {
-            "color": "#e0d8c4"
+            "color": "#a6a9b1"
           }
         },
         "510": {
           "stroke": {
-            "color": "#f0e6d0"
+            "color": "#bfc2cb"
           }
         },
         "511": {
           "stroke": {
-            "color": "#e0d8c4"
+            "color": "#9b9ea6"
           }
         },
         "512": {
           "fill": {
-            "color": "#5a4a30"
+            "color": "#182654"
           },
           "stroke": {
-            "color": "#a89048"
+            "color": "#8f929a"
+          }
+        },
+        "513": {
+          "fill": {
+            "color": "#172552"
+          },
+          "stroke": {
+            "color": "#a1a4ac"
+          }
+        },
+        "514": {
+          "fill": {
+            "color": "#26292f"
+          },
+          "stroke": {
+            "color": "#7d8088"
           }
         },
         "515": {
           "stroke": {
-            "color": "#f0e6d0"
+            "color": "#e4e8f0"
           },
           "overlayStroke": {
-            "color": "#1a2238"
+            "color": "#16203c"
+          }
+        },
+        "520": {
+          "fill": {
+            "color": "#15224f"
+          },
+          "stroke": {
+            "color": "#9b9ea6"
           }
         },
         "521": {
           "fill": {
-            "color": "#3d4a6a"
+            "color": "#020512"
           },
           "stroke": {
-            "color": "#0e1422"
+            "color": "#83868e"
           }
         },
         "522": {
           "fill": {
-            "color": "#252e48"
+            "color": "#292c34"
           }
         },
         "525": {
           "stroke": {
-            "color": "#c0c8d0"
+            "color": "#797c83"
           }
         },
         "528": {
           "stroke": {
-            "color": "#c0c8d0"
+            "color": "#6d7077"
           }
         },
-        "001": {
+        "551": {
           "fill": {
-            "color": "#1a2238"
+            "color": "#11141a"
+          }
+        },
+        "552": {
+          "stroke": {
+            "color": "#898c94"
+          }
+        },
+        "556": {
+          "fill": {
+            "color": "#1d2b59"
           }
         }
       },
       "labels": {
         "place": {
-          "color": "#e8e0d0",
-          "haloColor": "#1a2238"
+          "color": "#ebeef7",
+          "haloColor": "#16203c"
         },
         "peak": {
-          "color": "#f5c97b",
-          "haloColor": "#1a2238"
+          "color": "#f78c90",
+          "haloColor": "#16203c"
         },
         "peak-ele": {
-          "color": "#f5c97b",
-          "haloColor": "#1a2238"
+          "color": "#de797e",
+          "haloColor": "#16203c"
         },
         "kontur-tall": {
-          "color": "#f0c275",
-          "haloColor": "#1a2238"
+          "color": "#ed737b",
+          "haloColor": "#16203c"
         },
         "vann-navn": {
-          "color": "#9ab8e0",
-          "haloColor": "#1a2238"
+          "color": "#85cade",
+          "haloColor": "#16203c"
         },
         "vann-tall": {
-          "color": "#80a0c8",
-          "haloColor": "#1a2238"
+          "color": "#75afc0",
+          "haloColor": "#16203c"
         },
         "dybde-tall": {
-          "color": "#9ab8e0",
-          "haloColor": "#1a2238"
+          "color": "#7dbccf",
+          "haloColor": "#16203c"
         }
       },
-      "artMode": false,
-      "fillOpacity": 0.7,
       "autoHideLayers": false
     },
     "mono-slate": {
-      "$comment": "Modern slate-grå minimalist. Stier og kurver i varm tan for kontrast.",
-      "label": "Slate",
-      "background": "#2c2e35",
-      "depthScale": ["#5a6884", "#4d5a74", "#414c61", "#363f50", "#2c3344"],
+      "$comment": "Dyp petroleumsblå — kjølig, marin og rolig. Signalrøde kurver over en nesten svart sjøbunn.",
+      "label": "Petrol",
+      "group": "monokrom",
+      "monochrome": true,
+      "artMode": false,
+      "fillOpacity": 1,
+      "background": "#0c2a2e",
+      "depthScale": ["#1f4050", "#123b4e", "#00364c", "#003145", "#002b3e"],
       "categories": {
+        "001": {
+          "fill": {
+            "color": "#0c2a2e"
+          }
+        },
         "101": {
           "stroke": {
-            "color": "#d4b894"
+            "color": "#dd5652"
           }
         },
         "102": {
           "stroke": {
-            "color": "#e8c8a0"
+            "color": "#f46f68"
           }
         },
         "103": {
           "stroke": {
-            "color": "#d4b894"
+            "color": "#b54743"
           }
         },
         "104": {
           "stroke": {
-            "color": "#d4b894"
+            "color": "#b54743"
           }
         },
         "201": {
           "stroke": {
-            "color": "#e8d5b8"
+            "color": "#d1dcdd"
           }
         },
         "203": {
           "stroke": {
-            "color": "#e8d5b8"
+            "color": "#eaf0f0"
+          }
+        },
+        "210": {
+          "fill": {
+            "color": "#162324"
+          }
+        },
+        "214": {
+          "fill": {
+            "color": "#0c3548"
+          },
+          "stroke": {
+            "color": "#538daa"
           }
         },
         "301": {
           "fill": {
-            "color": "#3a4258"
+            "color": "#173a4b"
           },
           "stroke": {
-            "color": "#6a7898"
+            "color": "#538daa"
           }
         },
         "302": {
           "fill": {
-            "color": "#3a4258"
+            "color": "#173a4b"
           },
           "stroke": {
-            "color": "#6a7898"
+            "color": "#538daa"
           }
         },
         "303": {
           "fill": {
-            "color": "#2a3142"
+            "color": "#053347"
           },
           "stroke": {
-            "color": "#5a6680"
+            "color": "#538daa"
           }
         },
         "304": {
           "stroke": {
-            "color": "#6a7898"
+            "color": "#5ca9cf"
           }
         },
         "305": {
           "stroke": {
-            "color": "#6a7898"
+            "color": "#5795b5"
           }
         },
         "306": {
           "stroke": {
-            "color": "#4a5670"
+            "color": "#3e6980"
           }
         },
         "307": {
           "fill": {
-            "color": "#36404f"
+            "color": "#0c3548"
           }
         },
         "308": {
           "fill": {
-            "color": "#363b48"
+            "color": "#24343c"
           }
         },
         "309": {
           "fill": {
-            "color": "#363b48"
+            "color": "#243945"
           }
         },
         "401": {
           "fill": {
-            "color": "#3a3d48"
+            "color": "#03393e"
+          }
+        },
+        "403": {
+          "fill": {
+            "color": "#043237"
           }
         },
         "404": {
           "fill": {
-            "color": "#363941"
+            "color": "#00353a"
           }
         },
         "405": {
           "fill": {
-            "color": "#2c2e35"
+            "color": "#0c2a2e"
           }
         },
         "406": {
           "fill": {
-            "color": "#2e3038"
+            "color": "#002226"
           }
         },
         "407": {
           "fill": {
-            "color": "#26282f"
+            "color": "#00191d"
           }
         },
         "408": {
           "fill": {
-            "color": "#1c1e26"
+            "color": "#001114"
+          }
+        },
+        "409": {
+          "fill": {
+            "color": "#001518"
           }
         },
         "501": {
           "stroke": {
-            "color": "#c9a070"
+            "color": "#020e0f"
+          },
+          "overlayStroke": {
+            "color": "#dee9ea"
           }
         },
         "502": {
           "stroke": {
-            "color": "#b89060"
+            "color": "#020e0f"
+          },
+          "overlayStroke": {
+            "color": "#c4cfd0"
           }
         },
         "503": {
           "stroke": {
-            "color": "#a8866a"
+            "color": "#020e0f"
+          },
+          "overlayStroke": {
+            "color": "#aab5b6"
           }
         },
         "504": {
           "stroke": {
-            "color": "#e8d5b8"
+            "color": "#c7d2d3"
           }
         },
         "505": {
           "stroke": {
-            "color": "#e8d5b8"
+            "color": "#d7e2e3"
           }
         },
         "506": {
           "stroke": {
-            "color": "#e8d5b8"
+            "color": "#adb8b9"
           }
         },
         "507": {
           "stroke": {
-            "color": "#e8d5b8"
+            "color": "#8a9496"
           }
         },
         "508": {
           "stroke": {
-            "color": "#d8c4a8"
+            "color": "#a1acad"
           }
         },
         "510": {
           "stroke": {
-            "color": "#e8d5b8"
+            "color": "#bac5c6"
           }
         },
         "511": {
           "stroke": {
-            "color": "#d8c4a8"
+            "color": "#96a1a2"
           }
         },
         "512": {
           "fill": {
-            "color": "#4a4538"
+            "color": "#00353a"
           },
           "stroke": {
-            "color": "#a89058"
+            "color": "#8a9496"
+          }
+        },
+        "513": {
+          "fill": {
+            "color": "#003439"
+          },
+          "stroke": {
+            "color": "#9ca7a8"
+          }
+        },
+        "514": {
+          "fill": {
+            "color": "#282e2f"
+          },
+          "stroke": {
+            "color": "#788284"
           }
         },
         "515": {
           "stroke": {
-            "color": "#e8d5b8"
+            "color": "#dfeaec"
           },
           "overlayStroke": {
-            "color": "#2c2e35"
+            "color": "#0c2a2e"
+          }
+        },
+        "520": {
+          "fill": {
+            "color": "#003136"
+          },
+          "stroke": {
+            "color": "#96a1a2"
           }
         },
         "521": {
           "fill": {
-            "color": "#4a4d58"
+            "color": "#000b0c"
           },
           "stroke": {
-            "color": "#1a1c22"
+            "color": "#7e888a"
           }
         },
         "522": {
           "fill": {
-            "color": "#383b44"
+            "color": "#2a3233"
           }
         },
         "525": {
           "stroke": {
-            "color": "#c0c5cc"
+            "color": "#747e7f"
           }
         },
         "528": {
           "stroke": {
-            "color": "#c0c5cc"
+            "color": "#687273"
           }
         },
-        "001": {
+        "551": {
           "fill": {
-            "color": "#2c2e35"
+            "color": "#111919"
+          }
+        },
+        "552": {
+          "stroke": {
+            "color": "#848e90"
+          }
+        },
+        "556": {
+          "fill": {
+            "color": "#003b40"
           }
         }
       },
       "labels": {
         "place": {
-          "color": "#e8e0d0",
-          "haloColor": "#2c2e35"
+          "color": "#e6f1f2",
+          "haloColor": "#0c2a2e"
         },
         "peak": {
-          "color": "#e8c8a0",
-          "haloColor": "#2c2e35"
+          "color": "#f78d85",
+          "haloColor": "#0c2a2e"
         },
         "peak-ele": {
-          "color": "#e8c8a0",
-          "haloColor": "#2c2e35"
+          "color": "#de7a73",
+          "haloColor": "#0c2a2e"
         },
         "kontur-tall": {
-          "color": "#d4b894",
-          "haloColor": "#2c2e35"
+          "color": "#ed756e",
+          "haloColor": "#0c2a2e"
         },
         "vann-navn": {
-          "color": "#a8b8d0",
-          "haloColor": "#2c2e35"
+          "color": "#8cc7e6",
+          "haloColor": "#0c2a2e"
         },
         "vann-tall": {
-          "color": "#90a0b8",
-          "haloColor": "#2c2e35"
+          "color": "#7bacc7",
+          "haloColor": "#0c2a2e"
         },
         "dybde-tall": {
-          "color": "#a8b8d0",
-          "haloColor": "#2c2e35"
+          "color": "#83bad6",
+          "haloColor": "#0c2a2e"
         }
       },
-      "artMode": false,
-      "fillOpacity": 0.7,
       "autoHideLayers": false
     },
     "mocha": {
-      "$comment": "Varm coffee/brown art-mode. Stier i bright cream, kurver i tan-cream.",
+      "$comment": "Brent kaffe og terrakotta. Familiens varmeste — mørk jord med teal vann som eneste kalde element.",
       "label": "Mocha",
+      "group": "monokrom",
+      "monochrome": true,
       "artMode": false,
-      "fillOpacity": 0.7,
-      "background": "#3a2818",
-      "depthScale": ["#456787", "#395775", "#2e4862", "#26384d", "#1c2a3d"],
+      "fillOpacity": 1,
+      "background": "#39210e",
+      "depthScale": ["#1b4642", "#09423d", "#003d38", "#003733", "#00312d"],
       "categories": {
+        "001": {
+          "fill": {
+            "color": "#39210e"
+          }
+        },
         "101": {
           "stroke": {
-            "color": "#e8c8a0"
+            "color": "#db5d2c"
           }
         },
         "102": {
           "stroke": {
-            "color": "#f5d8b0"
+            "color": "#f17547"
           }
         },
         "103": {
           "stroke": {
-            "color": "#e8c8a0"
+            "color": "#b34c24"
           }
         },
         "104": {
           "stroke": {
-            "color": "#e8c8a0"
+            "color": "#b34c24"
           }
         },
         "201": {
           "stroke": {
-            "color": "#f0e6d0"
+            "color": "#dfd7d2"
           }
         },
         "203": {
           "stroke": {
-            "color": "#f0e6d0"
+            "color": "#f2edeb"
+          }
+        },
+        "210": {
+          "fill": {
+            "color": "#2c2017"
+          }
+        },
+        "214": {
+          "fill": {
+            "color": "#023c37"
+          },
+          "stroke": {
+            "color": "#4a938b"
           }
         },
         "301": {
           "fill": {
-            "color": "#2a3a4d"
+            "color": "#12403c"
           },
           "stroke": {
-            "color": "#5a7a98"
+            "color": "#4a938b"
           }
         },
         "302": {
           "fill": {
-            "color": "#2a3a4d"
+            "color": "#12403c"
           },
           "stroke": {
-            "color": "#5a7a98"
+            "color": "#4a938b"
           }
         },
         "303": {
           "fill": {
-            "color": "#1c2a3d"
+            "color": "#003a35"
           },
           "stroke": {
-            "color": "#4a6280"
+            "color": "#4a938b"
           }
         },
         "304": {
           "stroke": {
-            "color": "#5a7a98"
+            "color": "#4db2a7"
           }
         },
         "305": {
           "stroke": {
-            "color": "#5a7a98"
+            "color": "#4c9c93"
           }
         },
         "306": {
           "stroke": {
-            "color": "#3a5470"
+            "color": "#376e68"
           }
         },
         "307": {
           "fill": {
-            "color": "#26384d"
+            "color": "#023c37"
           }
         },
         "308": {
           "fill": {
-            "color": "#28384d"
+            "color": "#243835"
           }
         },
         "309": {
           "fill": {
-            "color": "#28384d"
+            "color": "#233f3b"
           }
         },
         "401": {
           "fill": {
-            "color": "#6a4a28"
+            "color": "#4e2a09"
+          }
+        },
+        "403": {
+          "fill": {
+            "color": "#452509"
           }
         },
         "404": {
           "fill": {
-            "color": "#4a382a"
+            "color": "#4c2500"
           }
         },
         "405": {
           "fill": {
-            "color": "#3a2818"
+            "color": "#39210e"
           }
         },
         "406": {
           "fill": {
-            "color": "#3d3a25"
+            "color": "#321701"
           }
         },
         "407": {
           "fill": {
-            "color": "#2e2c1c"
+            "color": "#290f00"
           }
         },
         "408": {
           "fill": {
-            "color": "#1c1a10"
+            "color": "#1f0800"
+          }
+        },
+        "409": {
+          "fill": {
+            "color": "#240b00"
           }
         },
         "501": {
           "stroke": {
-            "color": "#c98a52"
+            "color": "#160a03"
+          },
+          "overlayStroke": {
+            "color": "#ede4df"
           }
         },
         "502": {
           "stroke": {
-            "color": "#b8804a"
+            "color": "#160a03"
+          },
+          "overlayStroke": {
+            "color": "#d2cac5"
           }
         },
         "503": {
           "stroke": {
-            "color": "#a87858"
+            "color": "#160a03"
+          },
+          "overlayStroke": {
+            "color": "#b9b1ab"
           }
         },
         "504": {
           "stroke": {
-            "color": "#f0e0c8"
+            "color": "#d6cec8"
           }
         },
         "505": {
           "stroke": {
-            "color": "#f0e0c8"
+            "color": "#e6ded8"
           }
         },
         "506": {
           "stroke": {
-            "color": "#f0e0c8"
+            "color": "#bcb4ae"
           }
         },
         "507": {
           "stroke": {
-            "color": "#f0e0c8"
+            "color": "#98918b"
           }
         },
         "508": {
           "stroke": {
-            "color": "#e0d0b8"
+            "color": "#afa8a2"
           }
         },
         "510": {
           "stroke": {
-            "color": "#f0e0c8"
+            "color": "#c9c1bb"
           }
         },
         "511": {
           "stroke": {
-            "color": "#e0d0b8"
+            "color": "#a49d97"
           }
         },
         "512": {
           "fill": {
-            "color": "#5a4530"
+            "color": "#4c2500"
           },
           "stroke": {
-            "color": "#a89058"
+            "color": "#98918b"
+          }
+        },
+        "513": {
+          "fill": {
+            "color": "#4a2300"
+          },
+          "stroke": {
+            "color": "#aba39d"
+          }
+        },
+        "514": {
+          "fill": {
+            "color": "#342e29"
+          },
+          "stroke": {
+            "color": "#867f79"
           }
         },
         "515": {
           "stroke": {
-            "color": "#f0e0c8"
+            "color": "#eee6e0"
           },
           "overlayStroke": {
-            "color": "#3a2818"
+            "color": "#39210e"
+          }
+        },
+        "520": {
+          "fill": {
+            "color": "#462100"
+          },
+          "stroke": {
+            "color": "#a49d97"
           }
         },
         "521": {
           "fill": {
-            "color": "#5a4030"
+            "color": "#130701"
           },
           "stroke": {
-            "color": "#1a0e08"
+            "color": "#8c857f"
           }
         },
         "522": {
           "fill": {
-            "color": "#4a3826"
+            "color": "#39312c"
           }
         },
         "525": {
           "stroke": {
-            "color": "#c8b8a0"
+            "color": "#827a75"
           }
         },
         "528": {
           "stroke": {
-            "color": "#c8b8a0"
+            "color": "#766f69"
           }
         },
-        "001": {
+        "551": {
           "fill": {
-            "color": "#3a2818"
+            "color": "#1f1813"
+          }
+        },
+        "552": {
+          "stroke": {
+            "color": "#928a85"
+          }
+        },
+        "556": {
+          "fill": {
+            "color": "#522902"
           }
         }
       },
       "labels": {
         "place": {
-          "color": "#e8d8c0",
-          "haloColor": "#3a2818"
+          "color": "#f5ede7",
+          "haloColor": "#39210e"
         },
         "peak": {
-          "color": "#f5c97b",
-          "haloColor": "#3a2818"
+          "color": "#f5916f",
+          "haloColor": "#39210e"
         },
         "peak-ele": {
-          "color": "#f5c97b",
-          "haloColor": "#3a2818"
+          "color": "#dc7f5e",
+          "haloColor": "#39210e"
         },
         "kontur-tall": {
-          "color": "#e8c8a0",
-          "haloColor": "#3a2818"
+          "color": "#eb7a52",
+          "haloColor": "#39210e"
         },
         "vann-navn": {
-          "color": "#9ab0c8",
-          "haloColor": "#3a2818"
+          "color": "#84cec5",
+          "haloColor": "#39210e"
         },
         "vann-tall": {
-          "color": "#88a0bc",
-          "haloColor": "#3a2818"
+          "color": "#74b2ab",
+          "haloColor": "#39210e"
         },
         "dybde-tall": {
-          "color": "#9ab0c8",
-          "haloColor": "#3a2818"
+          "color": "#7cc0b8",
+          "haloColor": "#39210e"
         }
       },
       "autoHideLayers": false
     },
     "forest": {
-      "$comment": "Mørk skog-grønn art-mode. Stier i bright cream, kurver i warm gold for kontrast.",
+      "$comment": "Granskygge. Én mørk grønn hue fra myrkant til tettskog, teglrøde kurver, tealgrønt vann.",
       "label": "Forest",
+      "group": "monokrom",
+      "monochrome": true,
       "artMode": false,
-      "fillOpacity": 0.7,
-      "background": "#1a2a1a",
-      "depthScale": ["#356f88", "#2c5d74", "#234c60", "#1a3a48", "#0e2a3a"],
+      "fillOpacity": 1,
+      "background": "#142a18",
+      "depthScale": ["#164243", "#003e3f", "#003839", "#003333", "#002d2e"],
       "categories": {
+        "001": {
+          "fill": {
+            "color": "#142a18"
+          }
+        },
         "101": {
           "stroke": {
-            "color": "#f0e0a8"
+            "color": "#dd5750"
           }
         },
         "102": {
           "stroke": {
-            "color": "#ffe8b8"
+            "color": "#f46f66"
           }
         },
         "103": {
           "stroke": {
-            "color": "#f0e0a8"
+            "color": "#b54741"
           }
         },
         "104": {
           "stroke": {
-            "color": "#f0e0a8"
+            "color": "#b54741"
           }
         },
         "201": {
           "stroke": {
-            "color": "#f0e6d0"
+            "color": "#d4dbd5"
           }
         },
         "203": {
           "stroke": {
-            "color": "#f0e6d0"
+            "color": "#ecf0ec"
+          }
+        },
+        "210": {
+          "fill": {
+            "color": "#18231a"
+          }
+        },
+        "214": {
+          "fill": {
+            "color": "#003838"
+          },
+          "stroke": {
+            "color": "#479393"
           }
         },
         "301": {
           "fill": {
-            "color": "#1a3a45"
+            "color": "#0b3c3d"
           },
           "stroke": {
-            "color": "#4a8898"
+            "color": "#479393"
           }
         },
         "302": {
           "fill": {
-            "color": "#1a3a45"
+            "color": "#0b3c3d"
           },
           "stroke": {
-            "color": "#4a8898"
+            "color": "#479393"
           }
         },
         "303": {
           "fill": {
-            "color": "#0e2a3a"
+            "color": "#003636"
           },
           "stroke": {
-            "color": "#3a7090"
+            "color": "#479393"
           }
         },
         "304": {
           "stroke": {
-            "color": "#4a8898"
+            "color": "#49b1b2"
           }
         },
         "305": {
           "stroke": {
-            "color": "#4a8898"
+            "color": "#499b9c"
           }
         },
         "306": {
           "stroke": {
-            "color": "#386878"
+            "color": "#356e6e"
           }
         },
         "307": {
           "fill": {
-            "color": "#1a3a48"
+            "color": "#003838"
           }
         },
         "308": {
           "fill": {
-            "color": "#1f3a45"
+            "color": "#203535"
           }
         },
         "309": {
           "fill": {
-            "color": "#1f3a45"
+            "color": "#1f3b3b"
           }
         },
         "401": {
           "fill": {
-            "color": "#4a5a2a"
+            "color": "#163a1d"
+          }
+        },
+        "403": {
+          "fill": {
+            "color": "#143319"
           }
         },
         "404": {
           "fill": {
-            "color": "#3a4a28"
+            "color": "#013812"
           }
         },
         "405": {
           "fill": {
-            "color": "#1a2a1a"
+            "color": "#142a18"
           }
         },
         "406": {
           "fill": {
-            "color": "#1d3520"
+            "color": "#08230d"
           }
         },
         "407": {
           "fill": {
-            "color": "#142a17"
+            "color": "#001b04"
           }
         },
         "408": {
           "fill": {
-            "color": "#0e1d10"
+            "color": "#001201"
+          }
+        },
+        "409": {
+          "fill": {
+            "color": "#001702"
           }
         },
         "501": {
           "stroke": {
-            "color": "#d09a5e"
+            "color": "#040e05"
+          },
+          "overlayStroke": {
+            "color": "#e1e9e2"
           }
         },
         "502": {
           "stroke": {
-            "color": "#b88a52"
+            "color": "#040e05"
+          },
+          "overlayStroke": {
+            "color": "#c7cec8"
           }
         },
         "503": {
           "stroke": {
-            "color": "#9a8068"
+            "color": "#040e05"
+          },
+          "overlayStroke": {
+            "color": "#aeb5ae"
           }
         },
         "504": {
           "stroke": {
-            "color": "#f0e8c8"
+            "color": "#cad2cb"
           }
         },
         "505": {
           "stroke": {
-            "color": "#f0e8c8"
+            "color": "#dbe2db"
           }
         },
         "506": {
           "stroke": {
-            "color": "#f0e8c8"
+            "color": "#b1b8b1"
           }
         },
         "507": {
           "stroke": {
-            "color": "#f0e8c8"
+            "color": "#8d948e"
           }
         },
         "508": {
           "stroke": {
-            "color": "#e0d8b8"
+            "color": "#a4aba5"
           }
         },
         "510": {
           "stroke": {
-            "color": "#f0e8c8"
+            "color": "#bec5be"
           }
         },
         "511": {
           "stroke": {
-            "color": "#e0d8b8"
+            "color": "#9aa19a"
           }
         },
         "512": {
           "fill": {
-            "color": "#3a4a1c"
+            "color": "#013812"
           },
           "stroke": {
-            "color": "#a89048"
+            "color": "#8d948e"
+          }
+        },
+        "513": {
+          "fill": {
+            "color": "#073614"
+          },
+          "stroke": {
+            "color": "#a0a7a0"
+          }
+        },
+        "514": {
+          "fill": {
+            "color": "#282d29"
+          },
+          "stroke": {
+            "color": "#7c827c"
           }
         },
         "515": {
           "stroke": {
-            "color": "#f0e8c8"
+            "color": "#e3eae3"
           },
           "overlayStroke": {
-            "color": "#1a2a1a"
+            "color": "#142a18"
+          }
+        },
+        "520": {
+          "fill": {
+            "color": "#00340d"
+          },
+          "stroke": {
+            "color": "#9aa19a"
           }
         },
         "521": {
           "fill": {
-            "color": "#3a4a30"
+            "color": "#020a03"
           },
           "stroke": {
-            "color": "#0a1408"
+            "color": "#828882"
           }
         },
         "522": {
           "fill": {
-            "color": "#263624"
+            "color": "#2b322c"
           }
         },
         "525": {
           "stroke": {
-            "color": "#c8d8b8"
+            "color": "#777e78"
           }
         },
         "528": {
           "stroke": {
-            "color": "#c8d8b8"
+            "color": "#6c726c"
           }
         },
-        "001": {
+        "551": {
           "fill": {
-            "color": "#1a2a1a"
+            "color": "#121813"
+          }
+        },
+        "552": {
+          "stroke": {
+            "color": "#878e88"
+          }
+        },
+        "556": {
+          "fill": {
+            "color": "#133c1c"
           }
         }
       },
       "labels": {
         "place": {
-          "color": "#e8e8c8",
-          "haloColor": "#1a2a1a"
+          "color": "#e9f1ea",
+          "haloColor": "#142a18"
         },
         "peak": {
-          "color": "#f5d97b",
-          "haloColor": "#1a2a1a"
+          "color": "#f78d84",
+          "haloColor": "#142a18"
         },
         "peak-ele": {
-          "color": "#f5d97b",
-          "haloColor": "#1a2a1a"
+          "color": "#de7b72",
+          "haloColor": "#142a18"
         },
         "kontur-tall": {
-          "color": "#f0e0a8",
-          "haloColor": "#1a2a1a"
+          "color": "#ed756c",
+          "haloColor": "#142a18"
         },
         "vann-navn": {
-          "color": "#88c0c8",
-          "haloColor": "#1a2a1a"
+          "color": "#82cdcd",
+          "haloColor": "#142a18"
         },
         "vann-tall": {
-          "color": "#7aa8b0",
-          "haloColor": "#1a2a1a"
+          "color": "#72b2b2",
+          "haloColor": "#142a18"
         },
         "dybde-tall": {
-          "color": "#88c0c8",
-          "haloColor": "#1a2a1a"
+          "color": "#7abfc0",
+          "haloColor": "#142a18"
         }
       },
       "autoHideLayers": false
     },
     "curves": {
-      "$comment": "Minimalistisk kunstmodus. Mørk slate bakgrunn, høydekurver i varm gul. Tenkt å skrives ut som lite kunstverk.",
+      "$comment": "Minimalistisk kunstmodus. Auberginesvart papir der gule høydekurver dominerer totalt; resten av kartet hvisker rett over bakgrunnen.",
       "label": "Curves",
+      "group": "monokrom",
+      "monochrome": true,
       "artMode": true,
-      "fillOpacity": 0.5,
-      "background": "#2c2e35",
-      "depthScale": ["#5a6884", "#4d5a74", "#414c61", "#363f50", "#2c3344"],
+      "fillOpacity": 1,
+      "background": "#0d0520",
+      "depthScale": ["#0d1d2d", "#07192b", "#02152a", "#001128", "#000d25"],
       "categories": {
+        "001": {
+          "fill": {
+            "color": "#0d0520"
+          }
+        },
         "101": {
           "stroke": {
             "color": "#ffd84a"
@@ -3384,234 +3526,300 @@
         },
         "103": {
           "stroke": {
-            "color": "#ffd84a"
+            "color": "#c9a638"
           }
         },
         "104": {
           "stroke": {
-            "color": "#ffd84a"
+            "color": "#c9a638"
           }
         },
         "201": {
           "stroke": {
-            "color": "#e8d5b8"
+            "color": "#66656b"
           }
         },
         "203": {
           "stroke": {
-            "color": "#e8d5b8"
+            "color": "#77767d"
+          }
+        },
+        "210": {
+          "fill": {
+            "color": "#090614"
+          }
+        },
+        "214": {
+          "fill": {
+            "color": "#051729"
+          },
+          "stroke": {
+            "color": "#3d5873"
           }
         },
         "301": {
           "fill": {
-            "color": "#3a4258"
+            "color": "#081a2b"
           },
           "stroke": {
-            "color": "#6a7898"
+            "color": "#3d5873"
           }
         },
         "302": {
           "fill": {
-            "color": "#3a4258"
+            "color": "#081a2b"
           },
           "stroke": {
-            "color": "#6a7898"
+            "color": "#3d5873"
           }
         },
         "303": {
           "fill": {
-            "color": "#2a3142"
+            "color": "#031528"
           },
           "stroke": {
-            "color": "#5a6680"
+            "color": "#3d5873"
           }
         },
         "304": {
           "stroke": {
-            "color": "#6a7898"
+            "color": "#466381"
           }
         },
         "305": {
           "stroke": {
-            "color": "#6a7898"
+            "color": "#3d556d"
           }
         },
         "306": {
           "stroke": {
-            "color": "#4a5670"
+            "color": "#324457"
           }
         },
         "307": {
           "fill": {
-            "color": "#36404f"
+            "color": "#051729"
           }
         },
         "308": {
           "fill": {
-            "color": "#363b48"
+            "color": "#0d161f"
           }
         },
         "309": {
           "fill": {
-            "color": "#363b48"
+            "color": "#0f1a25"
           }
         },
         "401": {
           "fill": {
-            "color": "#3a3d48"
+            "color": "#141021"
+          }
+        },
+        "403": {
+          "fill": {
+            "color": "#100c1e"
           }
         },
         "404": {
           "fill": {
-            "color": "#363941"
+            "color": "#120d22"
           }
         },
         "405": {
           "fill": {
-            "color": "#2c2e35"
+            "color": "#0d0520"
           }
         },
         "406": {
           "fill": {
-            "color": "#2e3038"
+            "color": "#0a031d"
           }
         },
         "407": {
           "fill": {
-            "color": "#26282f"
+            "color": "#08011c"
           }
         },
         "408": {
           "fill": {
-            "color": "#1c1e26"
+            "color": "#06001a"
+          }
+        },
+        "409": {
+          "fill": {
+            "color": "#07001b"
           }
         },
         "501": {
           "stroke": {
-            "color": "#c9a070"
+            "color": "#020107"
+          },
+          "overlayStroke": {
+            "color": "#66656e"
           }
         },
         "502": {
           "stroke": {
-            "color": "#b89060"
+            "color": "#020107"
+          },
+          "overlayStroke": {
+            "color": "#58575f"
           }
         },
         "503": {
           "stroke": {
-            "color": "#a8866a"
+            "color": "#020107"
+          },
+          "overlayStroke": {
+            "color": "#4a4952"
           }
         },
         "504": {
           "stroke": {
-            "color": "#e8d5b8"
+            "color": "#52515a"
           }
         },
         "505": {
           "stroke": {
-            "color": "#e8d5b8"
+            "color": "#5d5c65"
           }
         },
         "506": {
           "stroke": {
-            "color": "#e8d5b8"
+            "color": "#48464f"
           }
         },
         "507": {
           "stroke": {
-            "color": "#e8d5b8"
+            "color": "#38373f"
           }
         },
         "508": {
           "stroke": {
-            "color": "#d8c4a8"
+            "color": "#424149"
           }
         },
         "510": {
           "stroke": {
-            "color": "#e8d5b8"
+            "color": "#4d4c54"
           }
         },
         "511": {
           "stroke": {
-            "color": "#d8c4a8"
+            "color": "#3a3941"
           }
         },
         "512": {
           "fill": {
-            "color": "#4a4538"
+            "color": "#120d22"
           },
           "stroke": {
-            "color": "#a89058"
+            "color": "#38373f"
+          }
+        },
+        "513": {
+          "fill": {
+            "color": "#110d1f"
+          },
+          "stroke": {
+            "color": "#3a3941"
+          }
+        },
+        "514": {
+          "fill": {
+            "color": "#101014"
+          },
+          "stroke": {
+            "color": "#33323a"
           }
         },
         "515": {
           "stroke": {
-            "color": "#e8d5b8"
+            "color": "#5d5c65"
           },
           "overlayStroke": {
-            "color": "#2c2e35"
+            "color": "#0d0520"
+          }
+        },
+        "520": {
+          "fill": {
+            "color": "#0f0a20"
+          },
+          "stroke": {
+            "color": "#3a3941"
           }
         },
         "521": {
           "fill": {
-            "color": "#4a4d58"
+            "color": "#04030d"
           },
           "stroke": {
-            "color": "#1a1c22"
+            "color": "#35343c"
           }
         },
         "522": {
           "fill": {
-            "color": "#383b44"
+            "color": "#121116"
           }
         },
         "525": {
           "stroke": {
-            "color": "#c0c5cc"
+            "color": "#2b2a32"
           }
         },
         "528": {
           "stroke": {
-            "color": "#c0c5cc"
+            "color": "#28262e"
           }
         },
-        "001": {
+        "551": {
           "fill": {
-            "color": "#2c2e35"
+            "color": "#060509"
+          }
+        },
+        "552": {
+          "stroke": {
+            "color": "#35343c"
+          }
+        },
+        "556": {
+          "fill": {
+            "color": "#130f22"
           }
         }
       },
       "labels": {
         "place": {
-          "color": "#e8e0d0",
-          "haloColor": "#2c2e35"
+          "color": "#98979f",
+          "haloColor": "#0d0520"
         },
         "peak": {
-          "color": "#e8c8a0",
-          "haloColor": "#2c2e35"
+          "color": "#ffd84a",
+          "haloColor": "#0d0520"
         },
         "peak-ele": {
-          "color": "#e8c8a0",
-          "haloColor": "#2c2e35"
+          "color": "#d9b64a",
+          "haloColor": "#0d0520"
         },
         "kontur-tall": {
           "color": "#ffd84a",
-          "haloColor": "#2c2e35"
+          "haloColor": "#0d0520"
         },
         "vann-navn": {
-          "color": "#a8b8d0",
-          "haloColor": "#2c2e35"
+          "color": "#597491",
+          "haloColor": "#0d0520"
         },
         "vann-tall": {
-          "color": "#90a0b8",
-          "haloColor": "#2c2e35"
+          "color": "#4c637b",
+          "haloColor": "#0d0520"
         },
         "dybde-tall": {
-          "color": "#a8b8d0",
-          "haloColor": "#2c2e35"
+          "color": "#526c86",
+          "haloColor": "#0d0520"
         }
       },
-      "autoHideLayers": true
+      "autoHideLayers": false
     }
   }
 }

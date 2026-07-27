@@ -13,21 +13,35 @@ import {
   LAYERS, DEFAULT_VISIBLE_LAYER_KEYS, LAYER_PRESETS,
 } from './mapLayerCatalog.js'
 import { buildStrokeOverrideCss, STROKE_GROUPS } from './strokeOverrides.js'
+import { buildTrailColorCss, isTrailColor } from './trailColors.js'
 import isomCatalogDefault from './isomCatalog.json' with { type: 'json' }
 
 export const SETTINGS_STYLE_ID = 'kart-innstillinger'
 
 // Temaene fra isomCatalog.themes i presentabel form (nøkkel, etikett,
-// beskrivelse fra katalogens $comment, og om temaet auto-skjuler lag slik
-// Curves gjør). Delt kilde for MapViews tema-knapper og MCP-ens juster_kart.
+// beskrivelse fra katalogens $comment, seksjon i tema-menyen, om temaet er
+// monokromt — og om det auto-skjuler lag slik Curves gjorde). Delt kilde for
+// MapViews tema-knapper, tegnforklaringen og MCP-ens juster_kart.
 export function listThemes(catalog = isomCatalogDefault) {
   return Object.entries(catalog.themes ?? {}).map(([key, t]) => ({
     key,
     label: t.label ?? key,
     beskrivelse: t.$comment ?? '',
+    group: t.group ?? 'hoved',
+    monochrome: !!t.monochrome,
     autoHideLayers: !!t.autoHideLayers,
   }))
 }
+
+// Seksjonene tema-menyen deles i — rekkefølgen her er visningsrekkefølgen.
+export const THEME_GROUPS = Object.freeze([
+  { key: 'hoved', label: 'Hovedtemaer', beskrivelse: '' },
+  {
+    key: 'monokrom',
+    label: 'Monokrom',
+    beskrivelse: 'Ensfargede kart. Relieff slås av automatisk — trykk på relieff-knotten for å hente det tilbake.',
+  },
+])
 
 /**
  * CSS-variablene et tema setter, som [navn, verdi]-par — kilden både for
@@ -138,6 +152,7 @@ export function resolveVisibleLayers(settings = {}, catalog = isomCatalogDefault
  *   lag?: Record<string, boolean>,
  *   strekSkala?: number,
  *   strek?: Record<string, number>,
+ *   stiFarger?: {fg?: string, bg?: string},
  * }} settings
  * @returns {string} CSS (kan være tom — nøytrale innstillinger gir ingen regler)
  */
@@ -160,6 +175,17 @@ export function buildSettingsCss(settings = {}) {
   }
   if (visible.has('dybde')) {
     rules.push('.isom-map [data-layer="dybdepunkt"], .isom-map [data-layer="dybdekurve"] { display: inline !important; }')
+  }
+
+  if (settings.stiFarger) {
+    const { fg, bg } = settings.stiFarger
+    for (const [navn, v] of [['fg', fg], ['bg', bg]]) {
+      if (v != null && !isTrailColor(v)) {
+        throw new Error(`Ugyldig sti-farge «${navn}: ${v}» — bruk 6-sifret hex, f.eks. #7a4fa3`)
+      }
+    }
+    const trailCss = buildTrailColorCss(settings.stiFarger)
+    if (trailCss) rules.push(trailCss)
   }
 
   const { strekSkala, strek } = settings

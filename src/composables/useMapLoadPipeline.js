@@ -21,9 +21,9 @@ export function useMapLoadPipeline(deps) {
     loading, loadError, isAlive, isGesturing, scale, rotation, panTo,
     BUILTIN, kulturminneCount, mapHasTrails, currentMapIsAuto,
     fillingInDetails, detailsFailed, mapIsPartial, buildingOnTheFly, buildingProgress,
-    visibleLayers, currentTheme, applyTheme, applyPurpleTrails,
+    visibleLayers, currentTheme, applyTheme,
     applyLayerVisibility, applyDepthLayer, applyNameLanguage,
-    applyStrokeScale, applyStrokeOverrides, applyLabelScale, applyLabelFonts,
+    applyStrokeScale, applyStrokeOverrides, applyTrailColors, applyLabelScale, applyLabelFonts,
     applyHillshade, applyZoomTierClasses, applyUprightLabels, applyNameLOD,
     applyViewportCull, buildCullDomIndex, resetViewportCull,
     forcedVisibleNameEls, labelBoxCache, resetPrevShownNames,
@@ -234,9 +234,9 @@ export function useMapLoadPipeline(deps) {
       applyLayerVisibility()
       applyDepthLayer()              // dybde-toggle (default av) — kun synlig om Sjøkart-dybde finnes
       applyTheme()
-      applyPurpleTrails()            // Utvikler-test: lilla stier oppå tema-fargen
       applyStrokeScale()
       applyStrokeOverrides()         // per-element strek (Strek-FAB-panelet)
+      applyTrailColors()             // sti-farger for dette kartet (Strek-FAB-panelet)
       applyLabelScale()
       applyLabelFonts()
       userPos.recompute()
