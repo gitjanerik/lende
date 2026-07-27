@@ -40,8 +40,11 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
          class="absolute top-[var(--ovl-top)] left-3 right-3 z-40 rounded-2xl bg-zinc-950/95 backdrop-blur
                 border border-white/10 shadow-2xl overflow-hidden flex flex-col"
          style="max-height: calc(100dvh - 6rem - var(--safe-top));">
+      <!-- zoom skalerer også bredden, så uten width-kompensasjon skyves
+           kontroll-ikonene ut av skjermen ved 125/150 % tekststørrelse.
+           width = 100/scale % gir eksakt full bredde etter zoom. -->
       <div class="px-3 py-2.5 flex items-center gap-2 border-b border-white/10"
-           :style="{ zoom: uiTextScale }">
+           :style="{ zoom: uiTextScale, width: (100 / uiTextScale) + '%' }">
         <svg viewBox="0 0 24 24" class="w-4 h-4 text-white/55 shrink-0" fill="none"
              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="11" cy="11" r="7"/>
@@ -80,7 +83,7 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
         </button>
       </div>
       <div class="flex-1 overflow-y-auto" id="mapsearch-results" role="listbox"
-           :style="{ zoom: uiTextScale }">
+           :style="{ zoom: uiTextScale, width: (100 / uiTextScale) + '%' }">
         <div v-if="!query"
              class="px-4 py-4 text-[11px] text-white/45 leading-relaxed">
           Søker i navn i <span class="text-white/70">dette kartet</span> — steder, vann,
@@ -94,8 +97,8 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
         <!-- Overskrift for kart-treffene, symmetrisk med «Andre steder i
              Norge:» under — gjør det tydelig at dette er treff INNE i det
              åpne kartet, ikke nye kart. -->
-        <div v-if="results.length" class="px-4 pt-4 pb-1 text-[11px] leading-relaxed">
-          <span class="text-white/40">I dette kartet:</span>
+        <div v-if="results.length" class="px-4 pt-4 pb-1.5">
+          <span class="text-[11px] font-semibold uppercase tracking-wider text-emerald-300/90">I dette kartet</span>
         </div>
         <button v-for="(r, index) in results" :key="r.id"
                 :id="`mapsearch-opt-${index}`" role="option"
@@ -127,9 +130,9 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
              kartet er uviktig, et valgt globalt treff bygger nytt kart med
              navn etter treffet. -->
         <template v-if="query && (globalSearching || globalResults.length || results.length === 0)">
-          <div class="px-4 pt-4 pb-1 text-[11px] text-white/55 leading-relaxed">
-            <template v-if="results.length === 0">Ingen treff i dette kartet. </template>
-            <span class="text-white/40">Andre steder i Norge:</span>
+          <div class="px-4 pt-4 pb-1.5">
+            <div v-if="results.length === 0" class="text-[11px] text-white/45 mb-1">Ingen treff i dette kartet.</div>
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-sky-300/80">Andre steder i Norge</span>
           </div>
           <div v-if="globalSearching" class="px-4 py-3 text-[11px] text-white/40">
             Søker …
