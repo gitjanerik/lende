@@ -1,5 +1,18 @@
 # Endringslogg
 
+## 2026-07-27 — v2.4.3: Søke-UI-finpuss og GPS-pin i kartvelgeren
+
+Gruppe-overskriftene i kart-søket er nå fargekodede og fremhevet: «I dette
+kartet» i grønt, «Andre steder i Norge» i blått (samme blå som bygg-radene),
+begge som tydelige seksjons-etiketter i stedet for svak grå tekst. Rettet en
+GUI-feil der kontroll-ikonene i søkefeltet ble skjøvet ut av skjermen ved 125/150
+% tekststørrelse — `zoom` skalerte også bredden, så feltet får nå width-
+kompensasjon og holder seg innenfor skjermen. I «Nytt turkart» er den separate
+«Sentrer kartet på meg (GPS)»-knappen under søkefeltet fjernet; GPS-snarveien
+ligger nå som en grønn pin ytterst i søkefeltet, likt forsiden.
+
+---
+
 ## 2026-07-27 — v2.4.2: Tydeligere søketreff og stabil GPS
 
 Kart-søket skiller nå gruppene tydelig: treff inne i det åpne kartet får

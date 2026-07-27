@@ -199,6 +199,17 @@ const { query, results, isSearching, error: searchError } = useNominatim()
 const { isSupported: micSupported, isListening: micListening, toggle: toggleMic } =
   useSpeechInput({ onResult: (t) => { query.value = t } })
 
+// GPS-snarveien er nå en grønn pin integrert i søkefeltet (samme som forsiden),
+// ikke lenger en egen full-bredde-knapp under feltet. Høyre-padding + spinner-
+// plassering avhenger av hvor mange kontroll-knapper som faktisk vises.
+const supportsGeolocation = typeof navigator !== 'undefined' && !!navigator.geolocation
+const rightControlCount = computed(() =>
+  controlsLocked.value ? 0 : (supportsGeolocation ? 1 : 0) + (micSupported.value ? 1 : 0))
+const searchRightPad = computed(() =>
+  rightControlCount.value === 2 ? 'pr-24' : rightControlCount.value === 1 ? 'pr-14' : 'pr-3')
+const spinnerRight = computed(() =>
+  rightControlCount.value === 2 ? 'right-[5.9rem]' : rightControlCount.value === 1 ? 'right-[3.4rem]' : 'right-3')
+
 const showResults = computed(() =>
   query.value.trim().length >= 2 && (results.value.length > 0 || isSearching.value)
 )
@@ -537,23 +548,43 @@ onMounted(() => {
                :class="['w-full pl-10 py-3 rounded-xl bg-white/[0.06] border border-white/15',
                         'text-[14px] placeholder-white/30 focus:outline-none focus:bg-white/12',
                         'focus:border-slate-300/50 transition disabled:opacity-50 disabled:cursor-not-allowed',
-                        micSupported ? 'pr-12' : 'pr-3']" />
+                        searchRightPad]" />
         <div v-if="isSearching"
              :class="['absolute top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-white/15',
-                      'border-t-white/70 rounded-full animate-spin', micSupported ? 'right-12' : 'right-3']" />
-        <!-- Tale-til-tekst -->
-        <button v-if="micSupported && !controlsLocked" type="button" @click="toggleMic"
-                :aria-label="micListening ? 'Stopp diktering' : 'Diktér søk (tale til tekst)'"
-                :aria-pressed="micListening"
-                :class="['absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-lg flex items-center',
-                         'justify-center transition active:scale-95',
-                         micListening ? 'bg-red-500/90 text-white animate-pulse' : 'bg-white/10 text-white/70']">
-          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
-            <path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/>
-          </svg>
-        </button>
+                      'border-t-white/70 rounded-full animate-spin', spinnerRight]" />
+        <!-- Kontroll-knapper: mikrofon (diktér søk) + GPS (sentrer på meg).
+             Samme mønster som forsidens søkefelt — den grønne pinnen ligger
+             ytterst til høyre. -->
+        <div v-if="!controlsLocked" class="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          <button v-if="micSupported" type="button" @click="toggleMic"
+                  :aria-label="micListening ? 'Stopp diktering' : 'Diktér søk (tale til tekst)'"
+                  :aria-pressed="micListening"
+                  :class="['w-9 h-9 rounded-lg flex items-center justify-center transition active:scale-95',
+                           micListening ? 'bg-red-500/90 text-white animate-pulse' : 'bg-white/10 text-white/70']">
+            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/>
+            </svg>
+          </button>
+          <button v-if="supportsGeolocation"
+                  @click="onCenterOnMe"
+                  :disabled="gpsState.status === 'locating'"
+                  aria-label="Sentrer kartet på min posisjon (GPS)"
+                  class="w-10 h-10 rounded-lg bg-emerald-500 text-white flex items-center justify-center
+                         shadow-md active:scale-95 transition disabled:opacity-60">
+            <svg v-if="gpsState.status === 'locating'"
+                 viewBox="0 0 24 24" class="w-5 h-5 animate-spin" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round">
+              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+            </svg>
+            <svg v-else viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="10" r="3"/>
+              <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       <!-- Søkeresultater -->
@@ -579,33 +610,17 @@ onMounted(() => {
 
       <div v-if="searchError" class="mt-2 text-[11px] text-slate-300">{{ searchError }}</div>
 
-      <!-- v8.5.1: GPS-snarvei. Sentrer kartet på din n&aring;v&aelig;rende posisjon i
-           stedet for &aring; m&aring;tte s&oslash;ke etter stedsnavn (som ofte ligger annen-
-           hvor i bygda enn der du faktisk st&aring;r). -->
-      <button v-if="!controlsLocked"
-              @click="onCenterOnMe"
-              :disabled="gpsState.status === 'locating'"
-              class="mt-2 w-full px-3 py-2 rounded-lg border border-white/15
-                     bg-white/[0.04] text-white/80 text-[12px] font-medium
-                     active:bg-white/[0.08] active:scale-[0.99] transition
-                     disabled:opacity-60 flex items-center justify-center gap-2">
-        <svg v-if="gpsState.status === 'locating'"
-             viewBox="0 0 24 24" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round">
-          <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+      <!-- Hjelpetekst som forklarer den integrerte GPS-pinnen (samme mønster
+           som forsiden — pin-ikonet alene er ikke helt selvforklarende). -->
+      <div v-if="supportsGeolocation && !controlsLocked"
+           class="mt-2 px-1 text-[11.5px] text-white/45 flex items-center gap-1.5 leading-snug">
+        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-emerald-300/80 shrink-0" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="10" r="3"/>
+          <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>
         </svg>
-        <svg v-else viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="9"/>
-          <circle cx="12" cy="12" r="2.5" fill="currentColor"/>
-          <line x1="12" y1="1" x2="12" y2="5"/>
-          <line x1="12" y1="19" x2="12" y2="23"/>
-          <line x1="1" y1="12" x2="5" y2="12"/>
-          <line x1="19" y1="12" x2="23" y2="12"/>
-        </svg>
-        <span v-if="gpsState.status === 'locating'">Henter posisjon …</span>
-        <span v-else>Sentrer kartet på meg (GPS)</span>
-      </button>
+        <span>Søk etter et sted — eller trykk den grønne knappen for å sentrere kartet der du står.</span>
+      </div>
       <div v-if="gpsState.error"
            class="mt-2 text-[11px] text-amber-300">{{ gpsState.error }}</div>
     </div>
