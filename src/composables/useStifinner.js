@@ -1,14 +1,18 @@
 // Stifinner — rutenavigasjon på kartets sti-/vei-lag.
 //
-// Brukeren velger et mål (B) fra info-arket («Naviger hit»), så et startpunkt
-// (A) via et midt-kikkertsikte i kartet. Når ruten vises kan hun legge til
-// inntil 3 valgfrie via-punkter (samme sikte, gult) — ruten reberegnes A →
-// via… → B. Vi leser sti-geometrien tilbake fra den rendrede kart-SVG-en (kun
-// `<path d>` er tilgjengelig på view-tid), bygger en routing-graf og foreslår
-// 1–3 alternative ruter.
+// Snarvei-inngangen lar brukeren sikte inn punktene i naturlig rekkefølge med
+// et midt-kikkertsikte: FØRST startpunktet (A), så målet (B). Long-press-
+// inngangen («Naviger hit» fra info-arket) er mål-forankret — det trykkede
+// punktet ER målet (B), og brukeren sikter deretter inn startpunktet (A). Når
+// ruten vises kan hun legge til inntil 3 valgfrie via-punkter (samme sikte,
+// gult) — ruten reberegnes A → via… → B. Vi leser sti-geometrien tilbake fra
+// den rendrede kart-SVG-en (kun `<path d>` er tilgjengelig på view-tid), bygger
+// en routing-graf og foreslår 1–3 alternative ruter.
 //
-// Modus-maskin:  idle → pickingStart → showing ⇄ pickingVia  (X-knapp → idle)
-//                                      showing ⇄ following   («Bruk rute» / «Til forslag»)
+// Modus-maskin:  idle → pickingStart → pickingDest → showing ⇄ pickingVia
+//                (snarvei: start FØR mål; long-press hopper rett til showing
+//                 fordi målet alt er satt)      (X-knapp → idle)
+//                showing ⇄ following   («Bruk rute» / «Til forslag»)
 //
 // 'following' («Bruk rute»): valgt rute beholdes tegnet på kartet, men kartet
 // slipper fri — long-press, POI-tapp og måling virker igjen. Guards i MapView/
@@ -41,10 +45,11 @@ const ASCENT_M_PER_MIN = 10
 const DESCENT_M_PER_MIN = 30
 
 export function useStifinner() {
-  // 'pickingDest'/'pickingOrigin' er snarvei-inngangene: velg B (hhv. rundtur-
-  // origo) med kikkertsikte FØR startpunktet, i motsetning til long-press-
-  // inngangen (begin/beginLoop) der B/origo er selve long-press-punktet.
-  const mode = ref('idle')          // 'idle' | 'pickingDest' | 'pickingOrigin' | 'pickingStart' | 'showing' | 'pickingVia' | 'following'
+  // Snarvei-inngangen (beginPickStart) sikter inn startpunktet FØRST og målet
+  // (B) etterpå — begge med kikkertsikte. Long-press-inngangen (begin/beginLoop)
+  // har alt satt B/origo fra selve long-press-punktet. 'pickingOrigin' er
+  // rundtur-snarveiens origo-plukk.
+  const mode = ref('idle')          // 'idle' | 'pickingStart' | 'pickingDest' | 'pickingOrigin' | 'showing' | 'pickingVia' | 'following'
   const isLoop = ref(false)         // rundtur (origo = start = mål); via = vendepunkt(er)
   const destination = ref(null)     // { svgX, svgY } — B (== start når isLoop)
   const start = ref(null)           // { svgX, svgY } — A
@@ -120,9 +125,10 @@ export function useStifinner() {
     mode.value = 'pickingVia'
   }
 
-  // Snarvei-inngang for A→B: velg mål (B) med kikkertsikte først. Ingen
-  // destinasjon ennå — confirmDest setter den og går videre til startpunkt-plukk.
-  function beginPickDest() {
+  // Snarvei-inngang for A→B: sikt inn startpunktet (A) med kikkertsikte FØRST.
+  // Verken start eller mål er satt ennå — confirmStart setter A og går videre
+  // til mål-plukk (pickingDest), confirmDest setter B og beregner ruten.
+  function beginPickStart() {
     isLoop.value = false
     destination.value = null
     start.value = null
@@ -133,11 +139,19 @@ export function useStifinner() {
     startSnap.value = null
     destSnap.value = null
     viaSnaps.value = []
-    mode.value = 'pickingDest'
+    mode.value = 'pickingStart'
   }
 
+  // Bekreft mål (B). Er startpunktet alt satt (snarvei-inngangen, som plukker
+  // start FØR mål) → beregn ruter og vis. Ellers (uventet rekkefølge) → be om
+  // startpunkt.
   function confirmDest(svgPoint) {
     destination.value = { svgX: svgPoint.x, svgY: svgPoint.y }
+    if (start.value) {
+      mode.value = 'showing'
+      recompute()
+      return
+    }
     mode.value = 'pickingStart'
   }
 
@@ -323,7 +337,9 @@ export function useStifinner() {
   }
 
   /**
-   * Bekreft startpunkt (A) og beregn ruter A→B. Går til 'showing'.
+   * Bekreft startpunkt (A). Er målet alt satt (long-press-inngangen) → beregn
+   * ruter A→B og gå til 'showing'. Er målet ikke satt (snarvei-inngangen, som
+   * plukker start FØR mål) → gå videre til mål-plukk (pickingDest).
    * @param {{x:number,y:number}} svgPoint
    * @param {SVGElement} svgElement
    * @param {{startOnWater?:boolean}} opts
@@ -336,20 +352,28 @@ export function useStifinner() {
     destSnap.value = null
     viaSnaps.value = []
     via.value = []
-    mode.value = 'showing'
 
     // Startpunkt i vann → ingen rute, og ikke sett start (så ingen villedende
     // markør tegnes midt i vannet). Caller avgjør vann-treff (DOM-avhengig).
     if (opts.startOnWater) {
       start.value = null
       error.value = 'Fant ingen rute – startpunktet er i vann'
+      mode.value = 'showing'
       return
     }
 
     start.value = { svgX: svgPoint.x, svgY: svgPoint.y }
-    lastSvg = svgElement
+    if (svgElement) lastSvg = svgElement
 
-    if (!svgElement || !destination.value) {
+    // Snarvei-inngang: målet er ikke satt ennå → sikt det inn nå.
+    if (!destination.value) {
+      mode.value = 'pickingDest'
+      return
+    }
+
+    // Long-press-inngang: målet er alt satt → beregn og vis.
+    mode.value = 'showing'
+    if (!lastSvg || !destination.value) {
       error.value = 'Mangler kartdata'
       return
     }
@@ -416,7 +440,7 @@ export function useStifinner() {
   return {
     mode, active, blocking, isLoop, destination, start, via, routes, selectedRouteIdx, error, diag,
     startSnap, destSnap, viaSnaps, directDistanceM, canAddVia, MAX_VIA,
-    begin, beginLoop, beginPickDest, confirmDest, beginPickLoop, confirmLoopOrigin,
+    begin, beginLoop, beginPickStart, confirmDest, beginPickLoop, confirmLoopOrigin,
     cancel, confirmStart, beginAddVia, confirmVia, removeVia, clearVia,
     selectRoute, follow, stopFollowing, estWalkMinutes,
   }
