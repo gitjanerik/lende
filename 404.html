@@ -16,7 +16,25 @@
          kart-SVG-en ble hvite/usynlige. «only light» er den dokumenterte
          opt-out-en; appens egen mørke UI styres av eksplisitte farger og er
          upåvirket. -->
-    <meta name="color-scheme" content="only light" />
+    <meta name="color-scheme" content="light dark" />
+    <!-- Anti-flash: sett UI-temaet (data-theme + bakgrunn + theme-color) FØR
+         paint, fra localStorage (default mørkt). style.css/useUiTheme holder det
+         i sync etterpå. Kjøres synkront i <head> så siden aldri blinker feil
+         farge ved oppstart. -->
+    <script>
+      (function () {
+        try {
+          var p = localStorage.getItem('lende-ui-theme') || 'mørkt';
+          var dark = p === 'mørkt' || (p !== 'lyst' && window.matchMedia
+            && matchMedia('(prefers-color-scheme: dark)').matches);
+          var bg = dark ? '#0e1116' : '#efeae0';
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+          document.documentElement.style.background = bg;
+          var m = document.querySelector('meta[name="theme-color"]');
+          if (m) m.setAttribute('content', bg);
+        } catch (e) { /* privat modus e.l. — behold default */ }
+      })();
+    </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="description" content="Lende — turkart og ruteplanlegging fra ekte norske kartdata" />
@@ -47,14 +65,14 @@
         window.__appInstalled = true
       })
     </script>
-    <script type="module" src="/lende/assets/index-BdYGsR7C.js"></script>
+    <script type="module" src="/lende/assets/index-B6XqJEH8.js"></script>
     <link rel="modulepreload" href="/lende/assets/symbolizer-BK65QsSx.js">
     <link rel="modulepreload" href="/lende/assets/rolldown-runtime-Bh1tDfsg.js">
     <link rel="modulepreload" href="/lende/assets/preload-helper-CdCo1_m3.js">
-    <link rel="modulepreload" href="/lende/assets/useSearchKeyboard-BLiT1WXP.js">
-    <link rel="stylesheet" href="/lende/assets/index-DmTGpU6z.css">
+    <link rel="modulepreload" href="/lende/assets/useSearchKeyboard-BHGL3mve.js">
+    <link rel="stylesheet" href="/lende/assets/index-CN64jAvv.css">
   </head>
-  <body class="bg-[#0e1116] text-white/90 overscroll-none">
+  <body class="overscroll-none">
     <div id="app"></div>
   </body>
 </html>
