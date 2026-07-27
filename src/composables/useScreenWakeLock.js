@@ -5,12 +5,15 @@
 // re-requestes automatisk når fanen blir synlig igjen (browseren slipper
 // alltid wake-locks ved fane-bytte).
 //
-// Inaktivitets-timer: i stedet for å holde skjermen våken i det uendelige,
-// slippes wake-locken etter `idleTimeoutMs` UTEN bruker-aktivitet, så
-// telefonen kan sove og spare batteri når den legges fra seg. «enabled» blir
-// værende PÅ — locken re-acquires automatisk ved neste aktivitet (poke) eller
-// når fanen får fokus igjen. Aktivitet = pointerdown/touchstart/keydown/wheel
-// (lyttes globalt mens modusen er aktiv); hvert event fornyer timeren.
+// Inaktivitets-timer: valgfri. Med `idleTimeoutMs > 0` slippes wake-locken etter
+// så mange ms UTEN bruker-aktivitet (telefonen får sove); «enabled» blir værende
+// PÅ og locken re-acquires ved neste aktivitet (poke) eller når fanen får fokus.
+// Aktivitet = pointerdown/touchstart/keydown/wheel (lyttes globalt mens modusen
+// er aktiv); hvert event fornyer timeren. Default er `idleTimeoutMs = 0` (v2.4.2):
+// INGEN idle-slipp — når «hold skjerm våken» er slått PÅ (en opt-in-bryter),
+// holdes skjermen våken sammenhengende til brukeren slår av eller forlater kartet.
+// Dette hindrer at GPS-sporingen dør fordi skjermen sovner mens brukeren
+// orienterer ute. Kompromisset er batteri; UI-en advarer tydelig om det.
 //
 // Skiller seg fra wake-lock inne i useTrackRecorder: den er kun aktiv mens
 // brukeren tar opp et spor (og uten timeout — skjermen skal være våken hele
@@ -19,7 +22,7 @@
 import { ref, watch } from 'vue'
 
 const STORAGE_KEY = 'lende-keep-screen-awake'
-const IDLE_TIMEOUT_MS = 2 * 60 * 1000   // 2 min uten aktivitet → slipp locken
+const IDLE_TIMEOUT_MS = 0   // 0 = ingen idle-slipp; skjermen holdes våken til av/unmount
 const ACTIVITY_EVENTS = ['pointerdown', 'touchstart', 'keydown', 'wheel']
 
 function readSetting() {

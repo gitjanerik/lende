@@ -91,6 +91,12 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
           Steder ellers i Norge foreslås alltid nederst — velg ett for å bygge
           nytt kart der.
         </div>
+        <!-- Overskrift for kart-treffene, symmetrisk med «Andre steder i
+             Norge:» under — gjør det tydelig at dette er treff INNE i det
+             åpne kartet, ikke nye kart. -->
+        <div v-if="results.length" class="px-4 pt-4 pb-1 text-[11px] leading-relaxed">
+          <span class="text-white/40">I dette kartet:</span>
+        </div>
         <button v-for="(r, index) in results" :key="r.id"
                 :id="`mapsearch-opt-${index}`" role="option"
                 :aria-selected="index === activeIndex"
@@ -132,14 +138,15 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
                   @click="emit('selectGlobal', r)"
                   class="w-full text-left px-3 py-2.5 transition border-b border-white/8
                          last:border-0 flex items-center gap-2 active:bg-white/10">
-            <svg viewBox="0 0 24 24" class="w-4 h-4 text-white/40 shrink-0" fill="none"
+            <!-- «+»-ikon (ikke kartnål): dette er en bygg-handling, ikke bare
+                 enda et sted å hoppe til i det åpne kartet. -->
+            <svg viewBox="0 0 24 24" class="w-5 h-5 text-sky-400 shrink-0" fill="none"
                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>
-              <circle cx="12" cy="10" r="3"/>
+              <circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
             </svg>
             <div class="flex-1 min-w-0">
               <div class="text-[13px] font-medium text-white truncate">{{ r.shortName }}</div>
-              <div class="text-[10px] text-white/45 uppercase tracking-wide">Bygg nytt kart her</div>
+              <div class="text-[10px] text-sky-300/80 uppercase tracking-wide">Bygg nytt kart her</div>
             </div>
             <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-white/35 shrink-0" fill="none"
                  stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
