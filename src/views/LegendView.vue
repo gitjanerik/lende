@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import isomCatalog from '../lib/isomCatalog.json'
 import { buildIsomDefs, buildIsomCss } from '../lib/symbolizer.js'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
+import { listThemes, THEME_GROUPS } from '../lib/mapSettingsApply.js'
 
 const router = useRouter()
 const { uiTextScale } = useUiTextScale()
@@ -13,8 +14,28 @@ const { uiTextScale } = useUiTextScale()
 const { defs: isomDefs, patternIds, symbolIds } = buildIsomDefs(isomCatalog)
 const isomCss = buildIsomCss(isomCatalog, patternIds)
 
-const isDark = ref(true)
-const bgColor = computed(() => isDark.value ? isomCatalog.background.darkColor : isomCatalog.background.color)
+// Tegnforklaringen bruker det samme tema-systemet som kartet (isomCatalog.themes
+// via listThemes), delt i de samme to seksjonene som drawer-en. Tidligere hadde
+// den en egen Lys/Mørk-bryter mot en duplisert `darkMode`-blokk i katalogen, som
+// bare dekket ett av åtte temaer og drev ut av sync med themes.dark.
+const THEMES = listThemes(isomCatalog)
+const sections = computed(() => THEME_GROUPS
+  .map((g) => ({ ...g, themes: THEMES.filter((t) => (t.group ?? 'hoved') === g.key) }))
+  .filter((g) => g.themes.length))
+
+const currentTheme = ref('light')
+const themeObj = computed(() => isomCatalog.themes?.[currentTheme.value])
+const bgColor = computed(() => themeObj.value?.background ?? isomCatalog.background.color)
+
+// UI-et rundt prøvene (kort, overskrifter) følger temaets bakgrunnsluminans —
+// samme terskel som relieffets blend-valg i useReliefRender.
+function hexLuminance(hex) {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex ?? '')
+  if (!m) return 1
+  const n = parseInt(m[1], 16)
+  return (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255
+}
+const isDark = computed(() => hexLuminance(bgColor.value) < 0.4)
 
 // Grupper koder i tematiske seksjoner for hjelp til lesing
 const SECTIONS = [
@@ -44,8 +65,19 @@ function catFor(section, code) {
   return section.category
 }
 
-function darkForCode(code) {
-  return isomCatalog.darkMode?.categories?.[code]
+// Temaets overstyring for en kode. Fyll: en tema-farge ERSTATTER et mønster
+// (samme som --iso-<kode>-fill gjør i kartet), så pattern-nøkkelen droppes.
+// Strek: temaet oppgir kun farge, så bredde/dasharray/linecap må bevares fra
+// katalogen — ellers rendres prøvene med feil strek i alle temaer unntatt lys.
+function themedFill(code, def) {
+  const c = themeObj.value?.categories?.[code]?.fill?.color
+  return c ? { color: c } : def.fill
+}
+function themedStroke(code, def, key = 'stroke') {
+  const base = def[key]
+  const c = themeObj.value?.categories?.[code]?.[key]?.color
+  if (!c) return base
+  return { ...(base ?? {}), color: c }
 }
 
 // Sample-rendering: bredt SVG (mm-basert) som viser ISOM-koden eksakt slik
@@ -54,11 +86,10 @@ function darkForCode(code) {
 function sampleSvg(category, code) {
   const def = defForCode(category, code)
   if (!def) return ''
-  const dark = isDark.value ? darkForCode(code) : null
-  const bg = isDark.value ? isomCatalog.background.darkColor : isomCatalog.background.color
+  const bg = bgColor.value
   const W = 120, H = 32
-  const fill = dark?.fill ?? def.fill
-  const stroke = dark?.stroke ?? def.stroke
+  const fill = themedFill(code, def)
+  const stroke = themedStroke(code, def)
 
   // Bygg stroke-attributter som MATCHER det mapBuilder/symbolizer
   // produserer — mm-units, eksplisitt linecap/linejoin og dasharray.
@@ -84,7 +115,7 @@ function sampleSvg(category, code) {
     // Linje — bruk mm-units og inkluder linecap/linejoin slik kartet gjør.
     // Hvis def har overlayStroke (f.eks. jernbane med ladder-stripes),
     // rendres en ekstra linje på toppen for å matche kartet.
-    const overlay = def.overlayStroke
+    const overlay = themedStroke(code, def, 'overlayStroke')
     const overlayLine = overlay
       ? `<line x1="4" y1="${H/2}" x2="${W-4}" y2="${H/2}" fill="none" ${strokeAttrs(overlay)}/>`
       : ''
@@ -124,14 +155,18 @@ function sampleSvg(category, code) {
           ←
         </button>
         <h1 class="text-lg font-semibold flex-1">Tegnforklaring</h1>
-        <button @click="isDark = !isDark"
-                class="px-3 py-1.5 rounded-lg text-xs"
-                :class="isDark ? 'bg-slate-400/25 text-white' : 'bg-zinc-800/10 text-zinc-700'">
-          {{ isDark ? 'Lys' : 'Mørk' }}
-        </button>
+        <select v-model="currentTheme" aria-label="Tema for tegnforklaringen"
+                class="rounded-lg text-xs px-2 py-1.5 border focus:outline-none focus:ring-1 focus:ring-emerald-400
+                       [&>option]:text-zinc-900 [&>option]:bg-white"
+                :class="isDark ? 'bg-white/10 text-white border-white/10' : 'bg-white text-zinc-800 border-zinc-300'">
+          <optgroup v-for="s in sections" :key="s.key" :label="s.label">
+            <option v-for="t in s.themes" :key="t.key" :value="t.key">{{ t.label }}</option>
+          </optgroup>
+        </select>
       </div>
       <p class="px-4 pb-3 text-xs leading-snug" :class="isDark ? 'text-white/55' : 'text-zinc-600'">
         ISOM 2017-2 inspirerte symboler brukt i turkartene. Print-kvalitet, 1:10000.
+        Prøvene vises i valgt tema, akkurat som i kartet.
       </p>
     </header>
 

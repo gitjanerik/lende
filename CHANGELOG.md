@@ -1,5 +1,35 @@
 # Endringslogg
 
+## 2026-07-27 — v2.4.0: Ryddet fargepalett, ekte høykontrast-mørk og sti-farger
+
+Tema-menyen er delt i to: «Lys (ISOM)» og «Mørk» står som hovedtemaer, mens
+Sepia, Indigo, Petrol, Mocha, Forest og Curves er samlet under «Monokrom».
+Mørk er skrevet om fra bunnen til et reelt høykontrast-tema for svaksynte —
+mørk nøytral bakgrunn, vegetasjonstetthet som stiger i valør i stedet for å
+drukne, vann under hele landrampen og halo på alle navn, med WCAG AA–AAA på
+alt navigasjonskritisk. Monokrom-familien er bygget etter én felles oppskrift
+der hvert tema er én farge i en fast valørtrapp, brutt bare av røde
+høydekurver som felles signatur og et kjølig vann som motvekt; Curves beholder
+sine gule kurver, men har nå resten av kartet med seg i en hviskende valør i
+stedet for å vise høydekurver alene. Fordi relieff visker ut nettopp det
+ensfargede uttrykket, slås det av automatisk når et monokrom-tema velges — ett
+trykk på relieff-knotten henter det tilbake, og valget lagres ikke, så din egen
+relieff-innstilling er urørt så snart du bytter tema igjen.
+
+Utviklerknappen «Lilla stier» er erstattet av noe du faktisk kan styre: i
+panelet «Strek — dette kartet» har Stier-kortet fått to fargevelgere under
+tykkelse-slideren, for den stiplede streken og for den lyse underlinja, med en
+nullstill-knapp som gir temaets egne farger tilbake. Fargene lagres per kart,
+følger med i eksport og utskrift, og kan settes fra MCP med `stiFarger`.
+Samtidig følger eksport og utskrift nå temaet i det hele tatt — før falt SVG,
+PNG, PDF og print alltid tilbake på de lyse ISOM-fargene. Tegnforklaringen er
+koblet på det ekte tema-systemet og viser alle temaene i stedet for sin egen
+Lys/Mørk-bryter mot en duplisert fargekilde, som nå er slettet. To gamle feil
+er rettet på veien: høydetallene manglet halo helt, og dybdetallene fikk haloen
+malt oppå sifrene.
+
+---
+
 ## 2026-07-26 — v2.3.11: Eget invitt-banner for delt rundtur
 
 Når noen åpner en delt rundtur i kart-pickeren, viste banneret samme tekst som

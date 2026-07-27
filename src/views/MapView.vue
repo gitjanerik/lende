@@ -19,6 +19,7 @@ import { useLodTuning } from '../composables/useLodTuning.js'
 import { useLabelFonts } from '../composables/useLabelFonts.js'
 import { useLabelDensity } from '../composables/useLabelDensity.js'
 import { useStrokeTuning } from '../composables/useStrokeTuning.js'
+import { useTrailColors } from '../composables/useTrailColors.js'
 import { useReliefSettings } from '../composables/useReliefSettings.js'
 import { useDetailInset } from '../composables/useDetailInset.js'
 import { useHeritageLayers } from '../composables/useHeritageLayers.js'
@@ -30,10 +31,11 @@ import { useSymbolRenderers } from '../composables/useSymbolRenderers.js'
 import { useContextLookups } from '../composables/useContextLookups.js'
 import { useMapLoadPipeline } from '../composables/useMapLoadPipeline.js'
 import { buildStrokeOverrideCss } from '../lib/strokeOverrides.js'
+import { buildTrailColorCss, normalizeHex } from '../lib/trailColors.js'
 import {
   LAYERS, MARINE_LAYER_KEYS, DEFAULT_VISIBLE_LAYER_KEYS, LAYER_PRESETS,
 } from '../lib/mapLayerCatalog.js'
-import { themeVarEntries, allThemeVarNames } from '../lib/mapSettingsApply.js'
+import { themeVarEntries, allThemeVarNames, buildThemeCss, listThemes } from '../lib/mapSettingsApply.js'
 import { declutter, makeMinZoomOf } from '../lib/labelDeclutter.js'
 import { trackLengthM, downloadGpx } from '../lib/gpxExport.js'
 import { norwegianName } from '../lib/placeName.js'
@@ -204,28 +206,8 @@ function resetLayers() {
 // isDark er derivert for steder som styrer UI-farger (toppbar, drawer-bg).
 const currentTheme = ref('light')
 const isDark = computed(() => currentTheme.value !== 'light')
-const THEMES = computed(() => Object.entries(isomCatalog.themes ?? {}).map(([k, v]) => ({ key: k, label: v.label ?? k })))
+const THEMES = computed(() => listThemes(isomCatalog))
 const diagnose = ref(false)
-
-// Utvikler-fanen: live A/B-test av lilla stier (#7a4fa3, turkonvensjon-forslag
-// fra CD 2. juli 2026 — brukeren var lunken, så svart er default og lilla er
-// en knott). Setter --iso-505/506/507-stroke på .isom-map-roten; casingen
-// (var(--bg)-fallback) berøres ikke. Persistert så valget overlever reload.
-const PURPLE_TRAILS_KEY = 'map-purple-trails'
-const purpleTrails = ref(localStorage.getItem(PURPLE_TRAILS_KEY) === '1')
-function applyPurpleTrails() {
-  const root = mapInnerRef.value
-  if (!root || !purpleTrails.value) return
-  for (const code of ['505', '506', '507']) root.style.setProperty(`--iso-${code}-stroke`, '#7a4fa3')
-}
-function togglePurpleTrails() {
-  purpleTrails.value = !purpleTrails.value
-  localStorage.setItem(PURPLE_TRAILS_KEY, purpleTrails.value ? '1' : '0')
-  // applyTheme rydder/re-etablerer temaets sti-farger (AV-veien); lilla
-  // legges deretter oppå hvis PÅ.
-  applyTheme()
-  applyPurpleTrails()
-}
 
 // Terreng-først: kartet ble vist med konturer+relieff straks, og OSM/detaljer
 // fylles inn i bakgrunnen. Chip vises mens vi venter på full-byggingen.
@@ -1040,12 +1022,37 @@ const reliefMode = reliefSettings.reliefMode
 const globalReliefEnabled = reliefSettings.globalReliefEnabled
 const globalReliefMode = reliefSettings.globalReliefMode
 
+// Monokrom-temaene slår relieffet av automatisk — hillshade legger en
+// gråtone-gradient over flatene og bryter nettopp det ensfargede uttrykket de
+// er laget for. Dette er en TREDJE, IKKE-PERSISTERT bryter, med vilje: både
+// reliefEnabled (per kart) og reliefStepIndex (globalt) lagres i localStorage,
+// og temaet gjør IKKE det (det faller tilbake til 'light' ved reload). Et
+// auto-av lagret i en av dem ville blitt liggende igjen etter at temaet var
+// borte. Brukeren overstyrer via relieff-knotten, FAB-panelet eller
+// Innstillinger-fanen — alle tre nullstiller flagget.
+const reliefAutoOff = ref(false)
+// Det render-koden faktisk skal se på. reliefEnabled beholdes som brukerens
+// egen innstilling (og er den v-model-en UI-et skriver til).
+const reliefActive = computed(() => reliefEnabled.value && !reliefAutoOff.value)
+function clearReliefAutoOff() {
+  if (!reliefAutoOff.value) return
+  reliefAutoOff.value = false
+  applyHillshade()
+  void renderGhostTiles()
+}
+
 // Per-element strek-tuning (Strek-FAB-panelet, v12.0.18) — per kart med global
 // standard. Effektive multiplikatorer injiseres som override-CSS i kart-SVG-en
 // (applyStrokeOverrides) og ganges med den globale --stroke-scale-knotten.
 const strokeTuning = useStrokeTuning()
 // Top-level ref → auto-unwrap i template (nested refs unwrappes ikke).
 const strokeEffective = strokeTuning.effective
+
+// Sti-farger (Strek-FAB-panelet) — per kart med global standard, samme modell
+// som strek-tuningen over. Tom overstyring = følg temaets sti-farger.
+const trailColors = useTrailColors()
+const trailColorsEffective = trailColors.effective
+const trailColorsOverridden = trailColors.isOverridden
 
 // Flerspråklige navn (norsk - samisk - finsk) i Nord-Norge. Default AV = vis
 // kun det norske leddet for et renere kart; PÅ = vis hele det flerspråklige
@@ -1140,6 +1147,38 @@ function applyStrokeOverrides() {
 }
 watch(strokeTuning.effective, applyStrokeOverrides)
 
+// Sti-farger: samme injeksjons-mønster som strek-overstyringen over, i en egen
+// <style> så de to kan settes uavhengig. Ingen overstyring → blokken fjernes og
+// temaets egne sti-farger gjelder igjen.
+function applyTrailColors() {
+  const svg = svgHostRef.value?.querySelector('svg')
+  if (!svg) return
+  let el = svg.querySelector('#trail-color-style')
+  const css = buildTrailColorCss(trailColors.effective.value)
+  if (!css) { el?.remove(); return }
+  if (!el) {
+    el = document.createElementNS('http://www.w3.org/2000/svg', 'style')
+    el.setAttribute('id', 'trail-color-style')
+    svg.appendChild(el)
+  }
+  el.textContent = css
+}
+watch(trailColors.effective, applyTrailColors)
+
+// Fargen velgerne skal VISE når brukeren ikke har overstyrt: temaets sti-farge,
+// ellers katalogens ISOM-default (svart strek, krem casing). Casingen faller i
+// CSS tilbake på var(--bg), altså temaets bakgrunn — speiles her.
+const trailColorSwatches = computed(() => {
+  const t = isomCatalog.themes?.[currentTheme.value]
+  const def = isomCatalog.categories?.manmade?.['505']
+  return {
+    fg: normalizeHex(trailColorsEffective.value.fg
+      ?? t?.categories?.['505']?.stroke?.color ?? def?.stroke?.color, '#000000'),
+    bg: normalizeHex(trailColorsEffective.value.bg
+      ?? t?.background ?? def?.casingStroke?.color, '#fbf7ec'),
+  }
+})
+
 // Tekst-skala — settes som CSS-var på kart-SVG-en; alle [data-label]-font-sizes
 // ganges med den via calc() i symbolizer-CSS-en (se `fs()` der). Sanntid, ingen
 // re-render.
@@ -1201,7 +1240,10 @@ watch(maxTileIndex, () => {
 // regenerer aktiv-flisas hillshade og re-render mosaikken (spøkelses-relieff
 // opprettes/fjernes i buildGhostSvg etter reliefEnabled). Persistering skjer i
 // useReliefSettings.
+// En bruker som rører av/på-bryteren (FAB-panelet eller Innstillinger-fanen)
+// har uttalt seg om relieffet, og skal vinne over temaets auto-av.
 watch(reliefEnabled, () => {
+  reliefAutoOff.value = false
   applyHillshade()
   void renderGhostTiles()
   flashKnobHint(reliefEnabled.value ? 'Relieff på' : 'Relieff av')
@@ -1250,6 +1292,14 @@ function knobUp(kind) {
   if (kind === 'stroke') {
     strokeStepIndex.value = (strokeStepIndex.value + 1) % STROKE_STEPS.length
   } else if (kind === 'relief') {
+    // Auto-av fra et monokrom-tema er ment å være lett å angre: ett tap skrur
+    // relieffet på igjen i stedet for å telle et hakk. Brukerens eget «av»
+    // (reliefEnabled) beholder derimot dagens hold-for-innstillinger-vakt.
+    if (reliefAutoOff.value) {
+      clearReliefAutoOff()
+      flashKnobHint('Relieff på')
+      return
+    }
     if (!reliefEnabled.value) { flashKnobHint('Relieff er av — hold for innstillinger'); return }
     reliefStepIndex.value = (reliefStepIndex.value + 1) % RELIEF_STEPS.length
   } else {
@@ -1281,7 +1331,12 @@ function flashPanelHint(text) {
 }
 function strokePanelSaveDefault() {
   strokeTuning.saveAsDefault()
+  trailColors.saveAsDefault()
   flashPanelHint('Lagret som standard for alle kart')
+}
+function trailColorsReset() {
+  trailColors.resetColors()
+  flashPanelHint('Sti-farger følger temaet igjen')
 }
 function strokePanelReset() {
   strokeTuning.resetToNeutral()
@@ -1350,6 +1405,7 @@ async function onRenameSave(navn) {
 watch(mapId, (id) => {
   setDensityMap(id)
   strokeTuning.setCurrentMap(id)
+  trailColors.setCurrentMap(id)
   reliefSettings.setCurrentMap(id)
 }, { immediate: true })
 const annot = useMapAnnotations(mapId.value)
@@ -2159,7 +2215,7 @@ function formatDistance(m) {
 // Relieff-rendering — flyttet til useReliefRender; watchene blir her.
 const { applyHillshade, reliefBlendMode, invalidateReliefBands } = useReliefRender({
   svgHostRef, meta, storedDem, ensureDem, currentTheme,
-  reliefEnabled, reliefMode, reliefOpacity, RELIEF_BANDS,
+  reliefEnabled: reliefActive, reliefMode, reliefOpacity, RELIEF_BANDS,
 })
 
 // Spøkelses-fliser — flyttet til useGhostTiles.
@@ -2168,7 +2224,7 @@ const {
   renderGhostTiles, updateGhostReliefOpacity,
 } = useGhostTiles({
   svgHostRef, meta, mapId, isAlive: () => componentAlive, isGesturing,
-  reliefEnabled, reliefMode, reliefOpacity, reliefBlendMode, RELIEF_BANDS,
+  reliefEnabled: reliefActive, reliefMode, reliefOpacity, reliefBlendMode, RELIEF_BANDS,
   applyLayerVisibility, clampPan,
 })
 
@@ -2932,6 +2988,29 @@ function mapSvgMarkupForExport() {
   const clone = svg.cloneNode(true)
   clone.querySelector('#ghost-tiles')?.remove()
   clone.querySelector('#extend-zones')?.remove()   // kant-soner er kun runtime-UI
+  // Temaet lever som CSS-variabler på mapInnerRef og bakgrunnsfarge på
+  // wrapperRef — begge UTENFOR <svg>, så en ren klone falt tilbake på
+  // symbolizerens lyse ISOM-defaults uansett valgt tema. Bak derfor temaet inn
+  // i klonen: variablene som en <style>, pluss et bakgrunns-rect bakerst.
+  // Rect-et er redundant for kart bygget med dagens symbolizer (som har
+  // `#bakgrunn rect { fill: var(--bg, …) }`), men dekker eldre lagrede kart
+  // uten den regelen. Sti-farger og strek-overstyringer ligger allerede inne i
+  // SVG-en og følger med av seg selv.
+  const themeCss = buildThemeCss(currentTheme.value)
+  const bg = isomCatalog.themes?.[currentTheme.value]?.background
+  if (bg) {
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+    rect.setAttribute('x', '0'); rect.setAttribute('y', '0')
+    rect.setAttribute('width', '100%'); rect.setAttribute('height', '100%')
+    rect.setAttribute('fill', bg)
+    clone.insertBefore(rect, clone.firstChild)
+  }
+  if (themeCss) {
+    const style = document.createElementNS('http://www.w3.org/2000/svg', 'style')
+    style.setAttribute('id', 'tema-eksport')
+    style.textContent = themeCss
+    clone.appendChild(style)
+  }
   return clone.outerHTML
 }
 // Hvilken eksport som kjører nå ('' | 'svg' | 'png' | 'pdf' | 'print'). Brukes
@@ -2976,9 +3055,9 @@ const { loadMap, retryMapDetails } = useMapLoadPipeline({
   loading, loadError, isAlive: () => componentAlive, isGesturing, scale, rotation, panTo,
   BUILTIN, kulturminneCount, mapHasTrails, currentMapIsAuto,
   fillingInDetails, detailsFailed, mapIsPartial, buildingOnTheFly, buildingProgress,
-  visibleLayers, currentTheme, applyTheme, applyPurpleTrails,
+  visibleLayers, currentTheme, applyTheme,
   applyLayerVisibility, applyDepthLayer, applyNameLanguage,
-  applyStrokeScale, applyStrokeOverrides, applyLabelScale, applyLabelFonts,
+  applyStrokeScale, applyStrokeOverrides, applyTrailColors, applyLabelScale, applyLabelFonts,
   applyHillshade, applyZoomTierClasses, applyUprightLabels, applyNameLOD,
   applyViewportCull, buildCullDomIndex, resetViewportCull,
   forcedVisibleNameEls, labelBoxCache, resetPrevShownNames,
@@ -3071,7 +3150,6 @@ function applyTheme() {
 // art-mode.
 function onThemeChange(newTheme, oldTheme) {
   applyTheme()
-  applyPurpleTrails()
   const newT = isomCatalog.themes?.[newTheme]
   const oldT = isomCatalog.themes?.[oldTheme]
   if (newT?.autoHideLayers) {
@@ -3080,6 +3158,11 @@ function onThemeChange(newTheme, oldTheme) {
     visibleLayers.value = new Set(DEFAULT_VISIBLE_LAYER_KEYS)
   }
   applyLayerVisibility()
+  // Monokrom-temaene vil ha rene flater — slå relieffet av automatisk, og på
+  // igjen når man går ut. Flagget er ikke persistert (se reliefAutoOff), så
+  // brukerens egen relieff-innstilling er urørt og gjelder straks temaet
+  // forlates. Watchen på [storedDem, currentTheme] kaller applyHillshade().
+  reliefAutoOff.value = !!newT?.monochrome
   // Tema-bytte endrer relieff-blend-modus → spøkelses-relieffet må re-tones
   // (ny data-URL pr modus). Sjelden operasjon; hillshade-compute er cachet.
   void renderGhostTiles()
@@ -3528,7 +3611,7 @@ onUnmounted(() => {
               aria-label="Relieff-styrke — tap for å justere, hold for innstillinger"
               class="w-12 h-12 rounded-full bg-zinc-950 text-white shadow-lg touch-none
                      flex items-center justify-center active:scale-95 transition"
-              :class="reliefEnabled ? '' : 'opacity-40'">
+              :class="reliefActive ? '' : 'opacity-40'">
         <svg viewBox="0 0 24 24" class="w-7 h-7" fill="none">
           <path :d="knobTrackD" stroke="currentColor" stroke-width="2"
                 stroke-linecap="round" opacity="0.22"/>
@@ -3905,7 +3988,6 @@ onUnmounted(() => {
             :cull-stats="cullStats" :cull-disabled="cullDisabled" :toggle-cull="toggleCull"
             :sjokart-status-text="sjokartStatusText"
             :nve-innsjo-status-text="nveInnsjoStatusText" :meta="meta"
-            :purple-trails="purpleTrails" :toggle-purple-trails="togglePurpleTrails"
             :open-vardasen="() => router.push({ name: 'kart-vis', params: { id: 'vardasen' } })"
             :open-perf-log="() => { showPerfLog = true }" />
         </div>
@@ -3918,6 +4000,8 @@ onUnmounted(() => {
       :panel="knobPanel"
       :drawer="knobDrawer"
       :stroke-effective="strokeEffective"
+      :trail-swatches="trailColorSwatches"
+      :trail-colors-overridden="trailColorsOverridden"
       v-model:relief-enabled="reliefEnabled"
       v-model:relief-mode="reliefMode"
       v-model:default-zoom-scale="defaultZoomScale"
@@ -3932,6 +4016,8 @@ onUnmounted(() => {
       :hint="panelHint"
       @close="closeKnobPanel"
       @set-stroke-group="(id, v) => strokeTuning.setGroup(id, v)"
+      @set-trail-color="(role, v) => trailColors.setColor(role, v)"
+      @reset-trail-colors="trailColorsReset"
       @save-default="knobPanel === 'stroke' ? strokePanelSaveDefault() : reliefPanelSaveDefault()"
       @reset="knobPanel === 'stroke' ? strokePanelReset() : reliefPanelReset()"
       @rebuild="rebuildAtChosenSize" />
