@@ -57,7 +57,7 @@ function formatDuration(ms) {
         </svg>
         {{ tracker.isRecording.value ? 'Stopp opptak' : (userPos.isWatching ? 'Start opptak' : 'Start GPS + opptak') }}
       </span>
-      <span v-if="liveTrackStats" class="text-[11px] text-pink-100/85 tabular-nums">
+      <span v-if="liveTrackStats" class="text-[11px] text-ink/60 tabular-nums">
         {{ formatDistance(liveTrackStats.meters) }} · {{ formatDuration(liveTrackStats.ms) }}
       </span>
     </button>
@@ -81,7 +81,7 @@ function formatDuration(ms) {
     </div>
     <div v-if="tracker.isRecording.value"
          class="text-[10px] leading-snug rounded-md px-2 py-1.5 bg-pink-500/10
-                border border-pink-300/20 text-pink-100/85">
+                border border-pink-300/20 text-ink/70">
       <span v-if="tracker.wakeLockActive.value">
         Skjermen holdes våken så GPS ikke stopper. Hold appen åpen
         under turen — nettleseren kan ikke spore i bakgrunnen.

@@ -120,7 +120,7 @@ function formatElevationDiff(m) {
        markør. Tap fjerner highlight og dropper søkemodus. -->
   <Transition name="chip-fade">
     <div v-if="highlightedFeature && !searchOpen"
-         class="absolute top-[var(--ovl-top)] left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 rounded-2xl
+         class="on-accent absolute top-[var(--ovl-top)] left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 rounded-2xl
                 bg-pink-500/95 text-ink text-[12px] font-medium shadow-lg
                 flex items-center gap-2 max-w-[85%] pointer-events-auto
                 transition-[left] duration-200"
@@ -148,7 +148,7 @@ function formatElevationDiff(m) {
 
   <!-- Annoteringsmodus indikator. -->
   <div v-if="annot.isAnnotateMode.value && annot.selectedSymbol.value"
-       class="absolute top-[var(--ovl-poi)] right-3 z-20 px-2.5 py-1.5 rounded-md bg-slate-600
+       class="on-accent absolute top-[var(--ovl-poi)] right-3 z-20 px-2.5 py-1.5 rounded-md bg-slate-600
               text-ink text-[11px] font-medium shadow-lg pointer-events-none">
     Trykk på kartet for å plassere
     <div class="text-[9px] text-ink/80 mt-0.5">
@@ -160,7 +160,7 @@ function formatElevationDiff(m) {
        back-knappen) så den ikke ligger bak FAB-stacken. X-knappen avslutter
        målingen direkte fra kartet uten å åpne drawer-en. -->
   <div v-if="measureMode"
-       class="absolute top-[var(--ovl-top)] left-3 z-20 rounded-md bg-emerald-600
+       class="on-accent absolute top-[var(--ovl-top)] left-3 z-20 rounded-md bg-emerald-600
               text-ink text-[11px] font-medium shadow-lg
               tabular-nums max-w-[55%] flex items-start gap-1.5 pl-3 pr-1 py-2">
     <div class="flex-1 min-w-0">
@@ -184,7 +184,7 @@ function formatElevationDiff(m) {
        Snarvei-faser: velg startpunkt → velg mål → ruter funnet. Egen rute-liste
        (tappbar, viser lengde + estimert gangtid). -->
   <div v-if="sti.active.value && sti.mode.value !== 'following'"
-       class="absolute top-[var(--ovl-top)] left-3 z-20 rounded-md bg-emerald-600
+       class="on-accent absolute top-[var(--ovl-top)] left-3 z-20 rounded-md bg-emerald-600
               text-ink text-[11px] font-medium shadow-lg
               max-w-[70%] flex items-start gap-1.5 pl-3 pr-1 py-2">
     <div class="flex-1 min-w-0">
@@ -302,7 +302,7 @@ function formatElevationDiff(m) {
        fritt (long-press/POI/måling virker). Tap utvider til panel med
        distanse/tid/høydemeter + GPS-fremdrift, «Til forslag» og X. -->
   <!-- Måling kan pågå samtidig (samme hjørne) → still pillen under readouten. -->
-  <div v-if="sti.mode.value === 'following'" class="absolute left-3 z-20 max-w-[70%]"
+  <div v-if="sti.mode.value === 'following'" class="on-accent absolute left-3 z-20 max-w-[70%]"
        :class="measureMode ? 'top-[var(--ovl-top-2)]' : 'top-[var(--ovl-top)]'">
     <button v-if="!followExpanded" @click="followExpanded = true"
             class="flex items-center gap-1.5 rounded-full bg-emerald-600 text-white
@@ -400,7 +400,7 @@ function formatElevationDiff(m) {
   <!-- Nærhetsvarsel-alert (blå, X-knapp avbryter). Stables under måle-/sti-
        banneret hvis et av dem er aktivt (begge ligger på samme topp-offset, left-3). -->
   <div v-if="proximity.active.value"
-       class="absolute left-3 z-20 rounded-md bg-sky-600
+       class="on-accent absolute left-3 z-20 rounded-md bg-sky-600
               text-ink text-[11px] font-medium shadow-lg
               tabular-nums max-w-[60%] flex items-start gap-1.5 pl-3 pr-1 py-2"
        :class="(measureMode && sti.mode.value === 'following') ? 'top-[var(--ovl-top-3)]'

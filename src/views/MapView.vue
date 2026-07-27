@@ -3691,7 +3691,7 @@ onUnmounted(() => {
                       : sti.mode.value === 'pickingDest' ? onConfirmDest()
                       : sti.mode.value === 'pickingOrigin' ? onConfirmLoopOrigin()
                       : onConfirmStart()"
-              class="px-5 py-3 rounded-full text-ink text-[14px] font-semibold
+              class="px-5 py-3 rounded-full text-white text-[14px] font-semibold
                      shadow-lg active:scale-95 flex items-center gap-2"
               :class="sti.mode.value === 'pickingVia' ? 'bg-amber-500' : 'bg-emerald-600'">
         <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"

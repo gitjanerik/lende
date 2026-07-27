@@ -54,16 +54,34 @@
      tema, så all «text-<aksent>-100/200» blir lesbar mørk aksenttekst uten å
      røre hvert element. 500-tonede bakgrunner (bg-*-500/15) beholdes — de
      leses som lys tone på papir. */
-  --color-sky-100: #075985;      --color-sky-200: #0369a1;
-  --color-emerald-100: #065f46;  --color-emerald-200: #047857;
-  --color-amber-100: #92400e;    --color-amber-200: #b45309;
-  --color-rose-100: #9f1239;     --color-rose-200: #be123c;
-  --color-red-100: #991b1b;      --color-red-200: #b91c1c;
-  --color-lime-100: #3f6212;     --color-lime-200: #4d7c0f;
+  --color-sky-50: #075985;       --color-sky-100: #075985;      --color-sky-200: #0369a1;
+  --color-emerald-50: #065f46;   --color-emerald-100: #065f46;  --color-emerald-200: #047857;
+  --color-amber-50: #92400e;     --color-amber-100: #92400e;    --color-amber-200: #b45309;
+  --color-rose-50: #9f1239;      --color-rose-100: #9f1239;     --color-rose-200: #be123c;
+  --color-red-50: #991b1b;       --color-red-100: #991b1b;      --color-red-200: #b91c1c;
+  --color-lime-50: #3f6212;      --color-lime-100: #3f6212;     --color-lime-200: #4d7c0f;
+  --color-pink-50: #9d174d;      --color-pink-100: #9d174d;     --color-pink-200: #be185d;
   --color-slate-100: #1e293b;    --color-slate-200: #334155;
 }
 
 html { background: var(--color-app); }
+
+/* Paneler med SOLID aksentbakgrunn (grønne toast/banner, pinke/slate chips):
+   bakgrunnen er farget i BEGGE tema, så innholdet skal alltid være lyst
+   (hvit tekst + pale aksent-skygger) — uavhengig av UI-tema. `.on-accent`
+   pinner ink til hvit og aksent-100/200 til sine originale pale verdier, så
+   `text-ink`/`bg-ink/x`/`text-emerald-100` osv. rendrer lyst-på-farge i lyst
+   tema også (mørkt tema er allerede slik → uendret). Motsatsen av den globale
+   100/200-remappingen, som gjelder TONEDE (lys-på-lys) info-paneler. */
+.on-accent {
+  --color-ink: #ffffff;
+  --color-emerald-50: #ecfdf5; --color-emerald-100: #d1fae5; --color-emerald-200: #a7f3d0;
+  --color-sky-50: #f0f9ff;     --color-sky-100: #e0f2fe;     --color-sky-200: #bae6fd;
+  --color-amber-50: #fffbeb;   --color-amber-100: #fef3c7;   --color-amber-200: #fde68a;
+  --color-rose-50: #fff1f2;    --color-rose-100: #ffe4e6;    --color-rose-200: #fecdd3;
+  --color-lime-50: #f7fee7;    --color-lime-100: #ecfccb;    --color-lime-200: #d9f99d;
+  --color-pink-50: #fdf2f8;    --color-pink-100: #fce7f3;    --color-pink-200: #fbcfe8;
+}
 
 /* iOS-statuslinje-høyde (notch/Dynamic Island) i frittstående app-modus.
    Toppbaren skyves ned med denne (index.html: viewport-fit=cover +
