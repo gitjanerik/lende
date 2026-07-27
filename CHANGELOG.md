@@ -1,5 +1,19 @@
 # Endringslogg
 
+## 2026-07-27 — v2.4.2: Tydeligere søketreff og stabil GPS
+
+Kart-søket skiller nå gruppene tydelig: treff inne i det åpne kartet får
+overskriften «I dette kartet:», symmetrisk med «Andre steder i Norge:» under.
+Bygg-nytt-kart-radene har fått et «+»-ikon (ikke kartnål) og aksentfarget
+«Bygg nytt kart her», så det leser som en handling i stedet for enda et sted å
+hoppe til. «Hold skjerm våken» slipper ikke lenger locken automatisk etter to
+minutter — når bryteren er på, holdes skjermen våken sammenhengende til du slår
+av eller forlater kartet, slik at GPS-posisjonen ikke dør mens du orienterer
+ute. Siden bryteren er en bevisst opt-in, viser Om-fanen nå en tydelig rød
+batteri-advarsel mens den er på.
+
+---
+
 ## 2026-07-27 — v2.4.1: Stifinner-snarveien plukker startpunkt før mål
 
 Snarvei-inngangen til Stifinner sikter nå inn punktene i naturlig rekkefølge:

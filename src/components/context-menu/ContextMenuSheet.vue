@@ -594,8 +594,8 @@ function formatDistance(m) {
 
             <div class="text-[10px] text-sky-100/70 leading-snug mb-3">
               Virker mens appen er åpen og GPS er på — kan ikke varsle i bakgrunnen. Skjermen
-              holdes automatisk våken sammenhengende mens varselet er aktivt (overstyrer
-              2-min-grensen i «Hold skjerm våken»). Alarmen ringer til du avbryter den.
+              holdes automatisk våken sammenhengende mens varselet er aktivt (uavhengig av
+              «Hold skjerm våken»-bryteren). Alarmen ringer til du avbryter den.
             </div>
 
             <button @click="armProximityAlert"
