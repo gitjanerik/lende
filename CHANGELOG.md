@@ -1,5 +1,21 @@
 # Endringslogg
 
+## 2026-07-27 — v2.4.8: Boot-loop-vern mot blank/fanget app
+
+Appen gjenopptar sist brukte kart ved oppstart (`/` → `/kart/:id`). Havnet den
+rutas kartvisning blank — f.eks. et ødelagt lagret kart eller et stale service-
+worker-skall — sendte hver ny last brukeren rett tilbake i fella, uten synlig
+vei ut. Lagt inn et boot-loop-vern: rett før gjenopptak settes et
+«pending»-flagg for kartet, og MapView fjerner det så snart visningen har
+montert. Kommer man tilbake til `/` med flagget fortsatt satt (forrige forsøk
+fullførte aldri), hoppes gjenopptaket over, pekerne ryddes og man havner trygt
+på forsiden — én reload er nok. I tillegg fanger en global feilhåndterer nå en
+ukjent render-/oppstartsfeil på en kart-rute, rydder gjenopptaks-pekerne og
+sender brukeren til forsiden. Ingen endring for normal bruk der kartet laster
+som det skal.
+
+---
+
 ## 2026-07-27 — v2.4.7: Riktig skriftfarge på fargede paneler i lyst tema
 
 Fikset kontrast i lyst tema for paneler med farget bakgrunn. De grønne
