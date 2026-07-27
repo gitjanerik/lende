@@ -73,8 +73,8 @@ function formatElevationDiff(m) {
   <Transition name="chip-fade">
     <div v-if="autoMapToast && !searchOpen"
          class="absolute left-1/2 -translate-x-1/2 z-30 px-3 py-2 rounded-2xl
-                bg-zinc-950/90 text-white text-[12px] font-medium shadow-lg backdrop-blur
-                text-center max-w-[85%] pointer-events-none border border-white/10
+                bg-overlay/90 text-ink text-[12px] font-medium shadow-lg backdrop-blur
+                text-center max-w-[85%] pointer-events-none border border-ink/10
                 transition-[left] duration-200"
          :style="[mapCenterStyle, { bottom: 'calc(env(safe-area-inset-bottom, 0px) + 5rem)' }]">
       {{ autoMapToast }}
@@ -86,8 +86,8 @@ function formatElevationDiff(m) {
   <Transition name="chip-fade">
     <div v-if="fillingInDetails && !searchOpen"
          class="absolute top-[var(--ovl-top)] left-1/2 -translate-x-1/2 z-30 pl-2 pr-3.5 py-1.5 rounded-2xl
-                bg-zinc-950/90 text-white text-[12.5px] font-medium shadow-lg backdrop-blur
-                flex items-center gap-2 pointer-events-none border border-white/10
+                bg-overlay/90 text-ink text-[12.5px] font-medium shadow-lg backdrop-blur
+                flex items-center gap-2 pointer-events-none border border-ink/10
                 transition-[left] duration-200"
          :style="mapCenterStyle">
       <!-- Animert «landmåler»-ikon: topo-konturer tegnes inn mens en gul
@@ -121,7 +121,7 @@ function formatElevationDiff(m) {
   <Transition name="chip-fade">
     <div v-if="highlightedFeature && !searchOpen"
          class="absolute top-[var(--ovl-top)] left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 rounded-2xl
-                bg-pink-500/95 text-white text-[12px] font-medium shadow-lg
+                bg-pink-500/95 text-ink text-[12px] font-medium shadow-lg
                 flex items-center gap-2 max-w-[85%] pointer-events-auto
                 transition-[left] duration-200"
          :style="mapCenterStyle">
@@ -133,11 +133,11 @@ function formatElevationDiff(m) {
       <span class="min-w-0 flex flex-col leading-tight">
         <span class="truncate font-semibold">{{ highlightedFeature.name }}</span>
         <span v-if="highlightedFeature.sub"
-              class="truncate text-[11px] font-normal text-white/85">{{ highlightedFeature.sub }}</span>
+              class="truncate text-[11px] font-normal text-ink/85">{{ highlightedFeature.sub }}</span>
       </span>
       <button @click="$emit('clearHighlight')" aria-label="Fjern markering"
               class="w-5 h-5 -mr-1 rounded-full flex items-center justify-center
-                     text-white/90 active:bg-white/20 shrink-0">
+                     text-ink/90 active:bg-ink/20 shrink-0">
         <svg viewBox="0 0 24 24" class="w-3 h-3" fill="none" stroke="currentColor"
              stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
           <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -149,9 +149,9 @@ function formatElevationDiff(m) {
   <!-- Annoteringsmodus indikator. -->
   <div v-if="annot.isAnnotateMode.value && annot.selectedSymbol.value"
        class="absolute top-[var(--ovl-poi)] right-3 z-20 px-2.5 py-1.5 rounded-md bg-slate-600
-              text-white text-[11px] font-medium shadow-lg pointer-events-none">
+              text-ink text-[11px] font-medium shadow-lg pointer-events-none">
     Trykk på kartet for å plassere
-    <div class="text-[9px] text-white/80 mt-0.5">
+    <div class="text-[9px] text-ink/80 mt-0.5">
       {{ ANNOTATION_SYMBOLS.find(s => s.symbolKey === annot.selectedSymbol.value)?.label }}
     </div>
   </div>
@@ -161,7 +161,7 @@ function formatElevationDiff(m) {
        målingen direkte fra kartet uten å åpne drawer-en. -->
   <div v-if="measureMode"
        class="absolute top-[var(--ovl-top)] left-3 z-20 rounded-md bg-emerald-600
-              text-white text-[11px] font-medium shadow-lg
+              text-ink text-[11px] font-medium shadow-lg
               tabular-nums max-w-[55%] flex items-start gap-1.5 pl-3 pr-1 py-2">
     <div class="flex-1 min-w-0">
       <div class="text-[9px] uppercase tracking-wide text-emerald-100/90">Mål</div>
@@ -172,7 +172,7 @@ function formatElevationDiff(m) {
     </div>
     <button @click="$emit('stopMeasure')" aria-label="Avslutt måling"
             class="-mt-0.5 -mr-0.5 w-6 h-6 flex items-center justify-center rounded-md
-                   text-white/90 active:scale-90 active:bg-white/10 shrink-0">
+                   text-ink/90 active:scale-90 active:bg-ink/10 shrink-0">
       <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
            stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
         <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -185,7 +185,7 @@ function formatElevationDiff(m) {
        (tappbar, viser lengde + estimert gangtid). -->
   <div v-if="sti.active.value && sti.mode.value !== 'following'"
        class="absolute top-[var(--ovl-top)] left-3 z-20 rounded-md bg-emerald-600
-              text-white text-[11px] font-medium shadow-lg
+              text-ink text-[11px] font-medium shadow-lg
               max-w-[70%] flex items-start gap-1.5 pl-3 pr-1 py-2">
     <div class="flex-1 min-w-0">
       <div class="text-[9px] uppercase tracking-wide text-emerald-100/90">
@@ -228,14 +228,14 @@ function formatElevationDiff(m) {
             <button v-for="(r, i) in sti.routes.value" :key="i"
                     @click="$emit('selectRoute', i)"
                     class="flex items-center gap-1.5 text-left rounded px-1.5 py-1 active:scale-[0.98]"
-                    :class="i === sti.selectedRouteIdx.value ? 'bg-white/20' : 'bg-white/5'">
+                    :class="i === sti.selectedRouteIdx.value ? 'bg-ink/20' : 'bg-ink/5'">
               <span class="w-2.5 h-2.5 rounded-full shrink-0"
                     :style="{ background: ['#dc2626','#7c3aed','#0891b2'][i % 3] }"></span>
               <span class="text-[11px] tabular-nums">
                 {{ formatDistance(r.lengthM) }} · {{ sti.estWalkMinutes(r.lengthM, stiRouteClimbs[i]) }} min
               </span>
               <span v-if="r.shortest"
-                    class="text-[8px] uppercase tracking-wide bg-white/25 rounded px-1 py-px shrink-0">
+                    class="text-[8px] uppercase tracking-wide bg-ink/25 rounded px-1 py-px shrink-0">
                 Kortest
               </span>
             </button>
@@ -247,7 +247,7 @@ function formatElevationDiff(m) {
               <span class="w-2 h-2 rounded-full bg-amber-400 shrink-0"></span>
               {{ sti.isLoop.value ? 'Vendepkt' : 'Via' }} {{ i + 1 }}
               <button @click="$emit('removeVia', i)" aria-label="Fjern via-punkt"
-                      class="w-4 h-4 flex items-center justify-center rounded active:bg-white/20">
+                      class="w-4 h-4 flex items-center justify-center rounded active:bg-ink/20">
                 <svg viewBox="0 0 24 24" class="w-2.5 h-2.5" fill="none" stroke="currentColor"
                      stroke-width="3" stroke-linecap="round">
                   <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -255,7 +255,7 @@ function formatElevationDiff(m) {
               </button>
             </span>
             <button v-if="sti.canAddVia.value" @click="$emit('beginAddVia')"
-                    class="flex items-center gap-1 bg-white/15 rounded px-1.5 py-0.5 text-[10px]
+                    class="flex items-center gap-1 bg-ink/15 rounded px-1.5 py-0.5 text-[10px]
                            font-medium active:scale-95">
               <svg viewBox="0 0 24 24" class="w-3 h-3" fill="none" stroke="currentColor"
                    stroke-width="2.6" stroke-linecap="round">
@@ -290,7 +290,7 @@ function formatElevationDiff(m) {
     </div>
     <button @click="$emit('cancelStifinner')" aria-label="Avslutt stifinner"
             class="-mt-0.5 -mr-0.5 w-6 h-6 flex items-center justify-center rounded-md
-                   text-white/90 active:scale-90 active:bg-white/10 shrink-0">
+                   text-ink/90 active:scale-90 active:bg-ink/10 shrink-0">
       <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
            stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
         <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -343,7 +343,7 @@ function formatElevationDiff(m) {
           Venter på GPS-posisjon …
         </div>
         <button v-else @click="$emit('startGps')"
-                class="mt-1 flex items-center gap-1 bg-white/15 rounded px-1.5 py-0.5
+                class="mt-1 flex items-center gap-1 bg-ink/15 rounded px-1.5 py-0.5
                        text-[10px] font-medium active:scale-95">
           <svg viewBox="0 0 24 24" class="w-3 h-3" fill="none" stroke="currentColor"
                stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
@@ -354,7 +354,7 @@ function formatElevationDiff(m) {
         </button>
         <div class="flex flex-wrap items-center gap-1 mt-1.5">
           <button @click="$emit('stopFollowing')"
-                  class="flex items-center gap-1 bg-white/15 rounded px-1.5 py-0.5
+                  class="flex items-center gap-1 bg-ink/15 rounded px-1.5 py-0.5
                          text-[10px] font-medium active:scale-95">
             <svg viewBox="0 0 24 24" class="w-3 h-3" fill="none" stroke="currentColor"
                  stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
@@ -365,7 +365,7 @@ function formatElevationDiff(m) {
           <!-- «Del rundtur»: deler rundturen så mottakeren får samme kart og
                lander i samme «Følger rundtur»-modus. -->
           <button @click="$emit('shareRoundTrip')" :aria-label="shareLabel"
-                  class="flex items-center gap-1 bg-white/15 rounded px-1.5 py-0.5
+                  class="flex items-center gap-1 bg-ink/15 rounded px-1.5 py-0.5
                          text-[10px] font-medium active:scale-95 tabular-nums">
             <svg viewBox="0 0 24 24" class="w-3 h-3 shrink-0" fill="none" stroke="currentColor"
                  stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
@@ -379,7 +379,7 @@ function formatElevationDiff(m) {
       <div class="flex flex-col shrink-0">
         <button @click="followExpanded = false" aria-label="Minimer"
                 class="-mt-0.5 -mr-0.5 w-6 h-6 flex items-center justify-center rounded-md
-                       text-white/90 active:scale-90 active:bg-white/10">
+                       text-ink/90 active:scale-90 active:bg-ink/10">
           <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
                stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="18 15 12 9 6 15"/>
@@ -387,7 +387,7 @@ function formatElevationDiff(m) {
         </button>
         <button @click="$emit('cancelStifinner')" aria-label="Avslutt rute"
                 class="-mr-0.5 w-6 h-6 flex items-center justify-center rounded-md
-                       text-white/90 active:scale-90 active:bg-white/10">
+                       text-ink/90 active:scale-90 active:bg-ink/10">
           <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
                stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
             <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -401,7 +401,7 @@ function formatElevationDiff(m) {
        banneret hvis et av dem er aktivt (begge ligger på samme topp-offset, left-3). -->
   <div v-if="proximity.active.value"
        class="absolute left-3 z-20 rounded-md bg-sky-600
-              text-white text-[11px] font-medium shadow-lg
+              text-ink text-[11px] font-medium shadow-lg
               tabular-nums max-w-[60%] flex items-start gap-1.5 pl-3 pr-1 py-2"
        :class="(measureMode && sti.mode.value === 'following') ? 'top-[var(--ovl-top-3)]'
                : (measureMode || sti.active.value) ? 'top-[var(--ovl-top-2)]' : 'top-[var(--ovl-top)]'">
@@ -420,7 +420,7 @@ function formatElevationDiff(m) {
     </div>
     <button @click="proximity.cancel()" aria-label="Avbryt nærhetsvarsel"
             class="-mt-0.5 -mr-0.5 w-6 h-6 flex items-center justify-center rounded-md
-                   text-white/90 active:scale-90 active:bg-white/10 shrink-0">
+                   text-ink/90 active:scale-90 active:bg-ink/10 shrink-0">
       <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
            stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
         <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>

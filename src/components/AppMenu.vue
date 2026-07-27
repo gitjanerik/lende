@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAppMenu } from '../composables/useAppMenu.js'
 import { useMapContext } from '../composables/useMapContext.js'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
+import { useUiTheme } from '../composables/useUiTheme.js'
 import AppMenuButton from './AppMenuButton.vue'
 import { gmapsUrl, streetViewUrl, buildVegkartUrl } from '../lib/externalMapLinks.js'
 import { buildUtNoUrl } from '../lib/utNoLink.js'
@@ -16,6 +17,7 @@ import { APP_VERSION } from '../version.js'
 const { menuOpen, close } = useAppMenu()
 const { hasMapContext, getPoint } = useMapContext()
 const { uiTextScale, cycleTextScale } = useUiTextScale()
+const { theme, options: themeOptions, setTheme } = useUiTheme()
 const route = useRoute()
 const router = useRouter()
 
@@ -66,7 +68,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   <Transition name="menu-slide">
     <aside v-if="menuOpen"
            class="fixed top-0 left-0 bottom-0 z-[201] w-[82%] max-w-[320px] flex flex-col
-                  bg-zinc-900 border-r border-white/10 shadow-2xl"
+                  bg-surface border-r border-ink/10 shadow-2xl"
            :style="{ paddingTop: 'max(env(safe-area-inset-top, 0px), 0.75rem)' }">
       <!-- Panelets egen meny-knapp ligger på samme sted som trigger-knappen i
            visningen under (venstre, px-3) — delt tilstand gjør at den viser
@@ -74,7 +76,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
            glir inn under den. Den ER lukkekontrollen; ingen separat X. -->
       <div class="flex items-center gap-3 px-3 pb-3">
         <AppMenuButton variant="float" />
-        <span class="text-[15px] font-semibold text-white">Så i lende</span>
+        <span class="text-[15px] font-semibold text-ink">Så i lende</span>
       </div>
 
       <nav class="flex-1 overflow-y-auto px-2 py-1 flex flex-col gap-1"
@@ -137,14 +139,37 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <span>Tegnforklaring</span>
         </button>
 
-        <button @click="go('/om')" class="menu-item">
-          <svg viewBox="0 0 24 24" class="menu-icon" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/>
-            <circle cx="12" cy="8" r="0.6" fill="currentColor"/>
-          </svg>
-          <span>Om appen</span>
-        </button>
+        <!-- Utseende: lyst / mørkt / automatisk UI-tema. Default mørkt
+             (dagens utseende). «Automatisk» følger telefonens systemtema. -->
+        <div class="px-3 pt-4 pb-1 text-[10px] uppercase tracking-wide text-ink/40">
+          Utseende
+        </div>
+        <div class="flex gap-1.5 px-1" role="group" aria-label="Utseende">
+          <button v-for="opt in themeOptions" :key="opt.value"
+                  @click="setTheme(opt.value)"
+                  :aria-pressed="theme === opt.value"
+                  class="flex-1 flex flex-col items-center gap-1 rounded-lg px-1 py-2
+                         text-[11px] font-medium transition-colors leading-tight text-center"
+                  :class="theme === opt.value ? 'bg-emerald-500 text-white' : 'bg-ink/10 text-ink/70'">
+            <!-- Sol (lyst) -->
+            <svg v-if="opt.value === 'lyst'" viewBox="0 0 24 24" class="w-5 h-5" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="4.5"/>
+              <path d="M12 1.5v2.5M12 20v2.5M4.2 4.2l1.8 1.8M18 18l1.8 1.8M1.5 12h2.5M20 12h2.5M4.2 19.8l1.8-1.8M18 6l1.8-1.8"/>
+            </svg>
+            <!-- Halvmåne (mørkt) -->
+            <svg v-else-if="opt.value === 'mørkt'" viewBox="0 0 24 24" class="w-5 h-5" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+            </svg>
+            <!-- Lyn (automatisk) -->
+            <svg v-else viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+            <span>{{ opt.label }}</span>
+          </button>
+        </div>
 
         <!-- Global tekststørrelse (flyttet fra skuffe-headerne): sykler
              100 % → 125 % → 150 %. Menyen selv skaleres, så effekten vises
@@ -154,7 +179,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             <span class="text-[11px]">A</span><span class="text-[16px]">A</span>
           </span>
           <span>Tekststørrelse</span>
-          <span class="ml-auto text-[12px] tabular-nums text-white/45">
+          <span class="ml-auto text-[12px] tabular-nums text-ink/45">
             {{ Math.round(uiTextScale * 100) }} %
           </span>
         </button>
@@ -162,7 +187,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <!-- Eksterne karttjenester på synlig kartsenter — kun inne i et kart
              (turkart eller ruteplanlegger), skjult på Hjem/Mine kart. -->
         <template v-if="hasMapContext">
-          <div class="px-3 pt-4 pb-1 text-[10px] uppercase tracking-wide text-white/40">
+          <div class="px-3 pt-4 pb-1 text-[10px] uppercase tracking-wide text-ink/40">
             Åpne stedet i
           </div>
           <button v-for="svc in EXTERNAL_SERVICES" :key="svc.key"
@@ -175,9 +200,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             <span>{{ svc.label }}</span>
           </button>
         </template>
+
+        <!-- «Om appen» nederst blant valgene. -->
+        <button @click="go('/om')" class="menu-item mt-1">
+          <svg viewBox="0 0 24 24" class="menu-icon" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/>
+            <circle cx="12" cy="8" r="0.6" fill="currentColor"/>
+          </svg>
+          <span>Om appen</span>
+        </button>
       </nav>
 
-      <div class="px-4 py-3 border-t border-white/10 text-[11px] text-white/35"
+      <div class="px-4 py-3 border-t border-ink/10 text-[11px] text-ink/35"
            :style="{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0.75rem)' }">
         Versjon {{ APP_VERSION }}
       </div>
@@ -192,14 +227,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   gap: 0.75rem;
   padding: 0.75rem 0.75rem;
   border-radius: 0.6rem;
-  color: rgba(255, 255, 255, 0.85);
+  color: color-mix(in oklab, var(--color-ink) 85%, transparent);
   font-size: 14px;
   text-align: left;
   transition: background 0.15s ease;
 }
 .menu-item:active { transform: scale(0.98); }
-.menu-item:hover { background: rgba(255, 255, 255, 0.06); }
-.menu-icon { width: 20px; height: 20px; flex-shrink: 0; color: rgba(255, 255, 255, 0.6); }
+.menu-item:hover { background: color-mix(in oklab, var(--color-ink) 6%, transparent); }
+.menu-icon { width: 20px; height: 20px; flex-shrink: 0; color: color-mix(in oklab, var(--color-ink) 60%, transparent); }
 
 .menu-fade-enter-active, .menu-fade-leave-active { transition: opacity 0.25s ease; }
 .menu-fade-enter-from, .menu-fade-leave-to { opacity: 0; }

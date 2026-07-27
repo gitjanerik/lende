@@ -46,8 +46,8 @@ function formatDuration(ms) {
     <button @click="onToggleRecording"
             class="w-full px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98] flex items-center justify-between gap-2"
             :class="tracker.isRecording.value
-                    ? 'bg-pink-500/25 border-pink-300/50 text-white'
-                    : 'bg-white/5 border-white/10 text-white/75'">
+                    ? 'bg-pink-500/25 border-pink-300/50 text-ink'
+                    : 'bg-ink/5 border-ink/10 text-ink/75'">
       <span class="flex items-center gap-2">
         <span v-if="tracker.isRecording.value"
               class="w-2 h-2 rounded-full bg-pink-400 animate-pulse"></span>
@@ -70,12 +70,12 @@ function formatDuration(ms) {
               :title="s.desc"
               class="px-2 py-1.5 rounded-md border text-[11px] active:scale-[0.98] transition"
               :class="tracker.trackStyle.value === s.key
-                      ? 'bg-pink-400/20 border-pink-300/50 text-white'
-                      : 'bg-white/5 border-white/10 text-white/65'">
+                      ? 'bg-pink-400/20 border-pink-300/50 text-ink'
+                      : 'bg-ink/5 border-ink/10 text-ink/65'">
         {{ s.label }}
       </button>
     </div>
-    <div class="text-[10px] text-white/40 leading-snug">
+    <div class="text-[10px] text-ink/40 leading-snug">
       Punkter samples ned til hver 5. m. Lave-nøyaktighets-fixer (over
       50 m) ignoreres så støy ikke blir sti. Spor lagres med kartet.
     </div>
@@ -96,18 +96,18 @@ function formatDuration(ms) {
 
   <!-- Liste over lagrede spor + det aktive sporet. -->
   <div v-if="tracker.tracks.value.length"
-       class="text-white/55 text-[11px] uppercase tracking-wide mb-2">Mine spor</div>
+       class="text-ink/55 text-[11px] uppercase tracking-wide mb-2">Mine spor</div>
   <div v-if="tracker.tracks.value.length"
        class="space-y-1.5 mb-3 max-h-56 overflow-y-auto pr-1">
     <div v-for="tr in tracker.tracks.value" :key="tr.id"
-         class="px-2.5 py-1.5 rounded-md bg-white/5 border border-white/10">
+         class="px-2.5 py-1.5 rounded-md bg-ink/5 border border-ink/10">
       <div class="flex items-center gap-2">
         <button @click="tracker.toggleVisibility(tr.id)"
                 :aria-label="tracker.visibleTrackIds.value.has(tr.id) ? 'Skjul spor' : 'Vis spor'"
                 class="w-5 h-5 flex items-center justify-center rounded-sm shrink-0"
                 :class="tracker.visibleTrackIds.value.has(tr.id)
                         ? 'text-pink-300'
-                        : 'text-white/30'">
+                        : 'text-ink/30'">
           <svg v-if="tracker.visibleTrackIds.value.has(tr.id)" viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M2 12 s4 -7 10 -7 s10 7 10 7 s-4 7 -10 7 s-10 -7 -10 -7"/>
@@ -121,12 +121,12 @@ function formatDuration(ms) {
           </svg>
         </button>
         <div class="flex-1 min-w-0">
-          <div class="text-[12px] text-white/85 truncate">
+          <div class="text-[12px] text-ink/85 truncate">
             {{ tr.navn || ('Tur ' + new Date(tr.opprettet).toLocaleDateString('no-NO', { day: '2-digit', month: 'short' })) }}
             <span v-if="tracker.isRecording.value && tracker.activeTrack.value?.id === tr.id"
                   class="ml-1 text-pink-300 text-[10px] uppercase">● opptak</span>
           </div>
-          <div class="text-[10px] text-white/45 tabular-nums">
+          <div class="text-[10px] text-ink/45 tabular-nums">
             {{ formatDistance(trackLengthM(tr)) }} ·
             {{ formatDuration(trackDurationMs(tr)) }} ·
             {{ tr.points.length }} punkter
@@ -135,8 +135,8 @@ function formatDuration(ms) {
         <button @click="onExportTrackGpx(tr)"
                 aria-label="Eksporter som GPX"
                 :disabled="!tr.points.length"
-                class="w-7 h-7 flex items-center justify-center rounded-md text-white/55
-                       active:scale-90 active:bg-white/10 disabled:opacity-30">
+                class="w-7 h-7 flex items-center justify-center rounded-md text-ink/55
+                       active:scale-90 active:bg-ink/10 disabled:opacity-30">
           <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 5 V19"/><polyline points="6 13 12 19 18 13"/>
@@ -145,7 +145,7 @@ function formatDuration(ms) {
         </button>
         <button @click="onDeleteTrack(tr.id)"
                 aria-label="Slett spor"
-                class="w-7 h-7 flex items-center justify-center rounded-md text-white/55
+                class="w-7 h-7 flex items-center justify-center rounded-md text-ink/55
                        active:scale-90 active:bg-rose-500/20 active:text-rose-200">
           <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
                stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
@@ -175,7 +175,7 @@ function formatDuration(ms) {
                 stroke-linecap="round" stroke-linejoin="round"
                 vector-effect="non-scaling-stroke"/>
         </svg>
-        <div class="text-[10px] text-white/55 tabular-nums leading-tight px-0.5 mt-0.5 text-left">
+        <div class="text-[10px] text-ink/55 tabular-nums leading-tight px-0.5 mt-0.5 text-left">
           ↗ {{ Math.round(profileFor(tr).totalAscent) }} m ·
           ↘ {{ Math.round(profileFor(tr).totalDescent) }} m ·
           {{ Math.round(profileFor(tr).minElev) }}–{{ Math.round(profileFor(tr).maxElev) }} moh
@@ -187,12 +187,12 @@ function formatDuration(ms) {
   <!-- GPS-posisjon-readout (synlig kun når GPS er på): rå koordinater for din
        nåværende posisjon, med knapp for å kopiere dem som Google Maps-lenke. -->
   <div v-if="userPos.isWatching" class="mb-2">
-    <div class="text-white/45 text-[10px] uppercase tracking-wide mb-1 px-0.5">
+    <div class="text-ink/45 text-[10px] uppercase tracking-wide mb-1 px-0.5">
       Din GPS-posisjon
     </div>
     <div class="flex items-stretch gap-2">
-      <div class="flex-1 text-white/60 text-[10.5px] font-mono leading-snug
-                  bg-white/5 border border-white/10 rounded-lg px-3 py-2 tabular-nums
+      <div class="flex-1 text-ink/60 text-[10.5px] font-mono leading-snug
+                  bg-ink/5 border border-ink/10 rounded-lg px-3 py-2 tabular-nums
                   flex items-center">
         {{ gpsDebugLine }}
       </div>
@@ -204,7 +204,7 @@ function formatDuration(ms) {
                       ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-100'
                       : copyState === 'failed'
                         ? 'bg-rose-500/20 border-rose-400/50 text-rose-100'
-                        : 'bg-white/5 border-white/10 text-white/75'">
+                        : 'bg-ink/5 border-ink/10 text-ink/75'">
         {{ copyState === 'copied' ? 'Kopiert' : copyState === 'failed' ? 'Feil' : 'Kopier' }}
       </button>
     </div>
@@ -217,7 +217,7 @@ function formatDuration(ms) {
     <button @click="dismissGpsTip"
             aria-label="Skjul tips"
             class="absolute top-1.5 right-1.5 w-6 h-6 flex items-center justify-center
-                   rounded-md text-amber-100/70 active:scale-90 hover:bg-white/10">
+                   rounded-md text-amber-100/70 active:scale-90 hover:bg-ink/10">
       <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
            stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
         <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>

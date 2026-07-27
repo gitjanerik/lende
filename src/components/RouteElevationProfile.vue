@@ -72,58 +72,58 @@ const ariaLabel = computed(() => {
 </script>
 
 <template>
-  <div v-if="state !== 'idle'" class="rounded-lg bg-white/5 px-2.5 py-2">
+  <div v-if="state !== 'idle'" class="rounded-lg bg-ink/5 px-2.5 py-2">
     <div class="flex items-baseline justify-between gap-2">
-      <div class="text-[10px] uppercase tracking-wide text-white/45">Høydeprofil</div>
+      <div class="text-[10px] uppercase tracking-wide text-ink/45">Høydeprofil</div>
       <div v-if="profile" class="text-[11px] tabular-nums"
-           :class="active ? 'text-white font-semibold' : 'text-white/55'">
+           :class="active ? 'text-ink font-semibold' : 'text-ink/55'">
         <template v-if="active">{{ (active.dM / 1000).toFixed(1) }} km · {{ Math.round(active.eleM) }} moh</template>
         <template v-else>↗ {{ profile.ascentM }} m · ↘ {{ profile.descentM }} m</template>
       </div>
     </div>
 
-    <div v-if="state === 'loading'" class="flex items-center gap-2 py-4 text-[11px] text-white/55">
-      <span class="w-3 h-3 border-2 border-white/20 border-t-white/80 rounded-full animate-spin"></span>
+    <div v-if="state === 'loading'" class="flex items-center gap-2 py-4 text-[11px] text-ink/55">
+      <span class="w-3 h-3 border-2 border-ink/20 border-t-ink/80 rounded-full animate-spin"></span>
       Henter høydedata fra Kartverket …
     </div>
-    <div v-else-if="state === 'unavailable'" class="py-3 text-[11px] text-white/45 leading-snug">
+    <div v-else-if="state === 'unavailable'" class="py-3 text-[11px] text-ink/45 leading-snug">
       Høydeprofil utilgjengelig — fikk ikke høydedata for denne ruta.
     </div>
 
     <template v-else-if="profile && geom">
-      <svg ref="svgRef" :viewBox="`0 0 ${W} ${H}`" class="w-full mt-1 touch-none select-none"
+      <svg ref="svgRef" :viewBox="`0 0 ${W} ${H}`" class="w-full mt-1 touch-none select-none text-ink"
            role="img" :aria-label="ariaLabel"
            @pointerdown="onPointerDown" @pointermove="onPointerMove"
            @pointerup="onPointerLeave" @pointercancel="onPointerLeave" @pointerleave="onPointerLeave">
         <!-- Dempet grid + høyde-akse -->
         <g v-for="t in yTicks" :key="'y' + t.ele">
           <line :x1="BOX.x0" :y1="t.y" :x2="BOX.x0 + BOX.w" :y2="t.y"
-                stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+                stroke="currentColor" stroke-opacity="0.08" stroke-width="1"/>
           <text :x="BOX.x0 - 5" :y="t.y + 3" text-anchor="end" font-size="9"
-                fill="rgba(255,255,255,0.4)" class="tabular-nums">{{ t.ele }}</text>
+                fill="currentColor" fill-opacity="0.4" class="tabular-nums">{{ t.ele }}</text>
         </g>
         <!-- Flate + underlagsfargede linjestykker -->
-        <path :d="geom.areaD" fill="rgba(255,255,255,0.07)"/>
+        <path :d="geom.areaD" fill="currentColor" fill-opacity="0.07"/>
         <path v-for="(run, i) in geom.runs" :key="'r' + i" :d="run.d" fill="none"
               :stroke="run.gravel ? '#e8802b' : '#94a3b8'" stroke-width="2"
               stroke-linecap="round" stroke-linejoin="round"/>
         <!-- Distanse-akse -->
         <line :x1="BOX.x0" :y1="BOX.y0 + BOX.h" :x2="BOX.x0 + BOX.w" :y2="BOX.y0 + BOX.h"
-              stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+              stroke="currentColor" stroke-opacity="0.15" stroke-width="1"/>
         <text v-for="t in xTicks" :key="'x' + t.km" :x="t.x" :y="H - 6" text-anchor="middle"
-              font-size="9" fill="rgba(255,255,255,0.4)" class="tabular-nums">{{ t.km }}</text>
+              font-size="9" fill="currentColor" fill-opacity="0.4" class="tabular-nums">{{ t.km }}</text>
         <text :x="BOX.x0 + BOX.w" :y="H - 6" text-anchor="end" font-size="8"
-              fill="rgba(255,255,255,0.3)">km</text>
+              fill="currentColor" fill-opacity="0.3">km</text>
         <!-- Crosshair + punkt ved scrubbing -->
         <g v-if="active">
           <line :x1="active.x" :y1="BOX.y0" :x2="active.x" :y2="BOX.y0 + BOX.h"
-                stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+                stroke="currentColor" stroke-opacity="0.3" stroke-width="1"/>
           <circle :cx="active.x" :cy="active.y" r="3.5"
                   :fill="active.gravel !== false ? '#e8802b' : '#94a3b8'"
                   stroke="#0e1116" stroke-width="1.5"/>
         </g>
       </svg>
-      <div class="text-right text-[9px] text-white/30">
+      <div class="text-right text-[9px] text-ink/30">
         Høyder: {{ source === 'dem' ? 'Kartverket DTM' : 'BRouter' }}
       </div>
     </template>

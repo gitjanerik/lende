@@ -27,7 +27,7 @@ defineProps({
   <div>
     <!-- Forhåndsvalg: ett trykk til en sammenhengende lag-tilstand.
          Hele toggle-listen ligger under for finjustering. -->
-    <div class="text-[11px] font-semibold text-white/55 uppercase tracking-wide mb-1.5">
+    <div class="text-[11px] font-semibold text-ink/55 uppercase tracking-wide mb-1.5">
       Forhåndsvalg
     </div>
     <!-- Flex-wrap (ikke fast 4-kol grid): ved stor tekststørrelse (zoom) blir
@@ -39,12 +39,12 @@ defineProps({
               :aria-pressed="activePreset === p.key"
               class="grow basis-[4.75rem] px-2 py-2 rounded-lg border text-center active:scale-[0.98] transition"
               :class="activePreset === p.key
-                      ? 'bg-emerald-500/25 border-emerald-300/60 text-white font-medium'
-                      : 'bg-white/5 border-white/10 text-white/65'">
+                      ? 'bg-emerald-500/25 border-emerald-300/60 text-ink font-medium'
+                      : 'bg-ink/5 border-ink/10 text-ink/65'">
         <span class="text-[12px]">{{ p.label }}</span>
       </button>
     </div>
-    <div class="text-[11px] font-semibold text-white/55 uppercase tracking-wide mb-1.5">
+    <div class="text-[11px] font-semibold text-ink/55 uppercase tracking-wide mb-1.5">
       Enkeltlag
     </div>
     <div class="grid grid-cols-2 gap-2 mb-2">
@@ -54,26 +54,26 @@ defineProps({
               :disabled="!layersDirty"
               class="px-3 py-2 rounded-lg border text-left transition"
               :class="layersDirty
-                      ? 'bg-amber-400/20 border-amber-300/50 text-white active:scale-[0.98]'
-                      : 'bg-white/5 border-white/5 text-white/25 cursor-default'">
+                      ? 'bg-amber-400/20 border-amber-300/50 text-ink active:scale-[0.98]'
+                      : 'bg-ink/5 border-ink/5 text-ink/25 cursor-default'">
         <span class="text-[12px]">↺ Nullstill</span>
       </button>
       <button v-for="lay in landLayerButtons" :key="lay.key"
               @click="toggleLayer(lay.key)"
               class="px-3 py-2 rounded-lg border text-left active:scale-[0.98] transition"
               :class="visibleLayers.has(lay.key)
-                      ? 'bg-slate-400/25 border-slate-300/50 text-white'
-                      : 'bg-white/5 border-white/10 text-white/45'">
+                      ? 'bg-slate-400/25 border-slate-300/50 text-ink'
+                      : 'bg-ink/5 border-ink/10 text-ink/45'">
         <span class="text-[12px]">{{ lay.label }}</span>
         <span v-if="lay.key === 'kulturminne'"
               class="ml-1 text-[10px] tabular-nums"
-              :class="kulturminneCount ? 'text-emerald-300/80' : 'text-white/30'">({{ kulturminneCount }})</span>
+              :class="kulturminneCount ? 'text-emerald-300/80' : 'text-ink/30'">({{ kulturminneCount }})</span>
         <span v-else-if="lay.key === 'fredet-kulturminne' && (fredetLoading || fredetCount != null)"
               class="ml-1 text-[10px] tabular-nums"
-              :class="fredetCount ? 'text-emerald-300/80' : 'text-white/30'">{{ fredetLoading ? '…' : '(' + fredetCount + ')' }}</span>
+              :class="fredetCount ? 'text-emerald-300/80' : 'text-ink/30'">{{ fredetLoading ? '…' : '(' + fredetCount + ')' }}</span>
         <span v-else-if="lay.key === 'vannstasjon' && (hydroLoading || hydroCount != null)"
               class="ml-1 text-[10px] tabular-nums"
-              :class="hydroCount ? 'text-sky-300/80' : 'text-white/30'">{{ hydroLoading ? '…' : '(' + hydroCount + ')' }}</span>
+              :class="hydroCount ? 'text-sky-300/80' : 'text-ink/30'">{{ hydroLoading ? '…' : '(' + hydroCount + ')' }}</span>
       </button>
     </div>
     <!-- Gruppert seksjon: Sjø & padling -->
@@ -85,8 +85,8 @@ defineProps({
               @click="toggleLayer(lay.key)"
               class="px-3 py-2 rounded-lg border text-left active:scale-[0.98] transition"
               :class="visibleLayers.has(lay.key)
-                      ? 'bg-sky-400/25 border-sky-300/50 text-white'
-                      : 'bg-white/5 border-white/10 text-white/45'">
+                      ? 'bg-sky-400/25 border-sky-300/50 text-ink'
+                      : 'bg-ink/5 border-ink/10 text-ink/45'">
         <span class="text-[12px]">{{ lay.label }}</span>
       </button>
       <!-- Dybde-lag: kun når kartet har ekte Sjøkart-dybde. Default av —
@@ -95,18 +95,18 @@ defineProps({
               @click="toggleDepth()"
               class="px-3 py-2 rounded-lg border text-left active:scale-[0.98] transition"
               :class="visibleLayers.has('dybde')
-                      ? 'bg-sky-400/25 border-sky-300/50 text-white'
-                      : 'bg-white/5 border-white/10 text-white/45'">
+                      ? 'bg-sky-400/25 border-sky-300/50 text-ink'
+                      : 'bg-ink/5 border-ink/10 text-ink/45'">
         <span class="text-[12px]">Dybde (Sjøkart)</span>
       </button>
     </div>
-    <div class="text-[10px] text-white/40 leading-snug mb-2">
+    <div class="text-[10px] text-ink/40 leading-snug mb-2">
       Fyr, sjømerker, skjær, småbåthavner, landingssteder, toalett og
       drikkevann. «Sjønavn» viser geografiske navn i sjøen (bukt, vik,
       sund, nes, grunne, holme, skjær). Dybdetall vises ved å holde inne
       et punkt på kartet.
     </div>
-    <div class="text-[10px] text-white/40 leading-snug mt-2">
+    <div class="text-[10px] text-ink/40 leading-snug mt-2">
       Reliefskygge er DEM-derivert hill-shading rendret som grayscale-
       PNG inne i SVG-en med <code>mix-blend-mode: multiply</code>.
     </div>

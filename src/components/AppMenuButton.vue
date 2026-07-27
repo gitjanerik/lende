@@ -22,8 +22,8 @@ const { menuOpen, toggle } = useAppMenu()
     :aria-expanded="menuOpen"
     class="relative flex items-center justify-center rounded-full shrink-0 active:scale-95 transition"
     :class="variant === 'float'
-      ? 'w-10 h-10 bg-zinc-950 text-white shadow-lg'
-      : 'w-9 h-9 bg-white/5 border border-white/10 text-white/70'">
+      ? 'w-10 h-10 bg-overlay text-ink shadow-lg'
+      : 'w-9 h-9 bg-ink/5 border border-ink/10 text-ink/70'">
     <span class="relative block" :class="variant === 'float' ? 'w-[18px] h-[14px]' : 'w-4 h-3'">
       <span class="menu-bar" :class="{ 'menu-bar-top-open': menuOpen }" style="top: 0" />
       <span class="menu-bar" :class="{ 'menu-bar-mid-open': menuOpen }" style="top: 50%; margin-top: -1px" />

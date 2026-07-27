@@ -18,10 +18,52 @@
 @import "@fontsource-variable/source-serif-4/wght-italic.css";
 @import "@fontsource-variable/literata/wght-italic.css";
 
-/* Belte og bukser mot Chromium force-dark (se meta color-scheme i
-   index.html): per-element-deklarasjonen stopper auto-inverteringen også
-   der meta-taggen ikke plukkes opp (f.eks. eldre WebView). */
-:root { color-scheme: only light; }
+/* ── UI-tema-tokens (v2.4.5) ─────────────────────────────────────────────────
+   Semantiske farge-tokens for UI-chrome (IKKE kartet — det scopes til
+   .isom-map og har sitt eget palett-system). Hele den mørke UI-en er
+   «gjennomsiktig hvit på mørk bunn»; ved å snu --color-ink fra hvit til mørk
+   blekk inverteres tekst/kanter/flater korrekt av seg selv i lyst tema.
+   Default (:root) = MØRKT = eksakt dagens utseende. --logo-ring styrer
+   logo-motivets kontur-ringer i chrome (gul-logoen på app-ikon-flisen røres
+   ikke — se AboutView). */
+@theme {
+  --color-app: #0e1116;        /* sidebakgrunn (var bg-[#0e1116]) */
+  --color-surface: #18181b;    /* paneler/meny (var zinc-900) */
+  --color-surface-2: #27272a;  /* hevet flate (var zinc-800) */
+  --color-overlay: #09090b;    /* dype overlays, søk (var zinc-950) */
+  --color-ink: #ffffff;        /* tekst/kant/flate-base (var white) */
+}
+:root { --logo-ring: #3a3d45; }
+
+:root[data-theme="dark"] { color-scheme: dark; }
+
+:root[data-theme="light"] {
+  --color-app: #efeae0;        /* varm papirtone */
+  --color-surface: #faf8f3;
+  --color-surface-2: #ffffff;
+  --color-overlay: #ffffff;
+  --color-ink: #1c1917;        /* varm mørk blekk */
+  --logo-ring: #c0392b;        /* røde konsentriske ringer i lyst tema */
+  /* Behold anti-force-dark: temaet ER lyst, så «only light» er ærlig og
+     hindrer at nettleseren auto-inverterer kart-SVG-en. */
+  color-scheme: only light;
+
+  /* Aksent-tekst i tonede info-paneler er skrevet som lyse skygger
+     (text-sky-100 osv.) for MØRK bunn. På lys papirbunn ville de blitt hvite-
+     på-hvitt. Vi remapper KUN 100/200-skyggene til mørke aksenttoner i lyst
+     tema, så all «text-<aksent>-100/200» blir lesbar mørk aksenttekst uten å
+     røre hvert element. 500-tonede bakgrunner (bg-*-500/15) beholdes — de
+     leses som lys tone på papir. */
+  --color-sky-100: #075985;      --color-sky-200: #0369a1;
+  --color-emerald-100: #065f46;  --color-emerald-200: #047857;
+  --color-amber-100: #92400e;    --color-amber-200: #b45309;
+  --color-rose-100: #9f1239;     --color-rose-200: #be123c;
+  --color-red-100: #991b1b;      --color-red-200: #b91c1c;
+  --color-lime-100: #3f6212;     --color-lime-200: #4d7c0f;
+  --color-slate-100: #1e293b;    --color-slate-200: #334155;
+}
+
+html { background: var(--color-app); }
 
 /* iOS-statuslinje-høyde (notch/Dynamic Island) i frittstående app-modus.
    Toppbaren skyves ned med denne (index.html: viewport-fit=cover +
