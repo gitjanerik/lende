@@ -146,7 +146,7 @@ function formatDistance(m) {
            (ikke ved faktisk long-press). Dismissible, husket i localStorage. -->
       <div v-if="showInfoTip" class="px-4 pt-3">
         <div class="relative flex items-start gap-2.5 rounded-lg px-3 py-2.5 pr-9
-                    bg-sky-500/15 border border-sky-400/40 text-sky-50/95 text-[12px] leading-snug">
+                    bg-sky-500/15 border border-sky-400/40 text-sky-100/95 text-[12px] leading-snug">
           <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0 mt-0.5 text-sky-300" fill="none"
                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/>
@@ -413,7 +413,7 @@ function formatDistance(m) {
               </div>
             </div>
           </div>
-          <div v-if="placeWikiCard.extract" class="text-[12px] text-sky-50/80 leading-snug">
+          <div v-if="placeWikiCard.extract" class="text-[12px] text-sky-100/80 leading-snug">
             {{ placeWikiCard.extract }}
           </div>
           <div v-if="placeWikiCard.url" class="pt-0.5 flex flex-wrap items-center gap-2">

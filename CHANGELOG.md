@@ -1,5 +1,22 @@
 # Endringslogg
 
+## 2026-07-27 — v2.4.7: Riktig skriftfarge på fargede paneler i lyst tema
+
+Fikset kontrast i lyst tema for paneler med farget bakgrunn. De grønne
+toast/banner-panelene (Stifinner, Rundtur, Måling, nærhetsvarsel, «Følger
+rute», markerings-chip) og «Bekreft»-knappen fikk feilaktig mørk tekst fordi
+den globale `white → ink`-snuingen antok mørk bunn — men bakgrunnen er grønn i
+begge tema. Innført en `.on-accent`-hjelpeklasse som pinner ink til hvit og
+aksent-skyggene til pale på slike solide flater, så teksten forblir lys-på-
+farge i begge tema (mørkt uendret). Info-panelene (blå tips-/Wikipedia-kort,
+verne-/naturtype-kort) og den rosa GPS-boksen i Sporing hadde nesten-hvit
+tekst på lys tone; de får nå mørk skrift i lyst tema — blå info-tekst blir
+mørkeblå, den rosa boksen mørkegrå (likt de andre rosa boksene). Aksent-
+skyggene 50/100/200 remappes nå til mørke toner i lyst tema for alle tonede
+paneler.
+
+---
+
 ## 2026-07-27 — v2.4.6: Snarvei-raden følger tema i lyst modus
 
 Snarvei-raden over kartet (Stifinner, Runde, Måling, Sporing, Info) hadde
