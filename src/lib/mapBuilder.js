@@ -9,7 +9,6 @@ import { wgs84ToUtm32, utm32BboxFromWgs84 } from './utm.js'
 import { APP_VERSION } from '../version.js'
 import {
   classifyToIsom,
-  isTrigPoint,
   isMaritimeNameFeature,
   isMaritimeNameOnlyNode,
   isTrailheadParking,
@@ -108,10 +107,8 @@ ${includeBuildings ? '  way["building"];' : ''}
   node["natural"="peak"];
   node["natural"="saddle"];
   node["natural"="cave_entrance"];
-  node["man_made"~"^(adit|mineshaft|survey_point|triangulation_pillar)$"];
-  node["historic"~"^(mine|survey_point)$"];
-  node["survey_point"];
-  node["geodesic"];
+  node["man_made"~"^(adit|mineshaft)$"];
+  node["historic"~"^(mine)$"];
   node["place"~"^(locality|hamlet|village|town|city|suburb|neighbourhood|quarter|isolated_dwelling|farm)$"];
   node["amenity"="place_of_worship"];
   node["building"~"^(church|chapel)$"];
@@ -928,7 +925,6 @@ export function buildSvg(elements, bbox, options = {}) {
   const places = []
   const huler = []         // ISOM 215 (cave entrance)
   const gruver = []        // ISOM 216 (mine / sjakt)
-  const trigpunkter = []   // ISOM 113 (trigonometric point)
   const kirker = []        // ISOM 532-derivert (kirker / chapels)
   const parkeringer = []   // ISOM 534-derivert (amenity=parking)
   const holdeplasser = []  // ISOM 560-derivert (buss/tog-holdeplass)
@@ -938,7 +934,7 @@ export function buildSvg(elements, bbox, options = {}) {
   const soundings = []     // Sjøkart dybdepunkt — skjult detalj-lag (inset-only)
   const dybdekonturer = [] // Sjøkart dybdekurve (306) — skjult detalj-lag (inset-only)
 
-  const counts = { peak: 0, place: 0, hule: 0, gruve: 0, trig: 0, kirke: 0, parkering: 0, holdeplass: 0, bro: 0, bom: 0 }
+  const counts = { peak: 0, place: 0, hule: 0, gruve: 0, kirke: 0, parkering: 0, holdeplass: 0, bro: 0, bom: 0 }
   for (const code of LAYER_ORDER) counts[code] = 0
 
   for (const el of elements) {
@@ -991,7 +987,6 @@ export function buildSvg(elements, bbox, options = {}) {
       else if (cls.code === 'place') { places.push(el); counts.place++ }
       else if (cls.code === '215') { huler.push(el); counts.hule++ }
       else if (cls.code === '216') { gruver.push(el); counts.gruve++ }
-      else if (cls.code === '113') { trigpunkter.push(el); counts.trig++ }
       else if (cls.code === '532') { kirker.push(el); counts.kirke++ }
       else if (cls.code === '534') {
         // Node-parkering (way-varianten ble allerede plukket over).
@@ -1679,14 +1674,7 @@ export function buildSvg(elements, bbox, options = {}) {
       // bare navn. Dette matcher orienteringskart-konvensjon (navn over
       // toppsymbol, høyde italic under). Krever mer plass enn én linje
       // men gir bedre lesbarhet ved zoom.
-      // Hvis peak-noden også har trigpunkt-tagger (vanlig i Norge — én
-      // OSM-node med både natural=peak og man_made=survey_point), erstatt
-      // peak-prikken med trigpunkt-trekant. Beholder navn+ele label slik
-      // at brukeren ser «Vardåsen 349» med trekant istedenfor sort prikk.
-      const isTrig = isTrigPoint(el.tags)
-      const symbol = isTrig
-        ? `<use href="#${symbolIds.get('trigpunkt')}" x="-0.8mm" y="-0.8mm" width="1.6mm" height="1.6mm"/>`
-        : `<use href="#${symbolIds.get('peak')}" x="-0.7mm" y="-0.7mm" width="1.4mm" height="1.4mm"/>`
+      const symbol = `<use href="#${symbolIds.get('peak')}" x="-0.7mm" y="-0.7mm" width="1.4mm" height="1.4mm"/>`
       const lines = []
       // claimLabelName: navn rendres kun én gang på hele kartet (global
       // dedup). Er navnet allerede brukt, faller vi tilbake til høyde-only
@@ -2176,7 +2164,7 @@ export function buildSvg(elements, bbox, options = {}) {
   // Posisjon via transform=translate(...) i user-units (meter) — å skrive
   // x="<meter>mm" tolkes som ~3.78× user-units pr mm (CSS-spec), så symbolet
   // havnet langt unna der project() ga oss. Samme fix som parkering (v8.10.x);
-  // gjelder hule/gruve/trig/kirke/bom.
+  // gjelder hule/gruve/kirke/bom.
   const huleSvg = huler.map(el => {
     const p = project(el.lat, el.lon)
     const sid = symbolIds.get('hule')
@@ -2189,14 +2177,6 @@ export function buildSvg(elements, bbox, options = {}) {
     const sid = symbolIds.get('gruve')
     if (!sid) return ''
     return `    <g transform="translate(${fmt(p.x)},${fmt(p.y)})"><use href="#${sid}" x="-0.7mm" y="-0.7mm" width="1.4mm" height="1.4mm"/></g>`
-  }).filter(Boolean).join('\n')
-
-  // Trigonometrisk punkt (ISOM 113): trekant-symbol 1.6mm
-  const trigSvg = trigpunkter.map(el => {
-    const p = project(el.lat, el.lon)
-    const sid = symbolIds.get('trigpunkt')
-    if (!sid) return ''
-    return `    <g transform="translate(${fmt(p.x)},${fmt(p.y)})"><use href="#${sid}" x="-0.8mm" y="-0.8mm" width="1.6mm" height="1.6mm"/></g>`
   }).filter(Boolean).join('\n')
 
   // Kirke (ISOM 532-derivert): sort latinsk kors med hvit halo, 2.6mm.
@@ -2729,8 +2709,6 @@ export function buildSvg(elements, bbox, options = {}) {
     ? `  <g data-layer="stein" data-iso="215">\n${huleSvg}\n  </g>\n` : ''
   const gruveLayerSvg = gruveSvg
     ? `  <g data-layer="stein" data-iso="216">\n${gruveSvg}\n  </g>\n` : ''
-  const trigLayerSvg = trigSvg
-    ? `  <g data-layer="trig" data-iso="113">\n${trigSvg}\n  </g>\n` : ''
   const kirkeLayerSvg = kirkeSvg
     ? `  <g data-layer="kirke" data-iso="532">\n${kirkeSvg}\n  </g>\n` : ''
   const parkeringLayerSvg = parkeringSvg
@@ -3054,7 +3032,7 @@ export function buildSvg(elements, bbox, options = {}) {
   // begge så feilplassert terreng/vann-overlapp dekkes. Planimetri som hører
   // til OVER vann (vann-labels, verneområde, veier/broer, bygg, marine-POI,
   // tekst) males etter vannet, som før.
-  const body = `${groundLayers}${urbanMassLayerSvg}${landOverlayLayers}${strandLayers}${contourLayerSvg}${summitLayerSvg}${knauserLayerSvg}${cliffsLayerSvg}${demSeaLayerSvg}${waterLayers}${lakeLabelLayer}${waterwayLabelLayer}${protectedLayers}${roadLayers}${broLayerSvg}${bomLayerSvg}${upperLayers}${huleLayerSvg}${gruveLayerSvg}${trigLayerSvg}${kirkeLayerSvg}${parkeringLayerSvg}${holdeplassLayerSvg}${marineLayerSvg}${kulturminneLayerSvg}${detailLayerSvg}${placeholderLayers}${roadRefLayer}${labelLayer}${seaNamesLayer}${omradenavnLayer}${stedsnavnLayer}`
+  const body = `${groundLayers}${urbanMassLayerSvg}${landOverlayLayers}${strandLayers}${contourLayerSvg}${summitLayerSvg}${knauserLayerSvg}${cliffsLayerSvg}${demSeaLayerSvg}${waterLayers}${lakeLabelLayer}${waterwayLabelLayer}${protectedLayers}${roadLayers}${broLayerSvg}${bomLayerSvg}${upperLayers}${huleLayerSvg}${gruveLayerSvg}${kirkeLayerSvg}${parkeringLayerSvg}${holdeplassLayerSvg}${marineLayerSvg}${kulturminneLayerSvg}${detailLayerSvg}${placeholderLayers}${roadRefLayer}${labelLayer}${seaNamesLayer}${omradenavnLayer}${stedsnavnLayer}`
 
   const usedCodes = new Set()
   for (const m of body.matchAll(/data-iso="([^"]+)"/g)) usedCodes.add(m[1])
@@ -3206,7 +3184,6 @@ function categoryFor(code) {
     case '215': case '216':                          return 'stein'
     case '525':                                  return 'linje'
     case '528':                                  return 'kraftlinje'
-    case '113':                                  return 'trig'
     case '509':                                  return 'bro'
     case '526':                                  return 'bom'
     case '534':                                  return 'parkering'
