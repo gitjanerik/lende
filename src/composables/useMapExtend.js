@@ -1,7 +1,7 @@
-// Mosaikk + manuell kart-utvidelse — skilt ut fra MapView v1.0.8 (kode
-// uendret). Kant-soner (8 prikker i kart-rommet) utvider bruttokartet i valgt
-// retning; flisa under skjermsenter auto-promoteres til aktiv etter litt ro.
-// Composablen eier bygge-/toast-tilstanden; forelderen eier SVG-verten,
+// Mosaikk + manuell kart-utvidelse — skilt ut fra MapView v1.0.8. Kanthåndtak
+// (8 runde knapper på arkets kant) utvider bruttokartet i valgt retning; flisa
+// under skjermsenter auto-promoteres til aktiv etter litt ro. Composablen eier
+// bygge-/toast-tilstanden og håndtaks-geometrien; forelderen eier SVG-verten,
 // transform-tilstanden og mosaikken (useGhostTiles), destrukturert inn.
 // Watchene som driver re-render/aktiverings-sjekk ligger fortsatt i MapView.
 import { ref, computed, nextTick } from 'vue'
@@ -9,9 +9,9 @@ import { svgToWgs84 } from '../lib/utm.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { pruneAutoTiles, rectOverlapFraction, findGridGaps } from '../lib/tileCache.js'
 
-// Retnings-vokabular for de 8 kant-sonene (utvidelses-knappene). Norske ord for
-// toast + kompassrose-tekst, og arm-vinkelen (SVG-grader, opp = nord = 0°, med
-// klokka) som avgjør hvilken kompassrose-arm som males rød.
+// Retnings-vokabular for de 8 kanthåndtakene (utvidelses-knappene). Norske ord
+// for toast + etikett-pille, og pil-vinkelen (grader, opp = nord = 0°, med
+// klokka) som knappen roteres med.
 export const EXTEND_DIR_WORD = {
   N: 'nord', S: 'sør', E: 'øst', W: 'vest',
   NE: 'nordøst', NW: 'nordvest', SE: 'sørøst', SW: 'sørvest',
@@ -19,14 +19,71 @@ export const EXTEND_DIR_WORD = {
 export const EXTEND_DIR_DEG = {
   N: 0, NE: 45, E: 90, SE: 135, S: 180, SW: 225, W: 270, NW: 315,
 }
-// Kompassrose-farger (faste, uavhengig av tema — som dagens kant-sone-farge).
-export const EXTEND_ROSE = { grey: '#7d7566', red: '#d8392c', dark: '#4a4436', disc: 'rgba(251,247,236,0.72)' }
 
 // Synlig knapp-tekst: «<Retning> i lende» (navne-flørt). aria-label beholder
-// handlingen «Utvid mot <retning>». Ukjent retning → tom streng.
+// handlingen «Hent kartfliser mot <Retning> i lende». Ukjent retning → tom streng.
 export function extendZoneLabelText(dir) {
   const w = EXTEND_DIR_WORD[dir]
   return w ? `${w.charAt(0).toUpperCase()}${w.slice(1)} i lende` : ''
+}
+
+// ── Kanthåndtak — ren geometri (ingen Vue-refs, testbar) ─────────────────────
+// De 8 kompassrosene i kart-rommet er erstattet av runde DOM-knapper som sitter
+// på ARKETS kant i skjerm-rommet (v2.4.13). Rekkefølgen er DOM-/tab-rekkefølgen
+// fra designet: N → NØ → Ø → SØ → S → SV → V → NV.
+export const EDGE_DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+// Retningsvektor i skjerm-/SVG-koordinater (y vokser nedover → nord = −y).
+export const EDGE_DIR_VEC = {
+  N: { dx: 0, dy: -1 }, NE: { dx: 1, dy: -1 }, E: { dx: 1, dy: 0 }, SE: { dx: 1, dy: 1 },
+  S: { dx: 0, dy: 1 }, SW: { dx: -1, dy: 1 }, W: { dx: -1, dy: 0 }, NW: { dx: -1, dy: -1 },
+}
+export const EDGE_HANDLE_INSET = 4                 // px innover fra arkkanten
+export const EDGE_LABEL_OFFSET = { x: 88, y: 44 }  // pille-forskyvning innover (px)
+
+// Ankeret på arkkanten (SVG-meter) for en retning, gitt mosaikk-bboksen.
+// Kardinal = kant-midtpunkt, diagonal = hjørne.
+export function edgeAnchorSvg(dir, b) {
+  const v = EDGE_DIR_VEC[dir]
+  if (!v || !b) return null
+  return {
+    x: v.dx < 0 ? b.minX : v.dx > 0 ? b.maxX : (b.minX + b.maxX) / 2,
+    y: v.dy < 0 ? b.minY : v.dy > 0 ? b.maxY : (b.minY + b.maxY) / 2,
+  }
+}
+
+// Knapp-rotasjon. Pil-ikonet peker opp i hvile; vi legger kart-rotasjonen til
+// retningsvinkelen så pila peker mot den kanten den faktisk utvider PÅ SKJERMEN
+// (håndtakene sitter på arket, som roterer med kartet).
+export function edgeKnobDeg(dir, rotationDeg = 0) {
+  const d = EXTEND_DIR_DEG[dir]
+  return d == null ? null : d + (rotationDeg || 0)
+}
+
+// Etikett-pillens forskyvning INNOVER fra knappen (skjerm-px). Retningsvektoren
+// roteres med kartet, og komponentene skaleres anisotropisk som i designet
+// (88 px vannrett, 44 px loddrett) — ved rotasjon 0 er dette (−dx·88, −dy·44).
+export function edgeLabelOffset(dir, rotationDeg = 0) {
+  const v = EDGE_DIR_VEC[dir]
+  if (!v) return null
+  const r = (rotationDeg || 0) * Math.PI / 180
+  const cos = Math.cos(r), sin = Math.sin(r)
+  return {
+    lx: -(v.dx * cos - v.dy * sin) * EDGE_LABEL_OFFSET.x,
+    ly: -(v.dx * sin + v.dy * cos) * EDGE_LABEL_OFFSET.y,
+  }
+}
+
+// Bboksen arket ville hatt etter en utvidelse i `dir` — én rad og/eller kolonne
+// større, aldri mindre. Driver forhåndsvisnings-nedskaleringen ved fokus.
+export function growBounds(b, dir, tileW, tileH) {
+  const v = EDGE_DIR_VEC[dir]
+  if (!v || !b) return b
+  return {
+    minX: b.minX - (v.dx < 0 ? tileW : 0),
+    maxX: b.maxX + (v.dx > 0 ? tileW : 0),
+    minY: b.minY - (v.dy < 0 ? tileH : 0),
+    maxY: b.maxY + (v.dy > 0 ? tileH : 0),
+  }
 }
 
 // ── Skjerm ⇄ viewBox — rene matte-kjerner (ingen Vue-refs, testbare) ──────────
@@ -68,8 +125,8 @@ export function viewBoxToScreen(vx, vy, v) {
 }
 
 export function useMapExtend({
-  svgHostRef, wrapperRef, meta, mapId, router,
-  scale, rotation, translateX, translateY, isGesturing, panTo,
+  wrapperRef, wrapperSize, meta, mapId, router,
+  scale, rotation, translateX, translateY, isGesturing, panTo, animateTransform,
   loading, loadError, fillingInDetails,
   annot, measureMode, sti, searchOpen, showControls, drawer,
   ghostRects, GHOST_TRIGGER_SUPPRESS_FRAC, renderGhostTiles,
@@ -78,7 +135,7 @@ export function useMapExtend({
 }) {
   // ── Mosaikk + manuell utvidelse ───────────────────────────────────────────
   // Den AUTOMATISKE auto-karten (bygg-på-dvele/prefetch/promotér-på-dvele) er
-  // fjernet — brukeren utvider eksplisitt via kant-sonene (#extend-zones) og gjør
+  // fjernet — brukeren utvider eksplisitt via kanthåndtakene på arkkanten og gjør
   // en nabo-flis aktiv via en knapp. Mosaikk-rendering (renderGhostTiles) og
   // tile-cachen (pruneAutoTiles) beholdes. Navn med «autoMap»-prefiks beholdes der
   // de nå dekker delt infrastruktur (bygge-opts, toast, modus-gate).
@@ -105,26 +162,14 @@ export function useMapExtend({
   // tilbyr «Reparer» (C). Typisk etter en bygging avbrutt av reload/app-lukking.
   const mosaicGapCount = ref(0)
 
-  // Kant-soner (manuell utvidelse, auto-kart AV): 8 diskrete kompassroser tegnet
-  // som EKTE SVG-elementer i kart-SVG-en (gruppe #extend-zones). De lever i kart-
-  // rommet og panner/zoomer/roterer med kartet, så de er IKKE synlige før brukeren
-  // enten zoomer ut eller panorerer forbi en kant (da kommer canvas-marginen utenfor
-  // flisa til syne). De fjernes ved eksport/utskrift (se mapSvgMarkupForExport +
-  // stripRuntimeOverlays). Rosene mot-skaleres til konstant skjermstørrelse.
-  const EXTEND_ZONE_DIRS = ['N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW']
-  const EXTEND_ZONE_LABEL = {
-    N: 'Utvid mot nord', S: 'Utvid mot sør', E: 'Utvid mot øst', W: 'Utvid mot vest',
-    NE: 'Utvid mot nordøst', NW: 'Utvid mot nordvest',
-    SE: 'Utvid mot sørøst', SW: 'Utvid mot sørvest',
-  }
-  const EXTEND_ZONE_OFF = 30    // hvor langt UTENFOR kanten knappen sitter (px)
-  // Kompassrose-knapper: hver kant-sone er en liten 8-armet kompassrose med ÉN
-  // rød arm som peker retningen den utvider, pluss teksten «<Retning> i lende».
-  // Rosa ligger i kart-rommet → den roterer med kartet (rød arm følger terrenget);
-  // teksten mot-roteres til vannrett av applyUprightLabels (samme som stedsnavn).
-  // SVG-y vokser nedover, arm-base peker opp = nord = 0°, med klokka.
-  // (EXTEND_DIR_DEG / EXTEND_ROSE / EXTEND_DIR_WORD ligger på modul-nivå, testbare.)
-  // Drawer-en dekker kant-sonene kun når den er ÅPEN og i ekspandert tilstand
+  // Kanthåndtak (manuell utvidelse): 8 runde DOM-knapper som sitter på ARKETS
+  // kant — utenfor kart-transformen, så knapp/pille/hårlinje holder konstant
+  // skjermstørrelse uansett zoom, men ANKERET følger arket når det vokser eller
+  // roterer. De rendres av MapEdgeHandles.vue fra `edgeHandles`; geometrien
+  // ligger på modul-nivå (edgeAnchorSvg / edgeKnobDeg / edgeLabelOffset), testbar.
+  // Erstatter de 8 SVG-kompassrosene i kart-rommet (v2.4.13) — ingen rose-bitmaps,
+  // ingen permanente etiketter i kartflaten, ingen eksport-stripping å vedlikeholde.
+  // Drawer-en dekker håndtakene kun når den er ÅPEN og i ekspandert tilstand
   // (mobil-bunnark). Når den er minimert titter bare fane-stripen opp (~32 px), så
   // prikkene som sitter utenfor kart-kanten er fortsatt synlige og klikkbare —
   // da skal de ikke skjules (v11.0.32). isMinimized er alltid false på desktop
@@ -141,21 +186,9 @@ export function useMapExtend({
     !measureMode.value && !sti.active.value && !searchOpen.value && !drawerCoversCanvas.value
   )
 
-  // Mot-skalerings-faktor: 1 base-enhet i en kant-sone-gruppe rendres som 1 skjerm-
-  // piksel, uavhengig av zoom. SVG fyller wrapperen med fit = min(w/W, h/H), og
-  // kart-CSS-transformen legger på scale; vi nuller begge ut.
-  function extendZoneScaleK() {
-    const m = meta.value
-    const wrap = wrapperRef.value?.getBoundingClientRect()
-    if (!m || !wrap?.width || !wrap?.height) return null
-    const fit = Math.min(wrap.width / m.widthM, wrap.height / m.heightM)
-    if (!(fit > 0)) return null
-    return 1 / (fit * (scale.value || 1))
-  }
-
   // Yttergrensa for det som vises nå = aktiv flis ∪ alle spøkelses-rekter (samme
-  // union som clampPan). Prikkene ankres til DENNE kanten, ikke bare aktiv flis, så
-  // de alltid står ytterst i canvas — også etter at man har bygd et 2×2 brutto-kart.
+  // union som clampPan). Håndtakene ankres til DENNE kanten, ikke bare aktiv flis,
+  // så de alltid står ytterst på arket — også etter at man har bygd et 2×2 brutto-kart.
   function extendZonesBounds() {
     const m = meta.value
     let minX = 0, minY = 0, maxX = m.widthM, maxY = m.heightM
@@ -168,111 +201,160 @@ export function useMapExtend({
     return { minX, minY, maxX, maxY }
   }
 
-  // Anker (på selve mosaikk-kanten) + utover-offset (i base-piksler) pr retning.
-  // SVG-y vokser nedover → nord = mindre y.
-  function extendZoneAnchor(direction, b) {
-    const c = 0.7071   // diagonal-komponent (45°) så hjørne-prikker står like langt ut
-    const O = EXTEND_ZONE_OFF
-    const cx = (b.minX + b.maxX) / 2, cy = (b.minY + b.maxY) / 2
-    switch (direction) {
-      case 'N': return { ax: cx, ay: b.minY, ox: 0, oy: -O }
-      case 'S': return { ax: cx, ay: b.maxY, ox: 0, oy: O }
-      case 'E': return { ax: b.maxX, ay: cy, ox: O, oy: 0 }
-      case 'W': return { ax: b.minX, ay: cy, ox: -O, oy: 0 }
-      case 'NE': return { ax: b.maxX, ay: b.minY, ox: O * c, oy: -O * c }
-      case 'NW': return { ax: b.minX, ay: b.minY, ox: -O * c, oy: -O * c }
-      case 'SE': return { ax: b.maxX, ay: b.maxY, ox: O * c, oy: O * c }
-      case 'SW': return { ax: b.minX, ay: b.maxY, ox: -O * c, oy: O * c }
-      default: return null
-    }
-  }
+  // ── Kanthåndtak — reaktiv tilstand ──────────────────────────────────────────
+  // hoveredDir er efemer og driver KUN forhåndsvisningen (pille, spøkelsesceller
+  // og nedskaleringen av arket). Settes på pointerenter/fokus (mus/tastatur) og
+  // på trykk-og-hold (touch); nullstilles på pointerleave/blur og ved commit.
+  const hoveredDir = ref(null)
 
-  // Oppdater bare scale-komponenten på de eksisterende kant-sone-gruppene (billig,
-  // kjøres på zoom-watch). Ankeret (translate) er uendret.
-  function updateExtendZoneScale() {
-    const g = svgHostRef.value?.querySelector('#extend-zones')
-    if (!g) return
-    const k = extendZoneScaleK()
-    if (k == null) return
-    for (const z of g.querySelectorAll('[data-extend-dir]')) {
-      z.setAttribute('transform', `translate(${z.dataset.ax} ${z.dataset.ay}) scale(${k})`)
-    }
-  }
-
-  // Tegn (eller fjern) de 8 kant-sonene som SVG-elementer i den aktive flisa.
-  function renderExtendZones() {
-    const svg = svgHostRef.value?.querySelector('svg')
-    if (!svg) return
-    svg.querySelector('#extend-zones')?.remove()
-    if (!extendZonesVisible.value) return
+  // Hvor mange NYE fliser koster en utvidelse i `dir` akkurat nå? Nøyaktig samme
+  // filtrering som extendMap gjør, så «+N» på pilla er den faktiske kostnaden:
+  // fra 1×1 koster en side 1 flis og et hjørne 3; på et 1×2-ark koster en side 1
+  // eller 2. Fliser vi allerede har hoppes over.
+  function extendTileCount(dir) {
     const m = meta.value
-    const k = extendZoneScaleK()
-    if (!m || k == null) return
-    const bounds = extendZonesBounds()
-    const ns = 'http://www.w3.org/2000/svg'
-    const g = document.createElementNS(ns, 'g')
-    g.setAttribute('id', 'extend-zones')
-    // Containeren slipper gjennom pan-gester; kun prikkene fanger tap.
-    g.setAttribute('pointer-events', 'none')
-    for (const dir of EXTEND_ZONE_DIRS) {
-      const a = extendZoneAnchor(dir, bounds)
-      if (!a) continue
-      const zone = document.createElementNS(ns, 'g')
-      zone.setAttribute('data-extend-dir', dir)
-      zone.dataset.ax = String(a.ax)
-      zone.dataset.ay = String(a.ay)
-      zone.setAttribute('transform', `translate(${a.ax} ${a.ay}) scale(${k})`)
-      zone.setAttribute('pointer-events', 'auto')
-      zone.setAttribute('cursor', 'pointer')
-      zone.setAttribute('role', 'button')
-      zone.setAttribute('aria-label', EXTEND_ZONE_LABEL[dir])
-      const mk = (tag, attrs) => {
-        const e = document.createElementNS(ns, tag)
-        for (const [an, av] of Object.entries(attrs)) e.setAttribute(an, String(av))
-        return e
-      }
-      // 8-armet kompassrose sentrert på (a.ox, a.oy). Armen på dir-vinkelen er rød.
-      const rose = mk('g', { transform: `translate(${a.ox} ${a.oy})` })
-      rose.appendChild(mk('circle', { r: 21, fill: EXTEND_ROSE.disc }))
-      rose.appendChild(mk('circle', { r: 19, fill: 'none', stroke: EXTEND_ROSE.grey, 'stroke-width': 1, opacity: 0.5 }))
-      const dirDeg = EXTEND_DIR_DEG[dir]
-      for (let i = 0; i < 8; i++) {
-        const ang = i * 45
-        const card = i % 2 === 0
-        const len = card ? 18 : 11.5
-        const w = card ? 3.6 : 2.8
-        const active = ang === dirDeg
-        const yb = (-len * 0.42).toFixed(2)
-        rose.appendChild(mk('polygon', {
-          transform: `rotate(${ang})`,
-          points: `0,0 ${w},${yb} 0,${-len} ${-w},${yb}`,
-          fill: active ? EXTEND_ROSE.red : EXTEND_ROSE.grey,
-          opacity: active ? 1 : (card ? 0.8 : 0.5),
-        }))
-      }
-      rose.appendChild(mk('circle', { r: 2.4, fill: EXTEND_ROSE.dark }))
-      zone.appendChild(rose)
-      // Tekst «<Retning> i lende» like utenfor rosa (utover fra kartsenter).
-      const TD = 30
-      const norm = Math.hypot(a.ox, a.oy) || 1
-      const ux = a.ox / norm, uy = a.oy / norm
-      const anchor = ux > 0.3 ? 'start' : ux < -0.3 ? 'end' : 'middle'
-      const text = mk('text', {
-        x: (a.ox + ux * TD).toFixed(1),
-        y: (a.oy + uy * TD).toFixed(1),
-        'data-extend-text': dir,
-        'text-anchor': anchor,
-        'dominant-baseline': 'central',
-        style: "font-family: var(--land-font, 'Inter Variable'), system-ui, sans-serif;"
-          + ' font-size: 13px; font-weight: 700; fill: #161616;'
-          + ' stroke: #fbf7ec; stroke-width: 3; paint-order: stroke; stroke-linejoin: round;',
+    if (!m) return 0
+    const geom = extendMapGeometry(dir)
+    if (!geom) return 0
+    return geom.neighborCenters.filter((c) => !centerOverExistingTile(c, m)).length
+  }
+  // Cachet pr mosaikk-endring (meta + ghostRects) — IKKE pr pan-frame, som
+  // edgeHandles er. extendMapGeometry allokerer rad/kolonne-arrays og skal ikke
+  // kjøre åtte ganger for hver touchmove.
+  const edgeTileCounts = computed(() => {
+    const out = {}
+    if (!meta.value) return out
+    for (const dir of EDGE_DIRS) out[dir] = extendTileCount(dir)
+    return out
+  })
+
+  // De 8 håndtakene i wrapper-lokale skjerm-px. Reaktiv på pan/zoom/rotasjon
+  // (transform-refene) og på wrapper-størrelse (wrapperSize, satt av MapViews
+  // ResizeObserver) — getBoundingClientRect er i seg selv ikke reaktiv.
+  const edgeHandles = computed(() => {
+    const size = wrapperSize?.value
+    if (!size?.w || !size?.h || !extendZonesVisible.value) return []
+    const v = transformView()
+    if (!v) return []
+    const b = extendZonesBounds()
+    const mid = viewBoxToScreen((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2, v)
+    const counts = edgeTileCounts.value
+    const out = []
+    for (const dir of EDGE_DIRS) {
+      const a = edgeAnchorSvg(dir, b)
+      const p = viewBoxToScreen(a.x, a.y, v)
+      // Trekk ankeret 4 px innover mot arkets senter (designets sheetW/2 − 4),
+      // regnet i skjerm-rommet så det holder også når kartet er rotert.
+      const ix = mid.x - p.x, iy = mid.y - p.y
+      const n = Math.hypot(ix, iy) || 1
+      const off = edgeLabelOffset(dir, v.rotationDeg)
+      out.push({
+        dir,
+        name: extendZoneLabelText(dir),
+        count: counts[dir] ?? 0,
+        x: p.x + (ix / n) * EDGE_HANDLE_INSET,
+        y: p.y + (iy / n) * EDGE_HANDLE_INSET,
+        knobDeg: edgeKnobDeg(dir, v.rotationDeg),
+        lx: off.lx,
+        ly: off.ly,
       })
-      text.textContent = extendZoneLabelText(dir)
-      zone.appendChild(text)
-      zone.addEventListener('click', (ev) => { ev.stopPropagation(); extendMap(dir) })
-      g.appendChild(zone)
     }
-    svg.appendChild(g)
+    return out
+  })
+
+  // Spøkelsescellene forhåndsvisningen viser: én per flis trykket ville hentet,
+  // på sin faktiske gitter-plass. Rektanglene er akse-parallelle i KART-rommet,
+  // så på skjermen tegnes de som et roteret rektangel — venstre/topp er det
+  // projiserte topp-venstre-hjørnet, bredde/høyde er meter × fit × zoom, og
+  // rotate(rot) om samme hjørne fullfører transformen.
+  const edgePreviewCells = computed(() => {
+    const dir = hoveredDir.value
+    const m = meta.value
+    const size = wrapperSize?.value
+    if (!dir || !m || !size?.w) return []
+    const v = transformView()
+    if (!v) return []
+    const geom = extendMapGeometry(dir)
+    if (!geom) return []
+    const fit = Math.min(v.w / m.widthM, v.h / m.heightM)
+    const s = v.scale || 1
+    const cells = []
+    for (const c of geom.neighborCenters) {
+      if (centerOverExistingTile(c, m)) continue
+      const p = viewBoxToScreen(c.x - m.widthM / 2, c.y - m.heightM / 2, v)
+      cells.push({
+        key: `${Math.round(c.x)},${Math.round(c.y)}`,
+        x: p.x, y: p.y,
+        w: m.widthM * fit * s, h: m.heightM * fit * s,
+        rot: v.rotationDeg || 0,
+      })
+    }
+    return cells
+  })
+
+  // Forhåndsvisnings-nedskalering: mens et håndtak har fokus skal HELE det
+  // kommende arket være synlig, ellers klippes spøkelsescellene bort av
+  // viewporten og «+N» blir et løfte man ikke ser. Vi skriver transform-refene
+  // direkte (ikke panTo — den klamper skala til mosaicMinScale, som er regnet
+  // for dagens ark og ville låst oss for høyt) og husker forrige utsnitt så
+  // pointerleave/blur setter det tilbake. Zoomer aldri INN: ser du alt allerede,
+  // står kartet stille.
+  // Fast luft rundt det kommende arket, som i designet (pad 34) — nok til at de
+  // 24 px av et kant-håndtak som stikker utenfor arket også får plass.
+  const EDGE_PREVIEW_PAD = 34
+  let previewSaved = null
+  function applyPreviewFit(dir) {
+    const m = meta.value
+    const v = transformView()
+    if (!m || !v || !EDGE_DIR_VEC[dir]) return
+    // Går brukeren rett fra ett håndtak til et annet, skal den nye visningen
+    // regnes mot det OPPRINNELIGE utsnittet — ikke mot forrige nedskalering,
+    // som ellers hadde stablet seg (og fått «+3»-arket til å falle utenfor).
+    const base = previewSaved ?? { scale: scale.value, tx: translateX.value, ty: translateY.value }
+    const b = growBounds(extendZonesBounds(), dir, m.widthM, m.heightM)
+    const fit = Math.min(v.w / m.widthM, v.h / m.heightM)
+    const rot = (v.rotationDeg || 0) * Math.PI / 180
+    const ac = Math.abs(Math.cos(rot)), as = Math.abs(Math.sin(rot))
+    const wf = (b.maxX - b.minX) * fit, hf = (b.maxY - b.minY) * fit
+    // Rotert rektangel → omsluttende akse-parallell boks på skjermen.
+    const needW = wf * ac + hf * as, needH = wf * as + hf * ac
+    if (!(needW > 0) || !(needH > 0)) return
+    const k = Math.min((v.w - 2 * EDGE_PREVIEW_PAD) / needW, (v.h - 2 * EDGE_PREVIEW_PAD) / needH)
+    // Ser man alt fra det opprinnelige utsnittet, skal kartet stå der — og en
+    // nedskalering fra et annet håndtak settes tilbake.
+    if (!(k > 0) || k >= base.scale) { restorePreviewFit(); return }
+    previewSaved = base
+    const px = (v.w - m.widthM * fit) / 2 + ((b.minX + b.maxX) / 2) * fit
+    const py = (v.h - m.heightM * fit) / 2 + ((b.minY + b.maxY) / 2) * fit
+    const cos = Math.cos(rot), sin = Math.sin(rot)
+    animateTransform?.()
+    scale.value = k
+    translateX.value = v.w / 2 - k * (px * cos - py * sin)
+    translateY.value = v.h / 2 - k * (px * sin + py * cos)
+  }
+  function restorePreviewFit() {
+    const p = previewSaved
+    if (!p) return
+    previewSaved = null
+    animateTransform?.()
+    scale.value = p.scale
+    translateX.value = p.tx
+    translateY.value = p.ty
+  }
+
+  // Vis forhåndsvisningen for en retning (hover/fokus/trykk-og-hold).
+  function previewExtend(dir) {
+    if (!EDGE_DIR_VEC[dir] || !extendZonesVisible.value) return
+    if (hoveredDir.value === dir) return
+    hoveredDir.value = dir
+    applyPreviewFit(dir)
+  }
+  // Rydd forhåndsvisningen. `keepView` brukes ved commit: extendMap panorerer
+  // selv til den nye kanten, så vi skal ikke rykke utsnittet tilbake først.
+  function clearExtendPreview({ keepView = false } = {}) {
+    hoveredDir.value = null
+    if (keepView) previewSaved = null
+    else restorePreviewFit()
   }
 
   function showAutoMapToast(msg) {
@@ -494,6 +576,9 @@ export function useMapExtend({
   // grensen/hjørnet med BEHOLDT zoom. Derfor rydder vi loader/state selv i finally.
   let extendingMap = false
   async function extendMap(direction) {
+    // Commit rydder forhåndsvisningen uten å rykke utsnittet tilbake — vi
+    // panorerer selv til den nye kanten/hjørnet lenger ned.
+    clearExtendPreview({ keepView: true })
     if (extendingMap || buildingOnTheFly.value || fillingInDetails.value) return
     if (autoMapModeBusy()) return
     const m = meta.value
@@ -679,7 +764,8 @@ export function useMapExtend({
   return {
     buildingOnTheFly, buildingProgress, autoMapToast, currentMapIsAuto,
     drawerCoversCanvas, extendZonesVisible, activatableTile, mosaicGapCount,
-    renderExtendZones, updateExtendZoneScale, showAutoMapToast,
+    edgeHandles, edgePreviewCells, hoveredDir, previewExtend, clearExtendPreview,
+    showAutoMapToast,
     visibleCenterSvg, clientToSvg, svgToClient, scheduleActivatableCheck, autoMapModeBusy,
     autoMapBuildOpts, promoteTile, extendMap, armAutoMap,
     extendZonesBounds, teardownMapExtend,

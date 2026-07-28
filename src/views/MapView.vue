@@ -44,6 +44,7 @@ import TrackElevationSheet from '../components/TrackElevationSheet.vue'
 import PerfLogModal from '../components/PerfLogModal.vue'
 import RenameMapDialog from '../components/RenameMapDialog.vue'
 import MapSearchOverlay from '../components/MapSearchOverlay.vue'
+import MapEdgeHandles from '../components/MapEdgeHandles.vue'
 import MapStatusOverlays from '../components/MapStatusOverlays.vue'
 import MapScaleAttribution from '../components/MapScaleAttribution.vue'
 import KulturminneSheet from '../components/KulturminneSheet.vue'
@@ -669,8 +670,10 @@ function applyNameLanguage() {
 // gjeldende transform, så stier/detaljer dukker opp sømløst i brukerens utsnitt.
 const pinchEnabled = computed(() => !loading.value)
 // panAtRest: la kartet dras også ved nullstilt zoom (se clampPan for canvas-rom).
-const { scale, translateX, translateY, rotation, reset, panTo, rotateTo, animating, isGesturing } =
-  usePinchZoom(wrapperRef, { enabled: pinchEnabled, panAtRest: true, minScale: () => mosaicMinScale() })
+const {
+  scale, translateX, translateY, rotation, reset, panTo, rotateTo,
+  animating, isGesturing, animateTransform,
+} = usePinchZoom(wrapperRef, { enabled: pinchEnabled, panAtRest: true, minScale: () => mosaicMinScale() })
 
 // Dynamisk zoom-ut-gulv: la brukeren zoome ut akkurat langt nok til å se HELE
 // bruttokartet (aktiv flis ∪ nabofliser) med litt margin rundt — så man raskt
@@ -2308,28 +2311,30 @@ const measureStats = computed(() => {
 const {
   buildingOnTheFly, buildingProgress, autoMapToast, currentMapIsAuto,
   drawerCoversCanvas, extendZonesVisible, activatableTile, mosaicGapCount,
-  renderExtendZones, updateExtendZoneScale, showAutoMapToast,
+  edgeHandles, edgePreviewCells, hoveredDir, previewExtend, clearExtendPreview,
+  showAutoMapToast,
   visibleCenterSvg, clientToSvg, svgToClient, scheduleActivatableCheck, autoMapModeBusy,
   autoMapBuildOpts, promoteTile, extendMap, armAutoMap,
   extendZonesBounds, teardownMapExtend,
   refreshMosaicGaps, repairMosaicGaps,
 } = useMapExtend({
-  svgHostRef, wrapperRef, meta, mapId, router,
-  scale, rotation, translateX, translateY, isGesturing, panTo,
+  wrapperRef, wrapperSize, meta, mapId, router,
+  scale, rotation, translateX, translateY, isGesturing, panTo, animateTransform,
   loading, loadError, fillingInDetails,
   annot, measureMode, sti, searchOpen, showControls, drawer,
   ghostRects, GHOST_TRIGGER_SUPPRESS_FRAC, renderGhostTiles,
   currentTheme, visibleLayers, userPos, maxTiles, refreshAutoTileCount,
   closeDrawer, closeSearch,
 })
-// applyUprightLabels ETTER render så kant-sonenes «… i lende»-tekst er vannrett
-// umiddelbart når kartet allerede er rotert (rosa selv roterer med kart-laget).
-watch(extendZonesVisible, () => { renderExtendZones(); applyUprightLabels() })
-// Mosaikken endret seg (ny flis bygd / scroll-tilbake) → re-anker prikkene og
-// re-tell hull (C) så «Reparer»-banneret dukker opp/forsvinner i takt.
-watch(ghostRects, () => { renderExtendZones(); applyUprightLabels(); refreshMosaicGaps() }, { deep: true })
-watch(scale, updateExtendZoneScale)
+// Mosaikken endret seg (ny flis bygd / scroll-tilbake) → re-tell hull (C) så
+// «Reparer»-banneret dukker opp/forsvinner i takt. Kanthåndtakene re-ankrer seg
+// selv (edgeHandles er en computed over ghostRects + transform-tilstanden).
+watch(ghostRects, () => { refreshMosaicGaps() }, { deep: true })
 watch([scale, translateX, translateY, rotation], scheduleActivatableCheck)
+// En egen gest (pan/pinch) mens en forhåndsvisning står åpen skal avbryte den —
+// ellers ville pointerleave aldri kommet og utsnittet blitt stående nedskalert.
+watch(isGesturing, (g) => { if (g && hoveredDir.value) clearExtendPreview({ keepView: true }) })
+watch(extendZonesVisible, (v) => { if (!v && hoveredDir.value) clearExtendPreview() })
 // Bygge-lås for SW-oppdatering: mens en flis bygges/utvides eller detaljer fylles
 // inn, skal en «Oppdater»-reload vente (ellers etterlater den et hull i den
 // halvbygde mosaikken). Blir byggingen ferdig med en oppdatering på vent, utfører
@@ -2990,7 +2995,6 @@ function mapSvgMarkupForExport() {
   // printExport.stripRuntimeOverlays.)
   const clone = svg.cloneNode(true)
   clone.querySelector('#ghost-tiles')?.remove()
-  clone.querySelector('#extend-zones')?.remove()   // kant-soner er kun runtime-UI
   // Temaet lever som CSS-variabler på mapInnerRef og bakgrunnsfarge på
   // wrapperRef — begge UTENFOR <svg>, så en ren klone falt tilbake på
   // symbolizerens lyse ISOM-defaults uansett valgt tema. Bak derfor temaet inn
@@ -3064,7 +3068,7 @@ const { loadMap, retryMapDetails } = useMapLoadPipeline({
   applyHillshade, applyZoomTierClasses, applyUprightLabels, applyNameLOD,
   applyViewportCull, buildCullDomIndex, resetViewportCull,
   forcedVisibleNameEls, labelBoxCache, resetPrevShownNames,
-  renderGhostTiles, renderExtendZones, renderAnnotations, renderTracks,
+  renderGhostTiles, renderAnnotations, renderTracks,
   renderMeasure, renderProximityTarget, refreshAutoTileCount,
   computePoiAvailability, maybeHighlightFromQuery, maybeRestoreRoundTripFromQuery, mapSearch,
   annot, tracker, sti, userPos, restoreProximityAlert,
@@ -3345,8 +3349,11 @@ onMounted(() => {
   window.addEventListener('offline', updateOnlineState)
   loadMap()
   screenWake.start()
-  mapCtx.register(menuMapPoint)
+  mapCtx.register(menuMapPoint, mapTitle.value)
 })
+// Hovedmenyens snarvei-blokk skriver «Åpne <sted> i» — hold navnet i sync med
+// kart-tittelen (settes ved lasting og ved «Gi nytt navn»).
+watch(mapTitle, (t) => mapCtx.setPlaceName(t))
 
 onUnmounted(() => {
   unlockBodyScroll()
@@ -3663,6 +3670,18 @@ onUnmounted(() => {
           </g>
         </svg>
       </div>
+
+      <!-- Kanthåndtak: 8 runde knapper på ARKETS kant som henter nye kartfliser.
+           Ligger UTENFOR pinch-transformen (søsken av mapInnerRef) så knapp,
+           hårlinje og pille holder ekte skjermstørrelse, mens ankeret følger
+           arket når det vokser, panoreres eller roteres. -->
+      <MapEdgeHandles v-if="extendZonesVisible"
+                      :handles="edgeHandles"
+                      :preview-cells="edgePreviewCells"
+                      :hovered="hoveredDir"
+                      @preview="previewExtend"
+                      @clear="clearExtendPreview"
+                      @commit="extendMap" />
     </div>
 
     <!-- Stifinner: fast midt-kikkertsikte mens startpunkt velges. Brukeren
