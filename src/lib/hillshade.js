@@ -8,9 +8,25 @@
 //   elevation 45° → solen halvveis oppe
 // Endre via options for å eksperimentere.
 
+// Gradient-basislinje i METER (v2.4.17). Skråningen måles alltid over ~20 m
+// bakke, ikke over «én DEM-celle» — ellers avhenger relieffet av flisas DEM-
+// oppløsning, og nabofliser fikk synlig ulik relieff-styrke.
+//
+// Hvorfor det slo inn i praksis: DEM-oppløsning velges PER FLIS. Probe-en er
+// 10 m (fine konturer) eller 20 m, og for fine kart forsøkes en oppgradering til
+// 2/3/5 m som faller tilbake til proben hvis nettet svikter. To nabofliser bygget
+// på ulikt tidspunkt kunne derfor ende på f.eks. 2 m og 20 m. Et grovt rutenett
+// glatter terrenget, så |∇z| målt over én celle blir systematisk mindre → flatere,
+// lysere relieff. Resultatet var et tydelig sprang i relieffet langs flis-skjøten.
+//
+// Med fast basislinje estimerer begge fliser ∂z/∂x over samme 20 m, så de er
+// enige der terrenget er det — uansett rutenett. 20 m er den groveste proben, så
+// vi later aldri som vi har mer detalj enn dataene gir.
+const GRADIENT_BASELINE_M = 20
+
 /**
  * @param {{data: Float32Array, cols: number, rows: number, transform: {pixelWidth: number, pixelHeight: number}, noData: number}} dem
- * @param {{azimuthDeg?: number, elevationDeg?: number, zFactor?: number, gamma?: number}} [options]
+ * @param {{azimuthDeg?: number, elevationDeg?: number, zFactor?: number, gamma?: number, baselineM?: number}} [options]
  * @returns {{rgba: Uint8ClampedArray, cols: number, rows: number, widthM: number, heightM: number}}
  */
 export function computeHillshade(dem, options = {}) {
@@ -18,9 +34,17 @@ export function computeHillshade(dem, options = {}) {
   // store/slake kart (f.eks. Tyrifjorden, 25 m ekvidistanse) ga ellers et veldig
   // svakt relieff under multiply-blend. gamma 1.0 (nøytral) i stedet for 0.85 så
   // skyggesidene ikke lysnes opp — dypere skygger = sterkere relieff. (v9.3.36)
-  const { azimuthDeg = 315, elevationDeg = 45, zFactor = 1.5, gamma = 1.0 } = options
+  const {
+    azimuthDeg = 315, elevationDeg = 45, zFactor = 1.5, gamma = 1.0,
+    baselineM = GRADIENT_BASELINE_M,
+  } = options
   const { data, cols, rows, transform, noData } = dem
   const cellSize = transform.pixelWidth
+  // Hvor mange celler tilsvarer basislinja? Minst 1 (grovt rutenett bruker
+  // nabocellen, som før), og aldri mer enn halve flisa.
+  const step = Math.max(1, Math.min(
+    Math.round(baselineM / (cellSize || baselineM)),
+    Math.max(1, Math.floor(Math.min(cols, rows) / 2) - 1)))
   const zenithRad = (90 - elevationDeg) * Math.PI / 180
   // GDAL-konvensjon: azimuth måles med klokken fra nord, mens atan2 returnerer
   // matematisk vinkel (mot klokken fra øst). Konverter.
@@ -32,11 +56,11 @@ export function computeHillshade(dem, options = {}) {
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      // 3×3-nabolag med kant-clamping (mirror)
-      const rUp = r > 0 ? r - 1 : 0
-      const rDn = r < rows - 1 ? r + 1 : rows - 1
-      const cL = c > 0 ? c - 1 : 0
-      const cR = c < cols - 1 ? c + 1 : cols - 1
+      // 3×3-nabolag `step` celler ut, klampet til flisa.
+      const rUp = Math.max(0, r - step)
+      const rDn = Math.min(rows - 1, r + step)
+      const cL = Math.max(0, c - step)
+      const cR = Math.min(cols - 1, c + step)
       const get = (rr, cc) => {
         const v = data[rr * cols + cc]
         return v === noData ? 0 : v
@@ -45,9 +69,15 @@ export function computeHillshade(dem, options = {}) {
       const z10 = get(r,   cL),                    z12 = get(r,   cR)
       const z20 = get(rDn, cL), z21 = get(rDn, c), z22 = get(rDn, cR)
 
-      // Sobel-vektet gradient (8 nabopunkter)
-      const dzdx = ((z02 + 2 * z12 + z22) - (z00 + 2 * z10 + z20)) / (8 * cellSize)
-      const dzdy = ((z20 + 2 * z21 + z22) - (z00 + 2 * z01 + z02)) / (8 * cellSize)
+      // Sobel-vektet gradient, delt på FAKTISK avstand mellom prøvene. Den gamle
+      // koden delte alltid på 2 celler selv der klampingen ga bare 1 — så hele
+      // ytterste rad/kolonne fikk halvert skråning, altså en systematisk lysere
+      // kantstripe rundt hver flis. Med to fliser inntil hverandre ble det en
+      // dobbel lys stripe langs skjøten (v2.4.17).
+      const spanX = (cR - cL) * cellSize
+      const spanY = (rDn - rUp) * cellSize
+      const dzdx = spanX > 0 ? ((z02 + 2 * z12 + z22) - (z00 + 2 * z10 + z20)) / (4 * spanX) : 0
+      const dzdy = spanY > 0 ? ((z20 + 2 * z21 + z22) - (z00 + 2 * z01 + z02)) / (4 * spanY) : 0
 
       const slope = Math.atan(zFactor * Math.hypot(dzdx, dzdy))
       const aspect = Math.atan2(dzdy, -dzdx)

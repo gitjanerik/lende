@@ -312,7 +312,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   <AppModal :open="menuOpen && (sheet === 'kart' || sheet === 'rute')"
             :title="sheet === 'rute' ? 'Mine ruter' : 'Mine kart'" @close="sheet = null">
     <div class="px-4 py-4">
-      <MapLibrary :tab="sheet === 'rute' ? 'rute' : 'kart'" :show-install="false" />
+      <MapLibrary :tab="sheet === 'rute' ? 'rute' : 'kart'" :show-install="false"
+                  @open-picker="sheet = 'nytt'" />
     </div>
   </AppModal>
   <AppModal :open="menuOpen && sheet === 'nytt'" title="Nytt turkart" @close="sheet = null">

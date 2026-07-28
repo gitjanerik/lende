@@ -27,7 +27,10 @@ const props = defineProps({
   // konkurrert med menyens egen «Installer som app».
   showInstall: { type: Boolean, default: true },
 })
-const emit = defineEmits(['update:tab'])
+// open-picker: verten bestemmer HVORDAN «Flere valg» åpnes — forsiden navigerer
+// til /nytt, hovedmenyen åpner Nytt turkart som modal oppå seg selv. Uten dette
+// navigerte knappen alltid, så i modalen forsvant både menyen og modalen.
+const emit = defineEmits(['update:tab', 'open-picker'])
 
 const router = useRouter()
 const { uiTextScale } = useUiTextScale()
@@ -570,7 +573,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
   <template v-if="createMapVisible">
   <div class="flex items-center justify-between mb-2 mt-3">
     <div class="text-ink/45 text-[11px] uppercase tracking-wide">Lag nytt kart</div>
-    <button @click="router.push('/kart/nytt')"
+    <button @click="emit('open-picker')"
             class="text-[11px] font-medium text-ink/55 active:text-ink/85
                    flex items-center gap-1 transition">
       <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"

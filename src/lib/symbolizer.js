@@ -49,6 +49,30 @@ function fillAttrs(f, patternId) {
   return 'fill="none"'
 }
 
+// SVG-attributtet `points` er en tallliste — enheter er IKKE lov der, i motsetning
+// til x/y/width/r/stroke-width, som tar CSS-lengder. Katalogen oppgir alt i mm, så
+// polygon-punkter må konverteres til bruker-enheter selv. Faktoren er den samme
+// nettleseren bruker for «1mm» ellers i pattern-en (CSS: 1mm = 96/25.4 px), så
+// trianglet lander eksakt der de andre elementene ville landet.
+//
+// Uten dette var hele `points`-attributtet ugyldig, og nettleseren droppet
+// polygonet: ISOM 210 «Blokkmark» har trianglet som SITT ENESTE element og ble
+// derfor et helt tomt mønster på kartet (v2.4.17). Konsollen sa fra hele tiden —
+// «Expected number, "1.25mm,0.7mm…"» — men bare i tegnforklaringen, der alle
+// mønstre rendres, så det ble lest som støy fra tegnforklaringen.
+export const MM_TO_USER_UNITS = 96 / 25.4
+
+function pointsInUserUnits(points) {
+  return String(points ?? '')
+    .trim()
+    .split(/\s+/)
+    .map((pair) => pair
+      .split(',')
+      .map((c) => +(Number(c) * MM_TO_USER_UNITS).toFixed(4))
+      .join(','))
+    .join(' ')
+}
+
 /** Lag en <pattern>-streng fra patterns-katalogen */
 export function buildPatternDef(patternId, spec) {
   const elements = (spec.elements ?? []).map(el => {
@@ -62,8 +86,7 @@ export function buildPatternDef(patternId, spec) {
       return `<rect x="${el.x}mm" y="${el.y}mm" width="${el.w}mm" height="${el.h}mm" fill="${el.fill}"/>`
     }
     if (el.type === 'polygon') {
-      const pts = el.points.split(' ').map(p => p.split(',').map(c => `${c}mm`).join(',')).join(' ')
-      return `<polygon points="${pts}" fill="${el.fill}"/>`
+      return `<polygon points="${pointsInUserUnits(el.points)}" fill="${el.fill}"/>`
     }
     return ''
   }).join('')

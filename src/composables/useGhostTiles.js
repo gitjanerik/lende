@@ -30,6 +30,11 @@ export function useGhostTiles({
   const GHOST_RENDER_RADIUS_TILES = 3  // hvor mange flis-bredder unna vi tegner
   const MAX_GHOSTS_RENDERED = 12       // tak på antall spøkelser i DOM samtidig
   const GHOST_TRIGGER_SUPPRESS_FRAC = 0.35  // overlapp-andel som undertrykker auto-kart
+  // Hvor mange meter hver flis blør ut over cellen sin for å dekke søm-streken
+  // mellom nabofliser (se buildGhostSvg). 0,5 m er 0,05 mm på trykk i 1:10 000 —
+  // usynlig som overlapp, men mer enn nok til å dekke en enhetspiksel-kant ved
+  // all realistisk zoom. Trygt fordi spøkelser er OPAKE (GHOST_OPACITY = 1).
+  const GHOST_EDGE_BLEED_M = 0.5
   // Cache for spøkelses-relieff (data-URL) nøklet på «tileId:blendMode» — DEM-en
   // per flis endrer seg ikke, så vi slipper å re-beregne hillshade ved scroll
   // frem/tilbake. Tømmes ikke (bundet av MAX_AUTO_TILES-fliser × 2 blend-modi).
@@ -102,12 +107,32 @@ export function useGhostTiles({
     for (const det of gsvg.querySelectorAll(
       '[data-label="kontur-tall"], [data-label="vann-tall"], [data-label="dybde-tall"], [data-label="dem-topp"]'
     )) det.remove()
-    gsvg.setAttribute('x', String(off.dx))
-    gsvg.setAttribute('y', String(off.dy))
-    gsvg.setAttribute('width', String(Wg))
-    gsvg.setAttribute('height', String(Hg))
-    gsvg.setAttribute('viewBox', `0 0 ${Wg} ${Hg}`)
+    // En nested <svg> ER en viewport og klipper innholdet sitt. To nabofliser
+    // klipper på NØYAKTIG samme koordinat, og når den ytre transformen skalerer
+    // med en ikke-heltallig faktor havner klippekanten midt i en enhetspiksel:
+    // begge sider dekker den bare delvis, og igjen står en hårfin søm-strek
+    // (v2.4.17). Vi lar derfor hver flis blø et halvmeters-hakk UT over cellen sin
+    // — viewBox utvides like mye som viewporten, så 1 enhet = 1 meter fortsatt
+    // (ingen skalering av innholdet), bare klippekanten flyttes utenfor skjøten,
+    // der nabofliser overlapper i stedet for å møtes på en kant.
+    const bleed = GHOST_EDGE_BLEED_M
+    gsvg.setAttribute('x', String(off.dx - bleed))
+    gsvg.setAttribute('y', String(off.dy - bleed))
+    gsvg.setAttribute('width', String(Wg + 2 * bleed))
+    gsvg.setAttribute('height', String(Hg + 2 * bleed))
+    gsvg.setAttribute('viewBox', `${-bleed} ${-bleed} ${Wg + 2 * bleed} ${Hg + 2 * bleed}`)
     gsvg.setAttribute('preserveAspectRatio', 'none')  // 1:1 meter, ingen letterbox
+    // Strekk flisas egen bakgrunn ut i blø-sonen. Uten dette ville sonen stått
+    // TRANSPARENT, og da hjelper det ikke å flytte klippekanten: sømmen viste
+    // fortsatt underlaget (kremgul viewport-base) som en lys strek gjennom vann
+    // og skog, der flatene har sin egen farge og slutter presis på flis-kanten.
+    const bgRect = gsvg.querySelector('#bakgrunn > rect')
+    if (bgRect) {
+      bgRect.setAttribute('x', String(-bleed))
+      bgRect.setAttribute('y', String(-bleed))
+      bgRect.setAttribute('width', String(Wg + 2 * bleed))
+      bgRect.setAttribute('height', String(Hg + 2 * bleed))
+    }
     gsvg.setAttribute('class', 'isom-map')
     gsvg.setAttribute('opacity', String(GHOST_OPACITY))
     gsvg.setAttribute('pointer-events', 'none')
