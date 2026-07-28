@@ -10,6 +10,9 @@ import { gmapsUrl, streetViewUrl, buildVegkartUrl } from '../lib/externalMapLink
 import { buildUtNoUrl } from '../lib/utNoLink.js'
 import { listMaps, listGravelRoutes } from '../lib/mapStorage.js'
 import { mapsSummary, routesSummary } from '../lib/menuSummary.js'
+import AppModal from './AppModal.vue'
+import AboutContent from './AboutContent.vue'
+import LegendContent from './LegendContent.vue'
 import { APP_VERSION } from '../version.js'
 
 // Global hovedmeny — slide-in fra venstre. Montert én gang i App.vue og styrt av
@@ -143,10 +146,24 @@ async function onInstall() {
   try { await promptInstall() } catch { /* avvist/utilgjengelig */ } finally { close() }
 }
 
+// ── Menyens «sider» som modaler ──────────────────────────────────────────────
+// Var egne ruter (/om, /tegnforklaring): menyen lukket seg, og veien tilbake
+// gikk via nettleserens tilbake-knapp — med en vestigial header og hamburger
+// øverst til venstre. Som modaler oppå den åpne menyen holder ESC eller X, og du
+// lander der du var. Rutene består for deep-lenker (se AboutView/LegendView).
+const sheet = ref(null)          // 'om' | 'tegnforklaring' | null
+watch(menuOpen, (open) => { if (!open) sheet.value = null })
+
 // Lukk ved rute-endring (f.eks. maskinvare-tilbake) og på Escape.
 watch(() => route.fullPath, () => { if (menuOpen.value) close() })
 
-function onKey(e) { if (e.key === 'Escape' && menuOpen.value) close() }
+// Escape lukker ØVERSTE lag først. Håndteres her, ikke i AboutModal: to
+// uavhengige lyttere ville lukket både modalen og menyen på samme tastetrykk.
+function onKey(e) {
+  if (e.key !== 'Escape') return
+  if (sheet.value) sheet.value = null
+  else if (menuOpen.value) close()
+}
 onMounted(() => window.addEventListener('keydown', onKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
@@ -209,7 +226,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <!-- Nivå 2: kontekst for der du er. -->
         <div class="am-block">
           <div class="am-eyebrow">{{ contextEyebrow }}</div>
-          <button type="button" class="am-line" @click="go('/tegnforklaring')">
+          <button type="button" class="am-line" @click="sheet = 'tegnforklaring'">
             <span class="am-line-icon">
               <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
                    stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
@@ -274,7 +291,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               </svg>
             </span>Installer som app
           </button>
-          <button type="button" class="am-line am-line-dim" @click="go('/om')">
+          <button type="button" class="am-line am-line-dim" @click="sheet = 'om'">
             <span class="am-line-icon">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
                    stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
@@ -287,6 +304,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       </div>
     </aside>
   </Transition>
+
+  <!-- Menyens «sider» ligger OPPÅ menyen (eget lag over z-201), så ESC eller X
+       tar deg tilbake til menyen slik du forlot den. -->
+  <AppModal :open="menuOpen && sheet === 'om'" title="Om Så i lende" @close="sheet = null">
+    <div class="px-4 py-5"><AboutContent /></div>
+  </AppModal>
+  <AppModal :open="menuOpen && sheet === 'tegnforklaring'" title="Tegnforklaring"
+            @close="sheet = null">
+    <LegendContent />
+  </AppModal>
 </template>
 
 <style scoped>
