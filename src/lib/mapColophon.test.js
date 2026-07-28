@@ -134,6 +134,25 @@ describe('withColophon', () => {
     expect(withColophon('', { meta: META })).toBe('')
   })
 
+  it('daterer arket med eksport-tidspunktet når meta.generated mangler', () => {
+    // De innebygde kartene (public/maps/*.svg) har ingen generated i meta.
+    const out = withColophon(SVG, {
+      meta: { scaleDenom: 10000, equidistance: 5 },
+      title: 'Vardåsen',
+      now: '2026-07-28T22:00:00.000Z',
+    })
+    expect(out).toMatch(/Vardåsen\s+·\s+\d{2}\.\d{2}\.2026/)
+  })
+
+  it('foretrekker meta.generated framfor eksport-tidspunktet', () => {
+    const out = withColophon(SVG, {
+      meta: { scaleDenom: 10000, generated: '2024-05-04T10:00:00.000Z' },
+      now: '2026-07-28T22:00:00.000Z',
+    })
+    expect(out).toContain('.2024')
+    expect(out).not.toContain('.2026')
+  })
+
   it('faller tilbake til 1:10 000 når meta mangler', () => {
     const out = withColophon(SVG, {})
     expect(out).toContain('1:10 000')

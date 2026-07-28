@@ -178,8 +178,14 @@ export function buildColophonSvg({
  * er autoritativ for det arket som faktisk eksporteres); resten kommer fra
  * meta. Returnerer markupen uendret hvis noe mangler — en eksport skal aldri
  * feile på grunn av kolofonen.
+ *
+ * Dato: `meta.generated` (da kartet ble bygd) er førstevalget, men de innebygde
+ * kartene har ikke feltet — der faller vi tilbake på eksport-tidspunktet, så
+ * arket ALLTID er datert. `now` finnes for at tester skal kunne fryse den.
  */
-export function withColophon(svgString, { meta = null, title = '', generated = null } = {}) {
+export function withColophon(svgString, {
+  meta = null, title = '', generated = null, now = null,
+} = {}) {
   if (!svgString) return svgString
   const vb = /viewBox="([^"]+)"/.exec(svgString)?.[1]?.trim().split(/[\s,]+/).map(Number)
   if (!vb || vb.length < 4 || !(vb[2] > 0) || !(vb[3] > 0)) return svgString
@@ -190,7 +196,7 @@ export function withColophon(svgString, { meta = null, title = '', generated = n
     scaleDenom: meta?.scaleDenom ?? 10000,
     equidistance: meta?.equidistance ?? null,
     title,
-    generated: generated ?? meta?.generated ?? null,
+    generated: generated ?? meta?.generated ?? now ?? new Date().toISOString(),
   })
   if (!g) return svgString
 

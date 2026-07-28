@@ -3018,7 +3018,11 @@ function mapSvgMarkupForExport() {
     style.textContent = themeCss
     clone.appendChild(style)
   }
-  return clone.outerHTML
+  // Kolofon nederst til venstre (v2.4.20): linjal, målestokk, ekvidistanse og
+  // «Så i lende · <kart> · <dato>». Ligger HER, i den delte eksport-markupen,
+  // så alle fire utgangene (SVG/PNG/PDF/print) får den — en fil eller et ark
+  // har ingen app rundt seg til å vise tallene.
+  return withColophon(clone.outerHTML, { meta: meta.value, title: mapTitle.value })
 }
 // Hvilken eksport som kjører nå ('' | 'svg' | 'png' | 'pdf' | 'print'). Brukes
 // til å vise spinner på den aktive knappen og deaktivere de andre — PNG/PDF
@@ -3050,14 +3054,7 @@ function onExportPng() {
   runExport('png', (m) => exportPngFile(m, `${filenameBase()}.png`, { dpi: 300 }))
 }
 function onExportPdf() {
-  // PDF-en er arket du tar med ut, uten app rundt: linjal, målestokk,
-  // ekvidistanse og «Så i lende · <kart> · <dato>» bakes inn nederst til
-  // venstre i SVG-en før rasterisering (lib/mapColophon.js).
-  runExport('pdf', (m) => exportPdfFile(
-    withColophon(m, { meta: meta.value, title: mapTitle.value }),
-    `${filenameBase()}.pdf`,
-    { dpi: 300 },
-  ))
+  runExport('pdf', (m) => exportPdfFile(m, `${filenameBase()}.pdf`, { dpi: 300 }))
 }
 function onPrint() {
   runExport('print', (m) => printDocument(m, { title: mapTitle.value }))
