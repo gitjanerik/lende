@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-28 — v2.4.19: Bunn-skuffene deler maksbredden med modalvinduene
+
+Skuffene som glir opp fra bunnen av viewporten strakte seg fortsatt i full bredde, så på en bred skjerm ble kulturminne-info, målestasjons-info, punkt-menyen, høydeprofilen, FAB-panelene, kart-innstillingene og hele ruteplanleggerens skuff liggende som en stripe over hele skjermen — samme lesbarhetsproblemet som modalvinduene fikk løst forrige økt, og i tillegg dekket de unødig mye kart. Alle skuffene bruker nå én felles regel, `.drawer-shell` i `style.css`: full bredde på mobil og stående nettbrett, men aldri bredere enn 700 px, midtstilt. Regelen virker også for skuffene som er ankret med `absolute inset-x-0` (ruteplanleggeren og kart-innstillingene på mobil), fordi auto-margininene deler restplassen når posisjonen er over-bestemt. Over 700 px får skuffen også sidekanter (1 px, farge arvet fra dens egen `border-<farge>`-klasse) så panelet leses som en avgrenset spalte når det ikke lenger går fra kant til kant — under 700 px er de utelatt, der ville de bare blitt hårstreker ute i skjermkanten. Kart-innstillingene på desktop (≥768 px) er urørt — den er et høyrestilt side-panel med dragbar bredde, ikke en bunn-skuff.
+
+---
+
 ## 2026-07-28 — v2.4.18: Hamburger-animasjonen blir ikke lenger dekket av skuffen
 
 Hamburger-knappens streker→kryss-animasjon forsvant midtveis, fordi hovedmenyen glir inn OVER knappen. En høyere z-index på knappen alene hjelper ikke: den ligger inne i visningenes topprader, som har sine egne z-index-er og dermed sine egne stacking contexts — et barn kan ikke klatre ut av forelderens kontekst. Mens menyen er åpen flyttes derfor SAMME knapp-element til `<body>` med fixed posisjon (Vue `Teleport` med `disabled`), målt til plassen den sto på rett før åpningen, så den ser ut til å stå helt stille mens panelet glir inn under den — og CSS-transisjonen på strekene fortsetter uavbrutt gjennom flyttingen, siden elementet gjenbrukes. Plassholderen holder plassen i toppraden i mellomtiden. Skuffens egen X er fjernet: hamburgeren ER lukkekontrollen, og to kryss ved siden av hverandre var uansett en for mye. Laget er z-205 — over skuffen (201) og backdropen, men under modalene (210/211), ellers hadde knappen flytt oppå «Om Så i lende» og dekket tittelen på mobil.

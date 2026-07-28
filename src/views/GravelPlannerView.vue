@@ -1622,8 +1622,8 @@ onUnmounted(() => {
          flex-flyten: kartflaten er da konstant uansett om skuffen er åpen,
          minimert eller maksimert. -->
     <div
-         class="absolute inset-x-0 bottom-0 z-20 backdrop-blur-md bg-surface/92 border-t border-ink/10
-                rounded-t-2xl flex flex-col overflow-hidden shadow-2xl"
+         class="drawer-shell absolute inset-x-0 bottom-0 z-20 backdrop-blur-md bg-surface/92
+                border-t border-ink/10 rounded-t-2xl flex flex-col overflow-hidden shadow-2xl"
          :style="drawer.drawerHeightStyle.value">
       <div class="shrink-0 select-none touch-none cursor-grab active:cursor-grabbing"
            @pointerdown="drawer.onPointerDown($event)"

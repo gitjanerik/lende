@@ -61,7 +61,7 @@ function onOpenNve() {
          class="absolute inset-0 z-40 flex items-end justify-center transition-colors duration-200"
          :class="drawer.isMaximized.value ? 'bg-black/60' : 'bg-transparent pointer-events-none'"
          @click.self="$emit('close')">
-      <div class="w-full bg-surface border-t border-sky-400/20 rounded-t-2xl flex flex-col pointer-events-auto"
+      <div class="drawer-shell bg-surface border-t border-sky-400/20 rounded-t-2xl flex flex-col pointer-events-auto"
            :style="drawer.drawerHeightStyle.value">
         <div class="shrink-0 touch-none cursor-grab active:cursor-grabbing pt-3.5 pb-3 flex justify-center"
              @pointerdown="drawer.onPointerDown($event)"

@@ -33,7 +33,7 @@ function formatDuration(ms) {
   <div v-if="track"
        class="absolute inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-end justify-center"
        @click.self="$emit('close')">
-    <div class="w-full bg-surface border-t border-ink/10 rounded-t-2xl p-4 max-h-[75dvh] overflow-y-auto">
+    <div class="drawer-shell bg-surface border-t border-ink/10 rounded-t-2xl p-4 max-h-[75dvh] overflow-y-auto">
       <div class="flex items-start justify-between mb-3">
         <div>
           <div class="text-ink text-sm font-semibold">
