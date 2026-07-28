@@ -140,6 +140,23 @@ describe('classifyToIsom — vei-ramper (*_link)', () => {
   })
 })
 
+describe('classifyToIsom — gang-/sykkelbro (ISOM 505)', () => {
+  it('footway/cycleway MED bro rendres som sti (505) — spennet leses som kryssing', () => {
+    expect(classifyToIsom({ type: 'way', tags: { highway: 'footway', bridge: 'yes' } })).toEqual({ code: '505', cat: 'manmade' })
+    expect(classifyToIsom({ type: 'way', tags: { highway: 'cycleway', bridge: 'yes' } })).toEqual({ code: '505', cat: 'manmade' })
+  })
+
+  it('hengebro (bridge=suspension) dekkes av samme regel', () => {
+    expect(classifyToIsom({ type: 'way', tags: { highway: 'footway', bridge: 'suspension' } })).toEqual({ code: '505', cat: 'manmade' })
+  })
+
+  it('ordinær footway/cycleway UTEN bro faller fortsatt bort (declutter-invariant)', () => {
+    expect(classifyToIsom({ type: 'way', tags: { highway: 'footway' } })).toBeNull()
+    expect(classifyToIsom({ type: 'way', tags: { highway: 'cycleway' } })).toBeNull()
+    expect(classifyToIsom({ type: 'way', tags: { highway: 'footway', bridge: 'no' } })).toBeNull()
+  })
+})
+
 describe('classifyToIsom — kraftlinje (ISOM 528)', () => {
   it('power=line og power=minor_line → 528 (begge kraftlinje-typer med)', () => {
     expect(classifyToIsom({ type: 'way', tags: { power: 'line' } })).toEqual({ code: '528', cat: 'manmade' })

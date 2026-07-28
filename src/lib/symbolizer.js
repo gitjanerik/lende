@@ -400,6 +400,14 @@ export function classifyToIsom(el) {
   // footway-ways helt; sidewalks tagget på vei-objekt selv (sidewalk=*)
   // genererer ikke egen way og rendres dermed ikke.
   if (t.footway === 'sidewalk') return null
+  // Gang-/sykkelbro (inkl. hengebro): ordinære footway/cycleway er bevisst
+  // filtrert bort (v8.9.24), men bro-spennene hentes som eneste unntak (se
+  // Overpass-spørringen) fordi en bro over vann er viktig turinfo. Rendres som
+  // sti (505) så spennet leses som en stiplet kryssing + bro-parapetene (509).
+  // Gatet på bridge så ordinære fortau/sykkelstier fortsatt faller bort.
+  if ((t.highway === 'footway' || t.highway === 'cycleway') && t.bridge && t.bridge !== 'no') {
+    return { code: '505', cat: 'manmade' }
+  }
   if (t.highway === 'path' || t.highway === 'bridleway') {
     const tv = t.trail_visibility ?? t['path:visibility']
     // 507 — knapt synlig stitråkk
