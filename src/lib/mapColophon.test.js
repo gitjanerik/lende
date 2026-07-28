@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
-  buildColophonSvg, withColophon, chooseScaleBar, formatDenom, formatDato,
+  buildColophonSvg, withColophon, chooseScaleBar, colophonScale,
+  formatDenom, formatDato,
 } from './mapColophon.js'
 
 const META = { scaleDenom: 10000, equidistance: 5, generated: '2026-07-28T09:15:00.000Z' }
@@ -28,16 +29,16 @@ describe('formatDato', () => {
 describe('chooseScaleBar', () => {
   it('velger største runde lengde som holder seg innenfor print-vinduet', () => {
     const bar = chooseScaleBar(10000, 4000)
-    expect(bar.groundM).toBe(250)
-    expect(bar.printMm).toBeCloseTo(25, 5)
-    expect(bar.label).toBe('250 m')
+    expect(bar.groundM).toBe(500)
+    expect(bar.printMm).toBeCloseTo(50, 5)
+    expect(bar.label).toBe('500 m')
   })
 
   it('skalerer opp med målestokken', () => {
-    // 1:50 000 → 1 km = 20 mm papir.
-    const bar = chooseScaleBar(50000, 20000)
-    expect(bar.groundM).toBe(2000)
-    expect(bar.label).toBe('2 km')
+    // 1:50 000 → 1 km = 20 mm papir, og et 20 km kart får k=3 (vindu 60–180 mm).
+    const bar = chooseScaleBar(50000, 20000, 3)
+    expect(bar.groundM).toBe(5000)
+    expect(bar.label).toBe('5 km')
   })
 
   it('holder linjalen innenfor en tredjedel av kartbredden', () => {
@@ -49,6 +50,23 @@ describe('chooseScaleBar', () => {
   it('gir alltid en lengde, også for absurd små kart', () => {
     expect(chooseScaleBar(10000, 50).groundM).toBeGreaterThan(0)
   })
+
+  it('velger en lengre linjal på et større ark', () => {
+    const liten = chooseScaleBar(10000, 4000, colophonScale(4000))
+    const stor = chooseScaleBar(10000, 10000, colophonScale(10000))
+    expect(stor.groundM).toBeGreaterThan(liten.groundM)
+  })
+})
+
+describe('colophonScale', () => {
+  it('er 1 ved referanse-størrelsen og vokser lineært til taket', () => {
+    expect(colophonScale(4000)).toBeCloseTo(1, 6)
+    expect(colophonScale(2000)).toBe(1)          // aldri under 1
+    expect(colophonScale(9200)).toBeCloseTo(2.3, 6)
+    expect(colophonScale(12000)).toBe(3)
+    expect(colophonScale(40000)).toBe(3)         // taket
+    expect(colophonScale(undefined)).toBe(1)
+  })
 })
 
 describe('buildColophonSvg', () => {
@@ -58,7 +76,7 @@ describe('buildColophonSvg', () => {
       equidistance: 5, title: 'Vardåsen', generated: META.generated,
     })
     expect(g).toContain('data-kolofon="1"')
-    expect(g).toContain('250 m')                       // linjal-etikett
+    expect(g).toContain('500 m')                       // linjal-etikett
     expect(g).toContain('1:10 000')               // størrelsesforhold
     expect(g).toContain('Ekvidistanse 5 m')
     expect(g).toContain('Så i lende')
@@ -71,17 +89,52 @@ describe('buildColophonSvg', () => {
     const [x, y] = /transform="translate\(([-\d.]+) ([-\d.]+)\)"/.exec(g).slice(1).map(Number)
     const boxH = Number(/<rect [^>]*height="([\d.]+)"/.exec(g)[1])
     const boxW = Number(/<rect [^>]*width="([\d.]+)"/.exec(g)[1])
-    expect(x).toBeCloseTo(40, 3)                  // 4 mm margin ved 1:10 000 = 40 m
-    expect(y + boxH).toBeCloseTo(5000 - 40, 3)    // bunnkant 4 mm over kartkanten
+    expect(x).toBeCloseTo(50, 3)                  // 5 mm margin ved 1:10 000 = 50 m
+    expect(y + boxH).toBeCloseTo(5000 - 50, 3)    // bunnkant 5 mm over kartkanten
     expect(x + boxW).toBeLessThan(4000)           // stikker ikke ut til høyre
   })
 
-  it('holder samme FYSISKE størrelse når målestokken endres', () => {
+  it('LINJALEN måler en ekte bakke-avstand, uansett skalering', () => {
+    // Selve streken kan aldri skaleres som dekor — den ER avstanden. 1 bruker-
+    // enhet = 1 m, så strekens bredde må være nøyaktig groundM.
+    for (const widthM of [2000, 4000, 9200, 20000]) {
+      const g = buildColophonSvg({ widthM, heightM: widthM, scaleDenom: 10000 })
+      const bar = chooseScaleBar(10000, widthM, colophonScale(widthM))
+      const line = /<g stroke[^>]*>\s*<line x1="([\d.]+)"[^>]*x2="([\d.]+)"/.exec(g)
+      expect(Number(line[2]) - Number(line[1])).toBeCloseTo(bar.groundM, 2)
+    }
+  })
+
+  it('holder samme FYSISKE størrelse når bare målestokken endres', () => {
+    // Samme kart-bredde i meter → samme k, så boksen er identisk i mm og
+    // skalerer bare med meter-pr-mm (5× nevner = 5× bruker-enheter).
     const a = buildColophonSvg({ widthM: 4000, heightM: 4000, scaleDenom: 10000 })
-    const b = buildColophonSvg({ widthM: 20000, heightM: 20000, scaleDenom: 50000 })
+    const b = buildColophonSvg({ widthM: 4000, heightM: 4000, scaleDenom: 50000 })
     const hOf = (g) => Number(/<rect [^>]*height="([\d.]+)"/.exec(g)[1])
-    // Bruker-enheter er meter, så 5× målestokk = 5× meter for samme mm.
     expect(hOf(b) / hOf(a)).toBeCloseTo(5, 2)
+  })
+
+  it('holder omtrent samme ANDEL av arket når kartet blir større', () => {
+    // Kjernen i v2.4.21: med faste print-mm ble kolofonen en flekk på et 10 km
+    // kart. Boksens andel av kartbredden skal være omtrent konstant fra
+    // referanse-størrelsen opp til taket.
+    const frac = (widthM) => {
+      const g = buildColophonSvg({ widthM, heightM: widthM, scaleDenom: 10000 })
+      return Number(/<rect [^>]*width="([\d.]+)"/.exec(g)[1]) / widthM
+    }
+    const f4 = frac(4000), f9 = frac(9200), f12 = frac(12000)
+    expect(f9 / f4).toBeGreaterThan(0.8)
+    expect(f9 / f4).toBeLessThan(1.25)
+    expect(f12 / f4).toBeGreaterThan(0.8)
+    expect(f12 / f4).toBeLessThan(1.25)
+  })
+
+  it('lar aldri boksen sluke et lite ark', () => {
+    for (const widthM of [800, 1500, 2500]) {
+      const g = buildColophonSvg({ widthM, heightM: widthM, scaleDenom: 10000 })
+      const boxW = Number(/<rect [^>]*width="([\d.]+)"/.exec(g)[1])
+      expect(boxW / widthM).toBeLessThanOrEqual(0.46)
+    }
   })
 
   it('utelater ekvidistanse-leddet når kartet mangler høydekurver', () => {
