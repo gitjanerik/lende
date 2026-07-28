@@ -135,9 +135,6 @@ export function usePinchZoom(elementRef, options = {}) {
     applyDelta(c, c, ds, 0)
   }
 
-  // Slå på transform-transitionen for én endring. Eksponeres som
-  // `animateTransform` for konsumenter som skriver scale/translate direkte
-  // (kanthåndtakenes forhåndsvisning) og vil ha samme mykhet som panTo/reset.
   function animate() {
     animating.value = true
     if (animTimer) clearTimeout(animTimer)
@@ -394,8 +391,5 @@ export function usePinchZoom(elementRef, options = {}) {
     translateY.value = fy - s * (px * sin + py * cos)
   }
 
-  return {
-    scale, translateX, translateY, rotation, reset, zoomIn, zoomOut, panTo, rotateTo,
-    animating, isGesturing, animateTransform: animate,
-  }
+  return { scale, translateX, translateY, rotation, reset, zoomIn, zoomOut, panTo, rotateTo, animating, isGesturing }
 }

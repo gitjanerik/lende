@@ -73,19 +73,6 @@ export function edgeLabelOffset(dir, rotationDeg = 0) {
   }
 }
 
-// Bboksen arket ville hatt etter en utvidelse i `dir` — én rad og/eller kolonne
-// større, aldri mindre. Driver forhåndsvisnings-nedskaleringen ved fokus.
-export function growBounds(b, dir, tileW, tileH) {
-  const v = EDGE_DIR_VEC[dir]
-  if (!v || !b) return b
-  return {
-    minX: b.minX - (v.dx < 0 ? tileW : 0),
-    maxX: b.maxX + (v.dx > 0 ? tileW : 0),
-    minY: b.minY - (v.dy < 0 ? tileH : 0),
-    maxY: b.maxY + (v.dy > 0 ? tileH : 0),
-  }
-}
-
 // ── Skjerm ⇄ viewBox — rene matte-kjerner (ingen Vue-refs, testbare) ──────────
 // Inverterer den unified CSS-transformen på kart-wrapperen (translate ∘ rotate ∘
 // scale, transform-origin 0 0) pluss viewBox-letterboxen. Vi gjør dette i ren
@@ -126,7 +113,7 @@ export function viewBoxToScreen(vx, vy, v) {
 
 export function useMapExtend({
   wrapperRef, wrapperSize, meta, mapId, router,
-  scale, rotation, translateX, translateY, isGesturing, panTo, animateTransform,
+  scale, rotation, translateX, translateY, isGesturing, panTo,
   loading, loadError, fillingInDetails,
   annot, measureMode, sti, searchOpen, showControls, drawer,
   ghostRects, GHOST_TRIGGER_SUPPRESS_FRAC, renderGhostTiles,
@@ -262,99 +249,31 @@ export function useMapExtend({
     return out
   })
 
-  // Spøkelsescellene forhåndsvisningen viser: én per flis trykket ville hentet,
-  // på sin faktiske gitter-plass. Rektanglene er akse-parallelle i KART-rommet,
-  // så på skjermen tegnes de som et roteret rektangel — venstre/topp er det
-  // projiserte topp-venstre-hjørnet, bredde/høyde er meter × fit × zoom, og
-  // rotate(rot) om samme hjørne fullfører transformen.
-  const edgePreviewCells = computed(() => {
-    const dir = hoveredDir.value
-    const m = meta.value
-    const size = wrapperSize?.value
-    if (!dir || !m || !size?.w) return []
-    const v = transformView()
-    if (!v) return []
-    const geom = extendMapGeometry(dir)
-    if (!geom) return []
-    const fit = Math.min(v.w / m.widthM, v.h / m.heightM)
-    const s = v.scale || 1
-    const cells = []
-    for (const c of geom.neighborCenters) {
-      if (centerOverExistingTile(c, m)) continue
-      const p = viewBoxToScreen(c.x - m.widthM / 2, c.y - m.heightM / 2, v)
-      cells.push({
-        key: `${Math.round(c.x)},${Math.round(c.y)}`,
-        x: p.x, y: p.y,
-        w: m.widthM * fit * s, h: m.heightM * fit * s,
-        rot: v.rotationDeg || 0,
-      })
-    }
-    return cells
-  })
-
-  // Forhåndsvisnings-nedskalering: mens et håndtak har fokus skal HELE det
-  // kommende arket være synlig, ellers klippes spøkelsescellene bort av
-  // viewporten og «+N» blir et løfte man ikke ser. Vi skriver transform-refene
-  // direkte (ikke panTo — den klamper skala til mosaicMinScale, som er regnet
-  // for dagens ark og ville låst oss for høyt) og husker forrige utsnitt så
-  // pointerleave/blur setter det tilbake. Zoomer aldri INN: ser du alt allerede,
-  // står kartet stille.
-  // Fast luft rundt det kommende arket, som i designet (pad 34) — nok til at de
-  // 24 px av et kant-håndtak som stikker utenfor arket også får plass.
-  const EDGE_PREVIEW_PAD = 34
-  let previewSaved = null
-  function applyPreviewFit(dir) {
-    const m = meta.value
-    const v = transformView()
-    if (!m || !v || !EDGE_DIR_VEC[dir]) return
-    // Går brukeren rett fra ett håndtak til et annet, skal den nye visningen
-    // regnes mot det OPPRINNELIGE utsnittet — ikke mot forrige nedskalering,
-    // som ellers hadde stablet seg (og fått «+3»-arket til å falle utenfor).
-    const base = previewSaved ?? { scale: scale.value, tx: translateX.value, ty: translateY.value }
-    const b = growBounds(extendZonesBounds(), dir, m.widthM, m.heightM)
-    const fit = Math.min(v.w / m.widthM, v.h / m.heightM)
-    const rot = (v.rotationDeg || 0) * Math.PI / 180
-    const ac = Math.abs(Math.cos(rot)), as = Math.abs(Math.sin(rot))
-    const wf = (b.maxX - b.minX) * fit, hf = (b.maxY - b.minY) * fit
-    // Rotert rektangel → omsluttende akse-parallell boks på skjermen.
-    const needW = wf * ac + hf * as, needH = wf * as + hf * ac
-    if (!(needW > 0) || !(needH > 0)) return
-    const k = Math.min((v.w - 2 * EDGE_PREVIEW_PAD) / needW, (v.h - 2 * EDGE_PREVIEW_PAD) / needH)
-    // Ser man alt fra det opprinnelige utsnittet, skal kartet stå der — og en
-    // nedskalering fra et annet håndtak settes tilbake.
-    if (!(k > 0) || k >= base.scale) { restorePreviewFit(); return }
-    previewSaved = base
-    const px = (v.w - m.widthM * fit) / 2 + ((b.minX + b.maxX) / 2) * fit
-    const py = (v.h - m.heightM * fit) / 2 + ((b.minY + b.maxY) / 2) * fit
-    const cos = Math.cos(rot), sin = Math.sin(rot)
-    animateTransform?.()
-    scale.value = k
-    translateX.value = v.w / 2 - k * (px * cos - py * sin)
-    translateY.value = v.h / 2 - k * (px * sin + py * cos)
-  }
-  function restorePreviewFit() {
-    const p = previewSaved
-    if (!p) return
-    previewSaved = null
-    animateTransform?.()
-    scale.value = p.scale
-    translateX.value = p.tx
-    translateY.value = p.ty
-  }
-
-  // Vis forhåndsvisningen for en retning (hover/fokus/trykk-og-hold).
+  // Forhåndsvisningen RØRER IKKE kartflaten (v2.4.14). Den gjorde to ting som
+  // begge måtte gå:
+  //
+  //  1. Den skalerte kartet ned så hele det kommende arket fikk plass, og satte
+  //     det tilbake ved slipp. Med åtte håndtak på arkkanten ble hver stryking
+  //     over kanten en serie zoom-ut/zoom-inn — utvidelsen føltes som hopp og
+  //     sprett. Kartet står nå bom stille.
+  //  2. Den tegnet mørkegrå spøkelsesceller for flisene trykket ville hente.
+  //     Kart-transformen animeres over 200 ms mens cellene er absolutt-
+  //     posisjonerte og hopper rett til sluttkoordinatene, så på mobil (der
+  //     trykk-og-hold er hele interaksjonen) lå de grå feltene oppå det ennå
+  //     ikke ferdig-animerte kartet. Cellene er fjernet helt.
+  //
+  // Det som er igjen er knappen som vokser og pilla «<Retning> i lende +N» —
+  // ingenting males i kartflaten, og «+N» sier presist hva trykket koster.
+  // Fjerningen tok også med seg et helt problemkompleks: da arket flyttet seg,
+  // gled håndtaket vekk under en stillestående peker, nettleseren fyrte
+  // pointerenter/-leave på layout-flyttingen, og visningen blinket i en løkke.
+  // Står kartet stille, holder vanlig pointerenter/-leave.
   function previewExtend(dir) {
     if (!EDGE_DIR_VEC[dir] || !extendZonesVisible.value) return
-    if (hoveredDir.value === dir) return
     hoveredDir.value = dir
-    applyPreviewFit(dir)
   }
-  // Rydd forhåndsvisningen. `keepView` brukes ved commit: extendMap panorerer
-  // selv til den nye kanten, så vi skal ikke rykke utsnittet tilbake først.
-  function clearExtendPreview({ keepView = false } = {}) {
+  function clearExtendPreview() {
     hoveredDir.value = null
-    if (keepView) previewSaved = null
-    else restorePreviewFit()
   }
 
   function showAutoMapToast(msg) {
@@ -576,9 +495,7 @@ export function useMapExtend({
   // grensen/hjørnet med BEHOLDT zoom. Derfor rydder vi loader/state selv i finally.
   let extendingMap = false
   async function extendMap(direction) {
-    // Commit rydder forhåndsvisningen uten å rykke utsnittet tilbake — vi
-    // panorerer selv til den nye kanten/hjørnet lenger ned.
-    clearExtendPreview({ keepView: true })
+    clearExtendPreview()
     if (extendingMap || buildingOnTheFly.value || fillingInDetails.value) return
     if (autoMapModeBusy()) return
     const m = meta.value
@@ -764,7 +681,7 @@ export function useMapExtend({
   return {
     buildingOnTheFly, buildingProgress, autoMapToast, currentMapIsAuto,
     drawerCoversCanvas, extendZonesVisible, activatableTile, mosaicGapCount,
-    edgeHandles, edgePreviewCells, hoveredDir, previewExtend, clearExtendPreview,
+    edgeHandles, hoveredDir, previewExtend, clearExtendPreview,
     showAutoMapToast,
     visibleCenterSvg, clientToSvg, svgToClient, scheduleActivatableCheck, autoMapModeBusy,
     autoMapBuildOpts, promoteTile, extendMap, armAutoMap,
