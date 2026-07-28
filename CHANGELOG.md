@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-28 — v2.4.10: Veiramper ut av rundkjøringer + ryddet tegnforklaring
+
+Rundkjøringer og planskilte kryss i OSM kobler til hovedveien via `*_link`-ramper (f.eks. `primary_link`), og Lende hverken hentet eller tegnet disse — så avkjøringen ut av rundkjøringen forsvant og veien så ut til å stoppe i ringen (rapportert Jarlsberg-krysset fv300/fv308 i Tønsberg). Nå hentes `motorway_link/trunk_link/primary_link/secondary_link/tertiary_link` i Overpass-spørringen og tegnes som sin foreldre-klasse (ISOM 501/502/503). Samtidig er hjelpekurve (ISOM 103) og skråstrek (ISOM 104) fjernet fra Tegnforklaring-siden — Lende genererer dem ikke, så prøvene var villedende. Merknad om trigpunkter: de rendres korrekt når data finnes, men OSM har nesten ingen `man_made=survey_point` i Norge (~1 pr 75 km²), så de dukker sjelden opp — det er en dekningssak i kildedata, ikke en feil i kartbyggeren.
+
+---
+
 ## 2026-07-27 — v2.4.9: «Installer som app» i hovedmenyen
 
 Lagt en «Installer som app»-knapp nederst i hovedmenyen, vist kun når appen ikke

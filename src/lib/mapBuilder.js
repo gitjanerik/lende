@@ -76,6 +76,7 @@ export function buildOverpassQuery(bbox, { timeoutS = 90, includeBuildings = tru
 [out:json][timeout:${timeoutS}][bbox:${bbox.south},${bbox.west},${bbox.north},${bbox.east}];
 (
   way["highway"~"^(motorway|trunk|primary|secondary|tertiary|residential|unclassified|service|living_street)$"];
+  way["highway"~"^(motorway_link|trunk_link|primary_link|secondary_link|tertiary_link)$"];
   way["highway"~"^(path|track|bridleway|steps)$"];
   way["natural"="water"];
   way["water"];
