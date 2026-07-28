@@ -25,6 +25,13 @@ describe('buildOverpassQuery — skalert server-timeout + bygnings-flagg', () =>
     expect(q).toContain('way["building"="stadium"];')
     expect(q).toContain('way["building"~"^(church|chapel)$"];')
   })
+  it('henter gang-/sykkelbroer, men ikke ordinære fortau/sykkelstier', () => {
+    const q = buildOverpassQuery(smallBbox)
+    // Bro-spennene (footway/cycleway med bridge) hentes …
+    expect(q).toContain('way["highway"~"^(footway|cycleway)$"]["bridge"]')
+    // … men ikke en generisk henting av alle footway/cycleway (declutter-invariant).
+    expect(q).not.toMatch(/way\["highway"~"\^\(footway\|cycleway\)\$"\];/)
+  })
 })
 
 describe('buildBuildingsQuery', () => {

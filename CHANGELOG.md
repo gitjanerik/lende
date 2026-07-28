@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-28 — v2.4.12: Gang- og hengebroer vises nå
+
+Fotgjenger- og sykkelbroer (inkludert hengebroer) dukket ikke opp på kartet — f.eks. brua over Bondivannet ved Vardåsen manglet helt. Årsak: ordinære `footway`/`cycleway` er bevisst filtrert bort fra turkartet (v8.9.24, for å unngå fortaus-rot), men det tok også med seg bro-spennene, som aldri ble hentet fra Overpass og dermed aldri tegnet. Nå hentes footway/cycleway som ETT unntak når de er broer (`bridge` satt og ≠ `no`), og spennet klassifiseres som sti (505) så det leses som en stiplet kryssing med bro-parapetene (509) — akkurat som sti-broer alltid har blitt tegnet. Hengebroer (`bridge=suspension`) dekkes av samme regel. Ordinære fortau/sykkelstier faller fortsatt bort, så kartet forblir rent. Gjenbruker det eksisterende «Bro»-laget — ingen ny toggle.
+
+---
+
 ## 2026-07-28 — v2.4.11: Fjernet trigonometriske punkter
 
 Trigpunkter (ISOM 113) er fjernet helt fra Lende. Bakgrunn: OSM har nesten ingen `man_made=survey_point` i Norge (~1 pr 75 km²), og Kartverkets fastmerke-data finnes bare som WMS-raster — ingen live vektortjeneste som lar seg koble inn i den vektorbaserte kart-pipelinen uten en egen bake-jobb. Symbolet dukket derfor praktisk talt aldri opp, så vi slutter å reklamere for det. Fjernet: klassifiseringen (`isTrigPoint` + ISOM 113 i symbolizer), Overpass-henting av survey/geodesic-noder, trig-bucket/render/lag-wiring i kartbyggeren, peak/trig-overlappen (topper som også var fastmerker viste trekant — nå alltid vanlig topp-prikk), «Trigpunkter»-laget i kartlag-menyen, katalog- og symboldefinisjonen, og trigpunkt-prøven fra Tegnforklaring-siden. Ingen andre symboler påvirkes.

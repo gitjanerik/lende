@@ -77,6 +77,7 @@ export function buildOverpassQuery(bbox, { timeoutS = 90, includeBuildings = tru
   way["highway"~"^(motorway|trunk|primary|secondary|tertiary|residential|unclassified|service|living_street)$"];
   way["highway"~"^(motorway_link|trunk_link|primary_link|secondary_link|tertiary_link)$"];
   way["highway"~"^(path|track|bridleway|steps)$"];
+  way["highway"~"^(footway|cycleway)$"]["bridge"]["bridge"!~"^no$"];
   way["natural"="water"];
   way["water"];
   way["natural"="coastline"];
