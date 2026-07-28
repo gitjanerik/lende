@@ -167,13 +167,13 @@ export function useMapExtend({
   // skjermstørrelse uansett zoom, men ANKERET følger arket når det vokser eller
   // roterer. De rendres av MapEdgeHandles.vue fra `edgeHandles`; geometrien
   // ligger på modul-nivå (edgeAnchorSvg / edgeKnobDeg / edgeLabelOffset), testbar.
-  // Erstatter de 8 SVG-kompassrosene i kart-rommet (v2.4.13) — ingen rose-bitmaps,
+  // Erstatter de 8 SVG-kompassrosene i kart-rommet (v2.4.13) — ingen rose-detaljer,
   // ingen permanente etiketter i kartflaten, ingen eksport-stripping å vedlikeholde.
   // Drawer-en dekker håndtakene kun når den er ÅPEN og i ekspandert tilstand
   // (mobil-bunnark). Når den er minimert titter bare fane-stripen opp (~32 px), så
-  // prikkene som sitter utenfor kart-kanten er fortsatt synlige og klikkbare —
-  // da skal de ikke skjules (v11.0.32). isMinimized er alltid false på desktop
-  // (side-panel), så desktop-oppførselen er uendret.
+  // håndtakene langs arkkanten er fortsatt synlige og klikkbare — da skal de ikke
+  // skjules (v11.0.32). isMinimized er alltid false på desktop (side-panel), så
+  // desktop-oppførselen er uendret.
   const drawerCoversCanvas = computed(() =>
     showControls.value && !drawer.isMinimized.value
   )

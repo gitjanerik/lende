@@ -2331,8 +2331,10 @@ const {
 // selv (edgeHandles er en computed over ghostRects + transform-tilstanden).
 watch(ghostRects, () => { refreshMosaicGaps() }, { deep: true })
 watch([scale, translateX, translateY, rotation], scheduleActivatableCheck)
-// En egen gest (pan/pinch) mens en forhåndsvisning står åpen skal avbryte den —
-// ellers ville pointerleave aldri kommet og utsnittet blitt stående nedskalert.
+// Starter brukeren en egen gest (wheel-zoom, pinch, pan) mens en forhåndsvisning
+// står åpen, eier de utsnittet fra da av: rydd pille/spøkelser, men BEHOLD zoomen
+// — å rykke tilbake til det lagrede utsnittet midt i gesten ville kastet bort
+// bevegelsen de akkurat gjorde.
 watch(isGesturing, (g) => { if (g && hoveredDir.value) clearExtendPreview({ keepView: true }) })
 watch(extendZonesVisible, (v) => { if (!v && hoveredDir.value) clearExtendPreview() })
 // Bygge-lås for SW-oppdatering: mens en flis bygges/utvides eller detaljer fylles

@@ -31,5 +31,5 @@ export function useUiTextScale() {
     uiTextScale.value = v
     try { localStorage.setItem(LS_KEY, String(v)) } catch { /* ignorer */ }
   }
-  return { uiTextScale, setTextScale, scales: UI_TEXT_SCALES }
+  return { uiTextScale, setTextScale }
 }

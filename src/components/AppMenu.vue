@@ -3,7 +3,7 @@ import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppMenu } from '../composables/useAppMenu.js'
 import { useMapContext } from '../composables/useMapContext.js'
-import { useUiTextScale } from '../composables/useUiTextScale.js'
+import { useUiTextScale, UI_TEXT_SCALES } from '../composables/useUiTextScale.js'
 import { useUiTheme } from '../composables/useUiTheme.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
 import { gmapsUrl, streetViewUrl, buildVegkartUrl } from '../lib/externalMapLinks.js'
@@ -116,13 +116,13 @@ const THEMES = [
   { value: 'mørkt', label: 'Mørkt', d: 'M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z' },
   { value: 'auto', label: 'Auto', d: 'M13 3 5 14h6l-1 7 8-11h-6l1-7Z' },
 ]
-// Hvert valg rendres i SIN EGEN størrelse (11/13/15 px) så valget er lesbart som
-// seg selv. Verdiene er faktorene useUiTextScale kjenner.
-const TEXT_SIZES = [
-  { scale: 1, label: '100 %', px: 11 },
-  { scale: 1.25, label: '125 %', px: 13 },
-  { scale: 1.5, label: '150 %', px: 15 },
-]
+// Hvert valg rendres i SIN EGEN størrelse så valget er lesbart som seg selv.
+// Utledet fra UI_TEXT_SCALES, som er den ene lista setTextScale godtar — en
+// hardkodet kopi her ville stilltiende sluttet å virke om lista endres.
+const TEXT_SIZE_PX = { 1: 11, 1.25: 13, 1.5: 15 }
+const TEXT_SIZES = UI_TEXT_SCALES.map((s) => ({
+  scale: s, label: `${Math.round(s * 100)} %`, px: TEXT_SIZE_PX[s] ?? 13,
+}))
 // Menyens egen rot-font: alt innhold er i em, så et valg skalerer hele skuffen
 // umiddelbart — brukeren ser resultatet der og da.
 const rootFontSize = computed(() => `${16 * uiTextScale.value}px`)
