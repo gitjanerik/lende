@@ -121,8 +121,8 @@ export function useContextLookups({
     // gir oss preventDefault på native browsermenyen).
     if (e.pointerType === 'mouse' && e.button !== 0) return
     // Ignorer tap inne på interaktive UI-elementer (knapper, drawer-håndtak,
-    // kant-soner) — disse har egne klikk-handlere.
-    if (e.target.closest('button, input, textarea, select, a, [data-extend-dir]')) return
+    // kanthåndtak) — disse har egne klikk-handlere.
+    if (e.target.closest('button, input, textarea, select, a')) return
     lpPointerId = e.pointerId
     lpStartX = e.clientX
     lpStartY = e.clientY

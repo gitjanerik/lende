@@ -27,7 +27,7 @@ export function useMapLoadPipeline(deps) {
     applyHillshade, applyZoomTierClasses, applyUprightLabels, applyNameLOD,
     applyViewportCull, buildCullDomIndex, resetViewportCull,
     forcedVisibleNameEls, labelBoxCache, resetPrevShownNames,
-    renderGhostTiles, renderExtendZones, renderAnnotations, renderTracks,
+    renderGhostTiles, renderAnnotations, renderTracks,
     renderMeasure, renderProximityTarget, refreshAutoTileCount,
     computePoiAvailability, maybeHighlightFromQuery, maybeRestoreRoundTripFromQuery, mapSearch,
     annot, tracker, sti, userPos, restoreProximityAlert,
@@ -310,10 +310,9 @@ export function useMapLoadPipeline(deps) {
       // Mosaikk: tegn nabo-fliser så man kan utvide/gjøre dem aktive.
       // Async + fail-safe; setupHostSvg har tømt evt. gamle spøkelser.
       void renderGhostTiles()
-      // Kant-soner (manuell utvidelse) — tegnes inn i den ferske SVG-en.
-      // applyUprightLabels ETTER så kompassrose-tekstene er vannrette med én gang
-      // (viktig når kartet lastes allerede rotert, f.eks. via promoteView).
-      renderExtendZones()
+      // Stedsnavn vannrett med én gang — viktig når kartet lastes allerede
+      // rotert (f.eks. via promoteView). Kanthåndtakene er DOM-overlay og
+      // trenger ingen render-runde her.
       applyUprightLabels()
       // Terreng-først: hvis dette kartet ble vist som terreng-skjelett, konsumér
       // finalize-promisen og re-render (stille) når full SVG med OSM er klar.
