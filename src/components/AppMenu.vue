@@ -13,6 +13,8 @@ import { mapsSummary, routesSummary } from '../lib/menuSummary.js'
 import AppModal from './AppModal.vue'
 import AboutContent from './AboutContent.vue'
 import LegendContent from './LegendContent.vue'
+import MapLibrary from './MapLibrary.vue'
+import MapPickerContent from './MapPickerContent.vue'
 import { APP_VERSION } from '../version.js'
 
 // Global hovedmeny — slide-in fra venstre. Montert én gang i App.vue og styrt av
@@ -72,12 +74,12 @@ watch(menuOpen, (open) => { if (open) void loadCounts() }, { immediate: true })
 
 const PRIMARY = {
   kart: {
-    id: 'kart', label: 'Mine kart', to: { path: '/', query: { tab: 'kart' } },
-    addTo: '/nytt', addLabel: 'Nytt kart', last: 'kart',
+    id: 'kart', label: 'Mine kart', sheet: 'kart',
+    addLabel: 'Nytt kart', addSheet: 'nytt',
     d: 'M4 8.5 12 4.5l8 4-8 4-8-4Zm0 5 8 4 8-4m-16 0',
   },
   plan: {
-    id: 'plan', label: 'Mine ruter', to: { path: '/', query: { tab: 'rute' } },
+    id: 'plan', label: 'Mine ruter', sheet: 'rute',
     addTo: '/rute', addLabel: 'Ny rute', last: 'rute',
     d: 'M6.5 8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm11 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm-11-4v-3m0 3a3 3 0 0 0 3 3h5a3 3 0 0 1 3 3',
   },
@@ -151,7 +153,7 @@ async function onInstall() {
 // gikk via nettleserens tilbake-knapp — med en vestigial header og hamburger
 // øverst til venstre. Som modaler oppå den åpne menyen holder ESC eller X, og du
 // lander der du var. Rutene består for deep-lenker (se AboutView/LegendView).
-const sheet = ref(null)          // 'om' | 'tegnforklaring' | null
+const sheet = ref(null)   // 'kart' | 'rute' | 'nytt' | 'tegnforklaring' | 'om' | null
 watch(menuOpen, (open) => { if (!open) sheet.value = null })
 
 // Lukk ved rute-endring (f.eks. maskinvare-tilbake) og på Escape.
@@ -209,12 +211,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                 <path :d="p.d" />
               </svg>
             </span>
-            <button type="button" class="am-row-main" @click="go(p.to, p.last)">
+            <button type="button" class="am-row-main" @click="sheet = p.sheet">
               <span class="am-row-title">{{ p.label }}</span>
               <span class="am-row-meta">{{ p.meta }}</span>
             </button>
             <button type="button" class="am-add" :aria-label="p.addLabel"
-                    @click="go(p.addTo, p.last)">
+                    @click="p.addSheet ? (sheet = p.addSheet) : go(p.addTo, p.last)">
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
                    stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 5.5v13M5.5 12h13" />
@@ -307,6 +309,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
   <!-- Menyens «sider» ligger OPPÅ menyen (eget lag over z-201), så ESC eller X
        tar deg tilbake til menyen slik du forlot den. -->
+  <AppModal :open="menuOpen && (sheet === 'kart' || sheet === 'rute')"
+            :title="sheet === 'rute' ? 'Mine ruter' : 'Mine kart'" @close="sheet = null">
+    <div class="px-4 py-4">
+      <MapLibrary :tab="sheet === 'rute' ? 'rute' : 'kart'" :show-install="false" />
+    </div>
+  </AppModal>
+  <AppModal :open="menuOpen && sheet === 'nytt'" title="Nytt turkart" @close="sheet = null">
+    <MapPickerContent />
+  </AppModal>
   <AppModal :open="menuOpen && sheet === 'om'" title="Om Så i lende" @close="sheet = null">
     <div class="px-4 py-5"><AboutContent /></div>
   </AppModal>
