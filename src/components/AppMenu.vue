@@ -179,12 +179,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     <aside v-if="menuOpen" class="app-menu" :style="{ fontSize: rootFontSize }"
            aria-label="Hovedmeny">
       <div class="am-head">
-        <button type="button" class="am-close" @click="close" aria-label="Lukk meny">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
-               stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M6 6l12 12M18 6 6 18" />
-          </svg>
-        </button>
+        <!-- Ingen egen X: hamburger-knappen som åpnet menyen ER lukkekontrollen,
+             og den ligger nå teleportert oppå skuffen (se AppMenuButton) med sin
+             streker→kryss-animasjon i fred. Plassholderen her holder tittelen der
+             den sto, klar av den flytende knappen (v2.4.18). -->
+        <span class="am-trigger-slot" aria-hidden="true" />
         <div class="am-title">Så i lende</div>
       </div>
 
@@ -378,18 +377,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   padding: 18px 18px 14px;
   flex: 0 0 auto;
 }
-.am-close {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: var(--am-surface);
-  color: var(--am-text);
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  transition: background 0.18s;
-}
-.am-close:active { transform: scale(0.94); }
+.am-trigger-slot { width: 44px; height: 44px; flex: 0 0 auto; }
 .am-title { font-size: 1.25em; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
 
 /* ── Segmentbrytere (modus + tema) ── */
