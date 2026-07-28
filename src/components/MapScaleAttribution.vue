@@ -1,38 +1,35 @@
 <script setup>
-// Skalabar + ekvidistanse (nederst til venstre) og attribusjon (nederst til
-// høyre), skilt ut fra MapView v1.0.8. Rent presentasjonelt — skala-utregningen
+// Skalabar (nederst til venstre) og attribusjon (nederst til høyre), skilt ut
+// fra MapView v1.0.8. Rent presentasjonelt — skala-utregningen
 // (candidate-step-algoritmen) blir i forelderen som eier wrapper-målingen.
+//
+// v2.4.20: boksen er BARE linjalen. Print-målestokken og ekvidistansen var to
+// faste tekstlinjer som gjorde den nesten tre ganger så høy for tall du leser
+// én gang, ikke mens du går — de står nå øverst i punkt-skuffen, og i kolofonen
+// på eksporterte kart (se lib/mapColophon.js).
 defineProps({
   visible: { type: Boolean, default: false },
   scaleBar: { type: Object, default: () => ({ px: 0, ticks: [], label: '' }) },
-  equidistanceLabel: { type: String, default: '' },
   meta: { type: Object, default: null },
 })
 </script>
 
 <template>
-  <!-- Skala + ekvidistanse + ISOM-info (skjult under aktivt søk så den
-       ikke ligger under treff-listen). -->
-  <div v-if="visible"
+  <!-- Linjal (skjult under aktivt søk så den ikke ligger under treff-listen). -->
+  <div v-if="visible && scaleBar.px > 0"
        class="absolute bottom-3 left-3 z-20 pointer-events-none">
-    <div class="px-3 py-2 rounded-lg bg-overlay text-ink text-[11px]
-                font-medium space-y-1.5 shadow-lg">
-      <div v-if="scaleBar.px > 0">
-        <div class="flex items-end gap-2">
-          <svg :width="scaleBar.px" height="14" class="overflow-visible">
-            <line x1="0" y1="6" :x2="scaleBar.px" y2="6" stroke="white" stroke-width="2"/>
-            <g v-for="(t, i) in scaleBar.ticks" :key="i">
-              <line :x1="t.px" y1="2" :x2="t.px" y2="10" stroke="white"
-                    :stroke-width="i === 0 || i === scaleBar.ticks.length - 1 ? 2 : 1"/>
-            </g>
-          </svg>
-          <div>{{ scaleBar.label }}</div>
-        </div>
-        <div v-if="meta?.scaleDenom" class="text-[9px] text-ink/55 mt-0.5">
-          print 1:{{ meta.scaleDenom.toLocaleString('no-NO') }}
-        </div>
-      </div>
-      <div class="text-ink/70">{{ equidistanceLabel }}</div>
+    <div class="px-3 py-1.5 rounded-lg bg-overlay text-ink text-[11px]
+                font-medium shadow-lg flex items-end gap-2">
+      <!-- currentColor, ikke hardkodet hvit: bakgrunnen (bg-overlay) er hvit i
+           lyst tema, der en hvit linjal var usynlig. -->
+      <svg :width="scaleBar.px" height="14" class="overflow-visible text-ink">
+        <line x1="0" y1="6" :x2="scaleBar.px" y2="6" stroke="currentColor" stroke-width="2"/>
+        <g v-for="(t, i) in scaleBar.ticks" :key="i">
+          <line :x1="t.px" y1="2" :x2="t.px" y2="10" stroke="currentColor"
+                :stroke-width="i === 0 || i === scaleBar.ticks.length - 1 ? 2 : 1"/>
+        </g>
+      </svg>
+      <div>{{ scaleBar.label }}</div>
     </div>
   </div>
 

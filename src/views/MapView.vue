@@ -63,6 +63,7 @@ import ContextMenuSheet from '../components/context-menu/ContextMenuSheet.vue'
 import AppMenuButton from '../components/AppMenuButton.vue'
 import { isomCatalog, buildPointSymbolDef } from '../lib/symbolizer.js'
 import { printDocument, exportSvgFile, exportPngFile, exportPdfFile } from '../lib/printExport.js'
+import { withColophon, formatDenom } from '../lib/mapColophon.js'
 import { logPerf } from '../lib/perfLog.js'
 import { sampleProfile } from '../lib/elevationProfile.js'
 import { fetchDEM } from '../lib/demFetcher.js'
@@ -3049,7 +3050,14 @@ function onExportPng() {
   runExport('png', (m) => exportPngFile(m, `${filenameBase()}.png`, { dpi: 300 }))
 }
 function onExportPdf() {
-  runExport('pdf', (m) => exportPdfFile(m, `${filenameBase()}.pdf`, { dpi: 300 }))
+  // PDF-en er arket du tar med ut, uten app rundt: linjal, målestokk,
+  // ekvidistanse og «Så i lende · <kart> · <dato>» bakes inn nederst til
+  // venstre i SVG-en før rasterisering (lib/mapColophon.js).
+  runExport('pdf', (m) => exportPdfFile(
+    withColophon(m, { meta: meta.value, title: mapTitle.value }),
+    `${filenameBase()}.pdf`,
+    { dpi: 300 },
+  ))
 }
 function onPrint() {
   runExport('print', (m) => printDocument(m, { title: mapTitle.value }))
@@ -3090,6 +3098,12 @@ const equidistanceLabel = computed(() => {
   if (meta.value.contoursSkipped) return 'Høydekurver: kun på innebygde kart'
   return 'Høydekurver ikke tilgjengelig'
 })
+
+// Størrelsesforholdet kartet er BYGD for («1:10 000»). Vises i punkt-skuffen —
+// linjal-boksen over kartet holder bare selve linjalen (v2.4.20).
+const printScaleLabel = computed(() => (
+  meta.value?.scaleDenom ? `1:${formatDenom(meta.value.scaleDenom)}` : ''
+))
 
 const SCALE_BAR_MAX_PX = 180
 const scaleBar = computed(() => {
@@ -3792,11 +3806,11 @@ onUnmounted(() => {
       @dismiss-low-accuracy="dismissLowAccuracy"
       @retry-gps="onRetryGps" />
 
-    <!-- Skala/ekvidistanse + attribusjon — trekt ut til MapScaleAttribution (v1.0.8). -->
+    <!-- Linjal + attribusjon — trekt ut til MapScaleAttribution (v1.0.8).
+         Målestokk/ekvidistanse står i punkt-skuffen, ikke her (v2.4.20). -->
     <MapScaleAttribution
       :visible="!loading && !searchOpen"
       :scale-bar="scaleBar"
-      :equidistance-label="equidistanceLabel"
       :meta="meta" />
 
     <!-- Kontrollpanel (drawer). Desktop (≥768px): høyrestilt fullhøyde side-
@@ -4096,6 +4110,8 @@ onUnmounted(() => {
       :place-wiki-card="placeWikiCard"
       :expanded-red-cat="expandedRedCat"
       :map-data-label="mapDataLabel"
+      :print-scale-label="printScaleLabel"
+      :equidistance-label="equidistanceLabel"
       :ctx-can-navigate="ctxCanNavigate"
       :ctx-can-measure="ctxCanMeasure"
       :ctx-can-annotate="ctxCanAnnotate"

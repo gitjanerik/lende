@@ -24,6 +24,10 @@ defineProps({
   placeWikiCard: { type: Object, default: null },
   expandedRedCat: { type: String, default: null },
   mapDataLabel: { type: String, default: '' },
+  // Kart-fakta i headeren, rett under koordinatene: «1:10 000» og
+  // «Høydekurver pr 5 m» (flyttet hit fra linjal-boksen, v2.4.20).
+  printScaleLabel: { type: String, default: '' },
+  equidistanceLabel: { type: String, default: '' },
   ctxCanNavigate: { type: Boolean, default: false },
   ctxCanMeasure: { type: Boolean, default: false },
   ctxCanAnnotate: { type: Boolean, default: false },
@@ -118,6 +122,16 @@ function formatDistance(m) {
                 <polyline points="20 6 9 17 4 12"/>
               </svg>
             </button>
+          </div>
+          <!-- Kart-fakta (v2.4.20): målestokk + ekvidistanse sto som to faste
+               linjer i linjal-boksen over kartet og gjorde den tre ganger så
+               høy. De hører hjemme her — du slår dem opp, du følger dem ikke
+               mens du går. -->
+          <div v-if="printScaleLabel || equidistanceLabel"
+               class="text-[10px] text-ink/50 tabular-nums mt-0.5 truncate">
+            <span v-if="printScaleLabel">{{ printScaleLabel }}</span>
+            <span v-if="printScaleLabel && equidistanceLabel" class="text-ink/30"> · </span>
+            <span v-if="equidistanceLabel">{{ equidistanceLabel }}</span>
           </div>
           <div v-if="!contextMenuInfo.inside" class="text-[10px] text-amber-300 mt-0.5">
             Utenfor kart-utsnittet
