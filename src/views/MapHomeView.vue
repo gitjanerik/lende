@@ -23,12 +23,14 @@ watch(activeTab, (t) => {
 </script>
 
 <template>
-  <div class="kart-ui relative w-full min-h-[100dvh] flex flex-col bg-app text-ink/90">
+  <div class="kart-ui relative w-full min-h-[100dvh] bg-app text-ink/90">
 
-    <!-- Toppbar: hamburgeren er inngangen til hovedmenyen. Bak: diskrete
-         kontur-ringer fra logoen, spredt fra øvre venstre hjørne. -->
-    <div class="relative overflow-hidden shrink-0 px-3 py-2.5 flex items-center gap-2
-                bg-surface/80 border-b border-ink/10">
+    <!-- Toppbar: full bredde som en chrome-stripe, men innholdet sentreres i
+         samme 700 px-spalte som panelet under, så hamburgeren og tittelen flukter
+         med det. Klebrig: hamburgeren ER inngangen til hovedmenyen på forsiden og
+         skal ikke scrolle bort. Bak: diskrete kontur-ringer fra logoen. -->
+    <div class="sticky top-0 z-20 relative overflow-hidden
+                bg-surface/80 backdrop-blur border-b border-ink/10">
       <svg viewBox="0 0 400 60" preserveAspectRatio="xMinYMin slice" aria-hidden="true"
            class="absolute inset-0 w-full h-full pointer-events-none">
         <defs>
@@ -41,17 +43,19 @@ watch(activeTab, (t) => {
           <use href="#hdr-blob" transform="translate(0,0) scale(0.72)"/>
         </g>
       </svg>
-      <div class="relative"><AppMenuButton variant="header" /></div>
-      <!-- Tittelen gjør stripen til en ordentlig header. Uten den sto
-           hamburgeren alene i et tomt felt og leste som en rest av noe (v2.4.16)
-           — men den kan ikke bare fjernes: den ER inngangen til hovedmenyen på
-           forsiden. -->
-      <div class="relative flex-1 text-[15px] font-semibold text-ink">Så i lende</div>
+      <div class="relative mx-auto w-full max-w-[700px] px-3 py-2.5 flex items-center gap-2">
+        <AppMenuButton variant="header" />
+        <div class="flex-1 text-[15px] font-semibold text-ink">Så i lende</div>
+      </div>
     </div>
 
-    <!-- Innhold. Global tekststørrelse (hovedmenyen) skalerer hele flaten. -->
-    <div class="flex-1 px-4 pt-4 pb-32 overflow-y-auto" :style="{ zoom: uiTextScale }">
-      <MapLibrary v-model:tab="activeTab" />
+    <!-- Innhold i en midtstilt spalte med samme maksbredde som modalene (700 px)
+         — på en bred skjerm strakk listene seg tidligere over hele vinduet, med
+         kartnavnet i venstre kant og knappene nesten en halvmeter unna (v2.4.17).
+         Siden scroller selv (ingen indre overflow-container), så mobil-nettleserens
+         adressefelt oppfører seg normalt. Global tekststørrelse skalerer flaten. -->
+    <div class="mx-auto w-full max-w-[700px] px-4 pt-4 pb-32" :style="{ zoom: uiTextScale }">
+      <MapLibrary v-model:tab="activeTab" @open-picker="router.push('/nytt')" />
     </div>
   </div>
 </template>
