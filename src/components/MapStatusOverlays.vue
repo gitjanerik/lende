@@ -249,12 +249,16 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
   </div>
 
   <!-- Advarsel ved lav GPS-nøyaktighet — peker bruker mot «Presis posisjon»-
-       innstillingen, som er den vanligste rotårsaken. -->
+       innstillingen, som er den vanligste rotårsaken. Full bredde (right-3) la
+       lukke-krysset rett under FAB-stacken, så advarselen ble umulig å bli kvitt
+       på en maskin uten ekte GPS (de fleste laptoper triangulerer på wifi og
+       treffer sjelden bedre enn ±100 m, så den sto der hele tiden). Samme
+       right-20 + max-w som de andre bannerne i denne filen: klar av knottene. -->
   <div v-else-if="!loading && showLowAccuracy"
-       class="absolute bottom-32 left-3 right-3 z-20 px-3 py-2.5 rounded-lg backdrop-blur
-              bg-amber-600/95 border border-amber-300/40 text-ink text-[12px] shadow-lg
-              flex items-start gap-2">
-    <div class="flex-1 leading-snug">
+       class="absolute bottom-32 left-3 right-20 z-20 max-w-[420px] px-3 py-2.5
+              rounded-lg backdrop-blur bg-amber-600/95 border border-amber-300/40
+              text-ink text-[12px] shadow-lg flex items-start gap-2">
+    <div class="flex-1 min-w-0 leading-snug">
       <div class="font-semibold mb-0.5">
         Unøyaktig posisjon (&plusmn;{{ Math.round(accuracyM) }} m)
       </div>

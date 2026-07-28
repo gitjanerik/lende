@@ -671,8 +671,7 @@ function applyNameLanguage() {
 const pinchEnabled = computed(() => !loading.value)
 // panAtRest: la kartet dras også ved nullstilt zoom (se clampPan for canvas-rom).
 const {
-  scale, translateX, translateY, rotation, reset, panTo, rotateTo,
-  animating, isGesturing, animateTransform,
+  scale, translateX, translateY, rotation, reset, panTo, rotateTo, animating, isGesturing,
 } = usePinchZoom(wrapperRef, { enabled: pinchEnabled, panAtRest: true, minScale: () => mosaicMinScale() })
 
 // Dynamisk zoom-ut-gulv: la brukeren zoome ut akkurat langt nok til å se HELE
@@ -2311,7 +2310,7 @@ const measureStats = computed(() => {
 const {
   buildingOnTheFly, buildingProgress, autoMapToast, currentMapIsAuto,
   drawerCoversCanvas, extendZonesVisible, activatableTile, mosaicGapCount,
-  edgeHandles, edgePreviewCells, hoveredDir, previewExtend, clearExtendPreview,
+  edgeHandles, hoveredDir, previewExtend, clearExtendPreview,
   showAutoMapToast,
   visibleCenterSvg, clientToSvg, svgToClient, scheduleActivatableCheck, autoMapModeBusy,
   autoMapBuildOpts, promoteTile, extendMap, armAutoMap,
@@ -2319,7 +2318,7 @@ const {
   refreshMosaicGaps, repairMosaicGaps,
 } = useMapExtend({
   wrapperRef, wrapperSize, meta, mapId, router,
-  scale, rotation, translateX, translateY, isGesturing, panTo, animateTransform,
+  scale, rotation, translateX, translateY, isGesturing, panTo,
   loading, loadError, fillingInDetails,
   annot, measureMode, sti, searchOpen, showControls, drawer,
   ghostRects, GHOST_TRIGGER_SUPPRESS_FRAC, renderGhostTiles,
@@ -2331,11 +2330,9 @@ const {
 // selv (edgeHandles er en computed over ghostRects + transform-tilstanden).
 watch(ghostRects, () => { refreshMosaicGaps() }, { deep: true })
 watch([scale, translateX, translateY, rotation], scheduleActivatableCheck)
-// Starter brukeren en egen gest (wheel-zoom, pinch, pan) mens en forhåndsvisning
-// står åpen, eier de utsnittet fra da av: rydd pille/spøkelser, men BEHOLD zoomen
-// — å rykke tilbake til det lagrede utsnittet midt i gesten ville kastet bort
-// bevegelsen de akkurat gjorde.
-watch(isGesturing, (g) => { if (g && hoveredDir.value) clearExtendPreview({ keepView: true }) })
+// Starter brukeren en egen gest (wheel-zoom, pinch, pan) mens pilla står åpen,
+// er den ikke lenger relevant — de ser på noe annet nå.
+watch(isGesturing, (g) => { if (g && hoveredDir.value) clearExtendPreview() })
 watch(extendZonesVisible, (v) => { if (!v && hoveredDir.value) clearExtendPreview() })
 // Bygge-lås for SW-oppdatering: mens en flis bygges/utvides eller detaljer fylles
 // inn, skal en «Oppdater»-reload vente (ellers etterlater den et hull i den
@@ -3679,7 +3676,6 @@ onUnmounted(() => {
            arket når det vokser, panoreres eller roteres. -->
       <MapEdgeHandles v-if="extendZonesVisible"
                       :handles="edgeHandles"
-                      :preview-cells="edgePreviewCells"
                       :hovered="hoveredDir"
                       @preview="previewExtend"
                       @clear="clearExtendPreview"

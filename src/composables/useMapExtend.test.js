@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   EXTEND_DIR_WORD, EXTEND_DIR_DEG, EDGE_DIRS, EDGE_DIR_VEC, EDGE_LABEL_OFFSET,
-  extendZoneLabelText, edgeAnchorSvg, edgeKnobDeg, edgeLabelOffset, growBounds,
+  extendZoneLabelText, edgeAnchorSvg, edgeKnobDeg, edgeLabelOffset,
   screenToViewBox, viewBoxToScreen,
 } from './useMapExtend.js'
 
@@ -135,27 +135,6 @@ describe('edgeLabelOffset — pilla forskyves INNOVER fra knappen', () => {
     expect(off.ly).toBeCloseTo(0, 6)
   })
   it('ukjent retning → null', () => expect(edgeLabelOffset('XX', 0)).toBe(null))
-})
-
-describe('growBounds — bboksen arket får etter en utvidelse', () => {
-  const b = { minX: 0, minY: 0, maxX: 1000, maxY: 600 }
-  it('kardinal vokser ÉN dimensjon', () => {
-    expect(growBounds(b, 'W', 1000, 600)).toEqual({ minX: -1000, minY: 0, maxX: 1000, maxY: 600 })
-    expect(growBounds(b, 'S', 1000, 600)).toEqual({ minX: 0, minY: 0, maxX: 1000, maxY: 1200 })
-  })
-  it('diagonal vokser BEGGE dimensjoner', () => {
-    expect(growBounds(b, 'NE', 1000, 600)).toEqual({ minX: 0, minY: -600, maxX: 2000, maxY: 600 })
-  })
-  it('krymper aldri arket', () => {
-    for (const dir of EDGE_DIRS) {
-      const g = growBounds(b, dir, 1000, 600)
-      expect(g.maxX - g.minX).toBeGreaterThanOrEqual(b.maxX - b.minX)
-      expect(g.maxY - g.minY).toBeGreaterThanOrEqual(b.maxY - b.minY)
-    }
-  })
-  it('ukjent retning → bboksen uendret', () => {
-    expect(growBounds(b, 'XX', 1000, 600)).toEqual(b)
-  })
 })
 
 describe('screenToViewBox / viewBoxToScreen — skjerm ⇄ viewBox (long-press-fiks)', () => {
