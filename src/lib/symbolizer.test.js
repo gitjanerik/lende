@@ -122,6 +122,24 @@ describe('classifyToIsom — idrettsanlegg (ISOM 513)', () => {
   })
 })
 
+describe('classifyToIsom — vei-ramper (*_link)', () => {
+  it('*_link rendres som sin foreldre-klasse (avkjøringer ut av rundkjøringer/kryss)', () => {
+    const way = (highway) => classifyToIsom({ type: 'way', tags: { highway } })
+    expect(way('motorway_link')).toEqual({ code: '501', cat: 'manmade' })
+    expect(way('trunk_link')).toEqual({ code: '501', cat: 'manmade' })
+    expect(way('primary_link')).toEqual({ code: '502', cat: 'manmade' })
+    expect(way('secondary_link')).toEqual({ code: '502', cat: 'manmade' })
+    expect(way('tertiary_link')).toEqual({ code: '503', cat: 'manmade' })
+  })
+
+  it('foreldre-klassene er uendret', () => {
+    const way = (highway) => classifyToIsom({ type: 'way', tags: { highway } })
+    expect(way('motorway')).toEqual({ code: '501', cat: 'manmade' })
+    expect(way('primary')).toEqual({ code: '502', cat: 'manmade' })
+    expect(way('tertiary')).toEqual({ code: '503', cat: 'manmade' })
+  })
+})
+
 describe('classifyToIsom — kraftlinje (ISOM 528)', () => {
   it('power=line og power=minor_line → 528 (begge kraftlinje-typer med)', () => {
     expect(classifyToIsom({ type: 'way', tags: { power: 'line' } })).toEqual({ code: '528', cat: 'manmade' })

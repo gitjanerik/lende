@@ -402,9 +402,16 @@ export function classifyToIsom(el) {
   if (t.landuse === 'farmland')                     return { code: '404', cat: 'terrain' }
   if (t.natural === 'scree' || t.natural === 'bare_rock') return { code: '210', cat: 'rock' }
 
-  if (t.highway === 'motorway' || t.highway === 'trunk')   return { code: '501', cat: 'manmade' }
-  if (t.highway === 'primary' || t.highway === 'secondary') return { code: '502', cat: 'manmade' }
-  if (t.highway === 'tertiary' || t.highway === 'residential' || t.highway === 'unclassified') return { code: '503', cat: 'manmade' }
+  // `*_link`-veier er ramper/kobler ved planskilte kryss og rundkjørings-
+  // interchanges — de bærer selve avkjøringen ut av rundkjøringen mot
+  // hovedveien. Uten dem ser kartet ut som om veien «stopper» i rundkjøringen
+  // (rapportert Jarlsberg-krysset fv300/fv308). Rendres som sin foreldre-klasse.
+  if (t.highway === 'motorway' || t.highway === 'trunk' ||
+      t.highway === 'motorway_link' || t.highway === 'trunk_link') return { code: '501', cat: 'manmade' }
+  if (t.highway === 'primary' || t.highway === 'secondary' ||
+      t.highway === 'primary_link' || t.highway === 'secondary_link') return { code: '502', cat: 'manmade' }
+  if (t.highway === 'tertiary' || t.highway === 'residential' || t.highway === 'unclassified' ||
+      t.highway === 'tertiary_link') return { code: '503', cat: 'manmade' }
   if (t.highway === 'service' || t.highway === 'living_street') return { code: '503', cat: 'manmade' }
   if (t.highway === 'track')                        return { code: '504', cat: 'manmade' }
   // v8.9.24: gang-/sykkelstier og fortau er fjernet fra turkartet — ISOM 508
