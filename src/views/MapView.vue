@@ -3806,7 +3806,7 @@ onUnmounted(() => {
            :class="['absolute z-30 backdrop-blur-md bg-surface/92 flex flex-col shadow-2xl',
                     isDesktop
                       ? 'top-0 right-0 bottom-0 border-l border-ink/10'
-                      : 'inset-x-0 bottom-0 border-t border-ink/10 rounded-t-2xl']"
+                      : 'drawer-shell inset-x-0 bottom-0 border-t border-ink/10 rounded-t-2xl']"
            :style="isDesktop
                      ? { width: panel.width.value + 'px', transition: panel.isResizing.value ? 'none' : undefined }
                      : drawer.drawerHeightStyle.value">

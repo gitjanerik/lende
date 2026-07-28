@@ -47,7 +47,7 @@ const title = computed(() => (
          class="absolute inset-0 z-50 flex items-end justify-center transition-colors duration-200"
          :class="drawer.isMaximized.value ? 'bg-black/60' : 'bg-transparent pointer-events-none'"
          @click.self="emit('close')">
-      <div class="w-full bg-surface border-t border-ink/10 rounded-t-2xl flex flex-col pointer-events-auto"
+      <div class="drawer-shell bg-surface border-t border-ink/10 rounded-t-2xl flex flex-col pointer-events-auto"
            :style="drawer.drawerHeightStyle.value">
         <!-- Dra-håndtak: samme hit-flate og følsomhet som kontekst-arket. -->
         <div class="shrink-0 touch-none cursor-grab active:cursor-grabbing pt-3.5 pb-3 flex justify-center"

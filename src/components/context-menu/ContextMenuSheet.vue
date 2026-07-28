@@ -75,7 +75,7 @@ function formatDistance(m) {
        :class="contextDrawer.isMaximized.value ? 'bg-black/60' : 'bg-transparent pointer-events-none'"
        @click.self="closeContextMenu">
     <div :ref="setSheetEl"
-         class="w-full bg-surface border-t border-ink/10 rounded-t-2xl flex flex-col pointer-events-auto"
+         class="drawer-shell bg-surface border-t border-ink/10 rounded-t-2xl flex flex-col pointer-events-auto"
          :style="contextDrawer.drawerHeightStyle.value">
       <!-- Dra-håndtak: dra opp for å maksimere (~85dvh), ned for standard.
            Romslig hit-flate (pt-3.5 pb-3) så tappen er lett å treffe. -->

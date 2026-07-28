@@ -98,6 +98,28 @@ html { background: var(--color-app); }
   --ovl-poi: calc(16rem + var(--safe-top));    /* POI-info-boks (var top-[16rem]) */
 }
 
+/* Bunn-skuffer (info-paneler som glir opp fra bunnen av viewporten) deler
+   bredde-regelen med modalvinduene (AppModal): full bredde på mobil og stående
+   nettbrett, men aldri bredere enn 700 px — et panel i full bredde på en
+   27-tommer er både ulesbart og dekker unødig mye kart. Midtstilles av
+   margin-inline: auto, som også virker for `absolute inset-x-0`-skuffer
+   (over-constrained → auto-marginene deler restplassen). */
+.drawer-shell {
+  width: 100%;
+  max-width: 700px;
+  margin-inline: auto;
+}
+
+/* Først når skuffen er smalere enn viewporten finnes det sidekanter å tegne —
+   på mobil ville de blitt hårstreker helt ute i skjermkanten. Bredden settes
+   her, fargen arves fra skuffens egen `border-<farge>`-klasse. */
+@media (min-width: 701px) {
+  .drawer-shell {
+    border-left-width: 1px;
+    border-right-width: 1px;
+  }
+}
+
 /* Inter-scope for turkart-sporet. font-weight: 400 er base; spesifikke labels
    og UI-elementer overstyrer via Tailwind eller egne CSS-regler. tabular-nums
    gir monospasede sifre i hele kart-UI-et (høyder, dybder, lengder, kontur-tall). */
