@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-28 — v2.4.11: Fjernet trigonometriske punkter
+
+Trigpunkter (ISOM 113) er fjernet helt fra Lende. Bakgrunn: OSM har nesten ingen `man_made=survey_point` i Norge (~1 pr 75 km²), og Kartverkets fastmerke-data finnes bare som WMS-raster — ingen live vektortjeneste som lar seg koble inn i den vektorbaserte kart-pipelinen uten en egen bake-jobb. Symbolet dukket derfor praktisk talt aldri opp, så vi slutter å reklamere for det. Fjernet: klassifiseringen (`isTrigPoint` + ISOM 113 i symbolizer), Overpass-henting av survey/geodesic-noder, trig-bucket/render/lag-wiring i kartbyggeren, peak/trig-overlappen (topper som også var fastmerker viste trekant — nå alltid vanlig topp-prikk), «Trigpunkter»-laget i kartlag-menyen, katalog- og symboldefinisjonen, og trigpunkt-prøven fra Tegnforklaring-siden. Ingen andre symboler påvirkes.
+
+---
+
 ## 2026-07-28 — v2.4.10: Veiramper ut av rundkjøringer + ryddet tegnforklaring
 
 Rundkjøringer og planskilte kryss i OSM kobler til hovedveien via `*_link`-ramper (f.eks. `primary_link`), og Lende hverken hentet eller tegnet disse — så avkjøringen ut av rundkjøringen forsvant og veien så ut til å stoppe i ringen (rapportert Jarlsberg-krysset fv300/fv308 i Tønsberg). Nå hentes `motorway_link/trunk_link/primary_link/secondary_link/tertiary_link` i Overpass-spørringen og tegnes som sin foreldre-klasse (ISOM 501/502/503). Samtidig er hjelpekurve (ISOM 103) og skråstrek (ISOM 104) fjernet fra Tegnforklaring-siden — Lende genererer dem ikke, så prøvene var villedende. Merknad om trigpunkter: de rendres korrekt når data finnes, men OSM har nesten ingen `man_made=survey_point` i Norge (~1 pr 75 km²), så de dukker sjelden opp — det er en dekningssak i kildedata, ikke en feil i kartbyggeren.

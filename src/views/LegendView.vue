@@ -39,7 +39,7 @@ const isDark = computed(() => hexLuminance(bgColor.value) < 0.4)
 
 // Grupper koder i tematiske seksjoner for hjelp til lesing
 const SECTIONS = [
-  { title: 'Høydekurver', codes: ['101', '102', '113'], category: 'contour' },
+  { title: 'Høydekurver', codes: ['101', '102'], category: 'contour' },
   { title: 'Stupkanter & blokker', codes: ['201', '203', '210', '213', '215', '216'], category: 'rock' },
   { title: 'Innlandsvann', codes: ['301', '302', '303', '304', '305', '308', '309'], category: 'water',
     note: 'Innsjø, tjern, bekk, myr. 303 saltvann der OSM tagger fjord.' },

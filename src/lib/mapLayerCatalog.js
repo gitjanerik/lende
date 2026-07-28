@@ -42,7 +42,6 @@ export const LAYERS = [
   { key: 'flyplass',   label: 'Flyplass' },
   { key: 'linje',      label: 'Gjerde' },
   { key: 'kraftlinje', label: 'Kraftlinjer' },
-  { key: 'trig',       label: 'Trigpunkter' },
   // Kulturminne-overlegg (Kulturminnesøk brukerminner) — klikkbare tema-ikoner.
   // ­ = myk bindestrek (&shy;): eksplisitt orddelingspunkt så det lange
   // ordet bryter pent på den trange lag-knappen i stedet for å flyte over.

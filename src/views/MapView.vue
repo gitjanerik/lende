@@ -1847,7 +1847,7 @@ function buildCullDomIndex() {
     if (rect) pushEntry(el, rect)
   }
   // 2) Punkt-symboler i translate-grupper (parkering, holdeplass, sjø-POI,
-  //    hule/gruve/trig/kirke/bom etter posisjons-fiksen) + navn-grupper.
+  //    hule/gruve/kirke/bom etter posisjons-fiksen) + navn-grupper.
   for (const el of svg.querySelectorAll('[data-layer] g[transform^="translate"]')) {
     if (seen.has(el)) continue
     // Hopp over grupper inni allerede-indekserte elementer (data-bbox-foreldre).

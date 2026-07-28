@@ -267,14 +267,6 @@
           "widthMm": 0.07,
           "linecap": "round"
         }
-      },
-      "113": {
-        "label": "Trigonometrisk punkt",
-        "$comment": "Sort fylt trekant med hvit prikk. ISOM 113.",
-        "point": {
-          "symbol": "trigpunkt",
-          "scaleMm": 1.6
-        }
       }
     },
     "manmade": {
@@ -1039,24 +1031,6 @@
           "y2": -0.55,
           "stroke": "#000",
           "widthMm": 0.2
-        }
-      ]
-    },
-    "trigpunkt": {
-      "$comment": "Trigonometrisk punkt (ISOM 113): liten ekvilateral trekant fylt sort med hvit prikk i sentrum.",
-      "viewBox": "-1 -1 2 2",
-      "elements": [
-        {
-          "type": "polygon",
-          "points": "0,-0.7 0.6,0.4 -0.6,0.4",
-          "fill": "#000"
-        },
-        {
-          "type": "circle",
-          "cx": 0,
-          "cy": 0.05,
-          "r": 0.16,
-          "fill": "#fff"
         }
       ]
     },
