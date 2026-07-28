@@ -1,5 +1,13 @@
 # Endringslogg
 
+## 2026-07-28 — v2.4.21: Kolofonen vokser med arket
+
+Kolofonen fra v2.4.20 var lagt ut i faste print-mm, og det gjorde den til en flekk på store kart: samme boks som dekker 16 % av bredden på et 4 km ark er nede på 5 % på et 9 km ark, for arket blir større mens boksen står stille. I PNG-eksport, der hele arket vises på én skjerm, var den knapt synlig. Kolofonen skalerer nå med kartstørrelsen etter samme kurve som symbolizeren bruker på stedsnavn — `clamp(widthM / 4000, 1, 3)` — så den holder omtrent konstant andel av arket uansett kartstørrelse: målt i Chromium er boksen 18,3 % av bredden både på et 4,1 km og et 9,2 km kart, mot 16 % og 5 % før. Grunnstørrelsen er samtidig hevet ~40 % (hovedtekst 2,4 → 3,4 mm), siden den var i det minste laget også på referanse-kartet.
+
+Selve linjalen er unntaket som ikke skaleres: den ER avstanden. Streken tegnes alltid nøyaktig `groundM` bruker-enheter lang (1 enhet = 1 m), og skalering skjer ved å velge en LENGRE rund bakke-avstand — vinduet for akseptabel strek-lengde vokser med `k`, så et større ark får «1 km» der et lite får «500 m». En egen test slår fast at strekens bredde er lik den oppgitte avstanden for fire kartstørrelser, så dekor-skalering aldri kan snike seg inn i målestokken. For små kart går en sikkerhetsventil andre veien: boksen får aldri legge beslag på mer enn 45 % av kartbredden, og krymper typografien om nødvendig.
+
+---
+
 ## 2026-07-28 — v2.4.20: Linjalen er bare en linjal — og PDF-en får en kolofon
 
 Linjal-boksen nederst til venstre på kartet bar to tekstlinjer den ikke trengte: «print 1:10 000» og «Høydekurver pr 5 m». Det er tall du slår opp én gang, ikke tall du følger mens du går, og de gjorde boksen nesten tre ganger så høy som selve linjalen. Nå står boksen med bare strek og lengde, og de to opplysningene har flyttet til punkt-skuffen — på linjen rett under koordinatene og kopier-knappen, der resten av kart-fakta allerede bor. Samtidig tegnes linjalen i `currentColor` istedenfor hardkodet hvit; på lyst tema er boksens bakgrunn hvit, så den hvite streken var usynlig.
