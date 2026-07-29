@@ -1,5 +1,13 @@
 # Endringslogg
 
+## 2026-07-29 — v2.4.26: Ryddet i info-elementene over turkartet
+
+Den svarte attribusjons-boksen nede til høyre i turkartet er borte. Den holdt fire linjer med provenens — ISOM-variant, DEM-kilde og -oppløsning og dybde-kilde — som ingen leser mens de går, men som lå og dekket kartet hele tiden. ODbL-kreditten «© OpenStreetMap-bidragsytere» må stå på kartet, og ligger nå som en egen liten linje under linjalen nede til venstre, i samme boks.
+
+Resten av provenensen er flyttet øverst i infopanelet (langtrykk i kartet, eller Info-knappen), rett under målestokk og ekvidistanse som allerede står der: én linje med ISOM-variant og DEM-kilde. Dybde-advarselen har fortsatt sin egen uthevede linje — når Sjøkart-WFS faller stille tilbake til DEM-estimatet, skal det ikke være mulig å overse at dybden er gjettet og ikke kan navigeres etter.
+
+---
+
 ## 2026-07-29 — v2.4.25: Snarvei til mørkt turkart i hovedmenyen
 
 Hovedmenyen har fått bryteren «Turkart i mørkt tema» rett under Lyst/Mørkt/Auto, av som default. De tre knappene styrer appens chrome — menyer, skuffer, knapper — mens den nye bryteren gjelder kartflaten, og gjør det samme som å velge «Mørk» under Innstillinger → Tema. Det er én og samme tilstand: velger du Mørk i Tema-fanen, står bryteren på, og slår du den av i menyen, hopper Tema-fanen tilbake til Lys (ISOM). Bryteren er to-tilstands, så «av» betyr alltid kartets standardpalett — også om du sto på Sepia eller Petrol.

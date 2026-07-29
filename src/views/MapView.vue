@@ -3137,6 +3137,26 @@ const printScaleLabel = computed(() => (
   meta.value?.scaleDenom ? `1:${formatDenom(meta.value.scaleDenom)}` : ''
 ))
 
+// Provenens som sto i attribusjons-boksen nede til høyre i kartet (fjernet
+// v2.4.26): ISOM-variant, DEM-kilde/-oppløsning og — når Sjøkart-WFS faktisk
+// leverte — dybde-kilden. Slås opp i punkt-skuffen, ikke lest mens du går.
+const mapSourceLabel = computed(() => {
+  const m = meta.value
+  if (!m) return ''
+  const parts = []
+  if (m.isomVersion) parts.push(`ISOM ${m.isomVersion}`)
+  if (m.demSource) parts.push(`DEM: ${m.demSource}${m.demResolutionM ? ` · ${m.demResolutionM} m` : ''}`)
+  if (m.depthSource === 'sjokart') parts.push('Dybde: Sjøkart')
+  return parts.join(' · ')
+})
+
+// Dybde-advarselen er sikkerhets-info, ikke provenens: den fragile Sjøkart-WFS
+// faller stille tilbake til DEM-estimatet, og en padler må vite at dybden da er
+// gjettet. Derfor egen, uthevet linje — aldri gjemt i kilde-listen over.
+const depthEstimateWarning = computed(() => (
+  meta.value?.depthSource === 'dem-estimat' ? 'Dybde: estimat — ikke for navigasjon' : ''
+))
+
 const SCALE_BAR_MAX_PX = 180
 const scaleBar = computed(() => {
   if (!meta.value) return { px: 0, label: '', ticks: [] }
@@ -3838,12 +3858,12 @@ onUnmounted(() => {
       @dismiss-low-accuracy="dismissLowAccuracy"
       @retry-gps="onRetryGps" />
 
-    <!-- Linjal + attribusjon — trekt ut til MapScaleAttribution (v1.0.8).
-         Målestokk/ekvidistanse står i punkt-skuffen, ikke her (v2.4.20). -->
+    <!-- Linjal + OSM-kreditt — trekt ut til MapScaleAttribution (v1.0.8).
+         Målestokk/ekvidistanse (v2.4.20) og ISOM/DEM/dybde-provenens (v2.4.26)
+         står i punkt-skuffen, ikke her. -->
     <MapScaleAttribution
       :visible="!loading && !searchOpen"
-      :scale-bar="scaleBar"
-      :meta="meta" />
+      :scale-bar="scaleBar" />
 
     <!-- Kontrollpanel (drawer). Desktop (≥768px): høyrestilt fullhøyde side-
          panel (som illustrasjons-sporet). Mobil: dragbart bunn-ark. -->
@@ -4145,6 +4165,8 @@ onUnmounted(() => {
       :map-data-label="mapDataLabel"
       :print-scale-label="printScaleLabel"
       :equidistance-label="equidistanceLabel"
+      :map-source-label="mapSourceLabel"
+      :depth-estimate-warning="depthEstimateWarning"
       :ctx-can-navigate="ctxCanNavigate"
       :ctx-can-measure="ctxCanMeasure"
       :ctx-can-annotate="ctxCanAnnotate"
