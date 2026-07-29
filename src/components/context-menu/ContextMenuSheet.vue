@@ -29,6 +29,10 @@ defineProps({
   // «Høydekurver pr 5 m» (flyttet hit fra linjal-boksen, v2.4.20).
   printScaleLabel: { type: String, default: '' },
   equidistanceLabel: { type: String, default: '' },
+  // ISOM-variant + DEM-kilde (+ dybde-kilde når Sjøkart leverte) og selve
+  // dybde-advarselen — flyttet hit fra attribusjons-boksen i kartet (v2.4.26).
+  mapSourceLabel: { type: String, default: '' },
+  depthEstimateWarning: { type: String, default: '' },
   ctxCanNavigate: { type: Boolean, default: false },
   ctxCanMeasure: { type: Boolean, default: false },
   ctxCanAnnotate: { type: Boolean, default: false },
@@ -133,6 +137,17 @@ function formatDistance(m) {
             <span v-if="printScaleLabel">{{ printScaleLabel }}</span>
             <span v-if="printScaleLabel && equidistanceLabel" class="text-ink/30"> · </span>
             <span v-if="equidistanceLabel">{{ equidistanceLabel }}</span>
+          </div>
+          <!-- Kilde-fakta (v2.4.26): ISOM-variant og DEM-kilde sto i den svarte
+               attribusjons-boksen nede til høyre i kartet. Ingen av dem sier noe
+               om terrenget du står i — de hører hjemme her, ved oppslaget. -->
+          <div v-if="mapSourceLabel"
+               class="text-[10px] text-ink/40 tabular-nums truncate">
+            {{ mapSourceLabel }}
+          </div>
+          <div v-if="depthEstimateWarning"
+               class="text-[10px] text-amber-300 font-medium truncate">
+            {{ depthEstimateWarning }}
           </div>
           <div v-if="!contextMenuInfo.inside" class="text-[10px] text-amber-300 mt-0.5">
             Utenfor kart-utsnittet
