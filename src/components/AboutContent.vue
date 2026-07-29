@@ -189,6 +189,31 @@ async function onInstallClick() {
               skalerbart SVG med zoom-trappet detaljnivå og togglebare kartlag.</li>
           </ul>
         </div>
+        <div class="space-y-2">
+          <h3 class="text-sm font-semibold text-ink/85">3D-visning av tur</h3>
+          <p class="text-[13px] leading-relaxed text-ink/70">
+            Velg en rute med stifinneren eller en rundtur, og trykk
+            <strong class="text-ink/90">3D-knappen ved startpunktet</strong>: turen
+            spilles av som en flytur over ekte terreng. Kameraet kan følge deg langs
+            ruta, fly filmatisk over landskapet eller utforskes fritt — og tjern,
+            topper, naturreservater, kulturminner og NVEs vannmålestasjoner langs
+            veien løftes fram med infokort. Et panel viser høyde, kilometer gått og
+            igjen, stigning og gjenværende tid. Slik kan du
+            <strong class="text-ink/90">oppleve turen før du går den</strong>.
+          </p>
+          <ul class="text-[13px] leading-relaxed text-ink/70 space-y-1.5 list-disc pl-5">
+            <li>Terrenget bygges i sanntid med <strong class="text-ink/90">Three.js</strong>
+              (WebGL) fra samme Kartverket-høydemodell som turkartet — og selve
+              kartet drapes over som tekstur, så 3D-landskapet ser ut som kartet
+              du kjenner.</li>
+            <li>Severdighetene langs ruta hentes fra kartets egen navneindeks
+              (virker offline), <strong class="text-ink/90">NVE HydAPI</strong> og
+              Riksantikvarens kulturminnedata.</li>
+            <li>3D-modulen lastes først når du trenger den, så appen er like lett
+              som før — har du åpnet et kart på nett, ligger den klar også uten
+              dekning.</li>
+          </ul>
+        </div>
       </div>
 
       <!-- Ruteplanlegger-fanen. -->
