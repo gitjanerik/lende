@@ -1,5 +1,17 @@
 # Endringslogg
 
+## 2026-07-29 — v2.4.28: Lesbare navn og dempede hytter i mørke temaer
+
+Stedsnavn i mørke kart-temaer var nesten-sort skrift (`#161616`) under en 1,2 mm hvit halo. Halogloen er tykk nok til å dominere bokstavene, så navnene leste som hvit skrift med mørk kjerne — og alle 55 stedsnavnene på et typisk kart lyste som klistremerker oppå det mørke underlaget. Årsaken var at `stedsnavn` aldri lå i katalogens `labels`-liste i det hele tatt, så ingen av de sju mørke temaene kunne nå den, selv om `symbolizer.js` hadde variablene klare nettopp for at temaene skulle overstyre dem. Samme hull gjaldt `omrade-navn`, `hytte-navn` og `naturreservat-navn`. Alle fire er nå farget per tema med nær-hvit skrift og halo i temaets egen bakgrunnsfarge, slik at gloen smelter inn i stedet for å ramme inn. Toppnavn og høydekurver beholder den gule/røde skriften si urørt.
+
+Vann-labels er målt mot hver sin bakgrunn i stedet for gjettet. Bare Curves faller under 4,5:1 (innsjønavn 4,09:1, moh-tall 3,19:1, dybdetall 3,63:1); de er løftet i lyshet innenfor samme blå kulør, mens de øvrige seks temaene ligger på 5,05–11,46:1 og er urørt. Områdenavn holdes bevisst dempet rundt 5:1 og ikke nær-hvit: de er uppercase med letter-spacing, og i lys-katalogen er de den svakeste labelen av alle — feilen var gloen, ikke mørkheten.
+
+Små bygg under 500 m² — hytter, uthus, garasjer — ble tegnet med Kartverket-stil hvitt fyll og sort omriss også i mørke temaer, fordi de to variablene `--iso-521-small-fill/stroke` ikke er ISOM-kodenavn og derfor aldri ble satt av noe tema. På et hyttekart ga det et teppe av lysende hvite ruter. Hvert tema setter dem nå i sin egen bygnings-idiom, med omtrent halve den visuelle vekten av et stort bygg. To nye tester krever full label- og småbygg-dekning i alle temaer, så samme hull ikke kan oppstå stille igjen.
+
+Til sist blinket kratt, hugstfelt og strand tilbake til lys-modus-farger i ~200 ms under hver pinch-zoom: gest-regelen bakte inn en flat lys farge som var mer spesifikk enn den tema-styrte regelen. Den går nå gjennom samme tema-variabel. Myra i Mørk er bevisst rørt: 308 fast og 309 utrygg skilles kun av mønster-tettheten, og en flat farge på begge ville gjort utrygg myr umulig å skille fra fast.
+
+---
+
 ## 2026-07-29 — v2.4.27: Hamburgeren blir liggende — og animerer
 
 Meny-knappen skifter nå faktisk fra tre streker til et kryss når hovedmenyen åpnes, i stedet for å hoppe rett til krysset. To ting sto i veien, og ingen av dem var z-index. Knappen ble flyttet fra toppraden til `<body>` i samme øyeblikk som menyen åpnet — og å flytte et element i DOM-en kobler det fra dokumentet og kansellerer alle løpende CSS-transisjoner, så animasjonen ble avlyst før den fikk begynne. Nå monteres knappen én gang i `<body>` og blir liggende der, alltid `fixed` på koordinatene til en plassholder som holder plassen i toppraden. Åpning endrer da bare klasser på strekene, og siden knappen permanent bor utenfor toppradenes stacking contexts virker z-[205] som tenkt: over backdrop og skuff, under modalene.
