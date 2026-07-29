@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { buildPointSymbolDef, isOsmWaterSalty, isFlowingWaterArea, classifyToIsom, isTrailheadParking, buildIsomCss, isNationalPark, nationalParkFacts } from './symbolizer.js'
+import isomCatalog from './isomCatalog.json'
+import { buildPointSymbolDef, buildPatternDef, isOsmWaterSalty, isFlowingWaterArea, classifyToIsom, isTrailheadParking, buildIsomCss, isNationalPark, nationalParkFacts } from './symbolizer.js'
 
 describe('isTrailheadParking — offentlig utfartsparkering vs. privat', () => {
   it('utfart-/tur-/friluft-navn markeres som utfartsparkering uansett access', () => {
@@ -296,5 +297,65 @@ describe('nasjonalpark — egen kategori, ikke ISOM 520 (v2.4.23)', () => {
 
   it('nationalParkFacts returnerer null for alt annet enn nasjonalpark', () => {
     expect(nationalParkFacts({ leisure: 'nature_reserve', name: 'Y' })).toBeNull()
+  })
+})
+
+describe('punktsymbol-farger — hva som themes og hva som er konstant', () => {
+  const cat = isomCatalog
+
+  // Rene sort-på-hvitt kartmarker skal følge temaet via currentColor. Hardkodet
+  // #000 gjorde dem usynlige i mørke temaer.
+  it('blekk-symbolene bruker currentColor, ikke #000', () => {
+    for (const name of ['stein', 'bom', 'bru', 'bro', 'hule', 'gruve']) {
+      const blob = JSON.stringify(cat.pointSymbols[name])
+      expect(blob, `${name} har fortsatt hardkodet #000`).not.toContain('#000')
+      expect(blob, `${name} mangler currentColor`).toContain('currentColor')
+    }
+  })
+
+  // Skiltfarger og sjømerke-koding er konstante på tvers av temaer — som ekte
+  // skilt. En hvit glyf på blå brikke skal IKKE følge temaets blekk.
+  it('skilt- og IALA-farger er ikke rutet gjennom blekket', () => {
+    // Hvit glyf på farget brikke skal være REN hvit, ikke temaets papir — ellers
+    // ville P-/buss-/WC-piktogrammene blitt mørke inni den blå brikken.
+    for (const name of ['parkering', 'holdeplass', 'wc']) {
+      const paints = cat.pointSymbols[name].elements.map((e) => e.fill)
+      expect(paints, `${name} mistet ren hvit glyf`).toContain('#fff')
+    }
+    // IALA: sort/gult på cardinal, gult med sort omriss på special.
+    expect(JSON.stringify(cat.pointSymbols['stake-cardinal'])).toContain('#000')
+    expect(JSON.stringify(cat.pointSymbols['stake-special'])).toContain('#000')
+  })
+
+  // Kirkekorset er samme idiom som label-haloene: sort blekk bak en hvit halo.
+  // Korset følger blekket, haloen temaets bakgrunn — så den smelter inn i stedet
+  // for å gløde, slik den gjorde i alle mørke temaer.
+  it('kirkekorset følger blekket og haloen temaets papir', () => {
+    const paints = cat.pointSymbols.kirke.elements.map((e) => e.fill)
+    expect(paints.filter((p) => p === 'currentColor')).toHaveLength(2)
+    expect(paints.filter((p) => p === 'var(--sym-paper, #fff)')).toHaveLength(2)
+    expect(paints).not.toContain('#000')
+    expect(paints).not.toContain('#fff')
+  })
+
+  it('var()-farger legges som inline style, ikke som presentasjonsattributt', () => {
+    // var() virker ikke i SVG-presentasjonsattributter; attributtet må beholde
+    // fallback-fargen mens style-en bærer variabelen.
+    const def = buildPointSymbolDef('iso-sym-kirke', cat.pointSymbols.kirke)
+    expect(def).toContain('style="fill:var(--sym-paper, #fff)"')
+    expect(def).toContain('fill="#fff"')
+    expect(def).not.toContain('fill="var(')
+  })
+
+  it('mønster-farger går gjennom --pattern-<navn>-stroke', () => {
+    const def = buildPatternDef('iso-pat-myr', cat.patterns.myr, 'myr')
+    expect(def).toContain('var(--pattern-myr-stroke, #0099cc)')
+    // Presentasjonsattributtet beholdes som fallback (var() virker ikke der).
+    expect(def).toContain('stroke="#0099cc"')
+  })
+
+  it('roten setter color fra --sym-ink så currentColor kan arves', () => {
+    const css = buildIsomCss(cat, new Map(), {})
+    expect(css).toContain('color: var(--sym-ink, #000)')
   })
 })

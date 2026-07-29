@@ -75,6 +75,17 @@ export function themeVarEntries(temaKey, catalog = isomCatalogDefault) {
       if (def.color) vars.push([`--label-${name}-fill`, def.color])
       if (def.haloColor) vars.push([`--label-${name}-halo`, def.haloColor])
     }
+    // Mønster-farger: lar et tema endre rasterets STREKFARGE uten å flate ut
+    // mønsteret. Nødvendig for myra, der 308 fast og 309 utrygg skilles kun av
+    // rastertettheten — et flatt fyll ville gjort dem identiske.
+    for (const [name, def] of Object.entries(t.patterns ?? {})) {
+      if (def.stroke) vars.push([`--pattern-${name}-stroke`, def.stroke])
+      if (def.fill) vars.push([`--pattern-${name}-fill`, def.fill])
+    }
+    // Punktsymbol-blekket (currentColor på roten) — de rene sort-på-hvitt
+    // markene. Semantiske symbolfarger themes IKKE, se buildIsomCss.
+    if (t.symbols?.ink) vars.push(['--sym-ink', t.symbols.ink])
+    if (t.symbols?.paper) vars.push(['--sym-paper', t.symbols.paper])
   }
   return vars
 }

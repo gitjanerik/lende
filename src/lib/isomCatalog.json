@@ -872,7 +872,7 @@
         {
           "type": "polygon",
           "points": "0,-0.6 0.6,0.5 -0.6,0.5",
-          "fill": "#000"
+          "fill": "currentColor"
         }
       ]
     },
@@ -919,7 +919,7 @@
           "y1": -0.3,
           "x2": 0.6,
           "y2": -0.3,
-          "stroke": "#000",
+          "stroke": "currentColor",
           "widthMm": 0.1
         },
         {
@@ -928,7 +928,7 @@
           "y1": 0.3,
           "x2": 0.6,
           "y2": 0.3,
-          "stroke": "#000",
+          "stroke": "currentColor",
           "widthMm": 0.1
         }
       ]
@@ -1004,7 +1004,7 @@
         {
           "type": "path",
           "d": "M-0.55 -0.4 A0.55 0.55 0 0 0 0.55 -0.4",
-          "stroke": "#000",
+          "stroke": "currentColor",
           "widthMm": 0.18,
           "fill": "none"
         }
@@ -1020,7 +1020,7 @@
           "y1": -0.55,
           "x2": 0.55,
           "y2": 0.55,
-          "stroke": "#000",
+          "stroke": "currentColor",
           "widthMm": 0.2
         },
         {
@@ -1029,7 +1029,7 @@
           "y1": 0.55,
           "x2": 0.55,
           "y2": -0.55,
-          "stroke": "#000",
+          "stroke": "currentColor",
           "widthMm": 0.2
         }
       ]
@@ -1133,7 +1133,7 @@
           "y": -0.92,
           "width": 0.48,
           "height": 1.74,
-          "fill": "#fff"
+          "fill": "var(--sym-paper, #fff)"
         },
         {
           "type": "rect",
@@ -1141,7 +1141,7 @@
           "y": -0.52,
           "width": 1.2,
           "height": 0.46,
-          "fill": "#fff"
+          "fill": "var(--sym-paper, #fff)"
         },
         {
           "type": "rect",
@@ -1149,7 +1149,7 @@
           "y": -0.82,
           "width": 0.28,
           "height": 1.6,
-          "fill": "#000"
+          "fill": "currentColor"
         },
         {
           "type": "rect",
@@ -1157,7 +1157,7 @@
           "y": -0.42,
           "width": 1.0,
           "height": 0.28,
-          "fill": "#000"
+          "fill": "currentColor"
         }
       ]
     },
@@ -1340,7 +1340,7 @@
           "y1": -0.3,
           "x2": 0.7,
           "y2": -0.3,
-          "stroke": "#000",
+          "stroke": "currentColor",
           "widthMm": 0.14
         },
         {
@@ -1349,7 +1349,7 @@
           "y1": 0.3,
           "x2": 0.7,
           "y2": 0.3,
-          "stroke": "#000",
+          "stroke": "currentColor",
           "widthMm": 0.14
         }
       ]
@@ -1364,7 +1364,7 @@
           "y": -0.1,
           "width": 1.4,
           "height": 0.2,
-          "fill": "#000"
+          "fill": "currentColor"
         },
         {
           "type": "rect",
@@ -1372,7 +1372,7 @@
           "y": -0.4,
           "width": 0.15,
           "height": 0.8,
-          "fill": "#000"
+          "fill": "currentColor"
         },
         {
           "type": "rect",
@@ -1380,7 +1380,7 @@
           "y": -0.4,
           "width": 0.15,
           "height": 0.8,
-          "fill": "#000"
+          "fill": "currentColor"
         }
       ]
     },
@@ -1885,7 +1885,19 @@
       },
       "artMode": false,
       "fillOpacity": 1,
-      "autoHideLayers": false
+      "autoHideLayers": false,
+      "symbols": {
+        "ink": "#d8dcdf",
+        "paper": "#14181c"
+      },
+      "patterns": {
+        "myr": {
+          "stroke": "#5a93b3"
+        },
+        "myr-utrygg": {
+          "stroke": "#5a93b3"
+        }
+      }
     },
     "mono-sepia": {
       "$comment": "Varmt papir. Én okerhue i seks valører, jernoksidrøde kurver og teal vann — trykt kart, ikke skjermkart.",
@@ -2231,7 +2243,11 @@
           "haloColor": "#f4e7ce"
         }
       },
-      "autoHideLayers": false
+      "autoHideLayers": false,
+      "symbols": {
+        "ink": "#2f2b24",
+        "paper": "#f4e7ce"
+      }
     },
     "mono-indigo": {
       "$comment": "Blåkopi ved natt. Dyp indigo, karminrøde kurver, isblått vann — teknisk og kald.",
@@ -2577,7 +2593,11 @@
           "haloColor": "#16203c"
         }
       },
-      "autoHideLayers": false
+      "autoHideLayers": false,
+      "symbols": {
+        "ink": "#b9bfcb",
+        "paper": "#16203c"
+      }
     },
     "mono-slate": {
       "$comment": "Dyp petroleumsblå — kjølig, marin og rolig. Signalrøde kurver over en nesten svart sjøbunn.",
@@ -2923,7 +2943,11 @@
           "haloColor": "#0c2a2e"
         }
       },
-      "autoHideLayers": false
+      "autoHideLayers": false,
+      "symbols": {
+        "ink": "#b6c3c5",
+        "paper": "#0c2a2e"
+      }
     },
     "mocha": {
       "$comment": "Brent kaffe og terrakotta. Familiens varmeste — mørk jord med teal vann som eneste kalde element.",
@@ -3269,7 +3293,11 @@
           "haloColor": "#39210e"
         }
       },
-      "autoHideLayers": false
+      "autoHideLayers": false,
+      "symbols": {
+        "ink": "#cfc6bf",
+        "paper": "#39210e"
+      }
     },
     "forest": {
       "$comment": "Granskygge. Én mørk grønn hue fra myrkant til tettskog, teglrøde kurver, tealgrønt vann.",
@@ -3615,7 +3643,11 @@
           "haloColor": "#142a18"
         }
       },
-      "autoHideLayers": false
+      "autoHideLayers": false,
+      "symbols": {
+        "ink": "#c0c8c1",
+        "paper": "#142a18"
+      }
     },
     "curves": {
       "$comment": "Minimalistisk kunstmodus. Auberginesvart papir der gule høydekurver dominerer totalt; resten av kartet hvisker rett over bakgrunnen.",
@@ -3961,7 +3993,11 @@
           "haloColor": "#0d0520"
         }
       },
-      "autoHideLayers": false
+      "autoHideLayers": false,
+      "symbols": {
+        "ink": "#6a6972",
+        "paper": "#0d0520"
+      }
     }
   }
 }

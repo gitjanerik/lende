@@ -74,19 +74,31 @@ function pointsInUserUnits(points) {
 }
 
 /** Lag en <pattern>-streng fra patterns-katalogen */
-export function buildPatternDef(patternId, spec) {
+export function buildPatternDef(patternId, spec, name = patternId.replace(/^iso-pat-/, '')) {
+  // Mønster-fargene går gjennom --pattern-<navn>-stroke/-fill, lagt som INLINE
+  // style og ikke som presentasjonsattributt: var() virker ikke i SVG-
+  // presentasjonsattributter. Mønster-innhold males direkte (ingen shadow-tre
+  // som <use>), og custom properties arves ned gjennom <defs>, så inline style
+  // treffer. Attributtet beholdes ved siden av som fallback.
+  //
+  // Uten dette var myr-rasteren låst til lys-modus' cyan (#0099cc) i Mørk, der
+  // 308/309 BEVISST beholder mønstrene sine (se mapSettingsApply.test.js: fast
+  // vs utrygg myr skilles kun av rastertettheten, så et flatt fyll ville gjort
+  // dem identiske). Å farge streken løser gloen uten å røre den forskjellen.
+  const sv = v => `var(--pattern-${name}-stroke, ${v})`
+  const fv = v => `var(--pattern-${name}-fill, ${v})`
   const elements = (spec.elements ?? []).map(el => {
     if (el.type === 'line') {
-      return `<line x1="${el.x1}mm" y1="${el.y1}mm" x2="${el.x2}mm" y2="${el.y2}mm" stroke="${el.stroke}" stroke-width="${el.widthMm}mm"/>`
+      return `<line x1="${el.x1}mm" y1="${el.y1}mm" x2="${el.x2}mm" y2="${el.y2}mm" stroke="${el.stroke}" stroke-width="${el.widthMm}mm" style="stroke:${sv(el.stroke)}"/>`
     }
     if (el.type === 'circle') {
-      return `<circle cx="${el.cx}mm" cy="${el.cy}mm" r="${el.r}mm" fill="${el.fill}"/>`
+      return `<circle cx="${el.cx}mm" cy="${el.cy}mm" r="${el.r}mm" fill="${el.fill}" style="fill:${fv(el.fill)}"/>`
     }
     if (el.type === 'rect') {
-      return `<rect x="${el.x}mm" y="${el.y}mm" width="${el.w}mm" height="${el.h}mm" fill="${el.fill}"/>`
+      return `<rect x="${el.x}mm" y="${el.y}mm" width="${el.w}mm" height="${el.h}mm" fill="${el.fill}" style="fill:${fv(el.fill)}"/>`
     }
     if (el.type === 'polygon') {
-      return `<polygon points="${pointsInUserUnits(el.points)}" fill="${el.fill}"/>`
+      return `<polygon points="${pointsInUserUnits(el.points)}" fill="${el.fill}" style="fill:${fv(el.fill)}"/>`
     }
     return ''
   }).join('')
@@ -112,34 +124,52 @@ export function buildPointSymbolDef(symId, spec) {
   // strek-symbolene (knaus/brønn/bro/skjaer/…) til de evt. migreres.
   const strokeW = el => el.strokeW != null ? `${el.strokeW}` : `${el.widthMm}mm`
   const cap = el => el.linecap ? ` stroke-linecap="${el.linecap}"` : ''
+
+  // var() virker ikke i SVG-presentasjonsattributter, men gjør det i inline
+  // style — og <use> kloner inline style inn i shadow-treet, der custom
+  // properties arves fra <use>-elementet. Katalogverdier som starter med `var(`
+  // legges derfor som style, med fallback-fargen igjen i attributtet.
+  // Brukes av kirke-korsets hvite halo (--sym-paper): den skal smelte inn i
+  // temaets bakgrunn i stedet for å gløde, akkurat som label-haloene. Rene
+  // blekk-marker klarer seg med currentColor og trenger ikke dette.
+  const isVar = v => typeof v === 'string' && v.startsWith('var(')
+  // Attributtverdien: fallback-fargen når verdien er en var(), ellers uendret.
+  const pv = v => (isVar(v) ? (v.match(/,\s*([^,()]+)\)\s*$/)?.[1]?.trim() ?? 'none') : v)
+  // Ett samlet style-attributt for de paint-egenskapene som ER var().
+  const pstyle = (el) => {
+    const s = ['fill', 'stroke']
+      .filter(p => isVar(el[p]))
+      .map(p => `${p}:${el[p]}`)
+    return s.length ? ` style="${s.join(';')}"` : ''
+  }
   const elements = (spec.elements ?? []).map(el => {
     if (el.type === 'line') {
-      return `<line x1="${el.x1}" y1="${el.y1}" x2="${el.x2}" y2="${el.y2}" stroke="${el.stroke}" stroke-width="${strokeW(el)}"${cap(el)} ${el.fill === 'none' ? 'fill="none"' : ''}/>`
+      return `<line x1="${el.x1}" y1="${el.y1}" x2="${el.x2}" y2="${el.y2}" stroke="${pv(el.stroke)}" stroke-width="${strokeW(el)}"${cap(el)} ${el.fill === 'none' ? 'fill="none"' : ''}${pstyle(el)}/>`
     }
     if (el.type === 'circle') {
-      const stroke = el.stroke ? `stroke="${el.stroke}" stroke-width="${strokeW(el)}"` : ''
-      const fill = el.fill ?? 'none'
-      return `<circle cx="${el.cx}" cy="${el.cy}" r="${el.r}" fill="${fill}" ${stroke}/>`
+      const stroke = el.stroke ? `stroke="${pv(el.stroke)}" stroke-width="${strokeW(el)}"` : ''
+      const fill = pv(el.fill ?? 'none')
+      return `<circle cx="${el.cx}" cy="${el.cy}" r="${el.r}" fill="${fill}" ${stroke}${pstyle(el)}/>`
     }
     if (el.type === 'path') {
-      const stroke = el.stroke ? `stroke="${el.stroke}" stroke-width="${strokeW(el)}"${cap(el)}` : ''
-      const fill = el.fill ?? 'none'
-      return `<path d="${el.d}" fill="${fill}" ${stroke}/>`
+      const stroke = el.stroke ? `stroke="${pv(el.stroke)}" stroke-width="${strokeW(el)}"${cap(el)}` : ''
+      const fill = pv(el.fill ?? 'none')
+      return `<path d="${el.d}" fill="${fill}" ${stroke}${pstyle(el)}/>`
     }
     if (el.type === 'polygon') {
-      return `<polygon points="${el.points}" fill="${el.fill}"/>`
+      return `<polygon points="${el.points}" fill="${pv(el.fill)}"${pstyle(el)}/>`
     }
     if (el.type === 'text') {
       // Brukt av WC-symbolet (ISOM 554): kort tekst sentrert i symbol-viewBox.
-      return `<text x="${el.x ?? 0}" y="${el.y ?? 0}" font-size="${el.fontSize}" text-anchor="middle" fill="${el.fill}" font-family="sans-serif" font-weight="700">${el.content}</text>`
+      return `<text x="${el.x ?? 0}" y="${el.y ?? 0}" font-size="${el.fontSize}" text-anchor="middle" fill="${pv(el.fill)}"${pstyle(el)} font-family="sans-serif" font-weight="700">${el.content}</text>`
     }
     if (el.type === 'rect') {
       // ISOM 540 (stake-port) og 542 (stake-cardinal) bruker rect-elementer
       // — uten denne handleren ble de silent dropped → tomme symboler
       // (usynlig på kart og i Tegnforklaring).
-      const stroke = el.stroke ? `stroke="${el.stroke}" stroke-width="${strokeW(el)}"` : ''
-      const fill = el.fill ?? 'none'
-      return `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" fill="${fill}" ${stroke}/>`
+      const stroke = el.stroke ? `stroke="${pv(el.stroke)}" stroke-width="${strokeW(el)}"` : ''
+      const fill = pv(el.fill ?? 'none')
+      return `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" fill="${fill}" ${stroke}${pstyle(el)}/>`
     }
     return ''
   }).join('')
@@ -532,7 +562,7 @@ export function buildIsomDefs(catalog = isomCatalogDefault) {
   for (const [name, spec] of Object.entries(catalog.patterns)) {
     const id = `iso-pat-${name}`
     patternIds.set(name, id)
-    patternDefs.set(name, buildPatternDef(id, spec))
+    patternDefs.set(name, buildPatternDef(id, spec, name))
   }
   for (const [name, spec] of Object.entries(catalog.pointSymbols)) {
     const id = `iso-sym-${name}`
@@ -623,7 +653,16 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
   // Fallback = Inter Variable (selv-hostet i style.css) for eldre kart uten var-en.
   // Vann-navn overstyrer til --water-font (kursiv serif) lenger ned. font-weight: 400
   // er base; peak/stedsnavn overstyrer. tabular-nums = monospaced høyde-/dybde-/kontur-tall.
-  rules.push(`${root} { background: var(--bg, ${catalog.background.color}); font-family: var(--land-font, 'Inter Variable'), ui-sans-serif, system-ui, sans-serif; font-weight: 400; font-variant-numeric: tabular-nums; }`)
+  // `color` på roten er blekket til de rene sort-på-hvitt punktsymbolene
+  // (stein/bom/bru/bro/hule/gruve), som tegner med fill/stroke=currentColor.
+  // Hardkodet #000 gjorde dem usynlige i alle mørke temaer. Ruten går via
+  // `color` og ikke via en fill-variabel fordi symbolene plasseres med <use>:
+  // innholdet klones til et shadow-tre, og arvede egenskaper som `color` er den
+  // pålitelige veien inn (samme teknikk som kulturminne-fasaden bruker per
+  // kategori lenger ned). Semantiske farger — blå skilt-brikker, IALA-gult/sort
+  // på sjømerker, rødt/grønt — er bevisst IKKE rutet hit; de er konstante på
+  // tvers av temaer, som ekte skilt.
+  rules.push(`${root} { background: var(--bg, ${catalog.background.color}); color: var(--sym-ink, #000); font-family: var(--land-font, 'Inter Variable'), ui-sans-serif, system-ui, sans-serif; font-weight: 400; font-variant-numeric: tabular-nums; }`)
   // Bakgrunn-rect bruker også --bg så mørk modus erstatter den kremgule
   // landoverflaten med dark brown (presentation-attr fill blir overstyrt).
   rules.push(`${root} #bakgrunn rect { fill: var(--bg, ${catalog.background.color}); }`)
