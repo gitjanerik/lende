@@ -2001,16 +2001,6 @@
             "color": "#a0d8d2"
           }
         },
-        "308": {
-          "fill": {
-            "color": "#c6e7e3"
-          }
-        },
-        "309": {
-          "fill": {
-            "color": "#b7e2dd"
-          }
-        },
         "401": {
           "fill": {
             "color": "#f7ddaa"
@@ -2247,6 +2237,14 @@
       "symbols": {
         "ink": "#2f2b24",
         "paper": "#f4e7ce"
+      },
+      "patterns": {
+        "myr": {
+          "stroke": "#098b83"
+        },
+        "myr-utrygg": {
+          "stroke": "#098b83"
+        }
       }
     },
     "mono-indigo": {
@@ -2349,16 +2347,6 @@
         "307": {
           "fill": {
             "color": "#00333f"
-          }
-        },
-        "308": {
-          "fill": {
-            "color": "#1e3136"
-          }
-        },
-        "309": {
-          "fill": {
-            "color": "#1d373e"
           }
         },
         "401": {
@@ -2597,6 +2585,14 @@
       "symbols": {
         "ink": "#b9bfcb",
         "paper": "#16203c"
+      },
+      "patterns": {
+        "myr": {
+          "stroke": "#3b7180"
+        },
+        "myr-utrygg": {
+          "stroke": "#3b7180"
+        }
       }
     },
     "mono-slate": {
@@ -2699,16 +2695,6 @@
         "307": {
           "fill": {
             "color": "#0c3548"
-          }
-        },
-        "308": {
-          "fill": {
-            "color": "#24343c"
-          }
-        },
-        "309": {
-          "fill": {
-            "color": "#243945"
           }
         },
         "401": {
@@ -2947,6 +2933,14 @@
       "symbols": {
         "ink": "#b6c3c5",
         "paper": "#0c2a2e"
+      },
+      "patterns": {
+        "myr": {
+          "stroke": "#416f85"
+        },
+        "myr-utrygg": {
+          "stroke": "#416f85"
+        }
       }
     },
     "mocha": {
@@ -3049,16 +3043,6 @@
         "307": {
           "fill": {
             "color": "#023c37"
-          }
-        },
-        "308": {
-          "fill": {
-            "color": "#243835"
-          }
-        },
-        "309": {
-          "fill": {
-            "color": "#233f3b"
           }
         },
         "401": {
@@ -3297,6 +3281,14 @@
       "symbols": {
         "ink": "#cfc6bf",
         "paper": "#39210e"
+      },
+      "patterns": {
+        "myr": {
+          "stroke": "#3a746d"
+        },
+        "myr-utrygg": {
+          "stroke": "#3a746d"
+        }
       }
     },
     "forest": {
@@ -3399,16 +3391,6 @@
         "307": {
           "fill": {
             "color": "#003838"
-          }
-        },
-        "308": {
-          "fill": {
-            "color": "#203535"
-          }
-        },
-        "309": {
-          "fill": {
-            "color": "#1f3b3b"
           }
         },
         "401": {
@@ -3647,6 +3629,14 @@
       "symbols": {
         "ink": "#c0c8c1",
         "paper": "#142a18"
+      },
+      "patterns": {
+        "myr": {
+          "stroke": "#387474"
+        },
+        "myr-utrygg": {
+          "stroke": "#387474"
+        }
       }
     },
     "curves": {
@@ -3749,16 +3739,6 @@
         "307": {
           "fill": {
             "color": "#051729"
-          }
-        },
-        "308": {
-          "fill": {
-            "color": "#0d161f"
-          }
-        },
-        "309": {
-          "fill": {
-            "color": "#0f1a25"
           }
         },
         "401": {
@@ -3997,6 +3977,14 @@
       "symbols": {
         "ink": "#6a6972",
         "paper": "#0d0520"
+      },
+      "patterns": {
+        "myr": {
+          "stroke": "#2b3d50"
+        },
+        "myr-utrygg": {
+          "stroke": "#2b3d50"
+        }
       }
     }
   }

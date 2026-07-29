@@ -146,12 +146,16 @@ describe('tema', () => {
     expect(css).not.toContain('--art-fill-opacity')
   })
 
-  it('dark lar myra beholde katalogens to mønstre', () => {
-    // 308 fast / 309 utrygg skilles KUN av mønster-tettheten. En flat farge på
-    // begge (som før) gjorde dem identiske, så temaet overstyrer dem ikke.
-    const css = buildThemeCss('dark')
-    expect(css).not.toContain('--iso-308-fill')
-    expect(css).not.toContain('--iso-309-fill')
+  it('INGEN tema flater ut myra — alle beholder katalogens to mønstre', () => {
+    // 308 fast / 309 utrygg skilles KUN av mønster-tettheten. Et flatt fyll gjør
+    // dem identiske, altså utrygg myr umulig å skille fra fast — en sikkerhets-
+    // regresjon på et turkart. Gjaldt opprinnelig bare dark; de seks monokrome
+    // temaene flatet dem ut helt til v2.4.30.
+    for (const key of listThemes().map((t) => t.key)) {
+      const css = buildThemeCss(key)
+      expect(css, `${key} flater ut fast myr`).not.toContain('--iso-308-fill')
+      expect(css, `${key} flater ut utrygg myr`).not.toContain('--iso-309-fill')
+    }
   })
 
   it('veier i dark farger kjernen, ikke bare casingen', () => {
@@ -206,14 +210,15 @@ describe('tema', () => {
     }
   })
 
-  it('dark farger myr-rasteret uten å flate det ut', () => {
-    // Motstykket til «dark lar myra beholde katalogens to mønstre»: strekfargen
-    // themes, tettheten ikke — så fast (308) og utrygg (309) er fortsatt ulike.
-    const css = buildThemeCss('dark')
-    expect(css).toContain('--pattern-myr-stroke:')
-    expect(css).toContain('--pattern-myr-utrygg-stroke:')
-    expect(css).not.toContain('--iso-308-fill')
-    expect(css).not.toContain('--iso-309-fill')
+  it('alle temaer farger myr-rasteret i sin egen kulør', () => {
+    // Motstykket til testen over: strekfargen themes, tettheten ikke — så myra
+    // slutter å være lys-modus' cyan uten at fast/utrygg-forskjellen ryker.
+    for (const key of DARK_THEMES) {
+      const css = buildThemeCss(key)
+      expect(css, `${key} mangler myr-strek`).toContain('--pattern-myr-stroke:')
+      expect(css, `${key} mangler utrygg-strek`).toContain('--pattern-myr-utrygg-stroke:')
+      expect(css, `${key} har cyan myr`).not.toContain('#0099cc')
+    }
   })
 
   it('stiFarger bakes inn i innstillings-CSS-en (MCP-paritet med appen)', () => {
