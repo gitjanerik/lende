@@ -1,5 +1,13 @@
 # Endringslogg
 
+## 2026-07-29 — v2.4.27: Hamburgeren blir liggende — og animerer
+
+Meny-knappen skifter nå faktisk fra tre streker til et kryss når hovedmenyen åpnes, i stedet for å hoppe rett til krysset. To ting sto i veien, og ingen av dem var z-index. Knappen ble flyttet fra toppraden til `<body>` i samme øyeblikk som menyen åpnet — og å flytte et element i DOM-en kobler det fra dokumentet og kansellerer alle løpende CSS-transisjoner, så animasjonen ble avlyst før den fikk begynne. Nå monteres knappen én gang i `<body>` og blir liggende der, alltid `fixed` på koordinatene til en plassholder som holder plassen i toppraden. Åpning endrer da bare klasser på strekene, og siden knappen permanent bor utenfor toppradenes stacking contexts virker z-[205] som tenkt: over backdrop og skuff, under modalene.
+
+Selve animasjonen er også skrevet om. Den gamle CSS-en byttet `top`/`bottom` momentant og animerte bare rotasjonen, så øverste strek teleporterte til midten og roterte etterpå. Nå er alle tre strekene sentrert og spredt med `translateY` i samme transform-liste som rotasjonen, så spredning og rotasjon interpoleres sammen til et rent kryss. Midtstreken fader og krymper. `prefers-reduced-motion` hopper over hele bevegelsen.
+
+---
+
 ## 2026-07-29 — v2.4.26: Ryddet i info-elementene over turkartet
 
 Den svarte attribusjons-boksen nede til høyre i turkartet er borte. Den holdt fire linjer med provenens — ISOM-variant, DEM-kilde og -oppløsning og dybde-kilde — som ingen leser mens de går, men som lå og dekket kartet hele tiden. ODbL-kreditten «© OpenStreetMap-bidragsytere» må stå på kartet, og ligger nå som en egen liten linje under linjalen nede til venstre, i samme boks.

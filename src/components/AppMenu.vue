@@ -183,10 +183,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     <aside v-if="menuOpen" class="app-menu" :style="{ fontSize: rootFontSize }"
            aria-label="Hovedmeny">
       <div class="am-head">
-        <!-- Ingen egen X: hamburger-knappen som åpnet menyen ER lukkekontrollen,
-             og den ligger nå teleportert oppå skuffen (se AppMenuButton) med sin
-             streker→kryss-animasjon i fred. Plassholderen her holder tittelen der
-             den sto, klar av den flytende knappen (v2.4.18). -->
+        <!-- Ingen egen X: hamburger-knappen som åpnet menyen ER lukkekontrollen.
+             Den bor permanent i <body> med z-[205] (se AppMenuButton), altså oppå
+             skuffen, og animerer streker→kryss uten å flytte seg. Plassholderen
+             her holder tittelen klar av knappen. -->
         <span class="am-trigger-slot" aria-hidden="true" />
         <div class="am-title">Så i lende</div>
       </div>
