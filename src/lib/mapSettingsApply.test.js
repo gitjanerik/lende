@@ -195,6 +195,27 @@ describe('tema', () => {
     expect(buildThemeCss('light')).toBe('')
   })
 
+  // Punktsymbolene stein/bom/bru/bro/hule/gruve tegner med currentColor og
+  // arver `color` fra .isom-map-roten. Uten --sym-ink pr tema falt de tilbake på
+  // #000 og ble usynlige på mørk bakgrunn.
+  it('alle temaer setter punktsymbol-blekket (--sym-ink)', () => {
+    for (const key of DARK_THEMES) {
+      const css = buildThemeCss(key)
+      expect(css, `${key} mangler --sym-ink`).toContain('--sym-ink:')
+      expect(css, `${key} mangler --sym-paper`).toContain('--sym-paper:')
+    }
+  })
+
+  it('dark farger myr-rasteret uten å flate det ut', () => {
+    // Motstykket til «dark lar myra beholde katalogens to mønstre»: strekfargen
+    // themes, tettheten ikke — så fast (308) og utrygg (309) er fortsatt ulike.
+    const css = buildThemeCss('dark')
+    expect(css).toContain('--pattern-myr-stroke:')
+    expect(css).toContain('--pattern-myr-utrygg-stroke:')
+    expect(css).not.toContain('--iso-308-fill')
+    expect(css).not.toContain('--iso-309-fill')
+  })
+
   it('stiFarger bakes inn i innstillings-CSS-en (MCP-paritet med appen)', () => {
     const css = buildSettingsCss({ stiFarger: { fg: '#7a4fa3', bg: '#ffee88' } })
     expect(css).toContain('stroke: #7a4fa3 !important')

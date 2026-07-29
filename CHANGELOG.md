@@ -1,5 +1,15 @@
 # Endringslogg
 
+## 2026-07-29 — v2.4.29: Punktsymboler og myr-raster følger mørke temaer
+
+Bom, bro/klopp, steinblokk, hule og gruve var hardkodet `#000` og forsvant derfor helt i alle mørke temaer — markene lå der, men var usynlige mot bakgrunnen. Kirkekorset hadde samme problem i dobbel forstand: sort kors bak en hvit halo, altså akkurat samme idiom som stedsnavnene hadde før forrige versjon. De seks rene blekk-markene tegner nå med `currentColor` og arver `color` fra kartroten, som hvert tema setter via `--sym-ink`; kirkekorset følger blekket mens haloen følger `--sym-paper` og smelter inn i temaets bakgrunn i stedet for å gløde. Farger som er semantiske og ikke dekorative er bevisst holdt utenfor: de blå skiltbrikkene med hvite piktogrammer (P, buss, WC), IALA-kodingen på sjømerker (sort/gult) og veiskilt-fargene er konstante på tvers av temaer, som ekte skilt.
+
+Myr-rasteret i Mørk var låst til lys-modus' skarpe cyan (`#0099cc`), som lyste kaldt mot den mørke bakgrunnen. Mønster-farger kan nå themes per mønster, og Mørk setter en dempet myrblå som ligger tydelig under åpent vann i valør. Poenget med å farge streken og ikke fyllet er at fast myr (308) og utrygg myr (309) skilles KUN av rastertettheten — et flatt fyll ville gjort utrygg myr umulig å skille fra fast, som er en sikkerhetsregresjon på et turkart. Den eksisterende testen som verner om det står urørt, og har fått et motstykke som krever at strekfargen themes.
+
+Teknisk detalj som er verdt å vite for senere: `var()` virker ikke i SVG-presentasjonsattributter. Mønster- og symbolfarger som skal kunne themes legges derfor som inline `style`, med fallback-fargen igjen i attributtet. For punktsymboler plassert med `<use>` er `currentColor` den pålitelige veien, siden innholdet klones til et shadow-tre der arvede egenskaper slipper gjennom. Begge veier er verifisert ved å lese faktiske malte piksler i Chromium, ikke bare beregnet CSS. Lys tema er bit-identisk som før.
+
+---
+
 ## 2026-07-29 — v2.4.28: Lesbare navn og dempede hytter i mørke temaer
 
 Stedsnavn i mørke kart-temaer var nesten-sort skrift (`#161616`) under en 1,2 mm hvit halo. Halogloen er tykk nok til å dominere bokstavene, så navnene leste som hvit skrift med mørk kjerne — og alle 55 stedsnavnene på et typisk kart lyste som klistremerker oppå det mørke underlaget. Årsaken var at `stedsnavn` aldri lå i katalogens `labels`-liste i det hele tatt, så ingen av de sju mørke temaene kunne nå den, selv om `symbolizer.js` hadde variablene klare nettopp for at temaene skulle overstyre dem. Samme hull gjaldt `omrade-navn`, `hytte-navn` og `naturreservat-navn`. Alle fire er nå farget per tema med nær-hvit skrift og halo i temaets egen bakgrunnsfarge, slik at gloen smelter inn i stedet for å ramme inn. Toppnavn og høydekurver beholder den gule/røde skriften si urørt.
