@@ -636,6 +636,12 @@ const STRAND_CODES = ['556']
 // terreng forblir lesbart og konturer/stier tydelig tegnes oppå.
 const PROTECTED_CODES = ['520']
 const ROAD_CODES   = ['501', '502', '503', '504', '515', '505', '506', '507', '510', '511']
+// Veitunneler (tunnel=yes på highway) tegnes som stiplet veifarge uten sort
+// casing — samme konvensjon som UT.no/Norgeskart, slik at man ser hvor veien
+// går under bakken i stedet for å tro den ligger i dagen. Jernbane (515) har
+// sin egen tunnel-håndtering lenger nede (fantomlinje + portal-streker).
+const TUNNEL_LINE_CODES = new Set(['501', '502', '503', '504'])
+const tunnelAttr = b => (b.tunnel ? ' data-tunnel="yes"' : '')
 // 551 (kai/brygge/molo) + 552 (fareområde) — Sjøkart-areal-koder. Sparsomme,
 // rendres øverst sammen med øvrige man-made-areal. 551 → eget lag (categoryFor
 // 'kai', egen drawer-toggle, default PÅ); 552 → 'sjo-poi'.
@@ -1605,8 +1611,11 @@ export function buildSvg(elements, bbox, options = {}) {
       // på (geometri, ikke bare nærmeste navne-label ~2 km unna). Stilen er
       // identisk: pathen ligger i samme <g data-iso> så CSS-strøken matcher.
       const isNamedWaterway = code === '304' || code === '305'
+      // Tunnel-segmenter havner i egne buckets (nøkkelen bærer tunnel-flagget)
+      // så de kan merkes `data-tunnel="yes"` og få stiplet stil i symbolizer.
+      const isTunnelAware = TUNNEL_LINE_CODES.has(code)
       const namedLinePaths = []
-      const cellBuckets = new Map()  // cellKey → { ds: [], bbox }
+      const cellBuckets = new Map()  // cellKey → { ds: [], bbox, tunnel }
       for (const el of els) {
         const { d, bbox } = pathAndBboxFromGeometry(el.geometry, false, tol)
         if (!d) continue
@@ -1615,9 +1624,10 @@ export function buildSvg(elements, bbox, options = {}) {
           namedLinePaths.push(`    <path d="${d}"${bboxAttr(bbox, fmt)} data-name="${xmlEscape(name)}"/>`)
           continue
         }
-        const key = cellKeyFor(bbox)
+        const tunnel = isTunnelAware && !!el.tags?.tunnel && el.tags.tunnel !== 'no'
+        const key = `${tunnel ? 't' : 'n'}|${cellKeyFor(bbox)}`
         let b = cellBuckets.get(key)
-        if (!b) { b = { ds: [], bbox: null }; cellBuckets.set(key, b) }
+        if (!b) { b = { ds: [], bbox: null, tunnel }; cellBuckets.set(key, b) }
         b.ds.push(d)
         b.bbox = unionBbox(b.bbox, bbox)
       }
@@ -1641,10 +1651,10 @@ export function buildSvg(elements, bbox, options = {}) {
         // og culles sammen.
         const lines = []
         if (phase !== 'overlay') {
-          for (const b of lineBuckets) lines.push(`    <path d="${b.ds.join(' ')}"${bboxAttr(b.bbox, fmt)}/>`)
+          for (const b of lineBuckets) lines.push(`    <path d="${b.ds.join(' ')}"${tunnelAttr(b)}${bboxAttr(b.bbox, fmt)}/>`)
         }
         if (phase !== 'casing') {
-          for (const b of lineBuckets) lines.push(`    <path d="${b.ds.join(' ')}" class="overlay"${bboxAttr(b.bbox, fmt)}/>`)
+          for (const b of lineBuckets) lines.push(`    <path d="${b.ds.join(' ')}" class="overlay"${tunnelAttr(b)}${bboxAttr(b.bbox, fmt)}/>`)
         }
         return `  <g data-layer="${cat}" data-iso="${code}">\n${lines.join('\n')}\n  </g>\n`
       }
@@ -1654,9 +1664,9 @@ export function buildSvg(elements, bbox, options = {}) {
       // i symbolizer.js (farge faller tilbake på var(--bg)).
       const hasCasing = !!getIsomDef(code)?.casingStroke
       const casingLines = hasCasing
-        ? lineBuckets.map(b => `    <path d="${b.ds.join(' ')}" class="casing"${bboxAttr(b.bbox, fmt)}/>`)
+        ? lineBuckets.map(b => `    <path d="${b.ds.join(' ')}" class="casing"${tunnelAttr(b)}${bboxAttr(b.bbox, fmt)}/>`)
         : []
-      const pathLines = lineBuckets.map(b => `    <path d="${b.ds.join(' ')}"${bboxAttr(b.bbox, fmt)}/>`)
+      const pathLines = lineBuckets.map(b => `    <path d="${b.ds.join(' ')}"${tunnelAttr(b)}${bboxAttr(b.bbox, fmt)}/>`)
       const allLinePaths = [...casingLines, ...pathLines, ...namedLinePaths]
       return `  <g data-layer="${cat}" data-iso="${code}">\n${allLinePaths.join('\n')}\n  </g>\n`
     }

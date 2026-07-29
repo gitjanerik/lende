@@ -701,6 +701,29 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
     }
   }
 
+  // Veitunnel (501–504): UT.no-/Norgeskart-konvensjonen — veien i tunnel
+  // tegnes stiplet i veiens EGEN farge, uten den sorte casingen, så det leses
+  // umiddelbart at traseen går under bakken. Dashene er vesentlig lengre enn
+  // sti-stiplingen (505/506) så de to ikke forveksles ved utzoom.
+  // mapBuilder merker tunnel-buckets med `data-tunnel="yes"` på både casing-
+  // og overlay-pathen.
+  for (const code of ['501', '502', '503', '504']) {
+    if (!codeUsed(code)) continue
+    const def = catalog.categories.manmade?.[code]
+    if (!def) continue
+    const ov = def.overlayStroke
+    const w = (ov ?? def.stroke)?.widthMm ?? 0.15
+    const dash = Math.max(0.7, Number((w * 3.2).toFixed(2)))
+    const gap = Math.max(0.45, Number((w * 2.1).toFixed(2)))
+    const dashRule = `stroke-dasharray: ${dash}mm ${gap}mm; stroke-linecap: butt`
+    if (ov) {
+      rules.push(`${root} [data-iso="${code}"] path[data-tunnel="yes"]:not(.overlay) { display: none }`)
+      rules.push(`${root} [data-iso="${code}"] path.overlay[data-tunnel="yes"] { ${dashRule} }`)
+    } else {
+      rules.push(`${root} [data-iso="${code}"] path[data-tunnel="yes"] { ${dashRule} }`)
+    }
+  }
+
   // Jernbane (515) tunnel-fantom: grå dashed linje uten sviller.
   // Datapath har attributt `data-tunnel="yes"` på både base og overlay.
   // Overlay skjules; base får ny stroke. Tunnel-portal: tverrstrek ved

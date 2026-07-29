@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildPointSymbolDef, isOsmWaterSalty, isFlowingWaterArea, classifyToIsom, isTrailheadParking } from './symbolizer.js'
+import { buildPointSymbolDef, isOsmWaterSalty, isFlowingWaterArea, classifyToIsom, isTrailheadParking, buildIsomCss } from './symbolizer.js'
 
 describe('isTrailheadParking — offentlig utfartsparkering vs. privat', () => {
   it('utfart-/tur-/friluft-navn markeres som utfartsparkering uansett access', () => {
@@ -206,5 +206,36 @@ describe('buildPointSymbolDef', () => {
     })
     expect(def).toContain('<circle')
     expect(def).toContain('<polygon')
+  })
+})
+
+describe('buildIsomCss — veitunnel stiplet i veifargen, uten casing (v2.4.22)', () => {
+  const css = buildIsomCss(undefined, new Map(), { usedCodes: new Set(['501', '502', '503', '504']) })
+
+  it('casing-pathen skjules for tunnel-segmenter på veier med overlay', () => {
+    for (const code of ['501', '502', '503']) {
+      expect(css).toContain(`[data-iso="${code}"] path[data-tunnel="yes"]:not(.overlay) { display: none }`)
+    }
+  })
+
+  it('overlay-pathen (veifargen) får stiplet strek', () => {
+    const rule = css.match(/\[data-iso="502"\] path\.overlay\[data-tunnel="yes"\] \{ ([^}]*)\}/)?.[1] ?? ''
+    expect(rule).toMatch(/stroke-dasharray: [\d.]+mm [\d.]+mm/)
+    expect(rule).toContain('stroke-linecap: butt')
+  })
+
+  it('skogsbilvei (504, uten overlay) får stiplet basis-strek', () => {
+    expect(css).toMatch(/\[data-iso="504"\] path\[data-tunnel="yes"\] \{ stroke-dasharray:/)
+    expect(css).not.toContain('[data-iso="504"] path[data-tunnel="yes"]:not(.overlay)')
+  })
+
+  it('tunnel-dashen er tydelig lengre enn sti-stiplingen (505 = 0.36mm)', () => {
+    const dash = Number(css.match(/\[data-iso="502"\] path\.overlay\[data-tunnel="yes"\] \{ stroke-dasharray: ([\d.]+)mm/)?.[1])
+    expect(dash).toBeGreaterThan(0.6)
+  })
+
+  it('koder som ikke er i bruk gir ingen tunnel-regler', () => {
+    const only501 = buildIsomCss(undefined, new Map(), { usedCodes: new Set(['501']) })
+    expect(only501).not.toContain('[data-iso="502"] path[data-tunnel="yes"]')
   })
 })
