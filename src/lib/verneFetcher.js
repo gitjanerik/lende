@@ -119,8 +119,11 @@ export function extractAreaFromAttributes(attrs) {
 
   // Faktaark: enten en ferdig URL, eller en ID vi bygger URL fra.
   let faktaarkUrl = firstMatch(keys, attrs, [/faktaark/i])
+  // ID-en er nøkkelen til faktaark-lenka. Naturbase' egen faktaark-tjeneste
+  // bruker feltnavnet `naturvernId` (VV00000213) — det manglet i mønster-lista,
+  // så verneområder falt tilbake til navn som id og fikk ingen faktaark-lenke.
   const id = firstMatch(keys, attrs, [
-    /^vid$/i, /^omr[åa]deid$/i, /naturbaseid/i, /^vernid$/i, /^vernr$/i,
+    /^naturvernid$/i, /^vid$/i, /^omr[åa]deid$/i, /naturbaseid/i, /^vernid$/i, /^vernr$/i,
   ])
   if (faktaarkUrl && !/^https?:\/\//i.test(faktaarkUrl)) {
     // Et bart ID-felt feilaktig matchet «faktaark» — bygg URL.
@@ -180,7 +183,7 @@ export function pickAreaFromIdentify(json) {
   return null
 }
 
-function buildIdentifyUrl(base, lat, lon) {
+export function buildIdentifyUrl(base, lat, lon, { returnGeometry = false } = {}) {
   // Liten map-extent rundt punktet (~±0.002° ≈ 220 m) med punktet i sentrum.
   const d = 0.002
   const params = new URLSearchParams({
@@ -192,7 +195,7 @@ function buildIdentifyUrl(base, lat, lon) {
     tolerance: '2',
     mapExtent: `${lon - d},${lat - d},${lon + d},${lat + d}`,
     imageDisplay: '400,400,96',
-    returnGeometry: 'true',
+    returnGeometry: returnGeometry ? 'true' : 'false',
     geometryPrecision: '6',
   })
   return `${base}/identify?${params}`
@@ -210,7 +213,7 @@ function buildIdentifyUrl(base, lat, lon) {
  */
 export async function fetchProtectedArea(lat, lon, opts = {}) {
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
-  const { signal, timeoutMs = 7000 } = opts
+  const { signal, timeoutMs = 12000, withGeometry = false } = opts
 
   const ctrl = new AbortController()
   const onAbort = () => ctrl.abort()
@@ -220,9 +223,17 @@ export async function fetchProtectedArea(lat, lon, opts = {}) {
   }
   const timer = setTimeout(() => ctrl.abort(), timeoutMs)
   try {
-    const res = await fetch(buildIdentifyUrl(VERN_ENDPOINT, lat, lon), { signal: ctrl.signal })
-    if (!res.ok) return null
+    const url = buildIdentifyUrl(VERN_ENDPOINT, lat, lon, { returnGeometry: withGeometry })
+    const res = await fetch(url, { signal: ctrl.signal })
+    if (!res.ok) {
+      console.warn(`[Naturbase] Verneområde-oppslag ga HTTP ${res.status}`)
+      return null
+    }
     const json = await res.json()
+    if (json?.error) {
+      console.warn(`[Naturbase] Verneområde-oppslag ga tjeneste-feil: ${json.error?.message ?? json.error?.code}`)
+      return null
+    }
     return pickAreaFromIdentify(json)
   } catch (e) {
     if (signal?.aborted) return null
@@ -232,4 +243,20 @@ export async function fetchProtectedArea(lat, lon, opts = {}) {
     clearTimeout(timer)
     if (signal) signal.removeEventListener('abort', onAbort)
   }
+}
+
+/**
+ * Hent BARE polygon-ringene for verneområdet i et punkt. Skilt ut fra
+ * kort-oppslaget (v2.4.23): `returnGeometry=true` drar med seg hele
+ * verneområde-polygonet — for detaljrike områder som Grunnvatnet (3600+
+ * punkter) og for punkter som treffer flere lag (reservat + Ramsar +
+ * restriksjonssone) blir svaret så tungt at 7 s-taket kunne løpe ut, og da
+ * forsvant HELE den grønne faktaboksen selv om punktet lå midt i reservatet.
+ * Kortet hentes nå uten geometri (lite svar), og ringene kommer etterpå i
+ * bakgrunnen — de trengs kun til GBIF-artstellingen, som uansett faller
+ * tilbake på en bbox rundt punktet.
+ */
+export async function fetchProtectedAreaRings(lat, lon, opts = {}) {
+  const area = await fetchProtectedArea(lat, lon, { timeoutMs: 20000, ...opts, withGeometry: true })
+  return area?.rings ?? null
 }

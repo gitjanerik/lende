@@ -8,7 +8,6 @@
 import { ANNOTATION_SYMBOLS } from '../../composables/useMapAnnotations.js'
 import AnnotationIcon from '../AnnotationIcon.vue'
 import { formatDistanceM } from '../../lib/mapContext.js'
-
 defineProps({
   contextMenuOpen: { type: Boolean, default: false },
   contextMenuInfo: { type: Object, default: null },
@@ -20,6 +19,8 @@ defineProps({
   DETAIL_INSET_M: { type: Number, default: 500 },
   lakeQuery: { type: Object, default: null },
   verneQuery: { type: Object, default: null },
+  // Nasjonalparker som dekker kartet helt eller delvis (meta.nasjonalparker).
+  nasjonalparker: { type: Array, default: () => [] },
   naturtypeQuery: { type: Object, default: null },
   placeWikiCard: { type: Object, default: null },
   expandedRedCat: { type: String, default: null },
@@ -295,6 +296,43 @@ function formatDistance(m) {
         <div v-if="mapDataLabel" class="flex items-baseline gap-2 text-[12px]">
           <span class="text-ink/45 w-20 shrink-0">Kartdata</span>
           <span class="text-ink/85 tabular-nums">{{ mapDataLabel }}</span>
+        </div>
+      </div>
+
+      <!-- Nasjonalpark: vises når kartet helt eller delvis dekker en park.
+           Til forskjell fra verneområde-boksen henger den IKKE på long-press-
+           punktet — parken er en egenskap ved arket, ikke ved punktet, og
+           tegnes ikke i kartet. Data kommer fra det bundlede park-datasettet
+           (OSM-import av Naturbase). Det offisielle nasjonalpark-merket er
+           varemerkebeskyttet og brukes IKKE — derfor et eget fjell-ikon. -->
+      <div v-if="nasjonalparker.length" class="px-4 pt-3 space-y-2">
+        <div v-for="park in nasjonalparker" :key="park.navn"
+             class="rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3 space-y-2">
+          <div class="flex items-start gap-3">
+            <svg viewBox="0 0 24 24" class="w-4 h-4 mt-0.5 shrink-0 text-emerald-300" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m8 3 4 8 5-5 5 15H2L8 3z"/>
+            </svg>
+            <div class="min-w-0">
+              <div class="text-emerald-100 font-semibold text-[13px] leading-tight">{{ park.navn }}</div>
+              <div v-if="park.altNavn" class="text-emerald-200/70 text-[11px] italic">{{ park.altNavn }}</div>
+              <div class="text-emerald-200/80 text-[11px]">Nasjonalpark</div>
+            </div>
+          </div>
+          <div class="space-y-1 text-[12px]">
+            <div v-if="park.vernedato" class="flex items-baseline gap-2">
+              <span class="text-emerald-200/55 w-20 shrink-0">Vernet</span>
+              <span class="text-emerald-50 tabular-nums">{{ formatVernedato(park.vernedato) }}</span>
+            </div>
+            <div v-if="park.forvaltning" class="flex items-baseline gap-2">
+              <span class="text-emerald-200/55 w-20 shrink-0">Forvaltning</span>
+              <span class="text-emerald-50/90 truncate">{{ park.forvaltning }}</span>
+            </div>
+          </div>
+          <a v-if="park.faktaarkUrl" :href="park.faktaarkUrl" target="_blank" rel="noopener"
+             class="inline-block text-[11px] text-emerald-300 underline underline-offset-2">
+            Naturbase faktaark ↗
+          </a>
         </div>
       </div>
 

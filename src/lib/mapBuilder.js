@@ -11,6 +11,7 @@ import {
   classifyToIsom,
   isMaritimeNameFeature,
   isMaritimeNameOnlyNode,
+  isNationalPark,
   isTrailheadParking,
   buildIsomDefs,
   buildIsomCss,
@@ -952,6 +953,10 @@ export function buildSvg(elements, bbox, options = {}) {
     // Way/relasjon (øy-flate, bukt-flate) fortsetter til geometri-
     // klassifisering som før; sjømerke-skjær beholder sitt 211-symbol.
     if (el.type === 'node' && isMaritimeNameOnlyNode(el.tags)) continue
+    // Nasjonalpark tegnes ikke i det hele tatt (v2.4.23) — parken formidles som
+    // faktaboks i infoskuffen, drevet av det bundlede park-datasettet
+    // (nasjonalparkData.js), ikke av OSM-elementene her.
+    if (isNationalPark(el.tags)) continue
     // Way-kirker (building=church / amenity=place_of_worship på en
     // bygnings-polygon) plukker vi opp UANSETT om classifyToIsom returnerer
     // bygnings-koden — også way-er som kun har amenity=place_of_worship
@@ -2034,6 +2039,9 @@ export function buildSvg(elements, bbox, options = {}) {
                     tags.place === 'sea' || tags.place === 'ocean' ||
                     !!tags.waterway
     if (isWater) continue
+    // Nasjonalpark: verken overlay eller navn i kartet (v2.4.23) — parken er
+    // 20–3400 km² og formidles som faktaboks i infoskuffen i stedet.
+    if (isNationalPark(tags)) continue
     // Fjelltopper rendrer egen label via peaksSvg
     if (tags.natural === 'peak' || tags.natural === 'saddle') continue
     // place=*-noder rendrer egen label via stedsnavnSvg / places — UNNTATT
@@ -2110,9 +2118,10 @@ export function buildSvg(elements, bbox, options = {}) {
     // visuell hierarki for vann/innsjø som er blå-på-hvit). Speiler classify-
     // ToIsom-reglene for kode 520 så samme polygoner som får grønn overlay
     // også får grønn navn-label.
-    const isNatRes = (
+    // Nasjonalparker er unntatt (v2.4.23): de tegnes ikke, og skal heller ikke
+    // ha navne-label — parken formidles via faktaboksen i infoskuffen.
+    const isNatRes = !isNationalPark(tags) && (
       tags.leisure === 'nature_reserve' ||
-      tags.boundary === 'national_park' ||
       (tags.boundary === 'protected_area' && /^(1|1a|1b|4)$/.test(String(tags.protect_class ?? '')))
     )
     // Hytter rendrer som lite symbol (13×13 m kvadrat) — minst krav er at

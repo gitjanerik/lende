@@ -602,3 +602,46 @@ describe('veitunnel (501–504) merkes data-tunnel="yes" (v2.4.22)', () => {
     expect(body(buildSvg([el], bbox, {}).svg)).not.toContain('data-tunnel')
   })
 })
+
+describe('nasjonalpark tegnes ikke (v2.4.23)', () => {
+  const svgBody = s => s.replace(/<style>[\s\S]*?<\/style>/g, '').replace(/^[\s\S]*?<svg [^>]*>/, '')
+  const parkTags = {
+    boundary: 'national_park', name: 'Rondane nasjonalpark',
+    'naturbase:url': 'https://faktaark.naturbase.no/?id=VV00001873',
+    operator: 'Rondane-Dovre nasjonalparkstyre', 'ref:naturvern': 'VV00001873',
+    protect_class: '2', start_date: '2003-10-24',
+  }
+
+  it('park-relasjon gir verken 520-polygon eller navn-label', () => {
+    const { svg } = buildSvg([{
+      type: 'relation', id: 42, tags: parkTags,
+      members: [{ type: 'way', role: 'outer', geometry: ring(59.005, 10.005, 59.045, 10.095) }],
+    }], bbox, {})
+    const body = svgBody(svg)
+    const g = body.match(/<g data-layer="naturreservat" data-iso="520">([\s\S]*?)<\/g>/)?.[1] ?? ''
+    expect(g.match(/<path/g)).toBeNull()
+    expect(body).not.toContain('Rondane')
+  })
+
+  it('park som way (ikke relasjon) tegnes heller ikke', () => {
+    const { svg } = buildSvg([{
+      type: 'way', id: 43, tags: parkTags, geometry: ring(59.01, 10.02, 59.04, 10.07),
+    }], bbox, {})
+    const body = svgBody(svg)
+    const g = body.match(/<g data-layer="naturreservat" data-iso="520">([\s\S]*?)<\/g>/)?.[1] ?? ''
+    expect(g.match(/<path/g)).toBeNull()
+    expect(body).not.toContain('Rondane')
+  })
+
+  it('naturreservat tegnes fortsatt som 520 med navn', () => {
+    const { svg } = buildSvg([{
+      type: 'way', id: 44,
+      tags: { leisure: 'nature_reserve', name: 'Testreservatet' },
+      geometry: ring(59.01, 10.02, 59.04, 10.07),
+    }], bbox, {})
+    const body = svgBody(svg)
+    const g = body.match(/<g data-layer="naturreservat" data-iso="520">([\s\S]*?)<\/g>/)?.[1] ?? ''
+    expect(g).toContain('<path')
+    expect(body).toContain('Testreservatet')
+  })
+})

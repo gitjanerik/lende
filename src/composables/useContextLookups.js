@@ -10,7 +10,7 @@ import { svgToWgs84 } from '../lib/utm.js'
 import { sampleElevation } from '../lib/demSampling.js'
 import { fetchLakeData } from '../lib/nveLakeFetcher.js'
 import { fetchLiveWater } from '../lib/nveHydApi.js'
-import { fetchProtectedArea } from '../lib/verneFetcher.js'
+import { fetchProtectedArea, fetchProtectedAreaRings } from '../lib/verneFetcher.js'
 import { fetchNaturtypes } from '../lib/naturtypeFetcher.js'
 import { fetchSpeciesSummary } from '../lib/gbifSpecies.js'
 import { summarizeRedListed } from '../lib/redListNo.js'
@@ -526,7 +526,11 @@ export function useContextLookups({
     try {
       let sp = await cacheGet(key)
       if (!sp) {
-        sp = await fetchSpeciesSummary({ rings: area.rings, lat, lon, areaKm2: area.arealKm2 })
+        // Kort-oppslaget henter ikke geometri (se fetchProtectedAreaRings) —
+        // ringene hentes her, der de faktisk brukes. Feiler det, faller
+        // fetchSpeciesSummary tilbake på en bbox rundt punktet.
+        const rings = area.rings ?? await fetchProtectedAreaRings(lat, lon).catch(() => null)
+        sp = await fetchSpeciesSummary({ rings, lat, lon, areaKm2: area.arealKm2 })
         if (sp) cacheSet(key, sp, TTL.species)
       }
       // Norsk rødliste: snitt GBIF-artene mot den bundlede Artsdatabanken-lista.

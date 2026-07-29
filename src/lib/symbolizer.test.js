@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildPointSymbolDef, isOsmWaterSalty, isFlowingWaterArea, classifyToIsom, isTrailheadParking, buildIsomCss } from './symbolizer.js'
+import { buildPointSymbolDef, isOsmWaterSalty, isFlowingWaterArea, classifyToIsom, isTrailheadParking, buildIsomCss, isNationalPark, nationalParkFacts } from './symbolizer.js'
 
 describe('isTrailheadParking — offentlig utfartsparkering vs. privat', () => {
   it('utfart-/tur-/friluft-navn markeres som utfartsparkering uansett access', () => {
@@ -237,5 +237,64 @@ describe('buildIsomCss — veitunnel stiplet i veifargen, uten casing (v2.4.22)'
   it('koder som ikke er i bruk gir ingen tunnel-regler', () => {
     const only501 = buildIsomCss(undefined, new Map(), { usedCodes: new Set(['501']) })
     expect(only501).not.toContain('[data-iso="502"] path[data-tunnel="yes"]')
+  })
+})
+
+describe('nasjonalpark — egen kategori, ikke ISOM 520 (v2.4.23)', () => {
+  const park = {
+    type: 'relation', id: 1,
+    tags: {
+      boundary: 'national_park', name: 'Rondane nasjonalpark', 'name:en': 'Rondane National Park',
+      'naturbase:url': 'https://faktaark.naturbase.no/?id=VV00001873',
+      'naturbase:verneform': 'Nasjonalpark', operator: 'Rondane-Dovre nasjonalparkstyre',
+      protect_class: '2', 'ref:naturvern': 'VV00001873', start_date: '1962-12-21',
+      wikidata: 'Q1245176',
+    },
+  }
+
+  it('nasjonalpark gir ingen ISOM-kode (tegnes ikke)', () => {
+    expect(classifyToIsom(park)).toBeNull()
+  })
+
+  it('naturreservat får fortsatt 520', () => {
+    const res = classifyToIsom({
+      type: 'relation', id: 2,
+      tags: { leisure: 'nature_reserve', boundary: 'protected_area', protect_class: '1a', name: 'Grunnvatnet naturreservat' },
+    })
+    expect(res).toEqual({ code: '520', cat: 'manmade' })
+  })
+
+  it('isNationalPark krever navn', () => {
+    expect(isNationalPark(park.tags)).toBe(true)
+    expect(isNationalPark({ boundary: 'national_park' })).toBe(false)
+    expect(isNationalPark({ boundary: 'protected_area', name: 'X' })).toBe(false)
+  })
+
+  it('nationalParkFacts plukker Naturbase-feltene', () => {
+    expect(nationalParkFacts(park.tags)).toEqual({
+      navn: 'Rondane nasjonalpark',
+      altNavn: null,
+      ref: 'VV00001873',
+      faktaarkUrl: 'https://faktaark.naturbase.no/?id=VV00001873',
+      forvaltning: 'Rondane-Dovre nasjonalparkstyre',
+      vernedato: '1962-12-21',
+      wikidata: 'Q1245176',
+    })
+  })
+
+  it('samisk parallellnavn tas med når det finnes', () => {
+    const f = nationalParkFacts({
+      boundary: 'national_park', name: 'Børgefjell nasjonalpark', 'name:sma': 'Byrkije nasjonalparhke',
+    })
+    expect(f.altNavn).toBe('Byrkije nasjonalparhke')
+  })
+
+  it('ikke-http naturbase:url forkastes', () => {
+    const f = nationalParkFacts({ boundary: 'national_park', name: 'X nasjonalpark', 'naturbase:url': 'VV00001873' })
+    expect(f.faktaarkUrl).toBeNull()
+  })
+
+  it('nationalParkFacts returnerer null for alt annet enn nasjonalpark', () => {
+    expect(nationalParkFacts({ leisure: 'nature_reserve', name: 'Y' })).toBeNull()
   })
 })
