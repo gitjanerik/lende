@@ -554,3 +554,51 @@ describe('NVE-innsjøer (navn-tag, ikke name) får vann-navn-label (v1.0.51)', (
     expect(svg).toMatch(/data-label="vann-navn"[^>]*>Testvannet</)
   })
 })
+
+describe('veitunnel (501–504) merkes data-tunnel="yes" (v2.4.22)', () => {
+  // <style>-blokken inneholder selv `data-tunnel`-selektorer, så assertions
+  // kjøres mot SVG-kroppen (uten stilarket).
+  const body = svg => svg.replace(/<style>[\s\S]*?<\/style>/g, '')
+  const surfaceRoad = {
+    type: 'way', id: 700,
+    tags: { highway: 'secondary', ref: '827' },
+    geometry: [
+      { lat: 59.01, lon: 10.02 },
+      { lat: 59.02, lon: 10.04 },
+      { lat: 59.03, lon: 10.06 },
+    ],
+  }
+  const tunnelRoad = {
+    type: 'way', id: 701,
+    tags: { highway: 'secondary', ref: '827', tunnel: 'yes' },
+    geometry: [
+      { lat: 59.03, lon: 10.06 },
+      { lat: 59.04, lon: 10.08 },
+    ],
+  }
+
+  it('tunnel-way får data-tunnel på både casing- og overlay-path', () => {
+    const b = body(buildSvg([tunnelRoad], bbox, {}).svg)
+    expect(b).toMatch(/<path d="[^"]*" data-tunnel="yes"/)
+    expect(b).toMatch(/<path d="[^"]*" class="overlay" data-tunnel="yes"/)
+  })
+
+  it('vanlig vei i dagen får ikke data-tunnel', () => {
+    const b = body(buildSvg([surfaceRoad], bbox, {}).svg)
+    expect(b).toContain('data-iso="502"')
+    expect(b).not.toContain('data-tunnel')
+  })
+
+  it('tunnel og dagsone i samme kode havner i hver sine paths', () => {
+    const b = body(buildSvg([surfaceRoad, tunnelRoad], bbox, {}).svg)
+    expect((b.match(/data-tunnel="yes"/g) ?? []).length).toBe(2)  // casing + overlay
+    const paths = b.match(/<g data-layer="[^"]*" data-iso="502">[\s\S]*?<\/g>/g) ?? []
+    const count = paths.join('').match(/<path /g) ?? []
+    expect(count.length).toBe(4)   // (dag + tunnel) × (casing + overlay)
+  })
+
+  it('tunnel=no regnes som vei i dagen', () => {
+    const el = { ...tunnelRoad, tags: { highway: 'secondary', tunnel: 'no' } }
+    expect(body(buildSvg([el], bbox, {}).svg)).not.toContain('data-tunnel')
+  })
+})

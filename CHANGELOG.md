@@ -1,5 +1,13 @@
 # Endringslogg
 
+## 2026-07-29 — v2.4.22: Veitunneler tegnes som stiplet rød linje
+
+Veier i tunnel ble tegnet nøyaktig som veier i dagen — full farge med sort casing — så en fjelltunnel så ut som en vei over toppen, og kartet fortalte ikke hvor traseen faktisk går under bakken. Nå følger tunnelene UT.no-/Norgeskart-konvensjonen: `mapBuilder` skiller tunnel-segmenter (`tunnel`-tag ≠ `no`) ut i egne path-buckets merket `data-tunnel="yes"`, og symbolizeren skjuler den sorte casingen og stipler veifargen. Resultatet er en stiplet rød/oransje linje i veiens egen vekt, akkurat som overflateveien den henger sammen med, bare åpenbart underjordisk.
+
+Gjelder motorvei (501), hovedvei (502), småvei (503) og skogsbilvei (504); jernbane (515) har fra før sin egen tunnel-stil med fantomlinje og portal-streker. Dash-lengden utledes fra strekbredden med et gulv på 0,7 mm, godt over sti-stiplingen (505 = 0,36 mm), så en tunnel aldri forveksles med en sti ved utzoom. Bucket-nøkkelen bærer tunnel-flagget, så sammenslåingen per grid-celle er intakt og DOM-tallet uendret.
+
+---
+
 ## 2026-07-28 — v2.4.21: Kolofonen vokser med arket
 
 Kolofonen fra v2.4.20 var lagt ut i faste print-mm, og det gjorde den til en flekk på store kart: samme boks som dekker 16 % av bredden på et 4 km ark er nede på 5 % på et 9 km ark, for arket blir større mens boksen står stille. I PNG-eksport, der hele arket vises på én skjerm, var den knapt synlig. Kolofonen skalerer nå med kartstørrelsen etter samme kurve som symbolizeren bruker på stedsnavn — `clamp(widthM / 4000, 1, 3)` — så den holder omtrent konstant andel av arket uansett kartstørrelse: målt i Chromium er boksen 18,3 % av bredden både på et 4,1 km og et 9,2 km kart, mot 16 % og 5 % før. Grunnstørrelsen er samtidig hevet ~40 % (hovedtekst 2,4 → 3,4 mm), siden den var i det minste laget også på referanse-kartet.
