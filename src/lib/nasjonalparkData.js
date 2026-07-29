@@ -80,6 +80,36 @@ export function parkCoversBbox(park, bbox) {
   return false
 }
 
+// Naturbase kaller parken «Rondane» med verneform «nasjonalpark», OSM kaller
+// den «Rondane nasjonalpark». Normaliser bort verneform-leddet og all
+// tegnsetting før sammenligning.
+function normName(s) {
+  return String(s ?? '')
+    .toLowerCase()
+    .replace(/nasjonalpark\w*/g, '')
+    .replace(/[^a-zæøå0-9]+/g, '')
+}
+
+/**
+ * Er park-datasettets park og Naturbase-oppslagets område SAMME verneområde?
+ *
+ * Long-press inne i en nasjonalpark gir treff i BEGGE kildene: verneområde-
+ * kortet (Naturbase identify på punktet) og park-faktaboksen (lokalt datasett
+ * på kart-bboxen). Da skal bare det rikeste kortet stå — Naturbase-kortet har
+ * rødlistearter og leksikon-lenke i tillegg.
+ *
+ * Naturbase-ID (VV…) er den autoritative koblingen; navnet er fallback for
+ * eldre/uventede svar der ID-feltet mangler.
+ */
+export function samePark(park, area) {
+  if (!park || !area) return false
+  const ref = String(park.ref ?? '').toUpperCase()
+  const id = String(area.id ?? '').toUpperCase()
+  if (ref && id && ref === id) return true
+  const a = normName(park.navn)
+  return !!a && a === normName(area.navn)
+}
+
 /** Alle parker som dekker kartet, sortert på navn. */
 export function parksForBbox(parker, bbox) {
   if (!Array.isArray(parker) || !bbox) return []
