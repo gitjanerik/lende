@@ -8,10 +8,6 @@
 import { ANNOTATION_SYMBOLS } from '../../composables/useMapAnnotations.js'
 import AnnotationIcon from '../AnnotationIcon.vue'
 import { formatDistanceM } from '../../lib/mapContext.js'
-import { parkLogoSvg } from '../../lib/nasjonalparkLogo.js'
-
-const parkLogo = (navn) => parkLogoSvg(navn)
-
 defineProps({
   contextMenuOpen: { type: Boolean, default: false },
   contextMenuInfo: { type: Object, default: null },
@@ -306,15 +302,14 @@ function formatDistance(m) {
       <!-- Nasjonalpark: vises når kartet helt eller delvis dekker en park.
            Til forskjell fra verneområde-boksen henger den IKKE på long-press-
            punktet — parken er en egenskap ved arket, ikke ved punktet, og
-           tegnes ikke i kartet. Data kommer fra meta.nasjonalparker (OSM-
-           import av Naturbase), merket fra den bundlede logo-mappa. -->
+           tegnes ikke i kartet. Data kommer fra det bundlede park-datasettet
+           (OSM-import av Naturbase). Det offisielle nasjonalpark-merket er
+           varemerkebeskyttet og brukes IKKE — derfor et eget fjell-ikon. -->
       <div v-if="nasjonalparker.length" class="px-4 pt-3 space-y-2">
         <div v-for="park in nasjonalparker" :key="park.navn"
              class="rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3 space-y-2">
           <div class="flex items-start gap-3">
-            <div v-if="parkLogo(park.navn)" class="w-14 shrink-0 text-emerald-50"
-                 v-html="parkLogo(park.navn)"></div>
-            <svg v-else viewBox="0 0 24 24" class="w-4 h-4 mt-0.5 shrink-0 text-emerald-300" fill="none"
+            <svg viewBox="0 0 24 24" class="w-4 h-4 mt-0.5 shrink-0 text-emerald-300" fill="none"
                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="m8 3 4 8 5-5 5 15H2L8 3z"/>
             </svg>

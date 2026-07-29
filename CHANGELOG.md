@@ -8,7 +8,7 @@ Oppslaget er lokalt. `scripts/build-nasjonalparker.js` henter alle 43 norske par
 
 Verneområde-kortet hadde en egen feil: `identify`-kallet hentet HELE polygonet, og for detaljrike områder som Grunnvatnet naturreservat (3600+ grensepunkter, og punktet treffer både reservat, Ramsar-område og restriksjonssone) kunne svaret bli så tungt at 7 s-taket løp ut — da forsvant hele den grønne boksen, selv om punktet lå midt i reservatet. Kortet hentes nå uten geometri; ringene kommer etterpå i bakgrunnen, der de faktisk brukes (GBIF-artstellingen, som uansett faller tilbake på en bbox). Taket er hevet til 12 s, og tjeneste-feil logges i stedet for å bli slukt. Samtidig fikk ID-mønsteret med `naturvernId`, Naturbase sitt eget feltnavn — uten det falt faktaark-lenka bort på alle verneområder.
 
-Park-logoene (Norges nasjonalparker, Snøhetta) er forberedt men ikke lagt inn: `designmanual.norgesnasjonalparker.no` er ikke på nettverkets tillatelsesliste i byggemiljøet. Legg SVG-ene i `src/assets/nasjonalpark/` med slug-navn, så plukker faktaboksen dem opp automatisk — se README-en i mappa.
+Boksen bruker et eget fjell-ikon, ikke det offisielle nasjonalpark-merket: merket er varemerkebeskyttet og kan ikke brukes i Lende.
 
 ---
 
