@@ -1,0 +1,219 @@
+<script setup>
+// Fullskjerm 3D-turvisning (Lende 3.0.0). Skallet eier motorens livssyklus:
+// createTourScene i onMounted, dispose i onBeforeUnmount. Alt engine-relatert
+// holdes utenfor Vue-reaktivitet (toRaw/ikke-reaktive variabler) — reaktive
+// proxies i RAF-loopen dreper frameraten.
+//
+// Lukkeveier: X-knapp, Escape og Android-tilbakeknapp (pushState + popstate;
+// samme URL, så vue-router er upåvirket).
+import { ref, computed, onMounted, onBeforeUnmount, toRaw } from 'vue'
+import { useScreenWakeLock } from '../../composables/useScreenWakeLock.js'
+import { sampleProfile } from '../../lib/elevationProfile.js'
+import Tour3dControls from './Tour3dControls.vue'
+import Tour3dHud from './Tour3dHud.vue'
+import Tour3dFeatureCard from './Tour3dFeatureCard.vue'
+
+const props = defineProps({
+  dem: { type: Object, default: null },        // utpakket DEM (null → tom-tilstand)
+  meta: { type: Object, required: true },
+  route: { type: Object, required: true },     // { coordinates, lengthM }
+  isLoop: { type: Boolean, default: false },
+  estWalkMinutes: { type: Function, default: null },
+  searchIndex: { type: Array, default: () => [] },
+  getSvgText: { type: Function, required: true },
+  mapTitle: { type: String, default: '' },
+})
+const emit = defineEmits(['close'])
+
+const phase = ref('loading')   // loading | ready | no-dem | no-webgl | error
+const stats = ref(null)
+const activeFeature = ref(null)
+const cameraMode = ref('follow')
+const playing = ref(false)
+const finished = ref(false)
+const timeScale = ref(30)
+const isLandscape = ref(typeof window !== 'undefined' && window.innerWidth > window.innerHeight)
+
+const canvasHost = ref(null)
+let engine = null
+let abort = null
+let poppedByHistory = false
+
+const wake = useScreenWakeLock({ persist: false, defaultOn: false, idleTimeoutMs: 0 })
+
+const errorText = computed(() => ({
+  'no-dem': 'Ingen høydedata for dette kartet — 3D-visning krever et kart bygd med ekte terreng.',
+  'no-webgl': '3D-visning støttes ikke på denne enheten.',
+  error: 'Kunne ikke bygge 3D-visningen for denne turen.',
+})[phase.value] ?? null)
+
+function onKeydown(e) {
+  if (e.key === 'Escape') requestClose()
+}
+function onPopstate() {
+  poppedByHistory = true
+  emit('close')
+}
+function onOrientation() {
+  isLandscape.value = window.innerWidth > window.innerHeight
+  engine?.resize()
+}
+
+function requestClose() {
+  // Tilbakeknapp-staten poppes; popstate-handleren emitter close.
+  history.back()
+}
+
+onMounted(async () => {
+  history.pushState({ lende3d: true }, '')
+  window.addEventListener('popstate', onPopstate)
+  window.addEventListener('keydown', onKeydown)
+  window.addEventListener('resize', onOrientation)
+
+  const dem = props.dem ? toRaw(props.dem) : null
+  if (!dem) { phase.value = 'no-dem'; return }
+
+  const route = { coordinates: toRaw(props.route.coordinates), lengthM: props.route.lengthM }
+  abort = new AbortController()
+
+  try {
+    const engineMod = await import('../../lib/tour3d/index.js')
+    const { createTourScene, collectMapFeatures, loadNveFeatures, loadHeritageFeatures } = engineMod
+
+    const profile = sampleProfile({ points: route.coordinates.map(c => ({ x: c[0], y: c[1] })) }, dem)
+    const mapFeatures = collectMapFeatures(toRaw(props.searchIndex) ?? [], route.coordinates)
+
+    engine = await createTourScene(canvasHost.value, {
+      dem,
+      meta: toRaw(props.meta),
+      svgText: props.getSvgText(),
+      route,
+      features: mapFeatures,
+      profileSamples: profile?.samples ?? null,
+      estWalkMinutes: props.estWalkMinutes,
+    })
+
+    engine.on('progress', (p) => {
+      stats.value = p
+      playing.value = p.playing
+      finished.value = p.finished
+      timeScale.value = p.timeScale
+    })
+    engine.on('feature-enter', ({ feature }) => { activeFeature.value = feature })
+    engine.on('feature-exit', () => { activeFeature.value = null })
+    engine.on('mode-changed', ({ mode }) => { cameraMode.value = mode })
+    engine.on('finished', () => { playing.value = false; finished.value = true })
+
+    phase.value = 'ready'
+    stats.value = engine.state
+
+    // Nettbaserte kilder popper inn asynkront — feil svelges stille.
+    const allFeatures = [...mapFeatures]
+    const merge = (extra) => {
+      if (!extra?.length || !engine) return
+      allFeatures.push(...extra)
+      engine.setFeatures(allFeatures)
+    }
+    loadNveFeatures({ meta: toRaw(props.meta), signal: abort.signal }).then(merge).catch(() => {})
+    loadHeritageFeatures({ route: route.coordinates, meta: toRaw(props.meta), signal: abort.signal }).then(merge).catch(() => {})
+  } catch (err) {
+    phase.value = err?.code === 'no-dem' ? 'no-dem' : err?.code === 'no-webgl' ? 'no-webgl' : 'error'
+    if (phase.value === 'error') console.error('3D-visning feilet:', err)
+  }
+})
+
+onBeforeUnmount(() => {
+  abort?.abort()
+  wake.stop()
+  engine?.dispose()
+  engine = null
+  window.removeEventListener('popstate', onPopstate)
+  window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('resize', onOrientation)
+  if (!poppedByHistory && history.state?.lende3d) {
+    poppedByHistory = true
+    history.back()
+  }
+})
+
+function play() { engine?.play(); playing.value = true; wake.start() }
+function pause() { engine?.pause(); playing.value = false; wake.stop() }
+function restart() { engine?.restart(); playing.value = true; finished.value = false; wake.start() }
+function setTimeScale(x) { engine?.setTimeScale(x); timeScale.value = x }
+function setCameraMode(m) { engine?.setCameraMode(m) }
+function skipFeature() { engine?.skipFeature() }
+</script>
+
+<template>
+  <Teleport to="body">
+    <div class="fixed inset-0 z-[220] bg-[#101623] flex flex-col"
+         style="height: 100dvh;">
+      <!-- WebGL-canvas fyller alt; UI ligger som overlay. -->
+      <div ref="canvasHost" class="absolute inset-0"></div>
+
+      <!-- Topprad -->
+      <div class="relative z-10 flex items-center justify-between gap-2 px-3"
+           style="padding-top: max(env(safe-area-inset-top), 10px);">
+        <div class="rounded-full bg-black/45 backdrop-blur px-3 py-1.5 text-[12px] text-white/85 truncate">
+          {{ mapTitle || 'Turen i 3D' }}<span v-if="isLoop" class="text-white/50"> · rundtur</span>
+        </div>
+        <button @click="requestClose"
+                aria-label="Lukk 3D-visning"
+                class="w-11 h-11 shrink-0 rounded-full bg-black/45 backdrop-blur text-white/85
+                       flex items-center justify-center active:scale-90">
+          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+               stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Laste-/feiltilstander -->
+      <div v-if="phase === 'loading'"
+           class="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 text-white/80">
+        <div class="w-10 h-10 rounded-full border-2 border-white/25 border-t-white animate-spin"></div>
+        <div class="text-[13px]">Bygger 3D-terreng …</div>
+      </div>
+      <div v-else-if="errorText"
+           class="absolute inset-0 z-20 flex items-center justify-center p-6">
+        <div class="rounded-xl bg-amber-500/10 border border-amber-300/30 px-4 py-3
+                    text-amber-100/90 text-[13px] max-w-sm text-center">
+          {{ errorText }}
+        </div>
+      </div>
+
+      <!-- Infokort for aktuell feature -->
+      <div v-if="phase === 'ready'"
+           class="absolute left-0 right-0 z-10 flex justify-center px-4 pointer-events-none"
+           :class="isLandscape ? 'top-16' : 'top-20'">
+        <Tour3dFeatureCard :feature="activeFeature" @skip="skipFeature"/>
+      </div>
+
+      <!-- Bunnpanel (portrett) / hjørner (landskap) -->
+      <div v-if="phase === 'ready'" class="relative z-10 mt-auto">
+        <div v-if="!isLandscape"
+             class="flex flex-col gap-2.5 px-3"
+             style="padding-bottom: max(env(safe-area-inset-bottom), 12px);">
+          <Tour3dHud :stats="stats"/>
+          <Tour3dControls
+            :playing="playing" :finished="finished" :time-scale="timeScale" :camera-mode="cameraMode"
+            @play="play" @pause="pause" @restart="restart"
+            @set-time-scale="setTimeScale" @set-camera-mode="setCameraMode"/>
+        </div>
+        <template v-else>
+          <div class="absolute bottom-0 right-0 px-3"
+               style="padding-bottom: max(env(safe-area-inset-bottom), 12px);">
+            <Tour3dHud :stats="stats" landscape/>
+          </div>
+          <div class="px-3 max-w-md"
+               style="padding-bottom: max(env(safe-area-inset-bottom), 12px);">
+            <Tour3dControls
+              :playing="playing" :finished="finished" :time-scale="timeScale" :camera-mode="cameraMode"
+              @play="play" @pause="pause" @restart="restart"
+              @set-time-scale="setTimeScale" @set-camera-mode="setCameraMode"/>
+          </div>
+        </template>
+      </div>
+    </div>
+  </Teleport>
+</template>

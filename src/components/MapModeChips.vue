@@ -30,7 +30,7 @@ const props = defineProps({
 defineEmits([
   'clearHighlight', 'stopMeasure',
   'selectRoute', 'removeVia', 'beginAddVia', 'cancelStifinner',
-  'followRoute', 'stopFollowing', 'shareRoundTrip', 'startGps',
+  'followRoute', 'stopFollowing', 'shareRoundTrip', 'startGps', 'open3d',
 ])
 
 // «Del rundtur»-knappens tekst følger delings-tilstanden (native share-sheet
@@ -285,6 +285,19 @@ function formatElevationDiff(m) {
             </svg>
             Bruk rute
           </button>
+          <!-- 3D-visning av valgt rute — samme handling som 3D-pinnen ved
+               startpunktet (som ofte er panorert utenfor skjermen). -->
+          <button @click="$emit('open3d')"
+                  class="mt-1 w-full flex items-center justify-center gap-1.5 rounded
+                         bg-ink/15 text-white font-medium text-[11px] py-1.5 px-3
+                         active:scale-[0.98]">
+            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/>
+              <path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>
+            </svg>
+            Vis turen i 3D
+          </button>
         </template>
       </template>
     </div>
@@ -373,6 +386,16 @@ function formatElevationDiff(m) {
               <line x1="8.6" y1="10.5" x2="15.4" y2="6.5"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/>
             </svg>
             {{ shareLabel }}
+          </button>
+          <button @click="$emit('open3d')"
+                  class="flex items-center gap-1 bg-ink/15 rounded px-1.5 py-0.5
+                         text-[10px] font-medium active:scale-95">
+            <svg viewBox="0 0 24 24" class="w-3 h-3 shrink-0" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/>
+              <path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>
+            </svg>
+            Vis i 3D
           </button>
         </div>
       </div>

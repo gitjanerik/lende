@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick, shallowRef, markRaw } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { usePinchZoom } from '../composables/usePinchZoom.js'
 import { useUserPosition } from '../composables/useUserPosition.js'
@@ -2831,6 +2831,94 @@ watch(animating, (v) => {
   if (v && contextMenuOpen.value && !contextPinRaf) contextPinRaf = requestAnimationFrame(contextPinRafLoop)
 })
 
+// ── 3D-turvisning (v3.0.0) ──────────────────────────────────────────────
+// «3D»-pin ved rutens startpunkt (samme HTML-utenfor-transform-mønster som
+// long-press-siktet over) + fullskjerm-viewer lastet lazily. Ikke gated på
+// storedDem — vieweren eier «ingen høydedata»-tilstanden selv.
+const tour3dOpen = ref(false)
+const tour3dLoading = ref(false)
+const tour3dComp = shallowRef(null)
+const tour3dError = ref('')
+
+const stiSelectedRoute = computed(() =>
+  sti.routes.value[sti.selectedRouteIdx.value] ?? null)
+
+const tour3dPinVisible = computed(() =>
+  (sti.mode.value === 'showing' || sti.mode.value === 'following') &&
+  !!stiSelectedRoute.value && !!sti.start.value && !!meta.value && !tour3dOpen.value)
+
+const tour3dPinElRef = ref(null)
+function positionTour3dPin() {
+  const el = tour3dPinElRef.value
+  if (!el) return
+  const p = sti.start.value
+  const wrap = wrapperRef.value?.getBoundingClientRect()
+  if (!p || !tour3dPinVisible.value || !wrap) return
+  const scr = svgToClient(p.svgX, p.svgY)
+  if (!scr) return
+  // Skjul (ikke flytt) når startpunktet er panorert utenfor kartflaten —
+  // chips-knappen «Vis turen i 3D» dekker det tilfellet.
+  const inside = scr.x >= wrap.left && scr.x <= wrap.right && scr.y >= wrap.top && scr.y <= wrap.bottom
+  el.style.visibility = inside ? 'visible' : 'hidden'
+  el.style.left = (scr.x - wrap.left) + 'px'
+  el.style.top = (scr.y - wrap.top) + 'px'
+}
+let tour3dPinRaf = 0
+function tour3dPinRafLoop() {
+  positionTour3dPin()
+  if (animating.value && tour3dPinVisible.value) {
+    tour3dPinRaf = requestAnimationFrame(tour3dPinRafLoop)
+  } else {
+    tour3dPinRaf = 0
+  }
+}
+watch([tour3dPinVisible, () => sti.start.value, scale, translateX, translateY, rotation], positionTour3dPin)
+watch(animating, (v) => {
+  if (v && tour3dPinVisible.value && !tour3dPinRaf) tour3dPinRaf = requestAnimationFrame(tour3dPinRafLoop)
+})
+
+// Motorens ETA-kall er (meter, klatring-i-meter); stifinnerens Naismith tar
+// {ascent, descent}-objekt — adapter her.
+function tour3dEstWalk(lengthM, climbM) {
+  return sti.estWalkMinutes(lengthM, climbM ? { ascent: climbM, descent: 0 } : null)
+}
+
+async function openTour3d() {
+  if (tour3dOpen.value) return
+  tour3dError.value = ''
+  tour3dOpen.value = true
+  tour3dLoading.value = true
+  try {
+    await ensureDem()
+    if (!tour3dComp.value) {
+      const mod = await import('../components/tour3d/Immersive3DViewer.vue')
+      tour3dComp.value = markRaw(mod.default)
+    }
+  } catch {
+    tour3dOpen.value = false
+    tour3dError.value = 'Kunne ikke laste 3D-visningen — sjekk nettforbindelsen'
+    setTimeout(() => { tour3dError.value = '' }, 4000)
+  } finally {
+    tour3dLoading.value = false
+  }
+}
+function closeTour3d() { tour3dOpen.value = false }
+
+// Idle-warm-up: hashede chunks er cache-first-ved-første-fetch i sw.js, så én
+// online kartøkt legger 3D-chunken (inkl. three) i cachen — «Vis i 3D» virker
+// da også uten dekning senere.
+let tour3dWarmed = false
+watch(meta, (m) => {
+  if (!m || tour3dWarmed) return
+  tour3dWarmed = true
+  const warm = () => {
+    if (navigator.onLine === false || navigator.connection?.saveData) return
+    import('../components/tour3d/Immersive3DViewer.vue').catch(() => {})
+  }
+  if ('requestIdleCallback' in window) requestIdleCallback(warm, { timeout: 15000 })
+  else setTimeout(warm, 5000)
+}, { immediate: true })
+
 // Detalj-inset (lupe) — flyttet til useDetailInset; watch-en blir her.
 const { buildDetailInset } = useDetailInset({
   detailInsetRef, svgHostRef, contextMenuPoint, detachedDetailLayers,
@@ -3736,6 +3824,26 @@ onUnmounted(() => {
         </svg>
       </div>
 
+      <!-- «3D»-pin ved rutens startpunkt (stifinner/rundtur valgt): HTML-
+           overlay UTENFOR pinch-transformen, samme mønster som long-press-
+           siktet over. Flyter rett over den grønne startprikken. -->
+      <button v-show="tour3dPinVisible"
+              ref="tour3dPinElRef"
+              @click="openTour3d"
+              aria-label="Vis turen i 3D"
+              class="absolute top-0 left-0 z-[7] pointer-events-auto flex items-center gap-1
+                     rounded-full bg-gray-900/90 text-white text-[11px] font-bold
+                     pl-2 pr-2.5 py-1 shadow-lg border border-white/25 active:scale-90
+                     transition-transform"
+              style="margin-left:-26px;margin-top:-46px;">
+        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/>
+          <path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>
+        </svg>
+        3D
+      </button>
+
       <!-- Kanthåndtak: 8 runde knapper på ARKETS kant som henter nye kartfliser.
            Ligger UTENFOR pinch-transformen (søsken av mapInnerRef) så knapp,
            hårlinje og pille holder ekte skjermstørrelse, mens ankeret følger
@@ -3825,7 +3933,8 @@ onUnmounted(() => {
       @follow-route="onFollowRoute"
       @stop-following="onStopFollowing"
       @share-round-trip="onShareRoundTrip"
-      @start-gps="startPositioning" />
+      @start-gps="startPositioning"
+      @open3d="openTour3d" />
 
     <!-- Status/feil-overlays: lasting, last-feil, posisjons-status,
          detalj-feil og lav GPS-nøyaktighet. Trekt ut til MapStatusOverlays
@@ -4234,6 +4343,32 @@ onUnmounted(() => {
            :style="mapCenterStyle">
         <span class="w-3.5 h-3.5 rounded-full border-2 border-ink/25 border-t-ink/80 animate-spin shrink-0"></span>
         <span class="truncate">{{ buildingProgress || 'Oppretter kart …' }}</span>
+      </div>
+    </Transition>
+
+    <!-- 3D-turvisning: fullskjerm-viewer (Teleport til body inne i komponenten).
+         Chunk-en (inkl. three) lastes lazily — spinner mens den hentes. -->
+    <div v-if="tour3dOpen && tour3dLoading"
+         class="fixed inset-0 z-[219] bg-black/70 flex flex-col items-center justify-center gap-3 text-white/85">
+      <span class="w-9 h-9 rounded-full border-2 border-white/25 border-t-white animate-spin"></span>
+      <span class="text-[13px]">Laster 3D-visning …</span>
+    </div>
+    <component :is="tour3dComp"
+               v-if="tour3dOpen && !tour3dLoading && tour3dComp && meta && stiSelectedRoute"
+               :dem="storedDem"
+               :meta="meta"
+               :route="stiSelectedRoute"
+               :is-loop="sti.isLoop.value"
+               :est-walk-minutes="tour3dEstWalk"
+               :search-index="searchIndex"
+               :get-svg-text="() => lastSvgString"
+               :map-title="mapTitle"
+               @close="closeTour3d" />
+    <Transition name="chip-fade">
+      <div v-if="tour3dError"
+           class="absolute bottom-24 left-1/2 -translate-x-1/2 z-[60] px-3 py-2 rounded-xl
+                  bg-red-600/95 text-white text-[12px] font-medium shadow-lg max-w-[85%]">
+        {{ tour3dError }}
       </div>
     </Transition>
   </div>

@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-29 — v3.0.0: Immersiv 3D-visning av tur
+
+Ny hovedfunksjon: når en rute er valgt med stifinneren eller en rundtur er planlagt, dukker en «3D»-knapp opp ved startpunktet (og i rutepanelet) som åpner turen som en fullskjerm 3D-opplevelse. Terrenget bygges i sanntid med Three.js fra kartets lagrede Kartverket-høydemodell, og selve ISOM-kartet rasteriseres og drapes over som tekstur — 3D-landskapet ser altså ut som kartet du kjenner, uten ortofoto. Turen spilles av langs ruta med play/pause, hastighetsvalg og tre kameramoduser: Følg (kamera bak turpunktet), Flyover (filmatisk lavtflyvende drone langs en glattet kameraspline med terrengklaring) og Utforsk (fri rotasjon/zoom). Underveis fungerer severdigheter som hendelser på tidslinjen: tjern, topper, naturreservater og steder fra kartets egen navneindeks (virker offline), pluss NVEs vannmålestasjoner med siste vannføring/-temperatur og Riksantikvarens fredede kulturminner over nett — kameraet bremser, svever ved featuren og viser et infokort før turen fortsetter. Et HUD viser høyde, kilometer gått og igjen, stigning og gjenværende tid (Naismith), i både portrett og landskap. 3D-modulen (inkl. three) ligger i en egen lazy chunk som varmes i service worker-cachen ved første kartåpning på nett, så funksjonen virker offline etterpå; kart uten ekte høydedata får en forklarende tom-tilstand. Om-siden har fått et eget avsnitt om funksjonen.
+
+---
+
 ## 2026-07-29 — v2.4.30: Utrygg myr kan skilles fra fast i alle temaer
 
 De seks monokrome temaene flatet myra til én solid farge. Fast myr (308) og utrygg myr (309) skilles KUN av rastertettheten, så et flatt fyll gjorde dem praktisk talt identiske — de to fargene lå så nær hverandre at forskjellen bare var en knapt merkbar valørendring. På et turkart betyr det at utrygg myr ikke kunne skilles fra fast, som er nettopp den regresjonen den eksisterende testen verner Mørk mot. Nå bruker alle temaene rasteret, med strekfargen hentet fra temaets egen vann-kulør på omtrent to tredjedeler av åpent vanns valør, slik Mørk fikk i forrige versjon. Tettheten er urørt, så forskjellen mellom fast og utrygg er tilbake i alle åtte temaer.
