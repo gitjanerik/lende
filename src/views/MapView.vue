@@ -29,7 +29,7 @@ import { useGhostTiles } from '../composables/useGhostTiles.js'
 import { useMapExtend } from '../composables/useMapExtend.js'
 import { useSymbolRenderers } from '../composables/useSymbolRenderers.js'
 import { useContextLookups } from '../composables/useContextLookups.js'
-import { loadNasjonalparker, parksForBbox } from '../lib/nasjonalparkData.js'
+import { loadNasjonalparker, parksForBbox, samePark } from '../lib/nasjonalparkData.js'
 import { useMapLoadPipeline } from '../composables/useMapLoadPipeline.js'
 import { buildStrokeOverrideCss } from '../lib/strokeOverrides.js'
 import { buildTrailColorCss, normalizeHex } from '../lib/trailColors.js'
@@ -2414,6 +2414,25 @@ const {
   contextDrawer, mapId, closeDrawer, knobPanel, proximityPanelOpen, clientToSvg,
 })
 
+// Hvilke parker faktaboksen faktisk skal vise. Trykker du INNE i en
+// nasjonalpark, svarer Naturbase-oppslaget med samme park — og det kortet er
+// rikere (rødlistearter, leksikon-lenke). Da hadde vi to grønne bokser med
+// samme innhold; parken lukes derfor bort her. Faktaboksen står igjen for det
+// den er til: kartet dekker en park, men punktet du trykket på ligger utenfor
+// den — eller Naturbase er utilgjengelig (offline på tur), der det lokale
+// datasettet er eneste kilde.
+//
+// Under selve oppslaget ('loading') holdes boksen igjen: å vise den og så
+// bytte den ut med Naturbase-kortet et sekund senere leser som en glitch.
+const nasjonalparkerVist = computed(() => {
+  const q = verneQuery.value
+  if (q?.status === 'loading') return []
+  const area = q?.status === 'done' ? q.area : null
+  if (!area) return nasjonalparker.value
+  return nasjonalparker.value.filter(p => !samePark(p, area))
+})
+
+
 // ── Nærhetsvarsel (proximity alert) ──────────────────────────────────────
 // Inline config-panel i kontekst-draweren. Lokal redigerings-state speiler
 // proximity.prefs (sist brukte valg) til brukeren bekrefter med «Aktiver».
@@ -4115,7 +4134,7 @@ onUnmounted(() => {
       :DETAIL_INSET_M="DETAIL_INSET_M"
       :lake-query="lakeQuery"
       :verne-query="verneQuery"
-      :nasjonalparker="nasjonalparker"
+      :nasjonalparker="nasjonalparkerVist"
       :naturtype-query="naturtypeQuery"
       :place-wiki-card="placeWikiCard"
       :expanded-red-cat="expandedRedCat"

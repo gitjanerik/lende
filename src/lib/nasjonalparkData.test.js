@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { parkCoversBbox, parksForBbox } from './nasjonalparkData.js'
+import { parkCoversBbox, parksForBbox, samePark } from './nasjonalparkData.js'
 
 const data = JSON.parse(readFileSync(new URL('../../public/data/nasjonalparker.json', import.meta.url)))
 const parker = data.parker
@@ -74,5 +74,38 @@ describe('parksForBbox', () => {
   it('tåler tomt datasett', () => {
     expect(parksForBbox([], around(61.88, 9.77))).toEqual([])
     expect(parksForBbox(null, around(61.88, 9.77))).toEqual([])
+  })
+})
+
+describe('samePark — luker bort dobbel visning (v2.4.24)', () => {
+  const rondane = byName('Rondane nasjonalpark')
+
+  it('matcher på Naturbase-ID (VV…), uavhengig av navneform', () => {
+    expect(samePark(rondane, { id: 'VV00001873', navn: 'Rondane' })).toBe(true)
+    expect(samePark(rondane, { id: 'vv00001873', navn: 'Noe helt annet' })).toBe(true)
+  })
+
+  it('matcher på navn når ID mangler — «Rondane» ≡ «Rondane nasjonalpark»', () => {
+    expect(samePark(rondane, { navn: 'Rondane', verneform: 'nasjonalpark' })).toBe(true)
+    expect(samePark(rondane, { navn: 'Rondane nasjonalpark' })).toBe(true)
+    expect(samePark(rondane, { id: 'Rondane', navn: 'Rondane' })).toBe(true)
+  })
+
+  it('et ANNET verneområde i samme kart lukes ikke bort', () => {
+    expect(samePark(rondane, { id: 'VV00000213', navn: 'Grunnvatnet' })).toBe(false)
+    expect(samePark(rondane, { navn: 'Dovre' })).toBe(false)
+  })
+
+  it('tåler manglende argumenter og tomme navn', () => {
+    expect(samePark(null, { navn: 'Rondane' })).toBe(false)
+    expect(samePark(rondane, null)).toBe(false)
+    expect(samePark({ navn: 'nasjonalpark' }, { navn: 'nasjonalpark' })).toBe(false)
+  })
+
+  it('æøå og bindestrek normaliseres bort', () => {
+    const dovrefjell = byName('Dovrefjell-Sunndalsfjella nasjonalpark')
+    expect(samePark(dovrefjell, { navn: 'Dovrefjell–Sunndalsfjella' })).toBe(true)
+    const varanger = byName('Varangerhalvøya nasjonalpark')
+    expect(samePark(varanger, { navn: 'Varangerhalvøya' })).toBe(true)
   })
 })

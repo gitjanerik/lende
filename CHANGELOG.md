@@ -1,5 +1,13 @@
 # Endringslogg
 
+## 2026-07-29 — v2.4.24: Én grønn boks, ikke to
+
+Nasjonalpark-faktaboksen fra v2.4.23 dupliserte informasjon: trykker du inne i en nasjonalpark, svarer Naturbase-oppslaget med samme park, og da sto to grønne bokser med samme navn, vernedato og forvaltningsmyndighet rett over hverandre. Naturbase-kortet er det rikeste av de to — det har observerte rødlistearter og leksikon-lenke i tillegg — så det er faktaboksen som viker. Parken lukes bort på Naturbase-ID (VV…) når den finnes, ellers på normalisert navn, siden Naturbase kaller parken «Rondane» med verneform «nasjonalpark» der OSM kaller den «Rondane nasjonalpark».
+
+Faktaboksen er beholdt for de to tilfellene den er alene om: kartet dekker en park, men punktet du trykket på ligger utenfor parkgrensa — og Naturbase er utilgjengelig, altså offline på tur, der det bundlede datasettet er eneste kilde. Under selve Naturbase-oppslaget holdes boksen igjen, så den ikke blinker forbi og blir byttet ut et sekund senere.
+
+---
+
 ## 2026-07-29 — v2.4.23: Nasjonalpark-faktaboks, og verneområde-kortet slutter å forsvinne
 
 Nasjonalparker vises nå som en faktaboks i infoskuffen — parkens navn (med samisk parallellnavn der det finnes), verneform, vernedato, forvaltningsmyndighet og lenke til Naturbase faktaark, i samme grønne drakt som verneområde-kortet. Boksen henger på ARKET, ikke på long-press-punktet: dekker en park hele eller deler av kartet, står den der. Parken tegnes bevisst ikke — de er 20–3400 km², så en overlay ville enten dekket hele arket i flatt grønt eller (som før) blitt kuttet av areal-vakten på 200 km² uten at noen fikk vite det. Nasjonalparker er dermed heller ikke lenger ISOM 520, og får ingen navne-label i kartet.
