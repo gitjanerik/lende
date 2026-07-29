@@ -5,6 +5,7 @@ import { useAppMenu } from '../composables/useAppMenu.js'
 import { useMapContext } from '../composables/useMapContext.js'
 import { useUiTextScale, UI_TEXT_SCALES } from '../composables/useUiTextScale.js'
 import { useUiTheme } from '../composables/useUiTheme.js'
+import { useMapTheme } from '../composables/useMapTheme.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
 import { gmapsUrl, streetViewUrl, buildVegkartUrl } from '../lib/externalMapLinks.js'
 import { buildUtNoUrl } from '../lib/utNoLink.js'
@@ -33,6 +34,9 @@ const { menuOpen, close } = useAppMenu()
 const { hasMapContext, getPoint, placeName } = useMapContext()
 const { uiTextScale, setTextScale } = useUiTextScale()
 const { theme, setTheme } = useUiTheme()
+// Snarvei til kartets mørke tema — samme tilstand som «Mørk» under
+// Innstillinger → Tema. Av som default (ISOM-paletten kartene er tegnet for).
+const { isDarkMap, setDarkMap } = useMapTheme()
 
 const route = useRoute()
 const router = useRouter()
@@ -269,6 +273,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               </svg>{{ t.label }}
             </button>
           </div>
+          <!-- Snarvei til kartets mørke tema. Styrer samme tilstand som
+               Tema-fanen i Innstillinger; de tre knappene over gjelder appens
+               chrome, denne gjelder kartflaten. -->
+          <label class="am-switch-row">
+            <span class="am-switch-label">Turkart i mørkt tema</span>
+            <input type="checkbox" class="am-switch" role="switch"
+                   :checked="isDarkMap" @change="setDarkMap($event.target.checked)" />
+          </label>
           <div class="am-size-row">
             <span class="am-size-label">Tekststørrelse</span>
             <div class="am-sizes" role="group" aria-label="Tekststørrelse">
@@ -521,6 +533,46 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .am-chip-ext { color: var(--am-dim); display: grid; place-items: center; }
 
 /* ── Tekststørrelse ── */
+/* Bryter-rad: samme rytme som tekststørrelse-raden under. `appearance: none`
+   + egen bakgrunn/knott, så bryteren følger meny-tokenene i begge UI-temaer i
+   stedet for nettleserens systemfarge. Hele raden er en <label>, altså er
+   teksten også trykkflate. */
+.am-switch-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+  min-height: 44px;
+  cursor: pointer;
+}
+.am-switch-label { font-size: 0.95em; flex: 1; }
+.am-switch {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 0 0 auto;
+  width: 46px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--am-surface);
+  position: relative;
+  transition: background 0.18s;
+  cursor: pointer;
+}
+.am-switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--am-dim);
+  transition: transform 0.18s, background 0.18s;
+}
+.am-switch:checked { background: var(--am-accent); }
+.am-switch:checked::after { transform: translateX(18px); background: var(--am-on-accent); }
+.am-switch:focus-visible { outline: 2px solid var(--am-accent); outline-offset: 2px; }
+
 .am-size-row { display: flex; align-items: center; gap: 12px; padding: 2px 4px; }
 .am-size-label { font-size: 0.95em; flex: 1; }
 .am-sizes { display: flex; gap: 4px; padding: 4px; background: var(--am-surface); border-radius: 12px; }

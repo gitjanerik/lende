@@ -1,5 +1,13 @@
 # Endringslogg
 
+## 2026-07-29 — v2.4.25: Snarvei til mørkt turkart i hovedmenyen
+
+Hovedmenyen har fått bryteren «Turkart i mørkt tema» rett under Lyst/Mørkt/Auto, av som default. De tre knappene styrer appens chrome — menyer, skuffer, knapper — mens den nye bryteren gjelder kartflaten, og gjør det samme som å velge «Mørk» under Innstillinger → Tema. Det er én og samme tilstand: velger du Mørk i Tema-fanen, står bryteren på, og slår du den av i menyen, hopper Tema-fanen tilbake til Lys (ISOM). Bryteren er to-tilstands, så «av» betyr alltid kartets standardpalett — også om du sto på Sepia eller Petrol.
+
+Kart-temaet bor nå i en delt `useMapTheme` (localStorage `lende-map-theme`) i stedet for i MapViews lokale tilstand. Det er en bevisst utvidelse: valget overlever at appen lukkes, som alle andre innstillinger i appen gjør, og bryteren i menyen ville ellers ikke betydd noe fra forsiden der ingen kart er åpnet. Foretrekker du at kartet alltid starter lyst, si fra — da gjør vi tilstanden økt-lokal i stedet.
+
+---
+
 ## 2026-07-29 — v2.4.24: Én grønn boks, ikke to
 
 Nasjonalpark-faktaboksen fra v2.4.23 dupliserte informasjon: trykker du inne i en nasjonalpark, svarer Naturbase-oppslaget med samme park, og da sto to grønne bokser med samme navn, vernedato og forvaltningsmyndighet rett over hverandre. Naturbase-kortet er det rikeste av de to — det har observerte rødlistearter og leksikon-lenke i tillegg — så det er faktaboksen som viker. Parken lukes bort på Naturbase-ID (VV…) når den finnes, ellers på normalisert navn, siden Naturbase kaller parken «Rondane» med verneform «nasjonalpark» der OSM kaller den «Rondane nasjonalpark».

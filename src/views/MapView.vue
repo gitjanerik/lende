@@ -29,6 +29,7 @@ import { useGhostTiles } from '../composables/useGhostTiles.js'
 import { useMapExtend } from '../composables/useMapExtend.js'
 import { useSymbolRenderers } from '../composables/useSymbolRenderers.js'
 import { useContextLookups } from '../composables/useContextLookups.js'
+import { useMapTheme } from '../composables/useMapTheme.js'
 import { loadNasjonalparker, parksForBbox, samePark } from '../lib/nasjonalparkData.js'
 import { useMapLoadPipeline } from '../composables/useMapLoadPipeline.js'
 import { buildStrokeOverrideCss } from '../lib/strokeOverrides.js'
@@ -218,7 +219,10 @@ function resetLayers() {
 }
 // Tema: 'light' (default ISOM), 'dark', 'mono-sepia', 'mono-indigo', 'mono-slate'.
 // isDark er derivert for steder som styrer UI-farger (toppbar, drawer-bg).
-const currentTheme = ref('light')
+// Tilstanden bor i useMapTheme (delt singleton, lagret i localStorage) så
+// Tema-fanen her og «Turkart i mørkt tema»-bryteren i hovedmenyen styrer det
+// samme — og valget overlever at appen lukkes.
+const { mapTheme: currentTheme, setMapTheme } = useMapTheme()
 const isDark = computed(() => currentTheme.value !== 'light')
 const THEMES = computed(() => listThemes(isomCatalog))
 const diagnose = ref(false)
@@ -441,7 +445,7 @@ function openDrawer() { closeContextMenu(); showControls.value = true; drawer.re
 function closeDrawer() { showControls.value = false }
 
 function onThemeTap(key) {
-  currentTheme.value = key
+  setMapTheme(key)
 }
 
 // Lazy DEM-henting for features som trenger høydedata etter at kartet er
