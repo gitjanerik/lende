@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import {
-  extractAreaFromAttributes,
-  parseVernedato,
-  pickAreaFromIdentify,
-} from './verneFetcher.js'
+import { extractAreaFromAttributes, parseVernedato, pickAreaFromIdentify, buildIdentifyUrl } from './verneFetcher.js'
 
 describe('parseVernedato', () => {
   it('parser epoch-ms (tall) til ISO-dato', () => {
@@ -81,5 +77,38 @@ describe('pickAreaFromIdentify', () => {
   it('returnerer null når ingen treff har navn', () => {
     expect(pickAreaFromIdentify({ results: [{ attributes: {} }] })).toBeNull()
     expect(pickAreaFromIdentify({})).toBeNull()
+  })
+})
+
+describe('identify-URL: geometri er opt-in (v2.4.23)', () => {
+  it('default henter IKKE geometri — kortet skal komme raskt', () => {
+    const url = buildIdentifyUrl('https://x/vern/MapServer', 68.28505, 16.69628)
+    expect(url).toContain('returnGeometry=false')
+    expect(url).toContain('geometry=16.69628%2C68.28505')
+    expect(url).toContain('layers=all')
+  })
+
+  it('withGeometry slår på ringene (brukes kun av GBIF-steget)', () => {
+    const url = buildIdentifyUrl('https://x/vern/MapServer', 68.28505, 16.69628, { returnGeometry: true })
+    expect(url).toContain('returnGeometry=true')
+  })
+})
+
+describe('naturvernId gir faktaark-lenke (v2.4.23)', () => {
+  it('bygger faktaark-URL fra Naturbase sitt eget ID-felt', () => {
+    const area = extractAreaFromAttributes({
+      navn: 'Grunnvatnet naturreservat',
+      verneform: 'Naturreservat',
+      naturvernId: 'VV00000213',
+      forvaltningsmyndighet: 'Statsforvalteren i Nordland',
+    })
+    expect(area.id).toBe('VV00000213')
+    expect(area.faktaarkUrl).toBe('https://faktaark.naturbase.no/?id=VV00000213')
+  })
+
+  it('uten ID-felt faller id tilbake på navnet og lenka blir null', () => {
+    const area = extractAreaFromAttributes({ navn: 'Et reservat' })
+    expect(area.id).toBe('Et reservat')
+    expect(area.faktaarkUrl).toBeNull()
   })
 })

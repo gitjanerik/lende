@@ -227,6 +227,44 @@ export function isFlowingWaterArea(tags) {
 // så eksisterende imports er uendret.
 export { isTrailheadParking } from './parkingRules.js'
 
+// Nasjonalpark (OSM `boundary=national_park`, alle 38 norske parker som er
+// kartlagt som relasjon bruker den taggen). Behandles som en EGEN ting, ikke
+// som verneområde-overlay: se kommentaren over 520-regelen i classifyToIsom.
+// Krever navn, som resten av verne-regelverket — et unavngitt park-polygon er
+// en mistag.
+export function isNationalPark(tags) {
+  const t = tags ?? {}
+  if (t.boundary !== 'national_park') return false
+  const name = t.name ?? t['name:no'] ?? t['name:nb']
+  return !!(name && String(name).trim())
+}
+
+// Plukk faktaboks-feltene ut av en nasjonalpark-tagg-samling. OSM-parkene i
+// Norge er importert fra Naturbase og bærer `naturbase:url`, `ref:naturvern`,
+// `operator` og `start_date` — nok til en offisiell faktaboks uten et eneste
+// ekstra API-kall. Samisk/kvensk parallellnavn tas med når det finnes (parkene
+// har offisielt tospråklige navn i logoen: «Børgefjell / Byrkije»).
+export function nationalParkFacts(tags) {
+  const t = tags ?? {}
+  if (!isNationalPark(t)) return null
+  const navn = String(t.name ?? t['name:no'] ?? t['name:nb']).trim()
+  const alt = [t['name:se'], t['name:sma'], t['name:smj'], t['name:fkv']]
+    .map(v => (v == null ? '' : String(v).trim()))
+    .find(v => v && v !== navn) ?? null
+  const url = typeof t['naturbase:url'] === 'string' && /^https?:\/\//i.test(t['naturbase:url'])
+    ? t['naturbase:url']
+    : null
+  return {
+    navn,
+    altNavn: alt,
+    ref: t['ref:naturvern'] ?? null,
+    faktaarkUrl: url,
+    forvaltning: t.operator ?? null,
+    vernedato: /^\d{4}-\d{2}-\d{2}$/.test(String(t.start_date ?? '')) ? t.start_date : null,
+    wikidata: t.wikidata ?? null,
+  }
+}
+
 export function classifyToIsom(el) {
   const t = el.tags ?? {}
   if (el.type === 'node' && (t.natural === 'peak' || t.natural === 'saddle')) return { code: 'peak', cat: 'point' }
@@ -325,7 +363,12 @@ export function classifyToIsom(el) {
   //   - boundary=protected_area + protect_class=1/1a/1b/4 (vanlig på relation,
   //     tilsvarer IUCN-kategoriene for strict nature reserve / habitat management
   //     = norske naturreservater og biotopvern)
-  //   - boundary=national_park (nasjonalparker, egen kategori men samme rendering)
+  //   - boundary=national_park (nasjonalparker — se isNationalPark under)
+  //
+  // Nasjonalparker tegnes IKKE (v2.4.23). De er 20–3400 km²; overlayen ville
+  // enten dekket hele arket i flatt grønt eller blitt kuttet av areal-vakten
+  // uansett. De formidles i stedet som en faktaboks i infoskuffen
+  // (meta.nasjonalparker + ContextMenuSheet), med offisiell park-logo.
   //
   // KRITISK: krever name-tag. Uten denne sjekken fanget vi opp store unavn-
   // gitte multipolygoner (f.eks. friluftslivsområder / markalov-områder feil-
@@ -337,11 +380,10 @@ export function classifyToIsom(el) {
   // protect_class er strammere enn før: tidligere ^[1-7]$ inkluderte også
   // landskapsvernområder (5) og managed resources (6) som kan dekke vast
   // arealer. Nå kun strict reserves (1/1a/1b) og habitat management (4).
-  if (el.type !== 'node') {
+  if (el.type !== 'node' && !isNationalPark(t)) {
     const name = t.name ?? t['name:no'] ?? t['name:nb']
     if (name && String(name).trim()) {
       if (t.leisure === 'nature_reserve') return { code: '520', cat: 'manmade' }
-      if (t.boundary === 'national_park') return { code: '520', cat: 'manmade' }
       if (t.boundary === 'protected_area' && /^(1|1a|1b|4)$/.test(String(t.protect_class ?? ''))) {
         return { code: '520', cat: 'manmade' }
       }

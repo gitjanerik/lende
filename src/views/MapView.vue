@@ -29,6 +29,7 @@ import { useGhostTiles } from '../composables/useGhostTiles.js'
 import { useMapExtend } from '../composables/useMapExtend.js'
 import { useSymbolRenderers } from '../composables/useSymbolRenderers.js'
 import { useContextLookups } from '../composables/useContextLookups.js'
+import { loadNasjonalparker, parksForBbox } from '../lib/nasjonalparkData.js'
 import { useMapLoadPipeline } from '../composables/useMapLoadPipeline.js'
 import { buildStrokeOverrideCss } from '../lib/strokeOverrides.js'
 import { buildTrailColorCss, normalizeHex } from '../lib/trailColors.js'
@@ -166,6 +167,17 @@ const nveInnsjoStatusText = computed(() => {
   }
   return `FEILET: ${s.message ?? 'ukjent feil'} — innsjøer mangler; bygg kartet på nytt`
 })
+
+// Nasjonalparker som dekker kartet helt eller delvis. Slås opp lokalt mot det
+// bundlede park-datasettet (ingen nettverk, virker offline) — derfor gjelder
+// faktaboksen også kart som allerede er bygget. Parken tegnes aldri i kartet.
+const nasjonalparker = ref([])
+watch(() => meta.value?.bbox, async (bbox) => {
+  if (!bbox) { nasjonalparker.value = []; return }
+  const parker = await loadNasjonalparker()
+  if (meta.value?.bbox !== bbox) return
+  nasjonalparker.value = parksForBbox(parker, bbox)
+}, { immediate: true })
 
 const storedDem = ref(null)             // unpacked DEM, eller null hvis ikke tilgjengelig
 
@@ -4103,6 +4115,7 @@ onUnmounted(() => {
       :DETAIL_INSET_M="DETAIL_INSET_M"
       :lake-query="lakeQuery"
       :verne-query="verneQuery"
+      :nasjonalparker="nasjonalparker"
       :naturtype-query="naturtypeQuery"
       :place-wiki-card="placeWikiCard"
       :expanded-red-cat="expandedRedCat"

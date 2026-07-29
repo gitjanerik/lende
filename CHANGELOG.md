@@ -1,5 +1,17 @@
 # Endringslogg
 
+## 2026-07-29 — v2.4.23: Nasjonalpark-faktaboks, og verneområde-kortet slutter å forsvinne
+
+Nasjonalparker vises nå som en faktaboks i infoskuffen — parkens navn (med samisk parallellnavn der det finnes), verneform, vernedato, forvaltningsmyndighet og lenke til Naturbase faktaark, i samme grønne drakt som verneområde-kortet. Boksen henger på ARKET, ikke på long-press-punktet: dekker en park hele eller deler av kartet, står den der. Parken tegnes bevisst ikke — de er 20–3400 km², så en overlay ville enten dekket hele arket i flatt grønt eller (som før) blitt kuttet av areal-vakten på 200 km² uten at noen fikk vite det. Nasjonalparker er dermed heller ikke lenger ISOM 520, og får ingen navne-label i kartet.
+
+Oppslaget er lokalt. `scripts/build-nasjonalparker.js` henter alle 43 norske parker fra OSM (Naturbase-importen bærer `ref:naturvern`, `naturbase:url`, `operator` og `start_date`) i CI, forenkler grensene til ~150 m og skriver `public/data/nasjonalparker.json` — 35 kB gzip, lastet ved behov. Alternativet, et Overpass-oppslag ved kartbygging, ble forkastet: bbox-filteret treffer ikke en park man står midt inne i (Rondvassbu i Rondane ga null treff), `is_in` retter det men konkurrerer om klientens Overpass-slots (1–3 s alene, over 12 s i skyggen av hovedspørringen) og får speilet openstreetmap.fr til å svare 504. Lokalt oppslag virker i tillegg offline og gjelder kart som allerede er bygget.
+
+Verneområde-kortet hadde en egen feil: `identify`-kallet hentet HELE polygonet, og for detaljrike områder som Grunnvatnet naturreservat (3600+ grensepunkter, og punktet treffer både reservat, Ramsar-område og restriksjonssone) kunne svaret bli så tungt at 7 s-taket løp ut — da forsvant hele den grønne boksen, selv om punktet lå midt i reservatet. Kortet hentes nå uten geometri; ringene kommer etterpå i bakgrunnen, der de faktisk brukes (GBIF-artstellingen, som uansett faller tilbake på en bbox). Taket er hevet til 12 s, og tjeneste-feil logges i stedet for å bli slukt. Samtidig fikk ID-mønsteret med `naturvernId`, Naturbase sitt eget feltnavn — uten det falt faktaark-lenka bort på alle verneområder.
+
+Park-logoene (Norges nasjonalparker, Snøhetta) er forberedt men ikke lagt inn: `designmanual.norgesnasjonalparker.no` er ikke på nettverkets tillatelsesliste i byggemiljøet. Legg SVG-ene i `src/assets/nasjonalpark/` med slug-navn, så plukker faktaboksen dem opp automatisk — se README-en i mappa.
+
+---
+
 ## 2026-07-29 — v2.4.22: Veitunneler tegnes som stiplet rød linje
 
 Veier i tunnel ble tegnet nøyaktig som veier i dagen — full farge med sort casing — så en fjelltunnel så ut som en vei over toppen, og kartet fortalte ikke hvor traseen faktisk går under bakken. Nå følger tunnelene UT.no-/Norgeskart-konvensjonen: `mapBuilder` skiller tunnel-segmenter (`tunnel`-tag ≠ `no`) ut i egne path-buckets merket `data-tunnel="yes"`, og symbolizeren skjuler den sorte casingen og stipler veifargen. Resultatet er en stiplet rød/oransje linje i veiens egen vekt, akkurat som overflateveien den henger sammen med, bare åpenbart underjordisk.

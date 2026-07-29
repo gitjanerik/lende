@@ -1,0 +1,51 @@
+name: Build nasjonalpark-datasett
+
+# Genererer public/data/nasjonalparker.json fra OpenStreetMap/Overpass (full
+# nett-tilgang i CI) og committer den tilbake til branchen. Trigges manuelt, og
+# automatisk når build-scriptet/workflowen endres. Endringer i selve JSON-en
+# matcher ikke paths-filteret → ingen re-trigger-løkke.
+#
+# Parkgrensene er statiske, men OSM får jevnlig rettelser (og et par norske
+# parker mangler ennå som relasjon) — kjør workflowen manuelt for å friske opp.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 1 */3 *'   # kvartalsvis oppfriskning
+  push:
+    branches: ['**']
+    paths:
+      - 'scripts/build-nasjonalparker.js'
+      - '.github/workflows/build-nasjonalparker.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-nasjonalparker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Generate national park dataset from Overpass
+        run: node scripts/build-nasjonalparker.js
+
+      - name: Commit dataset if changed
+        run: |
+          set -e
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add public/data/nasjonalparker.json
+          if git diff --staged --quiet; then
+            echo "Ingen endring i nasjonalpark-datasettet"
+          else
+            git -c commit.gpgsign=false commit \
+              --author="Deploy <deploy@lende>" \
+              -m "Nasjonalpark-datasett fra OSM (auto-generert)"
+            git push origin HEAD:${GITHUB_REF_NAME}
+            echo "Committet oppdatert nasjonalpark-datasett"
+          fi

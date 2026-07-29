@@ -11,6 +11,10 @@ const bigBbox = { south: 59.7, north: 59.9, west: 10.2, east: 10.42 }
 const okRes = (payload) => ({ ok: true, json: async () => payload })
 const errRes = (status) => ({ ok: false, status, text: async () => 'feil' })
 const bodyOf = (call) => decodeURIComponent(call[1].body)
+// Nasjonalpark-proben (is_in) sendes først i hver fetchOverpass — hjelperne her
+// plukker ut hoved-/bygnings-spørringen uavhengig av kall-rekkefølgen.
+const isParkProbe = (call) => bodyOf(call).includes('area.a["boundary"="national_park"]')
+const nonProbeCalls = (spy) => spy.mock.calls.filter(c => !isParkProbe(c))
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
@@ -48,7 +52,7 @@ describe('fetchOverpass — server-timeout følger klient-taket', () => {
     const fetchSpy = vi.fn(() => Promise.resolve(okRes({ elements: [] })))
     vi.stubGlobal('fetch', fetchSpy)
     await fetchOverpass(smallBbox)
-    const body = bodyOf(fetchSpy.mock.calls[0])
+    const body = bodyOf(nonProbeCalls(fetchSpy)[0])
     expect(body).toContain('[timeout:30]')
     expect(body).toContain('way["building"];')
   })
