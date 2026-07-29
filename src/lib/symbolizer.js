@@ -699,8 +699,12 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
           // background-farge der den finnes (kratt/halv-åpen/hugst/522/
           // strand), ellers none (rene strek-mønstre som myr forsvinner i
           // ~200 ms — samme kontrakt som dasharray-/relieff-undertrykkingen).
+          // Flat-fargen går gjennom SAMME tema-variabel som base-regelen:
+          // regelen her er mer spesifikk (2 klasser + attributt), så en bakt
+          // lys-modus-farge vant over temaet og fikk kratt/hugst/strand til å
+          // blinke lysegrønt/gult i ~200 ms per gest i alle mørke temaer.
           const flat = catalog.patterns?.[def.fill.pattern]?.background ?? 'none'
-          rules.push(`${root}.is-zooming [data-iso="${code}"] { fill: ${flat}; }`)
+          rules.push(`${root}.is-zooming [data-iso="${code}"] { fill: var(--iso-${code}-fill, ${flat}); }`)
         } else if (def.fill.color) {
           props.push(`fill: var(--iso-${code}-fill, ${def.fill.color})`)
         }

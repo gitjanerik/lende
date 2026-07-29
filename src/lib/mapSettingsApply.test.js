@@ -161,6 +161,40 @@ describe('tema', () => {
     expect(css).toContain('--iso-501-stroke: #0b0e11')
   })
 
+  // Alt symbolizer.js leser som var(--label-<navn>-halo, #fff) må settes av HVERT
+  // tema. Gjør det ikke det, faller labelen tilbake på base-katalogens lyse
+  // ISOM-stil og får hvit halo midt på et mørkt kart. Nettopp det skjedde med
+  // stedsnavn, omrade-navn, hytte-navn og naturreservat-navn.
+  const LABEL_KINDS = [
+    'place', 'peak', 'peak-ele', 'kontur-tall', 'vann-navn', 'vann-tall',
+    'dybde-tall', 'stedsnavn', 'omrade-navn', 'hytte-navn', 'naturreservat-navn',
+  ]
+  const DARK_THEMES = listThemes().map((t) => t.key).filter((k) => k !== 'light')
+
+  it('alle temaer setter fill OG halo for hver label-klasse', () => {
+    for (const key of DARK_THEMES) {
+      const css = buildThemeCss(key)
+      for (const kind of LABEL_KINDS) {
+        expect(css, `${key}/${kind}-fill`).toContain(`--label-${kind}-fill:`)
+        expect(css, `${key}/${kind}-halo`).toContain(`--label-${kind}-halo:`)
+      }
+      // Ingen halo skal være hvit — den skal smelte inn i temaets bakgrunn.
+      expect(css).not.toMatch(/--label-[a-z-]+-halo: (#fff\b|#ffffff|white)/)
+    }
+  })
+
+  // Små bygg (< 500 m²) har egne variabler fordi de tegnes Kartverket-style
+  // hvit/sort; uten tema-verdier ble hytter hvite ruter i alle mørke temaer.
+  it('alle temaer setter småbygg-fargene (521-small)', () => {
+    for (const key of DARK_THEMES) {
+      const css = buildThemeCss(key)
+      expect(css, `${key} mangler småbygg-fyll`).toContain('--iso-521-small-fill:')
+      expect(css, `${key} mangler småbygg-strek`).toContain('--iso-521-small-stroke:')
+    }
+    // light beholder ISOM-defaultene (#fff/#000) — de er riktige på papir.
+    expect(buildThemeCss('light')).toBe('')
+  })
+
   it('stiFarger bakes inn i innstillings-CSS-en (MCP-paritet med appen)', () => {
     const css = buildSettingsCss({ stiFarger: { fg: '#7a4fa3', bg: '#ffee88' } })
     expect(css).toContain('stroke: #7a4fa3 !important')

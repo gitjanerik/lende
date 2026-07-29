@@ -1800,6 +1800,14 @@
             "color": "#0b0e11"
           }
         },
+        "521-small": {
+          "fill": {
+            "color": "#5c5248"
+          },
+          "stroke": {
+            "color": "#3a332c"
+          }
+        },
         "522": {
           "fill": {
             "color": "#5b544b"
@@ -1857,6 +1865,10 @@
         "dybde-tall": {
           "color": "#9dcee3",
           "haloColor": "#0a0d10"
+        },
+        "stedsnavn": {
+          "color": "#dcdfe2",
+        "haloColor": "#14181c"
         },
         "omrade-navn": {
           "color": "#96866e",
@@ -2134,6 +2146,14 @@
             "color": "#312d27"
           }
         },
+        "521-small": {
+          "fill": {
+            "color": "#e2d4b6"
+          },
+          "stroke": {
+            "color": "#8a8071"
+          }
+        },
         "522": {
           "fill": {
             "color": "#dcd8d1"
@@ -2193,6 +2213,10 @@
         "dybde-tall": {
           "color": "#18625c",
           "haloColor": "#f4e7ce"
+        },
+        "stedsnavn": {
+          "color": "#2a2620",
+        "haloColor": "#f4e7ce"
         },
         "omrade-navn": {
           "color": "#7d6747",
@@ -2468,6 +2492,14 @@
             "color": "#83868e"
           }
         },
+        "521-small": {
+          "fill": {
+            "color": "#0a1027"
+          },
+          "stroke": {
+            "color": "#4d5566"
+          }
+        },
         "522": {
           "fill": {
             "color": "#292c34"
@@ -2527,6 +2559,10 @@
         "dybde-tall": {
           "color": "#7dbccf",
           "haloColor": "#16203c"
+        },
+        "stedsnavn": {
+          "color": "#d5dae7",
+        "haloColor": "#16203c"
         },
         "omrade-navn": {
           "color": "#908da2",
@@ -2802,6 +2838,14 @@
             "color": "#7e888a"
           }
         },
+        "521-small": {
+          "fill": {
+            "color": "#04171a"
+          },
+          "stroke": {
+            "color": "#4a5658"
+          }
+        },
         "522": {
           "fill": {
             "color": "#2a3233"
@@ -2861,6 +2905,10 @@
         "dybde-tall": {
           "color": "#83bad6",
           "haloColor": "#0c2a2e"
+        },
+        "stedsnavn": {
+          "color": "#cfdcde",
+        "haloColor": "#0c2a2e"
         },
         "omrade-navn": {
           "color": "#839993",
@@ -3136,6 +3184,14 @@
             "color": "#8c857f"
           }
         },
+        "521-small": {
+          "fill": {
+            "color": "#1d0f04"
+          },
+          "stroke": {
+            "color": "#59524c"
+          }
+        },
         "522": {
           "fill": {
             "color": "#39312c"
@@ -3195,6 +3251,10 @@
         "dybde-tall": {
           "color": "#7cc0b8",
           "haloColor": "#39210e"
+        },
+        "stedsnavn": {
+          "color": "#e0d6cd",
+        "haloColor": "#39210e"
         },
         "omrade-navn": {
           "color": "#a5927e",
@@ -3470,6 +3530,14 @@
             "color": "#828882"
           }
         },
+        "521-small": {
+          "fill": {
+            "color": "#06150a"
+          },
+          "stroke": {
+            "color": "#4b544c"
+          }
+        },
         "522": {
           "fill": {
             "color": "#2b322c"
@@ -3529,6 +3597,10 @@
         "dybde-tall": {
           "color": "#7abfc0",
           "haloColor": "#142a18"
+        },
+        "stedsnavn": {
+          "color": "#d3dcd4",
+        "haloColor": "#142a18"
         },
         "omrade-navn": {
           "color": "#94957e",
@@ -3804,6 +3876,14 @@
             "color": "#35343c"
           }
         },
+        "521-small": {
+          "fill": {
+            "color": "#080513"
+          },
+          "stroke": {
+            "color": "#2a2833"
+          }
+        },
         "522": {
           "fill": {
             "color": "#121116"
@@ -3863,6 +3943,10 @@
         "dybde-tall": {
           "color": "#668fb4",
           "haloColor": "#0d0520"
+        },
+        "stedsnavn": {
+          "color": "#85848c",
+        "haloColor": "#0d0520"
         },
         "omrade-navn": {
           "color": "#675e6e",
