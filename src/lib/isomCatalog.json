@@ -1857,6 +1857,18 @@
         "dybde-tall": {
           "color": "#9dcee3",
           "haloColor": "#0a0d10"
+        },
+        "omrade-navn": {
+          "color": "#96866e",
+          "haloColor": "#0a0d10"
+        },
+        "hytte-navn": {
+          "color": "#bcc0c4",
+          "haloColor": "#0a0d10"
+        },
+        "naturreservat-navn": {
+          "color": "#7eb473",
+          "haloColor": "#0a0d10"
         }
       },
       "artMode": false,
@@ -2181,6 +2193,18 @@
         "dybde-tall": {
           "color": "#18625c",
           "haloColor": "#f4e7ce"
+        },
+        "omrade-navn": {
+          "color": "#7d6747",
+          "haloColor": "#f4e7ce"
+        },
+        "hytte-navn": {
+          "color": "#443626",
+          "haloColor": "#f4e7ce"
+        },
+        "naturreservat-navn": {
+          "color": "#325519",
+          "haloColor": "#f4e7ce"
         }
       },
       "autoHideLayers": false
@@ -2502,6 +2526,18 @@
         },
         "dybde-tall": {
           "color": "#7dbccf",
+          "haloColor": "#16203c"
+        },
+        "omrade-navn": {
+          "color": "#908da2",
+          "haloColor": "#16203c"
+        },
+        "hytte-navn": {
+          "color": "#c6cad3",
+          "haloColor": "#16203c"
+        },
+        "naturreservat-navn": {
+          "color": "#7ebd89",
           "haloColor": "#16203c"
         }
       },
@@ -2825,6 +2861,18 @@
         "dybde-tall": {
           "color": "#83bad6",
           "haloColor": "#0c2a2e"
+        },
+        "omrade-navn": {
+          "color": "#839993",
+          "haloColor": "#0c2a2e"
+        },
+        "hytte-navn": {
+          "color": "#c6d3d3",
+          "haloColor": "#0c2a2e"
+        },
+        "naturreservat-navn": {
+          "color": "#8cc288",
+          "haloColor": "#0c2a2e"
         }
       },
       "autoHideLayers": false
@@ -3146,6 +3194,18 @@
         },
         "dybde-tall": {
           "color": "#7cc0b8",
+          "haloColor": "#39210e"
+        },
+        "omrade-navn": {
+          "color": "#a5927e",
+          "haloColor": "#39210e"
+        },
+        "hytte-navn": {
+          "color": "#d8cfc8",
+          "haloColor": "#39210e"
+        },
+        "naturreservat-navn": {
+          "color": "#a2be79",
           "haloColor": "#39210e"
         }
       },
@@ -3469,6 +3529,18 @@
         "dybde-tall": {
           "color": "#7abfc0",
           "haloColor": "#142a18"
+        },
+        "omrade-navn": {
+          "color": "#94957e",
+          "haloColor": "#142a18"
+        },
+        "hytte-navn": {
+          "color": "#c9d1c9",
+          "haloColor": "#142a18"
+        },
+        "naturreservat-navn": {
+          "color": "#a0bd78",
+          "haloColor": "#142a18"
         }
       },
       "autoHideLayers": false
@@ -3781,15 +3853,27 @@
           "haloColor": "#0d0520"
         },
         "vann-navn": {
-          "color": "#597491",
+          "color": "#6798ba",
           "haloColor": "#0d0520"
         },
         "vann-tall": {
-          "color": "#4c637b",
+          "color": "#5888a9",
           "haloColor": "#0d0520"
         },
         "dybde-tall": {
-          "color": "#526c86",
+          "color": "#668fb4",
+          "haloColor": "#0d0520"
+        },
+        "omrade-navn": {
+          "color": "#675e6e",
+          "haloColor": "#0d0520"
+        },
+        "hytte-navn": {
+          "color": "#8a8291",
+          "haloColor": "#0d0520"
+        },
+        "naturreservat-navn": {
+          "color": "#5b845b",
           "haloColor": "#0d0520"
         }
       },
