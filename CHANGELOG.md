@@ -1,5 +1,13 @@
 # Endringslogg
 
+## 2026-07-29 — v2.4.30: Utrygg myr kan skilles fra fast i alle temaer
+
+De seks monokrome temaene flatet myra til én solid farge. Fast myr (308) og utrygg myr (309) skilles KUN av rastertettheten, så et flatt fyll gjorde dem praktisk talt identiske — de to fargene lå så nær hverandre at forskjellen bare var en knapt merkbar valørendring. På et turkart betyr det at utrygg myr ikke kunne skilles fra fast, som er nettopp den regresjonen den eksisterende testen verner Mørk mot. Nå bruker alle temaene rasteret, med strekfargen hentet fra temaets egen vann-kulør på omtrent to tredjedeler av åpent vanns valør, slik Mørk fikk i forrige versjon. Tettheten er urørt, så forskjellen mellom fast og utrygg er tilbake i alle åtte temaer.
+
+Testen som vernet Mørk er utvidet til å gjelde alle temaer: ingen tema får sette flatt fyll på 308 eller 309, og hvert tema må sette en myr-strekfarge som ikke er lys-modus' cyan. Verifisert visuelt ved å rendre fast og utrygg side om side i alle åtte temaer gjennom den ekte `data-iso`-CSS-veien.
+
+---
+
 ## 2026-07-29 — v2.4.29: Punktsymboler og myr-raster følger mørke temaer
 
 Bom, bro/klopp, steinblokk, hule og gruve var hardkodet `#000` og forsvant derfor helt i alle mørke temaer — markene lå der, men var usynlige mot bakgrunnen. Kirkekorset hadde samme problem i dobbel forstand: sort kors bak en hvit halo, altså akkurat samme idiom som stedsnavnene hadde før forrige versjon. De seks rene blekk-markene tegner nå med `currentColor` og arver `color` fra kartroten, som hvert tema setter via `--sym-ink`; kirkekorset følger blekket mens haloen følger `--sym-paper` og smelter inn i temaets bakgrunn i stedet for å gløde. Farger som er semantiske og ikke dekorative er bevisst holdt utenfor: de blå skiltbrikkene med hvite piktogrammer (P, buss, WC), IALA-kodingen på sjømerker (sort/gult) og veiskilt-fargene er konstante på tvers av temaer, som ekte skilt.
