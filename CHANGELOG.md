@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.12: 3D dekker utvidede kart — turen går ikke i tomme lufta
+
+På utvidede mosaikk-kart kunne en rute som gikk inn i en nabo-flise sveve i løse lufta i 3D: terrenget og teksturen dekket bare den opprinnelige flisa. Nå oppdages det når turen (med margin) går utenfor aktiv flise, og 3D-verdenen utvides til unionen av flisa og rutas utstrekning: høydedata hentes for hele utsnittet via DEM-flis-cachen (10 m-grid-alignet med kartets UTM-forankring, så alt fortsatt stemmer på centimeteren), kart-teksturen rasteriseres MED nabo-flisene (viewBoxen utvides i stedet for at ghost-flisene strippes), og rute, delmål og POI-er forskyves inn i det nye koordinatrommet. Uten nett faller utvidelsen tilbake til å plassere flisas høydedata i union-gridet — området utenfor flater til havnivå, men ruta svever aldri. Nattmodus stripper også nabo-flisenes dag-tonede relieff-bilder før mørk rasterisering.
+
+---
+
 ## 2026-07-30 — v3.0.11: Kurver valgfrie også i 3D-nattmodus
 
 Kurve-tvangen i nattmodus er fjernet: natt-teksturen gjenskaper det mørke temaets eget relieff (screen-blend som lysner solsidene), så terrenget er lesbart også uten vektorkurvene. «Kurver»-knappen er dermed like togglebar i natt som i dag — låsingen og tilstands-gjenopprettingen ved dag/natt-bytte er tatt bort, og kurvevalget ditt står urørt gjennom modusbytter.
