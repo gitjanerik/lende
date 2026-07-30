@@ -3108,8 +3108,9 @@ function labelForAnnotation(a) {
 
 // Print- / eksport-handlers. 3D-vieweren gjenbruker samme markup som
 // eksporten (tema baket inn, ghost-fliser fjernet) men uten kolofon —
-// linjal/målestokk skal ikke drapes på terrenget.
-function mapSvgMarkupForExport({ colophon = true } = {}) {
+// linjal/målestokk skal ikke drapes på terrenget. `theme` overstyrer
+// gjeldende tema (3D-nattmodus baker 'dark'-temaet uansett 2D-valg).
+function mapSvgMarkupForExport({ colophon = true, theme = null } = {}) {
   const svg = svgHostRef.value?.querySelector('svg')
   if (!svg) return ''
   // Eksport/print = det OPPRINNELIGE kartet (én A-format-flis), ikke mosaikken.
@@ -3127,8 +3128,9 @@ function mapSvgMarkupForExport({ colophon = true } = {}) {
   // `#bakgrunn rect { fill: var(--bg, …) }`), men dekker eldre lagrede kart
   // uten den regelen. Sti-farger og strek-overstyringer ligger allerede inne i
   // SVG-en og følger med av seg selv.
-  const themeCss = buildThemeCss(currentTheme.value)
-  const bg = isomCatalog.themes?.[currentTheme.value]?.background
+  const themeKey = theme ?? currentTheme.value
+  const themeCss = buildThemeCss(themeKey)
+  const bg = isomCatalog.themes?.[themeKey]?.background
   if (bg) {
     const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
     rect.setAttribute('x', '0'); rect.setAttribute('y', '0')
@@ -4364,7 +4366,8 @@ onUnmounted(() => {
                :is-loop="sti.isLoop.value"
                :est-walk-minutes="tour3dEstWalk"
                :search-index="searchIndex"
-               :get-svg-text="() => mapSvgMarkupForExport({ colophon: false })"
+               :get-svg-text="(opts) => mapSvgMarkupForExport({ colophon: false, theme: opts?.dark ? 'dark' : null })"
+               :is-dark="isDark"
                :map-title="mapTitle"
                @close="closeTour3d" />
     <Transition name="chip-fade">

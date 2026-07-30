@@ -11,6 +11,9 @@ import {
 const ZENITH = '#3d7ec9'
 const HORIZON = '#dbe9f5'
 export const FOG_COLOR = '#cfe0ee'
+const NIGHT_ZENITH = '#070b1a'
+const NIGHT_HORIZON = '#1a2947'
+export const NIGHT_FOG_COLOR = '#111a30'
 
 export function buildSkyDome({ radius = 25000 } = {}) {
   const geometry = new SphereGeometry(radius, 24, 12)
@@ -41,7 +44,13 @@ export function buildSkyDome({ radius = 25000 } = {}) {
   const mesh = new Mesh(geometry, material)
   mesh.frustumCulled = false
   mesh.renderOrder = -1
-  return { mesh, geometry, material }
+  return {
+    mesh, geometry, material,
+    setNight(on) {
+      material.uniforms.uZenith.value.set(on ? NIGHT_ZENITH : ZENITH)
+      material.uniforms.uHorizon.value.set(on ? NIGHT_HORIZON : HORIZON)
+    },
+  }
 }
 
 export function makeFog(maxDimM) {

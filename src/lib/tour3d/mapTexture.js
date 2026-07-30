@@ -92,14 +92,17 @@ export function pickTextureSize(renderer) {
 }
 
 /**
- * @param {string} svgString  kart-SVG (lastSvgString)
+ * @param {string} svgString  kart-SVG (eksport-markup fra MapView)
  * @param {import('../demSampling.js').DEM|null} dem  for hillshade-bake
- * @param {{sizePx?: number, renderer?: object}} [opts]
+ * @param {{sizePx?: number, renderer?: object, night?: boolean}} [opts]
+ *   night: nattmodus-tekstur — evt. medfølgende relieff-<image> er tonet for
+ *   lyst tema og strippes; i stedet bakes screen-blend (lysner mørk flate).
  * @returns {Promise<CanvasTexture>}
  */
-export async function buildMapTexture(svgString, dem, { sizePx, renderer } = {}) {
+export async function buildMapTexture(svgString, dem, { sizePx, renderer, night = false } = {}) {
   const px = sizePx ?? pickTextureSize(renderer)
-  const cleaned = cleanSvgForTexture(svgString)
+  let cleaned = cleanSvgForTexture(svgString)
+  if (night) cleaned = cleaned.replace(/<image\b[^>]*id="hillshade-layer"[^>]*\/?>(<\/image>)?/g, '')
 
   const canvas = document.createElement('canvas')
   canvas.width = px
@@ -124,10 +127,10 @@ export async function buildMapTexture(svgString, dem, { sizePx, renderer } = {})
   }
 
   // Etter cleanSvgForTexture kan hillshade-layer bare være <image>-varianten
-  // («Mjuk (bilde)») — mangler den (relieff av, eller «Skarp (vektor)»
-  // strippet), bakes mykt relieff inn her.
+  // («Mjuk (bilde)») — mangler den (relieff av, «Skarp (vektor)» strippet,
+  // eller nattmodus), bakes mykt relieff inn her.
   if (dem && !cleaned.includes('id="hillshade-layer"')) {
-    bakeHillshade(ctx, dem, px)
+    bakeHillshade(ctx, dem, px, night)
   }
 
   const tex = new CanvasTexture(canvas)
@@ -140,7 +143,7 @@ export async function buildMapTexture(svgString, dem, { sizePx, renderer } = {})
   return tex
 }
 
-function bakeHillshade(ctx, dem, px) {
+function bakeHillshade(ctx, dem, px, night = false) {
   const shade = computeHillshade(dem)
   const tmp = document.createElement('canvas')
   tmp.width = shade.cols
@@ -149,8 +152,11 @@ function bakeHillshade(ctx, dem, px) {
   if (!tctx) return
   tctx.putImageData(new ImageData(shade.rgba, shade.cols, shade.rows), 0, 0)
   ctx.save()
-  ctx.globalCompositeOperation = 'multiply'
-  ctx.globalAlpha = 0.55
+  // Dag: multiply mørkner skyggesider på lys flate. Natt: screen lysner
+  // sollys-sider på mørk flate (samme grep som useReliefRender for mørke
+  // temaer) — svakere alpha så natta forblir natt.
+  ctx.globalCompositeOperation = night ? 'screen' : 'multiply'
+  ctx.globalAlpha = night ? 0.3 : 0.55
   ctx.imageSmoothingEnabled = true
   ctx.drawImage(tmp, 0, 0, px, px)
   ctx.restore()

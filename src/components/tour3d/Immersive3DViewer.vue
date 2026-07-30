@@ -114,6 +114,7 @@ onMounted(async () => {
     phase.value = 'ready'
     stats.value = engine.state
     if (contoursOn.value) engine.setContoursVisible(true).catch(() => {})
+    if (nightOn.value) applyNight(true).catch(() => {})
 
     // Nettbaserte kilder popper inn asynkront — feil svelges stille.
     const allFeatures = [...mapFeatures]
@@ -144,11 +145,43 @@ onBeforeUnmount(() => {
   }
 })
 
-// Skarpe vektorkurver oppå kartteksturen — default PÅ.
+// Skarpe vektorkurver oppå kartteksturen — default PÅ. I nattmodus er
+// kurvene obligatoriske (terrenget er ellers nesten svart), så knappen
+// låses der.
 const contoursOn = ref(true)
 async function toggleContours() {
+  if (nightOn.value) return
   contoursOn.value = !contoursOn.value
   await engine?.setContoursVisible(contoursOn.value)
+}
+
+// Knappenåler for start/mål (+ delmål) — default PÅ.
+const pinsOn = ref(true)
+function togglePins() {
+  pinsOn.value = !pinsOn.value
+  engine?.setPinsVisible(pinsOn.value)
+}
+
+// Sol/måne: nattmodus rasteriserer kartet med det ekte mørke temaet.
+// Måne er forvalgt når appen står i mørkt tema.
+const nightOn = ref(props.isDark)
+let contoursBeforeNight = true
+async function applyNight(on) {
+  if (!engine) return
+  if (on) {
+    contoursBeforeNight = contoursOn.value
+    contoursOn.value = true
+    await engine.setContoursVisible(true)
+    await engine.setNightMode(true, { svgText: props.getSvgText({ dark: true }) })
+  } else {
+    await engine.setNightMode(false)
+    contoursOn.value = contoursBeforeNight
+    await engine.setContoursVisible(contoursOn.value)
+  }
+}
+function toggleNight() {
+  nightOn.value = !nightOn.value
+  applyNight(nightOn.value)
 }
 
 // Tidsakse-scrubbing: dra = seek (kameraet følger), slipp = forbli pauset.
@@ -189,11 +222,40 @@ function skipFeature() { engine?.skipFeature() }
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <button v-if="phase === 'ready'"
+                  @click="togglePins"
+                  :aria-label="pinsOn ? 'Skjul start- og målnåler' : 'Vis start- og målnåler'"
+                  class="w-11 h-11 rounded-full backdrop-blur flex items-center justify-center
+                         active:scale-95 transition-colors"
+                  :class="pinsOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
+            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 21s-6-5.2-6-10a6 6 0 1 1 12 0c0 4.8-6 10-6 10z"/>
+              <circle cx="12" cy="11" r="2.4"/>
+            </svg>
+          </button>
+          <button v-if="phase === 'ready'"
+                  @click="toggleNight"
+                  :aria-label="nightOn ? 'Bytt til dag' : 'Bytt til natt'"
+                  class="w-11 h-11 rounded-full backdrop-blur flex items-center justify-center
+                         active:scale-95 transition-colors"
+                  :class="nightOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
+            <svg v-if="nightOn" viewBox="0 0 24 24" class="w-5 h-5" fill="currentColor" aria-hidden="true">
+              <path d="M20.4 14.2A8.5 8.5 0 0 1 9.8 3.6 8.5 8.5 0 1 0 20.4 14.2z"/>
+            </svg>
+            <svg v-else viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="4.2"/>
+              <path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5 5l1.7 1.7M17.3 17.3 19 19M19 5l-1.7 1.7M6.7 17.3 5 19"/>
+            </svg>
+          </button>
+          <button v-if="phase === 'ready'"
                   @click="toggleContours"
-                  aria-label="Vis høydekurver i terrenget"
+                  :aria-label="nightOn ? 'Høydekurver er alltid på i nattmodus' : 'Vis høydekurver i terrenget'"
+                  :aria-disabled="nightOn"
                   class="h-11 px-3 rounded-full backdrop-blur text-[12px] font-medium
                          flex items-center gap-1.5 active:scale-95 transition-colors"
-                  :class="contoursOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
+                  :class="[contoursOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85',
+                           nightOn ? 'opacity-60' : '']">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
               <path d="M4 9c3-3.5 13-3.5 16 0M5.5 13c2.5-2.6 10.5-2.6 13 0M7.5 17c2-1.8 7-1.8 9 0"/>
