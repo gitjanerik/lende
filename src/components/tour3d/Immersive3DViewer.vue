@@ -81,20 +81,22 @@ onMounted(async () => {
 
   try {
     const engineMod = await import('../../lib/tour3d/index.js')
-    const { createTourScene, collectMapFeatures, findParkingSpots, loadNveFeatures, loadHeritageFeatures } = engineMod
+    const { createTourScene, collectMapFeatures, findParkingSpots, findPauseSpots, loadNveFeatures, loadHeritageFeatures } = engineMod
 
     const profile = sampleProfile({ points: route.coordinates.map(c => ({ x: c[0], y: c[1] })) }, dem)
     const rawIndex = toRaw(props.searchIndex) ?? []
     const mapFeatures = collectMapFeatures(rawIndex, route.coordinates)
 
+    const viaRaw = (toRaw(props.via) ?? []).map(v => ({ svgX: v.svgX, svgY: v.svgY }))
     engine = await createTourScene(canvasHost.value, {
       dem,
       meta: toRaw(props.meta),
       svgText: props.getSvgText(),
       route,
-      via: (toRaw(props.via) ?? []).map(v => ({ svgX: v.svgX, svgY: v.svgY })),
+      via: viaRaw,
       isLoop: props.isLoop,
       parkingSpots: findParkingSpots(rawIndex, route.coordinates, { isLoop: props.isLoop }),
+      pauseSpots: findPauseSpots(rawIndex, viaRaw),
       features: mapFeatures,
       profileSamples: profile?.samples ?? null,
       estWalkMinutes: props.estWalkMinutes,
@@ -153,11 +155,13 @@ async function toggleContours() {
   await engine?.setContoursVisible(contoursOn.value)
 }
 
-// Knappenåler for start/mål (+ delmål) — default PÅ.
+// Turpunkter OG severdigheter — default PÅ. Av = ingen nåler/pauseskilt og
+// ingen POI-stopp/highlights under avspilling eller scrubbing.
 const pinsOn = ref(true)
 function togglePins() {
   pinsOn.value = !pinsOn.value
   engine?.setPinsVisible(pinsOn.value)
+  engine?.setFeaturesEnabled(pinsOn.value)
 }
 
 // Sol/måne: nattmodus rasteriserer kartet med det ekte mørke temaet.

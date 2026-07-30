@@ -31,9 +31,11 @@ export function collectMapFeatures(searchIndex, route, { maxDistM = 400 } = {}) 
   return out
 }
 
-// Nærmeste utfartsparkering til rutens start — og til målet for A→B-ruter
-// (rundtur ender der den startet). Samme plass returneres bare én gang.
-export function findParkingSpots(searchIndex, route, { isLoop = false, maxDistM = 1200 } = {}) {
+// Utfartsparkering ved rutens start — og ved målet for A→B-ruter (rundtur
+// ender der den startet). Kun når parkeringen faktisk ER start-/målpunktet
+// (≤ 50 m) — større radius traff parkeringer turen ikke utgår fra og
+// P-skiltet virket tilfeldig. Samme plass returneres bare én gang.
+export function findParkingSpots(searchIndex, route, { isLoop = false, maxDistM = 50 } = {}) {
   if (!route || route.length < 2) return []
   const parking = (searchIndex ?? []).filter(e => e?.kind === 'parkering')
   if (!parking.length) return []
@@ -54,6 +56,28 @@ export function findParkingSpots(searchIndex, route, { isLoop = false, maxDistM 
     if (end && !(spots[0] && spots[0].x === end.x && spots[0].y === end.y)) {
       spots.push({ x: end.x, y: end.y, name: end.name })
     }
+  }
+  return spots
+}
+
+// Pausepunkter: vendepunkt/delmål som ligger ved et tjern eller vann —
+// der tar man sannsynligvis rast (og kanskje et bad). Store vann måles mot
+// en areal-skalert radius siden sentroiden kan ligge langt fra bredden.
+export function findPauseSpots(searchIndex, via = [], { maxDistM = 150 } = {}) {
+  if (!via.length) return []
+  const water = (searchIndex ?? []).filter(e =>
+    e?.kind === 'vann-navn' || e?.kind === 'vann-omrade' || e?.categories?.includes('vann'))
+  if (!water.length) return []
+  const spots = []
+  for (const v of via) {
+    let best = null
+    let bestD = Infinity
+    for (const w of water) {
+      const radius = Math.max(maxDistM, Number.isFinite(w.areaM2) ? Math.sqrt(w.areaM2) * 0.6 : 0)
+      const d = Math.hypot(w.x - v.svgX, w.y - v.svgY)
+      if (d <= radius && d < bestD) { bestD = d; best = w }
+    }
+    if (best) spots.push({ x: v.svgX, y: v.svgY, name: best.name })
   }
   return spots
 }

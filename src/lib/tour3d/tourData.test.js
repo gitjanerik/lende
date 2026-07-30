@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { collectMapFeatures, findParkingSpots } from './tourData.js'
+import { collectMapFeatures, findParkingSpots, findPauseSpots } from './tourData.js'
 import { fmtKm, fmtDurationMin, fmtMoh } from './tourFormat.js'
 
 const ROUTE = [[0, 0], [2000, 0]]
@@ -32,13 +32,18 @@ describe('collectMapFeatures', () => {
 })
 
 describe('findParkingSpots', () => {
-  const P1 = { name: 'Startparkering', kind: 'parkering', x: 100, y: 100 }
-  const P2 = { name: 'Målparkering', kind: 'parkering', x: 2100, y: 100 }
+  const P1 = { name: 'Startparkering', kind: 'parkering', x: 30, y: 20 }
+  const P2 = { name: 'Målparkering', kind: 'parkering', x: 2020, y: 30 }
   const index = [P1, P2, { name: 'Topp', kind: 'peak', x: 0, y: 0 }]
 
-  it('A→B: nærmeste parkering ved både start og mål', () => {
+  it('A→B: parkering ≤ 50 m fra start og mål vises', () => {
     const spots = findParkingSpots(index, [[0, 0], [2000, 0]])
     expect(spots.map(s => s.name)).toEqual(['Startparkering', 'Målparkering'])
+  })
+
+  it('parkering lenger unna enn 50 m ignoreres — turen utgår ikke derfra', () => {
+    const spots = findParkingSpots([{ name: 'Fjern P', kind: 'parkering', x: 100, y: 100 }], [[0, 0], [2000, 0]])
+    expect(spots).toEqual([])
   })
 
   it('rundtur: kun parkering ved start', () => {
@@ -47,13 +52,34 @@ describe('findParkingSpots', () => {
   })
 
   it('samme plass nærmest begge ender vises én gang', () => {
-    const spots = findParkingSpots([P1], [[0, 0], [300, 0]])
+    const spots = findParkingSpots([P1], [[0, 0], [40, 0]])
     expect(spots.length).toBe(1)
   })
+})
 
-  it('for langt unna → ingen treff', () => {
-    const spots = findParkingSpots(index, [[5000, 5000], [7000, 5000]])
-    expect(spots).toEqual([])
+describe('findPauseSpots', () => {
+  const TJERN = { name: 'Svarttjern', kind: 'vann-omrade', x: 1000, y: 1000, areaM2: 8000 }
+  const STORVANN = { name: 'Storvannet', kind: 'vann-navn', x: 5000, y: 5000, areaM2: 1_000_000, categories: ['vann'] }
+
+  it('vendepunkt ved tjern gir pausepunkt med vannets navn', () => {
+    const spots = findPauseSpots([TJERN], [{ svgX: 1100, svgY: 1000 }])
+    expect(spots).toEqual([{ x: 1100, y: 1000, name: 'Svarttjern' }])
+  })
+
+  it('vendepunkt langt fra vann gir ingen pause', () => {
+    expect(findPauseSpots([TJERN], [{ svgX: 2000, svgY: 2000 }])).toEqual([])
+  })
+
+  it('store vann måles mot areal-skalert radius (sentroiden er langt fra bredden)', () => {
+    // 1 km²: radius = max(150, 1000·0.6) = 600 m.
+    const spots = findPauseSpots([STORVANN], [{ svgX: 5500, svgY: 5000 }])
+    expect(spots.length).toBe(1)
+    expect(spots[0].name).toBe('Storvannet')
+  })
+
+  it('ikke-vann-features teller ikke', () => {
+    const peak = { name: 'Toppen', kind: 'peak', x: 1000, y: 1000 }
+    expect(findPauseSpots([peak], [{ svgX: 1000, svgY: 1000 }])).toEqual([])
   })
 })
 

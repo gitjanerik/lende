@@ -33,7 +33,7 @@ const PROGRESS_EMIT_MS = 250
 
 export async function createTourScene(container, {
   dem, meta, svgText, route, features = [],
-  via = [], isLoop = false, parkingSpots = [],
+  via = [], isLoop = false, parkingSpots = [], pauseSpots = [],
   profileSamples = null, estWalkMinutes = null,
   options = {},
 }) {
@@ -97,7 +97,7 @@ export async function createTourScene(container, {
   })
   scene.add(clouds.group)
 
-  const waypoints = buildWaypointMarkers({ route, via, isLoop, parkingSpots }, dem, coords)
+  const waypoints = buildWaypointMarkers({ route, via, isLoop, parkingSpots, pauseSpots }, dem, coords)
   scene.add(waypoints.group)
 
   // Høydekurver i terrenget: togglebart lag, default av — bygges lazily.
@@ -176,7 +176,8 @@ export async function createTourScene(container, {
   let disposedFlag = false
 
   // Forhåndsvist feature under scrubbing (tidsakse-drag) — uavhengig av
-  // direktørens HOLD-koreografi.
+  // direktørens HOLD-koreografi. featuresEnabled speiler nål/POI-togglen.
+  let featuresEnabled = true
   let previewFeature = null
   const clearPreview = () => {
     if (!previewFeature) return
@@ -261,7 +262,7 @@ export async function createTourScene(container, {
     scrub: (alongM) => {
       playback.seek(alongM)
       director.seek(alongM)
-      const ev = director.eventNear(alongM, 150)
+      const ev = featuresEnabled ? director.eventNear(alongM, 150) : null
       if (ev !== previewFeature) {
         if (previewFeature) emit('feature-exit', { feature: previewFeature })
         previewFeature = ev
@@ -285,7 +286,11 @@ export async function createTourScene(container, {
     },
     setFollowParams: (p) => rigs.setFollowParams(p),
     skipFeature: () => director.skip(),
-    setFeaturesEnabled: (v) => director.setEnabled(v),
+    setFeaturesEnabled: (v) => {
+      featuresEnabled = !!v
+      director.setEnabled(featuresEnabled)
+      if (!featuresEnabled) clearPreview()
+    },
     async setContoursVisible(v) {
       contoursVisible = !!v
       if (contoursVisible && !contours) {
