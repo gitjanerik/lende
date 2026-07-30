@@ -48,7 +48,7 @@ watch(() => props.open, async (open) => {
          :style="{ paddingTop: 'max(env(safe-area-inset-top, 0px), 0.75rem)',
                    paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0.75rem)' }">
       <div class="kart-ui pointer-events-auto w-full max-w-[700px] max-h-full flex flex-col
-                  rounded-2xl bg-overlay text-ink/85 shadow-2xl ring-1 ring-ink/10 overflow-hidden"
+                  rounded-2xl bg-modal text-ink/85 shadow-2xl ring-1 ring-ink/10 overflow-hidden"
            role="dialog" aria-modal="true" :aria-label="props.title">
         <div class="shrink-0 px-4 py-3 flex items-center gap-3 border-b border-ink/10">
           <h2 class="text-lg font-semibold flex-1 min-w-0 truncate text-ink">{{ props.title }}</h2>
