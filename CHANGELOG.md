@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.23: Slettknappene lesbare i lyst tema
+
+«Slett alle kart»/«Slett alle ruter» brukte rose-300-tekst på rosa tone — i lyst tema remappes ikke 300-skyggen, så knappen ble blek rosa på nesten hvit bunn og så disabled ut. Knappene bruker nå samme nøytrale kort-flate som resten av lista (lys beige på papirtonen) og rose-200-tekst, som i lyst tema remappes til kraftig rød — samme styrke som de grønne handlingsknappene. Mørkt tema ser ut som før.
+
+---
+
 ## 2026-07-30 — v3.0.22: Delte lenker klampes mot ekvidistanse-regelen
 
 Mottakersiden av en delt lenke stolte på watch(minEquidistance) for å bumpe en for fin ekvidistanse — men med 8 km som default-bredde står minimumet allerede på 20 m ved mount, watchen fyrer aldri, og en lenke med eq=5 og km=14 slapp gjennom (ISOM-tette kurver + knauser på mottakerens kart). Pickeren klamper nå invite-ekvidistansen deterministisk mot den delte bredde-regelen (equidistanceRules) når lenken parses.
