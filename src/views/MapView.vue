@@ -79,6 +79,7 @@ import {
 } from '../lib/viewportCull.js'
 import { svgToWgs84, wgs84ToSvg } from '../lib/utm.js'
 import { parseTourQuery } from '../lib/tour3dLink.js'
+import { computeTourExtent, shiftPoints, shiftVia, shiftIndex, demIntoExtent } from '../lib/tour3d/tourExtent.js'
 import { utNoZoomForMPerPx, UTNO_DEFAULT_ZOOM } from '../lib/utNoLink.js'
 import { useMapContext } from '../composables/useMapContext.js'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
@@ -2891,6 +2892,55 @@ function tour3dEstWalk(lengthM, climbM) {
   return sti.estWalkMinutes(lengthM, climbM ? { ascent: climbM, descent: 0 } : null)
 }
 
+// Ferdig preparert 3D-datasett. For turer som går utenfor aktiv flise
+// (utvidede mosaikk-kart) dekker det et union-utsnitt: DEM hentes for hele
+// utsnittet via flis-cachen og alle koordinater forskyves inn i det nye
+// rommet — turen skal aldri «gå i tomme lufta» forbi flisekanten.
+const tour3dData = shallowRef(null)
+
+async function prepareTour3dData() {
+  const r = stiSelectedRoute.value
+  const m = meta.value
+  if (!r || !m) return null
+  const baseMeta = {
+    minE: m.minE, minN: m.minN, widthM: m.widthM, heightM: m.heightM,
+    equidistance: m.equidistance ?? null,
+  }
+  const viaArr = sti.via.value.map(v => ({ svgX: v.svgX, svgY: v.svgY }))
+  const extent = computeTourExtent(baseMeta, r.coordinates, viaArr)
+  if (!extent) {
+    return markRaw({
+      dem: storedDem.value,
+      meta: baseMeta,
+      route: { coordinates: r.coordinates, lengthM: r.lengthM },
+      via: viaArr,
+      searchIndex: searchIndex.value,
+      extent: null,
+    })
+  }
+  let dem3d = null
+  try {
+    const { fetchDEMWithCache, snapUtmBboxToGrid } = await import('../lib/demTileCache.js')
+    const utm = snapUtmBboxToGrid({
+      minE: extent.meta3d.minE,
+      minN: extent.meta3d.minN,
+      maxE: extent.meta3d.minE + extent.widthM,
+      maxN: extent.meta3d.minN + extent.heightM,
+    }, 10)
+    dem3d = await fetchDEMWithCache(utm, { resolutionM: 10 })
+  } catch { dem3d = null }
+  // Offline/nettfeil: blit flisas DEM inn i union-gridet (utenfor = havnivå).
+  if (!dem3d) dem3d = demIntoExtent(storedDem.value, extent)
+  return markRaw({
+    dem: dem3d,
+    meta: extent.meta3d,
+    route: { coordinates: shiftPoints(r.coordinates, extent), lengthM: r.lengthM },
+    via: shiftVia(viaArr, extent),
+    searchIndex: shiftIndex(searchIndex.value, extent),
+    extent,
+  })
+}
+
 async function openTour3d() {
   if (tour3dOpen.value) return
   tour3dError.value = ''
@@ -2898,19 +2948,25 @@ async function openTour3d() {
   tour3dLoading.value = true
   try {
     await ensureDem()
+    tour3dData.value = await prepareTour3dData()
+    if (!tour3dData.value) throw new Error('ingen rute')
     if (!tour3dComp.value) {
       const mod = await import('../components/tour3d/Immersive3DViewer.vue')
       tour3dComp.value = markRaw(mod.default)
     }
   } catch {
     tour3dOpen.value = false
+    tour3dData.value = null
     tour3dError.value = 'Kunne ikke laste 3D-visningen — sjekk nettforbindelsen'
     setTimeout(() => { tour3dError.value = '' }, 4000)
   } finally {
     tour3dLoading.value = false
   }
 }
-function closeTour3d() { tour3dOpen.value = false }
+function closeTour3d() {
+  tour3dOpen.value = false
+  tour3dData.value = null
+}
 
 // Idle-warm-up: hashede chunks er cache-first-ved-første-fetch i sw.js, så én
 // online kartøkt legger 3D-chunken (inkl. three) i cachen — «Vis i 3D» virker
@@ -3116,10 +3172,11 @@ function labelForAnnotation(a) {
 }
 
 // Print- / eksport-handlers. 3D-vieweren gjenbruker samme markup som
-// eksporten (tema baket inn, ghost-fliser fjernet) men uten kolofon —
-// linjal/målestokk skal ikke drapes på terrenget. `theme` overstyrer
-// gjeldende tema (3D-nattmodus baker 'dark'-temaet uansett 2D-valg).
-function mapSvgMarkupForExport({ colophon = true, theme = null } = {}) {
+// eksporten (tema baket inn) men uten kolofon — linjal/målestokk skal ikke
+// drapes på terrenget. `theme` overstyrer gjeldende tema (3D-nattmodus baker
+// 'dark'-temaet uansett 2D-valg). `extent` (utvidet tur, se tourExtent.js)
+// beholder nabo-flisene og utvider viewBoxen så teksturen dekker hele turen.
+function mapSvgMarkupForExport({ colophon = true, theme = null, extent = null } = {}) {
   const svg = svgHostRef.value?.querySelector('svg')
   if (!svg) return ''
   // Eksport/print = det OPPRINNELIGE kartet (én A-format-flis), ikke mosaikken.
@@ -3128,7 +3185,17 @@ function mapSvgMarkupForExport({ colophon = true, theme = null } = {}) {
   // viewBox/print-mm fra den aktive flisa alene. (user-layer m.fl. strippes av
   // printExport.stripRuntimeOverlays.)
   const clone = svg.cloneNode(true)
-  clone.querySelector('#ghost-tiles')?.remove()
+  if (extent) {
+    // Utvidet 3D-tur: behold nabo-flisene og utvid viewBoxen til union-
+    // utsnittet. width/height settes i px med nytt aspekt — print-mm-attrs
+    // har flisas gamle aspekt og ville letterboxe rasteret (UV-feil i 3D).
+    clone.setAttribute('viewBox', `${extent.minX} ${extent.minY} ${extent.widthM} ${extent.heightM}`)
+    const k = Math.min(1, 3000 / Math.max(extent.widthM, extent.heightM))
+    clone.setAttribute('width', String(Math.round(extent.widthM * k)))
+    clone.setAttribute('height', String(Math.round(extent.heightM * k)))
+  } else {
+    clone.querySelector('#ghost-tiles')?.remove()
+  }
   // Temaet lever som CSS-variabler på mapInnerRef og bakgrunnsfarge på
   // wrapperRef — begge UTENFOR <svg>, så en ren klone falt tilbake på
   // symbolizerens lyse ISOM-defaults uansett valgt tema. Bak derfor temaet inn
@@ -3142,8 +3209,12 @@ function mapSvgMarkupForExport({ colophon = true, theme = null } = {}) {
   const bg = isomCatalog.themes?.[themeKey]?.background
   if (bg) {
     const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
-    rect.setAttribute('x', '0'); rect.setAttribute('y', '0')
-    rect.setAttribute('width', '100%'); rect.setAttribute('height', '100%')
+    // %-verdier posisjonerer fra (0,0) — et extent-viewBox starter på minX/minY,
+    // så bakgrunnen må settes i absolutte koordinater der.
+    rect.setAttribute('x', String(extent?.minX ?? 0))
+    rect.setAttribute('y', String(extent?.minY ?? 0))
+    rect.setAttribute('width', extent ? String(extent.widthM) : '100%')
+    rect.setAttribute('height', extent ? String(extent.heightM) : '100%')
     rect.setAttribute('fill', bg)
     clone.insertBefore(rect, clone.firstChild)
   }
@@ -4367,15 +4438,15 @@ onUnmounted(() => {
       <span class="text-[13px]">Laster 3D-visning …</span>
     </div>
     <component :is="tour3dComp"
-               v-if="tour3dOpen && !tour3dLoading && tour3dComp && meta && stiSelectedRoute"
-               :dem="storedDem"
-               :meta="meta"
-               :route="stiSelectedRoute"
-               :via="sti.via.value"
+               v-if="tour3dOpen && !tour3dLoading && tour3dComp && tour3dData"
+               :dem="tour3dData.dem"
+               :meta="tour3dData.meta"
+               :route="tour3dData.route"
+               :via="tour3dData.via"
                :is-loop="sti.isLoop.value"
                :est-walk-minutes="tour3dEstWalk"
-               :search-index="searchIndex"
-               :get-svg-text="(opts) => mapSvgMarkupForExport({ colophon: false, theme: opts?.dark ? 'dark' : null })"
+               :search-index="tour3dData.searchIndex"
+               :get-svg-text="(opts) => mapSvgMarkupForExport({ colophon: false, theme: opts?.dark ? 'dark' : null, extent: tour3dData.extent })"
                :is-dark="isDark"
                :map-title="mapTitle"
                @close="closeTour3d" />

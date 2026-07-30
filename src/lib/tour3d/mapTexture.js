@@ -102,7 +102,9 @@ export function pickTextureSize(renderer) {
 export async function buildMapTexture(svgString, dem, { sizePx, renderer, night = false } = {}) {
   const px = sizePx ?? pickTextureSize(renderer)
   let cleaned = cleanSvgForTexture(svgString)
-  if (night) cleaned = cleaned.replace(/<image\b[^>]*id="hillshade-layer"[^>]*\/?>(<\/image>)?/g, '')
+  // Nattmodus: relieff-bildene (aktiv flise + nabo-flisenes data-ghost-relief)
+  // er tonet for lyst tema — strip dem og bak screen-blend i stedet.
+  if (night) cleaned = cleaned.replace(/<image\b[^>]*(?:id="hillshade-layer"|data-ghost-relief)[^>]*\/?>(<\/image>)?/g, '')
 
   const canvas = document.createElement('canvas')
   canvas.width = px
