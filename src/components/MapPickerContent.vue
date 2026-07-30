@@ -173,6 +173,11 @@ function parseShareInvite() {
   const dlon = parseFloat(q.dlon)
   const hasDest = Number.isFinite(dlat) && Number.isFinite(dlon)
   const hasRoundTrip = Number.isFinite(olat) && Number.isFinite(olon) && (!!q.rtv || hasDest)
+  // tn = turnavn fra tur-lenken (MCP / «Del rundtur»): kartet bygges med dette
+  // navnet i stedet for «Uten navn». hl (delt sted) vinner hvis begge finnes.
+  if (hasRoundTrip && !q.hl && typeof q.tn === 'string' && q.tn.trim()) {
+    customName.value = q.tn.trim().slice(0, 60)
+  }
   return {
     hl: q.hl ? String(q.hl).slice(0, 60) : null,
     slat: hasPlace ? slat : null,

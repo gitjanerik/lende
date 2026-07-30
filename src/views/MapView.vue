@@ -2167,6 +2167,10 @@ function onShareRoundTrip() {
     rtv,
     ri: sti.selectedRouteIdx.value,
   }
+  // Send kartnavnet med (tn) så mottakerens kart ikke bygges som «Uten navn».
+  if (mapTitle.value && mapTitle.value !== 'Uten navn') {
+    extra.tn = mapTitle.value.slice(0, 60)
+  }
   performShare(
     buildShareUrl(null, extra),
     mapTitle.value || 'Lende — turkart',

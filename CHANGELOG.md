@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.19: Turnavn i delte turlenker
+
+Delte turlenker bygde mottakerens kart som «Uten navn» — både toppbaren og 3D-visningen manglet et meningsfullt navn. Tur-lenkeformatet har fått en ny tn-parameter: MCP-serveren setter den automatisk fra vendepunktet («Rundtur Høgevarde») eller målet («Tur til …», nytt valgfritt maalNavn-felt i planlegg_rute), appens «Del rundtur» sender kartnavnet videre, og mottakerens kart bygges med navnet ferdig utfylt. Eldre lenker uten tn virker som før.
+
+---
+
 ## 2026-07-30 — v3.0.18: Ikke rut delt tur mot terrengskjelettet
 
 Delte turlenker (tur3dUrl fra MCP / «Del rundtur») gjenskapte ruten allerede på terreng-først-skjelettet, før «Tegner inn stier og detaljer»-fasen hadde lagt sti-lagene inn i kartet. Stifinner rutet da mot en tom graf og viste et misvisende «Fant ingen sti»-banner som ble hengende til finalize-swappen kjørte restore på nytt. Gjenskapingen hopper nå over skjelett-passet (gates på fillingInDetails) og kjører kun når det ferdige kartet med OSM-detaljer er på plass.
