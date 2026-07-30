@@ -19,6 +19,7 @@ import { sampleProfile } from '../src/lib/elevationProfile.js'
 import { sampleElevation } from '../src/lib/demSampling.js'
 import { buildRouteGpx } from '../src/lib/gpxExport.js'
 import { searchPlaces } from '../src/lib/geocode.js'
+import { minEquidistanceForWidthKm, DEFAULT_EQUIDISTANCE_M } from '../src/lib/equidistanceRules.js'
 import { buildRouteOverlaySvg, injectOverlay, DEFAULT_OVERLAY_STYLE } from '../src/lib/routeOverlay.js'
 import { applyMapSettings, resolveVisibleLayers, buildSettingsCss, listThemes } from '../src/lib/mapSettingsApply.js'
 import { LAYERS, LAYER_PRESETS } from '../src/lib/mapLayerCatalog.js'
@@ -313,14 +314,20 @@ server.registerTool(
       'byggetid). Utelates halfKm når du bygger fra et «sted», auto-dimensjoneres kartet ' +
       'til stedets utstrekning (f.eks. «hele Vestmarka»). Oppgi enten lat+lon, ELLER et ' +
       'stedsnavn i «sted» (geokodes via Nominatim). Tips: kall sok_sted først for å se ' +
-      'arealet og en anbefalt halfKm.',
+      'arealet og en anbefalt halfKm. Høydekurver: 20 m er turkart-standarden og default — ' +
+      'be kun om finere ekvidistanse når brukeren eksplisitt vil ha ISOM-/sprint-detalj, ' +
+      'og appens bredde-regler håndheves uansett (se equidistanceM).',
     inputSchema: {
       sted: z.string().optional().describe('Stedsnavn å geokode (f.eks. «Vardåsen, Asker») — alternativ til lat/lon'),
       lat: z.number().min(57).max(72).optional().describe('Senter-breddegrad (Norge)'),
       lon: z.number().min(4).max(32).optional().describe('Senter-lengdegrad (Norge)'),
       halfKm: z.number().min(0.5).max(MAX_HALF_KM).optional()
         .describe('Halv kartbredde i km (0.5–20). Utelates: auto fra stedets utstrekning, ellers 2 km'),
-      equidistanceM: z.number().optional().describe('Ekvidistanse i meter (auto hvis utelatt)'),
+      equidistanceM: z.number().optional()
+        .describe('Ekvidistanse i meter. Utelatt = 20 (turkart-standard). Finere kurver (2.5/5/10) er ' +
+          'for ISOM-/sprint-kart og krever lite kart — appens bredde-regler håndheves: bredde > 2 km → ' +
+          'min 5 m, ≥ 4 km → min 10 m, ≥ 6 km → min 20 m (for grove verdier justeres opp). ' +
+          '5 m aktiverer også knaus-deteksjon, som ikke hører hjemme på vanlige turkart.'),
       navn: z.string().default('mcp-kart').describe('Kartnavn, brukes i filnavn'),
       filsti: z.string().optional().describe('Hvor SVG-en skrives (default: tmp)'),
     },
@@ -341,7 +348,15 @@ server.registerTool(
     const extent = geokodet ? extentInfo(geokodet.bbox) : null
     const autoStorrelse = halfKm == null && !!extent
     const effHalfKm = halfKm ?? extent?.anbefaltHalfKm ?? 2
-    const built = await buildMapHeadless({ lat, lon, halfKm: effHalfKm, equidistanceM })
+    // Ekvidistanse følger appens regler (MapPickerContent.minEquidistance),
+    // selv om MCP-en får bygge større kart enn appens 16 km-tak: default er
+    // turkart-standarden 20 m (mapBuilder-defaulten på 5 m ga ISOM-tette
+    // kurver + knauser på store kart), og en eksplisitt ønsket ekvidistanse
+    // justeres opp til bredde-minimumet i stedet for å feile.
+    const widthKm = effHalfKm * 2
+    const minEq = minEquidistanceForWidthKm(widthKm)
+    const effEq = Math.max(equidistanceM ?? DEFAULT_EQUIDISTANCE_M, minEq)
+    const built = await buildMapHeadless({ lat, lon, halfKm: effHalfKm, equidistanceM: effEq })
     const slug = navn.replace(/[^a-z0-9æøå]+/gi, '-').toLowerCase()
     const svgPath = resolve(filsti ?? resolve(tmpdir(), 'lende-mcp', `${slug}.svg`))
     mkdirSync(dirname(svgPath), { recursive: true })
@@ -371,6 +386,9 @@ server.registerTool(
         kyst: meta.coastal,
         dybdekilde: meta.depthSource,
       },
+      ekvidistanseJustert: equidistanceM != null && effEq !== equidistanceM
+        ? { onsket: equidistanceM, brukt: effEq, grunn: `kartbredde ${widthKm.toFixed(1)} km krever minst ${minEq} m` }
+        : undefined,
       featureAntall: counts,
     })
   },

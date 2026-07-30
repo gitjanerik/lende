@@ -13,6 +13,7 @@ import { useSpeechInput } from '../composables/useSpeechInput.js'
 import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
 import { bboxFromCenter, viewportAspect, PRINT_ASPECT } from '../lib/mapBuilder.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
+import { minEquidistanceForWidthKm } from '../lib/equidistanceRules.js'
 import { reverseGeocode } from '../lib/geocode.js'
 import { tileMosaic, zoomForKm, metersPerPixel } from '../lib/tileBackground.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
@@ -207,17 +208,9 @@ const EQUIDISTANCE_OPTIONS = [
 // kontur-rendering er meningsløst på store kart (overlappende streker,
 // rotete kart uten lesbarhet). Maks kartstørrelse er nå 16×16 km, men terskel-
 // tabellen topper på 20 m: store kart (≥ 6 km, inkl. de nye 7–16 km) beholder
-// 20/25/50 m som aktive valg, slik at 25 og 50 m alltid er tilgjengelig:
-//   bredde <  4 km  → alle valg (5/10/20/25/50)
-//   4 ≤ bredde < 6  → min 10 m (5 m utelukket)
-//   bredde ≥ 6 km   → min 20 m (5/10 m utelukket). 20/25/50 m forblir valgbare.
-const minEquidistance = computed(() => {
-  const km = halfKm.value * 2
-  if (km >= 6) return 20
-  if (km >= 4) return 10
-  if (km > 2) return 5
-  return 2.5
-})
+// 20/25/50 m som aktive valg, slik at 25 og 50 m alltid er tilgjengelig.
+// Selve terskel-tabellen deles med MCP-serverens bygg_kart (equidistanceRules).
+const minEquidistance = computed(() => minEquidistanceForWidthKm(halfKm.value * 2))
 
 // Forklarende tooltip når et ekvidistanse-valg er utelukket av gjeldende bredde.
 function widthHintFor(value) {
