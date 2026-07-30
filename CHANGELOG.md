@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.18: Ikke rut delt tur mot terrengskjelettet
+
+Delte turlenker (tur3dUrl fra MCP / «Del rundtur») gjenskapte ruten allerede på terreng-først-skjelettet, før «Tegner inn stier og detaljer»-fasen hadde lagt sti-lagene inn i kartet. Stifinner rutet da mot en tom graf og viste et misvisende «Fant ingen sti»-banner som ble hengende til finalize-swappen kjørte restore på nytt. Gjenskapingen hopper nå over skjelett-passet (gates på fillingInDetails) og kjører kun når det ferdige kartet med OSM-detaljer er på plass.
+
+---
+
 ## 2026-07-30 — v3.0.17: Bredere kulturminne-korridor og strammere hastighetsvalg
 
 Kulturminnene langs 3D-turer hentes live fra Riksantikvarens WFS på alle kart (de er ikke bakt inn i Vardåsen-kartet), men kilden dekker kun fredede arkeologiske minner — spredte data, og trigger-korridoren på 150 m mistet legitime treff like utenfor stien. Korridoren er utvidet til 250 m, samme som hentebufferen, så flere reelle kulturminner dukker opp på brukergenererte kart. Hastighetsvelgeren er samtidig strammet til tre trinn — 64×, 128× og 256× — med 128× som ny standard; 8× og 32× viste seg ubrukte i praksis.
