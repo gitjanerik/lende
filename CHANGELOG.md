@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.9: Knappenåler for start/mål og nattmodus i 3D
+
+Start (grønn) og mål (rød, for A→B-ruter) er nå knappenåler som stikker opp fra terrenget — lavere enn POI-strålen, men med avstandsavhengig overdrivelse (opptil 5× langt unna) så de kan lokaliseres helt i horisonten. Delmål forblir gule prikker. Nålene toggles med en egen pin-knapp ved siden av «Kurver» (default på). Ny sol/måne-knapp gir nattmodus: kartet rasteriseres på nytt med appens ekte mørke tema (samme skilt- og bymasse-filtrering som ellers), himmelen blir nattemørk med mørk dis, skyene skjules, og relieffet bakes med screen-blend som lysner solsidene i stedet for å mørkne skyggene. Måne er forvalgt når appen står i mørkt tema, og høydekurvene er obligatoriske i nattmodus (kurve-knappen låses) — på nesten svart terreng er de selve lesbarheten. Dagmodus er som før standard ellers.
+
+---
+
 ## 2026-07-30 — v3.0.8: 3D-teksturen rydder vekk flate skilt og bymasse
 
 Kartets punktskilt ble liggende som store flate «klistremerker» på 3D-terrenget — tydeligst de blå P-skiltene på Vardåsen-testen. Nå strippes parkering (P-skiltene, ISOM 534/534u), buss- og togholdeplasser (560), toaletter (554) og bymasse-fyllet «tett bebyggelse» (522) fra SVG-en før den rasteriseres til terrengtekstur. Andre sjø-POI-er som marinaer og drikkevann beholdes, og som før gjelder ryddingen kun 3D-visningen — 2D-kartet, print og eksport er urørt. Nærmeste utfartsparkering vises fortsatt i 3D, men som den stående P-billboarden ved start/mål, ikke som flatt kartsymbol.

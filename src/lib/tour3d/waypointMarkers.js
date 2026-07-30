@@ -1,9 +1,11 @@
-// Endepunkt- og parkeringmarkører i 3D: A = grønn prikk, B = rød, delmål
-// (via/vendepunkt) = gule. Nærmeste utfartsparkering ved start (og mål for
-// A→B-ruter) vises som en «P»-billboard. Alt drapes på terrenghøyden.
+// Endepunkt- og parkeringmarkører i 3D: start (grønn) og mål (rød, A→B)
+// er knappenåler som stikker opp fra terrenget — lavere enn POI-strålen,
+// men med avstandsavhengig overdrivelse så de synes helt i horisonten.
+// Delmål (via/vendepunkter) er gule prikker. Nålene (+ delmålene) er
+// togglebare fra UI; nærmeste utfartsparkering («P»-billboard) står alltid.
 
 import {
-  SphereGeometry, MeshBasicMaterial, Mesh, Group,
+  SphereGeometry, CylinderGeometry, MeshBasicMaterial, Mesh, Group,
   CanvasTexture, SpriteMaterial, Sprite, SRGBColorSpace,
 } from 'three'
 import { sampleElevation } from '../demSampling.js'
@@ -12,7 +14,11 @@ const COLOR_START = 0x16a34a
 const COLOR_DEST = 0xdc2626
 const COLOR_VIA = 0xf59e0b
 
-function drapedWorld(dem, coords, x, y, liftM = 6) {
+const PIN_STEM_H = 55
+const PIN_STEM_R = 2.2
+const PIN_HEAD_R = 9
+
+function drapedWorld(dem, coords, x, y, liftM = 0) {
   const e = sampleElevation(dem, x, y)
   return coords.toWorld(x, y, (Number.isFinite(e) ? e : 0) + liftM)
 }
@@ -56,28 +62,54 @@ function roundRect(ctx, x, y, w, h, r) {
  * @param {boolean} isLoop
  * @param {Array<{x:number,y:number,name:string}>} parkingSpots  0–2 (start/mål)
  */
-export function buildWaypointMarkers({ route, via = [], isLoop = false, parkingSpots = [] }, dem, coords, { dotRadiusM = 11 } = {}) {
+export function buildWaypointMarkers({ route, via = [], isLoop = false, parkingSpots = [] }, dem, coords) {
   const group = new Group()
+  const pinsGroup = new Group()
+  group.add(pinsGroup)
   const geometries = []
   const materials = []
+  const pins = []
+
+  // Knappenål plantet med foten i bakken: stamme + hode i én gruppe som
+  // skaleres fra bakkepunktet — avstandsoverdrivelsen forstørrer da både
+  // høyde og hode uten å løfte nåla fra terrenget.
+  const pin = (x, y, color) => {
+    const holder = new Group()
+    const stemGeo = new CylinderGeometry(PIN_STEM_R, PIN_STEM_R, PIN_STEM_H, 8)
+    const stemMat = new MeshBasicMaterial({ color: 0xffffff })
+    const stem = new Mesh(stemGeo, stemMat)
+    stem.position.y = PIN_STEM_H / 2
+    const headGeo = new SphereGeometry(PIN_HEAD_R, 16, 12)
+    const headMat = new MeshBasicMaterial({ color })
+    const head = new Mesh(headGeo, headMat)
+    head.position.y = PIN_STEM_H + PIN_HEAD_R * 0.6
+    holder.add(stem)
+    holder.add(head)
+    const [wx, wy, wz] = drapedWorld(dem, coords, x, y)
+    holder.position.set(wx, wy, wz)
+    geometries.push(stemGeo, headGeo)
+    materials.push(stemMat, headMat)
+    pinsGroup.add(holder)
+    pins.push(holder)
+  }
 
   const dot = (x, y, color) => {
-    const geo = new SphereGeometry(dotRadiusM, 14, 10)
+    const geo = new SphereGeometry(11, 14, 10)
     const mat = new MeshBasicMaterial({ color })
     const mesh = new Mesh(geo, mat)
-    const [wx, wy, wz] = drapedWorld(dem, coords, x, y)
+    const [wx, wy, wz] = drapedWorld(dem, coords, x, y, 6)
     mesh.position.set(wx, wy, wz)
     geometries.push(geo)
     materials.push(mat)
-    group.add(mesh)
+    pinsGroup.add(mesh)
   }
 
   const coordsArr = route.coordinates
   const [ax, ay] = coordsArr[0]
-  dot(ax, ay, COLOR_START)
+  pin(ax, ay, COLOR_START)
   if (!isLoop) {
     const [bx, by] = coordsArr[coordsArr.length - 1]
-    dot(bx, by, COLOR_DEST)
+    pin(bx, by, COLOR_DEST)
   }
   for (const v of via) dot(v.svgX, v.svgY, COLOR_VIA)
 
@@ -100,6 +132,17 @@ export function buildWaypointMarkers({ route, via = [], isLoop = false, parkingS
     group,
     geometries,
     materials,
+    setPinsVisible(v) { pinsGroup.visible = !!v },
+    // Avstandsoverdrivelse: nær = naturlig størrelse, langt unna vokser nåla
+    // (opptil 5×) så start/mål kan lokaliseres helt i horisonten.
+    update(camera) {
+      if (!pinsGroup.visible) return
+      for (const p of pins) {
+        const d = camera.position.distanceTo(p.position)
+        const s = Math.min(5, Math.max(1, d / 1200))
+        p.scale.setScalar(s)
+      }
+    },
     dispose() {
       for (const g of geometries) g.dispose()
       for (const m of materials) {

@@ -18,7 +18,7 @@ import { createCameraRigs } from './cameraRigs.js'
 import { buildFeatureTimeline } from './featureTimeline.js'
 import { createFeatureDirector } from './featureDirector.js'
 import { buildHighlightMarker } from './highlightMarkers.js'
-import { buildSkyDome, buildClouds, makeFog, FOG_COLOR } from './skyDome.js'
+import { buildSkyDome, buildClouds, makeFog, FOG_COLOR, NIGHT_FOG_COLOR } from './skyDome.js'
 import { buildWaypointMarkers } from './waypointMarkers.js'
 import { createEngineLoop } from './engineLoop.js'
 
@@ -74,13 +74,16 @@ export async function createTourScene(container, {
 
   const coords = makeCoords({ widthM: meta.widthM, heightM: meta.heightM, exaggeration })
 
-  // Tekstur: kart-SVG rasterisert; hillshade-fallback ved feil.
+  // Tekstur: kart-SVG rasterisert; hillshade-fallback ved feil. Natt-
+  // teksturen (mørkt tema) bygges lazily ved første sol/måne-bytte.
   let texture
   try {
     texture = await buildMapTexture(svgText, dem, { renderer })
   } catch {
     texture = buildFallbackTexture(dem)
   }
+  let nightTexture = null
+  let nightOn = false
 
   const terrain = buildTerrainMesh(dem, coords, texture)
   scene.add(terrain.mesh)
@@ -200,6 +203,7 @@ export async function createTourScene(container, {
       routeLine.setProgress(alongM)
       highlight.update(timeS, camera)
       clouds.update(dt)
+      waypoints.update(camera)
       rigs.update(dt, alongM)
 
       renderer.render(scene, camera)
@@ -294,6 +298,28 @@ export async function createTourScene(container, {
       if (contours) contours.group.visible = contoursVisible
     },
     get contoursVisible() { return contoursVisible },
+    setPinsVisible(v) { waypoints.setPinsVisible(v) },
+    // Sol/måne: bytt terrengtekstur til mørkt tema (rasterisert lazily fra
+    // medsendt SVG), nattehimmel, mørk dis og skyene av. Kurve-tvang i natt-
+    // modus håndheves av UI-laget.
+    async setNightMode(on, { svgText: nightSvgText } = {}) {
+      nightOn = !!on
+      if (nightOn && !nightTexture && nightSvgText) {
+        try {
+          nightTexture = await buildMapTexture(nightSvgText, dem, { renderer, night: true })
+          loop.track(nightTexture)
+        } catch { /* beholder dag-teksturen */ }
+      }
+      const tex = nightOn && nightTexture ? nightTexture : texture
+      if (terrain.material.map !== tex) {
+        terrain.material.map = tex
+        terrain.material.needsUpdate = true
+      }
+      sky.setNight(nightOn)
+      clouds.group.visible = !nightOn
+      scene.fog.color.set(nightOn ? NIGHT_FOG_COLOR : FOG_COLOR)
+      scene.background.set(nightOn ? NIGHT_FOG_COLOR : FOG_COLOR)
+    },
     setFeatures: (features) => {
       director.setEvents(buildFeatureTimeline(features, route.coordinates), playback.alongM)
     },
