@@ -3,16 +3,15 @@
 defineProps({
   playing: { type: Boolean, default: false },
   finished: { type: Boolean, default: false },
-  timeScale: { type: Number, default: 64 },
+  timeScale: { type: Number, default: 128 },
   cameraMode: { type: String, default: 'follow' },
 })
 const emit = defineEmits(['play', 'pause', 'restart', 'set-time-scale', 'set-camera-mode'])
 
 // Multiplikatorer av virkelig gangfart (4,5 km/t). Tekst, ikke ikoner —
-// emoji-kjøretøyene brøt med appens øvrige ikonspråk.
+// emoji-kjøretøyene brøt med appens øvrige ikonspråk. De lave trinnene
+// (8/32×) viste seg ubrukte i praksis.
 const SPEEDS = [
-  { label: '8×', value: 8 },
-  { label: '32×', value: 32 },
   { label: '64×', value: 64 },
   { label: '128×', value: 128 },
   { label: '256×', value: 256 },
