@@ -106,4 +106,22 @@ describe('cleanSvgForTexture', () => {
     expect(out).toContain('data-layer="skog"')
     expect(out).toContain('xmlns:xlink')
   })
+
+  it('runtime-lag med NESTEDE grupper (hydro-stasjoner) fjernes balansert', () => {
+    // Regresjon v3.0.27: hydro-laget har <g> per stasjon. Non-greedy regex
+    // kuttet ved første </g> → ubalansert XML → blob-rasterisering feilet
+    // → grå fallback-tekstur uten kartografi (Grefsenkollen/Maridalsvannet).
+    const hydro =
+      '<g id="hydro-layer" data-layer="vannstasjon">' +
+      '<g data-hydro-station-id="6.10.0"><use href="#hydro-sym"/></g>' +
+      '<g data-hydro-station-id="6.11.0"><use href="#hydro-sym"/></g>' +
+      '</g>'
+    const s = `<svg viewBox="0 0 10 10">${hydro}<g data-layer="skog"><path d="M1,1"/></g></svg>`
+    const out = cleanSvgForTexture(s)
+    expect(out).not.toContain('hydro')
+    expect(out).toContain('data-layer="skog"')
+    const opens = (out.match(/<g\b/g) ?? []).length
+    const closes = (out.match(/<\/g>/g) ?? []).length
+    expect(opens).toBe(closes)
+  })
 })

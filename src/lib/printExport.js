@@ -18,6 +18,7 @@
 //      ikke skalerer/klipper kart-inset eller turrapport-kart feil.
 
 import { flattenNestedSvg } from './flattenNestedSvg.js'
+import { stripGroupsById } from './svgLayerStrip.js'
 
 // v8.9.25: max canvas-dimensjon (px). Chrome Android OOM-feilet på
 // fullscale 5–10 km kart ved 300 dpi (canvas-bytes = px² × 4 — et
@@ -40,15 +41,11 @@ const MAX_CANVAS_PX = 4096
  * parsing i Chrome Android ved gjenåpning av eksportert SVG.
  */
 function stripRuntimeOverlays(svgString) {
-  // Match og fjern <g id="user-layer">…</g>, og tilsvarende for andre
-  // klient-injiserte lag. Bruker non-greedy match og `[^]*` for å fange
-  // newlines (`.` matcher ikke \n uten s-flag, ikke alle JS-runtimes har).
-  let s = svgString
-  const layerIds = ['user-layer', 'annotation-layer', 'track-layer', 'measure-layer']
-  for (const id of layerIds) {
-    const re = new RegExp(`<g[^>]*id="${id}"[^]*?</g>`, 'g')
-    s = s.replace(re, '')
-  }
+  // Fjern <g id="user-layer">…</g> og tilsvarende klient-injiserte lag,
+  // balansert (svgLayerStrip): annoterings- og spor-lag har nestede <g> per
+  // punkt/spor, og non-greedy regex kuttet ved første `</g>` → ubalansert
+  // XML som gjorde eksporterte SVG-er uåpnbare (v3.0.27).
+  let s = stripGroupsById(svgString, ['user-layer', 'annotation-layer', 'track-layer', 'measure-layer'])
   // v9.1.13: knaus-relieffet er nå malt inn i hillshade-bildet (ett relieff-
   // lag), som beholdes i eksport. Ingen egen knaus-<image> å strippe lenger.
   if (!s.includes('xmlns:xlink')) {

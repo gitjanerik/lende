@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.27: Kart-tekstur med vannstasjoner, faste turnåler og lengdestyrt tempo
+
+Tre 3D-forbedringer. (1) Kart med NVE-vannstasjoner (f.eks. Grefsenkollen ved Maridalsvannet) mistet hele kart-teksturen i 3D: hydro-laget har nestede grupper per stasjon, og runtime-lag-strippingen brukte en non-greedy regex som kuttet ved første lukke-tag — ubalansert XML fikk hele SVG-rasteriseringen til å feile, og terrenget falt til grå hillshade uten kartografi. Strippingen er nå balansert (ny delt svgLayerStrip.js), som også fikser SVG/PNG/PDF-eksport av kart med annoteringer eller spor. (2) POI-knappen i 3D er default AV og styrer kun severdigheter og hjem-skiltet — knappenålene for start (grønn), vendepunkt/via (oransje) og mål (rød) er alltid synlige. (3) Standard avspillingstempo følger turens lengde: under 3 km = 64×, 3–12 km = 128×, over 12 km = 256×.
+
+---
+
 ## 2026-07-30 — v3.0.26: 3D-turen viser aldri fantasi-terreng
 
 Når en tur gikk utenfor aktiv kartflise og Kartverket-WCS ikke svarte (mobilnett/CORS), kunne DEM-fallbacken levere det syntetiske testterrenget — en Gauss-topp midt i utsnittet med sinus-støy. 3D-visningen rendret da konsentriske, bølgete kurve-ringer rundt et ikke-eksisterende fjell, prikke-klynge på «toppen» og diagonalstripete relieff, i stedet for det ekte terrenget. fetchDEMWithCache kan nå avvise syntetisk DEM (rejectSynthetic), og 3D-forberedelsen bruker det: ved nettfeil faller den i stedet tilbake til flisas ekte lagrede høydedata blittet inn i union-utsnittet (utenfor flisa = havnivå). Kartbyggingens egen syntetiske fallback er uendret.

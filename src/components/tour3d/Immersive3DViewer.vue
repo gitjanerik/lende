@@ -81,13 +81,16 @@ onMounted(async () => {
 
   try {
     const engineMod = await import('../../lib/tour3d/index.js')
-    const { createTourScene, collectMapFeatures, findParkingSpots, findPauseSpots, loadNveFeatures, loadHeritageFeatures } = engineMod
+    const { createTourScene, collectMapFeatures, findParkingSpots, findPauseSpots, loadNveFeatures, loadHeritageFeatures, defaultTimeScale } = engineMod
 
     const profile = sampleProfile({ points: route.coordinates.map(c => ({ x: c[0], y: c[1] })) }, dem)
     const rawIndex = toRaw(props.searchIndex) ?? []
     const mapFeatures = collectMapFeatures(rawIndex, route.coordinates)
 
     const viaRaw = (toRaw(props.via) ?? []).map(v => ({ svgX: v.svgX, svgY: v.svgY }))
+    // Standard-tempo etter turens lengde (kort = 64×, mellomlang = 128×,
+    // lang = 256×) — settes før motoren bygges så knapperaden viser riktig.
+    timeScale.value = defaultTimeScale(route.lengthM)
     engine = await createTourScene(canvasHost.value, {
       dem,
       meta: toRaw(props.meta),
@@ -100,6 +103,7 @@ onMounted(async () => {
       features: mapFeatures,
       profileSamples: profile?.samples ?? null,
       estWalkMinutes: props.estWalkMinutes,
+      options: { timeScale: timeScale.value },
     })
 
     engine.on('progress', (p) => {
@@ -117,6 +121,10 @@ onMounted(async () => {
     stats.value = engine.state
     if (contoursOn.value) engine.setContoursVisible(true).catch(() => {})
     if (nightOn.value) applyNight(true).catch(() => {})
+    // POI-togglen er default AV — start-/mål-/via-nålene er alltid synlige
+    // (waypointMarkers), togglen styrer kun severdigheter og turskilt.
+    engine.setPinsVisible(pinsOn.value)
+    engine.setFeaturesEnabled(pinsOn.value)
 
     // Nettbaserte kilder popper inn asynkront — feil svelges stille.
     const allFeatures = [...mapFeatures]
@@ -155,9 +163,11 @@ async function toggleContours() {
   await engine?.setContoursVisible(contoursOn.value)
 }
 
-// Turpunkter OG severdigheter — default PÅ. Av = ingen nåler/pauseskilt og
-// ingen POI-stopp/highlights under avspilling eller scrubbing.
-const pinsOn = ref(true)
+// Severdigheter og turskilt — default AV (v3.0.27). På = POI-stopp/
+// highlights under avspilling/scrubbing + hjem-skilt ved vendepunktet.
+// Start- (grønn), via- (oransje) og mål-nålene (rød) er ALLTID synlige og
+// styres ikke av denne togglen.
+const pinsOn = ref(false)
 function togglePins() {
   pinsOn.value = !pinsOn.value
   engine?.setPinsVisible(pinsOn.value)
@@ -215,7 +225,7 @@ function skipFeature() { engine?.skipFeature() }
         <div class="flex items-center gap-2 shrink-0">
           <button v-if="phase === 'ready'"
                   @click="togglePins"
-                  :aria-label="pinsOn ? 'Skjul start- og målnåler' : 'Vis start- og målnåler'"
+                  :aria-label="pinsOn ? 'Skjul severdigheter langs turen' : 'Vis severdigheter langs turen'"
                   class="w-11 h-11 rounded-full backdrop-blur flex items-center justify-center
                          active:scale-95 transition-colors"
                   :class="pinsOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">

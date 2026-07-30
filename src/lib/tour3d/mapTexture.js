@@ -9,31 +9,9 @@
 
 import { CanvasTexture, SRGBColorSpace, LinearMipmapLinearFilter } from 'three'
 import { computeHillshade } from '../hillshade.js'
+import { stripBalancedGroups, stripGroupsById } from '../svgLayerStrip.js'
 
 const RUNTIME_LAYER_IDS = ['user-layer', 'annotation-layer', 'track-layer', 'measure-layer', 'stifinner-layer', 'hydro-layer']
-
-// Fjern <g>-grupper som matcher åpnings-regexen, med balansert tag-skanning —
-// gruppene kan ha nestede <g>, som gjør non-greedy regex utrygg.
-function stripBalancedGroups(svg, openRe) {
-  let out = svg
-  let m
-  while ((m = openRe.exec(out)) !== null) {
-    const start = m.index
-    const tagRe = /<\/?g\b[^>]*>/g
-    tagRe.lastIndex = start + m[0].length
-    let depth = 1
-    let end = -1
-    let t
-    while ((t = tagRe.exec(out)) !== null) {
-      if (t[0][1] === '/') depth--
-      else if (!t[0].endsWith('/>')) depth++
-      if (depth === 0) { end = tagRe.lastIndex; break }
-    }
-    if (end < 0) return out
-    out = out.slice(0, start) + out.slice(end)
-  }
-  return out
-}
 
 // Fjern kartets innbakte høydekurver (<g data-layer="kontur"> med nestede
 // data-iso-/kontur-tall-grupper) fra teksturen: i 3D er vektorkurve-laget
@@ -71,11 +49,10 @@ export function stripPointSymbols(svg) {
 }
 
 export function cleanSvgForTexture(svgString) {
-  let s = svgString
-  for (const id of RUNTIME_LAYER_IDS) {
-    const re = new RegExp(`<g[^>]*id="${id}"[^]*?</g>`, 'g')
-    s = s.replace(re, '')
-  }
+  // Balansert stripping — hydro-/annoterings-/spor-lag har nestede <g>, og
+  // non-greedy regex etterlot ubalansert XML → hele rasteriseringen feilet
+  // og terrenget fikk grå fallback-tekstur uten kartografi (v3.0.27).
+  let s = stripGroupsById(svgString, RUNTIME_LAYER_IDS)
   s = stripContourLayers(s)
   s = stripVectorRelief(s)
   s = stripPointSymbols(s)
