@@ -3,6 +3,11 @@
 // eksponentiell (`1 − exp(−dt·λ)`) — stabil ved enhver dt, ingen
 // fjær-oscillasjon å tune.
 //
+// Follow og FlyBy er «vogn-kameraer»: de følger ruta automatisk, men
+// brukeren kan styre blikket underveis — én-finger-drag vrir vinkelen
+// (Follow: orbiterer rundt turpunktet; FlyBy: snur hodet fra dronen) og
+// pinch justerer nær/fjern. Offsetene nullstilles ved modusbytte.
+//
 // Under HOLD (feature-direktøren) får aktiv rigg et «frame target» som
 // rammer inn featurens boundingsfære; Free-modus overstyres aldri.
 
@@ -31,7 +36,67 @@ export function createCameraRigs({ camera, dem, coords, routeLookup, flybyLookup
   let frameTarget = null
   let transition = null
 
-  const follow = { distanceM: 60, heightM: 35, lookAheadM: 40 }
+  // Rausere default-avstand/-høyde enn første utkast (60/35) — brukeren skal
+  // se omgivelsene rundt ruta, ikke bare stien.
+  const follow = { distanceM: 110, heightM: 70, lookAheadM: 50 }
+
+  // Brukerens blikk-offset i vogn-modusene: yaw/pitch i radianer, dist som
+  // faktor (pinch). Nullstilles ved modusbytte.
+  const view = { yaw: 0, pitch: 0, dist: 1 }
+  const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x))
+
+  const pointers = new Map()
+  let dragging = false
+  let dragX = 0
+  let dragY = 0
+  let pinchStart = null
+
+  const pinchDist = () => {
+    const pts = [...pointers.values()]
+    return Math.hypot(pts[0][0] - pts[1][0], pts[0][1] - pts[1][1]) || 1
+  }
+  const wagonModeActive = () => mode === 'follow' || mode === 'flyby'
+
+  function onPointerDown(e) {
+    if (!wagonModeActive()) return
+    pointers.set(e.pointerId, [e.clientX, e.clientY])
+    domElement.setPointerCapture?.(e.pointerId)
+    if (pointers.size === 1) {
+      dragging = true
+      dragX = e.clientX
+      dragY = e.clientY
+    } else if (pointers.size === 2) {
+      dragging = false
+      pinchStart = { d0: pinchDist(), dist0: view.dist }
+    }
+  }
+  function onPointerMove(e) {
+    if (!pointers.has(e.pointerId)) return
+    pointers.set(e.pointerId, [e.clientX, e.clientY])
+    if (pinchStart && pointers.size === 2) {
+      view.dist = clamp(pinchStart.dist0 * (pinchStart.d0 / pinchDist()), 0.45, 2.6)
+    } else if (dragging) {
+      view.yaw -= (e.clientX - dragX) * 0.006
+      view.pitch = clamp(view.pitch + (e.clientY - dragY) * 0.004, -0.6, 0.7)
+      dragX = e.clientX
+      dragY = e.clientY
+    }
+  }
+  function onPointerUp(e) {
+    pointers.delete(e.pointerId)
+    if (pointers.size < 2) pinchStart = null
+    if (pointers.size === 1) {
+      const [x, y] = [...pointers.values()][0]
+      dragX = x; dragY = y
+      dragging = true
+    } else if (pointers.size === 0) {
+      dragging = false
+    }
+  }
+  domElement.addEventListener('pointerdown', onPointerDown)
+  domElement.addEventListener('pointermove', onPointerMove)
+  domElement.addEventListener('pointerup', onPointerUp)
+  domElement.addEventListener('pointercancel', onPointerUp)
 
   const v = {
     routeAt: new Vector3(), ahead: new Vector3(), tangent: new Vector3(),
@@ -42,12 +107,17 @@ export function createCameraRigs({ camera, dem, coords, routeLookup, flybyLookup
     const p = routeLookup.at(alongM)
     const t = routeLookup.tangentAt(alongM)
     v.routeAt.set(p[0], p[1], p[2])
-    // XZ-tangent, normalisert — kamera bak og over punktet.
-    const len = Math.hypot(t[0], t[2]) || 1
+    // Sfærisk rundt turpunktet: bak tangenten som basis, pluss brukerens
+    // yaw/pitch/dist-offset — «orbit rundt vogna» mens den ruller.
+    const heading = Math.atan2(t[2], t[0])
+    const az = heading + Math.PI + view.yaw
+    const basePitch = Math.atan2(follow.heightM, follow.distanceM)
+    const pitch = clamp(basePitch + view.pitch, 0.06, 1.35)
+    const r = Math.hypot(follow.distanceM, follow.heightM) * view.dist
     outPos.set(
-      p[0] - (t[0] / len) * follow.distanceM,
-      p[1] + follow.heightM,
-      p[2] - (t[2] / len) * follow.distanceM,
+      p[0] + Math.cos(az) * Math.cos(pitch) * r,
+      p[1] + Math.sin(pitch) * r,
+      p[2] + Math.sin(az) * Math.cos(pitch) * r,
     )
     const a = routeLookup.at(Math.min(routeLookup.totalM, alongM + follow.lookAheadM))
     outLook.set(a[0], a[1], a[2])
@@ -98,10 +168,27 @@ export function createCameraRigs({ camera, dem, coords, routeLookup, flybyLookup
   function desiredFlybyPose(alongM, outPos, outLook) {
     // Kamera-splinen parametriseres så kamera-alongM følger playback med
     // et lite forsprang.
-    const p = flybyLookup.at(Math.min(flybyLookup.totalM, alongM + 25))
+    const p = flybyLookup.at(Math.min(flybyLookup.totalM, alongM + 30))
     outPos.set(p[0], p[1], p[2])
-    const a = routeLookup.at(Math.min(routeLookup.totalM, alongM + 60))
-    outLook.set(a[0], a[1], a[2])
+    const a = routeLookup.at(Math.min(routeLookup.totalM, alongM + 90))
+    // Brukerens hodedreining fra dronen: roter blikkretningen med yaw/pitch.
+    let dx = a[0] - p[0]
+    let dy = a[1] - p[1]
+    let dz = a[2] - p[2]
+    const len = Math.hypot(dx, dy, dz) || 1
+    const az = Math.atan2(dz, dx) + view.yaw
+    const el = clamp(Math.asin(dy / len) - view.pitch, -1.2, 1.2)
+    dx = Math.cos(az) * Math.cos(el) * len
+    dy = Math.sin(el) * len
+    dz = Math.sin(az) * Math.cos(el) * len
+    outLook.set(p[0] + dx, p[1] + dy, p[2] + dz)
+    // Pinch i FlyBy: trekk dronen opp og bakover for videre utsyn.
+    if (view.dist !== 1) {
+      const k = (view.dist - 1) * 160
+      outPos.y += k
+      outPos.x -= (dx / len) * k * 0.6
+      outPos.z -= (dz / len) * k * 0.6
+    }
   }
 
   function applyFrameTarget(outPos, outLook, alongM) {
@@ -134,6 +221,7 @@ export function createCameraRigs({ camera, dem, coords, routeLookup, flybyLookup
       if (next === mode) return
       const prevMode = mode
       mode = next
+      view.yaw = 0; view.pitch = 0; view.dist = 1
       if (controls) controls.enabled = next === 'free'
       if (next === 'free') {
         if (!controls) {
@@ -216,6 +304,10 @@ export function createCameraRigs({ camera, dem, coords, routeLookup, flybyLookup
     },
 
     dispose() {
+      domElement.removeEventListener('pointerdown', onPointerDown)
+      domElement.removeEventListener('pointermove', onPointerMove)
+      domElement.removeEventListener('pointerup', onPointerUp)
+      domElement.removeEventListener('pointercancel', onPointerUp)
       controls?.dispose()
       controls = null
     },

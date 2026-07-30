@@ -193,19 +193,23 @@ async function onInstallClick() {
           <h3 class="text-sm font-semibold text-ink/85">3D-visning av tur</h3>
           <p class="text-[13px] leading-relaxed text-ink/70">
             Velg en rute med stifinneren eller en rundtur, og trykk
-            <strong class="text-ink/90">3D-knappen ved startpunktet</strong>: turen
-            spilles av som en flytur over ekte terreng. Kameraet kan følge deg langs
-            ruta, fly filmatisk over landskapet eller utforskes fritt — og tjern,
-            topper, naturreservater, kulturminner og NVEs vannmålestasjoner langs
-            veien løftes fram med infokort. Et panel viser høyde, kilometer gått og
-            igjen, stigning og gjenværende tid. Slik kan du
+            <strong class="text-ink/90">3D-knappen ved startpunktet</strong>: du
+            lander i et fugleperspektiv med hele turen foran deg, og kan spille
+            den av som en flytur over ekte terreng. Kameraet kan følge turpunktet,
+            fly filmatisk over landskapet eller utforskes fritt — i Følg og
+            Flyover styrer du blikket selv med fingeren mens kameraet følger ruta.
+            Tjern, topper, naturreservater, kulturminner og NVEs vannmålestasjoner
+            langs veien løftes fram med infokort, og du kan dra i tidsaksen for å
+            spole fram og tilbake. Start, mål og delmål vises som grønne, røde og
+            gule punkter, nærmeste utfartsparkering med et P-skilt, og høydekurver
+            kan legges i terrenget med «Kurver»-knappen. Slik kan du
             <strong class="text-ink/90">oppleve turen før du går den</strong>.
           </p>
           <ul class="text-[13px] leading-relaxed text-ink/70 space-y-1.5 list-disc pl-5">
             <li>Terrenget bygges i sanntid med <strong class="text-ink/90">Three.js</strong>
               (WebGL) fra samme Kartverket-høydemodell som turkartet — og selve
               kartet drapes over som tekstur, så 3D-landskapet ser ut som kartet
-              du kjenner.</li>
+              du kjenner, under en himmel med drivende skyer.</li>
             <li>Severdighetene langs ruta hentes fra kartets egen navneindeks
               (virker offline), <strong class="text-ink/90">NVE HydAPI</strong> og
               Riksantikvarens kulturminnedata.</li>

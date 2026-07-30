@@ -13,8 +13,8 @@ import { makePositionLookup } from './routePath.js'
  * @returns {{points3: Float32Array, cumM: Float32Array, totalM: number}}
  */
 export function buildFlybyPath(coordinates, dem, coords, {
-  stepM = 50, upM = 90, sideM = 35,
-  clearRadiusM = 60, clearAboveM = 45,
+  stepM = 50, upM = 130, sideM = 55,
+  clearRadiusM = 60, clearAboveM = 60,
   smoothPasses = 3, smoothWindow = 7,
 } = {}) {
   const pts = resample(coordinates, stepM)
