@@ -1,5 +1,17 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.29: Fase 1 av KI-planen — lende-ai-Worker med per-bruker-tokens
+
+Første byggestein i KI-chatten: en ny Cloudflare Worker (`cloudflare/ai-worker/`, deployes som `lende-ai`) som kjører chat-inferens via Workers AI-bindingen — ingen ekstern API-nøkkel finnes, og gratiskvoten på 10k neurons/dag dekker normal bruk. Tilgang styres av per-bruker-GUID-er i secreten `LENDE_AI_TOKENS` (kommaseparert liste); kall uten gyldig `Authorization: Bearer`-token avvises, siden CORS alene ikke er tilgangskontroll. Én bruker kan trekkes tilbake uten at de andre bytter kode. Workeren eksponerer kun `POST /api/ai` (meldinger + valgfrie verktøy, streaming støttes) og en uautentisert `GET /health`, begrenser body og max_tokens, og har modellen som var (`@cf/zai-org/glm-4.7-flash` som start — bytte er én linje). Deploy skjer automatisk via ny GitHub Actions-workflow (`deploy-ai-worker.yml`) med tre repo-secrets; token-lista pushes til Workeren ved hver deploy, så brukeradministrasjon er å redigere GitHub-secreten. Utredningen i `docs/MCP_REMOTE_CHAT.md` har fått en «Tilgangskontroll»-seksjon som nedfeller designet, og `.gitignore` dekker nå `.dev.vars`/`.wrangler` (README-en til nve-proxyen antok dette allerede). Ingen endringer i selve appen ennå — klient-siden kommer i Fase 2.
+
+---
+
+## 2026-07-30 — v3.0.28: MCP/chat-utredningen oppdatert med personlig kontekst og Workers AI
+
+Ren dokumentasjonsendring i `docs/MCP_REMOTE_CHAT.md`. To nye seksjoner: (1) «Personlig kontekst» spesifiserer hvordan chat-en skal kunne relatere til brukerens eget innhold — et klient-side verktøy over lagrede kart/ruter i IndexedDB, gjenbruk av den eksisterende 3D-dyplenken (`tour3dLink.js`/`tur3dUrl`), og valgfri favoritt-markering + søkehistorikk; alt lokalt og dermed automatisk per bruker uten backend. (2) «Modellvalg og kostnad» nedfeller konklusjonen fra kostnadsutredningen juli 2026: Cloudflare Workers AI ser ut til å holde for chat-funksjonen — `env.AI`-bindingen fjerner hele nøkkel-problemet, katalogen har fått dedikerte tool-calling-modeller (GLM-4.7-flash, Kimi K2), og gratiskvoten på 10k neurons/dag dekker normal bruk med 5 brukere; forbeholdene (norsk-kvalitet, verktøykjeder på norsk) og fallback-veien til Gemini Flash/Claude står også der. Ingen kodeendringer.
+
+---
+
 ## 2026-07-30 — v3.0.27: Kart-tekstur med vannstasjoner, faste turnåler og lengdestyrt tempo
 
 Tre 3D-forbedringer. (1) Kart med NVE-vannstasjoner (f.eks. Grefsenkollen ved Maridalsvannet) mistet hele kart-teksturen i 3D: hydro-laget har nestede grupper per stasjon, og runtime-lag-strippingen brukte en non-greedy regex som kuttet ved første lukke-tag — ubalansert XML fikk hele SVG-rasteriseringen til å feile, og terrenget falt til grå hillshade uten kartografi. Strippingen er nå balansert (ny delt svgLayerStrip.js), som også fikser SVG/PNG/PDF-eksport av kart med annoteringer eller spor. (2) POI-knappen i 3D er default AV og styrer kun severdigheter og hjem-skiltet — knappenålene for start (grønn), vendepunkt/via (oransje) og mål (rød) er alltid synlige. (3) Standard avspillingstempo følger turens lengde: under 3 km = 64×, 3–12 km = 128×, over 12 km = 256×.

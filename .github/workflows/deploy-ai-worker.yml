@@ -1,0 +1,43 @@
+# Deployer KI-Workeren (cloudflare/ai-worker) til Cloudflare. Kjører ved push
+# til master som endrer Worker-mappa, og kan startes manuelt fra Actions-fanen.
+# Krever repo-secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID og
+# LENDE_AI_TOKENS (kommaseparerte per-bruker-tokens — pushes som Worker-secret
+# ved hver deploy, så brukerlista redigeres i GitHub-secreten alene).
+name: Deploy AI-worker
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - 'cloudflare/ai-worker/**'
+      - '.github/workflows/deploy-ai-worker.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cloudflare/ai-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Deploy Worker
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Push token-secret til Worker
+        run: |
+          if [ -n "$LENDE_AI_TOKENS" ]; then
+            echo "$LENDE_AI_TOKENS" | npx wrangler secret put LENDE_AI_TOKENS
+          else
+            echo "::warning::LENDE_AI_TOKENS-secret mangler i GitHub — Workeren vil svare 500 til den settes."
+          fi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          LENDE_AI_TOKENS: ${{ secrets.LENDE_AI_TOKENS }}

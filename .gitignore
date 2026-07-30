@@ -26,3 +26,7 @@ dist-ssr
 # Python (tools/)
 __pycache__/
 *.pyc
+
+# Cloudflare Workers (cloudflare/*/) — lokale secrets og wrangler-state
+.dev.vars
+.wrangler/

@@ -1,0 +1,17 @@
+name = "lende-ai"
+main = "src/index.js"
+compatibility_date = "2026-07-01"
+
+# Workers AI-bindingen opprettes automatisk ved deploy — ingen nøkkel trengs.
+[ai]
+binding = "AI"
+
+# Modellbytte = endre linja under og deploye på nytt (leverandør-agnostisk
+# design; se docs/MCP_REMOTE_CHAT.md «Modellvalg og kostnad»).
+[vars]
+MODEL = "@cf/zai-org/glm-4.7-flash"
+
+# Secreten LENDE_AI_TOKENS (kommaseparerte per-bruker-tokens) settes IKKE her.
+# CI-deployen (.github/workflows/deploy-ai-worker.yml) pusher den fra GitHub-
+# secreten med samme navn; alternativt Cloudflare-dashbordet (Worker →
+# Settings → Variables and Secrets) eller `npx wrangler secret put LENDE_AI_TOKENS`.
