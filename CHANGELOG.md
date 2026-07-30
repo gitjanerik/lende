@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.16: Fjellet kommer ikke lenger i veien for Følg-kameraet
+
+Med turmål oppunder en bratt fjellside (Stetinden-testen) kunne blikkstyring i Følg-modus svinge kameraet bak fjellet — hele bildet ble fylt av baksiden og turpunktet forsvant. Klaringssjekken så bare på terrenget rett under kameraet, ikke på fjellet mellom kamera og blikkpunkt. Nå sjekkes hele siktlinjen: terrenget samples langs strekket kamera→blikkpunkt, og bryter en fjellside synslinjen løftes kameraet akkurat så høyt at den går klar — det går «brått opp» over kanten i stedet for bak fjellet, og den eksisterende kameradempingen gjør løftet mykt. Marginen tapres inn mot målet (terrenget der er rutas eget underlag), og samme klaring gjelder feature-innramming og fugleperspektiv-åpningen i Utforsk. Fri utforsking med fingeren er bevisst urørt — der styrer brukeren kameraet helt selv.
+
+---
+
 ## 2026-07-30 — v3.0.15: Roligere Følg-kamera, samlet POI-bryter og hjem-pil ved vannet
 
 Tre justeringer i 3D-visningen. Nål-knappen styrer nå både turpunkt-nålene OG severdighets-stoppene: slått av gir uavbrutt avspilling — ingen nedbremsing, markering eller infokort underveis, heller ikke ved scrubbing (default fortsatt på). Følg-kameraet ligger på omtrent dobbel avstand fra underlaget (220 m bak / 140 m over, nær fugleperspektiv) — raske vinkelskift i skarpe svinger ga «bilsyke» på nært hold, og høyere kamera senker vinkelfarten; pinch-zoom kan nå også trekkes lenger ut (4×). P-skiltet vises dessuten bare når start (eller mål på A→B) faktisk ER en utfartsparkering (≤ 50 m — større radius traff parkeringer turen ikke utgikk fra), og vendepunkt ved tjern eller vann får et nytt «hjem»-skilt: en 180-graders pil i bue over den oransje nåla — her snur turen, og her tar man gjerne rasten og badet.

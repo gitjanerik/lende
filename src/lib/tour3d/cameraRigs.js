@@ -28,6 +28,30 @@ function terrainYAt(dem, coords, wx, wz, fallback = 0) {
   return Number.isFinite(e) ? coords.elevToWorldY(e) : fallback
 }
 
+// Siktlinje-klaring: står terreng (bratt fjellside bak målet) mellom kamera
+// og blikkpunkt, løftes kameraet så synslinjen går klar — «brått opp» i
+// stedet for å havne bak fjellet. Løser posY fra linjelikningen
+// y(t) = posY·(1−t) + lookY·t ≥ terrengY(t) + margin for hvert sample;
+// marginen tapres mot målet (terrenget DER er rutas eget underlag).
+// Dempingen i update() gjør løftet mykt.
+function clearSightLine(dem, coords, pos, look) {
+  if (!dem) return
+  const SAMPLES = 12
+  const MAX_T = 0.85
+  let required = -Infinity
+  for (let i = 1; i <= SAMPLES; i++) {
+    const t = (i / SAMPLES) * MAX_T
+    const x = pos.x + (look.x - pos.x) * t
+    const z = pos.z + (look.z - pos.z) * t
+    const terrainY = terrainYAt(dem, coords, x, z, NaN)
+    if (!Number.isFinite(terrainY)) continue
+    const margin = (6 + 18 * (1 - t)) * coords.exaggeration
+    const req = (terrainY + margin - look.y * t) / (1 - t)
+    if (req > required) required = req
+  }
+  if (required > pos.y) pos.y = required
+}
+
 export function createCameraRigs({ camera, dem, coords, routeLookup, flybyLookup, domElement }) {
   const camPos = new Vector3()
   const lookPos = new Vector3()
@@ -163,6 +187,7 @@ export function createCameraRigs({ camera, dem, coords, routeLookup, flybyLookup
     )
     const minCamY = terrainYAt(dem, coords, pos.x, pos.z) + 60 * coords.exaggeration
     if (pos.y < minCamY) pos.y = minCamY
+    clearSightLine(dem, coords, pos, center)
     return { pos, target: center }
   }
 
@@ -277,9 +302,10 @@ export function createCameraRigs({ camera, dem, coords, routeLookup, flybyLookup
       else if (mode === 'flyby') desiredFlybyPose(alongM, desiredPos, desiredLook)
       else desiredFollowPose(alongM, desiredPos, desiredLook)
 
-      // Terrengklaring for kameraposisjonen.
+      // Terrengklaring for kameraposisjonen + fri siktlinje til blikkpunktet.
       const minY = terrainYAt(dem, coords, desiredPos.x, desiredPos.z) + 12 * coords.exaggeration
       if (desiredPos.y < minY) desiredPos.y = minY
+      clearSightLine(dem, coords, desiredPos, desiredLook)
 
       damp(camPos, desiredPos, 3, dt)
       damp(lookPos, desiredLook, 5, dt)
