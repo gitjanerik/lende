@@ -1,8 +1,8 @@
-// Endepunkt- og parkeringmarkører i 3D: start (grønn) og mål (rød, A→B)
-// er knappenåler som stikker opp fra terrenget — lavere enn POI-strålen,
-// men med avstandsavhengig overdrivelse så de synes helt i horisonten.
-// Delmål (via/vendepunkter) er gule prikker. Nålene (+ delmålene) er
-// togglebare fra UI; nærmeste utfartsparkering («P»-billboard) står alltid.
+// Endepunkt- og parkeringmarkører i 3D: start (grønn), mål (rød, A→B) og
+// delmål/vendepunkter (oransje) er knappenåler som stikker opp fra
+// terrenget — lavere enn POI-strålen, men med avstandsavhengig overdrivelse
+// så de synes helt i horisonten. Nålene er togglebare fra UI; nærmeste
+// utfartsparkering («P»-billboard) står alltid.
 
 import {
   SphereGeometry, CylinderGeometry, MeshBasicMaterial, Mesh, Group,
@@ -93,17 +93,6 @@ export function buildWaypointMarkers({ route, via = [], isLoop = false, parkingS
     pins.push(holder)
   }
 
-  const dot = (x, y, color) => {
-    const geo = new SphereGeometry(11, 14, 10)
-    const mat = new MeshBasicMaterial({ color })
-    const mesh = new Mesh(geo, mat)
-    const [wx, wy, wz] = drapedWorld(dem, coords, x, y, 6)
-    mesh.position.set(wx, wy, wz)
-    geometries.push(geo)
-    materials.push(mat)
-    pinsGroup.add(mesh)
-  }
-
   const coordsArr = route.coordinates
   const [ax, ay] = coordsArr[0]
   pin(ax, ay, COLOR_START)
@@ -111,7 +100,7 @@ export function buildWaypointMarkers({ route, via = [], isLoop = false, parkingS
     const [bx, by] = coordsArr[coordsArr.length - 1]
     pin(bx, by, COLOR_DEST)
   }
-  for (const v of via) dot(v.svgX, v.svgY, COLOR_VIA)
+  for (const v of via) pin(v.svgX, v.svgY, COLOR_VIA)
 
   if (parkingSpots.length) {
     const tex = parkingTexture()

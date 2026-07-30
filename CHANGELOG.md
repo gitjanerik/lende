@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.13: Følg-modus som standard, kjøretøy-hastigheter og oransje nåler
+
+Tre justeringer fra siste testrunde. 3D-visningen åpner nå i Følg-modus (kameraet bak turpunktet) i stedet for Utforsk — fugleperspektiv-oversikten står klar første gang man bytter til Utforsk. Hastighetsvalget er byttet fra fem talltrinn til tre kjøretøy-ikoner, siden vi holder oss «på hjul»: moped (16×), bil (64×, standard) og racerbil (256× av virkelig gangfart) — en 10 km tur spilles av på ~8, ~2 eller et halvt minutt. Og delmål/vendepunkter er nå oransje knappenåler på lik linje med start og mål, med samme avstandsoverdrivelse, i stedet for lave prikker som forsvant i terrenget.
+
+---
+
 ## 2026-07-30 — v3.0.12: 3D dekker utvidede kart — turen går ikke i tomme lufta
 
 På utvidede mosaikk-kart kunne en rute som gikk inn i en nabo-flise sveve i løse lufta i 3D: terrenget og teksturen dekket bare den opprinnelige flisa. Nå oppdages det når turen (med margin) går utenfor aktiv flise, og 3D-verdenen utvides til unionen av flisa og rutas utstrekning: høydedata hentes for hele utsnittet via DEM-flis-cachen (10 m-grid-alignet med kartets UTM-forankring, så alt fortsatt stemmer på centimeteren), kart-teksturen rasteriseres MED nabo-flisene (viewBoxen utvides i stedet for at ghost-flisene strippes), og rute, delmål og POI-er forskyves inn i det nye koordinatrommet. Uten nett faller utvidelsen tilbake til å plassere flisas høydedata i union-gridet — området utenfor flater til havnivå, men ruta svever aldri. Nattmodus stripper også nabo-flisenes dag-tonede relieff-bilder før mørk rasterisering.

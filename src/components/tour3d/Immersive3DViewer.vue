@@ -29,12 +29,12 @@ const emit = defineEmits(['close'])
 const phase = ref('loading')   // loading | ready | no-dem | no-webgl | error
 const stats = ref(null)
 const activeFeature = ref(null)
-// Default = Utforsk med fugleperspektiv-oversikt over ruta (matcher motorens
-// initialCameraMode 'free').
-const cameraMode = ref('free')
+// Default = Følg (matcher motorens initialCameraMode); Utforsk åpner med
+// fugleperspektiv-oversikt første gang man bytter dit.
+const cameraMode = ref('follow')
 const playing = ref(false)
 const finished = ref(false)
-const timeScale = ref(16)
+const timeScale = ref(64)
 const isLandscape = ref(typeof window !== 'undefined' && window.innerWidth > window.innerHeight)
 
 const canvasHost = ref(null)
