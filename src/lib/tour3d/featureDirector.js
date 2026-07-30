@@ -90,6 +90,17 @@ export function createFeatureDirector(events = [], { onEnter = null, onExit = nu
       enabled = !!v
       if (!enabled && state === 'HOLD') exitHold()
     },
+    // Nærmeste hendelse innen vindu — brukes av scrubbing til å vise
+    // POI-kort når brukeren drar seg forbi en feature.
+    eventNear(alongM, windowM = 150) {
+      let best = null
+      let bestD = Infinity
+      for (const e of timeline) {
+        const d = Math.abs(e.alongM - alongM)
+        if (d <= windowM && d < bestD) { bestD = d; best = e }
+      }
+      return best
+    },
     get state() { return state },
     get active() { return active },
     get pending() { return timeline.length - idx },

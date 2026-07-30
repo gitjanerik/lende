@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.2: Dra-bar tidsakse i 3D og tydeligere høydekurver
+
+Tidsaksen i 3D-visningen er nå en slider: dra fingeren fram og tilbake langs turen, så følger kameraet med (i Følg- og Flyover-modus), posisjonsmarkøren og statistikken oppdateres fortløpende, og severdigheter du drar deg forbi dukker opp som infokort med markering i terrenget. Når du slipper, forblir avspillingen pauset — Play fortsetter derfra. Høydekurve-laget er samtidig gjort tydeligere: siden kurvene uansett ligger bakt inn i kartteksturen var effekten av å slå på vektorkurvene knapt synlig, så laget er nå PÅ som standard, og linjene tegnes tykkere (ekte pikselbredde via three sitt Line2-linjesystem — vanlig WebGL-linje er låst til 1 px) med kraftigere indekskurver. «Kurver»-knappen skrur fortsatt laget av og på.
+
+---
+
 ## 2026-07-30 — v3.0.1: 3D-terrenget får kartet, himmel og turmarkører
 
 3D-visningen så ut som et grått månelandskap fordi kart-teksturen aldri ble rasterisert: vieweren fikk SVG-strengen fra en variabel som aldri ble tilordnet, rasteriseringen feilet stille og reserveløsningen (grå hillshade) tok over. Nå gjenbrukes eksport-markupen (tema baket inn, uten kolofon), så terrenget drapes med selve ISOM-kartet — blå innsjøer og fjorder, kremfarget mark, stier og hovedveier. Rundt kartet er det kommet atmosfære: gradient-himmel fra lys horisont til blå senit, drivende prosedurale skyer og avstandsdis som mykner horisonten. Startpunktet vises som grønn prikk, målet som rød (A→B-ruter), delmål/vendepunkter som gule, og nærmeste utfartsparkering ved start — og ved mål for A→B-ruter — markeres med et «P»-skilt i terrenget. I tillegg kan høydekurver legges som vektorlinjer i terrenget via en «Kurver»-knapp i toppraden (default av, bygges først når den slås på).

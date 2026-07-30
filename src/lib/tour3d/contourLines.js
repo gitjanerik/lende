@@ -1,8 +1,16 @@
 // 3D-høydekurver: buildContours fra dem.js gir polylinjer med hver sin
-// elevasjon — de legges som LineSegments svakt over terrenget. Togglebart
-// lag (default av); bygges lazily første gang det slås på.
+// elevasjon — de legges som skarpe vektorlinjer svakt over terrenget.
+// Togglebart lag (default på); bygges lazily etter at scenen er klar.
+//
+// LineBasicMaterial er låst til 1 px i WebGL, så tykkelsen kommer fra
+// examples/jsm/lines (LineSegments2 + LineMaterial, instansert med
+// piksel-bredde). LineMaterial trenger renderer-oppløsningen som uniform —
+// kalleren mater setResolution ved resize.
 
-import { BufferGeometry, BufferAttribute, LineSegments, LineBasicMaterial, Group } from 'three'
+import { Group } from 'three'
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import { buildContours } from '../dem.js'
 
 export function buildContourLines(dem, coords, { intervalM = 20, liftM = 1.5 } = {}) {
@@ -32,16 +40,17 @@ export function buildContourLines(dem, coords, { intervalM = 20, liftM = 1.5 } =
       }
     }
     if (!pts.length) return
-    const geo = new BufferGeometry()
-    geo.setAttribute('position', new BufferAttribute(new Float32Array(pts), 3))
-    const mat = new LineBasicMaterial({
-      color: 0xa5673f,
+    const geo = new LineSegmentsGeometry()
+    geo.setPositions(pts)
+    const mat = new LineMaterial({
+      color: 0xb0532e,
+      linewidth: isIndex ? 3.2 : 2.2,
       transparent: true,
-      opacity: isIndex ? 0.85 : 0.45,
+      opacity: isIndex ? 0.9 : 0.55,
     })
     geometries.push(geo)
     materials.push(mat)
-    const lines = new LineSegments(geo, mat)
+    const lines = new LineSegments2(geo, mat)
     lines.frustumCulled = false
     group.add(lines)
   }
@@ -53,6 +62,9 @@ export function buildContourLines(dem, coords, { intervalM = 20, liftM = 1.5 } =
     group,
     geometries,
     materials,
+    setResolution(w, h) {
+      for (const m of materials) m.resolution.set(w, h)
+    },
     dispose() {
       for (const g of geometries) g.dispose()
       for (const m of materials) m.dispose()
