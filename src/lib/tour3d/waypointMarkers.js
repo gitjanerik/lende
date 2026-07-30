@@ -56,13 +56,52 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath()
 }
 
+// «Hjem»-skilt: 180-graders pil i bue (U-sving) på varm brun bunn —
+// vendepunktet der turen snur hjemover (typisk rasteplassen ved vannet).
+function uTurnTexture() {
+  const px = 128
+  const canvas = document.createElement('canvas')
+  canvas.width = px
+  canvas.height = px
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = '#92400e'
+  roundRect(ctx, 8, 8, px - 16, px - 16, 26)
+  ctx.fill()
+  ctx.strokeStyle = '#fff'
+  ctx.lineWidth = 6
+  roundRect(ctx, 8, 8, px - 16, px - 16, 26)
+  ctx.stroke()
+  // Opp høyre ben, 180° bue over toppen, ned venstre ben …
+  ctx.strokeStyle = '#fff'
+  ctx.lineWidth = 11
+  ctx.lineCap = 'round'
+  ctx.beginPath()
+  ctx.moveTo(82, 98)
+  ctx.lineTo(82, 58)
+  ctx.arc(64, 58, 18, 0, Math.PI, true)
+  ctx.lineTo(46, 76)
+  ctx.stroke()
+  // … med pilhode nederst på venstre ben.
+  ctx.fillStyle = '#fff'
+  ctx.beginPath()
+  ctx.moveTo(32, 74)
+  ctx.lineTo(60, 74)
+  ctx.lineTo(46, 100)
+  ctx.closePath()
+  ctx.fill()
+  const tex = new CanvasTexture(canvas)
+  tex.colorSpace = SRGBColorSpace
+  return tex
+}
+
 /**
  * @param {{coordinates: Array<[number,number]>}} route
  * @param {Array<{svgX:number, svgY:number}>} via  delmål/vendepunkter
  * @param {boolean} isLoop
- * @param {Array<{x:number,y:number,name:string}>} parkingSpots  0–2 (start/mål)
+ * @param {Array<{x:number,y:number,name:string}>} parkingSpots  0–2 (start/mål ≤ 50 m fra utfartsparkering)
+ * @param {Array<{x:number,y:number,name:string}>} pauseSpots  vendepunkt ved vann (rast/bad)
  */
-export function buildWaypointMarkers({ route, via = [], isLoop = false, parkingSpots = [] }, dem, coords) {
+export function buildWaypointMarkers({ route, via = [], isLoop = false, parkingSpots = [], pauseSpots = [] }, dem, coords) {
   const group = new Group()
   const pinsGroup = new Group()
   group.add(pinsGroup)
@@ -102,20 +141,25 @@ export function buildWaypointMarkers({ route, via = [], isLoop = false, parkingS
   }
   for (const v of via) pin(v.svgX, v.svgY, COLOR_VIA)
 
-  if (parkingSpots.length) {
-    const tex = parkingTexture()
+  const billboard = (spots, texFactory, { sizeM, liftM, parent }) => {
+    if (!spots.length) return
+    const tex = texFactory()
     const mat = new SpriteMaterial({ map: tex, transparent: true, depthWrite: false })
     materials.push(mat)
     // Teksturen deles; SpriteMaterial disposer ikke map automatisk.
     mat.userData = { tex }
-    for (const p of parkingSpots) {
+    for (const p of spots) {
       const sprite = new Sprite(mat)
-      sprite.scale.set(46, 46, 1)
-      const [wx, wy, wz] = drapedWorld(dem, coords, p.x, p.y, 40)
+      sprite.scale.set(sizeM, sizeM, 1)
+      const [wx, wy, wz] = drapedWorld(dem, coords, p.x, p.y, liftM)
       sprite.position.set(wx, wy, wz)
-      group.add(sprite)
+      parent.add(sprite)
     }
   }
+  billboard(parkingSpots, parkingTexture, { sizeM: 46, liftM: 40, parent: group })
+  // Hjem-skiltet hører til turpunktene og følger nål-togglen; løftes over
+  // den oransje nåla på samme punkt.
+  billboard(pauseSpots, uTurnTexture, { sizeM: 42, liftM: 95, parent: pinsGroup })
 
   return {
     group,

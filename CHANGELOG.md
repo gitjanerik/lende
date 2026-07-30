@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.15: Roligere Følg-kamera, samlet POI-bryter og hjem-pil ved vannet
+
+Tre justeringer i 3D-visningen. Nål-knappen styrer nå både turpunkt-nålene OG severdighets-stoppene: slått av gir uavbrutt avspilling — ingen nedbremsing, markering eller infokort underveis, heller ikke ved scrubbing (default fortsatt på). Følg-kameraet ligger på omtrent dobbel avstand fra underlaget (220 m bak / 140 m over, nær fugleperspektiv) — raske vinkelskift i skarpe svinger ga «bilsyke» på nært hold, og høyere kamera senker vinkelfarten; pinch-zoom kan nå også trekkes lenger ut (4×). P-skiltet vises dessuten bare når start (eller mål på A→B) faktisk ER en utfartsparkering (≤ 50 m — større radius traff parkeringer turen ikke utgikk fra), og vendepunkt ved tjern eller vann får et nytt «hjem»-skilt: en 180-graders pil i bue over den oransje nåla — her snur turen, og her tar man gjerne rasten og badet.
+
+---
+
 ## 2026-07-30 — v3.0.14: Tekst-hastigheter tilbake og Flyover-modus fjernet
 
 Kjøretøy-emojiene fra forrige versjon brøt med appens øvrige ikonspråk og er byttet tilbake til tekst-knapper, nå med fem trinn: 8×, 32×, 64× (standard), 128× og 256× av virkelig gangfart. Flyover-modusen er samtidig fjernet fra 3D-visningen — Følg (med fingerstyrt blikk) og Utforsk dekker behovet, og tre kameravalg var ett for mye. Dronesplinen ligger igjen i motoren om modusen skulle gjenoppstå, men knappen og omtalen i Om-siden er tatt bort.

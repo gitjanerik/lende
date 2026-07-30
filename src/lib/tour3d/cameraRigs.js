@@ -36,9 +36,10 @@ export function createCameraRigs({ camera, dem, coords, routeLookup, flybyLookup
   let frameTarget = null
   let transition = null
 
-  // Rausere default-avstand/-høyde enn første utkast (60/35) — brukeren skal
-  // se omgivelsene rundt ruta, ikke bare stien.
-  const follow = { distanceM: 110, heightM: 70, lookAheadM: 50 }
+  // Rausere default-avstand/-høyde: ~dobbel avstand fra underlaget (v3.0.15,
+  // var 110/70) — nær fugleperspektiv. Raske vinkelskift i skarpe svinger
+  // ga «bilsyke» på nært hold; høyere/fjernere kamera senker vinkelfarten.
+  const follow = { distanceM: 220, heightM: 140, lookAheadM: 60 }
 
   // Brukerens blikk-offset i vogn-modusene: yaw/pitch i radianer, dist som
   // faktor (pinch). Nullstilles ved modusbytte.
@@ -74,7 +75,7 @@ export function createCameraRigs({ camera, dem, coords, routeLookup, flybyLookup
     if (!pointers.has(e.pointerId)) return
     pointers.set(e.pointerId, [e.clientX, e.clientY])
     if (pinchStart && pointers.size === 2) {
-      view.dist = clamp(pinchStart.dist0 * (pinchStart.d0 / pinchDist()), 0.45, 2.6)
+      view.dist = clamp(pinchStart.dist0 * (pinchStart.d0 / pinchDist()), 0.4, 4)
     } else if (dragging) {
       view.yaw -= (e.clientX - dragX) * 0.006
       view.pitch = clamp(view.pitch + (e.clientY - dragY) * 0.004, -0.6, 0.7)
