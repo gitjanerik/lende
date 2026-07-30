@@ -46,7 +46,7 @@ export async function createTourScene(container, {
     exaggeration = 1.15,
     initialCameraMode = 'free',
     speedKmh = 4.5,
-    timeScale = 30,
+    timeScale = 16,
   } = options
 
   const dpr = Math.min(window.devicePixelRatio || 1, (navigator.deviceMemory ?? 4) <= 4 ? 1.5 : 2)

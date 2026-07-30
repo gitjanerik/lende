@@ -3,16 +3,20 @@
 defineProps({
   playing: { type: Boolean, default: false },
   finished: { type: Boolean, default: false },
-  timeScale: { type: Number, default: 30 },
+  timeScale: { type: Number, default: 16 },
   cameraMode: { type: String, default: 'follow' },
 })
 const emit = defineEmits(['play', 'pause', 'restart', 'set-time-scale', 'set-camera-mode'])
 
+// Ærlige multiplikatorer av sanntid (timeScale = ganger virkelig gangfart).
+// 1:1 gir ingen mening for en virtuell tur — 4× til 64× dekker korte kvelds-
+// runder så vel som lange fjellturer.
 const SPEEDS = [
-  { label: '1×', value: 15 },
-  { label: '2×', value: 30 },
-  { label: '4×', value: 60 },
-  { label: '8×', value: 120 },
+  { label: '4×', value: 4 },
+  { label: '8×', value: 8 },
+  { label: '16×', value: 16 },
+  { label: '32×', value: 32 },
+  { label: '64×', value: 64 },
 ]
 const MODES = [
   { key: 'follow', label: 'Følg' },
@@ -60,7 +64,7 @@ const MODES = [
       <div class="flex rounded-full bg-black/45 backdrop-blur overflow-hidden">
         <button v-for="s in SPEEDS" :key="s.value"
                 @click="emit('set-time-scale', s.value)"
-                class="px-2.5 py-2 text-[11px] font-semibold tabular-nums transition-colors"
+                class="px-1.5 py-2 text-[11px] font-semibold tabular-nums transition-colors"
                 :class="timeScale === s.value ? 'bg-white text-gray-900' : 'text-white/75 active:bg-black/60'">
           {{ s.label }}
         </button>
