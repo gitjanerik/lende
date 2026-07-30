@@ -88,6 +88,70 @@ generell MCP-tjeneste).
 
 ---
 
+## Personlig kontekst — «Lag favorittruta mi i 3D-visning»
+
+Chat-en skal kunne relatere til brukerens eget innhold og historikk. Siden
+Spor 2 kjører alt klient-side og all lagring er lokal (IndexedDB/localStorage
+i brukerens nettleser), er dette automatisk per bruker — ingen kontoer eller
+backend trengs. Tre byggeklosser, i stigende størrelse:
+
+1. **Verktøy over lagret innhold (må bygges, lite).** Et klient-side verktøy
+   à la `list_lagrede_ruter` / `list_lagrede_kart` som leser `lende-maps`
+   (IndexedDB, `mapStorage.js`) og gir LLM-en navn, dato og nøkkeltall for
+   brukerens lagrede kart og grusruter. I tillegg bør chat-konteksten alltid
+   inkludere et kompakt sammendrag (de siste N navnene), så modellen kan
+   forstå «favorittruta mi» / «ruta fra i går» uten ekstra rundtur.
+2. **3D-dyplenke (finnes allerede).** `src/lib/tour3dLink.js` bygger lenker
+   som åpner 3D-turvisningen (`v3d=1`), og MCP-verktøyene
+   `planlegg_rute`/`planlegg_rundtur` returnerer allerede `tur3dUrl` nettopp
+   så agenten kan foreslå «se turen i 3D». Chat-verktøyet trenger bare å
+   navigere til lenken i stedet for å returnere den.
+3. **Favoritt-markering og søkehistorikk (valgfritt, små tillegg).** I dag
+   finnes ingen favoritt-stjerne og ingen søkehistorikk-logg. En favoritt-flagg
+   på lagrede ruter og en enkel «siste søk»-liste (localStorage, `lende-`-
+   prefikset) ville gjort referanser som «favorittruta» eksakte i stedet for
+   navne-/nylighetsbaserte gjetninger.
+
+Eksempelet «Lag favorittruta mi i 3D-visning» dekomponerer da til:
+`list_lagrede_ruter` → finn ruta → `buildTour3dUrl` → naviger. Kun punkt 1
+er ny kode av betydning.
+
+---
+
+## Modellvalg og kostnad — Cloudflare Workers AI ser ut til å holde
+
+Utredet juli 2026, etter at Cloudflare-konto ble opprettet. Konklusjon:
+**Workers AI ser ut til å fungere med gjeldende oppsett**, og er det
+alternativet som gir minst infrastruktur totalt.
+
+- **Ingen nøkkel å skjule.** Workers AI kalles via binding (`env.AI.run(...)`)
+  direkte i Worker-koden. Hele grunnen til proxy-mønsteret (skjule API-nøkkel,
+  jf. nve-proxy) bortfaller — Fase 1-Workeren krymper til CORS-allowlist +
+  videresending til `env.AI` med streaming.
+- **Verktøykall er blitt bra nok.** Katalogen har nå dedikerte
+  tool-calling-modeller — `@cf/zai-org/glm-4.7-flash` (rask) og Kimi K2.6/K2.7
+  (mer kapabel, multi-turn tool calling, structured outputs). Siden Spor 2
+  kjører verktøyene klient-side trenger modellen bare returnere
+  tool-call-JSON; appen gjør resten.
+- **Gratiskvote:** 10 000 neurons/dag (nullstilles 00:00 UTC), deretter
+  $0,011 per 1 000 (krever Workers Paid, $5/mnd som gulv). Estimat med
+  5 brukere × 2 økter/uke à 30 min: en slank økt (kompakt kartkontekst,
+  GLM-4.7-flash) koster ~2–4 000 neurons → normal bruk går gratis; en
+  Claude-dimensjonert økt på Llama 3.3 70B (~300k input/15k output) koster
+  ~11 000 neurons, altså litt over én dagskvote. Kontekst-trimming er
+  hovedknappen. Verste realistiske utfall: øre-beløp per dag i overforbruk.
+- **Til sammenligning** (betalte alternativer, samme scenario, med prompt-
+  caching): Haiku 4.5 ~$8/mnd, Sonnet 5 ~$16–24/mnd, Opus 5 ~$39/mnd.
+  Gemini Flash har også en gratis-tier (~15 req/min, ~1 500/dag, med
+  function calling) som dekker volumet — men krever nøkkel i proxy.
+- **Forbehold å teste tidlig:** norsk bokmål-kvalitet i svarene, og
+  verktøykjede-pålitelighet på norske prompts. Siden `/api/ai`-endepunktet
+  designes leverandør-agnostisk (jf. `AI_ARKITEKTUR.md`) er fallback til
+  Gemini Flash eller Claude et konfigurasjonsbytte i Workeren, ikke en
+  klientendring.
+
+---
+
 ## Anbefaling
 
 Start med **Spor 2 med klient-side verktøy**: en `/chat`-view + en liten
