@@ -144,7 +144,4 @@ et lag mellom trinn krever kode-endring + nybygd kart.
    `## <YYYY-MM-DD> — v<versjon>: <kort tittel>`, ett forklarende avsnitt
    (bokmål), så `---`. Håndheves av `.claude/hooks/pre-commit-changelog.sh`.
 4. Patch-bump (1.0.x) som default; brukeren sier fra ved minor/major.
-   **AVTALT (2026-07-31): NESTE versjonsbump skal være v4.0.0** (Lende-chat
-   med KI-verktøy regnes som ny hovedversjon). Fjern denne merknaden i samme
-   PR som bumper til 4.0.0.
 5. Aldri gjenbruk en branch som allerede er merget.

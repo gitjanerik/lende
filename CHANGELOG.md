@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-31 — v4.0.0: Lende-chat — og 3D-turer fra chat virker også i det åpne kartet
+
+Ny hovedversjon (avtalt): v3.0.30–v3.0.35 bygde Lende-chat — KI-assistent med invitasjonstilgang, logo-FAB, kartkontekst og fem klient-side verktøy på gratis Cloudflare Workers AI — og 4.0.0 markerer at helheten nå er i drift. Selve endringen i denne versjonen fikser den siste brukertest-feilen: «vis turen i 3D» mens man allerede sto i målkartet gjorde ingenting synlig, selv om chatten meldte suksess. Årsak: `vis_tur_i_3d` navigerer til samme kart-rute med nye tur-parametre i URL-en, men komponenten remontes ikke (App.vue keyer visningen på route.path, som er uendret), og tur-parametrene ble bare lest ved kartlast. MapView har nå en watcher på tur-parametrene (olat/dlat/rtv/ri/v3d/tn) som nullstiller en eventuell aktiv Stifinner-økt og kjører samme gjenoppretting som ved last — rute tegnes, og 3D åpnes når ruta finnes. I tillegg er verktøysvaret gjort ærlig: modellen instrueres om å ikke love 3D-visning, men si at appen prøver — punkter utenfor kartet eller uten sti i nærheten gir feilmelding i kartet (trolig medvirkende i testen: Stormoen ligger utenfor et 3 km Konnerudkollen-kart). CLAUDE.md-merknaden om 4.0.0-bumpen er fjernet, som avtalt.
+
+---
+
 ## 2026-07-31 — v3.0.35: Verktøy-runde 2 fungerer — sanert meldingsform mot Workers AI
 
 Første test av Fase 3 («lag et kart over Håøya») stoppet med skjemafeil 5006 fra Workers AI i runde 2 — modellen valgte riktig verktøy, men da chatten sendte modellens egen assistent-melding tilbake i rå OpenAI-form, ble den avvist: `content` var `null` (skjemaet krever streng), og meldingen bar en hale av null-felter (refusal, annotations, …). Chatten bygger nå en sanert assistent-melding selv — `content` alltid streng, `tool_calls` rekonstruert deterministisk fra de normaliserte kallene — og tool-svaret følger Cloudflares dokumenterte form (`role:"tool"` + name + content, pluss tool_call_id). Røyktesten i deploy-workflowen har fått en verktøy-rundtur som sender nøyaktig denne meldingsformen (hardkodet sok_sted-kall + resultat) og krever tekstsvar tilbake — så denne feilklassen fanges deterministisk i CI ved fremtidige modell- eller skjemaendringer, uavhengig av om modellen selv velger å kalle verktøy.
