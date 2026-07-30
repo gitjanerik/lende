@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.7: Ærlige avspillingshastigheter i 3D
+
+Hastighetsknappene i 3D-visningen sa 1×/2×/4×/8×, men tallene var multiplikatorer av en allerede skalert basis — «1×» var i virkeligheten 15 ganger sanntid, og ekte 1:1 gir uansett ingen mening for en virtuell tur. Nå viser knappene ærlige multiplikatorer av virkelig gangfart (4,5 km/t): fem trinn — 4×, 8×, 16×, 32× og 64× — med 16× som standard. Det spenner fra rolig gjennomgang av korte kveldsrunder til rask forhåndsvisning av lange fjellturer; en 10 km tur spilles av på ~8 minutter ved 16× og ~2 minutter ved 64×. Statistikk og gjenværende tid er upåvirket — de regnes fortsatt av ekte gangfart.
+
+---
+
 ## 2026-07-30 — v3.0.6: Vogn-kameraene i 3D panorerer ut og lar deg styre blikket
 
 Følg og Flyover er nå ekte «vogn-kameraer»: de følger ruta automatisk mens turen spilles av, men brukeren styrer blikket selv underveis. Én-finger-drag vrir kameravinkelen — i Følg orbiterer kameraet rundt turpunktet (sfærisk parametrisering rundt den rullende «vogna»), i Flyover snur man hodet fra dronen — og pinch justerer nær/fjern. Blikk-offsetene nullstilles ved modusbytte, og den eksisterende dempingen glatter alle justeringer. Begge modusene er også panorert lenger ut som standard, så omgivelsene rundt ruta synes: Følg-kameraet ligger på 110 m avstand / 70 m høyde (fra 60/35), og Flyover-dronen flyr på 130 m med 55 m sideforskyvning og romsligere terrengklaring, med blikkpunkt lenger fram. Om-sidens 3D-avsnitt er oppdatert med fugleperspektiv-åpningen, blikkstyringen, tidsakse-spoling, turmarkørene og kurve-knappen.

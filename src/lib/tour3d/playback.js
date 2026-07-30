@@ -6,7 +6,7 @@
 // avspillingshastighet; speedFactor er ekstern demping (feature-direktøren
 // bremser/stopper kameraet med den).
 
-export function createPlayback({ totalM, estWalkMinutes = null, cumAscent = null, speedKmh = 4.5, timeScale = 30 } = {}) {
+export function createPlayback({ totalM, estWalkMinutes = null, cumAscent = null, speedKmh = 4.5, timeScale = 16 } = {}) {
   let alongM = 0
   let playing = false
   let speedFactor = 1

@@ -34,7 +34,7 @@ const activeFeature = ref(null)
 const cameraMode = ref('free')
 const playing = ref(false)
 const finished = ref(false)
-const timeScale = ref(30)
+const timeScale = ref(16)
 const isLandscape = ref(typeof window !== 'undefined' && window.innerWidth > window.innerHeight)
 
 const canvasHost = ref(null)
