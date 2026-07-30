@@ -2183,6 +2183,10 @@ function onShareRoundTrip() {
 function maybeRestoreRoundTripFromQuery() {
   const tour = parseTourQuery(route.query)
   if (!tour || !meta.value) return
+  // Terreng-først: skjelett-passet har ingen sti-lag ennå — å rute nå gir et
+  // misvisende «Fant ingen sti»-banner. Finalize-swappen kjører de utsatte
+  // passene på nytt (scheduleDeferredMapPasses), så restore skjer da i stedet.
+  if (fillingInDetails.value) return
   const svg = svgHostRef.value?.querySelector('svg')
   if (!svg) return
   const toSvg = (ll) => wgs84ToSvg(ll.lat, ll.lon, meta.value)
