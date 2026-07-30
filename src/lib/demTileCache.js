@@ -225,8 +225,14 @@ async function evictIfNeeded(db) {
  * Hent DEM for en ALLEREDE SNAPPET utmBbox via flis-cachen. Henter kun den
  * manglende regionen (≤ 1 WCS-kall), cacher nye fliser, monterer eksakt.
  * Faller alltid tilbake til én full fetchDEM ved feil (aldri verre enn før).
+ *
+ * `rejectSynthetic`: returner null i stedet for fetchDEMs syntetiske
+ * fallback-terreng (Gauss-topp midt i utsnittet). Kartbygging tåler
+ * syntetisk DEM (kurvene matcher i det minste sitt eget kart), men 3D-turen
+ * draperer et EKTE kart over terrenget — fantasi-kjegla rendret som
+ * konsentriske kurve-ringer rundt utsnitt-senteret.
  */
-export async function fetchDEMWithCache(snappedUtmBbox, { resolutionM, signal } = {}) {
+export async function fetchDEMWithCache(snappedUtmBbox, { resolutionM, signal, rejectSynthetic = false } = {}) {
   const res = resolutionM
   try {
     const tiles = tilesCovering(snappedUtmBbox, TILE_M)
@@ -258,6 +264,8 @@ export async function fetchDEMWithCache(snappedUtmBbox, { resolutionM, signal } 
   } catch (e) {
     if (signal?.aborted) throw e
     console.warn(`[DEM-cache] fallback til full fetch: ${e?.message ?? e}`)
-    return fetchDEM(null, snappedUtmBbox, { resolutionM: res, useReal: true, signal })
+    const dem = await fetchDEM(null, snappedUtmBbox, { resolutionM: res, useReal: true, signal })
+    if (rejectSynthetic && dem?.source?.startsWith('synthetic')) return null
+    return dem
   }
 }

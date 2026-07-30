@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.26: 3D-turen viser aldri fantasi-terreng
+
+Når en tur gikk utenfor aktiv kartflise og Kartverket-WCS ikke svarte (mobilnett/CORS), kunne DEM-fallbacken levere det syntetiske testterrenget — en Gauss-topp midt i utsnittet med sinus-støy. 3D-visningen rendret da konsentriske, bølgete kurve-ringer rundt et ikke-eksisterende fjell, prikke-klynge på «toppen» og diagonalstripete relieff, i stedet for det ekte terrenget. fetchDEMWithCache kan nå avvise syntetisk DEM (rejectSynthetic), og 3D-forberedelsen bruker det: ved nettfeil faller den i stedet tilbake til flisas ekte lagrede høydedata blittet inn i union-utsnittet (utenfor flisa = havnivå). Kartbyggingens egen syntetiske fallback er uendret.
+
+---
+
 ## 2026-07-30 — v3.0.25: FAB-knottene bunnjustert
 
 De tre FAB-knottene til høyre i kartet (sentrer, strek, relieff) hang 5 rem over bunnen — plass som var reservert til attribusjonsboksen nede til høyre, fjernet i v2.4.26. Stabelen er nå bunnjustert med skalalinjalen (bottom-3 + safe-area). Løftet når bunn-arket er åpent på mobil er uendret.

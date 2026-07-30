@@ -1,8 +1,24 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   snapUtmBboxToGrid, tilesCovering, boundingBoxOfTiles,
-  copyGridInto, assembleDem, sliceIntoTiles, TILE_M,
+  copyGridInto, assembleDem, sliceIntoTiles, fetchDEMWithCache, TILE_M,
 } from './demTileCache.js'
+
+// fetchDEM mockes som ren syntetisk fallback (ingen nett i test) — brukes av
+// fetchDEMWithCache-testene nederst; de rene grid-funksjonene er upåvirket.
+vi.mock('./demFetcher.js', () => ({
+  fetchDEM: vi.fn(async (_bbox, utmBbox, { resolutionM }) => {
+    const cols = Math.round((utmBbox.maxE - utmBbox.minE) / resolutionM)
+    const rows = Math.round((utmBbox.maxN - utmBbox.minN) / resolutionM)
+    return {
+      data: new Float32Array(cols * rows).fill(100),
+      cols, rows,
+      transform: { originX: 0, originY: 0, pixelWidth: resolutionM, pixelHeight: resolutionM },
+      noData: -9999, resolution: resolutionM,
+      source: 'synthetic (generic)',
+    }
+  }),
+}))
 
 const NO_DATA = -9999
 
@@ -106,5 +122,26 @@ describe('copyGridInto', () => {
     expect(target.data[0]).toBe(NO_DATA)
     expect(target.data[5]).toBe(7)
     expect(target.data[9]).toBe(7)
+  })
+})
+
+describe('fetchDEMWithCache — syntetisk fallback', () => {
+  const bbox = { minE: 0, minN: 0, maxE: 1000, maxN: 1000 }
+
+  it('rejectSynthetic: null når alt degraderer til syntetisk DEM', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const dem = await fetchDEMWithCache(bbox, { resolutionM: 10, rejectSynthetic: true })
+      expect(dem).toBeNull()
+    } finally { warn.mockRestore() }
+  })
+
+  it('uten rejectSynthetic beholdes syntetisk fallback (kartbygging)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const dem = await fetchDEMWithCache(bbox, { resolutionM: 10 })
+      expect(dem?.source).toMatch(/^synthetic/)
+      expect(dem?.cols).toBe(100)
+    } finally { warn.mockRestore() }
   })
 })
