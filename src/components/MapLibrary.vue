@@ -71,13 +71,9 @@ const activeTab = ref(props.tab === 'rute' ? 'rute' : 'kart')
 watch(() => props.tab, (t) => { if (t === 'rute' || t === 'kart') activeTab.value = t })
 watch(activeTab, (t) => emit('update:tab', t))
 
-// Lista eier fanene; lag-nytt-flyten (søk/GPS/Flere valg) ligger bak et lite
-// «+ Nytt kart» og foldes kun ut på forespørsel. Unntak: tom liste → vis
-// lag-nytt direkte, så førstegangsbrukeren sparer et klikk.
-const showCreateMap = ref(false)
-const createMapVisible = computed(() =>
-  showCreateMap.value || (!loading.value && maps.value.length === 0))
-watch(activeTab, () => { showCreateMap.value = false })
+// Lag-nytt-flyten (søk/GPS/Flere valg) vises alltid øverst i fanen — søk er
+// hovedflyten, også når brukeren har kart fra før (v3.0.20; det gamle
+// «+ Nytt kart»-utfoldingssteget er fjernet).
 
 const savedRoutes = ref([])
 
@@ -545,32 +541,8 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
   </div>
 
   <template v-if="activeTab === 'kart'">
-  <!-- Lista eier fanen: «Mine kart» øverst, med et lite «+ Nytt kart» som
-       folder ut lag-nytt-flyten (søk/GPS/Flere valg). Tom liste → lag-nytt
-       vises direkte (createMapVisible). -->
-  <div class="mb-2 flex items-center justify-between gap-2">
-    <span class="text-ink/45 text-[11px] uppercase tracking-wide">Mine kart</span>
-    <div class="flex items-center gap-3">
-      <span v-if="totalBytes > 0" class="text-ink/35 text-[11px] tabular-nums">
-        {{ formatBytes(totalBytes) }}
-      </span>
-      <button v-if="!loading && maps.length > 0"
-              @click="showCreateMap = !showCreateMap"
-              :aria-expanded="createMapVisible"
-              class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[12px] font-medium
-                     text-ink transition active:scale-95"
-              :class="showCreateMap ? 'bg-emerald-600' : 'bg-emerald-500'">
-        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 transition-transform duration-200"
-             :class="{ 'rotate-45': showCreateMap }" fill="none" stroke="currentColor"
-             stroke-width="2.4" stroke-linecap="round">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        Nytt kart
-      </button>
-    </div>
-  </div>
-
-  <template v-if="createMapVisible">
+  <!-- Lag-nytt-flyten (søk/GPS/Flere valg) ligger alltid øverst — søk er
+       hovedflyten. Kartlista følger rett under, uten egen «Mine kart»-label. -->
   <div class="flex items-center justify-between mb-2 mt-3">
     <div class="text-ink/45 text-[11px] uppercase tracking-wide">Lag nytt kart</div>
     <button @click="emit('open-picker')"
@@ -672,7 +644,6 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
     <span>Søk etter et sted — eller trykk den grønne knappen for å lage kart der du står.</span>
   </div>
   <div v-if="searchError" class="-mt-2 mb-4 px-1 text-[11px] text-slate-300">{{ searchError }}</div>
-  </template>
 
   <!-- Vardåsen-referansekartet er flyttet til «Utvikler»-fanen inne i kart-
        visningen (debug-hjelp) — det fyller ikke lenger forsiden. -->
@@ -783,13 +754,18 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
     </button>
   </div>
 
-  <!-- Slett alle (vises kun når brukeren har lagrede kart) -->
+  <!-- Slett alle (vises kun når brukeren har lagrede kart). Linje 2 er
+       lagringstelleren — antall kart + samlet plass — flyttet hit fra den
+       gamle «Mine kart»-toppraden (v3.0.20). -->
   <button v-if="!loading && maps.length > 0"
           @click="onDeleteAll"
           class="w-full mt-3 rounded-lg px-4 py-2.5 text-[13px] font-medium
                  text-rose-300 border border-rose-400/25 bg-rose-500/10
                  active:bg-rose-500/15 active:scale-[0.99] transition">
-    Slett alle ({{ maps.length }}) kart
+    <span class="block">Slett alle kart</span>
+    <span class="block mt-0.5 text-[11px] font-normal text-rose-300/60 tabular-nums">
+      {{ maps.length }} kart<template v-if="formatBytes(totalBytes)"> · {{ formatBytes(totalBytes) }}</template>
+    </span>
   </button>
 
   <!-- Tegnforklaring-knappen er fjernet fra forsiden (v9.3.38) — den finnes

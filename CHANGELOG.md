@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.20: Ryddigere topp i Turkart-fanen
+
+Lag-nytt-flyten (søkefelt med GPS- og mikrofonknapp) vises nå alltid øverst i Turkart-fanen — det gamle «+ Nytt kart»-utfoldingssteget og «Mine kart»-labelen er fjernet, så kartlista følger rett under søket. Lagringstelleren (antall kart + samlet plass) er flyttet fra toppraden ned til «Slett alle kart»-knappen nederst, som egen tekstlinje («8 kart · 45.0 MB») — den vises når det finnes minst ett kart.
+
+---
+
 ## 2026-07-30 — v3.0.19: Turnavn i delte turlenker
 
 Delte turlenker bygde mottakerens kart som «Uten navn» — både toppbaren og 3D-visningen manglet et meningsfullt navn. Tur-lenkeformatet har fått en ny tn-parameter: MCP-serveren setter den automatisk fra vendepunktet («Rundtur Høgevarde») eller målet («Tur til …», nytt valgfritt maalNavn-felt i planlegg_rute), appens «Del rundtur» sender kartnavnet videre, og mottakerens kart bygges med navnet ferdig utfylt. Eldre lenker uten tn virker som før.
