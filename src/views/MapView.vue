@@ -3799,14 +3799,16 @@ onUnmounted(() => {
          (begge bruker z-40 og ville ellers stacke). -->
     <!-- FAB-bunn løftes kun når bunn-arket er åpent (mobil). På desktop er
          drawer et side-panel, så FAB-en beholder sin bunn og skyves i stedet
-         til venstre for panelet. -->
+         til venstre for panelet. Bunnjustert med skalalinjalen (bottom-3) —
+         5rem-løftet var reservert til attribusjonsboksen nede til høyre, som
+         ble fjernet i v2.4.26. -->
     <div v-if="!searchOpen && !(!isDesktop && showControls && drawer.isMaximized.value)"
          class="absolute z-40 flex flex-col gap-2 pointer-events-auto select-none transition-[bottom,right] duration-200"
          :style="{
            right: floatRightStyle.right,
            bottom: (showControls && !isDesktop)
              ? 'calc(45dvh + 0.75rem)'
-             : 'calc(env(safe-area-inset-bottom, 0px) + 5rem)'
+             : 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)'
          }">
       <!-- Transient hint-boble når strek-/relieff-knottene justeres. -->
       <Transition name="hint-fade">

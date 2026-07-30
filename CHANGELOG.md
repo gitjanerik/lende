@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.25: FAB-knottene bunnjustert
+
+De tre FAB-knottene til høyre i kartet (sentrer, strek, relieff) hang 5 rem over bunnen — plass som var reservert til attribusjonsboksen nede til høyre, fjernet i v2.4.26. Stabelen er nå bunnjustert med skalalinjalen (bottom-3 + safe-area). Løftet når bunn-arket er åpent på mobil er uendret.
+
+---
+
 ## 2026-07-30 — v3.0.24: Beige modaler i lyst tema og røde slettknapper
 
 Modalvinduene («Mine kart», «Nytt turkart», «Om», «Tegnforklaring») var rene hvite i lyst tema og stakk seg ut mot hovedmenyens varme papirtone. Nytt tema-token --color-modal gir dem nå samme beige som menyen (#f6f4ea) i lyst tema — mørkt tema er uendret. «Slett alle kart»/«Slett alle ruter» er samtidig gjort om til solide røde knapper med hvit skrift (fast farge i begge tema), den destruktive motparten til de grønne handlingsknappene; lagringstelleren ligger fortsatt som linje 2.
