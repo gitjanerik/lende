@@ -4,6 +4,8 @@ import { RouterView } from 'vue-router'
 import { updateAvailable, applyUpdate, buildBusy, updateDeferred } from './lib/swUpdate.js'
 import { usePwaInstall } from './composables/usePwaInstall.js'
 import AppMenu from './components/AppMenu.vue'
+import LendeChat from './components/LendeChat.vue'
+import LendeChatFab from './components/LendeChatFab.vue'
 
 // ── Første-gangs installasjonsvarsel ───────────────────────────────────────
 // Uansett hvilken URL brukeren lander på: første gang appen åpnes uinstallert,
@@ -63,6 +65,13 @@ const busyLabel = computed(() =>
     </RouterView>
 
     <AppMenu />
+
+    <!-- Lende-chat (KI, Fase 2). Global modal montert én gang så historikken
+         overlever navigasjon, pluss logo-FAB-en nederst til høyre (viker for
+         kartvisningen, som har chat-knotten i sin egen knott-kolonne). Uten
+         invitasjonstoken finnes ingen knapp, og modalen kan da aldri åpnes. -->
+    <LendeChat />
+    <LendeChatFab />
 
     <!-- «Ny versjon tilgjengelig»-banner. Vises når service workeren har en ny,
          ventende versjon (se lib/swUpdate.js). Brukerstyrt — vi reloader ikke

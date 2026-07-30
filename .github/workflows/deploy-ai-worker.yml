@@ -41,3 +41,25 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           LENDE_AI_TOKENS: ${{ secrets.LENDE_AI_TOKENS }}
+      - name: Røyktest mot deployet Worker
+        run: |
+          BASE=https://lende-ai.jepedersen73.workers.dev
+          sleep 5
+          echo "— /health —"
+          curl -fsS "$BASE/health"; echo
+          echo "— /api/ai uten token skal gi 401 —"
+          KODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/ai" \
+            -H 'Content-Type: application/json' -d '{"messages":[{"role":"user","content":"hei"}]}')
+          test "$KODE" = "401" || { echo "::error::Forventet 401 uten token, fikk $KODE"; exit 1; }
+          echo "OK (401)"
+          if [ -n "$LENDE_AI_TOKENS" ]; then
+            echo "— /api/ai med token + norsk prompt —"
+            TOK="${LENDE_AI_TOKENS%%,*}"
+            SVAR=$(curl -fsS -X POST "$BASE/api/ai" \
+              -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' \
+              -d '{"messages":[{"role":"user","content":"Svar med én kort setning på norsk: hva er en ekvidistanse på et turkart?"}],"max_tokens":120}')
+            echo "$SVAR" | head -c 500; echo
+            echo "$SVAR" | grep -qi '"response"' || { echo "::error::Fant ikke tekstsvar fra modellen"; exit 1; }
+          fi
+        env:
+          LENDE_AI_TOKENS: ${{ secrets.LENDE_AI_TOKENS }}

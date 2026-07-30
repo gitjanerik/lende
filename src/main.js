@@ -3,6 +3,12 @@ import './style.css'
 import App from './App.vue'
 import router from './router'
 import { setWaitingWorker } from './lib/swUpdate.js'
+import { pickupInviteTokenFromLocation } from './lib/lendeAi.js'
+
+// KI-invitasjon: en delt lenke med `?ai-token=<guid>` gir tilgang til
+// Lende-chatten. Plukkes opp FØR mount/router så parameteren aldri når
+// ruting/deling, lagres i localStorage og strippes fra URL-en.
+pickupInviteTokenFromLocation()
 
 const app = createApp(App)
 

@@ -63,6 +63,8 @@ import DrawerAboutTab from '../components/drawer/DrawerAboutTab.vue'
 import DrawerDevTab from '../components/drawer/DrawerDevTab.vue'
 import ContextMenuSheet from '../components/context-menu/ContextMenuSheet.vue'
 import AppMenuButton from '../components/AppMenuButton.vue'
+import LendeChatFab from '../components/LendeChatFab.vue'
+import { useLendeChat } from '../composables/useLendeChat.js'
 import { isomCatalog, buildPointSymbolDef } from '../lib/symbolizer.js'
 import { printDocument, exportSvgFile, exportPngFile, exportPdfFile } from '../lib/printExport.js'
 import { withColophon, formatDenom } from '../lib/mapColophon.js'
@@ -1994,6 +1996,21 @@ const shareInfo = computed(() => {
   return { lat, lon, sizeKm, equidistanceM }
 })
 
+// Lende-chat (KI): fortell assistenten hvilket kart brukeren ser på. Flettes
+// inn i system-prompten ved hvert send (useLendeChat), så svarene handler om
+// kartet på skjermen — også når samtalen startet i en annen visning.
+const { setChatContext } = useLendeChat()
+watch([shareInfo, mapTitle], ([s, tittel]) => {
+  setChatContext(s ? {
+    visning: 'turkart',
+    kartnavn: tittel || 'Uten navn',
+    senter: { lat: +s.lat.toFixed(5), lon: +s.lon.toFixed(5) },
+    stoerrelseKm: s.sizeKm,
+    ekvidistanseM: s.equidistanceM,
+  } : null)
+}, { immediate: true })
+onUnmounted(() => setChatContext(null))
+
 function buildShareUrl(place = null, extraParams = null) {
   if (!shareInfo.value) return null
   const base = `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, '')}`
@@ -3883,6 +3900,10 @@ onUnmounted(() => {
                 stroke="currentColor" stroke-width="0.8" stroke-linejoin="round"/>
         </svg>
       </button>
+
+      <!-- Lende-chat (KI): nederste knott i kolonnen — «klassisk FAB»-plassen.
+           Følger kolonnens panel-/skuff-transisjoner gratis. -->
+      <LendeChatFab mode="inline" />
     </div>
 
     <!-- Kart-flate. Unified transform (translate ∘ rotate ∘ scale) på ett
