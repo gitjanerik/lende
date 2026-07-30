@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { stripContourLayers, stripVectorRelief, cleanSvgForTexture } from './mapTexture.js'
+import { stripContourLayers, stripVectorRelief, stripPointSymbols, cleanSvgForTexture } from './mapTexture.js'
 
 // Speiler mapBuilder-strukturen: kontur-laget har NESTEDE grupper
 // (data-iso="101"/"102" + kontur-tall), som knekker non-greedy regex.
@@ -63,6 +63,37 @@ describe('stripVectorRelief', () => {
   it('cleanSvgForTexture: vektor-relieff strippes så mykt relieff bakes i stedet', () => {
     const out = cleanSvgForTexture(`<svg>${VECTOR_RELIEF}</svg>`)
     expect(out.includes('id="hillshade-layer"')).toBe(false)
+  })
+})
+
+describe('stripPointSymbols', () => {
+  const SVG =
+    '<svg>' +
+    '<g data-layer="parkering" data-iso="534">' +
+    '<g data-upright="1" data-iso="534u" data-name="Knivåsen Utfartsparkering"><use href="#p-sym"/></g>' +
+    '</g>' +
+    '<g data-layer="holdeplass" data-iso="560"><g data-upright="1"><use href="#buss-sym"/></g></g>' +
+    '<g data-layer="sjo-poi">' +
+    '<g data-upright="1" data-iso="554"><use href="#wc-sym"/></g>' +
+    '<g data-upright="1" data-iso="553"><use href="#vann-sym"/></g>' +
+    '</g>' +
+    '<g data-layer="bymasse" data-iso="522"><path d="M0,0 L5,5 Z" fill-rule="evenodd"/></g>' +
+    '<g data-layer="skog" data-iso="406"><path d="M1,1"/></g>' +
+    '</svg>'
+
+  it('fjerner P-skilt, buss/tog, WC og tett bebyggelse', () => {
+    const out = stripPointSymbols(SVG)
+    expect(out).not.toContain('parkering')
+    expect(out).not.toContain('holdeplass')
+    expect(out).not.toContain('data-iso="554"')
+    expect(out).not.toContain('bymasse')
+  })
+
+  it('beholder andre sjø-POI (drikkevann) og øvrige lag', () => {
+    const out = stripPointSymbols(SVG)
+    expect(out).toContain('data-iso="553"')
+    expect(out).toContain('data-layer="sjo-poi"')
+    expect(out).toContain('data-layer="skog"')
   })
 })
 
