@@ -2935,9 +2935,10 @@ async function prepareTour3dData() {
       maxE: extent.meta3d.minE + extent.widthM,
       maxN: extent.meta3d.minN + extent.heightM,
     }, 10)
-    dem3d = await fetchDEMWithCache(utm, { resolutionM: 10 })
+    dem3d = await fetchDEMWithCache(utm, { resolutionM: 10, rejectSynthetic: true })
   } catch { dem3d = null }
-  // Offline/nettfeil: blit flisas DEM inn i union-gridet (utenfor = havnivå).
+  // Offline/nettfeil (inkl. syntetisk WCS-fallback avvist over): blit flisas
+  // EKTE DEM inn i union-gridet (utenfor = havnivå).
   if (!dem3d) dem3d = demIntoExtent(storedDem.value, extent)
   return markRaw({
     dem: dem3d,
