@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.8: 3D-teksturen rydder vekk flate skilt og bymasse
+
+Kartets punktskilt ble liggende som store flate «klistremerker» på 3D-terrenget — tydeligst de blå P-skiltene på Vardåsen-testen. Nå strippes parkering (P-skiltene, ISOM 534/534u), buss- og togholdeplasser (560), toaletter (554) og bymasse-fyllet «tett bebyggelse» (522) fra SVG-en før den rasteriseres til terrengtekstur. Andre sjø-POI-er som marinaer og drikkevann beholdes, og som før gjelder ryddingen kun 3D-visningen — 2D-kartet, print og eksport er urørt. Nærmeste utfartsparkering vises fortsatt i 3D, men som den stående P-billboarden ved start/mål, ikke som flatt kartsymbol.
+
+---
+
 ## 2026-07-30 — v3.0.7: Ærlige avspillingshastigheter i 3D
 
 Hastighetsknappene i 3D-visningen sa 1×/2×/4×/8×, men tallene var multiplikatorer av en allerede skalert basis — «1×» var i virkeligheten 15 ganger sanntid, og ekte 1:1 gir uansett ingen mening for en virtuell tur. Nå viser knappene ærlige multiplikatorer av virkelig gangfart (4,5 km/t): fem trinn — 4×, 8×, 16×, 32× og 64× — med 16× som standard. Det spenner fra rolig gjennomgang av korte kveldsrunder til rask forhåndsvisning av lange fjellturer; en 10 km tur spilles av på ~8 minutter ved 16× og ~2 minutter ved 64×. Statistikk og gjenværende tid er upåvirket — de regnes fortsatt av ekte gangfart.

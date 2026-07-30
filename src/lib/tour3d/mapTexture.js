@@ -53,6 +53,23 @@ export function stripVectorRelief(svg) {
   return stripBalancedGroups(svg, /<g\b[^>]*id="hillshade-layer"[^>]*>/)
 }
 
+// Kartelementer som ikke hører hjemme drapert på 3D-terreng: flate punkt-
+// skilt blir store «klistremerker» på bakken (P-skilt, WC, buss/tog), og
+// bymasse-fyllet (522, tett bebyggelse) legger grå flater over terrenget.
+// Fjernes kun fra 3D-teksturen — 2D-kartet og eksportene er urørt.
+const TEXTURE_STRIP_PATTERNS = [
+  /<g\b[^>]*data-layer="parkering"[^>]*>/,   // P-skilt (534 + 534u)
+  /<g\b[^>]*data-layer="holdeplass"[^>]*>/,  // buss/tog (560)
+  /<g\b[^>]*data-iso="554"[^>]*>/,           // WC/toalett (enkeltmarkører i sjø-POI-laget)
+  /<g\b[^>]*data-layer="bymasse"[^>]*>/,     // tett bebyggelse (522)
+]
+
+export function stripPointSymbols(svg) {
+  let out = svg
+  for (const re of TEXTURE_STRIP_PATTERNS) out = stripBalancedGroups(out, re)
+  return out
+}
+
 export function cleanSvgForTexture(svgString) {
   let s = svgString
   for (const id of RUNTIME_LAYER_IDS) {
@@ -61,6 +78,7 @@ export function cleanSvgForTexture(svgString) {
   }
   s = stripContourLayers(s)
   s = stripVectorRelief(s)
+  s = stripPointSymbols(s)
   if (!s.includes('xmlns:xlink')) {
     s = s.replace(/<svg\b([^>]*)>/, '<svg$1 xmlns:xlink="http://www.w3.org/1999/xlink">')
   }
