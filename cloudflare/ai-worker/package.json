@@ -1,0 +1,13 @@
+{
+  "name": "lende-ai",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Cloudflare Worker som kjører Lendes KI-chat via Workers AI, med per-bruker-tokens som tilgangskontroll.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

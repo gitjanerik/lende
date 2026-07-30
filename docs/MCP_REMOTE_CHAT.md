@@ -152,6 +152,29 @@ alternativet som gir minst infrastruktur totalt.
 
 ---
 
+## Tilgangskontroll — per-bruker-tokens
+
+CORS-allowlisten er ikke tilgangskontroll (den stopper bare andre *nettsider*
+i nettleseren; curl går rett forbi) — uten en ekte port kan hvem som helst
+brenne av gratiskvoten. Valgt løsning, implementert i Fase 1-Workeren
+(`cloudflare/ai-worker/`):
+
+- **Én GUID per bruker**, samlet i en kommaseparert liste i Worker-secreten
+  `LENDE_AI_TOKENS`. Alle kall krever `Authorization: Bearer <token>`; ellers
+  401. Å legge til/fjerne en bruker = redigere GitHub-secreten med samme navn
+  og kjøre deploy-workflowen — én person kan trekkes tilbake uten at de andre
+  bytter kode.
+- **Utdeling via invitasjonslenke** (bygges i Fase 2/3):
+  `…/lende/?ai-token=<guid>` — appen plukker opp parameteren ved første
+  besøk, lagrer den i localStorage (`lende-ai-token`) og sender den med i alle
+  chat-kall. Ingen innlogging, ingen kontoer.
+- **Senere ved behov:** per-token forbrukstelling med dagstak (Workers KV) så
+  én bruker ikke spiser hele dagskvoten; listen kan flyttes til KV hvis den
+  vokser forbi håndfull-størrelse. Samme Bearer-mekanisme gjenbrukes uendret
+  hvis Spor 1 (ekte remote MCP over HTTP) bygges.
+
+---
+
 ## Anbefaling
 
 Start med **Spor 2 med klient-side verktøy**: en `/chat`-view + en liten
