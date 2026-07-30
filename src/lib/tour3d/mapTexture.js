@@ -12,13 +12,9 @@ import { computeHillshade } from '../hillshade.js'
 
 const RUNTIME_LAYER_IDS = ['user-layer', 'annotation-layer', 'track-layer', 'measure-layer', 'stifinner-layer', 'hydro-layer']
 
-// Fjern kartets innbakte høydekurver (<g data-layer="kontur"> med nestede
-// data-iso-/kontur-tall-grupper) fra teksturen: i 3D er vektorkurve-laget
-// eneste kurvekilde, så «Kurver»-knappen faktisk styrer kurvene og de ikke
-// vises dobbelt (uskarpt fra tekstur + skarpt fra vektor). Nestede <g> gjør
-// non-greedy regex utrygg — scan balansert i stedet.
-export function stripContourLayers(svg) {
-  const openRe = /<g\b[^>]*data-layer="kontur"[^>]*>/
+// Fjern <g>-grupper som matcher åpnings-regexen, med balansert tag-skanning —
+// gruppene kan ha nestede <g>, som gjør non-greedy regex utrygg.
+function stripBalancedGroups(svg, openRe) {
   let out = svg
   let m
   while ((m = openRe.exec(out)) !== null) {
@@ -39,6 +35,24 @@ export function stripContourLayers(svg) {
   return out
 }
 
+// Fjern kartets innbakte høydekurver (<g data-layer="kontur"> med nestede
+// data-iso-/kontur-tall-grupper) fra teksturen: i 3D er vektorkurve-laget
+// eneste kurvekilde, så «Kurver»-knappen faktisk styrer kurvene og de ikke
+// vises dobbelt (uskarpt fra tekstur + skarpt fra vektor).
+export function stripContourLayers(svg) {
+  return stripBalancedGroups(svg, /<g\b[^>]*data-layer="kontur"[^>]*>/)
+}
+
+// Relieff-stilen «Skarp (vektor)» er en <g id="hillshade-layer"> med diskrete
+// tone-bånd-polygoner — rasterisert til 3D-tekstur blir de flate grå flekker
+// på terrenget. Strip den, så baker buildMapTexture mykt bilde-relieff i
+// stedet: 3D bruker alltid «Mjuk (bilde)», uansett hva brukeren valgte i 2D.
+// «Mjuk»-varianten er en <image id="hillshade-layer"> og matches ikke av
+// <g-regexen — den beholdes som den er.
+export function stripVectorRelief(svg) {
+  return stripBalancedGroups(svg, /<g\b[^>]*id="hillshade-layer"[^>]*>/)
+}
+
 export function cleanSvgForTexture(svgString) {
   let s = svgString
   for (const id of RUNTIME_LAYER_IDS) {
@@ -46,6 +60,7 @@ export function cleanSvgForTexture(svgString) {
     s = s.replace(re, '')
   }
   s = stripContourLayers(s)
+  s = stripVectorRelief(s)
   if (!s.includes('xmlns:xlink')) {
     s = s.replace(/<svg\b([^>]*)>/, '<svg$1 xmlns:xlink="http://www.w3.org/1999/xlink">')
   }
@@ -90,6 +105,9 @@ export async function buildMapTexture(svgString, dem, { sizePx, renderer } = {})
     URL.revokeObjectURL(url)
   }
 
+  // Etter cleanSvgForTexture kan hillshade-layer bare være <image>-varianten
+  // («Mjuk (bilde)») — mangler den (relieff av, eller «Skarp (vektor)»
+  // strippet), bakes mykt relieff inn her.
   if (dem && !cleaned.includes('id="hillshade-layer"')) {
     bakeHillshade(ctx, dem, px)
   }

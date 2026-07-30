@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { stripContourLayers, cleanSvgForTexture } from './mapTexture.js'
+import { stripContourLayers, stripVectorRelief, cleanSvgForTexture } from './mapTexture.js'
 
 // Speiler mapBuilder-strukturen: kontur-laget har NESTEDE grupper
 // (data-iso="101"/"102" + kontur-tall), som knekker non-greedy regex.
@@ -37,6 +37,32 @@ describe('stripContourLayers', () => {
   it('svg uten kontur-lag passerer uendret', () => {
     const plain = '<svg><g data-layer="vann"><path d="M0,0"/></g></svg>'
     expect(stripContourLayers(plain)).toBe(plain)
+  })
+})
+
+describe('stripVectorRelief', () => {
+  const VECTOR_RELIEF =
+    '<g id="hillshade-layer" data-layer="hillshade" opacity="0.6">' +
+    '<path d="M0,0 L5,5 Z" fill="#000" fill-opacity="0.1"/>' +
+    '<path d="M1,1 L6,6 Z" fill="#000" fill-opacity="0.2"/>' +
+    '</g>'
+  const RASTER_RELIEF =
+    '<image id="hillshade-layer" data-layer="hillshade" href="data:image/png;base64,x" opacity="0.6"/>'
+
+  it('fjerner «Skarp (vektor)»-relieffet (g-variant)', () => {
+    const out = stripVectorRelief(`<svg>${VECTOR_RELIEF}<g data-layer="vann"/></svg>`)
+    expect(out).not.toContain('hillshade-layer')
+    expect(out).toContain('data-layer="vann"')
+  })
+
+  it('beholder «Mjuk (bilde)»-relieffet (image-variant)', () => {
+    const out = stripVectorRelief(`<svg>${RASTER_RELIEF}</svg>`)
+    expect(out).toContain('<image id="hillshade-layer"')
+  })
+
+  it('cleanSvgForTexture: vektor-relieff strippes så mykt relieff bakes i stedet', () => {
+    const out = cleanSvgForTexture(`<svg>${VECTOR_RELIEF}</svg>`)
+    expect(out.includes('id="hillshade-layer"')).toBe(false)
   })
 })
 

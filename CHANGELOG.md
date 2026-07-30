@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.4: 3D bruker alltid mykt relieff uansett 2D-stil
+
+Relieff-stilen «Skarp (vektor)» tegner relieffet som diskrete tone-bånd-polygoner i 2D-kartet — rasterisert til 3D-terrengtekstur ble båndene til flate grå flekker utover terrenget (tydelig på Rondvassbu-testen). Nå strippes vektor-relieffet fra SVG-en før teksturen bygges, og det myke bilde-relieffet bakes inn i stedet: 3D-visningen bruker altså alltid «Mjuk (bilde)»-stilen, uansett hva brukeren har valgt for 2D-kartet. Valget i 2D er uendret — byttet gjelder kun 3D-teksturen. De to stilene deler element-id i kartet (`hillshade-layer`), så strippingen skiller på elementtype: vektor-varianten er en gruppe med polygoner og fjernes, bilde-varianten er et enkelt `<image>` og beholdes som før.
+
+---
+
 ## 2026-07-30 — v3.0.3: 3D-teksturen slipper kartets innbakte høydekurver
 
 Høydekurvene vistes dobbelt i 3D: én gang uskarpt som del av den rasteriserte kartteksturen, og én gang som skarpe vektorlinjer — og «Kurver»-knappen påvirket bare vektorlaget, så terrenget hadde kurver selv når laget var slått av. Nå strippes kartets `kontur`-lag (inkludert de nestede kurve- og kurvetall-gruppene, som krever balansert skanning i stedet for non-greedy regex) fra SVG-en før den rasteriseres til terrengtekstur. Vektorkurve-laget er dermed eneste kurvekilde i 3D: knappen styrer faktisk kurvene, og terrenget står renere med bare relieff, vann, vegetasjon og stier når laget er av. 2D-kartet og eksportene er uberørt.
