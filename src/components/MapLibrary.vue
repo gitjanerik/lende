@@ -756,14 +756,16 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
 
   <!-- Slett alle (vises kun når brukeren har lagrede kart). Linje 2 er
        lagringstelleren — antall kart + samlet plass — flyttet hit fra den
-       gamle «Mine kart»-toppraden (v3.0.20). -->
+       gamle «Mine kart»-toppraden (v3.0.20). Nøytral kort-flate (som resten
+       av lista) + rose-200-tekst: remappes til kraftig rød i lyst tema —
+       rose-300 remappes IKKE og så disabled-blek ut på papirbunnen. -->
   <button v-if="!loading && maps.length > 0"
           @click="onDeleteAll"
           class="w-full mt-3 rounded-lg px-4 py-2.5 text-[13px] font-medium
-                 text-rose-300 border border-rose-400/25 bg-rose-500/10
-                 active:bg-rose-500/15 active:scale-[0.99] transition">
+                 text-rose-200 border border-ink/10 bg-ink/[0.04]
+                 active:bg-ink/[0.08] active:scale-[0.99] transition">
     <span class="block">Slett alle kart</span>
-    <span class="block mt-0.5 text-[11px] font-normal text-rose-300/60 tabular-nums">
+    <span class="block mt-0.5 text-[11px] font-normal text-rose-200/70 tabular-nums">
       {{ maps.length }} kart<template v-if="formatBytes(totalBytes)"> · {{ formatBytes(totalBytes) }}</template>
     </span>
   </button>
@@ -903,7 +905,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
           </button>
           <button @click.stop="onDeleteRoute(rec.id, rec.navn)" aria-label="Slett rute"
                   class="w-8 h-8 rounded-full flex items-center justify-center text-ink/40
-                         active:text-rose-300 active:bg-rose-500/10 transition shrink-0">
+                         active:text-rose-200 active:bg-rose-500/10 transition shrink-0">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="3 6 5 6 21 6"/>
@@ -932,8 +934,8 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
     <button v-if="!loading && savedRoutes.length > 1 && !shareSelectMode"
             @click="onDeleteAllRoutes"
             class="w-full mt-3 rounded-lg px-4 py-2.5 text-[13px] font-medium
-                   text-rose-300 border border-rose-400/25 bg-rose-500/10
-                   active:bg-rose-500/15 active:scale-[0.99] transition">
+                   text-rose-200 border border-ink/10 bg-ink/[0.04]
+                   active:bg-ink/[0.08] active:scale-[0.99] transition">
       Slett alle ({{ savedRoutes.length }}) ruter
     </button>
 
