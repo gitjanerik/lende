@@ -17,6 +17,7 @@ const props = defineProps({
   dem: { type: Object, default: null },        // utpakket DEM (null → tom-tilstand)
   meta: { type: Object, required: true },
   route: { type: Object, required: true },     // { coordinates, lengthM }
+  via: { type: Array, default: () => [] },     // delmål [{svgX, svgY}]
   isLoop: { type: Boolean, default: false },
   estWalkMinutes: { type: Function, default: null },
   searchIndex: { type: Array, default: () => [] },
@@ -78,16 +79,20 @@ onMounted(async () => {
 
   try {
     const engineMod = await import('../../lib/tour3d/index.js')
-    const { createTourScene, collectMapFeatures, loadNveFeatures, loadHeritageFeatures } = engineMod
+    const { createTourScene, collectMapFeatures, findParkingSpots, loadNveFeatures, loadHeritageFeatures } = engineMod
 
     const profile = sampleProfile({ points: route.coordinates.map(c => ({ x: c[0], y: c[1] })) }, dem)
-    const mapFeatures = collectMapFeatures(toRaw(props.searchIndex) ?? [], route.coordinates)
+    const rawIndex = toRaw(props.searchIndex) ?? []
+    const mapFeatures = collectMapFeatures(rawIndex, route.coordinates)
 
     engine = await createTourScene(canvasHost.value, {
       dem,
       meta: toRaw(props.meta),
       svgText: props.getSvgText(),
       route,
+      via: (toRaw(props.via) ?? []).map(v => ({ svgX: v.svgX, svgY: v.svgY })),
+      isLoop: props.isLoop,
+      parkingSpots: findParkingSpots(rawIndex, route.coordinates, { isLoop: props.isLoop }),
       features: mapFeatures,
       profileSamples: profile?.samples ?? null,
       estWalkMinutes: props.estWalkMinutes,
@@ -136,6 +141,12 @@ onBeforeUnmount(() => {
   }
 })
 
+const contoursOn = ref(false)
+async function toggleContours() {
+  contoursOn.value = !contoursOn.value
+  await engine?.setContoursVisible(contoursOn.value)
+}
+
 function play() { engine?.play(); playing.value = true; wake.start() }
 function pause() { engine?.pause(); playing.value = false; wake.stop() }
 function restart() { engine?.restart(); playing.value = true; finished.value = false; wake.start() }
@@ -157,15 +168,29 @@ function skipFeature() { engine?.skipFeature() }
         <div class="rounded-full bg-black/45 backdrop-blur px-3 py-1.5 text-[12px] text-white/85 truncate">
           {{ mapTitle || 'Turen i 3D' }}<span v-if="isLoop" class="text-white/50"> · rundtur</span>
         </div>
-        <button @click="requestClose"
-                aria-label="Lukk 3D-visning"
-                class="w-11 h-11 shrink-0 rounded-full bg-black/45 backdrop-blur text-white/85
-                       flex items-center justify-center active:scale-90">
-          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
-               stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-          </svg>
-        </button>
+        <div class="flex items-center gap-2 shrink-0">
+          <button v-if="phase === 'ready'"
+                  @click="toggleContours"
+                  aria-label="Vis høydekurver i terrenget"
+                  class="h-11 px-3 rounded-full backdrop-blur text-[12px] font-medium
+                         flex items-center gap-1.5 active:scale-95 transition-colors"
+                  :class="contoursOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                 stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+              <path d="M4 9c3-3.5 13-3.5 16 0M5.5 13c2.5-2.6 10.5-2.6 13 0M7.5 17c2-1.8 7-1.8 9 0"/>
+            </svg>
+            Kurver
+          </button>
+          <button @click="requestClose"
+                  aria-label="Lukk 3D-visning"
+                  class="w-11 h-11 shrink-0 rounded-full bg-black/45 backdrop-blur text-white/85
+                         flex items-center justify-center active:scale-90">
+            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       <!-- Laste-/feiltilstander -->

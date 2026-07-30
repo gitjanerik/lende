@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { collectMapFeatures } from './tourData.js'
+import { collectMapFeatures, findParkingSpots } from './tourData.js'
 import { fmtKm, fmtDurationMin, fmtMoh } from './tourFormat.js'
 
 const ROUTE = [[0, 0], [2000, 0]]
@@ -28,6 +28,32 @@ describe('collectMapFeatures', () => {
   it('tom rute gir tom liste', () => {
     expect(collectMapFeatures([{ name: 'X', kind: 'peak', x: 0, y: 0 }], [])).toEqual([])
     expect(collectMapFeatures([], ROUTE)).toEqual([])
+  })
+})
+
+describe('findParkingSpots', () => {
+  const P1 = { name: 'Startparkering', kind: 'parkering', x: 100, y: 100 }
+  const P2 = { name: 'Målparkering', kind: 'parkering', x: 2100, y: 100 }
+  const index = [P1, P2, { name: 'Topp', kind: 'peak', x: 0, y: 0 }]
+
+  it('A→B: nærmeste parkering ved både start og mål', () => {
+    const spots = findParkingSpots(index, [[0, 0], [2000, 0]])
+    expect(spots.map(s => s.name)).toEqual(['Startparkering', 'Målparkering'])
+  })
+
+  it('rundtur: kun parkering ved start', () => {
+    const spots = findParkingSpots(index, [[0, 0], [2000, 0], [0, 0]], { isLoop: true })
+    expect(spots.map(s => s.name)).toEqual(['Startparkering'])
+  })
+
+  it('samme plass nærmest begge ender vises én gang', () => {
+    const spots = findParkingSpots([P1], [[0, 0], [300, 0]])
+    expect(spots.length).toBe(1)
+  })
+
+  it('for langt unna → ingen treff', () => {
+    const spots = findParkingSpots(index, [[5000, 5000], [7000, 5000]])
+    expect(spots).toEqual([])
   })
 })
 
