@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.11: Kurver valgfrie også i 3D-nattmodus
+
+Kurve-tvangen i nattmodus er fjernet: natt-teksturen gjenskaper det mørke temaets eget relieff (screen-blend som lysner solsidene), så terrenget er lesbart også uten vektorkurvene. «Kurver»-knappen er dermed like togglebar i natt som i dag — låsingen og tilstands-gjenopprettingen ved dag/natt-bytte er tatt bort, og kurvevalget ditt står urørt gjennom modusbytter.
+
+---
+
 ## 2026-07-30 — v3.0.10: 3D-visningen kan åpnes fra MCP-planlagte turer
 
 MCP-verktøyene planlegg_rute og planlegg_rundtur returnerer nå `tur3dUrl` — en dyplenke som bygger samme kartutsnitt hos mottakeren og lander rett i den immersive 3D-visningen med turen gjenskapt og valgt. Agenten kan dermed foreslå «se turen i 3D» hver gang en rute eller runde er planlagt. Lenkeformatet (ny delt modul `tour3dLink.js`, brukt av både app og MCP) utvider den eksisterende rundtur-delelenken: A→B-ruter bæres med `dlat/dlon` (pluss eventuelle via-punkter), og `v3d=1` åpner 3D-visningen automatisk etter gjenskaping — eldre rundtur-lenker parses uendret. MapView-restoren håndterer nå også A→B (spiller inn mål → start → via gjennom stifinnerens ekte tilstandsmaskin), og kartbygger-siden videresender de nye parametrene gjennom bygge-flyten. Basis-URL-en kan overstyres med `LENDE_APP_URL` for lokal utvikling.

@@ -145,12 +145,10 @@ onBeforeUnmount(() => {
   }
 })
 
-// Skarpe vektorkurver oppå kartteksturen — default PÅ. I nattmodus er
-// kurvene obligatoriske (terrenget er ellers nesten svart), så knappen
-// låses der.
+// Skarpe vektorkurver oppå kartteksturen — default PÅ, togglebare i både
+// dag- og nattmodus (natt-teksturen bærer det mørke temaets eget relieff).
 const contoursOn = ref(true)
 async function toggleContours() {
-  if (nightOn.value) return
   contoursOn.value = !contoursOn.value
   await engine?.setContoursVisible(contoursOn.value)
 }
@@ -165,19 +163,9 @@ function togglePins() {
 // Sol/måne: nattmodus rasteriserer kartet med det ekte mørke temaet.
 // Måne er forvalgt når appen står i mørkt tema.
 const nightOn = ref(props.isDark)
-let contoursBeforeNight = true
 async function applyNight(on) {
   if (!engine) return
-  if (on) {
-    contoursBeforeNight = contoursOn.value
-    contoursOn.value = true
-    await engine.setContoursVisible(true)
-    await engine.setNightMode(true, { svgText: props.getSvgText({ dark: true }) })
-  } else {
-    await engine.setNightMode(false)
-    contoursOn.value = contoursBeforeNight
-    await engine.setContoursVisible(contoursOn.value)
-  }
+  await engine.setNightMode(on, on ? { svgText: props.getSvgText({ dark: true }) } : {})
 }
 function toggleNight() {
   nightOn.value = !nightOn.value
@@ -250,12 +238,10 @@ function skipFeature() { engine?.skipFeature() }
           </button>
           <button v-if="phase === 'ready'"
                   @click="toggleContours"
-                  :aria-label="nightOn ? 'Høydekurver er alltid på i nattmodus' : 'Vis høydekurver i terrenget'"
-                  :aria-disabled="nightOn"
+                  aria-label="Vis høydekurver i terrenget"
                   class="h-11 px-3 rounded-full backdrop-blur text-[12px] font-medium
                          flex items-center gap-1.5 active:scale-95 transition-colors"
-                  :class="[contoursOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85',
-                           nightOn ? 'opacity-60' : '']">
+                  :class="contoursOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
               <path d="M4 9c3-3.5 13-3.5 16 0M5.5 13c2.5-2.6 10.5-2.6 13 0M7.5 17c2-1.8 7-1.8 9 0"/>
