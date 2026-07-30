@@ -3,6 +3,12 @@
 # Krever repo-secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID og
 # LENDE_AI_TOKENS (kommaseparerte per-bruker-tokens — pushes som Worker-secret
 # ved hver deploy, så brukerlista redigeres i GitHub-secreten alene).
+#
+# Rekkefølgen er bevisst (v3.0.32): secret-push FØR deploy, så siste deployede
+# Worker-versjon alltid er den wrangler.toml beskriver — `secret put` lager
+# nemlig sin egen versjon, og lå den sist kunne røyktesten treffe feil versjon.
+# Røyktesten poller /health til forventet modell svarer (edge-propagering tar
+# av og til opp mot et minutt) i stedet for å håpe på en fast sleep.
 name: Deploy AI-worker
 
 on:
@@ -25,15 +31,15 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - name: Deploy Worker
-        run: npx wrangler deploy
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Push token-secret til Worker
         run: |
           if [ -n "$LENDE_AI_TOKENS" ]; then
-            echo "$LENDE_AI_TOKENS" | npx wrangler secret put LENDE_AI_TOKENS
+            # Tolerant: ved aller første deploy finnes ikke Workeren ennå, og
+            # secret put feiler — deploy-steget under oppretter den, og neste
+            # kjøring setter secreten. Ellers stopper en ekte feil her jobben
+            # via røyktesten (401-porten svarer 500 uten secret).
+            echo "$LENDE_AI_TOKENS" | npx wrangler secret put LENDE_AI_TOKENS \
+              || echo "::warning::secret put feilet — første deploy? Kjør workflowen på nytt etterpå."
           else
             echo "::warning::LENDE_AI_TOKENS-secret mangler i GitHub — Workeren vil svare 500 til den settes."
           fi
@@ -41,12 +47,25 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           LENDE_AI_TOKENS: ${{ secrets.LENDE_AI_TOKENS }}
+      - name: Deploy Worker (siste versjon = wrangler.toml)
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Røyktest mot deployet Worker
         run: |
           BASE=https://lende-ai.jepedersen73.workers.dev
-          sleep 5
-          echo "— /health —"
-          curl -fsS "$BASE/health"; echo
+          FORVENTET=$(grep -oP '^MODEL = "\K[^"]+' wrangler.toml)
+          echo "Forventet modell: $FORVENTET"
+          echo "— venter på at /health rapporterer forventet modell (maks ~2 min) —"
+          OK=""
+          for i in $(seq 1 24); do
+            HELSE=$(curl -fsS "$BASE/health" || true)
+            if echo "$HELSE" | grep -qF "\"$FORVENTET\""; then OK=1; echo "$HELSE"; break; fi
+            echo "  forsøk $i: $HELSE"
+            sleep 5
+          done
+          test -n "$OK" || { echo "::error::/health rapporterte aldri $FORVENTET — henger en gammel versjon igjen?"; exit 1; }
           echo "— /api/ai uten token skal gi 401 —"
           KODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/ai" \
             -H 'Content-Type: application/json' -d '{"messages":[{"role":"user","content":"hei"}]}')

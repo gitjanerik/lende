@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-31 — v3.0.32: Worker-deployen gjort utrullings-robust
+
+Modellbyttet i v3.0.31 var korrekt (wrangler lastet opp Llama-versjonen), men røyktesten feilet likevel: den traff en gammel Worker-versjon som fortsatt lå på Cloudflare-kanten — edge-propagering kan ta opp mot et minutt, og `secret put`-steget lagde dessuten sin egen versjon *etter* deployen, så «siste versjon» ikke var wrangler.tomls. To endringer i workflowen: (1) secret-pushen kjører nå FØR deployen (tolerant ved aller første kjøring), så siste deployede versjon alltid er den wrangler.toml beskriver; (2) røyktesten poller `/health` til den rapporterer modellen fra wrangler.toml (maks ~2 min) i stedet for en fast `sleep 5`, og feiler med tydelig melding hvis en gammel versjon blir hengende. Ingen endringer i Worker-koden eller appen.
+
+---
+
 ## 2026-07-31 — v3.0.31: Modellbytte til Llama 3.3 70B + robust svarformat-parsing
 
 Røyktesten i deploy-workflowen gjorde jobben sin ved første ekte kjøring: GLM-4.7-flash viste seg å være en resonneringsmodell som brukte hele token-budsjettet på intern «tenking» (på engelsk) uten å levere svar, og den svarer dessuten i OpenAI-format (`choices[].message.content`) i stedet for klassisk Workers AI-format (`{response}`) — chat-klienten ville fått tomme svar. To fikser: (1) Worker-modellen er byttet til `@cf/meta/llama-3.3-70b-instruct-fp8-fast` — svarer direkte uten tenke-omvei (raskere chat), klassisk svarformat og solid norsk; bytte tilbake er fortsatt én linje i wrangler.toml. (2) Klienten (`lendeAi.js`) har fått en `extractText`-funksjon som forstår begge svarformatene (både stream- og ikke-stream-varianten) og bevisst ignorerer resonnerings-felter, så fremtidige modellbytter — f.eks. tilbake til en tool-calling-modell i Fase 3 — ikke kan knekke chatten. Røyktesten godtar nå begge formatene (men krever fortsatt faktisk svartekst) og har fått større token-budsjett. Nye tester for begge formater og GLM-tilfellet fra loggen.
