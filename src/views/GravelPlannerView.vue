@@ -29,6 +29,7 @@ import { loadGravelRoute } from '../lib/mapStorage.js'
 import { useMapContext } from '../composables/useMapContext.js'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
 import AppMenuButton from '../components/AppMenuButton.vue'
+import { useLendeChat } from '../composables/useLendeChat.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { useMapSizePreference, effectiveEquidistanceForWidthKm, defaultMapDims, aspectForFormat } from '../composables/useMapSizePreference.js'
 import { useRouteElevation } from '../composables/useRouteElevation.js'
@@ -1067,9 +1068,12 @@ function unlockBodyScroll() {
   document.body.style.overflow = prevBodyOverflow
 }
 
+const { setChatContext } = useLendeChat()
+
 onMounted(() => {
   // Sist brukte modus (app-start havner der brukeren var sist — se router.js).
   try { localStorage.setItem('lende-last-mode', 'rute') } catch { /* noop */ }
+  setChatContext({ visning: 'ruteplanlegger' })
   lockBodyScroll()
   // Snarvei-query er konsumert (utsnittet er satt) — rens URL-en så F5 /
   // tilbake-navigasjon ikke hopper tilbake til punktet etter at brukeren
@@ -1119,6 +1123,7 @@ onMounted(() => {
   }
 })
 onUnmounted(() => {
+  setChatContext(null)
   mapCtx.unregister(menuMapPoint)
   unlockBodyScroll()
   mapResizeObs?.disconnect()

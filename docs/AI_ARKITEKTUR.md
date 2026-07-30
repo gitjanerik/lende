@@ -38,12 +38,28 @@ ChatGPTs KI-arkitektur er riktig retning, med to viktige korreksjoner:
 - Klient peker hit via `VITE_...`-env med default-URL, samme mønster som
   `HYDAPI_BASE` i `src/lib/nveHydApi.js`.
 
-### Fase 2 — «Spør KI om dette stedet»-knapp
+### Fase 2 — Lende-chat (global modal) — BYGGET
 
-- Knapp i info-kortet i `src/views/MapView.vue` (der `selectedFeature` finnes).
-- Send strukturert kontekst appen allerede har: senter/zoom, valgt objekt,
-  synlige lag, nære objekter — ikke la KI hente alt automatisk.
-- Kontekstbevisst enkelt-svar først; full chat med minne kommer senere.
+*(Opprinnelig skisse var en knapp i info-kortet ved `selectedFeature`, men det
+symbolet finnes ikke lenger i koden. Endelig design, valgt juli 2026: alltid
+synlig inngang — ikke gjemt bak et objektvalg eller i en skuff.)*
+
+- **Klassisk FAB nederst til høyre** med app-logoen (`LendeChatFab`): global
+  `fixed`-knapp montert i App.vue (z-60 — dekkes naturlig av meny-backdrop og
+  modaler). I kartvisningen, der knott-kolonnen (sentrer/strek/relieff)
+  allerede eier hjørnet, monteres den som nederste knott i samme kolonne og
+  arver panel-transisjonene; den globale viker for den ruten. Vises kun med
+  invitasjonstoken (`lende-ai-token` i localStorage, plukkes opp fra
+  `?ai-token=`-lenker i main.js).
+- **Global chat-modal** (`LendeChat` i App.vue, AppModal-skallet) med delt
+  tilstand i `useLendeChat` — historikken overlever lukking og navigasjon.
+- **Kontekst følger visningen**: MapView setter kartnavn/senter/størrelse/
+  ekvidistanse via `setChatContext`; planleggeren sin visning; forsiden ingen.
+  Flettes i system-prompten ved hvert send.
+- Fase 2 er ren spørsmål/svar (streaming); modellen sier ærlig fra at den ikke
+  kan bygge kart/planlegge ruter ennå. Verktøykjøring kommer i Fase 3 i samme
+  modal — global plassering er valgt nettopp så «lag et kart over Håøya» kan
+  fungere fra hvor som helst i appen.
 
 ### Fase 3 (senere) — La KI kalle kart-verktøy
 
