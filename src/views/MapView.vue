@@ -78,6 +78,7 @@ import {
   needsRecull, computeCullDiff, parseBboxAttr,
 } from '../lib/viewportCull.js'
 import { svgToWgs84, wgs84ToSvg } from '../lib/utm.js'
+import { parseTourQuery } from '../lib/tour3dLink.js'
 import { utNoZoomForMPerPx, UTNO_DEFAULT_ZOOM } from '../lib/utNoLink.js'
 import { useMapContext } from '../composables/useMapContext.js'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
@@ -2172,33 +2173,41 @@ function onShareRoundTrip() {
   )
 }
 
-// Mottaker-side: gjenskap en delt rundtur fra ?olat=&olon=&rtv=&ri=. Kjøres
-// etter at kartet er rendret (svg-paths finnes), så Stifinner kan lese ruting-
-// grafen. Driver den ekte modus-maskinen (beginLoop → confirmVia → follow) så
-// resultatet er identisk med at avsenderen selv la inn rundturen.
+// Mottaker-side: gjenskap en delt tur fra query — rundtur (?olat/olon/rtv/ri,
+// som den gamle «Del rundtur»-lenken) ELLER A→B (+dlat/dlon, evt. rtv som
+// via-punkter, fra MCP-ens tur3dUrl). Kjøres etter at kartet er rendret
+// (svg-paths finnes), så Stifinner kan lese ruting-grafen. Driver den ekte
+// modus-maskinen så resultatet er identisk med manuell inntasting. ?v3d=1
+// åpner 3D-visningen automatisk når ruta står.
 function maybeRestoreRoundTripFromQuery() {
-  const olat = parseFloat(route.query.olat)
-  const olon = parseFloat(route.query.olon)
-  if (!Number.isFinite(olat) || !Number.isFinite(olon) || !meta.value) return
+  const tour = parseTourQuery(route.query)
+  if (!tour || !meta.value) return
   const svg = svgHostRef.value?.querySelector('svg')
   if (!svg) return
+  const toSvg = (ll) => wgs84ToSvg(ll.lat, ll.lon, meta.value)
 
-  const viaPts = String(route.query.rtv ?? '')
-    .split(';')
-    .map((s) => s.split(',').map(parseFloat))
-    .filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon))
-  if (!viaPts.length) return
-
-  const origin = wgs84ToSvg(olat, olon, meta.value)
-  sti.beginLoop({ svgX: origin.x, svgY: origin.y })
-  for (const [lat, lon] of viaPts.slice(0, sti.MAX_VIA)) {
-    const p = wgs84ToSvg(lat, lon, meta.value)
-    sti.confirmVia({ x: p.x, y: p.y }, svg)
+  if (tour.dest) {
+    const d = toSvg(tour.dest)
+    sti.begin({ svgX: d.x, svgY: d.y })
+    const o = toSvg(tour.origin)
+    sti.confirmStart({ x: o.x, y: o.y }, svg, { startOnWater: pointOnWater(o.x, o.y) })
+    for (const v of tour.via.slice(0, sti.MAX_VIA)) {
+      const p = toSvg(v)
+      sti.beginAddVia()
+      sti.confirmVia({ x: p.x, y: p.y }, svg)
+    }
+  } else {
+    const o = toSvg(tour.origin)
+    sti.beginLoop({ svgX: o.x, svgY: o.y })
+    for (const v of tour.via.slice(0, sti.MAX_VIA)) {
+      const p = toSvg(v)
+      sti.confirmVia({ x: p.x, y: p.y }, svg)
+    }
   }
-  const ri = parseInt(route.query.ri, 10)
-  if (Number.isFinite(ri)) sti.selectRoute(ri)
+  sti.selectRoute(tour.routeIdx)
   sti.follow()   // no-op hvis ruting feilet — banneret viser da feilen
   renderRoutes()
+  if (tour.open3d && sti.routes.value.length) openTour3d()
 }
 
 // GPS-spor — opptak + rendering av rutene brukeren går (v8.9.2)
