@@ -8,7 +8,9 @@ import { distanceToRoute } from '../routeEnrichment.js'
 const KIND_META = {
   peak:            { type: 'topp',          radiusM: 350, priority: 6 },
   hoydepunkt:      { type: 'topp',          radiusM: 200, priority: 3 },
-  kulturminne:     { type: 'kulturminne',   radiusM: 150, priority: 5 },
+  // 250 m matcher hentebufferen i loadHeritageFeatures — fredede arkeologiske
+  // minner er spredt, og 150 m mistet legitime treff like utenfor stien.
+  kulturminne:     { type: 'kulturminne',   radiusM: 250, priority: 5 },
   'naturreservat-navn': { type: 'naturreservat', radiusM: 200, priority: 4 },
   naturreservat:   { type: 'naturreservat', radiusM: 200, priority: 4 },
   'vann-navn':     { type: 'vann',          radiusM: 120, priority: 3, area: true },

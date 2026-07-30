@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.17: Bredere kulturminne-korridor og strammere hastighetsvalg
+
+Kulturminnene langs 3D-turer hentes live fra Riksantikvarens WFS på alle kart (de er ikke bakt inn i Vardåsen-kartet), men kilden dekker kun fredede arkeologiske minner — spredte data, og trigger-korridoren på 150 m mistet legitime treff like utenfor stien. Korridoren er utvidet til 250 m, samme som hentebufferen, så flere reelle kulturminner dukker opp på brukergenererte kart. Hastighetsvelgeren er samtidig strammet til tre trinn — 64×, 128× og 256× — med 128× som ny standard; 8× og 32× viste seg ubrukte i praksis.
+
+---
+
 ## 2026-07-30 — v3.0.16: Fjellet kommer ikke lenger i veien for Følg-kameraet
 
 Med turmål oppunder en bratt fjellside (Stetinden-testen) kunne blikkstyring i Følg-modus svinge kameraet bak fjellet — hele bildet ble fylt av baksiden og turpunktet forsvant. Klaringssjekken så bare på terrenget rett under kameraet, ikke på fjellet mellom kamera og blikkpunkt. Nå sjekkes hele siktlinjen: terrenget samples langs strekket kamera→blikkpunkt, og bryter en fjellside synslinjen løftes kameraet akkurat så høyt at den går klar — det går «brått opp» over kanten i stedet for bak fjellet, og den eksisterende kameradempingen gjør løftet mykt. Marginen tapres inn mot målet (terrenget der er rutas eget underlag), og samme klaring gjelder feature-innramming og fugleperspektiv-åpningen i Utforsk. Fri utforsking med fingeren er bevisst urørt — der styrer brukeren kameraet helt selv.
