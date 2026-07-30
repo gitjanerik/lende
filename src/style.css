@@ -31,6 +31,7 @@
   --color-surface: #18181b;    /* paneler/meny (var zinc-900) */
   --color-surface-2: #27272a;  /* hevet flate (var zinc-800) */
   --color-overlay: #09090b;    /* dype overlays, søk (var zinc-950) */
+  --color-modal: #09090b;      /* modalvinduer (AppModal) — mørkt: som overlay */
   --color-ink: #ffffff;        /* tekst/kant/flate-base (var white) */
 }
 :root { --logo-ring: #3a3d45; }
@@ -42,6 +43,7 @@
   --color-surface: #faf8f3;
   --color-surface-2: #ffffff;
   --color-overlay: #ffffff;
+  --color-modal: #f6f4ea;      /* modalvinduer matcher hovedmenyens papirtone (--am-bg) */
   --color-ink: #1c1917;        /* varm mørk blekk */
   --logo-ring: #c0392b;        /* røde konsentriske ringer i lyst tema */
   /* Behold anti-force-dark: temaet ER lyst, så «only light» er ærlig og

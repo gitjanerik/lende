@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.24: Beige modaler i lyst tema og røde slettknapper
+
+Modalvinduene («Mine kart», «Nytt turkart», «Om», «Tegnforklaring») var rene hvite i lyst tema og stakk seg ut mot hovedmenyens varme papirtone. Nytt tema-token --color-modal gir dem nå samme beige som menyen (#f6f4ea) i lyst tema — mørkt tema er uendret. «Slett alle kart»/«Slett alle ruter» er samtidig gjort om til solide røde knapper med hvit skrift (fast farge i begge tema), den destruktive motparten til de grønne handlingsknappene; lagringstelleren ligger fortsatt som linje 2.
+
+---
+
 ## 2026-07-30 — v3.0.23: Slettknappene lesbare i lyst tema
 
 «Slett alle kart»/«Slett alle ruter» brukte rose-300-tekst på rosa tone — i lyst tema remappes ikke 300-skyggen, så knappen ble blek rosa på nesten hvit bunn og så disabled ut. Knappene bruker nå samme nøytrale kort-flate som resten av lista (lys beige på papirtonen) og rose-200-tekst, som i lyst tema remappes til kraftig rød — samme styrke som de grønne handlingsknappene. Mørkt tema ser ut som før.
