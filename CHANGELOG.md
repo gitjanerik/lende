@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.10: 3D-visningen kan åpnes fra MCP-planlagte turer
+
+MCP-verktøyene planlegg_rute og planlegg_rundtur returnerer nå `tur3dUrl` — en dyplenke som bygger samme kartutsnitt hos mottakeren og lander rett i den immersive 3D-visningen med turen gjenskapt og valgt. Agenten kan dermed foreslå «se turen i 3D» hver gang en rute eller runde er planlagt. Lenkeformatet (ny delt modul `tour3dLink.js`, brukt av både app og MCP) utvider den eksisterende rundtur-delelenken: A→B-ruter bæres med `dlat/dlon` (pluss eventuelle via-punkter), og `v3d=1` åpner 3D-visningen automatisk etter gjenskaping — eldre rundtur-lenker parses uendret. MapView-restoren håndterer nå også A→B (spiller inn mål → start → via gjennom stifinnerens ekte tilstandsmaskin), og kartbygger-siden videresender de nye parametrene gjennom bygge-flyten. Basis-URL-en kan overstyres med `LENDE_APP_URL` for lokal utvikling.
+
+---
+
 ## 2026-07-30 — v3.0.9: Knappenåler for start/mål og nattmodus i 3D
 
 Start (grønn) og mål (rød, for A→B-ruter) er nå knappenåler som stikker opp fra terrenget — lavere enn POI-strålen, men med avstandsavhengig overdrivelse (opptil 5× langt unna) så de kan lokaliseres helt i horisonten. Delmål forblir gule prikker. Nålene toggles med en egen pin-knapp ved siden av «Kurver» (default på). Ny sol/måne-knapp gir nattmodus: kartet rasteriseres på nytt med appens ekte mørke tema (samme skilt- og bymasse-filtrering som ellers), himmelen blir nattemørk med mørk dis, skyene skjules, og relieffet bakes med screen-blend som lysner solsidene i stedet for å mørkne skyggene. Måne er forvalgt når appen står i mørkt tema, og høydekurvene er obligatoriske i nattmodus (kurve-knappen låses) — på nesten svart terreng er de selve lesbarheten. Dagmodus er som før standard ellers.

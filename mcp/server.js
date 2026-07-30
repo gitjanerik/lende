@@ -33,6 +33,7 @@ import { fetchSpeciesSummary } from '../src/lib/gbifSpecies.js'
 import {
   fetchStationsForBbox, fetchStationLatest, pickStationInfo, sildreStationUrl,
 } from '../src/lib/nveHydApi.js'
+import { buildTour3dUrl } from '../src/lib/tour3dLink.js'
 
 // Sist bygde kart + avledet tilstand, så rute-verktøyene slipper re-bygging.
 const state = {
@@ -49,6 +50,24 @@ const state = {
 // Påfør gjeldende innstillinger på en SVG som skal skrives til fil.
 function svgForOutput(svg) {
   return state.innstillinger ? applyMapSettings(svg, state.innstillinger) : svg
+}
+
+// Dyplenke som åpner planlagt tur i appens immersive 3D-visning: mottakeren
+// bygger samme kartutsnitt (/kart/nytt) og lander rett i 3D med ruta
+// gjenskapt. LENDE_APP_URL overstyrer produksjons-URL-en (lokal dev).
+function tour3dUrlFor(tour) {
+  const { bbox, meta } = state.map
+  return buildTour3dUrl({
+    appBase: process.env.LENDE_APP_URL || undefined,
+    map: {
+      lat: (bbox.south + bbox.north) / 2,
+      lon: (bbox.west + bbox.east) / 2,
+      kmBredde: Math.round((meta.widthM / 1000) * 10) / 10,
+      equidistanceM: meta.equidistance,
+      aspekt: meta.heightM / meta.widthM,
+    },
+    tour,
+  })
 }
 
 // SVG-meter ↔ WGS84 trenger kartets UTM-forankring (samme form som gpxExport).
@@ -364,8 +383,10 @@ server.registerTool(
     description:
       'Planlegger 1–3 fotruter mellom to punkter (valgfritt innom via-punkter) på sist bygde ' +
       'kart, langs stier og veier (ISOM-vektet Dijkstra — sti foretrekkes over vei, motorvei ' +
-      'ekskluderes). Returnerer distanse, stigning/fall, estimert gangtid (Naismith) og ' +
-      'rutepunkter i WGS84.',
+      'ekskluderes). Returnerer distanse, stigning/fall, estimert gangtid (Naismith), ' +
+      'rutepunkter i WGS84 og tur3dUrl — en lenke som åpner turen i appens immersive ' +
+      '3D-visning (terreng, avspilling, severdigheter). Foreslå gjerne 3D-lenken for brukeren ' +
+      'når ruten er planlagt.',
     inputSchema: {
       start: z.object({ lat: z.number(), lon: z.number() }).describe('Startpunkt'),
       maal: z.object({ lat: z.number(), lon: z.number() }).describe('Målpunkt'),
@@ -391,6 +412,7 @@ server.registerTool(
     state.routes = found
     return jsonResult({
       status: 'ok',
+      tur3dUrl: tour3dUrlFor({ origin: start, dest: maal, via: viaPts, routeIdx: 0 }),
       snappingM: { start: Math.round(startDist), maal: Math.round(maalDist) },
       ruter: found.map((r, i) => {
         const climb = climbFor(r.coordinates)
@@ -421,7 +443,8 @@ server.registerTool(
       'runde og ikke tur/retur der en alternativ sti finnes. Returnerer 1–3 sløyfe-alternativer ' +
       '(lengde, stigning/fall, gangtid, rutepunkter i WGS84) og kan valgfritt tegne sløyfen inn i ' +
       'kart-SVG-en (som tegn_rute_svg, med gule vendepunkt-markører). Ruten kan eksporteres med ' +
-      'eksporter_gpx etterpå.',
+      'eksporter_gpx etterpå. Returnerer også tur3dUrl — en lenke som åpner rundturen i appens ' +
+      'immersive 3D-visning; foreslå den gjerne for brukeren.',
     inputSchema: {
       origo: z.object({ lat: z.number(), lon: z.number() }).describe('Startpunkt = mål (sløyfens origo)'),
       via: z.array(z.object({ lat: z.number(), lon: z.number(), navn: z.string().optional() }))
@@ -454,6 +477,7 @@ server.registerTool(
 
     const svar = {
       status: 'ok',
+      tur3dUrl: tour3dUrlFor({ origin: origo, via, routeIdx: ruteIndeks ?? 0 }),
       snappingM: { origo: Math.round(snaps[0].node.distM) },
       ruter: loops.map((r, i) => {
         const climb = climbFor(r.coordinates)

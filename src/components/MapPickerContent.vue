@@ -164,11 +164,15 @@ function parseShareInvite() {
   const slat = parseFloat(q.slat)
   const slon = parseFloat(q.slon)
   const hasPlace = Number.isFinite(slat) && Number.isFinite(slon)
-  // «Del rundtur»: olat/olon (origo) + rtv (vendepunkt) + ri (valgt rute).
-  // Forwardes til MapView så mottakeren gjenskaper rundturen på kartet.
+  // «Del rundtur» / 3D-turlenke (MCP-ens tur3dUrl): olat/olon (origo) +
+  // rtv (vendepunkt/via) og/eller dlat/dlon (A→B-mål) + ri (valgt rute) +
+  // v3d=1 (åpne 3D automatisk). Forwardes til MapView som gjenskaper turen.
   const olat = parseFloat(q.olat)
   const olon = parseFloat(q.olon)
-  const hasRoundTrip = Number.isFinite(olat) && Number.isFinite(olon) && !!q.rtv
+  const dlat = parseFloat(q.dlat)
+  const dlon = parseFloat(q.dlon)
+  const hasDest = Number.isFinite(dlat) && Number.isFinite(dlon)
+  const hasRoundTrip = Number.isFinite(olat) && Number.isFinite(olon) && (!!q.rtv || hasDest)
   return {
     hl: q.hl ? String(q.hl).slice(0, 60) : null,
     slat: hasPlace ? slat : null,
@@ -177,8 +181,11 @@ function parseShareInvite() {
     hasRoundTrip,
     olat: hasRoundTrip ? olat : null,
     olon: hasRoundTrip ? olon : null,
-    rtv: hasRoundTrip ? String(q.rtv) : null,
+    rtv: hasRoundTrip && q.rtv ? String(q.rtv) : null,
     ri: hasRoundTrip && q.ri != null ? String(q.ri) : null,
+    dlat: hasRoundTrip && hasDest ? dlat : null,
+    dlon: hasRoundTrip && hasDest ? dlon : null,
+    v3d: hasRoundTrip && String(q.v3d) === '1' ? '1' : null,
   }
 }
 
@@ -313,8 +320,10 @@ async function generateMap() {
       if (inv.hasRoundTrip) {
         nav.query.olat = String(inv.olat)
         nav.query.olon = String(inv.olon)
-        nav.query.rtv = inv.rtv
+        if (inv.rtv) nav.query.rtv = inv.rtv
         if (inv.ri != null) nav.query.ri = inv.ri
+        if (inv.dlat != null) { nav.query.dlat = String(inv.dlat); nav.query.dlon = String(inv.dlon) }
+        if (inv.v3d) nav.query.v3d = inv.v3d
       }
     }
     router.push(nav)
