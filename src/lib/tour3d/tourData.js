@@ -31,6 +31,33 @@ export function collectMapFeatures(searchIndex, route, { maxDistM = 400 } = {}) 
   return out
 }
 
+// Nærmeste utfartsparkering til rutens start — og til målet for A→B-ruter
+// (rundtur ender der den startet). Samme plass returneres bare én gang.
+export function findParkingSpots(searchIndex, route, { isLoop = false, maxDistM = 1200 } = {}) {
+  if (!route || route.length < 2) return []
+  const parking = (searchIndex ?? []).filter(e => e?.kind === 'parkering')
+  if (!parking.length) return []
+  const nearest = ([px, py]) => {
+    let best = null
+    let bestD = Infinity
+    for (const p of parking) {
+      const d = Math.hypot(p.x - px, p.y - py)
+      if (d < bestD) { bestD = d; best = p }
+    }
+    return bestD <= maxDistM ? best : null
+  }
+  const spots = []
+  const start = nearest(route[0])
+  if (start) spots.push({ x: start.x, y: start.y, name: start.name })
+  if (!isLoop) {
+    const end = nearest(route[route.length - 1])
+    if (end && !(spots[0] && spots[0].x === end.x && spots[0].y === end.y)) {
+      spots.push({ x: end.x, y: end.y, name: end.name })
+    }
+  }
+  return spots
+}
+
 // NVE-målestasjoner i kartutsnittet, konvertert til SVG-meter.
 // Detaljene (siste vannføring/-stand/-temp) hentes lazily av infokortet.
 export async function loadNveFeatures({ meta, signal }) {

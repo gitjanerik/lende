@@ -18,6 +18,8 @@ import { createCameraRigs } from './cameraRigs.js'
 import { buildFeatureTimeline } from './featureTimeline.js'
 import { createFeatureDirector } from './featureDirector.js'
 import { buildHighlightMarker } from './highlightMarkers.js'
+import { buildSkyDome, buildClouds, makeFog, FOG_COLOR } from './skyDome.js'
+import { buildWaypointMarkers } from './waypointMarkers.js'
 import { createEngineLoop } from './engineLoop.js'
 
 export class TourSceneError extends Error {
@@ -31,6 +33,7 @@ const PROGRESS_EMIT_MS = 250
 
 export async function createTourScene(container, {
   dem, meta, svgText, route, features = [],
+  via = [], isLoop = false, parkingSpots = [],
   profileSamples = null, estWalkMinutes = null,
   options = {},
 }) {
@@ -65,7 +68,8 @@ export async function createTourScene(container, {
   renderer.domElement.style.cssText = 'width:100%;height:100%;display:block;touch-action:none;'
 
   const scene = new Scene()
-  scene.background = new Color('#101623')
+  scene.background = new Color(FOG_COLOR)
+  scene.fog = makeFog(Math.max(meta.widthM, meta.heightM))
   const camera = new PerspectiveCamera(55, 1, 1, 60000)
 
   const coords = makeCoords({ widthM: meta.widthM, heightM: meta.heightM, exaggeration })
@@ -80,6 +84,24 @@ export async function createTourScene(container, {
 
   const terrain = buildTerrainMesh(dem, coords, texture)
   scene.add(terrain.mesh)
+
+  const sky = buildSkyDome()
+  scene.add(sky.mesh)
+  const clouds = buildClouds({
+    widthM: meta.widthM,
+    heightM: meta.heightM,
+    baseY: Math.max(1200, terrain.maxElev * exaggeration + 350),
+  })
+  scene.add(clouds.group)
+
+  const waypoints = buildWaypointMarkers({ route, via, isLoop, parkingSpots }, dem, coords)
+  scene.add(waypoints.group)
+
+  // Høydekurver i terrenget: togglebart lag, default av — bygges lazily.
+  let contours = null
+  let contoursVisible = false
+  const contourIntervalM = Number.isFinite(meta.equidistance) && meta.equidistance > 0
+    ? meta.equidistance : 20
 
   const routePath = buildRoutePath(route.coordinates, dem, coords)
   const routeLookup = makePositionLookup(routePath)
@@ -164,6 +186,7 @@ export async function createTourScene(container, {
       marker.pulse(timeS)
       routeLine.setProgress(alongM)
       highlight.update(timeS, camera)
+      clouds.update(dt)
       rigs.update(dt, alongM)
 
       renderer.render(scene, camera)
@@ -192,6 +215,7 @@ export async function createTourScene(container, {
     routeLine.geometry, routeLine.material,
     ...marker.geometries, ...marker.materials,
     ...highlight.geometries, ...highlight.materials,
+    sky.geometry, sky.material, clouds, waypoints,
   ]) loop.track(d)
 
   await rigs.setMode(initialCameraMode, 0)
@@ -220,6 +244,17 @@ export async function createTourScene(container, {
     setFollowParams: (p) => rigs.setFollowParams(p),
     skipFeature: () => director.skip(),
     setFeaturesEnabled: (v) => director.setEnabled(v),
+    async setContoursVisible(v) {
+      contoursVisible = !!v
+      if (contoursVisible && !contours) {
+        const { buildContourLines } = await import('./contourLines.js')
+        contours = buildContourLines(terrain.dem, coords, { intervalM: contourIntervalM })
+        loop.track(contours)
+        scene.add(contours.group)
+      }
+      if (contours) contours.group.visible = contoursVisible
+    },
+    get contoursVisible() { return contoursVisible },
     setFeatures: (features) => {
       director.setEvents(buildFeatureTimeline(features, route.coordinates), playback.alongM)
     },

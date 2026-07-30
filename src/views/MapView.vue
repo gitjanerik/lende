@@ -1436,7 +1436,6 @@ const mapCtx = useMapContext()
 // «Naviger hit» vises.
 const mapHasTrails = ref(false)
 const showSymbolPalette = ref(false)
-let lastSvgString = ''      // huskes til print-eksport
 
 // Søk i kart — bygger indeks etter map-load, viser dropdown med treff og
 // sentrerer på valgte stedsnavn. Highlight-ringen sitter til brukeren tømmer
@@ -3107,8 +3106,10 @@ function labelForAnnotation(a) {
   }
 }
 
-// Print- / eksport-handlers.
-function mapSvgMarkupForExport() {
+// Print- / eksport-handlers. 3D-vieweren gjenbruker samme markup som
+// eksporten (tema baket inn, ghost-fliser fjernet) men uten kolofon —
+// linjal/målestokk skal ikke drapes på terrenget.
+function mapSvgMarkupForExport({ colophon = true } = {}) {
   const svg = svgHostRef.value?.querySelector('svg')
   if (!svg) return ''
   // Eksport/print = det OPPRINNELIGE kartet (én A-format-flis), ikke mosaikken.
@@ -3145,6 +3146,7 @@ function mapSvgMarkupForExport() {
   // «Så i lende · <kart> · <dato>». Ligger HER, i den delte eksport-markupen,
   // så alle fire utgangene (SVG/PNG/PDF/print) får den — en fil eller et ark
   // har ingen app rundt seg til å vise tallene.
+  if (!colophon) return clone.outerHTML
   return withColophon(clone.outerHTML, { meta: meta.value, title: mapTitle.value })
 }
 // Hvilken eksport som kjører nå ('' | 'svg' | 'png' | 'pdf' | 'print'). Brukes
@@ -4358,10 +4360,11 @@ onUnmounted(() => {
                :dem="storedDem"
                :meta="meta"
                :route="stiSelectedRoute"
+               :via="sti.via.value"
                :is-loop="sti.isLoop.value"
                :est-walk-minutes="tour3dEstWalk"
                :search-index="searchIndex"
-               :get-svg-text="() => lastSvgString"
+               :get-svg-text="() => mapSvgMarkupForExport({ colophon: false })"
                :map-title="mapTitle"
                @close="closeTour3d" />
     <Transition name="chip-fade">
