@@ -8,16 +8,17 @@ defineProps({
 })
 const emit = defineEmits(['play', 'pause', 'restart', 'set-time-scale', 'set-camera-mode'])
 
-// Tre kjøretøy i stedet for talltrinn — vi holder oss «på hjul»: moped 16×,
-// bil 64× (default) og racerbil 256× av virkelig gangfart.
+// Multiplikatorer av virkelig gangfart (4,5 km/t). Tekst, ikke ikoner —
+// emoji-kjøretøyene brøt med appens øvrige ikonspråk.
 const SPEEDS = [
-  { icon: '🛵', label: 'Moped (16×)', value: 16 },
-  { icon: '🚗', label: 'Bil (64×)', value: 64 },
-  { icon: '🏎️', label: 'Racerbil (256×)', value: 256 },
+  { label: '8×', value: 8 },
+  { label: '32×', value: 32 },
+  { label: '64×', value: 64 },
+  { label: '128×', value: 128 },
+  { label: '256×', value: 256 },
 ]
 const MODES = [
   { key: 'follow', label: 'Følg' },
-  { key: 'flyby', label: 'Flyover' },
   { key: 'free', label: 'Utforsk' },
 ]
 </script>
@@ -61,11 +62,9 @@ const MODES = [
       <div class="flex rounded-full bg-black/45 backdrop-blur overflow-hidden">
         <button v-for="s in SPEEDS" :key="s.value"
                 @click="emit('set-time-scale', s.value)"
-                :aria-label="s.label"
-                :title="s.label"
-                class="px-2.5 py-2 text-[16px] leading-none transition-colors"
-                :class="timeScale === s.value ? 'bg-white' : 'opacity-70 active:bg-black/60'">
-          {{ s.icon }}
+                class="px-1.5 py-2 text-[11px] font-semibold tabular-nums transition-colors"
+                :class="timeScale === s.value ? 'bg-white text-gray-900' : 'text-white/75 active:bg-black/60'">
+          {{ s.label }}
         </button>
       </div>
     </div>
