@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.6: Vogn-kameraene i 3D panorerer ut og lar deg styre blikket
+
+Følg og Flyover er nå ekte «vogn-kameraer»: de følger ruta automatisk mens turen spilles av, men brukeren styrer blikket selv underveis. Én-finger-drag vrir kameravinkelen — i Følg orbiterer kameraet rundt turpunktet (sfærisk parametrisering rundt den rullende «vogna»), i Flyover snur man hodet fra dronen — og pinch justerer nær/fjern. Blikk-offsetene nullstilles ved modusbytte, og den eksisterende dempingen glatter alle justeringer. Begge modusene er også panorert lenger ut som standard, så omgivelsene rundt ruta synes: Følg-kameraet ligger på 110 m avstand / 70 m høyde (fra 60/35), og Flyover-dronen flyr på 130 m med 55 m sideforskyvning og romsligere terrengklaring, med blikkpunkt lenger fram. Om-sidens 3D-avsnitt er oppdatert med fugleperspektiv-åpningen, blikkstyringen, tidsakse-spoling, turmarkørene og kurve-knappen.
+
+---
+
 ## 2026-07-30 — v3.0.5: 3D åpner i Utforsk-modus med fugleperspektiv
 
 3D-visningen åpnet tidligere i Følg-modus med kameraet lavt bak startpunktet — man så terreng, men ikke turen. Nå er Utforsk standardmodus, og åpningsposen er et nesten-fugleperspektiv: kameraet plasseres høyt bak startpunktet, vendt mot rutas tyngdepunkt, med avstand skalert etter rutas utstrekning og klaring mot terrenget under. Dermed ligger hele ruta og terrenget foran deg idet visningen åpner — full oversikt før du trykker Play, drar i tidsaksen eller bytter til Følg/Flyover. Ved svært kompakte rundturer (tyngdepunkt oppå startpunktet) brukes startretningen på ruta i stedet, så posen aldri degenererer.
