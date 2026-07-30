@@ -65,11 +65,28 @@ export function pickupInviteTokenFromLocation() {
 }
 
 /**
+ * Trekk svar-tekst ut av én chunk/ett svar-objekt fra Workers AI. Modellene
+ * der svarer i to ulike former (oppdaget i røyktesten, v3.0.31):
+ *  • klassisk Workers AI:  { response: "…" }
+ *  • OpenAI-kompatibel:    { choices: [{ delta: { content: "…" } }] } (stream)
+ *                          { choices: [{ message: { content: "…" } }] } (ikke-stream)
+ * Resonnerings-felter (delta.reasoning o.l.) ignoreres bevisst — de er
+ * modellens interne tenking og skal aldri vises i chatten.
+ */
+export function extractText(obj) {
+  if (!obj || typeof obj !== 'object') return ''
+  if (typeof obj.response === 'string') return obj.response
+  const valg = obj.choices?.[0]
+  const tekst = valg?.delta?.content ?? valg?.message?.content
+  return typeof tekst === 'string' ? tekst : ''
+}
+
+/**
  * Ren SSE-parsing: tar en tekstbuffer, returnerer ferdige tekst-deltas, resten
  * av bufferen (siste ufullstendige linje) og om strømmen meldte [DONE].
- * Workers AI sender én `data: <json>`-linje per chunk med teksten i
- * `.response`; ukjente/uparsbare payloads hoppes over i stedet for å knekke
- * strømmen.
+ * Workers AI sender én `data: <json>`-linje per chunk; teksten hentes med
+ * extractText (begge svarformater), og uparsbare payloads hoppes over i
+ * stedet for å knekke strømmen.
  */
 export function parseSseBuffer(buffer) {
   const lines = buffer.split('\n')
@@ -85,8 +102,8 @@ export function parseSseBuffer(buffer) {
       continue
     }
     try {
-      const obj = JSON.parse(payload)
-      if (typeof obj.response === 'string' && obj.response) deltas.push(obj.response)
+      const delta = extractText(JSON.parse(payload))
+      if (delta) deltas.push(delta)
     } catch {
       /* halvkvedet chunk — ignorer */
     }
@@ -136,7 +153,7 @@ export async function streamChat({ messages, maxTokens = 1024, signal, onDelta }
   const contentType = res.headers.get('Content-Type') ?? ''
   if (!contentType.includes('text/event-stream')) {
     const data = await res.json()
-    const text = typeof data.response === 'string' ? data.response : ''
+    const text = extractText(data)
     if (text) onDelta?.(text)
     return text
   }

@@ -1,5 +1,30 @@
 import { describe, it, expect } from 'vitest'
-import { extractInviteToken, parseSseBuffer } from './lendeAi.js'
+import { extractInviteToken, parseSseBuffer, extractText } from './lendeAi.js'
+
+describe('extractText', () => {
+  it('leser klassisk Workers AI-format', () => {
+    expect(extractText({ response: 'Hei' })).toBe('Hei')
+  })
+
+  it('leser OpenAI-stream-format (choices[].delta.content)', () => {
+    expect(extractText({ choices: [{ delta: { content: 'Hei' } }] })).toBe('Hei')
+  })
+
+  it('leser OpenAI-ikke-stream-format (choices[].message.content)', () => {
+    expect(extractText({ choices: [{ message: { content: 'Hei' } }] })).toBe('Hei')
+  })
+
+  it('ignorerer resonnering uten content (GLM-tilfellet fra røyktesten)', () => {
+    expect(extractText({ choices: [{ message: { content: null, reasoning: 'tenker…' } }] })).toBe('')
+    expect(extractText({ choices: [{ delta: { reasoning: 'tenker…' } }] })).toBe('')
+  })
+
+  it('tåler søppel', () => {
+    expect(extractText(null)).toBe('')
+    expect(extractText({})).toBe('')
+    expect(extractText({ choices: [] })).toBe('')
+  })
+})
 
 describe('extractInviteToken', () => {
   it('plukker token og fjerner kun ai-token fra query', () => {
@@ -53,5 +78,12 @@ describe('parseSseBuffer', () => {
     const { deltas } = parseSseBuffer('data: {"response":"Vardåsen er 349 møh — fint turmål."}\n')
     expect(deltas[0]).toContain('Vardåsen')
     expect(deltas[0]).toContain('møh')
+  })
+
+  it('parser OpenAI-stil stream-chunks', () => {
+    const buf = 'data: {"choices":[{"delta":{"reasoning":"hm"}}]}\ndata: {"choices":[{"delta":{"content":"Ekvidistansen"}}]}\ndata: [DONE]\n'
+    const { deltas, done } = parseSseBuffer(buf)
+    expect(deltas).toEqual(['Ekvidistansen'])
+    expect(done).toBe(true)
   })
 })

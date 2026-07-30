@@ -57,9 +57,12 @@ jobs:
             TOK="${LENDE_AI_TOKENS%%,*}"
             SVAR=$(curl -fsS -X POST "$BASE/api/ai" \
               -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' \
-              -d '{"messages":[{"role":"user","content":"Svar med én kort setning på norsk: hva er en ekvidistanse på et turkart?"}],"max_tokens":120}')
+              -d '{"messages":[{"role":"user","content":"Svar med én kort setning på norsk: hva er en ekvidistanse på et turkart?"}],"max_tokens":300}')
             echo "$SVAR" | head -c 500; echo
-            echo "$SVAR" | grep -qi '"response"' || { echo "::error::Fant ikke tekstsvar fra modellen"; exit 1; }
+            # Godta begge svarformatene fra Workers AI: klassisk {response} og
+            # OpenAI-stil choices[].message.content (må ha faktisk tekst — en
+            # resonneringsmodell som brenner budsjettet gir content:null og skal feile).
+            echo "$SVAR" | grep -Eqi '"response"|"content": *"' || { echo "::error::Fant ikke tekstsvar fra modellen"; exit 1; }
           fi
         env:
           LENDE_AI_TOKENS: ${{ secrets.LENDE_AI_TOKENS }}
