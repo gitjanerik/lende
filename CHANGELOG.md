@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.14: Tekst-hastigheter tilbake og Flyover-modus fjernet
+
+Kjøretøy-emojiene fra forrige versjon brøt med appens øvrige ikonspråk og er byttet tilbake til tekst-knapper, nå med fem trinn: 8×, 32×, 64× (standard), 128× og 256× av virkelig gangfart. Flyover-modusen er samtidig fjernet fra 3D-visningen — Følg (med fingerstyrt blikk) og Utforsk dekker behovet, og tre kameravalg var ett for mye. Dronesplinen ligger igjen i motoren om modusen skulle gjenoppstå, men knappen og omtalen i Om-siden er tatt bort.
+
+---
+
 ## 2026-07-30 — v3.0.13: Følg-modus som standard, kjøretøy-hastigheter og oransje nåler
 
 Tre justeringer fra siste testrunde. 3D-visningen åpner nå i Følg-modus (kameraet bak turpunktet) i stedet for Utforsk — fugleperspektiv-oversikten står klar første gang man bytter til Utforsk. Hastighetsvalget er byttet fra fem talltrinn til tre kjøretøy-ikoner, siden vi holder oss «på hjul»: moped (16×), bil (64×, standard) og racerbil (256× av virkelig gangfart) — en 10 km tur spilles av på ~8, ~2 eller et halvt minutt. Og delmål/vendepunkter er nå oransje knappenåler på lik linje med start og mål, med samme avstandsoverdrivelse, i stedet for lave prikker som forsvant i terrenget.
