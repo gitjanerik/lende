@@ -2003,6 +2003,7 @@ const { setChatContext } = useLendeChat()
 watch([shareInfo, mapTitle], ([s, tittel]) => {
   setChatContext(s ? {
     visning: 'turkart',
+    kartId: route.params.id ?? null,
     kartnavn: tittel || 'Uten navn',
     senter: { lat: +s.lat.toFixed(5), lon: +s.lon.toFixed(5) },
     stoerrelseKm: s.sizeKm,

@@ -61,13 +61,23 @@ synlig inngang — ikke gjemt bak et objektvalg eller i en skuff.)*
   modal — global plassering er valgt nettopp så «lag et kart over Håøya» kan
   fungere fra hvor som helst i appen.
 
-### Fase 3 (senere) — La KI kalle kart-verktøy
+### Fase 3 — La KI kalle kart-verktøy — BYGGET (MVP, v3.0.34)
 
-- Gjenbruk `src/lib`-primitivene / MCP-logikken framfor å bygge nytt.
-- To realistiske veier: (a) kall `src/lib`-funksjoner direkte i nettleseren
-  (appen kjører allerede browser-ekvivalentene `useStifinner`, `useMapSearch`),
-  eller (b) eksponer verktøyene som remote-endepunkt på Workeren.
-- Se `docs/MCP_REMOTE_CHAT.md` — dette er tenkt på før.
+Valgte vei (a): klient-side verktøy — modellen foreslår kall (OpenAI
+function-defs via Workers AI), appen kjører dem lokalt i nettleseren mot
+samme maskineri som resten av appen. Ingen remote-MCP, ingen ny infrastruktur.
+
+- **Verktøysettet** (`src/lib/lendeAiTools.js`): `sok_sted` (geocode.js),
+  `mine_kart_og_ruter` (mapStorage), `apne_kart`, `foreslaa_nytt_kart`
+  (navigerer til /nytt med utfylte felter — brukeren bekrefter og bygger
+  selv), `vis_tur_i_3d` (dyplenke-params som `parseTourQuery` leser).
+- **Løkka** bor i `useLendeChat.send`: maks 4 verktøy-runder, sekvensiell
+  kjøring, `role:"tool"`-svar tilbake, norsk statuslinje per kall. Verktøy-
+  runder kjører ikke-strømmende (Workers AI støtter ikke streaming+tools
+  pålitelig); verktøy-utvekslinger persisteres ikke i visnings-historikken.
+- **Ikke dekket ennå:** kjøre Stifinner-beregninger direkte fra chat
+  (ruteforslag med lengde/høydemeter som svar), POI-søk i kartet, favoritt-
+  markering/søkehistorikk (jf. «Personlig kontekst» i MCP_REMOTE_CHAT.md).
 
 ## Gjenbruk — konkrete referanser
 

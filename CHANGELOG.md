@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-31 — v3.0.34: Lende-chat kan nå gjøre ting — fem verktøy (Fase 3, MVP)
+
+Chatten er ikke lenger bare svar: modellen har fått fem klient-side verktøy den kan kalle, og appen utfører dem lokalt i nettleseren (Spor 2 fra MCP-utredningen — samme funksjoner som appen allerede har, intet nytt server-maskineri). Verktøyene: `sok_sted` (stedsnavn → koordinater via geocode), `mine_kart_og_ruter` (lagrede kart og grusruter fra IndexedDB — «favorittruta mi» fungerer nå), `apne_kart`, `foreslaa_nytt_kart` (åpner «Nytt turkart» med senter/størrelse/navn ferdig utfylt — brukeren bekrefter og bygger selv, chatten kan aldri starte bygging på egen hånd) og `vis_tur_i_3d` (fottur A→B i 3D på et lagret kart, via samme dyplenke-params som delte turlenker). «Lag et kart over Håøya» blir dermed: sok_sted → foreslaa_nytt_kart → byggeskjema klart til bekreftelse. Løkka i `useLendeChat` tar maks 4 verktøy-runder per melding, viser norsk statuslinje per kall («Søker etter 'Håøya' …»), og verktøy som navigerer lukker chat-modalen så man ser hva som skjer. Verktøy-runder kjører ikke-strømmende (Workers AI støtter ikke streaming+tools pålitelig) — svaret kommer samlet, med pulserende status imens. Kartvisningens chat-kontekst inkluderer nå kartId, så «vis turen i 3D her» virker uten oppslag. Nye tester for verktøykall-parsing (begge Workers AI-formatene), tur-query-roundtrip mot parseTourQuery og liste-projeksjonen.
+
+---
+
 ## 2026-07-31 — v3.0.33: Lende-chat kjenner nå appens funksjoner — fotturer henvises til Stifinneren
 
 Første brukertest avdekket at chatten sendte alle tur-spørsmål til «Turplanlegger» — også fotturer i det åpne kartet, som hører til Stifinneren. Årsaken var en for fattig system-prompt: modellen kjente bare til «Nytt turkart» og «Turplanlegger». Prompten har nå en funksjonsguide som skiller riktig: fottur i kartet → Stifinneren (snarveis-knappen eller «Naviger hit» via long-press, 1–3 ruteforslag med via-punkter), rundtur → «Runde»-knappen, avstand → «Måling», stedsinfo → long-press/«Informasjon», grus-/sykkelruter → Turplanleggeren, nytt område → «Nytt turkart» — med eksplisitt regel om at fotturer aldri skal henvises til Turplanleggeren. Kun prompt-endring i `useLendeChat.js`; ingen Worker- eller UI-endringer.

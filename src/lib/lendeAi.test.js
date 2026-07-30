@@ -1,5 +1,38 @@
 import { describe, it, expect } from 'vitest'
-import { extractInviteToken, parseSseBuffer, extractText } from './lendeAi.js'
+import { extractInviteToken, parseSseBuffer, extractText, extractToolCalls } from './lendeAi.js'
+
+describe('extractToolCalls', () => {
+  it('leser OpenAI-format med JSON-streng-argumenter', () => {
+    const kall = extractToolCalls({
+      choices: [{ message: { content: null, tool_calls: [
+        { id: 'call_1', function: { name: 'sok_sted', arguments: '{"navn":"Håøya"}' } },
+      ] } }],
+    })
+    expect(kall).toHaveLength(1)
+    expect(kall[0].id).toBe('call_1')
+    expect(kall[0].name).toBe('sok_sted')
+    expect(kall[0].args).toEqual({ navn: 'Håøya' })
+  })
+
+  it('leser klassisk format med objekt-argumenter', () => {
+    const kall = extractToolCalls({
+      response: '',
+      tool_calls: [{ name: 'mine_kart_og_ruter', arguments: {} }],
+    })
+    expect(kall[0].name).toBe('mine_kart_og_ruter')
+    expect(kall[0].args).toEqual({})
+    expect(kall[0].id).toBe('verktoey_0')
+  })
+
+  it('gir tom liste uten kall, og {} ved uparsbare argumenter', () => {
+    expect(extractToolCalls({ response: 'hei' })).toEqual([])
+    expect(extractToolCalls(null)).toEqual([])
+    const kall = extractToolCalls({
+      choices: [{ message: { tool_calls: [{ function: { name: 'x', arguments: '{ødelagt' } }] } }],
+    })
+    expect(kall[0].args).toEqual({})
+  })
+})
 
 describe('extractText', () => {
   it('leser klassisk Workers AI-format', () => {

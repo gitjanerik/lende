@@ -8,7 +8,7 @@ import { useLendeChat } from '../composables/useLendeChat.js'
 // Fase 2 er ren spørsmål/svar med kontekst fra visningen; verktøykjøring
 // (bygg kart, planlegg rute) kommer i Fase 3 i samme flate.
 
-const { chatOpen, messages, busy, error, closeChat, nySamtale, send, stopp } = useLendeChat()
+const { chatOpen, messages, busy, busyLabel, error, closeChat, nySamtale, send, stopp } = useLendeChat()
 
 const input = ref('')
 const listRef = ref(null)
@@ -73,8 +73,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
                :class="m.role === 'user'
                  ? 'bg-ink/10 text-ink rounded-br-md'
                  : 'bg-ink/5 text-ink/90 rounded-bl-md'">
-            {{ m.content }}<span v-if="busy && i === messages.length - 1 && m.role === 'assistant'"
-                                 class="chat-cursor" aria-hidden="true" />
+            <template v-if="busy && i === messages.length - 1 && m.role === 'assistant' && !m.content">
+              <span class="italic text-ink/50 animate-pulse">{{ busyLabel || 'Tenker …' }}</span>
+            </template>
+            <template v-else>{{ m.content }}<span v-if="busy && i === messages.length - 1 && m.role === 'assistant'"
+                                 class="chat-cursor" aria-hidden="true" /></template>
           </div>
         </div>
 
