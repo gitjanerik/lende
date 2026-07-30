@@ -86,6 +86,18 @@ describe('createFeatureDirector', () => {
     expect(entered.map(e => e.name)).toEqual(['Neste'])
   })
 
+  it('eventNear finner nærmeste hendelse innen vindu (scrubbing)', () => {
+    const d = createFeatureDirector([
+      { ...EVENT, name: 'Nær', alongM: 1000 },
+      { ...EVENT, name: 'Fjern', alongM: 3000 },
+    ])
+    expect(d.eventNear(1080)?.name).toBe('Nær')
+    expect(d.eventNear(2000)).toBeNull()
+    // Også hendelser man har passert skal kunne forhåndsvises bakover.
+    d.seek(2500)
+    expect(d.eventNear(1010)?.name).toBe('Nær')
+  })
+
   it('setEnabled(false) under HOLD avslutter og gir factor 1', () => {
     const d = createFeatureDirector([EVENT])
     d.tick(1000, 16)

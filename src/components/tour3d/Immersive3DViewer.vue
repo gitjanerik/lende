@@ -111,6 +111,7 @@ onMounted(async () => {
 
     phase.value = 'ready'
     stats.value = engine.state
+    if (contoursOn.value) engine.setContoursVisible(true).catch(() => {})
 
     // Nettbaserte kilder popper inn asynkront — feil svelges stille.
     const allFeatures = [...mapFeatures]
@@ -141,10 +142,26 @@ onBeforeUnmount(() => {
   }
 })
 
-const contoursOn = ref(false)
+// Skarpe vektorkurver oppå kartteksturen — default PÅ.
+const contoursOn = ref(true)
 async function toggleContours() {
   contoursOn.value = !contoursOn.value
   await engine?.setContoursVisible(contoursOn.value)
+}
+
+// Tidsakse-scrubbing: dra = seek (kameraet følger), slipp = forbli pauset.
+function onScrubStart() {
+  engine?.scrubStart()
+  playing.value = false
+  wake.stop()
+}
+function onScrub(pct) {
+  if (!engine) return
+  engine.scrub(pct * engine.totalM)
+}
+function onScrubEnd() {
+  engine?.scrubEnd()
+  playing.value = false
 }
 
 function play() { engine?.play(); playing.value = true; wake.start() }
@@ -219,7 +236,8 @@ function skipFeature() { engine?.skipFeature() }
         <div v-if="!isLandscape"
              class="flex flex-col gap-2.5 px-3"
              style="padding-bottom: max(env(safe-area-inset-bottom), 12px);">
-          <Tour3dHud :stats="stats"/>
+          <Tour3dHud :stats="stats"
+                     @scrub-start="onScrubStart" @scrub="onScrub" @scrub-end="onScrubEnd"/>
           <Tour3dControls
             :playing="playing" :finished="finished" :time-scale="timeScale" :camera-mode="cameraMode"
             @play="play" @pause="pause" @restart="restart"
@@ -228,7 +246,8 @@ function skipFeature() { engine?.skipFeature() }
         <template v-else>
           <div class="absolute bottom-0 right-0 px-3"
                style="padding-bottom: max(env(safe-area-inset-bottom), 12px);">
-            <Tour3dHud :stats="stats" landscape/>
+            <Tour3dHud :stats="stats" landscape
+                       @scrub-start="onScrubStart" @scrub="onScrub" @scrub-end="onScrubEnd"/>
           </div>
           <div class="px-3 max-w-md"
                style="padding-bottom: max(env(safe-area-inset-bottom), 12px);">

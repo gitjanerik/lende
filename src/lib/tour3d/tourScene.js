@@ -172,8 +172,21 @@ export async function createTourScene(container, {
   let lastProgressEmit = 0
   let disposedFlag = false
 
+  // Forhåndsvist feature under scrubbing (tidsakse-drag) — uavhengig av
+  // direktørens HOLD-koreografi.
+  let previewFeature = null
+  const clearPreview = () => {
+    if (!previewFeature) return
+    emit('feature-exit', { feature: previewFeature })
+    previewFeature = null
+    highlight.hide()
+  }
+
   const loop = createEngineLoop({
     renderer, camera, container,
+    onResize(w, h) {
+      contours?.setResolution(w, h)
+    },
     onFrame(dt, timeS) {
       const dtMs = dt * 1000
       playback.tick(dt)
@@ -223,9 +236,13 @@ export async function createTourScene(container, {
   emit('ready', {})
 
   return {
-    play: () => playback.play(),
+    play: () => {
+      clearPreview()
+      playback.play()
+    },
     pause: () => playback.pause(),
     restart: () => {
+      clearPreview()
       playback.restart()
       director.seek(0)
     },
@@ -233,6 +250,27 @@ export async function createTourScene(container, {
       playback.seek(alongM)
       director.seek(alongM)
     },
+    // Tidsakse-scrubbing: brukeren drar seg fram/tilbake langs turen.
+    // Kameraet følger (rigs.update går på alongM hver frame), POI innen
+    // vindu vises som forhåndsvisning, og avspillingen forblir pauset.
+    scrubStart: () => playback.pause(),
+    scrub: (alongM) => {
+      playback.seek(alongM)
+      director.seek(alongM)
+      const ev = director.eventNear(alongM, 150)
+      if (ev !== previewFeature) {
+        if (previewFeature) emit('feature-exit', { feature: previewFeature })
+        previewFeature = ev
+        if (ev) {
+          const [fx, fy, fz] = featureWorldPos(ev)
+          highlight.showAt(fx, fy, fz)
+          emit('feature-enter', { feature: ev, screenPos: project(fx, fy, fz) })
+        } else {
+          highlight.hide()
+        }
+      }
+    },
+    scrubEnd: () => {},
     setSpeed: (kmh) => playback.setSpeed(kmh),
     setTimeScale: (x) => playback.setTimeScale(x),
     setCameraMode: async (m) => {
@@ -249,6 +287,7 @@ export async function createTourScene(container, {
       if (contoursVisible && !contours) {
         const { buildContourLines } = await import('./contourLines.js')
         contours = buildContourLines(terrain.dem, coords, { intervalM: contourIntervalM })
+        contours.setResolution(container.clientWidth, container.clientHeight)
         loop.track(contours)
         scene.add(contours.group)
       }

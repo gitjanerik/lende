@@ -4,7 +4,7 @@
 // materialer, teksturer) + forceContextLoss (iOS har hardt tak på antall
 // WebGL-contexts).
 
-export function createEngineLoop({ renderer, camera, container, onFrame, onContextLost = null, onContextRestored = null }) {
+export function createEngineLoop({ renderer, camera, container, onFrame, onResize = null, onContextLost = null, onContextRestored = null }) {
   const disposables = new Set()
   const listeners = []
   let rafId = 0
@@ -53,6 +53,7 @@ export function createEngineLoop({ renderer, camera, container, onFrame, onConte
     // Høyere FOV i portrett så ruta foran forblir synlig.
     camera.fov = h > w ? 65 : 55
     camera.updateProjectionMatrix()
+    onResize?.(w, h)
   }
 
   const resizeObs = new ResizeObserver(resize)
