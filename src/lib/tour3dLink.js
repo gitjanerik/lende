@@ -14,7 +14,7 @@ export const LENDE_APP_BASE = 'https://gitjanerik.github.io/lende'
 const fix6 = (n) => Number(n).toFixed(6)
 
 /** Turen → query-params (POJO). dest = null ⇒ rundtur (via kreves). */
-export function buildTourParams({ origin, dest = null, via = [], routeIdx = 0, open3d = true }) {
+export function buildTourParams({ origin, dest = null, via = [], routeIdx = 0, open3d = true, name = null }) {
   const params = {
     olat: fix6(origin.lat),
     olon: fix6(origin.lon),
@@ -28,6 +28,10 @@ export function buildTourParams({ origin, dest = null, via = [], routeIdx = 0, o
   }
   params.ri = String(routeIdx ?? 0)
   if (open3d) params.v3d = '1'
+  // tn = turnavn: mottakerens kart bygges med dette navnet i stedet for
+  // «Uten navn» (samme 60-tegns tak som pickerens kartnavn-felt).
+  const tn = typeof name === 'string' ? name.trim().slice(0, 60) : ''
+  if (tn) params.tn = tn
   return params
 }
 
@@ -50,12 +54,14 @@ export function parseTourQuery(query) {
     .map(([lat, lon]) => ({ lat, lon }))
   if (!dest && !via.length) return null
   const ri = parseInt(query?.ri, 10)
+  const tn = typeof query?.tn === 'string' ? query.tn.trim().slice(0, 60) : ''
   return {
     origin: { lat: olat, lon: olon },
     dest,
     via,
     routeIdx: Number.isFinite(ri) ? ri : 0,
     open3d: query?.v3d === '1' || query?.v3d === 1,
+    name: tn || null,
   }
 }
 

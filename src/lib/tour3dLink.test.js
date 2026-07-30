@@ -38,6 +38,21 @@ describe('buildTourParams / parseTourQuery', () => {
     expect(tour.open3d).toBe(false)
   })
 
+  it('turnavn (tn) rundes gjennom params og trunkeres til 60 tegn', () => {
+    const params = buildTourParams({ origin: OSLO, via: [MAAL], name: '  Rundtur Høgevarde  ' })
+    expect(params.tn).toBe('Rundtur Høgevarde')
+    expect(parseTourQuery(params).name).toBe('Rundtur Høgevarde')
+    const langt = buildTourParams({ origin: OSLO, via: [MAAL], name: 'x'.repeat(80) })
+    expect(langt.tn).toHaveLength(60)
+  })
+
+  it('uten navn: tn utelates og parse gir null-navn', () => {
+    const params = buildTourParams({ origin: OSLO, via: [MAAL] })
+    expect(params.tn).toBeUndefined()
+    expect(parseTourQuery(params).name).toBeNull()
+    expect(parseTourQuery(buildTourParams({ origin: OSLO, via: [MAAL], name: '   ' })).name).toBeNull()
+  })
+
   it('ugyldig/tom query gir null', () => {
     expect(parseTourQuery({})).toBeNull()
     expect(parseTourQuery({ olat: 'x', olon: '10' })).toBeNull()

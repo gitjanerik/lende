@@ -392,9 +392,11 @@ server.registerTool(
       maal: z.object({ lat: z.number(), lon: z.number() }).describe('Målpunkt'),
       via: z.array(z.object({ lat: z.number(), lon: z.number(), navn: z.string().optional() }))
         .optional().describe('Via-punkter ruten må innom, i rekkefølge'),
+      maalNavn: z.string().optional()
+        .describe('Navn på målet — gir turen (og mottakerens kart via tur3dUrl) navnet «Tur til <navn>»'),
     },
   },
-  async ({ start, maal, via }) => {
+  async ({ start, maal, via, maalNavn }) => {
     requireMap()
     const viaPts = via ?? []
     let found, meta, startDist, maalDist
@@ -410,9 +412,12 @@ server.registerTool(
     }
 
     state.routes = found
+    const turNavn = maalNavn?.trim() ? `Tur til ${maalNavn.trim()}`
+      : viaPts.find(v => v.navn?.trim())?.navn?.trim()
+        ? `Tur om ${viaPts.find(v => v.navn?.trim()).navn.trim()}` : null
     return jsonResult({
       status: 'ok',
-      tur3dUrl: tour3dUrlFor({ origin: start, dest: maal, via: viaPts, routeIdx: 0 }),
+      tur3dUrl: tour3dUrlFor({ origin: start, dest: maal, via: viaPts, routeIdx: 0, name: turNavn }),
       snappingM: { start: Math.round(startDist), maal: Math.round(maalDist) },
       ruter: found.map((r, i) => {
         const climb = climbFor(r.coordinates)
@@ -475,9 +480,15 @@ server.registerTool(
     if (!loops.length) throw new Error('Fant ingen rundtur (vendepunkt uten stiforbindelse eller blindvei?).')
     state.routes = loops
 
+    // Turnavn til dyplenken: mottakerens kart bygges med dette navnet i stedet
+    // for «Uten navn». Første navngitte vendepunkt er turens naturlige navn.
+    const viaNavn = via.find(v => v.navn?.trim())?.navn?.trim()
+    const turNavn = viaNavn ? `Rundtur ${viaNavn}`
+      : origoNavn?.trim() ? `Rundtur fra ${origoNavn.trim()}` : null
+
     const svar = {
       status: 'ok',
-      tur3dUrl: tour3dUrlFor({ origin: origo, via, routeIdx: ruteIndeks ?? 0 }),
+      tur3dUrl: tour3dUrlFor({ origin: origo, via, routeIdx: ruteIndeks ?? 0, name: turNavn }),
       snappingM: { origo: Math.round(snaps[0].node.distM) },
       ruter: loops.map((r, i) => {
         const climb = climbFor(r.coordinates)
