@@ -151,7 +151,13 @@ function parseShareInvite() {
   center.value = { lat, lon, name: q.hl ? String(q.hl).slice(0, 60) : '' }
   // Eldre delte lenker kan ha km opptil 12 — clamp til dagens 16 km-tak.
   if (Number.isFinite(km) && km >= 1 && km <= 24) halfKm.value = Math.min(km, 16) / 2
-  if (Number.isFinite(eq) && [2.5, 5, 10, 20, 25, 50].includes(eq)) equidistanceM.value = eq
+  // Klamp mot bredde-regelen HER — watch(minEquidistance) fyrer bare når
+  // minimumet ENDRES, og med 8 km som default-bredde står det allerede på
+  // 20 m ved mount. En lenke med eq=5 og km=14 slapp derfor gjennom og ga
+  // ISOM-tette kurver + knauser på mottakerens store kart.
+  if (Number.isFinite(eq) && [2.5, 5, 10, 20, 25, 50].includes(eq)) {
+    equidistanceM.value = Math.max(eq, minEquidistanceForWidthKm(halfKm.value * 2))
+  }
   format.value = 'portrait'
   // Avsenderens aspekt (clampet til fornuftig spenn). Settes ETTER format-
   // tilordningen over — format-watchen nullstiller inviteAspect.

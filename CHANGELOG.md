@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.22: Delte lenker klampes mot ekvidistanse-regelen
+
+Mottakersiden av en delt lenke stolte på watch(minEquidistance) for å bumpe en for fin ekvidistanse — men med 8 km som default-bredde står minimumet allerede på 20 m ved mount, watchen fyrer aldri, og en lenke med eq=5 og km=14 slapp gjennom (ISOM-tette kurver + knauser på mottakerens kart). Pickeren klamper nå invite-ekvidistansen deterministisk mot den delte bredde-regelen (equidistanceRules) når lenken parses.
+
+---
+
 ## 2026-07-30 — v3.0.21: MCP følger appens ekvidistanse-regler
 
 MCP-serverens bygg_kart arvet mapBuilder-defaulten på 5 m ekvidistanse — et 14 km bredt turkart fikk ISOM-tette høydekurver og knauser, og mottakeren av en delt turlenke måtte vente unødvendig lenge på byggingen. Bredde-regelen fra pickeren er trukket ut i en delt modul (equidistanceRules): default er nå turkart-standarden 20 m, finere kurver må bes om eksplisitt (ISOM-sprint o.l.) og justeres uansett opp til bredde-minimumet (>2 km → 5 m, ≥4 km → 10 m, ≥6 km → 20 m). MCP-en kan fortsatt bygge større kart enn appens 16 km-tak for å dekke fra/til i én flis; en justert ekvidistanse rapporteres i svaret.
