@@ -53,6 +53,48 @@ export function createCameraRigs({ camera, dem, coords, routeLookup, flybyLookup
     outLook.set(a[0], a[1], a[2])
   }
 
+  // Start-oversikt for Utforsk-modus: nesten fugleperspektiv bak startpunktet
+  // med ruta og terrenget liggende foran — gir umiddelbar oversikt over hele
+  // turen før brukeren spiller av eller bytter modus.
+  function overviewPose() {
+    const n = 8
+    let minX = Infinity, minY = Infinity, minZ = Infinity
+    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity
+    for (let i = 0; i <= n; i++) {
+      const p = routeLookup.at((routeLookup.totalM * i) / n)
+      if (p[0] < minX) minX = p[0]
+      if (p[0] > maxX) maxX = p[0]
+      if (p[1] < minY) minY = p[1]
+      if (p[1] > maxY) maxY = p[1]
+      if (p[2] < minZ) minZ = p[2]
+      if (p[2] > maxZ) maxZ = p[2]
+    }
+    const center = new Vector3((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2)
+    const span = Math.max(maxX - minX, maxZ - minZ, 800)
+    const s = routeLookup.at(0)
+    const start = new Vector3(s[0], s[1], s[2])
+    // Retning fra start mot rutas tyngdepunkt i XZ; degenererer ruta (svært
+    // kompakt rundtur) brukes starttangenten.
+    let dirX = center.x - start.x
+    let dirZ = center.z - start.z
+    let len = Math.hypot(dirX, dirZ)
+    if (len < 1) {
+      const t = routeLookup.tangentAt(0)
+      dirX = t[0]; dirZ = t[2]
+      len = Math.hypot(dirX, dirZ) || 1
+    }
+    dirX /= len; dirZ /= len
+    const dist = Math.min(6000, Math.max(600, span * 0.75))
+    const pos = new Vector3(
+      start.x - dirX * dist * 0.55,
+      Math.max(start.y, center.y) + dist * 0.85,
+      start.z - dirZ * dist * 0.55,
+    )
+    const minCamY = terrainYAt(dem, coords, pos.x, pos.z) + 60 * coords.exaggeration
+    if (pos.y < minCamY) pos.y = minCamY
+    return { pos, target: center }
+  }
+
   function desiredFlybyPose(alongM, outPos, outLook) {
     // Kamera-splinen parametriseres så kamera-alongM følger playback med
     // et lite forsprang.
@@ -103,8 +145,15 @@ export function createCameraRigs({ camera, dem, coords, routeLookup, flybyLookup
           controls.maxDistance = 1.5 * Math.max(coords.widthM, coords.heightM)
         }
         controls.enabled = true
-        const p = routeLookup.at(alongM)
-        controls.target.set(p[0], p[1], p[2])
+        if (prevMode === null) {
+          // Åpningspose: fugleperspektiv-oversikt over hele ruta.
+          const { pos, target } = overviewPose()
+          camera.position.copy(pos)
+          controls.target.copy(target)
+        } else {
+          const p = routeLookup.at(alongM)
+          controls.target.set(p[0], p[1], p[2])
+        }
         controls.update()
         return
       }

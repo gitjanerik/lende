@@ -29,7 +29,9 @@ const emit = defineEmits(['close'])
 const phase = ref('loading')   // loading | ready | no-dem | no-webgl | error
 const stats = ref(null)
 const activeFeature = ref(null)
-const cameraMode = ref('follow')
+// Default = Utforsk med fugleperspektiv-oversikt over ruta (matcher motorens
+// initialCameraMode 'free').
+const cameraMode = ref('free')
 const playing = ref(false)
 const finished = ref(false)
 const timeScale = ref(30)

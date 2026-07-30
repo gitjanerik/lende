@@ -44,7 +44,7 @@ export async function createTourScene(container, {
 
   const {
     exaggeration = 1.15,
-    initialCameraMode = 'follow',
+    initialCameraMode = 'free',
     speedKmh = 4.5,
     timeScale = 30,
   } = options

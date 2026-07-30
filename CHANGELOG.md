@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.5: 3D åpner i Utforsk-modus med fugleperspektiv
+
+3D-visningen åpnet tidligere i Følg-modus med kameraet lavt bak startpunktet — man så terreng, men ikke turen. Nå er Utforsk standardmodus, og åpningsposen er et nesten-fugleperspektiv: kameraet plasseres høyt bak startpunktet, vendt mot rutas tyngdepunkt, med avstand skalert etter rutas utstrekning og klaring mot terrenget under. Dermed ligger hele ruta og terrenget foran deg idet visningen åpner — full oversikt før du trykker Play, drar i tidsaksen eller bytter til Følg/Flyover. Ved svært kompakte rundturer (tyngdepunkt oppå startpunktet) brukes startretningen på ruta i stedet, så posen aldri degenererer.
+
+---
+
 ## 2026-07-30 — v3.0.4: 3D bruker alltid mykt relieff uansett 2D-stil
 
 Relieff-stilen «Skarp (vektor)» tegner relieffet som diskrete tone-bånd-polygoner i 2D-kartet — rasterisert til 3D-terrengtekstur ble båndene til flate grå flekker utover terrenget (tydelig på Rondvassbu-testen). Nå strippes vektor-relieffet fra SVG-en før teksturen bygges, og det myke bilde-relieffet bakes inn i stedet: 3D-visningen bruker altså alltid «Mjuk (bilde)»-stilen, uansett hva brukeren har valgt for 2D-kartet. Valget i 2D er uendret — byttet gjelder kun 3D-teksturen. De to stilene deler element-id i kartet (`hillshade-layer`), så strippingen skiller på elementtype: vektor-varianten er en gruppe med polygoner og fjernes, bilde-varianten er et enkelt `<image>` og beholdes som før.
