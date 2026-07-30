@@ -110,15 +110,21 @@ async function send(text) {
         break
       }
 
-      // Verktøy-runde: send modellens egen assistent-melding tilbake uendret
-      // (raw-formen med tool_calls), kjør kallene sekvensielt, og legg ett
-      // role:"tool"-svar per kall.
-      const assistentRaa = raw?.choices?.[0]?.message ?? {
+      // Verktøy-runde. VIKTIG (v3.0.35): send en SANERT assistent-melding
+      // tilbake, aldri modellens rå OpenAI-form — den har content:null og en
+      // rekke null-felter (refusal, annotations, …) som Workers AI-skjemaet
+      // avviser i neste kall («'string' not in 'null'»). content skal alltid
+      // være en streng; tool-svaret følger Cloudflares dokumenterte form
+      // (role:"tool" + name + content) pluss tool_call_id for OpenAI-kompat.
+      samtale.push({
         role: 'assistant',
-        content: svarTekst || null,
-        tool_calls: toolCalls.map((t) => t.raw),
-      }
-      samtale.push(assistentRaa)
+        content: svarTekst || '',
+        tool_calls: toolCalls.map((t) => ({
+          id: t.id,
+          type: 'function',
+          function: { name: t.name, arguments: JSON.stringify(t.args) },
+        })),
+      })
       for (const kall of toolCalls) {
         busyLabel.value = toolStatusLabel(kall.name, kall.args)
         const resultat = await runTool(kall.name, kall.args, { onNavigate: closeChat })

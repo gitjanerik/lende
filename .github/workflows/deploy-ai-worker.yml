@@ -82,6 +82,23 @@ jobs:
             # OpenAI-stil choices[].message.content (må ha faktisk tekst — en
             # resonneringsmodell som brenner budsjettet gir content:null og skal feile).
             echo "$SVAR" | grep -Eqi '"response"|"content": *"' || { echo "::error::Fant ikke tekstsvar fra modellen"; exit 1; }
+            echo "— /api/ai verktøy-rundtur (Fase 3-meldingsformen må aksepteres av skjemaet) —"
+            # Etterligner nøyaktig det chatten sender i runde 2: sanert
+            # assistent-melding med tool_calls (content: streng, aldri null) +
+            # role:"tool"-svar. Fanger skjema-avvisninger som v3.0.34-feilen
+            # («'string' not in 'null'») deterministisk, uavhengig av modellen.
+            RUNDTUR=$(curl -fsS -X POST "$BASE/api/ai" \
+              -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' \
+              -d '{"messages":[
+                    {"role":"system","content":"Du er en testassistent. Svar kort på norsk."},
+                    {"role":"user","content":"Hvor ligger Håøya?"},
+                    {"role":"assistant","content":"","tool_calls":[{"id":"call_test","type":"function","function":{"name":"sok_sted","arguments":"{\"navn\":\"Håøya\"}"}}]},
+                    {"role":"tool","tool_call_id":"call_test","name":"sok_sted","content":"{\"treff\":[{\"navn\":\"Håøya\",\"lat\":59.68,\"lon\":10.55}]}"}
+                  ],
+                  "tools":[{"type":"function","function":{"name":"sok_sted","description":"Søk etter et stedsnavn og få koordinater.","parameters":{"type":"object","properties":{"navn":{"type":"string"}},"required":["navn"]}}}],
+                  "max_tokens":150}')
+            echo "$RUNDTUR" | head -c 400; echo
+            echo "$RUNDTUR" | grep -Eqi '"response"|"content": *"' || { echo "::error::Verktøy-rundturen ga ikke tekstsvar — meldingsformen avvist?"; exit 1; }
           fi
         env:
           LENDE_AI_TOKENS: ${{ secrets.LENDE_AI_TOKENS }}
