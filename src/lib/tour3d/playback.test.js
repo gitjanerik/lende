@@ -1,5 +1,24 @@
 import { describe, it, expect } from 'vitest'
-import { createPlayback, buildCumulativeAscent } from './playback.js'
+import { createPlayback, buildCumulativeAscent, defaultTimeScale } from './playback.js'
+
+describe('defaultTimeScale', () => {
+  it('kort tur (< 3 km) → 64×', () => {
+    expect(defaultTimeScale(2999)).toBe(64)
+    expect(defaultTimeScale(500)).toBe(64)
+  })
+  it('mellomlang tur (3–12 km) → 128×', () => {
+    expect(defaultTimeScale(3000)).toBe(128)
+    expect(defaultTimeScale(12000)).toBe(128)
+  })
+  it('lang tur (> 12 km) → 256×', () => {
+    expect(defaultTimeScale(12001)).toBe(256)
+    expect(defaultTimeScale(40000)).toBe(256)
+  })
+  it('ukjent lengde → 128× (gammel default)', () => {
+    expect(defaultTimeScale(undefined)).toBe(128)
+    expect(defaultTimeScale(NaN)).toBe(128)
+  })
+})
 
 describe('createPlayback', () => {
   it('tick avanserer med kmh/3.6 · timeScale · dt', () => {

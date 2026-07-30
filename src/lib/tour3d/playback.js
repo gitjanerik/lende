@@ -6,6 +6,16 @@
 // avspillingshastighet; speedFactor er ekstern demping (feature-direktøren
 // bremser/stopper kameraet med den).
 
+// Standard avspillingstempo styrt av turens lengde: korte turer i ro og
+// mak, lange turer raskere så avspillingen ikke drar ut. Brukeren kan
+// alltid overstyre med 64×/128×/256×-knappene.
+export function defaultTimeScale(lengthM) {
+  if (!Number.isFinite(lengthM)) return 128
+  if (lengthM < 3000) return 64
+  if (lengthM <= 12000) return 128
+  return 256
+}
+
 export function createPlayback({ totalM, estWalkMinutes = null, cumAscent = null, speedKmh = 4.5, timeScale = 128 } = {}) {
   let alongM = 0
   let playing = false

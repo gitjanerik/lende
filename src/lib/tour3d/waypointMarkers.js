@@ -1,8 +1,10 @@
 // Endepunkt- og parkeringmarkører i 3D: start (grønn), mål (rød, A→B) og
 // delmål/vendepunkter (oransje) er knappenåler som stikker opp fra
 // terrenget — lavere enn POI-strålen, men med avstandsavhengig overdrivelse
-// så de synes helt i horisonten. Nålene er togglebare fra UI; nærmeste
-// utfartsparkering («P»-billboard) står alltid.
+// så de synes helt i horisonten. Nålene og nærmeste utfartsparkering
+// («P»-billboard) står ALLTID (v3.0.27) — brukeren skal aldri miste start/
+// mål/vendepunkt av syne. Kun hjem-skiltet (pause-billboard) følger
+// UI-togglen (setPinsVisible), sammen med POI-koreografien i viewer-laget.
 
 import {
   SphereGeometry, CylinderGeometry, MeshBasicMaterial, Mesh, Group,
@@ -103,8 +105,10 @@ function uTurnTexture() {
  */
 export function buildWaypointMarkers({ route, via = [], isLoop = false, parkingSpots = [], pauseSpots = [] }, dem, coords) {
   const group = new Group()
-  const pinsGroup = new Group()
-  group.add(pinsGroup)
+  // Togglebar undergruppe: kun skilt-billboards (hjem-skiltet). Nålene
+  // ligger rett i group og er alltid synlige.
+  const signsGroup = new Group()
+  group.add(signsGroup)
   const geometries = []
   const materials = []
   const pins = []
@@ -128,7 +132,7 @@ export function buildWaypointMarkers({ route, via = [], isLoop = false, parkingS
     holder.position.set(wx, wy, wz)
     geometries.push(stemGeo, headGeo)
     materials.push(stemMat, headMat)
-    pinsGroup.add(holder)
+    group.add(holder)
     pins.push(holder)
   }
 
@@ -157,19 +161,19 @@ export function buildWaypointMarkers({ route, via = [], isLoop = false, parkingS
     }
   }
   billboard(parkingSpots, parkingTexture, { sizeM: 46, liftM: 40, parent: group })
-  // Hjem-skiltet hører til turpunktene og følger nål-togglen; løftes over
-  // den oransje nåla på samme punkt.
-  billboard(pauseSpots, uTurnTexture, { sizeM: 42, liftM: 95, parent: pinsGroup })
+  // Hjem-skiltet følger POI-togglen (setPinsVisible); løftes over den
+  // oransje nåla på samme punkt.
+  billboard(pauseSpots, uTurnTexture, { sizeM: 42, liftM: 95, parent: signsGroup })
 
   return {
     group,
     geometries,
     materials,
-    setPinsVisible(v) { pinsGroup.visible = !!v },
+    // Toggler kun skilt-billboards — start-/mål-/via-nålene står alltid.
+    setPinsVisible(v) { signsGroup.visible = !!v },
     // Avstandsoverdrivelse: nær = naturlig størrelse, langt unna vokser nåla
     // (opptil 5×) så start/mål kan lokaliseres helt i horisonten.
     update(camera) {
-      if (!pinsGroup.visible) return
       for (const p of pins) {
         const d = camera.position.distanceTo(p.position)
         const s = Math.min(5, Math.max(1, d / 1200))
