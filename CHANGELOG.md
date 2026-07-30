@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-31 — v3.0.33: Lende-chat kjenner nå appens funksjoner — fotturer henvises til Stifinneren
+
+Første brukertest avdekket at chatten sendte alle tur-spørsmål til «Turplanlegger» — også fotturer i det åpne kartet, som hører til Stifinneren. Årsaken var en for fattig system-prompt: modellen kjente bare til «Nytt turkart» og «Turplanlegger». Prompten har nå en funksjonsguide som skiller riktig: fottur i kartet → Stifinneren (snarveis-knappen eller «Naviger hit» via long-press, 1–3 ruteforslag med via-punkter), rundtur → «Runde»-knappen, avstand → «Måling», stedsinfo → long-press/«Informasjon», grus-/sykkelruter → Turplanleggeren, nytt område → «Nytt turkart» — med eksplisitt regel om at fotturer aldri skal henvises til Turplanleggeren. Kun prompt-endring i `useLendeChat.js`; ingen Worker- eller UI-endringer.
+
+---
+
 ## 2026-07-31 — v3.0.32: Worker-deployen gjort utrullings-robust
 
 Modellbyttet i v3.0.31 var korrekt (wrangler lastet opp Llama-versjonen), men røyktesten feilet likevel: den traff en gammel Worker-versjon som fortsatt lå på Cloudflare-kanten — edge-propagering kan ta opp mot et minutt, og `secret put`-steget lagde dessuten sin egen versjon *etter* deployen, så «siste versjon» ikke var wrangler.tomls. To endringer i workflowen: (1) secret-pushen kjører nå FØR deployen (tolerant ved aller første kjøring), så siste deployede versjon alltid er den wrangler.toml beskriver; (2) røyktesten poller `/health` til den rapporterer modellen fra wrangler.toml (maks ~2 min) i stedet for en fast `sleep 5`, og feiler med tydelig melding hvis en gammel versjon blir hengende. Ingen endringer i Worker-koden eller appen.
