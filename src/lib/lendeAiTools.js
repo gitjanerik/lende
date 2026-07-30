@@ -191,7 +191,10 @@ export async function runTool(name, args, { onNavigate } = {}) {
         const q = buildTourQuery(args ?? {})
         onNavigate?.()
         await navigerTil({ name: 'kart-vis', params: { id }, query: q })
-        return { ok: true, merknad: `Åpner «${kart.navn ?? id}» med turen i 3D.` }
+        return {
+          ok: true,
+          merknad: `Åpner «${kart.navn ?? id}» og beregner turen på kartets stier — 3D åpnes automatisk hvis en rute finnes. VIKTIG: ikke lov brukeren at 3D vises; si at appen prøver, og at punkter utenfor kartet eller uten sti i nærheten gir en feilmelding i kartet i stedet.`,
+        }
       }
       default:
         return { feil: `Ukjent verktøy «${name}».` }

@@ -2237,6 +2237,20 @@ function maybeRestoreRoundTripFromQuery() {
   if (tour.open3d && sti.routes.value.length) openTour3d()
 }
 
+// Lende-chat / delte lenker: tur-params kan endres MENS kartet står åpent —
+// vis_tur_i_3d navigerer til samme kart-rute med ny query, og komponenten
+// remontes da ikke (App.vue keyer på route.path, som er uendret). Uten denne
+// watchen skjedde ingenting visuelt selv om chatten meldte suksess (v4.0.0).
+// Nullstill en ev. aktiv Stifinner-økt og kjør samme restore som ved last.
+watch(() => {
+  const q = route.query
+  return [q.olat, q.olon, q.dlat, q.dlon, q.rtv, q.ri, q.v3d, q.tn].join('|')
+}, () => {
+  if (!parseTourQuery(route.query)) return
+  if (sti.active.value) sti.cancel()
+  maybeRestoreRoundTripFromQuery()
+})
+
 // GPS-spor — opptak + rendering av rutene brukeren går (v8.9.2)
 const tracker = useTrackRecorder(mapId.value, userPos)
 // Tikker hvert sekund mens opptak pågår, så live-stats (distanse/varighet)
