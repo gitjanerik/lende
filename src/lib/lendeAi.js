@@ -111,6 +111,65 @@ export function parseSseBuffer(buffer) {
   return { deltas, rest, done }
 }
 
+/**
+ * Trekk verktøykall ut av et svar-objekt, normalisert til { id, name, args }.
+ * Håndterer begge Workers AI-formene:
+ *  • OpenAI-stil: choices[0].message.tool_calls[] med function.arguments som
+ *    JSON-STRENG
+ *  • klassisk:    tool_calls[] med { name, arguments } som OBJEKT
+ * Uparsbare argumenter gir {} i stedet for å knekke kjeden.
+ */
+export function extractToolCalls(obj) {
+  const raa = obj?.choices?.[0]?.message?.tool_calls ?? obj?.tool_calls
+  if (!Array.isArray(raa) || raa.length === 0) return []
+  return raa
+    .map((tc, i) => {
+      const name = tc?.function?.name ?? tc?.name
+      if (!name) return null
+      let args = tc?.function?.arguments ?? tc?.arguments ?? {}
+      if (typeof args === 'string') {
+        try { args = JSON.parse(args) } catch { args = {} }
+      }
+      return { id: tc?.id ?? `verktoey_${i}`, name, args: args ?? {}, raw: tc }
+    })
+    .filter(Boolean)
+}
+
+/**
+ * Ett ikke-strømmende chat-kall — brukes i verktøy-runder (Workers AI støtter
+ * ikke streaming + tools pålitelig). Returnerer { text, toolCalls }.
+ */
+export async function chatOnce({ messages, tools, maxTokens = 1024, signal }) {
+  let res
+  try {
+    res = await fetch(AI_URL, {
+      method: 'POST',
+      signal,
+      headers: {
+        Authorization: `Bearer ${getAiToken() ?? ''}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages,
+        max_tokens: maxTokens,
+        ...(Array.isArray(tools) && tools.length ? { tools } : {}),
+      }),
+    })
+  } catch (err) {
+    if (err?.name === 'AbortError') throw err
+    throw new Error('Fikk ikke kontakt med KI-tjenesten. Sjekk nettforbindelsen.')
+  }
+  if (!res.ok) {
+    let serverText = ''
+    try {
+      serverText = (await res.json())?.error ?? ''
+    } catch { /* ikke JSON */ }
+    throw new Error(feilmelding(res.status, serverText))
+  }
+  const data = await res.json()
+  return { text: extractText(data), toolCalls: extractToolCalls(data), raw: data }
+}
+
 function feilmelding(status, serverText) {
   if (status === 401) return 'Invitasjonen din er ikke gyldig lenger. Be om en ny lenke.'
   if (status === 429) return 'KI-tjenesten har nådd dagskvoten. Prøv igjen i morgen.'
