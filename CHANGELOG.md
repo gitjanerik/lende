@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-30 — v3.0.3: 3D-teksturen slipper kartets innbakte høydekurver
+
+Høydekurvene vistes dobbelt i 3D: én gang uskarpt som del av den rasteriserte kartteksturen, og én gang som skarpe vektorlinjer — og «Kurver»-knappen påvirket bare vektorlaget, så terrenget hadde kurver selv når laget var slått av. Nå strippes kartets `kontur`-lag (inkludert de nestede kurve- og kurvetall-gruppene, som krever balansert skanning i stedet for non-greedy regex) fra SVG-en før den rasteriseres til terrengtekstur. Vektorkurve-laget er dermed eneste kurvekilde i 3D: knappen styrer faktisk kurvene, og terrenget står renere med bare relieff, vann, vegetasjon og stier når laget er av. 2D-kartet og eksportene er uberørt.
+
+---
+
 ## 2026-07-30 — v3.0.2: Dra-bar tidsakse i 3D og tydeligere høydekurver
 
 Tidsaksen i 3D-visningen er nå en slider: dra fingeren fram og tilbake langs turen, så følger kameraet med (i Følg- og Flyover-modus), posisjonsmarkøren og statistikken oppdateres fortløpende, og severdigheter du drar deg forbi dukker opp som infokort med markering i terrenget. Når du slipper, forblir avspillingen pauset — Play fortsetter derfra. Høydekurve-laget er samtidig gjort tydeligere: siden kurvene uansett ligger bakt inn i kartteksturen var effekten av å slå på vektorkurvene knapt synlig, så laget er nå PÅ som standard, og linjene tegnes tykkere (ekte pikselbredde via three sitt Line2-linjesystem — vanlig WebGL-linje er låst til 1 px) med kraftigere indekskurver. «Kurver»-knappen skrur fortsatt laget av og på.

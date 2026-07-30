@@ -12,12 +12,40 @@ import { computeHillshade } from '../hillshade.js'
 
 const RUNTIME_LAYER_IDS = ['user-layer', 'annotation-layer', 'track-layer', 'measure-layer', 'stifinner-layer', 'hydro-layer']
 
+// Fjern kartets innbakte høydekurver (<g data-layer="kontur"> med nestede
+// data-iso-/kontur-tall-grupper) fra teksturen: i 3D er vektorkurve-laget
+// eneste kurvekilde, så «Kurver»-knappen faktisk styrer kurvene og de ikke
+// vises dobbelt (uskarpt fra tekstur + skarpt fra vektor). Nestede <g> gjør
+// non-greedy regex utrygg — scan balansert i stedet.
+export function stripContourLayers(svg) {
+  const openRe = /<g\b[^>]*data-layer="kontur"[^>]*>/
+  let out = svg
+  let m
+  while ((m = openRe.exec(out)) !== null) {
+    const start = m.index
+    const tagRe = /<\/?g\b[^>]*>/g
+    tagRe.lastIndex = start + m[0].length
+    let depth = 1
+    let end = -1
+    let t
+    while ((t = tagRe.exec(out)) !== null) {
+      if (t[0][1] === '/') depth--
+      else if (!t[0].endsWith('/>')) depth++
+      if (depth === 0) { end = tagRe.lastIndex; break }
+    }
+    if (end < 0) return out
+    out = out.slice(0, start) + out.slice(end)
+  }
+  return out
+}
+
 export function cleanSvgForTexture(svgString) {
   let s = svgString
   for (const id of RUNTIME_LAYER_IDS) {
     const re = new RegExp(`<g[^>]*id="${id}"[^]*?</g>`, 'g')
     s = s.replace(re, '')
   }
+  s = stripContourLayers(s)
   if (!s.includes('xmlns:xlink')) {
     s = s.replace(/<svg\b([^>]*)>/, '<svg$1 xmlns:xlink="http://www.w3.org/1999/xlink">')
   }
