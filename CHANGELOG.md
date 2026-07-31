@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-31 — v4.2.5: Chatten kjenner turens nøkkeltall (aktivTur i konteksten)
+
+Felt-test nr. 4: «hvor mange høydemeter har denne turen?» etter en tegnet rundtur — chatten hadde ingen data om ruta og famlet (ærlig «kan ikke beregne», men også et nytt verktøykall som dro i gang 3D). Nå legger MapView den aktive Stifinner-/Runde-ruta inn i chat-konteksten: `aktivTur` med type (fottur/rundtur), lengde, stigning/fall (fra samme DEM-profil som «Valgt rute»-linja) og estimert gangtid (Naismith) — oppdatert reaktivt når ruta endres eller velges bort. Systemprompten har fått regelen: spørsmål om den tegnede turen besvares fra aktivTur — aldri nye verktøykall eller 3D for å svare på et spørsmål, og mangler aktivTur skal modellen si at ingen tur er tegnet inn.
+
+---
+
 ## 2026-07-31 — v4.2.4: 3D i chatten er opt-in — tegn ruta først, tilby 3D etterpå
 
 Felt-test nr. 3: rundturen ble tegnet perfekt, men chatten hoppet rett i 3D-visningen uten at brukeren hadde bedt om det (modellen satte vis3d selv). Nå er 3D strengt opt-in i BEGGE turverktøyene: `vis_tur_i_3d` er døpt om til `foreslaa_tur` (gammelt navn består som alias for pågående samtaler) og åpner ikke lenger 3D automatisk — buildTourQuery setter v3d kun når vis3d er eksplisitt satt, samme som foreslaa_rundtur. Verktøybeskrivelsene og systemprompten sier nå tydelig: sett ALDRI vis3d uten at brukeren har bedt om 3D, og tilby heller 3D-visning som et oppfølgingsspørsmål etter at turen er tegnet. Verktøyets merknad til modellen speiler valget (med/uten 3D), så bekreftelsen i chatten stemmer med det som faktisk skjer.
