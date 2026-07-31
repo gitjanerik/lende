@@ -10,9 +10,8 @@ on:
     branches: [master]
     paths:
       - 'cloudflare/mcp-worker/**'
-      - 'src/lib/geocode.js'
-      - 'src/lib/nveHydApi.js'
-      - 'src/lib/utm.js'
+      - 'src/lib/**'
+      - 'mcp/headless.js'
       - '.github/workflows/deploy-mcp-worker.yml'
 
 jobs:
@@ -26,6 +25,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Installer rot-avhengigheter (src/lib bundles inn i Workeren)
+        run: npm install
+        working-directory: .
       - run: npm install
       - name: Push token-secret til Worker
         run: |
