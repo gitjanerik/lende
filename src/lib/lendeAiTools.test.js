@@ -31,14 +31,18 @@ describe('buildTourQuery', () => {
     const tur = parseTourQuery(q)
     expect(tur.origin.lat).toBeCloseTo(59.7412, 4)
     expect(tur.dest.lon).toBeCloseTo(10.1533, 4)
-    expect(tur.open3d).toBe(true)
     expect(tur.name).toBe('Stormoen–Konnerudkollen')
+  })
+
+  it('åpner 3D kun når vis3d er satt (brukeren må be om det)', () => {
+    expect(buildTourQuery({ fraLat: 1, fraLon: 2, tilLat: 3, tilLon: 4 }).v3d).toBeUndefined()
+    const q = buildTourQuery({ fraLat: 1, fraLon: 2, tilLat: 3, tilLon: 4, vis3d: true })
+    expect(parseTourQuery(q).open3d).toBe(true)
   })
 
   it('utelater turnavn når det mangler', () => {
     const q = buildTourQuery({ fraLat: 1, fraLon: 2, tilLat: 3, tilLon: 4 })
     expect(q.tn).toBeUndefined()
-    expect(q.v3d).toBe('1')
   })
 })
 

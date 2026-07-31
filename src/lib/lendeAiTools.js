@@ -118,7 +118,7 @@ export const AI_TOOLS = [
           viaLat: { type: 'number', description: 'Vendepunkt turen skal innom (breddegrad), f.eks. en topp' },
           viaLon: { type: 'number', description: 'Vendepunkt (lengdegrad)' },
           navn: { type: 'string', description: 'Turnavn, f.eks. «Rundtur Konnerudkollen»' },
-          vis3d: { type: 'boolean', description: 'Åpne 3D-visningen automatisk (standard false — ruten tegnes uansett)' },
+          vis3d: { type: 'boolean', description: 'Åpne 3D-visningen automatisk (KUN når brukeren har bedt om 3D — ruten tegnes uansett)' },
         },
         required: ['kartId', 'origoLat', 'origoLon', 'viaLat', 'viaLon'],
       },
@@ -127,9 +127,12 @@ export const AI_TOOLS = [
   {
     type: 'function',
     function: {
-      name: 'vis_tur_i_3d',
+      name: 'foreslaa_tur',
       description:
-        'Vis en fottur fra A til B i 3D-visningen på et av brukerens lagrede kart. Begge punktene må ligge innenfor kartet. Bruk mine_kart_og_ruter for kartId og sok_sted for koordinater ved behov.',
+        'Foreslå og tegn inn en fottur fra A til B på et av brukerens lagrede kart, langs ' +
+        'kartets stier og veier (Stifinneren). Ruten markeres i kartet. Begge punktene må ligge ' +
+        'innenfor kartet. Sett vis3d KUN når brukeren eksplisitt har bedt om 3D — ellers tegnes ' +
+        'ruten bare, og du kan tilby 3D som neste steg.',
       parameters: {
         type: 'object',
         properties: {
@@ -139,6 +142,7 @@ export const AI_TOOLS = [
           tilLat: { type: 'number' },
           tilLon: { type: 'number' },
           navn: { type: 'string', description: 'Turnavn, f.eks. «Stormoen–Konnerudkollen»' },
+          vis3d: { type: 'boolean', description: 'Åpne 3D-visningen automatisk (KUN når brukeren har bedt om 3D)' },
         },
         required: ['kartId', 'fraLat', 'fraLon', 'tilLat', 'tilLon'],
       },
@@ -201,14 +205,14 @@ export function buildRundturQuery({ origoLat, origoLon, viaLat, viaLon, navn, vi
  * Ren bygging av tur-query (samme parametre som parseTourQuery i tour3dLink.js
  * leser i MapView). Skilt ut for testbarhet.
  */
-export function buildTourQuery({ fraLat, fraLon, tilLat, tilLon, navn }) {
+export function buildTourQuery({ fraLat, fraLon, tilLat, tilLon, navn, vis3d }) {
   const q = {
     olat: Number(fraLat).toFixed(6),
     olon: Number(fraLon).toFixed(6),
     dlat: Number(tilLat).toFixed(6),
     dlon: Number(tilLon).toFixed(6),
-    v3d: '1',
   }
+  if (vis3d) q.v3d = '1'
   if (navn) q.tn = String(navn).slice(0, 60)
   return q
 }
@@ -333,6 +337,9 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
             'prøver, og at punkter uten sti i nærheten gir en feilmelding i kartet i stedet.',
         }
       }
+      // vis_tur_i_3d er det gamle navnet — beholdes som alias fordi pågående
+      // samtaler kan ha det i historikken sin.
+      case 'foreslaa_tur':
       case 'vis_tur_i_3d': {
         const id = String(args?.kartId ?? '')
         const maps = await listMaps()
@@ -360,7 +367,12 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         await navigerTil({ name: 'kart-vis', params: { id }, query: q })
         return {
           ok: true,
-          merknad: `Åpner «${kart.navn ?? id}» og beregner turen på kartets stier — 3D åpnes automatisk hvis en rute finnes. VIKTIG: ikke lov brukeren at 3D vises; si at appen prøver, og at punkter utenfor kartet eller uten sti i nærheten gir en feilmelding i kartet i stedet.`,
+          merknad:
+            `Åpner «${kart.navn ?? id}» og beregner turen på kartets stier — ruten tegnes inn ` +
+            `hvis en sti-forbindelse finnes${args?.vis3d ? ', og 3D åpnes automatisk' : ''}. ` +
+            'VIKTIG: ikke lov brukeren at det lykkes; si at appen prøver, og at punkter uten ' +
+            'sti i nærheten gir en feilmelding i kartet i stedet.' +
+            (args?.vis3d ? '' : ' Tilby gjerne 3D-visning som neste steg.'),
         }
       }
       default:
@@ -379,7 +391,8 @@ export function toolStatusLabel(name, args) {
     case 'apne_kart': return 'Åpner kartet …'
     case 'foreslaa_nytt_kart': return 'Gjør klart nytt kart …'
     case 'lag_kart': return 'Starter kartbygging …'
-    case 'vis_tur_i_3d': return 'Gjør klar turen i 3D …'
+    case 'foreslaa_tur':
+    case 'vis_tur_i_3d': return 'Beregner turen …'
     case 'foreslaa_rundtur': return 'Beregner rundtur …'
     default: return `Kjører ${name} …`
   }
