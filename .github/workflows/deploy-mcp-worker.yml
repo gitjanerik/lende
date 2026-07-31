@@ -1,0 +1,89 @@
+# Deployer remote MCP-serveren (cloudflare/mcp-worker) til Cloudflare. Samme
+# mønster som deploy-ai-worker.yml: secret-push FØR deploy (siste versjon =
+# wrangler.toml), og en røyktest som kjører EKTE MCP-protokoll mot den
+# deployede Workeren: initialize-håndtrykk, tools/list og et sok_sted-kall.
+name: Deploy MCP-worker
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - 'cloudflare/mcp-worker/**'
+      - 'src/lib/geocode.js'
+      - 'src/lib/nveHydApi.js'
+      - 'src/lib/utm.js'
+      - '.github/workflows/deploy-mcp-worker.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cloudflare/mcp-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Push token-secret til Worker
+        run: |
+          if [ -n "$LENDE_AI_TOKENS" ]; then
+            echo "$LENDE_AI_TOKENS" | npx wrangler secret put LENDE_AI_TOKENS \
+              || echo "::warning::secret put feilet — første deploy? Kjør workflowen på nytt etterpå."
+          else
+            echo "::warning::LENDE_AI_TOKENS-secret mangler i GitHub — Workeren vil svare 401 på alt."
+          fi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          LENDE_AI_TOKENS: ${{ secrets.LENDE_AI_TOKENS }}
+      - name: Deploy Worker (siste versjon = wrangler.toml)
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Røyktest — ekte MCP-protokoll mot deployet Worker
+        run: |
+          BASE=https://lende-mcp.jepedersen73.workers.dev
+          MCP_HDR=(-H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream')
+          echo "— venter på /health (maks ~2 min) —"
+          OK=""
+          for i in $(seq 1 24); do
+            HELSE=$(curl -fsS "$BASE/health" || true)
+            if echo "$HELSE" | grep -q '"ok":true'; then OK=1; echo "$HELSE"; break; fi
+            echo "  forsøk $i: $HELSE"; sleep 5
+          done
+          test -n "$OK" || { echo "::error::/health svarte aldri"; exit 1; }
+          echo "— /mcp uten token skal gi 401 —"
+          KODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/mcp" "${MCP_HDR[@]}" -d '{}')
+          test "$KODE" = "401" || { echo "::error::Forventet 401, fikk $KODE"; exit 1; }
+          echo "OK (401)"
+          if [ -n "$LENDE_AI_TOKENS" ]; then
+            TOK="${LENDE_AI_TOKENS%%,*}"
+            AUTH=(-H "Authorization: Bearer $TOK")
+            echo "— initialize —"
+            INIT=$(curl -fsS -X POST "$BASE/mcp" "${AUTH[@]}" "${MCP_HDR[@]}" \
+              -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci-smoke","version":"1.0"}}}')
+            echo "$INIT" | head -c 300; echo
+            echo "$INIT" | grep -q '"serverInfo"' || { echo "::error::initialize feilet"; exit 1; }
+            echo "— tools/list —"
+            LISTE=$(curl -fsS -X POST "$BASE/mcp" "${AUTH[@]}" "${MCP_HDR[@]}" \
+              -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}')
+            echo "$LISTE" | grep -q '"sok_sted"' || { echo "::error::sok_sted mangler i tools/list"; exit 1; }
+            echo "$LISTE" | grep -q '"vannmalestasjoner"' || { echo "::error::vannmalestasjoner mangler"; exit 1; }
+            echo "OK (2 verktøy)"
+            echo "— tools/call sok_sted Håøya —"
+            KALL=$(curl -fsS -X POST "$BASE/mcp" "${AUTH[@]}" "${MCP_HDR[@]}" \
+              -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"sok_sted","arguments":{"sok":"Håøya","antall":2}}}')
+            echo "$KALL" | head -c 400; echo
+            echo "$KALL" | grep -q '"treff"' || { echo "::error::sok_sted ga ikke treff"; exit 1; }
+            echo "— token i URL (?token=) skal også fungere —"
+            KODE2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/mcp?token=$TOK" "${MCP_HDR[@]}" \
+              -d '{"jsonrpc":"2.0","id":4,"method":"tools/list"}')
+            test "$KODE2" = "200" || { echo "::error::?token= ga $KODE2"; exit 1; }
+            echo "OK"
+          fi
+        env:
+          LENDE_AI_TOKENS: ${{ secrets.LENDE_AI_TOKENS }}

@@ -25,6 +25,15 @@ Begge må adresseres for remote/chat-bruk.
 
 ## Spor 1 — Remote MCP over HTTP (Cloudflare Worker)
 
+**STATUS (v4.0.1): Fase A bygget.** `cloudflare/mcp-worker/` (`lende-mcp`)
+kjører MCP over Streamable HTTP med samme per-bruker-tokens som lende-ai —
+token i `Authorization: Bearer` eller `?token=` (Claude Chat-connectors tar
+kun URL). Fase A er tilstandsløs (Agents-SDK-ens `createMcpHandler`, ingen
+Durable Objects) med verktøyene `sok_sted` og `vannmalestasjoner`. Fase B
+(bygg_kart + rute-/rapportverktøy) legger kart-tilstand i R2 — Workers Paid
+er aktivert (30 s CPU), så CPU-forbeholdet under er håndtert. Deploy +
+MCP-protokoll-røyktest: `.github/workflows/deploy-mcp-worker.yml`.
+
 MCP-spesifikasjonen har en **Streamable HTTP**-transport ved siden av stdio. En
 Cloudflare Worker (samme deploy-mønster som `cloudflare/nve-proxy/`) kan hoste
 serveren slik at en nettbasert klient — inkludert claude.ai / Claude Code på web

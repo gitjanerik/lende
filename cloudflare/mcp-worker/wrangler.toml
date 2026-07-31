@@ -1,0 +1,12 @@
+name = "lende-mcp"
+main = "src/index.js"
+compatibility_date = "2026-07-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Spor 1 (docs/MCP_REMOTE_CHAT.md): Lendes MCP-verktøy over Streamable HTTP,
+# så eksterne MCP-klienter (Claude Chat custom connectors, Claude Code m.fl.)
+# kan koble seg på. Fase A = tilstandsfrie verktøy (sok_sted,
+# vannmalestasjoner); Fase B legger til bygg_kart m/ kart-tilstand i R2.
+#
+# Secreten LENDE_AI_TOKENS (samme kommaseparerte per-bruker-liste som
+# lende-ai) settes IKKE her — deploy-workflowen pusher den fra GitHub-secreten.
