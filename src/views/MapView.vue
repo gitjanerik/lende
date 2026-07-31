@@ -2000,15 +2000,32 @@ const shareInfo = computed(() => {
 // inn i system-prompten ved hvert send (useLendeChat), så svarene handler om
 // kartet på skjermen — også når samtalen startet i en annen visning.
 const { setChatContext } = useLendeChat()
-watch([shareInfo, mapTitle], ([s, tittel]) => {
-  setChatContext(s ? {
+watch([shareInfo, mapTitle, () => sti.mode.value, () => sti.routes.value,
+       () => sti.selectedRouteIdx.value, stiSelectedClimb], ([s, tittel]) => {
+  const ctx = s ? {
     visning: 'turkart',
     kartId: route.params.id ?? null,
     kartnavn: tittel || 'Uten navn',
     senter: { lat: +s.lat.toFixed(5), lon: +s.lon.toFixed(5) },
     stoerrelseKm: s.sizeKm,
     ekvidistanseM: s.equidistanceM,
-  } : null)
+  } : null
+  // Aktiv Stifinner-/Runde-rute: nøkkeltallene inn i chat-konteksten, så
+  // oppfølgingsspørsmål («hvor mange høydemeter?») besvares fra data i stedet
+  // for at modellen famler og kaller turverktøyene på nytt.
+  const rute = ctx && (sti.mode.value === 'showing' || sti.mode.value === 'following')
+    ? sti.routes.value[sti.selectedRouteIdx.value] : null
+  if (rute) {
+    const climb = stiSelectedClimb.value
+    ctx.aktivTur = {
+      type: sti.isLoop.value ? 'rundtur' : 'fottur',
+      lengdeM: Math.round(rute.lengthM),
+      stigningM: climb ? Math.round(climb.ascent) : null,
+      fallM: climb ? Math.round(climb.descent) : null,
+      estimertGangtidMin: sti.estWalkMinutes(rute.lengthM, climb),
+    }
+  }
+  setChatContext(ctx)
 }, { immediate: true })
 onUnmounted(() => setChatContext(null))
 
