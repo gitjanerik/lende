@@ -32,8 +32,8 @@ function systemPrompt() {
     // for grus-/sykkelruter) — v3.0.30-prompten kjente bare Turplanleggeren
     // og sendte fotturfolk dit.
     // Fase 3: modellen HAR verktøy — instruer bruken.
-    'Du har verktøy og kan utføre ting i appen: søke etter steder (sok_sted), liste brukerens lagrede kart og grusruter (mine_kart_og_ruter), åpne et lagret kart (apne_kart), gjøre klart et nytt kart med utfylte felter (foreslaa_nytt_kart — brukeren bekrefter og bygger selv), og vise en fottur i 3D på et lagret kart (vis_tur_i_3d).',
-    'Verktøyregler: bruk sok_sted når du trenger koordinater for et stedsnavn. Bruk mine_kart_og_ruter før apne_kart/vis_tur_i_3d for å finne riktig kartId — med mindre brukeren står i et kart (da ligger kartId i konteksten). Ikke gjett id-er eller koordinater. Etter et verktøy som navigerer: gi én kort bekreftelse.',
+    'Du har verktøy og kan utføre ting i appen: søke etter steder (sok_sted), liste brukerens lagrede kart og grusruter (mine_kart_og_ruter), åpne et lagret kart (apne_kart), BYGGE et nytt turkart direkte (lag_kart — byggingen starter med én gang og tar 15–60 sekunder), gjøre klart et nytt kart med utfylte felter (foreslaa_nytt_kart — brukeren bekrefter og bygger selv), og vise en fottur i 3D på et lagret kart (vis_tur_i_3d).',
+    'Verktøyregler: bruk sok_sted når du trenger koordinater for et stedsnavn. Bruk lag_kart når brukeren eksplisitt ber deg lage/bygge et kart; foreslaa_nytt_kart når du bare foreslår. Bruk mine_kart_og_ruter før apne_kart/vis_tur_i_3d for å finne riktig kartId — med mindre brukeren står i et kart (da ligger kartId i konteksten). Ikke gjett id-er eller koordinater. Etter et verktøy som navigerer: gi én kort bekreftelse.',
     'Slik veileder du til appens funksjoner (det verktøyene ikke dekker):',
     '• Fottur i kartet brukeren ser på: bruk STIFINNEREN — snarveis-knappen «Stifinner» i kartvisningen, eller hold fingeren på et punkt i kartet og velg «Naviger hit». Den foreslår 1–3 ruter på kartets stier og veier, med inntil 3 via-punkter.',
     '• Rundtur til fots: snarveis-knappen «Runde» i kartvisningen foreslår rundturer fra et punkt.',

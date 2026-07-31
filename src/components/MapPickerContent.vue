@@ -334,6 +334,10 @@ async function generateMap() {
   } catch (e) {
     buildState.value = 'error'
     buildError.value = e.message ?? 'Bygging feilet'
+    if (autoBuild.value) {
+      autoBuild.value = false
+      shareInvite.value = null
+    }
   }
 }
 
@@ -473,8 +477,18 @@ function onPreviewWheel(e) {
   halfKm.value = Math.max(0.5, Math.min(8, next))
 }
 
+// Chat-bygging (lag_kart i Lende-chat): ?auto=1 sammen med utfylte felter
+// starter byggingen direkte — samme progress-UI og videresending (hl/tur) som
+// del-lenker, men uten invitasjonsbanner (dette er brukerens egen bestilling,
+// ikke en delt lenke). Ved byggefeil slippes låsen så feltene kan justeres.
+const autoBuild = ref(false)
+
 onMounted(() => {
   shareInvite.value = parseShareInvite()
+  if (shareInvite.value && String(route.query.auto) === '1') {
+    autoBuild.value = true
+    nextTick(() => generateMap())
+  }
   nextTick(() => measurePreview())
   window.addEventListener('resize', measurePreview)
 })
@@ -487,7 +501,7 @@ onMounted(() => {
        mottakeren får en nøyaktig kopi — «se det jeg ser». ?hl=<navn>
        forwardes til MapView etter generering. Hvis appen ikke kjører i
        standalone-modus tilbys installasjon via checkbox under teksten. -->
-  <div v-if="shareInvite"
+  <div v-if="shareInvite && !autoBuild"
        class="relative mx-4 mt-4 rounded-xl border border-sky-300/40 bg-sky-500/10 px-4 py-3">
     <button @click="dismissShareInvite"
             :aria-label="t('share.invite.cancel')"
