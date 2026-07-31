@@ -1,0 +1,19 @@
+{
+  "name": "lende-mcp",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Cloudflare Worker som eksponerer Lendes MCP-verktøy over Streamable HTTP (Spor 1), med samme per-bruker-tokens som lende-ai.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "agents": "^0.2.0",
+    "ai": "^7.0.43",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
