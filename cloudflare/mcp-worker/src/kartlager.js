@@ -63,6 +63,25 @@ export async function lastRuter(env, ref) {
   return obj ? JSON.parse(await obj.text()) : null
 }
 
+// Visnings-innstillinger fra juster_kart (fase C) — remote-motstykket til
+// stdio-serverens `state.innstillinger`: huskes per kartRef og påføres alle
+// senere SVG-utdata til de nullstilles. kart.svg forblir urørt.
+export async function lagreInnstillinger(env, ref, innstillinger) {
+  const sti = `kart/${ref}/innstillinger.json`
+  if (!innstillinger) {
+    await env.LENDE_R2.delete(sti)
+    return
+  }
+  await env.LENDE_R2.put(sti, JSON.stringify(innstillinger), {
+    httpMetadata: { contentType: 'application/json' },
+  })
+}
+
+export async function lastInnstillinger(env, ref) {
+  const obj = await env.LENDE_R2.get(`kart/${ref}/innstillinger.json`)
+  return obj ? JSON.parse(await obj.text()) : null
+}
+
 export async function lagreUtdata(env, ref, filnavn, innhold, contentType) {
   const sti = `ut/${ref}/${filnavn}`
   await env.LENDE_R2.put(sti, innhold, { httpMetadata: { contentType } })

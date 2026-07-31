@@ -54,15 +54,19 @@ jobs:
       - name: Røyktest — ekte MCP-protokoll mot deployet Worker
         run: |
           BASE=https://lende-mcp.jepedersen73.workers.dev
+          # Må matche MCP_SERVER_VERSJON i src/index.js — begge pollene under
+          # venter på at DENNE versjonen svarer, så gamle edge-noder rett etter
+          # deploy ikke gir falske røde (fase B attempt 2 feilet på akkurat det).
+          VERSJON='2.1.0'
           MCP_HDR=(-H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream')
-          echo "— venter på /health (maks ~2 min) —"
+          echo "— venter på /health med versjon $VERSJON (maks ~2 min) —"
           OK=""
           for i in $(seq 1 24); do
             HELSE=$(curl -fsS "$BASE/health" || true)
-            if echo "$HELSE" | grep -q '"ok":true'; then OK=1; echo "$HELSE"; break; fi
+            if echo "$HELSE" | grep -q "\"versjon\":\"$VERSJON\""; then OK=1; echo "$HELSE"; break; fi
             echo "  forsøk $i: $HELSE"; sleep 5
           done
-          test -n "$OK" || { echo "::error::/health svarte aldri"; exit 1; }
+          test -n "$OK" || { echo "::error::/health svarte aldri med versjon $VERSJON"; exit 1; }
           echo "— /mcp uten token skal gi 401 —"
           KODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/mcp" "${MCP_HDR[@]}" -d '{}')
           test "$KODE" = "401" || { echo "::error::Forventet 401, fikk $KODE"; exit 1; }
@@ -70,17 +74,26 @@ jobs:
           if [ -n "$LENDE_AI_TOKENS" ]; then
             TOK="${LENDE_AI_TOKENS%%,*}"
             AUTH=(-H "Authorization: Bearer $TOK")
-            echo "— initialize —"
-            INIT=$(curl -fsS -X POST "$BASE/mcp" "${AUTH[@]}" "${MCP_HDR[@]}" \
-              -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci-smoke","version":"1.0"}}}')
+            echo "— initialize (venter på serverInfo-versjon $VERSJON, maks ~2 min) —"
+            INIT=""
+            for i in $(seq 1 24); do
+              INIT=$(curl -fsS -X POST "$BASE/mcp" "${AUTH[@]}" "${MCP_HDR[@]}" \
+                -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci-smoke","version":"1.0"}}}' || true)
+              if echo "$INIT" | grep -q "\"version\":\"$VERSJON\""; then break; fi
+              echo "  forsøk $i: gammel versjon på /mcp-noden ennå"; sleep 5
+            done
             echo "$INIT" | head -c 300; echo
-            echo "$INIT" | grep -q '"serverInfo"' || { echo "::error::initialize feilet"; exit 1; }
+            echo "$INIT" | grep -q "\"version\":\"$VERSJON\"" || { echo "::error::initialize svarte aldri med versjon $VERSJON"; exit 1; }
             echo "— tools/list —"
             LISTE=$(curl -fsS -X POST "$BASE/mcp" "${AUTH[@]}" "${MCP_HDR[@]}" \
               -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}')
             echo "$LISTE" | grep -q '"sok_sted"' || { echo "::error::sok_sted mangler i tools/list"; exit 1; }
             echo "$LISTE" | grep -q '"vannmalestasjoner"' || { echo "::error::vannmalestasjoner mangler"; exit 1; }
-            echo "OK (2 verktøy)"
+            echo "$LISTE" | grep -q '"bygg_kart"' || { echo "::error::bygg_kart mangler"; exit 1; }
+            echo "$LISTE" | grep -q '"turrapport_svg"' || { echo "::error::turrapport_svg mangler"; exit 1; }
+            echo "$LISTE" | grep -q '"juster_kart"' || { echo "::error::juster_kart mangler"; exit 1; }
+            echo "$LISTE" | grep -q '"berik_rute"' || { echo "::error::berik_rute mangler"; exit 1; }
+            echo "OK (verktøyliste komplett)"
             echo "— tools/call sok_sted Håøya —"
             KALL=$(curl -fsS -X POST "$BASE/mcp" "${AUTH[@]}" "${MCP_HDR[@]}" \
               -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"sok_sted","arguments":{"sok":"Håøya","antall":2}}}')
@@ -107,6 +120,14 @@ jobs:
             KODE3=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/fil/kart/$REF/kart.svg?token=$TOK")
             test "$KODE3" = "200" || { echo "::error::Henting av kart-SVG ga $KODE3"; exit 1; }
             echo "OK — kart bygget, søkbart og hentbart fra R2"
+            echo "— fase C: juster_kart (strekSkala) → hent justert SVG —"
+            JUST=$(curl -fsS -m 60 -X POST "$BASE/mcp" "${AUTH[@]}" "${MCP_HDR[@]}" \
+              -d "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"tools/call\",\"params\":{\"name\":\"juster_kart\",\"arguments\":{\"kartRef\":\"$REF\",\"strekSkala\":1.4}}}")
+            echo "$JUST" | head -c 300; echo
+            echo "$JUST" | grep -q 'kart-justert' || { echo "::error::juster_kart feilet"; exit 1; }
+            KODE4=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/fil/ut/$REF/kart-justert.svg?token=$TOK")
+            test "$KODE4" = "200" || { echo "::error::Henting av justert SVG ga $KODE4"; exit 1; }
+            echo "OK — fase C-innstillinger lagres og påføres"
           fi
         env:
           LENDE_AI_TOKENS: ${{ secrets.LENDE_AI_TOKENS }}

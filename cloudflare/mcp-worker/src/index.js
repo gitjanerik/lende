@@ -23,7 +23,13 @@ import {
   fetchStationsForBbox, fetchStationLatest, pickStationInfo, sildreStationUrl,
 } from '../../../src/lib/nveHydApi.js'
 import { registerKartVerktoy } from './verktoyKart.js'
+import { registerRapportVerktoy } from './verktoyRapport.js'
 import { serveFil } from './kartlager.js'
+
+// Bumpes ved hver verktøy-endring — røyktesten poller initialize til denne
+// versjonen svarer, så gamle edge-noder ikke gir falske røde (sett fase B).
+// (Ikke eksporter: workerd krever at entry-modulens eksporter er handlere.)
+const MCP_SERVER_VERSJON = '2.1.0'
 
 const GEOCODE_UA = 'lende-mcp-remote/1.0 (turkart-generator)'
 const MAX_HALF_KM = 20
@@ -68,7 +74,7 @@ function bboxAround(lat, lon, radiusKm) {
 // beskrivelser/utdata i synk til logikken en dag deles i en felles modul.
 // `ctx` = { env, filUrl } — fase B-verktøyene trenger R2 og URL-bygging.
 function buildServer(ctx) {
-  const server = new McpServer({ name: 'lende', version: '2.0.0' })
+  const server = new McpServer({ name: 'lende', version: MCP_SERVER_VERSJON })
 
   server.registerTool(
     'sok_sted',
@@ -159,6 +165,7 @@ function buildServer(ctx) {
   )
 
   registerKartVerktoy(server, ctx)
+  registerRapportVerktoy(server, ctx)
 
   return server
 }
@@ -212,10 +219,12 @@ export default {
         JSON.stringify({
           ok: true,
           mcp: 'streamable-http',
-          fase: 'B',
+          fase: 'C',
+          versjon: MCP_SERVER_VERSJON,
           verktoy: [
             'sok_sted', 'vannmalestasjoner', 'bygg_kart', 'planlegg_rute',
             'planlegg_rundtur', 'hoydeprofil', 'eksporter_gpx', 'finn_poi_paa_kart', 'sok_kart',
+            'berik_rute', 'turrapport_svg', 'juster_kart',
           ],
         }),
         { headers: { 'Content-Type': 'application/json' } },
