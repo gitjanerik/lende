@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-31 — v4.2.6: Taleinput i Lende-chat
+
+Chatten har fått mikrofonknapp i meldingsfeltet — samme `useSpeechInput`-komposable og knappemønster som søkefeltene (norsk tale til tekst, rød pulserende knapp mens den lytter, skjult i nettlesere uten støtte). Transkriptet legges i feltet og brukeren sender selv, akkurat som i søket; diktering stoppes automatisk hvis chatten lukkes. Velkomstteksten i tom chat er samtidig oppdatert — den påsto fortsatt at chatten «bare kan svare», men nå kan den jo bygge kart, tegne turer/rundturer og vise 3D.
+
+---
+
 ## 2026-07-31 — v4.2.5: Chatten kjenner turens nøkkeltall (aktivTur i konteksten)
 
 Felt-test nr. 4: «hvor mange høydemeter har denne turen?» etter en tegnet rundtur — chatten hadde ingen data om ruta og famlet (ærlig «kan ikke beregne», men også et nytt verktøykall som dro i gang 3D). Nå legger MapView den aktive Stifinner-/Runde-ruta inn i chat-konteksten: `aktivTur` med type (fottur/rundtur), lengde, stigning/fall (fra samme DEM-profil som «Valgt rute»-linja) og estimert gangtid (Naismith) — oppdatert reaktivt når ruta endres eller velges bort. Systemprompten har fått regelen: spørsmål om den tegnede turen besvares fra aktivTur — aldri nye verktøykall eller 3D for å svare på et spørsmål, og mangler aktivTur skal modellen si at ingen tur er tegnet inn.
