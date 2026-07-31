@@ -82,6 +82,27 @@ export const AI_TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'lag_kart',
+      description:
+        'Bygg et NYTT turkart med én gang: byggingen starter automatisk med senter, størrelse og ' +
+        'navn, og kartet åpnes når det er ferdig (tar 15–60 sekunder). Bruk KUN når brukeren ' +
+        'eksplisitt ber om å lage/bygge et kart — bruk foreslaa_nytt_kart når du bare foreslår. ' +
+        'Bruk sok_sted først hvis du bare har et stedsnavn.',
+      parameters: {
+        type: 'object',
+        properties: {
+          lat: { type: 'number', description: 'Senter-breddegrad' },
+          lon: { type: 'number', description: 'Senter-lengdegrad' },
+          km: { type: 'number', description: 'Kartbredde i km (1–16, standard 4)' },
+          navn: { type: 'string', description: 'Kartnavn, f.eks. stedsnavnet' },
+        },
+        required: ['lat', 'lon'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'vis_tur_i_3d',
       description:
         'Vis en fottur fra A til B i 3D-visningen på et av brukerens lagrede kart. Begge punktene må ligge innenfor kartet. Bruk mine_kart_og_ruter for kartId og sok_sted for koordinater ved behov.',
@@ -100,6 +121,19 @@ export const AI_TOOLS = [
     },
   },
 ]
+
+/**
+ * Ren bygging av lag_kart-query (samme parametre som parseShareInvite i
+ * MapPickerContent leser, pluss auto=1 som starter byggingen). Skilt ut for
+ * testbarhet.
+ */
+export function buildLagKartQuery({ lat, lon, km, navn }) {
+  const query = { lat: Number(lat).toFixed(5), lon: Number(lon).toFixed(5), auto: '1' }
+  const b = Number(km)
+  query.km = String(Number.isFinite(b) ? Math.min(Math.max(b, 1), 16) : 4)
+  if (navn) query.hl = String(navn).slice(0, 60)
+  return query
+}
 
 /**
  * Ren bygging av tur-query (samme parametre som parseTourQuery i tour3dLink.js
@@ -183,6 +217,21 @@ export async function runTool(name, args, { onNavigate } = {}) {
           merknad: 'Byggeskjemaet er åpnet med feltene utfylt — brukeren bekrefter og bygger selv.',
         }
       }
+      case 'lag_kart': {
+        const lat = Number(args?.lat)
+        const lon = Number(args?.lon)
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return { feil: 'lat/lon mangler.' }
+        const query = buildLagKartQuery({ lat, lon, km: args?.km, navn: args?.navn })
+        onNavigate?.()
+        await navigerTil({ name: 'kart-nytt', query })
+        return {
+          ok: true,
+          merknad:
+            'Byggingen er startet (tar 15–60 sekunder) — kartet åpnes automatisk når det er ' +
+            'ferdig. VIKTIG: ikke lov brukeren at det lykkes; ved feil vises en melding i ' +
+            'byggeskjemaet der brukeren kan justere og prøve igjen.',
+        }
+      }
       case 'vis_tur_i_3d': {
         const id = String(args?.kartId ?? '')
         const maps = await listMaps()
@@ -211,6 +260,7 @@ export function toolStatusLabel(name, args) {
     case 'mine_kart_og_ruter': return 'Ser i kartene og rutene dine …'
     case 'apne_kart': return 'Åpner kartet …'
     case 'foreslaa_nytt_kart': return 'Gjør klart nytt kart …'
+    case 'lag_kart': return 'Starter kartbygging …'
     case 'vis_tur_i_3d': return 'Gjør klar turen i 3D …'
     default: return `Kjører ${name} …`
   }

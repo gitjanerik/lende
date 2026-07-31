@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { AI_TOOLS, buildTourQuery, projectForModel } from './lendeAiTools.js'
+import { AI_TOOLS, buildTourQuery, buildLagKartQuery, projectForModel } from './lendeAiTools.js'
 import { parseTourQuery } from './tour3dLink.js'
 
 describe('AI_TOOLS', () => {
@@ -36,6 +36,24 @@ describe('buildTourQuery', () => {
     const q = buildTourQuery({ fraLat: 1, fraLon: 2, tilLat: 3, tilLon: 4 })
     expect(q.tn).toBeUndefined()
     expect(q.v3d).toBe('1')
+  })
+})
+
+describe('buildLagKartQuery', () => {
+  it('bygger query som parseShareInvite i MapPickerContent leser, med auto=1', () => {
+    const q = buildLagKartQuery({ lat: 59.813746, lon: 10.414616, km: 4, navn: 'Vardåsen' })
+    expect(q).toEqual({ lat: '59.81375', lon: '10.41462', km: '4', hl: 'Vardåsen', auto: '1' })
+  })
+
+  it('clamper km til 1–16 og defaulter til 4', () => {
+    expect(buildLagKartQuery({ lat: 1, lon: 2, km: 99 }).km).toBe('16')
+    expect(buildLagKartQuery({ lat: 1, lon: 2, km: 0.2 }).km).toBe('1')
+    expect(buildLagKartQuery({ lat: 1, lon: 2 }).km).toBe('4')
+  })
+
+  it('utelater hl uten navn og kutter lange navn til 60 tegn', () => {
+    expect(buildLagKartQuery({ lat: 1, lon: 2 }).hl).toBeUndefined()
+    expect(buildLagKartQuery({ lat: 1, lon: 2, navn: 'x'.repeat(80) }).hl).toHaveLength(60)
   })
 })
 
