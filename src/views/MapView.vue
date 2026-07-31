@@ -1996,37 +1996,10 @@ const shareInfo = computed(() => {
   return { lat, lon, sizeKm, equidistanceM }
 })
 
-// Lende-chat (KI): fortell assistenten hvilket kart brukeren ser på. Flettes
-// inn i system-prompten ved hvert send (useLendeChat), så svarene handler om
-// kartet på skjermen — også når samtalen startet i en annen visning.
+// Lende-chat-konteksten settes lenger ned (etter stiSelectedClimb) — watcheren
+// trenger klatretallene, og en referanse hit oppe ga TDZ-krasj ved mount
+// (v4.2.5-regresjonen: svart skjerm + tilbake til forsiden).
 const { setChatContext } = useLendeChat()
-watch([shareInfo, mapTitle, () => sti.mode.value, () => sti.routes.value,
-       () => sti.selectedRouteIdx.value, stiSelectedClimb], ([s, tittel]) => {
-  const ctx = s ? {
-    visning: 'turkart',
-    kartId: route.params.id ?? null,
-    kartnavn: tittel || 'Uten navn',
-    senter: { lat: +s.lat.toFixed(5), lon: +s.lon.toFixed(5) },
-    stoerrelseKm: s.sizeKm,
-    ekvidistanseM: s.equidistanceM,
-  } : null
-  // Aktiv Stifinner-/Runde-rute: nøkkeltallene inn i chat-konteksten, så
-  // oppfølgingsspørsmål («hvor mange høydemeter?») besvares fra data i stedet
-  // for at modellen famler og kaller turverktøyene på nytt.
-  const rute = ctx && (sti.mode.value === 'showing' || sti.mode.value === 'following')
-    ? sti.routes.value[sti.selectedRouteIdx.value] : null
-  if (rute) {
-    const climb = stiSelectedClimb.value
-    ctx.aktivTur = {
-      type: sti.isLoop.value ? 'rundtur' : 'fottur',
-      lengdeM: Math.round(rute.lengthM),
-      stigningM: climb ? Math.round(climb.ascent) : null,
-      fallM: climb ? Math.round(climb.descent) : null,
-      estimertGangtidMin: sti.estWalkMinutes(rute.lengthM, climb),
-    }
-  }
-  setChatContext(ctx)
-}, { immediate: true })
 onUnmounted(() => setChatContext(null))
 
 function buildShareUrl(place = null, extraParams = null) {
@@ -2780,6 +2753,36 @@ const stiRouteClimbs = computed(() => {
   })
 })
 const stiSelectedClimb = computed(() => stiRouteClimbs.value[sti.selectedRouteIdx.value] ?? null)
+
+// Lende-chat (KI): fortell assistenten hvilket kart brukeren ser på — pluss
+// den aktive Stifinner-/Runde-ruta (aktivTur), så oppfølgingsspørsmål («hvor
+// mange høydemeter?») besvares fra data i stedet for nye verktøykall. Flettes
+// inn i system-prompten ved hvert send (useLendeChat). MÅ stå etter
+// stiSelectedClimb (immediate-watch — TDZ ellers).
+watch([shareInfo, mapTitle, () => sti.mode.value, () => sti.routes.value,
+       () => sti.selectedRouteIdx.value, stiSelectedClimb], ([s, tittel]) => {
+  const ctx = s ? {
+    visning: 'turkart',
+    kartId: route.params.id ?? null,
+    kartnavn: tittel || 'Uten navn',
+    senter: { lat: +s.lat.toFixed(5), lon: +s.lon.toFixed(5) },
+    stoerrelseKm: s.sizeKm,
+    ekvidistanseM: s.equidistanceM,
+  } : null
+  const rute = ctx && (sti.mode.value === 'showing' || sti.mode.value === 'following')
+    ? sti.routes.value[sti.selectedRouteIdx.value] : null
+  if (rute) {
+    const climb = stiSelectedClimb.value
+    ctx.aktivTur = {
+      type: sti.isLoop.value ? 'rundtur' : 'fottur',
+      lengdeM: Math.round(rute.lengthM),
+      stigningM: climb ? Math.round(climb.ascent) : null,
+      fallM: climb ? Math.round(climb.descent) : null,
+      estimertGangtidMin: sti.estWalkMinutes(rute.lengthM, climb),
+    }
+  }
+  setChatContext(ctx)
+}, { immediate: true })
 
 // Fremdrift langs fulgt rute (following-modus): GPS-posisjonen prosjekteres på
 // rute-polylinjen. Monotont anker (stiPrevAlongM) løser rundtur-tvetydigheten
