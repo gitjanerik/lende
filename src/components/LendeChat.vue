@@ -2,6 +2,7 @@
 import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import AppModal from './AppModal.vue'
 import { useLendeChat } from '../composables/useLendeChat.js'
+import { useSpeechInput } from '../composables/useSpeechInput.js'
 
 // Selve chat-modalen (Fase 2). Monteres ÉN gang i App.vue og deler global
 // tilstand via useLendeChat — historikken overlever lukking og navigasjon.
@@ -20,6 +21,11 @@ function onSend() {
   void send(text)
 }
 
+// Taleinput — samme komposable og mønster som søkefeltene (MapSearchOverlay,
+// MapPickerContent m.fl.): transkriptet legges i feltet, brukeren sender selv.
+const { isSupported: micSupported, isListening: micListening, toggle: toggleMic } =
+  useSpeechInput({ onResult: (t) => { input.value = t; inputRef.value?.focus() } })
+
 // Autoscroll til bunnen mens svaret strømmer inn.
 watch(
   () => messages.value.map((m) => m.content.length).join(','),
@@ -30,7 +36,10 @@ watch(
 )
 
 watch(chatOpen, async (open) => {
-  if (!open) return
+  if (!open) {
+    if (micListening.value) toggleMic()
+    return
+  }
   await nextTick()
   if (listRef.value) listRef.value.scrollTop = listRef.value.scrollHeight
   inputRef.value?.focus()
@@ -62,8 +71,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           <p class="font-medium text-ink/80 mb-1.5">Hei! 👋</p>
           <p>
             Spør meg om stedet og kartet du ser på, terrenget eller turmuligheter —
-            jeg vet hvilket kart du har åpent. Foreløpig kan jeg bare svare;
-            å bygge kart og planlegge ruter for deg kommer i en senere versjon.
+            jeg vet hvilket kart du har åpent. Jeg kan også bygge nye kart, tegne
+            turer og rundturer i kartet ditt, og vise dem i 3D om du vil.
           </p>
         </div>
 
@@ -92,6 +101,18 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
                   class="flex-1 resize-none rounded-xl bg-ink/5 border border-ink/10 px-3 py-2
                          text-[14px] text-ink placeholder:text-ink/40 focus:outline-none
                          focus:border-ink/30 max-h-28" />
+        <button v-if="micSupported && !busy" type="button" @click="toggleMic"
+                :aria-label="micListening ? 'Stopp diktering' : 'Diktér melding (tale til tekst)'"
+                :aria-pressed="micListening"
+                :class="['w-10 h-10 rounded-full flex items-center justify-center transition',
+                         'active:scale-95 shrink-0',
+                         micListening ? 'bg-red-500/90 text-white animate-pulse' : 'bg-ink/10 text-ink/70']">
+          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/>
+          </svg>
+        </button>
         <button v-if="busy" type="button" @click="stopp" aria-label="Stopp svaret"
                 class="w-10 h-10 rounded-full bg-ink/10 text-ink/80 flex items-center justify-center
                        active:scale-95 transition shrink-0">
