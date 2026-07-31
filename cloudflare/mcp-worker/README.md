@@ -6,9 +6,14 @@ internett — Claude Chat (custom connectors), Claude Code, Claude Desktop m.fl.
 Verktøy-logikken importeres fra samme `src/lib` som appen og stdio-serveren
 (`mcp/server.js`); wrangler bundler den inn.
 
-**Fase A (denne):** tilstandsfrie verktøy — `sok_sted`, `vannmalestasjoner`.
-**Fase B (senere):** `bygg_kart` + rute-/rapportverktøyene, med kart-tilstand i
-R2 (Workers Paid er aktivert, så CPU-taket er 30 s).
+**Fase A:** tilstandsfrie verktøy — `sok_sted`, `vannmalestasjoner`.
+**Fase B (v4.1.0):** hele kart-kjeden — `bygg_kart`, `planlegg_rute`,
+`planlegg_rundtur`, `hoydeprofil`, `eksporter_gpx`, `finn_poi_paa_kart`,
+`sok_kart`. Tilstanden bor i **R2** (`kartlager.js`): bygg_kart returnerer en
+`kartRef`, og alle senere kall laster kartet (SVG + DEM + meta) fra bucketen
+`lende-mcp` — restart-trygt og uten Durable Objects. Utdata (kart-SVG, GPX,
+rundtur-SVG) serveres via `GET /fil/…` med kallerens token i lenken.
+Krever Workers Paid (30 s CPU — et 2×2 km-kart bygges på ~15–30 s totalt).
 
 Endepunkter:
 
@@ -16,7 +21,8 @@ Endepunkter:
   Krever token: `Authorization: Bearer <token>` **eller** `?token=<token>` i
   URL-en (for klienter som bare tar en ren URL). Samme kommaseparerte
   GUID-liste som lende-ai (`LENDE_AI_TOKENS`-secret).
-- `GET /health` — uautentisert deploy-sjekk.
+- `GET /fil/<r2-sti>?token=…` — bygde kart og utdata fra R2 (token-gatet).
+- `GET /health` — uautentisert deploy-sjekk (lister verktøyene).
 
 ## Koble til fra Claude
 

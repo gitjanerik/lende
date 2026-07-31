@@ -39,6 +39,11 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           LENDE_AI_TOKENS: ${{ secrets.LENDE_AI_TOKENS }}
+      - name: Opprett R2-bucket (idempotent)
+        run: npx wrangler r2 bucket create lende-mcp || echo "Bucket finnes trolig allerede — OK."
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Deploy Worker (siste versjon = wrangler.toml)
         run: npx wrangler deploy
         env:
@@ -86,6 +91,20 @@ jobs:
               -d '{"jsonrpc":"2.0","id":4,"method":"tools/list"}')
             test "$KODE2" = "200" || { echo "::error::?token= ga $KODE2"; exit 1; }
             echo "OK"
+            echo "— fase B: bygg_kart (Vardåsen, 1×1 km) → sok_kart → hent SVG —"
+            BYGG=$(curl -fsS -m 180 -X POST "$BASE/mcp" "${AUTH[@]}" "${MCP_HDR[@]}" \
+              -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"bygg_kart","arguments":{"lat":59.813746,"lon":10.414616,"halfKm":0.5,"navn":"ci-røyk"}}}')
+            echo "$BYGG" | head -c 300; echo
+            REF=$(echo "$BYGG" | grep -o 'ci-røyk-[a-f0-9]\{8\}' | head -1)
+            test -n "$REF" || { echo "::error::bygg_kart ga ingen kartRef"; exit 1; }
+            echo "kartRef: $REF"
+            SOK=$(curl -fsS -m 60 -X POST "$BASE/mcp" "${AUTH[@]}" "${MCP_HDR[@]}" \
+              -d "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\",\"params\":{\"name\":\"sok_kart\",\"arguments\":{\"kartRef\":\"$REF\",\"sok\":\"topp\",\"maks\":3}}}")
+            echo "$SOK" | head -c 300; echo
+            echo "$SOK" | grep -qi 'status' || { echo "::error::sok_kart feilet"; exit 1; }
+            KODE3=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/fil/kart/$REF/kart.svg?token=$TOK")
+            test "$KODE3" = "200" || { echo "::error::Henting av kart-SVG ga $KODE3"; exit 1; }
+            echo "OK — kart bygget, søkbart og hentbart fra R2"
           fi
         env:
           LENDE_AI_TOKENS: ${{ secrets.LENDE_AI_TOKENS }}

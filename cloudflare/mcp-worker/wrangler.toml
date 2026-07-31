@@ -10,3 +10,10 @@ compatibility_flags = ["nodejs_compat"]
 #
 # Secreten LENDE_AI_TOKENS (samme kommaseparerte per-bruker-liste som
 # lende-ai) settes IKKE her — deploy-workflowen pusher den fra GitHub-secreten.
+
+# Fase B: bygde kart (SVG + DEM + meta) og utdata (GPX, rundtur-SVG) bor i R2.
+# Bucketen opprettes idempotent av deploy-workflowen (`wrangler r2 bucket
+# create lende-mcp`). R2 gratis-tier: 10 GB — et kart er typisk 2–20 MB.
+[[r2_buckets]]
+binding = "LENDE_R2"
+bucket_name = "lende-mcp"
