@@ -22,6 +22,8 @@ import { utm32BboxFromWgs84 } from '../../../src/lib/utm.js'
 import {
   fetchStationsForBbox, fetchStationLatest, pickStationInfo, sildreStationUrl,
 } from '../../../src/lib/nveHydApi.js'
+import { registerKartVerktoy } from './verktoyKart.js'
+import { serveFil } from './kartlager.js'
 
 const GEOCODE_UA = 'lende-mcp-remote/1.0 (turkart-generator)'
 const MAX_HALF_KM = 20
@@ -64,8 +66,9 @@ function bboxAround(lat, lon, radiusKm) {
 
 // Verktøyene speiler stdio-serverens registreringer (mcp/server.js) — hold
 // beskrivelser/utdata i synk til logikken en dag deles i en felles modul.
-function buildServer() {
-  const server = new McpServer({ name: 'lende', version: '1.0.0' })
+// `ctx` = { env, filUrl } — fase B-verktøyene trenger R2 og URL-bygging.
+function buildServer(ctx) {
+  const server = new McpServer({ name: 'lende', version: '2.0.0' })
 
   server.registerTool(
     'sok_sted',
@@ -155,17 +158,20 @@ function buildServer() {
     },
   )
 
+  registerKartVerktoy(server, ctx)
+
   return server
 }
 
-function validToken(request, env) {
-  if (!env.LENDE_AI_TOKENS) return false
-  const url = new URL(request.url)
+function extractToken(request) {
   const auth = request.headers.get('Authorization') ?? ''
-  const token = auth.startsWith('Bearer ')
-    ? auth.slice('Bearer '.length).trim()
-    : url.searchParams.get('token')?.trim()
-  if (!token) return false
+  if (auth.startsWith('Bearer ')) return auth.slice('Bearer '.length).trim()
+  return new URL(request.url).searchParams.get('token')?.trim() ?? null
+}
+
+function validToken(request, env) {
+  const token = extractToken(request)
+  if (!token || !env.LENDE_AI_TOKENS) return false
   const tokens = env.LENDE_AI_TOKENS.split(',').map(t => t.trim()).filter(Boolean)
   return tokens.includes(token)
 }
@@ -174,8 +180,16 @@ function validToken(request, env) {
 // transport — handleren lager en ny WorkerTransport per forespørsel, så både
 // server og handler må bygges per kall (verifisert lokalt: gjenbruk gir
 // «Already connected to a transport» på kall nr. 2).
+// filUrl bygger hentbare lenker til R2-utdata (kart-SVG, GPX) — kallerens
+// eget token følger med, så lenken fungerer rett i nettleser/klient.
 function mcpHandler(request, env, ctx) {
-  return createMcpHandler(buildServer(), { route: '/mcp' })(request, env, ctx)
+  const url = new URL(request.url)
+  const token = extractToken(request) ?? ''
+  const serverCtx = {
+    env,
+    filUrl: (r2Sti) => `${url.origin}/fil/${r2Sti}?token=${encodeURIComponent(token)}`,
+  }
+  return createMcpHandler(buildServer(serverCtx), { route: '/mcp' })(request, env, ctx)
 }
 
 function corsHeaders(origin) {
@@ -195,9 +209,27 @@ export default {
 
     if (request.method === 'GET' && url.pathname === '/health') {
       return new Response(
-        JSON.stringify({ ok: true, mcp: 'streamable-http', verktoy: ['sok_sted', 'vannmalestasjoner'] }),
+        JSON.stringify({
+          ok: true,
+          mcp: 'streamable-http',
+          fase: 'B',
+          verktoy: [
+            'sok_sted', 'vannmalestasjoner', 'bygg_kart', 'planlegg_rute',
+            'planlegg_rundtur', 'hoydeprofil', 'eksporter_gpx', 'finn_poi_paa_kart', 'sok_kart',
+          ],
+        }),
         { headers: { 'Content-Type': 'application/json' } },
       )
+    }
+
+    // R2-utdata (kart-SVG, GPX, rundtur-SVG) — token-gatet som alt annet.
+    if (request.method === 'GET' && url.pathname.startsWith('/fil/')) {
+      if (!validToken(request, env)) {
+        return new Response('Ugyldig eller manglende token.', { status: 401 })
+      }
+      const r2Sti = decodeURIComponent(url.pathname.slice('/fil/'.length))
+      if (!r2Sti || r2Sti.includes('..')) return new Response('Bad Request', { status: 400 })
+      return serveFil(env, r2Sti)
     }
 
     if (url.pathname === '/mcp') {

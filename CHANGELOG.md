@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-31 — v4.1.0: Remote MCP fase B — bygg komplette turkart fra Claude Chat
+
+Den store porteringen: hele kart-kjeden fra stdio-MCP-serveren kjører nå på `lende-mcp`-Workeren, så eksterne MCP-klienter (Claude Chat, Claude Code) kan bygge komplette turkart over internett. Sju nye verktøy: `bygg_kart` (headless bygging med ekte Kartverket DTM/DOM, OSM og N50 — samme buildMapHeadless som stdio-serveren, linkedom bundles fint av wrangler), `planlegg_rute` og `planlegg_rundtur` (ISOM-vektet Dijkstra på kartets stinett, med stigning/gangtid og tur3dUrl-dyplenke), `hoydeprofil`, `eksporter_gpx`, `finn_poi_paa_kart` og `sok_kart`. Tilstandsmodellen fra utredningen landet på den tilstandsløse varianten med R2 som bærer (nytt `kartlager.js`): bygg_kart returnerer en kartRef, alle senere kall laster SVG + DEM (Float32Array binært) + meta fra R2-bucketen `lende-mcp`, og utdata (kart-SVG, GPX, rundtur-SVG) serveres token-gatet via `GET /fil/…` med kallerens token i lenken. Remote-taket for halfKm er 10 (CPU-forsiktighet; Workers Paid gir 30 s). Alt verifisert lokalt i workerd: ekte Vardåsen-bygg (Kartverket-terreng 99–348 moh, 178 KB SVG), sok_kart fant toppen (349 moh), planlegg_rute ga tre alternativer med stigningstall, GPX validert, filserving 200/401. Deploy-workflowen oppretter R2-bucketen idempotent og røyktesten kjører hele kjeden bygg→søk→hent mot produksjon. Turrapport/juster_kart/berik_rute gjenstår som fase C.
+
+---
+
 ## 2026-07-31 — v4.0.2: MCP-røyktestens sok_sted-sjekk matcher escapet JSON
 
 Andre kjøring av MCP-røyktesten viste at alt virker i produksjon — initialize, tools/list og et ekte sok_sted-kall (Kartverket SSR fant «Håøya, Porsgrunn» fra den deployede Workeren) — men selve sjekken feilet: MCP-svar er JSON-i-JSON der verktøyets utdata ligger escapet i en text-blokk (`\"treff\"`), så grep-mønsteret med rene anførselstegn matchet aldri. Mønsteret er løsnet til å matche selve nøkkelordet. Første kjøring feilet i tillegg på 404 under initialize — det var aller første utrulling av en helt ny Worker, og noen edge-noder hadde den ikke ennå; re-kjøringen bekreftet at protokollen svarte. Ren workflow-endring.
