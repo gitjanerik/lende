@@ -18,7 +18,8 @@ import { buildRouteOverlaySvg, injectOverlay } from '../../../src/lib/routeOverl
 import { filterPoi, POI_LABELS } from '../../../src/lib/mapPoi.js'
 import { formatAreaShort } from '../../../src/composables/useMapSearch.js'
 import { buildTour3dUrl } from '../../../src/lib/tour3dLink.js'
-import { nyKartRef, lagreKart, lastKart, lagreRuter, lastRuter, lagreUtdata } from './kartlager.js'
+import { applyMapSettings } from '../../../src/lib/mapSettingsApply.js'
+import { nyKartRef, lagreKart, lastKart, lagreRuter, lastRuter, lagreUtdata, lastInnstillinger } from './kartlager.js'
 
 const GEOCODE_UA = 'lende-mcp-remote/1.0 (turkart-generator)'
 // Remote-taket er lavere enn stdio-serverens 20: CPU-grensen på Workers Paid
@@ -26,11 +27,11 @@ const GEOCODE_UA = 'lende-mcp-remote/1.0 (turkart-generator)'
 const MAX_HALF_KM_REMOTE = 10
 const MAX_SNAP_M = 150
 
-function jsonResult(obj) {
+export function jsonResult(obj) {
   return { content: [{ type: 'text', text: JSON.stringify(obj, null, 2) }] }
 }
 
-function svgMeta(meta) {
+export function svgMeta(meta) {
   return { minE: meta.utmBbox.minE, minN: meta.utmBbox.minN, widthM: meta.widthM, heightM: meta.heightM }
 }
 
@@ -38,7 +39,7 @@ function insideMap(meta, p) {
   return p.x >= 0 && p.y >= 0 && p.x <= meta.widthM && p.y <= meta.heightM
 }
 
-function climbFor(dem, coordinates) {
+export function climbFor(dem, coordinates) {
   const profile = sampleProfile({ points: coordinates.map(([x, y]) => ({ x, y })) }, dem)
   return profile
     ? { ascent: Math.round(profile.totalAscent), descent: Math.round(profile.totalDescent) }
@@ -66,13 +67,13 @@ function tour3dUrlFor(kart, tour) {
   })
 }
 
-function byggGraf(svg) {
+export function byggGraf(svg) {
   const features = routableFeaturesFromSvg(svg)
   if (!features.length) throw new Error('Kartet inneholder ingen stier eller veier å rute på.')
   return buildRoutingGraph(features, { snapM: 6, componentBridgeM: 80 })
 }
 
-function snapPunkter(rg, meta, punkter) {
+export function snapPunkter(rg, meta, punkter) {
   return punkter.map((ll, i) => {
     const p = wgs84ToSvg(ll.lat, ll.lon, meta)
     if (!insideMap({ widthM: meta.widthM, heightM: meta.heightM }, p)) {
@@ -84,10 +85,17 @@ function snapPunkter(rg, meta, punkter) {
   })
 }
 
-async function kreveKart(env, kartRef) {
+export async function kreveKart(env, kartRef) {
   const kart = await lastKart(env, String(kartRef ?? ''))
   if (!kart) throw new Error(`Fant ikke kart «${kartRef}» — kall bygg_kart først og bruk kartRef fra svaret.`)
   return kart
+}
+
+// Kart-SVG med kartRef-ens lagrede juster_kart-innstillinger påført (urørt
+// hvis ingen finnes) — brukes av alle verktøy som skriver SVG-utdata.
+export async function svgForOutput(env, kartRef, svg) {
+  const innstillinger = await lastInnstillinger(env, kartRef)
+  return innstillinger ? applyMapSettings(svg, innstillinger) : svg
 }
 
 function ruteSvar(found, meta, dem) {
@@ -281,7 +289,7 @@ export function registerKartVerktoy(server, ctx) {
           markers,
           start: [o.x, o.y], dest: [o.x, o.y],
         })
-        const medRute = injectOverlay(kart.svg, overlay)
+        const medRute = injectOverlay(await svgForOutput(env, kartRef, kart.svg), overlay)
         const sti = await lagreUtdata(env, kartRef, 'rundtur.svg', medRute, 'image/svg+xml; charset=utf-8')
         svar.kartMedRuteUrl = filUrl(sti)
       }

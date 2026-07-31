@@ -14,6 +14,12 @@ Verktøy-logikken importeres fra samme `src/lib` som appen og stdio-serveren
 `lende-mcp` — restart-trygt og uten Durable Objects. Utdata (kart-SVG, GPX,
 rundtur-SVG) serveres via `GET /fil/…` med kallerens token i lenken.
 Krever Workers Paid (30 s CPU — et 2×2 km-kart bygges på ~15–30 s totalt).
+**Fase C (v4.2.0):** rapport- og justeringsverktøyene (`verktoyRapport.js`) —
+`berik_rute` (kulturminner/vern/rødliste/vannstasjoner langs ruten; rødlista
+bundles inn fra `public/data`), `turrapport_svg` (komplett rapport som SVG +
+Markdown i R2) og `juster_kart` (drawer-innstillinger per kartRef, lagret i
+R2 og påført alle senere SVG-utdata). Alle 12 stdio-verktøyene er dermed
+tilgjengelige remote.
 
 Endepunkter:
 

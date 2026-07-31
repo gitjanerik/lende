@@ -25,16 +25,21 @@ Begge må adresseres for remote/chat-bruk.
 
 ## Spor 1 — Remote MCP over HTTP (Cloudflare Worker)
 
-**STATUS (v4.1.0): Fase A + B bygget.** `cloudflare/mcp-worker/` (`lende-mcp`)
-kjører MCP over Streamable HTTP med samme per-bruker-tokens som lende-ai —
-token i `Authorization: Bearer` eller `?token=` (Claude Chat-connectors tar
-kun URL). Ni verktøy: sok_sted, vannmalestasjoner, bygg_kart, planlegg_rute,
-planlegg_rundtur, hoydeprofil, eksporter_gpx, finn_poi_paa_kart, sok_kart.
-Tilstandsvalget fra utredningen landet på den TILSTANDSLØSE modellen med R2
-som bærer (ikke Durable Objects): bygg_kart → kartRef, senere kall laster
-SVG+DEM+meta fra R2, utdata serveres via GET /fil/… . Sesjons-avsnittet under
-er dermed historisk. Workers Paid (30 s CPU) kreves for bygg_kart. Deploy +
-MCP-protokoll-røyktest (inkl. ekte kartbygg): deploy-mcp-worker.yml.
+**STATUS (v4.2.0): Fase A + B + C bygget — Spor 1 er komplett.**
+`cloudflare/mcp-worker/` (`lende-mcp`) kjører MCP over Streamable HTTP med
+samme per-bruker-tokens som lende-ai — token i `Authorization: Bearer` eller
+`?token=` (Claude Chat-connectors tar kun URL). Alle 12 stdio-verktøyene:
+sok_sted, vannmalestasjoner, bygg_kart, planlegg_rute, planlegg_rundtur,
+hoydeprofil, eksporter_gpx, finn_poi_paa_kart, sok_kart, berik_rute,
+turrapport_svg, juster_kart. Tilstandsvalget fra utredningen landet på den
+TILSTANDSLØSE modellen med R2 som bærer (ikke Durable Objects): bygg_kart →
+kartRef, senere kall laster SVG+DEM+meta fra R2, utdata (rapporter, GPX,
+justerte kart) serveres via GET /fil/…, og juster_kart-innstillinger huskes
+per kartRef i R2. Rødlista bundles inn fra public/data (Workeren har ikke
+filsystem). Sesjons-avsnittet under er dermed historisk. Workers Paid (30 s
+CPU) kreves for bygg_kart. Deploy + MCP-protokoll-røyktest (inkl. ekte
+kartbygg og juster_kart; poller på server-versjon mot edge-propagering):
+deploy-mcp-worker.yml.
 
 MCP-spesifikasjonen har en **Streamable HTTP**-transport ved siden av stdio. En
 Cloudflare Worker (samme deploy-mønster som `cloudflare/nve-proxy/`) kan hoste

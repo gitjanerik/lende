@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-31 — v4.2.0: Remote MCP fase C — turrapport, kartjustering og rute-beriking
+
+Siste porteringsetappe: de tre gjenværende stdio-verktøyene kjører nå på `lende-mcp`-Workeren, som dermed har alle 12 verktøy. `berik_rute` planlegger en rute på et bygget kart (kartRef) og finner det som ligger langs den — fredede kulturminner (Riksantikvaren), verneområder (Naturbase), rødlistede arter (GBIF × norsk rødliste, med rødlista bundlet inn fra `public/data` siden Workeren ikke har filsystem) og NVE-vannstasjoner. `turrapport_svg` lager den komplette samle-rapporten (kartutsnitt med rute, høydeprofil, funn, veibeskrivelse med sti-kryss-varsler) og skriver både SVG og Markdown til R2 med hentbare URL-er. `juster_kart` gir drawer-innstillingene (tema/lag/preset/strek/sti-farger) per kartRef: de lagres i R2 (`innstillinger.json`), en justert kartkopi returneres som URL, og innstillingene påføres alle senere SVG-utdata — verifisert ved at turrapporten arvet dark-tema og strek-skala fra et tidligere juster_kart-kall. Røyktesten er i tillegg hardnet mot edge-propagering (fase B attempt 2-feilen): både /health- og initialize-pollen venter nå på riktig server-versjon (2.1.0) før verktøykallene starter, og kjeden er utvidet med juster_kart → hent justert SVG. Hele fase C verifisert lokalt i workerd mot ekte kilder (318 GBIF-observasjoner, 23 rødlistede, 4 veibeskrivelse-steg). berik_rute/turrapport_svg kjøres ikke i CI-røyken (eksterne kilder er for trege/flakete for hver deploy).
+
+---
+
 ## 2026-07-31 — v4.1.1: MCP-deploy installerer rot-avhengigheter
 
 Fase B-deployen feilet i bundlingen: wrangler fant ikke `src/lib` sine avhengigheter (d3-contour, geotiff, polygon-clipping, graphology, rbush, simplify-js m.fl.) fordi workflowen bare kjørte `npm install` i `cloudflare/mcp-worker/` — pakkene bor i rot-`package.json`, og esbuild leter oppover fra fila som importerer. Lokalt fantes alltid rot-`node_modules`, i CI aldri; fase A slapp unna fordi geocode/NVE bare bruker `fetch`. Workflowen installerer nå rot-avhengighetene før deploy (verifisert med `wrangler deploy --dry-run`), og trigger-stiene er utvidet til hele `src/lib/**` + `mcp/headless.js` siden Workeren nå bundler alt dette. Ren workflow-endring.
