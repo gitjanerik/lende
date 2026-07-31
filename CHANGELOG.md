@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-31 — v4.2.7: Kritisk fiks — kartvisningen krasjet ved åpning (v4.2.5-regresjon)
+
+Alle kart ga svart skjerm og redirect til forsiden: aktivTur-watcheren fra v4.2.5 refererte `stiSelectedClimb` som deklareres ~770 linjer lenger ned i MapView — en immediate-watch som kastet «Cannot access before initialization» (TDZ) ved mount, fanget av den globale feilhåndtereren i main.js som rydder kart-tilstand og sender brukeren hjem. Watcheren er flyttet ned etter stiSelectedClimb-deklarasjonen (med kommentar om hvorfor den MÅ stå der). Verifisert i ekte Chromium (Playwright mot bygget app): /kart/vardasen monterer uten pageerror, ingen redirect, SVG-en rendres. Enhetstestene fanget ikke dette (MapView har ingen mount-test) — nettleser-røyk er nå en del av sjekklisten for MapView-endringer.
+
+---
+
 ## 2026-07-31 — v4.2.6: Taleinput i Lende-chat
 
 Chatten har fått mikrofonknapp i meldingsfeltet — samme `useSpeechInput`-komposable og knappemønster som søkefeltene (norsk tale til tekst, rød pulserende knapp mens den lytter, skjult i nettlesere uten støtte). Transkriptet legges i feltet og brukeren sender selv, akkurat som i søket; diktering stoppes automatisk hvis chatten lukkes. Velkomstteksten i tom chat er samtidig oppdatert — den påsto fortsatt at chatten «bare kan svare», men nå kan den jo bygge kart, tegne turer/rundturer og vise 3D.
