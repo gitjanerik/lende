@@ -123,6 +123,28 @@ export const AI_TOOLS = [
 ]
 
 /**
+ * Km fra et WGS84-punkt til nærmeste kant av kartets bbox — 0 når punktet er
+ * innenfor. Equirektangulær tilnærming (god nok for «er dette i kartet?»).
+ * Vaktpost for vis_tur_i_3d: geokoding kan treffe feil navnebror (mange
+ * steder heter det samme), og da skal turen IKKE startes med punkter milevis
+ * utenfor kartet.
+ */
+export function kmUtenforBbox(bbox, { lat, lon }) {
+  if (!bbox || !Number.isFinite(lat) || !Number.isFinite(lon)) return 0
+  const dLat = Math.max(bbox.south - lat, 0, lat - bbox.north)
+  const dLon = Math.max(bbox.west - lon, 0, lon - bbox.east)
+  if (dLat === 0 && dLon === 0) return 0
+  const midLat = (bbox.south + bbox.north) / 2
+  return Math.hypot(dLat * 111, dLon * 111 * Math.cos(midLat * Math.PI / 180))
+}
+
+/** Km i luftlinje mellom to WGS84-punkter (samme tilnærming). */
+export function kmMellom(a, b) {
+  const midLat = ((a.lat + b.lat) / 2) * Math.PI / 180
+  return Math.hypot((b.lat - a.lat) * 111, (b.lon - a.lon) * 111 * Math.cos(midLat))
+}
+
+/**
  * Ren bygging av lag_kart-query (samme parametre som parseShareInvite i
  * MapPickerContent leser, pluss auto=1 som starter byggingen). Skilt ut for
  * testbarhet.
@@ -174,20 +196,29 @@ export function projectForModel(maps, routes) {
  * returneres som { feil } så modellen kan forklare/prøve på nytt.
  * `onNavigate` kalles når verktøyet navigerer (chat-modalen bør lukkes).
  */
-export async function runTool(name, args, { onNavigate } = {}) {
+export async function runTool(name, args, { onNavigate, kontekst } = {}) {
   try {
     switch (name) {
       case 'sok_sted': {
         const treff = await geocodePlace(String(args?.navn ?? '').trim())
         if (!treff?.length) return { feil: `Fant ingen steder for «${args?.navn}».` }
-        return {
-          treff: treff.slice(0, 3).map((t) => ({
+        // Med et kart åpent: avstand fra kartsenteret per treff, nærmest
+        // først — så modellen velger riktig navnebror («Stormoen» finnes
+        // mange steder i Norge).
+        const senter = kontekst?.senter
+        const harSenter = Number.isFinite(senter?.lat) && Number.isFinite(senter?.lon)
+        const rader = treff.slice(0, 3).map((t) => {
+          const rad = {
             navn: t.name,
             lat: +Number(t.lat).toFixed(5),
             lon: +Number(t.lon).toFixed(5),
             beskrivelse: t.label ?? t.type ?? null,
-          })),
-        }
+          }
+          if (harSenter) rad.avstandKmFraKartet = +kmMellom(senter, rad).toFixed(1)
+          return rad
+        })
+        if (harSenter) rader.sort((a, b) => a.avstandKmFraKartet - b.avstandKmFraKartet)
+        return { treff: rader }
       }
       case 'mine_kart_og_ruter': {
         const [maps, routes] = await Promise.all([listMaps(), listGravelRoutes()])
@@ -237,6 +268,23 @@ export async function runTool(name, args, { onNavigate } = {}) {
         const maps = await listMaps()
         const kart = (maps ?? []).find((m) => m.id === id)
         if (!kart) return { feil: `Fant ikke kart med id «${id}». Bruk mine_kart_og_ruter.` }
+        // Vaktpost: punkter utenfor kartet (typisk feil geokode-treff) skal
+        // ikke starte en tur — chatten forblir åpen og modellen må forklare.
+        for (const [navn, p] of [
+          ['Startpunktet', { lat: Number(args?.fraLat), lon: Number(args?.fraLon) }],
+          ['Målpunktet', { lat: Number(args?.tilLat), lon: Number(args?.tilLon) }],
+        ]) {
+          const km = kmUtenforBbox(kart.bbox, p)
+          if (km > 0.2) {
+            return {
+              feil:
+                `${navn} (${p.lat}, ${p.lon}) ligger ~${km.toFixed(1)} km utenfor kartet ` +
+                `«${kart.navn ?? id}» — ingen tur ble startet. Sjekk sok_sted-treffet: flere ` +
+                'steder kan hete det samme (velg treffet med lavest avstandKmFraKartet), eller ' +
+                'tilby å bygge et nytt kart over riktig område med lag_kart.',
+            }
+          }
+        }
         const q = buildTourQuery(args ?? {})
         onNavigate?.()
         await navigerTil({ name: 'kart-vis', params: { id }, query: q })

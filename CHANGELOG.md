@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-31 — v4.2.2: Lende-chat starter ikke turer utenfor kartet
+
+Feilrapport fra felt: «lag sti fra Stormoen til kulturminnet ved Narverudgruvene» i Konnerudkollen-kartet geokodet feil navnebror (mange steder heter Stormoen), startet turen med punkter 20+ km utenfor kartet (Stifinner-feilen «Ingen sti eller vei i nærheten», rød målprikk i kartet), lukket chatten — og påsto etterpå at ruta var på plass. Tre fikser: (1) vaktpost i vis_tur_i_3d — punkter utenfor kartets bbox (ny `kmUtenforBbox`, testet mot Stormoen-scenarioet) avvises med forklarende feil FØR navigering, så chatten forblir åpen og ingen prikk settes; (2) sok_sted oppgir nå `avstandKmFraKartet` per treff (nærmest først) når et kart er åpent, så modellen kan velge riktig navnebror — chat-konteksten sendes inn i verktøykjøringen; (3) skjerpet systemprompt: velg treffet nærmest kartet eller spør, og gjengi verktøyfeil ærlig — aldri påstå at en handling er utført når verktøyet feilet.
+
+---
+
 ## 2026-07-31 — v4.2.1: Lende-chat kan bygge nye turkart (lag_kart)
 
 Chatten i appen kan nå lage kart selv: nytt klient-verktøy `lag_kart` («lag et kart over Håøya») som gjenbruker akkurat samme byggeflyt som «Nytt turkart». Verktøyet navigerer til `/nytt` med senter/størrelse/navn i URL-en pluss ny `auto=1`-param — MapPickerContent gjenbruker del-lenke-parsingen (parseShareInvite) for feltene og starter byggingen automatisk med det eksisterende progress-UI-et; kartet åpnes når det er ferdig. Invitasjonsbanneret droppes (dette er brukerens egen bestilling, ikke en delt lenke), og ved byggefeil slippes felt-låsen så brukeren kan justere og prøve igjen i skjemaet. `foreslaa_nytt_kart` består som den forsiktige varianten (utfylt skjema, brukeren trykker bygg selv) — systemprompten skiller: lag_kart når brukeren eksplisitt ber om å lage/bygge, foreslå-varianten ellers, og modellen er instruert om å ikke love at byggingen lykkes. Ren query-bygging (`buildLagKartQuery`, km clampet 1–16, default 4) er skilt ut og testet.

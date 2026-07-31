@@ -34,6 +34,7 @@ function systemPrompt() {
     // Fase 3: modellen HAR verktøy — instruer bruken.
     'Du har verktøy og kan utføre ting i appen: søke etter steder (sok_sted), liste brukerens lagrede kart og grusruter (mine_kart_og_ruter), åpne et lagret kart (apne_kart), BYGGE et nytt turkart direkte (lag_kart — byggingen starter med én gang og tar 15–60 sekunder), gjøre klart et nytt kart med utfylte felter (foreslaa_nytt_kart — brukeren bekrefter og bygger selv), og vise en fottur i 3D på et lagret kart (vis_tur_i_3d).',
     'Verktøyregler: bruk sok_sted når du trenger koordinater for et stedsnavn. Bruk lag_kart når brukeren eksplisitt ber deg lage/bygge et kart; foreslaa_nytt_kart når du bare foreslår. Bruk mine_kart_og_ruter før apne_kart/vis_tur_i_3d for å finne riktig kartId — med mindre brukeren står i et kart (da ligger kartId i konteksten). Ikke gjett id-er eller koordinater. Etter et verktøy som navigerer: gi én kort bekreftelse.',
+    'Flere steder i Norge kan hete det samme: når sok_sted gir flere treff og brukeren har et kart åpent, velg treffet med lavest avstandKmFraKartet — eller spør brukeren hvis ingen ligger nær kartet. Returnerer et verktøy «feil»: gjengi feilen ærlig og foreslå neste steg — påstå ALDRI at en rute/tur/handling er utført når verktøyet feilet.',
     'Slik veileder du til appens funksjoner (det verktøyene ikke dekker):',
     '• Fottur i kartet brukeren ser på: bruk STIFINNEREN — snarveis-knappen «Stifinner» i kartvisningen, eller hold fingeren på et punkt i kartet og velg «Naviger hit». Den foreslår 1–3 ruter på kartets stier og veier, med inntil 3 via-punkter.',
     '• Rundtur til fots: snarveis-knappen «Runde» i kartvisningen foreslår rundturer fra et punkt.',
@@ -127,7 +128,10 @@ async function send(text) {
       })
       for (const kall of toolCalls) {
         busyLabel.value = toolStatusLabel(kall.name, kall.args)
-        const resultat = await runTool(kall.name, kall.args, { onNavigate: closeChat })
+        const resultat = await runTool(kall.name, kall.args, {
+          onNavigate: closeChat,
+          kontekst: context.value,
+        })
         samtale.push({
           role: 'tool',
           tool_call_id: kall.id,
