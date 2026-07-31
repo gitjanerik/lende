@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-31 — v4.0.2: MCP-røyktestens sok_sted-sjekk matcher escapet JSON
+
+Andre kjøring av MCP-røyktesten viste at alt virker i produksjon — initialize, tools/list og et ekte sok_sted-kall (Kartverket SSR fant «Håøya, Porsgrunn» fra den deployede Workeren) — men selve sjekken feilet: MCP-svar er JSON-i-JSON der verktøyets utdata ligger escapet i en text-blokk (`\"treff\"`), så grep-mønsteret med rene anførselstegn matchet aldri. Mønsteret er løsnet til å matche selve nøkkelordet. Første kjøring feilet i tillegg på 404 under initialize — det var aller første utrulling av en helt ny Worker, og noen edge-noder hadde den ikke ennå; re-kjøringen bekreftet at protokollen svarte. Ren workflow-endring.
+
+---
+
 ## 2026-07-31 — v4.0.1: Remote MCP-server (Spor 1, fase A) — Lende-verktøy for eksterne MCP-klienter
 
 Spor 1 fra MCP-utredningen er i gang: ny Cloudflare Worker (`cloudflare/mcp-worker/`, deployes som `lende-mcp`) eksponerer Lendes MCP-verktøy over MCP-standardens Streamable HTTP-transport, så eksterne klienter — Claude Chat (custom connectors), Claude Code, Claude Desktop — kan bruke dem over internett. Fase A er tilstandsløs (Agents-SDK-ens `createMcpHandler`, ingen Durable Objects) med de to verktøyene som ikke trenger et bygget kart: `sok_sted` (Kartverket SSR + Nominatim, med utstrekning og anbefalt kartstørrelse) og `vannmalestasjoner` (NVE HydAPI via nve-proxyen, nå med påkrevd senter/bbox). Verktøy-logikken er portert fra stdio-serveren (`mcp/server.js`) og bruker samme `src/lib`. Tilgang: samme per-bruker-GUID-er som lende-ai — `Authorization: Bearer` eller `?token=` i URL-en (Claude Chat-connectors tar kun en ren URL). Alt er verifisert lokalt med wrangler dev (initialize-håndtrykk, tools/list, ekte Håøya-oppslag, 401-port), og deploy-workflowen kjører samme MCP-protokoll-røyktest mot den deployede Workeren. Viktig implementasjonsfunn nedfelt i README: handler/server må bygges per forespørsel (én McpServer-instans tåler bare én transport), og `agents`-pakken krever `ai` som peer-avhengighet — begge pinnet i lockfile. Fase B (bygg_kart + rute-/rapportverktøy med kart-tilstand i R2) er neste; Workers Paid (30 s CPU) er aktivert og klart.

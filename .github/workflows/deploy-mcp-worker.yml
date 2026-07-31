@@ -78,7 +78,9 @@ jobs:
             KALL=$(curl -fsS -X POST "$BASE/mcp" "${AUTH[@]}" "${MCP_HDR[@]}" \
               -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"sok_sted","arguments":{"sok":"Håøya","antall":2}}}')
             echo "$KALL" | head -c 400; echo
-            echo "$KALL" | grep -q '"treff"' || { echo "::error::sok_sted ga ikke treff"; exit 1; }
+            # MCP-svaret er JSON-i-JSON: verktøyets utdata ligger escapet i en
+            # text-blokk (\"treff\"), så mønsteret må ikke kreve rene fnutter.
+            echo "$KALL" | grep -q 'treff' || { echo "::error::sok_sted ga ikke treff"; exit 1; }
             echo "— token i URL (?token=) skal også fungere —"
             KODE2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/mcp?token=$TOK" "${MCP_HDR[@]}" \
               -d '{"jsonrpc":"2.0","id":4,"method":"tools/list"}')
