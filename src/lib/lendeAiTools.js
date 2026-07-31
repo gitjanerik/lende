@@ -103,6 +103,30 @@ export const AI_TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'foreslaa_rundtur',
+      description:
+        'Foreslå og tegn inn en RUNDTUR (start = mål) på et av brukerens lagrede kart: fra et ' +
+        'startpunkt, innom et vendepunkt, og tilbake — langs kartets stier og veier. Ruten ' +
+        'markeres i kartet. Bruk denne når brukeren ber om en rundtur/runde i kartet — IKKE ' +
+        'foreslaa_nytt_kart. Begge punktene må ligge i kartet; bruk sok_sted for koordinater.',
+      parameters: {
+        type: 'object',
+        properties: {
+          kartId: { type: 'string', description: 'Kart-id fra mine_kart_og_ruter (utelat hvis brukeren står i kartet — bruk kartId fra konteksten)' },
+          origoLat: { type: 'number', description: 'Startpunkt = målpunkt (breddegrad). Spør brukeren hvor turen skal starte hvis ukjent.' },
+          origoLon: { type: 'number', description: 'Startpunkt = målpunkt (lengdegrad)' },
+          viaLat: { type: 'number', description: 'Vendepunkt turen skal innom (breddegrad), f.eks. en topp' },
+          viaLon: { type: 'number', description: 'Vendepunkt (lengdegrad)' },
+          navn: { type: 'string', description: 'Turnavn, f.eks. «Rundtur Konnerudkollen»' },
+          vis3d: { type: 'boolean', description: 'Åpne 3D-visningen automatisk (standard false — ruten tegnes uansett)' },
+        },
+        required: ['kartId', 'origoLat', 'origoLon', 'viaLat', 'viaLon'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'vis_tur_i_3d',
       description:
         'Vis en fottur fra A til B i 3D-visningen på et av brukerens lagrede kart. Begge punktene må ligge innenfor kartet. Bruk mine_kart_og_ruter for kartId og sok_sted for koordinater ved behov.',
@@ -155,6 +179,22 @@ export function buildLagKartQuery({ lat, lon, km, navn }) {
   query.km = String(Number.isFinite(b) ? Math.min(Math.max(b, 1), 16) : 4)
   if (navn) query.hl = String(navn).slice(0, 60)
   return query
+}
+
+/**
+ * Ren bygging av rundtur-query (parseTourQuery: olat/olon + rtv uten dest =
+ * rundtur). Skilt ut for testbarhet.
+ */
+export function buildRundturQuery({ origoLat, origoLon, viaLat, viaLon, navn, vis3d }) {
+  const q = {
+    olat: Number(origoLat).toFixed(6),
+    olon: Number(origoLon).toFixed(6),
+    rtv: `${Number(viaLat).toFixed(6)},${Number(viaLon).toFixed(6)}`,
+    ri: '0',
+  }
+  if (vis3d) q.v3d = '1'
+  if (navn) q.tn = String(navn).slice(0, 60)
+  return q
 }
 
 /**
@@ -263,6 +303,36 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
             'byggeskjemaet der brukeren kan justere og prøve igjen.',
         }
       }
+      case 'foreslaa_rundtur': {
+        const id = String(args?.kartId ?? '')
+        const maps = await listMaps()
+        const kart = (maps ?? []).find((m) => m.id === id)
+        if (!kart) return { feil: `Fant ikke kart med id «${id}». Bruk mine_kart_og_ruter.` }
+        for (const [navn, p] of [
+          ['Startpunktet', { lat: Number(args?.origoLat), lon: Number(args?.origoLon) }],
+          ['Vendepunktet', { lat: Number(args?.viaLat), lon: Number(args?.viaLon) }],
+        ]) {
+          const km = kmUtenforBbox(kart.bbox, p)
+          if (km > 0.2) {
+            return {
+              feil:
+                `${navn} (${p.lat}, ${p.lon}) ligger ~${km.toFixed(1)} km utenfor kartet ` +
+                `«${kart.navn ?? id}» — ingen rundtur ble startet. Sjekk sok_sted-treffet ` +
+                '(velg treffet med lavest avstandKmFraKartet) eller spør brukeren.',
+            }
+          }
+        }
+        const q = buildRundturQuery(args ?? {})
+        onNavigate?.()
+        await navigerTil({ name: 'kart-vis', params: { id }, query: q })
+        return {
+          ok: true,
+          merknad:
+            `Åpner «${kart.navn ?? id}» og beregner rundturen på kartets stier — ruten tegnes ` +
+            'inn hvis en sløyfe finnes. VIKTIG: ikke lov brukeren at det lykkes; si at appen ' +
+            'prøver, og at punkter uten sti i nærheten gir en feilmelding i kartet i stedet.',
+        }
+      }
       case 'vis_tur_i_3d': {
         const id = String(args?.kartId ?? '')
         const maps = await listMaps()
@@ -310,6 +380,7 @@ export function toolStatusLabel(name, args) {
     case 'foreslaa_nytt_kart': return 'Gjør klart nytt kart …'
     case 'lag_kart': return 'Starter kartbygging …'
     case 'vis_tur_i_3d': return 'Gjør klar turen i 3D …'
+    case 'foreslaa_rundtur': return 'Beregner rundtur …'
     default: return `Kjører ${name} …`
   }
 }

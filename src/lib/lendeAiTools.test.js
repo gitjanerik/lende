@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
-  AI_TOOLS, buildTourQuery, buildLagKartQuery, projectForModel, kmUtenforBbox, kmMellom,
+  AI_TOOLS, buildTourQuery, buildRundturQuery, buildLagKartQuery, projectForModel,
+  kmUtenforBbox, kmMellom,
 } from './lendeAiTools.js'
 import { parseTourQuery } from './tour3dLink.js'
 
@@ -38,6 +39,28 @@ describe('buildTourQuery', () => {
     const q = buildTourQuery({ fraLat: 1, fraLon: 2, tilLat: 3, tilLon: 4 })
     expect(q.tn).toBeUndefined()
     expect(q.v3d).toBe('1')
+  })
+})
+
+describe('buildRundturQuery', () => {
+  it('bygger rundtur-query som parseTourQuery leser tilbake (dest=null, via satt)', () => {
+    const q = buildRundturQuery({
+      origoLat: 59.7412, origoLon: 10.1934,
+      viaLat: 59.7211, viaLon: 10.1533,
+      navn: 'Rundtur Konnerudkollen',
+    })
+    const tur = parseTourQuery(q)
+    expect(tur.dest).toBeNull()
+    expect(tur.origin.lat).toBeCloseTo(59.7412, 4)
+    expect(tur.via).toHaveLength(1)
+    expect(tur.via[0].lon).toBeCloseTo(10.1533, 4)
+    expect(tur.open3d).toBe(false)
+    expect(tur.name).toBe('Rundtur Konnerudkollen')
+  })
+
+  it('setter v3d kun når vis3d er sann', () => {
+    expect(buildRundturQuery({ origoLat: 1, origoLon: 2, viaLat: 3, viaLon: 4 }).v3d).toBeUndefined()
+    expect(buildRundturQuery({ origoLat: 1, origoLon: 2, viaLat: 3, viaLon: 4, vis3d: true }).v3d).toBe('1')
   })
 })
 

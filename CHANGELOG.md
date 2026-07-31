@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-07-31 — v4.2.3: Lende-chat kan foreslå rundturer i kartet (foreslaa_rundtur)
+
+Felt-test nr. 2: «kan du foreslå en rundtur?» i Stormoen-kartet fikk chatten til å åpne «Nytt turkart» i delingsmodus — den hadde rett og slett ikke noe rundtur-verktøy og grep til det nærmeste den fant. Nytt klient-verktøy `foreslaa_rundtur` (kartId + origo + vendepunkt): navigerer i det lagrede kartet med rundtur-dyplenke-parametrene (olat/olon + rtv uten mål — samme format som «Del rundtur» og MCP-serverens tur3dUrl), så MapView tegner sløyfen med Runde-maskineriet (beginLoop). 3D åpnes bare på forespørsel (vis3d) — standard er å tegne ruten i kartet. Samme bbox-vaktpost som vis_tur_i_3d (punkter utenfor kartet avvises før navigering), og systemprompten har fått en tydelig regel: turer/rundturer til steder som ligger i et lagret kart bruker tur-verktøyene — nytt kart er KUN for områder brukeren ikke har kart over — og mangler startpunkt skal modellen spørre (ikke gjette). Ren query-bygging (`buildRundturQuery`) er skilt ut og rundtrip-testet mot parseTourQuery.
+
+---
+
 ## 2026-07-31 — v4.2.2: Lende-chat starter ikke turer utenfor kartet
 
 Feilrapport fra felt: «lag sti fra Stormoen til kulturminnet ved Narverudgruvene» i Konnerudkollen-kartet geokodet feil navnebror (mange steder heter Stormoen), startet turen med punkter 20+ km utenfor kartet (Stifinner-feilen «Ingen sti eller vei i nærheten», rød målprikk i kartet), lukket chatten — og påsto etterpå at ruta var på plass. Tre fikser: (1) vaktpost i vis_tur_i_3d — punkter utenfor kartets bbox (ny `kmUtenforBbox`, testet mot Stormoen-scenarioet) avvises med forklarende feil FØR navigering, så chatten forblir åpen og ingen prikk settes; (2) sok_sted oppgir nå `avstandKmFraKartet` per treff (nærmest først) når et kart er åpent, så modellen kan velge riktig navnebror — chat-konteksten sendes inn i verktøykjøringen; (3) skjerpet systemprompt: velg treffet nærmest kartet eller spør, og gjengi verktøyfeil ærlig — aldri påstå at en handling er utført når verktøyet feilet.
