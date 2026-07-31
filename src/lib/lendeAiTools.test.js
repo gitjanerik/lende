@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { AI_TOOLS, buildTourQuery, buildLagKartQuery, projectForModel } from './lendeAiTools.js'
+import {
+  AI_TOOLS, buildTourQuery, buildLagKartQuery, projectForModel, kmUtenforBbox, kmMellom,
+} from './lendeAiTools.js'
 import { parseTourQuery } from './tour3dLink.js'
 
 describe('AI_TOOLS', () => {
@@ -54,6 +56,36 @@ describe('buildLagKartQuery', () => {
   it('utelater hl uten navn og kutter lange navn til 60 tegn', () => {
     expect(buildLagKartQuery({ lat: 1, lon: 2 }).hl).toBeUndefined()
     expect(buildLagKartQuery({ lat: 1, lon: 2, navn: 'x'.repeat(80) }).hl).toHaveLength(60)
+  })
+})
+
+describe('kmUtenforBbox', () => {
+  // Konnerudkollen-aktig kart: ~4×4 km rundt (59.72, 10.15).
+  const bbox = { south: 59.702, north: 59.738, west: 10.114, east: 10.186 }
+
+  it('gir 0 for punkter innenfor kartet', () => {
+    expect(kmUtenforBbox(bbox, { lat: 59.72, lon: 10.15 })).toBe(0)
+    expect(kmUtenforBbox(bbox, { lat: 59.703, lon: 10.185 })).toBe(0)
+  })
+
+  it('gir ~km-avstand for punkter utenfor (feil navnebror milevis unna)', () => {
+    // ~20 km nord for kartet — som Stormoen-tilfellet.
+    const km = kmUtenforBbox(bbox, { lat: 59.918, lon: 10.15 })
+    expect(km).toBeGreaterThan(19)
+    expect(km).toBeLessThan(21)
+  })
+
+  it('tåler manglende bbox og ugyldige punkter (0 = slipp gjennom)', () => {
+    expect(kmUtenforBbox(null, { lat: 60, lon: 10 })).toBe(0)
+    expect(kmUtenforBbox({ south: 59, north: 60, west: 9, east: 11 }, { lat: NaN, lon: 10 })).toBe(0)
+  })
+})
+
+describe('kmMellom', () => {
+  it('regner luftlinje omtrent riktig (Drammen–Oslo ~35 km)', () => {
+    const km = kmMellom({ lat: 59.744, lon: 10.204 }, { lat: 59.913, lon: 10.752 })
+    expect(km).toBeGreaterThan(30)
+    expect(km).toBeLessThan(40)
   })
 })
 
