@@ -15,7 +15,6 @@
 import { geocodePlace } from './geocode.js'
 import { listMaps, loadMap, listGravelRoutes } from './mapStorage.js'
 import { buildSearchIndex, filterIndex, formatAreaShort } from '../composables/useMapSearch.js'
-import { tilesAreGridCompatible } from './tileCache.js'
 import { svgToWgs84 } from './utm.js'
 
 // Router lastes lat: da kan testene importere de rene delene (buildTourQuery,
@@ -265,6 +264,48 @@ export function projectForModel(maps, routes) {
  * returneres som { feil } så modellen kan forklare/prøve på nytt.
  * `onNavigate` kalles når verktøyet navigerer (chat-modalen bør lukkes).
  */
+// Kartets UTM-forankring leses fra SVG-ens eget data-meta-attributt — lagrede
+// app-kart (MapEntry) har IKKE noe meta-felt; det er kun MCP-/headless-bygde
+// objekter som bærer meta separat. Returnerer {minE,minN,widthM,heightM} | null.
+export function metaFraSvgEl(svgEl) {
+  try {
+    const gm = JSON.parse(svgEl.getAttribute('data-meta'))
+    const minE = gm?.utmBbox?.minE ?? gm?.minE
+    const minN = gm?.utmBbox?.minN ?? gm?.minN
+    if (![minE, minN, gm?.widthM, gm?.heightM].every(Number.isFinite)) return null
+    return { minE, minN, widthM: gm.widthM, heightM: gm.heightM }
+  } catch {
+    return null
+  }
+}
+
+// Fliser i mosaikken rundt et kart (inkl. kartet selv): lagrede kart hvis
+// WGS84-bbox ligger inntil (≤ ~0,3 km fra) kartets bbox. Bevisst bbox-basert
+// (ikke UTM-gitter som spøkelses-flisene): lagrede kart bærer alltid bbox,
+// og for søk/vaktpost er nabo-skap nok — Stifinneren gir uansett ærlig feil
+// hvis stinettet ikke henger sammen.
+async function mosaikkFliser(id, kart) {
+  const alle = (await listMaps()) ?? []
+  return [kart, ...alle.filter((e) => e.id !== id && e.bbox
+    && bboxAvstandKm(kart.bbox, e.bbox) <= 0.3)]
+}
+
+/** Km mellom to WGS84-bbokser (0 = overlapper/berører). Eksportert for test. */
+export function bboxAvstandKm(a, b) {
+  const dLat = Math.max(a.south - b.north, b.south - a.north, 0)
+  const dLon = Math.max(a.west - b.east, b.west - a.east, 0)
+  if (dLat === 0 && dLon === 0) return 0
+  const midLat = ((a.south + a.north + b.south + b.north) / 4) * Math.PI / 180
+  return Math.hypot(dLat * 111, dLon * 111 * Math.cos(midLat))
+}
+
+// Km utenfor NÆRMESTE flis i mosaikken (0 = inne i en av dem). Turer kan gå
+// på tvers av flisegrenser (Stifinner ruter via spøkelses-flisene), så
+// vaktposten skal godta punkter i hele mosaikken — ikke bare aktiv flis.
+function kmUtenforMosaikk(fliser, p) {
+  return Math.min(...fliser.map((f) => kmUtenforBbox(f.bbox, p)))
+}
+
 // Løs kart-id for kart-verktøyene: modellens oppgitte id kan mangle
 // (beskrivelsene sier «utelat når brukeren står i kartet») eller være
 // utdatert fra tidligere i samtalen — fall tilbake til kontekstens kartId
@@ -360,21 +401,17 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         // (spøkelses-fliser i MapView). Søk i aktiv flis + naboene, så hele det
         // synlige kartet oppleves som ETT kart — treffene merkes med hvilken
         // flis de ligger i.
-        const geo = (meta) => ({
-          minE: meta.utmBbox.minE, minN: meta.utmBbox.minN,
-          widthM: meta.widthM, heightM: meta.heightM,
-        })
-        const aktivGeo = geo(kart.meta)
-        const naboer = ((await listMaps()) ?? [])
-          .filter((e) => e.id !== id && e.meta?.utmBbox
-            && tilesAreGridCompatible(aktivGeo, geo(e.meta)))
-          .slice(0, 8)
+        const naboer = (await mosaikkFliser(id, kart)).slice(1, 9)
 
         // getBBox() krever et RENDRET element (kaster på detached dokument) —
         // monter den parsede SVG-en usynlig i DOM-en mens indeksen bygges.
         const sokIEttKart = (entry) => {
           const doc = new DOMParser().parseFromString(entry.svg, 'image/svg+xml')
           const svgEl = document.importNode(doc.documentElement, true)
+          // UTM-forankringen leses fra SVG-ens data-meta — lagrede app-kart
+          // har ikke noe meta-felt på entry-en.
+          const m = metaFraSvgEl(svgEl)
+          if (!m) return []
           const holder = document.createElement('div')
           holder.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:hidden;pointer-events:none'
           holder.appendChild(svgEl)
@@ -385,7 +422,6 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
           } finally {
             holder.remove()
           }
-          const m = geo(entry.meta)
           return rader.map((r) => {
             const ll = svgToWgs84(r.x, r.y, m)
             const o = {
@@ -422,26 +458,27 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         return {
           treff: treff.slice(0, maks),
           merknad:
-            'Treff med annen kartId enn brukerens aktive kart ligger i en NABOFLIS: turer kan ' +
-            'foreløpig bare tegnes innenfor ÉN flis, så tilby å åpne den flisa (apne_kart) ' +
-            'eller å bygge ett større kart som dekker begge (lag_kart).',
+            'Treff med annen kartId enn brukerens aktive kart ligger i en NABOFLIS i samme ' +
+            'mosaikk — turer kan tegnes på tvers: bruk koordinatene direkte i foreslaa_tur/' +
+            'foreslaa_rundtur (appen laster naboflisene automatisk).',
         }
       }
       case 'foreslaa_rundtur': {
         const løst = await losKart(args, kontekst)
         if (!løst) return { feil: `Fant ikke kart med id «${args?.kartId}». Bruk mine_kart_og_ruter.` }
         const { id, kart } = løst
+        const fliser = await mosaikkFliser(id, kart)
         for (const [navn, p] of [
           ['Startpunktet', { lat: Number(args?.origoLat), lon: Number(args?.origoLon) }],
           ['Vendepunktet', { lat: Number(args?.viaLat), lon: Number(args?.viaLon) }],
         ]) {
-          const km = kmUtenforBbox(kart.bbox, p)
+          const km = kmUtenforMosaikk(fliser, p)
           if (km > 0.2) {
             return {
               feil:
                 `${navn} (${p.lat}, ${p.lon}) ligger ~${km.toFixed(1)} km utenfor kartet ` +
-                `«${kart.navn ?? id}» — ingen rundtur ble startet. Sjekk sok_sted-treffet ` +
-                '(velg treffet med lavest avstandKmFraKartet) eller spør brukeren.',
+                `«${kart.navn ?? id}» og naboflisene — ingen rundtur ble startet. Sjekk ` +
+                'sok_i_kartet-/sok_sted-treffet eller spør brukeren.',
             }
           }
         }
@@ -463,19 +500,20 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         const løst = await losKart(args, kontekst)
         if (!løst) return { feil: `Fant ikke kart med id «${args?.kartId}». Bruk mine_kart_og_ruter.` }
         const { id, kart } = løst
-        // Vaktpost: punkter utenfor kartet (typisk feil geokode-treff) skal
+        // Vaktpost: punkter utenfor mosaikken (typisk feil geokode-treff) skal
         // ikke starte en tur — chatten forblir åpen og modellen må forklare.
+        const fliser = await mosaikkFliser(id, kart)
         for (const [navn, p] of [
           ['Startpunktet', { lat: Number(args?.fraLat), lon: Number(args?.fraLon) }],
           ['Målpunktet', { lat: Number(args?.tilLat), lon: Number(args?.tilLon) }],
         ]) {
-          const km = kmUtenforBbox(kart.bbox, p)
+          const km = kmUtenforMosaikk(fliser, p)
           if (km > 0.2) {
             return {
               feil:
                 `${navn} (${p.lat}, ${p.lon}) ligger ~${km.toFixed(1)} km utenfor kartet ` +
-                `«${kart.navn ?? id}» — ingen tur ble startet. Sjekk sok_sted-treffet: flere ` +
-                'steder kan hete det samme (velg treffet med lavest avstandKmFraKartet), eller ' +
+                `«${kart.navn ?? id}» og naboflisene — ingen tur ble startet. Sjekk ` +
+                'sok_i_kartet-/sok_sted-treffet: flere steder kan hete det samme, eller ' +
                 'tilby å bygge et nytt kart over riktig område med lag_kart.',
             }
           }

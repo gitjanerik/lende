@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   AI_TOOLS, buildTourQuery, buildRundturQuery, buildLagKartQuery, projectForModel,
-  kmUtenforBbox, kmMellom,
+  kmUtenforBbox, kmMellom, bboxAvstandKm, metaFraSvgEl,
 } from './lendeAiTools.js'
 import { parseTourQuery } from './tour3dLink.js'
 
@@ -105,6 +105,33 @@ describe('kmUtenforBbox', () => {
   it('tåler manglende bbox og ugyldige punkter (0 = slipp gjennom)', () => {
     expect(kmUtenforBbox(null, { lat: 60, lon: 10 })).toBe(0)
     expect(kmUtenforBbox({ south: 59, north: 60, west: 9, east: 11 }, { lat: NaN, lon: 10 })).toBe(0)
+  })
+})
+
+describe('bboxAvstandKm', () => {
+  const a = { south: 59.70, north: 59.72, west: 10.10, east: 10.14 }
+  it('0 for overlappende/berørende bokser (nabofliser i mosaikk)', () => {
+    expect(bboxAvstandKm(a, { south: 59.70, north: 59.72, west: 10.14, east: 10.18 })).toBe(0)
+    expect(bboxAvstandKm(a, a)).toBe(0)
+  })
+  it('~km-avstand for adskilte bokser', () => {
+    const km = bboxAvstandKm(a, { south: 59.74, north: 59.76, west: 10.10, east: 10.14 })
+    expect(km).toBeGreaterThan(1.8)
+    expect(km).toBeLessThan(2.6)
+  })
+})
+
+describe('metaFraSvgEl', () => {
+  const fake = (attr) => ({ getAttribute: () => attr })
+  it('leser utmBbox-nestet data-meta (mapBuilder-formen)', () => {
+    const m = metaFraSvgEl(fake(JSON.stringify({
+      utmBbox: { minE: 561000, minN: 6620000 }, widthM: 2044.5, heightM: 2042.3,
+    })))
+    expect(m).toEqual({ minE: 561000, minN: 6620000, widthM: 2044.5, heightM: 2042.3 })
+  })
+  it('null ved manglende/ugyldig data-meta', () => {
+    expect(metaFraSvgEl(fake(null))).toBeNull()
+    expect(metaFraSvgEl(fake('{"widthM":100}'))).toBeNull()
   })
 })
 
