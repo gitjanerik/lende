@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-08-01 — v4.3.0: Sømløs kryss-flis-ruting fra chatten + data-meta-fiksen
+
+Milepælen: turer og rundturer fra Lende-chat kan nå gå PÅ TVERS av kartfliser i en mosaikk. To brikker: (1) vaktposten i foreslaa_tur/foreslaa_rundtur godtar punkter i hele mosaikken (nabofliser via bbox-nærhet, ny `bboxAvstandKm`), ikke bare aktiv flis; (2) MapView-gjenopprettingen venter (maks ~12 s, token-invalidert ved navigasjon) på at spøkelses-flisene som dekker turpunktene er tegnet før ruting — Stifinner-grafen leser ghost-paths (testdekket fra før), så ruta beregnes sømløst over grensen. Verifisert ende-til-ende i ekte Chromium: to ekte nabofliser (Kartverket-data) seedet i IndexedDB, tur-query med mål i naboflisa → spøkelses-flis lastet og rute tegnet på 1,4 s. Underveis ble en alvorlig v4.2.8-bug avdekket: lagrede app-kart har IKKE noe meta-felt (kun MCP-bygde har det) — sok_i_kartet leste `kart.meta.utmBbox` og feilet dermed på alle ekte app-kart (den faktiske rot-årsaken til Stordammen-savnet). Kartets UTM-forankring leses nå fra SVG-ens eget `data-meta`-attributt (`metaFraSvgEl`), samme kilde som spøkelses-flisene bruker.
+
+---
+
 ## 2026-08-01 — v4.2.11: Kartverktøyene faller tilbake til kartet brukeren står i (kartId-løser)
 
 Stordammen-mysteriet løst: et headless-bygd kart over samme utsnitt (Stormoen/Konnerud) beviste at søket finner Stordammen fint — feilen lå i kart-id-en verktøyet fikk. Verktøybeskrivelsene sier «utelat kartId når brukeren står i kartet», men koden falt aldri tilbake til kontekstens kartId: utelatt eller utdatert id (fra tidligere i samtalen — modellen gjenbruker gjerne gamle id-er fra historikken) ga «fant ikke kart»/tomt søk. Ny felles løser (`losKart`) i sok_i_kartet/foreslaa_tur/foreslaa_rundtur: prøv oppgitt id, fall tilbake til kontekstens kartId hvis den ikke finnes — kartet brukeren ser på vinner alltid over samtale-historikk. Prompten sier nå også eksplisitt at id-er fra tidligere i samtalen kan være utdatert. (v4.2.10-endringen — brukerPosisjon i konteksten — var reell nok: «min posisjon» var tidligere kartsenteret, nå er det GPS-prikken; men den var ikke årsaken til dette søke-feilslaget.)

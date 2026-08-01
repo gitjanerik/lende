@@ -2192,7 +2192,17 @@ function onShareRoundTrip() {
 // (svg-paths finnes), så Stifinner kan lese ruting-grafen. Driver den ekte
 // modus-maskinen så resultatet er identisk med manuell inntasting. ?v3d=1
 // åpner 3D-visningen automatisk når ruta står.
+// Kryss-flis-turer: token invaliderer ventende retries når en ny restore
+// startes (query-endring/navigasjon), så gamle timere ikke ruter i vei.
+let tourRestoreToken = 0
+
 function maybeRestoreRoundTripFromQuery() {
+  tourRestoreToken += 1
+  restoreTourAttempt(tourRestoreToken, 0)
+}
+
+function restoreTourAttempt(token, forsok) {
+  if (token !== tourRestoreToken || !componentAlive) return
   const tour = parseTourQuery(route.query)
   if (!tour || !meta.value) return
   // Terreng-først: skjelett-passet har ingen sti-lag ennå — å rute nå gir et
@@ -2202,6 +2212,23 @@ function maybeRestoreRoundTripFromQuery() {
   const svg = svgHostRef.value?.querySelector('svg')
   if (!svg) return
   const toSvg = (ll) => wgs84ToSvg(ll.lat, ll.lon, meta.value)
+
+  // Kryss-flis: punkter utenfor aktiv flis kan rutes via spøkelses-flisene
+  // (Stifinner-grafen leser ghost-paths, testdekket i useStifinner.test) —
+  // men bare når flisene faktisk er tegnet. Vent (maks ~12 s) til ghostRects
+  // dekker punktene; ved timeout prøves ruting uansett, og banneret gir da
+  // ærlig «Ingen sti»-feil.
+  const punkter = [tour.origin, ...(tour.dest ? [tour.dest] : []), ...tour.via].map(toSvg)
+  const utenforAktiv = punkter.filter((p) =>
+    p.x < 0 || p.y < 0 || p.x > meta.value.widthM || p.y > meta.value.heightM)
+  if (utenforAktiv.length && forsok < 24) {
+    const dekket = utenforAktiv.every((p) => ghostRects.value.some((r) =>
+      p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h))
+    if (!dekket) {
+      setTimeout(() => restoreTourAttempt(token, forsok + 1), 500)
+      return
+    }
+  }
 
   if (tour.dest) {
     const d = toSvg(tour.dest)
