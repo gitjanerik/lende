@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-08-01 — v4.2.11: Kartverktøyene faller tilbake til kartet brukeren står i (kartId-løser)
+
+Stordammen-mysteriet løst: et headless-bygd kart over samme utsnitt (Stormoen/Konnerud) beviste at søket finner Stordammen fint — feilen lå i kart-id-en verktøyet fikk. Verktøybeskrivelsene sier «utelat kartId når brukeren står i kartet», men koden falt aldri tilbake til kontekstens kartId: utelatt eller utdatert id (fra tidligere i samtalen — modellen gjenbruker gjerne gamle id-er fra historikken) ga «fant ikke kart»/tomt søk. Ny felles løser (`losKart`) i sok_i_kartet/foreslaa_tur/foreslaa_rundtur: prøv oppgitt id, fall tilbake til kontekstens kartId hvis den ikke finnes — kartet brukeren ser på vinner alltid over samtale-historikk. Prompten sier nå også eksplisitt at id-er fra tidligere i samtalen kan være utdatert. (v4.2.10-endringen — brukerPosisjon i konteksten — var reell nok: «min posisjon» var tidligere kartsenteret, nå er det GPS-prikken; men den var ikke årsaken til dette søke-feilslaget.)
+
+---
+
 ## 2026-08-01 — v4.2.10: Chatten kjenner GPS-posisjonen din («fra min posisjon»)
 
 Felt-test: «gå en tur fra min posisjon til Stordammen» — chatten hadde ikke brukerens GPS-punkt i det heletatt (konteksten bar kartsenteret, ikke den blå prikken). MapView legger nå `brukerPosisjon` (userPos.latRaw/lonRaw, den blå GPS-prikken) inn i chat-konteksten når GPS er aktiv, og systemprompten definerer: «min posisjon» = brukerPosisjon; mangler den skal chatten be brukeren aktivere GPS eller oppgi startsted — aldri gjette. Dermed virker «fra min posisjon»-turer sammen med naboflis-søket fra v4.2.9.
