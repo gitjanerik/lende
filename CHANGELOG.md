@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-08-01 — v4.2.10: Chatten kjenner GPS-posisjonen din («fra min posisjon»)
+
+Felt-test: «gå en tur fra min posisjon til Stordammen» — chatten hadde ikke brukerens GPS-punkt i det heletatt (konteksten bar kartsenteret, ikke den blå prikken). MapView legger nå `brukerPosisjon` (userPos.latRaw/lonRaw, den blå GPS-prikken) inn i chat-konteksten når GPS er aktiv, og systemprompten definerer: «min posisjon» = brukerPosisjon; mangler den skal chatten be brukeren aktivere GPS eller oppgi startsted — aldri gjette. Dermed virker «fra min posisjon»-turer sammen med naboflis-søket fra v4.2.9.
+
+---
+
 ## 2026-08-01 — v4.2.9: Kartsøket i chatten dekker hele mosaikken + field-sizing på meldingsfeltet
 
 To brukerønsker: (1) `sok_i_kartet` søker nå i aktiv kartflis PLUSS alle grid-kompatible nabofliser (samme kompatibilitets-sjekk som spøkelses-flisene i MapView, `tilesAreGridCompatible`), så det viste kartet oppleves som ett søkbart kart — hvert treff merkes med hvilken flis det ligger i (kartId/kartnavn), og prompten instruerer chatten: treff i en naboflis → tilby å åpne den flisa eller bygge ett større kart, siden turer foreløpig bare kan tegnes innenfor én flis (sømløs ruting på tvers av fliser via chat er neste milepæl — Stifinneren kan det allerede manuelt når naboflisene er tegnet). (2) Meldingsfeltets auto-høyde bruker nå CSS `field-sizing: content` (min 2, maks 4 rader, vokser oppover fra den bunnforankrede raden) i stedet for JS — nettlesere uten støtte får fast 2 rader.

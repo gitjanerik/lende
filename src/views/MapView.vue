@@ -2760,7 +2760,8 @@ const stiSelectedClimb = computed(() => stiRouteClimbs.value[sti.selectedRouteId
 // inn i system-prompten ved hvert send (useLendeChat). MÅ stå etter
 // stiSelectedClimb (immediate-watch — TDZ ellers).
 watch([shareInfo, mapTitle, () => sti.mode.value, () => sti.routes.value,
-       () => sti.selectedRouteIdx.value, stiSelectedClimb], ([s, tittel]) => {
+       () => sti.selectedRouteIdx.value, stiSelectedClimb,
+       () => userPos.latRaw, () => userPos.lonRaw], ([s, tittel]) => {
   const ctx = s ? {
     visning: 'turkart',
     kartId: route.params.id ?? null,
@@ -2769,6 +2770,10 @@ watch([shareInfo, mapTitle, () => sti.mode.value, () => sti.routes.value,
     stoerrelseKm: s.sizeKm,
     ekvidistanseM: s.equidistanceM,
   } : null
+  // Brukerens GPS-punkt (blå prikk) — gjør «fra min posisjon» mulig i chatten.
+  if (ctx && Number.isFinite(userPos.latRaw) && Number.isFinite(userPos.lonRaw)) {
+    ctx.brukerPosisjon = { lat: +userPos.latRaw.toFixed(6), lon: +userPos.lonRaw.toFixed(6) }
+  }
   const rute = ctx && (sti.mode.value === 'showing' || sti.mode.value === 'following')
     ? sti.routes.value[sti.selectedRouteIdx.value] : null
   if (rute) {
