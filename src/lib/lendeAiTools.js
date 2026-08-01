@@ -265,6 +265,24 @@ export function projectForModel(maps, routes) {
  * returneres som { feil } så modellen kan forklare/prøve på nytt.
  * `onNavigate` kalles når verktøyet navigerer (chat-modalen bør lukkes).
  */
+// Løs kart-id for kart-verktøyene: modellens oppgitte id kan mangle
+// (beskrivelsene sier «utelat når brukeren står i kartet») eller være
+// utdatert fra tidligere i samtalen — fall tilbake til kontekstens kartId
+// (kartet brukeren faktisk ser på). Returnerer { id, kart } eller null.
+async function losKart(args, kontekst) {
+  const oppgitt = String(args?.kartId ?? '').trim()
+  if (oppgitt) {
+    const kart = await loadMap(oppgitt)
+    if (kart?.svg) return { id: oppgitt, kart }
+  }
+  const kontekstId = String(kontekst?.kartId ?? '').trim()
+  if (kontekstId && kontekstId !== oppgitt) {
+    const kart = await loadMap(kontekstId)
+    if (kart?.svg) return { id: kontekstId, kart }
+  }
+  return null
+}
+
 export async function runTool(name, args, { onNavigate, kontekst } = {}) {
   try {
     switch (name) {
@@ -333,9 +351,9 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         }
       }
       case 'sok_i_kartet': {
-        const id = String(args?.kartId ?? '')
-        const kart = await loadMap(id)
-        if (!kart?.svg) return { feil: `Fant ikke kart med id «${id}». Bruk mine_kart_og_ruter.` }
+        const løst = await losKart(args, kontekst)
+        if (!løst) return { feil: `Fant ikke kart med id «${args?.kartId}». Bruk mine_kart_og_ruter.` }
+        const { id, kart } = løst
         const maks = Math.min(Math.max(Number(args?.maks) || 8, 1), 30)
 
         // Mosaikk: den viste flaten kan bestå av flere grid-kompatible fliser
@@ -410,10 +428,9 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         }
       }
       case 'foreslaa_rundtur': {
-        const id = String(args?.kartId ?? '')
-        const maps = await listMaps()
-        const kart = (maps ?? []).find((m) => m.id === id)
-        if (!kart) return { feil: `Fant ikke kart med id «${id}». Bruk mine_kart_og_ruter.` }
+        const løst = await losKart(args, kontekst)
+        if (!løst) return { feil: `Fant ikke kart med id «${args?.kartId}». Bruk mine_kart_og_ruter.` }
+        const { id, kart } = løst
         for (const [navn, p] of [
           ['Startpunktet', { lat: Number(args?.origoLat), lon: Number(args?.origoLon) }],
           ['Vendepunktet', { lat: Number(args?.viaLat), lon: Number(args?.viaLon) }],
@@ -443,10 +460,9 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
       // samtaler kan ha det i historikken sin.
       case 'foreslaa_tur':
       case 'vis_tur_i_3d': {
-        const id = String(args?.kartId ?? '')
-        const maps = await listMaps()
-        const kart = (maps ?? []).find((m) => m.id === id)
-        if (!kart) return { feil: `Fant ikke kart med id «${id}». Bruk mine_kart_og_ruter.` }
+        const løst = await losKart(args, kontekst)
+        if (!løst) return { feil: `Fant ikke kart med id «${args?.kartId}». Bruk mine_kart_og_ruter.` }
+        const { id, kart } = løst
         // Vaktpost: punkter utenfor kartet (typisk feil geokode-treff) skal
         // ikke starte en tur — chatten forblir åpen og modellen må forklare.
         for (const [navn, p] of [
