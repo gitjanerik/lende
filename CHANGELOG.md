@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-08-01 — v4.2.9: Kartsøket i chatten dekker hele mosaikken + field-sizing på meldingsfeltet
+
+To brukerønsker: (1) `sok_i_kartet` søker nå i aktiv kartflis PLUSS alle grid-kompatible nabofliser (samme kompatibilitets-sjekk som spøkelses-flisene i MapView, `tilesAreGridCompatible`), så det viste kartet oppleves som ett søkbart kart — hvert treff merkes med hvilken flis det ligger i (kartId/kartnavn), og prompten instruerer chatten: treff i en naboflis → tilby å åpne den flisa eller bygge ett større kart, siden turer foreløpig bare kan tegnes innenfor én flis (sømløs ruting på tvers av fliser via chat er neste milepæl — Stifinneren kan det allerede manuelt når naboflisene er tegnet). (2) Meldingsfeltets auto-høyde bruker nå CSS `field-sizing: content` (min 2, maks 4 rader, vokser oppover fra den bunnforankrede raden) i stedet for JS — nettlesere uten støtte får fast 2 rader.
+
+---
+
 ## 2026-08-01 — v4.2.8: Chatten søker i kartets egne navn (sok_i_kartet) + større meldingsfelt
 
 Felt-test nr. 5: «tur til Stordammen» endte et tilfeldig sted på åssiden — chatten geokodet på nett (sok_sted) og traff feil navnebror, enda kartet har Stordammen navngitt. Nytt klient-verktøy `sok_i_kartet`: søker i det lagrede kartets egne stedsnavn/tjern/topper/parkeringer med samme buildSearchIndex/filterIndex som appens søkefelt, og returnerer kartets eksakte koordinater. Implementasjonsdetalj: getBBox() kaster på urendrede SVG-er, så den parsede SVG-en monteres usynlig i DOM-en mens indeksen bygges — verifisert i ekte Chromium mot vite dev (navngitt vann-polygon funnet på eksakt posisjon, «vann»-nøkkelord virker). Systemprompten er snudd: til start/mål/vendepunkt i turverktøyene brukes ALLTID sok_i_kartet først (kartets navn er fasit); sok_sted er for steder utenfor kartene og nye kart, og finner ikke kartsøket stedet skal chatten si det ærlig og tilby lag_kart. I tillegg: meldingsfeltet i chat-modalen er nå to rader som utgangspunkt og vokser med innholdet opp til fire (bunnforankret — vokser oppover), med auto-reset etter sending og etter diktering.
