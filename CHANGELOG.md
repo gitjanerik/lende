@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-08-01 — v4.3.2: FAB-klynge-finpuss etter brukertest
+
+To justeringer av den nye FAB-klyngen: (1) Trykk i kartet lukker ikke lenger knottene — på/av-togglingen på Lende-knappen holdt fint i praksis, og kart-trykk-lukkingen gjorde at klyngen forsvant utilsiktet ved panorering. (2) Lang-trykk på Lende-knappen trigget nettleserens «Kopier bilde»-dialog (logoen er en img); den blokkeres nå med contextmenu.prevent på ankeret pluss pekerdød og callout-fri logo, så lang-trykk er en ren app-gest (Lende-chat).
+
+---
+
 ## 2026-08-01 — v4.3.1: FAB-klynge — Lende-knappen som anker for kart-knottene
 
 Fire knotter nederst til høyre ble for voldsomt etter at chat-FAB-en kom til. Nå er Lende-knappen (app-logoen) eneste synlige knott i kartvisningen — for alle brukere. Sentrer-, strek- og relieff-knottene er skjult som standard og springer ut fra ankeret med gummibånd-animasjon (overshoot-bezier): sentrer mot nord (rett over), strek mot nordvest og relieff mot vest. Et vanlig tap viser/skjuler knottene — likt for alle brukere; lang-trykk åpner Lende-chatten (kun med invitasjonstoken). Et trykk hvor som helst i kartet lukker klyngen igjen. Knottene beholder sin gamle oppførsel (tap = steg, lang-trykk = innstillingspanel), og hint-bobla følger klyngens åpne/lukkede tilstand. LendeChatFab er forenklet til kun global (fixed) modus — kartvisningens inline-variant er erstattet av ankeret.

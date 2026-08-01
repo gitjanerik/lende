@@ -1335,10 +1335,10 @@ function knobUp(kind) {
 // Lende-knappen (app-logoen) eneste synlige knott; sentrer/strek/relieff
 // er skjult som standard og springer ut fra ankeret med gummibånd-
 // animasjon (sentrer mot nord, strek mot nordvest, relieff mot vest).
-// Tap veksler knottene — likt for ALLE brukere. Lang-trykk åpner
+// Tap veksler knottene (ren toggle — v4.3.2 fjernet lukk-ved-kart-trykk
+// etter brukertest: på/av på ankeret holder). Lang-trykk åpner
 // Lende-chatten (kun med invitasjonstoken; uten token gjør lang-trykk
-// ingenting). Knottene skjules igjen ved pointerdown i kartet
-// (onMapPointerDownLongPress). Samme settled-mønster som knobDown/knobUp
+// ingenting). Samme settled-mønster som knobDown/knobUp
 // (pointercancel-vakten).
 const lendeChatEnabled = hasAiToken()
 const lendeLogoUrl = `${import.meta.env.BASE_URL}icon.svg`
@@ -2769,7 +2769,6 @@ function dismissInfoTip() {
 }
 function onMapPointerDownLongPress(e) {
   infoTipRequested.value = false
-  fabMenuOpen.value = false   // trykk i kartet lukker FAB-klyngen
   onPointerDownLongPress(e)
 }
 function onMapContextMenuEvent(e) {
@@ -3915,7 +3914,7 @@ onUnmounted(() => {
          og springer ut med gummibånd-animasjon (fab-sat-klassene): sentrer
          mot nord (rett over), strek mot nordvest, relieff mot vest.
          Tap = vis/skjul (alle brukere); lang-trykk = Lende-chat (kun med
-         token). Trykk i kartet lukker klyngen. z-40 sikrer at klyngen
+         token). z-40 sikrer at klyngen
          ligger over drawer (z-30); skjult når søke-overlayet er åpent
          (begge bruker z-40 og ville ellers stacke). -->
     <!-- Bunnen løftes kun når bunn-arket er åpent (mobil). På desktop er
@@ -4010,15 +4009,18 @@ onUnmounted(() => {
       </button>
 
       <!-- Ankeret: Lende-logoen, synlig for alle brukere. Ligger over
-           satellittene (z-10) så de visuelt springer ut bakfra. -->
+           satellittene (z-10) så de visuelt springer ut bakfra.
+           contextmenu.prevent + pekerdød/callout-fri img: lang-trykk er en
+           app-gest (chat) — nettleserens «Kopier bilde»-meny skal ikke opp. -->
       <button @pointerdown="fabAnchorDown" @pointerup="fabAnchorUp"
-              @pointercancel="fabAnchorUp"
+              @pointercancel="fabAnchorUp" @contextmenu.prevent
               :aria-label="(fabMenuOpen ? 'Skjul kartknappene' : 'Vis kartknappene')
                 + (lendeChatEnabled ? ' — hold for Lende-chat' : '')"
               :aria-expanded="fabMenuOpen"
               class="relative z-10 w-12 h-12 rounded-full overflow-hidden bg-overlay
                      shadow-lg ring-1 ring-ink/15 touch-none active:scale-95 transition">
-        <img :src="lendeLogoUrl" alt="" class="w-full h-full" draggable="false" />
+        <img :src="lendeLogoUrl" alt="" draggable="false"
+             class="w-full h-full pointer-events-none select-none [-webkit-touch-callout:none]" />
       </button>
     </div>
 
