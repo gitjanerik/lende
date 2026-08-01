@@ -19,32 +19,12 @@ function onSend() {
   const text = input.value
   input.value = ''
   void send(text)
-  nextTick(() => autoGrow())
-}
-
-// Auto-høyde på meldingsfeltet: 2 rader som utgangspunkt, vokser med
-// innholdet opp til 4 rader (bunnraden er forankret nederst i modalen, så
-// veksten skjer oppover). scrollHeight-trikset trenger height:auto først.
-const MAKS_RADER = 4
-function autoGrow() {
-  const el = inputRef.value
-  if (!el) return
-  el.style.height = 'auto'
-  const stil = getComputedStyle(el)
-  const maksH = parseFloat(stil.lineHeight) * MAKS_RADER
-    + parseFloat(stil.paddingTop) + parseFloat(stil.paddingBottom)
-  el.style.height = `${Math.min(el.scrollHeight, maksH)}px`
-  el.style.overflowY = el.scrollHeight > maksH ? 'auto' : 'hidden'
 }
 
 // Taleinput — samme komposable og mønster som søkefeltene (MapSearchOverlay,
 // MapPickerContent m.fl.): transkriptet legges i feltet, brukeren sender selv.
 const { isSupported: micSupported, isListening: micListening, toggle: toggleMic } =
-  useSpeechInput({ onResult: (t) => {
-    input.value = t
-    inputRef.value?.focus()
-    nextTick(() => autoGrow())
-  } })
+  useSpeechInput({ onResult: (t) => { input.value = t; inputRef.value?.focus() } })
 
 // Autoscroll til bunnen mens svaret strømmer inn.
 watch(
@@ -115,13 +95,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
       <div class="shrink-0 border-t border-ink/10 px-3 py-2.5 flex items-end gap-2"
            :style="{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0.625rem)' }">
+        <!-- field-sizing:content: feltet vokser med innholdet (2–4 rader via
+             min/max-height); bunnforankret rad → veksten skjer oppover.
+             Nettlesere uten støtte faller tilbake til fast 2 rader (rows). -->
         <textarea ref="inputRef" v-model="input" rows="2" enterkeyhint="send"
                   placeholder="Spør om kartet, stedet eller turen …"
                   @keydown.enter.exact.prevent="onSend"
-                  @input="autoGrow"
                   class="flex-1 resize-none rounded-xl bg-ink/5 border border-ink/10 px-3 py-2
                          text-[14px] text-ink placeholder:text-ink/40 focus:outline-none
-                         focus:border-ink/30" />
+                         focus:border-ink/30 [field-sizing:content]
+                         min-h-[3.75rem] max-h-[6.5rem] overflow-y-auto" />
         <button v-if="micSupported && !busy" type="button" @click="toggleMic"
                 :aria-label="micListening ? 'Stopp diktering' : 'Diktér melding (tale til tekst)'"
                 :aria-pressed="micListening"

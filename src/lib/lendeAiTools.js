@@ -15,6 +15,7 @@
 import { geocodePlace } from './geocode.js'
 import { listMaps, loadMap, listGravelRoutes } from './mapStorage.js'
 import { buildSearchIndex, filterIndex, formatAreaShort } from '../composables/useMapSearch.js'
+import { tilesAreGridCompatible } from './tileCache.js'
 import { svgToWgs84 } from './utm.js'
 
 // Router lastes lat: da kan testene importere de rene delene (buildTourQuery,
@@ -107,12 +108,12 @@ export const AI_TOOLS = [
     function: {
       name: 'sok_i_kartet',
       description:
-        'Søk etter navngitte steder INNE i et lagret kart — tjern/vann, topper, hytter, ' +
-        'parkeringer, stedsnavn — med kartets egne, eksakte koordinater (samme søk som appens ' +
-        'søkefelt). Bruk ALLTID denne for å finne start/mål/vendepunkt til foreslaa_tur/' +
-        'foreslaa_rundtur når stedet skal ligge i kartet — den er fasit; sok_sted (nettbasert ' +
-        'geokoding) kan treffe navnebrødre andre steder. Nøkkelord «vann», «topp», «parkering» ' +
-        'gir rangerte oversikter.',
+        'Søk etter navngitte steder INNE i et lagret kart og naboflisene dets (mosaikken) — ' +
+        'tjern/vann, topper, hytter, parkeringer, stedsnavn — med kartets egne, eksakte ' +
+        'koordinater (samme søk som appens søkefelt). Hvert treff oppgir hvilken kartflis det ' +
+        'ligger i (kartId). Bruk ALLTID denne for å finne start/mål/vendepunkt til foreslaa_tur/' +
+        'foreslaa_rundtur — den er fasit; sok_sted (nettbasert geokoding) kan treffe navnebrødre ' +
+        'andre steder. Nøkkelord «vann», «topp», «parkering» gir rangerte oversikter.',
       parameters: {
         type: 'object',
         properties: {
@@ -335,46 +336,78 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         const id = String(args?.kartId ?? '')
         const kart = await loadMap(id)
         if (!kart?.svg) return { feil: `Fant ikke kart med id «${id}». Bruk mine_kart_og_ruter.` }
-        const meta = kart.meta
-        const m = { minE: meta.utmBbox.minE, minN: meta.utmBbox.minN, widthM: meta.widthM, heightM: meta.heightM }
         const maks = Math.min(Math.max(Number(args?.maks) || 8, 1), 30)
+
+        // Mosaikk: den viste flaten kan bestå av flere grid-kompatible fliser
+        // (spøkelses-fliser i MapView). Søk i aktiv flis + naboene, så hele det
+        // synlige kartet oppleves som ETT kart — treffene merkes med hvilken
+        // flis de ligger i.
+        const geo = (meta) => ({
+          minE: meta.utmBbox.minE, minN: meta.utmBbox.minN,
+          widthM: meta.widthM, heightM: meta.heightM,
+        })
+        const aktivGeo = geo(kart.meta)
+        const naboer = ((await listMaps()) ?? [])
+          .filter((e) => e.id !== id && e.meta?.utmBbox
+            && tilesAreGridCompatible(aktivGeo, geo(e.meta)))
+          .slice(0, 8)
+
         // getBBox() krever et RENDRET element (kaster på detached dokument) —
         // monter den parsede SVG-en usynlig i DOM-en mens indeksen bygges.
-        const doc = new DOMParser().parseFromString(kart.svg, 'image/svg+xml')
-        const svgEl = document.importNode(doc.documentElement, true)
-        const holder = document.createElement('div')
-        holder.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:hidden;pointer-events:none'
-        holder.appendChild(svgEl)
-        document.body.appendChild(holder)
-        let rader
-        try {
-          rader = filterIndex(buildSearchIndex(svgEl), String(args?.sok ?? ''), maks)
-        } finally {
-          holder.remove()
-        }
-        const treff = rader
-          .map((r) => {
+        const sokIEttKart = (entry) => {
+          const doc = new DOMParser().parseFromString(entry.svg, 'image/svg+xml')
+          const svgEl = document.importNode(doc.documentElement, true)
+          const holder = document.createElement('div')
+          holder.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:hidden;pointer-events:none'
+          holder.appendChild(svgEl)
+          document.body.appendChild(holder)
+          let rader
+          try {
+            rader = filterIndex(buildSearchIndex(svgEl), String(args?.sok ?? ''), maks)
+          } finally {
+            holder.remove()
+          }
+          const m = geo(entry.meta)
+          return rader.map((r) => {
             const ll = svgToWgs84(r.x, r.y, m)
             const o = {
               navn: r.name,
               type: r.label ?? r.kind,
               lat: +ll.lat.toFixed(6),
               lon: +ll.lon.toFixed(6),
+              kartId: entry.id,
+              kart: entry.navn ?? entry.id,
             }
             if (Number.isFinite(r.ele)) o.moh = Math.round(r.ele)
             if (Number.isFinite(r.areaM2) && r.areaM2 > 0) o.areal = formatAreaShort(r.areaM2)
             return o
           })
+        }
+
+        const treff = [...sokIEttKart(kart)]
+        for (const nabo of naboer) {
+          if (treff.length >= maks) break
+          const full = await loadMap(nabo.id)
+          if (full?.svg) treff.push(...sokIEttKart(full))
+        }
         if (!treff.length) {
           return {
             treff: [],
+            sokteKart: [kart.navn ?? id, ...naboer.map((n) => n.navn ?? n.id)],
             merknad:
-              `Ingen treff for «${args?.sok}» i kartet «${kart.navn ?? id}». Stedet ligger ` +
-              'trolig utenfor dette kartet — forklar det ærlig, og tilby å bygge et nytt kart ' +
-              'som dekker området (lag_kart) hvis brukeren vil dit.',
+              `Ingen treff for «${args?.sok}» i kartet «${kart.navn ?? id}»` +
+              (naboer.length ? ` eller de ${naboer.length} naboflisene` : '') +
+              '. Stedet ligger trolig utenfor — forklar det ærlig, og tilby å bygge et nytt ' +
+              'kart som dekker området (lag_kart) hvis brukeren vil dit.',
           }
         }
-        return { treff }
+        return {
+          treff: treff.slice(0, maks),
+          merknad:
+            'Treff med annen kartId enn brukerens aktive kart ligger i en NABOFLIS: turer kan ' +
+            'foreløpig bare tegnes innenfor ÉN flis, så tilby å åpne den flisa (apne_kart) ' +
+            'eller å bygge ett større kart som dekker begge (lag_kart).',
+        }
       }
       case 'foreslaa_rundtur': {
         const id = String(args?.kartId ?? '')
