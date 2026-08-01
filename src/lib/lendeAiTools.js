@@ -13,7 +13,9 @@
 //  • Skjemaene er OpenAI-stil function-defs — det Workers AI-modellene leser.
 
 import { geocodePlace } from './geocode.js'
-import { listMaps, listGravelRoutes } from './mapStorage.js'
+import { listMaps, loadMap, listGravelRoutes } from './mapStorage.js'
+import { buildSearchIndex, filterIndex, formatAreaShort } from '../composables/useMapSearch.js'
+import { svgToWgs84 } from './utm.js'
 
 // Router lastes lat: da kan testene importere de rene delene (buildTourQuery,
 // projectForModel) uten å evaluere hele router→view-treet.
@@ -97,6 +99,28 @@ export const AI_TOOLS = [
           navn: { type: 'string', description: 'Kartnavn, f.eks. stedsnavnet' },
         },
         required: ['lat', 'lon'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'sok_i_kartet',
+      description:
+        'Søk etter navngitte steder INNE i et lagret kart — tjern/vann, topper, hytter, ' +
+        'parkeringer, stedsnavn — med kartets egne, eksakte koordinater (samme søk som appens ' +
+        'søkefelt). Bruk ALLTID denne for å finne start/mål/vendepunkt til foreslaa_tur/' +
+        'foreslaa_rundtur når stedet skal ligge i kartet — den er fasit; sok_sted (nettbasert ' +
+        'geokoding) kan treffe navnebrødre andre steder. Nøkkelord «vann», «topp», «parkering» ' +
+        'gir rangerte oversikter.',
+      parameters: {
+        type: 'object',
+        properties: {
+          kartId: { type: 'string', description: 'Kart-id fra mine_kart_og_ruter (utelat hvis brukeren står i kartet — bruk kartId fra konteksten)' },
+          sok: { type: 'string', description: 'Fritekst (f.eks. «Stordammen») ELLER nøkkelord: «vann», «topp», «parkering»' },
+          maks: { type: 'number', description: 'Maks antall treff (standard 8)' },
+        },
+        required: ['kartId', 'sok'],
       },
     },
   },
@@ -307,6 +331,51 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
             'byggeskjemaet der brukeren kan justere og prøve igjen.',
         }
       }
+      case 'sok_i_kartet': {
+        const id = String(args?.kartId ?? '')
+        const kart = await loadMap(id)
+        if (!kart?.svg) return { feil: `Fant ikke kart med id «${id}». Bruk mine_kart_og_ruter.` }
+        const meta = kart.meta
+        const m = { minE: meta.utmBbox.minE, minN: meta.utmBbox.minN, widthM: meta.widthM, heightM: meta.heightM }
+        const maks = Math.min(Math.max(Number(args?.maks) || 8, 1), 30)
+        // getBBox() krever et RENDRET element (kaster på detached dokument) —
+        // monter den parsede SVG-en usynlig i DOM-en mens indeksen bygges.
+        const doc = new DOMParser().parseFromString(kart.svg, 'image/svg+xml')
+        const svgEl = document.importNode(doc.documentElement, true)
+        const holder = document.createElement('div')
+        holder.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:hidden;pointer-events:none'
+        holder.appendChild(svgEl)
+        document.body.appendChild(holder)
+        let rader
+        try {
+          rader = filterIndex(buildSearchIndex(svgEl), String(args?.sok ?? ''), maks)
+        } finally {
+          holder.remove()
+        }
+        const treff = rader
+          .map((r) => {
+            const ll = svgToWgs84(r.x, r.y, m)
+            const o = {
+              navn: r.name,
+              type: r.label ?? r.kind,
+              lat: +ll.lat.toFixed(6),
+              lon: +ll.lon.toFixed(6),
+            }
+            if (Number.isFinite(r.ele)) o.moh = Math.round(r.ele)
+            if (Number.isFinite(r.areaM2) && r.areaM2 > 0) o.areal = formatAreaShort(r.areaM2)
+            return o
+          })
+        if (!treff.length) {
+          return {
+            treff: [],
+            merknad:
+              `Ingen treff for «${args?.sok}» i kartet «${kart.navn ?? id}». Stedet ligger ` +
+              'trolig utenfor dette kartet — forklar det ærlig, og tilby å bygge et nytt kart ' +
+              'som dekker området (lag_kart) hvis brukeren vil dit.',
+          }
+        }
+        return { treff }
+      }
       case 'foreslaa_rundtur': {
         const id = String(args?.kartId ?? '')
         const maps = await listMaps()
@@ -391,6 +460,7 @@ export function toolStatusLabel(name, args) {
     case 'apne_kart': return 'Åpner kartet …'
     case 'foreslaa_nytt_kart': return 'Gjør klart nytt kart …'
     case 'lag_kart': return 'Starter kartbygging …'
+    case 'sok_i_kartet': return `Søker i kartet etter «${args?.sok ?? '…'}» …`
     case 'foreslaa_tur':
     case 'vis_tur_i_3d': return 'Beregner turen …'
     case 'foreslaa_rundtur': return 'Beregner rundtur …'

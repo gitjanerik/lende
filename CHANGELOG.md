@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-08-01 — v4.2.8: Chatten søker i kartets egne navn (sok_i_kartet) + større meldingsfelt
+
+Felt-test nr. 5: «tur til Stordammen» endte et tilfeldig sted på åssiden — chatten geokodet på nett (sok_sted) og traff feil navnebror, enda kartet har Stordammen navngitt. Nytt klient-verktøy `sok_i_kartet`: søker i det lagrede kartets egne stedsnavn/tjern/topper/parkeringer med samme buildSearchIndex/filterIndex som appens søkefelt, og returnerer kartets eksakte koordinater. Implementasjonsdetalj: getBBox() kaster på urendrede SVG-er, så den parsede SVG-en monteres usynlig i DOM-en mens indeksen bygges — verifisert i ekte Chromium mot vite dev (navngitt vann-polygon funnet på eksakt posisjon, «vann»-nøkkelord virker). Systemprompten er snudd: til start/mål/vendepunkt i turverktøyene brukes ALLTID sok_i_kartet først (kartets navn er fasit); sok_sted er for steder utenfor kartene og nye kart, og finner ikke kartsøket stedet skal chatten si det ærlig og tilby lag_kart. I tillegg: meldingsfeltet i chat-modalen er nå to rader som utgangspunkt og vokser med innholdet opp til fire (bunnforankret — vokser oppover), med auto-reset etter sending og etter diktering.
+
+---
+
 ## 2026-07-31 — v4.2.7: Kritisk fiks — kartvisningen krasjet ved åpning (v4.2.5-regresjon)
 
 Alle kart ga svart skjerm og redirect til forsiden: aktivTur-watcheren fra v4.2.5 refererte `stiSelectedClimb` som deklareres ~770 linjer lenger ned i MapView — en immediate-watch som kastet «Cannot access before initialization» (TDZ) ved mount, fanget av den globale feilhåndtereren i main.js som rydder kart-tilstand og sender brukeren hjem. Watcheren er flyttet ned etter stiSelectedClimb-deklarasjonen (med kommentar om hvorfor den MÅ stå der). Verifisert i ekte Chromium (Playwright mot bygget app): /kart/vardasen monterer uten pageerror, ingen redirect, SVG-en rendres. Enhetstestene fanget ikke dette (MapView har ingen mount-test) — nettleser-røyk er nå en del av sjekklisten for MapView-endringer.
