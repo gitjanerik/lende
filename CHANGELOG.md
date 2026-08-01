@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-08-01 — v4.3.1: FAB-klynge — Lende-knappen som anker for kart-knottene
+
+Fire knotter nederst til høyre ble for voldsomt etter at chat-FAB-en kom til. Nå er Lende-knappen (app-logoen) eneste synlige knott i kartvisningen — for alle brukere. Sentrer-, strek- og relieff-knottene er skjult som standard og springer ut fra ankeret med gummibånd-animasjon (overshoot-bezier): sentrer mot nord (rett over), strek mot nordvest og relieff mot vest. Et vanlig tap viser/skjuler knottene — likt for alle brukere; lang-trykk åpner Lende-chatten (kun med invitasjonstoken). Et trykk hvor som helst i kartet lukker klyngen igjen. Knottene beholder sin gamle oppførsel (tap = steg, lang-trykk = innstillingspanel), og hint-bobla følger klyngens åpne/lukkede tilstand. LendeChatFab er forenklet til kun global (fixed) modus — kartvisningens inline-variant er erstattet av ankeret.
+
+---
+
 ## 2026-08-01 — v4.3.0: Sømløs kryss-flis-ruting fra chatten + data-meta-fiksen
 
 Milepælen: turer og rundturer fra Lende-chat kan nå gå PÅ TVERS av kartfliser i en mosaikk. To brikker: (1) vaktposten i foreslaa_tur/foreslaa_rundtur godtar punkter i hele mosaikken (nabofliser via bbox-nærhet, ny `bboxAvstandKm`), ikke bare aktiv flis; (2) MapView-gjenopprettingen venter (maks ~12 s, token-invalidert ved navigasjon) på at spøkelses-flisene som dekker turpunktene er tegnet før ruting — Stifinner-grafen leser ghost-paths (testdekket fra før), så ruta beregnes sømløst over grensen. Verifisert ende-til-ende i ekte Chromium: to ekte nabofliser (Kartverket-data) seedet i IndexedDB, tur-query med mål i naboflisa → spøkelses-flis lastet og rute tegnet på 1,4 s. Underveis ble en alvorlig v4.2.8-bug avdekket: lagrede app-kart har IKKE noe meta-felt (kun MCP-bygde har det) — sok_i_kartet leste `kart.meta.utmBbox` og feilet dermed på alle ekte app-kart (den faktiske rot-årsaken til Stordammen-savnet). Kartets UTM-forankring leses nå fra SVG-ens eget `data-meta`-attributt (`metaFraSvgEl`), samme kilde som spøkelses-flisene bruker.
