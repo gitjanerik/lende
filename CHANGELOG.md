@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-08-02 — v4.3.11: Lende-chat bytter modell til Llama 4 Scout
+
+Llama 3.3 70B viste seg beviselig upålitelig på funksjonskalling — samme spørsmål ga korrekt verktøykall den ene gangen og hermetisk engelsk avvisning den neste, og til slutt dumpet den verktøykall som råtekst med hallusinerte koordinater. Chatten bytter til @cf/meta/llama-4-scout-17b-16e-instruct: nyere funksjonskalling, samme chat-completions+tools-form (drop-in, ingen klientendring), og omtrent halvert neurons-forbruk per melding siden output-prisen er ~1/3 ($0,66 vs $2,25 per M tokens). Byttet er én linje i ai-workerens wrangler.toml; deploy-røyktesten verifiserer modellen fra samme fil og tester et norsk svar. Sikkerhetsnettene fra v4.3.9/v4.3.10 beholdes uendret.
+
+---
+
 ## 2026-08-02 — v4.3.10: Stinett-svar kan aldri mer bli «Your input is lacking …»
 
 To harde stengsler oppå v4.3.9-rutingen: (1) når forhåndsanalysen er kjørt, sendes FØRSTE modellrunde uten verktøy — de hermetiske engelske avvisningene er artefakter av funksjonskall-grammatikken og forsvinner når modellen bare skal formatere tekst; (2) svarer modellen likevel hermetisk engelsk (eller tomt), erstattes svaret med et deterministisk norsk sammendrag bygget rett fra analysen (stinettSvarTekst: total med «mer enn»-avrunding, kartstørrelse, lengste strekning, lengste turforslag). Brukeren skal aldri se de meldingene når tallene faktisk foreligger.
