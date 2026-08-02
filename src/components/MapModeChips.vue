@@ -224,6 +224,11 @@ function formatElevationDiff(m) {
           <div class="text-[12px] font-semibold mb-1">
             {{ sti.routes.value.length }} {{ sti.routes.value.length === 1 ? 'rute' : 'ruter' }}
           </div>
+          <!-- Punkt lenger enn snap-taket fra stinettet (mål midt i et vann,
+               topp uten sti): ruten er funnet, men siste stykket mangler sti. -->
+          <div v-if="sti.snapNote?.value" class="text-[10px] text-amber-100 mb-1">
+            {{ sti.snapNote.value }}
+          </div>
           <div class="flex flex-col gap-1">
             <button v-for="(r, i) in sti.routes.value" :key="i"
                     @click="$emit('selectRoute', i)"

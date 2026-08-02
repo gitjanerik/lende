@@ -649,6 +649,26 @@ export function stinettSvarTekst(a) {
   return deler.join(' ')
 }
 
+/**
+ * Inneholder svaret tall som IKKE kan være kjent? foreslaa_tur/foreslaa_rundtur
+ * navigerer bare — ruten beregnes i kartvisningen etterpå, så verktøysvaret har
+ * aldri lengde, høydemeter eller gangtid. Nevner modellen slike tall likevel,
+ * har den diktet dem opp («Turen er tegnet inn. Den er 4,7 km lang med 180
+ * høydemeter …» på en tur som aldri ble beregnet).
+ */
+export function harOppdiktedeTurtall(tekst) {
+  const s = String(tekst ?? '')
+  return /\d+(?:[.,]\d+)?\s*(?:km\b|kilometer|meter\b|m\b|høydemeter|hm\b)/i.test(s) ||
+    /\d+\s*(?:min\b|minutt|timer?\b)/i.test(s)
+}
+
+/** Deterministisk, ærlig bekreftelse etter at en tur er sendt til kartet. */
+export function turSvarTekst({ type = 'tur', vis3d = false } = {}) {
+  return `Jeg åpner kartet og beregner ${type === 'rundtur' ? 'rundturen' : 'turen'} nå — ` +
+    'lengde, stigning og gangtid vises i kartet så snart ruten er tegnet inn. ' +
+    (vis3d ? 'Turen åpnes i 3D.' : 'Si fra hvis du vil se den i 3D.')
+}
+
 /** Kort norsk statuslinje per verktøy — vises i chatten mens kallet kjører. */
 export function toolStatusLabel(name, args) {
   switch (name) {

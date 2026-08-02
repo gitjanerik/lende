@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   AI_TOOLS, buildTourQuery, buildRundturQuery, buildLagKartQuery, projectForModel,
   kmUtenforBbox, kmMellom, bboxAvstandKm, metaFraSvgEl, toolStatusLabel,
-  erStinettSporsmaal, stinettSvarTekst,
+  erStinettSporsmaal, stinettSvarTekst, harOppdiktedeTurtall, turSvarTekst,
 } from './lendeAiTools.js'
 import { parseTourQuery } from './tour3dLink.js'
 
@@ -85,6 +85,33 @@ describe('stinettSvarTekst', () => {
     expect(tekst).toContain('9,7 km tursti')
     expect(tekst).toContain('minstekravet')
     expect(stinettSvarTekst(null)).toBe('')
+  })
+})
+
+describe('harOppdiktedeTurtall', () => {
+  it('fanger rutetall modellen ikke kan kjenne', () => {
+    // Ekte tilfelle: turen ble aldri beregnet, men modellen svarte med tall.
+    expect(harOppdiktedeTurtall(
+      'Turen er tegnet inn i kartet ditt. Den er 4,7 km lang med 180 høydemeter stigning og en gangtid på 1 time 14 minutter.',
+    )).toBe(true)
+    expect(harOppdiktedeTurtall('Ruten er 3.2 km.')).toBe(true)
+    expect(harOppdiktedeTurtall('Det tar ca 45 min å gå.')).toBe(true)
+    expect(harOppdiktedeTurtall('Stigningen er 210 m.')).toBe(true)
+  })
+  it('godtar bekreftelser uten tall', () => {
+    expect(harOppdiktedeTurtall('Jeg åpner kartet og beregner turen nå.')).toBe(false)
+    expect(harOppdiktedeTurtall('Turen er sendt til kartet — vil du se den i 3D?')).toBe(false)
+    expect(harOppdiktedeTurtall('')).toBe(false)
+  })
+})
+
+describe('turSvarTekst', () => {
+  it('bekrefter ærlig uten å påstå tall, og skiller tur/rundtur', () => {
+    const tur = turSvarTekst({ type: 'tur' })
+    expect(tur).toContain('beregner turen')
+    expect(harOppdiktedeTurtall(tur)).toBe(false)
+    expect(turSvarTekst({ type: 'rundtur' })).toContain('rundturen')
+    expect(turSvarTekst({ type: 'tur', vis3d: true })).toContain('3D')
   })
 })
 

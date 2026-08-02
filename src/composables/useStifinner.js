@@ -29,9 +29,21 @@ import { parsePathSubpaths } from '../lib/pathUtils.js'
 // ISOM-koder som er routbare (vei/sti/bro). Må matche ISOM_COST i routing.js.
 const ROUTABLE_CODES = new Set(['501', '502', '503', '504', '505', '506', '507', '509'])
 
-// Maks snap-avstand fra valgt punkt til nærmeste sti-node (meter). Lenger unna
-// → vi antar «ingen sti i nærheten».
+// Snap-avstand fra valgt punkt til nærmeste sti-node (meter), i to trinn:
+//
+//  ≤ MAX_SNAP_M    — stille treff (punktet ligger praktisk talt på stien).
+//  ≤ FAR_SNAP_M    — godtas MED merknad. Et mål plukket fra kartets egne navn
+//                    er ofte en flate-sentroide: «Stordammen» lander midt på
+//                    vannet, en topp uten sti på selve varden, en holme i en
+//                    innsjø. Å svare «ingen sti i nærheten av målet» er teknisk
+//                    riktig men praktisk ubrukelig — turen brukeren mener er
+//                    «fram til Stordammen», altså dit stien kommer nærmest.
+//                    Vi ruter derfor dit og SIER at siste stykket mangler sti
+//                    (connector-streken viser gapet).
+//  > FAR_SNAP_M    — ærlig feil: målet er utenfor stinettet (midt i en stor
+//                    innsjø, langt ute på et myrområde).
 const MAX_SNAP_M = 150
+const FAR_SNAP_M = 400
 
 // Maks antall via-punkter (A + inntil 3 via + B = 5 punkter totalt).
 const MAX_VIA = 3
@@ -57,6 +69,9 @@ export function useStifinner() {
   const routes = ref([])            // [{ coordinates, lengthM, costM }]
   const selectedRouteIdx = ref(0)
   const error = ref('')             // brukervendt feilmelding
+  // Merknad (ikke feil): ruten ble funnet, men minst ett punkt lå lenger enn
+  // MAX_SNAP_M fra stinettet — f.eks. et mål midt i en innsjø.
+  const snapNote = ref('')
   // Diagnose-streng (kun satt ved feil): antall data-iso-grupper, routbare
   // grupper, features og graf-noder/kanter + snap-avstand. Vises i modus-chipen
   // så feilsøking kan skje PÅ enheten (iPhone/Safari uten devtools).
@@ -101,6 +116,7 @@ export function useStifinner() {
     routes.value = []
     selectedRouteIdx.value = 0
     error.value = ''
+    snapNote.value = ''
     startSnap.value = null
     destSnap.value = null
     viaSnaps.value = []
@@ -119,6 +135,7 @@ export function useStifinner() {
     routes.value = []
     selectedRouteIdx.value = 0
     error.value = ''
+    snapNote.value = ''
     startSnap.value = null
     destSnap.value = null
     viaSnaps.value = []
@@ -136,6 +153,7 @@ export function useStifinner() {
     routes.value = []
     selectedRouteIdx.value = 0
     error.value = ''
+    snapNote.value = ''
     startSnap.value = null
     destSnap.value = null
     viaSnaps.value = []
@@ -165,6 +183,7 @@ export function useStifinner() {
     routes.value = []
     selectedRouteIdx.value = 0
     error.value = ''
+    snapNote.value = ''
     startSnap.value = null
     destSnap.value = null
     viaSnaps.value = []
@@ -186,6 +205,7 @@ export function useStifinner() {
     routes.value = []
     selectedRouteIdx.value = 0
     error.value = ''
+    snapNote.value = ''
     startSnap.value = null
     destSnap.value = null
     viaSnaps.value = []
@@ -260,11 +280,32 @@ export function useStifinner() {
     return cachedRg
   }
 
+  // Snap en punktliste til grafen etter to-trinns-regelen (se FAR_SNAP_M).
+  // `navnFor(i)` gir punktets norske navn til feil-/merknadstekst.
+  // → { snapped } | { feil, verste }
+  function snapAll(rg, pts, navnFor) {
+    const snapped = []
+    const fjerne = []
+    for (let i = 0; i < pts.length; i++) {
+      const n = rg.nearestNode([pts[i].svgX, pts[i].svgY])
+      if (!n || n.distM > FAR_SNAP_M) {
+        return { feil: `Ingen sti eller vei i nærheten av ${navnFor(i)}`, verste: n }
+      }
+      if (n.distM > MAX_SNAP_M) fjerne.push(`${navnFor(i)} ${Math.round(n.distM)} m`)
+      snapped.push(n)
+    }
+    if (fjerne.length) {
+      snapNote.value = `Ruten går så nær som stinettet kommer — ${fjerne.join(', ')} fra nærmeste sti.`
+    }
+    return { snapped }
+  }
+
   // Reberegn ruter gjennom [start, ...via, mål] mot cachet graf. Setter routes/
   // snaps/error. Kalles av confirmStart og alle via-endringer.
   function recompute() {
     if (mode.value === 'following') return   // ruta i bruk skal aldri endres under føttene
     error.value = ''
+    snapNote.value = ''
     diag.value = ''
     routes.value = []
     selectedRouteIdx.value = 0
@@ -288,16 +329,13 @@ export function useStifinner() {
     if (isLoop.value) {
       if (!via.value.length) return   // trenger minst ett vendepunkt (venter på plukk)
       const pts = [start.value, ...via.value]
-      const snapped = pts.map(p => rg.nearestNode([p.svgX, p.svgY]))
-      for (let i = 0; i < snapped.length; i++) {
-        const n = snapped[i]
-        if (!n || n.distM > MAX_SNAP_M) {
-          error.value = i === 0 ? 'Ingen sti eller vei i nærheten av startpunktet'
-            : `Ingen sti eller vei i nærheten av vendepunkt ${i}`
-          diag.value += ` · nærmeste ${n ? Math.round(n.distM) : '∞'} m (maks ${MAX_SNAP_M})`
-          return
-        }
+      const res = snapAll(rg, pts, (i) => (i === 0 ? 'startpunktet' : `vendepunkt ${i}`))
+      if (res.feil) {
+        error.value = res.feil
+        diag.value += ` · nærmeste ${res.verste ? Math.round(res.verste.distM) : '∞'} m (maks ${FAR_SNAP_M})`
+        return
       }
+      const snapped = res.snapped
       startSnap.value = { x: snapped[0].pos[0], y: snapped[0].pos[1] }
       destSnap.value = { x: snapped[0].pos[0], y: snapped[0].pos[1] }
       viaSnaps.value = snapped.slice(1).map(n => ({ x: n.pos[0], y: n.pos[1] }))
@@ -312,17 +350,15 @@ export function useStifinner() {
     }
 
     const pts = [start.value, ...via.value, destination.value]
-    const snapped = pts.map(p => rg.nearestNode([p.svgX, p.svgY]))
-    for (let i = 0; i < snapped.length; i++) {
-      const n = snapped[i]
-      if (!n || n.distM > MAX_SNAP_M) {
-        error.value = i === 0 ? 'Ingen sti eller vei i nærheten av startpunktet'
-          : i === snapped.length - 1 ? 'Ingen sti eller vei i nærheten av målet'
-            : `Ingen sti eller vei i nærheten av via-punkt ${i}`
-        diag.value += ` · nærmeste ${n ? Math.round(n.distM) : '∞'} m (maks ${MAX_SNAP_M})`
-        return
-      }
+    const res = snapAll(rg, pts, (i) => (
+      i === 0 ? 'startpunktet' : i === pts.length - 1 ? 'målet' : `via-punkt ${i}`
+    ))
+    if (res.feil) {
+      error.value = res.feil
+      diag.value += ` · nærmeste ${res.verste ? Math.round(res.verste.distM) : '∞'} m (maks ${FAR_SNAP_M})`
+      return
     }
+    const snapped = res.snapped
 
     startSnap.value = { x: snapped[0].pos[0], y: snapped[0].pos[1] }
     destSnap.value = { x: snapped[snapped.length - 1].pos[0], y: snapped[snapped.length - 1].pos[1] }
@@ -439,6 +475,7 @@ export function useStifinner() {
 
   return {
     mode, active, blocking, isLoop, destination, start, via, routes, selectedRouteIdx, error, diag,
+    snapNote,
     startSnap, destSnap, viaSnaps, directDistanceM, canAddVia, MAX_VIA,
     begin, beginLoop, beginPickStart, confirmDest, beginPickLoop, confirmLoopOrigin,
     cancel, confirmStart, beginAddVia, confirmVia, removeVia, clearVia,

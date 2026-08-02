@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { chatOnce } from '../lib/lendeAi.js'
 import {
   AI_TOOLS, runTool, toolStatusLabel, erStinettSporsmaal, stinettSvarTekst,
+  harOppdiktedeTurtall, turSvarTekst,
 } from '../lib/lendeAiTools.js'
 
 // Global chat-tilstand (Fase 2 av KI-planen). Modul-skopet med vilje: modalen
@@ -89,6 +90,10 @@ function nySamtale() {
 // Maks verktøy-runder per melding — vern mot at modellen går i løkke.
 const MAX_VERKTOEY_RUNDER = 4
 
+// Verktøy som sender en tur til kartvisningen (og dermed ikke kan kjenne
+// rutens tall i svaret). vis_tur_i_3d er det gamle navnet på foreslaa_tur.
+const TUR_VERKTOEY = new Set(['foreslaa_tur', 'vis_tur_i_3d', 'foreslaa_rundtur'])
+
 async function send(text) {
   const spm = text?.trim()
   if (!spm || busy.value) return
@@ -107,6 +112,9 @@ async function send(text) {
   // verktøy. Feiler analysen faller vi stille tilbake til vanlig verktøy-loop.
   let stinettAnalyse = null
   let stinettNotat = ''
+  // Satt når en tur faktisk ble sendt til kartet — brukes til å luke ut
+  // oppdiktede rutetall i svaret (se under løkka).
+  let turSendt = null
   if (context.value?.kartId && erStinettSporsmaal(spm)) {
     busyLabel.value = toolStatusLabel('analyser_stinett', {})
     try {
@@ -170,6 +178,12 @@ async function send(text) {
           onNavigate: closeChat,
           kontekst: context.value,
         })
+        if (resultat?.ok && TUR_VERKTOEY.has(kall.name)) {
+          turSendt = {
+            type: kall.name === 'foreslaa_rundtur' ? 'rundtur' : 'tur',
+            vis3d: !!kall.args?.vis3d,
+          }
+        }
         samtale.push({
           role: 'tool',
           tool_call_id: kall.id,
@@ -187,6 +201,13 @@ async function send(text) {
     const hermetisk = /your (input|request|function definitions)|please (provide|expand|specify)/i
     if (stinettAnalyse && (hermetisk.test(svar.content) || svar.content.startsWith('(Modellen ga et tomt svar'))) {
       svar.content = stinettSvarTekst(stinettAnalyse)
+    }
+
+    // Ble en tur sendt til kartet, KAN ikke svaret kjenne lengde/høydemeter/
+    // gangtid — ruten beregnes først i kartvisningen. Nevner modellen slike
+    // tall, er de diktet opp; da erstattes svaret med en ærlig bekreftelse.
+    if (turSendt && (harOppdiktedeTurtall(svar.content) || hermetisk.test(svar.content))) {
+      svar.content = turSvarTekst(turSendt)
     }
   } catch (err) {
     if (err?.name === 'AbortError') {
