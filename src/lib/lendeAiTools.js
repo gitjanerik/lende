@@ -88,6 +88,8 @@ export const AI_TOOLS = [
           lon: { type: 'number', description: 'Senter-lengdegrad (kun nødvendig uten «sted»)' },
           km: { type: 'number', description: 'Kartbredde i km (1–16, standard 4)' },
           navn: { type: 'string', description: 'Foreslått kartnavn (standard: stedsnavnet)' },
+          turFraNavn: { type: 'string', description: 'Startsted for en tur som skal tegnes inn straks kartet er bygget' },
+          turTilNavn: { type: 'string', description: 'Målsted for turen. Må oppgis sammen med turFraNavn.' },
         },
         required: [],
       },
@@ -103,8 +105,9 @@ export const AI_TOOLS = [
         'eksplisitt ber om å lage/bygge et kart — bruk foreslaa_nytt_kart når du bare foreslår. ' +
         'OPPGI HELST «sted» (stedsnavnet slik brukeren sa det, gjerne med kommune: «Sirikjerke, ' +
         'Øvre Eiker») — appen geokoder det selv, så du slipper sok_sted og kan ikke gjenbruke ' +
-        'koordinater fra et annet sted i samtalen. Kartet finnes IKKE før byggingen er ferdig: ' +
-        'du kan ikke tegne inn en tur i det i samme svar.',
+        'koordinater fra et annet sted i samtalen. Vil brukeren OGSÅ gå en tur i det nye ' +
+        'kartet: oppgi turFraNavn og turTilNavn i SAMME kall — turen tegnes da inn automatisk ' +
+        'når kartet er ferdig bygget. Kall ALDRI foreslaa_tur for et kart som ikke finnes ennå.',
       parameters: {
         type: 'object',
         properties: {
@@ -113,6 +116,9 @@ export const AI_TOOLS = [
           lon: { type: 'number', description: 'Senter-lengdegrad (kun nødvendig uten «sted»)' },
           km: { type: 'number', description: 'Kartbredde i km (1–16, standard 4)' },
           navn: { type: 'string', description: 'Kartnavn (standard: stedsnavnet)' },
+          turFraNavn: { type: 'string', description: 'Startsted for en tur som skal tegnes inn straks kartet er bygget, f.eks. «Brynsetertjern»' },
+          turTilNavn: { type: 'string', description: 'Målsted for turen, f.eks. «Sirikjerke». Må oppgis sammen med turFraNavn.' },
+          vis3d: { type: 'boolean', description: 'Åpne turen i 3D når kartet er klart (KUN når brukeren har bedt om 3D)' },
         },
         required: [],
       },
@@ -253,11 +259,21 @@ export function kmMellom(a, b) {
  * MapPickerContent leser, pluss auto=1 som starter byggingen). Skilt ut for
  * testbarhet.
  */
-export function buildLagKartQuery({ lat, lon, km, navn }) {
+export function buildLagKartQuery({ lat, lon, km, navn, turFraNavn, turTilNavn, vis3d }) {
   const query = { lat: Number(lat).toFixed(5), lon: Number(lon).toFixed(5), auto: '1' }
   const b = Number(km)
   query.km = String(Number.isFinite(b) ? Math.min(Math.max(b, 1), 16) : 4)
   if (navn) query.hl = String(navn).slice(0, 60)
+  // Tur bestilt i samme melding som kartet: navnene følger med gjennom
+  // byggingen (kartet finnes ikke ennå, så koordinater kan ikke slås opp) og
+  // løses mot kartets egen søkeindeks i MapView når stiene er tegnet.
+  const fra = String(turFraNavn ?? '').trim()
+  const til = String(turTilNavn ?? '').trim()
+  if (fra && til) {
+    query.tfn = fra.slice(0, 60)
+    query.ttn = til.slice(0, 60)
+    if (vis3d) query.v3d = '1'
+  }
   return query
 }
 
@@ -547,30 +563,49 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         if (Number.isFinite(km)) query.km = String(Math.min(Math.max(km, 1), 16))
         const tittel = args?.navn ?? stedsnavn
         if (tittel) query.hl = String(tittel).slice(0, 60)
+        // Tur bestilt i samme melding: navnene følger med gjennom byggingen
+        // (samme mekanikk som lag_kart) og tegnes inn når kartet er ferdig.
+        const fra = String(args?.turFraNavn ?? '').trim()
+        const til = String(args?.turTilNavn ?? '').trim()
+        if (fra && til) {
+          query.tfn = fra.slice(0, 60)
+          query.ttn = til.slice(0, 60)
+          if (args?.vis3d) query.v3d = '1'
+        }
         onNavigate?.()
         await navigerTil({ name: 'kart-nytt', query })
         return {
           ok: true,
           senter: { lat, lon, sted: stedsnavn ?? null },
-          merknad: 'Byggeskjemaet er åpnet med feltene utfylt — brukeren bekrefter og bygger selv.',
+          turBestilt: query.tfn ? { fra: query.tfn, til: query.ttn } : undefined,
+          merknad: 'Byggeskjemaet er åpnet med feltene utfylt — brukeren bekrefter og bygger selv.' +
+            (query.tfn ? ` Turen ${query.tfn} → ${query.ttn} tegnes inn når kartet er bygget.` : ''),
         }
       }
       case 'lag_kart': {
         const senter = await losKartSenter(args)
         if (senter.feil) return { feil: senter.feil }
         const { lat, lon, stedsnavn } = senter
-        const query = buildLagKartQuery({ lat, lon, km: args?.km, navn: args?.navn ?? stedsnavn })
+        const query = buildLagKartQuery({
+          lat, lon, km: args?.km, navn: args?.navn ?? stedsnavn,
+          turFraNavn: args?.turFraNavn, turTilNavn: args?.turTilNavn, vis3d: args?.vis3d,
+        })
+        const medTur = !!query.tfn
         onNavigate?.()
         await navigerTil({ name: 'kart-nytt', query })
         return {
           ok: true,
           senter: { lat, lon, sted: stedsnavn ?? null },
+          turBestilt: medTur ? { fra: query.tfn, til: query.ttn } : undefined,
           merknad:
             'Byggingen er startet (tar 15–60 sekunder) — kartet åpnes automatisk når det er ' +
             'ferdig. VIKTIG: ikke lov brukeren at det lykkes; ved feil vises en melding i ' +
-            'byggeskjemaet der brukeren kan justere og prøve igjen. Kan du IKKE tegne inn en ' +
-            'tur i kartet ennå — det må bygges ferdig først; be brukeren si fra når det er ' +
-            'oppe, så finner du ruten da.',
+            'byggeskjemaet der brukeren kan justere og prøve igjen.' +
+            (medTur
+              ? ` Turen ${query.tfn} → ${query.ttn} tegnes inn av seg selv når kartet er ` +
+                'klart — si det, og oppgi ingen tall (ruten er ikke beregnet ennå).'
+              : ' Skal brukeren ha en tur i det nye kartet, oppgi turFraNavn/turTilNavn i ' +
+                'SAMME lag_kart-kall — da tegnes den inn automatisk når kartet er ferdig.'),
         }
       }
       case 'sok_i_kartet': {

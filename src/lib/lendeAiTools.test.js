@@ -6,7 +6,7 @@ import {
   formatGangtid, forhaandsberegnTur, er3dOnske,
 } from './lendeAiTools.js'
 import { parseHTML } from 'linkedom'
-import { parseTourQuery } from './tour3dLink.js'
+import { parseTourQuery, parseTourNameQuery } from './tour3dLink.js'
 import { svgToWgs84 } from './utm.js'
 
 describe('AI_TOOLS', () => {
@@ -308,6 +308,27 @@ describe('buildLagKartQuery', () => {
     expect(buildLagKartQuery({ lat: 1, lon: 2, km: 99 }).km).toBe('16')
     expect(buildLagKartQuery({ lat: 1, lon: 2, km: 0.2 }).km).toBe('1')
     expect(buildLagKartQuery({ lat: 1, lon: 2 }).km).toBe('4')
+  })
+
+  it('bærer tur-navnene gjennom byggingen (tfn/ttn) når begge er satt', () => {
+    const q = buildLagKartQuery({
+      lat: 59.8, lon: 9.9, navn: 'Sirikjerke',
+      turFraNavn: 'Brynsetertjern', turTilNavn: 'Sirikjerke', vis3d: true,
+    })
+    expect(q.tfn).toBe('Brynsetertjern')
+    expect(q.ttn).toBe('Sirikjerke')
+    expect(q.v3d).toBe('1')
+    // MapView leser dem tilbake når kartet er bygget og indeksen er klar.
+    const nav = parseTourNameQuery(q)
+    expect(nav.fromName).toBe('Brynsetertjern')
+    expect(nav.toName).toBe('Sirikjerke')
+    expect(nav.open3d).toBe(true)
+  })
+
+  it('krever BEGGE tur-navnene — ett alene gir ingen tur', () => {
+    const q = buildLagKartQuery({ lat: 1, lon: 2, turFraNavn: 'Bare start' })
+    expect(q.tfn).toBeUndefined()
+    expect(parseTourNameQuery(q)).toBeNull()
   })
 
   it('utelater hl uten navn og kutter lange navn til 60 tegn', () => {

@@ -185,8 +185,17 @@ function parseShareInvite() {
   if (hasRoundTrip && !q.hl && typeof q.tn === 'string' && q.tn.trim()) {
     customName.value = q.tn.trim().slice(0, 60)
   }
+  // Navnebasert tur fra Lende-chat (lag_kart med turFraNavn/turTilNavn):
+  // kartet finnes ikke ennå, så NAVNENE følger med gjennom byggingen og løses
+  // mot kartets egen søkeindeks i MapView når stiene er på plass.
+  const tfn = typeof q.tfn === 'string' ? q.tfn.trim().slice(0, 60) : ''
+  const ttn = typeof q.ttn === 'string' ? q.ttn.trim().slice(0, 60) : ''
+  const hasNameTour = !!tfn && !!ttn
   return {
     hl: q.hl ? String(q.hl).slice(0, 60) : null,
+    hasNameTour,
+    tfn: hasNameTour ? tfn : null,
+    ttn: hasNameTour ? ttn : null,
     slat: hasPlace ? slat : null,
     slon: hasPlace ? slon : null,
     hasPlace,
@@ -317,9 +326,14 @@ async function generateMap() {
     // utfordrings-share).
     const nav = { name: 'kart-vis', params: { id } }
     const inv = shareInvite.value
-    if (inv?.hl || inv?.hasPlace || inv?.hasRoundTrip) {
+    if (inv?.hl || inv?.hasPlace || inv?.hasRoundTrip || inv?.hasNameTour) {
       nav.query = {}
       if (inv.hl) nav.query.hl = inv.hl
+      if (inv.hasNameTour) {
+        nav.query.tfn = inv.tfn
+        nav.query.ttn = inv.ttn
+        if (String(route.query.v3d) === '1') nav.query.v3d = '1'
+      }
       if (inv.hasPlace) { nav.query.slat = String(inv.slat); nav.query.slon = String(inv.slon) }
       if (inv.hasRoundTrip) {
         nav.query.olat = String(inv.olat)
