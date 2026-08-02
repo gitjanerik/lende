@@ -1,5 +1,13 @@
 # Endringslogg
 
+## 2026-08-02 — v4.3.12: Turer til vann og topper uten sti — og ingen oppdiktede rutetall
+
+«Tur fra Stormoen til Stordammen» feilet med «Ingen sti eller vei i nærheten av målet — nærmeste 158 m (maks 150)»: et mål plukket fra kartets egne navn er ofte en flate-sentroide, og for en innsjø lander den midt på vannet. Snappingen er nå to-trinns — innen 150 m er treffet stille som før, mellom 150 og 400 m rutes det dit stinettet kommer nærmest MED en merknad i Stifinner-banneret («Ruten går så nær som stinettet kommer — målet 158 m fra nærmeste sti»), og først over 400 m er det ærlig feil. Connector-streken viste alltid gapet; nå blir turen faktisk tegnet. Samme mekanikk fanger topper uten sti og holmer.
+
+Samtidig: chatten påsto «Turen er tegnet inn … 4,7 km … 180 høydemeter … 1 time 14 minutter» for en tur som aldri ble beregnet. Turverktøyene navigerer bare — ruten beregnes i kartvisningen etterpå — så verktøysvaret KAN ikke inneholde slike tall. Nevner modellen dem likevel, er de diktet opp, og svaret erstattes nå med en ærlig bekreftelse («Jeg åpner kartet og beregner turen nå — lengde, stigning og gangtid vises i kartet»). Samme deterministiske mønster som stinett-svarene i v4.3.10.
+
+---
+
 ## 2026-08-02 — v4.3.11: Lende-chat bytter modell til Llama 4 Scout
 
 Llama 3.3 70B viste seg beviselig upålitelig på funksjonskalling — samme spørsmål ga korrekt verktøykall den ene gangen og hermetisk engelsk avvisning den neste, og til slutt dumpet den verktøykall som råtekst med hallusinerte koordinater. Chatten bytter til @cf/meta/llama-4-scout-17b-16e-instruct: nyere funksjonskalling, samme chat-completions+tools-form (drop-in, ingen klientendring), og omtrent halvert neurons-forbruk per melding siden output-prisen er ~1/3 ($0,66 vs $2,25 per M tokens). Byttet er én linje i ai-workerens wrangler.toml; deploy-røyktesten verifiserer modellen fra samme fil og tester et norsk svar. Sikkerhetsnettene fra v4.3.9/v4.3.10 beholdes uendret.

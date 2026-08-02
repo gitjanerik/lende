@@ -108,6 +108,50 @@ describe('useStifinner – snarvei-inngang (start FØR mål)', () => {
   })
 })
 
+describe('useStifinner – to-trinns snapping av endepunkt', () => {
+  // Sti langs y=0 fra x=0 til x=1000 (lineSvg). Et mål plukket fra kartets egne
+  // navn er ofte en flate-sentroide — «Stordammen» lander midt på vannet,
+  // typisk et par hundre meter fra nærmeste sti.
+  it('mål 250 m fra stien: rute funnet, med merknad (før: hard feil)', () => {
+    const sti = useStifinner()
+    sti.beginPickStart()
+    sti.confirmStart({ x: 0, y: 0 }, lineSvg(), {})
+    sti.confirmDest({ x: 1000, y: 250 })
+    expect(sti.error.value).toBe('')
+    expect(sti.routes.value.length).toBeGreaterThan(0)
+    expect(sti.snapNote.value).toMatch(/målet 250 m/i)
+  })
+
+  it('mål på stien: ingen merknad', () => {
+    const sti = useStifinner()
+    sti.beginPickStart()
+    sti.confirmStart({ x: 0, y: 0 }, lineSvg(), {})
+    sti.confirmDest({ x: 1000, y: 0 })
+    expect(sti.snapNote.value).toBe('')
+  })
+
+  it('mål 900 m unna (midt i en stor innsjø): ærlig feil', () => {
+    const sti = useStifinner()
+    sti.beginPickStart()
+    sti.confirmStart({ x: 0, y: 0 }, lineSvg(), {})
+    sti.confirmDest({ x: 1000, y: 900 })
+    expect(sti.routes.value).toEqual([])
+    expect(sti.error.value).toMatch(/i nærheten av målet/i)
+    expect(sti.diag.value).toMatch(/maks 400/)
+  })
+
+  it('merknaden nullstilles når ruten reberegnes til et nært mål', () => {
+    const sti = useStifinner()
+    sti.beginPickStart()
+    sti.confirmStart({ x: 0, y: 0 }, lineSvg(), {})
+    sti.confirmDest({ x: 1000, y: 250 })
+    expect(sti.snapNote.value).not.toBe('')
+    sti.confirmVia({ x: 500, y: 0 }, lineSvg())
+    expect(sti.snapNote.value).toMatch(/målet 250 m/i)
+    expect(sti.snapNote.value).not.toMatch(/via/i)
+  })
+})
+
 describe('useStifinner – estWalkMinutes (Naismith)', () => {
   it('flatt (uten høydeprofil): ren distanse ved 4 km/t', () => {
     const sti = useStifinner()
