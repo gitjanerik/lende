@@ -24,6 +24,20 @@ describe('AI_TOOLS', () => {
     expect(new Set(navn).size).toBe(navn.length)
   })
 
+  it('turverktøyene tar stedsnavn, og krever bare kartId', () => {
+    // Navn slår koordinater (v4.4.2): appen slår dem opp i kartets egne navn,
+    // så en navnebror milevis unna ikke kan snike seg inn via sok_sted.
+    const tur = AI_TOOLS.find((x) => x.function.name === 'foreslaa_tur')
+    expect(tur.function.parameters.properties.fraNavn.type).toBe('string')
+    expect(tur.function.parameters.properties.tilNavn.type).toBe('string')
+    expect(tur.function.parameters.required).toEqual(['kartId'])
+
+    const rundt = AI_TOOLS.find((x) => x.function.name === 'foreslaa_rundtur')
+    expect(rundt.function.parameters.properties.origoNavn.type).toBe('string')
+    expect(rundt.function.parameters.properties.viaNavn.type).toBe('string')
+    expect(rundt.function.parameters.required).toEqual(['kartId'])
+  })
+
   it('analyser_stinett er deklarert uten påkrevde argumenter', () => {
     // required: [] med vilje — llama nekter å kalle verktøy der et required-
     // felt må hentes ut av kontekst-JSON-en («function definitions are not
