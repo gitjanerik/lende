@@ -57,7 +57,7 @@ jobs:
           # Må matche MCP_SERVER_VERSJON i src/index.js — begge pollene under
           # venter på at DENNE versjonen svarer, så gamle edge-noder rett etter
           # deploy ikke gir falske røde (fase B attempt 2 feilet på akkurat det).
-          VERSJON='2.1.0'
+          VERSJON='2.2.0'
           MCP_HDR=(-H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream')
           echo "— venter på /health med versjon $VERSJON (maks ~2 min) —"
           OK=""
@@ -93,6 +93,7 @@ jobs:
             echo "$LISTE" | grep -q '"turrapport_svg"' || { echo "::error::turrapport_svg mangler"; exit 1; }
             echo "$LISTE" | grep -q '"juster_kart"' || { echo "::error::juster_kart mangler"; exit 1; }
             echo "$LISTE" | grep -q '"berik_rute"' || { echo "::error::berik_rute mangler"; exit 1; }
+            echo "$LISTE" | grep -q '"analyser_stinett"' || { echo "::error::analyser_stinett mangler"; exit 1; }
             echo "OK (verktøyliste komplett)"
             echo "— tools/call sok_sted Håøya —"
             KALL=$(curl -fsS -X POST "$BASE/mcp" "${AUTH[@]}" "${MCP_HDR[@]}" \
@@ -120,6 +121,12 @@ jobs:
             KODE3=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/fil/kart/$REF/kart.svg?token=$TOK")
             test "$KODE3" = "200" || { echo "::error::Henting av kart-SVG ga $KODE3"; exit 1; }
             echo "OK — kart bygget, søkbart og hentbart fra R2"
+            echo "— analyser_stinett på røyk-kartet —"
+            STINETT=$(curl -fsS -m 60 -X POST "$BASE/mcp" "${AUTH[@]}" "${MCP_HDR[@]}" \
+              -d "{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"tools/call\",\"params\":{\"name\":\"analyser_stinett\",\"arguments\":{\"kartRef\":\"$REF\"}}}")
+            echo "$STINETT" | head -c 300; echo
+            echo "$STINETT" | grep -q 'totalStiKm' || { echo "::error::analyser_stinett ga ikke totalStiKm"; exit 1; }
+            echo "OK — stinett-analysen svarer"
             echo "— fase C: juster_kart (strekSkala) → hent justert SVG —"
             JUST=$(curl -fsS -m 60 -X POST "$BASE/mcp" "${AUTH[@]}" "${MCP_HDR[@]}" \
               -d "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"tools/call\",\"params\":{\"name\":\"juster_kart\",\"arguments\":{\"kartRef\":\"$REF\",\"strekSkala\":1.4}}}")
