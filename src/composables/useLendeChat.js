@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { chatOnce } from '../lib/lendeAi.js'
 import {
   AI_TOOLS, runTool, toolStatusLabel, erStinettSporsmaal, stinettSvarTekst,
-  harOppdiktedeTurtall, turSvarTekst, er3dOnske,
+  harOppdiktedeTurtall, turSvarTekst, er3dOnske, temaOnskeFra,
 } from '../lib/lendeAiTools.js'
 
 // Global chat-tilstand (Fase 2 av KI-planen). Modul-skopet med vilje: modalen
@@ -128,6 +128,26 @@ async function send(text) {
     svar3d.content = res?.feil
       ? `Fikk ikke åpnet 3D-visningen: ${res.feil}`
       : `${sisteTur.name === 'foreslaa_rundtur' ? 'Rundturen' : 'Ruten'} åpnes i 3D-visning.`
+    busy.value = false
+    busyLabel.value = ''
+    return
+  }
+
+  // Klar bestilling av et kart-tema: bytt det HER. Modellen bekrefter av og
+  // til et tema-bytte den aldri utførte («Karttema endret til curves.» uten
+  // verktøykall), og et fargebytte man ikke ser er verre enn ingen chat.
+  // Spørsmål om hvilke temaer som finnes rutes ikke hit — der svarer modellen
+  // med verktøyets liste.
+  const temaNokkel = temaOnskeFra(spm)
+  if (temaNokkel) {
+    messages.value.push({ role: 'user', content: spm })
+    const svarTema = { role: 'assistant', content: '' }
+    messages.value.push(svarTema)
+    busyLabel.value = toolStatusLabel('bytt_kart_tema', {})
+    const res = await runTool('bytt_kart_tema', { tema: temaNokkel }, { kontekst: context.value })
+    svarTema.content = res?.feil
+      ? `Fikk ikke byttet tema: ${res.feil}`
+      : `Kartet vises nå i temaet «${res.navn}».`
     busy.value = false
     busyLabel.value = ''
     return

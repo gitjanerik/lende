@@ -3,7 +3,7 @@ import {
   AI_TOOLS, buildTourQuery, buildRundturQuery, buildLagKartQuery, projectForModel,
   kmUtenforBbox, kmMellom, bboxAvstandKm, metaFraSvgEl, toolStatusLabel,
   erStinettSporsmaal, stinettSvarTekst, harOppdiktedeTurtall, turSvarTekst,
-  formatGangtid, forhaandsberegnTur, er3dOnske, losTemaNokkel, losLagNokler,
+  formatGangtid, forhaandsberegnTur, er3dOnske, losTemaNokkel, losLagNokler, temaOnskeFra,
 } from './lendeAiTools.js'
 import { parseHTML } from 'linkedom'
 import { parseTourQuery, parseTourNameQuery } from './tour3dLink.js'
@@ -209,6 +209,39 @@ describe('losTemaNokkel', () => {
   it('null for ukjent og tomt ønske', () => {
     expect(losTemaNokkel('turkis', TEMAER)).toBeNull()
     expect(losTemaNokkel('', TEMAER)).toBeNull()
+  })
+})
+
+describe('temaOnskeFra', () => {
+  const TEMAER = [
+    { key: 'light', label: 'Lys (ISOM)' },
+    { key: 'dark', label: 'Mørk' },
+    { key: 'mono-sepia', label: 'Sepia' },
+    { key: 'mono-slate', label: 'Petrol' },
+    { key: 'curves', label: 'Curves' },
+    { key: 'forest', label: 'Forest' },
+  ]
+  it('fanger klare bestillinger — også de modellen bare bekreftet', () => {
+    expect(temaOnskeFra('Bytt til curves', TEMAER)).toBe('curves')
+    expect(temaOnskeFra('endre tema til sepia', TEMAER)).toBe('mono-sepia')
+    expect(temaOnskeFra('bytt til mørkt kart', TEMAER)).toBe('dark')
+    expect(temaOnskeFra('sett tema til Petrol', TEMAER)).toBe('mono-slate')
+    expect(temaOnskeFra('vis meg forest-temaet', TEMAER)).toBe('forest')
+  })
+  it('lar spørsmål gå til modellen (den skal liste temaene)', () => {
+    for (const s of [
+      'Hvilke monokrome tema finnes',
+      'hva slags temaer kan du bytte til?',
+      'kan du endre tema?',
+    ]) expect(temaOnskeFra(s, TEMAER), s).toBeNull()
+  })
+  it('rører ikke vanlige meldinger', () => {
+    for (const s of [
+      'Hvor mange innsjøer i kartet?',
+      'gå en tur fra Stormoen til Stordammen',
+      'skjul navnene',
+      '',
+    ]) expect(temaOnskeFra(s, TEMAER), s).toBeNull()
   })
 })
 

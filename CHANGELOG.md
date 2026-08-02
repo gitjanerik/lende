@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-08-02 — v4.7.1: Tema-bytte skjer nå faktisk — deterministisk ruting
+
+«Bytt til curves» ga «Karttema endret til curves.» uten at kartet skiftet farge. Verktøyet og tolkingen var i orden (alle nøkler og etiketter treffer, også Petrol → mono-slate), men modellen bekreftet uten å kalle det — samme mønster som «Dark mode er aktivert» i v4.6.0, bare vanskeligere å oppdage fordi svaret så riktig ut. En klar bestilling av et bestemt tema håndteres derfor nå deterministisk i klienten, som stinett-spørsmål (v4.3.9) og 3D-oppfølging (v4.4.1): temaet byttes før modellen spørres, og svaret skrives fra det som faktisk skjedde. Spørsmål om hvilke temaer som finnes rutes bevisst IKKE hit — der svarer modellen med verktøyets liste, som den allerede gjorde riktig.
+
+---
+
 ## 2026-08-02 — v4.7.0: Chatten styrer kartlagene
 
 Nytt verktøy styr_kartlag lar chatten skru lag av og på enkeltvis («skjul navnene», «slå på parkering»), vise bare et utvalg («vis bare stier og høydekurver»), bytte forhåndsvalg (Tur, Padling, Detaljert, Print) eller nullstille til standard. Kalt uten argumenter svarer det med hele laglista og hva som er synlig akkurat nå, så modellen kan spørre i stedet for å gjette. Lagnavn tolkes norsk-tolerant: både nøkkel («kontur»), etikett («Høydekurver») og omtrentligheter («hus» → Hus og hytter) treffer, og myke bindestreker i etikettene ignoreres.

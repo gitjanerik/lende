@@ -1146,6 +1146,36 @@ export function losLagNokler(onsker, lag) {
   return { nokler, ukjente }
 }
 
+/**
+ * Er meldingen en klar BESTILLING av et bestemt kart-tema? Da byttes temaet
+ * deterministisk, uten å gå veien om modellen — den bekrefter av og til et
+ * tema-bytte den aldri utførte («Karttema endret til curves.» uten kall).
+ *
+ * Spørsmål («hvilke temaer finnes?») returnerer null med vilje: der skal
+ * modellen svare, med verktøyets liste.
+ *
+ * @returns {string|null} tema-nøkkel
+ */
+export function temaOnskeFra(tekst, temaer = listThemes()) {
+  const s = String(tekst ?? '').trim().toLowerCase()
+  if (!s || /\b(hvilke|hvilken|hva|finnes|list|liste|kan du)\b/.test(s)) return null
+  if (!/(bytt|endre|skift|sett|velg|bruk|gå til|ga til|vis meg|vil ha|prøv)/.test(s)) return null
+  if (!/(tema|farge|modus|mode|kart)/.test(s) && !/(mørk|mork|lys|sepia|indigo|petrol|mocha|forest|curves|natt)/.test(s)) return null
+  // Finn et temanavn i setningen — lengste treff først, så «mono-sepia» ikke
+  // taper mot et kortere delstreng-treff.
+  const kandidater = []
+  for (const t of temaer) {
+    for (const ord of [t.key, String(t.label).toLowerCase()]) {
+      if (ord && s.includes(ord)) kandidater.push({ key: t.key, len: ord.length })
+    }
+  }
+  if (kandidater.length) {
+    kandidater.sort((a, b) => b.len - a.len)
+    return kandidater[0].key
+  }
+  return losTemaNokkel(s, temaer)
+}
+
 /** Kort norsk statuslinje per verktøy — vises i chatten mens kallet kjører. */
 export function toolStatusLabel(name, args) {
   switch (name) {
