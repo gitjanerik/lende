@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-08-02 — v4.3.4: Deploy-røyktest i synk med MCP-worker 2.2.0
+
+v4.3.3 bumpet Cloudflare-MCP-workeren til 2.2.0 men glemte versjonspinnen i deploy-workflowens røyktest, som fortsatt ventet på 2.1.0 — den besto ved flaks mot en gammel edge-node, og NESTE deploy ville gått rød når alle noder svarer 2.2.0. Pinnen er nå 2.2.0, `analyser_stinett` kreves i tools/list, og røyktesten kjører et ekte analyser_stinett-kall mot røyk-kartet så det nye verktøyet verifiseres ende-til-ende ved hver deploy.
+
+---
+
 ## 2026-08-02 — v4.3.3: Stinett-analyse i chatten og MCP
 
 Nytt verktøy `analyser_stinett` svarer på «hvor mange km sti er det her?» for et lagret kart: total km sti (sti 505/506/507 + skogsbilvei 504, hvert segment telt én gang), lengste sammenhengende turstrekning, og tur-kandidater (A→B eller rundtur, minst 2 km) med gangtid, stigning/fall og bratteste/slakeste parti — med koordinater som kan sendes rett videre til foreslaa_tur/foreslaa_rundtur. Korte småveg-strekk (≤ 300 m) regnes som bindeledd mellom stinett men teller ikke i sti-summen, korte isolerte stumper ekskluderes med dynamisk minstelengde etter sti-tetthet, og 0 treff er et ærlig svar der nettet bare har fragmenter (som på Røst). Kjernen er den rene modulen `src/lib/stinettAnalyse.js` (komponentanalyse uten Stifinnerens 80 m-broer, dobbel-Dijkstra for lengste vandring, sløyfedeteksjon), delt av chatten, den lokale MCP-serveren og Cloudflare-MCP-speilet (v2.2.0).
