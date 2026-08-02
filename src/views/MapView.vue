@@ -30,6 +30,7 @@ import { useMapExtend } from '../composables/useMapExtend.js'
 import { useSymbolRenderers } from '../composables/useSymbolRenderers.js'
 import { useContextLookups } from '../composables/useContextLookups.js'
 import { useMapTheme } from '../composables/useMapTheme.js'
+import { useMapLayerControl, publiserSynligeLag } from '../composables/useMapLayerControl.js'
 import { loadNasjonalparker, parksForBbox, samePark } from '../lib/nasjonalparkData.js'
 import { useMapLoadPipeline } from '../composables/useMapLoadPipeline.js'
 import { buildStrokeOverrideCss } from '../lib/strokeOverrides.js'
@@ -221,6 +222,20 @@ function resetLayers() {
   visibleLayers.value = new Set(DEFAULT_VISIBLE_LAYER_KEYS)
   applyLayerVisibility()
 }
+
+// Lende-chat (styr_kartlag): chatten leser gjeldende lag herfra og sender en
+// ferdig utregnet liste tilbake. Kartvisningen beholder eierskapet — se
+// useMapLayerControl for hvorfor tilstanden ikke bare er en singleton.
+const { kommando: lagKommando } = useMapLayerControl()
+watch(visibleLayers, (v) => publiserSynligeLag(v), { immediate: true })
+onUnmounted(() => publiserSynligeLag(null))
+watch(lagKommando, (cmd) => {
+  if (!cmd) return
+  if (cmd.nullstill) visibleLayers.value = new Set(DEFAULT_VISIBLE_LAYER_KEYS)
+  else if (Array.isArray(cmd.keys)) visibleLayers.value = new Set(cmd.keys)
+  else return
+  applyLayerVisibility()
+})
 // Tema: 'light' (default ISOM), 'dark', 'mono-sepia', 'mono-indigo', 'mono-slate'.
 // isDark er derivert for steder som styrer UI-farger (toppbar, drawer-bg).
 // Tilstanden bor i useMapTheme (delt singleton, lagret i localStorage) så

@@ -3,7 +3,7 @@ import {
   AI_TOOLS, buildTourQuery, buildRundturQuery, buildLagKartQuery, projectForModel,
   kmUtenforBbox, kmMellom, bboxAvstandKm, metaFraSvgEl, toolStatusLabel,
   erStinettSporsmaal, stinettSvarTekst, harOppdiktedeTurtall, turSvarTekst,
-  formatGangtid, forhaandsberegnTur, er3dOnske, losTemaNokkel,
+  formatGangtid, forhaandsberegnTur, er3dOnske, losTemaNokkel, losLagNokler,
 } from './lendeAiTools.js'
 import { parseHTML } from 'linkedom'
 import { parseTourQuery, parseTourNameQuery } from './tour3dLink.js'
@@ -158,6 +158,32 @@ describe('turSvarTekst', () => {
     })
     expect(tekst).toContain('158 m')
     expect(tekst).not.toContain('høydemeter')   // uten DEM: ingen påstand om stigning
+  })
+})
+
+describe('losLagNokler', () => {
+  const LAG = [
+    { key: 'sti', label: 'Sti' },
+    { key: 'kontur', label: 'Høydekurver' },
+    { key: 'bygning', label: 'Hus og hytter' },
+    { key: 'kulturminne', label: 'Kultur­minner' },   // myk bindestrek
+  ]
+  it('godtar både nøkkel og norsk etikett', () => {
+    expect(losLagNokler(['sti', 'Høydekurver'], LAG).nokler).toEqual(['sti', 'kontur'])
+    expect(losLagNokler(['kontur'], LAG).nokler).toEqual(['kontur'])
+  })
+  it('matcher etiketter med myk bindestrek og delvis treff', () => {
+    expect(losLagNokler(['kulturminner'], LAG).nokler).toEqual(['kulturminne'])
+    expect(losLagNokler(['hus'], LAG).nokler).toEqual(['bygning'])
+  })
+  it('deduplikerer og rapporterer ukjente', () => {
+    const r = losLagNokler(['sti', 'Sti', 'enhjørninger'], LAG)
+    expect(r.nokler).toEqual(['sti'])
+    expect(r.ukjente).toEqual(['enhjørninger'])
+  })
+  it('tåler tom og manglende input', () => {
+    expect(losLagNokler(undefined, LAG).nokler).toEqual([])
+    expect(losLagNokler('sti', LAG).nokler).toEqual(['sti'])   // enkeltverdi
   })
 })
 
