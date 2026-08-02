@@ -38,6 +38,16 @@ describe('AI_TOOLS', () => {
     expect(rundt.function.parameters.required).toEqual(['kartId'])
   })
 
+  it('kartverktøyene tar stedsnavn i «sted» og krever ikke koordinater', () => {
+    // v4.4.3: modellen gjenbrukte lat/lon fra et annet sted i samtalen, så
+    // «Sirikjerke i Øvre Eiker» ga et kart over Stormoen. Nå geokoder appen.
+    for (const navn of ['lag_kart', 'foreslaa_nytt_kart']) {
+      const t = AI_TOOLS.find((x) => x.function.name === navn)
+      expect(t.function.parameters.properties.sted.type, navn).toBe('string')
+      expect(t.function.parameters.required, navn).toEqual([])
+    }
+  })
+
   it('analyser_stinett er deklarert uten påkrevde argumenter', () => {
     // required: [] med vilje — llama nekter å kalle verktøy der et required-
     // felt må hentes ut av kontekst-JSON-en («function definitions are not

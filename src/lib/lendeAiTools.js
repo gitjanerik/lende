@@ -76,16 +76,20 @@ export const AI_TOOLS = [
     function: {
       name: 'foreslaa_nytt_kart',
       description:
-        'Åpne «Nytt turkart» med senter, størrelse og navn ferdig utfylt — brukeren bekrefter og bygger selv. Bruk sok_sted først hvis du bare har et stedsnavn.',
+        'Åpne «Nytt turkart» med senter, størrelse og navn ferdig utfylt — brukeren bekrefter og ' +
+        'bygger selv. OPPGI HELST «sted» (stedsnavnet slik brukeren sa det, gjerne med kommune: ' +
+        '«Sirikjerke, Øvre Eiker») — appen geokoder det selv. Da slipper du sok_sted, og du kan ' +
+        'ikke komme i skade for å gjenbruke koordinater fra et annet sted i samtalen.',
       parameters: {
         type: 'object',
         properties: {
-          lat: { type: 'number', description: 'Senter-breddegrad' },
-          lon: { type: 'number', description: 'Senter-lengdegrad' },
+          sted: { type: 'string', description: 'ANBEFALT: stedsnavn å geokode, f.eks. «Sirikjerke, Øvre Eiker»' },
+          lat: { type: 'number', description: 'Senter-breddegrad (kun nødvendig uten «sted»)' },
+          lon: { type: 'number', description: 'Senter-lengdegrad (kun nødvendig uten «sted»)' },
           km: { type: 'number', description: 'Kartbredde i km (1–16, standard 4)' },
-          navn: { type: 'string', description: 'Foreslått kartnavn, f.eks. stedsnavnet' },
+          navn: { type: 'string', description: 'Foreslått kartnavn (standard: stedsnavnet)' },
         },
-        required: ['lat', 'lon'],
+        required: [],
       },
     },
   },
@@ -97,16 +101,20 @@ export const AI_TOOLS = [
         'Bygg et NYTT turkart med én gang: byggingen starter automatisk med senter, størrelse og ' +
         'navn, og kartet åpnes når det er ferdig (tar 15–60 sekunder). Bruk KUN når brukeren ' +
         'eksplisitt ber om å lage/bygge et kart — bruk foreslaa_nytt_kart når du bare foreslår. ' +
-        'Bruk sok_sted først hvis du bare har et stedsnavn.',
+        'OPPGI HELST «sted» (stedsnavnet slik brukeren sa det, gjerne med kommune: «Sirikjerke, ' +
+        'Øvre Eiker») — appen geokoder det selv, så du slipper sok_sted og kan ikke gjenbruke ' +
+        'koordinater fra et annet sted i samtalen. Kartet finnes IKKE før byggingen er ferdig: ' +
+        'du kan ikke tegne inn en tur i det i samme svar.',
       parameters: {
         type: 'object',
         properties: {
-          lat: { type: 'number', description: 'Senter-breddegrad' },
-          lon: { type: 'number', description: 'Senter-lengdegrad' },
+          sted: { type: 'string', description: 'ANBEFALT: stedsnavn å geokode, f.eks. «Sirikjerke, Øvre Eiker»' },
+          lat: { type: 'number', description: 'Senter-breddegrad (kun nødvendig uten «sted»)' },
+          lon: { type: 'number', description: 'Senter-lengdegrad (kun nødvendig uten «sted»)' },
           km: { type: 'number', description: 'Kartbredde i km (1–16, standard 4)' },
-          navn: { type: 'string', description: 'Kartnavn, f.eks. stedsnavnet' },
+          navn: { type: 'string', description: 'Kartnavn (standard: stedsnavnet)' },
         },
-        required: ['lat', 'lon'],
+        required: [],
       },
     },
   },
@@ -420,6 +428,33 @@ async function losTurPunkt({ rolle, navn, lat, lon, kart, naboer }) {
   }
 }
 
+/**
+ * Løs senterpunktet for et NYTT kart. Et oppgitt `sted` geokodes her i stedet
+ * for å stole på lat/lon fra modellen — den gjenbrukte koordinater fra et
+ * tidligere sted i samtalen («Sirikjerke i Øvre Eiker» ga et kart over
+ * Stormoen). Uten `sted` brukes lat/lon som før.
+ * @returns {{lat:number, lon:number, stedsnavn?:string} | {feil:string}}
+ */
+async function losKartSenter(args) {
+  const sted = String(args?.sted ?? '').trim()
+  if (sted) {
+    const treff = await geocodePlace(sted)
+    if (treff?.length) {
+      return { lat: Number(treff[0].lat), lon: Number(treff[0].lon), stedsnavn: treff[0].name ?? sted }
+    }
+    const lat = Number(args?.lat), lon = Number(args?.lon)
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      return { feil: `Fant ingen steder for «${sted}». Sjekk skrivemåten, eller oppgi lat/lon.` }
+    }
+    return { lat, lon }
+  }
+  const lat = Number(args?.lat), lon = Number(args?.lon)
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return { feil: 'Oppgi enten «sted» (stedsnavn) eller lat/lon.' }
+  }
+  return { lat, lon }
+}
+
 // Km utenfor NÆRMESTE flis i mosaikken (0 = inne i en av dem). Turer kan gå
 // på tvers av flisegrenser (Stifinner ruter via spøkelses-flisene), så
 // vaktposten skal godta punkter i hele mosaikken — ikke bare aktiv flis.
@@ -504,33 +539,38 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         return { ok: true, aapnet: kart.navn ?? id }
       }
       case 'foreslaa_nytt_kart': {
-        const lat = Number(args?.lat)
-        const lon = Number(args?.lon)
-        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return { feil: 'lat/lon mangler.' }
+        const senter = await losKartSenter(args)
+        if (senter.feil) return { feil: senter.feil }
+        const { lat, lon, stedsnavn } = senter
         const query = { lat: lat.toFixed(5), lon: lon.toFixed(5) }
         const km = Number(args?.km)
         if (Number.isFinite(km)) query.km = String(Math.min(Math.max(km, 1), 16))
-        if (args?.navn) query.hl = String(args.navn).slice(0, 60)
+        const tittel = args?.navn ?? stedsnavn
+        if (tittel) query.hl = String(tittel).slice(0, 60)
         onNavigate?.()
         await navigerTil({ name: 'kart-nytt', query })
         return {
           ok: true,
+          senter: { lat, lon, sted: stedsnavn ?? null },
           merknad: 'Byggeskjemaet er åpnet med feltene utfylt — brukeren bekrefter og bygger selv.',
         }
       }
       case 'lag_kart': {
-        const lat = Number(args?.lat)
-        const lon = Number(args?.lon)
-        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return { feil: 'lat/lon mangler.' }
-        const query = buildLagKartQuery({ lat, lon, km: args?.km, navn: args?.navn })
+        const senter = await losKartSenter(args)
+        if (senter.feil) return { feil: senter.feil }
+        const { lat, lon, stedsnavn } = senter
+        const query = buildLagKartQuery({ lat, lon, km: args?.km, navn: args?.navn ?? stedsnavn })
         onNavigate?.()
         await navigerTil({ name: 'kart-nytt', query })
         return {
           ok: true,
+          senter: { lat, lon, sted: stedsnavn ?? null },
           merknad:
             'Byggingen er startet (tar 15–60 sekunder) — kartet åpnes automatisk når det er ' +
             'ferdig. VIKTIG: ikke lov brukeren at det lykkes; ved feil vises en melding i ' +
-            'byggeskjemaet der brukeren kan justere og prøve igjen.',
+            'byggeskjemaet der brukeren kan justere og prøve igjen. Kan du IKKE tegne inn en ' +
+            'tur i kartet ennå — det må bygges ferdig først; be brukeren si fra når det er ' +
+            'oppe, så finner du ruten da.',
         }
       }
       case 'sok_i_kartet': {
