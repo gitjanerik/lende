@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-08-02 — v4.3.5: analyser_stinett kallbart uten kartId i chatten
+
+Brukertest på Røst-kart viste at chatten fortsatt svarte «Your function definitions are not comprehensive enough for this task» — llama-modellens hermetiske klage når et verktøys påkrevde argument ikke er direkte tilgjengelig. analyser_stinett hadde kartId som required, men for stinett-spørsmål finnes det ikke noe tidligere verktøysvar som gir kartId — modellen måtte plukke den ut av kontekst-JSON-en, og det nekter den når feltet er påkrevd. Skjemaet har nå required: [] (losKart faller uansett tilbake til kontekstens kart), beskrivelsen og systemprompten sier eksplisitt «kall uten argumenter når brukeren står i kartet», og feilmeldingen uten noe kart er blitt veiledende i stedet for «Fant ikke kart med id "undefined"».
+
+---
+
 ## 2026-08-02 — v4.3.4: Deploy-røyktest i synk med MCP-worker 2.2.0
 
 v4.3.3 bumpet Cloudflare-MCP-workeren til 2.2.0 men glemte versjonspinnen i deploy-workflowens røyktest, som fortsatt ventet på 2.1.0 — den besto ved flaks mot en gammel edge-node, og NESTE deploy ville gått rød når alle noder svarer 2.2.0. Pinnen er nå 2.2.0, `analyser_stinett` kreves i tools/list, og røyktesten kjører et ekte analyser_stinett-kall mot røyk-kartet så det nye verktøyet verifiseres ende-til-ende ved hver deploy.

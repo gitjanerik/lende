@@ -20,10 +20,15 @@ describe('AI_TOOLS', () => {
     expect(new Set(navn).size).toBe(navn.length)
   })
 
-  it('analyser_stinett er deklarert med kartId som eneste krav', () => {
+  it('analyser_stinett er deklarert uten påkrevde argumenter', () => {
+    // required: [] med vilje — llama nekter å kalle verktøy der et required-
+    // felt må hentes ut av kontekst-JSON-en («function definitions are not
+    // comprehensive enough»). losKart faller uansett tilbake til kontekstens
+    // kartId når argumentet mangler.
     const t = AI_TOOLS.find((x) => x.function.name === 'analyser_stinett')
     expect(t).toBeDefined()
-    expect(t.function.parameters.required).toEqual(['kartId'])
+    expect(t.function.parameters.required).toEqual([])
+    expect(t.function.parameters.properties.kartId.type).toBe('string')
     expect(t.function.parameters.properties.minTurKm.type).toBe('number')
   })
 })
