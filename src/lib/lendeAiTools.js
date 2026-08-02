@@ -599,6 +599,25 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
   }
 }
 
+/**
+ * Er dette et stinett-spørsmål som bør besvares med analyser_stinett?
+ * Deterministisk klient-side ruting: llama-modellens verktøyvelging er skjør
+ * («Your input is lacking necessary details» i stedet for kall), så når
+ * brukeren står i et kart og spør om km sti / lengste tur / bratteste tur,
+ * kjører chatten analysen SELV før modellen spør — modellen skal bare
+ * formulere svaret.
+ */
+export function erStinettSporsmaal(tekst) {
+  const s = String(tekst ?? '').toLowerCase()
+  if (!s) return false
+  if (/stinett/.test(s)) return true
+  if (/(km|kilometer|mil)[^.!?]{0,30}(sti|tursti)|(sti|tursti)[^.!?]{0,30}(km|kilometer|mil)/.test(s)) return true
+  if (/(hvor (mange|mye)|antall|total)[^.!?]{0,30}(stier|sti\b|tursti)/.test(s)) return true
+  if (/lengste[^.!?]{0,30}(tur|sti|vandring)/.test(s)) return true
+  if (/(bratteste?|slakeste?|minst stigning|mest stigning)[^.!?]{0,30}(tur|sti)/.test(s)) return true
+  return false
+}
+
 /** Kort norsk statuslinje per verktøy — vises i chatten mens kallet kjører. */
 export function toolStatusLabel(name, args) {
   switch (name) {

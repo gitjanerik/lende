@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   AI_TOOLS, buildTourQuery, buildRundturQuery, buildLagKartQuery, projectForModel,
   kmUtenforBbox, kmMellom, bboxAvstandKm, metaFraSvgEl, toolStatusLabel,
+  erStinettSporsmaal,
 } from './lendeAiTools.js'
 import { parseTourQuery } from './tour3dLink.js'
 
@@ -30,6 +31,30 @@ describe('AI_TOOLS', () => {
     expect(t.function.parameters.required).toEqual([])
     expect(t.function.parameters.properties.kartId.type).toBe('string')
     expect(t.function.parameters.properties.minTurKm.type).toBe('number')
+  })
+})
+
+describe('erStinettSporsmaal', () => {
+  it('gjenkjenner stinett-spørsmål på varierte formuleringer', () => {
+    for (const sp of [
+      'Hvor mange kilometer sti i kartet',
+      'Hvor mange kilometer tursti i kartet',
+      'hvor mye sti er det her?',
+      'Hvor mange km sti er det på Røst?',
+      'Hva er den lengste turen jeg kan gå?',
+      'lengste sammenhengende stitur?',
+      'Hvilken tur er bratteste tur?',
+      'analyser stinettet',
+    ]) expect(erStinettSporsmaal(sp), sp).toBe(true)
+  })
+  it('slår ikke inn på andre spørsmål', () => {
+    for (const sp of [
+      'Hvor høyt er Konnerudkollen?',
+      'Lag en rundtur fra parkeringen',
+      'Hvor langt er det til Oslo?',
+      'Hva heter vannet sør i kartet?',
+      '',
+    ]) expect(erStinettSporsmaal(sp), sp).toBe(false)
   })
 })
 

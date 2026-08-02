@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { chatOnce } from '../lib/lendeAi.js'
-import { AI_TOOLS, runTool, toolStatusLabel } from '../lib/lendeAiTools.js'
+import { AI_TOOLS, runTool, toolStatusLabel, erStinettSporsmaal } from '../lib/lendeAiTools.js'
 
 // Global chat-tilstand (Fase 2 av KI-planen). Modul-skopet med vilje: modalen
 // monteres én gang i App.vue, knappene bor i toppfeltene på forsiden, i
@@ -97,11 +97,30 @@ async function send(text) {
   const svar = { role: 'assistant', content: '' }
   messages.value.push(svar)
 
+  // Deterministisk stinett-ruting (v4.3.9): llama-modellens verktøyvelging er
+  // skjør — samme spørsmål kunne gi kall den ene gangen og «Your input is
+  // lacking necessary details» den neste. Gjenkjenner chatten et stinett-
+  // spørsmål mens brukeren står i et kart, kjøres analysen HER, og resultatet
+  // legges i systemprompten — modellen skal bare formulere svaret, ikke velge
+  // verktøy. Feiler analysen faller vi stille tilbake til vanlig verktøy-loop.
+  let stinettNotat = ''
+  if (context.value?.kartId && erStinettSporsmaal(spm)) {
+    busyLabel.value = toolStatusLabel('analyser_stinett', {})
+    try {
+      const analyse = await runTool('analyser_stinett', {}, { kontekst: context.value })
+      if (analyse && !analyse.feil) {
+        stinettNotat =
+          ` FERSK STINETT-ANALYSE av kartet brukeren står i («${context.value.kartnavn ?? context.value.kartId}») — svar direkte fra denne, IKKE kall analyser_stinett på nytt: ${JSON.stringify(analyse)}`
+      }
+    } catch { /* fall tilbake til vanlig loop */ }
+    busyLabel.value = 'Tenker …'
+  }
+
   // Historikken som vises er ren user/assistant-tekst; verktøy-utvekslingene
   // lever kun innenfor DENNE send-runden (samtale, ikke transkript — sparer
   // tokens/neurons på neste runde).
   const samtale = [
-    { role: 'system', content: systemPrompt() },
+    { role: 'system', content: systemPrompt() + stinettNotat },
     ...messages.value
       .slice(0, -1)
       .slice(-MAX_SENDTE_MELDINGER)
