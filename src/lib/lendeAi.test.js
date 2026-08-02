@@ -1,5 +1,52 @@
 import { describe, it, expect } from 'vitest'
-import { extractInviteToken, parseSseBuffer, extractText, extractToolCalls } from './lendeAi.js'
+import {
+  extractInviteToken, parseSseBuffer, extractText, extractToolCalls, parseTextToolCalls,
+} from './lendeAi.js'
+
+describe('parseTextToolCalls', () => {
+  const NAVN = ['foreslaa_tur', 'foreslaa_rundtur', 'sok_i_kartet']
+
+  it('tolker Llamas bracket-form som ekte verktøykall og fjerner den fra teksten', () => {
+    // Faktisk observert svar (v4.4.0, «se ruta i 3D»): kallet havnet i teksten.
+    const raa = '[foreslaa_tur(fraLat=59.747514, fraLon=10.139189, tilLat=59.750295, ' +
+      'tilLon=10.146311, kartId=kart_ufqmh9dcmsbzpijv, navn=Stormoen–Stordammen, vis3d=true)]'
+    const { toolCalls, text } = parseTextToolCalls(raa, NAVN)
+    expect(toolCalls).toHaveLength(1)
+    expect(toolCalls[0].name).toBe('foreslaa_tur')
+    expect(toolCalls[0].args.fraLat).toBeCloseTo(59.747514, 6)
+    expect(toolCalls[0].args.kartId).toBe('kart_ufqmh9dcmsbzpijv')
+    expect(toolCalls[0].args.vis3d).toBe(true)
+    expect(text).toBe('')
+  })
+
+  it('tolker JSON-blob-formen', () => {
+    const raa = 'Let us find the coordinates.{"type": "function", "name": "foreslaa_tur", ' +
+      '"parameters": {"fraLat": "60.213333", "fraLon": "10.45", "vis3d": "false"}}'
+    const { toolCalls, text } = parseTextToolCalls(raa, NAVN)
+    expect(toolCalls).toHaveLength(1)
+    expect(toolCalls[0].args.fraLat).toBeCloseTo(60.213333, 6)
+    expect(toolCalls[0].args.vis3d).toBe(false)
+    expect(text).not.toContain('"name"')
+  })
+
+  it('rører ikke vanlig prosa, ukjente navn eller tom tekst', () => {
+    for (const t of [
+      'Turen er 4,7 km lang. Si fra hvis du vil se den i 3D.',
+      '[ukjent_verktoy(a=1)]',
+      'Se avsnitt (2) i tegnforklaringen',
+      '',
+    ]) {
+      const res = parseTextToolCalls(t, NAVN)
+      expect(res.toolCalls, t).toHaveLength(0)
+      expect(res.text, t).toBe(t)
+    }
+  })
+
+  it('uten kjente navn gjøres ingen tolking (runde uten verktøy)', () => {
+    const res = parseTextToolCalls('[foreslaa_tur(fraLat=1)]', [])
+    expect(res.toolCalls).toHaveLength(0)
+  })
+})
 
 describe('extractToolCalls', () => {
   it('leser OpenAI-format med JSON-streng-argumenter', () => {

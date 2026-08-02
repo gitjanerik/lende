@@ -1,5 +1,13 @@
 # Endringslogg
 
+## 2026-08-02 — v4.4.1: «Se ruta i 3D» virker — verktøykall i teksten tolkes
+
+«Se ruta i 3D» ga `[foreslaa_tur(fraLat=59.747514, …, vis3d=true)]` som synlig chat-tekst, mens «se ruten i 3D» virket. Årsaken var ikke ordformen: Llama-modellene faller av og til tilbake til å SKRIVE verktøykallet i svaret i stedet for å bruke tool-kanalen, og da ble handlingen aldri utført. Klienten tolker nå begge de observerte tekstformene — bracket-formen `[navn(k=v)]` og JSON-bloben `{"name": …, "parameters": …}` — til ekte verktøykall og fjerner dem fra teksten. Bare deklarerte verktøynavn godtas, så vanlig prosa med parenteser er urørt.
+
+I tillegg er 3D-oppfølgingen gjort deterministisk: chatten husker turen den nettopp sendte til kartet, så «se ruta i 3D», «vis løypa i 3-D» eller bare «ja takk» rett etter tilbudet åpner nøyaktig den turen i 3D — uten at modellen må gjenskape koordinatene fra historikken. Systemprompten nevner nå også at bokmål har flere bestemte former (ruta/ruten, løypa/løypen).
+
+---
+
 ## 2026-08-02 — v4.4.0: Ekte rutetall i chatten — turen beregnes før den tegnes
 
 v4.3.12 stanset oppdiktede rutetall ved å nekte modellen å nevne tall i det hele tatt. Nå får chatten de ekte i stedet: foreslaa_tur og foreslaa_rundtur beregner ruten mot kartets egen lagrede SVG FØR de navigerer — samme graf-parametre, samme snap-terskler og samme rutevalg (indeks 0) som Stifinneren bruker i kartvisningen, og stigning fra kartets eget DEM med samme sampleProfile. Svaret blir «Turen er 4,7 km, 180 høydemeter stigning og omtrent 1 t 14 min gangtid. Den tegnes inn i kartet nå.» — skrevet deterministisk fra tallene, så modellen ikke kan forskyve dem. Ligger målet 150–400 m fra stinettet følger merknaden med i samme setning.

@@ -3,7 +3,7 @@ import {
   AI_TOOLS, buildTourQuery, buildRundturQuery, buildLagKartQuery, projectForModel,
   kmUtenforBbox, kmMellom, bboxAvstandKm, metaFraSvgEl, toolStatusLabel,
   erStinettSporsmaal, stinettSvarTekst, harOppdiktedeTurtall, turSvarTekst,
-  formatGangtid, forhaandsberegnTur,
+  formatGangtid, forhaandsberegnTur, er3dOnske,
 } from './lendeAiTools.js'
 import { parseHTML } from 'linkedom'
 import { parseTourQuery } from './tour3dLink.js'
@@ -134,6 +134,28 @@ describe('turSvarTekst', () => {
     })
     expect(tekst).toContain('158 m')
     expect(tekst).not.toContain('høydemeter')   // uten DEM: ingen påstand om stigning
+  })
+})
+
+describe('er3dOnske', () => {
+  it('godtar alle bestemte former og formuleringer', () => {
+    for (const sp of [
+      'se ruta i 3D',          // feilet før: modellen dumpet kallet som tekst
+      'se ruten i 3D',
+      'Vis turen i 3d',
+      'kan jeg se løypa i 3-D?',
+      'åpne i 3D',
+    ]) expect(er3dOnske(sp), sp).toBe(true)
+  })
+  it('bart «ja» gjelder bare når 3D nettopp ble tilbudt', () => {
+    expect(er3dOnske('ja takk', true)).toBe(true)
+    expect(er3dOnske('gjerne', true)).toBe(true)
+    expect(er3dOnske('ja takk', false)).toBe(false)
+  })
+  it('rører ikke andre spørsmål', () => {
+    for (const sp of ['hvor mange km sti i kartet', 'lag en rundtur', '']) {
+      expect(er3dOnske(sp, true), sp).toBe(false)
+    }
   })
 })
 

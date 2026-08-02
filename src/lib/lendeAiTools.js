@@ -799,6 +799,24 @@ export function turSvarTekst({ type = 'tur', vis3d = false, rute = null } = {}) 
     (rute.snapMerknad ? ` ${rute.snapMerknad}` : '') + ` ${treD}`
 }
 
+/**
+ * Ber brukeren om å se den nettopp tegnede turen i 3D? Deterministisk, fordi
+ * modellen ellers må gjenskape hele foreslaa_tur-kallet med koordinater fra
+ * historikken — skjørt, og «se ruta i 3D» kunne feile der «se ruten i 3D»
+ * lyktes. Bokmål har flere bestemte former (ruta/ruten, løypa/løypen), og et
+ * bart «ja» rett etter at vi tilbød 3D betyr det samme.
+ *
+ * @param {string} tekst          brukerens melding
+ * @param {boolean} tilbudt3d     nevnte forrige assistent-svar 3D?
+ */
+export function er3dOnske(tekst, tilbudt3d = false) {
+  const s = String(tekst ?? '').trim().toLowerCase()
+  if (!s) return false
+  if (/\b3\s*-?d\b/.test(s)) return true
+  if (tilbudt3d && /^(ja|ja takk|jada|gjerne|ok|okey|greit|jepp|yes|vis den|vis meg den)\b/.test(s)) return true
+  return false
+}
+
 /** Kort norsk statuslinje per verktøy — vises i chatten mens kallet kjører. */
 export function toolStatusLabel(name, args) {
   switch (name) {

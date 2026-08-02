@@ -135,6 +135,68 @@ export function extractToolCalls(obj) {
     .filter(Boolean)
 }
 
+// Tolk en argument-verdi fra et tekst-verktøykall: tall → number,
+// true/false → boolean, ellers streng (med fnutter strippet).
+function tolkVerdi(raa) {
+  const s = String(raa).trim().replace(/^["'](.*)["']$/s, '$1')
+  if (/^(true|false)$/i.test(s)) return /^true$/i.test(s)
+  if (/^-?\d+(?:\.\d+)?$/.test(s)) return Number(s)
+  return s
+}
+
+/**
+ * Llama-modellene faller av og til tilbake til å SKRIVE verktøykallet i
+ * svarteksten i stedet for å bruke tool-kanalen. To former er observert:
+ *
+ *   [foreslaa_tur(fraLat=59.747514, tilLon=10.146311, vis3d=true)]
+ *   {"type": "function", "name": "foreslaa_tur", "parameters": {"fraLat": …}}
+ *
+ * Uten tolking havnet dette rått i chatten («[foreslaa_tur(fraLat=…)]») og
+ * handlingen ble aldri utført. Vi parser begge formene til ekte verktøykall og
+ * fjerner dem fra teksten. `kjenteNavn` (fra tools-lista) gjør parsingen trygg:
+ * bare deklarerte verktøy godtas, så vanlig prosa med klammer ikke misforstås.
+ *
+ * @returns {{ toolCalls: Array<{id,name,args}>, text: string }}
+ */
+export function parseTextToolCalls(tekst, kjenteNavn = []) {
+  const navn = new Set(kjenteNavn)
+  const s = String(tekst ?? '')
+  if (!s || !navn.size) return { toolCalls: [], text: s }
+
+  const toolCalls = []
+  let rest = s
+
+  // Form 1: [navn(k=v, k2=v2)] — også uten klammer rundt.
+  rest = rest.replace(/\[?\s*([a-z_][a-z0-9_]*)\s*\(([^()]*)\)\s*\]?/gi, (treff, fn, argStr) => {
+    if (!navn.has(fn)) return treff
+    const args = {}
+    for (const bit of argStr.split(',')) {
+      const m = bit.match(/^\s*([a-z_][a-z0-9_]*)\s*[=:]\s*(.+?)\s*$/is)
+      if (m) args[m[1]] = tolkVerdi(m[2])
+    }
+    toolCalls.push({ id: `tekst_${toolCalls.length}`, name: fn, args })
+    return ''
+  })
+
+  // Form 2: JSON-blob med name + parameters/arguments.
+  if (!toolCalls.length) {
+    for (const m of s.matchAll(/\{[^{}]*"name"\s*:\s*"([a-z_][a-z0-9_]*)"[\s\S]*?\}\s*\}?/gi)) {
+      if (!navn.has(m[1])) continue
+      let args = {}
+      try {
+        const blob = JSON.parse(m[0])
+        args = blob.parameters ?? blob.arguments ?? {}
+        if (typeof args === 'string') args = JSON.parse(args)
+        for (const k of Object.keys(args)) args[k] = tolkVerdi(args[k])
+      } catch { /* halvkvedet blob — kall uten args, modellen får prøve igjen */ }
+      toolCalls.push({ id: `tekst_${toolCalls.length}`, name: m[1], args })
+      rest = rest.replace(m[0], '')
+    }
+  }
+
+  return { toolCalls, text: toolCalls.length ? rest.trim() : s }
+}
+
 /**
  * Ett ikke-strømmende chat-kall — brukes i verktøy-runder (Workers AI støtter
  * ikke streaming + tools pålitelig). Returnerer { text, toolCalls }.
@@ -167,7 +229,12 @@ export async function chatOnce({ messages, tools, maxTokens = 1024, signal }) {
     throw new Error(feilmelding(res.status, serverText))
   }
   const data = await res.json()
-  return { text: extractText(data), toolCalls: extractToolCalls(data), raw: data }
+  const tekst = extractText(data)
+  const strukturerte = extractToolCalls(data)
+  if (strukturerte.length) return { text: tekst, toolCalls: strukturerte, raw: data }
+  // Ingen kall i tool-kanalen: skrev modellen det i teksten i stedet?
+  const fraTekst = parseTextToolCalls(tekst, (tools ?? []).map((t) => t?.function?.name).filter(Boolean))
+  return { text: fraTekst.text, toolCalls: fraTekst.toolCalls, raw: data }
 }
 
 function feilmelding(status, serverText) {
