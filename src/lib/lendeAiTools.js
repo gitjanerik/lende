@@ -165,21 +165,24 @@ export const AI_TOOLS = [
         'Foreslå og tegn inn en RUNDTUR (start = mål) på et av brukerens lagrede kart: fra et ' +
         'startpunkt, innom et vendepunkt, og tilbake — langs kartets stier og veier. Ruten ' +
         'markeres i kartet. Bruk denne når brukeren ber om en rundtur/runde i kartet — IKKE ' +
-        'foreslaa_nytt_kart. Begge punktene må ligge i kartet; bruk sok_sted for koordinater. ' +
+        'foreslaa_nytt_kart. Begge punktene må ligge i kartet. OPPGI HELST STEDSNAVNENE ' +
+        '(origoNavn/viaNavn) — appen slår dem opp i kartets egne navn, som er fasit. ' +
         'Verktøyet beregner sløyfen før den tegnes og returnerer «rute» med ekte lengde, ' +
         'stigning og gangtid — bruk DE tallene, aldri egne anslag.',
       parameters: {
         type: 'object',
         properties: {
           kartId: { type: 'string', description: 'Kart-id fra mine_kart_og_ruter (utelat hvis brukeren står i kartet — bruk kartId fra konteksten)' },
-          origoLat: { type: 'number', description: 'Startpunkt = målpunkt (breddegrad). Spør brukeren hvor turen skal starte hvis ukjent.' },
+          origoNavn: { type: 'string', description: 'ANBEFALT: startstedets navn slik brukeren sa det — appen slår det opp i kartets egne navn' },
+          viaNavn: { type: 'string', description: 'ANBEFALT: vendepunktets navn — appen slår det opp i kartets egne navn' },
+          origoLat: { type: 'number', description: 'Startpunkt = målpunkt (kun nødvendig uten origoNavn). Spør brukeren hvor turen skal starte hvis ukjent.' },
           origoLon: { type: 'number', description: 'Startpunkt = målpunkt (lengdegrad)' },
-          viaLat: { type: 'number', description: 'Vendepunkt turen skal innom (breddegrad), f.eks. en topp' },
+          viaLat: { type: 'number', description: 'Vendepunkt turen skal innom (kun nødvendig uten viaNavn), f.eks. en topp' },
           viaLon: { type: 'number', description: 'Vendepunkt (lengdegrad)' },
           navn: { type: 'string', description: 'Turnavn, f.eks. «Rundtur Konnerudkollen»' },
           vis3d: { type: 'boolean', description: 'Åpne 3D-visningen automatisk (KUN når brukeren har bedt om 3D — ruten tegnes uansett)' },
         },
-        required: ['kartId', 'origoLat', 'origoLon', 'viaLat', 'viaLon'],
+        required: ['kartId'],
       },
     },
   },
@@ -190,7 +193,9 @@ export const AI_TOOLS = [
       description:
         'Foreslå og tegn inn en fottur fra A til B på et av brukerens lagrede kart, langs ' +
         'kartets stier og veier (Stifinneren). Ruten markeres i kartet. Begge punktene må ligge ' +
-        'innenfor kartet. Verktøyet beregner ruten før den tegnes og returnerer «rute» med ekte ' +
+        'innenfor kartet. OPPGI HELST STEDSNAVNENE (fraNavn/tilNavn) — appen slår dem opp i ' +
+        'kartets egne navn, som er fasit, så du slipper å hente eller huske koordinater. ' +
+        'Verktøyet beregner ruten før den tegnes og returnerer «rute» med ekte ' +
         'lengde, stigning og gangtid — bruk DE tallene i svaret, aldri egne anslag. Mangler ' +
         '«rute», er turen ikke beregnet ennå: nevn da ingen tall. Sett vis3d KUN når brukeren ' +
         'eksplisitt har bedt om 3D — ellers tegnes ruten bare, og du kan tilby 3D som neste steg.',
@@ -198,14 +203,16 @@ export const AI_TOOLS = [
         type: 'object',
         properties: {
           kartId: { type: 'string', description: 'Kart-id fra mine_kart_og_ruter (utelat hvis brukeren står i kartet — bruk kartId fra konteksten)' },
-          fraLat: { type: 'number' },
+          fraNavn: { type: 'string', description: 'ANBEFALT: startstedets navn slik brukeren sa det («Krokekra») — appen slår det opp i kartets egne navn' },
+          tilNavn: { type: 'string', description: 'ANBEFALT: målstedets navn («Fan-i-vold») — appen slår det opp i kartets egne navn' },
+          fraLat: { type: 'number', description: 'Startpunkt (kun nødvendig uten fraNavn)' },
           fraLon: { type: 'number' },
-          tilLat: { type: 'number' },
+          tilLat: { type: 'number', description: 'Målpunkt (kun nødvendig uten tilNavn)' },
           tilLon: { type: 'number' },
           navn: { type: 'string', description: 'Turnavn, f.eks. «Stormoen–Konnerudkollen»' },
           vis3d: { type: 'boolean', description: 'Åpne 3D-visningen automatisk (KUN når brukeren har bedt om 3D)' },
         },
-        required: ['kartId', 'fraLat', 'fraLon', 'tilLat', 'tilLon'],
+        required: ['kartId'],
       },
     },
   },
@@ -336,6 +343,83 @@ export function bboxAvstandKm(a, b) {
   return Math.hypot(dLat * 111, dLon * 111 * Math.cos(midLat))
 }
 
+// Søk i ÉN lagret kart-flis med appens egen søkeindeks (samme som søkefeltet).
+// getBBox() krever et RENDRET element (kaster på detached dokument) — monter
+// derfor den parsede SVG-en usynlig mens indeksen bygges.
+function sokIEttKart(entry, sok, maks) {
+  const doc = new DOMParser().parseFromString(entry.svg, 'image/svg+xml')
+  const svgEl = document.importNode(doc.documentElement, true)
+  // UTM-forankringen leses fra SVG-ens data-meta — lagrede app-kart har ikke
+  // noe meta-felt på entry-en.
+  const m = metaFraSvgEl(svgEl)
+  if (!m) return []
+  const holder = document.createElement('div')
+  holder.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:hidden;pointer-events:none'
+  holder.appendChild(svgEl)
+  document.body.appendChild(holder)
+  let rader
+  try {
+    rader = filterIndex(buildSearchIndex(svgEl), String(sok ?? ''), maks)
+  } finally {
+    holder.remove()
+  }
+  return rader.map((r) => {
+    const ll = svgToWgs84(r.x, r.y, m)
+    const o = {
+      navn: r.name,
+      type: r.label ?? r.kind,
+      lat: +ll.lat.toFixed(6),
+      lon: +ll.lon.toFixed(6),
+      kartId: entry.id,
+      kart: entry.navn ?? entry.id,
+    }
+    if (Number.isFinite(r.ele)) o.moh = Math.round(r.ele)
+    if (Number.isFinite(r.areaM2) && r.areaM2 > 0) o.areal = formatAreaShort(r.areaM2)
+    return o
+  })
+}
+
+/**
+ * Slå opp ett stedsnavn i kartets EGNE navn (aktiv flis først, så naboflisene).
+ * Kartets navn er fasit for tur-punkter: nettbasert geokoding (sok_sted) kan
+ * treffe navnebrødre andre steder i landet — det var slik «Krokekra» endte
+ * «veldig langt utenfor kartet» selv om stedet ligger midt i det.
+ */
+async function finnStedIKartet(kart, naboer, navn) {
+  const q = String(navn ?? '').trim()
+  if (!q) return null
+  const eget = sokIEttKart(kart, q, 3)
+  if (eget.length) return eget[0]
+  for (const nabo of naboer) {
+    const full = await loadMap(nabo.id)
+    if (!full?.svg) continue
+    const t = sokIEttKart(full, q, 3)
+    if (t.length) return t[0]
+  }
+  return null
+}
+
+/**
+ * Løs ett tur-punkt. Et oppgitt STEDSNAVN slår koordinater — appen slår det
+ * opp i kartets egne navn i stedet for å stole på at modellen har riktige
+ * lat/lon. Finnes ikke navnet, faller vi tilbake til koordinatene (som uansett
+ * valideres av mosaikk-vaktposten).
+ * @returns {{punkt: {lat,lon}, kilde?: object} | {feil: string}}
+ */
+async function losTurPunkt({ rolle, navn, lat, lon, kart, naboer }) {
+  if (navn) {
+    const treff = await finnStedIKartet(kart, naboer, navn)
+    if (treff) return { punkt: { lat: treff.lat, lon: treff.lon }, kilde: treff }
+  }
+  const p = { lat: Number(lat), lon: Number(lon) }
+  if (Number.isFinite(p.lat) && Number.isFinite(p.lon)) return { punkt: p }
+  return {
+    feil: navn
+      ? `Fant ikke «${navn}» blant kartets egne navn, og ingen koordinater ble oppgitt for ${rolle.toLowerCase()}.`
+      : `${rolle} mangler både stedsnavn og koordinater.`,
+  }
+}
+
 // Km utenfor NÆRMESTE flis i mosaikken (0 = inne i en av dem). Turer kan gå
 // på tvers av flisegrenser (Stifinner ruter via spøkelses-flisene), så
 // vaktposten skal godta punkter i hele mosaikken — ikke bare aktiv flis.
@@ -461,46 +545,11 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         // flis de ligger i.
         const naboer = (await mosaikkFliser(id, kart)).slice(1, 9)
 
-        // getBBox() krever et RENDRET element (kaster på detached dokument) —
-        // monter den parsede SVG-en usynlig i DOM-en mens indeksen bygges.
-        const sokIEttKart = (entry) => {
-          const doc = new DOMParser().parseFromString(entry.svg, 'image/svg+xml')
-          const svgEl = document.importNode(doc.documentElement, true)
-          // UTM-forankringen leses fra SVG-ens data-meta — lagrede app-kart
-          // har ikke noe meta-felt på entry-en.
-          const m = metaFraSvgEl(svgEl)
-          if (!m) return []
-          const holder = document.createElement('div')
-          holder.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:hidden;pointer-events:none'
-          holder.appendChild(svgEl)
-          document.body.appendChild(holder)
-          let rader
-          try {
-            rader = filterIndex(buildSearchIndex(svgEl), String(args?.sok ?? ''), maks)
-          } finally {
-            holder.remove()
-          }
-          return rader.map((r) => {
-            const ll = svgToWgs84(r.x, r.y, m)
-            const o = {
-              navn: r.name,
-              type: r.label ?? r.kind,
-              lat: +ll.lat.toFixed(6),
-              lon: +ll.lon.toFixed(6),
-              kartId: entry.id,
-              kart: entry.navn ?? entry.id,
-            }
-            if (Number.isFinite(r.ele)) o.moh = Math.round(r.ele)
-            if (Number.isFinite(r.areaM2) && r.areaM2 > 0) o.areal = formatAreaShort(r.areaM2)
-            return o
-          })
-        }
-
-        const treff = [...sokIEttKart(kart)]
+        const treff = [...sokIEttKart(kart, args?.sok, maks)]
         for (const nabo of naboer) {
           if (treff.length >= maks) break
           const full = await loadMap(nabo.id)
-          if (full?.svg) treff.push(...sokIEttKart(full))
+          if (full?.svg) treff.push(...sokIEttKart(full, args?.sok, maks))
         }
         if (!treff.length) {
           return {
@@ -559,19 +608,32 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         if (!løst) return { feil: `Fant ikke kart med id «${args?.kartId}». Bruk mine_kart_og_ruter.` }
         const { id, kart } = løst
         const fliser = await mosaikkFliser(id, kart)
-        for (const [navn, p] of [
-          ['Startpunktet', { lat: Number(args?.origoLat), lon: Number(args?.origoLon) }],
-          ['Vendepunktet', { lat: Number(args?.viaLat), lon: Number(args?.viaLon) }],
+        const naboer = fliser.slice(1, 9)
+
+        // Stedsnavn slår koordinater: appen slår dem opp i kartets EGNE navn.
+        const løste = []
+        for (const [rolle, navn, lat, lon] of [
+          ['Startpunktet', args?.origoNavn, args?.origoLat, args?.origoLon],
+          ['Vendepunktet', args?.viaNavn, args?.viaLat, args?.viaLon],
         ]) {
-          const km = kmUtenforMosaikk(fliser, p)
+          const r = await losTurPunkt({ rolle, navn, lat, lon, kart, naboer })
+          if (r.feil) return { feil: `${r.feil} Ingen rundtur ble startet.` }
+          const km = kmUtenforMosaikk(fliser, r.punkt)
           if (km > 0.2) {
             return {
               feil:
-                `${navn} (${p.lat}, ${p.lon}) ligger ~${km.toFixed(1)} km utenfor kartet ` +
-                `«${kart.navn ?? id}» og naboflisene — ingen rundtur ble startet. Sjekk ` +
-                'sok_i_kartet-/sok_sted-treffet eller spør brukeren.',
+                `${rolle} (${r.punkt.lat}, ${r.punkt.lon}) ligger ~${km.toFixed(1)} km utenfor ` +
+                `kartet «${kart.navn ?? id}» og naboflisene — ingen rundtur ble startet. ` +
+                'Prøv på nytt med stedsnavnet i origoNavn/viaNavn i stedet for koordinater: ' +
+                'da slår appen det opp i kartets egne navn, som er fasit.',
             }
           }
+          løste.push(r.punkt)
+        }
+        args = {
+          ...args,
+          origoLat: løste[0].lat, origoLon: løste[0].lon,
+          viaLat: løste[1].lat, viaLon: løste[1].lon,
         }
         // Forhåndsberegn mot kartets egen SVG: gir ekte tall å svare med, og
         // fanger «ingen sti i nærheten» FØR vi navigerer til en feilmelding.
@@ -605,20 +667,34 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         // Vaktpost: punkter utenfor mosaikken (typisk feil geokode-treff) skal
         // ikke starte en tur — chatten forblir åpen og modellen må forklare.
         const fliser = await mosaikkFliser(id, kart)
-        for (const [navn, p] of [
-          ['Startpunktet', { lat: Number(args?.fraLat), lon: Number(args?.fraLon) }],
-          ['Målpunktet', { lat: Number(args?.tilLat), lon: Number(args?.tilLon) }],
+        const naboer = fliser.slice(1, 9)
+
+        // Stedsnavn slår koordinater: appen slår dem opp i kartets EGNE navn,
+        // så en navnebror i en annen del av landet ikke kan snike seg inn.
+        const løste = []
+        for (const [rolle, navn, lat, lon] of [
+          ['Startpunktet', args?.fraNavn, args?.fraLat, args?.fraLon],
+          ['Målpunktet', args?.tilNavn, args?.tilLat, args?.tilLon],
         ]) {
-          const km = kmUtenforMosaikk(fliser, p)
+          const r = await losTurPunkt({ rolle, navn, lat, lon, kart, naboer })
+          if (r.feil) return { feil: `${r.feil} Ingen tur ble startet.` }
+          const km = kmUtenforMosaikk(fliser, r.punkt)
           if (km > 0.2) {
             return {
               feil:
-                `${navn} (${p.lat}, ${p.lon}) ligger ~${km.toFixed(1)} km utenfor kartet ` +
-                `«${kart.navn ?? id}» og naboflisene — ingen tur ble startet. Sjekk ` +
-                'sok_i_kartet-/sok_sted-treffet: flere steder kan hete det samme, eller ' +
+                `${rolle} (${r.punkt.lat}, ${r.punkt.lon}) ligger ~${km.toFixed(1)} km utenfor ` +
+                `kartet «${kart.navn ?? id}» og naboflisene — ingen tur ble startet. Prøv på ` +
+                'nytt med stedsnavnet i fraNavn/tilNavn i stedet for koordinater: da slår ' +
+                'appen det opp i kartets egne navn, som er fasit. Finnes stedet ikke der, ' +
                 'tilby å bygge et nytt kart over riktig område med lag_kart.',
             }
           }
+          løste.push(r.punkt)
+        }
+        args = {
+          ...args,
+          fraLat: løste[0].lat, fraLon: løste[0].lon,
+          tilLat: løste[1].lat, tilLon: løste[1].lon,
         }
         // Forhåndsberegn mot kartets egen SVG: gir ekte tall å svare med, og
         // fanger «ingen sti i nærheten» FØR vi navigerer til en feilmelding.

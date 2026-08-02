@@ -1,5 +1,13 @@
 # Endringslogg
 
+## 2026-08-02 — v4.4.2: Turverktøyene slår opp stedsnavn selv
+
+«Jeg fant Krokekra i dette kartet, men det ligger veldig langt utenfor kartet» — en selvmotsigelse som avslørte hva som skjedde: modellen fant stedet med sok_i_kartet, men sendte deretter koordinater fra et annet oppslag (sok_sted treffer navnebrødre i hele Norge) til foreslaa_tur, og mosaikk-vaktposten stanset turen. Begge stedene lå i samme kart hele tiden. Nå tar foreslaa_tur og foreslaa_rundtur imot STEDSNAVN (fraNavn/tilNavn, origoNavn/viaNavn) og slår dem opp i kartets egne navn med samme søkeindeks som søkefeltet — koordinater er ikke lenger påkrevd, og modellen kan ikke lenger blande inn feil punkt. Oppgitte koordinater brukes fortsatt når navn mangler eller ikke finnes, og vaktposten står som før. Vaktpostens feilmelding ber nå eksplisitt om et nytt forsøk med stedsnavn i stedet for å foreslå et nytt kart.
+
+Søket i én kartflis er samtidig løftet ut av sok_i_kartet til en delt hjelper, så navneoppslaget i turverktøyene bruker nøyaktig samme kodevei.
+
+---
+
 ## 2026-08-02 — v4.4.1: «Se ruta i 3D» virker — verktøykall i teksten tolkes
 
 «Se ruta i 3D» ga `[foreslaa_tur(fraLat=59.747514, …, vis3d=true)]` som synlig chat-tekst, mens «se ruten i 3D» virket. Årsaken var ikke ordformen: Llama-modellene faller av og til tilbake til å SKRIVE verktøykallet i svaret i stedet for å bruke tool-kanalen, og da ble handlingen aldri utført. Klienten tolker nå begge de observerte tekstformene — bracket-formen `[navn(k=v)]` og JSON-bloben `{"name": …, "parameters": …}` — til ekte verktøykall og fjerner dem fra teksten. Bare deklarerte verktøynavn godtas, så vanlig prosa med parenteser er urørt.
