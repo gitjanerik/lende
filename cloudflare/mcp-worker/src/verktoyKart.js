@@ -314,8 +314,8 @@ export function registerKartVerktoy(server, ctx) {
         'korte fragmenter.',
       inputSchema: {
         kartRef: z.string().describe('Kart-referansen fra bygg_kart'),
-        minTurKm: z.number().min(0.5).max(20).default(2)
-          .describe('Minste turlengde i km for tur-kandidater (standard 2)'),
+        minTurKm: z.number().min(0.5).max(20).default(0.5)
+          .describe('Minste turlengde i km for tur-kandidater (standard 0,5)'),
         maksKoblerM: z.number().min(0).max(1000).default(300)
           .describe('Lengste småveg-strekk (meter) som godtas som bindeledd mellom stinett'),
       },

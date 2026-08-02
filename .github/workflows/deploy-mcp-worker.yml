@@ -57,7 +57,7 @@ jobs:
           # Må matche MCP_SERVER_VERSJON i src/index.js — begge pollene under
           # venter på at DENNE versjonen svarer, så gamle edge-noder rett etter
           # deploy ikke gir falske røde (fase B attempt 2 feilet på akkurat det).
-          VERSJON='2.2.0'
+          VERSJON='2.3.0'
           MCP_HDR=(-H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream')
           echo "— venter på /health med versjon $VERSJON (maks ~2 min) —"
           OK=""

@@ -55,11 +55,13 @@ export function stinettFeaturesFromSvgEl(svgRootEl) {
 /**
  * Dynamisk minstelengde (meter) for at en komponent skal telle med, som
  * funksjon av sti-tetthet d = stiKm per kart-km². Ved lav tetthet (øyer,
- * fjell) teller alt ≥ 300 m; i bynære myldrenett stiger kravet mot 2 km.
+ * fjell) teller alt ≥ 300 m; i tette nett stiger kravet mot 500 m. Taket lå
+ * først på 2 km, men brukertest (Stormoen, 1:10 000) viste at det kuttet så
+ * mange ekte småstier fra summen at totalinntrykket ble misvisende.
  */
 export function minKomponentM(stiKm, arealKm2) {
   const d = arealKm2 > 0 ? stiKm / arealKm2 : 0
-  return Math.min(Math.max(300 * Math.sqrt(Math.max(d, 1)), 300), 2000)
+  return Math.min(Math.max(300 * Math.sqrt(Math.max(d, 1)), 300), 500)
 }
 
 // --- liten binærhaug for Dijkstra --------------------------------------
@@ -208,7 +210,7 @@ function movingAverage(arr, window) {
  * @returns {{ stinett: object, lengsteVandringM: number, turer: Array<object> }}
  */
 export function analyserStinett(features, opts = {}) {
-  const { dem = null, arealKm2 = 0, minTurM = 2000, maksKoblerM = 300, snapM = 6 } = opts
+  const { dem = null, arealKm2 = 0, minTurM = 500, maksKoblerM = 300, snapM = 6 } = opts
 
   const brukbare = (features ?? []).filter(
     (f) => STI_KODER.has(f.isomCode) || KOBLER_KODER.has(f.isomCode),
@@ -424,6 +426,7 @@ export function analyserStinett(features, opts = {}) {
       tetthetKmPerKm2: arealKm2 > 0 ? altStiM / 1000 / arealKm2 : null,
     },
     lengsteVandringM,
+    minTurM,
     turer,
   }
 }
@@ -481,6 +484,7 @@ export function formatStinettSvar(analyse, { toWgs84 }) {
 
   const s = analyse.stinett
   const svar = {
+    minTurKm: analyse.minTurM != null ? +(analyse.minTurM / 1000).toFixed(1) : undefined,
     stinett: {
       totalStiKm: +(s.totalStiM / 1000).toFixed(1),
       koblerKm: +(s.koblerM / 1000).toFixed(1),
@@ -511,6 +515,7 @@ export function formatStinettSvar(analyse, { toWgs84 }) {
 
   const merknader = [
     'Sti = ISOM 505/506/507 + skogsbilvei 504; småveg-bindeledd (503) teller i turlengder men ikke i sti-summen.',
+    'ekskludertKm er ekte, men korte og frakoblede stistumper — nevn dem når totalinntrykket av området er poenget.',
     '«Slakeste segment» = turen med det slakeste bratteste-partiet.',
     'Turene kan tegnes inn: start/slutt/via → foreslaa_tur (MCP: planlegg_rute), origo/via → foreslaa_rundtur (MCP: planlegg_rundtur).',
   ]
