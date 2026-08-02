@@ -8,6 +8,11 @@
 import { ANNOTATION_SYMBOLS } from '../../composables/useMapAnnotations.js'
 import AnnotationIcon from '../AnnotationIcon.vue'
 import { formatDistanceM } from '../../lib/mapContext.js'
+import { hasAiToken } from '../../lib/lendeAi.js'
+
+// Chat-avsnittet i oppdagbarhets-tipset vises kun for inviterte (samme
+// token-gate som LendeChatFab) — uinviterte skal ikke se funksjonen.
+const harChat = hasAiToken()
 defineProps({
   contextMenuOpen: { type: Boolean, default: false },
   contextMenuInfo: { type: Object, default: null },
@@ -183,9 +188,21 @@ function formatDistance(m) {
             <line x1="12" y1="8" x2="12" y2="8"/>
           </svg>
           <div>
-            <span class="font-semibold">Tips:</span> du kan trykke-og-holde et par
-            sekunder i kartet for å åpne infopanelet du ser her. Det samme fungerer på
-            de tre knottene nede til høyre for å finjustere kantlinjer, relieff og zoom.
+            <p>
+              <span class="font-semibold">Tips:</span> du kan trykke-og-holde et par
+              sekunder i kartet for å åpne infopanelet du ser her. Det samme fungerer på
+              de tre knottene som åpner når du trykker på Lende-knappen nede til høyre.
+              Der kan du finjustere kantlinjer, relieff og zoom.
+            </p>
+            <!-- Kun for inviterte (chat-token i localStorage) — uinviterte skal
+                 ikke se at funksjonen finnes, som for FAB-en. -->
+            <p v-if="harChat" class="mt-2.5">
+              <span class="font-semibold">Chat:</span> du har tilgang til Lende-chat —
+              hold inne Lende-knappen og spør med egne ord. «Hvor mange km sti er det
+              her?», «gå en tur fra parkeringa til toppen» eller «lag et kart over
+              Sirikjerke» — den finner stedene i kartet, tegner ruta og regner ut
+              lengde, stigning og gangtid for deg.
+            </p>
           </div>
           <button @click="dismissInfoTip" aria-label="Skjul tips"
                   class="absolute top-1.5 right-1.5 w-6 h-6 flex items-center justify-center rounded-md
