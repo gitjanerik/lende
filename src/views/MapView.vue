@@ -80,7 +80,7 @@ import {
   needsRecull, computeCullDiff, parseBboxAttr,
 } from '../lib/viewportCull.js'
 import { svgToWgs84, wgs84ToSvg } from '../lib/utm.js'
-import { parseTourQuery } from '../lib/tour3dLink.js'
+import { parseTourQuery, parseTourNameQuery } from '../lib/tour3dLink.js'
 import { computeTourExtent, shiftPoints, shiftVia, shiftIndex, demIntoExtent } from '../lib/tour3d/tourExtent.js'
 import { utNoZoomForMPerPx, UTNO_DEFAULT_ZOOM } from '../lib/utNoLink.js'
 import { useMapContext } from '../composables/useMapContext.js'
@@ -2233,9 +2233,35 @@ function maybeRestoreRoundTripFromQuery() {
   restoreTourAttempt(tourRestoreToken, 0)
 }
 
+// Navnebasert tur fra chatten (tfn/ttn): «lag et kart over X og gå fra A til
+// B». Kartet fantes ikke da chatten svarte, så navnene fulgte med gjennom
+// byggeflyten — nå som kartet er bygget og stiene er på plass slår vi dem opp
+// i kartets EGEN søkeindeks (samme fasit som søkefeltet) og lager en vanlig
+// koordinat-tur av dem. Returnerer null når indeksen ikke har begge navnene.
+function tourFraNavn() {
+  const nav = parseTourNameQuery(route.query)
+  if (!nav) return null
+  const idx = searchIndex.value
+  if (!idx?.length) return null
+  const finn = (navn) => {
+    const treff = findByName(idx, navn)   // eksakt treff foran delvis
+    if (!treff || !meta.value) return null
+    return svgToWgs84(treff.x, treff.y, meta.value)
+  }
+  const origin = finn(nav.fromName)
+  const dest = finn(nav.toName)
+  if (!origin || !dest) return null
+  return { origin, dest, via: [], routeIdx: 0, open3d: nav.open3d, name: nav.name }
+}
+
 function restoreTourAttempt(token, forsok) {
   if (token !== tourRestoreToken || !componentAlive) return
-  const tour = parseTourQuery(route.query)
+  const tour = parseTourQuery(route.query) ?? tourFraNavn()
+  if (!tour && parseTourNameQuery(route.query) && forsok < 24) {
+    // Navnene venter på søkeindeksen (bygges når kartet er rendret) — prøv igjen.
+    setTimeout(() => restoreTourAttempt(token, forsok + 1), 500)
+    return
+  }
   if (!tour || !meta.value) return
   // Terreng-først: skjelett-passet har ingen sti-lag ennå — å rute nå gir et
   // misvisende «Fant ingen sti»-banner. Finalize-swappen kjører de utsatte
@@ -2293,9 +2319,9 @@ function restoreTourAttempt(token, forsok) {
 // Nullstill en ev. aktiv Stifinner-økt og kjør samme restore som ved last.
 watch(() => {
   const q = route.query
-  return [q.olat, q.olon, q.dlat, q.dlon, q.rtv, q.ri, q.v3d, q.tn].join('|')
+  return [q.olat, q.olon, q.dlat, q.dlon, q.rtv, q.ri, q.v3d, q.tn, q.tfn, q.ttn].join('|')
 }, () => {
-  if (!parseTourQuery(route.query)) return
+  if (!parseTourQuery(route.query) && !parseTourNameQuery(route.query)) return
   if (sti.active.value) sti.cancel()
   maybeRestoreRoundTripFromQuery()
 })

@@ -1,5 +1,13 @@
 # Endringslogg
 
+## 2026-08-02 — v4.5.0: «Lag et kart over X og gå en tur fra A til B» — i én setning
+
+Chatten kan nå ta hele bestillingen i ett jafs: lag_kart tar turFraNavn og turTilNavn, og turen tegnes inn av seg selv så snart kartet er ferdig bygget. Nøtten var at kartet ikke finnes når chatten svarer, så koordinatene kan ikke slås opp på forhånd — i stedet følger NAVNENE med som tfn/ttn gjennom byggeflyten (kartvelgeren videreformidler dem til det nye kartet), og MapView løser dem mot kartets egen søkeindeks med findByName når stiene er tegnet. Terreng-først-bygging gjør at indeksen kommer sent, så gjenskapingen prøver på nytt hvert halve sekund i inntil 12 sekunder — samme tålmodighet som kryss-flis-ruting allerede hadde. Er brukeren ute etter 3D også, åpnes den til slutt.
+
+Virker både med lag_kart (bygger med én gang) og foreslaa_nytt_kart (brukeren trykker bygg selv) — bestillingen overlever i begge tilfeller.
+
+---
+
 ## 2026-08-02 — v4.4.3: Kartbygging geokoder selv, og verktøykall lekker ikke lenger ut i teksten
 
 «Lag et kart over Sirikjerke i Øvre Eiker» åpnet byggeskjemaet på Stormoen — modellen gjenbrukte koordinatene fra kartet den nettopp hadde snakket om. Samme rotårsak som Krokekra-turen i v4.4.2, og samme kur: lag_kart og foreslaa_nytt_kart tar nå imot «sted» (stedsnavnet slik brukeren sa det, gjerne med kommune) og geokoder det selv. Koordinater er ikke lenger påkrevd, og kartnavnet arves fra stedsnavnet.

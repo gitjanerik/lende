@@ -39,6 +39,27 @@ export function buildTourParams({ origin, dest = null, via = [], routeIdx = 0, o
  * Query (f.eks. vue-router route.query) → tur, eller null når lenken ikke
  * bærer en tur. Gamle rundtur-lenker (uten dlat/v3d) parses som før.
  */
+/**
+ * Navnebasert tur (tfn/ttn): «lag et kart over X og gå en tur fra A til B».
+ * Kartet finnes ikke når chatten svarer, så koordinater kan ikke slås opp —
+ * NAVNENE følger i stedet med gjennom byggeflyten, og MapView løser dem mot
+ * kartets egen søkeindeks når stiene er på plass.
+ * @returns {{fromName:string, toName:string, open3d:boolean, name:string|null}|null}
+ */
+export function parseTourNameQuery(query) {
+  const s = (k) => (typeof query?.[k] === 'string' ? query[k].trim().slice(0, 60) : '')
+  const fromName = s('tfn')
+  const toName = s('ttn')
+  if (!fromName || !toName) return null
+  const tn = s('tn')
+  return {
+    fromName,
+    toName,
+    open3d: query?.v3d === '1' || query?.v3d === 1,
+    name: tn || null,
+  }
+}
+
 export function parseTourQuery(query) {
   const num = (k) => parseFloat(query?.[k])
   const olat = num('olat')
