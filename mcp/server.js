@@ -14,6 +14,7 @@ import { buildMapHeadless, routableFeaturesFromSvg, extractMapPoiFromSvg, search
 import { filterPoi, POI_LABELS } from '../src/lib/mapPoi.js'
 import { formatAreaShort } from '../src/composables/useMapSearch.js'
 import { buildRoutingGraph, planRoutes, planRoutesThrough, planLoop } from '../src/lib/routing.js'
+import { analyserStinett, formatStinettSvar } from '../src/lib/stinettAnalyse.js'
 import { wgs84ToSvg, svgToWgs84, utm32BboxFromWgs84 } from '../src/lib/utm.js'
 import { sampleProfile } from '../src/lib/elevationProfile.js'
 import { sampleElevation } from '../src/lib/demSampling.js'
@@ -554,6 +555,47 @@ server.registerTool(
     }
 
     return jsonResult(svar)
+  },
+)
+
+server.registerTool(
+  'analyser_stinett',
+  {
+    title: 'Analyser stinettet',
+    description:
+      'Analyserer stinettet i sist bygde kart: total km sti (sti + skogsbilvei, hvert segment ' +
+      'telt én gang), lengste sammenhengende turstrekning, og tur-kandidater (A→B eller ' +
+      'rundtur, minst minTurKm) med lengde, gangtid, stigning/fall og bratteste/slakeste ' +
+      'parti. Korte småveg-strekk regnes som bindeledd mellom stier men teller ikke i ' +
+      'sti-summen; korte isolerte stumper ekskluderes (dynamisk minstelengde etter ' +
+      'sti-tetthet). Hver tur returnerer koordinater som kan sendes videre: start/slutt/via → ' +
+      'planlegg_rute, origo/via → planlegg_rundtur. treff kan være 0 når nettet bare har ' +
+      'korte fragmenter.',
+    inputSchema: {
+      minTurKm: z.number().min(0.5).max(20).default(2)
+        .describe('Minste turlengde i km for tur-kandidater (standard 2)'),
+      maksKoblerM: z.number().min(0).max(1000).default(300)
+        .describe('Lengste småveg-strekk (meter) som godtas som bindeledd mellom stinett'),
+    },
+  },
+  async ({ minTurKm, maksKoblerM }) => {
+    requireMap()
+    const meta = svgMeta()
+    // Egen graf med componentBridgeM: 0 inne i analysen — state.routingGraph
+    // (80 m-komponentbroer) ville forfalsket konnektiviteten som skal måles.
+    const features = routableFeaturesFromSvg(state.map.svg)
+    const dem = state.map.dem?.source?.startsWith?.('synthetic') ? null : state.map.dem
+    const analyse = analyserStinett(features, {
+      dem,
+      arealKm2: (meta.widthM * meta.heightM) / 1e6,
+      minTurM: minTurKm * 1000,
+      maksKoblerM,
+    })
+    return jsonResult({
+      status: 'ok',
+      kart: state.map.navn,
+      ...formatStinettSvar(analyse, { toWgs84: (x, y) => svgToWgs84(x, y, meta) }),
+    })
   },
 )
 

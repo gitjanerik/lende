@@ -8,6 +8,7 @@
 import { z } from 'zod'
 import { buildMapHeadless, routableFeaturesFromSvg, extractMapPoiFromSvg, searchMapSvg } from '../../../mcp/headless.js'
 import { buildRoutingGraph, planRoutes, planRoutesThrough, planLoop } from '../../../src/lib/routing.js'
+import { analyserStinett, formatStinettSvar } from '../../../src/lib/stinettAnalyse.js'
 import { wgs84ToSvg, svgToWgs84 } from '../../../src/lib/utm.js'
 import { sampleProfile } from '../../../src/lib/elevationProfile.js'
 import { sampleElevation } from '../../../src/lib/demSampling.js'
@@ -295,6 +296,49 @@ export function registerKartVerktoy(server, ctx) {
       }
 
       return jsonResult(svar)
+    },
+  )
+
+  server.registerTool(
+    'analyser_stinett',
+    {
+      title: 'Analyser stinettet',
+      description:
+        'Analyserer stinettet i et bygget kart (kartRef): total km sti (sti + skogsbilvei, ' +
+        'hvert segment telt én gang), lengste sammenhengende turstrekning, og tur-kandidater ' +
+        '(A→B eller rundtur, minst minTurKm) med lengde, gangtid, stigning/fall og bratteste/' +
+        'slakeste parti. Korte småveg-strekk regnes som bindeledd mellom stier men teller ikke ' +
+        'i sti-summen; korte isolerte stumper ekskluderes (dynamisk minstelengde etter ' +
+        'sti-tetthet). Hver tur returnerer koordinater som kan sendes videre: start/slutt/via → ' +
+        'planlegg_rute, origo/via → planlegg_rundtur. treff kan være 0 når nettet bare har ' +
+        'korte fragmenter.',
+      inputSchema: {
+        kartRef: z.string().describe('Kart-referansen fra bygg_kart'),
+        minTurKm: z.number().min(0.5).max(20).default(2)
+          .describe('Minste turlengde i km for tur-kandidater (standard 2)'),
+        maksKoblerM: z.number().min(0).max(1000).default(300)
+          .describe('Lengste småveg-strekk (meter) som godtas som bindeledd mellom stinett'),
+      },
+    },
+    async ({ kartRef, minTurKm, maksKoblerM }) => {
+      const kart = await kreveKart(env, kartRef)
+      const meta = svgMeta(kart.meta)
+      // Analysen bygger egen graf med componentBridgeM: 0 — byggGraf-ens
+      // 80 m-komponentbroer ville forfalsket konnektiviteten som skal måles.
+      const features = routableFeaturesFromSvg(kart.svg)
+      const dem = kart.dem?.source?.startsWith?.('synthetic') ? null : kart.dem
+      const analyse = analyserStinett(features, {
+        dem,
+        arealKm2: (kart.meta.widthM * kart.meta.heightM) / 1e6,
+        minTurM: minTurKm * 1000,
+        maksKoblerM,
+      })
+      return jsonResult({
+        status: 'ok',
+        kartRef,
+        kart: kart.navn,
+        ...formatStinettSvar(analyse, { toWgs84: (x, y) => svgToWgs84(x, y, meta) }),
+      })
     },
   )
 

@@ -16,6 +16,8 @@ import { geocodePlace } from './geocode.js'
 import { listMaps, loadMap, listGravelRoutes } from './mapStorage.js'
 import { buildSearchIndex, filterIndex, formatAreaShort } from '../composables/useMapSearch.js'
 import { svgToWgs84 } from './utm.js'
+import { unpackDem } from './demSampling.js'
+import { analyserStinett, formatStinettSvar, stinettFeaturesFromSvgEl } from './stinettAnalyse.js'
 
 // Router lastes lat: da kan testene importere de rene delene (buildTourQuery,
 // projectForModel) uten å evaluere hele router→view-treet.
@@ -121,6 +123,30 @@ export const AI_TOOLS = [
           maks: { type: 'number', description: 'Maks antall treff (standard 8)' },
         },
         required: ['kartId', 'sok'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'analyser_stinett',
+      description:
+        'Analyser stinettet i et lagret kart: total km sti (sti 505/506/507 + skogsbilvei 504, ' +
+        'hvert stisegment telt én gang), lengste sammenhengende turstrekning, og tur-kandidater ' +
+        '(A→B eller rundtur, minst 2 km) med lengde, gangtid, stigning/fall og bratteste/' +
+        'slakeste parti. Korte småveg-strekk regnes som bindeledd mellom stier, men teller ikke ' +
+        'i sti-summen; korte isolerte stumper ekskluderes. Bruk ved spørsmål som «hvor mange km ' +
+        'sti er det her?», «hva er den lengste turen?», «hvilken tur har minst stigning?». Hver ' +
+        'tur returnerer koordinater du kan sende rett videre: start/slutt/via → foreslaa_tur, ' +
+        'origo/via → foreslaa_rundtur. Analysen gjelder kun dette kartet (ikke nabofliser). ' +
+        'treff kan være 0 når nettet bare har korte fragmenter — si det ærlig da.',
+      parameters: {
+        type: 'object',
+        properties: {
+          kartId: { type: 'string', description: 'Kart-id fra mine_kart_og_ruter (utelat hvis brukeren står i kartet — bruk kartId fra konteksten)' },
+          minTurKm: { type: 'number', description: 'Minste turlengde i km for tur-kandidater (standard 2)' },
+        },
+        required: ['kartId'],
       },
     },
   },
@@ -463,6 +489,32 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
             'foreslaa_rundtur (appen laster naboflisene automatisk).',
         }
       }
+      case 'analyser_stinett': {
+        const løst = await losKart(args, kontekst)
+        if (!løst) return { feil: `Fant ikke kart med id «${args?.kartId}». Bruk mine_kart_og_ruter.` }
+        const { id, kart } = løst
+        // Trenger ikke montering (ingen getBBox) — geometrien leses rett fra
+        // path-d-attributtene i den parsede SVG-en.
+        const doc = new DOMParser().parseFromString(kart.svg, 'image/svg+xml')
+        const svgEl = doc.documentElement
+        const m = metaFraSvgEl(svgEl)
+        if (!m) return { feil: `Kartet «${kart.navn ?? id}» mangler geodata (data-meta) — bygg kartet på nytt.` }
+        const minTurKm = Number(args?.minTurKm)
+        const analyse = analyserStinett(stinettFeaturesFromSvgEl(svgEl), {
+          // Lagrede kart bærer dem kun når høydedataene er ekte (createMapFlow
+          // dropper syntetisk DEM) — null her = utelat stigningsfelter.
+          dem: kart.dem ? unpackDem(kart.dem) : null,
+          arealKm2: (m.widthM * m.heightM) / 1e6,
+          minTurM: Number.isFinite(minTurKm)
+            ? Math.min(Math.max(minTurKm, 0.5), 20) * 1000
+            : 2000,
+        })
+        return {
+          kart: kart.navn ?? id,
+          kartId: id,
+          ...formatStinettSvar(analyse, { toWgs84: (x, y) => svgToWgs84(x, y, m) }),
+        }
+      }
       case 'foreslaa_rundtur': {
         const løst = await losKart(args, kontekst)
         if (!løst) return { feil: `Fant ikke kart med id «${args?.kartId}». Bruk mine_kart_og_ruter.` }
@@ -548,6 +600,7 @@ export function toolStatusLabel(name, args) {
     case 'foreslaa_nytt_kart': return 'Gjør klart nytt kart …'
     case 'lag_kart': return 'Starter kartbygging …'
     case 'sok_i_kartet': return `Søker i kartet etter «${args?.sok ?? '…'}» …`
+    case 'analyser_stinett': return 'Analyserer stinettet …'
     case 'foreslaa_tur':
     case 'vis_tur_i_3d': return 'Beregner turen …'
     case 'foreslaa_rundtur': return 'Beregner rundtur …'
