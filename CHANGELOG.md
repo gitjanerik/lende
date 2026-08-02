@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-08-02 — v4.3.9: Deterministisk stinett-ruting i chatten
+
+Modellens verktøyvelging viste seg uforutsigbar: samme spørsmål («Hvor mange kilometer tursti i kartet») kunne gi et korrekt analyser_stinett-kall den ene gangen og «Your input is lacking necessary details» den neste — og for hver prompt-utvidelse flyttet skjørheten seg bare. Nå ruter chatten deterministisk: gjenkjennes et stinett-spørsmål (km sti, lengste tur, bratteste/slakeste tur, stinett) mens brukeren står i et kart, kjører klienten analysen selv FØR modellen spørres, og resultatet legges i systemprompten — modellen skal bare formulere svaret på norsk, ikke velge verktøy. Gjenkjenningen (erStinettSporsmaal) er testet på varierte formuleringer; feiler analysen faller chatten stille tilbake til vanlig verktøy-loop.
+
+---
+
 ## 2026-08-02 — v4.3.8: Stinett-svaret runder ned og oppgir kartstørrelsen
 
 Brukertest ga «414,7 km sti» — som viste seg å være reelt: GPS-kart er 8 km brede med høyden strukket til skjermformatet (~8×13 km ≈ 105 km²), og Stormoen-området har 3,6 km sti per km² i OSM. Problemet var presentasjonen, ikke beregningen (casing-tvillingene i SVG-en dedupliseres allerede av grafen). Nå: over 30 km droppes desimalene og summen rundes NED til nærmeste tier, med ferdig frase i totalStiTekst («mer enn 410 km»); svaret oppgir kartKm (bredde×høyde) og arealKm2 så modellen kan gi tallet kontekst («på dette 8×13 km store kartet»); og systemprompten ber om norsk svar med totalStiTekst-frasen. Worker 2.3.1 + røyktest-pinne.
