@@ -1,5 +1,13 @@
 # Endringslogg
 
+## 2026-08-02 — v4.6.0: Chatten kan bytte kart-tema — og dikter ikke lenger opp verktøy
+
+«Bytt til Dark mode» ga «Dark mode er aktivert» uten at noe skjedde, og andre forsøk ga «[vis3d(false)]» rått i chatten. Modellen hadde ikke noe verktøy for kartets farger, så den påsto først at den hadde gjort jobben og fant deretter opp et «verktøy» av et parameternavn. Begge deler er rettet: nytt verktøy bytt_kart_tema kobler chatten til appens tema-singleton (samme tilstand som menyens mørk-bryter og Tema-fanen), med norsk-tolerant tolking av ønsket («mørkt», «dark mode», «nattkart», «tilbake til vanlige farger») og listing av alternativene når temaet ikke er oppgitt.
+
+Tekst-tolkingen fra v4.4.1 fjerner nå også klammeformen når navnet IKKE er et kjent verktøy — den er uansett aldri noe brukeren skal se. Prosa med vanlige parenteser er urørt; det er klammene som markerer et kall. Systemprompten sier i tillegg at en innstilling aldri skal meldes endret uten at et verktøy har svart ok.
+
+---
+
 ## 2026-08-02 — v4.5.1: Infopanelets tips peker riktig, og frister med chatten
 
 Oppdagbarhets-tipset i infopanelet sa at de tre knottene ligger «nede til høyre» — de åpner nå fra Lende-knappen (FAB-klyngen, v4.3.1), så teksten er rettet til å beskrive den veien. Inviterte får i tillegg et eget Chat-avsnitt under, med tre konkrete eksempler på hva de kan spørre om («Hvor mange km sti er det her?», «gå en tur fra parkeringa til toppen», «lag et kart over Sirikjerke») — poenget er å vise at chatten faktisk gjør noe i kartet, ikke bare svarer med ord. Avsnittet er gatet på chat-tokenet, samme gate som Lende-FAB-en, så uinviterte ser fortsatt ingenting om funksjonen.

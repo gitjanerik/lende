@@ -24,6 +24,8 @@ import {
   buildRoutingGraph, planRoutesThrough, planLoop, ROUTABLE_CODES, MAX_SNAP_M, FAR_SNAP_M,
 } from './routing.js'
 import { sampleProfile } from './elevationProfile.js'
+import { listThemes } from './mapSettingsApply.js'
+import { useMapTheme } from '../composables/useMapTheme.js'
 
 // Router lastes lat: da kan testene importere de rene delene (buildTourQuery,
 // projectForModel) uten å evaluere hele router→view-treet.
@@ -143,6 +145,28 @@ export const AI_TOOLS = [
           maks: { type: 'number', description: 'Maks antall treff (standard 8)' },
         },
         required: ['kartId', 'sok'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'bytt_kart_tema',
+      description:
+        'Bytt fargetema på kartflaten (mørkt nattkart, sepia, monokrome varianter, eller ' +
+        'tilbake til standard ISOM-palett). Bruk ved «bytt til mørkt kart», «dark mode», ' +
+        '«gjør kartet mørkere», «tilbake til vanlige farger». Utelat «tema» for å få listen ' +
+        'over tilgjengelige temaer i svaret. Endringen gjelder alle kart og huskes til neste ' +
+        'gang. Dette er kartets farger — det er IKKE appens meny-utseende, og heller ikke 3D.',
+      parameters: {
+        type: 'object',
+        properties: {
+          tema: {
+            type: 'string',
+            description: 'Tema-nøkkel («dark», «light», …) eller norsk beskrivelse («mørkt», «lyst», «sepia»). Utelat for å liste alternativene.',
+          },
+        },
+        required: [],
       },
     },
   },
@@ -645,6 +669,33 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
             'foreslaa_rundtur (appen laster naboflisene automatisk).',
         }
       }
+      case 'bytt_kart_tema': {
+        const temaer = listThemes()
+        const valgbare = temaer.map((t) => ({ nokkel: t.key, navn: t.label }))
+        const onske = String(args?.tema ?? '').trim()
+        if (!onske) {
+          return {
+            temaer: valgbare,
+            merknad: 'Spør brukeren hvilket tema hun vil ha, og kall verktøyet på nytt med «tema».',
+          }
+        }
+        const nokkel = losTemaNokkel(onske, temaer)
+        if (!nokkel) {
+          return {
+            feil: `Kjenner ikke temaet «${onske}».`,
+            temaer: valgbare,
+          }
+        }
+        const { setMapTheme } = useMapTheme()
+        setMapTheme(nokkel)
+        const valgt = temaer.find((t) => t.key === nokkel)
+        return {
+          ok: true,
+          tema: nokkel,
+          navn: valgt?.label ?? nokkel,
+          merknad: `Kartet vises nå i temaet «${valgt?.label ?? nokkel}». Bekreft kort til brukeren.`,
+        }
+      }
       case 'analyser_stinett': {
         const løst = await losKart(args, kontekst)
         if (!løst) {
@@ -968,6 +1019,27 @@ export function er3dOnske(tekst, tilbudt3d = false) {
   return false
 }
 
+/**
+ * Løs brukerens tema-ønske til en gyldig tema-nøkkel. Modellen (og brukeren)
+ * sier «mørkt», «dark mode» eller «vanlige farger» — ikke katalognøkler — så
+ * vi matcher først på nøkkel, så på etikett, så på noen norske synonymer.
+ * @param {string} onske
+ * @param {Array<{key:string,label:string}>} temaer
+ * @returns {string|null}
+ */
+export function losTemaNokkel(onske, temaer) {
+  const s = String(onske ?? '').trim().toLowerCase()
+  if (!s) return null
+  const nokler = new Set(temaer.map((t) => t.key))
+  if (nokler.has(s)) return s
+  const påEtikett = temaer.find((t) => String(t.label).toLowerCase() === s)
+  if (påEtikett) return påEtikett.key
+  if (/(mørk|mork|natt|dark)/.test(s) && nokler.has('dark')) return 'dark'
+  if (/(lys|standard|vanlig|normal|default|light|dag)/.test(s) && nokler.has('light')) return 'light'
+  const delvis = temaer.find((t) => String(t.label).toLowerCase().includes(s) || t.key.includes(s))
+  return delvis?.key ?? null
+}
+
 /** Kort norsk statuslinje per verktøy — vises i chatten mens kallet kjører. */
 export function toolStatusLabel(name, args) {
   switch (name) {
@@ -978,6 +1050,7 @@ export function toolStatusLabel(name, args) {
     case 'lag_kart': return 'Starter kartbygging …'
     case 'sok_i_kartet': return `Søker i kartet etter «${args?.sok ?? '…'}» …`
     case 'analyser_stinett': return 'Analyserer stinettet …'
+    case 'bytt_kart_tema': return 'Bytter kart-tema …'
     case 'foreslaa_tur':
     case 'vis_tur_i_3d': return 'Beregner turen …'
     case 'foreslaa_rundtur': return 'Beregner rundtur …'
