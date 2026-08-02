@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-08-02 — v4.5.1: Infopanelets tips peker riktig, og frister med chatten
+
+Oppdagbarhets-tipset i infopanelet sa at de tre knottene ligger «nede til høyre» — de åpner nå fra Lende-knappen (FAB-klyngen, v4.3.1), så teksten er rettet til å beskrive den veien. Inviterte får i tillegg et eget Chat-avsnitt under, med tre konkrete eksempler på hva de kan spørre om («Hvor mange km sti er det her?», «gå en tur fra parkeringa til toppen», «lag et kart over Sirikjerke») — poenget er å vise at chatten faktisk gjør noe i kartet, ikke bare svarer med ord. Avsnittet er gatet på chat-tokenet, samme gate som Lende-FAB-en, så uinviterte ser fortsatt ingenting om funksjonen.
+
+---
+
 ## 2026-08-02 — v4.5.0: «Lag et kart over X og gå en tur fra A til B» — i én setning
 
 Chatten kan nå ta hele bestillingen i ett jafs: lag_kart tar turFraNavn og turTilNavn, og turen tegnes inn av seg selv så snart kartet er ferdig bygget. Nøtten var at kartet ikke finnes når chatten svarer, så koordinatene kan ikke slås opp på forhånd — i stedet følger NAVNENE med som tfn/ttn gjennom byggeflyten (kartvelgeren videreformidler dem til det nye kartet), og MapView løser dem mot kartets egen søkeindeks med findByName når stiene er tegnet. Terreng-først-bygging gjør at indeksen kommer sent, så gjenskapingen prøver på nytt hvert halve sekund i inntil 12 sekunder — samme tålmodighet som kryss-flis-ruting allerede hadde. Er brukeren ute etter 3D også, åpnes den til slutt.
