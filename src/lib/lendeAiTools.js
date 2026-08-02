@@ -618,6 +618,37 @@ export function erStinettSporsmaal(tekst) {
   return false
 }
 
+const kommaTall = (n) => String(n).replace('.', ',')
+
+/**
+ * Deterministisk norsk svar bygget rett fra analyser_stinett-resultatet —
+ * nødutgangen når modellen svarer med hermetisk engelsk («Your input is
+ * lacking …») i stedet for å formulere analysen den fikk servert. Brukeren
+ * skal ALDRI se de meldingene når analysen faktisk er kjørt.
+ */
+export function stinettSvarTekst(a) {
+  if (!a?.stinett) return ''
+  const deler = []
+  const dim = a.kartKm ? ` (kartet er ${kommaTall(a.kartKm.bredde)} × ${kommaTall(a.kartKm.hoyde)} km)` : ''
+  deler.push(a.totalStiTekst
+    ? `Det er ${a.totalStiTekst} turstier i kartet${dim}.`
+    : `Det er ${kommaTall(a.stinett.totalStiKm)} km tursti i kartet${dim}.`)
+  if (a.lengsteVandringKm > 0) {
+    deler.push(`Den lengste sammenhengende strekningen er ${kommaTall(a.lengsteVandringKm)} km.`)
+  }
+  if (a.treff > 0) {
+    const t = a.turer[0]
+    const beskrivelse = `en ${t.type === 'rundtur' ? 'rundtur' : 'tur'} på ${kommaTall(t.lengdeKm)} km${t.stigningM != null ? ` med ${t.stigningM} m stigning` : ''}`
+    deler.push(a.treff === 1
+      ? `Jeg fant ett turforslag — ${beskrivelse}.`
+      : `Jeg fant ${a.treff} turforslag — det lengste er ${beskrivelse}.`)
+    deler.push('Si fra hvis du vil ha turen tegnet inn i kartet.')
+  } else {
+    deler.push('Ingen sammenhengende strekninger nådde minstekravet til turforslag.')
+  }
+  return deler.join(' ')
+}
+
 /** Kort norsk statuslinje per verktøy — vises i chatten mens kallet kjører. */
 export function toolStatusLabel(name, args) {
   switch (name) {
