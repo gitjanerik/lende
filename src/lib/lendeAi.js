@@ -231,10 +231,15 @@ export async function chatOnce({ messages, tools, maxTokens = 1024, signal }) {
   const data = await res.json()
   const tekst = extractText(data)
   const strukturerte = extractToolCalls(data)
-  if (strukturerte.length) return { text: tekst, toolCalls: strukturerte, raw: data }
-  // Ingen kall i tool-kanalen: skrev modellen det i teksten i stedet?
+  // Tekst-tolkingen kjører ALLTID, ikke bare når tool-kanalen er tom: modellen
+  // kan gjøre ett ekte kall og skrive det NESTE som tekst i samme svar (sett
+  // v4.4.1: «… Vent litt. Jeg åpner listen over dine kart og ruter.
+  // [mine_kart_og_ruter()]»). Ellers blir klammeteksten stående i chatten og
+  // det andre kallet aldri utført.
   const fraTekst = parseTextToolCalls(tekst, (tools ?? []).map((t) => t?.function?.name).filter(Boolean))
-  return { text: fraTekst.text, toolCalls: fraTekst.toolCalls, raw: data }
+  const sett = new Set(strukturerte.map((t) => `${t.name}:${JSON.stringify(t.args)}`))
+  const ekstra = fraTekst.toolCalls.filter((t) => !sett.has(`${t.name}:${JSON.stringify(t.args)}`))
+  return { text: fraTekst.text, toolCalls: [...strukturerte, ...ekstra], raw: data }
 }
 
 function feilmelding(status, serverText) {

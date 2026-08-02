@@ -46,6 +46,19 @@ describe('parseTextToolCalls', () => {
     const res = parseTextToolCalls('[foreslaa_tur(fraLat=1)]', [])
     expect(res.toolCalls).toHaveLength(0)
   })
+
+  it('tolker kall uten argumenter midt i prosa', () => {
+    // Faktisk observert (v4.4.2): modellen gjorde ett ekte kall og skrev det
+    // neste som tekst i samme svar.
+    const { toolCalls, text } = parseTextToolCalls(
+      'Jeg åpner listen over dine kart og ruter.[mine_kart_og_ruter()]',
+      ['mine_kart_og_ruter'],
+    )
+    expect(toolCalls).toHaveLength(1)
+    expect(toolCalls[0].name).toBe('mine_kart_og_ruter')
+    expect(toolCalls[0].args).toEqual({})
+    expect(text).toBe('Jeg åpner listen over dine kart og ruter.')
+  })
 })
 
 describe('extractToolCalls', () => {

@@ -1,5 +1,15 @@
 # Endringslogg
 
+## 2026-08-02 — v4.4.3: Kartbygging geokoder selv, og verktøykall lekker ikke lenger ut i teksten
+
+«Lag et kart over Sirikjerke i Øvre Eiker» åpnet byggeskjemaet på Stormoen — modellen gjenbrukte koordinatene fra kartet den nettopp hadde snakket om. Samme rotårsak som Krokekra-turen i v4.4.2, og samme kur: lag_kart og foreslaa_nytt_kart tar nå imot «sted» (stedsnavnet slik brukeren sa det, gjerne med kommune) og geokoder det selv. Koordinater er ikke lenger påkrevd, og kartnavnet arves fra stedsnavnet.
+
+Samme skjermbilde viste «[mine_kart_og_ruter()]» som synlig chat-tekst. Tekst-tolkingen fra v4.4.1 kjørte bare når tool-kanalen var tom, og her gjorde modellen ett ekte kall OG skrev det neste som tekst i samme svar. Nå kjører tolkingen alltid, og de to settene slås sammen (duplikater lukes ut).
+
+Til slutt: modellen forsøkte å bygge kart og tegne tur i samme svar. Kartet finnes ikke før byggingen er ferdig, så både verktøybeskrivelsen og systemprompten sier nå at dette er to steg — chatten skal starte byggingen, si fra at den tar 15–60 sekunder, og tegne turen når kartet er oppe.
+
+---
+
 ## 2026-08-02 — v4.4.2: Turverktøyene slår opp stedsnavn selv
 
 «Jeg fant Krokekra i dette kartet, men det ligger veldig langt utenfor kartet» — en selvmotsigelse som avslørte hva som skjedde: modellen fant stedet med sok_i_kartet, men sendte deretter koordinater fra et annet oppslag (sok_sted treffer navnebrødre i hele Norge) til foreslaa_tur, og mosaikk-vaktposten stanset turen. Begge stedene lå i samme kart hele tiden. Nå tar foreslaa_tur og foreslaa_rundtur imot STEDSNAVN (fraNavn/tilNavn, origoNavn/viaNavn) og slår dem opp i kartets egne navn med samme søkeindeks som søkefeltet — koordinater er ikke lenger påkrevd, og modellen kan ikke lenger blande inn feil punkt. Oppgitte koordinater brukes fortsatt når navn mangler eller ikke finnes, og vaktposten står som før. Vaktpostens feilmelding ber nå eksplisitt om et nytt forsøk med stedsnavn i stedet for å foreslå et nytt kart.
