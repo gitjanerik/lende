@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-08-02 — v4.3.8: Stinett-svaret runder ned og oppgir kartstørrelsen
+
+Brukertest ga «414,7 km sti» — som viste seg å være reelt: GPS-kart er 8 km brede med høyden strukket til skjermformatet (~8×13 km ≈ 105 km²), og Stormoen-området har 3,6 km sti per km² i OSM. Problemet var presentasjonen, ikke beregningen (casing-tvillingene i SVG-en dedupliseres allerede av grafen). Nå: over 30 km droppes desimalene og summen rundes NED til nærmeste tier, med ferdig frase i totalStiTekst («mer enn 410 km»); svaret oppgir kartKm (bredde×høyde) og arealKm2 så modellen kan gi tallet kontekst («på dette 8×13 km store kartet»); og systemprompten ber om norsk svar med totalStiTekst-frasen. Worker 2.3.1 + røyktest-pinne.
+
+---
+
 ## 2026-08-02 — v4.3.7: Stinett-analysen kutter mindre — 500 m-terskler
 
 Brukertest på Stormoen (1:10 000, tett stinett) viste at analysens terskler kuttet så mye ekte sti at «4 km i kartet» ga et misvisende inntrykk av området. To justeringer: (1) den dynamiske komponent-terskelen for totalsummen klemmes nå til maks 500 m (før 2 km) — korte men ekte småstier teller med i tette nett; (2) standard minste turlengde for tur-kandidater senkes fra 2 km til 500 m (justerbar med minTurKm, som før, på alle tre flater). Svaret oppgir nå også minTurKm som ble brukt, og merknaden ber modellen nevne ekskludertKm (frakoblede stumper) når totalinntrykket er poenget. Cloudflare-MCP-workeren bumpes til 2.3.0 med matchende røyktest-pinne.

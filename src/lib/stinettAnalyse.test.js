@@ -34,6 +34,7 @@ describe('analyserStinett — sum og komponenter', () => {
     expect(res.stinett.totalStiM).toBeCloseTo(3000, 0)
     expect(res.stinett.inkluderteKomponenter).toBe(2)
     expect(res.stinett.ekskluderteKomponenter).toBe(0)
+    expect(res.stinett.arealKm2).toBe(25)
   })
 
   it('ekskluderer kort isolert stump', () => {
@@ -215,6 +216,29 @@ describe('formatStinettSvar', () => {
     expect(svar.hoydepunkter.minstStigning).toBe('R1')
     expect(svar.hoydepunkter.brattesteSegment).toEqual({ tur: 'T1', prosent: 18 })
     expect(svar.hoydepunkter.slakesteSegment).toEqual({ tur: 'R1', prosent: 9 })
+  })
+
+  it('runder ned til nærmeste tier over 30 km og leverer totalStiTekst', () => {
+    const svar = formatStinettSvar({
+      stinett: {
+        totalStiM: 414712, koblerM: 2300, inkluderteKomponenter: 18,
+        ekskluderteKomponenter: 130, ekskludertM: 12495, minKomponentM: 500,
+        tetthetKmPerKm2: 3.65, arealKm2: 105.3,
+      },
+      lengsteVandringM: 11522,
+      minTurM: 500,
+      turer: [],
+    }, { toWgs84 })
+    expect(svar.stinett.totalStiKm).toBe(410)
+    expect(svar.totalStiTekst).toBe('mer enn 410 km')
+    expect(svar.stinett.arealKm2).toBe(105.3)
+    expect(svar.merknad).toContain('totalStiTekst')
+  })
+
+  it('beholder én desimal under 30 km, uten totalStiTekst', () => {
+    const svar = formatStinettSvar(analyse, { toWgs84 })
+    expect(svar.stinett.totalStiKm).toBe(27.4)
+    expect(svar.totalStiTekst).toBeUndefined()
   })
 
   it('takler 0 treff og manglende stigning', () => {

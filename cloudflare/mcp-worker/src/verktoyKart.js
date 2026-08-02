@@ -337,6 +337,7 @@ export function registerKartVerktoy(server, ctx) {
         status: 'ok',
         kartRef,
         kart: kart.navn,
+        kartKm: { bredde: +(kart.meta.widthM / 1000).toFixed(1), hoyde: +(kart.meta.heightM / 1000).toFixed(1) },
         ...formatStinettSvar(analyse, { toWgs84: (x, y) => svgToWgs84(x, y, meta) }),
       })
     },
