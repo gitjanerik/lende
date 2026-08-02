@@ -139,14 +139,15 @@ export const AI_TOOLS = [
         'sti er det her?», «hva er den lengste turen?», «hvilken tur har minst stigning?». Hver ' +
         'tur returnerer koordinater du kan sende rett videre: start/slutt/via → foreslaa_tur, ' +
         'origo/via → foreslaa_rundtur. Analysen gjelder kun dette kartet (ikke nabofliser). ' +
-        'treff kan være 0 når nettet bare har korte fragmenter — si det ærlig da.',
+        'treff kan være 0 når nettet bare har korte fragmenter — si det ærlig da. Står ' +
+        'brukeren i et kart trengs INGEN argumenter — kall verktøyet uten kartId.',
       parameters: {
         type: 'object',
         properties: {
-          kartId: { type: 'string', description: 'Kart-id fra mine_kart_og_ruter (utelat hvis brukeren står i kartet — bruk kartId fra konteksten)' },
+          kartId: { type: 'string', description: 'Kart-id fra mine_kart_og_ruter — KUN for et annet kart enn det brukeren står i (ellers utelat, kartet hentes fra konteksten)' },
           minTurKm: { type: 'number', description: 'Minste turlengde i km for tur-kandidater (standard 2)' },
         },
-        required: ['kartId'],
+        required: [],
       },
     },
   },
@@ -491,7 +492,13 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
       }
       case 'analyser_stinett': {
         const løst = await losKart(args, kontekst)
-        if (!løst) return { feil: `Fant ikke kart med id «${args?.kartId}». Bruk mine_kart_og_ruter.` }
+        if (!løst) {
+          return {
+            feil: args?.kartId
+              ? `Fant ikke kart med id «${args.kartId}». Bruk mine_kart_og_ruter.`
+              : 'Ingen kart er åpent — finn kartId med mine_kart_og_ruter og oppgi den, eller be brukeren åpne kartet.',
+          }
+        }
         const { id, kart } = løst
         // Trenger ikke montering (ingen getBBox) — geometrien leses rett fra
         // path-d-attributtene i den parsede SVG-en.
