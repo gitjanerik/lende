@@ -1,6 +1,8 @@
 import { ref } from 'vue'
 import { chatOnce } from '../lib/lendeAi.js'
-import { AI_TOOLS, runTool, toolStatusLabel, erStinettSporsmaal } from '../lib/lendeAiTools.js'
+import {
+  AI_TOOLS, runTool, toolStatusLabel, erStinettSporsmaal, stinettSvarTekst,
+} from '../lib/lendeAiTools.js'
 
 // Global chat-tilstand (Fase 2 av KI-planen). Modul-skopet med vilje: modalen
 // monteres én gang i App.vue, knappene bor i toppfeltene på forsiden, i
@@ -103,12 +105,14 @@ async function send(text) {
   // spørsmål mens brukeren står i et kart, kjøres analysen HER, og resultatet
   // legges i systemprompten — modellen skal bare formulere svaret, ikke velge
   // verktøy. Feiler analysen faller vi stille tilbake til vanlig verktøy-loop.
+  let stinettAnalyse = null
   let stinettNotat = ''
   if (context.value?.kartId && erStinettSporsmaal(spm)) {
     busyLabel.value = toolStatusLabel('analyser_stinett', {})
     try {
       const analyse = await runTool('analyser_stinett', {}, { kontekst: context.value })
       if (analyse && !analyse.feil) {
+        stinettAnalyse = analyse
         stinettNotat =
           ` FERSK STINETT-ANALYSE av kartet brukeren står i («${context.value.kartnavn ?? context.value.kartId}») — svar direkte fra denne, IKKE kall analyser_stinett på nytt: ${JSON.stringify(analyse)}`
       }
@@ -130,9 +134,13 @@ async function send(text) {
   abortCtrl = new AbortController()
   try {
     for (let runde = 0; ; runde++) {
+      // Med ferdig stinett-analyse i prompten trengs ingen verktøy i første
+      // runde — og de hermetiske engelske avvisningene («Your input is
+      // lacking …») er funksjonskall-artefakter som forsvinner uten tools.
+      const utenVerktoy = runde === 0 && stinettNotat
       const { text: svarTekst, toolCalls, raw } = await chatOnce({
         messages: samtale,
-        tools: runde < MAX_VERKTOEY_RUNDER ? AI_TOOLS : undefined,
+        tools: runde < MAX_VERKTOEY_RUNDER && !utenVerktoy ? AI_TOOLS : undefined,
         signal: abortCtrl.signal,
       })
 
@@ -170,6 +178,15 @@ async function send(text) {
         })
       }
       busyLabel.value = 'Tenker …'
+    }
+
+    // Siste skanse: har vi en ferdig analyse og modellen likevel svarte med
+    // hermetisk engelsk (eller tomt), erstattes svaret med et deterministisk
+    // norsk sammendrag — brukeren skal aldri se «Your input is lacking …»
+    // når tallene faktisk foreligger.
+    const hermetisk = /your (input|request|function definitions)|please (provide|expand|specify)/i
+    if (stinettAnalyse && (hermetisk.test(svar.content) || svar.content.startsWith('(Modellen ga et tomt svar'))) {
+      svar.content = stinettSvarTekst(stinettAnalyse)
     }
   } catch (err) {
     if (err?.name === 'AbortError') {

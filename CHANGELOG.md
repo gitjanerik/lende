@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-08-02 — v4.3.10: Stinett-svar kan aldri mer bli «Your input is lacking …»
+
+To harde stengsler oppå v4.3.9-rutingen: (1) når forhåndsanalysen er kjørt, sendes FØRSTE modellrunde uten verktøy — de hermetiske engelske avvisningene er artefakter av funksjonskall-grammatikken og forsvinner når modellen bare skal formatere tekst; (2) svarer modellen likevel hermetisk engelsk (eller tomt), erstattes svaret med et deterministisk norsk sammendrag bygget rett fra analysen (stinettSvarTekst: total med «mer enn»-avrunding, kartstørrelse, lengste strekning, lengste turforslag). Brukeren skal aldri se de meldingene når tallene faktisk foreligger.
+
+---
+
 ## 2026-08-02 — v4.3.9: Deterministisk stinett-ruting i chatten
 
 Modellens verktøyvelging viste seg uforutsigbar: samme spørsmål («Hvor mange kilometer tursti i kartet») kunne gi et korrekt analyser_stinett-kall den ene gangen og «Your input is lacking necessary details» den neste — og for hver prompt-utvidelse flyttet skjørheten seg bare. Nå ruter chatten deterministisk: gjenkjennes et stinett-spørsmål (km sti, lengste tur, bratteste/slakeste tur, stinett) mens brukeren står i et kart, kjører klienten analysen selv FØR modellen spørres, og resultatet legges i systemprompten — modellen skal bare formulere svaret på norsk, ikke velge verktøy. Gjenkjenningen (erStinettSporsmaal) er testet på varierte formuleringer; feiler analysen faller chatten stille tilbake til vanlig verktøy-loop.

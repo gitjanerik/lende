@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   AI_TOOLS, buildTourQuery, buildRundturQuery, buildLagKartQuery, projectForModel,
   kmUtenforBbox, kmMellom, bboxAvstandKm, metaFraSvgEl, toolStatusLabel,
-  erStinettSporsmaal,
+  erStinettSporsmaal, stinettSvarTekst,
 } from './lendeAiTools.js'
 import { parseTourQuery } from './tour3dLink.js'
 
@@ -55,6 +55,36 @@ describe('erStinettSporsmaal', () => {
       'Hva heter vannet sør i kartet?',
       '',
     ]) expect(erStinettSporsmaal(sp), sp).toBe(false)
+  })
+})
+
+describe('stinettSvarTekst', () => {
+  it('bygger norsk sammendrag med avrundet total og lengste tur', () => {
+    const tekst = stinettSvarTekst({
+      kartKm: { bredde: 6.1, hoyde: 11.2 },
+      totalStiTekst: 'mer enn 240 km',
+      stinett: { totalStiKm: 240 },
+      lengsteVandringKm: 11.5,
+      treff: 4,
+      turer: [{ type: 'AtilB', lengdeKm: 9.2, stigningM: 310 }],
+    })
+    expect(tekst).toContain('mer enn 240 km turstier')
+    expect(tekst).toContain('6,1 × 11,2 km')
+    expect(tekst).toContain('11,5 km')
+    expect(tekst).toContain('4 turforslag')
+    expect(tekst).toContain('9,2 km med 310 m stigning')
+  })
+
+  it('takler små nett uten turforslag og uten kartKm', () => {
+    const tekst = stinettSvarTekst({
+      stinett: { totalStiKm: 9.7 },
+      lengsteVandringKm: 1.8,
+      treff: 0,
+      turer: [],
+    })
+    expect(tekst).toContain('9,7 km tursti')
+    expect(tekst).toContain('minstekravet')
+    expect(stinettSvarTekst(null)).toBe('')
   })
 })
 
