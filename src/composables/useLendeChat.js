@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { chatOnce } from '../lib/lendeAi.js'
 import {
   AI_TOOLS, runTool, toolStatusLabel, erStinettSporsmaal, stinettSvarTekst,
-  harOppdiktedeTurtall, turSvarTekst,
+  harOppdiktedeTurtall, turSvarTekst, er3dOnske,
 } from '../lib/lendeAiTools.js'
 
 // Global chat-tilstand (Fase 2 av KI-planen). Modul-skopet med vilje: modalen
@@ -19,6 +19,10 @@ const busy = ref(false)
 const busyLabel = ref('') // norsk statuslinje mens modellen tenker/verktøy kjører
 const error = ref('')
 const context = ref(null)
+// Siste tur chatten sendte til kartet ({ name, args }) — så «se ruta i 3D» kan
+// åpne NØYAKTIG den turen på nytt med vis3d, uten at modellen må gjenskape
+// koordinatene fra historikken. Nullstilles av «Ny samtale».
+let sisteTur = null
 
 let abortCtrl = null
 
@@ -39,6 +43,7 @@ function systemPrompt() {
     'Du har verktøy og kan utføre ting i appen: søke i et lagret karts egne stedsnavn/tjern/topper (sok_i_kartet), søke etter steder på nett (sok_sted), liste brukerens lagrede kart og grusruter (mine_kart_og_ruter), åpne et lagret kart (apne_kart), BYGGE et nytt turkart direkte (lag_kart — byggingen starter med én gang og tar 15–60 sekunder), gjøre klart et nytt kart med utfylte felter (foreslaa_nytt_kart — brukeren bekrefter og bygger selv), analysere stinettet i et lagret kart (analyser_stinett — total km sti, lengste sammenhengende tur, tur-kandidater med stigning), foreslå en fottur A→B tegnet inn i et lagret kart (foreslaa_tur), og foreslå en RUNDTUR tegnet inn i et lagret kart (foreslaa_rundtur — start/mål + vendepunkt).',
     'Stinett-spørsmål («hvor mange km sti er det her?», «hva er den lengste turen?», «hvilken tur er brattest/slakest?»): kall analyser_stinett — UTEN argumenter når brukeren står i kartet (kartet hentes automatisk fra konteksten). Formuler svaret PÅ NORSK: har svaret totalStiTekst, bruk den («Det er mer enn 370 km turstier i kartet») og nevn kartets størrelse (kartKm/arealKm2) så tallet får kontekst — kartet er ofte mye større enn utsnittet brukeren ser. Vil brukeren gå en av turene den fant: send turens koordinater rett videre — start/slutt/via til foreslaa_tur, origo/via til foreslaa_rundtur. Gir analysen treff: 0, si ærlig at kartet bare har korte sti-fragmenter.',
     'Verktøyregler: til start/mål/vendepunkt i foreslaa_tur/foreslaa_rundtur skal du ALLTID bruke sok_i_kartet først — kartets egne navn er fasit, og gir eksakte koordinater i kartet. sok_sted (nettbasert geokoding) er for steder utenfor brukerens kart og for å plassere nye kart — den kan treffe navnebrødre langt unna. Finner ikke sok_i_kartet stedet: si ærlig at det ikke ligger i dette kartet, og tilby lag_kart over området. Ligger treffet i en NABOFLIS (annen kartId): bruk koordinatene direkte i foreslaa_tur/foreslaa_rundtur — turer kan tegnes på tvers av naboflisene i mosaikken. Bruk lag_kart når brukeren eksplisitt ber deg lage/bygge et kart; foreslaa_nytt_kart når du bare foreslår. Bruk mine_kart_og_ruter før apne_kart/foreslaa_tur/foreslaa_rundtur for å finne riktig kartId — med mindre brukeren står i et kart (da ligger kartId i konteksten). Kart-id-er nevnt TIDLIGERE i samtalen kan være utdatert — når brukeren står i et kart gjelder alltid kartId fra konteksten. Ikke gjett id-er eller koordinater. Etter et verktøy som navigerer: gi én kort bekreftelse.',
+    'Norsk har flere bestemte former for samme ord — «ruta» og «ruten», «løypa» og «løypen», «turen» — de betyr det samme. Utfør ALLTID handlingen; skriv aldri et verktøykall som tekst i svaret (verken [navn(...)] eller JSON).',
     'Turtall: foreslaa_tur/foreslaa_rundtur returnerer «rute» med ekte lengde, stigning og gangtid når ruten er beregnet — gjengi DE tallene. Mangler «rute» i svaret, er turen ikke beregnet: nevn da ingen tall, bare at ruten tegnes inn i kartet. Gjett ALDRI kilometer, høydemeter eller gangtid.',
     '3D-visning: sett ALDRI vis3d uten at brukeren eksplisitt har bedt om 3D. Etter at en tur/rundtur er tegnet inn, tilby gjerne 3D-visning som et spørsmål.',
     'Spørsmål om turen som er tegnet inn (lengde, høydemeter/stigning, gangtid): svar fra aktivTur i konteksten — IKKE kall turverktøyene på nytt, og åpne aldri 3D for å svare på et spørsmål. Mangler aktivTur i konteksten: si at ingen tur er tegnet inn akkurat nå.',
@@ -86,6 +91,7 @@ function nySamtale() {
   messages.value = []
   error.value = ''
   busy.value = false
+  sisteTur = null
 }
 
 // Maks verktøy-runder per melding — vern mot at modellen går i løkke.
@@ -101,6 +107,27 @@ async function send(text) {
   error.value = ''
   busy.value = true
   busyLabel.value = 'Tenker …'
+  // «Se ruta i 3D» rett etter at en tur ble tegnet inn: åpne nøyaktig den
+  // turen på nytt med vis3d. Deterministisk — modellen trenger ikke gjenskape
+  // koordinatene, og alle formuleringer («ruta»/«ruten»/«ja») treffer likt.
+  const forrigeSvar = [...messages.value].reverse().find((m) => m.role === 'assistant')
+  const tilbudt3d = /3\s*-?d/i.test(forrigeSvar?.content ?? '')
+  if (sisteTur && er3dOnske(spm, tilbudt3d)) {
+    messages.value.push({ role: 'user', content: spm })
+    const svar3d = { role: 'assistant', content: '' }
+    messages.value.push(svar3d)
+    busyLabel.value = toolStatusLabel(sisteTur.name, sisteTur.args)
+    const res = await runTool(sisteTur.name, { ...sisteTur.args, vis3d: true }, {
+      onNavigate: closeChat, kontekst: context.value,
+    })
+    svar3d.content = res?.feil
+      ? `Fikk ikke åpnet 3D-visningen: ${res.feil}`
+      : `${sisteTur.name === 'foreslaa_rundtur' ? 'Rundturen' : 'Ruten'} åpnes i 3D-visning.`
+    busy.value = false
+    busyLabel.value = ''
+    return
+  }
+
   messages.value.push({ role: 'user', content: spm })
   const svar = { role: 'assistant', content: '' }
   messages.value.push(svar)
@@ -185,6 +212,8 @@ async function send(text) {
             vis3d: !!kall.args?.vis3d,
             rute: resultat.rute ?? null,
           }
+          // Husk turen så en 3D-oppfølging kan åpne akkurat den.
+          sisteTur = { name: kall.name, args: { ...kall.args } }
         }
         samtale.push({
           role: 'tool',
