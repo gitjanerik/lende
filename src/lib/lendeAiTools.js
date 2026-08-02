@@ -133,8 +133,8 @@ export const AI_TOOLS = [
       description:
         'Analyser stinettet i et lagret kart: total km sti (sti 505/506/507 + skogsbilvei 504, ' +
         'hvert stisegment telt én gang), lengste sammenhengende turstrekning, og tur-kandidater ' +
-        '(A→B eller rundtur, minst 2 km) med lengde, gangtid, stigning/fall og bratteste/' +
-        'slakeste parti. Korte småveg-strekk regnes som bindeledd mellom stier, men teller ikke ' +
+        '(A→B eller rundtur, minst 0,5 km — hev med minTurKm hvis brukeren vil ha lengre turer) ' +
+        'med lengde, gangtid, stigning/fall og bratteste/slakeste parti. Korte småveg-strekk regnes som bindeledd mellom stier, men teller ikke ' +
         'i sti-summen; korte isolerte stumper ekskluderes. Bruk ved spørsmål som «hvor mange km ' +
         'sti er det her?», «hva er den lengste turen?», «hvilken tur har minst stigning?». Hver ' +
         'tur returnerer koordinater du kan sende rett videre: start/slutt/via → foreslaa_tur, ' +
@@ -145,7 +145,7 @@ export const AI_TOOLS = [
         type: 'object',
         properties: {
           kartId: { type: 'string', description: 'Kart-id fra mine_kart_og_ruter — KUN for et annet kart enn det brukeren står i (ellers utelat, kartet hentes fra konteksten)' },
-          minTurKm: { type: 'number', description: 'Minste turlengde i km for tur-kandidater (standard 2)' },
+          minTurKm: { type: 'number', description: 'Minste turlengde i km for tur-kandidater (standard 0,5)' },
         },
         required: [],
       },
@@ -514,7 +514,7 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
           arealKm2: (m.widthM * m.heightM) / 1e6,
           minTurM: Number.isFinite(minTurKm)
             ? Math.min(Math.max(minTurKm, 0.5), 20) * 1000
-            : 2000,
+            : 500,
         })
         return {
           kart: kart.navn ?? id,

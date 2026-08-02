@@ -17,11 +17,11 @@ describe('minKomponentM', () => {
     expect(minKomponentM(2, 10)).toBe(300)
   })
   it('skalerer med kvadratrot av tettheten', () => {
-    expect(minKomponentM(4, 1)).toBeCloseTo(600)
-    expect(minKomponentM(9, 1)).toBeCloseTo(900)
+    expect(minKomponentM(2.25, 1)).toBeCloseTo(450)
   })
-  it('klemmes til 2000 m i myldrenett', () => {
-    expect(minKomponentM(100, 1)).toBe(2000)
+  it('klemmes til 500 m i myldrenett (2 km-taket kuttet for mye ekte sti)', () => {
+    expect(minKomponentM(4, 1)).toBe(500)
+    expect(minKomponentM(100, 1)).toBe(500)
   })
 })
 
@@ -113,17 +113,18 @@ describe('analyserStinett — lengste vandring og turer', () => {
   it('gir 0 treff når alt er under minstekravet', () => {
     const res = analyserStinett([
       sti([[0, 0], [400, 0], [400, 400], [0, 400], [0, 0]]),
-    ], { arealKm2: 1 })
+    ], { arealKm2: 1, minTurM: 2000 })
     expect(res.turer).toHaveLength(0)
-    // Nettet telles fortsatt i summen — det er TURER som krever 2 km.
+    // Nettet telles fortsatt i summen — det er TURER minTurM gjelder.
     expect(res.stinett.totalStiM).toBeCloseTo(1600, 0)
   })
 
-  it('tomt stinett gir tom, ærlig analyse', () => {
+  it('tomt stinett gir tom, ærlig analyse — og standard minTurM er 500', () => {
     const res = analyserStinett([], { arealKm2: 4 })
     expect(res.stinett.totalStiM).toBe(0)
     expect(res.lengsteVandringM).toBe(0)
     expect(res.turer).toHaveLength(0)
+    expect(res.minTurM).toBe(500)
   })
 })
 

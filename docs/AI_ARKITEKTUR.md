@@ -78,10 +78,11 @@ samme maskineri som resten av appen. Ingen remote-MCP, ingen ny infrastruktur.
 - **Stinett-analyse** (`analyser_stinett`, kjerne i
   `src/lib/stinettAnalyse.js`): total km sti (505/506/507 + skogsbilvei 504,
   hvert segment én gang), lengste sammenhengende turstrekning, og
-  tur-kandidater (A→B/rundtur ≥ 2 km) med stigning og bratteste/slakeste
-  parti. Småveg (503) er bindeledd (≤ 300 m-strekk kobler stinett sammen,
-  teller i turlengder, aldri i sti-summen); korte isolerte stumper
-  ekskluderes med dynamisk minstelengde etter sti-tetthet. Samme kjerne
+  tur-kandidater (A→B/rundtur ≥ 0,5 km standard, justerbart med minTurKm)
+  med stigning og bratteste/slakeste parti. Småveg (503) er bindeledd
+  (≤ 300 m-strekk kobler stinett sammen, teller i turlengder, aldri i
+  sti-summen); korte isolerte stumper ekskluderes med dynamisk minstelengde
+  etter sti-tetthet (300–500 m). Samme kjerne
   eksponeres som MCP-verktøy i både `mcp/server.js` og
   `cloudflare/mcp-worker` — turenes koordinater kan sendes rett videre til
   foreslaa_tur/foreslaa_rundtur (MCP: planlegg_rute/planlegg_rundtur).
