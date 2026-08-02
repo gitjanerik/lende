@@ -34,12 +34,12 @@ const MIN_SEGMENT_M = 100       // minste segmentlengde for bratthetsmåling
  * @param {Element} svgRootEl
  * @returns {Array<{coordinates: Array<[number,number]>, isomCode: string}>}
  */
-export function stinettFeaturesFromSvgEl(svgRootEl) {
+export function stinettFeaturesFromSvgEl(svgRootEl, koder = null) {
   const features = []
   if (!svgRootEl?.querySelectorAll) return features
   for (const el of svgRootEl.querySelectorAll('[data-iso]')) {
     const code = el.getAttribute('data-iso')
-    if (!STI_KODER.has(code) && !KOBLER_KODER.has(code)) continue
+    if (koder ? !koder.has(code) : (!STI_KODER.has(code) && !KOBLER_KODER.has(code))) continue
     const paths = el.tagName.toLowerCase() === 'path' ? [el] : el.querySelectorAll('path')
     for (const p of paths) {
       const d = p.getAttribute('d')
@@ -434,7 +434,7 @@ export function analyserStinett(features, opts = {}) {
 
 // Gangtid etter Naismith — samme konstanter som useStifinner.estWalkMinutes
 // og mcp/server.js.
-function estGangtidMin(lengdeM, stigning = 0, fall = 0) {
+export function estGangtidMin(lengdeM, stigning = 0, fall = 0) {
   return Math.max(1, Math.round(lengdeM / (4000 / 60) + stigning / 10 + fall / 30))
 }
 

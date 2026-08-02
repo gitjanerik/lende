@@ -1,5 +1,13 @@
 # Endringslogg
 
+## 2026-08-02 — v4.4.0: Ekte rutetall i chatten — turen beregnes før den tegnes
+
+v4.3.12 stanset oppdiktede rutetall ved å nekte modellen å nevne tall i det hele tatt. Nå får chatten de ekte i stedet: foreslaa_tur og foreslaa_rundtur beregner ruten mot kartets egen lagrede SVG FØR de navigerer — samme graf-parametre, samme snap-terskler og samme rutevalg (indeks 0) som Stifinneren bruker i kartvisningen, og stigning fra kartets eget DEM med samme sampleProfile. Svaret blir «Turen er 4,7 km, 180 høydemeter stigning og omtrent 1 t 14 min gangtid. Den tegnes inn i kartet nå.» — skrevet deterministisk fra tallene, så modellen ikke kan forskyve dem. Ligger målet 150–400 m fra stinettet følger merknaden med i samme setning.
+
+Bonus: forhåndsberegningen fanger «ingen sti i nærheten» før navigering, så chatten sier det ærlig i stedet for å åpne kartet til en feilmelding. Kan den ikke gjøres trygt (punkt i en naboflis, kart uten geodata) faller vi tilbake til v4.3.12-oppførselen uten tall. Snap-tersklene og de routbare ISOM-kodene er samlet i routing.js som én kilde til sannhet — MCP-verktøyene planlegg_rute/planlegg_rundtur har returnert samme tall hele tiden, så chatten tar igjen MCP-flaten.
+
+---
+
 ## 2026-08-02 — v4.3.12: Turer til vann og topper uten sti — og ingen oppdiktede rutetall
 
 «Tur fra Stormoen til Stordammen» feilet med «Ingen sti eller vei i nærheten av målet — nærmeste 158 m (maks 150)»: et mål plukket fra kartets egne navn er ofte en flate-sentroide, og for en innsjø lander den midt på vannet. Snappingen er nå to-trinns — innen 150 m er treffet stille som før, mellom 150 og 400 m rutes det dit stinettet kommer nærmest MED en merknad i Stifinner-banneret («Ruten går så nær som stinettet kommer — målet 158 m fra nærmeste sti»), og først over 400 m er det ærlig feil. Connector-streken viste alltid gapet; nå blir turen faktisk tegnet. Samme mekanikk fanger topper uten sti og holmer.

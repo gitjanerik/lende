@@ -3,8 +3,11 @@ import {
   AI_TOOLS, buildTourQuery, buildRundturQuery, buildLagKartQuery, projectForModel,
   kmUtenforBbox, kmMellom, bboxAvstandKm, metaFraSvgEl, toolStatusLabel,
   erStinettSporsmaal, stinettSvarTekst, harOppdiktedeTurtall, turSvarTekst,
+  formatGangtid, forhaandsberegnTur,
 } from './lendeAiTools.js'
+import { parseHTML } from 'linkedom'
 import { parseTourQuery } from './tour3dLink.js'
+import { svgToWgs84 } from './utm.js'
 
 describe('AI_TOOLS', () => {
   it('har OpenAI-formen modellen leser', () => {
@@ -106,12 +109,93 @@ describe('harOppdiktedeTurtall', () => {
 })
 
 describe('turSvarTekst', () => {
-  it('bekrefter ærlig uten å påstå tall, og skiller tur/rundtur', () => {
+  it('uten forhåndsberegning: ingen tall i det hele tatt', () => {
     const tur = turSvarTekst({ type: 'tur' })
     expect(tur).toContain('beregner turen')
     expect(harOppdiktedeTurtall(tur)).toBe(false)
     expect(turSvarTekst({ type: 'rundtur' })).toContain('rundturen')
     expect(turSvarTekst({ type: 'tur', vis3d: true })).toContain('3D')
+  })
+
+  it('med forhåndsberegnet rute: ekte tall i norsk form', () => {
+    const tekst = turSvarTekst({
+      type: 'tur',
+      rute: { lengdeKm: 4.7, stigningM: 180, fallM: 120, gangtidMin: 74 },
+    })
+    expect(tekst).toContain('4,7 km')
+    expect(tekst).toContain('180 høydemeter')
+    expect(tekst).toContain('1 t 14 min')
+    expect(tekst).toContain('tegnes inn')
+  })
+
+  it('tar med snap-merknaden når målet ligger utenfor stinettet', () => {
+    const tekst = turSvarTekst({
+      rute: { lengdeKm: 3, gangtidMin: 45, snapMerknad: 'Ruten går så nær som stinettet kommer — målet 158 m fra nærmeste sti.' },
+    })
+    expect(tekst).toContain('158 m')
+    expect(tekst).not.toContain('høydemeter')   // uten DEM: ingen påstand om stigning
+  })
+})
+
+describe('formatGangtid', () => {
+  it('under en time i minutter, over i t + min', () => {
+    expect(formatGangtid(45)).toBe('45 min')
+    expect(formatGangtid(74)).toBe('1 t 14 min')
+    expect(formatGangtid(120)).toBe('2 t 00 min')
+    expect(formatGangtid(0.2)).toBe('1 min')
+  })
+})
+
+describe('forhaandsberegnTur', () => {
+  // Kart 1×1 km forankret i UTM 32N, med én sti langs y=500 (SVG-meter).
+  const META = { minE: 500000, minN: 6600000, widthM: 1000, heightM: 1000 }
+  function kartSvg(d = 'M0,500L1000,500') {
+    const { document } = parseHTML(
+      `<html><body><svg viewBox="0 0 1000 1000">
+         <g data-layer="roads" data-iso="505"><path d="${d}"/></g>
+       </svg></body></html>`,
+    )
+    return document.querySelector('svg')
+  }
+  // SVG-meter → WGS84 → tilbake, så testen bruker samme projeksjon som appen.
+  const somWgs84 = (x, y) => svgToWgs84(x, y, META)
+
+  it('beregner ekte lengde og gangtid for A→B', () => {
+    const res = forhaandsberegnTur({
+      svgEl: kartSvg(), meta: META,
+      punkter: [somWgs84(0, 500), somWgs84(1000, 500)],
+    })
+    expect(res.rute.lengdeKm).toBeCloseTo(1, 1)
+    expect(res.rute.gangtidMin).toBeGreaterThan(10)
+    expect(res.rute.stigningM).toBeUndefined()   // ingen DEM → ingen påstand
+    expect(res.rute.snapMerknad).toBeUndefined()
+  })
+
+  it('mål 250 m fra stien (sentroide i et vann): rute + merknad', () => {
+    const res = forhaandsberegnTur({
+      svgEl: kartSvg(), meta: META,
+      punkter: [somWgs84(0, 500), somWgs84(1000, 250)],
+    })
+    expect(res.rute).toBeDefined()
+    expect(res.rute.snapMerknad).toMatch(/målet 250 m/i)
+  })
+
+  it('mål 450 m unna: ærlig feil FØR navigering', () => {
+    const res = forhaandsberegnTur({
+      svgEl: kartSvg(), meta: META,
+      punkter: [somWgs84(0, 500), somWgs84(1000, 50)],
+    })
+    expect(res.feil).toMatch(/i nærheten av målet/i)
+    expect(res.rute).toBeUndefined()
+  })
+
+  it('kart uten stier: ingenRute (navigerer som før, uten tall)', () => {
+    const { document } = parseHTML('<html><body><svg viewBox="0 0 1000 1000"></svg></body></html>')
+    const res = forhaandsberegnTur({
+      svgEl: document.querySelector('svg'), meta: META,
+      punkter: [somWgs84(0, 500), somWgs84(1000, 500)],
+    })
+    expect(res.ingenRute).toBe(true)
   })
 })
 
