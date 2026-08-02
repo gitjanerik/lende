@@ -3,7 +3,7 @@ import {
   AI_TOOLS, buildTourQuery, buildRundturQuery, buildLagKartQuery, projectForModel,
   kmUtenforBbox, kmMellom, bboxAvstandKm, metaFraSvgEl, toolStatusLabel,
   erStinettSporsmaal, stinettSvarTekst, harOppdiktedeTurtall, turSvarTekst,
-  formatGangtid, forhaandsberegnTur, er3dOnske,
+  formatGangtid, forhaandsberegnTur, er3dOnske, losTemaNokkel,
 } from './lendeAiTools.js'
 import { parseHTML } from 'linkedom'
 import { parseTourQuery, parseTourNameQuery } from './tour3dLink.js'
@@ -158,6 +158,31 @@ describe('turSvarTekst', () => {
     })
     expect(tekst).toContain('158 m')
     expect(tekst).not.toContain('høydemeter')   // uten DEM: ingen påstand om stigning
+  })
+})
+
+describe('losTemaNokkel', () => {
+  const TEMAER = [
+    { key: 'light', label: 'Standard' },
+    { key: 'dark', label: 'Mørk' },
+    { key: 'sepia', label: 'Sepia' },
+  ]
+  it('godtar nøkkel, etikett og norske omskrivinger', () => {
+    expect(losTemaNokkel('dark', TEMAER)).toBe('dark')
+    expect(losTemaNokkel('Mørk', TEMAER)).toBe('dark')
+    expect(losTemaNokkel('mørkt', TEMAER)).toBe('dark')
+    expect(losTemaNokkel('dark mode', TEMAER)).toBe('dark')
+    expect(losTemaNokkel('nattkart', TEMAER)).toBe('dark')
+    expect(losTemaNokkel('sepia', TEMAER)).toBe('sepia')
+  })
+  it('finner tilbake til standardpaletten', () => {
+    for (const s of ['lyst', 'standard', 'vanlige farger', 'normal']) {
+      expect(losTemaNokkel(s, TEMAER), s).toBe('light')
+    }
+  })
+  it('null for ukjent og tomt ønske', () => {
+    expect(losTemaNokkel('turkis', TEMAER)).toBeNull()
+    expect(losTemaNokkel('', TEMAER)).toBeNull()
   })
 })
 

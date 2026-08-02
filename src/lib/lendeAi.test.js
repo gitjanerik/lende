@@ -32,8 +32,9 @@ describe('parseTextToolCalls', () => {
   it('rører ikke vanlig prosa, ukjente navn eller tom tekst', () => {
     for (const t of [
       'Turen er 4,7 km lang. Si fra hvis du vil se den i 3D.',
-      '[ukjent_verktoy(a=1)]',
+      // Parenteser i prosa er urørt — det er KLAMMEformen som er et kall.
       'Se avsnitt (2) i tegnforklaringen',
+      'Kartet dekker Sirikjerke (Øvre Eiker) og litt til.',
       '',
     ]) {
       const res = parseTextToolCalls(t, NAVN)
@@ -45,6 +46,19 @@ describe('parseTextToolCalls', () => {
   it('uten kjente navn gjøres ingen tolking (runde uten verktøy)', () => {
     const res = parseTextToolCalls('[foreslaa_tur(fraLat=1)]', [])
     expect(res.toolCalls).toHaveLength(0)
+  })
+
+  it('fjerner oppdiktet klammeform (ukjent «verktøy») fra teksten', () => {
+    // Faktisk observert (v4.5.1): modellen ville bytte kart-tema, fant ikke
+    // noe verktøy, og fant opp [vis3d(false)] av et parameternavn.
+    const { toolCalls, text } = parseTextToolCalls('[vis3d(false)]', NAVN)
+    expect(toolCalls).toHaveLength(0)
+    expect(text).toBe('')
+  })
+
+  it('fjerner oppdiktet klammeform, men beholder prosaen rundt', () => {
+    const { text } = parseTextToolCalls('Jeg bytter tema. [sett_tema(dark)]', NAVN)
+    expect(text).toBe('Jeg bytter tema.')
   })
 
   it('tolker kall uten argumenter midt i prosa', () => {

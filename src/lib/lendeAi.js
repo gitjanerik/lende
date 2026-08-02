@@ -166,6 +166,16 @@ export function parseTextToolCalls(tekst, kjenteNavn = []) {
   const toolCalls = []
   let rest = s
 
+  // Klammeformen med et navn vi IKKE kjenner er ikke et kall vi kan utføre,
+  // men det er heller ikke tekst brukeren skal se: modellen finner av og til
+  // opp et «verktøy» av et parameternavn ([vis3d(false)] da den ville bytte
+  // kart-tema). Fjern den stille — står det ingenting igjen, håndterer
+  // useLendeChat det tomme svaret ærlig.
+  rest = rest.replace(/\[\s*[a-z_][a-z0-9_]*\s*\([^()]*\)\s*\]/gi, (treff) => {
+    const fn = treff.replace(/^\[\s*/, '').match(/^[a-z_][a-z0-9_]*/i)?.[0]
+    return fn && navn.has(fn) ? treff : ''
+  })
+
   // Form 1: [navn(k=v, k2=v2)] — også uten klammer rundt.
   rest = rest.replace(/\[?\s*([a-z_][a-z0-9_]*)\s*\(([^()]*)\)\s*\]?/gi, (treff, fn, argStr) => {
     if (!navn.has(fn)) return treff
@@ -194,7 +204,8 @@ export function parseTextToolCalls(tekst, kjenteNavn = []) {
     }
   }
 
-  return { toolCalls, text: toolCalls.length ? rest.trim() : s }
+  // rest !== s betyr at noe ble fjernet (ekte kall ELLER oppdiktet klammeform).
+  return { toolCalls, text: rest === s ? s : rest.trim() }
 }
 
 /**
