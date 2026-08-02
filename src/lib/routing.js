@@ -38,6 +38,20 @@ const ISOM_COST = {
   '501': 1.7,                              // motorvei — minst foretrukket å gå
 }
 
+// Snap-avstand fra et valgt punkt til nærmeste graf-node, i to trinn:
+// innen MAX_SNAP_M er treffet stille, mellom MAX_SNAP_M og FAR_SNAP_M godtas
+// det med merknad (et mål plukket fra kartets navn er ofte en flate-sentroide
+// — «Stordammen» lander midt på vannet), utenfor FAR_SNAP_M er det ærlig feil.
+// Delt av Stifinneren og chattens forhåndsberegning, som MÅ bruke samme
+// terskler for at tallene i chatten skal stemme med ruten kartet tegner.
+export const MAX_SNAP_M = 150
+export const FAR_SNAP_M = 400
+
+// Routbare ISOM-koder = nøklene i ISOM_COST. Eksportert som ÉN kilde til
+// sannhet: useStifinner og mcp/headless har historisk hver sin kopi, og en
+// kode som legges til her men glemmes der gir stille frakoblet stinett.
+export const ROUTABLE_CODES = new Set(Object.keys(ISOM_COST))
+
 // Sentinel-lengde for `lengthNoMw`-vekten: motorvei-kanter får denne i stedet
 // for ekte lengde, så en ren-lengde-Dijkstra unngår dem (større enn noen ekte
 // kartavstand). Brukes til «kortest mulig»-ruta, som ikke skal gå på motorvei.

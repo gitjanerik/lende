@@ -23,27 +23,24 @@
 // ren, testet lib (routing.js + pathUtils.parsePathSubpaths).
 
 import { ref, computed } from 'vue'
-import { buildRoutingGraph, planRoutesThrough, planLoop } from '../lib/routing.js'
+import {
+  buildRoutingGraph, planRoutesThrough, planLoop, MAX_SNAP_M, FAR_SNAP_M,
+} from '../lib/routing.js'
 import { parsePathSubpaths } from '../lib/pathUtils.js'
 
 // ISOM-koder som er routbare (vei/sti/bro). Må matche ISOM_COST i routing.js.
 const ROUTABLE_CODES = new Set(['501', '502', '503', '504', '505', '506', '507', '509'])
 
-// Snap-avstand fra valgt punkt til nærmeste sti-node (meter), i to trinn:
-//
-//  ≤ MAX_SNAP_M    — stille treff (punktet ligger praktisk talt på stien).
-//  ≤ FAR_SNAP_M    — godtas MED merknad. Et mål plukket fra kartets egne navn
-//                    er ofte en flate-sentroide: «Stordammen» lander midt på
-//                    vannet, en topp uten sti på selve varden, en holme i en
-//                    innsjø. Å svare «ingen sti i nærheten av målet» er teknisk
-//                    riktig men praktisk ubrukelig — turen brukeren mener er
-//                    «fram til Stordammen», altså dit stien kommer nærmest.
-//                    Vi ruter derfor dit og SIER at siste stykket mangler sti
-//                    (connector-streken viser gapet).
-//  > FAR_SNAP_M    — ærlig feil: målet er utenfor stinettet (midt i en stor
-//                    innsjø, langt ute på et myrområde).
-const MAX_SNAP_M = 150
-const FAR_SNAP_M = 400
+// Snap-tersklene bor i routing.js (delt med chattens forhåndsberegning):
+//  ≤ MAX_SNAP_M  — stille treff (punktet ligger praktisk talt på stien).
+//  ≤ FAR_SNAP_M  — godtas MED merknad. Et mål plukket fra kartets egne navn er
+//                  ofte en flate-sentroide: «Stordammen» lander midt på vannet,
+//                  en topp uten sti på selve varden. Å svare «ingen sti i
+//                  nærheten av målet» er teknisk riktig men praktisk ubrukelig
+//                  — turen brukeren mener er «fram til Stordammen», altså dit
+//                  stien kommer nærmest. Vi ruter dit og SIER at siste stykket
+//                  mangler sti (connector-streken viser gapet).
+//  > FAR_SNAP_M  — ærlig feil: målet er utenfor stinettet.
 
 // Maks antall via-punkter (A + inntil 3 via + B = 5 punkter totalt).
 const MAX_VIA = 3

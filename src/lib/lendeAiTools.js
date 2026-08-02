@@ -15,9 +15,15 @@
 import { geocodePlace } from './geocode.js'
 import { listMaps, loadMap, listGravelRoutes } from './mapStorage.js'
 import { buildSearchIndex, filterIndex, formatAreaShort } from '../composables/useMapSearch.js'
-import { svgToWgs84 } from './utm.js'
+import { svgToWgs84, wgs84ToSvg } from './utm.js'
 import { unpackDem } from './demSampling.js'
-import { analyserStinett, formatStinettSvar, stinettFeaturesFromSvgEl } from './stinettAnalyse.js'
+import {
+  analyserStinett, formatStinettSvar, stinettFeaturesFromSvgEl, estGangtidMin,
+} from './stinettAnalyse.js'
+import {
+  buildRoutingGraph, planRoutesThrough, planLoop, ROUTABLE_CODES, MAX_SNAP_M, FAR_SNAP_M,
+} from './routing.js'
+import { sampleProfile } from './elevationProfile.js'
 
 // Router lastes lat: da kan testene importere de rene delene (buildTourQuery,
 // projectForModel) uten å evaluere hele router→view-treet.
@@ -159,7 +165,9 @@ export const AI_TOOLS = [
         'Foreslå og tegn inn en RUNDTUR (start = mål) på et av brukerens lagrede kart: fra et ' +
         'startpunkt, innom et vendepunkt, og tilbake — langs kartets stier og veier. Ruten ' +
         'markeres i kartet. Bruk denne når brukeren ber om en rundtur/runde i kartet — IKKE ' +
-        'foreslaa_nytt_kart. Begge punktene må ligge i kartet; bruk sok_sted for koordinater.',
+        'foreslaa_nytt_kart. Begge punktene må ligge i kartet; bruk sok_sted for koordinater. ' +
+        'Verktøyet beregner sløyfen før den tegnes og returnerer «rute» med ekte lengde, ' +
+        'stigning og gangtid — bruk DE tallene, aldri egne anslag.',
       parameters: {
         type: 'object',
         properties: {
@@ -182,8 +190,10 @@ export const AI_TOOLS = [
       description:
         'Foreslå og tegn inn en fottur fra A til B på et av brukerens lagrede kart, langs ' +
         'kartets stier og veier (Stifinneren). Ruten markeres i kartet. Begge punktene må ligge ' +
-        'innenfor kartet. Sett vis3d KUN når brukeren eksplisitt har bedt om 3D — ellers tegnes ' +
-        'ruten bare, og du kan tilby 3D som neste steg.',
+        'innenfor kartet. Verktøyet beregner ruten før den tegnes og returnerer «rute» med ekte ' +
+        'lengde, stigning og gangtid — bruk DE tallene i svaret, aldri egne anslag. Mangler ' +
+        '«rute», er turen ikke beregnet ennå: nevn da ingen tall. Sett vis3d KUN når brukeren ' +
+        'eksplisitt har bedt om 3D — ellers tegnes ruten bare, og du kan tilby 3D som neste steg.',
       parameters: {
         type: 'object',
         properties: {
@@ -349,6 +359,27 @@ async function losKart(args, kontekst) {
     if (kart?.svg) return { id: kontekstId, kart }
   }
   return null
+}
+
+// Forhåndsberegning mot et lagret kart. Returnerer null når den ikke kan
+// gjøres trygt — da navigerer vi som før og lover ingen tall:
+//  • kartet mangler geodata (data-meta)
+//  • et punkt ligger UTENFOR kartets egen flis (kartvisningen ruter da via
+//    spøkelses-flisene, som ikke finnes i den lagrede SVG-en)
+function forhaandsberegnFraKart(kart, punkter, isLoop) {
+  try {
+    if (punkter.some((p) => !Number.isFinite(p.lat) || !Number.isFinite(p.lon))) return null
+    if (punkter.some((p) => kmUtenforBbox(kart.bbox, p) > 0)) return null
+    const doc = new DOMParser().parseFromString(kart.svg, 'image/svg+xml')
+    const svgEl = doc.documentElement
+    const meta = metaFraSvgEl(svgEl)
+    if (!meta) return null
+    return forhaandsberegnTur({
+      svgEl, meta, dem: kart.dem ? unpackDem(kart.dem) : null, punkter, isLoop,
+    })
+  } catch {
+    return null
+  }
 }
 
 export async function runTool(name, args, { onNavigate, kontekst } = {}) {
@@ -542,15 +573,26 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
             }
           }
         }
+        // Forhåndsberegn mot kartets egen SVG: gir ekte tall å svare med, og
+        // fanger «ingen sti i nærheten» FØR vi navigerer til en feilmelding.
+        const forh = forhaandsberegnFraKart(kart, [
+          { lat: Number(args?.origoLat), lon: Number(args?.origoLon) },
+          { lat: Number(args?.viaLat), lon: Number(args?.viaLon) },
+        ], true)
+        if (forh?.feil) return { feil: `${forh.feil} Ingen rundtur ble startet.` }
+
         const q = buildRundturQuery(args ?? {})
         onNavigate?.()
         await navigerTil({ name: 'kart-vis', params: { id }, query: q })
         return {
           ok: true,
-          merknad:
-            `Åpner «${kart.navn ?? id}» og beregner rundturen på kartets stier — ruten tegnes ` +
-            'inn hvis en sløyfe finnes. VIKTIG: ikke lov brukeren at det lykkes; si at appen ' +
-            'prøver, og at punkter uten sti i nærheten gir en feilmelding i kartet i stedet.',
+          rute: forh?.rute,
+          merknad: forh?.rute
+            ? `Rundturen er beregnet på kartets stier og tegnes inn i «${kart.navn ?? id}» nå. ` +
+              'Tallene i «rute» er de kartet viser — bruk dem, ikke gjett.'
+            : `Åpner «${kart.navn ?? id}» og beregner rundturen på kartets stier — ruten tegnes ` +
+              'inn hvis en sløyfe finnes. VIKTIG: ikke lov brukeren at det lykkes, og oppgi ' +
+              'ALDRI lengde, høydemeter eller gangtid: de er ikke beregnet ennå.',
         }
       }
       // vis_tur_i_3d er det gamle navnet — beholdes som alias fordi pågående
@@ -578,17 +620,27 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
             }
           }
         }
+        // Forhåndsberegn mot kartets egen SVG: gir ekte tall å svare med, og
+        // fanger «ingen sti i nærheten» FØR vi navigerer til en feilmelding.
+        const forh = forhaandsberegnFraKart(kart, [
+          { lat: Number(args?.fraLat), lon: Number(args?.fraLon) },
+          { lat: Number(args?.tilLat), lon: Number(args?.tilLon) },
+        ], false)
+        if (forh?.feil) return { feil: `${forh.feil} Ingen tur ble startet.` }
+
         const q = buildTourQuery(args ?? {})
         onNavigate?.()
         await navigerTil({ name: 'kart-vis', params: { id }, query: q })
         return {
           ok: true,
-          merknad:
-            `Åpner «${kart.navn ?? id}» og beregner turen på kartets stier — ruten tegnes inn ` +
-            `hvis en sti-forbindelse finnes${args?.vis3d ? ', og 3D åpnes automatisk' : ''}. ` +
-            'VIKTIG: ikke lov brukeren at det lykkes; si at appen prøver, og at punkter uten ' +
-            'sti i nærheten gir en feilmelding i kartet i stedet.' +
-            (args?.vis3d ? '' : ' Tilby gjerne 3D-visning som neste steg.'),
+          rute: forh?.rute,
+          merknad: (forh?.rute
+            ? `Turen er beregnet på kartets stier og tegnes inn i «${kart.navn ?? id}» nå. ` +
+              'Tallene i «rute» er de kartet viser — bruk dem, ikke gjett.'
+            : `Åpner «${kart.navn ?? id}» og beregner turen på kartets stier — ruten tegnes inn ` +
+              'hvis en sti-forbindelse finnes. VIKTIG: ikke lov brukeren at det lykkes, og oppgi ' +
+              'ALDRI lengde, høydemeter eller gangtid: de er ikke beregnet ennå.') +
+            (args?.vis3d ? ' 3D åpnes automatisk.' : ' Tilby gjerne 3D-visning som neste steg.'),
         }
       }
       default:
@@ -650,6 +702,63 @@ export function stinettSvarTekst(a) {
 }
 
 /**
+ * Forhåndsberegn turen chatten er i ferd med å sende til kartet, mot kartets
+ * EGEN lagrede SVG — samme graf-parametre, samme snap-terskler og samme
+ * rute-valg (indeks 0) som Stifinneren bruker i kartvisningen, så tallene i
+ * chatten er de samme brukeren ser når ruten er tegnet inn.
+ *
+ * @returns {{rute: {lengdeKm:number, stigningM?:number, fallM?:number, gangtidMin:number, snapMerknad?:string}}
+ *   | {feil: string} | {ingenRute: true}}
+ */
+export function forhaandsberegnTur({ svgEl, meta, dem = null, punkter, isLoop = false }) {
+  const features = stinettFeaturesFromSvgEl(svgEl, ROUTABLE_CODES)
+  if (!features.length) return { ingenRute: true }
+  const rg = buildRoutingGraph(features, { snapM: 6, componentBridgeM: 80 })
+
+  const navnFor = (i) => (
+    isLoop ? (i === 0 ? 'startpunktet' : `vendepunkt ${i}`)
+      : i === 0 ? 'startpunktet' : i === punkter.length - 1 ? 'målet' : `via-punkt ${i}`
+  )
+  const snapped = []
+  const fjerne = []
+  for (let i = 0; i < punkter.length; i++) {
+    const p = wgs84ToSvg(punkter[i].lat, punkter[i].lon, meta)
+    const n = rg.nearestNode([p.x, p.y])
+    if (!n || n.distM > FAR_SNAP_M) {
+      return {
+        feil: `Ingen sti eller vei i nærheten av ${navnFor(i)} — nærmeste er ` +
+          `${n ? Math.round(n.distM) : 'over 1000'} m unna (grensen er ${FAR_SNAP_M} m).`,
+      }
+    }
+    if (n.distM > MAX_SNAP_M) fjerne.push(`${navnFor(i)} ${Math.round(n.distM)} m`)
+    snapped.push(n)
+  }
+
+  const ids = snapped.map((n) => n.id)
+  const funnet = isLoop
+    ? planLoop(rg, ids[0], ids.slice(1), { k: 3 })
+    : planRoutesThrough(rg, ids, { k: 3 })
+  // Kartvisningen velger indeks 0 (ri=0 i dyplenken), og planRoutes sorterer
+  // stigende på lengde — samme rute her.
+  const r = funnet[0]
+  if (!r) return { ingenRute: true }
+
+  const rute = { lengdeKm: +(r.lengthM / 1000).toFixed(1) }
+  const profil = dem
+    ? sampleProfile({ points: r.coordinates.map(([x, y]) => ({ x, y })) }, dem)
+    : null
+  if (profil) {
+    rute.stigningM = Math.round(profil.totalAscent)
+    rute.fallM = Math.round(profil.totalDescent)
+  }
+  rute.gangtidMin = estGangtidMin(r.lengthM, rute.stigningM ?? 0, rute.fallM ?? 0)
+  if (fjerne.length) {
+    rute.snapMerknad = `Ruten går så nær som stinettet kommer — ${fjerne.join(', ')} fra nærmeste sti.`
+  }
+  return { rute }
+}
+
+/**
  * Inneholder svaret tall som IKKE kan være kjent? foreslaa_tur/foreslaa_rundtur
  * navigerer bare — ruten beregnes i kartvisningen etterpå, så verktøysvaret har
  * aldri lengde, høydemeter eller gangtid. Nevner modellen slike tall likevel,
@@ -662,11 +771,32 @@ export function harOppdiktedeTurtall(tekst) {
     /\d+\s*(?:min\b|minutt|timer?\b)/i.test(s)
 }
 
-/** Deterministisk, ærlig bekreftelse etter at en tur er sendt til kartet. */
-export function turSvarTekst({ type = 'tur', vis3d = false } = {}) {
-  return `Jeg åpner kartet og beregner ${type === 'rundtur' ? 'rundturen' : 'turen'} nå — ` +
-    'lengde, stigning og gangtid vises i kartet så snart ruten er tegnet inn. ' +
-    (vis3d ? 'Turen åpnes i 3D.' : 'Si fra hvis du vil se den i 3D.')
+/** «74» → «1 t 14 min», «45» → «45 min». */
+export function formatGangtid(min) {
+  const m = Math.max(1, Math.round(min))
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} t ${String(m % 60).padStart(2, '0')} min`
+}
+
+/**
+ * Deterministisk, ærlig bekreftelse etter at en tur er sendt til kartet.
+ * Med `rute` fra forhaandsberegnTur oppgis EKTE tall (samme som kartet
+ * tegner); uten den nevnes ingen tall i det hele tatt.
+ */
+export function turSvarTekst({ type = 'tur', vis3d = false, rute = null } = {}) {
+  const ordet = type === 'rundtur' ? 'Rundturen' : 'Turen'
+  const treD = vis3d ? 'Turen åpnes i 3D.' : 'Si fra hvis du vil se den i 3D.'
+  if (!rute) {
+    return `Jeg åpner kartet og beregner ${ordet.toLowerCase()} nå — lengde, stigning og ` +
+      `gangtid vises i kartet så snart ruten er tegnet inn. ${treD}`
+  }
+  const biter = [`${ordet} er ${String(rute.lengdeKm).replace('.', ',')} km`]
+  if (rute.stigningM != null) biter.push(`${rute.stigningM} høydemeter stigning`)
+  biter.push(`omtrent ${formatGangtid(rute.gangtidMin)} gangtid`)
+  const hale = biter.length > 2
+    ? `${biter.slice(0, -1).join(', ')} og ${biter[biter.length - 1]}`
+    : biter.join(' og ')
+  return `${hale}. Den tegnes inn i kartet nå.` +
+    (rute.snapMerknad ? ` ${rute.snapMerknad}` : '') + ` ${treD}`
 }
 
 /** Kort norsk statuslinje per verktøy — vises i chatten mens kallet kjører. */

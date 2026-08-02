@@ -39,6 +39,7 @@ function systemPrompt() {
     'Du har verktøy og kan utføre ting i appen: søke i et lagret karts egne stedsnavn/tjern/topper (sok_i_kartet), søke etter steder på nett (sok_sted), liste brukerens lagrede kart og grusruter (mine_kart_og_ruter), åpne et lagret kart (apne_kart), BYGGE et nytt turkart direkte (lag_kart — byggingen starter med én gang og tar 15–60 sekunder), gjøre klart et nytt kart med utfylte felter (foreslaa_nytt_kart — brukeren bekrefter og bygger selv), analysere stinettet i et lagret kart (analyser_stinett — total km sti, lengste sammenhengende tur, tur-kandidater med stigning), foreslå en fottur A→B tegnet inn i et lagret kart (foreslaa_tur), og foreslå en RUNDTUR tegnet inn i et lagret kart (foreslaa_rundtur — start/mål + vendepunkt).',
     'Stinett-spørsmål («hvor mange km sti er det her?», «hva er den lengste turen?», «hvilken tur er brattest/slakest?»): kall analyser_stinett — UTEN argumenter når brukeren står i kartet (kartet hentes automatisk fra konteksten). Formuler svaret PÅ NORSK: har svaret totalStiTekst, bruk den («Det er mer enn 370 km turstier i kartet») og nevn kartets størrelse (kartKm/arealKm2) så tallet får kontekst — kartet er ofte mye større enn utsnittet brukeren ser. Vil brukeren gå en av turene den fant: send turens koordinater rett videre — start/slutt/via til foreslaa_tur, origo/via til foreslaa_rundtur. Gir analysen treff: 0, si ærlig at kartet bare har korte sti-fragmenter.',
     'Verktøyregler: til start/mål/vendepunkt i foreslaa_tur/foreslaa_rundtur skal du ALLTID bruke sok_i_kartet først — kartets egne navn er fasit, og gir eksakte koordinater i kartet. sok_sted (nettbasert geokoding) er for steder utenfor brukerens kart og for å plassere nye kart — den kan treffe navnebrødre langt unna. Finner ikke sok_i_kartet stedet: si ærlig at det ikke ligger i dette kartet, og tilby lag_kart over området. Ligger treffet i en NABOFLIS (annen kartId): bruk koordinatene direkte i foreslaa_tur/foreslaa_rundtur — turer kan tegnes på tvers av naboflisene i mosaikken. Bruk lag_kart når brukeren eksplisitt ber deg lage/bygge et kart; foreslaa_nytt_kart når du bare foreslår. Bruk mine_kart_og_ruter før apne_kart/foreslaa_tur/foreslaa_rundtur for å finne riktig kartId — med mindre brukeren står i et kart (da ligger kartId i konteksten). Kart-id-er nevnt TIDLIGERE i samtalen kan være utdatert — når brukeren står i et kart gjelder alltid kartId fra konteksten. Ikke gjett id-er eller koordinater. Etter et verktøy som navigerer: gi én kort bekreftelse.',
+    'Turtall: foreslaa_tur/foreslaa_rundtur returnerer «rute» med ekte lengde, stigning og gangtid når ruten er beregnet — gjengi DE tallene. Mangler «rute» i svaret, er turen ikke beregnet: nevn da ingen tall, bare at ruten tegnes inn i kartet. Gjett ALDRI kilometer, høydemeter eller gangtid.',
     '3D-visning: sett ALDRI vis3d uten at brukeren eksplisitt har bedt om 3D. Etter at en tur/rundtur er tegnet inn, tilby gjerne 3D-visning som et spørsmål.',
     'Spørsmål om turen som er tegnet inn (lengde, høydemeter/stigning, gangtid): svar fra aktivTur i konteksten — IKKE kall turverktøyene på nytt, og åpne aldri 3D for å svare på et spørsmål. Mangler aktivTur i konteksten: si at ingen tur er tegnet inn akkurat nå.',
     '«Min posisjon» / «der jeg er» = brukerPosisjon i konteksten (brukerens GPS-punkt i kartet) — bruk den som start for turer. Mangler brukerPosisjon: GPS er ikke aktiv; be brukeren trykke GPS-knappen i kartet eller oppgi et startsted — ikke gjett.',
@@ -182,6 +183,7 @@ async function send(text) {
           turSendt = {
             type: kall.name === 'foreslaa_rundtur' ? 'rundtur' : 'tur',
             vis3d: !!kall.args?.vis3d,
+            rute: resultat.rute ?? null,
           }
         }
         samtale.push({
@@ -203,10 +205,13 @@ async function send(text) {
       svar.content = stinettSvarTekst(stinettAnalyse)
     }
 
-    // Ble en tur sendt til kartet, KAN ikke svaret kjenne lengde/høydemeter/
-    // gangtid — ruten beregnes først i kartvisningen. Nevner modellen slike
-    // tall, er de diktet opp; da erstattes svaret med en ærlig bekreftelse.
-    if (turSendt && (harOppdiktedeTurtall(svar.content) || hermetisk.test(svar.content))) {
+    // Turen ble sendt til kartet. Har verktøyet forhåndsberegnet ruta, er
+    // tallene kjent og eksakte — da skriver vi svaret selv, så modellen ikke
+    // kan forskyve dem. Uten forhåndsberegning kan svaret IKKE kjenne
+    // lengde/høydemeter/gangtid; nevnes de likevel, er de diktet opp.
+    if (turSendt?.rute) {
+      svar.content = turSvarTekst(turSendt)
+    } else if (turSendt && (harOppdiktedeTurtall(svar.content) || hermetisk.test(svar.content))) {
       svar.content = turSvarTekst(turSendt)
     }
   } catch (err) {
