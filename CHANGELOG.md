@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-08-02 — v4.3.6: Chatten forstår «kartet» og spørsmål uten stedsnavn
+
+Brukertest: «Hvor mange kilometer sti i kartet» på et GPS-basert kart ga «Your input is lacking necessary details» — modellen ba om mer info i stedet for å bruke kartet fra konteksten. Systemprompten har nå en eksplisitt IMPLISITT STED-regel øverst: spørsmål uten stedsnavn («kartet», «her», «dette området») gjelder alltid kartet brukeren står i (aktiv kartflis), og modellen skal aldri be om flere detaljer da — den skal kalle riktig verktøy direkte. I tillegg gjentas kartnavn og kartId som klartekst etter kontekst-JSON-en, siden svake modeller gjerne overser felter inne i JSON.
+
+---
+
 ## 2026-08-02 — v4.3.5: analyser_stinett kallbart uten kartId i chatten
 
 Brukertest på Røst-kart viste at chatten fortsatt svarte «Your function definitions are not comprehensive enough for this task» — llama-modellens hermetiske klage når et verktøys påkrevde argument ikke er direkte tilgjengelig. analyser_stinett hadde kartId som required, men for stinett-spørsmål finnes det ikke noe tidligere verktøysvar som gir kartId — modellen måtte plukke den ut av kontekst-JSON-en, og det nekter den når feltet er påkrevd. Skjemaet har nå required: [] (losKart faller uansett tilbake til kontekstens kart), beskrivelsen og systemprompten sier eksplisitt «kall uten argumenter når brukeren står i kartet», og feilmeldingen uten noe kart er blitt veiledende i stedet for «Fant ikke kart med id "undefined"».

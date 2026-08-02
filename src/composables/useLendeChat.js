@@ -27,6 +27,7 @@ function systemPrompt() {
   const deler = [
     'Du er Lende-assistenten i turkart-appen «Så i lende».',
     'Svar kort og konkret på norsk bokmål. Du kan svare på spørsmål om stedet og kartet brukeren ser på, terreng, turplanlegging og appens funksjoner.',
+    'IMPLISITT STED: nevner ikke brukeren noe stedsnavn, gjelder spørsmålet ALLTID kartet i konteksten — «kartet», «her», «dette området» og spørsmål helt uten sted betyr kartet brukeren står i (aktiv kartflis). Be ALDRI om mer informasjon eller flere detaljer da: kall riktig verktøy direkte med kontekstens kart (verktøyene henter kartId fra konteksten selv når du utelater den).',
     // Funksjonsguide (v3.0.33): modellen skal henvise til RIKTIG funksjon.
     // Viktigst: fotturer i kartet = Stifinneren, IKKE Turplanleggeren (som er
     // for grus-/sykkelruter) — v3.0.30-prompten kjente bare Turplanleggeren
@@ -52,6 +53,11 @@ function systemPrompt() {
   ]
   if (context.value) {
     deler.push(`Brukerens kontekst akkurat nå (JSON): ${JSON.stringify(context.value)}`)
+    // Svake modeller overser gjerne kartId inne i JSON-en — gjenta den som
+    // klartekst så «spørsmål uten sted = dette kartet» faktisk etterleves.
+    if (context.value.kartId) {
+      deler.push(`Brukeren står altså i kartet «${context.value.kartnavn ?? context.value.kartId}» (kartId: ${context.value.kartId}) — spørsmål uten stedsnavn gjelder DETTE kartet.`)
+    }
   } else {
     deler.push('Brukeren står på forsiden av appen og har ikke noe kart åpent.')
   }
