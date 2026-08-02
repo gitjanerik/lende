@@ -29,7 +29,7 @@ import { serveFil } from './kartlager.js'
 // Bumpes ved hver verktøy-endring — røyktesten poller initialize til denne
 // versjonen svarer, så gamle edge-noder ikke gir falske røde (sett fase B).
 // (Ikke eksporter: workerd krever at entry-modulens eksporter er handlere.)
-const MCP_SERVER_VERSJON = '2.1.0'
+const MCP_SERVER_VERSJON = '2.2.0'
 
 const GEOCODE_UA = 'lende-mcp-remote/1.0 (turkart-generator)'
 const MAX_HALF_KM = 20
@@ -223,8 +223,8 @@ export default {
           versjon: MCP_SERVER_VERSJON,
           verktoy: [
             'sok_sted', 'vannmalestasjoner', 'bygg_kart', 'planlegg_rute',
-            'planlegg_rundtur', 'hoydeprofil', 'eksporter_gpx', 'finn_poi_paa_kart', 'sok_kart',
-            'berik_rute', 'turrapport_svg', 'juster_kart',
+            'planlegg_rundtur', 'analyser_stinett', 'hoydeprofil', 'eksporter_gpx',
+            'finn_poi_paa_kart', 'sok_kart', 'berik_rute', 'turrapport_svg', 'juster_kart',
           ],
         }),
         { headers: { 'Content-Type': 'application/json' } },

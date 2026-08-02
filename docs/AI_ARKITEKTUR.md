@@ -75,6 +75,16 @@ samme maskineri som resten av appen. Ingen remote-MCP, ingen ny infrastruktur.
   kjøring, `role:"tool"`-svar tilbake, norsk statuslinje per kall. Verktøy-
   runder kjører ikke-strømmende (Workers AI støtter ikke streaming+tools
   pålitelig); verktøy-utvekslinger persisteres ikke i visnings-historikken.
+- **Stinett-analyse** (`analyser_stinett`, kjerne i
+  `src/lib/stinettAnalyse.js`): total km sti (505/506/507 + skogsbilvei 504,
+  hvert segment én gang), lengste sammenhengende turstrekning, og
+  tur-kandidater (A→B/rundtur ≥ 2 km) med stigning og bratteste/slakeste
+  parti. Småveg (503) er bindeledd (≤ 300 m-strekk kobler stinett sammen,
+  teller i turlengder, aldri i sti-summen); korte isolerte stumper
+  ekskluderes med dynamisk minstelengde etter sti-tetthet. Samme kjerne
+  eksponeres som MCP-verktøy i både `mcp/server.js` og
+  `cloudflare/mcp-worker` — turenes koordinater kan sendes rett videre til
+  foreslaa_tur/foreslaa_rundtur (MCP: planlegg_rute/planlegg_rundtur).
 - **Ikke dekket ennå:** kjøre Stifinner-beregninger direkte fra chat
   (ruteforslag med lengde/høydemeter som svar), POI-søk i kartet, favoritt-
   markering/søkehistorikk (jf. «Personlig kontekst» i MCP_REMOTE_CHAT.md).

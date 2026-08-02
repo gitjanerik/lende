@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   AI_TOOLS, buildTourQuery, buildRundturQuery, buildLagKartQuery, projectForModel,
-  kmUtenforBbox, kmMellom, bboxAvstandKm, metaFraSvgEl,
+  kmUtenforBbox, kmMellom, bboxAvstandKm, metaFraSvgEl, toolStatusLabel,
 } from './lendeAiTools.js'
 import { parseTourQuery } from './tour3dLink.js'
 
@@ -18,6 +18,19 @@ describe('AI_TOOLS', () => {
   it('har unike verktøynavn', () => {
     const navn = AI_TOOLS.map((t) => t.function.name)
     expect(new Set(navn).size).toBe(navn.length)
+  })
+
+  it('analyser_stinett er deklarert med kartId som eneste krav', () => {
+    const t = AI_TOOLS.find((x) => x.function.name === 'analyser_stinett')
+    expect(t).toBeDefined()
+    expect(t.function.parameters.required).toEqual(['kartId'])
+    expect(t.function.parameters.properties.minTurKm.type).toBe('number')
+  })
+})
+
+describe('toolStatusLabel', () => {
+  it('har norsk statuslinje for stinett-analysen', () => {
+    expect(toolStatusLabel('analyser_stinett', {})).toBe('Analyserer stinettet …')
   })
 })
 

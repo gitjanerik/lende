@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-08-02 — v4.3.3: Stinett-analyse i chatten og MCP
+
+Nytt verktøy `analyser_stinett` svarer på «hvor mange km sti er det her?» for et lagret kart: total km sti (sti 505/506/507 + skogsbilvei 504, hvert segment telt én gang), lengste sammenhengende turstrekning, og tur-kandidater (A→B eller rundtur, minst 2 km) med gangtid, stigning/fall og bratteste/slakeste parti — med koordinater som kan sendes rett videre til foreslaa_tur/foreslaa_rundtur. Korte småveg-strekk (≤ 300 m) regnes som bindeledd mellom stinett men teller ikke i sti-summen, korte isolerte stumper ekskluderes med dynamisk minstelengde etter sti-tetthet, og 0 treff er et ærlig svar der nettet bare har fragmenter (som på Røst). Kjernen er den rene modulen `src/lib/stinettAnalyse.js` (komponentanalyse uten Stifinnerens 80 m-broer, dobbel-Dijkstra for lengste vandring, sløyfedeteksjon), delt av chatten, den lokale MCP-serveren og Cloudflare-MCP-speilet (v2.2.0).
+
+---
+
 ## 2026-08-01 — v4.3.2: FAB-klynge-finpuss etter brukertest
 
 To justeringer av den nye FAB-klyngen: (1) Trykk i kartet lukker ikke lenger knottene — på/av-togglingen på Lende-knappen holdt fint i praksis, og kart-trykk-lukkingen gjorde at klyngen forsvant utilsiktet ved panorering. (2) Lang-trykk på Lende-knappen trigget nettleserens «Kopier bilde»-dialog (logoen er en img); den blokkeres nå med contextmenu.prevent på ankeret pluss pekerdød og callout-fri logo, så lang-trykk er en ren app-gest (Lende-chat).
