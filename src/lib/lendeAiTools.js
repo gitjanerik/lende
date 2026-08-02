@@ -25,7 +25,9 @@ import {
 } from './routing.js'
 import { sampleProfile } from './elevationProfile.js'
 import { listThemes } from './mapSettingsApply.js'
+import { LAYERS, LAYER_PRESETS } from './mapLayerCatalog.js'
 import { useMapTheme } from '../composables/useMapTheme.js'
+import { useMapLayerControl, sendLagKommando } from '../composables/useMapLayerControl.js'
 
 // Router lastes lat: da kan testene importere de rene delene (buildTourQuery,
 // projectForModel) uten å evaluere hele router→view-treet.
@@ -145,6 +147,30 @@ export const AI_TOOLS = [
           maks: { type: 'number', description: 'Maks antall treff (standard 8)' },
         },
         required: ['kartId', 'sok'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'styr_kartlag',
+      description:
+        'Skru kartlag av og på i det åpne kartet (sti, høydekurver, vann, skog, bygninger, ' +
+        'navn, parkering, kulturminner …), bytt til et forhåndsvalg, eller nullstill. Bruk ved ' +
+        '«skjul navnene», «vis bare stier og høydekurver», «slå på parkering», «bytt til ' +
+        'padling», «nullstill kartlagene». Kall UTEN argumenter for å få listen over alle lag ' +
+        'og hva som er synlig nå — gjør det når du er usikker på hva brukeren mener. ' +
+        'Lagnavn kan skrives på norsk («høydekurver») eller som nøkkel («kontur»).',
+      parameters: {
+        type: 'object',
+        properties: {
+          vis: { type: 'array', items: { type: 'string' }, description: 'Lag som skal slås PÅ, f.eks. ["parkering","vann"]' },
+          skjul: { type: 'array', items: { type: 'string' }, description: 'Lag som skal slås AV, f.eks. ["navn"]' },
+          bare: { type: 'array', items: { type: 'string' }, description: 'Vis KUN disse lagene (alt annet av) — «vis bare stier og høydekurver»' },
+          forhandsvalg: { type: 'string', description: 'tur | padling | detaljert | print' },
+          nullstill: { type: 'boolean', description: 'Sett alle lag tilbake til standard' },
+        },
+        required: [],
       },
     },
   },
@@ -669,6 +695,63 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
             'foreslaa_rundtur (appen laster naboflisene automatisk).',
         }
       }
+      case 'styr_kartlag': {
+        const { synligeLag } = useMapLayerControl()
+        const naa = synligeLag.value
+        if (!naa) {
+          return { feil: 'Ingen kartvisning er åpen — kartlag styres i et åpent kart. Åpne kartet først (apne_kart).' }
+        }
+        const katalog = LAYERS.map((l) => ({ nokkel: l.key, navn: String(l.label).replace(/­/g, '') }))
+        const listeSvar = () => ({
+          synlige: naa,
+          alleLag: katalog,
+          forhandsvalg: LAYER_PRESETS.map((p) => p.key),
+          merknad: 'Fortell brukeren hva som er på nå, eller spør hva hun vil endre.',
+        })
+
+        if (args?.nullstill) {
+          sendLagKommando({ nullstill: true })
+          return { ok: true, handling: 'nullstilt', merknad: 'Kartlagene er satt tilbake til standard.' }
+        }
+
+        const onsketPreset = String(args?.forhandsvalg ?? '').trim().toLowerCase()
+        if (onsketPreset) {
+          const p = LAYER_PRESETS.find((x) => x.key === onsketPreset)
+            ?? LAYER_PRESETS.find((x) => String(x.label).toLowerCase() === onsketPreset)
+          if (!p) {
+            return {
+              feil: `Kjenner ikke forhåndsvalget «${args.forhandsvalg}».`,
+              forhandsvalg: LAYER_PRESETS.map((x) => ({ nokkel: x.key, navn: x.label })),
+            }
+          }
+          sendLagKommando({ keys: p.keys })
+          return { ok: true, forhandsvalg: p.key, navn: p.label, antallLag: p.keys.length }
+        }
+
+        const vis = losLagNokler(args?.vis, LAYERS)
+        const skjul = losLagNokler(args?.skjul, LAYERS)
+        const bare = losLagNokler(args?.bare, LAYERS)
+        if (!vis.nokler.length && !skjul.nokler.length && !bare.nokler.length) {
+          const ukjente = [...vis.ukjente, ...skjul.ukjente, ...bare.ukjente]
+          if (ukjente.length) {
+            return { feil: `Kjenner ikke laget/lagene ${ukjente.map((u) => `«${u}»`).join(', ')}.`, alleLag: katalog }
+          }
+          return listeSvar()
+        }
+
+        const neste = bare.nokler.length ? new Set(bare.nokler) : new Set(naa)
+        for (const k of vis.nokler) neste.add(k)
+        for (const k of skjul.nokler) neste.delete(k)
+        sendLagKommando({ keys: [...neste] })
+        const navnFor = (k) => katalog.find((c) => c.nokkel === k)?.navn ?? k
+        const svar = { ok: true, antallSynlige: neste.size }
+        if (bare.nokler.length) svar.bare = bare.nokler.map(navnFor)
+        if (vis.nokler.length) svar.slattPaa = vis.nokler.map(navnFor)
+        if (skjul.nokler.length) svar.slattAv = skjul.nokler.map(navnFor)
+        const ukjente = [...vis.ukjente, ...skjul.ukjente, ...bare.ukjente]
+        if (ukjente.length) svar.ukjente = ukjente
+        return svar
+      }
       case 'bytt_kart_tema': {
         const temaer = listThemes()
         const valgbare = temaer.map((t) => ({ nokkel: t.key, navn: t.label }))
@@ -1040,6 +1123,29 @@ export function losTemaNokkel(onske, temaer) {
   return delvis?.key ?? null
 }
 
+/**
+ * Løs en liste lag-ønsker («sti», «Høydekurver», «kontur», «hus») til gyldige
+ * lag-nøkler. Brukeren og modellen sier etiketter eller omtrentligheter, ikke
+ * katalognøkler. Returnerer { nokler, ukjente }.
+ */
+export function losLagNokler(onsker, lag) {
+  const nokler = []
+  const ukjente = []
+  for (const raa of [].concat(onsker ?? [])) {
+    const s = String(raa ?? '').trim().toLowerCase()
+    if (!s) continue
+    // Etiketter kan ha myk bindestrek (&shy;) for pen orddeling — strip den.
+    const rens = (t) => String(t).toLowerCase().replace(/­/g, '')
+    const treff = lag.find((l) => l.key === s)
+      ?? lag.find((l) => rens(l.label) === s)
+      ?? lag.find((l) => rens(l.label).startsWith(s) || l.key.startsWith(s))
+      ?? lag.find((l) => rens(l.label).includes(s) || l.key.includes(s))
+    if (treff) { if (!nokler.includes(treff.key)) nokler.push(treff.key) }
+    else ukjente.push(String(raa))
+  }
+  return { nokler, ukjente }
+}
+
 /** Kort norsk statuslinje per verktøy — vises i chatten mens kallet kjører. */
 export function toolStatusLabel(name, args) {
   switch (name) {
@@ -1051,6 +1157,7 @@ export function toolStatusLabel(name, args) {
     case 'sok_i_kartet': return `Søker i kartet etter «${args?.sok ?? '…'}» …`
     case 'analyser_stinett': return 'Analyserer stinettet …'
     case 'bytt_kart_tema': return 'Bytter kart-tema …'
+    case 'styr_kartlag': return 'Justerer kartlagene …'
     case 'foreslaa_tur':
     case 'vis_tur_i_3d': return 'Beregner turen …'
     case 'foreslaa_rundtur': return 'Beregner rundtur …'

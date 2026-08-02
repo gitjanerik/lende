@@ -1,5 +1,13 @@
 # Endringslogg
 
+## 2026-08-02 — v4.7.0: Chatten styrer kartlagene
+
+Nytt verktøy styr_kartlag lar chatten skru lag av og på enkeltvis («skjul navnene», «slå på parkering»), vise bare et utvalg («vis bare stier og høydekurver»), bytte forhåndsvalg (Tur, Padling, Detaljert, Print) eller nullstille til standard. Kalt uten argumenter svarer det med hele laglista og hva som er synlig akkurat nå, så modellen kan spørre i stedet for å gjette. Lagnavn tolkes norsk-tolerant: både nøkkel («kontur»), etikett («Høydekurver») og omtrentligheter («hus» → Hus og hytter) treffer, og myke bindestreker i etikettene ignoreres.
+
+I motsetning til kart-temaet er lag-synligheten eid av kartvisningen — den nullstilles per kart, kan komme fra init-prefs, og monokrome temaer skrur den om automatisk. Tilstanden er derfor ikke flyttet: MapView publiserer gjeldende lag til en liten bro (useMapLayerControl) og plukker opp ferdig utregnede kommandoer derfra, så alle de eksisterende reglene står urørt. Er ingen kartvisning åpen, sier verktøyet ærlig fra i stedet for å late som.
+
+---
+
 ## 2026-08-02 — v4.6.0: Chatten kan bytte kart-tema — og dikter ikke lenger opp verktøy
 
 «Bytt til Dark mode» ga «Dark mode er aktivert» uten at noe skjedde, og andre forsøk ga «[vis3d(false)]» rått i chatten. Modellen hadde ikke noe verktøy for kartets farger, så den påsto først at den hadde gjort jobben og fant deretter opp et «verktøy» av et parameternavn. Begge deler er rettet: nytt verktøy bytt_kart_tema kobler chatten til appens tema-singleton (samme tilstand som menyens mørk-bryter og Tema-fanen), med norsk-tolerant tolking av ønsket («mørkt», «dark mode», «nattkart», «tilbake til vanlige farger») og listing av alternativene når temaet ikke er oppgitt.
