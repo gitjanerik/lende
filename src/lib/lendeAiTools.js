@@ -519,6 +519,7 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         return {
           kart: kart.navn ?? id,
           kartId: id,
+          kartKm: { bredde: +(m.widthM / 1000).toFixed(1), hoyde: +(m.heightM / 1000).toFixed(1) },
           ...formatStinettSvar(analyse, { toWgs84: (x, y) => svgToWgs84(x, y, m) }),
         }
       }

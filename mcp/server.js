@@ -594,6 +594,7 @@ server.registerTool(
     return jsonResult({
       status: 'ok',
       kart: state.map.navn,
+      kartKm: { bredde: +(meta.widthM / 1000).toFixed(1), hoyde: +(meta.heightM / 1000).toFixed(1) },
       ...formatStinettSvar(analyse, { toWgs84: (x, y) => svgToWgs84(x, y, meta) }),
     })
   },

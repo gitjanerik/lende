@@ -424,6 +424,7 @@ export function analyserStinett(features, opts = {}) {
       ekskludertM,
       minKomponentM: terskelM,
       tetthetKmPerKm2: arealKm2 > 0 ? altStiM / 1000 / arealKm2 : null,
+      arealKm2: arealKm2 > 0 ? arealKm2 : null,
     },
     lengsteVandringM,
     minTurM,
@@ -483,10 +484,17 @@ export function formatStinettSvar(analyse, { toWgs84 }) {
   })
 
   const s = analyse.stinett
+  // Over 30 km er én desimal falsk presisjon (OSM-dekning varierer) — rund
+  // NED til nærmeste tier og lever en ferdig frase («mer enn 370 km»).
+  const totalKm = s.totalStiM / 1000
+  const rundetNed = totalKm > 30 ? Math.floor(totalKm / 10) * 10 : null
+
   const svar = {
     minTurKm: analyse.minTurM != null ? +(analyse.minTurM / 1000).toFixed(1) : undefined,
+    totalStiTekst: rundetNed != null ? `mer enn ${rundetNed} km` : undefined,
     stinett: {
-      totalStiKm: +(s.totalStiM / 1000).toFixed(1),
+      totalStiKm: rundetNed ?? +totalKm.toFixed(1),
+      arealKm2: s.arealKm2 != null ? +s.arealKm2.toFixed(1) : null,
       koblerKm: +(s.koblerM / 1000).toFixed(1),
       inkluderteKomponenter: s.inkluderteKomponenter,
       ekskluderteKomponenter: s.ekskluderteKomponenter,
@@ -519,6 +527,9 @@ export function formatStinettSvar(analyse, { toWgs84 }) {
     '«Slakeste segment» = turen med det slakeste bratteste-partiet.',
     'Turene kan tegnes inn: start/slutt/via → foreslaa_tur (MCP: planlegg_rute), origo/via → foreslaa_rundtur (MCP: planlegg_rundtur).',
   ]
+  if (rundetNed != null) {
+    merknader.push('Bruk totalStiTekst i svaret («mer enn … km turstier») og nevn kartets areal — desimaler over 30 km er falsk presisjon.')
+  }
   if (!medStigning.length && turer.length) {
     merknader.push('Kartet mangler ekte høydedata — stigning og bratthet kan ikke oppgis.')
   }
