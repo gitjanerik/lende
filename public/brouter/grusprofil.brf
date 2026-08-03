@@ -1,4 +1,4 @@
-# grusprofil.brf — Lende Ruteplanlegger (versjon 7, matcher
+# grusprofil.brf — Lende Ruteplanlegger (versjon 8, matcher
 # PROFILE_VERSION i brouterClient.js — bump begge ved endring).
 #
 # Formål: MC-turplanlegging som MAKSIMERER sammenhengende grusvei A->B i Norge.
@@ -6,9 +6,15 @@
 # 3.5-5x (høyt nok til å ta betydelige omveier for grus, lavt nok til at
 # asfalt-korridorer brukes der grus ikke finnes). Motorvei forbudt. Ukjent
 # dekke på unclassified/tertiary får moderat rabatt — i distrikts-Norge er
-# utaggede småveier ofte grus (dokumentert stance, jf. gravelOverlay.js).
+# utaggede småveier ofte grus (dokumentert stance, jf. gravelOverlay.js) — men
+# fra v8 kun når «Inkluder antatt grusvei» er avhuket, slik at BEKREFTET
+# toppdekke alltid vinner over en antakelse.
 #
 # Tuning-notater: costfactor-verdiene er startverdier — juster etter felttest.
+# Målt mot ekte OSM-data (se CHANGELOG v4.8.0): å skru asfalt-straffen opp fra
+# 4.5 til 6.5-9 ga IKKE mer grus, bare lengre ruter — grusandelen er begrenset
+# av hvor mye grus som finnes og er tagget, ikke av vektene. Ikke skru opp
+# uten å måle først.
 # Attribusjon: BRouter (brouter.de), data (c) OpenStreetMap-bidragsytere.
 
 ---context:global
@@ -29,7 +35,15 @@ assign waypointCatchingRange = 500
 
 assign ispaved = or surface=asphalt or surface=paved or surface=concrete or surface=paving_stones surface=sett
 assign isgravel = or surface=gravel or surface=compacted or surface=fine_gravel or surface=unpaved or surface=ground or surface=dirt surface=pebblestone
-assign nosurface = not or ispaved or isgravel surface=
+
+# nosurface = veien mangler surface-tag helt (v8-fiks). v4–v7 skrev
+#   not or ispaved or isgravel surface=
+# som er «surface FINNES, men er verken fast dekke eller grus» — altså sand,
+# grass, mud og lite annet. Umerkede veier traff derfor ALDRI heuristikk-blokka
+# under, men falt gjennom til default-kostnaden nederst. Målt på ekte OSM-data
+# (Modum/Sigdal/Flesberg/Kongsberg, 6091 km kjørbar vei): 69 % av veilengden
+# mangler surface-tag, så hele «distrikts-Norge»-blokka var død kode.
+assign nosurface = surface=
 
 assign turncost = 0
 assign initialcost = 0
@@ -106,8 +120,15 @@ assign costfactor =
     4
   )
 
-  # Ukjent dekke: sannsynlighets-heuristikk for distrikts-Norge.
-  switch nosurface (
+  # Ukjent dekke: sannsynlighets-heuristikk for distrikts-Norge — men KUN når
+  # brukeren har huket av «Inkluder antatt grusvei» (v8). Rabatten er en
+  # ANTAKELSE om at umerkede småveier er grus; slår den inn ubetinget,
+  # utkonkurrerer den BEKREFTET grus, fordi en kortere umerket vei til 1.8
+  # blir billigere enn en lengre tagget grusvei til 1.0. Målt over ni A/B-par
+  # i Buskerud: ubetinget rabatt ga 25,7 % bekreftet grus mot 33,9 % uten.
+  # Uten avhuking er ukjent dekke nettopp ukjent → nøytral default nederst,
+  # og BEKREFTET toppdekke vinner.
+  switch and nosurface inkluder_antatt_grus (
     switch highway=unclassified 1.8
     switch highway=tertiary|tertiary_link 2.5
     switch highway=service ( switch service=driveway 6 3 )

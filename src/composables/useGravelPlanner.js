@@ -3,7 +3,7 @@ import {
   ensureProfileId, fetchRoute, parseRoute, clearProfileCache, haversineM,
   snapDistances, routesLookIdentical, decorateProposals, MAX_SNAP_DIST_M,
   snapHardLimitM, fmtAvstandM, estimateMcTimeS, applyProfileFlags,
-  ProfileExpiredError, PROFILE_VERSION, BROUTER_TIMEOUT_MS,
+  pickDefaultProposal, ProfileExpiredError, PROFILE_VERSION, BROUTER_TIMEOUT_MS,
 } from '../lib/brouterClient.js'
 import {
   saveGravelRoute, listGravelRoutes, deleteGravelRoute, updateGravelRoute,
@@ -17,8 +17,9 @@ import { simplifyDP } from '../lib/pathUtils.js'
 // logikk er i lib/brouterClient.js som er fullt enhetstestet.
 //
 // Design (Claude Design-handoff): ett «Finn grusrute»-trykk gir TRE forslag —
-// «Mest grus» (grus-maks-profil), «Balansert» (mildere asfalt-straff, default
-// valgt) og «Kortest» (BRouter innebygd bilprofil). Én brukerhandling = tre
+// «Mest grus» (grus-maks-profil), «Balansert» (mildere asfalt-straff) og
+// «Kortest» (BRouter innebygd bilprofil). Forhåndsvalget følger toppdekket:
+// forslaget med høyest grusandel (pickDefaultProposal). Én brukerhandling = tre
 // rutekall + maks to profil-opplastinger (cachet per økt) — innenfor rimelig
 // fair use mot donasjonsdrevne brouter.de; ingen polling.
 
@@ -30,7 +31,10 @@ const PROPOSAL_DEFS = [
   { id: 'balansert', profileKey: 'balansert', asset: 'grusprofil-balansert.brf' },
   { id: 'kortest', profileKey: null, builtin: 'car-fast' },
 ]
-const DEFAULT_PROPOSAL = 'balansert'
+// Forhåndsvalget er DATA-drevet (v4.8.0): pickDefaultProposal velger forslaget
+// med høyest grusandel. Konstanten under er kun startverdien før første
+// ruteberegning — den avgjør ingenting etter at forslagene finnes.
+const INITIAL_PROPOSAL = 'mest-grus'
 
 // Fallback hvis egen profil-opplasting feiler. VIKTIG: må være en MOTOR-
 // profil — den tidligere fallbacken 'gravel' er BRouters SYKKELPROFIL og
@@ -69,7 +73,7 @@ export function useGravelPlanner() {
     try { localStorage.setItem(INKL_ANTATT_LS_KEY, v ? '1' : '0') } catch { /* noop */ }
   })
   const proposals = ref([])         // [{ id, label, badge, usedFallbackProfile, ...parseRoute }]
-  const selectedId = ref(DEFAULT_PROPOSAL)
+  const selectedId = ref(INITIAL_PROPOSAL)
   const route = ref(null)           // valgt forslag + { waypoints, navn?, directM }
   const routeState = ref('idle')    // 'idle' | 'routing' | 'error'
   const routeError = ref('')
@@ -183,7 +187,7 @@ export function useGravelPlanner() {
         if (!ok.some((q) => routesLookIdentical(q, p))) ok.push(p)
       }
       proposals.value = decorateProposals(ok)
-      selectedId.value = ok.some((p) => p.id === DEFAULT_PROPOSAL) ? DEFAULT_PROPOSAL : ok[0].id
+      selectedId.value = pickDefaultProposal(proposals.value).id
       applySelection()
       routeState.value = 'idle'
     } catch (e) {
