@@ -34,8 +34,11 @@ import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { useMapSizePreference, effectiveEquidistanceForWidthKm, defaultMapDims, aspectForFormat } from '../composables/useMapSizePreference.js'
 import { useRouteElevation } from '../composables/useRouteElevation.js'
 import { useDraggableDrawer } from '../composables/useDraggableDrawer.js'
+import { useFloatAboveSheets } from '../composables/useFloatAboveSheets.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
+import { hasAiToken } from '../lib/lendeAi.js'
 import RouteElevationProfile from '../components/RouteElevationProfile.vue'
+import FabCluster from '../components/FabCluster.vue'
 
 const router = useRouter()
 const currentRoute = useRoute()
@@ -766,11 +769,10 @@ function floatBottom(basePx, needPx) {
   return `${(fixed ? 0 : floatBottomPx.value) + basePx}px`
 }
 
-// Målt i nettleser: knappen er 40 px, det åpne lag-panelet 194 px. Begge pluss
-// left-3 (12 px) og 8 px klaring til skuffen. Panelet får altså først fast plass
-// på brede vindu (fra ~1130 px); smalere følger det skuffen som før, i stedet
-// for å havne under henne.
-const LAYER_BTN_NEED = 60
+// Målt i nettleser: det åpne lag-panelet er 194 px, pluss left-3 (12 px) og
+// 8 px klaring til skuffen. Panelet får altså først fast plass på brede vindu
+// (fra ~1130 px); smalere følger det skuffen, i stedet for å havne under henne.
+// (Lag-KNAPPEN er borte fra v4.8.2 — den er nå en knott i FAB-klyngen.)
 const LAYER_PANEL_NEED = 214
 
 // Attribusjonen er én lang linje. Fast nederst til høyre får den margen som
@@ -781,6 +783,84 @@ const attributionStyle = computed(() => (
     ? { bottom: '4px', maxWidth: `${mapMarginPx.value - 8}px` }
     : { bottom: `${floatBottomPx.value + 4}px` }
 ))
+// ── FAB-klynge (v4.8.2) ─────────────────────────────────────────────────────
+// Samme anker og gestespråk som turkartet: tap = vis/skjul knottene, lang-trykk
+// = Lende-chat. Knott-plassene betyr det samme på tvers — nord «legg kartet der
+// jeg trenger det», nordvest «hva kartet tegner». Erstatter fit-rute-FAB-en
+// nede til høyre OG lag-knappen nede til venstre, så to hjørner tømmes.
+// Zoom-stacken blir stående øverst til høyre: den er visningens mest gjentatte
+// handling, og zoomen her er 11 diskrete nivåer uten dobbelt-tap-zoom-ut.
+const lendeChatEnabled = hasAiToken()
+const lendeLogoUrl = `${import.meta.env.BASE_URL}icon.svg`
+const fabMenuOpen = ref(false)
+
+const fabHint = ref('')
+let fabHintTimer = null
+function flashFabHint(text) {
+  fabHint.value = text
+  if (fabHintTimer) clearTimeout(fabHintTimer)
+  fabHintTimer = setTimeout(() => { fabHint.value = '' }, 2200)
+}
+
+const fabSatellites = computed(() => [
+  {
+    key: 'center', slot: 'n',
+    label: route.value ? 'Vis hele ruten' : 'Sentrer kartet på min posisjon',
+  },
+  {
+    key: 'layers', slot: 'nw', dimmed: overlayGated.value,
+    label: overlayGated.value
+      ? 'Kartlag — zoom inn for å se grusveier'
+      : 'Kartlag — velg hva som vises i kartet',
+  },
+])
+
+// Knottene har ingen hold-paneler (hasPanel er usatt), så ingen hold-timer
+// armeres på dem — ingen døde gester.
+function onFabKnobTap(key) {
+  if (key === 'center') {
+    if (route.value) fitRouteView()
+    else centerOnMyPosition()
+    return
+  }
+  // Dimmet knott: si hvorfor i stedet for å gjøre ingenting.
+  if (overlayGated.value) { flashFabHint('Zoom inn for å se grusveier'); return }
+  layersPanelOpen.value = true
+}
+
+// Sentrer kartet på GPS-posisjonen UTEN å sette A eller B: knotten er en
+// kart-handling. Startpunkt fra GPS bor fortsatt i Fra-feltet (onGpsForA).
+function centerOnMyPosition() {
+  if (!navigator.geolocation) {
+    gpsState.value = { status: 'idle', error: 'GPS er ikke tilgjengelig' }
+    return
+  }
+  gpsState.value = { status: 'locating', error: '' }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      gpsState.value = { status: 'idle', error: '' }
+      center.value = { lat: pos.coords.latitude, lon: pos.coords.longitude }
+      if (zoom.value < MIN_OVERLAY_ZOOM) zoom.value = MIN_OVERLAY_ZOOM
+    },
+    () => { gpsState.value = { status: 'idle', error: 'Fikk ikke posisjon — sjekk stedstillatelsen' } },
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 },
+  )
+}
+
+// Skuffen er alltid montert, så klyngen dokker over peek-kanten (76 → 88 px) og
+// forsvinner når skuffen dras opp. Ved ankomst står skuffen i 45 dvh — da er
+// klyngen skjult, og man minimerer skuffen for å få kart + knotter. Det er
+// nøyaktig kjentbruker-flyten peek-snarveiene ble bygget for (v12.1.23).
+const fabFloat = useFloatAboveSheets(
+  () => [{ open: true, drawer }],
+  { mapWidthPx: () => mapSize.value.w },
+)
+watch(() => fabFloat.hidden.value, (hidden) => { if (hidden) fabMenuOpen.value = false })
+
+// Gatingen skjuler grusvei-laget; da skal ikke panelet stå åpent og komme
+// uventet tilbake når brukeren zoomer inn igjen.
+watch(overlayGated, (gated) => { if (gated) layersPanelOpen.value = false })
+
 const saveName = ref('')
 const savingName = ref(false)
 const savedFlash = ref('')
@@ -1104,7 +1184,7 @@ function unlockBodyScroll() {
   document.body.style.overflow = prevBodyOverflow
 }
 
-const { setChatContext } = useLendeChat()
+const { setChatContext, openChat } = useLendeChat()
 
 onMounted(() => {
   // Sist brukte modus (app-start havner der brukeren var sist — se router.js).
@@ -1383,22 +1463,46 @@ onUnmounted(() => {
                     tabular-nums pointer-events-none">z{{ zoom }}</div>
       </div>
 
-      <!-- FAB: nullstill zoom og vis hele ruten.
-           Følger skuffens overkant siden skuffen flyter over kartet. -->
-      <button v-if="route" @click.stop="fitRouteView"
-              @mousedown.stop @touchstart.stop
-              aria-label="Vis hele ruten"
-              :style="{ bottom: (floatBottomPx + 12) + 'px' }"
-              class="absolute right-3 z-10 w-12 h-12 rounded-full bg-overlay/90 border
-                     border-ink/15 text-ink shadow-lg flex items-center justify-center
-                     active:scale-95 transition">
-        <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round">
-          <path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/>
-          <path d="M16 21h3a2 2 0 0 0 2-2v-3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/>
-          <path d="M8 15 C9.5 12 14.5 12 16 9" opacity="0.9"/>
-        </svg>
-      </button>
+      <!-- FAB-klynge (v4.8.2): samme anker som turkartet. Nord-knotten viser
+           hele ruten når det finnes en, ellers sentrerer den på GPS-posisjonen
+           — plassen betyr «legg kartet der jeg trenger det» i begge visninger.
+           Nordvest åpner kartlag-panelet, som blir liggende nede til venstre
+           (tegnforklaring-konvensjon, og panelet er bredere enn knott-fanen).
+           @mousedown/@touchstart.stop så knappe-trykk ikke leses som kart-tap
+           (tap-to-set A/B). -->
+      <FabCluster
+        v-model:open="fabMenuOpen"
+        :satellites="fabSatellites"
+        :chat-enabled="lendeChatEnabled"
+        :bottom="fabFloat.bottomStyle.value"
+        :hidden="fabFloat.hidden.value"
+        :hint="fabHint"
+        :logo-url="lendeLogoUrl"
+        @mousedown.stop @touchstart.stop
+        @tap="onFabKnobTap"
+        @chat="openChat">
+        <template #center>
+          <svg v-if="route" viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/>
+            <path d="M16 21h3a2 2 0 0 0 2-2v-3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/>
+            <path d="M8 15 C9.5 12 14.5 12 16 9" opacity="0.9"/>
+          </svg>
+          <svg v-else viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="8" opacity="0.5"/>
+            <line x1="12" y1="1.5" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22.5"/>
+            <line x1="1.5" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22.5" y2="12"/>
+          </svg>
+        </template>
+        <template #layers>
+          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 22 8.5 12 15 2 8.5"/>
+            <polyline points="2 14 12 20.5 22 14"/>
+          </svg>
+        </template>
+      </FabCluster>
 
       <!-- Mottaker av delt rute: banner som flyter OPPÅ kartet (v12.1.3 — lå
            før i flyten og dyttet kartet ned). Delingsmodus låser resten av
@@ -1553,22 +1657,13 @@ onUnmounted(() => {
 
       <!-- Kartlag (v12.1.16, kollapset v12.1.17): tegnforklaring OG lag-velger
            i ett — hver rad er en toggle (bekreftet grus / antatt grus /
-           parkering). Default vises bare en liten lag-knapp; panelet åpnes on
-           demand og lukkes med X. Solid bakgrunn + z-20 så kart-markører aldri
-           skinner gjennom. Valg huskes i localStorage. -->
-      <button v-if="!overlayGated && !layersPanelOpen" @click.stop="layersPanelOpen = true"
-              @mousedown.stop @touchstart.stop
-              aria-label="Kartlag" :aria-expanded="false"
-              :style="{ bottom: floatBottom(12, LAYER_BTN_NEED) }"
-              class="absolute left-3 z-20 w-10 h-10 rounded-lg bg-overlay/90 border border-ink/15
-                     text-ink/80 shadow-lg flex items-center justify-center active:scale-95 transition">
-        <svg viewBox="0 0 24 24" class="w-4.5 h-4.5" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="12 2 22 8.5 12 15 2 8.5"/>
-          <polyline points="2 14 12 20.5 22 14"/>
-        </svg>
-      </button>
-      <div v-else-if="!overlayGated"
+           parkering). Solid bakgrunn + z-20 så kart-markører aldri skinner
+           gjennom. Valg huskes i localStorage.
+           Åpne-knappen er flyttet inn i FAB-klyngens nordvest-knott (v4.8.2),
+           så nede til venstre står tomt til panelet faktisk åpnes. Selve
+           panelet blir liggende her: det er 194 px bredt og ville lagt seg
+           under klyngen nede til høyre. -->
+      <div v-if="layersPanelOpen && !overlayGated"
            :style="{ bottom: floatBottom(12, LAYER_PANEL_NEED) }"
            class="absolute left-3 z-20 rounded-lg bg-overlay/95 backdrop-blur border border-ink/15
                   px-2.5 py-2 shadow-xl"

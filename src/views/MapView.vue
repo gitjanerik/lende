@@ -6,6 +6,7 @@ import { useUserPosition } from '../composables/useUserPosition.js'
 import { useProximityAlert, getPersistedAlert } from '../composables/useProximityAlert.js'
 import { useCompass } from '../composables/useCompass.js'
 import { useDraggableDrawer } from '../composables/useDraggableDrawer.js'
+import { useFloatAboveSheets } from '../composables/useFloatAboveSheets.js'
 import { useResizablePanel } from '../composables/useResizablePanel.js'
 import { useMapAnnotations, ANNOTATION_SYMBOLS } from '../composables/useMapAnnotations.js'
 import { useStifinner } from '../composables/useStifinner.js'
@@ -53,6 +54,7 @@ import MapScaleAttribution from '../components/MapScaleAttribution.vue'
 import KulturminneSheet from '../components/KulturminneSheet.vue'
 import HydroStationSheet from '../components/HydroStationSheet.vue'
 import FabSettingsPanel from '../components/FabSettingsPanel.vue'
+import FabCluster from '../components/FabCluster.vue'
 import MapModeChips from '../components/MapModeChips.vue'
 import DrawerLayersTab from '../components/drawer/DrawerLayersTab.vue'
 import DrawerThemeTab from '../components/drawer/DrawerThemeTab.vue'
@@ -1300,33 +1302,12 @@ watch(reliefMode, () => {
 
 // Tap = step (wrap) / sentrer, lang-trykk (600 ms) = åpne FAB-ens innstillings-
 // panel (v12.0.18 — erstattet lang-trykk-nullstill; nullstilling bor nå som
-// egen knapp i panelene). `knobSettled` gjør at ett trykk gir nøyaktig ett
-// hakk: et avsluttet trykk (committet step ELLER lang-trykk) markeres settled,
-// så et nytt avsluttende event ikke kan telle om igjen.
+// egen knapp i panelene). Selve gest-håndteringen — settled-vakten,
+// Samsung-pointercancel-en og avstands-avbruddet — bor i useLongPress via
+// FabCluster fra v4.8.2. Her står bare hva et tap og et hold BETYR.
 const knobPanel = ref(null)   // 'stroke' | 'relief' | 'zoom' | null
-const KNOB_HOLD_MS = 600
-let knobTimer = null
-let knobSettled = true
-function knobDown(kind) {
-  knobSettled = false
-  if (knobTimer) clearTimeout(knobTimer)
-  knobTimer = setTimeout(() => {
-    knobSettled = true   // lang-trykk konsumerer trykket → ingen step/sentrer ved release
-    closeDrawer()        // hovedmeny-skuffen viker for panelet (som ved long-press på kart)
-    knobDrawer.reset()   // alltid åpne i standard-høyde (45 dvh)
-    knobPanel.value = kind === 'center' ? 'zoom' : kind
-  }, KNOB_HOLD_MS)
-}
-// Bindes til BÅDE pointerup og pointercancel. Enkelte mobil-nettlesere
-// (sett på Samsung Internet) sender `pointercancel` i stedet for `pointerup`
-// når knappen krymper via `active:scale-95`. Da knobCancel bare ryddet timeren
-// uten å telle, ble trykket «mistet» — reliefknotten hoppet over et hakk og
-// tok det igjen ved neste trykk (tellefeilen). `knobSettled`-vakten gjør
-// committen idempotent, så pointerup + pointercancel aldri teller dobbelt.
-function knobUp(kind) {
-  if (knobTimer) { clearTimeout(knobTimer); knobTimer = null }
-  if (knobSettled) return
-  knobSettled = true
+
+function onFabKnobTap(kind) {
   if (kind === 'stroke') {
     strokeStepIndex.value = (strokeStepIndex.value + 1) % STROKE_STEPS.length
   } else if (kind === 'relief') {
@@ -1345,37 +1326,48 @@ function knobUp(kind) {
   }
 }
 
-// ── Lende-FAB som anker for knott-klyngen (v4.3.1) ───────────────────
+function onFabKnobHold(kind) {
+  closeDrawer()        // hovedmeny-skuffen viker for panelet (som ved long-press på kart)
+  knobDrawer.reset()   // alltid åpne i standard-høyde (45 dvh)
+  knobPanel.value = kind === 'center' ? 'zoom' : kind
+}
+
+// ── Lende-FAB som anker for knott-klyngen (v4.3.1, komponent v4.8.2) ──
 // Fire knotter i hjørnet ble for voldsomt når chat-FAB-en kom til. Nå er
 // Lende-knappen (app-logoen) eneste synlige knott; sentrer/strek/relieff
 // er skjult som standard og springer ut fra ankeret med gummibånd-
 // animasjon (sentrer mot nord, strek mot nordvest, relieff mot vest).
 // Tap veksler knottene (ren toggle — v4.3.2 fjernet lukk-ved-kart-trykk
 // etter brukertest: på/av på ankeret holder). Lang-trykk åpner
-// Lende-chatten (kun med invitasjonstoken; uten token gjør lang-trykk
-// ingenting). Samme settled-mønster som knobDown/knobUp
-// (pointercancel-vakten).
+// Lende-chatten (kun med invitasjonstoken; uten token armeres ingen
+// hold-timer, så lang-trykk gjør ingenting).
 const lendeChatEnabled = hasAiToken()
 const lendeLogoUrl = `${import.meta.env.BASE_URL}icon.svg`
 const fabMenuOpen = ref(false)
-let fabAnchorTimer = null
-let fabAnchorSettled = true
-function fabAnchorDown() {
-  fabAnchorSettled = false
-  if (fabAnchorTimer) clearTimeout(fabAnchorTimer)
-  if (!lendeChatEnabled) return   // uten chat: alt skjer på tap (release)
-  fabAnchorTimer = setTimeout(() => {
-    fabAnchorSettled = true   // lang-trykk konsumerer trykket → ingen toggle ved release
-    fabMenuOpen.value = false
-    openChat()
-  }, KNOB_HOLD_MS)
-}
-function fabAnchorUp() {
-  if (fabAnchorTimer) { clearTimeout(fabAnchorTimer); fabAnchorTimer = null }
-  if (fabAnchorSettled) return
-  fabAnchorSettled = true
-  fabMenuOpen.value = !fabMenuOpen.value
-}
+
+// Knott-plassene: nord = «legg kartet der jeg trenger det», nordvest = «hva
+// kartet tegner», vest = «hvordan kartet ser ut». Ruteplanleggeren bruker de
+// samme plassene med sitt eget innhold, så gest og betydning holder på tvers.
+const fabSatellites = computed(() => [
+  {
+    key: 'center', slot: 'n', hasPanel: true,
+    label: userPos.isWatching
+      ? 'Sentrer og nord opp + oppdater GPS — hold for innstillinger'
+      : 'Sentrer og nord opp — hold for innstillinger',
+  },
+  {
+    key: 'stroke', slot: 'nw', hasPanel: true,
+    label: `Strektykkelse: nivå ${strokeStepIndex.value + 1} av ${STROKE_STEPS.length}`
+      + ' — trykk for neste, hold for innstillinger',
+  },
+  {
+    key: 'relief', slot: 'w', hasPanel: true, dimmed: !reliefActive.value,
+    label: reliefActive.value
+      ? `Relieff: nivå ${reliefStepIndex.value + 1} av ${RELIEF_STEPS.length}`
+        + ' — trykk for neste, hold for innstillinger'
+      : 'Relieff er av — hold for innstillinger',
+  },
+])
 
 // «Kartstørrelse» i Zoom-FAB-panelet gjelder KUN ombygging av det aktive
 // kartet — rører ikke den globale nye-kart-preferansen (mapSizeKm). Initieres
@@ -2557,6 +2549,31 @@ const {
   contextDrawer, mapId, closeDrawer, knobPanel, proximityPanelOpen, clientToSvg,
 })
 
+// ── FAB-klyngens ark-regel (v4.8.2) ──────────────────────────────────
+// Klyngen står fast nederst til høyre, dokker rett over en minimert peek-kant,
+// og forsvinner når et ark er dratt opp. Før løftet vi bare for Innstillinger
+// (`calc(45dvh + 0.75rem)` — feil i to av tre ark-tilstander), mens
+// infopanelet dekket klyngen stille: samme z-40, men senere i DOM. Nå mates
+// ALLE arkene inn, også hjelpe-arkene som aldri var med i den ad hoc-e
+// gjensidige utelukkelsen. Deklarert her fordi contextMenuOpen kommer fra
+// useContextLookups over.
+const fabFloat = useFloatAboveSheets(
+  () => [
+    { open: showControls, drawer },
+    { open: contextMenuOpen, drawer: contextDrawer },
+    { open: () => !!knobPanel.value, drawer: knobDrawer },
+    { open: kulturminneOpen, drawer: kulturminneDrawer },
+    { open: hydroOpen, drawer: hydroDrawer },
+  ],
+  {
+    mapWidthPx: () => wrapperSize.value.w,
+    // På desktop er Innstillinger et sidepanel, ikke et ark: klyngen beholder
+    // bunnen og skyves i stedet til venstre for panelet (floatRightStyle).
+    panelMode: () => isDesktop.value && showControls.value,
+  }
+)
+
+
 // Hvilke parker faktaboksen faktisk skal vise. Trykker du INNE i en
 // nasjonalpark, svarer Naturbase-oppslaget med samme park — og det kortet er
 // rikere (rødlistearter, leksikon-lenke). Da hadde vi to grønne bokser med
@@ -3183,6 +3200,17 @@ watch(storedDem, () => { profileCache.clear() })
 // Sporet som vises i den store høydeprofil-modalen (TrackElevationSheet).
 const expandedTrack = computed(() =>
   tracker.tracks.value.find((t) => t.id === expandedTrackId.value) || null)
+
+// Søke-overlayet er også z-40 og ville stacket med FAB-klyngen; høydeprofil-
+// modalen har eget scrim over den. Begge fjerner klyngen helt.
+// (MERK: må stå ETTER expandedTrack — watch under evaluerer kilden med én
+// gang, og en tidligere plassering ga TDZ-krasj ved oppstart.)
+const fabHidden = computed(() =>
+  fabFloat.hidden.value || searchOpen.value || !!expandedTrack.value
+)
+
+// Blir klyngen borte, skal den ikke stå åpen når den kommer tilbake.
+watch(fabHidden, (hidden) => { if (hidden) fabMenuOpen.value = false })
 
 watch(() => annot.annotations.value, () => renderAnnotations(), { deep: true })
 
@@ -3950,49 +3978,30 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- FAB-klynge (v4.3.1): Lende-knappen (app-logoen) er eneste synlige
-         knott og anker for sentrer/strek/relieff, som er skjult som standard
-         og springer ut med gummibånd-animasjon (fab-sat-klassene): sentrer
-         mot nord (rett over), strek mot nordvest, relieff mot vest.
-         Tap = vis/skjul (alle brukere); lang-trykk = Lende-chat (kun med
-         token). z-40 sikrer at klyngen
-         ligger over drawer (z-30); skjult når søke-overlayet er åpent
-         (begge bruker z-40 og ville ellers stacke). -->
-    <!-- Bunnen løftes kun når bunn-arket er åpent (mobil). På desktop er
-         drawer et side-panel, så klyngen beholder sin bunn og skyves i
-         stedet til venstre for panelet (floatRightStyle). -->
-    <div v-if="!searchOpen && !(!isDesktop && showControls && drawer.isMaximized.value)"
-         class="absolute z-40 w-12 h-12 pointer-events-auto select-none transition-[bottom,right] duration-200"
-         :style="{
-           right: floatRightStyle.right,
-           bottom: (showControls && !isDesktop)
-             ? 'calc(45dvh + 0.75rem)'
-             : 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)'
-         }">
-      <!-- Transient hint-boble når strek-/relieff-knottene justeres —
-           til venstre for relieff-knotten (vest-posisjonen i klyngen). -->
-      <Transition name="hint-fade">
-        <div v-if="knobHint"
-             class="absolute top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg
-                    bg-overlay/95 text-ink text-[11px] font-medium leading-tight shadow-lg
-                    whitespace-nowrap pointer-events-none border border-ink/10"
-             :style="{ right: fabMenuOpen ? 'calc(100% + 4.75rem)' : 'calc(100% + 0.5rem)' }">
-          {{ knobHint }}
-        </div>
-      </Transition>
-      <!-- Sentrer-knott (nord, med kompassnål som ikon — v1.0.77): tap =
-           sentrer + nord opp (+ GPS-refresh), lang-trykk = åpne zoom-panelet.
-           Nåla roterer med kompass-heading/kartrotasjon.
-           Pointer-events (ikke @click) så lang-trykk ikke utløser sentrering
-           ved release — samme knobSettled-mønster. -->
-      <button @pointerdown="knobDown('center')" @pointerup="knobUp('center')"
-              @pointercancel="knobUp('center')"
-              :aria-label="userPos.isWatching ? 'Sentrer og nord opp + oppdater GPS — hold for innstillinger' : 'Sentrer og nord opp — hold for innstillinger'"
-              :aria-hidden="!fabMenuOpen" :tabindex="fabMenuOpen ? 0 : -1"
-              class="fab-sat w-12 h-12 rounded-full bg-overlay text-ink shadow-lg touch-none
-                     flex items-center justify-center"
-              :class="fabMenuOpen ? 'fab-sat-open' : ''"
-              style="--sat-x: 0px; --sat-y: -64px">
+    <!-- FAB-klynge (v4.3.1, egen komponent v4.8.2): Lende-knappen er eneste
+         synlige knott og anker for sentrer/strek/relieff. Tap = vis/skjul (alle
+         brukere); lang-trykk = Lende-chat (kun med token). Plassering og
+         synlighet mot bunn-arkene styres av useFloatAboveSheets — dokker over
+         en minimert peek-kant, forsvinner når et ark er dratt opp.
+         Ikonene ligger her som slots: kompassnåla og bue-indikatorene er
+         kart-spesifikke og skal ikke generaliseres inn i komponenten. -->
+    <FabCluster
+      v-model:open="fabMenuOpen"
+      :satellites="fabSatellites"
+      :chat-enabled="lendeChatEnabled"
+      :bottom="fabFloat.bottomStyle.value"
+      :right-style="floatRightStyle"
+      :hint="knobHint"
+      :hidden="fabHidden"
+      :logo-url="lendeLogoUrl"
+      @tap="onFabKnobTap"
+      @hold="onFabKnobHold"
+      @chat="openChat">
+
+      <!-- Sentrer (nord, v1.0.77): nåla roterer med kompass-heading eller
+           kartrotasjon. Liten GPS-prikk (v8.5.2) viser at knappen også
+           refresher posisjonen. -->
+      <template #center>
         <svg viewBox="-50 -50 100 100" class="w-8 h-8"
              :style="{ transform: compass.isActive && compass.headingDeg !== null
                                   ? `rotate(${-compass.headingDeg}deg)`
@@ -4002,22 +4011,13 @@ onUnmounted(() => {
           <polygon points="0,-40 10,0 0,12 -10,0" fill="#ef4444"/>
           <polygon points="0,40 10,0 0,-12 -10,0" fill="currentColor" opacity="0.85"/>
         </svg>
-        <!-- v8.5.2: liten GPS-indikator-prikk i hjørnet når GPS er aktiv,
-             så brukeren ser at knappen også refresher posisjonen. -->
         <span v-if="userPos.isWatching"
               class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-sky-400 shadow-[0_0_4px_rgba(56,189,248,0.8)]" />
-      </button>
-      <!-- Strek-knott (nordvest): tap = tykkere (wrapper til tynnest etter
-           tykkest), lang-trykk = åpne strek-panelet (per-element-sliders).
-           Bua viser nivå; senter-streken tegnes i faktisk valgt tykkelse. -->
-      <button @pointerdown="knobDown('stroke')" @pointerup="knobUp('stroke')"
-              @pointercancel="knobUp('stroke')"
-              aria-label="Strektykkelse — tap for å justere, hold for innstillinger"
-              :aria-hidden="!fabMenuOpen" :tabindex="fabMenuOpen ? 0 : -1"
-              class="fab-sat w-12 h-12 rounded-full bg-overlay text-ink shadow-lg touch-none
-                     flex items-center justify-center"
-              :class="fabMenuOpen ? 'fab-sat-open' : ''"
-              style="--sat-x: -45px; --sat-y: -45px">
+      </template>
+
+      <!-- Strek (nordvest): bua viser nivå, senter-streken tegnes i faktisk
+           valgt tykkelse. -->
+      <template #stroke>
         <svg viewBox="0 0 24 24" class="w-7 h-7" fill="none">
           <path :d="knobTrackD" stroke="currentColor" stroke-width="2"
                 stroke-linecap="round" opacity="0.22"/>
@@ -4025,20 +4025,11 @@ onUnmounted(() => {
           <line x1="7.5" y1="12" x2="16.5" y2="12" stroke="currentColor"
                 :stroke-width="strokeGlyphW" stroke-linecap="round"/>
         </svg>
-      </button>
-      <!-- Relieff-knott (vest): tap = mer relieff (wrapper til av etter max),
-           lang-trykk = åpne relieff-panelet. Senter-bumpens skygge følger nivået.
-           Dimmes (ikke skjules) når relieff er av — via --sat-opacity, siden
-           fab-sat-open eier opacity-en. -->
-      <button @pointerdown="knobDown('relief')" @pointerup="knobUp('relief')"
-              @pointercancel="knobUp('relief')"
-              aria-label="Relieff-styrke — tap for å justere, hold for innstillinger"
-              :aria-hidden="!fabMenuOpen" :tabindex="fabMenuOpen ? 0 : -1"
-              class="fab-sat w-12 h-12 rounded-full bg-overlay text-ink shadow-lg touch-none
-                     flex items-center justify-center"
-              :class="fabMenuOpen ? 'fab-sat-open' : ''"
-              :style="{ '--sat-x': '-64px', '--sat-y': '0px',
-                        '--sat-opacity': reliefActive ? null : '0.4' }">
+      </template>
+
+      <!-- Relieff (vest): senter-bumpens skygge følger nivået. Knotten dimmes
+           (ikke skjules) når relieff er av — dimmed-flagget i fabSatellites. -->
+      <template #relief>
         <svg viewBox="0 0 24 24" class="w-7 h-7" fill="none">
           <path :d="knobTrackD" stroke="currentColor" stroke-width="2"
                 stroke-linecap="round" opacity="0.22"/>
@@ -4047,23 +4038,8 @@ onUnmounted(() => {
                 fill="currentColor" :fill-opacity="reliefGlyphOpacity"
                 stroke="currentColor" stroke-width="0.8" stroke-linejoin="round"/>
         </svg>
-      </button>
-
-      <!-- Ankeret: Lende-logoen, synlig for alle brukere. Ligger over
-           satellittene (z-10) så de visuelt springer ut bakfra.
-           contextmenu.prevent + pekerdød/callout-fri img: lang-trykk er en
-           app-gest (chat) — nettleserens «Kopier bilde»-meny skal ikke opp. -->
-      <button @pointerdown="fabAnchorDown" @pointerup="fabAnchorUp"
-              @pointercancel="fabAnchorUp" @contextmenu.prevent
-              :aria-label="(fabMenuOpen ? 'Skjul kartknappene' : 'Vis kartknappene')
-                + (lendeChatEnabled ? ' — hold for Lende-chat' : '')"
-              :aria-expanded="fabMenuOpen"
-              class="relative z-10 w-12 h-12 rounded-full overflow-hidden bg-overlay
-                     shadow-lg ring-1 ring-ink/15 touch-none active:scale-95 transition">
-        <img :src="lendeLogoUrl" alt="" draggable="false"
-             class="w-full h-full pointer-events-none select-none [-webkit-touch-callout:none]" />
-      </button>
-    </div>
+      </template>
+    </FabCluster>
 
     <!-- Kart-flate. Unified transform (translate ∘ rotate ∘ scale) på ett
          enkelt indre div. Lar finger-pivot styre rotasjons-/zoom-senter
@@ -4683,32 +4659,9 @@ onUnmounted(() => {
 /* Highlight-chip — kun fade, så Tailwinds -translate-x-1/2 bevares */
 .chip-fade-enter-active, .chip-fade-leave-active { transition: opacity 0.18s ease; }
 .chip-fade-enter-from, .chip-fade-leave-to       { opacity: 0; }
-/* FAB-klynge: sentrer/strek/relieff springer ut fra Lende-ankeret med
-   gummibånd-animasjon (overshoot-bezier). translate/scale som egne CSS-
-   properties (ikke transform) så SVG-nålas inline-transform og Tailwind-
-   utilities ikke kolliderer. Lukket: stablet bak ankeret, usynlig og
-   pekerdød. --sat-opacity lar relieff-knotten dimmes når relieff er av. */
-.fab-sat {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  translate: 0 0;
-  scale: 0.4;
-  pointer-events: none;
-  transition: translate 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
-              scale 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
-              opacity 0.15s ease;
-}
-.fab-sat-open {
-  opacity: var(--sat-opacity, 1);
-  translate: var(--sat-x) var(--sat-y);
-  scale: 1;
-  pointer-events: auto;
-}
-.fab-sat-open:active { scale: 0.92; }
-/* On-the-fly inaktiv-hint og full-screen loader */
-.hint-fade-enter-active, .hint-fade-leave-active { transition: opacity 0.18s ease; }
-.hint-fade-enter-from, .hint-fade-leave-to       { opacity: 0; }
+/* FAB-klyngens .fab-sat-geometri og hint-boblens fade bor i FabCluster.vue
+   fra v4.8.2. */
+/* Full-screen loader */
 .overlay-fade-enter-active, .overlay-fade-leave-active { transition: opacity 0.22s ease; }
 .overlay-fade-enter-from, .overlay-fade-leave-to       { opacity: 0; }
 /* Under fade-UT dekker inset-0-overlayet fortsatt skjermen og spiser

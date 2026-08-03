@@ -7,6 +7,8 @@ import { useUiTextScale, UI_TEXT_SCALES } from '../composables/useUiTextScale.js
 import { useUiTheme } from '../composables/useUiTheme.js'
 import { useMapTheme } from '../composables/useMapTheme.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
+import { useLendeChat } from '../composables/useLendeChat.js'
+import { hasAiToken } from '../lib/lendeAi.js'
 import { gmapsUrl, streetViewUrl, buildVegkartUrl } from '../lib/externalMapLinks.js'
 import { buildUtNoUrl } from '../lib/utNoLink.js'
 import { listMaps, listGravelRoutes } from '../lib/mapStorage.js'
@@ -37,6 +39,7 @@ const { theme, setTheme } = useUiTheme()
 // Snarvei til kartets mørke tema — samme tilstand som «Mørk» under
 // Innstillinger → Tema. Av som default (ISOM-paletten kartene er tegnet for).
 const { isDarkMap, setDarkMap } = useMapTheme()
+const { openChat } = useLendeChat()
 
 const route = useRoute()
 const router = useRouter()
@@ -59,6 +62,14 @@ function go(to, last) {
   if (last) { try { localStorage.setItem('lende-last-mode', last) } catch { /* ignorer */ } }
   router.push(to)
 }
+// Lende-chat fra menyen (v4.8.2): samme invitasjons-gate som FAB-en, så
+// uinviterte ser ikke at funksjonen finnes.
+const harChat = hasAiToken()
+function onAskLende() {
+  close()
+  openChat()
+}
+
 // Å trykke på modusen du alt står i skal ikke kaste deg ut av et åpent kart.
 function pickMode(m) {
   if (mode.value === m.id) return
@@ -238,6 +249,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                 <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" />
               </svg>
             </span>Tegnforklaring
+          </button>
+
+          <!-- Spør Lende (v4.8.2): chatten nås ellers bare med lang-trykk på
+               Lende-knappen — en gest uten tastatur-ekvivalent, og den ruten en
+               skjermleser-bruker faktisk finner. Samme token-gate som FAB-en,
+               så uinviterte ser ingenting. -->
+          <button v-if="harChat" type="button" class="am-line" @click="onAskLende">
+            <span class="am-line-icon">
+              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
+                   stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12a8 8 0 0 1-8 8H7l-4 3v-6.5A8 8 0 0 1 11 4h2a8 8 0 0 1 8 8z" />
+              </svg>
+            </span>Spør Lende
           </button>
 
           <!-- Snarveier til eksterne kart — kun når et kart er åpent. -->

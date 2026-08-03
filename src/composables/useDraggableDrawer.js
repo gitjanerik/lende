@@ -214,6 +214,9 @@ export function useDraggableDrawer({
     isDragging,
     dragRangePx,
     expandedPx,
+    // Peek-høyden arket aldri går under. useFloatAboveSheets sammenligner
+    // visibleHeightPx mot denne for å avgjøre om arket står i ro på peek.
+    minimizedPeek,
     visibleHeightPx,
     drawerHeightStyle,
     handleOpacity,
