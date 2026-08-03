@@ -6,6 +6,7 @@ import {
   snapDistances, routesLookIdentical, routeOverlapShare, decorateProposals, MAX_SNAP_DIST_M,
   snapHardLimitM, SNAP_HARD_MIN_M, fmtAvstandM, estimateMcTimeS, MC_SPEED_KMH,
   ProfileExpiredError, PROFILE_VERSION, BROUTER_BASE, applyProfileFlags,
+  pickDefaultProposal,
 } from './brouterClient.js'
 import fixture from './brouterFixture.json'
 
@@ -40,7 +41,7 @@ describe('uploadProfile', () => {
   })
 })
 
-describe('applyProfileFlags + profil-filene (v7)', () => {
+describe('applyProfileFlags + profil-filene (v8)', () => {
   it('bytter inkluder_antatt_grus-flagget begge veier', () => {
     const t = 'assign x = 1\nassign inkluder_antatt_grus = true\nassign y = 2'
     expect(applyProfileFlags(t, { inkluderAntattGrus: false })).toContain('assign inkluder_antatt_grus = false')
@@ -63,6 +64,24 @@ describe('applyProfileFlags + profil-filene (v7)', () => {
     // Versjons-kommentar i synk med PROFILE_VERSION.
     expect(t).toContain(`versjon ${PROFILE_VERSION},`)
   })
+  it.each(['grusprofil.brf', 'grusprofil-balansert.brf'])(
+    '%s: nosurface betyr «mangler surface-tag», ikke «har en ukjent surface»', (f) => {
+      const t = profileText(f)
+      // v4-v7 skrev «not or ispaved or isgravel surface=», som er sant KUN når
+      // surface finnes og er noe annet enn fast dekke/grus — umerkede veier
+      // (69 % av veilengden i testområdet) traff derfor aldri heuristikken.
+      expect(t).toMatch(/^assign nosurface = surface=\s*$/m)
+      // (det gamle uttrykket står igjen i en kommentar — sjekk assign-linja)
+      expect(t).not.toMatch(/^assign nosurface = not or/m)
+    },
+  )
+  it.each(['grusprofil.brf', 'grusprofil-balansert.brf'])(
+    '%s: ukjent-dekke-rabatten er gatet på «Inkluder antatt grusvei»', (f) => {
+      // Uten gaten utkonkurrerer en ANTAKELSE om grus den BEKREFTEDE grusen:
+      // kort umerket vei til 1.8 slår lengre tagget grusvei til 1.0.
+      expect(profileText(f)).toContain('switch and nosurface inkluder_antatt_grus')
+    },
+  )
 })
 
 describe('ensureProfileId', () => {
@@ -304,5 +323,32 @@ describe('decorateProposals', () => {
     decorateProposals(input)
     expect(input[0].badges).toBeUndefined()
     expect(input[0].label).toBeUndefined()
+  })
+})
+
+describe('pickDefaultProposal', () => {
+  const p = (id, lengthM, gravelShare) => ({ id, lengthM, gravelShare })
+
+  it('velger høyest grusandel — toppdekke slår lengde og tid', () => {
+    // Felttilfellet: «balansert» var låst som forhåndsvalg og ga asfaltruta.
+    const out = pickDefaultProposal([
+      p('mest-grus', 66100, 0.35),
+      p('balansert', 50600, 0.05),
+      p('kortest', 48000, 0.01),
+    ])
+    expect(out.id).toBe('mest-grus')
+  })
+  it('ved lik andel beholdes liste-rekkefølgen', () => {
+    expect(pickDefaultProposal([p('a', 20000, 0.4), p('b', 12000, 0.4)]).id).toBe('a')
+  })
+  it('ukjent grusandel taper mot kjent, uansett rekkefølge', () => {
+    expect(pickDefaultProposal([p('a', 10000, null), p('b', 30000, 0.2)]).id).toBe('b')
+  })
+  it('ingen kjent andel → første forslag', () => {
+    expect(pickDefaultProposal([p('a', 10000, null), p('b', 12000, null)]).id).toBe('a')
+  })
+  it('tom liste → null', () => {
+    expect(pickDefaultProposal([])).toBeNull()
+    expect(pickDefaultProposal(null)).toBeNull()
   })
 })

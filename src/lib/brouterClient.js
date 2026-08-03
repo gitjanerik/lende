@@ -13,7 +13,7 @@
 export const BROUTER_BASE = 'https://brouter.de/brouter'
 // Bumpes når grusprofil.brf endres → invaliderer cachet profileid så neste
 // rutekall laster opp ny profil.
-export const PROFILE_VERSION = 7
+export const PROFILE_VERSION = 8
 export const BROUTER_TIMEOUT_MS = 20000
 const PROFILE_CACHE_KEY = 'grus-brouter-profile'
 
@@ -201,6 +201,30 @@ export function decorateProposals(list) {
     if (rask.length) best(rask, (b, a) => b.estimatedTimeS < a.estimatedTimeS).badges.push({ text: 'RASKEST', tone: 'green' })
   }
   return out
+}
+
+/**
+ * Hvilket forslag skal være forhåndsvalgt? Toppdekke avgjør (v4.8.0):
+ * forslaget med HØYEST kjent grusandel vinner, uavhengig av lengde og tid.
+ *
+ * Tidligere låste planleggeren forhåndsvalget til «balansert»-profilen — den
+ * av de to egne profilene som straffer asfalt minst. På strekninger der
+ * forslagene skilte seg (Vikersund–Kongsberg: 35 % grus mot 5 %) fikk brukeren
+ * altså asfaltruta servert som standard i en GRUSruteplanlegger. De andre
+ * forslagene er fortsatt ett trykk unna.
+ *
+ * Ved lik andel, eller når ingen forslag har kjent grusandel, beholdes
+ * liste-rekkefølgen (Mest grus → Balansert → Kortest).
+ */
+export function pickDefaultProposal(list) {
+  if (!list?.length) return null
+  let best = list[0]
+  for (const p of list) {
+    const a = Number.isFinite(p.gravelShare) ? p.gravelShare : -1
+    const b = Number.isFinite(best.gravelShare) ? best.gravelShare : -1
+    if (a > b) best = p
+  }
+  return best
 }
 
 // MC-tur-tidsestimat (v12.1.10). BRouter sin total-time er UBRUKELIG på tvers

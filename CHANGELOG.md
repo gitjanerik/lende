@@ -1,5 +1,13 @@
 # Endringslogg
 
+## 2026-08-03 — v4.8.0: Toppdekket avgjør hvilket ruteforslag som er forhåndsvalgt
+
+Etter tilbakemelding om at planleggeren «velger fast dekke dersom det finnes mellom A og B» er to ting rettet. Forhåndsvalget var låst til «balansert»-profilen — den av de to egne profilene som straffer asfalt minst — så på strekninger der forslagene skilte seg fikk brukeren asfaltruta servert som standard i en grusruteplanlegger (målt Vikersund–Kongsberg: 5 % grus forhåndsvalgt mens «mest grus»-forslaget lå på 35 %). Nå velges forslaget med høyest grusandel, uavhengig av lengde og tid; de andre er fortsatt ett trykk unna. I tillegg var `nosurface` i begge BRouter-profilene skrevet slik at den betydde «surface finnes, men er verken fast dekke eller grus» — altså sand og gress — i stedet for «mangler surface-tag». Hele distrikts-Norge-heuristikken for umerkede småveier var derfor død kode siden v4; målt på ekte OSM-data i Modum/Sigdal/Flesberg/Kongsberg mangler 69 % av 6091 km kjørbar vei surface-tag. Rabatten er nå gatet på «Inkluder antatt grusvei», fordi den ubetinget utkonkurrerer BEKREFTET grus (en kort umerket vei til 1.8 slår en lengre tagget grusvei til 1.0): med avhukingen av er oppførselen uendret, med den på gir «Mest grus» 43,6 % bekreftet grus mot 39,4 % før. Profilversjonen er bumpet til 8, så cachede profil-id-er lastes på nytt.
+
+Målingene er gjort ved å bygge veigrafen fra Overpass og kjøre profilenes kostfunksjon som Dijkstra lokalt, siden brouter.de ikke er nåbar fra CI-sandkassen. Et sidefunn derfra er notert i profil-toppteksten: å skru asfalt-straffen opp fra 4.5 til 6.5–9 ga ikke mer grus, bare lengre ruter — grusandelen begrenses av hvor mye grus som finnes og er tagget, ikke av vektene.
+
+---
+
 ## 2026-08-02 — v4.7.1: Tema-bytte skjer nå faktisk — deterministisk ruting
 
 «Bytt til curves» ga «Karttema endret til curves.» uten at kartet skiftet farge. Verktøyet og tolkingen var i orden (alle nøkler og etiketter treffer, også Petrol → mono-slate), men modellen bekreftet uten å kalle det — samme mønster som «Dark mode er aktivert» i v4.6.0, bare vanskeligere å oppdage fordi svaret så riktig ut. En klar bestilling av et bestemt tema håndteres derfor nå deterministisk i klienten, som stinett-spørsmål (v4.3.9) og 3D-oppfølging (v4.4.1): temaet byttes før modellen spørres, og svaret skrives fra det som faktisk skjedde. Spørsmål om hvilke temaer som finnes rutes bevisst IKKE hit — der svarer modellen med verktøyets liste, som den allerede gjorde riktig.
