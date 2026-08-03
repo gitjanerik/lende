@@ -84,12 +84,22 @@ Kulturminne-steget slår opp Håøya og skriver utfallet som en notice i
 Actions-loggen. CI har full nettverkstilgang, så dette er målingen som ikke lot
 seg gjøre fra mobil:
 
-| Status | Betyr |
-|---|---|
-| 200, `numberMatched` > 0 | Tjenesten virker — feilen var CORS eller mobilnettet, og proxyen løser den |
-| 200, `numberMatched` = 0 | Håøya har ingen registrerte brukerminner. «(0)» i appen er da sant |
-| 404 | Endepunktet er flyttet — `mapFeatureLight`/`mapFeatureFull` må oppdateres |
-| 502 | `api.ra.no` er nede |
+| Status | `X-Lende-Upstream` | Betyr |
+|---|---|---|
+| 200, `numberMatched` > 0 | — | Tjenesten virker. Virker det likevel ikke i appen, er det klient-siden |
+| 200, `numberMatched` = 0 | — | Håøya har ingen registrerte brukerminner. «(0)» i appen er da sant |
+| 599 | `unreachable` | Workeren fikk ikke opp forbindelse til `api.ra.no` i det hele tatt |
+| 404 | `404` | Opphavets 404. Vedvarende → endepunktet er flyttet, `mapFeatureLight`/`mapFeatureFull` må oppdateres |
+| 5xx | `<status>` | Opphavets feil, speilet. Tjenesten er nede |
+
+`X-Lende-Upstream` finnes bare når statusen kommer fra opphavet. Det skillet er
+nødvendig fordi `api.ra.no` selv ligger bak Cloudflare og returnerer feilsider som
+ligner Workerens egne — i v4.8.7 ble en speilet 502 lest som «Workeren nådde ikke
+fram», og røyktesten veltet deployen selv om alt vårt var i orden.
+
+**Kulturminne-steget rapporterer, men feiler aldri jobben.** `api.ra.no` er en
+tredjepart vi ikke eier; er den nede, er det ikke en feil i vår deploy. NVE-ruta og
+«er det vår worker som svarer»-sjekken feiler derimot fortsatt hardt.
 
 ---
 

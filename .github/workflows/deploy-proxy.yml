@@ -59,39 +59,16 @@ jobs:
           BASE=https://lende-proxy.jepedersen73.workers.dev
           HAOYA="$BASE/brukerminner/collections/brukerminner/items?bbox=10.53,59.65,10.62,59.72&f=json&limit=10"
 
-          echo "— ukjent path skal gi 404 (ingen åpen proxy) —"
-          KODE=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/noe-annet")
-          test "$KODE" = "404" || { echo "::error::Forventet 404, fikk $KODE"; exit 1; }
-          echo "OK (404)"
-
-          echo "— kulturminne-ruta (Håøya) —"
-          # Edge-propagering kan ta litt tid rett etter deploy.
-          SVAR=""
-          for i in $(seq 1 12); do
-            SVAR=$(curl -sS -w '\nHTTP:%{http_code}' "$HAOYA" || true)
-            echo "$SVAR" | grep -q 'HTTP:200' && break
-            echo "  forsøk $i: $(echo "$SVAR" | tail -1)"
-            sleep 5
-          done
-          STATUS=$(echo "$SVAR" | tail -1 | cut -d: -f2)
-          KROPP=$(echo "$SVAR" | sed '$d')
-          echo "status: $STATUS"
-          echo "$KROPP" | head -c 600; echo
-          # Dette er MÅLINGEN vi ikke fikk gjort fra sandkassen eller mobil:
-          # CI har full nettverkstilgang, så her ser vi endelig om api.ra.no
-          # svarer — og om Håøya faktisk har registrerte brukerminner.
-          case "$STATUS" in
-            200)
-              ANTALL=$(echo "$KROPP" | grep -oE '"numberMatched" *: *[0-9]+' | grep -oE '[0-9]+$' || echo '?')
-              echo "::notice::api.ra.no SVARER. numberMatched for Håøya = $ANTALL"
-              test "$ANTALL" != "0" \
-                && echo "::notice::Håøya HAR brukerminner — feilen var CORS eller mobilnettet, og proxyen løser den." \
-                || echo "::notice::Håøya har INGEN brukerminner. «(0)» i appen blir da riktig og sant."
-              ;;
-            404) echo "::error::api.ra.no ga 404 — endepunktet er flyttet. mapFeatureLight/mapFeatureFull må oppdateres."; exit 1 ;;
-            502) echo "::error::Kunne ikke nå api.ra.no i det hele tatt (502 fra Workeren)."; exit 1 ;;
-            *)   echo "::error::Uventet status $STATUS fra kulturminne-ruta."; exit 1 ;;
-          esac
+          # Er det VÅR worker som svarer? Cloudflare gir sin egen 404 for et
+          # workers.dev-navn uten worker, og den er ikke til å skille fra vår på
+          # statuskode alene (v4.8.7-fellen). CORS-headeren setter bare vi.
+          echo "— ukjent path skal gi 404 fra VÅR worker (ingen åpen proxy) —"
+          H=$(curl -s -D - -o /dev/null "$BASE/noe-annet")
+          echo "$H" | grep -qi '^HTTP/[0-9.]* 404' \
+            || { echo "::error::Forventet 404 på ukjent path"; echo "$H"; exit 1; }
+          echo "$H" | grep -qi 'access-control-allow-origin' \
+            || { echo "::error::404 uten CORS-header — dette er Cloudflares 404, ikke vår. Er workeren deployet?"; echo "$H"; exit 1; }
+          echo "OK (404 fra vår worker)"
 
           echo "— NVE-ruta —"
           KODE=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/v1/Stations?Active=1")
@@ -100,3 +77,38 @@ jobs:
             500) echo "::warning::NVE-ruta svarer 500 — NVE_HYDAPI_KEY-secreten mangler. Vannmålestasjoner virker ikke før den er satt." ;;
             *)   echo "::error::Uventet status $KODE fra NVE-ruta."; exit 1 ;;
           esac
+
+          # ── Kulturminne-ruta: RAPPORTERER, feiler ikke ────────────────────
+          # api.ra.no er en tredjepart vi ikke eier. Er den nede, er det ikke en
+          # feil i vår deploy — v4.8.7 lot den velte hele jobben, som ville
+          # blokkert enhver framtidig worker-endring så lenge Riksantikvaren er
+          # nede. X-Lende-Upstream skiller opphavets status fra vår egen.
+          echo "— kulturminne-ruta (Håøya) —"
+          SVAR=""
+          for i in $(seq 1 6); do
+            SVAR=$(curl -sS -D /tmp/h -w '\nHTTP:%{http_code}' "$HAOYA" || true)
+            echo "$SVAR" | grep -q 'HTTP:200' && break
+            echo "  forsøk $i: $(echo "$SVAR" | tail -1)"
+            sleep 5
+          done
+          STATUS=$(echo "$SVAR" | tail -1 | cut -d: -f2)
+          KROPP=$(echo "$SVAR" | sed '$d')
+          OPPSTROMS=$(grep -i '^x-lende-upstream:' /tmp/h | tr -d '\r' | cut -d' ' -f2 || true)
+          echo "status: $STATUS   X-Lende-Upstream: ${OPPSTROMS:-(ingen)}"
+          echo "$KROPP" | head -c 400; echo
+          case "$STATUS" in
+            200)
+              ANTALL=$(echo "$KROPP" | grep -oE '"numberMatched" *: *[0-9]+' | grep -oE '[0-9]+$' || echo '?')
+              echo "::notice::api.ra.no SVARER. numberMatched for Håøya = $ANTALL"
+              if [ "$ANTALL" = "0" ]; then
+                echo "::notice::Håøya har INGEN brukerminner — «(0)» i appen er da sant."
+              else
+                echo "::notice::Håøya HAR brukerminner. Virker det ikke i appen, er det klient-siden."
+              fi
+              ;;
+            599) echo "::warning::Workeren fikk ikke forbindelse til api.ra.no i det hele tatt. Tjenesten er utilgjengelig — appen viser «(!)» til den er tilbake." ;;
+            404) echo "::warning::api.ra.no ga 404. Er den vedvarende, er endepunktet flyttet og mapFeatureLight/mapFeatureFull må oppdateres." ;;
+            5*)  echo "::warning::api.ra.no svarte $STATUS (opphavets feil, speilet). Tjenesten er nede — appen viser «(!)» til den er tilbake." ;;
+            *)   echo "::warning::Uventet status $STATUS fra kulturminne-ruta." ;;
+          esac
+          echo "Deploy er OK uansett utfall over — api.ra.no er en tredjepart."
