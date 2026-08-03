@@ -1,5 +1,19 @@
 # Endringslogg
 
+## 2026-08-03 — v4.8.8: Målingen er inne — api.ra.no er nede, og deployen skal ikke velte av det
+
+Røyktesten i v4.8.7 gjorde jobben sin: fra CI, med rent nett, svarte `api.ra.no` vekselvis 404 og 502 gjennom tolv forsøk. Det avkrefter både CORS og mobilnettet — tjenesten selv er ustabil eller på vei ned. Kulturminne-laget viser `(!)` til Riksantikvaren er tilbake, og ingenting på klient-siden kan endre det.
+
+Men røyktesten hadde to feil, og begge er rettet. Den **feilet hele deployen** når en tredjepart var nede, noe som ville blokkert enhver framtidig endring i Workeren så lenge `api.ra.no` er ute. Kulturminne-steget rapporterer nå utfallet som warnings og lar jobben gå videre; NVE-ruta og «er det vår worker som svarer»-sjekken feiler fortsatt hardt, for de er våre.
+
+Den andre feilen var at meldingen «Kunne ikke nå api.ra.no (502 fra Workeren)» var direkte gal. 502-en kom *fra* `api.ra.no`, som selv ligger bak Cloudflare og returnerer feilsider som ligner Workerens egne — kroppen var Cloudflares `error code: 502`, ikke vår norske tekst. Workeren skiller nå de to: får den ikke opp forbindelse i det hele tatt svarer den **599** med `X-Lende-Upstream: unreachable`, mens en speilet feil får opphavets status og `X-Lende-Upstream: <status>`. Årsakene er helt ulike og skal ikke se like ut.
+
+Samtidig var 404-sjekken i røyktesten ikke diagnostisk: Cloudflare gir sin egen 404 for et workers.dev-navn uten worker, og den er ikke til å skille fra vår på statuskode alene. Den sjekker nå at CORS-headeren er med, som bare vår kode setter.
+
+Verdt å merke: `wrangler deploy` lyktes hele veien i v4.8.7 — Workeren ble opprettet, secreten lastet opp og `workers_dev` slått på. Det var bare røyktesten som konkluderte feil.
+
+---
+
 ## 2026-08-03 — v4.8.7: Kulturminner går via proxyen, som nå deployer seg selv
 
 Diagnostikken fra v4.8.6 svarte: Håøya ga **«Kulturminner (!)»**, altså at ingen side kunne hentes i det hele tatt. Utropstegnet skiller ikke nedetid, endret path, mobilnett eller CORS — så kulturminne-hentingen går nå via Cloudflare-proxyen, som dekker alle fire. En tidligere kommentar i `kulturminneFetcher.js` slo fast at CORS var verifisert (`access-control-allow-origin: *`); det kan ha vært sant da, men holdt ikke, og et CORS-avvist `fetch` ser ut som en helt vanlig nettfeil fra JavaScript.

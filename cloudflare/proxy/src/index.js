@@ -113,16 +113,25 @@ async function proxyBrukerminner(request, url, cors, ctx) {
   try {
     upstream = await fetch(`${RA_ORIGIN}${url.pathname}${url.search}`, { headers: { Accept: accept } })
   } catch (e) {
+    // Workeren fikk ikke opp en forbindelse i det hele tatt. Egen status (599)
+    // og egen header, så dette ikke kan forveksles med en 502 vi SPEILER fra
+    // opphavet — de to har helt ulike årsaker, og v4.8.7-røyktesten klarte
+    // ikke å skille dem («502 fra Workeren» var feil: den kom fra api.ra.no).
     return new Response(`Kunne ikke nå api.ra.no: ${e?.message ?? 'ukjent feil'}`,
-      { status: 502, headers: cors })
+      { status: 599, headers: { ...cors, 'X-Lende-Upstream': 'unreachable' } })
   }
 
   const raw = await upstream.text()
   const type = upstream.headers.get('Content-Type') ?? 'application/geo+json'
   // Feil fra opphavet speiles med SIN status, så vi kan se forskjell: 404 betyr
-  // «endepunktet er flyttet», 5xx «tjenesten er nede».
+  // «endepunktet er flyttet», 5xx «tjenesten er nede». X-Lende-Upstream gjør det
+  // utvetydig at statusen er opphavets, ikke vår egen — api.ra.no ligger selv bak
+  // Cloudflare og returnerer feilsider som ligner våre.
   if (!upstream.ok) {
-    return new Response(raw, { status: upstream.status, headers: { ...cors, 'Content-Type': type } })
+    return new Response(raw, {
+      status: upstream.status,
+      headers: { ...cors, 'Content-Type': type, 'X-Lende-Upstream': String(upstream.status) },
+    })
   }
 
   const body = type.includes('json') ? rewriteNextLinks(raw, url.origin) : raw
