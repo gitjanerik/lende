@@ -3,31 +3,34 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { hasAiToken } from '../lib/lendeAi.js'
 import { useLendeChat } from '../composables/useLendeChat.js'
+import FabCluster from './FabCluster.vue'
 
-// Inngangen til Lende-chatten: en klassisk FAB nederst til høyre med
-// app-logoen, alltid ett trykk unna. Rendrer ingenting uten invitasjonstoken
-// — uinviterte ser ikke at funksjonen finnes.
+// Inngangen til Lende-chatten på innholdssidene (forsiden, kartvelgeren,
+// tegnforklaringen, om). Rendrer ingenting uten invitasjonstoken — uinviterte
+// ser ikke at funksjonen finnes. Her har ankeret ingen kart-knotter, så det ER
+// chat-knappen: tap OG lang-trykk gir samme resultat, slik at gesten man lærer
+// i kartvisningene aldri stopper i en blindgate.
 //
-// Global FAB montert i App.vue (forsiden, planleggeren, …). Ligger på
-// z-[60]: under meny-backdrop (200) og modaler (210), så den dekkes
-// naturlig når noe annet er åpent — ingen tilstands-wiring trengs.
-// Kartvisningen har sin egen Lende-FAB (ankeret i FAB-klyngen, v4.3.1),
-// så den globale viker for ruten `kart-vis`.
+// Fra v4.8.2 er dette en tynn wrapper rundt FabCluster, så knappen har samme
+// størrelse (48 px) og samme anker nede til høyre overalt — den byttet før
+// størrelse (56 → 48) og posisjoneringsmodell ved navigering.
+//
+// Ligger på z-[60]: under meny-backdrop (200) og modaler (210), så den dekkes
+// naturlig når noe annet er åpent — ingen tilstands-wiring trengs. Begge
+// kartvisningene har sin egen klynge (ankeret eier kart-knottene der), så den
+// globale viker for `kart-vis` og `ruteplanlegger`.
+const CLUSTER_ROUTES = ['kart-vis', 'ruteplanlegger']
 
 const { openChat } = useLendeChat()
 const visible = hasAiToken()
 const route = useRoute()
 
-const show = computed(() => visible && route.name !== 'kart-vis')
+const show = computed(() => visible && !CLUSTER_ROUTES.includes(route.name))
 
 const logoUrl = `${import.meta.env.BASE_URL}icon.svg`
 </script>
 
 <template>
-  <button v-if="show" @click="openChat" aria-label="Åpne Lende-chat"
-          class="fixed z-[60] right-3 w-14 h-14 rounded-full overflow-hidden bg-overlay
-                 shadow-xl ring-1 ring-ink/15 active:scale-95 transition shrink-0"
-          :style="{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }">
-    <img :src="logoUrl" alt="" class="w-full h-full" draggable="false" />
-  </button>
+  <FabCluster v-if="show" positioning="fixed" chat-enabled :logo-url="logoUrl"
+              @chat="openChat" />
 </template>
