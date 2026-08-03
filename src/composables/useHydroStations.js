@@ -6,7 +6,7 @@
 // vannføring / vannstand / vanntemperatur og åpner en detalj-skuff med lenke
 // til stasjonens side hos NVE (Sildre).
 //
-// Kallene går gjennom Cloudflare-proxyen (cloudflare/nve-proxy/) som holder
+// Kallene går gjennom Cloudflare-proxyen (cloudflare/proxy/) som holder
 // NVE-nøkkelen server-side, så laget virker i produksjon uten nøkkel i klienten.
 // En VITE_NVE_HYDAPI_KEY brukes kun i lokal dev mot NVE direkte.
 import { ref } from 'vue'

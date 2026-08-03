@@ -117,11 +117,16 @@ et lag mellom trinn krever kode-endring + nybygd kart.
   og pusher `dist/` til `gh-pages` via git worktree. Ikke deploy manuelt.
 - `build-redlist.yml` regenererer `public/data/redlist-no.json` fra GBIF ved
   endring i script/CSV.
-- **NVE HydAPI-proxy** (`cloudflare/nve-proxy/`): en frittstående Cloudflare
-  Worker som speiler HydAPI (`/Stations`, `/Observations`) og holder NVE-nøkkelen
-  som en Cloudflare-secret (`NVE_HYDAPI_KEY`) — aldri i bundelen. Klienten peker
-  hit via standard-URL i `nveHydApi.js` (overstyrbar med `VITE_NVE_HYDAPI_URL`).
-  Deployes separat fra GitHub Pages; se `cloudflare/nve-proxy/README.md`.
+- **Proxy-Worker** (`cloudflare/proxy/`, deployes som `lende-proxy`): én
+  frittstående Cloudflare Worker med to ruter, valgt på path.
+  `/api/v1/Stations|Observations` → NVE HydAPI, med nøkkelen som Cloudflare-secret
+  (`NVE_HYDAPI_KEY`) — aldri i bundelen. `/brukerminner/*` → Kulturminnesøk
+  (`api.ra.no`), som ikke trenger nøkkel men gikk hit for CORS + døgn-cache etter
+  at klient-side-hentingen feilet (v4.8.7). Alt annet gir 404 — ingen åpen proxy.
+  Klientene peker hit via standard-URL i `nveHydApi.js` og `kulturminneFetcher.js`
+  (overstyrbare med `VITE_NVE_HYDAPI_URL` / `VITE_KULTURMINNE_URL`).
+  Deployes separat fra GitHub Pages; se `cloudflare/proxy/README.md`.
+  Het `lende-nve-proxy` fram til v4.8.7 — eldre CHANGELOG-poster bruker det navnet.
 
 ## Konvensjoner
 

@@ -340,7 +340,7 @@ export function useContextLookups({
   })
 
   // HydAPI-nøkkel — kun for lokal dev mot NVE direkte. I produksjon er den tom
-  // og kallene går via Cloudflare-proxyen (cloudflare/nve-proxy/) som holder
+  // og kallene går via Cloudflare-proxyen (cloudflare/proxy/) som holder
   // nøkkelen server-side.
   const HYDAPI_KEY = import.meta.env.VITE_NVE_HYDAPI_KEY ?? ''
 

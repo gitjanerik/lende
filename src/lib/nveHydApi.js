@@ -7,7 +7,7 @@
 // KREVER API-NØKKEL, men den bor SERVER-SIDE: HydAPI krever en nøkkel sendt som
 // `X-API-Key`. Nøkkelen kan ikke bakes inn i den offentlige klient-bundelen, så
 // kallene går som standard gjennom en Cloudflare Worker-proxy
-// (`cloudflare/nve-proxy/`) som legger på nøkkelen. Basen overstyres med
+// (`cloudflare/proxy/`) som legger på nøkkelen. Basen overstyres med
 // `VITE_NVE_HYDAPI_URL`. Settes en `apiKey` inn hit (lokal dev mot hydapi.nve.no
 // direkte), sendes den som `X-API-Key` — ellers utelates headeren og proxyen
 // står for nøkkelen.
@@ -25,7 +25,7 @@
 // VITE_NVE_HYDAPI_URL=https://hydapi.nve.no/api/v1 + VITE_NVE_HYDAPI_KEY.
 const HYDAPI_BASE =
   import.meta.env?.VITE_NVE_HYDAPI_URL ??
-  'https://lende-nve-proxy.jepedersen73.workers.dev/api/v1'
+  'https://lende-proxy.jepedersen73.workers.dev/api/v1'
 
 // X-API-Key kun når en nøkkel faktisk er gitt (dev-modus mot NVE direkte).
 // Via proxyen sendes ingen nøkkel fra klienten — Worker-en legger den på.

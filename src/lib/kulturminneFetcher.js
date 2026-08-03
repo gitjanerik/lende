@@ -11,13 +11,25 @@
 //   fetchKulturminneById(id)     → fullt detalj-objekt (beskrivelse, sted, bilder)
 //                                  hentet lazy når brukeren klikker et ikon.
 //
-// CORS er verifisert: api.ra.no sender `access-control-allow-origin: *`, så alt
-// kjører rent klient-side (som Overpass/Kartverket/NVE). Feiler tjenesten →
-// returner []/null, aldri kast (samme kontrakt som verneFetcher/nveLakeFetcher).
-
+// Kallene går via Cloudflare-proxyen (`cloudflare/proxy/`) fra v4.8.7. Direkte
+// mot api.ra.no feilet i praksis — Håøya ga «Kulturminner (!)», altså at ingen
+// side kunne hentes i det hele tatt. Utropstegnet skiller ikke nedetid, endret
+// path, mobilnett eller CORS, og proxyen dekker alle fire: den setter CORS selv,
+// speiler opphavets statuskode (404 forblir 404, så vi ser «flyttet» kontra
+// «nede») og cacher svaret i ett døgn. Cachen er det som faktisk fjerner
+// mobil-timeoutene som bakte 0 kulturminner inn i kartene.
+//
+// MERK: en tidligere kommentar her slo fast at CORS var verifisert
+// (`access-control-allow-origin: *`). Det kan ha vært sant da, men holdt ikke —
+// og et CORS-avvist fetch ser ut som en helt vanlig nettfeil fra JS.
+//
+// Feiler tjenesten → returner []/null, aldri kast (samme kontrakt som
+// verneFetcher/nveLakeFetcher). Overstyres med VITE_KULTURMINNE_URL; lokal dev
+// direkte mot opphavet:
+// VITE_KULTURMINNE_URL=https://api.ra.no/brukerminner/collections/brukerminner/items
 const ITEMS_URL =
   import.meta.env?.VITE_KULTURMINNE_URL ??
-  'https://api.ra.no/brukerminner/collections/brukerminner/items'
+  'https://lende-proxy.jepedersen73.workers.dev/brukerminner/collections/brukerminner/items'
 
 // Klassifiserings-regler: tittel-nøkkelord → kategori. Rekkefølgen er signifikant
 // — «dyregrav»/«fangstgrav» inneholder «grav» men er FANGST, så fangst-reglene må
