@@ -105,4 +105,46 @@ describe('createFeatureDirector', () => {
     d.setEnabled(false)
     expect(d.tick(1000, 16).speedFactor).toBe(1)
   })
+
+  // v4.8.5: POI av under HELE avspillingen lot peker-indeksen stå på 0, siden
+  // tick() returnerer før den avanserer når enabled er false. Slo man POI på
+  // etter at turen var ferdig, spilte direktøren seg gjennom hele lista mens
+  // posisjonen låg på mål — kameraet rammet inn en severdighet, returnerte til
+  // punkt B, rammet inn neste. Kuren er at tourScene kaller seek(alongM) når
+  // POI slås på; her låser vi oppførselen seek skal ha.
+  it('POI slått på etter fullført avspilling utløser ingen passerte hendelser', () => {
+    const entered = []
+    const d = createFeatureDirector([
+      { ...EVENT, name: 'Første', alongM: 1000 },
+      { ...EVENT, name: 'Andre', alongM: 2000 },
+    ], { onEnter: e => entered.push(e) })
+
+    d.setEnabled(false)
+    for (let m = 0; m <= 3000; m += 100) d.tick(m, 16)   // hele turen med POI av
+    expect(entered).toEqual([])
+
+    d.setEnabled(true)
+    d.seek(3000)                                          // slik tourScene gjør
+    expect(d.pending).toBe(0)
+    d.tick(3000, 16)
+    expect(entered).toEqual([])
+    expect(d.state).toBe('CRUISE')
+  })
+
+  it('POI slått på MIDT i turen utløser bare hendelser som ligger foran', () => {
+    const entered = []
+    const d = createFeatureDirector([
+      { ...EVENT, name: 'Første', alongM: 1000 },
+      { ...EVENT, name: 'Andre', alongM: 2000 },
+    ], { onEnter: e => entered.push(e) })
+
+    d.setEnabled(false)
+    for (let m = 0; m <= 1500; m += 100) d.tick(m, 16)
+    d.setEnabled(true)
+    d.seek(1500)
+    expect(d.pending).toBe(1)
+
+    d.tick(2000, 16)
+    expect(entered.map(e => e.name)).toEqual(['Andre'])
+  })
 })

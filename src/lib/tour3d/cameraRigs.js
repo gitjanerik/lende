@@ -60,10 +60,37 @@ export function createCameraRigs({ camera, dem, coords, routeLookup, flybyLookup
   let frameTarget = null
   let transition = null
 
-  // Rausere default-avstand/-høyde: ~dobbel avstand fra underlaget (v3.0.15,
-  // var 110/70) — nær fugleperspektiv. Raske vinkelskift i skarpe svinger
-  // ga «bilsyke» på nært hold; høyere/fjernere kamera senker vinkelfarten.
-  const follow = { distanceM: 220, heightM: 140, lookAheadM: 60 }
+  // Rausere default-avstand/-høyde (v3.0.15 var 110/70, v4.8.5 var 220/140):
+  // nær fugleperspektiv. Raske vinkelskift i skarpe svinger ga «bilsyke» på
+  // nært hold; høyere/fjernere kamera senker vinkelfarten. Fra v4.8.5 er
+  // avstanden nesten doblet igjen — poenget er å se UTOVER landskapet med
+  // posisjonen og (av og til) mål-nåla i bildet, ikke å ligge tett på den
+  // røde streken. Lengre lookAhead følger av at vi ser lenger.
+  const follow = { distanceM: 420, heightM: 260, lookAheadM: 140 }
+
+  // Relieff-tilpasning: går ruta mye opp og ned, trengs mer luft for å få
+  // både terrenget og posisjonen i bildet. Vi måler høydespennet i et vindu
+  // rundt nåværende posisjon (rutas egne world-Y, altså inkludert vertikal
+  // overdrivelse) og skalerer avstand/høyde med det. Verdien dempes i update()
+  // så den ikke rykker når ruta bretter seg.
+  const RELIEF_WINDOW_M = 700
+  const RELIEF_SAMPLES = 9
+  const RELIEF_MAX_BOOST = 0.8      // ≤ 1.8× ved svært kupert terreng
+  const RELIEF_FULL_SPAN_M = 220    // høydespenn (world-Y) som gir full boost
+  let reliefBoost = 1
+
+  function reliefSpanAt(alongM) {
+    const half = RELIEF_WINDOW_M / 2
+    let lo = Infinity
+    let hi = -Infinity
+    for (let i = 0; i < RELIEF_SAMPLES; i++) {
+      const d = alongM - half + (RELIEF_WINDOW_M * i) / (RELIEF_SAMPLES - 1)
+      const p = routeLookup.at(Math.max(0, Math.min(routeLookup.totalM, d)))
+      if (p[1] < lo) lo = p[1]
+      if (p[1] > hi) hi = p[1]
+    }
+    return Number.isFinite(hi - lo) ? hi - lo : 0
+  }
 
   // Brukerens blikk-offset i vogn-modusene: yaw/pitch i radianer, dist som
   // faktor (pinch). Nullstilles ved modusbytte.
@@ -138,7 +165,7 @@ export function createCameraRigs({ camera, dem, coords, routeLookup, flybyLookup
     const az = heading + Math.PI + view.yaw
     const basePitch = Math.atan2(follow.heightM, follow.distanceM)
     const pitch = clamp(basePitch + view.pitch, 0.06, 1.35)
-    const r = Math.hypot(follow.distanceM, follow.heightM) * view.dist
+    const r = Math.hypot(follow.distanceM, follow.heightM) * view.dist * reliefBoost
     outPos.set(
       p[0] + Math.cos(az) * Math.cos(pitch) * r,
       p[1] + Math.sin(pitch) * r,
@@ -296,6 +323,12 @@ export function createCameraRigs({ camera, dem, coords, routeLookup, flybyLookup
         controls?.update()
         return
       }
+      // Relieff-boost dempes mykt (λ = 0.8) — kupert terreng skal skyve
+      // kameraet gradvis bakover, ikke rykke i det.
+      const wantBoost = 1 + RELIEF_MAX_BOOST
+        * Math.min(1, reliefSpanAt(alongM) / RELIEF_FULL_SPAN_M)
+      reliefBoost += (wantBoost - reliefBoost) * (1 - Math.exp(-0.8 * dt))
+
       const desiredPos = v.desired
       const desiredLook = v.tmp
       if (frameTarget) applyFrameTarget(desiredPos, desiredLook, alongM)
@@ -307,8 +340,12 @@ export function createCameraRigs({ camera, dem, coords, routeLookup, flybyLookup
       if (desiredPos.y < minY) desiredPos.y = minY
       clearSightLine(dem, coords, desiredPos, desiredLook)
 
-      damp(camPos, desiredPos, 3, dt)
-      damp(lookPos, desiredLook, 5, dt)
+      // Mykere demping (v4.8.5, var 3/5). Med kameraet langt bak trengs ikke
+      // tett sporing: ved 256× rykket det i bildet for hver sving fordi
+      // blikkpunktet nådde fram nesten momentant. Lavere λ lar kameraet gli —
+      // det henger litt etter, men på denne avstanden leses etterslepet som ro.
+      damp(camPos, desiredPos, 1.5, dt)
+      damp(lookPos, desiredLook, 2.5, dt)
 
       if (transition) {
         transition.t += dt / TRANSITION_S

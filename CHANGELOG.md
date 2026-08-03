@@ -1,5 +1,15 @@
 # Endringslogg
 
+## 2026-08-03 — v4.8.5: 3D-visningen ser utover landskapet, og natthimmelen får måne
+
+Slo man på POI etter at avspillingen var ferdig, spilte visningen seg gjennom hele severdighets-lista mens posisjonen låg på mål — kameraet rammet inn et sted, returnerte til punkt B, rammet inn neste. Årsaken var at direktørens peker-indeks aldri hadde flyttet seg: `tick()` returnerer før den avanserer når POI er avslått, så indeksen sto på 0 gjennom hele turen. Nå gjør to ting det umulig. Direktøren synkes til faktisk posisjon når POI slås på, så bare severdigheter man ennå ikke har passert kan utløses — slås POI på midt i turen, gjelder det resten av den. Og direktøren kjører bare mens turen faktisk spiller, så en pauset eller fullført visning trigger ingenting. Tar turen slutt midt i et POI-stopp, avsluttes holdet så kortet ikke står igjen. Scrubbing viser POI-kort som før, via sin egen vei.
+
+Følg-kameraet ligger nå mye lenger unna: 420 m bak og 260 m opp mot 220/140, altså rundt 490 m fra turpunktet mot 260 før. Poenget er å se UTOVER landskapet med posisjonen og av og til mål-nåla i bildet, i stedet for å ligge tett på den røde streken uten oversikt. Avstanden tilpasser seg dessuten bratthet: høydespennet i et 700 m vindu rundt posisjonen skalerer avstanden opp mot 1,8× der ruta bretter seg mye opp og ned, dempet mykt så den ikke rykker. Dempingen er samtidig løsnet fra λ 3/5 til 1,5/2,5 — med kameraet så langt bak trengs ikke tett sporing, og ved 256× rykket bildet før i hver sving fordi blikkpunktet nådde fram nesten momentant. Nå glir det.
+
+I nattmodus henger det en dus måne på himmelen og 160 bitte små gule stjerner. Stjernene er ett `Points`-objekt uten tekstur og med `sizeAttenuation` av, så de holder samme pikselstørrelse uansett hvor kuppelen er og koster én draw call. Månen er en myk radiell gradient uten skarp kant. Samtidig er en gammel feil rettet: `Immersive3DViewer` manglet `isDark` i prop-deklarasjonen selv om MapView har sendt den hele tiden, så nattmodus startet aldri av seg selv i mørkt tema slik den skulle. Nå gjør den det — og da er det månen man møter.
+
+---
+
 ## 2026-08-03 — v4.8.4: Verktøykallet på siste runde blir utført, ikke skrevet ut
 
 «lag tur fra Bondivann stasjon til Vardåsen 349 meter over havet» ga verken rute eller 3D-visning, men et selvsikkert svar om at turen var 11,9 km med 349 høydemeter og 3 timer 11 minutters gangtid. Ingenting av det var sant, og hele kjeden hang i én spiker: verktøykallet ble skrevet ut som tekst i chatten i stedet for å bli utført — `[foreslaa_tur(kartId="…", fraNavn="Bondivann stasjon", tilNavn="Vardåsen")]` sto der ordrett.
