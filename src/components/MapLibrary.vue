@@ -756,16 +756,26 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
 
   <!-- Slett alle (vises kun når brukeren har lagrede kart). Linje 2 er
        lagringstelleren — antall kart + samlet plass — flyttet hit fra den
-       gamle «Mine kart»-toppraden (v3.0.20). Solid rød med hvit skrift
-       (destruktiv motpart til de grønne handlingsknappene) — fast farge i
-       begge tema, som bg-emerald-500-knappene. -->
+       gamle «Mine kart»-toppraden (v3.0.20).
+       v4.8.3: var solid bg-red-600 med hvit skrift og ble den mest dominante
+       flaten i hele panelet — en sjelden, destruktiv handling som ropte
+       høyere enn «Lag nytt kart». Nå tonet rød med kant og søppelbøtte-ikon,
+       samme mønster som de andre aksentknappene (bg-*-500/15 + border-*-400/40
+       + text-*-100, der 100-skyggen remappes til mørk rød i lyst tema av
+       style.css). Fortsatt utvetydig destruktiv, men den skriker ikke. -->
   <button v-if="!loading && maps.length > 0"
           @click="onDeleteAll"
-          class="w-full mt-3 rounded-lg px-4 py-2.5 text-[13px] font-medium
-                 bg-red-600 text-white shadow-md
-                 active:bg-red-700 active:scale-[0.99] transition">
-    <span class="block">Slett alle kart</span>
-    <span class="block mt-0.5 text-[11px] font-normal text-white/75 tabular-nums">
+          class="w-full mt-3 rounded-lg px-4 py-2.5 text-[13px] font-medium border transition
+                 bg-red-500/15 border-red-400/40 text-red-100
+                 active:bg-red-500/25 active:scale-[0.99]">
+    <span class="flex items-center justify-center gap-2">
+      <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
+           stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 7h16M9 7V5h6v2m-8 0 1 13h8l1-13"/>
+      </svg>
+      <span>Slett alle kart</span>
+    </span>
+    <span class="block mt-0.5 text-[11px] font-normal text-ink/50 tabular-nums">
       {{ maps.length }} kart<template v-if="formatBytes(totalBytes)"> · {{ formatBytes(totalBytes) }}</template>
     </span>
   </button>
@@ -931,11 +941,17 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
       </div>
     </div>
 
+    <!-- Samme tonede destruktive stil som «Slett alle kart» over (v4.8.3). -->
     <button v-if="!loading && savedRoutes.length > 1 && !shareSelectMode"
             @click="onDeleteAllRoutes"
-            class="w-full mt-3 rounded-lg px-4 py-2.5 text-[13px] font-medium
-                   bg-red-600 text-white shadow-md
-                   active:bg-red-700 active:scale-[0.99] transition">
+            class="w-full mt-3 rounded-lg px-4 py-2.5 text-[13px] font-medium border transition
+                   bg-red-500/15 border-red-400/40 text-red-100
+                   active:bg-red-500/25 active:scale-[0.99]
+                   flex items-center justify-center gap-2">
+      <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
+           stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 7h16M9 7V5h6v2m-8 0 1 13h8l1-13"/>
+      </svg>
       Slett alle ({{ savedRoutes.length }}) ruter
     </button>
 

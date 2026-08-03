@@ -166,13 +166,27 @@ async function onInstall() {
 // ── Menyens «sider» som modaler ──────────────────────────────────────────────
 // Var egne ruter (/om, /tegnforklaring): menyen lukket seg, og veien tilbake
 // gikk via nettleserens tilbake-knapp — med en vestigial header og hamburger
-// øverst til venstre. Som modaler oppå den åpne menyen holder ESC eller X, og du
-// lander der du var. Rutene består for deep-lenker (se AboutView/LegendView).
+// øverst til venstre. Nå er de modaler. Rutene består for deep-lenker (se
+// AboutView/LegendView).
+//
+// v4.8.3: modalen lå oppå den ÅPNE menyen, så du satt igjen med to lag og to
+// lukke-kryss samtidig (menyens hamburger-X øverst til venstre og modalens X
+// øverst til høyre) — uklart hvilket som gjorde hva. Nå lukker menyen seg når
+// en modal åpnes: ett lag, ett kryss. Gjelder alle menyens modaler, ikke bare
+// «Mine kart» — ellers ville halvparten oppført seg på den ene måten.
 const sheet = ref(null)   // 'kart' | 'rute' | 'nytt' | 'tegnforklaring' | 'om' | null
-watch(menuOpen, (open) => { if (!open) sheet.value = null })
 
-// Lukk ved rute-endring (f.eks. maskinvare-tilbake) og på Escape.
-watch(() => route.fullPath, () => { if (menuOpen.value) close() })
+function openSheet(name) {
+  sheet.value = name
+  close()
+}
+
+// Lukk ved rute-endring (f.eks. maskinvare-tilbake) og på Escape. Modalen kan
+// nå stå åpen uten menyen, så den må ryddes her også.
+watch(() => route.fullPath, () => {
+  sheet.value = null
+  if (menuOpen.value) close()
+})
 
 // Escape lukker ØVERSTE lag først. Håndteres her, ikke i AboutModal: to
 // uavhengige lyttere ville lukket både modalen og menyen på samme tastetrykk.
@@ -225,12 +239,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                 <path :d="p.d" />
               </svg>
             </span>
-            <button type="button" class="am-row-main" @click="sheet = p.sheet">
+            <button type="button" class="am-row-main" @click="openSheet(p.sheet)">
               <span class="am-row-title">{{ p.label }}</span>
               <span class="am-row-meta">{{ p.meta }}</span>
             </button>
             <button type="button" class="am-add" :aria-label="p.addLabel"
-                    @click="p.addSheet ? (sheet = p.addSheet) : go(p.addTo, p.last)">
+                    @click="p.addSheet ? openSheet(p.addSheet) : go(p.addTo, p.last)">
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
                    stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 5.5v13M5.5 12h13" />
@@ -242,7 +256,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <!-- Nivå 2: kontekst for der du er. -->
         <div class="am-block">
           <div class="am-eyebrow">{{ contextEyebrow }}</div>
-          <button type="button" class="am-line" @click="sheet = 'tegnforklaring'">
+          <button type="button" class="am-line" @click="openSheet('tegnforklaring')">
             <span class="am-line-icon">
               <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
                    stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
@@ -328,7 +342,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               </svg>
             </span>Installer som app
           </button>
-          <button type="button" class="am-line am-line-dim" @click="sheet = 'om'">
+          <button type="button" class="am-line am-line-dim" @click="openSheet('om')">
             <span class="am-line-icon">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
                    stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
@@ -344,20 +358,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
   <!-- Menyens «sider» ligger OPPÅ menyen (eget lag over z-201), så ESC eller X
        tar deg tilbake til menyen slik du forlot den. -->
-  <AppModal :open="menuOpen && (sheet === 'kart' || sheet === 'rute')"
+  <AppModal :open="sheet === 'kart' || sheet === 'rute'"
             :title="sheet === 'rute' ? 'Mine ruter' : 'Mine kart'" @close="sheet = null">
     <div class="px-4 py-4">
       <MapLibrary :tab="sheet === 'rute' ? 'rute' : 'kart'" :show-install="false"
                   @open-picker="sheet = 'nytt'" />
     </div>
   </AppModal>
-  <AppModal :open="menuOpen && sheet === 'nytt'" title="Nytt turkart" @close="sheet = null">
+  <AppModal :open="sheet === 'nytt'" title="Nytt turkart" @close="sheet = null">
     <MapPickerContent />
   </AppModal>
-  <AppModal :open="menuOpen && sheet === 'om'" title="Om Så i lende" @close="sheet = null">
+  <AppModal :open="sheet === 'om'" title="Om Så i lende" @close="sheet = null">
     <div class="px-4 py-5"><AboutContent /></div>
   </AppModal>
-  <AppModal :open="menuOpen && sheet === 'tegnforklaring'" title="Tegnforklaring"
+  <AppModal :open="sheet === 'tegnforklaring'" title="Tegnforklaring"
             @close="sheet = null">
     <LegendContent />
   </AppModal>

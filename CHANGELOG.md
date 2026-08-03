@@ -1,5 +1,13 @@
 # Endringslogg
 
+## 2026-08-03 — v4.8.3: Menyen viker for modalen, og slettknappen slutter å skrike
+
+«Mine kart» åpnet som modal *oppå* den åpne hovedmenyen, så du satt igjen med to lag og to lukke-kryss samtidig: menyens hamburger-X øverst til venstre og modalens X øverst til høyre. Ingenting sa hvilket som gjorde hva, og menyens innhold skinte gjennom bak modalen. Nå lukker menyen seg når en modal åpnes — ett lag, ett kryss. Det gjelder alle menyens modaler (Mine kart, Mine ruter, Nytt turkart, Tegnforklaring, Om), ikke bare «Mine kart»: å fikse én ville gitt halvparten den ene oppførselen og halvparten den andre. Modalen var før gatet på `menuOpen`, så gaten er fjernet og rute-endring rydder nå modalen i tillegg til menyen — den kan stå åpen på egen hånd.
+
+«Slett alle kart» var en solid `bg-red-600`-flate med hvit skrift over full bredde, og ble dermed det mest dominante elementet i hele panelet — en sjelden og destruktiv handling som ropte høyere enn «Lag nytt kart». Den er nå tonet rød med kant og et søppelbøtte-ikon, samme mønster som resten av appens aksentknapper (`bg-*-500/15` + `border-*-400/40` + `text-*-100`, der 100-skyggen remappes til mørk rød i lyst tema av `style.css`). Fortsatt utvetydig destruktiv, men den tar ikke lenger blikket først. Samme behandling på «Slett alle ruter». Feil-toasten i kartvisningen beholder solid rød — den *skal* fange blikket.
+
+---
+
 ## 2026-08-03 — v4.8.2: Én Lende-knapp, ett anker, én ark-regel
 
 Lende-knappen lå nede til høyre i alle visninger, men var i praksis tre forskjellige knapper: turkartet hadde sin egen 48 px-klynge som ble løftet til `calc(45dvh + 0.75rem)` når Innstillinger åpnet, ruteplanleggingen fikk den globale 56 px chat-FAB-en som la seg rett oppå «Finn grusrute» i skuffens footer, og innholdssidene en tredje variant. Samme knapp byttet altså størrelse, posisjoneringsmodell og gestespråk mens du navigerte. Nå er den én komponent (`FabCluster`) med ett gestespråk overalt: tap viser kart-knottene, lang-trykk åpner Lende-chatten. Knott-plassene betyr klasse av ting og ikke fast inventar — nord «legg kartet der jeg trenger det», nordvest «hva kartet tegner», vest «hvordan kartet ser ut» — så turkartets tre (Sentrer/Strek/Relieff) og planleggerens to (Vis hele ruten eller Sentrer på min posisjon, og Kartlag) deler samme mentale modell uten å måtte være like mange.
