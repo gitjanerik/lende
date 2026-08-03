@@ -23,6 +23,11 @@ const props = defineProps({
   searchIndex: { type: Array, default: () => [] },
   getSvgText: { type: Function, required: true },
   mapTitle: { type: String, default: '' },
+  // MapView har sendt :is-dark hele tiden, men propen manglet i deklarasjonen
+  // (v4.8.5) — props.isDark var derfor undefined, og nattmodus startet ALDRI av
+  // seg selv slik kommentaren under påsto. Nå gjør den det, og da er det også
+  // månen og stjernene fra buildNightSky man møter.
+  isDark: { type: Boolean, default: false },
 })
 const emit = defineEmits(['close'])
 

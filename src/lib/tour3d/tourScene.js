@@ -18,7 +18,7 @@ import { createCameraRigs } from './cameraRigs.js'
 import { buildFeatureTimeline } from './featureTimeline.js'
 import { createFeatureDirector } from './featureDirector.js'
 import { buildHighlightMarker } from './highlightMarkers.js'
-import { buildSkyDome, buildClouds, makeFog, FOG_COLOR, NIGHT_FOG_COLOR } from './skyDome.js'
+import { buildSkyDome, buildClouds, buildNightSky, makeFog, FOG_COLOR, NIGHT_FOG_COLOR } from './skyDome.js'
 import { buildWaypointMarkers } from './waypointMarkers.js'
 import { createEngineLoop } from './engineLoop.js'
 
@@ -96,6 +96,10 @@ export async function createTourScene(container, {
     baseY: Math.max(1200, terrain.maxElev * exaggeration + 350),
   })
   scene.add(clouds.group)
+  // Måne + bitte små gule stjerner (v4.8.5). Skjult som default; setNightMode
+  // slår hele gruppa av/på sammen med skyene.
+  const nightSky = buildNightSky()
+  scene.add(nightSky.group)
 
   const waypoints = buildWaypointMarkers({ route, via, isLoop, parkingSpots, pauseSpots }, dem, coords)
   scene.add(waypoints.group)
@@ -193,9 +197,20 @@ export async function createTourScene(container, {
     },
     onFrame(dt, timeS) {
       const dtMs = dt * 1000
+      const varFerdig = playback.finished
       playback.tick(dt)
       const alongM = playback.alongM
-      const dir = director.tick(alongM, dtMs)
+      // Tok turen slutt midt i et POI-stopp, må holdet avsluttes: direktøren
+      // fryses under (kjører bare mens turen spiller), så kortet ville ellers
+      // stått igjen på skjermen for alltid. seek() kaller onExit.
+      if (!varFerdig && playback.finished) director.seek(alongM)
+      // Direktøren kjører BARE mens turen spiller (v4.8.5). Står visningen
+      // pauset eller ferdig, skal ingen severdighet utløses — kameraet ville
+      // ellers pendlet mellom POI-innramming og posisjonen turen stoppet på.
+      // Scrubbing viser POI-kort via eventNear/clearPreview, uavhengig av dette.
+      const dir = playback.playing
+        ? director.tick(alongM, dtMs)
+        : { speedFactor: 1, state: director.state, active: director.active }
       playback.setSpeedFactor(dir.speedFactor)
 
       const p = routeLookup.at(alongM)
@@ -233,7 +248,7 @@ export async function createTourScene(container, {
     routeLine.geometry, routeLine.material,
     ...marker.geometries, ...marker.materials,
     ...highlight.geometries, ...highlight.materials,
-    sky.geometry, sky.material, clouds, waypoints,
+    sky.geometry, sky.material, clouds, nightSky, waypoints,
   ]) loop.track(d)
 
   await rigs.setMode(initialCameraMode, 0)
@@ -289,6 +304,14 @@ export async function createTourScene(container, {
     setFeaturesEnabled: (v) => {
       featuresEnabled = !!v
       director.setEnabled(featuresEnabled)
+      // Synk direktøren til der turen FAKTISK står (v4.8.5). Var POI av under
+      // avspillingen, sto peker-indeksen urørt på 0 — slo man den så på etter
+      // at turen var ferdig, spilte direktøren seg gjennom hele lista fra
+      // starten mens posisjonen lå på mål: kameraet rammet inn en severdighet,
+      // returnerte til punkt B, rammet inn neste … «hopper tilbake til B
+      // annenhver gang». Etter seek peker indeksen forbi nåværende posisjon,
+      // så bare severdigheter man ennå ikke har passert kan utløses.
+      if (featuresEnabled) director.seek(playback.alongM)
       if (!featuresEnabled) clearPreview()
     },
     async setContoursVisible(v) {
@@ -321,6 +344,7 @@ export async function createTourScene(container, {
         terrain.material.needsUpdate = true
       }
       sky.setNight(nightOn)
+      nightSky.setNight(nightOn)
       clouds.group.visible = !nightOn
       scene.fog.color.set(nightOn ? NIGHT_FOG_COLOR : FOG_COLOR)
       scene.background.set(nightOn ? NIGHT_FOG_COLOR : FOG_COLOR)
