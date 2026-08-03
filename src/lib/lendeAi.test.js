@@ -6,6 +6,33 @@ import {
 describe('parseTextToolCalls', () => {
   const NAVN = ['foreslaa_tur', 'foreslaa_rundtur', 'sok_i_kartet']
 
+  // v4.8.4: navnelista ble utledet fra `tools`, som er undefined i den siste
+  // runden. Da falt tolkingen ut nøyaktig der den trengtes mest, og kallet ble
+  // stående som rå tekst i chatten uten å bli utført — brukeren fikk «ingen
+  // rute, ingen 3D» og oppdiktede tall. Faktisk observert svar.
+  const LEKKASJE = 'Jeg finner flere steder som heter Vardåsen i dette kartet. '
+    + 'Jeg velger toppen Vardåsen 349 moh som mål for turen din. '
+    + '[foreslaa_tur(kartId="kart_hdcl67j9msdffotk", fraNavn="Bondivann stasjon", tilNavn="Vardåsen")]'
+
+  it('tolker kallet når navnelista finnes — prosaen beholdes, klammen fjernes', () => {
+    const { toolCalls, text } = parseTextToolCalls(LEKKASJE, NAVN)
+    expect(toolCalls).toHaveLength(1)
+    expect(toolCalls[0].name).toBe('foreslaa_tur')
+    expect(toolCalls[0].args).toEqual({
+      kartId: 'kart_hdcl67j9msdffotk',
+      fraNavn: 'Bondivann stasjon',
+      tilNavn: 'Vardåsen',
+    })
+    expect(text).toBe('Jeg finner flere steder som heter Vardåsen i dette kartet. '
+      + 'Jeg velger toppen Vardåsen 349 moh som mål for turen din.')
+  })
+
+  it('uten navneliste lekker klammen ordrett — derfor MÅ chatOnce få toolNames', () => {
+    const { toolCalls, text } = parseTextToolCalls(LEKKASJE, [])
+    expect(toolCalls).toHaveLength(0)
+    expect(text).toContain('[foreslaa_tur(')
+  })
+
   it('tolker Llamas bracket-form som ekte verktøykall og fjerner den fra teksten', () => {
     // Faktisk observert svar (v4.4.0, «se ruta i 3D»): kallet havnet i teksten.
     const raa = '[foreslaa_tur(fraLat=59.747514, fraLon=10.139189, tilLat=59.750295, ' +

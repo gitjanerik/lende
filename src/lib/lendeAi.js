@@ -211,8 +211,14 @@ export function parseTextToolCalls(tekst, kjenteNavn = []) {
 /**
  * Ett ikke-strømmende chat-kall — brukes i verktøy-runder (Workers AI støtter
  * ikke streaming + tools pålitelig). Returnerer { text, toolCalls }.
+ *
+ * `toolNames` er navnene tekst-tolkingen godtar, og er BEVISST skilt fra
+ * `tools` (v4.8.4). Utledet vi navnene fra `tools`, mistet vi tolkingen i
+ * nøyaktig de rundene der vi med vilje ikke tilbyr verktøy — og da lakk et
+ * tekst-skrevet kall ordrett ut i chatten uten å bli utført. Se
+ * parseTextToolCalls.
  */
-export async function chatOnce({ messages, tools, maxTokens = 1024, signal }) {
+export async function chatOnce({ messages, tools, toolNames, maxTokens = 1024, signal }) {
   let res
   try {
     res = await fetch(AI_URL, {
@@ -247,7 +253,12 @@ export async function chatOnce({ messages, tools, maxTokens = 1024, signal }) {
   // v4.4.1: «… Vent litt. Jeg åpner listen over dine kart og ruter.
   // [mine_kart_og_ruter()]»). Ellers blir klammeteksten stående i chatten og
   // det andre kallet aldri utført.
-  const fraTekst = parseTextToolCalls(tekst, (tools ?? []).map((t) => t?.function?.name).filter(Boolean))
+  // Navnelista: eksplisitt `toolNames` når kalleren oppgir den (gjelder ALLE
+  // runder, også de uten tools), ellers utledet fra tools som før.
+  const kjenteNavn = Array.isArray(toolNames) && toolNames.length
+    ? toolNames
+    : (tools ?? []).map((t) => t?.function?.name).filter(Boolean)
+  const fraTekst = parseTextToolCalls(tekst, kjenteNavn)
   const sett = new Set(strukturerte.map((t) => `${t.name}:${JSON.stringify(t.args)}`))
   const ekstra = fraTekst.toolCalls.filter((t) => !sett.has(`${t.name}:${JSON.stringify(t.args)}`))
   return { text: fraTekst.text, toolCalls: [...strukturerte, ...ekstra], raw: data }

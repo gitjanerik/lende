@@ -121,6 +121,13 @@ describe('harOppdiktedeTurtall', () => {
     expect(harOppdiktedeTurtall(
       'Turen er tegnet inn i kartet ditt. Den er 4,7 km lang med 180 høydemeter stigning og en gangtid på 1 time 14 minutter.',
     )).toBe(true)
+    // v4.8.4 (Bondivann→Vardåsen): kallet ble skrevet som tekst og aldri
+    // utført, så disse tallene er diktet opp — «349 moh» er brukerens eget tall
+    // speilet tilbake. Vakten kjenner setningen igjen; feilen var at den var
+    // gatet på turSendt, som er null når ingen tur ble sendt.
+    expect(harOppdiktedeTurtall(
+      'Turen er tegnet inn i kartet ditt. Den er 11,9 km lang, med 349 moh stigning og en gangtid på 3 timer 11 minutter.',
+    )).toBe(true)
     expect(harOppdiktedeTurtall('Ruten er 3.2 km.')).toBe(true)
     expect(harOppdiktedeTurtall('Det tar ca 45 min å gå.')).toBe(true)
     expect(harOppdiktedeTurtall('Stigningen er 210 m.')).toBe(true)
