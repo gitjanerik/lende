@@ -1,5 +1,19 @@
 # Endringslogg
 
+## 2026-08-03 — v4.8.6: Kulturminne-badgen slutter å lyve om hva den vet
+
+«Kulturminner (0)» på Håøya leste som om funksjonen var fjernet fra appen. Den var ikke det — laget, det rektangulære tempelfasade-symbolet, detalj-skuffen og en live runtime-fallback ligger alle der de skal. Problemet var at badgen ikke kunne skille tre helt ulike utfall, og viste «(0)» for alle: at kartet ble bygget uten innbakte ikoner (bygge-tids-hentingen glipper rutinemessig på mobil), at tjenesten svarte og området faktisk er tomt, og at hentingen feilet.
+
+Roten satt i `kulturminneFetcher.js`: `safeFetchJson` svelger enhver feil og gir `null`, så `fetchKulturminner` returnerte `[]` både for et tomt område og for en død tjeneste. Ny `fetchKulturminnerMedStatus()` returnerer `{ items, status, truncated }` der status er `ok`, `feilet`, `avbrutt` eller `ugyldig-bbox` — «svarte tjenesten i det hele tatt» avgjøres av om vi fikk minst én side. `fetchKulturminner` er beholdt som en tynn wrapper, så bygge-flyten er urørt.
+
+Badgen har nå tre tegn for tre utfall: `(–)` betyr «ikke hentet ennå», `(0)` at tjenesten svarte og området er tomt, og `(!)` i ravgult at hentingen feilet — med forklarende tooltip på alle tre. Antallet innbakte ikoner settes til `null` framfor `0` når kartet ikke har noen, siden runtime-fallbacken kan fylle det inn etterpå.
+
+Verdt å vite: feil-tilstanden bruker opp til ~38 sekunder på å slå inn, fordi hentingen prøver tre ganger med 12 s timeout og 600 ms backoff. Den tålmodigheten er tilsiktet — et enkelt timeout ved bygging bakte tidligere 0 kulturminner inn i kartet — men det betyr at `(–)` kan stå en stund på dårlig nett før den blir `(!)`.
+
+Ingen endring i hva som hentes eller vises. Dette gjør bare appen ærlig om hva den vet, så neste kartlast på Håøya svarer på om tjenesten er nede eller om øya rett og slett ikke har registrerte brukerminner.
+
+---
+
 ## 2026-08-03 — v4.8.5: 3D-visningen ser utover landskapet, og natthimmelen får måne
 
 Slo man på POI etter at avspillingen var ferdig, spilte visningen seg gjennom hele severdighets-lista mens posisjonen låg på mål — kameraet rammet inn et sted, returnerte til punkt B, rammet inn neste. Årsaken var at direktørens peker-indeks aldri hadde flyttet seg: `tick()` returnerer før den avanserer når POI er avslått, så indeksen sto på 0 gjennom hele turen. Nå gjør to ting det umulig. Direktøren synkes til faktisk posisjon når POI slås på, så bare severdigheter man ennå ikke har passert kan utløses — slås POI på midt i turen, gjelder det resten av den. Og direktøren kjører bare mens turen faktisk spiller, så en pauset eller fullført visning trigger ingenting. Tar turen slutt midt i et POI-stopp, avsluttes holdet så kortet ikke står igjen. Scrubbing viser POI-kort som før, via sin egen vei.

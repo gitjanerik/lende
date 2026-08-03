@@ -158,17 +158,40 @@ async function safeFetchJson(url, { signal, timeoutMs, retries = 2 }, fallback) 
  * @returns {Promise<Array<{id:string, lat:number, lon:number, tittel:string, kategori:string}>>}
  */
 export async function fetchKulturminner(bbox, opts = {}) {
-  if (!bbox || ![bbox.south, bbox.west, bbox.north, bbox.east].every(Number.isFinite)) return []
+  return (await fetchKulturminnerMedStatus(bbox, opts)).items
+}
+
+/**
+ * Som fetchKulturminner, men sier ALT om utfallet (v4.8.6).
+ *
+ * Bakgrunn: safeFetchJson svelger enhver feil og gir `null`, så et tomt svar og
+ * en død tjeneste kom ut som samme tomme liste. Badgen viste «(0)», og det leste
+ * brukeren som «funksjonen finnes ikke lenger» — vi kunne ikke skille «hentet,
+ * fant ingenting» fra «hentingen feilet» uten å lese console.
+ *
+ * @returns {Promise<{items: Array, status: 'ok'|'feilet'|'avbrutt'|'ugyldig-bbox', truncated: boolean}>}
+ *   'ok'      — tjenesten svarte; items kan godt være tom (området har ingen)
+ *   'feilet'  — ingen side kunne hentes (nett/timeout/5xx), items er tom
+ *   'avbrutt' — kalleren avbrøt underveis
+ */
+export async function fetchKulturminnerMedStatus(bbox, opts = {}) {
+  if (!bbox || ![bbox.south, bbox.west, bbox.north, bbox.east].every(Number.isFinite)) {
+    return { items: [], status: 'ugyldig-bbox', truncated: false }
+  }
   const { signal, timeoutMs = 12000, limit = 250, maxTotal = 500 } = opts
 
   const out = []
   let url = buildBboxUrl(bbox, limit)
   let guard = 0
   let truncated = false
+  // Skiller de tre utfallene: fikk vi minst én side, svarte tjenesten.
+  let sider = 0
+  let feilet = false
   while (url && out.length < maxTotal && guard < 20) {
     guard++
     const json = await safeFetchJson(url, { signal, timeoutMs }, null)
-    if (!json) break
+    if (!json) { feilet = true; break }
+    sider++
     const feats = Array.isArray(json.features) ? json.features : []
     for (const f of feats) {
       const m = mapFeatureLight(f)
@@ -187,7 +210,11 @@ export async function fetchKulturminner(bbox, opts = {}) {
   if (truncated) {
     console.warn(`[Kulturminne] Nådde taket på ${maxTotal} funn i bbox — flere finnes, men vises ikke (unngår rot).`)
   }
-  return out
+  // Avbrudd leses av signalet, ikke av `feilet` — en abort er ikke en tjenestefeil.
+  const status = signal?.aborted ? 'avbrutt'
+    : (feilet && sider === 0) ? 'feilet'
+      : 'ok'
+  return { items: out, status, truncated }
 }
 
 /**

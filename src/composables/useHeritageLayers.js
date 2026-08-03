@@ -6,7 +6,7 @@
 import { ref, computed } from 'vue'
 import { svgToWgs84, wgs84ToSvg } from '../lib/utm.js'
 import { fetchFredaKulturminner, fetchFredaCount, clusterByMinMeters, FREDET_FETCH_CAP } from '../lib/kulturminneWfs.js'
-import { fetchKulturminner } from '../lib/kulturminneFetcher.js'
+import { fetchKulturminnerMedStatus } from '../lib/kulturminneFetcher.js'
 import { cacheGet, cacheSet, kulturminneBboxKey, fredetKulturminneBboxKey, TTL } from '../lib/protectedAreaCache.js'
 import { isomCatalog, buildPointSymbolDef } from '../lib/symbolizer.js'
 
@@ -14,6 +14,10 @@ export function useHeritageLayers({
   svgHostRef, visibleLayers, meta, applyUprightLabels, kulturminneCount,
   kulturminneDetail, kulturminneLoading, kulturminneOpen, kulturminneDrawer,
 }) {
+  // Utfallet av brukerminne-hentingen, så UI-et kan skille «vet ikke» fra
+  // «fant ingenting» fra «hentingen feilet» (v4.8.6). Før var alle tre «(0)»,
+  // og det leste brukeren som at funksjonen var borte.
+  const kulturminneStatus = ref('ukjent')   // 'ukjent' | 'ok' | 'feilet'
   // Offisielle fredede kulturminner (Riksantikvaren/Askeladden) som EKTE VEKTOR
   // via Geonorge WFS (se kulturminneWfs.js — erstattet et tidligere WMS-raster-
   // forsøk). Lokalitetene hentes live når laget slås på, klynges, og tegnes som
@@ -163,12 +167,24 @@ export function useHeritageLayers({
       const key = kulturminneBboxKey(bbox)
       let data = await cacheGet(key)
       if (!Array.isArray(data)) {
-        data = await fetchKulturminner(bbox)
+        const res = await fetchKulturminnerMedStatus(bbox)
+        data = res.items
+        if (reqId === kmFallbackReqId) {
+          // 'feilet' er det ene utfallet brukeren må få se; 'avbrutt' er vår egen
+          // opprydding og skal ikke ligne en tjenestefeil.
+          if (res.status === 'feilet') kulturminneStatus.value = 'feilet'
+          else if (res.status === 'ok') kulturminneStatus.value = 'ok'
+        }
         if (data.length) cacheSet(key, data, TTL.kulturminne)
+      } else if (reqId === kmFallbackReqId) {
+        kulturminneStatus.value = 'ok'   // cache-treff = tjenesten svarte en gang
       }
       if (reqId !== kmFallbackReqId || !visibleLayers.value.has('kulturminne')) return
       if (!svgHostRef.value?.querySelector('svg')?.isSameNode(svg)) return
-      if (!data.length || svg.querySelector('[data-kulturminne-id]')) return
+      // Tomt svar er et GYLDIG utfall: sett tallet til 0 så badgen slutter å si
+      // «vet ikke». Det er forskjellen mellom «her finnes ingen» og «vi vet ikke».
+      if (!data.length) { if (kulturminneStatus.value === 'ok') kulturminneCount.value = 0; return }
+      if (svg.querySelector('[data-kulturminne-id]')) return
       ensureKulturminneSymbolDef(svg)
       const ns = 'http://www.w3.org/2000/svg'
       const g = document.createElementNS(ns, 'g')
@@ -193,7 +209,10 @@ export function useHeritageLayers({
       svg.appendChild(g)
       kulturminneCount.value = data.length
       applyUprightLabels()
-    } catch (e) { console.warn('[Kulturminne] runtime-fallback feilet:', e?.message ?? e) }
+    } catch (e) {
+      if (reqId === kmFallbackReqId) kulturminneStatus.value = 'feilet'
+      console.warn('[Kulturminne] runtime-fallback feilet:', e?.message ?? e)
+    }
   }
 
   // Detalj-skuff for et fredet-kulturminne (leser data-attributter fra ikonet).
@@ -230,6 +249,7 @@ export function useHeritageLayers({
 
   return {
     fredetCount, fredetShown, fredetTruncated, fredetLoading,
+    kulturminneStatus,
     applyFredetKulturminneLayer, applyKulturminneFallback,
     openFredetDetailFromEl, refreshFredetCount,
   }

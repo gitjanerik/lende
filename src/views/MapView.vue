@@ -396,9 +396,11 @@ const kulturminneDrawer = useDraggableDrawer({ expandedHeight: 0.45, minimizedPe
 const kulturminneOpen = ref(false)
 const kulturminneLoading = ref(false)
 // Antall kulturminne-ikoner i det innlastede kartet (settes i setupHostSvg).
-// Vises på «Kulturminner»-toggelen så «(0)» skiller et gammelt kart (bygget før
-// v12.1.38 → ingen data bakt inn) og et område uten funn fra en rendering-feil.
-const kulturminneCount = ref(0)
+// Vises på «Kulturminner»-toggelen. null = vet ikke ennå (ingen innbakte ikoner,
+// runtime-fallbacken har ikke svart); 0 = tjenesten svarte og området er tomt.
+// Skillet kom i v4.8.6 — før var begge «(0)», og det leste brukeren som at
+// funksjonen var borte.
+const kulturminneCount = ref(null)
 const kulturminneDetail = ref(null)     // { id, kategori, tittel, beskrivelse, kommune, fylke, opprettetAv, link, bilder }
 let kulturminneReqId = 0
 async function openKulturminneDetail(el) {
@@ -570,7 +572,7 @@ function toggleDepth() {
 // Fredet-kulturminne-lag + brukerminne-fallback — flyttet til
 // useHeritageLayers; meta-watchen under blir her.
 const {
-  fredetCount, fredetShown, fredetTruncated, fredetLoading,
+  fredetCount, fredetShown, fredetTruncated, fredetLoading, kulturminneStatus,
   applyFredetKulturminneLayer, applyKulturminneFallback,
   openFredetDetailFromEl, refreshFredetCount,
 } = useHeritageLayers({
@@ -4378,6 +4380,7 @@ onUnmounted(() => {
             :land-layer-buttons="landLayerButtons" :marine-layer-buttons="marineLayerButtons"
             :toggle-layer="toggleLayer" :toggle-depth="toggleDepth"
             :visible-layers="visibleLayers" :kulturminne-count="kulturminneCount"
+            :kulturminne-status="kulturminneStatus"
             :fredet-loading="fredetLoading" :fredet-count="fredetCount"
             :hydro-loading="hydroLoadingLayer" :hydro-count="hydroCount" :meta="meta" />
 
