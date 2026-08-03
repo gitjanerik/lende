@@ -1,4 +1,4 @@
-# grusprofil-balansert.brf — Lende Ruteplanlegger (versjon 7, matcher
+# grusprofil-balansert.brf — Lende Ruteplanlegger (versjon 8, matcher
 # PROFILE_VERSION i brouterClient.js — bump begge ved endring).
 #
 # Formål: BALANSERT variant — foretrekker grus, men tar asfalt-snarveier
@@ -24,7 +24,10 @@ assign waypointCatchingRange = 500
 
 assign ispaved = or surface=asphalt or surface=paved or surface=concrete or surface=paving_stones surface=sett
 assign isgravel = or surface=gravel or surface=compacted or surface=fine_gravel or surface=unpaved or surface=ground or surface=dirt surface=pebblestone
-assign nosurface = not or ispaved or isgravel surface=
+
+# nosurface = veien mangler surface-tag helt (v8-fiks) — se grusprofil.brf for
+# hvorfor v4–v7-uttrykket aldri traff umerkede veier.
+assign nosurface = surface=
 
 assign turncost = 0
 assign initialcost = 0
@@ -94,8 +97,9 @@ assign costfactor =
     2
   )
 
-  # Ukjent dekke: sannsynlighets-heuristikk for distrikts-Norge.
-  switch nosurface (
+  # Ukjent dekke: sannsynlighets-heuristikk for distrikts-Norge — kun med
+  # «Inkluder antatt grusvei» avhuket (v8, samme begrunnelse som grusprofil.brf).
+  switch and nosurface inkluder_antatt_grus (
     switch highway=unclassified 1.4
     switch highway=tertiary|tertiary_link 1.8
     switch highway=service ( switch service=driveway 5 2.4 )
