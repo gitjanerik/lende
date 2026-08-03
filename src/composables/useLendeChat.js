@@ -100,12 +100,14 @@ function nySamtale() {
 }
 
 // Maks verktøy-runder per melding — vern mot at modellen går i løkke.
-// Hevet 4 → 12 (v4.8.4): å skille navnebrødre koster runder. «Vardåsen» finnes
+// Hevet 4 → 6 (v4.8.4): å skille navnebrødre koster runder. «Vardåsen» finnes
 // flere steder i Asker, så modellen brukte opp budsjettet på sok_i_kartet før
 // den kom til foreslaa_tur. Neurons er billig (10 000/døgn gratis, deretter
-// $0,011/1000), så taket koster ventetid, ikke penger — derfor er det ikke
-// høyere enn dette.
-const MAX_VERKTOEY_RUNDER = 12
+// $0,011/1000), så taket koster VENTETID, ikke penger — 6 gir rom for et par
+// oppslag før handlingen uten at en løkke lar brukeren vente et halvt minutt.
+// Taket er dessuten ikke lenger kritisk: et kall som ligger på bordet når det
+// nås blir utført, ikke droppet (se sisteSjanse under).
+const MAX_VERKTOEY_RUNDER = 6
 
 // Verktøynavnene tekst-tolkingen skal godta. Sendes til chatOnce i ALLE runder,
 // også den siste der vi ikke lenger tilbyr tools — ellers lekker et
