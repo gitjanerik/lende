@@ -28,7 +28,7 @@ ChatGPTs KI-arkitektur er riktig retning, med to viktige korreksjoner:
 
 ### Fase 1 — Cloudflare AI-proxy (Worker)
 
-- Ny Worker etter malen i `cloudflare/nve-proxy/` (secret-nøkkel,
+- Ny Worker etter malen i `cloudflare/proxy/` (secret-nøkkel,
   header-injeksjon, sti- og CORS-allowlist mot `https://gitjanerik.github.io`
   + localhost).
 - **Nye behov vs. NVE-proxyen:** tillat `POST` (chat-body), og støtt
@@ -92,7 +92,7 @@ samme maskineri som resten av appen. Ingen remote-MCP, ingen ny infrastruktur.
 
 ## Gjenbruk — konkrete referanser
 
-- **Proxy-mal:** `cloudflare/nve-proxy/src/index.js` (secret via
+- **Proxy-mal:** `cloudflare/proxy/src/index.js` (secret via
   `env.NVE_HYDAPI_KEY`, `ALLOWED_PATHS`, `ALLOWED_ORIGINS`, GET/OPTIONS-gate),
   `wrangler.toml`, `README.md`.
 - **Klient-URL-mønster:** `src/lib/nveHydApi.js` (`VITE_NVE_HYDAPI_URL` ??

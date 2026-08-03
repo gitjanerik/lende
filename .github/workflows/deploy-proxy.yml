@@ -1,0 +1,102 @@
+# Deployer proxy-Workeren (cloudflare/proxy) til Cloudflare. Kjører ved push til
+# master som endrer Worker-mappa, og kan startes manuelt fra Actions-fanen.
+#
+# Krever repo-secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID (finnes alt,
+# de to andre Workerne bruker dem) og NVE_HYDAPI_KEY (ny — se README).
+#
+# Hvorfor den finnes (v4.8.7): Workeren ble tidligere satt ut manuelt via
+# Cloudflare-dashbordet, altså lim-inn-koden-på-mobil. Med denne workflowen er
+# git push eneste steg, og NVE-nøkkelen bor i GitHub-secreten i stedet for å måtte
+# tastes inn på nytt hver gang Workeren gjenopprettes eller døpes om.
+#
+# Rekkefølgen er hentet fra deploy-ai-worker.yml: secret-push FØR deploy, så siste
+# deployede versjon alltid er den wrangler.toml beskriver (`secret put` lager sin
+# egen versjon).
+name: Deploy proxy-worker
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - 'cloudflare/proxy/**'
+      - '.github/workflows/deploy-proxy.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cloudflare/proxy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Push NVE-nøkkelen til Worker
+        run: |
+          if [ -n "$NVE_HYDAPI_KEY" ]; then
+            # Tolerant: ved aller første deploy finnes ikke Workeren ennå, og
+            # secret put feiler — deploy-steget under oppretter den, og neste
+            # kjøring setter secreten. Røyktesten fanger en ekte mangel.
+            echo "$NVE_HYDAPI_KEY" | npx wrangler secret put NVE_HYDAPI_KEY \
+              || echo "::warning::secret put feilet — første deploy? Kjør workflowen på nytt etterpå."
+          else
+            echo "::warning::NVE_HYDAPI_KEY mangler i GitHub — NVE-ruta svarer 500 til den settes. Kulturminne-ruta virker uansett."
+          fi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          NVE_HYDAPI_KEY: ${{ secrets.NVE_HYDAPI_KEY }}
+      - name: Deploy Worker (siste versjon = wrangler.toml)
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Røyktest mot deployet Worker
+        run: |
+          BASE=https://lende-proxy.jepedersen73.workers.dev
+          HAOYA="$BASE/brukerminner/collections/brukerminner/items?bbox=10.53,59.65,10.62,59.72&f=json&limit=10"
+
+          echo "— ukjent path skal gi 404 (ingen åpen proxy) —"
+          KODE=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/noe-annet")
+          test "$KODE" = "404" || { echo "::error::Forventet 404, fikk $KODE"; exit 1; }
+          echo "OK (404)"
+
+          echo "— kulturminne-ruta (Håøya) —"
+          # Edge-propagering kan ta litt tid rett etter deploy.
+          SVAR=""
+          for i in $(seq 1 12); do
+            SVAR=$(curl -sS -w '\nHTTP:%{http_code}' "$HAOYA" || true)
+            echo "$SVAR" | grep -q 'HTTP:200' && break
+            echo "  forsøk $i: $(echo "$SVAR" | tail -1)"
+            sleep 5
+          done
+          STATUS=$(echo "$SVAR" | tail -1 | cut -d: -f2)
+          KROPP=$(echo "$SVAR" | sed '$d')
+          echo "status: $STATUS"
+          echo "$KROPP" | head -c 600; echo
+          # Dette er MÅLINGEN vi ikke fikk gjort fra sandkassen eller mobil:
+          # CI har full nettverkstilgang, så her ser vi endelig om api.ra.no
+          # svarer — og om Håøya faktisk har registrerte brukerminner.
+          case "$STATUS" in
+            200)
+              ANTALL=$(echo "$KROPP" | grep -oE '"numberMatched" *: *[0-9]+' | grep -oE '[0-9]+$' || echo '?')
+              echo "::notice::api.ra.no SVARER. numberMatched for Håøya = $ANTALL"
+              test "$ANTALL" != "0" \
+                && echo "::notice::Håøya HAR brukerminner — feilen var CORS eller mobilnettet, og proxyen løser den." \
+                || echo "::notice::Håøya har INGEN brukerminner. «(0)» i appen blir da riktig og sant."
+              ;;
+            404) echo "::error::api.ra.no ga 404 — endepunktet er flyttet. mapFeatureLight/mapFeatureFull må oppdateres."; exit 1 ;;
+            502) echo "::error::Kunne ikke nå api.ra.no i det hele tatt (502 fra Workeren)."; exit 1 ;;
+            *)   echo "::error::Uventet status $STATUS fra kulturminne-ruta."; exit 1 ;;
+          esac
+
+          echo "— NVE-ruta —"
+          KODE=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/v1/Stations?Active=1")
+          case "$KODE" in
+            200) echo "OK (200)" ;;
+            500) echo "::warning::NVE-ruta svarer 500 — NVE_HYDAPI_KEY-secreten mangler. Vannmålestasjoner virker ikke før den er satt." ;;
+            *)   echo "::error::Uventet status $KODE fra NVE-ruta."; exit 1 ;;
+          esac

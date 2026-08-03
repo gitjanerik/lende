@@ -1,8 +1,8 @@
 {
-  "name": "lende-nve-proxy",
+  "name": "lende-proxy",
   "private": true,
   "version": "1.0.0",
-  "description": "Cloudflare Worker som proxyer NVE HydAPI for Lende og holder API-nøkkelen server-side.",
+  "description": "Cloudflare Worker som proxyer NVE HydAPI (nøkkel server-side) og Kulturminnesøk brukerminner (CORS + cache) for Lende.",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy"

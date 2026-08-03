@@ -1,5 +1,17 @@
 # Endringslogg
 
+## 2026-08-03 — v4.8.7: Kulturminner går via proxyen, som nå deployer seg selv
+
+Diagnostikken fra v4.8.6 svarte: Håøya ga **«Kulturminner (!)»**, altså at ingen side kunne hentes i det hele tatt. Utropstegnet skiller ikke nedetid, endret path, mobilnett eller CORS — så kulturminne-hentingen går nå via Cloudflare-proxyen, som dekker alle fire. En tidligere kommentar i `kulturminneFetcher.js` slo fast at CORS var verifisert (`access-control-allow-origin: *`); det kan ha vært sant da, men holdt ikke, og et CORS-avvist `fetch` ser ut som en helt vanlig nettfeil fra JavaScript.
+
+Proxyen er den eksisterende NVE-Workeren, ikke en ny: ruting på path, `/api/v1/Stations|Observations` → HydAPI og `/brukerminner/*` → `api.ra.no`, alt annet 404. Rutene er uavhengige — `NVE_HYDAPI_KEY` sjekkes kun på NVE-ruta, så en manglende nøkkel stopper ikke kulturminner og omvendt. Siden den nå speiler mer enn NVE, er den døpt om fra `lende-nve-proxy` til `lende-proxy`, og mappa fra `cloudflare/nve-proxy/` til `cloudflare/proxy/`. Eldre CHANGELOG-poster bruker det gamle navnet.
+
+To detaljer som måtte løses. OGC API Features paginerer med **absolutte** `links[rel=next]`-URL-er mot `api.ra.no`, og klienten følger dem — uten omskriving hadde side 1 gått via proxyen og side 2 rett til opphavet, altså feilet igjen. Workeren skriver derfor om `links[].href`, men bare dem: bilde-URL-er og `linkkulturminnesok` skal peke dit de peker. Og opphavets statuskode speiles i stedet for å bli maskert som 502, så en 404 fortsatt leses som «endepunktet er flyttet». Svar caches i ett døgn — datasettet er brukerregistrerte kulturminner som endrer seg over dager, og cachen er det som faktisk fjerner mobil-timeoutene som bakte 0 kulturminner inn i kartene.
+
+Viktigst for vedlikeholdet: Workeren har fått **egen deploy-workflow** (`deploy-proxy.yml`), slik `ai-worker` og `mcp-worker` alt hadde. Den ble tidligere satt ut ved å lime kode inn i Cloudflare-dashbordet — tungt når man jobber fra mobil, og nødvendig på nytt ved hvert navnebytte. Nå er git push eneste steg, og NVE-nøkkelen bor i GitHub-secreten `NVE_HYDAPI_KEY` i stedet for å måtte tastes inn manuelt. Røyktesten sjekker at ukjente stier gir 404, at NVE-ruta svarer, og at kulturminne-ruta slår opp Håøya — og skriver utfallet som en notice i loggen. Det siste er selve målingen vi ikke fikk gjort fra sandkasse eller mobil, siden CI har full nettverkstilgang: står det `numberMatched > 0`, var feilen CORS eller mobilnettet; står det 0, har Håøya rett og slett ingen brukerminner.
+
+---
+
 ## 2026-08-03 — v4.8.6: Kulturminne-badgen slutter å lyve om hva den vet
 
 «Kulturminner (0)» på Håøya leste som om funksjonen var fjernet fra appen. Den var ikke det — laget, det rektangulære tempelfasade-symbolet, detalj-skuffen og en live runtime-fallback ligger alle der de skal. Problemet var at badgen ikke kunne skille tre helt ulike utfall, og viste «(0)» for alle: at kartet ble bygget uten innbakte ikoner (bygge-tids-hentingen glipper rutinemessig på mobil), at tjenesten svarte og området faktisk er tomt, og at hentingen feilet.

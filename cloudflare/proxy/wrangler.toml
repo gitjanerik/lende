@@ -1,4 +1,4 @@
-name = "lende-nve-proxy"
+name = "lende-proxy"
 main = "src/index.js"
 compatibility_date = "2025-07-01"
 

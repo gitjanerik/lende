@@ -42,7 +42,7 @@ kartbygg og juster_kart; poller på server-versjon mot edge-propagering):
 deploy-mcp-worker.yml.
 
 MCP-spesifikasjonen har en **Streamable HTTP**-transport ved siden av stdio. En
-Cloudflare Worker (samme deploy-mønster som `cloudflare/nve-proxy/`) kan hoste
+Cloudflare Worker (samme deploy-mønster som `cloudflare/proxy/`) kan hoste
 serveren slik at en nettbasert klient — inkludert claude.ai / Claude Code på web
 — kobler til over HTTPS.
 
@@ -84,7 +84,7 @@ toppen»).
 - **LLM-nøkkel bak en Worker.** Som med NVE kan ikke en API-nøkkel bo i den
   offentlige bundelen. En ny Cloudflare Worker (f.eks. `cloudflare/llm-proxy/`)
   som holder nøkkelen og videresender til Claude-API-et, med CORS låst til
-  `gitjanerik.github.io` slik nve-proxyen er.
+  `gitjanerik.github.io` slik proxyen er.
 - **Verktøy-orkestrering.** To varianter:
   - **Klient-side verktøy:** LLM-en foreslår verktøykall, og appen kjører dem
     _lokalt i nettleseren_ mot `src/lib` (mesteparten er DOM-fri og kjører
@@ -142,7 +142,7 @@ alternativet som gir minst infrastruktur totalt.
 
 - **Ingen nøkkel å skjule.** Workers AI kalles via binding (`env.AI.run(...)`)
   direkte i Worker-koden. Hele grunnen til proxy-mønsteret (skjule API-nøkkel,
-  jf. nve-proxy) bortfaller — Fase 1-Workeren krymper til CORS-allowlist +
+  jf. proxyen) bortfaller — Fase 1-Workeren krymper til CORS-allowlist +
   videresending til `env.AI` med streaming.
 - **Verktøykall er blitt bra nok.** Katalogen har nå dedikerte
   tool-calling-modeller — `@cf/zai-org/glm-4.7-flash` (rask) og Kimi K2.6/K2.7
@@ -205,6 +205,6 @@ Objects og assets via R2 i stedet for filstier — er verdt å ta først når de
 finnes et konkret behov for en fjern, ikke-Lende-klient.
 
 Naturlig neste steg uansett spor: en minimal LLM-proxy-Worker (kopi av
-`cloudflare/nve-proxy/`-mønsteret) og en avklaring av hvilke ~5 verktøy en
+`cloudflare/proxy/`-mønsteret) og en avklaring av hvilke ~5 verktøy en
 chat-førstegangsbruker trenger (trolig `sok_sted` → `bygg_kart` →
 `planlegg_rute`/`planlegg_rundtur` → `turrapport_svg`).
