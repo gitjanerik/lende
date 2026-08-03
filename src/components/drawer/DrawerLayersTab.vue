@@ -14,7 +14,9 @@ defineProps({
   toggleLayer: { type: Function, required: true },
   toggleDepth: { type: Function, required: true },
   visibleLayers: { type: Object, required: true },   // Set
-  kulturminneCount: { type: Number, default: 0 },
+  // null = vet ikke ennå (ingen innbakte ikoner, live-hentingen har ikke svart).
+  kulturminneCount: { type: Number, default: null },
+  kulturminneStatus: { type: String, default: 'ukjent' },   // 'ukjent' | 'ok' | 'feilet'
   fredetLoading: { type: Boolean, default: false },
   fredetCount: { type: Number, default: null },
   hydroLoading: { type: Boolean, default: false },
@@ -65,9 +67,21 @@ defineProps({
                       ? 'bg-slate-400/25 border-slate-300/50 text-ink'
                       : 'bg-ink/5 border-ink/10 text-ink/45'">
         <span class="text-[12px]">{{ lay.label }}</span>
+        <!-- Tre utfall, tre tegn (v4.8.6): «(0)» betyr nå at tjenesten svarte og
+             området er tomt, «(–)» at vi ennå ikke vet, og «(!)» at hentingen
+             feilet. Før var alle tre «(0)», som leste som «funksjonen er borte». -->
         <span v-if="lay.key === 'kulturminne'"
               class="ml-1 text-[10px] tabular-nums"
-              :class="kulturminneCount ? 'text-emerald-300/80' : 'text-ink/30'">({{ kulturminneCount }})</span>
+              :title="kulturminneStatus === 'feilet'
+                        ? 'Kunne ikke hente kulturminner — sjekk nettforbindelsen'
+                        : kulturminneCount == null
+                          ? 'Ikke hentet ennå'
+                          : `${kulturminneCount} kulturminner i dette utsnittet`"
+              :class="kulturminneStatus === 'feilet' ? 'text-amber-300/90'
+                      : kulturminneCount ? 'text-emerald-300/80' : 'text-ink/30'">{{
+                kulturminneStatus === 'feilet' ? '(!)'
+                : kulturminneCount == null ? '(–)'
+                : '(' + kulturminneCount + ')' }}</span>
         <span v-else-if="lay.key === 'fredet-kulturminne' && (fredetLoading || fredetCount != null)"
               class="ml-1 text-[10px] tabular-nums"
               :class="fredetCount ? 'text-emerald-300/80' : 'text-ink/30'">{{ fredetLoading ? '…' : '(' + fredetCount + ')' }}</span>

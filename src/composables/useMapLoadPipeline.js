@@ -509,9 +509,14 @@ export function useMapLoadPipeline(deps) {
       detachedDetailLayers.push(g)
       g.remove()
     }
-    // Tell kulturminne-ikoner (til toggel-badgen). Gjøres her siden SVG-en nå er
-    // fullt populert; gamle kart uten laget gir 0.
-    kulturminneCount.value = svg.querySelectorAll('[data-kulturminne-id]').length
+    // Tell INNBAKTE kulturminne-ikoner (til toggel-badgen). Gjøres her siden
+    // SVG-en nå er fullt populert.
+    // v4.8.6: ingen innbakte ikoner betyr IKKE «ingen finnes» — bygge-tids-
+    // hentingen glipper rutinemessig på mobil, og runtime-fallbacken henter
+    // live etterpå. Da er svaret «vet ikke» (null), ikke 0, ellers påstår
+    // badgen at området er tomt før noen har spurt.
+    const innbakte = svg.querySelectorAll('[data-kulturminne-id]').length
+    kulturminneCount.value = innbakte || null
     const userLayer = document.createElementNS(ns, 'g')
     userLayer.setAttribute('id', 'user-layer')
     // v8.5.2: GPS-laget skal aldri sluke pinch-to-zoom-gester når brukerens

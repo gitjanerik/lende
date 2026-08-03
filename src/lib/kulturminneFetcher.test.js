@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { kulturminneKategori, fetchKulturminner, fetchKulturminneById, cleanBeskrivelse } from './kulturminneFetcher.js'
+import {
+  kulturminneKategori, fetchKulturminner, fetchKulturminnerMedStatus,
+  fetchKulturminneById, cleanBeskrivelse,
+} from './kulturminneFetcher.js'
 
 function jsonResponse(body, ok = true) {
   return Promise.resolve({ ok, json: () => Promise.resolve(body) })
@@ -141,6 +144,64 @@ describe('fetchKulturminner — bbox-henting', () => {
     vi.stubGlobal('fetch', fetchMock)
     expect(await fetchKulturminner({ south: NaN, west: 9, north: 62, east: 9.1 })).toEqual([])
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+// v4.8.6: safeFetchJson svelger alt, så et tomt område og en død tjeneste kom ut
+// som samme tomme liste. Badgen viste «(0)» i begge tilfeller, og brukeren leste
+// det som at kulturminne-funksjonen var fjernet fra appen. Statusen er det som
+// gjør de to skillbare — disse testene låser skillet.
+describe('fetchKulturminnerMedStatus — skiller tomt fra feilet', () => {
+  const bbox = { south: 59.65, west: 10.53, north: 59.72, east: 10.62 }
+
+  it('tomt område: tjenesten svarte, status ok, items tom', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse({ type: 'FeatureCollection', features: [], links: [] })))
+    const res = await fetchKulturminnerMedStatus(bbox)
+    expect(res.status).toBe('ok')
+    expect(res.items).toEqual([])
+  })
+
+  it('nettfeil: status feilet, items tom', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('nett nede'))))
+    const res = await fetchKulturminnerMedStatus(bbox)
+    expect(res.status).toBe('feilet')
+    expect(res.items).toEqual([])
+  })
+
+  it('vedvarende 5xx: status feilet', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse({}, false)))
+    expect((await fetchKulturminnerMedStatus(bbox)).status).toBe('feilet')
+  })
+
+  it('treff: status ok med items', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse({
+      features: [{ id: 'a', geometry: { type: 'Point', coordinates: [10.57, 59.68] }, properties: { tittel: 'Gravrøys' } }],
+      links: [],
+    })))
+    const res = await fetchKulturminnerMedStatus(bbox)
+    expect(res.status).toBe('ok')
+    expect(res.items.map((k) => k.id)).toEqual(['a'])
+    expect(res.items[0].kategori).toBe('gravminne')
+  })
+
+  it('ugyldig bbox gir egen status, ikke «feilet»', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const res = await fetchKulturminnerMedStatus({ south: NaN, west: 9, north: 62, east: 9.1 })
+    expect(res.status).toBe('ugyldig-bbox')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('fetchKulturminner er fortsatt en tynn wrapper som gir bare lista', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse({
+      features: [{ id: 'b', geometry: { type: 'Point', coordinates: [10.5, 59.7] }, properties: { tittel: 'Hustuft' } }],
+      links: [],
+    })))
+    expect(await fetchKulturminner(bbox)).toEqual([
+      { id: 'b', lat: 59.7, lon: 10.5, tittel: 'Hustuft', kategori: 'bygning' },
+    ])
   })
 })
 
