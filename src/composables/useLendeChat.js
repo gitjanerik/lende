@@ -100,7 +100,19 @@ function nySamtale() {
 }
 
 // Maks verktøy-runder per melding — vern mot at modellen går i løkke.
-const MAX_VERKTOEY_RUNDER = 4
+// Hevet 4 → 6 (v4.8.4): å skille navnebrødre koster runder. «Vardåsen» finnes
+// flere steder i Asker, så modellen brukte opp budsjettet på sok_i_kartet før
+// den kom til foreslaa_tur. Neurons er billig (10 000/døgn gratis, deretter
+// $0,011/1000), så taket koster VENTETID, ikke penger — 6 gir rom for et par
+// oppslag før handlingen uten at en løkke lar brukeren vente et halvt minutt.
+// Taket er dessuten ikke lenger kritisk: et kall som ligger på bordet når det
+// nås blir utført, ikke droppet (se sisteSjanse under).
+const MAX_VERKTOEY_RUNDER = 6
+
+// Verktøynavnene tekst-tolkingen skal godta. Sendes til chatOnce i ALLE runder,
+// også den siste der vi ikke lenger tilbyr tools — ellers lekker et
+// tekst-skrevet kall ordrett ut i chatten (v4.8.4-feilen).
+const VERKTOEY_NAVN = AI_TOOLS.map((t) => t?.function?.name).filter(Boolean)
 
 // Verktøy som sender en tur til kartvisningen (og dermed ikke kan kjenne
 // rutens tall i svaret). vis_tur_i_3d er det gamle navnet på foreslaa_tur.
@@ -202,13 +214,21 @@ async function send(text) {
       const { text: svarTekst, toolCalls, raw } = await chatOnce({
         messages: samtale,
         tools: runde < MAX_VERKTOEY_RUNDER && !utenVerktoy ? AI_TOOLS : undefined,
+        toolNames: VERKTOEY_NAVN,
         signal: abortCtrl.signal,
       })
 
-      if (!toolCalls.length || runde >= MAX_VERKTOEY_RUNDER) {
+      if (!toolCalls.length) {
         svar.content = svarTekst.trim() || '(Modellen ga et tomt svar — prøv å omformulere.)'
         break
       }
+
+      // Taket er nådd, men modellen har ETT kall på bordet. Å droppe det var
+      // feilen i v4.8.3: handlingen forsvant stille og brukeren fikk et svar
+      // som påsto at den var utført. Taket verner mot at modellen går i løkke —
+      // et allerede formulert kall er ikke en ny runde, så vi utfører det og
+      // avslutter uten å spørre modellen igjen.
+      const sisteSjanse = runde >= MAX_VERKTOEY_RUNDER
 
       // Verktøy-runde. VIKTIG (v3.0.35): send en SANERT assistent-melding
       // tilbake, aldri modellens rå OpenAI-form — den har content:null og en
@@ -247,6 +267,17 @@ async function send(text) {
           content: JSON.stringify(resultat),
         })
       }
+      if (sisteSjanse) {
+        // Modellen får ikke ordet igjen. Sto det prosa foran kallet, bruk den;
+        // for turer overskrives den likevel av turSendt-grenene under. Var det
+        // et annet verktøy (typisk et søk) og ingen prosa, må vi si noe selv —
+        // et tomt svar ser ut som at chatten hang.
+        svar.content = svarTekst.trim()
+          || (turSendt
+            ? 'Turen er sendt til kartet.'
+            : 'Jeg brukte opp forsøkene mine på dette spørsmålet. Prøv å spørre mer presist.')
+        break
+      }
       busyLabel.value = 'Tenker …'
     }
 
@@ -267,6 +298,14 @@ async function send(text) {
       svar.content = turSvarTekst(turSendt)
     } else if (turSendt && (harOppdiktedeTurtall(svar.content) || hermetisk.test(svar.content))) {
       svar.content = turSvarTekst(turSendt)
+    } else if (!turSendt && harOppdiktedeTurtall(svar.content)) {
+      // Ingen tur ble sendt, men svaret snakker om lengde/stigning/gangtid:
+      // tallene KAN ikke være ekte. Vakten over var gatet på turSendt, så i
+      // v4.8.3-feilen slapp «Turen er tegnet inn … 11,9 km … 3 t 11 min»
+      // gjennom for en tur som aldri ble beregnet. Vær ærlig i stedet.
+      svar.content = 'Jeg fikk ikke tegnet turen, så jeg har ingen tall å gi deg. '
+        + 'Prøv å presisere start og mål — heter flere steder i kartet det samme, '
+        + 'hjelper det å ta med høyde eller et nabosted.'
     }
   } catch (err) {
     if (err?.name === 'AbortError') {

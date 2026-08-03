@@ -1,5 +1,17 @@
 # Endringslogg
 
+## 2026-08-03 — v4.8.4: Verktøykallet på siste runde blir utført, ikke skrevet ut
+
+«lag tur fra Bondivann stasjon til Vardåsen 349 meter over havet» ga verken rute eller 3D-visning, men et selvsikkert svar om at turen var 11,9 km med 349 høydemeter og 3 timer 11 minutters gangtid. Ingenting av det var sant, og hele kjeden hang i én spiker: verktøykallet ble skrevet ut som tekst i chatten i stedet for å bli utført — `[foreslaa_tur(kartId="…", fraNavn="Bondivann stasjon", tilNavn="Vardåsen")]` sto der ordrett.
+
+Årsaken var at `chatOnce` utledet navnelista til tekst-tolkingen fra `tools`-argumentet. Vi slutter med vilje å tilby verktøy på siste runde, og da ble lista tom — hvorpå `parseTextToolCalls` returnerte umiddelbart og lot teksten stå. Tolkingen falt altså ut nøyaktig der den trengtes mest. Navnelista er nå en egen `toolNames`-parameter som sendes i ALLE runder, uavhengig av hva modellen tilbys.
+
+Runde-budsjettet er hevet fra 4 til 6. Å skille navnebrødre koster runder: «Vardåsen» finnes flere steder i Asker, så modellen brukte opp budsjettet på `sok_i_kartet` før den rakk `foreslaa_tur`. Neurons koster lite (10 000 per døgn gratis, deretter $0,011 per 1000), så taket koster ventetid framfor penger — 6 gir rom for et par oppslag før handlingen uten at en løkke lar brukeren vente et halvt minutt. Viktigere er at taket ikke lenger kan svelge en handling: har modellen ett kall på bordet når taket nås, blir det utført og samtalen avsluttet, i stedet for at kallet forsvinner stille. Taket verner mot at modellen går i løkke, og et allerede formulert kall er ingen ny runde.
+
+Til sist er løgn-vakten utvidet. `harOppdiktedeTurtall()` kjente setningen igjen hele tiden, men var gatet på at en tur FAKTISK var sendt — så da ingen tur ble sendt, slapp tallene rett gjennom. Nevner svaret nå lengde, stigning eller gangtid uten at en tur er beregnet, erstattes det med en ærlig beskjed som samtidig tipser om at flere steder kan hete det samme. Bonus: 3D-oppfølgingen virker igjen av seg selv, siden «Ja» krever et `sisteTur` som bare settes når kallet kjøres.
+
+---
+
 ## 2026-08-03 — v4.8.3: Menyen viker for modalen, og slettknappen slutter å skrike
 
 «Mine kart» åpnet som modal *oppå* den åpne hovedmenyen, så du satt igjen med to lag og to lukke-kryss samtidig: menyens hamburger-X øverst til venstre og modalens X øverst til høyre. Ingenting sa hvilket som gjorde hva, og menyens innhold skinte gjennom bak modalen. Nå lukker menyen seg når en modal åpnes — ett lag, ett kryss. Det gjelder alle menyens modaler (Mine kart, Mine ruter, Nytt turkart, Tegnforklaring, Om), ikke bare «Mine kart»: å fikse én ville gitt halvparten den ene oppførselen og halvparten den andre. Modalen var før gatet på `menuOpen`, så gaten er fjernet og rute-endring rydder nå modalen i tillegg til menyen — den kan stå åpen på egen hånd.
