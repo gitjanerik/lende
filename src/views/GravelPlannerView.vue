@@ -745,6 +745,42 @@ const hintOpen = ref(false)
 // Flytende kart-elementer (FAB, lag-knapp, attribusjon, feilbanner) ankres
 // til planlegg-skuffen.
 const floatBottomPx = computed(() => drawer.visibleHeightPx.value)
+
+// Skuffen er maks 700 px bred og midtstilt (.drawer-shell i style.css), så på
+// brede vindu står det igjen synlig kart på hver side av den. Elementer som får
+// plass i den margen skal ligge FAST nederst — som linjalen og OSM-kreditten i
+// turkartet — i stedet for å hoppe oppover mens skuffen dras. Elementer som er
+// bredere enn margen ville havnet UNDER skuffen (den er z-20), og fortsetter
+// derfor å følge overkanten hennes.
+const DRAWER_MAX_W = 700
+const mapMarginPx = computed(() => Math.max(0, (mapSize.value.w - DRAWER_MAX_W) / 2))
+
+/**
+ * bottom-offset for et flytende element: fast nederst når elementet får plass i
+ * kartmargen ved siden av skuffen, ellers ankret til skuffens overkant.
+ * @param {number} basePx  avstand fra ankeret
+ * @param {number} needPx  elementets bredde + klaring til skuffen
+ */
+function floatBottom(basePx, needPx) {
+  const fixed = mapMarginPx.value >= needPx
+  return `${(fixed ? 0 : floatBottomPx.value) + basePx}px`
+}
+
+// Målt i nettleser: knappen er 40 px, det åpne lag-panelet 194 px. Begge pluss
+// left-3 (12 px) og 8 px klaring til skuffen. Panelet får altså først fast plass
+// på brede vindu (fra ~1130 px); smalere følger det skuffen som før, i stedet
+// for å havne under henne.
+const LAYER_BTN_NEED = 60
+const LAYER_PANEL_NEED = 214
+
+// Attribusjonen er én lang linje. Fast nederst til høyre får den margen som
+// maks-bredde og brytes over flere linjer; ellers står den umbrutt over skuffen.
+const ATTRIBUTION_NEED = 108
+const attributionStyle = computed(() => (
+  mapMarginPx.value >= ATTRIBUTION_NEED
+    ? { bottom: '4px', maxWidth: `${mapMarginPx.value - 8}px` }
+    : { bottom: `${floatBottomPx.value + 4}px` }
+))
 const saveName = ref('')
 const savingName = ref(false)
 const savedFlash = ref('')
@@ -1523,7 +1559,7 @@ onUnmounted(() => {
       <button v-if="!overlayGated && !layersPanelOpen" @click.stop="layersPanelOpen = true"
               @mousedown.stop @touchstart.stop
               aria-label="Kartlag" :aria-expanded="false"
-              :style="{ bottom: (floatBottomPx + 12) + 'px' }"
+              :style="{ bottom: floatBottom(12, LAYER_BTN_NEED) }"
               class="absolute left-3 z-20 w-10 h-10 rounded-lg bg-overlay/90 border border-ink/15
                      text-ink/80 shadow-lg flex items-center justify-center active:scale-95 transition">
         <svg viewBox="0 0 24 24" class="w-4.5 h-4.5" fill="none" stroke="currentColor" stroke-width="2"
@@ -1533,7 +1569,7 @@ onUnmounted(() => {
         </svg>
       </button>
       <div v-else-if="!overlayGated"
-           :style="{ bottom: (floatBottomPx + 12) + 'px' }"
+           :style="{ bottom: floatBottom(12, LAYER_PANEL_NEED) }"
            class="absolute left-3 z-20 rounded-lg bg-overlay/95 backdrop-blur border border-ink/15
                   px-2.5 py-2 shadow-xl"
            @mousedown.stop @touchstart.stop @wheel.stop>
@@ -1598,10 +1634,11 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Attribusjon (løftes over skuffen) -->
+      <!-- Attribusjon: fast nederst til høyre når den får plass i kartmargen ved
+           siden av skuffen, ellers løftet over skuffen (se attributionStyle). -->
       <div class="absolute right-1 px-1.5 py-0.5 rounded bg-surface/85 text-ink/60 text-[8px]
-                  border border-ink/15 leading-tight pointer-events-none z-10"
-           :style="{ bottom: (floatBottomPx + 4) + 'px' }">
+                  border border-ink/15 leading-tight pointer-events-none z-10 text-right"
+           :style="attributionStyle">
         © Kartverket · © OpenStreetMap-bidragsytere · Ruting: BRouter (brouter.de)
       </div>
     </div>
