@@ -32,6 +32,7 @@ import { useSymbolRenderers } from '../composables/useSymbolRenderers.js'
 import { useContextLookups } from '../composables/useContextLookups.js'
 import { useMapTheme } from '../composables/useMapTheme.js'
 import { useMapLayerControl, publiserSynligeLag } from '../composables/useMapLayerControl.js'
+import { useMapHighlight, publiserMerkeKlar } from '../composables/useMapHighlight.js'
 import { loadNasjonalparker, parksForBbox, samePark } from '../lib/nasjonalparkData.js'
 import { useMapLoadPipeline } from '../composables/useMapLoadPipeline.js'
 import { buildStrokeOverrideCss } from '../lib/strokeOverrides.js'
@@ -2195,6 +2196,34 @@ function maybeHighlightFromQuery() {
   }
   renderHighlight()
 }
+
+// Lende-chat ber om en markering («kan du merke det»). Finner vi navnet i
+// kartets egen søkeindeks, går vi gjennom selectSearchResult — da er resultatet
+// per definisjon identisk med at brukeren valgte treffet i søket selv (navne-
+// LOD-en låses opp, utsnittet panner dit, puls-ringen tegnes). Ellers merkes
+// koordinatene direkte, som en delt sted-lenke.
+const { kommando: merkeKommando } = useMapHighlight()
+// Markering krever et lastet kart med ferdig søkeindeks — chatten spør om
+// dette før den påstår at noe er merket.
+watch(searchIndex, (idx) => publiserMerkeKlar((idx?.length ?? 0) > 0), { immediate: true })
+onUnmounted(() => publiserMerkeKlar(false))
+watch(merkeKommando, (cmd) => {
+  if (!cmd) return
+  if (cmd.fjern) { clearHighlight(); return }
+  const match = cmd.navn ? findByName(mapSearch.index.value, String(cmd.navn)) : null
+  if (match) { selectSearchResult(match); return }
+  if (!meta.value || !Number.isFinite(cmd.lat) || !Number.isFinite(cmd.lon)) return
+  const { x, y } = wgs84ToSvg(cmd.lat, cmd.lon, meta.value)
+  highlightedFeature.value = {
+    name: cmd.navn || 'Markert sted', sub: cmd.sub, x, y, kind: 'chat-merke',
+  }
+  panToSettled(x, y, {
+    vbWidth: meta.value.widthM,
+    vbHeight: meta.value.heightM,
+    targetScale: Math.max(scale.value, zoomNearThreshold.value),
+  })
+  renderHighlight()
+})
 
 // «Del rundtur» — deler den aktive Stifinner-rundturen slik «Del kart og sted»
 // deler et sted. Rundturen beregnes deterministisk fra origo (start == mål) +

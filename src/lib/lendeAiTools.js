@@ -28,6 +28,7 @@ import { listThemes } from './mapSettingsApply.js'
 import { LAYERS, LAYER_PRESETS } from './mapLayerCatalog.js'
 import { useMapTheme } from '../composables/useMapTheme.js'
 import { useMapLayerControl, sendLagKommando } from '../composables/useMapLayerControl.js'
+import { useMapHighlight, sendMerkeKommando } from '../composables/useMapHighlight.js'
 
 // Router lastes lat: da kan testene importere de rene delene (buildTourQuery,
 // projectForModel) uten å evaluere hele router→view-treet.
@@ -216,6 +217,31 @@ export const AI_TOOLS = [
         properties: {
           kartId: { type: 'string', description: 'Kart-id fra mine_kart_og_ruter — KUN for et annet kart enn det brukeren står i (ellers utelat, kartet hentes fra konteksten)' },
           minTurKm: { type: 'number', description: 'Minste turlengde i km for tur-kandidater (standard 0,5)' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'merk_i_kartet',
+      description:
+        'Merk et sted i kartet med den rosa, blinkende ringen og pan dit — helt samme markering ' +
+        'som når brukeren velger et treff i søkefeltet. Bruk når brukeren ber om det («kan du ' +
+        'merke det», «marker Stordammen», «vis meg hvor det er»), og tilby det gjerne selv rett ' +
+        'etter at du har navngitt et sted i kartet. Oppgi HELST bare «navn» — appen slår det opp ' +
+        'i kartets egne navn og finner koordinatene selv; lat/lon er bare for punkter uten navn. ' +
+        'Ligger stedet i en naboflis, åpnes den flisen. Sett «fjern» for å fjerne markeringen. ' +
+        'Påstå ALDRI at noe er merket uten at dette verktøyet har svart ok.',
+      parameters: {
+        type: 'object',
+        properties: {
+          navn: { type: 'string', description: 'Stedsnavnet som skal merkes, f.eks. «Bijjie Gaajsjaevrie»' },
+          kartId: { type: 'string', description: 'Kart-id — KUN for et annet kart enn det brukeren står i (ellers utelat)' },
+          lat: { type: 'number', description: 'Breddegrad (kun for punkter uten navn i kartet)' },
+          lon: { type: 'number', description: 'Lengdegrad (kun for punkter uten navn i kartet)' },
+          fjern: { type: 'boolean', description: 'Fjern markeringen som står i kartet nå' },
         },
         required: [],
       },
@@ -695,6 +721,80 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
             'foreslaa_rundtur (appen laster naboflisene automatisk).',
         }
       }
+      case 'merk_i_kartet': {
+        const { merkeKlar } = useMapHighlight()
+        if (!merkeKlar.value) {
+          return {
+            feil: 'Ingen kartvisning er åpen, så jeg kan ikke merke noe. Åpne kartet først ' +
+              '(apne_kart), så kan markeringen settes.',
+          }
+        }
+        if (args?.fjern) {
+          sendMerkeKommando({ fjern: true })
+          return { ok: true, fjernet: true, merknad: 'Markeringen er fjernet fra kartet.' }
+        }
+        const løst = await losKart(args, kontekst)
+        if (!løst) return { feil: `Fant ikke kart med id «${args?.kartId}». Bruk mine_kart_og_ruter.` }
+        const { id, kart } = løst
+        const navn = String(args?.navn ?? '').trim()
+
+        // Navnet slår koordinater, som i turverktøyene: kartets egne navn er
+        // fasit, og modellen har gjerne bare lest koordinatene et annet sted i
+        // samtalen. Naboflisene søkes også — mosaikken oppleves som ett kart.
+        const naboer = (await mosaikkFliser(id, kart)).slice(1, 9)
+        const treff = navn ? await finnStedIKartet(kart, naboer, navn) : null
+        let punkt = treff ? { lat: treff.lat, lon: treff.lon } : null
+        if (!punkt) {
+          const lat = Number(args?.lat), lon = Number(args?.lon)
+          if (Number.isFinite(lat) && Number.isFinite(lon)) punkt = { lat, lon }
+        }
+        if (!punkt) {
+          return {
+            feil: navn
+              ? `Fant ikke «${navn}» blant navnene i kartet «${kart.navn ?? id}» eller naboflisene. ` +
+                'Si det ærlig, og tilby å bygge et kart over området (lag_kart).'
+              : 'Oppgi navnet på stedet som skal merkes (navn), eller lat/lon for et punkt uten navn.',
+          }
+        }
+        const merketNavn = treff?.navn ?? navn ?? 'Markert sted'
+        const målKart = treff?.kartId ?? id
+        const merket = {
+          navn: merketNavn,
+          lat: punkt.lat,
+          lon: punkt.lon,
+          kart: treff?.kart ?? kart.navn ?? id,
+        }
+        // Stedet ligger i flisen brukeren står i: merk direkte, uten navigasjon.
+        if (kontekst?.kartId && kontekst.kartId === målKart) {
+          sendMerkeKommando({ navn: merketNavn, lat: punkt.lat, lon: punkt.lon })
+          onNavigate?.()
+          return {
+            ok: true,
+            merket,
+            merknad: 'Markeringen (rosa, blinkende ring) står i kartet nå, og utsnittet er ' +
+              'pannet dit. Bekreft kort at stedet er merket — ikke gjenta koordinatene.',
+          }
+        }
+        // Annen flis eller et annet lagret kart: åpne det med samme dyplenke
+        // «Del kart og sted» bruker, så markeringen settes når kartet er lastet.
+        onNavigate?.()
+        await navigerTil({
+          name: 'kart-vis',
+          params: { id: målKart },
+          query: {
+            hl: merketNavn.slice(0, 60),
+            slat: punkt.lat.toFixed(6),
+            slon: punkt.lon.toFixed(6),
+          },
+        })
+        return {
+          ok: true,
+          merket,
+          byttetKart: merket.kart,
+          merknad: `Stedet ligger i «${merket.kart}» — kartet åpnes med markeringen satt. ` +
+            'Bekreft kort, og nevn at du byttet kartflis. Ikke gjenta koordinatene.',
+        }
+      }
       case 'styr_kartlag': {
         const { synligeLag } = useMapLayerControl()
         const naa = synligeLag.value
@@ -1103,6 +1203,44 @@ export function turSvarTekst({ type = 'tur', vis3d = false, rute = null } = {}) 
 }
 
 /**
+ * Deterministisk, ærlig bekreftelse etter at et sted ble merket i kartet.
+ * Skrives her i stedet for av modellen fordi den (v4.8.9) både påsto merking
+ * den ikke hadde utført OG dumpet rå koordinater i svaret — brukeren spurte
+ * om en markering, ikke om desimalgrader.
+ */
+export function merkeSvarTekst({ navn, fjernet = false, byttetKart = null } = {}) {
+  if (fjernet) return 'Markeringen er fjernet fra kartet.'
+  const stedet = navn ? `«${navn}»` : 'Stedet'
+  return byttetKart
+    ? `${stedet} ligger i kartflisen «${byttetKart}» — jeg åpnet den og merket stedet med den rosa ringen.`
+    : `${stedet} er merket i kartet med en rosa, blinkende ring, og utsnittet er flyttet dit.`
+}
+
+/**
+ * Ber brukeren om å få noe merket i kartet? Brukes til å avgjøre om et svar som
+ * PÅSTÅR merking skal etterprøves — «stien er markert med rødt» er en helt
+ * gyldig setning om karttegnene, og skal ikke overskrives av vakten.
+ */
+export function erMerkeOnske(tekst) {
+  const s = String(tekst ?? '').toLowerCase()
+  if (!s) return false
+  return /\b(merk|merke|merker|marker|markere|marker\w*|uthev\w*|highlight\w*)\b/.test(s)
+    || /vis (meg )?(hvor|hvilket|hvilken)/.test(s)
+}
+
+/**
+ * Påstår svaret at noe ER merket i kartet? Som paastaarTegnetTur vurderes det
+ * setning for setning, så et tilbud («vil du at jeg skal merke det?») ikke
+ * regnes som en påstand.
+ */
+export function paastaarMerking(tekst) {
+  return String(tekst ?? '').toLowerCase().split(/[.!?\n]+/).some((s) => {
+    if (/hvis du vil|vil du|ønsker du|skal jeg|si fra|kan jeg/.test(s)) return false
+    return /\b(merket|markert|merker|markerer|uthevet)\b/.test(s)
+  })
+}
+
+/**
  * Ber brukeren om å se den nettopp tegnede turen i 3D? Deterministisk, fordi
  * modellen ellers må gjenskape hele foreslaa_tur-kallet med koordinater fra
  * historikken — skjørt, og «se ruta i 3D» kunne feile der «se ruten i 3D»
@@ -1204,6 +1342,9 @@ export function toolStatusLabel(name, args) {
     case 'lag_kart': return 'Starter kartbygging …'
     case 'sok_i_kartet': return `Søker i kartet etter «${args?.sok ?? '…'}» …`
     case 'analyser_stinett': return 'Analyserer stinettet …'
+    case 'merk_i_kartet': return args?.fjern
+      ? 'Fjerner markeringen …'
+      : `Merker ${args?.navn ? `«${args.navn}»` : 'stedet'} i kartet …`
     case 'bytt_kart_tema': return 'Bytter kart-tema …'
     case 'styr_kartlag': return 'Justerer kartlagene …'
     case 'foreslaa_tur':

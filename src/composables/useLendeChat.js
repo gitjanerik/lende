@@ -3,6 +3,7 @@ import { chatOnce } from '../lib/lendeAi.js'
 import {
   AI_TOOLS, runTool, toolStatusLabel, erStinettSporsmaal, stinettSvarTekst,
   harOppdiktedeTurtall, paastaarTegnetTur, turSvarTekst, er3dOnske, temaOnskeFra,
+  merkeSvarTekst, paastaarMerking, erMerkeOnske,
 } from '../lib/lendeAiTools.js'
 
 // Global chat-tilstand (Fase 2 av KI-planen). Modul-skopet med vilje: modalen
@@ -40,7 +41,8 @@ function systemPrompt() {
     // for grus-/sykkelruter) — v3.0.30-prompten kjente bare Turplanleggeren
     // og sendte fotturfolk dit.
     // Fase 3: modellen HAR verktøy — instruer bruken.
-    'Du har verktøy og kan utføre ting i appen: søke i et lagret karts egne stedsnavn/tjern/topper (sok_i_kartet), søke etter steder på nett (sok_sted), liste brukerens lagrede kart og grusruter (mine_kart_og_ruter), åpne et lagret kart (apne_kart), BYGGE et nytt turkart direkte (lag_kart — byggingen starter med én gang og tar 15–60 sekunder), gjøre klart et nytt kart med utfylte felter (foreslaa_nytt_kart — brukeren bekrefter og bygger selv), analysere stinettet i et lagret kart (analyser_stinett — total km sti, lengste sammenhengende tur, tur-kandidater med stigning), foreslå en fottur A→B tegnet inn i et lagret kart (foreslaa_tur), og foreslå en RUNDTUR tegnet inn i et lagret kart (foreslaa_rundtur — start/mål + vendepunkt).',
+    'Du har verktøy og kan utføre ting i appen: søke i et lagret karts egne stedsnavn/tjern/topper (sok_i_kartet), søke etter steder på nett (sok_sted), liste brukerens lagrede kart og grusruter (mine_kart_og_ruter), åpne et lagret kart (apne_kart), BYGGE et nytt turkart direkte (lag_kart — byggingen starter med én gang og tar 15–60 sekunder), gjøre klart et nytt kart med utfylte felter (foreslaa_nytt_kart — brukeren bekrefter og bygger selv), analysere stinettet i et lagret kart (analyser_stinett — total km sti, lengste sammenhengende tur, tur-kandidater med stigning), foreslå en fottur A→B tegnet inn i et lagret kart (foreslaa_tur), og foreslå en RUNDTUR tegnet inn i et lagret kart (foreslaa_rundtur — start/mål + vendepunkt), og MERKE et sted i kartet med den rosa, blinkende ringen (merk_i_kartet).',
+    'Merking: har du nevnt et sted som ligger i kartet, tilby å merke det («vil du at jeg skal merke det i kartet?») — og kall merk_i_kartet så snart brukeren sier ja eller ber om det («merk det», «marker Stordammen», «vis meg hvor det er»). Oppgi bare navnet; appen finner koordinatene i kartets egne navn. Rams ALDRI opp lat/lon i svaret — brukeren ba om en markering, ikke om desimalgrader. «Fjern markeringen» → merk_i_kartet med fjern: true.',
     'Stinett-spørsmål («hvor mange km sti er det her?», «hva er den lengste turen?», «hvilken tur er brattest/slakest?»): kall analyser_stinett — UTEN argumenter når brukeren står i kartet (kartet hentes automatisk fra konteksten). Formuler svaret PÅ NORSK: har svaret totalStiTekst, bruk den («Det er mer enn 370 km turstier i kartet») og nevn kartets størrelse (kartKm/arealKm2) så tallet får kontekst — kartet er ofte mye større enn utsnittet brukeren ser. Vil brukeren gå en av turene den fant: send turens koordinater rett videre — start/slutt/via til foreslaa_tur, origo/via til foreslaa_rundtur. Gir analysen treff: 0, si ærlig at kartet bare har korte sti-fragmenter.',
     'Nytt kart: oppgi stedsnavnet i «sted» til lag_kart/foreslaa_nytt_kart (gjerne med kommune, «Sirikjerke, Øvre Eiker») — appen geokoder selv. Gjenbruk ALDRI lat/lon fra et annet sted i samtalen.',
     'Ber brukeren om BÅDE nytt kart OG en tur i det: gjør det i ÉTT lag_kart-kall med turFraNavn og turTilNavn satt. Turen tegnes da inn automatisk så snart kartet er ferdig bygget (15–60 sekunder). Kall ALDRI foreslaa_tur for et kart som ikke finnes ennå, og oppgi ingen tall for turen — den er ikke beregnet.',
@@ -64,6 +66,7 @@ function systemPrompt() {
     '• Kart over et nytt område: «Nytt turkart» i hovedmenyen.',
     'Turer til fots i kartet hører altså til Stifinneren — henvis aldri fotturer til Turplanleggeren.',
     'Det du verken kan gjøre med verktøy eller finnes en funksjon for (telle objekter i kartet, analysere kart som ikke er lagret): si ærlig fra.',
+    'Påstå ALDRI at et sted er merket eller markert uten at merk_i_kartet har svart ok — markeringen finnes bare hvis verktøyet satte den.',
   ]
   if (context.value) {
     deler.push(`Brukerens kontekst akkurat nå (JSON): ${JSON.stringify(context.value)}`)
@@ -180,6 +183,8 @@ async function send(text) {
   // Satt når en tur faktisk ble sendt til kartet — brukes til å luke ut
   // oppdiktede rutetall i svaret (se under løkka).
   let turSendt = null
+  // Satt når merk_i_kartet faktisk satte (eller fjernet) markeringen.
+  let merkeSendt = null
   if (context.value?.kartId && erStinettSporsmaal(spm)) {
     busyLabel.value = toolStatusLabel('analyser_stinett', {})
     try {
@@ -260,6 +265,13 @@ async function send(text) {
           // Husk turen så en 3D-oppfølging kan åpne akkurat den.
           sisteTur = { name: kall.name, args: { ...kall.args } }
         }
+        if (resultat?.ok && kall.name === 'merk_i_kartet') {
+          merkeSendt = {
+            navn: resultat.merket?.navn ?? null,
+            fjernet: !!resultat.fjernet,
+            byttetKart: resultat.byttetKart ?? null,
+          }
+        }
         samtale.push({
           role: 'tool',
           tool_call_id: kall.id,
@@ -314,6 +326,29 @@ async function send(text) {
       svar.content = 'Jeg fikk ikke tegnet turen, så jeg har ingen tall å gi deg. '
         + 'Prøv å presisere start og mål — heter flere steder i kartet det samme, '
         + 'hjelper det å ta med høyde eller et nabosted.'
+    }
+
+    // Markeringen: samme prinsipp som turene. Ble den faktisk satt, skriver vi
+    // bekreftelsen selv — modellen dumpet ellers rå koordinater i svaret
+    // («Koordinater: 64.578764, 13.221365»), som er svar på et annet spørsmål
+    // enn det brukeren stilte. Ble den IKKE satt, men svaret påstår merking, er
+    // påstanden usann: verktøyet er det eneste som kan tegne ringen.
+    // Vakten er gatet på at brukeren FAKTISK ba om merking: «stien er markert
+    // med rødt i kartet» er en gyldig setning om karttegnene, og skal stå.
+    if (merkeSendt) {
+      // Modellens egen tekst får stå når den både bekrefter merkingen og er
+      // fri for koordinat-dumper — den kan inneholde noe brukeren spurte om i
+      // samme melding («merk det, og hvor høyt ligger det?»). Ellers skriver
+      // vi bekreftelsen selv.
+      const t = svar.content
+      const raaKoordinater = /-?\d{1,3}[.,]\d{4,}/
+      if (!t || hermetisk.test(t) || raaKoordinater.test(t) || !paastaarMerking(t)
+        || (merkeSendt.byttetKart && !t.includes(merkeSendt.byttetKart))) {
+        svar.content = merkeSvarTekst(merkeSendt)
+      }
+    } else if (!turSendt && erMerkeOnske(spm) && paastaarMerking(svar.content)) {
+      svar.content = 'Jeg fikk ikke merket stedet. Si «merk <stedsnavn>» — da setter jeg '
+        + 'den rosa ringen i kartet, så lenge navnet finnes i kartet du står i.'
     }
   } catch (err) {
     if (err?.name === 'AbortError') {

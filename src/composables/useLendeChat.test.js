@@ -64,6 +64,87 @@ describe('useLendeChat — stinett-spørsmål', () => {
   })
 })
 
+describe('useLendeChat — merking i kartet', () => {
+  beforeEach(() => {
+    chat.nySamtale()
+    chatOnce.mockReset()
+    runTool.mockReset()
+    chat.setChatContext({ kartId: 'otersjoen', kartnavn: 'Bijjie Gaajsjaevrie' })
+  })
+
+  const merkeKall = (args = { navn: 'Bijjie Gaajsjaevrie' }) => ({
+    text: '',
+    toolCalls: [{ id: 'c1', name: 'merk_i_kartet', args }],
+    raw: null,
+  })
+
+  it('skriver bekreftelsen selv, uten koordinatene modellen dro med', async () => {
+    // v4.8.9-svaret: «Vannet Bijjie Gaajsjaevrie er merket i kartet.
+    // Koordinater: 64.578764, 13.221365.» — ingen markering var satt, og
+    // koordinatene var svar på et annet spørsmål enn brukerens.
+    runTool.mockResolvedValue({
+      ok: true,
+      merket: { navn: 'Bijjie Gaajsjaevrie', lat: 64.578764, lon: 13.221365 },
+    })
+    chatOnce
+      .mockResolvedValueOnce(merkeKall())
+      .mockResolvedValueOnce(svarTekst('Vannet er merket. Koordinater: 64.578764, 13.221365.'))
+
+    await chat.send('Kan du merke det')
+
+    expect(runTool).toHaveBeenCalledWith('merk_i_kartet', { navn: 'Bijjie Gaajsjaevrie' }, expect.anything())
+    expect(sisteSvar()).toContain('Bijjie Gaajsjaevrie')
+    expect(sisteSvar()).toContain('rosa')
+    expect(sisteSvar()).not.toContain('64.578764')
+  })
+
+  it('avviser påstand om merking når verktøyet ikke ble kalt', async () => {
+    chatOnce.mockResolvedValue(svarTekst(
+      'Vannet Bijjie Gaajsjaevrie er merket i kartet. Koordinater: 64.578764, 13.221365.',
+    ))
+
+    await chat.send('Kan du merke det')
+
+    expect(runTool).not.toHaveBeenCalled()
+    expect(sisteSvar()).toContain('fikk ikke merket')
+    expect(sisteSvar()).not.toContain('64.578764')
+  })
+
+  it('lar «markert med rødt»-svar stå når brukeren ikke ba om merking', async () => {
+    chatOnce.mockResolvedValue(svarTekst('Stiene er markert med svart prikkelinje i kartet.'))
+
+    await chat.send('Hvordan vises stiene')
+
+    expect(sisteSvar()).toBe('Stiene er markert med svart prikkelinje i kartet.')
+  })
+
+  it('lar modellens svar stå når det både bekrefter og svarer på mer', async () => {
+    runTool.mockResolvedValue({ ok: true, merket: { navn: 'Stordammen', lat: 64.5, lon: 13.2 } })
+    chatOnce
+      .mockResolvedValueOnce(merkeKall({ navn: 'Stordammen' }))
+      .mockResolvedValueOnce(svarTekst('Stordammen er merket i kartet. Vannet ligger på 340 moh.'))
+
+    await chat.send('Merk Stordammen, og hvor høyt ligger det')
+
+    expect(sisteSvar()).toContain('340 moh')
+  })
+
+  it('sier fra når markeringen lå i en naboflis', async () => {
+    runTool.mockResolvedValue({
+      ok: true,
+      merket: { navn: 'Kvitvatnet', lat: 64.6, lon: 13.2 },
+      byttetKart: 'Otersjøen nord',
+    })
+    chatOnce
+      .mockResolvedValueOnce(merkeKall({ navn: 'Kvitvatnet' }))
+      .mockResolvedValueOnce(svarTekst('Merket.'))
+
+    await chat.send('Merk Kvitvatnet')
+
+    expect(sisteSvar()).toContain('Otersjøen nord')
+  })
+})
+
 describe('useLendeChat — vakt mot oppdiktede turtall', () => {
   beforeEach(() => {
     chat.nySamtale()
