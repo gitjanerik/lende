@@ -516,6 +516,55 @@ describe('buildSearchIndex (headless via linkedom)', () => {
   })
 })
 
+// Elveflate: rennende vann tegnet som FLATE er 301 (blått er blått), men skal
+// ikke presenteres som innsjø. Drammenselva dukket opp som «Innsjø uten navn
+// (~3,4 km²)» og vant «største innsjø i kartet» (v4.8.11).
+describe('buildSearchIndex — elveflate er ikke innsjø', () => {
+  const svg = (attr) => {
+    const { document } = parseHTML(`<html><body>
+      <svg viewBox="0 0 1000 1000">
+        <g data-iso="301">
+          <path ${attr} d="M0,0 L400,0 L400,20 L0,20 Z"/>
+          <path d="M0,500 L100,500 L100,600 L0,600 Z"/>
+        </g>
+      </svg></body></html>`)
+    return buildSearchIndex(document.querySelector('svg'))
+  }
+
+  it('navnløs elveflate merkes som elv og kalles elveflate', () => {
+    const index = svg('data-vanntype="elv"')
+    const elv = index.find((r) => r.name.startsWith('Elveflate'))
+    expect(elv).toBeTruthy()
+    expect(elv.elv).toBe(true)
+    expect(Math.round(elv.areaM2)).toBe(8000)
+    // Det ekte vannet er urørt.
+    const vann = index.find((r) => r.name.startsWith('Innsjø uten navn'))
+    expect(vann.elv).toBe(false)
+    expect(Math.round(vann.areaM2)).toBe(10_000)
+  })
+
+  it('uten merkelappen er den fortsatt en innsjø (kart bygget før v4.8.12)', () => {
+    const index = svg('')
+    expect(index.filter((r) => r.name.startsWith('Innsjø uten navn')).length).toBe(2)
+    expect(index.every((r) => r.elv === false)).toBe(true)
+  })
+
+  it('navngitt elveflate arver elv-flagget til navne-labelen', () => {
+    const { document } = parseHTML(`<html><body>
+      <svg viewBox="0 0 1000 1000">
+        <g data-iso="301">
+          <path data-vanntype="elv" data-name="Drammenselva" d="M0,0 L400,0 L400,20 L0,20 Z"/>
+        </g>
+        <text data-label="vann-navn" x="200" y="10">Drammenselva</text>
+      </svg></body></html>`)
+    const treff = buildSearchIndex(document.querySelector('svg'))
+      .filter((r) => r.name === 'Drammenselva')
+    expect(treff.length).toBe(1)
+    expect(treff[0].elv).toBe(true)
+    expect(Math.round(treff[0].areaM2)).toBe(8000)
+  })
+})
+
 // Navne-LABELEN indekseres i runde 1 (uten geometri), polygonet i runde 2 (med).
 // Dedupe beholder labelen — arealet må derfor flettes over, ellers mister det
 // navngitte vannet størrelsen sin igjen.

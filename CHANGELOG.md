@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-08-05 — v4.8.12: En elv er ikke en innsjø
+
+Rangeringen fra v4.8.11 gjorde jobben sin, men vinneren i Stormoen ble «Innsjø uten navn (~3,4 km²)» — som er Drammenselva. En bred elv mappes i OSM som `natural=water` + `water=river`, og classifyToIsom gir alt ferskvann som ikke er salt kode 301 «Innsjø». Visuelt er det helt riktig, blått er blått, og ISOM har ingen egen arealkode for elveflate — men semantisk het elva altså innsjø, både i søkeindeksen og for chatten. Elveflater merkes nå `data-vanntype="elv"` i SVG-en (samme predikat som alt hindret N50/NVE fra å undertrykke dem), søket kaller dem «Elveflate uten navn» i stedet, og de holdes utenfor rangeringen av innsjøer — svaret sier hvor mange som ble holdt utenfor, så det ikke ser ut som en feil. Kartet ser identisk ut; merkelappen er det eneste nye. Kart bygget før denne versjonen må bygges på nytt for at elva skal slutte å telle som innsjø — merkelappen skrives ved bygging.
+
+---
+
 ## 2026-08-05 — v4.8.11: «Den største innsjøen» er nå faktisk den største
 
 «Største innsjø i kartet» ga Andedammen — omtrent det minste vannet i Stormoen-kartet. Årsaken var at kartsøkets vann-oversikt sorterer navngitte treff alfabetisk, og navngitte vann manglet areal i søkeindeksen helt: bare de navnløse polygonene fikk beregnet flate. Chatten hadde altså ingen størrelse å rangere på, leste rad 1 av en alfabetisk liste, og «A» vant. Nå leses arealet rett fra polygon-geometrien for navngitte vann også (største ring, så øyer og hull ikke blåser tallet opp), oversikten chatten får er sortert på ekte kvadratmeter med største først, og et superlativ tolkes som en rangering i stedet for som et stedsnavn: «marker den største innsjøen» rangerer kartets vann på areal, «høyeste topp» rangerer på moh, mens «Andedammen» fortsatt er et navneoppslag. Svaret sier hvilket sted som vant og hvor mange det ble målt mot, så feilen ikke kan gjenta seg usett.

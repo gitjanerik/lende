@@ -13,6 +13,7 @@ import {
   isMaritimeNameOnlyNode,
   isNationalPark,
   isTrailheadParking,
+  isFlowingWaterArea,
   buildIsomDefs,
   buildIsomCss,
   getIsomDef,
@@ -1270,6 +1271,11 @@ export function buildSvg(elements, bbox, options = {}) {
         // fylles — se 551-grenen under. Tom = vanlig fylt areal.
         let strokeOnlyStyle = ''
         const name = el.tags?.name ?? el.tags?.navn ?? ''
+        // Elveflate/kanal males som 301 (blått er blått — ISOM har ingen egen
+        // arealkode), men merkes så søkeindeksen ikke kaller den «Innsjø uten
+        // navn» og chatten ikke lar den vinne «største innsjø».
+        const vanntypeAttr = cat === 'vann' && isFlowingWaterArea(el.tags)
+          ? ' data-vanntype="elv"' : ''
         // natural=bay/strait er NAVNE-bærere, ikke vann-geometri: de hentes
         // fra Overpass for å gi bukt/sund en etikett (sjo-navn/lakeLabels),
         // men en LUKKET bukt-polygon (Korsvika i Trondheim, mappet som OSM-
@@ -1305,7 +1311,7 @@ export function buildSvg(elements, bbox, options = {}) {
             if (ringPaths.length > 0) {
               // Merged-water beholder data-name så søk på innsjø-navn fungerer.
               standalonePaths.push(
-                `    <path d="${ringPaths.join(' ')}" fill-rule="evenodd"${bboxAttr(polyBbox, fmt)} data-src="merged" data-name="${xmlEscape(name)}"/>`
+                `    <path d="${ringPaths.join(' ')}" fill-rule="evenodd"${bboxAttr(polyBbox, fmt)} data-src="merged"${vanntypeAttr} data-name="${xmlEscape(name)}"/>`
               )
             }
           }
@@ -1462,7 +1468,7 @@ export function buildSvg(elements, bbox, options = {}) {
           // delt path-bucket per (data-src, isSmall).
           if (inlineStyle || depthClassAttr || dybdeAttr || name) {
             standalonePaths.push(
-              `    <path d="${d}" fill-rule="evenodd"${depthClassAttr}${inlineStyle}${dybdeAttr}${smallAttr}${bboxAttr(bbox, fmt)} data-src="${xmlEscape(String(src))}" data-name="${xmlEscape(name)}"/>`
+              `    <path d="${d}" fill-rule="evenodd"${depthClassAttr}${inlineStyle}${dybdeAttr}${smallAttr}${bboxAttr(bbox, fmt)} data-src="${xmlEscape(String(src))}"${vanntypeAttr} data-name="${xmlEscape(name)}"/>`
             )
           } else if (cat === 'vann') {
             // Vann-flater males OPAKT som egne paths — ALDRI slått sammen i en
@@ -1475,7 +1481,7 @@ export function buildSvg(elements, bbox, options = {}) {
             // evenodd (outer + øy-hull), så holmer kuttes fortsatt korrekt, men
             // separate paths overlapper opakt uten å kansellere.
             standalonePaths.push(
-              `    <path d="${d}" fill-rule="evenodd"${smallAttr}${bboxAttr(bbox, fmt)} data-src="${xmlEscape(String(src))}"/>`
+              `    <path d="${d}" fill-rule="evenodd"${smallAttr}${bboxAttr(bbox, fmt)} data-src="${xmlEscape(String(src))}"${vanntypeAttr}/>`
             )
           } else {
             pushToGroup(d, src, isSmall, bbox)
