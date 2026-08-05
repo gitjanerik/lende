@@ -14,7 +14,7 @@
 
 import { geocodePlace } from './geocode.js'
 import { listMaps, loadMap, listGravelRoutes } from './mapStorage.js'
-import { buildSearchIndex, filterIndex, formatAreaShort } from '../composables/useMapSearch.js'
+import { buildSearchIndex, filterIndex, formatAreaShort, foldName } from '../composables/useMapSearch.js'
 import { svgToWgs84, wgs84ToSvg } from './utm.js'
 import { unpackDem } from './demSampling.js'
 import {
@@ -139,7 +139,9 @@ export const AI_TOOLS = [
         'koordinater (samme søk som appens søkefelt). Hvert treff oppgir hvilken kartflis det ' +
         'ligger i (kartId). Bruk ALLTID denne for å finne start/mål/vendepunkt til foreslaa_tur/' +
         'foreslaa_rundtur — den er fasit; sok_sted (nettbasert geokoding) kan treffe navnebrødre ' +
-        'andre steder. Nøkkelord «vann», «topp», «parkering» gir rangerte oversikter.',
+        'andre steder. Nøkkelord gir OVERSIKTER: «vann»/«innsjø» alle ferskvann sortert på ' +
+        'areal (største først, arealM2 per treff), «topp» de høyeste toppene (moh), ' +
+        '«parkering» alle parkeringer.',
       parameters: {
         type: 'object',
         properties: {
@@ -474,9 +476,71 @@ function sokIEttKart(entry, sok, maks) {
       kart: entry.navn ?? entry.id,
     }
     if (Number.isFinite(r.ele)) o.moh = Math.round(r.ele)
-    if (Number.isFinite(r.areaM2) && r.areaM2 > 0) o.areal = formatAreaShort(r.areaM2)
+    if (Number.isFinite(r.areaM2) && r.areaM2 > 0) {
+      o.areal = formatAreaShort(r.areaM2)
+      // Rått areal i tillegg til den formaterte teksten: rangering («største
+      // innsjø») skal gjøres på tall, ikke på «~2,1 km²»-strenger.
+      o.arealM2 = Math.round(r.areaM2)
+    }
     return o
   })
+}
+
+// Kategori-ord chatten skal tolke som en OVERSIKT, ikke som et stedsnavn —
+// foldet form (foldName: ø→oe, å→aa, æ→ae). Bevisst smal: «Andedammen» og
+// «Stordammen» er stedsnavn, så «dam»/«dammen» står ikke her.
+const KATEGORI_ORD = {
+  vann: 'vann', vannet: 'vann', vatn: 'vann', vatnet: 'vann', vatna: 'vann',
+  innsjoe: 'vann', innsjoeen: 'vann', innsjoeer: 'vann', innsjoeene: 'vann',
+  sjoe: 'vann', sjoeen: 'vann', tjern: 'vann', tjernet: 'vann', tjerna: 'vann',
+  topp: 'topp', toppen: 'topp', toppene: 'topp', topper: 'topp',
+}
+
+/**
+ * Tolk «den største innsjøen i kartet» som en RANGERING, ikke som et stedsnavn.
+ *
+ * Kartsøkets kategori-oversikt («vann») sorterer navngitte vann ALFABETISK —
+ * første treff er «Andedammen», ikke det største vannet. Tok chatten treff nr.
+ * 0 som svar på et superlativ, merket den omtrent det minste vannet i kartet
+ * (v4.8.10). Her avgjøres i stedet hvilken kategori og hvilken retning
+ * brukeren ba om, så rangeringen kan gjøres på ekte tall.
+ *
+ * @returns {{kategori: 'vann'|'topp', retning: 'storst'|'minst'|null} | null}
+ */
+export function tolkKategoriOnske(navn) {
+  const s0 = foldName(navn)
+  if (!s0) return null
+  const retning = /\bminst|\blavest/.test(s0)
+    ? 'minst'
+    : /\bstoerst|\bhoeyest|\bstoerre/.test(s0) ? 'storst' : null
+  const kjerne = s0
+    .replace(/\b(stoerst\w*|minst\w*|hoeyest\w*|lavest\w*|stoerre)\b/g, ' ')
+    .replace(/\b(den|det|de|som|er|i|pa|paa|her|av|hele|dette|kartet|omraadet|utsnittet)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const kategori = KATEGORI_ORD[kjerne] ?? null
+  return kategori ? { kategori, retning } : null
+}
+
+/**
+ * Velg ETT treff etter størrelse: areal for vann, høyde for topper.
+ * Rader uten tallet er ikke med i rangeringen (men telles i `utenTall`, så
+ * svaret kan være ærlig om hva som ikke kunne veies).
+ */
+export function velgEtterStorrelse(rader, { kategori = 'vann', retning = null } = {}) {
+  const nokkel = kategori === 'topp' ? 'moh' : 'arealM2'
+  const med = (rader ?? []).filter((r) => Number.isFinite(r?.[nokkel]) && r[nokkel] > 0)
+  if (!med.length) return null
+  const sortert = [...med].sort((a, b) => (
+    retning === 'minst' ? a[nokkel] - b[nokkel] : b[nokkel] - a[nokkel]
+  ))
+  return {
+    valgt: sortert[0],
+    antall: med.length,
+    utenTall: (rader?.length ?? 0) - med.length,
+    kategori,
+    retning: retning ?? 'storst',
+  }
 }
 
 /**
@@ -713,12 +777,31 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
               'kart som dekker området (lag_kart) hvis brukeren vil dit.',
           }
         }
+        // Kategori-søk («vann», «topp»): kartsøkets egen rekkefølge er
+        // ALFABETISK for navngitte treff — tok modellen første rad som «det
+        // største», merket den «Andedammen» (v4.8.10). Her sorteres oversikten
+        // på ekte tall, så rad 1 faktisk ER den største/høyeste.
+        const kategoriOnske = tolkKategoriOnske(args?.sok)
+        if (kategoriOnske) {
+          const nokkel = kategoriOnske.kategori === 'topp' ? 'moh' : 'arealM2'
+          const verdi = (r) => (Number.isFinite(r?.[nokkel]) ? r[nokkel] : -1)
+          treff.sort((a, b) => verdi(b) - verdi(a))
+        }
         return {
           treff: treff.slice(0, maks),
+          sortering: kategoriOnske
+            ? (kategoriOnske.kategori === 'topp'
+              ? 'Høyeste først (moh).'
+              : 'Største først (arealM2). Vann uten kjent areal ligger nederst.')
+            : undefined,
           merknad:
             'Treff med annen kartId enn brukerens aktive kart ligger i en NABOFLIS i samme ' +
             'mosaikk — turer kan tegnes på tvers: bruk koordinatene direkte i foreslaa_tur/' +
-            'foreslaa_rundtur (appen laster naboflisene automatisk).',
+            'foreslaa_rundtur (appen laster naboflisene automatisk).' +
+            (kategoriOnske
+              ? ' Skal brukeren ha det største/minste merket, send ønsket ordrett videre til ' +
+                'merk_i_kartet (f.eks. navn: «største innsjø») — appen rangerer selv.'
+              : ''),
         }
       }
       case 'merk_i_kartet': {
@@ -742,13 +825,31 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         // fasit, og modellen har gjerne bare lest koordinatene et annet sted i
         // samtalen. Naboflisene søkes også — mosaikken oppleves som ett kart.
         const naboer = (await mosaikkFliser(id, kart)).slice(1, 9)
-        const treff = navn ? await finnStedIKartet(kart, naboer, navn) : null
+
+        // «Den største innsjøen» er en RANGERING, ikke et navn. Kategori-lista
+        // er alfabetisk, så et navne-oppslag ville merket «Andedammen» —
+        // omtrent det minste vannet i kartet. Rangeringen gjøres på areal
+        // (vann) eller høyde (topper), og bare i flisen brukeren står i:
+        // «i kartet» betyr dette kartet, som i analyser_stinett.
+        const onske = tolkKategoriOnske(navn)
+        const rangering = onske
+          ? velgEtterStorrelse(sokIEttKart(kart, onske.kategori, 500), onske)
+          : null
+        const treff = rangering?.valgt
+          ?? (navn ? await finnStedIKartet(kart, naboer, navn) : null)
         let punkt = treff ? { lat: treff.lat, lon: treff.lon } : null
         if (!punkt) {
           const lat = Number(args?.lat), lon = Number(args?.lon)
           if (Number.isFinite(lat) && Number.isFinite(lon)) punkt = { lat, lon }
         }
         if (!punkt) {
+          if (onske) {
+            return {
+              feil: `Kartet «${kart.navn ?? id}» har ingen ${onske.kategori === 'topp' ? 'topper med kjent høyde' : 'vann med kjent areal'} ` +
+                'å rangere, så jeg kan ikke peke ut den ' +
+                `${onske.retning === 'minst' ? 'minste' : 'største'}. Si det ærlig.`,
+            }
+          }
           return {
             feil: navn
               ? `Fant ikke «${navn}» blant navnene i kartet «${kart.navn ?? id}» eller naboflisene. ` +
@@ -763,6 +864,16 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
           lat: punkt.lat,
           lon: punkt.lon,
           kart: treff?.kart ?? kart.navn ?? id,
+        }
+        if (rangering) {
+          merket.rangering = {
+            kategori: rangering.kategori,
+            retning: rangering.retning,
+            antall: rangering.antall,
+            storrelse: rangering.kategori === 'topp'
+              ? (treff.moh != null ? `${treff.moh} moh` : null)
+              : (treff.areal ?? null),
+          }
         }
         // Stedet ligger i flisen brukeren står i: merk direkte, uten navigasjon.
         if (kontekst?.kartId && kontekst.kartId === målKart) {
@@ -1208,12 +1319,29 @@ export function turSvarTekst({ type = 'tur', vis3d = false, rute = null } = {}) 
  * den ikke hadde utført OG dumpet rå koordinater i svaret — brukeren spurte
  * om en markering, ikke om desimalgrader.
  */
-export function merkeSvarTekst({ navn, fjernet = false, byttetKart = null } = {}) {
+export function merkeSvarTekst({ navn, fjernet = false, byttetKart = null, rangering = null } = {}) {
   if (fjernet) return 'Markeringen er fjernet fra kartet.'
   const stedet = navn ? `«${navn}»` : 'Stedet'
-  return byttetKart
-    ? `${stedet} ligger i kartflisen «${byttetKart}» — jeg åpnet den og merket stedet med den rosa ringen.`
-    : `${stedet} er merket i kartet med en rosa, blinkende ring, og utsnittet er flyttet dit.`
+  const ringen = 'merket i kartet med en rosa, blinkende ring'
+  if (byttetKart) {
+    return `${stedet} ligger i kartflisen «${byttetKart}» — jeg åpnet den og merket stedet med den rosa ringen.`
+  }
+  // Var det en rangering («den største innsjøen»), skal svaret si HVILKET sted
+  // som vant og hvor mange det ble målt mot — ellers kan brukeren ikke se at
+  // spørsmålet faktisk ble besvart.
+  if (rangering?.antall) {
+    const erTopp = rangering.kategori === 'topp'
+    const minst = rangering.retning === 'minst'
+    const superlativ = erTopp
+      ? (minst ? 'den laveste' : 'den høyeste')
+      : (minst ? 'det minste' : 'det største')
+    const mål = rangering.storrelse ? ` (${rangering.storrelse})` : ''
+    const omfang = rangering.antall > 1
+      ? `${superlativ} av ${rangering.antall} ${erTopp ? 'topper' : 'vann'} i kartet`
+      : `${superlativ} ${erTopp ? 'toppen' : 'vannet'} i kartet`
+    return `${stedet} er ${omfang}${mål}, og er ${ringen}.`
+  }
+  return `${stedet} er ${ringen}, og utsnittet er flyttet dit.`
 }
 
 /**

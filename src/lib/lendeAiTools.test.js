@@ -4,7 +4,7 @@ import {
   kmUtenforBbox, kmMellom, bboxAvstandKm, metaFraSvgEl, toolStatusLabel,
   erStinettSporsmaal, stinettSvarTekst, harOppdiktedeTurtall, paastaarTegnetTur, turSvarTekst,
   formatGangtid, forhaandsberegnTur, er3dOnske, losTemaNokkel, losLagNokler, temaOnskeFra,
-  merkeSvarTekst, paastaarMerking, erMerkeOnske,
+  merkeSvarTekst, paastaarMerking, erMerkeOnske, tolkKategoriOnske, velgEtterStorrelse,
 } from './lendeAiTools.js'
 import { parseHTML } from 'linkedom'
 import { parseTourQuery, parseTourNameQuery } from './tour3dLink.js'
@@ -220,6 +220,25 @@ describe('merkeSvarTekst', () => {
     expect(tekst).not.toMatch(/\d/)
   })
 
+  it('sier hvilket sted som vant rangeringen, og hvor mange det ble målt mot', () => {
+    const tekst = merkeSvarTekst({
+      navn: 'Storsjøen',
+      rangering: { kategori: 'vann', retning: 'storst', antall: 14, storrelse: '~2,1 km²' },
+    })
+    expect(tekst).toContain('Storsjøen')
+    expect(tekst).toContain('største av 14 vann')
+    expect(tekst).toContain('~2,1 km²')
+  })
+
+  it('bøyer superlativet riktig for topper og for minste', () => {
+    expect(merkeSvarTekst({ navn: 'Vardåsen', rangering: { kategori: 'topp', retning: 'storst', antall: 9, storrelse: '349 moh' } }))
+      .toContain('den høyeste av 9 topper')
+    expect(merkeSvarTekst({ navn: 'Andedammen', rangering: { kategori: 'vann', retning: 'minst', antall: 3 } }))
+      .toContain('det minste av 3 vann')
+    expect(merkeSvarTekst({ navn: 'Eneste', rangering: { kategori: 'vann', retning: 'storst', antall: 1 } }))
+      .toContain('det største vannet i kartet')
+  })
+
   it('sier fra når markeringen lå i en annen kartflis', () => {
     expect(merkeSvarTekst({ navn: 'Kvitvatnet', byttetKart: 'Otersjøen nord' }))
       .toContain('Otersjøen nord')
@@ -227,6 +246,59 @@ describe('merkeSvarTekst', () => {
 
   it('bekrefter fjerning', () => {
     expect(merkeSvarTekst({ fjernet: true })).toContain('fjernet')
+  })
+})
+
+describe('tolkKategoriOnske', () => {
+  it('leser superlativ + kategori ut av det brukeren skrev', () => {
+    expect(tolkKategoriOnske('største innsjø i kartet')).toEqual({ kategori: 'vann', retning: 'storst' })
+    expect(tolkKategoriOnske('den største innsjøen')).toEqual({ kategori: 'vann', retning: 'storst' })
+    expect(tolkKategoriOnske('minste tjern')).toEqual({ kategori: 'vann', retning: 'minst' })
+    expect(tolkKategoriOnske('det største vannet i kartet')).toEqual({ kategori: 'vann', retning: 'storst' })
+    expect(tolkKategoriOnske('høyeste topp')).toEqual({ kategori: 'topp', retning: 'storst' })
+    expect(tolkKategoriOnske('laveste toppen')).toEqual({ kategori: 'topp', retning: 'minst' })
+    // Bar kategori uten superlativ: fortsatt en oversikt, ikke et stedsnavn.
+    expect(tolkKategoriOnske('vann')).toEqual({ kategori: 'vann', retning: null })
+  })
+
+  it('lar stedsnavn være stedsnavn', () => {
+    // Kritisk: disse skal slå opp navnet, ikke rangere kartets vann.
+    for (const navn of [
+      'Andedammen', 'Stordammen', 'Bijjie Gaajsjaevrie', 'Storsjøen',
+      'Vardåsen', 'Tjernsrudtjernet', '',
+    ]) expect(tolkKategoriOnske(navn), navn).toBe(null)
+  })
+})
+
+describe('velgEtterStorrelse', () => {
+  const vann = [
+    { navn: 'Andedammen', arealM2: 4_000, areal: '~4000 m²' },
+    { navn: 'Storsjøen', arealM2: 2_100_000, areal: '~2,1 km²' },
+    { navn: 'Midttjern', arealM2: 90_000, areal: '~9 ha' },
+    { navn: 'Uten areal' },
+  ]
+
+  it('velger største, ikke første — det var v4.8.10-feilen', () => {
+    const r = velgEtterStorrelse(vann, { kategori: 'vann', retning: 'storst' })
+    expect(r.valgt.navn).toBe('Storsjøen')
+    expect(r.antall).toBe(3)
+    expect(r.utenTall).toBe(1)
+  })
+
+  it('velger minste når brukeren ba om det', () => {
+    expect(velgEtterStorrelse(vann, { kategori: 'vann', retning: 'minst' }).valgt.navn)
+      .toBe('Andedammen')
+  })
+
+  it('rangerer topper på høyde', () => {
+    const topper = [{ navn: 'Lille', moh: 320 }, { navn: 'Store', moh: 980 }]
+    expect(velgEtterStorrelse(topper, { kategori: 'topp' }).valgt.navn).toBe('Store')
+    expect(velgEtterStorrelse(topper, { kategori: 'topp', retning: 'minst' }).valgt.navn).toBe('Lille')
+  })
+
+  it('gir null når ingen rader har tallet', () => {
+    expect(velgEtterStorrelse([{ navn: 'A' }, { navn: 'B' }], { kategori: 'vann' })).toBe(null)
+    expect(velgEtterStorrelse([], { kategori: 'vann' })).toBe(null)
   })
 })
 
