@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   AI_TOOLS, buildTourQuery, buildRundturQuery, buildLagKartQuery, projectForModel,
   kmUtenforBbox, kmMellom, bboxAvstandKm, metaFraSvgEl, toolStatusLabel,
-  erStinettSporsmaal, stinettSvarTekst, harOppdiktedeTurtall, turSvarTekst,
+  erStinettSporsmaal, stinettSvarTekst, harOppdiktedeTurtall, paastaarTegnetTur, turSvarTekst,
   formatGangtid, forhaandsberegnTur, er3dOnske, losTemaNokkel, losLagNokler, temaOnskeFra,
 } from './lendeAiTools.js'
 import { parseHTML } from 'linkedom'
@@ -136,6 +136,33 @@ describe('harOppdiktedeTurtall', () => {
     expect(harOppdiktedeTurtall('Jeg åpner kartet og beregner turen nå.')).toBe(false)
     expect(harOppdiktedeTurtall('Turen er sendt til kartet — vil du se den i 3D?')).toBe(false)
     expect(harOppdiktedeTurtall('')).toBe(false)
+  })
+})
+
+describe('paastaarTegnetTur', () => {
+  it('kjenner igjen påstander om at turen finnes', () => {
+    expect(paastaarTegnetTur('Turen er tegnet inn i kartet ditt. Den er 4,7 km lang.')).toBe(true)
+    expect(paastaarTegnetTur('Ruten er beregnet og tegnes inn nå.')).toBe(true)
+    expect(paastaarTegnetTur('Rundturen er sendt til kartet.')).toBe(true)
+  })
+
+  it('lar ærlige svar med tall passere', () => {
+    // v4.8.9: disse ble byttet ut med «Jeg fikk ikke tegnet turen …» fordi
+    // vakten bare så etter tall.
+    expect(paastaarTegnetTur('Det er mer enn 370 km turstier i kartet (kartet er 12,0 × 12,0 km).')).toBe(false)
+    expect(paastaarTegnetTur('Den lengste sammenhengende strekningen er 18,4 km.')).toBe(false)
+    expect(paastaarTegnetTur('Otersjøen ligger 612 moh.')).toBe(false)
+    expect(paastaarTegnetTur('Jeg fant 3 turforslag — det lengste er en tur på 12,1 km med 340 m stigning.')).toBe(false)
+    // Tilbudet som avslutter stinettSvarTekst er ikke en påstand.
+    expect(paastaarTegnetTur(stinettSvarTekst({
+      stinett: { totalStiKm: 372.4 },
+      totalStiTekst: 'mer enn 370 km',
+      kartKm: { bredde: 12, hoyde: 12 },
+      lengsteVandringKm: 18.4,
+      treff: 2,
+      turer: [{ type: 'tur', lengdeKm: 12.1, stigningM: 340 }],
+    }))).toBe(false)
+    expect(paastaarTegnetTur('')).toBe(false)
   })
 })
 
