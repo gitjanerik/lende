@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { chatOnce } from '../lib/lendeAi.js'
 import {
   AI_TOOLS, runTool, toolStatusLabel, erStinettSporsmaal, stinettSvarTekst,
-  harOppdiktedeTurtall, paastaarTegnetTur, turSvarTekst, er3dOnske, temaOnskeFra,
+  harOppdiktedeTurtall, paastaarTegnetTur, paastaarNyttKart, turSvarTekst, er3dOnske, temaOnskeFra,
   merkeSvarTekst, paastaarMerking, erMerkeOnske,
 } from '../lib/lendeAiTools.js'
 
@@ -68,6 +68,12 @@ function systemPrompt() {
     'Turer til fots i kartet hører altså til Stifinneren — henvis aldri fotturer til Turplanleggeren.',
     'Det du verken kan gjøre med verktøy eller finnes en funksjon for (telle objekter i kartet, analysere kart som ikke er lagret): si ærlig fra.',
     'Påstå ALDRI at et sted er merket eller markert uten at merk_i_kartet har svart ok — markeringen finnes bare hvis verktøyet satte den.',
+    // v5.0.1: to observerte løgner av samme klasse — «Turen … er tegnet inn i
+    // kartet» der bare markørene kom fram, og «Jeg åpner «Nytt turkart» med
+    // Hurum i Asker som senter» uten at noe verktøy hadde kjørt. Vaktene i
+    // koden fanger begge nå, men modellen skal helst ikke skrive dem.
+    'HANDLINGER: bare et verktøy som har svart ok kan endre noe i appen. Skriv ALDRI at en tur er tegnet inn, at et kart er opprettet/åpnet, eller at en innstilling er endret, med mindre du nettopp fikk ok fra verktøyet som gjør det. Har du sendt en tur til kartet uten å få «rute» tilbake, er den ikke ferdig: si at kartet åpnes og ruten beregnes nå — ikke at den ER tegnet inn.',
+    'SØK SELV: be ALDRI brukeren om å søke opp et sted eller finne koordinater — du har sok_sted og sok_i_kartet, og skal bruke dem. Kjenner du ikke stedsnavnet (f.eks. «Hurumlandet»), kall sok_sted med navnet slik brukeren skrev det; gir det ingen treff, prøv den mest nærliggende varianten (halvøya/kommunen det ligger i) og si hva du søkte på.',
   ]
   if (context.value) {
     deler.push(`Brukerens kontekst akkurat nå (JSON): ${JSON.stringify(context.value)}`)
@@ -121,6 +127,11 @@ const VERKTOEY_NAVN = AI_TOOLS.map((t) => t?.function?.name).filter(Boolean)
 // Verktøy som sender en tur til kartvisningen (og dermed ikke kan kjenne
 // rutens tall i svaret). vis_tur_i_3d er det gamle navnet på foreslaa_tur.
 const TUR_VERKTOEY = new Set(['foreslaa_tur', 'vis_tur_i_3d', 'foreslaa_rundtur'])
+
+// Verktøy som oppretter et kart eller åpner byggeskjemaet. Begge navigerer bort
+// og lukker chatten, så påstår svaret at et nytt kart er på vei uten at ett av
+// disse kjørte, har ingenting skjedd (se paastaarNyttKart).
+const KART_VERKTOEY = new Set(['foreslaa_nytt_kart', 'lag_kart'])
 
 async function send(text) {
   const spm = text?.trim()
@@ -186,6 +197,7 @@ async function send(text) {
   let turSendt = null
   // Satt når merk_i_kartet faktisk satte (eller fjernet) markeringen.
   let merkeSendt = null
+  let kartSendt = false
   if (context.value?.kartId && erStinettSporsmaal(spm)) {
     busyLabel.value = toolStatusLabel('analyser_stinett', {})
     try {
@@ -266,6 +278,7 @@ async function send(text) {
           // Husk turen så en 3D-oppfølging kan åpne akkurat den.
           sisteTur = { name: kall.name, args: { ...kall.args } }
         }
+        if (resultat?.ok && KART_VERKTOEY.has(kall.name)) kartSendt = true
         if (resultat?.ok && kall.name === 'merk_i_kartet') {
           merkeSendt = {
             navn: resultat.merket?.navn ?? null,
@@ -310,14 +323,21 @@ async function send(text) {
     // lengde/høydemeter/gangtid; nevnes de likevel, er de diktet opp.
     if (turSendt?.rute) {
       svar.content = turSvarTekst(turSendt)
-    } else if (turSendt && (harOppdiktedeTurtall(svar.content) || hermetisk.test(svar.content))) {
+    } else if (turSendt && (harOppdiktedeTurtall(svar.content) || hermetisk.test(svar.content)
+      || paastaarTegnetTur(svar.content))) {
+      // v5.0.1: paastaarTegnetTur lagt til. Uten forhåndsberegning har verktøyet
+      // BARE navigert — ruten beregnes i kartvisningen etterpå og kan feile der
+      // (Sørenga → Maridalsvannet ga to markører og ingen strek). Modellen skrev
+      // likevel «Turen … er tegnet inn i kartet», og fordi den setningen ikke
+      // inneholder tall, slapp den forbi begge de gamle vaktene. Nå overtar den
+      // deterministiske teksten enhver PÅSTAND om at turen er ferdig tegnet —
+      // den lover bare det vi vet: at kartet åpnes og ruten beregnes nå.
       svar.content = turSvarTekst(turSendt)
-    } else if (!turSendt && !stinettAnalyse
-      && harOppdiktedeTurtall(svar.content) && paastaarTegnetTur(svar.content)) {
-      // Ingen tur ble sendt, men svaret PÅSTÅR at en tur er tegnet inn og
-      // oppgir tall: de kan ikke være ekte. Vakten over var gatet på turSendt,
-      // så i v4.8.3-feilen slapp «Turen er tegnet inn … 11,9 km … 3 t 11 min»
-      // gjennom for en tur som aldri ble beregnet. Vær ærlig i stedet.
+    } else if (!turSendt && !stinettAnalyse && !context.value?.aktivTur
+      && paastaarTegnetTur(svar.content)) {
+      // Ingen tur ble sendt, men svaret PÅSTÅR at en tur er tegnet inn. Vakten
+      // over var gatet på turSendt, så i v4.8.3-feilen slapp «Turen er tegnet
+      // inn … 11,9 km … 3 t 11 min» gjennom for en tur som aldri ble beregnet.
       //
       // Kravet om paastaarTegnetTur (og unntaket for stinettAnalyse) kom i
       // v4.8.9: tall alene traff alt annet også, så ethvert ærlig svar med et
@@ -325,9 +345,30 @@ async function send(text) {
       // ble byttet ut med «Jeg fikk ikke tegnet turen». Stinett-spørsmål ble
       // dermed ubesvarelige: analysen kjørte, tallene var ekte, og vakten
       // kastet dem.
-      svar.content = 'Jeg fikk ikke tegnet turen, så jeg har ingen tall å gi deg. '
-        + 'Prøv å presisere start og mål — heter flere steder i kartet det samme, '
-        + 'hjelper det å ta med høyde eller et nabosted.'
+      //
+      // v5.0.1: kravet om TALL er droppet — en påstand uten tall er like usann,
+      // og det var nettopp den formen som slapp gjennom. paastaarTegnetTur er
+      // smal nok alene (rute-ord + fullført-verb, tilbud ekskludert). Til
+      // gjengjeld står vakten av når kartet FAKTISK har en tegnet tur
+      // (context.aktivTur): da er «turen er tegnet inn» et sant svar på et
+      // oppfølgingsspørsmål, ikke en løgn.
+      svar.content = harOppdiktedeTurtall(svar.content)
+        ? 'Jeg fikk ikke tegnet turen, så jeg har ingen tall å gi deg. '
+          + 'Prøv å presisere start og mål — heter flere steder i kartet det samme, '
+          + 'hjelper det å ta med høyde eller et nabosted.'
+        : 'Jeg fikk ikke tegnet turen. Prøv å presisere start og mål — heter flere '
+          + 'steder i kartet det samme, hjelper det å ta med høyde eller et nabosted.'
+    }
+
+    // Nytt kart: samme prinsipp igjen. Bare foreslaa_nytt_kart og lag_kart kan
+    // opprette et kart eller åpne byggeskjemaet, og begge navigerer bort og
+    // lukker chatten. Skrev modellen «Jeg åpner «Nytt turkart» med Hurum i Asker
+    // som senter» uten å ha kalt noen av dem, ble chatten stående åpen og
+    // ingenting skjedde — brukeren fikk en kvittering på en handling som aldri
+    // fant sted (v5.0.1).
+    if (!kartSendt && paastaarNyttKart(svar.content)) {
+      svar.content = 'Jeg fikk ikke opprettet kartet. Si «lag kart over <sted>», '
+        + 'så bygger jeg det — eller åpne «Nytt turkart» fra menyen og velg stedet selv.'
     }
 
     // Markeringen: samme prinsipp som turene. Ble den faktisk satt, skriver vi
