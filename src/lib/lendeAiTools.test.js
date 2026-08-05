@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   AI_TOOLS, buildTourQuery, buildRundturQuery, buildLagKartQuery, projectForModel,
   kmUtenforBbox, kmMellom, bboxAvstandKm, metaFraSvgEl, toolStatusLabel,
-  erStinettSporsmaal, stinettSvarTekst, harOppdiktedeTurtall, paastaarTegnetTur, turSvarTekst,
+  erStinettSporsmaal, stinettSvarTekst, harOppdiktedeTurtall, paastaarTegnetTur, paastaarNyttKart, turSvarTekst,
   formatGangtid, forhaandsberegnTur, er3dOnske, losTemaNokkel, losLagNokler, temaOnskeFra,
   merkeSvarTekst, paastaarMerking, erMerkeOnske, tolkKategoriOnske, velgEtterStorrelse,
 } from './lendeAiTools.js'
@@ -164,6 +164,46 @@ describe('paastaarTegnetTur', () => {
       turer: [{ type: 'tur', lengdeKm: 12.1, stigningM: 340 }],
     }))).toBe(false)
     expect(paastaarTegnetTur('')).toBe(false)
+  })
+
+  it('fanger påstanden UTEN tall (v5.0.1)', () => {
+    // Den faktisk observerte løgnen: Sørenga → Maridalsvannet ga to markører og
+    // ingen strek, men svaret meldte turen som ferdig. Setningen har ingen tall,
+    // så vakten som krevde tall så den aldri.
+    expect(paastaarTegnetTur('Turen fra Sørenga til Maridalsvannet er tegnet inn i kartet. Vil du se den i 3D?')).toBe(true)
+    expect(paastaarTegnetTur('Ruten er lagt inn i kartet.')).toBe(true)
+  })
+
+  it('regner den deterministiske «beregner nå»-teksten som ærlig', () => {
+    // turSvarTekst uten rute lover bare at beregningen er i gang — den skal
+    // ikke trigge vakten som erstatter den med seg selv.
+    expect(paastaarTegnetTur(turSvarTekst({ type: 'tur' }))).toBe(false)
+  })
+})
+
+describe('paastaarNyttKart', () => {
+  it('kjenner igjen påstander om at et nytt kart er opprettet', () => {
+    // Faktisk observert: ingen verktøy kjørte, chatten ble stående åpen.
+    expect(paastaarNyttKart('Jeg åpner «Nytt turkart» med Hurum i Asker som senter. Du kan endre kartnavn, størrelse og andre innstillinger senere.')).toBe(true)
+    expect(paastaarNyttKart('Jeg lager et kart over Hurumlandet nå.')).toBe(true)
+    expect(paastaarNyttKart('Kartet er opprettet.')).toBe(true)
+    expect(paastaarNyttKart('Jeg bygger kartet nå — det tar 15–60 sekunder.')).toBe(true)
+    expect(paastaarNyttKart('Byggeskjemaet er åpnet.')).toBe(true)
+  })
+
+  it('lar tilbud og spørsmål passere', () => {
+    expect(paastaarNyttKart('Vil du at jeg skal lage et kart over Hurum?')).toBe(false)
+    expect(paastaarNyttKart('Skal jeg opprette et kart der?')).toBe(false)
+    expect(paastaarNyttKart('Si fra hvis du vil at jeg lager et kart over området.')).toBe(false)
+    expect(paastaarNyttKart('Du kan søke etter steder på nett for å finne koordinatene.')).toBe(false)
+  })
+
+  it('forveksler ikke «åpner kartet» med et NYTT kart', () => {
+    // Den deterministiske tur-teksten sier nettopp dette, og den er sann.
+    expect(paastaarNyttKart(turSvarTekst({ type: 'tur' }))).toBe(false)
+    expect(paastaarNyttKart('Jeg åpner kartet Vardåsen for deg.')).toBe(false)
+    expect(paastaarNyttKart('Kartet er 12,0 × 12,0 km.')).toBe(false)
+    expect(paastaarNyttKart('')).toBe(false)
   })
 })
 

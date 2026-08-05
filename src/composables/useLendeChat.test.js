@@ -195,4 +195,96 @@ describe('useLendeChat — vakt mot oppdiktede turtall', () => {
 
     expect(sisteSvar()).toBe('Otersjøen ligger 612 moh.')
   })
+
+  it('avviser påstanden UTEN tall når ingen tur ble sendt (v5.0.1)', async () => {
+    chatOnce.mockResolvedValue(svarTekst('Turen er tegnet inn i kartet. Vil du se den i 3D?'))
+
+    await chat.send('gå en tur fra Sørenga til Maridalsvannet')
+
+    expect(sisteSvar()).toContain('fikk ikke tegnet turen')
+    // Uten tall i løgnen skal vi heller ikke snakke om tall vi ikke har.
+    expect(sisteSvar()).not.toContain('ingen tall å gi deg')
+  })
+
+  it('erstatter «er tegnet inn» med «beregner nå» når turen bare ble sendt (v5.0.1)', async () => {
+    // Den faktisk observerte løgnen: verktøyet NAVIGERER bare — ruten beregnes i
+    // kartvisningen etterpå og kan feile der (Sørenga → Maridalsvannet ga to
+    // markører og ingen strek). Setningen har ingen tall, så begge de gamle
+    // vaktene slapp den forbi.
+    runTool.mockResolvedValue({ ok: true })
+    chatOnce
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [{ id: 'c1', name: 'foreslaa_tur', args: { kartId: 'oslo', fraNavn: 'Sørenga', tilNavn: 'Maridalsvannet' } }],
+        raw: null,
+      })
+      .mockResolvedValueOnce(svarTekst('Turen fra Sørenga til Maridalsvannet er tegnet inn i kartet. Vil du se den i 3D?'))
+
+    await chat.send('gå en tur fra Sørenga til Maridalsvannet')
+
+    expect(sisteSvar()).not.toContain('er tegnet inn i kartet')
+    expect(sisteSvar()).toContain('beregner')
+  })
+
+  it('lar «turen er tegnet inn» stå når kartet FAKTISK har en tegnet tur', async () => {
+    // Oppfølgingsspørsmål om en tur fra en tidligere melding: da er påstanden
+    // sann, og vakten skal holde seg unna.
+    chat.setChatContext({
+      kartId: 'stormoen', kartnavn: 'Stormoen',
+      aktivTur: { type: 'fottur', lengdeM: 4700, stigningM: 180 },
+    })
+    chatOnce.mockResolvedValue(svarTekst('Turen er tegnet inn i kartet, og den følger stien langs vannet.'))
+
+    await chat.send('Følger turen stien')
+
+    expect(sisteSvar()).toContain('følger stien langs vannet')
+  })
+})
+
+describe('useLendeChat — vakt mot påstått nytt kart', () => {
+  beforeEach(() => {
+    chat.nySamtale()
+    chatOnce.mockReset()
+    runTool.mockReset()
+    chat.setChatContext({ kartId: 'oslo', kartnavn: 'Oslo' })
+  })
+
+  it('avviser «Jeg åpner Nytt turkart» når ingen verktøy kjørte (v5.0.1)', async () => {
+    // Faktisk observert: chatten ble stående åpen og ingenting skjedde, men
+    // brukeren fikk kvittering på et kart som aldri ble opprettet.
+    chatOnce.mockResolvedValue(svarTekst(
+      'Jeg åpner «Nytt turkart» med Hurum i Asker som senter. Du kan endre '
+      + 'kartnavn, størrelse og andre innstillinger senere.',
+    ))
+
+    await chat.send('lag nytt kart over hurumlandet')
+
+    expect(runTool).not.toHaveBeenCalled()
+    expect(sisteSvar()).toContain('fikk ikke opprettet kartet')
+    expect(sisteSvar()).not.toContain('Nytt turkart» med Hurum')
+  })
+
+  it('lar bekreftelsen stå når kart-verktøyet faktisk kjørte', async () => {
+    runTool.mockResolvedValue({ ok: true, senter: { lat: 59.6, lon: 10.4, sted: 'Hurum' } })
+    chatOnce
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [{ id: 'c1', name: 'foreslaa_nytt_kart', args: { sted: 'Hurum' } }],
+        raw: null,
+      })
+      .mockResolvedValueOnce(svarTekst('Jeg åpner «Nytt turkart» med Hurum som senter.'))
+
+    await chat.send('lag nytt kart over Hurum')
+
+    expect(sisteSvar()).toContain('Hurum')
+    expect(sisteSvar()).not.toContain('fikk ikke opprettet')
+  })
+
+  it('lar tilbud om å lage kart stå', async () => {
+    chatOnce.mockResolvedValue(svarTekst('Vil du at jeg skal lage et kart over Hurum?'))
+
+    await chat.send('finnes det kart over hurumlandet')
+
+    expect(sisteSvar()).toBe('Vil du at jeg skal lage et kart over Hurum?')
+  })
 })

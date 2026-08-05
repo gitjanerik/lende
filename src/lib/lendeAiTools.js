@@ -1289,6 +1289,10 @@ export function paastaarTegnetTur(tekst) {
   // gjøre hele svaret til en løgn.
   return String(tekst ?? '').toLowerCase().split(/[.!?\n]+/).some((s) => {
     if (/hvis du vil|vil du|ønsker du|si fra/.test(s)) return false
+    // Framtidsform er et løfte, ikke en påstand: «… vises i kartet SÅ SNART
+    // ruten er tegnet inn» er nettopp det den deterministiske turSvarTekst
+    // sier når ruten ikke er beregnet ennå, og den er sann.
+    if (/så snart|straks|når (den|ruten|ruta|turen) er/.test(s)) return false
     if (!/\b(tur|turen|turene|rundtur|rundturen|rute|ruta|ruten|løype|løypa|løypen)\b/.test(s)) return false
     return /(tegnet|tegnes|lagt inn|planlagt|beregnet|sendt til kartet|vises i kartet|er klar)/.test(s)
   })
@@ -1368,6 +1372,38 @@ export function erMerkeOnske(tekst) {
   if (!s) return false
   return /\b(merk|merke|merker|marker|markere|marker\w*|uthev\w*|highlight\w*)\b/.test(s)
     || /vis (meg )?(hvor|hvilket|hvilken)/.test(s)
+}
+
+/**
+ * Ordgrense-match som tåler norsk. JS-regexens `\b` er ASCII-basert: æ, ø og å
+ * er IKKE-ord-tegn, så `/\båpnet\b/` matcher aldri « åpnet» — mellomrom og «å»
+ * er begge non-word, og da finnes det ingen grense mellom dem. Fella tok
+ * paastaarNyttKart i første forsøk: både «Jeg åpner «Nytt turkart» …» og
+ * «Byggeskjemaet er åpnet» slapp gjennom vakten. \p{L} med u-flagget kjenner
+ * hele alfabetet.
+ */
+const ORD = (...ord) => new RegExp(`(?:^|[^\\p{L}])(?:${ord.join('|')})(?![\\p{L}])`, 'u')
+
+/**
+ * Påstår svaret at et NYTT kart er opprettet, bygget, eller at byggeskjemaet er
+ * åpnet? Bare foreslaa_nytt_kart og lag_kart kan gjøre noe av det — begge
+ * navigerer bort og lukker chatten. Skrev modellen «Jeg åpner «Nytt turkart»
+ * med Hurum i Asker som senter» uten å ha kalt noen av dem, skjedde ingenting:
+ * chatten ble stående åpen, og brukeren satt igjen med en beskjed om en
+ * handling som aldri fant sted (v5.0.1).
+ *
+ * Vurderes setning for setning, som paastaarTegnetTur/paastaarMerking, så et
+ * tilbud («skal jeg lage et kart over Hurum?») ikke regnes som en påstand.
+ * «Åpner» krever i tillegg at det gjelder et NYTT kart — den deterministiske
+ * tur-teksten sier «Jeg åpner kartet og beregner turen nå», og den er sann.
+ */
+export function paastaarNyttKart(tekst) {
+  return String(tekst ?? '').toLowerCase().split(/[.!?\n]+/).some((s) => {
+    if (/hvis du vil|vil du|ønsker du|skal jeg|kan jeg|si fra/.test(s)) return false
+    if (ORD('oppretter', 'opprettet', 'lager', 'laget', 'bygger', 'bygget',
+      'genererer', 'generert').test(s) && /kart/.test(s)) return true
+    return ORD('åpner', 'åpnet').test(s) && /nytt\s+(tur)?kart|byggeskjema/.test(s)
+  })
 }
 
 /**
