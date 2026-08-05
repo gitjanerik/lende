@@ -230,6 +230,24 @@ describe('merkeSvarTekst', () => {
     expect(tekst).toContain('~2,1 km²')
   })
 
+  it('sier fra når elveflater ble holdt utenfor rangeringen', () => {
+    const tekst = merkeSvarTekst({
+      navn: 'Storsjøen',
+      rangering: { kategori: 'vann', retning: 'storst', antall: 12, storrelse: '~2,1 km²', elverUtelatt: 2 },
+    })
+    expect(tekst).toContain('2 elveflater er holdt utenfor')
+    expect(tekst).toContain('regnes ikke som innsjø')
+    expect(merkeSvarTekst({
+      navn: 'Storsjøen',
+      rangering: { kategori: 'vann', retning: 'storst', antall: 12, elverUtelatt: 1 },
+    })).toContain('Én elveflate er holdt utenfor')
+    // Ingen elver utelatt → ingen støy i svaret.
+    expect(merkeSvarTekst({
+      navn: 'Storsjøen',
+      rangering: { kategori: 'vann', retning: 'storst', antall: 12, elverUtelatt: 0 },
+    })).not.toContain('elveflate')
+  })
+
   it('bøyer superlativet riktig for topper og for minste', () => {
     expect(merkeSvarTekst({ navn: 'Vardåsen', rangering: { kategori: 'topp', retning: 'storst', antall: 9, storrelse: '349 moh' } }))
       .toContain('den høyeste av 9 topper')
@@ -294,6 +312,31 @@ describe('velgEtterStorrelse', () => {
     const topper = [{ navn: 'Lille', moh: 320 }, { navn: 'Store', moh: 980 }]
     expect(velgEtterStorrelse(topper, { kategori: 'topp' }).valgt.navn).toBe('Store')
     expect(velgEtterStorrelse(topper, { kategori: 'topp', retning: 'minst' }).valgt.navn).toBe('Lille')
+  })
+
+  it('lar ikke en elveflate vinne «største innsjø»', () => {
+    // Drammenselva-tilfellet: kartets største blå flate, men ikke et vann.
+    const medElv = [
+      { navn: 'Innsjø uten navn (~3,4 km²)', arealM2: 3_400_000, elv: true },
+      { navn: 'Storsjøen', arealM2: 2_100_000, areal: '~2,1 km²' },
+      ...vann.slice(0, 1),
+    ]
+    const r = velgEtterStorrelse(medElv, { kategori: 'vann', retning: 'storst' })
+    expect(r.valgt.navn).toBe('Storsjøen')
+    expect(r.antall).toBe(2)
+    expect(r.elverUtelatt).toBe(1)
+  })
+
+  it('rangerer elveflater med når kategorien ikke er vann', () => {
+    // «høyeste topp» skal ikke filtrere på elv i det hele tatt.
+    const topper = [{ navn: 'Høy', moh: 900, elv: true }, { navn: 'Lav', moh: 100 }]
+    expect(velgEtterStorrelse(topper, { kategori: 'topp' }).valgt.navn).toBe('Høy')
+  })
+
+  it('gir null når alle vannene er elveflater', () => {
+    expect(velgEtterStorrelse(
+      [{ navn: 'Elva', arealM2: 3_400_000, elv: true }], { kategori: 'vann' },
+    )).toBe(null)
   })
 
   it('gir null når ingen rader har tallet', () => {

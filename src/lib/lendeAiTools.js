@@ -476,6 +476,7 @@ function sokIEttKart(entry, sok, maks) {
       kart: entry.navn ?? entry.id,
     }
     if (Number.isFinite(r.ele)) o.moh = Math.round(r.ele)
+    if (r.elv) o.elv = true
     if (Number.isFinite(r.areaM2) && r.areaM2 > 0) {
       o.areal = formatAreaShort(r.areaM2)
       // Rått areal i tillegg til den formaterte teksten: rangering («største
@@ -529,7 +530,12 @@ export function tolkKategoriOnske(navn) {
  */
 export function velgEtterStorrelse(rader, { kategori = 'vann', retning = null } = {}) {
   const nokkel = kategori === 'topp' ? 'moh' : 'arealM2'
-  const med = (rader ?? []).filter((r) => Number.isFinite(r?.[nokkel]) && r[nokkel] > 0)
+  const alle = (rader ?? []).filter((r) => Number.isFinite(r?.[nokkel]) && r[nokkel] > 0)
+  // Elveflater er blå flater, men ikke vann i norsk forstand: Drammenselva
+  // vant «største innsjø i kartet» med 3,4 km² (v4.8.11). De rangeres ikke —
+  // men telles, så svaret kan si hvorfor elva ikke ble svaret.
+  const med = kategori === 'vann' ? alle.filter((r) => !r.elv) : alle
+  const elver = alle.length - med.length
   if (!med.length) return null
   const sortert = [...med].sort((a, b) => (
     retning === 'minst' ? a[nokkel] - b[nokkel] : b[nokkel] - a[nokkel]
@@ -537,7 +543,8 @@ export function velgEtterStorrelse(rader, { kategori = 'vann', retning = null } 
   return {
     valgt: sortert[0],
     antall: med.length,
-    utenTall: (rader?.length ?? 0) - med.length,
+    utenTall: (rader?.length ?? 0) - alle.length,
+    elverUtelatt: elver,
     kategori,
     retning: retning ?? 'storst',
   }
@@ -845,9 +852,10 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         if (!punkt) {
           if (onske) {
             return {
-              feil: `Kartet «${kart.navn ?? id}» har ingen ${onske.kategori === 'topp' ? 'topper med kjent høyde' : 'vann med kjent areal'} ` +
+              feil: `Kartet «${kart.navn ?? id}» har ingen ${onske.kategori === 'topp' ? 'topper med kjent høyde' : 'innsjøer eller tjern med kjent areal'} ` +
                 'å rangere, så jeg kan ikke peke ut den ' +
-                `${onske.retning === 'minst' ? 'minste' : 'største'}. Si det ærlig.`,
+                `${onske.retning === 'minst' ? 'minste' : 'største'}. Si det ærlig` +
+                `${onske.kategori === 'vann' ? ' — elveflater teller ikke som innsjø' : ''}.`,
             }
           }
           return {
@@ -873,6 +881,7 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
             storrelse: rangering.kategori === 'topp'
               ? (treff.moh != null ? `${treff.moh} moh` : null)
               : (treff.areal ?? null),
+            elverUtelatt: rangering.elverUtelatt || 0,
           }
         }
         // Stedet ligger i flisen brukeren står i: merk direkte, uten navigasjon.
@@ -1339,7 +1348,12 @@ export function merkeSvarTekst({ navn, fjernet = false, byttetKart = null, range
     const omfang = rangering.antall > 1
       ? `${superlativ} av ${rangering.antall} ${erTopp ? 'topper' : 'vann'} i kartet`
       : `${superlativ} ${erTopp ? 'toppen' : 'vannet'} i kartet`
-    return `${stedet} er ${omfang}${mål}, og er ${ringen}.`
+    // Elveflater kan være kartets største blå flate uten å være et vann —
+    // si det, ellers virker svaret feil for den som ser elva renne forbi.
+    const elvNote = rangering.elverUtelatt
+      ? ` ${rangering.elverUtelatt === 1 ? 'Én elveflate er' : `${rangering.elverUtelatt} elveflater er`} holdt utenfor — rennende vann regnes ikke som innsjø.`
+      : ''
+    return `${stedet} er ${omfang}${mål}, og er ${ringen}.${elvNote}`
   }
   return `${stedet} er ${ringen}, og utsnittet er flyttet dit.`
 }

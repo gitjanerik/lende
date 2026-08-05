@@ -362,6 +362,40 @@ describe('routes filtreres ut globalt før all prosessering (v10.2.43)', () => {
   })
 })
 
+describe('elveflate merkes data-vanntype="elv" (v4.8.12)', () => {
+  // En bred elv mappes i OSM som natural=water + water=river og klassifiseres
+  // 301 «Innsjø» — visuelt riktig (blått er blått), semantisk feil: søket kalte
+  // Drammenselva «Innsjø uten navn (~3,4 km²)», og chatten lot den vinne
+  // «største innsjø i kartet». Koden er fortsatt 301; merkelappen skiller dem.
+  const flate = (tags) => ({
+    type: 'way', id: 77, _source: 'n50', tags,
+    geometry: ring(59.01, 10.02, 59.02, 10.08),
+  })
+
+  it('water=river gir merkelappen', () => {
+    const { svg } = buildSvg([flate({ natural: 'water', water: 'river' })], bbox, {})
+    expect(svg).toContain('data-vanntype="elv"')
+  })
+
+  it('den eldre waterway=riverbank gir den også', () => {
+    const { svg } = buildSvg([flate({ natural: 'water', waterway: 'riverbank' })], bbox, {})
+    expect(svg).toContain('data-vanntype="elv"')
+  })
+
+  it('navngitt elveflate beholder både navn og merkelapp', () => {
+    const { svg } = buildSvg(
+      [flate({ natural: 'water', water: 'river', name: 'Drammenselva' })], bbox, {},
+    )
+    expect(svg).toContain('data-vanntype="elv"')
+    expect(svg).toContain('data-name="Drammenselva"')
+  })
+
+  it('en vanlig innsjø får INGEN merkelapp', () => {
+    const { svg } = buildSvg([flate({ natural: 'water', name: 'Storsjøen' })], bbox, {})
+    expect(svg).not.toContain('data-vanntype')
+  })
+})
+
 describe('xmlEscape — navn med spesialtegn gir gyldig XML (Stockholm-bug)', () => {
   // Et OSM-navn med " brøt data-name="…"-attributtet → hele SVG-en ble
   // ugyldig XML → MapView «Ugyldig SVG». Gjaldt store byer (Stockholm) der

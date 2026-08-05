@@ -243,6 +243,11 @@ export function isMaritimeNameOnlyNode(tags) {
 // (innsjøer/magasin) — aldri elveløp. Slike flater må derfor aldri undertrykkes
 // av N50/NVE, ellers kollapser brede elver (f.eks. Drammenselva) fra fylt blå
 // flate til kun en hårtynn OSM-senterlinje (waterway=river → 304).
+//
+// Samme predikat merker nå flaten med data-vanntype="elv" i SVG-en (v4.8.12):
+// den klassifiseres 301 «Innsjø» — visuelt riktig, blått er blått — men søket
+// kalte Drammenselva «Innsjø uten navn (~3,4 km²)», og chatten lot den vinne
+// «største innsjø i kartet». Merkelappen er det eneste som skiller dem.
 const FLOWING_WATER_SUBTYPES = new Set(['river', 'canal', 'stream', 'ditch', 'lock', 'moat', 'rapids', 'fish_pass'])
 export function isFlowingWaterArea(tags) {
   const t = tags ?? {}

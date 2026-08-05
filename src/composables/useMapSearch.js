@@ -332,6 +332,9 @@ function pushRaw(out, name, kind, pos, el, extra = {}) {
     categories: extra.categories ?? null,
     areaM2: extra.areaM2 ?? null,
     ele: extra.ele ?? null,
+    // Rennende vann tegnet som flate (elv/kanal) — blå flate som en innsjø,
+    // men ikke et vann i norsk forstand. Se isFlowingWaterArea i symbolizer.
+    elv: extra.elv ?? false,
   })
 }
 
@@ -504,7 +507,8 @@ export function buildSearchIndex(svgEl) {
     // kategori-lista er alfabetisk, så første treff var «Andedammen» —
     // omtrent det minste vannet i kartet (v4.8.10-feilen).
     const areaM2 = categories?.includes('vann') ? namedPolygonAreaM2(p) : null
-    pushRaw(out, name, 'omrade', pos, p, { categories, areaM2 })
+    const elv = categories?.includes('vann') && p.getAttribute?.('data-vanntype') === 'elv'
+    pushRaw(out, name, 'omrade', pos, p, { categories, areaM2, elv })
   }
 
   // 3) Unavngitte ferskvann-polygoner (ISOM 301 + 302). Mapbuilder slår
@@ -523,6 +527,7 @@ export function buildSearchIndex(svgEl) {
         if (nameAttr && nameAttr.trim()) continue
         const d = path.getAttribute('d')
         if (!d) continue
+        const elv = path.getAttribute('data-vanntype') === 'elv'
         const subs = parsePathSubpaths(d)
         for (const s of subs) {
           if (s.areaM2 < MIN_LAKE_AREA_M2) continue
@@ -531,6 +536,7 @@ export function buildSearchIndex(svgEl) {
             y: s.cy + dy,
             areaM2: s.areaM2,
             iso,
+            elv,
           })
         }
       }
@@ -540,13 +546,14 @@ export function buildSearchIndex(svgEl) {
   unnamedLakes.sort((a, b) => b.areaM2 - a.areaM2)
   const capped = unnamedLakes.slice(0, MAX_UNNAMED_LAKES)
   for (const lake of capped) {
-    const baseName = lakeLabelForIsom(lake.iso)
+    const baseName = lake.elv ? 'Elveflate uten navn' : lakeLabelForIsom(lake.iso)
     const areaLabel = formatAreaShort(lake.areaM2)
     const name = areaLabel ? `${baseName} (${areaLabel})` : baseName
     const categories = categoriesForIsom(lake.iso)
     pushRaw(out, name, 'vann-omrade', { x: lake.x, y: lake.y }, null, {
       categories,
       areaM2: lake.areaM2,
+      elv: lake.elv,
     })
   }
 
@@ -667,6 +674,8 @@ export function buildSearchIndex(svgEl) {
       // geometri), polygonet i runde 2 (med). Uten denne flettingen mistet
       // det navngitte vannet arealet sitt igjen.
       if (r.areaM2 != null && existing.areaM2 == null) existing.areaM2 = r.areaM2
+      // Elv-flagget bor på polygonet, navnet på labelen — samme fletting.
+      if (r.elv && !existing.elv) existing.elv = true
       continue
     }
     seen.set(key, r)
