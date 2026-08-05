@@ -506,4 +506,33 @@ describe('buildSearchIndex (headless via linkedom)', () => {
     // tagName-sjekk headless).
     expect(bjorn.categories).toContain('vann')
   })
+
+  it('gir navngitte vann ekte areal — ellers kan «største innsjø» ikke rangeres', () => {
+    // Firkanten 300..360 = 60 × 60 m = 3600 m². Uten dette arealet var
+    // kategori-lista alfabetisk og ingenting annet, så chatten pekte på
+    // «Andedammen» som kartets største vann (v4.8.10).
+    const bjorn = buildIndex().find(r => r.name === 'Bjørnsjøen')
+    expect(Math.round(bjorn.areaM2)).toBe(3600)
+  })
+})
+
+// Navne-LABELEN indekseres i runde 1 (uten geometri), polygonet i runde 2 (med).
+// Dedupe beholder labelen — arealet må derfor flettes over, ellers mister det
+// navngitte vannet størrelsen sin igjen.
+describe('buildSearchIndex — areal flettes fra polygon til navne-label', () => {
+  it('vann-navn-labelen arver arealet fra polygonet med samme navn', () => {
+    const { document } = parseHTML(`<html><body>
+      <svg viewBox="0 0 1000 1000">
+        <g data-iso="301">
+          <path data-name="Storsjøen" d="M0,0 L100,0 L100,100 L0,100 Z"/>
+        </g>
+        <text data-label="vann-navn" x="50" y="50">Storsjøen</text>
+      </svg></body></html>`)
+    const index = buildSearchIndex(document.querySelector('svg'))
+    const treff = index.filter((r) => r.name === 'Storsjøen')
+    expect(treff.length).toBe(1)                 // deduplisert
+    expect(treff[0].kind).toBe('vann-navn')      // labelen vant
+    expect(Math.round(treff[0].areaM2)).toBe(10_000)
+    expect(treff[0].categories).toContain('vann')
+  })
 })

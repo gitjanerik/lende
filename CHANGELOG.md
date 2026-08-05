@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-08-05 — v4.8.11: «Den største innsjøen» er nå faktisk den største
+
+«Største innsjø i kartet» ga Andedammen — omtrent det minste vannet i Stormoen-kartet. Årsaken var at kartsøkets vann-oversikt sorterer navngitte treff alfabetisk, og navngitte vann manglet areal i søkeindeksen helt: bare de navnløse polygonene fikk beregnet flate. Chatten hadde altså ingen størrelse å rangere på, leste rad 1 av en alfabetisk liste, og «A» vant. Nå leses arealet rett fra polygon-geometrien for navngitte vann også (største ring, så øyer og hull ikke blåser tallet opp), oversikten chatten får er sortert på ekte kvadratmeter med største først, og et superlativ tolkes som en rangering i stedet for som et stedsnavn: «marker den største innsjøen» rangerer kartets vann på areal, «høyeste topp» rangerer på moh, mens «Andedammen» fortsatt er et navneoppslag. Svaret sier hvilket sted som vant og hvor mange det ble målt mot, så feilen ikke kan gjenta seg usett.
+
+---
+
 ## 2026-08-05 — v4.8.10: Chatten kan merke steder i kartet — på ordentlig
 
 «Kan du merke det» ble besvart med «Vannet Bijjie Gaajsjaevrie er merket i kartet. Koordinater: 64.578764, 13.221365.» — men ingenting var merket. Chatten hadde ikke noe verktøy for markering, så modellen fant på at den hadde gjort det og dumpet koordinatene den satt igjen med fra søket. Nå finnes verktøyet: `merk_i_kartet` setter den rosa, blinkende ringen gjennom akkurat samme kode som når du velger et treff i søkefeltet — navne-LOD-en låses opp, utsnittet panner dit, og ringen pulserer. Oppgi bare stedsnavnet; appen slår det opp i kartets egne navn, søker naboflisene i mosaikken også, og åpner den flisen stedet ligger i om nødvendig. «Fjern markeringen» virker like godt, og modellen tilbyr merking selv etter at den har navngitt et sted. Bekreftelsen skrives deterministisk, så koordinat-dumpen er borte — og påstår modellen merking uten at verktøyet kjørte, blir svaret ærlig i stedet.

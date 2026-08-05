@@ -43,6 +43,7 @@ function systemPrompt() {
     // Fase 3: modellen HAR verktøy — instruer bruken.
     'Du har verktøy og kan utføre ting i appen: søke i et lagret karts egne stedsnavn/tjern/topper (sok_i_kartet), søke etter steder på nett (sok_sted), liste brukerens lagrede kart og grusruter (mine_kart_og_ruter), åpne et lagret kart (apne_kart), BYGGE et nytt turkart direkte (lag_kart — byggingen starter med én gang og tar 15–60 sekunder), gjøre klart et nytt kart med utfylte felter (foreslaa_nytt_kart — brukeren bekrefter og bygger selv), analysere stinettet i et lagret kart (analyser_stinett — total km sti, lengste sammenhengende tur, tur-kandidater med stigning), foreslå en fottur A→B tegnet inn i et lagret kart (foreslaa_tur), og foreslå en RUNDTUR tegnet inn i et lagret kart (foreslaa_rundtur — start/mål + vendepunkt), og MERKE et sted i kartet med den rosa, blinkende ringen (merk_i_kartet).',
     'Merking: har du nevnt et sted som ligger i kartet, tilby å merke det («vil du at jeg skal merke det i kartet?») — og kall merk_i_kartet så snart brukeren sier ja eller ber om det («merk det», «marker Stordammen», «vis meg hvor det er»). Oppgi bare navnet; appen finner koordinatene i kartets egne navn. Rams ALDRI opp lat/lon i svaret — brukeren ba om en markering, ikke om desimalgrader. «Fjern markeringen» → merk_i_kartet med fjern: true.',
+    'Største/minste/høyeste: gjett ALDRI ut fra rekkefølgen i en navneliste — den er alfabetisk. Spør brukeren om det største vannet eller den høyeste toppen, kall sok_i_kartet med nøkkelordet («vann», «topp») og les rad 1, som ER den største/høyeste (arealM2/moh følger med). Skal stedet merkes, send ønsket ORDRETT videre som navn til merk_i_kartet («største innsjø», «minste tjern», «høyeste topp») — appen rangerer selv og merker vinneren.',
     'Stinett-spørsmål («hvor mange km sti er det her?», «hva er den lengste turen?», «hvilken tur er brattest/slakest?»): kall analyser_stinett — UTEN argumenter når brukeren står i kartet (kartet hentes automatisk fra konteksten). Formuler svaret PÅ NORSK: har svaret totalStiTekst, bruk den («Det er mer enn 370 km turstier i kartet») og nevn kartets størrelse (kartKm/arealKm2) så tallet får kontekst — kartet er ofte mye større enn utsnittet brukeren ser. Vil brukeren gå en av turene den fant: send turens koordinater rett videre — start/slutt/via til foreslaa_tur, origo/via til foreslaa_rundtur. Gir analysen treff: 0, si ærlig at kartet bare har korte sti-fragmenter.',
     'Nytt kart: oppgi stedsnavnet i «sted» til lag_kart/foreslaa_nytt_kart (gjerne med kommune, «Sirikjerke, Øvre Eiker») — appen geokoder selv. Gjenbruk ALDRI lat/lon fra et annet sted i samtalen.',
     'Ber brukeren om BÅDE nytt kart OG en tur i det: gjør det i ÉTT lag_kart-kall med turFraNavn og turTilNavn satt. Turen tegnes da inn automatisk så snart kartet er ferdig bygget (15–60 sekunder). Kall ALDRI foreslaa_tur for et kart som ikke finnes ennå, og oppgi ingen tall for turen — den er ikke beregnet.',
@@ -270,6 +271,7 @@ async function send(text) {
             navn: resultat.merket?.navn ?? null,
             fjernet: !!resultat.fjernet,
             byttetKart: resultat.byttetKart ?? null,
+            rangering: resultat.merket?.rangering ?? null,
           }
         }
         samtale.push({
@@ -342,7 +344,11 @@ async function send(text) {
       // vi bekreftelsen selv.
       const t = svar.content
       const raaKoordinater = /-?\d{1,3}[.,]\d{4,}/
-      if (!t || hermetisk.test(t) || raaKoordinater.test(t) || !paastaarMerking(t)
+      // Ble stedet valgt ved RANGERING («den største innsjøen»), er appens
+      // svar autoritativt: modellen kan ha ment et annet vann enn det som
+      // faktisk vant, og skal ikke få navngi det.
+      if (!t || merkeSendt.rangering || hermetisk.test(t) || raaKoordinater.test(t)
+        || !paastaarMerking(t)
         || (merkeSendt.byttetKart && !t.includes(merkeSendt.byttetKart))) {
         svar.content = merkeSvarTekst(merkeSendt)
       }

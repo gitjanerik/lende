@@ -118,6 +118,30 @@ describe('useLendeChat — merking i kartet', () => {
     expect(sisteSvar()).toBe('Stiene er markert med svart prikkelinje i kartet.')
   })
 
+  it('lar appens rangering overstyre hvilket vann modellen trodde var størst', async () => {
+    // v4.8.10: modellen leste rad 1 av en ALFABETISK vann-liste og konkluderte
+    // med «Andedammen» — omtrent kartets minste vann. Rangeringen skjer nå i
+    // verktøyet, og svaret skal navngi vinneren, ikke modellens gjetning.
+    runTool.mockResolvedValue({
+      ok: true,
+      merket: {
+        navn: 'Storsjøen',
+        lat: 59.7,
+        lon: 10.1,
+        rangering: { kategori: 'vann', retning: 'storst', antall: 14, storrelse: '~2,1 km²' },
+      },
+    })
+    chatOnce
+      .mockResolvedValueOnce(merkeKall({ navn: 'største innsjø' }))
+      .mockResolvedValueOnce(svarTekst('Andedammen er merket i kartet.'))
+
+    await chat.send('Marker den største innsjøen i kartet')
+
+    expect(sisteSvar()).toContain('Storsjøen')
+    expect(sisteSvar()).toContain('største av 14 vann')
+    expect(sisteSvar()).not.toContain('Andedammen')
+  })
+
   it('lar modellens svar stå når det både bekrefter og svarer på mer', async () => {
     runTool.mockResolvedValue({ ok: true, merket: { navn: 'Stordammen', lat: 64.5, lon: 13.2 } })
     chatOnce

@@ -408,6 +408,22 @@ function parsePathSubpaths(d) {
   return out
 }
 
+/**
+ * Areal for et NAVNGITT vann-polygon, lest rett fra path-geometrien (samme
+ * shoelace som de unavngitte). Én innsjø kan være syt sammen av flere ringer
+ * (multipolygon med øyer/hull) — vi tar den STØRSTE ringen, som er selve
+ * vannflaten; en sum ville blåst arealet opp med hullene.
+ */
+function namedPolygonAreaM2(el) {
+  const d = el?.getAttribute?.('d')
+  if (!d) return null
+  let max = 0
+  for (const s of parsePathSubpaths(d)) {
+    if (s.areaM2 > max) max = s.areaM2
+  }
+  return max > 0 ? max : null
+}
+
 function lakeLabelForIsom(iso) {
   if (iso === '302') return 'Tjern uten navn'
   return 'Innsjø uten navn'
@@ -483,7 +499,12 @@ export function buildSearchIndex(svgEl) {
     if (!pos) continue
     const iso = isomFromAncestor(p)
     const categories = categoriesForIsom(iso)
-    pushRaw(out, name, 'omrade', pos, p, { categories })
+    // Navngitte vann får ekte areal, slik de unavngitte alltid har hatt
+    // (runde 3). Uten det kan «det største vannet i kartet» ikke besvares:
+    // kategori-lista er alfabetisk, så første treff var «Andedammen» —
+    // omtrent det minste vannet i kartet (v4.8.10-feilen).
+    const areaM2 = categories?.includes('vann') ? namedPolygonAreaM2(p) : null
+    pushRaw(out, name, 'omrade', pos, p, { categories, areaM2 })
   }
 
   // 3) Unavngitte ferskvann-polygoner (ISOM 301 + 302). Mapbuilder slår
@@ -642,6 +663,10 @@ export function buildSearchIndex(svgEl) {
       // dem på en variant uten tag (f.eks. omrade-polygon kommer etter
       // vann-navn-tekstlabelen i pass-rekkefølgen).
       if (r.categories && !existing.categories) existing.categories = r.categories
+      // Samme grunn for arealet: navne-LABELEN indekseres i runde 1 (uten
+      // geometri), polygonet i runde 2 (med). Uten denne flettingen mistet
+      // det navngitte vannet arealet sitt igjen.
+      if (r.areaM2 != null && existing.areaM2 == null) existing.areaM2 = r.areaM2
       continue
     }
     seen.set(key, r)
