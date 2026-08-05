@@ -152,8 +152,14 @@ const mapTitle = ref('Turkart')
 const sjokartStatusText = computed(() => {
   const s = meta.value?.sjokartStatus
   if (!s) return null
+  // COUNT=5000 per typename uten paginering kan kutte stille i tette
+  // havneområder — da er «OK — N features» en halv sannhet, og trunkeringen
+  // skal stå i statusen så tallet ikke leses som fullstendig.
+  const trunk = (s.trunkert ?? []).length
+    ? ` · TRUNKERT: ${s.trunkert.map(t => `${t.typeName} ${t.returned}/${t.matched}`).join(', ')}`
+    : ''
   switch (s.state) {
-    case 'ok': return `OK — ${s.features} features (${s.source?.replace('https://wfs.geonorge.no/skwms1/', '') ?? 'ukjent kilde'})`
+    case 'ok': return `OK — ${s.features} features (${s.source?.replace('https://wfs.geonorge.no/skwms1/', '') ?? 'ukjent kilde'})${trunk}`
     case 'innlands': return 'hoppet over (innlandskart)'
     case 'timeout': return `timeout etter ${Math.round((s.timeoutMs ?? 0) / 1000)} s — regenerer kartet for å prøve igjen`
     case 'feil': return 'nettverks-/CORS-feil — dybdetall og kaier mangler'

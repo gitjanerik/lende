@@ -371,7 +371,9 @@ server.registerTool(
     return jsonResult({
       status: 'ok',
       svgPath,
-      halfKm: Number(effHalfKm.toFixed(2)),
+      // FAKTISK bygget bredde: tetthets-regelen kan ha klampet den (se
+      // tetthetJustert under), og da ville den ønskede verdien vært en løgn.
+      halfKm: Number((built.halfKm ?? effHalfKm).toFixed(2)),
       autoStorrelse,
       geokodet: geokodet
         ? { navn: geokodet.name, lat, lon, arealKm2: extent?.arealKm2 ?? null, bbox: geokodet.bbox ?? null }
@@ -389,6 +391,19 @@ server.registerTool(
       },
       ekvidistanseJustert: equidistanceM != null && effEq !== equidistanceM
         ? { onsket: equidistanceM, brukt: effEq, grunn: `kartbredde ${widthKm.toFixed(1)} km krever minst ${minEq} m` }
+        : undefined,
+      // Datatetthets-justeringen (samme regler som appen, mapDensityRules).
+      // Utelates helt når sonderingen ikke ga noe eller området er åpent nok at
+      // ingenting ble endret — da er kartet bygget akkurat som før.
+      tetthetJustert: built.tetthet && (meta.detaljNivaa !== 'full' || built.tetthet.tilBreddeKm !== built.tetthet.fraBreddeKm)
+        ? {
+            indeks: built.tetthet.indeks,
+            klasse: built.tetthet.klasse,
+            detaljNivaa: meta.detaljNivaa,
+            breddeKm: { onsket: built.tetthet.fraBreddeKm, brukt: built.tetthet.tilBreddeKm },
+            grunn: `${built.tetthet.klasse} område (${built.tetthet.indeks} kostnadsenheter/km²) — ` +
+                   'tette punktlag klynges hardere og støylag droppes, slik at kartet holder seg responsivt',
+          }
         : undefined,
       featureAntall: counts,
     })

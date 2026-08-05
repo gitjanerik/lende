@@ -69,6 +69,28 @@ const TYPENAME_CANDIDATES = {
   fareomraade: ['app:Fareområde'],
 }
 
+// Hvilke endepunkter en kategori faktisk FINNES på (matches som delstreng mot
+// endepunkt-URL-en). Kategorier som ikke står her prøves mot alle.
+//
+// v5.0.0: `app:Lanterne` finnes IKKE i wfs.dybdedata — det har stått i
+// kommentaren over siden v7.1.9, men kategorien ble spurt likevel, mot ALLE
+// endepunkter. Geonorge svarer med en ServiceException uten
+// Access-Control-Allow-Origin, så nettleseren avviser før koden ser status og
+// `fetch` rejecter med «Failed to fetch» → classifyFetchError stempler den
+// `network-or-cors`. Resultatet var en permanent, misvisende feillinje i
+// Utvikler-fanen («wfs.dybdedata app:Lanterne · network-or-cors: Failed to
+// fetch») på hvert eneste kystkart — en CORS-feil som slett ikke var CORS, men
+// et typename vi visste ikke fantes.
+const KATEGORI_ENDEPUNKT = Object.freeze({
+  lanterne: ['navlys'],
+})
+
+function kategoriGjelderEndepunkt(kategori, endpoint) {
+  const kun = KATEGORI_ENDEPUNKT[kategori]
+  if (!kun) return true
+  return kun.some(frag => endpoint.includes(frag))
+}
+
 // Areal-skalert klient-tak for hele WFS-hentingen (alle typenames, med
 // endepunkt-fallback). Det gamle faste 8 s-taket var kalibrert for 4 km-kart
 // (~16 km²); standardkartet er nå 10–12 km (100–190 km²) med ~6–12× større
@@ -110,6 +132,14 @@ export function summarizeSjokartStatus(sjokart, featureCount) {
     features: featureCount,
     source: s.source ?? null,
     timeoutMs: s.timeoutMs ?? null,
+    // COUNT=5000 per typename uten paginering kan kutte stille i tette
+    // havneområder. Da er «OK — N features» en halv sannhet, og statusen skal
+    // si det: { typeName, matched, returned } for opptil 3 kategorier.
+    trunkert: (s.trunkert ?? []).slice(0, 3).map(t => ({
+      typeName: t.typeName ?? null,
+      matched: Number(t.matched) || 0,
+      returned: Number(t.returned) || 0,
+    })),
     // Trimmes hardt: meta serialiseres inn i SVG-ens data-meta-attributt.
     errors: (s.fetchErrors ?? []).slice(0, 4).map(e => ({
       endpoint: String(e.endpoint ?? '').replace('https://wfs.geonorge.no/skwms1/', ''),
@@ -146,7 +176,9 @@ export async function fetchSjokart(bbox, opts = {}) {
   // bytes av selve responsen for diagnose. Hjelper å se hva serveren
   // faktisk returnerer.
   const debugSamples = []
-  const internalOpts = { ...opts, debugSamples }
+  // Kategorier der serveren hadde mer enn COUNT-taket (se tryFormat).
+  const trunkert = []
+  const internalOpts = { ...opts, debugSamples, trunkert }
   for (const endpoint of SJOKART_ENDPOINTS) {
     try {
       const result = await fetchAllCategories(endpoint, bbox, internalOpts, fetchErrors)
@@ -155,7 +187,7 @@ export async function fetchSjokart(bbox, opts = {}) {
       )
       if (totals > 0) {
         console.log(`[Sjøkart] ${endpoint} → ${totals} features totalt`)
-        return { ...result, source: endpoint, fetchErrors, debugSamples }
+        return { ...result, source: endpoint, fetchErrors, debugSamples, trunkert }
       } else {
         console.log(`[Sjøkart] ${endpoint} svarte men 0 features (kan være feil typenames eller utenfor dekning)`)
         fetchErrors.push({ endpoint, kind: 'zero-features', message: '0 features for alle typenames' })
@@ -166,7 +198,7 @@ export async function fetchSjokart(bbox, opts = {}) {
     }
   }
   console.warn('[Sjøkart] Ingen endepunkter ga data — kart vil falle tilbake til OSM coastline-rekonstruksjon')
-  return { ...emptyResult(), fetchErrors, debugSamples }
+  return { ...emptyResult(), fetchErrors, debugSamples, trunkert }
 }
 
 // v7.1.10: Geonorge SOSI-feature-namespaces er forskjellige per dataset.
@@ -210,19 +242,36 @@ function emptyResult() {
   }
 }
 
+// Samtidige typename-forespørsler mot ETT endepunkt. Alle 11 kategoriene ble
+// tidligere fyrt av samtidig, men nettleseren tillater bare 6 tilkoblinger per
+// origin over HTTP/1.1 og Geonorge struper i tillegg — en droppet/reset
+// tilkobling kommer tilbake som «Failed to fetch», altså samme
+// `network-or-cors`-stempel som en ekte CORS-feil. Det forklarer hvorfor
+// Sjøkart-feilene var SPORADISKE: samme kall kunne lykkes ved neste bygg.
+const SJOKART_CONCURRENCY = 4
+
 async function fetchAllCategories(endpoint, bbox, opts, fetchErrors = []) {
   const out = emptyResult()
   delete out.source
   delete out.fetchErrors
-  const tasks = []
-  for (const [cat, candidates] of Object.entries(TYPENAME_CANDIDATES)) {
-    tasks.push(
-      fetchFirstWorkingTypename(endpoint, candidates, bbox, opts, fetchErrors)
-        .then(features => { out[cat] = features })
-        .catch(() => { out[cat] = [] })
-    )
+  // Kategorier som ikke finnes på dette endepunktet spørres ikke (se
+  // KATEGORI_ENDEPUNKT) — de ga garantert feil og forurenset diagnosen.
+  const jobber = Object.entries(TYPENAME_CANDIDATES)
+    .filter(([cat]) => kategoriGjelderEndepunkt(cat, endpoint))
+  for (const [cat] of Object.entries(TYPENAME_CANDIDATES)) out[cat] = []
+
+  let neste = 0
+  const arbeider = async () => {
+    while (neste < jobber.length) {
+      const [cat, candidates] = jobber[neste++]
+      try {
+        out[cat] = await fetchFirstWorkingTypename(endpoint, candidates, bbox, opts, fetchErrors)
+      } catch { out[cat] = [] }
+    }
   }
-  await Promise.allSettled(tasks)
+  await Promise.allSettled(
+    Array.from({ length: Math.min(SJOKART_CONCURRENCY, jobber.length) }, arbeider),
+  )
   return out
 }
 
@@ -354,6 +403,17 @@ async function tryFormat(endpoint, baseParams, typeName, outputFormat, opts) {
       length: text.length,
       sample: safeSample,
     })
+  }
+  // Trunkering: COUNT=5000 per typename uten paginering betyr at et tett
+  // havneområde kan bli kuttet stille. numberMatched/numberReturned ligger i
+  // wfs:FeatureCollection-rotelementet; er de ulike, har vi bare en del av
+  // dataene, og det skal stå i statusen i stedet for et blankt «OK».
+  if (opts.trunkert) {
+    const matched = Number(text.match(/numberMatched="?(\d+)"?/)?.[1])
+    const returned = Number(text.match(/numberReturned="?(\d+)"?/)?.[1])
+    if (Number.isFinite(matched) && Number.isFinite(returned) && matched > returned) {
+      opts.trunkert.push({ typeName, matched, returned })
+    }
   }
   // GeoJSON-format
   if (text.trim().startsWith('{')) {
