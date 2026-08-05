@@ -31,8 +31,11 @@ import {
 import { fetchDEM } from './demFetcher.js'
 import { polylineToPath, simplifyDP, isPointNearPolylines } from './pathUtils.js'
 import { thinParkering, PARKERING_MIN_SEP_M } from './parkingRules.js'
+import { separasjonerFor, erDroppet, konturTallTakFor } from './mapDensityRules.js'
 import { bboxOfPoints, unionBbox, cellKeyFor, bboxAttr } from './spatialBucket.js'
-import { classifyBuildings, multiPolyToPath } from './buildingMass.js'
+import {
+  classifyBuildings, multiPolyToPath, simplifyUrbanMass, URBAN_MASS_MIN_AREA_M2,
+} from './buildingMass.js'
 import polygonClipping from 'polygon-clipping'
 import {
   raceOverpassMirrors, fetchOverpassWithRetry,
@@ -766,7 +769,15 @@ export function buildSvg(elements, bbox, options = {}) {
     sjokartStatus = null,          // utfall av Sjøkart-WFS-hentingen (summarizeSjokartStatus)
     nveInnsjoStatus = null,        // utfall av NVE-innsjø-hentingen (n50Fetcher onStatus)
     kulturminner = [],             // Kulturminnesøk brukerminner (hentet i createMapFlow)
+    // Detaljnivå fra tetthets-sonderingen (mapDensityRules): 'full' | 'lett' |
+    // 'sparsom'. 'full' = dagens oppførsel, byte for byte — et åpent område
+    // skal bygges akkurat som før. Settes av createMapFlow/MCP; alt annet som
+    // kaller buildSvg direkte (tester, eksport) får 'full' som før.
+    detaljNivaa = 'full',
+    tetthet = null,                // { indeks, klasse, ... } til meta, kun rapportering
   } = options
+  const sep = separasjonerFor(detaljNivaa)
+  const droppet = (lag) => erDroppet(lag, detaljNivaa)
 
   // «Fjern routes generelt» (v10.2.43): rute-relasjoner og rute-taggede
   // elementer (buss/sykkel/vandre-linjer, ferge-ruter, løyper — type=route /
@@ -779,6 +790,23 @@ export function buildSvg(elements, bbox, options = {}) {
     if (!t) return true
     return !(t.route || t.type === 'route' || t.type === 'route_master')
   })
+
+  // Tetthets-dropp: lag som er STØY på et turkart i tett bebyggelse luker vi ut
+  // her, før klassifisering, så de ikke koster noe videre i pipelinen. Begge er
+  // rene no-ops på 'full' (åpne og middels tette områder).
+  //   kraftlinje — 232 KB i Oslo sentrum, ingen navigasjonsverdi i by
+  //   servicevei — highway=service er innkjørsler og parkeringsganger, og utgjør
+  //                brorparten av de 13 135 «småveiene» i Oslo
+  if (droppet('kraftlinje') || droppet('servicevei')) {
+    const dropKraft = droppet('kraftlinje'), dropService = droppet('servicevei')
+    elements = elements.filter(el => {
+      const t = el?.tags
+      if (!t) return true
+      if (dropKraft && (t.power === 'line' || t.power === 'minor_line')) return false
+      if (dropService && t.highway === 'service') return false
+      return true
+    })
+  }
 
   // Lett timing-instrumentering: måler de tunge stegene og returneres som
   // `timings` (logges av createMapFlow). includeCliffs/includeBuildingMass = false
@@ -925,6 +953,9 @@ export function buildSvg(elements, bbox, options = {}) {
     sti:         2.5 * simpScale,
     bekk:        2.0 * simpScale,
     tog:         2.0 * simpScale,
+    // Kraftlinjer er lange, nesten rette spenn mellom master — de tålte aldri
+    // å stå uten forenkling (232 KB i Oslo, 18 KB selv i Lierne).
+    kraftlinje:  3.0 * simpScale,
   }
 
   // Bucket pr ISOM-kode
@@ -1007,7 +1038,9 @@ export function buildSvg(elements, bbox, options = {}) {
       }
       else if (cls.code === '560') { if (el.type === 'node') { holdeplasser.push(el); counts.holdeplass++ } }
       else if (cls.code === '526') { bommer.push(el); counts.bom++ }
-      else if (cls.code === 'dybdepunkt') { soundings.push(el) }
+      // Dybdepunkt er et skjult detalj-lag (kun detalj-inset-en bruker det),
+      // men det koster byte i filen — i tett kystby leverer WFS-en 5000+.
+      else if (cls.code === 'dybdepunkt') { if (!droppet('dybdepunkt')) soundings.push(el) }
       else if (MARINE_POINT_CODES[cls.code]) { marinePoints.push({ el, code: cls.code }) }
       continue
     }
@@ -1062,10 +1095,17 @@ export function buildSvg(elements, bbox, options = {}) {
       bufferM: 6,
     }))
     if (urbanMass.length > 0) {
-      urbanMassMultiPoly = urbanMass
+      // Unionen av akse-justerte bbox-rektangler gir en trappelinje med hjørne
+      // for hver kant-krysning — 126 151 punkter og 1 646 KB (31,9 % av SVG-en)
+      // i Oslo sentrum, alt av det under 1,5 mm på trykk. Forenklingen er
+      // usynlig (flat fyllflate, ingen strek) og gjelder ALLE kart, uavhengig
+      // av detaljnivå: den ofrer ingenting.
+      urbanMassMultiPoly = _time('bymasseForenkling', () => simplifyUrbanMass(urbanMass, {
+        minAreaM2: URBAN_MASS_MIN_AREA_M2 * areaScale,
+      }))
       buckets['521'] = scattered.map(b => b.original)
       counts['521'] = buckets['521'].length
-      counts['522'] = urbanMass.length
+      counts['522'] = urbanMassMultiPoly.length
     }
   }
 
@@ -1729,8 +1769,14 @@ export function buildSvg(elements, bbox, options = {}) {
     // kan toggle dem hver for seg (f.eks. landsby av, by på). Tekstene beholder
     // data-label="stedsnavn" + data-rank for font-størrelse, utzoom-LOD og søk.
     const byRank = { major: [], mid: [], minor: [] }
+    // «minor» er grend/gård/enkelthus-navn. De er allerede zoom-gatet i CSS
+    // (symbolizer), men gatingen sparer bare paint — noden ligger i DOM-en og
+    // koster parse, minne og et getBBox-kall i navn-LOD-en. På 'sparsom'
+    // skrives de derfor ikke inn i SVG-en i det hele tatt.
+    const dropMinor = droppet('stedsnavn-minor')
     for (const el of places) {
       if (!el.tags?.name) continue
+      if (dropMinor && placeRank(el.tags.place) === 'minor') continue
       const p = project(el.lat, el.lon)
       // Global navn-dedup: kun mot andre STEDSNAVN (kind 'sted') — gården/bygda
       // som deler navn med fjellet/øya er en ekte navnetvilling og skal vises.
@@ -2328,7 +2374,7 @@ export function buildSvg(elements, bbox, options = {}) {
   }).filter(Boolean)
   // Tynn ut tett plasserte vanlige P-plasser (min PARKERING_MIN_SEP_M meter);
   // utfartsparkering vises alltid uansett nærhet.
-  const parkeringSvg = thinParkering(parkeringCands, PARKERING_MIN_SEP_M).map(({ p, utfart }) => {
+  const parkeringSvg = thinParkering(parkeringCands, sep.parkering).map(({ p, utfart }) => {
     const sid = symbolIds.get(utfart ? 'parkering-utfart' : 'parkering')
     if (!sid) return ''
     const size = utfart ? parkeringUtfartSize : parkeringSize
@@ -2346,7 +2392,7 @@ export function buildSvg(elements, bbox, options = {}) {
   const holdeplassSize = 6.0
   // Tynn ut tette terminal-klynger: én representant (midterste) pr klynge, så
   // ikke hver busslomme/p-plass gir sitt eget symbol (Asker/Sandvika-tilfellet).
-  const holdeplassSvg = clusterHoldeplasser(holdeplasser, HOLDEPLASS_MIN_SEP_M).map(el => {
+  const holdeplassSvg = clusterHoldeplasser(holdeplasser, sep.holdeplass).map(el => {
     if (el.type !== 'node') return ''
     const p = project(el.lat, el.lon)
     const sid = symbolIds.get('holdeplass')
@@ -2361,14 +2407,20 @@ export function buildSvg(elements, bbox, options = {}) {
   // node-posisjon direkte. Ingen rotasjon — vi har ikke pålitelig vei-
   // tangent ved barriere-noden uten å indeksere alle ways først.
   const bomSize = 1.6
-  const bomSvg = bommer.map(el => {
-    if (el.type !== 'node') return ''
-    const p = project(el.lat, el.lon)
-    const sid = symbolIds.get('bom')
-    if (!sid) return ''
-    const half = bomSize / 2
-    return `    <g transform="translate(${fmt(p.x)},${fmt(p.y)})"><use href="#${sid}" x="-${half}mm" y="-${half}mm" width="${bomSize}mm" height="${bomSize}mm"/></g>`
-  }).filter(Boolean).join('\n')
+  // Bommer tynnes ikke på 'full' (sep.bom = 0), men i tett by er de et av de
+  // største punkt-lagene: 1 519 bommer = 180 KB i Oslo sentrum, mot 1 i Lierne.
+  // thinParkering er den samme greedy minsteavstands-algoritmen i meter-rom;
+  // `utfart: false` gjør at ingen er unntatt.
+  const bomKandidater = bommer
+    .filter(el => el.type === 'node')
+    .map(el => ({ p: project(el.lat, el.lon), utfart: false }))
+  const bomSvg = (sep.bom > 0 ? thinParkering(bomKandidater, sep.bom) : bomKandidater)
+    .map(({ p }) => {
+      const sid = symbolIds.get('bom')
+      if (!sid) return ''
+      const half = bomSize / 2
+      return `    <g transform="translate(${fmt(p.x)},${fmt(p.y)})"><use href="#${sid}" x="-${half}mm" y="-${half}mm" width="${bomSize}mm" height="${bomSize}mm"/></g>`
+    }).filter(Boolean).join('\n')
 
   // Fase 3: marine / padle-POI (fyr, sjømerker, skjær, landingssteder,
   // småbåthavner, toaletter, drikkevann). Symbol + størrelse fra
@@ -2417,7 +2469,7 @@ export function buildSvg(elements, bbox, options = {}) {
     .map(k => ({ ...k, type: 'node' }))
   const kulturminneSid = symbolIds.get('kulturminne')
   const kulturminneSvg = kulturminneSid
-    ? clusterHoldeplasser(kulturminneNodes, 30).map(k => {
+    ? clusterHoldeplasser(kulturminneNodes, sep.kulturminne).map(k => {
         const p = project(k.lat, k.lon)
         const half = KULTURMINNE_SIZE_MM / 2
         const kat = xmlEscape(k.kategori || 'annet')
@@ -2443,8 +2495,20 @@ export function buildSvg(elements, bbox, options = {}) {
   // motsetning til den nestede symbol-viewBox-en, jf. anker-fiksen).
   const broOffsetM = 0.24 * (scaleDenom / 1000)   // halv avstand mellom parapet-linjene (mm→m)
   const broStyle = 'stroke:#4a4a4a;stroke-width:calc(0.11mm * var(--stroke-scale, 1))'
-  const broSvg = broer.map(el => {
-    if (!el.geometry || el.geometry.length < 2) return ''
+  // Bro-uttynning: hver bro er TO parapet-paths langs hele lengden, så 845
+  // broer ble 325 KB i Oslo sentrum (mot 1 bro i Lierne). Tynnes på midtpunktet
+  // — går en gang- og en bilbro over samme elv 20 m fra hverandre, holder det
+  // med én på 1:10 000. Ingen uttynning på 'full' (sep.bro = 0).
+  const broMidt = (el) => {
+    const g = el.geometry
+    const m = g[Math.floor(g.length / 2)]
+    return project(m.lat, m.lon)
+  }
+  const broKandidater = broer.filter(el => el.geometry && el.geometry.length >= 2)
+  const broValgt = sep.bro > 0
+    ? thinParkering(broKandidater.map(el => ({ p: broMidt(el), utfart: false, el })), sep.bro).map(x => x.el)
+    : broKandidater
+  const broSvg = broValgt.map(el => {
     const pts = el.geometry.map(g => project(g.lat, g.lon))
     // Perpendikulær enhetsnormal pr punkt (snitt av tilstøtende segmenter gir
     // jevne hjørner); forskyv ±offset for venstre/høyre parapet-linje.
@@ -2546,6 +2610,12 @@ export function buildSvg(elements, bbox, options = {}) {
     lakeLabels: lakeLabels.length,
     contoursSkipped: dem && !usableDem ? 'syntetisk DEM — ingen ekte høydekurver tilgjengelig' : null,
     isomVersion: '2017-2-derived',
+    // Tetthets-beslutningen kartet ble bygd med (mapDensityRules). `null` =
+    // ingen sondering (nett nede, eller en kaller som ikke sonderer) ⇒ full
+    // detalj, som før. Utvikler-fanen viser dette, og det er eneste sporet av
+    // HVORFOR et kart ble lettere enn brukeren ba om.
+    detaljNivaa,
+    tetthet,
     source: 'OpenStreetMap (ODbL) + ISOM-katalog v6.5' + (usableDem ? ` + DEM (${dem.source})` : ''),
     generated: new Date().toISOString(),
     // App-versjonen kartet ble BYGD med (≠ appen som viser det). Utvikler-
@@ -2683,7 +2753,7 @@ export function buildSvg(elements, bbox, options = {}) {
       `    <g data-iso="101">${contourBucketPaths(contourMinorBuckets)}</g>\n` +
       `    <g data-iso="102">${contourBucketPaths(contourIndexBuckets)}</g>\n` +
       (contourLabels.length
-        ? `    <g data-label="kontur-tall">\n${contourLabels.slice(0, 80).map(l =>
+        ? `    <g data-label="kontur-tall">\n${contourLabels.slice(0, konturTallTakFor(detaljNivaa)).map(l =>
             `      <text x="${fmt(l.x)}" y="${fmt(l.y)}" text-anchor="middle">${l.elev}</text>`).join('\n')}\n    </g>\n`
         : '') +
       `  </g>\n`
@@ -3005,7 +3075,12 @@ export function buildSvg(elements, bbox, options = {}) {
   // og navngitte arealer (myr, heath, grassland, locality-polygoner osv).
   // Toggle-bar via 'navn'-laget i MapView (default på).
   // filter før map: global navn-dedup (hytter/naturreservat/områder).
-  const omradenavnRows = omradenavnLabels.filter(l => claimLabelName(l.name, 'omrade', l.x, l.y))
+  // Hytte-navn er nyttige i marka, men et uleselig teppe i tett by (hvert
+  // navngitt bygg får sin egen <text> + getBBox-kostnad i navn-LOD-en), så de
+  // droppes på 'sparsom'. Naturreservat- og areal-navn beholdes alltid.
+  const omradenavnRows = omradenavnLabels
+    .filter(l => !(l.isBuilding && droppet('hytte-navn')))
+    .filter(l => claimLabelName(l.name, 'omrade', l.x, l.y))
   const omradenavnLayer = omradenavnRows.length
     ? `  <g data-layer="navn">\n${omradenavnRows.map(l => {
         if (l.isBuilding) {
@@ -3035,8 +3110,11 @@ export function buildSvg(elements, bbox, options = {}) {
   // adskilt fra 521 data-layer="bygning" («Hus og hytter»).
   // v12.0.15: flaten er nå flat dempet grå-beige (ikke mønster) og PÅ som
   // default; buildIsomCss demper den ekstra ved utzoom (opacity 0.55).
+  // Heltalls-koordinater for bymassen: 1 m = 0,1 mm på trykk ved 1:10 000, og
+  // flaten har verken strek eller mønster som kan avsløre avrundingen. Sparer
+  // ~27 % av det som er igjen av d-payloaden (målt: 843 → 644 KB i Oslo).
   const urbanMassPath = urbanMassMultiPoly.length
-    ? multiPolyToPath(urbanMassMultiPoly, fmt)
+    ? multiPolyToPath(urbanMassMultiPoly, Math.round)
     : ''
   const urbanMassLayerSvg = urbanMassPath
     ? `  <g data-layer="bymasse" data-iso="522"><path d="${urbanMassPath}" fill-rule="evenodd"/></g>\n`

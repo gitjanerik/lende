@@ -9,6 +9,7 @@ import { fetchFredaKulturminner, fetchFredaCount, clusterByMinMeters, FREDET_FET
 import { fetchKulturminnerMedStatus } from '../lib/kulturminneFetcher.js'
 import { cacheGet, cacheSet, kulturminneBboxKey, fredetKulturminneBboxKey, TTL } from '../lib/protectedAreaCache.js'
 import { isomCatalog, buildPointSymbolDef } from '../lib/symbolizer.js'
+import { separasjonerFor } from '../lib/mapDensityRules.js'
 
 export function useHeritageLayers({
   svgHostRef, visibleLayers, meta, applyUprightLabels, kulturminneCount,
@@ -100,7 +101,11 @@ export function useHeritageLayers({
       const g = document.createElementNS(ns, 'g')
       g.setAttribute('id', 'fredet-km-layer'); g.setAttribute('data-layer', 'fredet-kulturminne')
       const half = FREDET_SIZE_MM / 2
-      for (const it of clusterByMinMeters(data, 25)) {
+      // Klynge-avstanden følger kartets detaljnivå (meta.detaljNivaa fra
+      // tetthets-sonderingen): 25 m i marka som før, 50/75 m i tett by der
+      // Riksantikvaren har hundrevis av fredninger i samme kvartal. Laget bygges
+      // runtime, så det leser nivået fra kartets meta i stedet for buildSvg.
+      for (const it of clusterByMinMeters(data, separasjonerFor(m?.detaljNivaa).fredet)) {
         const p = wgs84ToSvg(it.lat, it.lon, m)
         if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue
         const mk = document.createElementNS(ns, 'g')
@@ -190,7 +195,9 @@ export function useHeritageLayers({
       const g = document.createElementNS(ns, 'g')
       g.setAttribute('id', 'km-fallback-layer'); g.setAttribute('data-layer', 'kulturminne')
       const size = 3.6, half = size / 2
-      for (const it of clusterByMinMeters(data, 30)) {
+      // Samme klynge-avstand som bygge-tids-laget (buildSvg) ville brukt, så
+      // runtime-fallbacken ikke blir tettere enn det innbakte laget.
+      for (const it of clusterByMinMeters(data, separasjonerFor(m?.detaljNivaa).kulturminne)) {
         const p = wgs84ToSvg(it.lat, it.lon, m)
         if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue
         const mk = document.createElementNS(ns, 'g')

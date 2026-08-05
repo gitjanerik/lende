@@ -12,6 +12,7 @@
 
 import polygonClipping from 'polygon-clipping'
 import RBush from 'rbush'
+import { simplifyDP } from './pathUtils.js'
 
 function bboxOf(ring) {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
@@ -139,6 +140,62 @@ export function classifyBuildings(buildings, opts = {}) {
   }
 
   return { urbanMass, scattered }
+}
+
+/** Absolutt areal av en ring (shoelace), i kvadratmeter. */
+export function ringArea(ring) {
+  if (!ring || ring.length < 3) return 0
+  let a = 0
+  for (let i = 0, n = ring.length; i < n; i++) {
+    const j = (i + 1) % n
+    a += ring[i][0] * ring[j][1] - ring[j][0] * ring[i][1]
+  }
+  return Math.abs(a / 2)
+}
+
+// Bymassen bygges som union av AKSE-JUSTERTE, buffer'ede bygnings-bbox-er
+// (bufferedBboxRect). Unionen av tusenvis av rektangler gir en trappelinje med
+// et hjørne for hver rektangel-kant som krysser en annen — målt i Oslo sentrum:
+// 6 233 ringer og 126 151 punkter i ÉN path, 1 646 KB = 31,9 % av hele SVG-en.
+// Vardåsen: 909 KB = 33,5 %. Trinnene er 1–15 m, altså 0,1–1,5 mm ved 1:10 000
+// — de renderes som en rett strek uansett. Detaljen er ren kostnad.
+//
+// 3,0 m DP er samme toleranse som vegetasjonsgrensene bruker (VEG_SIMPLIFY_M i
+// mapBuilder) = 0,3 mm på trykk, og bymassen er en flat fyllflate uten strek
+// eller mønster, så forenklingen er usynlig. 200 m² minsteareal fjerner slivers
+// og mikro-hull (2 mm² på trykk).
+export const URBAN_MASS_SIMPLIFY_M = 3.0
+export const URBAN_MASS_MIN_AREA_M2 = 200
+
+/**
+ * Forenkle bymasse-multipolygoner: dropp for små ringer og kjør DP på resten.
+ * Ytre ring under minstearealet ⇒ hele polygonen droppes.
+ *
+ * @param {Array<Array<Array<[number,number]>>>} multiPoly
+ * @returns {Array<Array<Array<[number,number]>>>}
+ */
+export function simplifyUrbanMass(multiPoly, {
+  toleranceM = URBAN_MASS_SIMPLIFY_M, minAreaM2 = URBAN_MASS_MIN_AREA_M2,
+} = {}) {
+  const out = []
+  for (const poly of multiPoly ?? []) {
+    if (!poly?.length) continue
+    const rings = []
+    for (let i = 0; i < poly.length; i++) {
+      const ring = poly[i]
+      if (!ring || ring.length < 4) continue          // lukket ring = min 4 punkter
+      if (ringArea(ring) < minAreaM2) {
+        if (i === 0) { rings.length = 0; break }      // ytre ring for liten → dropp polygonen
+        continue                                       // mikro-hull → fyll igjen
+      }
+      // DP bevarer første og siste punkt, så en lukket ring forblir lukket.
+      const s = toleranceM > 0 && ring.length > 4 ? simplifyDP(ring, toleranceM) : ring
+      if (s.length >= 4) rings.push(s)
+      else if (i === 0) { rings.length = 0; break }
+    }
+    if (rings.length) out.push(rings)
+  }
+  return out
 }
 
 /**

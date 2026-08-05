@@ -14,6 +14,9 @@ import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
 import { bboxFromCenter, viewportAspect, PRINT_ASPECT } from '../lib/mapBuilder.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { minEquidistanceForWidthKm } from '../lib/equidistanceRules.js'
+import { probeDensityCached } from '../lib/densityProbe.js'
+import { tetthetsBeslutning, tetthetsBegrunnelse } from '../lib/mapDensityRules.js'
+import { DEFAULT_MAP_WIDTH_KM } from '../composables/useMapSizePreference.js'
 import { reverseGeocode } from '../lib/geocode.js'
 import { tileMosaic, zoomForKm, metersPerPixel } from '../lib/tileBackground.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
@@ -243,6 +246,47 @@ watch(minEquidistance, (minEq) => {
   }
 })
 
+// ── Datatetthet: rådgivende bredde-tak ─────────────────────────────────────
+// Samme innstilling gir 448 KB i Lierne og 5,2 MB i Oslo sentrum. Vi sonderer
+// datamengden i utsnittet (billig Overpass-telling, ingen geometri) og viser
+// hva som er anbefalt her. Taket er RÅDGIVENDE: brukeren kan dra forbi, og da
+// bygges kartet i den bredden hen ba om — samme holdning som ekvidistanse-
+// reglene, der et lagret valg beholdes og bare klampes når det må.
+const tetthetProbe = ref(null)      // { counts, arealKm2, perKm2 } | null
+const tetthetLaster = ref(false)
+let tetthetToken = 0
+
+const tetthetBeslutning = computed(() => tetthetsBeslutning(tetthetProbe.value, {
+  breddeKm: halfKm.value * 2,
+  aspect: effectiveAspect.value,
+}))
+const anbefaltMaksKm = computed(() => tetthetBeslutning.value?.maksBreddeKm ?? null)
+const overAnbefalt = computed(() =>
+  anbefaltMaksKm.value != null && halfKm.value * 2 > anbefaltMaksKm.value)
+const tetthetTekst = computed(() => {
+  const b = tetthetBeslutning.value
+  if (!b) return ''
+  return tetthetsBegrunnelse(b.indeks, b.maksBreddeKm)
+})
+
+// Sonder når SENTERET flyttes — ikke når slideren dras. Tettheten er per km²
+// og endrer seg lite med utsnittet, så én måling per sted er nok.
+watch(center, async (c) => {
+  if (!c || !Number.isFinite(c.lat) || !Number.isFinite(c.lon)) return
+  const token = ++tetthetToken
+  tetthetProbe.value = null
+  tetthetLaster.value = true
+  try {
+    // Sonder på STANDARD-bredden, ikke gjeldende slider-verdi, så indeksen
+    // (per km²) er sammenlignbar uansett hvor slideren står.
+    const bbox = bboxFromCenter(c.lat, c.lon, DEFAULT_MAP_WIDTH_KM / 2, 1)
+    const p = await probeDensityCached(bbox)
+    if (token === tetthetToken) tetthetProbe.value = p
+  } finally {
+    if (token === tetthetToken) tetthetLaster.value = false
+  }
+}, { immediate: true, deep: true })
+
 const { query, results, isSearching, error: searchError } = useNominatim()
 
 // Tale-til-tekst for stedssøket (skjules der nettleseren ikke støtter det).
@@ -313,6 +357,12 @@ async function generateMap() {
       equidistanceM: equidistanceM.value,
       navn,
       terrainFirst: true,   // vis terreng straks, fyll inn OSM i bakgrunnen
+      // Sonderingen er allerede gjort (slider-taket) — send den med så vi ikke
+      // måler to ganger. `klampBredde: false`: her HAR brukeren sett taket og
+      // valgt bredde selv, og det valget skal respekteres. Detaljnivået justeres
+      // fortsatt, så kartet holder seg responsivt.
+      probe: tetthetProbe.value,
+      klampBredde: false,
       onProgress: (msg) => {
         buildProgress.value = msg
         // Heuristikk for state-overgang basert på status-tekst — beholder
@@ -707,14 +757,29 @@ onMounted(() => {
     <div class="rounded-xl bg-ink/[0.04] border border-ink/10 px-4 py-3">
       <div class="flex items-center justify-between mb-2">
         <div class="text-[11px] text-ink/50 uppercase tracking-wide">Bredde</div>
-        <div class="text-[13px] font-medium tabular-nums">{{ sizeKm }} km</div>
+        <div class="text-[13px] font-medium tabular-nums"
+             :class="overAnbefalt ? 'text-amber-300' : ''">{{ sizeKm }} km</div>
       </div>
-      <input type="range" min="0.5" max="8" step="0.25" v-model.number="halfKm"
-             :disabled="controlsLocked"
-             class="w-full accent-slate-400 disabled:opacity-50 disabled:cursor-not-allowed" />
+      <!-- Anbefalt-tak fra tetthets-sonderingen: sonen over taket tones ned så
+           det er synlig HVOR grensen går, men slideren er ikke sperret — drar du
+           forbi, bygges bredden du ba om. -->
+      <div class="relative">
+        <div v-if="anbefaltMaksKm != null && anbefaltMaksKm < 16"
+             class="absolute top-1/2 -translate-y-1/2 right-0 h-1.5 rounded-r bg-amber-400/25
+                    border-r border-amber-300/40 pointer-events-none"
+             :style="{ width: `${Math.max(0, 100 - (anbefaltMaksKm - 1) / 15 * 100)}%` }"></div>
+        <input type="range" min="0.5" max="8" step="0.25" v-model.number="halfKm"
+               :disabled="controlsLocked"
+               class="relative w-full accent-slate-400 disabled:opacity-50 disabled:cursor-not-allowed" />
+      </div>
       <div class="flex justify-between text-[10px] text-ink/40 mt-1">
         <span>1 km</span><span>8,5 km</span><span>16 km</span>
       </div>
+      <div v-if="tetthetTekst" class="text-[10px] mt-1.5"
+           :class="overAnbefalt ? 'text-amber-300/90' : 'text-ink/40'">
+        {{ tetthetTekst }}<template v-if="overAnbefalt"> — bygges enklere for å holde seg responsivt</template>
+      </div>
+      <div v-else-if="tetthetLaster" class="text-[10px] text-ink/30 mt-1.5">Måler datamengden …</div>
     </div>
 
     <!-- Ekvidistanse-velger -->

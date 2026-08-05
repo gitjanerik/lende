@@ -27,6 +27,22 @@ const props = defineProps({
 })
 const metaAppVersionText = computed(() => props.meta?.appVersion ?? null)
 
+// Tetthets-linja: «915 /km² · svært tett → sparsom · bredde 8 → 6 km».
+// meta.tetthet er null på kart bygget før v5.0.0 og på kart der sonderingen
+// ikke kjørte (nett nede) — da vises ingen linje i stedet for et falskt «full».
+const tetthetTekst = computed(() => {
+  const t = props.meta?.tetthet
+  if (!t || !Number.isFinite(Number(t.indeks))) return ''
+  const deler = [`${Math.round(t.indeks)} /km²`, t.klasse]
+  const nivaa = props.meta?.detaljNivaa
+  if (nivaa && nivaa !== 'full') deler.push(`→ ${nivaa}`)
+  if (Number.isFinite(t.fraBreddeKm) && Number.isFinite(t.tilBreddeKm) &&
+      t.tilBreddeKm !== t.fraBreddeKm) {
+    deler.push(`bredde ${t.fraBreddeKm} → ${t.tilBreddeKm} km`)
+  }
+  return deler.join(' · ')
+})
+
 const zoomNearThreshold = defineModel('zoomNearThreshold', { type: Number, default: 2.5 })
 const nameBudgetFar = defineModel('nameBudgetFar', { type: Number, default: 60 })
 const nameBudgetMid = defineModel('nameBudgetMid', { type: Number, default: 130 })
@@ -109,6 +125,12 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
                       : 'bg-ink/5 border-ink/10 text-ink/70'">
         {{ cullDisabled ? 'AV — slå på' : 'Slå av' }}
       </button>
+    </div>
+    <!-- Datatetthet: hva sonderingen fant, og hva den gjorde med kartet. Eneste
+         sporet av HVORFOR et kart ble lettere eller mindre enn brukeren ba om. -->
+    <div v-if="tetthetTekst" class="flex items-baseline justify-between gap-2 mb-2 px-1">
+      <span class="text-ink/45 text-[11px]">Datatetthet</span>
+      <span class="text-ink/55 text-[11px] text-right">{{ tetthetTekst }}</span>
     </div>
     <!-- Sjøkart-status: WFS-hentingen feiler stille (timeout/CORS/tom) —
          her vises HVORFOR dybdetall/kai mangler på kystkart. -->

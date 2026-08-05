@@ -10,6 +10,8 @@ import { utm32BboxFromWgs84 } from '../src/lib/utm.js'
 import { parsePathSubpaths } from '../src/lib/pathUtils.js'
 import { poiType, parseLen, sumTranslate, mmToUnitFromSvg, dedupePoi } from '../src/lib/mapPoi.js'
 import { buildSearchIndex, filterIndex } from '../src/composables/useMapSearch.js'
+import { probeDensity } from '../src/lib/densityProbe.js'
+import { tetthetsBeslutning } from '../src/lib/mapDensityRules.js'
 
 // sjokartFetcher sjekker `typeof DOMParser` for GML-parsing — uten shim
 // returnerer den tomt og kystkart mister dybdedata i Node.
@@ -34,14 +36,49 @@ export function demResolutionForArea(utmBbox, maxCells = DEM_MAX_CELLS) {
 
 /**
  * Bygg et komplett turkart headless.
- * @param {{lat:number, lon:number, halfKm:number, equidistanceM?:number}} opts
- * @returns {Promise<{svg:string, counts:object, meta:object, dem:object, bbox:object}>}
+ *
+ * `detaljNivaa` kan settes eksplisitt; utelates den sonderes datatettheten med
+ * samme regler som appen (mapDensityRules), så et Oslo-kart fra MCP blir like
+ * lett som fra appen. `tetthetAv: true` skrur sonderingen helt av.
+ *
+ * @param {{lat:number, lon:number, halfKm:number, equidistanceM?:number,
+ *          detaljNivaa?:string, tetthetAv?:boolean}} opts
+ * @returns {Promise<{svg:string, counts:object, meta:object, dem:object, bbox:object,
+ *                    halfKm:number, tetthet:object|null}>}
  */
-export async function buildMapHeadless({ lat, lon, halfKm, equidistanceM }) {
-  const bbox = bboxFromCenter(lat, lon, halfKm)
+export async function buildMapHeadless({
+  lat, lon, halfKm, equidistanceM, detaljNivaa: eksplisittNivaa, tetthetAv = false,
+}) {
+  let effHalfKm = halfKm
+  let bbox = bboxFromCenter(lat, lon, effHalfKm)
+
+  // Tetthets-sondering før hentingen (samme trinn-rekkefølge som appen:
+  // detaljer først, så areal). Feiler den → full detalj, uendret bredde.
+  let detaljNivaa = eksplisittNivaa ?? 'full'
+  let tetthet = null
+  if (!eksplisittNivaa && !tetthetAv) {
+    const probe = await probeDensity(bbox).catch(() => null)
+    const b = tetthetsBeslutning(probe, { breddeKm: effHalfKm * 2, aspect: 1 })
+    if (b) {
+      detaljNivaa = b.detaljNivaa
+      tetthet = {
+        indeks: Math.round(b.indeks), klasse: b.klasse, maksBreddeKm: b.maksBreddeKm,
+        fraBreddeKm: effHalfKm * 2, tilBreddeKm: b.breddeKm,
+      }
+      if (b.breddeJustert && b.breddeKm > 0) {
+        effHalfKm = b.breddeKm / 2
+        bbox = bboxFromCenter(lat, lon, effHalfKm)
+      }
+      console.error(
+        `[buildMapHeadless] tetthet ${b.klasse} (indeks ${Math.round(b.indeks)}) → ` +
+        `detalj «${detaljNivaa}», bredde ${halfKm * 2} → ${effHalfKm * 2} km`,
+      )
+    }
+  }
+
   const utmBbox = utm32BboxFromWgs84(bbox)
   const resolutionM = demResolutionForArea(utmBbox)
-  console.error(`[buildMapHeadless] halfKm=${halfKm} → DEM/DOM-oppløsning ${resolutionM} m`)
+  console.error(`[buildMapHeadless] halfKm=${effHalfKm} → DEM/DOM-oppløsning ${resolutionM} m`)
 
   const [overpass, n50Water, dem] = await Promise.all([
     fetchOverpass(bbox),
@@ -67,8 +104,10 @@ export async function buildMapHeadless({ lat, lon, halfKm, equidistanceM }) {
     utmBbox,
     contourIntervalM: equidistanceM,
     skipContoursIfSynthetic: true,
+    detaljNivaa,
+    tetthet,
   })
-  return { svg, counts, meta, dem, bbox }
+  return { svg, counts, meta, dem, bbox, halfKm: effHalfKm, tetthet }
 }
 
 // Routbare ISOM-koder — må matche ISOM_COST i lib/routing.js og

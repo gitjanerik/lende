@@ -68,7 +68,10 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
         <div class="text-[13px] text-ink font-semibold tabular-nums">{{ mapSizeSlider }} × {{ mapSizeSlider }} km</div>
       </div>
       <div class="text-[11px] text-ink/55 leading-snug mb-2">
-        Bredde på nye kart fra søk/GPS. Større kart tar lengre tid å bygge.
+        Bredde på nye kart fra søk/GPS. Større kart tar lengre tid å bygge. I
+        svært datatette områder (bykjerner) bygges kartet enklere og om nødvendig
+        mindre, så det holder seg responsivt — «Flere valg» viser grensen på
+        stedet, og Utvikler-fanen hva som ble justert.
       </div>
       <input type="range" :min="MAP_SIZE_MIN_KM" :max="MAP_SIZE_MAX_KM" step="1"
              v-model.number="mapSizeSlider"

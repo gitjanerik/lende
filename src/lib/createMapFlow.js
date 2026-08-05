@@ -32,6 +32,8 @@ import { saveMap, generateMapId } from './mapStorage.js'
 import { snapUtmBboxToGrid, fetchDEMWithCache } from './demTileCache.js'
 import { logPerf } from './perfLog.js'
 import { cacheGet, cacheSet, TTL, kulturminneBboxKey } from './protectedAreaCache.js'
+import { probeDensityCached } from './densityProbe.js'
+import { tetthetsBeslutning } from './mapDensityRules.js'
 
 // DEM-flis-cache. Når PÅ snappes kart-bbox til res-rutenettet og DEM hentes
 // flis-vis med gjenbruk mellom overlappende kart; AV = byte-identisk med før
@@ -280,6 +282,16 @@ export async function buildMapFromCenter({
   terrainFirst = false,
   isAuto = false,
   utmBbox: explicitUtmBbox = null,
+  // Ferdig sondering fra kalleren (pickeren sonderer allerede for å vise
+  // slider-taket). Sparer én runde. `undefined` ⇒ sonder her.
+  probe: forhaandsProbe = undefined,
+  // Skru av tetthets-automatikken helt for dette bygget.
+  ignorerTetthet = false,
+  // Skal bredden kunne klampes (trinn 2)? Pickeren VISER taket og lar brukeren
+  // dra forbi det — der er breddevalget eksplisitt og skal respekteres, så bare
+  // detaljnivået justeres. Snarvei-flyten (søk/GPS/«Bygg om») bruker en lagret
+  // preferanse på et sted brukeren ikke har vurdert, og får begge trinnene.
+  klampBredde = true,
 }) {
   const throwIfAborted = () => {
     if (signal?.aborted) throw new DOMException('Avbrutt', 'AbortError')
@@ -300,8 +312,57 @@ export async function buildMapFromCenter({
   // picker-previewen sender samme aspekt den viser). aspect=1 ⇒ kvadrat.
   const mapAspect = aspect ?? viewportAspect()
   let bbox = bboxFromCenter(center.lat, center.lon, halfKm, mapAspect)
-  const widthKm = (halfKm * 2).toFixed(1)
-  const heightKm = (halfKm * 2 * mapAspect).toFixed(1)
+
+  // ── Datatetthet: mål FØR vi henter ────────────────────────────────────────
+  // Samme innstilling (8 km) gir 448 KB i Lierne og 5,2 MB i Oslo sentrum.
+  // Sonderingen teller OSM-features uten geometri (~200 B svar) og lar oss
+  // velge detaljnivå — og, hvis selv `sparsom` ikke holder, en mindre bredde —
+  // før den tunge hentingen starter.
+  //
+  // Hopp over når kalleren krever en EKSAKT extent (kant-sone-utvidelse: en
+  // nabo-flis må dele gitteret bit-eksakt med aktiv flis, ellers blir det søm).
+  let effHalfKm = halfKm
+  let detaljNivaa = 'full'
+  let tetthet = null
+  if (!explicitUtmBbox && !ignorerTetthet) {
+    onProgress('Måler datamengden i området …')
+    // 8 s tak, ikke standard-12: dette er den ene ventetiden vi LEGGER TIL foran
+    // byggingen (bredden må være avgjort før DEM-extenten snappes). Timer den
+    // ut, bygges kartet som før — bare 8 s senere, og det skal ikke være 12.
+    // Pickeren har allerede sondert for slider-taket og sender resultatet inn,
+    // så der koster dette ingenting. Cachen (30 d per ~1 km-celle) gjør at
+    // gjentatte bygg i samme område er gratis.
+    const probe = forhaandsProbe !== undefined
+      ? forhaandsProbe
+      : await timeAsync('tetthet', probeDensityCached(bbox, { signal, timeoutMs: 8000 }))
+    throwIfAborted()
+    // probe === null (nett nede, sondering feilet) ⇒ oppfør deg akkurat som før
+    // tetthets-reglene fantes: full detalj, uendret bredde.
+    const b = tetthetsBeslutning(probe, { breddeKm: halfKm * 2, aspect: mapAspect })
+    if (b) {
+      detaljNivaa = b.detaljNivaa
+      tetthet = {
+        indeks: Math.round(b.indeks),
+        klasse: b.klasse,
+        maksBreddeKm: b.maksBreddeKm,
+        fraBreddeKm: halfKm * 2,
+        tilBreddeKm: klampBredde ? b.breddeKm : halfKm * 2,
+      }
+      if (klampBredde && b.breddeJustert && b.breddeKm > 0) {
+        effHalfKm = b.breddeKm / 2
+        bbox = bboxFromCenter(center.lat, center.lon, effHalfKm, mapAspect)
+        console.log(
+          `[tetthet] ${b.klasse} (indeks ${Math.round(b.indeks)}) — ` +
+          `detalj «${detaljNivaa}», bredde ${halfKm * 2} → ${b.breddeKm} km`,
+        )
+      } else if (detaljNivaa !== 'full') {
+        console.log(`[tetthet] ${b.klasse} (indeks ${Math.round(b.indeks)}) — detalj «${detaljNivaa}»`)
+      }
+    }
+  }
+
+  const widthKm = (effHalfKm * 2).toFixed(1)
+  const heightKm = (effHalfKm * 2 * mapAspect).toFixed(1)
   onProgress(`Henter kartdata for ${widthKm} × ${heightKm} km …`)
 
   // DEM-oppløsning (probe). 10 m ved fine konturer (≤ 5 m ekvidistanse),
@@ -316,7 +377,7 @@ export async function buildMapFromCenter({
   // endepunkt, så konturene blir glatte/detaljerte i stedet for fasetterte.
   // Gjelder uansett kyst/innland. null = grovt kart → ingen oppgradering.
   const fineInlandTargetResM = equidistanceM <= 5
-    ? fineDemResFor(halfKm, mapAspect)
+    ? fineDemResFor(effHalfKm, mapAspect)
     : null
 
   // Recompute WGS84-bbox fra ALLE fire UTM-hjørner (ikke bare SW+NE) så Overpass
@@ -393,7 +454,7 @@ export async function buildMapFromCenter({
   // vektorer, ikke flere kurver.
   // Oppgraderingen gates på faktisk celleantall (bredde × høyde / res²) i
   // tillegg til kyst — se coastalTargetResFor. Fineste trinn under taket vinner.
-  const sizeKmTotal = halfKm * 2
+  const sizeKmTotal = effHalfKm * 2
   const coastalTargetResM = coastalTargetResFor(utmBbox)
   const canUpgradeToFineDem = coastalTargetResM != null &&
                               resolutionM > coastalTargetResM
@@ -558,11 +619,17 @@ export async function buildMapFromCenter({
     // brukeren via onProgress og føres inn i kart-meta (sjokartStatus).
     onProgress('Henter sjøkart-dybder og havnedata …')
     const timeoutMs = sjokartTimeoutForBbox(bbox)
+    // signal videresendes nå: uten det fortsatte Sjøkart-requestene å leve (og
+    // okkupere connections mot samme origin) etter at brukeren avbrøt
+    // byggingen. withHardTimeout resolver bare med fallback — den aborterer
+    // ingenting selv.
     return withHardTimeout(
-      fetchSjokart(bbox), timeoutMs,
+      fetchSjokart(bbox, { signal }), timeoutMs,
       { ...EMPTY_SJOKART, timedOut: true, timeoutMs }, 'Sjøkart',
     ).then(res => {
-      const { fetchErrors, debugSamples, ...cats } = res
+      // trunkert/fetchErrors/debugSamples er diagnostikk, ikke feature-lister —
+      // de må ut av `cats` før vi teller, ellers blåser de feature-tallet.
+      const { fetchErrors, debugSamples, trunkert, ...cats } = res
       const n = Object.values(cats).reduce((a, v) => a + (Array.isArray(v) ? v.length : 0), 0)
       if (res.timedOut) onProgress(`Sjøkart svarte ikke innen ${Math.round(timeoutMs / 1000)} s — bygger uten dybdetall og kaier …`)
       else if (n === 0) onProgress('Sjøkart hadde ingen data her — bygger uten dybdetall og kaier …')
@@ -583,7 +650,10 @@ export async function buildMapFromCenter({
     navn,
     bbox,
     center: { ...center },
-    halfKm,
+    // FAKTISK bygget halv-bredde, ikke den ønskede: ble bredden klampet av
+    // tetthets-regelen, må «Bygg om», kant-utvidelsen og kart-listas info-linje
+    // se den størrelsen som faktisk ligger i SVG-en.
+    halfKm: effHalfKm,
     // Metadata for kart-listas info-linje (overlever listMaps som dropper
     // svg/dem). demResolutionM = faktisk DEM-oppløsning; demSource = coverage.
     equidistanceM,
@@ -711,13 +781,20 @@ export async function buildMapFromCenter({
       sjokartStatus: summarizeSjokartStatus(sjokart, sjokartElements.length),
       nveInnsjoStatus,               // NVE-innsjø-utfall → meta (Utvikler-fanen)
       kulturminner,
+      // Tetthets-beslutningen: styrer klynge-avstander, hvilke støy-lag som
+      // droppes og navne-takene. 'full' = byte-identisk med før.
+      detaljNivaa,
+      tetthet,
     }, { signal }))
 
     const ti = timings ?? {}
     const inner = ['contours', 'cliffs', 'buildingMass', 'knauser']
       .filter(k => ti[k] != null).map(k => `${k} ${ti[k]}ms`).join(', ')
     logPerf(
-      `[perf] kart ${(halfKm * 2).toFixed(1)}km total ${Math.round(_now() - _t0)}ms | ` +
+      `[perf] kart ${(effHalfKm * 2).toFixed(1)}km total ${Math.round(_now() - _t0)}ms | ` +
+      // tetthet er den ENE ventetiden vi la til (sonderingen blokkerer, fordi
+      // bredden må være avgjort før DEM-extenten snappes) — den skal være målbar.
+      `tetthet ${marks.tetthet ?? '-'} | ` +
       `overpass ${marks.overpass ?? '-'} | n50 ${marks.n50 ?? '-'} | nve ${marks.nve ?? '-'} | dem ${marks.dem ?? '-'} | ` +
       `sjøkart ${marks['sjøkart'] ?? '-'} | buildSvg ${marks.buildSvg ?? '-'}${inner ? ` (${inner})` : ''}` +
       `${terrainFirst ? ' [terreng-først]' : ''} [ms]`
@@ -746,6 +823,9 @@ export async function buildMapFromCenter({
           // tilgjengelig billig her (krever Overpass), og en innlands-flom skal
           // ikke blinke til. Full-bygget fyller inn riktig vann straks det er klart.
           skipDemSea: true,
+          // Samme kontur-tall-tak som full-bygget, ellers ville antall høydetall
+          // hoppet når full-SVG-en erstatter terreng-previewen.
+          detaljNivaa,
         }, { signal }))
         throwIfAborted()
         const entry = buildEntry(
