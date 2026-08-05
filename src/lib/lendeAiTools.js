@@ -1056,6 +1056,24 @@ export function harOppdiktedeTurtall(tekst) {
     /\d+\s*(?:min\b|minutt|timer?\b)/i.test(s)
 }
 
+/**
+ * Påstår svaret at en tur/rute ER tegnet inn, beregnet eller planlagt?
+ * harOppdiktedeTurtall alene skiller ikke et løgnaktig turSvar fra et helt
+ * ærlig svar som bare inneholder tall — «Det er 370 km turstier i kartet»,
+ * «Otersjøen ligger 612 moh», «kartet er 5,0 × 5,0 km». Vakten mot oppdiktede
+ * turtall må derfor kreve BEGGE: tall + en påstand om at turen finnes.
+ */
+export function paastaarTegnetTur(tekst) {
+  // Setning for setning, fordi et tilbud ikke er en påstand: «Si fra hvis du
+  // vil ha turen tegnet inn» avslutter det ærlige stinett-svaret og skal ikke
+  // gjøre hele svaret til en løgn.
+  return String(tekst ?? '').toLowerCase().split(/[.!?\n]+/).some((s) => {
+    if (/hvis du vil|vil du|ønsker du|si fra/.test(s)) return false
+    if (!/\b(tur|turen|turene|rundtur|rundturen|rute|ruta|ruten|løype|løypa|løypen)\b/.test(s)) return false
+    return /(tegnet|tegnes|lagt inn|planlagt|beregnet|sendt til kartet|vises i kartet|er klar)/.test(s)
+  })
+}
+
 /** «74» → «1 t 14 min», «45» → «45 min». */
 export function formatGangtid(min) {
   const m = Math.max(1, Math.round(min))

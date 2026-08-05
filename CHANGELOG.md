@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-08-05 — v4.8.9: Stinett-svaret får beholde tallene sine
+
+Vakten mot oppdiktede turtall fra v4.8.3 var for grovmasket: den byttet ut ethvert svar som inneholdt et tall med «Jeg fikk ikke tegnet turen, så jeg har ingen tall å gi deg» når chatten ikke hadde sendt en tur til kartet i samme runde. Det rammet nettopp de svarene som var ærlige og korrekte — «Hvor mange kilometer sti i kartet» kjørte stinett-analysen, fikk ekte tall tilbake, og fikk dem kastet på vei ut, uansett hvor mange ganger brukeren spurte. Høyder, kartstørrelser og andre tallsvar gikk samme vei. Vakten krever nå BÅDE tall og en påstand om at turen faktisk er tegnet inn (vurdert setning for setning, så tilbudet «si fra hvis du vil ha turen tegnet inn» ikke gjør hele svaret til en løgn), og den holder seg unna svar der en fersk stinett-analyse ligger til grunn.
+
+---
+
 ## 2026-08-03 — v4.8.8: Målingen er inne — api.ra.no er nede, og deployen skal ikke velte av det
 
 Røyktesten i v4.8.7 gjorde jobben sin: fra CI, med rent nett, svarte `api.ra.no` vekselvis 404 og 502 gjennom tolv forsøk. Det avkrefter både CORS og mobilnettet — tjenesten selv er ustabil eller på vei ned. Kulturminne-laget viser `(!)` til Riksantikvaren er tilbake, og ingenting på klient-siden kan endre det.

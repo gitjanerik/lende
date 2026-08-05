@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { chatOnce } from '../lib/lendeAi.js'
 import {
   AI_TOOLS, runTool, toolStatusLabel, erStinettSporsmaal, stinettSvarTekst,
-  harOppdiktedeTurtall, turSvarTekst, er3dOnske, temaOnskeFra,
+  harOppdiktedeTurtall, paastaarTegnetTur, turSvarTekst, er3dOnske, temaOnskeFra,
 } from '../lib/lendeAiTools.js'
 
 // Global chat-tilstand (Fase 2 av KI-planen). Modul-skopet med vilje: modalen
@@ -298,11 +298,19 @@ async function send(text) {
       svar.content = turSvarTekst(turSendt)
     } else if (turSendt && (harOppdiktedeTurtall(svar.content) || hermetisk.test(svar.content))) {
       svar.content = turSvarTekst(turSendt)
-    } else if (!turSendt && harOppdiktedeTurtall(svar.content)) {
-      // Ingen tur ble sendt, men svaret snakker om lengde/stigning/gangtid:
-      // tallene KAN ikke være ekte. Vakten over var gatet på turSendt, så i
-      // v4.8.3-feilen slapp «Turen er tegnet inn … 11,9 km … 3 t 11 min»
+    } else if (!turSendt && !stinettAnalyse
+      && harOppdiktedeTurtall(svar.content) && paastaarTegnetTur(svar.content)) {
+      // Ingen tur ble sendt, men svaret PÅSTÅR at en tur er tegnet inn og
+      // oppgir tall: de kan ikke være ekte. Vakten over var gatet på turSendt,
+      // så i v4.8.3-feilen slapp «Turen er tegnet inn … 11,9 km … 3 t 11 min»
       // gjennom for en tur som aldri ble beregnet. Vær ærlig i stedet.
+      //
+      // Kravet om paastaarTegnetTur (og unntaket for stinettAnalyse) kom i
+      // v4.8.9: tall alene traff alt annet også, så ethvert ærlig svar med et
+      // tall i seg — «Det er 370 km turstier i kartet», høyder, kartstørrelse —
+      // ble byttet ut med «Jeg fikk ikke tegnet turen». Stinett-spørsmål ble
+      // dermed ubesvarelige: analysen kjørte, tallene var ekte, og vakten
+      // kastet dem.
       svar.content = 'Jeg fikk ikke tegnet turen, så jeg har ingen tall å gi deg. '
         + 'Prøv å presisere start og mål — heter flere steder i kartet det samme, '
         + 'hjelper det å ta med høyde eller et nabosted.'
