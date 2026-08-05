@@ -1,5 +1,11 @@
 # Endringslogg
 
+## 2026-08-05 — v4.8.10: Chatten kan merke steder i kartet — på ordentlig
+
+«Kan du merke det» ble besvart med «Vannet Bijjie Gaajsjaevrie er merket i kartet. Koordinater: 64.578764, 13.221365.» — men ingenting var merket. Chatten hadde ikke noe verktøy for markering, så modellen fant på at den hadde gjort det og dumpet koordinatene den satt igjen med fra søket. Nå finnes verktøyet: `merk_i_kartet` setter den rosa, blinkende ringen gjennom akkurat samme kode som når du velger et treff i søkefeltet — navne-LOD-en låses opp, utsnittet panner dit, og ringen pulserer. Oppgi bare stedsnavnet; appen slår det opp i kartets egne navn, søker naboflisene i mosaikken også, og åpner den flisen stedet ligger i om nødvendig. «Fjern markeringen» virker like godt, og modellen tilbyr merking selv etter at den har navngitt et sted. Bekreftelsen skrives deterministisk, så koordinat-dumpen er borte — og påstår modellen merking uten at verktøyet kjørte, blir svaret ærlig i stedet.
+
+---
+
 ## 2026-08-05 — v4.8.9: Stinett-svaret får beholde tallene sine
 
 Vakten mot oppdiktede turtall fra v4.8.3 var for grovmasket: den byttet ut ethvert svar som inneholdt et tall med «Jeg fikk ikke tegnet turen, så jeg har ingen tall å gi deg» når chatten ikke hadde sendt en tur til kartet i samme runde. Det rammet nettopp de svarene som var ærlige og korrekte — «Hvor mange kilometer sti i kartet» kjørte stinett-analysen, fikk ekte tall tilbake, og fikk dem kastet på vei ut, uansett hvor mange ganger brukeren spurte. Høyder, kartstørrelser og andre tallsvar gikk samme vei. Vakten krever nå BÅDE tall og en påstand om at turen faktisk er tegnet inn (vurdert setning for setning, så tilbudet «si fra hvis du vil ha turen tegnet inn» ikke gjør hele svaret til en løgn), og den holder seg unna svar der en fersk stinett-analyse ligger til grunn.

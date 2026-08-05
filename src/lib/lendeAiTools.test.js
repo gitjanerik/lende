@@ -4,6 +4,7 @@ import {
   kmUtenforBbox, kmMellom, bboxAvstandKm, metaFraSvgEl, toolStatusLabel,
   erStinettSporsmaal, stinettSvarTekst, harOppdiktedeTurtall, paastaarTegnetTur, turSvarTekst,
   formatGangtid, forhaandsberegnTur, er3dOnske, losTemaNokkel, losLagNokler, temaOnskeFra,
+  merkeSvarTekst, paastaarMerking, erMerkeOnske,
 } from './lendeAiTools.js'
 import { parseHTML } from 'linkedom'
 import { parseTourQuery, parseTourNameQuery } from './tour3dLink.js'
@@ -192,6 +193,60 @@ describe('turSvarTekst', () => {
     })
     expect(tekst).toContain('158 m')
     expect(tekst).not.toContain('høydemeter')   // uten DEM: ingen påstand om stigning
+  })
+})
+
+describe('merk_i_kartet', () => {
+  it('krever ingen argumenter og tar navn, koordinater og fjern', () => {
+    const t = AI_TOOLS.find((x) => x.function.name === 'merk_i_kartet')
+    expect(t).toBeDefined()
+    expect(t.function.parameters.required).toEqual([])
+    expect(t.function.parameters.properties.navn.type).toBe('string')
+    expect(t.function.parameters.properties.lat.type).toBe('number')
+    expect(t.function.parameters.properties.fjern.type).toBe('boolean')
+  })
+
+  it('gir norsk statuslinje for merking og fjerning', () => {
+    expect(toolStatusLabel('merk_i_kartet', { navn: 'Stordammen' })).toContain('Stordammen')
+    expect(toolStatusLabel('merk_i_kartet', { fjern: true })).toContain('Fjerner')
+  })
+})
+
+describe('merkeSvarTekst', () => {
+  it('bekrefter markeringen uten å ramse opp koordinater', () => {
+    const tekst = merkeSvarTekst({ navn: 'Bijjie Gaajsjaevrie' })
+    expect(tekst).toContain('Bijjie Gaajsjaevrie')
+    expect(tekst).toContain('rosa')
+    expect(tekst).not.toMatch(/\d/)
+  })
+
+  it('sier fra når markeringen lå i en annen kartflis', () => {
+    expect(merkeSvarTekst({ navn: 'Kvitvatnet', byttetKart: 'Otersjøen nord' }))
+      .toContain('Otersjøen nord')
+  })
+
+  it('bekrefter fjerning', () => {
+    expect(merkeSvarTekst({ fjernet: true })).toContain('fjernet')
+  })
+})
+
+describe('erMerkeOnske / paastaarMerking', () => {
+  it('kjenner igjen at brukeren ber om merking', () => {
+    for (const sp of [
+      'Kan du merke det', 'merk Stordammen', 'Marker det største vannet',
+      'vis meg hvor det er', 'kan du highlighte det',
+    ]) expect(erMerkeOnske(sp), sp).toBe(true)
+    for (const sp of ['Hvor mange km sti i kartet', 'Lag en rundtur', '']) {
+      expect(erMerkeOnske(sp), sp).toBe(false)
+    }
+  })
+
+  it('skiller påstand fra tilbud', () => {
+    expect(paastaarMerking('Vannet Bijjie Gaajsjaevrie er merket i kartet.')).toBe(true)
+    expect(paastaarMerking('Stedet er markert med en rosa ring.')).toBe(true)
+    expect(paastaarMerking('Vil du at jeg skal merke det i kartet?')).toBe(false)
+    expect(paastaarMerking('Skal jeg markere det for deg?')).toBe(false)
+    expect(paastaarMerking('Det største vannet i kartet er Bijjie Gaajsjaevrie.')).toBe(false)
   })
 })
 
