@@ -22,6 +22,7 @@ const props = defineProps({
   sjokartStatusText: { type: String, default: '' },
   nveInnsjoStatusText: { type: String, default: '' },
   turruteStatusText: { type: String, default: '' },
+  n50StiStatusText: { type: String, default: '' },
   meta: { type: Object, default: null },
   openVardasen: { type: Function, required: true },
   openPerfLog: { type: Function, required: true },
@@ -179,6 +180,17 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
         <span class="text-[11px] text-right break-all"
               :class="meta?.turruteStatus?.state === 'ok' ? 'text-ink/55' : 'text-amber-300/80'">
           {{ turruteStatusText }}
+        </span>
+      </div>
+    </div>
+    <!-- N50-stinettet fra statiske fliser. «nye» viser hvor mye som kom i
+         tillegg til OSM og Turrutebasen etter uttynningen. -->
+    <div v-if="n50StiStatusText" class="mb-2 px-1">
+      <div class="flex items-baseline justify-between gap-2">
+        <span class="text-ink/45 text-[11px]">N50-sti</span>
+        <span class="text-[11px] text-right break-all"
+              :class="meta?.n50StiStatus?.state === 'ok' ? 'text-ink/55' : 'text-amber-300/80'">
+          {{ n50StiStatusText }}
         </span>
       </div>
     </div>
