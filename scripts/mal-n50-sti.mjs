@@ -137,6 +137,16 @@ async function finnNedlasting(uuid) {
   ])
   log(`\nOmråder: ${omrader.length}`)
   for (const o of omrader.slice(0, 8)) log(`  · ${o.type}/${o.code} — ${o.name}`)
+  // HELE objektet for det området vi faktisk bestiller. Vi har hittil bare
+  // logget type/code/name og antatt at det er alt — men ordren returnerer
+  // `files: []` uten å kvittere for ordrelinja, og den mest sannsynlige
+  // forklaringen er at område-objektet bærer nestede felt (tilgjengelige
+  // formater/projeksjoner per område, evt. en egen id) som ordren MÅ matche.
+  // Samme for format og projeksjon. Dette er billig og avgjør saken.
+  const forste = omrader.find(o => o.code === (FYLKE ?? omrader[0]?.code)) ?? omrader[0]
+  log(`\nHELE område-objektet for bestillingen:\n  ${JSON.stringify(forste)}`)
+  log(`HELE format-objektet [0]:\n  ${JSON.stringify(formater[0])}`)
+  log(`HELE projeksjons-objektet [0]:\n  ${JSON.stringify(projeksjoner[0])}`)
   log(`Formater: ${formater.map(f => f.name).join(', ') || '(ingen)'}`)
   log(`Projeksjoner: ${projeksjoner.map(p => `${p.code} ${p.name}`).join(', ') || '(ingen)'}`)
 
@@ -153,6 +163,24 @@ async function finnNedlasting(uuid) {
     .find(Boolean) ?? formater[0]
   const proj = projeksjoner.find(p => String(p.code) === '25833') ?? projeksjoner[0]
   if (!format || !proj) throw new Error('Mangler format eller projeksjon i capabilities')
+
+  // can-download: Geonorge har en egen tjeneste for å sjekke om et datasett
+  // faktisk KAN lastes ned av den som spør. Svarer den nei, er den tomme
+  // ordren ikke en feil i forespørselen vår, men en tilgangssperre — og da
+  // slutter vi å lete etter feil på vår side.
+  try {
+    const kd = await hentJson(`${NEDLASTING}/can-download`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        metadataUuid: uuid,
+        coordinates: [], coordinateSystem: String(proj.code),
+      }),
+    }, 30000)
+    log(`\ncan-download: ${JSON.stringify(kd)}`)
+  } catch (e) {
+    log(`\ncan-download feilet: ${e.message.split('\n')[0]}`)
+  }
 
   log(`\n→ Bestiller: ${omrade.name} (${omrade.type}/${omrade.code}) · ${format.name} · EPSG:${proj.code}`)
   return { omrade, format, proj }
@@ -276,7 +304,7 @@ async function bestill(uuid, { omrade, format, proj }) {
 // ingen diagnostikk — det gir bare en jobb man må avbryte. Blir 12 for kort,
 // er DET i seg selv funnet vi trenger (og loggen viser hvor mange runder som
 // gikk), og så hever vi det bevisst.
-async function ventPaaOrdre(url, { maksMs = 4 * 60 * 1000, intervallMs = 10000 } = {}) {
+async function ventPaaOrdre(url, { maksMs = 60 * 1000, intervallMs = 10000 } = {}) {
   log(`\nVenter på klargjøring: ${url}`)
   const start = Date.now()
   let runde = 0

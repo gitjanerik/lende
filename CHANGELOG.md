@@ -1,5 +1,17 @@
 # Endringslogg
 
+## 2026-08-09 — v5.0.8: Slutt å gjette, be tjenesten om fasit
+
+Fjerde måle-kjøring bommet på alle direkte-URL-kandidatene og falt tilbake til ordre-API-et, som fortsatt svarte med tom fil-liste. To gjettinger på rad som ikke traff er ett signal om at framgangsmåten er feil, ikke bare detaljene.
+
+Så jeg slutter å gjette. Det er én ting jeg aldri har sett på: capabilities' område-objekter logges bare som `type/code — name`, og resten av objektet har jeg antatt bort. Ordren returnerer `files: []` uten å kvittere for ordrelinja i det hele tatt, og den klart mest sannsynlige forklaringen er at område-, format- og projeksjons-objektene bærer nestede felt som ordrelinja må matche — felt jeg aldri har sett fordi jeg logget et utdrag. Nå skrives hele objektet ut for alle tre.
+
+I tillegg kalles `can-download`, tjenesten capabilities peker på. Svarer den nei, er den tomme ordren ikke en feil i forespørselen vår, men en tilgangssperre — og da slutter vi å lete etter feil på vår side.
+
+Ordre-fallbacken er samtidig kuttet til ett minutt. Den er bekreftet død to ganger; den skal bare rekke å vise at den fortsatt er det, ikke koste mer tid.
+
+---
+
 ## 2026-08-09 — v5.0.7: Ordren blir aldri klar, så vi går utenom den
 
 Tredje måle-kjøring ga endelig et rent svar, og det var ikke det jeg håpet på: Geonorges ordre-API er en blindvei for N50. 69 polle-runder over 12 minutter, byte-identisk svar hver eneste gang, og responsen kvitterer ikke for ordrelinja i det hele tatt — den echoer bare tilbake e-post og referansenummer. Ordren blir altså akseptert som et tomt skall og blir aldri klar. Det er ikke en kø som jobber seg gjennom, og mer venting hjelper ikke.
