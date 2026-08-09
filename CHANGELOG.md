@@ -1,5 +1,17 @@
 # Endringslogg
 
+## 2026-08-09 — v5.0.12: Landsmåling, ett fylke om gangen
+
+Buskerud landet på 0,8 MB pakket. For å få landstallet må alle fylkene med, og da er spørsmålet hvordan. Å samle geometrien for hele Norge i minnet først ville blitt titalls millioner punkt-objekter uten grunn, for pakket størrelse er additiv: scriptet tar derfor ett fylke om gangen, måler det, kaster dataene og summerer tallene.
+
+Én detalj er verdt å være presis på. Byte og punkter summeres, men flis-tallet må være unionen av flis-nøkler — nabofylker deler grensefliser, og å summere dem ville talt de samme flisene flere ganger. Største enkeltflis er tilsvarende et maksimum, ikke en sum. Fliser som krysser en fylkesgrense får derimot innhold fra begge sider talt hver for seg, så landstallet er en liten overestimering. Det er riktig retning når tallet skal brukes til å dimensjonere.
+
+Format- og projeksjonsvalget er trukket ut så det gjøres per fylke. Det er ikke kosmetikk: Buskerud har verken GML eller SOSI, og et fylkes tilbud kan avvike fra det neste. Samme lærdom som ga fire tomme ordrer, nå håndhevet i koden i stedet for i hodet. Kandidat-URL-ene for landsdekkende fil gates dessuten på områdets egen type, ikke på kommandolinje-flagget, slik at landsmålingen ikke prøver Norge-URL-en én gang per fylke.
+
+Summeringen og formatvalget er rene funksjoner med tester: at unionen av fliser regnes riktig, at største flis ikke blir en sum, at forenklingsnivåene holdes fra hverandre, og at Buskerud får FGDB og ikke GML.
+
+---
+
 ## 2026-08-09 — v5.0.11: Feltet heter typeveg
 
 Felt-histogrammet ga fasit på første forsøk. Sti ligger i `typeveg`, med små forbokstaver, og Buskerud alene har 17 568 sti-lenker og 8 531 traktorveger — mot en håndfull i OSM for samme område. Verdi-mønstrene traff riktig, så uttrekket gikk gjennom som det skulle.

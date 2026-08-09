@@ -29,7 +29,7 @@ jobs:
     # hvert nettkall) skal slå inn først. Dette er bare en bakstopper mot en
     # jobb som henger et sted vi ikke har tenkt på — og den skal ikke brenne
     # halvannen time før den sier fra.
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
