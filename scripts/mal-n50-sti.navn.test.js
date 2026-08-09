@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { navnevarianter } from './mal-n50-sti.mjs'
+import { navnevarianter } from './geonorgeNavn.mjs'
 
 // Geonorges statiske filnavn normaliserer fylkesnavn, men vi vet ikke nøyaktig
 // hvordan (æ/ø/å, mellomrom, samiske parallellnavn). Scriptet prober derfor
@@ -44,5 +44,20 @@ describe('navnevarianter', () => {
 
   it('tåler navn uten mellomrom eller diakritikk uten å blåse opp settet', () => {
     expect(navnevarianter('Innlandet')).toHaveLength(1)
+  })
+})
+
+describe('filnavn-kandidater dekker fylkene som feilet', () => {
+  it('gir translitterert variant for Trøndelag og Østfold', async () => {
+    // Første bake (kjøring 31314135592) ga 404 på nøyaktig disse to fordi
+    // bake-scriptet bare erstattet mellomrom. Variantene MÅ inneholde formen
+    // uten diakritikk, ellers prøver vi aldri den som faktisk finnes.
+    expect(navnevarianter('Trøndelag')).toContain('Trondelag')
+    expect(navnevarianter('Østfold')).toContain('Ostfold')
+  })
+
+  it('beholder også originalskrivemåten, som virker for de fleste', () => {
+    expect(navnevarianter('Vestland')).toEqual(['Vestland'])
+    expect(navnevarianter('Trøndelag')).toContain('Trøndelag')
   })
 })
