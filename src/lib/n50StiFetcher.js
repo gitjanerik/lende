@@ -6,8 +6,12 @@
 // N50 Samferdsel har ingen live WFS, så dataene bakes én gang
 // (scripts/bygg-n50-sti.mjs) og serveres som filer.
 //
-// Målt over alle fylker: 179 706 km sti/traktorveg → 10,2 MB i 208 fliser,
-// største flis 200 KB. Det er lite nok til å ligge i `public/` og bli servert
+// Bakt over alle fylker: 179 706 km sti/traktorveg → 208 fliser, 12 MB på disk
+// (9,7 MB gzip), største flis 356 KB (59.5_10.0, Oslofjord-området — det er
+// den appen laster for et kart i Finnemarka). Landsmålingen anslo 200 KB fra et
+// utvalg; den faktiske baken ble større, men fortsatt godt innenfor.
+//
+// Det er lite nok til å ligge i `public/` og bli servert
 // fra samme opprinnelse som appen — ingen proxy, ingen nøkler, og service
 // worker-en cacher flisene offline på kjøpet.
 //
@@ -30,19 +34,36 @@ const BASE =
 
 const FLIS_TIMEOUT_MS = 15000
 
+/**
+ * Les én URL → bytes. All I/O går via denne, så kallere som ikke kan bruke
+ * `fetch` kan bytte den ut (`opts.hentBytes`).
+ *
+ * MERK: Node-ens `fetch` støtter IKKE `file:` — den kaster «not implemented».
+ * MCP/headless leser derfor flisene fra disk i stedet (mcp/headless.js).
+ * Uten det fikk headless-bygde kart null N50-stier, helt stille, siden
+ * uthentingen aldri feiler hardt.
+ *
+ * @returns {Promise<{status:number, bytes:Uint8Array|null}>}
+ */
+async function hentBytesViaFetch(url, signal) {
+  const res = await fetch(url, { signal: signal ?? AbortSignal.timeout(FLIS_TIMEOUT_MS) })
+  if (!res.ok) return { status: res.status, bytes: null }
+  return { status: 200, bytes: new Uint8Array(await res.arrayBuffer()) }
+}
+
 // Manifestet listar hvilke fliser som FINNES. Uten det ville hvert kart bedt
 // om fliser over hav og utland og fylt konsollen med 404. Hentes én gang per
 // økt; feiler den, faller vi tilbake til å prøve flisene direkte.
 let manifestLover = null
 export function nullstillManifestCache() { manifestLover = null }
 
-async function hentManifest(basePath, signal) {
+async function hentManifest(basePath, hentBytes, signal) {
   if (!manifestLover) {
     manifestLover = (async () => {
       try {
-        const res = await fetch(`${basePath}manifest.json`, { signal })
-        if (!res.ok) return null
-        const m = await res.json()
+        const { bytes } = await hentBytes(`${basePath}manifest.json`, signal)
+        if (!bytes) return null
+        const m = JSON.parse(new TextDecoder().decode(bytes))
         return Array.isArray(m?.fliser) ? new Set(m.fliser) : null
       } catch { return null }
     })()
@@ -74,12 +95,13 @@ export function berorerBbox(geometry, bbox) {
 export async function fetchN50StiLinjer(bbox, opts = {}) {
   const onStatus = typeof opts.onStatus === 'function' ? opts.onStatus : () => {}
   const basePath = opts.basePath ?? BASE
+  const hentBytes = opts.hentBytes ?? hentBytesViaFetch
   if (!bbox || ![bbox.south, bbox.west, bbox.north, bbox.east].every(Number.isFinite)) {
     onStatus({ state: 'feil', message: 'ugyldig bbox' })
     return []
   }
   const alle = fliserForBbox(bbox)
-  const manifest = await hentManifest(basePath, opts.signal)
+  const manifest = await hentManifest(basePath, hentBytes, opts.signal)
   // Uten manifest prøver vi alle flisene; med manifest bare de som finnes.
   const nokler = manifest ? alle.filter(n => manifest.has(n)) : alle
   if (!nokler.length) {
@@ -91,11 +113,9 @@ export async function fetchN50StiLinjer(bbox, opts = {}) {
   let feilet = 0
   await Promise.all(nokler.map(async (nokkel) => {
     try {
-      const res = await fetch(`${basePath}${nokkel}.bin`, {
-        signal: opts.signal ?? AbortSignal.timeout(FLIS_TIMEOUT_MS),
-      })
-      if (!res.ok) { if (res.status !== 404) feilet++; return }
-      for (const l of lesFlis(new Uint8Array(await res.arrayBuffer()))) {
+      const { status, bytes } = await hentBytes(`${basePath}${nokkel}.bin`, opts.signal)
+      if (!bytes) { if (status !== 404) feilet++; return }
+      for (const l of lesFlis(bytes)) {
         if (berorerBbox(l.geometry, bbox)) linjer.push(l)
       }
     } catch (e) {
