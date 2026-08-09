@@ -1,5 +1,17 @@
 # Endringslogg
 
+## 2026-08-09 — v5.0.9: Buskerud har ikke GML
+
+Fire kjøringer på rad la inn en ordre som ble akseptert, fikk referansenummer og forble tom for alltid. Å logge hele område-objektet i stedet for et utdrag avslørte hvorfor på første forsøk: den globale formatlista — FGDB, GML, PostGIS, SOSI — er unionen over alle 373 områder. Per område er utvalget smalere. Buskerud tilbyr bare PostGIS og FGDB.
+
+Vi bestilte GML. Geonorge svarte ikke «ugyldig kombinasjon», men tok imot ordren, ga den et referansenummer og lot den stå tom i det uendelige. Derfor så det ut som en treg kø i to kjøringer, og som et gåtefullt tomt skall i to til.
+
+Formatet velges nå fra områdets egen liste, og projeksjonen fra det valgte formatets liste. FGDB foretrekkes fordi GDAL 3.8 leser File Geodatabase med den innebygde OpenFileGDB-driveren, uten ekstra avhengigheter; PostGIS er en SQL-dump som trenger en database og er siste utvei. Scriptet logger nå også hva som faktisk er tilgjengelig for det området det bestiller, så en tilsvarende mismatch blir synlig med én gang.
+
+Lærdommen er verdt å skrive ned: en union presentert som en liste ser ut som et løfte om at alt i den er gyldig. Det var det ikke, og API-et sa ikke fra. Ordre-taket er samtidig hevet tilbake til ti minutter — nå som kombinasjonen er gyldig, er venting igjen meningsfull.
+
+---
+
 ## 2026-08-09 — v5.0.8: Slutt å gjette, be tjenesten om fasit
 
 Fjerde måle-kjøring bommet på alle direkte-URL-kandidatene og falt tilbake til ordre-API-et, som fortsatt svarte med tom fil-liste. To gjettinger på rad som ikke traff er ett signal om at framgangsmåten er feil, ikke bare detaljene.
