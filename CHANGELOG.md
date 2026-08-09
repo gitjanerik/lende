@@ -1,5 +1,19 @@
 # Endringslogg
 
+## 2026-08-09 — v5.0.13: Merking i pakkeformatet, og bake-scriptet (DELVIS)
+
+Landsmålingen ga tallet vi ventet på: 179 706 km sti og traktorveg blir 10,2 MB fordelt på 208 fliser, med 200 KB som største enkeltflis. Det er godt under grensa for hva som må ha egen lagring, så stiene skal ligge som statiske filer ved siden av appen — ingen R2, ingen worker, ingen hemmeligheter.
+
+Denne posten dekker de to første bitene av selve løftet, og er bevisst merket delvis: klient-henteren, symboliseringen og innkoblingen i kart-flyten gjenstår.
+
+Pakkeformatet bærer nå merkingen. N50 har `rutemerking` som JA eller NEI per lenke, og det er nettopp skillet mellom ISOM 506 for merket sti og 507 for umerket — samme skille vi allerede gjør for Turrutebasen. Det er pakket inn i høyeste bit av type-byten, som vi likevel skriver, og koster derfor ingenting. Formatversjonen er hevet til 2; ingenting er publisert ennå, så det er fritt fram.
+
+Bake-scriptet laster ned alle fylkene, trekker ut sti og traktorveg fra `typeveg`, forenkler til tre meter, deler i fliser og skriver dem til `public/data/n50-sti/`. To detaljer er verdt å nevne. Flisene akkumuleres over alle fylker før noe skrives, ellers ville fylke nummer to overskrevet fylke nummer én i en flis som krysser fylkesgrensa. Og feiler ett eneste fylke, skrives ingenting — et halvt stinett er verre enn ingen endring, fordi det ser komplett ut. Et manifest følger med, så klienten slipper å be om fliser over hav og utland.
+
+`gangOgSykkelveg` holdes utenfor, samme linje som symbolizer trekker for OSM sine footway og cycleway.
+
+---
+
 ## 2026-08-09 — v5.0.12: Landsmåling, ett fylke om gangen
 
 Buskerud landet på 0,8 MB pakket. For å få landstallet må alle fylkene med, og da er spørsmålet hvordan. Å samle geometrien for hele Norge i minnet først ville blitt titalls millioner punkt-objekter uten grunn, for pakket størrelse er additiv: scriptet tar derfor ett fylke om gangen, måler det, kaster dataene og summerer tallene.
