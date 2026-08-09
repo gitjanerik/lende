@@ -22,7 +22,11 @@
 // pakker (bake-scriptet i CI) og pakker ut (appen).
 
 export const MAGIC = 0x4e353053          // 'N50S'
-export const VERSJON = 1
+// v2: type-byten bærer også merkingen i høyeste bit. N50 har `rutemerking`
+// (JA/NEI) per lenke, og det er nettopp skillet mellom ISOM 506 (merket sti)
+// og 507 (umerket). Å pakke det i en bit vi allerede skriver koster ingenting.
+export const VERSJON = 2
+export const MERKET_BIT = 0x80
 
 // Kvantiseringsgitter i grader. 1e-5 → heltall på ~7,1e6 for lat 71.
 export const KVANT = 1e5
@@ -113,7 +117,7 @@ export function kodeFlis(linjer) {
   const gyldige = (linjer ?? []).filter(l => Array.isArray(l.geometry) && l.geometry.length >= 2)
   s.varint(gyldige.length)
   for (const l of gyldige) {
-    s.u8(typeIndeks(l.type))
+    s.u8(typeIndeks(l.type) | (l.merket ? MERKET_BIT : 0))
     s.varint(l.geometry.length)
     let fLat = 0, fLon = 0
     for (let i = 0; i < l.geometry.length; i++) {
@@ -139,7 +143,9 @@ export function lesFlis(bytes) {
   const antall = l.varint()
   const ut = []
   for (let i = 0; i < antall; i++) {
-    const type = TYPER[l.u8()] ?? 'annet'
+    const b = l.u8()
+    const type = TYPER[b & ~MERKET_BIT] ?? 'annet'
+    const merket = (b & MERKET_BIT) !== 0
     const n = l.varint()
     const geometry = []
     let fLat = 0, fLon = 0
@@ -147,7 +153,7 @@ export function lesFlis(bytes) {
       fLat += l.svarint(); fLon += l.svarint()
       geometry.push({ lat: fLat / KVANT, lon: fLon / KVANT })
     }
-    ut.push({ type, geometry })
+    ut.push({ type, merket, geometry })
   }
   return ut
 }
@@ -229,7 +235,7 @@ export function delPaaFliser(linje) {
   }
   const res = []
   for (const [nokkel, deler] of ut) {
-    for (const d of deler) if (d.length >= 2) res.push({ nokkel, type: linje.type, geometry: d })
+    for (const d of deler) if (d.length >= 2) res.push({ nokkel, type: linje.type, merket: linje.merket, geometry: d })
   }
   return res
 }

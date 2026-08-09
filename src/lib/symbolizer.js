@@ -517,6 +517,14 @@ export function classifyToIsom(el) {
   if (t['lende:turrute']) {
     return { code: t.merking === 'JA' ? '506' : '507', cat: 'manmade' }
   }
+  // N50-stinettet (n50StiFetcher.js). Traktorveg er et kjørespor og får 504,
+  // samme kode som OSM highway=track — det ER samme slags objekt. Sti følger
+  // Turrutebasens skille: merket → 506, umerket → 507. Elementene er allerede
+  // tynnet mot OSM og Turrutebasen, så det som står igjen er nytt.
+  if (t['lende:n50sti']) {
+    if (t['lende:n50sti'] === 'traktorveg') return { code: '504', cat: 'manmade' }
+    return { code: t.merking === 'JA' ? '506' : '507', cat: 'manmade' }
+  }
   if (t.highway === 'path' || t.highway === 'bridleway') {
     const tv = t.trail_visibility ?? t['path:visibility']
     // 507 — knapt synlig stitråkk

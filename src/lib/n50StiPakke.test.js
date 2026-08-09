@@ -63,6 +63,28 @@ describe('koding — rundtur', () => {
     }
   })
 
+  it('bevarer merkingen, som skiller ISOM 506 fra 507', () => {
+    const g = sti(59.84, 10.08, 5)
+    const ut = lesFlis(kodeFlis([
+      { type: 'sti', merket: true, geometry: g },
+      { type: 'sti', merket: false, geometry: g },
+      { type: 'traktorveg', merket: true, geometry: g },
+    ]))
+    expect(ut.map(l => l.merket)).toEqual([true, false, true])
+    expect(ut.map(l => l.type)).toEqual(['sti', 'sti', 'traktorveg'])
+  })
+
+  it('merke-biten forstyrrer ikke typen', () => {
+    // Alle typer × begge merkinger må komme uendret tilbake.
+    const g = sti(59.84, 10.08, 3)
+    const inn = TYPER.flatMap(t => [
+      { type: t, merket: true, geometry: g },
+      { type: t, merket: false, geometry: g },
+    ])
+    const ut = lesFlis(kodeFlis(inn))
+    expect(ut.map(l => `${l.type}:${l.merket}`)).toEqual(inn.map(l => `${l.type}:${l.merket}`))
+  })
+
   it('bevarer alle objekttyper', () => {
     const inn = TYPER.map((t, i) => ({ type: t, geometry: sti(59 + i * 0.1, 10, 5) }))
     const ut = lesFlis(kodeFlis(inn))
@@ -190,11 +212,11 @@ describe('delPaaFliser', () => {
 
   it('bevarer typen på alle delene', () => {
     const d = delPaaFliser({
-      type: 'traktorveg',
+      type: 'traktorveg', merket: true,
       geometry: [{ lat: 59.4, lon: 10.2 }, { lat: 59.6, lon: 10.2 }, { lat: 59.8, lon: 10.2 }],
     })
     expect(d.length).toBeGreaterThan(1)
-    for (const del of d) expect(del.type).toBe('traktorveg')
+    for (const del of d) { expect(del.type).toBe('traktorveg'); expect(del.merket).toBe(true) }
   })
 
   it('tåler for korte linjer', () => {

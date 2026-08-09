@@ -7,11 +7,22 @@ import { fetchOverpass, buildSvg, bboxFromCenter } from '../src/lib/mapBuilder.j
 import { fetchDEM } from '../src/lib/demFetcher.js'
 import { fetchN50Water } from '../src/lib/n50Fetcher.js'
 import { fetchTurruteRoutes, turruteElementsFrom } from '../src/lib/turrutebasenFetcher.js'
+import { fetchN50StiLinjer, n50StiElementerFra } from '../src/lib/n50StiFetcher.js'
 import { utm32BboxFromWgs84 } from '../src/lib/utm.js'
 import { parsePathSubpaths } from '../src/lib/pathUtils.js'
 import { poiType, parseLen, sumTranslate, mmToUnitFromSvg, dedupePoi } from '../src/lib/mapPoi.js'
 import { buildSearchIndex, filterIndex } from '../src/composables/useMapSearch.js'
 import { probeDensity } from '../src/lib/densityProbe.js'
+import { pathToFileURL } from 'node:url'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+// Appen leser N50-sti-flisene over HTTP under Vites BASE_URL. Headless kjører i
+// Node uten den, så vi peker rett på repoets public/-katalog med en fil-URL.
+// Er flisene ikke bakt, gir fetch en feil som fanges og kartet blir som før.
+function n50StiBasePath() {
+  return pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'data', 'n50-sti') + '/').href
+}
 import { tetthetsBeslutning } from '../src/lib/mapDensityRules.js'
 
 // sjokartFetcher sjekker `typeof DOMParser` for GML-parsing — uten shim
@@ -81,13 +92,16 @@ export async function buildMapHeadless({
   const resolutionM = demResolutionForArea(utmBbox)
   console.error(`[buildMapHeadless] halfKm=${effHalfKm} → DEM/DOM-oppløsning ${resolutionM} m`)
 
-  const [overpass, n50Water, dem, turruteRoutes] = await Promise.all([
+  const [overpass, n50Water, dem, turruteRoutes, n50StiLinjer] = await Promise.all([
     fetchOverpass(bbox),
     fetchN50Water(bbox).catch(() => []),
     fetchDEM(bbox, utmBbox, { resolutionM, useReal: true }),
     // Merkede fotruter (Turrutebasen) — samme kilde som appen, så MCP-bygde
     // kart ikke mangler stier appen har. Tynnes mot OSM under.
     fetchTurruteRoutes(bbox).catch(() => []),
+    // N50-stinettet. Headless kjører i Node uten Vites BASE_URL, så flisene
+    // leses fra repoets public/-katalog via fil-URL.
+    fetchN50StiLinjer(bbox, { basePath: n50StiBasePath() }).catch(() => []),
   ])
 
   // N50 er autoritativ vannkilde når den leverer (samme filter som CI-scriptet).
@@ -102,7 +116,9 @@ export async function buildMapHeadless({
       })
     : overpass.elements
   if (useN50) elements.push(...n50Water)
-  elements.push(...turruteElementsFrom(turruteRoutes, overpass.elements))
+  const turruteEls = turruteElementsFrom(turruteRoutes, overpass.elements)
+  elements.push(...turruteEls)
+  elements.push(...n50StiElementerFra(n50StiLinjer, [...overpass.elements, ...turruteEls]))
 
   const { svg, counts, meta } = buildSvg(elements, bbox, {
     dem,

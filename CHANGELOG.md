@@ -1,5 +1,21 @@
 # Endringslogg
 
+## 2026-08-09 — v5.0.14: Trettekollen får stien sin
+
+N50-stinettet er nå koblet inn i kartet. Der Turrutebasen tok de merkede rutene, tar N50 resten — 179 706 km sti og traktorveg, som ligger som statiske fliser ved siden av appen og hentes over samme opprinnelse. Ingen proxy, ingen nøkler, ingen ny driftsflate, og service worker-en cacher flisene offline på kjøpet.
+
+Pakkeformatet bærer merkingen. N50 har `rutemerking` som JA eller NEI per lenke, og det er nettopp skillet mellom ISOM 506 og 507 — samme skille Turrutebasen bruker. Det er pakket inn i høyeste bit av type-byten vi likevel skriver, så det koster ingenting. Traktorveg får 504, samme kode som OSM sin `highway=track`, fordi det er samme slags objekt.
+
+Bake-scriptet laster ned alle fylkene, trekker ut sti og traktorveg fra `typeveg`, forenkler til tre meter, deler i fliser og skriver til `public/data/n50-sti/`. To detaljer er verdt å nevne. Flisene akkumuleres over alle fylker før noe skrives — ellers ville fylke nummer to overskrevet fylke nummer én i en flis som krysser fylkesgrensa. Og feiler ett eneste fylke, skrives ingenting: et halvt stinett ser komplett ut, og det er verre enn ingen endring. Workflowen kjøres manuelt, uten fast tidsplan; N50-stier er stabile data, og OSM er det som fanger opp nye stier raskt.
+
+Uttynningen er trukket ut som delt modul. N50 legges oppå både OSM og Turrutebasen og overlapper begge kraftig, så uten filtrering ville hovedstiene blitt tegnet to og tre ganger med noen meters forskyvning. Underveis kom en feil fram som er verdt å notere: `travelLineGeometries` filtrerte bare på OSM sin `highway`, så Turrutebasens egne tagger falt utenfor og N50 ville tegnet de samme stiene på nytt. Den har nå en egen regresjonstest.
+
+To feil til ble fanget av tester i stedet for av brukeren. `export { x } from …` binder ikke navnet lokalt, så turrutebasenFetcher sin egen bruk av uttynningen ble en ReferenceError ved kjøring — usynlig for enhetstestene, som importerer funksjonene direkte, men integrasjonstesten av kart-flyten tok den. Og klienten filtrerer linjer mot kartutsnittet med både verteks- og segmenttest, fordi en flis er større enn kartet og en lang rett strekning kan krysse utsnittet uten at noe punkt ligger inni.
+
+Klienten feiler aldri hardt: er flisene ikke bakt ennå, eller er man offline, blir kartet som før. Utvikler-fanen viser hvor mange fliser som ble lest og hvor mange strekk som faktisk kom i tillegg etter uttynningen — null nye av mange linjer betyr at OSM allerede dekket området, ikke en feil.
+
+---
+
 ## 2026-08-09 — v5.0.12: Landsmåling, ett fylke om gangen
 
 Buskerud landet på 0,8 MB pakket. For å få landstallet må alle fylkene med, og da er spørsmålet hvordan. Å samle geometrien for hele Norge i minnet først ville blitt titalls millioner punkt-objekter uten grunn, for pakket størrelse er additiv: scriptet tar derfor ett fylke om gangen, måler det, kaster dataene og summerer tallene.

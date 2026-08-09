@@ -769,6 +769,7 @@ export function buildSvg(elements, bbox, options = {}) {
     sjokartStatus = null,          // utfall av Sjøkart-WFS-hentingen (summarizeSjokartStatus)
     nveInnsjoStatus = null,        // utfall av NVE-innsjø-hentingen (n50Fetcher onStatus)
     turruteStatus = null,          // utfall av Turrutebasen-hentingen (turrutebasenFetcher onStatus)
+    n50StiStatus = null,           // utfall av N50-sti-hentingen (n50StiFetcher onStatus)
     kulturminner = [],             // Kulturminnesøk brukerminner (hentet i createMapFlow)
     // Detaljnivå fra tetthets-sonderingen (mapDensityRules): 'full' | 'lett' |
     // 'sparsom'. 'full' = dagens oppførsel, byte for byte — et åpent område
@@ -2606,6 +2607,7 @@ export function buildSvg(elements, bbox, options = {}) {
     sjokartStatus,                 // ok/tom/timeout/feil/innlands + evt. WFS-feil (Utvikler-fanen)
     nveInnsjoStatus,               // ok (N innsjøer) / feil + melding (Utvikler-fanen)
     turruteStatus,                 // ok (N ruter / M nye strekk) / feil (Utvikler-fanen)
+    n50StiStatus,                  // ok (N fliser / M nye strekk) / feil (Utvikler-fanen)
     demResolutionM: dem?.transform
       ? Math.round((Math.abs(dem.transform.pixelWidth) + Math.abs(dem.transform.pixelHeight)) / 2) || null
       : null,

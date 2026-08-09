@@ -59,6 +59,7 @@ export function metaFromSvgMeta(m) {
     appVersion: m.appVersion ?? null,       // app-versjonen arket ble bygd med
     nveInnsjoStatus: m.nveInnsjoStatus ?? null, // NVE-innsjø-utfall ved bygging
     turruteStatus: m.turruteStatus ?? null, // Turrutebasen-utfall ved bygging
+    n50StiStatus: m.n50StiStatus ?? null,   // N50-sti-utfall ved bygging
     // tetthet + detaljNivaa ble strippet på samme måte fra v5.0.0 til v5.0.3:
     // hele tetthets-linja i Utvikler-fanen (DrawerDevTab.tetthetTekst leser
     // begge) var derfor tom på ALLE kart siden tetthets-automatikken kom.
