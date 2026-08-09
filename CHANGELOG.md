@@ -1,5 +1,17 @@
 # Endringslogg
 
+## 2026-08-09 — v5.0.3: Meta-hvitelisten spiste diagnose-feltene igjen
+
+Brukeren kjørte v5.0.2 og fikk likevel «ingen status — kartet er bygd før v5.0.2» i Utvikler-fanen. Kartet var ikke gammelt; feltet ble strippet ved lasting. `useMapLoadPipeline` bygger MapViews `meta` fra SVG-ens `data-meta` gjennom en eksplisitt hviteliste, og `turruteStatus` ble aldri lagt til der da Turrutebasen kom. Kommentaren rett over hvitelisten advarte mot nøyaktig dette — den ble skrevet da `appVersion` og `nveInnsjoStatus` forsvant på samme måte i v1.0.45/47 — men en kommentar er ikke en vaktpost.
+
+Under opprydningen viste det seg at feilen hadde skjedd én gang til, ubemerket. `tetthet` og `detaljNivaa` ble innført med tetthets-automatikken i v5.0.0 og heller aldri lagt inn i hvitelisten, så hele tetthets-linja i Utvikler-fanen (`915 /km² · svært tett → sparsom · bredde 8 → 6 km`) har vært tom på alle kart siden den ble laget. Begge feltene er nå med.
+
+Symptomet er lumsk fordi det ser ut som et dataproblem og ikke en kodefeil: kartet er nybygget, appen er oppdatert, og fanen sier likevel «bygd med eldre versjon». Merk at kart bygget med v5.0.2 ikke trenger ombygging — feltet har ligget i `data-meta` hele tiden, det var bare lesingen som kastet det.
+
+Derfor er hvitelisten nå trukket ut som en ren funksjon, `metaFromSvgMeta`, med en test som fanger den neste forglemmelsen automatisk: hvert felt `buildSvg` faktisk sender må enten være med i resultatet eller stå oppført i `META_BEVISST_UTELATT`, og feilmeldingen navngir feltet som mangler. En andre test holder utelatelses-lista ærlig, så et felt ikke kan gjemme seg der etter at det er fjernet fra `buildSvg`. Vaktposten er verifisert ved å fjerne `turruteStatus` igjen og se testen falle.
+
+---
+
 ## 2026-08-09 — v5.0.2: Merkede fotruter fra Turrutebasen, og en chat som forstår «gå en tur fra A til B»
 
 Utgangspunktet var en tur mellom Lelangen og Haratjern, opp om Trettekollen (608 moh, Drammens høyeste punkt). UT.no viser en sti der; Lende viste ingenting. Målingen forklarer hvorfor: OSM har 31 linjer i utsnittet, men den nærmeste ligger 478 m fra toppen — det går rett og slett ingen sti til Trettekollen i OSM. Overpass-spørringen vår var ikke problemet; den henter allerede `path`, `track`, `bridleway` og `steps`. Stien finnes derimot i Kartverkets N50 Samferdsel «Sti», som er det UT.no sitt bakgrunnskart tegner, og som ikke har noen live vektor-WFS.

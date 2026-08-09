@@ -15,6 +15,58 @@ import { loadMap as loadStoredMap, deleteMap as deleteStoredMap } from '../lib/m
 import { logPerf } from '../lib/perfLog.js'
 import { APP_VERSION } from '../version.js'
 
+// Meta-felter fra buildSvg som med VILJE ikke løftes inn i MapViews meta:
+// enten fordi de pakkes ut til egne felter (utmBbox → minE/minN/maxE/maxN),
+// eller fordi de bare er byggetids-diagnostikk uten konsument i visningen.
+// Står et felt her, er utelatelsen et valg — ikke en forglemmelse.
+export const META_BEVISST_UTELATT = Object.freeze([
+  'utmBbox',        // pakkes ut til minE/minN/maxE/maxN
+  'elevationRange', // høydespenn fra DEM-en; ingen konsument i visningen
+  'generated',      // byggetidsstempel, kun til feilsøking i rå-SVG-en
+  'lakeLabels',     // internt tall fra navne-plasseringen
+])
+
+/**
+ * SVG-ens `data-meta` → MapViews meta-objekt.
+ *
+ * ADVARSEL — dette er en HVITELISTE, og den har bitt oss tre ganger: den
+ * strippet `appVersion` og `nveInnsjoStatus` da de ble innført (v1.0.45/47),
+ * og `turruteStatus` da Turrutebasen kom (v5.0.2). Symptomet er alltid det
+ * samme og ser ut som et databaseproblem, ikke en kodefeil: Utvikler-fanen
+ * viser «ingen status» / «bygd med eldre versjon» på ALLE kart, også splitter
+ * ferske. Legger du et nytt felt i buildSvg sin meta, MÅ det inn her — eller
+ * i META_BEVISST_UTELATT hvis det ikke skal videre. Testen håndhever det.
+ */
+export function metaFromSvgMeta(m) {
+  return {
+    minE: m.utmBbox.minE,
+    minN: m.utmBbox.minN,
+    maxE: m.utmBbox.maxE,
+    maxN: m.utmBbox.maxN,
+    widthM: m.widthM,
+    heightM: m.heightM,
+    bbox: m.bbox,
+    equidistance: m.equidistance ?? null,
+    isomVersion: m.isomVersion ?? null,
+    scaleDenom: m.scaleDenom ?? 10000,
+    source: m.source,
+    demSource: m.demSource ?? null,
+    demResolutionM: m.demResolutionM ?? null, // grid-oppløsning (m) — diagnostikk for kyst-presisjon
+    depthSource: m.depthSource ?? null, // 'sjokart' | 'dem-estimat' | 'ingen' | null (eldre kart)
+    contoursSkipped: m.contoursSkipped ?? null,
+    coastal: m.coastal ?? null,        // true=kyst, false=innland, null=ukjent (eldre kart)
+    sjokartStatus: m.sjokartStatus ?? null, // utfall av Sjøkart-WFS ved bygging (Utvikler-fanen)
+    appVersion: m.appVersion ?? null,       // app-versjonen arket ble bygd med
+    nveInnsjoStatus: m.nveInnsjoStatus ?? null, // NVE-innsjø-utfall ved bygging
+    turruteStatus: m.turruteStatus ?? null, // Turrutebasen-utfall ved bygging
+    // tetthet + detaljNivaa ble strippet på samme måte fra v5.0.0 til v5.0.3:
+    // hele tetthets-linja i Utvikler-fanen (DrawerDevTab.tetthetTekst leser
+    // begge) var derfor tom på ALLE kart siden tetthets-automatikken kom.
+    tetthet: m.tetthet ?? null,             // tetthets-beslutningen (Utvikler-fanen)
+    detaljNivaa: m.detaljNivaa ?? null,     // 'full' | 'lett' | 'sparsom'
+  }
+}
+
 export function useMapLoadPipeline(deps) {
   const {
     route, router, svgHostRef, meta, storedDem, mapId, mapTitle, mapDataSize,
@@ -153,31 +205,7 @@ export function useMapLoadPipeline(deps) {
       const metaRaw = root.getAttribute('data-meta')
       if (!metaRaw) throw new Error('Mangler data-meta i SVG')
       const m = JSON.parse(metaRaw)
-      meta.value = {
-        minE: m.utmBbox.minE,
-        minN: m.utmBbox.minN,
-        maxE: m.utmBbox.maxE,
-        maxN: m.utmBbox.maxN,
-        widthM: m.widthM,
-        heightM: m.heightM,
-        bbox: m.bbox,
-        equidistance: m.equidistance ?? null,
-        isomVersion: m.isomVersion ?? null,
-        scaleDenom: m.scaleDenom ?? 10000,
-        source: m.source,
-        demSource: m.demSource ?? null,
-        demResolutionM: m.demResolutionM ?? null, // grid-oppløsning (m) — diagnostikk for kyst-presisjon
-        depthSource: m.depthSource ?? null, // 'sjokart' | 'dem-estimat' | 'ingen' | null (eldre kart)
-        contoursSkipped: m.contoursSkipped ?? null,
-        coastal: m.coastal ?? null,        // true=kyst, false=innland, null=ukjent (eldre kart)
-        sjokartStatus: m.sjokartStatus ?? null, // utfall av Sjøkart-WFS ved bygging (Utvikler-fanen)
-        // VIKTIG: denne hvitelisten STRIPPET appVersion/nveInnsjoStatus da de
-        // ble innført (v1.0.45/47) — Utvikler-fanen viste «bygd med eldre
-        // versjon» og «ingen status» på ALLE kart, også splitter ferske, og
-        // gjorde en hel feilsøkingskveld blind. Nye meta-felter MÅ legges til her.
-        appVersion: m.appVersion ?? null,       // app-versjonen arket ble bygd med
-        nveInnsjoStatus: m.nveInnsjoStatus ?? null, // NVE-innsjø-utfall ved bygging
-      }
+      meta.value = metaFromSvgMeta(m)
       // Forbruk init-prefs fra auto-kart / on-the-fly (tema + synlige lag, GPS,
       // auto-modus, bevart zoom/rotasjon). Én gang per ny mapId.
       let pendingAutoStartGps = false
