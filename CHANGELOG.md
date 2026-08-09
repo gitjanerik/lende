@@ -1,5 +1,15 @@
 # Endringslogg
 
+## 2026-08-09 — v5.0.16: Stinettet er bakt, og MCP fikk lese det
+
+Baken gikk gjennom alle femten fylker denne gangen: 179 706 km sti og traktorveg ligger nå som 208 fliser i repoet, 12 MB på disk. Rundt Trettekollen gir det 161 linjer i kartutsnittet, 44 av dem merkede — området der OSM ikke hadde noen sti i det hele tatt. Med det er stiløftet fullført, og Lende viser stinettet uten tilleggskart.
+
+Underveis dukket det opp en feil verdt å skrive ned: MCP- og headless-bygde kart fikk null N50-stier, helt stille. Node sin `fetch` støtter ikke `file:`-URL-er — den svarer «not implemented... yet...» — og headless pekte nettopp på en fil-URL. Siden uthentingen aldri feiler hardt, så et kart uten stinettet nøyaktig ut som et kart der flisene ikke var bakt ennå. All fillesing går nå gjennom én funksjon som kalleren kan bytte ut, og headless leser flisene rett fra disk. Testen går gjennom hele lesekjeden med ekte fliser, så den fanger regresjonen.
+
+Tallene i kommentarene er rettet mot den faktiske baken. Landsmålingen anslo 200 KB for største flis ut fra et utvalg; den ble 356 KB. Fortsatt godt innenfor, men anslag og målt resultat bør ikke stå og påstå det samme når de ikke gjør det. En test vokter nå størrelsen, så den ikke vokser stille forbi det mobilbrukeren tåler.
+
+---
+
 ## 2026-08-09 — v5.0.15: Trøndelag skrives Trondelag
 
 Første bake av stinettet kom gjennom tolv av femten fylker og stoppet på tre: Trøndelag, Østfold og Møre og Romsdal ga alle 404. Grunnen er triviell og selvforskyldt — Geonorge translittererer ø og å i filnavnene, og bake-scriptet erstattet bare mellomrom. Måleskriptet hadde løst dette for lenge siden med flere navnevarianter, men jeg gjenbrukte ikke logikken da jeg skrev baken.

@@ -13,17 +13,33 @@ import { parsePathSubpaths } from '../src/lib/pathUtils.js'
 import { poiType, parseLen, sumTranslate, mmToUnitFromSvg, dedupePoi } from '../src/lib/mapPoi.js'
 import { buildSearchIndex, filterIndex } from '../src/composables/useMapSearch.js'
 import { probeDensity } from '../src/lib/densityProbe.js'
+import { tetthetsBeslutning } from '../src/lib/mapDensityRules.js'
 import { pathToFileURL } from 'node:url'
+import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 // Appen leser N50-sti-flisene over HTTP under Vites BASE_URL. Headless kjører i
-// Node uten den, så vi peker rett på repoets public/-katalog med en fil-URL.
-// Er flisene ikke bakt, gir fetch en feil som fanges og kartet blir som før.
-function n50StiBasePath() {
-  return pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'data', 'n50-sti') + '/').href
+// Node uten den, så vi leser rett fra repoets public/-katalog.
+//
+// MERK: Node-ens `fetch` støtter IKKE `file:` («not implemented... yet...»), så
+// en fil-URL alene holder ikke — vi må gi fetcheren en egen leser. Uten den fikk
+// MCP-bygde kart null N50-stier, helt stille, siden uthentingen aldri feiler
+// hardt. Er flisene ikke bakt, gir ENOENT 404 og kartet blir som før.
+const N50_STI_KATALOG = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'data', 'n50-sti') + '/'
+
+export function n50StiBasePath() {
+  return pathToFileURL(N50_STI_KATALOG).href
 }
-import { tetthetsBeslutning } from '../src/lib/mapDensityRules.js'
+
+export async function lesN50StiFraDisk(url) {
+  try {
+    const buf = await readFile(fileURLToPath(url))
+    return { status: 200, bytes: new Uint8Array(buf) }
+  } catch (e) {
+    return { status: e?.code === 'ENOENT' ? 404 : 500, bytes: null }
+  }
+}
 
 // sjokartFetcher sjekker `typeof DOMParser` for GML-parsing — uten shim
 // returnerer den tomt og kystkart mister dybdedata i Node.
@@ -100,8 +116,10 @@ export async function buildMapHeadless({
     // kart ikke mangler stier appen har. Tynnes mot OSM under.
     fetchTurruteRoutes(bbox).catch(() => []),
     // N50-stinettet. Headless kjører i Node uten Vites BASE_URL, så flisene
-    // leses fra repoets public/-katalog via fil-URL.
-    fetchN50StiLinjer(bbox, { basePath: n50StiBasePath() }).catch(() => []),
+    // leses fra repoets public/-katalog med vår egen disk-leser.
+    fetchN50StiLinjer(bbox, {
+      basePath: n50StiBasePath(), hentBytes: lesN50StiFraDisk,
+    }).catch(() => []),
   ])
 
   // N50 er autoritativ vannkilde når den leverer (samme filter som CI-scriptet).

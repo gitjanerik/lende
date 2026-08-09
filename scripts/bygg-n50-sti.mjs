@@ -7,9 +7,10 @@
 // Turrutebasen (v5.0.2) tok de MERKEDE rutene, men ikke resten. N50 Samferdsel
 // har ingen live WFS, så dataene må bakes én gang og serveres selv.
 //
-// Målt i CI (kjøring 31312847690) over alle fylker:
-//   179 706 km sti/traktorveg → 10,2 MB gzip i 208 fliser ved 3 m forenkling.
-//   Største enkeltflis: 200 KB — det appen laster per kartrute.
+// Faktisk bake (kjøring 31314795103) over alle fylker:
+//   179 706 km sti/traktorveg → 208 fliser, 12 MB på disk (9,7 MB gzip) ved
+//   3 m forenkling. Største enkeltflis 356 KB — det appen laster per kartrute.
+//   (Landsmålingen 31312847690 anslo 200 KB fra et utvalg; baken ble større.)
 // Det er godt under det som trenger egen lagring, derfor statiske filer ved
 // siden av appen: ingen R2, ingen worker, ingen hemmeligheter, og service
 // worker-en cacher flisene offline på kjøpet.

@@ -98,11 +98,15 @@ describe('fetchN50StiLinjer', () => {
   beforeEach(() => { nullstillManifestCache() })
   afterEach(() => { vi.unstubAllGlobals(); nullstillManifestCache() })
 
-  const svar = (body, ok = true) => ({
-    ok, status: ok ? 200 : 404,
-    json: async () => body,
-    arrayBuffer: async () => body.buffer ?? body,
-  })
+  // Manifestet leses som bytes, ikke via res.json() — samme vei som flisene, så
+  // MCP/headless kan bytte ut hele I/O-en (Node-fetch takler ikke `file:`).
+  // Attrappen må derfor levere ekte bytes også for JSON.
+  const svar = (body, ok = true) => {
+    const bytes = body instanceof Uint8Array
+      ? body
+      : new TextEncoder().encode(JSON.stringify(body))
+    return { ok, status: ok ? 200 : 404, arrayBuffer: async () => bytes.buffer }
+  }
 
   it('henter bare fliser manifestet sier finnes', async () => {
     const flis = kodeFlis([linje(59.84, 10.07, 10.09, 5)])
