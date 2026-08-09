@@ -190,7 +190,7 @@ export async function createExploreScene(container, {
     junctionIdx = 0
   }
 
-  async function buildWalkScene(nextWalk, { alongM = 0 } = {}) {
+  async function buildWalkScene(nextWalk, { alongM = 0, autoplay = true } = {}) {
     if (walkLine) { scene.remove(walkLine.mesh); walkLine.geometry.dispose(); walkLine.material.dispose() }
     if (walkMarker) {
       scene.remove(walkMarker.sphere); scene.remove(walkMarker.ring)
@@ -228,7 +228,7 @@ export async function createExploreScene(container, {
     activeJunction = null
     pausedJunction = null
     while (junctionIdx < walk.junctions.length && walk.junctions[junctionIdx].alongM <= playback.alongM) junctionIdx++
-    playback.play()
+    if (autoplay) playback.play()
   }
 
   async function startWalkAt(svgX, svgY) {
@@ -240,7 +240,11 @@ export async function createExploreScene(container, {
     const w = walkFromNode(rg, start.nodeId, { headingXY: start.headingXY })
     if (w.coordinates.length < 2) return false
     rig.controls.enabled = false
-    await buildWalkScene(w)
+    // Ingen autostart: kameraet glir inn i følge-posen ved stistart, og
+    // avspillingen venter på play — brukeren skal rekke å orientere seg.
+    // Gren-valg i kryss (chooseBranch) fortsetter derimot av seg selv;
+    // der HAR brukeren nettopp sagt «gå denne veien».
+    await buildWalkScene(w, { autoplay: false })
     emit('walk-start', { lengthM: w.lengthM, junctions: w.junctions.length })
     return true
   }

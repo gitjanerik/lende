@@ -158,11 +158,12 @@ onMounted(async () => {
       activeFeature.value = { ...feature, type: featureType(feature) }
     })
     engine.on('walk-start', ({ lengthM }) => {
+      // Turen står klar men spiller ikke — play-knappen pulserer i stedet,
+      // og skjermlåsen holdes først fra brukeren faktisk trykker play.
       walking.value = true
-      playing.value = true
+      playing.value = false
       walkLengthM.value = lengthM
       activeFeature.value = null
-      wake.start()
     })
     engine.on('walk-end', () => {
       walking.value = false
@@ -287,11 +288,15 @@ const ISOM_LABEL = {
   505: 'Sti', 506: 'Sti (uklar)', 507: 'Stitråkk', 504: 'Skogsbilvei',
   503: 'Småveg', 502: 'Hovedvei', 501: 'Motorvei', 509: 'Bro',
 }
+
+// Gren-etikett relativt til gangretningen: rett fram, til høyre/venstre —
+// «skarpt» når svingen er over 100°, så to grener på samme side kan skilles.
 function branchLabel(opt, i) {
   const kind = ISOM_LABEL[opt.isomCode] ?? 'Vei'
   if (i === 0) return `${kind} rett fram`
-  const deg = Math.round((opt.turn * 180) / Math.PI)
-  return `${kind} ${deg}° av`
+  const side = opt.turnSigned > 0 ? 'høyre' : 'venstre'
+  const skarpt = opt.turn > (100 * Math.PI) / 180 ? 'skarpt ' : ''
+  return `${kind} ${skarpt}til ${side}`
 }
 </script>
 
@@ -438,7 +443,8 @@ function branchLabel(opt, i) {
           <button @click="playing ? pause() : play()"
                   :aria-label="playing ? 'Pause' : 'Fortsett'"
                   class="w-12 h-12 rounded-full bg-white text-gray-900 flex items-center
-                         justify-center shrink-0 active:scale-95">
+                         justify-center shrink-0 active:scale-95"
+                  :class="{ 'pulse-play': !playing }">
             <svg v-if="playing" viewBox="0 0 24 24" class="w-5 h-5" fill="currentColor">
               <rect x="6" y="5" width="4" height="14" rx="1"/>
               <rect x="14" y="5" width="4" height="14" rx="1"/></svg>
@@ -489,3 +495,18 @@ function branchLabel(opt, i) {
     </div>
   </Teleport>
 </template>
+
+<style scoped>
+/* «Trykk meg»: play-knappen pulserer rolig så lenge turen står stille —
+   både rett etter sti-valg (ingen autostart) og i krysspause. */
+@keyframes pulse-play {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.14); }
+}
+.pulse-play {
+  animation: pulse-play 1.1s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse-play { animation: none; }
+}
+</style>

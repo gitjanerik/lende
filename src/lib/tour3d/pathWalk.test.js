@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { buildRoutingGraph } from '../routing.js'
-import { walkFromNode, walkStartAt, rerouteAtJunction, angleDiff } from './pathWalk.js'
+import {
+  walkFromNode, walkStartAt, rerouteAtJunction, angleDiff, signedTurn,
+  isBlindStub, isInBlindStub, BLIND_STUB_M,
+} from './pathWalk.js'
 
 // Hjelper: bygg en graf av rette strekk oppgitt som punktlister.
 const graphOf = (features) => buildRoutingGraph(features, { snapM: 2 })
@@ -55,6 +58,19 @@ describe('walkFromNode — rettest fram vinner', () => {
     expect(j.options).toHaveLength(2)
     expect(j.options[0].nodeId).toBe(nodeAt(rg, 200, 0))   // rettest fram først
     expect(j.options[0].turn).toBeLessThan(j.options[1].turn)
+    // Gående østover er grenen mot nord (negativ y) til VENSTRE — negativt
+    // fortegn. UI-ets høyre/venstre-etiketter hviler på denne konvensjonen.
+    expect(j.options[1].turnSigned).toBeLessThan(0)
+  })
+
+  it('signedTurn: positiv er høyre i kartrommet (y vokser sørover)', () => {
+    // Østover (0) → sørover (+π/2) er en høyresving.
+    expect(signedTurn(0, Math.PI / 2)).toBeCloseTo(Math.PI / 2)
+    // Østover → nordover er venstre.
+    expect(signedTurn(0, -Math.PI / 2)).toBeCloseTo(-Math.PI / 2)
+    // Wrap rundt ±π: fra −170° til +170° er 20° til venstre.
+    const d = signedTurn((-170 * Math.PI) / 180, (170 * Math.PI) / 180)
+    expect(d).toBeCloseTo((-20 * Math.PI) / 180, 5)
   })
 
   it('bryter uavgjort på stitype — tydelig sti slår stitråkk', () => {
@@ -133,6 +149,110 @@ describe('walkStartAt — retning bort fra kamera', () => {
   it('gir null når klikket er for langt fra enhver sti', () => {
     const rg = graphOf([line([[0, 0], [100, 0]])])
     expect(walkStartAt(rg, [5000, 5000], [0, 0], { tolM: 120 })).toBeNull()
+  })
+})
+
+describe('blindvei-stumper (< 100 m)', () => {
+  it('BLIND_STUB_M er 100 meter', () => {
+    expect(BLIND_STUB_M).toBe(100)
+  })
+
+  it('et kryss med bare en kort stump som alternativ meldes ikke som kryss', () => {
+    // Hovedsti østover med en 60 m adkomststump nordover midt på.
+    const rg = graphOf([
+      line([[0, 0], [100, 0], [300, 0]]),
+      line([[100, 0], [100, -60]]),
+    ])
+    const walk = walkFromNode(rg, nodeAt(rg, 0, 0), { headingXY: [1, 0] })
+    expect(walk.coordinates[walk.coordinates.length - 1]).toEqual([300, 0])
+    expect(walk.junctions).toHaveLength(0)
+  })
+
+  it('en gren på 100 m eller mer tilbys fortsatt', () => {
+    const rg = graphOf([
+      line([[0, 0], [100, 0], [300, 0]]),
+      line([[100, 0], [100, -100]]),
+    ])
+    const walk = walkFromNode(rg, nodeAt(rg, 0, 0), { headingXY: [1, 0] })
+    expect(walk.junctions).toHaveLength(1)
+    expect(walk.junctions[0].options).toHaveLength(2)
+  })
+
+  it('kjede-stump med flere punkter måles på samlet lengde', () => {
+    // Stumpen er 40 + 40 = 80 m fordelt på to segmenter.
+    const rg = graphOf([
+      line([[0, 0], [100, 0], [300, 0]]),
+      line([[100, 0], [100, -40], [100, -80]]),
+    ])
+    const walk = walkFromNode(rg, nodeAt(rg, 0, 0), { headingXY: [1, 0] })
+    expect(walk.junctions).toHaveLength(0)
+  })
+
+  it('rettest fram velger aldri en stump når et ekte alternativ finnes', () => {
+    // Stumpen fortsetter rett fram; den ekte stien svinger 90° nordover.
+    const rg = graphOf([
+      line([[0, 0], [100, 0], [160, 0]]),
+      line([[100, 0], [100, -300]]),
+    ])
+    const walk = walkFromNode(rg, nodeAt(rg, 0, 0), { headingXY: [1, 0] })
+    expect(walk.coordinates[walk.coordinates.length - 1]).toEqual([100, -300])
+    expect(walk.coordinates.some(([x]) => x === 160)).toBe(false)
+  })
+
+  it('turen ender i krysset når alle grener er stumper', () => {
+    const rg = graphOf([
+      line([[0, 0], [200, 0]]),
+      line([[200, 0], [250, 40]]),
+      line([[200, 0], [250, -40]]),
+    ])
+    const walk = walkFromNode(rg, nodeAt(rg, 0, 0), { headingXY: [1, 0] })
+    expect(walk.coordinates[walk.coordinates.length - 1]).toEqual([200, 0])
+  })
+
+  it('isBlindStub skiller stump fra gjennomgående gren', () => {
+    const rg = graphOf([
+      line([[0, 0], [100, 0], [300, 0]]),
+      line([[100, 0], [100, -60]]),
+    ])
+    expect(isBlindStub(rg, nodeAt(rg, 100, 0), nodeAt(rg, 100, -60))).toBe(true)
+    expect(isBlindStub(rg, nodeAt(rg, 100, 0), nodeAt(rg, 300, 0))).toBe(false)
+  })
+
+  it('walkStartAt nekter start på tuppen og midt i en stump', () => {
+    const rg = graphOf([
+      line([[0, 0], [100, 0], [300, 0]]),
+      line([[100, 0], [100, -40], [100, -80]]),
+    ])
+    expect(walkStartAt(rg, [100, -80], [100, 500])).toBeNull()
+    expect(walkStartAt(rg, [100, -40], [100, 500])).toBeNull()
+    // … men hovednettet rett ved fungerer som før.
+    expect(walkStartAt(rg, [100, 0], [100, 500])).not.toBeNull()
+  })
+
+  it('walkStartAt godtar en lang blindvei', () => {
+    const rg = graphOf([
+      line([[0, 0], [100, 0], [300, 0]]),
+      line([[100, 0], [100, -150]]),
+    ])
+    expect(walkStartAt(rg, [100, -150], [100, 500])).not.toBeNull()
+  })
+
+  it('en kort isolert stubb nektes også', () => {
+    const rg = graphOf([
+      line([[0, 0], [300, 0]]),
+      line([[500, 500], [540, 500]]),
+    ])
+    expect(walkStartAt(rg, [520, 500], [520, 900])).toBeNull()
+  })
+
+  it('isInBlindStub: kryss og hovednett er aldri stump', () => {
+    const rg = graphOf([
+      line([[0, 0], [100, 0], [300, 0]]),
+      line([[100, 0], [100, -60]]),
+    ])
+    expect(isInBlindStub(rg, nodeAt(rg, 100, 0))).toBe(false)
+    expect(isInBlindStub(rg, nodeAt(rg, 0, 0))).toBe(false)
+    expect(isInBlindStub(rg, nodeAt(rg, 100, -60))).toBe(true)
   })
 })
 
