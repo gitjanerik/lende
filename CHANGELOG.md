@@ -1,5 +1,17 @@
 # Endringslogg
 
+## 2026-08-09 — v5.0.10: N50 har ingen «Sti»
+
+Format-fiksen virket, og kjøringen kom helt gjennom for første gang: direkte nedlasting svarte 200, 165,7 MB på tretten sekunder, GDAL leste geodatabasen. URL-mønsteret jeg trodde var feil, hadde vært riktig hele tiden — det var formatet som ikke fantes for Buskerud, og GML-URL-en ga derfor 404. Ordre-API-et trengs ikke i det hele tatt.
+
+Så avlivet kjøringen den siste antakelsen. N50 har ingen objekttype som heter «Sti»: av 89 839 features i `N50_Samferdsel_senterlinje` er 89 372 `Veglenke`, og resten Vegsperring, Bane og Stasjon. Sti skilles fra bilveg på et attributt, ikke på objekttypen — og jeg filtrerte på objekttypen.
+
+I stedet for å gjette hvilket attributt det er, klassifiserer scriptet nå på verdien: en feature er sti hvis et hvilket som helst strengfelt har verdien «Sti», traktorveg ved «Traktorveg» eller «TraktorvegSti», barmarksløype ved «Barmarksløype». Mønstrene krever hele verdien, ikke delstreng, slik at «Stikkveg» ikke blir en sti. Samtidig logges verdi-histogram for alle lavkardinalitetsfelt, så neste kjøring viser svart på hvitt hvilket felt det faktisk var — og logges alltid, ikke bare ved feil.
+
+Klassifiseringen er ren og testdekket: sti gjenkjennes uansett feltnavn, bilveg og baneinfrastruktur går fri, og delstreng-fellen er pinnet fast.
+
+---
+
 ## 2026-08-09 — v5.0.9: Buskerud har ikke GML
 
 Fire kjøringer på rad la inn en ordre som ble akseptert, fikk referansenummer og forble tom for alltid. Å logge hele område-objektet i stedet for et utdrag avslørte hvorfor på første forsøk: den globale formatlista — FGDB, GML, PostGIS, SOSI — er unionen over alle 373 områder. Per område er utvalget smalere. Buskerud tilbyr bare PostGIS og FGDB.
