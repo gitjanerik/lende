@@ -183,6 +183,19 @@ const nveInnsjoStatusText = computed(() => {
   return `FEILET: ${s.message ?? 'ukjent feil'} — innsjøer mangler; bygg kartet på nytt`
 })
 
+// Turrutebasen-utfall (Utvikler-fanen). «nye» er tallet som betyr noe: hvor
+// mange rutestrekk som faktisk kom i tillegg til OSM etter uttynningen —
+// 0 nye av mange ruter betyr at OSM allerede dekket området, ikke en feil.
+const turruteStatusText = computed(() => {
+  if (!meta.value) return null
+  const s = meta.value.turruteStatus
+  if (!s) return 'ingen status — kartet er bygd før v5.0.2; bygg kartet på nytt'
+  if (s.state === 'ok') {
+    return `OK — ${s.ruter} merkede ruter, ${s.nye ?? 0} nye strekk (resten dekkes av OSM)`
+  }
+  return `FEILET: ${s.message ?? 'ukjent feil'} — merkede ruter mangler`
+})
+
 // Nasjonalparker som dekker kartet helt eller delvis. Slås opp lokalt mot det
 // bundlede park-datasettet (ingen nettverk, virker offline) — derfor gjelder
 // faktaboksen også kart som allerede er bygget. Parken tegnes aldri i kartet.
@@ -4475,7 +4488,8 @@ onUnmounted(() => {
             :auto-tile-count="autoTileCount" :max-tiles="maxTiles"
             :cull-stats="cullStats" :cull-disabled="cullDisabled" :toggle-cull="toggleCull"
             :sjokart-status-text="sjokartStatusText"
-            :nve-innsjo-status-text="nveInnsjoStatusText" :meta="meta"
+            :nve-innsjo-status-text="nveInnsjoStatusText"
+            :turrute-status-text="turruteStatusText" :meta="meta"
             :open-vardasen="() => router.push({ name: 'kart-vis', params: { id: 'vardasen' } })"
             :open-perf-log="() => { showPerfLog = true }" />
         </div>

@@ -508,6 +508,15 @@ export function classifyToIsom(el) {
   if ((t.highway === 'footway' || t.highway === 'cycleway') && t.bridge && t.bridge !== 'no') {
     return { code: '505', cat: 'manmade' }
   }
+  // Merket fotrute fra Kartverkets Turrutebasen (turrutebasenFetcher.js). Egen
+  // tag, ikke OSM: elementene er allerede tynnet mot OSM-stiene, så det som
+  // står igjen er ruter OSM ikke har. Merket rute (merking=JA) → 506 «liten
+  // sti»; umerket → 507 «utydelig liten sti». Bevisst ikke 505: dette er en
+  // rute-trasé, ikke nødvendigvis et tydelig tråkk, og det skiller den visuelt
+  // fra stier som er kartlagt direkte i OSM.
+  if (t['lende:turrute']) {
+    return { code: t.merking === 'JA' ? '506' : '507', cat: 'manmade' }
+  }
   if (t.highway === 'path' || t.highway === 'bridleway') {
     const tv = t.trail_visibility ?? t['path:visibility']
     // 507 — knapt synlig stitråkk

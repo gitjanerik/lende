@@ -288,3 +288,77 @@ describe('useLendeChat — vakt mot påstått nytt kart', () => {
     expect(sisteSvar()).toBe('Vil du at jeg skal lage et kart over Hurum?')
   })
 })
+
+// v5.0.2: «gå en tur fra lelangen til haratjern» ga tre bom på rad — tilbud om
+// nettsøk på et oppdiktet navn («Lenglangen»), så tilbud om å MERKE stedet, og
+// til slutt at det ikke fantes stier. Verktøyvalget er modellens, så vakten her
+// er system-prompten: reglene MÅ stå der, ellers er det ingenting som styrer den.
+describe('useLendeChat — tur fra A til B', () => {
+  beforeEach(() => {
+    chat.nySamtale()
+    chatOnce.mockReset()
+    runTool.mockReset()
+    chat.setChatContext({ kartId: 'trettekollen', kartnavn: 'Trettekollen, Drammen' })
+  })
+
+  const systemInnhold = () =>
+    chatOnce.mock.calls.at(-1)[0].messages.find(m => m.role === 'system').content
+
+  it('instruerer modellen om å kalle foreslaa_tur direkte på «fra X til Y»', async () => {
+    chatOnce.mockResolvedValue(svarTekst('ok'))
+    await chat.send('gå en tur fra lelangen til haratjern')
+
+    const sys = systemInnhold()
+    expect(sys).toContain('TUR FRA A TIL B')
+    expect(sys).toContain('FERDIG BESTILLING')
+    // De tre feilveiene skal være eksplisitt stengt.
+    expect(sys).toMatch(/uten å spørre om lov først/)
+    expect(sys).toMatch(/uten sok_sted/)
+    expect(sys).toMatch(/uten å tilby merking eller nytt kart i stedet/)
+  })
+
+  it('forbyr omskriving av stedsnavn brukeren har oppgitt', async () => {
+    chatOnce.mockResolvedValue(svarTekst('ok'))
+    await chat.send('gå en tur fra lelangen til haratjern')
+
+    const sys = systemInnhold()
+    expect(sys).toContain('STEDSNAVN ORDRETT')
+    expect(sys).toContain('«Lelangen» skal ikke bli «Lenglangen»')
+  })
+
+  it('lar merke-regelen vike for en tur-bestilling', async () => {
+    chatOnce.mockResolvedValue(svarTekst('ok'))
+    await chat.send('gå en tur fra lelangen til haratjern')
+
+    expect(systemInnhold()).toContain('har brukeren bedt om en TUR, skal du aldri tilby merking i stedet')
+  })
+
+  it('slipper gjennom svaret når foreslaa_tur faktisk kjørte', async () => {
+    runTool.mockResolvedValue({
+      ok: true,
+      rute: { lengdeKm: 1.6, stigningM: 180, gangtidMin: 35 },
+    })
+    chatOnce
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [{
+          id: 'c1',
+          name: 'foreslaa_tur',
+          args: { fraNavn: 'Lelangen', tilNavn: 'Haratjern' },
+        }],
+        raw: null,
+      })
+      .mockResolvedValueOnce(svarTekst('Turen er tegnet inn: 1,6 km og 180 høydemeter, rundt 35 minutter.'))
+
+    await chat.send('gå en tur fra lelangen til haratjern')
+
+    // Navnene skal gå ORDRETT videre — ingen omskriving underveis.
+    expect(runTool).toHaveBeenCalledWith(
+      'foreslaa_tur',
+      expect.objectContaining({ fraNavn: 'Lelangen', tilNavn: 'Haratjern' }),
+      expect.anything(),
+    )
+    expect(sisteSvar()).toContain('1,6 km')
+    expect(sisteSvar()).not.toContain('fikk ikke tegnet turen')
+  })
+})
