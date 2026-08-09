@@ -1,5 +1,19 @@
 # Endringslogg
 
+## 2026-08-09 — v5.0.4: Måleverktøy og pakkeformat for N50-stiene
+
+Turrutebasen (v5.0.2) tok en del av hullet, men ikke stien over Trettekollen. Den ligger i N50 Samferdsel, som ikke har noen live WFS — et systematisk søk gjennom Geonorges WFS-applikasjoner bekrefter at N50-vektortjenesten er borte for godt. Dataene må derfor bakes én gang og serveres selv, og da er størrelsen alt: den avgjør om stiene kan ligge som statiske fliser ved siden av appen, eller trenger egen lagring bak proxy-workeren.
+
+Derfor måler vi før vi velger. Dette er ikke selve løftet, men grunnlaget for å ta det riktige arkitekturvalget.
+
+Pakkeformatet er den ekte delen. GeoJSON er sløsing for et stinett: koordinatparet «[10.080351,59.839867]» er 22 tegn, mens samme punkt er et par byte når det kvantiseres til ~1 m, deltakodes mot forrige punkt og varint-pakkes. Målt på syntetiske linjer lander det på 2,06 byte per punkt før gzip, altså over 5× mindre enn GeoJSON. Kvantiseringen til 1e-5 grader er usynlig i praksis: det er ~1,1 m, mens N50 er 1:50 000 der en meter er 0,02 mm på papiret. Formatet deler linjene i fliser på 0,5° × 1,0°, og segmenter som krysser en flisgrense legges i begge nabofliser så det aldri blir en glipe i skjøten når appen tegner to fliser side om side.
+
+Måleskriptet laster ned N50 fra Geonorge, trekker ut sti- og traktorveg-geometrien med GDAL, og rapporterer pakket størrelse ved fem forenklingsnivåer — inkludert største enkeltflis, som er det appen faktisk laster per rute. Det publiserer ingenting.
+
+En ærlig merknad om modenhet: utviklings-sandkassa når ikke nedlasting.geonorge.no, så Geonorges nedlastings-API og N50s objekttype-navn er IKKE verifisert mot ekte tjeneste. Skriptet er derfor skrevet påfallende pratsomt — det logger hva det finner i hvert trinn og dumper hele svaret ved feil, slik at første CI-kjøring blir like mye en kartlegging av API-et som en måling. Feilstien er verifisert: mot den blokkerte verten navngir den både verten og svaret. Pakkeformatet er derimot fullt dekket av tester, inkludert rundtur, kvantiseringspresisjon, korrupt input og skjøtene mellom fliser.
+
+---
+
 ## 2026-08-09 — v5.0.3: Meta-hvitelisten spiste diagnose-feltene igjen
 
 Brukeren kjørte v5.0.2 og fikk likevel «ingen status — kartet er bygd før v5.0.2» i Utvikler-fanen. Kartet var ikke gammelt; feltet ble strippet ved lasting. `useMapLoadPipeline` bygger MapViews `meta` fra SVG-ens `data-meta` gjennom en eksplisitt hviteliste, og `turruteStatus` ble aldri lagt til der da Turrutebasen kom. Kommentaren rett over hvitelisten advarte mot nøyaktig dette — den ble skrevet da `appVersion` og `nveInnsjoStatus` forsvant på samme måte i v1.0.45/47 — men en kommentar er ikke en vaktpost.
