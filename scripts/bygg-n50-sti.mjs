@@ -30,6 +30,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { forenkleLinje, kodeFlis, delPaaFliser, lengdeM, VERSJON } from '../src/lib/n50StiPakke.js'
+import { navnevarianter } from './geonorgeNavn.mjs'
 
 const args = process.argv.slice(2)
 const argVal = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : null }
@@ -94,15 +95,27 @@ function velgFormat(omrade, formater, projeksjoner) {
   return { format, proj }
 }
 
-function filnavn(omrade, format, proj) {
-  const navn = String(omrade.name).split(/\s+[–—-]\s+/)[0].trim().replace(/\s+/g, '_')
-  return `Basisdata_${omrade.code}_${navn}_${proj.code}_N50Kartdata_${format.name}.zip`
+// Geonorge staver fylkesnavn ulikt: «Vestland» går rett inn, mens
+// «Trøndelag» og «Østfold» må translittereres. Vi prøver variantene i tur —
+// første bake feilet nettopp fordi vi bare erstattet mellomrom.
+export function filnavnKandidater(omrade, format, proj) {
+  return navnevarianter(omrade.name).map(navn =>
+    `${DIREKTE_BASE}/N50Kartdata/${format.name}/Basisdata_${omrade.code}_${navn}_${proj.code}_N50Kartdata_${format.name}.zip`)
 }
 
 async function lastNed(omrade, format, proj, dir) {
-  const url = `${DIREKTE_BASE}/N50Kartdata/${format.name}/${filnavn(omrade, format, proj)}`
-  const res = await fetch(url, { signal: AbortSignal.timeout(20 * 60 * 1000) })
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`)
+  const kandidater = filnavnKandidater(omrade, format, proj)
+  let res = null
+  for (const url of kandidater) {
+    const r = await fetch(url, { signal: AbortSignal.timeout(20 * 60 * 1000) })
+    if (r.ok) { res = r; break }
+    // 404 = feil skrivemåte, prøv neste. Alt annet er en ekte feil.
+    if (r.status !== 404) throw new Error(`HTTP ${r.status} for ${url}`)
+  }
+  if (!res) {
+    throw new Error(`Ingen av ${kandidater.length} filnavn-varianter fantes:\n  ` +
+      kandidater.map(u => u.split('/').pop()).join('\n  '))
+  }
   const zip = join(dir, 'n50.zip')
   writeFileSync(zip, Buffer.from(await res.arrayBuffer()))
   log(`    ${(statSync(zip).size / 1e6).toFixed(0)} MB`)

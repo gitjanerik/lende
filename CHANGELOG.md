@@ -1,5 +1,17 @@
 # Endringslogg
 
+## 2026-08-09 — v5.0.15: Trøndelag skrives Trondelag
+
+Første bake av stinettet kom gjennom tolv av femten fylker og stoppet på tre: Trøndelag, Østfold og Møre og Romsdal ga alle 404. Grunnen er triviell og selvforskyldt — Geonorge translittererer ø og å i filnavnene, og bake-scriptet erstattet bare mellomrom. Måleskriptet hadde løst dette for lenge siden med flere navnevarianter, men jeg gjenbrukte ikke logikken da jeg skrev baken.
+
+Navnevariantene er nå en delt modul begge bruker, og bake-scriptet prøver dem i tur. En 404 betyr feil skrivemåte og går videre til neste kandidat; alt annet er en ekte feil som stopper.
+
+Vakten oppførte seg som den skulle, og det er verdt å merke seg: tre fylker feilet, og da ble ingenting skrevet. Et stinett uten Trøndelag og Østfold ville sett komplett ut i kartet, og feilen ville først dukket opp den dagen noen gikk tur der. Det er nettopp derfor regelen er alt-eller-ingenting.
+
+De tre fylkene har fått hver sin regresjonstest, så en variant som mangler blir fanget av testene i stedet for av en firemminutters CI-kjøring.
+
+---
+
 ## 2026-08-09 — v5.0.14: Trettekollen får stien sin
 
 N50-stinettet er nå koblet inn i kartet. Der Turrutebasen tok de merkede rutene, tar N50 resten — 179 706 km sti og traktorveg, som ligger som statiske fliser ved siden av appen og hentes over samme opprinnelse. Ingen proxy, ingen nøkler, ingen ny driftsflate, og service worker-en cacher flisene offline på kjøpet.

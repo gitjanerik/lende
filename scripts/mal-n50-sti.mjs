@@ -58,6 +58,8 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { gzipSync } from 'node:zlib'
 import { forenkleLinje, kodeFlis, delPaaFliser, lengdeM, flisNokkel } from '../src/lib/n50StiPakke.js'
+import { navnevarianter } from './geonorgeNavn.mjs'
+export { navnevarianter }
 
 const args = process.argv.slice(2)
 const argVal = (navn) => { const i = args.indexOf(navn); return i >= 0 ? args[i + 1] : null }
@@ -261,24 +263,6 @@ export function velgFormatFor(omrade, formater, projeksjoner) {
 // parallellnavn), så vi prober flere varianter med HEAD og logger status for
 // hver. Det tar sekunder og gir fasit i stedet for gjetning.
 const DIREKTE_BASE = 'https://nedlasting.geonorge.no/geonorge/Basisdata'
-
-// Navnevarianter: Geonorge har historisk brukt både «MoreogRomsdal»,
-// «More_og_Romsdal» og «Møre_og_Romsdal». Vi prøver dem alle.
-export function navnevarianter(navn) {
-  // Samiske parallellnavn står etter en tankestrek («Nordland – Nordlánnda»)
-  // og er ikke med i filnavnet.
-  const base = String(navn).split(/\s+[–—-]\s+/)[0].trim()
-  const utenDiakritikk = base
-    .replace(/ø/g, 'o').replace(/Ø/g, 'O')
-    .replace(/æ/g, 'ae').replace(/Æ/g, 'Ae')
-    .replace(/å/g, 'a').replace(/Å/g, 'A')
-  const varianter = new Set()
-  for (const n of [base, utenDiakritikk]) {
-    varianter.add(n.replace(/\s+/g, '_'))
-    varianter.add(n.replace(/\s+/g, ''))
-  }
-  return [...varianter]
-}
 
 export function direkteKandidater({ omrade, format, proj }) {
   const ut = []
