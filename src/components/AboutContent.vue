@@ -190,6 +190,23 @@ async function onInstallClick() {
           </ul>
         </div>
         <div class="space-y-2">
+          <h3 class="text-sm font-semibold text-ink/85">Kartet i 3D</h3>
+          <p class="text-[13px] leading-relaxed text-ink/70">
+            Trykk <strong class="text-ink/90">3D</strong> i snarvei-raden, og hele
+            kartet reiser seg som terreng: du ser utsnittet fra sentrum med utsyn
+            nordover, i sakte rotasjon til du tar over med fingeren. Stinettet
+            lyser opp så du ser hvor det går an å gå, og
+            <strong class="text-ink/90">trykker du på en sti, følger kameraet
+            den</strong> — i kryss fortsetter turen automatisk rett fram, eller du
+            velger en annen gren når krysset meldes. Topper, vann, hytter,
+            kulturminner og NVEs målestasjoner står som fargekodede knappenåler
+            (lilla for automatisk fredede kulturminner, grått for uavklarte —
+            samme farger som i kartet); trykk på en nål og kameraet flyr dit.
+            Hvilke nåler som vises styrer du fra panelet oppe til høyre, og tette
+            klynger tynnes automatisk så kartet aldri oversvømmes.
+          </p>
+        </div>
+        <div class="space-y-2">
           <h3 class="text-sm font-semibold text-ink/85">3D-visning av tur</h3>
           <p class="text-[13px] leading-relaxed text-ink/70">
             Velg en rute med stifinneren eller en rundtur, og trykk

@@ -14,14 +14,16 @@
 import { Vector3, Quaternion, Matrix4 } from 'three'
 import { sampleElevation } from '../demSampling.js'
 
-const TRANSITION_S = 1.2
+// Delt med utforsker-riggen (exploreRig.js) så de to modusene får identisk
+// overgangstid, demping og terrengklaring.
+export const TRANSITION_S = 1.2
 
-function damp(current, target, lambda, dt) {
+export function damp(current, target, lambda, dt) {
   const t = 1 - Math.exp(-lambda * dt)
   current.lerp(target, t)
 }
 
-function terrainYAt(dem, coords, wx, wz, fallback = 0) {
+export function terrainYAt(dem, coords, wx, wz, fallback = 0) {
   if (!dem) return fallback
   const { x, y } = coords.toSvg(wx, wz)
   const e = sampleElevation(dem, x, y)
@@ -34,7 +36,7 @@ function terrainYAt(dem, coords, wx, wz, fallback = 0) {
 // y(t) = posY·(1−t) + lookY·t ≥ terrengY(t) + margin for hvert sample;
 // marginen tapres mot målet (terrenget DER er rutas eget underlag).
 // Dempingen i update() gjør løftet mykt.
-function clearSightLine(dem, coords, pos, look) {
+export function clearSightLine(dem, coords, pos, look) {
   if (!dem) return
   const SAMPLES = 12
   const MAX_T = 0.85
@@ -52,7 +54,12 @@ function clearSightLine(dem, coords, pos, look) {
   if (required > pos.y) pos.y = required
 }
 
-export function createCameraRigs({ camera, dem, coords, routeLookup, flybyLookup, domElement }) {
+export function createCameraRigs({ camera, dem, coords, routeLookup: initialRouteLookup, flybyLookup: initialFlybyLookup, domElement }) {
+  // Muterbare fordi 3D-utforskeren bytter ut turen under føttene på riggen når
+  // brukeren velger en annen gren i et kryss. Å bygge riggen på nytt ville
+  // nullstilt blikkvinkelen deres midt i turen.
+  let routeLookup = initialRouteLookup
+  let flybyLookup = initialFlybyLookup
   const camPos = new Vector3()
   const lookPos = new Vector3()
   let mode = null
@@ -267,6 +274,11 @@ export function createCameraRigs({ camera, dem, coords, routeLookup, flybyLookup
     get mode() { return mode },
     follow,
     setFollowParams(p) { Object.assign(follow, p) },
+    // Bytt hvilken tur riggen følger, uten å røre brukerens blikkvinkel.
+    setRouteLookup(next, nextFlyby = null) {
+      routeLookup = next
+      flybyLookup = nextFlyby ?? next
+    },
     setFrameTarget(t) { frameTarget = t },
     clearFrameTarget() { frameTarget = null },
 
@@ -378,7 +390,7 @@ export function createCameraRigs({ camera, dem, coords, routeLookup, flybyLookup
   }
 }
 
-function easeInOutCubic(t) {
+export function easeInOutCubic(t) {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
 }
 

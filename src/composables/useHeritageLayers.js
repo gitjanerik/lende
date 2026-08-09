@@ -9,6 +9,7 @@ import { fetchFredaKulturminner, fetchFredaCount, clusterByMinMeters, FREDET_FET
 import { fetchKulturminnerMedStatus } from '../lib/kulturminneFetcher.js'
 import { cacheGet, cacheSet, kulturminneBboxKey, fredetKulturminneBboxKey, TTL } from '../lib/protectedAreaCache.js'
 import { isomCatalog, buildPointSymbolDef } from '../lib/symbolizer.js'
+import { FREDET_KAT_COLOR } from '../lib/poiColors.js'
 import { separasjonerFor } from '../lib/mapDensityRules.js'
 
 export function useHeritageLayers({
@@ -24,11 +25,8 @@ export function useHeritageLayers({
   // forsøk). Lokalitetene hentes live når laget slås på, klynges, og tegnes som
   // egne diamant-ikoner INNE i kart-SVG-en (data-upright → roterer/zoomer/print-
   // trygt). Farge pr vernetype. Klikk → detalj-skuff fra data-attributter + lenke.
+  // Fargetabellen ligger i poiColors.js — 3D-nålene bruker de samme verdiene.
   const FREDET_SIZE_MM = 3.2
-  const FREDET_KAT_COLOR = {
-    automatisk: '#8e44ad', forskrift: '#c0392b', vedtak: '#d35400',
-    listefort: '#138d75', annet: '#7f8c8d',
-  }
   const fredetCount = ref(null)     // eksakt antall i bbox (WFS hits) — badge
   const fredetShown = ref(null)     // antall vi faktisk hentet/tegnet (≤ taket)
   const fredetLoading = ref(false)
