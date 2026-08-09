@@ -1,0 +1,60 @@
+name: Mål N50-sti-datasettet
+
+# Rekognosering før N50-sti-løftet: hvor stort blir datasettet når det er
+# forenklet, flisdelt og pakket? Svaret avgjør om stiene kan ligge statisk på
+# GitHub Pages eller trenger egen lagring (Cloudflare R2).
+#
+# PUBLISERER INGENTING — laster ned, måler og skriver rapport til loggen og et
+# artefakt. Kjøres manuelt; CI har full nettverkstilgang, i motsetning til
+# utviklings-sandkassa som ikke når nedlasting.geonorge.no.
+#
+# Første kjøring er like mye en kartlegging av Geonorges nedlastings-API og
+# N50s objekttype-navn som en måling — scriptet logger begge deler.
+
+on:
+  workflow_dispatch:
+    inputs:
+      fylke:
+        description: 'Fylkesnummer for en rask prøve (f.eks. 33 = Buskerud). Tomt = hele landet.'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  mal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Installer GDAL
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gdal-bin unzip
+          ogr2ogr --version
+
+      - name: Vis ledig diskplass
+        run: df -h /
+
+      - name: Mål datasettet
+        run: |
+          set -o pipefail
+          if [ -n "${{ inputs.fylke }}" ]; then
+            node scripts/mal-n50-sti.mjs --fylke "${{ inputs.fylke }}" 2>&1 | tee n50-sti-rapport.txt
+          else
+            node scripts/mal-n50-sti.mjs 2>&1 | tee n50-sti-rapport.txt
+          fi
+
+      - name: Last opp rapporten
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: n50-sti-rapport
+          path: n50-sti-rapport.txt
+          retention-days: 30
