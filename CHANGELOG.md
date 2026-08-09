@@ -1,5 +1,17 @@
 # Endringslogg
 
+## 2026-08-09 — v5.0.7: Ordren blir aldri klar, så vi går utenom den
+
+Tredje måle-kjøring ga endelig et rent svar, og det var ikke det jeg håpet på: Geonorges ordre-API er en blindvei for N50. 69 polle-runder over 12 minutter, byte-identisk svar hver eneste gang, og responsen kvitterer ikke for ordrelinja i det hele tatt — den echoer bare tilbake e-post og referansenummer. Ordren blir altså akseptert som et tomt skall og blir aldri klar. Det er ikke en kø som jobber seg gjennom, og mer venting hjelper ikke.
+
+Kjøringen ga samtidig det vi trengte for å gå utenom. N50 Kartdata har uuid `ea192681-d039-42ec-b1bc-f3ce04c189ac`, datasettet tilbys i 373 områder på formen `fylke/33 — Buskerud`, og capabilities peker på en `can-download`-tjeneste. Geonorge publiserer åpne data som statiske filer under `/geonorge/Basisdata/`, og det er den veien vi nå prøver først: scriptet prober et sett kandidat-URL-er med HEAD, logger status for hver, og går rett på nedlasting når én svarer. Ordre-API-et står igjen som fallback med et kort tak på fire minutter — nok til å bekrefte at det fortsatt er dødt, ikke nok til å kaste bort en formiddag.
+
+Vi kjenner ikke Geonorges nøyaktige normalisering av fylkesnavn i filnavnene, så scriptet prøver flere varianter: med og uten diakritikk, med understrek og sammenskrevet, og med samiske parallellnavn strippet bort («Nordland – Nordlánnda» blir «Nordland»). Den logikken er ren og eksportert, og nå dekket av tester — inkludert at Værøy blir Vaeroy, at Møre og Romsdal gir alle fire skrivemåtene, og at et enkelt navn som Buskerud ikke blåser opp settet med duplikater.
+
+Underveis kom en bivirkning fram: scriptet kjørte hele nedlastings-flyten ved import, så testfila kollapset på `process.exit` før første test rakk å kjøre. Hovedblokken er nå gatet på at scriptet faktisk startes direkte.
+
+---
+
 ## 2026-08-09 — v5.0.6: Et tidstak som ikke kan håndheves er ikke et tidstak
 
 Andre måle-kjøring måtte avbrytes etter 50 minutter uten å ha gitt fra seg én linje diagnostikk — altså forbi sitt eget 45-minutters tak på ordre-klargjøringen. Årsaken er lærerik: ingen av `fetch`-kallene hadde timeout. Polle-loopen sjekker tiden MELLOM rundene, så en forespørsel som henger blokkerer inne i `await fetch` og taket blir aldri evaluert. Grensa fantes på papiret og var virkningsløs i praksis.

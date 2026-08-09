@@ -23,7 +23,15 @@
 // Kjøring 2 (31307557111) måtte avbrytes etter 50 min uten én linje
 // diagnostikk. Årsak: `fetch` uten timeout. Polle-loopens tidstak sjekkes bare
 // MELLOM rundene, så en hengende forespørsel gjorde taket virkningsløst.
-// Derfor: hvert eneste nettkall har nå en egen timeout, og taket er 12 min.
+// Derfor: hvert eneste nettkall har nå en egen timeout.
+//
+// Kjøring 3 (31309375095) avgjorde ordre-spørsmålet: 69 runder over 12 min,
+// BYTE-IDENTISK svar hver gang, og ingen kvittering for ordrelinja i
+// responsen. Ordren er ikke treg — den er et tomt skall som aldri blir klar.
+// Derfor prøver vi nå STATISK nedlasting først (se probeDirekte), og bruker
+// ordre-API-et bare som fallback. Kjøringen ga også:
+//   · N50 Kartdata uuid = ea192681-d039-42ec-b1bc-f3ce04c189ac
+//   · 373 områder (fylke/kommune), capabilities har en can-download-lenke
 // Fortsatt uverifisert: N50s objekttype-navn (STI_TYPER) — histogrammet under
 // punkt 5 avslører dem så snart en nedlasting kommer helt gjennom.
 //
@@ -34,6 +42,7 @@ import { mkdtempSync, writeFileSync, existsSync, rmSync, statSync, readdirSync, 
 import { createInterface } from 'node:readline'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { gzipSync } from 'node:zlib'
 import { forenkleLinje, kodeFlis, delPaaFliser, lengdeM, flisNokkel } from '../src/lib/n50StiPakke.js'
 
@@ -149,8 +158,84 @@ async function finnNedlasting(uuid) {
   return { omrade, format, proj }
 }
 
+// ── 3a. Direkte nedlasting (plan A) ────────────────────────────────────────
+//
+// Ordre-API-et er en blindvei for dette datasettet: målt i CI 2026-08-09
+// (kjøring 31309375095) svarte det med referenceNumber og `files: []` i
+// 69 runder på rad — BYTE-IDENTISK hver gang, og uten å kvittere for
+// ordrelinja. Ordren blir altså akseptert som et tomt skall og blir aldri
+// klar. Å polle den lenger er bortkastet tid.
+//
+// Geonorge publiserer samtidig åpne data som statiske filer under
+// /geonorge/Basisdata/. Filnavnene følger et fast mønster, men vi kjenner
+// ikke den eksakte normaliseringen av fylkesnavn (æ/ø/å, mellomrom, samiske
+// parallellnavn), så vi prober flere varianter med HEAD og logger status for
+// hver. Det tar sekunder og gir fasit i stedet for gjetning.
+const DIREKTE_BASE = 'https://nedlasting.geonorge.no/geonorge/Basisdata'
+
+// Navnevarianter: Geonorge har historisk brukt både «MoreogRomsdal»,
+// «More_og_Romsdal» og «Møre_og_Romsdal». Vi prøver dem alle.
+export function navnevarianter(navn) {
+  // Samiske parallellnavn står etter en tankestrek («Nordland – Nordlánnda»)
+  // og er ikke med i filnavnet.
+  const base = String(navn).split(/\s+[–—-]\s+/)[0].trim()
+  const utenDiakritikk = base
+    .replace(/ø/g, 'o').replace(/Ø/g, 'O')
+    .replace(/æ/g, 'ae').replace(/Æ/g, 'Ae')
+    .replace(/å/g, 'a').replace(/Å/g, 'A')
+  const varianter = new Set()
+  for (const n of [base, utenDiakritikk]) {
+    varianter.add(n.replace(/\s+/g, '_'))
+    varianter.add(n.replace(/\s+/g, ''))
+  }
+  return [...varianter]
+}
+
+export function direkteKandidater({ omrade, format, proj }) {
+  const ut = []
+  const koder = new Set([omrade.code])
+  // Landsdekkende heter «0000_Norge» i filnavnet.
+  if (!FYLKE) { koder.add('0000') }
+  for (const navn of navnevarianter(omrade.name)) {
+    for (const kode of koder) {
+      ut.push(`${DIREKTE_BASE}/N50Kartdata/${format.name}/Basisdata_${kode}_${navn}_${proj.code}_N50Kartdata_${format.name}.zip`)
+    }
+  }
+  if (!FYLKE) {
+    for (const kode of ['0000']) {
+      ut.push(`${DIREKTE_BASE}/N50Kartdata/${format.name}/Basisdata_${kode}_Norge_${proj.code}_N50Kartdata_${format.name}.zip`)
+    }
+  }
+  return [...new Set(ut)]
+}
+
+async function probeDirekte(valg) {
+  seksjon('3a. Prøver direkte nedlasting (uten ordre)')
+  const kandidater = direkteKandidater(valg)
+  log(`${kandidater.length} kandidat-URL-er:`)
+  for (const url of kandidater) {
+    let status = '?', lengde = ''
+    try {
+      const res = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(30000) })
+      status = String(res.status)
+      const cl = res.headers.get('content-length')
+      if (cl) lengde = ` · ${(Number(cl) / 1e6).toFixed(1)} MB`
+      if (res.ok) {
+        log(`  ✓ ${status}${lengde}  ${url}`)
+        log(`\n→ Direkte nedlasting funnet — hopper over ordre-API-et.`)
+        return [{ name: url.split('/').pop(), downloadUrl: url }]
+      }
+    } catch (e) {
+      status = e?.name === 'TimeoutError' ? 'timeout' : (e?.message ?? 'feil').slice(0, 40)
+    }
+    log(`  ✗ ${status}  ${url}`)
+  }
+  log('\nIngen av kandidatene svarte 200 — faller tilbake til ordre-API-et.')
+  return null
+}
+
 async function bestill(uuid, { omrade, format, proj }) {
-  seksjon('3. Legger inn ordre')
+  seksjon('3b. Legger inn ordre')
   const ordre = {
     email: 'lende-ci@example.invalid',
     softwareClient: 'lende',
@@ -191,7 +276,7 @@ async function bestill(uuid, { omrade, format, proj }) {
 // ingen diagnostikk — det gir bare en jobb man må avbryte. Blir 12 for kort,
 // er DET i seg selv funnet vi trenger (og loggen viser hvor mange runder som
 // gikk), og så hever vi det bevisst.
-async function ventPaaOrdre(url, { maksMs = 12 * 60 * 1000, intervallMs = 10000 } = {}) {
+async function ventPaaOrdre(url, { maksMs = 4 * 60 * 1000, intervallMs = 10000 } = {}) {
   log(`\nVenter på klargjøring: ${url}`)
   const start = Date.now()
   let runde = 0
@@ -226,7 +311,7 @@ async function ventPaaOrdre(url, { maksMs = 12 * 60 * 1000, intervallMs = 10000 
     }
     await new Promise(r => setTimeout(r, intervallMs))
   }
-  throw new Error(`Ordren ble ikke klar innen ${Math.round(maksMs / 60000)} min.\n` +
+  throw new Error(`Ordren ble ikke klar innen ${Math.round(maksMs / 60000)} min (kjent blindvei — se probeDirekte).\n` +
     `Siste svar:\n${JSON.stringify(sisteSvar).slice(0, 3000)}`)
 }
 
@@ -387,6 +472,12 @@ function konkluder({ km, rader }, helLandet) {
 
 // ── Kjør ───────────────────────────────────────────────────────────────────
 
+// Kjør BARE når scriptet startes direkte. Uten denne vakten kjørte hele
+// nedlastings-flyten (og process.exit) også når en test importerte modulen for
+// å teste de rene funksjonene — testfila kollapset før første `it`.
+const erHovedmodul = import.meta.url === pathToFileURL(process.argv[1] ?? '').href
+
+if (erHovedmodul) {
 const dir = mkdtempSync(join(tmpdir(), 'n50sti-'))
 try {
   if (!harOgr()) {
@@ -395,7 +486,8 @@ try {
   }
   const uuid = await finnDatasett()
   const valg = await finnNedlasting(uuid)
-  const filer = await bestill(uuid, valg)
+  // Plan A: statisk fil. Plan B: ordre-API-et (som så langt aldri har blitt klart).
+  const filer = (await probeDirekte(valg)) ?? await bestill(uuid, valg)
   const baner = await lastNed(filer, dir)
 
   seksjon('5. Leser geometri')
@@ -436,4 +528,5 @@ try {
 } finally {
   if (BEHOLD) log(`\n(beholder ${dir})`)
   else rmSync(dir, { recursive: true, force: true })
+}
 }
