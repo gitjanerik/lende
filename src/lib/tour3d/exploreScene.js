@@ -42,6 +42,9 @@ const TAP_SLOP_PX = 12
 const TAP_MAX_MS = 600
 // Hvor langt fra en sti et trykk kan lande og fortsatt starte en tur.
 const PATH_HIT_TOL_M = 90
+// Med krysspause på stopper turen så mange meter FØR krysset — nær nok til å
+// se grenene, langt nok unna til at valget skjer før man er forbi.
+const JUNCTION_PAUSE_M = 25
 
 export async function createExploreScene(container, {
   dem, meta, svgText, pathFeatures = [], features = [],
@@ -159,6 +162,14 @@ export async function createExploreScene(container, {
   let followRigs = null
   let junctionIdx = 0
   let activeJunction = null
+  // Tempoet overlever reroute (playback bygges på nytt per gren-valg) og
+  // gjelder også neste tur man starter i samme økt.
+  let currentTimeScale = timeScale
+  // Krysspause: brukerens valg om å stoppe i hvert stikryss. pausedJunction
+  // hindrer at samme kryss pauser igjen når brukeren trykker play for å
+  // fortsette rett fram.
+  let autoPauseJunctions = false
+  let pausedJunction = null
 
   const teardownWalk = () => {
     if (walkLine) { scene.remove(walkLine.mesh); walkLine.geometry.dispose(); walkLine.material.dispose(); walkLine = null }
@@ -175,6 +186,7 @@ export async function createExploreScene(container, {
     walkLookup = null
     walk = null
     activeJunction = null
+    pausedJunction = null
     junctionIdx = 0
   }
 
@@ -194,7 +206,7 @@ export async function createExploreScene(container, {
     scene.add(walkMarker.sphere)
     scene.add(walkMarker.ring)
 
-    playback = createPlayback({ totalM: rp.totalM, speedKmh, timeScale })
+    playback = createPlayback({ totalM: rp.totalM, speedKmh, timeScale: currentTimeScale })
     if (alongM > 0) playback.seek(Math.min(alongM, rp.totalM))
 
     if (!followRigs) {
@@ -214,6 +226,7 @@ export async function createExploreScene(container, {
 
     junctionIdx = 0
     activeJunction = null
+    pausedJunction = null
     while (junctionIdx < walk.junctions.length && walk.junctions[junctionIdx].alongM <= playback.alongM) junctionIdx++
     playback.play()
   }
@@ -329,8 +342,17 @@ export async function createExploreScene(container, {
           activeJunction = nextJ
           emit('junction', { junction: nextJ })
         }
+        // Krysspause: stopp like før krysset så valget kan tas i ro. Gjelder
+        // hvert kryss én gang — play etterpå betyr «fortsett rett fram».
+        if (autoPauseJunctions && activeJunction && pausedJunction !== activeJunction
+            && playback.playing && alongM >= activeJunction.alongM - JUNCTION_PAUSE_M) {
+          pausedJunction = activeJunction
+          playback.pause()
+          emit('junction-pause', { junction: activeJunction })
+        }
         if (nextJ && alongM > nextJ.alongM + 30) {
           junctionIdx++
+          if (pausedJunction === nextJ) pausedJunction = null
           if (activeJunction === nextJ) {
             activeJunction = null
             emit('junction', { junction: null })
@@ -415,6 +437,11 @@ export async function createExploreScene(container, {
     play() { playback?.play() },
     pause() { playback?.pause() },
     stopWalk() { endWalk() },
+    setTimeScale(x) {
+      currentTimeScale = x
+      playback?.setTimeScale(x)
+    },
+    setAutoPauseJunctions(v) { autoPauseJunctions = !!v },
     /** Velg en annen gren i krysset som er meldt aktivt. */
     async chooseBranch(nodeId) {
       const rg = ensureGraph()

@@ -1,5 +1,26 @@
 # Endringslogg
 
+## 2026-08-09 — v5.1.1: Krysspause, tempo og tre småting fra første test
+
+Første brukertest av 3D-utforskeren ga tre justeringer. Den viktigste gjaldt
+stikryssene: valg-chipen dukket opp og forsvant igjen før man rakk å ta
+stilling — ved 128× tempo varer et 150-metersvindu under et sekund. Løsningen
+er en krysspause: turen stopper 25 meter før hvert stikryss, og står til man
+velger en gren eller trykker play for å fortsette rett fram. Pausen styres av
+en egen gaffel-knapp øverst til venstre (en pil som deler seg i to), er på som
+standard, og valget huskes mellom økter. Hvert kryss pauser bare én gang, så
+play etterpå betyr «rett fram» uten at samme kryss stopper turen på nytt.
+
+Tempoet ble også utilgjengelig i praksis — turen langs en sti gikk i fast
+128×. Nå ligger de samme tre trinnene som turvisningen bruker (64×, 128× og
+256×) nede til høyre mens en tur pågår, og valget overlever både gren-bytte i
+kryss og neste tur i samme økt.
+
+Kartnavnet øverst til venstre er fjernet — det sto der uten å gjøre nytte, og
+plassen trengtes til gaffel-knappen.
+
+---
+
 ## 2026-08-09 — v5.1.0: Kartet i 3D, ikke bare turen
 
 3D-visningen har vært låst til én planlagt tur siden den kom. Nå åpner den fra

@@ -4748,7 +4748,6 @@ onUnmounted(() => {
                :brukerminner="explore3dData.brukerminner"
                :get-svg-text="(opts) => mapSvgMarkupForExport({ colophon: false, theme: opts?.dark ? 'dark' : null })"
                :is-dark="isDark"
-               :map-title="mapTitle"
                @close="closeExplore3d" />
 
     <Transition name="chip-fade">

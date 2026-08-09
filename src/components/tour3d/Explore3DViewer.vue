@@ -20,19 +20,27 @@ const props = defineProps({
   // Brukerminner bakt inn i SVG-en — offline-tilgjengelige.
   brukerminner: { type: Array, default: () => [] },
   getSvgText: { type: Function, required: true },
-  mapTitle: { type: String, default: '' },
   isDark: { type: Boolean, default: false },
 })
 const emit = defineEmits(['close'])
 
 const PIN_PREFS_KEY = 'lende-3d-pins'
+const KRYSSPAUSE_KEY = 'lende-3d-krysspause'
+const TIME_SCALES = [64, 128, 256]
 
 const phase = ref('loading')      // loading | ready | no-dem | no-webgl | error
 const activeFeature = ref(null)
 const walking = ref(false)
 const playing = ref(false)
 const walkLengthM = ref(0)
+const timeScale = ref(128)
 const junction = ref(null)
+// Krysspause: turen stopper like før hvert stikryss så valget kan tas i ro.
+// Default på — uten den rekker man ikke å reagere før krysset er passert —
+// og valget huskes mellom økter.
+const kryssPauseOn = ref((() => {
+  try { return localStorage.getItem(KRYSSPAUSE_KEY) !== '0' } catch { return true }
+})())
 const hasPaths = ref(false)
 const pinCounts = ref({})
 const pinGroups = ref([])
@@ -141,7 +149,10 @@ onMounted(async () => {
 
     engine.on('progress', (p) => {
       walking.value = !!p.walking
-      if (p.walking) playing.value = !!p.playing
+      if (p.walking) {
+        playing.value = !!p.playing
+        if (Number.isFinite(p.timeScale)) timeScale.value = p.timeScale
+      }
     })
     engine.on('feature', ({ feature }) => {
       activeFeature.value = { ...feature, type: featureType(feature) }
@@ -160,8 +171,10 @@ onMounted(async () => {
       wake.stop()
     })
     engine.on('junction', ({ junction: j }) => { junction.value = j })
+    engine.on('junction-pause', () => { playing.value = false; wake.stop() })
     engine.on('finished', () => { playing.value = false })
     engine.on('no-path', () => showToast('Ingen sti akkurat der'))
+    engine.setAutoPauseJunctions(kryssPauseOn.value)
 
     hasPaths.value = engine.hasPaths
     engine.setFeatures(allFeatures)
@@ -252,6 +265,17 @@ function pause() { engine?.pause(); playing.value = false; wake.stop() }
 function stopWalk() { engine?.stopWalk() }
 function chooseBranch(nodeId) { engine?.chooseBranch(nodeId) }
 
+function setTimeScale(x) {
+  timeScale.value = x
+  engine?.setTimeScale(x)
+}
+
+function toggleKryssPause() {
+  kryssPauseOn.value = !kryssPauseOn.value
+  try { localStorage.setItem(KRYSSPAUSE_KEY, kryssPauseOn.value ? '1' : '0') } catch { /* privat modus */ }
+  engine?.setAutoPauseJunctions(kryssPauseOn.value)
+}
+
 const ISOM_LABEL = {
   505: 'Sti', 506: 'Sti (uklar)', 507: 'Stitråkk', 504: 'Skogsbilvei',
   503: 'Småveg', 502: 'Hovedvei', 501: 'Motorvei', 509: 'Bro',
@@ -272,9 +296,22 @@ function branchLabel(opt, i) {
       <!-- Topprad -->
       <div class="relative z-10 flex items-start justify-between gap-2 px-3"
            style="padding-top: max(env(safe-area-inset-top), 10px);">
-        <div class="rounded-full bg-black/45 backdrop-blur px-3 py-1.5 text-[12px] text-white/85 truncate">
-          {{ mapTitle || 'Kartet i 3D' }}
-        </div>
+        <!-- Krysspause-toggle («gaffel»): på = turen stopper i hvert stikryss
+             så man rekker å velge vei. Valget huskes. -->
+        <button v-if="phase === 'ready'"
+                @click="toggleKryssPause"
+                :aria-label="kryssPauseOn ? 'Ikke stopp i stikryss' : 'Stopp i stikryss'"
+                class="w-11 h-11 rounded-full backdrop-blur flex items-center justify-center
+                       active:scale-95 transition-colors"
+                :class="kryssPauseOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
+          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 21v-8"/>
+            <path d="M12 13 7 8"/><polyline points="7 11 7 8 10 8"/>
+            <path d="M12 13l5-5"/><polyline points="14 8 17 8 17 11"/>
+          </svg>
+        </button>
+        <div v-else></div>
         <div class="flex items-center gap-2 shrink-0">
           <button v-if="phase === 'ready' && hasPaths"
                   @click="togglePaths"
@@ -370,11 +407,12 @@ function branchLabel(opt, i) {
       <div v-if="phase === 'ready'" class="relative z-10 mt-auto px-3 flex flex-col gap-2"
            style="padding-bottom: max(env(safe-area-inset-bottom), 12px);">
 
-        <!-- Kryss: rett fram vinner om brukeren ikke gjør noe -->
+        <!-- Kryss: rett fram vinner om brukeren ikke gjør noe. Med krysspause
+             på står turen stille her til man velger gren eller trykker play. -->
         <div v-if="walking && junction"
              class="on-accent rounded-md bg-emerald-600 text-white text-[11px] shadow-lg px-3 py-2">
           <div class="text-[9px] uppercase tracking-wide text-emerald-100/90 mb-1">
-            Kryss — fortsetter rett fram
+            {{ !playing ? 'Kryss — velg vei, eller ▶ for rett fram' : 'Kryss — fortsetter rett fram' }}
           </div>
           <div class="flex flex-wrap gap-1.5">
             <button v-for="(opt, i) in junction.options" :key="opt.nodeId"
@@ -402,6 +440,17 @@ function branchLabel(opt, i) {
                          text-[12px] font-medium active:scale-95">
             Avslutt turen
           </button>
+          <!-- Tempo, nede til høyre — samme trinn som turvisningen. -->
+          <div class="ml-auto flex items-center gap-1 rounded-full bg-black/45 backdrop-blur p-1">
+            <button v-for="x in TIME_SCALES" :key="x"
+                    @click="setTimeScale(x)"
+                    :aria-label="`Tempo ${x} ganger`"
+                    class="h-9 px-2.5 rounded-full text-[11px] font-semibold tabular-nums
+                           active:scale-95 transition-colors"
+                    :class="timeScale === x ? 'bg-white text-gray-900' : 'text-white/80'">
+              {{ x }}×
+            </button>
+          </div>
         </div>
 
         <div v-else class="flex items-center gap-2">
