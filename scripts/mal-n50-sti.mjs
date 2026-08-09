@@ -231,7 +231,20 @@ async function finnNedlasting(uuid) {
   }
 
   log(`\n→ Bestiller: ${omrade.name} (${omrade.type}/${omrade.code}) · ${format.name} · EPSG:${proj.code}`)
-  return { omrade, format, proj }
+  return { omrade, format, proj, omrader, formater, projeksjoner }
+}
+
+// Format og projeksjon MÅ velges fra områdets EGEN liste — se v5.0.9.
+export function velgFormatFor(omrade, formater, projeksjoner) {
+  const oF = Array.isArray(omrade.formats) && omrade.formats.length ? omrade.formats : formater
+  const format = ['FGDB', 'GML', 'GeoPackage', 'SOSI', 'PostGIS']
+    .map(n => oF.find(f => (f.name ?? '').toUpperCase() === n.toUpperCase()))
+    .find(Boolean) ?? oF[0]
+  if (!format) throw new Error(`${omrade.name} tilbyr ingen formater`)
+  const fP = Array.isArray(format.projections) && format.projections.length ? format.projections : projeksjoner
+  const proj = fP.find(p => String(p.code) === '25833') ?? fP[0]
+  if (!proj) throw new Error(`${format.name} har ingen projeksjon for ${omrade.name}`)
+  return { format, proj }
 }
 
 // ── 3a. Direkte nedlasting (plan A) ────────────────────────────────────────
@@ -270,17 +283,18 @@ export function navnevarianter(navn) {
 export function direkteKandidater({ omrade, format, proj }) {
   const ut = []
   const koder = new Set([omrade.code])
-  // Landsdekkende heter «0000_Norge» i filnavnet.
-  if (!FYLKE) { koder.add('0000') }
+  // Landsdekkende heter «0000_Norge» i filnavnet. Gates på områdets EGEN type,
+  // ikke på --fylke-flagget: landsmålingen itererer over fylker, og skal ikke
+  // prøve Norge-URL-en for hvert enkelt av dem.
+  const erLandsdekkende = omrade.type !== 'fylke' && omrade.type !== 'kommune'
+  if (erLandsdekkende) koder.add('0000')
   for (const navn of navnevarianter(omrade.name)) {
     for (const kode of koder) {
       ut.push(`${DIREKTE_BASE}/N50Kartdata/${format.name}/Basisdata_${kode}_${navn}_${proj.code}_N50Kartdata_${format.name}.zip`)
     }
   }
-  if (!FYLKE) {
-    for (const kode of ['0000']) {
-      ut.push(`${DIREKTE_BASE}/N50Kartdata/${format.name}/Basisdata_${kode}_Norge_${proj.code}_N50Kartdata_${format.name}.zip`)
-    }
+  if (erLandsdekkende) {
+    ut.push(`${DIREKTE_BASE}/N50Kartdata/${format.name}/Basisdata_0000_Norge_${proj.code}_N50Kartdata_${format.name}.zip`)
   }
   return [...new Set(ut)]
 }
@@ -524,7 +538,7 @@ function mal(linjer) {
       raa += pakket.length; gz += g
       if (g > storst) storst = g
     }
-    rader.push({ tol, punkter, fliser: fliser.size, raa, gz, storst })
+    rader.push({ tol, punkter, fliser: fliser.size, raa, gz, storst, nokler: [...fliser.keys()] })
   }
 
   log('\nPakket størrelse ved ulike forenklingsnivåer:')
@@ -535,6 +549,27 @@ function mal(linjer) {
         `${(r.storst / 1024).toFixed(0).padStart(7)} KB`)
   }
   return { km, rader }
+}
+
+// Landsdekkende måling: ETT fylke om gangen, og summer resultatet. Å samle
+// all geometri for hele Norge i minnet først ville blitt titalls millioner
+// punkt-objekter — unødvendig, siden pakket størrelse er additiv. Fliser som
+// krysser en fylkesgrense telles i begge fylker, altså en liten OVERestimering.
+// Det er riktig retning for et dimensjoneringstall.
+export function summerRader(alle) {
+  const perTol = new Map()
+  for (const rader of alle) {
+    for (const r of rader) {
+      let a = perTol.get(r.tol)
+      if (!a) perTol.set(r.tol, (a = { tol: r.tol, punkter: 0, raa: 0, gz: 0, storst: 0, nokler: new Set() }))
+      a.punkter += r.punkter; a.raa += r.raa; a.gz += r.gz
+      if (r.storst > a.storst) a.storst = r.storst
+      for (const n of r.nokler ?? []) a.nokler.add(n)
+    }
+  }
+  return [...perTol.values()]
+    .sort((x, y) => x.tol - y.tol)
+    .map(a => ({ ...a, fliser: a.nokler.size }))
 }
 
 function konkluder({ km, rader }, helLandet) {
@@ -575,49 +610,80 @@ try {
   }
   const uuid = await finnDatasett()
   const valg = await finnNedlasting(uuid)
-  // Plan A: statisk fil. Plan B: ordre-API-et (som så langt aldri har blitt klart).
-  const filer = (await probeDirekte(valg)) ?? await bestill(uuid, valg)
-  const baner = await lastNed(filer, dir)
 
-  seksjon('5. Leser geometri')
-  const kilder = finnKilder(baner)
-  log(`Kilder funnet: ${kilder.length}`)
-  for (const k of kilder) log(`  · ${k}`)
-  if (!kilder.length) throw new Error('Fant ingen lesbare kilder (.gml/.gpkg/.gdb) i nedlastingen')
+  // Ett fylke (--fylke 33), eller ALLE fylker for landstallet. Vi tar ett om
+  // gangen og summerer — se summerRader for hvorfor.
+  const fylker = FYLKE
+    ? [valg.omrade]
+    : valg.omrader.filter(o => o.type === 'fylke')
+  log(`\nMåler ${fylker.length} område(r): ${fylker.map(f => f.name.split(/\s+[–—-]\s+/)[0]).join(', ')}`)
 
-  const alle = []
+  const alleRader = []
   const histTotal = new Map()
-  for (const kilde of kilder) {
-    const lag = lagListe(kilde).filter(n => /samferdsel|veg|sti/i.test(n))
-    log(`\n${kilde}\n  aktuelle lag: ${lag.join(', ') || '(ingen som matcher samferdsel/veg/sti)'}`)
-    for (const l of lag) {
-      const { linjer, histogram, feltHistogram } = await lesLinjer(kilde, l, dir)
-      for (const [k, v] of histogram) histTotal.set(k, (histTotal.get(k) ?? 0) + v)
-      log(`    ${l}: ${linjer.length} sti-linjer av ${[...histogram.values()].reduce((a, b) => a + b, 0)} features`)
-      // Hvilke FELT finnes, og hvilke verdier har de? Dette er fasit for
-      // hvilket attributt som skiller sti fra bilveg — logges alltid, ikke
-      // bare ved feil, så vi ser det med én gang selv når det går bra.
-      for (const [felt, verdier] of feltHistogram) {
-        if (verdier.size > 25) { log(`      ${felt}: (${verdier.size} ulike verdier — hoppet over)`); continue }
-        const topp = [...verdier].sort((a, b) => b[1] - a[1])
-          .map(([v, n]) => `${v}=${n}`).join(', ')
-        log(`      ${felt}: ${topp}`)
+  let kmTotal = 0
+  let feilet = 0
+
+  for (const [i, omrade] of fylker.entries()) {
+    seksjon(`${omrade.name} (${i + 1}/${fylker.length})`)
+    const fdir = mkdtempSync(join(dir, 'f-'))
+    try {
+      const fv = velgFormatFor(omrade, valg.formater, valg.projeksjoner)
+      const filer = (await probeDirekte({ ...fv, omrade })) ?? await bestill(uuid, { ...fv, omrade })
+      const baner = await lastNed(filer, fdir)
+      const kilder = finnKilder(baner)
+      if (!kilder.length) throw new Error('ingen lesbare kilder i nedlastingen')
+
+      const linjer = []
+      for (const kilde of kilder) {
+        for (const l of lagListe(kilde).filter(n => /samferdsel|veg|sti/i.test(n))) {
+          const res = await lesLinjer(kilde, l, fdir)
+          for (const [k, v] of res.histogram) histTotal.set(k, (histTotal.get(k) ?? 0) + v)
+          log(`    ${l}: ${res.linjer.length} sti-linjer av ${[...res.histogram.values()].reduce((a, b) => a + b, 0)} features`)
+          // Felt-histogrammet er fasit for klassifiseringen — logg det bare for
+          // det første fylket, ellers drukner landsmålingen i gjentakelser.
+          if (i === 0) {
+            for (const [felt, verdier] of res.feltHistogram) {
+              if (verdier.size > 25) continue
+              log(`      ${felt}: ${[...verdier].sort((a, b) => b[1] - a[1]).map(([v, n]) => `${v}=${n}`).join(', ')}`)
+            }
+          }
+          linjer.push(...res.linjer)
+        }
       }
-      alle.push(...linjer)
+      if (!linjer.length) { log('  (ingen sti-linjer)'); continue }
+      const m = mal(linjer)
+      kmTotal += m.km
+      alleRader.push(m.rader)
+    } catch (e) {
+      feilet++
+      console.error(`  FEIL for ${omrade.name}: ${e.message.split('\n')[0]}`)
+    } finally {
+      rmSync(fdir, { recursive: true, force: true })
     }
   }
 
-  log('\nobjtype-histogram (HELE datasettet):')
+  log('\nobjtype-histogram (alle målte områder):')
   for (const [k, v] of [...histTotal].sort((a, b) => b[1] - a[1])) {
     log(`  ${k.padEnd(28)} ${v.toLocaleString('no')}`)
   }
+  if (feilet) log(`\nADVARSEL: ${feilet} av ${fylker.length} områder feilet — tallet under er et MINIMUM.`)
 
-  if (!alle.length) {
+  if (!alleRader.length) {
     console.error('\nFEIL: ingen linjer klassifisert som sti. Se felt-histogrammene over —\n'
       + 'de viser hvilke verdier som faktisk finnes, og hvilket felt de står i.')
     process.exit(1)
   }
-  konkluder(mal(alle), !FYLKE)
+
+  const samlet = summerRader(alleRader)
+  seksjon('SAMLET FOR ALLE MÅLTE OMRÅDER')
+  log(`Total lengde: ${kmTotal.toFixed(0)} km sti/traktorveg`)
+  log('  tol   punkter      fliser   pakket     gzip     største flis')
+  for (const r of samlet) {
+    log(`  ${String(r.tol).padStart(2)} m  ${String(r.punkter).padStart(10)}  ${String(r.fliser).padStart(6)}  ` +
+        `${(r.raa / 1e6).toFixed(1).padStart(7)} MB  ${(r.gz / 1e6).toFixed(1).padStart(6)} MB  ` +
+        `${(r.storst / 1024).toFixed(0).padStart(7)} KB`)
+  }
+  konkluder({ km: kmTotal, rader: samlet }, !FYLKE && feilet === 0)
 } catch (e) {
   console.error(`\nFEILET: ${e.message}`)
   console.error('\nLoggen over viser hvor langt det kom. Katalogsøk, capabilities og den')
