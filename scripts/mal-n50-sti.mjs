@@ -158,11 +158,34 @@ async function finnNedlasting(uuid) {
     omrader.map(o => `${o.type}/${o.code} ${o.name}`).join('\n'))
 
   // GML og GeoPackage er begge lesbare av ogr2ogr; FGDB krever nyere GDAL.
-  const format = ['GML', 'GeoPackage', 'GEOPACKAGE', 'FGDB', 'SOSI']
-    .map(n => formater.find(f => (f.name ?? '').toUpperCase() === n.toUpperCase()))
-    .find(Boolean) ?? formater[0]
-  const proj = projeksjoner.find(p => String(p.code) === '25833') ?? projeksjoner[0]
-  if (!format || !proj) throw new Error('Mangler format eller projeksjon i capabilities')
+  // ── DETTE var feilen som ga tomme ordrer i fire kjøringer på rad ──────────
+  // Den globale formatlista (FGDB, GML, PostGIS, SOSI) er UNIONEN over alle
+  // 373 områder. Per område er utvalget smalere: Buskerud (fylke/33) tilbyr
+  // bare PostGIS og FGDB — ingen GML. Vi bestilte GML likevel, og Geonorge
+  // svarte med en ordre som ble akseptert, fikk referansenummer, og forble
+  // tom for alltid i stedet for å si «ugyldig kombinasjon».
+  // Formatet MÅ derfor velges fra områdets EGEN liste, og projeksjonen fra
+  // det valgte formatets liste.
+  //
+  // FGDB foretrekkes: GDAL 3.8 leser File Geodatabase med den innebygde
+  // OpenFileGDB-driveren, uten ekstra avhengigheter. PostGIS-«formatet» er en
+  // SQL-dump som trenger en database, så det er siste utvei.
+  const omradeFormater = Array.isArray(omrade.formats) && omrade.formats.length
+    ? omrade.formats
+    : formater
+  const format = ['FGDB', 'GML', 'GeoPackage', 'SOSI', 'PostGIS']
+    .map(n => omradeFormater.find(f => (f.name ?? '').toUpperCase() === n.toUpperCase()))
+    .find(Boolean) ?? omradeFormater[0]
+  if (!format) throw new Error(`Området ${omrade.name} tilbyr ingen formater:\n${JSON.stringify(omrade)}`)
+
+  const formatProj = Array.isArray(format.projections) && format.projections.length
+    ? format.projections
+    : projeksjoner
+  const proj = formatProj.find(p => String(p.code) === '25833') ?? formatProj[0]
+  if (!proj) throw new Error(`Formatet ${format.name} tilbyr ingen projeksjoner for ${omrade.name}`)
+
+  log(`\nTilgjengelig FOR DETTE OMRÅDET: ${omradeFormater.map(f => f.name).join(', ')}` +
+      ` — for ${format.name}: ${formatProj.map(p => p.code).join(', ')}`)
 
   // can-download: Geonorge har en egen tjeneste for å sjekke om et datasett
   // faktisk KAN lastes ned av den som spør. Svarer den nei, er den tomme
@@ -304,7 +327,7 @@ async function bestill(uuid, { omrade, format, proj }) {
 // ingen diagnostikk — det gir bare en jobb man må avbryte. Blir 12 for kort,
 // er DET i seg selv funnet vi trenger (og loggen viser hvor mange runder som
 // gikk), og så hever vi det bevisst.
-async function ventPaaOrdre(url, { maksMs = 60 * 1000, intervallMs = 10000 } = {}) {
+async function ventPaaOrdre(url, { maksMs = 10 * 60 * 1000, intervallMs = 10000 } = {}) {
   log(`\nVenter på klargjøring: ${url}`)
   const start = Date.now()
   let runde = 0
