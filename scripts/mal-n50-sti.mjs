@@ -32,8 +32,12 @@
 // ordre-API-et bare som fallback. Kjøringen ga også:
 //   · N50 Kartdata uuid = ea192681-d039-42ec-b1bc-f3ce04c189ac
 //   · 373 områder (fylke/kommune), capabilities har en can-download-lenke
-// Fortsatt uverifisert: N50s objekttype-navn (STI_TYPER) — histogrammet under
-// punkt 5 avslører dem så snart en nedlasting kommer helt gjennom.
+// Kjøring 6 (31311189249) kom HELT GJENNOM: direkte nedlasting virket (URL-
+// mønsteret var riktig hele tiden — bare formatet var feil), 165,7 MB på 13 s,
+// GDAL leste .gdb-en. Og den avlivet siste antakelse: N50 har ingen «Sti»-
+// objekttype. 89 372 av 89 839 features er `Veglenke`; sti ligger i et
+// ATTRIBUTT. Derfor logger vi nå verdi-histogram for ALLE lavkardinalitets-
+// strengfelt, og klassifiserer på verdimønster i stedet for feltnavn.
 //
 // Kjør:  node scripts/mal-n50-sti.mjs [--fylke 33] [--behold]
 
@@ -54,14 +58,26 @@ const BEHOLD = args.includes('--behold') // ikke rydd temp-katalogen
 const KATALOG_SOK = 'https://kartkatalog.geonorge.no/api/search'
 const NEDLASTING = 'https://nedlasting.geonorge.no/api'
 
-// Objekttyper i N50 Samferdsel vi er ute etter. IKKE verifisert mot ekte data —
-// scriptet logger hele objtype-histogrammet, så første kjøring forteller oss
-// hva de faktisk heter, og lista rettes deretter.
-const STI_TYPER = ['Sti', 'TraktorvegSti', 'Traktorveg', 'Barmarksløype', 'Barmarksloype', 'GangSykkelveg']
-const TYPE_KART = {
-  Sti: 'sti', TraktorvegSti: 'sti',
-  Traktorveg: 'traktorveg',
-  'Barmarksløype': 'barmarksloype', Barmarksloype: 'barmarksloype',
+// N50 har INGEN «Sti»-objekttype. Målt i CI (kjøring 31311189249) på Buskerud:
+// 89 372 av 89 839 features i N50_Samferdsel_senterlinje er `Veglenke`, og
+// resten er Vegsperring/Bane/Stasjon. Sti skilles altså fra bilveg på et
+// ATTRIBUTT, ikke på objtype. Vi leter derfor etter verdier som SER UT som
+// sti/traktorveg/barmarksløype i et hvilket som helst strengfelt — og logger
+// samtidig hele felt-histogrammet, så vi ser hvilket felt det faktisk var.
+const STI_MONSTER = /^(sti|gangveg|gangsti)$/i
+const TRAKTOR_MONSTER = /^(traktorveg|traktorvegsti|traktorv)$/i
+const BARMARK_MONSTER = /^(barmarksl[øo]ype)$/i
+
+/** Klassifiser en feature som sti/traktorveg/barmarksløype, ellers null. */
+export function velgStiVerdi(props) {
+  for (const v of Object.values(props ?? {})) {
+    if (typeof v !== 'string') continue
+    const s = v.trim()
+    if (STI_MONSTER.test(s)) return 'sti'
+    if (TRAKTOR_MONSTER.test(s)) return 'traktorveg'
+    if (BARMARK_MONSTER.test(s)) return 'barmarksloype'
+  }
+  return null
 }
 
 const log = (...a) => console.log(...a)
@@ -432,6 +448,7 @@ async function lesLinjer(kilde, lag, dir) {
   ], { stdio: 'pipe' })
   const linjer = []
   const histogram = new Map()
+  const feltHistogram = new Map()
   const rl = createInterface({ input: createReadStream(utfil), crlfDelay: Infinity })
   for await (const rad of rl) {
     if (!rad.trim()) continue
@@ -440,18 +457,30 @@ async function lesLinjer(kilde, lag, dir) {
     const p = f.properties ?? {}
     const objtype = p.objtype ?? p.OBJTYPE ?? p.objektType ?? '(uten objtype)'
     histogram.set(objtype, (histogram.get(objtype) ?? 0) + 1)
-    if (!STI_TYPER.includes(objtype)) continue
+    // Histogram over ALLE lavkardinalitets-strengfelt, ikke bare objtype.
+    // Kjøring 31311189249 viste hvorfor: N50 har ingen «Sti»-objekttype i det
+    // hele tatt — 89 372 av 89 839 features er `Veglenke`, og sti skilles fra
+    // bilveg på et ATTRIBUTT. Vi vet ikke hvilket, så vi teller alle
+    // kandidatfelt og lar dataene peke ut riktig felt selv.
+    for (const [k, v] of Object.entries(p)) {
+      if (typeof v !== 'string' || !v || v.length > 40) continue
+      let h = feltHistogram.get(k)
+      if (!h) feltHistogram.set(k, (h = new Map()))
+      if (h.size <= 40 || h.has(v)) h.set(v, (h.get(v) ?? 0) + 1)
+    }
+    const stiVerdi = velgStiVerdi(p)
+    if (!stiVerdi) continue
     const g = f.geometry
     if (!g) continue
     const deler = g.type === 'MultiLineString' ? g.coordinates
       : g.type === 'LineString' ? [g.coordinates] : []
     for (const d of deler) {
       if (d.length < 2) continue
-      linjer.push({ type: TYPE_KART[objtype] ?? 'annet', geometry: d.map(([lon, lat]) => ({ lat, lon })) })
+      linjer.push({ type: stiVerdi, geometry: d.map(([lon, lat]) => ({ lat, lon })) })
     }
   }
   rmSync(utfil, { force: true })
-  return { linjer, histogram }
+  return { linjer, histogram, feltHistogram }
 }
 
 // ── 6. Mål ─────────────────────────────────────────────────────────────────
@@ -553,9 +582,18 @@ try {
     const lag = lagListe(kilde).filter(n => /samferdsel|veg|sti/i.test(n))
     log(`\n${kilde}\n  aktuelle lag: ${lag.join(', ') || '(ingen som matcher samferdsel/veg/sti)'}`)
     for (const l of lag) {
-      const { linjer, histogram } = await lesLinjer(kilde, l, dir)
+      const { linjer, histogram, feltHistogram } = await lesLinjer(kilde, l, dir)
       for (const [k, v] of histogram) histTotal.set(k, (histTotal.get(k) ?? 0) + v)
       log(`    ${l}: ${linjer.length} sti-linjer av ${[...histogram.values()].reduce((a, b) => a + b, 0)} features`)
+      // Hvilke FELT finnes, og hvilke verdier har de? Dette er fasit for
+      // hvilket attributt som skiller sti fra bilveg — logges alltid, ikke
+      // bare ved feil, så vi ser det med én gang selv når det går bra.
+      for (const [felt, verdier] of feltHistogram) {
+        if (verdier.size > 25) { log(`      ${felt}: (${verdier.size} ulike verdier — hoppet over)`); continue }
+        const topp = [...verdier].sort((a, b) => b[1] - a[1])
+          .map(([v, n]) => `${v}=${n}`).join(', ')
+        log(`      ${felt}: ${topp}`)
+      }
       alle.push(...linjer)
     }
   }
