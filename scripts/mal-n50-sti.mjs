@@ -20,6 +20,10 @@
 //   · ORDREN ER ASYNKRON: POST gir referenceNumber + files: [], og filene
 //     dukker opp på GET /api/order/{referanse} etter hvert som de pakkes.
 //     Det var feilen i første utgave, som antok filer rett i POST-svaret.
+// Kjøring 2 (31307557111) måtte avbrytes etter 50 min uten én linje
+// diagnostikk. Årsak: `fetch` uten timeout. Polle-loopens tidstak sjekkes bare
+// MELLOM rundene, så en hengende forespørsel gjorde taket virkningsløst.
+// Derfor: hvert eneste nettkall har nå en egen timeout, og taket er 12 min.
 // Fortsatt uverifisert: N50s objekttype-navn (STI_TYPER) — histogrammet under
 // punkt 5 avslører dem så snart en nedlasting kommer helt gjennom.
 //
@@ -54,8 +58,23 @@ const TYPE_KART = {
 const log = (...a) => console.log(...a)
 const seksjon = (t) => log(`\n${'─'.repeat(70)}\n${t}\n${'─'.repeat(70)}`)
 
-async function hentJson(url, init) {
-  const res = await fetch(url, init)
+// ALLE nettkall MÅ ha en timeout. Uten den henger `await fetch` i det uendelige
+// på en død tilkobling, og polle-loopens tidstak sjekkes bare MELLOM rundene —
+// altså aldri. Det er nøyaktig det som skjedde i kjøring 31307557111: jobben sto
+// i 50+ minutter forbi sitt eget 45-minutters tak, og måtte avbrytes uten å ha
+// gitt fra seg én linje diagnostikk.
+const HTTP_TIMEOUT_MS = 60000
+
+async function hentJson(url, init = {}, timeoutMs = HTTP_TIMEOUT_MS) {
+  let res
+  try {
+    res = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) })
+  } catch (e) {
+    const grunn = e?.name === 'TimeoutError' || e?.name === 'AbortError'
+      ? `svarte ikke innen ${Math.round(timeoutMs / 1000)} s`
+      : (e?.message ?? String(e))
+    throw new Error(`Nettfeil mot ${url}: ${grunn}`)
+  }
   const tekst = await res.text()
   if (!res.ok) {
     throw new Error(`HTTP ${res.status} for ${url}\nSvar (2000 første tegn):\n${tekst.slice(0, 2000)}`)
@@ -89,7 +108,14 @@ async function finnDatasett() {
 async function finnNedlasting(uuid) {
   seksjon('2. Henter nedlastingsalternativer')
   const cap = await hentJson(`${NEDLASTING}/capabilities/${uuid}`)
-  log('capabilities (400 første tegn):', JSON.stringify(cap).slice(0, 400))
+  // HELE _links-lista, ikke et utdrag: for åpne data har Geonorge ofte en
+  // direkte nedlastingsrute i tillegg til ordre-API-et, og den ville i så fall
+  // spart oss for hele klargjørings-ventingen. Vi vet ikke om den finnes her,
+  // så vi logger alt og leser fasit ut av loggen.
+  log('capabilities._links:')
+  for (const l of cap._links ?? []) log(`  · rel=${l.rel}\n    ${l.href}`)
+  const direkte = (cap._links ?? []).find(l => /download.*(file|direct)|\bfile\b/i.test(l.rel ?? ''))
+  if (direkte) log(`\n  (mulig direkte-nedlasting: ${direkte.rel})`)
 
   const hent = async (rel) => {
     const lenke = (cap._links ?? []).find(l => l.rel?.endsWith(rel))
@@ -161,7 +187,11 @@ async function bestill(uuid, { omrade, format, proj }) {
 
 // Poll til filene er klargjort. Store bestillinger (landsdekkende N50) tar
 // lengst tid, derfor et romslig tak — workflowen har 90 minutter totalt.
-async function ventPaaOrdre(url, { maksMs = 45 * 60 * 1000, intervallMs = 10000 } = {}) {
+// 12 min, ikke 45: et tak som er så langt at ingen orker å vente på det, gir
+// ingen diagnostikk — det gir bare en jobb man må avbryte. Blir 12 for kort,
+// er DET i seg selv funnet vi trenger (og loggen viser hvor mange runder som
+// gikk), og så hever vi det bevisst.
+async function ventPaaOrdre(url, { maksMs = 12 * 60 * 1000, intervallMs = 10000 } = {}) {
   log(`\nVenter på klargjøring: ${url}`)
   const start = Date.now()
   let runde = 0
@@ -179,7 +209,10 @@ async function ventPaaOrdre(url, { maksMs = 45 * 60 * 1000, intervallMs = 10000 
     }
     sisteSvar = d
     const filer = d.files ?? d.Files ?? []
-    if (runde === 1) log(`  (første svar: ${JSON.stringify(d).slice(0, 600)})`)
+    // Første OG hver sjette runde: hele svaret. Endrer ordren status underveis
+    // (kø → klargjør → klar), vil vi se det skje i loggen i stedet for å måtte
+    // gjette hva som skjedde i minuttene før taket.
+    if (runde === 1 || runde % 6 === 0) log(`  (svar runde ${runde}: ${JSON.stringify(d).slice(0, 800)})`)
     if (filer.length) {
       // En fil er først nyttig når den har en nedlastingslenke.
       const klare = filer.filter(f => f.downloadUrl ?? f.DownloadUrl)
@@ -207,7 +240,14 @@ async function lastNed(filer, dir) {
     const navn = f.name ?? url.split('/').pop()
     const sti = join(dir, navn)
     log(`  henter ${navn} …`)
-    const res = await fetch(url)
+    // Egen, romsligere timeout enn JSON-kallene (dette er en stor fil), men
+    // ALDRI uten — se kommentaren ved HTTP_TIMEOUT_MS.
+    let res
+    try {
+      res = await fetch(url, { signal: AbortSignal.timeout(20 * 60 * 1000) })
+    } catch (e) {
+      throw new Error(`Nedlastingen av ${navn} feilet: ${e?.name === 'TimeoutError' ? 'timeout etter 20 min' : (e?.message ?? e)}`)
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status} ved nedlasting av ${url}`)
     writeFileSync(sti, Buffer.from(await res.arrayBuffer()))
     log(`    ${(statSync(sti).size / 1e6).toFixed(1)} MB`)
