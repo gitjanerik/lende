@@ -32,6 +32,15 @@
 // ordre-API-et bare som fallback. Kjøringen ga også:
 //   · N50 Kartdata uuid = ea192681-d039-42ec-b1bc-f3ce04c189ac
 //   · 373 områder (fylke/kommune), capabilities har en can-download-lenke
+// Kjøring 7 (31311724024) ga FASIT på klassifiseringen — feltet er `typeveg`,
+// og verdiene er små forbokstaver. Buskerud:
+//   typeveg: enkelBilveg=62271, sti=17568, traktorveg=8531,
+//            gangOgSykkelveg=997, passasjerferje=4, bilferje=1
+// I tillegg finnes `rutemerking` (JA=5908/NEI=11660) og
+// `vedlikeholdsansvarlig` (DNT=2317, Andre=3591) — akkurat det vi trenger for
+// å skille ISOM 506 (merket) fra 507 (umerket) når laget skal bygges.
+// gangOgSykkelveg holdes UTE, som i appen ellers (se symbolizer, v8.9.24).
+//
 // Kjøring 6 (31311189249) kom HELT GJENNOM: direkte nedlasting virket (URL-
 // mønsteret var riktig hele tiden — bare formatet var feil), 165,7 MB på 13 s,
 // GDAL leste .gdb-en. Og den avlivet siste antakelse: N50 har ingen «Sti»-
@@ -598,13 +607,14 @@ try {
     }
   }
 
-  log('\nobjtype-histogram (HELE datasettet — bruk dette til å rette STI_TYPER):')
+  log('\nobjtype-histogram (HELE datasettet):')
   for (const [k, v] of [...histTotal].sort((a, b) => b[1] - a[1])) {
-    log(`  ${STI_TYPER.includes(k) ? '✓' : ' '} ${k.padEnd(28)} ${v.toLocaleString('no')}`)
+    log(`  ${k.padEnd(28)} ${v.toLocaleString('no')}`)
   }
 
   if (!alle.length) {
-    console.error('\nFEIL: ingen linjer matchet STI_TYPER. Se histogrammet over og rett lista i scriptet.')
+    console.error('\nFEIL: ingen linjer klassifisert som sti. Se felt-histogrammene over —\n'
+      + 'de viser hvilke verdier som faktisk finnes, og hvilket felt de står i.')
     process.exit(1)
   }
   konkluder(mal(alle), !FYLKE)
@@ -612,7 +622,7 @@ try {
   console.error(`\nFEILET: ${e.message}`)
   console.error('\nLoggen over viser hvor langt det kom. Katalogsøk, capabilities og den')
   console.error('asynkrone ordre-flyten er bekreftet i CI; objekttype-navnene i N50 er ikke.')
-  console.error('Ser du et objtype-histogram over, er det fasit — rett STI_TYPER etter det.')
+  console.error('Ser du felt-histogrammene over, er de fasit for hvordan sti klassifiseres.')
   process.exit(1)
 } finally {
   if (BEHOLD) log(`\n(beholder ${dir})`)

@@ -1,5 +1,15 @@
 # Endringslogg
 
+## 2026-08-09 — v5.0.11: Feltet heter typeveg
+
+Felt-histogrammet ga fasit på første forsøk. Sti ligger i `typeveg`, med små forbokstaver, og Buskerud alene har 17 568 sti-lenker og 8 531 traktorveger — mot en håndfull i OSM for samme område. Verdi-mønstrene traff riktig, så uttrekket gikk gjennom som det skulle.
+
+Kjøringen krasjet likevel, på et sted som er pinlig enkelt: da jeg fjernet den gamle `STI_TYPER`-konstanten, ble én referanse til den stående igjen i utskriften av objtype-histogrammet. `node --check` validerer syntaks, ikke at navn finnes, så den slapp gjennom. Referansen er borte nå, og feilmeldingene peker på felt-histogrammene i stedet — de er den faktiske fasiten.
+
+Histogrammet ga også to felt vi får bruk for når laget skal bygges: `rutemerking` med JA og NEI, og `vedlikeholdsansvarlig` der DNT står for 2 317 lenker i Buskerud. Det er nøyaktig skillet mellom ISOM 506 og 507, hentet fra dataene i stedet for gjettet. `gangOgSykkelveg` holdes utenfor, som i appen ellers.
+
+---
+
 ## 2026-08-09 — v5.0.10: N50 har ingen «Sti»
 
 Format-fiksen virket, og kjøringen kom helt gjennom for første gang: direkte nedlasting svarte 200, 165,7 MB på tretten sekunder, GDAL leste geodatabasen. URL-mønsteret jeg trodde var feil, hadde vært riktig hele tiden — det var formatet som ikke fantes for Buskerud, og GML-URL-en ga derfor 404. Ordre-API-et trengs ikke i det hele tatt.
