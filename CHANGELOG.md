@@ -1,5 +1,33 @@
 # Endringslogg
 
+## 2026-08-09 — v5.2.0: Stumper er ikke turmål, og turen venter på deg
+
+Stinettet er fullt av korte blindveier — adkomststumper til parkeringsplasser,
+snuplasser og hyttestikk. De hører hjemme i kartbildet og tegnes som før, men
+i 3D-utforskeren var de støy: et kryssvalg som tilbyr en 60-meters stump er
+ikke et valg, og en tur som starter i en slik stump er over før den begynner.
+Nå holder utforskeren dem utenfor. En blindvei kortere enn 100 meter — målt
+langs kjeden fram til nærmeste kryss — foreslås ikke som stibytte i kryss,
+vinner aldri «rettest fram», og kan ikke starte en tur ved trykk. Et kryss
+der eneste alternativ er en stump, meldes ikke som kryss i det hele tatt, så
+krysspausen stopper heller ikke der. Er alt som gjenstår i et kryss stumper,
+ender turen der. Blindveier på 100 meter eller mer regnes fortsatt som ekte
+stier og oppfører seg som før.
+
+Å trykke på en sti starter heller ikke avspillingen lenger. Kameraet glir inn
+i følge-posisjonen ved stistart som før, men turen står stille til man trykker
+play — og play-knappen pulserer rolig for å si «trykk meg». Det samme gjelder
+i krysspausen. Brukere med redusert bevegelse i systeminnstillingene slipper
+pulseringen.
+
+Kryssvalgene skriver nå «til høyre» og «til venstre» i stedet for grader.
+«Sti 90° av» var teknisk presist og praktisk ubrukelig — særlig når to grener
+begge var 90° av, hver sin vei. Retningen regnes relativt til gangretningen,
+og svinger over 100° merkes «skarpt», så to grener på samme side også kan
+skilles.
+
+---
+
 ## 2026-08-09 — v5.1.2: Kryss-knappen inn i raden, og død når stinettet er av
 
 Gaffel-knappen som styrer krysspausen sto alene øverst til venstre. Nå ligger

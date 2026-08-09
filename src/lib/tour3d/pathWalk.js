@@ -24,12 +24,28 @@ const DEFAULT_MAX_LENGTH_M = 25000
 // tredje gang stopper vi, ellers ville en løkke gått i det uendelige.
 const MAX_VISITS = 2
 
+// Blindveier kortere enn dette er «stumper»: de VISES i kartet som før, men
+// utforskeren foreslår dem ikke som stibytte i kryss, og en tur kan ikke
+// startes ved å trykke i dem. En 60-meters adkomststump til en P-plass er
+// ikke en tur — den er støy i kryssvalget.
+export const BLIND_STUB_M = 100
+
 const bearing = (from, to) => Math.atan2(to[1] - from[1], to[0] - from[0])
 
 // Minste vinkelforskjell, alltid i [0, π].
 export function angleDiff(a, b) {
   let d = Math.abs(a - b) % (Math.PI * 2)
   if (d > Math.PI) d = Math.PI * 2 - d
+  return d
+}
+
+// Fortegnsbevart sving fra peiling `from` til `to`, i (−π, π]. Kartrommet har
+// y voksende SØROVER, så positiv verdi er sving til HØYRE sett i gangretningen
+// — samme konvensjon som skjermkoordinater.
+export function signedTurn(from, to) {
+  let d = (to - from) % (Math.PI * 2)
+  if (d > Math.PI) d -= Math.PI * 2
+  if (d <= -Math.PI) d += Math.PI * 2
   return d
 }
 
@@ -54,6 +70,54 @@ function neighborsOf(rg, node, exclude) {
     out.push(edgeInfo(rg, node, nb))
   })
   return out
+}
+
+// Følg kjeden fra `from` inn i `to` gjennom grad-2-noder, til første kryss
+// (grad ≥ 3), blindvei (grad 1), løkke — eller til lengden passerer maxM.
+function chaseChain(rg, from, to, maxM) {
+  const g = rg.graph
+  let prev = from
+  let cur = to
+  let lengthM = g.getEdgeAttribute(from, to, 'length')
+  const seen = new Set([from, to])
+  while (lengthM < maxM) {
+    const deg = g.degree(cur)
+    if (deg === 1) return { deadEnd: true, lengthM }
+    if (deg >= 3) return { deadEnd: false, lengthM }
+    let next = null
+    g.forEachNeighbor(cur, (nb) => { if (nb !== prev) next = nb })
+    if (!next || seen.has(next)) return { deadEnd: false, lengthM }
+    seen.add(next)
+    lengthM += g.getEdgeAttribute(cur, next, 'length')
+    prev = cur
+    cur = next
+  }
+  return { deadEnd: false, lengthM }
+}
+
+/** Er grenen from→to en blindvei kortere enn maxM, uten kryss underveis? */
+export function isBlindStub(rg, fromNode, toNode, maxM = BLIND_STUB_M) {
+  return chaseChain(rg, fromNode, toNode, maxM).deadEnd
+}
+
+/**
+ * Ligger noden inne i en stump? Sant når hele kjeden noden står på — fulgt
+ * i alle retninger til kryss/blindvei — har minst én blindvei-ende og er
+ * kortere enn maxM totalt. Kryss-noder tilhører per definisjon hovednettet.
+ */
+export function isInBlindStub(rg, nodeId, maxM = BLIND_STUB_M) {
+  const g = rg?.graph
+  if (!g?.hasNode?.(nodeId)) return false
+  const deg = g.degree(nodeId)
+  if (deg === 0) return true
+  if (deg >= 3) return false
+  const chains = []
+  // En grad-1-node er selv kjedens blindvei-ende.
+  if (deg === 1) chains.push({ deadEnd: true, lengthM: 0 })
+  g.forEachNeighbor(nodeId, (nb) => chains.push(chaseChain(rg, nodeId, nb, maxM)))
+  if (chains.some(c => !c.deadEnd && c.lengthM >= maxM)) return false
+  if (!chains.some(c => c.deadEnd)) return false
+  return chains.reduce((s, c) => s + c.lengthM, 0) < maxM
 }
 
 // Rangér kandidater: rettest fram først. Ved praktisk talt lik retning vinner
@@ -105,7 +169,12 @@ export function walkFromNode(rg, startNodeId, { headingXY = null, firstNodeId = 
 
   // Første steg: den naboen som peker mest i ønsket retning. Uten heading
   // (eller uten noen match) tas det lengste strekket, som gir mest tur.
-  const first = neighborsOf(rg, startNodeId, null)
+  // Stumper velges bare når ingenting annet finnes.
+  let first = neighborsOf(rg, startNodeId, null)
+  if (first.length > 1) {
+    const open = first.filter(c => !isBlindStub(rg, startNodeId, c.node))
+    if (open.length) first = open
+  }
   if (!first.length) return { ...empty, coordinates, nodeIds }
 
   let step
@@ -135,8 +204,17 @@ export function walkFromNode(rg, startNodeId, { headingXY = null, firstNodeId = 
     if (seen > MAX_VISITS) break
     if (lengthM >= maxLengthM) break
 
-    const cands = neighborsOf(rg, current.node, prev)
+    let cands = neighborsOf(rg, current.node, prev)
     if (!cands.length) break                       // blindvei
+
+    // Stumper (blindvei < BLIND_STUB_M) deltar ikke i kryssvalget: de verken
+    // vinner «rettest fram» eller tilbys som alternativ. Er ALT som gjenstår
+    // stumper, ender turen her — å gå 60 m inn i en adkomststump og stoppe
+    // er ikke en fortsettelse.
+    if (cands.length > 1) {
+      cands = cands.filter(c => !isBlindStub(rg, current.node, c.node))
+      if (!cands.length) break
+    }
 
     const next = pickStraightest(cands, current.bearing)
     if (!next || next.turn > MAX_TURN_RAD) break   // bare skarpe tilbakesvinger igjen
@@ -153,6 +231,8 @@ export function walkFromNode(rg, startNodeId, { headingXY = null, firstNodeId = 
             nodeId: c.node,
             bearing: c.bearing,
             turn: angleDiff(c.bearing, current.bearing),
+            // Fortegn for UI-et: > 0 = til høyre, < 0 = til venstre.
+            turnSigned: signedTurn(current.bearing, c.bearing),
             isomCode: c.isomCode,
             lengthM: c.length,
           }))
@@ -178,9 +258,12 @@ export function walkFromNode(rg, startNodeId, { headingXY = null, firstNodeId = 
  * @param {{tolM?: number}} [opts]
  * @returns {{nodeId: string, headingXY: [number, number], distM: number} | null}
  */
-export function walkStartAt(rg, pointXY, cameraXY, { tolM = 120 } = {}) {
+export function walkStartAt(rg, pointXY, cameraXY, { tolM = 120, stubM = BLIND_STUB_M } = {}) {
   const hit = rg?.nearestNode?.(pointXY)
   if (!hit || hit.distM > tolM) return null
+  // Et trykk i en stump starter ingen tur — den vises i kartet, men er ikke
+  // et sted å gå fra.
+  if (isInBlindStub(rg, hit.id, stubM)) return null
   const pos = rg.graph.getNodeAttribute(hit.id, 'pos')
   let hx = pos[0] - cameraXY[0]
   let hy = pos[1] - cameraXY[1]
