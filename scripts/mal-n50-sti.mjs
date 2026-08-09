@@ -10,10 +10,18 @@
 //
 // ── Hvorfor det er skrevet så pratsomt ─────────────────────────────────────
 // Sandkassa der scriptet ble skrevet når ikke nedlasting.geonorge.no (egress-
-// policy), så API-formen og N50s objekttype-navn er IKKE verifisert mot ekte
-// tjeneste. Derfor logger hvert trinn hva det faktisk fant, og feiler med hele
-// svaret i loggen i stedet for en kort melding. Første CI-kjøring er like mye
-// en kartlegging av API-et som en måling.
+// policy), så API-formen måtte kartlegges via CI. Derfor logger hvert trinn
+// hva det faktisk fant, og feiler med hele svaret i loggen.
+//
+// Bekreftet i CI 2026-08-09 (kjøring 31307348804):
+//   · katalogsøk og capabilities virker som antatt
+//   · områder er {type:'fylke', code:'33', name:'Buskerud'} osv.
+//   · formater: FGDB, GML, PostGIS, SOSI — projeksjoner: 25832/25833/25835
+//   · ORDREN ER ASYNKRON: POST gir referenceNumber + files: [], og filene
+//     dukker opp på GET /api/order/{referanse} etter hvert som de pakkes.
+//     Det var feilen i første utgave, som antok filer rett i POST-svaret.
+// Fortsatt uverifisert: N50s objekttype-navn (STI_TYPER) — histogrammet under
+// punkt 5 avslører dem så snart en nedlasting kommer helt gjennom.
 //
 // Kjør:  node scripts/mal-n50-sti.mjs [--fylke 33] [--behold]
 
@@ -132,11 +140,61 @@ async function bestill(uuid, { omrade, format, proj }) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(ordre),
   })
-  const filer = svar.files ?? svar.Files ?? []
-  log(`Ordre lagt inn. ${filer.length} fil(er):`)
-  for (const f of filer) log(`  · ${f.name} — ${f.downloadUrl ?? f.DownloadUrl}`)
-  if (!filer.length) throw new Error('Ordren ga ingen filer. Hele svaret:\n' + JSON.stringify(svar).slice(0, 3000))
-  return filer
+  const filerNaa = svar.files ?? svar.Files ?? []
+  const referanse = svar.referenceNumber ?? svar.ReferenceNumber
+  log(`Ordre lagt inn. Referanse: ${referanse ?? '(ingen)'} · ${filerNaa.length} fil(er) med en gang.`)
+  if (filerNaa.length) {
+    for (const f of filerNaa) log(`  · ${f.name}`)
+    return filerNaa
+  }
+  // Geonorge klargjør bestillingen ASYNKRONT: POST-svaret kommer med tom
+  // files-liste og en self-lenke, og filene dukker opp der etter hvert som de
+  // pakkes. (Målt i CI 2026-08-09: POST ga referenceNumber + files: [].)
+  if (!referanse) {
+    throw new Error('Ordren ga verken filer eller referansenummer. Hele svaret:\n' +
+      JSON.stringify(svar).slice(0, 3000))
+  }
+  const selvLenke = (svar._links ?? []).find(l => l.rel === 'self')?.href
+    ?? `${NEDLASTING}/order/${referanse}`
+  return await ventPaaOrdre(selvLenke)
+}
+
+// Poll til filene er klargjort. Store bestillinger (landsdekkende N50) tar
+// lengst tid, derfor et romslig tak — workflowen har 90 minutter totalt.
+async function ventPaaOrdre(url, { maksMs = 45 * 60 * 1000, intervallMs = 10000 } = {}) {
+  log(`\nVenter på klargjøring: ${url}`)
+  const start = Date.now()
+  let runde = 0
+  let sisteSvar = null
+  while (Date.now() - start < maksMs) {
+    runde++
+    let d
+    try {
+      d = await hentJson(url)
+    } catch (e) {
+      // Et forbigående 5xx midt i klargjøringen skal ikke drepe hele kjøringen.
+      log(`  runde ${runde}: oppslag feilet (${e.message.split('\n')[0]}) — prøver igjen`)
+      await new Promise(r => setTimeout(r, intervallMs))
+      continue
+    }
+    sisteSvar = d
+    const filer = d.files ?? d.Files ?? []
+    if (runde === 1) log(`  (første svar: ${JSON.stringify(d).slice(0, 600)})`)
+    if (filer.length) {
+      // En fil er først nyttig når den har en nedlastingslenke.
+      const klare = filer.filter(f => f.downloadUrl ?? f.DownloadUrl)
+      log(`  runde ${runde} (${Math.round((Date.now() - start) / 1000)} s): ${filer.length} fil(er), ${klare.length} med lenke`)
+      if (klare.length === filer.length) {
+        for (const f of klare) log(`  · ${f.name} — ${f.downloadUrl ?? f.DownloadUrl}`)
+        return klare
+      }
+    } else {
+      log(`  runde ${runde} (${Math.round((Date.now() - start) / 1000)} s): ikke klar ennå`)
+    }
+    await new Promise(r => setTimeout(r, intervallMs))
+  }
+  throw new Error(`Ordren ble ikke klar innen ${Math.round(maksMs / 60000)} min.\n` +
+    `Siste svar:\n${JSON.stringify(sisteSvar).slice(0, 3000)}`)
 }
 
 // ── 4. Last ned og pakk ut ─────────────────────────────────────────────────
@@ -331,8 +389,9 @@ try {
   konkluder(mal(alle), !FYLKE)
 } catch (e) {
   console.error(`\nFEILET: ${e.message}`)
-  console.error('\nDette scriptet er IKKE verifisert mot ekte Geonorge-API (sandkassa når ikke')
-  console.error('nedlasting.geonorge.no). Loggen over viser hvor langt det kom — bruk den til å rette kursen.')
+  console.error('\nLoggen over viser hvor langt det kom. Katalogsøk, capabilities og den')
+  console.error('asynkrone ordre-flyten er bekreftet i CI; objekttype-navnene i N50 er ikke.')
+  console.error('Ser du et objtype-histogram over, er det fasit — rett STI_TYPER etter det.')
   process.exit(1)
 } finally {
   if (BEHOLD) log(`\n(beholder ${dir})`)

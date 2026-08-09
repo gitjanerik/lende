@@ -1,5 +1,15 @@
 # Endringslogg
 
+## 2026-08-09 — v5.0.5: Geonorges ordre-API er asynkront
+
+Første måle-kjøring i CI kom lenger enn ventet og stoppet på ett punkt: bestillingen ble akseptert, men svarte med tom fil-liste. Skriptet antok at nedlastingslenkene fulgte med i POST-svaret. Det gjør de ikke — Geonorge svarer med et referansenummer og en self-lenke, klargjør pakken i bakgrunnen, og filene dukker opp på `GET /api/order/{referanse}` etter hvert. Scriptet poller nå den lenken med romslig tak, tåler forbigående feil underveis, og venter på at hver fil faktisk har fått en nedlastingslenke før den går videre.
+
+Kjøringen bekreftet samtidig resten av antakelsene, som var det den var til for: katalogsøket finner datasettet, capabilities gir områder på formen `fylke/33 — Buskerud`, formatene er FGDB, GML, PostGIS og SOSI, og projeksjonene 25832/25833/25835. Alt dette var gjetninger skrevet i blinde fra en sandkasse uten tilgang til tjenesten, og de holdt.
+
+Det som fortsatt er ubekreftet er hva objekttypene i N50 Samferdsel faktisk heter — `Sti`, `TraktorvegSti` og resten er fremdeles kvalifisert gjetning. Histogrammet scriptet skriver ut vil avsløre dem så snart en nedlasting kommer helt gjennom, og da rettes lista etter fasit i stedet for etter hukommelse.
+
+---
+
 ## 2026-08-09 — v5.0.4: Måleverktøy og pakkeformat for N50-stiene
 
 Turrutebasen (v5.0.2) tok en del av hullet, men ikke stien over Trettekollen. Den ligger i N50 Samferdsel, som ikke har noen live WFS — et systematisk søk gjennom Geonorges WFS-applikasjoner bekrefter at N50-vektortjenesten er borte for godt. Dataene må derfor bakes én gang og serveres selv, og da er størrelsen alt: den avgjør om stiene kan ligge som statiske fliser ved siden av appen, eller trenger egen lagring bak proxy-workeren.
