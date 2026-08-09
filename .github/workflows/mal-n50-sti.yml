@@ -25,7 +25,11 @@ permissions:
 jobs:
   mal:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # 45, ikke 90: scriptets egne tak (12 min på ordre-klargjøring, timeout på
+    # hvert nettkall) skal slå inn først. Dette er bare en bakstopper mot en
+    # jobb som henger et sted vi ikke har tenkt på — og den skal ikke brenne
+    # halvannen time før den sier fra.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 

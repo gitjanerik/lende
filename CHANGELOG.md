@@ -1,5 +1,17 @@
 # Endringslogg
 
+## 2026-08-09 — v5.0.6: Et tidstak som ikke kan håndheves er ikke et tidstak
+
+Andre måle-kjøring måtte avbrytes etter 50 minutter uten å ha gitt fra seg én linje diagnostikk — altså forbi sitt eget 45-minutters tak på ordre-klargjøringen. Årsaken er lærerik: ingen av `fetch`-kallene hadde timeout. Polle-loopen sjekker tiden MELLOM rundene, så en forespørsel som henger blokkerer inne i `await fetch` og taket blir aldri evaluert. Grensa fantes på papiret og var virkningsløs i praksis.
+
+Nå har hvert eneste nettkall sin egen frist: 60 sekunder på JSON-kallene, 20 minutter på selve nedlastingen (stor fil, men aldri uten tak). Mekanismen er verifisert mot en TCP-server som aksepterer forbindelsen og så tier — den avbrytes på sekundet med `TimeoutError`, som feilhåndteringen oversetter til en lesbar melding.
+
+Taket på ordre-klargjøringen er samtidig senket fra 45 til 12 minutter, og jobbens bakstopper fra 90 til 45. Et tak som er så langt at ingen orker å vente på det gir ingen diagnostikk; det gir bare en jobb noen må avbryte manuelt. Blir 12 minutter for kort, er det i seg selv funnet vi trenger, og da hever vi det bevisst. I samme slengen logges hele ordre-svaret hver sjette runde, ikke bare den første, så en status som endrer seg underveis blir synlig i stedet for å måtte gjettes i ettertid.
+
+Til slutt en forberedelse på plan B: hele `_links`-lista fra capabilities skrives nå ut. For åpne datasett har Geonorge ofte en direkte nedlastingsrute ved siden av ordre-API-et, og finnes den for N50, slipper vi hele klargjørings-ventingen. Vi vet ikke ennå om den er der — derfor logges alt, og fasit leses ut av loggen i stedet for å gjettes.
+
+---
+
 ## 2026-08-09 — v5.0.5: Geonorges ordre-API er asynkront
 
 Første måle-kjøring i CI kom lenger enn ventet og stoppet på ett punkt: bestillingen ble akseptert, men svarte med tom fil-liste. Skriptet antok at nedlastingslenkene fulgte med i POST-svaret. Det gjør de ikke — Geonorge svarer med et referansenummer og en self-lenke, klargjør pakken i bakgrunnen, og filene dukker opp på `GET /api/order/{referanse}` etter hvert. Scriptet poller nå den lenken med romslig tak, tåler forbigående feil underveis, og venter på at hver fil faktisk har fått en nedlastingslenke før den går videre.
