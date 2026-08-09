@@ -6,6 +6,7 @@ import { DOMParser, parseHTML } from 'linkedom'
 import { fetchOverpass, buildSvg, bboxFromCenter } from '../src/lib/mapBuilder.js'
 import { fetchDEM } from '../src/lib/demFetcher.js'
 import { fetchN50Water } from '../src/lib/n50Fetcher.js'
+import { fetchTurruteRoutes, turruteElementsFrom } from '../src/lib/turrutebasenFetcher.js'
 import { utm32BboxFromWgs84 } from '../src/lib/utm.js'
 import { parsePathSubpaths } from '../src/lib/pathUtils.js'
 import { poiType, parseLen, sumTranslate, mmToUnitFromSvg, dedupePoi } from '../src/lib/mapPoi.js'
@@ -80,10 +81,13 @@ export async function buildMapHeadless({
   const resolutionM = demResolutionForArea(utmBbox)
   console.error(`[buildMapHeadless] halfKm=${effHalfKm} → DEM/DOM-oppløsning ${resolutionM} m`)
 
-  const [overpass, n50Water, dem] = await Promise.all([
+  const [overpass, n50Water, dem, turruteRoutes] = await Promise.all([
     fetchOverpass(bbox),
     fetchN50Water(bbox).catch(() => []),
     fetchDEM(bbox, utmBbox, { resolutionM, useReal: true }),
+    // Merkede fotruter (Turrutebasen) — samme kilde som appen, så MCP-bygde
+    // kart ikke mangler stier appen har. Tynnes mot OSM under.
+    fetchTurruteRoutes(bbox).catch(() => []),
   ])
 
   // N50 er autoritativ vannkilde når den leverer (samme filter som CI-scriptet).
@@ -98,6 +102,7 @@ export async function buildMapHeadless({
       })
     : overpass.elements
   if (useN50) elements.push(...n50Water)
+  elements.push(...turruteElementsFrom(turruteRoutes, overpass.elements))
 
   const { svg, counts, meta } = buildSvg(elements, bbox, {
     dem,

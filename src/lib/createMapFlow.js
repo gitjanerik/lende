@@ -21,6 +21,7 @@ import { buildSvgClient } from './buildSvgClient.js'
 import { fetchN50Water } from './n50Fetcher.js'
 import { fetchNveLakePolygons } from './nveLakeFetcher.js'
 import { fetchKulturminner } from './kulturminneFetcher.js'
+import { fetchTurruteRoutes, turruteElementsFrom } from './turrutebasenFetcher.js'
 import { fetchSjokart, sjokartToElements, sjokartTimeoutForBbox, summarizeSjokartStatus } from './sjokartFetcher.js'
 import { isOsmWaterSalty, isFlowingWaterArea } from './symbolizer.js'
 import { pointInRing } from './marineTopology.js'
@@ -481,6 +482,17 @@ export async function buildMapFromCenter({
     console.warn('NVE-innsjø ikke tilgjengelig:', e?.message ?? e)
     return []
   }))
+  // Merkede fotruter (Kartverkets Turrutebasen). Fyrt parallelt med Overpass;
+  // uttynningen mot OSM-stiene skjer i assembleAndBuildFull når begge er inne,
+  // så WFS-en aldri ligger på kritisk sti. Feiler aldri hardt → [].
+  let turruteStatus = null
+  const turruteP = timeAsync('turrute', fetchTurruteRoutes(bbox, {
+    signal, onStatus: s => { turruteStatus = s },
+  }).catch(e => {
+    console.warn('Turrutebasen ikke tilgjengelig:', e?.message ?? e)
+    turruteStatus = { state: 'feil', message: String(e?.message ?? e) }
+    return []
+  }))
   // Kulturminner (Kulturminnesøk brukerminner) — klikkbare tema-ikoner. Hentes
   // alltid ved bygging (default-AV lag i MapView → skjult til brukeren slår det
   // på, uten ombygging). Cachet pr kvantisert bbox (30 d). Feiler aldri hardt → [].
@@ -684,8 +696,12 @@ export async function buildMapFromCenter({
 
   // Full bygging: vent på alle kilder, slå sammen, bygg full SVG (worker).
   const assembleAndBuildFull = async () => {
-    const [osmData, n50Water, nveLakes, dem, sjokart, kulturminner] = await Promise.all([overpassP, n50P, nveLakesP, demPromise, sjokartPromise, kulturminneP])
+    const [osmData, n50Water, nveLakes, dem, sjokart, kulturminner, turruteRoutes] = await Promise.all([overpassP, n50P, nveLakesP, demPromise, sjokartPromise, kulturminneP, turruteP])
     const sjokartElements = sjokartToElements(sjokart)
+    // Merkede fotruter, tynnet mot OSM-ferdselslinjene: ~72 % av Turrutebasen
+    // ligger oppå stier vi allerede tegner, og uten uttynning ville hver av dem
+    // blitt tegnet dobbelt med et par meters forskyvning.
+    const turruteElements = turruteElementsFrom(turruteRoutes, osmData.elements, turruteStatus)
 
     const n50HasFreshwater = n50Water.some(el =>
       (el.tags?.natural === 'water' && el.tags?.salt !== 'yes') ||
@@ -748,11 +764,13 @@ export async function buildMapFromCenter({
       : nveLakes
     if (nveLakesKept.length > 0) elements.push(...nveLakesKept)
     if (sjokartElements.length > 0) elements.push(...sjokartElements)
+    if (turruteElements.length > 0) elements.push(...turruteElements)
 
     const sourceParts = ['OSM']
     if (n50Water.length > 0) sourceParts.push(`N50/NVE-innsjø (${n50Water.length} vann${n50HasSea ? ', m/sjø' : ''})`)
     if (nveLakes.length > 0) sourceParts.push(`NVE (${nveLakes.length} innsjø)`)
     if (sjokartElements.length > 0) sourceParts.push(`Sjøkart (${sjokartElements.length} dybde-features)`)
+    if (turruteElements.length > 0) sourceParts.push(`Turrutebasen (${turruteElements.length} rutestrekk)`)
     sourceParts.push('DEM-sjø (NHM_DTM_25832)')
     const source = sourceParts.join(' + ')
 
@@ -780,6 +798,7 @@ export async function buildMapFromCenter({
       // WFS-fallbacken synlig — hvorfor dybdetall/kai mangler.
       sjokartStatus: summarizeSjokartStatus(sjokart, sjokartElements.length),
       nveInnsjoStatus,               // NVE-innsjø-utfall → meta (Utvikler-fanen)
+      turruteStatus,                 // Turrutebasen-utfall → meta (Utvikler-fanen)
       kulturminner,
       // Tetthets-beslutningen: styrer klynge-avstander, hvilke støy-lag som
       // droppes og navne-takene. 'full' = byte-identisk med før.
@@ -796,7 +815,7 @@ export async function buildMapFromCenter({
       // bredden må være avgjort før DEM-extenten snappes) — den skal være målbar.
       `tetthet ${marks.tetthet ?? '-'} | ` +
       `overpass ${marks.overpass ?? '-'} | n50 ${marks.n50 ?? '-'} | nve ${marks.nve ?? '-'} | dem ${marks.dem ?? '-'} | ` +
-      `sjøkart ${marks['sjøkart'] ?? '-'} | buildSvg ${marks.buildSvg ?? '-'}${inner ? ` (${inner})` : ''}` +
+      `sjøkart ${marks['sjøkart'] ?? '-'} | turrute ${marks.turrute ?? '-'} | buildSvg ${marks.buildSvg ?? '-'}${inner ? ` (${inner})` : ''}` +
       `${terrainFirst ? ' [terreng-først]' : ''} [ms]`
     )
     return { svg, counts, dem, source }

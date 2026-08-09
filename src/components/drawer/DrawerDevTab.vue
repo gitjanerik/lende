@@ -21,6 +21,7 @@ const props = defineProps({
   toggleCull: { type: Function, required: true },
   sjokartStatusText: { type: String, default: '' },
   nveInnsjoStatusText: { type: String, default: '' },
+  turruteStatusText: { type: String, default: '' },
   meta: { type: Object, default: null },
   openVardasen: { type: Function, required: true },
   openPerfLog: { type: Function, required: true },
@@ -166,6 +167,18 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
         <span class="text-[11px] text-right break-all"
               :class="meta?.nveInnsjoStatus?.state === 'ok' ? 'text-ink/55' : 'text-amber-300/80'">
           {{ nveInnsjoStatusText }}
+        </span>
+      </div>
+    </div>
+    <!-- Turrutebasen (merkede fotruter fra Kartverket). Samme grunn som raden
+         over: WFS-en kan feile stille på mobil, og «nye» forteller i tillegg
+         hvor mye som faktisk kom i tillegg til OSM etter uttynningen. -->
+    <div v-if="turruteStatusText" class="mb-2 px-1">
+      <div class="flex items-baseline justify-between gap-2">
+        <span class="text-ink/45 text-[11px]">Turrutebasen</span>
+        <span class="text-[11px] text-right break-all"
+              :class="meta?.turruteStatus?.state === 'ok' ? 'text-ink/55' : 'text-amber-300/80'">
+          {{ turruteStatusText }}
         </span>
       </div>
     </div>
