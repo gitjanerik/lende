@@ -8,6 +8,7 @@
 
 import isomCatalogDefault from './isomCatalog.json' with { type: 'json' }
 import { depthBandFills } from './sjokartFetcher.js'
+import { brukerminneColorRules } from './poiColors.js'
 
 const ISOM_CATEGORY_BY_CODE = (() => {
   const map = {}
@@ -959,13 +960,9 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
 
   // Kulturminne-overlegg (Kulturminnesøk brukerminner — IKKE ISOM). Ett felles
   // fasade-symbol (iso-sym-kulturminne, fill=currentColor) farges pr kategori via
-  // `color` her. Fargene er bevisst utenfor ISOM-paletten (grønn/blå/brun-terreng)
-  // så kulturminnene leser som et eget tematisk lag. Klikkbart → cursor: pointer.
-  rules.push(`${root} [data-layer="kulturminne"] g[data-kat] { color: #6d4c41; cursor: pointer; }`)
-  rules.push(`${root} [data-layer="kulturminne"] g[data-kat="fangst"] { color: #b8730f; }`)
-  rules.push(`${root} [data-layer="kulturminne"] g[data-kat="gravminne"] { color: #7d3c98; }`)
-  rules.push(`${root} [data-layer="kulturminne"] g[data-kat="stein"] { color: #5d6d7e; }`)
-  rules.push(`${root} [data-layer="kulturminne"] g[data-kat="bygning"] { color: #b03a2e; }`)
+  // `color`. Fargetabellen ligger i poiColors.js fordi 3D-nålene bruker de samme
+  // verdiene; ville de blitt skrevet av her, kunne de to drevet fra hverandre.
+  rules.push(...brukerminneColorRules(root))
 
   return rules.join(' ')
 }

@@ -27,7 +27,9 @@ import { polylineLength } from './pathUtils.js'
 // klassene en mild tie-breaker (maks ~1.7× fra sti til motorvei), så
 // avstand dominerer: en litt lengre sti slår fortsatt en kortere kjørevei,
 // men en stor omvei på sti taper mot en kort, direkte rute med litt vei.
-const ISOM_COST = {
+// Eksportert fordi 3D-utforskerens sti-vandring (tour3d/pathWalk.js) bryter
+// uavgjort i kryss på samme rangering: en tydelig sti slår et stitråkk.
+export const ISOM_COST = {
   '505': 1.0,                              // sti — godt løp (mest foretrukket)
   '506': 1.05,                             // sti — uklar
   '507': 1.12,                             // stitråkk — vanskelig, men fortsatt sti

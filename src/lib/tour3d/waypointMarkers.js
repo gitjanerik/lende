@@ -10,20 +10,11 @@ import {
   SphereGeometry, CylinderGeometry, MeshBasicMaterial, Mesh, Group,
   CanvasTexture, SpriteMaterial, Sprite, SRGBColorSpace,
 } from 'three'
-import { sampleElevation } from '../demSampling.js'
+import { PIN_STEM_H, PIN_STEM_R, PIN_HEAD_R, drapedWorld, pinScaleAt } from './pinField.js'
 
 const COLOR_START = 0x16a34a
 const COLOR_DEST = 0xdc2626
 const COLOR_VIA = 0xf59e0b
-
-const PIN_STEM_H = 55
-const PIN_STEM_R = 2.2
-const PIN_HEAD_R = 9
-
-function drapedWorld(dem, coords, x, y, liftM = 0) {
-  const e = sampleElevation(dem, x, y)
-  return coords.toWorld(x, y, (Number.isFinite(e) ? e : 0) + liftM)
-}
 
 function parkingTexture() {
   const px = 128
@@ -172,12 +163,11 @@ export function buildWaypointMarkers({ route, via = [], isLoop = false, parkingS
     // Toggler kun skilt-billboards — start-/mål-/via-nålene står alltid.
     setPinsVisible(v) { signsGroup.visible = !!v },
     // Avstandsoverdrivelse: nær = naturlig størrelse, langt unna vokser nåla
-    // (opptil 5×) så start/mål kan lokaliseres helt i horisonten.
+    // (opptil 5×) så start/mål kan lokaliseres helt i horisonten. Samme
+    // skalering som POI-nålene i utforskeren — se pinField.pinScaleAt.
     update(camera) {
       for (const p of pins) {
-        const d = camera.position.distanceTo(p.position)
-        const s = Math.min(5, Math.max(1, d / 1200))
-        p.scale.setScalar(s)
+        p.scale.setScalar(pinScaleAt(camera.position.distanceTo(p.position)))
       }
     },
     dispose() {

@@ -1,5 +1,40 @@
 # Endringslogg
 
+## 2026-08-09 — v5.1.0: Kartet i 3D, ikke bare turen
+
+3D-visningen har vært låst til én planlagt tur siden den kom. Nå åpner den fra
+snarvei-raden også, uten rute: hele kartet sett fra sentrum mot nord, i sakte
+rotasjon til man tar over. Sporings-snarveien måtte vike for plassen — selve
+sporingen er uendret og ligger som før i «Sporing»-fanen under innstillinger.
+
+Det viktige valget ligger under overflaten. Terreng, karttekstur med aktivt
+tema, himmel, natt og render-loopen er trukket ut i en delt kjerne som begge
+modusene bygger på, i stedet for at utforskeren fikk sin egen kopi. Alle de
+gamle 3D-testene går uendret gjennom, og det er nettopp kvitteringen: neste
+gang terrenget eller himmelen forbedres, treffer det begge visningene uten at
+noen må huske det.
+
+Trykker man på en sti, bygges en tur av stinettet og mates rett inn i det
+eksisterende turmaskineriet — samme rutekurve, samme avspilling, samme
+følgekamera. Turen starter bort fra kameraet, altså framover i det man ser, og
+i kryss vinner stien som går rettest fram. Det er regelen man selv følger når
+man ikke har bestemt seg for noe annet, og den gjør at et tett stinett ikke
+blir en dialog hver femtiende meter. Er to grener like rette, vinner den
+tydeligste stitypen. Krysset meldes likevel i god tid, så man kan velge en
+annen vei — da beholdes det man alt har gått, og turen fortsetter derfra.
+
+POI-ene står som knappenåler i fargene de har i kartet. Kulturminne-fargene lå
+to steder fra før, i kulturminne-laget og i symboliseringen, og en tredje kopi
+til 3D ville betydd at lilla og grått kunne bety ulike ting i to visninger.
+Begge leser nå fra én tabell, og en test vokter at ingen skriver hex-verdiene
+tilbake inn i kildene. Nålene filtreres i to trinn: sammenfallende nåler slås
+sammen én gang ved bygging, og resten går gjennom det samme
+skjermrom-budsjettet som kartnavnene bruker — det er hysterese-stabilt, så
+nålene slutter å blinke når kameraet beveger seg. Hva som vises styres fra et
+minimerbart panel oppe til høyre, og valgene huskes.
+
+---
+
 ## 2026-08-09 — v5.0.16: Stinettet er bakt, og MCP fikk lese det
 
 Baken gikk gjennom alle femten fylker denne gangen: 179 706 km sti og traktorveg ligger nå som 208 fliser i repoet, 12 MB på disk. Rundt Trettekollen gir det 161 linjer i kartutsnittet, 44 av dem merkede — området der OSM ikke hadde noen sti i det hele tatt. Med det er stiløftet fullført, og Lende viser stinettet uten tilleggskart.

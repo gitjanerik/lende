@@ -2851,16 +2851,10 @@ function onShortcutMeasure() {
   activeTab.value = 'maaling'
   openDrawer()
 }
-// Sporing-snarvei: ett trykk = GPS + sporing av/på.
-// Idle → start GPS + start opptak (sist-brukte stil). Opptak → stopp opptak
-// (GPS forblir aktivt så posisjons-prikken vises videre).
-function onShortcutTrack() {
-  if (tracker.isRecording.value) {
-    void tracker.stopRecording()
-    return
-  }
-  if (!userPos.isWatching) startPositioning()
-  tracker.startRecording()
+// Sporing hadde en egen snarvei her til v5.1.0. Plassen gikk til 3D-utforskeren;
+// selve sporingen er uendret og styres fra «Sporing»-fanen i innstillinger.
+function onShortcut3d() {
+  openExplore3d()
 }
 // Info om stedet: åpne kontekst/info-arket på kartets senter (supplement til
 // long-press). openContextMenuAt tar skjerm-koordinater.
@@ -3214,6 +3208,58 @@ function closeTour3d() {
   tour3dData.value = null
 }
 
+// ── 3D-utforsker (v5.1.0) ───────────────────────────────────────────────
+// Samme motor som turvisningen, men uten rute: hele kartet sett fra sentrum
+// mot nord. Stinett og brukerminner leses ut av kart-SVG-en her, siden det er
+// MapView som eier DOM-en — 3D-chunken skal ikke røre den.
+const explore3dOpen = ref(false)
+const explore3dLoading = ref(false)
+const explore3dComp = shallowRef(null)
+const explore3dData = shallowRef(null)
+
+async function prepareExplore3dData() {
+  const svgEl = svgHostRef.value?.querySelector('svg')
+  if (!svgEl || !meta.value) return null
+  const [{ stinettFeaturesFromSvgEl }, { collectBrukerminnePins }] = await Promise.all([
+    import('../lib/stinettAnalyse.js'),
+    import('../lib/tour3d/exploreData.js'),
+  ])
+  return {
+    meta: { ...meta.value },
+    // Både stier og bindeledd (småveg/bro) — en tur langs stien skal kunne
+    // krysse en skogsbilvei uten å stoppe.
+    pathFeatures: stinettFeaturesFromSvgEl(svgEl),
+    brukerminner: collectBrukerminnePins(svgEl),
+  }
+}
+
+async function openExplore3d() {
+  if (explore3dOpen.value) return
+  tour3dError.value = ''
+  explore3dOpen.value = true
+  explore3dLoading.value = true
+  try {
+    await ensureDem()
+    explore3dData.value = await prepareExplore3dData()
+    if (!explore3dData.value) throw new Error('kartet er ikke lastet')
+    if (!explore3dComp.value) {
+      const mod = await import('../components/tour3d/Explore3DViewer.vue')
+      explore3dComp.value = markRaw(mod.default)
+    }
+  } catch {
+    explore3dOpen.value = false
+    explore3dData.value = null
+    tour3dError.value = 'Kunne ikke laste 3D-visningen — sjekk nettforbindelsen'
+    setTimeout(() => { tour3dError.value = '' }, 4000)
+  } finally {
+    explore3dLoading.value = false
+  }
+}
+function closeExplore3d() {
+  explore3dOpen.value = false
+  explore3dData.value = null
+}
+
 // Idle-warm-up: hashede chunks er cache-first-ved-første-fetch i sw.js, så én
 // online kartøkt legger 3D-chunken (inkl. three) i cachen — «Vis i 3D» virker
 // da også uten dekning senere.
@@ -3223,7 +3269,10 @@ watch(meta, (m) => {
   tour3dWarmed = true
   const warm = () => {
     if (navigator.onLine === false || navigator.connection?.saveData) return
+    // Begge viewerne deler tour3d-chunken (three); den tunge biten hentes
+    // uansett bare én gang.
     import('../components/tour3d/Immersive3DViewer.vue').catch(() => {})
+    import('../components/tour3d/Explore3DViewer.vue').catch(() => {})
   }
   if ('requestIdleCallback' in window) requestIdleCallback(warm, { timeout: 15000 })
   else setTimeout(warm, 5000)
@@ -3960,13 +4009,12 @@ onUnmounted(() => {
             <line x1="6.4" y1="17.6" x2="17.6" y2="6.4" stroke-dasharray="2 2.5"/></svg>
           <span>Måling</span>
         </button>
-        <button @click="onShortcutTrack" class="shortcut-btn"
-                :class="{ 'text-sky-400': tracker.isRecording.value }"
-                :aria-label="tracker.isRecording.value ? 'Stopp sporing' : 'Start sporing'">
-          <svg v-if="tracker.isRecording.value" viewBox="0 0 24 24" class="w-5 h-5" fill="currentColor">
-            <rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>
-          <svg v-else viewBox="0 0 24 24" class="w-5 h-5" fill="currentColor"><polygon points="8,5 8,19 19,12"/></svg>
-          <span>Sporing</span>
+        <button @click="onShortcut3d" class="shortcut-btn" aria-label="Se kartet i 3D">
+          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/>
+            <path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>
+          <span>3D</span>
         </button>
         <button @click="onShortcutInfo" class="shortcut-btn" aria-label="Informasjon om stedet">
           <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
@@ -4683,6 +4731,26 @@ onUnmounted(() => {
                :is-dark="isDark"
                :map-title="mapTitle"
                @close="closeTour3d" />
+
+    <!-- 3D-utforsker: hele kartet, ingen rute. Deler chunk (og spinner-stil)
+         med turvisningen — three lastes bare én gang. -->
+    <div v-if="explore3dOpen && explore3dLoading"
+         class="fixed inset-0 z-[219] bg-black/70 flex flex-col items-center justify-center gap-3 text-white/85">
+      <span class="w-9 h-9 rounded-full border-2 border-white/25 border-t-white animate-spin"></span>
+      <span class="text-[13px]">Laster 3D-visning …</span>
+    </div>
+    <component :is="explore3dComp"
+               v-if="explore3dOpen && !explore3dLoading && explore3dComp && explore3dData"
+               :dem="storedDem"
+               :meta="explore3dData.meta"
+               :search-index="searchIndex"
+               :path-features="explore3dData.pathFeatures"
+               :brukerminner="explore3dData.brukerminner"
+               :get-svg-text="(opts) => mapSvgMarkupForExport({ colophon: false, theme: opts?.dark ? 'dark' : null })"
+               :is-dark="isDark"
+               :map-title="mapTitle"
+               @close="closeExplore3d" />
+
     <Transition name="chip-fade">
       <div v-if="tour3dError"
            class="absolute bottom-24 left-1/2 -translate-x-1/2 z-[60] px-3 py-2 rounded-xl
