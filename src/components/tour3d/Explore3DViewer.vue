@@ -174,7 +174,7 @@ onMounted(async () => {
     engine.on('junction-pause', () => { playing.value = false; wake.stop() })
     engine.on('finished', () => { playing.value = false })
     engine.on('no-path', () => showToast('Ingen sti akkurat der'))
-    engine.setAutoPauseJunctions(kryssPauseOn.value)
+    applyKryssPause()
 
     hasPaths.value = engine.hasPaths
     engine.setFeatures(allFeatures)
@@ -228,6 +228,13 @@ const pathsOn = ref(true)
 function togglePaths() {
   pathsOn.value = !pathsOn.value
   engine?.setPathsVisible(pathsOn.value)
+  applyKryssPause()
+}
+
+// Krysspausen gjelder bare når stinettet vises — Kryss-knappen er deaktivert
+// med Stier av, og da skal heller ikke motoren stoppe på usynlige kryss.
+function applyKryssPause() {
+  engine?.setAutoPauseJunctions(kryssPauseOn.value && pathsOn.value)
 }
 
 const pinsOn = ref(true)
@@ -273,7 +280,7 @@ function setTimeScale(x) {
 function toggleKryssPause() {
   kryssPauseOn.value = !kryssPauseOn.value
   try { localStorage.setItem(KRYSSPAUSE_KEY, kryssPauseOn.value ? '1' : '0') } catch { /* privat modus */ }
-  engine?.setAutoPauseJunctions(kryssPauseOn.value)
+  applyKryssPause()
 }
 
 const ISOM_LABEL = {
@@ -293,37 +300,10 @@ function branchLabel(opt, i) {
     <div class="fixed inset-0 z-[220] bg-[#101623] flex flex-col" style="height: 100dvh;">
       <div ref="canvasHost" class="absolute inset-0"></div>
 
-      <!-- Topprad -->
-      <div class="relative z-10 flex items-start justify-between gap-2 px-3"
+      <!-- Topprad: Pin · Sol/måne · Stier · Kryss · Kurver · X -->
+      <div class="relative z-10 flex items-start justify-end gap-2 px-3"
            style="padding-top: max(env(safe-area-inset-top), 10px);">
-        <!-- Krysspause-toggle («gaffel»): på = turen stopper i hvert stikryss
-             så man rekker å velge vei. Valget huskes. -->
-        <button v-if="phase === 'ready'"
-                @click="toggleKryssPause"
-                :aria-label="kryssPauseOn ? 'Ikke stopp i stikryss' : 'Stopp i stikryss'"
-                class="w-11 h-11 rounded-full backdrop-blur flex items-center justify-center
-                       active:scale-95 transition-colors"
-                :class="kryssPauseOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
-          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 21v-8"/>
-            <path d="M12 13 7 8"/><polyline points="7 11 7 8 10 8"/>
-            <path d="M12 13l5-5"/><polyline points="14 8 17 8 17 11"/>
-          </svg>
-        </button>
-        <div v-else></div>
         <div class="flex items-center gap-2 shrink-0">
-          <button v-if="phase === 'ready' && hasPaths"
-                  @click="togglePaths"
-                  :aria-label="pathsOn ? 'Skjul stinettet' : 'Vis stinettet'"
-                  class="w-11 h-11 rounded-full backdrop-blur flex items-center justify-center
-                         active:scale-95 transition-colors"
-                  :class="pathsOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
-            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M4 20c3-1 4-4 3-7s1-6 4-7 6 1 8 3"/>
-            </svg>
-          </button>
           <button v-if="phase === 'ready'"
                   @click="togglePins"
                   :aria-label="pinsOn ? 'Skjul knappenåler' : 'Vis knappenåler'"
@@ -350,6 +330,36 @@ function branchLabel(opt, i) {
               <circle cx="12" cy="12" r="4.2"/>
               <path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5 5l1.7 1.7M17.3 17.3 19 19M19 5l-1.7 1.7M6.7 17.3 5 19"/>
             </svg>
+          </button>
+          <button v-if="phase === 'ready' && hasPaths"
+                  @click="togglePaths"
+                  :aria-label="pathsOn ? 'Skjul stinettet' : 'Vis stinettet'"
+                  class="w-11 h-11 rounded-full backdrop-blur flex items-center justify-center
+                         active:scale-95 transition-colors"
+                  :class="pathsOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
+            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 20c3-1 4-4 3-7s1-6 4-7 6 1 8 3"/>
+            </svg>
+          </button>
+          <!-- Krysspause («gaffel»): på = turen stopper i hvert stikryss så man
+               rekker å velge vei. Valget huskes. Uten stinettet synlig gir den
+               ingen mening — da deaktiveres den. -->
+          <button v-if="phase === 'ready' && hasPaths"
+                  @click="toggleKryssPause"
+                  :disabled="!pathsOn"
+                  :aria-label="kryssPauseOn ? 'Ikke stopp i stikryss' : 'Stopp i stikryss'"
+                  class="h-11 px-3 rounded-full backdrop-blur text-[12px] font-medium
+                         flex items-center gap-1.5 active:scale-95 transition-colors
+                         disabled:opacity-40 disabled:pointer-events-none"
+                  :class="kryssPauseOn && pathsOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 21v-8"/>
+              <path d="M12 13 7 8"/><polyline points="7 11 7 8 10 8"/>
+              <path d="M12 13l5-5"/><polyline points="14 8 17 8 17 11"/>
+            </svg>
+            Kryss
           </button>
           <button v-if="phase === 'ready'"
                   @click="toggleContours"

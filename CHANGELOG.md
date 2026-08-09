@@ -1,5 +1,18 @@
 # Endringslogg
 
+## 2026-08-09 — v5.1.2: Kryss-knappen inn i raden, og død når stinettet er av
+
+Gaffel-knappen som styrer krysspausen sto alene øverst til venstre. Nå ligger
+den i samme knapperad som resten, med teksten «Kryss» ved siden av ikonet —
+til venstre for «Kurver», slik at raden leses Pin · Sol/måne · Stier · Kryss ·
+Kurver · Lukk. Én detalj er viktigere enn flyttingen: knappen deaktiveres når
+stinettet er slått av. Å stoppe i kryss på stier man ikke ser gir ingen
+mening, så motoren følger samme regel — pausen gjelder bare når «Stier» er på,
+uansett hva Kryss-valget står i. Selve valget huskes som før, så skrur man
+stinettet på igjen, er krysspausen tilbake slik man forlot den.
+
+---
+
 ## 2026-08-09 — v5.1.1: Krysspause, tempo og tre småting fra første test
 
 Første brukertest av 3D-utforskeren ga tre justeringer. Den viktigste gjaldt
