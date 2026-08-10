@@ -3095,21 +3095,31 @@ const tour3dPinVisible = computed(() =>
   (sti.mode.value === 'showing' || sti.mode.value === 'following') &&
   !!stiSelectedRoute.value && !!sti.start.value && !!meta.value && !tour3dOpen.value)
 
+// Samme knapp i målenden. Ved rundtur er mål == start, og da ville de to ligget
+// oppå hverandre — der holder den ene.
+const tour3dEndPinVisible = computed(() =>
+  tour3dPinVisible.value && !sti.isLoop.value && !!sti.destination.value)
+
 const tour3dPinElRef = ref(null)
-function positionTour3dPin() {
-  const el = tour3dPinElRef.value
+const tour3dEndPinElRef = ref(null)
+
+function place3dPin(el, p, visible) {
   if (!el) return
-  const p = sti.start.value
   const wrap = wrapperRef.value?.getBoundingClientRect()
-  if (!p || !tour3dPinVisible.value || !wrap) return
+  if (!p || !visible || !wrap) return
   const scr = svgToClient(p.svgX, p.svgY)
   if (!scr) return
-  // Skjul (ikke flytt) når startpunktet er panorert utenfor kartflaten —
+  // Skjul (ikke flytt) når punktet er panorert utenfor kartflaten —
   // chips-knappen «Vis turen i 3D» dekker det tilfellet.
   const inside = scr.x >= wrap.left && scr.x <= wrap.right && scr.y >= wrap.top && scr.y <= wrap.bottom
   el.style.visibility = inside ? 'visible' : 'hidden'
   el.style.left = (scr.x - wrap.left) + 'px'
   el.style.top = (scr.y - wrap.top) + 'px'
+}
+
+function positionTour3dPin() {
+  place3dPin(tour3dPinElRef.value, sti.start.value, tour3dPinVisible.value)
+  place3dPin(tour3dEndPinElRef.value, sti.destination.value, tour3dEndPinVisible.value)
 }
 let tour3dPinRaf = 0
 function tour3dPinRafLoop() {
@@ -3120,7 +3130,8 @@ function tour3dPinRafLoop() {
     tour3dPinRaf = 0
   }
 }
-watch([tour3dPinVisible, () => sti.start.value, scale, translateX, translateY, rotation], positionTour3dPin)
+watch([tour3dPinVisible, tour3dEndPinVisible, () => sti.start.value, () => sti.destination.value,
+  scale, translateX, translateY, rotation], positionTour3dPin)
 watch(animating, (v) => {
   if (v && tour3dPinVisible.value && !tour3dPinRaf) tour3dPinRaf = requestAnimationFrame(tour3dPinRafLoop)
 })
@@ -4209,11 +4220,27 @@ onUnmounted(() => {
         </svg>
       </div>
 
-      <!-- «3D»-pin ved rutens startpunkt (stifinner/rundtur valgt): HTML-
+      <!-- «3D»-pin i BEGGE ender av ruta (stifinner/rundtur valgt): HTML-
            overlay UTENFOR pinch-transformen, samme mønster som long-press-
-           siktet over. Flyter rett over den grønne startprikken. -->
+           siktet over. Flyter rett over start- og målprikken. -->
       <button v-show="tour3dPinVisible"
               ref="tour3dPinElRef"
+              @click="openTour3d"
+              aria-label="Vis turen i 3D"
+              class="absolute top-0 left-0 z-[7] pointer-events-auto flex items-center gap-1
+                     rounded-full bg-gray-900/90 text-white text-[11px] font-bold
+                     pl-2 pr-2.5 py-1 shadow-lg border border-white/25 active:scale-90
+                     transition-transform"
+              style="margin-left:-26px;margin-top:-46px;">
+        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/>
+          <path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>
+        </svg>
+        3D
+      </button>
+      <button v-show="tour3dEndPinVisible"
+              ref="tour3dEndPinElRef"
               @click="openTour3d"
               aria-label="Vis turen i 3D"
               class="absolute top-0 left-0 z-[7] pointer-events-auto flex items-center gap-1
