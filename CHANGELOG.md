@@ -1,5 +1,36 @@
 # Endringslogg
 
+## 2026-08-10 — v5.4.0: Korte, isolerte stistumper luftes ut av 3D
+
+Stinettet i 3D var strødd med små røde streker som ikke førte noe sted — en
+femtimeters rest ved en snuplass, et fragment kartdataene har mistet
+forbindelsen til. De er verken nyttige å se eller å trykke på.
+
+Filteret måler HELE den sammenhengende komponenten et strekk tilhører, ikke
+strekket for seg. Det er hele poenget: en åtti meter lang sidegren inn i en
+lang sti blir stående, fordi komponenten den er del av er lang, mens et
+tilsvarende strekk uten forbindelse forsvinner. Grensa er 500 meter samlet
+komponentlengde. Dangle-broingen i graf-byggingen er beholdt, så en stump som
+ender noen meter fra en annen sti — et T-kryss der forenklingen flyttet
+krysspunktet — regnes som tilkoblet og består. På Asker-kartet forsvant 88 av
+511 strekk, altså 11 av 401 km, på 49 millisekunder.
+
+Analysen av stinettet er urørt: den skal fortsatt telle alt som finnes i
+området og rapportere de korte fragmentene for seg.
+
+En flakete test er også ute av veien, og den hadde to årsaker.
+`createMapFlow.flow.test.js` mocket alle kildene sine bortsett fra
+Turrutebasen og N50-stinettet, som ble lagt til flyten senere. De gjorde
+dermed ekte nettkall som feilet, og retry-backoffen la variabel tid til en
+test som ikke handler om stier i det hele tatt. Med dem mocket falt testen fra
+fem sekunder til ett — men den feilet fortsatt i full suite. Grunnen er at de
+to testene bygger et helt kart hver, og når vitest kjører filene i parallell
+konkurrerer de om kjernene. Der var timeouten den ekte begrensningen, ikke
+noe som skjulte en feil, så de to har fått tretti sekunder hver. Fem
+suite-kjøringer på rad går nå grønt.
+
+---
+
 ## 2026-08-10 — v5.3.1: 3D viser stinettet slik kartet gjør
 
 Slår man av veier og bebyggelse i kartet for å rydde, og åpner 3D, møtte man

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { parseHTML } from 'linkedom'
 import {
   analyserStinett, formatStinettSvar, minKomponentM, stinettFeaturesFromSvgEl,
+  fjernIsolerteStumper,
   STI_KODER, KOBLER_KODER,
 } from './stinettAnalyse.js'
 
@@ -315,5 +316,67 @@ describe('stinettFeaturesFromSvgEl — hoppOverSkjulte', () => {
   it('lar synlige lag være i fred selv med hoppOverSkjulte', () => {
     const synlig = `<g data-layer="sti" style="display: inline"><g data-iso="505"><path d="M0,0 L100,0"/></g></g>`
     expect(stinettFeaturesFromSvgEl(svgOf(synlig), null, { hoppOverSkjulte: true })).toHaveLength(1)
+  })
+})
+
+describe('fjernIsolerteStumper', () => {
+  const linje = (coords, isomCode = '505') => ({ coordinates: coords, isomCode })
+  // Lang hovedsti: 1200 m østover.
+  const hovedsti = linje([[0, 0], [600, 0], [1200, 0]])
+
+  it('fjerner en kort, isolert stump', () => {
+    const isolert = linje([[0, 5000], [200, 5000]])          // 200 m, langt unna
+    const ut = fjernIsolerteStumper([hovedsti, isolert], { minKomponentM: 500 })
+    expect(ut).toHaveLength(1)
+    expect(ut[0]).toBe(hovedsti)
+  })
+
+  it('beholder en kort stump som går inn i en lang sti', () => {
+    // 80 m sidegren fra midten av hovedstien — komponenten blir 1280 m.
+    const sidegren = linje([[600, 0], [600, 80]])
+    const ut = fjernIsolerteStumper([hovedsti, sidegren], { minKomponentM: 500 })
+    expect(ut).toHaveLength(2)
+  })
+
+  it('beholder en stump som ender NÆR en lang sti (T-kryss etter forenkling)', () => {
+    // Endepunktet ligger 8 m fra hovedstien — dangle-broingen kobler den.
+    const nesten = linje([[600, 8], [600, 120]])
+    const ut = fjernIsolerteStumper([hovedsti, nesten], { minKomponentM: 500 })
+    expect(ut).toHaveLength(2)
+  })
+
+  it('fjerner flere isolerte fragmenter, men beholder hele hovednettet', () => {
+    const fragmenter = [
+      linje([[0, 3000], [150, 3000]]),
+      linje([[0, 4000], [300, 4000]]),
+      linje([[2000, 2000], [2100, 2000]]),
+    ]
+    const sidegren = linje([[1200, 0], [1200, 200]])
+    const ut = fjernIsolerteStumper([hovedsti, sidegren, ...fragmenter], { minKomponentM: 500 })
+    expect(ut).toHaveLength(2)
+    expect(ut).toContain(hovedsti)
+    expect(ut).toContain(sidegren)
+  })
+
+  it('beholder et isolert fragment som er langt nok i seg selv', () => {
+    const eget = linje([[0, 9000], [700, 9000]])   // 700 m, isolert men lang
+    const ut = fjernIsolerteStumper([hovedsti, eget], { minKomponentM: 500 })
+    expect(ut).toHaveLength(2)
+  })
+
+  it('summerer komponenten — mange korte strekk som henger sammen består', () => {
+    const kjede = []
+    for (let i = 0; i < 8; i++) kjede.push(linje([[i * 100, 7000], [(i + 1) * 100, 7000]]))
+    const ut = fjernIsolerteStumper(kjede, { minKomponentM: 500 })
+    expect(ut).toHaveLength(8)   // 800 m til sammen
+  })
+
+  it('tåler tomt og degenerert input', () => {
+    expect(fjernIsolerteStumper([])).toEqual([])
+    expect(fjernIsolerteStumper(null)).toEqual([])
+    expect(fjernIsolerteStumper([linje([[0, 0]])])).toEqual([])
+    // minKomponentM 0 = filtrering av
+    const alle = [hovedsti, linje([[0, 5000], [50, 5000]])]
+    expect(fjernIsolerteStumper(alle, { minKomponentM: 0 })).toHaveLength(2)
   })
 })

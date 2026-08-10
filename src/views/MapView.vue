@@ -3237,7 +3237,7 @@ const explore3dData = shallowRef(null)
 async function prepareExplore3dData() {
   const svgEl = svgHostRef.value?.querySelector('svg')
   if (!svgEl || !meta.value) return null
-  const [{ stinettFeaturesFromSvgEl }, { collectBrukerminnePins }] = await Promise.all([
+  const [{ stinettFeaturesFromSvgEl, fjernIsolerteStumper }, { collectBrukerminnePins }] = await Promise.all([
     import('../lib/stinettAnalyse.js'),
     import('../lib/tour3d/exploreData.js'),
   ])
@@ -3247,7 +3247,12 @@ async function prepareExplore3dData() {
     // krysse en skogsbilvei uten å stoppe. `hoppOverSkjulte` gjør at 3D viser
     // det samme stinettet som kartet: har brukeren slått av veier eller stier
     // for å rydde, skal ikke 3D tegne dem likevel.
-    pathFeatures: stinettFeaturesFromSvgEl(svgEl, null, { hoppOverSkjulte: true }),
+    // … og korte, isolerte fragmenter luftes ut: de er verken nyttige å se
+    // eller å trykke på. Stumper som henger sammen med en lang sti blir stående.
+    pathFeatures: fjernIsolerteStumper(
+      stinettFeaturesFromSvgEl(svgEl, null, { hoppOverSkjulte: true }),
+      { minKomponentM: 500 },
+    ),
     brukerminner: collectBrukerminnePins(svgEl),
   }
 }

@@ -17,6 +17,25 @@ vi.mock('./nveLakeFetcher.js', () => ({
 vi.mock('./kulturminneFetcher.js', () => ({
   fetchKulturminner: vi.fn(async () => []),
 }))
+// Turrutebasen og N50-stinettet må mockes som resten av kildene. Uten det
+// gjorde de ekte nettkall som feilet, og retry-backoffen la variabel tid til
+// testen — nok til at den av og til bommet på vitests 5-sekundersgrense selv
+// om den ikke tester stier i det hele tatt. Element-konverteringene er rene og
+// slippes gjennom, så flyten oppfører seg som før.
+vi.mock('./turrutebasenFetcher.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  fetchTurruteRoutes: vi.fn(async (bbox, { onStatus = () => {} } = {}) => {
+    onStatus({ state: 'ok', ruter: 0 })
+    return []
+  }),
+}))
+vi.mock('./n50StiFetcher.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  fetchN50StiLinjer: vi.fn(async (bbox, { onStatus = () => {} } = {}) => {
+    onStatus({ state: 'ok', fliser: 0, linjer: 0 })
+    return []
+  }),
+}))
 vi.mock('./demFetcher.js', () => ({
   fetchDEM: vi.fn(async () => makeMockDem()),
 }))
@@ -139,6 +158,11 @@ describe('buildMapFromCenter — NVE-vann i full-SVG uansett byggevei', () => {
   const baseOpts = {
     center: CENTER, halfKm: 2, aspect: 1, equidistanceM: 20, navn: 'Testkart',
   }
+  // Disse to bygger et HELT kart hver (begge byggeveiene, symbolisering og
+  // konturer), og det er tung CPU-jobb. Alene tar de ~1 s, men når hele suiten
+  // kjører filer i parallell konkurrerer de om kjernene og strakk seg forbi
+  // vitests standardgrense på 5 s — testen feilet på klokka, ikke på innholdet.
+  const TUNG_MS = 30_000
 
   it('direkte bygging (utvidelses-veien): full-SVG har n50-vann', async () => {
     const { entry } = await buildMapFromCenter({ ...baseOpts, terrainFirst: false })
@@ -146,7 +170,7 @@ describe('buildMapFromCenter — NVE-vann i full-SVG uansett byggevei', () => {
     expect(s.n50Paths).toBeGreaterThan(0)
     expect(s.vannPathCount).toBeGreaterThan(0)
     expect(entry.partial).toBe(false)
-  })
+  }, TUNG_MS)
 
   it('terreng-først (picker-veien): full-SVG etter finalize har SAMME n50-vann', async () => {
     const res = await buildMapFromCenter({ ...baseOpts, terrainFirst: true })
@@ -163,5 +187,5 @@ describe('buildMapFromCenter — NVE-vann i full-SVG uansett byggevei', () => {
     const lastSaved = savedEntries[savedEntries.length - 1]
     expect(lastSaved.partial).toBe(false)
     expect(waterStats(lastSaved.svg).n50Paths).toBeGreaterThan(0)
-  })
+  }, TUNG_MS)
 })
