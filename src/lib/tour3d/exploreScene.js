@@ -27,6 +27,7 @@ import { createPlayback } from './playback.js'
 import { createCameraRigs } from './cameraRigs.js'
 import { buildHighlightMarker } from './highlightMarkers.js'
 import { buildGpsMarker } from './gpsMarker.js'
+import { createGpsMovement } from './gpsMovement.js'
 import { kindMeta } from './featureTimeline.js'
 import { groupOfKind } from './exploreData.js'
 
@@ -263,7 +264,10 @@ export async function createExploreScene(container, {
   // ---- Live GPS-posisjon -----------------------------------------------------
 
   // Bygges lazily ved første posisjon — de fleste øktene har ikke GPS på.
+  // Bevegelses-sporet mater «fly til meg»: har man forflyttet seg nylig,
+  // legges kameraet bak posisjonen så blikket peker videre framover.
   let gps = null
+  const movement = createGpsMovement()
   const setUserPosition = (pos) => {
     if (pos && !gps) {
       gps = buildGpsMarker(dem, coords)
@@ -271,6 +275,8 @@ export async function createExploreScene(container, {
       loop.track(gps)
     }
     gps?.setPosition(pos)
+    if (pos) movement.push(pos.x, pos.y, Date.now())
+    else movement.reset()
   }
 
   // ---- Kamera --------------------------------------------------------------
@@ -310,7 +316,20 @@ export async function createExploreScene(container, {
     ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
     raycaster.setFromCamera(ndc, camera)
 
-    // Nåler først — de stikker opp av terrenget og er det mest presise målet.
+    // GPS-nåla først — «fly til meg». Med fersk forflytning (siste 5 min)
+    // vinkles kameraet slik at man ser videre i sannsynlig bevegelsesretning.
+    if (!walk && gps?.visible) {
+      const hit = raycaster.intersectObjects(gps.hitMeshes, false)[0]
+      if (hit) {
+        const p = gps.position
+        highlight.hide()
+        rig.flyTo(p.x, p.y, p.z, { radius: 90, headingXY: movement.heading(Date.now()) })
+        emit('fly-to-gps', {})
+        return
+      }
+    }
+
+    // Nåler — de stikker opp av terrenget og er det mest presise målet.
     if (pins && pinsVisible) {
       const idx = pins.raycast(raycaster)
       if (idx != null && pinItems[idx]) {

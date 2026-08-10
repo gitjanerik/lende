@@ -18,7 +18,7 @@ export function useSymbolRenderers({
   svgHostRef, wrapperRef, wrapperSize, scale, rotation,
   highlightedFeature, proximity,
   measureVertices, measureClosed,
-  sti, onSelectRoute, annot, tracker, userPos, compass,
+  sti, onSelectRoute, annot, tracker, userPos,
 }) {
   // Pulsering tegnes som SVG-circle i et eget overlay-lag, lik annoteringer.
   // Holder konstant skjerm-størrelse ved å konvertere CSS-px til user-units via
@@ -839,29 +839,22 @@ export function useSymbolRenderers({
     const x = userPos.svgX
     const y = userPos.svgY
     const acc = userPos.accuracyM ?? 30
-    // Kjegla peker dit telefonen vender (kompass/magnetometer via DeviceOrientation)
-    // når kompasset er aktivt — det er retningen orienteringsbrukeren vil ha, og
-    // det virker også stillestående. GPS-kurs (coords.heading) er fallback når
-    // kompasset mangler/avvist; den er kun definert i bevegelse og peker dit du
-    // er på vei, ikke dit du vender.
-    const heading = (compass.isActive && Number.isFinite(compass.headingDeg))
-      ? compass.headingDeg
-      : userPos.headingDeg
     layer.replaceChildren()
     if (x == null || y == null) return
     const ns = 'http://www.w3.org/2000/svg'
 
-    // Dynamiske skjerm-størrelser. Dot er fast 14 CSS-px, kjegle 60 CSS-px
-    // ut fra dot. Accuracy-ringen reflekterer ekte fysisk usikkerhet (i meter)
-    // men cappes på ~28 CSS-px radius slik at dårlig GPS (urban / tog / tunnel)
-    // ikke språker ringen utover halve skjermen og dømmer kart-innholdet.
+    // Dynamiske skjerm-størrelser. Dot er fast 14 CSS-px. Accuracy-ringen
+    // reflekterer ekte fysisk usikkerhet (i meter) men cappes på ~28 CSS-px
+    // radius slik at dårlig GPS (urban / tog / tunnel) ikke språker ringen
+    // utover halve skjermen og dømmer kart-innholdet.
     // v8.5.3: stroke-bredder via pxToUserUnits — non-scaling-stroke virker
     // ikke når SVG-en CSS-transformeres av pinch-zoom-wrapperen, så stroke
     // ble fete på høy zoom og det blå fyllet forsvant under den hvite kant-
     // linjen. Nå skaleres bredden eksplisitt på samme måte som radius.
+    // Retningskjegla ble fjernet i v5.2.2 — den drev hit og dit når man sto
+    // stille, som er nettopp når kartet leses.
     const dotR = pxToUserUnits(7)         // ~14 CSS-px diameter
     const dotStroke = pxToUserUnits(1.6)  // tynn hvit halo
-    const coneR = pxToUserUnits(30)       // ~60 CSS-px ut fra dot
     const minRingR = pxToUserUnits(12)    // ringen blir aldri mindre enn dot+halo
     const maxRingR = pxToUserUnits(28)    // visuelt cap
     const ringR = Math.min(maxRingR, Math.max(minRingR, acc))
@@ -875,20 +868,6 @@ export function useSymbolRenderers({
     ring.setAttribute('stroke', 'rgba(56, 189, 248, 0.40)')
     ring.setAttribute('stroke-width', ringStroke)
     layer.appendChild(ring)
-
-    if (Number.isFinite(heading)) {
-      const cone = document.createElementNS(ns, 'path')
-      const ang = (heading - 90) * Math.PI / 180
-      const ang1 = ang - 0.35
-      const ang2 = ang + 0.35
-      const x1 = x + Math.cos(ang1) * coneR
-      const y1 = y + Math.sin(ang1) * coneR
-      const x2 = x + Math.cos(ang2) * coneR
-      const y2 = y + Math.sin(ang2) * coneR
-      cone.setAttribute('d', `M${x},${y} L${x1},${y1} A${coneR},${coneR} 0 0 1 ${x2},${y2} Z`)
-      cone.setAttribute('fill', 'rgba(56, 189, 248, 0.35)')
-      layer.appendChild(cone)
-    }
 
     const dot = document.createElementNS(ns, 'circle')
     dot.setAttribute('cx', x)

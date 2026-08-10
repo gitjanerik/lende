@@ -1,5 +1,28 @@
 # Endringslogg
 
+## 2026-08-10 — v5.2.2: GPS-nål med rippel, og farvel til retningskjegla
+
+Retningskjegla på 2D-posisjonsprikken er fjernet. Den drev hit og dit når
+man sto stille — og stille står man som oftest når kartet faktisk leses.
+En retningsindikator som bare er pålitelig når man ikke trenger den, er
+støy, ikke informasjon.
+
+I 3D er posisjonsmarkøren gjort om til en knappenål med samme form som
+POI-nålene — hvit stamme, kulehode — men hodet er sky-blått som 2D-prikken,
+og ved foten går konsentriske rippel-ringer utover, 3D-svaret på 2D-prikkens
+pulserende nøyaktighetsring. Ytterste rippel-radius er fortsatt
+GPS-nøyaktigheten i ekte meter.
+
+I utforskeren er nåla klikkbar: ett trykk flyr kameraet til der du står. Har
+du forflyttet deg nylig — netto over 30 meter siste fem minutter — legges
+kameraet bak posisjonen i bevegelsesretningen, så du ser terrenget du er på
+vei inn i. Netto forflytning er valgt med vilje: enkeltfikser hopper flere
+meter når man står i ro, men netto går mot null, og da skal kameraet ikke
+late som om man er på vei noe sted. Står man stille, beholdes kameravinkelen
+man alt har, som en ren innzooming.
+
+---
+
 ## 2026-08-09 — v5.2.1: Du er også med i 3D
 
 Har man posisjonering på når 3D åpnes, står man nå selv i terrenget — i både
