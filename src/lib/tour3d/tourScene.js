@@ -22,7 +22,7 @@ export { TourSceneError }
 const PROGRESS_EMIT_MS = 250
 
 export async function createTourScene(container, {
-  dem, meta, svgText, route, features = [],
+  dem, meta, svgText, getSvgText = null, onProgress = null, route, features = [],
   via = [], isLoop = false, parkingSpots = [], pauseSpots = [],
   profileSamples = null, estWalkMinutes = null,
   options = {},
@@ -41,7 +41,11 @@ export async function createTourScene(container, {
 
   // Verden bygges av den delte kjernen; onFrame/onResize kobles på under.
   const hooks = {}
-  const core = await createSceneCore(container, { dem, meta, svgText, options: { exaggeration } }, hooks)
+  const core = await createSceneCore(
+    container,
+    { dem, meta, svgText, getSvgText, onProgress, options: { exaggeration } },
+    hooks,
+  )
   const { scene, camera, coords, loop } = core
   const project = core.project
 

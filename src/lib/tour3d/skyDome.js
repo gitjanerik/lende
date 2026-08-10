@@ -114,6 +114,12 @@ export function buildNightSky({ radius = 25000, starCount = 160 } = {}) {
     opacity: 0.9,
     depthWrite: false,
     blending: AdditiveBlending,
+    // Tåka må ikke røre stjernene (v5.3.0). makeFog setter far til
+    // maxDim × 2.6, så på ethvert kart smalere enn ~8,6 km lå hele
+    // stjerneskallet (22 500) UTENFOR tåka og ble malt i ren tåkefarge —
+    // altså usynlig mot nattehimmelen. Kuppelen slipper unna fordi den
+    // bruker en egen shader uten fog-chunk; her må det sies eksplisitt.
+    fog: false,
   })
   const stars = new Points(starGeo, starMat)
   stars.frustumCulled = false
@@ -122,6 +128,7 @@ export function buildNightSky({ radius = 25000, starCount = 160 } = {}) {
   const moonTex = moonTexture()
   const moonMat = new SpriteMaterial({
     map: moonTex, transparent: true, opacity: 0.85, depthWrite: false,
+    fog: false,   // samme grunn som stjernene — månen lå på 20 500
   })
   const moon = new Sprite(moonMat)
   const moonR = radius * 0.82

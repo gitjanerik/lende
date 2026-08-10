@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { stripContourLayers, stripVectorRelief, stripPointSymbols, cleanSvgForTexture } from './mapTexture.js'
+import {
+  stripContourLayers, stripVectorRelief, stripPointSymbols, cleanSvgForTexture,
+  textureSourceIsBlank, pickTextureSize, PREVIEW_TEXTURE_PX,
+} from './mapTexture.js'
 
 // Speiler mapBuilder-strukturen: kontur-laget har NESTEDE grupper
 // (data-iso="101"/"102" + kontur-tall), som knekker non-greedy regex.
@@ -123,5 +126,43 @@ describe('cleanSvgForTexture', () => {
     const opens = (out.match(/<g\b/g) ?? []).length
     const closes = (out.match(/<\/g>/g) ?? []).length
     expect(opens).toBe(closes)
+  })
+})
+
+describe('textureSourceIsBlank', () => {
+  // Nettleseren kan frigjøre backing-store for store lerret når appen ligger i
+  // bakgrunnen. Lerretet består, men innholdet er borte — og da lastet three
+  // opp en helt gjennomsiktig tekstur, som ble SVART terreng (v5.3.0).
+  const fakeCanvas = (alpha) => ({
+    width: 512,
+    height: 512,
+    getContext: () => ({
+      getImageData: () => ({ data: [0, 0, 0, alpha] }),
+    }),
+  })
+
+  it('kjenner igjen et tømt lerret (alt gjennomsiktig)', () => {
+    expect(textureSourceIsBlank({ image: fakeCanvas(0) })).toBe(true)
+  })
+
+  it('lar et lerret med innhold være i fred', () => {
+    expect(textureSourceIsBlank({ image: fakeCanvas(255) })).toBe(false)
+  })
+
+  it('svarer nei — aldri gjenoppbygging — når lerretet ikke kan leses', () => {
+    // Tainted canvas, manglende 2D-context og tomme dimensjoner skal ikke
+    // trigge en unødvendig ombygging av teksturen.
+    expect(textureSourceIsBlank({ image: { width: 512, height: 512, getContext: () => { throw new Error('tainted') } } })).toBe(false)
+    expect(textureSourceIsBlank({ image: { width: 512, height: 512, getContext: () => null } })).toBe(false)
+    expect(textureSourceIsBlank({ image: { width: 0, height: 0 } })).toBe(false)
+    expect(textureSourceIsBlank(null)).toBe(false)
+    expect(textureSourceIsBlank({})).toBe(false)
+  })
+})
+
+describe('PREVIEW_TEXTURE_PX', () => {
+  it('er mindre enn enhver full teksturstørrelse, så skjerping alltid er et løft', () => {
+    expect(PREVIEW_TEXTURE_PX).toBeLessThan(2048)
+    expect(PREVIEW_TEXTURE_PX).toBeLessThan(pickTextureSize(null))
   })
 })

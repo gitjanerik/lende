@@ -1,5 +1,43 @@
 # Endringslogg
 
+## 2026-08-10 — v5.3.0: Svart terreng etter dvale, og stjerner som var tåkelagt bort
+
+To ekte feil i 3D-visningen, funnet ved bruk.
+
+**Terrenget ble helt svart etter noen minutter i bakgrunnen.** Stiene og
+himmelen sto igjen, og det var nettopp sporet: de bruker ingen tekstur.
+Nettleseren frigjør backing-store for store lerret når appen ligger nede — et
+4096²-lerret er 64 MB — og lerretet består, men innholdet er borte. three
+laster teksturen opp på nytt fra den kilden etter et kontekst-tap, og en tom
+kilde blir en gjennomsiktig tekstur: svart terreng. Kontekst-tap alene er
+altså ikke problemet; det er tapt kilde-innhold. Nå kjenner visningen igjen et
+tømt lerret (kart-SVG-en har dekkende bakgrunn, så et gyldig lerret er
+ugjennomsiktig overalt) og rasteriserer kartet på nytt — både når konteksten
+kommer tilbake og når appen kommer i forgrunnen. Nattmodus var dessuten helt
+uten dekning før: gjenopprettingen rørte bare dag-teksturen, mens det er
+natt-teksturen som ligger på terrenget da.
+
+**Stjernene og månen var usynlige i mørk modus.** De respekterte scene-tåka,
+og `makeFog` setter tåke-far til kartbredden × 2,6 — på et 8 km-kart er det
+20 800, mens stjerneskallet ligger på 22 500 og månen på 20 500. Begge lå
+utenfor tåka og ble malt i ren tåkefarge, altså borte. Himmelkuppelen slapp
+unna fordi den bruker en egen shader uten fog-chunk; nå sier stjernene og
+månen det samme eksplisitt.
+
+I tillegg viser visningen hva den holder på med under bygging, og åpner på en
+1024-tekstur som skjerpes til full oppløsning i bakgrunnen. Her er en måling
+verdt å skrive ned, siden den avkreftet antakelsen bak arbeidet: det er
+rasteriseringen av kart-SVG-en som koster (11 544 elementer, ~7 s i
+programvare-render), ikke lerret-størrelsen — første `drawImage` rasteriserer,
+resten leser fra cache. Forhåndsvisningen gjør derfor ikke åpningen raskere.
+Den er beholdt fordi den halverer noe annet som betyr mer: 4 MB i stedet for
+64 MB tekstur i det mest utsatte øyeblikket, altså mindre av det minnepresset
+som tømmer lerretet i utgangspunktet. Dekodingen deles nå mellom de to
+oppløsningene, så skjerpingen er bare en ny tegning og ikke en ny
+rasterisering.
+
+---
+
 ## 2026-08-10 — v5.2.3: Musa panorerer kartet
 
 3D-visningene virket fine på mobil, men på desktop lot kameraposisjonen seg
