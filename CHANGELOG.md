@@ -1,5 +1,17 @@
 # Endringslogg
 
+## 2026-08-10 — v5.5.2: Sti-knappen i 3D får teksten sin
+
+Etter at knapperaden ble venstrestilt er det ledig plass til høyre, og den
+brukes nå på å skrive «Sti» ved siden av det s-formede ikonet — slik «Kryss» og
+«Kurver» alt gjør. Et ikon aleine er ikke til å gjette, og av de tre togglene
+var stinettet den eneste som ikke sa hva den gjorde. På skjermer smalere enn
+400 piksler faller de tre tekstene bort igjen og knappene blir runde: der er
+det ikke plass til fem merkelapper, og en knapperad som bryter til tre linjer
+er verre enn tre ikoner.
+
+---
+
 ## 2026-08-10 — v5.5.1: Knapperaden i 3D venstrestilles, og 3D-pin i begge ruteender
 
 Topplinja i begge 3D-visningene var høyrestilt, så raden vokste mot venstre — og
