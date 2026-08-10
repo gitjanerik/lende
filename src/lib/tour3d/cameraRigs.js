@@ -11,7 +11,7 @@
 // Under HOLD (feature-direktøren) får aktiv rigg et «frame target» som
 // rammer inn featurens boundingsfære; Free-modus overstyres aldri.
 
-import { Vector3, Quaternion, Matrix4 } from 'three'
+import { Vector3, Quaternion, Matrix4, MOUSE } from 'three'
 import { sampleElevation } from '../demSampling.js'
 
 // Delt med utforsker-riggen (exploreRig.js) så de to modusene får identisk
@@ -296,6 +296,10 @@ export function createCameraRigs({ camera, dem, coords, routeLookup: initialRout
           controls.maxPolarAngle = (85 * Math.PI) / 180
           controls.minDistance = 50
           controls.maxDistance = 1.5 * Math.max(coords.widthM, coords.heightM)
+          // Desktop: venstre-drag panorerer (som i 3D-utforskeren), høyre-drag
+          // roterer. Touch beholder standardoppsettet.
+          controls.mouseButtons = { LEFT: MOUSE.PAN, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.ROTATE }
+          controls.screenSpacePanning = false
         }
         controls.enabled = true
         if (prevMode === null) {
