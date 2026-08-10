@@ -1,5 +1,22 @@
 # Endringslogg
 
+## 2026-08-10 — v5.2.3: Musa panorerer kartet
+
+3D-visningene virket fine på mobil, men på desktop lot kameraposisjonen seg
+ikke flytte — bare rotere. Grunnen var OrbitControls' standardoppsett:
+venstre musetast roterer, og panorering ligger gjemt på høyre tast, der ingen
+leter. For et kart er forventningen motsatt — man drar i kartet og kartet
+flytter seg.
+
+Venstre-drag panorerer nå, høyre-drag roterer, hjulet zoomer — i både
+3D-utforskeren og turvisningens Utforsk-modus. Panoreringen går langs
+bakkeplanet, ikke skjermplanet, så kartet glir under kameraet i stedet for å
+drive opp i himmelen, og blikkpunktet klampes til utsnittet med litt margin
+så man ikke kan panorere seg bort fra kartet. Touch-oppsettet er urørt —
+mobil fungerer som før.
+
+---
+
 ## 2026-08-10 — v5.2.2: GPS-nål med rippel, og farvel til retningskjegla
 
 Retningskjegla på 2D-posisjonsprikken er fjernet. Den drev hit og dit når

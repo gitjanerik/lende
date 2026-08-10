@@ -10,7 +10,7 @@
 // Terrengklaringen og overgangstiden deles med turvisningens rigger
 // (cameraRigs.js), så de to modusene oppfører seg likt der de kan.
 
-import { Vector3, Quaternion, Matrix4 } from 'three'
+import { Vector3, Quaternion, Matrix4, MOUSE } from 'three'
 import { terrainYAt, clearSightLine, easeInOutCubic, TRANSITION_S } from './cameraRigs.js'
 
 // ≈ 5 minutter per omdreining ved 60 fps. OrbitControls' egen default (2.0)
@@ -36,6 +36,15 @@ export async function createExploreRig({ camera, dem, coords, domElement }) {
   controls.maxDistance = 3 * Math.max(coords.widthM, coords.heightM)
   controls.autoRotate = true
   controls.autoRotateSpeed = AUTO_ROTATE_SPEED
+  // Desktop: venstre-drag PANORERER kartet — det er det man forventer av et
+  // kart, og OrbitControls' default (venstre = rotér, panorering gjemt på
+  // høyre musetast) gjorde at kameraposisjonen ikke lot seg flytte i praksis.
+  // Høyre-drag roterer, hjulet zoomer. Touch-oppsettet røres ikke (mobil
+  // fungerer som før: én finger roterer, to fingre panorerer/zoomer).
+  controls.mouseButtons = { LEFT: MOUSE.PAN, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.ROTATE }
+  // Panorér langs bakkeplanet, ikke skjermplanet — kartet skal gli under
+  // kameraet, ikke drive opp i himmelen.
+  controls.screenSpacePanning = false
 
   let transition = null
   let userTook = false
@@ -160,6 +169,14 @@ export async function createExploreRig({ camera, dem, coords, domElement }) {
     },
 
     update(dt) {
+      // Panorering skal ikke kunne miste kartet: blikkpunktet klampes til
+      // utsnittet med litt margin, så man alltid kan finne tilbake.
+      const mx = (coords.widthM / 2) * 1.15
+      const mz = (coords.heightM / 2) * 1.15
+      if (controls.target.x < -mx) controls.target.x = -mx
+      if (controls.target.x > mx) controls.target.x = mx
+      if (controls.target.z < -mz) controls.target.z = -mz
+      if (controls.target.z > mz) controls.target.z = mz
       if (transition) {
         transition.t += dt / TRANSITION_S
         const k = transition.t >= 1 ? 1 : easeInOutCubic(transition.t)
