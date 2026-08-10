@@ -9,22 +9,32 @@ import { fmtKm, fmtDurationMin, fmtMoh } from '../../lib/tour3d/tourFormat.js'
 const props = defineProps({
   stats: { type: Object, default: null },   // progress-payload fra motoren
   landscape: { type: Boolean, default: false },
+  // Hvilke felt som vises. Utforskerens sti-turer har verken høydeprofil eller
+  // gangtid-estimat, så der ville «Stigning» stått på 0 og «Tid igjen» vært
+  // tom — de ber om et kortere sett i stedet for å vise tomme bokser.
+  felter: { type: Array, default: () => ['gaatt', 'igjen', 'hoyde', 'stigning', 'eta'] },
 })
 const emit = defineEmits(['scrub-start', 'scrub', 'scrub-end'])
 
 const rows = computed(() => {
   const s = props.stats
   if (!s) return []
-  const out = [
-    { label: 'Gått', value: fmtKm(s.alongM) },
-    { label: 'Igjen', value: fmtKm(s.remainingM) },
-    { label: 'Høyde', value: fmtMoh(s.elevM) },
-    { label: 'Stigning', value: `↗ ${Math.round(s.ascentSoFarM ?? 0)} m` },
-  ]
-  const eta = fmtDurationMin(s.etaMin)
-  if (eta) out.push({ label: 'Tid igjen', value: eta })
-  return out
+  const alle = {
+    gaatt: { label: 'Gått', value: fmtKm(s.alongM) },
+    igjen: { label: 'Igjen', value: fmtKm(s.remainingM) },
+    hoyde: { label: 'Høyde', value: fmtMoh(s.elevM) },
+    stigning: { label: 'Stigning', value: `↗ ${Math.round(s.ascentSoFarM ?? 0)} m` },
+    eta: fmtDurationMin(s.etaMin)
+      ? { label: 'Tid igjen', value: fmtDurationMin(s.etaMin) }
+      : null,
+  }
+  return props.felter.map(k => alle[k]).filter(Boolean)
 })
+
+// Rutenettet følger antall bokser, så et kortere sett ikke etterlater hull.
+const gridStyle = computed(() => (props.landscape
+  ? {}
+  : { gridTemplateColumns: `repeat(${Math.max(1, rows.value.length)}, minmax(0, 1fr))` }))
 
 const trackRef = ref(null)
 const scrubbing = ref(false)
@@ -64,7 +74,8 @@ function onPointerUp() {
 <template>
   <div :class="landscape
          ? 'flex flex-col gap-1.5 items-end'
-         : 'grid grid-cols-5 gap-1.5 w-full'">
+         : 'grid gap-1.5 w-full'"
+       :style="gridStyle">
     <div v-for="r in rows" :key="r.label"
          class="rounded-lg bg-black/45 backdrop-blur px-2 py-1.5 text-center min-w-0"
          :class="landscape ? 'w-28 text-right px-3' : ''">
@@ -74,8 +85,8 @@ function onPointerUp() {
     <!-- Dra-bar tidsakse. Rikelig touch-flate (py) rundt selve sporet. -->
     <div v-if="stats"
          class="rounded-lg bg-black/45 backdrop-blur px-2.5 py-2.5 cursor-pointer select-none"
-         :class="landscape ? 'w-28' : 'col-span-5'"
-         style="touch-action: none;"
+         :class="landscape ? 'w-28' : ''"
+         :style="landscape ? 'touch-action: none;' : 'touch-action: none; grid-column: 1 / -1;'"
          @pointerdown="onPointerDown"
          @pointermove="onPointerMove"
          @pointerup="onPointerUp"

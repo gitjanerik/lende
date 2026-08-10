@@ -1,8 +1,10 @@
 <script setup>
-// Filterpanel for knappenålene i 3D-utforskeren. Samme grønne toast-stil og
-// samme minimer/utvid-oppførsel som «Følger rute»-panelet i MapModeChips —
-// pille med chevron ned når den er minimert, kort med chevron opp når den er
-// åpen. Ligger oppe til høyre, under toggle-knappene.
+// POI-filter for begge 3D-modusene: i utforskeren styrer det hvilke
+// knappenåler som står i terrenget, i turvisningen hvilke severdigheter turen
+// stopper ved. Samme valg, samme lager — det er én innstilling i brukerens
+// hode. Grønn toast-stil og minimer/utvid som «Følger rute»-panelet i
+// MapModeChips: pille med chevron ned minimert, kort med chevron opp åpen.
+// Ligger oppe til høyre, på samme linje som Info-pilla til venstre.
 //
 // Valgene lagres lokalt så de holder seg mellom økter; et filter man må sette
 // på nytt hver gang er i praksis et filter man slutter å bruke.
@@ -13,6 +15,9 @@ const props = defineProps({
   counts: { type: Object, default: () => ({}) },
   modelValue: { type: Object, required: true }, // { [key]: boolean }
   loading: { type: Boolean, default: false },
+  // Hva valgene heter i denne modusen: nåler i utforskeren, severdigheter i
+  // turvisningen. Samme filter, ulikt utfall — og da skal overskriften si det.
+  tittel: { type: String, default: 'Knappenåler' },
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -46,7 +51,7 @@ watch(visibleGroups, (gs) => { if (!gs.length) expanded.value = false })
 <template>
   <div v-if="visibleGroups.length" class="on-accent max-w-[74vw] sm:max-w-xs">
     <button v-if="!expanded" @click="expanded = true"
-            aria-label="Vis filter for knappenåler"
+            :aria-label="`Vis filter for ${tittel.toLowerCase()}`"
             class="flex items-center gap-1.5 rounded-full bg-emerald-600 text-white
                    text-[11px] font-semibold shadow-lg pl-3 pr-2 py-1.5 active:scale-[0.97]
                    tabular-nums">
@@ -68,7 +73,7 @@ watch(visibleGroups, (gs) => { if (!gs.length) expanded.value = false })
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2">
           <div class="text-[9px] uppercase tracking-wide text-emerald-100/90 flex-1">
-            Knappenåler
+            {{ tittel }}
           </div>
           <button @click="setAll(!allOn)"
                   class="bg-ink/15 rounded px-1.5 py-0.5 text-[10px] font-medium active:scale-95">

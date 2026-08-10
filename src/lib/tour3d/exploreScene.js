@@ -483,6 +483,27 @@ export async function createExploreScene(container, {
     play() { playback?.play() },
     pause() { playback?.pause() },
     stopWalk() { endWalk() },
+    get totalM() { return walkLookup?.totalM ?? 0 },
+
+    // Tidsakse-scrubbing: brukeren drar seg fram og tilbake langs sti-turen.
+    // Kameraet følger av seg selv (follow-riggen leser alongM hver frame), og
+    // avspillingen forblir pauset når man slipper — som i turvisningen.
+    scrubStart() { playback?.pause() },
+    scrub(alongM) {
+      if (!playback || !walk) return
+      playback.seek(alongM)
+      // Kryss-pekeren må flyttes med, ellers ville turen meldt kryss man alt
+      // har dratt forbi — eller hoppet over dem man dro tilbake til.
+      junctionIdx = 0
+      while (junctionIdx < walk.junctions.length
+        && walk.junctions[junctionIdx].alongM <= playback.alongM) junctionIdx++
+      if (activeJunction) {
+        activeJunction = null
+        pausedJunction = null
+        emit('junction', { junction: null })
+      }
+    },
+    scrubEnd() {},
     setTimeScale(x) {
       currentTimeScale = x
       playback?.setTimeScale(x)
