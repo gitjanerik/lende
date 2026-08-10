@@ -12,6 +12,21 @@ import { sampleProfile } from '../../lib/elevationProfile.js'
 import Tour3dControls from './Tour3dControls.vue'
 import Tour3dHud from './Tour3dHud.vue'
 import Tour3dFeatureCard from './Tour3dFeatureCard.vue'
+import Tour3dPinPanel from './Tour3dPinPanel.vue'
+import Tour3dInfoPanel from './Tour3dInfoPanel.vue'
+import { lesPinPrefs, skrivPinPrefs, filtrerPaaPrefs } from '../../lib/tour3d/pinPrefs.js'
+
+// Hjelpetekstene for turvisningen — bare knappene som finnes her.
+const INFO_KNAPPER = [
+  { navn: 'Severdigheter', tekst: 'stopper ved POI langs turen. Filteret ved siden av velger hvilke.' },
+  { navn: 'Sol/måne', tekst: 'bytter mellom lyst og mørkt kart.' },
+  { navn: 'Kurver', tekst: 'legger på høydekurver.' },
+  { navn: 'Følg / Utforsk', tekst: 'kamera langs turen, eller fritt for å se deg rundt.' },
+]
+const INFO_TIPS = [
+  'Dra i tidsaksen for å hoppe fram og tilbake i turen.',
+  'Tempo-knappene styrer hvor fort turen spilles.',
+]
 
 const props = defineProps({
   dem: { type: Object, default: null },        // utpakket DEM (null → tom-tilstand)
@@ -22,7 +37,6 @@ const props = defineProps({
   estWalkMinutes: { type: Function, default: null },
   searchIndex: { type: Array, default: () => [] },
   getSvgText: { type: Function, required: true },
-  mapTitle: { type: String, default: '' },
   // MapView har sendt :is-dark hele tiden, men propen manglet i deklarasjonen
   // (v4.8.5) — props.isDark var derfor undefined, og nattmodus startet ALDRI av
   // seg selv slik kommentaren under påsto. Nå gjør den det, og da er det også
@@ -47,6 +61,13 @@ const playing = ref(false)
 const finished = ref(false)
 const timeScale = ref(128)
 const isLandscape = ref(typeof window !== 'undefined' && window.innerWidth > window.innerHeight)
+// POI-filteret deles med utforskeren (samme lagrede valg). Her filtrerer det
+// hvilke severdigheter som havner i tidslinjen, ikke et nålefelt.
+const pinPrefs = ref(lesPinPrefs())
+const pinGroups = ref([])
+const pinCounts = ref({})
+const extrasLoading = ref(true)
+let alleFeatures = []
 
 const canvasHost = ref(null)
 let engine = null
@@ -92,11 +113,18 @@ onMounted(async () => {
 
   try {
     const engineMod = await import('../../lib/tour3d/index.js')
-    const { createTourScene, collectMapFeatures, findParkingSpots, findPauseSpots, loadNveFeatures, loadHeritageFeatures, defaultTimeScale } = engineMod
+    const {
+      createTourScene, collectMapFeatures, findParkingSpots, findPauseSpots,
+      loadNveFeatures, loadHeritageFeatures, defaultTimeScale,
+      PIN_GROUPS, countByGroup,
+    } = engineMod
 
     const profile = sampleProfile({ points: route.coordinates.map(c => ({ x: c[0], y: c[1] })) }, dem)
     const rawIndex = toRaw(props.searchIndex) ?? []
     const mapFeatures = collectMapFeatures(rawIndex, route.coordinates)
+    pinGroups.value = PIN_GROUPS
+    alleFeatures = [...mapFeatures]
+    pinCounts.value = countByGroup(alleFeatures)
 
     const viaRaw = (toRaw(props.via) ?? []).map(v => ({ svgX: v.svgX, svgY: v.svgY }))
     // Standard-tempo etter turens lengde (kort = 64×, mellomlang = 128×,
@@ -115,7 +143,7 @@ onMounted(async () => {
       isLoop: props.isLoop,
       parkingSpots: findParkingSpots(rawIndex, route.coordinates, { isLoop: props.isLoop }),
       pauseSpots: findPauseSpots(rawIndex, viaRaw),
-      features: mapFeatures,
+      features: filtrerPaaPrefs(mapFeatures, pinPrefs.value),
       profileSamples: profile?.samples ?? null,
       estWalkMinutes: props.estWalkMinutes,
       options: { timeScale: timeScale.value },
@@ -143,15 +171,19 @@ onMounted(async () => {
     applyUserPos(props.userPos)
 
     // Nettbaserte kilder popper inn asynkront — feil svelges stille.
-    const allFeatures = [...mapFeatures]
     const merge = (extra) => {
       if (!extra?.length || !engine) return
-      allFeatures.push(...extra)
-      engine.setFeatures(allFeatures)
+      alleFeatures.push(...extra)
+      pinCounts.value = countByGroup(alleFeatures)
+      applyPinPrefs()
     }
-    loadNveFeatures({ meta: toRaw(props.meta), signal: abort.signal }).then(merge).catch(() => {})
-    loadHeritageFeatures({ route: route.coordinates, meta: toRaw(props.meta), signal: abort.signal }).then(merge).catch(() => {})
+    await Promise.allSettled([
+      loadNveFeatures({ meta: toRaw(props.meta), signal: abort.signal }).then(merge),
+      loadHeritageFeatures({ route: route.coordinates, meta: toRaw(props.meta), signal: abort.signal }).then(merge),
+    ])
+    extrasLoading.value = false
   } catch (err) {
+    extrasLoading.value = false
     phase.value = err?.code === 'no-dem' ? 'no-dem' : err?.code === 'no-webgl' ? 'no-webgl' : 'error'
     if (phase.value === 'error') console.error('3D-visning feilet:', err)
   }
@@ -198,6 +230,17 @@ function togglePins() {
   engine?.setFeaturesEnabled(pinsOn.value)
 }
 
+// POI-filteret: hvilke grupper som får være severdigheter i tidslinjen.
+// Samme valg og samme lager som utforskeren.
+function applyPinPrefs() {
+  engine?.setFeatures(filtrerPaaPrefs(alleFeatures, pinPrefs.value))
+}
+function setPinPrefs(next) {
+  pinPrefs.value = next
+  skrivPinPrefs(next)
+  applyPinPrefs()
+}
+
 // Sol/måne: nattmodus rasteriserer kartet med det ekte mørke temaet.
 // Måne er forvalgt når appen står i mørkt tema.
 const nightOn = ref(props.isDark)
@@ -240,12 +283,11 @@ function skipFeature() { engine?.skipFeature() }
       <!-- WebGL-canvas fyller alt; UI ligger som overlay. -->
       <div ref="canvasHost" class="absolute inset-0"></div>
 
-      <!-- Topprad -->
-      <div class="relative z-10 flex items-center justify-between gap-2 px-3"
+      <!-- Topprad: Severdigheter · Sol/måne · Kurver · X. Kartnavnet lå her før,
+           men det er 2D-kartet man kommer fra — plassen brukes nå av Info-pilla
+           på linja under. -->
+      <div class="relative z-10 flex items-start justify-end gap-2 px-3"
            style="padding-top: max(env(safe-area-inset-top), 10px);">
-        <div class="rounded-full bg-black/45 backdrop-blur px-3 py-1.5 text-[12px] text-white/85 truncate">
-          {{ mapTitle || 'Turen i 3D' }}<span v-if="isLoop" class="text-white/50"> · rundtur</span>
-        </div>
         <div class="flex items-center gap-2 shrink-0">
           <button v-if="phase === 'ready'"
                   @click="togglePins"
@@ -296,6 +338,19 @@ function skipFeature() { engine?.skipFeature() }
             </svg>
           </button>
         </div>
+      </div>
+
+      <!-- Andre linje: hjelp til venstre, POI-filter til høyre — samme
+           plassering og samme piller som i utforskeren, så de to 3D-modusene
+           kjennes som én ting. Filteret vises bare når severdigheter er slått
+           på; da er det det eneste det kan filtrere. -->
+      <div v-if="phase === 'ready'"
+           class="relative z-10 flex items-start justify-between gap-2 px-3 mt-2">
+        <Tour3dInfoPanel modus="tur" :knapper="INFO_KNAPPER" :tips="INFO_TIPS"/>
+        <Tour3dPinPanel v-if="pinsOn" :groups="pinGroups" :counts="pinCounts"
+                        :loading="extrasLoading" tittel="Severdigheter"
+                        :model-value="pinPrefs" @update:model-value="setPinPrefs"/>
+        <div v-else></div>
       </div>
 
       <!-- Laste-/feiltilstander -->

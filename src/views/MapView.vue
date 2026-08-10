@@ -4752,7 +4752,6 @@ onUnmounted(() => {
                :search-index="tour3dData.searchIndex"
                :get-svg-text="(opts) => mapSvgMarkupForExport({ colophon: false, theme: opts?.dark ? 'dark' : null, extent: tour3dData.extent })"
                :is-dark="isDark"
-               :map-title="mapTitle"
                :user-pos="gpsForTour3d"
                @close="closeTour3d" />
 

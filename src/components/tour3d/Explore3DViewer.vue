@@ -10,6 +10,9 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, toRaw } from 'vue'
 import { useScreenWakeLock } from '../../composables/useScreenWakeLock.js'
 import Tour3dFeatureCard from './Tour3dFeatureCard.vue'
 import Tour3dPinPanel from './Tour3dPinPanel.vue'
+import Tour3dInfoPanel from './Tour3dInfoPanel.vue'
+import Tour3dHud from './Tour3dHud.vue'
+import { lesPinPrefs, skrivPinPrefs, paaGrupper } from '../../lib/tour3d/pinPrefs.js'
 
 const props = defineProps({
   dem: { type: Object, default: null },
@@ -27,9 +30,22 @@ const props = defineProps({
 })
 const emit = defineEmits(['close'])
 
-const PIN_PREFS_KEY = 'lende-3d-pins'
 const KRYSSPAUSE_KEY = 'lende-3d-krysspause'
 const TIME_SCALES = [64, 128, 256]
+
+// Hjelpetekstene for denne visningen. Bare knappene som faktisk finnes her.
+const INFO_KNAPPER = [
+  { navn: 'Nåler', tekst: 'viser interessepunkter. Filteret ved siden av velger hvilke.' },
+  { navn: 'Sol/måne', tekst: 'bytter mellom lyst og mørkt kart.' },
+  { navn: 'Stier', tekst: 'tegner stinettet oppå terrenget.' },
+  { navn: 'Kryss', tekst: 'stopper turen i hvert stikryss så du kan velge vei.' },
+  { navn: 'Kurver', tekst: 'legger på høydekurver.' },
+  { navn: 'Oversikt', tekst: 'tar deg tilbake til hele kartet ovenfra.' },
+]
+const INFO_TIPS = [
+  'Trykk på en sti for å følge den.',
+  'Trykk på en knappenål for å fly dit.',
+]
 
 const phase = ref('loading')      // loading | ready | no-dem | no-webgl | error
 const activeFeature = ref(null)
@@ -37,6 +53,7 @@ const walking = ref(false)
 const playing = ref(false)
 const walkLengthM = ref(0)
 const timeScale = ref(128)
+const stats = ref(null)
 const junction = ref(null)
 // Krysspause: turen stopper like før hvert stikryss så valget kan tas i ro.
 // Default på — uten den rekker man ikke å reagere før krysset er passert —
@@ -70,26 +87,16 @@ const errorText = computed(() => ({
 
 // --- lagrede filtervalg ----------------------------------------------------
 
-function loadPinPrefs() {
-  try {
-    const raw = localStorage.getItem(PIN_PREFS_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch { /* korrupt lagring skal ikke hindre 3D */ }
-  return null
-}
-
-const pinPrefs = ref({})
+const pinPrefs = ref(lesPinPrefs())
 
 function setPinPrefs(next) {
   pinPrefs.value = next
-  try { localStorage.setItem(PIN_PREFS_KEY, JSON.stringify(next)) } catch { /* privat modus */ }
+  skrivPinPrefs(next)
   applyPinGroups()
 }
 
 function applyPinGroups() {
-  if (!engine) return
-  const on = new Set(Object.entries(pinPrefs.value).filter(([, v]) => v).map(([k]) => k))
-  engine.setPinGroups(on)
+  engine?.setPinGroups(paaGrupper(pinPrefs.value))
 }
 
 // --- livssyklus ------------------------------------------------------------
@@ -136,8 +143,6 @@ onMounted(async () => {
     } = mod
 
     pinGroups.value = PIN_GROUPS
-    const stored = loadPinPrefs()
-    pinPrefs.value = stored ?? Object.fromEntries(PIN_GROUPS.map(g => [g.key, true]))
 
     const rawIndex = toRaw(props.searchIndex) ?? []
     let allFeatures = clusterFeaturesByMeters([
@@ -160,8 +165,11 @@ onMounted(async () => {
     engine.on('progress', (p) => {
       walking.value = !!p.walking
       if (p.walking) {
+        stats.value = p
         playing.value = !!p.playing
         if (Number.isFinite(p.timeScale)) timeScale.value = p.timeScale
+      } else {
+        stats.value = null
       }
     })
     engine.on('feature', ({ feature }) => {
@@ -282,6 +290,11 @@ function resetView() {
 function play() { engine?.play(); playing.value = true; wake.start() }
 function pause() { engine?.pause(); playing.value = false; wake.stop() }
 function stopWalk() { engine?.stopWalk() }
+
+// Tidsakse: dra = seek (kameraet følger), slipp = forbli pauset.
+function onScrubStart() { engine?.scrubStart(); playing.value = false; wake.stop() }
+function onScrub(pct) { if (engine) engine.scrub(pct * engine.totalM) }
+function onScrubEnd() { engine?.scrubEnd(); playing.value = false }
 function chooseBranch(nodeId) { engine?.chooseBranch(nodeId) }
 
 function setTimeScale(x) {
@@ -409,11 +422,16 @@ function branchLabel(opt, i) {
         </div>
       </div>
 
-      <!-- Filterpanel, oppe til høyre under toggle-knappene -->
-      <div v-if="phase === 'ready' && pinsOn"
-           class="relative z-10 flex justify-end px-3 mt-2">
-        <Tour3dPinPanel :groups="pinGroups" :counts="pinCounts" :loading="extrasLoading"
+      <!-- Andre linje: hjelp til venstre, POI-filter til høyre. Begge minimert
+           som små piller, så de koster nesten ingen kartflate før man trenger
+           dem. Items-start så en utvidet boks ikke dytter den andre nedover. -->
+      <div v-if="phase === 'ready'"
+           class="relative z-10 flex items-start justify-between gap-2 px-3 mt-2">
+        <Tour3dInfoPanel modus="utforsk" :knapper="INFO_KNAPPER" :tips="INFO_TIPS"/>
+        <Tour3dPinPanel v-if="pinsOn" :groups="pinGroups" :counts="pinCounts"
+                        :loading="extrasLoading"
                         :model-value="pinPrefs" @update:model-value="setPinPrefs"/>
+        <div v-else></div>
       </div>
 
       <!-- Laste-/feiltilstander -->
@@ -457,6 +475,12 @@ function branchLabel(opt, i) {
             </button>
           </div>
         </div>
+
+        <!-- Tidsakse med framdrift mens man følger en sti. Turen har ingen
+             høydeprofil eller gangtid-estimat, så feltsettet er kortere enn i
+             turvisningen — tomme bokser er verre enn tre gode. -->
+        <Tour3dHud v-if="walking" :stats="stats" :felter="['gaatt', 'igjen', 'hoyde']"
+                   @scrub-start="onScrubStart" @scrub="onScrub" @scrub-end="onScrubEnd"/>
 
         <div v-if="walking" class="flex items-center gap-2">
           <button @click="playing ? pause() : play()"

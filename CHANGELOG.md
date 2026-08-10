@@ -1,5 +1,24 @@
 # Endringslogg
 
+## 2026-08-10 — v5.5.0: De to 3D-modusene får samme hjelp og samme filter
+
+Navigering i 3D er gester, og gester er usynlige: én finger gjør én ting og to
+fingre noe annet, og det er ikke til å gjette. Begge 3D-visningene har derfor
+fått en «Info»-pille øverst til venstre som forklarer bevegelsene og kort hva
+knappene i toppen gjør — minimert til en liten pille, og med finger-tekst på
+berøringsskjerm og mus-tekst på desktop, så ingen leser om noe de ikke har.
+Samtidig er de to modusene samkjørt: POI-filteret ligger nå i begge, på samme
+linje til høyre og med samme lagrede valg (slår du av brukerminner i
+utforskeren, er de av i turvisningen også), og tidsaksen man drar i for å hoppe
+fram og tilbake finnes nå også i utforskerens sti-turer. For å holde
+knappeflaten nede er kartnavnet fjernet fra turvisningens topplinje — det er
+2D-kartet man kommer fra, og plassen brukes bedre av Info-pilla. Utforskeren
+viser tre fakta-bokser mens man følger en sti (gått, igjen, høyde) i stedet for
+turvisningens fem, siden en sti-tur verken har høydeprofil eller gangtid-anslag
+å fylle de to siste med.
+
+---
+
 ## 2026-08-10 — v5.4.0: Korte, isolerte stistumper luftes ut av 3D
 
 Stinettet i 3D var strødd med små røde streker som ikke førte noe sted — en
