@@ -3612,8 +3612,7 @@ const { loadMap, retryMapDetails } = useMapLoadPipeline({
 
 
 watch(
-  () => [userPos.svgX, userPos.svgY, userPos.accuracyM,
-         compass.headingDeg, compass.isActive, userPos.headingDeg],
+  () => [userPos.svgX, userPos.svgY, userPos.accuracyM],
   () => updateUserDot()
 )
 

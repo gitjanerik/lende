@@ -123,15 +123,22 @@ export async function createExploreRig({ camera, dem, coords, domElement }) {
      * Fly til et punkt i verden og ramm det inn. `radius` er objektets
      * omtrentlige utstrekning; avstanden regnes av kameraets FOV slik at små
      * ting kommer nær og store rammes inn på avstand.
+     *
+     * `headingXY` (enhetsvektor i SVG-meter) legger kameraet BAK punktet i
+     * forhold til retningen, så blikket peker videre framover — brukt når
+     * GPS-posisjonen er i bevegelse og man vil se dit man sannsynligvis skal.
      */
-    flyTo(x, y, z, { radius = 60 } = {}) {
+    flyTo(x, y, z, { radius = 60, headingXY = null } = {}) {
       stopAuto()
       const target = new Vector3(x, y, z)
       const r = Math.max(30, radius)
       const dist = r / Math.tan(((camera.fov * Math.PI) / 180 / 2) * 0.8)
-      // Behold kameraets nåværende asimut, så flyturen leses som en
-      // innzooming og ikke som en desorienterende omplassering.
-      const dir = new Vector3().subVectors(camera.position, controls.target)
+      // Uten heading: behold kameraets nåværende asimut, så flyturen leses
+      // som en innzooming og ikke som en desorienterende omplassering.
+      // SVG-y vokser sørover = world-Z, så vektoren mapper direkte.
+      const dir = headingXY
+        ? new Vector3(-headingXY[0], 0, -headingXY[1])
+        : new Vector3().subVectors(camera.position, controls.target)
       dir.y = 0
       if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1)
       dir.normalize()
