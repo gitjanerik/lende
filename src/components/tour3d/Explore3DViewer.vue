@@ -37,7 +37,7 @@ const TIME_SCALES = [64, 128, 256]
 const INFO_KNAPPER = [
   { navn: 'Nåler', tekst: 'viser interessepunkter. Filteret ved siden av velger hvilke.' },
   { navn: 'Sol/måne', tekst: 'bytter mellom lyst og mørkt kart.' },
-  { navn: 'Stier', tekst: 'tegner stinettet oppå terrenget.' },
+  { navn: 'Sti', tekst: 'tegner stinettet oppå terrenget.' },
   { navn: 'Kryss', tekst: 'stopper turen i hvert stikryss så du kan velge vei.' },
   { navn: 'Kurver', tekst: 'legger på høydekurver.' },
   { navn: 'Oversikt', tekst: 'tar deg tilbake til hele kartet ovenfra.' },
@@ -252,7 +252,7 @@ function togglePaths() {
 }
 
 // Krysspausen gjelder bare når stinettet vises — Kryss-knappen er deaktivert
-// med Stier av, og da skal heller ikke motoren stoppe på usynlige kryss.
+// med Sti av, og da skal heller ikke motoren stoppe på usynlige kryss.
 function applyKryssPause() {
   engine?.setAutoPauseJunctions(kryssPauseOn.value && pathsOn.value)
 }
@@ -337,7 +337,7 @@ function branchLabel(opt, i) {
     <div class="fixed inset-0 z-[220] bg-[#101623] flex flex-col" style="height: 100dvh;">
       <div ref="canvasHost" class="absolute inset-0"></div>
 
-      <!-- Topprad: Pin · Sol/måne · Stier · Kryss · Kurver — venstrestilt, med
+      <!-- Topprad: Pin · Sol/måne · Sti · Kryss · Kurver — venstrestilt, med
            X aleine helt til høyre. Høyrestilt raden vokste mot venstre, og med
            seks knapper falt den første ut av skjermen på smale telefoner
            (S22+, buet kant). Venstrestilt vokser den innover i stedet, og
@@ -372,16 +372,23 @@ function branchLabel(opt, i) {
               <path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5 5l1.7 1.7M17.3 17.3 19 19M19 5l-1.7 1.7M6.7 17.3 5 19"/>
             </svg>
           </button>
+          <!-- Sti-togglen bærer teksten sin, som Kryss og Kurver: ikonet aleine
+               er ikke til å gjette, og etter venstrestillingen er det plass.
+               Under 400 px skjermbredde faller de tre tekstene bort og knappene
+               blir runde igjen — der er det ikke plass til fem merkelapper, og
+               en rad som bryter til tre linjer er verre enn tre ikoner. -->
           <button v-if="phase === 'ready' && hasPaths"
                   @click="togglePaths"
                   :aria-label="pathsOn ? 'Skjul stinettet' : 'Vis stinettet'"
-                  class="w-11 h-11 rounded-full backdrop-blur flex items-center justify-center
+                  class="h-11 px-2.5 max-[399px]:w-11 max-[399px]:px-0 rounded-full backdrop-blur
+                         text-[12px] font-medium flex items-center justify-center gap-1.5
                          active:scale-95 transition-colors"
                   :class="pathsOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
-            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M4 20c3-1 4-4 3-7s1-6 4-7 6 1 8 3"/>
             </svg>
+            <span class="max-[399px]:hidden">Sti</span>
           </button>
           <!-- Krysspause («gaffel»): på = turen stopper i hvert stikryss så man
                rekker å velge vei. Valget huskes. Uten stinettet synlig gir den
@@ -390,8 +397,9 @@ function branchLabel(opt, i) {
                   @click="toggleKryssPause"
                   :disabled="!pathsOn"
                   :aria-label="kryssPauseOn ? 'Ikke stopp i stikryss' : 'Stopp i stikryss'"
-                  class="h-11 px-2.5 rounded-full backdrop-blur text-[12px] font-medium
-                         flex items-center gap-1.5 active:scale-95 transition-colors
+                  class="h-11 px-2.5 max-[399px]:w-11 max-[399px]:px-0 rounded-full backdrop-blur
+                         text-[12px] font-medium flex items-center justify-center gap-1.5
+                         active:scale-95 transition-colors
                          disabled:opacity-40 disabled:pointer-events-none"
                   :class="kryssPauseOn && pathsOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
@@ -400,19 +408,20 @@ function branchLabel(opt, i) {
               <path d="M12 13 7 8"/><polyline points="7 11 7 8 10 8"/>
               <path d="M12 13l5-5"/><polyline points="14 8 17 8 17 11"/>
             </svg>
-            Kryss
+            <span class="max-[399px]:hidden">Kryss</span>
           </button>
           <button v-if="phase === 'ready'"
                   @click="toggleContours"
                   aria-label="Vis høydekurver i terrenget"
-                  class="h-11 px-2.5 rounded-full backdrop-blur text-[12px] font-medium
-                         flex items-center gap-1.5 active:scale-95 transition-colors"
+                  class="h-11 px-2.5 max-[399px]:w-11 max-[399px]:px-0 rounded-full backdrop-blur
+                         text-[12px] font-medium flex items-center justify-center gap-1.5
+                         active:scale-95 transition-colors"
                   :class="contoursOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
               <path d="M4 9c3-3.5 13-3.5 16 0M5.5 13c2.5-2.6 10.5-2.6 13 0M7.5 17c2-1.8 7-1.8 9 0"/>
             </svg>
-            Kurver
+            <span class="max-[399px]:hidden">Kurver</span>
           </button>
         </div>
         <button @click="requestClose"
