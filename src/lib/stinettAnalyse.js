@@ -72,6 +72,63 @@ export function stinettFeaturesFromSvgEl(svgRootEl, koder = null, { hoppOverSkju
 }
 
 /**
+ * Fjern stinett-fragmenter som er både KORTE og ISOLERTE.
+ *
+ * Et kart har mange små stistumper som ikke henger sammen med noe: en
+ * femtimeters rest ved en snuplass, et fragment kartdataene har mistet
+ * forbindelsen til. De er ikke nyttige å se, og ikke nyttige å trykke på.
+ * Filteret måler HELE den sammenhengende komponenten en stump tilhører, ikke
+ * strekket for seg — så en kort stump som går inn i en lang sti blir værende,
+ * fordi komponenten den er en del av er lang.
+ *
+ * Grafen bygges med `componentBridgeM: 0` slik at bare ekte forbindelser
+ * teller; dangle-broingen i buildRoutingGraph er derimot på, så en stump som
+ * ender midt på en annen sti (T-kryss der forenklingen flyttet krysspunktet
+ * noen meter) regnes som tilkoblet.
+ *
+ * @param {Array<{coordinates: Array<[number,number]>, isomCode: string}>} features
+ * @param {{minKomponentM?: number, snapM?: number}} [opts]
+ * @returns {Array} samme objekter, filtrert
+ */
+export function fjernIsolerteStumper(features, { minKomponentM = 500, snapM = 6 } = {}) {
+  const liste = (features ?? []).filter(f => (f?.coordinates?.length ?? 0) >= 2)
+  if (!liste.length || !(minKomponentM > 0)) return liste
+
+  const rg = buildRoutingGraph(liste, { snapM, componentBridgeM: 0 })
+  const g = rg.graph
+  if (!g.order) return liste
+
+  // Komponent-id per node (DFS over alle kanter).
+  const compOf = new Map()
+  let neste = 0
+  g.forEachNode((n) => {
+    if (compOf.has(n)) return
+    const id = neste++
+    const stack = [n]
+    compOf.set(n, id)
+    while (stack.length) {
+      const u = stack.pop()
+      g.forEachNeighbor(u, (v) => {
+        if (!compOf.has(v)) { compOf.set(v, id); stack.push(v) }
+      })
+    }
+  })
+
+  // Samlet lengde per komponent.
+  const lengde = new Map()
+  g.forEachEdge((key, attr, u) => {
+    const id = compOf.get(u)
+    lengde.set(id, (lengde.get(id) ?? 0) + (attr.length ?? 0))
+  })
+
+  return liste.filter((f) => {
+    const treff = rg.nearestNode(f.coordinates[0])
+    if (!treff) return true          // fant vi den ikke, la den stå
+    return (lengde.get(compOf.get(treff.id)) ?? 0) >= minKomponentM
+  })
+}
+
+/**
  * Dynamisk minstelengde (meter) for at en komponent skal telle med, som
  * funksjon av sti-tetthet d = stiKm per kart-km². Ved lav tetthet (øyer,
  * fjell) teller alt ≥ 300 m; i tette nett stiger kravet mot 500 m. Taket lå
