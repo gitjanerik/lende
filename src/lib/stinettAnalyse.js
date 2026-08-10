@@ -28,18 +28,37 @@ const MAKS_SLOYFE_KANTER = 40   // maks kanter som prøves ved sløyfe-søk
 const MIN_SEGMENT_M = 100       // minste segmentlengde for bratthetsmåling
 
 /**
+ * Er elementet skjult av lag-toggling? Lag slås av ved å sette inline
+ * `display: none` på `[data-layer]`-gruppa i live-DOM-en (applyLayerVisibility),
+ * så vi går oppover kjeden og ser etter det. Leser bare inline-stil — ingen
+ * getComputedStyle — så det virker i linkedom og koster ingenting.
+ */
+function erSkjult(el, root) {
+  for (let n = el; n && n !== root; n = n.parentElement) {
+    if (n.style?.display === 'none') return true
+  }
+  return false
+}
+
+/**
  * Trekk sti-/bindeledd-geometri ut av en kart-SVG. Fungerer både med
  * browser-DOMParser og linkedom — leser kun `d`-attributter, aldri getBBox,
  * så SVG-en trenger ikke monteres.
+ *
+ * `hoppOverSkjulte` utelater lag brukeren har slått av i kartet. 3D-visningen
+ * bruker det: har man skjult veier for å rydde i kartbildet, skal ikke
+ * 3D-stinettet tegne dem likevel (v5.3.1). Analysen av stinettet skal derimot
+ * se ALT som finnes, så den er default av.
  * @param {Element} svgRootEl
  * @returns {Array<{coordinates: Array<[number,number]>, isomCode: string}>}
  */
-export function stinettFeaturesFromSvgEl(svgRootEl, koder = null) {
+export function stinettFeaturesFromSvgEl(svgRootEl, koder = null, { hoppOverSkjulte = false } = {}) {
   const features = []
   if (!svgRootEl?.querySelectorAll) return features
   for (const el of svgRootEl.querySelectorAll('[data-iso]')) {
     const code = el.getAttribute('data-iso')
     if (koder ? !koder.has(code) : (!STI_KODER.has(code) && !KOBLER_KODER.has(code))) continue
+    if (hoppOverSkjulte && erSkjult(el, svgRootEl)) continue
     const paths = el.tagName.toLowerCase() === 'path' ? [el] : el.querySelectorAll('path')
     for (const p of paths) {
       const d = p.getAttribute('d')
