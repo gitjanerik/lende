@@ -1,5 +1,21 @@
 # Endringslogg
 
+## 2026-08-10 — v5.5.1: Knapperaden i 3D venstrestilles, og 3D-pin i begge ruteender
+
+Topplinja i begge 3D-visningene var høyrestilt, så raden vokste mot venstre — og
+med seks knapper i utforskeren falt den første, nåleknappen, delvis utenfor
+skjermen på en smal telefon med buet kant (Galaxy S22+). Nå er knappene
+venstrestilte med X-en aleine helt til høyre, gapet mellom dem er strammet inn
+fra 8 til 6 piksler, og tekstknappene («Kryss», «Kurver») har litt mindre
+sidepolstring. Det gir margin i begge ender istedenfor overløp i den ene.
+Samtidig fikk den lille svarte «3D»-knappen som flyter over en valgt rute en
+tvillling i målenden: før sto den bare ved startpunktet, så hadde man panorert
+til andre enden av turen måtte man tilbake til starten for å komme inn i
+3D-visningen. Ved rundtur er start og mål samme punkt, og der vises fortsatt
+bare den ene.
+
+---
+
 ## 2026-08-10 — v5.5.0: De to 3D-modusene får samme hjelp og samme filter
 
 Navigering i 3D er gester, og gester er usynlige: én finger gjør én ting og to

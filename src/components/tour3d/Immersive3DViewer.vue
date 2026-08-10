@@ -283,12 +283,13 @@ function skipFeature() { engine?.skipFeature() }
       <!-- WebGL-canvas fyller alt; UI ligger som overlay. -->
       <div ref="canvasHost" class="absolute inset-0"></div>
 
-      <!-- Topprad: Severdigheter · Sol/måne · Kurver · X. Kartnavnet lå her før,
-           men det er 2D-kartet man kommer fra — plassen brukes nå av Info-pilla
-           på linja under. -->
-      <div class="relative z-10 flex items-start justify-end gap-2 px-3"
+      <!-- Topprad: Severdigheter · Sol/måne · Kurver venstrestilt, X aleine helt
+           til høyre — samme oppsett som utforskeren. Kartnavnet lå her før, men
+           det er 2D-kartet man kommer fra; plassen brukes nå av Info-pilla på
+           linja under. -->
+      <div class="relative z-10 flex items-start justify-between gap-2 px-3"
            style="padding-top: max(env(safe-area-inset-top), 10px);">
-        <div class="flex items-center gap-2 shrink-0">
+        <div class="flex items-center gap-1.5 min-w-0 flex-wrap">
           <button v-if="phase === 'ready'"
                   @click="togglePins"
                   :aria-label="pinsOn ? 'Skjul severdigheter langs turen' : 'Vis severdigheter langs turen'"
@@ -319,7 +320,7 @@ function skipFeature() { engine?.skipFeature() }
           <button v-if="phase === 'ready'"
                   @click="toggleContours"
                   aria-label="Vis høydekurver i terrenget"
-                  class="h-11 px-3 rounded-full backdrop-blur text-[12px] font-medium
+                  class="h-11 px-2.5 rounded-full backdrop-blur text-[12px] font-medium
                          flex items-center gap-1.5 active:scale-95 transition-colors"
                   :class="contoursOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
@@ -328,16 +329,16 @@ function skipFeature() { engine?.skipFeature() }
             </svg>
             Kurver
           </button>
-          <button @click="requestClose"
-                  aria-label="Lukk 3D-visning"
-                  class="w-11 h-11 shrink-0 rounded-full bg-black/45 backdrop-blur text-white/85
-                         flex items-center justify-center active:scale-90">
-            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
-                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-            </svg>
-          </button>
         </div>
+        <button @click="requestClose"
+                aria-label="Lukk 3D-visning"
+                class="w-11 h-11 shrink-0 rounded-full bg-black/45 backdrop-blur text-white/85
+                       flex items-center justify-center active:scale-90">
+          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+               stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+          </svg>
+        </button>
       </div>
 
       <!-- Andre linje: hjelp til venstre, POI-filter til høyre — samme
