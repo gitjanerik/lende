@@ -1,5 +1,24 @@
 # Endringslogg
 
+## 2026-08-09 — v5.2.1: Du er også med i 3D
+
+Har man posisjonering på når 3D åpnes, står man nå selv i terrenget — i både
+turvisningen og utforskeren. Markøren snakker samme språk som 2D-kartets
+posisjonsprikk: sky-blå kule med hvit kant, og en pulserende ring på bakken
+som viser GPS-nøyaktigheten i ekte meter (klampet, så en dårlig fix i tett
+skog ikke drukner terrenget). Kula har samme avstandsoverdrivelse som
+knappenålene, så man finner seg selv også fra full oversikt. Posisjonen
+oppdateres live mens visningen står åpen, og utenfor kartutsnittet skjules
+markøren i stedet for å klistres til kanten.
+
+Én detalj var lett å trå feil på: turvisningen kan utvide utsnittet når ruta
+går utenfor kartflisa, og da forskyves hele koordinatrommet. GPS-posisjonen
+forskyves nå med samme offset, så prikken står der du står — ikke 250 meter
+utenfor. Markøren er én delt modul for begge visningene, i tråd med resten av
+3D-arkitekturen: neste justering av den treffer begge samtidig.
+
+---
+
 ## 2026-08-09 — v5.2.0: Stumper er ikke turmål, og turen venter på deg
 
 Stinettet er fullt av korte blindveier — adkomststumper til parkeringsplasser,

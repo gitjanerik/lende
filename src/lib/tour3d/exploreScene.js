@@ -26,6 +26,7 @@ import { buildRouteLine, buildRouteMarker } from './routeLine.js'
 import { createPlayback } from './playback.js'
 import { createCameraRigs } from './cameraRigs.js'
 import { buildHighlightMarker } from './highlightMarkers.js'
+import { buildGpsMarker } from './gpsMarker.js'
 import { kindMeta } from './featureTimeline.js'
 import { groupOfKind } from './exploreData.js'
 
@@ -259,6 +260,19 @@ export async function createExploreScene(container, {
     emit('walk-end', {})
   }
 
+  // ---- Live GPS-posisjon -----------------------------------------------------
+
+  // Bygges lazily ved første posisjon — de fleste øktene har ikke GPS på.
+  let gps = null
+  const setUserPosition = (pos) => {
+    if (pos && !gps) {
+      gps = buildGpsMarker(dem, coords)
+      scene.add(gps.group)
+      loop.track(gps)
+    }
+    gps?.setPosition(pos)
+  }
+
   // ---- Kamera --------------------------------------------------------------
 
   const rig = await createExploreRig({ camera, dem, coords, domElement: core.renderer.domElement })
@@ -367,6 +381,7 @@ export async function createExploreScene(container, {
       }
 
       highlight.update(timeS, camera)
+      gps?.update(timeS, camera)
       core.updateAmbient(dt)
       if (pins && pinsVisible) pins.update(camera)
 
@@ -426,6 +441,9 @@ export async function createExploreScene(container, {
     // --- stinett ---
     setPathsVisible(v) { paths.setVisible(v) },
     get hasPaths() { return !paths.isEmpty },
+
+    // --- live GPS-posisjon ---
+    setUserPosition,
 
     // --- kamera ---
     resetView() {
