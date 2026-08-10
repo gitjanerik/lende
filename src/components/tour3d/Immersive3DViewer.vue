@@ -6,7 +6,7 @@
 //
 // Lukkeveier: X-knapp, Escape og Android-tilbakeknapp (pushState + popstate;
 // samme URL, så vue-router er upåvirket).
-import { ref, computed, onMounted, onBeforeUnmount, toRaw } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, toRaw } from 'vue'
 import { useScreenWakeLock } from '../../composables/useScreenWakeLock.js'
 import { sampleProfile } from '../../lib/elevationProfile.js'
 import Tour3dControls from './Tour3dControls.vue'
@@ -28,6 +28,9 @@ const props = defineProps({
   // seg selv slik kommentaren under påsto. Nå gjør den det, og da er det også
   // månen og stjernene fra buildNightSky man møter.
   isDark: { type: Boolean, default: false },
+  // Live GPS-posisjon i turens (evt. utvidede) koordinatrom, null når
+  // posisjonering ikke er aktiv. Nytt lite objekt per fix trigger watch-en.
+  userPos: { type: Object, default: null },
 })
 const emit = defineEmits(['close'])
 
@@ -130,6 +133,7 @@ onMounted(async () => {
     // (waypointMarkers), togglen styrer kun severdigheter og turskilt.
     engine.setPinsVisible(pinsOn.value)
     engine.setFeaturesEnabled(pinsOn.value)
+    applyUserPos(props.userPos)
 
     // Nettbaserte kilder popper inn asynkront — feil svelges stille.
     const allFeatures = [...mapFeatures]
@@ -159,6 +163,14 @@ onBeforeUnmount(() => {
     history.back()
   }
 })
+
+// Live GPS: motoren tegner/skjuler markøren selv, inkl. utenfor-kartet-sjekk.
+function applyUserPos(p) {
+  engine?.setUserPosition(p && p.svgX != null
+    ? { x: p.svgX, y: p.svgY, accuracyM: p.accuracyM }
+    : null)
+}
+watch(() => props.userPos, applyUserPos)
 
 // Skarpe vektorkurver oppå kartteksturen — default PÅ, togglebare i både
 // dag- og nattmodus (natt-teksturen bærer det mørke temaets eget relieff).

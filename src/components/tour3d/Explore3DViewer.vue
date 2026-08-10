@@ -6,7 +6,7 @@
 // innholdet er utforskermodusens: fugleperspektiv nordover, stinettet som
 // klikkbart lag, knappenåler med filterpanel, og en tur langs stien når man
 // trykker på en.
-import { ref, computed, onMounted, onBeforeUnmount, toRaw } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, toRaw } from 'vue'
 import { useScreenWakeLock } from '../../composables/useScreenWakeLock.js'
 import Tour3dFeatureCard from './Tour3dFeatureCard.vue'
 import Tour3dPinPanel from './Tour3dPinPanel.vue'
@@ -21,6 +21,9 @@ const props = defineProps({
   brukerminner: { type: Array, default: () => [] },
   getSvgText: { type: Function, required: true },
   isDark: { type: Boolean, default: false },
+  // Live GPS-posisjon i SVG-meter, null når posisjonering ikke er aktiv.
+  // MapView sender et nytt lite objekt per fix, så watch-en trigges.
+  userPos: { type: Object, default: null },
 })
 const emit = defineEmits(['close'])
 
@@ -176,6 +179,7 @@ onMounted(async () => {
     engine.on('finished', () => { playing.value = false })
     engine.on('no-path', () => showToast('Ingen sti akkurat der'))
     applyKryssPause()
+    applyUserPos(props.userPos)
 
     hasPaths.value = engine.hasPaths
     engine.setFeatures(allFeatures)
@@ -277,6 +281,14 @@ function setTimeScale(x) {
   timeScale.value = x
   engine?.setTimeScale(x)
 }
+
+// Live GPS: motoren tegner/skjuler markøren selv, inkl. utenfor-kartet-sjekk.
+function applyUserPos(p) {
+  engine?.setUserPosition(p && p.svgX != null
+    ? { x: p.svgX, y: p.svgY, accuracyM: p.accuracyM }
+    : null)
+}
+watch(() => props.userPos, applyUserPos)
 
 function toggleKryssPause() {
   kryssPauseOn.value = !kryssPauseOn.value

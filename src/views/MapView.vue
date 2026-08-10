@@ -3181,6 +3181,23 @@ async function prepareTour3dData() {
   })
 }
 
+// Live GPS inn i 3D-visningene — kun når posisjonering allerede er aktiv.
+// Nytt lite objekt per fix (computed på svgX/svgY) så viewer-watchen trigges;
+// turvisningen får koordinatene forskjøvet til det (evt. utvidede) utsnittet.
+const gpsForExplore3d = computed(() => {
+  if (!userPos.isWatching || userPos.svgX == null) return null
+  return { svgX: userPos.svgX, svgY: userPos.svgY, accuracyM: userPos.accuracyM }
+})
+const gpsForTour3d = computed(() => {
+  if (!userPos.isWatching || userPos.svgX == null) return null
+  const ext = tour3dData.value?.extent
+  return {
+    svgX: userPos.svgX - (ext?.minX ?? 0),
+    svgY: userPos.svgY - (ext?.minY ?? 0),
+    accuracyM: userPos.accuracyM,
+  }
+})
+
 async function openTour3d() {
   if (tour3dOpen.value) return
   tour3dError.value = ''
@@ -4730,6 +4747,7 @@ onUnmounted(() => {
                :get-svg-text="(opts) => mapSvgMarkupForExport({ colophon: false, theme: opts?.dark ? 'dark' : null, extent: tour3dData.extent })"
                :is-dark="isDark"
                :map-title="mapTitle"
+               :user-pos="gpsForTour3d"
                @close="closeTour3d" />
 
     <!-- 3D-utforsker: hele kartet, ingen rute. Deler chunk (og spinner-stil)
@@ -4748,6 +4766,7 @@ onUnmounted(() => {
                :brukerminner="explore3dData.brukerminner"
                :get-svg-text="(opts) => mapSvgMarkupForExport({ colophon: false, theme: opts?.dark ? 'dark' : null })"
                :is-dark="isDark"
+               :user-pos="gpsForExplore3d"
                @close="closeExplore3d" />
 
     <Transition name="chip-fade">

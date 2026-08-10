@@ -15,6 +15,7 @@ import { buildFeatureTimeline } from './featureTimeline.js'
 import { createFeatureDirector } from './featureDirector.js'
 import { buildHighlightMarker } from './highlightMarkers.js'
 import { buildWaypointMarkers } from './waypointMarkers.js'
+import { buildGpsMarker } from './gpsMarker.js'
 
 export { TourSceneError }
 
@@ -75,6 +76,9 @@ export async function createTourScene(container, {
 
   const highlight = buildHighlightMarker()
   scene.add(highlight.group)
+
+  // Live GPS-posisjon — bygges lazily ved første posisjon fra viewer-laget.
+  let gps = null
 
   const featureWorldPos = (f) => {
     const e = sampleElevation(dem, f.x, f.y)
@@ -143,6 +147,7 @@ export async function createTourScene(container, {
       marker.pulse(timeS)
       routeLine.setProgress(alongM)
       highlight.update(timeS, camera)
+      gps?.update(timeS, camera)
       core.updateAmbient(dt)
       waypoints.update(camera)
       rigs.update(dt, alongM)
@@ -240,6 +245,14 @@ export async function createTourScene(container, {
     setContoursVisible: (v) => core.setContoursVisible(v),
     get contoursVisible() { return core.contoursVisible },
     setPinsVisible(v) { waypoints.setPinsVisible(v) },
+    setUserPosition(pos) {
+      if (pos && !gps) {
+        gps = buildGpsMarker(dem, coords)
+        scene.add(gps.group)
+        loop.track(gps)
+      }
+      gps?.setPosition(pos)
+    },
     // Sol/måne håndteres av kjernen; kurve-tvang i nattmodus av UI-laget.
     setNightMode: (on, opts) => core.setNightMode(on, opts),
     setFeatures: (features) => {
