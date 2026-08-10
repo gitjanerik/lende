@@ -1,5 +1,19 @@
 # Endringslogg
 
+## 2026-08-10 — v5.5.3: Tekstene i 3D-raden overlever en 384 px-skjerm
+
+Terskelen fra forrige versjon var satt til 400 piksler, og en Galaxy S22+ har
+384 piksler bred viewport — altså skjulte den «Sti», «Kryss» og «Kurver»
+nøyaktig på den telefonen de var ment for. Knappene er strammet for å kjøpe
+plassen tekstene trenger: gapet mellom dem fra 6 til 4 piksler, litt mindre
+sidepolstring og tettere mellom ikon og tekst. Målt på 384 piksler slutter
+knapperaden nå på 311 med 17 piksler luft foran X-en, på én linje. Terskelen er
+senket tilsvarende, så tekstene faller først bort under 379 piksler, der de
+uansett ikke kan stå på én linje. Turvisningen har fått samme knappemål, så de
+to 3D-modusene ser like ut når man bytter mellom dem.
+
+---
+
 ## 2026-08-10 — v5.5.2: Sti-knappen i 3D får teksten sin
 
 Etter at knapperaden ble venstrestilt er det ledig plass til høyre, og den

@@ -344,7 +344,7 @@ function branchLabel(opt, i) {
            gapet er strammet inn for å gi mer luft i marginene. -->
       <div class="relative z-10 flex items-start justify-between gap-2 px-3"
            style="padding-top: max(env(safe-area-inset-top), 10px);">
-        <div class="flex items-center gap-1.5 min-w-0 flex-wrap">
+        <div class="flex items-center gap-1 min-w-0 flex-wrap">
           <button v-if="phase === 'ready'"
                   @click="togglePins"
                   :aria-label="pinsOn ? 'Skjul knappenåler' : 'Vis knappenåler'"
@@ -374,21 +374,21 @@ function branchLabel(opt, i) {
           </button>
           <!-- Sti-togglen bærer teksten sin, som Kryss og Kurver: ikonet aleine
                er ikke til å gjette, og etter venstrestillingen er det plass.
-               Under 400 px skjermbredde faller de tre tekstene bort og knappene
+               Under 380 px skjermbredde faller de tre tekstene bort og knappene
                blir runde igjen — der er det ikke plass til fem merkelapper, og
                en rad som bryter til tre linjer er verre enn tre ikoner. -->
           <button v-if="phase === 'ready' && hasPaths"
                   @click="togglePaths"
                   :aria-label="pathsOn ? 'Skjul stinettet' : 'Vis stinettet'"
-                  class="h-11 px-2.5 max-[399px]:w-11 max-[399px]:px-0 rounded-full backdrop-blur
-                         text-[12px] font-medium flex items-center justify-center gap-1.5
+                  class="h-11 px-2 max-[379px]:w-11 max-[379px]:px-0 rounded-full backdrop-blur
+                         text-[12px] font-medium flex items-center justify-center gap-1
                          active:scale-95 transition-colors"
                   :class="pathsOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M4 20c3-1 4-4 3-7s1-6 4-7 6 1 8 3"/>
             </svg>
-            <span class="max-[399px]:hidden">Sti</span>
+            <span class="max-[379px]:hidden">Sti</span>
           </button>
           <!-- Krysspause («gaffel»): på = turen stopper i hvert stikryss så man
                rekker å velge vei. Valget huskes. Uten stinettet synlig gir den
@@ -397,8 +397,8 @@ function branchLabel(opt, i) {
                   @click="toggleKryssPause"
                   :disabled="!pathsOn"
                   :aria-label="kryssPauseOn ? 'Ikke stopp i stikryss' : 'Stopp i stikryss'"
-                  class="h-11 px-2.5 max-[399px]:w-11 max-[399px]:px-0 rounded-full backdrop-blur
-                         text-[12px] font-medium flex items-center justify-center gap-1.5
+                  class="h-11 px-2 max-[379px]:w-11 max-[379px]:px-0 rounded-full backdrop-blur
+                         text-[12px] font-medium flex items-center justify-center gap-1
                          active:scale-95 transition-colors
                          disabled:opacity-40 disabled:pointer-events-none"
                   :class="kryssPauseOn && pathsOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
@@ -408,20 +408,20 @@ function branchLabel(opt, i) {
               <path d="M12 13 7 8"/><polyline points="7 11 7 8 10 8"/>
               <path d="M12 13l5-5"/><polyline points="14 8 17 8 17 11"/>
             </svg>
-            <span class="max-[399px]:hidden">Kryss</span>
+            <span class="max-[379px]:hidden">Kryss</span>
           </button>
           <button v-if="phase === 'ready'"
                   @click="toggleContours"
                   aria-label="Vis høydekurver i terrenget"
-                  class="h-11 px-2.5 max-[399px]:w-11 max-[399px]:px-0 rounded-full backdrop-blur
-                         text-[12px] font-medium flex items-center justify-center gap-1.5
+                  class="h-11 px-2 max-[379px]:w-11 max-[379px]:px-0 rounded-full backdrop-blur
+                         text-[12px] font-medium flex items-center justify-center gap-1
                          active:scale-95 transition-colors"
                   :class="contoursOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
               <path d="M4 9c3-3.5 13-3.5 16 0M5.5 13c2.5-2.6 10.5-2.6 13 0M7.5 17c2-1.8 7-1.8 9 0"/>
             </svg>
-            <span class="max-[399px]:hidden">Kurver</span>
+            <span class="max-[379px]:hidden">Kurver</span>
           </button>
         </div>
         <button @click="requestClose"

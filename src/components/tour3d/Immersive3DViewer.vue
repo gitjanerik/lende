@@ -289,7 +289,7 @@ function skipFeature() { engine?.skipFeature() }
            linja under. -->
       <div class="relative z-10 flex items-start justify-between gap-2 px-3"
            style="padding-top: max(env(safe-area-inset-top), 10px);">
-        <div class="flex items-center gap-1.5 min-w-0 flex-wrap">
+        <div class="flex items-center gap-1 min-w-0 flex-wrap">
           <button v-if="phase === 'ready'"
                   @click="togglePins"
                   :aria-label="pinsOn ? 'Skjul severdigheter langs turen' : 'Vis severdigheter langs turen'"
@@ -320,14 +320,15 @@ function skipFeature() { engine?.skipFeature() }
           <button v-if="phase === 'ready'"
                   @click="toggleContours"
                   aria-label="Vis høydekurver i terrenget"
-                  class="h-11 px-2.5 rounded-full backdrop-blur text-[12px] font-medium
-                         flex items-center gap-1.5 active:scale-95 transition-colors"
+                  class="h-11 px-2 max-[379px]:w-11 max-[379px]:px-0 rounded-full backdrop-blur
+                         text-[12px] font-medium flex items-center justify-center gap-1
+                         active:scale-95 transition-colors"
                   :class="contoursOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
               <path d="M4 9c3-3.5 13-3.5 16 0M5.5 13c2.5-2.6 10.5-2.6 13 0M7.5 17c2-1.8 7-1.8 9 0"/>
             </svg>
-            Kurver
+            <span class="max-[379px]:hidden">Kurver</span>
           </button>
         </div>
         <button @click="requestClose"
