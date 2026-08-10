@@ -3244,8 +3244,10 @@ async function prepareExplore3dData() {
   return {
     meta: { ...meta.value },
     // Både stier og bindeledd (småveg/bro) — en tur langs stien skal kunne
-    // krysse en skogsbilvei uten å stoppe.
-    pathFeatures: stinettFeaturesFromSvgEl(svgEl),
+    // krysse en skogsbilvei uten å stoppe. `hoppOverSkjulte` gjør at 3D viser
+    // det samme stinettet som kartet: har brukeren slått av veier eller stier
+    // for å rydde, skal ikke 3D tegne dem likevel.
+    pathFeatures: stinettFeaturesFromSvgEl(svgEl, null, { hoppOverSkjulte: true }),
     brukerminner: collectBrukerminnePins(svgEl),
   }
 }

@@ -1,5 +1,25 @@
 # Endringslogg
 
+## 2026-08-10 — v5.3.1: 3D viser stinettet slik kartet gjør
+
+Slår man av veier og bebyggelse i kartet for å rydde, og åpner 3D, møtte man
+likevel et tett vev av brune og røde linjer over hele terrenget. Det var ikke
+caching — teksturen bygges fra en klone av live-DOM-en, og der ligger
+lag-avslåingen som inline `display: none`, så kartbildet på terrenget var helt
+riktig hele tiden. Feilen satt i 3D-visningens eget stinett-lag: det leste
+`[data-iso]`-gruppene rått ut av SVG-en og brydde seg ikke om at de var
+skjult. På Asker-kartet ga det 511 linjer der kartet viste 276.
+
+Uttrekket kan nå hoppe over skjulte lag, og 3D bruker det. Analysen av
+stinettet skal fortsatt se alt som finnes i området, uansett hva som er slått
+av i visningen, så den beholder gammel oppførsel — valget er eksplisitt hos
+kalleren.
+
+Knappenålene følger derimot fortsatt sitt eget filterpanel, ikke kartlagene.
+Det er med vilje: panelet er der nettopp for å styre dem.
+
+---
+
 ## 2026-08-10 — v5.3.0: Svart terreng etter dvale, og stjerner som var tåkelagt bort
 
 To ekte feil i 3D-visningen, funnet ved bruk.

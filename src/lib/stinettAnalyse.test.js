@@ -277,3 +277,43 @@ describe('stinettFeaturesFromSvgEl', () => {
     for (const kode of STI_KODER) expect(KOBLER_KODER.has(kode)).toBe(false)
   })
 })
+
+describe('stinettFeaturesFromSvgEl — hoppOverSkjulte', () => {
+  // Lag slås av ved å sette inline display:none på [data-layer]-gruppa
+  // (applyLayerVisibility). 3D-visningen skal vise samme stinett som kartet:
+  // har brukeren skjult veier, skal ikke 3D tegne dem likevel (v5.3.1).
+  const svgOf = (inner) => {
+    const { document } = parseHTML(
+      `<html><body><svg xmlns="http://www.w3.org/2000/svg">${inner}</svg></body></html>`)
+    return document.querySelector('svg')
+  }
+  const markup = `
+    <g data-layer="sti"><g data-iso="505"><path d="M0,0 L100,0"/></g></g>
+    <g data-layer="vei-liten" style="display: none"><g data-iso="503"><path d="M0,50 L100,50"/></g></g>
+    <g data-layer="vei-skogsbil"><g data-iso="504"><path d="M0,90 L100,90"/></g></g>`
+
+  it('tar med alt som default — analysen skal se hele nettet', () => {
+    const koder = stinettFeaturesFromSvgEl(svgOf(markup)).map(f => f.isomCode)
+    expect(koder.sort()).toEqual(['503', '504', '505'])
+  })
+
+  it('utelater skjulte lag når det er bedt om', () => {
+    const koder = stinettFeaturesFromSvgEl(svgOf(markup), null, { hoppOverSkjulte: true })
+      .map(f => f.isomCode)
+    expect(koder.sort()).toEqual(['504', '505'])
+  })
+
+  it('finner display:none lenger opp i kjeden', () => {
+    const nestet = `
+      <g data-layer="vei-liten" style="display: none">
+        <g><g data-iso="503"><path d="M0,0 L100,0"/></g></g>
+      </g>`
+    expect(stinettFeaturesFromSvgEl(svgOf(nestet), null, { hoppOverSkjulte: true })).toEqual([])
+    expect(stinettFeaturesFromSvgEl(svgOf(nestet))).toHaveLength(1)
+  })
+
+  it('lar synlige lag være i fred selv med hoppOverSkjulte', () => {
+    const synlig = `<g data-layer="sti" style="display: inline"><g data-iso="505"><path d="M0,0 L100,0"/></g></g>`
+    expect(stinettFeaturesFromSvgEl(svgOf(synlig), null, { hoppOverSkjulte: true })).toHaveLength(1)
+  })
+})
