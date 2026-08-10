@@ -4,7 +4,7 @@
 // materialer, teksturer) + forceContextLoss (iOS har hardt tak på antall
 // WebGL-contexts).
 
-export function createEngineLoop({ renderer, camera, container, onFrame, onResize = null, onContextLost = null, onContextRestored = null }) {
+export function createEngineLoop({ renderer, camera, container, onFrame, onResize = null, onContextLost = null, onContextRestored = null, onVisible = null }) {
   const disposables = new Set()
   const listeners = []
   let rafId = 0
@@ -69,9 +69,14 @@ export function createEngineLoop({ renderer, camera, container, onFrame, onResiz
     start()
     onContextRestored?.()
   })
+  // Retur fra bakgrunn er ikke bare «start loopen igjen»: nettleseren kan ha
+  // frigjort GPU-context OG backing-store for store lerret mens vi lå nede,
+  // så kalleren får sjansen til å sjekke ressursene sine på nytt.
   on(document, 'visibilitychange', () => {
-    if (document.hidden) stop()
-    else start()
+    if (document.hidden) { stop(); return }
+    start()
+    resize()
+    onVisible?.()
   })
 
   return {

@@ -49,7 +49,8 @@ const PATH_HIT_TOL_M = 90
 const JUNCTION_PAUSE_M = 25
 
 export async function createExploreScene(container, {
-  dem, meta, svgText, pathFeatures = [], features = [],
+  dem, meta, svgText, getSvgText = null, onProgress = null,
+  pathFeatures = [], features = [],
   options = {},
 }) {
   if (!dem) throw new TourSceneError('no-dem', 'Kartet mangler høydedata')
@@ -61,7 +62,11 @@ export async function createExploreScene(container, {
   } = options
 
   const hooks = {}
-  const core = await createSceneCore(container, { dem, meta, svgText, options: { exaggeration } }, hooks)
+  const core = await createSceneCore(
+    container,
+    { dem, meta, svgText, getSvgText, onProgress, options: { exaggeration } },
+    hooks,
+  )
   const { scene, camera, coords, terrain, loop } = core
 
   const listeners = new Map()

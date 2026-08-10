@@ -68,6 +68,48 @@ export function pickTextureSize(renderer) {
   return maxTex >= 8192 && mem >= 6 ? 4096 : 2048
 }
 
+// Førstevisningen bygges på dette, og skjerpes til pickTextureSize etterpå.
+// Et 1024-lerret er ~16× mindre å laste opp til GPU-en og mipmappe enn 4096,
+// og det er den opplastingen — ikke rasteriseringen — som koster tid på mobil.
+export const PREVIEW_TEXTURE_PX = 1024
+
+/**
+ * Er kilde-lerretet til teksturen tømt?
+ *
+ * Nettleseren kan frigjøre backing-store for store lerret når appen ligger i
+ * bakgrunnen (et 4096²-lerret er 64 MB). Lerretet består, men innholdet er
+ * borte — og siden three laster teksturen opp på nytt fra kilden etter et
+ * kontekst-tap, ble terrenget helt SVART. Kart-SVG-en har en dekkende
+ * bakgrunn, så et gyldig lerret er ugjennomsiktig overalt; alpha 0 i alle
+ * prøvepunktene betyr tømt.
+ *
+ * Konservativ med vilje: kan vi ikke lese lerretet (tainted canvas, ingen
+ * 2D-context), svarer vi «ikke tømt» og lar teksturen være.
+ */
+export function textureSourceIsBlank(tex) {
+  const canvas = tex?.image
+  if (!canvas || !canvas.width || !canvas.height) return false
+  try {
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return false
+    const w = canvas.width
+    const h = canvas.height
+    const punkter = [
+      [w >> 1, h >> 1],
+      [w >> 2, h >> 2],
+      [(w * 3) >> 2, h >> 2],
+      [w >> 2, (h * 3) >> 2],
+      [(w * 3) >> 2, (h * 3) >> 2],
+    ]
+    for (const [x, y] of punkter) {
+      if (ctx.getImageData(x, y, 1, 1).data[3] !== 0) return false
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
 /**
  * @param {string} svgString  kart-SVG (eksport-markup fra MapView)
  * @param {import('../demSampling.js').DEM|null} dem  for hillshade-bake
@@ -76,40 +118,67 @@ export function pickTextureSize(renderer) {
  *   lyst tema og strippes; i stedet bakes screen-blend (lysner mørk flate).
  * @returns {Promise<CanvasTexture>}
  */
-export async function buildMapTexture(svgString, dem, { sizePx, renderer, night = false } = {}) {
-  const px = sizePx ?? pickTextureSize(renderer)
+/**
+ * Dekod kart-SVG-en én gang, klar til å rasteriseres i flere størrelser.
+ *
+ * Dekodingen — nettleserens parsing og rasterisering av titusenvis av
+ * SVG-elementer — er den dyre delen, og den koster det samme uansett hvor
+ * stort lerretet er. Derfor deles den fra selve tegningen: da kan vi vise en
+ * liten tekstur først og skjerpe til full oppløsning etterpå uten å betale
+ * for rasteriseringen to ganger. Samme grunn til at relieffet bakes én gang.
+ *
+ * @returns {Promise<{img: HTMLImageElement, cleaned: string, dispose: () => void}>}
+ */
+export async function prepareMapTextureSource(svgString, { night = false } = {}) {
   let cleaned = cleanSvgForTexture(svgString)
   // Nattmodus: relieff-bildene (aktiv flise + nabo-flisenes data-ghost-relief)
   // er tonet for lyst tema — strip dem og bak screen-blend i stedet.
   if (night) cleaned = cleaned.replace(/<image\b[^>]*(?:id="hillshade-layer"|data-ghost-relief)[^>]*\/?>(<\/image>)?/g, '')
 
+  const blob = new Blob([cleaned], { type: 'image/svg+xml;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const img = new Image()
+  try {
+    await new Promise((resolve, reject) => {
+      img.onload = resolve
+      img.onerror = () => reject(new Error('SVG-rasterisering feilet'))
+      img.src = url
+    })
+  } catch (err) {
+    URL.revokeObjectURL(url)
+    throw err
+  }
+  let shadeCanvas = null
+  return {
+    img,
+    cleaned,
+    /** Relieff-lerretet, bygget ved første behov og gjenbrukt etterpå. */
+    shade(dem) {
+      if (!shadeCanvas && dem) shadeCanvas = hillshadeCanvas(dem)
+      return shadeCanvas
+    },
+    dispose() { URL.revokeObjectURL(url) },
+  }
+}
+
+/** Tegn en ferdig dekodet kilde inn i en kvadratisk tekstur på `sizePx`. */
+export function rasterizeMapTexture(source, dem, { sizePx, renderer, night = false } = {}) {
+  const px = sizePx ?? pickTextureSize(renderer)
   const canvas = document.createElement('canvas')
   canvas.width = px
   canvas.height = px
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('Canvas-context utilgjengelig')
 
-  const blob = new Blob([cleaned], { type: 'image/svg+xml;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  try {
-    const img = new Image()
-    await new Promise((resolve, reject) => {
-      img.onload = resolve
-      img.onerror = () => reject(new Error('SVG-rasterisering feilet'))
-      img.src = url
-    })
-    // Hele viewBoxen tegnes inn i det kvadratiske pow2-lerretet; UV-ene i
-    // terrainGrid kompenserer for aspektet.
-    ctx.drawImage(img, 0, 0, px, px)
-  } finally {
-    URL.revokeObjectURL(url)
-  }
+  // Hele viewBoxen tegnes inn i det kvadratiske pow2-lerretet; UV-ene i
+  // terrainGrid kompenserer for aspektet.
+  ctx.drawImage(source.img, 0, 0, px, px)
 
   // Etter cleanSvgForTexture kan hillshade-layer bare være <image>-varianten
   // («Mjuk (bilde)») — mangler den (relieff av, «Skarp (vektor)» strippet,
   // eller nattmodus), bakes mykt relieff inn her.
-  if (dem && !cleaned.includes('id="hillshade-layer"')) {
-    bakeHillshade(ctx, dem, px, night)
+  if (dem && !source.cleaned.includes('id="hillshade-layer"')) {
+    drawShade(ctx, source.shade(dem), px, night)
   }
 
   const tex = new CanvasTexture(canvas)
@@ -122,14 +191,28 @@ export async function buildMapTexture(svgString, dem, { sizePx, renderer, night 
   return tex
 }
 
-function bakeHillshade(ctx, dem, px, night = false) {
+export async function buildMapTexture(svgString, dem, { sizePx, renderer, night = false } = {}) {
+  const source = await prepareMapTextureSource(svgString, { night })
+  try {
+    return rasterizeMapTexture(source, dem, { sizePx, renderer, night })
+  } finally {
+    source.dispose()
+  }
+}
+
+function hillshadeCanvas(dem) {
   const shade = computeHillshade(dem)
   const tmp = document.createElement('canvas')
   tmp.width = shade.cols
   tmp.height = shade.rows
   const tctx = tmp.getContext('2d')
-  if (!tctx) return
+  if (!tctx) return null
   tctx.putImageData(new ImageData(shade.rgba, shade.cols, shade.rows), 0, 0)
+  return tmp
+}
+
+function drawShade(ctx, tmp, px, night = false) {
+  if (!tmp) return
   ctx.save()
   // Dag: multiply mørkner skyggesider på lys flate. Natt: screen lysner
   // sollys-sider på mørk flate (samme grep som useReliefRender for mørke

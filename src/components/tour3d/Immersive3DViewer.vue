@@ -35,6 +35,9 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 
 const phase = ref('loading')   // loading | ready | no-dem | no-webgl | error
+// Hva motoren holder på med — laste-overlay, og en diskret pille når
+// kartbildet skjerpes etter at turen alt er i gang.
+const buildMsg = ref(null)
 const stats = ref(null)
 const activeFeature = ref(null)
 // Default = Følg (matcher motorens initialCameraMode); Utforsk åpner med
@@ -103,6 +106,10 @@ onMounted(async () => {
       dem,
       meta: toRaw(props.meta),
       svgText: props.getSvgText(),
+      // Lar motoren rasterisere på nytt: skjerping til full oppløsning, og
+      // gjenoppbygging hvis nettleseren tømmer lerretet mens vi ligger nede.
+      getSvgText: props.getSvgText,
+      onProgress: (m) => { buildMsg.value = m },
       route,
       via: viaRaw,
       isLoop: props.isLoop,
@@ -295,7 +302,7 @@ function skipFeature() { engine?.skipFeature() }
       <div v-if="phase === 'loading'"
            class="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 text-white/80">
         <div class="w-10 h-10 rounded-full border-2 border-white/25 border-t-white animate-spin"></div>
-        <div class="text-[13px]">Bygger 3D-terreng …</div>
+        <div class="text-[13px]">{{ buildMsg || 'Bygger 3D-terreng …' }}</div>
       </div>
       <div v-else-if="errorText"
            class="absolute inset-0 z-20 flex items-center justify-center p-6">
@@ -303,6 +310,15 @@ function skipFeature() { engine?.skipFeature() }
                     text-amber-100/90 text-[13px] max-w-sm text-center">
           {{ errorText }}
         </div>
+      </div>
+
+      <!-- Skjerping av kartbildet etter at turen er i gang -->
+      <div v-if="phase === 'ready' && buildMsg"
+           class="absolute left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 rounded-full
+                  bg-black/55 backdrop-blur px-3 py-1.5 text-[11px] text-white/85"
+           :class="isLandscape ? 'top-16' : 'top-32'">
+        <span class="w-3 h-3 rounded-full border-2 border-white/30 border-t-white animate-spin"></span>
+        {{ buildMsg }}
       </div>
 
       <!-- Infokort for aktuell feature -->

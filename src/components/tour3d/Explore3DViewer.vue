@@ -48,6 +48,9 @@ const hasPaths = ref(false)
 const pinCounts = ref({})
 const pinGroups = ref([])
 const extrasLoading = ref(true)
+// Hva motoren holder på med: vises i laste-overlayet, og som en diskret pille
+// når kartbildet skjerpes etter at visningen alt er åpen.
+const buildMsg = ref(null)
 const toast = ref('')
 const isLandscape = ref(typeof window !== 'undefined' && window.innerWidth > window.innerHeight)
 
@@ -146,6 +149,10 @@ onMounted(async () => {
       dem,
       meta: toRaw(props.meta),
       svgText: props.getSvgText(),
+      // Lar motoren rasterisere på nytt: skjerping til full oppløsning, og
+      // gjenoppbygging hvis nettleseren tømmer lerretet mens vi ligger nede.
+      getSvgText: props.getSvgText,
+      onProgress: (m) => { buildMsg.value = m },
       pathFeatures: toRaw(props.pathFeatures) ?? [],
       features: allFeatures,
     })
@@ -413,7 +420,7 @@ function branchLabel(opt, i) {
       <div v-if="phase === 'loading'"
            class="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 text-white/80">
         <div class="w-10 h-10 rounded-full border-2 border-white/25 border-t-white animate-spin"></div>
-        <div class="text-[13px]">Bygger 3D-terreng …</div>
+        <div class="text-[13px]">{{ buildMsg || 'Bygger 3D-terreng …' }}</div>
       </div>
       <div v-else-if="errorText"
            class="absolute inset-0 z-20 flex items-center justify-center p-6">
@@ -496,6 +503,15 @@ function branchLabel(opt, i) {
             Trykk på en sti for å følge den
           </div>
         </div>
+      </div>
+
+      <!-- Skjerping av kartbildet etter at visningen er åpen -->
+      <div v-if="phase === 'ready' && buildMsg"
+           class="absolute left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 rounded-full
+                  bg-black/55 backdrop-blur px-3 py-1.5 text-[11px] text-white/85"
+           :class="isLandscape ? 'top-16' : 'top-32'">
+        <span class="w-3 h-3 rounded-full border-2 border-white/30 border-t-white animate-spin"></span>
+        {{ buildMsg }}
       </div>
 
       <!-- Kortvarig melding -->
