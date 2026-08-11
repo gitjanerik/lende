@@ -14,6 +14,7 @@
 
 import { Raycaster, Vector2, Group } from 'three'
 import { buildRoutingGraph, RUTE_GRAF_OPTS } from '../routing.js'
+import { realElevationAt } from '../demSampling.js'
 import { declutter } from '../labelDeclutter.js'
 import { poiColor } from '../poiColors.js'
 import { createSceneCore, TourSceneError } from './sceneCore.js'
@@ -50,7 +51,7 @@ const JUNCTION_PAUSE_M = 25
 
 export async function createExploreScene(container, {
   dem, meta, svgText, getSvgText = null, onProgress = null,
-  pathFeatures = [], features = [],
+  pathFeatures = [], barrierFeatures = [], features = [],
   options = {},
 }) {
   if (!dem) throw new TourSceneError('no-dem', 'Kartet mangler høydedata')
@@ -79,18 +80,25 @@ export async function createExploreScene(container, {
   // ---- Stinettet -----------------------------------------------------------
 
   const paths = buildPathNetwork(pathFeatures, dem, coords)
+  let pathsVisible = true
   scene.add(paths.group)
   loop.track(paths)
   paths.setResolution(container.clientWidth, container.clientHeight)
 
   // Grafen bygges med samme parametre som Stifinneren: kryss blir eksplisitte
   // noder, og løse fragmenter kobles til hovednettet så et trykk på en
-  // adkomststump ikke ender i en isolert stubb.
+  // adkomststump ikke ender i en isolert stubb. Terreng + barrierer sendes med
+  // fordi hull-broingen — og sti-vandringens hull-hopp — skal nekte å krysse
+  // vann, hovedvei, jernbane, bygning og stup.
   let graph = null
   const ensureGraph = () => {
     if (graph === null) {
       graph = pathFeatures?.length
-        ? buildRoutingGraph(pathFeatures, RUTE_GRAF_OPTS)
+        ? buildRoutingGraph(pathFeatures, {
+          ...RUTE_GRAF_OPTS,
+          elevationAt: realElevationAt(dem),
+          barriers: barrierFeatures,
+        })
         : false
     }
     return graph || null
@@ -354,6 +362,18 @@ export async function createExploreScene(container, {
     if (!hit) return
     const { x, y } = coords.toSvg(hit.point.x, hit.point.z)
     if (walk) return                       // pågående tur: la kontrollene styre
+
+    // Med stinettet skjult starter et trykk ingen tur: man skal ikke bli tatt
+    // med langs en sti man ikke kan se. Traff trykket likevel en sti, sier vi
+    // hvorfor — ellers virker knappen bare død.
+    if (!pathsVisible) {
+      const rg = ensureGraph()
+      if (rg && walkStartAt(rg, [x, y], rig.cameraSvgXY(), { tolM: PATH_HIT_TOL_M })) {
+        emit('paths-hidden', { x, y })
+      }
+      return
+    }
+
     const started = await startWalkAt(x, y)
     if (!started) emit('no-path', { x, y })
   }
@@ -463,7 +483,10 @@ export async function createExploreScene(container, {
     },
 
     // --- stinett ---
-    setPathsVisible(v) { paths.setVisible(v) },
+    setPathsVisible(v) {
+      pathsVisible = !!v
+      paths.setVisible(pathsVisible)
+    },
     get hasPaths() { return !paths.isEmpty },
 
     // --- live GPS-posisjon ---

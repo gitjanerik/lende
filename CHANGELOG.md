@@ -1,5 +1,40 @@
 # Endringslogg
 
+## 2026-08-11 — v5.6.3: «Del sti» virker — og heter det den deler
+
+Delingsknappen i Stifinnerens følge-banner het «Del rundtur» også når turen var
+en vanlig A→B-tur langs stien, og den gjorde ingenting: delefunksjonen krevde
+vendepunkter, som bare en rundtur har, så et trykk falt rett ut i en tom return.
+Knappen heter nå «Del sti» for A→B og «Del rundtur» for rundturen, og deler
+turen med mål (dlat/dlon) — samme lenkeformat mottaker-siden og MCP-ens tur3dUrl
+alltid har brukt. Param-byggingen er flyttet til `shareTourParams` i
+tour3dLink.js, der begge turformene er testet, i stedet for å ligge håndskrevet
+i MapView.
+
+---
+
+## 2026-08-11 — v5.6.2: 3D-turen stopper ikke på et lite brudd i stien
+
+En påbegynt sightseeing-tur i 3D-utforskeren ble avblåst hver gang stinettet
+hadde et brudd på tjue meter — og kartdata er full av dem, siden N50 og OSM ikke
+slutter på samme meter. Ruteren broer bare slike hull når omveien er absurd, for
+der er «gå rundt» et gyldig svar; en tur uten mål har ingenting å gå rundt til.
+Vandringen leter derfor nå etter fortsettelsen innen 60 m i en kjegle framover
+og hopper over bruddet. Turen ender fortsatt der stien faktisk slutter: i
+kartutsnittets ytterkant, eller foran et ekte hinder — vann, hovedvei, jernbane,
+bygning, stup eller for bratt terreng, samme regel ruteren bruker. Målt på
+Vardåsen-kartet: snittturen vokste fra 2,7 til 3,4 km, og andelen turer som dør
+under 500 m falt fra 41 til 24 av 200.
+
+Samtidig starter 3D-visningen med Sti AV og Kurver PÅ — førsteinntrykket skal
+være terrenget, ikke et rødt nett over alt. Med stinettet skjult starter et
+trykk heller ingen tur; man skal ikke bli tatt med langs en sti man ikke ser,
+og traff trykket likevel en sti, sier appen hvorfor. Den grønne kryss-boksen
+nederst er strammet inn til innholdets bredde i stedet for å legge et teppe
+over kartet.
+
+---
+
 ## 2026-08-11 — v5.6.1: Hull-broen krysser ikke hovedvei, jernbane, hus eller elv
 
 Terreng-regelen fra forrige versjon fanger stup, men en jernbane i flatt lende

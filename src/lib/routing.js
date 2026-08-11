@@ -557,7 +557,7 @@ export function buildRoutingGraph(features, opts = {}) {
       const limit = Math.max(best.gap * GAP_DETOUR_FACTOR, GAP_DETOUR_MIN_M)
       const omvei = distanceWithin(k.d.id, new Set([best.seg.s, best.seg.t]), limit)
       if (omvei <= limit) continue                 // stien svinger bare — ingen snarvei
-      if (hinderIVeien(k.d.pos, best.proj.point, best.gap)) continue
+      if (gapObstacle(k.d.pos, best.proj.point, best.gap)) continue
       bridgeGapToSegment(k.d, best.seg, best.proj, segIndex)
     }
   }
@@ -612,13 +612,17 @@ export function buildRoutingGraph(features, opts = {}) {
   //
   // Mangler DEM faller terreng-regelen bort; sendes ingen barrierer faller
   // barriere-regelen bort. Da ruter vi som før.
-  function hinderIVeien(a, b, gap) {
-    if (gap < gapObstacleMinM) return false
+  //
+  // Returnerer en norsk grunn (for logg og UI) eller null når hullet er fritt.
+  // Eksportert på grafen fordi 3D-utforskerens sti-vandring stiller nøyaktig
+  // samme spørsmål når den skal hoppe over et brudd i stinettet.
+  function gapObstacle(a, b, gap) {
+    if (gap < gapObstacleMinM) return null
     if (gapMaxSlopePct > 0 && typeof elevationAt === 'function') {
       const pct = gapSlopePct(elevationAt, a, b)
-      if (pct !== null && pct > gapMaxSlopePct) return true
+      if (pct !== null && pct > gapMaxSlopePct) return `${Math.round(pct)} % bratt terreng`
     }
-    return barrierCrossed(a, b) !== null
+    return barrierCrossed(a, b)
   }
 
   // Som bridgeToSegment, men selve forbindelsen legges som 'bridge': den er en
@@ -675,6 +679,22 @@ export function buildRoutingGraph(features, opts = {}) {
     return hits[0]?.id ?? null
   }
 
+  // Alle noder innen radius, nærmest først. 3D-utforskerens sti-vandring leter
+  // slik etter fortsettelsen på andre siden av et brudd i stinettet.
+  function nodesWithin(pos, radiusM) {
+    const hits = nodeIndex.search({
+      minX: pos[0] - radiusM, minY: pos[1] - radiusM,
+      maxX: pos[0] + radiusM, maxY: pos[1] + radiusM,
+    })
+    const out = []
+    for (const h of hits) {
+      const distM = Math.hypot(h.pos[0] - pos[0], h.pos[1] - pos[1])
+      if (distM <= radiusM) out.push({ id: h.id, pos: h.pos, distM })
+    }
+    out.sort((a, b) => a.distM - b.distM)
+    return out
+  }
+
   // Nærmeste node UANSETT avstand. Brukervalgte start/mål-punkter ligger
   // sjelden på en sti-node, så vi snapper dem til grafen. rbush-søk med
   // voksende vindu; faller tilbake til lineær scan hvis grafen er glissen.
@@ -718,10 +738,13 @@ export function buildRoutingGraph(features, opts = {}) {
   }
 
   return {
-    graph: g, nodeAt, nearestNode, route, distanceWithin,
+    graph: g, nodeAt, nodesWithin, nearestNode, route, distanceWithin,
     // Hvilken barriere krysser en tenkt strek a→b? Stinett-diagnosen bruker den
     // til å SI hva som stoppet broen, i stedet for å gjette.
     barrierCrossed,
+    // Står det et ekte hinder i et hull (bratt terreng eller barriere)?
+    // Norsk grunn, eller null. Delt med sti-vandringens hull-hopp.
+    gapObstacle,
     edges: g.size, nodes: g.order,
   }
 }

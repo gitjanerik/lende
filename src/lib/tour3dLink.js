@@ -36,6 +36,37 @@ export function buildTourParams({ origin, dest = null, via = [], routeIdx = 0, o
 }
 
 /**
+ * Params for «Del sti» / «Del rundtur» i Stifinneren, rett fra dens egne
+ * punkter i SVG-meter. Egen funksjon fordi de to turformene har ULIKE krav, og
+ * å blande dem kostet A→B-delingen: den er definert av MÅLET (dest), rundturen
+ * av VENDEPUNKTENE (origo == mål). Mangler det som definerer turen, er det
+ * ingenting å dele — da null, og kallstedet lar knappen være.
+ *
+ * `toWgs84(punkt)` projiserer et {svgX, svgY} til {lat, lon} (MapView sender
+ * inn sin egen, som kjenner kartets meta).
+ *
+ * @param {{isLoop:boolean, start:object|null, destination:object|null,
+ *          via?: Array<object>, routeIdx?: number, name?: string|null,
+ *          toWgs84: (p:object) => {lat:number, lon:number}}} arg
+ * @returns {Record<string,string>|null}
+ */
+export function shareTourParams({
+  isLoop, start, destination, via = [], routeIdx = 0, name = null, toWgs84,
+}) {
+  if (!start) return null
+  if (isLoop ? !via.length : !destination) return null
+  return buildTourParams({
+    origin: toWgs84(start),
+    dest: isLoop ? null : toWgs84(destination),
+    via: via.map(toWgs84),
+    routeIdx,
+    // Mottakeren skal lande i kartet, ikke i 3D — som den gamle delelenken.
+    open3d: false,
+    name,
+  })
+}
+
+/**
  * Query (f.eks. vue-router route.query) → tur, eller null når lenken ikke
  * bærer en tur. Gamle rundtur-lenker (uten dlat/v3d) parses som før.
  */

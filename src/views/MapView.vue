@@ -84,7 +84,7 @@ import {
   needsRecull, computeCullDiff, parseBboxAttr,
 } from '../lib/viewportCull.js'
 import { svgToWgs84, wgs84ToSvg } from '../lib/utm.js'
-import { parseTourQuery, parseTourNameQuery } from '../lib/tour3dLink.js'
+import { parseTourQuery, parseTourNameQuery, shareTourParams } from '../lib/tour3dLink.js'
 import { computeTourExtent, shiftPoints, shiftVia, shiftIndex, demIntoExtent } from '../lib/tour3d/tourExtent.js'
 import { utNoZoomForMPerPx, UTNO_DEFAULT_ZOOM } from '../lib/utNoLink.js'
 import { useMapContext } from '../composables/useMapContext.js'
@@ -2261,34 +2261,35 @@ watch(merkeKommando, (cmd) => {
   renderHighlight()
 })
 
-// «Del rundtur» — deler den aktive Stifinner-rundturen slik «Del kart og sted»
-// deler et sted. Rundturen beregnes deterministisk fra origo (start == mål) +
-// vendepunkt(er), så vi deler kun de punktene + valgt rute-indeks (som eksakte
-// WGS84-koordinater oppå det vanlige kart-utsnittet). Mottakeren re-planlegger
-// mot sitt eget (identiske) kart og lander i samme «Følger rundtur»-modus.
+// «Del sti» / «Del rundtur» — deler den aktive Stifinner-turen slik «Del kart
+// og sted» deler et sted. Turen beregnes deterministisk av punktene, så vi deler
+// bare dem + valgt rute-indeks (eksakte WGS84-koordinater oppå det vanlige
+// kart-utsnittet): origo, mål (A→B) eller vendepunkt(er) (rundtur, der origo ==
+// mål). Mottakeren re-planlegger mot sitt eget (identiske) kart og lander i
+// samme følge-modus.
+//
+// A→B-turen manglet her fram til v5.6.3: uten vendepunkt falt funksjonen ut i
+// en tom return, og knappen gjorde ingenting. Lenke-formatet (dlat/dlon) har
+// mottaker-siden alltid støttet — det er samme format MCP-ens tur3dUrl bruker,
+// så vi bygger paramene med buildTourParams i stedet for å skrive dem to steder.
 function onShareRoundTrip() {
-  if (!meta.value || !sti.start.value || !sti.via.value.length) return
-  const o = svgToWgs84(sti.start.value.svgX, sti.start.value.svgY, meta.value)
-  const rtv = sti.via.value
-    .map((v) => {
-      const w = svgToWgs84(v.svgX, v.svgY, meta.value)
-      return `${w.lat.toFixed(6)},${w.lon.toFixed(6)}`
-    })
-    .join(';')
-  const extra = {
-    olat: o.lat.toFixed(6),
-    olon: o.lon.toFixed(6),
-    rtv,
-    ri: sti.selectedRouteIdx.value,
-  }
-  // Send kartnavnet med (tn) så mottakerens kart ikke bygges som «Uten navn».
-  if (mapTitle.value && mapTitle.value !== 'Uten navn') {
-    extra.tn = mapTitle.value.slice(0, 60)
-  }
+  if (!meta.value) return
+  const erRundtur = sti.isLoop.value
+  const extra = shareTourParams({
+    isLoop: erRundtur,
+    start: sti.start.value,
+    destination: sti.destination.value,
+    via: sti.via.value,
+    routeIdx: sti.selectedRouteIdx.value,
+    // Kartnavnet (tn) så mottakerens kart ikke bygges som «Uten navn».
+    name: mapTitle.value && mapTitle.value !== 'Uten navn' ? mapTitle.value : null,
+    toWgs84: (p) => svgToWgs84(p.svgX, p.svgY, meta.value),
+  })
+  if (!extra) return
   performShare(
     buildShareUrl(null, extra),
     mapTitle.value || 'Lende — turkart',
-    `${mapTitle.value} — rundtur`,
+    `${mapTitle.value} — ${erRundtur ? 'rundtur' : 'tur langs stien'}`,
   )
 }
 
@@ -3265,9 +3266,10 @@ const explore3dData = shallowRef(null)
 async function prepareExplore3dData() {
   const svgEl = svgHostRef.value?.querySelector('svg')
   if (!svgEl || !meta.value) return null
-  const [{ stinettFeaturesFromSvgEl, fjernIsolerteStumper }, { collectBrukerminnePins }] = await Promise.all([
+  const [{ stinettFeaturesFromSvgEl, fjernIsolerteStumper }, { collectBrukerminnePins }, { BARRIER_CODES }] = await Promise.all([
     import('../lib/stinettAnalyse.js'),
     import('../lib/tour3d/exploreData.js'),
+    import('../lib/routing.js'),
   ])
   return {
     meta: { ...meta.value },
@@ -3281,6 +3283,11 @@ async function prepareExplore3dData() {
       stinettFeaturesFromSvgEl(svgEl, null, { hoppOverSkjulte: true }),
       { minKomponentM: 500 },
     ),
+    // Hindre-geometri (vann, hovedvei, jernbane, bygning, stup) — det
+    // sti-vandringen i 3D trenger for å vite hvor et brudd i stinettet er et
+    // ekte hinder og ikke bare et hull i kartdataene. Samme kodesett som
+    // Stifinneren og chatten bruker.
+    barrierFeatures: stinettFeaturesFromSvgEl(svgEl, new Set(Object.keys(BARRIER_CODES))),
     brukerminner: collectBrukerminnePins(svgEl),
   }
 }
@@ -4812,6 +4819,7 @@ onUnmounted(() => {
                :meta="explore3dData.meta"
                :search-index="searchIndex"
                :path-features="explore3dData.pathFeatures"
+               :barrier-features="explore3dData.barrierFeatures"
                :brukerminner="explore3dData.brukerminner"
                :get-svg-text="(opts) => mapSvgMarkupForExport({ colophon: false, theme: opts?.dark ? 'dark' : null })"
                :is-dark="isDark"

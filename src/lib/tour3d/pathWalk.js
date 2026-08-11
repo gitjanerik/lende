@@ -24,6 +24,24 @@ const DEFAULT_MAX_LENGTH_M = 25000
 // tredje gang stopper vi, ellers ville en løkke gått i det uendelige.
 const MAX_VISITS = 2
 
+// Hull-hopp: stinettet i kartdataene er fullt av små brudd — N50 og OSM slutter
+// ikke på samme meter, DP-forenklingen flytter endepunkter, og en sti som i
+// virkeligheten går rett fram kan mangle tjue meter. Ruteren broer bare slike
+// hull når omveien er absurd (se bridgeGaps i routing.js), for da er svaret
+// «gå rundt». En SIGHTSEEING-tur har ikke noe mål å gå rundt til: den skal
+// fortsette så langt stien rekker. Stopper vandringen i grafen, ser vi derfor
+// etter fortsettelsen innen HOP_MAX_M i en kjegle framover, og hopper dit.
+//
+// Turen skal likevel ta slutt der stien FAKTISK tar slutt: i kartutsnittets
+// ytterkant (ingen noder utenfor kartet — hoppet finner ingenting), eller foran
+// et ekte hinder (vann, hovedvei, jernbane, bygning, stup, for bratt terreng —
+// `rg.gapObstacle`, samme regel ruteren bruker).
+const HOP_MAX_M = 60
+const HOP_CONE_RAD = (70 * Math.PI) / 180
+// Tak på antall hopp per tur. Et kart med hull hver hundre meter er ødelagt
+// data, ikke en tur — da er det ærligere å stoppe enn å sy sammen en fantasi.
+const MAX_HOPS = 20
+
 // Blindveier kortere enn dette er «stumper»: de VISES i kartet som før, men
 // utforskeren foreslår dem ikke som stibytte i kryss, og en tur kan ikke
 // startes ved å trykke i dem. En 60-meters adkomststump til en P-plass er
@@ -140,6 +158,51 @@ function pickStraightest(cands, incomingBearing) {
 }
 
 /**
+ * Fortsettelsen på andre siden av et brudd i stinettet, sett fra `from`
+ * (en edgeInfo — posisjon, gangretning og noden vi står på).
+ *
+ * Kandidatene tas nærmest først, og den første som passerer alle prøvene
+ * vinner: den skal ligge FRAMOVER (innen kjeglen), være ny for turen, ikke være
+ * en nabo i grafen (da er det ikke et hull), ha en fortsettelse man kan gå
+ * videre på som ikke er en stump — og hullet må være fritt for hinder.
+ *
+ * @returns {{node:string, pos:[number,number], bearing:number, length:number,
+ *            isomCode:string|null} | null} samme form som edgeInfo, så
+ *          vandringen kan bruke hoppet som et vanlig steg.
+ */
+export function findGapHop(rg, from, { visits = new Map(), maxGapM = HOP_MAX_M, coneRad = HOP_CONE_RAD } = {}) {
+  const g = rg?.graph
+  if (!g?.hasNode?.(from.node)) return null
+  const near = rg.nodesWithin?.(from.pos, maxGapM)
+  if (!near?.length) return null
+
+  const naboer = new Set()
+  g.forEachNeighbor(from.node, (nb) => naboer.add(nb))
+
+  for (const cand of near) {
+    if (cand.id === from.node || naboer.has(cand.id)) continue
+    if (visits.has(cand.id)) continue
+    if (!(cand.distM > 0.5)) continue
+    const b = bearing(from.pos, cand.pos)
+    if (angleDiff(b, from.bearing) > coneRad) continue
+    // Kan man gå VIDERE derfra, i samme retning, og fører det noe sted? Et hopp
+    // som lander i en 40-meters stump flytter bare stoppet noen meter.
+    const videre = pickStraightest(neighborsOf(rg, cand.id, null), b)
+    if (!videre || videre.turn > MAX_TURN_RAD) continue
+    if (isBlindStub(rg, cand.id, videre.node)) continue
+    if (rg.gapObstacle?.(from.pos, cand.pos, cand.distM)) continue
+    return {
+      node: cand.id,
+      pos: cand.pos,
+      bearing: b,
+      length: cand.distM,
+      isomCode: null,
+    }
+  }
+  return null
+}
+
+/**
  * Vandre fra en node i én retning.
  *
  * @param {ReturnType<import('../routing.js').buildRoutingGraph>} rg
@@ -149,15 +212,20 @@ function pickStraightest(cands, incomingBearing) {
  *              projisert ned) — den naboen som ligger nærmest denne retningen
  *              velges, altså «bort fra kamera».
  *   firstNodeId tvinger første steg (brukes når brukeren velger gren i et kryss).
+ *   hopGapM    hvor stort brudd i stinettet turen hopper over (0 = ikke hopp).
  * @returns {{coordinates: Array<[number,number]>, lengthM: number,
  *            nodeIds: string[],
+ *            hops: Array<{alongM:number, gapM:number}>,
  *            junctions: Array<{alongM:number, nodeId:string, chosenNodeId:string,
  *                              options: Array<{nodeId:string, bearing:number,
  *                                              turn:number, isomCode:string|null,
  *                                              lengthM:number}>}>}}
  */
-export function walkFromNode(rg, startNodeId, { headingXY = null, firstNodeId = null, maxLengthM = DEFAULT_MAX_LENGTH_M } = {}) {
-  const empty = { coordinates: [], lengthM: 0, nodeIds: [], junctions: [] }
+export function walkFromNode(rg, startNodeId, {
+  headingXY = null, firstNodeId = null,
+  maxLengthM = DEFAULT_MAX_LENGTH_M, hopGapM = HOP_MAX_M,
+} = {}) {
+  const empty = { coordinates: [], lengthM: 0, nodeIds: [], junctions: [], hops: [] }
   if (!rg?.graph?.hasNode?.(startNodeId)) return empty
 
   const g = rg.graph
@@ -194,6 +262,7 @@ export function walkFromNode(rg, startNodeId, { headingXY = null, firstNodeId = 
   let lengthM = 0
   let prev = startNodeId
   let current = step
+  const hops = []
 
   while (current) {
     coordinates.push([current.pos[0], current.pos[1]])
@@ -204,20 +273,29 @@ export function walkFromNode(rg, startNodeId, { headingXY = null, firstNodeId = 
     if (seen > MAX_VISITS) break
     if (lengthM >= maxLengthM) break
 
-    let cands = neighborsOf(rg, current.node, prev)
-    if (!cands.length) break                       // blindvei
-
     // Stumper (blindvei < BLIND_STUB_M) deltar ikke i kryssvalget: de verken
     // vinner «rettest fram» eller tilbys som alternativ. Er ALT som gjenstår
-    // stumper, ender turen her — å gå 60 m inn i en adkomststump og stoppe
-    // er ikke en fortsettelse.
+    // stumper, er stien slutt her — å gå 60 m inn i en adkomststump og stoppe
+    // er ingen fortsettelse. Står det bare ÉN gren igjen, tas den som før,
+    // stump eller ikke.
+    let cands = neighborsOf(rg, current.node, prev)
     if (cands.length > 1) {
       cands = cands.filter(c => !isBlindStub(rg, current.node, c.node))
-      if (!cands.length) break
     }
 
-    const next = pickStraightest(cands, current.bearing)
-    if (!next || next.turn > MAX_TURN_RAD) break   // bare skarpe tilbakesvinger igjen
+    let next = cands.length ? pickStraightest(cands, current.bearing) : null
+    if (next && next.turn > MAX_TURN_RAD) next = null   // bare skarpe tilbakesvinger igjen
+
+    // Ingen vei videre i grafen: prøv å hoppe over bruddet før turen avblåses.
+    if (!next) {
+      if (hopGapM <= 0 || hops.length >= MAX_HOPS) break
+      const hop = findGapHop(rg, current, { visits, maxGapM: hopGapM })
+      if (!hop) break
+      hops.push({ alongM: lengthM, gapM: hop.length })
+      prev = null      // hoppet har ingen kant å komme «fra» i grafen
+      current = hop
+      continue
+    }
 
     // Grad ≥ 3 (inkludert kanten vi kom fra) er et ekte kryss — meld fra så
     // UI-et kan tilby alternativene før man passerer.
@@ -244,7 +322,7 @@ export function walkFromNode(rg, startNodeId, { headingXY = null, firstNodeId = 
     current = next
   }
 
-  return { coordinates, lengthM, nodeIds, junctions }
+  return { coordinates, lengthM, nodeIds, junctions, hops }
 }
 
 /**
@@ -297,6 +375,10 @@ export function rerouteAtJunction(rg, walk, junction, chosenNodeId, opts = {}) {
     junctions: [
       ...walk.junctions.filter(j => j.alongM < junction.alongM),
       ...tail.junctions.map(j => ({ ...j, alongM: j.alongM + headLength })),
+    ],
+    hops: [
+      ...(walk.hops ?? []).filter(h => h.alongM < junction.alongM),
+      ...(tail.hops ?? []).map(h => ({ ...h, alongM: h.alongM + headLength })),
     ],
   }
 }
