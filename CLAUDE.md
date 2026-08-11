@@ -50,6 +50,8 @@ npm run test       # Vitest (~130 filer, tester ligger ved siden av kilden)
 npm run build      # Produksjonsbygg
 npm run mcp        # MCP-server (stdio) — kart/rute-verktøy for Claude
 npm run fasit      # Fasit: seks ekte kart mot invarianter (krever nett, ~1 min)
+npm run royk       # Røyktest: monterer MapView i Chromium og trykker på domenene
+npm run navnediff  # Hva forsvant ut av MapView i denne endringen — og hvem overtok
 ```
 
 ## Arkitektur (oversikt)
@@ -123,13 +125,23 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   pan/zoom/gest-håndteringen, kontekstmeny/PUNKT-arket, tema+annotering.
   Rører du et domene som allerede er ute: gjør endringen i composable-en, ikke
   i MapView.
-- **Uttrekk fra MapView krever nettleser-test.** Tre monteringsfeil under
-  v5.8.0-uttrekket (TDZ på verdier sendt inn før de er deklarert, og en
-  tekst-sletting som tok med seg tre ubeslektede blokker) gikk gjennom BÅDE
-  `npm run test` (1 978 tester) og `npm run build` uten en lyd. Kjør
-  `npm run dev` + en Playwright-røyktest som monterer `/kart/vardasen` og
-  trykker på det du rørte. Sender du en verdi inn i en composable som
-  deklareres lenger ned i fila, send en getter (`() => x`) — ikke verdien.
+- **Uttrekk fra MapView har to obligatoriske gater (v5.8.1).** Tre
+  monteringsfeil under v5.8.0-uttrekket gikk gjennom BÅDE `npm run test`
+  (1 978 tester) og `npm run build` uten en lyd — Vue-oppsettet kaster først
+  ved montering, og et bygg monterer ingenting. Derfor:
+  `npm run royk` (Chromium mot `/kart/vardasen`, trykker på hvert uttrukket
+  domene, feiler på enhver JS-feil) fanger feil som KASTER;
+  `npm run navnediff` (top-level-navn og composable-kall mot `origin/master`)
+  fanger feil som forsvinner STILLE — en slettet watch, et kall ingen overtok.
+  Villede slettinger kvitteres ut med `npm run navnediff -- --ok navn1,navn2`
+  i PR-en som gjør dem, aldri ved å skru av jobben. **Legg til én røyk-sjekk
+  per nytt uttrekk** (`SJEKKER`-lista i `scripts/royk-mapview.mjs`) — en sjekk
+  skal TRYKKE på noe, ikke bare lete etter markup. CI:
+  `.github/workflows/royktest.yml`.
+- **TDZ-regelen:** sender du en verdi inn i en composable som deklareres lenger
+  ned i fila, send en getter (`() => x`) — ikke verdien. To av de tre feilene
+  over var dette. Må kallet stå etter en annen composable, skriv HVORFOR på
+  kallstedet (se `useDeltTur`-kallet, som må stå etter `useGhostTiles`).
 - **`mapBuilder.js` er ~3 300 linjer** og gjør henting, klassifisering,
   geometri-sying og SVG-emittering i én fil. Ikke del den opp uten grunn, men
   legg nye kilder som egne `*Fetcher.js` + et lite klassifiseringssteg.

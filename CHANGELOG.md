@@ -1,5 +1,31 @@
 # Endringslogg
 
+## 2026-08-11 — v5.8.1: Sikkerhetsnett før neste uttrekk
+
+Tre monteringsfeil i v5.8.0 passerte 1 978 enhetstester og produksjonsbygget
+uten en lyd, og ble bare funnet fordi jeg tilfeldigvis startet en nettleser.
+Skal 2 300 linjer til flyttes ut av MapView, må det ikke være tilfeldig.
+`npm run royk` monterer `/kart/vardasen` i Chromium og TRYKKER på hvert
+uttrukket domene — lag-toggle, deling, GPS, 3D-inngangen — og feiler på enhver
+JS-feil i konsollen. `npm run navnediff` dekker den andre feilklassen: hva
+forsvant ut av MapView i denne endringen, hvem overtok det, og hva som er borte
+uten forklaring. Begge er verifisert mot den ekte feilen: sletter man
+`useReliefRender`- og `useGhostTiles`-blokkene på nytt, sier navnediff «tre
+composable-kall forsvant, sju navn er fortsatt brukt» og røyktesten svarer
+`ReferenceError: ghostRects is not defined`. Egen CI-jobb på PR-er som rører
+MapView, composable-ene eller komponentene. Under arbeidet fanget røyktesten
+også seg selv: første versjon gjenbrukte en eksisterende `dist/` og rapporterte
+altså på kode som ikke lenger sto i `src` — den bygger alltid nå.
+
+Første kjøring i CI fant med en gang en ekte feil ingen hadde sett: det sporede
+demo-kartet `public/maps/vardasen.svg` er bygget FØR v2.4.17 og har fortsatt
+`points="1.25mm,…"` i Blokkmark-mønsteret. `points` tar ikke enheter, så
+nettleseren forkastet attributtet og ISOM 210 var et tomt mønster i demo-kartet
+(det ekte kartet bygges av CI ved deploy og er upåvirket). Mønsteret er nå
+konvertert til bruker-enheter i den sporede fila.
+
+---
+
 ## 2026-08-11 — v5.8.0: Fem domener ut av MapView
 
 MapView.vue er appens største risiko fordi alt møtes der og ingen — verken
