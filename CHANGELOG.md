@@ -1,5 +1,31 @@
 # Endringslogg
 
+## 2026-08-11 — v5.7.0: Én 3D-visning, og kameraet kan løsne fra turen
+
+POI-klikk virket ikke i 3D-visningen av en tur, og grunnen var to: turvisningen
+hadde ingen trefftesting i det hele tatt (severdigheter var en tidslinje, ikke
+klikkbare nåler), og selv om den hadde hatt det, skrev følge-riggen kameraet på
+nytt hver frame — samme grunn til at utforskerens POI-klikk under en sti-tur var
+en stille no-op. Løsningen er å slå de to nesten like scenene sammen til én:
+`scene3d.js` med tre innganger (kartet, et trykk i stinettet, en planlagt rute),
+og ett kamera med to tilstander. Spiller turen, følger kameraet den; står den
+stille, er kameraet ditt — panorér, zoom, eller trykk på en nål så flyr det dit.
+Play fester kameraet tilbake til turen og ARVER perspektivet du sto i
+(`deriveFollowView` regner blikk-offsetet ut av kameraposen). Følg/Utforsk-
+knappene er borte; de var en manuell bryter for noe avspillingen nå sier selv.
+
+Turvisningen har med det fått nåler for severdighetene langs veien, filteret
+som hører til, og klikkbare start-/mål-/vendepunkt- og P-nåler. Utforskerens
+sti-turer har fått stigning og «tid igjen» (høydeprofilen måles langs kurven).
+En planlagt rute kan ikke lenger byttes ut av et trykk i stinettet — den er
+turen din, og et trykk sier det i stedet for å stille og rolig legge en annen.
+POI-stopp langs turen er fortsatt valgfritt, nå på egen «Stopp»-knapp.
+
+Testet i ekte nettleser (WebGL) i tillegg til enhetstestene: begge inngangene,
+løsning og festing av kameraet, nåletrykk, kryssvalg og «Til ruta».
+
+---
+
 ## 2026-08-11 — v5.6.3: «Del sti» virker — og heter det den deler
 
 Delingsknappen i Stifinnerens følge-banner het «Del rundtur» også når turen var

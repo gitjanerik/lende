@@ -3097,13 +3097,17 @@ watch(animating, (v) => {
   if (v && contextMenuOpen.value && !contextPinRaf) contextPinRaf = requestAnimationFrame(contextPinRafLoop)
 })
 
-// ── 3D-turvisning (v3.0.0) ──────────────────────────────────────────────
+// ── 3D-visning (v5.7.0: én viser, to innganger) ─────────────────────────
 // «3D»-pin ved rutens startpunkt (samme HTML-utenfor-transform-mønster som
 // long-press-siktet over) + fullskjerm-viewer lastet lazily. Ikke gated på
 // storedDem — vieweren eier «ingen høydedata»-tilstanden selv.
-const tour3dOpen = ref(false)
-const tour3dLoading = ref(false)
-const tour3dComp = shallowRef(null)
+//
+// Samme komponent og samme motor uansett dør: uten tur er 3D en fri utforsking
+// av kartet, med tur står den planlagte ruta klar i følge-kameraet.
+const view3dOpen = ref(false)
+const view3dLoading = ref(false)
+const view3dComp = shallowRef(null)
+const view3dData = shallowRef(null)
 const tour3dError = ref('')
 
 const stiSelectedRoute = computed(() =>
@@ -3111,7 +3115,7 @@ const stiSelectedRoute = computed(() =>
 
 const tour3dPinVisible = computed(() =>
   (sti.mode.value === 'showing' || sti.mode.value === 'following') &&
-  !!stiSelectedRoute.value && !!sti.start.value && !!meta.value && !tour3dOpen.value)
+  !!stiSelectedRoute.value && !!sti.start.value && !!meta.value && !view3dOpen.value)
 
 // Samme knapp i målenden. Ved rundtur er mål == start, og da ville de to ligget
 // oppå hverandre — der holder den ene.
@@ -3155,71 +3159,111 @@ watch(animating, (v) => {
 })
 
 // Motorens ETA-kall er (meter, klatring-i-meter); stifinnerens Naismith tar
-// {ascent, descent}-objekt — adapter her.
+// {ascent, descent}-objekt — adapter her. Sendes med begge veier inn i 3D, så
+// også en tur man finner ved å trykke på stinettet får «tid igjen».
 function tour3dEstWalk(lengthM, climbM) {
   return sti.estWalkMinutes(lengthM, climbM ? { ascent: climbM, descent: 0 } : null)
+}
+
+// Stinett, hindre og brukerminner leses ut av kart-SVG-en her, siden det er
+// MapView som eier DOM-en — 3D-chunken skal ikke røre den.
+async function svgLagFor3d(svgEl, extent = null) {
+  const [{ stinettFeaturesFromSvgEl, fjernIsolerteStumper }, { collectBrukerminnePins }, { BARRIER_CODES }] =
+    await Promise.all([
+      import('../lib/stinettAnalyse.js'),
+      import('../lib/tour3d/exploreData.js'),
+      import('../lib/routing.js'),
+    ])
+  // Utvidet utsnitt: alt må inn i det forskjøvede rommet, ellers ligger
+  // stinettet en flisebredde feil under turen.
+  const flytt = (features) => (extent
+    ? features.map(f => ({ ...f, coordinates: shiftPoints(f.coordinates, extent) }))
+    : features)
+  const flyttPunkter = (pins) => (extent
+    ? pins.map(p => ({ ...p, x: p.x - extent.minX, y: p.y - extent.minY }))
+    : pins)
+  return {
+    // Både stier og bindeledd (småveg/bro) — en tur langs stien skal kunne
+    // krysse en skogsbilvei uten å stoppe. `hoppOverSkjulte` gjør at 3D viser
+    // det samme stinettet som kartet: har brukeren slått av veier eller stier
+    // for å rydde, skal ikke 3D tegne dem likevel.
+    // … og korte, isolerte fragmenter luftes ut: de er verken nyttige å se
+    // eller å trykke på. Stumper som henger sammen med en lang sti blir stående.
+    pathFeatures: flytt(fjernIsolerteStumper(
+      stinettFeaturesFromSvgEl(svgEl, null, { hoppOverSkjulte: true }),
+      { minKomponentM: 500 },
+    )),
+    // Hindre-geometri (vann, hovedvei, jernbane, bygning, stup) — det
+    // sti-vandringen i 3D trenger for å vite hvor et brudd i stinettet er et
+    // ekte hinder og ikke bare et hull i kartdataene. Samme kodesett som
+    // Stifinneren og chatten bruker.
+    barrierFeatures: flytt(stinettFeaturesFromSvgEl(svgEl, new Set(Object.keys(BARRIER_CODES)))),
+    brukerminner: flyttPunkter(collectBrukerminnePins(svgEl)),
+  }
 }
 
 // Ferdig preparert 3D-datasett. For turer som går utenfor aktiv flise
 // (utvidede mosaikk-kart) dekker det et union-utsnitt: DEM hentes for hele
 // utsnittet via flis-cachen og alle koordinater forskyves inn i det nye
 // rommet — turen skal aldri «gå i tomme lufta» forbi flisekanten.
-const tour3dData = shallowRef(null)
-
-async function prepareTour3dData() {
-  const r = stiSelectedRoute.value
+async function prepare3dData({ medTur = false } = {}) {
+  const svgEl = svgHostRef.value?.querySelector('svg')
   const m = meta.value
-  if (!r || !m) return null
+  if (!svgEl || !m) return null
+
   const baseMeta = {
     minE: m.minE, minN: m.minN, widthM: m.widthM, heightM: m.heightM,
     equidistance: m.equidistance ?? null,
   }
-  const viaArr = sti.via.value.map(v => ({ svgX: v.svgX, svgY: v.svgY }))
-  const extent = computeTourExtent(baseMeta, r.coordinates, viaArr)
-  if (!extent) {
-    return markRaw({
-      dem: storedDem.value,
-      meta: baseMeta,
-      route: { coordinates: r.coordinates, lengthM: r.lengthM },
-      via: viaArr,
-      searchIndex: searchIndex.value,
-      extent: null,
-    })
+  const r = medTur ? stiSelectedRoute.value : null
+  if (medTur && !r) return null
+  const viaArr = medTur ? sti.via.value.map(v => ({ svgX: v.svgX, svgY: v.svgY })) : []
+  const extent = medTur ? computeTourExtent(baseMeta, r.coordinates, viaArr) : null
+
+  let dem3d = storedDem.value
+  if (extent) {
+    let hentet = null
+    try {
+      const { fetchDEMWithCache, snapUtmBboxToGrid } = await import('../lib/demTileCache.js')
+      const utm = snapUtmBboxToGrid({
+        minE: extent.meta3d.minE,
+        minN: extent.meta3d.minN,
+        maxE: extent.meta3d.minE + extent.widthM,
+        maxN: extent.meta3d.minN + extent.heightM,
+      }, 10)
+      hentet = await fetchDEMWithCache(utm, { resolutionM: 10, rejectSynthetic: true })
+    } catch { hentet = null }
+    // Offline/nettfeil (inkl. syntetisk WCS-fallback avvist over): blit flisas
+    // EKTE DEM inn i union-gridet (utenfor = havnivå).
+    dem3d = hentet ?? demIntoExtent(storedDem.value, extent)
   }
-  let dem3d = null
-  try {
-    const { fetchDEMWithCache, snapUtmBboxToGrid } = await import('../lib/demTileCache.js')
-    const utm = snapUtmBboxToGrid({
-      minE: extent.meta3d.minE,
-      minN: extent.meta3d.minN,
-      maxE: extent.meta3d.minE + extent.widthM,
-      maxN: extent.meta3d.minN + extent.heightM,
-    }, 10)
-    dem3d = await fetchDEMWithCache(utm, { resolutionM: 10, rejectSynthetic: true })
-  } catch { dem3d = null }
-  // Offline/nettfeil (inkl. syntetisk WCS-fallback avvist over): blit flisas
-  // EKTE DEM inn i union-gridet (utenfor = havnivå).
-  if (!dem3d) dem3d = demIntoExtent(storedDem.value, extent)
+
+  const lag = await svgLagFor3d(svgEl, extent)
   return markRaw({
+    ...lag,
     dem: dem3d,
-    meta: extent.meta3d,
-    route: { coordinates: shiftPoints(r.coordinates, extent), lengthM: r.lengthM },
-    via: shiftVia(viaArr, extent),
-    searchIndex: shiftIndex(searchIndex.value, extent),
+    meta: extent ? extent.meta3d : baseMeta,
+    searchIndex: extent ? shiftIndex(searchIndex.value, extent) : searchIndex.value,
     extent,
+    tour: r
+      ? {
+        route: {
+          coordinates: extent ? shiftPoints(r.coordinates, extent) : r.coordinates,
+          lengthM: r.lengthM,
+        },
+        via: extent ? shiftVia(viaArr, extent) : viaArr,
+        isLoop: sti.isLoop.value,
+      }
+      : null,
   })
 }
 
-// Live GPS inn i 3D-visningene — kun når posisjonering allerede er aktiv.
-// Nytt lite objekt per fix (computed på svgX/svgY) så viewer-watchen trigges;
-// turvisningen får koordinatene forskjøvet til det (evt. utvidede) utsnittet.
-const gpsForExplore3d = computed(() => {
+// Live GPS inn i 3D — kun når posisjonering allerede er aktiv. Nytt lite objekt
+// per fix (computed på svgX/svgY) så viewer-watchen trigges; koordinatene
+// forskyves til det (evt. utvidede) utsnittet.
+const gpsFor3d = computed(() => {
   if (!userPos.isWatching || userPos.svgX == null) return null
-  return { svgX: userPos.svgX, svgY: userPos.svgY, accuracyM: userPos.accuracyM }
-})
-const gpsForTour3d = computed(() => {
-  if (!userPos.isWatching || userPos.svgX == null) return null
-  const ext = tour3dData.value?.extent
+  const ext = view3dData.value?.extent
   return {
     svgX: userPos.svgX - (ext?.minX ?? 0),
     svgY: userPos.svgY - (ext?.minY ?? 0),
@@ -3227,96 +3271,33 @@ const gpsForTour3d = computed(() => {
   }
 })
 
-async function openTour3d() {
-  if (tour3dOpen.value) return
+async function open3d({ medTur = false } = {}) {
+  if (view3dOpen.value) return
   tour3dError.value = ''
-  tour3dOpen.value = true
-  tour3dLoading.value = true
+  view3dOpen.value = true
+  view3dLoading.value = true
   try {
     await ensureDem()
-    tour3dData.value = await prepareTour3dData()
-    if (!tour3dData.value) throw new Error('ingen rute')
-    if (!tour3dComp.value) {
-      const mod = await import('../components/tour3d/Immersive3DViewer.vue')
-      tour3dComp.value = markRaw(mod.default)
+    view3dData.value = await prepare3dData({ medTur })
+    if (!view3dData.value) throw new Error(medTur ? 'ingen rute' : 'kartet er ikke lastet')
+    if (!view3dComp.value) {
+      const mod = await import('../components/tour3d/Viewer3D.vue')
+      view3dComp.value = markRaw(mod.default)
     }
   } catch {
-    tour3dOpen.value = false
-    tour3dData.value = null
+    view3dOpen.value = false
+    view3dData.value = null
     tour3dError.value = 'Kunne ikke laste 3D-visningen — sjekk nettforbindelsen'
     setTimeout(() => { tour3dError.value = '' }, 4000)
   } finally {
-    tour3dLoading.value = false
+    view3dLoading.value = false
   }
 }
-function closeTour3d() {
-  tour3dOpen.value = false
-  tour3dData.value = null
-}
-
-// ── 3D-utforsker (v5.1.0) ───────────────────────────────────────────────
-// Samme motor som turvisningen, men uten rute: hele kartet sett fra sentrum
-// mot nord. Stinett og brukerminner leses ut av kart-SVG-en her, siden det er
-// MapView som eier DOM-en — 3D-chunken skal ikke røre den.
-const explore3dOpen = ref(false)
-const explore3dLoading = ref(false)
-const explore3dComp = shallowRef(null)
-const explore3dData = shallowRef(null)
-
-async function prepareExplore3dData() {
-  const svgEl = svgHostRef.value?.querySelector('svg')
-  if (!svgEl || !meta.value) return null
-  const [{ stinettFeaturesFromSvgEl, fjernIsolerteStumper }, { collectBrukerminnePins }, { BARRIER_CODES }] = await Promise.all([
-    import('../lib/stinettAnalyse.js'),
-    import('../lib/tour3d/exploreData.js'),
-    import('../lib/routing.js'),
-  ])
-  return {
-    meta: { ...meta.value },
-    // Både stier og bindeledd (småveg/bro) — en tur langs stien skal kunne
-    // krysse en skogsbilvei uten å stoppe. `hoppOverSkjulte` gjør at 3D viser
-    // det samme stinettet som kartet: har brukeren slått av veier eller stier
-    // for å rydde, skal ikke 3D tegne dem likevel.
-    // … og korte, isolerte fragmenter luftes ut: de er verken nyttige å se
-    // eller å trykke på. Stumper som henger sammen med en lang sti blir stående.
-    pathFeatures: fjernIsolerteStumper(
-      stinettFeaturesFromSvgEl(svgEl, null, { hoppOverSkjulte: true }),
-      { minKomponentM: 500 },
-    ),
-    // Hindre-geometri (vann, hovedvei, jernbane, bygning, stup) — det
-    // sti-vandringen i 3D trenger for å vite hvor et brudd i stinettet er et
-    // ekte hinder og ikke bare et hull i kartdataene. Samme kodesett som
-    // Stifinneren og chatten bruker.
-    barrierFeatures: stinettFeaturesFromSvgEl(svgEl, new Set(Object.keys(BARRIER_CODES))),
-    brukerminner: collectBrukerminnePins(svgEl),
-  }
-}
-
-async function openExplore3d() {
-  if (explore3dOpen.value) return
-  tour3dError.value = ''
-  explore3dOpen.value = true
-  explore3dLoading.value = true
-  try {
-    await ensureDem()
-    explore3dData.value = await prepareExplore3dData()
-    if (!explore3dData.value) throw new Error('kartet er ikke lastet')
-    if (!explore3dComp.value) {
-      const mod = await import('../components/tour3d/Explore3DViewer.vue')
-      explore3dComp.value = markRaw(mod.default)
-    }
-  } catch {
-    explore3dOpen.value = false
-    explore3dData.value = null
-    tour3dError.value = 'Kunne ikke laste 3D-visningen — sjekk nettforbindelsen'
-    setTimeout(() => { tour3dError.value = '' }, 4000)
-  } finally {
-    explore3dLoading.value = false
-  }
-}
-function closeExplore3d() {
-  explore3dOpen.value = false
-  explore3dData.value = null
+function openTour3d() { return open3d({ medTur: true }) }
+function openExplore3d() { return open3d({ medTur: false }) }
+function close3d() {
+  view3dOpen.value = false
+  view3dData.value = null
 }
 
 // Idle-warm-up: hashede chunks er cache-first-ved-første-fetch i sw.js, så én
@@ -3328,10 +3309,7 @@ watch(meta, (m) => {
   tour3dWarmed = true
   const warm = () => {
     if (navigator.onLine === false || navigator.connection?.saveData) return
-    // Begge viewerne deler tour3d-chunken (three); den tunge biten hentes
-    // uansett bare én gang.
-    import('../components/tour3d/Immersive3DViewer.vue').catch(() => {})
-    import('../components/tour3d/Explore3DViewer.vue').catch(() => {})
+    import('../components/tour3d/Viewer3D.vue').catch(() => {})
   }
   if ('requestIdleCallback' in window) requestIdleCallback(warm, { timeout: 15000 })
   else setTimeout(warm, 5000)
@@ -4785,46 +4763,29 @@ onUnmounted(() => {
       </div>
     </Transition>
 
-    <!-- 3D-turvisning: fullskjerm-viewer (Teleport til body inne i komponenten).
-         Chunk-en (inkl. three) lastes lazily — spinner mens den hentes. -->
-    <div v-if="tour3dOpen && tour3dLoading"
+    <!-- 3D-visning: fullskjerm-viewer (Teleport til body inne i komponenten).
+         Samme komponent uansett dør — med `tour` står den planlagte ruta klar,
+         uten den er 3D en fri utforsking av kartet. Chunk-en (inkl. three)
+         lastes lazily — spinner mens den hentes. -->
+    <div v-if="view3dOpen && view3dLoading"
          class="fixed inset-0 z-[219] bg-black/70 flex flex-col items-center justify-center gap-3 text-white/85">
       <span class="w-9 h-9 rounded-full border-2 border-white/25 border-t-white animate-spin"></span>
       <span class="text-[13px]">Laster 3D-visning …</span>
     </div>
-    <component :is="tour3dComp"
-               v-if="tour3dOpen && !tour3dLoading && tour3dComp && tour3dData"
-               :dem="tour3dData.dem"
-               :meta="tour3dData.meta"
-               :route="tour3dData.route"
-               :via="tour3dData.via"
-               :is-loop="sti.isLoop.value"
+    <component :is="view3dComp"
+               v-if="view3dOpen && !view3dLoading && view3dComp && view3dData"
+               :dem="view3dData.dem"
+               :meta="view3dData.meta"
+               :search-index="view3dData.searchIndex"
+               :path-features="view3dData.pathFeatures"
+               :barrier-features="view3dData.barrierFeatures"
+               :brukerminner="view3dData.brukerminner"
+               :tour="view3dData.tour"
                :est-walk-minutes="tour3dEstWalk"
-               :search-index="tour3dData.searchIndex"
-               :get-svg-text="(opts) => mapSvgMarkupForExport({ colophon: false, theme: opts?.dark ? 'dark' : null, extent: tour3dData.extent })"
+               :get-svg-text="(opts) => mapSvgMarkupForExport({ colophon: false, theme: opts?.dark ? 'dark' : null, extent: view3dData.extent })"
                :is-dark="isDark"
-               :user-pos="gpsForTour3d"
-               @close="closeTour3d" />
-
-    <!-- 3D-utforsker: hele kartet, ingen rute. Deler chunk (og spinner-stil)
-         med turvisningen — three lastes bare én gang. -->
-    <div v-if="explore3dOpen && explore3dLoading"
-         class="fixed inset-0 z-[219] bg-black/70 flex flex-col items-center justify-center gap-3 text-white/85">
-      <span class="w-9 h-9 rounded-full border-2 border-white/25 border-t-white animate-spin"></span>
-      <span class="text-[13px]">Laster 3D-visning …</span>
-    </div>
-    <component :is="explore3dComp"
-               v-if="explore3dOpen && !explore3dLoading && explore3dComp && explore3dData"
-               :dem="storedDem"
-               :meta="explore3dData.meta"
-               :search-index="searchIndex"
-               :path-features="explore3dData.pathFeatures"
-               :barrier-features="explore3dData.barrierFeatures"
-               :brukerminner="explore3dData.brukerminner"
-               :get-svg-text="(opts) => mapSvgMarkupForExport({ colophon: false, theme: opts?.dark ? 'dark' : null })"
-               :is-dark="isDark"
-               :user-pos="gpsForExplore3d"
-               @close="closeExplore3d" />
+               :user-pos="gpsFor3d"
+               @close="close3d" />
 
     <Transition name="chip-fade">
       <div v-if="tour3dError"

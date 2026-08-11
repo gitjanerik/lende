@@ -103,11 +103,15 @@ export function buildWaypointMarkers({ route, via = [], isLoop = false, parkingS
   const geometries = []
   const materials = []
   const pins = []
+  // Trefftesting: hver stamme/hode/sprite peker tilbake på hva den ER, så et
+  // trykk på start-nåla kan svare «Start» og fly dit — som en POI-nål.
+  const hitMeshes = []
+  const metaOf = new Map()
 
   // Knappenål plantet med foten i bakken: stamme + hode i én gruppe som
   // skaleres fra bakkepunktet — avstandsoverdrivelsen forstørrer da både
   // høyde og hode uten å løfte nåla fra terrenget.
-  const pin = (x, y, color) => {
+  const pin = (x, y, color, meta) => {
     const holder = new Group()
     const stemGeo = new CylinderGeometry(PIN_STEM_R, PIN_STEM_R, PIN_STEM_H, 8)
     const stemMat = new MeshBasicMaterial({ color: 0xffffff })
@@ -125,18 +129,23 @@ export function buildWaypointMarkers({ route, via = [], isLoop = false, parkingS
     materials.push(stemMat, headMat)
     group.add(holder)
     pins.push(holder)
+    const full = { ...meta, world: [wx, wy, wz] }
+    for (const m of [stem, head]) {
+      hitMeshes.push(m)
+      metaOf.set(m, full)
+    }
   }
 
   const coordsArr = route.coordinates
   const [ax, ay] = coordsArr[0]
-  pin(ax, ay, COLOR_START)
+  pin(ax, ay, COLOR_START, { kind: 'start', name: isLoop ? 'Start og mål' : 'Start' })
   if (!isLoop) {
     const [bx, by] = coordsArr[coordsArr.length - 1]
-    pin(bx, by, COLOR_DEST)
+    pin(bx, by, COLOR_DEST, { kind: 'mål', name: 'Mål' })
   }
-  for (const v of via) pin(v.svgX, v.svgY, COLOR_VIA)
+  for (const v of via) pin(v.svgX, v.svgY, COLOR_VIA, { kind: 'via', name: 'Vendepunkt' })
 
-  const billboard = (spots, texFactory, { sizeM, liftM, parent }) => {
+  const billboard = (spots, texFactory, { sizeM, liftM, parent, kind, label }) => {
     if (!spots.length) return
     const tex = texFactory()
     const mat = new SpriteMaterial({ map: tex, transparent: true, depthWrite: false })
@@ -149,17 +158,44 @@ export function buildWaypointMarkers({ route, via = [], isLoop = false, parkingS
       const [wx, wy, wz] = drapedWorld(dem, coords, p.x, p.y, liftM)
       sprite.position.set(wx, wy, wz)
       parent.add(sprite)
+      hitMeshes.push(sprite)
+      // Skiltet svarer for punktet det står på, med bakkepunktet som mål —
+      // ellers ville flyturen siktet inn luften over nåla.
+      metaOf.set(sprite, {
+        kind,
+        name: p.name || label,
+        world: drapedWorld(dem, coords, p.x, p.y),
+      })
     }
   }
-  billboard(parkingSpots, parkingTexture, { sizeM: 46, liftM: 40, parent: group })
+  billboard(parkingSpots, parkingTexture, {
+    sizeM: 46, liftM: 40, parent: group, kind: 'parkering', label: 'Parkering',
+  })
   // Hjem-skiltet følger POI-togglen (setPinsVisible); løftes over den
   // oransje nåla på samme punkt.
-  billboard(pauseSpots, uTurnTexture, { sizeM: 42, liftM: 95, parent: signsGroup })
+  billboard(pauseSpots, uTurnTexture, {
+    sizeM: 42, liftM: 95, parent: signsGroup, kind: 'rast', label: 'Rasteplass',
+  })
 
   return {
     group,
     geometries,
     materials,
+    hitMeshes,
+
+    /**
+     * Trykk-treff → hvilket veipunkt det var.
+     * @returns {{kind:string, name:string, world:[number,number,number]}|null}
+     */
+    pick(raycaster) {
+      for (const h of raycaster.intersectObjects(hitMeshes, false)) {
+        // Skjulte skilt (POI-togglen av) skal ikke kunne treffes.
+        if (h.object.parent && h.object.parent.visible === false) continue
+        const meta = metaOf.get(h.object)
+        if (meta) return meta
+      }
+      return null
+    },
     // Toggler kun skilt-billboards — start-/mål-/via-nålene står alltid.
     setPinsVisible(v) { signsGroup.visible = !!v },
     // Avstandsoverdrivelse: nær = naturlig størrelse, langt unna vokser nåla

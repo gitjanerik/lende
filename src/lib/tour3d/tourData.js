@@ -6,7 +6,7 @@
 // asynkront; feil svelges stille så turen aldri blokkeres av en kilde.
 
 import { svgToWgs84, wgs84ToSvg } from '../utm.js'
-import { distanceToRoute, routeBboxWgs84 } from '../routeEnrichment.js'
+import { distanceToRoute } from '../routeEnrichment.js'
 import { kindMeta } from './featureTimeline.js'
 
 // Plukk korridor-kandidater fra søkeindeksen. `el`-referansen strippes så
@@ -104,40 +104,6 @@ export async function loadNveFeatures({ meta, signal }) {
         info: pickStationInfo(st),
         sildreUrl: sildreStationUrl(st.stationId),
       },
-    }
-  })
-}
-
-// Fredede kulturminner (Riksantikvaren WFS) i en buffer rundt ruta,
-// TTL-cachet i lende-cache.
-export async function loadHeritageFeatures({ route, meta, signal }) {
-  const [{ fetchFredaKulturminner, clusterByMinMeters }, cacheMod] = await Promise.all([
-    import('../kulturminneWfs.js'),
-    import('../protectedAreaCache.js'),
-  ])
-  const { cacheGet, cacheSet, fredetKulturminneBboxKey, TTL } = cacheMod
-  const routeWgs = route.map(([x, y]) => {
-    const ll = svgToWgs84(x, y, meta)
-    return [ll.lon, ll.lat]
-  })
-  const bbox = routeBboxWgs84(routeWgs, 250)
-  if (!bbox) return []
-  const key = fredetKulturminneBboxKey(bbox)
-  let items = await cacheGet(key)
-  if (!items) {
-    items = await fetchFredaKulturminner(bbox, { signal })
-    if (items?.length) cacheSet(key, items, TTL.kulturminne)
-  }
-  return clusterByMinMeters(items ?? [], 60).map(k => {
-    const { x, y } = wgs84ToSvg(k.lat, k.lon, meta)
-    return {
-      name: k.navn || 'Kulturminne',
-      kind: 'kulturminne',
-      x, y,
-      ele: null,
-      areaM2: null,
-      categories: null,
-      detail: { kulturminne: k },
     }
   })
 }

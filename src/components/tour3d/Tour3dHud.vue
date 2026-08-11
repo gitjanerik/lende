@@ -9,9 +9,9 @@ import { fmtKm, fmtDurationMin, fmtMoh } from '../../lib/tour3d/tourFormat.js'
 const props = defineProps({
   stats: { type: Object, default: null },   // progress-payload fra motoren
   landscape: { type: Boolean, default: false },
-  // Hvilke felt som vises. Utforskerens sti-turer har verken høydeprofil eller
-  // gangtid-estimat, så der ville «Stigning» stått på 0 og «Tid igjen» vært
-  // tom — de ber om et kortere sett i stedet for å vise tomme bokser.
+  // Hvilke felt som vises. «Tid igjen» faller bort av seg selv når turen ikke
+  // har et gangtid-estimat, så en kortere liste trengs bare hvis et kall vil
+  // vise mindre enn det den har.
   felter: { type: Array, default: () => ['gaatt', 'igjen', 'hoyde', 'stigning', 'eta'] },
 })
 const emit = defineEmits(['scrub-start', 'scrub', 'scrub-end'])

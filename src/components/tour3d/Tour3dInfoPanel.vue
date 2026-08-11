@@ -13,7 +13,8 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 
 const props = defineProps({
-  // 'utforsk' = fritt kamera. 'tur' = vogn-kamera med Følg/Utforsk-modus.
+  // 'utforsk' = fritt kamera over kartet. 'tur' = kameraet følger en tur, og
+  // løsner når turen står stille.
   modus: { type: String, default: 'utforsk' },
   // Knappene som faktisk finnes i denne visningen: [{ navn, tekst }]
   knapper: { type: Array, default: () => [] },
@@ -47,9 +48,9 @@ const gester = computed(() => {
   }
   if (props.modus === 'tur') {
     return [
-      ['Én finger', 'ser deg rundt fra turen'],
-      ['To fingre', 'knip for nær og fjern'],
-      ['Utforsk-modus', 'gir fritt kamera: dra for å snurre, to fingre for å flytte'],
+      ['Mens turen går', 'én finger ser deg rundt, to fingre knipes for nær og fjern'],
+      ['Når turen er pauset', 'kameraet er ditt: dra for å snurre, to fingre for å flytte'],
+      ['Play', 'fester kameraet til turen igjen, med utsikten du valgte'],
     ]
   }
   return [

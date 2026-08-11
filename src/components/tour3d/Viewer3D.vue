@@ -1,13 +1,17 @@
 <script setup>
-// Fullskjerm 3D-UTFORSKER: hele kartet i 3D, uten noen planlagt tur.
+// Fullskjerm 3D-visning — ÉN viser for alle tre inngangene (v5.7.0):
+//   • fra kartet          → fri utforsking, ingen tur
+//   • trykk på stinettet  → en tur visningen lager selv
+//   • Stifinner/rundtur   → den planlagte ruta står klar i følge-kameraet
 //
-// Skallet er bygget som Immersive3DViewer (samme lukkeveier, samme wake lock,
-// samme toRaw-disiplin — reaktive proxies i RAF-loopen dreper frameraten), men
-// innholdet er utforskermodusens: fugleperspektiv nordover, stinettet som
-// klikkbart lag, knappenåler med filterpanel, og en tur langs stien når man
-// trykker på en.
+// Skallet eier motorens livssyklus (create3dScene i onMounted, dispose i
+// onBeforeUnmount) og holder alt engine-relatert utenfor Vue-reaktivitet
+// (toRaw/ikke-reaktive variabler) — reaktive proxies i RAF-loopen dreper
+// frameraten. Lukkeveier: X-knapp, Escape og Android-tilbakeknapp (pushState +
+// popstate; samme URL, så vue-router er upåvirket).
 import { ref, computed, watch, onMounted, onBeforeUnmount, toRaw } from 'vue'
 import { useScreenWakeLock } from '../../composables/useScreenWakeLock.js'
+import { sampleProfile } from '../../lib/elevationProfile.js'
 import Tour3dFeatureCard from './Tour3dFeatureCard.vue'
 import Tour3dPinPanel from './Tour3dPinPanel.vue'
 import Tour3dInfoPanel from './Tour3dInfoPanel.vue'
@@ -25,6 +29,10 @@ const props = defineProps({
   barrierFeatures: { type: Array, default: () => [] },
   // Brukerminner bakt inn i SVG-en — offline-tilgjengelige.
   brukerminner: { type: Array, default: () => [] },
+  // Planlagt tur fra Stifinneren: { route: {coordinates, lengthM}, via, isLoop }.
+  // Null = visningen åpnes uten tur.
+  tour: { type: Object, default: null },
+  estWalkMinutes: { type: Function, default: null },
   getSvgText: { type: Function, required: true },
   isDark: { type: Boolean, default: false },
   // Live GPS-posisjon i SVG-meter, null når posisjonering ikke er aktiv.
@@ -35,27 +43,19 @@ const emit = defineEmits(['close'])
 
 const KRYSSPAUSE_KEY = 'lende-3d-krysspause'
 const TIME_SCALES = [64, 128, 256]
-
-// Hjelpetekstene for denne visningen. Bare knappene som faktisk finnes her.
-const INFO_KNAPPER = [
-  { navn: 'Nåler', tekst: 'viser interessepunkter. Filteret ved siden av velger hvilke.' },
-  { navn: 'Sol/måne', tekst: 'bytter mellom lyst og mørkt kart.' },
-  { navn: 'Sti', tekst: 'tegner stinettet oppå terrenget — og må være på for å kunne følge en sti.' },
-  { navn: 'Kryss', tekst: 'stopper turen i hvert stikryss så du kan velge vei.' },
-  { navn: 'Kurver', tekst: 'legger på høydekurver.' },
-  { navn: 'Oversikt', tekst: 'tar deg tilbake til hele kartet ovenfra.' },
-]
-const INFO_TIPS = [
-  'Slå på Sti, og trykk på en sti for å følge den.',
-  'Turen fortsetter over små brudd i stinettet, og ender der stien faktisk slutter.',
-  'Trykk på en knappenål for å fly dit.',
-]
+const HUD_FELTER = ['gaatt', 'igjen', 'hoyde', 'stigning', 'eta']
 
 const phase = ref('loading')      // loading | ready | no-dem | no-webgl | error
-const activeFeature = ref(null)
+// Kortet for en severdighet: den man TRYKKET på vinner over den turen stopper
+// ved, så et valg aldri blir overskrevet av koreografien.
+const pickedFeature = ref(null)
+const stopFeature = ref(null)
+const activeFeature = computed(() => pickedFeature.value ?? stopFeature.value)
 const walking = ref(false)
+const fixedTour = ref(false)
 const playing = ref(false)
-const walkLengthM = ref(0)
+const finished = ref(false)
+const detached = ref(false)
 const timeScale = ref(128)
 const stats = ref(null)
 const junction = ref(null)
@@ -86,8 +86,35 @@ const wake = useScreenWakeLock({ persist: false, defaultOn: false, idleTimeoutMs
 const errorText = computed(() => ({
   'no-dem': 'Ingen høydedata for dette kartet — 3D-visning krever et kart bygd med ekte terreng.',
   'no-webgl': '3D-visning støttes ikke på denne enheten.',
+  'no-route': 'Ingen rute å vise i 3D.',
   error: 'Kunne ikke bygge 3D-visningen for dette kartet.',
 })[phase.value] ?? null)
+
+// Hjelpetekstene følger inngangen: en planlagt tur har POI-stopp der en
+// utforsking har kryssvalg.
+const INFO_KNAPPER = computed(() => [
+  { navn: 'Nåler', tekst: 'viser interessepunkter — trykk på en for å fly dit. Filteret ved siden av velger hvilke.' },
+  { navn: 'Sol/måne', tekst: 'bytter mellom lyst og mørkt kart.' },
+  { navn: 'Sti', tekst: 'tegner stinettet oppå terrenget — og må være på for å kunne følge en sti.' },
+  fixedTour.value
+    ? { navn: 'Stopp', tekst: 'lar turen stoppe ved severdigheter langs veien.' }
+    : { navn: 'Kryss', tekst: 'stopper turen i hvert stikryss så du kan velge vei.' },
+  { navn: 'Kurver', tekst: 'legger på høydekurver.' },
+  walking.value
+    ? { navn: 'Til ruta', tekst: 'fester kameraet tilbake til turen etter en avstikker.' }
+    : { navn: 'Oversikt', tekst: 'tar deg tilbake til hele kartet ovenfra.' },
+])
+const INFO_TIPS = computed(() => (walking.value
+  ? [
+    'Pause løsner kameraet: da kan du fly rundt og se på det du vil.',
+    'Play fester kameraet til turen igjen — med utsikten du nettopp valgte.',
+    'Trykk på en nål for å fly dit; turen venter på deg.',
+  ]
+  : [
+    'Slå på Sti, og trykk på en sti for å følge den.',
+    'Turen fortsetter over små brudd i stinettet, og ender der stien faktisk slutter.',
+    'Trykk på en knappenål for å fly dit.',
+  ]))
 
 // --- lagrede filtervalg ----------------------------------------------------
 
@@ -120,7 +147,7 @@ function requestClose() {
   history.back()
 }
 
-function showToast(text, ms = 2200) {
+function showToast(text, ms = 2400) {
   toast.value = text
   clearTimeout(toastTimer)
   toastTimer = setTimeout(() => { toast.value = '' }, ms)
@@ -142,8 +169,9 @@ onMounted(async () => {
     // Brukerminnene er allerede lest ut av SVG-en av forelderen, som eier
     // DOM-en; her brukes bare resultatet.
     const {
-      createExploreScene, collectAllFeatures, loadNveFeatures, loadHeritageForMap,
-      clusterFeaturesByMeters, PIN_GROUPS, countByGroup, featureType,
+      create3dScene, collectAllFeatures, collectMapFeatures,
+      findParkingSpots, findPauseSpots, loadNveFeatures, loadHeritageForMap,
+      clusterFeaturesByMeters, PIN_GROUPS, countByGroup,
     } = mod
 
     pinGroups.value = PIN_GROUPS
@@ -154,7 +182,30 @@ onMounted(async () => {
       ...(toRaw(props.brukerminner) ?? []),
     ])
 
-    engine = await createExploreScene(canvasHost.value, {
+    // Den planlagte turen tar med seg det den trenger for koreografien:
+    // severdigheter i korridoren, P-plass ved start/mål, rasteplass ved
+    // vendepunktet, og 2D-sidens egen høydeprofil (samme stigningstall).
+    let tourOpts = null
+    const t = props.tour ? toRaw(props.tour) : null
+    if (t?.route?.coordinates?.length >= 2) {
+      const via = (t.via ?? []).map(v => ({ svgX: v.svgX, svgY: v.svgY }))
+      const profile = sampleProfile(
+        { points: t.route.coordinates.map(c => ({ x: c[0], y: c[1] })) },
+        dem,
+      )
+      tourOpts = {
+        route: { coordinates: t.route.coordinates, lengthM: t.route.lengthM },
+        via,
+        isLoop: !!t.isLoop,
+        parkingSpots: findParkingSpots(rawIndex, t.route.coordinates, { isLoop: !!t.isLoop }),
+        pauseSpots: findPauseSpots(rawIndex, via),
+        routeFeatures: collectMapFeatures(rawIndex, t.route.coordinates),
+        profileSamples: profile?.samples ?? null,
+        estWalkMinutes: props.estWalkMinutes ?? null,
+      }
+    }
+
+    engine = await create3dScene(canvasHost.value, {
       dem,
       meta: toRaw(props.meta),
       svgText: props.getSvgText(),
@@ -165,6 +216,8 @@ onMounted(async () => {
       pathFeatures: toRaw(props.pathFeatures) ?? [],
       barrierFeatures: toRaw(props.barrierFeatures) ?? [],
       features: allFeatures,
+      tour: tourOpts,
+      options: { estWalkMinutes: props.estWalkMinutes ?? null },
     })
 
     engine.on('progress', (p) => {
@@ -172,38 +225,55 @@ onMounted(async () => {
       if (p.walking) {
         stats.value = p
         playing.value = !!p.playing
+        finished.value = !!p.finished
+        fixedTour.value = !!p.fixed
+        detached.value = !!p.detached
         if (Number.isFinite(p.timeScale)) timeScale.value = p.timeScale
       } else {
         stats.value = null
       }
     })
-    engine.on('feature', ({ feature }) => {
-      activeFeature.value = { ...feature, type: featureType(feature) }
-    })
-    engine.on('walk-start', ({ lengthM }) => {
+    // Trykket nål (POI, start/mål/via, parkering) — turen er pauset og
+    // kameraet løsnet av motoren.
+    engine.on('feature', ({ feature }) => { pickedFeature.value = feature })
+    // Severdighet turen stopper ved av seg selv.
+    engine.on('feature-enter', ({ feature }) => { stopFeature.value = feature })
+    engine.on('feature-exit', () => { stopFeature.value = null })
+    engine.on('trip-start', ({ lengthM, fixed }) => {
       // Turen står klar men spiller ikke — play-knappen pulserer i stedet,
       // og skjermlåsen holdes først fra brukeren faktisk trykker play.
       walking.value = true
       playing.value = false
-      walkLengthM.value = lengthM
-      activeFeature.value = null
+      finished.value = false
+      fixedTour.value = !!fixed
+      pickedFeature.value = null
+      void lengthM
     })
-    engine.on('walk-end', () => {
+    engine.on('trip-end', () => {
       walking.value = false
       playing.value = false
       junction.value = null
       wake.stop()
     })
+    engine.on('camera', ({ detached: d }) => { detached.value = !!d })
     engine.on('junction', ({ junction: j }) => { junction.value = j })
     engine.on('junction-pause', () => { playing.value = false; wake.stop() })
-    engine.on('finished', () => { playing.value = false })
+    engine.on('finished', () => { playing.value = false; finished.value = true; wake.stop() })
     engine.on('no-path', () => showToast('Ingen sti akkurat der'))
     engine.on('paths-hidden', () => showToast('Slå på Sti for å følge stien'))
+    engine.on('tour-locked', () => showToast('Følger den planlagte turen — stinettet er bare til orientering'))
+
     engine.setPathsVisible(pathsOn.value)
     applyKryssPause()
+    engine.setPoiStops(poiStopsOn.value)
     applyUserPos(props.userPos)
 
     hasPaths.value = engine.hasPaths
+    walking.value = engine.walking
+    fixedTour.value = engine.isFixedTour
+    // Uten dette står HUD-en tom til første progress-event (et kvart sekund) —
+    // med en tur er det nettopp den brukeren ser etter først.
+    if (engine.walking) stats.value = engine.state
     engine.setFeatures(allFeatures)
     pinCounts.value = countByGroup(allFeatures)
     applyPinGroups()
@@ -212,8 +282,8 @@ onMounted(async () => {
 
     phase.value = 'ready'
 
-    // Nettbaserte kilder popper inn asynkront — feil svelges stille, som i
-    // turvisningen. Kartet skal aldri stå og vente på Riksantikvaren.
+    // Nettbaserte kilder popper inn asynkront — feil svelges stille, som før.
+    // Kartet skal aldri stå og vente på Riksantikvaren.
     const merge = (extra) => {
       if (!extra?.length || !engine) return
       allFeatures = clusterFeaturesByMeters([...allFeatures, ...extra])
@@ -229,8 +299,12 @@ onMounted(async () => {
     extrasLoading.value = false
   } catch (err) {
     extrasLoading.value = false
-    phase.value = err?.code === 'no-dem' ? 'no-dem' : err?.code === 'no-webgl' ? 'no-webgl' : 'error'
-    if (phase.value === 'error') console.error('3D-utforsker feilet:', err)
+    phase.value = err?.code === 'no-dem'
+      ? 'no-dem'
+      : err?.code === 'no-webgl'
+        ? 'no-webgl'
+        : err?.code === 'no-route' ? 'no-route' : 'error'
+    if (phase.value === 'error') console.error('3D-visning feilet:', err)
   }
 })
 
@@ -267,11 +341,25 @@ function applyKryssPause() {
   engine?.setAutoPauseJunctions(kryssPauseOn.value && pathsOn.value)
 }
 
+function toggleKryssPause() {
+  kryssPauseOn.value = !kryssPauseOn.value
+  try { localStorage.setItem(KRYSSPAUSE_KEY, kryssPauseOn.value ? '1' : '0') } catch { /* privat modus */ }
+  applyKryssPause()
+}
+
+// POI-stopp langs en planlagt tur — default AV (v3.0.27): turen skal kunne
+// spilles i ett strekk. Nålene er klikkbare uansett.
+const poiStopsOn = ref(false)
+function togglePoiStops() {
+  poiStopsOn.value = !poiStopsOn.value
+  engine?.setPoiStops(poiStopsOn.value)
+}
+
 const pinsOn = ref(true)
 function togglePins() {
   pinsOn.value = !pinsOn.value
   engine?.setPinsVisible(pinsOn.value)
-  if (!pinsOn.value) activeFeature.value = null
+  if (!pinsOn.value) pickedFeature.value = null
 }
 
 // Høydekurvene starter PÅ: de leser terrenget for deg i fugleperspektiv, der
@@ -292,22 +380,42 @@ function toggleNight() {
   applyNight(nightOn.value)
 }
 
-function resetView() {
-  engine?.resetView()
-  activeFeature.value = null
+// --- turen -----------------------------------------------------------------
+
+function play() {
+  engine?.play()
+  playing.value = true
+  pickedFeature.value = null
+  wake.start()
 }
-
-// --- tur langs sti ---------------------------------------------------------
-
-function play() { engine?.play(); playing.value = true; wake.start() }
 function pause() { engine?.pause(); playing.value = false; wake.stop() }
-function stopWalk() { engine?.stopWalk() }
+function restart() {
+  engine?.restart()
+  playing.value = true
+  finished.value = false
+  pickedFeature.value = null
+  wake.start()
+}
+function stopTrip() { engine?.stopTrip() }
+function followRoute() { engine?.followRoute(); pickedFeature.value = null }
+function overview() {
+  engine?.overview()
+  pickedFeature.value = null
+  playing.value = false
+  wake.stop()
+}
 
 // Tidsakse: dra = seek (kameraet følger), slipp = forbli pauset.
 function onScrubStart() { engine?.scrubStart(); playing.value = false; wake.stop() }
 function onScrub(pct) { if (engine) engine.scrub(pct * engine.totalM) }
 function onScrubEnd() { engine?.scrubEnd(); playing.value = false }
 function chooseBranch(nodeId) { engine?.chooseBranch(nodeId) }
+
+// «Videre →» på kortet: et trykket kort lukkes, et turstopp hoppes over.
+function onCardSkip() {
+  if (pickedFeature.value) { pickedFeature.value = null; return }
+  engine?.skipFeature()
+}
 
 function setTimeScale(x) {
   timeScale.value = x
@@ -321,12 +429,6 @@ function applyUserPos(p) {
     : null)
 }
 watch(() => props.userPos, applyUserPos)
-
-function toggleKryssPause() {
-  kryssPauseOn.value = !kryssPauseOn.value
-  try { localStorage.setItem(KRYSSPAUSE_KEY, kryssPauseOn.value ? '1' : '0') } catch { /* privat modus */ }
-  applyKryssPause()
-}
 
 const ISOM_LABEL = {
   505: 'Sti', 506: 'Sti (uklar)', 507: 'Stitråkk', 504: 'Skogsbilvei',
@@ -349,9 +451,9 @@ function branchLabel(opt, i) {
     <div class="fixed inset-0 z-[220] bg-[#101623] flex flex-col" style="height: 100dvh;">
       <div ref="canvasHost" class="absolute inset-0"></div>
 
-      <!-- Topprad: Pin · Sol/måne · Sti · Kryss · Kurver — venstrestilt, med
-           X aleine helt til høyre. Høyrestilt raden vokste mot venstre, og med
-           seks knapper falt den første ut av skjermen på smale telefoner
+      <!-- Topprad: Pin · Sol/måne · Sti · Kryss|Stopp · Kurver — venstrestilt,
+           med X aleine helt til høyre. Høyrestilt raden vokste mot venstre, og
+           med seks knapper falt den første ut av skjermen på smale telefoner
            (S22+, buet kant). Venstrestilt vokser den innover i stedet, og
            gapet er strammet inn for å gi mer luft i marginene. -->
       <div class="relative z-10 flex items-start justify-between gap-2 px-3"
@@ -385,10 +487,10 @@ function branchLabel(opt, i) {
             </svg>
           </button>
           <!-- Sti-togglen bærer teksten sin, som Kryss og Kurver: ikonet aleine
-               er ikke til å gjette, og etter venstrestillingen er det plass.
-               Under 380 px skjermbredde faller de tre tekstene bort og knappene
-               blir runde igjen — der er det ikke plass til fem merkelapper, og
-               en rad som bryter til tre linjer er verre enn tre ikoner. -->
+               er ikke til å gjette. Under 380 px skjermbredde faller de tre
+               tekstene bort og knappene blir runde igjen — der er det ikke plass
+               til fem merkelapper, og en rad som bryter til tre linjer er verre
+               enn tre ikoner. -->
           <button v-if="phase === 'ready' && hasPaths"
                   @click="togglePaths"
                   :aria-label="pathsOn ? 'Skjul stinettet' : 'Vis stinettet'"
@@ -404,8 +506,9 @@ function branchLabel(opt, i) {
           </button>
           <!-- Krysspause («gaffel»): på = turen stopper i hvert stikryss så man
                rekker å velge vei. Valget huskes. Uten stinettet synlig gir den
-               ingen mening — da deaktiveres den. -->
-          <button v-if="phase === 'ready' && hasPaths"
+               ingen mening — da deaktiveres den. En PLANLAGT tur har ingen
+               kryssvalg; der står POI-stopp på samme plass i stedet. -->
+          <button v-if="phase === 'ready' && hasPaths && !fixedTour"
                   @click="toggleKryssPause"
                   :disabled="!pathsOn"
                   :aria-label="kryssPauseOn ? 'Ikke stopp i stikryss' : 'Stopp i stikryss'"
@@ -421,6 +524,19 @@ function branchLabel(opt, i) {
               <path d="M12 13l5-5"/><polyline points="14 8 17 8 17 11"/>
             </svg>
             <span class="max-[379px]:hidden">Kryss</span>
+          </button>
+          <button v-if="phase === 'ready' && fixedTour"
+                  @click="togglePoiStops"
+                  :aria-label="poiStopsOn ? 'Ikke stopp ved severdigheter' : 'Stopp ved severdigheter'"
+                  class="h-11 px-2 max-[379px]:w-11 max-[379px]:px-0 rounded-full backdrop-blur
+                         text-[12px] font-medium flex items-center justify-center gap-1
+                         active:scale-95 transition-colors"
+                  :class="poiStopsOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="8.5"/><path d="M12 8v4l3 2"/>
+            </svg>
+            <span class="max-[379px]:hidden">Stopp</span>
           </button>
           <button v-if="phase === 'ready'"
                   @click="toggleContours"
@@ -452,7 +568,8 @@ function branchLabel(opt, i) {
            dem. Items-start så en utvidet boks ikke dytter den andre nedover. -->
       <div v-if="phase === 'ready'"
            class="relative z-10 flex items-start justify-between gap-2 px-3 mt-2">
-        <Tour3dInfoPanel modus="utforsk" :knapper="INFO_KNAPPER" :tips="INFO_TIPS"/>
+        <Tour3dInfoPanel :modus="walking ? 'tur' : 'utforsk'"
+                         :knapper="INFO_KNAPPER" :tips="INFO_TIPS"/>
         <Tour3dPinPanel v-if="pinsOn" :groups="pinGroups" :counts="pinCounts"
                         :loading="extrasLoading"
                         :model-value="pinPrefs" @update:model-value="setPinPrefs"/>
@@ -473,16 +590,27 @@ function branchLabel(opt, i) {
         </div>
       </div>
 
-      <!-- Infokort for valgt POI -->
+      <!-- Infokort for valgt/aktuell POI -->
       <div v-if="phase === 'ready' && activeFeature"
            class="absolute left-0 right-0 z-10 flex justify-center px-4 pointer-events-none"
            :class="isLandscape ? 'top-16' : 'top-20'">
-        <Tour3dFeatureCard :feature="activeFeature" @skip="activeFeature = null"/>
+        <Tour3dFeatureCard :feature="activeFeature" @skip="onCardSkip"/>
       </div>
 
-      <!-- Bunn: hint, kryssvalg og turkontroller -->
+      <!-- Bunn: kryssvalg, framdrift og turkontroller -->
       <div v-if="phase === 'ready'" class="relative z-10 mt-auto px-3 flex flex-col gap-2"
            style="padding-bottom: max(env(safe-area-inset-bottom), 12px);">
+
+        <!-- Kameraet er løsnet fra turen: veien tilbake, ett trykk unna. -->
+        <button v-if="walking && detached" @click="followRoute"
+                class="self-start w-fit flex items-center gap-1.5 rounded-full bg-black/55 backdrop-blur
+                       px-3 py-1.5 text-[11px] font-medium text-white/90 active:scale-95">
+          <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 20c3-1 4-4 3-7s1-6 4-7 6 1 8 3"/>
+          </svg>
+          Til ruta
+        </button>
 
         <!-- Kryss: rett fram vinner om brukeren ikke gjør noe. Med krysspause
              på står turen stille her til man velger gren eller trykker play.
@@ -504,30 +632,38 @@ function branchLabel(opt, i) {
           </div>
         </div>
 
-        <!-- Tidsakse med framdrift mens man følger en sti. Turen har ingen
-             høydeprofil eller gangtid-estimat, så feltsettet er kortere enn i
-             turvisningen — tomme bokser er verre enn tre gode. -->
-        <Tour3dHud v-if="walking" :stats="stats" :felter="['gaatt', 'igjen', 'hoyde']"
+        <Tour3dHud v-if="walking" :stats="stats" :felter="HUD_FELTER"
                    @scrub-start="onScrubStart" @scrub="onScrub" @scrub-end="onScrubEnd"/>
 
         <div v-if="walking" class="flex items-center gap-2">
+          <!-- Start på nytt — bare for en planlagt tur. En generert sti-tur
+               starter man på nytt ved å trykke på en sti. -->
+          <button v-if="fixedTour" @click="restart"
+                  aria-label="Start turen på nytt"
+                  class="w-10 h-10 shrink-0 rounded-full bg-black/45 backdrop-blur text-white/85
+                         flex items-center justify-center active:scale-90">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>
+            </svg>
+          </button>
           <button @click="playing ? pause() : play()"
                   :aria-label="playing ? 'Pause' : 'Fortsett'"
                   class="w-12 h-12 rounded-full bg-white text-gray-900 flex items-center
                          justify-center shrink-0 active:scale-95"
-                  :class="{ 'pulse-play': !playing }">
+                  :class="{ 'pulse-play': !playing && !finished }">
             <svg v-if="playing" viewBox="0 0 24 24" class="w-5 h-5" fill="currentColor">
               <rect x="6" y="5" width="4" height="14" rx="1"/>
               <rect x="14" y="5" width="4" height="14" rx="1"/></svg>
             <svg v-else viewBox="0 0 24 24" class="w-5 h-5" fill="currentColor">
               <polygon points="8,5 8,19 19,12"/></svg>
           </button>
-          <button @click="stopWalk"
+          <button v-if="!fixedTour" @click="stopTrip"
                   class="h-12 px-4 rounded-full bg-black/45 backdrop-blur text-white/85
                          text-[12px] font-medium active:scale-95">
             Avslutt turen
           </button>
-          <!-- Tempo, nede til høyre — samme trinn som turvisningen. -->
+          <!-- Tempo, nede til høyre. -->
           <div class="ml-auto flex items-center gap-1 rounded-full bg-black/45 backdrop-blur p-1">
             <button v-for="x in TIME_SCALES" :key="x"
                     @click="setTimeScale(x)"
@@ -541,7 +677,7 @@ function branchLabel(opt, i) {
         </div>
 
         <div v-else class="flex items-center gap-2">
-          <button @click="resetView"
+          <button @click="overview"
                   class="h-11 px-3 rounded-full bg-black/45 backdrop-blur text-white/85
                          text-[12px] font-medium flex items-center gap-1.5 active:scale-95">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
@@ -570,7 +706,7 @@ function branchLabel(opt, i) {
 
       <!-- Kortvarig melding -->
       <div v-if="toast"
-           class="absolute left-1/2 -translate-x-1/2 bottom-28 z-30 rounded-full
+           class="absolute left-1/2 -translate-x-1/2 bottom-28 z-30 max-w-[86vw] text-center rounded-full
                   bg-black/70 backdrop-blur px-3 py-1.5 text-[12px] text-white/90">
         {{ toast }}
       </div>
