@@ -129,8 +129,13 @@ const ny = deklarasjoner(nyTekst)
 
 // Filer som er lagt til eller endret i denne endringen, uten den vi ser på:
 // det er dit et uttrekk skal ha flyttet navnet.
-const endredeFiler = git('diff', '--name-only', REF, '--', 'src', 'mcp', 'scripts')
-  .split('\n').map((s) => s.trim()).filter((s) => s && s !== FIL)
+// Merk `ls-files --others`: en fersk composable er UTRACKET til den er staget,
+// og `git diff` ser den ikke. Uten den halvdelen rapporterte verktøyet «16
+// uforklart borte» for navn som lå i splitter nye filer rett ved siden av.
+const endredeFiler = [
+  ...git('diff', '--name-only', REF, '--', 'src', 'mcp', 'scripts').split('\n'),
+  ...git('ls-files', '--others', '--exclude-standard', '--', 'src', 'mcp', 'scripts').split('\n'),
+].map((s) => s.trim()).filter((s) => s && s !== FIL)
 const nyeFilerTekst = new Map()
 for (const f of endredeFiler) {
   try { nyeFilerTekst.set(f, readFileSync(f, 'utf8')) } catch { /* slettet */ }

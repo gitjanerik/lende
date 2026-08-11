@@ -31,6 +31,8 @@ import { use3dEntry } from '../composables/use3dEntry.js'
 import { useKartDeling } from '../composables/useKartDeling.js'
 import { useDeltTur } from '../composables/useDeltTur.js'
 import { useLagStyring } from '../composables/useLagStyring.js'
+import { useNavnLod } from '../composables/useNavnLod.js'
+import { useViewportCull } from '../composables/useViewportCull.js'
 import { useGpsSpor } from '../composables/useGpsSpor.js'
 import { useSymbolRenderers } from '../composables/useSymbolRenderers.js'
 import { useContextLookups } from '../composables/useContextLookups.js'
@@ -42,7 +44,6 @@ import { buildStrokeOverrideCss } from '../lib/strokeOverrides.js'
 import { buildTrailColorCss, normalizeHex } from '../lib/trailColors.js'
 import { DEFAULT_VISIBLE_LAYER_KEYS } from '../lib/mapLayerCatalog.js'
 import { themeVarEntries, allThemeVarNames, buildThemeCss, listThemes } from '../lib/mapSettingsApply.js'
-import { declutter, makeMinZoomOf } from '../lib/labelDeclutter.js'
 import { norwegianName } from '../lib/placeName.js'
 import AnnotationIcon from '../components/AnnotationIcon.vue'
 import TrackElevationSheet from '../components/TrackElevationSheet.vue'
@@ -79,10 +80,6 @@ import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { setBuildBusy } from '../lib/swUpdate.js'
 import { pruneAutoTiles, countAutoTiles } from '../lib/tileCache.js'
 import { renameMap } from '../lib/mapStorage.js'
-import {
-  viewRectSvg, expandRect, rectContains, buildCullIndex,
-  needsRecull, computeCullDiff, parseBboxAttr,
-} from '../lib/viewportCull.js'
 import { svgToWgs84, wgs84ToSvg } from '../lib/utm.js'
 import { utNoZoomForMPerPx, UTNO_DEFAULT_ZOOM } from '../lib/utNoLink.js'
 import { useMapContext } from '../composables/useMapContext.js'
@@ -1617,333 +1614,33 @@ function nearestPoiFromPoint(kind) {
   closeContextMenu()
 }
 
-// ── Navn-LOD: skjul overflødige stedsnavn i tett-befolkede utsnitt ─────────
-// Når et synlig kartutsnitt inneholder mer enn navne-budsjettet søkbare navn,
-// skjules de minst prioriterte. Vann/elver/bekker og «store» stedsnavn (by/
-// tettsted) prioriteres og skjules aldri av denne mekanismen. Alle navn forblir
-// søkbare — søkeindeksen (useMapSearch) leser hele SVG-en uavhengig av denne
-// visnings-LOD-en, og et treff som velges tvinges synlig (forcedVisibleNameEls).
-//
-// v11.0.34: budsjettet er zoom-trappet — få navn på oversikt (ren bakgrunn),
-// gradvis flere når man zoomer inn. Tidligere var det fast 200 uansett zoom.
-// v11.0.37: terskel + budsjetter er live-justerbare (useLodTuning, Utvikler-fanen).
-function nameBudgetForZoom() {
-  const s = scale.value || 1
-  if (s >= zoomNearThreshold.value) return nameBudgetNear.value
-  if (s >= ZOOMED_IN_THRESHOLD) return nameBudgetMid.value
-  return nameBudgetFar.value
-}
-const forcedVisibleNameEls = new Set()
-let nameLodTimer = null
+// Navn-LOD (hvilke stedsnavn som får plass) — flyttet til useNavnLod.js.
+// Kontrakten: alle navn forblir søkbare, geometri toggles aldri, og skjulingen
+// bruker klassen `name-lod-off` (CSS nederst i denne fila) så eksport/print
+// alltid viser alt.
+const {
+  forcedVisibleNameEls, labelBoxCache,
+  resetPrevShownNames, applyNameLOD, scheduleNameLOD,
+} = useNavnLod({
+  svgHostRef, wrapperRef, meta,
+  scale, rotation, translateX, translateY,
+  // Getter: mapSearch-indeksen bygges om ved hvert kartbytte.
+  searchIndex: () => mapSearch.index.value,
+  zoomNearThreshold, zoomedInThreshold: ZOOMED_IN_THRESHOLD,
+  nameBudgetFar, nameBudgetMid, nameBudgetNear,
+  nameCellPx, nameK,
+})
 
-// Klassegruppe for tetthets-budsjettet: topp/vann/område er PRIORITET (utenom
-// rutenett-kvoten, men kollisjonssjekkes); bebyggelse/hytte er kvote-styrt.
-const PRIORITY_NAME_KINDS = new Set(['vann-navn', 'peak', 'omrade-navn', 'naturreservat-navn'])
-function nameGroup(e) {
-  if (PRIORITY_NAME_KINDS.has(e.kind)) return 'priority'
-  if (e.categories && e.categories.includes('vann')) return 'priority'
-  return 'quota'   // stedsnavn, hytte-navn
-}
-
-// Score 0–100: les data-score (bakt ved bygging i mapBuilder.labelScore). Fallback
-// for eldre kart uten attributtet, utledet fra kind/rank så de fortsatt vrakes ok.
-function nameScore(e) {
-  if (e._score != null) return e._score
-  const raw = e.el?.getAttribute?.('data-score')
-  let s = raw != null ? parseInt(raw, 10) : NaN
-  if (!Number.isFinite(s)) {
-    if (e.kind === 'peak') s = 60
-    else if (e.kind === 'vann-navn') s = 55
-    else if (e.kind === 'stedsnavn') {
-      const r = e.el?.getAttribute('data-rank')
-      s = r === 'major' ? 70 : r === 'mid' ? 55 : 35
-    } else if (e.kind === 'hytte-navn') s = 20
-    else s = 45
-  }
-  e._score = s
-  return s
-}
-
-// Label-boks (user-units) måles én gang når labels er synlige, cachet pr element.
-// Re-måles ved kart-load, tekst-skala- og font-bytte (alle endrer boks-bredden).
-const labelBoxCache = new Map()
-function measureLabelBoxes() {
-  const idx = mapSearch.index.value
-  if (!idx) return
-  labelBoxCache.clear()
-  for (const e of idx) {
-    if (!e.el || typeof e.el.getBBox !== 'function') continue
-    let bw = 0, bh = 0
-    try { const bb = e.el.getBBox(); bw = bb.width; bh = bb.height } catch { /* display:none → 0 */ }
-    if (!(bw > 0) && !(bh > 0)) {
-      // Skjult ved måletid → grovt estimat fra navnlengde (kun eldre/skjulte).
-      bw = Math.max(8, (e.name?.length || 4) * 4); bh = 6
-    }
-    labelBoxCache.set(e.el, { bw, bh })
-  }
-}
-
-// Forrige passs synlige navn — hysterese (hindrer blinking ved pan/zoom rundt
-// en LOD-grense). minZoom-tabellen gjenbruker .zoom-near-terskelen.
-let prevShownNames = new Set()
-// Kalles av loadMap (useMapLoadPipeline) ved nytt kart — reassignment kan
-// ikke gjøres gjennom en destrukturert dep.
-function resetPrevShownNames() { prevShownNames = new Set() }
-const nameMinZoomOf = (score) => makeMinZoomOf(zoomNearThreshold.value)(score)
-
-// Tetthets-budsjett: score → LOD (m/hysterese) → grådig kollisjon (rbush) +
-// rutenett-kvote → synlig-sett. Ren algoritme i lib/labelDeclutter.js; her står
-// kun skjermrom-transformen og DOM-toggling.
-function applyNameLOD() {
-  const svg = svgHostRef.value?.querySelector('svg')
-  const m = meta.value
-  const idx = mapSearch.index.value
-  if (!svg || !m || !idx || !idx.length) return
-  const wrap = wrapperRef.value?.getBoundingClientRect()
-  if (!wrap || !wrap.width || !wrap.height) return
-  if (!labelBoxCache.size) measureLabelBoxes()
-
-  // Forward-transform viewBox-koordinat → wrapper-lokal skjermpiksel, samme
-  // matte som usePinchZoom.panTo: SVG-en fyller wrapperen med
-  // preserveAspectRatio="xMidYMid meet", deretter T(tx,ty)∘R(rot)∘S(s).
-  const w = wrap.width, h = wrap.height
-  const fit = Math.min(w / m.widthM, h / m.heightM)
-  const offX = (w - m.widthM * fit) / 2
-  const offY = (h - m.heightM * fit) / 2
-  const s = scale.value || 1
-  const rot = (rotation.value || 0) * Math.PI / 180
-  const cos = Math.cos(rot), sin = Math.sin(rot)
-  const tx = translateX.value, ty = translateY.value
-  const MARGIN = 80   // px slingringsmonn så navn rett utenfor kanten teller med
-  const px2 = fit * s // user-units → skjerm-px
-
-  const candidates = []
-  for (const e of idx) {
-    if (!e.el) continue   // unavngitte vann-polygoner har ingen tekst å toggle
-    // ALDRI toggle GEOMETRI: navngitte polygoner (data-name på <path>) står i
-    // søkeindeksen med selve polygonet som el. NVE-innsjøer fikk ingen egen
-    // vann-navn-tekst (navn-taggen ble ikke lest av lakeLabels) → indeksen
-    // beholdt POLYGONET som toggle-mål, og navn-LOD-en skjulte hele innsjøen
-    // når navnet tapte declutter-budsjettet. Det var «vannet forsvinner ved
-    // zoom/pan»-saken (2026-07-21): blått ved 200 m (raust budsjett), borte i
-    // oversikt, flimret ved panorering. Navn-LOD skal kun styre etiketter
-    // (<text>/<g>-grupper) — geometri er alltid synlig.
-    if ((e.el.tagName ?? '').toLowerCase() === 'path') continue
-    const px = offX + e.x * fit
-    const py = offY + e.y * fit
-    const sx = tx + s * (px * cos - py * sin)
-    const sy = ty + s * (px * sin + py * cos)
-    if (sx < -MARGIN || sx > w + MARGIN || sy < -MARGIN || sy > h + MARGIN) {
-      continue   // utenfor synlig utsnitt — teller ikke, rør ikke klassen
-    }
-    const box = labelBoxCache.get(e.el) || { bw: 8, bh: 6 }
-    // Skjerm-AABB av (kart-rotert) label-boks.
-    const hw = (box.bw * px2) / 2
-    const hh = (box.bh * px2) / 2
-    candidates.push({
-      id: e.name || `${e.kind}@${Math.round(e.x)},${Math.round(e.y)}`,
-      el: e.el,
-      score: nameScore(e),
-      sx, sy,
-      halfW: Math.abs(hw * cos) + Math.abs(hh * sin),
-      halfH: Math.abs(hw * sin) + Math.abs(hh * cos),
-      group: nameGroup(e),
-      forced: forcedVisibleNameEls.has(e.el),
-    })
-  }
-
-  const visible = declutter(candidates, {
-    cellPx: nameCellPx.value,
-    K: nameK.value,
-    scale: s,
-    minZoomOf: nameMinZoomOf,
-    prevShown: prevShownNames,
-    maxVisible: nameBudgetForZoom(),   // globalt tak (Utvikler-budsjett)
-  })
-
-  for (const c of candidates) {
-    c.el.classList.toggle('name-lod-off', !visible.has(c.id))
-  }
-  prevShownNames = visible
-}
-
-function scheduleNameLOD() {
-  if (nameLodTimer) clearTimeout(nameLodTimer)
-  nameLodTimer = setTimeout(applyNameLOD, 120)
-}
-
-// Re-beregn LOD når utsnittet endrer seg (zoom/pan/rotasjon, gest eller
-// programmatisk). Debouncet så en pågående gest ikke beregner per frame.
-watch([scale, translateX, translateY, rotation], scheduleNameLOD)
-
-// ── Viewport-culling: skjul vektorer utenfor utsnittet («out of sight,
-// out of mind») ─────────────────────────────────────────────────────────────
-// Pan/zoom er en CSS-transform på composited wrapper, så gevinsten ligger
-// IKKE i selve panningen (compositor flytter ferdig tekstur) men i re-raster:
-// pinch-zoom, gest-slutt-repaint (non-scaling-stroke/dash snapper tilbake),
-// lag-toggles og raster-minne. Cull-rekta er viewporten ekspandert med raus
-// margin, så normale pans avdekker allerede-synlig innhold momentant uten JS;
-// re-beregning skjer kun når utsnittet rømmer forrige margin (hysterese i
-// needsRecull) — og aldri midt i en gest (kjøres på gest-slutt, der framen
-// uansett betaler for snap-back-repainten).
-//
-// Skjules med klasse `vp-cull` (CSS nederst i fila, IKKE i symbolizer-CSS-en
-// inni SVG-en — så eksport/print alltid viser alt, samme kontrakt som
-// .name-lod-off). Per-element-klasse kolliderer aldri med applyLayerVisibility
-// (som setter style.display på hele lag-grupper): et element vises kun når
-// laget er på OG det ikke er cullet OG ikke LOD-skjult.
-//
-// Kill switch: localStorage 'vp-cull-off' = '1'. Debug-tint (vis i rødt i
-// stedet for å skjule): localStorage 'cull-debug' = '1'.
-const cullDisabled = ref((() => { try { return localStorage.getItem('vp-cull-off') === '1' } catch { return false } })())
-const cullDebugTint = (() => { try { return localStorage.getItem('cull-debug') === '1' } catch { return false } })()
-let cullIndex = null
-let cullPrevVisible = null
-let cullPrevState = null
-let cullTimer = null
-const cullStats = ref({ indexed: 0, culled: 0, ms: 0 })
-
-function resetViewportCull() {
-  cullIndex = null
-  cullPrevVisible = null
-  cullPrevState = null
-  cullStats.value = { indexed: 0, culled: 0, ms: 0 }
-}
-
-// Bygg rbush-indeksen fra den aktive flisas SVG-DOM. Billige bbokser uten
-// getBBox() (som tvinger layout): data-bbox-attributtet (Fase B, eksakt),
-// ellers punkt + raus pad fra translate-grupper og text-x/y. Elementer uten
-// noen av delene indekseres ikke = culles aldri (graceful for gamle lagrede
-// kart). Spøkelses-fliser har data-ghost-layer, ikke data-layer, så
-// `[data-layer]`-scopingen holder dem (og user-layer/overlays) utenfor.
-function buildCullDomIndex() {
-  resetViewportCull()
-  if (cullDisabled.value) return
-  const svg = svgHostRef.value?.querySelector('svg')
-  const m = meta.value
-  if (!svg || !m) return
-  if (cullDebugTint) svg.classList.add('cull-debug-tint')
-  // Pad for punkt-indekserte elementer: skal dekke symbolets/tekstens visuelle
-  // utstrekning i meter. Labels skalerer med kartstørrelse (labelScale i
-  // symbolizer ∝ widthM/4000), så padden gjør det også. Raus pad koster bare
-  // litt culling-effektivitet — for liten pad gir synlig popping i kanten.
-  const padM = Math.max(80, m.widthM * 0.03)
-  const entries = []
-  const seen = new Set()
-  const pushEntry = (el, rect) => {
-    if (seen.has(el)) return
-    seen.add(el)
-    entries.push({ ...rect, el })
-  }
-  const translatePoint = (el) => {
-    const mt = /translate\(\s*(-?[\d.]+)[ ,]\s*(-?[\d.]+)\s*\)/.exec(el.getAttribute('transform') ?? '')
-    return mt ? { x: Number(mt[1]), y: Number(mt[2]) } : null
-  }
-  // 1) Eksakte bbokser fra mapBuilder (Fase B): bucket-paths + standalone-paths.
-  for (const el of svg.querySelectorAll('[data-layer] [data-bbox]')) {
-    const rect = parseBboxAttr(el.getAttribute('data-bbox'))
-    if (rect) pushEntry(el, rect)
-  }
-  // 2) Punkt-symboler i translate-grupper (parkering, holdeplass, sjø-POI,
-  //    hule/gruve/kirke/bom etter posisjons-fiksen) + navn-grupper.
-  for (const el of svg.querySelectorAll('[data-layer] g[transform^="translate"]')) {
-    if (seen.has(el)) continue
-    // Hopp over grupper inni allerede-indekserte elementer (data-bbox-foreldre).
-    if (el.parentElement?.closest?.('[data-bbox]')) continue
-    const p = translatePoint(el)
-    if (p) pushEntry(el, { minX: p.x - padM, minY: p.y - padM, maxX: p.x + padM, maxY: p.y + padM })
-  }
-  // 3) Frittstående tekst-labels (stedsnavn, vann-navn, kontur-tall, dybde).
-  for (const el of svg.querySelectorAll('[data-layer] text')) {
-    if (seen.has(el)) continue
-    // Tekst inni en allerede-indeksert gruppe følger gruppens synlighet.
-    let anc = el.parentElement, covered = false
-    while (anc && anc !== svg) { if (seen.has(anc)) { covered = true; break } anc = anc.parentElement }
-    if (covered) continue
-    const x = Number(el.getAttribute('x'))
-    const y = Number(el.getAttribute('y'))
-    if (!Number.isFinite(x) || !Number.isFinite(y)) continue
-    pushEntry(el, { minX: x - padM, minY: y - padM, maxX: x + padM, maxY: y + padM })
-  }
-  if (!entries.length) return
-  cullIndex = buildCullIndex(entries)
-  cullStats.value = { indexed: entries.length, culled: 0, ms: 0 }
-}
-
-function applyViewportCull(force = false) {
-  if (cullDisabled.value || !cullIndex) return
-  const m = meta.value
-  const wrap = wrapperRef.value?.getBoundingClientRect()
-  const svg = svgHostRef.value?.querySelector('svg')
-  if (!m || !wrap || !wrap.width || !wrap.height || !svg) return
-  const t0 = performance.now()
-  const view = viewRectSvg({
-    w: wrap.width, h: wrap.height, widthM: m.widthM, heightM: m.heightM,
-    scale: scale.value, rotation: rotation.value,
-    tx: translateX.value, ty: translateY.value,
-  })
-  if (!view) return
-  if (!force && !needsRecull(cullPrevState, view, scale.value)) return
-  const expanded = expandRect(view)
-  // Utzoomet: dekker cull-rekta hele kartet (og gjorde det også sist), er
-  // ingenting cullet og ingenting å gjøre — null arbeid ved oversikts-zoom.
-  const mapRect = { minX: 0, minY: 0, maxX: m.widthM, maxY: m.heightM }
-  if (rectContains(expanded, mapRect) && cullPrevState?.coveredAll &&
-      cullPrevVisible && cullPrevVisible.size === cullStats.value.indexed) {
-    cullPrevState = { viewRect: view, expandedRect: expanded, scale: scale.value, coveredAll: true }
-    return
-  }
-  const { show, hide, visible } = computeCullDiff(cullIndex, expanded, cullPrevVisible)
-  cullPrevVisible = visible
-  cullPrevState = {
-    viewRect: view, expandedRect: expanded, scale: scale.value,
-    coveredAll: rectContains(expanded, mapRect),
-  }
-  if (show.length || hide.length) {
-    requestAnimationFrame(() => {
-      for (const el of show) el.classList.remove('vp-cull')
-      for (const el of hide) el.classList.add('vp-cull')
-    })
-  }
-  cullStats.value = {
-    indexed: cullStats.value.indexed,
-    culled: Math.max(0, cullStats.value.indexed - visible.size),
-    ms: Math.round((performance.now() - t0) * 10) / 10,
-  }
-}
-
-// Runtime-bryter i Utvikler-fanen: slå culling AV uten reload for å avgjøre
-// på stedet om «forsvunnet innhold» skyldes culling (av → innholdet tilbake
-// umiddelbart = culling er synderen) eller kart-dataene selv. Valget
-// persisteres (vp-cull-off) så det overlever reload/nybygg under feilsøk.
-function toggleCull() {
-  const off = !cullDisabled.value
-  cullDisabled.value = off
-  try {
-    if (off) localStorage.setItem('vp-cull-off', '1')
-    else localStorage.removeItem('vp-cull-off')
-  } catch { /* noop */ }
-  if (off) {
-    const svg = svgHostRef.value?.querySelector('svg')
-    if (svg) for (const el of svg.querySelectorAll('.vp-cull')) el.classList.remove('vp-cull')
-    resetViewportCull()
-  } else {
-    buildCullDomIndex()
-    applyViewportCull(true)
-  }
-}
-
-function scheduleViewportCull() {
-  if (cullTimer) clearTimeout(cullTimer)
-  cullTimer = setTimeout(() => {
-    // Aldri midt i en gest: en klasse-toggle der ville tvinge en unødig paint-
-    // invalidasjon. Gest-slutt-watcheren tar den i stedet.
-    if (!isGesturing.value) applyViewportCull()
-  }, 120)
-}
-watch([scale, translateX, translateY, rotation], scheduleViewportCull)
-watch(isGesturing, (g) => { if (!g) applyViewportCull() })
-
+// Viewport-culling (skjul vektorer utenfor utsnittet) — flyttet til
+// useViewportCull.js. Klassen `vp-cull` har samme eksport-kontrakt som
+// `name-lod-off`; kill switch i Utvikler-fanen via toggleCull.
+const {
+  cullStats, cullDisabled, toggleCull,
+  buildCullDomIndex, applyViewportCull, resetViewportCull,
+} = useViewportCull({
+  svgHostRef, wrapperRef, meta,
+  scale, rotation, translateX, translateY, isGesturing,
+})
 
 // Hold ringen på konstant skjerm-størrelse ved zoom.
 watch(scale, () => { if (highlightedFeature.value) renderHighlight() })
@@ -3307,7 +3004,6 @@ onMounted(() => {
     wrapperResizeObs.observe(wrapperRef.value)
   }
   window.addEventListener('resize', measureWrapper)
-  window.addEventListener('resize', scheduleNameLOD)
   window.addEventListener('online', updateOnlineState)
   window.addEventListener('offline', updateOnlineState)
   loadMap()
@@ -3326,11 +3022,9 @@ onUnmounted(() => {
   tabResizeObs?.disconnect()
   wrapperResizeObs?.disconnect()
   componentAlive = false
-  window.removeEventListener('resize', scheduleNameLOD)
   window.removeEventListener('online', updateOnlineState)
   window.removeEventListener('offline', updateOnlineState)
   desktopMq?.removeEventListener('change', updateIsDesktop)
-  if (nameLodTimer) clearTimeout(nameLodTimer)
   if (skeletonTimer) clearTimeout(skeletonTimer)
   if (loadPillTimer) clearTimeout(loadPillTimer)
   teardownMapExtend()

@@ -48,8 +48,14 @@ jobs:
 
       - run: npm run build
 
+      # --ektekart: bygg et ferskt Vardåsen-kart fra Kartverket + OSM (~12 s) og
+      # test mot det. Det sporede demo-kartet har 7 labels og ingen data-bbox, så
+      # navn-LOD og culling har ingenting å gjøre der og sjekkene deres hoppes
+      # over. Feiler kart-byggingen (kildene nede), går røyktesten videre på
+      # demo-kartet og RAPPORTERER hva den hoppet over — en PR skal ikke blokkeres
+      # av at Overpass har en dårlig dag.
       - name: Røyktest
-        run: npm run royk -- --bilder=/tmp/royk
+        run: npm run royk -- --ektekart --bilder=/tmp/royk
 
       # Navnediff er en LESE-gate: den skal fortelle mennesket hva som forsvant.
       # Villede slettinger kvitteres ut med `--ok navn1,navn2` i PR-en som gjør
