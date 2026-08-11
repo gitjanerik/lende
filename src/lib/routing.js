@@ -64,6 +64,14 @@ const MOTORWAY_BLOCK = 1e9
 // villig når den er eneste forbindelse til et fragment.
 const BRIDGE_COST = 1.4
 
+// Hull-broing (bridgeGaps): et hull broes bare når omveien i dagens graf er
+// minst GAP_DETOUR_FACTOR × hullet OG minst GAP_DETOUR_MIN_M. Tallene skiller
+// «nettet er brutt her» fra «stien svinger». En U-formet sti med 20 m mellom
+// endene og 300 m rundt bunnen skal IKKE få en snarvei; en sti som ender 13 m
+// fra hovedstien med 5,5 km rundt skal kobles.
+const GAP_DETOUR_FACTOR = 25
+const GAP_DETOUR_MIN_M = 500
+
 /**
  * Projiser punkt p ned på linjestykket a→b. Returnerer fotpunktet (klemt til
  * segmentet), parameteren t∈[0,1] og avstanden. Ren geometri-hjelper for
@@ -101,7 +109,8 @@ function pathUsesCode(g, nodeIds, code) {
  * `coordinates: [[x,y],...]` i UTM, og `isomCode`.
  *
  * @param {Array} features
- * @param {{ snapM?: number, projectFn?: Function }} opts
+ * @param {{ snapM?: number, projectFn?: Function, bridgeM?: number,
+ *          gapBridgeM?: number, componentBridgeM?: number }} opts
  * @returns {RoutingGraph}
  */
 export function buildRoutingGraph(features, opts = {}) {
@@ -184,6 +193,24 @@ export function buildRoutingGraph(features, opts = {}) {
   // kall er byte-identiske; Stifinner og MCP-serveren slår den på.
   const componentBridgeM = opts.componentBridgeM ?? 0
   if (componentBridgeM > 0) bridgeComponents(componentBridgeM)
+
+  // Hull-broing — SIST, så den måler omveien i den grafen ruteren faktisk får.
+  // Dangle-broen over dekker bare de minste hullene (bridgeM = 12 m), og
+  // komponent-broen rører kun ADSKILTE komponenter. Imellom ligger det verste
+  // tilfellet: en sti som ender noen titalls meter fra en hovedsti, men som
+  // teknisk sett henger sammen med den — flere kilometer rundt. Grafen er da
+  // «sammenhengende», så komponent-broen holder fingrene fra fatet, mens
+  // brukeren står ved et 13 m hull og får en 8 km omvei. Narverudgruvene
+  // (Strykenåsen): stien sørover fra gruvene ender 12,9 m fra hovedstien, og
+  // Stifinneren svarte med ruter på 14–18 km for en luftlinje på 676 m.
+  //
+  // Vi broer derfor et dangle-hull ≤ gapBridgeM NÅR omveien i dagens graf er
+  // så stor at nettet i praksis er brutt (se GAP_DETOUR_*). Gaten er poenget:
+  // uten den ville en U-formet sti fått en snarvei over åpningen, og en sti
+  // som ender ved et stup over en annen ville fått et falskt kryss. Default av
+  // (0) — Stifinner, MCP og chatten slår den på.
+  const gapBridgeM = opts.gapBridgeM ?? 0
+  if (gapBridgeM > 0) bridgeGaps(gapBridgeM)
 
   // Merk hver node med sin sammenhengende komponent (DFS).
   function labelComponents() {
@@ -290,6 +317,163 @@ export function buildRoutingGraph(features, opts = {}) {
       linkNodes(splitNode, seg.t, seg.code)
     }
     if (splitNode !== d.id) linkNodes(d.id, splitNode, seg.code)
+  }
+
+  // Bygg et ferskt rbush over grafens kanter. bridgeDangles splitter segmenter
+  // underveis, så hull-broen MÅ indeksere på nytt — ellers ser den bare de
+  // foreldede kantene og hopper over dem («allerede splittet»).
+  function segmentIndex() {
+    const segs = []
+    g.forEachEdge((edge, attr, s, t) => {
+      const ap = g.getNodeAttribute(s, 'pos'), bp = g.getNodeAttribute(t, 'pos')
+      segs.push({
+        s, t, ap, bp, code: attr.isomCode,
+        minX: Math.min(ap[0], bp[0]), minY: Math.min(ap[1], bp[1]),
+        maxX: Math.max(ap[0], bp[0]), maxY: Math.max(ap[1], bp[1]),
+      })
+    })
+    const index = new RBush()
+    index.load(segs)
+    return index
+  }
+
+  // Korteste vei fra `from` til nærmeste node i `targets`, i meter — men vi gir
+  // opp så snart alt innen `limit` er utforsket og returnerer Infinity. Dijkstra
+  // med binærheap; søket er lokalt (limit er noen hundre meter), så det koster
+  // lite selv om vi kaller det én gang per dangle.
+  function distanceWithin(from, targets, limit) {
+    if (targets.has(from)) return 0
+    const dist = new Map([[from, 0]])
+    const heap = [[0, from]]
+    const push = (d, n) => {
+      heap.push([d, n])
+      let i = heap.length - 1
+      while (i > 0) {
+        const p = (i - 1) >> 1
+        if (heap[p][0] <= heap[i][0]) break
+        const t = heap[p]; heap[p] = heap[i]; heap[i] = t; i = p
+      }
+    }
+    const pop = () => {
+      const top = heap[0]
+      const last = heap.pop()
+      if (heap.length) {
+        heap[0] = last
+        let i = 0
+        for (;;) {
+          const l = 2 * i + 1, r = l + 1
+          let m = i
+          if (l < heap.length && heap[l][0] < heap[m][0]) m = l
+          if (r < heap.length && heap[r][0] < heap[m][0]) m = r
+          if (m === i) break
+          const t = heap[m]; heap[m] = heap[i]; heap[i] = t; i = m
+        }
+      }
+      return top
+    }
+    while (heap.length) {
+      const [d, u] = pop()
+      if (d > limit) return Infinity
+      if (d > (dist.get(u) ?? Infinity)) continue
+      if (targets.has(u)) return d
+      g.forEachNeighbor(u, (v) => {
+        const nd = d + g.getEdgeAttribute(u, v, 'length')
+        if (nd > limit) return
+        if (nd < (dist.get(v) ?? Infinity)) { dist.set(v, nd); push(nd, v) }
+      })
+    }
+    return Infinity
+  }
+
+  // Hull-broing: koble en dangle til nærmeste segment innen `tol`, men BARE når
+  // omveien i dagens graf er stor nok til at nettet i praksis er brutt der.
+  // Danglene tas i stigende hull-rekkefølge, og grafen muteres underveis, så
+  // det tetteste hullet vinner og et allerede reparert brudd ikke får en bro
+  // til (den andre dangle-en ser da en kort omvei og faller på gaten).
+  function bridgeGaps(tol) {
+    const segIndex = segmentIndex()
+    const dangles = []
+    g.forEachNode((id, attr) => { if (g.degree(id) === 1) dangles.push({ id, pos: attr.pos }) })
+
+    // Nærmeste kant til `pos` innen tol, lest fra den LEVENDE indeksen (den
+    // holdes i synk når vi splitter, så vi ser aldri en kant som er borte).
+    const nearestSegment = (pos, ownId) => {
+      const hits = segIndex.search({
+        minX: pos[0] - tol, minY: pos[1] - tol, maxX: pos[0] + tol, maxY: pos[1] + tol,
+      })
+      let best = null, bestD = tol
+      for (const seg of hits) {
+        if (seg.s === ownId || seg.t === ownId) continue
+        const proj = projectPointOnSegment(pos, seg.ap, seg.bp)
+        if (proj.dist < bestD) { bestD = proj.dist; best = { seg, proj, gap: bestD } }
+      }
+      return best
+    }
+
+    // Sorter på hullets størrelse så det tetteste bruddet repareres først; da
+    // ser en nabo-dangle over samme brudd en kort omvei og faller på gaten i
+    // stedet for å legge nok en bro.
+    const kandidater = []
+    for (const d of dangles) {
+      const best = nearestSegment(d.pos, d.id)
+      if (best) kandidater.push({ d, gap: best.gap })
+    }
+    kandidater.sort((a, b) => a.gap - b.gap)
+
+    for (const k of kandidater) {
+      if (!g.hasNode(k.d.id) || g.degree(k.d.id) !== 1) continue
+      const best = nearestSegment(k.d.pos, k.d.id)
+      if (!best) continue
+      const limit = Math.max(best.gap * GAP_DETOUR_FACTOR, GAP_DETOUR_MIN_M)
+      const omvei = distanceWithin(k.d.id, new Set([best.seg.s, best.seg.t]), limit)
+      if (omvei <= limit) continue                 // stien svinger bare — ingen snarvei
+      bridgeGapToSegment(k.d, best.seg, best.proj, segIndex)
+    }
+  }
+
+  // Som bridgeToSegment, men selve forbindelsen legges som 'bridge': den er en
+  // antatt kobling over et hull i kartdataene, ikke kartlagt sti. Da prises den
+  // som en komponent-bro, og stinett-analysen teller den ikke som sti.
+  // Splitter vi et segment, oppdateres `segIndex` med de to halvdelene.
+  function bridgeGapToSegment(d, seg, proj, segIndex) {
+    const eps = Math.max(snapM, 0.5)
+    const segLen = Math.hypot(seg.bp[0] - seg.ap[0], seg.bp[1] - seg.ap[1])
+    const distFromA = proj.t * segLen
+    // Broens lengde er den EKTE avstanden til noden vi lander på — og gulvet på
+    // 0.1 m fordi grafen ikke tar nullengde-kanter; et hull på 0 m er likevel
+    // et hull som skal kobles.
+    const koble = (til) => {
+      const p = g.getNodeAttribute(til, 'pos')
+      addBridgeEdge(d.id, til, Math.max(Math.hypot(p[0] - d.pos[0], p[1] - d.pos[1]), 0.1))
+    }
+    // Nær et eksisterende endepunkt → koble dit, ikke splitt.
+    if (distFromA <= eps) { koble(seg.s); return }
+    if (segLen - distFromA <= eps) { koble(seg.t); return }
+
+    // Splitt bare når fotpunktet gir en NY node. Faller getOrCreateNode tilbake
+    // på en node som alt finnes innen snapM, ligger den inntil 6 m utenfor
+    // linja — å bytte kanten s→t mot s→X→t ville da bøyd en gjennomgående sti
+    // rundt X og gjort hver rute over den litt lengre. Vi kobler heller dangle
+    // rett på X.
+    const before = g.order
+    const splitNode = getOrCreateNode(proj.point)
+    const nyNode = g.order > before
+    if (nyNode && splitNode !== seg.s && splitNode !== seg.t && g.hasEdge(seg.s, seg.t)) {
+      g.dropEdge(seg.s, seg.t)
+      linkNodes(seg.s, splitNode, seg.code)
+      linkNodes(splitNode, seg.t, seg.code)
+      segIndex.remove(seg)
+      const mid = g.getNodeAttribute(splitNode, 'pos')
+      for (const [a, b] of [[seg.s, splitNode], [splitNode, seg.t]]) {
+        const ap = a === seg.s ? seg.ap : mid, bp = b === seg.t ? seg.bp : mid
+        segIndex.insert({
+          s: a, t: b, ap, bp, code: seg.code,
+          minX: Math.min(ap[0], bp[0]), minY: Math.min(ap[1], bp[1]),
+          maxX: Math.max(ap[0], bp[0]), maxY: Math.max(ap[1], bp[1]),
+        })
+      }
+    }
+    if (splitNode !== d.id) koble(splitNode)
   }
 
   function nodeAt(pos, tol = snapM) {

@@ -122,7 +122,7 @@ function ensureRoutingGraph() {
   if (!state.routingGraph) {
     const features = routableFeaturesFromSvg(state.map.svg)
     if (!features.length) throw new Error('Kartet inneholder ingen stier eller veier å rute på.')
-    state.routingGraph = buildRoutingGraph(features, { snapM: 6, componentBridgeM: 80 })
+    state.routingGraph = buildRoutingGraph(features, { snapM: 6, gapBridgeM: 30, componentBridgeM: 80 })
   }
   return state.routingGraph
 }

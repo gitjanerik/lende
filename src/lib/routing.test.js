@@ -493,3 +493,72 @@ describe('broing av dangler / T-kryss', () => {
     expect(rg.route(rg.nearestNode([0, 0]).id, rg.nearestNode([100, 50]).id)).toBeNull()
   })
 })
+
+describe('hull-broing (gapBridgeM)', () => {
+  // Narverudgruvene-tilfellet: sidestien ender 25 m fra hovedstien, men henger
+  // formelt sammen med den — 4 km rundt. Komponent-broen rører den ikke (samme
+  // komponent), og hullet er større enn dangle-broens 12 m.
+  function narverudFeatures() {
+    return [
+      // Hovedsti øst–vest, uten node ved x=1000.
+      { coordinates: [[0, 0], [2000, 0]], isomCode: '505' },
+      // Sidesti som ender 25 m under hovedstien ved x=1000 …
+      { coordinates: [[1000, 25], [1000, 400]], isomCode: '505' },
+      // … men som når hovedstien via en lang omvei rundt i øst.
+      { coordinates: [[1000, 400], [2000, 400], [2000, 0]], isomCode: '505' },
+    ]
+  }
+
+  it('kobler en sti som ender 25 m fra hovedstien når omveien er kilometervis', () => {
+    const uten = buildRoutingGraph(narverudFeatures(), { snapM: 2, componentBridgeM: 80 })
+    const r0 = uten.route(uten.nearestNode([1000, 25]).id, uten.nearestNode([0, 0]).id, 'lengthNoMw')
+    expect(r0.lengthM).toBeGreaterThan(3000)   // hele veien rundt via øst
+
+    const med = buildRoutingGraph(narverudFeatures(), { snapM: 2, gapBridgeM: 30, componentBridgeM: 80 })
+    const r1 = med.route(med.nearestNode([1000, 25]).id, med.nearestNode([0, 0]).id, 'lengthNoMw')
+    expect(r1.lengthM).toBeCloseTo(1025, 0)    // 25 m over hullet + 1000 m vestover
+  })
+
+  it('merker forbindelsen som «bridge», ikke som kartlagt sti', () => {
+    const rg = buildRoutingGraph(narverudFeatures(), { snapM: 2, gapBridgeM: 30, componentBridgeM: 80 })
+    const r = rg.route(rg.nearestNode([1000, 25]).id, rg.nearestNode([0, 0]).id, 'lengthNoMw')
+    const koder = r.nodeIds.slice(0, -1)
+      .map((n, i) => rg.graph.getEdgeAttribute(n, r.nodeIds[i + 1], 'isomCode'))
+    expect(koder).toContain('bridge')
+  })
+
+  it('lager ikke snarvei når omveien rundt er kort (U-sti)', () => {
+    // Samme U som componentBridgeM-testen: 20 m mellom endene, 300 m rundt.
+    // Hullet er innen toleransen, men nettet er ikke brutt — ingen bro.
+    const features = [{ coordinates: [[0, 0], [0, 100], [100, 100], [100, 0]], isomCode: '505' }]
+    const rg = buildRoutingGraph(features, { snapM: 2, gapBridgeM: 30, componentBridgeM: 80 })
+    const r = rg.route(rg.nearestNode([0, 0]).id, rg.nearestNode([100, 0]).id)
+    expect(r.lengthM).toBeCloseTo(300, 0)
+  })
+
+  it('broer ikke hull som er større enn toleransen', () => {
+    const features = [
+      { coordinates: [[0, 0], [2000, 0]], isomCode: '505' },
+      { coordinates: [[1000, 60], [1000, 400]], isomCode: '505' },   // 60 m > 30 m tol
+    ]
+    const rg = buildRoutingGraph(features, { snapM: 2, gapBridgeM: 30 })
+    expect(rg.route(rg.nearestNode([1000, 400]).id, rg.nearestNode([0, 0]).id)).toBeNull()
+  })
+
+  it('rører ikke gjennomgående stier — bare ender (bro/kulvert holder)', () => {
+    // Som bro/kulvert-testen, men med hull-broing på: begge stiene er
+    // gjennomgående forbi krysset, så ingen dangle ligger nær det.
+    const features = [
+      { coordinates: [[0, 0], [200, 0]], isomCode: '505' },
+      { coordinates: [[100, -50], [100, 50]], isomCode: '505' },
+    ]
+    const rg = buildRoutingGraph(features, { snapM: 2, bridgeM: 12, gapBridgeM: 30 })
+    expect(rg.route(rg.nearestNode([0, 0]).id, rg.nearestNode([100, 50]).id)).toBeNull()
+  })
+
+  it('er av som standard', () => {
+    const rg = buildRoutingGraph(narverudFeatures(), { snapM: 2 })
+    const r = rg.route(rg.nearestNode([1000, 25]).id, rg.nearestNode([0, 0]).id, 'lengthNoMw')
+    expect(r.lengthM).toBeGreaterThan(3000)
+  })
+})

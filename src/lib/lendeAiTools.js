@@ -1218,7 +1218,7 @@ export function stinettSvarTekst(a) {
 export function forhaandsberegnTur({ svgEl, meta, dem = null, punkter, isLoop = false }) {
   const features = stinettFeaturesFromSvgEl(svgEl, ROUTABLE_CODES)
   if (!features.length) return { ingenRute: true }
-  const rg = buildRoutingGraph(features, { snapM: 6, componentBridgeM: 80 })
+  const rg = buildRoutingGraph(features, { snapM: 6, gapBridgeM: 30, componentBridgeM: 80 })
 
   const navnFor = (i) => (
     isLoop ? (i === 0 ? 'startpunktet' : `vendepunkt ${i}`)

@@ -261,14 +261,17 @@ export function useStifinner() {
   }
 
   // Bygg (eller gjenbruk cachet) routing-graf for et SVG-element.
-  // componentBridgeM=6→80: se lib/routing.js — kobler frakoblede sti-/vei-
+  // componentBridgeM=80: se lib/routing.js — kobler frakoblede sti-/vei-
   // fragmenter til hovednettet så et startpunkt ved en stasjon/P-plass ikke
   // ender i en isolert stump.
+  // gapBridgeM=30: broer hull der en sti ender noen titalls meter fra en annen
+  // OG omveien rundt er kilometervis — nettet er da brutt i praksis selv om
+  // grafen formelt henger sammen (Narverudgruvene: 12,9 m hull → 5,5 km rundt).
   function graphFor(svgElement) {
     if (cachedRg && cachedSvg === svgElement) return cachedRg
     const features = featuresFromSvg(svgElement)
     if (!features.length) return null
-    cachedRg = buildRoutingGraph(features, { snapM: 6, componentBridgeM: 80 })
+    cachedRg = buildRoutingGraph(features, { snapM: 6, gapBridgeM: 30, componentBridgeM: 80 })
     if (lastGraphStats) {
       lastGraphStats.noder = cachedRg.nodes
       lastGraphStats.kanter = cachedRg.edges
