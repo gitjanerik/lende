@@ -1,7 +1,7 @@
 {
   "name": "lende",
   "private": true,
-  "version": "5.7.0",
+  "version": "5.7.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "build:redlist": "node scripts/build-redlist.js",
+    "fasit": "node scripts/fasit-kart.js",
     "mcp": "node mcp/server.js"
   },
   "dependencies": {

@@ -1,0 +1,65 @@
+name: Fasit — kart-pipelinen mot ekte data
+
+# Bygger seks ekte kart (Overpass + Kartverket WCS + N50 + Sjøkart) og sjekker
+# invarianter + avvik mot lagret fasit. Dette er sikkerhetsnettet enhetstestene
+# ikke kan være: feilene i kart-pipelinen bor i SAMMENSETNINGEN på ekte
+# geografi, og de har historisk kostet nesten hver tiende utgivelse.
+#
+# Kjøres ved endring i pipelinen, ukentlig (kildene endrer seg under oss), og
+# manuelt. Ikke i `npm run test` — den skal være offline og rask.
+
+on:
+  push:
+    paths:
+      - 'src/lib/mapBuilder.js'
+      - 'src/lib/seaFromDem.js'
+      - 'src/lib/marineTopology.js'
+      - 'src/lib/dem.js'
+      - 'src/lib/demFetcher.js'
+      - 'src/lib/canopyHeight.js'
+      - 'src/lib/n50*.js'
+      - 'src/lib/sjokart*.js'
+      - 'src/lib/symbolizer.js'
+      - 'src/lib/isomCatalog.json'
+      - 'src/lib/routing.js'
+      - 'src/lib/kartFasit.js'
+      - 'scripts/fasit-kart.js'
+      - 'scripts/fasit/**'
+      - 'mcp/headless.js'
+      - '.github/workflows/fasit-kart.yml'
+  schedule:
+    # Mandag 04:12 UTC — kildene (OSM, N50, Sjøkart) endrer seg uten at vi
+    # rører kode, og da vil vi vite det før brukeren ser det.
+    - cron: '12 4 * * 1'
+  workflow_dispatch:
+    inputs:
+      steder:
+        description: 'Steder (tom = alle): vardasen kolstadoya strykenasen gjende henningsvaer rondvassbu'
+        required: false
+        default: ''
+
+jobs:
+  fasit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+
+      - name: Kjør fasit-suiten
+        id: fasit
+        run: node scripts/fasit-kart.js ${{ github.event.inputs.steder }} --json fasit-rapport.json
+
+      # Rapporten lastes opp uansett utfall — den er selve diagnosen når noe
+      # har endret seg, og inneholder tallene per sted.
+      - name: Last opp rapport
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fasit-rapport
+          path: fasit-rapport.json
+          retention-days: 30
