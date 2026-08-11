@@ -1,5 +1,45 @@
 # Endringslogg
 
+## 2026-08-11 — v5.7.1: Fasit for kart-pipelinen, og gjelden skrevet ned
+
+Nesten hver tiende utgivelse i denne loggen har handlet om vann, sjø, kyst eller
+DEM. Ikke fordi koden er dårlig, men fordi feilene bor i SAMMENSETNINGEN av fem
+autoritative kilder på ekte geografi — og enhetstestene tester rene funksjoner.
+`npm run fasit` bygger nå seks ekte kart og sjekker invarianter mot en lagret
+fasit: Vardåsen (referanse), Kolstadøya (øyer = hull i vann), Strykenåsen (brutt
+stinett, elv, hovedvei), Gjende (stor innsjø, DEM-nedskalering), Henningsvær
+(skjærgård), Rondvassbu (høyfjell). Stedene er valgt etter feilklasse, ikke
+utsikt — hvert av dem er et åsted fra denne loggen. Kjøres i CI ved endring i
+pipelinen og ukentlig, siden kildene endrer seg under oss.
+
+Invariantene sjekker at vann finnes der det skal, at øyer beholder hullene
+sine, at konturer og vegetasjon ikke males ute i vannet, at ingen ring er så
+grovmasket at den må være en usydd multipolygon, og at stinettet finnes.
+Sjekkene er enhetstestet offline med syntetisk SVG — en sjekk som ikke virker
+er verre enn ingen sjekk.
+
+Fasiten fant fire feil under bygging, alle i MÅLINGENE, og hver av dem ble
+avslørt av et ekte sted: øy-hull som ble regnet som vann (Kolstadøya, 131 %
+vanndekning), ringarealer utenfor kartutsnittet (samme sted, 119 %), casing +
+kjerne telt som to stier (Vardåsen, 185 km sti i 17 km²), og tre forsøk på å
+kjenne igjen en usydd ring — «mye vann» feilet Henningsvær, som ER 91 % sjø;
+«tynn flate over hele kartet» feilet Drammenselva; «få punkter i ytre ring»
+feilet Henningsvær igjen, fordi den autoritative sjøgeometrien har grovt omriss
+og all detaljen i 241 hull. Den som holder er areal per punkt over hele flata.
+
+Den ene ekte funnet er datakvalitet, ikke kode: en 3,5 km «sti» tvers over
+Rondvatnet er OSM-way 781607225 — `highway=path`, `source=Strava heatmap`,
+`fixme=resurvey`. En isrute noen har gått om vinteren, ærlig gjengitt av Lende.
+Slikt rapporteres som advarsel og feiler ikke bygget, men tallet ligger i
+fasiten, så en endring synes.
+
+`CLAUDE.md` har fått en seksjon om arkitektur-gjeld og kjente duplikater. Den
+finnes fordi to nesten identiske 3D-scener levde side om side i månedsvis uten
+å bli oppdaget: en assistent som starter hver økt blind ser bare det oppgaven
+tvinger fram, og gjeld som ikke er skrevet ned er gjeld ingen ser.
+
+---
+
 ## 2026-08-11 — v5.7.0: Én 3D-visning, og kameraet kan løsne fra turen
 
 POI-klikk virket ikke i 3D-visningen av en tur, og grunnen var to: turvisningen

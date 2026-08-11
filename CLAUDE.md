@@ -46,9 +46,10 @@ Commits på lokal master er en bug — stopp og spør brukeren før push.
 
 ```bash
 npm run dev        # Utviklingsserver (port 5173)
-npm run test       # Vitest (~75 filer, tester ligger ved siden av kilden)
+npm run test       # Vitest (~130 filer, tester ligger ved siden av kilden)
 npm run build      # Produksjonsbygg
 npm run mcp        # MCP-server (stdio) — kart/rute-verktøy for Claude
+npm run fasit      # Fasit: seks ekte kart mot invarianter (krever nett, ~1 min)
 ```
 
 ## Arkitektur (oversikt)
@@ -99,6 +100,58 @@ N50 Havflate/Innsjø/ElvBekk → OSM-vann. `marineTopology.js` bygger ÉN
 autoritativ sjø-geometri; ISOM 307 klippes mot den. Land-mask (union av alt
 vann) hindrer konturer/vegetasjon over vann. OSM multipolygon-relations MÅ
 ring-sys via `assembleRelationRings` i `mapBuilder.js` (ellers wedge-artefakter).
+
+## Arkitektur-gjeld og duplikater — LES DETTE FØR DU BYGGER NYTT
+
+Denne seksjonen finnes fordi Claude starter hver økt blind og bare leser det
+oppgaven tvinger fram. To nesten identiske 3D-scener levde side om side i
+måneder (`tourScene` + `exploreScene`, slått sammen i v5.7.0) uten at det ble
+oppdaget, rett og slett fordi ingen oppgave hadde begge filene i konteksten
+samtidig. Står gjelden her, er den i synsfeltet fra første melding.
+
+**Regelen: skal du bygge en ny variant av noe som finnes, les originalen
+FØRST og spør om varianten egentlig er en OPSJON på originalen.**
+
+Kjent gjeld, oppdatert etter hver leveranse som rører den:
+
+- **`MapView.vue` er ~4 900 linjer** og er appens største risiko: alt møtes der,
+  og Claude ser bare utsnitt av den om gangen. Planlagt uttrekk (v5.8+, ikke
+  gjort): 3D-inngangen, GPS/sporing, deling/lenker, lag-styring — mønsteret er
+  `useStifinner.js` og `useDetailInset.js`. Rører du et av de fire domenene:
+  vurder å trekke det ut i samme leveranse.
+- **`mapBuilder.js` er ~3 300 linjer** og gjør henting, klassifisering,
+  geometri-sying og SVG-emittering i én fil. Ikke del den opp uten grunn, men
+  legg nye kilder som egne `*Fetcher.js` + et lite klassifiseringssteg.
+- **Ingen dubletter kjent i 3D** etter v5.7.0: én scene (`scene3d.js`), én
+  viser (`Viewer3D.vue`), to rigger (`cameraRigs.js` = følge, `freeRig.js` =
+  fri). Kommer det en tredje inngang til 3D, skal den være en OPSJON på
+  `create3dScene`, ikke en ny scene.
+- **Stinett-lesing finnes i tre varianter** med ulikt formål og det er med
+  vilje: `stinettAnalyse.stinettFeaturesFromSvgEl` (nettleser, DOM),
+  `mcp/headless.graphInputFromSvg` (node, streng), `useStifinner.featuresFromSvg`
+  (nettleser + spøkelsesfliser). Endrer du kodesett eller offset-håndtering i
+  én, sjekk de to andre.
+- **`RUTE_GRAF_OPTS` i `routing.js` er én kilde til sannhet** for grafen. Bygger
+  du en graf et nytt sted, spre den inn — ellers svarer diagnosen (`stinettBrudd`)
+  på et annet nett enn ruteren bruker.
+
+## Fasit-suiten — kart-pipelinen mot ekte data
+
+`node scripts/fasit-kart.js` bygger seks ekte kart og sjekker invarianter +
+avvik mot `scripts/fasit/baseline.json`. Krever nett; kjører i CI
+(`.github/workflows/fasit-kart.yml`), ikke i `npm run test`.
+
+Stedene er valgt etter FEILKLASSE, ikke geografi: Vardåsen (referanse),
+Kolstadøya (øyer = hull i vann), Strykenåsen (brutt stinett, elv, hovedvei),
+Gjende (stor innsjø, DEM-nedskalering), Henningsvær (skjærgård/kystlinje),
+Rondvassbu (høyfjell uten vegetasjon). Selve sjekkene bor i
+`src/lib/kartFasit.js` og er enhetstestet offline — en sjekk som ikke virker
+er verre enn ingen sjekk.
+
+**Endrer du pipelinen og tallene flytter seg: LES DIFFEN før du kjører
+`--oppdater`.** Fasiten er ikke noe som skal gjøres grønn; den er spørsmålet
+«mente du dette?». Advarsler (⚠) er datakvalitet i kildene — f.eks. en
+Strava-sporet isrute over Rondvatnet — og feiler ikke bygget.
 
 ## Zoom-trappet detalj-LOD
 
