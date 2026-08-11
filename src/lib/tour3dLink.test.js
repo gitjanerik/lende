@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildTourParams, parseTourQuery, buildTour3dUrl } from './tour3dLink.js'
+import { buildTourParams, parseTourQuery, buildTour3dUrl, shareTourParams } from './tour3dLink.js'
 
 const OSLO = { lat: 59.913868, lon: 10.752245 }
 const MAAL = { lat: 59.95, lon: 10.8 }
@@ -58,6 +58,58 @@ describe('buildTourParams / parseTourQuery', () => {
     expect(parseTourQuery({ olat: 'x', olon: '10' })).toBeNull()
     // Origo uten både mål og via er ingen tur.
     expect(parseTourQuery({ olat: '59.9', olon: '10.7' })).toBeNull()
+  })
+})
+
+describe('shareTourParams — «Del sti» / «Del rundtur»', () => {
+  // Stifinneren jobber i SVG-meter; delingen projiserer med kartets meta.
+  // Her holder en rett omregning: 1 SVG-meter = 0,00001° i hver retning.
+  const toWgs84 = (p) => ({ lat: 59 + p.svgY * 1e-5, lon: 10 + p.svgX * 1e-5 })
+  const A = { svgX: 100, svgY: 200 }
+  const B = { svgX: 900, svgY: 800 }
+
+  it('A→B deler målet (dlat/dlon) — dette gjorde knappen ingenting før', () => {
+    const params = shareTourParams({
+      isLoop: false, start: A, destination: B, via: [], routeIdx: 2, toWgs84,
+    })
+    expect(params).not.toBeNull()
+    const tour = parseTourQuery(params)
+    expect(tour.dest.lat).toBeCloseTo(59.008, 5)
+    expect(tour.dest.lon).toBeCloseTo(10.009, 5)
+    expect(tour.origin.lon).toBeCloseTo(10.001, 5)
+    expect(tour.via).toHaveLength(0)
+    expect(tour.routeIdx).toBe(2)
+    // Mottakeren skal lande i kartet, ikke i 3D.
+    expect(tour.open3d).toBe(false)
+  })
+
+  it('A→B med via-punkter tar dem med', () => {
+    const params = shareTourParams({
+      isLoop: false, start: A, destination: B, via: [{ svgX: 400, svgY: 500 }], toWgs84,
+    })
+    expect(parseTourQuery(params).via).toHaveLength(1)
+  })
+
+  it('rundtur deler vendepunktene og utelater mål', () => {
+    const params = shareTourParams({
+      isLoop: true, start: A, destination: A, via: [B], routeIdx: 0, toWgs84,
+    })
+    const tour = parseTourQuery(params)
+    expect(tour.dest).toBeNull()
+    expect(tour.via).toHaveLength(1)
+  })
+
+  it('kartnavnet følger med som tn', () => {
+    const params = shareTourParams({
+      isLoop: false, start: A, destination: B, name: 'Kjøsterudjuvet', toWgs84,
+    })
+    expect(parseTourQuery(params).name).toBe('Kjøsterudjuvet')
+  })
+
+  it('gir null når turen ikke er definert', () => {
+    expect(shareTourParams({ isLoop: false, start: A, destination: null, toWgs84 })).toBeNull()
+    expect(shareTourParams({ isLoop: true, start: A, destination: A, via: [], toWgs84 })).toBeNull()
+    expect(shareTourParams({ isLoop: false, start: null, destination: B, toWgs84 })).toBeNull()
   })
 })
 

@@ -1,5 +1,18 @@
 # Endringslogg
 
+## 2026-08-11 — v5.6.3: «Del sti» virker — og heter det den deler
+
+Delingsknappen i Stifinnerens følge-banner het «Del rundtur» også når turen var
+en vanlig A→B-tur langs stien, og den gjorde ingenting: delefunksjonen krevde
+vendepunkter, som bare en rundtur har, så et trykk falt rett ut i en tom return.
+Knappen heter nå «Del sti» for A→B og «Del rundtur» for rundturen, og deler
+turen med mål (dlat/dlon) — samme lenkeformat mottaker-siden og MCP-ens tur3dUrl
+alltid har brukt. Param-byggingen er flyttet til `shareTourParams` i
+tour3dLink.js, der begge turformene er testet, i stedet for å ligge håndskrevet
+i MapView.
+
+---
+
 ## 2026-08-11 — v5.6.2: 3D-turen stopper ikke på et lite brudd i stien
 
 En påbegynt sightseeing-tur i 3D-utforskeren ble avblåst hver gang stinettet

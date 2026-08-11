@@ -33,13 +33,15 @@ defineEmits([
   'followRoute', 'stopFollowing', 'shareRoundTrip', 'startGps', 'open3d',
 ])
 
-// «Del rundtur»-knappens tekst følger delings-tilstanden (native share-sheet
-// på mobil, clipboard-fallback på desktop) — samme mønster som drawer-knappene.
+// Dele-knappens tekst sier hva som deles: en rundtur er en rundtur, men
+// Stifinnerens A→B-tur er en sti — «Del rundtur» der var direkte feil.
+// Teksten følger ellers delings-tilstanden (native share-sheet på mobil,
+// clipboard-fallback på desktop) — samme mønster som drawer-knappene.
 const shareLabel = computed(() => ({
   sharing: 'Deler …',
   copied: 'Lenke kopiert ✓',
   error: 'Kunne ikke dele',
-}[props.shareState] ?? 'Del rundtur'))
+}[props.shareState] ?? (props.sti.isLoop.value ? 'Del rundtur' : 'Del sti')))
 
 // Følg rute-panelet: minimert pill som standard; utvid for detaljer/fremdrift.
 const followExpanded = ref(false)
@@ -380,8 +382,8 @@ function formatElevationDiff(m) {
             </svg>
             Til forslag
           </button>
-          <!-- «Del rundtur»: deler rundturen så mottakeren får samme kart og
-               lander i samme «Følger rundtur»-modus. -->
+          <!-- Deler turen — sti (A→B) eller rundtur — så mottakeren får samme
+               kart og lander i samme følge-modus. -->
           <button @click="$emit('shareRoundTrip')" :aria-label="shareLabel"
                   class="flex items-center gap-1 bg-ink/15 rounded px-1.5 py-0.5
                          text-[10px] font-medium active:scale-95 tabular-nums">
