@@ -1,5 +1,21 @@
 # Endringslogg
 
+## 2026-08-11 — v5.9.0: Navn-LOD og viewport-culling ut av MapView
+
+Første uttrekk med sikkerhetsnettet under seg, og det merkes: 328 linjer flyttet
+til `useNavnLod.js` og `useViewportCull.js` uten en eneste runde med
+feilsøking i nettleseren. MapView er nå 3 975 linjer. De to hører sammen fordi de
+utløses av det samme — endret utsnitt — men gjør motsatte ting: LOD-en velger
+hvilke navn som får plass, culling skjuler vektorer utenfor synsfeltet. Begge
+har fått en røyk-sjekk med ekte tall: seks hjul-tikk tar navne-LOD-en fra 95 til
+55 skjulte navn, og 16 tikk culler 701 elementer. Sjekkene krever et ekte kart
+(`--ektekart`) fordi demo-kartet i repoet har sju labels og ingen bbokser — CI
+bygger derfor et ferskt Vardåsen-kart, og hopper synlig over sjekkene hvis
+kildene er nede. Navnediff-en fikk også en rettelse den fortjente: den så ikke
+utrackede filer, så nye composable-er ble rapportert som «uforklart borte».
+
+---
+
 ## 2026-08-11 — v5.8.1: Sikkerhetsnett før neste uttrekk
 
 Tre monteringsfeil i v5.8.0 passerte 1 978 enhetstester og produksjonsbygget

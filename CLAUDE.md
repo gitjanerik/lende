@@ -116,13 +116,16 @@ FØRST og spør om varianten egentlig er en OPSJON på originalen.**
 
 Kjent gjeld, oppdatert etter hver leveranse som rører den:
 
-- **`MapView.vue` er ~4 280 linjer** og er fortsatt appens største risiko: alt
+- **`MapView.vue` er ~3 975 linjer** og er fortsatt appens største risiko: alt
   møtes der, og Claude ser bare utsnitt av den om gangen. Fem domener ble
   trukket ut i v5.8.0 — `use3dEntry.js` (3D-inngangen), `useKartDeling.js`
   (utgående deling), `useDeltTur.js` (innkommende tur-lenke),
   `useLagStyring.js` (lag/presets/dybde), `useGpsSpor.js` (GPS, opptak,
-  høydeprofil). Neste kandidater, i den rekkefølgen jeg ville tatt dem:
-  pan/zoom/gest-håndteringen, kontekstmeny/PUNKT-arket, tema+annotering.
+  høydeprofil), og to i v5.9.0 — `useNavnLod.js` (navne-declutter) og
+  `useViewportCull.js` (skjul vektorer utenfor utsnittet). Neste kandidater, i
+  rekkefølge etter gevinst/risiko: FAB-knottene (~520 linjer),
+  kontekstmeny/PUNKT-arket (~510), søk+panTo (~220), pan/zoom-gest (~180),
+  og til slutt halene (eksport, tema+diagnose, måling, GPS-tips).
   Rører du et domene som allerede er ute: gjør endringen i composable-en, ikke
   i MapView.
 - **Uttrekk fra MapView har to obligatoriske gater (v5.8.1).** Tre

@@ -127,6 +127,48 @@ const SJEKKER = [
     },
   },
   {
+    navn: 'zoom rører navn-LOD',
+    domene: 'useNavnLod',
+    // Demo-kartet i repoet har 7 labels og ingen data-bbox — verken LOD eller
+    // culling har noe å gjøre der. Disse to sjekkene krever et ekte kart.
+    krever: 'ektekart',
+    async kjør(page) {
+      await lukkDrawer(page)
+      const tell = () => page.evaluate(() => ({
+        lod: document.querySelectorAll('svg.isom-map .name-lod-off').length,
+        geometri: document.querySelectorAll('svg.isom-map path.name-lod-off').length,
+      }))
+      const før = await tell()
+      await zoomInn(page, 6)
+      const etter = await tell()
+      if (etter.lod === før.lod) {
+        throw new Error(`zoom endret ikke navne-LOD (${før.lod} → ${etter.lod})`)
+      }
+      // Geometri skal ALDRI LOD-skjules. Da forsvant innsjøene (2026-07-21):
+      // navngitte polygoner står i søkeindeksen med selve polygonet som `el`.
+      if (etter.geometri) {
+        throw new Error(`${etter.geometri} <path> fikk name-lod-off — navn-LOD toggler geometri`)
+      }
+      return `${før.lod} → ${etter.lod} skjulte navn`
+    },
+  },
+  {
+    navn: 'dyp zoom culler vektorer',
+    domene: 'useViewportCull',
+    krever: 'ektekart',
+    async kjør(page) {
+      // Culling gjør INGENTING på oversiktszoom — cull-rekta dekker hele kartet
+      // og det er meningen («null arbeid ved oversikts-zoom»). Målt på Vardåsen:
+      // første treff ved ~10 hjul-tikk, 289 ved 15, 809 ved 30. Vi zoomer godt
+      // forbi terskelen så sjekken ikke står og vipper på den.
+      await zoomInn(page, 16)
+      const cullet = await page.evaluate(() =>
+        document.querySelectorAll('svg.isom-map .vp-cull').length)
+      if (!cullet) throw new Error('ingenting cullet etter dyp zoom — ble indeksen bygget?')
+      return `${cullet} elementer cullet`
+    },
+  },
+  {
     navn: '3D-visningen åpner',
     domene: 'use3dEntry',
     async kjør(page) {
@@ -171,6 +213,18 @@ async function klikkTekst(page, re) {
   await page.waitForTimeout(700)
 }
 
+// Hjul = zoom i denne appen (usePinchZoom.onWheel, 1.1× pr tikk — ingen
+// ctrl-tast). Små pauser fordi både LOD og culling er debouncet 120 ms.
+async function zoomInn(page, tikk) {
+  const boks = await page.locator('svg.isom-map').boundingBox()
+  await page.mouse.move(boks.x + boks.width / 2, boks.y + boks.height / 2)
+  for (let i = 0; i < tikk; i++) {
+    await page.mouse.wheel(0, -260)
+    await page.waitForTimeout(140)
+  }
+  await page.waitForTimeout(1000)
+}
+
 async function åpneDrawer(page) {
   const åpen = await page.evaluate(() =>
     [...document.querySelectorAll('button')].some((b) => b.offsetParent && /^KARTLAG$/.test(b.innerText.trim())))
@@ -212,12 +266,19 @@ function kjør(kommando, argv) {
 // + OSM (~12 s, krever nett) og legger det i dist-en vi tester mot. Det SPOREDE
 // demo-kartet legges tilbake etterpå — røyktesten skal ikke etterlate en diff.
 const DEMO_KART = 'public/maps/vardasen.svg'
+// Returnerer om vi FIKK et ekte kart. Feiler byggingen (kildene er nede, ingen
+// nett), går vi videre med demo-kartet og hopper over sjekkene som krever ekte
+// geometri — en PR skal ikke blokkeres av at Overpass har en dårlig dag.
 async function byggEkteKart() {
   const original = readFileSync(DEMO_KART)
   try {
     console.log('→ bygger ekte Vardåsen-kart (nett) …')
     await kjør('node', ['scripts/build-vardasen-svg.js'])
     copyFileSync(DEMO_KART, 'dist/maps/vardasen.svg')
+    return true
+  } catch (err) {
+    console.log(`⚠ klarte ikke bygge ekte kart (${err.message}) — kjører på demo-kartet`)
+    return false
   } finally {
     writeFileSync(DEMO_KART, original)
   }
@@ -234,7 +295,7 @@ async function startPreview() {
   } else if (!existsSync('dist/index.html')) {
     throw new Error('--hoppbygg, men dist/index.html finnes ikke')
   }
-  if (EKTEKART) await byggEkteKart()
+  if (EKTEKART) harEkteKart = await byggEkteKart()
   console.log(`→ starter vite preview på ${PREVIEW_PORT} …`)
   const p = spawn('npx', ['vite', 'preview', '--port', String(PREVIEW_PORT), '--strictPort'],
     { stdio: 'ignore', detached: false })
@@ -245,6 +306,7 @@ async function startPreview() {
 // ---- kjøring --------------------------------------------------------------
 
 let preview = null
+let harEkteKart = false
 let browser = null
 let kode = 0
 
@@ -276,6 +338,11 @@ try {
   if (BILDER) mkdirSync(BILDER, { recursive: true })
   const resultat = []
   for (const s of SJEKKER) {
+    if (s.krever === 'ektekart' && !harEkteKart) {
+      resultat.push({ ...s, hoppet: true, obs: 'krever --ektekart' })
+      console.log(`⊘ ${s.navn} — hoppet over (krever --ektekart)`)
+      continue
+    }
     try {
       const obs = await s.kjør(page)
       resultat.push({ ...s, ok: true, obs })
@@ -289,7 +356,15 @@ try {
   }
 
   console.log('\n── røyktest ───────────────────────────────')
-  for (const r of resultat) console.log(`${r.ok ? '✓' : '✗'} ${r.domene.padEnd(16)} ${r.navn}`)
+  for (const r of resultat) {
+    console.log(`${r.hoppet ? '⊘' : r.ok ? '✓' : '✗'} ${r.domene.padEnd(24)} ${r.navn}`)
+  }
+  const hoppet = resultat.filter((r) => r.hoppet)
+  if (hoppet.length) {
+    // Aldri stille utelatelse: en hoppet sjekk skal være synlig, ellers leses
+    // «alt grønt» som «alt dekket».
+    console.log(`⊘ ${hoppet.length} sjekk(er) hoppet over — kjør med --ektekart for full dekning`)
+  }
 
   if (jsFeil.length) {
     kode = 1
