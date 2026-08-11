@@ -46,6 +46,12 @@ export const ISOM_COST = {
 // — «Stordammen» lander midt på vannet), utenfor FAR_SNAP_M er det ærlig feil.
 // Delt av Stifinneren og chattens forhåndsberegning, som MÅ bruke samme
 // terskler for at tallene i chatten skal stemme med ruten kartet tegner.
+// Graf-opsjonene ruteren faktisk kjører med — Stifinner, MCP-serveren,
+// chatten, 3D-utforskeren og Cloudflare-speilet deler dem. ÉN kilde til
+// sannhet: stinett-diagnosen (stinettBrudd.js) må bygge samme graf som
+// ruteren, ellers rapporterer den hull som ikke finnes (eller motsatt).
+export const RUTE_GRAF_OPTS = Object.freeze({ snapM: 6, gapBridgeM: 30, componentBridgeM: 80 })
+
 export const MAX_SNAP_M = 150
 export const FAR_SNAP_M = 400
 
@@ -450,15 +456,16 @@ export function buildRoutingGraph(features, opts = {}) {
     if (distFromA <= eps) { koble(seg.s); return }
     if (segLen - distFromA <= eps) { koble(seg.t); return }
 
-    // Splitt bare når fotpunktet gir en NY node. Faller getOrCreateNode tilbake
-    // på en node som alt finnes innen snapM, ligger den inntil 6 m utenfor
-    // linja — å bytte kanten s→t mot s→X→t ville da bøyd en gjennomgående sti
-    // rundt X og gjort hver rute over den litt lengre. Vi kobler heller dangle
-    // rett på X.
+    // Splitt når fotpunktet gir en NY node, eller når det snapper til selve
+    // dangle-en (ligger den under snapM fra stien, ER den krysset — å tre den
+    // inn i kanten er nettopp reparasjonen, og bøyen den lager er hullet). Men
+    // faller getOrCreateNode tilbake på en TREDJE node inntil 6 m utenfor
+    // linja, ville s→X→t bøyd en gjennomgående sti rundt den og gjort hver rute
+    // over den litt lengre — da kobler vi heller dangle rett på X.
     const before = g.order
     const splitNode = getOrCreateNode(proj.point)
-    const nyNode = g.order > before
-    if (nyNode && splitNode !== seg.s && splitNode !== seg.t && g.hasEdge(seg.s, seg.t)) {
+    const kanSplitte = g.order > before || splitNode === d.id
+    if (kanSplitte && splitNode !== seg.s && splitNode !== seg.t && g.hasEdge(seg.s, seg.t)) {
       g.dropEdge(seg.s, seg.t)
       linkNodes(seg.s, splitNode, seg.code)
       linkNodes(splitNode, seg.t, seg.code)
@@ -526,7 +533,10 @@ export function buildRoutingGraph(features, opts = {}) {
     return { coordinates: coords, lengthM, costM, nodeIds: path }
   }
 
-  return { graph: g, nodeAt, nearestNode, route, edges: g.size, nodes: g.order }
+  return {
+    graph: g, nodeAt, nearestNode, route, distanceWithin,
+    edges: g.size, nodes: g.order,
+  }
 }
 
 // Sett med kant-id'er en rute bruker (undirected — graphology gir samme

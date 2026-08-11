@@ -72,9 +72,13 @@ npm run mcp        # MCP-server (stdio) — kart/rute-verktøy for Claude
 - **Lagring**: IndexedDB — `lende-maps` (kart + grusruter, `mapStorage.js`),
   `lende-dem-tiles` (`demTileCache.js`), `lende-cache`
   (`protectedAreaCache.js`). localStorage-nøkler prefikses `lende-`.
-- **MCP-server**: `mcp/server.js` (11 verktøy: bygg_kart, planlegg_rute,
+- **MCP-server**: `mcp/server.js` (15 verktøy: bygg_kart, planlegg_rute,
   eksporter_gpx, hoydeprofil, turrapport_svg m.fl.) + `mcp/headless.js`
   (linkedom-basert headless bygging). Importerer fra `../src/lib`.
+  **Feilsøker du en rute som tar en absurd omvei: bygg kartet og kall
+  `finn_stinett_brudd`.** Den bygger grafen med samme opsjoner som ruteren
+  (`RUTE_GRAF_OPTS`) og lister hull i stinettet med posisjon, hullstørrelse og
+  omveien de koster — se `src/lib/stinettBrudd.js`.
 
 ## Viktig arkitektur-merknad — enheter i kart-SVG-en (IKKE skaler koordinatrommet)
 

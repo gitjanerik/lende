@@ -1,5 +1,29 @@
 # Endringslogg
 
+## 2026-08-11 — v5.5.5: finn_stinett_brudd — ett kall i stedet for en times detektivarbeid
+
+Å finne hullet bak Narverudgruvene-saken tok en time med engangsskript: bygg
+kartet, bygg grafen, mål omvei mot luftlinje, finn stedene der forholdstallet
+eksploderer. Det er nå et MCP-verktøy. `finn_stinett_brudd` lister steder der
+en sti ender noen få meter fra en annen sti, men der ruteren må gå langt rundt
+— eller ikke kommer fram i det hele tatt. Hvert treff gir hullets størrelse,
+omveien det koster, forholdstallet mellom dem, koordinater for både stienden og
+nærmeste sti, og hva som skulle til for å tette hullet. Poenget er at grafen
+bygges med nøyaktig de samme opsjonene som ruteren bruker, så det verktøyet
+melder er hull som faktisk står igjen etter alle reparasjonspassene. De
+opsjonene bor nå ett sted, `RUTE_GRAF_OPTS` i routing.js, i stedet for som fem
+kopier av samme objekt-literal.
+
+Verktøyet fant en feil i forrige versjon med det samme. Hull-broen hoppet over
+stiender som ligger under seks meter fra stien de skulle koble til, fordi
+fotpunktet da snapper til selve stienden og koden tolket det som «ingen ny node
+å splitte i». Men det er nettopp der krysset er — stienden skal tres inn i
+kanten. To slike steder på Strykenåsen-kartet kostet halvannen til to
+kilometer omvei for et hull på under en meter. Antall brudd på det kartet falt
+fra 70 til 33 da den ble rettet.
+
+---
+
 ## 2026-08-11 — v5.5.4: Stifinneren broer hull der stinettet er brutt i praksis
 
 Stifinneren fant ingen fornuftig vei til Narverudgruvene i Strykenåsen: en

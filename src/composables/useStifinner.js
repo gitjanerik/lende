@@ -24,7 +24,7 @@
 
 import { ref, computed } from 'vue'
 import {
-  buildRoutingGraph, planRoutesThrough, planLoop, MAX_SNAP_M, FAR_SNAP_M,
+  buildRoutingGraph, planRoutesThrough, planLoop, MAX_SNAP_M, FAR_SNAP_M, RUTE_GRAF_OPTS,
 } from '../lib/routing.js'
 import { parsePathSubpaths } from '../lib/pathUtils.js'
 
@@ -261,17 +261,16 @@ export function useStifinner() {
   }
 
   // Bygg (eller gjenbruk cachet) routing-graf for et SVG-element.
-  // componentBridgeM=80: se lib/routing.js — kobler frakoblede sti-/vei-
-  // fragmenter til hovednettet så et startpunkt ved en stasjon/P-plass ikke
-  // ender i en isolert stump.
-  // gapBridgeM=30: broer hull der en sti ender noen titalls meter fra en annen
-  // OG omveien rundt er kilometervis — nettet er da brutt i praksis selv om
-  // grafen formelt henger sammen (Narverudgruvene: 12,9 m hull → 5,5 km rundt).
+  // RUTE_GRAF_OPTS (lib/routing.js) er delt med MCP, chatten og 3D-utforskeren:
+  // componentBridgeM kobler frakoblede fragmenter til hovednettet, gapBridgeM
+  // broer hull der nettet er brutt i praksis. Stinett-diagnosen
+  // (lib/stinettBrudd.js) bygger samme graf, så det den rapporterer er det
+  // Stifinneren faktisk ser.
   function graphFor(svgElement) {
     if (cachedRg && cachedSvg === svgElement) return cachedRg
     const features = featuresFromSvg(svgElement)
     if (!features.length) return null
-    cachedRg = buildRoutingGraph(features, { snapM: 6, gapBridgeM: 30, componentBridgeM: 80 })
+    cachedRg = buildRoutingGraph(features, RUTE_GRAF_OPTS)
     if (lastGraphStats) {
       lastGraphStats.noder = cachedRg.nodes
       lastGraphStats.kanter = cachedRg.edges

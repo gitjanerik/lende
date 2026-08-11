@@ -13,8 +13,9 @@ import { z } from 'zod'
 import { buildMapHeadless, routableFeaturesFromSvg, extractMapPoiFromSvg, searchMapSvg } from './headless.js'
 import { filterPoi, POI_LABELS } from '../src/lib/mapPoi.js'
 import { formatAreaShort } from '../src/composables/useMapSearch.js'
-import { buildRoutingGraph, planRoutes, planRoutesThrough, planLoop } from '../src/lib/routing.js'
+import { buildRoutingGraph, planRoutes, planRoutesThrough, planLoop, RUTE_GRAF_OPTS } from '../src/lib/routing.js'
 import { analyserStinett, formatStinettSvar } from '../src/lib/stinettAnalyse.js'
+import { finnStinettBrudd, formatBruddSvar } from '../src/lib/stinettBrudd.js'
 import { wgs84ToSvg, svgToWgs84, utm32BboxFromWgs84 } from '../src/lib/utm.js'
 import { sampleProfile } from '../src/lib/elevationProfile.js'
 import { sampleElevation } from '../src/lib/demSampling.js'
@@ -122,7 +123,7 @@ function ensureRoutingGraph() {
   if (!state.routingGraph) {
     const features = routableFeaturesFromSvg(state.map.svg)
     if (!features.length) throw new Error('Kartet inneholder ingen stier eller veier å rute på.')
-    state.routingGraph = buildRoutingGraph(features, { snapM: 6, gapBridgeM: 30, componentBridgeM: 80 })
+    state.routingGraph = buildRoutingGraph(features, RUTE_GRAF_OPTS)
   }
   return state.routingGraph
 }
@@ -611,6 +612,44 @@ server.registerTool(
       kart: state.map.navn,
       kartKm: { bredde: +(meta.widthM / 1000).toFixed(1), hoyde: +(meta.heightM / 1000).toFixed(1) },
       ...formatStinettSvar(analyse, { toWgs84: (x, y) => svgToWgs84(x, y, meta) }),
+    })
+  },
+)
+
+server.registerTool(
+  'finn_stinett_brudd',
+  {
+    title: 'Finn brudd i stinettet',
+    description:
+      'Feilsøkings-verktøy for «hvorfor foreslår Stifinneren en absurd omvei her?». Finner ' +
+      'steder i sist bygde kart der en sti ender noen få meter fra en annen sti, men der ' +
+      'ruteren må gå langt rundt (eller ikke kommer fram). Grafen bygges med NØYAKTIG samme ' +
+      'opsjoner som ruteren, så treffene er hull som faktisk står igjen etter alle ' +
+      'reparasjonspassene. Hvert treff gir hullets størrelse, omveien det koster, ' +
+      'forholdstallet mellom dem, koordinater for stienden og nærmeste sti, og hva som skulle ' +
+      'til for å tette det. Lite hull + stor omvei = nesten alltid hull i kartdataene; stor ' +
+      'omvei + stort hull kan være ekte (motorvei eller elv mellom stiene). 0 treff er et ' +
+      'gyldig svar.',
+    inputSchema: {
+      maksHullM: z.number().min(1).max(200).default(60)
+        .describe('Største hull (meter) mellom stiende og nærmeste sti som regnes som brudd'),
+      minOmveiM: z.number().min(50).max(20000).default(500)
+        .describe('Minste omvei (meter) ruteren må ta før det telles som brudd'),
+      maksTreff: z.number().int().min(1).max(100).default(25)
+        .describe('Maks antall treff i svaret (verst først)'),
+    },
+  },
+  async ({ maksHullM, minOmveiM, maksTreff }) => {
+    requireMap()
+    const meta = svgMeta()
+    const res = finnStinettBrudd(routableFeaturesFromSvg(state.map.svg), {
+      maksHullM, minOmveiM, maksTreff,
+    })
+    return jsonResult({
+      status: 'ok',
+      kart: state.map.navn,
+      kartKm: { bredde: +(meta.widthM / 1000).toFixed(1), hoyde: +(meta.heightM / 1000).toFixed(1) },
+      ...formatBruddSvar(res, { toWgs84: (x, y) => svgToWgs84(x, y, meta) }),
     })
   },
 )

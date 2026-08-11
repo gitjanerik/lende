@@ -556,6 +556,20 @@ describe('hull-broing (gapBridgeM)', () => {
     expect(rg.route(rg.nearestNode([0, 0]).id, rg.nearestNode([100, 50]).id)).toBeNull()
   })
 
+  it('trer en stiende som ligger inntil stien inn i den (sub-meter hull)', () => {
+    // Stienden ligger 0,6 m fra hovedstien — godt innenfor snapM, så fotpunktet
+    // snapper til stienden selv. Da skal segmentet splittes OM stienden, ikke
+    // hoppes over: dette er nettopp krysset.
+    const features = [
+      { coordinates: [[0, 0], [2000, 0]], isomCode: '505' },
+      { coordinates: [[1000, 0.6], [1000, 400]], isomCode: '505' },
+      { coordinates: [[1000, 400], [2000, 400], [2000, 0]], isomCode: '505' },
+    ]
+    const rg = buildRoutingGraph(features, { snapM: 6, gapBridgeM: 30, componentBridgeM: 80 })
+    const r = rg.route(rg.nearestNode([1000, 0.6]).id, rg.nearestNode([0, 0]).id, 'lengthNoMw')
+    expect(r.lengthM).toBeCloseTo(1000, 0)   // rett vestover, ikke 1775 m rundt
+  })
+
   it('er av som standard', () => {
     const rg = buildRoutingGraph(narverudFeatures(), { snapM: 2 })
     const r = rg.route(rg.nearestNode([1000, 25]).id, rg.nearestNode([0, 0]).id, 'lengthNoMw')

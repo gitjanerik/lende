@@ -223,7 +223,8 @@ export default {
           versjon: MCP_SERVER_VERSJON,
           verktoy: [
             'sok_sted', 'vannmalestasjoner', 'bygg_kart', 'planlegg_rute',
-            'planlegg_rundtur', 'analyser_stinett', 'hoydeprofil', 'eksporter_gpx',
+            'planlegg_rundtur', 'analyser_stinett', 'finn_stinett_brudd',
+            'hoydeprofil', 'eksporter_gpx',
             'finn_poi_paa_kart', 'sok_kart', 'berik_rute', 'turrapport_svg', 'juster_kart',
           ],
         }),

@@ -22,6 +22,7 @@ import {
 } from './stinettAnalyse.js'
 import {
   buildRoutingGraph, planRoutesThrough, planLoop, ROUTABLE_CODES, MAX_SNAP_M, FAR_SNAP_M,
+  RUTE_GRAF_OPTS,
 } from './routing.js'
 import { sampleProfile } from './elevationProfile.js'
 import { listThemes } from './mapSettingsApply.js'
@@ -1218,7 +1219,7 @@ export function stinettSvarTekst(a) {
 export function forhaandsberegnTur({ svgEl, meta, dem = null, punkter, isLoop = false }) {
   const features = stinettFeaturesFromSvgEl(svgEl, ROUTABLE_CODES)
   if (!features.length) return { ingenRute: true }
-  const rg = buildRoutingGraph(features, { snapM: 6, gapBridgeM: 30, componentBridgeM: 80 })
+  const rg = buildRoutingGraph(features, RUTE_GRAF_OPTS)
 
   const navnFor = (i) => (
     isLoop ? (i === 0 ? 'startpunktet' : `vendepunkt ${i}`)

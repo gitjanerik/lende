@@ -1,0 +1,103 @@
+import { describe, it, expect } from 'vitest'
+import { finnStinettBrudd, formatBruddSvar } from './stinettBrudd.js'
+
+const sti = (coordinates, isomCode = '505') => ({ coordinates, isomCode })
+
+// Narverudgruvene i miniatyr: hovedsti øst–vest, og en sidesti som ender
+// `hull` meter fra den, men bare henger sammen med den via en lang omvei i øst.
+function bruddNett(hull) {
+  return [
+    sti([[0, 0], [2000, 0]]),
+    sti([[1000, hull], [1000, 400]]),
+    sti([[1000, 400], [2000, 400], [2000, 0]]),
+  ]
+}
+
+// Uten hull-broing i grafen slipper vi å bruke et hull større enn toleransen
+// for å demonstrere at diagnosen finner brudd.
+const RAA_GRAF = { snapM: 2, componentBridgeM: 80 }
+
+describe('finnStinettBrudd', () => {
+  it('finner et hull som koster kilometervis omvei', () => {
+    const res = finnStinettBrudd(bruddNett(25), { grafOpts: RAA_GRAF })
+    expect(res.antallBrudd).toBe(1)
+    const b = res.treff[0]
+    expect(b.hullM).toBeCloseTo(25, 0)
+    // Omveien måles til nærmeste ende av hovedstien: 375 m opp, 1000 m øst,
+    // 400 m ned = 1775 m for å komme 25 m.
+    expect(b.omveiM).toBeCloseTo(1775, -1)
+    expect(b.forholdstall).toBe(71)
+    // Stienden og fotpunktet på hovedstien.
+    expect([b.x, b.y]).toEqual([1000, 25])
+    expect([b.naboX, b.naboY]).toEqual([1000, 0])
+  })
+
+  it('melder ingen brudd når ruteren allerede kommer fram kort vei', () => {
+    // U-sti: 20 m mellom endene, 300 m rundt bunnen. Ikke et brudd.
+    const res = finnStinettBrudd([sti([[0, 0], [0, 100], [100, 100], [100, 0]])], {
+      grafOpts: RAA_GRAF,
+    })
+    expect(res.antallBrudd).toBe(0)
+    expect(res.treff).toEqual([])
+  })
+
+  it('melder ingen brudd når hull-broen i ruteren alt har tettet hullet', () => {
+    // Samme nett, men med grafen ruteren faktisk kjører (default): hullet på
+    // 25 m er innen gapBridgeM, så det er borte når diagnosen ser etter.
+    const res = finnStinettBrudd(bruddNett(25))
+    expect(res.antallBrudd).toBe(0)
+  })
+
+  it('rapporterer helt frakoblede stier som omveiM null, og sorterer dem øverst', () => {
+    const res = finnStinettBrudd([
+      sti([[0, 0], [2000, 0]]),          // hovedsti
+      sti([[1600, 40], [1600, 200]]),    // frakoblet stump, 40 m unna
+      ...bruddNett(45),                  // og et vanlig brudd med målbar omvei
+    ], { grafOpts: { snapM: 2 } })        // ingen komponent-bro, ingen hull-bro
+    expect(res.antallBrudd).toBeGreaterThanOrEqual(2)
+    expect(res.treff[0].omveiM).toBeNull()
+    expect(res.treff[0].hullM).toBeCloseTo(40, 0)
+    // Brudd med målbar omvei kommer etter de frakoblede.
+    expect(res.treff.slice(1).some(b => b.omveiM > 1000)).toBe(true)
+  })
+
+  it('respekterer maksHullM, minOmveiM og maksTreff', () => {
+    expect(finnStinettBrudd(bruddNett(25), { grafOpts: RAA_GRAF, maksHullM: 10 }).antallBrudd).toBe(0)
+    expect(finnStinettBrudd(bruddNett(25), { grafOpts: RAA_GRAF, minOmveiM: 20000 }).antallBrudd).toBe(0)
+    const mange = finnStinettBrudd(bruddNett(25), { grafOpts: RAA_GRAF, maksTreff: 0 })
+    expect(mange.treff).toHaveLength(0)
+    expect(mange.antallBrudd).toBe(1)   // antallet telles uansett kutt i listen
+  })
+
+  it('tåler tomt stinett', () => {
+    const res = finnStinettBrudd([])
+    expect(res).toMatchObject({ noder: 0, kanter: 0, antallBrudd: 0, treff: [] })
+  })
+})
+
+describe('formatBruddSvar', () => {
+  const toWgs84 = (x, y) => ({ lat: 59 + y / 111320, lon: 10 + x / 57000 })
+
+  it('projiserer til WGS84 og sier hva som skal til for å tette hullet', () => {
+    const res = finnStinettBrudd(bruddNett(45), { grafOpts: RAA_GRAF })
+    const svar = formatBruddSvar(res, { toWgs84, gapBridgeM: 30 })
+    expect(svar.antallBrudd).toBe(1)
+    const t = svar.treff[0]
+    expect(t.stiende.lat).toBeCloseTo(59 + 45 / 111320, 6)
+    expect(t.naermesteSti.isomKode).toBe('505')
+    expect(t.tetteMed).toBe('gapBridgeM ≥ 45 (nå 30)')
+    expect(svar.tolkning).toMatch(/ser sammenhengende ut/)
+  })
+
+  it('sier fra når hullet er innenfor toleransen (omveien kan være ekte)', () => {
+    const res = finnStinettBrudd(bruddNett(25), { grafOpts: RAA_GRAF })
+    const svar = formatBruddSvar(res, { toWgs84, gapBridgeM: 30 })
+    expect(svar.treff[0].tetteMed).toMatch(/innenfor toleransen/)
+  })
+
+  it('gir en ærlig tolkning når det ikke er noen brudd', () => {
+    const svar = formatBruddSvar(finnStinettBrudd([]), { toWgs84 })
+    expect(svar.tolkning).toMatch(/Ingen brudd/)
+    expect(svar.graf).toMatchObject({ noder: 0, kanter: 0 })
+  })
+})
