@@ -218,6 +218,37 @@ const SJEKKER = [
     },
   },
   {
+    navn: 'måling legger vertices og regner distanse',
+    domene: 'useMaaling',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await klikkTekst(page, /^Måling$/)
+      await page.waitForTimeout(700)
+      // Tre tapp i kartflaten = to strekk. Ekte museklikk: måle-modus lytter på
+      // kart-tappen, ikke på en knapp.
+      const boks = await page.locator('svg.isom-map').boundingBox()
+      const punkter = [[-70, -60], [40, -20], [10, 70]]
+      for (const [dx, dy] of punkter) {
+        await page.mouse.click(boks.x + boks.width / 2 + dx, boks.y + boks.height / 2 + dy)
+        await page.waitForTimeout(350)
+      }
+      await page.waitForTimeout(600)
+      const vertices = await page.evaluate(() =>
+        document.querySelectorAll('svg.isom-map #measure-layer circle, svg.isom-map [data-measure] circle').length)
+      const tall = await page.evaluate(() => {
+        const t = document.body.innerText
+        const m = t.match(/(\d+[,.]?\d*)\s*(m|km)\b/g)
+        return m ? m.slice(0, 3).join(' ') : ''
+      })
+      if (!vertices && !tall) throw new Error('verken vertices i kartet eller distanse i UI etter tre tapp')
+      // Rydd etter seg: måle-modus bytter ut fane-raden, så neste sjekk fant
+      // ikke 3D-knappen. En sjekk skal alltid forlate appen i nøytral tilstand.
+      await klikkTekst(page, /^(Avslutt måling|Måling)$/)
+      await page.waitForTimeout(500)
+      return `${vertices} vertices, leste «${tall}»`
+    },
+  },
+  {
     navn: '3D-visningen åpner',
     domene: 'use3dEntry',
     async kjør(page) {
