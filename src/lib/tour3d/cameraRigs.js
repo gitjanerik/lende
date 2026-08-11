@@ -1,20 +1,25 @@
-// Kamerarigger: Follow (dempet chase-kamera), Free (OrbitControls) og
-// FlyBy (forhåndsberegnet dronespline). Demping er frame-rate-uavhengig
-// eksponentiell (`1 − exp(−dt·λ)`) — stabil ved enhver dt, ingen
-// fjær-oscillasjon å tune.
+// Følge-riggen: det dempede «vogn-kameraet» som ruller langs en tur, pluss den
+// delte kamera-matematikken (terrengklaring, siktlinje, innramming) som den frie
+// riggen (freeRig.js) også bruker.
 //
-// Follow og FlyBy er «vogn-kameraer»: de følger ruta automatisk, men
-// brukeren kan styre blikket underveis — én-finger-drag vrir vinkelen
-// (Follow: orbiterer rundt turpunktet; FlyBy: snur hodet fra dronen) og
-// pinch justerer nær/fjern. Offsetene nullstilles ved modusbytte.
+// Demping er frame-rate-uavhengig eksponentiell (`1 − exp(−dt·λ)`) — stabil ved
+// enhver dt, ingen fjær-oscillasjon å tune.
 //
-// Under HOLD (feature-direktøren) får aktiv rigg et «frame target» som
-// rammer inn featurens boundingsfære; Free-modus overstyres aldri.
+// Riggen er et «vogn-kamera»: den følger ruta automatisk, men brukeren kan styre
+// blikket underveis — én-finger-drag orbiterer rundt turpunktet, pinch justerer
+// nær/fjern. Blikk-offsetet ({yaw, pitch, dist}) er også veien TILBAKE til ruta:
+// når kameraet har vært løsnet (fri utforsking, flytur til en severdighet) og
+// festes igjen, regnes offsetet ut av kameraets faktiske pose med
+// `deriveFollowView`. Da arver turen perspektivet brukeren nettopp sto i, i
+// stedet for å rykke tilbake til standardvinkelen.
+//
+// Under HOLD (feature-direktøren) får riggen et «frame target» som rammer inn
+// featurens boundingsfære.
 
-import { Vector3, Quaternion, Matrix4, MOUSE } from 'three'
+import { Vector3, Quaternion, Matrix4 } from 'three'
 import { sampleElevation } from '../demSampling.js'
 
-// Delt med utforsker-riggen (exploreRig.js) så de to modusene får identisk
+// Delt med den frie riggen (freeRig.js) så de to riggene får identisk
 // overgangstid, demping og terrengklaring.
 export const TRANSITION_S = 1.2
 
@@ -54,26 +59,116 @@ export function clearSightLine(dem, coords, pos, look) {
   if (required > pos.y) pos.y = required
 }
 
-export function createCameraRigs({ camera, dem, coords, routeLookup: initialRouteLookup, flybyLookup: initialFlybyLookup, domElement }) {
-  // Muterbare fordi 3D-utforskeren bytter ut turen under føttene på riggen når
+/**
+ * Kamerapose som rammer inn et punkt: avstanden regnes av kameraets FOV, så små
+ * ting kommer nær og store rammes inn på avstand. `dirXZ` er retningen kameraet
+ * skal stå i fra punktet (normaliseres her); uten den brukes +Z.
+ *
+ * Delt av severdighets-innrammingen i følge-riggen og «fly hit» i den frie
+ * riggen — én kilde til sannhet for «ramm inn dette».
+ */
+export function framePose({ camera, dem, coords, target, radiusM = 60, dirXZ = null, minClearM = 25 }) {
+  const r = Math.max(30, radiusM)
+  const dist = r / Math.tan(((camera.fov * Math.PI) / 180 / 2) * 0.8)
+  let dx = dirXZ?.[0] ?? 0
+  let dz = dirXZ?.[1] ?? 1
+  const len = Math.hypot(dx, dz)
+  if (len < 1e-6) { dx = 0; dz = 1 } else { dx /= len; dz /= len }
+  const pos = new Vector3(
+    target.x + dx * dist,
+    target.y + dist * 0.55,
+    target.z + dz * dist,
+  )
+  const minY = terrainYAt(dem, coords, pos.x, pos.z, 0) + minClearM * coords.exaggeration
+  if (pos.y < minY) pos.y = minY
+  clearSightLine(dem, coords, pos, target)
+  return { pos, target }
+}
+
+// Rausere default-avstand/-høyde (v3.0.15 var 110/70, v4.8.5 var 220/140):
+// nær fugleperspektiv. Raske vinkelskift i skarpe svinger ga «bilsyke» på
+// nært hold; høyere/fjernere kamera senker vinkelfarten. Fra v4.8.5 er
+// avstanden nesten doblet igjen — poenget er å se UTOVER landskapet med
+// posisjonen og (av og til) mål-nåla i bildet, ikke å ligge tett på den
+// røde streken. Lengre lookAhead følger av at vi ser lenger.
+export const FOLLOW_DEFAULTS = { distanceM: 420, heightM: 260, lookAheadM: 140 }
+
+// Grensene for brukerens blikk-offset. Delt med deriveFollowView så et arvet
+// perspektiv aldri kan sette riggen i en pose den selv ikke kunne nådd.
+const PITCH_MIN = -0.6
+const PITCH_MAX = 0.7
+const DIST_MIN = 0.4
+const DIST_MAX = 4
+
+// Strammere spenn når perspektivet ARVES. Pinch-gulvet på 0,4 (≈200 m) er noe
+// brukeren velger med to fingre og ser resultatet av; en flytur til en
+// severdighet rammer den inn på 150 m, og å fortsette turen derfra ville satt
+// kameraet i nakken på markøren med en nål på tvers av bildet. Retningen arves
+// fullt ut — det er avstanden som må være en turavstand.
+export const INHERIT_DIST_RANGE = [0.7, 3]
+
+const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x))
+const wrapPi = (a) => {
+  let d = a % (Math.PI * 2)
+  if (d > Math.PI) d -= Math.PI * 2
+  if (d <= -Math.PI) d += Math.PI * 2
+  return d
+}
+
+/**
+ * Inversen av følge-posen: hvilket {yaw, pitch, dist}-offset står kameraet i,
+ * sett fra turpunktet? Brukes når kameraet festes til ruta igjen etter fri
+ * utforsking — perspektivet brukeren valgte skal bli turens perspektiv.
+ *
+ * Ren funksjon (ingen three-avhengighet på inn-siden) så den kan testes direkte.
+ *
+ * @param {{camPos: {x:number,y:number,z:number},
+ *          routePos: [number,number,number],
+ *          tangent: [number,number,number],
+ *          follow?: {distanceM:number, heightM:number},
+ *          reliefBoost?: number,
+ *          distRange?: [number, number]}} arg
+ * @returns {{yaw:number, pitch:number, dist:number}}
+ */
+export function deriveFollowView({
+  camPos, routePos, tangent, follow = FOLLOW_DEFAULTS, reliefBoost = 1,
+  distRange = [DIST_MIN, DIST_MAX],
+}) {
+  const dx = camPos.x - routePos[0]
+  const dy = camPos.y - routePos[1]
+  const dz = camPos.z - routePos[2]
+  const r = Math.hypot(dx, dy, dz)
+  if (!(r > 1e-6)) return { yaw: 0, pitch: 0, dist: 1 }
+
+  const heading = Math.atan2(tangent[2], tangent[0])
+  const yaw = wrapPi(Math.atan2(dz, dx) - (heading + Math.PI))
+
+  const basePitch = Math.atan2(follow.heightM, follow.distanceM)
+  const pitch = clamp(Math.asin(clamp(dy / r, -1, 1)) - basePitch, PITCH_MIN, PITCH_MAX)
+
+  const baseR = Math.hypot(follow.distanceM, follow.heightM) * (reliefBoost || 1)
+  const dist = clamp(baseR > 0 ? r / baseR : 1, distRange[0], distRange[1])
+
+  return { yaw, pitch, dist }
+}
+
+/**
+ * @param {{camera: object, dem: object, coords: object,
+ *          routeLookup: object, domElement: HTMLElement}} arg
+ */
+export function createFollowRig({ camera, dem, coords, routeLookup: initialRouteLookup, domElement }) {
+  // Muterbar fordi 3D-scenen bytter ut turen under føttene på riggen når
   // brukeren velger en annen gren i et kryss. Å bygge riggen på nytt ville
-  // nullstilt blikkvinkelen deres midt i turen.
+  // nullstilt brukerens blikkvinkel midt i turen.
   let routeLookup = initialRouteLookup
-  let flybyLookup = initialFlybyLookup
   const camPos = new Vector3()
   const lookPos = new Vector3()
-  let mode = null
-  let controls = null
   let frameTarget = null
   let transition = null
+  let started = false
+  let inputEnabled = false
 
-  // Rausere default-avstand/-høyde (v3.0.15 var 110/70, v4.8.5 var 220/140):
-  // nær fugleperspektiv. Raske vinkelskift i skarpe svinger ga «bilsyke» på
-  // nært hold; høyere/fjernere kamera senker vinkelfarten. Fra v4.8.5 er
-  // avstanden nesten doblet igjen — poenget er å se UTOVER landskapet med
-  // posisjonen og (av og til) mål-nåla i bildet, ikke å ligge tett på den
-  // røde streken. Lengre lookAhead følger av at vi ser lenger.
-  const follow = { distanceM: 420, heightM: 260, lookAheadM: 140 }
+  const follow = { ...FOLLOW_DEFAULTS }
 
   // Relieff-tilpasning: går ruta mye opp og ned, trengs mer luft for å få
   // både terrenget og posisjonen i bildet. Vi måler høydespennet i et vindu
@@ -99,10 +194,8 @@ export function createCameraRigs({ camera, dem, coords, routeLookup: initialRout
     return Number.isFinite(hi - lo) ? hi - lo : 0
   }
 
-  // Brukerens blikk-offset i vogn-modusene: yaw/pitch i radianer, dist som
-  // faktor (pinch). Nullstilles ved modusbytte.
+  // Brukerens blikk-offset: yaw/pitch i radianer, dist som faktor (pinch).
   const view = { yaw: 0, pitch: 0, dist: 1 }
-  const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x))
 
   const pointers = new Map()
   let dragging = false
@@ -114,10 +207,9 @@ export function createCameraRigs({ camera, dem, coords, routeLookup: initialRout
     const pts = [...pointers.values()]
     return Math.hypot(pts[0][0] - pts[1][0], pts[0][1] - pts[1][1]) || 1
   }
-  const wagonModeActive = () => mode === 'follow' || mode === 'flyby'
 
   function onPointerDown(e) {
-    if (!wagonModeActive()) return
+    if (!inputEnabled) return
     pointers.set(e.pointerId, [e.clientX, e.clientY])
     domElement.setPointerCapture?.(e.pointerId)
     if (pointers.size === 1) {
@@ -130,13 +222,13 @@ export function createCameraRigs({ camera, dem, coords, routeLookup: initialRout
     }
   }
   function onPointerMove(e) {
-    if (!pointers.has(e.pointerId)) return
+    if (!inputEnabled || !pointers.has(e.pointerId)) return
     pointers.set(e.pointerId, [e.clientX, e.clientY])
     if (pinchStart && pointers.size === 2) {
-      view.dist = clamp(pinchStart.dist0 * (pinchStart.d0 / pinchDist()), 0.4, 4)
+      view.dist = clamp(pinchStart.dist0 * (pinchStart.d0 / pinchDist()), DIST_MIN, DIST_MAX)
     } else if (dragging) {
       view.yaw -= (e.clientX - dragX) * 0.006
-      view.pitch = clamp(view.pitch + (e.clientY - dragY) * 0.004, -0.6, 0.7)
+      view.pitch = clamp(view.pitch + (e.clientY - dragY) * 0.004, PITCH_MIN, PITCH_MAX)
       dragX = e.clientX
       dragY = e.clientY
     }
@@ -157,10 +249,7 @@ export function createCameraRigs({ camera, dem, coords, routeLookup: initialRout
   domElement.addEventListener('pointerup', onPointerUp)
   domElement.addEventListener('pointercancel', onPointerUp)
 
-  const v = {
-    routeAt: new Vector3(), ahead: new Vector3(), tangent: new Vector3(),
-    desired: new Vector3(), tmp: new Vector3(),
-  }
+  const v = { routeAt: new Vector3(), desired: new Vector3(), tmp: new Vector3() }
 
   function desiredFollowPose(alongM, outPos, outLook) {
     const p = routeLookup.at(alongM)
@@ -182,163 +271,88 @@ export function createCameraRigs({ camera, dem, coords, routeLookup: initialRout
     outLook.set(a[0], a[1], a[2])
   }
 
-  // Start-oversikt for Utforsk-modus: nesten fugleperspektiv bak startpunktet
-  // med ruta og terrenget liggende foran — gir umiddelbar oversikt over hele
-  // turen før brukeren spiller av eller bytter modus.
-  function overviewPose() {
-    const n = 8
-    let minX = Infinity, minY = Infinity, minZ = Infinity
-    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity
-    for (let i = 0; i <= n; i++) {
-      const p = routeLookup.at((routeLookup.totalM * i) / n)
-      if (p[0] < minX) minX = p[0]
-      if (p[0] > maxX) maxX = p[0]
-      if (p[1] < minY) minY = p[1]
-      if (p[1] > maxY) maxY = p[1]
-      if (p[2] < minZ) minZ = p[2]
-      if (p[2] > maxZ) maxZ = p[2]
-    }
-    const center = new Vector3((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2)
-    const span = Math.max(maxX - minX, maxZ - minZ, 800)
-    const s = routeLookup.at(0)
-    const start = new Vector3(s[0], s[1], s[2])
-    // Retning fra start mot rutas tyngdepunkt i XZ; degenererer ruta (svært
-    // kompakt rundtur) brukes starttangenten.
-    let dirX = center.x - start.x
-    let dirZ = center.z - start.z
-    let len = Math.hypot(dirX, dirZ)
-    if (len < 1) {
-      const t = routeLookup.tangentAt(0)
-      dirX = t[0]; dirZ = t[2]
-      len = Math.hypot(dirX, dirZ) || 1
-    }
-    dirX /= len; dirZ /= len
-    const dist = Math.min(6000, Math.max(600, span * 0.75))
-    const pos = new Vector3(
-      start.x - dirX * dist * 0.55,
-      Math.max(start.y, center.y) + dist * 0.85,
-      start.z - dirZ * dist * 0.55,
-    )
-    const minCamY = terrainYAt(dem, coords, pos.x, pos.z) + 60 * coords.exaggeration
-    if (pos.y < minCamY) pos.y = minCamY
-    clearSightLine(dem, coords, pos, center)
-    return { pos, target: center }
-  }
-
-  function desiredFlybyPose(alongM, outPos, outLook) {
-    // Kamera-splinen parametriseres så kamera-alongM følger playback med
-    // et lite forsprang.
-    const p = flybyLookup.at(Math.min(flybyLookup.totalM, alongM + 30))
-    outPos.set(p[0], p[1], p[2])
-    const a = routeLookup.at(Math.min(routeLookup.totalM, alongM + 90))
-    // Brukerens hodedreining fra dronen: roter blikkretningen med yaw/pitch.
-    let dx = a[0] - p[0]
-    let dy = a[1] - p[1]
-    let dz = a[2] - p[2]
-    const len = Math.hypot(dx, dy, dz) || 1
-    const az = Math.atan2(dz, dx) + view.yaw
-    const el = clamp(Math.asin(dy / len) - view.pitch, -1.2, 1.2)
-    dx = Math.cos(az) * Math.cos(el) * len
-    dy = Math.sin(el) * len
-    dz = Math.sin(az) * Math.cos(el) * len
-    outLook.set(p[0] + dx, p[1] + dy, p[2] + dz)
-    // Pinch i FlyBy: trekk dronen opp og bakover for videre utsyn.
-    if (view.dist !== 1) {
-      const k = (view.dist - 1) * 160
-      outPos.y += k
-      outPos.x -= (dx / len) * k * 0.6
-      outPos.z -= (dz / len) * k * 0.6
-    }
-  }
-
   function applyFrameTarget(outPos, outLook, alongM) {
-    // Ramm inn featuren: kamera på buen mellom markør og feature, avstand
-    // fra boundingsfæren og kameraets FOV.
+    // Ramm inn featuren fra siden turen kommer fra, så bildet leses som «der
+    // er den, litt foran oss».
     const f = frameTarget
-    const r = Math.max(30, f.radius)
-    const dist = r / Math.tan(((camera.fov * Math.PI) / 180 / 2) * 0.8)
     const m = routeLookup.at(alongM)
-    const dirX = m[0] - f.x
-    const dirZ = m[2] - f.z
-    const len = Math.hypot(dirX, dirZ) || 1
-    outPos.set(f.x + (dirX / len) * dist, f.y + dist * 0.55, f.z + (dirZ / len) * dist)
-    outLook.set(f.x, f.y, f.z)
-  }
-
-  function ensureControls() {
-    if (controls) return controls
-    return null
+    const { pos, target } = framePose({
+      camera, dem, coords,
+      target: new Vector3(f.x, f.y, f.z),
+      radiusM: f.radius,
+      dirXZ: [m[0] - f.x, m[2] - f.z],
+    })
+    outPos.copy(pos)
+    outLook.copy(target)
   }
 
   return {
-    get mode() { return mode },
     follow,
+    get view() { return { ...view } },
     setFollowParams(p) { Object.assign(follow, p) },
     // Bytt hvilken tur riggen følger, uten å røre brukerens blikkvinkel.
-    setRouteLookup(next, nextFlyby = null) {
-      routeLookup = next
-      flybyLookup = nextFlyby ?? next
-    },
+    setRouteLookup(next) { routeLookup = next },
     setFrameTarget(t) { frameTarget = t },
     clearFrameTarget() { frameTarget = null },
-
-    async setMode(next, alongM = 0) {
-      if (next === mode) return
-      const prevMode = mode
-      mode = next
-      view.yaw = 0; view.pitch = 0; view.dist = 1
-      if (controls) controls.enabled = next === 'free'
-      if (next === 'free') {
-        if (!controls) {
-          const { OrbitControls } = await import('three/examples/jsm/controls/OrbitControls.js')
-          controls = new OrbitControls(camera, domElement)
-          controls.enableDamping = true
-          controls.maxPolarAngle = (85 * Math.PI) / 180
-          controls.minDistance = 50
-          controls.maxDistance = 1.5 * Math.max(coords.widthM, coords.heightM)
-          // Desktop: venstre-drag panorerer (som i 3D-utforskeren), høyre-drag
-          // roterer. Touch beholder standardoppsettet.
-          controls.mouseButtons = { LEFT: MOUSE.PAN, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.ROTATE }
-          controls.screenSpacePanning = false
-        }
-        controls.enabled = true
-        if (prevMode === null) {
-          // Åpningspose: fugleperspektiv-oversikt over hele ruta.
-          const { pos, target } = overviewPose()
-          camera.position.copy(pos)
-          controls.target.copy(target)
-        } else {
-          const p = routeLookup.at(alongM)
-          controls.target.set(p[0], p[1], p[2])
-        }
-        controls.update()
-        return
+    // Vogn-dragets fingerstyring er bare på når riggen ER kameraet OG turen
+    // spiller. Står turen stille, er det den frie riggen som skal ta fingeren.
+    setInputEnabled(v2) {
+      inputEnabled = !!v2
+      if (!inputEnabled) {
+        pointers.clear()
+        dragging = false
+        pinchStart = null
       }
-      // Glatt overgang inn i ny rigg fra nåværende pose.
-      if (prevMode !== null) {
+    },
+
+    /**
+     * Ta over kameraet ved `alongM`.
+     *
+     * `inherit`: arv perspektivet fra kameraets nåværende pose — brukt når
+     *   kameraet festes tilbake til turen etter fri utforsking eller en flytur
+     *   til en severdighet. Uten den brukes standardvinkelen.
+     * `animate`: glid inn i posen fra der kameraet står (default når arvet).
+     *   Av = hopp rett dit; det er åpningsbildet når 3D starter med en tur.
+     */
+    enter(alongM = 0, { inherit = false, animate = inherit } = {}) {
+      const p = routeLookup.at(alongM)
+      if (inherit) {
+        Object.assign(view, deriveFollowView({
+          camPos: camera.position,
+          routePos: p,
+          tangent: routeLookup.tangentAt(alongM),
+          follow,
+          reliefBoost,
+          distRange: INHERIT_DIST_RANGE,
+        }))
+      } else {
+        view.yaw = 0; view.pitch = 0; view.dist = 1
+      }
+      if (animate) {
+        // Dempingen tar kameraet fra der det står til ønsket pose; transisjonen
+        // lerper bildet dit samtidig, så overgangen er én myk bevegelse.
+        camPos.copy(camera.position)
+        lookPos.set(p[0], p[1], p[2])
         transition = {
           t: 0,
           fromPos: camera.position.clone(),
           fromQuat: camera.quaternion.clone(),
         }
       } else {
-        // Første pose: hopp rett dit.
         const pos = new Vector3()
         const look = new Vector3()
-        if (next === 'flyby') desiredFlybyPose(alongM, pos, look)
-        else desiredFollowPose(alongM, pos, look)
+        desiredFollowPose(alongM, pos, look)
         camera.position.copy(pos)
         camera.lookAt(look)
         camPos.copy(pos)
         lookPos.copy(look)
+        transition = null
       }
+      started = true
     },
 
     update(dt, alongM) {
-      if (mode === 'free') {
-        controls?.update()
-        return
-      }
+      if (!started) return
       // Relieff-boost dempes mykt (λ = 0.8) — kupert terreng skal skyve
       // kameraet gradvis bakover, ikke rykke i det.
       const wantBoost = 1 + RELIEF_MAX_BOOST
@@ -348,7 +362,6 @@ export function createCameraRigs({ camera, dem, coords, routeLookup: initialRout
       const desiredPos = v.desired
       const desiredLook = v.tmp
       if (frameTarget) applyFrameTarget(desiredPos, desiredLook, alongM)
-      else if (mode === 'flyby') desiredFlybyPose(alongM, desiredPos, desiredLook)
       else desiredFollowPose(alongM, desiredPos, desiredLook)
 
       // Terrengklaring for kameraposisjonen + fri siktlinje til blikkpunktet.
@@ -376,20 +389,11 @@ export function createCameraRigs({ camera, dem, coords, routeLookup: initialRout
       camera.lookAt(lookPos)
     },
 
-    syncFromCamera(alongM) {
-      // Etter Free-modus: fortsett dempingen fra der brukeren forlot kameraet.
-      camPos.copy(camera.position)
-      const p = routeLookup.at(alongM)
-      lookPos.set(p[0], p[1], p[2])
-    },
-
     dispose() {
       domElement.removeEventListener('pointerdown', onPointerDown)
       domElement.removeEventListener('pointermove', onPointerMove)
       domElement.removeEventListener('pointerup', onPointerUp)
       domElement.removeEventListener('pointercancel', onPointerUp)
-      controls?.dispose()
-      controls = null
     },
   }
 }

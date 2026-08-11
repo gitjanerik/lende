@@ -194,8 +194,9 @@ async function onInstallClick() {
           <p class="text-[13px] leading-relaxed text-ink/70">
             Trykk <strong class="text-ink/90">3D</strong> i snarvei-raden, og hele
             kartet reiser seg som terreng: du ser utsnittet fra sentrum med utsyn
-            nordover, i sakte rotasjon til du tar over med fingeren. Stinettet
-            lyser opp så du ser hvor det går an å gå, og
+            nordover, i sakte rotasjon til du tar over med fingeren. Slår du på
+            <strong class="text-ink/90">Sti</strong>, lyser stinettet opp så du
+            ser hvor det går an å gå, og
             <strong class="text-ink/90">trykker du på en sti, følger kameraet
             den</strong> — i kryss fortsetter turen automatisk rett fram, eller du
             velger en annen gren når krysset meldes. Topper, vann, hytter,
@@ -210,10 +211,14 @@ async function onInstallClick() {
           <h3 class="text-sm font-semibold text-ink/85">3D-visning av tur</h3>
           <p class="text-[13px] leading-relaxed text-ink/70">
             Velg en rute med stifinneren eller en rundtur, og trykk
-            <strong class="text-ink/90">3D-knappen ved startpunktet</strong>: du
-            turen spilles av som en flytur over ekte terreng. Kameraet følger
-            turpunktet — du styrer blikket selv med fingeren mens det ruller —
-            eller utforskes helt fritt fra fugleperspektiv.
+            <strong class="text-ink/90">3D-knappen ved startpunktet</strong>:
+            turen spilles av som en flytur over ekte terreng. Det er samme
+            3D-visning som kartet åpner — turen står bare klar i kameraet fra
+            start. Kameraet følger turpunktet mens den ruller, og du styrer
+            blikket selv med fingeren.
+            <strong class="text-ink/90">Pauser du, er kameraet ditt</strong>: fly
+            dit du vil, eller trykk på en knappenål så flyr det dit for deg. Play
+            fester kameraet til turen igjen — med utsikten du nettopp valgte.
             Tjern, topper, naturreservater, kulturminner og NVEs vannmålestasjoner
             langs veien løftes fram med infokort, og du kan dra i tidsaksen for å
             spole fram og tilbake. Start, mål og delmål vises som grønne, røde og

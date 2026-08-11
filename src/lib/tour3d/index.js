@@ -1,9 +1,8 @@
 // Offentlig inngang til 3D-motoren. Hele tour3d-mappa (inkl. three) lever i
 // én lazy chunk — importer aldri herfra statisk utenfor mappa.
 
-export { createTourScene, TourSceneError } from './tourScene.js'
-export { createExploreScene } from './exploreScene.js'
-export { collectMapFeatures, findParkingSpots, findPauseSpots, loadNveFeatures, loadHeritageFeatures } from './tourData.js'
+export { create3dScene, TourSceneError } from './scene3d.js'
+export { collectMapFeatures, findParkingSpots, findPauseSpots, loadNveFeatures } from './tourData.js'
 export {
   collectAllFeatures, collectBrukerminnePins, loadHeritageForMap,
   clusterFeaturesByMeters, PIN_GROUPS, groupOfKind, countByGroup, featureType,

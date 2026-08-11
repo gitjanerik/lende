@@ -52,6 +52,24 @@ export function buildRoutePath(coordinates, dem, coords, { stepM = 5, offsetM = 
   return { points3, cumM, totalM: acc }
 }
 
+/**
+ * Høydeprofil-samples fra en ferdig bygget rute-kurve: {distM, elev} langs ruta.
+ * Grunnlaget for kumulativ stigning og ETA når turen ikke kom med en profil fra
+ * 2D-siden (en tur brukeren finner ved å trykke på stinettet i 3D).
+ *
+ * @param {{points3: Float32Array, cumM: Float32Array}} rp fra buildRoutePath
+ * @param {{worldYToElev: (y:number) => number}} coords
+ * @param {{offsetM?: number}} [opts] samme løft som buildRoutePath la på
+ */
+export function elevationSamples(rp, coords, { offsetM = 3 } = {}) {
+  const out = []
+  const n = rp.cumM.length
+  for (let i = 0; i < n; i++) {
+    out.push({ distM: rp.cumM[i], elev: coords.worldYToElev(rp.points3[i * 3 + 1]) - offsetM })
+  }
+  return out
+}
+
 function densify(coordinates, stepM, maxPoints) {
   if (!coordinates || coordinates.length < 2) return (coordinates ?? []).map(c => [c[0], c[1]])
   let totalM = 0

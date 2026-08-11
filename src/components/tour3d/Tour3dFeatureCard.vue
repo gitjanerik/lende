@@ -14,10 +14,13 @@ const TYPE_LABELS = {
   topp: 'Fjelltopp', vann: 'Vann', sted: 'Sted', hytte: 'Hytte',
   naturreservat: 'Naturreservat', kulturminne: 'Kulturminne',
   vannstasjon: 'Vannmålestasjon', 'område': 'Område',
+  // Turens egne punkter — trykkbare nåler i 3D, ikke severdigheter.
+  veipunkt: 'Turens punkt', parkering: 'Utfartsparkering', rast: 'Rasteplass',
 }
 const TYPE_ICONS = {
   topp: '⛰️', vann: '💧', sted: '📍', hytte: '🏠',
   naturreservat: '🌿', kulturminne: '🏛️', vannstasjon: '💦', 'område': '🗺️',
+  veipunkt: '🚩', parkering: '🅿️', rast: '🧺',
 }
 
 const nveLatest = ref(null)
