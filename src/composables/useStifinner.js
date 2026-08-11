@@ -24,12 +24,11 @@
 
 import { ref, computed } from 'vue'
 import {
-  buildRoutingGraph, planRoutesThrough, planLoop, MAX_SNAP_M, FAR_SNAP_M,
+  buildRoutingGraph, planRoutesThrough, planLoop, MAX_SNAP_M, FAR_SNAP_M, RUTE_GRAF_OPTS,
+  ROUTABLE_CODES, BARRIER_CODES,
 } from '../lib/routing.js'
 import { parsePathSubpaths } from '../lib/pathUtils.js'
-
-// ISOM-koder som er routbare (vei/sti/bro). Må matche ISOM_COST i routing.js.
-const ROUTABLE_CODES = new Set(['501', '502', '503', '504', '505', '506', '507', '509'])
+import { realElevationAt } from '../lib/demSampling.js'
 
 // Snap-tersklene bor i routing.js (delt med chattens forhåndsberegning):
 //  ≤ MAX_SNAP_M  — stille treff (punktet ligger praktisk talt på stien).
@@ -53,7 +52,17 @@ const ASCENT_M_PER_MIN = 10
 // mindre enn stigning: +1 min per 30 høydemeter fall.
 const DESCENT_M_PER_MIN = 30
 
-export function useStifinner() {
+/**
+ * @param {{ dem?: () => object|null }} [opts]
+ *   `dem` er en getter for kartets unpackede DEM (MapView eier den og henter den
+ *   asynkront). Den gjør hull-broingen terrengbevisst: et hull over et stup
+ *   broes ikke. Uten getter — eller før DEM-en har landet — ruter vi som før,
+ *   og grafen bygges på nytt når DEM-en kommer (se graphFor).
+ */
+export function useStifinner(opts = {}) {
+  const demGetter = typeof opts.dem === 'function' ? opts.dem : () => null
+  const elevationAtFor = (dem) => (dem ? realElevationAt(dem) : undefined)
+
   // Snarvei-inngangen (beginPickStart) sikter inn startpunktet FØRST og målet
   // (B) etterpå — begge med kikkertsikte. Long-press-inngangen (begin/beginLoop)
   // har alt satt B/origo fra selve long-press-punktet. 'pickingOrigin' er
@@ -81,9 +90,12 @@ export function useStifinner() {
   const viaSnaps = ref([])          // [{ x, y }] parallelt til via
 
   // Cache av routing-grafen for sist brukte SVG-element, så gjentatte via-
-  // redigeringer ikke bygger grafen på nytt hver gang.
+  // redigeringer ikke bygger grafen på nytt hver gang. DEM-en er del av nøkkelen:
+  // den hentes asynkront, og en graf bygget før den landet mangler terreng-
+  // regelen i hull-broingen.
   let cachedRg = null
   let cachedSvg = null
+  let cachedDem = null
   // Sist brukte SVG-element, så recompute() kan reberegne når via endres.
   let lastSvg = null
 
@@ -208,6 +220,7 @@ export function useStifinner() {
     viaSnaps.value = []
     cachedRg = null
     cachedSvg = null
+    cachedDem = null
     lastSvg = null
   }
 
@@ -229,16 +242,23 @@ export function useStifinner() {
     return { dx, dy }
   }
 
-  // Les routbare sti-/vei-paths fra SVG-en (aktiv flis + spøkelsesfliser,
-  // løftet til aktiv-flisas koordinatrom) og bygg features til grafen.
+  // Les routbare sti-/vei-paths OG barriere-geometri fra SVG-en (aktiv flis +
+  // spøkelsesfliser, løftet til aktiv-flisas koordinatrom) i ÉN gjennomgang.
+  // Barrierene er det hull-broingen trenger for å nekte å bro over hovedvei,
+  // jernbane, bygning, vann og upassérbart stup — og de MÅ gjennom samme
+  // nestedSvgOffset som stiene, ellers ligger naboflisenes barrierer feil og
+  // blokkerer hull midt i aktiv flis.
   function featuresFromSvg(svgElement) {
     const features = []
+    const barriers = []
     const groups = svgElement.querySelectorAll('[data-iso]')
     let routableGroups = 0
     for (const g of groups) {
       const code = g.getAttribute('data-iso')
-      if (!ROUTABLE_CODES.has(code)) continue
-      routableGroups++
+      const routbar = ROUTABLE_CODES.has(code)
+      const barriere = BARRIER_CODES[code] != null
+      if (!routbar && !barriere) continue
+      if (routbar) routableGroups++
       const { dx, dy } = nestedSvgOffset(g, svgElement)
       const paths = g.tagName.toLowerCase() === 'path' ? [g] : g.querySelectorAll('path')
       for (const p of paths) {
@@ -246,10 +266,9 @@ export function useStifinner() {
         if (!d) continue
         for (const sub of parsePathSubpaths(d)) {
           if (sub.length < 2) continue
-          features.push({
-            coordinates: (dx || dy) ? sub.map(([x, y]) => [x + dx, y + dy]) : sub,
-            isomCode: code,
-          })
+          const coordinates = (dx || dy) ? sub.map(([x, y]) => [x + dx, y + dy]) : sub
+          if (routbar) features.push({ coordinates, isomCode: code })
+          if (barriere) barriers.push({ coordinates, isomCode: code })
         }
       }
     }
@@ -257,25 +276,28 @@ export function useStifinner() {
       grupper: groups.length, routbare: routableGroups, features: features.length,
       noder: 0, kanter: 0,
     }
-    return features
+    return { features, barriers }
   }
 
   // Bygg (eller gjenbruk cachet) routing-graf for et SVG-element.
-  // componentBridgeM=80: se lib/routing.js — kobler frakoblede sti-/vei-
-  // fragmenter til hovednettet så et startpunkt ved en stasjon/P-plass ikke
-  // ender i en isolert stump.
-  // gapBridgeM=30: broer hull der en sti ender noen titalls meter fra en annen
-  // OG omveien rundt er kilometervis — nettet er da brutt i praksis selv om
-  // grafen formelt henger sammen (Narverudgruvene: 12,9 m hull → 5,5 km rundt).
+  // RUTE_GRAF_OPTS (lib/routing.js) er delt med MCP, chatten og 3D-utforskeren:
+  // componentBridgeM kobler frakoblede fragmenter til hovednettet, gapBridgeM
+  // broer hull der nettet er brutt i praksis. Stinett-diagnosen
+  // (lib/stinettBrudd.js) bygger samme graf, så det den rapporterer er det
+  // Stifinneren faktisk ser.
   function graphFor(svgElement) {
-    if (cachedRg && cachedSvg === svgElement) return cachedRg
-    const features = featuresFromSvg(svgElement)
+    const dem = demGetter()
+    if (cachedRg && cachedSvg === svgElement && cachedDem === dem) return cachedRg
+    const { features, barriers } = featuresFromSvg(svgElement)
     if (!features.length) return null
-    cachedRg = buildRoutingGraph(features, { snapM: 6, gapBridgeM: 30, componentBridgeM: 80 })
+    cachedRg = buildRoutingGraph(features, {
+      ...RUTE_GRAF_OPTS, elevationAt: elevationAtFor(dem), barriers,
+    })
     if (lastGraphStats) {
       lastGraphStats.noder = cachedRg.nodes
       lastGraphStats.kanter = cachedRg.edges
     }
+    cachedDem = dem
     cachedSvg = svgElement
     return cachedRg
   }
@@ -480,5 +502,8 @@ export function useStifinner() {
     begin, beginLoop, beginPickStart, confirmDest, beginPickLoop, confirmLoopOrigin,
     cancel, confirmStart, beginAddVia, confirmVia, removeVia, clearVia,
     selectRoute, follow, stopFollowing, estWalkMinutes,
+    // Eksponert for MapView: DEM-en kan komme etter at ruta er beregnet, og
+    // grafen må da bygges på nytt med terreng-regelen.
+    recompute,
   }
 }

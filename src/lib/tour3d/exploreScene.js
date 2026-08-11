@@ -13,7 +13,7 @@
 // nøyaktig den samme som i stifinner-turene.
 
 import { Raycaster, Vector2, Group } from 'three'
-import { buildRoutingGraph } from '../routing.js'
+import { buildRoutingGraph, RUTE_GRAF_OPTS } from '../routing.js'
 import { declutter } from '../labelDeclutter.js'
 import { poiColor } from '../poiColors.js'
 import { createSceneCore, TourSceneError } from './sceneCore.js'
@@ -90,7 +90,7 @@ export async function createExploreScene(container, {
   const ensureGraph = () => {
     if (graph === null) {
       graph = pathFeatures?.length
-        ? buildRoutingGraph(pathFeatures, { snapM: 6, gapBridgeM: 30, componentBridgeM: 80 })
+        ? buildRoutingGraph(pathFeatures, RUTE_GRAF_OPTS)
         : false
     }
     return graph || null

@@ -88,7 +88,7 @@ function mapHydroStation(st, { distM, alongM, latest }) {
 // Rute gjennom [start, ...via, maal] på et lastet kart. Som stdio-serverens
 // planThrough, men grafen bygges per kall (tilstandsløst).
 function planGjennom(kart, punkter) {
-  const rg = byggGraf(kart.svg)
+  const rg = byggGraf(kart.svg, kart.dem)
   const meta = svgMeta(kart.meta)
   const snaps = snapPunkter(rg, meta, punkter)
   const found = planRoutesThrough(rg, snaps.map(s => s.node.id))

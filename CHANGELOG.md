@@ -1,5 +1,85 @@
 # Endringslogg
 
+## 2026-08-11 — v5.6.1: Hull-broen krysser ikke hovedvei, jernbane, hus eller elv
+
+Terreng-regelen fra forrige versjon fanger stup, men en jernbane i flatt lende
+er null prosent bratt. Hull-broen sjekker nå også om forbindelses-streken
+KRYSSER noe en fotgjenger ikke bare går tvers over: motorvei, hovedvei,
+jernbane, bygning, innsjø, tjern, sjø, bekk og upassérbart stup. Gjør den det,
+er hullet et ekte hinder og omveien er svaret.
+
+Utvalget er målt på Strykenåsen-kartet, ikke gjettet. Tett bebyggelse ble
+vurdert og forkastet: det er areal-dekke, ikke et hinder — stier går gjennom
+boligfelt hele tiden, og å ta den ville avvist trettito av hundreogtrettien
+hull på feil grunnlag. Bygning er det ekte hinderet der. Gjerde er også utenfor,
+siden gjerder krysses ved grinder og klyv, og Lende har bom som egen passérbar
+barriere. Liten bekk stepper du over, og naturreservat er en juridisk grense,
+ikke terreng.
+
+Minstegrensen for hull som hinder-reglene i det hele tatt vurderer heter nå
+gapObstacleMinM og deles av begge reglene. Den fanget en ekte falsk positiv:
+et hull på ti centimeter der veilinja tilfeldigvis gikk imellom ble meldt som
+en veikryssing. Det er ingen veikryssing, det er tegnerekkefølge.
+
+På Strykenåsen-kartet avviser barriere-regelen seksten broer, og seksten av
+førtifire brudd er nå merket med hva som faktisk står i veien — tolv hovedveier,
+to jernbaner, to hus, en bekk og et stup. Rutene til Narverudgruvene er
+uendret. Chatten bygger grafen med samme to regler, så tallene der fortsetter
+å stemme med ruten kartet tegner.
+
+---
+
+## 2026-08-11 — v5.6.0: Hull-broen spør terrenget før den krysser
+
+Hull-broen koblet stier på hver side av et hull uten å se på hva som ligger
+imellom. Et hull på tretti meter kan være en sti som nesten når fram — eller
+kanten av et stup. Nå sampler broen DEM-en langs hullet og nekter når terrenget
+er brattere enn seksti prosent. Hellingen måles fra begge ender mot hvert
+sample, ikke bare ende til ende, for et hull som starter og slutter i samme
+høyde kan krysse en kløft, og den skal telle. Hull under åtte meter er unntatt:
+der er hullet forenklings-støy, ikke en traversering, og en sti som ender to
+meter fra en annen i en bratt li skal fortsatt kobles.
+
+Mangler kartet høydedata — WCS blokkert av CORS, eller syntetisk DEM — faller
+regelen bort og ruteren oppfører seg som før. I appen hentes DEM-en asynkront,
+så Stifinneren bygger grafen på nytt når den lander og reberegner en rute som
+alt vises. Det ville ellers vært mulig å få vist en rute over et stup bare
+fordi høydedataene ikke hadde kommet ennå.
+
+`finn_stinett_brudd` rapporterer nå hellingen for hvert brudd og skiller de to
+tilfellene i klartekst: et brudd med slakt terreng er et hull i kartdataene som
+kan tettes ved å heve toleransen, mens et brudd med bratt terreng er et ekte
+hinder ruteren nekter med vilje. På Strykenåsen-kartet er tre av trettifem
+brudd ekte hindre, og de gjenstående trettito har terreng under førti prosent
+— altså er de trygge å tette. Rutene til Narverudgruvene er uendret; hullet der
+er tolv komma ni meter over trettisju prosents helling.
+
+---
+
+## 2026-08-11 — v5.5.5: finn_stinett_brudd — ett kall i stedet for en times detektivarbeid
+
+Å finne hullet bak Narverudgruvene-saken tok en time med engangsskript: bygg
+kartet, bygg grafen, mål omvei mot luftlinje, finn stedene der forholdstallet
+eksploderer. Det er nå et MCP-verktøy. `finn_stinett_brudd` lister steder der
+en sti ender noen få meter fra en annen sti, men der ruteren må gå langt rundt
+— eller ikke kommer fram i det hele tatt. Hvert treff gir hullets størrelse,
+omveien det koster, forholdstallet mellom dem, koordinater for både stienden og
+nærmeste sti, og hva som skulle til for å tette hullet. Poenget er at grafen
+bygges med nøyaktig de samme opsjonene som ruteren bruker, så det verktøyet
+melder er hull som faktisk står igjen etter alle reparasjonspassene. De
+opsjonene bor nå ett sted, `RUTE_GRAF_OPTS` i routing.js, i stedet for som fem
+kopier av samme objekt-literal.
+
+Verktøyet fant en feil i forrige versjon med det samme. Hull-broen hoppet over
+stiender som ligger under seks meter fra stien de skulle koble til, fordi
+fotpunktet da snapper til selve stienden og koden tolket det som «ingen ny node
+å splitte i». Men det er nettopp der krysset er — stienden skal tres inn i
+kanten. To slike steder på Strykenåsen-kartet kostet halvannen til to
+kilometer omvei for et hull på under en meter. Antall brudd på det kartet falt
+fra 70 til 33 da den ble rettet.
+
+---
+
 ## 2026-08-11 — v5.5.4: Stifinneren broer hull der stinettet er brutt i praksis
 
 Stifinneren fant ingen fornuftig vei til Narverudgruvene i Strykenåsen: en

@@ -16,12 +16,13 @@ import { geocodePlace } from './geocode.js'
 import { listMaps, loadMap, listGravelRoutes } from './mapStorage.js'
 import { buildSearchIndex, filterIndex, formatAreaShort, foldName } from '../composables/useMapSearch.js'
 import { svgToWgs84, wgs84ToSvg } from './utm.js'
-import { unpackDem } from './demSampling.js'
+import { unpackDem, realElevationAt } from './demSampling.js'
 import {
   analyserStinett, formatStinettSvar, stinettFeaturesFromSvgEl, estGangtidMin,
 } from './stinettAnalyse.js'
 import {
   buildRoutingGraph, planRoutesThrough, planLoop, ROUTABLE_CODES, MAX_SNAP_M, FAR_SNAP_M,
+  RUTE_GRAF_OPTS, BARRIER_CODES,
 } from './routing.js'
 import { sampleProfile } from './elevationProfile.js'
 import { listThemes } from './mapSettingsApply.js'
@@ -1218,7 +1219,13 @@ export function stinettSvarTekst(a) {
 export function forhaandsberegnTur({ svgEl, meta, dem = null, punkter, isLoop = false }) {
   const features = stinettFeaturesFromSvgEl(svgEl, ROUTABLE_CODES)
   if (!features.length) return { ingenRute: true }
-  const rg = buildRoutingGraph(features, { snapM: 6, gapBridgeM: 30, componentBridgeM: 80 })
+  // Samme terreng- og barriere-regler som Stifinneren, ellers spriker tallene i
+  // chatten fra ruten kartet tegner — som er hele poenget med denne funksjonen.
+  const rg = buildRoutingGraph(features, {
+    ...RUTE_GRAF_OPTS,
+    elevationAt: realElevationAt(dem),
+    barriers: stinettFeaturesFromSvgEl(svgEl, new Set(Object.keys(BARRIER_CODES))),
+  })
 
   const navnFor = (i) => (
     isLoop ? (i === 0 ? 'startpunktet' : `vendepunkt ${i}`)

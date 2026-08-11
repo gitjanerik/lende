@@ -1508,7 +1508,11 @@ watch(mapId, (id) => {
 const annot = useMapAnnotations(mapId.value)
 // Stifinner — rutenavigasjon A→B på sti-laget. Egen modus-maskin (idle →
 // pickingStart → showing); gjensidig utelukkende med måling/annotering.
-const sti = useStifinner()
+// `dem`-getteren gjør hull-broingen i grafen terrengbevisst: et hull mellom to
+// stier broes ikke når terrenget over det er for bratt å krysse (v5.6.0).
+// storedDem hentes asynkront — useStifinner bygger grafen på nytt når den
+// lander, og watchen under reberegner en rute som alt vises.
+const sti = useStifinner({ dem: () => storedDem.value })
 const mapCtx = useMapContext()
 // Settes ved setupHostSvg: har kartet routbare sti-/vei-lag? Styrer om
 // «Naviger hit» vises.
@@ -2466,6 +2470,16 @@ const {
 })
 
 watch([measureVertices, measureClosed, scale], () => renderMeasure(), { deep: true })
+
+// DEM-en kan komme ETTER at Stifinneren har regnet ut ruta (ensureDem er et
+// nettverkskall). Da må grafen bygges på nytt med terreng-regelen og ruta
+// reberegnes — ellers viser vi en rute som krysser et stup fordi høydedataene
+// ikke hadde landet ennå. recompute() er en no-op under 'following'.
+watch(storedDem, (dem) => {
+  if (!dem || sti.mode.value !== 'showing') return
+  sti.recompute()
+  renderRoutes()
+})
 function startMeasure() {
   measureMode.value = true
   measureVertices.value = []
@@ -2755,6 +2769,7 @@ function onNavigateHere() {
   annot.isAnnotateMode.value = false
   annot.selectedSymbol.value = null
   renderMeasure()
+  void ensureDem()
   sti.begin({ svgX: p.svgX, svgY: p.svgY })
   closeContextMenu()
   closeDrawer()
@@ -2768,6 +2783,7 @@ function onRoundTripHere() {
   annot.isAnnotateMode.value = false
   annot.selectedSymbol.value = null
   renderMeasure()
+  void ensureDem()
   sti.beginLoop({ svgX: p.svgX, svgY: p.svgY })
   closeContextMenu()
   closeDrawer()
@@ -2817,6 +2833,7 @@ function onConfirmVia() {
 // startpunktet, så målet (B/origo) — i motsetning til long-press-inngangen.
 // Måling/annotering av.
 function stifinnerReset() {
+  void ensureDem()          // terreng-regelen i hull-broingen trenger DEM
   measureMode.value = false
   annot.isAnnotateMode.value = false
   annot.selectedSymbol.value = null

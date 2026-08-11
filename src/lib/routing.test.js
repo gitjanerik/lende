@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { buildRoutingGraph, kShortestRoutes, planRoutes, planRoutesThrough, planLoop, projectPointOnSegment } from './routing.js'
+import {
+  buildRoutingGraph, kShortestRoutes, planRoutes, planRoutesThrough, planLoop,
+  projectPointOnSegment, gapSlopePct, segmentsCross, BARRIER_CODES,
+} from './routing.js'
 
 // Lite rutenett i SVG-meter-rom (coordinates allerede projisert).
 // Et 2x2-grid med ekstra diagonal-snarvei, alt som ISOM 505 (sti):
@@ -556,9 +559,190 @@ describe('hull-broing (gapBridgeM)', () => {
     expect(rg.route(rg.nearestNode([0, 0]).id, rg.nearestNode([100, 50]).id)).toBeNull()
   })
 
+  it('trer en stiende som ligger inntil stien inn i den (sub-meter hull)', () => {
+    // Stienden ligger 0,6 m fra hovedstien — godt innenfor snapM, så fotpunktet
+    // snapper til stienden selv. Da skal segmentet splittes OM stienden, ikke
+    // hoppes over: dette er nettopp krysset.
+    const features = [
+      { coordinates: [[0, 0], [2000, 0]], isomCode: '505' },
+      { coordinates: [[1000, 0.6], [1000, 400]], isomCode: '505' },
+      { coordinates: [[1000, 400], [2000, 400], [2000, 0]], isomCode: '505' },
+    ]
+    const rg = buildRoutingGraph(features, { snapM: 6, gapBridgeM: 30, componentBridgeM: 80 })
+    const r = rg.route(rg.nearestNode([1000, 0.6]).id, rg.nearestNode([0, 0]).id, 'lengthNoMw')
+    expect(r.lengthM).toBeCloseTo(1000, 0)   // rett vestover, ikke 1775 m rundt
+  })
+
   it('er av som standard', () => {
     const rg = buildRoutingGraph(narverudFeatures(), { snapM: 2 })
     const r = rg.route(rg.nearestNode([1000, 25]).id, rg.nearestNode([0, 0]).id, 'lengthNoMw')
     expect(r.lengthM).toBeGreaterThan(3000)
+  })
+})
+
+describe('hull-broing mot terreng (gapMaxSlopePct)', () => {
+  const GRUNN = { snapM: 2, gapBridgeM: 30, componentBridgeM: 80, gapMaxSlopePct: 60 }
+  // Samme nett som over: sidesti ender 25 m fra hovedstien, 3+ km rundt.
+  const nett = () => [
+    { coordinates: [[0, 0], [2000, 0]], isomCode: '505' },
+    { coordinates: [[1000, 25], [1000, 400]], isomCode: '505' },
+    { coordinates: [[1000, 400], [2000, 400], [2000, 0]], isomCode: '505' },
+  ]
+  // Terreng som funksjon av y: flatt, eller et stup som faller 25 m over hullet.
+  const flatt = () => 100
+  const stup = (x, y) => 100 + (y < 12.5 ? 0 : 25)
+  const rute = (rg) => rg.route(
+    rg.nearestNode([1000, 25]).id, rg.nearestNode([0, 0]).id, 'lengthNoMw').lengthM
+
+  it('broer hullet når terrenget over det er slakt', () => {
+    expect(rute(buildRoutingGraph(nett(), { ...GRUNN, elevationAt: flatt })))
+      .toBeCloseTo(1025, 0)
+  })
+
+  it('nekter å bro over et stup', () => {
+    // 25 m fall over 25 m = 100 % > 60 %.
+    expect(rute(buildRoutingGraph(nett(), { ...GRUNN, elevationAt: stup })))
+      .toBeGreaterThan(3000)
+  })
+
+  it('ignorerer terrenget for hull under gapObstacleMinM (forenklings-støy)', () => {
+    // 3 m hull i bratt li: dette er samme kryss, ikke en traversering.
+    const kort = [
+      { coordinates: [[0, 0], [2000, 0]], isomCode: '505' },
+      { coordinates: [[1000, 3], [1000, 400]], isomCode: '505' },
+      { coordinates: [[1000, 400], [2000, 400], [2000, 0]], isomCode: '505' },
+    ]
+    const rg = buildRoutingGraph(kort, {
+      ...GRUNN, gapObstacleMinM: 8, elevationAt: (x, y) => 100 + y * 2,   // 200 %
+    })
+    const r = rg.route(rg.nearestNode([1000, 3]).id, rg.nearestNode([0, 0]).id, 'lengthNoMw')
+    expect(r.lengthM).toBeCloseTo(1003, 0)
+  })
+
+  it('ruter som før når kartet mangler DEM (elevationAt gir NaN)', () => {
+    expect(rute(buildRoutingGraph(nett(), { ...GRUNN, elevationAt: () => NaN })))
+      .toBeCloseTo(1025, 0)
+  })
+
+  it('er av uten gapMaxSlopePct, selv med DEM', () => {
+    const rg = buildRoutingGraph(nett(), {
+      snapM: 2, gapBridgeM: 30, componentBridgeM: 80, elevationAt: stup,
+    })
+    expect(rute(rg)).toBeCloseTo(1025, 0)
+  })
+})
+
+describe('gapSlopePct', () => {
+  it('måler ende-til-ende-fallet i prosent', () => {
+    // 20 m fall over 40 m vannrett = 50 %.
+    const h = (x) => 100 - x * 0.5
+    expect(gapSlopePct(h, [0, 0], [40, 0])).toBeCloseTo(50, 1)
+  })
+
+  it('fanger en kløft der endene ligger i samme høyde', () => {
+    // Endene på 100 m, bunnen 15 m lavere midt i et 40 m hull.
+    const h = (x) => 100 - 15 * Math.max(0, 1 - Math.abs(x - 20) / 20)
+    // Ende-til-ende er 0 %, men mot bunnen er det 15 m over 20 m = 75 %.
+    expect(gapSlopePct(h, [0, 0], [40, 0])).toBeCloseTo(75, 0)
+  })
+
+  it('ignorerer nabo-samples nærmere enn minStegM (DEM-støy)', () => {
+    // Sagtann med 2 m periode: store lokale hellinger, flatt over avstand.
+    const h = (x) => 100 + (Math.floor(x) % 2)
+    expect(gapSlopePct(h, [0, 0], [40, 0], { minStegM: 10 })).toBeLessThan(15)
+  })
+
+  it('gir null uten terrengdata, og for et punkt uten utstrekning', () => {
+    expect(gapSlopePct(() => NaN, [0, 0], [40, 0])).toBeNull()
+    expect(gapSlopePct(undefined, [0, 0], [40, 0])).toBeNull()
+    expect(gapSlopePct(() => 100, [5, 5], [5, 5])).toBeNull()
+  })
+
+  it('måler alltid hele hullet, også når det er kortere enn minStegM', () => {
+    // 4 m fall over 5 m = 80 %, selv med minStegM 10.
+    expect(gapSlopePct((x) => 100 - x * 0.8, [0, 0], [5, 0], { minStegM: 10 }))
+      .toBeCloseTo(80, 1)
+  })
+})
+
+describe('hull-broing mot barrierer (barriers)', () => {
+  const GRUNN = { snapM: 2, gapBridgeM: 30, componentBridgeM: 80 }
+  // Sidesti ender 25 m fra hovedstien, 3+ km rundt. Barrieren legges
+  // TVERS over hullet ved y=12, altså mellom de to stiene.
+  const nett = () => [
+    { coordinates: [[0, 0], [2000, 0]], isomCode: '505' },
+    { coordinates: [[1000, 25], [1000, 400]], isomCode: '505' },
+    { coordinates: [[1000, 400], [2000, 400], [2000, 0]], isomCode: '505' },
+  ]
+  const tvers = (kode) => [{ coordinates: [[900, 12], [1100, 12]], isomCode: kode }]
+  const rute = (rg) => rg.route(
+    rg.nearestNode([1000, 25]).id, rg.nearestNode([0, 0]).id, 'lengthNoMw').lengthM
+
+  it('broer hullet når ingen barriere ligger imellom', () => {
+    expect(rute(buildRoutingGraph(nett(), { ...GRUNN, barriers: [] }))).toBeCloseTo(1025, 0)
+  })
+
+  for (const [kode, navn] of Object.entries(BARRIER_CODES)) {
+    it(`nekter å bro over ${navn} (${kode})`, () => {
+      expect(rute(buildRoutingGraph(nett(), { ...GRUNN, barriers: tvers(kode) })))
+        .toBeGreaterThan(3000)
+    })
+  }
+
+  it('bryr seg ikke om koder som ikke er barrierer', () => {
+    // 522 Tett bebyggelse og 525 Gjerde er med VILJE utenfor — stier går
+    // gjennom boligfelt og over grinder.
+    for (const kode of ['522', '525', '503', '305', '520']) {
+      expect(rute(buildRoutingGraph(nett(), { ...GRUNN, barriers: tvers(kode) })))
+        .toBeCloseTo(1025, 0)
+    }
+  })
+
+  it('ignorerer barrieren for hull under gapObstacleMinM', () => {
+    // 3 m hull der veilinja tilfeldigvis går imellom er ingen veikryssing.
+    const kort = [
+      { coordinates: [[0, 0], [2000, 0]], isomCode: '505' },
+      { coordinates: [[1000, 3], [1000, 400]], isomCode: '505' },
+      { coordinates: [[1000, 400], [2000, 400], [2000, 0]], isomCode: '505' },
+    ]
+    const rg = buildRoutingGraph(kort, {
+      ...GRUNN, gapObstacleMinM: 8,
+      barriers: [{ coordinates: [[900, 1.5], [1100, 1.5]], isomCode: '502' }],
+    })
+    const r = rg.route(rg.nearestNode([1000, 3]).id, rg.nearestNode([0, 0]).id, 'lengthNoMw')
+    expect(r.lengthM).toBeCloseTo(1003, 0)
+  })
+
+  it('en barriere som IKKE ligger i hullet stopper ingenting', () => {
+    // Veien går parallelt med stien, 200 m unna — streken krysser den ikke.
+    const rg = buildRoutingGraph(nett(), {
+      ...GRUNN, barriers: [{ coordinates: [[0, 200], [2000, 200]], isomCode: '502' }],
+    })
+    expect(rute(rg)).toBeCloseTo(1025, 0)
+  })
+
+  it('rapporterer hvilken barriere som ligger i veien', () => {
+    const rg = buildRoutingGraph(nett(), { ...GRUNN, barriers: tvers('515') })
+    expect(rg.barrierCrossed([1000, 25], [1000, 0])).toBe('jernbane')
+    expect(rg.barrierCrossed([1000, 25], [1000, 20])).toBeNull()   // krysser ikke
+  })
+})
+
+describe('segmentsCross', () => {
+  it('ser en ekte kryssing', () => {
+    expect(segmentsCross([0, 0], [10, 0], [5, -5], [5, 5])).toBe(true)
+  })
+
+  it('ser ikke en kryssing som ligger utenfor segmentene', () => {
+    expect(segmentsCross([0, 0], [10, 0], [20, -5], [20, 5])).toBe(false)
+  })
+
+  it('regner berøring i et endepunkt som kryssing (tvilen i hinderets favør)', () => {
+    // Ligger barrieren akkurat i enden av hullet, skal vi ikke bro over den.
+    expect(segmentsCross([0, 0], [10, 0], [10, 0], [10, 10])).toBe(true)
+  })
+
+  it('regner ikke parallelle segmenter som kryssende', () => {
+    expect(segmentsCross([0, 0], [10, 0], [0, 5], [10, 5])).toBe(false)
   })
 })
