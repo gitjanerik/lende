@@ -52,6 +52,7 @@ npm run mcp        # MCP-server (stdio) — kart/rute-verktøy for Claude
 npm run fasit      # Fasit: seks ekte kart mot invarianter (krever nett, ~1 min)
 npm run royk       # Røyktest: monterer MapView i Chromium og trykker på domenene
 npm run navnediff  # Hva forsvant ut av MapView i denne endringen — og hvem overtok
+npm run frie -- <fil>  # Refererer en fersk composable noe den ikke har fått inn?
 ```
 
 ## Arkitektur (oversikt)
@@ -116,7 +117,7 @@ FØRST og spør om varianten egentlig er en OPSJON på originalen.**
 
 Kjent gjeld, oppdatert etter hver leveranse som rører den:
 
-- **`MapView.vue` er ~3 573 linjer** og er fortsatt appens største risiko: alt
+- **`MapView.vue` er ~3 356 linjer** og er fortsatt appens største risiko: alt
   møtes der, og Claude ser bare utsnitt av den om gangen. Fem domener ble
   trukket ut i v5.8.0 — `use3dEntry.js` (3D-inngangen), `useKartDeling.js`
   (utgående deling), `useDeltTur.js` (innkommende tur-lenke),
@@ -124,9 +125,14 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   høydeprofil), og to i v5.9.0 — `useNavnLod.js` (navne-declutter) og
   `useViewportCull.js` (skjul vektorer utenfor utsnittet), og `useKartKnotter.js`
   i v5.10.0 (strek/relieff/tekst-skala/font + FAB-panelene), og i v5.11.0
-  `useNaerhetsvarsel.js` + `useMaaling.js`. Neste kandidater: eksport (~90
-  linjer), tema+diagnose (~95), GPS-tips/toasts (~60), søk+panTo (~220),
-  pan/zoom-gest (~180). **Merk fra v5.10.0:** linjetallene her er anslag fra
+  `useNaerhetsvarsel.js` + `useMaaling.js`, og i v5.12.0 `useKartEksport.js`,
+  `useTemaBytte.js` + `useGpsTips.js`. Neste kandidater: søk+panTo (~220
+  linjer), pan/zoom-gest (~180). **Det som IKKE bør trekkes ut som det står:**
+  Stifinner-handlerne og snarvei-raden (~330 linjer). Hver handler rører fire
+  domener (måling, annotering, sti, kontekstmeny), så en composable ville trengt
+  ti tilbakekall — det er et tegn på at sømmen ikke finnes ennå. Skal de ut, må
+  modus-maskinen formes om først, og det er en ekte refaktorering, ikke en
+  flytting. **Merk fra v5.10.0:** linjetallene her er anslag fra
   utsiden. FAB-blokka var anslått til 518 linjer og «ett domene», men inneholdt
   fire — knottene, standarder for nye kart, maks-fliser og navnespråk. Les
   blokka før du stoler på tallet, og følg sømmen framfor tallet.
@@ -151,6 +157,16 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   er drevet av `pointerdown`/`pointerup` via useLongPress, så `el.click()` fra
   `page.evaluate` gjør ingenting. Bruk Playwright-locator (ekte peker-sekvens),
   eller `page.mouse.down()` + ventetid + `up()` for lang-trykk.
+- **Hoisting-fella (v5.12.0):** `function foo()` er HOISTET, så noen kunne godt
+  sende den inn i en composable lenger OPPE i fila. Flytter du den samme
+  funksjonen ut, blir den en `const` fra en destrukturering — og den er ikke
+  hoistet. `useMapLoadPipeline` fikk `applyTheme` som verdi og krasjet med
+  «Cannot access before initialization» til kallet ble flyttet over pipelinen.
+  Sjekk hvem som mottar funksjonen FØR du flytter den ut.
+- **Sjekk frie variabler i den nye fila:** `npm run frie -- <fil>`. navnediff ser
+  bare navn som forsvant fra MapView, ikke den motsatte retningen — at
+  composable-en refererer noe som ble stående. Det skjedde to ganger under
+  v5.12.0 (`withColophon`, og `wrapperRef`/`visibleLayers`).
 - **TDZ-regelen:** sender du en verdi inn i en composable som deklareres lenger
   ned i fila, send en getter (`() => x`) — ikke verdien. To av de tre feilene
   over var dette. Må kallet stå etter en annen composable, skriv HVORFOR på

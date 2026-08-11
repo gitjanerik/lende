@@ -1,5 +1,37 @@
 # Endringslogg
 
+## 2026-08-12 — v5.12.0: Eksport, tema og GPS-tips ut av MapView
+
+Tre uavhengige uttrekk: `useKartEksport.js` (SVG/PNG/PDF/print, med
+markup-byggingen som baker inn temaet og klipper bort spøkelses-flisene),
+`useTemaBytte.js` (tema-variabler + diagnose-modus) og `useGpsTips.js`
+(debug-linja, «kopier koordinater» og de tre avvisbare meldingene). MapView er
+3 356 linjer — ned fra 4 897 der opprydningen startet.
+
+Denne runden ga tre lærdommer verdt å skrive ned, alle funnet av verktøyene og
+ikke av flaks:
+
+**Hoisting-fella.** `function applyTheme()` er hoistet, så `useMapLoadPipeline`
+kunne motta den som verdi selv om den sto lenger ned i fila. Som composable-retur
+er den en `const` fra en destrukturering — ikke hoistet — og appen krasjet med
+«Cannot access applyTheme before initialization». Kallet måtte flyttes over
+pipelinen. Sjekk hvem som mottar en funksjon før du flytter den ut.
+
+**Verktøyene så bare én retning.** navnediff finner navn som forsvant fra
+MapView, men ikke at en fersk composable refererer noe som ble STÅENDE. Det
+skjedde to ganger på rad (`withColophon`, og `wrapperRef` + `visibleLayers` +
+`DEFAULT_VISIBLE_LAYER_KEYS`) og ble begge ganger funnet av røyktesten — altså
+først etter et bygg og en nettleser-start. Nå finnes `npm run frie -- <fil>`,
+som finner dem på et sekund.
+
+**En sjekk kan lyve i min favør.** Første versjon av tema-sjekken leste `--bg`
+fra et element som ikke fantes, sammenlignet «» med «» og var fornøyd. Nå leses
+den fra `[data-map-inner]` og krever at verdien faktisk endrer seg
+(«» → «#14181c»). Eksport-sjekken hadde samme slag feil i motsatt retning: den
+leste 4 kB av en 77 kB SVG og meldte «mangler ISOM-lag».
+
+---
+
 ## 2026-08-12 — v5.11.0: Nærhetsvarsel og måleverktøy ut av MapView
 
 To små, rene uttrekk: `useNaerhetsvarsel.js` (inngangen fra PUNKT-arket —

@@ -249,6 +249,54 @@ const SJEKKER = [
     },
   },
   {
+    navn: 'eksport bygger SVG-markup, tema-bytte maler om',
+    domene: 'useKartEksport+useTemaBytte',
+    async kjør(page) {
+      await åpneDrawer(page)
+      // Eksport: «Lagre .svg» laster ned en fil. Vi fanger nedlastingen i stedet
+      // for å skrive den til disk — det som skal bevises er at markupen bygges.
+      await klikkTekst(page, /^EKSPORT$/)
+      const last = page.waitForEvent('download', { timeout: 20_000 })
+      await klikkTekst(page, /Lagre \.svg/)
+      const fil = await last
+      // Sjekk INNHOLDET, ikke filnavnet: navnet kommer fra en blob-URL og
+      // rapporteres som «download» i headless Chromium (tittelen har «å» og
+      // «·»). Innholdet er dessuten det som faktisk beviser at markupen ble
+      // bygget — med tema bakt inn og spøkelses-flisene klippet bort.
+      const sti = await fil.path()
+      const tekst = sti ? readFileSync(sti, 'utf8') : ''   // hele fila: data-iso kan ligge langt inn
+      if (!/<svg[\s>]/.test(tekst)) throw new Error('nedlastet fil er ikke SVG')
+      if (!/data-iso=/.test(tekst)) throw new Error('SVG-en mangler ISOM-lag — tom eksport?')
+      if (/id="ghost-tiles"/.test(tekst)) throw new Error('spøkelses-flisene ble med i eksporten')
+      const navn = fil.suggestedFilename()
+      // Tema: bytt til et annet tema og se at kart-variablene faktisk endres.
+      await klikkTekst(page, /^TEMA$/)
+      await page.waitForTimeout(500)
+      // Tema-variablene settes på [data-map-inner] (mapInnerRef). Lys tema setter
+      // INGEN vars — det er default — så «tomt → farge» er det forventede
+      // utfallet ved bytte til et mørkt tema, ikke et tegn på at noe mangler.
+      const les = () => page.evaluate(() => {
+        const el = document.querySelector('[data-map-inner]')
+        if (!el) throw new Error('fant ikke [data-map-inner]')
+        return getComputedStyle(el).getPropertyValue('--bg').trim()
+      })
+      const før = await les()
+      const byttet = await page.evaluate(() => {
+        const b = [...document.querySelectorAll('button')].find((e) =>
+          e.offsetParent && /^(Natt|Mørk|Dark|Curves|Skisse)$/i.test(e.innerText.trim()))
+        if (!b) return ''
+        b.click(); return b.innerText.trim()
+      })
+      if (!byttet) throw new Error('fant ingen tema-knapp å bytte til')
+      await page.waitForTimeout(900)
+      const etter = await les()
+      if (før === etter) throw new Error(`tema «${byttet}» endret ikke --bg ("${før}")`)
+      if (!etter) throw new Error(`tema «${byttet}» satte ingen --bg`)
+      await lukkDrawer(page)      // nøytral tilstand for neste sjekk
+      return `${(tekst.length / 1024).toFixed(0)} kB SVG (${navn}), tema «${byttet}»: --bg "${før}" → "${etter}"`
+    },
+  },
+  {
     navn: '3D-visningen åpner',
     domene: 'use3dEntry',
     async kjør(page) {
