@@ -36,6 +36,9 @@ import { useViewportCull } from '../composables/useViewportCull.js'
 import { useKartKnotter, loadKnobStep } from '../composables/useKartKnotter.js'
 import { useMaaling } from '../composables/useMaaling.js'
 import { useNaerhetsvarsel } from '../composables/useNaerhetsvarsel.js'
+import { useKartEksport } from '../composables/useKartEksport.js'
+import { useTemaBytte } from '../composables/useTemaBytte.js'
+import { useGpsTips } from '../composables/useGpsTips.js'
 import { useGpsSpor } from '../composables/useGpsSpor.js'
 import { useSymbolRenderers } from '../composables/useSymbolRenderers.js'
 import { useContextLookups } from '../composables/useContextLookups.js'
@@ -46,7 +49,7 @@ import { useMapLoadPipeline } from '../composables/useMapLoadPipeline.js'
 import { buildStrokeOverrideCss } from '../lib/strokeOverrides.js'
 import { buildTrailColorCss, normalizeHex } from '../lib/trailColors.js'
 import { DEFAULT_VISIBLE_LAYER_KEYS } from '../lib/mapLayerCatalog.js'
-import { themeVarEntries, allThemeVarNames, buildThemeCss, listThemes } from '../lib/mapSettingsApply.js'
+import { listThemes } from '../lib/mapSettingsApply.js'
 import { norwegianName } from '../lib/placeName.js'
 import AnnotationIcon from '../components/AnnotationIcon.vue'
 import TrackElevationSheet from '../components/TrackElevationSheet.vue'
@@ -74,8 +77,7 @@ import AppMenuButton from '../components/AppMenuButton.vue'
 import { useLendeChat } from '../composables/useLendeChat.js'
 import { hasAiToken } from '../lib/lendeAi.js'
 import { isomCatalog, buildPointSymbolDef } from '../lib/symbolizer.js'
-import { printDocument, exportSvgFile, exportPngFile, exportPdfFile } from '../lib/printExport.js'
-import { withColophon, formatDenom } from '../lib/mapColophon.js'
+import { formatDenom } from '../lib/mapColophon.js'
 import { logPerf } from '../lib/perfLog.js'
 import { sampleProfile } from '../lib/elevationProfile.js'
 import { fetchDEM } from '../lib/demFetcher.js'
@@ -2206,101 +2208,29 @@ function labelForAnnotation(a) {
   }
 }
 
-// Print- / eksport-handlers. 3D-vieweren gjenbruker samme markup som
-// eksporten (tema baket inn) men uten kolofon — linjal/målestokk skal ikke
-// drapes på terrenget. `theme` overstyrer gjeldende tema (3D-nattmodus baker
-// 'dark'-temaet uansett 2D-valg). `extent` (utvidet tur, se tourExtent.js)
-// beholder nabo-flisene og utvider viewBoxen så teksturen dekker hele turen.
-function mapSvgMarkupForExport({ colophon = true, theme = null, extent = null } = {}) {
-  const svg = svgHostRef.value?.querySelector('svg')
-  if (!svg) return ''
-  // Eksport/print = det OPPRINNELIGE kartet (én A-format-flis), ikke mosaikken.
-  // Klon og fjern spøkelses-naboflisene (#ghost-tiles) før serialisering så
-  // utskriften blir det print-tilpassede utsnittet brukeren genererte — med
-  // viewBox/print-mm fra den aktive flisa alene. (user-layer m.fl. strippes av
-  // printExport.stripRuntimeOverlays.)
-  const clone = svg.cloneNode(true)
-  if (extent) {
-    // Utvidet 3D-tur: behold nabo-flisene og utvid viewBoxen til union-
-    // utsnittet. width/height settes i px med nytt aspekt — print-mm-attrs
-    // har flisas gamle aspekt og ville letterboxe rasteret (UV-feil i 3D).
-    clone.setAttribute('viewBox', `${extent.minX} ${extent.minY} ${extent.widthM} ${extent.heightM}`)
-    const k = Math.min(1, 3000 / Math.max(extent.widthM, extent.heightM))
-    clone.setAttribute('width', String(Math.round(extent.widthM * k)))
-    clone.setAttribute('height', String(Math.round(extent.heightM * k)))
-  } else {
-    clone.querySelector('#ghost-tiles')?.remove()
-  }
-  // Temaet lever som CSS-variabler på mapInnerRef og bakgrunnsfarge på
-  // wrapperRef — begge UTENFOR <svg>, så en ren klone falt tilbake på
-  // symbolizerens lyse ISOM-defaults uansett valgt tema. Bak derfor temaet inn
-  // i klonen: variablene som en <style>, pluss et bakgrunns-rect bakerst.
-  // Rect-et er redundant for kart bygget med dagens symbolizer (som har
-  // `#bakgrunn rect { fill: var(--bg, …) }`), men dekker eldre lagrede kart
-  // uten den regelen. Sti-farger og strek-overstyringer ligger allerede inne i
-  // SVG-en og følger med av seg selv.
-  const themeKey = theme ?? currentTheme.value
-  const themeCss = buildThemeCss(themeKey)
-  const bg = isomCatalog.themes?.[themeKey]?.background
-  if (bg) {
-    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
-    // %-verdier posisjonerer fra (0,0) — et extent-viewBox starter på minX/minY,
-    // så bakgrunnen må settes i absolutte koordinater der.
-    rect.setAttribute('x', String(extent?.minX ?? 0))
-    rect.setAttribute('y', String(extent?.minY ?? 0))
-    rect.setAttribute('width', extent ? String(extent.widthM) : '100%')
-    rect.setAttribute('height', extent ? String(extent.heightM) : '100%')
-    rect.setAttribute('fill', bg)
-    clone.insertBefore(rect, clone.firstChild)
-  }
-  if (themeCss) {
-    const style = document.createElementNS('http://www.w3.org/2000/svg', 'style')
-    style.setAttribute('id', 'tema-eksport')
-    style.textContent = themeCss
-    clone.appendChild(style)
-  }
-  // Kolofon nederst til venstre (v2.4.20): linjal, målestokk, ekvidistanse og
-  // «Så i lende · <kart> · <dato>». Ligger HER, i den delte eksport-markupen,
-  // så alle fire utgangene (SVG/PNG/PDF/print) får den — en fil eller et ark
-  // har ingen app rundt seg til å vise tallene.
-  if (!colophon) return clone.outerHTML
-  return withColophon(clone.outerHTML, { meta: meta.value, title: mapTitle.value })
-}
-// Hvilken eksport som kjører nå ('' | 'svg' | 'png' | 'pdf' | 'print'). Brukes
-// til å vise spinner på den aktive knappen og deaktivere de andre — PNG/PDF
-// bruker noen sekunder (canvas-render + lazy jsPDF), så uten dette virket appen
-// «død» mellom trykk og nedlasting. nextTick før det tunge arbeidet så spinneren
-// rekker å males (gjelder også den synkrone SVG-blob-en).
-const exporting = ref('')
-const filenameBase = () => mapTitle.value.replace(/[^a-z0-9æøå]+/gi, '-').toLowerCase()
-async function runExport(type, fn) {
-  if (exporting.value) return
-  const m = mapSvgMarkupForExport()
-  if (!m) return
-  exporting.value = type
-  try {
-    await nextTick()
-    await fn(m)
-  } catch (e) {
-    console.error('Eksport feilet:', e)
-    autoMapToast.value = 'Eksport feilet — prøv igjen'
-    setTimeout(() => { if (autoMapToast.value.startsWith('Eksport')) autoMapToast.value = '' }, 3000)
-  } finally {
-    exporting.value = ''
-  }
-}
-function onExportSvg() {
-  runExport('svg', (m) => exportSvgFile(m, `${filenameBase()}.svg`))
-}
-function onExportPng() {
-  runExport('png', (m) => exportPngFile(m, `${filenameBase()}.png`, { dpi: 300 }))
-}
-function onExportPdf() {
-  runExport('pdf', (m) => exportPdfFile(m, `${filenameBase()}.pdf`, { dpi: 300 }))
-}
-function onPrint() {
-  runExport('print', (m) => printDocument(m, { title: mapTitle.value }))
-}
+// Eksport og print (SVG / PNG 300 dpi / PDF / nettleser-print) bor i
+// useKartEksport.js. Markup-byggingen der er delikat: temaet bakes inn,
+// spøkelses-flisene klippes bort, og 3D-turen får en utvidet viewBox i piksler.
+const {
+  mapSvgMarkupForExport, exporting,
+  onExportSvg, onExportPng, onExportPdf, onPrint,
+} = useKartEksport({ svgHostRef, meta, mapTitle, currentTheme, autoMapToast })
+
+// MÅ stå FØR useMapLoadPipeline: pipelinen tar imot `applyTheme` som en VERDI.
+// Så lenge den var en `function`-deklarasjon lenger ned var det greit (hoisting),
+// men som composable-retur er den en const — og en const forward-refereres ikke.
+// Tema-bytte og diagnose-modus — flyttet til useTemaBytte.js.
+const { applyTheme, applyDiagnoseMode } = useTemaBytte({
+  svgHostRef, mapInnerRef, wrapperRef, currentTheme, diagnose, visibleLayers,
+  // Getter: reliefAutoOff eies av useKartKnotter, og temaet skal kunne slå
+  // relieffet av uten å persistere noe.
+  reliefAutoOff: () => reliefAutoOff,
+  hooks: {
+    applyHillshade: () => applyHillshade(),
+    renderGhostTiles: () => renderGhostTiles(),
+    applyLayerVisibility: () => applyLayerVisibility(),
+  },
+})
 
 // Kart-laste-pipelinen — flyttet til useMapLoadPipeline.
 const { loadMap, retryMapDetails } = useMapLoadPipeline({
@@ -2393,161 +2323,14 @@ const scaleBar = computed(() => {
 // transform-wrapperen (mapInnerRef) som omslutter både midt-kartet og periferi-
 // ringen. CSS custom properties arves ned, så `var(--iso-*-fill)` i BÅDE midt-
 // SVG-en og hver lite-flis-SVG resolver mot disse — uten dette rekolorerte bare
-// midt-flisen ved tema-bytte og ringen ble hengende på lys-temaet (v10.1.x).
-// Først ryddes ALLE tema-vars (så bytte mellom mono-paletter ikke etterlater
-// rester), så settes vars for valgt tema.
-function applyTheme() {
-  const root = mapInnerRef.value
-  if (!root || !svgHostRef.value?.querySelector('svg')) return
-  // Tema-variablene kommer fra samme delte kilde som MCP-ens juster_kart
-  // (lib/mapSettingsApply.js) — rydd alt et tema KAN sette, sett så gjeldende.
-  for (const name of allThemeVarNames()) root.style.removeProperty(name)
-  const t = isomCatalog.themes?.[currentTheme.value]
-  // Viewport-bakgrunn: mal kartets bakgrunnsfarge på den FASTE (utransformerte)
-  // viewporten, så hele kartflaten har riktig base-farge — også letterbox-kanter
-  // og periferi-fliser som ennå ikke er lastet. v10.1.23: GJELDER NÅ OGSÅ
-  // lys-tema (kremgul #fefae0). Tidligere falt lys-tema til side-bakgrunnen
-  // (hvit), og sub-piksel-sømmer mellom mosaikk-fliser slapp den hvite siden
-  // gjennom → hvite «hakk» i kartet. Med kart-cream som base blir enhver søm
-  // usynlig i åpen mark (samme farge), og kun en hårtynn cream-strek i vann/skog.
-  if (wrapperRef.value) {
-    wrapperRef.value.style.backgroundColor = (t && t.background) ? t.background : ''
-  }
-  if (!t) return
-  for (const [name, value] of themeVarEntries(currentTheme.value)) {
-    root.style.setProperty(name, value)
-  }
-}
 
-// Auto-hide / restore layers ved tema-bytte:
-//   - Inn til art-mode (autoHideLayers=true) → bare høydekurver vises
-//   - Ut fra art-mode → alle lag restaureres
-//   - Mellom andre temaer → ingen endring (brukerens manuelle valg beholdes)
-// applyLayerVisibility kalles ubetinget på slutten så DOM er garantert
-// i sync med state — fjerner mulighet for stuck display=none fra forrige
-// art-mode.
-function onThemeChange(newTheme, oldTheme) {
-  applyTheme()
-  const newT = isomCatalog.themes?.[newTheme]
-  const oldT = isomCatalog.themes?.[oldTheme]
-  if (newT?.autoHideLayers) {
-    visibleLayers.value = new Set(['kontur'])
-  } else if (oldT?.autoHideLayers) {
-    visibleLayers.value = new Set(DEFAULT_VISIBLE_LAYER_KEYS)
-  }
-  applyLayerVisibility()
-  // Monokrom-temaene vil ha rene flater — slå relieffet av automatisk, og på
-  // igjen når man går ut. Flagget er ikke persistert (se reliefAutoOff), så
-  // brukerens egen relieff-innstilling er urørt og gjelder straks temaet
-  // forlates. Watchen på [storedDem, currentTheme] kaller applyHillshade().
-  reliefAutoOff.value = !!newT?.monochrome
-  // Tema-bytte endrer relieff-blend-modus → spøkelses-relieffet må re-tones
-  // (ny data-URL pr modus). Sjelden operasjon; hillshade-compute er cachet.
-  void renderGhostTiles()
-}
+// GPS-status og de tre avvisbare meldingene — flyttet til useGpsTips.js.
+const {
+  gpsDebugLine, copyState, copyGpsCoords,
+  showGpsTip, showLowAccuracyBanner, showOutsideMapBanner,
+  dismissGpsTip, dismissLowAccuracy, dismissOutsideMap,
+} = useGpsTips({ userPos, gpsNow })
 
-watch(currentTheme, onThemeChange)
-
-// Diagnose-modus: fargelegg polygoner etter data-src så vi visuelt kan
-// se om wedger kommer fra N50, OSM-way, OSM-relation, eller polygon-
-// clipping merge. Kjør, ta screenshot, del med Claude.
-function applyDiagnoseMode() {
-  const svg = svgHostRef.value?.querySelector('svg')
-  if (!svg) return
-  let style = svg.querySelector('style[data-diagnose]')
-  if (diagnose.value) {
-    if (!style) {
-      style = document.createElementNS('http://www.w3.org/2000/svg', 'style')
-      style.setAttribute('data-diagnose', '1')
-      svg.appendChild(style)
-    }
-    style.textContent = `
-      .isom-map [data-src="n50"]      { fill: hsl(180, 80%, 55%) !important; opacity: 0.85 !important; }
-      .isom-map [data-src="nve"]      { fill: hsl(140, 70%, 45%) !important; opacity: 0.85 !important; }
-      .isom-map [data-src="way"]      { fill: hsl(220, 80%, 60%) !important; opacity: 0.85 !important; }
-      .isom-map [data-src="relation"] { fill: hsl(300, 80%, 60%) !important; opacity: 0.85 !important; }
-      .isom-map [data-src="merged"]   { fill: hsl(45, 90%, 55%) !important; opacity: 0.85 !important; }
-    `
-  } else if (style) {
-    style.remove()
-  }
-}
-watch(diagnose, applyDiagnoseMode)
-
-
-const gpsDebugLine = computed(() => {
-  if (!userPos.isWatching) return ''
-  if (userPos.error) return 'Ingen GPS-posisjon'
-  if (userPos.latRaw == null || userPos.lonRaw == null) return 'Venter på GPS-signal …'
-  const lat = userPos.latRaw.toFixed(6)
-  const lon = userPos.lonRaw.toFixed(6)
-  const acc = userPos.accuracyM != null ? `±${Math.round(userPos.accuracyM)} m` : '±? m'
-  const ageS = Math.max(0, Math.round((gpsNow.value - userPos.lastFixAt) / 1000))
-  const src = userPos.lastFixSource === 'poll' ? 'P' : 'W'
-  const rej = userPos.rejectedCount ? ` · ${userPos.rejectedCount} avvist` : ''
-  return `${lat}, ${lon} · ${acc} · ${ageS}s · ${src}${rej}`
-})
-
-// v8.5.6: kopier raw lat/lng som Google Maps-URL. Universelt format —
-// blir tappable lenke i meldinger og åpner Maps-appen direkte.
-const copyState = ref('idle') // 'idle' | 'copied' | 'failed'
-async function copyGpsCoords() {
-  if (userPos.latRaw == null || userPos.lonRaw == null) return
-  const lat = userPos.latRaw.toFixed(6)
-  const lon = userPos.lonRaw.toFixed(6)
-  const url = `https://www.google.com/maps?q=${lat},${lon}`
-  try {
-    await navigator.clipboard.writeText(url)
-    copyState.value = 'copied'
-  } catch {
-    copyState.value = 'failed'
-  }
-  setTimeout(() => { copyState.value = 'idle' }, 1500)
-}
-
-// v8.5.6: førstegangs-tips om «Presis posisjon» (Android 12+). Vi gikk i
-// fella selv — `enableHighAccuracy: true` gir 2000 m fallback hvis appen
-// kun har «Omtrentlig» lokasjon. Vis i drawer første gang GPS aktiveres,
-// dismissible. localStorage husker dismissal på tvers av sesjoner.
-const GPS_TIP_KEY = 'lende-gps-tip-seen'
-const gpsTipDismissed = ref(false)
-try { gpsTipDismissed.value = localStorage.getItem(GPS_TIP_KEY) === '1' } catch {}
-const showGpsTip = computed(() => userPos.isWatching && !gpsTipDismissed.value)
-function dismissGpsTip() {
-  gpsTipDismissed.value = true
-  try { localStorage.setItem(GPS_TIP_KEY, '1') } catch {}
-}
-
-// v8.5.6: in-map advarsels-banner når accuracy er dårlig (>100m).
-// Synlig over kartet uten at brukeren må åpne drawer. Dismissable
-// per sesjon — resettes når GPS toggles off→on.
-const LOW_ACCURACY_THRESHOLD_M = 100
-const lowAccuracyDismissed = ref(false)
-const showLowAccuracyBanner = computed(() =>
-  userPos.isWatching &&
-  userPos.accuracyM != null &&
-  userPos.accuracyM > LOW_ACCURACY_THRESHOLD_M &&
-  !lowAccuracyDismissed.value &&
-  !userPos.error &&
-  !userPos.isOutsideMap
-)
-function dismissLowAccuracy() { lowAccuracyDismissed.value = true }
-watch(() => userPos.isWatching, (on) => { if (on) lowAccuracyDismissed.value = false })
-
-// v9.1.2: «Du er utenfor dette kartet» kan dismisses med en X. Resettes
-// hver gang brukeren går tilbake innenfor kart-bounds — så hvis hen
-// forlater kartet på nytt, dukker meldingen opp igjen.
-const outsideMapDismissed = ref(false)
-const showOutsideMapBanner = computed(() =>
-  userPos.isOutsideMap && !outsideMapDismissed.value
-)
-function dismissOutsideMap() { outsideMapDismissed.value = true }
-watch(() => userPos.isOutsideMap, (out) => { if (!out) outsideMapDismissed.value = false })
-
-// Screen Wake Lock — holder skjermen våken når brukeren bruker kartet til
-// orientering ute. Persisteres i localStorage (default PÅ). Re-requestes
-// automatisk når fanen blir synlig igjen siden browseren alltid slipper
-// wake-locks ved fane-bytte.
 const screenWake = useScreenWakeLock()
 
 // Egen efemer wake-lock som holder skjermen våken mens et nærhetsvarsel er
@@ -2874,7 +2657,7 @@ onUnmounted(() => {
          @pointerup="onPointerUpLongPress"
          @pointercancel="onPointerUpLongPress"
          @contextmenu="onMapContextMenuEvent">
-      <div ref="mapInnerRef" class="w-full h-full relative" :style="mapTransformStyle">
+      <div ref="mapInnerRef" data-map-inner class="w-full h-full relative" :style="mapTransformStyle">
         <div ref="svgHostRef" class="w-full h-full" @click="onMapClick"></div>
       </div>
       <!-- Long-press-sikte: HTML-overlay UTENFOR pinch-transformen (søsken av det
