@@ -48,6 +48,21 @@ export function sampleElevation(dem, svgX, svgY) {
 }
 
 /**
+ * Høyde-oppslag for terrengavhengige REGLER — hull-broingen i routing.js og
+ * stinett-diagnosen. Returnerer undefined når kartet ikke har ekte terrengdata:
+ * en syntetisk DEM er oppdiktet terreng og skal aldri avgjøre om et hull mellom
+ * to stier er trygt å krysse. Kallstedene tolker undefined som «regelen finnes
+ * ikke» og ruter som før.
+ *
+ * @param {DEM|null|undefined} dem
+ * @returns {((x:number,y:number)=>number)|undefined}
+ */
+export function realElevationAt(dem) {
+  if (!dem || dem.source?.startsWith?.('synthetic')) return undefined
+  return (x, y) => sampleElevation(dem, x, y)
+}
+
+/**
  * Sentral-differanse gradient i SVG-koord. Returnerer (∂z/∂x, ∂z/∂y) i
  * meter-per-meter (dimensjonsløs helling). Steg = pixelWidth = ~25m i ekte
  * terreng, gir glatt nok gradient for fysikk-formål.

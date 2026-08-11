@@ -12,7 +12,7 @@ import { analyserStinett, formatStinettSvar } from '../../../src/lib/stinettAnal
 import { finnStinettBrudd, formatBruddSvar } from '../../../src/lib/stinettBrudd.js'
 import { wgs84ToSvg, svgToWgs84 } from '../../../src/lib/utm.js'
 import { sampleProfile } from '../../../src/lib/elevationProfile.js'
-import { sampleElevation } from '../../../src/lib/demSampling.js'
+import { sampleElevation, realElevationAt } from '../../../src/lib/demSampling.js'
 import { buildRouteGpx } from '../../../src/lib/gpxExport.js'
 import { searchPlaces } from '../../../src/lib/geocode.js'
 import { minEquidistanceForWidthKm, DEFAULT_EQUIDISTANCE_M } from '../../../src/lib/equidistanceRules.js'
@@ -69,10 +69,14 @@ function tour3dUrlFor(kart, tour) {
   })
 }
 
-export function byggGraf(svg) {
+// `dem` er valgfri, men bør sendes: uten den mister hull-broingen terreng-
+// regelen og kan dikte seg over et stup (v5.6.0). Syntetisk DEM ignoreres.
+export function byggGraf(svg, dem = null) {
   const features = routableFeaturesFromSvg(svg)
   if (!features.length) throw new Error('Kartet inneholder ingen stier eller veier å rute på.')
-  return buildRoutingGraph(features, RUTE_GRAF_OPTS)
+  return buildRoutingGraph(features, {
+    ...RUTE_GRAF_OPTS, elevationAt: realElevationAt(dem),
+  })
 }
 
 export function snapPunkter(rg, meta, punkter) {
@@ -210,7 +214,7 @@ export function registerKartVerktoy(server, ctx) {
     async ({ kartRef, start, maal, via, maalNavn }) => {
       const kart = await kreveKart(env, kartRef)
       const meta = svgMeta(kart.meta)
-      const rg = byggGraf(kart.svg)
+      const rg = byggGraf(kart.svg, kart.dem)
       const viaPts = via ?? []
       const snaps = snapPunkter(rg, { ...meta, widthM: kart.meta.widthM, heightM: kart.meta.heightM },
         [start, ...viaPts, maal])
@@ -256,7 +260,7 @@ export function registerKartVerktoy(server, ctx) {
     async ({ kartRef, origo, via, tegnSvg, ruteIndeks, origoNavn }) => {
       const kart = await kreveKart(env, kartRef)
       const meta = svgMeta(kart.meta)
-      const rg = byggGraf(kart.svg)
+      const rg = byggGraf(kart.svg, kart.dem)
       const snaps = snapPunkter(rg, { ...meta, widthM: kart.meta.widthM, heightM: kart.meta.heightM },
         [origo, ...via])
       const loops = planLoop(rg, snaps[0].node.id, snaps.slice(1).map(s => s.node.id))
@@ -372,7 +376,7 @@ export function registerKartVerktoy(server, ctx) {
       const kart = await kreveKart(env, kartRef)
       const meta = svgMeta(kart.meta)
       const res = finnStinettBrudd(routableFeaturesFromSvg(kart.svg), {
-        maksHullM, minOmveiM, maksTreff,
+        maksHullM, minOmveiM, maksTreff, elevationAt: realElevationAt(kart.dem),
       })
       return jsonResult({
         status: 'ok',

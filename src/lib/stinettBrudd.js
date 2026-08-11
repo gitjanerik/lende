@@ -20,7 +20,9 @@
 //    det verste tilfellet, ikke det mildeste, så det sorteres øverst.
 
 import RBush from 'rbush'
-import { buildRoutingGraph, projectPointOnSegment, RUTE_GRAF_OPTS } from './routing.js'
+import {
+  buildRoutingGraph, projectPointOnSegment, gapSlopePct, RUTE_GRAF_OPTS,
+} from './routing.js'
 
 // Over dette taket slutter vi å lete etter den EKTE omveien og rapporterer
 // «ingen praktisk vei» — en omvei på 20 km er uansett ikke en rute noen går.
@@ -33,7 +35,7 @@ const MAKS_MAALT_OMVEI_M = 20000
  * @param {Array<{coordinates: Array<[number,number]>, isomCode: string}>} features
  *        Routbare sti-/vei-features i SVG-meter (som buildRoutingGraph tar).
  * @param {{ maksHullM?: number, minOmveiM?: number, maksTreff?: number,
- *           grafOpts?: object }} opts
+ *           elevationAt?: (x:number,y:number)=>number, grafOpts?: object }} opts
  * @returns {{ noder:number, kanter:number, komponenter:number, dangler:number,
  *             antallBrudd:number, treff:Array<object> }}
  *          `treff` er sortert verst først (frakoblet, så synkende omvei).
@@ -43,10 +45,14 @@ export function finnStinettBrudd(features, opts = {}) {
     maksHullM = 60,
     minOmveiM = 500,
     maksTreff = 25,
+    elevationAt,
     grafOpts = RUTE_GRAF_OPTS,
   } = opts
 
-  const rg = buildRoutingGraph(features || [], grafOpts)
+  // elevationAt sendes videre til grafen, så bratte hull står igjen som brudd
+  // her (det er nettopp de vi vil se) — OG brukes til å måle hellingen vi
+  // rapporterer, så brukeren kan skille et hull i dataene fra et ekte hinder.
+  const rg = buildRoutingGraph(features || [], elevationAt ? { ...grafOpts, elevationAt } : grafOpts)
   const g = rg.graph
   const tom = {
     noder: g.order, kanter: g.size, komponenter: antallKomponenter(g),
@@ -91,10 +97,12 @@ export function finnStinettBrudd(features, opts = {}) {
 
     // Overlevende: mål den ekte omveien (taket gir null = ingen praktisk vei).
     const ekte = rg.distanceWithin(d.id, maal, MAKS_MAALT_OMVEI_M)
+    const helling = elevationAt ? gapSlopePct(elevationAt, d.pos, best.proj.point) : null
     brudd.push({
       hullM: rund(bestD, 1),
       omveiM: Number.isFinite(ekte) ? Math.round(ekte) : null,
       forholdstall: Number.isFinite(ekte) && bestD > 0 ? Math.round(ekte / bestD) : null,
+      hellingPct: helling === null ? null : Math.round(helling),
       x: d.pos[0], y: d.pos[1],
       naboX: best.proj.point[0], naboY: best.proj.point[1],
       naboKode: best.seg.code,
@@ -141,9 +149,27 @@ function antallKomponenter(g) {
  *
  * @param {ReturnType<typeof finnStinettBrudd>} res
  * @param {{ toWgs84: (x:number,y:number) => {lat:number,lon:number},
- *           gapBridgeM?: number }} ctx
+ *           gapBridgeM?: number, gapMaxSlopePct?: number,
+ *           gapSlopeMinM?: number }} ctx
  */
-export function formatBruddSvar(res, { toWgs84, gapBridgeM = RUTE_GRAF_OPTS.gapBridgeM }) {
+export function formatBruddSvar(res, {
+  toWgs84,
+  gapBridgeM = RUTE_GRAF_OPTS.gapBridgeM,
+  gapMaxSlopePct = RUTE_GRAF_OPTS.gapMaxSlopePct,
+  gapSlopeMinM = RUTE_GRAF_OPTS.gapSlopeMinM,
+}) {
+  // Hvorfor står dette bruddet igjen — og er det i det hele tatt noe å tette?
+  // Rekkefølgen er rangert: terrenget først (et stup er et ekte hinder, ikke et
+  // hull i dataene), så toleransen, så «her må du bruke øynene».
+  const forklar = (b) => {
+    if (b.hellingPct !== null && b.hullM >= gapSlopeMinM && b.hellingPct > gapMaxSlopePct) {
+      return `ekte hinder: terrenget over hullet er ${b.hellingPct} % bratt ` +
+        `(grense ${gapMaxSlopePct} %) — ruteren nekter med vilje`
+    }
+    if (b.hullM > gapBridgeM) return `gapBridgeM ≥ ${Math.ceil(b.hullM)} (nå ${gapBridgeM})`
+    return 'innenfor toleransen — sjekk om omveien er ekte (motorvei, elv, vernegrense)'
+  }
+
   return {
     graf: {
       noder: res.noder, kanter: res.kanter,
@@ -157,20 +183,21 @@ export function formatBruddSvar(res, { toWgs84, gapBridgeM = RUTE_GRAF_OPTS.gapB
         hullM: b.hullM,
         omveiM: b.omveiM,
         forholdstall: b.forholdstall,
+        // Terrenget over hullet, i prosent stigning/fall. null = kartet mangler
+        // DEM, eller strekket faller på noData.
+        hellingPct: b.hellingPct,
         stiende: { lat: +her.lat.toFixed(6), lon: +her.lon.toFixed(6) },
         naermesteSti: { lat: +nabo.lat.toFixed(6), lon: +nabo.lon.toFixed(6), isomKode: b.naboKode },
-        // Det handlingsrettede: hullet er større enn dagens toleranse, så
-        // ruteren lot det stå. Tallet sier hva som skulle til.
-        tetteMed: b.hullM > gapBridgeM
-          ? `gapBridgeM ≥ ${Math.ceil(b.hullM)} (nå ${gapBridgeM})`
-          : 'innenfor toleransen — sjekk om omveien er ekte (motorvei, elv, vernegrense)',
+        // Det handlingsrettede: hvorfor står bruddet igjen, og hva skal til.
+        tetteMed: forklar(b),
       }
     }),
     tolkning: res.antallBrudd === 0
       ? 'Ingen brudd funnet: hver stiende når nærmeste sti uten vesentlig omvei.'
       : `${res.antallBrudd} steder der stinettet ser sammenhengende ut, men ruteren må ` +
-        'gå langt rundt. Et brudd med lite hull og stor omvei er nesten alltid et hull i ' +
-        'kartdataene; et brudd med stor omvei OG stor hull kan være ekte (motorvei eller ' +
-        'elv mellom stiene).',
+        'gå langt rundt. Lite hull + stor omvei = nesten alltid et hull i kartdataene. ' +
+        `hellingPct over ${gapMaxSlopePct} % betyr at ruteren nekter med vilje — terrenget ` +
+        'over hullet er for bratt å krysse. Er hellingen slak og hullet stort, kan hinderet ' +
+        'likevel være ekte (motorvei, elv, vernegrense) — bruk øynene på kartet.',
   }
 }

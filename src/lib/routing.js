@@ -50,7 +50,10 @@ export const ISOM_COST = {
 // chatten, 3D-utforskeren og Cloudflare-speilet deler dem. ÉN kilde til
 // sannhet: stinett-diagnosen (stinettBrudd.js) må bygge samme graf som
 // ruteren, ellers rapporterer den hull som ikke finnes (eller motsatt).
-export const RUTE_GRAF_OPTS = Object.freeze({ snapM: 6, gapBridgeM: 30, componentBridgeM: 80 })
+export const RUTE_GRAF_OPTS = Object.freeze({
+  snapM: 6, gapBridgeM: 30, componentBridgeM: 80,
+  gapMaxSlopePct: 60, gapSlopeMinM: 8,
+})
 
 export const MAX_SNAP_M = 150
 export const FAR_SNAP_M = 400
@@ -77,6 +80,60 @@ const BRIDGE_COST = 1.4
 // fra hovedstien med 5,5 km rundt skal kobles.
 const GAP_DETOUR_FACTOR = 25
 const GAP_DETOUR_MIN_M = 500
+
+// Sample-avstand langs et hull når hellingen måles (meter). Tettere enn DEM-ens
+// egen oppløsning er greit — bilinear interpolasjon gjør profilen glatt.
+const GAP_SLOPE_STEP_M = 2
+
+/**
+ * Bratteste stigning/fall over et hull, i prosent (høydeforskjell delt på
+ * vannrett avstand × 100). Sampler terrenget langs strekket a→b.
+ *
+ * Målt fra BEGGE ender mot hvert sample, ikke bare ende til ende: et hull som
+ * starter og slutter i samme høyde kan krysse en kløft, og den skal telle. Men
+ * bare samples minst `minStegM` fra enden vi måler fra — to nabo-samples på en
+ * 10 m DEM er ren interpolasjonsstøy — og hele hullet teller alltid, uansett
+ * hvor kort det er.
+ *
+ * Returnerer null når terrengdata mangler (ingen sampler, eller noData i
+ * strekket). Da skal kallstedet oppføre seg som om regelen ikke finnes —
+ * kart uten DEM (WCS blokkert av CORS) skal rute som før.
+ *
+ * @param {(x:number,y:number)=>number} elevationAt  høyde i meter, NaN = ingen data
+ * @param {[number,number]} a
+ * @param {[number,number]} b
+ * @param {{ minStegM?: number }} [opts]
+ * @returns {number|null} prosent
+ */
+export function gapSlopePct(elevationAt, a, b, opts = {}) {
+  const { minStegM = 10 } = opts
+  if (typeof elevationAt !== 'function') return null
+  const L = Math.hypot(b[0] - a[0], b[1] - a[1])
+  if (!(L > 0)) return null
+
+  const n = Math.max(1, Math.ceil(L / GAP_SLOPE_STEP_M))
+  const samples = []
+  for (let i = 0; i <= n; i++) {
+    const t = i / n
+    const h = elevationAt(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
+    if (!Number.isFinite(h)) return null
+    samples.push({ d: t * L, h })
+  }
+
+  let verste = 0
+  let maalt = false
+  for (const ende of [samples[0], samples[samples.length - 1]]) {
+    for (const s of samples) {
+      const d = Math.abs(s.d - ende.d)
+      if (d === 0) continue
+      // Hele hullet teller alltid; mellom-samples bare når de er langt nok unna.
+      if (d < minStegM && Math.abs(d - L) > 1e-9) continue
+      maalt = true
+      verste = Math.max(verste, (Math.abs(s.h - ende.h) / d) * 100)
+    }
+  }
+  return maalt ? verste : null
+}
 
 /**
  * Projiser punkt p ned på linjestykket a→b. Returnerer fotpunktet (klemt til
@@ -116,7 +173,9 @@ function pathUsesCode(g, nodeIds, code) {
  *
  * @param {Array} features
  * @param {{ snapM?: number, projectFn?: Function, bridgeM?: number,
- *          gapBridgeM?: number, componentBridgeM?: number }} opts
+ *          gapBridgeM?: number, componentBridgeM?: number,
+ *          gapMaxSlopePct?: number, gapSlopeMinM?: number,
+ *          elevationAt?: (x:number,y:number)=>number }} opts
  * @returns {RoutingGraph}
  */
 export function buildRoutingGraph(features, opts = {}) {
@@ -212,10 +271,16 @@ export function buildRoutingGraph(features, opts = {}) {
   //
   // Vi broer derfor et dangle-hull ≤ gapBridgeM NÅR omveien i dagens graf er
   // så stor at nettet i praksis er brutt (se GAP_DETOUR_*). Gaten er poenget:
-  // uten den ville en U-formet sti fått en snarvei over åpningen, og en sti
-  // som ender ved et stup over en annen ville fått et falskt kryss. Default av
-  // (0) — Stifinner, MCP og chatten slår den på.
+  // uten den ville en U-formet sti fått en snarvei over åpningen.
+  //
+  // OG når terrenget over hullet er slakt nok å krysse: `elevationAt` +
+  // gapMaxSlopePct gjør stup til et ekte hinder i stedet for noe ruteren
+  // dikter seg forbi. Uten DEM (WCS blokkert av CORS) faller regelen bort og
+  // vi ruter som før. Default av (0) — Stifinner, MCP og chatten slår den på.
   const gapBridgeM = opts.gapBridgeM ?? 0
+  const gapMaxSlopePct = opts.gapMaxSlopePct ?? 0
+  const gapSlopeMinM = opts.gapSlopeMinM ?? 8
+  const elevationAt = opts.elevationAt
   if (gapBridgeM > 0) bridgeGaps(gapBridgeM)
 
   // Merk hver node med sin sammenhengende komponent (DFS).
@@ -433,8 +498,21 @@ export function buildRoutingGraph(features, opts = {}) {
       const limit = Math.max(best.gap * GAP_DETOUR_FACTOR, GAP_DETOUR_MIN_M)
       const omvei = distanceWithin(k.d.id, new Set([best.seg.s, best.seg.t]), limit)
       if (omvei <= limit) continue                 // stien svinger bare — ingen snarvei
+      if (forBratt(k.d.pos, best.proj.point, best.gap)) continue
       bridgeGapToSegment(k.d, best.seg, best.proj, segIndex)
     }
+  }
+
+  // Er terrenget over hullet for bratt å krysse? Regelen gjelder bare hull som
+  // er store nok til at kryssingen er en ekte beslutning: under gapSlopeMinM er
+  // hullet forenklings-støy, ikke en traversering, og en sti som ender to meter
+  // fra en annen i en 60 %-li skal fortsatt kobles. Mangler DEM (eller har
+  // noData i strekket) er svaret nei — vi ruter som før.
+  function forBratt(a, b, gap) {
+    if (!(gapMaxSlopePct > 0) || typeof elevationAt !== 'function') return false
+    if (gap < gapSlopeMinM) return false
+    const pct = gapSlopePct(elevationAt, a, b)
+    return pct !== null && pct > gapMaxSlopePct
   }
 
   // Som bridgeToSegment, men selve forbindelsen legges som 'bridge': den er en

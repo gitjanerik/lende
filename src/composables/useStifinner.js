@@ -27,6 +27,7 @@ import {
   buildRoutingGraph, planRoutesThrough, planLoop, MAX_SNAP_M, FAR_SNAP_M, RUTE_GRAF_OPTS,
 } from '../lib/routing.js'
 import { parsePathSubpaths } from '../lib/pathUtils.js'
+import { realElevationAt } from '../lib/demSampling.js'
 
 // ISOM-koder som er routbare (vei/sti/bro). Må matche ISOM_COST i routing.js.
 const ROUTABLE_CODES = new Set(['501', '502', '503', '504', '505', '506', '507', '509'])
@@ -53,7 +54,17 @@ const ASCENT_M_PER_MIN = 10
 // mindre enn stigning: +1 min per 30 høydemeter fall.
 const DESCENT_M_PER_MIN = 30
 
-export function useStifinner() {
+/**
+ * @param {{ dem?: () => object|null }} [opts]
+ *   `dem` er en getter for kartets unpackede DEM (MapView eier den og henter den
+ *   asynkront). Den gjør hull-broingen terrengbevisst: et hull over et stup
+ *   broes ikke. Uten getter — eller før DEM-en har landet — ruter vi som før,
+ *   og grafen bygges på nytt når DEM-en kommer (se graphFor).
+ */
+export function useStifinner(opts = {}) {
+  const demGetter = typeof opts.dem === 'function' ? opts.dem : () => null
+  const elevationAtFor = (dem) => (dem ? realElevationAt(dem) : undefined)
+
   // Snarvei-inngangen (beginPickStart) sikter inn startpunktet FØRST og målet
   // (B) etterpå — begge med kikkertsikte. Long-press-inngangen (begin/beginLoop)
   // har alt satt B/origo fra selve long-press-punktet. 'pickingOrigin' er
@@ -81,9 +92,12 @@ export function useStifinner() {
   const viaSnaps = ref([])          // [{ x, y }] parallelt til via
 
   // Cache av routing-grafen for sist brukte SVG-element, så gjentatte via-
-  // redigeringer ikke bygger grafen på nytt hver gang.
+  // redigeringer ikke bygger grafen på nytt hver gang. DEM-en er del av nøkkelen:
+  // den hentes asynkront, og en graf bygget før den landet mangler terreng-
+  // regelen i hull-broingen.
   let cachedRg = null
   let cachedSvg = null
+  let cachedDem = null
   // Sist brukte SVG-element, så recompute() kan reberegne når via endres.
   let lastSvg = null
 
@@ -208,6 +222,7 @@ export function useStifinner() {
     viaSnaps.value = []
     cachedRg = null
     cachedSvg = null
+    cachedDem = null
     lastSvg = null
   }
 
@@ -267,14 +282,18 @@ export function useStifinner() {
   // (lib/stinettBrudd.js) bygger samme graf, så det den rapporterer er det
   // Stifinneren faktisk ser.
   function graphFor(svgElement) {
-    if (cachedRg && cachedSvg === svgElement) return cachedRg
+    const dem = demGetter()
+    if (cachedRg && cachedSvg === svgElement && cachedDem === dem) return cachedRg
     const features = featuresFromSvg(svgElement)
     if (!features.length) return null
-    cachedRg = buildRoutingGraph(features, RUTE_GRAF_OPTS)
+    cachedRg = buildRoutingGraph(features, {
+      ...RUTE_GRAF_OPTS, elevationAt: elevationAtFor(dem),
+    })
     if (lastGraphStats) {
       lastGraphStats.noder = cachedRg.nodes
       lastGraphStats.kanter = cachedRg.edges
     }
+    cachedDem = dem
     cachedSvg = svgElement
     return cachedRg
   }
@@ -479,5 +498,8 @@ export function useStifinner() {
     begin, beginLoop, beginPickStart, confirmDest, beginPickLoop, confirmLoopOrigin,
     cancel, confirmStart, beginAddVia, confirmVia, removeVia, clearVia,
     selectRoute, follow, stopFollowing, estWalkMinutes,
+    // Eksponert for MapView: DEM-en kan komme etter at ruta er beregnet, og
+    // grafen må da bygges på nytt med terreng-regelen.
+    recompute,
   }
 }

@@ -1,5 +1,32 @@
 # Endringslogg
 
+## 2026-08-11 — v5.6.0: Hull-broen spør terrenget før den krysser
+
+Hull-broen koblet stier på hver side av et hull uten å se på hva som ligger
+imellom. Et hull på tretti meter kan være en sti som nesten når fram — eller
+kanten av et stup. Nå sampler broen DEM-en langs hullet og nekter når terrenget
+er brattere enn seksti prosent. Hellingen måles fra begge ender mot hvert
+sample, ikke bare ende til ende, for et hull som starter og slutter i samme
+høyde kan krysse en kløft, og den skal telle. Hull under åtte meter er unntatt:
+der er hullet forenklings-støy, ikke en traversering, og en sti som ender to
+meter fra en annen i en bratt li skal fortsatt kobles.
+
+Mangler kartet høydedata — WCS blokkert av CORS, eller syntetisk DEM — faller
+regelen bort og ruteren oppfører seg som før. I appen hentes DEM-en asynkront,
+så Stifinneren bygger grafen på nytt når den lander og reberegner en rute som
+alt vises. Det ville ellers vært mulig å få vist en rute over et stup bare
+fordi høydedataene ikke hadde kommet ennå.
+
+`finn_stinett_brudd` rapporterer nå hellingen for hvert brudd og skiller de to
+tilfellene i klartekst: et brudd med slakt terreng er et hull i kartdataene som
+kan tettes ved å heve toleransen, mens et brudd med bratt terreng er et ekte
+hinder ruteren nekter med vilje. På Strykenåsen-kartet er tre av trettifem
+brudd ekte hindre, og de gjenstående trettito har terreng under førti prosent
+— altså er de trygge å tette. Rutene til Narverudgruvene er uendret; hullet der
+er tolv komma ni meter over trettisju prosents helling.
+
+---
+
 ## 2026-08-11 — v5.5.5: finn_stinett_brudd — ett kall i stedet for en times detektivarbeid
 
 Å finne hullet bak Narverudgruvene-saken tok en time med engangsskript: bygg

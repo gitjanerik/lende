@@ -95,6 +95,36 @@ describe('formatBruddSvar', () => {
     expect(svar.treff[0].tetteMed).toMatch(/innenfor toleransen/)
   })
 
+  it('skiller ekte hinder (bratt terreng) fra hull i kartdataene', () => {
+    // 25 m hull med 25 m fall = 100 % > 60 %. Grafen nekter å bro det, så det
+    // står igjen som brudd — og skal MELDES som ekte hinder, ikke som noe å
+    // tette ved å heve toleransen.
+    // Trinnet ligger midt i hullet, så bratteste MÅLTE helling er høyere enn
+    // ende-til-ende (25 m fall over ~13 m, ikke over 25 m) — det er meningen:
+    // det er selve stupet vi vil se, ikke gjennomsnittet over hullet.
+    const stup = (x, y) => 100 + (y < 12.5 ? 0 : 25)
+    const res = finnStinettBrudd(bruddNett(25), { elevationAt: stup })
+    expect(res.antallBrudd).toBe(1)
+    expect(res.treff[0].hellingPct).toBeGreaterThan(100)
+    const svar = formatBruddSvar(res, { toWgs84 })
+    expect(svar.treff[0].tetteMed).toMatch(/^ekte hinder: terrenget over hullet er \d+ % bratt/)
+    expect(svar.treff[0].hellingPct).toBe(res.treff[0].hellingPct)
+  })
+
+  it('melder slakt terreng som hull i dataene, ikke som hinder', () => {
+    const res = finnStinettBrudd(bruddNett(45), { elevationAt: () => 100 })
+    const svar = formatBruddSvar(res, { toWgs84 })
+    expect(svar.treff[0].hellingPct).toBe(0)
+    expect(svar.treff[0].tetteMed).toBe('gapBridgeM ≥ 45 (nå 30)')
+  })
+
+  it('gir hellingPct null når kartet mangler DEM', () => {
+    const res = finnStinettBrudd(bruddNett(45), { grafOpts: RAA_GRAF })
+    expect(res.treff[0].hellingPct).toBeNull()
+    const svar = formatBruddSvar(res, { toWgs84 })
+    expect(svar.treff[0].tetteMed).toMatch(/gapBridgeM/)
+  })
+
   it('gir en ærlig tolkning når det ikke er noen brudd', () => {
     const svar = formatBruddSvar(finnStinettBrudd([]), { toWgs84 })
     expect(svar.tolkning).toMatch(/Ingen brudd/)

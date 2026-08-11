@@ -18,7 +18,7 @@ import { analyserStinett, formatStinettSvar } from '../src/lib/stinettAnalyse.js
 import { finnStinettBrudd, formatBruddSvar } from '../src/lib/stinettBrudd.js'
 import { wgs84ToSvg, svgToWgs84, utm32BboxFromWgs84 } from '../src/lib/utm.js'
 import { sampleProfile } from '../src/lib/elevationProfile.js'
-import { sampleElevation } from '../src/lib/demSampling.js'
+import { sampleElevation, realElevationAt } from '../src/lib/demSampling.js'
 import { buildRouteGpx } from '../src/lib/gpxExport.js'
 import { searchPlaces } from '../src/lib/geocode.js'
 import { minEquidistanceForWidthKm, DEFAULT_EQUIDISTANCE_M } from '../src/lib/equidistanceRules.js'
@@ -123,7 +123,11 @@ function ensureRoutingGraph() {
   if (!state.routingGraph) {
     const features = routableFeaturesFromSvg(state.map.svg)
     if (!features.length) throw new Error('Kartet inneholder ingen stier eller veier å rute på.')
-    state.routingGraph = buildRoutingGraph(features, RUTE_GRAF_OPTS)
+    // elevationAt gjør stup til et ekte hinder for hull-broingen (v5.6.0).
+    // Syntetisk DEM gir undefined → regelen faller bort.
+    state.routingGraph = buildRoutingGraph(features, {
+      ...RUTE_GRAF_OPTS, elevationAt: realElevationAt(state.map.dem),
+    })
   }
   return state.routingGraph
 }
@@ -643,7 +647,7 @@ server.registerTool(
     requireMap()
     const meta = svgMeta()
     const res = finnStinettBrudd(routableFeaturesFromSvg(state.map.svg), {
-      maksHullM, minOmveiM, maksTreff,
+      maksHullM, minOmveiM, maksTreff, elevationAt: realElevationAt(state.map.dem),
     })
     return jsonResult({
       status: 'ok',
