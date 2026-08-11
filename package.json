@@ -1,13 +1,15 @@
 {
   "name": "lende",
   "private": true,
-  "version": "5.8.0",
+  "version": "5.8.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "royk": "node scripts/royk-mapview.mjs",
+    "navnediff": "node scripts/navnediff.mjs",
     "build:redlist": "node scripts/build-redlist.js",
     "fasit": "node scripts/fasit-kart.js",
     "mcp": "node mcp/server.js"
@@ -38,6 +40,7 @@
     "@tailwindcss/vite": "^4.2.2",
     "@vitejs/plugin-vue": "^6.0.5",
     "linkedom": "^0.18.13",
+    "playwright": "^1.62.1",
     "tailwindcss": "^4.2.2",
     "vite": "^8.0.4",
     "vitest": "^4.1.3"

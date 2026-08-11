@@ -1,0 +1,68 @@
+name: Røyktest — MapView i en ekte nettleser
+
+# Sikkerhetsnettet enhetstestene ikke kan være. Tre monteringsfeil under
+# v5.8.0-uttrekket (TDZ på verdier sendt inn før de er deklarert, og en
+# tekst-sletting som tok med seg tre ubeslektede blokker) passerte BÅDE
+# `npm run test` (1 978 tester) og `npm run build` uten en lyd: Vue-oppsettet
+# kaster først ved montering, og et bygg monterer ingenting.
+#
+# To komplementære gater:
+#   • royk      — monterer /kart/vardasen og trykker på hvert uttrukket domene.
+#                 Fanger feil som KASTER (TDZ, udefinerte navn, brutt wiring).
+#   • navnediff — hva forsvant ut av MapView, og hvem overtok det.
+#                 Fanger feil som forsvinner STILLE (en slettet watch, et
+#                 composable-kall ingen tok over).
+#
+# Kjører på PR-er som rører MapView, composable-ene eller malen. Kartet
+# (public/maps/vardasen.svg) ligger i repoet, så monteringen trenger ikke nett.
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'src/views/MapView.vue'
+      - 'src/composables/**'
+      - 'src/components/**'
+      - 'scripts/royk-mapview.mjs'
+      - 'scripts/navnediff.mjs'
+      - '.github/workflows/royktest.yml'
+  workflow_dispatch:
+
+jobs:
+  royk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # navnediff trenger origin/master å måle mot
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Hent Chromium
+        run: npx playwright install --with-deps chromium
+
+      - run: npm run build
+
+      - name: Røyktest
+        run: npm run royk -- --bilder=/tmp/royk
+
+      # Navnediff er en LESE-gate: den skal fortelle mennesket hva som forsvant.
+      # Villede slettinger kvitteres ut med `--ok navn1,navn2` i PR-en som gjør
+      # dem, ikke ved å skru av jobben.
+      - name: Navnediff mot origin/master
+        run: |
+          git fetch origin master --quiet
+          npm run navnediff
+
+      - name: Last opp skjermbilder ved feil
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: royk-skjermbilder
+          path: /tmp/royk
+          if-no-files-found: ignore
