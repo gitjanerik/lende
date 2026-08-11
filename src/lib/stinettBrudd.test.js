@@ -131,3 +131,31 @@ describe('formatBruddSvar', () => {
     expect(svar.graf).toMatchObject({ noder: 0, kanter: 0 })
   })
 })
+
+describe('finnStinettBrudd – barrierer', () => {
+  const tvers = (kode) => [{ coordinates: [[900, 12], [1100, 12]], isomCode: kode }]
+  const toWgs84 = (x, y) => ({ lat: 59 + y / 111320, lon: 10 + x / 57000 })
+
+  it('melder et hull over jernbane som ekte hinder', () => {
+    const res = finnStinettBrudd(bruddNett(25), { barriers: tvers('515') })
+    expect(res.antallBrudd).toBe(1)
+    expect(res.treff[0].barriere).toBe('jernbane')
+    const svar = formatBruddSvar(res, { toWgs84 })
+    expect(svar.treff[0].tetteMed).toBe('ekte hinder: hullet krysser jernbane — ruteren nekter med vilje')
+  })
+
+  it('setter barriere til null når ingenting ligger i hullet', () => {
+    const res = finnStinettBrudd(bruddNett(45), { grafOpts: RAA_GRAF })
+    expect(res.treff[0].barriere).toBeNull()
+  })
+
+  it('lar barrieren rangere over bratt terreng i forklaringen', () => {
+    // Både stup OG jernbane: barrieren er det konkrete svaret, så den vinner.
+    const res = finnStinettBrudd(bruddNett(25), {
+      barriers: tvers('515'), elevationAt: (x, y) => 100 + (y < 12.5 ? 0 : 25),
+    })
+    const svar = formatBruddSvar(res, { toWgs84 })
+    expect(svar.treff[0].tetteMed).toMatch(/krysser jernbane/)
+    expect(svar.treff[0].hellingPct).toBeGreaterThan(60)
+  })
+})

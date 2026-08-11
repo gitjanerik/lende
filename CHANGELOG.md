@@ -1,5 +1,34 @@
 # Endringslogg
 
+## 2026-08-11 — v5.6.1: Hull-broen krysser ikke hovedvei, jernbane, hus eller elv
+
+Terreng-regelen fra forrige versjon fanger stup, men en jernbane i flatt lende
+er null prosent bratt. Hull-broen sjekker nå også om forbindelses-streken
+KRYSSER noe en fotgjenger ikke bare går tvers over: motorvei, hovedvei,
+jernbane, bygning, innsjø, tjern, sjø, bekk og upassérbart stup. Gjør den det,
+er hullet et ekte hinder og omveien er svaret.
+
+Utvalget er målt på Strykenåsen-kartet, ikke gjettet. Tett bebyggelse ble
+vurdert og forkastet: det er areal-dekke, ikke et hinder — stier går gjennom
+boligfelt hele tiden, og å ta den ville avvist trettito av hundreogtrettien
+hull på feil grunnlag. Bygning er det ekte hinderet der. Gjerde er også utenfor,
+siden gjerder krysses ved grinder og klyv, og Lende har bom som egen passérbar
+barriere. Liten bekk stepper du over, og naturreservat er en juridisk grense,
+ikke terreng.
+
+Minstegrensen for hull som hinder-reglene i det hele tatt vurderer heter nå
+gapObstacleMinM og deles av begge reglene. Den fanget en ekte falsk positiv:
+et hull på ti centimeter der veilinja tilfeldigvis gikk imellom ble meldt som
+en veikryssing. Det er ingen veikryssing, det er tegnerekkefølge.
+
+På Strykenåsen-kartet avviser barriere-regelen seksten broer, og seksten av
+førtifire brudd er nå merket med hva som faktisk står i veien — tolv hovedveier,
+to jernbaner, to hus, en bekk og et stup. Rutene til Narverudgruvene er
+uendret. Chatten bygger grafen med samme to regler, så tallene der fortsetter
+å stemme med ruten kartet tegner.
+
+---
+
 ## 2026-08-11 — v5.6.0: Hull-broen spør terrenget før den krysser
 
 Hull-broen koblet stier på hver side av et hull uten å se på hva som ligger

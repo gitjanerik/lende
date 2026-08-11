@@ -10,7 +10,10 @@ import { tmpdir } from 'node:os'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
-import { buildMapHeadless, routableFeaturesFromSvg, extractMapPoiFromSvg, searchMapSvg } from './headless.js'
+import {
+  buildMapHeadless, routableFeaturesFromSvg, graphInputFromSvg,
+  extractMapPoiFromSvg, searchMapSvg,
+} from './headless.js'
 import { filterPoi, POI_LABELS } from '../src/lib/mapPoi.js'
 import { formatAreaShort } from '../src/composables/useMapSearch.js'
 import { buildRoutingGraph, planRoutes, planRoutesThrough, planLoop, RUTE_GRAF_OPTS } from '../src/lib/routing.js'
@@ -121,12 +124,16 @@ function extentInfo(bbox) {
 // kobler frakoblede sti-/vei-fragmenter til hovednettet (se lib/routing.js).
 function ensureRoutingGraph() {
   if (!state.routingGraph) {
-    const features = routableFeaturesFromSvg(state.map.svg)
+    // Én SVG-gjennomgang gir både stinettet og barriere-geometrien.
+    const { features, barriers } = graphInputFromSvg(state.map.svg)
     if (!features.length) throw new Error('Kartet inneholder ingen stier eller veier å rute på.')
-    // elevationAt gjør stup til et ekte hinder for hull-broingen (v5.6.0).
-    // Syntetisk DEM gir undefined → regelen faller bort.
+    // elevationAt + barriers gjør stup, hovedvei, jernbane, bygning og vann til
+    // ekte hindre for hull-broingen (v5.6.0). Syntetisk DEM gir undefined →
+    // terreng-regelen faller bort, barriere-regelen står.
     state.routingGraph = buildRoutingGraph(features, {
-      ...RUTE_GRAF_OPTS, elevationAt: realElevationAt(state.map.dem),
+      ...RUTE_GRAF_OPTS,
+      elevationAt: realElevationAt(state.map.dem),
+      barriers,
     })
   }
   return state.routingGraph
@@ -646,8 +653,10 @@ server.registerTool(
   async ({ maksHullM, minOmveiM, maksTreff }) => {
     requireMap()
     const meta = svgMeta()
-    const res = finnStinettBrudd(routableFeaturesFromSvg(state.map.svg), {
-      maksHullM, minOmveiM, maksTreff, elevationAt: realElevationAt(state.map.dem),
+    const { features, barriers } = graphInputFromSvg(state.map.svg)
+    const res = finnStinettBrudd(features, {
+      maksHullM, minOmveiM, maksTreff, barriers,
+      elevationAt: realElevationAt(state.map.dem),
     })
     return jsonResult({
       status: 'ok',

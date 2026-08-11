@@ -25,12 +25,10 @@
 import { ref, computed } from 'vue'
 import {
   buildRoutingGraph, planRoutesThrough, planLoop, MAX_SNAP_M, FAR_SNAP_M, RUTE_GRAF_OPTS,
+  ROUTABLE_CODES, BARRIER_CODES,
 } from '../lib/routing.js'
 import { parsePathSubpaths } from '../lib/pathUtils.js'
 import { realElevationAt } from '../lib/demSampling.js'
-
-// ISOM-koder som er routbare (vei/sti/bro). Må matche ISOM_COST i routing.js.
-const ROUTABLE_CODES = new Set(['501', '502', '503', '504', '505', '506', '507', '509'])
 
 // Snap-tersklene bor i routing.js (delt med chattens forhåndsberegning):
 //  ≤ MAX_SNAP_M  — stille treff (punktet ligger praktisk talt på stien).
@@ -244,16 +242,23 @@ export function useStifinner(opts = {}) {
     return { dx, dy }
   }
 
-  // Les routbare sti-/vei-paths fra SVG-en (aktiv flis + spøkelsesfliser,
-  // løftet til aktiv-flisas koordinatrom) og bygg features til grafen.
+  // Les routbare sti-/vei-paths OG barriere-geometri fra SVG-en (aktiv flis +
+  // spøkelsesfliser, løftet til aktiv-flisas koordinatrom) i ÉN gjennomgang.
+  // Barrierene er det hull-broingen trenger for å nekte å bro over hovedvei,
+  // jernbane, bygning, vann og upassérbart stup — og de MÅ gjennom samme
+  // nestedSvgOffset som stiene, ellers ligger naboflisenes barrierer feil og
+  // blokkerer hull midt i aktiv flis.
   function featuresFromSvg(svgElement) {
     const features = []
+    const barriers = []
     const groups = svgElement.querySelectorAll('[data-iso]')
     let routableGroups = 0
     for (const g of groups) {
       const code = g.getAttribute('data-iso')
-      if (!ROUTABLE_CODES.has(code)) continue
-      routableGroups++
+      const routbar = ROUTABLE_CODES.has(code)
+      const barriere = BARRIER_CODES[code] != null
+      if (!routbar && !barriere) continue
+      if (routbar) routableGroups++
       const { dx, dy } = nestedSvgOffset(g, svgElement)
       const paths = g.tagName.toLowerCase() === 'path' ? [g] : g.querySelectorAll('path')
       for (const p of paths) {
@@ -261,10 +266,9 @@ export function useStifinner(opts = {}) {
         if (!d) continue
         for (const sub of parsePathSubpaths(d)) {
           if (sub.length < 2) continue
-          features.push({
-            coordinates: (dx || dy) ? sub.map(([x, y]) => [x + dx, y + dy]) : sub,
-            isomCode: code,
-          })
+          const coordinates = (dx || dy) ? sub.map(([x, y]) => [x + dx, y + dy]) : sub
+          if (routbar) features.push({ coordinates, isomCode: code })
+          if (barriere) barriers.push({ coordinates, isomCode: code })
         }
       }
     }
@@ -272,7 +276,7 @@ export function useStifinner(opts = {}) {
       grupper: groups.length, routbare: routableGroups, features: features.length,
       noder: 0, kanter: 0,
     }
-    return features
+    return { features, barriers }
   }
 
   // Bygg (eller gjenbruk cachet) routing-graf for et SVG-element.
@@ -284,10 +288,10 @@ export function useStifinner(opts = {}) {
   function graphFor(svgElement) {
     const dem = demGetter()
     if (cachedRg && cachedSvg === svgElement && cachedDem === dem) return cachedRg
-    const features = featuresFromSvg(svgElement)
+    const { features, barriers } = featuresFromSvg(svgElement)
     if (!features.length) return null
     cachedRg = buildRoutingGraph(features, {
-      ...RUTE_GRAF_OPTS, elevationAt: elevationAtFor(dem),
+      ...RUTE_GRAF_OPTS, elevationAt: elevationAtFor(dem), barriers,
     })
     if (lastGraphStats) {
       lastGraphStats.noder = cachedRg.nodes

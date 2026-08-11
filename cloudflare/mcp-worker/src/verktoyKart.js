@@ -6,7 +6,10 @@
 // src/lib som appen.
 
 import { z } from 'zod'
-import { buildMapHeadless, routableFeaturesFromSvg, extractMapPoiFromSvg, searchMapSvg } from '../../../mcp/headless.js'
+import {
+  buildMapHeadless, routableFeaturesFromSvg, graphInputFromSvg,
+  extractMapPoiFromSvg, searchMapSvg,
+} from '../../../mcp/headless.js'
 import { buildRoutingGraph, planRoutes, planRoutesThrough, planLoop, RUTE_GRAF_OPTS } from '../../../src/lib/routing.js'
 import { analyserStinett, formatStinettSvar } from '../../../src/lib/stinettAnalyse.js'
 import { finnStinettBrudd, formatBruddSvar } from '../../../src/lib/stinettBrudd.js'
@@ -72,10 +75,10 @@ function tour3dUrlFor(kart, tour) {
 // `dem` er valgfri, men bør sendes: uten den mister hull-broingen terreng-
 // regelen og kan dikte seg over et stup (v5.6.0). Syntetisk DEM ignoreres.
 export function byggGraf(svg, dem = null) {
-  const features = routableFeaturesFromSvg(svg)
+  const { features, barriers } = graphInputFromSvg(svg)
   if (!features.length) throw new Error('Kartet inneholder ingen stier eller veier å rute på.')
   return buildRoutingGraph(features, {
-    ...RUTE_GRAF_OPTS, elevationAt: realElevationAt(dem),
+    ...RUTE_GRAF_OPTS, elevationAt: realElevationAt(dem), barriers,
   })
 }
 
@@ -375,8 +378,10 @@ export function registerKartVerktoy(server, ctx) {
     async ({ kartRef, maksHullM, minOmveiM, maksTreff }) => {
       const kart = await kreveKart(env, kartRef)
       const meta = svgMeta(kart.meta)
-      const res = finnStinettBrudd(routableFeaturesFromSvg(kart.svg), {
-        maksHullM, minOmveiM, maksTreff, elevationAt: realElevationAt(kart.dem),
+      const { features, barriers } = graphInputFromSvg(kart.svg)
+      const res = finnStinettBrudd(features, {
+        maksHullM, minOmveiM, maksTreff, barriers,
+        elevationAt: realElevationAt(kart.dem),
       })
       return jsonResult({
         status: 'ok',

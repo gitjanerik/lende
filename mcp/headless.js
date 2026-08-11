@@ -10,6 +10,7 @@ import { fetchTurruteRoutes, turruteElementsFrom } from '../src/lib/turrutebasen
 import { fetchN50StiLinjer, n50StiElementerFra } from '../src/lib/n50StiFetcher.js'
 import { utm32BboxFromWgs84 } from '../src/lib/utm.js'
 import { parsePathSubpaths } from '../src/lib/pathUtils.js'
+import { ROUTABLE_CODES, BARRIER_CODES } from '../src/lib/routing.js'
 import { poiType, parseLen, sumTranslate, mmToUnitFromSvg, dedupePoi } from '../src/lib/mapPoi.js'
 import { buildSearchIndex, filterIndex } from '../src/composables/useMapSearch.js'
 import { probeDensity } from '../src/lib/densityProbe.js'
@@ -149,34 +150,48 @@ export async function buildMapHeadless({
   return { svg, counts, meta, dem, bbox, halfKm: effHalfKm, tetthet }
 }
 
-// Routbare ISOM-koder — må matche ISOM_COST i lib/routing.js og
-// ROUTABLE_CODES i useStifinner.js.
-const ROUTABLE_CODES = new Set(['501', '502', '503', '504', '505', '506', '507', '509'])
-
 /**
- * Ekstraher routbare features fra en generert SVG-streng. Node-varianten av
- * useStifinner.featuresFromSvg — et nybygd kart har ingen nestede fliser,
- * så ingen offset-håndtering trengs.
+ * Ekstraher routbare sti-/vei-features OG barriere-geometri fra en generert
+ * SVG-streng i ÉN gjennomgang. Node-varianten av useStifinner.featuresFromSvg —
+ * et nybygd kart har ingen nestede fliser, så ingen offset-håndtering trengs.
+ *
+ * `barriers` er det hull-broingen i routing.js trenger for å nekte å bro over
+ * hovedvei, jernbane, bygning, vann og upassérbart stup.
+ *
  * @param {string} svgText
- * @returns {Array<{coordinates: Array<[number,number]>, isomCode: string}>}
+ * @returns {{features: Array<{coordinates: Array<[number,number]>, isomCode: string}>,
+ *            barriers: Array<{coordinates: Array<[number,number]>, isomCode: string}>}}
  */
-export function routableFeaturesFromSvg(svgText) {
+export function graphInputFromSvg(svgText) {
   const { document } = parseHTML(`<html><body>${svgText}</body></html>`)
   const features = []
+  const barriers = []
   for (const g of document.querySelectorAll('[data-iso]')) {
     const code = g.getAttribute('data-iso')
-    if (!ROUTABLE_CODES.has(code)) continue
+    const routbar = ROUTABLE_CODES.has(code)
+    const barriere = BARRIER_CODES[code] != null
+    if (!routbar && !barriere) continue
     const paths = g.tagName.toLowerCase() === 'path' ? [g] : g.querySelectorAll('path')
     for (const p of paths) {
       const d = p.getAttribute('d')
       if (!d) continue
       for (const sub of parsePathSubpaths(d)) {
         if (sub.length < 2) continue
-        features.push({ coordinates: sub, isomCode: code })
+        if (routbar) features.push({ coordinates: sub, isomCode: code })
+        if (barriere) barriers.push({ coordinates: sub, isomCode: code })
       }
     }
   }
-  return features
+  return { features, barriers }
+}
+
+/**
+ * Bare de routbare features. Beholdt fordi flere kallsteder bare trenger dem.
+ * @param {string} svgText
+ * @returns {Array<{coordinates: Array<[number,number]>, isomCode: string}>}
+ */
+export function routableFeaturesFromSvg(svgText) {
+  return graphInputFromSvg(svgText).features
 }
 
 /**

@@ -40,21 +40,23 @@ export const ISOM_COST = {
   '501': 1.7,                              // motorvei — minst foretrukket å gå
 }
 
+// Graf-opsjonene ruteren faktisk kjører med — Stifinner, MCP-serveren,
+// chatten, 3D-utforskeren og Cloudflare-speilet deler dem. ÉN kilde til
+// sannhet: stinett-diagnosen (stinettBrudd.js) må bygge samme graf som
+// ruteren, ellers rapporterer den hull som ikke finnes (eller motsatt).
+// Kart-AVHENGIGE opsjoner (`elevationAt`, `barriers`) hører ikke hit — de
+// spres inn per kart: `{ ...RUTE_GRAF_OPTS, elevationAt, barriers }`.
+export const RUTE_GRAF_OPTS = Object.freeze({
+  snapM: 6, gapBridgeM: 30, componentBridgeM: 80,
+  gapMaxSlopePct: 60, gapObstacleMinM: 8,
+})
+
 // Snap-avstand fra et valgt punkt til nærmeste graf-node, i to trinn:
 // innen MAX_SNAP_M er treffet stille, mellom MAX_SNAP_M og FAR_SNAP_M godtas
 // det med merknad (et mål plukket fra kartets navn er ofte en flate-sentroide
 // — «Stordammen» lander midt på vannet), utenfor FAR_SNAP_M er det ærlig feil.
 // Delt av Stifinneren og chattens forhåndsberegning, som MÅ bruke samme
 // terskler for at tallene i chatten skal stemme med ruten kartet tegner.
-// Graf-opsjonene ruteren faktisk kjører med — Stifinner, MCP-serveren,
-// chatten, 3D-utforskeren og Cloudflare-speilet deler dem. ÉN kilde til
-// sannhet: stinett-diagnosen (stinettBrudd.js) må bygge samme graf som
-// ruteren, ellers rapporterer den hull som ikke finnes (eller motsatt).
-export const RUTE_GRAF_OPTS = Object.freeze({
-  snapM: 6, gapBridgeM: 30, componentBridgeM: 80,
-  gapMaxSlopePct: 60, gapSlopeMinM: 8,
-})
-
 export const MAX_SNAP_M = 150
 export const FAR_SNAP_M = 400
 
@@ -62,6 +64,54 @@ export const FAR_SNAP_M = 400
 // sannhet: useStifinner og mcp/headless har historisk hver sin kopi, og en
 // kode som legges til her men glemmes der gir stille frakoblet stinett.
 export const ROUTABLE_CODES = new Set(Object.keys(ISOM_COST))
+
+// Barrierer for hull-broing: ting en fotgjenger ikke bare går tvers over.
+// Krysser forbindelses-streken en av disse, er hullet et EKTE hinder og
+// omveien er svaret — ikke en bro ruteren dikter opp.
+//
+// Utvalget er målt, ikke gjettet (Strykenåsen/Konnerud, 131 hull-kandidater):
+//  • 502 Hovedvei (15 kryssinger) og 501 Motorvei: finnes det en kryssing i
+//    virkeligheten, er den kartlagt — da trenger vi ingen oppdiktet.
+//  • 515 Jernbane (2): samme argument, sterkere.
+//  • 521 Bygning (2): du går ikke gjennom et hus.
+//  • 301/302/303/307 vann-flater og 304 Bekk: elv og innsjø stopper deg.
+//  • 203 Stupkant — upassérbar: fanger stup DEM-en på 10 m glatter bort.
+//
+// Med VILJE utenfor:
+//  • 522 Tett bebyggelse er AREAL-dekke, ikke et hinder — stier går gjennom
+//    boligfelt hele tiden. Å ta den ville avvist 32 av 131 hull på feil
+//    grunnlag; 521 Bygning er det ekte hinderet.
+//  • 525 Gjerde (15 kryssinger) krysses i praksis ved grinder og klyv, og
+//    Lende har 526 Bom som egen passérbar barriere.
+//  • 305 Liten bekk stepper du over.
+//  • 520 Naturreservat er en juridisk grense, ikke terreng.
+export const BARRIER_CODES = Object.freeze({
+  501: 'motorvei',
+  502: 'hovedvei',
+  515: 'jernbane',
+  521: 'bygning',
+  301: 'innsjø',
+  302: 'tjern',
+  303: 'sjø',
+  307: 'sjø',
+  304: 'bekk',
+  203: 'upassérbart stup',
+})
+
+/**
+ * Krysser linjestykket p1→p2 linjestykket p3→p4?
+ *
+ * Berøring i et endepunkt teller SOM kryssing. Det er valgt med vilje: brukt av
+ * barriere-sjekken er tvilen alltid i hinderets favør — ligger jernbanen akkurat
+ * i enden av hullet, skal vi ikke bro over den. Ren-parallelle segmenter (ingen
+ * felles punkt) krysser ikke.
+ */
+export function segmentsCross(p1, p2, p3, p4) {
+  const side = (a, b, c) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+  const d1 = side(p3, p4, p1), d2 = side(p3, p4, p2)
+  const d3 = side(p1, p2, p3), d4 = side(p1, p2, p4)
+  return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0))
+}
 
 // Sentinel-lengde for `lengthNoMw`-vekten: motorvei-kanter får denne i stedet
 // for ekte lengde, så en ren-lengde-Dijkstra unngår dem (større enn noen ekte
@@ -174,8 +224,9 @@ function pathUsesCode(g, nodeIds, code) {
  * @param {Array} features
  * @param {{ snapM?: number, projectFn?: Function, bridgeM?: number,
  *          gapBridgeM?: number, componentBridgeM?: number,
- *          gapMaxSlopePct?: number, gapSlopeMinM?: number,
- *          elevationAt?: (x:number,y:number)=>number }} opts
+ *          gapMaxSlopePct?: number, gapObstacleMinM?: number,
+ *          elevationAt?: (x:number,y:number)=>number,
+ *          barriers?: Array<{coordinates: Array<[number,number]>, isomCode: string}> }} opts
  * @returns {RoutingGraph}
  */
 export function buildRoutingGraph(features, opts = {}) {
@@ -276,11 +327,19 @@ export function buildRoutingGraph(features, opts = {}) {
   // OG når terrenget over hullet er slakt nok å krysse: `elevationAt` +
   // gapMaxSlopePct gjør stup til et ekte hinder i stedet for noe ruteren
   // dikter seg forbi. Uten DEM (WCS blokkert av CORS) faller regelen bort og
-  // vi ruter som før. Default av (0) — Stifinner, MCP og chatten slår den på.
+  // vi ruter som før.
+  //
+  // OG når streken ikke krysser en barriere: `barriers` (BARRIER_CODES) stopper
+  // broer over hovedvei, jernbane, bygning, vann og upassérbart stup. Terreng-
+  // regelen og barriere-regelen fanger ulike ting — en jernbane i flatt lende er
+  // 0 % bratt, og et stup DEM-en glatter bort er tegnet som 203.
+  //
+  // Default av (0) — Stifinner, MCP og chatten slår den på.
   const gapBridgeM = opts.gapBridgeM ?? 0
   const gapMaxSlopePct = opts.gapMaxSlopePct ?? 0
-  const gapSlopeMinM = opts.gapSlopeMinM ?? 8
+  const gapObstacleMinM = opts.gapObstacleMinM ?? 8
   const elevationAt = opts.elevationAt
+  const barrierIndex = buildBarrierIndex(opts.barriers)
   if (gapBridgeM > 0) bridgeGaps(gapBridgeM)
 
   // Merk hver node med sin sammenhengende komponent (DFS).
@@ -498,21 +557,68 @@ export function buildRoutingGraph(features, opts = {}) {
       const limit = Math.max(best.gap * GAP_DETOUR_FACTOR, GAP_DETOUR_MIN_M)
       const omvei = distanceWithin(k.d.id, new Set([best.seg.s, best.seg.t]), limit)
       if (omvei <= limit) continue                 // stien svinger bare — ingen snarvei
-      if (forBratt(k.d.pos, best.proj.point, best.gap)) continue
+      if (hinderIVeien(k.d.pos, best.proj.point, best.gap)) continue
       bridgeGapToSegment(k.d, best.seg, best.proj, segIndex)
     }
   }
 
-  // Er terrenget over hullet for bratt å krysse? Regelen gjelder bare hull som
-  // er store nok til at kryssingen er en ekte beslutning: under gapSlopeMinM er
-  // hullet forenklings-støy, ikke en traversering, og en sti som ender to meter
-  // fra en annen i en 60 %-li skal fortsatt kobles. Mangler DEM (eller har
-  // noData i strekket) er svaret nei — vi ruter som før.
-  function forBratt(a, b, gap) {
-    if (!(gapMaxSlopePct > 0) || typeof elevationAt !== 'function') return false
-    if (gap < gapSlopeMinM) return false
-    const pct = gapSlopePct(elevationAt, a, b)
-    return pct !== null && pct > gapMaxSlopePct
+  // rbush over barriere-segmentene, med koden på hver så vi kan SI hva som
+  // stoppet broen. Tom (null) når kallstedet ikke sender barrierer — da
+  // oppfører hull-broen seg som før.
+  function buildBarrierIndex(barrierer) {
+    if (!Array.isArray(barrierer) || !barrierer.length) return null
+    const segs = []
+    for (const f of barrierer) {
+      const kode = String(f?.isomCode ?? '')
+      const navn = BARRIER_CODES[kode]
+      if (!navn) continue
+      const c = f.coordinates
+      if (!Array.isArray(c) || c.length < 2) continue
+      for (let i = 0; i + 1 < c.length; i++) {
+        const a = c[i], b = c[i + 1]
+        segs.push({
+          a, b, navn,
+          minX: Math.min(a[0], b[0]), minY: Math.min(a[1], b[1]),
+          maxX: Math.max(a[0], b[0]), maxY: Math.max(a[1], b[1]),
+        })
+      }
+    }
+    if (!segs.length) return null
+    const index = new RBush()
+    index.load(segs)
+    return index
+  }
+
+  // Hvilken barriere krysser forbindelses-streken a→b? null = ingen.
+  function barrierCrossed(a, b) {
+    if (!barrierIndex) return null
+    const hits = barrierIndex.search({
+      minX: Math.min(a[0], b[0]), minY: Math.min(a[1], b[1]),
+      maxX: Math.max(a[0], b[0]), maxY: Math.max(a[1], b[1]),
+    })
+    for (const s of hits) if (segmentsCross(a, b, s.a, s.b)) return s.navn
+    return null
+  }
+
+  // Står det et ekte hinder i hullet — for bratt terreng, eller en barriere
+  // streken må krysse?
+  //
+  // Begge reglene gjelder bare hull som er STORE nok til at kryssingen er en
+  // ekte beslutning. Under gapObstacleMinM er hullet forenklings-støy, ikke en
+  // traversering: en sti som ender to meter fra en annen i en 60 %-li skal
+  // fortsatt kobles, og et hull på 0,1 m som geometrisk «krysser» en vei fordi
+  // veilinja tilfeldigvis går imellom er ingen veikryssing (målt på
+  // Strykenåsen-kartet — det var en ekte falsk positiv).
+  //
+  // Mangler DEM faller terreng-regelen bort; sendes ingen barrierer faller
+  // barriere-regelen bort. Da ruter vi som før.
+  function hinderIVeien(a, b, gap) {
+    if (gap < gapObstacleMinM) return false
+    if (gapMaxSlopePct > 0 && typeof elevationAt === 'function') {
+      const pct = gapSlopePct(elevationAt, a, b)
+      if (pct !== null && pct > gapMaxSlopePct) return true
+    }
+    return barrierCrossed(a, b) !== null
   }
 
   // Som bridgeToSegment, men selve forbindelsen legges som 'bridge': den er en
@@ -613,6 +719,9 @@ export function buildRoutingGraph(features, opts = {}) {
 
   return {
     graph: g, nodeAt, nearestNode, route, distanceWithin,
+    // Hvilken barriere krysser en tenkt strek a→b? Stinett-diagnosen bruker den
+    // til å SI hva som stoppet broen, i stedet for å gjette.
+    barrierCrossed,
     edges: g.size, nodes: g.order,
   }
 }
