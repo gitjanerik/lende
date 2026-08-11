@@ -39,9 +39,15 @@ const BASE = EGEN_URL || `http://localhost:${PREVIEW_PORT}/lende`
 // i repoet, så MONTERINGEN er offline; DEM, kulturminner og vannmålestasjoner
 // hentes live og har graceful fallback. Å feile på dem ville gjort røyktesten
 // avhengig av at Kartverket er oppe.
-// `navigator.vibrate` blokkeres av Chromium til brukeren har tappet i ramma —
-// en nettleser-policy, ikke en app-feil.
-const STØY = /ERR_|Failed to load resource|Failed to fetch|net::|NetworkError|429|503|navigator\.vibrate/i
+// To ting til som er miljø, ikke app:
+//   • `navigator.vibrate` blokkeres av Chromium til brukeren har tappet i ramma.
+//   • CORS: proxy-Workeren slipper bare gjennom `https://gitjanerik.github.io`,
+//     så et kall fra localhost avvises PER DESIGN. Merk hva dette betyr: en ekte
+//     CORS-regresjon på produksjons-origin vil røyktesten IKKE se.
+const STØY = new RegExp([
+  'ERR_', 'Failed to load resource', 'Failed to fetch', 'net::', 'NetworkError',
+  '429', '503', 'navigator\\.vibrate', 'blocked by CORS policy',
+].join('|'), 'i')
 
 // ---- sjekkene -------------------------------------------------------------
 // Hver sjekk: { navn, domene, kjør(page) → string (hva som ble observert) }.

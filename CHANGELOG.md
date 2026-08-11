@@ -17,6 +17,13 @@ MapView, composable-ene eller komponentene. Under arbeidet fanget røyktesten
 også seg selv: første versjon gjenbrukte en eksisterende `dist/` og rapporterte
 altså på kode som ikke lenger sto i `src` — den bygger alltid nå.
 
+Første kjøring i CI fant med en gang en ekte feil ingen hadde sett: det sporede
+demo-kartet `public/maps/vardasen.svg` er bygget FØR v2.4.17 og har fortsatt
+`points="1.25mm,…"` i Blokkmark-mønsteret. `points` tar ikke enheter, så
+nettleseren forkastet attributtet og ISOM 210 var et tomt mønster i demo-kartet
+(det ekte kartet bygges av CI ved deploy og er upåvirket). Mønsteret er nå
+konvertert til bruker-enheter i den sporede fila.
+
 ---
 
 ## 2026-08-11 — v5.8.0: Fem domener ut av MapView
