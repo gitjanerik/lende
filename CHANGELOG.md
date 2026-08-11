@@ -1,5 +1,29 @@
 # Endringslogg
 
+## 2026-08-11 — v5.10.0: Kart-knottene ut av MapView
+
+341 linjer flyttet til `useKartKnotter.js`: strek- og relieff-knottene,
+tekst-skala, font-bytte, sti-farger og FAB-panelene som finjusterer dem. MapView
+er 3 673 linjer. Tre lag som lett forveksles bor nå i samme fil med forskjellen
+skrevet ned: knotten er global og persistert, panelet er per kart, og temaet kan
+slå relieffet av uten å lagre noe (`reliefAutoOff`) fordi monokrom-temaene mister
+uttrykket sitt av en gråtone-gradient. Per-kart-bindingen ble samlet i én
+`bindKartId(id)` — tidligere tre separate kall der det var mulig å glemme det
+tredje ved neste kartbytte.
+
+Estimatet mitt for denne blokka var 518 linjer og «ett domene». Ved gjennomlesing
+var det fire: knottene, standarder for nye kart, maks-fliser og navnespråk lå
+flettet i hverandre. De tre siste ble stående — et uttrekk skal følge en søm, ikke
+et linjetall.
+
+Røyktesten fant to ting underveis. Skuffens ✕-knapp hadde verken tekst eller
+`aria-label` (nå rettet — den var usynlig for skjermlesere). Og FAB-knottene
+styres av `pointerdown`/`pointerup` via useLongPress, ikke `@click`, så et
+programmatisk klikk gjør bokstavelig talt ingenting på dem — verdt å vite neste
+gang noe skal testes eller automatiseres der.
+
+---
+
 ## 2026-08-11 — v5.9.0: Navn-LOD og viewport-culling ut av MapView
 
 Første uttrekk med sikkerhetsnettet under seg, og det merkes: 328 linjer flyttet

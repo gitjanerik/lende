@@ -116,16 +116,20 @@ FØRST og spør om varianten egentlig er en OPSJON på originalen.**
 
 Kjent gjeld, oppdatert etter hver leveranse som rører den:
 
-- **`MapView.vue` er ~3 975 linjer** og er fortsatt appens største risiko: alt
+- **`MapView.vue` er ~3 673 linjer** og er fortsatt appens største risiko: alt
   møtes der, og Claude ser bare utsnitt av den om gangen. Fem domener ble
   trukket ut i v5.8.0 — `use3dEntry.js` (3D-inngangen), `useKartDeling.js`
   (utgående deling), `useDeltTur.js` (innkommende tur-lenke),
   `useLagStyring.js` (lag/presets/dybde), `useGpsSpor.js` (GPS, opptak,
   høydeprofil), og to i v5.9.0 — `useNavnLod.js` (navne-declutter) og
-  `useViewportCull.js` (skjul vektorer utenfor utsnittet). Neste kandidater, i
-  rekkefølge etter gevinst/risiko: FAB-knottene (~520 linjer),
-  kontekstmeny/PUNKT-arket (~510), søk+panTo (~220), pan/zoom-gest (~180),
-  og til slutt halene (eksport, tema+diagnose, måling, GPS-tips).
+  `useViewportCull.js` (skjul vektorer utenfor utsnittet), og `useKartKnotter.js`
+  i v5.10.0 (strek/relieff/tekst-skala/font + FAB-panelene). Neste kandidater, i
+  rekkefølge etter gevinst/risiko: kontekstmeny/PUNKT-arket (~510 linjer),
+  søk+panTo (~220), pan/zoom-gest (~180), og halene (eksport, tema+diagnose,
+  måling, GPS-tips, ~420). **Merk fra v5.10.0:** linjetallene her er anslag fra
+  utsiden. FAB-blokka var anslått til 518 linjer og «ett domene», men inneholdt
+  fire — knottene, standarder for nye kart, maks-fliser og navnespråk. Les
+  blokka før du stoler på tallet, og følg sømmen framfor tallet.
   Rører du et domene som allerede er ute: gjør endringen i composable-en, ikke
   i MapView.
 - **Uttrekk fra MapView har to obligatoriske gater (v5.8.1).** Tre
@@ -141,6 +145,10 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   per nytt uttrekk** (`SJEKKER`-lista i `scripts/royk-mapview.mjs`) — en sjekk
   skal TRYKKE på noe, ikke bare lete etter markup. CI:
   `.github/workflows/royktest.yml`.
+  **FAB-ene tåler ikke programmatiske klikk:** FabCluster (ankeret og knottene)
+  er drevet av `pointerdown`/`pointerup` via useLongPress, så `el.click()` fra
+  `page.evaluate` gjør ingenting. Bruk Playwright-locator (ekte peker-sekvens),
+  eller `page.mouse.down()` + ventetid + `up()` for lang-trykk.
 - **TDZ-regelen:** sender du en verdi inn i en composable som deklareres lenger
   ned i fila, send en getter (`() => x`) — ikke verdien. To av de tre feilene
   over var dette. Må kallet stå etter en annen composable, skriv HVORFOR på

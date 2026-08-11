@@ -169,6 +169,55 @@ const SJEKKER = [
     },
   },
   {
+    navn: 'strek-knotten endrer --stroke-scale',
+    domene: 'useKartKnotter',
+    async kjør(page) {
+      await lukkDrawer(page)
+      const les = () => page.evaluate(() =>
+        document.querySelector('svg.isom-map')?.style.getPropertyValue('--stroke-scale') || '')
+      const før = await les()
+      // FAB-ene styres av pointerdown/pointerup (useLongPress), ikke @click — et
+      // el.click() fra evaluate() gjør INGENTING her. Playwright-locator sender
+      // en ekte peker-sekvens, så den må brukes for alt i FabCluster.
+      await page.locator('[aria-label*="vis kartknappene"]').click()
+      await page.waitForTimeout(700)
+      await page.locator('[aria-label^="Strektykkelse"]').click()
+      await page.waitForTimeout(800)
+      const etter = await les()
+      if (!etter || etter === før) {
+        throw new Error(`--stroke-scale endret seg ikke ("${før}" → "${etter}")`)
+      }
+      // Hint-boblen er knottens egen tilbakemelding — den beviser at watchen kjørte
+      // (og ikke bare at en computed ble lest).
+      const hint = await page.evaluate(() => /Strek [\d.]+×/.test(document.body.innerText))
+      if (!hint) throw new Error('ingen hint-boble etter knott-tapp — kjørte watchen?')
+      return `--stroke-scale ${Number(før).toFixed(3)} → ${Number(etter).toFixed(3)}, hint vist`
+    },
+  },
+  {
+    navn: 'hold på knotten åpner FAB-panelet',
+    domene: 'useKartKnotter',
+    async kjør(page) {
+      // Lang-trykk (600 ms) = åpne panelet. Panelet er per-kart-finjusteringen,
+      // og «Angi som standard»/«Nullstill» bor der.
+      const knott = page.locator('[aria-label^="Strektykkelse"]')
+      const boks = await knott.boundingBox()
+      await page.mouse.move(boks.x + boks.width / 2, boks.y + boks.height / 2)
+      await page.mouse.down()
+      await page.waitForTimeout(900)
+      await page.mouse.up()
+      await page.waitForTimeout(600)
+      const åpent = await page.evaluate(() =>
+        !!document.querySelector('[aria-label="Lukk panel"]'))
+      if (!åpent) throw new Error('FAB-panelet åpnet ikke på lang-trykk')
+      const harNullstill = await page.evaluate(() =>
+        [...document.querySelectorAll('button')].some((b) => b.offsetParent && /Nullstill/i.test(b.innerText)))
+      await page.locator('[aria-label="Lukk panel"]').click()
+      await page.waitForTimeout(400)
+      return `panel åpnet${harNullstill ? ' med Nullstill' : ' (fant ingen Nullstill)'}`
+    },
+  },
+  {
     navn: '3D-visningen åpner',
     domene: 'use3dEntry',
     async kjør(page) {
@@ -226,17 +275,25 @@ async function zoomInn(page, tikk) {
 }
 
 async function åpneDrawer(page) {
-  const åpen = await page.evaluate(() =>
-    [...document.querySelectorAll('button')].some((b) => b.offsetParent && /^KARTLAG$/.test(b.innerText.trim())))
-  if (!åpen) await klikkTekst(page, /Innstillinger/)
+  if (!(await erDrawerÅpen(page))) await klikkTekst(page, /^Innstillinger$/)
   await page.waitForTimeout(400)
 }
 
 async function lukkDrawer(page) {
-  const åpen = await page.evaluate(() =>
+  // Escape først (skuffen lytter på den), så ✕-knappen i hodet som reserve. Å
+  // trykke «Innstillinger» på nytt virket ikke: den treffer også fane-raden, og
+  // sjekken etterpå kjørte med skuffen fortsatt over FAB-ene.
+  for (let i = 0; i < 3; i++) {
+    if (!(await erDrawerÅpen(page))) return
+    await klikkTekst(page, /^Lukk innstillinger$/)
+    await page.waitForTimeout(350)
+  }
+  if (await erDrawerÅpen(page)) throw new Error('fikk ikke lukket innstillings-skuffen')
+}
+
+function erDrawerÅpen(page) {
+  return page.evaluate(() =>
     [...document.querySelectorAll('button')].some((b) => b.offsetParent && /^KARTLAG$/.test(b.innerText.trim())))
-  if (åpen) await klikkTekst(page, /Innstillinger/)
-  await page.waitForTimeout(400)
 }
 
 function ventPå(url, maksMs = 60_000) {
