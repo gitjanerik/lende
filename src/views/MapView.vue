@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { usePinchZoom } from '../composables/usePinchZoom.js'
 import { useUserPosition } from '../composables/useUserPosition.js'
-import { useProximityAlert, getPersistedAlert } from '../composables/useProximityAlert.js'
+import { useProximityAlert } from '../composables/useProximityAlert.js'
 import { useCompass } from '../composables/useCompass.js'
 import { useDraggableDrawer } from '../composables/useDraggableDrawer.js'
 import { useFloatAboveSheets } from '../composables/useFloatAboveSheets.js'
@@ -34,6 +34,8 @@ import { useLagStyring } from '../composables/useLagStyring.js'
 import { useNavnLod } from '../composables/useNavnLod.js'
 import { useViewportCull } from '../composables/useViewportCull.js'
 import { useKartKnotter, loadKnobStep } from '../composables/useKartKnotter.js'
+import { useMaaling } from '../composables/useMaaling.js'
+import { useNaerhetsvarsel } from '../composables/useNaerhetsvarsel.js'
 import { useGpsSpor } from '../composables/useGpsSpor.js'
 import { useSymbolRenderers } from '../composables/useSymbolRenderers.js'
 import { useContextLookups } from '../composables/useContextLookups.js'
@@ -1490,12 +1492,20 @@ const { maybeRestoreRoundTripFromQuery } = useDeltTur({
   sti, findByName, gjenskapTur,
 })
 
-// Måleverktøy — distanse + areal (v8.9.4). Aktiveres via knapp i drawer.
-// Tap-på-kart i denne modusen plasserer vertices. Lukket polygon viser
-// både omkrets og areal (hektar / km²).
-const measureMode = ref(false)
-const measureVertices = ref([])
-const measureClosed = ref(false)
+// Måleverktøyet (distanse + areal) bor i useMaaling.js. Opprettes FØR
+// useSymbolRenderers, som trenger vertices-refene; renderMeasure/renderRoutes
+// kommer tilbake som late tilbakekall.
+const {
+  measureMode, measureVertices, measureClosed, measureStats,
+  startMeasure, stopMeasure, clearMeasure, closeMeasure, undoMeasureVertex,
+} = useMaaling({
+  scale, annot, sti,
+  hooks: {
+    renderMeasure: () => renderMeasure(),
+    renderRoutes: () => renderRoutes(),
+  },
+})
+
 
 // Symbol-/overlay-rendererne — flyttet til useSymbolRenderers; watchene
 // som kaller dem blir her.
@@ -1510,8 +1520,6 @@ const {
   sti, onSelectRoute, annot, tracker, userPos, compass,
 })
 
-watch([measureVertices, measureClosed, scale], () => renderMeasure(), { deep: true })
-
 // DEM-en kan komme ETTER at Stifinneren har regnet ut ruta (ensureDem er et
 // nettverkskall). Da må grafen bygges på nytt med terreng-regelen og ruta
 // reberegnes — ellers viser vi en rute som krysser et stup fordi høydedataene
@@ -1521,57 +1529,6 @@ watch(storedDem, (dem) => {
   sti.recompute()
   renderRoutes()
 })
-function startMeasure() {
-  measureMode.value = true
-  measureVertices.value = []
-  measureClosed.value = false
-  // Sørg for at annoterings-/stifinner-modus ikke konkurrerer om tap-eventet.
-  // Rute i bruk (following) beholdes — måling skal kunne sameksistere med den.
-  annot.selectedSymbol.value = null
-  annot.isAnnotateMode.value = false
-  if (sti.blocking.value) { sti.cancel(); renderRoutes() }
-}
-function stopMeasure() {
-  measureMode.value = false
-  measureVertices.value = []
-  measureClosed.value = false
-}
-function clearMeasure() {
-  measureVertices.value = []
-  measureClosed.value = false
-}
-function closeMeasure() {
-  if (measureVertices.value.length >= 3) measureClosed.value = true
-}
-function undoMeasureVertex() {
-  if (measureClosed.value) { measureClosed.value = false; return }
-  if (measureVertices.value.length === 0) return
-  measureVertices.value = measureVertices.value.slice(0, -1)
-}
-
-// Distance og areal-stats utledes via computed slik at de re-evaluerer
-// automatisk når vertices endres
-const measureStats = computed(() => {
-  const v = measureVertices.value
-  if (v.length < 2) return { distM: 0, areaM2: 0 }
-  let distM = 0
-  for (let i = 1; i < v.length; i++) {
-    distM += Math.hypot(v[i].x - v[i - 1].x, v[i].y - v[i - 1].y)
-  }
-  // Lukket polygon: shoelace + closing-edge i distance
-  let areaM2 = 0
-  if (measureClosed.value && v.length >= 3) {
-    distM += Math.hypot(v[0].x - v[v.length - 1].x, v[0].y - v[v.length - 1].y)
-    let sum = 0
-    for (let i = 0; i < v.length; i++) {
-      const a = v[i], b = v[(i + 1) % v.length]
-      sum += a.x * b.y - b.x * a.y
-    }
-    areaM2 = Math.abs(sum) / 2
-  }
-  return { distM, areaM2 }
-})
-
 // Mosaikk + manuell utvidelse — flyttet til useMapExtend; watchene blir her.
 const {
   buildingOnTheFly, buildingProgress, autoMapToast, currentMapIsAuto,
@@ -1725,72 +1682,16 @@ const nasjonalparkerVist = computed(() => {
 })
 
 
-// ── Nærhetsvarsel (proximity alert) ──────────────────────────────────────
-// Inline config-panel i kontekst-draweren. Lokal redigerings-state speiler
-// proximity.prefs (sist brukte valg) til brukeren bekrefter med «Aktiver».
-const proximityCfg = ref({ distanceM: 10, sound: true, vibration: true })
-
-function toggleProximityPanel() {
-  if (!proximityPanelOpen.value) {
-    proximityCfg.value = {
-      distanceM: proximity.prefs.distanceM,
-      sound: proximity.prefs.sound,
-      vibration: proximity.prefs.vibration,
-    }
-  }
-  proximityPanelOpen.value = !proximityPanelOpen.value
-}
-
-function armProximityAlert() {
-  const p = contextMenuPoint.value
-  if (!p) return
-  const cfg = proximityCfg.value
-  // Minst én varseltype må være på.
-  if (!cfg.sound && !cfg.vibration) cfg.vibration = true
-  proximity.arm({
-    svgX: p.svgX,
-    svgY: p.svgY,
-    lat: contextMenuInfo.value?.lat,
-    lon: contextMenuInfo.value?.lon,
-    label: contextMenuInfo.value?.place?.name ?? 'punktet',
-    distanceM: cfg.distanceM,
-    useSound: cfg.sound,
-    useVibration: cfg.vibration,
-    mapId: mapId.value,
-  })
-  proximityPanelOpen.value = false
-  closeContextMenu()
-}
-
-// Avstand fra brukeren til long-press-punktet (for 2 km-gaten i config-panelet).
-// 2 km ≈ 20–25 min gange; lengre unna er sjansen stor for at nettleseren/GPS
-// rekker å lukke seg før ankomst (en time på 5 km), så alarmen ville ikke fyrt.
-const MAX_ARM_DISTANCE_M = 2000
-const ctxDistFromUser = computed(() => contextMenuInfo.value?.fromUser?.distM ?? null)
-const ctxTooFarToArm = computed(() =>
-  ctxDistFromUser.value != null && ctxDistFromUser.value > MAX_ARM_DISTANCE_M)
-
-// Gjenopprett et persistert varsel etter reload: re-projiser lat/lon mot
-// gjeldende kart-meta og re-arm, men kun hvis varselet hører til DETTE kartet.
-// Starter GPS automatisk så alarmen fungerer videre (krever allerede gitt
-// tillatelse — ingen ny prompt hvis avvist).
-function restoreProximityAlert() {
-  if (proximity.active.value) return            // allerede aktivt i denne økten
-  const d = getPersistedAlert()
-  if (!d || !meta.value) return
-  if (d.mapId !== mapId.value) return           // hører til et annet kart
-  const { x, y } = wgs84ToSvg(d.lat, d.lon, meta.value)
-  proximity.arm({
-    svgX: x, svgY: y,
-    lat: d.lat, lon: d.lon,
-    label: d.label,
-    distanceM: d.distanceM,
-    useSound: d.useSound,
-    useVibration: d.useVibration,
-    mapId: d.mapId,
-  })
-  if (!userPos.isWatching) startPositioning()
-}
+// Nærhetsvarsel («si fra når jeg er 10 m fra dette punktet») — inngangen fra
+// PUNKT-arket bor i useNaerhetsvarsel.js; selve alarmen i useProximityAlert.
+const {
+  proximityCfg, toggleProximityPanel, armProximityAlert,
+  ctxDistFromUser, ctxTooFarToArm, restoreProximityAlert,
+} = useNaerhetsvarsel({
+  meta, mapId, userPos, proximity,
+  contextMenuPoint, contextMenuInfo, proximityPanelOpen, closeContextMenu,
+  startPositioning: () => startPositioning(),
+})
 
 // gmapsUrl/streetViewUrl bor i lib/externalMapLinks.js (v12.1.17 — delt med
 // Ruteplanleggerens long-press-pin).
@@ -2653,8 +2554,6 @@ const screenWake = useScreenWakeLock()
 // aktivt (uten idle-slipp), uavhengig av brukerens generelle «hold skjerm
 // våken»-setting. GPS-loopen som oppdager ankomst kjører i siden, så skjermen
 // må være våken for at varselet skal kunne fyre.
-const alarmWake = useScreenWakeLock({ persist: false, idleTimeoutMs: 0 })
-watch(() => !!proximity.active.value, (on) => alarmWake.setEnabled(on))
 
 // Lås dokument-scroll mens kartet er åpent. Roten er h-[100dvh]
 // overflow-hidden, men på mobil kan body likevel få en scroll-offset:

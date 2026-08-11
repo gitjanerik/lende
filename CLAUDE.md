@@ -116,17 +116,17 @@ FØRST og spør om varianten egentlig er en OPSJON på originalen.**
 
 Kjent gjeld, oppdatert etter hver leveranse som rører den:
 
-- **`MapView.vue` er ~3 673 linjer** og er fortsatt appens største risiko: alt
+- **`MapView.vue` er ~3 573 linjer** og er fortsatt appens største risiko: alt
   møtes der, og Claude ser bare utsnitt av den om gangen. Fem domener ble
   trukket ut i v5.8.0 — `use3dEntry.js` (3D-inngangen), `useKartDeling.js`
   (utgående deling), `useDeltTur.js` (innkommende tur-lenke),
   `useLagStyring.js` (lag/presets/dybde), `useGpsSpor.js` (GPS, opptak,
   høydeprofil), og to i v5.9.0 — `useNavnLod.js` (navne-declutter) og
   `useViewportCull.js` (skjul vektorer utenfor utsnittet), og `useKartKnotter.js`
-  i v5.10.0 (strek/relieff/tekst-skala/font + FAB-panelene). Neste kandidater, i
-  rekkefølge etter gevinst/risiko: kontekstmeny/PUNKT-arket (~510 linjer),
-  søk+panTo (~220), pan/zoom-gest (~180), og halene (eksport, tema+diagnose,
-  måling, GPS-tips, ~420). **Merk fra v5.10.0:** linjetallene her er anslag fra
+  i v5.10.0 (strek/relieff/tekst-skala/font + FAB-panelene), og i v5.11.0
+  `useNaerhetsvarsel.js` + `useMaaling.js`. Neste kandidater: eksport (~90
+  linjer), tema+diagnose (~95), GPS-tips/toasts (~60), søk+panTo (~220),
+  pan/zoom-gest (~180). **Merk fra v5.10.0:** linjetallene her er anslag fra
   utsiden. FAB-blokka var anslått til 518 linjer og «ett domene», men inneholdt
   fire — knottene, standarder for nye kart, maks-fliser og navnespråk. Les
   blokka før du stoler på tallet, og følg sømmen framfor tallet.
@@ -143,7 +143,9 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   Villede slettinger kvitteres ut med `npm run navnediff -- --ok navn1,navn2`
   i PR-en som gjør dem, aldri ved å skru av jobben. **Legg til én røyk-sjekk
   per nytt uttrekk** (`SJEKKER`-lista i `scripts/royk-mapview.mjs`) — en sjekk
-  skal TRYKKE på noe, ikke bare lete etter markup. CI:
+  skal TRYKKE på noe, ikke bare lete etter markup, og den skal FORLATE APPEN I
+  NØYTRAL TILSTAND (måle-modus bytter ut fane-raden, og neste sjekk fant ikke
+  3D-knappen). CI:
   `.github/workflows/royktest.yml`.
   **FAB-ene tåler ikke programmatiske klikk:** FabCluster (ankeret og knottene)
   er drevet av `pointerdown`/`pointerup` via useLongPress, så `el.click()` fra

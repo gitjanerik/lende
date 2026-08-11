@@ -1,5 +1,20 @@
 # Endringslogg
 
+## 2026-08-12 — v5.11.0: Nærhetsvarsel og måleverktøy ut av MapView
+
+To små, rene uttrekk: `useNaerhetsvarsel.js` (inngangen fra PUNKT-arket —
+config-panel, arming, gjenoppretting etter reload, skjermlåsen som holder
+alarmen i live) og `useMaaling.js` (distanse langs linje, areal av lukket
+polygon). MapView er 3 573 linjer. Måleverktøyet måtte opprettes FØR
+useSymbolRenderers, som trenger vertices-refene — `renderMeasure` kommer
+tilbake som tilbakekall.
+
+Denne runden ga også en regel til røyktesten: **en sjekk skal forlate appen i
+nøytral tilstand.** Måle-sjekken lot appen stå i måle-modus, som bytter ut
+fane-raden, og neste sjekk fant ikke 3D-knappen. Nå avslutter den målingen selv.
+
+---
+
 ## 2026-08-11 — v5.10.0: Kart-knottene ut av MapView
 
 341 linjer flyttet til `useKartKnotter.js`: strek- og relieff-knottene,
