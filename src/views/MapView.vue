@@ -3265,9 +3265,10 @@ const explore3dData = shallowRef(null)
 async function prepareExplore3dData() {
   const svgEl = svgHostRef.value?.querySelector('svg')
   if (!svgEl || !meta.value) return null
-  const [{ stinettFeaturesFromSvgEl, fjernIsolerteStumper }, { collectBrukerminnePins }] = await Promise.all([
+  const [{ stinettFeaturesFromSvgEl, fjernIsolerteStumper }, { collectBrukerminnePins }, { BARRIER_CODES }] = await Promise.all([
     import('../lib/stinettAnalyse.js'),
     import('../lib/tour3d/exploreData.js'),
+    import('../lib/routing.js'),
   ])
   return {
     meta: { ...meta.value },
@@ -3281,6 +3282,11 @@ async function prepareExplore3dData() {
       stinettFeaturesFromSvgEl(svgEl, null, { hoppOverSkjulte: true }),
       { minKomponentM: 500 },
     ),
+    // Hindre-geometri (vann, hovedvei, jernbane, bygning, stup) — det
+    // sti-vandringen i 3D trenger for å vite hvor et brudd i stinettet er et
+    // ekte hinder og ikke bare et hull i kartdataene. Samme kodesett som
+    // Stifinneren og chatten bruker.
+    barrierFeatures: stinettFeaturesFromSvgEl(svgEl, new Set(Object.keys(BARRIER_CODES))),
     brukerminner: collectBrukerminnePins(svgEl),
   }
 }
@@ -4812,6 +4818,7 @@ onUnmounted(() => {
                :meta="explore3dData.meta"
                :search-index="searchIndex"
                :path-features="explore3dData.pathFeatures"
+               :barrier-features="explore3dData.barrierFeatures"
                :brukerminner="explore3dData.brukerminner"
                :get-svg-text="(opts) => mapSvgMarkupForExport({ colophon: false, theme: opts?.dark ? 'dark' : null })"
                :is-dark="isDark"

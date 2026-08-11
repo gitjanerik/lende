@@ -20,6 +20,9 @@ const props = defineProps({
   searchIndex: { type: Array, default: () => [] },
   // Sti-/veg-geometri lest ut av kart-SVG-en av forelderen (som eier DOM-en).
   pathFeatures: { type: Array, default: () => [] },
+  // Hindre-geometri (vann, hovedvei, jernbane, bygning, stup) — sti-vandringen
+  // hopper ikke over et brudd i stinettet når et av disse ligger imellom.
+  barrierFeatures: { type: Array, default: () => [] },
   // Brukerminner bakt inn i SVG-en — offline-tilgjengelige.
   brukerminner: { type: Array, default: () => [] },
   getSvgText: { type: Function, required: true },
@@ -37,13 +40,14 @@ const TIME_SCALES = [64, 128, 256]
 const INFO_KNAPPER = [
   { navn: 'Nåler', tekst: 'viser interessepunkter. Filteret ved siden av velger hvilke.' },
   { navn: 'Sol/måne', tekst: 'bytter mellom lyst og mørkt kart.' },
-  { navn: 'Sti', tekst: 'tegner stinettet oppå terrenget.' },
+  { navn: 'Sti', tekst: 'tegner stinettet oppå terrenget — og må være på for å kunne følge en sti.' },
   { navn: 'Kryss', tekst: 'stopper turen i hvert stikryss så du kan velge vei.' },
   { navn: 'Kurver', tekst: 'legger på høydekurver.' },
   { navn: 'Oversikt', tekst: 'tar deg tilbake til hele kartet ovenfra.' },
 ]
 const INFO_TIPS = [
-  'Trykk på en sti for å følge den.',
+  'Slå på Sti, og trykk på en sti for å følge den.',
+  'Turen fortsetter over små brudd i stinettet, og ender der stien faktisk slutter.',
   'Trykk på en knappenål for å fly dit.',
 ]
 
@@ -159,6 +163,7 @@ onMounted(async () => {
       getSvgText: props.getSvgText,
       onProgress: (m) => { buildMsg.value = m },
       pathFeatures: toRaw(props.pathFeatures) ?? [],
+      barrierFeatures: toRaw(props.barrierFeatures) ?? [],
       features: allFeatures,
     })
 
@@ -193,6 +198,8 @@ onMounted(async () => {
     engine.on('junction-pause', () => { playing.value = false; wake.stop() })
     engine.on('finished', () => { playing.value = false })
     engine.on('no-path', () => showToast('Ingen sti akkurat der'))
+    engine.on('paths-hidden', () => showToast('Slå på Sti for å følge stien'))
+    engine.setPathsVisible(pathsOn.value)
     applyKryssPause()
     applyUserPos(props.userPos)
 
@@ -244,7 +251,10 @@ onBeforeUnmount(() => {
 
 // --- toggles ---------------------------------------------------------------
 
-const pathsOn = ref(true)
+// Stinettet starter AV: førsteinntrykket skal være terrenget og kartbildet, ikke
+// et rødt nett over alt. Den som vil følge en sti slår den på — og da er det
+// også tydelig hva man trykker på.
+const pathsOn = ref(false)
 function togglePaths() {
   pathsOn.value = !pathsOn.value
   engine?.setPathsVisible(pathsOn.value)
@@ -264,7 +274,9 @@ function togglePins() {
   if (!pinsOn.value) activeFeature.value = null
 }
 
-const contoursOn = ref(false)
+// Høydekurvene starter PÅ: de leser terrenget for deg i fugleperspektiv, der
+// selve skyggeleggingen er flat på avstand.
+const contoursOn = ref(true)
 async function toggleContours() {
   contoursOn.value = !contoursOn.value
   await engine?.setContoursVisible(contoursOn.value)
@@ -473,9 +485,12 @@ function branchLabel(opt, i) {
            style="padding-bottom: max(env(safe-area-inset-bottom), 12px);">
 
         <!-- Kryss: rett fram vinner om brukeren ikke gjør noe. Med krysspause
-             på står turen stille her til man velger gren eller trykker play. -->
+             på står turen stille her til man velger gren eller trykker play.
+             `self-start w-fit` holder boksen så smal som innholdet — full bredde
+             la et grønt teppe over kartet for to korte knapper. -->
         <div v-if="walking && junction"
-             class="on-accent rounded-md bg-emerald-600 text-white text-[11px] shadow-lg px-3 py-2">
+             class="on-accent self-start w-fit max-w-full rounded-md bg-emerald-600 text-white
+                    text-[11px] shadow-lg px-3 py-2">
           <div class="text-[9px] uppercase tracking-wide text-emerald-100/90 mb-1">
             {{ !playing ? 'Kryss — velg vei, eller ▶ for rett fram' : 'Kryss — fortsetter rett fram' }}
           </div>
@@ -535,9 +550,11 @@ function branchLabel(opt, i) {
             </svg>
             Oversikt
           </button>
+          <!-- Hintet gjelder bare med stinettet synlig — med Sti av er det
+               ingen sti å trykke på, og et trykk starter ingen tur. -->
           <div v-if="hasPaths"
                class="rounded-full bg-black/40 backdrop-blur px-3 py-1.5 text-[11px] text-white/70">
-            Trykk på en sti for å følge den
+            {{ pathsOn ? 'Trykk på en sti for å følge den' : 'Slå på Sti for å følge en sti' }}
           </div>
         </div>
       </div>
