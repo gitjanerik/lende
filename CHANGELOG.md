@@ -1,5 +1,28 @@
 # Endringslogg
 
+## 2026-08-11 — v5.5.4: Stifinneren broer hull der stinettet er brutt i praksis
+
+Stifinneren fant ingen fornuftig vei til Narverudgruvene i Strykenåsen: en
+luftlinje på 676 meter ga ruteforslag på 14–18 kilometer, uansett hvor mange
+via-punkter som ble lagt inn. Årsaken lå i grafbyggingen. Stien sørover fra
+gruvene ender 12,9 meter fra hovedstien uten å møte den, og de to henger bare
+sammen via en fem og en halv kilometer lang omvei. Dangle-broen tålte den gang
+bare 12 meter, og komponent-broen holder seg med vilje unna stier som allerede
+er formelt sammenhengende — så hullet ble stående, og ruteren sendte brukeren
+rundt hele åsen. Kartet på skjermen viste tydelig at stien nesten når fram.
+
+Grafen har fått en hull-bro som kobler en stiende inntil 30 meter fra en annen
+sti, men bare når omveien i dagens graf er minst 25 ganger hullet og minst 500
+meter — altså når nettet er brutt i praksis, ikke når stien bare svinger. En
+U-formet sti får fortsatt ingen snarvei over åpningen, og en sti som går i bro
+over en annen får fortsatt ikke noe falskt kryss. Forbindelsen legges som
+«bro», så den prises som antatt kobling og teller ikke som kartlagt sti i
+stinett-analysen. Målt på et 6 km kart over Strykenåsen og Konnerud falt
+gruve-til-sti-sør fra 4965 til 598 meter og gruve-til-Langmyrdammen fra 5286
+til 1884 meter, mens ruter uten hull i seg er uendret.
+
+---
+
 ## 2026-08-10 — v5.5.3: Tekstene i 3D-raden overlever en 384 px-skjerm
 
 Terskelen fra forrige versjon var satt til 400 piksler, og en Galaxy S22+ har

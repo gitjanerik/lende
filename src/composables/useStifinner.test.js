@@ -439,3 +439,28 @@ describe('useStifinner – diagnose (på-enhet feilsøking)', () => {
     expect(sti.diag.value).toMatch(/kanter [1-9]/)
   })
 })
+
+// Narverudgruvene: hovedsti øst–vest, og en sidesti som ender 25 m fra den
+// men bare henger sammen med den via en 3 km omvei i øst.
+function gapSvg() {
+  const hovedsti = fakeEl('g', { 'data-iso': '505' }, [
+    fakeEl('path', { d: 'M0,0L2000,0' }),
+  ])
+  const sidesti = fakeEl('g', { 'data-iso': '505' }, [
+    fakeEl('path', { d: 'M1000,-25L1000,-400' }),
+    fakeEl('path', { d: 'M1000,-400L2000,-400L2000,0' }),
+  ])
+  return fakeEl('svg', {}, [hovedsti, sidesti])
+}
+
+describe('useStifinner – hull i stinettet', () => {
+  it('ruter over et 25 m hull i stedet for kilometervis omvei', () => {
+    const sti = useStifinner()
+    sti.begin({ svgX: 0, svgY: 0 })
+    sti.confirmStart({ x: 1000, y: -25 }, gapSvg(), {})
+    expect(sti.error.value).toBe('')
+    expect(sti.routes.value.length).toBeGreaterThan(0)
+    // 25 m over hullet + 1000 m vestover, ikke 3+ km rundt.
+    expect(sti.routes.value[0].lengthM).toBeLessThan(1200)
+  })
+})

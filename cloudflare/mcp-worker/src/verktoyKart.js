@@ -71,7 +71,7 @@ function tour3dUrlFor(kart, tour) {
 export function byggGraf(svg) {
   const features = routableFeaturesFromSvg(svg)
   if (!features.length) throw new Error('Kartet inneholder ingen stier eller veier å rute på.')
-  return buildRoutingGraph(features, { snapM: 6, componentBridgeM: 80 })
+  return buildRoutingGraph(features, { snapM: 6, gapBridgeM: 30, componentBridgeM: 80 })
 }
 
 export function snapPunkter(rg, meta, punkter) {

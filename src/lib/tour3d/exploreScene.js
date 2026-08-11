@@ -90,7 +90,7 @@ export async function createExploreScene(container, {
   const ensureGraph = () => {
     if (graph === null) {
       graph = pathFeatures?.length
-        ? buildRoutingGraph(pathFeatures, { snapM: 6, componentBridgeM: 80 })
+        ? buildRoutingGraph(pathFeatures, { snapM: 6, gapBridgeM: 30, componentBridgeM: 80 })
         : false
     }
     return graph || null
