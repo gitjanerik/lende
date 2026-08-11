@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick, shallowRef, markRaw } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { usePinchZoom } from '../composables/usePinchZoom.js'
 import { useUserPosition } from '../composables/useUserPosition.js'
@@ -13,7 +13,6 @@ import { useStifinner } from '../composables/useStifinner.js'
 import { useMapSearch, findByName } from '../composables/useMapSearch.js'
 import { useNominatim } from '../composables/useNominatim.js'
 import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
-import { useTrackRecorder } from '../composables/useTrackRecorder.js'
 import { useScreenWakeLock } from '../composables/useScreenWakeLock.js'
 import { useMapSizePreference, effectiveEquidistanceForWidthKm, aspectForFormat, DEFAULT_MAP_WIDTH_KM, MAP_SIZE_MIN_KM, MAP_SIZE_MAX_KM } from '../composables/useMapSizePreference.js'
 import { useLodTuning } from '../composables/useLodTuning.js'
@@ -28,21 +27,22 @@ import { useHydroStations } from '../composables/useHydroStations.js'
 import { useReliefRender } from '../composables/useReliefRender.js'
 import { useGhostTiles } from '../composables/useGhostTiles.js'
 import { useMapExtend } from '../composables/useMapExtend.js'
+import { use3dEntry } from '../composables/use3dEntry.js'
+import { useKartDeling } from '../composables/useKartDeling.js'
+import { useDeltTur } from '../composables/useDeltTur.js'
+import { useLagStyring } from '../composables/useLagStyring.js'
+import { useGpsSpor } from '../composables/useGpsSpor.js'
 import { useSymbolRenderers } from '../composables/useSymbolRenderers.js'
 import { useContextLookups } from '../composables/useContextLookups.js'
 import { useMapTheme } from '../composables/useMapTheme.js'
-import { useMapLayerControl, publiserSynligeLag } from '../composables/useMapLayerControl.js'
 import { useMapHighlight, publiserMerkeKlar } from '../composables/useMapHighlight.js'
 import { loadNasjonalparker, parksForBbox, samePark } from '../lib/nasjonalparkData.js'
 import { useMapLoadPipeline } from '../composables/useMapLoadPipeline.js'
 import { buildStrokeOverrideCss } from '../lib/strokeOverrides.js'
 import { buildTrailColorCss, normalizeHex } from '../lib/trailColors.js'
-import {
-  LAYERS, MARINE_LAYER_KEYS, DEFAULT_VISIBLE_LAYER_KEYS, LAYER_PRESETS,
-} from '../lib/mapLayerCatalog.js'
+import { DEFAULT_VISIBLE_LAYER_KEYS } from '../lib/mapLayerCatalog.js'
 import { themeVarEntries, allThemeVarNames, buildThemeCss, listThemes } from '../lib/mapSettingsApply.js'
 import { declutter, makeMinZoomOf } from '../lib/labelDeclutter.js'
-import { trackLengthM, downloadGpx } from '../lib/gpxExport.js'
 import { norwegianName } from '../lib/placeName.js'
 import AnnotationIcon from '../components/AnnotationIcon.vue'
 import TrackElevationSheet from '../components/TrackElevationSheet.vue'
@@ -84,8 +84,6 @@ import {
   needsRecull, computeCullDiff, parseBboxAttr,
 } from '../lib/viewportCull.js'
 import { svgToWgs84, wgs84ToSvg } from '../lib/utm.js'
-import { parseTourQuery, parseTourNameQuery, shareTourParams } from '../lib/tour3dLink.js'
-import { computeTourExtent, shiftPoints, shiftVia, shiftIndex, demIntoExtent } from '../lib/tour3d/tourExtent.js'
 import { utNoZoomForMPerPx, UTNO_DEFAULT_ZOOM } from '../lib/utNoLink.js'
 import { useMapContext } from '../composables/useMapContext.js'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
@@ -227,50 +225,30 @@ const BUILTIN = {
   vardasen: { navn: 'Vardåsen · turkart', file: 'vardasen.svg' },
 }
 
-// Lag-katalogen (LAYERS, presets, defaults) er delt med MCP-serveren —
-// se lib/mapLayerCatalog.js. Drawer-en og MCP-ens juster_kart leser samme kilde.
-const landLayerButtons = LAYERS.filter(l => !MARINE_LAYER_KEYS.has(l.key))
-const marineLayerButtons = LAYERS.filter(l => MARINE_LAYER_KEYS.has(l.key))
-
-const visibleLayers = ref(new Set(DEFAULT_VISIBLE_LAYER_KEYS))
-
-const activePreset = computed(() => {
-  const cur = visibleLayers.value
-  const hit = LAYER_PRESETS.find((p) => p.keys.length === cur.size && p.keys.every((k) => cur.has(k)))
-  return hit?.key ?? null
+// Lag-styringen (synlige lag, presets, nullstill, dybde-lag og DOM-arbeidet)
+// bor i useLagStyring.js. Lag-katalogen er delt med MCP-serveren — se
+// lib/mapLayerCatalog.js. Tilbakekallene under er domener lag-bytte drar med
+// seg; de eies av andre composables lenger ned i fila, og kalles først etter
+// at oppsettet er ferdig.
+const {
+  visibleLayers, landLayerButtons, marineLayerButtons,
+  activePreset, layersDirty,
+  applyPreset, resetLayers, toggleLayer, toggleDepth,
+  applyDepthLayer, applyLayerVisibility,
+} = useLagStyring({
+  svgHostRef,
+  // Getter, ikke verdien: lista deklareres lenger ned i fila (TDZ ved oppsett)
+  // OG re-tilordnes ved hvert kartbytte.
+  detachedDetailLayers: () => detachedDetailLayers,
+  hooks: {
+    applyUprightLabels: () => applyUprightLabels(),
+    scheduleNameLOD: () => scheduleNameLOD(),
+    applyFredetKulturminneLayer: () => applyFredetKulturminneLayer(),
+    applyKulturminneFallback: () => applyKulturminneFallback(),
+    applyHydroStationLayer: () => applyHydroStationLayer(),
+  },
 })
-function applyPreset(p) {
-  visibleLayers.value = new Set(p.keys)
-  applyLayerVisibility()
-}
 
-// «Nullstill» er aktiv kun når brukeren har avveket fra default-synligheten
-// (minst ett lag slått til motsatt av sin default-tilstand).
-const layersDirty = computed(() => {
-  const cur = visibleLayers.value
-  if (cur.size !== DEFAULT_VISIBLE_LAYER_KEYS.length) return true
-  for (const k of DEFAULT_VISIBLE_LAYER_KEYS) if (!cur.has(k)) return true
-  return false
-})
-function resetLayers() {
-  if (!layersDirty.value) return
-  visibleLayers.value = new Set(DEFAULT_VISIBLE_LAYER_KEYS)
-  applyLayerVisibility()
-}
-
-// Lende-chat (styr_kartlag): chatten leser gjeldende lag herfra og sender en
-// ferdig utregnet liste tilbake. Kartvisningen beholder eierskapet — se
-// useMapLayerControl for hvorfor tilstanden ikke bare er en singleton.
-const { kommando: lagKommando } = useMapLayerControl()
-watch(visibleLayers, (v) => publiserSynligeLag(v), { immediate: true })
-onUnmounted(() => publiserSynligeLag(null))
-watch(lagKommando, (cmd) => {
-  if (!cmd) return
-  if (cmd.nullstill) visibleLayers.value = new Set(DEFAULT_VISIBLE_LAYER_KEYS)
-  else if (Array.isArray(cmd.keys)) visibleLayers.value = new Set(cmd.keys)
-  else return
-  applyLayerVisibility()
-})
 // Tema: 'light' (default ISOM), 'dark', 'mono-sepia', 'mono-indigo', 'mono-slate'.
 // isDark er derivert for steder som styrer UI-farger (toppbar, drawer-bg).
 // Tilstanden bor i useMapTheme (delt singleton, lagret i localStorage) så
@@ -562,46 +540,6 @@ function onResetAndRefreshGps() {
   if (userPos.isWatching) userPos.refresh()
 }
 
-function toggleLayer(key) {
-  const next = new Set(visibleLayers.value)
-  if (next.has(key)) next.delete(key)
-  else next.add(key)
-  visibleLayers.value = next
-  applyLayerVisibility()
-}
-
-// Dybde-lag (v11.0.54) — soundings + dybdekurver (Sjøkart) ligger detachet for
-// long-press-inset-en (perf). «Dybde»-toggle (default AV) kloner dem inn som et
-// synlig hovedlag. Kun relevant når kartet faktisk har Sjøkart-dybde
-// (meta.depthSource === 'sjokart'); DEM-estimatet vises uansett som sjø-fyll.
-function applyDepthLayer() {
-  const svg = svgHostRef.value?.querySelector('svg')
-  if (!svg) return
-  svg.querySelector('#depth-main-layer')?.remove()
-  if (!visibleLayers.value.has('dybde') || !detachedDetailLayers.length) return
-  const ns = 'http://www.w3.org/2000/svg'
-  const wrap = document.createElementNS(ns, 'g')
-  wrap.setAttribute('id', 'depth-main-layer')
-  wrap.setAttribute('data-layer', 'dybde')
-  wrap.setAttribute('pointer-events', 'none')
-  for (const g of detachedDetailLayers) {
-    const c = g.cloneNode(true)
-    c.style.display = ''            // detalj-lagene er display:none — vis dem
-    c.removeAttribute('data-detail')
-    wrap.appendChild(c)
-  }
-  // Under navne-labels, over vann/marine — sett inn foran første label-gruppe.
-  const before = svg.querySelector('[data-label]')
-  if (before) svg.insertBefore(wrap, before)
-  else svg.appendChild(wrap)
-}
-function toggleDepth() {
-  const next = new Set(visibleLayers.value)
-  if (next.has('dybde')) next.delete('dybde'); else next.add('dybde')
-  visibleLayers.value = next
-  applyDepthLayer()
-}
-
 // Fredet-kulturminne-lag + brukerminne-fallback — flyttet til
 // useHeritageLayers; meta-watchen under blir her.
 const {
@@ -637,46 +575,6 @@ const {
   hydroDetail, hydroLoading, hydroOpen, hydroDrawer,
 })
 watch(meta, (m) => { hydroCount.value = null; refreshHydroCount(m) })
-
-function applyLayerVisibility() {
-  const root = svgHostRef.value?.querySelector('svg')
-  if (!root) return
-  for (const lay of LAYERS) {
-    // Også spøkelses-nabofliser (data-ghost-layer): de beholder lag-attributtet
-    // under et eget navn så lag-toggling når dem, men `[data-layer] path`-perf-
-    // regelen (non-scaling-stroke / re-tessellering) IKKE matcher dem.
-    const groups = root.querySelectorAll(`[data-layer="${lay.key}"], [data-ghost-layer="${lay.key}"]`)
-    for (const g of groups) {
-      g.style.display = visibleLayers.value.has(lay.key) ? '' : 'none'
-    }
-  }
-  // Hvis 'navn' er av, skjul også vann-/kontur-/peak-tall (data-label) som
-  // ligger inni andre lag-grupper. Da blir Navn-toggle en konsistent
-  // "all text on/off"-bryter — men labels inne i 'stedsnavn'-laget styres
-  // separat (se under).
-  const showLabels = visibleLayers.value.has('navn')
-  const labelEls = root.querySelectorAll('[data-label]:not([data-label="stedsnavn"])')
-  for (const el of labelEls) {
-    el.style.display = showLabels ? '' : 'none'
-  }
-  // v9.1.10: et lag som nettopp ble slått PÅ kan ha labels med utdatert (eller
-  // manglende) counter-rotation siden applyUprightLabels hopper over skjulte
-  // lag. Re-orienter nå — billig pga koordinat-cache.
-  applyUprightLabels()
-  // Et lag (f.eks. et stedsnavn-nivå) kan nettopp ha blitt slått på/av — la
-  // navn-LOD-en revurdere hvilke navn som er overflødige i utsnittet.
-  scheduleNameLOD()
-  // Hold dybde-hovedlaget i synk med lag-tilstanden (presets/nullstill kan ha
-  // endret 'dybde'); re-injiserer/fjerner #depth-main-layer etter behov.
-  applyDepthLayer()
-  // Samme for fredet-kulturminne WFS-vektorlaget (injiser/skjul).
-  applyFredetKulturminneLayer()
-  // Brukerminne-fallback: hent live hvis laget er på men ingen ikoner er innbakt
-  // (typisk mobil der bygge-tids-hentingen glapp).
-  applyKulturminneFallback()
-  // Hydrologiske målestasjoner (NVE HydAPI) — injiser/skjul dråpe-laget.
-  applyHydroStationLayer()
-}
 
 // Navne-labels som kan være flerspråklige (norsk - samisk - finsk). Tall-labels
 // (kontur-tall, dybde-tall osv.) er ikke med.
@@ -2064,146 +1962,11 @@ watch(scale, () => { if (proximity.active.value) renderProximityTarget() })
 // et markert sted som eksakte koordinater (slat/slon) + navn (hl): mottakeren
 // får en rosa puls-markering på NØYAKTIG samme punkt — robust uavhengig av om
 // navnet finnes i deres ferske søkeindeks, så stedet ikke går tapt.
-const shareInfo = computed(() => {
-  if (!meta.value) return null
-  const m = meta.value
-  const lat = (m.bbox.south + m.bbox.north) / 2
-  const lon = (m.bbox.west + m.bbox.east) / 2
-  const sizeKm = m.widthM ? +(m.widthM / 1000).toFixed(2) : 4
-  const equidistanceM = m.equidistance ?? 20
-  return { lat, lon, sizeKm, equidistanceM }
-})
-
 // Lende-chat-konteksten settes lenger ned (etter stiSelectedClimb) — watcheren
 // trenger klatretallene, og en referanse hit oppe ga TDZ-krasj ved mount
 // (v4.2.5-regresjonen: svart skjerm + tilbake til forsiden).
 const { setChatContext, openChat } = useLendeChat()
 onUnmounted(() => setChatContext(null))
-
-function buildShareUrl(place = null, extraParams = null) {
-  if (!shareInfo.value) return null
-  const base = `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, '')}`
-  const id = route.params.id ?? 'vardasen'
-  const isBuiltin = !!BUILTIN[id]
-  const params = new URLSearchParams()
-  if (place && Number.isFinite(place.lat) && Number.isFinite(place.lon)) {
-    if (place.name) params.set('hl', place.name)
-    params.set('slat', place.lat.toFixed(6))
-    params.set('slon', place.lon.toFixed(6))
-  }
-  // Ekstra params (f.eks. rundtur: olat/olon/rtv/ri) — appendes både på
-  // innebygd-kart-URL-en og lagret-kart-URL-en, så mottaker-parsingen er lik.
-  if (extraParams) {
-    for (const [k, v] of Object.entries(extraParams)) {
-      if (v != null && v !== '') params.set(k, String(v))
-    }
-  }
-  if (isBuiltin) {
-    // Built-in: del direkte view-URL — mottaker ser nøyaktig samme kart.
-    const qs = params.toString()
-    return `${base}/kart/${id}${qs ? `?${qs}` : ''}`
-  }
-  // Stored map: del bbox + ekvidistanse. Mottaker lander i picker (låst
-  // utsnitt); etter generering navigeres til MapView med ?hl=&slat=&slon=.
-  const s = shareInfo.value
-  params.set('lat', s.lat.toFixed(5))
-  params.set('lon', s.lon.toFixed(5))
-  // Aspekt (høyde/bredde) så mottakeren bygger SAMME utsnitt-form. Uten den
-  // falt mottakeren tilbake til sitt eget skjermaspekt — en mobil (~2.1) kunne
-  // få over dobbelt så stort areal som avsenderens kart, og klient-side-
-  // byggingen frøs telefonen (rapportert for 10 km-kart).
-  if (meta.value?.heightM && meta.value?.widthM) {
-    params.set('asp', (meta.value.heightM / meta.value.widthM).toFixed(3))
-  }
-  params.set('km', String(s.sizeKm))
-  params.set('eq', String(s.equidistanceM))
-  return `${base}/kart/nytt?${params.toString()}`
-}
-
-const shareState = ref('idle')  // idle | sharing | copied | error
-let shareResetTimer = null
-
-// Felles dele-mekanikk: native share-sheet (iOS/Android) med clipboard-fallback
-// på desktop. `shareState` driver knapp-teksten i begge dele-knapper.
-async function performShare(url, title, text) {
-  if (!url) return
-  const shareData = { title, text, url }
-  // navigator.share åpner native iOS/Android-dialog der brukeren velger
-  // app (Meldinger, WhatsApp, Mail, AirDrop osv). canShare() finnes på
-  // moderne browsere men ikke alltid — try/catch dekker resten.
-  if (typeof navigator.share === 'function') {
-    shareState.value = 'sharing'
-    try {
-      if (typeof navigator.canShare === 'function' && !navigator.canShare(shareData)) {
-        throw new Error('share-data-rejected')
-      }
-      await navigator.share(shareData)
-      shareState.value = 'idle'
-      return
-    } catch (err) {
-      // AbortError = bruker lukket sheet — det er ikke en feil
-      if (err && err.name === 'AbortError') {
-        shareState.value = 'idle'
-        return
-      }
-      // Fall through til clipboard-fallback under
-    }
-  }
-  // Fallback: kopier til utklippstavle. Brukes på desktop (uten share-sheet)
-  // og når native share-API ikke aksepterer data (sjeldne tilfeller).
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(url)
-    } else {
-      const ta = document.createElement('textarea')
-      ta.value = url
-      ta.style.position = 'fixed'
-      ta.style.opacity = '0'
-      document.body.appendChild(ta)
-      ta.select()
-      try { document.execCommand('copy') } catch { /* ignore */ }
-      document.body.removeChild(ta)
-    }
-    shareState.value = 'copied'
-  } catch {
-    shareState.value = 'error'
-  }
-  if (shareResetTimer) clearTimeout(shareResetTimer)
-  shareResetTimer = setTimeout(() => { shareState.value = 'idle' }, 2200)
-}
-
-// «Del kart» — bare utsnittet, ingen markering.
-function onShareMap() {
-  performShare(buildShareUrl(), mapTitle.value || 'Lende — turkart', mapTitle.value)
-}
-
-// «Del kart og sted» fra drawer-en — bruker den aktive rosa søke-/POI-
-// markeringen. SVG-punktet regnes om til WGS84 så mottakeren får eksakt
-// samme punkt.
-function onShareMapWithPlace() {
-  const h = highlightedFeature.value
-  if (!h || !meta.value) return
-  const { lat, lon } = svgToWgs84(h.x, h.y, meta.value)
-  performShare(
-    buildShareUrl({ name: h.name, lat, lon }),
-    mapTitle.value || 'Lende — turkart',
-    `${mapTitle.value} — sted: ${h.name}`,
-  )
-}
-
-// «Del kart og sted» fra long-press-punktet (PUNKT-arket): deler det
-// brukeren akkurat trykket på — f.eks. et badevann eller utsiktspunkt.
-function onShareMapWithContextPlace() {
-  const info = contextMenuInfo.value
-  if (!info) return
-  const name = info.place?.name || 'Markert sted'
-  performShare(
-    buildShareUrl({ name, lat: info.lat, lon: info.lon }),
-    mapTitle.value || 'Lende — turkart',
-    `${mapTitle.value} — sted: ${name}`,
-  )
-  closeContextMenu()
-}
 
 function maybeHighlightFromQuery() {
   const hl = route.query.hl
@@ -2261,108 +2024,12 @@ watch(merkeKommando, (cmd) => {
   renderHighlight()
 })
 
-// «Del sti» / «Del rundtur» — deler den aktive Stifinner-turen slik «Del kart
-// og sted» deler et sted. Turen beregnes deterministisk av punktene, så vi deler
-// bare dem + valgt rute-indeks (eksakte WGS84-koordinater oppå det vanlige
-// kart-utsnittet): origo, mål (A→B) eller vendepunkt(er) (rundtur, der origo ==
-// mål). Mottakeren re-planlegger mot sitt eget (identiske) kart og lander i
-// samme følge-modus.
-//
-// A→B-turen manglet her fram til v5.6.3: uten vendepunkt falt funksjonen ut i
-// en tom return, og knappen gjorde ingenting. Lenke-formatet (dlat/dlon) har
-// mottaker-siden alltid støttet — det er samme format MCP-ens tur3dUrl bruker,
-// så vi bygger paramene med buildTourParams i stedet for å skrive dem to steder.
-function onShareRoundTrip() {
-  if (!meta.value) return
-  const erRundtur = sti.isLoop.value
-  const extra = shareTourParams({
-    isLoop: erRundtur,
-    start: sti.start.value,
-    destination: sti.destination.value,
-    via: sti.via.value,
-    routeIdx: sti.selectedRouteIdx.value,
-    // Kartnavnet (tn) så mottakerens kart ikke bygges som «Uten navn».
-    name: mapTitle.value && mapTitle.value !== 'Uten navn' ? mapTitle.value : null,
-    toWgs84: (p) => svgToWgs84(p.svgX, p.svgY, meta.value),
-  })
-  if (!extra) return
-  performShare(
-    buildShareUrl(null, extra),
-    mapTitle.value || 'Lende — turkart',
-    `${mapTitle.value} — ${erRundtur ? 'rundtur' : 'tur langs stien'}`,
-  )
-}
-
-// Mottaker-side: gjenskap en delt tur fra query — rundtur (?olat/olon/rtv/ri,
-// som den gamle «Del rundtur»-lenken) ELLER A→B (+dlat/dlon, evt. rtv som
-// via-punkter, fra MCP-ens tur3dUrl). Kjøres etter at kartet er rendret
-// (svg-paths finnes), så Stifinner kan lese ruting-grafen. Driver den ekte
-// modus-maskinen så resultatet er identisk med manuell inntasting. ?v3d=1
-// åpner 3D-visningen automatisk når ruta står.
-// Kryss-flis-turer: token invaliderer ventende retries når en ny restore
-// startes (query-endring/navigasjon), så gamle timere ikke ruter i vei.
-let tourRestoreToken = 0
-
-function maybeRestoreRoundTripFromQuery() {
-  tourRestoreToken += 1
-  restoreTourAttempt(tourRestoreToken, 0)
-}
-
-// Navnebasert tur fra chatten (tfn/ttn): «lag et kart over X og gå fra A til
-// B». Kartet fantes ikke da chatten svarte, så navnene fulgte med gjennom
-// byggeflyten — nå som kartet er bygget og stiene er på plass slår vi dem opp
-// i kartets EGEN søkeindeks (samme fasit som søkefeltet) og lager en vanlig
-// koordinat-tur av dem. Returnerer null når indeksen ikke har begge navnene.
-function tourFraNavn() {
-  const nav = parseTourNameQuery(route.query)
-  if (!nav) return null
-  const idx = searchIndex.value
-  if (!idx?.length) return null
-  const finn = (navn) => {
-    const treff = findByName(idx, navn)   // eksakt treff foran delvis
-    if (!treff || !meta.value) return null
-    return svgToWgs84(treff.x, treff.y, meta.value)
-  }
-  const origin = finn(nav.fromName)
-  const dest = finn(nav.toName)
-  if (!origin || !dest) return null
-  return { origin, dest, via: [], routeIdx: 0, open3d: nav.open3d, name: nav.name }
-}
-
-function restoreTourAttempt(token, forsok) {
-  if (token !== tourRestoreToken || !componentAlive) return
-  const tour = parseTourQuery(route.query) ?? tourFraNavn()
-  if (!tour && parseTourNameQuery(route.query) && forsok < 24) {
-    // Navnene venter på søkeindeksen (bygges når kartet er rendret) — prøv igjen.
-    setTimeout(() => restoreTourAttempt(token, forsok + 1), 500)
-    return
-  }
-  if (!tour || !meta.value) return
-  // Terreng-først: skjelett-passet har ingen sti-lag ennå — å rute nå gir et
-  // misvisende «Fant ingen sti»-banner. Finalize-swappen kjører de utsatte
-  // passene på nytt (scheduleDeferredMapPasses), så restore skjer da i stedet.
-  if (fillingInDetails.value) return
-  const svg = svgHostRef.value?.querySelector('svg')
-  if (!svg) return
+// Mottaker-side: en delt tur-lenke gjenskapes av useDeltTur, som eier
+// TIMINGEN (rendret SVG, ferdig detalj-pass, tegnede spøkelsesfliser). Selve
+// turen legges her, av den ekte modus-maskinen — resultatet skal være identisk
+// med manuell inntasting. ?v3d=1 åpner 3D-visningen når ruta står.
+function gjenskapTur(tour, svg) {
   const toSvg = (ll) => wgs84ToSvg(ll.lat, ll.lon, meta.value)
-
-  // Kryss-flis: punkter utenfor aktiv flis kan rutes via spøkelses-flisene
-  // (Stifinner-grafen leser ghost-paths, testdekket i useStifinner.test) —
-  // men bare når flisene faktisk er tegnet. Vent (maks ~12 s) til ghostRects
-  // dekker punktene; ved timeout prøves ruting uansett, og banneret gir da
-  // ærlig «Ingen sti»-feil.
-  const punkter = [tour.origin, ...(tour.dest ? [tour.dest] : []), ...tour.via].map(toSvg)
-  const utenforAktiv = punkter.filter((p) =>
-    p.x < 0 || p.y < 0 || p.x > meta.value.widthM || p.y > meta.value.heightM)
-  if (utenforAktiv.length && forsok < 24) {
-    const dekket = utenforAktiv.every((p) => ghostRects.value.some((r) =>
-      p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h))
-    if (!dekket) {
-      setTimeout(() => restoreTourAttempt(token, forsok + 1), 500)
-      return
-    }
-  }
-
   if (tour.dest) {
     const d = toSvg(tour.dest)
     sti.begin({ svgX: d.x, svgY: d.y })
@@ -2387,48 +2054,19 @@ function restoreTourAttempt(token, forsok) {
   if (tour.open3d && sti.routes.value.length) openTour3d()
 }
 
-// Lende-chat / delte lenker: tur-params kan endres MENS kartet står åpent —
-// vis_tur_i_3d navigerer til samme kart-rute med ny query, og komponenten
-// remontes da ikke (App.vue keyer på route.path, som er uendret). Uten denne
-// watchen skjedde ingenting visuelt selv om chatten meldte suksess (v4.0.0).
-// Nullstill en ev. aktiv Stifinner-økt og kjør samme restore som ved last.
-watch(() => {
-  const q = route.query
-  return [q.olat, q.olon, q.dlat, q.dlon, q.rtv, q.ri, q.v3d, q.tn, q.tfn, q.ttn].join('|')
-}, () => {
-  if (!parseTourQuery(route.query) && !parseTourNameQuery(route.query)) return
-  if (sti.active.value) sti.cancel()
-  maybeRestoreRoundTripFromQuery()
+// GPS og sporing (posisjonering, opptak, live-stats, høydeprofil, eksport) bor
+// i useGpsSpor.js. Tegningen ligger i useSymbolRenderers, som trenger `tracker`
+// herfra — derfor opprettes denne FØRST, og får renderTracks som et lat
+// tilbakekall (det kalles bare når spor endres, altså etter oppsettet).
+const {
+  tracker,
+  startPositioning, onRetryGps, gpsNow,
+  liveTrackStats, onToggleRecording, onDeleteTrack, onExportTrackGpx,
+  expandedTrackId, expandedTrack, profileFor,
+} = useGpsSpor({
+  mapId, meta, mapTitle, storedDem, userPos, compass,
+  renderTracks: () => renderTracks(),
 })
-
-// GPS-spor — opptak + rendering av rutene brukeren går (v8.9.2)
-const tracker = useTrackRecorder(mapId.value, userPos)
-// Tikker hvert sekund mens opptak pågår, så live-stats (distanse/varighet)
-// i drawer-en oppdateres uten å bero på nye GPS-fix.
-const tracksNow = ref(Date.now())
-let tracksTickTimer = null
-watch(() => tracker.isRecording.value, (on) => {
-  if (on) {
-    if (!tracksTickTimer) tracksTickTimer = setInterval(() => { tracksNow.value = Date.now() }, 1000)
-  } else if (tracksTickTimer) {
-    clearInterval(tracksTickTimer); tracksTickTimer = null
-  }
-})
-
-const liveTrackStats = computed(() => {
-  const t = tracker.activeTrack.value
-  if (!t) return null
-  void tracksNow.value      // forcer re-eval på hver tikk
-  const meters = trackLengthM(t)
-  const ms = t.points.length > 0 ? Date.now() - t.points[0].t : 0
-  return { meters, ms, points: t.points.length }
-})
-
-function formatDistance(m) {
-  if (!m) return '0 m'
-  if (m < 1000) return `${Math.round(m)} m`
-  return `${(m / 1000).toFixed(2)} km`
-}
 
 // Relieff-rendering — flyttet til useReliefRender; watchene blir her.
 const { applyHillshade, reliefBlendMode, invalidateReliefBands } = useReliefRender({
@@ -2449,6 +2087,13 @@ const {
 // Re-render relieffet når DEM-en lastes eller temaet byttes (blend-modus
 // avhenger av tema). Selve nivå-endringer håndteres av reliefStepIndex-watch.
 watch([storedDem, currentTheme], () => { applyHillshade() })
+
+// Må stå ETTER useGhostTiles: restore-timingen venter på at spøkelsesflisene
+// dekker turens punkter, og leser `ghostRects` derfra.
+const { maybeRestoreRoundTripFromQuery } = useDeltTur({
+  route, meta, searchIndex, svgHostRef, ghostRects, fillingInDetails,
+  sti, findByName, gjenskapTur,
+})
 
 // Måleverktøy — distanse + areal (v8.9.4). Aktiveres via knapp i drawer.
 // Tap-på-kart i denne modusen plasserer vertices. Lukket polygon viser
@@ -2626,6 +2271,20 @@ const {
   buildingOnTheFly, searchOpen, fillingInDetails, sti, scale, mapSearch,
   contextDrawer, mapId, closeDrawer, knobPanel, proximityPanelOpen, clientToSvg,
 })
+
+// Utgående deling (kart, sted, tur) — plassert HER fordi den trenger
+// kontekstmenyens punkt-info, som deklareres rett over. Se useKartDeling.js.
+const {
+  shareInfo, shareState,
+  buildShareUrl, performShare,
+  onShareMap, onShareMapWithPlace, onShareMapWithContextPlace, onShareRoundTrip,
+} = useKartDeling({
+  meta, mapTitle,
+  kartId: () => route.params.id ?? 'vardasen',
+  erInnebygd: (id) => !!BUILTIN[id],
+  highlightedFeature, contextMenuInfo, closeContextMenu, sti,
+})
+
 
 // ── FAB-klyngens ark-regel (v4.8.2) ──────────────────────────────────
 // Klyngen står fast nederst til høyre, dokker rett over en minimert peek-kant,
@@ -3097,223 +2756,20 @@ watch(animating, (v) => {
   if (v && contextMenuOpen.value && !contextPinRaf) contextPinRaf = requestAnimationFrame(contextPinRafLoop)
 })
 
-// ── 3D-visning (v5.7.0: én viser, to innganger) ─────────────────────────
-// «3D»-pin ved rutens startpunkt (samme HTML-utenfor-transform-mønster som
-// long-press-siktet over) + fullskjerm-viewer lastet lazily. Ikke gated på
-// storedDem — vieweren eier «ingen høydedata»-tilstanden selv.
-//
-// Samme komponent og samme motor uansett dør: uten tur er 3D en fri utforsking
-// av kartet, med tur står den planlagte ruta klar i følge-kameraet.
-const view3dOpen = ref(false)
-const view3dLoading = ref(false)
-const view3dComp = shallowRef(null)
-const view3dData = shallowRef(null)
-const tour3dError = ref('')
-
-const stiSelectedRoute = computed(() =>
-  sti.routes.value[sti.selectedRouteIdx.value] ?? null)
-
-const tour3dPinVisible = computed(() =>
-  (sti.mode.value === 'showing' || sti.mode.value === 'following') &&
-  !!stiSelectedRoute.value && !!sti.start.value && !!meta.value && !view3dOpen.value)
-
-// Samme knapp i målenden. Ved rundtur er mål == start, og da ville de to ligget
-// oppå hverandre — der holder den ene.
-const tour3dEndPinVisible = computed(() =>
-  tour3dPinVisible.value && !sti.isLoop.value && !!sti.destination.value)
-
-const tour3dPinElRef = ref(null)
-const tour3dEndPinElRef = ref(null)
-
-function place3dPin(el, p, visible) {
-  if (!el) return
-  const wrap = wrapperRef.value?.getBoundingClientRect()
-  if (!p || !visible || !wrap) return
-  const scr = svgToClient(p.svgX, p.svgY)
-  if (!scr) return
-  // Skjul (ikke flytt) når punktet er panorert utenfor kartflaten —
-  // chips-knappen «Vis turen i 3D» dekker det tilfellet.
-  const inside = scr.x >= wrap.left && scr.x <= wrap.right && scr.y >= wrap.top && scr.y <= wrap.bottom
-  el.style.visibility = inside ? 'visible' : 'hidden'
-  el.style.left = (scr.x - wrap.left) + 'px'
-  el.style.top = (scr.y - wrap.top) + 'px'
-}
-
-function positionTour3dPin() {
-  place3dPin(tour3dPinElRef.value, sti.start.value, tour3dPinVisible.value)
-  place3dPin(tour3dEndPinElRef.value, sti.destination.value, tour3dEndPinVisible.value)
-}
-let tour3dPinRaf = 0
-function tour3dPinRafLoop() {
-  positionTour3dPin()
-  if (animating.value && tour3dPinVisible.value) {
-    tour3dPinRaf = requestAnimationFrame(tour3dPinRafLoop)
-  } else {
-    tour3dPinRaf = 0
-  }
-}
-watch([tour3dPinVisible, tour3dEndPinVisible, () => sti.start.value, () => sti.destination.value,
-  scale, translateX, translateY, rotation], positionTour3dPin)
-watch(animating, (v) => {
-  if (v && tour3dPinVisible.value && !tour3dPinRaf) tour3dPinRaf = requestAnimationFrame(tour3dPinRafLoop)
+// ── 3D-visning ──────────────────────────────────────────────────────────
+// Hele domenet — pin-ene, dataklargjøringen (inkl. utvidet utsnitt for turer
+// utenfor aktiv flis) og viewerens livssyklus — bor i use3dEntry.js.
+const {
+  view3dOpen, view3dLoading, view3dComp, view3dData, tour3dError,
+  tour3dPinVisible, tour3dEndPinVisible, tour3dPinElRef, tour3dEndPinElRef,
+  gpsFor3d, tour3dEstWalk,
+  openTour3d, openExplore3d, close3d,
+} = use3dEntry({
+  meta, storedDem, searchIndex, svgHostRef, wrapperRef, animating,
+  scale, translateX, translateY, rotation,
+  sti, userPos, svgToClient, ensureDem,
 })
 
-// Motorens ETA-kall er (meter, klatring-i-meter); stifinnerens Naismith tar
-// {ascent, descent}-objekt — adapter her. Sendes med begge veier inn i 3D, så
-// også en tur man finner ved å trykke på stinettet får «tid igjen».
-function tour3dEstWalk(lengthM, climbM) {
-  return sti.estWalkMinutes(lengthM, climbM ? { ascent: climbM, descent: 0 } : null)
-}
-
-// Stinett, hindre og brukerminner leses ut av kart-SVG-en her, siden det er
-// MapView som eier DOM-en — 3D-chunken skal ikke røre den.
-async function svgLagFor3d(svgEl, extent = null) {
-  const [{ stinettFeaturesFromSvgEl, fjernIsolerteStumper }, { collectBrukerminnePins }, { BARRIER_CODES }] =
-    await Promise.all([
-      import('../lib/stinettAnalyse.js'),
-      import('../lib/tour3d/exploreData.js'),
-      import('../lib/routing.js'),
-    ])
-  // Utvidet utsnitt: alt må inn i det forskjøvede rommet, ellers ligger
-  // stinettet en flisebredde feil under turen.
-  const flytt = (features) => (extent
-    ? features.map(f => ({ ...f, coordinates: shiftPoints(f.coordinates, extent) }))
-    : features)
-  const flyttPunkter = (pins) => (extent
-    ? pins.map(p => ({ ...p, x: p.x - extent.minX, y: p.y - extent.minY }))
-    : pins)
-  return {
-    // Både stier og bindeledd (småveg/bro) — en tur langs stien skal kunne
-    // krysse en skogsbilvei uten å stoppe. `hoppOverSkjulte` gjør at 3D viser
-    // det samme stinettet som kartet: har brukeren slått av veier eller stier
-    // for å rydde, skal ikke 3D tegne dem likevel.
-    // … og korte, isolerte fragmenter luftes ut: de er verken nyttige å se
-    // eller å trykke på. Stumper som henger sammen med en lang sti blir stående.
-    pathFeatures: flytt(fjernIsolerteStumper(
-      stinettFeaturesFromSvgEl(svgEl, null, { hoppOverSkjulte: true }),
-      { minKomponentM: 500 },
-    )),
-    // Hindre-geometri (vann, hovedvei, jernbane, bygning, stup) — det
-    // sti-vandringen i 3D trenger for å vite hvor et brudd i stinettet er et
-    // ekte hinder og ikke bare et hull i kartdataene. Samme kodesett som
-    // Stifinneren og chatten bruker.
-    barrierFeatures: flytt(stinettFeaturesFromSvgEl(svgEl, new Set(Object.keys(BARRIER_CODES)))),
-    brukerminner: flyttPunkter(collectBrukerminnePins(svgEl)),
-  }
-}
-
-// Ferdig preparert 3D-datasett. For turer som går utenfor aktiv flise
-// (utvidede mosaikk-kart) dekker det et union-utsnitt: DEM hentes for hele
-// utsnittet via flis-cachen og alle koordinater forskyves inn i det nye
-// rommet — turen skal aldri «gå i tomme lufta» forbi flisekanten.
-async function prepare3dData({ medTur = false } = {}) {
-  const svgEl = svgHostRef.value?.querySelector('svg')
-  const m = meta.value
-  if (!svgEl || !m) return null
-
-  const baseMeta = {
-    minE: m.minE, minN: m.minN, widthM: m.widthM, heightM: m.heightM,
-    equidistance: m.equidistance ?? null,
-  }
-  const r = medTur ? stiSelectedRoute.value : null
-  if (medTur && !r) return null
-  const viaArr = medTur ? sti.via.value.map(v => ({ svgX: v.svgX, svgY: v.svgY })) : []
-  const extent = medTur ? computeTourExtent(baseMeta, r.coordinates, viaArr) : null
-
-  let dem3d = storedDem.value
-  if (extent) {
-    let hentet = null
-    try {
-      const { fetchDEMWithCache, snapUtmBboxToGrid } = await import('../lib/demTileCache.js')
-      const utm = snapUtmBboxToGrid({
-        minE: extent.meta3d.minE,
-        minN: extent.meta3d.minN,
-        maxE: extent.meta3d.minE + extent.widthM,
-        maxN: extent.meta3d.minN + extent.heightM,
-      }, 10)
-      hentet = await fetchDEMWithCache(utm, { resolutionM: 10, rejectSynthetic: true })
-    } catch { hentet = null }
-    // Offline/nettfeil (inkl. syntetisk WCS-fallback avvist over): blit flisas
-    // EKTE DEM inn i union-gridet (utenfor = havnivå).
-    dem3d = hentet ?? demIntoExtent(storedDem.value, extent)
-  }
-
-  const lag = await svgLagFor3d(svgEl, extent)
-  return markRaw({
-    ...lag,
-    dem: dem3d,
-    meta: extent ? extent.meta3d : baseMeta,
-    searchIndex: extent ? shiftIndex(searchIndex.value, extent) : searchIndex.value,
-    extent,
-    tour: r
-      ? {
-        route: {
-          coordinates: extent ? shiftPoints(r.coordinates, extent) : r.coordinates,
-          lengthM: r.lengthM,
-        },
-        via: extent ? shiftVia(viaArr, extent) : viaArr,
-        isLoop: sti.isLoop.value,
-      }
-      : null,
-  })
-}
-
-// Live GPS inn i 3D — kun når posisjonering allerede er aktiv. Nytt lite objekt
-// per fix (computed på svgX/svgY) så viewer-watchen trigges; koordinatene
-// forskyves til det (evt. utvidede) utsnittet.
-const gpsFor3d = computed(() => {
-  if (!userPos.isWatching || userPos.svgX == null) return null
-  const ext = view3dData.value?.extent
-  return {
-    svgX: userPos.svgX - (ext?.minX ?? 0),
-    svgY: userPos.svgY - (ext?.minY ?? 0),
-    accuracyM: userPos.accuracyM,
-  }
-})
-
-async function open3d({ medTur = false } = {}) {
-  if (view3dOpen.value) return
-  tour3dError.value = ''
-  view3dOpen.value = true
-  view3dLoading.value = true
-  try {
-    await ensureDem()
-    view3dData.value = await prepare3dData({ medTur })
-    if (!view3dData.value) throw new Error(medTur ? 'ingen rute' : 'kartet er ikke lastet')
-    if (!view3dComp.value) {
-      const mod = await import('../components/tour3d/Viewer3D.vue')
-      view3dComp.value = markRaw(mod.default)
-    }
-  } catch {
-    view3dOpen.value = false
-    view3dData.value = null
-    tour3dError.value = 'Kunne ikke laste 3D-visningen — sjekk nettforbindelsen'
-    setTimeout(() => { tour3dError.value = '' }, 4000)
-  } finally {
-    view3dLoading.value = false
-  }
-}
-function openTour3d() { return open3d({ medTur: true }) }
-function openExplore3d() { return open3d({ medTur: false }) }
-function close3d() {
-  view3dOpen.value = false
-  view3dData.value = null
-}
-
-// Idle-warm-up: hashede chunks er cache-first-ved-første-fetch i sw.js, så én
-// online kartøkt legger 3D-chunken (inkl. three) i cachen — «Vis i 3D» virker
-// da også uten dekning senere.
-let tour3dWarmed = false
-watch(meta, (m) => {
-  if (!m || tour3dWarmed) return
-  tour3dWarmed = true
-  const warm = () => {
-    if (navigator.onLine === false || navigator.connection?.saveData) return
-    import('../components/tour3d/Viewer3D.vue').catch(() => {})
-  }
-  if ('requestIdleCallback' in window) requestIdleCallback(warm, { timeout: 15000 })
-  else setTimeout(warm, 5000)
-}, { immediate: true })
 
 // Detalj-inset (lupe) — flyttet til useDetailInset; watch-en blir her.
 const { buildDetailInset } = useDetailInset({
@@ -3328,27 +2784,6 @@ watch([contextMenuOpen, contextMenuPoint, () => contextDrawer.isMaximized.value]
   await nextTick()
   buildDetailInset()
 })
-
-// Høydeprofil — sample stripe + gradient-fyll under (v8.9.4).
-// expandedTrackId holder hvilket spor som er "zoomet" i drawer-en (=
-// vises som stor profil under en modal-overlay).
-const expandedTrackId = ref(null)
-
-const profileCache = new Map()  // trackId+pointCount → profileObj
-function profileFor(track) {
-  if (!track?.points?.length || !storedDem.value) return null
-  const key = `${track.id}-${track.points.length}`
-  if (profileCache.has(key)) return profileCache.get(key)
-  const prof = sampleProfile(track, storedDem.value)
-  if (prof) profileCache.set(key, prof)
-  return prof
-}
-// Når DEM endres (lazy-load), invalider caches
-watch(storedDem, () => { profileCache.clear() })
-
-// Sporet som vises i den store høydeprofil-modalen (TrackElevationSheet).
-const expandedTrack = computed(() =>
-  tracker.tracks.value.find((t) => t.id === expandedTrackId.value) || null)
 
 // Søke-overlayet er også z-40 og ville stacket med FAB-klyngen; høydeprofil-
 // modalen har eget scrim over den. Begge fjerner klyngen helt.
@@ -3404,9 +2839,6 @@ watch(isGesturing, (g) => {
 // Tracks: re-render når spor endres, stil endres, eller synlighet toggles.
 // Deep watch på tracks fordi vi pusher nye punkter inn i samme array under
 // opptak (~hvert 5. m).
-watch(() => tracker.tracks.value, () => renderTracks(), { deep: true })
-watch(() => tracker.trackStyle.value, () => renderTracks())
-watch(() => tracker.visibleTrackIds.value, () => renderTracks())
 
 
 // Klikk på kart i annoteringsmodus → plasser symbol
@@ -3464,42 +2896,6 @@ function selectSymbol(key) {
 // slutt, jf. gest-slutt-watcheren) og kjører kun på hvile-endringer (f.eks.
 // programmatisk reset til 0).
 watch(rotation, () => { if (!isGesturing.value) applyUprightLabels() })
-
-
-// Start GPS + kompass i samme bruker-gest. Kompasset driver retnings-kjegla
-// (se updateUserDot); det MÅ startes fra et klikk/tap fordi iOS krever at
-// DeviceOrientationEvent.requestPermission() kalles innenfor en bruker-gest.
-// Derfor kalles dette fra gest-handlerne, ikke fra en watcher. compass.start()
-// er idempotent-guardet på isActive så GPS-refresh ikke re-spør om tillatelse.
-function startPositioning() {
-  userPos.start()
-  if (!compass.isActive) compass.start()
-}
-
-// «Prøv igjen» fra GPS-feil-toasten. Nettleseren kan ikke skru på enhetens
-// stedstjenester, men et nytt forsøk trigger enten tillatelses-dialogen på nytt
-// eller fanger opp at brukeren nettopp slo på GPS. start() er idempotent
-// (returnerer tidlig hvis vi alt følger), så vi tvinger i tillegg en fersk fix.
-function onRetryGps() {
-  startPositioning()
-  userPos.refresh()
-}
-
-// Track-action-handlers for drawer
-function onToggleRecording() {
-  if (!userPos.isWatching) { startPositioning(); return }
-  if (tracker.isRecording.value) tracker.stopRecording()
-  else tracker.startRecording()
-}
-
-async function onDeleteTrack(id) {
-  if (!confirm('Slett dette sporet?')) return
-  await tracker.deleteTrack(id)
-}
-function onExportTrackGpx(tr) {
-  if (!meta.value) return
-  downloadGpx(tr, meta.value, mapTitle.value)
-}
 
 
 // Slå opp symbolKey + label for en lagret annotering. Faller tilbake til
@@ -3782,18 +3178,6 @@ function applyDiagnoseMode() {
 }
 watch(diagnose, applyDiagnoseMode)
 
-// v8.5.5: tikker hvert sekund mens GPS er på, så debug-readout (alder
-// på siste fix) oppdaterer seg jevnt uten å bero på nye GPS-events.
-const gpsNow = ref(Date.now())
-let gpsTickTimer = null
-function startGpsTick() {
-  if (gpsTickTimer) return
-  gpsTickTimer = setInterval(() => { gpsNow.value = Date.now() }, 1000)
-}
-function stopGpsTick() {
-  if (gpsTickTimer) { clearInterval(gpsTickTimer); gpsTickTimer = null }
-}
-watch(() => userPos.isWatching, (on) => on ? startGpsTick() : stopGpsTick())
 
 const gpsDebugLine = computed(() => {
   if (!userPos.isWatching) return ''
@@ -3936,7 +3320,7 @@ watch(mapTitle, (t) => mapCtx.setPlaceName(t))
 
 onUnmounted(() => {
   unlockBodyScroll()
-  stopGpsTick()
+  // GPS-tikkeren ryddes av useGpsSpor selv.
   screenWake.stop()
   stopPanSettle()
   tabResizeObs?.disconnect()

@@ -114,11 +114,22 @@ FØRST og spør om varianten egentlig er en OPSJON på originalen.**
 
 Kjent gjeld, oppdatert etter hver leveranse som rører den:
 
-- **`MapView.vue` er ~4 900 linjer** og er appens største risiko: alt møtes der,
-  og Claude ser bare utsnitt av den om gangen. Planlagt uttrekk (v5.8+, ikke
-  gjort): 3D-inngangen, GPS/sporing, deling/lenker, lag-styring — mønsteret er
-  `useStifinner.js` og `useDetailInset.js`. Rører du et av de fire domenene:
-  vurder å trekke det ut i samme leveranse.
+- **`MapView.vue` er ~4 280 linjer** og er fortsatt appens største risiko: alt
+  møtes der, og Claude ser bare utsnitt av den om gangen. Fem domener ble
+  trukket ut i v5.8.0 — `use3dEntry.js` (3D-inngangen), `useKartDeling.js`
+  (utgående deling), `useDeltTur.js` (innkommende tur-lenke),
+  `useLagStyring.js` (lag/presets/dybde), `useGpsSpor.js` (GPS, opptak,
+  høydeprofil). Neste kandidater, i den rekkefølgen jeg ville tatt dem:
+  pan/zoom/gest-håndteringen, kontekstmeny/PUNKT-arket, tema+annotering.
+  Rører du et domene som allerede er ute: gjør endringen i composable-en, ikke
+  i MapView.
+- **Uttrekk fra MapView krever nettleser-test.** Tre monteringsfeil under
+  v5.8.0-uttrekket (TDZ på verdier sendt inn før de er deklarert, og en
+  tekst-sletting som tok med seg tre ubeslektede blokker) gikk gjennom BÅDE
+  `npm run test` (1 978 tester) og `npm run build` uten en lyd. Kjør
+  `npm run dev` + en Playwright-røyktest som monterer `/kart/vardasen` og
+  trykker på det du rørte. Sender du en verdi inn i en composable som
+  deklareres lenger ned i fila, send en getter (`() => x`) — ikke verdien.
 - **`mapBuilder.js` er ~3 300 linjer** og gjør henting, klassifisering,
   geometri-sying og SVG-emittering i én fil. Ikke del den opp uten grunn, men
   legg nye kilder som egne `*Fetcher.js` + et lite klassifiseringssteg.

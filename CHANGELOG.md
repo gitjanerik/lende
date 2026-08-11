@@ -1,5 +1,23 @@
 # Endringslogg
 
+## 2026-08-11 — v5.8.0: Fem domener ut av MapView
+
+MapView.vue er appens største risiko fordi alt møtes der og ingen — verken
+menneske eller Claude — ser hele fila om gangen. Fem domener er nå flyttet ut i
+egne composables: 3D-inngangen (`use3dEntry`), utgående deling
+(`useKartDeling`), innkommende tur-lenker (`useDeltTur`), lag-styringen
+(`useLagStyring`) og GPS/sporing (`useGpsSpor`). Fila går fra 4 897 til 4 281
+linjer, og hver ny fil har toppkommentaren som forklarer hvorfor den finnes og
+hva som er farlig i den — timing-kravene for tur-restore, iOS-gesten som må
+starte kompasset, hvorfor lag-styringen har tilbakekall i stedet for importer.
+Ingen atferd er endret; uttrekket er rent flytting pluss avhengighetene gjort
+eksplisitte. Verdt å merke: tre monteringsfeil oppsto under flyttingen, og
+ingen av dem ble fanget av 1 978 enhetstester eller av produksjonsbygget —
+kun av en ekte nettleser. Det er argumentet for at røyktesten hører til
+verktøykassa når MapView røres.
+
+---
+
 ## 2026-08-11 — v5.7.1: Fasit for kart-pipelinen, og gjelden skrevet ned
 
 Nesten hver tiende utgivelse i denne loggen har handlet om vann, sjø, kyst eller
