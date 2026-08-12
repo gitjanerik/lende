@@ -1,5 +1,27 @@
 # Endringslogg
 
+## 2026-08-12 — v5.13.0: Kartsøket ut av MapView
+
+`useKartSok.js` overtar fritekst-søket i kartet: treff-lista, highlight-ringen,
+tastaturnavigasjonen og `panToSettled` — den som sentrerer et treff robust mot
+mobil-tastaturet. Kommentaren om HVORFOR den er skrevet som den er (layout-
+viewporten er krympet mens tastaturet står oppe, og Android blurrer søkefeltet
+før click-handleren rekker å kjøre) følger med inn i fila. MapView er 3 283
+linjer, ned fra 4 897.
+
+Det GLOBALE stedssøket ble stående med vilje: å velge et treff fra «Andre
+steder» BYGGER ET NYTT KART, og hører til bygge-domenet, ikke til søket.
+Composable-en kaller bare `clearGlobalSearch()`.
+
+Ny røyk-sjekk som gjør begge halvdelene av jobben: den finner et stedsnavn som
+faktisk står i kartet, søker på fire bokstaver av det, velger treffet og krever
+BÅDE at highlight-ringen dukker opp OG at kartet panorerer dit (målt: «Bondi» →
+4 ring-noder, transform endret). Den avdekket samtidig at highlight-chippen
+erstatter fane-raden mens den står — så sjekken fjerner markeringen etterpå.
+Nøytral-tilstand-regelen har nå kostet to sjekker; den er verdt å huske.
+
+---
+
 ## 2026-08-12 — v5.12.0: Eksport, tema og GPS-tips ut av MapView
 
 Tre uavhengige uttrekk: `useKartEksport.js` (SVG/PNG/PDF/print, med

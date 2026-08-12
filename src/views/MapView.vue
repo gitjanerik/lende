@@ -10,9 +10,8 @@ import { useFloatAboveSheets } from '../composables/useFloatAboveSheets.js'
 import { useResizablePanel } from '../composables/useResizablePanel.js'
 import { useMapAnnotations, ANNOTATION_SYMBOLS } from '../composables/useMapAnnotations.js'
 import { useStifinner } from '../composables/useStifinner.js'
-import { useMapSearch, findByName } from '../composables/useMapSearch.js'
+import { findByName } from '../composables/useMapSearch.js'
 import { useNominatim } from '../composables/useNominatim.js'
-import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
 import { useScreenWakeLock } from '../composables/useScreenWakeLock.js'
 import { useMapSizePreference, effectiveEquidistanceForWidthKm, aspectForFormat, DEFAULT_MAP_WIDTH_KM, MAP_SIZE_MIN_KM, MAP_SIZE_MAX_KM } from '../composables/useMapSizePreference.js'
 import { useLodTuning } from '../composables/useLodTuning.js'
@@ -39,6 +38,7 @@ import { useNaerhetsvarsel } from '../composables/useNaerhetsvarsel.js'
 import { useKartEksport } from '../composables/useKartEksport.js'
 import { useTemaBytte } from '../composables/useTemaBytte.js'
 import { useGpsTips } from '../composables/useGpsTips.js'
+import { useKartSok } from '../composables/useKartSok.js'
 import { useGpsSpor } from '../composables/useGpsSpor.js'
 import { useSymbolRenderers } from '../composables/useSymbolRenderers.js'
 import { useContextLookups } from '../composables/useContextLookups.js'
@@ -1115,18 +1115,27 @@ const mapCtx = useMapContext()
 // «Naviger hit» vises.
 const mapHasTrails = ref(false)
 const showSymbolPalette = ref(false)
-
-// Søk i kart — bygger indeks etter map-load, viser dropdown med treff og
-// sentrerer på valgte stedsnavn. Highlight-ringen sitter til brukeren tømmer
-// søket eller scroller bort.
-const mapSearch = useMapSearch()
-// Destrukturér refs så template auto-unwrapper dem (Vue auto-unwrapper kun
-// top-level setup-refs, ikke properties på ett objekt).
-const searchQuery = mapSearch.query
-const searchResults = mapSearch.results
-const searchIndex = mapSearch.index
-const searchOpen = ref(false)
-const highlightedFeature = ref(null)   // { name, x, y, kind } eller null
+// Søk i kartet (treff, highlight-ring, sentrering) bor i useKartSok.js.
+// panToSettled der løser mobil-tastatur-resizen; les kommentaren i fila før du
+// endrer sentreringen. Det GLOBALE stedssøket blir her nede — å velge et
+// globalt treff bygger et nytt kart, og det er bygge-domenet.
+const {
+  mapSearch, searchQuery, searchResults, searchIndex,
+  searchOpen, highlightedFeature,
+  openSearch, closeSearch, clearHighlight,
+  panToSettled, stopPanSettle, selectSearchResult,
+  searchActiveIndex, onSearchKeydown,
+} = useKartSok({
+  svgHostRef, wrapperRef, meta, scale, isGesturing, zoomNearThreshold,
+  panTo,
+  // Getter: settet eies av useNavnLod, som opprettes lenger ned i fila.
+  forcedVisibleNameEls: () => forcedVisibleNameEls,
+  hooks: {
+    renderHighlight: () => renderHighlight(),
+    closeDrawer: () => closeDrawer(),
+    clearGlobalSearch: () => { placeSearch.query.value = '' },
+  },
+})
 
 // Globalt stedssøk (Kartverket SSR + Nominatim) PARALLELT med kart-søket:
 // kart-søket ser bare navn i det rendrede SVG-et, så globale forslag vises
@@ -1140,81 +1149,6 @@ watch(searchQuery, (q) => {
   placeSearch.query.value = (q ?? '').trim().length >= 2 ? q : ''
 })
 
-function openSearch() {
-  searchOpen.value = true
-  closeDrawer()
-  // Fokus håndteres av MapSearchOverlay når open blir true.
-}
-function closeSearch() {
-  searchOpen.value = false
-  mapSearch.clear()
-  placeSearch.query.value = ''
-}
-function clearHighlight() {
-  highlightedFeature.value = null
-  renderHighlight()
-}
-// Sentrer et søketreff robust mot tastatur-resize (v12.1.30). Med viewport-
-// metaen interactive-widget=resizes-content (v12.1.25) er layout-viewporten
-// KRYMPET mens søke-tastaturet står oppe — panTo som måler wrapperen da,
-// legger treffet nederst i utsnittet idet tastaturet lukkes. Forrige forsøk
-// (v12.1.29) gatet på document.activeElement, men på Android blurres søke-
-// feltet allerede av TAP-et på resultatknappen (før click-handleren kjører),
-// så gaten slo aldri inn. Nå timing-uavhengig: pan straks (responsivt), og
-// RE-pan til samme mål hver gang wrapper-størrelsen faktisk endrer seg
-// (ResizeObserver = tastaturet lukkes), debounced til ro. Avbrytes hvis
-// brukeren gestikulerer; auto-stopp etter 1,5 s. Uten tastatur skjer ingen
-// resize → ingen ekstra pan.
-let settleObserver = null
-let settleTimer = null
-let settleStopTimer = null
-function stopPanSettle() {
-  settleObserver?.disconnect()
-  settleObserver = null
-  if (settleTimer) { clearTimeout(settleTimer); settleTimer = null }
-  if (settleStopTimer) { clearTimeout(settleStopTimer); settleStopTimer = null }
-}
-function panToSettled(x, y, opts) {
-  stopPanSettle()
-  panTo(x, y, opts)
-  const el = wrapperRef.value
-  if (!el || typeof ResizeObserver === 'undefined') return
-  let lastH = el.getBoundingClientRect().height
-  settleObserver = new ResizeObserver(() => {
-    const h = el.getBoundingClientRect().height
-    if (Math.abs(h - lastH) < 1) return      // initial-notify / uendret
-    lastH = h
-    if (settleTimer) clearTimeout(settleTimer)
-    settleTimer = setTimeout(() => {
-      if (!isGesturing.value) panTo(x, y, opts)
-    }, 120)
-  })
-  settleObserver.observe(el)
-  settleStopTimer = setTimeout(stopPanSettle, 1500)
-}
-
-function selectSearchResult(r) {
-  highlightedFeature.value = { name: r.name, x: r.x, y: r.y, kind: r.kind }
-  // Et navn som velges i søk skal alltid være synlig, selv om navn-LOD-en
-  // hadde skjult det i oversikten. Lås det til synlig (til neste rebuild).
-  if (r.el) {
-    forcedVisibleNameEls.add(r.el)
-    r.el.classList.remove('name-lod-off')
-    // Treffet kan også være viewport-cullet (utenfor utsnittet) — panTo
-    // flytter dit og recull viser det, men fjern klassen alt nå så
-    // highlighten aldri peker på et usynlig element.
-    r.el.classList.remove('vp-cull')
-  }
-  if (meta.value) {
-    panToSettled(r.x, r.y, { vbWidth: meta.value.widthM, vbHeight: meta.value.heightM, targetScale: Math.max(scale.value, zoomNearThreshold.value) })
-  }
-  searchOpen.value = false
-  mapSearch.clear()
-  placeSearch.query.value = ''
-  renderHighlight()
-}
-
-// Globalt treff valgt (utenfor dette kartet) → bygg et nytt kart sentrert der.
 // Gjenbruker buildMapFromCenter (samme flyt som on-the-fly-bygging og
 // rebuildAtChosenSize) med brukerens standarder (størrelse/format/ekvidistanse).
 async function onSelectGlobalPlace(hit) {
@@ -1244,13 +1178,6 @@ async function onSelectGlobalPlace(hit) {
   }
 }
 
-// Tastaturnavigasjon (desktop): pil ned/opp markerer, Enter velger, Escape
-// nullstiller søkebegrepet. Fokus blir i input-en så Escape alltid virker.
-const { activeIndex: searchActiveIndex, onKeydown: onSearchKeydown } = useSearchKeyboard(searchResults, {
-  onSelect: selectSearchResult,
-  onClear: () => mapSearch.clear(),
-  optionId: (i) => `mapsearch-opt-${i}`,
-})
 
 // ── «Nærmeste …»-snarveier (parkering / toalett / holdeplass) ─────────────
 // Highlighter samme rosa puls-ring som et fritekstsøk-treff, men finner

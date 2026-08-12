@@ -297,6 +297,55 @@ const SJEKKER = [
     },
   },
   {
+    navn: 'søk highlighter et treff og panorerer dit',
+    domene: 'useKartSok',
+    // Demo-kartet har sju navn; et ekte kart har ~200. Vi trenger et navn å
+    // søke opp, så sjekken krever ekte kart.
+    krever: 'ektekart',
+    async kjør(page) {
+      await lukkDrawer(page)
+      // Finn et navn som faktisk står i kartet, og søk på de fire første
+      // bokstavene — da er sjekken uavhengig av hvilke stedsnavn Vardåsen har.
+      const navn = await page.evaluate(() => {
+        const t = [...document.querySelectorAll('svg.isom-map text')]
+          .map((e) => (e.textContent || '').trim())
+          .filter((s) => /^[A-Za-zÆØÅæøå][A-Za-zÆØÅæøå\s-]{4,}$/.test(s))
+        return t[0] || ''
+      })
+      if (!navn) throw new Error('fant ingen stedsnavn i kartet å søke på')
+      const før = await page.evaluate(() =>
+        document.querySelector('[data-map-inner]')?.style.transform || '')
+      await klikkTekst(page, /^Søk i kart$/)
+      await page.waitForTimeout(500)
+      await page.locator('input[type="search"], input[type="text"]').first()
+        .fill(navn.slice(0, 4))
+      await page.waitForTimeout(900)
+      // Første treff i kart-lista (ikke «Andre steder» — det bygger nytt kart).
+      const traff = await page.evaluate(() => {
+        const b = [...document.querySelectorAll('button, [role="option"]')]
+          .filter((e) => e.offsetParent && /^[A-Za-zÆØÅæøå]/.test(e.innerText.trim()))
+        const t = b.find((e) => !/Andre steder|Lag kart|Søk/i.test(e.innerText))
+        if (!t) return ''
+        t.click(); return t.innerText.trim().split('\n')[0]
+      })
+      if (!traff) throw new Error(`ingen treff-knapp for «${navn.slice(0, 4)}»`)
+      await page.waitForTimeout(1600)     // pan + panToSettled-vinduet
+      const ring = await page.evaluate(() =>
+        document.querySelectorAll('svg.isom-map #search-highlight-layer *').length)
+      const etter = await page.evaluate(() =>
+        document.querySelector('[data-map-inner]')?.style.transform || '')
+      if (!ring) throw new Error('ingen highlight-ring etter valgt treff')
+      if (før === etter) throw new Error('kartet panorerte ikke til treffet')
+      // Nøytral tilstand: highlight-chippen ERSTATTER fane-raden mens den står,
+      // så neste sjekk finner ikke 3D-knappen. Fjern markeringen.
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(300)
+      await klikkTekst(page, /^Fjern markering$/)
+      await page.waitForTimeout(400)
+      return `«${traff}» → ${ring} ring-noder, transform endret`
+    },
+  },
+  {
     navn: '3D-visningen åpner',
     domene: 'use3dEntry',
     async kjør(page) {

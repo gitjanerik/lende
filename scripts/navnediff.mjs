@@ -147,7 +147,11 @@ for (const f of endredeFiler) {
 //   • property-tilgang (`tour.open3d` er ikke en referanse til vår `open3d`)
 //   • attributt-navn i malen (`@open3d="openTour3d"` — navnet er en event, ikke en verdi)
 //   • objekt-nøkler på egen linje (`open3d: nav.open3d`)
+//   • sitat-strenger — `import { findByName } from './useMapSearch.js'` er en
+//     STI, ikke en referanse til funksjonen useMapSearch. (Template-literaler
+//     røres ikke: `${foo}` inni dem ER kode.)
 const brukTekst = utenKommentarer(nyTekst)
+  .replace(/'[^'\n]*'|"[^"\n]*"/g, "''")
   .replace(/\.\s*[A-Za-z_$][\w$]*/g, '.')
   .replace(/([\s@:])[\w.-]+=(?=["'])/g, '$1=')
   .replace(/^[ \t]*[A-Za-z_$][\w$]*[ \t]*:/gm, ':')
