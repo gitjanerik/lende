@@ -128,13 +128,23 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   `useNaerhetsvarsel.js` + `useMaaling.js`, og i v5.12.0 `useKartEksport.js`,
   `useTemaBytte.js` + `useGpsTips.js`, og `useKartSok.js` i v5.13.0 (fritekst-søk,
   highlight, panToSettled), og i v5.15.0 `useGestPerf.js` (gest-perf-modus +
-  jank-måler) og `usePanGrenser.js` (pan-clamp + zoom-ut-gulv). Alle rene
-  flyttinger er nå gjort. **Det som IKKE bør trekkes ut som det står:**
-  Stifinner-handlerne og snarvei-raden (~330 linjer). Hver handler rører fire
-  domener (måling, annotering, sti, kontekstmeny), så en composable ville trengt
-  ti tilbakekall — det er et tegn på at sømmen ikke finnes ennå. Skal de ut, må
-  modus-maskinen formes om først, og det er en ekte refaktorering, ikke en
-  flytting. **Merk fra v5.10.0:** linjetallene her er anslag fra
+  jank-måler) og `usePanGrenser.js` (pan-clamp + zoom-ut-gulv).
+  **Opprydningen er ferdig, og fila har et kart øverst — les det først.**
+  Sytten domener er ute; det som står igjen er montering, livssyklus,
+  komposisjonen av 50 composable-kall, modus-glue-en og malen.
+
+  **To ting ble MÅLT og forkastet (v5.15.0) — ikke ta dem opp igjen uten nye
+  argumenter:**
+  1. *Stifinner-glue-en* (L1490–1700, 212 linjer): 23 avhengigheter. En
+     composable med 23 deps er MapView med et lengre kallsted. Det er ikke en
+     søm, det er et kryss der fire domener møtes (måling, annotering, sti,
+     kontekstmeny). Skal den ut, må modus-maskinen formes om FØRST — en ekte
+     refaktorering med atferdsrisiko på appens kjernefunksjon.
+  2. *Drawer-ens 111 props* (fordelt på 8 `Drawer*Tab`-komponenter): ville
+     spart ~60 mal-linjer (2 % av fila) mot å endre prop-kontrakten i åtte
+     barn-komponenter. Feilmodusen er en feilstavet prop-sti → STILLE død
+     funksjon, siden Vue ikke kaster på udefinerte props. Verktøyene her er
+     svakest på nettopp det. Dårlig bytte. **Merk fra v5.10.0:** linjetallene her er anslag fra
   utsiden. FAB-blokka var anslått til 518 linjer og «ett domene», men inneholdt
   fire — knottene, standarder for nye kart, maks-fliser og navnespråk. Les
   blokka før du stoler på tallet, og følg sømmen framfor tallet.

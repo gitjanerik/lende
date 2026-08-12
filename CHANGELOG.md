@@ -1,5 +1,26 @@
 # Endringslogg
 
+## 2026-08-12 — v5.15.1: Kart over MapView, og to punkter målt og forkastet
+
+Opprydningen er ferdig: 4 897 → 3 150 linjer over åtte leveranser, sytten
+domener ute i egne composables. Denne siste posten legger ikke til kode — den
+legger til et KART øverst i MapView.vue: hva som bor der, hva som er flyttet ut
+og hvor, hvilke kall som ikke kan flyttes, og hva du skal kjøre før du endrer
+noe. Problemet med fila har hele tiden vært at ingen leser den i sin helhet;
+tretti linjer med oversikt er verdt mer enn de neste hundre linjene som kunne
+flyttes.
+
+To gjenstående punkter ble målt og forkastet, og begrunnelsen står i CLAUDE.md
+så de ikke tas opp på nytt uten nye argumenter. **Stifinner-glue-en** (212
+linjer) har 23 avhengigheter — en composable med 23 deps er MapView med et
+lengre kallsted, og koden er ikke en søm men et kryss der fire domener møtes.
+**Drawer-ens 111 props** ville spart ~60 mal-linjer (2 % av fila) mot å endre
+prop-kontrakten i åtte barn-komponenter, der feilmodusen er en feilstavet
+prop-sti → stille død funksjon. Vue kaster ikke på udefinerte props, og det er
+nettopp der verktøyene mine er svakest.
+
+---
+
 ## 2026-08-12 — v5.15.0: Gest-perf og pan-grensene ut av MapView
 
 To composables til: `useGestPerf.js` (hva som slås av under pan/pinch/rotasjon,
