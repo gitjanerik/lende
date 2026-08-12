@@ -166,3 +166,35 @@ describe('PREVIEW_TEXTURE_PX', () => {
     expect(PREVIEW_TEXTURE_PX).toBeLessThan(pickTextureSize(null))
   })
 })
+
+// ── Nabofliser i en mosaikk ────────────────────────────────────────────────
+// Naboflisene merker lagene sine `data-ghost-layer` (useGhostTiles renavner dem
+// for å holde dem utenfor 2D-ens lag-queries og perf-regler). Alt 3D-teksturen
+// stripper må treffe begge navnene — ellers sto aktiv flis med rene kurver mens
+// naboflisene hadde dem bakt inn i bildet, og «Kurver»-knappen styrte bare den
+// ene niendedelen av arket (v5.18.0).
+describe('mosaikk: naboflisenes lag strippes på lik linje', () => {
+  const NABO =
+    '<svg x="4000" y="0" width="4000" height="3000">' +
+    '<g data-ghost-layer="kontur"><g data-iso="101"><path d="M0,0 L1,1"/></g></g>' +
+    '<g data-ghost-layer="parkering" data-iso="534"><use href="#p-sym"/></g>' +
+    '<g data-ghost-layer="bymasse" data-iso="522"><path d="M0,0 L5,5 Z"/></g>' +
+    '<g data-ghost-relief="1"><path d="M0,0 L9,9" fill="#888"/></g>' +
+    '<g data-ghost-layer="skog" data-iso="406"><path d="M1,1"/></g>' +
+    '</svg>'
+  const ARK = `<svg viewBox="0 0 4000 3000">${NABO}</svg>`
+
+  it('kurver, P-skilt, bymasse og vektor-relieff fjernes også fra naboflisa', () => {
+    const out = cleanSvgForTexture(ARK)
+    expect(out).not.toContain('data-ghost-layer="kontur"')
+    expect(out).not.toContain('data-ghost-layer="parkering"')
+    expect(out).not.toContain('data-ghost-layer="bymasse"')
+    expect(out).not.toContain('data-ghost-relief')
+  })
+
+  it('resten av naboflisa står — den ER kartbildet utenfor aktiv flis', () => {
+    const out = cleanSvgForTexture(ARK)
+    expect(out).toContain('data-ghost-layer="skog"')
+    expect(out).toContain('<svg x="4000"')
+  })
+})

@@ -28,6 +28,9 @@ import {
   ROUTABLE_CODES, BARRIER_CODES,
 } from '../lib/routing.js'
 import { parsePathSubpaths } from '../lib/pathUtils.js'
+// Nabofliser er nestede <svg x y> med flis-lokale koordinater — se
+// lib/svgNestedOffset.js for hvorfor det er en delt fil og ikke tre kopier.
+import { nestedSvgOffset } from '../lib/svgNestedOffset.js'
 import { realElevationAt } from '../lib/demSampling.js'
 
 // Snap-tersklene bor i routing.js (delt med chattens forhåndsberegning):
@@ -222,24 +225,6 @@ export function useStifinner(opts = {}) {
     cachedSvg = null
     cachedDem = null
     lastSvg = null
-  }
-
-  // Spøkelses-/utvidelsesfliser ligger som nestede <svg x y> i aktiv-flisas
-  // meterrom (buildGhostSvg i MapView), og path-d-ene deres er FLIS-LOKALE.
-  // Uten dette offsetet ble naboflisenes stinett limt inn feilplassert oppå
-  // aktiv flis — forskjøvet med flis-bredder — og Stifinner foreslo ruter
-  // tvers over innsjøer langs de feilplasserte kopiene (Gjende-tilfellet).
-  // Nestede fliser er gitter-kompatible (samme størrelse, scale 1), så
-  // kumulert x/y er hele transformasjonen.
-  function nestedSvgOffset(el, rootSvg) {
-    let dx = 0, dy = 0
-    for (let n = el; n && n !== rootSvg; n = n.parentNode) {
-      if (String(n.tagName).toLowerCase() === 'svg') {
-        dx += parseFloat(n.getAttribute('x')) || 0
-        dy += parseFloat(n.getAttribute('y')) || 0
-      }
-    }
-    return { dx, dy }
   }
 
   // Les routbare sti-/vei-paths OG barriere-geometri fra SVG-en (aktiv flis +

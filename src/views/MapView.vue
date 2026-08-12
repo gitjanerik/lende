@@ -1892,7 +1892,11 @@ const {
 } = use3dEntry({
   meta, storedDem, searchIndex, svgHostRef, wrapperRef, animating,
   scale, translateX, translateY, rotation,
-  sti, userPos, svgToClient, ensureDem,
+  sti, userPos, ghostRects, svgToClient, ensureDem,
+  // Arkets yttergrense — 3D bygger hele mosaikken, ikke bare aktiv flis. Samme
+  // union som pan-grensa bruker, så «det du kan panorere til» og «det du får i
+  // 3D» er samme kart.
+  mosaicBounds: () => extendZonesBounds(),
 })
 
 

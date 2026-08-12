@@ -1,5 +1,50 @@
 # Endringslogg
 
+## 2026-08-12 — v5.18.0: 3D viser hele kartet, og turen er noe du kan se deg rundt i
+
+Fem ting fra testrunden i 3D, og den største er at 3D-visningen nå bygger HELE
+arket. Har du utvidet kartet med kanthåndtakene, var det bare flisa i midten som
+ble terreng — et 3×3-ark mistet åtte niendedeler i det du trykket «3D». Nå regnes
+utsnittet av mosaikk-kanten (samme union pan-grensa bruker) sammen med rutas
+bounding-boks, DEM hentes for hele utsnittet, og kartteksturen tar med
+naboflisene. Ytelsen holder seg fordi taket ikke er antall fliser men det som
+allerede finnes: terrengmeshen desimeres til 512 celler uansett størrelse, og
+mosaikken tegner maks 12 nabofliser. Det du BETALER er oppløsning — teksturen er
+det samme 4096²-lerretet uansett hvor stort området er, så et 3×3-ark får
+kartbildet i en tredjedel av detaljen per meter, og rasteriseringen av SVG-en tar
+noe lenger tid ved åpning. Med utvidelsen kom tre feil fram som hadde ligget der
+hele tiden: naboflisenes stinett, brukerminner og navn ble lest ut med
+flis-LOKALE koordinater og lagt oppå den aktive flisa, forskjøvet med hele
+flisebredder. Regnestykket som retter det bodde i tre nesten like kopier og bor
+nå i én fil, `lib/svgNestedOffset.js`. Naboflisenes navn (topper, vann, steder,
+hytter) blir nå nåler de også — de står ikke i søkeindeksen, som med vilje bare
+dekker aktiv flis, så de leses rett ut av navnelabelene i mosaikken.
+
+**Turen er ikke lenger noe du bare ser på.** Kameraet lå låst til ruta under
+avspilling, og det opplevdes rart når resten av visningen inviterer til å
+utforske. Nå ligger kameraet litt lenger ute og høyere (35° over horisonten i
+stedet for 32°, 40 % lengre bak), du kan dra og pinche fritt mens turen ruller —
+kameraet FØLGER fortsatt ruta hele tiden — og legger du fingeren stille et lite
+øyeblikk, blir kameraet stående der det er så du kan se rundt deg, opp og ned,
+mens turen går videre uten deg. Slipper du, glir det mykt tilbake bak ruta.
+Play og «start på nytt» setter kameraet tilbake i standardposen skrått bakfra, i
+stedet for å arve utsikten du sto i — når utforsking er poenget underveis, må det
+finnes ÉN forutsigbar vei tilbake til «vis meg ruta».
+
+**To nåler tett i tett.** Nåler blåses opptil 5× opp med avstanden så de kan
+lokaliseres i horisonten, men declutteren regnet med en fast boks for en nær nål
+— så to fjerne nåler kunne stå med hodene delvis oppå hverandre. Boksen måles nå
+i skjermrommet, fra fot til hode, og av to som konkurrerer om samme flekk vinner
+den nærmeste betrakteren.
+
+**Og to småting.** Knappen på infokortet het «Videre →», et arvestykke fra den
+første 3D-visningen der kortene bare var severdigheter langs en valgt sti; nå er
+det en X som lukker. Og visningen åpner med kun nålene på — kurvene sto på før,
+men sammen med stinettet, nålene og en rute ble det fire lag over hverandre i det
+første sekundet, og førsteinntrykket er det eneste som ikke kan slås på igjen.
+
+---
+
 ## 2026-08-12 — v5.17.0: Søketreffene blir faktisk skilt, og eksporten lar visningen stå
 
 To ting fra testrunden. Kvalifikatoren fra v5.16.0 virket i logikken men ga

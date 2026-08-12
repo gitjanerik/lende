@@ -9,6 +9,7 @@
 import { wgs84ToSvg } from '../utm.js'
 import { kindMeta } from './featureTimeline.js'
 import { bboxFromMeta } from './tourData.js'
+import { nestedSvgOffset } from '../svgNestedOffset.js'
 
 /**
  * Alle navngitte POI-er i søkeindeksen som 3D kan gjøre noe med.
@@ -45,8 +46,10 @@ export function collectBrukerminnePins(svgEl) {
     const t = g.getAttribute('transform') ?? ''
     const m = /translate\(\s*(-?[\d.]+)\s*[, ]\s*(-?[\d.]+)\s*\)/.exec(t)
     if (!m) continue
-    const x = Number(m[1])
-    const y = Number(m[2])
+    // Ligger minnet i en naboflis, er translate-en flis-lokal (v5.18.0).
+    const { dx, dy } = nestedSvgOffset(g, svgEl)
+    const x = Number(m[1]) + dx
+    const y = Number(m[2]) + dy
     if (!Number.isFinite(x) || !Number.isFinite(y)) continue
     out.push({
       name: g.getAttribute('data-tittel') || 'Kulturminne',
@@ -61,6 +64,90 @@ export function collectBrukerminnePins(svgEl) {
         kulturminneId: g.getAttribute('data-kulturminne-id'),
       },
     })
+  }
+  return out
+}
+
+// Navnelabelen i en naboflis → nålens `kind`. Bare de slagene 3D har nåler for;
+// veinummer, kontur-/dybde-tall og skjulte dem-topper hører ikke hjemme her.
+const GHOST_LABEL_KIND = {
+  peak: 'peak',
+  stedsnavn: 'stedsnavn',
+  'vann-navn': 'vann-navn',
+  'hytte-navn': 'hytte-navn',
+  'naturreservat-navn': 'naturreservat-navn',
+  'omrade-navn': 'omrade',
+}
+
+const UNITLESS_NUM = /^-?[\d.]+$/
+const BARE_TALL = /^[\d\s.,–-]+$/
+
+// Kumulert translate() fra forfedrene. Toppnavn står i en translatert `<g>` med
+// x/y i millimeter (en håndfull meter), så gruppa ER posisjonen for dem.
+function ancestorTranslate(el, root) {
+  let dx = 0
+  let dy = 0
+  for (let n = el?.parentNode; n && n !== root; n = n.parentNode) {
+    const t = n.getAttribute?.('transform')
+    if (!t) continue
+    const m = /translate\(\s*(-?[\d.]+)\s*(?:[, ]\s*(-?[\d.]+))?\s*\)/.exec(t)
+    if (m) {
+      dx += Number(m[1]) || 0
+      dy += Number(m[2] ?? 0) || 0
+    }
+  }
+  return { dx, dy }
+}
+
+/**
+ * Navngitte POI-er i NABOFLISENE (`#ghost-tiles`), lest rett ut av navnelabelene.
+ *
+ * Søkeindeksen (useMapSearch) dekker med vilje bare den aktive flisa — spøkelser
+ * skal ikke gi doble søketreff. Men når 3D nå bygger HELE arket (v5.18.0), ville
+ * det gitt et kart der terrenget og kartbildet strekker seg over ni fliser mens
+ * nålene stopper ved den ene i midten. Naboflisene beholder navnene sine i
+ * DOM-en (useGhostTiles v12.0.11), så de kan leses her: label-typen gir `kind`,
+ * x/y-attributtet gir posisjonen, og flis-offsetet løfter den til aktiv-flisas rom.
+ *
+ * Mindre rikt enn søkeindeksen — ingen areal (så store vann rammes inn som små)
+ * og ingen unavngitte tjern, siden `data-name`/`data-detail` er strippet fra
+ * spøkelsene. Navn og posisjon er det som trengs for en nål man kan trykke på.
+ *
+ * @param {Element} svgEl aktiv flis' `<svg>`
+ */
+export function collectGhostFeatures(svgEl) {
+  const out = []
+  const host = svgEl?.querySelector?.('#ghost-tiles')
+  if (!host?.querySelectorAll) return out
+  const sett = new Set()
+  for (const t of host.querySelectorAll('text[data-label]')) {
+    const kind = GHOST_LABEL_KIND[t.getAttribute('data-label')]
+    if (!kind) continue
+    let name = (t.textContent ?? '').trim().replace(/\s+/g, ' ')
+    let ele = null
+    if (kind === 'peak') {
+      // «Gaustatoppen 1883» — høyden er en <tspan data-label="peak-ele"> inni
+      // navne-teksten, så den følger med i textContent.
+      const m = /^(.*?)[\s ]*(\d{2,4})$/.exec(name)
+      if (m) {
+        name = m[1].trim()
+        ele = Number(m[2])
+      }
+    }
+    if (!name || BARE_TALL.test(name)) continue
+    // Samme navn i to nabofliser (et vann som strekker seg over flisekanten får
+    // én label per flis) skal bli én nål.
+    const key = `${kind}:${name.toLowerCase()}`
+    if (sett.has(key)) continue
+    const flis = nestedSvgOffset(t, svgEl)
+    const anc = ancestorTranslate(t, svgEl)
+    const ax = t.getAttribute('x') ?? ''
+    const ay = t.getAttribute('y') ?? ''
+    const x = flis.dx + anc.dx + (UNITLESS_NUM.test(ax) ? Number(ax) : 0)
+    const y = flis.dy + anc.dy + (UNITLESS_NUM.test(ay) ? Number(ay) : 0)
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue
+    sett.add(key)
+    out.push({ name, kind, x, y, ele, areaM2: null, categories: null })
   }
   return out
 }
