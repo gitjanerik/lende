@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   stripContourLayers, stripVectorRelief, stripPointSymbols, cleanSvgForTexture,
-  textureSourceIsBlank, pickTextureSize, PREVIEW_TEXTURE_PX,
+  textureSourceIsBlank, pickTextureSize, withPixelSize, PREVIEW_TEXTURE_PX,
 } from './mapTexture.js'
 
 // Speiler mapBuilder-strukturen: kontur-laget har NESTEDE grupper
@@ -58,14 +58,28 @@ describe('stripVectorRelief', () => {
     expect(out).toContain('data-layer="vann"')
   })
 
-  it('beholder «Mjuk (bilde)»-relieffet (image-variant)', () => {
-    const out = stripVectorRelief(`<svg>${RASTER_RELIEF}</svg>`)
-    expect(out).toContain('<image id="hillshade-layer"')
+  // v5.18.1: ALT relieff ut, også bilde-varianten. 3D baker sitt eget fra
+  // utsnittets DEM — én sømløs belysning i stedet for ett base64-PNG per flis,
+  // hvert med sin egen kant og til sammen megabyte i strengen som skal dekodes.
+  it('fjerner «Mjuk (bilde)»-relieffet (image-variant)', () => {
+    const out = stripVectorRelief(`<svg>${RASTER_RELIEF}<g data-layer="vann"/></svg>`)
+    expect(out).not.toContain('hillshade-layer')
+    expect(out).toContain('data-layer="vann"')
   })
 
-  it('cleanSvgForTexture: vektor-relieff strippes så mykt relieff bakes i stedet', () => {
-    const out = cleanSvgForTexture(`<svg>${VECTOR_RELIEF}</svg>`)
-    expect(out.includes('id="hillshade-layer"')).toBe(false)
+  it('fjerner naboflisenes relieff, både bånd og bilde', () => {
+    const out = stripVectorRelief(
+      '<svg><g data-ghost-relief="1"><path d="M0,0 L5,5"/></g>' +
+      '<image data-ghost-relief="1" href="data:image/png;base64,x"/>' +
+      '<g data-ghost-layer="vann"/></svg>')
+    expect(out).not.toContain('data-ghost-relief')
+    expect(out).toContain('data-ghost-layer="vann"')
+  })
+
+  it('cleanSvgForTexture: relieffet strippes så mykt relieff bakes i stedet', () => {
+    for (const relief of [VECTOR_RELIEF, RASTER_RELIEF]) {
+      expect(cleanSvgForTexture(`<svg>${relief}</svg>`)).not.toContain('hillshade-layer')
+    }
   })
 })
 
@@ -196,5 +210,30 @@ describe('mosaikk: naboflisenes lag strippes på lik linje', () => {
     const out = cleanSvgForTexture(ARK)
     expect(out).toContain('data-ghost-layer="skog"')
     expect(out).toContain('<svg x="4000"')
+  })
+})
+
+// ── Flis-størrelse ─────────────────────────────────────────────────────────
+// Den levende kart-SVG-en har width/height="100%" — den fyller sin vert. En
+// <img> har ingen vert, så prosentene gir bildet ingen egen størrelse, og
+// nettleseren rasteriserer SVG-en på sin default (300 px) før den skaleres opp.
+describe('withPixelSize', () => {
+  it('bytter ut prosent-størrelsen med piksler', () => {
+    const ut = withPixelSize('<svg viewBox="0 0 4000 3000" width="100%" height="100%"><g/></svg>', 1365, 1024)
+    expect(ut).toContain('width="1365"')
+    expect(ut).toContain('height="1024"')
+    expect(ut).not.toContain('100%')
+    expect(ut).toContain('viewBox="0 0 4000 3000"')
+  })
+
+  it('setter størrelse på en SVG som mangler den, og runder av', () => {
+    const ut = withPixelSize('<svg viewBox="0 0 100 100">x</svg>', 1365.4, 0.2)
+    expect(ut).toContain('width="1365"')
+    expect(ut).toContain('height="1"')   // aldri 0 — et 0-px bilde laster ikke
+  })
+
+  it('rører bare rot-taggen, ikke nestede fliser', () => {
+    const ut = withPixelSize('<svg width="100%"><svg x="10" width="4000"/></svg>', 512, 512)
+    expect(ut).toContain('<svg x="10" width="4000"/>')
   })
 })

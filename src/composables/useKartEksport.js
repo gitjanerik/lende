@@ -102,6 +102,107 @@ export function useKartEksport({ svgHostRef, meta, mapTitle, currentTheme, autoM
     if (!colophon) return clone.outerHTML
     return withColophon(clone.outerHTML, { meta: meta.value, title: mapTitle.value })
   }
+
+  // ── Kartfliser til 3D-teksturen ────────────────────────────────────────────
+  // 3D drapererer kartet over terrenget ved å rasterisere det. Fram til v5.18.1
+  // fikk motoren HELE arket som én SVG-streng; det brakk ved ni fliser (bildet
+  // lastet ikke, og terrenget fikk gråtone-fallbacken). Nå leverer vi flisene
+  // hver for seg, med ruta hver av dem dekker, og motoren dekoder og tegner dem
+  // én om gangen.
+  //
+  // Naboflisene ligger i DOM-en som nestede <svg x y> UTEN eget stilark
+  // (useGhostTiles fjerner det med vilje, så de farges av aktiv flis). Løsrevet
+  // fra arket må de derfor få stilarkene med seg, ellers rendres de svarte.
+
+  const SVG_NS = 'http://www.w3.org/2000/svg'
+  const XLINK_NS = 'http://www.w3.org/1999/xlink'
+
+  function bakeTile(el, { css, bg, viewBox }) {
+    el.setAttribute('xmlns', SVG_NS)
+    el.setAttribute('xmlns:xlink', XLINK_NS)
+    el.removeAttribute('x')
+    el.removeAttribute('y')
+    if (bg && viewBox) {
+      const rect = document.createElementNS(SVG_NS, 'rect')
+      rect.setAttribute('x', String(viewBox[0]))
+      rect.setAttribute('y', String(viewBox[1]))
+      rect.setAttribute('width', String(viewBox[2]))
+      rect.setAttribute('height', String(viewBox[3]))
+      rect.setAttribute('fill', bg)
+      el.insertBefore(rect, el.firstChild)
+    }
+    if (css) {
+      const style = document.createElementNS(SVG_NS, 'style')
+      style.textContent = css
+      el.appendChild(style)
+    }
+    return el.outerHTML
+  }
+
+  /**
+   * @param {{theme?: string|null,
+   *          extent?: {minX:number, minY:number, widthM:number, heightM:number}|null}} [opts]
+   * @returns {null | {tiles: Array<{svg:string, x:number, y:number, w:number, h:number}>,
+   *                   widthM:number, heightM:number, background:string}}
+   *   x/y/w/h i meter, forskjøvet inn i utsnittets eget rom (0 … widthM).
+   */
+  function mapSvgTilesFor3d({ theme = null, extent = null } = {}) {
+    const svg = svgHostRef.value?.querySelector('svg')
+    const m = meta.value
+    if (!svg || !m) return null
+
+    // Samme grunn som i eksporten: labelene counter-roteres på skjermen, og den
+    // rotasjonen skal ikke følge med inn i teksturen.
+    hooks.applyUprightLabels(0)
+    const clone = svg.cloneNode(true)
+    hooks.applyUprightLabels()
+
+    const themeKey = theme ?? currentTheme.value
+    const themeCss = buildThemeCss(themeKey)
+    const bg = isomCatalog.themes?.[themeKey]?.background ?? isomCatalog.background.color
+    // Aktiv flis' stilark, inkludert supplementene naboflisene trenger
+    // (#ghost-isom-style for koder aktiv flis ikke selv bruker, #ghost-stroke-style).
+    const delteStiler = [...clone.children]
+      .filter((c) => (c.tagName ?? '').toLowerCase() === 'style')
+      .map((s) => s.textContent ?? '').join('\n')
+
+    const ghostHost = clone.querySelector('#ghost-tiles')
+    const ghosts = ghostHost
+      ? [...ghostHost.children].filter((e) => e.tagName?.toLowerCase() === 'svg')
+      : []
+    ghostHost?.remove()
+
+    const minX = extent?.minX ?? 0
+    const minY = extent?.minY ?? 0
+    const tiles = [{
+      svg: bakeTile(clone, { css: themeCss, bg, viewBox: [0, 0, m.widthM, m.heightM] }),
+      x: -minX, y: -minY, w: m.widthM, h: m.heightM,
+    }]
+    for (const g of ghosts) {
+      const x = parseFloat(g.getAttribute('x')) || 0
+      const y = parseFloat(g.getAttribute('y')) || 0
+      const w = parseFloat(g.getAttribute('width')) || m.widthM
+      const h = parseFloat(g.getAttribute('height')) || m.heightM
+      // Naboflisas viewBox har et halvmeters blø-hakk rundt cellen (søm-dekning),
+      // og x/y/width/height følger det — så ruta her er den bledde ruta, og
+      // naboer overlapper hverandre litt i stedet for å møtes på en kant.
+      const vb = (g.getAttribute('viewBox') ?? '').split(/[\s,]+/).map(Number)
+      tiles.push({
+        svg: bakeTile(g, {
+          css: `${delteStiler}\n${themeCss}`,
+          bg,
+          viewBox: vb.length === 4 && vb.every(Number.isFinite) ? vb : [0, 0, w, h],
+        }),
+        x: x - minX, y: y - minY, w, h,
+      })
+    }
+    return {
+      tiles,
+      widthM: extent?.widthM ?? m.widthM,
+      heightM: extent?.heightM ?? m.heightM,
+      background: bg,
+    }
+  }
   // Hvilken eksport som kjører nå ('' | 'svg' | 'png' | 'pdf' | 'print'). Brukes
   // til å vise spinner på den aktive knappen og deaktivere de andre — PNG/PDF
   // bruker noen sekunder (canvas-render + lazy jsPDF), så uten dette virket appen
@@ -144,7 +245,7 @@ export function useKartEksport({ svgHostRef, meta, mapTitle, currentTheme, autoM
   }
 
   return {
-    mapSvgMarkupForExport, exporting,
+    mapSvgMarkupForExport, mapSvgTilesFor3d, exporting,
     onExportSvg, onExportPng, onExportPdf, onPrint,
   }
 }

@@ -33,7 +33,10 @@ const props = defineProps({
   // Null = visningen åpnes uten tur.
   tour: { type: Object, default: null },
   estWalkMinutes: { type: Function, default: null },
-  getSvgText: { type: Function, required: true },
+  // Arkets kartfliser som SVG-strenger + rutene de dekker, klare til
+  // rasterisering (se mapTexture.prepareMapTextureSource). Kalles på nytt for
+  // mørkt tema og hver gang teksturen må bygges om.
+  getTextureSpec: { type: Function, required: true },
   isDark: { type: Boolean, default: false },
   // Live GPS-posisjon i SVG-meter, null når posisjonering ikke er aktiv.
   // MapView sender et nytt lite objekt per fix, så watch-en trigges.
@@ -213,11 +216,14 @@ onMounted(async () => {
     engine = await create3dScene(canvasHost.value, {
       dem,
       meta: toRaw(props.meta),
-      svgText: props.getSvgText(),
-      // Lar motoren rasterisere på nytt: skjerping til full oppløsning, og
-      // gjenoppbygging hvis nettleseren tømmer lerretet mens vi ligger nede.
-      getSvgText: props.getSvgText,
+      // Lar motoren rasterisere på nytt når den trenger det: skjerping til full
+      // oppløsning, mørkt tema, og gjenoppbygging hvis nettleseren tømmer
+      // lerretet mens vi ligger nede.
+      getTextureSpec: props.getTextureSpec,
       onProgress: (m) => { buildMsg.value = m },
+      // Kartbildet kom ikke (helt) på terrenget — si fra i stedet for å la
+      // brukeren stå med et månelandskap uten forklaring.
+      onTextureNote: (m) => { if (m) showToast(m, 6000) },
       pathFeatures: toRaw(props.pathFeatures) ?? [],
       barrierFeatures: toRaw(props.barrierFeatures) ?? [],
       features: allFeatures,
@@ -382,7 +388,7 @@ async function toggleContours() {
 const nightOn = ref(props.isDark)
 async function applyNight(on) {
   if (!engine) return
-  await engine.setNightMode(on, on ? { svgText: props.getSvgText({ dark: true }) } : {})
+  await engine.setNightMode(on)
 }
 function toggleNight() {
   nightOn.value = !nightOn.value

@@ -1,11 +1,19 @@
 // Kart-SVG-en rasterisert til terrengtekstur — selve ISOM-kartografien
-// drapert over meshen. Samme Blob → objectURL → Image → drawImage-mønster
-// som printExport.js (mobil-OOM-trygt via størrelsesklamp).
+// drapert over meshen. Blob → objectURL → Image → drawImage, som printExport.js.
 //
-// Hillshade: #hillshade-layer injiseres av klienten ved visning og finnes
-// normalt IKKE i den lagrede SVG-strengen — da bakes computeHillshade inn
-// med multiply, så belysningen ligger i teksturen og materialet kan være
-// ulit (MeshBasicMaterial).
+// ÉN FLIS OM GANGEN (v5.18.1). Fram til da ble hele arket serialisert til ÉN
+// SVG-streng og dekodet som ett bilde. Det holdt til fire fliser og brakk ved ni:
+// bildet lastet ikke, og terrenget fikk gråtone-fallbacken — et månelandskap
+// uten kartografi. Nå dekodes hver flis for seg og tegnes inn i sin egen rute av
+// lerretet. Kostnaden per dekoding er en niendedel, en flis som feiler koster
+// bare sin egen rute (resten av kartet står), og strengen vi bygger er aldri
+// større enn ett kart.
+//
+// Hillshade bakes ALLTID her, fra utsnittets egen DEM, og alt relieff strippes
+// ut av flisene først. Det gir én sømløs belysning over hele arket i stedet for
+// ni per-flis-bilder med hver sin kant — og det er den største enkeltposten i
+// strengen som forsvinner. Belysningen ligger dermed i teksturen, og materialet
+// kan være ulit (MeshBasicMaterial).
 
 import { CanvasTexture, SRGBColorSpace, LinearMipmapLinearFilter } from 'three'
 import { computeHillshade } from '../hillshade.js'
@@ -28,17 +36,22 @@ export function stripContourLayers(svg) {
   return stripBalancedGroups(svg, new RegExp(`<g\\b[^>]*${LAG}="kontur"[^>]*>`))
 }
 
-// Relieff-stilen «Skarp (vektor)» er en <g id="hillshade-layer"> med diskrete
-// tone-bånd-polygoner — rasterisert til 3D-tekstur blir de flate grå flekker
-// på terrenget. Strip den, så baker buildMapTexture mykt bilde-relieff i
-// stedet: 3D bruker alltid «Mjuk (bilde)», uansett hva brukeren valgte i 2D.
-// «Mjuk»-varianten er en <image id="hillshade-layer"> og matches ikke av
-// <g-regexen — den beholdes som den er.
+// ALT relieff ut av flisene (v5.18.1) — 3D baker sitt eget fra utsnittets DEM.
+//
+// «Skarp (vektor)» er en <g id="hillshade-layer"> med diskrete tone-bånd som
+// blir flate grå flekker på terrenget. «Mjuk (bilde)» er en <image> med et
+// base64-PNG; den ble beholdt fram til v5.18.1, men i en mosaikk er det ETT slikt
+// bilde per flis — hver med sin egen kant, og til sammen megabyte med base64 i
+// strengen vi ber nettleseren dekode. Én bake fra union-DEM-en gir samme
+// belysning uten skjøter, og 3D-relieffet blir samtidig uavhengig av hva
+// brukeren valgte i 2D (som er riktig: 3D har sin egen lyssetting).
 export function stripVectorRelief(svg) {
-  const utenAktiv = stripBalancedGroups(svg, /<g\b[^>]*id="hillshade-layer"[^>]*>/)
-  // Naboflisenes vektor-relieff er en <g data-ghost-relief> med de samme
-  // tone-båndene, og de blir de samme grå flekkene på terrenget.
-  return stripBalancedGroups(utenAktiv, /<g\b[^>]*data-ghost-relief[^>]*>/)
+  let s = stripBalancedGroups(svg, /<g\b[^>]*id="hillshade-layer"[^>]*>/)
+  // Naboflisenes vektor-relieff er en <g data-ghost-relief> med samme tone-bånd.
+  s = stripBalancedGroups(s, /<g\b[^>]*data-ghost-relief[^>]*>/)
+  // …og bilde-varianten, aktiv flis som naboer.
+  return s.replace(
+    /<image\b[^>]*(?:id="hillshade-layer"|data-ghost-relief)[^>]*\/?>(<\/image>)?/g, '')
 }
 
 // Kartelementer som ikke hører hjemme drapert på 3D-terreng: flate punkt-
@@ -120,31 +133,25 @@ export function textureSourceIsBlank(tex) {
   }
 }
 
-/**
- * @param {string} svgString  kart-SVG (eksport-markup fra MapView)
- * @param {import('../demSampling.js').DEM|null} dem  for hillshade-bake
- * @param {{sizePx?: number, renderer?: object, night?: boolean}} [opts]
- *   night: nattmodus-tekstur — evt. medfølgende relieff-<image> er tonet for
- *   lyst tema og strippes; i stedet bakes screen-blend (lysner mørk flate).
- * @returns {Promise<CanvasTexture>}
- */
-/**
- * Dekod kart-SVG-en én gang, klar til å rasteriseres i flere størrelser.
- *
- * Dekodingen — nettleserens parsing og rasterisering av titusenvis av
- * SVG-elementer — er den dyre delen, og den koster det samme uansett hvor
- * stort lerretet er. Derfor deles den fra selve tegningen: da kan vi vise en
- * liten tekstur først og skjerpe til full oppløsning etterpå uten å betale
- * for rasteriseringen to ganger. Samme grunn til at relieffet bakes én gang.
- *
- * @returns {Promise<{img: HTMLImageElement, cleaned: string, dispose: () => void}>}
- */
-export async function prepareMapTextureSource(svgString, { night = false } = {}) {
-  let cleaned = cleanSvgForTexture(svgString)
-  // Nattmodus: relieff-bildene (aktiv flise + nabo-flisenes data-ghost-relief)
-  // er tonet for lyst tema — strip dem og bak screen-blend i stedet.
-  if (night) cleaned = cleaned.replace(/<image\b[^>]*(?:id="hillshade-layer"|data-ghost-relief)[^>]*\/?>(<\/image>)?/g, '')
+const ISOM_CREAM = '#fffbf0'
 
+/**
+ * Sett en eksplisitt pikselstørrelse på rot-SVG-en.
+ *
+ * Den levende kart-SVG-en har `width="100%" height="100%"` — den fyller sin
+ * vert. En `<img>` har ingen vert, så prosentene gir bildet ingen egen
+ * størrelse, og nettleseren rasteriserer SVG-en på sin default (300 px) før den
+ * skaleres opp. Her sier vi presis hvor mange piksler flisa skal dekode til.
+ */
+export function withPixelSize(svg, wPx, hPx) {
+  return svg.replace(/<svg\b([^>]*)>/, (_m, attrs) => {
+    const rest = attrs.replace(/\s(?:width|height)="[^"]*"/g, '')
+    return `<svg${rest} width="${Math.max(1, Math.round(wPx))}" height="${Math.max(1, Math.round(hPx))}">`
+  })
+}
+
+async function decodeTile(svgString, { wPx, hPx }) {
+  const cleaned = withPixelSize(cleanSvgForTexture(svgString), wPx, hPx)
   const blob = new Blob([cleaned], { type: 'image/svg+xml;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const img = new Image()
@@ -158,16 +165,69 @@ export async function prepareMapTextureSource(svgString, { night = false } = {})
     URL.revokeObjectURL(url)
     throw err
   }
+  return { img, bytes: cleaned.length, dispose: () => URL.revokeObjectURL(url) }
+}
+
+/**
+ * Dekod arkets fliser én gang, klare til å rasteriseres i flere størrelser.
+ *
+ * Dekodingen — nettleserens parsing og rasterisering av titusenvis av
+ * SVG-elementer — er den dyre delen, og den koster det samme uansett hvor
+ * stort lerretet er. Derfor deles den fra selve tegningen: da kan vi vise en
+ * liten tekstur først og skjerpe til full oppløsning etterpå uten å betale
+ * for rasteriseringen to ganger. Samme grunn til at relieffet bakes én gang.
+ *
+ * En flis som ikke lar seg dekode hoppes over — resten av kartet skal stå.
+ * Feiler ALLE, kaster vi, og kalleren faller til gråtone-relieffet.
+ *
+ * @param {{tiles: Array<{svg:string, x:number, y:number, w:number, h:number}>,
+ *          widthM:number, heightM:number, background?:string}} spec
+ *   x/y/w/h i meter, i utsnittets eget rom (0 … widthM).
+ * @param {{sizePx?: number}} [opts] lerretsstørrelsen flisene skal dekodes for
+ */
+export async function prepareMapTextureSource(spec, { sizePx = 4096 } = {}) {
+  const { tiles = [], widthM, heightM } = spec ?? {}
+  if (!tiles.length || !(widthM > 0) || !(heightM > 0)) {
+    throw new Error('Tomt tekstur-utsnitt')
+  }
+  const utfall = await Promise.allSettled(tiles.map((t) => decodeTile(t.svg, {
+    wPx: (t.w / widthM) * sizePx,
+    hPx: (t.h / heightM) * sizePx,
+  }).then((d) => ({ ...d, rect: t }))))
+  const dekodet = utfall.filter((r) => r.status === 'fulfilled').map((r) => r.value)
+  const feilet = tiles.length - dekodet.length
+  if (!dekodet.length) {
+    throw new Error(`Ingen av ${tiles.length} kartfliser lot seg rasterisere`)
+  }
+  if (feilet) {
+    console.warn(`[3D] ${feilet} av ${tiles.length} kartfliser lot seg ikke rasterisere`)
+  }
+
   let shadeCanvas = null
   return {
-    img,
-    cleaned,
+    background: spec.background || ISOM_CREAM,
+    tileCount: tiles.length,
+    /** Hvor mange fliser som ikke kom med — kalleren melder fra om det. */
+    missing: feilet,
+    bytes: dekodet.reduce((sum, d) => sum + d.bytes, 0),
+    /** Tegn alle flisene inn i et kvadratisk lerret på `px`. */
+    draw(ctx, px) {
+      for (const d of dekodet) {
+        ctx.drawImage(
+          d.img,
+          (d.rect.x / widthM) * px,
+          (d.rect.y / heightM) * px,
+          (d.rect.w / widthM) * px,
+          (d.rect.h / heightM) * px,
+        )
+      }
+    },
     /** Relieff-lerretet, bygget ved første behov og gjenbrukt etterpå. */
     shade(dem) {
       if (!shadeCanvas && dem) shadeCanvas = hillshadeCanvas(dem)
       return shadeCanvas
     },
-    dispose() { URL.revokeObjectURL(url) },
+    dispose() { for (const d of dekodet) d.dispose() },
   }
 }
 
@@ -180,16 +240,19 @@ export function rasterizeMapTexture(source, dem, { sizePx, renderer, night = fal
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('Canvas-context utilgjengelig')
 
-  // Hele viewBoxen tegnes inn i det kvadratiske pow2-lerretet; UV-ene i
-  // terrainGrid kompenserer for aspektet.
-  ctx.drawImage(source.img, 0, 0, px, px)
+  // Bakgrunnen males først: hull i mosaikken (og margen rundt et avlangt ark)
+  // skal være kartets egen papirfarge, ikke gjennomsiktig — en gjennomsiktig
+  // tekstur leser textureSourceIsBlank som «lerretet er tømt».
+  ctx.fillStyle = source.background || ISOM_CREAM
+  ctx.fillRect(0, 0, px, px)
 
-  // Etter cleanSvgForTexture kan hillshade-layer bare være <image>-varianten
-  // («Mjuk (bilde)») — mangler den (relieff av, «Skarp (vektor)» strippet,
-  // eller nattmodus), bakes mykt relieff inn her.
-  if (dem && !source.cleaned.includes('id="hillshade-layer"')) {
-    drawShade(ctx, source.shade(dem), px, night)
-  }
+  // Hele utsnittet tegnes inn i det kvadratiske pow2-lerretet, flis for flis;
+  // UV-ene i terrainGrid kompenserer for aspektet.
+  source.draw(ctx, px)
+
+  // Relieffet er strippet ut av flisene (se stripVectorRelief) og bakes her, fra
+  // utsnittets egen DEM — én sømløs belysning over hele arket.
+  if (dem) drawShade(ctx, source.shade(dem), px, night)
 
   const tex = new CanvasTexture(canvas)
   tex.colorSpace = SRGBColorSpace
@@ -201,10 +264,11 @@ export function rasterizeMapTexture(source, dem, { sizePx, renderer, night = fal
   return tex
 }
 
-export async function buildMapTexture(svgString, dem, { sizePx, renderer, night = false } = {}) {
-  const source = await prepareMapTextureSource(svgString, { night })
+export async function buildMapTexture(spec, dem, { sizePx, renderer, night = false } = {}) {
+  const px = sizePx ?? pickTextureSize(renderer)
+  const source = await prepareMapTextureSource(spec, { sizePx: px })
   try {
-    return rasterizeMapTexture(source, dem, { sizePx, renderer, night })
+    return rasterizeMapTexture(source, dem, { sizePx: px, renderer, night })
   } finally {
     source.dispose()
   }
