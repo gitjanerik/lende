@@ -1,4 +1,39 @@
 <script setup>
+// ─────────────────────────────────────────────────────────────────────────────
+// MapView — kartvisningen (/kart/:id). 3 150 linjer, og det er med vilje at
+// dette kartet står øverst: du leser aldri hele fila, og uten en oversikt
+// begynner hver økt med å famle.
+//
+// HVA SOM BOR HER (og altså IKKE i en composable):
+//   • Montering og livssyklus — onMounted/onUnmounted, resize-observere,
+//     body-scroll-lås, wake lock.
+//   • KOMPOSISJONEN: 50 composable-kall i en rekkefølge som betyr noe. Flere
+//     kall MÅ stå der de står; når det er tilfellet står HVORFOR på kallstedet.
+//     Les TDZ- og hoisting-reglene i CLAUDE.md før du flytter et kall.
+//   • Modus-glue-en: Stifinner-handlerne, snarvei-raden og PUNKT-arkets
+//     handlinger (~212 linjer, L1490–1700). Hver handler rører fire domener —
+//     måling, annotering, sti, kontekstmeny — og et uttrekk ville trengt 23
+//     avhengigheter. Det er ikke en søm, det er et kryss. Se CLAUDE.md.
+//   • Malen (~840 linjer): stort sett prop-kabling til ferdig uttrukne
+//     komponenter (MapModeChips, ContextMenuSheet, FabCluster, 8 Drawer*Tab).
+//
+// HVA SOM ER FLYTTET UT (v5.8.0–v5.15.0) — rør domenet i composable-en, ikke her:
+//   3D-inngangen ......... use3dEntry            Deling (ut) ...... useKartDeling
+//   Delt tur (inn) ....... useDeltTur            Lag/presets ...... useLagStyring
+//   GPS + sporing ........ useGpsSpor            GPS-tips/toasts .. useGpsTips
+//   Navne-declutter ...... useNavnLod            Viewport-culling . useViewportCull
+//   Knotter + FAB-panel .. useKartKnotter        Måling ........... useMaaling
+//   Nærhetsvarsel ........ useNaerhetsvarsel     Eksport/print .... useKartEksport
+//   Tema + diagnose ...... useTemaBytte          Kartsøk .......... useKartSok
+//   Gest-perf + jank ..... useGestPerf           Pan/zoom-grenser . usePanGrenser
+//   Rendering ............ useSymbolRenderers    Lasting .......... useMapLoadPipeline
+//   Mosaikk/utvidelse .... useMapExtend          Spøkelsesfliser .. useGhostTiles
+//   Relieff .............. useReliefRender       Long-press-oppslag useContextLookups
+//
+// FØR DU ENDRER NOE HER: `npm run royk` (14 sjekker i ekte nettleser) og
+// `npm run navnediff`. Verken enhetstestene eller byggetestene fanger en
+// monteringsfeil i denne fila — det har kostet fem feilsøkte runder å lære.
+// ─────────────────────────────────────────────────────────────────────────────
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { usePinchZoom } from '../composables/usePinchZoom.js'
