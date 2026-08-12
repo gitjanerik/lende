@@ -47,12 +47,15 @@ export function useNominatim({ debounceMs = 350, countryCode = 'no' } = {}) {
     try {
       const signal = abortController.signal
       results.value = await searchPlaces(q, { countryCode, signal })
-      // Trinn 2: bare hvis noe FORTSATT er tvetydig etter objekttype-runden.
+      // Trinn 2: bare hvis noe FORTSATT er tvetydig etter gratis-runden.
+      // Hvert oppslag oppdaterer lista straks det lander (onOppdatert), fordi
+      // Nominatim-pausen gjør at hele runden tar et par sekunder — brukeren skal
+      // se radene bli skilt én for én, ikke vente på alle.
       if (minToken === token && harDuplikater(results.value)) {
-        const raffinert = await kvalifiserTvetydige(results.value, {
+        await kvalifiserTvetydige(results.value, {
           reverse: (lat, lon) => reverseGeocode(lat, lon, { signal }),
+          onOppdatert: (liste) => { if (minToken === token) results.value = liste },
         })
-        if (minToken === token) results.value = raffinert
       }
     } catch (e) {
       if (e.name !== 'AbortError') {

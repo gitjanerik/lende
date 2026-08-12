@@ -88,6 +88,32 @@ export function nearestPlaceLabel(d) {
   return label || null
 }
 
+// Stedsnavn til å SKILLE to søketreff med samme navn. Merk at prioriteringen er
+// motsatt av nearestPlaceLabel over: den er laget for GPS-posisjonen din og skal
+// gi det mest LOKALE navnet («Stormoen» framfor kommunen). Til søk vil du ha det
+// mest GJENKJENNELIGE: «Vardåsen, Asker (Rønningen)» hjelper mer enn
+// «(Hauger)», som er navnet på én gård.
+//
+// Målt på de fire Vardåsen-toppene i Asker (2026-08-12) er dette hva Nominatim
+// faktisk har på reverse/zoom=14, og det er verdt å vite før man forventer mer:
+//   59.8140 → farm Hauger, suburb Rønningen, town Asker
+//   59.5583 → farm Toftebråten, neighbourhood Tofteplassen, quarter Fuglebakk, hamlet Rød
+//   59.6895 → farm Grimsrud, hamlet Grimsrud   (ingenting større finnes)
+// Tettsted-nivået («Dikemark», «Røyken») ligger altså IKKE i svaret for disse
+// punktene. Vi tar det største som finnes, og gården som siste utvei.
+// Returnerer en ORDNET liste, ikke ett navn: det største kandidatnavnet er ofte
+// kommunen selv («Asker»), som ikke skiller noe. Kalleren tar det første som
+// tilfører informasjon — ellers mistet vi «Rønningen» til «Asker».
+export function stedsnavnKandidater(d) {
+  const a = d?.address ?? {}
+  return [
+    a.town, a.city_district, a.suburb, a.village,
+    a.quarter, a.neighbourhood,
+    a.hamlet, a.farm, a.isolated_dwelling,
+    a.city,
+  ].filter(Boolean)
+}
+
 /**
  * Revers-geokod en koordinat til nærmeste stedsnavn (Nominatim /reverse).
  * @param {number} lat
@@ -114,7 +140,11 @@ export async function reverseGeocode(lat, lon, opts = {}) {
   if (!res.ok) throw new Error(`Nominatim ${res.status}`)
   const data = await res.json()
   if (!data || data.error) return null
-  return { ...normalizeNominatim(data), placeLabel: nearestPlaceLabel(data) }
+  return {
+    ...normalizeNominatim(data),
+    placeLabel: nearestPlaceLabel(data),      // mest lokalt — for GPS-posisjonen
+    skilleKandidater: stedsnavnKandidater(data),  // ordnet, mest gjenkjennelig først
+  }
 }
 
 /**
@@ -213,6 +243,18 @@ function dedupKey(r) {
 
 const MAKS_KVALIFISER_OPPSLAG = 3
 
+// Har dubletten et sted-ledd som den beholdte etiketten mangler? «Vardåsen,
+// Tofte» mot «Vardåsen, Asker» → «Tofte». Kun første ledd etter navnet;
+// resten av Nominatims display_name er fylke og land.
+function ekstraStedsledd(beholdtEtikett, dublettEtikett) {
+  const ledd = (t) => (t || '').split(',').map((d) => d.trim()).filter(Boolean)
+  const b = ledd(beholdtEtikett), d = ledd(dublettEtikett)
+  if (d.length < 2) return null
+  const kandidat = d[1]
+  if (!kandidat) return null
+  return b.some((x) => x.toLowerCase() === kandidat.toLowerCase()) ? null : kandidat
+}
+
 // Grupper treff som ville vist samme tekst i lista.
 export function grupperEtterEtikett(treff) {
   const grupper = new Map()
@@ -255,14 +297,32 @@ function kvalifiserMedType(gruppe) {
  *   den, brukes bare objekttype-kvalifikatoren — helt uten nettverk.
  */
 export async function kvalifiserTvetydige(treff, opts = {}) {
-  const { reverse, maksOppslag = MAKS_KVALIFISER_OPPSLAG } = opts
+  const {
+    reverse,
+    maksOppslag = MAKS_KVALIFISER_OPPSLAG,
+    // Nominatim ber om maks ett kall i sekundet. Uten pause fikk tre raske
+    // reverse-kall rett etter søket 429, og alle tre treffene ble stående
+    // ukvalifiserte — som er nøyaktig det brukeren så etter v5.16.0.
+    pauseMs = 1100,
+    onOppdatert = null,
+  } = opts
   const ut = treff.map((r) => ({ ...r }))
+  // Hvert oppslag som lykkes oppdaterer lista med en gang. Ellers måtte
+  // brukeren vente på ALLE (3+ sekunder med pausene) før noe ble skilt.
+  const oppdater = (liste) => {
+    if (!onOppdatert) return
+    onOppdatert(liste.map((r) => (
+      r.kvalifikator ? { ...r, shortName: `${r.shortName} (${r.kvalifikator})` } : { ...r }
+    )))
+  }
   const grupper = grupperEtterEtikett(ut)
 
   const trengerOppslag = []
   for (const gruppe of grupper.values()) {
     if (gruppe.length < 2) continue
-    kvalifiserMedType(gruppe)
+    // Gratis-kvalifikatorene først, i rekkefølge etter hvor gjenkjennelige de er.
+    for (const r of gruppe) if (r.tvillingSted) r.kvalifikator = r.tvillingSted
+    kvalifiserMedType(gruppe.filter((r) => !r.kvalifikator))
     for (const r of gruppe) if (!r.kvalifikator) trengerOppslag.push(r)
   }
 
@@ -272,17 +332,20 @@ export async function kvalifiserTvetydige(treff, opts = {}) {
     for (const r of trengerOppslag.slice(0, maksOppslag)) {
       try {
         const d = await reverse(r.lat, r.lon)
-        const sted = d?.placeLabel
-        // Et reverse-treff som bare gjentar navnet selv («Vardåsen») eller
-        // kommunen skiller ingenting — da er vi like langt, og lar den stå.
-        if (sted && !sammeLedd(sted, r.shortName)) r.kvalifikator = sted
-      } catch { /* nett nede: la treffet stå ukvalifisert */ }
+        // Første kandidat som TILFØRER noe. «Asker» gjentar kommunen i etiketten
+        // og skiller ingenting, så vi går videre til neste (suburb «Rønningen»).
+        const kandidater = d?.skilleKandidater ?? (d?.placeLabel ? [d.placeLabel] : [])
+        r.kvalifikator = kandidater.find((k) => k && !sammeLedd(k, r.shortName)) ?? null
+        if (r.kvalifikator) oppdater(ut)
+      } catch { /* nett nede eller 429: la treffet stå ukvalifisert */ }
+      if (pauseMs) await new Promise((ok) => setTimeout(ok, pauseMs))
     }
   }
 
   for (const r of ut) {
     if (r.kvalifikator) r.shortName = `${r.shortName} (${r.kvalifikator})`
     delete r.kvalifikator
+    delete r.tvillingSted
   }
   return ut
 }
@@ -315,12 +378,22 @@ export async function searchPlaces(query, opts = {}) {
   const kvHits = kv.status === 'fulfilled' ? kv.value : []
   const nomHits = nom.status === 'fulfilled' ? nom.value : []
 
-  const seen = new Set()
+  // Dedup, men vi KASTER ikke informasjonen i dubletten. SSR vinner (autoritativ
+  // norsk skrivemåte) og har bare kommunenavn i etiketten, mens Nominatim-
+  // tvillingen kan ha tettstedet: «Vardåsen, Tofte» mot SSR-ens «Vardåsen,
+  // Asker». Det er det mest gjenkjennelige skille-navnet vi kan få, og det
+  // koster ingenting — det ligger alt i svaret vi har hentet.
+  const seen = new Map()
   const merged = []
   for (const r of [...kvHits, ...nomHits]) {
     const key = dedupKey(r)
-    if (seen.has(key)) continue
-    seen.add(key)
+    const beholdt = seen.get(key)
+    if (beholdt) {
+      const ledd = ekstraStedsledd(beholdt.shortName, r.shortName)
+      if (ledd && !beholdt.tvillingSted) beholdt.tvillingSted = ledd
+      continue
+    }
+    seen.set(key, r)
     merged.push(r)
   }
 

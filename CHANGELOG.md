@@ -1,5 +1,39 @@
 # Endringslogg
 
+## 2026-08-12 — v5.17.0: Søketreffene blir faktisk skilt, og eksporten lar visningen stå
+
+To ting fra testrunden. Kvalifikatoren fra v5.16.0 virket i logikken men ga
+INGENTING i praksis, og eksporten nullstilte en rotasjon den ikke burde røre.
+
+**Hvorfor ingen kvalifikator kom fram.** Målt mot Nominatim (2026-08-12): funksjonen vi
+gjenbrukte, `nearestPlaceLabel`, er laget for GPS-posisjonen din og velger med
+vilje det mest LOKALE navnet — «Hauger», «Rød», «Grimsrud», altså gårdsnavn. Til
+å skille søketreff vil man ha motsatt prioritet, det mest GJENKJENNELIGE. I
+tillegg gjorde tre raske reverse-kall rett etter søket at Nominatim svarte 429, og
+feilen ble svelget i stillhet — treffene sto ukvalifiserte, som er nøyaktig det
+som ble observert. Nå: `stedsnavnKandidater` rangerer tettsted/bydel/grend foran
+gård, kalleren tar første kandidat som TILFØRER noe (så «Asker» hoppes over til
+fordel for «Rønningen»), det er 1,1 s mellom oppslagene, og hvert treff
+oppdaterer lista straks det er skilt i stedet for at alle venter på alle.
+
+**Og et gratis skille vi kastet.** SSR vinner dedupliseringen med god grunn
+(autoritativ norsk skrivemåte), men Nominatim-tvillingen på samme koordinat kan
+vite mer: «Vardåsen, Tofte» mot SSR-ens «Vardåsen, Asker». Nå plukkes det
+sted-leddet opp før dubletten forkastes — helt uten nettverkskall.
+
+Resultatet for de tre Asker-treffene, målt: «(Rønningen)», «(Tofte)» og
+«(Grimsrud)». Merk at tettsted-nivået eieren håpet på — «Dikemark», «Røyken» —
+IKKE finnes i Nominatims reverse-svar for disse punktene; det største som
+finnes er en bydel, ellers en gård. Det står dokumentert i `geocode.js` med
+måledata, så ingen leter etter det på nytt.
+
+**Eksporten lar visningen stå.** v5.16.0 nullstilte rotasjonen før eksport.
+Det virket, men zoom, rotasjon og utsnitt er noe brukeren har lagt til rette
+med vilje. Fila blir nord-opp uansett, og labelene rettes i klonen —
+skjermen forblir urørt.
+
+Bonusfunn: det er minst FIRE topper som heter Vardåsen i Asker, ikke to. Etter
+kommunesammenslåingen i 2020 er Asker, Røyken og Hurum én kommune.
 ## 2026-08-12 — v5.16.1: Hvorfor kryss-domene-kode hører hjemme i MapView
 
 Ingen kodeendring. Gjeldsseksjonen i CLAUDE.md har fått eierens begrunnelse for
