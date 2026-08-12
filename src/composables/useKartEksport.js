@@ -27,7 +27,11 @@ import { withColophon } from '../lib/mapColophon.js'
  *   svgHostRef: import('vue').Ref, meta: import('vue').Ref,
  *   mapTitle: import('vue').Ref, currentTheme: import('vue').Ref,
  *   autoMapToast: import('vue').Ref,   // deles med useMapExtend (feilmelding)
- *   hooks: { applyUprightLabels: (kartRotDeg?: number) => void },
+ *   hooks: {
+ *     applyUprightLabels: (kartRotDeg?: number) => void,
+ *     gjeldendeRotasjon: () => number,
+ *     nullstillRotasjon: () => void,
+ *   },
  * }} deps
  */
 export function useKartEksport({ svgHostRef, meta, mapTitle, currentTheme, autoMapToast, hooks }) {
@@ -109,6 +113,15 @@ export function useKartEksport({ svgHostRef, meta, mapTitle, currentTheme, autoM
   const filenameBase = () => mapTitle.value.replace(/[^a-z0-9æøå]+/gi, '-').toLowerCase()
   async function runExport(type, fn) {
     if (exporting.value) return
+    // Nullstill brukerens rotasjon FØRST. Eksporten er alltid nord-opp, så det
+    // brukeren ser på skjermen skal være det han får i fila — ellers får han en
+    // PDF som ikke ligner kartet han nettopp la til rette. rotateTo(0) er
+    // synkron (applyDelta setter rotation direkte), og nextTick lar
+    // rotasjons-watcherne — inkludert applyUprightLabels — flushe før vi kloner.
+    if (hooks.gjeldendeRotasjon() !== 0) {
+      hooks.nullstillRotasjon()
+      await nextTick()
+    }
     const m = mapSvgMarkupForExport()
     if (!m) return
     exporting.value = type

@@ -3,6 +3,7 @@ import {
   geocodePlace, geocodeKartverket, searchPlaces,
   normalizeNominatim, normalizeKartverket,
   shortNameFor, nearestPlaceLabel, reverseGeocode,
+  kvalifiserTvetydige, grupperEtterEtikett,
 } from './geocode.js'
 
 const sample = {
@@ -265,5 +266,96 @@ describe('reverseGeocode', () => {
   it('returnerer null når Nominatim svarer med error', async () => {
     const fetchImpl = fakeFetch({ error: 'Unable to geocode' })
     expect(await reverseGeocode(0, 0, { fetchImpl })).toBeNull()
+  })
+})
+
+// ─── Tvetydige treff (v5.16.0) ───────────────────────────────────────────────
+// Saken: «Vardåsen, Asker» ga fem identiske rader. SSR registrerer
+// navneobjekter, ikke topper, og etter kommunesammenslåingen i 2020 er Røyken +
+// Hurum + gamle Asker én kommune — så to åser og tre ting oppkalt etter dem
+// deler både navn og kommunenavn.
+describe('kvalifiserTvetydige', () => {
+  const asker = (id, objekttype, lat, lon) => ({
+    id, shortName: 'Vardåsen, Asker', name: 'Vardåsen, Asker', objekttype, lat, lon,
+  })
+
+  it('lar unike treff være helt i fred', async () => {
+    const inn = [asker('1', 'Ås', 59.81, 10.41), { id: '2', shortName: 'Gaustatoppen, Tinn', lat: 59.8, lon: 8.6 }]
+    const ut = await kvalifiserTvetydige(inn)
+    expect(ut.map((r) => r.shortName)).toEqual(['Vardåsen, Asker', 'Gaustatoppen, Tinn'])
+  })
+
+  it('skiller med objekttype når den er unik i gruppa — uten nettverk', async () => {
+    const ut = await kvalifiserTvetydige([
+      asker('1', 'Ås', 59.814, 10.414),
+      asker('2', 'Alpinanlegg', 59.815, 10.415),
+    ])
+    expect(ut.map((r) => r.shortName)).toEqual([
+      'Vardåsen, Asker (ås)', 'Vardåsen, Asker (alpinanlegg)',
+    ])
+  })
+
+  it('setter IKKE samme type bak to treff — «(ås)» to ganger hjelper ingen', async () => {
+    const ut = await kvalifiserTvetydige([
+      asker('1', 'Ås', 59.814, 10.414),
+      asker('2', 'Ås', 59.758, 10.470),
+    ])
+    expect(ut.map((r) => r.shortName)).toEqual(['Vardåsen, Asker', 'Vardåsen, Asker'])
+  })
+
+  it('bruker nærmeste stedsnavn for de som er igjen etter type-runden', async () => {
+    const reverse = async (lat) => ({ placeLabel: lat > 59.79 ? 'Dikemark' : 'Røyken' })
+    const ut = await kvalifiserTvetydige([
+      asker('1', 'Ås', 59.814, 10.414),
+      asker('2', 'Ås', 59.758, 10.470),
+      asker('3', 'Alpinanlegg', 59.815, 10.415),
+    ], { reverse })
+    expect(ut.map((r) => r.shortName)).toEqual([
+      'Vardåsen, Asker (Dikemark)',
+      'Vardåsen, Asker (Røyken)',
+      'Vardåsen, Asker (alpinanlegg)',   // klarte seg med typen, ingen oppslag
+    ])
+  })
+
+  it('slår ikke opp for treff som alt har fått en type-kvalifikator', async () => {
+    const kalt = []
+    const reverse = async (lat, lon) => { kalt.push([lat, lon]); return { placeLabel: 'Dikemark' } }
+    await kvalifiserTvetydige([
+      asker('1', 'Ås', 59.814, 10.414),
+      asker('2', 'Alpinanlegg', 59.815, 10.415),
+    ], { reverse })
+    expect(kalt).toEqual([])
+  })
+
+  it('ignorerer et reverse-treff som bare gjentar navnet eller kommunen', async () => {
+    const ut = await kvalifiserTvetydige([
+      asker('1', 'Ås', 59.814, 10.414),
+      asker('2', 'Ås', 59.758, 10.470),
+    ], { reverse: async () => ({ placeLabel: 'Asker' }) })
+    expect(ut.map((r) => r.shortName)).toEqual(['Vardåsen, Asker', 'Vardåsen, Asker'])
+  })
+
+  it('respekterer taket på antall oppslag', async () => {
+    let n = 0
+    const reverse = async () => { n++; return { placeLabel: `Sted ${n}` } }
+    await kvalifiserTvetydige(
+      [1, 2, 3, 4, 5].map((i) => asker(String(i), 'Ås', 59.8 + i / 100, 10.4)),
+      { reverse, maksOppslag: 2 },
+    )
+    expect(n).toBe(2)
+  })
+
+  it('lar treffet stå ukvalifisert hvis reverse-oppslaget feiler', async () => {
+    const ut = await kvalifiserTvetydige([
+      asker('1', 'Ås', 59.814, 10.414),
+      asker('2', 'Ås', 59.758, 10.470),
+    ], { reverse: async () => { throw new Error('nett nede') } })
+    expect(ut.map((r) => r.shortName)).toEqual(['Vardåsen, Asker', 'Vardåsen, Asker'])
+  })
+
+  it('muterer ikke inn-lista', async () => {
+    const inn = [asker('1', 'Ås', 59.814, 10.414), asker('2', 'Alpinanlegg', 59.815, 10.415)]
+    await kvalifiserTvetydige(inn)
+    expect(inn.map((r) => r.shortName)).toEqual(['Vardåsen, Asker', 'Vardåsen, Asker'])
   })
 })

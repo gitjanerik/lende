@@ -60,6 +60,10 @@ export function normalizeKartverket(item) {
     name: label,
     shortName: label,
     type: (item.navneobjekttype ?? '').toLowerCase() || null,
+    // Vist til brukeren når to treff har samme navn i samme kommune. SSR
+    // registrerer NAVNEOBJEKTER, ikke bare topper: «Vardåsen» i Asker er både
+    // to åser, et alpinanlegg og et boligfelt.
+    objekttype: item.navneobjekttype ?? null,
     importance: 0.5,
     lat,
     lon,
@@ -190,6 +194,105 @@ function dedupKey(r) {
   return `${head}@${r.lat.toFixed(3)},${r.lon.toFixed(3)}`
 }
 
+// ─── Tvetydige treff ────────────────────────────────────────────────────────
+// «Vardåsen, Asker» ga fem identiske rader i søkelista, og det var ikke en bug i
+// dedupliseringen: SSR registrerer NAVNEOBJEKTER, ikke topper. Etter
+// kommunesammenslåingen i 2020 er Røyken, Hurum og gamle Asker ÉN kommune, så
+// flere ulike objekter deler navnet innenfor samme kommune — to åser, pluss det
+// som er oppkalt etter dem (alpinanlegg, boligfelt, kirke). Etiketten vår var
+// bare «skrivemåte, kommune», så alle fem så like ut.
+//
+// Vi fjerner dem ikke: de ER forskjellige steder, og brukeren skal kunne velge.
+// Vi KVALIFISERER dem i stedet, med det billigste som skiller:
+//   1. Navneobjekttypen, som vi allerede har gratis fra SSR — skiller
+//      alpinanlegget fra åsen.
+//   2. Nærmeste stedsnavn (ett reverse-oppslag), som er det eneste som skiller
+//      to åser med samme navn i samme kommune: «(Dikemark)» vs «(Røyken)».
+// Steg 2 koster nettverk, så det gjøres BARE for treff som fortsatt er
+// tvetydige etter steg 1, og maks `maksOppslag` av dem.
+
+const MAKS_KVALIFISER_OPPSLAG = 3
+
+// Grupper treff som ville vist samme tekst i lista.
+export function grupperEtterEtikett(treff) {
+  const grupper = new Map()
+  for (const r of treff) {
+    const k = (r.shortName || r.name || '').trim().toLowerCase()
+    if (!k) continue
+    if (!grupper.has(k)) grupper.set(k, [])
+    grupper.get(k).push(r)
+  }
+  return grupper
+}
+
+// Steg 1: skiller objekttypen gruppa? Da er den kvalifikatoren — men bare hvis
+// den faktisk VARIERER. To åser får ikke «(Ås)» bak begge; det ville se ut som
+// en feil og hjelpe ingen.
+function kvalifiserMedType(gruppe) {
+  const typer = gruppe.map((r) => r.objekttype || '')
+  const unike = new Set(typer.filter(Boolean))
+  if (unike.size < 2) return false
+  let noenSatt = false
+  for (const r of gruppe) {
+    // Kun de som har en type SOM ER UNIK i gruppa. Er to av fem åser, skal de to
+    // videre til steg 2 mens alpinanlegget klarer seg med typen sin.
+    if (r.objekttype && typer.filter((t) => t === r.objekttype).length === 1) {
+      r.kvalifikator = r.objekttype.toLowerCase()
+      noenSatt = true
+    }
+  }
+  return noenSatt
+}
+
+/**
+ * Gjør treff med identisk etikett skillbare. Muterer ikke inn-lista; returnerer
+ * en ny liste der `shortName` har fått et kvalifiserende ledd i parentes.
+ *
+ * @param {Array} treff
+ * @param {{reverse?: (lat:number, lon:number) => Promise<{placeLabel?:string}|null>,
+ *          maksOppslag?: number}} opts
+ *   `reverse` injiseres (reverseGeocode i praksis, en stubb i test). Utelates
+ *   den, brukes bare objekttype-kvalifikatoren — helt uten nettverk.
+ */
+export async function kvalifiserTvetydige(treff, opts = {}) {
+  const { reverse, maksOppslag = MAKS_KVALIFISER_OPPSLAG } = opts
+  const ut = treff.map((r) => ({ ...r }))
+  const grupper = grupperEtterEtikett(ut)
+
+  const trengerOppslag = []
+  for (const gruppe of grupper.values()) {
+    if (gruppe.length < 2) continue
+    kvalifiserMedType(gruppe)
+    for (const r of gruppe) if (!r.kvalifikator) trengerOppslag.push(r)
+  }
+
+  // Steg 2 — sekvensielt med vilje: Nominatim ber om maks ett kall i sekundet,
+  // og en tvetydig gruppe er sjelden større enn tre.
+  if (reverse && trengerOppslag.length) {
+    for (const r of trengerOppslag.slice(0, maksOppslag)) {
+      try {
+        const d = await reverse(r.lat, r.lon)
+        const sted = d?.placeLabel
+        // Et reverse-treff som bare gjentar navnet selv («Vardåsen») eller
+        // kommunen skiller ingenting — da er vi like langt, og lar den stå.
+        if (sted && !sammeLedd(sted, r.shortName)) r.kvalifikator = sted
+      } catch { /* nett nede: la treffet stå ukvalifisert */ }
+    }
+  }
+
+  for (const r of ut) {
+    if (r.kvalifikator) r.shortName = `${r.shortName} (${r.kvalifikator})`
+    delete r.kvalifikator
+  }
+  return ut
+}
+
+// «Vardåsen» mot «Vardåsen, Asker» → samme ledd, ingen ny informasjon.
+function sammeLedd(kandidat, etikett) {
+  const k = kandidat.trim().toLowerCase()
+  return (etikett || '').toLowerCase().split(',').some((d) => d.trim() === k)
+}
+
 /**
  * Flett stedssøk fra Kartverket SSR og OpenStreetMap Nominatim til én liste.
  * Kildene kjøres parallelt; feiler/CORS-blokkeres den ene (allSettled), brukes
@@ -233,5 +336,10 @@ export async function searchPlaces(query, opts = {}) {
     return a._order - b._order
   })
 
-  return merged.slice(0, limit).map(({ _order, ...r }) => r)
+  const kuttet = merged.slice(0, limit).map(({ _order, ...r }) => r)
+  // Gratis-kvalifikatoren (objekttype) legges på HER, så både UI-et og
+  // MCP-serveren får den uten et ekstra nettverkskall. Reverse-oppslaget som
+  // skiller to åser med samme navn skjer i UI-et etter første visning
+  // (useNominatim) — det skal ikke gjøre søkelista tregere å få opp.
+  return kvalifiserTvetydige(kuttet)
 }
