@@ -1,5 +1,31 @@
 # Endringslogg
 
+## 2026-08-12 — v5.16.0: Fem like søketreff, og eksport som viser det du får
+
+**Søk: «Vardåsen, Asker» ga fem identiske rader.** Årsaken er ikke en bug i
+dedupliseringen — den er at SSR registrerer NAVNEOBJEKTER, ikke topper. Etter
+kommunesammenslåingen i 2020 er Røyken, Hurum og gamle Asker én kommune, så to
+åser OG det som er oppkalt etter dem (alpinanlegg, boligfelt, kirke) deler både
+navn og kommunenavn. Etiketten vår var bare «skrivemåte, kommune», så alt så
+likt ut.
+
+Treffene fjernes ikke — de er forskjellige steder, og du skal kunne velge. De
+kvalifiseres i stedet, med det billigste som skiller: først navneobjekttypen,
+som vi allerede fikk gratis fra SSR men aldri viste («Vardåsen, Asker
+(alpinanlegg)»), og for de som fortsatt er tvetydige ett reverse-oppslag som gir
+nærmeste stedsnavn — «Vardåsen, Asker (Dikemark)» mot «(Røyken)». Typen legges
+på med én gang, så lista kommer like raskt som før; oppslaget skjer etter første
+visning og oppdaterer lista når det lander. Typen settes bare når den VARIERER i
+gruppa: «(ås)» bak to åser hjelper ingen.
+
+**Eksport nullstiller nå rotasjonen på skjermen først.** Den eksporterte SVG-en
+er alltid nord-opp, så det du ser skal være det du får. Rettelsen i v5.14.0
+gjorde labelene vannrette i fila; denne gjør at kartet på skjermen også snapper
+til nord når du trykker Lagre, i stedet for at fila ser annerledes ut enn kartet
+du nettopp la til rette.
+
+---
+
 ## 2026-08-12 — v5.15.1: Kart over MapView, og to punkter målt og forkastet
 
 Opprydningen er ferdig: 4 897 → 3 150 linjer over åtte leveranser, sytten

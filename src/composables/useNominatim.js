@@ -1,10 +1,17 @@
 import { ref, watch } from 'vue'
-import { searchPlaces } from '../lib/geocode.js'
+import { searchPlaces, kvalifiserTvetydige, reverseGeocode } from '../lib/geocode.js'
 
 // Stedssøk som fletter Kartverket SSR (norske stedsnavn) og OpenStreetMap
 // Nominatim (adresser/POI). Gratis tjenester — vi debouncer og begrenser
 // Nominatim til Norge. Selve søket + flettingen bor i lib/geocode.js (delt med
 // MCP-serveren).
+//
+// Tvetydige treff i to trinn (v5.16.0): searchPlaces legger på den GRATIS
+// kvalifikatoren (SSR-objekttype) med en gang, så lista vises like raskt som før.
+// Reverse-oppslaget som skiller to åser med samme navn i samme kommune —
+// «Vardåsen, Asker (Dikemark)» vs «(Røyken)» — koster nettverk, så det kjøres
+// ETTER første visning og oppdaterer lista når det lander. Et nytt søkeord
+// underveis kaster resultatet (samme token-vakt som abort-controlleren).
 
 export function useNominatim({ debounceMs = 350, countryCode = 'no' } = {}) {
   const query = ref('')
@@ -14,6 +21,17 @@ export function useNominatim({ debounceMs = 350, countryCode = 'no' } = {}) {
 
   let timeout = null
   let abortController = null
+  let token = 0
+
+  const harDuplikater = (liste) => {
+    const sett = new Set()
+    for (const r of liste) {
+      const k = (r.shortName || '').toLowerCase()
+      if (sett.has(k)) return true
+      sett.add(k)
+    }
+    return false
+  }
 
   async function search(q) {
     if (!q || q.trim().length < 2) {
@@ -25,8 +43,17 @@ export function useNominatim({ debounceMs = 350, countryCode = 'no' } = {}) {
     isSearching.value = true
     error.value = null
 
+    const minToken = ++token
     try {
-      results.value = await searchPlaces(q, { countryCode, signal: abortController.signal })
+      const signal = abortController.signal
+      results.value = await searchPlaces(q, { countryCode, signal })
+      // Trinn 2: bare hvis noe FORTSATT er tvetydig etter objekttype-runden.
+      if (minToken === token && harDuplikater(results.value)) {
+        const raffinert = await kvalifiserTvetydige(results.value, {
+          reverse: (lat, lon) => reverseGeocode(lat, lon, { signal }),
+        })
+        if (minToken === token) results.value = raffinert
+      }
     } catch (e) {
       if (e.name !== 'AbortError') {
         error.value = e.message ?? 'Søk feilet'

@@ -377,18 +377,21 @@ const SJEKKER = [
       const skjeve = (fil.match(/<text[^>]*transform="rotate\((?!0[\s)])/g) || []).length
       if (skjeve) throw new Error(`${skjeve} labels er rotert i den eksporterte fila`)
 
-      // Og skjermen må være tilbake i brukerens rotasjon etterpå — ellers står
-      // navnene på skrå i kartet han fortsatt ser på.
+      // Fra v5.16.0 nullstiller eksporten rotasjonen på skjermen først, så det
+      // brukeren ser er det han får. Kartet skal altså stå nord-opp etterpå — og
+      // labelene skal følgelig stå vannrett også der.
       await lukkDrawer(page)
-      const skjermEtter = await page.evaluate(() =>
-        document.querySelectorAll('svg.isom-map text[transform^="rotate(-40"]').length)
-      if (!skjermEtter) throw new Error('skjermens labels ble IKKE gjenopprettet etter eksport')
-      await page.evaluate(() => {
-        const sl = document.querySelector('input[aria-label*="Roter kartet"]')
-        sl.value = '0'; sl.dispatchEvent(new Event('input', { bubbles: true }))
+      const rotEtter = await page.evaluate(() => {
+        const el = document.querySelector('[data-map-inner]')
+        const m = /rotate\((-?[\d.]+)deg\)/.exec(el?.style.transform || '')
+        return m ? Math.round(Number(m[1])) : 0
       })
-      await page.waitForTimeout(600)
-      return `${skjermFør} skjeve på skjerm → 0 i fil → ${skjermEtter} tilbake på skjerm`
+      if (rotEtter !== 0) throw new Error(`kartet står fortsatt rotert (${rotEtter}°) etter eksport`)
+      const skjeveEtter = await page.evaluate(() =>
+        [...document.querySelectorAll('svg.isom-map text')]
+          .filter((e) => /rotate\(-?(?!0[\s)])[\d.]+/.test(e.getAttribute('transform') || '')).length)
+      if (skjeveEtter) throw new Error(`${skjeveEtter} labels står skjevt på skjermen etter eksport`)
+      return `${skjermFør} skjeve på skjerm → 0 i fil → kartet nullstilt til nord`
     },
   },
   {

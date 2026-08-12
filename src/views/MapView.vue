@@ -2044,7 +2044,12 @@ const {
 } = useKartEksport({
   svgHostRef, meta, mapTitle, currentTheme, autoMapToast,
   // Tilbakekall: useSymbolRenderers opprettes lenger ned i fila.
-  hooks: { applyUprightLabels: (rot) => applyUprightLabels(rot) },
+  hooks: {
+    applyUprightLabels: (rot) => applyUprightLabels(rot),
+    // Eksporten nullstiller rotasjonen først, så skjerm og fil viser det samme.
+    gjeldendeRotasjon: () => rotation.value,
+    nullstillRotasjon: () => rotateTo(0),
+  },
 })
 
 // MÅ stå FØR useMapLoadPipeline: pipelinen tar imot `applyTheme` som en VERDI.
