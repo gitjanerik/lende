@@ -1,5 +1,20 @@
 # Endringslogg
 
+## 2026-08-12 — v5.16.1: Hvorfor kryss-domene-kode hører hjemme i MapView
+
+Ingen kodeendring. Gjeldsseksjonen i CLAUDE.md har fått eierens begrunnelse for
+at Stifinner-glue-en skal bli liggende, og den er bedre enn min egen: jeg
+argumenterte med at 23 avhengigheter er for mange, altså at uttrekket ville bli
+stygt. Han peker på at kode som møtes på tvers av domener HJELPER orienteringen
+når den ligger samlet i det sentrale viewet — Claude leser aldri hele kodebasen,
+men leser alltid noe av MapView, så et kryss som er synlig der er lettere å
+forstå enn ett som er skjult i en composable ingen oppgave tvinger fram.
+
+Forskjellen betyr noe for neste økt: målet er ikke færrest mulig linjer i
+MapView, det er at det som står der skal fortjene å stå der.
+
+---
+
 ## 2026-08-12 — v5.16.0: Fem like søketreff, og eksport som viser det du får
 
 **Søk: «Vardåsen, Asker» ga fem identiske rader.** Årsaken er ikke en bug i
