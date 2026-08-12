@@ -1,5 +1,28 @@
 # Endringslogg
 
+## 2026-08-12 — v5.15.0: Gest-perf og pan-grensene ut av MapView
+
+To composables til: `useGestPerf.js` (hva som slås av under pan/pinch/rotasjon,
+pluss jank-måleren) og `usePanGrenser.js` (hvor langt kartet kan dras, hvor langt
+ut det kan zoomes). MapView er 3 153 linjer.
+
+`useGestPerf` er den mest sårbare av alle uttrekkene så langt, og toppkommentaren
+sier hvorfor: hvert tiltak der er usynlig når det virker. Fjerner du
+`.is-zooming`, relieff-skjulingen eller dash-overstyringen, brekker ingenting
+visuelt — kartet blir bare hakkete igjen på mobil, og ingen test hadde sagt fra.
+Derfor har den nå en røyk-sjekk som krever at modusen slås PÅ midt i en gest og
+ryddes bort etterpå. Den utsatte gjenopprettingen (120 ms) er også dokumentert:
+snap-back-repainten skal ikke lande på samme frame som compositorens siste
+re-raster.
+
+Sjekken avslørte en svakhet i røyktesten selv: hjul-gestene pekte midt i SVG-ens
+bounding box, som etter tidligere dyp-zoom-sjekker ligger utenfor vinduet — så
+musen havnet i tomrommet og eventet traff ingenting. Alle hjul-gester peker nå
+midt i viewporten. `frie-variabler` lærte samtidig å se flere deklaratorer per
+setning (`let minX = 0, minY = 0`), som ga fire falske treff.
+
+---
+
 ## 2026-08-12 — v5.14.0: Vannrette navn i eksport av rotert kart
 
 Har du rotert kartet på skjermen og så eksportert til PDF, SVG eller PNG, kom

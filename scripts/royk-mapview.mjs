@@ -392,6 +392,38 @@ const SJEKKER = [
     },
   },
   {
+    navn: 'gest slår på perf-modus og rydder etter seg',
+    domene: 'useGestPerf',
+    krever: 'ektekart',
+    async kjør(page) {
+      // Dette er sjekken som gjør at perf-tiltakene ikke kan «ryddes bort» ved
+      // et uhell: de er usynlige når de virker, så ingenting brekker visuelt om
+      // de forsvinner — kartet blir bare hakkete igjen på mobil.
+      await lukkDrawer(page)
+      const les = () => page.evaluate(() => {
+        const svg = document.querySelector('svg.isom-map')
+        const p = svg?.querySelector('[data-layer] path')
+        return {
+          zoomer: !!svg?.classList.contains('is-zooming'),
+          solid: p?.style.strokeDasharray === 'none',
+        }
+      })
+      await pekMidtPaaKartet(page)
+      // Midt i gesten: hjul-zoom holder isGesturing i 200 ms etter siste tikk.
+      await page.mouse.wheel(0, -200)
+      await page.waitForTimeout(60)
+      const under = await les()
+      if (!under.zoomer) throw new Error('.is-zooming ble ikke satt under gest')
+      if (!under.solid) throw new Error('stiplede streker ble ikke gjort solide under gest')
+      // Etter gesten (200 ms wheel-end + 120 ms utsatt gjenoppretting + slakk).
+      await page.waitForTimeout(1200)
+      const etter = await les()
+      if (etter.zoomer) throw new Error('.is-zooming ble ikke fjernet etter gest')
+      if (etter.solid) throw new Error('dash-overstyringen ble ikke ryddet etter gest')
+      return 'is-zooming + solid dash under gest, ryddet etterpå'
+    },
+  },
+  {
     navn: '3D-visningen åpner',
     domene: 'use3dEntry',
     async kjør(page) {
@@ -438,9 +470,16 @@ async function klikkTekst(page, re) {
 
 // Hjul = zoom i denne appen (usePinchZoom.onWheel, 1.1× pr tikk — ingen
 // ctrl-tast). Små pauser fordi både LOD og culling er debouncet 120 ms.
+// Midt i VIEWPORTEN — ikke midt i elementets bbox. Etter en dyp zoom er SVG-ens
+// bbox langt større enn skjermen, og senteret havner utenfor vinduet: musen
+// flyttes dit, og hjul-eventet treffer ingenting. Kostet én feilsøkt sjekk.
+async function pekMidtPaaKartet(page) {
+  const vp = page.viewportSize()
+  await page.mouse.move(Math.round(vp.width / 2), Math.round(vp.height / 2))
+}
+
 async function zoomInn(page, tikk) {
-  const boks = await page.locator('svg.isom-map').boundingBox()
-  await page.mouse.move(boks.x + boks.width / 2, boks.y + boks.height / 2)
+  await pekMidtPaaKartet(page)
   for (let i = 0; i < tikk; i++) {
     await page.mouse.wheel(0, -260)
     await page.waitForTimeout(140)
