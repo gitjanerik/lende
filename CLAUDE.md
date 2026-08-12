@@ -133,6 +133,14 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   Sytten domener er ute; det som står igjen er montering, livssyklus,
   komposisjonen av 50 composable-kall, modus-glue-en og malen.
 
+  **Og én ting eieren la til (v5.16.0), som er en bedre begrunnelse enn
+  «for mange avhengigheter»:** kode som møtes på tvers av domener HJELPER
+  orienteringen når den ligger samlet i det sentrale viewet. Claude leser aldri
+  hele kodebasen, men leser alltid noe av MapView — så et kryss som er synlig
+  der er lettere å forstå enn ett som er skjult i en composable ingen oppgave
+  tvinger fram. Målet er ikke færrest mulig linjer i MapView; det er at det som
+  står der skal være det som fortjener å stå der.
+
   **To ting ble MÅLT og forkastet (v5.15.0) — ikke ta dem opp igjen uten nye
   argumenter:**
   1. *Stifinner-glue-en* (L1490–1700, 212 linjer): 23 avhengigheter. En
