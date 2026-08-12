@@ -1,5 +1,30 @@
 # Endringslogg
 
+## 2026-08-12 — v5.14.0: Vannrette navn i eksport av rotert kart
+
+Har du rotert kartet på skjermen og så eksportert til PDF, SVG eller PNG, kom
+alle navnene ut på skrå — mens selve kartet var riktig nord-opp. Målt på et
+40°-rotert Vardåsen: 179 skjeve labels i fila.
+
+Årsaken er at de to tingene bor på hver sin side av samme problem. Rotasjonen
+ligger som en CSS-transform på wrapper-diven, ikke på SVG-en, så den eksporterte
+SVG-en er ALLTID nord-opp. Skjermen counter-roterer hvert navn (`rotate(-40)`)
+for at de skal stå vannrett mens kartet står på skrå — og den counter-rotasjonen
+fulgte med ut i klonen, der det ikke lenger var noe å motvirke.
+
+`applyUprightLabels` tar nå en rotasjons-overstyring, og eksporten kaller
+`applyUprightLabels(0)` rett før den kloner og uten argument etterpå. Begge
+kallene er synkrone med kloningen imellom, så mellomtilstanden rekker aldri å
+tegnes på skjermen. Gjelder PDF, SVG, PNG, print — og 3D-teksturen, som bruker
+samme markup.
+
+Feilen er eldre enn nattens opprydning; eksporten har aldri rørt
+label-rotasjonen. Ny røyk-sjekk vokter hele kontrakten, inkludert at skjermen
+kommer tilbake til brukerens rotasjon: «179 skjeve på skjerm → 0 i fil → 179
+tilbake på skjerm».
+
+---
+
 ## 2026-08-12 — v5.13.0: Kartsøket ut av MapView
 
 `useKartSok.js` overtar fritekst-søket i kartet: treff-lista, highlight-ringen,

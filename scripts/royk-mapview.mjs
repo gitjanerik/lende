@@ -346,6 +346,52 @@ const SJEKKER = [
     },
   },
   {
+    navn: 'eksport av rotert kart gir vannrette labels',
+    domene: 'useKartEksport',
+    krever: 'ektekart',
+    async kjør(page) {
+      // Skjermen counter-roterer labels så de står vannrett mens kartet er
+      // rotert. Den eksporterte SVG-en er ALLTID nord-opp, så counter-
+      // rotasjonen må ikke følge med ut — ellers står 179 navn skjevt på et
+      // rett kart (rapportert etter PDF-test, rettet i v5.14.0).
+      await lukkDrawer(page)
+      const rotert = await page.evaluate(() => {
+        const sl = document.querySelector('input[aria-label*="Roter kartet"]')
+        if (!sl) return false
+        sl.value = '40'
+        sl.dispatchEvent(new Event('input', { bubbles: true }))
+        return true
+      })
+      if (!rotert) throw new Error('fant ingen rotasjons-slider (kjører testen i mobil-viewport?)')
+      await page.waitForTimeout(1200)
+      const skjermFør = await page.evaluate(() =>
+        document.querySelectorAll('svg.isom-map text[transform^="rotate(-40"]').length)
+      if (!skjermFør) throw new Error('labels ble ikke counter-rotert på skjermen — rotasjonen slo ikke inn')
+
+      await åpneDrawer(page)
+      await klikkTekst(page, /^EKSPORT$/)
+      const last = page.waitForEvent('download', { timeout: 20_000 })
+      await klikkTekst(page, /Lagre \.svg/)
+      const sti = await (await last).path()
+      const fil = sti ? readFileSync(sti, 'utf8') : ''
+      const skjeve = (fil.match(/<text[^>]*transform="rotate\((?!0[\s)])/g) || []).length
+      if (skjeve) throw new Error(`${skjeve} labels er rotert i den eksporterte fila`)
+
+      // Og skjermen må være tilbake i brukerens rotasjon etterpå — ellers står
+      // navnene på skrå i kartet han fortsatt ser på.
+      await lukkDrawer(page)
+      const skjermEtter = await page.evaluate(() =>
+        document.querySelectorAll('svg.isom-map text[transform^="rotate(-40"]').length)
+      if (!skjermEtter) throw new Error('skjermens labels ble IKKE gjenopprettet etter eksport')
+      await page.evaluate(() => {
+        const sl = document.querySelector('input[aria-label*="Roter kartet"]')
+        sl.value = '0'; sl.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      await page.waitForTimeout(600)
+      return `${skjermFør} skjeve på skjerm → 0 i fil → ${skjermEtter} tilbake på skjerm`
+    },
+  },
+  {
     navn: '3D-visningen åpner',
     domene: 'use3dEntry',
     async kjør(page) {

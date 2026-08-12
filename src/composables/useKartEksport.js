@@ -27,9 +27,10 @@ import { withColophon } from '../lib/mapColophon.js'
  *   svgHostRef: import('vue').Ref, meta: import('vue').Ref,
  *   mapTitle: import('vue').Ref, currentTheme: import('vue').Ref,
  *   autoMapToast: import('vue').Ref,   // deles med useMapExtend (feilmelding)
+ *   hooks: { applyUprightLabels: (kartRotDeg?: number) => void },
  * }} deps
  */
-export function useKartEksport({ svgHostRef, meta, mapTitle, currentTheme, autoMapToast }) {
+export function useKartEksport({ svgHostRef, meta, mapTitle, currentTheme, autoMapToast, hooks }) {
   // Print- / eksport-handlers. 3D-vieweren gjenbruker samme markup som
   // eksporten (tema baket inn) men uten kolofon — linjal/målestokk skal ikke
   // drapes på terrenget. `theme` overstyrer gjeldende tema (3D-nattmodus baker
@@ -43,7 +44,16 @@ export function useKartEksport({ svgHostRef, meta, mapTitle, currentTheme, autoM
     // utskriften blir det print-tilpassede utsnittet brukeren genererte — med
     // viewBox/print-mm fra den aktive flisa alene. (user-layer m.fl. strippes av
     // printExport.stripRuntimeOverlays.)
+    //
+    // Labels må rettes opp FØR kloningen: på skjermen counter-roteres de så de
+    // står vannrett mens kartet er rotert, men den eksporterte SVG-en er alltid
+    // nord-opp (rotasjonen bor på wrapper-diven). Uten dette fulgte
+    // counter-rotasjonen med ut og la alle navn skjevt på et rett kart. Begge
+    // kallene er synkrone med kloningen imellom, så nettleseren rekker aldri å
+    // tegne mellomtilstanden.
+    hooks.applyUprightLabels(0)
     const clone = svg.cloneNode(true)
+    hooks.applyUprightLabels()      // tilbake til brukerens rotasjon
     if (extent) {
       // Utvidet 3D-tur: behold nabo-flisene og utvid viewBoxen til union-
       // utsnittet. width/height settes i px med nytt aspekt — print-mm-attrs

@@ -2141,7 +2141,11 @@ function labelForAnnotation(a) {
 const {
   mapSvgMarkupForExport, exporting,
   onExportSvg, onExportPng, onExportPdf, onPrint,
-} = useKartEksport({ svgHostRef, meta, mapTitle, currentTheme, autoMapToast })
+} = useKartEksport({
+  svgHostRef, meta, mapTitle, currentTheme, autoMapToast,
+  // Tilbakekall: useSymbolRenderers opprettes lenger ned i fila.
+  hooks: { applyUprightLabels: (rot) => applyUprightLabels(rot) },
+})
 
 // MÅ stå FØR useMapLoadPipeline: pipelinen tar imot `applyTheme` som en VERDI.
 // Så lenge den var en `function`-deklarasjon lenger ned var det greit (hoisting),
