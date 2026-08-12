@@ -207,6 +207,14 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   3×3-ark får kartbildet i en tredjedel av detaljen per meter. Vertekstallet er
   derimot konstant (`terrainGrid.MAX_GRID_DIM` = 512), og mosaikken tegner maks 12
   nabofliser — så GPU-siden skalerer ikke med flisetallet.
+- **Teksturen rasteriseres ÉN FLIS OM GANGEN (v5.18.1).** `mapSvgTilesFor3d`
+  (useKartEksport) deler arket i fliser med hver sin rute; `mapTexture` dekoder
+  hver for seg og tegner dem inn i lerretet. Ett samlet SVG for hele arket brakk
+  ved ni fliser — bildet lastet ikke, og terrenget fikk gråtone-fallbacken.
+  Naboflisene har ikke eget stilark (useGhostTiles fjerner det), så løsrevne
+  fliser MÅ få aktiv flis' `<style>` + `#ghost-isom-style` med seg, ellers
+  rendres de svarte. Alt relieff strippes ut av flisene og bakes fra utsnittets
+  DEM — én sømløs belysning, og megabyte med base64 mindre å dekode.
 - **Stinett-lesing finnes i tre varianter** med ulikt formål og det er med
   vilje: `stinettAnalyse.stinettFeaturesFromSvgEl` (nettleser, DOM),
   `mcp/headless.graphInputFromSvg` (node, streng), `useStifinner.featuresFromSvg`

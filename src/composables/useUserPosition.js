@@ -7,8 +7,14 @@ import { wgs84ToSvg } from '../lib/utm.js'
  * Returnerer et reactive objekt slik at properties auto-unwrappes i template.
  *
  * @param {() => ({minE, minN, widthM, heightM} | null)} getMeta
+ * @param {() => ({minX:number, minY:number, maxX:number, maxY:number} | null)} [getBounds]
+ *   Yttergrensa til ARKET (aktiv flis ∪ nabofliser), i aktiv-flisas meter-rom.
+ *   «Utenfor kartet» måltes mot aktiv flis alene fram til v5.18.1, og da fikk
+ *   man «Du er utenfor dette kartet» selv om man sto midt i et utvidet ark man
+ *   nettopp hadde bygd — posisjonen var tegnet riktig oppå naboflisa hele tiden.
+ *   Sendes som funksjon fordi mosaikken eies lenger ned i MapView (TDZ-regelen).
  */
-export function useUserPosition(getMeta) {
+export function useUserPosition(getMeta, getBounds = null) {
   const state = reactive({
     svgX: null,
     svgY: null,
@@ -37,8 +43,13 @@ export function useUserPosition(getMeta) {
     const p = wgs84ToSvg(lastCoords.latitude, lastCoords.longitude, meta)
     state.svgX = p.x
     state.svgY = p.y
-    state.isOutsideMap =
-      p.x < 0 || p.x > meta.widthM || p.y < 0 || p.y > meta.heightM
+    let b = null
+    try { b = getBounds?.() ?? null } catch { b = null }
+    const minX = b?.minX ?? 0
+    const minY = b?.minY ?? 0
+    const maxX = b?.maxX ?? meta.widthM
+    const maxY = b?.maxY ?? meta.heightM
+    state.isOutsideMap = p.x < minX || p.x > maxX || p.y < minY || p.y > maxY
   }
 
   // v8.5.5: avvis fix-er som ville overskrive en fersk, bedre lesning.

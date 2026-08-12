@@ -58,7 +58,7 @@ const JUNCTION_LEAD_M = 120
 const JUNCTION_PAST_M = 30
 
 export async function create3dScene(container, {
-  dem, meta, svgText, getSvgText = null, onProgress = null,
+  dem, meta, getTextureSpec, onProgress = null, onTextureNote = null,
   pathFeatures = [], barrierFeatures = [], features = [],
   tour = null,
   options = {},
@@ -77,7 +77,7 @@ export async function create3dScene(container, {
   const hooks = {}
   const core = await createSceneCore(
     container,
-    { dem, meta, svgText, getSvgText, onProgress, options: { exaggeration } },
+    { dem, meta, getTextureSpec, onProgress, onTextureNote, options: { exaggeration } },
     hooks,
   )
   const { scene, camera, coords, terrain, loop } = core
@@ -738,7 +738,7 @@ export async function create3dScene(container, {
     // --- delt verden ---
     setContoursVisible: (v) => core.setContoursVisible(v),
     get contoursVisible() { return core.contoursVisible },
-    setNightMode: (on, opts) => core.setNightMode(on, opts),
+    setNightMode: (on) => core.setNightMode(on),
 
     on: (event, cb) => {
       if (!listeners.has(event)) listeners.set(event, new Set())

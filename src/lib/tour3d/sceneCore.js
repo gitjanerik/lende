@@ -32,22 +32,27 @@ export class TourSceneError extends Error {
 
 /**
  * @param {HTMLElement} container
- * @param {{dem: object, meta: object, svgText: string,
- *          getSvgText?: (opts?: object) => string,
+ * @param {{dem: object, meta: object,
+ *          getTextureSpec: (opts?: {dark?: boolean}) => object,
  *          onProgress?: (msg: string|null) => void,
+ *          onTextureNote?: (msg: string|null) => void,
  *          options?: {exaggeration?: number}}} spec
- *   getSvgText brukes til å bygge teksturen PÅ NYTT senere — både når den
- *   skjerpes til full oppløsning og når nettleseren har tømt kilde-lerretet.
+ *   getTextureSpec gir arkets fliser (se mapTexture.prepareMapTextureSource).
+ *   Den kalles på nytt hver gang teksturen må bygges om — når den skjerpes til
+ *   full oppløsning, ved nattmodus, og når nettleseren har tømt kilde-lerretet.
+ *   onTextureNote melder fra når kartbildet IKKE kom på terrenget, med tall nok
+ *   til at det går an å feilsøke uten konsoll.
  * @param {{onFrame: (dt:number, timeS:number)=>void, onResize?: (w:number,h:number)=>void,
  *          onContextLost?: ()=>void}} hooks
  */
 export async function createSceneCore(container, {
-  dem, meta, svgText, getSvgText = null, onProgress = null, options = {},
+  dem, meta, getTextureSpec, onProgress = null, onTextureNote = null, options = {},
 }, hooks = {}) {
   if (!dem) throw new TourSceneError('no-dem', 'Kartet mangler høydedata')
 
   const { exaggeration = 1.15 } = options
   const melding = (m) => { try { onProgress?.(m) } catch { /* UI-feil skal ikke stoppe bygging */ } }
+  const teksturNotis = (m) => { try { onTextureNote?.(m) } catch { /* samme */ } }
 
   const dpr = Math.min(window.devicePixelRatio || 1, (navigator.deviceMemory ?? 4) <= 4 ? 1.5 : 2)
   let renderer
@@ -84,16 +89,25 @@ export async function createSceneCore(container, {
   let texturePx = Math.min(PREVIEW_TEXTURE_PX, fullPx)
   let texture
   // Dag-kilden holdes åpen til teksturen er skjerpet, så skjerpingen slipper å
-  // rasterisere SVG-en på nytt (det er den dyre delen, ikke lerret-størrelsen).
+  // rasterisere flisene på nytt (det er den dyre delen, ikke lerret-størrelsen).
   let daySource = null
   try {
-    daySource = await prepareMapTextureSource(svgText)
+    daySource = await prepareMapTextureSource(getTextureSpec(), { sizePx: fullPx })
     texture = rasterizeMapTexture(daySource, dem, { renderer, sizePx: texturePx })
-  } catch {
+    if (daySource.missing) {
+      teksturNotis(`${daySource.missing} av ${daySource.tileCount} kartfliser kunne ikke tegnes på terrenget`)
+    }
+  } catch (err) {
+    // Fallbacken er hillshade i ISOM-krem: terrengformene uten kartografi. Den
+    // er brukbar, men den ser ut som et månelandskap, og uten en melding er det
+    // umulig å vite at man ser en nødløsning. Tallene er med fordi de er det
+    // som skiller «for stort ark» fra «ødelagt markup» neste gang.
     daySource?.dispose()
     daySource = null
     texture = buildFallbackTexture(dem)
     texturePx = fullPx   // ingen vits i å skjerpe en fallback
+    console.warn('[3D] Kartbildet kunne ikke rasteriseres:', err)
+    teksturNotis('Kartbildet kunne ikke tegnes på terrenget — viser terrengformene alene')
   }
   let nightTexture = null
   let nightOn = false
@@ -140,7 +154,7 @@ export async function createSceneCore(container, {
       return
     }
     console.warn('[3D] Terrengteksturen var tømt — bygger den på nytt')
-    const kilde = getSvgText?.({ dark: nightOn })
+    const kilde = getTextureSpec?.({ dark: nightOn })
     if (!kilde) return
     try {
       const ny = await buildMapTexture(kilde, dem, { renderer, sizePx: texturePx, night: nightOn })
@@ -186,7 +200,8 @@ export async function createSceneCore(container, {
     if (disposed || texturePx >= fullPx) return
     try {
       melding('Skjerper kartbildet …')
-      const kilde = daySource ?? await prepareMapTextureSource(getSvgText?.({ dark: false }) ?? svgText)
+      const kilde = daySource
+        ?? await prepareMapTextureSource(getTextureSpec({ dark: false }), { sizePx: fullPx })
       const ny = rasterizeMapTexture(kilde, dem, { renderer, sizePx: fullPx })
       if (disposed) { ny.dispose(); return }
       loop.track(ny)
@@ -263,13 +278,14 @@ export async function createSceneCore(container, {
     },
     get contoursVisible() { return contoursVisible },
 
-    // Sol/måne: bytt terrengtekstur til mørkt tema (rasterisert lazily fra
-    // medsendt SVG), nattehimmel, mørk dis og skyene av.
-    async setNightMode(on, { svgText: nightSvgText } = {}) {
+    // Sol/måne: bytt terrengtekstur til mørkt tema (flisene hentes lazily med
+    // dark-flagget), nattehimmel, mørk dis og skyene av.
+    async setNightMode(on) {
       nightOn = !!on
-      if (nightOn && !nightTexture && nightSvgText) {
+      if (nightOn && !nightTexture) {
         try {
-          nightTexture = await buildMapTexture(nightSvgText, dem, { renderer, night: true })
+          const spec = getTextureSpec({ dark: true })
+          nightTexture = await buildMapTexture(spec, dem, { renderer, sizePx: fullPx, night: true })
           loop.track(nightTexture)
         } catch { /* beholder dag-teksturen */ }
       }

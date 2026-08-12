@@ -973,7 +973,10 @@ const mapTransformStyle = computed(() => {
   }
 })
 
-const userPos = useUserPosition(() => meta.value)
+// «Utenfor kartet» måles mot HELE arket (aktiv flis ∪ nabofliser), ikke mot
+// aktiv flis alene — ellers varsler vi om at brukeren er utenfor et kart hen
+// står midt i. extendZonesBounds eies av useMapExtend lenger ned; derfor getter.
+const userPos = useUserPosition(() => meta.value, () => extendZonesBounds())
 const proximity = useProximityAlert(() => userPos)
 const compass = useCompass()
 
@@ -1380,7 +1383,11 @@ const {
 // Mosaikken endret seg (ny flis bygd / scroll-tilbake) → re-tell hull (C) så
 // «Reparer»-banneret dukker opp/forsvinner i takt. Kanthåndtakene re-ankrer seg
 // selv (edgeHandles er en computed over ghostRects + transform-tilstanden).
-watch(ghostRects, () => { refreshMosaicGaps() }, { deep: true })
+// Mosaikken endret seg: hull-tellingen skal oppdateres, og «utenfor kartet»
+// måles mot arkets yttergrense — en nybygd naboflis kan nettopp ha gjort
+// posisjonen innenfor, og da skal varselet forsvinne med en gang og ikke først
+// ved neste GPS-poll.
+watch(ghostRects, () => { refreshMosaicGaps(); userPos.recompute() }, { deep: true })
 watch([scale, translateX, translateY, rotation], scheduleActivatableCheck)
 // Starter brukeren en egen gest (wheel-zoom, pinch, pan) mens pilla står åpen,
 // er den ikke lenger relevant — de ser på noe annet nå.
@@ -2043,7 +2050,7 @@ function labelForAnnotation(a) {
 // useKartEksport.js. Markup-byggingen der er delikat: temaet bakes inn,
 // spøkelses-flisene klippes bort, og 3D-turen får en utvidet viewBox i piksler.
 const {
-  mapSvgMarkupForExport, exporting,
+  mapSvgMarkupForExport, mapSvgTilesFor3d, exporting,
   onExportSvg, onExportPng, onExportPdf, onPrint,
 } = useKartEksport({
   svgHostRef, meta, mapTitle, currentTheme, autoMapToast,
@@ -3076,7 +3083,7 @@ onUnmounted(() => {
                :brukerminner="view3dData.brukerminner"
                :tour="view3dData.tour"
                :est-walk-minutes="tour3dEstWalk"
-               :get-svg-text="(opts) => mapSvgMarkupForExport({ colophon: false, theme: opts?.dark ? 'dark' : null, extent: view3dData.extent })"
+               :get-texture-spec="(opts) => mapSvgTilesFor3d({ theme: opts?.dark ? 'dark' : null, extent: view3dData.extent })"
                :is-dark="isDark"
                :user-pos="gpsFor3d"
                @close="close3d" />

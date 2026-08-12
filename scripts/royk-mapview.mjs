@@ -448,6 +448,17 @@ const SJEKKER = [
         if (/Ingen høydedata/i.test(document.body.innerText)) return 'ingen-dem-melding'
         return false
       }, null, { timeout: 45_000 }).then((h) => h.jsonValue())
+      // Nådde vi canvas, skal kartbildet FAKTISK ligge på terrenget. Feiler
+      // rasteriseringen, faller motoren til gråtone-relieff — et månelandskap
+      // uten kartografi — og sier fra med en melding. Den meldingen er sjekken:
+      // et grønt «canvas 1080×2000» sa ingenting om hva canvas-en viste.
+      if (utfall.startsWith('canvas')) {
+        await page.waitForTimeout(1500)
+        const klage = await page.evaluate(() =>
+          /kunne ikke tegnes på terrenget/i.exec(document.body.innerText)?.input
+            ?.match(/[^.\n]*kunne ikke tegnes på terrenget[^.\n]*/i)?.[0] ?? null)
+        if (klage) throw new Error(`kartbildet kom ikke på terrenget: ${klage.trim()}`)
+      }
       const lukk = await page.evaluate(() => {
         const b = [...document.querySelectorAll('button')].find((e) =>
           e.offsetParent && /Lukk|✕|×/.test(e.getAttribute('aria-label') || e.innerText))

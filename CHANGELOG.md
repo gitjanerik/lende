@@ -1,5 +1,34 @@
 # Endringslogg
 
+## 2026-08-13 — v5.18.1: Kartbildet kommer på terrenget også med ni fliser
+
+To ting fra testrunden på v5.18.0. Begge er fra samme sted: 3D dekker nå hele
+arket, og to antakelser som holdt for én flis holder ikke for ni.
+
+**Månelandskapet.** Med ni fliser ble terrenget en gråhvit gipsmodell uten
+kartografi. Årsaken var at hele arket ble serialisert til ÉN SVG-streng og
+dekodet som ett bilde: det gikk med to og fire fliser og brakk ved ni — bildet
+lastet ikke, og motoren falt til gråtone-relieffet, som er akkurat det
+månelandskapet. Nå rasteriseres flisene HVER FOR SEG og tegnes inn i sin egen
+rute av lerretet. Kostnaden per dekoding er en niendedel, strengen vi bygger er
+aldri større enn ett kart, og en flis som feiler koster bare sin egen rute i
+stedet for hele kartbildet. Samtidig strippes alt relieff ut av flisene og bakes
+fra utsnittets egen DEM: én sømløs belysning over hele arket i stedet for ett
+base64-PNG per flis, hver med sin egen kant — og det er megabyte mindre å dekode.
+Skulle det likevel gå galt, sier visningen fra i stedet for å la deg stå med et
+månelandskap uten forklaring, og røyktesten feiler nå på den meldingen; et grønt
+«canvas 1080×2000» sa ingenting om hva canvas-en faktisk viste.
+
+**«Du er utenfor dette kartet.»** Varselet måltes mot den aktive flisa alene, så
+det slo inn med GPS på i det du utvidet kartet — selv om du sto midt i arket du
+nettopp hadde bygd, og posisjonen din var tegnet riktig oppå naboflisa hele
+tiden. Nå måles det mot hele arket, og det oppdateres i det en ny naboflis er på
+plass i stedet for å vente på neste GPS-fiks. Det retter to ting til på kjøpet:
+«Sentrer» finner deg når du står på en naboflis, og turfremdrift langs en rute
+slutter ikke å regne når ruta krysser en flisekant.
+
+---
+
 ## 2026-08-12 — v5.18.0: 3D viser hele kartet, og turen er noe du kan se deg rundt i
 
 Fem ting fra testrunden i 3D, og den største er at 3D-visningen nå bygger HELE
