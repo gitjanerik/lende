@@ -24,6 +24,9 @@ const s = readFileSync(fil, 'utf8')
 const def = new Set()
 for (const re of [
   /(?:const|let|var)\s+([A-Za-z_$][\w$]*)/g,
+  // Flere deklaratorer per setning: `let minX = 0, minY = 0, maxX = w`.
+  // Uten denne meldte verktøyet minY/maxX/sin som frie (v5.15.0).
+  /[,(]\s*([A-Za-z_$][\w$]*)\s*=[^=>]/g,
   /function\s+([A-Za-z_$][\w$]*)/g,
   /([A-Za-z_$][\w$]*)\s*(?:,|\}|:)/g,        // destrukturering/params (raust)
 ]) for (const m of s.matchAll(re)) def.add(m[1])

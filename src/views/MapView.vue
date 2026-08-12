@@ -39,6 +39,8 @@ import { useKartEksport } from '../composables/useKartEksport.js'
 import { useTemaBytte } from '../composables/useTemaBytte.js'
 import { useGpsTips } from '../composables/useGpsTips.js'
 import { useKartSok } from '../composables/useKartSok.js'
+import { usePanGrenser } from '../composables/usePanGrenser.js'
+import { useGestPerf } from '../composables/useGestPerf.js'
 import { useGpsSpor } from '../composables/useGpsSpor.js'
 import { useSymbolRenderers } from '../composables/useSymbolRenderers.js'
 import { useContextLookups } from '../composables/useContextLookups.js'
@@ -78,7 +80,6 @@ import { useLendeChat } from '../composables/useLendeChat.js'
 import { hasAiToken } from '../lib/lendeAi.js'
 import { isomCatalog, buildPointSymbolDef } from '../lib/symbolizer.js'
 import { formatDenom } from '../lib/mapColophon.js'
-import { logPerf } from '../lib/perfLog.js'
 import { sampleProfile } from '../lib/elevationProfile.js'
 import { fetchDEM } from '../lib/demFetcher.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
@@ -647,25 +648,6 @@ const {
   scale, translateX, translateY, rotation, reset, panTo, rotateTo, animating, isGesturing,
 } = usePinchZoom(wrapperRef, { enabled: pinchEnabled, panAtRest: true, minScale: () => mosaicMinScale() })
 
-// Dynamisk zoom-ut-gulv: la brukeren zoome ut akkurat langt nok til å se HELE
-// bruttokartet (aktiv flis ∪ nabofliser) med litt margin rundt — så man raskt
-// ser totalområdet et lagret/utvidet kart spenner over. Ett-flis-kart beholder
-// dagens gulv (0.5); større mosaikker får lavere gulv (flere zoom-ut-nivåer).
-// Absolutt bunn (0.06) hindrer at en svær mosaikk forsvinner i tomrom.
-function mosaicMinScale() {
-  const m = meta.value
-  const wrap = wrapperRef.value?.getBoundingClientRect()
-  if (!m || !wrap?.width || !wrap?.height) return 0.5
-  const fit = Math.min(wrap.width / m.widthM, wrap.height / m.heightM)
-  if (!(fit > 0)) return 0.5
-  const b = extendZonesBounds()   // union (alltid rektangulær)
-  const unionW = Math.max(m.widthM, b.maxX - b.minX)
-  const unionH = Math.max(m.heightM, b.maxY - b.minY)
-  // scale der mosaikken fyller ~82 % av viewporten (margin rundt)
-  const fitMosaic = 0.82 * Math.min(wrap.width / (unionW * fit), wrap.height / (unionH * fit))
-  return Math.max(0.06, Math.min(0.5, fitMosaic))
-}
-
 // Desktop uten touch: vis en rotasjons-slider (touch bruker to-finger-rotasjon).
 // Detekteres på mount (touch-evner endrer seg ikke i en sesjon i praksis).
 const hasTouch = ref(false)
@@ -684,142 +666,25 @@ function onRotateSlider(e) {
   rotateTo(Number(e.target.value))
 }
 
-// Pan-clamp — det synlige sentrum klampes til mosaikk-utstrekningen pluss en
-// halv flis i hver retning (frontier-slakk så auto-kart fortsatt kan trigges på
-// ukjent grunn). Uten spøkelses-fliser er utstrekningen den aktive flisa, og
-// grensene blir [-W/2, 1.5W] × [-H/2, 1.5H] — byte-identisk med den gamle
-// «±1 flis»-oppførselen. Med spøkelser strekker grensa seg over hele mosaikken.
-// Rotasjons-trygt: vi klamper det synlige sentrum og inverterer til translate.
-function clampPan() {
-  const m = meta.value
-  const el = wrapperRef.value
-  if (!m || !el) return
-  const r = el.getBoundingClientRect()
-  const w = r.width, h = r.height
-  if (!w || !h) return
-  const c = visibleCenterSvg()
-  if (!c) return
-  // Mosaikk-bbox i aktiv-flis-koordinater = aktiv flis ∪ alle spøkelses-rekter.
-  let minX = 0, minY = 0, maxX = m.widthM, maxY = m.heightM
-  for (const g of ghostRects.value) {
-    if (g.x < minX) minX = g.x
-    if (g.y < minY) minY = g.y
-    if (g.x + g.w > maxX) maxX = g.x + g.w
-    if (g.y + g.h > maxY) maxY = g.y + g.h
-  }
-  const marginX = m.widthM / 2, marginY = m.heightM / 2
-  const cx = Math.min(Math.max(c.x, minX - marginX), maxX + marginX)
-  const cy = Math.min(Math.max(c.y, minY - marginY), maxY + marginY)
-  if (cx === c.x && cy === c.y) return   // innenfor → idempotent, ingen endring
-  // Inverter visibleCenterSvg: finn translate som lander (cx,cy) på skjermsenter.
-  const fit = Math.min(w / m.widthM, h / m.heightM)
-  const offX = (w - m.widthM * fit) / 2
-  const offY = (h - m.heightM * fit) / 2
-  const s = scale.value || 1
-  const rot = (rotation.value || 0) * Math.PI / 180
-  const cos = Math.cos(rot), sin = Math.sin(rot)
-  const px = cx * fit + offX
-  const py = cy * fit + offY
-  const A = px * cos - py * sin
-  const B = px * sin + py * cos
-  translateX.value = w / 2 - A * s
-  translateY.value = h / 2 - B * s
-}
+// Pan- og zoom-grensene (hvor langt kartet kan dras, hvor langt ut det kan
+// zoomes) bor i usePanGrenser.js. Begge spør mosaikken om utstrekningen, og
+// useMapExtend opprettes lenger ned — derfor tilbakekall.
+const { mosaicMinScale, clampPan } = usePanGrenser({
+  meta, wrapperRef, scale, rotation, translateX, translateY,
+  ghostRects: () => ghostRects,
+  hooks: {
+    extendZonesBounds: () => extendZonesBounds(),
+    visibleCenterSvg: () => visibleCenterSvg(),
+  },
+})
 watch([scale, translateX, translateY, rotation], clampPan)
 
-// v8.10.3: Toggle `.is-zooming` på SVG-host under aktiv gest så CSS-regelen
-// for `vector-effect: non-scaling-stroke` overstyres til `none` — strokene
-// re-tessellerer ikke i device-piksler per frame, og kartet får ~3-5×
-// frame-rate-gevinst på store kart. Strokene "skalerer med" mens du zoomer
-// (visuelt OK i 200 ms), og snapper tilbake til riktig bredde når gesten er over.
-// Gest-perf-modus (.is-zooming + relieff-skjuling + solid dash). v10.2.9:
-// gjenopprettingen ved gest-slutt utsettes ~120 ms så den dyre snap-back-
-// repainten (non-scaling-stroke-retessellering + dash + relieff-blend) ikke
-// lander på samme frame som compositorens siste re-raster — og en ny gest
-// innen vinduet kansellerer den helt (rask pinch-pinch-pinch betaler én
-// gjenoppretting, ikke tre).
-let gestureRestoreTimer = null
-function setGesturePerfMode(svg, on) {
-  if (on) svg.classList.add('is-zooming')
-  else svg.classList.remove('is-zooming')
-  // v9.1.14 — Perf: skjul relieff-bildet under aktiv gest. Et fullkart-
-  // <image> med mix-blend-mode må re-komponeres mot bakgrunnen hver frame
-  // (blend-mode hindrer billig GPU-lag-isolasjon), så det er dyrt på mobil-
-  // GPU under pan/zoom/rotasjon. Det dukker tilbake straks gesten slipper.
-  // v10.1.17 — gjelder ALLE synlige fliser: både aktiv-flisas #hillshade-layer
-  // OG mosaikk-spøkelsenes relieff (image[data-ghost-relief]), ellers «henger»
-  // nabofliser igjen med relieff mens aktiv-flisa flater ut → visuell ulikhet.
-  // v11.0.51: matcher BÅDE <image> (mjuk) og <g> (vektor) ghost-relieff.
-  const reliefImgs = svg.querySelectorAll('#hillshade-layer, #ghost-tiles [data-ghost-relief]')
-  for (const hs of reliefImgs) hs.style.visibility = on ? 'hidden' : ''
-  // v9.1.15 — Perf: stiplet strek (sti 505-508, gjerde/kraft, jernbane osv)
-  // er den desidert dyreste å rastere på mobil-GPU under gest — på et 10 km-
-  // kart blir den merge-de sti-pathen tusenvis av dash-segmenter som
-  // reberegnes hver frame. Gjør ALLE kart-strekker solide mens gesten varer
-  // (solide er allerede uendret), og bytt tilbake til CSS-dash etterpå.
-  // Inline style overstyrer den katalog-genererte data-iso-CSS-en. Gjelder
-  // også spøkelses-flisene (data-ghost-layer) av samme grunn.
-  const paths = svg.querySelectorAll('[data-layer] path, [data-ghost-layer] path')
-  for (const p of paths) p.style.strokeDasharray = on ? 'none' : ''
-}
-watch(isGesturing, (g) => {
-  const svg = svgHostRef.value?.querySelector('svg')
-  if (!svg) return
-  if (gestureRestoreTimer) { clearTimeout(gestureRestoreTimer); gestureRestoreTimer = null }
-  if (g) {
-    setGesturePerfMode(svg, true)
-  } else {
-    gestureRestoreTimer = setTimeout(() => {
-      gestureRestoreTimer = null
-      // Re-query: en silent re-render kan ha byttet SVG-en i mellomtiden.
-      const cur = svgHostRef.value?.querySelector('svg')
-      if (cur && !isGesturing.value) setGesturePerfMode(cur, false)
-    }, 120)
-  }
-})
 
-// Gest-jank-måler: teller rAF-frames under aktiv gest og logger til perf-loggen
-// KUN når gesten faktisk hakket (snitt < 45 fps over ≥ 400 ms) — jevne gester
-// støyer ikke ned ring-bufferen. Verste enkelt-frame-gap avslører om janken er
-// jevnt tung raster eller enkeltstående main-thread-blokkeringer (GC, indeks-
-// pass). Sammen med «[perf] åpne»-linjene gir dette mobil-budsjettet for økt
-// kartstørrelse — leses fra PerfLogModal (Utvikler-fanen).
-let gestFrames = 0
-let gestT0 = 0
-let gestLastT = 0
-let gestWorstGap = 0
-let gestRafId = 0
-function gestRafLoop(t) {
-  if (!isGesturing.value) { gestRafId = 0; return }
-  if (gestLastT) {
-    gestFrames++
-    const gap = t - gestLastT
-    if (gap > gestWorstGap) gestWorstGap = gap
-  }
-  gestLastT = t
-  gestRafId = requestAnimationFrame(gestRafLoop)
-}
-watch(isGesturing, (g) => {
-  if (g) {
-    gestFrames = 0
-    gestLastT = 0
-    gestWorstGap = 0
-    gestT0 = performance.now()
-    if (!gestRafId) gestRafId = requestAnimationFrame(gestRafLoop)
-    return
-  }
-  if (gestRafId) { cancelAnimationFrame(gestRafId); gestRafId = 0 }
-  const durMs = performance.now() - gestT0
-  if (durMs < 400 || gestFrames < 2) return
-  const fps = gestFrames / (durMs / 1000)
-  if (fps < 45) {
-    logPerf(
-      `[perf] gest ${(durMs / 1000).toFixed(1)}s ~${Math.round(fps)} fps ` +
-      `(verste frame ${Math.round(gestWorstGap)}ms) @ ${(meta.value?.widthM ?? 0) / 1000}km`
-    )
-  }
-})
-onUnmounted(() => { if (gestRafId) { cancelAnimationFrame(gestRafId); gestRafId = 0 } })
+// Gest-perf (hva vi slår av under pan/pinch/rotasjon) og jank-måleren bor i
+// useGestPerf.js. Hvert tiltak der er et MÅLT tiltak mot hakking på mobil-GPU —
+// les toppkommentaren før du fjerner noe som ser overflødig ut.
+useGestPerf({ svgHostRef, meta, isGesturing })
+
 
 // v8.10.4 / v11.0.34: zoom-trappet detalj-LOD via klasser på SVG-host. CSS i
 // symbolizer.js gjør selve skjulingen. Tre trinn:

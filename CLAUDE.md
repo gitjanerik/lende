@@ -117,7 +117,7 @@ FØRST og spør om varianten egentlig er en OPSJON på originalen.**
 
 Kjent gjeld, oppdatert etter hver leveranse som rører den:
 
-- **`MapView.vue` er ~3 283 linjer** og er fortsatt appens største risiko: alt
+- **`MapView.vue` er ~3 153 linjer** og er fortsatt appens største risiko: alt
   møtes der, og Claude ser bare utsnitt av den om gangen. Fem domener ble
   trukket ut i v5.8.0 — `use3dEntry.js` (3D-inngangen), `useKartDeling.js`
   (utgående deling), `useDeltTur.js` (innkommende tur-lenke),
@@ -127,9 +127,9 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   i v5.10.0 (strek/relieff/tekst-skala/font + FAB-panelene), og i v5.11.0
   `useNaerhetsvarsel.js` + `useMaaling.js`, og i v5.12.0 `useKartEksport.js`,
   `useTemaBytte.js` + `useGpsTips.js`, og `useKartSok.js` i v5.13.0 (fritekst-søk,
-  highlight, panToSettled). Neste kandidat: pan/zoom-gest (~180 linjer) — men
-  gest-FØLELSE kan ikke røyktestes, så den skal ikke gjøres uten at brukeren
-  har sagt ja og vil teste den selv. **Det som IKKE bør trekkes ut som det står:**
+  highlight, panToSettled), og i v5.15.0 `useGestPerf.js` (gest-perf-modus +
+  jank-måler) og `usePanGrenser.js` (pan-clamp + zoom-ut-gulv). Alle rene
+  flyttinger er nå gjort. **Det som IKKE bør trekkes ut som det står:**
   Stifinner-handlerne og snarvei-raden (~330 linjer). Hver handler rører fire
   domener (måling, annotering, sti, kontekstmeny), så en composable ville trengt
   ti tilbakekall — det er et tegn på at sømmen ikke finnes ennå. Skal de ut, må
