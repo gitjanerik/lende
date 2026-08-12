@@ -29,8 +29,6 @@ import { withColophon } from '../lib/mapColophon.js'
  *   autoMapToast: import('vue').Ref,   // deles med useMapExtend (feilmelding)
  *   hooks: {
  *     applyUprightLabels: (kartRotDeg?: number) => void,
- *     gjeldendeRotasjon: () => number,
- *     nullstillRotasjon: () => void,
  *   },
  * }} deps
  */
@@ -113,15 +111,11 @@ export function useKartEksport({ svgHostRef, meta, mapTitle, currentTheme, autoM
   const filenameBase = () => mapTitle.value.replace(/[^a-z0-9æøå]+/gi, '-').toLowerCase()
   async function runExport(type, fn) {
     if (exporting.value) return
-    // Nullstill brukerens rotasjon FØRST. Eksporten er alltid nord-opp, så det
-    // brukeren ser på skjermen skal være det han får i fila — ellers får han en
-    // PDF som ikke ligner kartet han nettopp la til rette. rotateTo(0) er
-    // synkron (applyDelta setter rotation direkte), og nextTick lar
-    // rotasjons-watcherne — inkludert applyUprightLabels — flushe før vi kloner.
-    if (hooks.gjeldendeRotasjon() !== 0) {
-      hooks.nullstillRotasjon()
-      await nextTick()
-    }
+    // Vi rører IKKE brukerens visning. v5.16.0 nullstilte rotasjonen her, og det
+    // virket, men eieren foretrakk at zoom, rotasjon og utsnitt står som de var
+    // — man har gjerne lagt kartet til rette nettopp slik man vil ha det. Fila
+    // blir nord-opp uansett (rotasjonen bor på wrapper-diven, ikke på SVG-en), og
+    // labelene rettes opp i klonen av mapSvgMarkupForExport.
     const m = mapSvgMarkupForExport()
     if (!m) return
     exporting.value = type

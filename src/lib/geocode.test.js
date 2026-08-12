@@ -3,7 +3,7 @@ import {
   geocodePlace, geocodeKartverket, searchPlaces,
   normalizeNominatim, normalizeKartverket,
   shortNameFor, nearestPlaceLabel, reverseGeocode,
-  kvalifiserTvetydige, grupperEtterEtikett,
+  kvalifiserTvetydige, grupperEtterEtikett, stedsnavnKandidater,
 } from './geocode.js'
 
 const sample = {
@@ -309,7 +309,7 @@ describe('kvalifiserTvetydige', () => {
       asker('1', 'Ås', 59.814, 10.414),
       asker('2', 'Ås', 59.758, 10.470),
       asker('3', 'Alpinanlegg', 59.815, 10.415),
-    ], { reverse })
+    ], { reverse, pauseMs: 0 })
     expect(ut.map((r) => r.shortName)).toEqual([
       'Vardåsen, Asker (Dikemark)',
       'Vardåsen, Asker (Røyken)',
@@ -323,7 +323,7 @@ describe('kvalifiserTvetydige', () => {
     await kvalifiserTvetydige([
       asker('1', 'Ås', 59.814, 10.414),
       asker('2', 'Alpinanlegg', 59.815, 10.415),
-    ], { reverse })
+    ], { reverse, pauseMs: 0 })
     expect(kalt).toEqual([])
   })
 
@@ -331,7 +331,7 @@ describe('kvalifiserTvetydige', () => {
     const ut = await kvalifiserTvetydige([
       asker('1', 'Ås', 59.814, 10.414),
       asker('2', 'Ås', 59.758, 10.470),
-    ], { reverse: async () => ({ placeLabel: 'Asker' }) })
+    ], { reverse: async () => ({ placeLabel: 'Asker' }), pauseMs: 0 })
     expect(ut.map((r) => r.shortName)).toEqual(['Vardåsen, Asker', 'Vardåsen, Asker'])
   })
 
@@ -340,7 +340,7 @@ describe('kvalifiserTvetydige', () => {
     const reverse = async () => { n++; return { placeLabel: `Sted ${n}` } }
     await kvalifiserTvetydige(
       [1, 2, 3, 4, 5].map((i) => asker(String(i), 'Ås', 59.8 + i / 100, 10.4)),
-      { reverse, maksOppslag: 2 },
+      { reverse, maksOppslag: 2, pauseMs: 0 },
     )
     expect(n).toBe(2)
   })
@@ -349,7 +349,7 @@ describe('kvalifiserTvetydige', () => {
     const ut = await kvalifiserTvetydige([
       asker('1', 'Ås', 59.814, 10.414),
       asker('2', 'Ås', 59.758, 10.470),
-    ], { reverse: async () => { throw new Error('nett nede') } })
+    ], { reverse: async () => { throw new Error('nett nede') }, pauseMs: 0 })
     expect(ut.map((r) => r.shortName)).toEqual(['Vardåsen, Asker', 'Vardåsen, Asker'])
   })
 
@@ -357,5 +357,74 @@ describe('kvalifiserTvetydige', () => {
     const inn = [asker('1', 'Ås', 59.814, 10.414), asker('2', 'Alpinanlegg', 59.815, 10.415)]
     await kvalifiserTvetydige(inn)
     expect(inn.map((r) => r.shortName)).toEqual(['Vardåsen, Asker', 'Vardåsen, Asker'])
+  })
+})
+
+// ─── Kvalifikator-kilder, målt på ekte Nominatim-data 2026-08-12 ─────────────
+describe('kvalifikator-kildene', () => {
+  it('stedsnavnKandidater rangerer gjenkjennelig FØR lokalt', () => {
+    // Motsatt av nearestPlaceLabel, som er laget for GPS-posisjonen din.
+    const d = { address: { farm: 'Hauger', suburb: 'Rønningen', town: 'Asker' } }
+    expect(stedsnavnKandidater(d)).toEqual(['Asker', 'Rønningen', 'Hauger'])
+  })
+
+  it('hopper over kandidaten som gjentar kommunen, og tar den neste', async () => {
+    // «Asker» skiller ingenting når etiketten alt sier Asker → «Rønningen».
+    const reverse = async () => ({ skilleKandidater: ['Asker', 'Rønningen', 'Hauger'] })
+    const ut = await kvalifiserTvetydige([
+      { id: '1', shortName: 'Vardåsen, Asker', objekttype: 'Ås', lat: 59.814, lon: 10.414 },
+      { id: '2', shortName: 'Vardåsen, Asker', objekttype: 'Ås', lat: 59.689, lon: 10.443 },
+    ], { reverse, pauseMs: 0, maksOppslag: 1 })
+    expect(ut[0].shortName).toBe('Vardåsen, Asker (Rønningen)')
+  })
+
+  it('låner tettstedet fra tvillingtreffet — gratis, uten oppslag', async () => {
+    const kalt = []
+    const ut = await kvalifiserTvetydige([
+      { id: '1', shortName: 'Vardåsen, Asker', tvillingSted: 'Tofte', objekttype: 'Ås', lat: 59.558, lon: 10.554 },
+      { id: '2', shortName: 'Vardåsen, Asker', objekttype: 'Ås', lat: 59.689, lon: 10.443 },
+    ], { reverse: async (...a) => { kalt.push(a); return { skilleKandidater: ['Grimsrud'] } }, pauseMs: 0 })
+    expect(ut[0].shortName).toBe('Vardåsen, Asker (Tofte)')
+    expect(ut[1].shortName).toBe('Vardåsen, Asker (Grimsrud)')
+    expect(kalt).toHaveLength(1)   // bare nr. 2 trengte nett
+  })
+
+  it('melder hvert treff så snart det er skilt (onOppdatert)', async () => {
+    const runder = []
+    await kvalifiserTvetydige([
+      { id: '1', shortName: 'Vardåsen, Asker', objekttype: 'Ås', lat: 59.814, lon: 10.414 },
+      { id: '2', shortName: 'Vardåsen, Asker', objekttype: 'Ås', lat: 59.689, lon: 10.443 },
+    ], {
+      reverse: async (lat) => ({ skilleKandidater: [lat > 59.7 ? 'Rønningen' : 'Grimsrud'] }),
+      pauseMs: 0,
+      onOppdatert: (liste) => runder.push(liste.map((r) => r.shortName)),
+    })
+    // Uten dette måtte brukeren vente på ALLE oppslagene (1,1 s hver) før noe
+    // ble skilt i lista.
+    expect(runder).toHaveLength(2)
+    expect(runder[0]).toEqual(['Vardåsen, Asker (Rønningen)', 'Vardåsen, Asker'])
+    expect(runder[1]).toEqual(['Vardåsen, Asker (Rønningen)', 'Vardåsen, Asker (Grimsrud)'])
+  })
+
+  it('searchPlaces plukker opp tettstedet fra dubletten den forkaster', async () => {
+    // SSR vinner dedupen (norsk skrivemåte), men Nominatim-tvillingen på samme
+    // koordinat vet at stedet ligger på Tofte.
+    const ssr = { navn: [{
+      stedsnummer: 1, 'skrivemåte': 'Vardåsen', navneobjekttype: 'Ås',
+      kommuner: [{ kommunenavn: 'Asker' }],
+      representasjonspunkt: { nord: 59.5583, 'øst': 10.5541 },
+    }] }
+    const nom = [
+      { place_id: 9, display_name: 'Vardåsen, Tofte, Asker, Akershus, Norge', name: 'Vardåsen',
+        type: 'peak', lat: '59.5583', lon: '10.5541', address: { municipality: 'Asker', village: 'Tofte' } },
+      { place_id: 10, display_name: 'Vardåsen, Asker, Akershus, Norge', name: 'Vardåsen',
+        type: 'peak', lat: '59.8140', lon: '10.4142', address: { municipality: 'Asker' } },
+    ]
+    const fetchImpl = async (url) => ({
+      ok: true, status: 200, json: async () => (String(url).includes('geonorge') ? ssr : nom),
+    })
+    const treff = await searchPlaces('Vardåsen', { fetchImpl })
+    expect(treff[0].shortName).toBe('Vardåsen, Asker (Tofte)')
+    expect(treff[0].source).toBe('kartverket')      // SSR vant fortsatt dedupen
   })
 })
