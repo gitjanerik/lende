@@ -27,10 +27,29 @@ import { fileURLToPath } from 'node:url'
 // en fil-URL alene holder ikke — vi må gi fetcheren en egen leser. Uten den fikk
 // MCP-bygde kart null N50-stier, helt stille, siden uthentingen aldri feiler
 // hardt. Er flisene ikke bakt, gir ENOENT 404 og kartet blir som før.
-const N50_STI_KATALOG = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'data', 'n50-sti') + '/'
+//
+// Katalogen regnes ut LAZILY, og bare der det finnes et filsystem (v5.18.2).
+// Denne fila bundles også inn i Cloudflare-Workeren (cloudflare/mcp-worker), og
+// der er `import.meta.url` undefined. Som en konstant på modulnivå kastet
+// `fileURLToPath(undefined)` i det Workeren startet — så HVER ENESTE deploy av
+// MCP-Workeren feilet fra v5.0.16 og framover, uten at noe i appen merket det.
+// Gaten som fanger det nå er `npm run boot:workers` (scripts/worker-boot.mjs).
+let n50Katalog                     // undefined = ikke regnet ut ennå, null = ingen disk
 
+function n50StiKatalog() {
+  if (n50Katalog !== undefined) return n50Katalog
+  n50Katalog = null
+  try {
+    const her = import.meta.url
+    if (her) n50Katalog = join(dirname(fileURLToPath(her)), '..', 'public', 'data', 'n50-sti') + '/'
+  } catch { n50Katalog = null }
+  return n50Katalog
+}
+
+/** Fil-URL til N50-sti-flisene, eller null når vi ikke har et filsystem. */
 export function n50StiBasePath() {
-  return pathToFileURL(N50_STI_KATALOG).href
+  const k = n50StiKatalog()
+  return k ? pathToFileURL(k).href : null
 }
 
 export async function lesN50StiFraDisk(url) {
@@ -117,10 +136,14 @@ export async function buildMapHeadless({
     // kart ikke mangler stier appen har. Tynnes mot OSM under.
     fetchTurruteRoutes(bbox).catch(() => []),
     // N50-stinettet. Headless kjører i Node uten Vites BASE_URL, så flisene
-    // leses fra repoets public/-katalog med vår egen disk-leser.
-    fetchN50StiLinjer(bbox, {
-      basePath: n50StiBasePath(), hentBytes: lesN50StiFraDisk,
-    }).catch(() => []),
+    // leses fra repoets public/-katalog med vår egen disk-leser. Uten disk
+    // (Cloudflare-Workeren) hopper vi over dem framfor å be fetcheren om en
+    // relativ URL den ikke kan slå opp.
+    n50StiBasePath()
+      ? fetchN50StiLinjer(bbox, {
+        basePath: n50StiBasePath(), hentBytes: lesN50StiFraDisk,
+      }).catch(() => [])
+      : Promise.resolve([]),
   ])
 
   // N50 er autoritativ vannkilde når den leverer (samme filter som CI-scriptet).

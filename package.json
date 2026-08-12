@@ -1,7 +1,7 @@
 {
   "name": "lende",
   "private": true,
-  "version": "5.18.1",
+  "version": "5.18.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "royk": "node scripts/royk-mapview.mjs",
+    "boot:workers": "node scripts/worker-boot.mjs",
     "navnediff": "node scripts/navnediff.mjs",
     "frie": "node scripts/frie-variabler.mjs",
     "build:redlist": "node scripts/build-redlist.js",

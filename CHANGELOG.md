@@ -1,5 +1,38 @@
 # Endringslogg
 
+## 2026-08-13 — v5.18.2: Den røde deployen som har stått rød siden 9. august
+
+Hver merge til master ga «Run failed». Det var ikke PR-sjekkene — de har vært
+grønne hele veien — men **Deploy MCP-worker**, som feiler på hver eneste push som
+rører `src/lib/**`, altså nesten alle. Den har feilet siden 9. august (v5.0.16),
+og feilmeldingen sto i en workflow ingen leser før den har feilet mange nok
+ganger.
+
+**Hva som var galt.** `mcp/headless.js` bundles inn i Cloudflare-Workeren. Den er
+skrevet for Node, og v5.0.16 la til en katalogsti regnet ut på modulnivå:
+`fileURLToPath(import.meta.url)`. I workerd er `import.meta.url` undefined, så
+Workeren kastet `TypeError: The "path" argument must be of type string` i det den
+startet — og Cloudflare avviser en versjon som ikke kommer opp. Stien regnes nå
+ut lazily, og bare der det finnes et filsystem. Uten disk hopper headless over
+N50-sti-flisene i stedet for å be om en URL den ikke kan slå opp.
+
+**Hvorfor ingen gate fanget det.** `npm test` kjører i Node. `npm run build`
+bygger appen, ikke Workeren. `wrangler deploy --dry-run` bundler, men kjører
+aldri modulen. Og `wrangler check startup` — som høres ut som akkurat denne
+sjekken — profilerer oppstarten og returnerer 0 selv når Workeren kaster. Det
+eneste som fanger det er å faktisk STARTE den.
+
+**Så det er det vi gjør nå.** `npm run boot:workers` starter alle tre Workerne i
+den ekte runtimen (`wrangler dev --local` → workerd, ingen Cloudflare-konto,
+ingen nett-avhengighet) og spør dem. Den kjører på PR-er som rører
+`cloudflare/`, `mcp/`, `src/lib/` eller `src/composables/`. Sjekken er «svarer
+runtimen?», ikke «finnes ruta?» — lende-proxy svarer 404 på alt annet enn sine
+to ruter, med vilje, og et krav om 200 ville gjort den evig rød uten at noe var
+galt. Gaten er verifisert begge veier: den feiler på den gamle koden og passerer
+på den nye.
+
+---
+
 ## 2026-08-13 — v5.18.1: Kartbildet kommer på terrenget også med ni fliser
 
 To ting fra testrunden på v5.18.0. Begge er fra samme sted: 3D dekker nå hele
