@@ -1,0 +1,56 @@
+# Starter Cloudflare-Workerne i den EKTE runtimen (workerd) på PR-stadiet.
+#
+# HVORFOR DENNE FINNES: mcp-Workeren bundler inn `mcp/headless.js`, som er
+# skrevet for Node. Fra v5.0.16 regnet den ut en katalogsti på modulnivå med
+# `fileURLToPath(import.meta.url)`. I workerd er `import.meta.url` undefined, så
+# Workeren kastet i det den startet — og hver eneste deploy til Cloudflare
+# feilet, i dagevis, mens ALLE PR-sjekker sto grønne. Feilen dukket først opp
+# etter merge, i en workflow ingen leser før den har feilet mange nok ganger.
+#
+# Verken `npm test`, `npm run build` eller `wrangler deploy --dry-run` fanger
+# det: de bygger og bundler, men kjører aldri modulen i workerd. (`wrangler
+# check startup` gjør det heller ikke — den profilerer oppstarten og returnerer
+# 0 selv når Workeren kaster.) Det som fanger det er å faktisk starte den.
+#
+# Gaten er billig: `wrangler dev --local` kjører workerd på runneren, uten
+# Cloudflare-konto og uten nett-avhengighet, og scriptet spør /health.
+
+name: Workere starter — workerd på PR
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'cloudflare/**'
+      - 'mcp/**'
+      - 'src/lib/**'
+      - 'src/composables/**'
+      - 'scripts/worker-boot.mjs'
+      - '.github/workflows/worker-boot.yml'
+  workflow_dispatch:
+
+jobs:
+  boot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Rot-avhengighetene bundles inn i Workerne (src/lib), og hver Worker har
+      # sine egne på toppen av det.
+      - run: npm install
+
+      - name: Installer Worker-avhengigheter
+        run: |
+          for d in cloudflare/*/; do
+            if [ -f "$d/package.json" ]; then
+              echo "── $d"
+              (cd "$d" && npm install)
+            fi
+          done
+
+      - name: Start Workerne i workerd
+        run: node scripts/worker-boot.mjs

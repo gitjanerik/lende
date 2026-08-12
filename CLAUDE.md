@@ -53,6 +53,8 @@ npm run fasit      # Fasit: seks ekte kart mot invarianter (krever nett, ~1 min)
 npm run royk       # Røyktest: monterer MapView i Chromium og trykker på domenene
 npm run navnediff  # Hva forsvant ut av MapView i denne endringen — og hvem overtok
 npm run frie -- <fil>  # Refererer en fersk composable noe den ikke har fått inn?
+npm run boot:workers   # Starter Cloudflare-Workerne i workerd. Rører du src/lib
+                       # eller mcp/headless.js, kjør denne — se «Workerne» under.
 ```
 
 ## Arkitektur (oversikt)
@@ -227,6 +229,18 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
 - **`RUTE_GRAF_OPTS` i `routing.js` er én kilde til sannhet** for grafen. Bygger
   du en graf et nytt sted, spre den inn — ellers svarer diagnosen (`stinettBrudd`)
   på et annet nett enn ruteren bruker.
+- **Workerne kjører `src/lib` og `mcp/headless.js` i workerd, ikke i Node.**
+  `cloudflare/mcp-worker` bundler inn begge. Der er `import.meta.url` UNDEFINED,
+  det finnes ikke noe filsystem, og alt som kjøres på MODULNIVÅ kjøres i det
+  Workeren starter. `mcp/headless.js` regnet ut en katalogsti med
+  `fileURLToPath(import.meta.url)` som en toppnivå-konstant, og fra v5.0.16 til
+  v5.18.2 feilet HVER ENESTE deploy av MCP-Workeren på det — mens alle
+  PR-sjekker sto grønne, fordi feilen først skjer etter merge. Regel: node-ting
+  (`node:fs`, `node:path`, `import.meta.url`) skal være LAZY og guardet i alt
+  som bundles inn i en Worker. Gaten er `npm run boot:workers`
+  (`.github/workflows/worker-boot.yml`), som faktisk starter dem — verken
+  `npm run build`, `wrangler deploy --dry-run` eller `wrangler check startup`
+  fanger det (den siste returnerer 0 selv når Workeren kaster).
 
 ## Fasit-suiten — kart-pipelinen mot ekte data
 
