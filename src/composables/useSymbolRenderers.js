@@ -562,10 +562,17 @@ export function useSymbolRenderers({
    * Kjøres som lett attributt-oppdatering ved hver rotasjons-endring —
    * ingen DOM-creation, så det er trygt å kalle hver touchmove-frame.
    */
-  function applyUprightLabels() {
+  // `kartRotDeg` finnes for EKSPORT. Skjermen counter-roterer labels så de står
+  // vannrett mens kartet er rotert; den eksporterte SVG-en er derimot ALLTID
+  // nord-opp (rotasjonen bor på wrapper-diven, ikke på SVG-en). Uten dette
+  // beholdt labelene sin counter-rotation i PDF/SVG/PNG og sto skjevt på et
+  // rett kart — 179 skjeve navn ved 40° rotasjon. Eksporten kaller derfor
+  // applyUprightLabels(0) rett før den kloner, og uten argument etterpå.
+  function applyUprightLabels(kartRotDeg = null) {
     const svg = svgHostRef.value?.querySelector('svg')
     if (!svg) return
-    const rot = -rotation.value
+    const kartRot = kartRotDeg ?? rotation.value
+    const rot = -kartRot
     // Alle tekst-labels i kart-innholdet
     const texts = svg.querySelectorAll('text')
     for (const el of texts) {
@@ -641,7 +648,7 @@ export function useSymbolRenderers({
         // counter-rotation baket inn på selve teksten — fjern den.
         el.querySelector('text')?.removeAttribute('transform')
       }
-      el.setAttribute('transform', `${el.__trans} rotate(${roadRefUprightDeg(el.__deg, rotation.value)})`)
+      el.setAttribute('transform', `${el.__trans} rotate(${roadRefUprightDeg(el.__deg, kartRot)})`)
     }
   }
 
