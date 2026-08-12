@@ -7,8 +7,8 @@
 // scenen, sin egen declutter-kadens og oversettelsen fra nåle-indeks tilbake
 // til POI-en nåla står for.
 
-import { Group } from 'three'
-import { buildPinField } from './pinField.js'
+import { Group, Vector3 } from 'three'
+import { buildPinField, pinScaleAt, PIN_STEM_H, PIN_HEAD_R } from './pinField.js'
 import { declutter } from '../labelDeclutter.js'
 import { poiColor } from '../poiColors.js'
 import { kindMeta } from './featureTimeline.js'
@@ -18,6 +18,17 @@ import { groupOfKind } from './exploreData.js'
 // (og ustabilt); et kvart sekund er raskt nok til at det leses som direkte.
 const DECLUTTER_MS = 220
 const MAX_VISIBLE_PINS = 120
+// Luft mellom to nåler som begge får stå (skjerm-px). Nålehodene er runde og
+// kollisjonsboksen er en firkant, så uten litt margin kan to hoder se ut som
+// de tar på hverandre selv når boksene så vidt går klar.
+const PIN_PAD_PX = 5
+// Nåla er en loddrett pinne, og bredden dens på skjermen er hodets diameter
+// målt mot hele nålehøyden: 2·PIN_HEAD_R / (PIN_STEM_H + 0,6·PIN_HEAD_R) ≈ 0,3.
+// Halve det er halvbredden. Gulvene holder boksen brukbar helt ute i horisonten,
+// der nåla er noen få piksler høy.
+const PIN_W_OF_H = 0.15
+const PIN_MIN_HALF_W = 11
+const PIN_MIN_HALF_H = 14
 
 /**
  * @param {{scene: import('three').Scene,
@@ -34,6 +45,11 @@ export function createPinLayer({ scene, dem, coords, project, maxVisible = MAX_V
   let visible = true
   let prevShown = new Set()
   let lastDeclutter = 0
+  // Kameraposisjonen fra siste frame. Declutteringen trenger den for å regne
+  // ut hvor stor hver nål FAKTISK er på skjermen — avstandsoverdrivelsen i
+  // pinField gjør en fjern nål opptil 5× større enn en nær.
+  const camPos = new Vector3()
+  let harKam = false
 
   const dropField = () => {
     if (!field) return
@@ -49,26 +65,43 @@ export function createPinLayer({ scene, dem, coords, project, maxVisible = MAX_V
 
   // Skjermrom-filtrering: samme declutter som 2D-kartets navnebudsjett bruker.
   // Den er hysterese-stabil, så nåler slutter å blinke når kameraet beveger seg.
+  //
+  // Kollisjonsboksen er HELE nåla slik den står på skjermen (v5.18.0). Den var
+  // en fast 32×52 px-firkant rundt hodet, og det holdt ikke: nåler skaleres
+  // opptil 5× med avstanden, så to fjerne nåler kunne stå med hodene delvis
+  // oppå hverandre og likevel «gå klar» i en boks som var regnet for en nær nål.
+  // Nå måler vi føttene og hodet i skjermrommet og lar boksen dekke pinnen —
+  // en stamme som krysser et annet hode er like uleselig som to hoder i hop.
   const runDeclutter = () => {
     if (!field) return
     const cands = []
     for (const { f, i } of activeIndices()) {
       const [wx, wy, wz] = field.basePosition(i)
-      const p = project(wx, wy + 60, wz)
-      if (p.behind) continue
+      const distM = harKam
+        ? Math.hypot(camPos.x - wx, camPos.y - wy, camPos.z - wz)
+        : 0
+      const s = harKam ? pinScaleAt(distM) : 1
+      const head = project(wx, wy + (PIN_STEM_H + PIN_HEAD_R * 0.6) * s, wz)
+      if (head.behind) continue
+      const foot = project(wx, wy, wz)
+      const halfH = Math.max(PIN_MIN_HALF_H, Math.abs(foot.y - head.y) / 2)
       const meta = kindMeta(f.kind, f.categories)
       cands.push({
         id: String(i),
-        score: (meta?.priority ?? 3) * 10,
-        sx: p.x,
-        sy: p.y,
-        halfW: 16,
-        halfH: 26,
+        // Prioritet i tiere, nærhet som brøkdel: to nåler av samme slag som
+        // konkurrerer om samme flekk skal avgjøres av hvem som står nærmest
+        // betrakteren — den fjerne er den som ser feilplassert ut når den
+        // vinner over noe man har rett foran seg.
+        score: (meta?.priority ?? 3) * 10 + 1 / (1 + distM / 1000),
+        sx: (foot.x + head.x) / 2,
+        sy: (foot.y + head.y) / 2,
+        halfW: Math.max(PIN_MIN_HALF_W, halfH * 2 * PIN_W_OF_H),
+        halfH,
         group: (meta?.priority ?? 0) >= 5 ? 'priority' : 'quota',
       })
     }
     const shown = declutter(cands, {
-      cellPx: 150, K: 3, pad: 3, prevShown, maxVisible,
+      cellPx: 150, K: 3, pad: PIN_PAD_PX, prevShown, maxVisible,
     })
     prevShown = shown
     field.setVisibleSet(new Set([...shown].map(Number)))
@@ -78,6 +111,8 @@ export function createPinLayer({ scene, dem, coords, project, maxVisible = MAX_V
     group,
     get visible() { return visible },
     get count() { return items.length },
+    /** Nåle-indeksene declutteren slapp gjennom sist. */
+    get visibleIndices() { return new Set([...prevShown].map(Number)) },
 
     setFeatures(list) {
       dropField()
@@ -108,6 +143,8 @@ export function createPinLayer({ scene, dem, coords, project, maxVisible = MAX_V
     },
 
     update(camera) {
+      camPos.copy(camera.position)
+      harKam = true
       if (field && visible) field.update(camera)
     },
 

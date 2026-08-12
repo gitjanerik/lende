@@ -84,11 +84,20 @@ function fmtObs(o, unit, digits = 1) {
             <div v-if="nveInfo?.riverLength" class="text-white/55">{{ feature.detail.station.riverName }}</div>
           </div>
         </div>
+        <!-- Lukk. Het «Videre →» fram til v5.18.0, fra den første 3D-visningen
+             der kortene BARE var severdigheter langs en valgt sti og pila
+             betydde «gå videre på turen». Nå kommer de fleste kortene av et
+             trykk på en nål — der er «videre» meningsløst, og X-en sier det
+             den gjør. Handlingen er uendret: et trykket kort lukkes, et
+             turstopp hoppes over. -->
         <button @click="emit('skip')"
-                aria-label="Fortsett turen"
-                class="shrink-0 px-2.5 py-1.5 rounded-full bg-white/15 text-[11px] font-medium
+                aria-label="Lukk"
+                class="shrink-0 w-8 h-8 rounded-full bg-white/15 flex items-center justify-center
                        active:bg-white/25">
-          Videre →
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+               stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+          </svg>
         </button>
       </div>
     </div>

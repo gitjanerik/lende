@@ -85,13 +85,15 @@ export function framePose({ camera, dem, coords, target, radiusM = 60, dirXZ = n
   return { pos, target }
 }
 
-// Rausere default-avstand/-høyde (v3.0.15 var 110/70, v4.8.5 var 220/140):
-// nær fugleperspektiv. Raske vinkelskift i skarpe svinger ga «bilsyke» på
-// nært hold; høyere/fjernere kamera senker vinkelfarten. Fra v4.8.5 er
-// avstanden nesten doblet igjen — poenget er å se UTOVER landskapet med
-// posisjonen og (av og til) mål-nåla i bildet, ikke å ligge tett på den
-// røde streken. Lengre lookAhead følger av at vi ser lenger.
-export const FOLLOW_DEFAULTS = { distanceM: 420, heightM: 260, lookAheadM: 140 }
+// Rausere default-avstand/-høyde (v3.0.15 var 110/70, v4.8.5 var 220/140,
+// v4.8.5→v5.17 var 420/260): nær fugleperspektiv. Raske vinkelskift i skarpe
+// svinger ga «bilsyke» på nært hold; høyere/fjernere kamera senker vinkelfarten.
+// Poenget er å se UTOVER landskapet med posisjonen og (av og til) mål-nåla i
+// bildet, ikke å ligge tett på den røde streken. Lengre lookAhead følger av at
+// vi ser lenger. v5.18.0 løftet det et hakk til — 35° over horisonten i stedet
+// for 32°, og 40 % lengre ut — fordi turen nå er noe man UTFORSKER mens den
+// spiller, og da må man se hvor man er i landskapet, ikke bare hvor stien går.
+export const FOLLOW_DEFAULTS = { distanceM: 560, heightM: 400, lookAheadM: 180 }
 
 // Grensene for brukerens blikk-offset. Delt med deriveFollowView så et arvet
 // perspektiv aldri kan sette riggen i en pose den selv ikke kunne nådd.
@@ -203,6 +205,60 @@ export function createFollowRig({ camera, dem, coords, routeLookup: initialRoute
   let dragY = 0
   let pinchStart = null
 
+  // HOLD (v5.18.0): ligger fingeren stille et lite øyeblikk, slipper kameraet
+  // turen og blir stående der det er — så lenge fingeren er nede kan man se
+  // rundt seg, opp og ned, mens turen ruller videre uten en. Ved slipp glir
+  // kameraet mykt tilbake i følge-posen, helt av seg selv: dempingen i update()
+  // starter fra der holdet forlot camPos/lookPos.
+  //
+  // Hvorfor et hold og ikke en knapp: dette er noe man gjør ETT sekund om
+  // gangen, midt i en bevegelse. En modus man må slå av igjen ville kostet mer
+  // enn den gir.
+  const HOLD_MS = 320
+  // Under drag-slop-en i tapDispatcher (12 px) — går fingeren lenger enn dette
+  // er det et vogn-drag, og holdet skal ikke slå inn.
+  const HOLD_SLOP_PX = 10
+  const HOLD_PITCH_LIMIT = 1.25
+  let holdTimer = 0
+  let downPt = null
+  // { yaw, pitch, dist } — kikkeretningen fra det frosne punktet.
+  let holdLook = null
+  let holdPos = null
+  // Ble gesten et hold, var det ikke et trykk: 3D-scenen spør om dette før den
+  // lar et trykk velge en nål (tapDispatcher godtar opptil 600 ms).
+  let holdConsumed = false
+  let holdCb = null
+
+  const cancelHoldTimer = () => {
+    if (holdTimer) { clearTimeout(holdTimer); holdTimer = 0 }
+  }
+
+  function enterHold() {
+    holdTimer = 0
+    if (!started || holdLook) return
+    holdPos = camPos.clone()
+    const dx = lookPos.x - camPos.x
+    const dy = lookPos.y - camPos.y
+    const dz = lookPos.z - camPos.z
+    const len = Math.hypot(dx, dy, dz) || 1
+    holdLook = {
+      yaw: Math.atan2(dz, dx),
+      pitch: Math.asin(clamp(dy / len, -1, 1)),
+      dist: len,
+    }
+    holdConsumed = true
+    holdCb?.(true)
+  }
+
+  function exitHold() {
+    cancelHoldTimer()
+    downPt = null
+    if (!holdLook) return
+    holdLook = null
+    holdPos = null
+    holdCb?.(false)
+  }
+
   const pinchDist = () => {
     const pts = [...pointers.values()]
     return Math.hypot(pts[0][0] - pts[1][0], pts[0][1] - pts[1][1]) || 1
@@ -216,8 +272,13 @@ export function createFollowRig({ camera, dem, coords, routeLookup: initialRoute
       dragging = true
       dragX = e.clientX
       dragY = e.clientY
+      holdConsumed = false
+      downPt = { x: e.clientX, y: e.clientY }
+      cancelHoldTimer()
+      holdTimer = setTimeout(enterHold, HOLD_MS)
     } else if (pointers.size === 2) {
       dragging = false
+      exitHold()
       pinchStart = { d0: pinchDist(), dist0: view.dist }
     }
   }
@@ -226,7 +287,25 @@ export function createFollowRig({ camera, dem, coords, routeLookup: initialRoute
     pointers.set(e.pointerId, [e.clientX, e.clientY])
     if (pinchStart && pointers.size === 2) {
       view.dist = clamp(pinchStart.dist0 * (pinchStart.d0 / pinchDist()), DIST_MIN, DIST_MAX)
-    } else if (dragging) {
+      return
+    }
+    if (holdLook) {
+      // Fri kikking fra et fast punkt. Innholdet følger fingeren (som et
+      // panorama): drar man mot høyre, svinger blikket mot venstre.
+      holdLook.yaw -= (e.clientX - dragX) * 0.004
+      holdLook.pitch = clamp(
+        holdLook.pitch + (e.clientY - dragY) * 0.003, -HOLD_PITCH_LIMIT, HOLD_PITCH_LIMIT,
+      )
+      dragX = e.clientX
+      dragY = e.clientY
+      return
+    }
+    // Fingeren flyttet seg før holdet slo inn → dette er et vogn-drag.
+    if (downPt && Math.hypot(e.clientX - downPt.x, e.clientY - downPt.y) > HOLD_SLOP_PX) {
+      cancelHoldTimer()
+      downPt = null
+    }
+    if (dragging) {
       view.yaw -= (e.clientX - dragX) * 0.006
       view.pitch = clamp(view.pitch + (e.clientY - dragY) * 0.004, PITCH_MIN, PITCH_MAX)
       dragX = e.clientX
@@ -242,6 +321,7 @@ export function createFollowRig({ camera, dem, coords, routeLookup: initialRoute
       dragging = true
     } else if (pointers.size === 0) {
       dragging = false
+      exitHold()
     }
   }
   domElement.addEventListener('pointerdown', onPointerDown)
@@ -302,8 +382,20 @@ export function createFollowRig({ camera, dem, coords, routeLookup: initialRoute
         pointers.clear()
         dragging = false
         pinchStart = null
+        exitHold()
+        // Flagget lever fra et hold til NESTE pointerdown, og et pointerdown med
+        // input-en av returnerer før det nullstilles. Uten dette ville et hold
+        // rett før man pauser svelget det første trykket etterpå — nåla man
+        // trykket på gjorde ingenting.
+        holdConsumed = false
       }
     },
+    /** Står brukeren og ser rundt seg fra et frosset punkt akkurat nå? */
+    get holding() { return !!holdLook },
+    /** Ble den siste gesten et hold? Da var den ikke et trykk. */
+    get holdConsumed() { return holdConsumed },
+    /** @param {(holding: boolean) => void} cb holdet startet/sluttet */
+    onHold(cb) { holdCb = cb },
 
     /**
      * Ta over kameraet ved `alongM`.
@@ -315,6 +407,7 @@ export function createFollowRig({ camera, dem, coords, routeLookup: initialRoute
      *   Av = hopp rett dit; det er åpningsbildet når 3D starter med en tur.
      */
     enter(alongM = 0, { inherit = false, animate = inherit } = {}) {
+      exitHold()
       const p = routeLookup.at(alongM)
       if (inherit) {
         Object.assign(view, deriveFollowView({
@@ -353,6 +446,23 @@ export function createFollowRig({ camera, dem, coords, routeLookup: initialRoute
 
     update(dt, alongM) {
       if (!started) return
+      // HOLD: kameraet står stille der brukeren tok det, og fingeren styrer
+      // blikket. Ingen demping, ingen terrengklaring — vi flytter ingenting, og
+      // punktet var klart i det vi frøs det. camPos/lookPos beholder verdiene
+      // holdet forlot, så dempingen under glir tilbake i følge-posen ved slipp.
+      if (holdLook && holdPos) {
+        const { yaw, pitch, dist } = holdLook
+        camPos.copy(holdPos)
+        lookPos.set(
+          holdPos.x + Math.cos(pitch) * Math.cos(yaw) * dist,
+          holdPos.y + Math.sin(pitch) * dist,
+          holdPos.z + Math.cos(pitch) * Math.sin(yaw) * dist,
+        )
+        transition = null
+        camera.position.copy(camPos)
+        camera.lookAt(lookPos)
+        return
+      }
       // Relieff-boost dempes mykt (λ = 0.8) — kupert terreng skal skyve
       // kameraet gradvis bakover, ikke rykke i det.
       const wantBoost = 1 + RELIEF_MAX_BOOST
@@ -390,6 +500,8 @@ export function createFollowRig({ camera, dem, coords, routeLookup: initialRoute
     },
 
     dispose() {
+      cancelHoldTimer()
+      holdCb = null
       domElement.removeEventListener('pointerdown', onPointerDown)
       domElement.removeEventListener('pointermove', onPointerMove)
       domElement.removeEventListener('pointerup', onPointerUp)

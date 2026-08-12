@@ -13,12 +13,19 @@ import { stripBalancedGroups, stripGroupsById } from '../svgLayerStrip.js'
 
 const RUNTIME_LAYER_IDS = ['user-layer', 'annotation-layer', 'track-layer', 'measure-layer', 'stifinner-layer', 'hydro-layer']
 
+// Nabofliser i en mosaikk merker lagene sine `data-ghost-layer` (useGhostTiles
+// renavner dem for å holde dem utenfor lag-queries og perf-reglene i 2D). Alt
+// som strippes ut av 3D-teksturen må derfor treffe BEGGE navnene — ellers fikk
+// aktiv flis rene kurver mens naboflisene sto med kurvene bakt inn i bildet, og
+// «Kurver»-knappen styrte bare den ene niendedelen (v5.18.0).
+const LAG = 'data-(?:ghost-)?layer'
+
 // Fjern kartets innbakte høydekurver (<g data-layer="kontur"> med nestede
 // data-iso-/kontur-tall-grupper) fra teksturen: i 3D er vektorkurve-laget
 // eneste kurvekilde, så «Kurver»-knappen faktisk styrer kurvene og de ikke
 // vises dobbelt (uskarpt fra tekstur + skarpt fra vektor).
 export function stripContourLayers(svg) {
-  return stripBalancedGroups(svg, /<g\b[^>]*data-layer="kontur"[^>]*>/)
+  return stripBalancedGroups(svg, new RegExp(`<g\\b[^>]*${LAG}="kontur"[^>]*>`))
 }
 
 // Relieff-stilen «Skarp (vektor)» er en <g id="hillshade-layer"> med diskrete
@@ -28,7 +35,10 @@ export function stripContourLayers(svg) {
 // «Mjuk»-varianten er en <image id="hillshade-layer"> og matches ikke av
 // <g-regexen — den beholdes som den er.
 export function stripVectorRelief(svg) {
-  return stripBalancedGroups(svg, /<g\b[^>]*id="hillshade-layer"[^>]*>/)
+  const utenAktiv = stripBalancedGroups(svg, /<g\b[^>]*id="hillshade-layer"[^>]*>/)
+  // Naboflisenes vektor-relieff er en <g data-ghost-relief> med de samme
+  // tone-båndene, og de blir de samme grå flekkene på terrenget.
+  return stripBalancedGroups(utenAktiv, /<g\b[^>]*data-ghost-relief[^>]*>/)
 }
 
 // Kartelementer som ikke hører hjemme drapert på 3D-terreng: flate punkt-
@@ -36,10 +46,10 @@ export function stripVectorRelief(svg) {
 // bymasse-fyllet (522, tett bebyggelse) legger grå flater over terrenget.
 // Fjernes kun fra 3D-teksturen — 2D-kartet og eksportene er urørt.
 const TEXTURE_STRIP_PATTERNS = [
-  /<g\b[^>]*data-layer="parkering"[^>]*>/,   // P-skilt (534 + 534u)
-  /<g\b[^>]*data-layer="holdeplass"[^>]*>/,  // buss/tog (560)
-  /<g\b[^>]*data-iso="554"[^>]*>/,           // WC/toalett (enkeltmarkører i sjø-POI-laget)
-  /<g\b[^>]*data-layer="bymasse"[^>]*>/,     // tett bebyggelse (522)
+  new RegExp(`<g\\b[^>]*${LAG}="parkering"[^>]*>`),   // P-skilt (534 + 534u)
+  new RegExp(`<g\\b[^>]*${LAG}="holdeplass"[^>]*>`),  // buss/tog (560)
+  /<g\b[^>]*data-iso="554"[^>]*>/,                    // WC/toalett (enkeltmarkører i sjø-POI-laget)
+  new RegExp(`<g\\b[^>]*${LAG}="bymasse"[^>]*>`),     // tett bebyggelse (522)
 ]
 
 export function stripPointSymbols(svg) {

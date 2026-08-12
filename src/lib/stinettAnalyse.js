@@ -19,6 +19,7 @@
 import { buildRoutingGraph } from './routing.js'
 import { parsePathSubpaths, polylineLength } from './pathUtils.js'
 import { sampleProfile } from './elevationProfile.js'
+import { nestedSvgOffset } from './svgNestedOffset.js'
 
 export const STI_KODER = new Set(['505', '506', '507', '504'])
 export const KOBLER_KODER = new Set(['503', '509', 'bridge'])
@@ -59,12 +60,15 @@ export function stinettFeaturesFromSvgEl(svgRootEl, koder = null, { hoppOverSkju
     const code = el.getAttribute('data-iso')
     if (koder ? !koder.has(code) : (!STI_KODER.has(code) && !KOBLER_KODER.has(code))) continue
     if (hoppOverSkjulte && erSkjult(el, svgRootEl)) continue
+    const { dx, dy } = nestedSvgOffset(el, svgRootEl)
     const paths = el.tagName.toLowerCase() === 'path' ? [el] : el.querySelectorAll('path')
     for (const p of paths) {
       const d = p.getAttribute('d')
       if (!d) continue
       for (const sub of parsePathSubpaths(d)) {
-        if (sub.length >= 2) features.push({ coordinates: sub, isomCode: code })
+        if (sub.length < 2) continue
+        const coordinates = (dx || dy) ? sub.map(([x, y]) => [x + dx, y + dy]) : sub
+        features.push({ coordinates, isomCode: code })
       }
     }
   }

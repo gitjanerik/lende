@@ -198,11 +198,24 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   viser (`Viewer3D.vue`), to rigger (`cameraRigs.js` = følge, `freeRig.js` =
   fri). Kommer det en tredje inngang til 3D, skal den være en OPSJON på
   `create3dScene`, ikke en ny scene.
+- **3D dekker HELE arket, ikke aktiv flis (v5.18.0).** `use3dEntry` regner
+  utsnittet av mosaikk-kanten (`extendZonesBounds`) ∪ rutas bbox
+  (`tourExtent.computeExtent`), henter DEM for hele utsnittet og forskyver ALT
+  som sendes inn — rute, via, søkeindeks, stinett, barrierer, brukerminner. Legger
+  du en ny datakilde inn i 3D, må den forskyves også. Kostnaden er
+  tekstur-oppløsning: lerretet er 4096² uansett hvor stort arket er, så et
+  3×3-ark får kartbildet i en tredjedel av detaljen per meter. Vertekstallet er
+  derimot konstant (`terrainGrid.MAX_GRID_DIM` = 512), og mosaikken tegner maks 12
+  nabofliser — så GPU-siden skalerer ikke med flisetallet.
 - **Stinett-lesing finnes i tre varianter** med ulikt formål og det er med
   vilje: `stinettAnalyse.stinettFeaturesFromSvgEl` (nettleser, DOM),
   `mcp/headless.graphInputFromSvg` (node, streng), `useStifinner.featuresFromSvg`
-  (nettleser + spøkelsesfliser). Endrer du kodesett eller offset-håndtering i
-  én, sjekk de to andre.
+  (nettleser + spøkelsesfliser). Endrer du kodesett i én, sjekk de to andre.
+  **Flis-offsetet er derimot delt fra v5.18.0** — `lib/svgNestedOffset.js`. Det
+  lå i tre nesten like kopier, to av dem manglet det, og resultatet var
+  naboflisenes geometri limt oppå aktiv flis forskjøvet med hele flisebredder
+  (Stifinneren ruter over Gjende; 3D tegner stier over vann). Leser du geometri
+  ut av en LIVE kart-SVG, bruk den fila.
 - **`RUTE_GRAF_OPTS` i `routing.js` er én kilde til sannhet** for grafen. Bygger
   du en graf et nytt sted, spre den inn — ellers svarer diagnosen (`stinettBrudd`)
   på et annet nett enn ruteren bruker.

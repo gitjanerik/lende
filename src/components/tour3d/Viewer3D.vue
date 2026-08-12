@@ -56,6 +56,9 @@ const fixedTour = ref(false)
 const playing = ref(false)
 const finished = ref(false)
 const detached = ref(false)
+// Fingeren ligger nede og ser seg rundt fra et frosset punkt (følge-riggens
+// hold). Vises som et hint så den som fant det ved uhell skjønner hva som skjer.
+const holdingLook = ref(false)
 const timeScale = ref(128)
 const stats = ref(null)
 const junction = ref(null)
@@ -106,8 +109,10 @@ const INFO_KNAPPER = computed(() => [
 ])
 const INFO_TIPS = computed(() => (walking.value
   ? [
-    'Pause løsner kameraet: da kan du fly rundt og se på det du vil.',
-    'Play fester kameraet til turen igjen — med utsikten du nettopp valgte.',
+    'Dra mens turen går for å se den fra en annen vinkel — kameraet følger ruta hele tiden.',
+    'Hold fingeren stille: kameraet blir stående, og du kan se rundt deg, opp og ned. Slipp, og det glir tilbake bak ruta.',
+    'Pause løsner kameraet helt: da kan du fly rundt og se på det du vil.',
+    'Play setter kameraet tilbake skrått bakfra.',
     'Trykk på en nål for å fly dit; turen venter på deg.',
   ]
   : [
@@ -256,6 +261,7 @@ onMounted(async () => {
       wake.stop()
     })
     engine.on('camera', ({ detached: d }) => { detached.value = !!d })
+    engine.on('camera-hold', ({ holding }) => { holdingLook.value = !!holding })
     engine.on('junction', ({ junction: j }) => { junction.value = j })
     engine.on('junction-pause', () => { playing.value = false; wake.stop() })
     engine.on('finished', () => { playing.value = false; finished.value = true; wake.stop() })
@@ -362,9 +368,12 @@ function togglePins() {
   if (!pinsOn.value) pickedFeature.value = null
 }
 
-// Høydekurvene starter PÅ: de leser terrenget for deg i fugleperspektiv, der
-// selve skyggeleggingen er flat på avstand.
-const contoursOn = ref(true)
+// Åpningsbildet er terrenget, kartbildet og nålene — INGENTING oppå (v5.18.0).
+// Kurvene sto på fram til da, med den begrunnelsen at de leser terrenget for
+// deg i fugleperspektiv. Men sammen med stinettet, nålene og en rute ble det
+// fire lag over hverandre i det første sekundet, og førsteinntrykket er det
+// eneste som ikke kan slås på igjen. Den som vil ha kurver, slår dem på.
+const contoursOn = ref(false)
 async function toggleContours() {
   contoursOn.value = !contoursOn.value
   await engine?.setContoursVisible(contoursOn.value)
@@ -702,6 +711,13 @@ function branchLabel(opt, i) {
            :class="isLandscape ? 'top-16' : 'top-32'">
         <span class="w-3 h-3 rounded-full border-2 border-white/30 border-t-white animate-spin"></span>
         {{ buildMsg }}
+      </div>
+
+      <!-- Hold-for-å-se-rundt: hintet står så lenge fingeren er nede. -->
+      <div v-if="holdingLook"
+           class="absolute left-1/2 -translate-x-1/2 bottom-44 z-30 pointer-events-none
+                  rounded-full bg-black/60 backdrop-blur px-3 py-1.5 text-[11px] text-white/85">
+        Ser rundt — slipp for å følge ruta
       </div>
 
       <!-- Kortvarig melding -->

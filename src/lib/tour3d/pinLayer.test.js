@@ -127,6 +127,54 @@ describe('createPinLayer', () => {
     expect(kall).toBeGreaterThan(etterOppsett)
   })
 
+  // Kollisjonsboksen er hele nåla slik den står på skjermen, ikke en fast
+  // firkant rundt hodet. Projeksjonen under er «loddrett»: skjerm-y faller med
+  // verdens-y (nåla peker opp) og forskyves av verdens-z, så to nåler kan legges
+  // et kjent antall piksler fra hverandre.
+  const loddrett = (x, y, z) => ({ x: 100, y: 500 + z - y * 0.5, behind: false })
+
+  it('to nåler som overlapper på skjermen gir bare én — avstands-skalaen teller med', () => {
+    const scene = new Scene()
+    const layer = createPinLayer({ scene, dem, coords, project: loddrett })
+    // Samme svgX, 60 m fra hverandre i svgY → 60 px fra hverandre på skjermen.
+    layer.setFeatures([
+      feature('Nære toppen', 'peak', 80, 100),
+      feature('Fjerne toppen', 'peak', 80, 160),
+    ])
+
+    // Nært kamera: nålene er ~30 px høye og går klar av hverandre.
+    const naer = new PerspectiveCamera(60, 1, 1, 20000)
+    naer.position.set(0, 200, 0)
+    layer.update(naer)
+    layer.maybeDeclutter(400)
+    expect(layer.visibleIndices.size).toBe(2)
+
+    // Langt unna blåses nålene opp til 5× (pinScaleAt), og da står de oppå
+    // hverandre. Før v5.18.0 så declutteren en fast 32×52-boks og lot begge stå.
+    const langt = new PerspectiveCamera(60, 1, 1, 20000)
+    langt.position.set(0, 6200, 0)
+    layer.update(langt)
+    layer.maybeDeclutter(1000)
+    expect(layer.visibleIndices.size).toBe(1)
+  })
+
+  it('av to like nåler på samme flekk vinner den nærmeste betrakteren', () => {
+    const scene = new Scene()
+    const layer = createPinLayer({ scene, dem, coords, project: loddrett })
+    // Kameraet står i nord (lav svgY = lav world-z), så nål 1 er nærmest.
+    layer.setFeatures([
+      feature('Fjerne toppen', 'peak', 80, 150),
+      feature('Nære toppen', 'peak', 80, 100),
+    ])
+    const kam = new PerspectiveCamera(60, 1, 1, 20000)
+    kam.position.set(0, 6200, -3000)
+    layer.update(kam)
+    layer.maybeDeclutter(400)
+    const synlige = layer.visibleIndices
+    expect(synlige.size).toBe(1)
+    expect(synlige.has(1)).toBe(true)
+  })
+
   it('dispose tar gruppa ut av scenen', () => {
     const { scene, layer } = lag()
     layer.setFeatures([feature('A', 'peak', 20, 20)])

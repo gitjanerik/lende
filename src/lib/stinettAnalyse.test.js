@@ -277,6 +277,22 @@ describe('stinettFeaturesFromSvgEl', () => {
   it('kodesettene er disjunkte', () => {
     for (const kode of STI_KODER) expect(KOBLER_KODER.has(kode)).toBe(false)
   })
+
+  // En naboflis i en mosaikk er en nestet <svg x y> med FLIS-LOKALE
+  // path-d-er. Uten flis-offsetet ble naboflisenes stinett lest inn oppå den
+  // aktive — 3D tegnet stier tvers over vann, og sti-vandringen fulgte dem.
+  it('løfter en naboflis sitt stinett til aktiv-flisas koordinatrom', () => {
+    const { document } = parseHTML(`<html><body><svg viewBox="0 0 4000 3000">
+      <g data-iso="505"><path d="M100,100L200,100"/></g>
+      <svg x="4000" y="-3000" width="4000" height="3000">
+        <g data-iso="505"><path d="M100,100L200,100"/></g>
+      </svg>
+    </svg></body></html>`)
+    const features = stinettFeaturesFromSvgEl(document.querySelector('svg'))
+    expect(features).toHaveLength(2)
+    expect(features[0].coordinates[0]).toEqual([100, 100])
+    expect(features[1].coordinates).toEqual([[4100, -2900], [4200, -2900]])
+  })
 })
 
 describe('stinettFeaturesFromSvgEl — hoppOverSkjulte', () => {

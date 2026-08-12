@@ -279,6 +279,9 @@ export async function create3dScene(container, {
         routeLookup: tripLookup,
         domElement: core.renderer.domElement,
       })
+      // Hold-for-å-se-rundt: HUD-en viser et lite hint mens fingeren er nede,
+      // slik at den som fant det ved uhell forstår hva som skjedde.
+      followRig.onHold((holding) => emit('camera-hold', { holding }))
     } else {
       // Riggen leser posisjoner gjennom lookup-objektet; bytt det ut i stedet
       // for å bygge riggen på nytt, ellers nullstilles brukerens blikkvinkel
@@ -414,6 +417,10 @@ export async function create3dScene(container, {
   }
 
   function handleTap(e) {
+    // Ble gesten et hold (fingeren lå stille og så seg rundt), var den ikke et
+    // trykk. tapDispatcher godtar opptil 600 ms nede, holdet slår inn etter 320,
+    // så uten dette ville et kort hold også valgt nåla man tilfeldigvis så mot.
+    if (camMode === 'follow' && followRig?.holdConsumed) return
     const rect = core.renderer.domElement.getBoundingClientRect()
     ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
     ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
@@ -645,9 +652,13 @@ export async function create3dScene(container, {
     get totalM() { return tripLookup?.totalM ?? 0 },
     play() {
       if (!playback) return
-      // Play er også veien tilbake til turen: er kameraet løsnet, festes det —
-      // med perspektivet brukeren nettopp sto i.
-      if (camMode === 'free') attachCamera({ inherit: true })
+      // Play NULLSTILLER kameraet til standard følge-pose: skrått bakfra, i
+      // fugleperspektiv (v5.18.0). Fram til da arvet play perspektivet man sto
+      // i, og det var riktig så lenge en avstikker var noe unntaksvis. Nå er
+      // utforsking selve poenget underveis — man ser rundt seg, holder fingeren
+      // nede, flyr til en nål — og da må play være den ENE forutsigbare veien
+      // tilbake til «vis meg ruta». Glidningen er myk (enter animerer).
+      attachCamera({ inherit: false, animate: true })
       playback.play()
       armFreeRigIfIdle()
     },
@@ -657,11 +668,12 @@ export async function create3dScene(container, {
     },
     restart() {
       if (!playback) return
-      // Var kameraet løsnet, festes det tilbake; sto det alt i følge-riggen,
-      // rører vi det ikke — den glir selv tilbake til start med posisjonen.
-      if (camMode === 'free') attachCamera({ inherit: true })
+      // Som play: standard følge-pose ved starten av ruta. Avspillingen spoles
+      // FØR kameraet festes, så glidningen sikter mot startpunktet og ikke mot
+      // der man tilfeldigvis sto da man trykket.
       playback.restart()
       director.seek(0)
+      attachCamera({ inherit: false, animate: true })
       armFreeRigIfIdle()
     },
     stopTrip() { endTrip() },
