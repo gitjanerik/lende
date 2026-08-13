@@ -591,14 +591,21 @@ function branchLabel(opt, i) {
         <div v-else></div>
       </div>
 
-      <!-- Laste-/feiltilstander -->
+      <!-- Laste-/feiltilstander.
+           `pointer-events-none` er ikke kosmetikk (v5.18.4): begge disse er
+           fullskjerms lag på z-20, altså OVER topprada (z-10) der X-en sitter.
+           Uten dette lå de og svelget trykket, så X-en var synlig men død — og
+           feilet 3D-visningen, var den eneste veien ut Escape (som ikke finnes
+           på mobil) eller Android-tilbakeknappen. Innholdet her er ren
+           informasjon og trenger ingen treff selv. -->
       <div v-if="phase === 'loading'"
-           class="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 text-white/80">
+           class="absolute inset-0 z-20 pointer-events-none flex flex-col items-center
+                  justify-center gap-3 text-white/80">
         <div class="w-10 h-10 rounded-full border-2 border-white/25 border-t-white animate-spin"></div>
         <div class="text-[13px]">{{ buildMsg || 'Bygger 3D-terreng …' }}</div>
       </div>
       <div v-else-if="errorText"
-           class="absolute inset-0 z-20 flex items-center justify-center p-6">
+           class="absolute inset-0 z-20 pointer-events-none flex items-center justify-center p-6">
         <div class="rounded-xl bg-amber-500/10 border border-amber-300/30 px-4 py-3
                     text-amber-100/90 text-[13px] max-w-sm text-center">
           {{ errorText }}
