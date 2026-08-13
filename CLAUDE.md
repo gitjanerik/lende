@@ -269,7 +269,14 @@ er verre enn ingen sjekk.
 
 **Endrer du pipelinen og tallene flytter seg: LES DIFFEN før du kjører
 `--oppdater`.** Fasiten er ikke noe som skal gjøres grønn; den er spørsmålet
-«mente du dette?». Advarsler (⚠) er datakvalitet i kildene — f.eks. en
+«mente du dette?».
+
+**Og `--oppdater` skal kjøres i CI, ikke lokalt (v5.18.3).** Den er bare korrekt
+der ALLE kildene svarer. Herfra gir NVE 403, og en lokal `--oppdater` ville
+skrevet en degradert pipelines tall inn som sannhet — stikk motsatt av hensikten.
+Kjør fasit-workflowen med `oppdater`-haken i stedet; den commiter baselinen.
+Nettopp dette skjedde: baselinen ble en gang tatt opp under NVE-nedetid, og da
+NVE kom tilbake så det ut som en regresjon i seks kart. Advarsler (⚠) er datakvalitet i kildene — f.eks. en
 Strava-sporet isrute over Rondvatnet — og feiler ikke bygget.
 
 ## Zoom-trappet detalj-LOD

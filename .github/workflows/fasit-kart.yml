@@ -43,6 +43,15 @@ on:
         description: 'Steder (tom = alle): vardasen kolstadoya strykenasen gjende henningsvaer rondvassbu'
         required: false
         default: ''
+      oppdater:
+        description: 'Skriv ny fasit og commit den (BARE etter at diffen er lest)'
+        required: false
+        type: boolean
+        default: false
+
+# Kun for oppdater-kjøringer: da commiter jobben den nye baselinen.
+permissions:
+  contents: write
 
 jobs:
   fasit:
@@ -50,6 +59,9 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Trengs for å pushe den nye baselinen tilbake til branchen.
+          ref: ${{ github.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -58,7 +70,33 @@ jobs:
 
       - name: Kjør fasit-suiten
         id: fasit
-        run: node scripts/fasit-kart.js ${{ github.event.inputs.steder }} --json fasit-rapport.json
+        run: |
+          node scripts/fasit-kart.js ${{ github.event.inputs.steder }} \
+            ${{ github.event.inputs.oppdater == 'true' && '--oppdater' || '' }} \
+            --json fasit-rapport.json
+
+      # `--oppdater` er BARE korrekt der alle kildene svarer. På en utviklings-
+      # maskin (eller i en sandkasse der NVE gir 403) måler man en degradert
+      # pipeline og skriver de tallene inn som sannhet — stikk motsatt av hva
+      # fasiten er til for. Derfor bor oppdateringen her, i CI, som en knapp man
+      # trykker på ETTER å ha lest diffen i en vanlig kjøring.
+      - name: Commit ny fasit
+        if: github.event.inputs.oppdater == 'true'
+        run: |
+          set -e
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/fasit/baseline.json
+          if git diff --staged --quiet; then
+            echo "Fasiten var alt à jour"
+          else
+            git diff --staged --stat
+            git -c commit.gpgsign=false commit \
+              --author="Fasit <fasit@lende>" \
+              -m "Fasit-baseline målt i CI (alle kilder tilgjengelige)"
+            git push origin HEAD:${GITHUB_REF_NAME}
+            echo "Committet ny fasit-baseline"
+          fi
 
       # Rapporten lastes opp uansett utfall — den er selve diagnosen når noe
       # har endret seg, og inneholder tallene per sted.

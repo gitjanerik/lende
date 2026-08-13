@@ -28,6 +28,19 @@ Appen var altså delvis rammet (bekkene) og MCP-bygde kart fullt ut (bekker,
 elveflater og halvparten av innsjøene). Fasiten er ikke oppdatert med
 `--oppdater` — den skulle ikke gjøres grønn, den hadde rett.
 
+**Fasit-baselinen er målt i CI, ikke her.** `--oppdater` er bare korrekt der
+alle kildene svarer. På en utviklingsmaskin — eller i en sandkasse der NVE gir
+403 — måler man en degradert pipeline og skriver de tallene inn som sannhet,
+stikk motsatt av hva fasiten er til for. Oppdateringen er derfor en knapp på
+fasit-workflowen (`workflow_dispatch` med `oppdater`), som commiter den nye
+baselinen etter at diffen er lest i en vanlig kjøring. De 11 avvikene som sto
+igjen etter fiksen var alle konsekvenser av at NVE-geometrien nå FAKTISK brukes:
+flere ekte øy-hull (Vardåsen 0 → 3), 7 % mer vannareal fordi NVE-innsjøene er
+N50-avledet og litt rausere enn OSM sine, og et par korte strekk der en sti
+klipper NVE-strandlinja — den siste advarselen sto i CI-loggen allerede før noen
+av endringene her, altså fra NVE og ikke fra koden. Gjende gikk motsatt vei og
+mistet 236 m sti gjennom vann.
+
 **Fasiten måler nå koden den beskytter.** Vann-sammenslåingen sto i
 `createMapFlow.js`, som ikke var blant filene som utløser fasit-kjøringen — så
 ingen gate så at de to pipelinene drev fra hverandre. Både `vannMerge.js` og
