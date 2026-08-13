@@ -111,6 +111,44 @@ export function viewBoxToScreen(vx, vy, v) {
   return { x: v.tx + s * rx, y: v.ty + s * ry }
 }
 
+// ── Ventende fliser — ren logikk (ingen Vue-refs, testbar) ───────────────────
+// Bokføringen over fliser en utvidelse satte seg fore å bygge, men ikke rakk.
+// Se det lange notatet ved `lesVentende` i composablen for HVORFOR den finnes;
+// her ligger bare det som er rent regnestykke, fordi det er den delen som er
+// lett å få galt (fortegnet i UTM→SVG) og lett å teste.
+
+// Celle-identitet. Nordvest-hjørnet i absolutt UTM avrundet til meter — samme
+// celle får samme nøkkel enten den kommer fra bokføringen eller fra geometrien,
+// så de to kildene kan slås sammen uten å tilby samme flis to ganger.
+export const cellenokkel = (ub) => (ub ? `${Math.round(ub.minE)}:${Math.round(ub.maxN)}` : '')
+
+// Absolutt UTM-bbox → senter i aktiv-flisas meter-rom. SVG-y vokser SØROVER og
+// er 0 ved arkets maxN, så toppkanten er (m.maxN − ub.maxN) — ikke omvendt.
+export function ventendeSenter(ub, m) {
+  if (!ub || m?.minE == null || m?.maxN == null) return null
+  const x = (ub.minE - m.minE) + (ub.maxE - ub.minE) / 2
+  const y = (m.maxN - ub.maxN) + (ub.maxN - ub.minN) / 2
+  return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null
+}
+
+// Hvor langt fra arket vi står på en ventende flis kan ligge før vi antar at den
+// hører til et annet kart. Mosaikken tegner selv maks 3 flisebredder unna.
+export const VENTENDE_RADIUS_TILES = 4
+
+// Hører spesifikasjonen til DETTE arket? Returnerer senteret i arkets meter-rom
+// hvis ja, ellers null. Konservativt med vilje: annen flisestørrelse eller langt
+// utenfor rekkevidde betyr et annet kart, og da skal flisa ikke tilbys her.
+export function ventendePaaArket(spek, m, radiusTiles = VENTENDE_RADIUS_TILES) {
+  const ub = spek?.utmBbox
+  if (!ub || !m || m.minE == null) return null
+  const W = m.widthM, H = m.heightM
+  if (Math.abs((ub.maxE - ub.minE) - W) > 1 || Math.abs((ub.maxN - ub.minN) - H) > 1) return null
+  const c = ventendeSenter(ub, m)
+  if (!c) return null
+  if (Math.abs(c.x) > radiusTiles * W || Math.abs(c.y) > radiusTiles * H) return null
+  return c
+}
+
 export function useMapExtend({
   wrapperRef, wrapperSize, meta, mapId, router,
   scale, rotation, translateX, translateY, isGesturing, panTo,
@@ -493,6 +531,67 @@ export function useMapExtend({
   // Manuell kant-sone-utvidelse. Navigerer IKKE — det aktive kartet beholdes, de
   // nye flisene vises som fullopake mosaikk-naboer og vi panorerer sentrum til
   // grensen/hjørnet med BEHOLDT zoom. Derfor rydder vi loader/state selv i finally.
+  // ── Ventende fliser — bokføring, ikke gjetning ───────────────────────────────
+  // En avbrutt utvidelse (reload, app-lukking, en flis som feiler midt i løkka)
+  // etterlater et ark som ikke er ferdig. `findGridGaps` finner bare INNELUKKEDE
+  // hull, med vilje: en bounding-box-variant rapporterte fantom-hull under vanlig
+  // panorering og bygde utsnitt ingen ba om (se tileCache.js). Men utvidelsen
+  // fyller PERIMETERET, så det den etterlater er et hakk i ytterkanten — og
+  // geometri alene kan ikke skille «avbrutt bygging» fra «diagonal panorering».
+  //
+  // Informasjonen finnes ikke i formen, men den finnes i intensjonen: extendMap
+  // vet nøyaktig hvilke fliser den satte seg fore å bygge. Den skrives ned før
+  // byggingen og strykes flis for flis, så et avbrudd etterlater en presis liste
+  // over det som mangler — uten terskler og uten falske positive.
+  //
+  // Spesifikasjonene er SELVSTENDIGE (senter som lat/lon + absolutt UTM-bbox), så
+  // de overlever at en annen flis blir aktiv og koordinatrommet flyttes.
+  const VENTENDE_KEY = 'lende-ventende-fliser'
+
+  function lesVentende() {
+    try {
+      const v = JSON.parse(localStorage.getItem(VENTENDE_KEY) ?? '[]')
+      return Array.isArray(v) ? v.filter(s => s?.utmBbox && s?.opts) : []
+    } catch { return [] }
+  }
+  // Fliser en bruker aldri bygger blir aldri strøket, så lista må ha et tak: den
+  // er ikke en logg, den er «hva mangler nå». Nyeste beholdes.
+  const VENTENDE_MAKS = 24
+  function skrivVentende(liste) {
+    const kappet = liste.slice(-VENTENDE_MAKS)
+    try {
+      if (kappet.length) localStorage.setItem(VENTENDE_KEY, JSON.stringify(kappet))
+      else localStorage.removeItem(VENTENDE_KEY)
+    } catch { /* privat modus — da mister vi bare bokføringen */ }
+  }
+  function leggTilVentende(spekker) {
+    const sett = new Set(spekker.map(s => cellenokkel(s.utmBbox)))
+    skrivVentende([...lesVentende().filter(s => !sett.has(cellenokkel(s.utmBbox))), ...spekker])
+  }
+  function fjernVentende(utmBbox) {
+    const n = cellenokkel(utmBbox)
+    skrivVentende(lesVentende().filter(s => cellenokkel(s.utmBbox) !== n))
+  }
+
+  // Finnes det alt en flis (aktiv eller nabo) som dekker dette senteret?
+  function flisFinnes(c, m) {
+    const nyRect = { x: c.x - m.widthM / 2, y: c.y - m.heightM / 2, w: m.widthM, h: m.heightM }
+    const aktiv = { x: 0, y: 0, w: m.widthM, h: m.heightM }
+    if (rectOverlapFraction(nyRect, aktiv) > GHOST_TRIGGER_SUPPRESS_FRAC) return true
+    return ghostRects.value.some(g => rectOverlapFraction(nyRect, g) > GHOST_TRIGGER_SUPPRESS_FRAC)
+  }
+
+  // Bokførte fliser som fortsatt mangler PÅ DETTE arket: hører spesifikasjonen
+  // hjemme her (ventendePaaArket), og finnes den ikke alt som flis?
+  function ventendeFliser() {
+    const m = meta.value
+    if (!m || m.minE == null) return []
+    return lesVentende().filter((spek) => {
+      const c = ventendePaaArket(spek, m)
+      return !!c && !flisFinnes(c, m)
+    })
+  }
+
   let extendingMap = false
   async function extendMap(direction) {
     clearExtendPreview()
@@ -530,6 +629,11 @@ export function useMapExtend({
     closeDrawer()
     closeSearch()
     const builtIds = []
+    // Bokfør planen FØR byggingen. Blir økta avbrutt her — reload, app-lukking,
+    // en flis som feiler — er dette det eneste sporet av hva som skulle bygges.
+    const plan = toBuild.map(({ center, utmBbox }) => ({ opts: autoMapBuildOpts(center), utmBbox }))
+    leggTilVentende(plan)
+    let tegnet = false
     try {
       for (let i = 0; i < toBuild.length; i++) {
         const prefix = toBuild.length > 1 ? `Utsnitt ${i + 1}/${toBuild.length}` : ''
@@ -537,19 +641,23 @@ export function useMapExtend({
           ? `Bygger utsnitt ${i + 1} av ${toBuild.length} …`
           : 'Bygger nytt utsnitt …'
         const { id } = await buildMapFromCenter({
-          ...autoMapBuildOpts(toBuild[i].center),
+          ...plan[i].opts,
           utmBbox: toBuild[i].utmBbox,   // eksakt ±W/±H-offset → flukter med aktiv flis
           terrainFirst: false,   // full flis med en gang
           onProgress: (msg) => {
             buildingProgress.value = prefix ? `${prefix}: ${msg}` : msg
           },
         })
-        if (id) builtIds.push(id)
+        if (id) {
+          builtIds.push(id)
+          fjernVentende(toBuild[i].utmBbox)   // denne er i boks
+        }
       }
       // Tegn de nye flisene som mosaikk-naboer (fullopake, full detalj) og utvid
       // pan-grensa til mosaikken (renderGhostTiles → clampPan), så panTo ikke
       // klampes tilbake til aktiv-flisas grenser.
       await renderGhostTiles()
+      tegnet = true
       await nextTick()
       panTo(geom.panPoint.x, geom.panPoint.y, {
         vbWidth: m.widthM, vbHeight: m.heightM,
@@ -568,18 +676,37 @@ export function useMapExtend({
       console.error('Kant-sone-utvidelse feilet:', e)
       showAutoMapToast('Kunne ikke lage nytt utsnitt')
     } finally {
+      // Feilet løkka, rakk vi aldri å tegne det som FAKTISK ble bygd — og
+      // banneret om det som mangler leses av mosaikken. Tegn derfor uansett, og
+      // tell på nytt: det er dette som gjør at «Fyll hullene» dukker opp med en
+      // gang i stedet for ved neste tilfeldige mosaikk-endring.
+      if (!tegnet) {
+        try {
+          await renderGhostTiles()
+          await nextTick()
+        } catch { /* mosaikk-render er fail-safe */ }
+      }
       buildingOnTheFly.value = false
       buildingProgress.value = ''
       autoMapArmed = true
       extendingMap = false
+      refreshMosaicGaps()
     }
   }
 
-  // ── Mosaikk-hull-reparasjon (C) ─────────────────────────────────────────────
+  // ── Mosaikk-reparasjon ──────────────────────────────────────────────────────
   // Bygging avbrutt av reload/app-lukking (eller en feilet nabo-flis) etterlater
-  // et hull i mosaikken. Kant-sone-utvidelsen holder alltid bruttoen rektangulær
-  // og fyller kun perimeteret, så et indre hull blir aldri tettet av den. Her
-  // finner vi manglende gitter-celler (findGridGaps) og tilbyr å bygge KUN dem.
+  // et ark som ikke er ferdig. Det som mangler kommer fra TO kilder, og de dekker
+  // hver sin feilmåte:
+  //
+  //   • BOKFØRINGEN (ventendeFliser) — utvidelsen skrev ned hva den skulle bygge.
+  //     Presis, ingen falske positive, og den fanger hakk i ytterkanten, som er
+  //     nettopp det en avbrutt utvidelse etterlater.
+  //   • GEOMETRIEN (findGridGaps) — innelukkede hull. Dekker ark som ble ødelagt
+  //     FØR bokføringen fantes, og fliser kappet ut av cachen (pruneAutoTiles)
+  //     lenge etter at utvidelsen var ferdig. Der finnes ingen bokføring.
+  //
+  // De slås sammen på celle-identitet, så en flis som begge finner tilbys én gang.
 
   // Manglende gitter-celler → byggespesifikasjoner (SVG-senter + eksakt UTM-bbox,
   // utledet identisk med extendMapGeometry så de flukter bit-eksakt med aktiv flis).
@@ -597,8 +724,25 @@ export function useMapExtend({
       }
     })
   }
+  // Alt som mangler på arket, som ferdige byggespesifikasjoner.
+  function manglendeFliser() {
+    const m = meta.value
+    if (!m || m.minE == null) return []
+    const ut = []
+    const sett = new Set()
+    const leggTil = (opts, utmBbox) => {
+      const n = cellenokkel(utmBbox)
+      if (!n || sett.has(n)) return
+      sett.add(n)
+      ut.push({ opts, utmBbox })
+    }
+    // Bokføringen først: den er den presise kilden.
+    for (const s of ventendeFliser()) leggTil(s.opts, s.utmBbox)
+    for (const c of mosaicGapCells()) leggTil(autoMapBuildOpts(c.center), c.utmBbox)
+    return ut
+  }
   function refreshMosaicGaps() {
-    mosaicGapCount.value = mosaicGapCells().length
+    mosaicGapCount.value = manglendeFliser().length
   }
 
   // Fyll alle mosaikk-hull. Bygger hver manglende celle (samme flyt som extendMap:
@@ -609,7 +753,7 @@ export function useMapExtend({
     if (autoMapModeBusy()) return
     const m = meta.value
     if (!m) return
-    const cells = mosaicGapCells()
+    const cells = manglendeFliser()
     if (!cells.length) { refreshMosaicGaps(); return }
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       showAutoMapToast('Offline — kan ikke fylle hull')
@@ -634,15 +778,17 @@ export function useMapExtend({
           : 'Fyller hull i kartet …'
         try {
           const { id } = await buildMapFromCenter({
-            ...autoMapBuildOpts(cells[i].center),
+            ...cells[i].opts,
             utmBbox: cells[i].utmBbox,
             terrainFirst: false,
             onProgress: (msg) => {
               buildingProgress.value = prefix ? `${prefix}: ${msg}` : msg
             },
           })
-          if (id) builtIds.push(id)
-          else failed++
+          if (id) {
+            builtIds.push(id)
+            fjernVentende(cells[i].utmBbox)
+          } else failed++
         } catch (e) {
           console.error('Hull-flis feilet:', e)
           failed++
