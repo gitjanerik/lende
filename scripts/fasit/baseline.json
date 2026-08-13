@@ -2,9 +2,9 @@
   "vardasen": {
     "breddeM": 4105,
     "hoydeM": 4098,
-    "vannAndel": 0.031,
-    "vannFlater": 23,
-    "vannHull": 0,
+    "vannAndel": 0.0333,
+    "vannFlater": 25,
+    "vannHull": 3,
     "elvKm": 19.24,
     "vegetasjonAndel": 0.0846,
     "konturKm": 595.4,
@@ -12,10 +12,10 @@
     "vegKm": 168.23,
     "broer": 60,
     "konturIVann": 0.0002,
-    "konturDyptIVann": 6,
+    "konturDyptIVann": 5,
     "vegDyptIVann": 0,
-    "stiIVannM": 0,
-    "stiOverVann": 0
+    "stiIVannM": 160,
+    "stiOverVann": 3
   },
   "kolstadoya": {
     "breddeM": 3136,
@@ -38,9 +38,9 @@
   "strykenasen": {
     "breddeM": 4085,
     "hoydeM": 4078,
-    "vannAndel": 0.0886,
+    "vannAndel": 0.0887,
     "vannFlater": 16,
-    "vannHull": 15,
+    "vannHull": 19,
     "elvKm": 67.06,
     "vegetasjonAndel": 0.0433,
     "konturKm": 601.5,
@@ -50,14 +50,14 @@
     "konturIVann": 0,
     "konturDyptIVann": 0,
     "vegDyptIVann": 0,
-    "stiIVannM": 0,
-    "stiOverVann": 0
+    "stiIVannM": 25,
+    "stiOverVann": 3
   },
   "gjende": {
     "breddeM": 8091,
     "hoydeM": 8079,
-    "vannAndel": 0.1339,
-    "vannFlater": 119,
+    "vannAndel": 0.1353,
+    "vannFlater": 110,
     "vannHull": 17,
     "elvKm": 74.56,
     "vegetasjonAndel": 0.0002,
@@ -66,16 +66,16 @@
     "vegKm": 2.44,
     "broer": 8,
     "konturIVann": 0,
-    "konturDyptIVann": 3,
+    "konturDyptIVann": 5,
     "vegDyptIVann": 0,
-    "stiIVannM": 236,
-    "stiOverVann": 3
+    "stiIVannM": 0,
+    "stiOverVann": 0
   },
   "henningsvaer": {
     "breddeM": 4348,
     "hoydeM": 4345,
-    "vannAndel": 0.9083,
-    "vannFlater": 51,
+    "vannAndel": 0.9082,
+    "vannFlater": 49,
     "vannHull": 241,
     "elvKm": 0.02,
     "vegetasjonAndel": 0.0004,
@@ -93,7 +93,7 @@
     "breddeM": 6104,
     "hoydeM": 6095,
     "vannAndel": 0.0309,
-    "vannFlater": 50,
+    "vannFlater": 53,
     "vannHull": 5,
     "elvKm": 72.65,
     "vegetasjonAndel": 0,

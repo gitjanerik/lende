@@ -24,8 +24,12 @@ import { fetchKulturminner } from './kulturminneFetcher.js'
 import { fetchTurruteRoutes, turruteElementsFrom } from './turrutebasenFetcher.js'
 import { fetchN50StiLinjer, n50StiElementerFra } from './n50StiFetcher.js'
 import { fetchSjokart, sjokartToElements, sjokartTimeoutForBbox, summarizeSjokartStatus } from './sjokartFetcher.js'
-import { isOsmWaterSalty, isFlowingWaterArea } from './symbolizer.js'
-import { pointInRing } from './marineTopology.js'
+// Vann-sammenslåingen bor i vannMerge.js — delt med mcp/headless.js, som
+// MCP-serveren og fasit-suiten bygger gjennom. De to hadde hver sin versjon
+// og sprikte (v5.18.3). filterOsmWaterElements re-eksporteres her fordi det
+// er navnet testene og kallerne kjenner.
+import { slaaSammenVann, vannKildeFlagg, filterOsmWaterElements } from './vannMerge.js'
+export { filterOsmWaterElements }
 import { fetchDEM } from './demFetcher.js'
 import { fillDemVoidsFromTerrarium } from './terrariumDem.js'
 import { findHighestPoint, packDem, downsampleDem } from './demSampling.js'
@@ -44,99 +48,6 @@ import { tetthetsBeslutning } from './mapDensityRules.js'
 // dagens oppførsel (én full fetch). Følg med på at høydekurver flukter med
 // stier/vann (ingen forskyvning) på nabo-kart.
 const DEM_TILE_CACHE_ENABLED = true
-
-// Areal-vektet sentroid (lon/lat) for en ring av {lat,lon}- eller [lon,lat]-
-// punkter. Faller til punkt-gjennomsnitt for degenererte ringer.
-function ringCentroidLonLat(pts) {
-  if (!Array.isArray(pts) || pts.length === 0) return null
-  const lon = (p) => (p.lon ?? p[0]); const lat = (p) => (p.lat ?? p[1])
-  const n = pts.length
-  let a = 0, cx = 0, cy = 0
-  for (let i = 0; i < n; i++) {
-    const p1 = pts[i], p2 = pts[(i + 1) % n]
-    const x1 = lon(p1), y1 = lat(p1), x2 = lon(p2), y2 = lat(p2)
-    const cross = x1 * y2 - x2 * y1
-    a += cross; cx += (x1 + x2) * cross; cy += (y1 + y2) * cross
-  }
-  if (a !== 0 && Number.isFinite(cx)) return [cx / (3 * a), cy / (3 * a)]
-  let sx = 0, sy = 0, c = 0
-  for (const p of pts) { sx += lon(p); sy += lat(p); c++ }
-  return c ? [sx / c, sy / c] : null
-}
-
-// Representativt indre punkt [lon,lat] for et OSM-vann-element (way eller
-// multipolygon-relation). Brukes til å teste om NVE faktisk dekker flata.
-function elementRepPoint(el) {
-  if (Array.isArray(el?.geometry) && el.geometry.length) {
-    return ringCentroidLonLat(el.geometry)
-  }
-  if (Array.isArray(el?.members)) {
-    let best = null
-    for (const m of el.members) {
-      if ((m.role === 'outer' || !m.role) && Array.isArray(m.geometry) && m.geometry.length >= 3) {
-        if (!best || m.geometry.length > best.length) best = m.geometry
-      }
-    }
-    if (best) return ringCentroidLonLat(best)
-  }
-  return null
-}
-
-// Per-element OSM-vann-filter. De autoritative norske kildene (N50 vann, NVE
-// innsjø-flater, Sjøkart) er foretrukket der de finnes, men de dekker bare
-// deler av vann-stacken: N50/NVE leverer STILLESTÅENDE ferskvann (innsjøer/
-// magasin) og N50 i tillegg sjø — ingen av dem leverer ELVELØP. Derfor:
-//   • Saltvann → behold kun hvis N50 ikke har sjø (ellers er N50 autoritativ).
-//   • Elve-/kanal-/bekke-FLATER (isFlowingWaterArea) → behold ALLTID. Dette er
-//     regresjons-vakten: uten den droppes brede elver (Drammenselva, tagget
-//     natural=water+water=river) så snart NVE/N50 returnerer ferskvann, og det
-//     som står igjen er bare den hårtynne waterway=river-senterlinja (304).
-//   • Innsjø-flate → undertrykk KUN der NVE faktisk har en innsjø som dekker
-//     flata (sentroiden ligger i en NVE-innsjø-ring). NVEs `identify`-respons
-//     er ofte UFULLSTENDIG (ArcGIS-record-cap returnerer bare de første N
-//     flatene i bbox-en), så en blanket «NVE finnes → dropp ALT OSM-ferskvann»
-//     slettet innsjøer NVE ikke returnerte (Ulvenvatnet i Dikemark forsvant
-//     helt). Per-flate-dekning gjør NVE autoritativ DER den har data og lar OSM
-//     fylle hullene. Mistaggede flom-innsjøer (Røssvatnet) dekkes fortsatt av
-//     sin NVE-innsjø → undertrykt som før.
-//   • Bekke-/grøfte-LINJER → undertrykk kun når N50 har ferskvann.
-// I nettleseren feiler WFS-kildene ofte (CORS) → ingen NVE-ringer / alle flagg
-// false → alt OSM-vann beholdes uendret.
-export function filterOsmWaterElements(elements, flags = {}) {
-  const { n50HasSea = false, n50HasFreshwater = false, nveLakeRings = null, n50WaterRings = null } = flags
-  const nveRings = Array.isArray(nveLakeRings) ? nveLakeRings : null
-  const n50Rings = Array.isArray(n50WaterRings) ? n50WaterRings : null
-  const coveredBy = (el, rings) => {
-    if (!rings || rings.length === 0) return false
-    const p = elementRepPoint(el)
-    if (!p) return false
-    for (const ring of rings) if (pointInRing(p[0], p[1], ring)) return true
-    return false
-  }
-  return (elements ?? []).filter(el => {
-    const tags = el.tags ?? {}
-    const isWaterPolygon = tags.natural === 'water' || !!tags.water ||
-                           tags.natural === 'bay' || tags.natural === 'strait' ||
-                           tags.place === 'sea' || tags.place === 'ocean'
-    if (isWaterPolygon) {
-      if (isOsmWaterSalty(tags)) return !n50HasSea
-      // Elveløp som flate — verken NVE eller N50 har den, så aldri undertrykk.
-      if (isFlowingWaterArea(tags)) return true
-      // N50 (FGB) er autoritativ DER den har innsjøen, og har de riktige øy-
-      // hullene. Overlappende OSM-innsjø (også NAVNGITT, f.eks. Setten) droppes
-      // så den hull-løse OSM-kopien ikke males opakt over øya (Kolstadøya).
-      if (coveredBy(el, n50Rings)) return false
-      // Ferskvanns-polygon: NVE er autoritativ KUN der den faktisk har innsjøen.
-      if (coveredBy(el, nveRings)) return false
-      if (tags.name) return true
-      return !n50HasFreshwater
-    }
-    if (tags.waterway === 'stream' || tags.waterway === 'ditch') {
-      return !n50HasFreshwater
-    }
-    return true
-  })
-}
 
 // Terreng-først «finalize»-register: når et kart bygges terreng-først lagres
 // konturer+relieff straks, og den fulle byggingen (Overpass + OSM) fortsetter
@@ -719,66 +630,13 @@ export async function buildMapFromCenter({
     const n50StiElements = n50StiElementerFra(
       n50StiLinjer, [...osmData.elements, ...turruteElements], n50StiStatus)
 
-    const n50HasFreshwater = n50Water.some(el =>
-      (el.tags?.natural === 'water' && el.tags?.salt !== 'yes') ||
-      el.tags?.waterway === 'stream'
-    )
-    const n50HasSea = n50Water.some(el =>
-      el.tags?.water === 'sea' || el.tags?.salt === 'yes'
-    )
-    // NVE leverer kun innsjø-FLATER (ikke elver/sjø). Er den tilgjengelig, er
-    // den autoritativ for INNSJØ-polygoner → undertrykk OSM-innsjøer helt (også
-    // navngitte: nettopp store, navngitte innsjøer som Røssvatnet er der
-    // mistagget og flommer). Elve-/kanal-/bekke-FLATER beholdes uansett (se
-    // filterOsmWaterElements / isFlowingWaterArea) — NVE har ingen elveløp.
-    const nveHasLakes = nveLakes.length > 0
-    // Ytre ringer (lon/lat) fra NVE-innsjøene for per-flate-dekningstest i
-    // filterOsmWaterElements — NVE er autoritativ DER den har en innsjø, men
-    // dens identify-respons kan være ufullstendig, så OSM beholdes i hullene.
-    const nveLakeRings = []
-    for (const lake of nveLakes) {
-      for (const m of lake.members ?? []) {
-        if ((m.role === 'outer' || !m.role) && Array.isArray(m.geometry) && m.geometry.length >= 3) {
-          nveLakeRings.push(m.geometry.map(g => [g.lon, g.lat]))
-        }
-      }
-    }
-
-    // N50-vann (live fra NVE Innsjødatabasen, N50-avledet geometri) er den
-    // AUTORITATIVE ferskvanns-kilden der den har dekning: den modellerer
-    // innsjø-øyer som ekte hull (Kolstadøya i Setten).
-    // OSM og NVE leverer ofte SAMME innsjø UTEN de riktige hullene, og siden
-    // hvert vann-polygon males opakt, kan en slik hull-løs kopi males OPPÅ og
-    // dekke øya igjen. Vi samler N50-vannets ytre ringer og undertrykker
-    // OSM/NVE-ferskvann som overlapper dem (per-flate, så vi bare fjerner der
-    // N50 faktisk har data — utenfor N50-dekning beholdes OSM/NVE som før).
-    const n50WaterRings = []
-    for (const el of n50Water) {
-      if (el.type === 'way' && Array.isArray(el.geometry) && el.geometry.length >= 3) {
-        n50WaterRings.push(el.geometry.map(g => [g.lon, g.lat]))
-      } else if (Array.isArray(el.members)) {
-        for (const m of el.members) {
-          if ((m.role === 'outer' || !m.role) && Array.isArray(m.geometry) && m.geometry.length >= 3) {
-            n50WaterRings.push(m.geometry.map(g => [g.lon, g.lat]))
-          }
-        }
-      }
-    }
-    const coveredByRings = (el, rings) => {
-      if (!rings.length) return false
-      const p = elementRepPoint(el)
-      if (!p) return false
-      for (const ring of rings) if (pointInRing(p[0], p[1], ring)) return true
-      return false
-    }
-
-    const elements = filterOsmWaterElements(osmData.elements, { n50HasSea, n50HasFreshwater, nveLakeRings, n50WaterRings })
-    if (n50Water.length > 0) elements.push(...n50Water)
-    // NVE-innsjøer som N50 alt dekker droppes (N50 har de korrekte øy-hullene).
-    const nveLakesKept = n50WaterRings.length
-      ? nveLakes.filter(l => !coveredByRings(l, n50WaterRings))
-      : nveLakes
-    if (nveLakesKept.length > 0) elements.push(...nveLakesKept)
+    // Vann-stacken: OSM + N50/NVE-innsjø + NVE-fallback, slått sammen etter
+    // reglene i vannMerge.js. Kilden er autoritativ for DET DEN LEVERER —
+    // innsjø-flater der den har dekning — og for ingenting mer: elveløp,
+    // bekker og sjø kommer fortsatt fra OSM/DEM/Sjøkart.
+    const vannFlagg = vannKildeFlagg(n50Water)
+    const n50HasSea = vannFlagg.harSjo
+    const elements = slaaSammenVann({ osm: osmData.elements, n50Water, nveLakes })
     if (sjokartElements.length > 0) elements.push(...sjokartElements)
     if (turruteElements.length > 0) elements.push(...turruteElements)
     if (n50StiElements.length > 0) elements.push(...n50StiElements)

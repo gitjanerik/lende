@@ -85,10 +85,24 @@ describe('filterOsmWaterElements — elve-flater overlever autoritativt ferskvan
     expect(filterOsmWaterElements(els, {})).toEqual(els)
   })
 
-  it('bekke-LINJE undertrykkes kun når N50 har ferskvann', () => {
+  // v5.18.3: bekke-LINJER styres av om kilden SELV har bekker, ikke av om den
+  // svarte. Fram til da het flagget n50HasFreshwater og dekket begge deler —
+  // riktig den gang kilden var hele N50-vannstacken (Havflate + Innsjø +
+  // ElvBekk). Da den ble lagt om til NVE Innsjødatabasen (innsjøer alene),
+  // beholdt flagget navnet, og OSM-bekkene ble undertrykt av en kilde uten en
+  // eneste bekk å erstatte dem med: Rondvassbu falt fra 72,7 til 14,6 km elv.
+  it('bekke-LINJE undertrykkes kun når kilden SELV har bekker', () => {
     const stream = el({ waterway: 'stream' })
-    expect(filterOsmWaterElements([stream], { n50HasFreshwater: true })).toEqual([])
-    expect(filterOsmWaterElements([stream], { n50HasFreshwater: false })).toEqual([stream])
+    expect(filterOsmWaterElements([stream], { n50HasStreams: true })).toEqual([])
+    expect(filterOsmWaterElements([stream], { n50HasStreams: false })).toEqual([stream])
+  })
+
+  it('en innsjø-kilde (NVE) tar IKKE bekkene med seg', () => {
+    const stream = el({ waterway: 'stream' })
+    const ditch = el({ waterway: 'ditch' })
+    // Innsjøer i kilden ⇒ n50HasFreshwater, men ingen bekker ⇒ n50HasStreams false.
+    const flags = { n50HasFreshwater: true, n50HasStreams: false }
+    expect(filterOsmWaterElements([stream, ditch], flags)).toEqual([stream, ditch])
   })
 
   it('ikke-vann-elementer passerer uberørt', () => {

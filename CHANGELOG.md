@@ -1,5 +1,53 @@
 # Endringslogg
 
+## 2026-08-13 — v5.18.3: Én kilde til vann, og bekkene kommer tilbake
+
+Fasit-suiten meldte 26 avvik på alle seks kart, og de handlet alle om vann.
+Rondvassbu hadde falt fra 72,7 til 14,6 km elv, Kolstadøya fra 7,5 til 0, Gjende
+fra 119 til 44 vannflater. Ingen hadde rørt vann-koden. Det som hadde endret seg
+var at NVE svarte.
+
+**Én kilde, to feil.** `fetchN50Water` hentet en gang HELE N50-vannstacken —
+Havflate, Innsjø og ElvBekk. I juli ble den lagt om til NVE Innsjødatabasen, som
+leverer innsjøer og ingenting annet: ingen elveløp, ingen bekker, ingen sjø.
+Flaggene som styrer hva OSM-vann som skal undertrykkes beholdt både navnene og
+oppførselen sin. Så `n50HasFreshwater` — sant så snart kilden returnerte én
+innsjø — fortsatte å undertrykke OSM sine bekke- og grøfte-LINJER, som ingenting
+lenger erstattet. Flagget avledes nå av hva kilden FAKTISK inneholder: en
+innsjø-kilde undertrykker innsjøer, en kilde med bekker undertrykker bekker.
+
+**Og de to pipelinene sprikte.** Appen har hele tiden gjort per-flate
+dekningstester (NVE er autoritativ DER den har en innsjø, OSM fyller hullene) og
+beholdt elveflater uansett. Den headless kart-byggingen — som MCP-serveren og
+fasit-suiten bygger gjennom — hadde sin egen, grovere variant: fikk den én eneste
+innsjø fra kilden, kastet den ALT OSM-vann og beholdt bare kildens innsjøer. Det
+er den som forklarer de største tallene. Sammenslåingen bor nå i én fil,
+`lib/vannMerge.js`, som begge bruker.
+
+Appen var altså delvis rammet (bekkene) og MCP-bygde kart fullt ut (bekker,
+elveflater og halvparten av innsjøene). Fasiten er ikke oppdatert med
+`--oppdater` — den skulle ikke gjøres grønn, den hadde rett.
+
+**Fasit-baselinen er målt i CI, ikke her.** `--oppdater` er bare korrekt der
+alle kildene svarer. På en utviklingsmaskin — eller i en sandkasse der NVE gir
+403 — måler man en degradert pipeline og skriver de tallene inn som sannhet,
+stikk motsatt av hva fasiten er til for. Oppdateringen er derfor en knapp på
+fasit-workflowen (`workflow_dispatch` med `oppdater`), som commiter den nye
+baselinen etter at diffen er lest i en vanlig kjøring. De 11 avvikene som sto
+igjen etter fiksen var alle konsekvenser av at NVE-geometrien nå FAKTISK brukes:
+flere ekte øy-hull (Vardåsen 0 → 3), 7 % mer vannareal fordi NVE-innsjøene er
+N50-avledet og litt rausere enn OSM sine, og et par korte strekk der en sti
+klipper NVE-strandlinja — den siste advarselen sto i CI-loggen allerede før noen
+av endringene her, altså fra NVE og ikke fra koden. Gjende gikk motsatt vei og
+mistet 236 m sti gjennom vann.
+
+**Fasiten måler nå koden den beskytter.** Vann-sammenslåingen sto i
+`createMapFlow.js`, som ikke var blant filene som utløser fasit-kjøringen — så
+ingen gate så at de to pipelinene drev fra hverandre. Både `vannMerge.js` og
+`createMapFlow.js` er lagt inn nå.
+
+---
+
 ## 2026-08-13 — v5.18.2: Den røde deployen som har stått rød siden 9. august
 
 Hver merge til master ga «Run failed». Det var ikke PR-sjekkene — de har vært
