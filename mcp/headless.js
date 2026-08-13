@@ -6,6 +6,8 @@ import { DOMParser, parseHTML } from 'linkedom'
 import { fetchOverpass, buildSvg, bboxFromCenter } from '../src/lib/mapBuilder.js'
 import { fetchDEM } from '../src/lib/demFetcher.js'
 import { fetchN50Water } from '../src/lib/n50Fetcher.js'
+// Vann-sammenslåingen er DELT med appen (createMapFlow) — se lib/vannMerge.js.
+import { slaaSammenVann } from '../src/lib/vannMerge.js'
 import { fetchTurruteRoutes, turruteElementsFrom } from '../src/lib/turrutebasenFetcher.js'
 import { fetchN50StiLinjer, n50StiElementerFra } from '../src/lib/n50StiFetcher.js'
 import { utm32BboxFromWgs84 } from '../src/lib/utm.js'
@@ -146,18 +148,16 @@ export async function buildMapHeadless({
       : Promise.resolve([]),
   ])
 
-  // N50 er autoritativ vannkilde når den leverer (samme filter som CI-scriptet).
-  const useN50 = n50Water.length > 0
-  const elements = useN50
-    ? overpass.elements.filter(el => {
-        const t = el.tags ?? {}
-        if (t.natural === 'water') return false
-        if (t.water) return false
-        if (t.waterway === 'stream' || t.waterway === 'ditch') return false
-        return true
-      })
-    : overpass.elements
-  if (useN50) elements.push(...n50Water)
+  // Vann-stacken slås sammen med SAMME kode som appen (lib/vannMerge.js).
+  //
+  // Fram til v5.18.3 hadde headless sin egen, grovere variant: fikk den én
+  // eneste innsjø fra kilden, kastet den ALT OSM-vann — innsjøer, elveflater,
+  // bekker og grøfter — og beholdt bare kildens innsjøer. NVE Innsjødatabasen
+  // har verken elveløp eller bekker, så det som ble kastet ble ikke erstattet
+  // av noe: Rondvassbu gikk fra 72,7 til 14,6 km elv, Kolstadøya fra 7,5 til 0,
+  // og halvparten av vannflatene forsvant. Appen har hele tiden gjort per-flate
+  // dekningstester og beholdt elveløp; nå gjør begge det, fordi det er én kode.
+  const elements = slaaSammenVann({ osm: overpass.elements, n50Water })
   const turruteEls = turruteElementsFrom(turruteRoutes, overpass.elements)
   elements.push(...turruteEls)
   elements.push(...n50StiElementerFra(n50StiLinjer, [...overpass.elements, ...turruteEls]))

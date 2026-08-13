@@ -101,8 +101,20 @@ detalj-inset, bakte mm→meter-konverteringer og `meta.widthM`-konsumenter).
 
 **Bakgrunnen ER land** (ISOM 001 kremgul). Vann males oppå i lag:
 DEM-sjø (`seaFromDem.js`, primær, CORS-trygg) → Sjøkart Dybdeareal (307) →
-N50 Havflate/Innsjø/ElvBekk → OSM-vann. `marineTopology.js` bygger ÉN
-autoritativ sjø-geometri; ISOM 307 klippes mot den. Land-mask (union av alt
+N50/NVE-innsjø → OSM-vann. `marineTopology.js` bygger ÉN
+autoritativ sjø-geometri; ISOM 307 klippes mot den.
+
+**Sammenslåingen bor i `lib/vannMerge.js` — ÉN fil, delt av appen
+(`createMapFlow`) og headless (`mcp/headless.js`, som MCP-serveren og fasiten
+bygger gjennom).** Regelen er at en kilde er autoritativ for DET DEN LEVERER og
+ikke noe mer: `fetchN50Water` het en gang hele N50-vannstacken (Havflate +
+Innsjø + ElvBekk), men er siden juli 2026 NVE Innsjødatabasen — innsjøer alene.
+Flaggene som styrer undertrykkelse avledes derfor av kildens FAKTISKE innhold
+(`vannKildeFlagg`), ikke av at den svarte. Gjør du den om igjen: legger du til en
+kilde med elver, skal `harBekk` bli sann av seg selv. Fram til v5.18.3 hadde
+headless en egen, grovere variant som kastet alt OSM-vann straks kilden ga én
+innsjø — MCP-bygde kart mistet bekker, elveflater og halve innsjø-settet uten at
+noen gate så det. Land-mask (union av alt
 vann) hindrer konturer/vegetasjon over vann. OSM multipolygon-relations MÅ
 ring-sys via `assembleRelationRings` i `mapBuilder.js` (ellers wedge-artefakter).
 

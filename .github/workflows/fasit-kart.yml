@@ -18,6 +18,12 @@ on:
       - 'src/lib/demFetcher.js'
       - 'src/lib/canopyHeight.js'
       - 'src/lib/n50*.js'
+      - 'src/lib/nveLakeFetcher.js'
+      # Vann-sammenslåingen er delt mellom appen og headless (v5.18.3). Fasiten
+      # bygger gjennom headless, så den måler faktisk denne koden nå — og det er
+      # nettopp her de to pipelinene sprikte uten at noen gate så det.
+      - 'src/lib/vannMerge.js'
+      - 'src/lib/createMapFlow.js'
       - 'src/lib/sjokart*.js'
       - 'src/lib/symbolizer.js'
       - 'src/lib/isomCatalog.json'
