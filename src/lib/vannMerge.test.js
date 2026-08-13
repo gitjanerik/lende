@@ -123,3 +123,25 @@ describe('slaaSammenVann — en innsjø-kilde tar ikke elvene med seg', () => {
     expect(ut).toContain(nveFjern)
   })
 })
+
+describe('slaaSammenVann — kilden er autoritativ der den har DEKNING', () => {
+  // Rondvassbu-tilfellet: i høyfjell er de fleste tjern navnløse. En blankett-
+  // regel («kilden har ferskvann → dropp resten») tok dem i bunt, 50 → 13
+  // vannflater, selv om NVE bare kjente 12 av dem.
+  it('navnløse tjern kilden ikke dekker beholdes, selv når den har andre innsjøer', () => {
+    const tjern = [1, 2, 3].map((i) => ({
+      type: 'way', id: `tjern-${i}`, tags: { natural: 'water' },
+      geometry: ringGeom(11 + i, 59, 11 + i + 0.005, 59.005),
+    }))
+    const ut = slaaSammenVann({ osm: tjern, n50Water: [nveInnsjo()] })
+    for (const t of tjern) expect(ut).toContain(t)
+  })
+
+  it('… men den ENE som ligger under kildens innsjø byttes fortsatt ut', () => {
+    const under = osmFlate({ natural: 'water' })
+    const utenfor = osmFlate({ natural: 'water' }, false)
+    const ut = slaaSammenVann({ osm: [under, utenfor], n50Water: [nveInnsjo()] })
+    expect(ut).not.toContain(under)
+    expect(ut).toContain(utenfor)
+  })
+})

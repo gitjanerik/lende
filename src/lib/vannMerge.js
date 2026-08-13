@@ -124,17 +124,18 @@ const dekketAv = (el, ringer) => {
 //     flata (sentroiden ligger i en kilde-ring). NVEs respons er ofte
 //     UFULLSTENDIG (ArcGIS-record-cap returnerer bare de første N flatene i
 //     bbox-en), så en blanket «NVE finnes → dropp ALT OSM-ferskvann» slettet
-//     innsjøer NVE ikke returnerte (Ulvenvatnet i Dikemark forsvant helt).
-//     Per-flate-dekning gjør kilden autoritativ DER den har data og lar OSM
-//     fylle hullene. Mistaggede flom-innsjøer (Røssvatnet) dekkes fortsatt av
-//     sin NVE-innsjø → undertrykt som før.
+//     innsjøer NVE ikke returnerte (Ulvenvatnet i Dikemark forsvant helt, og
+//     Rondvassbu mistet 37 navnløse høyfjells-tjern). Per-flate-dekning gjør
+//     kilden autoritativ DER den har data og lar OSM fylle hullene. Mistaggede
+//     flom-innsjøer (Røssvatnet) dekkes fortsatt av sin NVE-innsjø →
+//     undertrykt som før.
 //   • Bekke-/grøfte-LINJER → undertrykk kun når kilden SELV har bekker
 //     (`n50HasStreams`). NVE Innsjødatabasen har ingen, så der beholdes OSM.
 // I nettleseren feiler WFS-kildene ofte (CORS) → alle flagg false → alt
 // OSM-vann beholdes uendret.
 export function filterOsmWaterElements(elements, flags = {}) {
   const {
-    n50HasSea = false, n50HasFreshwater = false, n50HasStreams = false,
+    n50HasSea = false, n50HasStreams = false,
     nveLakeRings = null, n50WaterRings = null,
   } = flags
   const nveRings = Array.isArray(nveLakeRings) ? nveLakeRings : null
@@ -153,9 +154,14 @@ export function filterOsmWaterElements(elements, flags = {}) {
       // så den hull-løse OSM-kopien ikke males opakt over øya (Kolstadøya).
       if (dekketAv(el, n50Rings)) return false
       // Ferskvanns-polygon: kilden er autoritativ KUN der den har innsjøen.
+      // Dekker den ikke flata, er OSM eneste kilde til at vannet finnes — da
+      // skal det stå, navngitt eller ei. Fram til v5.18.3 falt navnløse tjern
+      // gjennom til en blankett-regel («kilden har ferskvann → dropp resten»),
+      // og et høyfjellskart der de fleste tjern er navnløse mistet dem i bunt:
+      // Rondvassbu gikk fra 50 til 13 vannflater. Blankett-regelen er arven
+      // etter designet FØR per-flate-dekningstesten; nå avgjør dekningen alene.
       if (dekketAv(el, nveRings)) return false
-      if (tags.name) return true
-      return !n50HasFreshwater
+      return true
     }
     if (tags.waterway === 'stream' || tags.waterway === 'ditch') {
       return !n50HasStreams
@@ -180,9 +186,10 @@ export function slaaSammenVann({ osm = [], n50Water = [], nveLakes = [] }) {
   // Se ytreRinger: NVE-ringene hentes bare fra relations, som i appen.
   const nveLakeRings = ytreRinger(nveLakes, { inkluderWays: false })
 
+  // `harInnsjo` mates BEVISST ikke inn: for innsjø-flater er det DEKNINGEN
+  // (ringene) som avgjør, ikke om kilden har innsjøer i det hele tatt.
   const ut = filterOsmWaterElements(osm, {
     n50HasSea: flagg.harSjo,
-    n50HasFreshwater: flagg.harInnsjo,
     n50HasStreams: flagg.harBekk,
     nveLakeRings,
     n50WaterRings,
