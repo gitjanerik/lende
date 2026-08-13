@@ -1,5 +1,39 @@
 # Endringslogg
 
+## 2026-08-13 — v5.18.4: X-en i 3D-viseren var synlig, men død
+
+Feilet 3D-visningen — for eksempel etter en ufullstendig kart-utvidelse — sto man
+igjen i et svart bilde med en lukkeknapp som ikke gjorde noe. Escape virket, og
+Android-tilbakeknappen virket, men ingen av dem finnes som knapp på skjermen.
+
+Årsaken er ren stabling: laste- og feilmeldingene er fullskjerms lag på z-20,
+altså OVER topprada på z-10 der X-en sitter. Overlayene er nesten helt
+gjennomsiktige, så X-en var fullt synlig — trykket havnet bare i laget foran den.
+Begge overlayene er nå `pointer-events-none`; de er ren informasjon og trenger
+ingen treff selv.
+
+**Røyktesten kunne ikke fange dette, og gjør det nå.** Den lukket viseren med
+`el.click()` fra `page.evaluate`, som sender hendelsen rett på elementet og ikke
+bryr seg om hva som ligger over det — en død knapp ser identisk ut med en levende.
+Sjekken bruker nå et ekte Playwright-klikk, som treffer det øverste elementet i
+punktet og feiler hvis noe dekker knappen. Verifisert begge veier: rød uten
+fiksen, grønn med.
+
+**Om hull-reparasjonen: den er ikke fjernet, og den er ikke ødelagt.** Banneret
+«Kartet har N hull etter en avbrutt utvidelse» med «Fyll hullene»-knapp er fullt
+kablet fra `useMapExtend` gjennom `MapStatusOverlays`. Men `findGridGaps` krever
+at en manglende celle er OMSLUTTET — flis på begge sider langs minst én akse — og
+det er et bevisst valg som står dokumentert i `tileCache.js`: en tidligere
+bounding-box-variant rapporterte fantom-hull under vanlig panorering og bygde
+utsnitt ingen hadde bedt om. Prisen er at et hakk i YTTERKANTEN ikke fanges, og
+det er nettopp det en avbrutt utvidelse etterlater. Målt: et innelukket hull
+finnes (`["1,0"]`), mens en avbrutt utvidelse med én eller to manglende celler
+gir `[]`. Ingenting er endret her — geometri alene kan ikke skille «avbrutt
+bygging» fra «diagonal panorering», så en ekte løsning må bokføre hva utvidelsen
+SATTE SEG FORE å bygge. Det er en ny mekanisme, ikke en feilretting.
+
+---
+
 ## 2026-08-13 — v5.18.3: Én kilde til vann, og bekkene kommer tilbake
 
 Fasit-suiten meldte 26 avvik på alle seks kart, og de handlet alle om vann.

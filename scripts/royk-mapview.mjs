@@ -459,13 +459,23 @@ const SJEKKER = [
             ?.match(/[^.\n]*kunne ikke tegnes på terrenget[^.\n]*/i)?.[0] ?? null)
         if (klage) throw new Error(`kartbildet kom ikke på terrenget: ${klage.trim()}`)
       }
-      const lukk = await page.evaluate(() => {
-        const b = [...document.querySelectorAll('button')].find((e) =>
-          e.offsetParent && /Lukk|✕|×/.test(e.getAttribute('aria-label') || e.innerText))
-        if (b) { b.click(); return true }
-        return false
-      })
-      return `${utfall}${lukk ? '' : ' (fant ingen lukkeknapp)'}`
+      // Lukk med en EKTE peker-sekvens, ikke el.click() fra page.evaluate.
+      // Forskjellen er ikke akademisk: el.click() sender hendelsen rett på
+      // elementet og bryr seg ikke om noe ligger OVER det. Laste- og
+      // feil-overlayene i 3D-viseren er fullskjerms lag på z-20, over topprada
+      // på z-10, og lå og svelget trykket på X-en (v5.18.4) — en test som
+      // klikker programmatisk ville aldri sett det. Playwright-klikket treffer
+      // det som faktisk ligger øverst i punktet, og feiler hvis noe dekker det.
+      const x = page.locator('button[aria-label="Lukk 3D-visning"]')
+      let lukk = false
+      try {
+        await x.click({ timeout: 5000 })
+        // Viseren lukkes ved history.back() → popstate; gi den en frame.
+        await page.waitForFunction(() => !document.querySelector('canvas'), null, { timeout: 8000 })
+        lukk = true
+      } catch { lukk = false }
+      if (!lukk) throw new Error('X-en i 3D-viseren lukket ikke visningen (dekket av et overlay?)')
+      return `${utfall}, lukket med ekte trykk`
     },
   },
 ]
