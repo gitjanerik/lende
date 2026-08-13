@@ -276,7 +276,12 @@ der ALLE kildene svarer. Herfra gir NVE 403, og en lokal `--oppdater` ville
 skrevet en degradert pipelines tall inn som sannhet — stikk motsatt av hensikten.
 Kjør fasit-workflowen med `oppdater`-haken i stedet; den commiter baselinen.
 Nettopp dette skjedde: baselinen ble en gang tatt opp under NVE-nedetid, og da
-NVE kom tilbake så det ut som en regresjon i seks kart. Advarsler (⚠) er datakvalitet i kildene — f.eks. en
+NVE kom tilbake så det ut som en regresjon i seks kart.
+
+Konsekvensen går også andre veien: baselinen beskriver pipelinen med ALLE kilder,
+så `node scripts/fasit-kart.js` på en maskin der en kilde er blokkert vil vise
+avvik i vann-tallene. Det er ikke en regresjon — sjekk loggen for
+«NVE-innsjøer utilgjengelig» før du feilsøker noe annet. Advarsler (⚠) er datakvalitet i kildene — f.eks. en
 Strava-sporet isrute over Rondvatnet — og feiler ikke bygget.
 
 ## Zoom-trappet detalj-LOD
