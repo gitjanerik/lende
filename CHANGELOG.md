@@ -1,5 +1,32 @@
 # Endringslogg
 
+## 2026-08-13 — v5.18.5: Avbrutt kart-utvidelse bokføres, ikke gjettes
+
+En kart-utvidelse som ble avbrutt — reload, app-lukking, eller en nabo-flis som
+feilet midt i løkka — etterlot et ark med hakk i ytterkanten, og «Fyll hullene»
+dukket ikke opp. Reparasjons-mekanikken var verken fjernet eller ødelagt: den
+leter etter INNELUKKEDE hull, med vilje, fordi en bounding-box-variant en gang
+rapporterte fantom-hull under vanlig panorering og bygde utsnitt ingen hadde bedt
+om. Men en utvidelse fyller nettopp perimeteret, og et hakk i ytterkanten ser
+identisk ut enten det kommer av avbrutt bygging eller av at brukeren panorerte
+diagonalt. Informasjonen finnes ikke i formen.
+
+Den finnes i intensjonen. `extendMap` vet nøyaktig hvilke fliser den satte seg
+fore å bygge, men holdt det bare i minne — så det var borte etter reload. Planen
+skrives nå ned i localStorage før byggingen starter og strykes flis for flis
+etter hvert som de lykkes. Et avbrudd etterlater dermed en presis liste over det
+som mangler, uten terskler og uten falske positive. Banneret leser begge kilder:
+bokføringen for hakk i kanten, geometrien for innelukkede hull og for fliser som
+ble kappet ut av cachen lenge etterpå. De slås sammen på celle-identitet, så en
+flis begge finner tilbys én gang.
+
+To detaljer på veien: `finally` i `extendMap` tegner nå mosaikken og teller på
+nytt selv når løkka feilet, så banneret kommer med en gang i stedet for ved neste
+tilfeldige mosaikk-endring — og lista har et tak på 24 fliser, siden den ikke er
+en logg, men et svar på «hva mangler nå».
+
+---
+
 ## 2026-08-13 — v5.18.4: X-en i 3D-viseren var synlig, men død
 
 Feilet 3D-visningen — for eksempel etter en ufullstendig kart-utvidelse — sto man

@@ -3,6 +3,7 @@ import {
   EXTEND_DIR_WORD, EXTEND_DIR_DEG, EDGE_DIRS, EDGE_DIR_VEC, EDGE_LABEL_OFFSET,
   extendZoneLabelText, edgeAnchorSvg, edgeKnobDeg, edgeLabelOffset,
   screenToViewBox, viewBoxToScreen,
+  cellenokkel, ventendeSenter, ventendePaaArket, VENTENDE_RADIUS_TILES,
 } from './useMapExtend.js'
 
 // Kanthåndtakene: 8 himmelretninger, hver med sin pil-vinkel, sitt anker på
@@ -183,5 +184,103 @@ describe('EXTEND_DIR_WORD', () => {
   it('har norske ord for alle retninger', () => {
     expect(Object.keys(EXTEND_DIR_WORD).sort()).toEqual([...DIRS].sort())
     expect(EXTEND_DIR_WORD.NE).toBe('nordøst')
+  })
+})
+
+// ── Ventende fliser ─────────────────────────────────────────────────────────
+// Bokføringen finnes fordi geometri ikke kan svare på spørsmålet: et hakk i
+// ytterkanten ser identisk ut enten det kommer av en avbrutt utvidelse eller av
+// vanlig diagonal panorering. Bokføringen vet hva utvidelsen SATTE SEG FORE.
+// Det er lite ren logikk her, men fortegnet i UTM→SVG er lett å snu.
+
+// Et 1×1 km-ark med NV-hjørne i (500000, 6600000).
+const ARK = { minE: 500000, maxE: 501000, minN: 6599000, maxN: 6600000, widthM: 1000, heightM: 1000 }
+// Nabo-flis: kolonne `col` øst, rad `row` sør (samme konvensjon som mosaikken).
+const naboBbox = (col, row, W = 1000, H = 1000) => ({
+  minE: ARK.minE + col * W, maxE: ARK.minE + col * W + W,
+  maxN: ARK.maxN - row * H, minN: ARK.maxN - row * H - H,
+})
+
+describe('cellenokkel — celle-identitet på tvers av de to kildene', () => {
+  it('samme NV-hjørne gir samme nøkkel, uansett hvem som beskrev flisa', () => {
+    // Bokføringen lagrer heltall; geometrien regner ut med desimaler. Uten
+    // avrundingen ville samme celle blitt tilbudt to ganger.
+    expect(cellenokkel({ minE: 500000, maxN: 6600000 }))
+      .toBe(cellenokkel({ minE: 500000.4, maxN: 6599999.6 }))
+  })
+  it('ulike hjørner gir ulike nøkler', () => {
+    expect(cellenokkel(naboBbox(1, 0))).not.toBe(cellenokkel(naboBbox(0, 1)))
+  })
+  it('uten bbox → tom nøkkel (som aldri legges til)', () => {
+    expect(cellenokkel(null)).toBe('')
+    expect(cellenokkel(undefined)).toBe('')
+  })
+})
+
+describe('ventendeSenter — absolutt UTM → aktiv-flisas meter-rom', () => {
+  it('arket selv har senter midt på seg', () => {
+    expect(ventendeSenter(naboBbox(0, 0), ARK)).toEqual({ x: 500, y: 500 })
+  })
+  it('flisa ØST ligger på +x', () => {
+    expect(ventendeSenter(naboBbox(1, 0), ARK)).toEqual({ x: 1500, y: 500 })
+  })
+  it('flisa NORD ligger på NEGATIV y — SVG-y vokser sørover', () => {
+    // Fortegnsfella: nord er større maxN, men MINDRE y i SVG-rommet.
+    expect(ventendeSenter(naboBbox(0, -1), ARK)).toEqual({ x: 500, y: -500 })
+  })
+  it('flisa SØR ligger på positiv y', () => {
+    expect(ventendeSenter(naboBbox(0, 1), ARK)).toEqual({ x: 500, y: 1500 })
+  })
+  it('flisa SØRVEST ligger på −x, +y', () => {
+    expect(ventendeSenter(naboBbox(-1, 1), ARK)).toEqual({ x: -500, y: 1500 })
+  })
+  it('uten bbox eller uten UTM i metaen → null', () => {
+    expect(ventendeSenter(null, ARK)).toBe(null)
+    expect(ventendeSenter(naboBbox(1, 0), { widthM: 1000, heightM: 1000 })).toBe(null)
+    expect(ventendeSenter({ minE: NaN, maxE: NaN, minN: 0, maxN: 0 }, ARK)).toBe(null)
+  })
+})
+
+describe('ventendePaaArket — hører spesifikasjonen hjemme her?', () => {
+  const spek = (utmBbox) => ({ utmBbox, opts: { isAuto: true } })
+
+  it('nabo-flis i rekkevidde → senteret', () => {
+    expect(ventendePaaArket(spek(naboBbox(1, 1)), ARK)).toEqual({ x: 1500, y: 1500 })
+  })
+
+  it('annen flisestørrelse hører til et annet kart', () => {
+    // En halvparten så stor flis kan aldri flukte med mosaikken — å tilby den
+    // ville bygd et utsnitt som ikke passer inn i rutenettet.
+    expect(ventendePaaArket(spek(naboBbox(1, 0, 500, 500)), ARK)).toBe(null)
+  })
+
+  it('±1 m avrundings-slark godtas', () => {
+    const ub = naboBbox(1, 0)
+    ub.maxE += 1
+    expect(ventendePaaArket(spek(ub), ARK)).not.toBe(null)
+  })
+
+  it('langt unna → null, selv med riktig flisestørrelse', () => {
+    // Bokføring fra et helt annet kart skal ikke dukke opp som «hull» her.
+    const langt = naboBbox(VENTENDE_RADIUS_TILES + 1, 0)
+    expect(ventendePaaArket(spek(langt), ARK)).toBe(null)
+  })
+
+  it('rett innenfor radien beholdes, rett utenfor forkastes', () => {
+    expect(ventendePaaArket(spek(naboBbox(VENTENDE_RADIUS_TILES - 1, 0)), ARK)).not.toBe(null)
+    expect(ventendePaaArket(spek(naboBbox(VENTENDE_RADIUS_TILES + 1, 0)), ARK)).toBe(null)
+  })
+
+  it('radien gjelder begge akser og begge fortegn', () => {
+    for (const [col, row] of [[0, -9], [0, 9], [-9, 0], [9, 0]]) {
+      expect(ventendePaaArket(spek(naboBbox(col, row)), ARK)).toBe(null)
+    }
+  })
+
+  it('søppel-spesifikasjon eller meta uten UTM → null, aldri kast', () => {
+    expect(ventendePaaArket(null, ARK)).toBe(null)
+    expect(ventendePaaArket({}, ARK)).toBe(null)
+    expect(ventendePaaArket(spek(naboBbox(1, 0)), null)).toBe(null)
+    expect(ventendePaaArket(spek(naboBbox(1, 0)), { widthM: 1000, heightM: 1000 })).toBe(null)
   })
 })
