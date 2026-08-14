@@ -21,8 +21,12 @@ fyllet i det hele tatt, så MCP-bygde kart beholdt hullene appen var ferdig med.
 Begge kjører nå det samme fyllet med den samme trygge degraderingen. Målt på
 Otersjøen: DEM-minimum 0 → 317 m, og høydekurvene i hull-området faller fra 152
 til 118 features fordi stabelen fra havnivå og opp langs hullkanten forsvinner.
-Fasit-tallene flytter seg tilsvarende der en kilde-kommune har slike hull —
-baselinen må tas opp på nytt gjennom fasit-workflowen.
+
+Fasiten står uendret — ingen brudd, ingen avvik, og ingen av de seks kartene
+trigger fyllet i det hele tatt. Det er den beste målingen vi har på at klausulen
+er presis: Henningsvær er 90,8 % vann og leser ~0 m over hele havflata, men der
+skråner terrenget opp fra vannkanten gjennom mellomhøydene, så kanten er lav og
+klyngen er ikke et hull. Bare klynger som ligger i bunnen av en klippe fanges.
 
 ---
 
