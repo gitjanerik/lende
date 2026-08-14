@@ -12,9 +12,17 @@ leverer 0 m der den mangler LiDAR-retur — her to felt på 1480×260 m og
 Et hull koster like mye uansett hvor stort arket rundt det er, så gaten spør nå
 om FORMEN i stedet — en ~0 m-klynge der hver nabo utenfor er minst 30 m høyere
 er et datahull, for et ekte terreng når aldri 0 m uten å gå gjennom
-mellomhøydene. 3D hentet dessuten sitt eget DEM og hoppet over reparasjonen
-helt; det er grunnen til at hullene var tydeligst nettopp der, og den veien er
-nå koblet på det samme fyllet.
+mellomhøydene.
+
+To andre veier inn til et DEM hoppet dessuten over reparasjonen helt. 3D hentet
+sitt eget gitter gjennom flis-cachen — det er grunnen til at hullene var
+tydeligst nettopp der — og headless (MCP-serveren og fasiten) kjørte aldri
+fyllet i det hele tatt, så MCP-bygde kart beholdt hullene appen var ferdig med.
+Begge kjører nå det samme fyllet med den samme trygge degraderingen. Målt på
+Otersjøen: DEM-minimum 0 → 317 m, og høydekurvene i hull-området faller fra 152
+til 118 features fordi stabelen fra havnivå og opp langs hullkanten forsvinner.
+Fasit-tallene flytter seg tilsvarende der en kilde-kommune har slike hull —
+baselinen må tas opp på nytt gjennom fasit-workflowen.
 
 ---
 
