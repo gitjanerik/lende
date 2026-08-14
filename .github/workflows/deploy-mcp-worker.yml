@@ -57,7 +57,7 @@ jobs:
           # Må matche MCP_SERVER_VERSJON i src/index.js — begge pollene under
           # venter på at DENNE versjonen svarer, så gamle edge-noder rett etter
           # deploy ikke gir falske røde (fase B attempt 2 feilet på akkurat det).
-          VERSJON='2.3.1'
+          VERSJON='2.4.0'
           MCP_HDR=(-H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream')
           echo "— venter på /health med versjon $VERSJON (maks ~2 min) —"
           OK=""
@@ -114,6 +114,20 @@ jobs:
             REF=$(echo "$BYGG" | grep -o 'ci-røyk-[a-f0-9]\{8\}' | head -1)
             test -n "$REF" || { echo "::error::bygg_kart ga ingen kartRef"; exit 1; }
             echo "kartRef: $REF"
+            # N50-stinettet er den ENESTE kilden Workeren ikke kan finne selv:
+            # den har ikke filsystem, så flisene må komme over HTTPS fra Pages
+            # (N50_STI_BASE). Feiler det, bygges kartet stille uten 179 706 km
+            # sti — nøyaktig det som skjedde fra v5.0.16 til v5.18.6. Vi sjekker
+            # derfor n50Sti-utfallet, IKKE totalStiKm: det tallet får bidrag fra
+            # OSM også, så et gulv der ville vært grønt selv uten N50.
+            # Vardåsen-utsnittet (1×1 km) har 19 N50-linjer i én flis, målt lokalt.
+            # MCP-svaret er JSON-i-JSON og pretty-printet, så fnuttene er escapet
+            # og det står mellomrom etter kolon — mønstrene må tåle begge deler.
+            echo "$BYGG" | grep -qE '\\"state\\": *\\"ok\\"' || {
+              echo "::error::bygg_kart: N50-sti-utfallet er ikke «ok» — når Workeren N50_STI_BASE?"; exit 1; }
+            echo "$BYGG" | grep -qE '\\"linjer\\": *[1-9]' || {
+              echo "::error::bygg_kart: N50 ga 0 linjer på Vardåsen (forventet 19) — stinettet mangler i skyen"; exit 1; }
+            echo "OK — N50-stinettet kom med i det server-bygde kartet"
             SOK=$(curl -fsS -m 60 -X POST "$BASE/mcp" "${AUTH[@]}" "${MCP_HDR[@]}" \
               -d "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\",\"params\":{\"name\":\"sok_kart\",\"arguments\":{\"kartRef\":\"$REF\",\"sok\":\"topp\",\"maks\":3}}}")
             echo "$SOK" | head -c 300; echo

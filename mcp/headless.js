@@ -55,6 +55,35 @@ export function n50StiBasePath() {
   return k ? pathToFileURL(k).href : null
 }
 
+/**
+ * Hvor N50-sti-flisene skal hentes fra, og hvem som skal lese dem.
+ *
+ * Tre kilder, i prioritert rekkefølge:
+ *   1. `eksplisitt` — en URL kalleren gir oss. Cloudflare-Workeren sender
+ *      HTTPS-adressen til flisene på GitHub Pages (N50_STI_BASE), som er
+ *      NØYAKTIG de samme filene appen bruker.
+ *   2. Disk — Node med repoet tilgjengelig (MCP-stdio, fasit, CI-scriptene).
+ *   3. Ingen — da hopper vi over N50 framfor å be fetcheren om en relativ URL
+ *      den ikke kan slå opp.
+ *
+ * LESEREN VELGES PÅ PROTOKOLL, ikke på miljø: Node-ens `fetch` støtter ikke
+ * `file:`, så en fil-URL må gjennom `lesN50StiFraDisk`; en `https:`-URL skal
+ * gjennom fetcherens egen `hentBytesViaFetch` (vi sender da ingen `hentBytes`).
+ *
+ * Hvorfor dette finnes: i workerd er `import.meta.url` undefined, så
+ * `n50StiKatalog()` gir null der — og fra v5.0.16 til v5.18.6 bygde
+ * MCP-Workeren HVERT ENESTE kart uten N50-stier, helt stille, siden uthentingen
+ * aldri feiler hardt. Det er 179 706 km sti/traktorveg som manglet i skyen mens
+ * appen hadde dem.
+ */
+export function n50StiKilde(eksplisitt) {
+  const basePath = eksplisitt || n50StiBasePath()
+  if (!basePath) return null
+  return basePath.startsWith('file:')
+    ? { basePath, hentBytes: lesN50StiFraDisk }
+    : { basePath }
+}
+
 export async function lesN50StiFraDisk(url) {
   try {
     const buf = await readFile(fileURLToPath(url))
@@ -93,12 +122,16 @@ export function demResolutionForArea(utmBbox, maxCells = DEM_MAX_CELLS) {
  * lett som fra appen. `tetthetAv: true` skrur sonderingen helt av.
  *
  * @param {{lat:number, lon:number, halfKm:number, equidistanceM?:number,
- *          detaljNivaa?:string, tetthetAv?:boolean}} opts
+ *          detaljNivaa?:string, tetthetAv?:boolean, n50StiBase?:string}} opts
+ *   n50StiBase — hvor N50-sti-flisene ligger. Uten filsystem (Cloudflare-
+ *   Workeren) MÅ denne settes, ellers bygges kartet uten N50-stier. Se
+ *   n50StiKilde.
  * @returns {Promise<{svg:string, counts:object, meta:object, dem:object, bbox:object,
  *                    halfKm:number, tetthet:object|null}>}
  */
 export async function buildMapHeadless({
   lat, lon, halfKm, equidistanceM, detaljNivaa: eksplisittNivaa, tetthetAv = false,
+  n50StiBase,
 }) {
   let effHalfKm = halfKm
   let bbox = bboxFromCenter(lat, lon, effHalfKm)
@@ -131,6 +164,12 @@ export async function buildMapHeadless({
   const resolutionM = demResolutionForArea(utmBbox)
   console.error(`[buildMapHeadless] halfKm=${effHalfKm} → DEM/DOM-oppløsning ${resolutionM} m`)
 
+  // N50-sti-utfallet bæres helt fram til meta (som i appen, createMapFlow:411).
+  // Uten det er «bygde Workeren kartet med eller uten stinett?» ikke et spørsmål
+  // noen kan STILLE — og da er det heller ikke et spørsmål CI kan svare på. Det
+  // er nettopp derfor feilen fikk leve fra v5.0.16 til v5.18.6.
+  let n50StiStatus = null
+
   const [overpass, n50Water, dem, turruteRoutes, n50StiLinjer] = await Promise.all([
     fetchOverpass(bbox),
     fetchN50Water(bbox).catch(() => []),
@@ -155,15 +194,22 @@ export async function buildMapHeadless({
     // Merkede fotruter (Turrutebasen) — samme kilde som appen, så MCP-bygde
     // kart ikke mangler stier appen har. Tynnes mot OSM under.
     fetchTurruteRoutes(bbox).catch(() => []),
-    // N50-stinettet. Headless kjører i Node uten Vites BASE_URL, så flisene
-    // leses fra repoets public/-katalog med vår egen disk-leser. Uten disk
-    // (Cloudflare-Workeren) hopper vi over dem framfor å be fetcheren om en
-    // relativ URL den ikke kan slå opp.
-    n50StiBasePath()
-      ? fetchN50StiLinjer(bbox, {
-        basePath: n50StiBasePath(), hentBytes: lesN50StiFraDisk,
-      }).catch(() => [])
-      : Promise.resolve([]),
+    // N50-stinettet. Kilden velges av n50StiKilde(): kallerens URL (Workeren
+    // sender GitHub Pages-adressen), ellers repoets public/-katalog, ellers
+    // ingenting. Se notatet ved n50StiKilde for hvorfor protokollen bestemmer
+    // leseren.
+    (() => {
+      const kilde = n50StiKilde(n50StiBase)
+      if (!kilde) {
+        n50StiStatus = { state: 'av', message: 'ingen N50-sti-kilde (verken n50StiBase eller filsystem)' }
+        return Promise.resolve([])
+      }
+      return fetchN50StiLinjer(bbox, { ...kilde, onStatus: s => { n50StiStatus = s } })
+        .catch((e) => {
+          n50StiStatus = { state: 'feil', message: String(e?.message ?? e) }
+          return []
+        })
+    })(),
   ])
 
   // Vann-stacken slås sammen med SAMME kode som appen (lib/vannMerge.js).
@@ -178,7 +224,7 @@ export async function buildMapHeadless({
   const elements = slaaSammenVann({ osm: overpass.elements, n50Water })
   const turruteEls = turruteElementsFrom(turruteRoutes, overpass.elements)
   elements.push(...turruteEls)
-  elements.push(...n50StiElementerFra(n50StiLinjer, [...overpass.elements, ...turruteEls]))
+  elements.push(...n50StiElementerFra(n50StiLinjer, [...overpass.elements, ...turruteEls], n50StiStatus))
 
   const { svg, counts, meta } = buildSvg(elements, bbox, {
     dem,
@@ -187,6 +233,7 @@ export async function buildMapHeadless({
     skipContoursIfSynthetic: true,
     detaljNivaa,
     tetthet,
+    n50StiStatus,
   })
   return { svg, counts, meta, dem, bbox, halfKm: effHalfKm, tetthet }
 }

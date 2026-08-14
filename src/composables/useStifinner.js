@@ -64,6 +64,15 @@ const DESCENT_M_PER_MIN = 30
  */
 export function useStifinner(opts = {}) {
   const demGetter = typeof opts.dem === 'function' ? opts.dem : () => null
+  // Fra v5.19.0 kan nabofliser være DEMONTERT fra kart-SVG-en når de er utenfor
+  // utsnittet (useGhostTiles' feste-pass). featuresFromSvg leser stinettet rett
+  // ut av den levende DOM-en, så en demontert flis ville vært usynlig for
+  // ruteren — og Stifinneren ville rutet rundt, eller ikke funnet vei i det hele
+  // tatt. Braketten fester alt midlertidig og gjenoppretter etterpå.
+  // Default er identitet, så composablen er fortsatt brukbar frittstående.
+  const medAlleFliser = typeof opts.medAlleFliser === 'function'
+    ? opts.medAlleFliser
+    : (fn) => fn()
   const elevationAtFor = (dem) => (dem ? realElevationAt(dem) : undefined)
 
   // Snarvei-inngangen (beginPickStart) sikter inn startpunktet FØRST og målet
@@ -273,7 +282,7 @@ export function useStifinner(opts = {}) {
   function graphFor(svgElement) {
     const dem = demGetter()
     if (cachedRg && cachedSvg === svgElement && cachedDem === dem) return cachedRg
-    const { features, barriers } = featuresFromSvg(svgElement)
+    const { features, barriers } = medAlleFliser(() => featuresFromSvg(svgElement))
     if (!features.length) return null
     cachedRg = buildRoutingGraph(features, {
       ...RUTE_GRAF_OPTS, elevationAt: elevationAtFor(dem), barriers,

@@ -13,6 +13,10 @@ const props = defineProps({
   searchOpen: { type: Boolean, default: false },
   mapCenterStyle: { type: Object, default: () => ({}) },
   fillingInDetails: { type: Boolean, default: false },
+  // Automatisk flis-påfyll: «Henter Nord i lende …» / «Nord i lende er klar».
+  // Tom streng = ingen chip. Egen chip fordi den kan stå samtidig med
+  // fillingInDetails (terreng-først på aktiv flis er et annet fenomen).
+  bakgrunnsflisTekst: { type: String, default: '' },
   highlightedFeature: { type: Object, default: null },
   annot: { type: Object, required: true },
   measureMode: { type: [Boolean, String], default: false },
@@ -115,6 +119,35 @@ function formatElevationDiff(m) {
         </circle>
       </svg>
       <span>Tegner inn stier og detaljer …</span>
+    </div>
+  </Transition>
+
+  <!-- Automatisk flis-påfyll (v5.19.0). Ligger UTENFOR kartflaten med vilje:
+       kravet er at kartet står helt stille mens en naboflis hentes, og et blink
+       eller en ramme inne i kartet ER bevegelse i kartflaten.
+       Dette er også den GARANTERTE kvitteringen — relieffet som toner inn er
+       den visuelle bekreftelsen, men den uteblir for brukere som har relieff av. -->
+  <Transition name="chip-fade">
+    <div v-if="bakgrunnsflisTekst && !searchOpen && !fillingInDetails"
+         class="absolute top-[var(--ovl-top)] left-1/2 -translate-x-1/2 z-30 pl-2 pr-3.5 py-1.5 rounded-2xl
+                bg-overlay/90 text-ink text-[12.5px] font-medium shadow-lg backdrop-blur
+                flex items-center gap-2 pointer-events-none border border-ink/10
+                transition-[left] duration-200"
+         :style="mapCenterStyle"
+         role="status" aria-live="polite">
+      <svg viewBox="0 0 32 32" class="w-6 h-6 shrink-0" fill="none" aria-hidden="true">
+        <rect x="4" y="4" width="11" height="11" rx="1.5" fill="rgba(255,255,255,0.18)"/>
+        <rect x="17" y="4" width="11" height="11" rx="1.5" stroke="#7dd3fc" stroke-width="1.5"
+              stroke-dasharray="44" stroke-linecap="round">
+          <animate attributeName="stroke-dashoffset" values="44;0" dur="1.6s" repeatCount="indefinite"/>
+        </rect>
+        <rect x="4" y="17" width="11" height="11" rx="1.5" fill="rgba(255,255,255,0.18)"/>
+        <rect x="17" y="17" width="11" height="11" rx="1.5" stroke="#34d399" stroke-width="1.5"
+              stroke-dasharray="44" stroke-linecap="round">
+          <animate attributeName="stroke-dashoffset" values="44;0" dur="1.6s" begin="0.4s" repeatCount="indefinite"/>
+        </rect>
+      </svg>
+      <span>{{ bakgrunnsflisTekst }}</span>
     </div>
   </Transition>
 

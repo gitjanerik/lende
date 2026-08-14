@@ -11,6 +11,14 @@ compatibility_flags = ["nodejs_compat"]
 # Secreten LENDE_AI_TOKENS (samme kommaseparerte per-bruker-liste som
 # lende-ai) settes IKKE her — deploy-workflowen pusher den fra GitHub-secreten.
 
+# N50-stinettet (179 706 km sti/traktorveg) ligger som statiske fliser ved siden
+# av appen på GitHub Pages. Workeren har ikke filsystem, så headless kan ikke
+# finne dem selv — uten denne variabelen bygges hvert kart i skyen stille UTEN
+# stinettet, slik det gjorde fra v5.0.16 til v5.18.6. Samme filer appen bruker,
+# så server- og klient-bygde kart får identisk N50-innhold.
+[vars]
+N50_STI_BASE = "https://gitjanerik.github.io/lende/data/n50-sti/"
+
 # Fase B: bygde kart (SVG + DEM + meta) og utdata (GPX, rundtur-SVG) bor i R2.
 # Bucketen opprettes idempotent av deploy-workflowen (`wrangler r2 bucket
 # create lende-mcp`). R2 gratis-tier: 10 GB — et kart er typisk 2–20 MB.

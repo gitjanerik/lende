@@ -169,6 +169,92 @@ const SJEKKER = [
     },
   },
   {
+    navn: 'auto-nabo-bryteren lagrer valget og status rendrer',
+    domene: 'useAutoNabo',
+    async kjør(page) {
+      // ALT står i try/finally: kaster sjekken før opprydningen, blir skuffen
+      // stående åpen over FAB-ene, og HVER sjekk etter denne feiler på noe som
+      // ikke er deres feil. (Lært den harde veien i denne PR-en.)
+      try {
+        await åpneDrawer(page)
+        // Fane-raden rendres i VERSALER (text-transform), og klikkTekst leser
+        // innerText — derfor «INNSTILLINGER», ikke «Innstillinger». Default-fanen
+        // er «Kartlag», så uten dette ligger bryteren i en skjult pane.
+        await klikkTekst(page, /^INNSTILLINGER$/)
+        await page.waitForTimeout(400)
+        const les = () => page.evaluate(() => {
+          try { return localStorage.getItem('lende-auto-nabo') } catch { return null }
+        })
+        // Bryteren er en <button role="switch"> uten egen tekst — etiketten står
+        // i en søsken-div — så klikkTekst (som matcher innerText) treffer den
+        // ikke. Vi går på aria-label.
+        const bryter = page.locator('button[aria-label="Hent nabokart automatisk"]')
+        await bryter.click()
+        await page.waitForTimeout(300)
+        const av = await les()
+        if (av !== '0') throw new Error(`forventet lende-auto-nabo="0" etter første trykk, fikk ${av}`)
+        // NØYTRALISERING: slå den PÅ igjen. Sjekken skal verken etterlate
+        // funksjonen avslått eller la en bakgrunns-nettverksfunksjon stå og
+        // bygge fliser mens de neste sjekkene kjører.
+        await bryter.click()
+        await page.waitForTimeout(300)
+        const på = await les()
+        if (på !== '1') throw new Error(`forventet lende-auto-nabo="1" etter andre trykk, fikk ${på}`)
+        // Status-raden i Utvikler-fanen beviser at prop-stien faktisk er bundet.
+        // En feilstavet prop-sti gir STILLE død funksjon i Vue — nettopp den
+        // feilmodusen verktøyene våre er svakest på.
+        await klikkTekst(page, /^UTVIKLER$/)
+        await page.waitForTimeout(400)
+        const harRad = await page.evaluate(() => /Auto-nabo/.test(document.body.innerText))
+        if (!harRad) throw new Error('Auto-nabo-raden mangler i Utvikler-fanen — er prop-stien riktig?')
+        return 'bryter av→på, status-rad rendrer'
+      } finally {
+        await lukkDrawer(page).catch(() => {})
+      }
+    },
+  },
+  {
+    navn: 'relieff-knotten kjører mosaikk-render og relieff-passet',
+    domene: 'useGhostTiles',
+    // Krever et kart med ekte DEM: applyHillshade returnerer tidlig uten, og
+    // stub-kartet har ingen høydedata (samme grunn som 3D melder «ingen DEM»).
+    krever: 'ektekart',
+    async kjør(page) {
+      await lukkDrawer(page)
+      const synlig = () => page.evaluate(() => {
+        const el = document.querySelector('svg.isom-map #hillshade-layer')
+        if (!el) return 'borte'
+        return el.tagName.toLowerCase()
+      })
+      const før = await synlig()
+      let etter
+      // FAB-klyngen MÅ lukkes igjen. Sjekken etter denne åpner den selv, og en
+      // klynge som alt står åpen blir LUKKET av det trykket — da finner den
+      // ikke knotten sin. Nøyaktig den kollateralskaden dette gjorde første
+      // gang: strek-sjekken feilet på noe som ikke var dens feil.
+      try {
+        // Relieff-knotten kaller renderGhostTiles() — altså hele den nye
+        // render- + relieff-pass-stien, inkludert planleggRelieffPass.
+        await page.locator('[aria-label*="vis kartknappene"]').click()
+        await page.waitForTimeout(700)
+        await page.locator('[aria-label^="Relieff"]').click()
+        await page.waitForTimeout(1200)
+        etter = await synlig()
+      } finally {
+        await page.locator('[aria-label*="kartknappene"]').click().catch(() => {})
+        await page.waitForTimeout(400)
+      }
+      if (før === etter && før === 'borte') {
+        throw new Error('relieff-laget dukket aldri opp — kjørte applyHillshade?')
+      }
+      // Røyk-kartet er ÉN flis med vilje, så den spøkelses-spesifikke stien
+      // (feste/løsne, inntoning på nabo) kan ikke dekkes her — å bygge en andre
+      // flis krever nett, og røyktesten skal ikke avhenge av at Kartverket er
+      // oppe. Den delen står på manuell verifisering.
+      return `#hillshade-layer ${før} → ${etter}`
+    },
+  },
+  {
     navn: 'strek-knotten endrer --stroke-scale',
     domene: 'useKartKnotter',
     async kjør(page) {

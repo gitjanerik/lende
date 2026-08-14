@@ -60,7 +60,8 @@ import { useHeritageLayers } from '../composables/useHeritageLayers.js'
 import { useHydroStations } from '../composables/useHydroStations.js'
 import { useReliefRender } from '../composables/useReliefRender.js'
 import { useGhostTiles } from '../composables/useGhostTiles.js'
-import { useMapExtend } from '../composables/useMapExtend.js'
+import { useMapExtend, extendZoneLabelText } from '../composables/useMapExtend.js'
+import { useAutoNabo } from '../composables/useAutoNabo.js'
 import { use3dEntry } from '../composables/use3dEntry.js'
 import { useKartDeling } from '../composables/useKartDeling.js'
 import { useDeltTur } from '../composables/useDeltTur.js'
@@ -672,9 +673,9 @@ function applyNameLanguage() {
 // Pinch/pan/rotate fryses kun mens aller første last pågår (ingen kart-DOM
 // ennå). Mens et ferskt kart fyller inn stier og detaljer (terreng-først)
 // ELLER mens et nytt kart bygges on-the-fly, lar vi brukeren pan/zoome/rotere
-// fritt — auto-kart-trigger
-// er separat gated (checkAutoMapTrigger returnerer på fillingInDetails/
-// buildingOnTheFly), så gestene lager aldri et konkurrerende auto-kart. Når
+// fritt — det automatiske flis-påfyllet er separat gated (useAutoNabo avviser på
+// fillingInDetails/buildingOnTheFly/gest), så gestene lager aldri en
+// konkurrerende bygging. Når
 // detaljene lander, byttes SVG-en inn via en silent re-render som beholder
 // gjeldende transform, så stier/detaljer dukker opp sømløst i brukerens utsnitt.
 const pinchEnabled = computed(() => !loading.value)
@@ -1012,7 +1013,13 @@ const annot = useMapAnnotations(mapId.value)
 // stier broes ikke når terrenget over det er for bratt å krysse (v5.6.0).
 // storedDem hentes asynkront — useStifinner bygger grafen på nytt når den
 // lander, og watchen under reberegner en rute som alt vises.
-const sti = useStifinner({ dem: () => storedDem.value })
+// medAlleFliser sendes som en WRAPPER, ikke som verdien: useGhostTiles opprettes
+// ~300 linjer lenger ned, og en direkte referanse ville truffet TDZ. Pilfunksjonen
+// slår opp navnet først når Stifinneren faktisk bygger grafen. Se CLAUDE.md.
+const sti = useStifinner({
+  dem: () => storedDem.value,
+  medAlleFliser: (fn) => medAlleSpokelserFestet(fn),
+})
 const mapCtx = useMapContext()
 // Settes ved setupHostSvg: har kartet routbare sti-/vei-lag? Styrer om
 // «Naviger hit» vises.
@@ -1307,10 +1314,17 @@ const { applyHillshade, reliefBlendMode, invalidateReliefBands } = useReliefRend
 const {
   ghostRects, GHOST_TRIGGER_SUPPRESS_FRAC,
   renderGhostTiles, updateGhostReliefOpacity,
+  leggTilSpokelse, scheduleGhostFeste, anvendGhostFeste,
+  medAlleSpokelserFestet, medAlleSpokelserFestetAsync, teardownGhostTiles,
 } = useGhostTiles({
-  svgHostRef, meta, mapId, isAlive: () => componentAlive, isGesturing,
-  reliefEnabled: reliefActive, reliefMode, reliefOpacity, reliefBlendMode, RELIEF_BANDS,
-  applyLayerVisibility, clampPan,
+  svgHostRef, wrapperRef, meta, mapId, isAlive: () => componentAlive, isGesturing,
+  scale, rotation, translateX, translateY,
+  // reliefMode sendes IKKE inn: nabofliser bruker alltid vektor-relieff, uansett
+  // hva brukeren har valgt for aktiv flis. Se notatet ved relieff-passet i
+  // useGhostTiles — raster er den eneste kostnaden som skalerer med flisetallet.
+  reliefEnabled: reliefActive, reliefOpacity, reliefBlendMode, RELIEF_BANDS,
+  applyLayerVisibility, clampPan, maxTiles,
+  onNaboFlisKlar: (id, info) => naboFlisKlar(id, info),
 })
 
 // Re-render relieffet når DEM-en lastes eller temaet byttes (blend-modus
@@ -1371,6 +1385,7 @@ const {
   autoMapBuildOpts, promoteTile, extendMap, armAutoMap,
   extendZonesBounds, teardownMapExtend,
   refreshMosaicGaps, repairMosaicGaps,
+  extendMapGeometry, centerOverExistingTile,
 } = useMapExtend({
   wrapperRef, wrapperSize, meta, mapId, router,
   scale, rotation, translateX, translateY, isGesturing, panTo,
@@ -1379,7 +1394,55 @@ const {
   ghostRects, GHOST_TRIGGER_SUPPRESS_FRAC, renderGhostTiles,
   currentTheme, visibleLayers, userPos, maxTiles, refreshAutoTileCount,
   closeDrawer, closeSearch,
+  // Getter — useAutoNabo opprettes rett under (TDZ-regelen i CLAUDE.md).
+  byggerNaaNokkel: () => byggerNaaNokkel(),
 })
+
+// Automatisk påfyll av nabofliser. MÅ stå ETTER useMapExtend: den konsumerer ni
+// navn derfra som VERDIER (destrukturerte const-er, ikke hoistede funksjoner —
+// hoisting-fella i CLAUDE.md), og leggTilSpokelse fra useGhostTiles lenger oppe.
+const {
+  autoNaboPa, settAutoNaboPa, autoNaboStatus,
+  sporPanIntensjon, avbrytBakgrunnsbygg, byggerNaaNokkel,
+  kvitterEksplisittHandling, teardownAutoNabo,
+} = useAutoNabo({
+  meta, mapId, isGesturing, isAlive: () => componentAlive,
+  buildingOnTheFly, fillingInDetails,
+  visibleCenterSvg, extendZonesBounds, extendMapGeometry,
+  centerOverExistingTile, autoMapBuildOpts, autoMapModeBusy,
+  leggTilSpokelse, maxTiles, refreshAutoTileCount, refreshMosaicGaps,
+})
+
+// Kvitteringen: relieff-passet er ferdig på en nybygd naboflis. Chippen bytter
+// til ferdig-tilstand en liten stund — det er signalet som ALLTID kommer, også
+// når brukeren har relieff av og det ikke toner inn noe som helst.
+// Skrivbar bro til bryteren: composablen eier persisteringen (localStorage), så
+// setteren går gjennom settAutoNaboPa i stedet for å skrive refen direkte.
+const autoNaboBryter = computed({
+  get: () => autoNaboPa.value,
+  set: (v) => settAutoNaboPa(v),
+})
+
+const naboKlarTekst = ref('')
+let naboKlarTimer = null
+// Chippen har to tilstander og ÉN plass: «Henter …» mens det står på, og
+// «… er klar» en liten stund etterpå. Ferdig-teksten vinner når begge er satt.
+const bakgrunnsflisTekst = computed(() => {
+  if (naboKlarTekst.value) return naboKlarTekst.value
+  if (!autoNaboStatus.byggerNokkel) return ''
+  const dir = autoNaboStatus.retning
+  return dir ? `Henter ${extendZoneLabelText(dir)} …` : 'Henter nytt utsnitt …'
+})
+function naboFlisKlar(id, info) {
+  if (id !== autoNaboStatus.sisteFlis) return   // ikke for fliser fra en full re-render
+  const dir = autoNaboStatus.retning
+  naboKlarTekst.value = dir ? `${extendZoneLabelText(dir)} er klar` : 'Nytt utsnitt er klart'
+  if (naboKlarTimer) clearTimeout(naboKlarTimer)
+  naboKlarTimer = setTimeout(() => { naboKlarTekst.value = '' }, 1800)
+  // Kort haptisk tikk der det finnes. Aldri påkrevd: Chromium blokkerer
+  // vibrate før første tapp i ramma, og røyktesten filtrerer den som støy.
+  try { if (info?.medRelieff) navigator.vibrate?.(12) } catch { /* noop */ }
+}
 // Mosaikken endret seg (ny flis bygd / scroll-tilbake) → re-tell hull (C) så
 // «Reparer»-banneret dukker opp/forsvinner i takt. Kanthåndtakene re-ankrer seg
 // selv (edgeHandles er en computed over ghostRects + transform-tilstanden).
@@ -1389,6 +1452,18 @@ const {
 // ved neste GPS-poll.
 watch(ghostRects, () => { refreshMosaicGaps(); userPos.recompute() }, { deep: true })
 watch([scale, translateX, translateY, rotation], scheduleActivatableCheck)
+// Intensjons-sporing for automatisk flis-påfyll. Egen watch, ikke inne i
+// scheduleActivatableCheck: den er useMapExtends promoterings-logikk med sin
+// egen 250 ms-debounce og sine egne gater. De to deler bare kilde
+// (transform-refene) og har ulik tidsskala. At krysset er synlig HER er poenget
+// (CLAUDE.md v5.16.0) — det er lettere å forstå enn ett som er gjemt bort.
+watch([scale, translateX, translateY, rotation], sporPanIntensjon)
+// Feste-passet: hvilke nabofliser som skal ligge i DOM. Egen watch ved siden av
+// de to andre fordi den har sin egen debounce og sin egen hysterese — og fordi
+// den ALDRI skal kjøre midt i en gest. Gest-slutt tas av watchen under, samme
+// mønster som viewport-culleren.
+watch([scale, translateX, translateY, rotation], scheduleGhostFeste)
+watch(isGesturing, (g) => { if (!g) anvendGhostFeste() })
 // Starter brukeren en egen gest (wheel-zoom, pinch, pan) mens pilla står åpen,
 // er den ikke lenger relevant — de ser på noe annet nå.
 watch(isGesturing, (g) => { if (g && hoveredDir.value) clearExtendPreview() })
@@ -1900,6 +1975,7 @@ const {
   meta, storedDem, searchIndex, svgHostRef, wrapperRef, animating,
   scale, translateX, translateY, rotation,
   sti, userPos, ghostRects, svgToClient, ensureDem,
+  medAlleFliserAsync: (fn) => medAlleSpokelserFestetAsync(fn),
   // Arkets yttergrense — 3D bygger hele mosaikken, ikke bare aktiv flis. Samme
   // union som pan-grensa bruker, så «det du kan panorere til» og «det du får i
   // 3D» er samme kart.
@@ -2250,6 +2326,8 @@ onUnmounted(() => {
   if (skeletonTimer) clearTimeout(skeletonTimer)
   if (loadPillTimer) clearTimeout(loadPillTimer)
   teardownMapExtend()
+  teardownGhostTiles()
+  teardownAutoNabo()
   if (viewSaveTimer) clearTimeout(viewSaveTimer)
   mapCtx.unregister(menuMapPoint)
 })
@@ -2567,7 +2645,7 @@ onUnmounted(() => {
                       :hovered="hoveredDir"
                       @preview="previewExtend"
                       @clear="clearExtendPreview"
-                      @commit="extendMap" />
+                      @commit="(dir) => { kvitterEksplisittHandling(); extendMap(dir) }" />
     </div>
 
     <!-- Stifinner: fast midt-kikkertsikte mens startpunkt velges. Brukeren
@@ -2614,8 +2692,9 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <!-- Auto-kart-trådkorset er fjernet (v9.3.38): auto-kart er default PÅ og
-         kjører stille uten ramme/trådkors — dra kartet, så bygges nytt utsnitt. -->
+    <!-- Ingen ramme og intet trådkors i kartflaten: det automatiske flis-påfyllet
+         (useAutoNabo) kjører stille, og statusen vises som chip UTENFOR kartet.
+         Kartflaten skal stå bom stille mens en naboflis hentes. -->
 
     <!-- Modus-chips/-bannere (auto-kart-toast, detalj-chip, highlight-chip,
          annoterings-indikator, måle-readout, stifinner- og nærhetsvarsel-
@@ -2625,6 +2704,7 @@ onUnmounted(() => {
       :search-open="searchOpen"
       :map-center-style="mapCenterStyle"
       :filling-in-details="fillingInDetails"
+      :bakgrunnsflis-tekst="bakgrunnsflisTekst"
       :highlighted-feature="highlightedFeature"
       :annot="annot"
       :measure-mode="measureMode"
@@ -2677,7 +2757,7 @@ onUnmounted(() => {
       @dismiss-details="detailsFailed = false"
       @retry-details="retryMapDetails"
       @complete-partial="retryMapDetails"
-      @repair-mosaic="repairMosaicGaps"
+      @repair-mosaic="() => { kvitterEksplisittHandling(); repairMosaicGaps() }"
       @dismiss-low-accuracy="dismissLowAccuracy"
       @retry-gps="onRetryGps" />
 
@@ -2889,6 +2969,7 @@ onUnmounted(() => {
             :rebuild-at-chosen-size="rebuildAtChosenSize"
             :building="buildingOnTheFly" :can-rebuild="!!meta?.bbox"
             :screen-wake="screenWake" :max-tiles="maxTiles"
+            v-model:auto-nabo-pa="autoNaboBryter"
             :max-tile-index-max="MAX_TILE_STEPS.length - 1" />
 
           <DrawerDevTab v-show="activeTab === 'utvikler'"
@@ -2900,6 +2981,7 @@ onUnmounted(() => {
             v-model:diagnose="diagnose"
             :reset-lod-tuning="resetLodTuning" :map-data-label="mapDataLabel"
             :auto-tile-count="autoTileCount" :max-tiles="maxTiles"
+            :auto-nabo-status="autoNaboStatus"
             :cull-stats="cullStats" :cull-disabled="cullDisabled" :toggle-cull="toggleCull"
             :sjokart-status-text="sjokartStatusText"
             :nve-innsjo-status-text="nveInnsjoStatusText"
@@ -3083,7 +3165,7 @@ onUnmounted(() => {
                :brukerminner="view3dData.brukerminner"
                :tour="view3dData.tour"
                :est-walk-minutes="tour3dEstWalk"
-               :get-texture-spec="(opts) => mapSvgTilesFor3d({ theme: opts?.dark ? 'dark' : null, extent: view3dData.extent })"
+               :get-texture-spec="(opts) => medAlleSpokelserFestet(() => mapSvgTilesFor3d({ theme: opts?.dark ? 'dark' : null, extent: view3dData.extent }))"
                :is-dark="isDark"
                :user-pos="gpsFor3d"
                @close="close3d" />
@@ -3187,6 +3269,24 @@ onUnmounted(() => {
 .isom-map.cb-reveal-late [data-layer="navn"],
 .isom-map.cb-reveal-late [data-layer^="stedsnavn"],
 .isom-map.cb-reveal-late #hillshade-layer { opacity: 0; }
+
+/* Kvitteringen på en nybygd naboflis (v5.19.0): flisa kommer med vann, veier,
+   stier og kurver med én gang, og RELIEFFET toner inn til slutt — når det er
+   der, er flisa 100 % ferdig.
+
+   Egne klasser, ikke cb-reveal-late: DEN settes på ROT-SVG-en og treffer også
+   [data-layer="navn"] + stedsnavn. Gjenbrukt ville hele kartets stedsnavn tonet
+   ut og inn hver gang en bakgrunnsflis landet. Her er scopet én nested <svg>.
+
+   Merk: CSS-opacity vinner over SVG-presentasjonsattributtet `opacity`, og det
+   er nettopp derfor attributtet kan bære brukerens relieff-nivå (relieff-knotten)
+   mens klassen driver fadingen. Skrives dette om til inline style.opacity,
+   brekker begge deler stille.
+
+   450 ms, ikke 280 som cb-revealing: dette er et signal som skal MERKES, ikke en
+   laste-utjevning som skal skjules. */
+.isom-map #ghost-tiles > svg.gh-relieff-vent [data-ghost-relief] { opacity: 0; }
+.isom-map #ghost-tiles > svg.gh-relieff-inn [data-ghost-relief] { transition: opacity .45s ease; }
 .isom-map.cb-revealing [data-layer="navn"],
 .isom-map.cb-revealing [data-layer^="stedsnavn"],
 .isom-map.cb-revealing #hillshade-layer { transition: opacity .28s ease; }

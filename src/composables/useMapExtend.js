@@ -8,6 +8,17 @@ import { ref, computed, nextTick } from 'vue'
 import { svgToWgs84 } from '../lib/utm.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { pruneAutoTiles, rectOverlapFraction, findGridGaps } from '../lib/tileCache.js'
+import {
+  lesVentende, leggTilVentende, fjernVentende,
+  cellenokkel, ventendeSenter, ventendePaaArket, VENTENDE_RADIUS_TILES,
+} from '../lib/ventendeFliser.js'
+
+// Bokføringen over ventende fliser bor i lib/ventendeFliser.js — den er «hva
+// mosaikken skylder å bygge» og har flere konsumenter enn kant-utvidelsen.
+// Re-eksporteres her fordi den var offentlig herfra før uttrekket.
+export {
+  cellenokkel, ventendeSenter, ventendePaaArket, VENTENDE_RADIUS_TILES,
+} from '../lib/ventendeFliser.js'
 
 // Retnings-vokabular for de 8 kanthåndtakene (utvidelses-knappene). Norske ord
 // for toast + etikett-pille, og pil-vinkelen (grader, opp = nord = 0°, med
@@ -111,44 +122,6 @@ export function viewBoxToScreen(vx, vy, v) {
   return { x: v.tx + s * rx, y: v.ty + s * ry }
 }
 
-// ── Ventende fliser — ren logikk (ingen Vue-refs, testbar) ───────────────────
-// Bokføringen over fliser en utvidelse satte seg fore å bygge, men ikke rakk.
-// Se det lange notatet ved `lesVentende` i composablen for HVORFOR den finnes;
-// her ligger bare det som er rent regnestykke, fordi det er den delen som er
-// lett å få galt (fortegnet i UTM→SVG) og lett å teste.
-
-// Celle-identitet. Nordvest-hjørnet i absolutt UTM avrundet til meter — samme
-// celle får samme nøkkel enten den kommer fra bokføringen eller fra geometrien,
-// så de to kildene kan slås sammen uten å tilby samme flis to ganger.
-export const cellenokkel = (ub) => (ub ? `${Math.round(ub.minE)}:${Math.round(ub.maxN)}` : '')
-
-// Absolutt UTM-bbox → senter i aktiv-flisas meter-rom. SVG-y vokser SØROVER og
-// er 0 ved arkets maxN, så toppkanten er (m.maxN − ub.maxN) — ikke omvendt.
-export function ventendeSenter(ub, m) {
-  if (!ub || m?.minE == null || m?.maxN == null) return null
-  const x = (ub.minE - m.minE) + (ub.maxE - ub.minE) / 2
-  const y = (m.maxN - ub.maxN) + (ub.maxN - ub.minN) / 2
-  return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null
-}
-
-// Hvor langt fra arket vi står på en ventende flis kan ligge før vi antar at den
-// hører til et annet kart. Mosaikken tegner selv maks 3 flisebredder unna.
-export const VENTENDE_RADIUS_TILES = 4
-
-// Hører spesifikasjonen til DETTE arket? Returnerer senteret i arkets meter-rom
-// hvis ja, ellers null. Konservativt med vilje: annen flisestørrelse eller langt
-// utenfor rekkevidde betyr et annet kart, og da skal flisa ikke tilbys her.
-export function ventendePaaArket(spek, m, radiusTiles = VENTENDE_RADIUS_TILES) {
-  const ub = spek?.utmBbox
-  if (!ub || !m || m.minE == null) return null
-  const W = m.widthM, H = m.heightM
-  if (Math.abs((ub.maxE - ub.minE) - W) > 1 || Math.abs((ub.maxN - ub.minN) - H) > 1) return null
-  const c = ventendeSenter(ub, m)
-  if (!c) return null
-  if (Math.abs(c.x) > radiusTiles * W || Math.abs(c.y) > radiusTiles * H) return null
-  return c
-}
-
 export function useMapExtend({
   wrapperRef, wrapperSize, meta, mapId, router,
   scale, rotation, translateX, translateY, isGesturing, panTo,
@@ -157,13 +130,22 @@ export function useMapExtend({
   ghostRects, GHOST_TRIGGER_SUPPRESS_FRAC, renderGhostTiles,
   currentTheme, visibleLayers, userPos, maxTiles, refreshAutoTileCount,
   closeDrawer, closeSearch,
+  // Nøkkelen til flisa bakgrunns-byggingen jobber med akkurat nå, eller null.
+  // Getter, fordi useAutoNabo opprettes ETTER denne composablen (TDZ-regelen i
+  // CLAUDE.md). Uten den ville «Fyll hullene»-banneret blinket «1 hull» i de
+  // 5–30 sekundene en bakgrunnsbygging tar: planen bokføres FØR byggingen (for
+  // at et avbrutt bygg skal overleve en reload), og bokføringen er nettopp det
+  // manglendeFliser leser.
+  byggerNaaNokkel = () => null,
 }) {
   // ── Mosaikk + manuell utvidelse ───────────────────────────────────────────
-  // Den AUTOMATISKE auto-karten (bygg-på-dvele/prefetch/promotér-på-dvele) er
-  // fjernet — brukeren utvider eksplisitt via kanthåndtakene på arkkanten og gjør
-  // en nabo-flis aktiv via en knapp. Mosaikk-rendering (renderGhostTiles) og
-  // tile-cachen (pruneAutoTiles) beholdes. Navn med «autoMap»-prefiks beholdes der
-  // de nå dekker delt infrastruktur (bygge-opts, toast, modus-gate).
+  // Arbeidsdelingen her (v5.19.0): DENNE composablen eier den EKSPLISITTE
+  // utvidelsen — kanthåndtakene på arkkanten, som bygger en hel rad eller kolonne
+  // bak en full-skjerm-loader fordi brukeren har bedt om den. Automatisk påfyll av
+  // ÉN naboflis på dvele bor i useAutoNabo og er bevisst ikke-blokkerende.
+  // Promotering på dvele (AUTO_PROMOTE_MS) er fortsatt her. Navn med
+  // «autoMap»-prefiks dekker delt infrastruktur (bygge-opts, toast, modus-gate)
+  // som begge bruker.
   const buildingOnTheFly = ref(false)  // full-screen loader-flagg (gjenbrukes)
   const buildingProgress = ref('')
   const autoMapToast = ref('')      // transient melding (offline, flyttet, utvidet)
@@ -528,50 +510,9 @@ export function useMapExtend({
     router.replace({ name: 'kart-vis', params: { id: g.id } })
   }
 
-  // Manuell kant-sone-utvidelse. Navigerer IKKE — det aktive kartet beholdes, de
-  // nye flisene vises som fullopake mosaikk-naboer og vi panorerer sentrum til
-  // grensen/hjørnet med BEHOLDT zoom. Derfor rydder vi loader/state selv i finally.
-  // ── Ventende fliser — bokføring, ikke gjetning ───────────────────────────────
-  // En avbrutt utvidelse (reload, app-lukking, en flis som feiler midt i løkka)
-  // etterlater et ark som ikke er ferdig. `findGridGaps` finner bare INNELUKKEDE
-  // hull, med vilje: en bounding-box-variant rapporterte fantom-hull under vanlig
-  // panorering og bygde utsnitt ingen ba om (se tileCache.js). Men utvidelsen
-  // fyller PERIMETERET, så det den etterlater er et hakk i ytterkanten — og
-  // geometri alene kan ikke skille «avbrutt bygging» fra «diagonal panorering».
-  //
-  // Informasjonen finnes ikke i formen, men den finnes i intensjonen: extendMap
-  // vet nøyaktig hvilke fliser den satte seg fore å bygge. Den skrives ned før
-  // byggingen og strykes flis for flis, så et avbrudd etterlater en presis liste
-  // over det som mangler — uten terskler og uten falske positive.
-  //
-  // Spesifikasjonene er SELVSTENDIGE (senter som lat/lon + absolutt UTM-bbox), så
-  // de overlever at en annen flis blir aktiv og koordinatrommet flyttes.
-  const VENTENDE_KEY = 'lende-ventende-fliser'
-
-  function lesVentende() {
-    try {
-      const v = JSON.parse(localStorage.getItem(VENTENDE_KEY) ?? '[]')
-      return Array.isArray(v) ? v.filter(s => s?.utmBbox && s?.opts) : []
-    } catch { return [] }
-  }
-  // Fliser en bruker aldri bygger blir aldri strøket, så lista må ha et tak: den
-  // er ikke en logg, den er «hva mangler nå». Nyeste beholdes.
-  const VENTENDE_MAKS = 24
-  function skrivVentende(liste) {
-    const kappet = liste.slice(-VENTENDE_MAKS)
-    try {
-      if (kappet.length) localStorage.setItem(VENTENDE_KEY, JSON.stringify(kappet))
-      else localStorage.removeItem(VENTENDE_KEY)
-    } catch { /* privat modus — da mister vi bare bokføringen */ }
-  }
-  function leggTilVentende(spekker) {
-    const sett = new Set(spekker.map(s => cellenokkel(s.utmBbox)))
-    skrivVentende([...lesVentende().filter(s => !sett.has(cellenokkel(s.utmBbox))), ...spekker])
-  }
-  function fjernVentende(utmBbox) {
-    const n = cellenokkel(utmBbox)
-    skrivVentende(lesVentende().filter(s => cellenokkel(s.utmBbox) !== n))
-  }
+  // Bokføringen (lesVentende/leggTilVentende/fjernVentende) ligger i
+  // lib/ventendeFliser.js — se notatet der for HVORFOR utvidelsen skriver ned
+  // planen sin før den bygger.
 
   // Finnes det alt en flis (aktiv eller nabo) som dekker dette senteret?
   function flisFinnes(c, m) {
@@ -592,6 +533,9 @@ export function useMapExtend({
     })
   }
 
+  // Manuell kant-sone-utvidelse. Navigerer IKKE — det aktive kartet beholdes, de
+  // nye flisene vises som fullopake mosaikk-naboer og vi panorerer sentrum til
+  // grensen/hjørnet med BEHOLDT zoom. Derfor rydder vi loader/state selv i finally.
   let extendingMap = false
   async function extendMap(direction) {
     clearExtendPreview()
@@ -730,6 +674,10 @@ export function useMapExtend({
     if (!m || m.minE == null) return []
     const ut = []
     const sett = new Set()
+    // Flisa en bakgrunnsbygging holder på med er ikke et HULL — den er under
+    // arbeid. Uten dette blinker «Fyll hullene» gjennom hele byggetida.
+    const underArbeid = byggerNaaNokkel()
+    if (underArbeid) sett.add(underArbeid)
     const leggTil = (opts, utmBbox) => {
       const n = cellenokkel(utmBbox)
       if (!n || sett.has(n)) return
@@ -833,5 +781,9 @@ export function useMapExtend({
     autoMapBuildOpts, promoteTile, extendMap, armAutoMap,
     extendZonesBounds, teardownMapExtend,
     refreshMosaicGaps, repairMosaicGaps,
+    // Eksponert for useAutoNabo — bakgrunnsbyggingen bruker NØYAKTIG samme
+    // geometri og samme «har vi den alt?»-test som kanthåndtakene, så en
+    // automatisk hentet flis lander bit-eksakt på samme gitter.
+    extendMapGeometry, centerOverExistingTile,
   }
 }
