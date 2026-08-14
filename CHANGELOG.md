@@ -1,5 +1,23 @@
 # Endringslogg
 
+## 2026-08-14 — v5.18.6: Hullene i Otersjøen var 0 meter, ikke innsjø
+
+Et nybygd kart over Otersjøen i Lierne hadde to rektangulære hull i innsjøene:
+høydekurver stablet i tette rammer under vannlaget i 2D, og i 3D falt
+innsjøflata rett ned til havnivå i to sjakter. Kilden er NHM-mosaikken, som
+leverer 0 m der den mangler LiDAR-retur — her to felt på 1480×260 m og
+840×300 m med 352 m høy kant hele veien rundt. Reparasjonen fantes allerede
+(Terrarium-fyllet, laget for grensekart), men gaten spurte om andelen av arket:
+2 % kreves, hullene utgjorde 1,1 % av et 6,4×6,4 km-ark, og ingenting skjedde.
+Et hull koster like mye uansett hvor stort arket rundt det er, så gaten spør nå
+om FORMEN i stedet — en ~0 m-klynge der hver nabo utenfor er minst 30 m høyere
+er et datahull, for et ekte terreng når aldri 0 m uten å gå gjennom
+mellomhøydene. 3D hentet dessuten sitt eget DEM og hoppet over reparasjonen
+helt; det er grunnen til at hullene var tydeligst nettopp der, og den veien er
+nå koblet på det samme fyllet.
+
+---
+
 ## 2026-08-13 — v5.18.5: Avbrutt kart-utvidelse bokføres, ikke gjettes
 
 En kart-utvidelse som ble avbrutt — reload, app-lukking, eller en nabo-flis som

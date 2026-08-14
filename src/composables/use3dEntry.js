@@ -230,6 +230,25 @@ export function use3dEntry({
           maxN: extent.meta3d.minN + extent.heightM,
         }, demRes)
         hentet = await fetchDEMWithCache(utm, { resolutionM: demRes, rejectSynthetic: true })
+        // Samme hull-reparasjon som kart-byggingen gjør (createMapFlow →
+        // maybeFillFromTerrarium). 3D hentet sitt eget DEM og hoppet over den,
+        // så et datahull i NHM-mosaikken — 0 m midt i terrenget — ble stående
+        // og terrenggitteret senket seg til havnivå der. Det var Otersjøen-
+        // rapporten (v5.18.6): to rektangulære sjakter rett ned gjennom
+        // innsjøflata, mye tydeligere i 3D enn i 2D fordi vannlaget i 2D
+        // dekket over kurvene. Gaten er billig (ett gjennomløp av gitteret),
+        // så hull-frie kart betaler ingen fliser og ingen ventetid.
+        // Egen try: et Terrarium-uhell skal aldri kaste vekk DEM-et vi nettopp
+        // hentet — da falt vi til mosaikk-fallbacken og mistet nabo-terrenget.
+        if (hentet) {
+          try {
+            const { fillDemVoidsFromTerrarium } = await import('../lib/terrariumDem.js')
+            const { dem: fylt } = await fillDemVoidsFromTerrarium(hentet, utm)
+            hentet = fylt
+          } catch (e) {
+            console.warn(`[3D] Terrarium-fyll hoppet over: ${e?.message ?? e}`)
+          }
+        }
       } catch { hentet = null }
       // Offline/nettfeil (inkl. syntetisk WCS-fallback avvist over): blit hver
       // flis' EKTE DEM inn i union-gridet (utenfor = havnivå).

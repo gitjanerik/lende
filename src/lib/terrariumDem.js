@@ -30,8 +30,9 @@
 // samme data gjennom ren-JS-dekoding ga rene, glatte grensekryssende kurver.
 //
 // STRATEGI (gated så innlands full-dekning er byte-identisk):
-//   1. detectTerrariumTrigger: finnes noData ELLER et stort ~0 m-felt mot
-//      ellers høyt terreng? Nei → ingen henting, DEM uendret.
+//   1. detectTerrariumTrigger: finnes noData, et stort ~0 m-felt mot ellers
+//      høyt terreng, ELLER en ~0 m-klynge som ligger i bunnen av en klippe
+//      (datahull midt i terrenget)? Nei → ingen henting, DEM uendret.
 //   2. Ja → hent Terrarium-fliser over bbox, bygg en sampler.
 //   3. fillDemCells: bytt ut suspekte celler (noData, eller v≤1 m der
 //      Terrarium sier ≥ CLIFF_GAP_M høyere) med Terrarium-høyde. Ekte sjø/
@@ -49,6 +50,7 @@ const SUSPECT_LOW_M = 1.0        // celle ≤ dette = «mistenkelig lav»
 const NEAR_ZERO_FRAC = 0.02      // ≥ 2 % ~0 m-celler trigger henting …
 const CLIFF_MIN_TERRAIN_M = 120  // … men kun når kartet ellers har høyt terreng
 const CLIFF_GAP_M = 30           // bytt 0-celle kun om Terrarium er ≥ 30 m høyere
+const MIN_PIT_CELLS = 8          // mindre ~0 m-klynger enn dette er støy, ikke hull
 
 // ── Rene funksjoner (enhetstestet) ────────────────────────────────────────
 
@@ -198,8 +200,60 @@ export function makeSampler(tiles, z) {
 }
 
 /**
- * Avgjør om et DEM trenger Terrarium-fyll. Billig (ett gjennomløp), så det
- * gater den dyrere flis-hentingen. Full-dekning innlands-kart → trigger=false.
+ * Antall celler i ~0 m-klynger som ligger i BUNNEN AV EN KLIPPE — altså der
+ * hver nabo utenfor klyngen er minst CLIFF_GAP_M høyere. Det er formen på et
+ * datahull i NHM-mosaikken (ingen LiDAR-retur, fylt med 0), og et ekte terreng
+ * kan ikke ha den: en 0 m-flate i naturen nås alltid av en skråning som går
+ * gjennom mellomhøydene ned til den.
+ *
+ * Grunnen til at dette måles per KLYNGE og ikke som andel av arket:
+ * `nearZeroFrac` er en global brøk, og et hull koster like mye uansett hvor
+ * stort arket rundt det er. Otersjøen i Lierne (v5.18.6) hadde to slike hull i
+ * innsjøene — 1480×260 m og 840×300 m, med 352 m høy kant hele veien rundt —
+ * men de utgjorde bare 1,1 % av et 6,4×6,4 km-ark og falt derfor under
+ * 2 %-grensa. Hullene overlevde hele veien ut: marching squares stablet hver
+ * eneste ekvidistanse fra 20 til 340 m langs hullkanten (rektangulære
+ * «høydekurver» + stupkanter under vannlaget), og i 3D ble innsjøflata
+ * gjennomhullet av rektangulære sjakter ned til havnivå.
+ */
+function cliffPitCells(data, cols, rows, noData) {
+  const suspect = (v) => Number.isFinite(v) && v !== noData && v > -1000 && v <= SUSPECT_LOW_M
+  const seen = new Uint8Array(cols * rows)
+  const stack = []
+  let total = 0
+  for (let start = 0; start < data.length; start++) {
+    if (seen[start] || !suspect(data[start])) continue
+    seen[start] = 1
+    stack.length = 0
+    stack.push(start)
+    let cells = 0
+    let rimMin = Infinity
+    while (stack.length) {
+      const i = stack.pop()
+      cells++
+      const x = i % cols, y = (i / cols) | 0
+      const visit = (q) => {
+        const v = data[q]
+        if (suspect(v)) { if (!seen[q]) { seen[q] = 1; stack.push(q) } }
+        // noData-naboer er hull de også — de trigger uansett via hasNoData, og
+        // skal ikke telle som «kant» (de sier ingenting om høyden rundt).
+        else if (Number.isFinite(v) && v !== noData && v > -1000 && v < rimMin) rimMin = v
+      }
+      if (x > 0) visit(i - 1)
+      if (x < cols - 1) visit(i + 1)
+      if (y > 0) visit(i - cols)
+      if (y < rows - 1) visit(i + cols)
+    }
+    if (cells >= MIN_PIT_CELLS && rimMin >= CLIFF_GAP_M) total += cells
+  }
+  return total
+}
+
+/**
+ * Avgjør om et DEM trenger Terrarium-fyll. Billig (ett gjennomløp pluss én
+ * flood-fill over kun de ~0 m-cellene som finnes), så det gater den dyrere
+ * flis-hentingen. Full-dekning innlands-kart → trigger=false, og DEM-et
+ * forblir byte-identisk.
  */
 export function detectTerrariumTrigger(dem) {
   const { data, cols, rows, noData } = dem
@@ -213,9 +267,13 @@ export function detectTerrariumTrigger(dem) {
     if (v > maxV) maxV = v
   }
   const nearZeroFrac = nearZero / (cols * rows)
+  // Klynge-testen kjøres bare når det FINNES ~0 m-celler å gruppere, og hoppes
+  // over når trigger allerede er avgjort — innlandskart uten hull betaler ingenting.
+  const pitCells = (nearZero > 0 && !hasNoData) ? cliffPitCells(data, cols, rows, noData) : 0
   const trigger = hasNoData ||
-    (nearZeroFrac > NEAR_ZERO_FRAC && maxV > CLIFF_MIN_TERRAIN_M)
-  return { trigger, hasNoData, nearZeroFrac, maxV }
+    (nearZeroFrac > NEAR_ZERO_FRAC && maxV > CLIFF_MIN_TERRAIN_M) ||
+    pitCells > 0
+  return { trigger, hasNoData, nearZeroFrac, maxV, pitCells }
 }
 
 /**

@@ -195,6 +195,54 @@ describe('detectTerrariumTrigger', () => {
     const dem = makeDem([600, 0, 0, 0], 2, 2)
     expect(detectTerrariumTrigger(dem).trigger).toBe(true)
   })
+
+  // ── Klynge-testen: et hull koster like mye uansett hvor stort arket er ──
+  // Otersjøen (v5.18.6): to datahull i innsjøene, hver med 352 m kant hele
+  // veien rundt, men bare 1,1 % av arket → under NEAR_ZERO_FRAC, ingen trigger.
+  it('lite ~0 m-hull midt i et stort høyt ark → trigger (under 2 %-grensa)', () => {
+    const N = 40                       // 1600 celler
+    const vals = new Array(N * N).fill(352)
+    // 4×4-hull (16 celler = 1 % < 2 %), godt innenfor kanten
+    for (let y = 10; y < 14; y++) for (let x = 10; x < 14; x++) vals[y * N + x] = 0
+    const dem = makeDem(vals, N, N)
+    const r = detectTerrariumTrigger(dem)
+    expect(r.hasNoData).toBe(false)
+    expect(r.nearZeroFrac).toBeLessThan(0.02)
+    expect(r.pitCells).toBe(16)
+    expect(r.trigger).toBe(true)
+  })
+
+  it('~0 m-felt som terrenget skråner ned til → ikke et hull (kystform)', () => {
+    // Samme størrelse hull, men én nabo ligger på 12 m: rimMin < CLIFF_GAP_M,
+    // altså en flate terrenget når gjennom mellomhøyder — ikke en klippe.
+    const N = 40
+    const vals = new Array(N * N).fill(352)
+    for (let y = 10; y < 14; y++) for (let x = 10; x < 14; x++) vals[y * N + x] = 0
+    vals[9 * N + 11] = 12
+    const dem = makeDem(vals, N, N)
+    const r = detectTerrariumTrigger(dem)
+    expect(r.pitCells).toBe(0)
+    expect(r.trigger).toBe(false)
+  })
+
+  it('enkeltceller på ~0 m er støy, ikke hull → ingen flis-henting', () => {
+    const N = 40
+    const vals = new Array(N * N).fill(352)
+    vals[15 * N + 15] = 0
+    vals[25 * N + 30] = 0
+    const dem = makeDem(vals, N, N)
+    const r = detectTerrariumTrigger(dem)
+    expect(r.pitCells).toBe(0)
+    expect(r.trigger).toBe(false)
+  })
+
+  it('hull som berører arkkanten teller også (halve hullet er utenfor)', () => {
+    const N = 40
+    const vals = new Array(N * N).fill(352)
+    for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) vals[y * N + x] = 0
+    const dem = makeDem(vals, N, N)
+    expect(detectTerrariumTrigger(dem).pitCells).toBe(16)
+  })
 })
 
 describe('fillDemCells', () => {
