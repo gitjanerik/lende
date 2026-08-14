@@ -5,6 +5,7 @@
 import { DOMParser, parseHTML } from 'linkedom'
 import { fetchOverpass, buildSvg, bboxFromCenter } from '../src/lib/mapBuilder.js'
 import { fetchDEM } from '../src/lib/demFetcher.js'
+import { fillDemVoidsFromTerrarium } from '../src/lib/terrariumDem.js'
 import { fetchN50Water } from '../src/lib/n50Fetcher.js'
 // Vann-sammenslåingen er DELT med appen (createMapFlow) — se lib/vannMerge.js.
 import { slaaSammenVann } from '../src/lib/vannMerge.js'
@@ -133,7 +134,24 @@ export async function buildMapHeadless({
   const [overpass, n50Water, dem, turruteRoutes, n50StiLinjer] = await Promise.all([
     fetchOverpass(bbox),
     fetchN50Water(bbox).catch(() => []),
-    fetchDEM(bbox, utmBbox, { resolutionM, useReal: true }),
+    // DEM + samme hull-reparasjon som appen gjør (createMapFlow →
+    // maybeFillFromTerrarium). NHM-mosaikken leverer 0 m der den mangler
+    // LiDAR-retur, og et slikt hull midt i terrenget gir en stabel høydekurver
+    // fra havnivå og opp langs hullkanten (Otersjøen i Lierne, v5.18.6).
+    // Headless hoppet over fyllet, så MCP-bygde kart beholdt hullene appen var
+    // ferdig med. Gaten er billig og degraderer trygt: ingen hull → ingen
+    // flis-henting, feilet henting → DEM uendret.
+    fetchDEM(bbox, utmBbox, { resolutionM, useReal: true })
+      .then(async (rå) => {
+        try {
+          const { dem: fylt, replaced } = await fillDemVoidsFromTerrarium(rå, utmBbox)
+          if (replaced) console.error(`[Terrarium] fylte ${replaced} celler uten norsk LiDAR-dekning`)
+          return fylt
+        } catch (e) {
+          console.error(`[Terrarium] fyll hoppet over: ${e?.message ?? e}`)
+          return rå
+        }
+      }),
     // Merkede fotruter (Turrutebasen) — samme kilde som appen, så MCP-bygde
     // kart ikke mangler stier appen har. Tynnes mot OSM under.
     fetchTurruteRoutes(bbox).catch(() => []),

@@ -1,5 +1,35 @@
 # Endringslogg
 
+## 2026-08-14 — v5.18.6: Hullene i Otersjøen var 0 meter, ikke innsjø
+
+Et nybygd kart over Otersjøen i Lierne hadde to rektangulære hull i innsjøene:
+høydekurver stablet i tette rammer under vannlaget i 2D, og i 3D falt
+innsjøflata rett ned til havnivå i to sjakter. Kilden er NHM-mosaikken, som
+leverer 0 m der den mangler LiDAR-retur — her to felt på 1480×260 m og
+840×300 m med 352 m høy kant hele veien rundt. Reparasjonen fantes allerede
+(Terrarium-fyllet, laget for grensekart), men gaten spurte om andelen av arket:
+2 % kreves, hullene utgjorde 1,1 % av et 6,4×6,4 km-ark, og ingenting skjedde.
+Et hull koster like mye uansett hvor stort arket rundt det er, så gaten spør nå
+om FORMEN i stedet — en ~0 m-klynge der hver nabo utenfor er minst 30 m høyere
+er et datahull, for et ekte terreng når aldri 0 m uten å gå gjennom
+mellomhøydene.
+
+To andre veier inn til et DEM hoppet dessuten over reparasjonen helt. 3D hentet
+sitt eget gitter gjennom flis-cachen — det er grunnen til at hullene var
+tydeligst nettopp der — og headless (MCP-serveren og fasiten) kjørte aldri
+fyllet i det hele tatt, så MCP-bygde kart beholdt hullene appen var ferdig med.
+Begge kjører nå det samme fyllet med den samme trygge degraderingen. Målt på
+Otersjøen: DEM-minimum 0 → 317 m, og høydekurvene i hull-området faller fra 152
+til 118 features fordi stabelen fra havnivå og opp langs hullkanten forsvinner.
+
+Fasiten står uendret — ingen brudd, ingen avvik, og ingen av de seks kartene
+trigger fyllet i det hele tatt. Det er den beste målingen vi har på at klausulen
+er presis: Henningsvær er 90,8 % vann og leser ~0 m over hele havflata, men der
+skråner terrenget opp fra vannkanten gjennom mellomhøydene, så kanten er lav og
+klyngen er ikke et hull. Bare klynger som ligger i bunnen av en klippe fanges.
+
+---
+
 ## 2026-08-13 — v5.18.5: Avbrutt kart-utvidelse bokføres, ikke gjettes
 
 En kart-utvidelse som ble avbrutt — reload, app-lukking, eller en nabo-flis som
