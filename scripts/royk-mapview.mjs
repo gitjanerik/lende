@@ -227,13 +227,23 @@ const SJEKKER = [
         return el.tagName.toLowerCase()
       })
       const før = await synlig()
-      // Relieff-knotten kaller renderGhostTiles() — altså hele den nye
-      // render- + relieff-pass-stien, inkludert planleggRelieffPass.
-      await page.locator('[aria-label*="vis kartknappene"]').click()
-      await page.waitForTimeout(700)
-      await page.locator('[aria-label^="Relieff"]').click()
-      await page.waitForTimeout(1200)
-      const etter = await synlig()
+      let etter
+      // FAB-klyngen MÅ lukkes igjen. Sjekken etter denne åpner den selv, og en
+      // klynge som alt står åpen blir LUKKET av det trykket — da finner den
+      // ikke knotten sin. Nøyaktig den kollateralskaden dette gjorde første
+      // gang: strek-sjekken feilet på noe som ikke var dens feil.
+      try {
+        // Relieff-knotten kaller renderGhostTiles() — altså hele den nye
+        // render- + relieff-pass-stien, inkludert planleggRelieffPass.
+        await page.locator('[aria-label*="vis kartknappene"]').click()
+        await page.waitForTimeout(700)
+        await page.locator('[aria-label^="Relieff"]').click()
+        await page.waitForTimeout(1200)
+        etter = await synlig()
+      } finally {
+        await page.locator('[aria-label*="kartknappene"]').click().catch(() => {})
+        await page.waitForTimeout(400)
+      }
       if (før === etter && før === 'borte') {
         throw new Error('relieff-laget dukket aldri opp — kjørte applyHillshade?')
       }
