@@ -1,5 +1,63 @@
 # Endringslogg
 
+## 2026-08-14 — v5.19.0: Kartet fyller seg selv, og relieffet er kvitteringen
+
+Drar du kartet jevnt i én retning og blir stående, hentes utsnittet du er på vei
+mot i bakgrunnen. Kartflaten står bom stille mens det skjer — ingen
+full-skjerm-loader, ingen navigasjon, ingen zoom som rykker. Flisa glir inn i
+periferien når den er klar, og **relieffet toner inn til slutt**: er det der, er
+flisa 100 % ferdig. En chip over kartet sier «Henter Nord i lende …» og så «Nord
+i lende er klar», så kvitteringen finnes også for deg som har relieff av.
+
+Funksjonen fantes en gang og ble fjernet, så det er verdt å si hva som er
+annerledes. Den gamle SLETTET forrige flis, så det var umulig å scrolle tilbake;
+mosaikk-cachen løste det for lenge siden, og her navigerer vi aldri og sletter
+aldri. Og den gamle utledet «her mangler det noe» av GEOMETRIEN, som ikke kan
+skille en avbrutt bygging fra en diagonal panorering — den bygde utsnitt ingen
+hadde bedt om. Triggeren nå leser INTENSJON: retning, akkumulert drag på 40 % av
+en flisbredde i samme oktant, og 1,2 sekunder ro. Snur du underveis, avbrytes
+byggingen — og bokføringen strykes, for et retningsskifte er et valg, ikke et
+hull. Maks tolv fliser per økt, og telleren nullstilles når du trykker et
+kanthåndtak selv.
+
+**Relieffet er flyttet ut av tegneløkka, og det er den største ytelsesendringen
+her.** Det ble laget synkront, per naboflis, inne i mosaikk-renderingen —
+interleavet med opptil tolv DOMParser-kall på 1–5 MB hver. Nå kjører det som et
+eget pass i ledige stunder. Samtidig bruker **nabofliser alltid vektor-relieff**,
+uansett hva du har valgt for den aktive flisa: raster er den eneste kostnaden som
+skalerer med flisetallet, og den gamle data-URL-cachen ble aldri tømt. Vektor er
+uansett standardvalget i appen.
+
+**Fliser utenfor utsnittet demonteres nå fra kart-SVG-en** og festes igjen når du
+nærmer deg, med hysterese så ingenting flakser på grensa. Gevinsten er ikke
+rasterminne — den er at to fullt-dokument-traverseringer skalerer med antall
+fliser i DOM: gest-perf-modusen setter en inline strekstil på hver eneste path
+ved både start og slutt av hver gest, og lag-synligheten gjør 35 spørringer over
+hele dokumentet. Fra tolv festede fliser til typisk fire–ni er det et merkbart
+kutt akkurat der fingeren treffer. Fire konsumenter leser geometri rett ut av den
+levende SVG-en — 3D-teksturen, brukerminnene i 3D, Stifinneren og
+navne-lesingen — og de går nå gjennom en brakett som fester alt midlertidig.
+
+På kjøpet er en latent feil rettet: mosaikk-modellen var kappet til tolv fliser
+selv når du hadde bygd seksten, så kanthåndtakene satt for langt inn, du fikk
+ikke zoomet ut til hele arket, og pan-grensa stoppet deg for tidlig. Modellen
+speiler nå det som faktisk er bygd. Den lagrede kart-posten bærer også sin egen
+`utmBbox`, så mosaikken kan plassere en flis uten å parse den først.
+
+**Og en stille produksjonsfeil er borte:** MCP-Workeren bygde HVERT kart uten
+N50-stinettet — 179 706 km sti og traktorveg — fordi katalogen leses fra disk og
+workerd ikke har noe filsystem. Uthentingen feiler aldri hardt, så ingenting sa
+fra. Workeren henter nå de samme flisene over HTTPS fra GitHub Pages, utfallet
+returneres fra `bygg_kart`, og deploy-røyktesten feiler hvis stinettet mangler.
+Den sjekket før at `totalStiKm` fantes — men det tallet får bidrag fra OSM også,
+så det sto grønt hele veien.
+
+`docs/R2_FLISLAGER.md` er en utredning av om Cloudflare og R2 burde bygge fliser
+for oss. Konklusjonen er nei, ikke nå: gevinsten er radio-bytes og ikke CPU,
+klienten er nettopp gjort vesentlig billigere, og to målinger må foreligge først.
+
+---
+
 ## 2026-08-14 — v5.18.6: Hullene i Otersjøen var 0 meter, ikke innsjø
 
 Et nybygd kart over Otersjøen i Lierne hadde to rektangulære hull i innsjøene:

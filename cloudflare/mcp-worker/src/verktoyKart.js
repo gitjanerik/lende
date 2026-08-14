@@ -169,7 +169,13 @@ export function registerKartVerktoy(server, ctx) {
       const effHalfKm = Math.min(halfKm ?? 2, MAX_HALF_KM_REMOTE)
       const widthKm = effHalfKm * 2
       const effEq = Math.max(equidistanceM ?? DEFAULT_EQUIDISTANCE_M, minEquidistanceForWidthKm(widthKm))
-      const built = await buildMapHeadless({ lat, lon, halfKm: effHalfKm, equidistanceM: effEq })
+      // n50StiBase MÅ sendes her. Workeren har ikke filsystem, så headless kan
+      // ikke finne N50-sti-flisene selv — uten denne bygges kartet stille uten
+      // stinettet (se n50StiKilde i mcp/headless.js).
+      const built = await buildMapHeadless({
+        lat, lon, halfKm: effHalfKm, equidistanceM: effEq,
+        n50StiBase: env.N50_STI_BASE,
+      })
 
       const ref = nyKartRef(navn)
       await lagreKart(env, ref, { ...built, navn })
@@ -191,6 +197,11 @@ export function registerKartVerktoy(server, ctx) {
             : null,
           kyst: meta.coastal,
         },
+        // N50-stinettet er den ene kilden Workeren ikke kan finne selv (ingen
+        // filsystem). Utfallet returneres så både klienten og CI kan SE at det
+        // faktisk kom med — uten dette var «bygde vi uten stinett?» et spørsmål
+        // ingen kunne stille, og feilen levde fra v5.0.16 til v5.18.6.
+        n50Sti: meta.n50StiStatus ?? null,
         featureAntall: counts,
       })
     },

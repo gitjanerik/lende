@@ -592,6 +592,16 @@ export async function buildMapFromCenter({
     // Metadata for kart-listas info-linje (overlever listMaps som dropper
     // svg/dem). demResolutionM = faktisk DEM-oppløsning; demSource = coverage.
     equidistanceM,
+    // Autoritativ UTM-extent, DUPLISERT fra SVG-ens data-meta med vilje.
+    // Mosaikken må vite hvor en flis LIGGER for å avgjøre om den er
+    // gitter-kompatibel og hvor den skal tegnes — og fram til v5.19.0 fantes
+    // det svaret bare inne i SVG-strengen, så useGhostTiles måtte laste og
+    // DOMParse hele flisa (1–5 MB) bare for å finne ut at den lå for langt unna.
+    // Her følger den med i den LETTE meta-projeksjonen (projectMetaEntry
+    // rest-spreader alt den ikke stripper), så flis-rektangelet er gratis.
+    // Eldre lagrede kart mangler feltet; da faller mosaikken tilbake til å
+    // parse, som før.
+    utmBbox,
     demResolutionM: dem?.transform
       ? Math.round((Math.abs(dem.transform.pixelWidth) + Math.abs(dem.transform.pixelHeight)) / 2) || null
       : null,

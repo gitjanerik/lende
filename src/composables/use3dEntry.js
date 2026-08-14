@@ -46,6 +46,11 @@ export function use3dEntry({
   meta, storedDem, searchIndex, svgHostRef, wrapperRef, animating,
   scale, translateX, translateY, rotation,
   sti, userPos, ghostRects, svgToClient, ensureDem, mosaicBounds = null,
+  // Fester ALLE nabofliser i DOM-en mens callbacken kjører, og laster inn de som
+  // ikke er parset ennå. 3D skal dekke HELE arket (v5.18.0), men fra v5.19.0 er
+  // fliser utenfor utsnittet demontert — uten braketten ville de stille falt ut
+  // av både terreng-teksturen og stinettet. Default = identitet.
+  medAlleFliserAsync = (fn) => fn(),
 }) {
   const view3dOpen = ref(false)
   const view3dLoading = ref(false)
@@ -255,7 +260,11 @@ export function use3dEntry({
       dem3d = hentet ?? await mosaikkDemFallback(extent)
     }
 
-    const lag = await svgLagFor3d(svgEl, extent)
+    // Braketten dekker stinett- og brukerminne-lesingen. Den PARSER samtidig
+    // inn nabofliser som bare var modellert, så de ligger som noder i minnet
+    // etterpå — det er dét som gjør at den synkrone braketten rundt
+    // getTextureSpec (MapView) senere får med hele arket i teksturen.
+    const lag = await medAlleFliserAsync(() => svgLagFor3d(svgEl, extent))
     const { nabonavn, ...lagene } = lag
     const indeks = medNabonavn(searchIndex.value, nabonavn)
     return markRaw({

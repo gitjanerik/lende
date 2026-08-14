@@ -17,6 +17,9 @@ const props = defineProps({
   autoTileCount: { type: Number, default: 0 },
   maxTiles: { type: Number, default: 0 },
   cullStats: { type: Object, default: () => ({ indexed: 0, culled: 0, ms: 0 }) },
+  // Automatisk flis-påfyll: hva triggeren ser akkurat nå. Uten denne raden er
+  // «hvorfor bygde den ikke?» ikke et spørsmål man kan svare på fra en mobil.
+  autoNaboStatus: { type: Object, default: () => ({}) },
   cullDisabled: { type: Boolean, default: false },
   toggleCull: { type: Function, required: true },
   sjokartStatusText: { type: String, default: '' },
@@ -110,6 +113,19 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
     <div class="flex items-baseline justify-between gap-2 mb-2 px-1">
       <span class="text-ink/45 text-[11px]">Auto-fliser i cache</span>
       <span class="text-ink/55 text-[11px] tabular-nums">{{ autoTileCount }} / {{ maxTiles }}</span>
+    </div>
+    <!-- Automatisk flis-påfyll: retning, akkumulert drag, kø og økt-tak. -->
+    <div class="flex items-baseline justify-between gap-2 mb-2 px-1">
+      <span class="text-ink/45 text-[11px]">Auto-nabo</span>
+      <span class="text-ink/55 text-[11px] tabular-nums">
+        {{ autoNaboStatus.retning || '—' }} · {{ autoNaboStatus.dragProsent ?? 0 }} %
+        · {{ autoNaboStatus.byggerNokkel ? 'bygger' : 'venter' }}
+        · {{ autoNaboStatus.bygdIOkt ?? 0 }}/{{ autoNaboStatus.tak ?? 0 }}
+      </span>
+    </div>
+    <div v-if="autoNaboStatus.sisteAvvisning" class="flex items-baseline justify-between gap-2 mb-2 px-1">
+      <span class="text-ink/45 text-[11px]">Siste avvisning</span>
+      <span class="text-ink/55 text-[11px]">{{ autoNaboStatus.sisteAvvisning }}</span>
     </div>
     <!-- Viewport-culling: hvor mange indekserte elementer som er skjult
          utenfor utsnittet akkurat nå + siste cull-beregning i ms. -->
