@@ -2398,9 +2398,13 @@ onUnmounted(() => {
          måling, sporing, info om stedet). Skjules når en modus (stifinner/måling/
          annotering) eller søk er aktiv, mens kartet bygges/utvides, og når
          highlight-pillen vises — bygge-chipen og pillen bruker samme
-         --ovl-top-slot og ville kollidert. -->
+         --ovl-top-slot og ville kollidert. Det gjelder ALLE chipene i den sloten:
+         bakgrunnsflis-chipen ble lagt til i v5.19.0 uten å komme med her, og la
+         seg rett oppå snarvei-raden (rapportert v5.19.3). Legger du en ny chip
+         på --ovl-top, hører den hjemme i denne lista. -->
     <div v-if="!sti.active.value && !measureMode && !searchOpen && !annot.isAnnotateMode.value
-               && !buildingOnTheFly && !fillingInDetails && !highlightedFeature"
+               && !buildingOnTheFly && !fillingInDetails && !highlightedFeature
+               && !bakgrunnsflisTekst"
          class="absolute -translate-x-1/2 top-[var(--ovl-top)] z-20 pointer-events-none
                 transition-[left] duration-200"
          :style="mapCenterStyle">
