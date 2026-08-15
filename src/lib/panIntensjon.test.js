@@ -7,9 +7,14 @@ import {
 // Samme rekkefølge som EDGE_DIRS i useMapExtend — oktanten SKAL kunne brukes
 // som indeks der, uten oversettelse.
 const EDGE_DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
-const CFG = { flisBreddeM: 1000, flisHoydeM: 1400 }
-const DODSONE = DODSONE_FRAC * CFG.flisBreddeM      // 20 m
-const MODEN = MODEN_DRAG_FRAC * CFG.flisBreddeM     // 400 m
+// Flisbredden er UTLEDET av terskelen, ikke omvendt: prøvene under er skrevet i
+// runde meter rundt en moden-terskel på 400 m, og de skal fortsette å bety det
+// samme selv om MODEN_DRAG_FRAC justeres (det skjedde i v5.19.1). Ville vi
+// hardkodet bredden, ville hver terskeljustering krevd en manuell omskriving av
+// tjue fixtures — og da er det fixturene som blir testet, ikke logikken.
+const MODEN = 400
+const CFG = { flisBreddeM: MODEN / MODEN_DRAG_FRAC, flisHoydeM: 1400 }
+const DODSONE = DODSONE_FRAC * CFG.flisBreddeM
 
 describe('oktantFraDelta — tabellen som må matche EDGE_DIRS', () => {
   // SVG-y vokser NEDOVER: nord er negativ dy.
@@ -108,17 +113,17 @@ describe('oppdaterIntensjon — dødsone og forankring', () => {
 })
 
 describe('oppdaterIntensjon — modning', () => {
-  it('39 % av flisbredden er ikke moden, 41 % er', () => {
+  it('like under moden-terskelen er ikke moden, like over er', () => {
     const under = kjor([
       { x: 0, y: 0, t: 0 },
-      { x: 0.39 * CFG.flisBreddeM, y: 0, t: 200 },
+      { x: MODEN - 10, y: 0, t: 200 },
     ])
     expect(under.hendelser).toEqual(['ingen', 'ingen'])
     expect(under.state.moden).toBe(false)
 
     const over = kjor([
       { x: 0, y: 0, t: 0 },
-      { x: 0.41 * CFG.flisBreddeM, y: 0, t: 200 },
+      { x: MODEN + 10, y: 0, t: 200 },
     ])
     expect(over.hendelser).toEqual(['ingen', 'moden'])
     expect(over.state.moden).toBe(true)

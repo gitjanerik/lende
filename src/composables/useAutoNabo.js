@@ -222,18 +222,27 @@ export function useAutoNabo({
       avbrytBakgrunnsbygg('retningsskifte')
       return
     }
-    if (hendelse !== 'moden') return
-    const dir = modenRetning(neste.oktant)
-    if (!dir) return
-    // Dvele: draget er modent, men vi bygger først når brukeren faktisk blir
-    // stående. Ligger bevisst UNDER AUTO_PROMOTE_MS (1500) så byggingen rekker å
-    // starte før en eventuell auto-promotering bytter aktiv flis.
+    // Vi handler på TILSTANDEN «moden», ikke på hendelsen.
+    //
+    // v5.19.0 gjorde det motsatte, og da kunne funksjonen aldri fyre: denne
+    // funksjonen kalles fra transform-watchen, altså MENS fingeren er nede.
+    // `moden`-hendelsen fyrer nøyaktig én gang (panIntensjon returnerer
+    // 'moden' bare i overgangen), gaten avviste den på isGesturing — og når
+    // fingeren slapp, endret ikke transformen seg mer, så watchen kjørte aldri
+    // igjen. Hendelsen var brukt opp, og ingenting ble noen gang bygd.
+    //
+    // Nå restartes dvele-timeren ved HVER prøve så lenge intensjonen er moden.
+    // Da fyrer den først når prøvene stopper — som er nøyaktig definisjonen av
+    // «brukeren har stoppet». Gatene kjøres ved FYRING, ikke ved arming, så
+    // isGesturing er falsk da.
+    if (!neste.moden) return
+    if (!autoNaboPa.value) { autoNaboStatus.sisteAvvisning = 'av'; return }
     ryddDvele()
     dveleTimer = setTimeout(() => {
       dveleTimer = null
       if (!isAlive()) return
-      const fortsattOk = modenRetning(neste.oktant)
-      if (fortsattOk) void byggIBakgrunnen(fortsattOk)
+      const dir = modenRetning(intensjon.oktant)
+      if (dir) void byggIBakgrunnen(dir)
     }, DVELE_MS)
   }
 

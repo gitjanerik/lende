@@ -220,3 +220,49 @@ export function rectOverlapFraction(a, b) {
   const iy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y))
   return (ix * iy) / (a.w * a.h)
 }
+
+/**
+ * Hvor stort er ARKET et lagret kart tilhører — ikke bare flisa selv?
+ *
+ * «Mine kart» viste fram til v5.19.1 `halfKm × 2` fra kart-posten, altså den
+ * ENE flisa brukeren opprinnelig bygde. Utvider man den til et 3×3-ark med
+ * kanthåndtakene, står raden fortsatt og påstår 8 km mens arket er 24. Naboene
+ * er egne poster (og skjules i lista fordi de er `isAuto`), så tallet var ikke
+ * feil — det svarte bare på et annet spørsmål enn det brukeren stiller.
+ *
+ * Fra v5.19.0 bærer hver post sin egen `utmBbox`, og den følger med i den lette
+ * meta-projeksjonen. Da kan unionen regnes ut fra lista alene — ingen SVG-parsing.
+ *
+ * Bare gitter-kompatible fliser innenfor `radiusTiles` teller. To urelaterte kart
+ * kan i prinsippet ligge på samme gitter, men da må de også ligge tett inntil
+ * hverandre for å komme med — og da ER de i praksis ett ark.
+ *
+ * @param {{utmBbox?:object}} entry            kartet raden gjelder
+ * @param {Array<{utmBbox?:object}>} alle      alle lagrede poster (inkl. auto-fliser)
+ * @param {{radiusTiles?:number}} [opts]
+ * @returns {{widthM:number, heightM:number, fliser:number}|null}
+ */
+export function arkExtentFor(entry, alle, { radiusTiles = 4 } = {}) {
+  const b = entry?.utmBbox
+  if (!b || b.minE == null || b.maxE == null) return null
+  const W = b.maxE - b.minE, H = b.maxN - b.minN
+  if (!(W > 0) || !(H > 0)) return null
+  const selv = { minE: b.minE, minN: b.minN, widthM: W, heightM: H }
+  let minE = b.minE, maxE = b.maxE, minN = b.minN, maxN = b.maxN
+  let fliser = 1
+  for (const t of alle ?? []) {
+    const o = t?.utmBbox
+    if (!o || o === b || o.minE == null) continue
+    if (t.id && entry.id && t.id === entry.id) continue
+    const oW = o.maxE - o.minE, oH = o.maxN - o.minN
+    if (!tilesAreGridCompatible(selv, { minE: o.minE, minN: o.minN, widthM: oW, heightM: oH })) continue
+    if (Math.abs(o.minE - b.minE) > radiusTiles * W) continue
+    if (Math.abs(o.minN - b.minN) > radiusTiles * H) continue
+    if (o.minE < minE) minE = o.minE
+    if (o.maxE > maxE) maxE = o.maxE
+    if (o.minN < minN) minN = o.minN
+    if (o.maxN > maxN) maxN = o.maxN
+    fliser++
+  }
+  return { widthM: maxE - minE, heightM: maxN - minN, fliser }
+}

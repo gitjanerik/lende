@@ -1,5 +1,39 @@
 # Endringslogg
 
+## 2026-08-15 — v5.19.1: Auto-kartet kunne aldri fyre, og «Mine kart» løy om størrelsen
+
+Testrunden på v5.19.0 fant at automatisk flis-påfyll ikke virket i det hele
+tatt — ingen chip, ingenting bygd, uansett zoom-nivå. Årsaken er en ren
+tidsfeil: intensjons-sporingen kjører fra transform-watchen, altså MENS fingeren
+er nede. Intensjonen ble moden midt i draget, `moden`-hendelsen fyrte den ene
+gangen den kan fyre, gaten avviste den på `isGesturing` — og når fingeren slapp,
+endret ikke transformen seg mer, så sporingen kjørte aldri igjen. Hendelsen var
+brukt opp. Det som sto igjen var «veggen»: pan-grensa slipper deg en halv flis
+utenfor arket, men der bygges det ingenting.
+
+Nå handler vi på TILSTANDEN «moden» i stedet for hendelsen, og dvele-timeren
+restartes ved hver prøve. Da fyrer den først når prøvene stopper — som er
+nøyaktig det «brukeren har stoppet» betyr — og gatene kjøres ved fyring, når
+`isGesturing` er falsk.
+
+To terskler var dessuten satt for stramt til å nås i praksis. `MAKS_PAUSE_MS`
+var 2,5 s, men folk panorerer ved å dra, stoppe og se, og dra videre — så
+akkumulatoren ble nullstilt mellom hvert drag og reisen mot arkkanten ble aldri
+moden. Den er nå 8 s. `MODEN_DRAG_FRAC` var 0,40, altså 3,2 km på et 8 km-ark,
+og det er mye når man er zoomet inn og en full skjermbredde med drag flytter
+senteret noen hundre meter. Den er nå 0,25. Det er ikke terskelen som beskytter
+mot utilsiktet bygging uansett — det gjør kravet om at du faktisk er på vei UT
+av arket.
+
+**«Mine kart» viste flisas størrelse, ikke arkets.** Et kart utvidet til 3×3 sto
+oppført som 8 × 8 km, fordi naboflisene er egne poster som skjules i lista. Det
+var ikke et galt tall, det svarte bare på et annet spørsmål enn det brukeren
+stiller. Siden hver post nå bærer sin egen `utmBbox`, kan unionen regnes ut fra
+lista alene, uten å parse en eneste SVG: raden viser «24,0 × 24,0 km · 9 fliser».
+Eldre kart uten feltet viser som før.
+
+---
+
 ## 2026-08-14 — v5.19.0: Kartet fyller seg selv, og relieffet er kvitteringen
 
 Drar du kartet jevnt i én retning og blir stående, hentes utsnittet du er på vei

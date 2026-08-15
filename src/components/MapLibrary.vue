@@ -8,6 +8,7 @@
 import { ref, computed, watch, onMounted, onActivated, onUnmounted, onDeactivated } from 'vue'
 import { useRouter } from 'vue-router'
 import { listMaps, deleteMap, clearAll, renameMap, listGravelRoutes, deleteGravelRoute, updateGravelRoute } from '../lib/mapStorage.js'
+import { arkExtentFor } from '../lib/tileCache.js'
 import { routeShareToken, MAX_SHARE_ROUTES } from '../lib/routeShare.js'
 import RenameMapDialog from './RenameMapDialog.vue'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
@@ -61,6 +62,7 @@ async function onInstallClick() {
   } catch { /* avvist eller utilgjengelig — ingen handling */ }
 }
 const maps = ref([])
+const alleFliser = ref([])
 const loading = ref(true)
 
 // ── Faner: Turkart / Ruteplanlegger ───────────────────────────────────────
@@ -244,7 +246,12 @@ async function refresh() {
   try {
     // Auto-fliser (isAuto) er en intern scroll-tilbake-cache, ikke kart brukeren
     // bevisst har laget — de skal ikke fylle opp «lagrede kart»-lista.
-    maps.value = (await listMaps()).filter(m => !m.isAuto)
+    // Auto-flisene skjules i LISTA, men vi trenger dem for å kunne si hvor stort
+    // arket faktisk er: en utvidet kart består av mange poster, og bare
+    // midtflisa er brukerens eget kart.
+    const alle = await listMaps()
+    alleFliser.value = alle
+    maps.value = alle.filter(m => !m.isAuto)
     savedRoutes.value = await listGravelRoutes()
   } catch {
     savedRoutes.value = []
@@ -341,12 +348,15 @@ function demLabel(resM, source) {
 
 // Info-linje (linje 2): størrelse · ekvidistanse · DEM. Deler som mangler
 // (eldre kart uten metadata) utelates stille.
-function infoLine(sizeStr, eq, demRes, demSource) {
-  const parts = [`${sizeStr} × ${sizeStr} km`]
-  if (eq) parts.push(`${eq} m ekv.`)
-  const dl = demLabel(demRes, demSource)
-  if (dl) parts.push(dl)
-  return parts.join(' · ')
+// Størrelses-teksten for én rad. Har kartet blitt utvidet, er det ARKET som er
+// interessant — «8,0 × 8,0 km» på et 3×3-ark er teknisk sant om midtflisa og
+// misvisende om kartet. Eldre poster mangler utmBbox; da faller vi tilbake til
+// flisas egen bredde, som før.
+function storrelseFor(m) {
+  const km = (v) => (v / 1000).toFixed(1)
+  const ark = arkExtentFor(m, alleFliser.value)
+  if (!ark || ark.fliser < 2) return `${(m.halfKm * 2).toFixed(1)} × ${(m.halfKm * 2).toFixed(1)} km`
+  return `${km(ark.widthM)} × ${km(ark.heightM)} km · ${ark.fliser} fliser`
 }
 
 // ── On-the-fly snarvei: «Lag kart der jeg er» ───────────────────────────
@@ -684,7 +694,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
         <div class="flex-1 min-w-0">
           <div class="font-medium text-[14px] truncate text-ink">{{ m.navn }}</div>
           <div class="text-[12px] text-ink/50 truncate">
-            {{ infoLine((m.halfKm * 2).toFixed(1), m.equidistanceM, m.demResolutionM, m.demSource) }}
+            {{ [storrelseFor(m), m.equidistanceM ? `${m.equidistanceM} m ekv.` : '', demLabel(m.demResolutionM, m.demSource)].filter(Boolean).join(' · ') }}
           </div>
           <div class="text-[11px] text-ink/35 truncate">
             {{ formatDateTime(m.opprettet) }}<template v-if="formatBytes(m.sizeBytes)"> · {{ formatBytes(m.sizeBytes) }}</template>
