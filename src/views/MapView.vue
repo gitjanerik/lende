@@ -1387,7 +1387,7 @@ const {
   showAutoMapToast,
   visibleCenterSvg, clientToSvg, svgToClient, scheduleActivatableCheck, autoMapModeBusy,
   autoMapBuildOpts, promoteTile, extendMap, armAutoMap,
-  extendZonesBounds, teardownMapExtend,
+  extendZonesBounds, arkRutenett, teardownMapExtend,
   refreshMosaicGaps, repairMosaicGaps,
   firkantAntall, gjorArketFirkantet,
   extendMapGeometry, centerOverExistingTile,
@@ -2717,6 +2717,7 @@ onUnmounted(() => {
       :bakgrunnsflis-tekst="bakgrunnsflisTekst"
       :bakgrunnsflis-retning="autoNaboStatus.retning"
       :bakgrunnsflis-klar="!!naboKlarTekst"
+      :bakgrunnsflis-ark="arkRutenett"
       :highlighted-feature="highlightedFeature"
       :annot="annot"
       :measure-mode="measureMode"
