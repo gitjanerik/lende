@@ -1,5 +1,26 @@
 # Endringslogg
 
+## 2026-08-15 — v5.19.9: Lende-chatten ser hele arket, ikke bare den nærmeste ringen
+
+Chatten svarte «Jeg fant ingen treff på Stormoen i dette kartet» på et navn
+søkefeltet listet i samme øyeblikk, med merkelappen «i naboflis». Verktøyet
+`sok_i_kartet` SØKTE i nabofliser — det var rekkevidden som var feil.
+`mosaikkFliser` tok bare kart hvis WGS84-bbox lå innen 0,3 km av den aktive
+flisa, altså bare fliser som RØRER den. Kartflaten (`useGhostTiles`) modellerer
+tre flis-bredder ut, opptil tolv fliser. Med 8 km-fliser ligger flis nummer to
+nordover 8,00 km unna — 27 ganger utenfor terskelen — så den sto på skjermen,
+var søkbar i søkefeltet, og fantes ikke for chatten. Nå bruker chatten samme
+regel som mosaikken: `utmBbox` fra den lette meta-projeksjonen,
+gitter-kompatibilitet, radius tre fliser, tak på tolv naboer, sortert nærmest
+først så et tidlig treff slipper å laste resten. Det siler samtidig bort
+overlappende kart som IKKE er fliser i samme ark — den gamle bbox-regelen slapp
+dem inn og lot dem spise plasser i nabolista. Eldre lagrede kart uten `utmBbox`
+faller tilbake til den gamle regelen og legges bakerst. Endringen gjelder alle
+fire verktøyene som spør om mosaikken: `sok_i_kartet`, `merk_i_kartet`,
+`foreslaa_tur` og `foreslaa_rundtur`.
+
+---
+
 ## 2026-08-15 — v5.19.8: Kartbildet i 3D sluttet å skli, og ruta gikk i land igjen
 
 En rute fra Stormoen til Skimten så ut til å gå midt ute i Drammenselva i

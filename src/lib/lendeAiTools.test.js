@@ -5,6 +5,7 @@ import {
   erStinettSporsmaal, stinettSvarTekst, harOppdiktedeTurtall, paastaarTegnetTur, paastaarNyttKart, turSvarTekst,
   formatGangtid, forhaandsberegnTur, er3dOnske, losTemaNokkel, losLagNokler, temaOnskeFra,
   merkeSvarTekst, paastaarMerking, erMerkeOnske, tolkKategoriOnske, velgEtterStorrelse,
+  velgMosaikkFliser, MOSAIKK_RADIUS_FLISER,
 } from './lendeAiTools.js'
 import { parseHTML } from 'linkedom'
 import { parseTourQuery, parseTourNameQuery } from './tour3dLink.js'
@@ -732,5 +733,64 @@ describe('projectForModel', () => {
     expect(ut.kart[1].navn).toBe('Uten navn')
     expect(ut.kart[1].kmBredde).toBeNull()
     expect(ut.grusruter[0].sistEndret).toBe('t2')
+  })
+})
+
+// Chatten og kartflaten MÅ være enige om hva «arket mitt» er. Fram til v5.19.9
+// tok chatten bare fliser som RØRTE den aktive (WGS84-bbox ≤ 0,3 km), mens
+// useGhostTiles tegner tre flis-bredder ut. Resultatet: søkefeltet listet
+// «Stormoen · i naboflis», chatten svarte «fant ingen treff i dette kartet».
+describe('velgMosaikkFliser', () => {
+  const FLIS_M = 8000
+  // Flis n hakk nord (og k hakk øst) for den aktive, på samme gitter.
+  const flis = (n, k = 0, over = {}) => ({
+    id: `flis_${k}_${n}`,
+    bbox: { south: 60 + n * 0.072, north: 60.072 + n * 0.072, west: 10 + k * 0.144, east: 10.144 + k * 0.144 },
+    utmBbox: {
+      minE: 500000 + k * FLIS_M, maxE: 508000 + k * FLIS_M,
+      minN: 6600000 + n * FLIS_M, maxN: 6608000 + n * FLIS_M,
+    },
+    ...over,
+  })
+  const AKTIV = flis(0)
+  const navnene = (liste) => liste.slice(1).map((e) => e.id)
+
+  it('tar med flisa TO hakk nord — regresjonen fra Stormoen-søket', () => {
+    // Den lå 8,00 km unna, altså 27× utenfor den gamle 0,3 km-terskelen.
+    expect(navnene(velgMosaikkFliser(AKTIV, [AKTIV, flis(2)]))).toEqual(['flis_0_2'])
+  })
+
+  it('rekker like langt som kartflaten, og ikke lenger', () => {
+    const kandidater = [AKTIV, flis(1), flis(2), flis(3), flis(4)]
+    expect(navnene(velgMosaikkFliser(AKTIV, kandidater)))
+      .toEqual(['flis_0_1', 'flis_0_2', 'flis_0_3'])
+    expect(MOSAIKK_RADIUS_FLISER).toBe(3)
+  })
+
+  it('sorterer naboene nærmest først, så tidlig treff stopper lastingen', () => {
+    expect(navnene(velgMosaikkFliser(AKTIV, [AKTIV, flis(3), flis(1), flis(2)])))
+      .toEqual(['flis_0_1', 'flis_0_2', 'flis_0_3'])
+  })
+
+  it('siler bort et overlappende kart som ikke ligger på flis-gitteret', () => {
+    // Gammel bbox-regel slapp dette inn og lot det spise en plass i nabolista.
+    const skjevt = {
+      id: 'gammelt_kart',
+      bbox: { south: 60.01, north: 60.06, west: 10.01, east: 10.10 },
+      utmBbox: { minE: 501234, maxE: 507234, minN: 6601234, maxN: 6607234 },
+    }
+    expect(navnene(velgMosaikkFliser(AKTIV, [AKTIV, skjevt, flis(1)]))).toEqual(['flis_0_1'])
+  })
+
+  it('lar en eldre post uten utmBbox bli med — bakerst', () => {
+    const gammel = { id: 'uten_utm', bbox: { south: 60.072, north: 60.144, west: 10, east: 10.144 } }
+    expect(navnene(velgMosaikkFliser(AKTIV, [AKTIV, gammel, flis(2)])))
+      .toEqual(['flis_0_2', 'uten_utm'])
+  })
+
+  it('faller helt tilbake til bbox-regelen når AKTIV flis er for gammel', () => {
+    const { utmBbox, ...aktivUtenUtm } = AKTIV
+    expect(navnene(velgMosaikkFliser(aktivUtenUtm, [aktivUtenUtm, flis(1), flis(2)])))
+      .toEqual(['flis_0_1'])
   })
 })

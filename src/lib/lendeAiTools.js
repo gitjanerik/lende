@@ -16,6 +16,7 @@ import { geocodePlace } from './geocode.js'
 import { listMaps, loadMap, listGravelRoutes } from './mapStorage.js'
 import { buildSearchIndex, filterIndex, formatAreaShort, foldName } from '../composables/useMapSearch.js'
 import { svgToWgs84, wgs84ToSvg } from './utm.js'
+import { tilesAreGridCompatible, tileOffset } from './tileCache.js'
 import { unpackDem, realElevationAt } from './demSampling.js'
 import {
   analyserStinett, formatStinettSvar, stinettFeaturesFromSvgEl, estGangtidMin,
@@ -426,15 +427,74 @@ export function metaFraSvgEl(svgEl) {
   }
 }
 
-// Fliser i mosaikken rundt et kart (inkl. kartet selv): lagrede kart hvis
-// WGS84-bbox ligger inntil (≤ ~0,3 km fra) kartets bbox. Bevisst bbox-basert
-// (ikke UTM-gitter som spøkelses-flisene): lagrede kart bærer alltid bbox,
-// og for søk/vaktpost er nabo-skap nok — Stifinneren gir uansett ærlig feil
-// hvis stinettet ikke henger sammen.
+// Hvor langt ut chatten regner arket. Skal MATCHE useGhostTiles
+// (GHOST_RENDER_RADIUS_TILES / MAX_GHOST_NODER): det brukeren ser på skjermen og
+// det chatten kan søke i må være samme ark, ellers svarer chatten «finnes ikke»
+// om et navn søkefeltet viser (v5.19.9).
+export const MOSAIKK_RADIUS_FLISER = 3
+export const MOSAIKK_MAKS_NABOER = 12
+
+/** Flis-rektangel i UTM fra en lagret post. null når posten er for gammel. */
+function utmRektAv(entry) {
+  const ub = entry?.utmBbox
+  if (!ub) return null
+  const widthM = Math.round(ub.maxE - ub.minE)
+  const heightM = Math.round(ub.maxN - ub.minN)
+  if (!(widthM > 0) || !(heightM > 0)) return null
+  return { minE: ub.minE, minN: ub.minN, maxN: ub.maxN, widthM, heightM }
+}
+
+// Fliser i mosaikken rundt et kart (kartet selv først, så naboene sortert
+// nærmest først).
+//
+// Fram til v5.19.9 var regelen «WGS84-bbox innen 0,3 km» — altså BARE fliser som
+// RØRER den aktive flisa. Kartflaten viser tre flis-bredder ut (useGhostTiles),
+// så en flis to hakk nordover sto på skjermen og i søkefeltet, men var usynlig
+// for chatten: «Jeg fant ingen treff på Stormoen i dette kartet», mens søket
+// listet Stormoen med merkelappen «i naboflis». Målt med 8 km-fliser var flis
+// nummer to nordover 8,00 km unna — 27 ganger utenfor terskelen.
+//
+// Nå brukes samme regel som mosaikken: `utmBbox` fra den lette meta-projeksjonen
+// (createMapFlow.buildEntry, v5.19.0), gitter-kompatibilitet, og et vindu på
+// MOSAIKK_RADIUS_FLISER flis-bredder. Det siler samtidig bort overlappende kart
+// som IKKE er fliser i samme ark — den gamle bbox-regelen slapp dem inn og lot
+// dem spise plasser i nabolista.
+//
+// Eldre lagrede kart mangler `utmBbox`; de faller tilbake til den gamle
+// bbox-regelen og legges bakerst, så en flis vi kan plassere alltid går foran.
+//
+// Ren utvelgelse (eksportert for test): `kart` + kandidatene fra listMaps.
+export function velgMosaikkFliser(kart, kandidater) {
+  const andre = (kandidater ?? []).filter((e) => e && e.id !== kart?.id)
+  const rører = (e) => !!(e.bbox && kart?.bbox && bboxAvstandKm(kart.bbox, e.bbox) <= 0.3)
+  const aktiv = utmRektAv(kart)
+  if (!aktiv) return [kart, ...andre.filter(rører)]
+
+  const scoret = []
+  for (const e of andre) {
+    const r = utmRektAv(e)
+    if (!r) {
+      if (rører(e)) scoret.push({ e, d: Infinity })
+      continue
+    }
+    if (!tilesAreGridCompatible(aktiv, r)) continue
+    const off = tileOffset(aktiv, r)
+    if (!off) continue
+    if (Math.abs(off.dx) > MOSAIKK_RADIUS_FLISER * aktiv.widthM) continue
+    if (Math.abs(off.dy) > MOSAIKK_RADIUS_FLISER * aktiv.heightM) continue
+    scoret.push({ e, d: Math.hypot(off.dx, off.dy) })
+  }
+  scoret.sort((a, b) => a.d - b.d)
+  return [kart, ...scoret.map((s) => s.e)]
+}
+
 async function mosaikkFliser(id, kart) {
-  const alle = (await listMaps()) ?? []
-  return [kart, ...alle.filter((e) => e.id !== id && e.bbox
-    && bboxAvstandKm(kart.bbox, e.bbox) <= 0.3)]
+  return velgMosaikkFliser({ ...kart, id }, (await listMaps()) ?? [])
+}
+
+/** Naboflisene alene, kappet til taket. Alle verktøyene skal bruke DENNE. */
+async function mosaikkNaboer(id, kart) {
+  return (await mosaikkFliser(id, kart)).slice(1, 1 + MOSAIKK_MAKS_NABOER)
 }
 
 /** Km mellom to WGS84-bbokser (0 = overlapper/berører). Eksportert for test. */
@@ -766,7 +826,7 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         // (spøkelses-fliser i MapView). Søk i aktiv flis + naboene, så hele det
         // synlige kartet oppleves som ETT kart — treffene merkes med hvilken
         // flis de ligger i.
-        const naboer = (await mosaikkFliser(id, kart)).slice(1, 9)
+        const naboer = await mosaikkNaboer(id, kart)
 
         const treff = [...sokIEttKart(kart, args?.sok, maks)]
         for (const nabo of naboer) {
@@ -832,7 +892,7 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         // Navnet slår koordinater, som i turverktøyene: kartets egne navn er
         // fasit, og modellen har gjerne bare lest koordinatene et annet sted i
         // samtalen. Naboflisene søkes også — mosaikken oppleves som ett kart.
-        const naboer = (await mosaikkFliser(id, kart)).slice(1, 9)
+        const naboer = await mosaikkNaboer(id, kart)
 
         // «Den største innsjøen» er en RANGERING, ikke et navn. Kategori-lista
         // er alfabetisk, så et navne-oppslag ville merket «Andedammen» —
@@ -1038,7 +1098,7 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         if (!løst) return { feil: `Fant ikke kart med id «${args?.kartId}». Bruk mine_kart_og_ruter.` }
         const { id, kart } = løst
         const fliser = await mosaikkFliser(id, kart)
-        const naboer = fliser.slice(1, 9)
+        const naboer = fliser.slice(1, 1 + MOSAIKK_MAKS_NABOER)
 
         // Stedsnavn slår koordinater: appen slår dem opp i kartets EGNE navn.
         const løste = []
@@ -1097,7 +1157,7 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         // Vaktpost: punkter utenfor mosaikken (typisk feil geokode-treff) skal
         // ikke starte en tur — chatten forblir åpen og modellen må forklare.
         const fliser = await mosaikkFliser(id, kart)
-        const naboer = fliser.slice(1, 9)
+        const naboer = fliser.slice(1, 1 + MOSAIKK_MAKS_NABOER)
 
         // Stedsnavn slår koordinater: appen slår dem opp i kartets EGNE navn,
         // så en navnebror i en annen del av landet ikke kan snike seg inn.
