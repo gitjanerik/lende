@@ -57,6 +57,23 @@ export function klamp(v, lo, hi) {
   return Math.min(Math.max(v, lo), hi)
 }
 
+// Hvor mye av kartet fyller skjermen? Får mer enn ÉN flis plass i bredden, ser
+// brukeren på arket som helhet og ikke på en bestemt flis.
+//
+// Terskelen brukes til å skru av auto-promotering under oversikts-zoom. Se
+// notatet ved serHeleArket i composablen for hva som gikk galt uten den.
+// Rotasjon ignoreres med vilje: dette er en grov terskel, ikke en eksakt boks.
+export const OVERSIKT_FRAC = 0.9
+
+/** @param {{w:number,h:number,widthM:number,heightM:number,scale:number}} v */
+export function erOversikt(v, frac = OVERSIKT_FRAC) {
+  if (!v || !(v.widthM > 0) || !(v.heightM > 0) || !(v.w > 0) || !(v.h > 0)) return false
+  const fit = Math.min(v.w / v.widthM, v.h / v.heightM)
+  if (!(fit > 0)) return false
+  const synligBreddeM = v.w / (fit * (v.scale || 1))
+  return synligBreddeM > v.widthM * frac
+}
+
 // Ankeret på arkkanten (SVG-meter) for en retning, gitt mosaikk-bboksen.
 // Kardinal = kant-midtpunkt, diagonal = hjørne.
 export function edgeAnchorSvg(dir, b) {
@@ -340,6 +357,24 @@ export function useMapExtend({
     const v = transformView()
     return v ? screenToViewBox(v.w / 2, v.h / 2, v) : null
   }
+
+  // Ser brukeren på ÉN flis, eller på arket som helhet?
+  //
+  // Auto-promotering gir bare mening i det første tilfellet: hele poenget er at
+  // «aktiv flis = den du faktisk ser på». Er du zoomet ut for å få oversikt, er
+  // det ingen flis du ser på — du ser fire — og en promotering der gjør ekte
+  // skade (rapportert v5.19.4): den navigerer (router.replace), MapView
+  // remonteres, hele mosaikken tegnes på nytt (synlig flimmer), og i vinduet før
+  // renderGhostTiles er ferdig er ghostRects tom. Da tror mosaicMinScale at du
+  // har én flis, setter zoom-gulvet til 0,5 — og neste zoom-interaksjon klamper
+  // deg opp dit. Brukeren mister utsnittet sitt midt i en oversikts-zoom.
+  //
+  // Målet er utsnittets bredde i meter mot flisbredden: får mer enn én flis
+  // plass på skjermen, er dette en oversikt.
+  function serHeleArket() {
+    const v = transformView()
+    return v ? erOversikt(v) : false
+  }
   // Klient-koordinat (viewport-px fra en pointer-event) → viewBox-meter.
   // Browser-uavhengig (se screenToViewBox); brukes av long-press og kart-tapp.
   function clientToSvg(clientX, clientY) {
@@ -383,6 +418,8 @@ export function useMapExtend({
       activatableTile.value = null
       return
     }
+    // Zoomet ut for oversikt → ikke promoter. Se serHeleArket for hvorfor.
+    if (serHeleArket()) { activatableTile.value = null; return }
     const m = meta.value
     const c = visibleCenterSvg()
     if (!m || !c) { activatableTile.value = null; return }
@@ -407,6 +444,8 @@ export function useMapExtend({
     if (!g) return
     if (autoMapModeBusy() || buildingOnTheFly.value || fillingInDetails.value) return
     if (isGesturing && isGesturing.value) { autoPromoteTimer = setTimeout(maybeAutoPromote, AUTO_PROMOTE_MS); return }
+    // Brukeren kan ha zoomet ut i dvale-vinduet — sjekk på nytt ved fyring.
+    if (serHeleArket()) return
     const c = visibleCenterSvg()
     if (!c) return
     if (c.x >= g.x && c.x <= g.x + g.w && c.y >= g.y && c.y <= g.y + g.h) {
