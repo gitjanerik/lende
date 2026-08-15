@@ -51,6 +51,12 @@ export const EDGE_DIR_VEC = {
 export const EDGE_HANDLE_INSET = 4                 // px innover fra arkkanten
 export const EDGE_LABEL_OFFSET = { x: 88, y: 44 }  // pille-forskyvning innover (px)
 
+/** Klamp `v` inn i [lo, hi]. Tåler at lo > hi (bittesmå viewporter) — da midtstilles. */
+export function klamp(v, lo, hi) {
+  if (!(hi > lo)) return (lo + hi) / 2
+  return Math.min(Math.max(v, lo), hi)
+}
+
 // Ankeret på arkkanten (SVG-meter) for en retning, gitt mosaikk-bboksen.
 // Kardinal = kant-midtpunkt, diagonal = hjørne.
 export function edgeAnchorSvg(dir, b) {
@@ -137,6 +143,10 @@ export function useMapExtend({
   // at et avbrutt bygg skal overleve en reload), og bokføringen er nettopp det
   // manglendeFliser leser.
   byggerNaaNokkel = () => null,
+  // Er automatisk flis-påfyll på? Da skjules kanthåndtakene. Åtte permanente
+  // knapper for noe appen gjør selv er dobbelt opp — og de konkurrerer om
+  // oppmerksomheten med kartet. Getter, fordi useAutoNabo opprettes etterpå.
+  autoNaboPa = () => false,
 }) {
   // ── Mosaikk + manuell utvidelse ───────────────────────────────────────────
   // Arbeidsdelingen her (v5.19.0): DENNE composablen eier den EKSPLISITTE
@@ -187,6 +197,7 @@ export function useMapExtend({
   // Bevisst sti.active (ikke sti.blocking): kartutvidelse bygger ny SVG med
   // nytt koordinat-origo og ville invalidert en rute i bruk (following).
   const extendZonesVisible = computed(() =>
+    !autoNaboPa() &&
     !loading.value && !loadError.value && !!meta.value &&
     !buildingOnTheFly.value && !fillingInDetails.value &&
     !annot.isAnnotateMode.value &&
@@ -255,12 +266,20 @@ export function useMapExtend({
       const ix = mid.x - p.x, iy = mid.y - p.y
       const n = Math.hypot(ix, iy) || 1
       const off = edgeLabelOffset(dir, v.rotationDeg)
+      // Klamp til viewporten (v5.19.2). Fra og med at kart åpner på DEKNING
+      // ligger arkkanten normalt UTENFOR skjermen, og et anker der ville satt
+      // knappen utenfor synsfeltet — altså ville den ene mekanismen brukeren har
+      // når auto er av, vært usynlig til man zoomet ut. Knappen er en DOM-knapp
+      // i skjermrommet, så den kan trygt gli inn til kanten: retningen er den
+      // samme, og «Nord i lende» betyr det samme enten den står på arkkanten
+      // eller øverst på skjermen.
+      const KANT = 28
       out.push({
         dir,
         name: extendZoneLabelText(dir),
         count: counts[dir] ?? 0,
-        x: p.x + (ix / n) * EDGE_HANDLE_INSET,
-        y: p.y + (iy / n) * EDGE_HANDLE_INSET,
+        x: klamp(p.x + (ix / n) * EDGE_HANDLE_INSET, KANT, size.w - KANT),
+        y: klamp(p.y + (iy / n) * EDGE_HANDLE_INSET, KANT, size.h - KANT),
         knobDeg: edgeKnobDeg(dir, v.rotationDeg),
         lx: off.lx,
         ly: off.ly,

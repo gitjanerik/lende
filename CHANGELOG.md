@@ -1,5 +1,30 @@
 # Endringslogg
 
+## 2026-08-15 — v5.19.2: Kartet fyller skjermen, og pilene viker for automatikken
+
+Et kart åpnet med hele arket synlig og kremgul letterbox rundt. Det ser ut som et
+ark som svever i tomrom, og kanten leser som verdens ende — særlig rart nå som
+kartet fyller seg selv mens du panorerer. Nå åpner det på DEKNING: arket dekker
+hele viewporten, med omtrent 10 % liggende utenfor skjermkanten. Da avslører et
+drag mer KART, ikke mer krem, og kartet føles kontinuerlig fra første frame.
+
+Prisen er ærlig nok at oversikten ikke lenger er det første du møter. Den er ett
+trykk unna — «Sentrer» og zoom-ut-gulvet er begge bygget for å vise hele arket —
+men den er ikke gratis lenger.
+
+**Kanthåndtakene skjules når automatisk påfyll er på.** Åtte permanente knapper
+for noe appen gjør selv er dobbelt opp, og de konkurrerer med kartet om
+oppmerksomheten. Slår du auto av, er de der igjen.
+
+Og siden arkkanten normalt ligger utenfor skjermen etter dekningsendringen,
+**klamper håndtakene seg til viewporten** når kanten er utenfor synsfeltet. Uten
+det ville den ene mekanismen du har med auto AV vært usynlig til du zoomet ut.
+Knappene er DOM-knapper i skjermrommet, så de kan trygt gli inn til kanten:
+retningen er den samme, og «Nord i lende» betyr det samme enten den står på
+arkkanten eller øverst på skjermen.
+
+---
+
 ## 2026-08-15 — v5.19.1: Auto-kartet kunne aldri fyre, og «Mine kart» løy om størrelsen
 
 Testrunden på v5.19.0 fant at automatisk flis-påfyll ikke virket i det hele
