@@ -1,5 +1,20 @@
 # Endringslogg
 
+## 2026-08-15 — v5.19.10: Måleverktøyet viser høydeforskjell mellom første og siste punkt
+
+Måler du en strekning på kartet, sa den grønne readout-en bare hvor langt det
+var — ikke om det gikk oppover. Stifinneren og ruteplanleggeren har vist høyde
+A, høyde B og differansen lenge; måling manglet det samme tallet. Nå sampler
+`useMaaling` DEM-en i første og siste målepunkt (samme svg-meter-rom som
+punktene ligger i, samme `sampleElevation` som `stiElevationDiffM` bruker) og
+legger `eleA`, `eleB` og `eleDiffM` inn i `measureStats`. Både den grønne boksen
+på kartet og Måling-fanen i drawer-en viser dem. Målingen starter en lazy
+DEM-henting, så tallene dukker opp når høydedataene lander; mangler kartet DEM
+— eller faller et punkt på noData — står linja bare ikke der, og distanse og
+areal er uendret.
+
+---
+
 ## 2026-08-15 — v5.19.9: Lende-chatten ser hele arket, ikke bare den nærmeste ringen
 
 Chatten svarte «Jeg fant ingen treff på Stormoen i dette kartet» på et navn

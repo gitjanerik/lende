@@ -85,6 +85,9 @@ function formatArea(m2) {
   if (m2 < 1_000_000) return `${(m2 / 10_000).toFixed(2)} ha`
   return `${(m2 / 1_000_000).toFixed(2)} km²`
 }
+function formatElevation(m) {
+  return `${Math.round(m)} moh`
+}
 function formatElevationDiff(m) {
   const r = Math.round(m)
   if (r === 0) return '0 m'
@@ -222,6 +225,13 @@ function formatElevationDiff(m) {
       <div class="text-[13px] font-semibold">{{ formatDistance(measureStats.distM) }}</div>
       <div v-if="measureClosed" class="text-[11px] text-emerald-100/95">
         {{ formatArea(measureStats.areaM2) }}
+      </div>
+      <!-- Høyde i første og siste punkt + differansen, samme A→B-tall som
+           Stifinneren viser. Står bare når DEM-en har svart på begge punktene. -->
+      <div v-if="measureStats.eleDiffM !== null && measureStats.eleDiffM !== undefined"
+           class="text-[10px] text-emerald-100/90 tabular-nums">
+        A {{ formatElevation(measureStats.eleA) }} · B {{ formatElevation(measureStats.eleB) }}
+        <div>Høydeforskjell: {{ formatElevationDiff(measureStats.eleDiffM) }}</div>
       </div>
     </div>
     <button @click="$emit('stopMeasure')" aria-label="Avslutt måling"
