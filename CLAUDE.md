@@ -238,6 +238,15 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   naboflisenes geometri limt oppå aktiv flis forskjøvet med hele flisebredder
   (Stifinneren ruter over Gjende; 3D tegner stier over vann). Leser du geometri
   ut av en LIVE kart-SVG, bruk den fila.
+- **«Hva er arket mitt?» besvares to steder, og de MÅ svare likt (v5.19.9).**
+  Kartflaten bruker `useGhostTiles` (`GHOST_RENDER_RADIUS_TILES` = 3,
+  `MAX_GHOST_NODER` = 12, `utmBbox` + `tilesAreGridCompatible`). Lende-chatten
+  bruker `velgMosaikkFliser` i `lendeAiTools.js` (`MOSAIKK_RADIUS_FLISER`,
+  `MOSAIKK_MAKS_NABOER`). Chatten hadde en helt annen regel — WGS84-bbox innen
+  0,3 km, altså bare fliser som RØRTE den aktive — og da svarte den «fant ingen
+  treff i dette kartet» på et navn søkefeltet listet med merkelappen «i
+  naboflis». Endrer du rekkevidden i den ene, endre den i den andre. Ikke lag en
+  tredje regel: begge dør på at brukeren opplever mosaikken som ETT kart.
 - **`RUTE_GRAF_OPTS` i `routing.js` er én kilde til sannhet** for grafen. Bygger
   du en graf et nytt sted, spre den inn — ellers svarer diagnosen (`stinettBrudd`)
   på et annet nett enn ruteren bruker.
