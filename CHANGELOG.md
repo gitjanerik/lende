@@ -1,5 +1,42 @@
 # Endringslogg
 
+## 2026-08-15 — v5.19.4: Søket dekker hele arket, zoom-ut mister ikke utsnittet
+
+Fire ting fra testrunden på det kontinuerlige kartet.
+
+**Søket fant bare treff i aktiv flis.** Nå dekker det hele arket. Det var mindre
+rett fram enn det høres ut: naboflisene får `data-name` strippet med vilje, og
+det er nettopp det attributtet søkeindeksen bygger på — så det holdt ikke å
+fjerne et filter, dataene fantes ikke i DOM-en. Navnene leses derfor rett ut av
+tekst-labelene i mosaikken, med det delte flis-offsetet, i en EGEN nabo-indeks.
+At den er egen er poenget: aktiv-flis-indeksen driver også navne-declutteren, og
+den håndterer ikke nestede `<svg>`. Treff dedupliseres på navn og posisjon, så et
+sted i overlapp-sonen vises én gang.
+
+**Zoom-ut mistet utsnittet.** Zoomet du ut for oversikt, gled skjermsenteret inn
+på en naboflis og auto-promoteringen fyrte etter 1,5 s. Den navigerer, MapView
+remonteres, hele mosaikken tegnes på nytt — det synlige flimmeret — og i vinduet
+før mosaikken er tegnet tror zoom-gulvet at arket er én flis og klamper deg opp
+til 0,5. Promotering gir uansett bare mening når du ser på ÉN flis; nå er den av
+når mer enn én får plass på skjermen.
+
+**«Gjør arket firkantet».** Automatikken bygger én flis om gangen — naboen du
+faktisk beveget deg mot — så et ark som har vokst av seg selv blir organisk
+formet. Det er med vilje, men det koster: 3D og pan-grensa bruker arkets
+omsluttende rektangel, så hjørnene står tomme og du kan panorere ut i krem inne i
+ditt eget ark. Nå tilbys utfyllingen som et valg med kostnaden skrevet på
+knappen. Regelen bak den er den samme bounding-box-varianten som ble forkastet i
+v1.0.28 — forskjellen som gjør den trygg er ikke geometrien, men at den henger på
+et trykk i stedet for å dukke opp av seg selv.
+
+**Bygge-ikonet peker dit flisa hentes.** De fire små rutene er arket i miniatyr,
+og de som animerer er de som ligger i retningen: nord blinker begge de øverste,
+nordøst bare hjørnet øverst til høyre. Når flisa er klar står alle fire fylt.
+Nord er opp uansett kart-rotasjon — chipen ligger utenfor kartflaten og sier
+«Nord i lende» ved siden av seg.
+
+---
+
 ## 2026-08-15 — v5.19.3: Bygge-chipen la seg oppå snarvei-raden
 
 Chipen som melder «Henter Nord i lende …» delte topp-slot med snarvei-raden

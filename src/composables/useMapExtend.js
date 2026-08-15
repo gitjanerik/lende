@@ -7,7 +7,7 @@
 import { ref, computed, nextTick } from 'vue'
 import { svgToWgs84 } from '../lib/utm.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
-import { pruneAutoTiles, rectOverlapFraction, findGridGaps } from '../lib/tileCache.js'
+import { pruneAutoTiles, rectOverlapFraction, findGridGaps, findRectangleGaps } from '../lib/tileCache.js'
 import {
   lesVentende, leggTilVentende, fjernVentende,
   cellenokkel, ventendeSenter, ventendePaaArket, VENTENDE_RADIUS_TILES,
@@ -749,20 +749,23 @@ export function useMapExtend({
   }
   function refreshMosaicGaps() {
     mosaicGapCount.value = manglendeFliser().length
+    refreshFirkant()
   }
 
   // Fyll alle mosaikk-hull. Bygger hver manglende celle (samme flyt som extendMap:
   // buildMapFromCenter isAuto + eksakt utmBbox), tegner mosaikken på nytt og kapper
   // cachen. Ikke-destruktivt — rører aldri eksisterende fliser. Krever nett.
-  async function repairMosaicGaps() {
+  // Bygg en liste manglende celler. Delt av «Fyll hullene» og «Gjør firkant» —
+  // de skiller seg bare i HVILKE celler de ber om og hva de kaller dem.
+  // `ord` = { ting, gerund } på bokmål, i entall (flertall lages med -ene/-ene).
+  async function byggCeller(cells, ord) {
     if (extendingMap || buildingOnTheFly.value || fillingInDetails.value) return
     if (autoMapModeBusy()) return
     const m = meta.value
     if (!m) return
-    const cells = manglendeFliser()
     if (!cells.length) { refreshMosaicGaps(); return }
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      showAutoMapToast('Offline — kan ikke fylle hull')
+      showAutoMapToast(`Offline — kan ikke ${ord.gerund}`)
       return
     }
     extendingMap = true
@@ -778,10 +781,10 @@ export function useMapExtend({
       // ikke forkaste flisene som lyktes — vi bygger så mange som mulig og
       // tegner mosaikken på nytt uansett i finally.
       for (let i = 0; i < cells.length; i++) {
-        const prefix = cells.length > 1 ? `Hull ${i + 1}/${cells.length}` : ''
+        const prefix = cells.length > 1 ? `Flis ${i + 1}/${cells.length}` : ''
         buildingProgress.value = cells.length > 1
-          ? `Fyller hull ${i + 1} av ${cells.length} …`
-          : 'Fyller hull i kartet …'
+          ? `Bygger flis ${i + 1} av ${cells.length} …`
+          : 'Bygger flis …'
         try {
           const { id } = await buildMapFromCenter({
             ...cells[i].opts,
@@ -796,13 +799,13 @@ export function useMapExtend({
             fjernVentende(cells[i].utmBbox)
           } else failed++
         } catch (e) {
-          console.error('Hull-flis feilet:', e)
+          console.error('Flis feilet:', e)
           failed++
         }
       }
     } finally {
       // Tegn mosaikken på nytt så det som FAKTISK ble bygd vises (også ved delvis
-      // feil), kapp cachen og re-tell hull → banneret speiler ny tilstand.
+      // feil), kapp cachen og re-tell → bannerne speiler ny tilstand.
       try {
         await renderGhostTiles()
         await nextTick()
@@ -821,13 +824,64 @@ export function useMapExtend({
       extendingMap = false
       refreshMosaicGaps()
       if (builtIds.length && !failed) {
-        showAutoMapToast(builtIds.length === 1 ? 'Fylte hullet i kartet' : `Fylte ${builtIds.length} hull i kartet`)
+        showAutoMapToast(builtIds.length === 1
+          ? `Bygde ${ord.ting}` : `Bygde ${builtIds.length} ${ord.flertall}`)
       } else if (builtIds.length && failed) {
-        showAutoMapToast(`Fylte ${builtIds.length} hull, ${failed} gjenstår`)
+        showAutoMapToast(`Bygde ${builtIds.length} ${ord.flertall}, ${failed} gjenstår`)
       } else {
-        showAutoMapToast('Kunne ikke fylle hull — prøv igjen')
+        showAutoMapToast(`Kunne ikke ${ord.gerund} — prøv igjen`)
       }
     }
+  }
+
+  function repairMosaicGaps() {
+    return byggCeller(manglendeFliser(), {
+      ting: 'hullet i kartet', flertall: 'hull', gerund: 'fylle hull',
+    })
+  }
+
+  // ── «Gjør arket firkantet» ──────────────────────────────────────────────────
+  // Automatikken bygger ÉN flis om gangen — naboen du faktisk beveget deg mot —
+  // så et ark som har vokst av seg selv blir organisk formet, ikke rektangulært.
+  // Det er med vilje: en kardinal-utvidelse på et 3×1-ark koster tre fliser, og
+  // panorerer du forbi et hjørne har du ikke bedt om dem.
+  //
+  // Men formen koster noe: 3D bruker arkets omsluttende rektangel (tomme hjørner
+  // i terrenget), og pan-grensa gjør det samme, så du kan panorere ut i krem
+  // inne i ditt eget ark. Derfor dette: en EKSPLISITT knapp med kostnaden
+  // skrevet på, ikke en automatikk. Se findRectangleGaps for hvorfor det skillet
+  // er hele forskjellen på trygg og utrygg her.
+  const firkantAntall = ref(0)
+
+  function firkantCeller() {
+    const m = meta.value
+    if (!m || m.minE == null) return []
+    const mangler = findRectangleGaps({ w: m.widthM, h: m.heightM }, ghostRects.value)
+    const sett = new Set()
+    const underArbeid = byggerNaaNokkel()
+    if (underArbeid) sett.add(underArbeid)
+    const ut = []
+    for (const g of mangler) {
+      const sx = g.col * m.widthM, sy = g.row * m.heightM
+      const minE = Math.round(m.minE + sx)
+      const maxN = Math.round(m.maxN - sy)
+      const utmBbox = { minE, maxE: minE + Math.round(m.widthM), minN: maxN - Math.round(m.heightM), maxN }
+      const n = cellenokkel(utmBbox)
+      if (!n || sett.has(n)) continue
+      sett.add(n)
+      ut.push({ opts: autoMapBuildOpts({ x: sx + m.widthM / 2, y: sy + m.heightM / 2 }), utmBbox })
+    }
+    return ut
+  }
+
+  function refreshFirkant() {
+    firkantAntall.value = firkantCeller().length
+  }
+
+  function gjorArketFirkantet() {
+    return byggCeller(firkantCeller(), {
+      ting: 'flisa som manglet', flertall: 'fliser', gerund: 'gjøre arket firkantet',
+    })
   }
 
   return {
@@ -839,6 +893,7 @@ export function useMapExtend({
     autoMapBuildOpts, promoteTile, extendMap, armAutoMap,
     extendZonesBounds, teardownMapExtend,
     refreshMosaicGaps, repairMosaicGaps,
+    firkantAntall, gjorArketFirkantet,
     // Eksponert for useAutoNabo — bakgrunnsbyggingen bruker NØYAKTIG samme
     // geometri og samme «har vi den alt?»-test som kanthåndtakene, så en
     // automatisk hentet flis lander bit-eksakt på samme gitter.

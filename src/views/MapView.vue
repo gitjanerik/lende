@@ -1030,7 +1030,7 @@ const showSymbolPalette = ref(false)
 // endrer sentreringen. Det GLOBALE stedssøket blir her nede — å velge et
 // globalt treff bygger et nytt kart, og det er bygge-domenet.
 const {
-  mapSearch, searchQuery, searchResults, searchIndex,
+  mapSearch, searchQuery, searchResults, searchIndex, arkIndex,
   searchOpen, highlightedFeature,
   openSearch, closeSearch, clearHighlight,
   panToSettled, stopPanSettle, selectSearchResult,
@@ -1040,6 +1040,10 @@ const {
   panTo,
   // Getter: settet eies av useNavnLod, som opprettes lenger ned i fila.
   forcedVisibleNameEls: () => forcedVisibleNameEls,
+  // WRAPPER, ikke verdien: useGhostTiles opprettes ~270 linjer lenger ned, og en
+  // direkte referanse ville truffet TDZ (samme grunn som `sti` over). Søket
+  // bruker den til å lese navn i nabofliser som er demontert fra DOM-en.
+  medAlleFliser: (fn) => medAlleSpokelserFestet(fn),
   hooks: {
     renderHighlight: () => renderHighlight(),
     closeDrawer: () => closeDrawer(),
@@ -1385,6 +1389,7 @@ const {
   autoMapBuildOpts, promoteTile, extendMap, armAutoMap,
   extendZonesBounds, teardownMapExtend,
   refreshMosaicGaps, repairMosaicGaps,
+  firkantAntall, gjorArketFirkantet,
   extendMapGeometry, centerOverExistingTile,
 } = useMapExtend({
   wrapperRef, wrapperSize, meta, mapId, router,
@@ -2452,7 +2457,7 @@ onUnmounted(() => {
       v-model:query="searchQuery"
       v-model:active-index="searchActiveIndex"
       :results="searchResults"
-      :index-count="searchIndex.length"
+      :index-count="arkIndex.length"
       :global-results="globalResults"
       :global-searching="globalSearching"
       :ui-text-scale="uiTextScale"
@@ -2710,6 +2715,8 @@ onUnmounted(() => {
       :map-center-style="mapCenterStyle"
       :filling-in-details="fillingInDetails"
       :bakgrunnsflis-tekst="bakgrunnsflisTekst"
+      :bakgrunnsflis-retning="autoNaboStatus.retning"
+      :bakgrunnsflis-klar="!!naboKlarTekst"
       :highlighted-feature="highlightedFeature"
       :annot="annot"
       :measure-mode="measureMode"
@@ -2763,6 +2770,8 @@ onUnmounted(() => {
       @retry-details="retryMapDetails"
       @complete-partial="retryMapDetails"
       @repair-mosaic="() => { kvitterEksplisittHandling(); repairMosaicGaps() }"
+      :firkant-antall="firkantAntall"
+      @square-mosaic="() => { kvitterEksplisittHandling(); gjorArketFirkantet() }"
       @dismiss-low-accuracy="dismissLowAccuracy"
       @retry-gps="onRetryGps" />
 

@@ -1,8 +1,26 @@
 import { ref, computed, shallowRef } from 'vue'
+import { lesSpokelsesNavn, readPeakLabel, NUMERIC_RE } from '../lib/kartNavn.js'
+
+// readPeakLabel bodde her til v5.19.x. Den flyttet til lib/kartNavn.js fordi
+// spøkelses-lesingen trenger den også, og re-eksporteres for de som allerede
+// importerer den herfra.
+export { readPeakLabel }
 
 /**
  * useMapSearch — bygger en søkeindeks over navngitte elementer i en SVG-kart-
  * DOM og tilbyr live-filtrering med live-resultater.
+ *
+ * ── TO indekser, med vilje (v5.19.x) ────────────────────────────────────────
+ * `index` er AKTIV FLIS. Den er ikke bare søkets indeks — useNavnLod leser den
+ * som sitt tetthets-budsjett, og elementene i den blir togglet med
+ * `name-lod-off`. Naboflisene er nestede `<svg>` med x/y-offset som
+ * declutter-matematikken ikke håndterer, og det er derfor de har vært holdt
+ * utenfor. Den grunnen står ved lag.
+ *
+ * `naboIndex` er ARKETS ØVRIGE FLISER, bygget av navnelabelene i `#ghost-tiles`
+ * (se lib/kartNavn.lesSpokelsesNavn). Oppføringene har `el: null` — de skal
+ * ALDRI havne i en DOM-toggling — og `utenforAktiv: true`. `arkIndex` er de to
+ * flettet, og det er den SØKET filtrerer mot. LOD-en ser den aldri.
  *
  * Indeksen plukker:
  *   - <text>-noder med data-label (stedsnavn, vann-navn, peak osv) — bruker
@@ -21,8 +39,6 @@ import { ref, computed, shallowRef } from 'vue'
  * map-load eller når annoteringer/lag endrer DOM-en på en måte som vil
  * legge til nye navngitte features.
  */
-
-const NUMERIC_RE = /^[\s-]*\d+([.,]\d+)?(\s*(m|moh|km))?$/i
 
 // data-label-verdier vi alltid hopper over fordi de bare er tall (høydekurve-
 // labels, dybdetall, fyltehøyder osv).
@@ -263,65 +279,14 @@ function geometryCenter(el) {
   return { x: 0, y: 0 }
 }
 
-/**
- * Tolk én topp-label (<text data-label="peak"> eller "peak-ele") til
- * { name?, ele? }. Eksportert for test (duck-typet element — trenger kun
- * getAttribute/textContent/childNodes/querySelector).
- *
- * Formater i omløp:
- *  - v12.0.7+ («Stedsnavn-typografi»): høyden ligger som INLINE
- *    <tspan data-label="peak-ele"> inni navne-teksten. textContent på ytter-
- *    teksten konkatenerer navn+tall («Slottsberget293»), så navnet må leses
- *    fra tekst-nodene alene. Denne varianten brakk søket i v12.0.7–v12.1.21:
- *    tspan-en matchet ikke `text[data-label="peak-ele"]`, toppen fikk aldri
- *    `ele` og ble droppet fra indeksen.
- *  - Eldre kart: navn og høyde som to søsken-<text> (peak + peak-ele).
- *  - Navnløs topp: peak-labelen ER høyde-tallet (fallback når navnet var
- *    claimet av en annen label ved bygging).
- */
-export function readPeakLabel(t) {
-  const lbl = t.getAttribute('data-label')
-  if (lbl === 'peak-ele') {
-    const n = parseFloat((t.textContent ?? '').trim())
-    return Number.isFinite(n) ? { ele: n } : {}
-  }
-  const out = {}
-  const inline = t.querySelector?.('[data-label="peak-ele"]')
-  if (inline) {
-    const n = parseFloat((inline.textContent ?? '').trim())
-    if (Number.isFinite(n)) out.ele = n
-  }
-  let name = (t.getAttribute('data-name-full') ?? '').trim()
-  if (!name) {
-    let own = ''
-    for (const node of t.childNodes ?? []) {
-      if (node.nodeType === 3) own += node.textContent ?? ''
-    }
-    name = own.trim()
-    if (!name && !inline) name = (t.textContent ?? '').trim()
-  }
-  // Defensivt: eldre applyNameLanguage (≤ v12.1.28) rakk å forurense
-  // data-name-full med det inline høyde-tallet («Vardåsen349») — strip et
-  // navne-suffiks som er identisk med tspan-høyden.
-  if (inline && name) {
-    const eleText = (inline.textContent ?? '').trim()
-    if (eleText && name !== eleText && name.endsWith(eleText)) {
-      name = name.slice(0, -eleText.length).trim()
-    }
-  }
-  if (NUMERIC_RE.test(name)) {
-    const n = parseFloat(name)
-    if (Number.isFinite(n) && out.ele == null) out.ele = n
-  } else if (name) {
-    out.name = name
-  }
-  return out
-}
-
 function pushRaw(out, name, kind, pos, el, extra = {}) {
   if (!name || !pos) return
   out.push({
-    id: `${kind}-${out.length}`,
+    // id-en må være unik på tvers av BEGGE indeksene — `filterIndex` dedup-er
+    // på den, og Vue bruker den som `:key`. Nabo-indeksen sender derfor inn en
+    // prefiks; uten den kolliderte «stedsnavn-3» i aktiv flis med «stedsnavn-3»
+    // i naboflisa, og ett av de to treffene forsvant.
+    id: `${extra.idPrefix ?? ''}${kind}-${out.length}`,
     name,
     folded: foldName(name),
     kind,
@@ -335,6 +300,9 @@ function pushRaw(out, name, kind, pos, el, extra = {}) {
     // Rennende vann tegnet som flate (elv/kanal) — blå flate som en innsjø,
     // men ikke et vann i norsk forstand. Se isFlowingWaterArea i symbolizer.
     elv: extra.elv ?? false,
+    // Treffet ligger i en naboflis, ikke i den aktive. Kun for å si det i
+    // trefflista — koordinatene er allerede løftet til aktiv flis' meter-rom.
+    utenforAktiv: extra.utenforAktiv ?? false,
   })
 }
 
@@ -453,8 +421,10 @@ export function buildSearchIndex(svgEl) {
 
   // 1) Tekst-labels — alle som har data-label og ikke er rene tall.
   for (const t of svgEl.querySelectorAll('text[data-label]')) {
-    // Spøkelses-/utvidelses-fliser (#ghost-tiles) beholder navn for VISNING, men
-    // skal ikke i søkeindeksen (doble treff) eller JS-tetthets-budsjettet.
+    // Spøkelses-/utvidelses-fliser (#ghost-tiles) hører til NABO-indeksen, ikke
+    // denne. Den her er også navn-LOD-ens tetthets-budsjett, og et nestet
+    // spøkelses-<svg> med x/y-offset er ikke noe declutter-matematikken kan
+    // måle. Se buildNaboSearchIndex.
     if (t.closest('#ghost-tiles')) continue
     const kind = t.getAttribute('data-label') ?? ''
     if (!kind || SKIP_LABELS.has(kind)) continue
@@ -567,7 +537,7 @@ export function buildSearchIndex(svgEl) {
   //    readPeakLabel.
   const peakRecs = new Map()   // <g> → { g, name, ele, nameEl }
   for (const t of svgEl.querySelectorAll('text[data-label="peak"], text[data-label="peak-ele"]')) {
-    if (t.closest('#ghost-tiles')) continue   // spøkelses-topper ikke i søk
+    if (t.closest('#ghost-tiles')) continue   // spøkelses-topper: se buildNaboSearchIndex
     const g = t.parentElement
     if (!g) continue
     let rec = peakRecs.get(g)
@@ -684,6 +654,91 @@ export function buildSearchIndex(svgEl) {
 }
 
 /**
+ * Søkeindeks for NABOFLISENE — resten av arket brukeren har bygd rundt seg.
+ *
+ * Fattigere enn `buildSearchIndex` med vilje, fordi kilden er fattigere:
+ * `buildGhostSvg` stripper `data-name`/`data-detail` fra naboflisene, så det
+ * finnes ingen polygoner å måle areal på og ingen navnløse tjern å finne. Igjen
+ * står navnelabelene — som er nettopp det et navnesøk trenger.
+ *
+ * `el` er ALLTID null. Et spøkelses-tekstelement skal aldri havne i
+ * `forcedVisibleNameEls` eller i en `name-lod-off`-toggling; naboflisene har
+ * ingen navn-LOD, og declutter-matematikken håndterer ikke nestede `<svg>`.
+ *
+ * Kall inne i `medAlleSpokelserFestet(...)` — en flis kan være demontert.
+ *
+ * @param {Element} svgEl aktiv flis' `<svg>`
+ */
+export function buildNaboSearchIndex(svgEl) {
+  const out = []
+  for (const n of lesSpokelsesNavn(svgEl)) {
+    const kind = n.label
+    if (SKIP_LABELS.has(kind)) continue
+    if (NUMERIC_RE.test(n.name)) continue
+    const extra = { idPrefix: 'nabo-', utenforAktiv: true }
+    if (kind === 'peak') {
+      extra.categories = ['topp']
+      extra.ele = n.ele
+    } else if (kind === 'vann-navn') {
+      extra.categories = ['vann']
+    }
+    pushRaw(out, n.name, kind, { x: n.x, y: n.y }, null, extra)
+  }
+  // Samme navn i to nabofliser (et vann som strekker seg over flisekanten får
+  // én label per flis) skal bli ÉN oppføring — se slaaSammenArkIndeks for
+  // hvorfor toleransen er som den er.
+  return dedupPaaNavnOgSted([], out)
+}
+
+// Hvor nær to labels med samme navn må ligge for å regnes som samme sted.
+//
+// Tallet er en avveining mot norsk stedsnavn-tetthet. Et vann som krysser en
+// flisekant får én label per flis, plassert i hver flis' del av vannet — de kan
+// derfor ligge et godt stykke fra hverandre, og en for stram toleranse gir
+// «Langvatnet» to ganger i lista. Motsatt finnes det tre Langvatn i et vanlig
+// turkart-utsnitt, og en for slapp toleranse skjuler to av dem. 1 500 m er
+// under en halv flisbredde i det vanligste formatet (4 km), og godt over
+// avstanden mellom to labels for samme vann.
+export const NAVN_DEDUP_RADIUS_M = 1500
+
+/**
+ * Legg `nye` oppføringer til `basis`, men hopp over dem som har samme foldede
+ * navn som en oppføring vi allerede har, innenfor `radiusM`. Basis vinner
+ * alltid. Ren funksjon.
+ */
+function dedupPaaNavnOgSted(basis, nye, radiusM = NAVN_DEDUP_RADIUS_M) {
+  const r2 = radiusM * radiusM
+  const perNavn = new Map()
+  const ut = []
+  const leggTil = (e) => {
+    ut.push(e)
+    const arr = perNavn.get(e.folded)
+    if (arr) arr.push(e)
+    else perNavn.set(e.folded, [e])
+  }
+  for (const e of basis ?? []) leggTil(e)
+  for (const e of nye ?? []) {
+    const arr = perNavn.get(e.folded)
+    if (arr && arr.some(a => (a.x - e.x) ** 2 + (a.y - e.y) ** 2 <= r2)) continue
+    leggTil(e)
+  }
+  return ut
+}
+
+/**
+ * Hele arkets indeks: aktiv flis først, så naboflisene der de ikke gjentar noe
+ * aktiv flis allerede har. Aktiv flis vinner fordi den er rikere (areal,
+ * elv-flagg, et `el` å tvinge synlig) — og fordi den er den brukeren ser på.
+ *
+ * @param {Array} aktiv fra buildSearchIndex
+ * @param {Array} nabo  fra buildNaboSearchIndex
+ */
+export function slaaSammenArkIndeks(aktiv, nabo, radiusM = NAVN_DEDUP_RADIUS_M) {
+  if (!nabo?.length) return aktiv ?? []
+  return dedupPaaNavnOgSted(aktiv ?? [], nabo, radiusM)
+}
+
+/**
  * Filtrer indeksen mot et søk. Returnerer maks `limit` treff,
  * prefix-matcher først, så kortere navn først.
  *
@@ -781,18 +836,31 @@ export function findByName(index, name) {
 export function useMapSearch() {
   // shallowRef siden vi bytter hele array-referansen ved rebuild og ikke
   // muterer enkeltelementer — sparer Vue for deep-tracking.
-  const index = shallowRef([])
+  const index = shallowRef([])       // aktiv flis — også navn-LOD-ens budsjett
+  const naboIndex = shallowRef([])   // resten av arket — kun søk
   const query = ref('')
 
   function rebuild(svgEl) {
     index.value = buildSearchIndex(svgEl)
+    // Ny SVG-DOM: nabo-oppføringene peker på et koordinatrom som kan være et
+    // helt annet (ny aktiv flis = nytt nullpunkt). Tøm, og la den bygges på
+    // nytt ved neste søk.
+    naboIndex.value = []
+  }
+
+  function rebuildNabo(svgEl) {
+    naboIndex.value = buildNaboSearchIndex(svgEl)
+    return naboIndex.value.length
   }
 
   function clear() {
     query.value = ''
   }
 
-  const results = computed(() => filterIndex(index.value, query.value, 60))
+  // Det søket faktisk filtrerer mot. Naboflisene er IKKE i `index` — se
+  // notatet øverst i fila om hvorfor de to må holdes fra hverandre.
+  const arkIndex = computed(() => slaaSammenArkIndeks(index.value, naboIndex.value))
+  const results = computed(() => filterIndex(arkIndex.value, query.value, 60))
 
-  return { query, results, index, rebuild, clear }
+  return { query, results, index, naboIndex, arkIndex, rebuild, rebuildNabo, clear }
 }

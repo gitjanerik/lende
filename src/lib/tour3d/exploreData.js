@@ -10,6 +10,7 @@ import { wgs84ToSvg } from '../utm.js'
 import { kindMeta } from './featureTimeline.js'
 import { bboxFromMeta } from './tourData.js'
 import { nestedSvgOffset } from '../svgNestedOffset.js'
+import { lesSpokelsesNavn } from '../kartNavn.js'
 
 /**
  * Alle navngitte POI-er i søkeindeksen som 3D kan gjøre noe med.
@@ -79,35 +80,20 @@ const GHOST_LABEL_KIND = {
   'omrade-navn': 'omrade',
 }
 
-const UNITLESS_NUM = /^-?[\d.]+$/
-const BARE_TALL = /^[\d\s.,–-]+$/
-
-// Kumulert translate() fra forfedrene. Toppnavn står i en translatert `<g>` med
-// x/y i millimeter (en håndfull meter), så gruppa ER posisjonen for dem.
-function ancestorTranslate(el, root) {
-  let dx = 0
-  let dy = 0
-  for (let n = el?.parentNode; n && n !== root; n = n.parentNode) {
-    const t = n.getAttribute?.('transform')
-    if (!t) continue
-    const m = /translate\(\s*(-?[\d.]+)\s*(?:[, ]\s*(-?[\d.]+))?\s*\)/.exec(t)
-    if (m) {
-      dx += Number(m[1]) || 0
-      dy += Number(m[2] ?? 0) || 0
-    }
-  }
-  return { dx, dy }
-}
-
 /**
  * Navngitte POI-er i NABOFLISENE (`#ghost-tiles`), lest rett ut av navnelabelene.
  *
- * Søkeindeksen (useMapSearch) dekker med vilje bare den aktive flisa — spøkelser
- * skal ikke gi doble søketreff. Men når 3D nå bygger HELE arket (v5.18.0), ville
- * det gitt et kart der terrenget og kartbildet strekker seg over ni fliser mens
- * nålene stopper ved den ene i midten. Naboflisene beholder navnene sine i
- * DOM-en (useGhostTiles v12.0.11), så de kan leses her: label-typen gir `kind`,
- * x/y-attributtet gir posisjonen, og flis-offsetet løfter den til aktiv-flisas rom.
+ * Søkets AKTIVE indeks (useMapSearch.index) dekker med vilje bare den aktive
+ * flisa — den er også navn-LOD-ens tetthets-budsjett, og spøkelser er nestede
+ * `<svg>` som declutter-matematikken ikke håndterer. Men når 3D bygger HELE
+ * arket (v5.18.0), ville det gitt et kart der terrenget og kartbildet strekker
+ * seg over ni fliser mens nålene stopper ved den ene i midten. Naboflisene
+ * beholder navnene sine i DOM-en (useGhostTiles v12.0.11), så de leses her.
+ *
+ * Selve lesingen — flis-offsetet, forfedrenes translate og topp-label-formatene
+ * — bor i `lib/kartNavn.lesSpokelsesNavn`, delt med søkets nabo-indeks
+ * (`useMapSearch.buildNaboSearchIndex`, v5.19.x). Her gjenstår oversettelsen
+ * til nål-typer og sammenslåingen av samme navn i to fliser.
  *
  * Mindre rikt enn søkeindeksen — ingen areal (så store vann rammes inn som små)
  * og ingen unavngitte tjern, siden `data-name`/`data-detail` er strippet fra
@@ -117,37 +103,16 @@ function ancestorTranslate(el, root) {
  */
 export function collectGhostFeatures(svgEl) {
   const out = []
-  const host = svgEl?.querySelector?.('#ghost-tiles')
-  if (!host?.querySelectorAll) return out
   const sett = new Set()
-  for (const t of host.querySelectorAll('text[data-label]')) {
-    const kind = GHOST_LABEL_KIND[t.getAttribute('data-label')]
+  for (const n of lesSpokelsesNavn(svgEl)) {
+    const kind = GHOST_LABEL_KIND[n.label]
     if (!kind) continue
-    let name = (t.textContent ?? '').trim().replace(/\s+/g, ' ')
-    let ele = null
-    if (kind === 'peak') {
-      // «Gaustatoppen 1883» — høyden er en <tspan data-label="peak-ele"> inni
-      // navne-teksten, så den følger med i textContent.
-      const m = /^(.*?)[\s ]*(\d{2,4})$/.exec(name)
-      if (m) {
-        name = m[1].trim()
-        ele = Number(m[2])
-      }
-    }
-    if (!name || BARE_TALL.test(name)) continue
     // Samme navn i to nabofliser (et vann som strekker seg over flisekanten får
     // én label per flis) skal bli én nål.
-    const key = `${kind}:${name.toLowerCase()}`
+    const key = `${kind}:${n.name.toLowerCase()}`
     if (sett.has(key)) continue
-    const flis = nestedSvgOffset(t, svgEl)
-    const anc = ancestorTranslate(t, svgEl)
-    const ax = t.getAttribute('x') ?? ''
-    const ay = t.getAttribute('y') ?? ''
-    const x = flis.dx + anc.dx + (UNITLESS_NUM.test(ax) ? Number(ax) : 0)
-    const y = flis.dy + anc.dy + (UNITLESS_NUM.test(ay) ? Number(ay) : 0)
-    if (!Number.isFinite(x) || !Number.isFinite(y)) continue
     sett.add(key)
-    out.push({ name, kind, x, y, ele, areaM2: null, categories: null })
+    out.push({ name: n.name, kind, x: n.x, y: n.y, ele: n.ele ?? null, areaM2: null, categories: null })
   }
   return out
 }
