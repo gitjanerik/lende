@@ -1350,9 +1350,11 @@ const {
   startMeasure, stopMeasure, clearMeasure, closeMeasure, undoMeasureVertex,
 } = useMaaling({
   scale, annot, sti,
+  dem: () => storedDem.value,
   hooks: {
     renderMeasure: () => renderMeasure(),
     renderRoutes: () => renderRoutes(),
+    ensureDem: () => ensureDem(),
   },
 })
 

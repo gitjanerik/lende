@@ -14,15 +14,17 @@
 // en rute man går er en rimelig ting å gjøre.
 
 import { ref, computed, watch } from 'vue'
+import { sampleElevation } from '../lib/demSampling.js'
 
 /**
  * @param {{
  *   scale: import('vue').Ref,
+ *   dem: () => object|null,
  *   annot: object, sti: object,
- *   hooks: { renderMeasure: () => void, renderRoutes: () => void },
+ *   hooks: { renderMeasure: () => void, renderRoutes: () => void, ensureDem: () => Promise<boolean> },
  * }} deps
  */
-export function useMaaling({ scale, annot, sti, hooks }) {
+export function useMaaling({ scale, dem, annot, sti, hooks }) {
   const measureMode = ref(false)
   const measureVertices = ref([])
   const measureClosed = ref(false)
@@ -31,6 +33,10 @@ export function useMaaling({ scale, annot, sti, hooks }) {
     measureMode.value = true
     measureVertices.value = []
     measureClosed.value = false
+    // Høydene i readout-en krever DEM, som hentes lazy. Fire and forget:
+    // measureStats er en computed over dem(), så tallene dukker opp når den
+    // lander. Uten DEM (ingen WCS-svar) står måling ellers uendret.
+    hooks.ensureDem?.()
     // Sørg for at annoterings-/stifinner-modus ikke konkurrerer om tap-eventet.
     // Rute i bruk (following) beholdes — måling skal kunne sameksistere med den.
     annot.selectedSymbol.value = null
@@ -57,9 +63,28 @@ export function useMaaling({ scale, annot, sti, hooks }) {
 
   // Distanse og areal utledes via computed slik at de re-evaluerer automatisk
   // når vertices endres.
+  // Høyde i første og siste punkt, og differansen mellom dem — samme
+  // rute-uavhengige A→B-tall som Stifinneren viser (MapView.stiElevationDiffM).
+  // DEM-en er sampla i samme svg-meter-rom som punktene. null når kartet mangler
+  // DEM eller punktet faller på noData.
+  const measureElevation = computed(() => {
+    const v = measureVertices.value
+    const d = dem?.()
+    if (!d || v.length === 0) return { eleA: null, eleB: null, eleDiffM: null }
+    const num = (e) => (Number.isFinite(e) ? e : null)
+    const eleA = num(sampleElevation(d, v[0].x, v[0].y))
+    const last = v[v.length - 1]
+    const eleB = v.length < 2 ? null : num(sampleElevation(d, last.x, last.y))
+    return {
+      eleA, eleB,
+      eleDiffM: eleA !== null && eleB !== null ? eleB - eleA : null,
+    }
+  })
+
   const measureStats = computed(() => {
     const v = measureVertices.value
-    if (v.length < 2) return { distM: 0, areaM2: 0 }
+    const ele = measureElevation.value
+    if (v.length < 2) return { distM: 0, areaM2: 0, ...ele }
     let distM = 0
     for (let i = 1; i < v.length; i++) {
       distM += Math.hypot(v[i].x - v[i - 1].x, v[i].y - v[i - 1].y)
@@ -75,7 +100,7 @@ export function useMaaling({ scale, annot, sti, hooks }) {
       }
       areaM2 = Math.abs(sum) / 2
     }
-    return { distM, areaM2 }
+    return { distM, areaM2, ...ele }
   })
 
   // Strekbredden på måle-linja er skjerm-konstant, så et zoom må tegne om.

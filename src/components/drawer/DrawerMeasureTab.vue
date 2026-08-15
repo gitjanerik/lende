@@ -24,6 +24,14 @@ function formatArea(m2) {
   if (m2 < 1_000_000) return `${(m2 / 10_000).toFixed(2)} ha`
   return `${(m2 / 1_000_000).toFixed(2)} km²`
 }
+function formatElevation(m) {
+  return `${Math.round(m)} moh`
+}
+function formatElevationDiff(m) {
+  const r = Math.round(m)
+  if (r === 0) return '0 m'
+  return `${r > 0 ? '+' : '−'}${Math.abs(r)} m`
+}
 </script>
 
 <template>
@@ -61,6 +69,12 @@ function formatArea(m2) {
                 class="text-ink/45 text-[11px] font-normal">
             (ingen punkter ennå)
           </span>
+        </div>
+        <div v-if="measureStats.eleDiffM !== null && measureStats.eleDiffM !== undefined"
+             class="text-[11px] text-emerald-100/85 tabular-nums">
+          Høyde A {{ formatElevation(measureStats.eleA) }} ·
+          B {{ formatElevation(measureStats.eleB) }} ·
+          differanse {{ formatElevationDiff(measureStats.eleDiffM) }}
         </div>
         <div class="flex gap-1.5">
           <button @click="closeMeasure"
