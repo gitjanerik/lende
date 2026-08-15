@@ -82,6 +82,15 @@ export function useAutoNabo({
     fase: null,
     // Hvor mange fliser som gjenstår av utfyllingen, inkludert den som bygges nå.
     firkantIgjen: 0,
+    // Utfallet av utfyllingen, målt ETTERPÅ på det arket faktisk ble.
+    // `firkantRest` er celler som fortsatt mangler; `firkantStopp` er grunnen
+    // til at løkka ga seg med dem stående ('økt-tak', 'offline', 'byggefeil',
+    // 'runde-tak'), eller null når arket faktisk BLE firkantet. Uten disse
+    // meldte chipen «Arket er firkantet» på ren fase, altså også når økt-taket
+    // stoppet utfyllingen halvveis — og banneret som kunne fullført var skjult
+    // fordi automatikken sto på.
+    firkantRest: 0,
+    firkantStopp: null,
   })
 
   let intensjon = nyIntensjon()
@@ -101,6 +110,10 @@ export function useAutoNabo({
   function kvitterEksplisittHandling() {
     nullstillOkt({})
     autoNaboStatus.bygdIOkt = 0
+    // Nytt budsjett = automatikken får forsøke igjen, så en «jeg ga opp»-
+    // markering fra forrige økt skal ikke bli stående og holde banneret framme.
+    autoNaboStatus.firkantStopp = null
+    autoNaboStatus.firkantRest = 0
   }
 
   function avbrytBakgrunnsbygg(grunn = 'retningsskifte') {
@@ -238,18 +251,28 @@ export function useAutoNabo({
   // forhånd ville vært feil fra andre runde.
   async function fyllUtArket() {
     if (!firkantPa.value) return
+    autoNaboStatus.firkantStopp = null
+    let stopp = 'runde-tak'
     for (let runde = 0; runde < FIRKANT_MAKS_RUNDER; runde++) {
-      if (!isAlive() || !autoNaboPa.value) break
+      if (!isAlive() || !autoNaboPa.value) { stopp = 'avbrutt'; break }
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-        autoNaboStatus.sisteAvvisning = 'offline'; break
+        autoNaboStatus.sisteAvvisning = 'offline'; stopp = 'offline'; break
       }
-      if (oktTakNadd({ tak: AUTO_NABO_OKTTAK })) { autoNaboStatus.sisteAvvisning = 'økt-tak'; break }
+      if (oktTakNadd({ tak: AUTO_NABO_OKTTAK })) {
+        autoNaboStatus.sisteAvvisning = 'økt-tak'; stopp = 'økt-tak'; break
+      }
       const celler = firkantCeller()
-      if (!celler.length) break
+      if (!celler.length) { stopp = null; break }
       autoNaboStatus.firkantIgjen = celler.length
-      if (!await byggStille(celler[0], 'firkant')) break
+      if (!await byggStille(celler[0], 'firkant')) { stopp = 'byggefeil'; break }
     }
     autoNaboStatus.firkantIgjen = 0
+    // Spør arket, ikke løkka: en runde kan ha gitt seg mens cellene den bygde
+    // likevel fullførte, og en «vellykket» runde kan ha bygd en flis som aldri
+    // dukket opp i modellen. Fasiten er hva firkantCeller() finner NÅ.
+    const rest = isAlive() ? firkantCeller().length : 0
+    autoNaboStatus.firkantRest = rest
+    autoNaboStatus.firkantStopp = rest > 0 ? (stopp ?? 'ukjent') : null
   }
 
   async function byggIBakgrunnen(dir) {
