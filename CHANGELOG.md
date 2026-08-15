@@ -1,5 +1,16 @@
 # Endringslogg
 
+## 2026-08-15 — v5.19.3: Bygge-chipen la seg oppå snarvei-raden
+
+Chipen som melder «Henter Nord i lende …» delte topp-slot med snarvei-raden
+(Stifinner / Runde / Måling / 3D / Info) og la seg rett oppå den. Raden skjuler
+seg allerede for de andre chipene i den sloten — kommentaren i malen sier
+eksplisitt at de ville kollidert — men bakgrunnsflis-chipen kom til i v5.19.0
+uten å bli lagt til i lista. Nå er den det, og notatet er utvidet så neste chip
+i samme slot ikke gjentar feilen.
+
+---
+
 ## 2026-08-15 — v5.19.2: Kartet fyller skjermen, og pilene viker for automatikken
 
 Et kart åpnet med hele arket synlig og kremgul letterbox rundt. Det ser ut som et
