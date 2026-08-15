@@ -142,11 +142,23 @@ const ISOM_CREAM = '#fffbf0'
  * vert. En `<img>` har ingen vert, så prosentene gir bildet ingen egen
  * størrelse, og nettleseren rasteriserer SVG-en på sin default (300 px) før den
  * skaleres opp. Her sier vi presis hvor mange piksler flisa skal dekode til.
+ *
+ * …og `preserveAspectRatio="none"` MÅ følge med (v5.19.8). Pikselboksen over er
+ * regnet av UTSNITTETS sider (`t.w / widthM`, `t.h / heightM`), og de to
+ * nevnerne er ulike så snart arket ikke er kvadratisk — så boksen har en annen
+ * fasong enn flisas viewBox. Den levende kart-SVG-en arver
+ * `preserveAspectRatio="xMidYMid meet"` fra useMapLoadPipeline, og «meet» svarer
+ * da med å KRYMPE kartografien uniformt og midtstille den i boksen. Bildet blir
+ * riktig midt i flisa og sklir mot kantene: en 8×8 km flis i et 12×9 km ark
+ * bommet med 870 m ytterst. Ruta tegnes av ekte meter og står stille, så det så
+ * ut som om turen krysset elva. Naboflisene satte alt `none` selv
+ * (useGhostTiles) — det var bare aktiv flis som fikk letterbox.
  */
 export function withPixelSize(svg, wPx, hPx) {
   return svg.replace(/<svg\b([^>]*)>/, (_m, attrs) => {
-    const rest = attrs.replace(/\s(?:width|height)="[^"]*"/g, '')
-    return `<svg${rest} width="${Math.max(1, Math.round(wPx))}" height="${Math.max(1, Math.round(hPx))}">`
+    const rest = attrs.replace(/\s(?:width|height|preserveAspectRatio)="[^"]*"/g, '')
+    return `<svg${rest} width="${Math.max(1, Math.round(wPx))}" height="${Math.max(1, Math.round(hPx))}"`
+      + ' preserveAspectRatio="none">'
   })
 }
 
