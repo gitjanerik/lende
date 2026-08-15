@@ -1,5 +1,25 @@
 # Endringslogg
 
+## 2026-08-15 — v5.19.5: ELI5-svarstil for korte, enkle rapporter
+
+Ny output-style i `.claude/output-styles/ELI5.md`, satt som `outputStyle` i
+både `.claude/settings.json` og `.claude/settings.local.json`. Stilen ber Claude
+rapportere på norsk klarspråk: vanlige ord, aktiv form, én tanke per setning, og
+tre faste punkter — hva ble gjort, virket det, hva gjør jeg nå. Må jeg velge noe,
+får jeg maks to valg med en anbefaling. Filstier og kommandoer skal stå eksakt.
+
+Forbildet er ASD-STE100 Simplified Technical English, men det finnes ikke noe
+norsk motstykke: ASD-STE100 er et kontrollert språk med en fast godkjent ordliste
+på rundt 900 ord, mens norsk klarspråk (Språkrådet, NS-ISO 24495-1) er
+prinsipper uten ordliste. Reglene lot seg overføre, ordlista ikke.
+
+Stilfila ligger i repoet med vilje. Lå den bare i `~/.claude/output-styles/`,
+forsvant den med sandkassen mens `outputStyle`-nøkkelen ble stående igjen som en
+peker til ingenting — og stilen falt stille tilbake til standard. Ingen app-kode
+er rørt; `CACHE_VERSION` bumpes bare for å holde de fire versjonsfilene i takt.
+
+---
+
 ## 2026-08-15 — v5.19.4: Søket dekker hele arket, zoom-ut mister ikke utsnittet
 
 Fire ting fra testrunden på det kontinuerlige kartet.
