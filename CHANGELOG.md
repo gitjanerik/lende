@@ -1,5 +1,25 @@
 # Endringslogg
 
+## 2026-08-15 — v5.19.8: Kartbildet i 3D sluttet å skli, og ruta gikk i land igjen
+
+En rute fra Stormoen til Skimten så ut til å gå midt ute i Drammenselva i
+3D-visningen, mens den lå pent på sørsiden i 2D. Ruta var aldri feil — det var
+kartbildet under den som hadde flyttet seg. 3D rasteriserer arket flis for flis
+inn i et kvadratisk lerret, og pikselboksen hver flis får er regnet av
+UTSNITTETS sider (`t.w / widthM`, `t.h / heightM`). De to nevnerne er ulike så
+snart arket ikke er kvadratisk, så boksen har en annen fasong enn flisas
+viewBox. Den levende kart-SVG-en arver `preserveAspectRatio="xMidYMid meet"` fra
+useMapLoadPipeline, og «meet» svarer da med å krympe kartografien uniformt og
+midtstille den: bildet ble riktig midt i flisa og skled mot kantene. Målt i
+Chromium bommet en 8×8 km flis i et 12×9 km ark med 870 meter ytterst — mer enn
+nok til å legge en elv der ruta gikk. Naboflisene satte `preserveAspectRatio="none"`
+selv (useGhostTiles), så det var bare den aktive flisa som fikk letterbox, og et
+vanlig kvadratisk enkeltkart gikk fritt — derfor lå feilen upåaktet til
+mosaikk-utsnittene ble vanlige. `withPixelSize` tvinger nå `none`, slik flisa
+fyller ruta si eksakt.
+
+---
+
 ## 2026-08-15 — v5.19.7: Auto-kart er av som standard, og kan fylle ut arket selv
 
 Tre ting som henger sammen.

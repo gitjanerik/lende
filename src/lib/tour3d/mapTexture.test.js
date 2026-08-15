@@ -236,4 +236,21 @@ describe('withPixelSize', () => {
     const ut = withPixelSize('<svg width="100%"><svg x="10" width="4000"/></svg>', 512, 512)
     expect(ut).toContain('<svg x="10" width="4000"/>')
   })
+
+  // Pikselboksen regnes av UTSNITTETS sider, så den har en annen fasong enn
+  // flisas viewBox så snart arket ikke er kvadratisk. Med «meet» krymper
+  // nettleseren kartografien og midtstiller den i boksen — riktig midt i flisa,
+  // flere hundre meter feil mot kantene, mens ruta står stille. Det var ruta
+  // som «krysset elva» i 3D.
+  it('tvinger preserveAspectRatio="none" så flisa fyller ruta si', () => {
+    const ut = withPixelSize('<svg viewBox="0 0 8000 8000" width="100%" height="100%"/>', 2731, 3641)
+    expect(ut).toContain('preserveAspectRatio="none"')
+  })
+
+  it('overstyrer «meet» fra den levende kart-SVG-en', () => {
+    const ut = withPixelSize(
+      '<svg viewBox="0 0 8000 8000" preserveAspectRatio="xMidYMid meet" width="100%"/>', 2731, 3641)
+    expect(ut).not.toContain('xMidYMid')
+    expect(ut.match(/preserveAspectRatio=/g)).toHaveLength(1)
+  })
 })
