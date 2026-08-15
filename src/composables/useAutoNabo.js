@@ -27,20 +27,22 @@
 import { ref, reactive } from 'vue'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { pruneAutoTiles } from '../lib/tileCache.js'
-import { svgToWgs84 } from '../lib/utm.js'
 import {
   nyIntensjon, oppdaterIntensjon, DVELE_MS,
 } from '../lib/panIntensjon.js'
 import { leggTilVentende, fjernVentende, cellenokkel } from '../lib/ventendeFliser.js'
 import { AUTO_NABO_OKTTAK, oktTakNadd, okOkt, nullstillOkt } from '../lib/nettGjerde.js'
+import {
+  lesAutoNaboPa, skrivAutoNaboPa, lesFirkantPa, skrivFirkantPa,
+} from '../lib/autoNaboValg.js'
 import { EDGE_DIRS } from './useMapExtend.js'
 import { logPerf } from '../lib/perfLog.js'
 
-const PA_KEY = 'lende-auto-nabo'
-
-function lesPa() {
-  try { return localStorage.getItem(PA_KEY) !== '0' } catch { return true }
-}
+// Stopp-vakt for utfyllings-løkka. Den kaller firkantCeller() på nytt hver runde
+// og stoler på at settet krymper; gjør det ikke det (en flis som bygges «ok» men
+// aldri dukker opp i ghostRects), skal løkka dø av seg selv og ikke bygge i evig
+// tid. Taket er romslig: et 3×3-ark mangler maks åtte fliser.
+const FIRKANT_MAKS_RUNDER = 16
 
 export function useAutoNabo({
   meta, mapId, isGesturing, isAlive,
@@ -48,14 +50,22 @@ export function useAutoNabo({
   visibleCenterSvg, extendZonesBounds, extendMapGeometry,
   centerOverExistingTile, autoMapBuildOpts, autoMapModeBusy,
   leggTilSpokelse, maxTiles, refreshAutoTileCount, refreshMosaicGaps,
+  firkantCeller = () => [],
 }) {
-  // Default PÅ. Funksjonen er ikke-blokkerende, kartflaten står stille, og
-  // økt-taket er gjerdet — og en opt-in-bryter ville aldri blitt slått på nok
-  // til at vi fikk måletall å justere tersklene etter.
-  const autoNaboPa = ref(lesPa())
+  // Standardene bor i lib/autoNaboValg.js — se begrunnelsene der.
+  const autoNaboPa = ref(lesAutoNaboPa())
   function settAutoNaboPa(v) {
     autoNaboPa.value = !!v
-    try { localStorage.setItem(PA_KEY, v ? '1' : '0') } catch { /* privat modus */ }
+    skrivAutoNaboPa(autoNaboPa.value)
+  }
+
+  // «Gjør arket firkantet» som automatikk i stedet for banner. Betyr ingenting
+  // når autoNaboPa er av: da er det kanthåndtakene som utvider, og de holder
+  // arket rektangulært i seg selv.
+  const firkantPa = ref(lesFirkantPa())
+  function settFirkantPa(v) {
+    firkantPa.value = !!v
+    skrivFirkantPa(firkantPa.value)
   }
 
   const autoNaboStatus = reactive({
@@ -66,6 +76,12 @@ export function useAutoNabo({
     tak: AUTO_NABO_OKTTAK,
     sisteAvvisning: null,
     sisteFlis: null,
+    // 'retning' = flisa du panorerte mot, 'firkant' = utfyllingen etterpå,
+    // null = ingenting på gang. Chipen bruker den til å velge tekst og til å
+    // skru AV retnings-blinket mens hele arket fylles ut.
+    fase: null,
+    // Hvor mange fliser som gjenstår av utfyllingen, inkludert den som bygges nå.
+    firkantIgjen: 0,
   })
 
   let intensjon = nyIntensjon()
@@ -98,6 +114,7 @@ export function useAutoNabo({
     byggerNaa = null
     sisteSpek = null
     autoNaboStatus.byggerNokkel = null
+    autoNaboStatus.firkantIgjen = 0
     autoNaboStatus.sisteAvvisning = grunn
     refreshMosaicGaps?.()
   }
@@ -149,17 +166,17 @@ export function useAutoNabo({
     return kandidater[0]
   }
 
-  async function byggIBakgrunnen(dir) {
-    const m = meta.value
-    const flis = nesteFlis(dir)
-    if (!flis) { autoNaboStatus.sisteAvvisning = 'alt bygd'; return }
-    const nokkel = cellenokkel(flis.utmBbox)
-    const spek = { opts: autoMapBuildOpts(flis.center), utmBbox: flis.utmBbox }
+  // Bygger ÉN flis stille: ingen loader, ingen navigasjon, kartflaten står i ro.
+  // Returnerer id-en, eller null hvis den ikke ble bygd (avbrutt eller feilet).
+  // Delt av retnings-byggingen og utfyllingen — de skiller seg bare i HVILKEN
+  // celle de ber om og hva chipen kaller det.
+  async function byggStille(spek, fase) {
+    const nokkel = cellenokkel(spek.utmBbox)
     byggerNaa = nokkel
     sisteSpek = spek
     avbryter = new AbortController()
     autoNaboStatus.byggerNokkel = nokkel
-    autoNaboStatus.retning = dir
+    autoNaboStatus.fase = fase
     autoNaboStatus.sisteAvvisning = null
     // Bokfør FØR byggingen: blir økta avbrutt av en reload eller app-lukking, er
     // dette det eneste sporet av hva som skulle bygges.
@@ -169,31 +186,34 @@ export function useAutoNabo({
     try {
       const { id } = await buildMapFromCenter({
         ...spek.opts,
-        utmBbox: flis.utmBbox,   // bit-eksakt gitter-flukt + hopper over tetthets-sonderingen
+        utmBbox: spek.utmBbox,   // bit-eksakt gitter-flukt + hopper over tetthets-sonderingen
         terrainFirst: false,
         signal: avbryter.signal,
       })
-      if (!isAlive()) return
-      if (id) {
-        fjernVentende(flis.utmBbox)
-        autoNaboStatus.bygdIOkt = okOkt({})   // telles først ved FULLFØRING
-        autoNaboStatus.sisteFlis = id
-        await leggTilSpokelse(id)
-        logPerf(`[auto-nabo] ${dir} bygd på ${Math.round(performance.now() - t0)} ms`)
-        try {
-          const ll = svgToWgs84(flis.center.x, flis.center.y, m)
-          pruneAutoTiles({
-            center: { lat: ll.lat, lon: ll.lon },
-            max: maxTiles.value,
-            protectIds: [mapId.value, id],
-          }).then(() => { void refreshAutoTileCount?.() }).catch(() => {})
-        } catch { /* svgToWgs84 feilet → hopp over pruning */ }
+      if (!isAlive() || !id) return null
+      fjernVentende(spek.utmBbox)
+      autoNaboStatus.bygdIOkt = okOkt({})   // telles først ved FULLFØRING
+      autoNaboStatus.sisteFlis = id
+      await leggTilSpokelse(id)
+      logPerf(`[auto-nabo] ${fase} bygd på ${Math.round(performance.now() - t0)} ms`)
+      // Kappingen sentreres på flisa vi nettopp bygde. autoMapBuildOpts har
+      // allerede regnet senteret om til lat/lon, så det trengs ingen ny
+      // projeksjon her — og utfyllings-cellene får den gratis på samme vis.
+      const c = spek.opts?.center
+      if (Number.isFinite(c?.lat) && Number.isFinite(c?.lon)) {
+        pruneAutoTiles({
+          center: { lat: c.lat, lon: c.lon },
+          max: maxTiles.value,
+          protectIds: [mapId.value, id],
+        }).then(() => { void refreshAutoTileCount?.() }).catch(() => {})
       }
+      return id
     } catch (e) {
-      if (e?.name === 'AbortError') return   // avbrytBakgrunnsbygg har alt ryddet
+      if (e?.name === 'AbortError') return null   // avbrytBakgrunnsbygg har alt ryddet
       console.warn('[auto-nabo] bygging feilet:', e?.message ?? e)
-      fjernVentende(flis.utmBbox)
+      fjernVentende(spek.utmBbox)
       autoNaboStatus.sisteAvvisning = 'byggefeil'
+      return null
     } finally {
       if (byggerNaa === nokkel) {
         byggerNaa = null
@@ -203,6 +223,41 @@ export function useAutoNabo({
       }
       refreshMosaicGaps?.()
     }
+  }
+
+  // Utfylling til firkant, som en FORTSETTELSE av bakgrunnsbyggingen: like
+  // stille, samme gater, samme økt-tak. Her slutter «Gjør arket firkantet» å
+  // være et banner og blir en innstilling.
+  //
+  // Merk at dette ikke er den automatikken v1.0.28 døde av. Den leste FORM og
+  // bygde utsnitt ingen hadde bedt om. Denne henger på en bryter brukeren har
+  // slått på, og fyrer bare i halen av en flis brukeren nettopp panorerte fram.
+  //
+  // Løkka regner ut cellene på nytt hver runde i stedet for å iterere over en
+  // liste: hver ny flis endrer arkets omsluttende rektangel, så en liste tatt på
+  // forhånd ville vært feil fra andre runde.
+  async function fyllUtArket() {
+    if (!firkantPa.value) return
+    for (let runde = 0; runde < FIRKANT_MAKS_RUNDER; runde++) {
+      if (!isAlive() || !autoNaboPa.value) break
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        autoNaboStatus.sisteAvvisning = 'offline'; break
+      }
+      if (oktTakNadd({ tak: AUTO_NABO_OKTTAK })) { autoNaboStatus.sisteAvvisning = 'økt-tak'; break }
+      const celler = firkantCeller()
+      if (!celler.length) break
+      autoNaboStatus.firkantIgjen = celler.length
+      if (!await byggStille(celler[0], 'firkant')) break
+    }
+    autoNaboStatus.firkantIgjen = 0
+  }
+
+  async function byggIBakgrunnen(dir) {
+    const flis = nesteFlis(dir)
+    if (!flis) { autoNaboStatus.sisteAvvisning = 'alt bygd'; return }
+    autoNaboStatus.retning = dir
+    const id = await byggStille({ opts: autoMapBuildOpts(flis.center), utmBbox: flis.utmBbox }, 'retning')
+    if (id && isAlive()) await fyllUtArket()
   }
 
   // Kalles fra MapViews transform-watch. Billig: én prøve, ren aritmetikk.
@@ -252,10 +307,11 @@ export function useAutoNabo({
     avbryter = null
     byggerNaa = null
     sisteSpek = null
+    autoNaboStatus.firkantIgjen = 0
   }
 
   return {
-    autoNaboPa, settAutoNaboPa, autoNaboStatus,
+    autoNaboPa, settAutoNaboPa, firkantPa, settFirkantPa, autoNaboStatus,
     sporPanIntensjon, avbrytBakgrunnsbygg, byggerNaaNokkel,
     kvitterEksplisittHandling, teardownAutoNabo,
   }

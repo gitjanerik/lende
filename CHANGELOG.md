@@ -1,5 +1,41 @@
 # Endringslogg
 
+## 2026-08-15 — v5.19.7: Auto-kart er av som standard, og kan fylle ut arket selv
+
+Tre ting som henger sammen.
+
+**Automatikken er AV som standard.** Den var på, med den begrunnelsen at en
+opt-in aldri ville blitt slått på nok til at vi fikk måletall å justere tersklene
+etter. Det holdt ikke i praksis: den kontinuerlige panoreringen må kunne kjøres
+side om side med den manuelle for å kunne sammenlignes, og en automatikk som er
+på fra første kartåpning gjør nettopp det umulig. Standardene bor nå i
+`src/lib/autoNaboValg.js` med tester på seg — det er den slags avgjørelse ingen
+tester manuelt, fordi den bare gjelder enheter som aldri har rørt bryteren.
+
+**«Gjør arket firkantet» er blitt en innstilling.** Automatikken henter én flis
+om gangen, så arket får ujevn kant — og 3D og pan-grensa bruker likevel arkets
+omsluttende rektangel. Er valget på, fyller automatikken ut hjørnene i halen av
+flisa du panorerte fram: like stille, samme gater, samme økt-tak. Den ligger
+under auto-bryteren i drawer-en og er bare synlig når automatikken er på, for
+uten den er det kanthåndtakene som utvider, og de holder arket rektangulært selv.
+
+Dette er ikke automatikken v1.0.28 døde av. Den leste FORM og bygde utsnitt ingen
+hadde bedt om. Denne henger på en bryter brukeren har slått på, og fyrer bare
+etter en flis brukeren nettopp panorerte fram. Celle-lista er den samme som
+knappen bygger (`firkantCeller`), så banneret og automatikken kan ikke bli uenige
+om hva «firkantet» betyr.
+
+**Banneret på kartet gjelder nå bare når automatikken er av.** Med automatikk på
+bygges det fliser hele tida, og et banner etter hver av dem ville vært mas om noe
+brukeren allerede har tatt stilling til i innstillingene. Med automatikk av er
+banneret fortsatt den eneste veien til en firkant, og står som før.
+
+Chipen sier hva som faktisk skjer: «Fyller ut arket … (3 igjen)» i stedet for
+retnings-teksten, ikonet blinker med hele arket i stedet for én side, og
+kvitteringen kommer først når alt er ferdig — «Arket er firkantet».
+
+---
+
 ## 2026-08-15 — v5.19.6: Bygge-ikonet peker faktisk dit flisa hentes
 
 v5.19.4 skrev retnings-logikken for bygge-chipens ikon, men koblet den aldri

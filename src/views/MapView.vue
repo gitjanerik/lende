@@ -1389,7 +1389,7 @@ const {
   autoMapBuildOpts, promoteTile, extendMap, armAutoMap,
   extendZonesBounds, arkRutenett, teardownMapExtend,
   refreshMosaicGaps, repairMosaicGaps,
-  firkantAntall, gjorArketFirkantet,
+  firkantAntall, gjorArketFirkantet, firkantCellerListe,
   extendMapGeometry, centerOverExistingTile,
 } = useMapExtend({
   wrapperRef, wrapperSize, meta, mapId, router,
@@ -1408,7 +1408,7 @@ const {
 // navn derfra som VERDIER (destrukturerte const-er, ikke hoistede funksjoner —
 // hoisting-fella i CLAUDE.md), og leggTilSpokelse fra useGhostTiles lenger oppe.
 const {
-  autoNaboPa, settAutoNaboPa, autoNaboStatus,
+  autoNaboPa, settAutoNaboPa, firkantPa, settFirkantPa, autoNaboStatus,
   sporPanIntensjon, avbrytBakgrunnsbygg, byggerNaaNokkel,
   kvitterEksplisittHandling, teardownAutoNabo,
 } = useAutoNabo({
@@ -1417,6 +1417,7 @@ const {
   visibleCenterSvg, extendZonesBounds, extendMapGeometry,
   centerOverExistingTile, autoMapBuildOpts, autoMapModeBusy,
   leggTilSpokelse, maxTiles, refreshAutoTileCount, refreshMosaicGaps,
+  firkantCeller: firkantCellerListe,
 })
 
 // Kvitteringen: relieff-passet er ferdig på en nybygd naboflis. Chippen bytter
@@ -1428,21 +1429,38 @@ const autoNaboBryter = computed({
   get: () => autoNaboPa.value,
   set: (v) => settAutoNaboPa(v),
 })
+const firkantBryter = computed({
+  get: () => firkantPa.value,
+  set: (v) => settFirkantPa(v),
+})
 
 const naboKlarTekst = ref('')
 let naboKlarTimer = null
+// Utfyllingen til firkant er en egen fase i den samme bakgrunnsbyggingen, og
+// chipen skal si hva som faktisk skjer — «Henter Nord i lende …» er feil når
+// automatikken har gått videre til hjørnene.
+const fyllerUtArket = computed(() => autoNaboStatus.firkantIgjen > 0)
 // Chippen har to tilstander og ÉN plass: «Henter …» mens det står på, og
 // «… er klar» en liten stund etterpå. Ferdig-teksten vinner når begge er satt.
 const bakgrunnsflisTekst = computed(() => {
   if (naboKlarTekst.value) return naboKlarTekst.value
   if (!autoNaboStatus.byggerNokkel) return ''
+  if (fyllerUtArket.value) {
+    const n = autoNaboStatus.firkantIgjen
+    return n > 1 ? `Fyller ut arket … (${n} igjen)` : 'Fyller ut arket …'
+  }
   const dir = autoNaboStatus.retning
   return dir ? `Henter ${extendZoneLabelText(dir)} …` : 'Henter nytt utsnitt …'
 })
 function naboFlisKlar(id, info) {
   if (id !== autoNaboStatus.sisteFlis) return   // ikke for fliser fra en full re-render
+  // Midt i en utfylling er ingenting «klart» ennå. Uten denne ville kvitteringen
+  // blinket én gang per hjørne-flis, med retnings-teksten fra flisa før dem.
+  if (autoNaboStatus.byggerNokkel || fyllerUtArket.value) return
   const dir = autoNaboStatus.retning
-  naboKlarTekst.value = dir ? `${extendZoneLabelText(dir)} er klar` : 'Nytt utsnitt er klart'
+  naboKlarTekst.value = autoNaboStatus.fase === 'firkant'
+    ? 'Arket er firkantet'
+    : (dir ? `${extendZoneLabelText(dir)} er klar` : 'Nytt utsnitt er klart')
   if (naboKlarTimer) clearTimeout(naboKlarTimer)
   naboKlarTimer = setTimeout(() => { naboKlarTekst.value = '' }, 1800)
   // Kort haptisk tikk der det finnes. Aldri påkrevd: Chromium blokkerer
@@ -2715,7 +2733,7 @@ onUnmounted(() => {
       :map-center-style="mapCenterStyle"
       :filling-in-details="fillingInDetails"
       :bakgrunnsflis-tekst="bakgrunnsflisTekst"
-      :bakgrunnsflis-retning="autoNaboStatus.retning"
+      :bakgrunnsflis-retning="fyllerUtArket ? null : autoNaboStatus.retning"
       :bakgrunnsflis-klar="!!naboKlarTekst"
       :bakgrunnsflis-ark="arkRutenett"
       :highlighted-feature="highlightedFeature"
@@ -2772,6 +2790,7 @@ onUnmounted(() => {
       @complete-partial="retryMapDetails"
       @repair-mosaic="() => { kvitterEksplisittHandling(); repairMosaicGaps() }"
       :firkant-antall="firkantAntall"
+      :auto-kart-pa="autoNaboPa"
       @square-mosaic="() => { kvitterEksplisittHandling(); gjorArketFirkantet() }"
       @dismiss-low-accuracy="dismissLowAccuracy"
       @retry-gps="onRetryGps" />
@@ -2985,6 +3004,7 @@ onUnmounted(() => {
             :building="buildingOnTheFly" :can-rebuild="!!meta?.bbox"
             :screen-wake="screenWake" :max-tiles="maxTiles"
             v-model:auto-nabo-pa="autoNaboBryter"
+            v-model:firkant-pa="firkantBryter"
             :max-tile-index-max="MAX_TILE_STEPS.length - 1" />
 
           <DrawerDevTab v-show="activeTab === 'utvikler'"
