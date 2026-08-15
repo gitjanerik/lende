@@ -1,5 +1,21 @@
 # Endringslogg
 
+## 2026-08-15 — v5.19.11: Auto-kart sier ikke lenger at arket er firkantet når det ikke er det
+
+Kvitteringen etter en automatisk utfylling leste hvilken FASE løkka var i, ikke
+hva arket faktisk ble. Var siste flis av typen «firkant», sto det «Arket er
+firkantet» — også når utfyllingen ga seg halvveis. Og den gir seg på fire andre
+måter enn å bli ferdig: økt-taket på tolv fliser, tapt nett, en flis som feilet,
+og runde-vakta. Verre var dødpunktet etterpå: banneret «Gjør arket firkantet»
+var skjult så lenge auto-bryteren sto på, så brukeren satt igjen med et synlig
+ujevnt ark, ingen knapp, og en melding som påsto det motsatte. Nå teller
+`fyllUtArket` opp på nytt når den er ferdig og lagrer hva som står igjen
+(`firkantRest`) og hvorfor (`firkantStopp`). Chipen bruker tallet — «Auto-pause
+· 3 fliser igjen», «Uten nett · 1 flis igjen» — og banneret kommer tilbake så
+snart automatikken har gitt opp, så veien videre finnes igjen.
+
+---
+
 ## 2026-08-15 — v5.19.10: Måleverktøyet viser høydeforskjell mellom første og siste punkt
 
 Måler du en strekning på kartet, sa den grønne readout-en bare hvor langt det

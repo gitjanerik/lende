@@ -47,3 +47,23 @@ export function lesFirkantPa({ lesLager = standardLes } = {}) {
 export function skrivFirkantPa(pa, { skrivLager = standardSkriv } = {}) {
   skrivLager(FIRKANT_KEY, pa ? '1' : '0')
 }
+
+/**
+ * Hva chipen sier når utfyllingen til firkant er ferdig med det den fikk gjort.
+ *
+ * Fram til v5.19.11 sa den alltid «Arket er firkantet», utledet av at siste flis
+ * var av typen 'firkant'. Men utfyllings-løkka gir seg på fire andre måter enn å
+ * bli ferdig — økt-taket (12 fliser), tapt nett, en flis som feilet, og
+ * runde-vakta — og i alle fire står arket igjen med ujevn kant. Meldingen skal
+ * beskrive ARKET, ikke fasen løkka var i, så den tar `rest` fra en fersk
+ * opptelling og ikke fra løkkas eget regnskap.
+ *
+ * @param {{rest?:number, stopp?:string|null}} status
+ */
+export function firkantKvitteringTekst({ rest = 0, stopp = null } = {}) {
+  if (!(rest > 0)) return 'Arket er firkantet'
+  const fliser = `${rest} ${rest === 1 ? 'flis' : 'fliser'} igjen`
+  if (stopp === 'offline') return `Uten nett · ${fliser}`
+  if (stopp === 'økt-tak') return `Auto-pause · ${fliser}`
+  return `Stoppet · ${fliser}`
+}

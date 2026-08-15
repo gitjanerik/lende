@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   PA_KEY, FIRKANT_KEY,
   lesAutoNaboPa, skrivAutoNaboPa, lesFirkantPa, skrivFirkantPa,
+  firkantKvitteringTekst,
 } from './autoNaboValg.js'
 
 const lager = (verdier = {}) => {
@@ -67,5 +68,31 @@ describe('lesFirkantPa — utfyllingen er PÅ når automatikken først er på', 
     skrivFirkantPa(false, l)
     expect(l.data[PA_KEY]).toBe('1')
     expect(l.data[FIRKANT_KEY]).toBe('0')
+  })
+})
+
+// Kvitteringen er hele bug-en fra v5.19.11: den påsto «Arket er firkantet» på
+// et ark som synlig ikke var det, fordi den leste hvilken FASE løkka var i og
+// ikke hva som faktisk sto igjen.
+describe('firkantKvitteringTekst', () => {
+  it('melder firkantet bare når ingenting står igjen', () => {
+    expect(firkantKvitteringTekst({ rest: 0, stopp: null })).toBe('Arket er firkantet')
+    expect(firkantKvitteringTekst()).toBe('Arket er firkantet')
+  })
+
+  it('melder ALDRI firkantet når fliser står igjen', () => {
+    for (const stopp of ['økt-tak', 'offline', 'byggefeil', 'runde-tak', 'avbrutt', null]) {
+      expect(firkantKvitteringTekst({ rest: 3, stopp })).not.toBe('Arket er firkantet')
+    }
+  })
+
+  it('tar med hvor mange som står igjen, i entall og flertall', () => {
+    expect(firkantKvitteringTekst({ rest: 1, stopp: 'byggefeil' })).toBe('Stoppet · 1 flis igjen')
+    expect(firkantKvitteringTekst({ rest: 4, stopp: 'byggefeil' })).toBe('Stoppet · 4 fliser igjen')
+  })
+
+  it('navngir de to grunnene brukeren selv kan gjøre noe med', () => {
+    expect(firkantKvitteringTekst({ rest: 2, stopp: 'offline' })).toBe('Uten nett · 2 fliser igjen')
+    expect(firkantKvitteringTekst({ rest: 2, stopp: 'økt-tak' })).toBe('Auto-pause · 2 fliser igjen')
   })
 })

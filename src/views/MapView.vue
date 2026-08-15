@@ -87,6 +87,7 @@ import { useMapLoadPipeline } from '../composables/useMapLoadPipeline.js'
 import { buildStrokeOverrideCss } from '../lib/strokeOverrides.js'
 import { buildTrailColorCss, normalizeHex } from '../lib/trailColors.js'
 import { DEFAULT_VISIBLE_LAYER_KEYS } from '../lib/mapLayerCatalog.js'
+import { firkantKvitteringTekst } from '../lib/autoNaboValg.js'
 import { listThemes } from '../lib/mapSettingsApply.js'
 import { norwegianName } from '../lib/placeName.js'
 import AnnotationIcon from '../components/AnnotationIcon.vue'
@@ -1436,6 +1437,11 @@ const firkantBryter = computed({
   set: (v) => settFirkantPa(v),
 })
 
+// Banneret «Gjør arket firkantet» skjules bare når automatikken FAKTISK tar
+// jobben: begge bryterne på, og forrige utfylling ga seg ikke med celler igjen.
+const firkantTasAutomatisk = computed(() =>
+  autoNaboPa.value && firkantPa.value && !autoNaboStatus.firkantStopp)
+
 const naboKlarTekst = ref('')
 let naboKlarTimer = null
 // Utfyllingen til firkant er en egen fase i den samme bakgrunnsbyggingen, og
@@ -1461,7 +1467,7 @@ function naboFlisKlar(id, info) {
   if (autoNaboStatus.byggerNokkel || fyllerUtArket.value) return
   const dir = autoNaboStatus.retning
   naboKlarTekst.value = autoNaboStatus.fase === 'firkant'
-    ? 'Arket er firkantet'
+    ? firkantKvitteringTekst({ rest: autoNaboStatus.firkantRest, stopp: autoNaboStatus.firkantStopp })
     : (dir ? `${extendZoneLabelText(dir)} er klar` : 'Nytt utsnitt er klart')
   if (naboKlarTimer) clearTimeout(naboKlarTimer)
   naboKlarTimer = setTimeout(() => { naboKlarTekst.value = '' }, 1800)
@@ -2792,7 +2798,7 @@ onUnmounted(() => {
       @complete-partial="retryMapDetails"
       @repair-mosaic="() => { kvitterEksplisittHandling(); repairMosaicGaps() }"
       :firkant-antall="firkantAntall"
-      :auto-kart-pa="autoNaboPa"
+      :firkant-tas-automatisk="firkantTasAutomatisk"
       @square-mosaic="() => { kvitterEksplisittHandling(); gjorArketFirkantet() }"
       @dismiss-low-accuracy="dismissLowAccuracy"
       @retry-gps="onRetryGps" />
