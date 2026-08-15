@@ -121,9 +121,12 @@ export function useGhostTiles({
     // all tekst strippet, så utvidede utsnitt sto blanke til en 5–10 s auto-bygging
     // gjorde dem aktive. Navnene styles av aktiv flis' delte <style> + arver
     // --land/water-font og zoom-LOD-klasser (CSS) fra aktiv SVG. De holdes UTENFOR
-    // søkeindeksen og JS-tetthets-budsjettet (useMapSearch hopper over #ghost-tiles)
-    // — spøkelser er nested <svg> med x/y-offset som declutter-mattematematikken ikke
-    // håndterer, og de skal ikke gi doble søketreff. Rene tall-/detalj-labels fjernes
+    // den AKTIVE søkeindeksen og JS-tetthets-budsjettet (useMapSearch hopper over
+    // #ghost-tiles) — spøkelser er nested <svg> med x/y-offset som declutter-
+    // matematikken ikke håndterer. Fra v5.19.x leses de derimot av en EGEN
+    // nabo-indeks (useMapSearch.buildNaboSearchIndex via lib/kartNavn), så søket
+    // dekker hele arket uten at LOD-en ser dem. Rører du tekst-strippingen her,
+    // blir naboflisene usøkbare. Rene tall-/detalj-labels fjernes
     // (kontur-/vann-/dybde-tall, skjult dem-topp) for å holde naboflisene rene.
     for (const det of gsvg.querySelectorAll(
       '[data-label="kontur-tall"], [data-label="vann-tall"], [data-label="dybde-tall"], [data-label="dem-topp"]'
@@ -537,10 +540,11 @@ export function useGhostTiles({
   }
 
   // ── Gjenfestings-vinduet ────────────────────────────────────────────────────
-  // Fire konsumenter leser geometri rett ut av den LEVENDE kart-SVG-en, og en
-  // løsnet flis er usynlig for dem: mapSvgTilesFor3d, tour3d/exploreData,
-  // useStifinner.featuresFromSvg og navne-lesingen i 3D. De må gå gjennom en av
-  // disse. `finally` gjenoppretter NØYAKTIG forrige feste-sett — aldri «fest alt».
+  // Fem konsumenter leser geometri eller navn rett ut av den LEVENDE kart-SVG-en,
+  // og en løsnet flis er usynlig for dem: mapSvgTilesFor3d, tour3d/exploreData,
+  // useStifinner.featuresFromSvg, navne-lesingen i 3D og kartsøkets nabo-indeks
+  // (useKartSok.rebuildNaboIndeks). De må gå gjennom en av disse. `finally`
+  // gjenoppretter NØYAKTIG forrige feste-sett — aldri «fest alt».
   function medAlleSpokelserFestet(fn) {
     const svg = svgHostRef.value?.querySelector('svg')
     if (!svg || !ghostNoder.size) return fn()

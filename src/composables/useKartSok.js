@@ -18,10 +18,28 @@
 // Det GLOBALE stedssøket (Kartverket SSR + Nominatim) blir i MapView med vilje:
 // å velge et globalt treff BYGGER ET NYTT KART, og hører til bygge-domenet, ikke
 // til søket. Herfra kalles bare `hooks.clearGlobalSearch()`.
+//
+// ── Hele arket, ikke bare midtflisa (v5.19.x) ───────────────────────────────
+// Brukeren bygger nabofliser bare ved å panorere, og et søk som stoppet ved
+// aktiv flis fant ikke stedet de nettopp så på skjermen. Nabo-indeksen bygges
+// derfor av navnelabelene i `#ghost-tiles` (useMapSearch.rebuildNabo).
+//
+// To ting styrer NÅR den bygges, og begge er valgt for ytelse:
+//   1. Ikke i `scheduleDeferredMapPasses`. Det passet eier første-paint-budsjettet,
+//      og fire til tolv fliser til der er akkurat den regningen ingen vil ha.
+//      Nabo-indeksen trengs først når noen søker — så den bygges ved ÅPNING.
+//   2. Inne i `medAlleFliser` (useGhostTiles.medAlleSpokelserFestet). En flis
+//      kan være DEMONTERT fra DOM-en (v5.19.0); uten dette vinduet ville søket
+//      bare funnet det som tilfeldigvis var festet i utsnittet. Den SYNKRONE
+//      varianten er valgt med vilje — den asynkrone parser fliser fra IndexedDB
+//      på nytt (multi-MB DOMParser per flis), og det er for dyrt for en handling
+//      som skal føles umiddelbar. Fliser utenfor node-taket kommer med neste
+//      gang de er parset.
 
 import { ref, onUnmounted } from 'vue'
 import { useMapSearch } from './useMapSearch.js'
 import { useSearchKeyboard } from './useSearchKeyboard.js'
+import { logPerf } from '../lib/perfLog.js'
 
 /**
  * @param {{
@@ -30,6 +48,7 @@ import { useSearchKeyboard } from './useSearchKeyboard.js'
  *   isGesturing: import('vue').Ref, zoomNearThreshold: import('vue').Ref,
  *   panTo: (x: number, y: number, opts?: object) => void,
  *   forcedVisibleNameEls: () => Set,   // getter: eies av useNavnLod (deklareres senere)
+ *   medAlleFliser?: (fn: Function) => any,  // wrapper: eies av useGhostTiles (deklareres senere)
  *   hooks: {
  *     renderHighlight: () => void, closeDrawer: () => void,
  *     clearGlobalSearch: () => void,
@@ -38,7 +57,7 @@ import { useSearchKeyboard } from './useSearchKeyboard.js'
  */
 export function useKartSok({
   svgHostRef, wrapperRef, meta, scale, isGesturing, zoomNearThreshold,
-  panTo, forcedVisibleNameEls, hooks,
+  panTo, forcedVisibleNameEls, medAlleFliser, hooks,
 }) {
 
   // Søk i kart — bygger indeks etter map-load, viser dropdown med treff og
@@ -50,12 +69,32 @@ export function useKartSok({
   const searchQuery = mapSearch.query
   const searchResults = mapSearch.results
   const searchIndex = mapSearch.index
+  // Hele arket (aktiv flis + nabofliser). Det er DENNE trefflista filtreres mot;
+  // `searchIndex` er fortsatt aktiv flis alene, fordi navn-LOD-en bruker den som
+  // tetthets-budsjett og aldri skal se nestede spøkelses-elementer.
+  const arkIndex = mapSearch.arkIndex
   const searchOpen = ref(false)
   const highlightedFeature = ref(null)   // { name, x, y, kind } eller null
+
+  // Indekser naboflisene. Synkron DOM-lesing (ingen getBBox, bare attributter),
+  // så den koster ikke noe nær et layout-pass — men den MÅ kjøre inne i
+  // gjenfestings-vinduet, ellers ser den bare de festede flisene.
+  function rebuildNaboIndeks() {
+    const svg = svgHostRef.value?.querySelector('svg')
+    if (!svg) return 0
+    const t0 = performance.now()
+    const kjor = () => mapSearch.rebuildNabo(svg)
+    const antall = typeof medAlleFliser === 'function' ? medAlleFliser(kjor) : kjor()
+    logPerf(`[søk] naboindeks: ${Math.round(performance.now() - t0)} ms, ${antall} navn`)
+    return antall
+  }
 
   function openSearch() {
     searchOpen.value = true
     hooks.closeDrawer()
+    // Naboflisene kan ha kommet til siden sist (auto-bygging mens brukeren
+    // panorerte), så indeksen bygges ved hver åpning — ikke ved kart-lasting.
+    rebuildNaboIndeks()
     // Fokus håndteres av MapSearchOverlay når open blir true.
   }
   function closeSearch() {
@@ -138,9 +177,9 @@ export function useKartSok({
   onUnmounted(stopPanSettle)
 
   return {
-    mapSearch, searchQuery, searchResults, searchIndex,
+    mapSearch, searchQuery, searchResults, searchIndex, arkIndex,
     searchOpen, highlightedFeature,
-    openSearch, closeSearch, clearHighlight,
+    openSearch, closeSearch, clearHighlight, rebuildNaboIndeks,
     panToSettled, stopPanSettle, selectSearchResult,
     searchActiveIndex, onSearchKeydown,
   }

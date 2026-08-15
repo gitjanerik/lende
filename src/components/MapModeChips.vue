@@ -6,6 +6,7 @@
 // som props og leses med .value-idiomet, som ellers i appen. Handlinger som
 // involverer andre delsystemer sendes ut som events.
 import { computed, ref, watch } from 'vue'
+import { kvadranterForRetning, KVADRANTER } from '../lib/flisIkon.js'
 import { ANNOTATION_SYMBOLS } from '../composables/useMapAnnotations.js'
 
 const props = defineProps({
@@ -17,6 +18,12 @@ const props = defineProps({
   // Tom streng = ingen chip. Egen chip fordi den kan stå samtidig med
   // fillingInDetails (terreng-først på aktiv flis er et annet fenomen).
   bakgrunnsflisTekst: { type: String, default: '' },
+  // Retningen flisa hentes i (N/NE/E/…). Styrer HVILKE av de fire rutene i
+  // ikonet som animerer — se lib/flisIkon.js.
+  bakgrunnsflisRetning: { type: String, default: null },
+  // true når flisa er ferdig: da står alle fire rutene fylt (et helt ark) i
+  // stedet for å blinke. Kvitteringen skal se ferdig ut, ikke arbeidende.
+  bakgrunnsflisKlar: { type: Boolean, default: false },
   highlightedFeature: { type: Object, default: null },
   annot: { type: Object, required: true },
   measureMode: { type: [Boolean, String], default: false },
@@ -36,6 +43,19 @@ defineEmits([
   'selectRoute', 'removeVia', 'beginAddVia', 'cancelStifinner',
   'followRoute', 'stopFollowing', 'shareRoundTrip', 'startGps', 'open3d',
 ])
+
+// De fire rutene i bygge-ikonet, i DOM-rekkefølge. `aktiv` = animerer (ligger i
+// retningen flisa hentes fra), `fylt` = ferdig-tilstanden der hele arket står.
+const IKON_POS = { tv: { x: 4, y: 4 }, th: { x: 17, y: 4 }, bv: { x: 4, y: 17 }, bh: { x: 17, y: 17 } }
+const ikonRuter = computed(() => {
+  const k = kvadranterForRetning(props.bakgrunnsflisRetning)
+  return KVADRANTER.map(nokkel => ({
+    k: nokkel,
+    ...IKON_POS[nokkel],
+    aktiv: !props.bakgrunnsflisKlar && k[nokkel],
+    fylt: props.bakgrunnsflisKlar,
+  }))
+})
 
 // Dele-knappens tekst sier hva som deles: en rundtur er en rundtur, men
 // Stifinnerens A→B-tur er en sti — «Del rundtur» der var direkte feil.

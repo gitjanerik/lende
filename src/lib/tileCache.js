@@ -266,3 +266,53 @@ export function arkExtentFor(entry, alle, { radiusTiles = 4 } = {}) {
   }
   return { widthM: maxE - minE, heightM: maxN - minN, fliser }
 }
+
+/**
+ * Cellene som mangler for at arket skal bli et RETTVINKLET rektangel.
+ *
+ * Dette er bevisst den samme «alle tomme celler i mosaikkens omsluttende
+ * rektangel»-regelen som `findGridGaps` en gang brukte og som ble forkastet i
+ * v1.0.28 — den rapporterte fantom-hull under vanlig panorering og bygde utsnitt
+ * ingen hadde bedt om. Forskjellen som gjør den trygg her er ikke geometrien,
+ * det er HVEM SOM UTLØSER DEN: `findGridGaps` mater et varsel som dukker opp av
+ * seg selv, mens denne mater en knapp brukeren trykker med kostnaden («+N
+ * fliser») skrevet på. Automatikken bygger fortsatt bare én flis om gangen, i
+ * den retningen du faktisk beveget deg.
+ *
+ * Ikke koble denne til noe som bygger uten et trykk.
+ *
+ * @param {{w:number,h:number}} activeRect        aktiv flis' størrelse (x/y antas 0)
+ * @param {Array<{x:number,y:number}>} ghostRects nabo-flisenes offset-rektangler
+ * @param {{tolFrac?:number}} [opts]
+ * @returns {Array<{col:number,row:number,x:number,y:number}>} celler som mangler
+ */
+export function findRectangleGaps(activeRect, ghostRects, { tolFrac = 0.25 } = {}) {
+  const W = activeRect?.w, H = activeRect?.h
+  if (!(W > 0) || !(H > 0)) return []
+  const occupied = new Set()
+  const mark = (x, y) => {
+    const col = Math.round(x / W)
+    const row = Math.round(y / H)
+    if (Math.abs(x - col * W) > W * tolFrac) return
+    if (Math.abs(y - row * H) > H * tolFrac) return
+    occupied.add(`${col},${row}`)
+  }
+  mark(0, 0)
+  for (const r of ghostRects ?? []) mark(r.x, r.y)
+  if (occupied.size < 2) return []   // én flis ER et rektangel
+  let minCol = Infinity, maxCol = -Infinity, minRow = Infinity, maxRow = -Infinity
+  for (const key of occupied) {
+    const [col, row] = key.split(',').map(Number)
+    if (col < minCol) minCol = col
+    if (col > maxCol) maxCol = col
+    if (row < minRow) minRow = row
+    if (row > maxRow) maxRow = row
+  }
+  const ut = []
+  for (let row = minRow; row <= maxRow; row++) {
+    for (let col = minCol; col <= maxCol; col++) {
+      if (!occupied.has(`${col},${row}`)) ut.push({ col, row, x: col * W, y: row * H })
+    }
+  }
+  return ut
+}

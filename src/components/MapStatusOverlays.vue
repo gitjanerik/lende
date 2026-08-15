@@ -18,6 +18,11 @@ const props = defineProps({
   detailsFailed: { type: Boolean, default: false },
   mapIsPartial: { type: Boolean, default: false },
   mosaicGapCount: { type: Number, default: 0 },
+  // Hvor mange fliser som mangler for at arket skal bli rektangulært. Egen
+  // teller fra mosaicGapCount, fordi de betyr forskjellige ting: et hull er noe
+  // som er GALT (en avbrutt bygging), en ujevn kant er bare formen automatikken
+  // gir. Derfor eget banner, lavere prioritet, og kostnaden skrevet på knappen.
+  firkantAntall: { type: Number, default: 0 },
   isOffline: { type: Boolean, default: false },
   showLowAccuracy: { type: Boolean, default: false },
   accuracyM: { type: Number, default: 0 },
@@ -27,17 +32,19 @@ const props = defineProps({
 })
 defineEmits([
   'retryLoad', 'dismissOutside', 'dismissDetails', 'retryDetails', 'dismissLowAccuracy',
-  'retryGps', 'completePartial', 'repairMosaic',
+  'retryGps', 'completePartial', 'repairMosaic', 'squareMosaic',
 ])
 
 // Lokal «lukket for denne økta»-tilstand for reparasjons-bannerne og GPS-feil.
 // De re-vises hvis tilstanden dukker opp på nytt (nytt kart / nye hull / ny feil).
 const partialDismissed = ref(false)
 const gapsDismissed = ref(false)
+const firkantDismissed = ref(false)
 const positionErrorDismissed = ref(false)
 const fredetTruncDismissed = ref(false)
 watch(() => props.mapIsPartial, (v) => { if (v) partialDismissed.value = false })
 watch(() => props.mosaicGapCount, (v) => { if (v > 0) gapsDismissed.value = false })
+watch(() => props.firkantAntall, (v) => { if (v > 0) firkantDismissed.value = false })
 watch(() => props.positionError, () => { positionErrorDismissed.value = false })
 // Toast «mange arkeologiske kulturminner»: vises når laget kappet utvalget,
 // auto-skjules etter noen sekunder (kan også lukkes manuelt). Re-vises hver
@@ -245,6 +252,39 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
                    text-ink text-[12px] font-medium active:scale-[0.98]
                    disabled:opacity-50 disabled:active:scale-100">
       {{ isOffline ? 'Fyll hull (krever nett)' : (mosaicGapCount === 1 ? 'Fyll hullet' : 'Fyll hullene') }}
+    </button>
+  </div>
+
+  <!-- Firkant-arket: automatikken bygger ÉN flis om gangen — naboen du faktisk
+       beveget deg mot — så et ark som har vokst av seg selv blir organisk formet.
+       Det er ikke feil, men 3D og pan-grensa bruker arkets omsluttende rektangel,
+       så hjørnene står tomme og du kan panorere ut i krem inne i ditt eget ark.
+       Dette er et TILBUD med kostnaden skrevet på, aldri noe som skjer av seg
+       selv — se findRectangleGaps for hvorfor det skillet er hele forskjellen. -->
+  <div v-else-if="firkantAntall > 0 && !firkantDismissed && !loading"
+       class="absolute bottom-32 left-3 right-20 z-20 max-w-[420px]
+              rounded-lg backdrop-blur bg-overlay/95 border border-ink/15
+              text-ink text-[12px] shadow-lg p-3">
+    <div class="flex items-start gap-2">
+      <div class="flex-1 min-w-0 leading-snug">
+        Arket har ujevn kant. Fyller du ut til firkant, dekker 3D og
+        oversikts-zoom hele området.
+        <span v-if="isOffline" class="block mt-0.5 text-ink/70">Koble til nett for å bygge.</span>
+      </div>
+      <button @click="firkantDismissed = true" aria-label="Lukk"
+              class="w-6 h-6 -mt-0.5 -mr-1 flex items-center justify-center rounded-md
+                     text-ink/70 active:scale-90 active:bg-ink/10 shrink-0">
+        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+             stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <button @click="$emit('squareMosaic')" :disabled="isOffline"
+            class="mt-2 w-full px-3 py-1.5 rounded-md bg-ink/10 border border-ink/20
+                   text-ink text-[12px] font-medium active:scale-[0.98]
+                   disabled:opacity-50 disabled:active:scale-100">
+      {{ isOffline ? 'Gjør arket firkantet (krever nett)' : `Gjør arket firkantet · +${firkantAntall} ${firkantAntall === 1 ? 'flis' : 'fliser'}` }}
     </button>
   </div>
 
