@@ -887,6 +887,11 @@ export function useMapExtend({
     return ut
   }
 
+  // Eksponert for useAutoNabo, som kan fylle ut arket i bakgrunnen når brukeren
+  // har slått på det valget. Samme celle-liste som knappen bygger — én kilde til
+  // hva «firkantet» betyr, så banneret og automatikken aldri er uenige.
+  function firkantCellerListe() { return firkantCeller() }
+
   function refreshFirkant() {
     firkantAntall.value = firkantCeller().length
   }
@@ -906,7 +911,7 @@ export function useMapExtend({
     autoMapBuildOpts, promoteTile, extendMap, armAutoMap,
     extendZonesBounds, arkRutenett, teardownMapExtend,
     refreshMosaicGaps, repairMosaicGaps,
-    firkantAntall, gjorArketFirkantet,
+    firkantAntall, gjorArketFirkantet, firkantCellerListe,
     // Eksponert for useAutoNabo — bakgrunnsbyggingen bruker NØYAKTIG samme
     // geometri og samme «har vi den alt?»-test som kanthåndtakene, så en
     // automatisk hentet flis lander bit-eksakt på samme gitter.

@@ -169,7 +169,7 @@ const SJEKKER = [
     },
   },
   {
-    navn: 'auto-nabo-bryteren lagrer valget og status rendrer',
+    navn: 'auto-nabo-bryteren lagrer valget, firkant-valget følger den, status rendrer',
     domene: 'useAutoNabo',
     async kjør(page) {
       // ALT står i try/finally: kaster sjekken før opprydningen, blir skuffen
@@ -189,17 +189,38 @@ const SJEKKER = [
         // i en søsken-div — så klikkTekst (som matcher innerText) treffer den
         // ikke. Vi går på aria-label.
         const bryter = page.locator('button[aria-label="Hent nabokart automatisk"]')
-        await bryter.click()
-        await page.waitForTimeout(300)
-        const av = await les()
-        if (av !== '0') throw new Error(`forventet lende-auto-nabo="0" etter første trykk, fikk ${av}`)
-        // NØYTRALISERING: slå den PÅ igjen. Sjekken skal verken etterlate
-        // funksjonen avslått eller la en bakgrunns-nettverksfunksjon stå og
-        // bygge fliser mens de neste sjekkene kjører.
+        const firkant = page.locator('button[aria-label="Gjør arket firkantet automatisk"]')
+        // Automatikken er AV som standard fra v5.19.7, så første trykk slår den PÅ.
+        if (await firkant.count() !== 0) {
+          throw new Error('«Gjør arket firkantet» sto framme før automatikken var på')
+        }
         await bryter.click()
         await page.waitForTimeout(300)
         const på = await les()
-        if (på !== '1') throw new Error(`forventet lende-auto-nabo="1" etter andre trykk, fikk ${på}`)
+        if (på !== '1') throw new Error(`forventet lende-auto-nabo="1" etter første trykk, fikk ${på}`)
+        // Under-innstillingen skal følge bryteren over seg — og den skal la seg
+        // trykke, ikke bare finnes.
+        if (await firkant.count() === 0) {
+          throw new Error('«Gjør arket firkantet» kom ikke fram da automatikken ble slått på')
+        }
+        await firkant.click()
+        await page.waitForTimeout(300)
+        const firkantAv = await page.evaluate(() => {
+          try { return localStorage.getItem('lende-auto-nabo-firkant') } catch { return null }
+        })
+        if (firkantAv !== '0') {
+          throw new Error(`forventet lende-auto-nabo-firkant="0" etter trykk, fikk ${firkantAv}`)
+        }
+        // NØYTRALISERING: slå automatikken AV igjen. En bakgrunns-nettverks-
+        // funksjon som står og bygger fliser mens de neste sjekkene kjører er
+        // nettopp den støyen røyktesten ikke skal lage.
+        await bryter.click()
+        await page.waitForTimeout(300)
+        const av = await les()
+        if (av !== '0') throw new Error(`forventet lende-auto-nabo="0" etter andre trykk, fikk ${av}`)
+        if (await firkant.count() !== 0) {
+          throw new Error('«Gjør arket firkantet» ble stående etter at automatikken ble slått av')
+        }
         // Status-raden i Utvikler-fanen beviser at prop-stien faktisk er bundet.
         // En feilstavet prop-sti gir STILLE død funksjon i Vue — nettopp den
         // feilmodusen verktøyene våre er svakest på.
@@ -207,7 +228,7 @@ const SJEKKER = [
         await page.waitForTimeout(400)
         const harRad = await page.evaluate(() => /Auto-nabo/.test(document.body.innerText))
         if (!harRad) throw new Error('Auto-nabo-raden mangler i Utvikler-fanen — er prop-stien riktig?')
-        return 'bryter av→på, status-rad rendrer'
+        return 'bryter på→av, firkant-valget følger med, status-rad rendrer'
       } finally {
         await lukkDrawer(page).catch(() => {})
       }
