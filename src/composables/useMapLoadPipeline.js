@@ -10,6 +10,7 @@
 import { nextTick } from 'vue'
 import { svgToWgs84 } from '../lib/utm.js'
 import { unpackDem } from '../lib/demSampling.js'
+import { dekningsSkala } from '../lib/viewFit.js'
 import { buildMapFromCenter, consumeMapFinalize } from '../lib/createMapFlow.js'
 import { loadMap as loadStoredMap, deleteMap as deleteStoredMap } from '../lib/mapStorage.js'
 import { logPerf } from '../lib/perfLog.js'
@@ -70,7 +71,7 @@ export function metaFromSvgMeta(m) {
 
 export function useMapLoadPipeline(deps) {
   const {
-    route, router, svgHostRef, meta, storedDem, mapId, mapTitle, mapDataSize,
+    route, router, svgHostRef, wrapperRef, meta, storedDem, mapId, mapTitle, mapDataSize,
     loading, loadError, isAlive, isGesturing, scale, rotation, panTo,
     BUILTIN, kulturminneCount, mapHasTrails, currentMapIsAuto,
     fillingInDetails, detailsFailed, mapIsPartial, buildingOnTheFly, buildingProgress,
@@ -333,6 +334,27 @@ export function useMapLoadPipeline(deps) {
           vbWidth: meta.value.widthM, vbHeight: meta.value.heightM,
           targetScale: pendingRestoreView.scale, keepRotation: true,
         })
+      } else if (!silent) {
+        // Åpne på DEKNING, ikke på «hele arket i letterbox» (v5.19.2). Skala 1 er
+        // meet-tilpasningen, og den lar kremgul bakgrunn ligge over og under
+        // kartet — arket ser ut som et ark, og kanten leser som verdens ende.
+        // Nå ligger det alltid kart like utenfor skjermkanten, så panorering
+        // avslører mer KART. Se lib/viewFit.js for prisen (oversikten).
+        //
+        // Kun ved en ekte åpning: `silent` er terreng→full-byttet, som skal
+        // beholde brukerens utsnitt, og de to grenene over eier sin egen visning.
+        const wrap = wrapperRef.value?.getBoundingClientRect()
+        const s = dekningsSkala({
+          w: wrap?.width, h: wrap?.height,
+          widthM: meta.value.widthM, heightM: meta.value.heightM,
+        })
+        if (s > 1) {
+          await nextTick()
+          panTo(meta.value.widthM / 2, meta.value.heightM / 2, {
+            vbWidth: meta.value.widthM, vbHeight: meta.value.heightM,
+            targetScale: s,
+          })
+        }
       }
       armAutoMap()
       if (pendingMovedToast) showAutoMapToast('Flyttet sentrum hit')

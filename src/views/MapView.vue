@@ -1394,8 +1394,9 @@ const {
   ghostRects, GHOST_TRIGGER_SUPPRESS_FRAC, renderGhostTiles,
   currentTheme, visibleLayers, userPos, maxTiles, refreshAutoTileCount,
   closeDrawer, closeSearch,
-  // Getter — useAutoNabo opprettes rett under (TDZ-regelen i CLAUDE.md).
+  // Gettere — useAutoNabo opprettes rett under (TDZ-regelen i CLAUDE.md).
   byggerNaaNokkel: () => byggerNaaNokkel(),
+  autoNaboPa: () => autoNaboPa.value,
 })
 
 // Automatisk påfyll av nabofliser. MÅ stå ETTER useMapExtend: den konsumerer ni
@@ -2152,7 +2153,7 @@ const { applyTheme, applyDiagnoseMode } = useTemaBytte({
 
 // Kart-laste-pipelinen — flyttet til useMapLoadPipeline.
 const { loadMap, retryMapDetails } = useMapLoadPipeline({
-  route, router, svgHostRef, meta, storedDem, mapId, mapTitle, mapDataSize,
+  route, router, svgHostRef, wrapperRef, meta, storedDem, mapId, mapTitle, mapDataSize,
   loading, loadError, isAlive: () => componentAlive, isGesturing, scale, rotation, panTo,
   BUILTIN, kulturminneCount, mapHasTrails, currentMapIsAuto,
   fillingInDetails, detailsFailed, mapIsPartial, buildingOnTheFly, buildingProgress,
