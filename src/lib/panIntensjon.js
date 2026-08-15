@@ -19,13 +19,26 @@ export const DODSONE_FRAC = 0.02      // × flisbredde
 // sammenligner, ville hvert eneste sprang over en oktant-grense (45°) telle som
 // retningsskifte, og en litt buet panorering aldri bli moden.
 export const KONUS_GRADER = 60        // total åpning; > halvparten fra løpende retning = skifte
-export const MODEN_DRAG_FRAC = 0.40   // × flisbredde akkumulert i samme oktant
+// Hvor langt drag som skal til før reisen regnes som målrettet. Var 0.40 i
+// v5.19.0 — 3,2 km på et 8 km-ark, og det er MYE når man er zoomet inn, der en
+// full skjermbredde med drag bare flytter senteret noen hundre meter. Terskelen
+// er ikke det som beskytter mot utilsiktet bygging uansett; det gjør
+// «naerKant»-gaten hos konsumenten, som krever at du faktisk er på vei UT av
+// arket. Denne skiller bare reise fra fikling.
+export const MODEN_DRAG_FRAC = 0.25   // × flisbredde akkumulert i samme oktant
 // Hvor lenge skjermen må stå i ro før konsumenten regner intensjonen som «her
 // vil jeg være» og handler på den.
 export const DVELE_MS = 1200
 // Et opphold lengre enn dette er ikke en pause i samme bevegelse, det er en ny
 // bevegelse — brukeren har sett seg om og bestemt seg på nytt.
-export const MAKS_PAUSE_MS = 2500
+//
+// Var 2500 i v5.19.0, og det var for stramt for hvordan folk faktisk panorerer:
+// dra, stopp og se, dra videre. Med 2,5 s ble akkumulatoren nullstilt mellom
+// hvert drag, og en reise mot arkkanten ble aldri moden. Merk at en pause i seg
+// selv ikke koster noe — dvele-timeren (1,2 s) har alt forsøkt å bygge når det
+// har gått så lenge — så denne verdien styrer bare om et AVVIST forsøk kan
+// fortsette å samle opp når brukeren drar videre.
+export const MAKS_PAUSE_MS = 8000
 
 // Kompass-retningen til et delta, i grader (0 = nord, med klokka). SVG-y vokser
 // NEDOVER, så nord er NEGATIV dy — derfor atan2(dx, −dy) og ikke atan2(dy, dx).
