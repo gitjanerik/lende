@@ -236,6 +236,19 @@ export function useMapExtend({
     return { minX, minY, maxX, maxY }
   }
 
+  // Arkets størrelse i fliser. Samme cols/rows-regning som extendMapGeometry,
+  // men reaktiv, fordi bygge-chipens ikon tegner arket i miniatyr og trenger å
+  // vite om det er en stripe eller et rutenett.
+  const arkRutenett = computed(() => {
+    const m = meta.value
+    if (!m) return { cols: 1, rows: 1 }
+    const b = extendZonesBounds()
+    return {
+      cols: Math.max(1, Math.round((b.maxX - b.minX) / m.widthM)),
+      rows: Math.max(1, Math.round((b.maxY - b.minY) / m.heightM)),
+    }
+  })
+
   // ── Kanthåndtak — reaktiv tilstand ──────────────────────────────────────────
   // hoveredDir er efemer og driver KUN forhåndsvisningen (pille, spøkelsesceller
   // og nedskaleringen av arket). Settes på pointerenter/fokus (mus/tastatur) og
@@ -891,7 +904,7 @@ export function useMapExtend({
     showAutoMapToast,
     visibleCenterSvg, clientToSvg, svgToClient, scheduleActivatableCheck, autoMapModeBusy,
     autoMapBuildOpts, promoteTile, extendMap, armAutoMap,
-    extendZonesBounds, teardownMapExtend,
+    extendZonesBounds, arkRutenett, teardownMapExtend,
     refreshMosaicGaps, repairMosaicGaps,
     firkantAntall, gjorArketFirkantet,
     // Eksponert for useAutoNabo — bakgrunnsbyggingen bruker NØYAKTIG samme

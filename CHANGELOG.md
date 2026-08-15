@@ -1,5 +1,27 @@
 # Endringslogg
 
+## 2026-08-15 — v5.19.6: Bygge-ikonet peker faktisk dit flisa hentes
+
+v5.19.4 skrev retnings-logikken for bygge-chipens ikon, men koblet den aldri
+til. `lib/flisIkon.js` og `ikonRuter`-computeden fantes og var testet, mens SVG-en
+i `MapModeChips.vue` sto igjen med fire hardkodede `<rect>` — de to til høyre
+animerte uansett om chipen sa «Vest i lende» eller «Nord i lende». Ingen test så
+det, fordi den eneste testen var på funksjonen ingen kalte. Nå tegnes rutene med
+`v-for` over `ikonRuter`, så «Vest i lende» blinker de to til venstre, «Nord i
+lende» de to øverste, og en diagonal bare hjørnet sitt.
+
+Ikonet har heller ikke lenger fast 2×2. Rutenettet er arket slik det blir ETTER
+utvidelsen, klemt til maks to ganger to: er arket én flis bredt og vokser
+nordover, står ikonet som en stående stripe med to ruter oppå hverandre, og bare
+den øverste blinker. Det er ikke kosmetikk — arket har ingen side-om-side å vokse
+i der, så to ruter ved siden av hverandre ville vist en utvidelse som ikke
+skjer. Samme regel motsatt vei for et ark som er én flis høyt. `useMapExtend`
+eksponerer arkets størrelse som den nye computeden `arkRutenett`, som gjenbruker
+nøyaktig samme cols/rows-regning som `extendMapGeometry` — én kilde til hva
+arket er, ikke to som kan gli fra hverandre.
+
+---
+
 ## 2026-08-15 — v5.19.5: ELI5-svarstil for korte, enkle rapporter
 
 Ny output-style i `.claude/output-styles/ELI5.md`, satt som `outputStyle` i

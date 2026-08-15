@@ -6,7 +6,7 @@
 // som props og leses med .value-idiomet, som ellers i appen. Handlinger som
 // involverer andre delsystemer sendes ut som events.
 import { computed, ref, watch } from 'vue'
-import { kvadranterForRetning, KVADRANTER } from '../lib/flisIkon.js'
+import { flisIkonRuter } from '../lib/flisIkon.js'
 import { ANNOTATION_SYMBOLS } from '../composables/useMapAnnotations.js'
 
 const props = defineProps({
@@ -24,6 +24,9 @@ const props = defineProps({
   // true når flisa er ferdig: da står alle fire rutene fylt (et helt ark) i
   // stedet for å blinke. Kvitteringen skal se ferdig ut, ikke arbeidende.
   bakgrunnsflisKlar: { type: Boolean, default: false },
+  // Arkets nåværende størrelse i fliser. Styrer HVOR MANGE ruter ikonet har:
+  // et ark som er én flis bredt får en stående stripe, ikke et 2×2.
+  bakgrunnsflisArk: { type: Object, default: () => ({ cols: 1, rows: 1 }) },
   highlightedFeature: { type: Object, default: null },
   annot: { type: Object, required: true },
   measureMode: { type: [Boolean, String], default: false },
@@ -44,18 +47,14 @@ defineEmits([
   'followRoute', 'stopFollowing', 'shareRoundTrip', 'startGps', 'open3d',
 ])
 
-// De fire rutene i bygge-ikonet, i DOM-rekkefølge. `aktiv` = animerer (ligger i
+// Rutene i bygge-ikonet, i DOM-rekkefølge. `aktiv` = animerer (ligger i
 // retningen flisa hentes fra), `fylt` = ferdig-tilstanden der hele arket står.
-const IKON_POS = { tv: { x: 4, y: 4 }, th: { x: 17, y: 4 }, bv: { x: 4, y: 17 }, bh: { x: 17, y: 17 } }
-const ikonRuter = computed(() => {
-  const k = kvadranterForRetning(props.bakgrunnsflisRetning)
-  return KVADRANTER.map(nokkel => ({
-    k: nokkel,
-    ...IKON_POS[nokkel],
-    aktiv: !props.bakgrunnsflisKlar && k[nokkel],
+const ikonRuter = computed(() =>
+  flisIkonRuter(props.bakgrunnsflisRetning, props.bakgrunnsflisArk).map(r => ({
+    ...r,
+    aktiv: !props.bakgrunnsflisKlar && r.aktiv,
     fylt: props.bakgrunnsflisKlar,
-  }))
-})
+  })))
 
 // Dele-knappens tekst sier hva som deles: en rundtur er en rundtur, men
 // Stifinnerens A→B-tur er en sti — «Del rundtur» der var direkte feil.
@@ -156,16 +155,16 @@ function formatElevationDiff(m) {
          :style="mapCenterStyle"
          role="status" aria-live="polite">
       <svg viewBox="0 0 32 32" class="w-6 h-6 shrink-0" fill="none" aria-hidden="true">
-        <rect x="4" y="4" width="11" height="11" rx="1.5" fill="rgba(255,255,255,0.18)"/>
-        <rect x="17" y="4" width="11" height="11" rx="1.5" stroke="#7dd3fc" stroke-width="1.5"
-              stroke-dasharray="44" stroke-linecap="round">
-          <animate attributeName="stroke-dashoffset" values="44;0" dur="1.6s" repeatCount="indefinite"/>
-        </rect>
-        <rect x="4" y="17" width="11" height="11" rx="1.5" fill="rgba(255,255,255,0.18)"/>
-        <rect x="17" y="17" width="11" height="11" rx="1.5" stroke="#34d399" stroke-width="1.5"
-              stroke-dasharray="44" stroke-linecap="round">
-          <animate attributeName="stroke-dashoffset" values="44;0" dur="1.6s" begin="0.4s" repeatCount="indefinite"/>
-        </rect>
+        <template v-for="(r, i) in ikonRuter" :key="r.k">
+          <rect v-if="r.aktiv" :x="r.x" :y="r.y" :width="r.w" :height="r.h" rx="1.5"
+                :stroke="i % 2 ? '#34d399' : '#7dd3fc'" stroke-width="1.5"
+                stroke-dasharray="44" stroke-linecap="round">
+            <animate attributeName="stroke-dashoffset" values="44;0" dur="1.6s"
+                     :begin="`${(i % 2) * 0.4}s`" repeatCount="indefinite"/>
+          </rect>
+          <rect v-else :x="r.x" :y="r.y" :width="r.w" :height="r.h" rx="1.5"
+                :fill="r.fylt ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.18)'"/>
+        </template>
       </svg>
       <span>{{ bakgrunnsflisTekst }}</span>
     </div>
