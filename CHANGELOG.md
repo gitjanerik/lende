@@ -1,5 +1,22 @@
 # Endringslogg
 
+## 2026-08-21 — v5.20.1: Importen sier hva som er galt når fila ligger i skyen
+
+Første ekte forsøk på å importere en delt kartfil på mobil ga «A requested file
+or directory could not be found at the time an operation was processed» — i lys
+grå 11 px nederst på skjermen. Det er nettleserens egen engelske DOMException, og
+den forteller verken hva som skjedde eller hva man skal gjøre. Årsaken er at
+Filer-appen VISER en fil som bare ligger i iCloud eller Google Drive og ikke er
+lastet ned; nettleseren finner ingenting å lese. Nå oversettes de tre lesefeilene
+(`NotFoundError`, `NotReadableError`, `SecurityError`) til norsk med handlingen
+brukeren mangler — «Ligger den i iCloud eller Google Drive? Åpne Filer-appen,
+last den ned til telefonen, og prøv igjen» — og meldingen står i en egen rød boks
+i samme skriftstørrelse som resten av lista i stedet for å hviske i kanten.
+Importer-knappen ble litt større samtidig. Originalfeilen følger med som `cause`
+og logges, så feilsøking ikke mister noe.
+
+---
+
 ## 2026-08-21 — v5.20.0: Del hele kartet som fil — turkameraten trenger ikke dekning
 
 Dagens «Del kart» sender en LENKE med oppskriften — utsnitt, ekvidistanse og

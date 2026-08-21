@@ -3,7 +3,7 @@
 // framtidig versjon skal avvises høylytt i stedet for å miste felter stille.
 import { describe, it, expect } from 'vitest'
 import {
-  lagKartPakke, lesKartPakke, demTilJson, demFraJson, pakkeFilnavn, sikreDataMeta,
+  lagKartPakke, lesKartPakke, demTilJson, demFraJson, pakkeFilnavn, sikreDataMeta, lesefeilPaaNorsk,
   PAKKE_FORMAT, PAKKE_FORMAT_VERSION, PAKKE_FILENDELSE,
 } from './kartPakke.js'
 
@@ -164,5 +164,48 @@ describe('sikreDataMeta', () => {
   it('gir markupen uendret tilbake uten meta', () => {
     expect(sikreDataMeta('<svg/>', null)).toBe('<svg/>')
     expect(sikreDataMeta('', meta)).toBe('')
+  })
+})
+
+// Rapportert fra mobil: importen viste «A requested file or directory could not
+// be found at the time an operation was processed» — nettleserens egen engelske
+// DOMException. Fila lå i skyen og var ikke lastet ned. Meldingen sa verken hva
+// som var galt eller hva brukeren skulle gjøre.
+describe('lesefeil på norsk', () => {
+  const domFeil = (name) => Object.assign(new Error('engelsk rå-melding'), { name })
+
+  it('forklarer sky-fila og hva brukeren skal gjøre', () => {
+    const t = lesefeilPaaNorsk(domFeil('NotFoundError'))
+    expect(t).toMatch(/iCloud|Google Drive/)
+    expect(t).toMatch(/last den ned/i)
+  })
+
+  it('dekker de andre lesefeilene', () => {
+    expect(lesefeilPaaNorsk(domFeil('NotReadableError'))).toMatch(/Kunne ikke lese fila/)
+    expect(lesefeilPaaNorsk(domFeil('SecurityError'))).toMatch(/fikk ikke lov/)
+  })
+
+  it('lar våre egne feil være i fred', () => {
+    expect(lesefeilPaaNorsk(new Error('Dette er ikke en Lende-kartfil.'))).toBeNull()
+    expect(lesefeilPaaNorsk(null)).toBeNull()
+  })
+
+  it('lesKartPakke oversetter når selve lesingen ryker', async () => {
+    const nektende = { arrayBuffer: () => Promise.reject(domFeil('NotFoundError')) }
+    await expect(lesKartPakke(nektende)).rejects.toThrow(/iCloud/)
+  })
+
+  it('beholder nettleserens originale feil som cause, for feilsøking', async () => {
+    const original = domFeil('NotFoundError')
+    const nektende = { arrayBuffer: () => Promise.reject(original) }
+    await lesKartPakke(nektende).then(
+      () => { throw new Error('skulle kastet') },
+      (e) => { expect(e.cause).toBe(original) },
+    )
+  })
+
+  it('slipper ukjente feil rett gjennom', async () => {
+    const nektende = { arrayBuffer: () => Promise.reject(new Error('noe helt annet')) }
+    await expect(lesKartPakke(nektende)).rejects.toThrow(/noe helt annet/)
   })
 })
