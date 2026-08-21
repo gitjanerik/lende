@@ -1,12 +1,22 @@
 <script setup>
 // Drawer-fane «Eksport», skilt ut fra MapView v1.0.8. Del kart (Web Share API
-// med clipboard-fallback), del med markert sted, og SVG/PNG/PDF/print-eksport.
-// All eksportlogikk blir i forelderen (den eier SVG-markupen).
+// med clipboard-fallback), del med markert sted, offline-fil, og
+// SVG/PNG/PDF/print-eksport. All eksportlogikk blir i forelderen (den eier
+// SVG-markupen).
+//
+// De to dele-knappene løser HVER SIN situasjon, og det er derfor de står
+// sammen her: «Del kart» sender en lenke, som er lett men krever at mottakeren
+// har nett til å bygge kartet. «Del som offline-fil» sender hele kartet, som er
+// tungt men virker på fjellet. Rekkefølgen er med vilje — lenka er det vanlige
+// valget.
 defineProps({
   shareState: { type: String, default: 'idle' },
   highlightedFeature: { type: Object, default: null },
   exporting: { type: String, default: null },
+  pakkeStatus: { type: String, default: '' },
+  pakkeTekst: { type: String, default: 'Del som offline-fil' },
   onShareMap: { type: Function, required: true },
+  onDelOffline: { type: Function, required: true },
   onShareMapWithPlace: { type: Function, required: true },
   onExportSvg: { type: Function, required: true },
   onExportPng: { type: Function, required: true },
@@ -63,6 +73,34 @@ defineProps({
          class="text-[10px] text-ink/55 leading-snug mb-3 px-1 -mt-1">
       Markert sted: <span class="text-pink-300 font-medium">{{ highlightedFeature.name }}</span>.
       Mottakeren ser samme markering, og utsnittet er låst så stedet ikke går tapt.
+    </div>
+
+    <!-- Del som offline-fil: hele kartet (SVG, høyderutenett, kulturminner og
+         NVE-stasjoner) i én .lendekart-fil. Delings-arket gir AirDrop / Nearby
+         Share / Bluetooth — ingen av dem trenger nett. -->
+    <button @click="onDelOffline"
+            :disabled="!!pakkeStatus && pakkeStatus !== 'ferdig' && pakkeStatus !== 'feil'"
+            class="w-full mb-1.5 px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
+                   flex items-center justify-center gap-2 transition disabled:opacity-70"
+            :class="pakkeStatus === 'ferdig'
+                    ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-100'
+                    : pakkeStatus === 'feil'
+                      ? 'bg-rose-500/15 border-rose-400/40 text-rose-100'
+                      : 'bg-amber-500/15 border-amber-400/40 text-amber-100'">
+      <span v-if="pakkeStatus && pakkeStatus !== 'ferdig' && pakkeStatus !== 'feil'"
+            class="w-3.5 h-3.5 rounded-full border-2 border-amber-200/30 border-t-amber-100 animate-spin shrink-0"></span>
+      <svg v-else viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      <span class="font-medium truncate">{{ pakkeTekst }}</span>
+    </button>
+    <div class="text-[10px] text-ink/55 leading-snug mb-3 px-1">
+      Hele kartet i én fil — kart, høyder, kulturminner og vannmålestasjoner.
+      Send den med AirDrop, Bluetooth eller minnepinne. Mottakeren importerer
+      den fra forsiden og trenger ikke dekning.
     </div>
 
     <div class="grid grid-cols-2 gap-2 mb-3">

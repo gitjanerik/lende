@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { wgs84ToUtm32, wgs84ToUtm33, utm32ToWgs84, utm32BboxFromWgs84 } from './utm.js'
+import { wgs84ToUtm32, wgs84ToUtm33, utm32ToWgs84, utm32BboxFromWgs84, wgs84BboxFromMeta, svgToWgs84 } from './utm.js'
 
 // v12.1.64: forward-projeksjonen er 6. ordens Krüger (Karney/etmerc-ekvivalent).
 // Fasit generert med proj4 (+proj=utm +zone=32/33 +ellps=GRS80) — sann UTM.
@@ -113,4 +113,32 @@ describe('utm32ToWgs84 — roundtrip-konsistens med forward (v12.1.52)', () => {
       expect(Math.hypot(p2.e - (e + 137.5), p2.n - (n - 262.25))).toBeLessThan(0.05)
     })
   }
+})
+
+// v5.20.0: bboksen lå i tre like kopier (kulturminne-lagene, NVE-laget) og
+// måtte samles fordi offline-pakkingen må treffe NØYAKTIG samme cache-nøkkel
+// som lagene slår opp på. Kravet er derfor ikke bare «riktig», men «likt».
+describe('wgs84BboxFromMeta', () => {
+  const meta = { minE: 590000, minN: 6640000, maxE: 592000, maxN: 6642000, widthM: 2000, heightM: 2000 }
+
+  it('omslutter alle fire hjørnene av kart-rektangelet', () => {
+    const b = wgs84BboxFromMeta(meta)
+    for (const [x, y] of [[0, 0], [meta.widthM, 0], [0, meta.heightM], [meta.widthM, meta.heightM]]) {
+      const c = svgToWgs84(x, y, meta)
+      expect(c.lat).toBeGreaterThanOrEqual(b.south)
+      expect(c.lat).toBeLessThanOrEqual(b.north)
+      expect(c.lon).toBeGreaterThanOrEqual(b.west)
+      expect(c.lon).toBeLessThanOrEqual(b.east)
+    }
+  })
+
+  it('gir en bboks med positiv utstrekning begge veier', () => {
+    const b = wgs84BboxFromMeta(meta)
+    expect(b.north).toBeGreaterThan(b.south)
+    expect(b.east).toBeGreaterThan(b.west)
+  })
+
+  it('er stabil — samme meta gir bit-identisk bboks (cache-nøkkelen avhenger av det)', () => {
+    expect(wgs84BboxFromMeta(meta)).toEqual(wgs84BboxFromMeta({ ...meta }))
+  })
 })

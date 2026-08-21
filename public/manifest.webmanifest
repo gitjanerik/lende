@@ -10,7 +10,11 @@
   "orientation": "portrait",
   "background_color": "#1b1e24",
   "theme_color": "#0e1116",
-  "categories": ["navigation", "sports", "travel"],
+  "categories": [
+    "navigation",
+    "sports",
+    "travel"
+  ],
   "icons": [
     {
       "src": "icon-192.png",
@@ -43,14 +47,42 @@
       "short_name": "Turkart",
       "description": "ISOM-symbolisert kart fra Kartverket og OSM",
       "url": "/lende/nytt",
-      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
       "name": "Planlegg rute",
       "short_name": "Ruteplanlegger",
       "description": "Ruteplanlegger for grus og sti",
       "url": "/lende/rute",
-      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "/lende/",
+      "accept": {
+        "application/gzip": [
+          ".lendekart"
+        ]
+      },
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ],
+      "launch_type": "single-client"
     }
   ]
 }

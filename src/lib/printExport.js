@@ -208,7 +208,7 @@ export function printDocument(svgString, { title = 'Turkart' } = {}) {
   w.document.close()
 }
 
-function triggerDownload(blob, filename) {
+export function triggerDownload(blob, filename) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url

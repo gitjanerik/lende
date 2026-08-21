@@ -165,3 +165,29 @@ export function svgToWgs84(x, y, meta) {
   const n = meta.minN + (meta.heightM - y)
   return utm32ToWgs84(e, n)
 }
+
+/**
+ * WGS84-bbox for HELE kart-rektangelet, regnet fra de fire hjørnene i
+ * SVG-meterrommet. Kartet er UTM-projisert, så kantene er ikke helt parallelle
+ * med lengde-/breddegrader — derfor min/max over alle fire hjørner og ikke bare
+ * to. Brukes av alle lag som spør en WFS/API om «hva finnes i dette utsnittet»
+ * (kulturminner, NVE-stasjoner, offline-pakking); den lå i tre like kopier fram
+ * til v5.20.0.
+ *
+ * @param {{widthM:number, heightM:number}} meta
+ * @returns {{south:number, west:number, north:number, east:number}}
+ */
+export function wgs84BboxFromMeta(meta) {
+  const cs = [
+    svgToWgs84(0, 0, meta), svgToWgs84(meta.widthM, 0, meta),
+    svgToWgs84(0, meta.heightM, meta), svgToWgs84(meta.widthM, meta.heightM, meta),
+  ]
+  let south = Infinity, west = Infinity, north = -Infinity, east = -Infinity
+  for (const c of cs) {
+    if (c.lat < south) south = c.lat
+    if (c.lat > north) north = c.lat
+    if (c.lon < west) west = c.lon
+    if (c.lon > east) east = c.lon
+  }
+  return { south, west, north, east }
+}

@@ -32,6 +32,28 @@ app.config.errorHandler = (err, _instance, info) => {
 
 app.use(router).mount('#app')
 
+// PWA-filhåndterer: er appen installert, kan brukeren trykke på en delt
+// .lendekart-fil i Filer-appen og lande her. `file_handlers` i manifestet
+// erklærer koblingen, launchQueue leverer fila. Progressive enhancement —
+// nettlesere uten launchQueue ignorerer dette, og importen fra forsiden virker
+// like fullt. Importen lastes lazy: den drar inn kart-lagringen, og de aller
+// fleste oppstartene handler ikke om en fil.
+if ('launchQueue' in window && typeof LaunchParams === 'function' && 'files' in LaunchParams.prototype) {
+  window.launchQueue.setConsumer(async (params) => {
+    const fil = params?.files?.[0]
+    if (!fil) return
+    try {
+      const handle = typeof fil.getFile === 'function' ? await fil.getFile() : fil
+      const { importerKartPakke } = await import('./lib/kartImport.js')
+      const { id } = await importerKartPakke(handle)
+      router.push({ name: 'kart-vis', params: { id } })
+    } catch (e) {
+      console.error('[lende] kunne ikke importere kartfila:', e)
+      router.push({ name: 'kart-hjem' })
+    }
+  })
+}
+
 // Register service worker for PWA / offline support. Production only — in dev
 // the SW would cache stale Vite HMR bundles and make rebuilds confusing.
 if ('serviceWorker' in navigator && import.meta.env.PROD) {

@@ -24,6 +24,7 @@
 //   Navne-declutter ...... useNavnLod            Viewport-culling . useViewportCull
 //   Knotter + FAB-panel .. useKartKnotter        Måling ........... useMaaling
 //   Nærhetsvarsel ........ useNaerhetsvarsel     Eksport/print .... useKartEksport
+//   Offline-fil (ut) ..... useKartPakke
 //   Tema + diagnose ...... useTemaBytte          Kartsøk .......... useKartSok
 //   Gest-perf + jank ..... useGestPerf           Pan/zoom-grenser . usePanGrenser
 //   Rendering ............ useSymbolRenderers    Lasting .......... useMapLoadPipeline
@@ -72,6 +73,7 @@ import { useKartKnotter, loadKnobStep } from '../composables/useKartKnotter.js'
 import { useMaaling } from '../composables/useMaaling.js'
 import { useNaerhetsvarsel } from '../composables/useNaerhetsvarsel.js'
 import { useKartEksport } from '../composables/useKartEksport.js'
+import { useKartPakke } from '../composables/useKartPakke.js'
 import { useTemaBytte } from '../composables/useTemaBytte.js'
 import { useGpsTips } from '../composables/useGpsTips.js'
 import { useKartSok } from '../composables/useKartSok.js'
@@ -2166,6 +2168,15 @@ const {
   hooks: { applyUprightLabels: (rot) => applyUprightLabels(rot) },
 })
 
+// «Del som offline-fil»: hele kartet i én .lendekart-fil, for turkameraten uten
+// dekning. MÅ stå etter useKartEksport — den henter markupen derfra som
+// nødfall for INNEBYGDE kart, som ikke finnes i IndexedDB. Sendes som en
+// getter (TDZ-regelen i CLAUDE.md), selv om kallet står etter.
+const { pakkeStatus, pakkeTekst, onDelOffline } = useKartPakke({
+  meta, mapTitle, kartId: () => mapId.value, autoMapToast,
+  hentSvgMarkup: () => mapSvgMarkupForExport(),
+})
+
 // MÅ stå FØR useMapLoadPipeline: pipelinen tar imot `applyTheme` som en VERDI.
 // Så lenge den var en `function`-deklarasjon lenger ned var det greit (hoisting),
 // men som composable-retur er den en const — og en const forward-refereres ikke.
@@ -2997,6 +3008,8 @@ onUnmounted(() => {
             :share-state="shareState" :highlighted-feature="highlightedFeature"
             :exporting="exporting" :on-share-map="onShareMap"
             :on-share-map-with-place="onShareMapWithPlace"
+            :pakke-status="pakkeStatus" :pakke-tekst="pakkeTekst"
+            :on-del-offline="onDelOffline"
             :on-export-svg="onExportSvg" :on-export-png="onExportPng"
             :on-export-pdf="onExportPdf" :on-print="onPrint" />
 
