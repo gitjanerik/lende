@@ -8,6 +8,8 @@
 import { ref, computed, watch, onMounted, onActivated, onUnmounted, onDeactivated } from 'vue'
 import { useRouter } from 'vue-router'
 import { listMaps, deleteMap, clearAll, renameMap, listGravelRoutes, deleteGravelRoute, updateGravelRoute } from '../lib/mapStorage.js'
+import { importerKartPakke } from '../lib/kartImport.js'
+import { PAKKE_FILENDELSE } from '../lib/kartPakke.js'
 import { arkExtentFor } from '../lib/tileCache.js'
 import { routeShareToken, MAX_SHARE_ROUTES } from '../lib/routeShare.js'
 import RenameMapDialog from './RenameMapDialog.vue'
@@ -269,6 +271,38 @@ onActivated(refresh)
 
 function openMap(id) {
   router.push({ name: 'kart-vis', params: { id } })
+}
+
+// ── Importer et delt kart (.lendekart) ──────────────────────────────────────
+// Motstykket til «Del som offline-fil» i kart-visningen. Hele poenget er at
+// dette skal virke UTEN nett: fila bærer SVG, høyderutenett og datalag, og
+// importen skriver dem rett i IndexedDB. Derfor ingen nettverkskall her.
+const filInput = ref(null)
+const importerer = ref(false)
+const importFeil = ref('')
+
+function onVelgImportFil() {
+  importFeil.value = ''
+  filInput.value?.click()
+}
+
+async function onImportFil(e) {
+  const fil = e.target?.files?.[0]
+  // Nullstill inputen med én gang: velger brukeren SAMME fil på nytt etter en
+  // feil, fyrer ikke change-eventet uten dette.
+  if (e.target) e.target.value = ''
+  if (!fil) return
+  importerer.value = true
+  importFeil.value = ''
+  try {
+    const { id } = await importerKartPakke(fil)
+    await refresh()
+    router.push({ name: 'kart-vis', params: { id } })
+  } catch (err) {
+    importFeil.value = err?.message || 'Kunne ikke lese kartfila.'
+  } finally {
+    importerer.value = false
+  }
 }
 
 async function onDelete(id, navn) {
@@ -654,6 +688,27 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
     <span>Søk etter et sted — eller trykk den grønne knappen for å lage kart der du står.</span>
   </div>
   <div v-if="searchError" class="-mt-2 mb-4 px-1 text-[11px] text-slate-300">{{ searchError }}</div>
+
+  <!-- Importer et kart en turkamerat har delt som fil. Står her, mellom
+       «lag nytt» og lista, fordi det er den andre måten et kart havner i
+       lista på. Virker uten nett — fila inneholder alt. -->
+  <button type="button" @click="onVelgImportFil" :disabled="importerer"
+          class="w-full mb-3 px-3 py-2.5 rounded-lg border border-ink/10 bg-ink/[0.04]
+                 text-ink/70 text-[12px] active:scale-[0.99] disabled:opacity-60
+                 flex items-center justify-center gap-2 transition">
+    <span v-if="importerer"
+          class="w-3.5 h-3.5 rounded-full border-2 border-ink/20 border-t-ink/70 animate-spin shrink-0"></span>
+    <svg v-else viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="17 8 12 3 7 8"/>
+      <line x1="12" y1="3" x2="12" y2="15"/>
+    </svg>
+    {{ importerer ? 'Importerer …' : 'Importer delt kart (fil)' }}
+  </button>
+  <input ref="filInput" type="file" class="hidden"
+         :accept="`${PAKKE_FILENDELSE},application/gzip`" @change="onImportFil">
+  <div v-if="importFeil" class="-mt-2 mb-3 px-1 text-[11px] text-rose-300">{{ importFeil }}</div>
 
   <!-- Vardåsen-referansekartet er flyttet til «Utvikler»-fanen inne i kart-
        visningen (debug-hjelp) — det fyller ikke lenger forsiden. -->

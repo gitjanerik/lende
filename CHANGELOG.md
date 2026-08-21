@@ -1,5 +1,28 @@
 # Endringslogg
 
+## 2026-08-21 — v5.20.0: Del hele kartet som fil — turkameraten trenger ikke dekning
+
+Dagens «Del kart» sender en LENKE med oppskriften — utsnitt, ekvidistanse og
+aspekt — og mottakeren bygger sin egen kopi mot Kartverket, Overpass, N50, NVE og
+Sjøkart. Det er lett og riktig når begge har nett, og helt ubrukelig på fjellet.
+Denne versjonen legger til den andre veien: «Del som offline-fil» i Eksport-fanen
+pakker HELE kartet — den ferdige SVG-en, høyderutenettet, kulturminnene
+(både brukerminner og de fredede, med detaljtekst) og NVE-vannmålestasjonene med
+siste måling — i én gzip-et `.lendekart`-fil. Fila går rett i delings-arket, så
+den kan sendes med AirDrop, Nearby Share, Bluetooth eller minnepinne uten et
+eneste nettverkskall. Mottakeren trykker «Importer delt kart (fil)» på forsiden
+og får kartet i sin egen liste; er appen installert, kan de også bare trykke på
+fila i Filer-appen. Trikset som gjør datalagene levende offline er at de allerede
+sjekker cachen før nettet — så eksporten fyller cachen mens den har dekning, tar
+radene med i fila, og importen skriver dem inn igjen med fersk levetid. Lag-koden
+merker ingenting. Nye NVE-stasjoner fikk samtidig varig cache (de lå bare i
+sesjonsminnet), og bbox-utregningen som lagene og pakkingen MÅ være enige om ble
+samlet ett sted (`utm.js`) i stedet for tre kopier. Det som fortsatt krever nett,
+og som står i knappeteksten: punkt-oppslag ved langtrykk (verneområde, naturtype,
+arter, Wikipedia), ruteplanlegging og stedssøk.
+
+---
+
 ## 2026-08-15 — v5.19.11: Auto-kart sier ikke lenger at arket er firkantet når det ikke er det
 
 Kvitteringen etter en automatisk utfylling leste hvilken FASE løkka var i, ikke

@@ -16,6 +16,12 @@ export const TTL = {
   species: 24 * 60 * 60 * 1000,
   wiki: 7 * 24 * 60 * 60 * 1000,
   kulturminne: 30 * 24 * 60 * 60 * 1000,
+  // NVE-stasjoner: selve stasjonslista endrer seg sjelden (7 d), men en
+  // vannføringsmåling er ferskvare (24 t). Lista lå fram til v5.20.0 bare i et
+  // modul-lokalt minne — den overlevde ikke en reload, og kunne derfor ikke
+  // pakkes med i en offline-fil.
+  hydro: 7 * 24 * 60 * 60 * 1000,
+  hydroMaaling: 24 * 60 * 60 * 1000,
 }
 
 // Session-minne foran IndexedDB — unngår en async DB-tur når punktet allerede
@@ -140,4 +146,30 @@ export function kulturminneIdKey(id) {
 export function fredetKulturminneBboxKey(bbox) {
   const q = (v) => Number(v).toFixed(3)
   return `fredet:enk:bbox:${q(bbox.south)},${q(bbox.west)},${q(bbox.north)},${q(bbox.east)}`
+}
+
+/** Nøkkel for NVE-stasjonslista pr kvantisert bbox (~100 m, som kulturminnene). */
+export function hydroBboxKey(bbox) {
+  const q = (v) => Number(v).toFixed(3)
+  return `hydro:bbox:${q(bbox.south)},${q(bbox.west)},${q(bbox.north)},${q(bbox.east)}`
+}
+
+/** Nøkkel for siste måling ved én stasjon (vannføring/-stand/-temperatur). */
+export function hydroLatestKey(stationId) {
+  return `hydro:latest:${stationId}`
+}
+
+/**
+ * TTL-en en nøkkel skal ha, utledet av prefikset. Brukes av offline-importen
+ * (offlinePakke.skrivOfflineData): en fil kan ha ligget en måned i en chat, så
+ * radenes egen `expires` ville vært utløpt i det samme den ble importert. Vi
+ * setter derfor klokka på nytt ved import i stedet for å arve avsenderens.
+ */
+export function ttlForKey(key) {
+  if (key.startsWith('hydro:latest:')) return TTL.hydroMaaling
+  if (key.startsWith('hydro:')) return TTL.hydro
+  if (key.startsWith('naturtype:')) return TTL.naturtype
+  if (key.startsWith('vern:')) return TTL.vern
+  if (key.startsWith('wikiplace')) return TTL.wiki
+  return TTL.kulturminne
 }

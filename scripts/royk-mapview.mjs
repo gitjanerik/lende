@@ -23,6 +23,7 @@
 import { chromium } from 'playwright'
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from 'node:fs'
+import { gunzipSync } from 'node:zlib'
 
 const args = process.argv.slice(2)
 const flagg = (navn, def = null) => {
@@ -401,6 +402,37 @@ const SJEKKER = [
       if (!etter) throw new Error(`tema «${byttet}» satte ingen --bg`)
       await lukkDrawer(page)      // nøytral tilstand for neste sjekk
       return `${(tekst.length / 1024).toFixed(0)} kB SVG (${navn}), tema «${byttet}»: --bg "${før}" → "${etter}"`
+    },
+  },
+  {
+    navn: 'offline-fil pakkes og lastes ned',
+    domene: 'useKartPakke',
+    async kjør(page) {
+      // Datakildene (Kulturminnesøk, Geonorge-WFS, NVE) blokkeres med vilje:
+      // sjekken skal bevise at VÅR pakking virker og degraderer pent, ikke at
+      // tre eksterne tjenester svarer i dag. Uten blokkeringen kan detalj-
+      // hentingen bruke et minutt på et kart med mange kulturminner.
+      const blokker = /^https?:\/\/(?!localhost|127\.0\.0\.1)/
+      await page.route(blokker, (r) => r.abort())
+      try {
+        await åpneDrawer(page)
+        await klikkTekst(page, /^EKSPORT$/)
+        const last = page.waitForEvent('download', { timeout: 60_000 })
+        await klikkTekst(page, /Del som offline-fil/)
+        const fil = await last
+        const sti = await fil.path()
+        if (!sti) throw new Error('ingen fil på disk fra nedlastingen')
+        const rå = readFileSync(sti)
+        if (rå[0] !== 0x1f || rå[1] !== 0x8b) throw new Error('pakka er ikke gzip')
+        const pakke = JSON.parse(gunzipSync(rå).toString('utf8'))
+        if (pakke.format !== 'lende-kart') throw new Error(`feil format: ${pakke.format}`)
+        if (!pakke.kart?.svg?.includes('data-meta')) throw new Error('pakka mangler kart-SVG med data-meta')
+        if (!Array.isArray(pakke.cache)) throw new Error('pakka mangler cache-lista')
+        await lukkDrawer(page)      // nøytral tilstand for neste sjekk
+        return `${(rå.length / 1024).toFixed(0)} kB pakke, ${(pakke.kart.svg.length / 1024).toFixed(0)} kB SVG`
+      } finally {
+        await page.unroute(blokker)
+      }
     },
   },
   {

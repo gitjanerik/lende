@@ -10,8 +10,9 @@
 // NVE-nøkkelen server-side, så laget virker i produksjon uten nøkkel i klienten.
 // En VITE_NVE_HYDAPI_KEY brukes kun i lokal dev mot NVE direkte.
 import { ref } from 'vue'
-import { svgToWgs84, wgs84ToSvg } from '../lib/utm.js'
+import { wgs84ToSvg, wgs84BboxFromMeta } from '../lib/utm.js'
 import { fetchStationsForBbox, fetchStationLatest, sildreStationUrl, pickStationInfo } from '../lib/nveHydApi.js'
+import { cacheGet, cacheSet, hydroBboxKey, hydroLatestKey, TTL } from '../lib/protectedAreaCache.js'
 
 export function useHydroStations({
   svgHostRef, visibleLayers, meta, applyUprightLabels,
@@ -30,20 +31,23 @@ export function useHydroStations({
   // API-kall for metadataen.
   const stationInfoById = new Map()
 
-  // WGS84-bbox fra kartets fire hjørner (SVG-meter → WGS84).
-  function bboxFromMeta(m) {
-    const cs = [
-      svgToWgs84(0, 0, m), svgToWgs84(m.widthM, 0, m),
-      svgToWgs84(0, m.heightM, m), svgToWgs84(m.widthM, m.heightM, m),
-    ]
-    let south = Infinity, west = Infinity, north = -Infinity, east = -Infinity
-    for (const c of cs) {
-      if (c.lat < south) south = c.lat
-      if (c.lat > north) north = c.lat
-      if (c.lon < west) west = c.lon
-      if (c.lon > east) east = c.lon
-    }
-    return { south, west, north, east }
+  // WGS84-bbox fra kartets fire hjørner (utm.js — delt med kulturminne-lagene
+  // og offline-pakkingen, som må treffe NØYAKTIG samme cache-nøkkel).
+  const bboxFromMeta = wgs84BboxFromMeta
+
+  // Stasjonslista via IndexedDB-cachen (protectedAreaCache) før nett. To grunner:
+  // laget skal virke uten dekning etter en offline-import (offlinePakke pakker
+  // nøyaktig denne nøkkelen), og stasjonslista fra NVE er stor nok til at det
+  // lønner seg uansett. Tomt svar caches IKKE — fetchStationsForBbox svelger
+  // nettfeil og returnerer [], så «ingen stasjoner» og «fikk ikke kontakt» ser
+  // like ut, og vi vil ikke fryse en nettfeil som sannhet i 7 døgn.
+  async function stasjonerForBbox(bbox) {
+    const key = hydroBboxKey(bbox)
+    const cached = await cacheGet(key)
+    if (Array.isArray(cached)) return cached
+    const stations = await fetchStationsForBbox(bbox, { apiKey: HYDAPI_KEY })
+    if (stations.length) cacheSet(key, stations, TTL.hydro)
+    return stations
   }
 
   // Stasjons-ikon: rund blå medaljong med to hvite bølger (vann-nivå). Rund og
@@ -84,7 +88,7 @@ export function useHydroStations({
     hydroLoadingLayer.value = true
     try {
       const bbox = bboxFromMeta(m)
-      const stations = await fetchStationsForBbox(bbox, { apiKey: HYDAPI_KEY })
+      const stations = await stasjonerForBbox(bbox)
       // Bruker kan ha skrudd av / byttet kart mens vi lastet.
       if (reqId !== reqSeq || !visibleLayers.value.has('vannstasjon')) return
       if (!svgHostRef.value?.querySelector('svg')?.isSameNode(svg)) return
@@ -143,9 +147,19 @@ export function useHydroStations({
     hydroLoading.value = true
     const reqId = ++detailSeq
     try {
-      const latest = await fetchStationLatest({ stationId, seriesList: [
-        { parameter: 1001 }, { parameter: 1000 }, { parameter: 1003 },
-      ] }, { apiKey: HYDAPI_KEY })
+      // Samme cache-før-nett som stasjonslista. Målingen er ferskvare (24 t),
+      // men en dagsfersk verdi med synlig måletidspunkt er langt bedre enn et
+      // tomt ark på et kart uten dekning.
+      const latestKey = hydroLatestKey(stationId)
+      let latest = stationId ? await cacheGet(latestKey) : null
+      if (!latest) {
+        latest = await fetchStationLatest({ stationId, seriesList: [
+          { parameter: 1001 }, { parameter: 1000 }, { parameter: 1003 },
+        ] }, { apiKey: HYDAPI_KEY })
+        if (stationId && latest && Object.keys(latest).length) {
+          cacheSet(latestKey, latest, TTL.hydroMaaling)
+        }
+      }
       // Skuffen kan være lukket / byttet til en annen stasjon mens vi hentet.
       if (reqId !== detailSeq || hydroDetail.value?.stationId !== stationId) return
       hydroDetail.value = { ...hydroDetail.value, ...latest }
@@ -157,7 +171,7 @@ export function useHydroStations({
   async function refreshHydroCount(m) {
     if (!m) { hydroCount.value = null; return }
     try {
-      const stations = await fetchStationsForBbox(bboxFromMeta(m), { apiKey: HYDAPI_KEY })
+      const stations = await stasjonerForBbox(bboxFromMeta(m))
       if (meta.value === m) hydroCount.value = stations.length
     } catch { /* ignorer */ }
   }

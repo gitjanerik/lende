@@ -4,7 +4,7 @@
 // kart-SVG-en (svgHostRef), lag-togglingen og kulturminne-skuffens tilstand,
 // som kommer inn destrukturert.
 import { ref, computed } from 'vue'
-import { svgToWgs84, wgs84ToSvg } from '../lib/utm.js'
+import { wgs84ToSvg, wgs84BboxFromMeta } from '../lib/utm.js'
 import { fetchFredaKulturminner, fetchFredaCount, clusterByMinMeters, FREDET_FETCH_CAP } from '../lib/kulturminneWfs.js'
 import { fetchKulturminnerMedStatus } from '../lib/kulturminneFetcher.js'
 import { cacheGet, cacheSet, kulturminneBboxKey, fredetKulturminneBboxKey, TTL } from '../lib/protectedAreaCache.js'
@@ -37,21 +37,9 @@ export function useHeritageLayers({
   const fredetTruncated = computed(() =>
     fredetCount.value != null && fredetShown.value != null && fredetCount.value > fredetShown.value)
 
-  // WGS84-bbox fra kartets fire hjørner (SVG-meter → WGS84) til WFS-spørring.
-  function fredetBboxFromMeta(m) {
-    const cs = [
-      svgToWgs84(0, 0, m), svgToWgs84(m.widthM, 0, m),
-      svgToWgs84(0, m.heightM, m), svgToWgs84(m.widthM, m.heightM, m),
-    ]
-    let south = Infinity, west = Infinity, north = -Infinity, east = -Infinity
-    for (const c of cs) {
-      if (c.lat < south) south = c.lat
-      if (c.lat > north) north = c.lat
-      if (c.lon < west) west = c.lon
-      if (c.lon > east) east = c.lon
-    }
-    return { south, west, north, east }
-  }
+  // WGS84-bbox fra kartets fire hjørner til WFS-spørringen (utm.js — delt med
+  // NVE-laget og offline-pakkingen, som må treffe NØYAKTIG samme cache-nøkkel).
+  const fredetBboxFromMeta = wgs84BboxFromMeta
 
   function ensureFredetDefs(svg) {
     const ns = 'http://www.w3.org/2000/svg'
