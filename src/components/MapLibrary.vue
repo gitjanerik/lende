@@ -9,7 +9,7 @@ import { ref, computed, watch, onMounted, onActivated, onUnmounted, onDeactivate
 import { useRouter } from 'vue-router'
 import { listMaps, deleteMap, clearAll, renameMap, listGravelRoutes, deleteGravelRoute, updateGravelRoute } from '../lib/mapStorage.js'
 import { importerKartPakke } from '../lib/kartImport.js'
-import { PAKKE_FILENDELSE } from '../lib/kartPakke.js'
+import { PAKKE_FILENDELSE, lesefeilPaaNorsk } from '../lib/kartPakke.js'
 import { arkExtentFor } from '../lib/tileCache.js'
 import { routeShareToken, MAX_SHARE_ROUTES } from '../lib/routeShare.js'
 import RenameMapDialog from './RenameMapDialog.vue'
@@ -299,7 +299,14 @@ async function onImportFil(e) {
     await refresh()
     router.push({ name: 'kart-vis', params: { id } })
   } catch (err) {
-    importFeil.value = err?.message || 'Kunne ikke lese kartfila.'
+    // Nettleserens egne lesefeil er engelske DOMException-er som ikke sier hva
+    // brukeren skal gjøre. Den vanligste er NotFoundError: Filer-appen VISER
+    // fila selv når den bare ligger i iCloud/Google Drive og ikke er lastet
+    // ned. lesefeilPaaNorsk oversetter dem; alt annet (våre egne feil fra
+    // lesKartPakke) er norsk allerede. Sjekken gjentas her fordi fila også kan
+    // rives bort utenfor pakke-lesingen.
+    console.error('Import av kartfil feilet:', err)
+    importFeil.value = lesefeilPaaNorsk(err) || err?.message || 'Kunne ikke lese kartfila.'
   } finally {
     importerer.value = false
   }
@@ -693,12 +700,12 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
        «lag nytt» og lista, fordi det er den andre måten et kart havner i
        lista på. Virker uten nett — fila inneholder alt. -->
   <button type="button" @click="onVelgImportFil" :disabled="importerer"
-          class="w-full mb-3 px-3 py-2.5 rounded-lg border border-ink/10 bg-ink/[0.04]
-                 text-ink/70 text-[12px] active:scale-[0.99] disabled:opacity-60
+          class="w-full mb-3 px-3 py-3 rounded-lg border border-ink/10 bg-ink/[0.04]
+                 text-ink/70 text-[14px] active:scale-[0.99] disabled:opacity-60
                  flex items-center justify-center gap-2 transition">
     <span v-if="importerer"
-          class="w-3.5 h-3.5 rounded-full border-2 border-ink/20 border-t-ink/70 animate-spin shrink-0"></span>
-    <svg v-else viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
+          class="w-4 h-4 rounded-full border-2 border-ink/20 border-t-ink/70 animate-spin shrink-0"></span>
+    <svg v-else viewBox="0 0 24 24" class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor"
          stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
       <polyline points="17 8 12 3 7 8"/>
@@ -708,7 +715,13 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
   </button>
   <input ref="filInput" type="file" class="hidden"
          :accept="`${PAKKE_FILENDELSE},application/gzip`" @change="onImportFil">
-  <div v-if="importFeil" class="-mt-2 mb-3 px-1 text-[11px] text-rose-300">{{ importFeil }}</div>
+  <!-- Feilmeldingen er det ENESTE brukeren har å gå etter når importen ryker,
+       og den forteller gjerne om en fil som ligger i skyen. 11 px i lys grå
+       nederst på skjermen ble ikke lest — den står nå i en egen boks, i samme
+       størrelse som listeteksten. -->
+  <div v-if="importFeil"
+       class="-mt-1 mb-3 px-3 py-2.5 rounded-lg bg-rose-500/[0.10] border border-rose-400/30
+              text-rose-200 text-[13px] leading-snug">{{ importFeil }}</div>
 
   <!-- Vardåsen-referansekartet er flyttet til «Utvikler»-fanen inne i kart-
        visningen (debug-hjelp) — det fyller ikke lenger forsiden. -->

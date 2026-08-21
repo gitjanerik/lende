@@ -164,11 +164,44 @@ export async function lagKartPakke({ kart, cache = [], appVersion = null }) {
 
 // ── les ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Nettleserens egne lesefeil på norsk, med handlingen brukeren mangler.
+ *
+ * Den vanligste er `NotFoundError`: Filer-appen VISER fila selv når den bare
+ * ligger i iCloud eller Google Drive og ikke er lastet ned. Brukeren velger
+ * den, og nettleseren finner ingenting å lese. Rå-meldingen fra nettleseren er
+ * «A requested file or directory could not be found at the time an operation
+ * was processed» — engelsk, og den sier ikke hva man skal gjøre.
+ */
+export function lesefeilPaaNorsk(err) {
+  switch (err?.name) {
+    case 'NotFoundError':
+      return 'Fant ikke fila. Ligger den i iCloud eller Google Drive? '
+           + 'Åpne Filer-appen, last den ned til telefonen, og prøv igjen.'
+    case 'NotReadableError':
+      return 'Kunne ikke lese fila. Den kan ha blitt flyttet eller endret mens '
+           + 'appen leste den. Prøv én gang til.'
+    case 'SecurityError':
+      return 'Nettleseren fikk ikke lov til å åpne fila. Prøv å kopiere den til '
+           + 'telefonen først.'
+    default:
+      return null
+  }
+}
+
 async function tilBytes(kilde) {
   if (kilde instanceof Uint8Array) return kilde
   if (kilde instanceof ArrayBuffer) return new Uint8Array(kilde)
-  if (typeof kilde?.arrayBuffer === 'function') return new Uint8Array(await kilde.arrayBuffer())
-  throw new Error('Ukjent filkilde.')
+  if (typeof kilde?.arrayBuffer !== 'function') throw new Error('Ukjent filkilde.')
+  try {
+    return new Uint8Array(await kilde.arrayBuffer())
+  } catch (err) {
+    const norsk = lesefeilPaaNorsk(err)
+    if (!norsk) throw err
+    // Behold originalen som `cause` — konsollen skal fortsatt vise hva
+    // nettleseren egentlig sa når noen feilsøker.
+    throw new Error(norsk, { cause: err })
+  }
 }
 
 /**
