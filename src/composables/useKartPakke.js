@@ -110,6 +110,14 @@ export function useKartPakke({ meta, mapTitle, kartId, autoMapToast, hentSvgMark
       // Delings-arket først: der ligger AirDrop, Nearby Share, Bluetooth og
       // «Lagre i Filer» — alle sammen uten nett. Klarer ikke nettleseren å dele
       // filer, faller vi tilbake til en vanlig nedlasting.
+      //
+      // DETTE er Bluetooth-støtten vår, og det er et bevisst valg: å sende
+      // direkte mellom to telefoner fra webappen selv ble vurdert og forkastet
+      // (v5.20.1). Web Bluetooth finnes ikke på iOS og er «central-only» på
+      // Android, så to nettsider ser aldri hverandre; WebRTC over felles hotspot
+      // med QR-håndhilsning ville virket, men kostet for mye å teste i felt.
+      // Begrunnelsen i sin helhet står i CLAUDE.md. Operativsystemet er bedre på
+      // nærradio enn vi blir — vi leverer en FIL og lar det ta seg av resten.
       const fil = new File([blob], filnavn, { type: 'application/gzip' })
       if (typeof navigator.share === 'function'
           && typeof navigator.canShare === 'function'
