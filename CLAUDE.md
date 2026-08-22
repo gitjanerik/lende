@@ -118,6 +118,43 @@ noen gate så det. Land-mask (union av alt
 vann) hindrer konturer/vegetasjon over vann. OSM multipolygon-relations MÅ
 ring-sys via `assembleRelationRings` i `mapBuilder.js` (ellers wedge-artefakter).
 
+## Viktig arkitektur-merknad — deling av kart har TO veier, og det er med vilje
+
+1. **Lenke (`useKartDeling.js`)** — deler OPPSKRIFTEN: bbox, ekvidistanse,
+   aspekt. Mottakeren bygger sin egen kopi. Lett, men krever nett hos begge.
+2. **Fil (`useKartPakke.js` → `lib/kartPakke.js`)** — deler HELE kartet som en
+   gzip-et `.lendekart`: ferdig SVG, DEM, kulturminner og NVE-stasjoner. Tung,
+   men virker uten dekning. Fila går til telefonens delings-ark.
+
+Ikke slå dem sammen. De løser hver sin situasjon, og begge skal stå.
+
+**Datalagene virker offline fordi de allerede sjekker `protectedAreaCache` før
+nettet.** Eksporten (`lib/offlinePakke.js`) fyller cachen mens den har dekning,
+tar radene med i fila, og importen skriver dem inn igjen med FERSK TTL — en fil
+kan ha ligget en måned i en chat. Lag-koden vet ingenting. **Legger du til et nytt
+runtime-hentet lag, er det ÉN ting som må gjøres:** hent det i `samleOfflineData`
+med nøyaktig samme cache-nøkkel som laget slår opp på. Bboksen må komme fra
+`wgs84BboxFromMeta` (`utm.js`) — den lå i tre kopier fram til v5.20.0, og en
+nøkkel som bommer med én desimal gir en fil full av data ingen leter etter.
+Det oppdages først når turkameraten står på fjellet.
+
+**Direkte overføring telefon-til-telefon (Bluetooth/WebRTC) er VURDERT OG
+FORKASTET (v5.20.1).** Ikke ta det opp igjen uten nye argumenter:
+
+- *Web Bluetooth* er blindvei. Safari/iOS støtter det ikke i det hele tatt, og
+  Apple har sagt de ikke vil. På Android er API-et dessuten bare «central»: en
+  nettside kan koble seg TIL en dings, men kan ikke selv annonsere seg som en.
+  To telefoner ser derfor aldri hverandre. BLE-hastigheten ville uansett gjort
+  et 5 MB-kart til flere minutters overføring.
+- *WebRTC over felles hotspot med QR-håndhilsning* ville teknisk virket på begge
+  plattformer, men krever kamera, QR, en SDP-utveksling som må gå opp, og Apples
+  lokalnett-tillatelse. Eieren vurderte test-kostnaden i felt som for høy mot
+  gevinsten.
+- **Vi har allerede Bluetooth — via operativsystemet.** `navigator.share({files})`
+  åpner delings-arket, der AirDrop, Quick Share, Nearby Share og Bluetooth bor.
+  Ingen av dem trenger nett. Det er hele poenget med at eksporten leverer en FIL
+  og ikke en strøm: OS-et er bedre på nærradio enn vi noen gang blir.
+
 ## Arkitektur-gjeld og duplikater — LES DETTE FØR DU BYGGER NYTT
 
 Denne seksjonen finnes fordi Claude starter hver økt blind og bare leser det
