@@ -662,8 +662,9 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
   // de tynneste basisstrekene (høydekurve 101 = 0,07 mm) allerede ved nøytral
   // knott, så «Strek»-knotten sluttet å påvirke de røde kurvene — en av kartets
   // mest karakteristiske, brukerstyrte egenskaper. Strek-skalaen er igjen fri og
-  // fullt dynamisk. (Et evt. framtidig lesbarhets-gulv MÅ ligge under basis-
-  // breddene, jf. utsatt-listen i CLAUDE.md.)
+  // fullt dynamisk. (Et evt. framtidig lesbarhets-gulv MÅ ligge UNDER den
+  // tynneste basisbredden i isomCatalog.json — i dag 0,07 mm, kode 101. Ellers
+  // klamper det ved nøytral knott igjen, som er nøyaktig feilen over.)
   const sw = (v) => `calc(${v}mm * var(--stroke-scale, 1))`
   // Global tekst-skala: rotasjons-slidens søsken i MapView (desktop) setter
   // `--label-scale` på `.isom-map`-roten. calc() lar brukeren øke/minske ALLE
