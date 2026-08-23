@@ -20,7 +20,8 @@ import {
   pickTextureSize, PREVIEW_TEXTURE_PX,
   prepareMapTextureSource, rasterizeMapTexture,
 } from './mapTexture.js'
-import { buildSkyDome, buildClouds, buildNedbor, buildNightSky, makeFog, FOG_COLOR, NIGHT_FOG_COLOR } from './skyDome.js'
+import { buildSkyDome, buildNedbor, buildNightSky, makeFog, FOG_COLOR, NIGHT_FOG_COLOR } from './skyDome.js'
+import { buildPuffClouds } from './puffSkyer.js'
 import { NEDBOR_TAK } from './vaerHimmel.js'
 import { createEngineLoop } from './engineLoop.js'
 
@@ -120,7 +121,7 @@ export async function createSceneCore(container, {
 
   const sky = buildSkyDome()
   scene.add(sky.mesh)
-  const clouds = buildClouds({
+  const clouds = buildPuffClouds({
     widthM: meta.widthM,
     heightM: meta.heightM,
     baseY: Math.max(1200, terrain.maxElev * exaggeration + 350),
@@ -313,7 +314,10 @@ export async function createSceneCore(container, {
 
     // Bakgrunnsbevegelse som ikke avhenger av hva kalleren gjør med kameraet.
     updateAmbient(dt) {
-      clouds.update(dt)
+      // Kameraet må med: puff-skyene oversetter sol-retningen til view-space
+      // hver frame. Uten den roterer lyset med kameraet, og skyene leses som
+      // lykter framfor opplyste former.
+      clouds.update(dt, camera)
       nedbor.update(dt, vaerVindX, vaerVindZ)
       oppdaterTorden(dt)
     },

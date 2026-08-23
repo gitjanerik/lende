@@ -3,7 +3,7 @@
 // Vardåsen-referansekart, Zoom-LOD-tuning (runtime-parametre), debug-tellere
 // (fliser, viewport-culling, Sjøkart-WFS), diagnose-modus, lilla-stier-A/B og
 // perf-logg-åpner.
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { LOD_DEFAULTS } from '../../composables/useLodTuning.js'
 import { APP_VERSION } from '../../version.js'
 
@@ -30,6 +30,18 @@ const props = defineProps({
   openVardasen: { type: Function, required: true },
   openPerfLog: { type: Function, required: true },
 })
+
+// Vær-demo i 3D. Flagget bor i localStorage framfor å gå gjennom MapView, fordi
+// 3D-viseren er den som skal lese det, og den monteres først etterpå — en prop
+// gjennom hele kjeden for en utviklerbryter er ikke verdt seks ekstra ledd.
+const VAERDEMO_KEY = 'lende-3d-vaerdemo'
+const vaerDemo = ref((() => {
+  try { return localStorage.getItem(VAERDEMO_KEY) === '1' } catch { return false }
+})())
+function toggleVaerDemo() {
+  vaerDemo.value = !vaerDemo.value
+  try { localStorage.setItem(VAERDEMO_KEY, vaerDemo.value ? '1' : '0') } catch { /* privat modus */ }
+}
 const metaAppVersionText = computed(() => props.meta?.appVersion ?? null)
 
 // Tetthets-linja: «915 /km² · svært tett → sparsom · bredde 8 → 6 km».
@@ -224,6 +236,20 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
       <span class="inline-block w-3 h-3 rounded-sm align-middle" style="background: hsl(220, 80%, 60%);"></span> OSM way,
       <span class="inline-block w-3 h-3 rounded-sm align-middle" style="background: hsl(300, 80%, 60%);"></span> OSM relation,
       <span class="inline-block w-3 h-3 rounded-sm align-middle" style="background: hsl(45, 90%, 55%);"></span> merged.
+    </div>
+    <!-- Vær-demo i 3D: går gjennom værtypene, 10 s hver. Finnes fordi flere av
+         uttrykkene er ren BEVEGELSE (vinddrift, lyn-blink, fallende nedbør) og
+         ikke kan vurderes på et stillbilde. -->
+    <button @click="toggleVaerDemo"
+            class="w-full px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98] mb-1"
+            :class="vaerDemo
+                    ? 'bg-sky-400/20 border-sky-300/50 text-ink'
+                    : 'bg-ink/5 border-ink/10 text-ink/75'">
+      {{ vaerDemo ? 'Vær-demo i 3D: PÅ' : 'Vær-demo i 3D' }}
+    </button>
+    <div v-if="vaerDemo" class="text-[10px] text-ink/55 leading-relaxed mb-3 px-1">
+      Åpne 3D: værtypene spilles i rekkefølge, 10 s hver, med «neste» for å hoppe
+      videre. Overstyrer det ekte varselet så lenge den står på.
     </div>
     <!-- Byggetider (perf): viser localStorage-loggen så den kan kopieres
          og deles — mobil-konsollen er upraktisk. -->

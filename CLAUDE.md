@@ -257,20 +257,26 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   viser (`Viewer3D.vue`), to rigger (`cameraRigs.js` = følge, `freeRig.js` =
   fri). Kommer det en tredje inngang til 3D, skal den være en OPSJON på
   `create3dScene`, ikke en ny scene.
-- **SKYENE I 3D ER RULLET TILBAKE, OG SKAL IKKE «FIKSES» PÅ NYTT UTEN EN MÅLING
-  FRA ENHETEN (v5.21.4).** Eieren rapporterte at skyene så kuttet ut på telefonen.
-  Over tre runder (v5.20.2 → v5.21.3) ble det gjort åtte endringer i
-  `skyDome.js` for å rette det: radius-klipping, høyere lerret, alfa-vignett,
-  `fog: false`, materiale pr sprite, `alphaTest`, større felt, nær-kamera-demping.
-  Ingen av dem kunne verifiseres — artefakten finnes BARE på den telefonens GPU,
-  og aldri på skrivebordet eller i CI. Resultatet ble harde hvite firkanter,
-  altså klart dårligere enn utgangspunktet, og alt er nå rullet tilbake til
-  koden fra før v5.20.2 (pluss `setVaer`, som værmodus trenger).
-  **Regelen som følger av dette:** en visuell feil som bare finnes på én enhet
-  kan ikke rettes ved å endre kode og spørre om det ble bedre. Hver runde er et
-  gjett, og gjett akkumulerer. Tas det opp igjen, må det starte med en MÅLING fra
-  enheten — WebGL-capability-dump (webgl1 vs webgl2, NPOT-håndtering, maks
-  tekstur) og gjerne en `readPixels`-prøve — ikke med en ny kodeendring.
+- **Skyene i 3D er KLYNGER AV PUFFER, ikke sprites (v5.22.0, `lib/tour3d/puffSkyer.js`).**
+  Hver sky er 13 kamera-vendte firkanter med hver sin posisjon i rommet, og hver
+  puff skyggelegges som en kule (normal av firkantens egne koordinater, sol-retning
+  oversatt til view-space hver frame). Klyngen har ekte utstrekning i tre akser, så
+  silhuetten endrer seg når man flyr rundt, toppen buler, og puffene passerer forbi
+  én for én når man flyr inn. Én draw call pr sky — samme budsjett som sprites hadde.
+  **Historikken er verdt å kjenne, for den kostet en dag:** skyene var sprites, og
+  eieren meldte at de så «kuttet» og flate i toppen. Det ble forsøkt rettet ÅTTE
+  ganger i teksturen (radius-klipping, høyere lerret, alfa-vignett, `fog: false`,
+  materiale pr sprite, `alphaTest`, større felt, nær-kamera-demping) — alle feil
+  sted. En GPU-måling fra eierens egen telefon frikjente hele teksturveien: sRGB,
+  mipmap-generering, NPOT og både tømt lerret og ufullstendig tekstur var rene.
+  En `THREE.Sprite` ER en flat plate som alltid vender mot kameraet; toppen er flat
+  uansett hva teksturen inneholder. **Lærdommen: når en visuell feil bare finnes på
+  én enhet, mål på enheten før du endrer kode — og spør om formen i det hele tatt
+  KAN komme fra det du mistenker.**
+  De fire tallene som styrer uttrykket (`radiusFaktor`, `kantMyk`, `tetthet`,
+  `lysKontrast`) står samlet i toppen av `buildPuffClouds`. De er smak, ikke
+  mekanikk. `puffSkyer.test.js` håndhever det som IKKE er smak: utstrekning i alle
+  tre akser, og at puffene overlapper nok til at man ser skya og ikke kulene.
 - **Værhimmelen er en OPSJON, ikke et lag ved siden av (v5.21.1).** `setVaer(preg)`
   på `sceneCore` justerer skyene som alt finnes (antall synlige sprites, farge,
   vinddrift) og skrur på ett `Points`-objekt for nedbør. `setVaer(null)` skal gi
