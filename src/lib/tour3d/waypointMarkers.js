@@ -10,7 +10,7 @@ import {
   SphereGeometry, CylinderGeometry, MeshBasicMaterial, Mesh, Group,
   CanvasTexture, SpriteMaterial, Sprite, SRGBColorSpace,
 } from 'three'
-import { PIN_STEM_H, PIN_STEM_R, PIN_HEAD_R, drapedWorld, pinScaleAt } from './pinField.js'
+import { PIN_STEM_H, PIN_STEM_R, PIN_HEAD_R, drapedWorld, pinScaleForCamera } from './pinField.js'
 
 const COLOR_START = 0x16a34a
 const COLOR_DEST = 0xdc2626
@@ -200,10 +200,12 @@ export function buildWaypointMarkers({ route, via = [], isLoop = false, parkingS
     setPinsVisible(v) { signsGroup.visible = !!v },
     // Avstandsoverdrivelse: nær = naturlig størrelse, langt unna vokser nåla
     // (opptil 5×) så start/mål kan lokaliseres helt i horisonten. Samme
-    // skalering som POI-nålene i utforskeren — se pinField.pinScaleAt.
+    // skalering som POI-nålene i utforskeren — se pinField.pinScaleForCamera,
+    // som også holder hodet under et vinkel-tak. Disse nålene står ALLTID, så
+    // de er de mest utsatte for å svelge bildet når kameraet passerer dem.
     update(camera) {
       for (const p of pins) {
-        p.scale.setScalar(pinScaleAt(camera.position.distanceTo(p.position)))
+        p.scale.setScalar(pinScaleForCamera(camera.position, p.position.x, p.position.y, p.position.z))
       }
     },
     dispose() {

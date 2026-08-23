@@ -8,7 +8,7 @@
 // til POI-en nåla står for.
 
 import { Group, Vector3 } from 'three'
-import { buildPinField, pinScaleAt, PIN_STEM_H, PIN_HEAD_R } from './pinField.js'
+import { buildPinField, pinScaleForCamera, PIN_STEM_H, PIN_HEAD_R } from './pinField.js'
 import { declutter } from '../labelDeclutter.js'
 import { poiColor } from '../poiColors.js'
 import { kindMeta } from './featureTimeline.js'
@@ -80,7 +80,9 @@ export function createPinLayer({ scene, dem, coords, project, maxVisible = MAX_V
       const distM = harKam
         ? Math.hypot(camPos.x - wx, camPos.y - wy, camPos.z - wz)
         : 0
-      const s = harKam ? pinScaleAt(distM) : 1
+      // MÅ være samme skala som renderingen bruker (pinScaleForCamera), ellers
+      // regnes kollisjonsboksen på en nål som tegnes i en annen størrelse.
+      const s = harKam ? pinScaleForCamera(camPos, wx, wy, wz) : 1
       const head = project(wx, wy + (PIN_STEM_H + PIN_HEAD_R * 0.6) * s, wz)
       if (head.behind) continue
       const foot = project(wx, wy, wz)

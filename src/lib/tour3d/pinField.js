@@ -23,6 +23,14 @@ export const PIN_HEAD_R = 9
 const MAX_SCALE = 5
 const SCALE_REF_M = 1200
 
+// Tak på HODETS vinkelstørrelse: hode-radius delt på avstanden til HODET.
+// 0,12 svarer til ~14° i diameter, altså en fjerdedel av bildehøyden ved 55°
+// synsfelt — en stor, men leselig markør. Over ~75 m binder taket ikke i det
+// hele tatt, så nålene ser ut akkurat som før på all normal avstand.
+const MAKS_HODE_ANDEL = 0.12
+// Hodets senter over bakkepunktet ved skala 1.
+const HODE_LOFT = PIN_STEM_H + PIN_HEAD_R * 0.6
+
 export function drapedWorld(dem, coords, x, y, liftM = 0) {
   const e = sampleElevation(dem, x, y)
   return coords.toWorld(x, y, (Number.isFinite(e) ? e : 0) + liftM)
@@ -30,10 +38,57 @@ export function drapedWorld(dem, coords, x, y, liftM = 0) {
 
 /**
  * Avstandsavhengig skala for en nål — delt av alle nåletyper.
- * @param {number} distM avstand kamera→nål i world-enheter
+ * @param {number} distM avstand kamera→nålas BAKKEPUNKT i world-enheter
  */
 export function pinScaleAt(distM) {
   return Math.min(MAX_SCALE, Math.max(1, distM / SCALE_REF_M))
+}
+
+/**
+ * Skalaen en nål FAKTISK skal tegnes med, gitt kameraet og bakkepunktet.
+ *
+ * Hvorfor dette ikke er `pinScaleAt` alene: hodet sitter ~60 m OVER
+ * bakkepunktet, så avstanden til FOTEN sier lite om hvor nær HODET er kameraet.
+ * Flyr man i nålehøyde er foten 60 m unna — skala 1, hode-radius 9 m — mens
+ * hodet kan ligge én meter foran linsa. Da dekker det ene hodet hele skjermen i
+ * sin egen flate farge, og idet kameraet krysser kuleflata forsvinner det helt
+ * (baksideflatene klippes bort). Det leses som flimrende, heldekkende bånd i
+ * nålefargen — rapportert fra felt, og reprodusert i Chromium: ett hode fylte
+ * 100 % av bildet på 10 m (v5.22.8).
+ *
+ * Taket måles derfor fra HODET, ikke foten. Avstand 0 gir skala 0: står man
+ * inne i hodet, er nåla ingenting å se på.
+ *
+ * @param {{x:number,y:number,z:number}} camPos
+ * @param {number} bx bakkepunkt, world
+ * @param {number} by
+ * @param {number} bz
+ */
+export function pinScaleForCamera(camPos, bx, by, bz) {
+  const s = pinScaleAt(Math.hypot(camPos.x - bx, camPos.y - by, camPos.z - bz))
+  // Hodet sitter HODE_LOFT·s over bakkepunktet, så avstanden til hodet er en
+  // funksjon av den skalaen vi leter etter. Da må den løses, ikke gjettes — en
+  // enkelt runde med «regn taket fra hodet der det ville stått i full skala»
+  // bommer med opptil 25 %, fordi et lavere hode kommer NÆRMERE et kamera som
+  // står under det. Betingelsen er
+  //
+  //   (R·s)² ≤ A²·(r² + (dy − HODE_LOFT·s)²)
+  //
+  // med R = PIN_HEAD_R, A = MAKS_HODE_ANDEL, r = vannrett avstand kamera→nål og
+  // dy = kamerahøyde over bakkepunktet. Ordnet er det en andregradsulikhet:
+  //
+  //   (R² − A²·HODE_LOFT²)·s² + (2·A²·HODE_LOFT·dy)·s − A²·(dy² + r²) ≤ 0
+  //
+  // og den positive roten er taket. Førstekoeffisienten er positiv så lenge
+  // A < R/HODE_LOFT ≈ 0,149; settes taket høyere enn det finnes ingen øvre
+  // grense, og hele beregningen slutter å beskytte noe.
+  const dy = camPos.y - by
+  const r2 = (camPos.x - bx) ** 2 + (camPos.z - bz) ** 2
+  const A2 = MAKS_HODE_ANDEL * MAKS_HODE_ANDEL
+  const a = PIN_HEAD_R * PIN_HEAD_R - A2 * HODE_LOFT * HODE_LOFT
+  const b = 2 * A2 * HODE_LOFT * dy
+  const tak = (-b + Math.sqrt(b * b + 4 * a * A2 * (dy * dy + r2))) / (2 * a)
+  return Math.min(s, tak)
 }
 
 /**
@@ -86,7 +141,7 @@ export function buildPinField(items, dem, coords, { stemColor = 0xffffff } = {})
       dummy.rotation.set(0, 0, 0)
       dummy.updateMatrix()
       stems.setMatrixAt(i, dummy.matrix)
-      dummy.position.set(bx, by + (PIN_STEM_H + PIN_HEAD_R * 0.6) * s, bz)
+      dummy.position.set(bx, by + HODE_LOFT * s, bz)
       dummy.updateMatrix()
       heads.setMatrixAt(i, dummy.matrix)
     }
@@ -114,8 +169,7 @@ export function buildPinField(items, dem, coords, { stemColor = 0xffffff } = {})
       _cam.copy(camera.position)
       writeInstances((i, bx, by, bz) => {
         if (visible && !visible.has(i)) return 0
-        const d = Math.hypot(_cam.x - bx, _cam.y - by, _cam.z - bz)
-        return pinScaleAt(d)
+        return pinScaleForCamera(_cam, bx, by, bz)
       })
     },
     // Raycast treffer stamme eller hode; begge peker tilbake på samme indeks.
