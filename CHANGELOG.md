@@ -1,3 +1,38 @@
+## 2026-08-23 — v5.22.4: De tre grupperte Dependabot-oppdateringene
+
+Første runde fra vedlikeholdsrutinen i v5.22.2. Tre grupperte Dependabot-PR-er
+(#301, #302, #304) tatt inn som én endring på fersk master, med versjons-bump,
+framfor tre merger uten. Grunnen er `CACHE_VERSION` i `public/sw.js`: vite og vue
+endrer bunten, og en dependency-merge uten bump ville latt mobil-klienten sitte
+på gamle assets. Dependabot bumper ikke appens egen versjon.
+
+Innholdet: sju fontpakker til 5.3.0, MCP-SDK-en til 1.30, vue 3.5.41,
+vite 8.2.2, vitest 4.1.11, tailwind 4.3.3; wrangler til 4.125 i MCP-Workeren; og
+actions/checkout, setup-node og upload-artifact fra v4 til v7 i alle tolv
+workflows — det siste rydder også Node 20-deprecation-advarselen som lå i hver
+CI-logg.
+
+To ting verdt å notere. Wrangler 4.125 drar inn `miniflare` 5.x-**alpha** som sin
+egen avhengighet, så den var ikke til å unngå ved å avstå fra `npm audit fix` —
+den kommer med bumpen. Både `boot:workers` og `mcp:protokoll` er grønne på den,
+som er den eneste målingen som betyr noe her. Og Dependabot re-serialiserer
+`package.json`, som ville escapet æ/ø/å i MCP-Workerens beskrivelse til
+`\u00f8` — én grunn til at det er verdt å ta oppdateringene inn selv framfor å
+merge robotens gren rått.
+
+Actions-bumpen avdekket dessuten et latent kappløp: `build-redlist` og
+`build-nasjonalparker` trigger begge på push når sin egen workflow-fil endres, og
+en actions-oppdatering rører alltid BEGGE. De pusher til samme gren, og den som
+tapte fikk «non-fast-forward» og feilet — uten at noe var galt med dataene. Begge
+har nå en push-retry som tar vare på artefakten, flytter til den nye tippen og
+legger den på igjen. Ikke rebase: `actions/checkout` gir en grunn klone, og en
+rebase over shallow-grensa er upålitelig. Kappløpet er simulert lokalt med to
+grunne kloner, og begge datasett overlever det — og bekreftet i CI på selve
+PR-en, der redlist-jobben tapte kappløpet igjen og denne gangen kom seg gjennom
+på andre forsøk.
+
+---
+
 ## 2026-08-23 — v5.22.3: agents 0.21 i MCP-Workeren, og en gate som ser verktøyene
 
 De to siste sårbarhetsfunnene i den deployede MCP-Workeren er lukket. `agents`

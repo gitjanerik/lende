@@ -21,9 +21,9 @@ jobs:
   build-redlist:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
 
@@ -42,6 +42,39 @@ jobs:
             git -c commit.gpgsign=false commit \
               --author="Deploy <deploy@lende>" \
               -m "Norsk rødliste-bundel fra GBIF (auto-generert)"
-            git push origin HEAD:${GITHUB_REF_NAME}
-            echo "Committet oppdatert rødliste-bundel"
+            # Push med retry. To datasett-workflows kan kjøre på SAMME push — en
+            # actions-bump rører begge workflow-filene, så begge path-filtrene
+            # treffer — og begge pusher til samme gren. Den som taper kappløpet
+            # fikk «non-fast-forward» og feilet, uten at noe var galt med
+            # dataene. Det skjedde i v5.22.4: redlist tapte mot nasjonalparker
+            # på en ren actions-oppdatering.
+            #
+            # Vi rebaser IKKE: actions/checkout gir en grunn klone, og en rebase
+            # over en shallow-grense er upålitelig. I stedet tar vi vare på
+            # artefakten, flytter til den nye tippen, og legger den på igjen.
+            # Filen er generert og eies av denne jobben alene, så det kan ikke
+            # overskrive noe andres arbeid.
+            for forsok in 1 2 3; do
+              if git push origin HEAD:${GITHUB_REF_NAME}; then
+                echo "Committet oppdatert rødliste-bundel"
+                break
+              fi
+              if [ "$forsok" = 3 ]; then
+                echo "::error::ga opp å pushe public/data/redlist-no.json etter 3 forsøk"
+                exit 1
+              fi
+              echo "push avvist (forsøk $forsok) — flytter til ny tipp og prøver igjen"
+              cp public/data/redlist-no.json "$RUNNER_TEMP/artefakt.json"
+              git fetch --depth=1 origin "${GITHUB_REF_NAME}"
+              git reset --hard FETCH_HEAD
+              cp "$RUNNER_TEMP/artefakt.json" public/data/redlist-no.json
+              git add public/data/redlist-no.json
+              if git diff --staged --quiet; then
+                echo "Ny tipp har alt dette innholdet — ingenting å pushe"
+                exit 0
+              fi
+              git -c commit.gpgsign=false commit \
+                --author="Deploy <deploy@lende>" \
+                -m "Norsk rødliste-bundel fra GBIF (auto-generert)"
+            done
           fi
