@@ -10,7 +10,8 @@
 // brukeren har valgt, ikke klokka.
 import { computed } from 'vue'
 import VaerIkon from '../VaerIkon.vue'
-import { timerFramover } from '../../lib/vaerFetcher.js'
+import { timerFramover, vindMotGrader } from '../../lib/vaerFetcher.js'
+import { bearingToCompass } from '../../lib/mapContext.js'
 
 const props = defineProps({
   // { status: 'loading'|'done'|'error', varsel } — samme form som i 2D.
@@ -30,6 +31,22 @@ function klokke(iso) {
   return Number.isFinite(d.getTime()) ? String(d.getHours()).padStart(2, '0') : '--'
 }
 const komma = (n, d = 0) => n.toFixed(d).replace('.', ',')
+
+// Rotasjonen pila skal ha. «↑» peker opp (nord) urotert, og CSS-rotasjon går med
+// klokka — altså er rotasjonen i grader nøyaktig retningen vinden GÅR. Snuingen
+// fra METs «kommer fra» gjøres av vindMotGrader, som skydriften i 3D bruker òg.
+function vindMot(fraGrader) {
+  const g = vindMotGrader(fraGrader)
+  return g === null ? null : Math.round(g)
+}
+
+// Full forklaring på hold/hover, siden cella bare har plass til et tall og en pil.
+function vindTitle(t) {
+  const ms = `${komma(t.vindMs, 1)} m/s`
+  return Number.isFinite(t.vindRetningGrader)
+    ? `${ms} fra ${bearingToCompass(t.vindRetningGrader)}`
+    : ms
+}
 </script>
 
 <template>
@@ -47,12 +64,36 @@ const komma = (n, d = 0) => n.toFixed(d).replace('.', ',')
               [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
     <div class="flex items-stretch divide-x divide-white/10 w-max">
       <div v-for="t in timer" :key="t.tid"
-           class="flex flex-col items-center gap-0.5 px-2.5 py-1.5 min-w-[3.1rem]">
+           class="flex flex-col items-center gap-0.5 px-2.5 py-1.5 min-w-[3.6rem]">
         <span class="text-[9px] text-white/50 tabular-nums leading-none">{{ klokke(t.tid) }}</span>
         <VaerIkon :symbol="t.symbol" :variant="variant" :size="22"/>
-        <span v-if="t.temperaturC != null"
-              class="text-[11px] font-medium text-white tabular-nums leading-none">
-          {{ Math.round(t.temperaturC) }}°
+        <!-- Temperatur og vind på SAMME linje (v5.21.2). Vind fortjener plassen,
+             men ikke en femte stablet linje: raden ligger over kartet, og høyde
+             koster kartflate mens bredde bare koster litt rulling. Derfor
+             sidestilt.
+             Vinden vises ALLTID når MET har tallet — i motsetning til nedbøren
+             under, som bare vises når det ER nedbør. Forskjellen er tilsiktet:
+             0 mm er ingen informasjon, mens 0-2 m/s er nettopp det turgåeren vil
+             vite. Heltall m/s; desimalen er under varselets nøyaktighet.
+             Pila peker dit vinden GÅR — snuingen fra METs «kommer fra» gjøres av
+             vindMotGrader, delt med skydriften i 3D, så de aldri kan peke i strid. -->
+        <span class="flex items-baseline gap-1 leading-none">
+          <span v-if="t.temperaturC != null"
+                class="text-[11px] font-medium text-white tabular-nums">
+            {{ Math.round(t.temperaturC) }}°
+          </span>
+          <span v-if="t.vindMs != null"
+                class="flex items-baseline gap-px text-[9px] text-white/65 tabular-nums"
+                :title="vindTitle(t)">
+            <!-- Med retning: en rotert pil. UTEN retning: et nøytralt vind-tegn,
+                 ikke bare tallet. «8° 8» er to tall uten enhet og leses ikke som
+                 vind — og MET oppgir ikke alltid retning. -->
+            <span aria-hidden="true" class="inline-block text-[8px]"
+                  :style="vindMot(t.vindRetningGrader) !== null
+                    ? { transform: `rotate(${vindMot(t.vindRetningGrader)}deg)` } : null">{{
+                    vindMot(t.vindRetningGrader) !== null ? '↑' : '≈' }}</span>
+            {{ Math.round(t.vindMs) }}
+          </span>
         </span>
         <!-- Nedbør bare når det ER nedbør: en rad med «0,0 mm» under hver time
              er støy, og det er nettopp lesbarheten dette ikke skal koste. -->

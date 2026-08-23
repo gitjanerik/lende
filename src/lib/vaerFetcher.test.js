@@ -2,7 +2,8 @@
 // hvor feilen faktisk kan bo, og det skal kunne testes uten nett.
 import { describe, it, expect } from 'vitest'
 import {
-  parseVarsel, symbolBasis, medVariant, naaVarsel, timerFramover, VAER_DESIMALER,
+  parseVarsel, symbolBasis, medVariant, naaVarsel, timerFramover, vindMotGrader,
+  VAER_DESIMALER,
 } from './vaerFetcher.js'
 
 // Utsnitt av et ekte Locationforecast-2.0-compact-svar, kuttet til det vi leser.
@@ -158,6 +159,44 @@ describe('timerFramover', () => {
 
   it('gir tom rad framfor å kaste når varselet mangler', () => {
     expect(timerFramover(null)).toEqual([])
+  })
+})
+
+describe('vindMotGrader', () => {
+  // METs wind_from_direction er retningen vinden KOMMER FRA. Alt som viser eller
+  // beveger noe med vinden må snu den. Funksjonen finnes nettopp fordi snuingen
+  // lå i to kopier (skydriften i 3D og vindpila i symbolraden): rettet noen
+  // fortegnet i den ene, ville pila pekt motsatt vei av skyene på samme skjerm.
+  it.each([
+    [0, 180],     // fra nord → går sør
+    [180, 0],     // fra sør  → går nord
+    [90, 270],    // fra øst  → går vest
+    [270, 90],    // fra vest → går øst
+    [45, 225],
+    [359, 179],
+  ])('vind fra %i° går mot %i°', (fra, mot) => {
+    expect(vindMotGrader(fra)).toBe(mot)
+  })
+
+  it('holder svaret i [0, 360)', () => {
+    for (const fra of [0, 1, 179, 180, 181, 359, 360, 720]) {
+      const g = vindMotGrader(fra)
+      expect(g).toBeGreaterThanOrEqual(0)
+      expect(g).toBeLessThan(360)
+    }
+  })
+
+  it('takler grader utenfor 0-360, inkludert negative', () => {
+    // MET sender ikke slikt, men en fremtidig kilde kan — og et negativt
+    // resultat ville rotert vindpila feil vei uten å se galt ut i koden.
+    expect(vindMotGrader(-90)).toBe(90)
+    expect(vindMotGrader(450)).toBe(270)
+  })
+
+  it('gir null når retningen mangler — ingen retning er IKKE nord', () => {
+    for (const tom of [null, undefined, NaN, 'nord']) {
+      expect(vindMotGrader(tom)).toBeNull()
+    }
   })
 })
 

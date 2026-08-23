@@ -102,6 +102,22 @@ export function medVariant(symbolCode, variant) {
 }
 
 /**
+ * Retningen vinden GÅR, i grader fra nord med klokka.
+ *
+ * METs `wind_from_direction` er retningen vinden KOMMER FRA — en «vind fra nord»
+ * blåser sørover. Alt som VISER eller BEVEGER noe med vinden må snu den, og det
+ * skal skje ÉN gang, her: skydriften i 3D (vaerHimmel.vindVektor) og vindpila i
+ * symbolraden brukte hver sin kopi av denne regnestykket, og hadde noen rettet
+ * fortegnet i den ene ville pila pekt motsatt vei av skyene på samme skjerm.
+ *
+ * @returns {number|null} null når retningen mangler — ingen retning er ikke nord.
+ */
+export function vindMotGrader(fraGrader) {
+  if (!Number.isFinite(fraGrader)) return null
+  return ((fraGrader % 360) + 540) % 360
+}
+
+/**
  * Parse et Locationforecast-svar til det appen bruker. Ren funksjon — hele
  * feilrisikoen i denne fila ligger her, og den skal kunne testes offline.
  *
