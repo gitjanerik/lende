@@ -1,3 +1,21 @@
+## 2026-08-23 — v5.22.5: Siste to sårbarhetene i MCP-Workeren
+
+`fast-uri` 3.1.4 → 3.1.6 og `hono` 4.12.32 → 4.13.3, begge transitive via
+MCP-SDK-en, begge i den deployede Workerens runtime-tre. Lockfile-alene, ingen
+versjonsrange rørt. Workeren er nå på null kjente sårbarheter, og hele treet —
+app, MCP-Worker, proxy, ai-worker — er rent.
+
+Verdt å merke seg hvorfor dette nå var trivielt: i v5.22.2 ble Workerens
+`npm audit fix` bevisst utsatt fordi den dro inn `miniflare` 5.x-alpha og fjernet
+`@cloudflare/workers-types`. Begge var symptomer på wrangler-versjonen, ikke på
+fiksen. Da v5.22.4 tok wrangler til 4.125 — som har miniflare 5-alpha som sin
+EGEN avhengighet — forsvant hele konflikten, og `audit fix` gjør nå to rene
+lockfile-bumps. Lærdommen er at «utsett fiksen» var riktig avgjørelse av feil
+grunn: den skulle vært utsatt til wrangler var oppdatert, ikke fordi fiksen var
+uansvarlig.
+
+---
+
 ## 2026-08-23 — v5.22.4: De tre grupperte Dependabot-oppdateringene
 
 Første runde fra vedlikeholdsrutinen i v5.22.2. Tre grupperte Dependabot-PR-er
