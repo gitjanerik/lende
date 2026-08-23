@@ -51,6 +51,7 @@ npm run build      # Produksjonsbygg
 npm run mcp        # MCP-server (stdio) — kart/rute-verktøy for Claude
 npm run fasit      # Fasit: seks ekte kart mot invarianter (krever nett, ~1 min)
 npm run royk       # Røyktest: monterer MapView i Chromium og trykker på domenene
+npm run royk:ruter # Alle ruter, alle redirects og boot-gjenopptaket i Chromium
 npm run navnediff  # Hva forsvant ut av MapView i denne endringen — og hvem overtok
 npm run frie -- <fil>  # Refererer en fersk composable noe den ikke har fått inn?
 npm run vedlikehold    # Sårbarheter + utdaterte pakker i alle fire katalogene
@@ -221,6 +222,15 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   blokka før du stoler på tallet, og følg sømmen framfor tallet.
   Rører du et domene som allerede er ute: gjør endringen i composable-en, ikke
   i MapView.
+- **Rutingen har sin egen røyktest (v5.22.7).** `npm run royk:ruter` går gjennom
+  hver rute, hver redirect og boot-gjenopptaket i `router.js`. `npm run royk`
+  monterer ÉN rute (`/kart/:id`) og sier ingenting om at `/about` lander på `/om`
+  eller at `redirect: to => ({ name, query: to.query })` fortsatt beholder
+  query-en. Begge går i `royktest.yml`. Merk at testen MÅ nullstille
+  localStorage før hver navigasjon: et besøk på `/rute` får GravelPlannerView til
+  å skrive `lende-last-mode`, og da sender boot-hooken en senere fersk last av
+  «/» videre — første utgave rapporterte det som at `/kart → /` var brutt i
+  vue-router 5, og det var testen som forurenset seg selv.
 - **Uttrekk fra MapView har to obligatoriske gater (v5.8.1).** Tre
   monteringsfeil under v5.8.0-uttrekket gikk gjennom BÅDE `npm run test`
   (1 978 tester) og `npm run build` uten en lyd — Vue-oppsettet kaster først

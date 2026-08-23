@@ -12,6 +12,10 @@ name: Røyktest — MapView i en ekte nettleser
 #   • navnediff — hva forsvant ut av MapView, og hvem overtok det.
 #                 Fanger feil som forsvinner STILLE (en slettet watch, et
 #                 composable-kall ingen tok over).
+#   • royk:ruter — hver rute, hver redirect og boot-gjenopptaket. royk monterer
+#                 ÉN rute og sier ingenting om at /about lander på /om eller at
+#                 en funksjons-redirect beholder query-en. Lagt til ved
+#                 vue-router 4 → 5 (v5.22.7), som er nøyaktig når slikt brytes.
 #
 # Kjører på PR-er som rører MapView, composable-ene eller malen. Kartet
 # (public/maps/vardasen.svg) ligger i repoet, så monteringen trenger ikke nett.
@@ -25,6 +29,9 @@ on:
       - 'src/components/**'
       - 'scripts/royk-mapview.mjs'
       - 'scripts/navnediff.mjs'
+      - 'scripts/ruter-royk.mjs'
+      - 'src/router.js'
+      - 'src/App.vue'
       - '.github/workflows/royktest.yml'
   workflow_dispatch:
 
@@ -56,6 +63,11 @@ jobs:
       # av at Overpass har en dårlig dag.
       - name: Røyktest
         run: npm run royk -- --ektekart --bilder=/tmp/royk
+
+      # Rutingen: alle ruter, alle redirects, boot-gjenopptaket. Bruker samme
+      # dist/ som røyktesten over, så den koster bare noen sekunder.
+      - name: Røyktest — ruting
+        run: npm run royk:ruter
 
       # Navnediff er en LESE-gate: den skal fortelle mennesket hva som forsvant.
       # Villede slettinger kvitteres ut med `--ok navn1,navn2` i PR-en som gjør
