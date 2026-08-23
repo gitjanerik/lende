@@ -20,8 +20,9 @@ import {
   pickTextureSize, PREVIEW_TEXTURE_PX,
   prepareMapTextureSource, rasterizeMapTexture,
 } from './mapTexture.js'
-import { buildSkyDome, buildNedbor, buildNightSky, makeFog, FOG_COLOR, NIGHT_FOG_COLOR } from './skyDome.js'
+import { buildSkyDome, buildNedbor, buildLyn, buildNightSky, makeFog, FOG_COLOR, NIGHT_FOG_COLOR } from './skyDome.js'
 import { buildPuffClouds } from './puffSkyer.js'
+import { lagSkyskygge } from './skyskygge.js'
 import { NEDBOR_TAK } from './vaerHimmel.js'
 import { createEngineLoop } from './engineLoop.js'
 
@@ -136,6 +137,19 @@ export async function createSceneCore(container, {
     maks: NEDBOR_TAK,
   })
   scene.add(nedbor.group)
+  // Lyn-streken som vises i torden-blinket. Skjult til oppdaterTorden ber om den.
+  const lyn = buildLyn({ toppY: Math.max(1800, terrain.maxElev * exaggeration + 900) })
+  scene.add(lyn.group)
+  // Skyskygger på terrenget. Analytisk (se skyskygge.js) fordi terrenget bruker
+  // MeshBasicMaterial med bakt karttekstur — det finnes ingen lyssetting å
+  // modulere. Sol-retningen tas FRA skyene, så skygge og skyggelegging aldri
+  // kan komme i utakt.
+  const skyskygge = lagSkyskygge()
+  // Skygge-styrken slik været sier den skal være; nattmodus nuller den.
+  let skyggeGrunn = 0.30
+  skyskygge.uniforms.uSolRetning.value.copy(clouds.solRetning)
+  skyskygge.festTil(terrain.material)
+
   // Måne + bitte små gule stjerner (v4.8.5). Skjult som default; setNightMode
   // slår hele gruppa av/på sammen med skyene.
   const nightSky = buildNightSky()
@@ -193,6 +207,10 @@ export async function createSceneCore(container, {
   // som før værmodus fantes. setVaer(null) er veien tilbake.
   let vaerVindX = 1
   let vaerVindZ = 0
+  // Dis-avstandene slik de var uten vær. Tåke skalerer dem ned; setVaer(null)
+  // setter dem tilbake til nøyaktig disse.
+  const disNear = scene.fog.near
+  const disFar = scene.fog.far
   let tordenPaa = false
   // Torden er et kort løft av dis- og bakgrunnsfargen — ingen geometri, ingen
   // lyskilde. Rate-begrenset og av ved prefers-reduced-motion: et lyn som
@@ -200,9 +218,12 @@ export async function createSceneCore(container, {
   // effekt. Uten mediespørringen ville den blitt slått på for alle.
   const reduserBevegelse = typeof matchMedia === 'function'
     && matchMedia('(prefers-reduced-motion: reduce)').matches
-  const TORDEN_MIN_S = 6
-  const TORDEN_MAKS_S = 17
-  const TORDEN_VARIGHET_S = 0.16
+  // Tettere lyn enn realismen tilsier: eieren ba om at Tor får vise vreden sin,
+  // og et lyn hvert 17. sekund er en lang stund å vente på en effekt man leter
+  // etter. Fortsatt langt nok mellom til at det ikke blir stroboskop.
+  const TORDEN_MIN_S = 3
+  const TORDEN_MAKS_S = 9
+  const TORDEN_VARIGHET_S = 0.30
   let tilNesteLyn = TORDEN_MIN_S
   let lynIgjen = 0
   const grunnfarge = new Color(FOG_COLOR)
@@ -215,6 +236,7 @@ export async function createSceneCore(container, {
       if (lynIgjen <= 0) {
         scene.fog.color.copy(grunnfarge)
         scene.background.copy(grunnfarge)
+        lyn.slukk()
       }
       return
     }
@@ -226,12 +248,23 @@ export async function createSceneCore(container, {
     lynIgjen = TORDEN_VARIGHET_S
     scene.fog.color.copy(lynfarge)
     scene.background.copy(lynfarge)
+    // Glimtet INNE i en sky først — det er den som bestemmer hvor lynet er.
+    // Streken henges under nøyaktig samme sky: et glimt i én sky og en strek
+    // under en annen leses som to ubeslektede effekter.
+    const skyPos = clouds.glimt()
+    lyn.blink(
+      skyPos ? skyPos.x : (Math.random() - 0.5) * meta.widthM * 1.1,
+      skyPos ? skyPos.z : (Math.random() - 0.5) * meta.heightM * 1.1,
+      skyPos ? skyPos.y - 120 : undefined,
+      Math.random() * Math.PI * 2,
+    )
   }
 
   /** Slå torden av og sett fargene trygt tilbake — også midt i et lyn. */
   function stoppTorden() {
     tordenPaa = false
     lynIgjen = 0
+    lyn.slukk()
     scene.fog.color.set(nightOn ? NIGHT_FOG_COLOR : FOG_COLOR)
     scene.background.set(nightOn ? NIGHT_FOG_COLOR : FOG_COLOR)
   }
@@ -292,7 +325,7 @@ export async function createSceneCore(container, {
 
   for (const d of [
     texture, terrain.geometry, terrain.material,
-    sky.geometry, sky.material, clouds, nedbor, nightSky,
+    sky.geometry, sky.material, clouds, nedbor, lyn, nightSky,
   ]) loop.track(d)
 
   melding(null)
@@ -319,6 +352,9 @@ export async function createSceneCore(container, {
       // lykter framfor opplyste former.
       clouds.update(dt, camera)
       nedbor.update(dt, vaerVindX, vaerVindZ)
+      // Skyggene følger skyene. Oppdateres etter clouds.update, så de aldri
+      // ligger én frame bak det man ser i himmelen.
+      skyskygge.oppdater(clouds.skyer, 900, clouds.solRetning)
       oppdaterTorden(dt)
     },
 
@@ -363,6 +399,9 @@ export async function createSceneCore(container, {
       sky.setNight(nightOn)
       nightSky.setNight(nightOn)
       clouds.group.visible = !nightOn
+      // Ingen sol om natta, altså ingen skyskygge. Uten dette lå skyggene igjen
+      // på et mørkt terreng, der de leses som flekker i kartet.
+      skyskygge.uniforms.uSkyggeStyrke.value = nightOn ? 0 : skyggeGrunn
       grunnfarge.set(nightOn ? NIGHT_FOG_COLOR : FOG_COLOR)
       lynIgjen = 0            // et pågående lyn skal ikke overleve modus-byttet
       scene.fog.color.copy(grunnfarge)
@@ -378,6 +417,17 @@ export async function createSceneCore(container, {
      */
     setVaer(preg) {
       clouds.setVaer(preg)
+      // Sikt: tåke er redusert sikt, ikke flere skyer. Uten dette ser tåke ut
+      // som overskyet, og det gjorde den fram til v5.22.1.
+      const sikt = preg?.siktFaktor ?? 1
+      scene.fog.near = disNear * sikt
+      scene.fog.far = disFar * sikt
+      // Skyskygger krever ÅPNINGER i skydekket. Ved fullt dekke er bakken jevnt
+      // skyggelagt, og enkeltflekker ville lest som feil; i tåke finnes ingen
+      // retningsbestemt sol i det hele tatt.
+      const dekning = preg?.dekning ?? 0.55
+      skyggeGrunn = 0.30 * (1 - dekning * 0.6) * (sikt < 0.3 ? 0.15 : 1)
+      skyskygge.uniforms.uSkyggeStyrke.value = nightOn ? 0 : skyggeGrunn
       nedbor.setNedbor(preg?.nedbor ?? null, preg?.nedborTetthet ?? 0)
       vaerVindX = preg?.driftX ?? 1
       vaerVindZ = preg?.driftZ ?? 0

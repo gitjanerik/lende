@@ -286,6 +286,33 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   familie som vinner, og en regel plassert for høyt stjeler treff fra dem under.
   Takene (`SKY_OPASITET_TAK`, `NEDBOR_TAK`) er lesbarhet, ikke smak — 3D har
   ingen adaptiv kvalitets-nedtrapping å skru ned senere.
+- **Sol-retningen i 3D er LÅST til relieffet (v5.22.1).** `puffSkyer.solRetning`
+  er `(−0.5, 0.707, −0.5)` fordi `computeHillshade` baker karttekstur med azimuth
+  315° og elevasjon 45°, og scenen har nord = −Z. Fram til v5.22.1 sto z positiv,
+  altså sol fra sørvest — skyene ble lyssatt fra motsatt side av fjellene under
+  dem. Skyskyggene (`skyskygge.js`) tar retningen FRA skyene av samme grunn: to
+  steder med hver sin sol kommer i utakt uten at noen test ser det.
+- **Skyskygger er ANALYTISKE, ikke et skyggekart.** Terrenget er
+  `MeshBasicMaterial` med bakt karttekstur — det finnes ingen lyssetting å
+  modulere og ingen skyggekart-pass. `skyskygge.js` sender skyenes senter og
+  radius inn som uniformer og hekter seg på via `onBeforeCompile`, ETTER
+  `dithering_fragment` (før den ville fargen blitt satt sammen på nytt over
+  skyggen). Taket er `MAKS_SKYER` = 14 iterasjoner per fragment. Skyggen dempes
+  med skydekket: fullt dekke gir jevnt skyggelagt bakke, der enkeltflekker leses
+  som en tekstur-feil.
+- **Effekter som bare finnes i BEVEGELSE må måles i skjermbrøk, ikke i «faktor»
+  (v5.22.1).** Vinden var dempet der den skulle vært forsterket, og feilen levde
+  til eieren sto i felt og ikke så forskjell mellom 2 og 18 m/s. Målt var
+  forskjellen 1,9 % mot 7,1 % av synsfeltet på ti sekunder — ratioen fantes, men
+  begge var under terskelen for hva et øye oppfatter som bevegelse. Skru du på
+  drift, nedbørsfart eller lyn-frekvens: regn ut hvor mange prosent av bildet det
+  flytter seg på tida brukeren faktisk ser på, og bruk `npm run dev` med
+  vær-demoen (Utvikler-fanen) framfor et stillbilde. Vi ligger nå bevisst rundt
+  7× virkelig skyfart på det sterkeste; alternativet er en egenskap ingen ser.
+- **Tåke er redusert SIKT, ikke flere skyer.** `siktFaktor` fra `vaerHimmel.js`
+  skalerer `scene.fog.near/far`. Uten den så tåke ut som overskyet, som var
+  tilfellet fram til v5.22.1. `setVaer(null)` setter dis-avstandene tilbake til
+  de eksakte utgangsverdiene, som resten av værmodusen.
 - **Sol/måne-knappen i 3D har FIRE steg** (dag → dag+vær → natt → natt+vær), ikke
   to. Egen vær-knapp ble vurdert og forkastet: topprada har alt fem-seks knapper,
   og kommentaren over den i `Viewer3D.vue` forteller hva som skjedde sist den

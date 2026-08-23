@@ -150,10 +150,53 @@ describe('vindVektor', () => {
     expect(vindVektor(0, 0).fart).toBeLessThan(0.6)
   })
 
-  it('demper farten og har et tak, så storm ikke gir stroboskop', () => {
-    expect(vindVektor(0, 10).fart).toBeLessThan(2)
-    expect(vindVektor(0, 45).fart).toBeLessThanOrEqual(2.4)
-    // Stigende med vinden — ellers er koblingen til ekte vind bare pynt.
+  it('gjør forskjellen mellom svak og sterk vind SYNLIG', () => {
+    // Dette er kravet, og det er målt i skjermflate framfor i abstrakte tall.
+    // Fram til v5.22.1 var faktoren 0,11 og dempet farten «for ikke å se ut som
+    // en tidsforkortet film». Eieren så da ingen forskjell mellom 2 og 18 m/s i
+    // demoen — målt 1,9 % mot 7,1 % av synsfeltet på ti sekunder.
+    //
+    // Regnestykket: kameraet ser ~5 km, og skyenes grunnfart er ~15 m/s.
+    const SYNLIG_M = 5000
+    const GRUNNFART = 15
+    const andel = (ms) => (GRUNNFART * vindVektor(0, ms).fart * 10) / SYNLIG_M
+    expect(andel(2)).toBeLessThan(0.08)          // rolig: knapt merkbar drift
+    expect(andel(18)).toBeGreaterThan(0.18)      // storm: klart i bevegelse
+    // Og forskjellen må være stor nok til å SE, ikke bare til å måle.
+    expect(andel(18) / andel(2)).toBeGreaterThan(3)
+  })
+
+  it('har et tak, så en orkan ikke gir stroboskop', () => {
+    // Over taket skal 35 og 45 m/s se like ut. Uten det blir sterk vind et
+    // flimmer framfor en bevegelse.
+    expect(vindVektor(0, 45).fart).toBe(vindVektor(0, 35).fart)
+    expect(vindVektor(0, 45).fart).toBeLessThanOrEqual(9)
+  })
+
+  it('stiger med vinden — ellers er koblingen til ekte vind bare pynt', () => {
     expect(vindVektor(0, 12).fart).toBeGreaterThan(vindVektor(0, 3).fart)
+  })
+})
+
+describe('siktFaktor', () => {
+  it('gjør TÅKE til redusert sikt, ikke bare flere skyer', () => {
+    // Tåke la fram til v5.22.1 bare på skydekke, og så dermed ut som overskyet.
+    // Sikten er det eneste som faktisk skiller dem.
+    expect(vaerTilHimmel('fog').siktFaktor).toBeLessThan(0.3)
+    expect(vaerTilHimmel('cloudy').siktFaktor).toBe(1)
+  })
+
+  it('demper sikten mildt i nedbør, mest i kraftig', () => {
+    const klart = vaerTilHimmel('clearsky_day').siktFaktor
+    const lett = vaerTilHimmel('lightrain').siktFaktor
+    const kraftig = vaerTilHimmel('heavyrain').siktFaktor
+    expect(klart).toBe(1)
+    expect(lett).toBeLessThan(klart)
+    expect(kraftig).toBeLessThan(lett)
+  })
+
+  it('gir full sikt når været er ukjent', () => {
+    // Ukjent vær skal ikke gi tåke — det ville vært en påstand vi ikke har.
+    expect(vaerTilHimmel(null).siktFaktor).toBe(1)
   })
 })

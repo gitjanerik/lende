@@ -156,4 +156,52 @@ describe('buildPuffClouds', () => {
       c.dispose()
     })
   })
+  describe('glimt — lyn inne i skya', () => {
+    it('lyser opp én sky og returnerer posisjonen dens', () => {
+      const c = buildPuffClouds({ ...ARK, count: 5 })
+      const pos = c.glimt(2)
+      expect(pos).toBe(c.skyer[2].position)
+      c.update(0.05)
+      expect(c.materials[2].uniforms.uGlimt.value).toBeGreaterThan(0)
+      // Naboene skal være urørt: glimtet er inne i ÉN sky, ikke et lag over alle.
+      expect(c.materials[0].uniforms.uGlimt.value).toBe(0)
+      c.dispose()
+    })
+
+    it('slukker seg selv når kurven er kjørt ut', () => {
+      const c = buildPuffClouds({ ...ARK, count: 3 })
+      c.glimt(1)
+      for (let i = 0; i < 80; i++) c.update(0.02)
+      expect(c.materials[1].uniforms.uGlimt.value).toBe(0)
+      c.dispose()
+    })
+
+    it('har en topp som er kraftigere enn forglimtet', () => {
+      const c = buildPuffClouds({ ...ARK, count: 3 })
+      c.glimt(0)
+      const spor = []
+      for (let i = 0; i < 30; i++) { c.update(0.01); spor.push(c.materials[0].uniforms.uGlimt.value) }
+      expect(Math.max(...spor)).toBeGreaterThan(0.9)
+      // To topper: styrken skal falle og stige igjen, ikke bare tørke ut.
+      const bunn = Math.min(...spor.slice(0, 6))
+      expect(bunn).toBeLessThan(0.5)
+      c.dispose()
+    })
+
+    it('setVaer slukker et glimt som står midt i et værskifte', () => {
+      const c = buildPuffClouds({ ...ARK, count: 4 })
+      c.glimt(1)
+      c.update(0.09)
+      expect(c.materials[1].uniforms.uGlimt.value).toBeGreaterThan(0)
+      c.setVaer(null)
+      expect(c.materials[1].uniforms.uGlimt.value).toBe(0)
+      c.dispose()
+    })
+
+    it('gir hver sky en skyggeradius skyskygge kan lese', () => {
+      const c = buildPuffClouds({ ...ARK, count: 3 })
+      for (const s of c.skyer) expect(s.userData.skyggeRadius).toBeGreaterThan(0)
+      c.dispose()
+    })
+  })
 })
