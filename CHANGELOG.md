@@ -27,7 +27,9 @@ tapte fikk «non-fast-forward» og feilet — uten at noe var galt med dataene. 
 har nå en push-retry som tar vare på artefakten, flytter til den nye tippen og
 legger den på igjen. Ikke rebase: `actions/checkout` gir en grunn klone, og en
 rebase over shallow-grensa er upålitelig. Kappløpet er simulert lokalt med to
-grunne kloner, og begge datasett overlever det.
+grunne kloner, og begge datasett overlever det — og bekreftet i CI på selve
+PR-en, der redlist-jobben tapte kappløpet igjen og denne gangen kom seg gjennom
+på andre forsøk.
 
 ---
 
