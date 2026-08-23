@@ -29,6 +29,21 @@ uten å se galt ut i koden.
 Himmelretningene er `bearingToCompass` fra `mapContext.js`, den samme tabellen
 «Fra deg»-raden bruker, så nord-nordøst heter det samme begge steder.
 
+Røyktesten fikk samtidig et TAK PR SJEKK (120 s, overstyrbart pr sjekk). Det er
+en FORHOLDSREGEL, ikke en feilretting: ingen sjekk har hengt. Grunnen til at den
+kom med nå er at `page.evaluate` er det eneste Playwright-kallet i skriptet uten
+egen timeout — alle `waitForFunction` og `click` har tak — så er sidas hovedtråd
+travel kan et evaluate-kall i prinsippet vente i det uendelige. En sjekk som
+HENGER er verre enn en som feiler: den blokkerer jobben til GitHub dreper den
+etter timer, uten logg og uten skjermbilde, og dermed hver framtidige PR. Taket
+gjør et slikt tilfelle til en lesbar feil med skjermbildet ved siden av.
+
+Fire-stegs-sjekken venter dessuten på at 3D-motorens tekstur-skjerping til 4096²
+er ferdig («Skjerper kartbildet …») før den trykker. Passet starter rett ETTER at
+knappene dukker opp, og rasteriseringen blokkerer hovedtråden i sekunder på en
+runner uten GPU — å klikke inn i det vinduet er nettopp der et evaluate-kall
+kunne blitt stående.
+
 ---
 
 ## 2026-08-23 — v5.21.1: Vær i 3D — fire steg på sol/måne, og en himmel som følger varselet
