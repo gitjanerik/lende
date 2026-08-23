@@ -22,6 +22,8 @@
 // Norske navn kommer fra METs legend.csv (bokmål-kolonnen) — vi oversetter ikke
 // selv, kilden har gjort det.
 //
+// ÉN AVVIK FRA KILDEN, og det er med vilje: månen. Se MAANE_FARGER under.
+//
 // KJØR: npm run build:vaerikoner   (krever nett; ~85 små filer fra raw.githubusercontent)
 
 import { writeFileSync, mkdirSync } from 'node:fs'
@@ -83,13 +85,44 @@ for (const { kode, harVarianter } of legend) {
 }
 console.log(`henter ${filnavn.length} SVG-er …`)
 
+// Månen i METs sett er grå (#686e73 med en hårfin mørkere kant), og den er laget
+// for hvit bakgrunn. Værraden i Lende ligger oppå kartet på et halvgjennomsiktig
+// felt, og der forsvinner den nesten helt — rapportert fra felt. Vi gir den
+// derfor solas egne gulfarger fra samme sett, så natt-symbolene er like lesbare
+// som dag-symbolene og paletten fortsatt er METs.
+//
+// Gråtonene finnes BARE i de 21 natt- og polartwilight-ikonene, og bare i
+// himmellegemet — kontrollert mot hele settet før byttet ble lagt inn. Skulle MET
+// endre paletten sin, slår ikke erstatningen til, og da er månen grå igjen (og
+// dette bygget skal si fra).
+const MAANE_FARGER = [
+  ['#686e73', '#ffd348'],   // fyll → solas hovedgul
+  ['#6a7075', '#d6b849'],   // kant → solas mørkere gul
+]
+
+let maaneTreff = 0
+
 const ikoner = await iBolker(filnavn.map((navn) => async () => {
   const svg = await hent(`${RAW}/svg/${navn}.svg`)
   // Komprimer lett: fjern linjeskift og doble mellomrom mellom tagger. Ikke en
   // minifier — vi rører ikke attributter eller path-data.
-  const stram = svg.replace(/>\s+</g, '><').replace(/\s*\n\s*/g, ' ').trim()
+  let stram = svg.replace(/>\s+</g, '><').replace(/\s*\n\s*/g, ' ').trim()
+  for (const [fra, til] of MAANE_FARGER) {
+    if (stram.toLowerCase().includes(fra)) {
+      maaneTreff++
+      stram = stram.replace(new RegExp(fra, 'gi'), til)
+    }
+  }
   return [navn, `data:image/svg+xml;base64,${Buffer.from(stram, 'utf-8').toString('base64')}`]
 }), CONCURRENCY)
+
+// Gaten: 21 ikoner × 2 gråtoner = 42 treff da dette ble skrevet. Endrer MET
+// paletten sin, vil tallet falle — og en stille grå måne er nettopp det vi
+// prøver å bli kvitt.
+console.log(`månefarge byttet i ${maaneTreff} tilfeller`)
+if (maaneTreff < 20) {
+  console.warn('⚠ færre månefarge-treff enn ventet — har MET endret paletten?')
+}
 
 const navn = Object.fromEntries(legend.map((r) => [r.kode, r.navn]))
 const medVarianter = legend.filter((r) => r.harVarianter).map((r) => r.kode)
@@ -104,6 +137,10 @@ const innhold = `// GENERERT AV scripts/build-vaerikoner.js — IKKE REDIGER FOR
 // Lastes lazily via src/lib/vaerIkoner.js. Se skriptet for hele begrunnelsen.
 //
 // Norske navn er METs egne (legend.csv, bokmål-kolonnen) — ikke våre oversettelser.
+//
+// ETT avvik fra kilden: månen i natt-/polartwilight-ikonene er byttet fra METs
+// grå til solas gule, fordi den grå forsvant mot værraden i kartet. Se
+// MAANE_FARGER i byggeskriptet.
 
 /** symbol_code (med variant der den finnes) → data-URI. */
 export const VAER_IKON = ${JSON.stringify(Object.fromEntries(ikoner), null, 0)}

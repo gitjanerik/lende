@@ -1,3 +1,48 @@
+## 2026-08-23 — v5.22.12: Retur fra bakgrunn, gul måne, og riktig symbol til riktig time
+
+Fire ting etter kveldens feiljakt, og alle er meldt fra felt.
+
+**3D sto frosset etter en tur i en annen app.** Var man i 3D-visningen og byttet
+til en annen app i noen minutter, var visningen død ved retur — ingen zoom, ingen
+panorering, og knappene gjorde ingenting. Eneste utvei var å lukke 3D og gå inn
+igjen. Det er minst tre uavhengige årsaker, og de kan ikke skilles fra hverandre
+herfra: `visibilitychange` kommer ikke alltid når Android har fryst siden (Chrome
+sender `resume` i stedet), GL-contexten kan være tapt uten at
+`webglcontextrestored` noen gang fires, og — den verste — et unntak i `onFrame`
+hoppet over linja rett under, som er den som ber om neste frame. ÉN feil drepte
+altså loopen for godt, og en tapt context eller en tekstur som forsvant i
+bakgrunnen er nok til å kaste.
+
+`engineLoop` ber nå ALLTID om neste frame (feilen logges én gang), lytter på
+`visibilitychange`, `resume`, `pageshow` og `focus`, og — det som gjør det
+robust — VERIFISERER oppvåkningen: kom det ingen frame innen 1,5 s med synlig
+side, prøves én omstart, og hjelper ikke det heller, sier den fra via `onDead`.
+Viseren bygger da motoren om, som er nøyaktig det brukeren ellers gjorde for hånd.
+Fem nye tester dekker dette; den viktigste er at en frame som kaster koster én
+frame og ikke økta.
+
+**Sol midt på natta i værraden.** Symbolvarianten fulgte dag/natt-knappen i 3D,
+med begrunnelsen «ser man en natthimmel, skal symbolet vise natt». Konsekvensen
+var sol i raden klokka 00 så snart man sto i dagmodus. Raden er et VARSEL, ikke
+en illustrasjon av himmelen man har valgt — og MET setter allerede varianten selv
+i `symbol_code`, regnet ut for tidspunktet og stedet. Overstyringen er fjernet;
+2D gjorde det riktig hele tiden.
+
+**Månen var grå og forsvant.** METs måne er `#686e73` og laget for hvit
+bakgrunn; værraden i Lende ligger på et halvgjennomsiktig felt oppå kartet, og
+der var den nesten usynlig. Byggeskriptet bytter den nå til solas egne gulfarger
+fra samme sett (`MAANE_FARGER`), med en gate som sier fra hvis MET endrer
+paletten. Gråtonene finnes bare i de 21 natt- og polartwilight-ikonene, og bare i
+himmellegemet — kontrollert mot hele settet. Det er vårt eneste avvik fra kildens
+palett, og det står i toppen av den genererte fila.
+
+**Nåle-diagnosen i Info-panelet er tatt ut.** Den ble lagt inn i v5.22.10 for å
+måle i stedet for å gjette, den løste saken i v5.22.11, og da er den ferdig.
+Lærdommen står i CLAUDE.md — sammen med regelen om at en instans som ikke skal
+ses, ikke skal submitteres, og med hvordan man leser en farge ut av et
+skjermbilde og slår den opp i paletten.
+
+---
 ## 2026-08-23 — v5.22.11: Skjulte nåler sendes ikke til GPU-en i det hele tatt
 
 Målingen fra v5.22.10 avgjorde saken, og den avgjorde den mot min egen hypotese.

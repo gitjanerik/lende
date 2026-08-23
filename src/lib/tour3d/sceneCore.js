@@ -277,6 +277,10 @@ export async function createSceneCore(container, {
     },
     onFrame: (dt, timeS) => hooks.onFrame?.(dt, timeS),
     onContextLost: () => hooks.onContextLost?.(),
+    // Loopen kom ikke i gang igjen etter retur fra bakgrunn, selv etter én
+    // omstart. Kalleren må bygge motoren om — det er det brukeren ellers gjør
+    // for hånd ved å lukke 3D og gå inn igjen.
+    onDead: () => hooks.onDead?.(),
     // Etter kontekst-tap laster three teksturene opp igjen fra kilden — er
     // kilden tom, må den bygges på nytt.
     onContextRestored: () => { void revalidateTexture() },

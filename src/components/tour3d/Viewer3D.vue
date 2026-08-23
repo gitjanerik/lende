@@ -81,10 +81,6 @@ const kryssPauseOn = ref((() => {
 })())
 const hasPaths = ref(false)
 const pinCounts = ref({})
-// Nåle-diagnose til Info-panelet. Pollet, ikke reaktivt: tallene kommer fra
-// motorens render-loop, og to ganger i sekundet er nok til å lese dem av.
-const pinDiag = ref(null)
-let pinDiagTimer = 0
 const pinGroups = ref([])
 const extrasLoading = ref(true)
 // Hva motoren holder på med: vises i laste-overlayet, og som en diskret pille
@@ -173,12 +169,38 @@ function showToast(text, ms = 2400) {
   toastTimer = setTimeout(() => { toast.value = '' }, ms)
 }
 
-onMounted(async () => {
+onMounted(() => {
   history.pushState({ lende3d: true }, '')
   window.addEventListener('popstate', onPopstate)
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('resize', onOrientation)
+  void byggMotor()
+})
 
+let avmontert = false
+let byggerOm = false
+
+/**
+ * Bygg motoren om fra grunnen. Dette er nøyaktig det brukeren ellers gjorde for
+ * hånd: lukke 3D og gå inn igjen. Motoren ber om det selv (`engine-dead`) når
+ * render-loopen ikke kom i gang etter retur fra bakgrunn — se engineLoop.vekk.
+ */
+async function byggOm(grunn) {
+  if (avmontert || byggerOm) return
+  byggerOm = true
+  console.warn(`[3D] bygger motoren om: ${grunn}`)
+  try { abort?.abort() } catch { /* ingen henting i gang */ }
+  try { engine?.dispose() } catch { /* alt frigjort */ }
+  engine = null
+  phase.value = 'loading'
+  try {
+    await byggMotor()
+  } finally {
+    byggerOm = false
+  }
+}
+
+async function byggMotor() {
   const dem = props.dem ? toRaw(props.dem) : null
   if (!dem) { phase.value = 'no-dem'; return }
 
@@ -278,6 +300,10 @@ onMounted(async () => {
       junction.value = null
       wake.stop()
     })
+    // Motoren fikk ikke render-loopen i gang igjen etter retur fra bakgrunn.
+    // Bygg om — brukeren skal ikke måtte lukke og åpne 3D for å få tilbake zoom,
+    // panorering og knapper (rapportert fra felt, fikset i v5.22.12).
+    engine.on('engine-dead', () => { void byggOm('render-loopen svarte ikke') })
     engine.on('camera', ({ detached: d }) => { detached.value = !!d })
     engine.on('camera-hold', ({ holding }) => { holdingLook.value = !!holding })
     engine.on('junction', ({ junction: j }) => { junction.value = j })
@@ -309,10 +335,6 @@ onMounted(async () => {
     if (demoPaa.value) demoStart()
 
     phase.value = 'ready'
-    clearInterval(pinDiagTimer)
-    pinDiagTimer = setInterval(() => {
-      pinDiag.value = engine?.pinDiagnose?.() ?? null
-    }, 500)
 
     // Nettbaserte kilder popper inn asynkront — feil svelges stille, som før.
     // Kartet skal aldri stå og vente på Riksantikvaren.
@@ -338,13 +360,13 @@ onMounted(async () => {
         : err?.code === 'no-route' ? 'no-route' : 'error'
     if (phase.value === 'error') console.error('3D-visning feilet:', err)
   }
-})
+}
 
 onBeforeUnmount(() => {
+  avmontert = true
   abort?.abort()
   clearTimeout(toastTimer)
   clearInterval(demoTimer)
-  clearInterval(pinDiagTimer)
   wake.stop()
   engine?.dispose()
   engine = null
@@ -489,10 +511,12 @@ function leggVaerPaaHimmelen() {
   engine.setVaer(naa ? vaerTilHimmel(naa.symbol, naa) : null)
 }
 
-// Symbolvariant følger MODUSEN brukeren står i, ikke klokka: ser man en
-// natthimmel, skal symbolet vise natt.
-const vaerVariant = computed(() => (nightOn.value ? 'night' : 'day'))
-
+// Merk at symbolvarianten (dag/natt/polartwilight) IKKE settes her. Den kommer
+// ferdig fra MET i `symbol_code`, som er regnet ut for tidspunktet og stedet
+// varselet gjelder. Fram til v5.22.12 overstyrte vi den med lysmodusen i 3D, med
+// den begrunnelsen at «ser man en natthimmel, skal symbolet vise natt». Det ga
+// sol i raden klokka 00 så snart man sto i dagmodus, og det er feil på en helt
+// annen måte: raden er et VARSEL, ikke en illustrasjon av himmelen man har valgt.
 // ---- Vær-demo (Utvikler-fanen) -------------------------------------------
 // Går gjennom værtypene, 10 s hver, og overstyrer det ekte varselet. Finnes
 // fordi vinddrift, lyn-blink og fallende nedbør er BEVEGELSE og ikke kan
@@ -751,8 +775,7 @@ function branchLabel(opt, i) {
       <div v-if="phase === 'ready'"
            class="relative z-10 flex items-start justify-between gap-2 px-3 mt-2">
         <Tour3dInfoPanel :modus="walking ? 'tur' : 'utforsk'"
-                         :knapper="INFO_KNAPPER" :tips="INFO_TIPS"
-                         :diagnose="pinDiag"/>
+                         :knapper="INFO_KNAPPER" :tips="INFO_TIPS"/>
         <Tour3dPinPanel v-if="pinsOn" :groups="pinGroups" :counts="pinCounts"
                         :loading="extrasLoading"
                         :model-value="pinPrefs" @update:model-value="setPinPrefs"/>
@@ -805,7 +828,7 @@ function branchLabel(opt, i) {
            plassen, og været er ikke det man ser etter da. -->
       <div v-if="phase === 'ready' && vaerOn && !walking"
            class="relative z-10 px-3 mt-2 flex justify-center">
-        <Tour3dVaerRad :vaer="vaer" :variant="vaerVariant"/>
+        <Tour3dVaerRad :vaer="vaer"/>
       </div>
 
       <!-- Laste-/feiltilstander.
