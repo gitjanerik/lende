@@ -566,6 +566,7 @@ export async function create3dScene(container, {
       }
     },
     onContextLost: () => emit('context-lost', {}),
+    onDead: () => emit('engine-dead', {}),
   })
 
   // Kryss gjelder bare genererte turer — en planlagt rute har ingen valg å ta.
@@ -611,7 +612,6 @@ export async function create3dScene(container, {
   return {
     // --- nåler ---
     setFeatures(list) { pins.setFeatures(list ?? []) },
-    pinDiagnose() { return pins.diagnose() },
     setPinsVisible(v) {
       pins.setVisible(v)
       waypoints?.setPinsVisible(v)

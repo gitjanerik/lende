@@ -314,6 +314,59 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   skyggen). Taket er `MAKS_SKYER` = 14 iterasjoner per fragment. Skyggen dempes
   med skydekket: fullt dekke gir jevnt skyggelagt bakke, der enkeltflekker leses
   som en tekstur-feil.
+- **Knappenålene i 3D tegner BARE det som vises — `count`, ikke parkering
+  (v5.22.11).** `pinField` komprimerer de synlige instansene fremst i bufferet og
+  setter `InstancedMesh.count` til antallet. Grunnen er en feiljakt over fire
+  runder: 3D viste flimrende, heldekkende flater i nålefargene på eierens telefon,
+  usynlig på desktop og i SwiftShader. Alle tre første forsøkene behandlet
+  GEOMETRIEN (vinkel-tak på hodet, parkering utenfor far-planet,
+  `DynamicDrawUsage`), og de var alle feil sted. Feilen var at vi submitterte
+  ~693 av 727 instanser vi ikke skulle se, hver frame, og lot GPU-en klippe dem
+  bort — først som singulære nullflater (skala 0 = alle 260 vertekser i ett
+  punkt), så som kuler 200 km unna, altså utenfor guard-bandet en tile-basert
+  mobil-GPU regner med. Begge er inndata desktop forkaster stille og en
+  mobil-driver står fritt til å gjøre hva som helst med. **Regel: en instans som
+  ikke skal ses, skal ikke submitteres.** To feller kompakteringen tvinger fram,
+  begge testdekket: `instanceColor` følger SLOTEN og ikke nåla (fargene må
+  skrives om når declutteren bytter sammensetning), og `InstancedMesh` cacher en
+  bounding sphere som three IKKE invaliderer når matrisene endres — den brukes av
+  raycast, så den må nulles, ellers bommer trykk på nåla som nettopp flyttet inn
+  i sloten.
+- **Finnes feilen bare på eierens telefon: BYGG EN MÅLING, ikke en hypotese.**
+  Dette er samme lærdom som skyene ga (se puffSkyer over), og den ble gjentatt i
+  full bredde i v5.22.8–11: tre versjoner med hver sin plausible fiks, alle
+  bommet, fordi de eneste observasjonene var skjermbilder. Det som løste saken på
+  ti minutter var fire tall i Info-panelet — «34 vist / 693 parkert av 727,
+  største hode 0,8 % av et tak på 12 %» — som beviste at hver matrise vi skrev
+  var riktig og flyttet mistanken til det vi ikke hadde rørt. Legg målingen inn
+  FØRST, la eieren lese den av, og fjern den etterpå (den ble tatt ut igjen i
+  v5.22.12). Praktisk: en farge kan måles. Kvantiser skjermbildet og slå hex-en
+  opp i palettene — `#8e44ad`, `#7f8c8d` og `#1d4ed8` pekte rett på
+  `poiColors.js` og sparte all gjetting om HVA som ble tegnet.
+- **Retur fra bakgrunn i 3D må VERIFISERES, ikke antas (v5.22.12).** Er man i 3D
+  og bytter til en annen app i noen minutter, sto visningen frosset ved retur —
+  ingen zoom, ingen panorering, ingen knapper — til man lukket 3D og gikk inn
+  igjen. Tre uavhengige årsaker, og vi kan ikke skille dem fra hverandre i felt:
+  `visibilitychange` kommer ikke alltid når Android har fryst siden (Chrome
+  sender `resume`), GL-contexten kan være tapt uten at `webglcontextrestored`
+  noen gang fires, og — den verste — et unntak i `onFrame` hoppet over linja som
+  ber om neste frame, så ÉN feil drepte loopen for godt. `engineLoop` ber nå
+  alltid om neste frame (feilen logges én gang), lytter på `visibilitychange`,
+  `resume`, `pageshow` og `focus`, og har en vaktbikkje som sjekker at det
+  FAKTISK kom en frame etter oppvåkning: ingen frame på 1,5 s → én omstart, og
+  fortsatt ingen → `onDead`, som får viseren til å bygge motoren om. Rører du
+  loopen: en frame som kaster skal koste én frame, aldri økta.
+- **Værsymbolene bruker variantene MET selv setter, ikke lysmodusen i 3D
+  (v5.22.12).** `symbol_code` fra Locationforecast er allerede regnet ut for
+  tidspunktet og stedet (`clearsky_day` / `_night` / `_polartwilight`). Fram til
+  v5.22.12 overstyrte 3D-viseren varianten med dag/natt-knappen, med
+  begrunnelsen «ser man en natthimmel, skal symbolet vise natt» — og da sto det
+  sol i raden klokka 00 så snart man var i dagmodus. Raden er et VARSEL, ikke en
+  illustrasjon av himmelen man har valgt. Månen i settet er dessuten byttet fra
+  METs grå til solas gule i byggeskriptet (`MAANE_FARGER` i
+  `scripts/build-vaerikoner.js`), fordi den grå forsvant mot det
+  halvgjennomsiktige feltet i kartet; det er vårt ENESTE avvik fra kildens
+  palett.
 - **Effekter som bare finnes i BEVEGELSE må måles i skjermbrøk, ikke i «faktor»
   (v5.22.1).** Vinden var dempet der den skulle vært forsterket, og feilen levde
   til eieren sto i felt og ikke så forskjell mellom 2 og 18 m/s. Målt var

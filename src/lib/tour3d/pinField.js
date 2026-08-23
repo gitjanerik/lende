@@ -170,9 +170,6 @@ export function buildPinField(items, dem, coords, { stemColor = 0xffffff } = {})
   const _cam = new Vector3()
   const _camForrige = new Vector3(NaN, NaN, NaN)
   let maaSkrives = true
-  // Måletall for diagnosen i Info-panelet: den STØRSTE andelen av synsfeltet et
-  // enkelt hode dekker (radius delt på avstand til hodet), og hvilken nål det er.
-  const diag = { n, synlige: 0, parkerte: 0, ugyldige: 0, maksAndel: 0, verst: -1, maksAbs: 0 }
 
   // Instansene som FAKTISK tegnes ligger fremst i bufferet: slot k hører til
   // items[slots[k]]. Resten submitteres ikke i det hele tatt — count settes ned.
@@ -261,7 +258,6 @@ export function buildPinField(items, dem, coords, { stemColor = 0xffffff } = {})
     },
     setVisibleSet(set) { visible = set; maaSkrives = true },
     isVisible(i) { return !visible || visible.has(i) },
-    diagnose() { return { ...diag } },
     update(camera) {
       _cam.copy(camera.position)
       // Står kameraet stille og declutteren ikke har endret seg, er matrisene
@@ -271,25 +267,10 @@ export function buildPinField(items, dem, coords, { stemColor = 0xffffff } = {})
       if (!maaSkrives && _cam.distanceToSquared(_camForrige) < 0.0625) return
       maaSkrives = false
       _camForrige.copy(_cam)
-      let maksAndel = 0, verst = -1, maksAbs = 0
       writeInstances((i, bx, by, bz) => {
         if (visible && !visible.has(i)) return 0
-        const s = pinScaleForCamera(_cam, bx, by, bz)
-        if (s > 0) {
-          const hodeY = by + HODE_LOFT * s
-          const d = Math.hypot(_cam.x - bx, _cam.y - hodeY, _cam.z - bz)
-          const andel = (PIN_HEAD_R * s) / d
-          if (andel > maksAndel) { maksAndel = andel; verst = i }
-          maksAbs = Math.max(maksAbs, Math.abs(bx), Math.abs(hodeY), Math.abs(bz))
-        }
-        return s
+        return pinScaleForCamera(_cam, bx, by, bz)
       })
-      diag.synlige = tegnet
-      diag.parkerte = n - tegnet - ugyldig.size
-      diag.ugyldige = ugyldig.size
-      diag.maksAndel = maksAndel
-      diag.verst = verst
-      diag.maksAbs = maksAbs
     },
     // Raycast treffer stamme eller hode; begge peker tilbake på samme indeks.
     raycast(raycaster) {

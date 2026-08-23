@@ -6,8 +6,9 @@
 // falt ut av skjermen på smale telefoner — den skal ikke belastes mer.
 //
 // Raden er smal med vilje og ruller vannrett framfor å brekke: den skal koste så
-// lite kartflate som mulig. `variant` sendes inn så symbolene følger lysmodusen
-// brukeren har valgt, ikke klokka.
+// lite kartflate som mulig. Symbolene tegnes med varianten MET selv har satt i
+// `symbol_code` — dag/natt/polartwilight for det tidspunktet varselet gjelder.
+// Den fulgte lysmodusen i 3D fram til v5.22.12, og ga sol klokka 00.
 import { computed } from 'vue'
 import VaerIkon from '../VaerIkon.vue'
 import { timerFramover, vindMotGrader } from '../../lib/vaerFetcher.js'
@@ -16,8 +17,6 @@ import { bearingToCompass } from '../../lib/mapContext.js'
 const props = defineProps({
   // { status: 'loading'|'done'|'error', varsel } — samme form som i 2D.
   vaer: { type: Object, default: null },
-  // 'day' | 'night' — hvilken symbolvariant som skal vises.
-  variant: { type: String, default: 'day' },
   antall: { type: Number, default: 8 },
 })
 
@@ -66,7 +65,7 @@ function vindTitle(t) {
       <div v-for="t in timer" :key="t.tid"
            class="flex flex-col items-center gap-0.5 px-2.5 py-1.5 min-w-[3.6rem]">
         <span class="text-[9px] text-white/50 tabular-nums leading-none">{{ klokke(t.tid) }}</span>
-        <VaerIkon :symbol="t.symbol" :variant="variant" :size="22"/>
+        <VaerIkon :symbol="t.symbol" :size="22"/>
         <!-- Temperatur og vind på SAMME linje (v5.21.2). Vind fortjener plassen,
              men ikke en femte stablet linje: raden ligger over kartet, og høyde
              koster kartflate mens bredde bare koster litt rulling. Derfor
