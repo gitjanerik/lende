@@ -1,1 +1,0 @@
-function e(e,t){let n=0,r=0;for(let i=e;i&&i!==t;i=i.parentNode)String(i.tagName).toLowerCase()===`svg`&&(n+=parseFloat(i.getAttribute(`x`))||0,r+=parseFloat(i.getAttribute(`y`))||0);return{dx:n,dy:r}}export{e as t};
