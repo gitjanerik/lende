@@ -446,6 +446,14 @@ andre versjoner av samme pakke. I august 2026 sto `@modelcontextprotocol/sdk` p�
 DEPLOYEDE MCP-Workeren. En «high» i wrangler er dev-bare; en «moderate» i noe
 brukerne laster ned er ikke.
 
+**Dependabot-PR-er tas inn SELV, ikke merget rått (v5.22.4).** To grunner, og
+begge er konkrete: (1) roboten bumper ikke appens egen versjon, og uten en ny
+`CACHE_VERSION` i `public/sw.js` sitter mobil-klienten på gamle assets etter en
+vite/vue-bump; (2) den re-serialiserer `package.json` og escaper æ/ø/å til
+`\u00f8`. Framgangsmåten som virker: ny gren fra fersk master, `npm install
+<pakke>@<versjon>` for det robotens gren foreslår, versjons-bump, og lukk
+Dependabot-PR-ene som «superseded». Da ser roboten kravet som oppfylt.
+
 **Dependabot** (`.github/dependabot.yml`) kjører ukentlig over de fire
 katalogene + GitHub Actions. Patch og minor er GRUPPERT til én PR per katalog;
 major står alene, fordi det er de som trenger en ekte gjennomgang. Merk semver-
