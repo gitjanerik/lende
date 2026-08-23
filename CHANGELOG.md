@@ -1,3 +1,24 @@
+## 2026-08-23 — v5.22.1: Lyn inne i skya, skygger på bakken, og vind man ser
+
+Fem etterslep fra værhimmelen, og ett av dem var en ren feil. Vinden var
+DEMPET der den skulle vært forsterket: 2 m/s og 18 m/s flyttet skyene 1,9 %
+mot 7,1 % av synsfeltet på ti sekunder, altså en ratio som fantes men som
+ingen kunne se. Faktoren er nå snudd, og forskjellen er 4,2 % mot 25,8 %.
+Tåke var heller ikke tåke — den la bare på skyer og så ut som overskyet;
+`siktFaktor` skalerer nå dis-avstandene, så tåke er redusert sikt slik det
+skal være. Regn og sludd faller som streker (`LineSegments`) som legger seg
+etter vindretningen, mens snø fortsatt er runde punkt. Torden fikk en
+sikk-sakk-strek under skya, og — etter eierens ønske om at Tor skal få vise
+vreden sin — et LYSGLIMT INNE I skya: puff-shaderen har et kjernevektet,
+additivt ledd som lar fargen gå forbi hvitt, så det blømmer framfor å bli lys
+grått. Kurven er to topper, en forglimt og et hovedslag. Til sist kaster
+skyene nå skygge på terrenget, analytisk (`skyskygge.js`) siden terrenget
+ikke har noen lyssetting å modulere — sol-retningen tas fra skyene, som igjen
+er rettet til å stemme med relieffet i karttekstur (nordvest, 45°). Den var
+speilvendt før.
+
+---
+
 # Endringslogg
 
 ## 2026-08-23 — v5.22.0: Skyer med volum

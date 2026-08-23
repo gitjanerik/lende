@@ -7,6 +7,7 @@ import {
   SphereGeometry, ShaderMaterial, Mesh, BackSide, Color, Fog,
   CanvasTexture, SpriteMaterial, Sprite, Group, SRGBColorSpace,
   BufferGeometry, BufferAttribute, PointsMaterial, Points, AdditiveBlending,
+  LineSegments, LineBasicMaterial,
 } from 'three'
 
 const ZENITH = '#3d7ec9'
@@ -179,17 +180,19 @@ function mulberry32(a) {
 }
 
 /**
- * Nedbør: ETT Points-objekt over kartet, bygget etter stjernefeltet i
- * buildNightSky — én draw call, ingen tekstur, ingen per-partikkel-objekt.
- * Punktbudsjettet er avsatt én gang (NEDBOR_TAK) og bare DELER av det er
- * synlig av gangen (`setTetthet`); å bygge geometrien om for hver værendring
- * ville allokert et nytt Float32Array midt i en RAF-loop.
+ * Nedbør. TO objekter, og det er hele poenget:
+ *
+ *   • REGN og SLUDD er LineSegments — korte streker langs fallretningen. Regn
+ *     SER ut som streker, ikke som prikker. Fram til v5.22.1 var alt Points, og
+ *     da var regn og snø praktisk talt umulig å skille fra hverandre.
+ *   • SNØ er Points — runde fnugg som daler. Der er prikken riktig form.
+ *
+ * Begge deler ett posisjons-budsjett (NEDBOR_TAK) som avsettes ÉN gang; bare
+ * drawRange flyttes når tettheten endres, så en værendring allokerer ingenting
+ * midt i en RAF-loop.
  *
  * `fog: false` av samme grunn som stjernene (v5.3.0): makeFog setter far til
  * maxDim × 2,6, og alt utenfor males i ren tåkefarge.
- *
- * Snø faller sakte og driver sidelengs; regn faller fort og rett. Sludd ligger
- * imellom. Alt er bevisst sparsomt — kartet under skal fortsatt kunne leses.
  */
 export function buildNedbor({ widthM, heightM, toppY = 2200, maks = 700 } = {}) {
   const group = new Group()
@@ -199,8 +202,8 @@ export function buildNedbor({ widthM, heightM, toppY = 2200, maks = 700 } = {}) 
   const hoyde = Math.max(600, toppY)
 
   const rnd = mulberry32(4711)
+  // Én posisjon pr dråpe, delt av begge framstillingene.
   const pos = new Float32Array(maks * 3)
-  // Fartsvariasjon per partikkel, så feltet ikke faller som ett teppe.
   const spredning = new Float32Array(maks)
   for (let i = 0; i < maks; i++) {
     pos[i * 3] = (rnd() - 0.5) * spanX
@@ -208,76 +211,218 @@ export function buildNedbor({ widthM, heightM, toppY = 2200, maks = 700 } = {}) 
     pos[i * 3 + 2] = (rnd() - 0.5) * spanZ
     spredning[i] = 0.7 + rnd() * 0.6
   }
-  const geo = new BufferGeometry()
-  const attr = new BufferAttribute(pos, 3)
-  geo.setAttribute('position', attr)
-  geo.setDrawRange(0, 0)          // ingenting synlig før setTetthet
 
-  const mat = new PointsMaterial({
-    color: new Color('#dbe9f5'),
-    size: 2.2,
-    sizeAttenuation: false,       // like store uansett avstand — de er dråper, ikke kuler
-    transparent: true,
-    opacity: 0.5,
-    depthWrite: false,
-    fog: false,
+  // --- Snø: punkter -------------------------------------------------------
+  const snoGeo = new BufferGeometry()
+  const snoAttr = new BufferAttribute(pos, 3)
+  snoGeo.setAttribute('position', snoAttr)
+  snoGeo.setDrawRange(0, 0)
+  const snoMat = new PointsMaterial({
+    color: new Color('#ffffff'), size: 3.2, sizeAttenuation: false,
+    transparent: true, opacity: 0.62, depthWrite: false, fog: false,
   })
-  const points = new Points(geo, mat)
-  points.frustumCulled = false
-  group.add(points)
+  const sno = new Points(snoGeo, snoMat)
+  sno.frustumCulled = false
+  sno.visible = false
+  group.add(sno)
 
-  // Fallfart (m/s), sidedrift og utseende per type. Tallene er scenefart, ikke
-  // fysikk: ekte 9 m/s regn over et 5 km ark ville vært usynlige streker.
+  // --- Regn/sludd: streker ------------------------------------------------
+  // To vertekser pr dråpe: hodet i dråpens posisjon, halen et stykke OPP langs
+  // fallretningen. Halen skrives i update(), som også er der fallretningen er
+  // kjent (vinden skyver den sidelengs).
+  const strekPos = new Float32Array(maks * 2 * 3)
+  const strekGeo = new BufferGeometry()
+  const strekAttr = new BufferAttribute(strekPos, 3)
+  strekGeo.setAttribute('position', strekAttr)
+  strekGeo.setDrawRange(0, 0)
+  const strekMat = new LineBasicMaterial({
+    color: new Color('#cfe0ee'), transparent: true, opacity: 0.5,
+    depthWrite: false, fog: false,
+  })
+  const streker = new LineSegments(strekGeo, strekMat)
+  streker.frustumCulled = false
+  streker.visible = false
+  group.add(streker)
+
+  // Fallfart (m/s), sidedrift, strek-lengde og utseende per type. Tallene er
+  // scenefart, ikke fysikk: ekte 9 m/s regn over et 5 km ark ville vært usynlig.
   const TYPER = {
-    regn:  { fall: 260, drift: 0.10, size: 1.8, opacity: 0.45, farge: '#cfe0ee' },
-    sludd: { fall: 170, drift: 0.22, size: 2.4, opacity: 0.52, farge: '#e4eef8' },
-    sno:   { fall: 70,  drift: 0.45, size: 3.2, opacity: 0.62, farge: '#ffffff' },
+    // `drift` er sidedrift som andel av fallfarten, og den avgjør hvor SKRÅTT
+    // regnet står. Sto på 0,10, som ga 4° helning i 12 m/s vind — altså loddrett
+    // regn i storm. Nå bøyes nedbøren merkbart av vinden, som er den andre
+    // halvdelen av å gjøre vind synlig (v5.22.1).
+    regn:  { fall: 300, drift: 0.30, strek: 95, opacity: 0.48, farge: '#cfe0ee', punkt: false },
+    sludd: { fall: 190, drift: 0.42, strek: 50, opacity: 0.55, farge: '#e4eef8', punkt: false },
+    sno:   { fall: 70,  drift: 0.70, strek: 0,  opacity: 0.62, farge: '#ffffff', punkt: true },
   }
   let type = null
   let antall = 0
 
   return {
     group,
-    geometries: [geo],
-    materials: [mat],
+    geometries: [snoGeo, strekGeo],
+    materials: [snoMat, strekMat],
     /**
      * @param {null|'regn'|'sludd'|'sno'} nyType
-     * @param {number} tetthet antall punkt, klippet til budsjettet
+     * @param {number} tetthet antall dråper, klippet til budsjettet
      */
     setNedbor(nyType, tetthet) {
       type = TYPER[nyType] ? nyType : null
       antall = type ? Math.max(0, Math.min(maks, Math.round(tetthet || 0))) : 0
       group.visible = antall > 0
-      geo.setDrawRange(0, antall)
-      if (!type) return
+      if (!type) {
+        sno.visible = false
+        streker.visible = false
+        snoGeo.setDrawRange(0, 0)
+        strekGeo.setDrawRange(0, 0)
+        return
+      }
       const t = TYPER[type]
-      mat.size = t.size
-      mat.opacity = t.opacity
-      mat.color.set(t.farge)
+      sno.visible = t.punkt
+      streker.visible = !t.punkt
+      snoGeo.setDrawRange(0, t.punkt ? antall : 0)
+      strekGeo.setDrawRange(0, t.punkt ? 0 : antall * 2)
+      if (t.punkt) {
+        snoMat.opacity = t.opacity
+        snoMat.color.set(t.farge)
+      } else {
+        strekMat.opacity = t.opacity
+        strekMat.color.set(t.farge)
+      }
     },
-    /** @param {number} dt sekunder  @param {number} vindX  @param {number} vindZ */
+    /** @param {number} dt  @param {number} vindX  @param {number} vindZ */
     update(dt, vindX = 0, vindZ = 0) {
       if (!antall || !type) return
       const t = TYPER[type]
+      const sideX = vindX * t.fall * t.drift
+      const sideZ = vindZ * t.fall * t.drift
       for (let i = 0; i < antall; i++) {
         const j = i * 3
         pos[j + 1] -= t.fall * spredning[i] * dt
-        pos[j] += vindX * t.fall * t.drift * dt
-        pos[j + 2] += vindZ * t.fall * t.drift * dt
+        pos[j] += sideX * dt
+        pos[j + 2] += sideZ * dt
         // Nådd bakken: sett den øverst igjen. Vi bryr oss ikke om terrenghøyden
-        // — partiklene er en antydning av nedbør, ikke en simulering, og en
-        // dråpe som forsvinner litt over bakken er ikke til å se.
+        // — partiklene er en antydning av nedbør, ikke en simulering.
         if (pos[j + 1] < 0) {
           pos[j + 1] = hoyde
           pos[j] = (pos[j] + spanX * 1.5) % spanX - spanX / 2
           pos[j + 2] = (pos[j + 2] + spanZ * 1.5) % spanZ - spanZ / 2
         }
       }
-      attr.needsUpdate = true
+      if (t.punkt) {
+        snoAttr.needsUpdate = true
+        return
+      }
+      // Streken peker MOTSATT vei av fallet: halen ligger der dråpen kom fra.
+      // Uten sidedriften i halen ville strekene stått loddrett i sidevind, og da
+      // ser regnet ut som et gitter framfor å bli blåst.
+      const lengde = t.strek
+      const fx = -sideX, fy = t.fall, fz = -sideZ
+      const norm = Math.hypot(fx, fy, fz) || 1
+      const hx = (fx / norm) * lengde, hy = (fy / norm) * lengde, hz = (fz / norm) * lengde
+      for (let i = 0; i < antall; i++) {
+        const j = i * 3
+        const v = i * 6
+        strekPos[v] = pos[j]
+        strekPos[v + 1] = pos[j + 1]
+        strekPos[v + 2] = pos[j + 2]
+        strekPos[v + 3] = pos[j] + hx
+        strekPos[v + 4] = pos[j + 1] + hy
+        strekPos[v + 5] = pos[j + 2] + hz
+      }
+      strekAttr.needsUpdate = true
     },
     dispose() {
-      geo.dispose()
-      mat.dispose()
+      snoGeo.dispose(); strekGeo.dispose()
+      snoMat.dispose(); strekMat.dispose()
+    },
+  }
+}
+
+/**
+ * Lyn: en sikksakk-strek fra skybasen og ned, synlig i selve blinket.
+ *
+ * Fram til v5.22.1 var torden BARE et løft av dis- og bakgrunnsfargen. Det leste
+ * som «himmelen ble litt lysere», ikke som lyn — eieren så det i demoen. Nå
+ * tegnes en faktisk strek samtidig, og den er det man ser.
+ *
+ * Formene bygges ÉN gang (tre stykker) og gjenbrukes; blinket flytter og skalerer
+ * bare den som skal vises. Ingen geometri bygges midt i en RAF-loop, og ingen
+ * Math.random i byggingen — samme seed gir samme lyn, som gjør det testbart.
+ */
+export function buildLyn({ toppY = 2000, lengde = 1400, former = 3, ledd = 9 } = {}) {
+  const group = new Group()
+  group.visible = false
+  const rnd = mulberry32(913)
+
+  const geometrier = []
+  for (let f = 0; f < former; f++) {
+    // Hovedstammen: ledd som vandrer nedover med sidesprang. Pluss én gren
+    // omtrent midtveis, som er det som gjør at det leses som lyn og ikke som
+    // en sprukken strek.
+    const punkter = []
+    let x = 0, y = 0, z = 0
+    for (let i = 0; i < ledd; i++) {
+      const nyY = y - lengde / ledd
+      const nyX = x + (rnd() - 0.5) * lengde * 0.16
+      const nyZ = z + (rnd() - 0.5) * lengde * 0.10
+      punkter.push(x, y, z, nyX, nyY, nyZ)
+      x = nyX; y = nyY; z = nyZ
+      if (i === Math.floor(ledd * 0.45)) {
+        // Grenen: to korte ledd ut til siden, så slutt.
+        let gx = x, gy = y, gz = z
+        for (let k = 0; k < 2; k++) {
+          const bx = gx + (rnd() - 0.35) * lengde * 0.22
+          const by = gy - lengde / ledd * 0.7
+          const bz = gz + (rnd() - 0.5) * lengde * 0.12
+          punkter.push(gx, gy, gz, bx, by, bz)
+          gx = bx; gy = by; gz = bz
+        }
+      }
+    }
+    const geo = new BufferGeometry()
+    geo.setAttribute('position', new BufferAttribute(new Float32Array(punkter), 3))
+    geometrier.push(geo)
+  }
+
+  const material = new LineBasicMaterial({
+    color: new Color('#f4f8ff'), transparent: true, opacity: 0.95,
+    depthWrite: false, fog: false,
+  })
+  const streker = geometrier.map((g) => {
+    const l = new LineSegments(g, material)
+    l.frustumCulled = false
+    l.visible = false
+    group.add(l)
+    return l
+  })
+
+  let valgt = 0
+
+  return {
+    group,
+    geometries: geometrier,
+    materials: [material],
+    /**
+     * Vis et lyn ved (x, z), hengende fra `fraY`. Kalles av torden-blinket.
+     * Formen roteres tilfeldig om Y så det samme lynet ikke leses som en gjenganger.
+     */
+    blink(x, z, fraY = toppY, vinkel = 0) {
+      for (const l of streker) l.visible = false
+      valgt = (valgt + 1) % streker.length
+      const l = streker[valgt]
+      l.position.set(x, fraY, z)
+      l.rotation.y = vinkel
+      l.visible = true
+      group.visible = true
+    },
+    slukk() {
+      group.visible = false
+      for (const l of streker) l.visible = false
+    },
+    dispose() {
+      for (const g of geometrier) g.dispose()
+      material.dispose()
     },
   }
 }

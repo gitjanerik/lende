@@ -74,6 +74,11 @@ export function vaerTilHimmel(symbolCode, maling = {}) {
   const { vindX, vindZ, fart } = vindVektor(maling.vindRetningGrader, maling.vindMs)
   return {
     ...p,
+    // Sikt: hvor langt man ser. 1 = normal dis, lavere = kortere. Dette er det
+    // ENESTE som gjør tåke til tåke — fram til v5.22.1 la tåke bare på skyer, og
+    // så dermed ut som overskyet. Tåke er per definisjon redusert sikt, ikke
+    // flere skyer, og sceneCore skalerer dis-avstandene med tallet.
+    siktFaktor: siktFor(basis, p),
     opasitet: Math.min(p.opasitet, SKY_OPASITET_TAK),
     nedborTetthet: Math.min(Math.round(p.nedborTetthet), NEDBOR_TAK),
     antall: Math.max(1, Math.round(STANDARD.antall * p.dekning)),
@@ -108,6 +113,18 @@ export function vindVektor(fraGrader, vindMs) {
   }
 }
 
+/**
+ * Hvor langt man ser, som en faktor på standard-disen.
+ * Tåke er det ekstreme tilfellet; kraftig nedbør demper også sikten, men mildt.
+ */
+function siktFor(basis, p) {
+  if (!basis) return 1
+  if (/^fog$/.test(basis)) return 0.16
+  if (/^heavy/.test(basis)) return 0.5
+  if (p.nedbor) return 0.74
+  return 1
+}
+
 function driftFart(vindMs) {
   // UKJENT vind og STILLE vind er ikke det samme, og de skal ikke gi samme svar:
   // uten måling drifter skyene som appen alltid har gjort (1×), mens 0 m/s er en
@@ -115,6 +132,15 @@ function driftFart(vindMs) {
   // som en feil, ikke som vindstille.
   if (!Number.isFinite(vindMs)) return 1
   const ms = Math.max(0, vindMs)
-  // 0 m/s → 0,4×, 10 m/s → ~1,5×, og et tak så en storm ikke gir stroboskop.
-  return Math.min(2.4, 0.4 + ms * 0.11)
+  // FORSTERKET, ikke dempet. Fram til v5.22.1 sto faktoren på 0,11 med en
+  // kommentar om at ekte skyfart måtte DEMPES for ikke å se ut som en
+  // tidsforkortet film. Det var baklengs, og eieren fant det i felt: han så
+  // ingen forskjell mellom 2 og 18 m/s. Målt var forskjellen 1,9 % mot 7,1 %
+  // av synsfeltet på ti sekunder — ratioen fantes, men begge var for sakte å se.
+  //
+  // Regnestykket: kameraet ser ~5 km, skyenes grunnfart er ~15 m/s, og ekte
+  // 18 m/s vind ville brukt over fire minutter på å krysse bildet. Vi ligger nå
+  // rundt 7× virkeligheten på det sterkeste — en bevisst overdrivelse, fordi
+  // alternativet er en egenskap ingen kan se.
+  return Math.min(9, 0.5 + ms * 0.45)
 }
