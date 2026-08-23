@@ -257,6 +257,22 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   viser (`Viewer3D.vue`), to rigger (`cameraRigs.js` = følge, `freeRig.js` =
   fri). Kommer det en tredje inngang til 3D, skal den være en OPSJON på
   `create3dScene`, ikke en ny scene.
+- **Værhimmelen er en OPSJON, ikke et lag ved siden av (v5.21.1).** `setVaer(preg)`
+  på `sceneCore` justerer skyene som alt finnes (antall synlige sprites, farge,
+  vinddrift) og skrur på ett `Points`-objekt for nedbør. `setVaer(null)` skal gi
+  nøyaktig standard-himmelen igjen — værmodus av etterlater ingen spor. Selve
+  oversettelsen fra METs `symbol_code` til preg bor i `lib/tour3d/vaerHimmel.js`,
+  som er REN og enhetstestet: rekkefølgen på regex-ene der bestemmer hvilken
+  familie som vinner, og en regel plassert for høyt stjeler treff fra dem under.
+  Takene (`SKY_OPASITET_TAK`, `NEDBOR_TAK`) er lesbarhet, ikke smak — 3D har
+  ingen adaptiv kvalitets-nedtrapping å skru ned senere.
+- **Sol/måne-knappen i 3D har FIRE steg** (dag → dag+vær → natt → natt+vær), ikke
+  to. Egen vær-knapp ble vurdert og forkastet: topprada har alt fem-seks knapper,
+  og kommentaren over den i `Viewer3D.vue` forteller hva som skjedde sist den
+  vokste. Vær-biten persisteres (`lende-3d-vaer`); dag/natt-biten gjør det
+  bevisst IKKE — den avledes av kart-temaet, så 3D følger lys/mørk-valget i
+  kartet. Værvarselet hentes ÉN gang per ark, for senterpunktet — ikke per
+  kamerabevegelse. Det er hele debouncingen.
 - **3D dekker HELE arket, ikke aktiv flis (v5.18.0).** `use3dEntry` regner
   utsnittet av mosaikk-kanten (`extendZonesBounds`) ∪ rutas bbox
   (`tourExtent.computeExtent`), henter DEM for hele utsnittet og forskyver ALT

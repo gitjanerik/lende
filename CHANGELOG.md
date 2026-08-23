@@ -1,5 +1,50 @@
 # Endringslogg
 
+## 2026-08-23 — v5.21.1: Vær i 3D — fire steg på sol/måne, og en himmel som følger varselet
+
+Sol/måne-knappen i 3D bærer nå fire tilstander i stedet for to: dag, dag med vær,
+natt, natt med vær. Brukeren velger selv om værsymbolene vises, og i hvilken
+lysmodus. En egen vær-knapp ble vurdert og forkastet — topprada har allerede
+fem-seks knapper, og kommentaren over den forteller hva som skjedde sist den
+vokste. Vær-valget huskes mellom øktene; dag/natt gjør det bevisst ikke, for den
+skal fortsette å følge lys/mørk-valget i kartet slik den alltid har gjort.
+
+Med været på legger en tynn symbolrad seg på en egen linje under Info-raden:
+timene framover for arkets senterpunkt, med klokketime, symbol, temperatur og
+nedbør når det er noen. Symbolvarianten følger MODUSEN og ikke klokka — står du i
+natthimmelen, viser symbolet natt. Raden skjules under en gående tur, der HUD-en
+og kryssvalgene alt konkurrerer om plassen. Varselet hentes én gang per ark, for
+senterpunktet; kameraet kan fly hvor det vil uten å koste MET et kall.
+
+Himmelen speiler nå været. Klarvær gir nesten skyfri himmel, overskyet fyller
+den, og nedbør gjør skyene mørkere og tyngre. Skyene drifter dit vinden faktisk
+går — METs `wind_from_direction` er retningen vinden KOMMER fra, så vektoren
+snus, og farten er dempet så et 5 km ark ikke ser ut som en tidsforkortet film.
+Nedbør er ett `Points`-objekt med regn, sludd eller snø, og torden er et kort løft
+av dis- og bakgrunnsfargen — ingen geometri, ingen lyskilde, rate-begrenset og av
+ved `prefers-reduced-motion`. Et lyn som blinker uventet over et kart man leser er
+en tilgjengelighetssak, ikke en effekt.
+
+Alt dette er bygget som en OPSJON på skyene som alt fantes, ikke som et lag ved
+siden av: `setVaer(null)` gir nøyaktig standard-himmelen igjen. Oversettelsen fra
+symbolkode til «skypreg» bor i en ren, enhetstestet fil, fordi det er der feilen
+kan bo — rekkefølgen på reglene bestemmer hvilken værfamilie som vinner, og en
+regel plassert for høyt stjeler treff fra dem under. Takene på opasitet og
+partikkeltall er lesbarhet og ikke smak: 3D-visningen har ingen adaptiv
+kvalitets-nedtrapping å skru ned senere.
+
+To ting fanget av tester underveis: `driftFart` blandet UKJENT vind med STILLE
+vind, så en måling på 0 m/s ga samme drift som ingen måling i det hele tatt. Og
+`setVaerModus(_natt, vaer)` hadde en parameter som skygget for `vaer`-ref-en —
+rettet før den fikk bite.
+
+Røyktesten har fått en sjekk som trykker knappen gjennom hele runden og krever at
+syklusen er LUKKET: fire trykk skal føre tilbake dit den startet, uansett hvilket
+steg den sto på. Den leser tilstanden framfor å anta den, siden valget huskes.
+Mangler kartet høydedata, melder sjekken fra og hopper — som 3D-sjekken over den.
+
+---
+
 ## 2026-08-23 — v5.21.0: Ekte værvarsel fra MET Norway
 
 Langtrykk på kartet gir nå en værlinje i infopanelet: symbol, temperatur, vind og

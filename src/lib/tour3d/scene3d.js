@@ -739,6 +739,8 @@ export async function create3dScene(container, {
     setContoursVisible: (v) => core.setContoursVisible(v),
     get contoursVisible() { return core.contoursVisible },
     setNightMode: (on) => core.setNightMode(on),
+    // Værpreg fra lib/tour3d/vaerHimmel.js. null = standard-himmelen.
+    setVaer: (preg) => core.setVaer(preg),
 
     on: (event, cb) => {
       if (!listeners.has(event)) listeners.set(event, new Set())

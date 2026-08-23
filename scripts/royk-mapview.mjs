@@ -617,6 +617,84 @@ const SJEKKER = [
       return `${utfall}, lukket med ekte trykk`
     },
   },
+  {
+    navn: 'sol/måne går gjennom fire steg',
+    domene: 'Viewer3D + vaerHimmel',
+    // Krever ekte kart: knappene i 3D-viseren finnes bare når phase === 'ready',
+    // og demo-kartet uten DEM lander på «ingen høydedata» der ingen knapp vises.
+    krever: 'ektekart',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await klikkTekst(page, /^3D$/)
+      // Vær-valget HUSKES i localStorage, så vi kan ikke anta hvilket steg
+      // knappen står på. Vi leser den i stedet, og krever at syklusen er LUKKET:
+      // fire trykk skal føre tilbake dit vi startet, uansett hvor det var. Det er
+      // en sterkere sjekk enn en fast rekkefølge, og immun mot husket tilstand.
+      const STEG = ['Vis vær', 'Bytt til natt', 'Vis vær om natta', 'Bytt til dag uten vær']
+      const lesSteg = () => page.evaluate((steg) =>
+        [...document.querySelectorAll('button[aria-label]')]
+          .map((b) => b.getAttribute('aria-label'))
+          .find((l) => steg.includes(l)) ?? null, STEG)
+
+      // To gyldige utfall, som i sjekken over: knappene er der, ELLER viseren
+      // melder ærlig at kartet mangler høydedata. Det siste skjer på hvert kart
+      // bygd i et miljø uten tilgang til Kartverkets WCS — og en røyktest skal
+      // feile på en ØDELAGT inngang, ikke på manglende terrengdata. CI har full
+      // nettilgang og treffer knappe-veien.
+      const klar = await page.waitForFunction((steg) => {
+        if ([...document.querySelectorAll('button[aria-label]')]
+          .some((b) => steg.includes(b.getAttribute('aria-label')))) return 'knapper'
+        if (/Ingen høydedata/i.test(document.body.innerText)) return 'ingen-dem'
+        return false
+      }, STEG, { timeout: 60_000 }).then((h) => h.jsonValue())
+
+      if (klar === 'ingen-dem') {
+        const x0 = page.locator('button[aria-label="Lukk 3D-visning"]')
+        await x0.click({ timeout: 5000 })
+        await page.waitForFunction(() => !document.querySelector('canvas'), null, { timeout: 8000 })
+        return 'ingen-dem-melding — syklusen kan ikke prøves uten terreng'
+      }
+
+      const start = await lesSteg()
+      const sett = [start]
+      let radSett = false
+      for (let i = 0; i < STEG.length; i++) {
+        // Ekte Playwright-klikk, så et overlay som dekker knappen gir en feil og
+        // ikke en stille no-op (v5.18.4-fella).
+        await page.locator(`button[aria-label="${sett[sett.length - 1]}"]`).click({ timeout: 8000 })
+        await page.waitForTimeout(900)
+        const na = await lesSteg()
+        if (!na) throw new Error(`knappen forsvant etter trykk ${i + 1}`)
+        if (sett.includes(na) && i < STEG.length - 1) {
+          throw new Error(`trykk ${i + 1} gikk tilbake til «${na}» — syklusen hopper over et steg`)
+        }
+        sett.push(na)
+        // Er vi i et vær-steg? To av fire skal vise raden.
+        if (na === 'Bytt til natt' || na === 'Bytt til dag uten vær') {
+          radSett = radSett || await page.evaluate(() =>
+            /Henter værvarsel|Værvarsel ikke tilgjengelig|MET\s*Norway/i.test(document.body.innerText))
+        }
+      }
+      if (sett[sett.length - 1] !== start) {
+        throw new Error(`fire trykk endte på «${sett[sett.length - 1]}», ikke tilbake på «${start}» — syklusen er ikke lukket`)
+      }
+      // Knappen kan være riktig mens raden er koblet feil, og da ser alt ut som
+      // det virker. Etter steg 1 (dag+vær) skal raden stå der i EN av sine tre
+      // tilstander: varselet, «Henter …» eller den ærlige «ikke tilgjengelig».
+      // Vi krever ikke ekte MET-data — api.met.no er ikke nåbart fra alle
+      // miljøer, og en røyktest skal ikke feile på tredjeparts nedetid.
+      if (!radSett) throw new Error('værsymbolraden dukket aldri opp i vær-stegene')
+
+      // Fire trykk er en hel runde, så vi står der vi startet — og siden
+      // localStorage-verdien er uendret er også NESTE sjekk (og neste kjøring)
+      // i samme tilstand som før denne. En sjekk skal ikke etterlate seg en
+      // 3D-visning i nattmodus med værrad som dytter innholdet nedover.
+      const x = page.locator('button[aria-label="Lukk 3D-visning"]')
+      await x.click({ timeout: 5000 })
+      await page.waitForFunction(() => !document.querySelector('canvas'), null, { timeout: 8000 })
+      return `syklus lukket: ${sett.join(' → ')}, værrad sett`
+    },
+  },
 ]
 
 // ---- små hjelpere ---------------------------------------------------------

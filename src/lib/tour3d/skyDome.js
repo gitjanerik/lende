@@ -307,19 +307,49 @@ export function buildClouds({
   const lengde = Math.hypot(driftX, driftZ) || 1
   let retningX = driftX / lengde
   let retningZ = driftZ / lengde
+  let fart = 1
 
   return {
     group,
     materials,
     textures,
     /**
+     * Legg et værpreg på skyene (se lib/tour3d/vaerHimmel.js). Endrer HVOR MANGE
+     * sprites som er synlige, hvor mørke og tette de er, og hvilken vei de
+     * drifter. Ingen geometri bygges om — bare synlighet, farge og retning, så
+     * dette er trygt å kalle hver gang varselet endrer seg.
+     *
+     * `null` setter alt tilbake til standard-himmelen: værmodus av skal se
+     * nøyaktig ut som før værmodus fantes.
+     */
+    setVaer(preg) {
+      const p = preg ?? { antall: sprites.length, opasitet: SKY_OPASITET, gratone: 1, driftX: 1, driftZ: 0, driftFart: 1 }
+      const synlige = Math.max(1, Math.min(sprites.length, Math.round(p.antall ?? sprites.length)))
+      for (let i = 0; i < sprites.length; i++) {
+        const s = sprites[i]
+        s.visible = i < synlige
+        s.userData.basisOpasitet = p.opasitet ?? SKY_OPASITET
+        s.material.opacity = s.userData.basisOpasitet
+        // Gråtonen males på materialets `color`, som three multipliserer med
+        // teksturen. Teksturen er hvit, så dette er den billigste veien til en
+        // regntung sky — ingen ny tekstur, ingen ny draw call.
+        const g = p.gratone ?? 1
+        s.material.color.setRGB(g, g, g)
+      }
+      const l = Math.hypot(p.driftX ?? 1, p.driftZ ?? 0) || 1
+      retningX = (p.driftX ?? 1) / l
+      retningZ = (p.driftZ ?? 0) / l
+      fart = p.driftFart ?? 1
+    },
+    /**
      * @param {number} dt sekunder siden forrige frame
      * @param {import('three').Camera} [camera] brukes til nær-demping
      */
     update(dt, camera) {
       for (const s of sprites) {
-        s.position.x += retningX * s.userData.driftM * dt
-        s.position.z += retningZ * s.userData.driftM * dt
+        if (!s.visible) continue
+        s.position.x += retningX * s.userData.driftM * fart * dt
+        s.position.z += retningZ * s.userData.driftM * fart * dt
         if (s.position.x > spanX / 2) s.position.x -= spanX
         else if (s.position.x < -spanX / 2) s.position.x += spanX
         if (s.position.z > spanZ / 2) s.position.z -= spanZ
@@ -339,6 +369,110 @@ export function buildClouds({
     dispose() {
       for (const m of materials) m.dispose()
       for (const t of textures) t.dispose()
+    },
+  }
+}
+
+/**
+ * Nedbør: ETT Points-objekt over kartet, bygget etter stjernefeltet i
+ * buildNightSky — én draw call, ingen tekstur, ingen per-partikkel-objekt.
+ * Punktbudsjettet er avsatt én gang (NEDBOR_TAK) og bare DELER av det er
+ * synlig av gangen (`setTetthet`); å bygge geometrien om for hver værendring
+ * ville allokert et nytt Float32Array midt i en RAF-loop.
+ *
+ * `fog: false` av samme grunn som stjernene (v5.3.0): makeFog setter far til
+ * maxDim × 2,6, og alt utenfor males i ren tåkefarge.
+ *
+ * Snø faller sakte og driver sidelengs; regn faller fort og rett. Sludd ligger
+ * imellom. Alt er bevisst sparsomt — kartet under skal fortsatt kunne leses.
+ */
+export function buildNedbor({ widthM, heightM, toppY = 2200, maks = 700 } = {}) {
+  const group = new Group()
+  group.visible = false
+  const spanX = widthM * 1.6
+  const spanZ = heightM * 1.6
+  const hoyde = Math.max(600, toppY)
+
+  const rnd = mulberry32(4711)
+  const pos = new Float32Array(maks * 3)
+  // Fartsvariasjon per partikkel, så feltet ikke faller som ett teppe.
+  const spredning = new Float32Array(maks)
+  for (let i = 0; i < maks; i++) {
+    pos[i * 3] = (rnd() - 0.5) * spanX
+    pos[i * 3 + 1] = rnd() * hoyde
+    pos[i * 3 + 2] = (rnd() - 0.5) * spanZ
+    spredning[i] = 0.7 + rnd() * 0.6
+  }
+  const geo = new BufferGeometry()
+  const attr = new BufferAttribute(pos, 3)
+  geo.setAttribute('position', attr)
+  geo.setDrawRange(0, 0)          // ingenting synlig før setTetthet
+
+  const mat = new PointsMaterial({
+    color: new Color('#dbe9f5'),
+    size: 2.2,
+    sizeAttenuation: false,       // like store uansett avstand — de er dråper, ikke kuler
+    transparent: true,
+    opacity: 0.5,
+    depthWrite: false,
+    fog: false,
+  })
+  const points = new Points(geo, mat)
+  points.frustumCulled = false
+  group.add(points)
+
+  // Fallfart (m/s), sidedrift og utseende per type. Tallene er scenefart, ikke
+  // fysikk: ekte 9 m/s regn over et 5 km ark ville vært usynlige streker.
+  const TYPER = {
+    regn:  { fall: 260, drift: 0.10, size: 1.8, opacity: 0.45, farge: '#cfe0ee' },
+    sludd: { fall: 170, drift: 0.22, size: 2.4, opacity: 0.52, farge: '#e4eef8' },
+    sno:   { fall: 70,  drift: 0.45, size: 3.2, opacity: 0.62, farge: '#ffffff' },
+  }
+  let type = null
+  let antall = 0
+
+  return {
+    group,
+    geometries: [geo],
+    materials: [mat],
+    /**
+     * @param {null|'regn'|'sludd'|'sno'} nyType
+     * @param {number} tetthet antall punkt, klippet til budsjettet
+     */
+    setNedbor(nyType, tetthet) {
+      type = TYPER[nyType] ? nyType : null
+      antall = type ? Math.max(0, Math.min(maks, Math.round(tetthet || 0))) : 0
+      group.visible = antall > 0
+      geo.setDrawRange(0, antall)
+      if (!type) return
+      const t = TYPER[type]
+      mat.size = t.size
+      mat.opacity = t.opacity
+      mat.color.set(t.farge)
+    },
+    /** @param {number} dt sekunder  @param {number} vindX  @param {number} vindZ */
+    update(dt, vindX = 0, vindZ = 0) {
+      if (!antall || !type) return
+      const t = TYPER[type]
+      for (let i = 0; i < antall; i++) {
+        const j = i * 3
+        pos[j + 1] -= t.fall * spredning[i] * dt
+        pos[j] += vindX * t.fall * t.drift * dt
+        pos[j + 2] += vindZ * t.fall * t.drift * dt
+        // Nådd bakken: sett den øverst igjen. Vi bryr oss ikke om terrenghøyden
+        // — partiklene er en antydning av nedbør, ikke en simulering, og en
+        // dråpe som forsvinner litt over bakken er ikke til å se.
+        if (pos[j + 1] < 0) {
+          pos[j + 1] = hoyde
+          pos[j] = (pos[j] + spanX * 1.5) % spanX - spanX / 2
+          pos[j + 2] = (pos[j + 2] + spanZ * 1.5) % spanZ - spanZ / 2
+        }
+      }
+      attr.needsUpdate = true
+    },
+    dispose() {
+      geo.dispose()
+      mat.dispose()
     },
   }
 }
