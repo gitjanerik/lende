@@ -1,7 +1,7 @@
 {
   "name": "lende",
   "private": true,
-  "version": "5.22.6",
+  "version": "5.22.7",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "royk": "node scripts/royk-mapview.mjs",
+    "royk:ruter": "node scripts/ruter-royk.mjs",
     "boot:workers": "node scripts/worker-boot.mjs",
     "mcp:protokoll": "node scripts/mcp-protokoll.mjs",
     "navnediff": "node scripts/navnediff.mjs",
@@ -37,7 +38,7 @@
     "simplify-js": "^1.2.4",
     "three": "^0.185.1",
     "vue": "^3.5.41",
-    "vue-router": "^4.6.4"
+    "vue-router": "^5.2.0"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",

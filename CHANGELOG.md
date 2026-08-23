@@ -1,3 +1,23 @@
+## 2026-08-23 — v5.22.7: vue-router 5
+
+Major-oppgraderingen fra 4.6.4. API-flata vi bruker er liten og konvensjonell —
+`createRouter`, `createWebHistory`, `useRouter`, `useRoute`, `RouterView`,
+`push`/`replace`/`back`/`beforeEach`, `scrollBehavior` og funksjons-redirects — og
+alt finnes uendret i 5. Ingen kodeendring var nødvendig.
+
+Det som var verdt arbeidet er verifiseringen. `npm run royk` monterer ÉN rute og
+sier ingenting om at `/about` lander på `/om`, at `/kart/nytt?lat=…` beholder
+query-en, eller at boot-hooken som gjenopptar forrige kart fortsatt returnerer en
+gyldig location. Ny `npm run royk:ruter` går gjennom alle ni ruter og redirects
+pluss boot-gjenopptaket i Chromium, og sjekker BÅDE slutt-URL og at det faktisk
+står noe i DOM-en — en død redirect gir ellers en URL som ser riktig ut over en
+blank side. Den er kjørt grønn på BEGGE versjoner, så den måler ruteren og ikke
+tilfeldigheter, og verifisert rød ved å fjerne `/about`-redirecten.
+
+Første utgave av testen rapporterte at `/kart → /` var brutt i vue-router 5. Det
+var feil: et tidligere besøk på `/rute` i samme løkke fikk GravelPlannerView til
+å skrive `lende-last-mode`, og boot-hooken sendte da `/` videre til `/rute` — helt
+riktig app-atferd. Testen nullstiller nå lagret state før hver navigasjon.
 ## 2026-08-23 — v5.22.6: @napi-rs/canvas 1.0 — og et ikon som forsvant stille
 
 Major-bumpen (0.1.100 → 1.0.7) avdekket at 1.0 ikke løser `href` på `<use>`, bare
