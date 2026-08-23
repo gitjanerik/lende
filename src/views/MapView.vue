@@ -1555,7 +1555,7 @@ const proximityPanelOpen = ref(false)
 
 const {
   contextMenuOpen, contextMenuPoint, contextMenuInfo,
-  lakeQuery, verneQuery, naturtypeQuery, placeWikiCard, expandedRedCat,
+  lakeQuery, verneQuery, naturtypeQuery, placeWikiCard, vaerQuery, expandedRedCat,
   clearLongPress, clientToSvgPoint, openContextMenuAt, closeContextMenu,
   onPointerDownLongPress, onPointerMoveLongPress, onPointerUpLongPress,
   onContextMenuEvent,
@@ -3126,6 +3126,7 @@ onUnmounted(() => {
       :nasjonalparker="nasjonalparkerVist"
       :naturtype-query="naturtypeQuery"
       :place-wiki-card="placeWikiCard"
+      :vaer-query="vaerQuery"
       :expanded-red-cat="expandedRedCat"
       :map-data-label="mapDataLabel"
       :print-scale-label="printScaleLabel"

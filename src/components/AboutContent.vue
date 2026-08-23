@@ -123,7 +123,8 @@ async function onInstallClick() {
         <strong class="text-ink/90">Store norske leksikon</strong> og
         <strong class="text-ink/90">Wikipedia</strong>, arter og rødliste-status
         fra <strong class="text-ink/90">Artsdatabanken</strong>, naturtyper og
-        verneområder, og vann-data fra <strong class="text-ink/90">NVE</strong>.
+        verneområder, vann-data fra <strong class="text-ink/90">NVE</strong>, og
+        værvarsel fra <strong class="text-ink/90">MET Norway</strong>.
         Kulturminne-markørene (fra <strong class="text-ink/90">Kulturminnesøk</strong>)
         og fredede minner kan trykkes for detaljer og lenker videre.
       </p>
@@ -280,6 +281,8 @@ async function onInstallClick() {
       <div class="text-[12px] leading-relaxed text-ink/55 space-y-1 pt-1 border-t border-ink/10">
         <p>Kartdata © <strong class="text-ink/75">OpenStreetMap</strong>-bidragsytere (ODbL).</p>
         <p>Høydemodell, N50 og sjøkart: <strong class="text-ink/75">Kartverket</strong> (NLOD / CC BY 4.0).</p>
+        <p>Værvarsel: <strong class="text-ink/75">Meteorologisk institutt</strong> (MET Norway) — NLOD 2.0 / CC BY 4.0.
+          Værsymbolene er © 2015–2017 Yr, MIT-lisens.</p>
         <p>Verneområder og artsdata: Naturbase, NVE og GBIF.</p>
         <p class="pt-1">Privat, ikke-kommersielt hobbyprosjekt. Kart fra appen er
           ikke godkjent for navigasjon til sjøs eller i nødsituasjoner.</p>

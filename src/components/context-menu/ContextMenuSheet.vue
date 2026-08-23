@@ -7,6 +7,7 @@
 // buildDetailInset/attachInsetPanZoom er uendret.
 import { ANNOTATION_SYMBOLS } from '../../composables/useMapAnnotations.js'
 import AnnotationIcon from '../AnnotationIcon.vue'
+import VaerIkon from '../VaerIkon.vue'
 import { formatDistanceM } from '../../lib/mapContext.js'
 import { hasAiToken } from '../../lib/lendeAi.js'
 
@@ -28,6 +29,8 @@ defineProps({
   nasjonalparker: { type: Array, default: () => [] },
   naturtypeQuery: { type: Object, default: null },
   placeWikiCard: { type: Object, default: null },
+  // Værvarsel (MET Norway) for long-press-punktet: { status, varsel, naa }.
+  vaerQuery: { type: Object, default: null },
   expandedRedCat: { type: String, default: null },
   mapDataLabel: { type: String, default: '' },
   // Kart-fakta i headeren, rett under koordinatene: «1:10 000» og
@@ -328,6 +331,41 @@ function formatDistance(m) {
         <div v-if="mapDataLabel" class="flex items-baseline gap-2 text-[12px]">
           <span class="text-ink/45 w-20 shrink-0">Kartdata</span>
           <span class="text-ink/85 tabular-nums">{{ mapDataLabel }}</span>
+        </div>
+        <!-- Vær fra MET Norway. Ett symbol, temperatur, vind og nedbør på én
+             linje. Nedbøren skriver PERIODEN med («0,4 mm/t» vs «/6 t») fordi
+             MET slutter å levere 1-times-oppløsning etter et døgn-to, og «4,8 mm»
+             uten periode leser som mm/time. -->
+        <div v-if="vaerQuery?.status === 'done'" class="flex items-baseline gap-2 text-[12px]">
+          <span class="text-ink/45 w-20 shrink-0">Vær</span>
+          <span class="text-ink flex items-baseline gap-1.5 min-w-0">
+            <VaerIkon :symbol="vaerQuery.naa.symbol" :size="18" class="self-center -my-0.5"/>
+            <span v-if="vaerQuery.naa.temperaturC != null" class="font-medium tabular-nums">
+              {{ Math.round(vaerQuery.naa.temperaturC) }} °C
+            </span>
+            <span v-if="vaerQuery.naa.vindMs != null" class="text-ink/55 tabular-nums">
+              · {{ vaerQuery.naa.vindMs.toFixed(1).replace('.', ',') }} m/s
+            </span>
+            <span v-if="vaerQuery.naa.nedborMm" class="text-ink/55 tabular-nums">
+              · {{ vaerQuery.naa.nedborMm.toFixed(1).replace('.', ',') }} mm/{{ vaerQuery.naa.nedborTimer }} t
+            </span>
+          </span>
+        </div>
+        <div v-else-if="vaerQuery?.status === 'loading'"
+             class="flex items-baseline gap-2 text-[12px]">
+          <span class="text-ink/45 w-20 shrink-0">Vær</span>
+          <span class="text-ink/50">henter værvarsel …</span>
+        </div>
+        <!-- Ærlig svar framfor et oppdiktet vær. Samme regel som vannflate-høyden. -->
+        <div v-else-if="vaerQuery?.status === 'error'"
+             class="flex items-baseline gap-2 text-[12px]">
+          <span class="text-ink/45 w-20 shrink-0">Vær</span>
+          <span class="text-ink/70">Værvarsel ikke tilgjengelig</span>
+        </div>
+        <!-- Lisenskravet: MET-data krever synlig attribusjon (NLOD / CC BY 4.0).
+             Den står her og i /om — fjernes den, bryter vi lisensen. -->
+        <div v-if="vaerQuery?.status === 'done'" class="text-[10px] text-ink/35 pl-[5.5rem]">
+          Værdata fra MET Norway
         </div>
       </div>
 

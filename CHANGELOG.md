@@ -1,5 +1,48 @@
 # Endringslogg
 
+## 2026-08-23 — v5.21.0: Ekte værvarsel fra MET Norway
+
+Langtrykk på kartet gir nå en værlinje i infopanelet: symbol, temperatur, vind og
+nedbør for punktet, fra METs Locationforecast 2.0. Symbolene er METs egne
+(github.com/metno/weathericons — de samme man ser på yr.no), og de norske
+værnavnene er hentet fra METs `legend.csv` framfor oversatt av oss.
+
+Kallet går gjennom `lende-proxy`, ikke rett fra nettleseren, og det er ikke
+valgfritt: MET krever en identifiserende `User-Agent` med kontaktinfo og svarer
+403 Forbidden på en generisk eller manglende en — mens `User-Agent` er en forbudt
+header i nettleserens `fetch()`. Et direkte klient-kall kan altså ikke oppfylle
+METs vilkår, uansett hvor snill CORS-en deres er. Workeren setter headeren, runder
+`lat`/`lon` til METs maks 4 desimaler (flere ødelegger cachingen deres og vil
+etter hvert gi 400), og cacher i inntil 30 minutter — kortere hvis METs eget
+`Expires` sier så. Bonusen er at tjue turgåere på samme fjell koster MET ett kall.
+
+Klienten slår opp i IndexedDB-cachen først, på et ~100 m rutenett. Det ER
+debouncingen: to trykk i samme skogholt innen halvtimen går ikke på nettet, og
+oppslaget henger på langtrykk-punktet framfor på panorering. `ttlForKey` fikk en
+`vaer1:`-gren FØRST i rekka — uten den ville nøkkelen falt gjennom til
+kulturminne-TTL-en på 30 dager, og en 30 dager gammel værmelding er ikke en
+degradering, den er en løgn.
+
+Værvarsel pakkes med vilje IKKE i offline-fila. Importen setter fersk TTL på hver
+rad, så en prognose fra en fil som har ligget en måned i en chat ville blitt vist
+som om den gjaldt nå. Begrunnelsen står i CLAUDE.md, slik at det ikke blir
+«rettet» som en glemt kilde.
+
+To ting fanget av tester underveis: en manglende `lat` ville blitt et varsel for
+0,0000 / 0,0000 (Guineabukta), fordi `Number(null)` er 0 og ikke NaN — proxyen
+svarer nå 400. Og METs egne symbolkoder har understrek inni seg
+(`lightssleetshowersandthunder_day`, med METs kjente skrivefeil de har valgt å
+beholde), så variant-splittingen måtte skje på siste understrek og bare på en
+kjent variant — en naiv split ville gitt feil ikon for hele torden-familien.
+
+Ikonsettet (83 filer, 26 kB gzip) lastes som et eget chunk først når et symbol
+skal tegnes. Statisk import kostet 36 kB gzip for alle brukere, også de som aldri
+åpner vær. Ikonene tegnes som `<img src="data:…">` og ikke inline, fordi METs
+SVG-er definerer `<symbol id="sun">` og gradienter med globale id-er — to
+inlinede ikoner i samme dokument ville overskrevet hverandres farger.
+
+---
+
 ## 2026-08-23 — v5.20.2: Skyene i 3D var klippet av lerret-kanten
 
 Skyene i 3D-visningen hadde knivrette kanter og leste som lyse firkanter i

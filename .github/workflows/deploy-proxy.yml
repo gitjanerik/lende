@@ -112,3 +112,40 @@ jobs:
             *)   echo "::warning::Uventet status $STATUS fra kulturminne-ruta." ;;
           esac
           echo "Deploy er OK uansett utfall over — api.ra.no er en tredjepart."
+
+          # ── MET-ruta: RAPPORTERER, feiler ikke ────────────────────────────
+          # Samme grunn som over: api.met.no er en tredjepart. MEN 403 er et
+          # SPESIALTILFELLE vi vil se tydelig — den betyr nesten alltid at
+          # User-Agent-headeren vår ikke er god nok for METs vilkår, altså en
+          # feil i VÅR kode, ikke nedetid hos MET. Den eneste testen som kan
+          # avsløre det er denne: api.met.no er blokkert fra utviklings-
+          # sandkassene, så ruta kan ikke prøves noe annet sted enn her.
+          echo "— MET-ruta (Vardåsen) —"
+          VAER="$BASE/vaer/locationforecast/2.0/compact?lat=59.8300&lon=10.4400"
+          SVAR=$(curl -sS -D /tmp/hm -w '\nHTTP:%{http_code}' "$VAER" || true)
+          STATUS=$(echo "$SVAR" | tail -1 | cut -d: -f2)
+          KROPP=$(echo "$SVAR" | sed '$d')
+          OPPSTROMS=$(grep -i '^x-lende-upstream:' /tmp/hm | tr -d '\r' | cut -d' ' -f2 || true)
+          CACHE=$(grep -i '^x-lende-cache:' /tmp/hm | tr -d '\r' | cut -d' ' -f2 || true)
+          echo "status: $STATUS   X-Lende-Upstream: ${OPPSTROMS:-(ingen)}   X-Lende-Cache: ${CACHE:-(ingen)}"
+          case "$STATUS" in
+            200)
+              # Sjekk at det faktisk ER et varsel og ikke en feilside med 200.
+              echo "$KROPP" | grep -q '"timeseries"' \
+                && echo "::notice::MET-ruta SVARER med et varsel (timeseries funnet)." \
+                || echo "::warning::200 fra MET-ruta, men ingen timeseries i kroppen. Endret MET formatet?"
+              ;;
+            403) echo "::error::MET svarte 403 Forbidden. Det betyr så godt som alltid at User-Agent-en i MET_UA ikke godtas — se cloudflare/proxy/src/index.js. Værvarselet virker ikke før dette er rettet." ;;
+            400) echo "::warning::MET svarte 400 Bad Request. Sender vi for mange desimaler? metKoordinat skal runde til 4." ;;
+            429) echo "::warning::MET svarte 429 — for mange forespørsler. Cache-vinduet (MET_CACHE_S) er for kort." ;;
+            599) echo "::warning::Workeren fikk ikke forbindelse til api.met.no i det hele tatt." ;;
+            5*)  echo "::warning::api.met.no svarte $STATUS (opphavets feil, speilet). MET er nede — appen viser «Værvarsel ikke tilgjengelig»." ;;
+            *)   echo "::warning::Uventet status $STATUS fra MET-ruta." ;;
+          esac
+
+          # Ugyldig koordinat skal gi VÅR 400, ikke et varsel for Guineabukta.
+          echo "— MET-ruta avviser manglende lat —"
+          KODE=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/vaer/locationforecast/2.0/compact?lon=10.44")
+          [ "$KODE" = "400" ] \
+            && echo "OK (400)" \
+            || echo "::error::Forventet 400 for manglende lat, fikk $KODE. Et kall uten lat ville blitt et varsel for 0,0000/0,0000."
