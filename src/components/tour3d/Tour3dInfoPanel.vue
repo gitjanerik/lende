@@ -20,6 +20,11 @@ const props = defineProps({
   knapper: { type: Array, default: () => [] },
   // Korte «slik gjør du»-tips, f.eks. «Trykk på en sti for å følge den».
   tips: { type: Array, default: () => [] },
+  // Nåle-diagnose fra motoren (pinLayer.diagnose). Vises bare når panelet er
+  // åpent, og finnes fordi de flimrende flatene i 3D bare kan observeres på
+  // eierens telefon: tallene her er det som skiller «matrisene er riktige» fra
+  // «bufferet inneholder noe annet enn det vi skrev».
+  diagnose: { type: Object, default: null },
 })
 
 const expanded = ref(false)
@@ -95,6 +100,19 @@ const gester = computed(() => {
               <span class="text-white/70"> — {{ k.tekst }}</span>
             </li>
           </ul>
+        </template>
+
+        <template v-if="diagnose">
+          <div class="mt-2 text-[9px] uppercase tracking-wide text-white/50">Nåler</div>
+          <div class="mt-1 leading-snug font-mono text-[10px] text-white/70">
+            {{ diagnose.synlige }} vist / {{ diagnose.parkerte }} parkert
+            / {{ diagnose.ugyldige }} utelatt av {{ diagnose.n }}<br>
+            største hode {{ (diagnose.maksAndel * 100).toFixed(1) }} % av synsfeltet
+            <span :class="diagnose.maksAndel > 0.13 ? 'text-red-400 font-bold' : 'text-emerald-400'">
+              (tak 12 %)</span><br>
+            <span v-if="diagnose.verstNavn">størst: {{ diagnose.verstNavn }}<br></span>
+            maks koordinat {{ Math.round(diagnose.maksAbs) }} m
+          </div>
         </template>
 
         <template v-if="tips.length">

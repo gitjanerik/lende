@@ -611,6 +611,7 @@ export async function create3dScene(container, {
   return {
     // --- nåler ---
     setFeatures(list) { pins.setFeatures(list ?? []) },
+    pinDiagnose() { return pins.diagnose() },
     setPinsVisible(v) {
       pins.setVisible(v)
       waypoints?.setPinsVisible(v)

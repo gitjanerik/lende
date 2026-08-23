@@ -1,3 +1,39 @@
+## 2026-08-23 — v5.22.10: Instans-bufferet er dynamisk, og nålene kan måles
+
+Tredje runde på de flimrende flatene i 3D. To ting er nå etablert som fakta og
+ikke antakelser: feilen kommer KUN når knappenålene er på, og fargen er konstant
+gjennom en økt — grå `#7f8c8d` på dette kartet, lilla `#8e44ad` og blå `#1d4ed8`
+på to andre. At fargen er stabil per kart, og ikke tilhører den nåla kameraet er
+nær, er det avgjørende sporet: det peker bort fra geometri og mot innholdet i
+instans-bufferet.
+
+Og der er det én ting som skiller seg ut. `instanceMatrix` skrives om HVER frame
+— avstandsskalaen følger kameraet — mens bufferet lå på three sin standard
+`StaticDrawUsage`. Det er en beskjed til driveren om at innholdet lastes opp én
+gang; når vi likevel sender `bufferSubData` 60 ganger i sekundet, har driveren
+lov til å skrive rett inn i minnet GPU-en fortsatt leser forrige frame fra i
+stedet for å lage en ny kopi. Flere mobil-GPU-er gjør nettopp det. Utfallet er
+revne matriser for enkeltinstanser — heldekkende, flimrende flater i nålas egen
+farge, som aldri viser seg på desktop eller i SwiftShader. Begge nålefeltets
+matrise-buffere er nå merket `DynamicDrawUsage`, som er den dokumenterte måten å
+si at et buffer skrives ofte.
+
+I tillegg skrives ikke matrisene om i det hele tatt når de ikke trenger det:
+står kameraet stille (under 25 cm flyttet) og declutteren er uendret, hopper
+`update` ut. Det fjerner selve vinduet der GPU-en kan lese et buffer vi skriver
+i, for det tilfellet man faktisk står og ser på artefakten.
+
+Om det ikke holder, skal neste runde ikke bli en ny gjetning. Feilen finnes bare
+på eierens telefon, og feilsøkingen har gått i ring fordi de eneste
+observasjonene har vært skjermbilder. Info-panelet i 3D viser nå målingen som
+skiller de to mulighetene fra hverandre: hvor mange nåler som vises, er parkert
+og er utelatt, hvilken nål som er STØRST på skjermen, og hvor stor andel av
+synsfeltet det hodet dekker. Taket fra v5.22.8 er 12 %. Står det et tall over
+det, er matrisene i bufferet ikke de vi skrev — og da er det ikke lenger en
+hypotese. Står det under, er artefakten ikke et nålehode, og letingen flytter
+seg.
+
+---
 ## 2026-08-23 — v5.22.9: Parkerte nåler er ikke lenger nullflater
 
 Oppfølging til v5.22.8. Vinkel-taket fjernet de heldekkende flatene, men det kom
