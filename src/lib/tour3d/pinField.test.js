@@ -3,7 +3,7 @@ import { Color, Vector3 } from 'three'
 import { makeCoords } from './coords.js'
 import {
   buildPinField, pinScaleAt, pinScaleForCamera, drapedWorld,
-  PIN_STEM_H, PIN_HEAD_R, PARK_Y,
+  PIN_STEM_H, PIN_HEAD_R,
 } from './pinField.js'
 
 const makeDem = (cols, rows, fill = 100, res = 10) => ({
@@ -160,7 +160,7 @@ describe('buildPinField', () => {
     field.dispose()
   })
 
-  it('parkerer bortfiltrerte nåler utenfor far-planet, ikke på skala 0', () => {
+  it('tegner BARE de synlige nålene — resten submitteres ikke', () => {
     const field = buildPinField([
       { x: 10, y: 10, color: '#fff' },
       { x: 90, y: 90, color: '#fff' },
@@ -170,22 +170,44 @@ describe('buildPinField', () => {
     expect(field.isVisible(1)).toBe(true)
 
     field.update(fakeCamera(0, 100, 600))
-    const m = field.stems.instanceMatrix.array
-    // En singulær matrise (skala 0) er nettopp det vi IKKE vil ha: en mobil-GPU
-    // tegnet vilkårlige kiler av de sammenfalte verteksene (v5.22.9). Den
-    // parkerte nåla skal være en helt vanlig kule, langt under bakken.
-    expect(m[0]).toBe(1)
-    expect(m[13]).toBe(PARK_Y)
-    expect(m[16]).toBeGreaterThan(0)
-    expect(m[29]).toBeGreaterThan(0)   // synlig nål står på bakken, ikke i PARK_Y
-    // Indeksen for nål 1 er fortsatt 1 — raycast-oppslaget må ikke forskyves.
+    // Kjernen i v5.22.11: en instans som ikke submitteres kan ingen driver tegne
+    // feil. Før dette lå de skjulte i bufferet — først som singulære nullflater,
+    // så som kuler 200 km unna — og en mobil-GPU tegnet dem som heldekkende
+    // flater i nålefargen.
+    expect(field.stems.count).toBe(1)
+    expect(field.heads.count).toBe(1)
+    // Nåle-indeksene utad er urørt: 2 nåler, og nål 1 kjenner sitt bakkepunkt.
     expect(field.count).toBe(2)
+    expect(field.basePosition(1)[0]).toBeCloseTo(40)
     field.dispose()
   })
 
-  it('etterlater ingen singulær matrise i bufferet — uansett tilstand', () => {
-    // Regresjonen: hver frame skrev ~150 av 272 instanser som skala 0, og hver
-    // av dem er 260 vertekser i samme punkt. Determinanten skal aldri være 0.
+  it('sloten bærer fargen til nåla som faktisk står der', () => {
+    // instanceColor følger SLOTEN, ikke nåla. Bytter declutteren sammensetning,
+    // må fargene skrives om — ellers får en nål naboens farge.
+    const field = buildPinField([
+      { x: 10, y: 10, color: '#ff0000' },
+      { x: 50, y: 50, color: '#00ff00' },
+      { x: 90, y: 90, color: '#0000ff' },
+    ], dem, coords)
+    const slot0 = () => [...field.heads.instanceColor.array.slice(0, 3)]
+
+    field.setVisibleSet(new Set([1]))
+    field.update(fakeCamera(0, 100, 600))
+    const grønn = slot0()
+
+    field.setVisibleSet(new Set([2]))
+    field.update(fakeCamera(0, 100, 600))
+    const blå = slot0()
+
+    expect(field.heads.count).toBe(1)
+    expect(grønn[1]).toBeGreaterThan(0.9)   // grønn kanal
+    expect(blå[2]).toBeGreaterThan(0.9)     // blå kanal
+    expect(grønn).not.toEqual(blå)
+    field.dispose()
+  })
+
+  it('etterlater ingen singulær matrise i det som tegnes', () => {
     const field = buildPinField([
       { x: 10, y: 10, color: '#fff' },
       { x: NaN, y: 10, color: '#f00' },
@@ -197,12 +219,12 @@ describe('buildPinField', () => {
       field.update(kam)
       for (const mesh of [field.stems, field.heads]) {
         const m = mesh.instanceMatrix.array
-        for (let i = 0; i < field.count; i++) {
+        for (let i = 0; i < mesh.count; i++) {
           expect(m[i * 16]).toBeGreaterThan(0)      // skala x
           expect(m[i * 16 + 5]).toBeGreaterThan(0)  // skala y
           expect(m[i * 16 + 10]).toBeGreaterThan(0) // skala z
         }
-        expect([...m].every(Number.isFinite)).toBe(true)
+        for (let j = 0; j < mesh.count * 16; j++) expect(Number.isFinite(m[j])).toBe(true)
       }
     }
     field.dispose()
@@ -225,12 +247,11 @@ describe('buildPinField', () => {
     expect(field.isUgyldig(4)).toBe(false)
 
     field.update(fakeCamera(0, 100, 3000))
+    // De to gyldige nålene tegnes, de tre ugyldige submitteres ikke i det hele
+    // tatt — og ingenting av det som tegnes er NaN.
+    expect(field.heads.count).toBe(2)
     const m = field.heads.instanceMatrix.array
-    // Skala 0 = parkert. Og alle 16 tallene i matrisa må være endelige, ellers
-    // er det nettopp NaN-en vi ville unngå som ligger i bufferet.
-    for (const i of [1, 2, 3]) expect(m[i * 16 + 13]).toBe(PARK_Y)
-    for (const i of [0, 4]) expect(m[i * 16 + 13]).toBeGreaterThan(0)
-    expect([...m].every(Number.isFinite)).toBe(true)
+    for (let j = 0; j < field.heads.count * 16; j++) expect(Number.isFinite(m[j])).toBe(true)
     field.dispose()
   })
 
@@ -241,9 +262,7 @@ describe('buildPinField', () => {
     const field = buildPinField([{ x: 50, y: 50, color: '#fff' }], raw, coords)
     expect(field.isUgyldig(0)).toBe(true)
     field.update(fakeCamera(0, 100, 3000))
-    const m = field.heads.instanceMatrix.array
-    expect([...m].every(Number.isFinite)).toBe(true)
-    expect(m[13]).toBe(PARK_Y)
+    expect(field.heads.count).toBe(0)
     field.dispose()
   })
 
