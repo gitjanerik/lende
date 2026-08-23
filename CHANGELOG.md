@@ -1,5 +1,42 @@
 # Endringslogg
 
+## 2026-08-23 — v5.21.3: Skyene ble kuttet av en toerpotens jeg selv brøt
+
+v5.20.2 skulle rette at skyene ble klippet, og rettet en ekte feil — men innførte
+en ny. For å gi blobbene luft ble lerretet 256 × **160**, og 160 er ikke en
+toerpotens. På WebGL1, som en del Android-webviews fortsatt gir, resampler
+three.js NPOT-teksturer til toerpotens og genererer mipmaps på resultatet, og det
+kan smøre alfa ut til kanten. Da males HELE sprite-quaden som et blekt rektangel
+i himmelen — nøyaktig det eieren fortsatte å se etter «fiksen». Feilen var ikke
+synlig på skrivebordet, bare på telefon.
+
+Lerretet er tilbake på 256 × 128, som også gir skyene de opprinnelige
+proporsjonene igjen (sprite-høyden avledes av tekstur-sideforholdet). Luften
+blobbene trengte kommer fra radius-klippingen i `skyDotter`, ikke fra et høyere
+lerret — den delen av v5.20.2 var riktig og står.
+
+I tillegg har skymaterialene fått `alphaTest: 0.02`. Det er ikke finpuss:
+symptomet var en LAV, JEVN alfa over hele quaden, og den kan komme av
+mip-gjennomsnitt, driver-resampling eller presisjon. Vi kan ikke vite hvilken på
+en telefon vi ikke har, så terskelen treffer symptomklassen framfor årsaken. Målt
+er største pikselsprang i skykanten 7 av 255 — formen er uendret.
+
+Diagnosen ble gjort med målinger og ikke med øyet, etter at forrige runde bommet:
+tekstur-alfa langs alle fire kanter (0 på alle tre seeds), en rendret enkeltsprite
+på svart bakgrunn på fire avstander (myk profil, 0 ved quad-kanten), og en
+mipmap-av-sammenligning som avkreftet mipmapping. Rektangelet i skjermbildet ble
+målt opp: skarp vannrett toppkant, nær-loddrett venstrekant, og med
+sprite-sideforholdet 0,4375 stemte høyden 285 px mot en full quad-bredde på
+651 px — altså en quad som gikk utenfor skjermkanten.
+
+Testen som ville fanget det står nå der: begge tekstur-målene må være
+toerpotenser, og lerretet må være romslig nok til at dottene ikke klippes ned til
+ingenting (så kravet ikke «løses» med 256 × 16). Testene leser målene fra koden i
+stedet for å gjenta dem — den hardkodede 160-en i forrige test ville ellers målt
+et lerret som ikke fantes.
+
+---
+
 ## 2026-08-23 — v5.21.2: Vind pr time i 3D, og vinden er til å finne i infopanelet
 
 Værsymbolraden i 3D viser nå vindstyrke for hver time, ved siden av temperaturen
