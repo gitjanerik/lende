@@ -20,6 +20,15 @@ som er den eneste målingen som betyr noe her. Og Dependabot re-serialiserer
 `\u00f8` — én grunn til at det er verdt å ta oppdateringene inn selv framfor å
 merge robotens gren rått.
 
+Actions-bumpen avdekket dessuten et latent kappløp: `build-redlist` og
+`build-nasjonalparker` trigger begge på push når sin egen workflow-fil endres, og
+en actions-oppdatering rører alltid BEGGE. De pusher til samme gren, og den som
+tapte fikk «non-fast-forward» og feilet — uten at noe var galt med dataene. Begge
+har nå en push-retry som tar vare på artefakten, flytter til den nye tippen og
+legger den på igjen. Ikke rebase: `actions/checkout` gir en grunn klone, og en
+rebase over shallow-grensa er upålitelig. Kappløpet er simulert lokalt med to
+grunne kloner, og begge datasett overlever det.
+
 ---
 
 ## 2026-08-23 — v5.22.3: agents 0.21 i MCP-Workeren, og en gate som ser verktøyene
