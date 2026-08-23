@@ -117,6 +117,20 @@ export function createPinLayer({ scene, dem, coords, project, maxVisible = MAX_V
     /** Nåle-indeksene declutteren slapp gjennom sist. */
     get visibleIndices() { return new Set([...prevShown].map(Number)) },
 
+    /**
+     * Måletall for Info-panelet. Finnes fordi feilsøkingen av de flimrende
+     * flatene (v5.22.8/9) gikk i ring: alt så riktig ut i Chromium, og de eneste
+     * observasjonene kom fra skjermbilder. `andel` er den største andelen av
+     * synsfeltet ett hode dekker — taket er 0,12, så et tall over det betyr at
+     * matrisene i bufferet IKKE er de vi skrev.
+     */
+    diagnose() {
+      if (!field) return null
+      const d = field.diagnose()
+      const f = d.verst >= 0 ? items[d.verst] : null
+      return { ...d, verstNavn: f ? `${f.kind}:${f.name ?? '?'}` : null }
+    },
+
     setFeatures(list) {
       dropField()
       items = list ?? []

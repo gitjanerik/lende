@@ -81,6 +81,10 @@ const kryssPauseOn = ref((() => {
 })())
 const hasPaths = ref(false)
 const pinCounts = ref({})
+// Nåle-diagnose til Info-panelet. Pollet, ikke reaktivt: tallene kommer fra
+// motorens render-loop, og to ganger i sekundet er nok til å lese dem av.
+const pinDiag = ref(null)
+let pinDiagTimer = 0
 const pinGroups = ref([])
 const extrasLoading = ref(true)
 // Hva motoren holder på med: vises i laste-overlayet, og som en diskret pille
@@ -305,6 +309,10 @@ onMounted(async () => {
     if (demoPaa.value) demoStart()
 
     phase.value = 'ready'
+    clearInterval(pinDiagTimer)
+    pinDiagTimer = setInterval(() => {
+      pinDiag.value = engine?.pinDiagnose?.() ?? null
+    }, 500)
 
     // Nettbaserte kilder popper inn asynkront — feil svelges stille, som før.
     // Kartet skal aldri stå og vente på Riksantikvaren.
@@ -336,6 +344,7 @@ onBeforeUnmount(() => {
   abort?.abort()
   clearTimeout(toastTimer)
   clearInterval(demoTimer)
+  clearInterval(pinDiagTimer)
   wake.stop()
   engine?.dispose()
   engine = null
@@ -742,7 +751,8 @@ function branchLabel(opt, i) {
       <div v-if="phase === 'ready'"
            class="relative z-10 flex items-start justify-between gap-2 px-3 mt-2">
         <Tour3dInfoPanel :modus="walking ? 'tur' : 'utforsk'"
-                         :knapper="INFO_KNAPPER" :tips="INFO_TIPS"/>
+                         :knapper="INFO_KNAPPER" :tips="INFO_TIPS"
+                         :diagnose="pinDiag"/>
         <Tour3dPinPanel v-if="pinsOn" :groups="pinGroups" :counts="pinCounts"
                         :loading="extrasLoading"
                         :model-value="pinPrefs" @update:model-value="setPinPrefs"/>

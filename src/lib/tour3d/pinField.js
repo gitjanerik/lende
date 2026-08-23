@@ -12,7 +12,7 @@
 
 import {
   SphereGeometry, CylinderGeometry, MeshBasicMaterial, InstancedMesh, Color,
-  Object3D, Vector3,
+  Object3D, Vector3, DynamicDrawUsage,
 } from 'three'
 import { sampleElevation } from '../demSampling.js'
 
@@ -130,6 +130,16 @@ export function buildPinField(items, dem, coords, { stemColor = 0xffffff } = {})
   heads.frustumCulled = false
   stems.count = n
   heads.count = n
+  // Matrisene skrives om HVER frame (avstandsskalaen følger kameraet), og da må
+  // bufferet være merket dynamisk. Med standard StaticDrawUsage laster three opp
+  // med bufferSubData i et buffer driveren har lov til å tro er skrivebeskyttet
+  // etter opplasting: den slipper å lage en ny kopi, og på flere mobil-GPU-er
+  // skriver vi da over minne GPU-en fortsatt leser forrige frame fra. Resultatet
+  // er revne matriser for enkelte instanser — heldekkende, flimrende flater i
+  // nålas egen farge, som aldri viser seg på desktop eller i SwiftShader.
+  // DynamicDrawUsage er den dokumenterte måten å si «denne skrives ofte».
+  stems.instanceMatrix.setUsage(DynamicDrawUsage)
+  heads.instanceMatrix.setUsage(DynamicDrawUsage)
 
   // Bakkepunktene lagres slik at update() kan skalere om hver frame uten å
   // sample DEM-en på nytt.
@@ -168,6 +178,11 @@ export function buildPinField(items, dem, coords, { stemColor = 0xffffff } = {})
   if (heads.instanceColor) heads.instanceColor.needsUpdate = true
 
   const _cam = new Vector3()
+  const _camForrige = new Vector3(NaN, NaN, NaN)
+  let maaSkrives = true
+  // Måletall for diagnosen i Info-panelet: den STØRSTE andelen av synsfeltet et
+  // enkelt hode dekker (radius delt på avstand til hodet), og hvilken nål det er.
+  const diag = { n, synlige: 0, parkerte: 0, ugyldige: 0, maksAndel: 0, verst: -1, maksAbs: 0 }
 
   // Første oppsett med skala 1 så feltet er riktig plassert før første update.
   //
@@ -226,15 +241,39 @@ export function buildPinField(items, dem, coords, { stemColor = 0xffffff } = {})
     basePosition(i) {
       return [bases[i * 3], bases[i * 3 + 1], bases[i * 3 + 2]]
     },
-    setVisibleSet(set) { visible = set },
+    setVisibleSet(set) { visible = set; maaSkrives = true },
     isVisible(i) { return !visible || visible.has(i) },
+    diagnose() { return { ...diag } },
     update(camera) {
       _cam.copy(camera.position)
+      // Står kameraet stille og declutteren ikke har endret seg, er matrisene
+      // allerede riktige. Da skal vi heller ikke laste opp bufferet på nytt:
+      // en opplasting per frame som ingen trenger er både bortkastet båndbredde
+      // og et vindu der GPU-en kan lese et buffer vi skriver i.
+      if (!maaSkrives && _cam.distanceToSquared(_camForrige) < 0.0625) return
+      maaSkrives = false
+      _camForrige.copy(_cam)
+      let synlige = 0, maksAndel = 0, verst = -1, maksAbs = 0
       writeInstances((i, bx, by, bz) => {
         if (ugyldig.has(i)) return 0
         if (visible && !visible.has(i)) return 0
-        return pinScaleForCamera(_cam, bx, by, bz)
+        const s = pinScaleForCamera(_cam, bx, by, bz)
+        if (s > 0) {
+          synlige++
+          const hodeY = by + HODE_LOFT * s
+          const d = Math.hypot(_cam.x - bx, _cam.y - hodeY, _cam.z - bz)
+          const andel = (PIN_HEAD_R * s) / d
+          if (andel > maksAndel) { maksAndel = andel; verst = i }
+          maksAbs = Math.max(maksAbs, Math.abs(bx), Math.abs(hodeY), Math.abs(bz))
+        }
+        return s
       })
+      diag.synlige = synlige
+      diag.parkerte = n - synlige - ugyldig.size
+      diag.ugyldige = ugyldig.size
+      diag.maksAndel = maksAndel
+      diag.verst = verst
+      diag.maksAbs = maksAbs
     },
     // Raycast treffer stamme eller hode; begge peker tilbake på samme indeks.
     raycast(raycaster) {

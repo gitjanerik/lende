@@ -6,6 +6,10 @@ name: CI
 on:
   pull_request:
     branches: [master]
+  # Manuell start. Finnes fordi GitHub av og til ikke oppretter kjøringen for en
+  # nyåpnet PR (skjedde på #315): uten dette er eneste utvei å pushe på nytt,
+  # og en tom commit for å vekke CI er ikke en løsning.
+  workflow_dispatch:
 
 jobs:
   test-and-build:
