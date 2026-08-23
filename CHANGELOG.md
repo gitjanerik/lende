@@ -1,5 +1,35 @@
 # Endringslogg
 
+## 2026-08-23 — v5.21.4: Skyene rullet tilbake — jeg gjorde dem verre
+
+Eieren meldte at skyene i 3D så «kuttet» ut. Over tre runder ble det gjort åtte
+endringer i `skyDome.js` for å rette det: klipping av blob-radier, et høyere
+lerret, en alfa-vignett, `fog: false`, materiale pr sprite, `alphaTest`, større
+skyfelt og nær-kamera-demping. Resultatet var harde hvite firkanter — klart
+dårligere enn utgangspunktet. Alt er nå rullet tilbake til koden fra før
+v5.20.2. Den eneste tilføyelsen som står er `setVaer`, som værmodus trenger, og
+den rører bare synlighet, farge, opasitet og driftretning. Verifisert at
+`setVaer(null)` gir bit-identisk utgangstilstand: tre delte materialer,
+opasitet 0,85, `alphaTest: 0`, `fog: true`, tekstur 256 × 128.
+
+Grunnen til at det gikk galt er verdt å skrive ned, for den handler ikke om
+skyer. Artefakten finnes bare på eierens telefon — aldri på skrivebordet, aldri i
+CI. Hver runde var derfor et gjett, sendt ut for felttesting, og gjettene
+akkumulerte. Den ene runden som faktisk MÅLTE noe (tekstur-alfa langs alle
+kanter, rendret enkeltsprite på fire avstander, mipmap av/på) avkreftet tre
+hypoteser og fant en ekte regresjon jeg selv hadde innført — et lerret på 256 ×
+160, som ikke er en toerpotens — men fikset ikke det brukeren så.
+
+Regelen står nå i CLAUDE.md: en visuell feil som bare finnes på én enhet kan
+ikke rettes ved å endre kode og spørre om det ble bedre. Skal dette tas opp
+igjen, må det starte med en måling fra enheten — en WebGL-capability-dump
+(webgl1 vs webgl2, NPOT-håndtering, maks tekstur) og gjerne en `readPixels`-prøve
+— ikke med en ny kodeendring.
+
+`skyDome.test.js` er fjernet sammen med koden den vernet.
+
+---
+
 ## 2026-08-23 — v5.21.3: Skyene ble kuttet av en toerpotens jeg selv brøt
 
 v5.20.2 skulle rette at skyene ble klippet, og rettet en ekte feil — men innførte

@@ -257,14 +257,20 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   viser (`Viewer3D.vue`), to rigger (`cameraRigs.js` = følge, `freeRig.js` =
   fri). Kommer det en tredje inngang til 3D, skal den være en OPSJON på
   `create3dScene`, ikke en ny scene.
-- **Skyteksturens mål MÅ være toerpotenser (v5.21.3).** 256 × 128, håndhevet av
-  `skyDome.test.js`. v5.20.2 satte høyden til 160 for å gi blobbene luft, og på
-  WebGL1 — som en del Android-webviews fortsatt gir — resampler three.js
-  NPOT-teksturer og mip-genererer på resultatet, som kan smøre alfa ut til
-  kanten. Da males HELE sprite-quaden som et blekt rektangel i himmelen. Det er
-  ikke synlig på skrivebordet, bare på telefon, så testen er det eneste vernet.
-  Trenger blobbene mer plass, kom det fra radius-klippingen i `skyDotter` — ikke
-  fra et større lerret.
+- **SKYENE I 3D ER RULLET TILBAKE, OG SKAL IKKE «FIKSES» PÅ NYTT UTEN EN MÅLING
+  FRA ENHETEN (v5.21.4).** Eieren rapporterte at skyene så kuttet ut på telefonen.
+  Over tre runder (v5.20.2 → v5.21.3) ble det gjort åtte endringer i
+  `skyDome.js` for å rette det: radius-klipping, høyere lerret, alfa-vignett,
+  `fog: false`, materiale pr sprite, `alphaTest`, større felt, nær-kamera-demping.
+  Ingen av dem kunne verifiseres — artefakten finnes BARE på den telefonens GPU,
+  og aldri på skrivebordet eller i CI. Resultatet ble harde hvite firkanter,
+  altså klart dårligere enn utgangspunktet, og alt er nå rullet tilbake til
+  koden fra før v5.20.2 (pluss `setVaer`, som værmodus trenger).
+  **Regelen som følger av dette:** en visuell feil som bare finnes på én enhet
+  kan ikke rettes ved å endre kode og spørre om det ble bedre. Hver runde er et
+  gjett, og gjett akkumulerer. Tas det opp igjen, må det starte med en MÅLING fra
+  enheten — WebGL-capability-dump (webgl1 vs webgl2, NPOT-håndtering, maks
+  tekstur) og gjerne en `readPixels`-prøve — ikke med en ny kodeendring.
 - **Værhimmelen er en OPSJON, ikke et lag ved siden av (v5.21.1).** `setVaer(preg)`
   på `sceneCore` justerer skyene som alt finnes (antall synlige sprites, farge,
   vinddrift) og skrur på ett `Points`-objekt for nedbør. `setVaer(null)` skal gi

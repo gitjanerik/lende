@@ -155,88 +155,46 @@ export function buildNightSky({ radius = 25000, starCount = 160 } = {}) {
   }
 }
 
-// Lerretet skyflekkene tegnes på. Høyden var en gang halvparten av bredden,
-// og DET var feilen: blob-radiene måles mot BREDDEN, så en dott med r = 54 på
-// y = 47 rakk 7 px over kanten. `fillRect` klippet den, og det sto igjen ~10 %
-// alfa i øverste teksel-rad — som med ClampToEdge tegnes som en knivrett strek
-// tvers over toppen av billboardet. Det var de lyse firkantene i himmelen.
-// BEGGE MÅ VÆRE TOERPOTENSER. v5.20.2 satte høyden til 160 for å gi blobbene
-// luft, og det var en regresjon: 160 er ikke en toerpotens, og på WebGL1 — som
-// en del Android-webviews fortsatt gir — resampler three.js NPOT-teksturer til
-// toerpotens og genererer mipmaps på resultatet. Det kan smøre alfa ut til
-// kanten, og da males HELE sprite-quaden som et blekt rektangel i himmelen.
-// Luften blobbene trengte kommer fra radius-klippingen i skyDotter, ikke fra
-// et høyere lerret.
-export const SKY_TEX_W = 256
-export const SKY_TEX_H = 128
-// Alfa skal være null her. Marginen er ikke pynt: den er beviset på at
-// gradienten har fått gå helt ut, ikke blitt kuttet.
-export const SKY_TEX_MARGIN = 4
-// Grunn-opasiteten en sky har når ingenting demper den.
-const SKY_OPASITET = 0.85
-
-/**
- * Skydottene i én skyflekk-tekstur: sentre og radier som er GARANTERT innenfor
- * lerretet med margin. Skilt ut fra tegningen fordi det er her feilen kan
- * gjenoppstå, og fordi det da kan testes uten et canvas.
- *
- * Radien klippes mot avstanden til nærmeste kant i stedet for å måles mot
- * bredden aleine. En dott nær kanten blir dermed MINDRE — aldri kuttet.
- */
-export function skyDotter(seed, {
-  bredde = SKY_TEX_W, hoyde = SKY_TEX_H, margin = SKY_TEX_MARGIN,
-} = {}) {
-  const rnd = mulberry32(seed)
-  const antall = 6 + Math.floor(rnd() * 4)
-  const dotter = []
-  for (let i = 0; i < antall; i++) {
-    // Samme fordeling som før — utseendet skal ikke endres, bare kuttet bort.
-    const x = bredde * (0.2 + rnd() * 0.6)
-    const y = hoyde * (0.35 + rnd() * 0.3)
-    const ønsket = bredde * (0.1 + rnd() * 0.12)
-    const r = Math.min(
-      ønsket,
-      x - margin, bredde - x - margin,
-      y - margin, hoyde - y - margin,
-    )
-    if (r > 1) dotter.push({ x, y, r })
-  }
-  return dotter
-}
+// SKYENE ER RULLET TILBAKE TIL SLIK DE VAR FØR v5.20.2 (se v5.21.4).
+//
+// Mellom v5.20.2 og v5.21.3 ble det gjort fem endringer her for å rette at
+// skyene så «kuttet» ut på eierens telefon: klipping av blob-radier, et høyere
+// lerret, en alfa-vignett, fog: false, materiale pr sprite, alphaTest, større
+// felt og nær-kamera-demping. Ingen av dem kunne verifiseres — artefakten viser
+// seg BARE på den telefonens GPU, og aldri på skrivebordet eller i CI. Etter tre
+// runder var resultatet harde hvite firkanter, altså klart dårligere enn
+// utgangspunktet.
+//
+// Lærdommen, og grunnen til at denne kommentaren står her: en visuell feil som
+// bare finnes på ÉN enhet kan ikke rettes ved å endre kode og spørre om det ble
+// bedre. Hver runde er et gjett, og gjett akkumulerer. Skal dette tas opp igjen,
+// må det starte med en MÅLING fra den enheten — en WebGL-capability-dump
+// (webgl1 vs webgl2, maks tekstur, NPOT-håndtering) og gjerne en
+// readPixels-prøve — ikke med en ny kodeendring.
+//
+// Koden under er derfor den opprinnelige, ordrett, med ÉN tilføyelse: setVaer,
+// som værmodus (v5.21.1) trenger. Den rører bare synlighet, farge, opasitet og
+// driftretning — ingen av mekanismene over.
 
 // Myk skyflekk-tekstur: noen overlappende radielle gradienter på canvas.
 function cloudTexture(seed) {
+  const px = 256
   const canvas = document.createElement('canvas')
-  canvas.width = SKY_TEX_W
-  canvas.height = SKY_TEX_H
+  canvas.width = px
+  canvas.height = px / 2
   const ctx = canvas.getContext('2d')
-  for (const { x, y, r } of skyDotter(seed)) {
+  const rnd = mulberry32(seed)
+  const blobs = 6 + Math.floor(rnd() * 4)
+  for (let i = 0; i < blobs; i++) {
+    const x = px * (0.2 + rnd() * 0.6)
+    const y = (px / 2) * (0.35 + rnd() * 0.3)
+    const r = px * (0.1 + rnd() * 0.12)
     const g = ctx.createRadialGradient(x, y, 0, x, y, r)
     g.addColorStop(0, 'rgba(255,255,255,0.75)')
     g.addColorStop(1, 'rgba(255,255,255,0)')
     ctx.fillStyle = g
-    ctx.fillRect(0, 0, SKY_TEX_W, SKY_TEX_H)
+    ctx.fillRect(0, 0, px, px / 2)
   }
-  // Belte OG bukseseler: en elliptisk alfa-maske som tvinger alfa til 0 langs
-  // alle fire kanter. skyDotter() skal alt garantere det, men denne holder selv
-  // om noen seinere justerer fordelingen og bommer — og det er nettopp det som
-  // skjedde sist. Koster én composite-operasjon, én gang per tekstur.
-  const maske = ctx.createRadialGradient(
-    SKY_TEX_W / 2, SKY_TEX_H / 2, 0,
-    SKY_TEX_W / 2, SKY_TEX_H / 2, SKY_TEX_W / 2,
-  )
-  maske.addColorStop(0, 'rgba(255,255,255,1)')
-  maske.addColorStop(0.72, 'rgba(255,255,255,1)')
-  maske.addColorStop(1, 'rgba(255,255,255,0)')
-  ctx.globalCompositeOperation = 'destination-in'
-  ctx.save()
-  ctx.translate(SKY_TEX_W / 2, SKY_TEX_H / 2)
-  ctx.scale(1, SKY_TEX_H / SKY_TEX_W)
-  ctx.translate(-SKY_TEX_W / 2, -SKY_TEX_H / 2)
-  ctx.fillStyle = maske
-  ctx.fillRect(0, 0, SKY_TEX_W, SKY_TEX_H)
-  ctx.restore()
-  ctx.globalCompositeOperation = 'source-over'
   const tex = new CanvasTexture(canvas)
   tex.colorSpace = SRGBColorSpace
   return tex
@@ -253,75 +211,37 @@ function mulberry32(a) {
 
 /**
  * Drivende skyer over kartet. Billboards med prosedural tekstur — ingen
- * eksterne assets, ~14 sprites, umerkelig på GPU-budsjettet.
- *
- * `driftX`/`driftZ` er en retning (normaliseres her), så vindretning fra et
- * ekte værvarsel kan sendes rett inn. Feltet resirkulerer langs BEGGE akser,
- * ikke bare +X: så snart driften har en Z-komponent, ville en X-bare-wrap
- * tømme feltet nordover og etterlate en tom himmel på den ene sida.
+ * eksterne assets, ~10 sprites, umerkelig på GPU-budsjettet.
  */
-export function buildClouds({
-  widthM, heightM, baseY = 1200, count = 14,
-  driftX = 1, driftZ = 0,
-} = {}) {
+export function buildClouds({ widthM, heightM, baseY = 1200, count = 10 } = {}) {
   const group = new Group()
   const rnd = mulberry32(42)
-  // Feltet var 1,6 × arket. Åpningsposen i freeRig legger kameraet ca.
-  // 0,63 × span meter opp og utenfor den halvbredda, så spredningen av
-  // billboards SLUTTET midt i bildet når man så ovenfra-og-ned — enda en grunn
-  // til at himmelen så avkuttet ut. 2,6 × dekker den utsikten.
-  const spanX = widthM * 2.6
-  const spanZ = heightM * 2.6
+  const spanX = widthM * 1.6
+  const spanZ = heightM * 1.6
   const textures = [cloudTexture(7), cloudTexture(13), cloudTexture(29)]
-  // Ett materiale PER sprite (ikke tre delte): opasiteten dempes individuelt
-  // etter avstand til kameraet, se update(). Fjorten materialer mot tre er
-  // ingenting her, og tre teksturer deles fortsatt.
-  const materials = []
+  const materials = textures.map(t => new SpriteMaterial({
+    map: t, transparent: true, opacity: 0.85, depthWrite: false,
+  }))
   const sprites = []
-  // Sprite-høyden følger TEKSTURENS sideforhold. Faktoren 0,7 er valgt så
-  // uttrykket gir 0,35 ved det gamle 2:1-lerretet — skyene skal se like ut som
-  // før, bare uten kuttet. Uten denne koblingen strekker et nytt lerret skyene.
-  const aspekt = (SKY_TEX_H / SKY_TEX_W) * 0.7
   for (let i = 0; i < count; i++) {
-    const material = new SpriteMaterial({
-      map: textures[i % textures.length],
-      transparent: true,
-      opacity: SKY_OPASITET,
-      depthWrite: false,
-      // Tåka må ikke røre skyene — samme feil som ble rettet for stjernene og
-      // månen i v5.3.0 (se begrunnelsen over buildNightSky), men fiksen ble
-      // aldri gitt til skyene. makeFog setter far til maxDim × 2,6, og skyene
-      // ligger ut til 1,3 × widthM: de fjerneste ble malt i flat FOG_COLOR
-      // (#cfe0ee) mot en #3d7ec9 senit. En blek, flat flekk — som i seg selv
-      // leses som en avkuttet form.
-      fog: false,
-      // Kast bort nesten-gjennomsiktige piksler framfor å blande dem inn.
-      // Dette er ikke finpuss: symptomet brukeren så var at hele quaden lå der
-      // som et blekt rektangel, altså en LAV, JEVN alfa over hele flaten. Den
-      // kan komme av mip-gjennomsnitt, driver-resampling eller presisjon — vi
-      // kan ikke vite hvilken på en telefon vi ikke har. alphaTest treffer
-      // klassen framfor årsaken. 2 % er godt under skyenes egen kant (som går
-      // 0 → 75 % over titalls piksler), så formen er uendret.
-      alphaTest: 0.02,
-    })
-    materials.push(material)
-    const sprite = new Sprite(material)
+    const sprite = new Sprite(materials[i % materials.length])
     const w = 1200 + rnd() * 2200
-    sprite.scale.set(w, w * aspekt, 1)
+    sprite.scale.set(w, w * 0.35, 1)
     sprite.position.set(
       (rnd() - 0.5) * spanX,
       baseY + rnd() * 700,
       (rnd() - 0.5) * spanZ,
     )
     sprite.userData.driftM = 8 + rnd() * 14
-    sprite.userData.basisOpasitet = SKY_OPASITET
     group.add(sprite)
     sprites.push(sprite)
   }
 
-  const lengde = Math.hypot(driftX, driftZ) || 1
-  let retningX = driftX / lengde
-  let retningZ = driftZ / lengde
+  // Værmodus. Materialene er DELTE (tre stykker, som i originalen), så farge og
+  // opasitet settes pr materiale og ikke pr sprite — det er godt nok: et værpreg
+  // gjelder hele himmelen.
+  let retningX = 1
+  let retningZ = 0
   let fart = 1
 
   return {
@@ -329,56 +249,33 @@ export function buildClouds({
     materials,
     textures,
     /**
-     * Legg et værpreg på skyene (se lib/tour3d/vaerHimmel.js). Endrer HVOR MANGE
-     * sprites som er synlige, hvor mørke og tette de er, og hvilken vei de
-     * drifter. Ingen geometri bygges om — bare synlighet, farge og retning, så
-     * dette er trygt å kalle hver gang varselet endrer seg.
-     *
-     * `null` setter alt tilbake til standard-himmelen: værmodus av skal se
-     * nøyaktig ut som før værmodus fantes.
+     * Legg et værpreg på skyene (lib/tour3d/vaerHimmel.js): hvor mange som er
+     * synlige, hvor mørke og tette de er, og hvilken vei de drifter.
+     * `null` gir standard-himmelen tilbake, uendret.
      */
     setVaer(preg) {
-      const p = preg ?? { antall: sprites.length, opasitet: SKY_OPASITET, gratone: 1, driftX: 1, driftZ: 0, driftFart: 1 }
-      const synlige = Math.max(1, Math.min(sprites.length, Math.round(p.antall ?? sprites.length)))
-      for (let i = 0; i < sprites.length; i++) {
-        const s = sprites[i]
-        s.visible = i < synlige
-        s.userData.basisOpasitet = p.opasitet ?? SKY_OPASITET
-        s.material.opacity = s.userData.basisOpasitet
-        // Gråtonen males på materialets `color`, som three multipliserer med
-        // teksturen. Teksturen er hvit, så dette er den billigste veien til en
-        // regntung sky — ingen ny tekstur, ingen ny draw call.
-        const g = p.gratone ?? 1
-        s.material.color.setRGB(g, g, g)
+      const synlige = preg
+        ? Math.max(1, Math.min(sprites.length, Math.round(preg.antall ?? sprites.length)))
+        : sprites.length
+      for (let i = 0; i < sprites.length; i++) sprites[i].visible = i < synlige
+      const g = preg?.gratone ?? 1
+      for (const m of materials) {
+        m.opacity = preg?.opasitet ?? 0.85
+        m.color.setRGB(g, g, g)
       }
-      const l = Math.hypot(p.driftX ?? 1, p.driftZ ?? 0) || 1
-      retningX = (p.driftX ?? 1) / l
-      retningZ = (p.driftZ ?? 0) / l
-      fart = p.driftFart ?? 1
+      const l = Math.hypot(preg?.driftX ?? 1, preg?.driftZ ?? 0) || 1
+      retningX = (preg?.driftX ?? 1) / l
+      retningZ = (preg?.driftZ ?? 0) / l
+      fart = preg?.driftFart ?? 1
     },
-    /**
-     * @param {number} dt sekunder siden forrige frame
-     * @param {import('three').Camera} [camera] brukes til nær-demping
-     */
-    update(dt, camera) {
+    update(dt) {
       for (const s of sprites) {
-        if (!s.visible) continue
         s.position.x += retningX * s.userData.driftM * fart * dt
         s.position.z += retningZ * s.userData.driftM * fart * dt
         if (s.position.x > spanX / 2) s.position.x -= spanX
         else if (s.position.x < -spanX / 2) s.position.x += spanX
         if (s.position.z > spanZ / 2) s.position.z -= spanZ
         else if (s.position.z < -spanZ / 2) s.position.z += spanZ
-        // Flyr man gjennom en sky i fri-riggen, dekker ett billboard hele
-        // skjermen i et hvitt vask og kartet under er borte. Dempingen er
-        // derfor lesbarhet, ikke effekt: skyen tones ut idet den kommer
-        // nærmere enn sin egen bredde.
-        if (camera) {
-          const naer = s.scale.x
-          const d = s.position.distanceTo(camera.position)
-          const faktor = d >= naer ? 1 : Math.max(0, d / naer)
-          s.material.opacity = s.userData.basisOpasitet * faktor
-        }
       }
     },
     dispose() {
