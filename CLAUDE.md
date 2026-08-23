@@ -56,6 +56,9 @@ npm run frie -- <fil>  # Refererer en fersk composable noe den ikke har fått in
 npm run vedlikehold    # Sårbarheter + utdaterte pakker i alle fire katalogene
 npm run boot:workers   # Starter Cloudflare-Workerne i workerd. Rører du src/lib
                        # eller mcp/headless.js, kjør denne — se «Workerne» under.
+npm run mcp:protokoll  # Kjører MCP-protokollen mot lende-mcp i workerd:
+                       # initialize → tools/list → tools/call. Rører du et
+                       # verktøys skjema eller MCP-SDK-en, kjør denne.
 ```
 
 ## Arkitektur (oversikt)
@@ -371,6 +374,22 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   (`.github/workflows/worker-boot.yml`), som faktisk starter dem — verken
   `npm run build`, `wrangler deploy --dry-run` eller `wrangler check startup`
   fanger det (den siste returnerer 0 selv når Workeren kaster).
+- **`boot:workers` er IKKE nok for MCP-verktøyene (v5.22.3).** Den spør
+  `/health`. Verktøyenes zod-skjemaer serialiseres først i `tools/list` og brukes
+  til validering først i `tools/call`, så Workeren kan starte helt fint og likevel
+  levere verktøy ingen klient kan bruke. `npm run mcp:protokoll` kjører den stien
+  i workerd og går i samme jobb som boot. Rører du et verktøys skjema, MCP-SDK-en
+  eller `agents`, er det den gaten som svarer. Den er verifisert i BEGGE
+  retninger — grønn på riktig kode, rød på en ødelagt handler-import — for en
+  sjekk som ikke kan feile er verre enn ingen sjekk.
+- **`agents`-handleren: vi kaller `createLegacyMcpHandler`, ikke
+  `createMcpHandler` (v5.22.3).** Fra agents 0.21 er sistnevnte overlastet: en
+  SDK v1-server gir den sessionful legacy-stien (deprecated), en SDK v2-fabrikk
+  gir den stateless. Vi bruker v1-serveren, så vi navngir stien framfor å la
+  overlast-oppløsningen bestemme. Merk at «tilstandsfri» i våre kommentarer
+  handler om at kart-tilstanden bor i R2, ikke om transporten. Skal noen gå til
+  SDK v2-fabrikken: det rører hvordan hvert enkelt verktøy registreres, ikke bare
+  kallstedet — og `mcp:protokoll` er gaten som vil si om det gikk bra.
 
 ## Fasit-suiten — kart-pipelinen mot ekte data
 

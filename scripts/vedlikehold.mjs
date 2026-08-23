@@ -107,8 +107,18 @@ async function sePåKatalog(k) {
     if (!o.ok) ut.outdatedFeil = o.feil
     else {
       for (const [navn, v] of Object.entries(o.data ?? {})) {
-        const nå = v.current ?? '?'
         const siste = v.latest ?? '?'
+        // `current` er UNDEFINED når pakka ikke er installert i den katalogen —
+        // og i CI er den ikke det for Workerne, som bare får `npm install` i sin
+        // egen jobb. Uten denne grenen ble «? → 1.30.0» lest som et
+        // major-sprang, og CI-loggen for #300 meldte tre major der det var to.
+        // Vi kan ikke si noe om spranget uten å vite hvor vi står; da sier vi
+        // det, framfor å gjette.
+        if (v.current == null) {
+          ut.utdaterte.push({ navn, nå: 'ikke installert', ønsket: v.wanted ?? '?', siste, ukjent: true })
+          continue
+        }
+        const nå = v.current
         // Noen pakker har en `latest`-tag som peker BAKOVER (geotiff sto på
         // 3.0.17 mens latest var 3.0.5). Å rapportere det som «utdatert» ville
         // sendt neste økt på leting etter en oppgradering som ikke finnes.
@@ -178,9 +188,10 @@ function skrivTekst(rader) {
     if (r.outdatedFeil) console.log(`   ⚠ outdated feilet: ${r.outdatedFeil}`)
     else if (!r.utdaterte.length) console.log('   ✓ alt på siste versjon')
     else {
-      const major = r.utdaterte.filter((u) => u.major && !u.bakover)
-      const små = r.utdaterte.filter((u) => !u.major && !u.bakover)
-      const bakover = r.utdaterte.filter((u) => u.bakover)
+      const ukjent = r.utdaterte.filter((u) => u.ukjent)
+      const major = r.utdaterte.filter((u) => u.major && !u.bakover && !u.ukjent)
+      const små = r.utdaterte.filter((u) => !u.major && !u.bakover && !u.ukjent)
+      const bakover = r.utdaterte.filter((u) => u.bakover && !u.ukjent)
       if (major.length) {
         console.log(`   major tilgjengelig (${major.length}) — hver sin PR:`)
         for (const u of major) console.log(`     ${u.navn.padEnd(34)} ${u.nå} → ${u.siste}`)
@@ -192,6 +203,10 @@ function skrivTekst(rader) {
       if (bakover.length) {
         console.log(`   registerets «latest» peker BAKOVER (${bakover.length}) — ikke utdatert:`)
         for (const u of bakover) console.log(`     ${u.navn.padEnd(34)} ${u.nå} (latest-tag: ${u.siste})`)
+      }
+      if (ukjent.length) {
+        console.log(`   ikke installert her (${ukjent.length}) — spranget kan ikke bedømmes:`)
+        for (const u of ukjent) console.log(`     ${u.navn.padEnd(34)} range ${u.ønsket} · siste ${u.siste}`)
       }
     }
   }
