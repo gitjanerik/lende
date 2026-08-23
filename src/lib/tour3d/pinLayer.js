@@ -61,7 +61,8 @@ export function createPinLayer({ scene, dem, coords, project, maxVisible = MAX_V
 
   const activeIndices = () => items
     .map((f, i) => ({ f, i }))
-    .filter(({ f }) => !enabledGroups || enabledGroups.has(groupOfKind(f.kind)))
+    .filter(({ f, i }) => !field?.isUgyldig(i)
+      && (!enabledGroups || enabledGroups.has(groupOfKind(f.kind))))
 
   // Skjermrom-filtrering: samme declutter som 2D-kartets navnebudsjett bruker.
   // Den er hysterese-stabil, så nåler slutter å blinke når kameraet beveger seg.
@@ -126,6 +127,19 @@ export function createPinLayer({ scene, dem, coords, project, maxVisible = MAX_V
         )
         group.add(field.stems)
         group.add(field.heads)
+        // Én POI med ubrukelig posisjon skal ikke ødelegge bildet for alle de
+        // andre — den parkeres av pinField. Men den skal SIES fra om: en nål som
+        // stille forsvinner er en POI brukeren ikke får trykke på, og navnet er
+        // det eneste sporet tilbake til kilden som leverte den.
+        if (field.invalidIndices.size) {
+          const navn = [...field.invalidIndices]
+            .slice(0, 5)
+            .map(i => `${items[i]?.kind ?? '?'}:${items[i]?.name ?? '?'}`)
+          console.warn(
+            `[3D] ${field.invalidIndices.size} nål(er) hadde ubrukelig posisjon `
+            + `og er utelatt: ${navn.join(', ')}`,
+          )
+        }
       }
       prevShown = new Set()
       group.visible = visible

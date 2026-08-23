@@ -97,9 +97,12 @@ export function buildGpsMarker(dem, coords) {
         r.mesh.scale.set(s, s, 1)
         r.mat.opacity = 0.5 * (1 - t)
       }
-      pinHolder.scale.setScalar(pinScaleForCamera(
+      const pinS = pinScaleForCamera(
         camera.position, group.position.x, group.position.y, group.position.z,
-      ))
+      )
+      // Av framfor skala 0 — se waypointMarkers.update for hvorfor.
+      pinHolder.visible = pinS > 0
+      if (pinS > 0) pinHolder.scale.setScalar(pinS)
     },
     dispose() {
       stemGeo.dispose()
