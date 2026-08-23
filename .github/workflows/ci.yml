@@ -19,3 +19,19 @@ jobs:
       - run: npm ci
       - run: npm run test
       - run: npm run build
+
+      # Avhengighets-status. RAPPORTERER, feiler ikke — samme prinsipp som
+      # tredjeparts-røyktestene i deploy-proxy.yml. En PR om skyene skal ikke
+      # blokkeres av at wrangler fikk en rådgivning i natt, og en gate som
+      # feiler på ting utenfor PR-ens kontroll blir skrudd av innen en måned.
+      # Les den i loggen; `npm run vedlikehold` lokalt gir samme tabell.
+      - name: Avhengighets-status (rapporterer, feiler ikke)
+        continue-on-error: true
+        run: npm run vedlikehold
+
+      # Denne feiler DERIMOT: en sårbarhet med høy alvorsgrad i en
+      # RUNTIME-avhengighet er kode vi sender til nettleseren. --omit=dev
+      # er hele poenget — uten den er dette wrangler-støy, med den er det
+      # bunten brukerne laster ned.
+      - name: Ingen høye funn i det vi sender til nettleseren
+        run: npm audit --omit=dev --audit-level=high

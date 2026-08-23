@@ -1,3 +1,22 @@
+## 2026-08-23 — v5.22.2: Vedlikehold av avhengigheter, satt i system
+
+Ingen funksjonsendring. Prosjektet hadde tolv workflows og ingen av dem så på
+avhengigheter: ingen Dependabot, ingen Renovate, ingen `npm audit`. Nå finnes
+`npm run vedlikehold`, som kjører audit + outdated i alle fire katalogene og
+sorterer funnene etter FLATE framfor alvorsgrad — nettleser-bunten først, så det
+som er deployet, så dev-bare. Det skillet er poenget: et `npm audit` fra rota
+svarer på et annet spørsmål enn man tror, for de tre Workerne har hver sin
+`package.json` og kan ha andre versjoner av samme pakke. Dependabot kjører
+ukentlig over de fire katalogene pluss GitHub Actions, med patch/minor gruppert
+og major alene. CI fikk to steg: rapporten, som aldri feiler, og
+`npm audit --omit=dev --audit-level=high`, som feiler — det er kode vi sender til
+nettleseren. Underveis ble alle sju sårbarhetsfunnene i rot-treet lukket
+lockfile-alene (dompurify, postcss, nanoid, hono, fast-uri, ip-address,
+@hono/node-server), og en ubrukt `ai`-avhengighet fjernet fra MCP-Workeren. De to
+som står igjen krever `agents` 0.21, et API-brudd som får sin egen PR.
+
+---
+
 ## 2026-08-23 — v5.22.1: Lyn inne i skya, skygger på bakken, og vind man ser
 
 Fem etterslep fra værhimmelen, og ett av dem var en ren feil. Vinden var

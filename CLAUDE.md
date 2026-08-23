@@ -53,6 +53,7 @@ npm run fasit      # Fasit: seks ekte kart mot invarianter (krever nett, ~1 min)
 npm run royk       # Røyktest: monterer MapView i Chromium og trykker på domenene
 npm run navnediff  # Hva forsvant ut av MapView i denne endringen — og hvem overtok
 npm run frie -- <fil>  # Refererer en fersk composable noe den ikke har fått inn?
+npm run vedlikehold    # Sårbarheter + utdaterte pakker i alle fire katalogene
 npm run boot:workers   # Starter Cloudflare-Workerne i workerd. Rører du src/lib
                        # eller mcp/headless.js, kjør denne — se «Workerne» under.
 ```
@@ -413,6 +414,41 @@ et lag mellom trinn krever kode-endring + nybygd kart.
 - WFS-kilder (Sjøkart/N50) leverer ikke alltid i nettleser (CORS) — graceful
   fallback finnes; CI har full nettverkstilgang.
 - Diagnose-modus i drawer («Visning») farger polygoner etter kilde.
+
+## Avhengigheter og vedlikehold
+
+**`npm run vedlikehold` er inngangen.** Den kjører `npm audit` + `npm outdated` i
+alle fire katalogene og sorterer etter FLATE, ikke alvorsgrad: nettleser-bunten
+først, så det som er deployet, så dev-bare. Grunnen er at et `npm audit` fra rota
+svarer på et annet spørsmål enn du tror — rot-treet er appen og verktøykjeden,
+mens de tre Workerne har hver sin `package.json` som deployes for seg og kan ha
+andre versjoner av samme pakke. I august 2026 sto `@modelcontextprotocol/sdk` på
+1.29 i rot (dev-bare, uten betydning) og på 1.23 nestet inne i `agents` i den
+DEPLOYEDE MCP-Workeren. En «high» i wrangler er dev-bare; en «moderate» i noe
+brukerne laster ned er ikke.
+
+**Dependabot** (`.github/dependabot.yml`) kjører ukentlig over de fire
+katalogene + GitHub Actions. Patch og minor er GRUPPERT til én PR per katalog;
+major står alene, fordi det er de som trenger en ekte gjennomgang. Merk semver-
+fella for `0.x`-pakker: der er MINOR-feltet det brytende. `agents` 0.2 → 0.21 er
+et API-brudd, og `vedlikehold.mjs` har en egen `erBrytende()` nettopp fordi en
+naiv major-sammenlikning leste begge som «0» og la det i samle-PR-en med fontene.
+
+**CI har to steg, og de er ulike med vilje:**
+`npm run vedlikehold` rapporterer og feiler ALDRI — samme prinsipp som
+tredjeparts-røyktestene i `deploy-proxy.yml`; en PR om skyene skal ikke blokkeres
+av at wrangler fikk en rådgivning i natt, og en gate som feiler på ting utenfor
+PR-ens kontroll blir skrudd av innen en måned. `npm audit --omit=dev
+--audit-level=high` feiler DERIMOT: det er kode vi sender til nettleseren.
+`--omit=dev` er hele skillet — merk at det slipper gjennom `postcss`/`nanoid`,
+som npm regner som runtime via `@vue/compiler-sfc` selv om de bare kjører i
+bygget.
+
+**`npm audit fix` uten `--force` er trygt i rot-treet, men les diffen i Workerne.**
+Der foreslo den `miniflare` 5.x-**alpha** og fjerning av
+`@cloudflare/workers-types` for å lukke to dev-bare funn. Sjekk hva som faktisk
+flyttet seg før du commiter — og kjør `npm run boot:workers`, som er den eneste
+gaten som faktisk starter dem.
 
 ## Deploy
 

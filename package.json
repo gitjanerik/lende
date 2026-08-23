@@ -1,7 +1,7 @@
 {
   "name": "lende",
   "private": true,
-  "version": "5.22.1",
+  "version": "5.22.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,6 +12,7 @@
     "boot:workers": "node scripts/worker-boot.mjs",
     "navnediff": "node scripts/navnediff.mjs",
     "frie": "node scripts/frie-variabler.mjs",
+    "vedlikehold": "node scripts/vedlikehold.mjs",
     "build:redlist": "node scripts/build-redlist.js",
     "build:vaerikoner": "node scripts/build-vaerikoner.js",
     "fasit": "node scripts/fasit-kart.js",
