@@ -205,7 +205,12 @@ export function buildWaypointMarkers({ route, via = [], isLoop = false, parkingS
     // de er de mest utsatte for å svelge bildet når kameraet passerer dem.
     update(camera) {
       for (const p of pins) {
-        p.scale.setScalar(pinScaleForCamera(camera.position, p.position.x, p.position.y, p.position.z))
+        const s = pinScaleForCamera(camera.position, p.position.x, p.position.y, p.position.z)
+        // Skala 0 (kameraet står oppå nåla) skrus AV i stedet for å skaleres bort:
+        // en nullmatrise er singulær, og det er nettopp den mobil-GPU-en tegnet
+        // som vilkårlige kiler i v5.22.9.
+        p.visible = s > 0
+        if (s > 0) p.scale.setScalar(s)
       }
     },
     dispose() {

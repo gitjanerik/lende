@@ -1,3 +1,45 @@
+## 2026-08-23 — v5.22.9: Parkerte nåler er ikke lenger nullflater
+
+Oppfølging til v5.22.8. Vinkel-taket fjernet de heldekkende flatene, men det kom
+nye skjermbilder fra felt: knivtynne, flimrende kiler med spissen langt oppe i
+himmelen og kilden bortenfor horisonten — fortsatt i nålefargene (målt `#7f8c8d`,
+altså `FREDET_KAT_COLOR.annet`), og fortsatt borte når nålene skrus av.
+
+Endret karakter, samme kilde. Skjulte nåler ble parkert ved å sette skala 0 og la
+dem stå på plassen sin, og det er en SINGULÆR matrise: alle 260 verteksene i kula
+faller sammen i ett punkt. Declutteren slipper gjennom 120 nåler, så på et kart
+med 272 POI-er skrev hver frame over 150 slike nullflater inn i instans-bufferet.
+Desktop-GPU-er og SwiftShader forkaster dem stille — en mobil-GPU tegnet dem som
+vilkårlige kiler. Det forklarer også et spor som ikke stemte tidligere: fargen på
+båndet tilhørte flere ganger en nåletype man ikke så noe annet sted i bildet,
+altså nettopp en PARKERT nål. Og det forklarer hvorfor v5.22.8 endret uttrykket
+uten å fjerne det: taket gir skala 0 når kameraet står oppå en nål, så nære hoder
+gikk fra å være heldekkende flater til å bli parkerte nullflater.
+
+Parkerte nåler flyttes nå 200 km rett ned (`PARK_Y`) i full størrelse. Det er en
+helt vanlig kule med en gyldig matrise, som havner utenfor far-planet på 60 km og
+klippes bort etter spec. Indeksene står stille, som før — de brukes både av
+raycast og av `instanceColor`. De to nålene som ikke er instansert (start/mål/via
+og GPS-nåla) skrus av med `visible = false` i stedet, som er den riktige måten for
+et vanlig Object3D.
+
+I samme runde: nåler uten troverdig bakkepunkt parkeres og utelates helt, med en
+`console.warn` som navngir dem. To kilder er realistiske — POI-lag som projiseres
+med `wgs84ToSvg` (én WFS-post med byttet akserekkefølge er nok), og DEM-en, der en
+fyllverdi som IKKE er lik `noData` (f.eks. 3,4e38) blir Infinity i det øyeblikket
+den lagres i `bases`, som er en Float32Array. Kulturminne-dataene for både Drammen
+og Vardåsen er sjekket og er rene (439 og 344 poster, ingen NaN, ingen byttede
+akser), så dette er en gate og ikke en observert feil — men den koster ingenting,
+og alternativet er at ÉN dårlig rad ødelegger bildet for alle de andre.
+
+Merk hva som ikke kan verifiseres herfra: en Infinity-instans skrevet rett inn i
+bufferet ga null utslag i SwiftShader, akkurat som forventet. Denne feilklassen
+finnes bare på tile-baserte mobil-GPU-er, så testene håndhever INNDATA — at ingen
+matrise noen gang er singulær eller ikke-endelig, uansett kameraposisjon og
+declutter-tilstand — ikke bildet.
+
+---
+
 ## 2026-08-23 — v5.22.8: Nålehodet som svelget hele skjermen
 
 Rapportert fra felt: 3D-visningen viste flimrende, heldekkende bånd i rødt,
