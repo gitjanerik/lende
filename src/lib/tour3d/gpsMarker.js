@@ -16,7 +16,7 @@ import {
   Group, DoubleSide,
 } from 'three'
 import { sampleElevation } from '../demSampling.js'
-import { pinScaleAt, PIN_STEM_H, PIN_STEM_R, PIN_HEAD_R } from './pinField.js'
+import { pinScaleForCamera, PIN_STEM_H, PIN_STEM_R, PIN_HEAD_R } from './pinField.js'
 
 const DOT_COLOR = 0x0ea5e9    // 2D-prikkens fyllfarge
 const RING_COLOR = 0x38bdf8   // 2D-ringens sky-400
@@ -97,7 +97,9 @@ export function buildGpsMarker(dem, coords) {
         r.mesh.scale.set(s, s, 1)
         r.mat.opacity = 0.5 * (1 - t)
       }
-      pinHolder.scale.setScalar(pinScaleAt(camera.position.distanceTo(group.position)))
+      pinHolder.scale.setScalar(pinScaleForCamera(
+        camera.position, group.position.x, group.position.y, group.position.z,
+      ))
     },
     dispose() {
       stemGeo.dispose()

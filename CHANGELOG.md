@@ -1,3 +1,44 @@
+## 2026-08-23 — v5.22.8: Nålehodet som svelget hele skjermen
+
+Rapportert fra felt: 3D-visningen viste flimrende, heldekkende bånd i rødt,
+blått, lilla og grått som skiftet flere ganger i sekundet. Fargene var nøkkelen —
+målt i skjermbildene var de eksakt `#8e44ad`, `#7f8c8d` og `#1d4ed8`, altså
+`FREDET_KAT_COLOR.automatisk`, `.annet` og `POI_KIND_COLOR.nve` fra
+`poiColors.js`. Ingen annet objekt i 3D-scenen har de fargene: en dump av hele
+scenegrafen (37 objekter) fant dem bare i knappenålenes `instanceColor`. Og
+båndene var ugjennomsiktige, helt flate og rette i kanten — altså ÉN primitiv
+blåst opp i skjermrommet, ikke blending eller z-fighting.
+
+Feilen: skalaen ble regnet fra nålas BAKKEPUNKT, men hodet sitter 60 m OVER det.
+Flyr man i nålehøyde er foten 60 m unna — «hold naturlig størrelse, skala 1,
+hode-radius 9 m» — mens hodet kan ligge én meter foran linsa. Da dekker det ene
+hodet hele bildet i sin egen flate farge, og idet kameraet krysser kuleflata
+forsvinner det helt (baksideflatene klippes bort). Det er flimringen: én nål av
+og på i frame-tempo. Reprodusert i Chromium mot Vardåsen med ekte DEM — ett hode
+fylte 100 % av bildet på 10 m avstand.
+
+`pinScaleForCamera` erstatter `pinScaleAt` på alle fire kallstedene (nålefeltet,
+declutter-boksen i pinLayer, start/mål/via-nålene og GPS-nåla) og legger et tak
+på hodets VINKELSTØRRELSE, målt fra hodet og ikke foten. Taket må løses og ikke
+gjettes: hodet står `HODE_LOFT·s` over bakken, så avstanden til hodet er en
+funksjon av skalaen man leter etter, og ett gjett bommer med opptil 25 % fordi et
+lavere hode kommer NÆRMERE et kamera som står under det. Andregradsligningen står
+utledet i koden. Over ~75 m binder taket ikke i det hele tatt, så nålene ser ut
+akkurat som før på all normal avstand; nærmere holder hodet konstant vinkel og
+krymper i stedet for å vokse.
+
+Merk at «etter dependabot-oppdateringene» var et rødt spor: `git diff
+6d44bd4..HEAD -- src/ public/` viser at ingen 3D-kode er endret siden v5.22.3, og
+`three` har stått på `^0.185.1` siden v5.8.0. Feilen har ligget der siden nålene
+fikk avstandsoverdrivelse — den krever bare at kameraet kommer nær nok, og det
+gjør frikameraet.
+
+Testen som ville tatt den: `pinField.test.js` går nå over et rutenett av
+kameraposisjoner (0–400 m i høyde og vannrett avstand) og krever at hodet aldri
+dekker mer enn taket. Den gamle «nær kamera»-testen sto tilfeldigvis OPPÅ nåla,
+der taket nå binder, og er flyttet ut til 600 m.
+
+---
 ## 2026-08-23 — v5.22.7: vue-router 5
 
 Major-oppgraderingen fra 4.6.4. API-flata vi bruker er liten og konvensjonell —

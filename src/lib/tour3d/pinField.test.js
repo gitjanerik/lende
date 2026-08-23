@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { Color, Vector3 } from 'three'
 import { makeCoords } from './coords.js'
-import { buildPinField, pinScaleAt, drapedWorld, PIN_STEM_H } from './pinField.js'
+import {
+  buildPinField, pinScaleAt, pinScaleForCamera, drapedWorld, PIN_STEM_H, PIN_HEAD_R,
+} from './pinField.js'
 
 const makeDem = (cols, rows, fill = 100, res = 10) => ({
   data: new Float32Array(cols * rows).fill(fill),
@@ -26,6 +28,60 @@ describe('pinScaleAt', () => {
 
   it('taket er 5× — nåler blir aldri absurd store', () => {
     expect(pinScaleAt(100000)).toBe(5)
+  })
+})
+
+describe('pinScaleForCamera', () => {
+  // Bakkepunkt i origo; hodet står PIN_STEM_H + 0,6·PIN_HEAD_R over det.
+  const hodeHoyde = (s) => (PIN_STEM_H + PIN_HEAD_R * 0.6) * s
+  // Hvor stor del av synsfeltet hodet dekker: radius delt på avstanden TIL HODET.
+  const hodeAndel = (camY, camZ) => {
+    const s = pinScaleForCamera({ x: 0, y: camY, z: camZ }, 0, 0, 0)
+    const dHode = Math.hypot(camZ, camY - hodeHoyde(s))
+    return (PIN_HEAD_R * s) / dHode
+  }
+
+  it('rører ikke nåler på normal avstand', () => {
+    for (const d of [200, 600, 1200, 2400, 6000, 20000]) {
+      expect(pinScaleForCamera({ x: 0, y: 0, z: d }, 0, 0, 0)).toBeCloseTo(pinScaleAt(d))
+    }
+  })
+
+  it('lar aldri ETT hode svelge bildet — uansett hvor kameraet står', () => {
+    // Dette er regresjonen fra v5.22.8: skalaen ble regnet fra FOTEN, så et
+    // kamera i nålehøyde («foten er 60 m unna, hold full størrelse») kunne ha
+    // hodet én meter fra linsa. Ett hode fylte da 100 % av bildet i sin egen
+    // flate farge, og forsvant helt idet kameraet krysset kuleflata — flimrende
+    // heldekkende bånd i nålefargen.
+    for (let camY = 0; camY <= 400; camY += 7) {
+      for (let camZ = 0; camZ <= 400; camZ += 7) {
+        if (camY === 0 && camZ === 0) continue
+        expect(hodeAndel(camY, camZ)).toBeLessThanOrEqual(0.1201)
+      }
+    }
+  })
+
+  it('krymper nåla unna når kameraet står der hodet ville stått', () => {
+    // Ikke skala 0: hodet trekkes NED langs stammen til det klarer kameraet.
+    const s = pinScaleForCamera({ x: 0, y: hodeHoyde(1), z: 0 }, 0, 0, 0)
+    expect(s).toBeLessThan(0.5)
+    expect(hodeAndel(hodeHoyde(1), 0)).toBeCloseTo(0.12, 3)
+  })
+
+  it('gir skala 0 bare når kameraet står oppå bakkepunktet', () => {
+    expect(pinScaleForCamera({ x: 0, y: 0, z: 0 }, 0, 0, 0)).toBe(0)
+  })
+
+  it('krymper jevnt inn mot nåla, uten sprang', () => {
+    let forrige = 0
+    for (const dz of [10, 20, 40, 60, 75, 90, 150]) {
+      const s = pinScaleForCamera({ x: 0, y: hodeHoyde(1), z: dz }, 0, 0, 0)
+      expect(s).toBeGreaterThanOrEqual(forrige)   // monoton oppover med avstanden
+      expect(s).toBeLessThanOrEqual(1)
+      forrige = s
+    }
+    // Fra ~75 m og ut er taket ute av bildet igjen.
+    expect(pinScaleForCamera({ x: 0, y: hodeHoyde(1), z: 150 }, 0, 0, 0)).toBe(1)
   })
 })
 
@@ -81,7 +137,8 @@ describe('buildPinField', () => {
 
   it('skalerer opp nåler langt fra kameraet', () => {
     const field = buildPinField([{ x: 50, y: 50, color: '#fff' }], dem, coords)
-    const nær = fakeCamera(0, 100, 0)
+    // 600 m: naturlig størrelse, og godt utenfor vinkel-taket på hodet.
+    const nær = fakeCamera(0, 100, 600)
     const fjern = fakeCamera(0, 100, 6000)
 
     field.update(nær)
