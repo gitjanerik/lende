@@ -37,11 +37,6 @@ const HODE_LOFT = PIN_STEM_H + PIN_HEAD_R * 0.6
 // Hvorfor grensa finnes: se `ugyldig` i buildPinField.
 const MAKS_WORLD_M = 1e6
 
-// Hvor en parkert nål legges: rett ned, langt utenfor kameraets far-plan (60 km),
-// men ikke så langt at float32 mister presisjon. Se kommentaren over
-// `writeInstances` for hvorfor de ikke lenger parkeres med skala 0.
-export const PARK_Y = -2e5
-
 export function drapedWorld(dem, coords, x, y, liftM = 0) {
   const e = sampleElevation(dem, x, y)
   return coords.toWorld(x, y, (Number.isFinite(e) ? e : 0) + liftM)
@@ -128,8 +123,6 @@ export function buildPinField(items, dem, coords, { stemColor = 0xffffff } = {})
   const heads = new InstancedMesh(headGeo, headMat, Math.max(1, n))
   stems.frustumCulled = false
   heads.frustumCulled = false
-  stems.count = n
-  heads.count = n
   // Matrisene skrives om HVER frame (avstandsskalaen følger kameraet), og da må
   // bufferet være merket dynamisk. Med standard StaticDrawUsage laster three opp
   // med bufferSubData i et buffer driveren har lov til å tro er skrivebeskyttet
@@ -172,10 +165,7 @@ export function buildPinField(items, dem, coords, { stemColor = 0xffffff } = {})
     } else {
       ugyldig.add(i)   // bases står på 0 — verdien brukes ikke, men skal være trygg
     }
-    color.set(it.color)
-    heads.setColorAt(i, color)
   }
-  if (heads.instanceColor) heads.instanceColor.needsUpdate = true
 
   const _cam = new Vector3()
   const _camForrige = new Vector3(NaN, NaN, NaN)
@@ -184,49 +174,77 @@ export function buildPinField(items, dem, coords, { stemColor = 0xffffff } = {})
   // enkelt hode dekker (radius delt på avstand til hodet), og hvilken nål det er.
   const diag = { n, synlige: 0, parkerte: 0, ugyldige: 0, maksAndel: 0, verst: -1, maksAbs: 0 }
 
-  // Første oppsett med skala 1 så feltet er riktig plassert før første update.
+  // Instansene som FAKTISK tegnes ligger fremst i bufferet: slot k hører til
+  // items[slots[k]]. Resten submitteres ikke i det hele tatt — count settes ned.
   //
-  // `scaleOf` som gir 0 betyr PARKER: nåla skal ikke ses. Den flyttes da rett ned
-  // til PARK_Y i FULL størrelse, i stedet for å stå igjen på plassen sin med
-  // skala 0. Forskjellen er ikke kosmetisk. En skala-0-matrise er singulær —
-  // alle 260 vertekser i kula faller sammen i ett punkt — og et flertall av
-  // instansene er parkert i hver frame (declutteren slipper gjennom 120 av
-  // f.eks. 272). Desktop-GPU-er og SwiftShader forkaster slike nullflater
-  // stille, men i felt kom det flimrende, knivtynne kiler i nålenes egne flate
-  // farger, med spissen langt utenfor kartet — også i farger som tilhørte nåler
-  // man ikke så noe annet sted i bildet, altså nettopp de parkerte (v5.22.9).
-  // En nål 200 km under bakken er derimot en helt vanlig kule med en gyldig
-  // matrise, som havner utenfor far-planet og klippes bort etter spec.
+  // Dette er tredje forsøk på å bli kvitt de flimrende flatene, og det første
+  // som fjerner problemet i stedet for å flytte det. Målingen fra felt (lagt inn
+  // i Info-panelet i v5.22.10) avgjorde: 34 nåler vist, 693 PARKERT, av 727 —
+  // og det største hodet dekket 0,8 % av synsfeltet mot et tak på 12 %. Altså
+  // var hver matrise vi skrev riktig, mens vi likevel sendte 693 instanser til
+  // GPU-en hver frame og ba den klippe dem bort. Først som singulære nullflater
+  // (skala 0, alle vertekser i ett punkt), så — etter v5.22.9 — som kuler 200 km
+  // under bakken, altså langt utenfor guard-bandet en tile-basert mobil-GPU
+  // regner med. Begge er inndata en desktop-GPU forkaster stille og en
+  // mobil-driver kan gjøre hva som helst med, og det den gjorde var heldekkende,
+  // flimrende flater i nålenes egne farger.
+  //
+  // En instans som ikke submitteres kan ingen driver tegne feil. Det er også
+  // 20× mindre arbeid: 34 instanser i stedet for 727.
+  //
+  // Prisen er at instanceColor følger SLOTEN og ikke nåla, så fargene må skrives
+  // om når sammensetningen endres. Det skjer bare når declutteren bytter
+  // (maks ~4,5 ganger i sekundet), ikke når kameraet flytter seg.
+  const slots = new Int32Array(n).fill(-1)
+  let tegnet = 0
+  let fargerSkitne = true
+
   const writeInstances = (scaleOf) => {
+    let k = 0
     for (let i = 0; i < n; i++) {
+      if (ugyldig.has(i)) continue
       const bx = bases[i * 3], by = bases[i * 3 + 1], bz = bases[i * 3 + 2]
       const s = scaleOf(i, bx, by, bz)
-      if (!(s > 0)) {
-        dummy.position.set(bx, PARK_Y, bz)
-        dummy.scale.setScalar(1)
-        dummy.rotation.set(0, 0, 0)
-        dummy.updateMatrix()
-        stems.setMatrixAt(i, dummy.matrix)
-        heads.setMatrixAt(i, dummy.matrix)
-        continue
-      }
+      if (!(s > 0)) continue
       dummy.position.set(bx, by + (PIN_STEM_H / 2) * s, bz)
       dummy.scale.setScalar(s)
       dummy.rotation.set(0, 0, 0)
       dummy.updateMatrix()
-      stems.setMatrixAt(i, dummy.matrix)
+      stems.setMatrixAt(k, dummy.matrix)
       dummy.position.set(bx, by + HODE_LOFT * s, bz)
       dummy.updateMatrix()
-      heads.setMatrixAt(i, dummy.matrix)
+      heads.setMatrixAt(k, dummy.matrix)
+      if (slots[k] !== i) { slots[k] = i; fargerSkitne = true }
+      k++
     }
+    tegnet = k
+    stems.count = k
+    heads.count = k
     stems.instanceMatrix.needsUpdate = true
     heads.instanceMatrix.needsUpdate = true
+    // InstancedMesh cacher en bounding sphere over instansene, og three
+    // invaliderer den IKKE når matrisene endres — den brukes av raycast. Med
+    // kompaktering bytter innholdet i slotene, så en sphere fra forrige
+    // sammensetning kan utelukke nåla brukeren nettopp trykket på. Nulles her og
+    // regnes om lazily; det skjer bare ved et trykk, over maks ~120 instanser.
+    stems.boundingSphere = null
+    heads.boundingSphere = null
+    stems.boundingBox = null
+    heads.boundingBox = null
+    if (fargerSkitne) {
+      for (let j = 0; j < k; j++) {
+        color.set(items[slots[j]].color)
+        heads.setColorAt(j, color)
+      }
+      if (heads.instanceColor) heads.instanceColor.needsUpdate = true
+      fargerSkitne = false
+    }
   }
   writeInstances(i => (ugyldig.has(i) ? 0 : 1))
 
-  // Skjulte nåler (autofiltrering) parkeres i stedet for at count endres —
-  // indeksene må holde seg stabile for raycast-oppslaget (og for instanceColor,
-  // som er satt én gang per indeks).
+  // Skjulte nåler faller ut av tegningen (count senkes). Nåle-INDEKSENE holder
+  // seg like fullt stabile utad: declutter, raycast og basePosition snakker om
+  // items-indeksen, og `slots` oversetter til og fra bufferets slot.
   let visible = null   // null = alle synlige
 
   return {
@@ -253,13 +271,11 @@ export function buildPinField(items, dem, coords, { stemColor = 0xffffff } = {})
       if (!maaSkrives && _cam.distanceToSquared(_camForrige) < 0.0625) return
       maaSkrives = false
       _camForrige.copy(_cam)
-      let synlige = 0, maksAndel = 0, verst = -1, maksAbs = 0
+      let maksAndel = 0, verst = -1, maksAbs = 0
       writeInstances((i, bx, by, bz) => {
-        if (ugyldig.has(i)) return 0
         if (visible && !visible.has(i)) return 0
         const s = pinScaleForCamera(_cam, bx, by, bz)
         if (s > 0) {
-          synlige++
           const hodeY = by + HODE_LOFT * s
           const d = Math.hypot(_cam.x - bx, _cam.y - hodeY, _cam.z - bz)
           const andel = (PIN_HEAD_R * s) / d
@@ -268,8 +284,8 @@ export function buildPinField(items, dem, coords, { stemColor = 0xffffff } = {})
         }
         return s
       })
-      diag.synlige = synlige
-      diag.parkerte = n - synlige - ugyldig.size
+      diag.synlige = tegnet
+      diag.parkerte = n - tegnet - ugyldig.size
       diag.ugyldige = ugyldig.size
       diag.maksAndel = maksAndel
       diag.verst = verst
@@ -279,8 +295,11 @@ export function buildPinField(items, dem, coords, { stemColor = 0xffffff } = {})
     raycast(raycaster) {
       const hits = raycaster.intersectObjects([heads, stems], false)
       for (const h of hits) {
-        if (h.instanceId == null || ugyldig.has(h.instanceId)) continue
-        if (!visible || visible.has(h.instanceId)) return h.instanceId
+        // instanceId er en SLOT i bufferet, ikke nåle-indeksen. Bare de tegnede
+        // instansene finnes der, så et treff er per definisjon en synlig nål.
+        if (h.instanceId == null || h.instanceId >= tegnet) continue
+        const i = slots[h.instanceId]
+        if (i >= 0) return i
       }
       return null
     },

@@ -1,3 +1,43 @@
+## 2026-08-23 — v5.22.11: Skjulte nåler sendes ikke til GPU-en i det hele tatt
+
+Målingen fra v5.22.10 avgjorde saken, og den avgjorde den mot min egen hypotese.
+Fra eierens telefon, med artefakten på skjermen:
+
+```
+34 vist / 693 parkert / 0 utelatt av 727
+største hode 0.8 % av synsfeltet (tak 12 %)
+```
+
+Altså: hver matrise vi skrev var riktig — det største hodet dekket 0,8 % mot et
+tak på 12 % — mens vi likevel sendte **693 instanser vi ikke skulle se** til
+GPU-en hver frame og ba den klippe dem bort. Det er den eneste tingen som var
+felles for alle tre rundene med feilsøking, og det var den vi ikke hadde rørt.
+
+Formen på det parkerte har vandret, og begge variantene var inndata en
+desktop-GPU forkaster stille mens en mobil-driver står fritt: først skala 0 —
+en singulær matrise med alle 260 verteksene i kula i ett punkt — og etter
+v5.22.9 kuler 200 km under bakken, altså langt utenfor guard-bandet en
+tile-basert GPU regner med. Det den gjorde med dem var heldekkende, flimrende
+flater i nålenes egne farger.
+
+Nå ligger de tegnede instansene fremst i bufferet (`slots[k]` peker på nåla i
+slot k), og `count` settes til antallet som faktisk vises. En instans som ikke
+submitteres kan ingen driver tegne feil. Det er samtidig 20× mindre arbeid:
+34 instanser i stedet for 727 — eller 79 i stedet for 218 på Vardåsen, målt.
+
+To ting kompakteringen tvinger fram, og som begge er dekket av tester:
+`instanceColor` følger SLOTEN og ikke nåla, så fargene skrives om når
+declutteren bytter sammensetning (maks ~4,5 ganger i sekundet, ikke når kameraet
+flytter seg) — ellers får en nål naboens farge. Og `InstancedMesh` cacher en
+bounding sphere som three IKKE invaliderer når matrisene endres; den brukes av
+raycast, så uten å nulle den ville et trykk kunne bomme på nåla som nettopp
+flyttet inn i sloten. Den fella ble faktisk fanget av en eksisterende
+pinLayer-test.
+
+Info-panelets nåletall står igjen. Det var det som gjorde denne runden mulig, og
+det koster ingenting å beholde.
+
+---
 ## 2026-08-23 — v5.22.10: Instans-bufferet er dynamisk, og nålene kan måles
 
 Tredje runde på de flimrende flatene i 3D. To ting er nå etablert som fakta og
