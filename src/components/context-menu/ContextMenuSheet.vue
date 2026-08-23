@@ -8,7 +8,7 @@
 import { ANNOTATION_SYMBOLS } from '../../composables/useMapAnnotations.js'
 import AnnotationIcon from '../AnnotationIcon.vue'
 import VaerIkon from '../VaerIkon.vue'
-import { formatDistanceM } from '../../lib/mapContext.js'
+import { formatDistanceM, bearingToCompass } from '../../lib/mapContext.js'
 import { hasAiToken } from '../../lib/lendeAi.js'
 
 // Chat-avsnittet i oppdagbarhets-tipset vises kun for inviterte (samme
@@ -77,6 +77,13 @@ defineProps({
   showInfoTip: { type: Boolean, default: false },
   dismissInfoTip: { type: Function, required: true },
 })
+
+// Himmelretningen vinden kommer FRA. Gjenbruker bearingToCompass (16 norske
+// retninger) — samme tabell som «Fra deg»-raden, så nord-nordøst heter det samme
+// begge steder. Null når MET ikke oppgir retning; da vises bare m/s.
+function vindFra(grader) {
+  return Number.isFinite(grader) ? bearingToCompass(grader) : null
+}
 
 function formatDistance(m) {
   if (!m) return '0 m'
@@ -332,10 +339,9 @@ function formatDistance(m) {
           <span class="text-ink/45 w-20 shrink-0">Kartdata</span>
           <span class="text-ink/85 tabular-nums">{{ mapDataLabel }}</span>
         </div>
-        <!-- Vær fra MET Norway. Ett symbol, temperatur, vind og nedbør på én
-             linje. Nedbøren skriver PERIODEN med («0,4 mm/t» vs «/6 t») fordi
-             MET slutter å levere 1-times-oppløsning etter et døgn-to, og «4,8 mm»
-             uten periode leser som mm/time. -->
+        <!-- Vær fra MET Norway. Nedbøren skriver PERIODEN med («0,4 mm/1 t» vs
+             «/6 t») fordi MET slutter å levere 1-times-oppløsning etter et
+             døgn-to, og «4,8 mm» uten periode leser som mm/time. -->
         <div v-if="vaerQuery?.status === 'done'" class="flex items-baseline gap-2 text-[12px]">
           <span class="text-ink/45 w-20 shrink-0">Vær</span>
           <span class="text-ink flex items-baseline gap-1.5 min-w-0">
@@ -343,12 +349,27 @@ function formatDistance(m) {
             <span v-if="vaerQuery.naa.temperaturC != null" class="font-medium tabular-nums">
               {{ Math.round(vaerQuery.naa.temperaturC) }} °C
             </span>
-            <span v-if="vaerQuery.naa.vindMs != null" class="text-ink/55 tabular-nums">
-              · {{ vaerQuery.naa.vindMs.toFixed(1).replace('.', ',') }} m/s
-            </span>
             <span v-if="vaerQuery.naa.nedborMm" class="text-ink/55 tabular-nums">
               · {{ vaerQuery.naa.nedborMm.toFixed(1).replace('.', ',') }} mm/{{ vaerQuery.naa.nedborTimer }} t
             </span>
+          </span>
+        </div>
+        <!-- Vind har sin EGEN merkede rad (v5.21.2). Den lå til v5.21.1 dempet
+             bak et «·» på vær-linja over, sammen med nedbøren, og var i praksis
+             ikke til å finne — eieren testet i felt og så den ikke. Vind er det
+             turgåeren faktisk planlegger etter, så den fortjener samme form som
+             Vannstand og Vanntemp: merkelapp til venstre, verdi i full styrke.
+             Retningen står med himmelretning fordi «210°» ikke er noe man leser
+             i farten; grader beholdes i title for den som vil ha tallet. -->
+        <div v-if="vaerQuery?.status === 'done' && vaerQuery.naa.vindMs != null"
+             class="flex items-baseline gap-2 text-[12px]">
+          <span class="text-ink/45 w-20 shrink-0">Vind</span>
+          <span class="text-ink font-medium tabular-nums">
+            {{ vaerQuery.naa.vindMs.toFixed(1).replace('.', ',') }} m/s<template
+              v-if="vindFra(vaerQuery.naa.vindRetningGrader)"><span
+                class="text-ink/55 font-normal"
+                :title="`Vind fra ${Math.round(vaerQuery.naa.vindRetningGrader)}°`">
+              · fra {{ vindFra(vaerQuery.naa.vindRetningGrader) }}</span></template>
           </span>
         </div>
         <div v-else-if="vaerQuery?.status === 'loading'"

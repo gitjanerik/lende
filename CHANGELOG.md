@@ -1,5 +1,51 @@
 # Endringslogg
 
+## 2026-08-23 — v5.21.2: Vind pr time i 3D, og vinden er til å finne i infopanelet
+
+Værsymbolraden i 3D viser nå vindstyrke for hver time, ved siden av temperaturen
+framfor under den. Plasseringen er et bevisst valg: raden ligger over kartet, og
+en femte stablet linje ville kostet kartflate, mens bredde bare koster litt
+rulling. Høyden er derfor uendret. Vinden vises ALLTID når MET har tallet — i
+motsetning til nedbøren, som bare vises når det finnes nedbør. Forskjellen er
+tilsiktet: 0 mm er ingen informasjon, mens 0–2 m/s er nettopp det turgåeren vil
+vite. En liten pil peker dit vinden går; mangler MET retningen, står det et
+nøytralt ≈ i stedet, for «8° 8» er to tall uten enhet og leses ikke som vind.
+
+I infopanelet har vinden fått sin EGEN merkede rad. Den fantes fra v5.21.0, men
+sto dempet bak et «·» på vær-linja sammen med nedbøren, og var i praksis ikke til
+å finne — eieren testet i felt og så den ikke. Nå har den samme form som
+Vannstand og Vanntemp: merkelapp til venstre, verdi i full styrke, og
+himmelretningen vinden kommer fra skrevet ut («fra sør-sørvest») siden «210°»
+ikke er noe man leser i farten. Gradene ligger i title for den som vil ha tallet.
+
+Under panseret er én dublett fjernet før den fikk gjøre skade: snuingen fra METs
+`wind_from_direction` (retningen vinden KOMMER FRA) til retningen den GÅR fantes
+nå i to kopier — skydriften i `vaerHimmel.vindVektor` og den nye vindpila. Hadde
+noen rettet fortegnet i den ene, ville pila pekt motsatt vei av skyene på samme
+skjerm. Regnestykket bor nå i `vindMotGrader` i `vaerFetcher.js`, brukt av begge
+og enhetstestet — inkludert grader utenfor 0–360, som ville rotert pila feil vei
+uten å se galt ut i koden.
+
+Himmelretningene er `bearingToCompass` fra `mapContext.js`, den samme tabellen
+«Fra deg»-raden bruker, så nord-nordøst heter det samme begge steder.
+
+Røyktesten fikk samtidig et TAK PR SJEKK (120 s, overstyrbart pr sjekk). Det er
+en FORHOLDSREGEL, ikke en feilretting: ingen sjekk har hengt. Grunnen til at den
+kom med nå er at `page.evaluate` er det eneste Playwright-kallet i skriptet uten
+egen timeout — alle `waitForFunction` og `click` har tak — så er sidas hovedtråd
+travel kan et evaluate-kall i prinsippet vente i det uendelige. En sjekk som
+HENGER er verre enn en som feiler: den blokkerer jobben til GitHub dreper den
+etter timer, uten logg og uten skjermbilde, og dermed hver framtidige PR. Taket
+gjør et slikt tilfelle til en lesbar feil med skjermbildet ved siden av.
+
+Fire-stegs-sjekken venter dessuten på at 3D-motorens tekstur-skjerping til 4096²
+er ferdig («Skjerper kartbildet …») før den trykker. Passet starter rett ETTER at
+knappene dukker opp, og rasteriseringen blokkerer hovedtråden i sekunder på en
+runner uten GPU — å klikke inn i det vinduet er nettopp der et evaluate-kall
+kunne blitt stående.
+
+---
+
 ## 2026-08-23 — v5.21.1: Vær i 3D — fire steg på sol/måne, og en himmel som følger varselet
 
 Sol/måne-knappen i 3D bærer nå fire tilstander i stedet for to: dag, dag med vær,

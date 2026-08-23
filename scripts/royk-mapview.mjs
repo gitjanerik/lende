@@ -648,6 +648,19 @@ const SJEKKER = [
         return false
       }, STEG, { timeout: 60_000 }).then((h) => h.jsonValue())
 
+      // La motoren bli FERDIG før vi begynner å trykke. Knappene dukker opp ved
+      // phase='ready', men rett etterpå skjerper sceneCore karttekstur til 4096²
+      // (upgradeTexture, via requestIdleCallback) — og den rasteriseringen
+      // blokkerer hovedtråden i sekunder på en CI-runner uten GPU. page.evaluate
+      // har ingen egen timeout og køer bak den; klikker vi inn i det vinduet,
+      // henger sjekken framfor å feile. «Skjerper kartbildet …» er motorens egen
+      // beskjed om at passet går, så vi venter til den er borte.
+      await page.waitForFunction(
+        () => !/Skjerper kartbildet/i.test(document.body.innerText),
+        null, { timeout: 45_000 },
+      ).catch(() => { /* beskjeden kan ha kommet og gått før vi så etter */ })
+      await page.waitForTimeout(800)
+
       if (klar === 'ingen-dem') {
         const x0 = page.locator('button[aria-label="Lukk 3D-visning"]')
         await x0.click({ timeout: 5000 })
@@ -698,6 +711,30 @@ const SJEKKER = [
 ]
 
 // ---- små hjelpere ---------------------------------------------------------
+
+// Tak pr sjekk. Rundelig: den tregeste ekte sjekken (3D med tekstur-bygging på
+// en CI-runner uten GPU) bruker under et halvt minutt, så to minutter rammer
+// bare noe som faktisk har stoppet.
+const SJEKK_TAK_MS = 120_000
+
+/**
+ * Kjør en sjekk mot klokka. Løftet vi kappløper mot kan ikke avbrytes — det
+ * gjenstående Playwright-kallet lever videre til nettleseren lukkes — men
+ * sjekken er da alt merket feilet, og det er hele poenget: vi mister én sjekk
+ * framfor hele jobben.
+ */
+function medTak(løfte, ms, navn) {
+  let timer
+  return Promise.race([
+    løfte.finally(() => clearTimeout(timer)),
+    new Promise((_, nei) => {
+      timer = setTimeout(
+        () => nei(new Error(`sjekken svarte ikke innen ${Math.round(ms / 1000)} s — hang den? (${navn})`)),
+        ms,
+      )
+    }),
+  ])
+}
 
 // Vi treffer knapper på TEKST og ikke på CSS-klasser med vilje: klassene i
 // denne appen er Tailwind-kjeder som endres støtt, mens teksten er UI-kontrakt.
@@ -860,7 +897,15 @@ try {
       continue
     }
     try {
-      const obs = await s.kjør(page)
+      // TAK PR SJEKK. En sjekk som HENGER er verre enn en som feiler: den
+      // blokkerer jobben til GitHub dreper den etter timer, uten logg og uten
+      // skjermbilde, og dermed hver framtidige PR. Det skjedde 2026-08-23 —
+      // fire-stegs-sjekken sto fast etter «3D-visningen åpner» og jobben måtte
+      // kanselleres manuelt. Årsaken er alltid den samme klassen: page.evaluate
+      // har INGEN egen timeout, så er sidas hovedtråd travel (3D bygger tekstur)
+      // venter den i det uendelige. Taket gjør hengingen til en lesbar feil med
+      // et skjermbilde ved siden av.
+      const obs = await medTak(s.kjør(page), s.maksMs ?? SJEKK_TAK_MS, s.navn)
       resultat.push({ ...s, ok: true, obs })
       console.log(`✓ ${s.navn} — ${obs}`)
     } catch (err) {

@@ -11,7 +11,7 @@
 // kvalitets-nedtrapping (sceneCore setter pixelRatio én gang), så budsjettet må
 // være konservativt fra starten — det finnes ingen bryter å skru ned senere.
 
-import { symbolBasis } from '../vaerFetcher.js'
+import { symbolBasis, vindMotGrader } from '../vaerFetcher.js'
 
 // Harde tak. Endres de, endres lesbarheten — les kommentaren over først.
 export const SKY_OPASITET_TAK = 0.9
@@ -95,10 +95,12 @@ export function vaerTilHimmel(symbolCode, maling = {}) {
  * KAN se hvis man ser etter, og som ikke stjeler oppmerksomhet ellers.
  */
 export function vindVektor(fraGrader, vindMs) {
-  const harRetning = Number.isFinite(fraGrader)
+  // Snuingen fra «kommer fra» til «går mot» bor i vaerFetcher — delt med
+  // vindpila i symbolraden, så de to kan ikke peke i strid.
+  const motGrader = vindMotGrader(fraGrader)
   // Uten retning drifter skyene som før: vestlig, altså mot +X.
-  if (!harRetning) return { vindX: 1, vindZ: 0, fart: driftFart(vindMs) }
-  const mot = ((fraGrader + 180) % 360) * Math.PI / 180
+  if (motGrader === null) return { vindX: 1, vindZ: 0, fart: driftFart(vindMs) }
+  const mot = motGrader * Math.PI / 180
   return {
     vindX: Math.sin(mot),
     vindZ: -Math.cos(mot),
