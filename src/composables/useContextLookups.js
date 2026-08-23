@@ -18,7 +18,8 @@ import { groupSpecies } from '../lib/speciesGroups.js'
 import { fetchWikiSummary, titleMatches } from '../lib/wikiSummary.js'
 import { fetchNearestWikiPlace, placeNameMatches } from '../lib/wikiPlace.js'
 import { fetchSnlSummary } from '../lib/snlFetcher.js'
-import { cacheGet, cacheSet, pointKey, naturtypePointKey, placePointKey, TTL } from '../lib/protectedAreaCache.js'
+import { fetchVarsel, naaVarsel } from '../lib/vaerFetcher.js'
+import { cacheGet, cacheSet, pointKey, naturtypePointKey, placePointKey, vaerPointKey, TTL } from '../lib/protectedAreaCache.js'
 import {
   bearingDeg, bearingToCompass, formatDistanceM,
   findNearestPlace, pointToPolylineDist,
@@ -61,6 +62,12 @@ export function useContextLookups({
   // null = ikke spurt | { status:'loading' } | { status:'done', place } | { status:'empty' }.
   const placeWikiQuery = ref(null)
   let placeWikiToken = 0
+  // Værvarsel (MET Norway) for long-press-punktet. null = ikke spurt |
+  // { status:'loading' } | { status:'done', varsel, naa } | { status:'error' }.
+  // Samme token-vakt som de andre: et tregt varsel skal ikke lande på et punkt
+  // brukeren har flyttet fra.
+  const vaerQuery = ref(null)
+  let vaerQueryToken = 0
   const LONG_PRESS_MS = 550
   const LONG_PRESS_MOVE_PX = 10
 
@@ -379,6 +386,43 @@ export function useContextLookups({
     }
   })
 
+  // Long-press hvor som helst → værvarsel for punktet (MET Norway, via
+  // Cloudflare-proxyen som holder den User-Agent MET krever). Cachen slås opp
+  // FØRST, og nøkkelen er et ~100 m-rutenett: to trykk i samme skogholt innen
+  // halvtimen koster MET ingenting. Det er også hele debouncingen — oppslaget
+  // henger på long-press-punktet, ikke på panorering.
+  watch(contextMenuPoint, async (p) => {
+    const token = ++vaerQueryToken
+    vaerQuery.value = null
+    if (!p || !contextMenuOpen.value) return
+    const info = contextMenuInfo.value
+    if (!info?.inside) return
+    vaerQuery.value = { status: 'loading' }
+    try {
+      const key = vaerPointKey(info.lat, info.lon)
+      let varsel = await cacheGet(key)
+      if (token !== vaerQueryToken) return       // brukeren har flyttet punktet
+      if (!varsel) {
+        varsel = await fetchVarsel(info.lat, info.lon)
+        if (token !== vaerQueryToken) return
+        // Tomt svar caches ikke: fetchVarsel svelger nettfeil og gir null, så
+        // «MET er nede» og «ingen data» ser like ut herfra. Vi vil ikke fryse en
+        // nettfeil som sannhet i en halvtime.
+        if (varsel) cacheSet(key, varsel, TTL.vaer)
+      }
+      if (!varsel) {
+        vaerQuery.value = { status: 'error' }
+        return
+      }
+      // naa kan bli null selv med et gyldig varsel — da er varselet for gammelt,
+      // og UI-et skal si «ikke tilgjengelig» framfor å vise gårsdagens vær.
+      const naa = naaVarsel(varsel)
+      vaerQuery.value = naa ? { status: 'done', varsel, naa } : { status: 'error' }
+    } catch {
+      if (token === vaerQueryToken) vaerQuery.value = { status: 'error' }
+    }
+  })
+
   // Long-press hvor som helst på kartet → slå opp om punktet ligger i et
   // verneområde (Naturbase via Miljødirektoratet). Ved treff vises navn/verneform/
   // vernedato/areal umiddelbart, og to ikke-blokkerende kall fyller arts-/
@@ -635,7 +679,7 @@ export function useContextLookups({
 
   return {
     contextMenuOpen, contextMenuPoint, contextMenuInfo,
-    lakeQuery, verneQuery, naturtypeQuery, placeWikiCard, expandedRedCat,
+    lakeQuery, verneQuery, naturtypeQuery, placeWikiCard, vaerQuery, expandedRedCat,
     clearLongPress, clientToSvgPoint, openContextMenuAt, closeContextMenu,
     onPointerDownLongPress, onPointerMoveLongPress, onPointerUpLongPress,
     onContextMenuEvent,

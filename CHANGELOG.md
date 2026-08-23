@@ -1,5 +1,121 @@
 # Endringslogg
 
+## 2026-08-23 — v5.21.1: Vær i 3D — fire steg på sol/måne, og en himmel som følger varselet
+
+Sol/måne-knappen i 3D bærer nå fire tilstander i stedet for to: dag, dag med vær,
+natt, natt med vær. Brukeren velger selv om værsymbolene vises, og i hvilken
+lysmodus. En egen vær-knapp ble vurdert og forkastet — topprada har allerede
+fem-seks knapper, og kommentaren over den forteller hva som skjedde sist den
+vokste. Vær-valget huskes mellom øktene; dag/natt gjør det bevisst ikke, for den
+skal fortsette å følge lys/mørk-valget i kartet slik den alltid har gjort.
+
+Med været på legger en tynn symbolrad seg på en egen linje under Info-raden:
+timene framover for arkets senterpunkt, med klokketime, symbol, temperatur og
+nedbør når det er noen. Symbolvarianten følger MODUSEN og ikke klokka — står du i
+natthimmelen, viser symbolet natt. Raden skjules under en gående tur, der HUD-en
+og kryssvalgene alt konkurrerer om plassen. Varselet hentes én gang per ark, for
+senterpunktet; kameraet kan fly hvor det vil uten å koste MET et kall.
+
+Himmelen speiler nå været. Klarvær gir nesten skyfri himmel, overskyet fyller
+den, og nedbør gjør skyene mørkere og tyngre. Skyene drifter dit vinden faktisk
+går — METs `wind_from_direction` er retningen vinden KOMMER fra, så vektoren
+snus, og farten er dempet så et 5 km ark ikke ser ut som en tidsforkortet film.
+Nedbør er ett `Points`-objekt med regn, sludd eller snø, og torden er et kort løft
+av dis- og bakgrunnsfargen — ingen geometri, ingen lyskilde, rate-begrenset og av
+ved `prefers-reduced-motion`. Et lyn som blinker uventet over et kart man leser er
+en tilgjengelighetssak, ikke en effekt.
+
+Alt dette er bygget som en OPSJON på skyene som alt fantes, ikke som et lag ved
+siden av: `setVaer(null)` gir nøyaktig standard-himmelen igjen. Oversettelsen fra
+symbolkode til «skypreg» bor i en ren, enhetstestet fil, fordi det er der feilen
+kan bo — rekkefølgen på reglene bestemmer hvilken værfamilie som vinner, og en
+regel plassert for høyt stjeler treff fra dem under. Takene på opasitet og
+partikkeltall er lesbarhet og ikke smak: 3D-visningen har ingen adaptiv
+kvalitets-nedtrapping å skru ned senere.
+
+To ting fanget av tester underveis: `driftFart` blandet UKJENT vind med STILLE
+vind, så en måling på 0 m/s ga samme drift som ingen måling i det hele tatt. Og
+`setVaerModus(_natt, vaer)` hadde en parameter som skygget for `vaer`-ref-en —
+rettet før den fikk bite.
+
+Røyktesten har fått en sjekk som trykker knappen gjennom hele runden og krever at
+syklusen er LUKKET: fire trykk skal føre tilbake dit den startet, uansett hvilket
+steg den sto på. Den leser tilstanden framfor å anta den, siden valget huskes.
+Mangler kartet høydedata, melder sjekken fra og hopper — som 3D-sjekken over den.
+
+---
+
+## 2026-08-23 — v5.21.0: Ekte værvarsel fra MET Norway
+
+Langtrykk på kartet gir nå en værlinje i infopanelet: symbol, temperatur, vind og
+nedbør for punktet, fra METs Locationforecast 2.0. Symbolene er METs egne
+(github.com/metno/weathericons — de samme man ser på yr.no), og de norske
+værnavnene er hentet fra METs `legend.csv` framfor oversatt av oss.
+
+Kallet går gjennom `lende-proxy`, ikke rett fra nettleseren, og det er ikke
+valgfritt: MET krever en identifiserende `User-Agent` med kontaktinfo og svarer
+403 Forbidden på en generisk eller manglende en — mens `User-Agent` er en forbudt
+header i nettleserens `fetch()`. Et direkte klient-kall kan altså ikke oppfylle
+METs vilkår, uansett hvor snill CORS-en deres er. Workeren setter headeren, runder
+`lat`/`lon` til METs maks 4 desimaler (flere ødelegger cachingen deres og vil
+etter hvert gi 400), og cacher i inntil 30 minutter — kortere hvis METs eget
+`Expires` sier så. Bonusen er at tjue turgåere på samme fjell koster MET ett kall.
+
+Klienten slår opp i IndexedDB-cachen først, på et ~100 m rutenett. Det ER
+debouncingen: to trykk i samme skogholt innen halvtimen går ikke på nettet, og
+oppslaget henger på langtrykk-punktet framfor på panorering. `ttlForKey` fikk en
+`vaer1:`-gren FØRST i rekka — uten den ville nøkkelen falt gjennom til
+kulturminne-TTL-en på 30 dager, og en 30 dager gammel værmelding er ikke en
+degradering, den er en løgn.
+
+Værvarsel pakkes med vilje IKKE i offline-fila. Importen setter fersk TTL på hver
+rad, så en prognose fra en fil som har ligget en måned i en chat ville blitt vist
+som om den gjaldt nå. Begrunnelsen står i CLAUDE.md, slik at det ikke blir
+«rettet» som en glemt kilde.
+
+To ting fanget av tester underveis: en manglende `lat` ville blitt et varsel for
+0,0000 / 0,0000 (Guineabukta), fordi `Number(null)` er 0 og ikke NaN — proxyen
+svarer nå 400. Og METs egne symbolkoder har understrek inni seg
+(`lightssleetshowersandthunder_day`, med METs kjente skrivefeil de har valgt å
+beholde), så variant-splittingen måtte skje på siste understrek og bare på en
+kjent variant — en naiv split ville gitt feil ikon for hele torden-familien.
+
+Ikonsettet (83 filer, 26 kB gzip) lastes som et eget chunk først når et symbol
+skal tegnes. Statisk import kostet 36 kB gzip for alle brukere, også de som aldri
+åpner vær. Ikonene tegnes som `<img src="data:…">` og ikke inline, fordi METs
+SVG-er definerer `<symbol id="sun">` og gradienter med globale id-er — to
+inlinede ikoner i samme dokument ville overskrevet hverandres farger.
+
+---
+
+## 2026-08-23 — v5.20.2: Skyene i 3D var klippet av lerret-kanten
+
+Skyene i 3D-visningen hadde knivrette kanter og leste som lyse firkanter i
+himmelen framfor myke dotter. Årsaken var en tegnefeil som hadde ligget siden
+skyene ble laget: `cloudTexture()` tegnet radielle gradienter på et 256 × 128
+lerret, men målte radiene mot BREDDEN. En dott på y = 47 med r = 54 stakk 7 px
+over toppkanten, `fillRect` klippet den, og det sto igjen ~10 % alfa i øverste
+teksel-rad — som med ClampToEdge-wrapping males som en rett strek tvers over
+billboardet. Bare seed 29 brakk ordentlig, og siden materialene fordeles med
+`i % 3` var det bare hver tredje sky, noe som gjorde feilen lett å tvile på.
+Radien klippes nå mot avstanden til nærmeste kant (en dott nær kanten blir
+mindre, aldri kuttet), lerretet er 256 × 160, og en elliptisk alfa-maske tvinger
+alfa til null langs alle fire kanter uansett hva fordelingen gir seinere.
+Plasseringen er skilt ut som `skyDotter()` og enhetstestet mot alle tre seedene,
+så feilklassen ikke kan komme tilbake med en ny seed.
+
+To feil ved siden av, funnet i samme kode: skymaterialene manglet `fog: false`,
+så de fjerneste skyene ble malt i flat tåkefarge mot en blå senit — nøyaktig
+samme feil som ble rettet for stjernene og månen i v5.3.0, der begrunnelsen
+allerede sto i koden rett over. Og skyfeltet var bare 1,6 × arket, mens
+åpningsposen legger kameraet omtrent 0,63 × span meter opp: sett ovenfra-og-ned
+sluttet spredningen av billboards midt i bildet. Feltet er nå 2,6 × og
+resirkulerer langs begge akser, klart for vinddrevet drift. Skyene demper seg
+dessuten selv når de kommer nærmere kameraet enn sin egen bredde — ett billboard
+på nært hold la et hvitt vask over kartet.
+
+---
+
 ## 2026-08-21 — v5.20.1: Importen sier hva som er galt når fila ligger i skyen
 
 Første ekte forsøk på å importere en delt kartfil på mobil ga «A requested file

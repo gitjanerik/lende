@@ -16,7 +16,12 @@ import Tour3dFeatureCard from './Tour3dFeatureCard.vue'
 import Tour3dPinPanel from './Tour3dPinPanel.vue'
 import Tour3dInfoPanel from './Tour3dInfoPanel.vue'
 import Tour3dHud from './Tour3dHud.vue'
+import Tour3dVaerRad from './Tour3dVaerRad.vue'
 import { lesPinPrefs, skrivPinPrefs, paaGrupper } from '../../lib/tour3d/pinPrefs.js'
+import { svgToWgs84 } from '../../lib/utm.js'
+import { fetchVarsel, naaVarsel } from '../../lib/vaerFetcher.js'
+import { vaerTilHimmel } from '../../lib/tour3d/vaerHimmel.js'
+import { cacheGet, cacheSet, vaerPointKey, TTL } from '../../lib/protectedAreaCache.js'
 
 const props = defineProps({
   dem: { type: Object, default: null },
@@ -45,6 +50,7 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 
 const KRYSSPAUSE_KEY = 'lende-3d-krysspause'
+const VAER_KEY = 'lende-3d-vaer'
 const TIME_SCALES = [64, 128, 256]
 const HUD_FELTER = ['gaatt', 'igjen', 'hoyde', 'stigning', 'eta']
 
@@ -100,7 +106,7 @@ const errorText = computed(() => ({
 // utforsking har kryssvalg.
 const INFO_KNAPPER = computed(() => [
   { navn: 'Nåler', tekst: 'viser interessepunkter — trykk på en for å fly dit. Filteret ved siden av velger hvilke.' },
-  { navn: 'Sol/måne', tekst: 'bytter mellom lyst og mørkt kart.' },
+  { navn: 'Sol/måne', tekst: 'går rundt i fire steg: dag, dag med vær, natt, natt med vær. Værsymbolene er varselet fra MET Norway for dette kartet, og himmelen følger været.' },
   { navn: 'Sti', tekst: 'tegner stinettet oppå terrenget — og må være på for å kunne følge en sti.' },
   fixedTour.value
     ? { navn: 'Stopp', tekst: 'lar turen stoppe ved severdigheter langs veien.' }
@@ -291,6 +297,8 @@ onMounted(async () => {
     applyPinGroups()
     engine.setContoursVisible(contoursOn.value).catch(() => {})
     if (nightOn.value) applyNight(true).catch(() => {})
+    // Vær-valget er husket fra forrige økt; hentingen er ikke-blokkerende.
+    if (vaerOn.value) void hentVaer()
 
     phase.value = 'ready'
 
@@ -385,15 +393,97 @@ async function toggleContours() {
   await engine?.setContoursVisible(contoursOn.value)
 }
 
+// Sol/måne-knappen bærer FIRE tilstander, ikke to: dag → dag+vær → natt →
+// natt+vær. Egen vær-knapp ble vurdert og forkastet — topprada har alt fem-seks
+// knapper, og kommentaren over den forteller hva som skjedde sist den vokste.
+//
+// Dag/natt-biten persisteres IKKE, med vilje: den avledes av kart-temaet
+// (props.isDark) slik den alltid har gjort, så 3D følger lys/mørk-valget i
+// kartet. Vær-biten persisteres, for den er et selvstendig valg brukeren har tatt.
 const nightOn = ref(props.isDark)
+const vaerOn = ref((() => {
+  try { return localStorage.getItem(VAER_KEY) === '1' } catch { return false }
+})())
+
 async function applyNight(on) {
   if (!engine) return
   await engine.setNightMode(on)
 }
+
+// Syklusen: hvert trykk går ett hakk videre, og vi lander tilbake på dag uten vær.
 function toggleNight() {
-  nightOn.value = !nightOn.value
+  if (!nightOn.value && !vaerOn.value) setVaerPaa(true)                  // dag → dag+vær
+  else if (!nightOn.value) { nightOn.value = true; setVaerPaa(false) }    // dag+vær → natt
+  else if (!vaerOn.value) setVaerPaa(true)                               // natt → natt+vær
+  else { nightOn.value = false; setVaerPaa(false) }                      // natt+vær → dag
   applyNight(nightOn.value)
 }
+
+function setVaerPaa(paa) {
+  vaerOn.value = paa
+  try { localStorage.setItem(VAER_KEY, paa ? '1' : '0') } catch { /* privat modus */ }
+}
+
+// Hva knappen skal si nå — brukt både som aria-label og i Info-panelet.
+const NATT_STEG_LABEL = ['Vis vær', 'Bytt til natt', 'Vis vær om natta', 'Bytt til dag uten vær']
+const nattSteg = computed(() => (nightOn.value ? (vaerOn.value ? 3 : 2) : (vaerOn.value ? 1 : 0)))
+
+// ---- Værvarsel for arket -------------------------------------------------
+// Ett oppslag per ark, for SENTERPUNKTET — ikke per kamerabevegelse. Det er hele
+// debouncingen: varselet henger på arket, og kameraet kan fly hvor det vil.
+// Cachen (~100 m rutenett, 30 min) gjør at åpne-lukke-åpne ikke koster MET noe.
+const vaer = ref(null)
+let vaerHentet = false
+
+async function hentVaer() {
+  if (vaerHentet) return
+  vaerHentet = true
+  // Utsnittets meta når kartet er utvidet med nabofliser, ellers arkets eget:
+  // senterpunktet skal være midt i det brukeren FAKTISK ser.
+  const m = props.meta
+  if (!m?.widthM || !m?.heightM) return
+  let punkt
+  try {
+    punkt = svgToWgs84(m.widthM / 2, m.heightM / 2, m)
+  } catch { return }
+  if (!Number.isFinite(punkt?.lat) || !Number.isFinite(punkt?.lon)) return
+  vaer.value = { status: 'loading' }
+  try {
+    const key = vaerPointKey(punkt.lat, punkt.lon)
+    let varsel = await cacheGet(key)
+    if (!varsel) {
+      varsel = await fetchVarsel(punkt.lat, punkt.lon)
+      // Tomt svar caches ikke — nettfeil og «ingen data» ser like ut herfra.
+      if (varsel) cacheSet(key, varsel, TTL.vaer)
+    }
+    const naa = varsel ? naaVarsel(varsel) : null
+    vaer.value = naa ? { status: 'done', varsel, naa } : { status: 'error' }
+  } catch {
+    vaer.value = { status: 'error' }
+  }
+  // Hentingen kan ha landet etter at brukeren slo vær av igjen.
+  if (vaerOn.value) leggVaerPaaHimmelen()
+}
+
+function leggVaerPaaHimmelen() {
+  if (!engine) return
+  const naa = vaerOn.value ? vaer.value?.naa : null
+  // Uten vær (eller uten varsel) sendes null: standard-himmelen, ikke en
+  // gjetning. Værmodus av skal se ut nøyaktig som før værmodus fantes.
+  engine.setVaer(naa ? vaerTilHimmel(naa.symbol, naa) : null)
+}
+
+// Symbolvariant følger MODUSEN brukeren står i, ikke klokka: ser man en
+// natthimmel, skal symbolet vise natt.
+const vaerVariant = computed(() => (nightOn.value ? 'night' : 'day'))
+
+watch(vaerOn, (on) => {
+  if (on) void hentVaer()
+  leggVaerPaaHimmelen()
+})
+// Bytter man dag/natt mens været står på, skal himmelen males om (grunnfargen
+// for torden-blinket henger på natt/dag inne i motoren).
+watch(nightOn, () => { if (vaerOn.value) leggVaerPaaHimmelen() })
 
 // --- turen -----------------------------------------------------------------
 
@@ -486,19 +576,31 @@ function branchLabel(opt, i) {
               <circle cx="12" cy="11" r="2.4"/>
             </svg>
           </button>
+          <!-- Sol/måne bærer FIRE steg: dag → dag+vær → natt → natt+vær.
+               Ikonet forteller hvor du er (sol, sol med sky, måne, måne med sky),
+               og aria-label sier hva NESTE trykk gjør. Egen vær-knapp ble
+               forkastet — se kommentaren over topprada om hva som skjer når den
+               vokser. -->
           <button v-if="phase === 'ready'"
                   @click="toggleNight"
-                  :aria-label="nightOn ? 'Bytt til dag' : 'Bytt til natt'"
+                  :aria-label="NATT_STEG_LABEL[nattSteg]"
                   class="w-11 h-11 rounded-full backdrop-blur flex items-center justify-center
-                         active:scale-95 transition-colors"
-                  :class="nightOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
-            <svg v-if="nightOn" viewBox="0 0 24 24" class="w-5 h-5" fill="currentColor" aria-hidden="true">
-              <path d="M20.4 14.2A8.5 8.5 0 0 1 9.8 3.6 8.5 8.5 0 1 0 20.4 14.2z"/>
-            </svg>
-            <svg v-else viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="4.2"/>
-              <path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5 5l1.7 1.7M17.3 17.3 19 19M19 5l-1.7 1.7M6.7 17.3 5 19"/>
+                         active:scale-95 transition-colors relative"
+                  :class="nightOn || vaerOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
+            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <!-- Måne (fylt) eller sol (strek) — forskjøvet litt opp/venstre når
+                   en sky ligger under, så de to formene ikke vokser sammen. -->
+              <g :transform="vaerOn ? 'translate(-2.2,-2.2) scale(0.78)' : ''">
+                <path v-if="nightOn" fill="currentColor" stroke="none"
+                      d="M20.4 14.2A8.5 8.5 0 0 1 9.8 3.6 8.5 8.5 0 1 0 20.4 14.2z"/>
+                <template v-else>
+                  <circle cx="12" cy="12" r="4.2"/>
+                  <path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5 5l1.7 1.7M17.3 17.3 19 19M19 5l-1.7 1.7M6.7 17.3 5 19"/>
+                </template>
+              </g>
+              <path v-if="vaerOn" d="M8.2 20.5h9.3a2.9 2.9 0 0 0 .3-5.8 4 4 0 0 0-7.7-1 2.9 2.9 0 0 0-1.9 6.8z"
+                    fill="currentColor" stroke="currentColor" stroke-width="1.1"/>
             </svg>
           </button>
           <!-- Sti-togglen bærer teksten sin, som Kryss og Kurver: ikonet aleine
@@ -589,6 +691,14 @@ function branchLabel(opt, i) {
                         :loading="extrasLoading"
                         :model-value="pinPrefs" @update:model-value="setPinPrefs"/>
         <div v-else></div>
+      </div>
+
+      <!-- Tredje linje: værsymbolraden. Egen linje fordi topprada alt er full,
+           og skjult under en gående tur — der konkurrerer HUD og kryssvalg om
+           plassen, og været er ikke det man ser etter da. -->
+      <div v-if="phase === 'ready' && vaerOn && !walking"
+           class="relative z-10 px-3 mt-2 flex justify-center">
+        <Tour3dVaerRad :vaer="vaer" :variant="vaerVariant"/>
       </div>
 
       <!-- Laste-/feiltilstander.

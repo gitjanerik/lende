@@ -155,25 +155,81 @@ export function buildNightSky({ radius = 25000, starCount = 160 } = {}) {
   }
 }
 
+// Lerretet skyflekkene tegnes på. Høyden var en gang halvparten av bredden,
+// og DET var feilen: blob-radiene måles mot BREDDEN, så en dott med r = 54 på
+// y = 47 rakk 7 px over kanten. `fillRect` klippet den, og det sto igjen ~10 %
+// alfa i øverste teksel-rad — som med ClampToEdge tegnes som en knivrett strek
+// tvers over toppen av billboardet. Det var de lyse firkantene i himmelen.
+const SKY_TEX_W = 256
+const SKY_TEX_H = 160
+// Alfa skal være null her. Marginen er ikke pynt: den er beviset på at
+// gradienten har fått gå helt ut, ikke blitt kuttet.
+const SKY_TEX_MARGIN = 4
+// Grunn-opasiteten en sky har når ingenting demper den.
+const SKY_OPASITET = 0.85
+
+/**
+ * Skydottene i én skyflekk-tekstur: sentre og radier som er GARANTERT innenfor
+ * lerretet med margin. Skilt ut fra tegningen fordi det er her feilen kan
+ * gjenoppstå, og fordi det da kan testes uten et canvas.
+ *
+ * Radien klippes mot avstanden til nærmeste kant i stedet for å måles mot
+ * bredden aleine. En dott nær kanten blir dermed MINDRE — aldri kuttet.
+ */
+export function skyDotter(seed, {
+  bredde = SKY_TEX_W, hoyde = SKY_TEX_H, margin = SKY_TEX_MARGIN,
+} = {}) {
+  const rnd = mulberry32(seed)
+  const antall = 6 + Math.floor(rnd() * 4)
+  const dotter = []
+  for (let i = 0; i < antall; i++) {
+    // Samme fordeling som før — utseendet skal ikke endres, bare kuttet bort.
+    const x = bredde * (0.2 + rnd() * 0.6)
+    const y = hoyde * (0.35 + rnd() * 0.3)
+    const ønsket = bredde * (0.1 + rnd() * 0.12)
+    const r = Math.min(
+      ønsket,
+      x - margin, bredde - x - margin,
+      y - margin, hoyde - y - margin,
+    )
+    if (r > 1) dotter.push({ x, y, r })
+  }
+  return dotter
+}
+
 // Myk skyflekk-tekstur: noen overlappende radielle gradienter på canvas.
 function cloudTexture(seed) {
-  const px = 256
   const canvas = document.createElement('canvas')
-  canvas.width = px
-  canvas.height = px / 2
+  canvas.width = SKY_TEX_W
+  canvas.height = SKY_TEX_H
   const ctx = canvas.getContext('2d')
-  const rnd = mulberry32(seed)
-  const blobs = 6 + Math.floor(rnd() * 4)
-  for (let i = 0; i < blobs; i++) {
-    const x = px * (0.2 + rnd() * 0.6)
-    const y = (px / 2) * (0.35 + rnd() * 0.3)
-    const r = px * (0.1 + rnd() * 0.12)
+  for (const { x, y, r } of skyDotter(seed)) {
     const g = ctx.createRadialGradient(x, y, 0, x, y, r)
     g.addColorStop(0, 'rgba(255,255,255,0.75)')
     g.addColorStop(1, 'rgba(255,255,255,0)')
     ctx.fillStyle = g
-    ctx.fillRect(0, 0, px, px / 2)
+    ctx.fillRect(0, 0, SKY_TEX_W, SKY_TEX_H)
   }
+  // Belte OG bukseseler: en elliptisk alfa-maske som tvinger alfa til 0 langs
+  // alle fire kanter. skyDotter() skal alt garantere det, men denne holder selv
+  // om noen seinere justerer fordelingen og bommer — og det er nettopp det som
+  // skjedde sist. Koster én composite-operasjon, én gang per tekstur.
+  const maske = ctx.createRadialGradient(
+    SKY_TEX_W / 2, SKY_TEX_H / 2, 0,
+    SKY_TEX_W / 2, SKY_TEX_H / 2, SKY_TEX_W / 2,
+  )
+  maske.addColorStop(0, 'rgba(255,255,255,1)')
+  maske.addColorStop(0.72, 'rgba(255,255,255,1)')
+  maske.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.globalCompositeOperation = 'destination-in'
+  ctx.save()
+  ctx.translate(SKY_TEX_W / 2, SKY_TEX_H / 2)
+  ctx.scale(1, SKY_TEX_H / SKY_TEX_W)
+  ctx.translate(-SKY_TEX_W / 2, -SKY_TEX_H / 2)
+  ctx.fillStyle = maske
+  ctx.fillRect(0, 0, SKY_TEX_W, SKY_TEX_H)
+  ctx.restore()
+  ctx.globalCompositeOperation = 'source-over'
   const tex = new CanvasTexture(canvas)
   tex.colorSpace = SRGBColorSpace
   return tex
@@ -190,44 +246,233 @@ function mulberry32(a) {
 
 /**
  * Drivende skyer over kartet. Billboards med prosedural tekstur — ingen
- * eksterne assets, ~10 sprites, umerkelig på GPU-budsjettet.
+ * eksterne assets, ~14 sprites, umerkelig på GPU-budsjettet.
+ *
+ * `driftX`/`driftZ` er en retning (normaliseres her), så vindretning fra et
+ * ekte værvarsel kan sendes rett inn. Feltet resirkulerer langs BEGGE akser,
+ * ikke bare +X: så snart driften har en Z-komponent, ville en X-bare-wrap
+ * tømme feltet nordover og etterlate en tom himmel på den ene sida.
  */
-export function buildClouds({ widthM, heightM, baseY = 1200, count = 10 } = {}) {
+export function buildClouds({
+  widthM, heightM, baseY = 1200, count = 14,
+  driftX = 1, driftZ = 0,
+} = {}) {
   const group = new Group()
   const rnd = mulberry32(42)
-  const spanX = widthM * 1.6
-  const spanZ = heightM * 1.6
+  // Feltet var 1,6 × arket. Åpningsposen i freeRig legger kameraet ca.
+  // 0,63 × span meter opp og utenfor den halvbredda, så spredningen av
+  // billboards SLUTTET midt i bildet når man så ovenfra-og-ned — enda en grunn
+  // til at himmelen så avkuttet ut. 2,6 × dekker den utsikten.
+  const spanX = widthM * 2.6
+  const spanZ = heightM * 2.6
   const textures = [cloudTexture(7), cloudTexture(13), cloudTexture(29)]
-  const materials = textures.map(t => new SpriteMaterial({
-    map: t, transparent: true, opacity: 0.85, depthWrite: false,
-  }))
+  // Ett materiale PER sprite (ikke tre delte): opasiteten dempes individuelt
+  // etter avstand til kameraet, se update(). Fjorten materialer mot tre er
+  // ingenting her, og tre teksturer deles fortsatt.
+  const materials = []
   const sprites = []
+  // Sprite-høyden følger TEKSTURENS sideforhold. Faktoren 0,7 er valgt så
+  // uttrykket gir 0,35 ved det gamle 2:1-lerretet — skyene skal se like ut som
+  // før, bare uten kuttet. Uten denne koblingen strekker et nytt lerret skyene.
+  const aspekt = (SKY_TEX_H / SKY_TEX_W) * 0.7
   for (let i = 0; i < count; i++) {
-    const sprite = new Sprite(materials[i % materials.length])
+    const material = new SpriteMaterial({
+      map: textures[i % textures.length],
+      transparent: true,
+      opacity: SKY_OPASITET,
+      depthWrite: false,
+      // Tåka må ikke røre skyene — samme feil som ble rettet for stjernene og
+      // månen i v5.3.0 (se begrunnelsen over buildNightSky), men fiksen ble
+      // aldri gitt til skyene. makeFog setter far til maxDim × 2,6, og skyene
+      // ligger ut til 1,3 × widthM: de fjerneste ble malt i flat FOG_COLOR
+      // (#cfe0ee) mot en #3d7ec9 senit. En blek, flat flekk — som i seg selv
+      // leses som en avkuttet form.
+      fog: false,
+    })
+    materials.push(material)
+    const sprite = new Sprite(material)
     const w = 1200 + rnd() * 2200
-    sprite.scale.set(w, w * 0.35, 1)
+    sprite.scale.set(w, w * aspekt, 1)
     sprite.position.set(
       (rnd() - 0.5) * spanX,
       baseY + rnd() * 700,
       (rnd() - 0.5) * spanZ,
     )
     sprite.userData.driftM = 8 + rnd() * 14
+    sprite.userData.basisOpasitet = SKY_OPASITET
     group.add(sprite)
     sprites.push(sprite)
   }
+
+  const lengde = Math.hypot(driftX, driftZ) || 1
+  let retningX = driftX / lengde
+  let retningZ = driftZ / lengde
+  let fart = 1
+
   return {
     group,
     materials,
     textures,
-    update(dt) {
+    /**
+     * Legg et værpreg på skyene (se lib/tour3d/vaerHimmel.js). Endrer HVOR MANGE
+     * sprites som er synlige, hvor mørke og tette de er, og hvilken vei de
+     * drifter. Ingen geometri bygges om — bare synlighet, farge og retning, så
+     * dette er trygt å kalle hver gang varselet endrer seg.
+     *
+     * `null` setter alt tilbake til standard-himmelen: værmodus av skal se
+     * nøyaktig ut som før værmodus fantes.
+     */
+    setVaer(preg) {
+      const p = preg ?? { antall: sprites.length, opasitet: SKY_OPASITET, gratone: 1, driftX: 1, driftZ: 0, driftFart: 1 }
+      const synlige = Math.max(1, Math.min(sprites.length, Math.round(p.antall ?? sprites.length)))
+      for (let i = 0; i < sprites.length; i++) {
+        const s = sprites[i]
+        s.visible = i < synlige
+        s.userData.basisOpasitet = p.opasitet ?? SKY_OPASITET
+        s.material.opacity = s.userData.basisOpasitet
+        // Gråtonen males på materialets `color`, som three multipliserer med
+        // teksturen. Teksturen er hvit, så dette er den billigste veien til en
+        // regntung sky — ingen ny tekstur, ingen ny draw call.
+        const g = p.gratone ?? 1
+        s.material.color.setRGB(g, g, g)
+      }
+      const l = Math.hypot(p.driftX ?? 1, p.driftZ ?? 0) || 1
+      retningX = (p.driftX ?? 1) / l
+      retningZ = (p.driftZ ?? 0) / l
+      fart = p.driftFart ?? 1
+    },
+    /**
+     * @param {number} dt sekunder siden forrige frame
+     * @param {import('three').Camera} [camera] brukes til nær-demping
+     */
+    update(dt, camera) {
       for (const s of sprites) {
-        s.position.x += s.userData.driftM * dt
-        if (s.position.x > spanX / 2) s.position.x = -spanX / 2
+        if (!s.visible) continue
+        s.position.x += retningX * s.userData.driftM * fart * dt
+        s.position.z += retningZ * s.userData.driftM * fart * dt
+        if (s.position.x > spanX / 2) s.position.x -= spanX
+        else if (s.position.x < -spanX / 2) s.position.x += spanX
+        if (s.position.z > spanZ / 2) s.position.z -= spanZ
+        else if (s.position.z < -spanZ / 2) s.position.z += spanZ
+        // Flyr man gjennom en sky i fri-riggen, dekker ett billboard hele
+        // skjermen i et hvitt vask og kartet under er borte. Dempingen er
+        // derfor lesbarhet, ikke effekt: skyen tones ut idet den kommer
+        // nærmere enn sin egen bredde.
+        if (camera) {
+          const naer = s.scale.x
+          const d = s.position.distanceTo(camera.position)
+          const faktor = d >= naer ? 1 : Math.max(0, d / naer)
+          s.material.opacity = s.userData.basisOpasitet * faktor
+        }
       }
     },
     dispose() {
       for (const m of materials) m.dispose()
       for (const t of textures) t.dispose()
+    },
+  }
+}
+
+/**
+ * Nedbør: ETT Points-objekt over kartet, bygget etter stjernefeltet i
+ * buildNightSky — én draw call, ingen tekstur, ingen per-partikkel-objekt.
+ * Punktbudsjettet er avsatt én gang (NEDBOR_TAK) og bare DELER av det er
+ * synlig av gangen (`setTetthet`); å bygge geometrien om for hver værendring
+ * ville allokert et nytt Float32Array midt i en RAF-loop.
+ *
+ * `fog: false` av samme grunn som stjernene (v5.3.0): makeFog setter far til
+ * maxDim × 2,6, og alt utenfor males i ren tåkefarge.
+ *
+ * Snø faller sakte og driver sidelengs; regn faller fort og rett. Sludd ligger
+ * imellom. Alt er bevisst sparsomt — kartet under skal fortsatt kunne leses.
+ */
+export function buildNedbor({ widthM, heightM, toppY = 2200, maks = 700 } = {}) {
+  const group = new Group()
+  group.visible = false
+  const spanX = widthM * 1.6
+  const spanZ = heightM * 1.6
+  const hoyde = Math.max(600, toppY)
+
+  const rnd = mulberry32(4711)
+  const pos = new Float32Array(maks * 3)
+  // Fartsvariasjon per partikkel, så feltet ikke faller som ett teppe.
+  const spredning = new Float32Array(maks)
+  for (let i = 0; i < maks; i++) {
+    pos[i * 3] = (rnd() - 0.5) * spanX
+    pos[i * 3 + 1] = rnd() * hoyde
+    pos[i * 3 + 2] = (rnd() - 0.5) * spanZ
+    spredning[i] = 0.7 + rnd() * 0.6
+  }
+  const geo = new BufferGeometry()
+  const attr = new BufferAttribute(pos, 3)
+  geo.setAttribute('position', attr)
+  geo.setDrawRange(0, 0)          // ingenting synlig før setTetthet
+
+  const mat = new PointsMaterial({
+    color: new Color('#dbe9f5'),
+    size: 2.2,
+    sizeAttenuation: false,       // like store uansett avstand — de er dråper, ikke kuler
+    transparent: true,
+    opacity: 0.5,
+    depthWrite: false,
+    fog: false,
+  })
+  const points = new Points(geo, mat)
+  points.frustumCulled = false
+  group.add(points)
+
+  // Fallfart (m/s), sidedrift og utseende per type. Tallene er scenefart, ikke
+  // fysikk: ekte 9 m/s regn over et 5 km ark ville vært usynlige streker.
+  const TYPER = {
+    regn:  { fall: 260, drift: 0.10, size: 1.8, opacity: 0.45, farge: '#cfe0ee' },
+    sludd: { fall: 170, drift: 0.22, size: 2.4, opacity: 0.52, farge: '#e4eef8' },
+    sno:   { fall: 70,  drift: 0.45, size: 3.2, opacity: 0.62, farge: '#ffffff' },
+  }
+  let type = null
+  let antall = 0
+
+  return {
+    group,
+    geometries: [geo],
+    materials: [mat],
+    /**
+     * @param {null|'regn'|'sludd'|'sno'} nyType
+     * @param {number} tetthet antall punkt, klippet til budsjettet
+     */
+    setNedbor(nyType, tetthet) {
+      type = TYPER[nyType] ? nyType : null
+      antall = type ? Math.max(0, Math.min(maks, Math.round(tetthet || 0))) : 0
+      group.visible = antall > 0
+      geo.setDrawRange(0, antall)
+      if (!type) return
+      const t = TYPER[type]
+      mat.size = t.size
+      mat.opacity = t.opacity
+      mat.color.set(t.farge)
+    },
+    /** @param {number} dt sekunder  @param {number} vindX  @param {number} vindZ */
+    update(dt, vindX = 0, vindZ = 0) {
+      if (!antall || !type) return
+      const t = TYPER[type]
+      for (let i = 0; i < antall; i++) {
+        const j = i * 3
+        pos[j + 1] -= t.fall * spredning[i] * dt
+        pos[j] += vindX * t.fall * t.drift * dt
+        pos[j + 2] += vindZ * t.fall * t.drift * dt
+        // Nådd bakken: sett den øverst igjen. Vi bryr oss ikke om terrenghøyden
+        // — partiklene er en antydning av nedbør, ikke en simulering, og en
+        // dråpe som forsvinner litt over bakken er ikke til å se.
+        if (pos[j + 1] < 0) {
+          pos[j + 1] = hoyde
+          pos[j] = (pos[j] + spanX * 1.5) % spanX - spanX / 2
+          pos[j + 2] = (pos[j + 2] + spanZ * 1.5) % spanZ - spanZ / 2
+        }
+      }
+      attr.needsUpdate = true
+    },
+    dispose() {
+      geo.dispose()
+      mat.dispose()
     },
   }
 }

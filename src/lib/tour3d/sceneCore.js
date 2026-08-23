@@ -20,7 +20,8 @@ import {
   pickTextureSize, PREVIEW_TEXTURE_PX,
   prepareMapTextureSource, rasterizeMapTexture,
 } from './mapTexture.js'
-import { buildSkyDome, buildClouds, buildNightSky, makeFog, FOG_COLOR, NIGHT_FOG_COLOR } from './skyDome.js'
+import { buildSkyDome, buildClouds, buildNedbor, buildNightSky, makeFog, FOG_COLOR, NIGHT_FOG_COLOR } from './skyDome.js'
+import { NEDBOR_TAK } from './vaerHimmel.js'
 import { createEngineLoop } from './engineLoop.js'
 
 export class TourSceneError extends Error {
@@ -125,6 +126,15 @@ export async function createSceneCore(container, {
     baseY: Math.max(1200, terrain.maxElev * exaggeration + 350),
   })
   scene.add(clouds.group)
+  // Nedbør — skjult til setVaer sier noe annet. Punktbudsjettet avsettes én gang
+  // her; setVaer flytter bare drawRange, så en værendring allokerer ingenting.
+  const nedbor = buildNedbor({
+    widthM: meta.widthM,
+    heightM: meta.heightM,
+    toppY: Math.max(2200, terrain.maxElev * exaggeration + 1400),
+    maks: NEDBOR_TAK,
+  })
+  scene.add(nedbor.group)
   // Måne + bitte små gule stjerner (v4.8.5). Skjult som default; setNightMode
   // slår hele gruppa av/på sammen med skyene.
   const nightSky = buildNightSky()
@@ -175,6 +185,54 @@ export async function createSceneCore(container, {
       terrain.material.map = aktivTekstur()
       terrain.material.needsUpdate = true
     }
+  }
+
+  // ── Værmodus ──────────────────────────────────────────────────────────────
+  // Alt her er AV som standard: uten et værpreg skal 3D-visningen se nøyaktig ut
+  // som før værmodus fantes. setVaer(null) er veien tilbake.
+  let vaerVindX = 1
+  let vaerVindZ = 0
+  let tordenPaa = false
+  // Torden er et kort løft av dis- og bakgrunnsfargen — ingen geometri, ingen
+  // lyskilde. Rate-begrenset og av ved prefers-reduced-motion: et lyn som
+  // blinker uventa over et kart man leser er en tilgjengelighetssak, ikke en
+  // effekt. Uten mediespørringen ville den blitt slått på for alle.
+  const reduserBevegelse = typeof matchMedia === 'function'
+    && matchMedia('(prefers-reduced-motion: reduce)').matches
+  const TORDEN_MIN_S = 6
+  const TORDEN_MAKS_S = 17
+  const TORDEN_VARIGHET_S = 0.16
+  let tilNesteLyn = TORDEN_MIN_S
+  let lynIgjen = 0
+  const grunnfarge = new Color(FOG_COLOR)
+  const lynfarge = new Color('#e8f1ff')
+
+  function oppdaterTorden(dt) {
+    if (!tordenPaa || reduserBevegelse) return
+    if (lynIgjen > 0) {
+      lynIgjen -= dt
+      if (lynIgjen <= 0) {
+        scene.fog.color.copy(grunnfarge)
+        scene.background.copy(grunnfarge)
+      }
+      return
+    }
+    tilNesteLyn -= dt
+    if (tilNesteLyn > 0) return
+    // Ingen Math.random-forbud her (det gjelder workflow-skript), men et
+    // deterministisk intervall ville lest som en blinkende LED. Litt slark.
+    tilNesteLyn = TORDEN_MIN_S + Math.random() * (TORDEN_MAKS_S - TORDEN_MIN_S)
+    lynIgjen = TORDEN_VARIGHET_S
+    scene.fog.color.copy(lynfarge)
+    scene.background.copy(lynfarge)
+  }
+
+  /** Slå torden av og sett fargene trygt tilbake — også midt i et lyn. */
+  function stoppTorden() {
+    tordenPaa = false
+    lynIgjen = 0
+    scene.fog.color.set(nightOn ? NIGHT_FOG_COLOR : FOG_COLOR)
+    scene.background.set(nightOn ? NIGHT_FOG_COLOR : FOG_COLOR)
   }
 
   const loop = createEngineLoop({
@@ -233,7 +291,7 @@ export async function createSceneCore(container, {
 
   for (const d of [
     texture, terrain.geometry, terrain.material,
-    sky.geometry, sky.material, clouds, nightSky,
+    sky.geometry, sky.material, clouds, nedbor, nightSky,
   ]) loop.track(d)
 
   melding(null)
@@ -254,7 +312,14 @@ export async function createSceneCore(container, {
     render() { renderer.render(scene, camera) },
 
     // Bakgrunnsbevegelse som ikke avhenger av hva kalleren gjør med kameraet.
-    updateAmbient(dt) { clouds.update(dt) },
+    // Kameraet sendes med fordi skyene demper seg selv når de kommer nær:
+    // ett billboard på nært hold dekker hele skjermen i et hvitt vask, og
+    // kartet under blir uleselig.
+    updateAmbient(dt) {
+      clouds.update(dt, camera)
+      nedbor.update(dt, vaerVindX, vaerVindZ)
+      oppdaterTorden(dt)
+    },
 
     // Skjermkoordinat for et world-punkt. Leser kameraets matriser fra siste
     // render — kall etter render() for et resultat uten én frames etterslep.
@@ -297,8 +362,29 @@ export async function createSceneCore(container, {
       sky.setNight(nightOn)
       nightSky.setNight(nightOn)
       clouds.group.visible = !nightOn
-      scene.fog.color.set(nightOn ? NIGHT_FOG_COLOR : FOG_COLOR)
-      scene.background.set(nightOn ? NIGHT_FOG_COLOR : FOG_COLOR)
+      grunnfarge.set(nightOn ? NIGHT_FOG_COLOR : FOG_COLOR)
+      lynIgjen = 0            // et pågående lyn skal ikke overleve modus-byttet
+      scene.fog.color.copy(grunnfarge)
+      scene.background.copy(grunnfarge)
+    },
+    /**
+     * Legg et værpreg (lib/tour3d/vaerHimmel.js) på himmelen: skydekke, farge,
+     * vinddrift, nedbør og torden. `null` setter alt tilbake til standard-
+     * himmelen — værmodus av skal ikke etterlate spor.
+     *
+     * Skyene er skjult i nattmodus (setNightMode), og det er de fortsatt: et
+     * værpreg endrer ikke HVEM som er synlig, bare hvordan de ser ut.
+     */
+    setVaer(preg) {
+      clouds.setVaer(preg)
+      nedbor.setNedbor(preg?.nedbor ?? null, preg?.nedborTetthet ?? 0)
+      vaerVindX = preg?.driftX ?? 1
+      vaerVindZ = preg?.driftZ ?? 0
+      // Grunnfargen for torden-blinket må følge natt/dag, ellers blinker
+      // natthimmelen tilbake til dagens tåkefarge og blir stående der.
+      grunnfarge.set(nightOn ? NIGHT_FOG_COLOR : FOG_COLOR)
+      if (preg?.torden) tordenPaa = true
+      else stoppTorden()
     },
     get nightOn() { return nightOn },
 

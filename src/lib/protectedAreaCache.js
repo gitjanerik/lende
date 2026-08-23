@@ -22,6 +22,10 @@ export const TTL = {
   // pakkes med i en offline-fil.
   hydro: 7 * 24 * 60 * 60 * 1000,
   hydroMaaling: 24 * 60 * 60 * 1000,
+  // Værvarsel er appens klart ferskeste data: MET oppdaterer Locationforecast
+  // hver time. 30 min er også debouncingen — to trykk i samme område innen
+  // halvtimen koster MET ingenting.
+  vaer: 30 * 60 * 1000,
 }
 
 // Session-minne foran IndexedDB — unngår en async DB-tur når punktet allerede
@@ -126,6 +130,20 @@ export function placePointKey(lat, lon) {
   return `wikiplace3:pt:${lat.toFixed(3)},${lon.toFixed(3)}`
 }
 
+/** Nøkkel for værvarsel på ~100 m-grid.
+ *
+ *  MET krever maks 4 desimaler i lat/lon og sier rett ut hvorfor: varselmodellen
+ *  har ~1 km oppløsning, og overpresise koordinater ødelegger cachingen deres.
+ *  Vi går enda grovere (3 desimaler, som de andre punkt-nøklene her) — det er
+ *  fortsatt godt innenfor METs krav, og det gjør at nære trykk treffer samme rad.
+ *
+ *  Navnerommet har versjon fra dag én. Lærdommen fra `fredet:` → `fredet:enk:`
+ *  under: en TTL som overlever et schema-bytte leverer gammel form som sannhet.
+ */
+export function vaerPointKey(lat, lon) {
+  return `vaer1:pt:${lat.toFixed(3)},${lon.toFixed(3)}`
+}
+
 /** Nøkkel for kulturminne-bbox-henting (kvantisert til ~3 desimaler ≈ 100 m). */
 export function kulturminneBboxKey(bbox) {
   const q = (v) => Number(v).toFixed(3)
@@ -166,6 +184,10 @@ export function hydroLatestKey(stationId) {
  * setter derfor klokka på nytt ved import i stedet for å arve avsenderens.
  */
 export function ttlForKey(key) {
+  // Vær FØRST og for seg: uten denne grenen faller `vaer1:` gjennom til
+  // TTL.kulturminne (30 DAGER). En 30 dager gammel værmelding er ikke en
+  // degradering, den er en løgn — og den ville sett helt fersk ut.
+  if (key.startsWith('vaer1:')) return TTL.vaer
   if (key.startsWith('hydro:latest:')) return TTL.hydroMaaling
   if (key.startsWith('hydro:')) return TTL.hydro
   if (key.startsWith('naturtype:')) return TTL.naturtype

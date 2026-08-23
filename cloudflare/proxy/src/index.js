@@ -15,8 +15,19 @@
 //    som er trygt siden datasettet endrer seg sakte. Speiler alt under
 //    /brukerminner/ (liste + enkelt-oppslag).
 //
+// 3) MET Norway Locationforecast (https://api.met.no) krever en IDENTIFISERENDE
+//    `User-Agent` med kontaktinfo, og svarer 403 Forbidden på en generisk eller
+//    manglende en. En nettleser kan ikke sette den headeren — `User-Agent` er
+//    forbudt i fetch() — så et direkte klient-kall kan ikke oppfylle METs vilkår
+//    uansett hvor snill CORS-en deres er. Derfor hit. Speiler:
+//      GET /vaer/locationforecast/2.0/compact?lat=&lon=
+//    Ingen nøkkel; MET er åpent. Vi runder lat/lon til 4 desimaler (METs krav —
+//    flere ødelegger cachen deres, og vil etter hvert gi 400) og cacher, så tjue
+//    turgåere på samme fjell koster MET ett kall.
+//
 // Alt annet gir 404 — Worker-en er bevisst ingen åpen proxy. Query-strengen
-// videresendes uendret; svaret speiles med CORS-headere så nettleseren godtar det.
+// videresendes uendret (unntatt METs koordinat-avrunding); svaret speiles med
+// CORS-headere så nettleseren godtar det.
 
 const HYDAPI_ORIGIN = 'https://hydapi.nve.no'
 const HYDAPI_PATHS = new Set(['/api/v1/Stations', '/api/v1/Observations'])
@@ -26,6 +37,23 @@ const RA_PREFIX = '/brukerminner/'
 // Datasettet er brukerregistrerte kulturminner — det endrer seg over dager, ikke
 // minutter. Et døgn fjerner både mobil-timeouts og gjentatte kall for samme kart.
 const RA_CACHE_S = 86400
+
+const MET_ORIGIN = 'https://api.met.no'
+const MET_PREFIX = '/vaer/'
+// Kun dette ene endepunktet. Prefikset er ikke en åpen dør til api.met.no.
+const MET_PATHS = new Map([
+  ['/vaer/locationforecast/2.0/compact', '/weatherapi/locationforecast/2.0/compact'],
+])
+// METs vilkår: identifiser deg med kontaktinfo. Uten dette → 403 fra MET.
+// Versjonen her er PROXY-rutas, ikke appens: den skal ikke følge app-bumpene
+// (Workeren deployes for seg), og en versjon som drifter er verre enn en stabil.
+const MET_UA = 'lende/1.0 (+https://github.com/gitjanerik/lende)'
+// Locationforecast oppdateres hver time. Et halvtimes tak er godt innenfor
+// «ikke poll hardere enn nødvendig», og vi respekterer upstream `Expires` når
+// den er kortere. MET regner over 20 req/s som tung trafikk.
+const MET_CACHE_S = 1800
+// METs harde krav: aldri mer enn 4 desimaler i lat/lon.
+const MET_DESIMALER = 4
 
 const ALLOWED_ORIGINS = new Set([
   'https://gitjanerik.github.io',
@@ -145,6 +173,93 @@ async function proxyBrukerminner(request, url, cors, ctx) {
   })
 }
 
+/**
+ * Rund en koordinat til METs maks-presisjon. Returnerer null når verdien ikke
+ * er et tall i gyldig område — da svarer vi 400 selv i stedet for å sende
+ * søppel videre til MET (som ville sett det som en klient uten peiling).
+ */
+export function metKoordinat(v, grense) {
+  // `searchParams.get()` gir null for en manglende parameter, og Number(null)
+  // er 0 — ikke NaN. Uten denne vakta ville et kall uten `lat` blitt et varsel
+  // for 0,0000 / 0,0000, altså Guineabukta, uten at noe så feil ut.
+  if (v === null || v === undefined || v === '') return null
+  const n = Number(v)
+  if (!Number.isFinite(n) || Math.abs(n) > grense) return null
+  return n.toFixed(MET_DESIMALER)
+}
+
+/**
+ * Hvor lenge svaret kan caches: upstream `Expires` når den finnes og er kortere
+ * enn taket vårt, ellers taket. `naaMs` er injisert så funksjonen kan testes.
+ */
+export function metCacheSekunder(expiresHeader, naaMs) {
+  if (!expiresHeader) return MET_CACHE_S
+  const ms = Date.parse(expiresHeader)
+  if (!Number.isFinite(ms)) return MET_CACHE_S
+  const s = Math.floor((ms - naaMs) / 1000)
+  if (s <= 0) return 60          // alt utløpt: hold et minutt, ikke null
+  return Math.min(s, MET_CACHE_S)
+}
+
+async function proxyMet(url, cors, ctx) {
+  const oppstrømsPath = MET_PATHS.get(url.pathname)
+  if (!oppstrømsPath) return new Response('Not Found', { status: 404, headers: cors })
+
+  const lat = metKoordinat(url.searchParams.get('lat'), 90)
+  const lon = metKoordinat(url.searchParams.get('lon'), 180)
+  if (lat === null || lon === null) {
+    return new Response('lat/lon mangler eller er ugyldige.', { status: 400, headers: cors })
+  }
+  // Bygg query-strengen SELV framfor å videresende klientens. To grunner: den
+  // avrundede koordinaten er det MET faktisk skal se, og cache-nøkkelen blir
+  // kanonisk — ellers ville «?lon=10.44&lat=59.83» og «?lat=59.83&lon=10.44»
+  // vært to oppslag på samme sted.
+  const oppstrøms = `${MET_ORIGIN}${oppstrømsPath}?lat=${lat}&lon=${lon}`
+  const cacheKey = new Request(`${url.origin}${url.pathname}?lat=${lat}&lon=${lon}`, { method: 'GET' })
+  const cache = caches.default
+  const hit = await cache.match(cacheKey)
+  if (hit) {
+    return new Response(await hit.text(), {
+      status: 200,
+      headers: {
+        ...cors,
+        'Content-Type': hit.headers.get('Content-Type') ?? 'application/json',
+        'X-Lende-Cache': 'hit',
+      },
+    })
+  }
+
+  let upstream
+  try {
+    upstream = await fetch(oppstrøms, {
+      headers: { Accept: 'application/json', 'User-Agent': MET_UA },
+    })
+  } catch (e) {
+    // Samme skille som på kulturminne-ruta: 599 = Workeren fikk ikke kontakt i
+    // det hele tatt, en speilet 5xx = MET svarte og var nede. Ulike årsaker.
+    return new Response(`Kunne ikke nå api.met.no: ${e?.message ?? 'ukjent feil'}`,
+      { status: 599, headers: { ...cors, 'X-Lende-Upstream': 'unreachable' } })
+  }
+
+  const raw = await upstream.text()
+  const type = upstream.headers.get('Content-Type') ?? 'application/json'
+  if (!upstream.ok) {
+    return new Response(raw, {
+      status: upstream.status,
+      headers: { ...cors, 'Content-Type': type, 'X-Lende-Upstream': String(upstream.status) },
+    })
+  }
+
+  const maxAge = metCacheSekunder(upstream.headers.get('Expires'), Date.now())
+  ctx.waitUntil(cache.put(cacheKey, new Response(raw, {
+    headers: { 'Content-Type': type, 'Cache-Control': `public, max-age=${maxAge}` },
+  })))
+  return new Response(raw, {
+    status: 200,
+    headers: { ...cors, 'Content-Type': type, 'X-Lende-Cache': 'miss' },
+  })
+}
+
 export default {
   async fetch(request, env, ctx) {
     const origin = request.headers.get('Origin')
@@ -160,6 +275,7 @@ export default {
     const url = new URL(request.url)
     if (HYDAPI_PATHS.has(url.pathname)) return proxyHydApi(url, cors, env)
     if (url.pathname.startsWith(RA_PREFIX)) return proxyBrukerminner(request, url, cors, ctx)
+    if (url.pathname.startsWith(MET_PREFIX)) return proxyMet(url, cors, ctx)
     return new Response('Not Found', { status: 404, headers: cors })
   },
 }

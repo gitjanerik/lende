@@ -133,7 +133,15 @@ nettet.** Eksporten (`lib/offlinePakke.js`) fyller cachen mens den har dekning,
 tar radene med i fila, og importen skriver dem inn igjen med FERSK TTL — en fil
 kan ha ligget en måned i en chat. Lag-koden vet ingenting. **Legger du til et nytt
 runtime-hentet lag, er det ÉN ting som må gjøres:** hent det i `samleOfflineData`
-med nøyaktig samme cache-nøkkel som laget slår opp på. Bboksen må komme fra
+med nøyaktig samme cache-nøkkel som laget slår opp på.
+
+**Unntaket, og det er med vilje: VÆRVARSEL PAKKES IKKE (v5.21.0).** Det er det
+eneste laget der utdatert betyr FEIL og ikke bare mindre presist. Importen
+(`skrivOfflineData`) setter FERSK TTL på hver rad — det er hele poenget for
+kulturminner og verneområder — men en prognose fra en fil som har ligget en måned
+i en chat ville da blitt vist som om den gjaldt nå. `vaer1:`-nøkkelen har derfor
+ingen linje i `samleOfflineData`, og `ttlForKey` gir den 30 minutter. Ikke «rett»
+dette som en glemt kilde. Bboksen må komme fra
 `wgs84BboxFromMeta` (`utm.js`) — den lå i tre kopier fram til v5.20.0, og en
 nøkkel som bommer med én desimal gir en fil full av data ingen leter etter.
 Det oppdages først når turkameraten står på fjellet.
@@ -249,6 +257,22 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   viser (`Viewer3D.vue`), to rigger (`cameraRigs.js` = følge, `freeRig.js` =
   fri). Kommer det en tredje inngang til 3D, skal den være en OPSJON på
   `create3dScene`, ikke en ny scene.
+- **Værhimmelen er en OPSJON, ikke et lag ved siden av (v5.21.1).** `setVaer(preg)`
+  på `sceneCore` justerer skyene som alt finnes (antall synlige sprites, farge,
+  vinddrift) og skrur på ett `Points`-objekt for nedbør. `setVaer(null)` skal gi
+  nøyaktig standard-himmelen igjen — værmodus av etterlater ingen spor. Selve
+  oversettelsen fra METs `symbol_code` til preg bor i `lib/tour3d/vaerHimmel.js`,
+  som er REN og enhetstestet: rekkefølgen på regex-ene der bestemmer hvilken
+  familie som vinner, og en regel plassert for høyt stjeler treff fra dem under.
+  Takene (`SKY_OPASITET_TAK`, `NEDBOR_TAK`) er lesbarhet, ikke smak — 3D har
+  ingen adaptiv kvalitets-nedtrapping å skru ned senere.
+- **Sol/måne-knappen i 3D har FIRE steg** (dag → dag+vær → natt → natt+vær), ikke
+  to. Egen vær-knapp ble vurdert og forkastet: topprada har alt fem-seks knapper,
+  og kommentaren over den i `Viewer3D.vue` forteller hva som skjedde sist den
+  vokste. Vær-biten persisteres (`lende-3d-vaer`); dag/natt-biten gjør det
+  bevisst IKKE — den avledes av kart-temaet, så 3D følger lys/mørk-valget i
+  kartet. Værvarselet hentes ÉN gang per ark, for senterpunktet — ikke per
+  kamerabevegelse. Det er hele debouncingen.
 - **3D dekker HELE arket, ikke aktiv flis (v5.18.0).** `use3dEntry` regner
   utsnittet av mosaikk-kanten (`extendZonesBounds`) ∪ rutas bbox
   (`tourExtent.computeExtent`), henter DEM for hele utsnittet og forskyver ALT
@@ -352,13 +376,23 @@ et lag mellom trinn krever kode-endring + nybygd kart.
 - `build-redlist.yml` regenererer `public/data/redlist-no.json` fra GBIF ved
   endring i script/CSV.
 - **Proxy-Worker** (`cloudflare/proxy/`, deployes som `lende-proxy`): én
-  frittstående Cloudflare Worker med to ruter, valgt på path.
+  frittstående Cloudflare Worker med tre ruter, valgt på path.
   `/api/v1/Stations|Observations` → NVE HydAPI, med nøkkelen som Cloudflare-secret
   (`NVE_HYDAPI_KEY`) — aldri i bundelen. `/brukerminner/*` → Kulturminnesøk
   (`api.ra.no`), som ikke trenger nøkkel men gikk hit for CORS + døgn-cache etter
   at klient-side-hentingen feilet (v4.8.7). Alt annet gir 404 — ingen åpen proxy.
-  Klientene peker hit via standard-URL i `nveHydApi.js` og `kulturminneFetcher.js`
-  (overstyrbare med `VITE_NVE_HYDAPI_URL` / `VITE_KULTURMINNE_URL`).
+  `/vaer/locationforecast/2.0/compact` → MET Norway (`api.met.no`), som heller
+  ikke trenger nøkkel — men som KREVER en identifiserende `User-Agent`, og
+  `User-Agent` er en forbudt header i nettleserens `fetch()`. Et direkte
+  klient-kall kan derfor ikke oppfylle METs vilkår uansett hvor snill CORS-en
+  deres er; det er hele grunnen til at værvarselet går gjennom Workeren og ikke
+  rett fra appen. Ruta runder `lat`/`lon` til METs maks 4 desimaler og cacher i
+  inntil 30 min. **`api.met.no` er blokkert fra utviklings-sandkassene**, så ruta
+  kan bare prøves i CI — røyktesten i `deploy-proxy.yml` er den eneste som ser
+  en 403 fra MET, og en 403 betyr nesten alltid vår egen `User-Agent`.
+  Klientene peker hit via standard-URL i `nveHydApi.js`, `kulturminneFetcher.js`
+  og `vaerFetcher.js` (overstyrbare med `VITE_NVE_HYDAPI_URL` /
+  `VITE_KULTURMINNE_URL` / `VITE_MET_URL`).
   Deployes separat fra GitHub Pages; se `cloudflare/proxy/README.md`.
   Het `lende-nve-proxy` fram til v4.8.7 — eldre CHANGELOG-poster bruker det navnet.
 

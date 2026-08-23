@@ -1,11 +1,12 @@
 # Lende proxy-Worker (Cloudflare)
 
-Én liten Cloudflare Worker med **to ruter**, valgt på path:
+Én liten Cloudflare Worker med **tre ruter**, valgt på path:
 
 | Path | Videre til | Hvorfor |
 |---|---|---|
 | `/api/v1/Stations`, `/api/v1/Observations` | `hydapi.nve.no` | NVE krever en API-nøkkel. Vite inliner klient-env i den offentlige bundelen, så nøkkelen kan ikke bo i nettleseren — den ligger som kryptert secret `NVE_HYDAPI_KEY` og legges på server-side. |
 | `/brukerminner/*` | `api.ra.no` | Kulturminnesøk brukerminner. Trenger **ingen** nøkkel, men klient-side-hentingen feilet i praksis (v4.8.7). Proxyen setter CORS selv, speiler opphavets statuskode og cacher i ett døgn. |
+| `/vaer/locationforecast/2.0/compact` | `api.met.no` | Værvarsel. Trenger ingen nøkkel, men MET **krever** en identifiserende `User-Agent` med kontaktinfo og svarer 403 på en generisk eller manglende en — og `User-Agent` er en forbudt header i nettleserens `fetch()`. Et direkte klient-kall kan derfor ikke oppfylle vilkårene, uansett CORS. Proxyen setter headeren, runder `lat`/`lon` til METs maks 4 desimaler, og cacher i inntil 30 min (kortere hvis METs `Expires` sier så). |
 
 Alt annet gir 404 — Worker-en er bevisst ingen åpen proxy, og tillater bare
 `GET`/`OPTIONS`. CORS er begrenset til Lende-originene i `src/index.js`.
