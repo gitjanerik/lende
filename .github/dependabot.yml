@@ -1,0 +1,87 @@
+# Dependabot — én ukentlig PR per katalog med avhengigheter.
+#
+# Hvorfor fire kataloger og ikke én: rot-treet er appen, og de tre Workerne har
+# hver sin `package.json` som deployes for seg. En sårbarhet i rot-treet sier
+# ingenting om den deployede MCP-Workeren, og omvendt — det var nøyaktig den
+# forvirringen som gjorde avhengighets-gjennomgangen i august 2026 vrien: rot og
+# Worker hadde ulike versjoner av samme pakke, og bare én av dem sto på nett.
+#
+# Grupperingen er valgt etter hva som kan slås sammen til ÉN testrunde. Patch og
+# minor går sammen, fordi de nesten alltid er grønne og fordi tolv separate PR-er
+# i uka ville drept PR-per-endring-modellen. Major står ALENE: det er de som
+# trenger en ekte gjennomgang, og de skal ikke kunne gjemme seg i en samle-PR.
+#
+# Merk: `cloudflare/proxy` og `cloudflare/ai-worker` har ingen `package-lock.json`
+# (bare wrangler som dev-avhengighet). Dependabot oppdaterer da manifestet alene,
+# som er riktig her — Workerne bundles av wrangler ved deploy.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: 'deps'
+    groups:
+      app-patch-minor:
+        patterns: ['*']
+        update-types: [minor, patch]
+    ignore:
+      # Fontpakkene er DATA, ikke kode: sju pakker som bumper i lås hver måned og
+      # aldri kan brekke noe annet enn en glyf. De hører i den grupperte PR-en,
+      # men et major-sprang på en font trenger ingen egen gjennomgang.
+      - dependency-name: '@fontsource-variable/*'
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: npm
+    directory: /cloudflare/mcp-worker
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: 'deps(mcp-worker)'
+    groups:
+      mcp-worker-patch-minor:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /cloudflare/proxy
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: 'deps(proxy)'
+    groups:
+      proxy-patch-minor:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /cloudflare/ai-worker
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: 'deps(ai-worker)'
+    groups:
+      ai-worker-patch-minor:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  # Actions-versjonene råtner stille: en `actions/checkout@v4` som blir arkivert
+  # gir en advarsel i loggen ingen leser, og til slutt en rød jobb.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: 'deps(actions)'
+    groups:
+      actions:
+        patterns: ['*']
