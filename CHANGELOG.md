@@ -1,5 +1,33 @@
 # Endringslogg
 
+## 2026-08-23 — v5.20.2: Skyene i 3D var klippet av lerret-kanten
+
+Skyene i 3D-visningen hadde knivrette kanter og leste som lyse firkanter i
+himmelen framfor myke dotter. Årsaken var en tegnefeil som hadde ligget siden
+skyene ble laget: `cloudTexture()` tegnet radielle gradienter på et 256 × 128
+lerret, men målte radiene mot BREDDEN. En dott på y = 47 med r = 54 stakk 7 px
+over toppkanten, `fillRect` klippet den, og det sto igjen ~10 % alfa i øverste
+teksel-rad — som med ClampToEdge-wrapping males som en rett strek tvers over
+billboardet. Bare seed 29 brakk ordentlig, og siden materialene fordeles med
+`i % 3` var det bare hver tredje sky, noe som gjorde feilen lett å tvile på.
+Radien klippes nå mot avstanden til nærmeste kant (en dott nær kanten blir
+mindre, aldri kuttet), lerretet er 256 × 160, og en elliptisk alfa-maske tvinger
+alfa til null langs alle fire kanter uansett hva fordelingen gir seinere.
+Plasseringen er skilt ut som `skyDotter()` og enhetstestet mot alle tre seedene,
+så feilklassen ikke kan komme tilbake med en ny seed.
+
+To feil ved siden av, funnet i samme kode: skymaterialene manglet `fog: false`,
+så de fjerneste skyene ble malt i flat tåkefarge mot en blå senit — nøyaktig
+samme feil som ble rettet for stjernene og månen i v5.3.0, der begrunnelsen
+allerede sto i koden rett over. Og skyfeltet var bare 1,6 × arket, mens
+åpningsposen legger kameraet omtrent 0,63 × span meter opp: sett ovenfra-og-ned
+sluttet spredningen av billboards midt i bildet. Feltet er nå 2,6 × og
+resirkulerer langs begge akser, klart for vinddrevet drift. Skyene demper seg
+dessuten selv når de kommer nærmere kameraet enn sin egen bredde — ett billboard
+på nært hold la et hvitt vask over kartet.
+
+---
+
 ## 2026-08-21 — v5.20.1: Importen sier hva som er galt når fila ligger i skyen
 
 Første ekte forsøk på å importere en delt kartfil på mobil ga «A requested file

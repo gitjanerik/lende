@@ -254,7 +254,10 @@ export async function createSceneCore(container, {
     render() { renderer.render(scene, camera) },
 
     // Bakgrunnsbevegelse som ikke avhenger av hva kalleren gjør med kameraet.
-    updateAmbient(dt) { clouds.update(dt) },
+    // Kameraet sendes med fordi skyene demper seg selv når de kommer nær:
+    // ett billboard på nært hold dekker hele skjermen i et hvitt vask, og
+    // kartet under blir uleselig.
+    updateAmbient(dt) { clouds.update(dt, camera) },
 
     // Skjermkoordinat for et world-punkt. Leser kameraets matriser fra siste
     // render — kall etter render() for et resultat uten én frames etterslep.
