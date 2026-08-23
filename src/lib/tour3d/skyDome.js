@@ -155,50 +155,19 @@ export function buildNightSky({ radius = 25000, starCount = 160 } = {}) {
   }
 }
 
-// SKYENE ER RULLET TILBAKE TIL SLIK DE VAR FØR v5.20.2 (se v5.21.4).
+// Skyene bor IKKE her lenger — se lib/tour3d/puffSkyer.js (v5.22.0).
 //
-// Mellom v5.20.2 og v5.21.3 ble det gjort fem endringer her for å rette at
-// skyene så «kuttet» ut på eierens telefon: klipping av blob-radier, et høyere
-// lerret, en alfa-vignett, fog: false, materiale pr sprite, alphaTest, større
-// felt og nær-kamera-demping. Ingen av dem kunne verifiseres — artefakten viser
-// seg BARE på den telefonens GPU, og aldri på skrivebordet eller i CI. Etter tre
-// runder var resultatet harde hvite firkanter, altså klart dårligere enn
-// utgangspunktet.
+// Denne fila hadde en sprite-basert buildClouds fra starten, og den ble forsøkt
+// reparert åtte ganger fordi eieren så skyene som «kuttet» og flate i toppen. Alle
+// forsøkene var feil sted å lete: en THREE.Sprite ER en flat plate som alltid
+// vender mot kameraet, så toppen er flat uansett hva teksturen inneholder,
+// silhuetten er den samme fra alle vinkler, og man kan ikke fly gjennom en sky.
+// En GPU-måling fra eierens telefon frikjente hele teksturveien (sRGB, mipmap,
+// NPOT, tømt lerret, ufullstendig tekstur — alle rene), og da var billboardet
+// selv det eneste som sto igjen.
 //
-// Lærdommen, og grunnen til at denne kommentaren står her: en visuell feil som
-// bare finnes på ÉN enhet kan ikke rettes ved å endre kode og spørre om det ble
-// bedre. Hver runde er et gjett, og gjett akkumulerer. Skal dette tas opp igjen,
-// må det starte med en MÅLING fra den enheten — en WebGL-capability-dump
-// (webgl1 vs webgl2, maks tekstur, NPOT-håndtering) og gjerne en
-// readPixels-prøve — ikke med en ny kodeendring.
-//
-// Koden under er derfor den opprinnelige, ordrett, med ÉN tilføyelse: setVaer,
-// som værmodus (v5.21.1) trenger. Den rører bare synlighet, farge, opasitet og
-// driftretning — ingen av mekanismene over.
-
-// Myk skyflekk-tekstur: noen overlappende radielle gradienter på canvas.
-function cloudTexture(seed) {
-  const px = 256
-  const canvas = document.createElement('canvas')
-  canvas.width = px
-  canvas.height = px / 2
-  const ctx = canvas.getContext('2d')
-  const rnd = mulberry32(seed)
-  const blobs = 6 + Math.floor(rnd() * 4)
-  for (let i = 0; i < blobs; i++) {
-    const x = px * (0.2 + rnd() * 0.6)
-    const y = (px / 2) * (0.35 + rnd() * 0.3)
-    const r = px * (0.1 + rnd() * 0.12)
-    const g = ctx.createRadialGradient(x, y, 0, x, y, r)
-    g.addColorStop(0, 'rgba(255,255,255,0.75)')
-    g.addColorStop(1, 'rgba(255,255,255,0)')
-    ctx.fillStyle = g
-    ctx.fillRect(0, 0, px, px / 2)
-  }
-  const tex = new CanvasTexture(canvas)
-  tex.colorSpace = SRGBColorSpace
-  return tex
-}
+// Skyene er derfor klynger av kule-skyggede puffer med ekte utstrekning i tre
+// akser. mulberry32 står igjen her fordi nattehimmelen bruker den.
 
 function mulberry32(a) {
   return function () {
@@ -206,82 +175,6 @@ function mulberry32(a) {
     let t = Math.imul(a ^ (a >>> 15), 1 | a)
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
-
-/**
- * Drivende skyer over kartet. Billboards med prosedural tekstur — ingen
- * eksterne assets, ~10 sprites, umerkelig på GPU-budsjettet.
- */
-export function buildClouds({ widthM, heightM, baseY = 1200, count = 10 } = {}) {
-  const group = new Group()
-  const rnd = mulberry32(42)
-  const spanX = widthM * 1.6
-  const spanZ = heightM * 1.6
-  const textures = [cloudTexture(7), cloudTexture(13), cloudTexture(29)]
-  const materials = textures.map(t => new SpriteMaterial({
-    map: t, transparent: true, opacity: 0.85, depthWrite: false,
-  }))
-  const sprites = []
-  for (let i = 0; i < count; i++) {
-    const sprite = new Sprite(materials[i % materials.length])
-    const w = 1200 + rnd() * 2200
-    sprite.scale.set(w, w * 0.35, 1)
-    sprite.position.set(
-      (rnd() - 0.5) * spanX,
-      baseY + rnd() * 700,
-      (rnd() - 0.5) * spanZ,
-    )
-    sprite.userData.driftM = 8 + rnd() * 14
-    group.add(sprite)
-    sprites.push(sprite)
-  }
-
-  // Værmodus. Materialene er DELTE (tre stykker, som i originalen), så farge og
-  // opasitet settes pr materiale og ikke pr sprite — det er godt nok: et værpreg
-  // gjelder hele himmelen.
-  let retningX = 1
-  let retningZ = 0
-  let fart = 1
-
-  return {
-    group,
-    materials,
-    textures,
-    /**
-     * Legg et værpreg på skyene (lib/tour3d/vaerHimmel.js): hvor mange som er
-     * synlige, hvor mørke og tette de er, og hvilken vei de drifter.
-     * `null` gir standard-himmelen tilbake, uendret.
-     */
-    setVaer(preg) {
-      const synlige = preg
-        ? Math.max(1, Math.min(sprites.length, Math.round(preg.antall ?? sprites.length)))
-        : sprites.length
-      for (let i = 0; i < sprites.length; i++) sprites[i].visible = i < synlige
-      const g = preg?.gratone ?? 1
-      for (const m of materials) {
-        m.opacity = preg?.opasitet ?? 0.85
-        m.color.setRGB(g, g, g)
-      }
-      const l = Math.hypot(preg?.driftX ?? 1, preg?.driftZ ?? 0) || 1
-      retningX = (preg?.driftX ?? 1) / l
-      retningZ = (preg?.driftZ ?? 0) / l
-      fart = preg?.driftFart ?? 1
-    },
-    update(dt) {
-      for (const s of sprites) {
-        s.position.x += retningX * s.userData.driftM * fart * dt
-        s.position.z += retningZ * s.userData.driftM * fart * dt
-        if (s.position.x > spanX / 2) s.position.x -= spanX
-        else if (s.position.x < -spanX / 2) s.position.x += spanX
-        if (s.position.z > spanZ / 2) s.position.z -= spanZ
-        else if (s.position.z < -spanZ / 2) s.position.z += spanZ
-      }
-    },
-    dispose() {
-      for (const m of materials) m.dispose()
-      for (const t of textures) t.dispose()
-    },
   }
 }
 

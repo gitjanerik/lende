@@ -1,5 +1,54 @@
 # Endringslogg
 
+## 2026-08-23 — v5.22.0: Skyer med volum
+
+Skyene i 3D er ikke lenger flate plater. Hver sky er en klynge av 13 puffer med
+hver sin posisjon i rommet, og hver puff skyggelegges som en kule — normalen
+regnes ut av firkantens egne koordinater, og sol-retningen oversettes til
+view-space hver frame så lyset står stille i verden når kameraet dreier.
+
+Det løser tre ting ingen teksturendring kunne: toppen buler i stedet for å være
+flat, silhuetten endrer seg når man flyr rundt, og puffene passerer forbi én for
+én når man flyr inn i en sky. Kostnaden er uendret — én draw call per sky, fjorten
+totalt, som sprites hadde.
+
+Grunnen til at det tok så lang tid å komme hit er verdt å skrive ned. Eieren meldte
+at skyene så «kuttet» ut og var flate i toppen, og det ble forsøkt rettet åtte
+ganger i teksturen: radius-klipping, høyere lerret, alfa-vignett, `fog: false`,
+materiale per sprite, `alphaTest`, større skyfelt, nær-kamera-demping. Alle var
+feil sted å lete. En GPU-måling fra eierens egen telefon frikjente hele
+teksturveien — sRGB, mipmap-generering, NPOT, tømt kildelerret og ufullstendig
+tekstur var alle rene. Da sto billboardet selv igjen som eneste forklaring, og det
+var eieren som satte ord på det: en `THREE.Sprite` er en flat plate som alltid
+vender mot betrakteren, så toppen er flat uansett hva teksturen inneholder.
+
+De fire tallene som styrer uttrykket (`radiusFaktor`, `kantMyk`, `tetthet`,
+`lysKontrast`) står samlet i toppen av `buildPuffClouds`, fordi de er smak og ikke
+mekanikk. Tre innstillinger ble rendret fra fire kameravinkler og lagt fram til
+valg framfor at én ble gjettet fram. `puffSkyer.test.js` håndhever det som ikke er
+smak: utstrekning i alle tre akser — testen feiler med «klyngen er en plate» hvis
+dybden forsvinner — og at puffene overlapper nok til at man ser skya og ikke kulene.
+
+Sprite-skyene og skyteksturen er fjernet fra `skyDome.js`, som nå bare eier
+himmelkuppelen, natthimmelen, nedbøren og disen. Værmodus virker som før:
+`setVaer` justerer antall synlige skyer, farge, tetthet og driftretning, og
+`setVaer(null)` gir bit-identisk utgangstilstand.
+
+Utvikler-fanen har fått **Vær-demo i 3D**: en runde gjennom tolv værtyper, 10 s
+hver, med «forrige/neste» og navnet synlig. Den finnes fordi flere av uttrykkene
+er ren BEVEGELSE og ikke kan vurderes på et stillbilde — vinden er bare
+driftretning og fart, lyn-blinket varer 0,16 s, og nedbøren faller. Det var
+nettopp den blindsonen som gjorde at sky-arbeidet gikk i ring: uttrykk ble endret
+og vurdert på skjermbilder, én runde av gangen.
+
+Rekkefølgen i runden er en del av verktøyet og ikke tilfeldig: skydekket trappes
+opp først, så nedbør i økende styrke, torden rett etter regnet den skal skille seg
+fra, og til slutt vind som TO steg med samme skydekke og ulik fart — den eneste
+måten å se en egenskap som ikke har noe eget utseende. `vaerDemo.test.js`
+håndhever den rekkefølgen, så den ikke blir «ryddet» alfabetisk i god tro.
+
+---
+
 ## 2026-08-23 — v5.21.4: Skyene rullet tilbake — jeg gjorde dem verre
 
 Eieren meldte at skyene i 3D så «kuttet» ut. Over tre runder ble det gjort åtte

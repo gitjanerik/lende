@@ -21,6 +21,7 @@ import { lesPinPrefs, skrivPinPrefs, paaGrupper } from '../../lib/tour3d/pinPref
 import { svgToWgs84 } from '../../lib/utm.js'
 import { fetchVarsel, naaVarsel } from '../../lib/vaerFetcher.js'
 import { vaerTilHimmel } from '../../lib/tour3d/vaerHimmel.js'
+import { DEMO_STEG, DEMO_SEKUNDER, demoMaling } from '../../lib/tour3d/vaerDemo.js'
 import { cacheGet, cacheSet, vaerPointKey, TTL } from '../../lib/protectedAreaCache.js'
 
 const props = defineProps({
@@ -51,6 +52,7 @@ const emit = defineEmits(['close'])
 
 const KRYSSPAUSE_KEY = 'lende-3d-krysspause'
 const VAER_KEY = 'lende-3d-vaer'
+const VAERDEMO_KEY = 'lende-3d-vaerdemo'
 const TIME_SCALES = [64, 128, 256]
 const HUD_FELTER = ['gaatt', 'igjen', 'hoyde', 'stigning', 'eta']
 
@@ -299,6 +301,8 @@ onMounted(async () => {
     if (nightOn.value) applyNight(true).catch(() => {})
     // Vær-valget er husket fra forrige økt; hentingen er ikke-blokkerende.
     if (vaerOn.value) void hentVaer()
+    // Vær-demoen slås på i Utvikler-fanen og overstyrer varselet.
+    if (demoPaa.value) demoStart()
 
     phase.value = 'ready'
 
@@ -331,6 +335,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   abort?.abort()
   clearTimeout(toastTimer)
+  clearInterval(demoTimer)
   wake.stop()
   engine?.dispose()
   engine = null
@@ -467,6 +472,8 @@ async function hentVaer() {
 
 function leggVaerPaaHimmelen() {
   if (!engine) return
+  // Demoen vinner: står den på, er det den som styrer himmelen.
+  if (demoPaa.value && demoTimer) { demoLegg(); return }
   const naa = vaerOn.value ? vaer.value?.naa : null
   // Uten vær (eller uten varsel) sendes null: standard-himmelen, ikke en
   // gjetning. Værmodus av skal se ut nøyaktig som før værmodus fantes.
@@ -476,6 +483,55 @@ function leggVaerPaaHimmelen() {
 // Symbolvariant følger MODUSEN brukeren står i, ikke klokka: ser man en
 // natthimmel, skal symbolet vise natt.
 const vaerVariant = computed(() => (nightOn.value ? 'night' : 'day'))
+
+// ---- Vær-demo (Utvikler-fanen) -------------------------------------------
+// Går gjennom værtypene, 10 s hver, og overstyrer det ekte varselet. Finnes
+// fordi vinddrift, lyn-blink og fallende nedbør er BEVEGELSE og ikke kan
+// vurderes på et stillbilde.
+const demoPaa = ref((() => {
+  try { return localStorage.getItem(VAERDEMO_KEY) === '1' } catch { return false }
+})())
+const demoSteg = ref(0)
+const demoIgjen = ref(DEMO_SEKUNDER)
+let demoTimer = 0
+const demoNaa = computed(() => DEMO_STEG[demoSteg.value % DEMO_STEG.length])
+
+function demoLegg() {
+  if (!engine) return
+  const steg = demoNaa.value
+  engine.setVaer(vaerTilHimmel(steg.kode, demoMaling(steg)))
+}
+
+function demoNeste(hopp = 1) {
+  demoSteg.value = (demoSteg.value + hopp + DEMO_STEG.length) % DEMO_STEG.length
+  demoIgjen.value = DEMO_SEKUNDER
+  demoLegg()
+}
+
+function demoStart() {
+  clearInterval(demoTimer)
+  demoIgjen.value = DEMO_SEKUNDER
+  demoLegg()
+  demoTimer = setInterval(() => {
+    demoIgjen.value -= 1
+    if (demoIgjen.value <= 0) demoNeste(1)
+  }, 1000)
+}
+
+function demoStopp() {
+  clearInterval(demoTimer)
+  demoTimer = 0
+  // Tilbake til det som gjaldt før demoen — enten det ekte varselet eller
+  // standard-himmelen. Demoen skal ikke etterlate en tilfeldig værtype.
+  leggVaerPaaHimmelen()
+}
+
+function toggleDemo() {
+  demoPaa.value = !demoPaa.value
+  try { localStorage.setItem(VAERDEMO_KEY, demoPaa.value ? '1' : '0') } catch { /* privat modus */ }
+  if (demoPaa.value) demoStart()
+  else demoStopp()
+}
 
 watch(vaerOn, (on) => {
   if (on) void hentVaer()
@@ -691,6 +747,47 @@ function branchLabel(opt, i) {
                         :loading="extrasLoading"
                         :model-value="pinPrefs" @update:model-value="setPinPrefs"/>
         <div v-else></div>
+      </div>
+
+      <!-- Vær-demo (Utvikler-fanen). Ligger over værraden fordi den overstyrer
+           den: står demoen på, er det ikke det ekte varselet man ser. -->
+      <div v-if="phase === 'ready' && demoPaa"
+           class="relative z-10 px-3 mt-2 flex justify-center">
+        <div class="flex items-center gap-2 rounded-2xl bg-sky-900/70 backdrop-blur
+                    px-3 py-1.5 text-white max-w-full">
+          <button @click="demoNeste(-1)" aria-label="Forrige værtype"
+                  class="w-7 h-7 shrink-0 rounded-full bg-white/15 flex items-center
+                         justify-center active:scale-90">
+            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+          </button>
+          <div class="min-w-0 leading-tight">
+            <div class="text-[12px] font-semibold truncate">
+              {{ demoNaa.navn }}
+              <span class="text-[10px] font-normal text-sky-200/70 tabular-nums">
+                {{ demoSteg + 1 }}/{{ DEMO_STEG.length }} · {{ demoIgjen }} s
+              </span>
+            </div>
+            <div v-if="demoNaa.merk" class="text-[10px] text-sky-100/65 truncate">
+              {{ demoNaa.merk }}
+            </div>
+          </div>
+          <button @click="demoNeste(1)" aria-label="Neste værtype"
+                  class="w-7 h-7 shrink-0 rounded-full bg-white/15 flex items-center
+                         justify-center active:scale-90">
+            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+          <button @click="toggleDemo" aria-label="Avslutt vær-demo"
+                  class="shrink-0 rounded-full bg-white/15 px-2 py-1 text-[10px]
+                         font-medium active:scale-95">
+            Avslutt
+          </button>
+        </div>
       </div>
 
       <!-- Tredje linje: værsymbolraden. Egen linje fordi topprada alt er full,
