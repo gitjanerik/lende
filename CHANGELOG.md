@@ -1,3 +1,21 @@
+## 2026-08-23 — v5.22.6: @napi-rs/canvas 1.0 — og et ikon som forsvant stille
+
+Major-bumpen (0.1.100 → 1.0.7) avdekket at 1.0 ikke løser `href` på `<use>`, bare
+den gamle `xlink:href`-formen. Ikonet vårt brukte `<defs>` + `<use href="#blob">`
+for de fire høydekurvene, så alle fire forsvant fra de genererte PWA-ikonene —
+igjen sto bakgrunnen og midtprikken. Scriptet skrev fire glade «Wrote …»-linjer
+og returnerte 0. PNG-er er binære i git-diffen, så ingenting så det; det ble bare
+oppdaget fordi filene krympet fra 31 til 3 kB og tallet var for merkelig å la
+ligge.
+
+Path-en er nå gjentatt fire ganger framfor `<use>`. Det er mindre pent, men det
+avhenger ikke av at en renderer støtter `<use>` i det hele tatt — og begrunnelsen
+står i SVG-en, så den ikke blir «ryddet» tilbake. `gen-icons.mjs` teller nå gule
+piksler og feiler under 3 % av flaten: et riktig ikon ligger på ~8 %, en
+bare-prikken-variant på ~0,2 %. Verifisert i begge retninger.
+
+---
+
 ## 2026-08-23 — v5.22.5: Siste to sårbarhetene i MCP-Workeren
 
 `fast-uri` 3.1.4 → 3.1.6 og `hono` 4.12.32 → 4.13.3, begge transitive via
