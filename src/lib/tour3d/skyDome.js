@@ -160,11 +160,18 @@ export function buildNightSky({ radius = 25000, starCount = 160 } = {}) {
 // y = 47 rakk 7 px over kanten. `fillRect` klippet den, og det sto igjen ~10 %
 // alfa i øverste teksel-rad — som med ClampToEdge tegnes som en knivrett strek
 // tvers over toppen av billboardet. Det var de lyse firkantene i himmelen.
-const SKY_TEX_W = 256
-const SKY_TEX_H = 160
+// BEGGE MÅ VÆRE TOERPOTENSER. v5.20.2 satte høyden til 160 for å gi blobbene
+// luft, og det var en regresjon: 160 er ikke en toerpotens, og på WebGL1 — som
+// en del Android-webviews fortsatt gir — resampler three.js NPOT-teksturer til
+// toerpotens og genererer mipmaps på resultatet. Det kan smøre alfa ut til
+// kanten, og da males HELE sprite-quaden som et blekt rektangel i himmelen.
+// Luften blobbene trengte kommer fra radius-klippingen i skyDotter, ikke fra
+// et høyere lerret.
+export const SKY_TEX_W = 256
+export const SKY_TEX_H = 128
 // Alfa skal være null her. Marginen er ikke pynt: den er beviset på at
 // gradienten har fått gå helt ut, ikke blitt kuttet.
-const SKY_TEX_MARGIN = 4
+export const SKY_TEX_MARGIN = 4
 // Grunn-opasiteten en sky har når ingenting demper den.
 const SKY_OPASITET = 0.85
 
@@ -288,6 +295,14 @@ export function buildClouds({
       // (#cfe0ee) mot en #3d7ec9 senit. En blek, flat flekk — som i seg selv
       // leses som en avkuttet form.
       fog: false,
+      // Kast bort nesten-gjennomsiktige piksler framfor å blande dem inn.
+      // Dette er ikke finpuss: symptomet brukeren så var at hele quaden lå der
+      // som et blekt rektangel, altså en LAV, JEVN alfa over hele flaten. Den
+      // kan komme av mip-gjennomsnitt, driver-resampling eller presisjon — vi
+      // kan ikke vite hvilken på en telefon vi ikke har. alphaTest treffer
+      // klassen framfor årsaken. 2 % er godt under skyenes egen kant (som går
+      // 0 → 75 % over titalls piksler), så formen er uendret.
+      alphaTest: 0.02,
     })
     materials.push(material)
     const sprite = new Sprite(material)

@@ -257,6 +257,14 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   viser (`Viewer3D.vue`), to rigger (`cameraRigs.js` = følge, `freeRig.js` =
   fri). Kommer det en tredje inngang til 3D, skal den være en OPSJON på
   `create3dScene`, ikke en ny scene.
+- **Skyteksturens mål MÅ være toerpotenser (v5.21.3).** 256 × 128, håndhevet av
+  `skyDome.test.js`. v5.20.2 satte høyden til 160 for å gi blobbene luft, og på
+  WebGL1 — som en del Android-webviews fortsatt gir — resampler three.js
+  NPOT-teksturer og mip-genererer på resultatet, som kan smøre alfa ut til
+  kanten. Da males HELE sprite-quaden som et blekt rektangel i himmelen. Det er
+  ikke synlig på skrivebordet, bare på telefon, så testen er det eneste vernet.
+  Trenger blobbene mer plass, kom det fra radius-klippingen i `skyDotter` — ikke
+  fra et større lerret.
 - **Værhimmelen er en OPSJON, ikke et lag ved siden av (v5.21.1).** `setVaer(preg)`
   på `sceneCore` justerer skyene som alt finnes (antall synlige sprites, farge,
   vinddrift) og skrur på ett `Points`-objekt for nedbør. `setVaer(null)` skal gi
