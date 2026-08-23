@@ -1,3 +1,32 @@
+## 2026-08-23 — v5.22.3: agents 0.21 i MCP-Workeren, og en gate som ser verktøyene
+
+De to siste sårbarhetsfunnene i den deployede MCP-Workeren er lukket. `agents`
+0.21 krever `zod` ^4 og MCP-SDK-en eksakt 1.30, så tre biblioteker gikk samtidig
+— og den nestede sdk 1.23 inne i `agents`, som var den som faktisk bar
+cross-client-lekkasjen, er borte. `createMcpHandler` finnes fortsatt, men tar nå
+både en SDK v1-server (legacy, sessionful) og en SDK v2-fabrikk (stateless), og
+v1-grenen er deprecated. Vi kaller derfor `createLegacyMcpHandler` eksplisitt:
+samme atferd som overlast-oppløsningen ville valgt, men det står skrevet.
+Migrering til v2-fabrikken rører hvordan hvert verktøy registreres og får sin
+egen jobb.
+
+Selve oppgraderingen er liten. Det som var verdt arbeidet er gaten:
+`npm run mcp:protokoll` starter Workeren i workerd og kjører MCP-protokollen —
+initialize, tools/list, tools/call med både gyldige og ugyldige argumenter.
+`worker-boot` beviser bare at runtimen svarer på /health; verktøyenes skjemaer
+serialiseres først i tools/list, så en Worker kan starte fint og likevel levere
+verktøy ingen klient kan bruke. Den deployede røyktesten dekket dette, men først
+etter merge — samme blindsone som ga atten røde deploys fra v5.0.16. Gaten er
+verifisert i begge retninger: den er grønn på riktig kode og rød på en ødelagt
+handler-import.
+
+Underveis: `npm run vedlikehold` meldte «3 major» der det var 2, fordi
+`npm outdated` utelater `current` for pakker som ikke er installert i katalogen —
+og i CI er de ikke det for Workerne. De rapporteres nå som «ikke installert her»
+framfor å bli gjettet på.
+
+---
+
 ## 2026-08-23 — v5.22.2: Vedlikehold av avhengigheter, satt i system
 
 Ingen funksjonsendring. Prosjektet hadde tolv workflows og ingen av dem så på

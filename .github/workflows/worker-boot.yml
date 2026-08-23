@@ -26,6 +26,7 @@ on:
       - 'src/lib/**'
       - 'src/composables/**'
       - 'scripts/worker-boot.mjs'
+      - 'scripts/mcp-protokoll.mjs'
       - '.github/workflows/worker-boot.yml'
   workflow_dispatch:
 
@@ -54,3 +55,15 @@ jobs:
 
       - name: Start Workerne i workerd
         run: node scripts/worker-boot.mjs
+
+      # Ett steg videre for lende-mcp: kjør MCP-PROTOKOLLEN, ikke bare /health.
+      # Verktøyenes skjemaer serialiseres først i tools/list og brukes til
+      # validering først i tools/call — en Worker kan starte fint og likevel
+      # levere verktøy ingen klient kan bruke. Den deployede røyktesten i
+      # deploy-mcp-worker.yml gjør dette mot ekte Cloudflare, men det er ETTER
+      # merge, og det er nøyaktig samme blindsone som ga oss atten røde deploys
+      # på rad fra v5.0.16.
+      #
+      # Kjøres offline: bare verktøy som ikke trenger nett kalles.
+      - name: MCP-protokollen svarer (initialize → tools/list → tools/call)
+        run: node scripts/mcp-protokoll.mjs

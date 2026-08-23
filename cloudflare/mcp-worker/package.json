@@ -2,15 +2,15 @@
   "name": "lende-mcp",
   "private": true,
   "version": "1.0.0",
-  "description": "Cloudflare Worker som eksponerer Lendes MCP-verkt\u00f8y over Streamable HTTP (Spor 1), med samme per-bruker-tokens som lende-ai.",
+  "description": "Cloudflare Worker som eksponerer Lendes MCP-verktøy over Streamable HTTP (Spor 1), med samme per-bruker-tokens som lende-ai.",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "agents": "^0.2.0",
-    "zod": "^3.24.0"
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "agents": "^0.21.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"

@@ -6,15 +6,20 @@
 // logikken importeres fra samme `src/lib` som appen og stdio-MCP-serveren
 // (`mcp/server.js`) bruker; wrangler bundler den inn.
 //
-// Fase A er TILSTANDSFRI (createMcpHandler fra Agents-SDK-en): kun verktøyene
-// som ikke trenger et bygget kart. Fase B (bygg_kart + rute-verktøyene) kommer
-// med kart-tilstand i R2, jf. docs/MCP_REMOTE_CHAT.md.
+// Verktøyene er tilstandsfrie i VÅR forstand: all kart-tilstand bor i R2, ikke
+// i handleren, jf. docs/MCP_REMOTE_CHAT.md. Transporten er derimot sessionful,
+// og fra agents 0.21 må det sies eksplisitt: `createMcpHandler` tar nå både en
+// SDK v1-server (→ legacy, sessionful) og en SDK v2-fabrikk (→ stateless), og
+// v1-grenen er deprecated. Vi kaller `createLegacyMcpHandler` framfor å la
+// overlast-oppløsningen bestemme — samme atferd, men den står skrevet.
+// Migrering til SDK v2-fabrikken er en egen jobb: den rører hvordan hvert
+// verktøy registreres, ikke bare kallstedet.
 //
 // Tilgang: samme per-bruker-GUID-er som lende-ai (secret LENDE_AI_TOKENS).
 // Token kan sendes som `Authorization: Bearer <token>` ELLER `?token=<token>`
 // i URL-en — sistnevnte fordi Claude Chats connector-oppsett tar en ren URL.
 
-import { createMcpHandler } from 'agents/mcp'
+import { createLegacyMcpHandler } from 'agents/mcp'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { searchPlaces } from '../../../src/lib/geocode.js'
@@ -196,7 +201,7 @@ function mcpHandler(request, env, ctx) {
     env,
     filUrl: (r2Sti) => `${url.origin}/fil/${r2Sti}?token=${encodeURIComponent(token)}`,
   }
-  return createMcpHandler(buildServer(serverCtx), { route: '/mcp' })(request, env, ctx)
+  return createLegacyMcpHandler(buildServer(serverCtx), { route: '/mcp' })(request, env, ctx)
 }
 
 function corsHeaders(origin) {

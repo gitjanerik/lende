@@ -295,11 +295,14 @@ export function registerRapportVerktoy(server, ctx) {
           .describe('Fargetema (som Tema-knappene i appen) — «light» er default ISOM'),
         preset: z.enum(PRESET_KEYS).optional()
           .describe('Lag-forhåndsvalg (som preset-knappene i appen) — nullstiller tidligere lag-valg'),
-        lag: z.record(z.boolean()).optional()
+        // Nøkkeltypen skrives eksplisitt: det er zod 4s dokumenterte signatur.
+        // (Ett-argument-formen virker fortsatt i 4.4 — dette er tydelighet, ikke
+        // en tvungen migrering.)
+        lag: z.record(z.string(), z.boolean()).optional()
           .describe('Enkelt-lag av/på oppå preset/default, f.eks. {"kontur": false}'),
         strekSkala: z.number().min(0.1).max(3).optional()
           .describe('Global strek-skala (--stroke-scale), 1 = som bygget'),
-        strek: z.record(z.number().min(0.4).max(3)).optional()
+        strek: z.record(z.string(), z.number().min(0.4).max(3)).optional()
           .describe('Per-gruppe strek-multiplikator, f.eks. {"sti": 0.6} (0.4–3, 1 = nøytral)'),
         stiFarger: z.object({
           fg: z.string().optional().describe('Farge på den stiplede sti-streken (505/506/507)'),
