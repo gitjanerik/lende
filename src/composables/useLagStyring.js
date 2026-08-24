@@ -1,9 +1,13 @@
-// Lag-styringen: hvilke kartlag som vises, presets, «nullstill», dybde-laget,
+// Lag-styringen: hvilke kartlag som vises, «nullstill», dybde-laget,
 // og selve DOM-arbeidet som slår grupper av og på.
 //
-// Trukket ut av MapView.vue i v5.8.0. Lag-katalogen (LAYERS, presets, defaults)
+// Trukket ut av MapView.vue i v5.8.0. Lag-katalogen (LAYERS, defaults)
 // er delt med MCP-serveren — se lib/mapLayerCatalog.js — så drawer-en, chatten
 // og `juster_kart` styrer alle det samme settet.
+//
+// v5.23.0: forhåndsvalgene bor IKKE lenger her. En kartstil setter lagene
+// SAMMEN MED tema, strek og sti-farger, og den påføringen eier
+// useKartStil.js — den må røre fire composables, ikke bare denne.
 //
 // Merk hvorfor `hooks` finnes: å slå et lag på eller av trekker med seg fem
 // andre domener (navne-orientering, navne-LOD, dybde, kulturminner,
@@ -15,7 +19,7 @@
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useMapLayerControl, publiserSynligeLag } from './useMapLayerControl.js'
 import {
-  LAYERS, MARINE_LAYER_KEYS, DEFAULT_VISIBLE_LAYER_KEYS, LAYER_PRESETS,
+  LAYERS, MARINE_LAYER_KEYS, DEFAULT_VISIBLE_LAYER_KEYS,
 } from '../lib/mapLayerCatalog.js'
 
 /**
@@ -35,16 +39,6 @@ export function useLagStyring({ svgHostRef, detachedDetailLayers, hooks }) {
   const marineLayerButtons = LAYERS.filter(l => MARINE_LAYER_KEYS.has(l.key))
 
   const visibleLayers = ref(new Set(DEFAULT_VISIBLE_LAYER_KEYS))
-
-  const activePreset = computed(() => {
-    const cur = visibleLayers.value
-    const hit = LAYER_PRESETS.find((p) => p.keys.length === cur.size && p.keys.every((k) => cur.has(k)))
-    return hit?.key ?? null
-  })
-  function applyPreset(p) {
-    visibleLayers.value = new Set(p.keys)
-    applyLayerVisibility()
-  }
 
   // «Nullstill» er aktiv kun når brukeren har avveket fra default-synligheten
   // (minst ett lag slått til motsatt av sin default-tilstand).
@@ -143,7 +137,7 @@ export function useLagStyring({ svgHostRef, detachedDetailLayers, hooks }) {
     // Et lag (f.eks. et stedsnavn-nivå) kan nettopp ha blitt slått på/av — la
     // navn-LOD-en revurdere hvilke navn som er overflødige i utsnittet.
     hooks.scheduleNameLOD()
-    // Hold dybde-hovedlaget i synk med lag-tilstanden (presets/nullstill kan ha
+    // Hold dybde-hovedlaget i synk med lag-tilstanden (kartstil/nullstill kan ha
     // endret 'dybde'); re-injiserer/fjerner #depth-main-layer etter behov.
     applyDepthLayer()
     // Samme for fredet-kulturminne WFS-vektorlaget (injiser/skjul).
@@ -157,8 +151,8 @@ export function useLagStyring({ svgHostRef, detachedDetailLayers, hooks }) {
 
   return {
     visibleLayers, landLayerButtons, marineLayerButtons,
-    activePreset, layersDirty,
-    applyPreset, resetLayers, toggleLayer, toggleDepth,
+    layersDirty,
+    resetLayers, toggleLayer, toggleDepth,
     applyDepthLayer, applyLayerVisibility,
   }
 }

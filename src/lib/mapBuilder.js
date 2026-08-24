@@ -75,6 +75,41 @@ export function overpassTimeoutForBbox(bbox) {
 // includeBuildings=false: way["building"] (den suverent tyngste selektoren i
 // tette byområder) flyttes til en egen parallell spørring for store kart —
 // se fetchOverpass.
+/**
+ * Hvilken slags lite bygg er dette? ('hytte' | 'uthus' | 'bolig')
+ *
+ * Fram til v5.23.0 ble ALT under 500 m² tegnet som det samme hvite 13×13-
+ * kvadratet. På et hyttefelt ga det et teppe av like ruter der ingenting
+ * skilte turisthytta fra naboens garasje — og på et turkart er nettopp den
+ * forskjellen verdt noe: en hytte er et landemerke og et mulig ly, en garasje
+ * er støy.
+ *
+ * Tre klasser, fordi tre er så mange som lar seg SKILLE i et kvadrat på
+ * 1,3 mm. Rekkefølgen på sjekkene betyr noe: `tourism`-taggene er sikrest
+ * (noen har satt dem med vilje), `building` er nest sikrest, og `building=yes`
+ * — den desidert vanligste verdien i OSM — sier ingenting og faller til bolig.
+ *
+ * Kirker og kapell klassifiseres IKKE her; de har egen korsmarkør lenger nede
+ * i pipelinen og skal ikke også bli et kvadrat.
+ *
+ * @param {Record<string, string>|undefined} tags
+ * @returns {'hytte'|'uthus'|'bolig'}
+ */
+export function klassifiserSmaabygg(tags) {
+  const t = tags ?? {}
+  const turisme = String(t.tourism ?? '').toLowerCase()
+  if (turisme === 'alpine_hut' || turisme === 'wilderness_hut' || turisme === 'chalet') return 'hytte'
+
+  const b = String(t.building ?? '').toLowerCase()
+  if (b === 'cabin' || b === 'hut' || b === 'chalet' || b === 'bungalow'
+      || b === 'summer_house' || b === 'static_caravan') return 'hytte'
+  // Uthus: alt som hører TIL en bygning uten selv å være et sted man er.
+  if (b === 'garage' || b === 'garages' || b === 'carport' || b === 'shed'
+      || b === 'hangar' || b === 'barn' || b === 'farm_auxiliary'
+      || b === 'greenhouse' || b === 'roof' || b === 'service') return 'uthus'
+  return 'bolig'
+}
+
 export function buildOverpassQuery(bbox, { timeoutS = 90, includeBuildings = true } = {}) {
   return `
 [out:json][timeout:${timeoutS}][bbox:${bbox.south},${bbox.west},${bbox.north},${bbox.east}];
@@ -1296,11 +1331,14 @@ export function buildSvg(elements, bbox, options = {}) {
       // så hver merged path får små, reelle bounds — nettleserens raster-tile-
       // culling og MapViews viewport-culling (data-bbox) virker da per celle i
       // stedet for aldri (mega-path med bounds = hele kartet).
-      const groups = new Map()  // sig (src|isSmall|celle) → { ds: [], src, isSmall, bbox }
-      const pushToGroup = (d, src, isSmall, bbox) => {
-        const sig = `${src}|${isSmall ? '1' : '0'}|${cellKeyFor(bbox)}`
+      const groups = new Map()  // sig (src|isSmall|byggKlasse|celle) → { ds, src, isSmall, byggKlasse, bbox }
+      const pushToGroup = (d, src, isSmall, bbox, byggKlasse = '') => {
+        // byggKlasse er med i signaturen: uten den ville en hytte og et uthus
+        // havnet i samme delte path og fått samme fyll, som er nøyaktig det
+        // teppet av like kvadrater vi prøver å bli kvitt.
+        const sig = `${src}|${isSmall ? '1' : '0'}|${byggKlasse}|${cellKeyFor(bbox)}`
         let g = groups.get(sig)
-        if (!g) { g = { ds: [], src, isSmall, bbox: null }; groups.set(sig, g) }
+        if (!g) { g = { ds: [], src, isSmall, byggKlasse, bbox: null }; groups.set(sig, g) }
         g.ds.push(d)
         g.bbox = unionBbox(g.bbox, bbox)
       }
@@ -1309,6 +1347,9 @@ export function buildSvg(elements, bbox, options = {}) {
         let bbox = null
         let src = el._source ?? (el._mergedRings ? 'merged' : el.type)
         let isSmall = false
+        // Undertype for små bygg ('hytte' | 'uthus' | 'bolig'). Tom for alt
+        // annet enn 521-kvadratene.
+        let byggKlasse = ''
         // Settes for lineære havne-strukturer (551) som skal strekes, ikke
         // fylles — se 551-grenen under. Tom = vanlig fylt areal.
         let strokeOnlyStyle = ''
@@ -1392,7 +1433,11 @@ export function buildSvg(elements, bbox, options = {}) {
           if (code === '521' && areaM2 < 500) {
             const c = polygonCentroid(el.geometry)
             if (!c) continue
-            const half = 6.5
+            // v5.23.0: kvadratene er ikke lenger alle like. Uthus og garasjer
+            // tegnes mindre og dempet, hytter fylt som landemerke, bolig som
+            // før — se byggKlasse() for hvorfor.
+            byggKlasse = klassifiserSmaabygg(el.tags)
+            const half = byggKlasse === 'uthus' ? 4.5 : 6.5
             d = `M${fmt(c.x - half)},${fmt(c.y - half)}L${fmt(c.x + half)},${fmt(c.y - half)}L${fmt(c.x + half)},${fmt(c.y + half)}L${fmt(c.x - half)},${fmt(c.y + half)}Z`
             bbox = { minX: c.x - half, minY: c.y - half, maxX: c.x + half, maxY: c.y + half }
             isSmall = true
@@ -1504,7 +1549,9 @@ export function buildSvg(elements, bbox, options = {}) {
               dybdeAttr = ` data-dybde="${fmt(avgD)}"`
             }
           }
-          const smallAttr = isSmall ? ' data-small="yes"' : ''
+          const smallAttr = isSmall
+            ? ` data-small="yes"${byggKlasse ? ` data-bygg="${byggKlasse}"` : ''}`
+            : ''
           // Standalone hvis features har inline-style/dybdeklasse (per-polygon-
           // fyll), dybde-attr eller et navn (søkbart). Ellers slå sammen til
           // delt path-bucket per (data-src, isSmall).
@@ -1526,14 +1573,16 @@ export function buildSvg(elements, bbox, options = {}) {
               `    <path d="${d}" fill-rule="evenodd"${smallAttr}${bboxAttr(bbox, fmt)} data-src="${xmlEscape(String(src))}"${vanntypeAttr}/>`
             )
           } else {
-            pushToGroup(d, src, isSmall, bbox)
+            pushToGroup(d, src, isSmall, bbox, byggKlasse)
           }
         }
       }
       // Bygg grupperte paths fra buckets (én per stil × grid-celle)
       const groupedPaths = []
       for (const g of groups.values()) {
-        const smallAttr = g.isSmall ? ' data-small="yes"' : ''
+        const smallAttr = g.isSmall
+          ? ` data-small="yes"${g.byggKlasse ? ` data-bygg="${g.byggKlasse}"` : ''}`
+          : ''
         groupedPaths.push(
           `    <path d="${g.ds.join(' ')}" fill-rule="evenodd"${smallAttr}${bboxAttr(g.bbox, fmt)} data-src="${xmlEscape(String(g.src))}"/>`
         )

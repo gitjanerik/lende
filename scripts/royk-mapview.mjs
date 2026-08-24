@@ -84,6 +84,76 @@ const SJEKKER = [
     },
   },
   {
+    // v5.23.0: kartstil-velgeren er den ENE kontrollen som setter hele
+    // uttrykket. Sjekken TRYKKER på den (ikke bare leter etter markup) og
+    // verifiserer at BÅDE paletten og lagene flyttet seg — en knapp som bare
+    // endret farge ville vært det gamle forhåndsvalg-problemet speilvendt.
+    navn: 'kartstil bytter palett og lag',
+    domene: 'useKartStil',
+    async kjør(page) {
+      await åpneDrawer(page)
+      await klikkTekst(page, /^KARTSTIL$/)
+
+      // Tema-variablene settes på [data-map-inner] (mapInnerRef), ikke på
+      // .isom-map — samme sted tema-sjekken lenger ned leser.
+      const bg = () => page.evaluate(() => {
+        const el = document.querySelector('[data-map-inner]')
+        return el ? getComputedStyle(el).getPropertyValue('--bg').trim() : ''
+      })
+
+      // Lag-tilstanden måles på KNAPPENE i Kartlag-fanen, ikke på SVG-en.
+      // Knappene finnes alltid (de kommer fra lag-katalogen), mens det
+      // innebygde vardasen-demokartet er en innlands-symboldemo helt uten
+      // marine grupper — en DOM-telling der ville målt 0 → 0 og rapportert
+      // en ekte forskjell som feil.
+      const paa = (etikett) => page.evaluate((navn) => {
+        const b = [...document.querySelectorAll('button[aria-pressed]')].find((e) =>
+          e.offsetParent !== null && e.innerText.trim().startsWith(navn))
+        return b ? b.getAttribute('aria-pressed') === 'true' : null
+      }, etikett)
+      const lagTilstand = async () => {
+        await klikkTekst(page, /^KARTLAG$/)
+        const marint = await paa('Sjø & padling')
+        const gjerde = await paa('Gjerde')
+        await klikkTekst(page, /^KARTSTIL$/)
+        return { marint, gjerde }
+      }
+
+      try {
+        await klikkTekst(page, /^Orientering/)
+        const isomBg = await bg()
+        const isomLag = await lagTilstand()
+
+        await klikkTekst(page, /^Turkart/)
+        const turkartBg = await bg()
+        const turkartLag = await lagTilstand()
+
+        if (!turkartBg) throw new Error('kartstil satte ingen --bg')
+        if (turkartBg === isomBg) {
+          throw new Error(`Turkart og Orientering ga samme bakgrunn (${turkartBg}) — paletten byttet ikke`)
+        }
+        // Orientering viser gjerder (ISOM-detalj); Turkart gjør det ikke.
+        if (isomLag.gjerde === turkartLag.gjerde) {
+          throw new Error('Orientering og Turkart har samme gjerde-tilstand — lagene byttet ikke')
+        }
+
+        await klikkTekst(page, /^Padling/)
+        const padleLag = await lagTilstand()
+        if (turkartLag.marint !== false || padleLag.marint !== true) {
+          throw new Error(`Padling slo ikke på de marine lagene (${turkartLag.marint} → ${padleLag.marint})`)
+        }
+
+        return `bakgrunn ${isomBg} → ${turkartBg}, marine lag av→på, gjerde byttet`
+      } finally {
+        // NØYTRAL TILSTAND, uansett utfall: står vi igjen i Padling eller i
+        // Kartstil-fanen, kjører alle senere sjekker på et annet kart enn de
+        // ble skrevet for. En feilende sjekk skal koste ÉN sjekk, ikke resten.
+        await klikkTekst(page, /^Turkart/).catch(() => {})
+        await klikkTekst(page, /^KARTLAG$/).catch(() => {})
+      }
+    },
+  },
+  {
     navn: 'lag-toggle slår grupper av og på',
     domene: 'useLagStyring',
     async kjør(page) {
@@ -378,7 +448,7 @@ const SJEKKER = [
       if (/id="ghost-tiles"/.test(tekst)) throw new Error('spøkelses-flisene ble med i eksporten')
       const navn = fil.suggestedFilename()
       // Tema: bytt til et annet tema og se at kart-variablene faktisk endres.
-      await klikkTekst(page, /^TEMA$/)
+      await klikkTekst(page, /^STEMNING$/)
       await page.waitForTimeout(500)
       // Tema-variablene settes på [data-map-inner] (mapInnerRef). Lys tema setter
       // INGEN vars — det er default — så «tomt → farge» er det forventede

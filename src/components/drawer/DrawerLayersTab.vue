@@ -1,12 +1,13 @@
 <script setup>
-// Drawer-fane «Lag», skilt ut fra MapView v1.0.8. Forhåndsvalg + enkeltlag-
-// toggles + sjø/padling-gruppe. Lag-tilstanden eies av forelderen; handlinger
-// kommer inn som funksjons-props så template-kroppen er uendret.
-import { LAYER_PRESETS } from '../../lib/mapLayerCatalog.js'
+// Drawer-fane «Lag», skilt ut fra MapView v1.0.8. Enkeltlag-toggles +
+// sjø/padling-gruppe. Lag-tilstanden eies av forelderen; handlinger kommer
+// inn som funksjons-props så template-kroppen er uendret.
+//
+// v5.23.0: forhåndsvalg-raden er flyttet til Kartstil-fanen. Den satte bare
+// lag-synlighet og endret ikke ett piksel-uttrykk — nå velger man en kartstil
+// som også bytter palett, strek og sti-farger, og finjusterer her etterpå.
 
 defineProps({
-  applyPreset: { type: Function, required: true },
-  activePreset: { type: String, default: null },
   resetLayers: { type: Function, required: true },
   layersDirty: { type: Boolean, default: false },
   landLayerButtons: { type: Array, default: () => [] },
@@ -27,28 +28,13 @@ defineProps({
 
 <template>
   <div>
-    <!-- Forhåndsvalg: ett trykk til en sammenhengende lag-tilstand.
-         Hele toggle-listen ligger under for finjustering. -->
-    <div class="text-[11px] font-semibold text-ink/55 uppercase tracking-wide mb-1.5">
-      Forhåndsvalg
-    </div>
-    <!-- Flex-wrap (ikke fast 4-kol grid): ved stor tekststørrelse (zoom) blir
-         det for trangt med 4 på rad, og knappene bryter til flere linjer —
-         typisk 2 × 2. basis + grow gir 4 på rad ved normal størrelse. -->
-    <div class="flex flex-wrap gap-2 mb-3">
-      <button v-for="p in LAYER_PRESETS" :key="p.key"
-              @click="applyPreset(p)"
-              :aria-pressed="activePreset === p.key"
-              class="grow basis-[4.75rem] px-2 py-2 rounded-lg border text-center active:scale-[0.98] transition"
-              :class="activePreset === p.key
-                      ? 'bg-emerald-500/25 border-emerald-300/60 text-ink font-medium'
-                      : 'bg-ink/5 border-ink/10 text-ink/65'">
-        <span class="text-[12px]">{{ p.label }}</span>
-      </button>
-    </div>
     <div class="text-[11px] font-semibold text-ink/55 uppercase tracking-wide mb-1.5">
       Enkeltlag
     </div>
+    <p class="text-[11px] text-ink/45 leading-snug mb-2">
+      Finjustering oppå kartstilen. Vil du bytte hele uttrykket — farger,
+      strek og sti-farger — ligger det under Kartstil.
+    </p>
     <div class="grid grid-cols-2 gap-2 mb-2">
       <!-- Knapp #1: Nullstill lag-synlighet. Default disabled; blir
            aktiv først når minst ett lag avviker fra default-tilstand. -->
@@ -62,6 +48,7 @@ defineProps({
       </button>
       <button v-for="lay in landLayerButtons" :key="lay.key"
               @click="toggleLayer(lay.key)"
+              :aria-pressed="visibleLayers.has(lay.key)"
               class="px-3 py-2 rounded-lg border text-left active:scale-[0.98] transition"
               :class="visibleLayers.has(lay.key)
                       ? 'bg-slate-400/25 border-slate-300/50 text-ink'
@@ -97,6 +84,7 @@ defineProps({
     <div class="grid grid-cols-2 gap-2 mb-1">
       <button v-for="lay in marineLayerButtons" :key="lay.key"
               @click="toggleLayer(lay.key)"
+              :aria-pressed="visibleLayers.has(lay.key)"
               class="px-3 py-2 rounded-lg border text-left active:scale-[0.98] transition"
               :class="visibleLayers.has(lay.key)
                       ? 'bg-sky-400/25 border-sky-300/50 text-ink'

@@ -27,7 +27,8 @@ import {
 } from './routing.js'
 import { sampleProfile } from './elevationProfile.js'
 import { listThemes } from './mapSettingsApply.js'
-import { LAYERS, LAYER_PRESETS } from './mapLayerCatalog.js'
+import { LAYERS } from './mapLayerCatalog.js'
+import { KARTSTILER, kartStil } from './kartStiler.js'
 import { useMapTheme } from '../composables/useMapTheme.js'
 import { useMapLayerControl, sendLagKommando } from '../composables/useMapLayerControl.js'
 import { useMapHighlight, sendMerkeKommando } from '../composables/useMapHighlight.js'
@@ -161,10 +162,13 @@ export const AI_TOOLS = [
       name: 'styr_kartlag',
       description:
         'Skru kartlag av og på i det åpne kartet (sti, høydekurver, vann, skog, bygninger, ' +
-        'navn, parkering, kulturminner …), bytt til et forhåndsvalg, eller nullstill. Bruk ved ' +
+        'navn, parkering, kulturminner …), bytt KARTSTIL, eller nullstill. Bruk ved ' +
         '«skjul navnene», «vis bare stier og høydekurver», «slå på parkering», «bytt til ' +
-        'padling», «nullstill kartlagene». Kall UTEN argumenter for å få listen over alle lag ' +
-        'og hva som er synlig nå — gjør det når du er usikker på hva brukeren mener. ' +
+        'padling», «nullstill kartlagene». En kartstil bytter både farger, lag, strek og ' +
+        'sti-farger i én operasjon — foretrekk den framfor å skru enkeltlag når brukeren ' +
+        'beskriver et BRUK («jeg skal padle», «skal skrive det ut»). Kall UTEN argumenter for ' +
+        'å få listen over alle lag og hva som er synlig nå — gjør det når du er usikker på ' +
+        'hva brukeren mener. ' +
         'Lagnavn kan skrives på norsk («høydekurver») eller som nøkkel («kontur»).',
       parameters: {
         type: 'object',
@@ -172,7 +176,7 @@ export const AI_TOOLS = [
           vis: { type: 'array', items: { type: 'string' }, description: 'Lag som skal slås PÅ, f.eks. ["parkering","vann"]' },
           skjul: { type: 'array', items: { type: 'string' }, description: 'Lag som skal slås AV, f.eks. ["navn"]' },
           bare: { type: 'array', items: { type: 'string' }, description: 'Vis KUN disse lagene (alt annet av) — «vis bare stier og høydekurver»' },
-          forhandsvalg: { type: 'string', description: 'tur | padling | detaljert | print' },
+          kartstil: { type: 'string', description: 'turkart | orientering | padling | natt | print — bytter farger, lag, strek og sti-farger samlet' },
           nullstill: { type: 'boolean', description: 'Sett alle lag tilbake til standard' },
         },
         required: [],
@@ -986,7 +990,7 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         const listeSvar = () => ({
           synlige: naa,
           alleLag: katalog,
-          forhandsvalg: LAYER_PRESETS.map((p) => p.key),
+          kartstiler: KARTSTILER.map((s) => ({ nokkel: s.key, navn: s.label, hva: s.beskrivelse })),
           merknad: 'Fortell brukeren hva som er på nå, eller spør hva hun vil endre.',
         })
 
@@ -995,18 +999,27 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
           return { ok: true, handling: 'nullstilt', merknad: 'Kartlagene er satt tilbake til standard.' }
         }
 
-        const onsketPreset = String(args?.forhandsvalg ?? '').trim().toLowerCase()
-        if (onsketPreset) {
-          const p = LAYER_PRESETS.find((x) => x.key === onsketPreset)
-            ?? LAYER_PRESETS.find((x) => String(x.label).toLowerCase() === onsketPreset)
-          if (!p) {
+        // Kartstil er mer enn lag: den bytter TEMA også. Uten tema-byttet ville
+        // «bytt til padling» gitt padle-lagene på turkart-paletten — altså den
+        // halve endringen som var hele grunnen til at forhåndsvalgene ble
+        // erstattet. Temaet settes gjennom samme singleton som bytt_kart_tema.
+        const onsketStil = String(args?.kartstil ?? '').trim().toLowerCase()
+        if (onsketStil) {
+          const stil = kartStil(onsketStil)
+            ?? KARTSTILER.find((x) => String(x.label).toLowerCase() === onsketStil)
+          if (!stil) {
             return {
-              feil: `Kjenner ikke forhåndsvalget «${args.forhandsvalg}».`,
-              forhandsvalg: LAYER_PRESETS.map((x) => ({ nokkel: x.key, navn: x.label })),
+              feil: `Kjenner ikke kartstilen «${args.kartstil}».`,
+              kartstiler: KARTSTILER.map((x) => ({ nokkel: x.key, navn: x.label })),
             }
           }
-          sendLagKommando({ keys: p.keys })
-          return { ok: true, forhandsvalg: p.key, navn: p.label, antallLag: p.keys.length }
+          const { setMapTheme } = useMapTheme()
+          setMapTheme(stil.tema)
+          sendLagKommando({ keys: stil.lag })
+          return {
+            ok: true, kartstil: stil.key, navn: stil.label, antallLag: stil.lag.length,
+            merknad: `Kartet vises nå i kartstilen «${stil.label}». ${stil.beskrivelse}`,
+          }
         }
 
         const vis = losLagNokler(args?.vis, LAYERS)

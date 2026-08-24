@@ -26,10 +26,13 @@ beforeEach(() => { vi.stubGlobal('localStorage', makeStorage()) })
 afterEach(() => { vi.unstubAllGlobals() })
 
 describe('useMapTheme — kart-tema, delt og lagret', () => {
-  it('default er lyst ISOM, altså bryteren AV', async () => {
+  // v5.23.0: standarden er Turkart, ikke ISOM. ISOM-uttrykket lever videre i
+  // kartstilen «Orientering» — se kartStiler.js for hvorfor det ikke lenger
+  // er grunnoppsettet.
+  it('default er Turkart, altså mørk-bryteren AV', async () => {
     const useMapTheme = await freshModule()
     const { mapTheme, isDarkMap } = useMapTheme()
-    expect(mapTheme.value).toBe('light')
+    expect(mapTheme.value).toBe('turkart')
     expect(isDarkMap.value).toBe(false)
   })
 
@@ -43,13 +46,13 @@ describe('useMapTheme — kart-tema, delt og lagret', () => {
     expect(localStorage.getItem(KEY)).toBe('dark')
   })
 
-  it('setDarkMap(false) går tilbake til lyst — også fra et monokrom-tema', async () => {
+  it('setDarkMap(false) går tilbake til standarden — også fra et monokrom-tema', async () => {
     const useMapTheme = await freshModule()
     const { mapTheme, setMapTheme, setDarkMap } = useMapTheme()
     setMapTheme('mono-sepia')
     expect(mapTheme.value).toBe('mono-sepia')
     setDarkMap(false)
-    expect(mapTheme.value).toBe('light')
+    expect(mapTheme.value).toBe('turkart')
   })
 
   it('Tema-fanen og bryteren deler tilstand — «Mørk» slår bryteren på', async () => {
@@ -59,7 +62,7 @@ describe('useMapTheme — kart-tema, delt og lagret', () => {
     fane.setMapTheme('dark')
     expect(meny.isDarkMap.value).toBe(true)
     meny.setDarkMap(false)
-    expect(fane.mapTheme.value).toBe('light')
+    expect(fane.mapTheme.value).toBe('turkart')
   })
 
   it('et monokrom-tema gir bryteren AV (den gjelder bare mørkt)', async () => {
@@ -75,8 +78,16 @@ describe('useMapTheme — kart-tema, delt og lagret', () => {
     expect(useMapTheme().isDarkMap.value).toBe(true)
   })
 
-  it('søppel i localStorage faller tilbake til lyst', async () => {
+  it('søppel i localStorage faller tilbake til standarden', async () => {
     vi.stubGlobal('localStorage', makeStorage({ [KEY]: '<script>' }))
+    const useMapTheme = await freshModule()
+    expect(useMapTheme().mapTheme.value).toBe('turkart')
+  })
+
+  // Et lagret valg vinner over den nye standarden: den som allerede har valgt
+  // ISOM skal ikke våkne til et annet kart etter en oppdatering.
+  it('lagret ISOM-valg overlever at standarden ble Turkart', async () => {
+    vi.stubGlobal('localStorage', makeStorage({ [KEY]: 'light' }))
     const useMapTheme = await freshModule()
     expect(useMapTheme().mapTheme.value).toBe('light')
   })

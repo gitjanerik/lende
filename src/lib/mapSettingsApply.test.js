@@ -5,8 +5,9 @@ import {
 } from './mapSettingsApply.js'
 import {
   LAYERS, ALL_LAYER_KEYS, DEFAULT_VISIBLE_LAYER_KEYS, DEFAULT_OFF_LAYERS,
-  LAYER_PRESETS, MARINE_LAYER_KEYS,
+  MARINE_LAYER_KEYS,
 } from './mapLayerCatalog.js'
+import { KARTSTILER } from './kartStiler.js'
 
 const SVG = '<svg class="isom-map"><g data-layer="kontur"/><g data-layer="sti"/></svg>'
 
@@ -17,10 +18,10 @@ describe('mapLayerCatalog', () => {
     for (const l of LAYERS) expect(l.label).toBeTruthy()
   })
 
-  it('preset-nøkler peker på ekte lag (kun «dybde» er pseudo)', () => {
+  it('kartstil-lag peker på ekte lag (kun «dybde» er pseudo)', () => {
     const known = new Set([...ALL_LAYER_KEYS, 'dybde'])
-    for (const p of LAYER_PRESETS) {
-      for (const k of p.keys) expect(known.has(k), `${p.key}: ${k}`).toBe(true)
+    for (const s of KARTSTILER) {
+      for (const k of s.lag) expect(known.has(k), `${s.key}: ${k}`).toBe(true)
     }
   })
 
@@ -41,20 +42,38 @@ describe('resolveVisibleLayers', () => {
     expect(v.has('lysloype')).toBe(false)
   })
 
-  it('preset gir presetets lag-sett', () => {
-    const v = resolveVisibleLayers({ preset: 'tur' })
+  it('kartstil gir stilens lag-sett', () => {
+    const v = resolveVisibleLayers({ kartstil: 'turkart' })
     expect(v.has('sti')).toBe(true)
     expect(v.has('sjo-poi')).toBe(false)
   })
 
-  it('lag-overstyring vinner over preset', () => {
-    const v = resolveVisibleLayers({ preset: 'tur', lag: { kontur: false, 'sjo-poi': true } })
+  // Kartstilene skal skille seg på FLATER, ikke bare i navnet. Dette er
+  // testen som hindrer at de gror sammen igjen slik Tur og Detaljert gjorde.
+  it('kartstilene har reelt ulike lag-sett', () => {
+    const sett = KARTSTILER.map((s) => [s.key, new Set(s.lag)])
+    for (const [aKey, a] of sett) {
+      for (const [bKey, b] of sett) {
+        if (aKey >= bKey) continue
+        const like = a.size === b.size && [...a].every((k) => b.has(k))
+        // Natt og Turkart deler lag med vilje — de skiller seg på palett.
+        if (aKey === 'natt' && bKey === 'turkart') continue
+        if (aKey === 'turkart' && bKey === 'natt') continue
+        expect(like, `${aKey} og ${bKey} har identisk lag-sett`).toBe(false)
+      }
+    }
+  })
+
+  it('lag-overstyring vinner over kartstil', () => {
+    const v = resolveVisibleLayers({ kartstil: 'turkart', lag: { kontur: false, 'sjo-poi': true } })
     expect(v.has('kontur')).toBe(false)
     expect(v.has('sjo-poi')).toBe(true)
   })
 
-  it('kaster på ukjent preset og ukjent lag', () => {
-    expect(() => resolveVisibleLayers({ preset: 'tull' })).toThrow(/Ukjent preset/)
+  it('kaster på ukjent kartstil og ukjent lag', () => {
+    expect(() => resolveVisibleLayers({ kartstil: 'tull' })).toThrow(/Ukjent kartstil/)
+    // «detaljert» ble fjernet i v5.23.0 — den skal feile som enhver ukjent nøkkel.
+    expect(() => resolveVisibleLayers({ kartstil: 'detaljert' })).toThrow(/Ukjent kartstil/)
     expect(() => resolveVisibleLayers({ lag: { finnesIkke: true } })).toThrow(/Ukjent lag/)
   })
 })
@@ -116,17 +135,30 @@ describe('tema', () => {
     expect(themes.find((t) => t.key === 'dark').autoHideLayers).toBe(false)
   })
 
-  it('temaene er delt i hovedtemaer og monokrom-familien', () => {
+  // v5.23.0: 'hoved' er borte. Temaene som en kartstil eier ligger i gruppa
+  // 'kartstil' og rendres KUN via Kartstil-fanen — to kontroller for samme
+  // utseende var halve forvirringen kartstil-begrepet fjerner. Stemning-fanen
+  // står igjen med monokrom-familien.
+  it('kartstil-temaene er skilt fra stemningene', () => {
     const byKey = Object.fromEntries(listThemes().map((t) => [t.key, t]))
-    expect(byKey.light.group).toBe('hoved')
-    expect(byKey.dark.group).toBe('hoved')
-    expect(byKey.light.monochrome).toBe(false)
-    expect(byKey.dark.monochrome).toBe(false)
+    for (const k of ['light', 'dark', 'turkart', 'padling', 'print']) {
+      expect(byKey[k].group, `${k} skal eies av en kartstil`).toBe('kartstil')
+      expect(byKey[k].monochrome, `${k} er ikke monokrom`).toBe(false)
+    }
     for (const k of ['mono-sepia', 'mono-indigo', 'mono-slate', 'mocha', 'forest', 'curves']) {
       expect(byKey[k].group).toBe('monokrom')
       expect(byKey[k].monochrome).toBe(true)
     }
-    expect(THEME_GROUPS.map((g) => g.key)).toEqual(['hoved', 'monokrom'])
+    expect(THEME_GROUPS.map((g) => g.key)).toEqual(['kartstil', 'monokrom'])
+  })
+
+  // Hver kartstil peker på et tema som MÅ finnes. Uten denne kunne en
+  // omdøpt tema-nøkkel gi en kartstil-knapp som kaster ved trykk.
+  it('hver kartstil peker på et tema som finnes', () => {
+    const kjente = new Set(listThemes().map((t) => t.key))
+    for (const s of KARTSTILER) {
+      expect(kjente, `kartstil ${s.key} peker på ukjent tema ${s.tema}`).toContain(s.tema)
+    }
   })
 
   it('light = katalog-defaults → ingen CSS', () => {
@@ -257,11 +289,11 @@ describe('tema', () => {
     expect(css).not.toContain('--art-fill-opacity')
   })
 
-  it('lag-overstyring og preset virker som før', () => {
+  it('lag-overstyring og kartstil virker som før', () => {
     const utenVann = resolveVisibleLayers({ tema: 'curves', lag: { vann: false } })
     expect(utenVann.has('vann')).toBe(false)
-    const medPreset = resolveVisibleLayers({ tema: 'curves', preset: 'tur' })
-    expect(medPreset.has('sti')).toBe(true)
+    const medStil = resolveVisibleLayers({ tema: 'curves', kartstil: 'turkart' })
+    expect(medStil.has('sti')).toBe(true)
   })
 
   it('vanlig tema (dark) endrer ikke lag-synligheten', () => {

@@ -777,7 +777,13 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
         if (def.stroke.widthMm) props.push(`stroke-width: ${sw(def.stroke.widthMm)}`)
         if (def.stroke.linecap) props.push(`stroke-linecap: ${def.stroke.linecap}`)
         if (def.stroke.linejoin) props.push(`stroke-linejoin: ${def.stroke.linejoin}`)
-        if (def.stroke.dasharray) props.push(`stroke-dasharray: ${def.stroke.dasharray.map(d => `${d}mm`).join(' ')}`)
+        // Stiplingen er themebar på samme måte som fargen: Turkart vil ha
+        // kortere strek og tettere mellomrom enn ISOM-spec-en, som er
+        // regnet for trykk i 1:10 000 og leses som heltrukket på skjerm.
+        if (def.stroke.dasharray) {
+          const baked = def.stroke.dasharray.map(d => `${d}mm`).join(' ')
+          props.push(`stroke-dasharray: var(--iso-${code}-dash, ${baked})`)
+        }
       }
       if (!def.fill) props.push('fill: none')
       if (props.length) rules.push(`${sel} { ${props.join('; ')} }`)
@@ -850,6 +856,14 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
   // overdøves av sin egen kant ved små zoom-nivåer.
   if (codeUsed('521')) {
     rules.push(`${root} [data-iso="521"] path[data-small="yes"] { fill: var(--iso-521-small-fill, #fff); stroke: var(--iso-521-small-stroke, #000); stroke-width: ${sw(0.05)}; }`)
+    // v5.23.0: tre nivåer i stedet for ett. Geometrien har alt gjort uthuset
+    // mindre (klassifiserSmaabygg i mapBuilder); her settes vekten.
+    //   hytte — FYLT i omrisset sin farge: et landemerke og et mulig ly, det
+    //           eneste av de tre som er verdt å lete etter på et turkart.
+    //   uthus — dempet: garasjer og redskapsboder er støy, ikke navigasjon.
+    //   bolig — som før (hvitt fyll, tynt omriss).
+    rules.push(`${root} [data-iso="521"] path[data-bygg="hytte"] { fill: var(--iso-521-small-stroke, #000); stroke-width: ${sw(0.04)}; }`)
+    rules.push(`${root} [data-iso="521"] path[data-bygg="uthus"] { opacity: 0.55; stroke-width: ${sw(0.04)}; }`)
   }
 
   // Etiketter — fill og halo er CSS-variabler så MapView kan overstyre i mørk modus.

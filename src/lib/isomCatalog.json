@@ -1549,10 +1549,816 @@
     }
   },
   "themes": {
+    "turkart": {
+      "$comment": "Norsk turkart-idiom: BAKGRUNNEN ER SKOG, og åpenhet males oppå — samme grep som vann-stacken bruker mot land. Det snur databyrden: vi trenger ikke skogpolygoner over hele Norge, bare unntakene (dyrka mark, bymasse, berg, vann), og det er nettopp dem OSM dekker godt. Prisen er en bevisst kartografisk påstand — store uregistrerte hogstfelt og åpen hei vises som skog, slik papirkart alltid har gjort. Brune høydekurver frigjør svart til stinettet alene, og stiene har egen stipling fordi ISOM-spec-ens 0,36 mm leses som heltrukket på skjerm.",
+      "label": "Turkart",
+      "group": "kartstil",
+      "monochrome": false,
+      "background": "#dbe8c2",
+      "depthScale": ["#bfe0f0", "#a9d5ea", "#93cae4", "#7dbfde", "#67b4d8"],
+      "categories": {
+        "001": {
+          "fill": {
+            "color": "#dbe8c2"
+          }
+        },
+        "101": {
+          "stroke": {
+            "color": "#a3703f"
+          }
+        },
+        "102": {
+          "stroke": {
+            "color": "#8a5a2b"
+          }
+        },
+        "103": {
+          "stroke": {
+            "color": "#b8895c"
+          }
+        },
+        "104": {
+          "stroke": {
+            "color": "#a3703f"
+          }
+        },
+        "201": {
+          "stroke": {
+            "color": "#5b5148"
+          }
+        },
+        "203": {
+          "stroke": {
+            "color": "#3f382f"
+          }
+        },
+        "210": {
+          "fill": {
+            "color": "#d8d2c6"
+          }
+        },
+        "301": {
+          "fill": {
+            "color": "#a9d9ee"
+          },
+          "stroke": {
+            "color": "#2f88b5"
+          }
+        },
+        "302": {
+          "fill": {
+            "color": "#a9d9ee"
+          },
+          "stroke": {
+            "color": "#2f88b5"
+          }
+        },
+        "303": {
+          "fill": {
+            "color": "#93cbe6"
+          },
+          "stroke": {
+            "color": "#2f88b5"
+          }
+        },
+        "304": {
+          "stroke": {
+            "color": "#2f88b5"
+          }
+        },
+        "305": {
+          "stroke": {
+            "color": "#3d95bf"
+          }
+        },
+        "306": {
+          "stroke": {
+            "color": "#4a9ec4"
+          }
+        },
+        "307": {
+          "fill": {
+            "color": "#a9d9ee"
+          }
+        },
+        "401": {
+          "fill": {
+            "color": "#f6f4e8"
+          }
+        },
+        "403": {
+          "fill": {
+            "color": "#eaf0d6"
+          }
+        },
+        "404": {
+          "fill": {
+            "color": "#e2ecc9"
+          }
+        },
+        "405": {
+          "fill": {
+            "color": "#e9f2d6"
+          }
+        },
+        "406": {
+          "fill": {
+            "color": "#c9dfa6"
+          }
+        },
+        "407": {
+          "fill": {
+            "color": "#aed389"
+          }
+        },
+        "408": {
+          "fill": {
+            "color": "#93c46d"
+          }
+        },
+        "409": {
+          "fill": {
+            "color": "#84ba5c"
+          }
+        },
+        "501": {
+          "stroke": {
+            "color": "#2b2b2b"
+          },
+          "overlayStroke": {
+            "color": "#f5b942"
+          }
+        },
+        "502": {
+          "stroke": {
+            "color": "#2b2b2b"
+          },
+          "overlayStroke": {
+            "color": "#fbd06b"
+          }
+        },
+        "503": {
+          "stroke": {
+            "color": "#3a3a3a"
+          },
+          "overlayStroke": {
+            "color": "#ffffff"
+          }
+        },
+        "504": {
+          "stroke": {
+            "color": "#4a4038"
+          }
+        },
+        "505": {
+          "stroke": {
+            "color": "#1a1a1a",
+            "dash": [0.45, 0.32]
+          },
+          "casingStroke": {
+            "color": "#ffffff"
+          }
+        },
+        "506": {
+          "stroke": {
+            "color": "#1f1f1f",
+            "dash": [0.38, 0.28]
+          },
+          "casingStroke": {
+            "color": "#ffffff"
+          }
+        },
+        "507": {
+          "stroke": {
+            "color": "#4a4a4a",
+            "dash": [0.06, 0.3]
+          }
+        },
+        "520": {
+          "stroke": {
+            "color": "#2f7d32"
+          }
+        },
+        "521": {
+          "fill": {
+            "color": "#6b5545"
+          },
+          "stroke": {
+            "color": "#2b2b2b"
+          }
+        },
+        "521-small": {
+          "fill": {
+            "color": "#ffffff"
+          },
+          "stroke": {
+            "color": "#2b2b2b"
+          }
+        }
+      },
+      "labels": {
+        "place": {
+          "color": "#1f2a1a",
+          "haloColor": "#dbe8c2"
+        },
+        "peak": {
+          "color": "#5c3a1e",
+          "haloColor": "#dbe8c2"
+        },
+        "peak-ele": {
+          "color": "#5c3a1e",
+          "haloColor": "#dbe8c2"
+        },
+        "kontur-tall": {
+          "color": "#8a5a2b",
+          "haloColor": "#dbe8c2"
+        },
+        "vann-navn": {
+          "color": "#12617f",
+          "haloColor": "#e9f4fa"
+        },
+        "vann-tall": {
+          "color": "#12617f",
+          "haloColor": "#e9f4fa"
+        },
+        "dybde-tall": {
+          "color": "#12617f",
+          "haloColor": "#e9f4fa"
+        },
+        "stedsnavn": {
+          "color": "#1f2a1a",
+          "haloColor": "#dbe8c2"
+        },
+        "omrade-navn": {
+          "color": "#4a5540",
+          "haloColor": "#dbe8c2"
+        },
+        "hytte-navn": {
+          "color": "#1f2a1a",
+          "haloColor": "#dbe8c2"
+        },
+        "naturreservat-navn": {
+          "color": "#2f7d32",
+          "haloColor": "#dbe8c2"
+        }
+      },
+      "symbols": {
+        "ink": "#1a1a1a",
+        "paper": "#dbe8c2"
+      },
+      "patterns": {
+        "myr": {
+          "stroke": "#4f9ac2"
+        },
+        "myr-utrygg": {
+          "stroke": "#4f9ac2"
+        }
+      },
+      "artMode": false,
+      "fillOpacity": 1,
+      "autoHideLayers": false
+    },
+    "padling": {
+      "$comment": "Sjøen i forgrunnen. Land dempes til en nøytral varmgrå så vannet — dybdetrapp, kai, sjømerker og sjønavn — er det øyet finner først. Høydekurver og stinett tones tilbake framfor å skrus av: på en padletur er landet fortsatt der, det er bare ikke det du navigerer etter.",
+      "label": "Padling",
+      "group": "kartstil",
+      "monochrome": false,
+      "background": "#efeadd",
+      "depthScale": ["#8fcbe6", "#6fb7db", "#54a4d0", "#3d92c6", "#2a81bb"],
+      "categories": {
+        "001": {
+          "fill": {
+            "color": "#efeadd"
+          }
+        },
+        "101": {
+          "stroke": {
+            "color": "#c2b49c"
+          }
+        },
+        "102": {
+          "stroke": {
+            "color": "#ab9b80"
+          }
+        },
+        "103": {
+          "stroke": {
+            "color": "#cfc3ae"
+          }
+        },
+        "104": {
+          "stroke": {
+            "color": "#c2b49c"
+          }
+        },
+        "201": {
+          "stroke": {
+            "color": "#8d8375"
+          }
+        },
+        "203": {
+          "stroke": {
+            "color": "#6f6659"
+          }
+        },
+        "210": {
+          "fill": {
+            "color": "#ddd7ca"
+          }
+        },
+        "301": {
+          "fill": {
+            "color": "#7fc4e3"
+          },
+          "stroke": {
+            "color": "#1a6f9a"
+          }
+        },
+        "302": {
+          "fill": {
+            "color": "#7fc4e3"
+          },
+          "stroke": {
+            "color": "#1a6f9a"
+          }
+        },
+        "303": {
+          "fill": {
+            "color": "#68b8dd"
+          },
+          "stroke": {
+            "color": "#12608a"
+          }
+        },
+        "304": {
+          "stroke": {
+            "color": "#1a6f9a"
+          }
+        },
+        "305": {
+          "stroke": {
+            "color": "#2f83ad"
+          }
+        },
+        "306": {
+          "stroke": {
+            "color": "#3d8fb8"
+          }
+        },
+        "307": {
+          "fill": {
+            "color": "#7fc4e3"
+          }
+        },
+        "401": {
+          "fill": {
+            "color": "#f4f0e4"
+          }
+        },
+        "403": {
+          "fill": {
+            "color": "#ece7d8"
+          }
+        },
+        "404": {
+          "fill": {
+            "color": "#e6e1d0"
+          }
+        },
+        "405": {
+          "fill": {
+            "color": "#eae6d8"
+          }
+        },
+        "406": {
+          "fill": {
+            "color": "#dcd9c8"
+          }
+        },
+        "407": {
+          "fill": {
+            "color": "#cdcbb8"
+          }
+        },
+        "408": {
+          "fill": {
+            "color": "#bfbea8"
+          }
+        },
+        "409": {
+          "fill": {
+            "color": "#b4b39c"
+          }
+        },
+        "501": {
+          "stroke": {
+            "color": "#9a9182"
+          },
+          "overlayStroke": {
+            "color": "#e8e2d4"
+          }
+        },
+        "502": {
+          "stroke": {
+            "color": "#9a9182"
+          },
+          "overlayStroke": {
+            "color": "#ece7da"
+          }
+        },
+        "503": {
+          "stroke": {
+            "color": "#a8a091"
+          },
+          "overlayStroke": {
+            "color": "#f2eee2"
+          }
+        },
+        "504": {
+          "stroke": {
+            "color": "#a09786"
+          }
+        },
+        "505": {
+          "stroke": {
+            "color": "#6b6355",
+            "dash": [0.4, 0.3]
+          },
+          "casingStroke": {
+            "color": "#f7f4ea"
+          }
+        },
+        "506": {
+          "stroke": {
+            "color": "#7a7263",
+            "dash": [0.34, 0.26]
+          },
+          "casingStroke": {
+            "color": "#f7f4ea"
+          }
+        },
+        "507": {
+          "stroke": {
+            "color": "#8d8577"
+          }
+        },
+        "520": {
+          "stroke": {
+            "color": "#5f8f62"
+          }
+        },
+        "521": {
+          "fill": {
+            "color": "#a89a88"
+          },
+          "stroke": {
+            "color": "#7a7263"
+          }
+        },
+        "521-small": {
+          "fill": {
+            "color": "#faf7ee"
+          },
+          "stroke": {
+            "color": "#8d8577"
+          }
+        }
+      },
+      "labels": {
+        "place": {
+          "color": "#4a4335",
+          "haloColor": "#efeadd"
+        },
+        "peak": {
+          "color": "#6b5a42",
+          "haloColor": "#efeadd"
+        },
+        "peak-ele": {
+          "color": "#6b5a42",
+          "haloColor": "#efeadd"
+        },
+        "kontur-tall": {
+          "color": "#9a8b73",
+          "haloColor": "#efeadd"
+        },
+        "vann-navn": {
+          "color": "#0d5a7d",
+          "haloColor": "#e4f2f9"
+        },
+        "vann-tall": {
+          "color": "#0d5a7d",
+          "haloColor": "#e4f2f9"
+        },
+        "dybde-tall": {
+          "color": "#0d5a7d",
+          "haloColor": "#e4f2f9"
+        },
+        "stedsnavn": {
+          "color": "#4a4335",
+          "haloColor": "#efeadd"
+        },
+        "omrade-navn": {
+          "color": "#8d8577",
+          "haloColor": "#efeadd"
+        },
+        "hytte-navn": {
+          "color": "#4a4335",
+          "haloColor": "#efeadd"
+        },
+        "naturreservat-navn": {
+          "color": "#5f8f62",
+          "haloColor": "#efeadd"
+        }
+      },
+      "symbols": {
+        "ink": "#4a4335",
+        "paper": "#efeadd"
+      },
+      "patterns": {
+        "myr": {
+          "stroke": "#5a9fc4"
+        },
+        "myr-utrygg": {
+          "stroke": "#5a9fc4"
+        }
+      },
+      "artMode": false,
+      "fillOpacity": 1,
+      "autoHideLayers": false
+    },
+    "print": {
+      "$comment": "Blekk på papir. Bakgrunnen er papirtone, ikke skog — motsatt grep av Turkart, og med vilje: på trykk koster flatedekning blekk, og skogen skal derfor bare stå der vi FAKTISK har data for den. Kraftig svart linjeverk, brune kurver, lyse flater som ikke drukner teksten. Relieffet slås av (kartstilen, ikke temaet) — en gråtone-PNG med multiply-blend blir grumsete på papir.",
+      "label": "Print",
+      "group": "kartstil",
+      "monochrome": false,
+      "background": "#fcfbf7",
+      "depthScale": ["#e2eef4", "#d2e5ee", "#c2dce8", "#b2d3e2", "#a2cadc"],
+      "categories": {
+        "001": {
+          "fill": {
+            "color": "#fcfbf7"
+          }
+        },
+        "101": {
+          "stroke": {
+            "color": "#8a6034"
+          }
+        },
+        "102": {
+          "stroke": {
+            "color": "#6b4522"
+          }
+        },
+        "103": {
+          "stroke": {
+            "color": "#a37f57"
+          }
+        },
+        "104": {
+          "stroke": {
+            "color": "#8a6034"
+          }
+        },
+        "201": {
+          "stroke": {
+            "color": "#3d3830"
+          }
+        },
+        "203": {
+          "stroke": {
+            "color": "#1c1a16"
+          }
+        },
+        "210": {
+          "fill": {
+            "color": "#e4e0d8"
+          }
+        },
+        "301": {
+          "fill": {
+            "color": "#d6ebf5"
+          },
+          "stroke": {
+            "color": "#2b6f91"
+          }
+        },
+        "302": {
+          "fill": {
+            "color": "#d6ebf5"
+          },
+          "stroke": {
+            "color": "#2b6f91"
+          }
+        },
+        "303": {
+          "fill": {
+            "color": "#c6e2f0"
+          },
+          "stroke": {
+            "color": "#2b6f91"
+          }
+        },
+        "304": {
+          "stroke": {
+            "color": "#2b6f91"
+          }
+        },
+        "305": {
+          "stroke": {
+            "color": "#357da0"
+          }
+        },
+        "306": {
+          "stroke": {
+            "color": "#3f87aa"
+          }
+        },
+        "307": {
+          "fill": {
+            "color": "#d6ebf5"
+          }
+        },
+        "401": {
+          "fill": {
+            "color": "#fcfbf7"
+          }
+        },
+        "403": {
+          "fill": {
+            "color": "#f0f3e6"
+          }
+        },
+        "404": {
+          "fill": {
+            "color": "#eaf0dc"
+          }
+        },
+        "405": {
+          "fill": {
+            "color": "#f2f7e8"
+          }
+        },
+        "406": {
+          "fill": {
+            "color": "#dcebc8"
+          }
+        },
+        "407": {
+          "fill": {
+            "color": "#c6dfab"
+          }
+        },
+        "408": {
+          "fill": {
+            "color": "#aed28e"
+          }
+        },
+        "409": {
+          "fill": {
+            "color": "#9fc97e"
+          }
+        },
+        "501": {
+          "stroke": {
+            "color": "#111111"
+          },
+          "overlayStroke": {
+            "color": "#f0c25a"
+          }
+        },
+        "502": {
+          "stroke": {
+            "color": "#111111"
+          },
+          "overlayStroke": {
+            "color": "#f7d888"
+          }
+        },
+        "503": {
+          "stroke": {
+            "color": "#1c1c1c"
+          },
+          "overlayStroke": {
+            "color": "#fcfbf7"
+          }
+        },
+        "504": {
+          "stroke": {
+            "color": "#2b2b2b"
+          }
+        },
+        "505": {
+          "stroke": {
+            "color": "#000000",
+            "dash": [0.5, 0.34]
+          },
+          "casingStroke": {
+            "color": "#fcfbf7"
+          }
+        },
+        "506": {
+          "stroke": {
+            "color": "#111111",
+            "dash": [0.42, 0.3]
+          },
+          "casingStroke": {
+            "color": "#fcfbf7"
+          }
+        },
+        "507": {
+          "stroke": {
+            "color": "#333333",
+            "dash": [0.06, 0.3]
+          }
+        },
+        "520": {
+          "stroke": {
+            "color": "#2f6d32"
+          }
+        },
+        "521": {
+          "fill": {
+            "color": "#4a4038"
+          },
+          "stroke": {
+            "color": "#000000"
+          }
+        },
+        "521-small": {
+          "fill": {
+            "color": "#ffffff"
+          },
+          "stroke": {
+            "color": "#000000"
+          }
+        }
+      },
+      "labels": {
+        "place": {
+          "color": "#111111",
+          "haloColor": "#fcfbf7"
+        },
+        "peak": {
+          "color": "#3d2b16",
+          "haloColor": "#fcfbf7"
+        },
+        "peak-ele": {
+          "color": "#3d2b16",
+          "haloColor": "#fcfbf7"
+        },
+        "kontur-tall": {
+          "color": "#6b4522",
+          "haloColor": "#fcfbf7"
+        },
+        "vann-navn": {
+          "color": "#14566f",
+          "haloColor": "#eaf4f9"
+        },
+        "vann-tall": {
+          "color": "#14566f",
+          "haloColor": "#eaf4f9"
+        },
+        "dybde-tall": {
+          "color": "#14566f",
+          "haloColor": "#eaf4f9"
+        },
+        "stedsnavn": {
+          "color": "#111111",
+          "haloColor": "#fcfbf7"
+        },
+        "omrade-navn": {
+          "color": "#5a5348",
+          "haloColor": "#fcfbf7"
+        },
+        "hytte-navn": {
+          "color": "#111111",
+          "haloColor": "#fcfbf7"
+        },
+        "naturreservat-navn": {
+          "color": "#2f6d32",
+          "haloColor": "#fcfbf7"
+        }
+      },
+      "symbols": {
+        "ink": "#000000",
+        "paper": "#fcfbf7"
+      },
+      "patterns": {
+        "myr": {
+          "stroke": "#4a7fa0"
+        },
+        "myr-utrygg": {
+          "stroke": "#4a7fa0"
+        }
+      },
+      "artMode": false,
+      "fillOpacity": 1,
+      "autoHideLayers": false
+    },
     "light": {
       "$comment": "Default ISOM-2017-2: kremgul land, multifargete features. Ingen overstyringer (bruker katalog-defaults).",
       "label": "Lys (ISOM)",
-      "group": "hoved",
+      "group": "kartstil",
       "monochrome": false,
       "background": "#fefae0",
       "categories": {},
@@ -1564,7 +2370,7 @@
     "dark": {
       "$comment": "Høykontrast nattvisning (WCAG AA–AAA). Mørk nøytral bakgrunn; vegetasjonstetthet stiger i valør (invertert ift. lys ISOM) så tett skog leses som lysere, ikke mørkere. Vann ligger under hele landrampen, slik at screen-relieffet øker land/vann-separasjonen i stedet for å viske den ut. Halo #0a0d10 på labels bærer lesbarheten over broket underlag.",
       "label": "Mørk",
-      "group": "hoved",
+      "group": "kartstil",
       "monochrome": false,
       "background": "#14181c",
       "depthScale": ["#295970", "#255169", "#214a64", "#1d415d", "#1a3856"],
