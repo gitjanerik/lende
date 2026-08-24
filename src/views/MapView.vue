@@ -67,6 +67,7 @@ import { use3dEntry } from '../composables/use3dEntry.js'
 import { useKartDeling } from '../composables/useKartDeling.js'
 import { useDeltTur } from '../composables/useDeltTur.js'
 import { useLagStyring } from '../composables/useLagStyring.js'
+import { useKartStil } from '../composables/useKartStil.js'
 import { useNavnLod } from '../composables/useNavnLod.js'
 import { useViewportCull } from '../composables/useViewportCull.js'
 import { useKartKnotter, loadKnobStep } from '../composables/useKartKnotter.js'
@@ -90,7 +91,7 @@ import { buildStrokeOverrideCss } from '../lib/strokeOverrides.js'
 import { buildTrailColorCss, normalizeHex } from '../lib/trailColors.js'
 import { DEFAULT_VISIBLE_LAYER_KEYS } from '../lib/mapLayerCatalog.js'
 import { firkantKvitteringTekst } from '../lib/autoNaboValg.js'
-import { listThemes } from '../lib/mapSettingsApply.js'
+import { listThemes, erMorktTema } from '../lib/mapSettingsApply.js'
 import { norwegianName } from '../lib/placeName.js'
 import AnnotationIcon from '../components/AnnotationIcon.vue'
 import TrackElevationSheet from '../components/TrackElevationSheet.vue'
@@ -107,6 +108,7 @@ import FabCluster from '../components/FabCluster.vue'
 import MapModeChips from '../components/MapModeChips.vue'
 import DrawerLayersTab from '../components/drawer/DrawerLayersTab.vue'
 import DrawerThemeTab from '../components/drawer/DrawerThemeTab.vue'
+import DrawerStyleTab from '../components/drawer/DrawerStyleTab.vue'
 import DrawerAnnotateTab from '../components/drawer/DrawerAnnotateTab.vue'
 import DrawerMeasureTab from '../components/drawer/DrawerMeasureTab.vue'
 import DrawerTracksTab from '../components/drawer/DrawerTracksTab.vue'
@@ -274,8 +276,8 @@ const BUILTIN = {
 // at oppsettet er ferdig.
 const {
   visibleLayers, landLayerButtons, marineLayerButtons,
-  activePreset, layersDirty,
-  applyPreset, resetLayers, toggleLayer, toggleDepth,
+  layersDirty,
+  resetLayers, toggleLayer, toggleDepth,
   applyDepthLayer, applyLayerVisibility,
 } = useLagStyring({
   svgHostRef,
@@ -291,13 +293,17 @@ const {
   },
 })
 
-// Tema: 'light' (default ISOM), 'dark', 'mono-sepia', 'mono-indigo', 'mono-slate'.
+// Tema: 'turkart' (default), 'light' (ISOM), 'padling', 'natt'/'dark', 'print'
+// + den monokrome stemnings-familien.
 // isDark er derivert for steder som styrer UI-farger (toppbar, drawer-bg).
 // Tilstanden bor i useMapTheme (delt singleton, lagret i localStorage) så
 // Tema-fanen her og «Turkart i mørkt tema»-bryteren i hovedmenyen styrer det
 // samme — og valget overlever at appen lukkes.
 const { mapTheme: currentTheme, setMapTheme } = useMapTheme()
-const isDark = computed(() => currentTheme.value !== 'light')
+// v5.23.0: 'light' er ikke lenger det eneste lyse temaet — turkart, padling
+// og print er også lyse. Avled av temaets egen bakgrunn i stedet for å liste
+// nøkler, ellers ville hvert nye lyse tema måttet huskes her.
+const isDark = computed(() => erMorktTema(currentTheme.value, isomCatalog))
 const THEMES = computed(() => listThemes(isomCatalog))
 const diagnose = ref(false)
 
@@ -353,8 +359,11 @@ const showControls = ref(false)
 // Aktiv fane huskes i localStorage så drawer åpner tilbake i samme kontekst.
 const ACTIVE_TAB_KEY = 'lende-mapview-active-tab'
 const ALL_TABS = [
+  // Kartstil står FØRST: det er valget som setter hele uttrykket, og
+  // Kartlag/Stemning er finjustering oppå den.
+  { key: 'kartstil',    label: 'Kartstil' },
   { key: 'lag',         label: 'Kartlag' },
-  { key: 'tema',        label: 'Tema' },
+  { key: 'tema',        label: 'Stemning' },
   { key: 'annotering',  label: 'Annotering', userOnly: true },
   { key: 'maaling',     label: 'Måling' },
   { key: 'sporing',     label: 'Sporing',    userOnly: true },
@@ -523,6 +532,12 @@ function closeDrawer() { showControls.value = false }
 function onThemeTap(key) {
   setMapTheme(key)
 }
+
+// Kartstil-styringen: ett trykk setter tema, lag, strek og sti-farger.
+// Må stå ETTER useLagStyring, som eier visibleLayers og applyLayerVisibility.
+const {
+  aktivStil, bruksKartStil, aktivStiPalett, velgStiPalett,
+} = useKartStil({ visibleLayers, applyLayerVisibility })
 
 // Lazy DEM-henting for features som trenger høydedata etter at kartet er
 // lastet (hill-shading, høydeprofil).
@@ -2969,8 +2984,11 @@ onUnmounted(() => {
           <!-- Fane-innholdet er skilt ut i egne komponenter (v1.0.8):
                src/components/drawer/. v-show (ikke v-if) beholder DOM-en
                levende ved fanebytte, som før. -->
+          <DrawerStyleTab v-show="activeTab === 'kartstil'"
+            :aktiv-stil="aktivStil" :velg-stil="bruksKartStil"
+            :aktiv-sti-palett="aktivStiPalett" :velg-sti-palett="velgStiPalett" />
+
           <DrawerLayersTab v-show="activeTab === 'lag'"
-            :apply-preset="applyPreset" :active-preset="activePreset"
             :reset-layers="resetLayers" :layers-dirty="layersDirty"
             :land-layer-buttons="landLayerButtons" :marine-layer-buttons="marineLayerButtons"
             :toggle-layer="toggleLayer" :toggle-depth="toggleDepth"

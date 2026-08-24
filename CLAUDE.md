@@ -71,9 +71,12 @@ npm run mcp:protokoll  # Kjører MCP-protokollen mot lende-mcp i workerd:
 - **Symbolisering**: datadrevet ISOM-katalog (`src/lib/isomCatalog.json`) via
   `src/lib/symbolizer.js`. All SVG-CSS scopes til `.isom-map`.
 - **Terreng**: `demFetcher.js` (Kartverket WCS, multi-endpoint, CORS-trygg),
-  `dem.js` (konturer/stup via d3-contour + Chaikin + DP), `canopyHeight.js`
-  (CHM = DOM − DTM → vegetasjonsklassifisering ISOM 405–408),
+  `dem.js` (konturer/stup via d3-contour + Chaikin + DP),
   `seaFromDem.js`/`marineTopology.js` (autoritativ kystlinje).
+  **Det finnes INGEN høydemodell-avledet vegetasjon.** `canopyHeight.js`
+  (CHM = DOM − DTM) ble slettet i v2.3.0 med begrunnelsen «Ga aldri synlig
+  skog-nyanse», men sto oppført her som kjernefil helt til v5.23.0 — les
+  seksjonen om arealdekke under før du bygger noe som antar den.
 - **Ruteplanlegging**: `routing.js` (graphology), `brouterClient.js`,
   `gravelOverlay.js`, `routeElevation.js`, `gpxExport.js`;
   view: `GravelPlannerView.vue` (`/rute`).
@@ -122,6 +125,36 @@ innsjø — MCP-bygde kart mistet bekker, elveflater og halve innsjø-settet ute
 noen gate så det. Land-mask (union av alt
 vann) hindrer konturer/vegetasjon over vann. OSM multipolygon-relations MÅ
 ring-sys via `assembleRelationRings` i `mapBuilder.js` (ellers wedge-artefakter).
+
+## Viktig arkitektur-merknad — arealdekke, og hvorfor bakgrunnen ER skog
+
+Samme regel som for vann gjelder her: **en kilde er autoritativ for DET DEN
+LEVERER.** Forskjellen er at for arealdekke har vi nesten ingen kilde.
+
+All vegetasjon og myr kommer fra OSM alene (`natural=wetland`,
+`natural=wood|scree|bare_rock`, `landuse=forest|meadow|grass|farmland` i
+`buildOverpassQuery`). OSM er tynt i norsk utmark — samme diagnose
+`n50StiFetcher.js` åpner med for stier, der løsningen ble å bake N50 til
+statiske fliser. For arealdekke er den baken IKKE gjort.
+
+Konsekvensen var at et skogsområde uten OSM-polygoner ble et helt tomt ark.
+Verre: ISOM har omvendt vegetasjonslogikk av alle andre norske kart — `405`
+løpbar skog er HVIT, `401` åpen mark er GUL — så selv der skogen fantes,
+rendret den nesten usynlig mot den kremgule bakgrunnen.
+
+**Turkart-temaet (v5.23.0) snur dette: bakgrunnen ER skog, og åpenhet males
+oppå** — nøyaktig samme grep som «bakgrunnen ER land, vann males oppå».
+Det flytter databyrden fra «skogpolygoner over hele Norge» til «unntakene»,
+og unntakene (dyrka mark, bymasse, berg i dagen, vann) er nettopp det OSM
+dekker godt.
+
+Prisen er en bevisst kartografisk påstand: **vi hevder skog der vi ikke vet
+bedre.** Store uregistrerte hogstfelt og åpen hei vises som skog, og over
+tregrensa er påstanden direkte gal. Legger du til en ekte arealdekke-kilde
+(N50/AR5-fliser er den åpenbare veien, se `n50StiPakke.js` for oppskriften),
+er det DEN som skal bære skogen — og da skal Turkart-temaets grønne `--bg`
+tilbake til en nøytral tone. Ikke la begge deler stå: da får du grønt over
+alt uansett hva kilden sier.
 
 ## Viktig arkitektur-merknad — deling av kart har TO veier, og det er med vilje
 

@@ -45,7 +45,13 @@ const SECTIONS = [
   { title: 'Veier & stier', codes: ['501', '502', '503', '504', '505', '506', '507'], category: 'manmade' },
   { title: 'Jernbane', codes: ['515'], category: 'manmade' },
   { title: 'Vinter & ski', codes: ['510', '511', '512'], category: 'manmade' },
-  { title: 'Bygninger', codes: ['521', '522', '532', '525', '528'], category: 'manmade' },
+  { title: 'Bygninger', codes: ['521', '522', '532', '525', '528'], category: 'manmade',
+    note: 'Bygg under 500 m² tegnes som et standardisert kvadrat på bygningens sentrum — '
+      + 'faktiske småpolygoner er irregulære og forsvinner mot nærliggende stier. Fra v5.23.0 '
+      + 'skilles tre slag: HYTTE (fylt kvadrat) er hytter, koier og turisthytter — landemerker '
+      + 'og mulig ly; BOLIG (hvitt kvadrat med omriss) er hus og alt OSM ikke sier noe nærmere '
+      + 'om; UTHUS (mindre og dempet) er garasjer, boder, låver og carporter, som er støy på et '
+      + 'turkart. Kirker og kapell får korsmarkør i stedet for kvadrat.' },
   { title: 'Parkering & service', codes: ['534', '534u', '560'], category: 'manmade',
     note: 'Utfartsparkering (P med sti eller skogsbilvei innen 50 m) får fire sorte hjørne-braketter rundt det blå P-skiltet — en sannsynlig god kandidat for turstart. Vanlig/privat parkering er blå uten braketter. (Sorte braketter framfor grønn ramme: grønt mot blått er vanskelig for fargeblinde.) I kart-søket dukker disse opp som «Utfartsparkering ‹sted›» med en * etter navnet, der ‹sted› er nærmeste fjelltopp/ås/elv/vann (f.eks. «Utfartsparkering Knivåsen»). * betyr at navnet er utledet fra kart-data — ikke et offisielt navn eller en garantert turstart.' },
   { title: 'Verneområder', codes: ['520'], category: 'manmade',

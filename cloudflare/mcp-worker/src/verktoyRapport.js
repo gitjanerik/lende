@@ -11,7 +11,8 @@ import { wgs84ToSvg, svgToWgs84 } from '../../../src/lib/utm.js'
 import { sampleProfile } from '../../../src/lib/elevationProfile.js'
 import { buildRouteOverlaySvg, injectOverlay, DEFAULT_OVERLAY_STYLE } from '../../../src/lib/routeOverlay.js'
 import { resolveVisibleLayers, buildSettingsCss, listThemes } from '../../../src/lib/mapSettingsApply.js'
-import { LAYERS, LAYER_PRESETS } from '../../../src/lib/mapLayerCatalog.js'
+import { LAYERS } from '../../../src/lib/mapLayerCatalog.js'
+import { KARTSTILER } from '../../../src/lib/kartStiler.js'
 import { STROKE_GROUPS } from '../../../src/lib/strokeOverrides.js'
 import { enrichRoute } from '../../../src/lib/routeEnrichment.js'
 import { routeCues, extractNamedPointsFromSvg } from '../../../src/lib/routeCues.js'
@@ -117,7 +118,8 @@ async function planOgBerik(kart, punkter, { bufferM = 150, ruteIndeks = 0 } = {}
 // Gyldige nøkler listes i beskrivelsen så klienten slipper prøving/feiling —
 // hentet fra SAMME katalog som appens drawer (mapLayerCatalog/strokeOverrides).
 const LAG_DOC = LAYERS.map(l => `${l.key} (${l.label})`).join(', ')
-const PRESET_KEYS = LAYER_PRESETS.map(p => p.key)
+const KARTSTIL_KEYS = KARTSTILER.map(s => s.key)
+const KARTSTIL_DOC = KARTSTILER.map(s => `«${s.key}» (${s.label}): ${s.beskrivelse}`).join(' ')
 const STREK_DOC = STROKE_GROUPS.map(g => `${g.id} (${g.label})`).join(', ')
 const THEMES = listThemes()
 const TEMA_KEYS = THEMES.map(t => t.key)
@@ -278,28 +280,31 @@ export function registerRapportVerktoy(server, ctx) {
   server.registerTool(
     'juster_kart',
     {
-      title: 'Juster kartvisning (lag / preset / strek)',
+      title: 'Juster kartvisning (kartstil / lag / strek)',
       description:
         'Justerer visningen av et bygget kart (kartRef) med SAMME valg som en bruker har i ' +
-        'appens drawer: tema, lag-toggles fra Kartlag-fanen, lag-presets, global strek-skala ' +
+        'appens drawer: kartstil, tema, lag-toggles fra Kartlag-fanen, global strek-skala ' +
         '(Strek-knotten) og per-gruppe strektykkelse (Strek-panelet). Innstillingene huskes per ' +
         'kartRef og påføres alle senere SVG-utdata (turrapport_svg / planlegg_rundtur med ' +
         'tegnSvg) til de nullstilles. Original-SVG-en røres ikke; en justert kopi skrives og ' +
         'returneres som URL. ' +
-        `Temaer: ${TEMA_DOC} ` +
+        `Kartstiler (ETT valg som setter tema, lag, strek og sti-farger samtidig — start her): ${KARTSTIL_DOC} ` +
+      `Temaer (finjustering av fargene alene): ${TEMA_DOC} ` +
         `Lag-nøkler: ${LAG_DOC}, dybde (Sjøkart-dybde på hovedkartet). ` +
         `Strek-grupper: ${STREK_DOC}.`,
       inputSchema: {
         kartRef: z.string().describe('Kart-referansen fra bygg_kart'),
         tema: z.enum(TEMA_KEYS).optional()
           .describe('Fargetema (som Tema-knappene i appen) — «light» er default ISOM'),
-        preset: z.enum(PRESET_KEYS).optional()
-          .describe('Lag-forhåndsvalg (som preset-knappene i appen) — nullstiller tidligere lag-valg'),
+        kartstil: z.enum(KARTSTIL_KEYS).optional()
+          .describe('Kartstil (som Kartstil-fanen i appen): setter tema, lag, strek-profil og '
+            + 'sti-farger i én operasjon. Nullstiller tidligere lag-valg. Eksplisitte felter '
+            + 'under overstyrer stilens verdier.'),
         // Nøkkeltypen skrives eksplisitt: det er zod 4s dokumenterte signatur.
         // (Ett-argument-formen virker fortsatt i 4.4 — dette er tydelighet, ikke
         // en tvungen migrering.)
         lag: z.record(z.string(), z.boolean()).optional()
-          .describe('Enkelt-lag av/på oppå preset/default, f.eks. {"kontur": false}'),
+          .describe('Enkelt-lag av/på oppå kartstil/default, f.eks. {"kontur": false}'),
         strekSkala: z.number().min(0.1).max(3).optional()
           .describe('Global strek-skala (--stroke-scale), 1 = som bygget'),
         strek: z.record(z.string(), z.number().min(0.4).max(3)).optional()
@@ -313,7 +318,7 @@ export function registerRapportVerktoy(server, ctx) {
           .describe('Fjern alle innstillinger først (som «Nullstill» i Lag-fanen)'),
       },
     },
-    async ({ kartRef, tema, preset, lag, strekSkala, strek, stiFarger, nullstill }) => {
+    async ({ kartRef, tema, kartstil, lag, strekSkala, strek, stiFarger, nullstill }) => {
       const kart = await kreveKart(env, kartRef)
       const prev = nullstill ? {} : (await lastInnstillinger(env, kartRef) ?? {})
       // Tema-bytte nullstiller enkelt-lag-valg når temaet auto-skjuler lag
@@ -322,9 +327,9 @@ export function registerRapportVerktoy(server, ctx) {
       const temaResetsLag = tema && THEMES.find(t => t.key === tema)?.autoHideLayers
       const next = {
         tema: nextTema === 'light' ? undefined : nextTema,
-        preset: preset ?? (temaResetsLag ? undefined : prev.preset),
-        // Preset-trykk nullstiller enkelt-lag-valg (samme semantikk som appen).
-        lag: (preset || temaResetsLag) ? { ...(lag ?? {}) } : { ...(prev.lag ?? {}), ...(lag ?? {}) },
+        kartstil: kartstil ?? (temaResetsLag ? undefined : prev.kartstil),
+        // Kartstil-bytte nullstiller enkelt-lag-valg (samme semantikk som appen).
+        lag: (kartstil || temaResetsLag) ? { ...(lag ?? {}) } : { ...(prev.lag ?? {}), ...(lag ?? {}) },
         strekSkala: strekSkala ?? prev.strekSkala,
         strek: { ...(prev.strek ?? {}), ...(strek ?? {}) },
         stiFarger: { ...(prev.stiFarger ?? {}), ...(stiFarger ?? {}) },
@@ -333,7 +338,7 @@ export function registerRapportVerktoy(server, ctx) {
       const visible = resolveVisibleLayers(next)
       buildSettingsCss(next)
 
-      const neutral = !next.tema && !next.preset && !Object.keys(next.lag).length
+      const neutral = !next.tema && !next.kartstil && !Object.keys(next.lag).length
         && next.strekSkala == null && !Object.keys(next.strek).length
         && !Object.keys(next.stiFarger).length
       await lagreInnstillinger(env, kartRef, neutral ? null : next)

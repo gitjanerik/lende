@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildSvg, bboxFromCenter, viewportAspect, autoMapAFormat, autoMapSquare, PRINT_ASPECT, makeLabelNameClaimer } from './mapBuilder.js'
+import { buildSvg, bboxFromCenter, viewportAspect, autoMapAFormat, autoMapSquare, PRINT_ASPECT, makeLabelNameClaimer, klassifiserSmaabygg } from './mapBuilder.js'
 import { syntheticDEM } from './dem.js'
 import { wgs84ToUtm32 } from './utm.js'
 
@@ -677,5 +677,36 @@ describe('nasjonalpark tegnes ikke (v2.4.23)', () => {
     const g = body.match(/<g data-layer="naturreservat" data-iso="520">([\s\S]*?)<\/g>/)?.[1] ?? ''
     expect(g).toContain('<path')
     expect(body).toContain('Testreservatet')
+  })
+})
+
+describe('klassifiserSmaabygg — små bygg er ikke lenger alle like', () => {
+  it('turisme-taggene er sikrest og vinner', () => {
+    expect(klassifiserSmaabygg({ tourism: 'wilderness_hut' })).toBe('hytte')
+    expect(klassifiserSmaabygg({ tourism: 'alpine_hut', building: 'yes' })).toBe('hytte')
+  })
+
+  it('hytte-aktige building-verdier gir hytte', () => {
+    for (const b of ['cabin', 'hut', 'chalet', 'summer_house', 'bungalow']) {
+      expect(klassifiserSmaabygg({ building: b }), b).toBe('hytte')
+    }
+  })
+
+  it('uthus er det som hører TIL en bygning uten å være et sted man er', () => {
+    for (const b of ['garage', 'garages', 'carport', 'shed', 'barn', 'farm_auxiliary']) {
+      expect(klassifiserSmaabygg({ building: b }), b).toBe('uthus')
+    }
+  })
+
+  it('building=yes — den vanligste verdien i OSM — sier ingenting og blir bolig', () => {
+    expect(klassifiserSmaabygg({ building: 'yes' })).toBe('bolig')
+    expect(klassifiserSmaabygg({ building: 'house' })).toBe('bolig')
+    expect(klassifiserSmaabygg({})).toBe('bolig')
+    expect(klassifiserSmaabygg(undefined)).toBe('bolig')
+  })
+
+  it('store og små bokstaver behandles likt', () => {
+    expect(klassifiserSmaabygg({ building: 'Cabin' })).toBe('hytte')
+    expect(klassifiserSmaabygg({ building: 'GARAGE' })).toBe('uthus')
   })
 })

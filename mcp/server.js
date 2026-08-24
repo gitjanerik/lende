@@ -27,7 +27,8 @@ import { searchPlaces } from '../src/lib/geocode.js'
 import { minEquidistanceForWidthKm, DEFAULT_EQUIDISTANCE_M } from '../src/lib/equidistanceRules.js'
 import { buildRouteOverlaySvg, injectOverlay, DEFAULT_OVERLAY_STYLE } from '../src/lib/routeOverlay.js'
 import { applyMapSettings, resolveVisibleLayers, buildSettingsCss, listThemes } from '../src/lib/mapSettingsApply.js'
-import { LAYERS, LAYER_PRESETS } from '../src/lib/mapLayerCatalog.js'
+import { LAYERS } from '../src/lib/mapLayerCatalog.js'
+import { KARTSTILER } from '../src/lib/kartStiler.js'
 import { STROKE_GROUPS } from '../src/lib/strokeOverrides.js'
 import { enrichRoute } from '../src/lib/routeEnrichment.js'
 import { routeCues, extractNamedPointsFromSvg } from '../src/lib/routeCues.js'
@@ -50,7 +51,7 @@ const state = {
   // tilstanden i appen (Kartlag-fanen + Strek-knott/-panel). Holdes på tvers
   // av kall og påføres hver SVG som skrives; state.map.svg forblir urørt
   // (som i appen, der kartet er komplett og drawer-en styrer visningen).
-  innstillinger: null,  // { tema?, preset?, lag?, strekSkala?, strek?, stiFarger? } | null = urørt
+  innstillinger: null,  // { kartstil?, tema?, lag?, strekSkala?, strek?, stiFarger? } | null = urørt
 }
 
 // Påfør gjeldende innstillinger på en SVG som skal skrives til fil.
@@ -1015,7 +1016,8 @@ server.registerTool(
 // Gyldige nøkler listes i beskrivelsen så klienten slipper prøving/feiling —
 // hentet fra SAMME katalog som appens drawer (mapLayerCatalog/strokeOverrides).
 const LAG_DOC = LAYERS.map(l => `${l.key} (${l.label})`).join(', ')
-const PRESET_KEYS = LAYER_PRESETS.map(p => p.key)
+const KARTSTIL_KEYS = KARTSTILER.map(s => s.key)
+const KARTSTIL_DOC = KARTSTILER.map(s => `«${s.key}» (${s.label}): ${s.beskrivelse}`).join(' ')
 const STREK_DOC = STROKE_GROUPS.map(g => `${g.id} (${g.label})`).join(', ')
 const THEMES = listThemes()
 const TEMA_KEYS = THEMES.map(t => t.key)
@@ -1026,24 +1028,27 @@ const TEMA_DOC = THEMES
 server.registerTool(
   'juster_kart',
   {
-    title: 'Juster kartvisning (lag / preset / strek)',
+    title: 'Juster kartvisning (kartstil / lag / strek)',
     description:
       'Justerer visningen av sist bygde kart med SAMME valg som en bruker har i appens ' +
-      'drawer: tema, lag-toggles fra Kartlag-fanen, lag-presets, global strek-skala ' +
+      'drawer: kartstil, tema, lag-toggles fra Kartlag-fanen, global strek-skala ' +
       '(Strek-knotten) og per-gruppe strektykkelse (Strek-panelet). Innstillingene huskes og ' +
       'påføres alle senere SVG-er (tegn_rute_svg / turrapport_svg / bygg_kart) til de ' +
       'nullstilles — som drawer-tilstand i appen. Kart-SVG-en på disk skrives om med ' +
       'innstillingene bakt inn. ' +
-      `Temaer: ${TEMA_DOC} ` +
+      `Kartstiler (ETT valg som setter tema, lag, strek og sti-farger samtidig — start her): ${KARTSTIL_DOC} ` +
+      `Temaer (finjustering av fargene alene): ${TEMA_DOC} ` +
       `Lag-nøkler: ${LAG_DOC}, dybde (Sjøkart-dybde på hovedkartet). ` +
       `Strek-grupper: ${STREK_DOC}.`,
     inputSchema: {
       tema: z.enum(TEMA_KEYS).optional()
         .describe('Fargetema (som Tema-knappene i appen) — «light» er default ISOM'),
-      preset: z.enum(PRESET_KEYS).optional()
-        .describe('Lag-forhåndsvalg (som preset-knappene i appen) — nullstiller tidligere lag-valg'),
+      kartstil: z.enum(KARTSTIL_KEYS).optional()
+        .describe('Kartstil (som Kartstil-fanen i appen): setter tema, lag, strek-profil og '
+          + 'sti-farger i én operasjon. Nullstiller tidligere lag-valg. Eksplisitte felter '
+          + 'under overstyrer stilens verdier.'),
       lag: z.record(z.boolean()).optional()
-        .describe('Enkelt-lag av/på oppå preset/default, f.eks. {"kontur": false}'),
+        .describe('Enkelt-lag av/på oppå kartstil/default, f.eks. {"kontur": false}'),
       strekSkala: z.number().min(0.1).max(3).optional()
         .describe('Global strek-skala (--stroke-scale), 1 = som bygget'),
       strek: z.record(z.number().min(0.4).max(3)).optional()
@@ -1057,7 +1062,7 @@ server.registerTool(
         .describe('Fjern alle innstillinger først (som «Nullstill» i Lag-fanen)'),
     },
   },
-  async ({ tema, preset, lag, strekSkala, strek, stiFarger, nullstill }) => {
+  async ({ tema, kartstil, lag, strekSkala, strek, stiFarger, nullstill }) => {
     const prev = nullstill ? {} : (state.innstillinger ?? {})
     // Tema-bytte nullstiller enkelt-lag-valg når temaet auto-skjuler lag
     // (Curves) — speiler appens onThemeChange.
@@ -1065,9 +1070,9 @@ server.registerTool(
     const temaResetsLag = tema && THEMES.find(t => t.key === tema)?.autoHideLayers
     const next = {
       tema: nextTema === 'light' ? undefined : nextTema,
-      preset: preset ?? (temaResetsLag ? undefined : prev.preset),
-      // Preset-trykk nullstiller enkelt-lag-valg (samme semantikk som appen).
-      lag: (preset || temaResetsLag) ? { ...(lag ?? {}) } : { ...(prev.lag ?? {}), ...(lag ?? {}) },
+      kartstil: kartstil ?? (temaResetsLag ? undefined : prev.kartstil),
+      // Kartstil-bytte nullstiller enkelt-lag-valg (samme semantikk som appen).
+      lag: (kartstil || temaResetsLag) ? { ...(lag ?? {}) } : { ...(prev.lag ?? {}), ...(lag ?? {}) },
       strekSkala: strekSkala ?? prev.strekSkala,
       strek: { ...(prev.strek ?? {}), ...(strek ?? {}) },
       stiFarger: { ...(prev.stiFarger ?? {}), ...(stiFarger ?? {}) },
@@ -1076,7 +1081,7 @@ server.registerTool(
     const visible = resolveVisibleLayers(next)
     buildSettingsCss(next)
 
-    const neutral = !next.tema && !next.preset && !Object.keys(next.lag).length
+    const neutral = !next.tema && !next.kartstil && !Object.keys(next.lag).length
       && next.strekSkala == null && !Object.keys(next.strek).length
       && !Object.keys(next.stiFarger).length
     state.innstillinger = neutral ? null : next

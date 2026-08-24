@@ -1,7 +1,7 @@
 // Delt lag-katalog for kart-visningen — én kilde til sannhet for hvilke
 // togglebare lag som finnes (data-layer-nøkler + norske etiketter), hvilke som
-// er av som default, og de navngitte lag-forhåndsvalgene (Tur/Padling/
-// Detaljert/Print). Brukes både av MapView.vue (Kartlag-fanen i drawer-en) og
+// er av som default. De navngitte kartstilene bor i kartStiler.js.
+// Brukes både av MapView.vue (Kartlag-fanen i drawer-en) og
 // MCP-serveren (juster_kart), så en ekspert-bruker i appen og Claude via MCP
 // alltid snakker samme vokabular. Endres et lag her, følger begge med.
 
@@ -90,26 +90,8 @@ export const DEFAULT_VISIBLE_LAYER_KEYS = LAYERS
 
 export const ALL_LAYER_KEYS = LAYERS.map((l) => l.key)
 
-// Lag-forhåndsvalg — ~34 enkelt-toggles er desktop-GIS på mobil. Fire navngitte
-// presets gir ett trykk til en sammenhengende kart-tilstand:
-//   Tur       — rent turkart: terreng + sti/vei/navn, uten marine/vinter/rot.
-//   Padling   — Tur + marine POI (kai, sjø & padling, sjønavn) + 'dybde'.
-//   Detaljert — alt på.
-//   Print     — som Tur, men uten GPS-spor (ren papir-utskrift).
-// MERK: 'dybde' i Padling-presetet er IKKE et LAYERS-lag — det er MapViews
-// spesial-toggle for Sjøkart-dybde på hovedkartet (no-op uten dybdedata).
-const _turExclude = new Set([
-  'kai', 'sjo-poi', 'sjo-navn',           // marine — egen Padling-preset
-  'lysloype', 'heistrase', 'slalombakke', // vinter-ting
-  'idrettsanlegg',                        // dekkende flate, sjelden ønsket i oversikt
-  'stedsnavn-minor', 'linje',             // navne-/strek-rot (grend/gård, gjerde)
-  // MERK: 'kraftlinje' er BEVISST ikke ekskludert — kraftlinjer er ønsket
-  // synlige som orienterings-landemerke også i Tur-presetet (default PÅ).
-])
-const PRESET_TUR = ALL_LAYER_KEYS.filter((k) => !_turExclude.has(k))
-export const LAYER_PRESETS = [
-  { key: 'tur', label: 'Tur', keys: PRESET_TUR },
-  { key: 'padling', label: 'Padling', keys: [...new Set([...PRESET_TUR, 'kai', 'sjo-poi', 'sjo-navn', 'dybde'])] },
-  { key: 'detaljert', label: 'Detaljert', keys: ALL_LAYER_KEYS.slice() },
-  { key: 'print', label: 'Print', keys: PRESET_TUR.filter((k) => k !== 'spor') },
-]
+// Lag-forhåndsvalgene bodde her fram til v5.23.0. De er erstattet av
+// KARTSTILER (lib/kartStiler.js), som binder lag SAMMEN MED tema, strek og
+// sti-farger. Grunnen står i den fila: et forhåndsvalg som bare skrudde lag
+// av og på endret ikke ett piksel-uttrykk, og «Detaljert» skilte seg fra
+// «Tur» på ni lag-nøkler hvorav seks sjelden har data i innlandsterreng.

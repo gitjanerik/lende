@@ -70,8 +70,26 @@ try {
     // videre til /rute. Første utgave av denne testen rapporterte det som at
     // «/kart → /» var brutt i vue-router 5. Det var riktig app-atferd og en feil
     // i testen. Boot-hooken testes for seg, lenger ned.
+    //
+    // v5.23.0: nullstillingen måtte hardnes. Å tømme rett etter
+    // `domcontentloaded` er en KAPPESTRID mot appen som nettopp startet:
+    // står det fortsatt «rute» i lageret, sender boot-hooken denne lasten
+    // videre til /rute, GravelPlannerView monterer og skriver nøkkelen på
+    // nytt — og gjør den det ETTER at vi tømte, overlever verdien til neste
+    // navigasjon. Feilen dukket opp som «/kart → / landet på /rute» i én
+    // CI-kjøring og forsvant i den neste, på identisk app-kode. Vi lar derfor
+    // boot-en gjøre seg ferdig først, tømmer, og VERIFISERER at det ble tomt.
     await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded', timeout: 45_000 })
-    await page.evaluate(() => { try { localStorage.clear(); sessionStorage.clear() } catch { /* noop */ } })
+    const tøm = () => page.evaluate(() => {
+      try {
+        localStorage.clear(); sessionStorage.clear()
+        return localStorage.length
+      } catch { return -1 }
+    })
+    for (let forsøk = 0; forsøk < 4; forsøk++) {
+      await sov(250)          // la boot-hook + evt. redirect + mount fullføre
+      if (await tøm() === 0) break
+    }
     await page.goto(`${BASE}${fra}`, { waitUntil: 'domcontentloaded', timeout: 45_000 })
     await sov(600)
     const url = new URL(page.url())

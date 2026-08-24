@@ -14,7 +14,15 @@ import { ref, computed, watch } from 'vue'
 // hele katalogen bare for validering ville dratt den inn i meny-bundelen.
 
 const STORAGE_KEY = 'lende-map-theme'
-const DEFAULT_THEME = 'light'
+// v5.23.0: standarden er Turkart, ikke ISOM. Grunnen er lesbarhet — ISOM har
+// omvendt vegetasjonslogikk av alle andre norske kart (hvit = løpbar skog,
+// gul = åpen mark), og på et ark uten kartlagt vegetasjon leses det som én
+// sammenhengende kremgul flate. ISOM-uttrykket lever videre i kartstilen
+// «Orientering», som er der det hører hjemme.
+//
+// Merk at et lagret valg vinner: den som allerede har valgt et tema beholder
+// det. Dette gjelder ferske installasjoner.
+const DEFAULT_THEME = 'turkart'
 const DARK_THEME = 'dark'
 const KEY_SHAPE = /^[a-z0-9-]{1,32}$/
 

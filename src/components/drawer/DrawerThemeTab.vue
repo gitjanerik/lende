@@ -1,7 +1,13 @@
 <script setup>
-// Drawer-fane «Tema», skilt ut fra MapView v1.0.8. Tema-grid + font-par for
-// kart-navn (byttes live). Tema-listen (fra isomCatalog) kommer som prop;
-// font-paret bindes toveis.
+// Drawer-fane «Stemning», skilt ut fra MapView v1.0.8 (het «Tema» til
+// v5.23.0). Tema-grid + font-par for kart-navn (byttes live). Tema-listen
+// (fra isomCatalog) kommer som prop; font-paret bindes toveis.
+//
+// v5.23.0: temaene som en KARTSTIL eier (light, dark, turkart, padling,
+// print) rendres IKKE her. De velges under Kartstil, sammen med lag, strek og
+// sti-farger. Sto de begge steder, ville to kontroller styrt samme utseende —
+// nettopp forvirringen kartstil-begrepet ble innført for å fjerne. Det som
+// står igjen her er den monokrome familien: stemninger, ikke kartstiler.
 import { computed } from 'vue'
 import { FONT_PAIRS } from '../../composables/useLabelFonts.js'
 import { THEME_GROUPS } from '../../lib/mapSettingsApply.js'
@@ -15,16 +21,21 @@ const props = defineProps({
 })
 const fontPairId = defineModel('fontPairId', { type: String, default: '' })
 
-// Temaene delt i seksjoner (Hovedtemaer / Monokrom). Tomme seksjoner droppes,
-// og temaer med ukjent gruppe faller inn under den første så de aldri
-// forsvinner fra menyen.
+// Temaene delt i seksjoner. 'kartstil'-gruppa hoppes over — den eies av
+// Kartstil-fanen. Tomme seksjoner droppes, og temaer med ukjent gruppe faller
+// inn under den første SYNLIGE så de aldri forsvinner helt fra menyen.
+const SKJULTE_GRUPPER = new Set(['kartstil'])
 const sections = computed(() => {
+  const grupper = THEME_GROUPS.filter((g) => !SKJULTE_GRUPPER.has(g.key))
   const known = new Set(THEME_GROUPS.map((g) => g.key))
-  const fallback = THEME_GROUPS[0].key
-  return THEME_GROUPS
+  const fallback = grupper[0]?.key
+  return grupper
     .map((g) => ({
       ...g,
-      themes: props.themes.filter((t) => (known.has(t.group) ? t.group : fallback) === g.key),
+      themes: props.themes.filter((t) => {
+        if (SKJULTE_GRUPPER.has(t.group)) return false
+        return (known.has(t.group) ? t.group : fallback) === g.key
+      }),
     }))
     .filter((g) => g.themes.length)
 })
@@ -32,6 +43,12 @@ const sections = computed(() => {
 
 <template>
   <div>
+    <p class="text-[11px] text-ink/50 leading-snug mb-3">
+      Stemninger er rene fargeeksperimenter oppå kartet du allerede har valgt.
+      Skal du bytte selve kartstilen — farger, lag, strek og sti-farger
+      samlet — ligger det under Kartstil.
+    </p>
+
     <section v-for="s in sections" :key="s.key" class="mb-3">
       <h3 class="text-[11px] uppercase tracking-wide text-ink/45 mb-1.5">{{ s.label }}</h3>
       <div class="grid grid-cols-3 gap-2">
