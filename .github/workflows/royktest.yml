@@ -75,11 +75,7 @@ jobs:
       - name: Navnediff mot origin/master
         run: |
           git fetch origin master --quiet
-          # v5.23.0: activePreset/applyPreset er BEVISST fjernet — lag-
-          # forhåndsvalgene er erstattet av kartstiler (lib/kartStiler.js), og
-          # påføringen eier useKartStil.js. Kvitteringen står her fordi den
-          # gjelder ÉN diff mot master; neste PR skal fjerne den igjen.
-          npm run navnediff -- --ok activePreset,applyPreset
+          npm run navnediff
 
       - name: Last opp skjermbilder ved feil
         if: failure()

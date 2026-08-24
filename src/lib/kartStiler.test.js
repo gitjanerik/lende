@@ -4,6 +4,7 @@ import {
   kartStil, stiPalett, aktivKartStil, utvidKartStil,
 } from './kartStiler.js'
 import { kartStilForhandsvisning, erMorktTema } from './mapSettingsApply.js'
+import katalog from './isomCatalog.json'
 
 describe('kartstil-modellen', () => {
   it('har fem stiler med unike nøkler, etiketter og beskrivelser', () => {
@@ -139,5 +140,50 @@ describe('utvidKartStil', () => {
     const inn = { tema: 'dark' }
     expect(utvidKartStil(inn)).toBe(inn)
     expect(utvidKartStil()).toEqual({})
+  })
+})
+
+// v5.23.1: eieren meldte fra felt at stiplingen fortsatt leste som en
+// heltrukken strek på telefon. Det som skiller en sti fra en vei er RYTMEN,
+// og rytmen måles i periode (strek + luft) — ikke i strekfarge. Testene her
+// verner tettheten mot å drive tilbake mot ISOM-spec-en ved neste finpuss.
+describe('sti-stiplingen er tett nok til å leses som stiplet', () => {
+  const dash = (tema, kode) =>
+    katalog.themes[tema]?.categories?.[kode]?.stroke?.dash
+      ?? katalog.categories.manmade[kode].stroke.dasharray
+
+  const periode = (d) => d[0] + d[1]
+
+  it('ISOM-spec-en er referansen vi måler mot', () => {
+    // 505 i basekatalogen ER spec-en: 0,36 mm strek + 0,30 mm luft.
+    expect(katalog.categories.manmade['505'].stroke.dasharray).toEqual([0.36, 0.3])
+  })
+
+  for (const tema of ['turkart', 'padling', 'dark', 'print']) {
+    it(`${tema} har minst dobbelt så tett sti-rytme som ISOM`, () => {
+      const spec = periode(katalog.categories.manmade['505'].stroke.dasharray)
+      expect(periode(dash(tema, '505')) * 2).toBeLessThanOrEqual(spec)
+    })
+
+    it(`${tema} har strek på høyst en tredjedel av ISOM-lengden`, () => {
+      expect(dash(tema, '505')[0]).toBeLessThanOrEqual(0.36 / 3 + 1e-9)
+    })
+
+    it(`${tema} holder stitråkk (507) tydelig glisnere enn vanlig sti (505)`, () => {
+      // Blir de like tette, mister 507 sin betydning: «vanskelig å følge».
+      expect(periode(dash(tema, '507'))).toBeGreaterThan(periode(dash(tema, '505')))
+    })
+  }
+
+  // v5.23.1 antok først at papir trengte lengre strek (blekk-spredning). Eieren
+  // så på et ekte Print-kart at det er DER problemet er verst: lange strek
+  // smelter sammen med det øvrige svarte linjeverket. Print deler derfor rytme
+  // med resten. Testen står så antakelsen ikke sniker seg inn igjen.
+  it('Print deler den tette rytmen — papir er ikke et unntak', () => {
+    expect(dash('print', '505')).toEqual(dash('turkart', '505'))
+  })
+
+  it('Orientering er urørt ISOM-spec (temaet setter ingen dash)', () => {
+    expect(katalog.themes.light.categories?.['505']?.stroke?.dash).toBeUndefined()
   })
 })
