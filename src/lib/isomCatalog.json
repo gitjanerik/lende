@@ -1550,7 +1550,7 @@
   },
   "themes": {
     "turkart": {
-      "$comment": "Norsk turkart-idiom: BAKGRUNNEN ER SKOG, og åpenhet males oppå — samme grep som vann-stacken bruker mot land. Det snur databyrden: vi trenger ikke skogpolygoner over hele Norge, bare unntakene (dyrka mark, bymasse, berg, vann), og det er nettopp dem OSM dekker godt. Prisen er en bevisst kartografisk påstand — store uregistrerte hogstfelt og åpen hei vises som skog, slik papirkart alltid har gjort. Brune høydekurver frigjør svart til stinettet alene, og stiene har egen stipling fordi ISOM-spec-ens 0,36 mm leses som heltrukket på skjerm.",
+      "$comment": "Norsk turkart-idiom: BAKGRUNNEN ER SKOG, og åpenhet males oppå — samme grep som vann-stacken bruker mot land. Det snur databyrden: vi trenger ikke skogpolygoner over hele Norge, bare unntakene (dyrka mark, bymasse, berg, vann), og det er nettopp dem OSM dekker godt. Prisen er en bevisst kartografisk påstand — store uregistrerte hogstfelt og åpen hei vises som skog, slik papirkart alltid har gjort. Brune høydekurver frigjør svart til stinettet alene. Stiplingen er egen og MYE tettere enn ISOM-spec-en: 0,12 mm strek mot spec-ens 0,36 — nøyaktig en tredjedel, nesten prikkeform. Det tok to runder: første forsøk kortet bare litt, og eieren meldte fra felt at streken fortsatt leste som en tilnærmet heltrukken linje. Det som skiller en sti fra en vei er RYTMEN, ikke fargen. Alle fire kartstilene deler nå samme rytme — se print-temaet for hvorfor papir IKKE er et unntak.",
       "label": "Turkart",
       "group": "kartstil",
       "monochrome": false,
@@ -1713,7 +1713,7 @@
         "505": {
           "stroke": {
             "color": "#1a1a1a",
-            "dash": [0.45, 0.32]
+            "dash": [0.12, 0.11]
           },
           "casingStroke": {
             "color": "#ffffff"
@@ -1722,7 +1722,7 @@
         "506": {
           "stroke": {
             "color": "#1f1f1f",
-            "dash": [0.38, 0.28]
+            "dash": [0.1, 0.1]
           },
           "casingStroke": {
             "color": "#ffffff"
@@ -1731,7 +1731,7 @@
         "507": {
           "stroke": {
             "color": "#4a4a4a",
-            "dash": [0.06, 0.3]
+            "dash": [0.03, 0.3]
           }
         },
         "520": {
@@ -1982,7 +1982,7 @@
         "505": {
           "stroke": {
             "color": "#6b6355",
-            "dash": [0.4, 0.3]
+            "dash": [0.12, 0.11]
           },
           "casingStroke": {
             "color": "#f7f4ea"
@@ -1991,7 +1991,7 @@
         "506": {
           "stroke": {
             "color": "#7a7263",
-            "dash": [0.34, 0.26]
+            "dash": [0.1, 0.1]
           },
           "casingStroke": {
             "color": "#f7f4ea"
@@ -1999,7 +1999,8 @@
         },
         "507": {
           "stroke": {
-            "color": "#8d8577"
+            "color": "#8d8577",
+            "dash": [0.03, 0.3]
           }
         },
         "520": {
@@ -2087,7 +2088,7 @@
       "autoHideLayers": false
     },
     "print": {
-      "$comment": "Blekk på papir. Bakgrunnen er papirtone, ikke skog — motsatt grep av Turkart, og med vilje: på trykk koster flatedekning blekk, og skogen skal derfor bare stå der vi FAKTISK har data for den. Kraftig svart linjeverk, brune kurver, lyse flater som ikke drukner teksten. Relieffet slås av (kartstilen, ikke temaet) — en gråtone-PNG med multiply-blend blir grumsete på papir.",
+      "$comment": "Blekk på papir. Bakgrunnen er papirtone, ikke skog — motsatt grep av Turkart, og med vilje: på trykk koster flatedekning blekk, og skogen skal derfor bare stå der vi FAKTISK har data for den. Kraftig svart linjeverk, brune kurver, lyse flater som ikke drukner teksten. Relieffet slås av (kartstilen, ikke temaet) — en gråtone-PNG med multiply-blend blir grumsete på papir. Sti-stiplingen er den SAMME tette rytmen som Turkart, ikke lengre strek. Det var antatt motsatt i v5.23.0, med den plausible begrunnelsen at fin stipling flyter ut i blekk-spredning — men eieren så på et ekte Print-kart at det er her problemet er verst: lange strek smelter sammen med alt det andre svarte linjeverket, og stien slutter å være en sti. Antakelsen tapte mot observasjonen.",
       "label": "Print",
       "group": "kartstil",
       "monochrome": false,
@@ -2250,7 +2251,7 @@
         "505": {
           "stroke": {
             "color": "#000000",
-            "dash": [0.5, 0.34]
+            "dash": [0.12, 0.11]
           },
           "casingStroke": {
             "color": "#fcfbf7"
@@ -2259,7 +2260,7 @@
         "506": {
           "stroke": {
             "color": "#111111",
-            "dash": [0.42, 0.3]
+            "dash": [0.1, 0.1]
           },
           "casingStroke": {
             "color": "#fcfbf7"
@@ -2268,7 +2269,7 @@
         "507": {
           "stroke": {
             "color": "#333333",
-            "dash": [0.06, 0.3]
+            "dash": [0.03, 0.3]
           }
         },
         "520": {
@@ -2530,17 +2531,20 @@
         },
         "505": {
           "stroke": {
-            "color": "#eee1c4"
+            "color": "#eee1c4",
+            "dash": [0.12, 0.11]
           }
         },
         "506": {
           "stroke": {
-            "color": "#cab482"
+            "color": "#cab482",
+            "dash": [0.1, 0.1]
           }
         },
         "507": {
           "stroke": {
-            "color": "#ac9664"
+            "color": "#ac9664",
+            "dash": [0.03, 0.3]
           }
         },
         "508": {

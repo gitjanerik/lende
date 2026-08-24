@@ -1,3 +1,13 @@
+## 2026-08-25 — v5.23.1: Sti-stiplingen leses som stiplet
+
+Eieren tok v5.23.0 med ut og meldte at stiene fortsatt så heltrukne ut: strekene var «alt for lange, de bør være en tredjedel så lange, altså mye tettere — nesten prikkeform». Stiplingen er derfor kortet fra 0,36 mm (ISOM-spec) til **0,12 mm strek og 0,11 mm luft** — nøyaktig en tredjedel av spec-en, og en rytme som er nesten tre ganger tettere. Stitråkk (507) er samtidig gjort glisnere, ikke tettere, så «vanskelig å følge» fortsatt skiller seg fra en tydelig sti nå som begge er korte.
+
+**Papir viste seg IKKE å være unntaket vi antok.** v5.23.0 ga Print bevisst lengre strek, med den plausible begrunnelsen at fin stipling flyter ut i blekk-spredning ved 1:10 000. Eieren så på et ekte Print-kart at det er nettopp der problemet er verst: lange strek smelter sammen med det øvrige svarte linjeverket, og stien slutter å være en sti. Alle fire kartstilene — Turkart, Padling, Natt og Print — deler nå samme rytme. Orientering er urørt; der ER ISOM-spec-en poenget.
+
+Fire nye tester per kartstil verner tettheten mot å drive tilbake: strek på høyst en tredjedel av spec-lengden, minst dobbelt så tett rytme, 507 fortsatt glisnere enn 505, og Print identisk med Turkart. Den siste finnes fordi antakelsen om papir var plausibel nok til å bli gjort én gang, og da bør den ikke kunne gjøres stille en gang til.
+
+---
+
 ## 2026-08-24 — v5.23.0: Kartstil — ett valg som setter hele uttrykket
 
 Eieren sammenlignet Lende over Tverken med UT.no og Vegkart og pekte på tre ting: skogen manglet, en stor myr manglet, og de fire forhåndsvalgene skilte seg for lite fra hverandre. Utforskingen viste at han hadde rett på en mer grunnleggende måte enn klagen antydet. **Forhåndsvalgene endret ikke ett eneste piksel-uttrykk** — de var rene lag-lister, og «Detaljert» skilte seg fra «Tur» på ni lag-nøkler hvorav seks sjelden har data i innlandsterreng. I praksis var hele forskjellen gårdsnavn og gjerder. Og av åtte temaer var bare to faktiske kartstiler; de seks andre var monokrome stemninger.
