@@ -39,9 +39,13 @@ jobs:
   royk:
     runs-on: ubuntu-latest
     steps:
+      # IKKE fetch-depth: 0. Målt på v5.25.2-PR-en: full historikk kostet
+      # 2 min 39 s av jobbens 5 min 29 s, mens CI-jobbens grunne checkout av
+      # samme commit tok 3 s. Repoet har bare ~51 commits, men et .git på 100 MB
+      # (genererte kart-SVG-er i historikken), så «kort historikk» er ikke det
+      # samme som «billig å hente». Navnediff trenger ÉN blob — MapView.vue på
+      # master-tippen — og den hentes eksplisitt i sitt eget steg under.
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0        # navnediff trenger origin/master å måle mot
 
       - uses: actions/setup-node@v7
         with:
@@ -74,7 +78,13 @@ jobs:
       # dem, ikke ved å skru av jobben.
       - name: Navnediff mot origin/master
         run: |
-          git fetch origin master --quiet
+          # Eksplisitt refspec, ikke `git fetch origin master`. På en grunn
+          # klone lagrer den formen bare i FETCH_HEAD og avvises dessuten med
+          # «shallow roots are not allowed to be updated» — refs/remotes/origin/
+          # master blir aldri opprettet, og navnediff feiler med «fant ikke
+          # MapView.vue i origin/master». Med fetch-depth: 0 var det checkout
+          # som skaffet refen, så den gamle linja var i praksis en no-op.
+          git fetch --depth=1 origin +refs/heads/master:refs/remotes/origin/master
           npm run navnediff
 
       - name: Last opp skjermbilder ved feil
