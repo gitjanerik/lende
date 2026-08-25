@@ -595,6 +595,10 @@ function onResetAndRefreshGps() {
   // FAB-en er den naturlige «tilbake til standard»-handlingen for visningen.
   labelScaleSlider.value = 0   // watch → applyLabelScale + persist
   if (userPos.isWatching) userPos.refresh()
+  // «Sentrer» viser mesteparten av arket — det er det naturlige øyeblikket for
+  // kanthåndtakene å presentere seg. De som ikke ligger på en synlig arkkant er
+  // ellers skjult (se avslør-notatet i useMapExtend).
+  avslorHandtak()
 }
 
 // Fredet-kulturminne-lag + brukerminne-fallback — flyttet til
@@ -1403,7 +1407,7 @@ watch(storedDem, (dem) => {
 const {
   buildingOnTheFly, buildingProgress, autoMapToast, currentMapIsAuto,
   drawerCoversCanvas, extendZonesVisible, activatableTile, mosaicGapCount,
-  edgeHandles, hoveredDir, previewExtend, clearExtendPreview,
+  edgeHandles, hoveredDir, previewExtend, clearExtendPreview, avslorHandtak,
   showAutoMapToast,
   visibleCenterSvg, clientToSvg, svgToClient, scheduleActivatableCheck, autoMapModeBusy,
   autoMapBuildOpts, promoteTile, extendMap, armAutoMap,

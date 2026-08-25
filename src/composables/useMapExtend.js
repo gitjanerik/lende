@@ -4,7 +4,7 @@
 // bygge-/toast-tilstanden og håndtaks-geometrien; forelderen eier SVG-verten,
 // transform-tilstanden og mosaikken (useGhostTiles), destrukturert inn.
 // Watchene som driver re-render/aktiverings-sjekk ligger fortsatt i MapView.
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, watch, onMounted } from 'vue'
 import { svgToWgs84 } from '../lib/utm.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { pruneAutoTiles, rectOverlapFraction, findGridGaps, findRectangleGaps } from '../lib/tileCache.js'
@@ -107,6 +107,87 @@ export function edgeLabelOffset(dir, rotationDeg = 0) {
   }
 }
 
+// ── Kanthåndtak — trygg ramme, nærhet og dokking (v5.25.2) ───────────────────
+// Fram til v5.25.1 var alle åtte håndtakene ALLTID synlige og klampet 28 px inn
+// fra viewportens ytterkant. De var dermed tilgjengelige, men landet under
+// toppbaren, modus-chipsene, målestokken og FAB-klyngen — og en knapp man ser
+// men ikke kan trykke er verre enn en knapp som ikke er der.
+//
+// To regler avløser klampen, og de deler den samme TRYGGE RAMMEN: rektangelet i
+// kart-wrapperen der ingen annen kontroll bor.
+//
+//   NÆRHET   — er ankeret på arkkanten innenfor rammen (pluss litt slakk), står
+//              håndtaket PÅ arkkanten og følger den gjennom pan/zoom/rotasjon.
+//              Det er svaret på «gjør knappene tilgjengelig når brukeren nærmer
+//              seg ytterkanten»: panorerer du mot nord, kommer nord-håndtaket
+//              til syne av seg selv, og bare det.
+//   DOKKING  — er ankeret utenfor, finnes ikke arkkanten på skjermen. Håndtaket
+//              dokker til en FAST plass på rammen (hjørne eller kant-midtpunkt),
+//              og vises bare i et kort vindu etter en handling som viser
+//              formatet: kartet blir klart, «Sentrer» trykkes, en utvidelse er
+//              ferdig, eller man holder inne et håndtak.
+//
+// Hvilke akser en retning bryr seg om følger retningsvektoren: nord-håndtaket
+// skal komme fram når nordkanten er på skjermen, uansett hvor langt øst man har
+// panorert, mens nordøst krever at HJØRNET er nært. Derfor testes bare de aksene
+// der komponenten er ulik null.
+
+// Plassen de andre kontrollene tar, i wrapper-px. Tallene er målt mot chromet:
+// toppbaren (safe-area + 40 px knapp + 12 px luft) og modus-chip-raden under den
+// (--ovl-top = 4rem + safe-top, ~58 px høy) i toppen; målestokk/attribusjon
+// (~32 px) og FAB-klyngen (48 px + 12 px bunnluft) i bunnen. Safe-area er bakt
+// inn i slakken framfor å leses ut: `--safe-top` er en env()-verdi, og
+// getComputedStyle gir custom properties uoppløst.
+export const EDGE_FRAME_CHROME = { top: 168, bottom: 96, side: 30 }
+
+// Slakk rundt rammen før et anker regnes som «nært». 96 px ≈ to knappebredder:
+// håndtaket dukker opp litt før arkkanten faktisk glir inn i den frie flaten, så
+// det er framme når man trenger det og ikke først når kanten er passert.
+export const EDGE_NAERHET_PX = 96
+
+/**
+ * Den frie flaten i wrapperen — rammen både nærhets-testen og dokkingen bruker.
+ * Kollapser rammen (lav landskaps-viewport, desktop-panel som spiser bredden),
+ * midtstilles den framfor å inverteres.
+ */
+export function edgeSafeFrame(size, chrome = EDGE_FRAME_CHROME) {
+  if (!size?.w || !size?.h) return null
+  let minX = chrome.side, maxX = size.w - chrome.side
+  let minY = chrome.top, maxY = size.h - chrome.bottom
+  if (minX > maxX) { minX = maxX = size.w / 2 }
+  if (minY > maxY) { minY = maxY = size.h / 2 }
+  return { minX, minY, maxX, maxY }
+}
+
+/**
+ * Fast dokk-plass på rammen for en retning — kant-midtpunkt for kardinaler,
+ * hjørne for diagonaler. Samme form som edgeAnchorSvg, men i skjerm-px og på
+ * rammen i stedet for arket: dette ER det statiske åtte-knapp-oppsettet, og
+ * plassene er faste, så dokkede håndtak kan aldri havne oppå hverandre.
+ */
+export function edgeStaticSlot(dir, frame) {
+  const v = EDGE_DIR_VEC[dir]
+  if (!v || !frame) return null
+  return {
+    x: v.dx < 0 ? frame.minX : v.dx > 0 ? frame.maxX : (frame.minX + frame.maxX) / 2,
+    y: v.dy < 0 ? frame.minY : v.dy > 0 ? frame.maxY : (frame.minY + frame.maxY) / 2,
+  }
+}
+
+/**
+ * Er arkkanten denne retningen utvider PÅ nær nok den frie flaten til at
+ * håndtaket skal stå på selve kanten? Bare aksene retningen har en komponent på
+ * teller — se notatet over.
+ * @param {{x:number,y:number}} p ankeret i wrapper-px
+ */
+export function edgeAnkerNaer(dir, p, frame, slakk = EDGE_NAERHET_PX) {
+  const v = EDGE_DIR_VEC[dir]
+  if (!v || !p || !frame) return false
+  if (v.dx !== 0 && !(p.x >= frame.minX - slakk && p.x <= frame.maxX + slakk)) return false
+  if (v.dy !== 0 && !(p.y >= frame.minY - slakk && p.y <= frame.maxY + slakk)) return false
+  return true
+}
+
 // ── Skjerm ⇄ viewBox — rene matte-kjerner (ingen Vue-refs, testbare) ──────────
 // Inverterer den unified CSS-transformen på kart-wrapperen (translate ∘ rotate ∘
 // scale, transform-origin 0 0) pluss viewBox-letterboxen. Vi gjør dette i ren
@@ -188,6 +269,7 @@ export function useMapExtend({
     if (activatableTimer) clearTimeout(activatableTimer)
     clearAutoPromote()
     if (autoMapToastTimer) clearTimeout(autoMapToastTimer)
+    if (avslorTimer) clearTimeout(avslorTimer)
   }
   // Om kartet som vises NÅ ble auto-/utvidelses-generert (settes fra init-prefs).
   const currentMapIsAuto = ref(false)
@@ -276,6 +358,35 @@ export function useMapExtend({
     return out
   })
 
+  // ── Avsløring — det korte vinduet der DOKKEDE håndtak vises ────────────────
+  // Et håndtak som står på arkkanten (nært) er alltid synlig: det er brukeren som
+  // har panorert dit, og knappen ligger der arket faktisk vokser. Et DOKKET
+  // håndtak er derimot en påstand om en retning man ikke ser kanten av, og åtte
+  // slike permanent langs skjermkanten leses som chrome — ikke som arkets kant.
+  // De vises derfor bare rett etter en handling som viser formatet.
+  const AVSLOR_MS = 5000
+  const handtakAvslort = ref(false)
+  let avslorTimer = null
+  function avslorHandtak(ms = AVSLOR_MS) {
+    handtakAvslort.value = true
+    if (avslorTimer) clearTimeout(avslorTimer)
+    avslorTimer = setTimeout(() => { handtakAvslort.value = false; avslorTimer = null }, ms)
+  }
+  // Kartet ble klart, draweren lukket, måling/sti avsluttet — hver gang
+  // håndtakene blir RELEVANTE presenterer de seg én gang. Det dekker «ved lasting
+  // av kart» uten en egen krok i laste-pipelinen.
+  //
+  // Watchen MÅ opprettes i onMounted, ikke i setup. `watch(computed, cb)` leser
+  // getteren ÉN gang med en gang for å ha en gammel verdi å sammenligne med, og
+  // extendZonesVisible kaller autoNaboPa() — som forelderen sender inn som en
+  // verdi fra en composable deklarert LENGER NED i MapView. I setup er den i TDZ,
+  // og røyktesten fanget nøyaktig den feilen («Cannot access before
+  // initialization» i autoNaboPa). Ved montering er alt initialisert.
+  onMounted(() => {
+    if (extendZonesVisible.value) avslorHandtak()
+    watch(extendZonesVisible, (v) => { if (v) avslorHandtak() })
+  })
+
   // De 8 håndtakene i wrapper-lokale skjerm-px. Reaktiv på pan/zoom/rotasjon
   // (transform-refene) og på wrapper-størrelse (wrapperSize, satt av MapViews
   // ResizeObserver) — getBoundingClientRect er i seg selv ikke reaktiv.
@@ -284,9 +395,14 @@ export function useMapExtend({
     if (!size?.w || !size?.h || !extendZonesVisible.value) return []
     const v = transformView()
     if (!v) return []
+    const frame = edgeSafeFrame(size)
+    if (!frame) return []
     const b = extendZonesBounds()
     const mid = viewBoxToScreen((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2, v)
     const counts = edgeTileCounts.value
+    // Holder man inne et håndtak for å lese pilla, skal ikke avslørings-vinduet
+    // rekke å lukke seg under fingeren.
+    const avslort = handtakAvslort.value || hoveredDir.value != null
     const out = []
     for (const dir of EDGE_DIRS) {
       const a = edgeAnchorSvg(dir, b)
@@ -295,24 +411,28 @@ export function useMapExtend({
       // regnet i skjerm-rommet så det holder også når kartet er rotert.
       const ix = mid.x - p.x, iy = mid.y - p.y
       const n = Math.hypot(ix, iy) || 1
+      const ax = p.x + (ix / n) * EDGE_HANDLE_INSET
+      const ay = p.y + (iy / n) * EDGE_HANDLE_INSET
+      const naer = edgeAnkerNaer(dir, { x: ax, y: ay }, frame)
+      // Dokket håndtak utenfor avslørings-vinduet: ikke render det i det hele
+      // tatt. Det er hele poenget — ingen knapp under toppbaren å bomme på.
+      if (!naer && !avslort) continue
+      const pos = naer
+        ? { x: klamp(ax, frame.minX, frame.maxX), y: klamp(ay, frame.minY, frame.maxY) }
+        : edgeStaticSlot(dir, frame)
       const off = edgeLabelOffset(dir, v.rotationDeg)
-      // Klamp til viewporten (v5.19.2). Fra og med at kart åpner på DEKNING
-      // ligger arkkanten normalt UTENFOR skjermen, og et anker der ville satt
-      // knappen utenfor synsfeltet — altså ville den ene mekanismen brukeren har
-      // når auto er av, vært usynlig til man zoomet ut. Knappen er en DOM-knapp
-      // i skjermrommet, så den kan trygt gli inn til kanten: retningen er den
-      // samme, og «Nord i lende» betyr det samme enten den står på arkkanten
-      // eller øverst på skjermen.
-      const KANT = 28
       out.push({
         dir,
         name: extendZoneLabelText(dir),
         count: counts[dir] ?? 0,
-        x: klamp(p.x + (ix / n) * EDGE_HANDLE_INSET, KANT, size.w - KANT),
-        y: klamp(p.y + (iy / n) * EDGE_HANDLE_INSET, KANT, size.h - KANT),
+        x: pos.x,
+        y: pos.y,
+        // Dokkede håndtak peker mot en kant man ikke ser, og roterer derfor med
+        // KARTET og ikke med arket — retningen er fortsatt sann på skjermen.
         knobDeg: edgeKnobDeg(dir, v.rotationDeg),
         lx: off.lx,
         ly: off.ly,
+        dokket: !naer,
       })
     }
     return out
@@ -340,6 +460,9 @@ export function useMapExtend({
   function previewExtend(dir) {
     if (!EDGE_DIR_VEC[dir] || !extendZonesVisible.value) return
     hoveredDir.value = dir
+    // Slipper man holdet uten å trykke, skal vinduet være ferskt igjen — ellers
+    // forsvinner de dokkede naboene i samme øyeblikk som man slapp.
+    avslorHandtak()
   }
   function clearExtendPreview() {
     hoveredDir.value = null
@@ -687,6 +810,7 @@ export function useMapExtend({
           .catch(() => {})
       } catch { /* svgToWgs84 feilet → hopp over pruning */ }
       showAutoMapToast(`Utvidet kartet mot ${EXTEND_DIR_WORD[direction]}`)
+      avslorHandtak()
     } catch (e) {
       console.error('Kant-sone-utvidelse feilet:', e)
       showAutoMapToast('Kunne ikke lage nytt utsnitt')
@@ -905,7 +1029,7 @@ export function useMapExtend({
   return {
     buildingOnTheFly, buildingProgress, autoMapToast, currentMapIsAuto,
     drawerCoversCanvas, extendZonesVisible, activatableTile, mosaicGapCount,
-    edgeHandles, hoveredDir, previewExtend, clearExtendPreview,
+    edgeHandles, hoveredDir, previewExtend, clearExtendPreview, avslorHandtak,
     showAutoMapToast,
     visibleCenterSvg, clientToSvg, svgToClient, scheduleActivatableCheck, autoMapModeBusy,
     autoMapBuildOpts, promoteTile, extendMap, armAutoMap,

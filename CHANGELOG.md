@@ -1,3 +1,28 @@
+## 2026-08-25 — v5.25.2: kanthåndtakene viker for chromet
+
+De åtte lende-pilene var siden v5.19.2 alltid synlige og klampet 28 px inn fra
+viewportens ytterkant, så de fulgte skjermen framfor arket. De var dermed
+tilgjengelige, men landet under toppbaren, modus-chip-raden, målestokken og
+FAB-klyngen — og en knapp man ser men ikke kan trykke er verre enn en knapp som
+ikke er der. Klampen er nå erstattet av en TRYGG RAMME (`edgeSafeFrame`):
+rektangelet i kart-wrapperen der ingen annen kontroll bor. Innenfor den gjelder
+to regler. Er arkkanten en retning utvider på nær nok rammen, står håndtaket PÅ
+kanten og følger den gjennom pan, zoom og rotasjon — panorerer du mot nord,
+kommer nord-håndtaket til syne av seg selv, og bare det. Hvilke akser som teller
+følger retningsvektoren, så nord kommer fram når nordkanten er på skjermen
+uansett hvor langt øst man har panorert, mens nordøst krever at hjørnet er nært.
+Er kanten derimot ikke på skjermen, dokker håndtaket til en fast plass på rammen
+(hjørne eller kant-midtpunkt — det statiske åtte-knapp-oppsettet), og dokkede
+håndtak vises bare i et fem sekunders vindu etter en handling som viser formatet:
+kartet blir klart, «Sentrer» trykkes, en utvidelse er ferdig, eller man holder
+inne et håndtak. Knappen har samtidig fått en flate å stå på — halvgjennomsiktig
+`--color-overlay` med backdrop-blur — i stedet for bare en hvit ring, som
+forsvant i konturene og stupene, og pila er grønn (`--pil-farge`, egen token
+fordi den må snu i lyst tema) i samme betydning som ellers i appen: dette legger
+noe til.
+
+---
+
 ## 2026-08-25 — v5.25.1: Myra fikk en bunnflate
 
 Eieren bygde et kart ved Rakkesetermyr i Nordmarka og meldte at han ikke så myr. Målingen viste at den var der hele tiden — flisene har 1 571 myrflater i Nordmarka, og klienten leste dem — men på Turkarts grønne bakgrunn leste de blå stripene som «litt striper» der UT.no viser en tydelig egen overflate. Han fant det selv ved å se nærmere: «mulig myra er der likevel, men den forsvinner litt på lysegrønn bakgrunnsfarge».
