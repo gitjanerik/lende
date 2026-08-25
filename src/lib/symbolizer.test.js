@@ -359,3 +359,63 @@ describe('punktsymbol-farger — hva som themes og hva som er konstant', () => {
     expect(css).toContain('color: var(--sym-ink, #000)')
   })
 })
+
+// ── Sti-prikkene (507) ───────────────────────────────────────────────────────
+// 507 «stitråkk — vanskelig» er den vanligste stien i norsk utmark: umerket
+// N50-sti og umerket turrute havner der. Den rendres som prikker (round linecap
+// på en kort dash), og lufta mellom dem er hele lesbarheten.
+//
+// Enhetene er ikke opplagte, så de er MÅLT i nettleseren, ikke utledet: `1mm` i
+// en SVG med viewBox i METER blir 96/25.4 = 3.7795 brukerenheter, altså 3.78 m
+// på bakken. Stiplingen har dermed fast bakke-størrelse, og FORHOLDET dash:gap
+// er det samme ved enhver zoom. Det er forholdet, ikke tallene, som bestemmer om
+// linja leses som en sti eller som spredte flekker.
+//
+// Målet vi håndhever er BLEKK-ANDELEN — hvor stor del av linja som er mark:
+//   mark   = dash + widthMm   (round cap legger en halv bredde i hver ende)
+//   andel  = mark / (dash + gap)
+// Under ~50 % leses linja som flekker. Før v5.25.4 var andelen 45 % i basen og
+// 33 % i temaene; 505 og 506 ble strammet i v12.0.15 mens 507 ble stående, så
+// landets vanligste sti var den svakeste på kartet.
+//
+// Merk hva vi IKKE gjør: 507 er ikke satt like tett som 505. kartStiler.test.js
+// håndhever at periode(507) > periode(505) i hvert tema, fordi 507 skal LESE
+// glisnere — «vanskelig å følge» er betydningen dens. Tettheten er derfor hentet
+// ut ved å gjøre marken lengre samtidig som lufta ble kortere, innenfor det
+// taket.
+describe('507 sti-prikker — blekk-andelen i prikkelinja', () => {
+  const MIN_ANDEL = 0.5
+  const base = isomCatalog.categories.manmade['507'].stroke
+  const andel = (dash, width) => (dash[0] + width) / (dash[0] + dash[1])
+
+  const temaDash = Object.entries(isomCatalog.themes)
+    .map(([navn, t]) => [navn, t.categories?.['507']?.stroke?.dash])
+    .filter(([, dash]) => Array.isArray(dash))
+
+  it('basen (ISOM/Orientering) har minst halve linja som blekk', () => {
+    expect(andel(base.dasharray, base.widthMm)).toBeGreaterThanOrEqual(MIN_ANDEL)
+  })
+
+  it('hvert tema som overstyrer 507 gjør det samme', () => {
+    // Vakt mot at testen stille slutter å dekke noe: overstyringene FINNES.
+    expect(temaDash.length).toBeGreaterThan(0)
+    for (const [navn, dash] of temaDash) {
+      expect(andel(dash, base.widthMm), `tema «${navn}»`).toBeGreaterThanOrEqual(MIN_ANDEL)
+    }
+  })
+
+  it('prikkene forutsetter round linecap i basen — butt ville skjult dem', () => {
+    // Base-dashen er kortere enn en halv strekbredde, så marken ER cap-en.
+    expect(base.linecap).toBe('round')
+    expect(base.dasharray[0]).toBeLessThan(base.widthMm / 2)
+  })
+
+  it('rytmen er tettere enn før v5.25.4 — regresjonsvakt', () => {
+    // De gamle periodene var 0.22 mm (basen) og 0.33 mm (temaene). Vokter mot at
+    // noen «rydder» tallene tilbake til det som så ISOM-riktig ut på papiret.
+    expect(base.dasharray[0] + base.dasharray[1]).toBeLessThan(0.22)
+    for (const [navn, dash] of temaDash) {
+      expect(dash[0] + dash[1], `tema «${navn}»`).toBeLessThan(0.33)
+    }
+  })
+})

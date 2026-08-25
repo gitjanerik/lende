@@ -1,3 +1,39 @@
+## 2026-08-25 — v5.25.4: sti-prikkene sto for spredt
+
+507 «stitråkk — vanskelig» er den vanligste stien i norsk utmark: umerket
+N50-sti og umerket turrute havner der. Den rendres som prikker, og lufta mellom
+dem var for stor — mot ut.no leste den som spredte flekker mer enn som en sti.
+Årsaken var at 505 og 506 ble strammet i v12.0.15 mens 507 ble stående: 0,2 mm
+luft i ISOM-basen og 0,3 mm i Turkart, Padling, Natt og Print. Landets vanligste
+sti var dermed den svakeste på kartet, og feilen var usynlig i kode fordi tallene
+ser små og like ut uansett hva de betyr.
+
+Enhetene er verdt å skrive ned, for de er ikke opplagte: `1mm` i en SVG med
+viewBox i METER blir 96/25,4 = 3,7795 brukerenheter, altså 3,78 m på bakken.
+Målt i nettleseren, ikke utledet. Stiplingen har derfor fast bakke-størrelse, og
+forholdet dash:gap er det samme ved enhver zoom — det er forholdet, ikke tallene,
+som avgjør om linja leses som en sti.
+
+Målet som nå håndheves er BLEKK-ANDELEN, altså hvor stor del av linja som er
+mark: `(dash + widthMm) / (dash + gap)`, siden round linecap legger en halv
+strekbredde i hver ende. Under ~50 % leses linja som flekker. Basen gikk fra
+45 % til 62 % (periode 0,83 → 0,60 m) og temaene fra 33 % til 54 %
+(1,25 → 0,98 m).
+
+Merk hva som IKKE er gjort, og hvorfor: 507 er ikke satt like tett som 505.
+`kartStiler.test.js` håndhever at periode(507) > periode(505) i hvert tema,
+fordi 507 SKAL lese glisnere — «vanskelig å følge» er hele betydningen. Første
+forsøk satte temaene til periode 0,15 mm og brøt den invarianten i fire temaer.
+Tettheten er derfor hentet ut ved å gjøre marken lengre (0,03 → 0,06 mm)
+samtidig som lufta ble kortere (0,30 → 0,20 mm), som holder seg under taket.
+
+Én kobling er kjent og urørt: `strek.sti`-multiplikatoren i kartstilene (Turkart
+1,3, Natt 1,4, Print 1,45) skalerer strekBREDDEN men ikke stiplingen, så
+blekk-andelen holder eksakt bare ved multiplikator 1. Prikkene blir fetere uten å
+komme nærmere. Egen sak.
+
+---
+
 ## 2026-08-25 — v5.25.3: røyktesten hentet hele historikken for én blob
 
 Røyk-jobben brukte 5 min 29 s, og stegtidene fra v5.25.2-PR-en peker på et sted
