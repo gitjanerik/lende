@@ -59,14 +59,43 @@ jobs:
 
       - run: npm run build
 
-      # --ektekart: bygg et ferskt Vardåsen-kart fra Kartverket + OSM (~12 s) og
-      # test mot det. Det sporede demo-kartet har 7 labels og ingen data-bbox, så
-      # navn-LOD og culling har ingenting å gjøre der og sjekkene deres hoppes
-      # over. Feiler kart-byggingen (kildene nede), går røyktesten videre på
-      # demo-kartet og RAPPORTERER hva den hoppet over — en PR skal ikke blokkeres
-      # av at Overpass har en dårlig dag.
+      # Hentes ÉN gang her: både ektekart-gaten under og navnediff til slutt
+      # måler mot master-tippen. Eksplisitt refspec — se navnediff-steget for
+      # hvorfor `git fetch origin master` ikke holder på en grunn klone.
+      - name: Hent master-tippen
+        run: git fetch --depth=1 origin +refs/heads/master:refs/remotes/origin/master
+
+      # --ektekart bygger et ferskt Vardåsen-kart fra Kartverket + OSM og koster
+      # ~2 av jobbens ~3 minutter. Sju av tjue sjekker krever det; de tretten
+      # andre klarer seg med det sporede demo-kartet. Gaten avgjør hvilken vei vi
+      # går, og logikken bor i scripts/trenger-ektekart.mjs — med enhetstester,
+      # fordi en gate som faller til feil side lar sju sjekker hoppe STILLE over.
+      # Ukjente stier faller til den dyre siden med vilje.
+      - name: Trenger endringen et ekte kart?
+        id: kart
+        run: |
+          endret=$(git diff --name-only origin/master HEAD)
+          echo "Endrede filer:"; echo "$endret" | sed 's/^/  /'
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "ekte=1" >> "$GITHUB_OUTPUT"
+            echo "→ manuell kjøring: full dekning uansett"
+          elif echo "$endret" | node scripts/trenger-ektekart.mjs; then
+            echo "ekte=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "ekte=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Feiler kart-byggingen (kildene nede), går røyktesten videre på demo-kartet
+      # og RAPPORTERER hva den hoppet over — en PR skal ikke blokkeres av at
+      # Overpass har en dårlig dag.
       - name: Røyktest
-        run: npm run royk -- --ektekart --bilder=/tmp/royk
+        run: |
+          if [ "${{ steps.kart.outputs.ekte }}" = "1" ]; then
+            npm run royk -- --ektekart --bilder=/tmp/royk
+          else
+            echo "Kjører mot demo-kartet — de sju ektekart-sjekkene hoppes over."
+            npm run royk -- --bilder=/tmp/royk
+          fi
 
       # Rutingen: alle ruter, alle redirects, boot-gjenopptaket. Bruker samme
       # dist/ som røyktesten over, så den koster bare noen sekunder.
@@ -76,16 +105,15 @@ jobs:
       # Navnediff er en LESE-gate: den skal fortelle mennesket hva som forsvant.
       # Villede slettinger kvitteres ut med `--ok navn1,navn2` i PR-en som gjør
       # dem, ikke ved å skru av jobben.
+      # Refen er hentet i «Hent master-tippen» over. Formen der er eksplisitt
+      # refspec og ikke `git fetch origin master`: på en grunn klone lagrer den
+      # formen bare i FETCH_HEAD og avvises dessuten med «shallow roots are not
+      # allowed to be updated», så refs/remotes/origin/master blir aldri
+      # opprettet og navnediff feiler med «fant ikke MapView.vue i
+      # origin/master». Med fetch-depth: 0 var det checkout som skaffet refen,
+      # så linja som sto her før var i praksis en no-op.
       - name: Navnediff mot origin/master
-        run: |
-          # Eksplisitt refspec, ikke `git fetch origin master`. På en grunn
-          # klone lagrer den formen bare i FETCH_HEAD og avvises dessuten med
-          # «shallow roots are not allowed to be updated» — refs/remotes/origin/
-          # master blir aldri opprettet, og navnediff feiler med «fant ikke
-          # MapView.vue i origin/master». Med fetch-depth: 0 var det checkout
-          # som skaffet refen, så den gamle linja var i praksis en no-op.
-          git fetch --depth=1 origin +refs/heads/master:refs/remotes/origin/master
-          npm run navnediff
+        run: npm run navnediff
 
       - name: Last opp skjermbilder ved feil
         if: failure()

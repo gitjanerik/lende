@@ -26,6 +26,20 @@ Deploy-workflowen har samme `fetch-depth: 0` og er bevisst urørt: den pusher
 ikke kan prøves utenfor en ekte deploy. Gevinsten er to minutter på en jobb som
 kjører etter merge og ikke blokkerer noen.
 
+Den nest største posten er kart-byggingen: `--ektekart` henter et ferskt
+Vardåsen-kart fra Kartverket + OSM og koster ~2 av jobbens ~3 minutter. Sju av
+tjue sjekker krever det, og de gates nå på hva endringen faktisk rører. Merk hva
+gaten IKKE er: «rører endringen kart-pipelinen» var den første formuleringen, og
+den er feil. De sju sjekkene dekker useNavnLod, useViewportCull, useGhostTiles,
+useKartSok, useKartEksport, useGestPerf og Viewer3D + vaerHimmel — composables og
+komponenter, ikke pipelinen. En ren pipeline-gate ville hoppet stille over
+navn-LOD-sjekken på en PR som endrer nettopp useNavnLod. Lista er derfor de sju
+domenenes egne filer pluss `src/lib/**`, `MapView.vue` (den komponerer alle sju)
+og testen selv. Logikken bor i `scripts/trenger-ektekart.mjs` med tolv
+enhetstester, og ukjente stier faller til den dyre siden med vilje: et nytt
+domene er dekket av seg selv, og det er kjente-men-ulistede stier som er fella —
+derfor står det en påminnelse i røyktesten der `krever: 'ektekart'` leses.
+
 ---
 
 ## 2026-08-25 — v5.25.2: kanthåndtakene viker for chromet
