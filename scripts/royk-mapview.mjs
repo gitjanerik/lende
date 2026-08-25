@@ -84,6 +84,74 @@ const SJEKKER = [
     },
   },
   {
+    // v5.25.2: de åtte lende-pilene var en periode klampet til viewportens
+    // ytterkant og landet under toppbaren, modus-chip-raden, målestokken og
+    // FAB-en. Enhetstesten på edgeSafeFrame kjenner bare KONSTANTENE — den kan
+    // ikke se at en knapp faktisk ligger under et annet element i nettleseren.
+    // Derfor måler denne mot ekte layout, og med elementFromPoint framfor egne
+    // selektorer: spørsmålet er ikke «overlapper den denne boksen», men «er det
+    // pila man treffer om man trykker der». Alt som ligger over — nå eller etter
+    // en framtidig UI-endring — fanges av seg selv.
+    navn: 'lende-pilene er faktisk trykkbare og viser pilla',
+    domene: 'useMapExtend',
+    async kjør(page) {
+      // Deterministisk avsløring: draweren skjuler håndtakene (drawerCoversCanvas),
+      // så åpne + lukke gir extendZonesVisible false → true, som er nøyaktig
+      // signalet «kartet ble relevant» — samme vei som ved lasting av kart.
+      try {
+        await åpneDrawer(page)
+        await lukkDrawer(page)
+      } finally { /* måler uansett — feilet lukkingen, sier neste linje det */ }
+      await page.waitForTimeout(250)
+      const SEL = 'button[aria-label^="Hent kartfliser mot"]'
+      const n = await page.locator(SEL).count()
+      if (n === 0) throw new Error('ingen lende-piler etter avsløring — fyrte watchen på extendZonesVisible?')
+
+      const dekket = await page.evaluate((sel) => {
+        const ut = []
+        for (const b of document.querySelectorAll(sel)) {
+          const r = b.getBoundingClientRect()
+          const cx = r.left + r.width / 2, cy = r.top + r.height / 2
+          const treff = document.elementFromPoint(cx, cy)
+          if (!treff || !b.contains(treff)) {
+            ut.push({
+              pil: b.getAttribute('aria-label'),
+              over: treff ? `${treff.tagName.toLowerCase()}.${treff.className || ''}`.slice(0, 60) : 'ingenting',
+            })
+          }
+        }
+        return ut
+      }, SEL)
+      if (dekket.length) {
+        throw new Error(`${dekket.length} av ${n} lende-piler ligger under noe annet: ` +
+          dekket.map((d) => `«${d.pil}» → ${d.over}`).join('; '))
+      }
+
+      // TRYKK på noe: hover fyrer preview-emiten, som skal vise pilla med
+      // retningsnavn og kostnad. Vi HOLDER oss til hover — et ekte klikk ville
+      // startet en nettverks-bygging av nye kartfliser.
+      const forste = page.locator(SEL).first()
+      const boks = await forste.boundingBox()
+      await page.mouse.move(boks.x + boks.width / 2, boks.y + boks.height / 2)
+      await page.waitForTimeout(300)
+      const pille = await page.evaluate((sel) => {
+        const b = document.querySelector(sel)
+        const el = b?.querySelector('span:last-of-type')
+        if (!el) return null
+        return { tekst: el.innerText.trim(), opak: parseFloat(getComputedStyle(el).opacity) }
+      }, SEL)
+      if (!pille) throw new Error('fant ikke etikett-pilla i håndtaket')
+      if (!(pille.opak > 0.5)) throw new Error(`pilla kom ikke fram ved hover (opacity ${pille.opak})`)
+      if (!/\+\d/.test(pille.tekst)) throw new Error(`pilla mangler kostnaden «+N»: «${pille.tekst}»`)
+
+      // NØYTRALISERING: flytt pekeren av håndtaket, ellers står pilla og
+      // hovertilstanden igjen til neste sjekk.
+      await page.mouse.move(4, 4)
+      await page.waitForTimeout(150)
+      return `${n} piler, alle trykkbare, pille «${pille.tekst}»`
+    },
+  },
+  {
     // v5.23.0: kartstil-velgeren er den ENE kontrollen som setter hele
     // uttrykket. Sjekken TRYKKER på den (ikke bare leter etter markup) og
     // verifiserer at BÅDE paletten og lagene flyttet seg — en knapp som bare

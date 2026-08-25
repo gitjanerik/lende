@@ -34,7 +34,14 @@
   --color-modal: #09090b;      /* modalvinduer (AppModal) — mørkt: som overlay */
   --color-ink: #ffffff;        /* tekst/kant/flate-base (var white) */
 }
-:root { --logo-ring: #3a3d45; }
+:root {
+  --logo-ring: #3a3d45;
+  /* Pil-fargen på kanthåndtakene (MapEdgeHandles) — grønn i betydningen
+     «ny/legg til», samme semantikk som ellers i appen. Egen token fordi den er
+     tema-avhengig: på mørk overlay-flate trengs en lys grønn (green-400), på
+     lys papirflate en mettet mørk (green-600), ellers forsvinner den. */
+  --pil-farge: #4ade80;
+}
 
 :root[data-theme="dark"] { color-scheme: dark; }
 
@@ -46,6 +53,7 @@
   --color-modal: #f6f4ea;      /* modalvinduer matcher hovedmenyens papirtone (--am-bg) */
   --color-ink: #1c1917;        /* varm mørk blekk */
   --logo-ring: #c0392b;        /* røde konsentriske ringer i lyst tema */
+  --pil-farge: #15803d;        /* green-700 — lesbar mot papirtonen */
   /* Behold anti-force-dark: temaet ER lyst, så «only light» er ærlig og
      hindrer at nettleseren auto-inverterer kart-SVG-en. */
   color-scheme: only light;

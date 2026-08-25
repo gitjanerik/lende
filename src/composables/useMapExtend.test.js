@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   EXTEND_DIR_WORD, EXTEND_DIR_DEG, EDGE_DIRS, EDGE_DIR_VEC, EDGE_LABEL_OFFSET,
   extendZoneLabelText, edgeAnchorSvg, edgeKnobDeg, edgeLabelOffset,
+  edgeSafeFrame, edgeStaticSlot, edgeAnkerNaer,
+  EDGE_FRAME_CHROME, EDGE_NAERHET_PX,
   screenToViewBox, viewBoxToScreen,
   cellenokkel, ventendeSenter, ventendePaaArket, VENTENDE_RADIUS_TILES,
 } from './useMapExtend.js'
@@ -95,6 +97,87 @@ describe('edgeAnchorSvg — ankeret på arkkanten', () => {
     expect(edgeAnchorSvg('E', shifted)).toEqual({ x: 1000, y: 0 })
   })
   it('ukjent retning → null', () => expect(edgeAnchorSvg('XX', b)).toBe(null))
+})
+
+describe('edgeSafeFrame — den frie flaten mellom chromet', () => {
+  it('trekker chromet fra viewporten', () => {
+    const f = edgeSafeFrame({ w: 400, h: 900 })
+    expect(f).toEqual({
+      minX: EDGE_FRAME_CHROME.side,
+      maxX: 400 - EDGE_FRAME_CHROME.side,
+      minY: EDGE_FRAME_CHROME.top,
+      maxY: 900 - EDGE_FRAME_CHROME.bottom,
+    })
+  })
+  it('rammen holder seg unna toppbaren, chip-raden, målestokken og FAB-en', () => {
+    // Regresjonsvakt for hele poenget med v5.25.2: et dokket håndtak skal ikke
+    // kunne havne der en annen kontroll bor. Chip-raden slutter ~157 px ned på
+    // en notch-telefon, FAB-en er 60 px høy over safe-area-bunnen.
+    const f = edgeSafeFrame({ w: 412, h: 915 })
+    expect(f.minY).toBeGreaterThanOrEqual(157)
+    expect(915 - f.maxY).toBeGreaterThanOrEqual(60)
+  })
+  it('kollapset ramme (lav landskaps-viewport) midtstilles i stedet for å inverteres', () => {
+    const f = edgeSafeFrame({ w: 40, h: 200 })
+    expect(f.minX).toBe(f.maxX)
+    expect(f.minY).toBe(f.maxY)
+    expect(f.minY).toBe(100)
+  })
+  it('uten målt wrapper → null', () => {
+    expect(edgeSafeFrame({ w: 0, h: 0 })).toBe(null)
+    expect(edgeSafeFrame(null)).toBe(null)
+  })
+})
+
+describe('edgeStaticSlot — de faste dokk-plassene på rammen', () => {
+  const f = { minX: 30, minY: 168, maxX: 382, maxY: 819 }
+  it('kardinal dokker midt på sin ramme-kant', () => {
+    expect(edgeStaticSlot('N', f)).toEqual({ x: 206, y: 168 })
+    expect(edgeStaticSlot('S', f)).toEqual({ x: 206, y: 819 })
+    expect(edgeStaticSlot('E', f)).toEqual({ x: 382, y: 493.5 })
+    expect(edgeStaticSlot('W', f)).toEqual({ x: 30, y: 493.5 })
+  })
+  it('diagonal dokker i sitt ramme-hjørne', () => {
+    expect(edgeStaticSlot('NE', f)).toEqual({ x: 382, y: 168 })
+    expect(edgeStaticSlot('SW', f)).toEqual({ x: 30, y: 819 })
+  })
+  it('alle åtte plassene er distinkte — dokkede håndtak kan ikke kollidere', () => {
+    const nokler = new Set(DIRS.map((d) => {
+      const p = edgeStaticSlot(d, f)
+      return `${p.x},${p.y}`
+    }))
+    expect(nokler.size).toBe(8)
+  })
+  it('ukjent retning → null', () => expect(edgeStaticSlot('XX', f)).toBe(null))
+})
+
+describe('edgeAnkerNaer — bare aksene retningen faktisk har en komponent på', () => {
+  const f = { minX: 30, minY: 168, maxX: 382, maxY: 819 }
+  it('nord bryr seg om y, ikke om hvor langt øst man har panorert', () => {
+    expect(edgeAnkerNaer('N', { x: 200, y: 200 }, f)).toBe(true)
+    expect(edgeAnkerNaer('N', { x: 9999, y: 200 }, f)).toBe(true)
+    expect(edgeAnkerNaer('N', { x: 200, y: -9999 }, f)).toBe(false)
+  })
+  it('øst bryr seg om x, ikke om y', () => {
+    expect(edgeAnkerNaer('E', { x: 370, y: -9999 }, f)).toBe(true)
+    expect(edgeAnkerNaer('E', { x: -9999, y: 400 }, f)).toBe(false)
+  })
+  it('diagonal krever at HJØRNET er nært — begge akser', () => {
+    expect(edgeAnkerNaer('NE', { x: 370, y: 200 }, f)).toBe(true)
+    expect(edgeAnkerNaer('NE', { x: 370, y: -9999 }, f)).toBe(false)
+    expect(edgeAnkerNaer('NE', { x: -9999, y: 200 }, f)).toBe(false)
+  })
+  it('slakken slipper ankeret inn litt før det når rammen', () => {
+    const rettUtenfor = f.minY - (EDGE_NAERHET_PX - 1)
+    const langtUtenfor = f.minY - (EDGE_NAERHET_PX + 1)
+    expect(edgeAnkerNaer('N', { x: 200, y: rettUtenfor }, f)).toBe(true)
+    expect(edgeAnkerNaer('N', { x: 200, y: langtUtenfor }, f)).toBe(false)
+  })
+  it('ukjent retning / manglende data → usant', () => {
+    expect(edgeAnkerNaer('XX', { x: 200, y: 200 }, f)).toBe(false)
+    expect(edgeAnkerNaer('N', null, f)).toBe(false)
+    expect(edgeAnkerNaer('N', { x: 200, y: 200 }, null)).toBe(false)
+  })
 })
 
 describe('edgeKnobDeg — pila peker mot kanten den utvider, også rotert', () => {
