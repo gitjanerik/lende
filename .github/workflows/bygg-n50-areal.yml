@@ -12,6 +12,16 @@ name: Bygg N50-myr
 # KJØRES MANUELT — bevisst ingen `schedule`, av samme grunn som sti-baken:
 # arealdekke er stabile data, og hver bake gir nye filer → ny deploy → alle
 # brukere laster dem ned på nytt.
+#
+# TO TING SOM KOSTET EN TIME Å LÆRE (v5.24.x):
+#
+#  1. KJØR ÉN NASJONAL JOBB OM GANGEN. Landsdekning laster ned ~2,5 GB fra
+#     Geonorge. Alene tar den ~19 min; to samtidige kjøringer kvelte hverandre
+#     og sto fortsatt på 40 min. Skal du måle OG bake, gjør det sekvensielt.
+#
+#  2. IKKE PUSH TIL GRENEN MENS EN BAKE KJØRER. Jobben sjekker ut én commit og
+#     pusher flisene tilbake på slutten. Kommer det en commit imellom, avvises
+#     pushen som non-fast-forward, og 25 minutters nedlasting er bortkastet.
 
 on:
   workflow_dispatch:
