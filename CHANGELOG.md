@@ -1,3 +1,13 @@
+## 2026-08-25 — v5.25.1: Myra fikk en bunnflate
+
+Eieren bygde et kart ved Rakkesetermyr i Nordmarka og meldte at han ikke så myr. Målingen viste at den var der hele tiden — flisene har 1 571 myrflater i Nordmarka, og klienten leste dem — men på Turkarts grønne bakgrunn leste de blå stripene som «litt striper» der UT.no viser en tydelig egen overflate. Han fant det selv ved å se nærmere: «mulig myra er der likevel, men den forsvinner litt på lysegrønn bakgrunnsfarge».
+
+Årsaken er at myra tegnes som blå streker rett på underlaget, uten noe under. På ISOMs kremgule bakgrunn har stripene nok kontrast alene; på grønt har de det ikke. UT.no løser det med en lysere bunn under stripene, og det er nå mulig: mønsterets bunnflate emitteres alltid og er themebar (`--pattern-<navn>-fill`), lagt som inline style fordi `var()` ikke virker i SVG-presentasjonsattributter — samme felle punktsymbolene gikk i i v2.4.29. Uten tema-variabel og uten katalog-bakgrunn blir den `none`, så **Lys (ISOM) er byte-identisk med før**.
+
+Turkart, Padling, Print og Natt gir nå myra en lys blåhvit bunn med kraftigere strek. To nye tester verner grepet: hvert kartstil-tema MÅ sette bunnflaten, og bunnen får ALDRI være samme farge som stripene — faller de sammen, blir mønsteret en flat flate, og da er fast myr (308) umulig å skille fra utrygg (309), som kun skilles av strektettheten. Det er samme regresjon den eksisterende «INGEN tema flater ut myra»-testen verner mot, bare gjennom en annen dør.
+
+---
+
 ## 2026-08-25 — v5.25.0: Myra er på kartet
 
 Ved Briskemyrputten i Drammensmarka viser UT.no en myr som dekker det meste av utsnittet. Lende tegnet bare selve putten. Nå er myra der: **206 fliser, 56 MB, 643 274 flater over 20 699 km²** bakt fra Kartverkets N50 Arealdekke og servert statisk ved siden av appen. I det aktuelle utsnittet finner klienten 26 myrflater, seks av dem med hull.

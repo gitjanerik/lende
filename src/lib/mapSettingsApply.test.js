@@ -253,6 +253,37 @@ describe('tema', () => {
     }
   })
 
+  // v5.25.1: myra fikk en BUNNFLATE under stripene. Uten den forsvant den
+  // nesten på Turkarts grønne bakgrunn — eieren så «litt striper» ved
+  // Rakkesetermyr der UT.no viser en tydelig egen overflate.
+  it('kartstil-temaene gir myra en bunnflate som skiller den fra bakgrunnen', () => {
+    for (const key of ['turkart', 'padling', 'print', 'dark']) {
+      const css = buildThemeCss(key)
+      expect(css, `${key} mangler myr-bunnflate`).toContain('--pattern-myr-fill:')
+      expect(css, `${key} mangler utrygg-bunnflate`).toContain('--pattern-myr-utrygg-fill:')
+    }
+    // Lys (ISOM) er urørt: der har stripene nok kontrast på kremgult, og
+    // katalog-defaultene er riktige på papir.
+    expect(buildThemeCss('light')).toBe('')
+  })
+
+  it('bunnflaten er ALDRI samme farge som stripene', () => {
+    // Faller de sammen, blir mønsteret en flat flate — og da er fast myr (308)
+    // umulig å skille fra utrygg (309), som kun skilles av strektettheten.
+    // Samme regresjon testen over «INGEN tema flater ut myra» verner mot,
+    // bare gjennom en annen dør.
+    for (const key of listThemes().map((t) => t.key)) {
+      const css = buildThemeCss(key)
+      for (const navn of ['myr', 'myr-utrygg']) {
+        const fyll = new RegExp(`--pattern-${navn}-fill: ([^;]+)`).exec(css)?.[1]?.trim()
+        const strek = new RegExp(`--pattern-${navn}-stroke: ([^;]+)`).exec(css)?.[1]?.trim()
+        if (fyll && strek) {
+          expect(fyll.toLowerCase(), `${key}/${navn} har bunn = strek`).not.toBe(strek.toLowerCase())
+        }
+      }
+    }
+  })
+
   it('stiFarger bakes inn i innstillings-CSS-en (MCP-paritet med appen)', () => {
     const css = buildSettingsCss({ stiFarger: { fg: '#7a4fa3', bg: '#ffee88' } })
     expect(css).toContain('stroke: #7a4fa3 !important')

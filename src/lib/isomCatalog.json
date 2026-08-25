@@ -1808,10 +1808,12 @@
       },
       "patterns": {
         "myr": {
-          "stroke": "#4f9ac2"
+          "stroke": "#3f93c0",
+          "fill": "#e8f2f8"
         },
         "myr-utrygg": {
-          "stroke": "#4f9ac2"
+          "stroke": "#3f93c0",
+          "fill": "#e8f2f8"
         }
       },
       "artMode": false,
@@ -2077,10 +2079,12 @@
       },
       "patterns": {
         "myr": {
-          "stroke": "#5a9fc4"
+          "stroke": "#2f83ad",
+          "fill": "#eaf3f8"
         },
         "myr-utrygg": {
-          "stroke": "#5a9fc4"
+          "stroke": "#2f83ad",
+          "fill": "#eaf3f8"
         }
       },
       "artMode": false,
@@ -2346,10 +2350,12 @@
       },
       "patterns": {
         "myr": {
-          "stroke": "#4a7fa0"
+          "stroke": "#3a7fa3",
+          "fill": "#eef6fa"
         },
         "myr-utrygg": {
-          "stroke": "#4a7fa0"
+          "stroke": "#3a7fa3",
+          "fill": "#eef6fa"
         }
       },
       "artMode": false,
@@ -2702,10 +2708,12 @@
       },
       "patterns": {
         "myr": {
-          "stroke": "#5a93b3"
+          "stroke": "#5a93b3",
+          "fill": "#1b3040"
         },
         "myr-utrygg": {
-          "stroke": "#5a93b3"
+          "stroke": "#5a93b3",
+          "fill": "#1b3040"
         }
       }
     },
