@@ -104,9 +104,22 @@ export function buildPatternDef(patternId, spec, name = patternId.replace(/^iso-
     return ''
   }).join('')
 
-  const bg = spec.background
-    ? `<rect width="${spec.widthMm}mm" height="${spec.heightMm}mm" fill="${spec.background}"/>`
-    : ''
+  // Bunnflate under mønsteret, ALLTID emittert og ALLTID themebar.
+  //
+  // Hvorfor den må finnes selv når katalogen ikke ber om den: myra tegnes som
+  // blå streker rett på underlaget. På ISOMs kremgule bakgrunn har stripene
+  // nok kontrast alene, men på Turkarts grønne forsvinner de nesten — eieren
+  // så myra ved Rakkesetermyr som «litt striper» der UT.no viser en tydelig
+  // egen overflate. UT.no løser det med en lysere bunn under stripene, og det
+  // krever at temaet kan sette en farge her.
+  //
+  // `var()` virker IKKE i SVG-presentasjonsattributter (samme felle som
+  // symbolfargene, v2.4.29), så verdien legges som inline style med
+  // katalogverdien igjen i attributtet. Uten tema-variabel og uten
+  // katalog-bakgrunn blir det `none`, altså byte-identisk med før.
+  const bgFallback = spec.background ?? 'none'
+  const bg = `<rect width="${spec.widthMm}mm" height="${spec.heightMm}mm" `
+    + `fill="${bgFallback}" style="fill:var(--pattern-${name}-fill, ${bgFallback})"/>`
 
   return `<pattern id="${patternId}" patternUnits="userSpaceOnUse" width="${spec.widthMm}mm" height="${spec.heightMm}mm">${bg}${elements}</pattern>`
 }
