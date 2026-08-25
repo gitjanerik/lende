@@ -169,12 +169,15 @@ export function registerKartVerktoy(server, ctx) {
       const effHalfKm = Math.min(halfKm ?? 2, MAX_HALF_KM_REMOTE)
       const widthKm = effHalfKm * 2
       const effEq = Math.max(equidistanceM ?? DEFAULT_EQUIDISTANCE_M, minEquidistanceForWidthKm(widthKm))
-      // n50StiBase MÅ sendes her. Workeren har ikke filsystem, så headless kan
-      // ikke finne N50-sti-flisene selv — uten denne bygges kartet stille uten
-      // stinettet (se n50StiKilde i mcp/headless.js).
+      // n50StiBase og n50ArealBase MÅ sendes her. Workeren har ikke filsystem,
+      // så headless kan ikke finne flisene selv — uten disse bygges kartet
+      // stille uten stinettet og uten myra (se n50StiKilde/n50ArealKilde i
+      // mcp/headless.js). Nettopp den stillheten lot MCP-Workeren bygge hvert
+      // eneste kart uten N50-stier fra v5.0.16 til v5.18.6.
       const built = await buildMapHeadless({
         lat, lon, halfKm: effHalfKm, equidistanceM: effEq,
         n50StiBase: env.N50_STI_BASE,
+        n50ArealBase: env.N50_AREAL_BASE,
       })
 
       const ref = nyKartRef(navn)

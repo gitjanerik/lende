@@ -18,6 +18,7 @@ compatibility_flags = ["nodejs_compat"]
 # så server- og klient-bygde kart får identisk N50-innhold.
 [vars]
 N50_STI_BASE = "https://gitjanerik.github.io/lende/data/n50-sti/"
+N50_AREAL_BASE = "https://gitjanerik.github.io/lende/data/n50-areal/"
 
 # Fase B: bygde kart (SVG + DEM + meta) og utdata (GPX, rundtur-SVG) bor i R2.
 # Bucketen opprettes idempotent av deploy-workflowen (`wrangler r2 bucket

@@ -9,8 +9,10 @@ import { fillDemVoidsFromTerrarium } from '../src/lib/terrariumDem.js'
 import { fetchN50Water } from '../src/lib/n50Fetcher.js'
 // Vann-sammenslåingen er DELT med appen (createMapFlow) — se lib/vannMerge.js.
 import { slaaSammenVann } from '../src/lib/vannMerge.js'
+import { slaaSammenAreal } from '../src/lib/arealMerge.js'
 import { fetchTurruteRoutes, turruteElementsFrom } from '../src/lib/turrutebasenFetcher.js'
 import { fetchN50StiLinjer, n50StiElementerFra } from '../src/lib/n50StiFetcher.js'
+import { fetchN50Areal } from '../src/lib/n50ArealFetcher.js'
 import { utm32BboxFromWgs84 } from '../src/lib/utm.js'
 import { parsePathSubpaths } from '../src/lib/pathUtils.js'
 import { ROUTABLE_CODES, BARRIER_CODES } from '../src/lib/routing.js'
@@ -84,6 +86,28 @@ export function n50StiKilde(eksplisitt) {
     : { basePath }
 }
 
+/**
+ * Samme tre-trinns valg som n50StiKilde, mot arealdekke-flisene. Egen katalog,
+ * samme regel — og samme fallgruve: i workerd er `import.meta.url` undefined,
+ * så uten en eksplisitt URL fra kalleren bygges kartet uten N50-myr. Stille.
+ */
+export function n50ArealKilde(eksplisitt) {
+  let basePath = eksplisitt
+  if (!basePath) {
+    try {
+      const her = import.meta.url
+      if (her) {
+        basePath = pathToFileURL(
+          join(dirname(fileURLToPath(her)), '..', 'public', 'data', 'n50-areal') + '/').href
+      }
+    } catch { basePath = null }
+  }
+  if (!basePath) return null
+  return basePath.startsWith('file:')
+    ? { basePath, hentBytes: lesN50StiFraDisk }
+    : { basePath }
+}
+
 export async function lesN50StiFraDisk(url) {
   try {
     const buf = await readFile(fileURLToPath(url))
@@ -125,13 +149,13 @@ export function demResolutionForArea(utmBbox, maxCells = DEM_MAX_CELLS) {
  *          detaljNivaa?:string, tetthetAv?:boolean, n50StiBase?:string}} opts
  *   n50StiBase — hvor N50-sti-flisene ligger. Uten filsystem (Cloudflare-
  *   Workeren) MÅ denne settes, ellers bygges kartet uten N50-stier. Se
- *   n50StiKilde.
+ *   n50StiKilde. `n50ArealBase` gjør det samme for myr-flisene.
  * @returns {Promise<{svg:string, counts:object, meta:object, dem:object, bbox:object,
  *                    halfKm:number, tetthet:object|null}>}
  */
 export async function buildMapHeadless({
   lat, lon, halfKm, equidistanceM, detaljNivaa: eksplisittNivaa, tetthetAv = false,
-  n50StiBase,
+  n50StiBase, n50ArealBase,
 }) {
   let effHalfKm = halfKm
   let bbox = bboxFromCenter(lat, lon, effHalfKm)
@@ -170,7 +194,7 @@ export async function buildMapHeadless({
   // er nettopp derfor feilen fikk leve fra v5.0.16 til v5.18.6.
   let n50StiStatus = null
 
-  const [overpass, n50Water, dem, turruteRoutes, n50StiLinjer] = await Promise.all([
+  const [overpass, n50Water, dem, turruteRoutes, n50StiLinjer, n50Areal] = await Promise.all([
     fetchOverpass(bbox),
     fetchN50Water(bbox).catch(() => []),
     // DEM + samme hull-reparasjon som appen gjør (createMapFlow →
@@ -210,6 +234,12 @@ export async function buildMapHeadless({
           return []
         })
     })(),
+    // N50-myr, samme kilde-regel som stiene.
+    (() => {
+      const kilde = n50ArealKilde(n50ArealBase)
+      if (!kilde) return Promise.resolve([])
+      return fetchN50Areal(bbox, kilde).catch(() => [])
+    })(),
   ])
 
   // Vann-stacken slås sammen med SAMME kode som appen (lib/vannMerge.js).
@@ -221,7 +251,10 @@ export async function buildMapHeadless({
   // av noe: Rondvassbu gikk fra 72,7 til 14,6 km elv, Kolstadøya fra 7,5 til 0,
   // og halvparten av vannflatene forsvant. Appen har hele tiden gjort per-flate
   // dekningstester og beholdt elveløp; nå gjør begge det, fordi det er én kode.
-  const elements = slaaSammenVann({ osm: overpass.elements, n50Water })
+  // Arealdekke slås sammen med SAMME kode som appen (lib/arealMerge.js) — delt
+  // fra første linje, nettopp fordi vann-stacken viste hva to varianter koster.
+  const osmElements = slaaSammenAreal({ osm: overpass.elements, n50Areal })
+  const elements = slaaSammenVann({ osm: osmElements, n50Water })
   const turruteEls = turruteElementsFrom(turruteRoutes, overpass.elements)
   elements.push(...turruteEls)
   elements.push(...n50StiElementerFra(n50StiLinjer, [...overpass.elements, ...turruteEls], n50StiStatus))
