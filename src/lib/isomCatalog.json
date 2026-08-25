@@ -366,13 +366,13 @@
       },
       "507": {
         "label": "Stitråkk — vanskelig",
-        "$comment": "Beholder round linecap — dasharray [0.02, 0.2] ER punktene (butt-cap gjør et 0.02mm-segment usynlig). Ingen casing; en svak/utydelig sti skal ikke løftes.",
+        "$comment": "Beholder round linecap — dasharray-en ER punktene (butt-cap gjør et 0.02mm-segment usynlig). Ingen casing; en svak/utydelig sti skal ikke løftes. LUFTA følger regelen gap = 1.5 x widthMm: prikkene står da en halv diameter fra hverandre, som er tettheten et norsk turkart (og ut.no) leser som en prikkete sti. Gapet var 0.2 mm = 2.5 x bredden, altså 1.5 diameter luft, og 507 er den vanligste stien i norsk utmark (umerket N50-sti) — den så uttynnet ut mens 505/506 var strammet til ~1:1. Se sti-prikker-testen, som håndhever regelen i BASEN og i hvert tema.",
         "stroke": {
           "color": "#000",
           "widthMm": 0.08,
           "dasharray": [
             0.02,
-            0.2
+            0.14
           ],
           "linecap": "round",
           "linejoin": "round"
@@ -1731,7 +1731,7 @@
         "507": {
           "stroke": {
             "color": "#4a4a4a",
-            "dash": [0.03, 0.3]
+            "dash": [0.06, 0.2]
           }
         },
         "520": {
@@ -2002,7 +2002,7 @@
         "507": {
           "stroke": {
             "color": "#8d8577",
-            "dash": [0.03, 0.3]
+            "dash": [0.06, 0.2]
           }
         },
         "520": {
@@ -2273,7 +2273,7 @@
         "507": {
           "stroke": {
             "color": "#333333",
-            "dash": [0.03, 0.3]
+            "dash": [0.06, 0.2]
           }
         },
         "520": {
@@ -2550,7 +2550,7 @@
         "507": {
           "stroke": {
             "color": "#ac9664",
-            "dash": [0.03, 0.3]
+            "dash": [0.06, 0.2]
           }
         },
         "508": {
