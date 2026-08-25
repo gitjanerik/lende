@@ -45,6 +45,11 @@ const FYLKE = argVal('--fylke')
 const TOLERANSE = Number(argVal('--toleranse') ?? 4)
 const MIN_AREAL = Number(argVal('--minareal') ?? 2500)
 const BARE_MAL = args.includes('--mal')
+// --typer myr,skog — hvilke objekttyper baken skal bære. Finnes for å kunne
+// MÅLE én type av gangen: myr ble 57,9 MB nasjonalt, og skogens bidrag må
+// kjennes før vi vet om alt kan ligge statisk i public/ eller trenger R2.
+const TYPER_VALGT = new Set(
+  (argVal('--typer') ?? 'myr').split(',').map(t => t.trim()).filter(Boolean))
 
 const ROT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const UT_KATALOG = join(ROT, 'public', 'data', 'n50-areal')
@@ -57,11 +62,19 @@ const log = (...a) => console.log(...a)
 // å bake skog nå ville doblet datamengden for noe som allerede ser riktig ut.
 // Formatet har plass til den (n50ArealPakke.TYPER), så dagen den skal inn er
 // det en klassifiserings-endring og en ny bake — ikke et nytt filformat.
-const OBJTYPE = { myr: 'myr' }
+const OBJTYPE = {
+  myr: 'myr',
+  skog: 'skog',
+  // ÅpentOmråde bæres BEVISST IKKE. Når Turkart-bakgrunnen er den nøytrale
+  // åpen-tonen, ER åpenhet standardtilstanden — å bake 112 020 flater som
+  // bare maler bakgrunnen på nytt er ren datamengde uten et eneste nytt
+  // piksel. Samme inversjon som «bakgrunnen ER land, vann males oppå».
+}
 
-export function klassifiser(props) {
+export function klassifiser(props, typer = TYPER_VALGT) {
   const t = String(props?.objtype ?? '').trim().toLowerCase()
-  return OBJTYPE[t] ?? null
+  const type = OBJTYPE[t] ?? null
+  return type && typer.has(type) ? type : null
 }
 
 /** Ring fra GeoJSON-koordinater. Lukkepunktet dropppes — det er implisitt. */
@@ -79,8 +92,21 @@ function tilRing(koord) {
 }
 
 async function lesFlater(kilde, dir) {
-  const lag = lagNavn(kilde, /arealdekke.*flate/i)
+  // DIAGNOSTIKK FØRST. Første kjøring (32814994570) lastet ned 166 MB Buskerud
+  // og fant 0 myrflater, fordi lag-filteret var GJETTET: /arealdekke.*flate/i.
+  // Vi logger derfor ALLE lagnavn og hele objtype-fordelingen — samme grep som
+  // sti-målingen brukte da den fant ut at feltet het `typeveg`. Et script som
+  // bare sier «0» er ubrukelig; ett som sier hva det SÅ, løser saken på én
+  // kjøring til.
+  const alleLag = lagNavn(kilde, /./)
+  const lag = lagNavn(kilde, /arealdekke.*(omrade|område|flate|polygon)/i)
+  if (!lag.length) {
+    log(`    ⚠ ingen arealdekke-flatelag. Lag i kilden:\n      ${alleLag.join('\n      ')}`)
+    return []
+  }
+  log(`    arealdekke-lag: ${lag.join(', ')}`)
   const flater = []
+  const objtypeTall = new Map()
   for (const l of lag) {
     // Skriv til fil og les strømmende: landsdekkende GeoJSONSeq er flere
     // hundre MB, og en stdout-buffer måtte holdt alt som ÉN streng.
@@ -92,6 +118,8 @@ async function lesFlater(kilde, dir) {
       if (!rad.trim()) continue
       let f
       try { f = JSON.parse(rad) } catch { continue }
+      const rå = String(f.properties?.objtype ?? '(mangler)')
+      objtypeTall.set(rå, (objtypeTall.get(rå) ?? 0) + 1)
       const type = klassifiser(f.properties)
       if (!type || !f.geometry) continue
       const polygoner = f.geometry.type === 'MultiPolygon' ? f.geometry.coordinates
@@ -103,6 +131,10 @@ async function lesFlater(kilde, dir) {
     }
     rmSync(utfil, { force: true })
   }
+  // Fordelingen er FASIT på klassifiseringen: står «Myr» der, eller heter den
+  // noe annet? Uten denne linja måtte vi gjettet en gang til.
+  const topp = [...objtypeTall.entries()].sort((a, b) => b[1] - a[1]).slice(0, 25)
+  log(`    objtype: ${topp.map(([k, v]) => `${k}=${v}`).join(', ') || '(ingen features lest)'}`)
   return flater
 }
 
@@ -117,8 +149,9 @@ if (import.meta.url === (process.argv[1] ? `file://${process.argv[1]}` : '')) {
       ? omrader.filter(o => o.code === FYLKE)
       : omrader.filter(o => o.type === 'fylke')
     if (!fylker.length) throw new Error(`Fant ingen områder (--fylke ${FYLKE})`)
-    log(`${BARE_MAL ? 'MÅLER' : 'Bygger'} N50-myr for ${fylker.length} fylke(r), `
-      + `${TOLERANSE} m forenkling, minste flate ${MIN_AREAL} m²\n`)
+    log(`${BARE_MAL ? 'MÅLER' : 'Bygger'} N50-arealdekke [${[...TYPER_VALGT].join(', ')}] `
+      + `for ${fylker.length} fylke(r), ${TOLERANSE} m forenkling, `
+      + `minste flate ${MIN_AREAL} m²\n`)
 
     // Akkumuler per flis over ALLE fylker før vi skriver: en flis som krysser
     // en fylkesgrense må få innhold fra begge sider i SAMME fil, ellers ville
@@ -151,7 +184,7 @@ if (import.meta.url === (process.argv[1] ? `file://${process.argv[1]}` : '')) {
           }
         }
         flaterTotal += n
-        log(`    ${n.toLocaleString('no')} myrflater`)
+        log(`    ${n.toLocaleString('no')} flater beholdt`)
       } catch (e) {
         feilet++
         log(`    ⚠ ${kort} feilet: ${e.message}`)
@@ -189,11 +222,23 @@ if (import.meta.url === (process.argv[1] ? `file://${process.argv[1]}` : '')) {
       for (const [nokkel, b] of pakket) writeFileSync(join(UT_KATALOG, `${nokkel}.bin`), b)
       writeFileSync(join(UT_KATALOG, 'manifest.json'), JSON.stringify({
         versjon: VERSJON, toleranseM: TOLERANSE, minArealM2: MIN_AREAL,
+        // Hvilke typer flisene faktisk bærer. Uten dette kan ikke klienten
+        // skille «ingen skog i dette området» fra «skog er ikke bakt ennå»,
+        // og arealMerge ville undertrykt OSM-skogen på et tomt grunnlag.
+        typer: [...TYPER_VALGT].sort(),
         fliser: [...pakket.keys()].sort(),
       }))
       log(`\n  Skrev ${pakket.size} fliser til public/data/n50-areal/`)
     }
     if (feilet && feilet === fylker.length) process.exit(1)
+    // En gate som ikke kan feile er verre enn ingen gate. Første kjøring
+    // lastet ned 166 MB, fant 0 flater og meldte «success» — nøyaktig den
+    // stillheten som lot MCP-Workeren bygge kart uten stinett i atten
+    // versjoner. Lastet vi ned noe uten å finne én eneste flate, er det feil.
+    if (!flaterTotal && feilet < fylker.length) {
+      log('\n✗ Null flater fra en vellykket nedlasting — se lag- og objtype-linjene over.')
+      process.exit(1)
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

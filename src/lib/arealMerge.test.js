@@ -47,3 +47,34 @@ describe('slaaSammenAreal', () => {
     expect(osm).toHaveLength(2)
   })
 })
+
+describe('skog fortrenger BARE skog', () => {
+  const n50Skog = { id: 'n2', tags: { natural: 'wood', 'lende:n50areal': 'skog' } }
+  const osmMyr2 = { id: 'o1', tags: { natural: 'wetland' } }
+  const osmWood = { id: 'o2', tags: { natural: 'wood' } }
+  const osmForest = { id: 'o3', tags: { landuse: 'forest' } }
+  const osmBerg = { id: 'o4', tags: { natural: 'bare_rock' } }
+
+  it('N50-skog fortrenger både natural=wood og landuse=forest', () => {
+    const ut = slaaSammenAreal({ osm: [osmWood, osmForest, osmBerg], n50Areal: [n50Skog] })
+    expect(ut.map((e) => e.id)).toEqual(['o4', 'n2'])
+  })
+
+  it('berg i dagen står urørt — N50s Skog erstatter det ikke', () => {
+    const ut = slaaSammenAreal({ osm: [osmBerg], n50Areal: [n50Skog] })
+    expect(ut.map((e) => e.id)).toContain('o4')
+  })
+
+  // Kjernen i «autoritativ for DET DEN LEVERER»: en bake med bare skog skal
+  // ikke røre OSM-myra, og en bake med bare myr skal ikke røre OSM-skogen.
+  it('bake med bare skog lar OSM-myra stå', () => {
+    const ut = slaaSammenAreal({ osm: [osmMyr2, osmWood], n50Areal: [n50Skog] })
+    expect(ut.map((e) => e.id)).toEqual(['o1', 'n2'])
+  })
+
+  it('bake med bare myr lar OSM-skogen stå', () => {
+    const n50Myr2 = { id: 'n1', tags: { natural: 'wetland', 'lende:n50areal': 'myr' } }
+    const ut = slaaSammenAreal({ osm: [osmMyr2, osmWood], n50Areal: [n50Myr2] })
+    expect(ut.map((e) => e.id)).toEqual(['o2', 'n1'])
+  })
+})

@@ -1,3 +1,17 @@
+## 2026-08-25 — v5.25.0: Myra er på kartet
+
+Ved Briskemyrputten i Drammensmarka viser UT.no en myr som dekker det meste av utsnittet. Lende tegnet bare selve putten. Nå er myra der: **206 fliser, 56 MB, 643 274 flater over 20 699 km²** bakt fra Kartverkets N50 Arealdekke og servert statisk ved siden av appen. I det aktuelle utsnittet finner klienten 26 myrflater, seks av dem med hull.
+
+**Størrelsen ble avgjort på tall, ikke antakelse.** Buskerud alene ga 3,1 MB, og en naiv framskriving landet på 80–100 MB — over grensa der stinettet konkluderte at data må ha egen lagring. Landsmålingen viste 57,9 MB. Buskerud er myrrikt; snittet er lavere. Hadde vi gjettet, ville vi flyttet hele settet til R2 uten grunn og mistet det `public/` gir gratis: samme opprinnelse som appen, ingen CORS, ingen nøkler, ett deploy som holder app og dataformat i synk, og service worker-en som cacher flisene offline.
+
+**Lag-navnet ble også målt.** Første kjøring lastet ned 166 MB Buskerud, fant null myrflater og meldte «success» — filteret `/arealdekke.*flate/i` var gjettet, og N50 heter `N50_Arealdekke_omrade`. Baken logger nå alle lagnavn når filteret bommer og hele objtype-fordelingen når det treffer, og en nedlasting uten en eneste flate gir `exit 1`. En gate som ikke kan feile er verre enn ingen gate; det er samme stillhet som lot MCP-Workeren bygge kart uten stinett i atten versjoner.
+
+Fra samme måling: N50 har `Skog=88517` og `ÅpentOmråde=112020` nasjonalt i samme lag. Baken kan alt bære skog (`--typer myr,skog`), og manifestet lister hvilke typer flisene faktisk inneholder, så `arealMerge` ikke undertrykker OSM-skogen på tomt grunnlag. `ÅpentOmråde` bæres bevisst ikke: når Turkart-bakgrunnen blir den nøytrale åpen-tonen, ER åpenhet standardtilstanden, og 112 020 flater som maler bakgrunnen på nytt er datamengde uten et eneste nytt piksel.
+
+To feller ved nasjonale bakes er skrevet inn i workflowen, begge som følge av feil gjort her: kjør ÉN nasjonal jobb om gangen (to samtidige nedlastinger av 2,5 GB kvelte hverandre — 19 min alene ble 40+ sammen), og push ikke til grenen mens en bake kjører (jobben sjekker ut én commit og pusher flisene tilbake til slutt).
+
+---
+
 ## 2026-08-25 — v5.24.0: N50-myr — rørene er lagt, dataene mangler ennå
 
 Eieren sammenlignet Briskemyrputten i Drammensmarka med UT.no: der UT viser en myr som dekker det meste av utsnittet, tegnet Lende bare selve putten. Årsaken er den samme som for stinettet i sin tid — OSM er tynt i norsk utmark, og `natural=wetland` finnes rett og slett ikke der. N50 har myra.
