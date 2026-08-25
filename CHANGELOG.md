@@ -1,3 +1,19 @@
+## 2026-08-25 — v5.24.0: N50-myr — rørene er lagt, dataene mangler ennå
+
+Eieren sammenlignet Briskemyrputten i Drammensmarka med UT.no: der UT viser en myr som dekker det meste av utsnittet, tegnet Lende bare selve putten. Årsaken er den samme som for stinettet i sin tid — OSM er tynt i norsk utmark, og `natural=wetland` finnes rett og slett ikke der. N50 har myra.
+
+Denne leveransen bygger **hele røropplegget** for N50 arealdekke, etter nøyaktig samme oppskrift som stinettet: et kompakt flis-format (`n50ArealPakke.js`, varint-pakkede ringer med hull, ~5× mindre enn GeoJSON før gzip), et bake-script som laster ned fra Geonorge og skriver fliser (`scripts/bygg-n50-areal.mjs`), en klient som leser dem (`n50ArealFetcher.js`), og en delt sammenslåing (`arealMerge.js`). Nedlastings-maskineriet som sti-baken hadde alene er trukket ut til `scripts/geonorgeN50.mjs` og deles nå av begge — det er dyrekjøpt kunnskap om Geonorges API som ikke skal finnes i to kopier.
+
+**Sammenslåingen er delt mellom app og headless FRA FØRSTE LINJE.** Vann-stacken lærte oss hva to varianter koster: headless hadde sin egen grovere versjon i månedsvis, og MCP-bygde kart mistet elvene sine uten at noen gate så det. Prinsippet er også arvet derfra — en kilde er autoritativ for DET DEN LEVERER. N50-baken bærer i dag myr og ingenting annet, så `arealKildeFlagg` avleder undertrykkelsen av hva flisene faktisk inneholder. Legger noen skog til baken senere, blir `harSkog` sann av seg selv, og OSM-skogen viker uten at `arealMerge.js` må røres. Formatet har allerede plass til den.
+
+**Flatene klippes ikke på flisgrensene, de dupliseres.** En linje kan deles på grensa; en flate ville krevd ekte polygon-klipping med hull-håndtering, og gevinsten er null når en myr er noen få km mot en flis på ~55 × 35 km. Leseren dedupliserer i stedet — nødvendig, siden myr-mønsteret er halvgjennomsiktig og en dobbelt-tegnet flate ville lest som «utrygg myr».
+
+**Dataene er IKKE med ennå, og det er med vilje.** Flater er tyngre enn linjer, og myr dekker ~9 % av Norge; stinettet ble 12 MB, men vi vet ikke hva dette blir. Bake-workflowen har derfor «bare mål» som standard: den laster ned, måler og skriver ingenting, så arkitekturvalget — statiske filer i `public/` eller egen lagring — tas på tall. Det var rekkefølgen sti-baken brukte, og den sparte oss for et feilvalg. Hele klient-siden tåler at flisene ikke finnes: uten dem får kartet bare OSM-myra, som før.
+
+Alt er verifisert med 2 496 tester, `npm run build` og `npm run boot:workers`. Workeren får `N50_AREAL_BASE` av samme grunn som den fikk `N50_STI_BASE`: uten den bygger skyen kart uten myr, helt stille.
+
+---
+
 ## 2026-08-25 — v5.23.1: Sti-stiplingen leses som stiplet
 
 Eieren tok v5.23.0 med ut og meldte at stiene fortsatt så heltrukne ut: strekene var «alt for lange, de bør være en tredjedel så lange, altså mye tettere — nesten prikkeform». Stiplingen er derfor kortet fra 0,36 mm (ISOM-spec) til **0,12 mm strek og 0,11 mm luft** — nøyaktig en tredjedel av spec-en, og en rytme som er nesten tre ganger tettere. Stitråkk (507) er samtidig gjort glisnere, ikke tettere, så «vanskelig å følge» fortsatt skiller seg fra en tydelig sti nå som begge er korte.

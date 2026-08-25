@@ -1,0 +1,88 @@
+name: Bygg N50-myr
+
+# Baker N50 arealdekke-myr til statiske fliser i public/data/n50-areal/ og
+# committer dem tilbake til branchen.
+#
+# KJØR «bare mål» FØRST. Flater er tyngre enn linjer, og myr dekker ~9 % av
+# Norge — stinettet ble 12 MB, og vi vet ikke på forhånd hva dette blir.
+# «bare mål» laster ned, måler og skriver INGENTING, så arkitekturvalget
+# (statiske filer i public/ vs egen lagring) tas på tall og ikke på håp. Det
+# var rekkefølgen sti-baken brukte, og den sparte oss for et feilvalg.
+#
+# KJØRES MANUELT — bevisst ingen `schedule`, av samme grunn som sti-baken:
+# arealdekke er stabile data, og hver bake gir nye filer → ny deploy → alle
+# brukere laster dem ned på nytt.
+
+on:
+  workflow_dispatch:
+    inputs:
+      fylke:
+        description: 'Fylkesnummer for en rask prøve (33 = Buskerud). Tomt = hele landet.'
+        required: false
+        default: ''
+      toleranse:
+        description: 'Forenkling i meter (standard 4).'
+        required: false
+        default: '4'
+      minareal:
+        description: 'Minste myrflate i m² (standard 2500).'
+        required: false
+        default: '2500'
+      bare_mal:
+        description: 'Bare mål — skriv ingenting, ikke commit.'
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  bygg:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: Installer GDAL
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gdal-bin unzip
+          ogr2ogr --version
+
+      - name: Bak flisene
+        run: |
+          set -o pipefail
+          ARGS="--toleranse ${{ inputs.toleranse || '4' }} --minareal ${{ inputs.minareal || '2500' }}"
+          if [ -n "${{ inputs.fylke }}" ]; then ARGS="$ARGS --fylke ${{ inputs.fylke }}"; fi
+          if [ "${{ inputs.bare_mal }}" = "true" ]; then ARGS="$ARGS --mal"; fi
+          node scripts/bygg-n50-areal.mjs $ARGS
+
+      - name: Vis resultatet
+        if: inputs.bare_mal != true
+        run: |
+          du -sh public/data/n50-areal
+          ls public/data/n50-areal | head -5
+          echo "… $(ls public/data/n50-areal | wc -l) filer totalt"
+
+      - name: Commit hvis endret
+        if: inputs.bare_mal != true
+        run: |
+          set -e
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add public/data/n50-areal
+          # Bare commit ved REELL endring — en tom commit ville tvunget alle
+          # brukere til å laste ned flisene på nytt uten grunn.
+          if git diff --staged --quiet; then
+            echo "Ingen endring i N50-myrflisene"
+          else
+            git -c commit.gpgsign=false commit \
+              --author="Deploy <deploy@lende>" \
+              -m "N50-myr (auto-generert fra Kartverket N50 Arealdekke)"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi

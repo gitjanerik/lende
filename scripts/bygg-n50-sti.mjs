@@ -23,15 +23,21 @@
 
 import { execFileSync } from 'node:child_process'
 import {
-  mkdtempSync, mkdirSync, writeFileSync, readdirSync, existsSync, rmSync,
-  statSync, createReadStream,
+  mkdtempSync, mkdirSync, writeFileSync, rmSync, createReadStream,
 } from 'node:fs'
 import { createInterface } from 'node:readline'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { forenkleLinje, kodeFlis, delPaaFliser, lengdeM, VERSJON } from '../src/lib/n50StiPakke.js'
-import { navnevarianter } from './geonorgeNavn.mjs'
+// Nedlastings-maskineriet er delt med myr-baken (v5.24.0). Alt der er
+// dyrekjøpt: hvilket format et område faktisk har, hvordan Geonorge staver
+// fylkesnavn, og at ordre-API-et er et tomt skall. Det skal ikke ha to kopier.
+import {
+  finnOmrader, velgFormat, lastNed, finnGdb, lagNavn, krevGdal, filnavnKandidater,
+} from './geonorgeN50.mjs'
+
+export { filnavnKandidater }
 
 const args = process.argv.slice(2)
 const argVal = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : null }
@@ -41,10 +47,6 @@ const TOLERANSE = Number(argVal('--toleranse') ?? 3)
 const ROT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const UT_KATALOG = join(ROT, 'public', 'data', 'n50-sti')
 
-const KATALOG_SOK = 'https://kartkatalog.geonorge.no/api/search'
-const NEDLASTING = 'https://nedlasting.geonorge.no/api'
-const DIREKTE_BASE = 'https://nedlasting.geonorge.no/geonorge/Basisdata'
-const HTTP_TIMEOUT_MS = 60000
 
 const log = (...a) => console.log(...a)
 
@@ -64,86 +66,8 @@ export function klassifiser(props) {
   return { type, merket }
 }
 
-async function hentJson(url, init = {}, timeoutMs = HTTP_TIMEOUT_MS) {
-  const res = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) })
-  const tekst = await res.text()
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}\n${tekst.slice(0, 800)}`)
-  return JSON.parse(tekst)
-}
-
-async function finnOmrader() {
-  const d = await hentJson(`${KATALOG_SOK}?text=N50%20Kartdata&limit=20`)
-  const ds = (d.Results ?? []).find(r => /^n50 kartdata$/i.test(r.Title ?? ''))
-  if (!ds) throw new Error('Fant ikke N50 Kartdata i katalogen')
-  const cap = await hentJson(`${NEDLASTING}/capabilities/${ds.Uuid}`)
-  const lenke = (rel) => (cap._links ?? []).find(l => l.rel?.endsWith(rel))?.href
-  const [omrader, formater, projeksjoner] = await Promise.all(
-    ['area', 'format', 'projection'].map(r => hentJson(lenke(r))))
-  return { omrader, formater, projeksjoner }
-}
-
-// Format og projeksjon MÅ velges fra områdets EGEN liste: den globale lista er
-// unionen over alle 373 områder, og Buskerud har f.eks. verken GML eller SOSI.
-// Å bestille et format området ikke har gir en ordre som aksepteres og aldri
-// blir klar — fire CI-kjøringer gikk med på å finne det ut.
-function velgFormat(omrade, formater, projeksjoner) {
-  const oF = omrade.formats?.length ? omrade.formats : formater
-  const format = ['FGDB', 'GML', 'GeoPackage'].map(n =>
-    oF.find(f => (f.name ?? '').toUpperCase() === n.toUpperCase())).find(Boolean)
-  if (!format) throw new Error(`${omrade.name}: ingen lesbart format (har ${oF.map(f => f.name).join(', ')})`)
-  const fP = format.projections?.length ? format.projections : projeksjoner
-  const proj = fP.find(p => String(p.code) === '25833') ?? fP[0]
-  return { format, proj }
-}
-
-// Geonorge staver fylkesnavn ulikt: «Vestland» går rett inn, mens
-// «Trøndelag» og «Østfold» må translittereres. Vi prøver variantene i tur —
-// første bake feilet nettopp fordi vi bare erstattet mellomrom.
-export function filnavnKandidater(omrade, format, proj) {
-  return navnevarianter(omrade.name).map(navn =>
-    `${DIREKTE_BASE}/N50Kartdata/${format.name}/Basisdata_${omrade.code}_${navn}_${proj.code}_N50Kartdata_${format.name}.zip`)
-}
-
-async function lastNed(omrade, format, proj, dir) {
-  const kandidater = filnavnKandidater(omrade, format, proj)
-  let res = null
-  for (const url of kandidater) {
-    const r = await fetch(url, { signal: AbortSignal.timeout(20 * 60 * 1000) })
-    if (r.ok) { res = r; break }
-    // 404 = feil skrivemåte, prøv neste. Alt annet er en ekte feil.
-    if (r.status !== 404) throw new Error(`HTTP ${r.status} for ${url}`)
-  }
-  if (!res) {
-    throw new Error(`Ingen av ${kandidater.length} filnavn-varianter fantes:\n  ` +
-      kandidater.map(u => u.split('/').pop()).join('\n  '))
-  }
-  const zip = join(dir, 'n50.zip')
-  writeFileSync(zip, Buffer.from(await res.arrayBuffer()))
-  log(`    ${(statSync(zip).size / 1e6).toFixed(0)} MB`)
-  const ut = join(dir, 'utpakket')
-  execFileSync('unzip', ['-q', '-o', zip, '-d', ut], { stdio: 'inherit' })
-  rmSync(zip, { force: true })
-  return ut
-}
-
-function finnGdb(bane) {
-  const ut = []
-  const gaa = (p) => {
-    if (!existsSync(p)) return
-    if (statSync(p).isDirectory()) {
-      if (/\.(gdb)$/i.test(p)) { ut.push(p); return }
-      for (const n of readdirSync(p)) gaa(join(p, n))
-    } else if (/\.(gml|gpkg)$/i.test(p)) ut.push(p)
-  }
-  gaa(bane)
-  return ut
-}
-
 async function lesStier(kilde, dir) {
-  const lag = execFileSync('ogrinfo', ['-so', '-al', kilde], { encoding: 'utf8', maxBuffer: 1 << 28 })
-    .split('\n').filter(l => /^Layer name:/.test(l))
-    .map(l => l.replace('Layer name:', '').trim())
-    .filter(n => /samferdsel.*senterlinje/i.test(n))
+  const lag = lagNavn(kilde, /samferdsel.*senterlinje/i)
   const linjer = []
   for (const l of lag) {
     // Skriv til fil og les strømmende: landsdekkende GeoJSONSeq er flere
@@ -175,7 +99,7 @@ async function lesStier(kilde, dir) {
 if (import.meta.url === (process.argv[1] ? `file://${process.argv[1]}` : '')) {
   const dir = mkdtempSync(join(tmpdir(), 'n50bygg-'))
   try {
-    execFileSync('ogr2ogr', ['--version'], { stdio: 'pipe' })
+    krevGdal()
     const { omrader, formater, projeksjoner } = await finnOmrader()
     const fylker = FYLKE
       ? omrader.filter(o => o.code === FYLKE)
@@ -195,7 +119,7 @@ if (import.meta.url === (process.argv[1] ? `file://${process.argv[1]}` : '')) {
       const fdir = mkdtempSync(join(dir, 'f-'))
       try {
         const { format, proj } = velgFormat(omrade, formater, projeksjoner)
-        const kilder = finnGdb(await lastNed(omrade, format, proj, fdir))
+        const kilder = finnGdb(await lastNed(omrade, format, proj, fdir, log))
         if (!kilder.length) throw new Error('ingen lesbar kilde i nedlastingen')
         let n = 0
         for (const kilde of kilder) {

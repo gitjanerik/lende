@@ -23,6 +23,8 @@ import { fetchNveLakePolygons } from './nveLakeFetcher.js'
 import { fetchKulturminner } from './kulturminneFetcher.js'
 import { fetchTurruteRoutes, turruteElementsFrom } from './turrutebasenFetcher.js'
 import { fetchN50StiLinjer, n50StiElementerFra } from './n50StiFetcher.js'
+import { fetchN50Areal } from './n50ArealFetcher.js'
+import { slaaSammenAreal } from './arealMerge.js'
 import { fetchSjokart, sjokartToElements, sjokartTimeoutForBbox, summarizeSjokartStatus } from './sjokartFetcher.js'
 // Vann-sammenslåingen bor i vannMerge.js — delt med mcp/headless.js, som
 // MCP-serveren og fasit-suiten bygger gjennom. De to hadde hver sin versjon
@@ -416,6 +418,17 @@ export async function buildMapFromCenter({
     n50StiStatus = { state: 'feil', message: String(e?.message ?? e) }
     return []
   }))
+  // N50-arealdekke (myr) fra statiske fliser. Samme form som stinettet:
+  // fyres parallelt, feiler aldri hardt. Er flisene ikke bakt, får kartet bare
+  // OSM-myra som før — se n50ArealFetcher om hvorfor den fila tåler det.
+  let n50ArealStatus = null
+  const n50ArealP = timeAsync('n50areal', fetchN50Areal(bbox, {
+    signal, onStatus: s => { n50ArealStatus = s },
+  }).catch(e => {
+    console.warn('N50-areal ikke tilgjengelig:', e?.message ?? e)
+    n50ArealStatus = { state: 'feil', message: String(e?.message ?? e) }
+    return []
+  }))
   // Kulturminner (Kulturminnesøk brukerminner) — klikkbare tema-ikoner. Hentes
   // alltid ved bygging (default-AV lag i MapView → skjult til brukeren slår det
   // på, uten ombygging). Cachet pr kvantisert bbox (30 d). Feiler aldri hardt → [].
@@ -629,7 +642,7 @@ export async function buildMapFromCenter({
 
   // Full bygging: vent på alle kilder, slå sammen, bygg full SVG (worker).
   const assembleAndBuildFull = async () => {
-    const [osmData, n50Water, nveLakes, dem, sjokart, kulturminner, turruteRoutes, n50StiLinjer] = await Promise.all([overpassP, n50P, nveLakesP, demPromise, sjokartPromise, kulturminneP, turruteP, n50StiP])
+    const [osmData, n50Water, nveLakes, dem, sjokart, kulturminner, turruteRoutes, n50StiLinjer, n50Areal] = await Promise.all([overpassP, n50P, nveLakesP, demPromise, sjokartPromise, kulturminneP, turruteP, n50StiP, n50ArealP])
     const sjokartElements = sjokartToElements(sjokart)
     // Merkede fotruter, tynnet mot OSM-ferdselslinjene: ~72 % av Turrutebasen
     // ligger oppå stier vi allerede tegner, og uten uttynning ville hver av dem
@@ -646,7 +659,11 @@ export async function buildMapFromCenter({
     // bekker og sjø kommer fortsatt fra OSM/DEM/Sjøkart.
     const vannFlagg = vannKildeFlagg(n50Water)
     const n50HasSea = vannFlagg.harSjo
-    const elements = slaaSammenVann({ osm: osmData.elements, n50Water, nveLakes })
+    // Arealdekke slås sammen FØR vann: vann-stacken leser OSM-elementene for å
+    // avgjøre dekning, og myr er ikke vann — men rekkefølgen holder listene
+    // forutsigbare, og arealMerge rører kun `natural=wetland`.
+    const osmElements = slaaSammenAreal({ osm: osmData.elements, n50Areal })
+    const elements = slaaSammenVann({ osm: osmElements, n50Water, nveLakes })
     if (sjokartElements.length > 0) elements.push(...sjokartElements)
     if (turruteElements.length > 0) elements.push(...turruteElements)
     if (n50StiElements.length > 0) elements.push(...n50StiElements)
@@ -657,6 +674,7 @@ export async function buildMapFromCenter({
     if (sjokartElements.length > 0) sourceParts.push(`Sjøkart (${sjokartElements.length} dybde-features)`)
     if (turruteElements.length > 0) sourceParts.push(`Turrutebasen (${turruteElements.length} rutestrekk)`)
     if (n50StiElements.length > 0) sourceParts.push(`N50-sti (${n50StiElements.length} strekk)`)
+    if (n50Areal.length > 0) sourceParts.push(`N50-myr (${n50Areal.length} flater)`)
     sourceParts.push('DEM-sjø (NHM_DTM_25832)')
     const source = sourceParts.join(' + ')
 
@@ -686,6 +704,7 @@ export async function buildMapFromCenter({
       nveInnsjoStatus,               // NVE-innsjø-utfall → meta (Utvikler-fanen)
       turruteStatus,                 // Turrutebasen-utfall → meta (Utvikler-fanen)
       n50StiStatus,                  // N50-sti-utfall → meta (Utvikler-fanen)
+      n50ArealStatus,                // N50-myr-utfall → meta (Utvikler-fanen)
       kulturminner,
       // Tetthets-beslutningen: styrer klynge-avstander, hvilke støy-lag som
       // droppes og navne-takene. 'full' = byte-identisk med før.
@@ -702,7 +721,7 @@ export async function buildMapFromCenter({
       // bredden må være avgjort før DEM-extenten snappes) — den skal være målbar.
       `tetthet ${marks.tetthet ?? '-'} | ` +
       `overpass ${marks.overpass ?? '-'} | n50 ${marks.n50 ?? '-'} | nve ${marks.nve ?? '-'} | dem ${marks.dem ?? '-'} | ` +
-      `sjøkart ${marks['sjøkart'] ?? '-'} | turrute ${marks.turrute ?? '-'} | n50sti ${marks.n50sti ?? '-'} | buildSvg ${marks.buildSvg ?? '-'}${inner ? ` (${inner})` : ''}` +
+      `sjøkart ${marks['sjøkart'] ?? '-'} | turrute ${marks.turrute ?? '-'} | n50sti ${marks.n50sti ?? '-'} | n50areal ${marks.n50areal ?? '-'} | buildSvg ${marks.buildSvg ?? '-'}${inner ? ` (${inner})` : ''}` +
       `${terrainFirst ? ' [terreng-først]' : ''} [ms]`
     )
     return { svg, counts, dem, source }
