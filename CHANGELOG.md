@@ -1,3 +1,47 @@
+## 2026-08-25 — v5.25.3: røyktesten hentet hele historikken for én blob
+
+Røyk-jobben brukte 5 min 29 s, og stegtidene fra v5.25.2-PR-en peker på et sted
+ingen hadde mistenkt: `actions/checkout` med `fetch-depth: 0` sto for 2 min 39 s
+av dem, mens CI-jobbens grunne checkout av samme commit tok 3 sekunder. Repoet
+har bare rundt 51 commits, men et `.git` på 100 MB — genererte kart-SVG-er ligger
+i historikken — så «kort historikk» er ikke det samme som «billig å hente».
+Hypotesen før målingen var at Chromium-nedlastingen var synderen; den er 20
+sekunder, og en cache der ville spart omtrent ingenting netto. Derfor er det
+checkout som er fikset, ikke den.
+
+`fetch-depth: 0` sto der fordi navnediff måler MapView.vue mot `origin/master`,
+og den trenger nøyaktig ÉN blob: fila på master-tippen. Den hentes nå i sitt eget
+steg. Merk formen: `git fetch origin master` er IKKE nok på en grunn klone — der
+lagrer den bare i FETCH_HEAD og avvises i tillegg med «shallow roots are not
+allowed to be updated», så `refs/remotes/origin/master` blir aldri opprettet og
+navnediff feiler på at den ikke finner fila. Med full historikk var det checkout
+som skaffet refen, så linja som allerede sto der var i praksis en no-op — den
+feilen ville først vist seg i det øyeblikket noen gjorde klonen grunn. Riktig form
+er eksplisitt refspec: `git fetch --depth=1 origin
++refs/heads/master:refs/remotes/origin/master`, verifisert mot en ekte grunn
+klone i begge retninger.
+
+Deploy-workflowen har samme `fetch-depth: 0` og er bevisst urørt: den pusher
+`dist/` til gh-pages fra et git-worktree, og en grunn klone der er en risiko som
+ikke kan prøves utenfor en ekte deploy. Gevinsten er to minutter på en jobb som
+kjører etter merge og ikke blokkerer noen.
+
+Den nest største posten er kart-byggingen: `--ektekart` henter et ferskt
+Vardåsen-kart fra Kartverket + OSM og koster ~2 av jobbens ~3 minutter. Sju av
+tjue sjekker krever det, og de gates nå på hva endringen faktisk rører. Merk hva
+gaten IKKE er: «rører endringen kart-pipelinen» var den første formuleringen, og
+den er feil. De sju sjekkene dekker useNavnLod, useViewportCull, useGhostTiles,
+useKartSok, useKartEksport, useGestPerf og Viewer3D + vaerHimmel — composables og
+komponenter, ikke pipelinen. En ren pipeline-gate ville hoppet stille over
+navn-LOD-sjekken på en PR som endrer nettopp useNavnLod. Lista er derfor de sju
+domenenes egne filer pluss `src/lib/**`, `MapView.vue` (den komponerer alle sju)
+og testen selv. Logikken bor i `scripts/trenger-ektekart.mjs` med tolv
+enhetstester, og ukjente stier faller til den dyre siden med vilje: et nytt
+domene er dekket av seg selv, og det er kjente-men-ulistede stier som er fella —
+derfor står det en påminnelse i røyktesten der `krever: 'ektekart'` leses.
+
+---
+
 ## 2026-08-25 — v5.25.2: kanthåndtakene viker for chromet
 
 De åtte lende-pilene var siden v5.19.2 alltid synlige og klampet 28 px inn fra

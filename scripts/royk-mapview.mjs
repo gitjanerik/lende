@@ -1029,6 +1029,12 @@ try {
   if (BILDER) mkdirSync(BILDER, { recursive: true })
   const resultat = []
   for (const s of SJEKKER) {
+    // Legger du til en NY `krever: 'ektekart'`-sjekk: sjekk at domenets filer
+    // står på MAA_HA_EKTEKART i scripts/trenger-ektekart.mjs. Den lista styrer
+    // om CI i det hele tatt bygger et ekte kart for en gitt PR, og står domenet
+    // ikke der, hopper sjekken din stille over på nettopp de PR-ene som endrer
+    // det. (Ukjente stier faller til ekte kart, så et NYTT domene er dekket
+    // automatisk — det er kjente-men-ulistede stier som er fella.)
     if (s.krever === 'ektekart' && !harEkteKart) {
       resultat.push({ ...s, hoppet: true, obs: 'krever --ektekart' })
       console.log(`⊘ ${s.navn} — hoppet over (krever --ektekart)`)
