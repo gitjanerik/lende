@@ -45,6 +45,11 @@ const FYLKE = argVal('--fylke')
 const TOLERANSE = Number(argVal('--toleranse') ?? 4)
 const MIN_AREAL = Number(argVal('--minareal') ?? 2500)
 const BARE_MAL = args.includes('--mal')
+// --typer myr,skog — hvilke objekttyper baken skal bære. Finnes for å kunne
+// MÅLE én type av gangen: myr ble 57,9 MB nasjonalt, og skogens bidrag må
+// kjennes før vi vet om alt kan ligge statisk i public/ eller trenger R2.
+const TYPER_VALGT = new Set(
+  (argVal('--typer') ?? 'myr').split(',').map(t => t.trim()).filter(Boolean))
 
 const ROT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const UT_KATALOG = join(ROT, 'public', 'data', 'n50-areal')
@@ -57,11 +62,19 @@ const log = (...a) => console.log(...a)
 // å bake skog nå ville doblet datamengden for noe som allerede ser riktig ut.
 // Formatet har plass til den (n50ArealPakke.TYPER), så dagen den skal inn er
 // det en klassifiserings-endring og en ny bake — ikke et nytt filformat.
-const OBJTYPE = { myr: 'myr' }
+const OBJTYPE = {
+  myr: 'myr',
+  skog: 'skog',
+  // ÅpentOmråde bæres BEVISST IKKE. Når Turkart-bakgrunnen er den nøytrale
+  // åpen-tonen, ER åpenhet standardtilstanden — å bake 112 020 flater som
+  // bare maler bakgrunnen på nytt er ren datamengde uten et eneste nytt
+  // piksel. Samme inversjon som «bakgrunnen ER land, vann males oppå».
+}
 
-export function klassifiser(props) {
+export function klassifiser(props, typer = TYPER_VALGT) {
   const t = String(props?.objtype ?? '').trim().toLowerCase()
-  return OBJTYPE[t] ?? null
+  const type = OBJTYPE[t] ?? null
+  return type && typer.has(type) ? type : null
 }
 
 /** Ring fra GeoJSON-koordinater. Lukkepunktet dropppes — det er implisitt. */
@@ -136,8 +149,9 @@ if (import.meta.url === (process.argv[1] ? `file://${process.argv[1]}` : '')) {
       ? omrader.filter(o => o.code === FYLKE)
       : omrader.filter(o => o.type === 'fylke')
     if (!fylker.length) throw new Error(`Fant ingen områder (--fylke ${FYLKE})`)
-    log(`${BARE_MAL ? 'MÅLER' : 'Bygger'} N50-myr for ${fylker.length} fylke(r), `
-      + `${TOLERANSE} m forenkling, minste flate ${MIN_AREAL} m²\n`)
+    log(`${BARE_MAL ? 'MÅLER' : 'Bygger'} N50-arealdekke [${[...TYPER_VALGT].join(', ')}] `
+      + `for ${fylker.length} fylke(r), ${TOLERANSE} m forenkling, `
+      + `minste flate ${MIN_AREAL} m²\n`)
 
     // Akkumuler per flis over ALLE fylker før vi skriver: en flis som krysser
     // en fylkesgrense må få innhold fra begge sider i SAMME fil, ellers ville
@@ -170,7 +184,7 @@ if (import.meta.url === (process.argv[1] ? `file://${process.argv[1]}` : '')) {
           }
         }
         flaterTotal += n
-        log(`    ${n.toLocaleString('no')} myrflater`)
+        log(`    ${n.toLocaleString('no')} flater beholdt`)
       } catch (e) {
         feilet++
         log(`    ⚠ ${kort} feilet: ${e.message}`)
@@ -208,6 +222,10 @@ if (import.meta.url === (process.argv[1] ? `file://${process.argv[1]}` : '')) {
       for (const [nokkel, b] of pakket) writeFileSync(join(UT_KATALOG, `${nokkel}.bin`), b)
       writeFileSync(join(UT_KATALOG, 'manifest.json'), JSON.stringify({
         versjon: VERSJON, toleranseM: TOLERANSE, minArealM2: MIN_AREAL,
+        // Hvilke typer flisene faktisk bærer. Uten dette kan ikke klienten
+        // skille «ingen skog i dette området» fra «skog er ikke bakt ennå»,
+        // og arealMerge ville undertrykt OSM-skogen på et tomt grunnlag.
+        typer: [...TYPER_VALGT].sort(),
         fliser: [...pakket.keys()].sort(),
       }))
       log(`\n  Skrev ${pakket.size} fliser til public/data/n50-areal/`)
@@ -218,7 +236,7 @@ if (import.meta.url === (process.argv[1] ? `file://${process.argv[1]}` : '')) {
     // stillheten som lot MCP-Workeren bygge kart uten stinett i atten
     // versjoner. Lastet vi ned noe uten å finne én eneste flate, er det feil.
     if (!flaterTotal && feilet < fylker.length) {
-      log('\n✗ Null myrflater fra en vellykket nedlasting — se lag- og objtype-linjene over.')
+      log('\n✗ Null flater fra en vellykket nedlasting — se lag- og objtype-linjene over.')
       process.exit(1)
     }
   } finally {

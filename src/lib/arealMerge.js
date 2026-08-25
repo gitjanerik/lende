@@ -20,6 +20,11 @@
 // leser som «utrygg myr» der det bare er dobbelt-tegning.
 
 const OSM_MYR = (t) => String(t?.natural ?? '').toLowerCase() === 'wetland'
+// OSM-skog: begge taggene symbolizer klassifiserer til ISOM 406. `scree` og
+// `bare_rock` holdes UTE — de er berg i dagen, ikke skog, og N50s `Skog`
+// erstatter dem ikke.
+const OSM_SKOG = (t) => String(t?.natural ?? '').toLowerCase() === 'wood'
+  || String(t?.landuse ?? '').toLowerCase() === 'forest'
 
 /**
  * Hva inneholder N50-arealdekket vi faktisk fikk? Ett flagg per ting en kilde
@@ -51,12 +56,15 @@ export function slaaSammenAreal({ osm = [], n50Areal = [] } = {}) {
   const flagg = arealKildeFlagg(n50Areal)
   if (!n50Areal.length) return [...osm]
 
-  const beholdt = flagg.harMyr
-    // N50 bærer myra for hele landet — OSM-myra ville bare dobbelt-tegnet den.
-    // Merk at dette KUN gjelder wetland: alt annet OSM-arealdekke (skog, dyrka
-    // mark, berg) står urørt, fordi N50-baken ikke leverer noe av det.
-    ? osm.filter((el) => !OSM_MYR(el?.tags))
-    : [...osm]
+  // Hver kilde-egenskap fortrenger BARE sin egen motpart. Bærer baken myr men
+  // ikke skog, står OSM-skogen urørt — og omvendt. Det er hele poenget med at
+  // flagget avledes av innholdet.
+  const beholdt = osm.filter((el) => {
+    const t = el?.tags
+    if (flagg.harMyr && OSM_MYR(t)) return false
+    if (flagg.harSkog && OSM_SKOG(t)) return false
+    return true
+  })
 
   return [...beholdt, ...n50Areal]
 }

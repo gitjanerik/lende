@@ -132,6 +132,18 @@ export async function fetchN50ArealFlater(bbox, opts = {}) {
  * Hull håndteres som OSM-multipolygon-relations: mapBuilder ring-syr dem via
  * `assembleRelationRings`, som er den veien wedge-artefakter unngås.
  */
+// OSM-taggen hver N50-type skal bære. Vi legger oss på tagger mapBuilder
+// ALLEREDE klassifiserer, i stedet for å lage en ny sti gjennom symbolizer:
+//   wetland → ISOM 308/309 (myr, mønsterfyll)
+//   wood    → ISOM 406 (skog)
+// `lende:n50areal` bæres i tillegg, så diagnose-modus kan skille N50 fra OSM
+// og arealMerge kan avlede hva kilden faktisk leverte.
+const TAGG_FOR_TYPE = Object.freeze({
+  myr: { natural: 'wetland' },
+  skog: { natural: 'wood' },
+  apen: { landuse: 'meadow' },
+})
+
 export function n50ArealTilElementer(flater) {
   return (flater ?? []).map((f, i) => ({
     type: f.ringer.length > 1 ? 'relation' : 'way',
@@ -143,7 +155,7 @@ export function n50ArealTilElementer(flater) {
         })),
       }
       : { geometry: f.ringer[0] }),
-    tags: { natural: 'wetland', 'lende:n50areal': f.type },
+    tags: { ...(TAGG_FOR_TYPE[f.type] ?? TAGG_FOR_TYPE.myr), 'lende:n50areal': f.type },
     _source: 'n50areal',
   }))
 }
