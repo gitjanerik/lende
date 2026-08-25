@@ -79,8 +79,21 @@ function tilRing(koord) {
 }
 
 async function lesFlater(kilde, dir) {
-  const lag = lagNavn(kilde, /arealdekke.*flate/i)
+  // DIAGNOSTIKK FØRST. Første kjøring (32814994570) lastet ned 166 MB Buskerud
+  // og fant 0 myrflater, fordi lag-filteret var GJETTET: /arealdekke.*flate/i.
+  // Vi logger derfor ALLE lagnavn og hele objtype-fordelingen — samme grep som
+  // sti-målingen brukte da den fant ut at feltet het `typeveg`. Et script som
+  // bare sier «0» er ubrukelig; ett som sier hva det SÅ, løser saken på én
+  // kjøring til.
+  const alleLag = lagNavn(kilde, /./)
+  const lag = lagNavn(kilde, /arealdekke.*(omrade|område|flate|polygon)/i)
+  if (!lag.length) {
+    log(`    ⚠ ingen arealdekke-flatelag. Lag i kilden:\n      ${alleLag.join('\n      ')}`)
+    return []
+  }
+  log(`    arealdekke-lag: ${lag.join(', ')}`)
   const flater = []
+  const objtypeTall = new Map()
   for (const l of lag) {
     // Skriv til fil og les strømmende: landsdekkende GeoJSONSeq er flere
     // hundre MB, og en stdout-buffer måtte holdt alt som ÉN streng.
@@ -92,6 +105,8 @@ async function lesFlater(kilde, dir) {
       if (!rad.trim()) continue
       let f
       try { f = JSON.parse(rad) } catch { continue }
+      const rå = String(f.properties?.objtype ?? '(mangler)')
+      objtypeTall.set(rå, (objtypeTall.get(rå) ?? 0) + 1)
       const type = klassifiser(f.properties)
       if (!type || !f.geometry) continue
       const polygoner = f.geometry.type === 'MultiPolygon' ? f.geometry.coordinates
@@ -103,6 +118,10 @@ async function lesFlater(kilde, dir) {
     }
     rmSync(utfil, { force: true })
   }
+  // Fordelingen er FASIT på klassifiseringen: står «Myr» der, eller heter den
+  // noe annet? Uten denne linja måtte vi gjettet en gang til.
+  const topp = [...objtypeTall.entries()].sort((a, b) => b[1] - a[1]).slice(0, 25)
+  log(`    objtype: ${topp.map(([k, v]) => `${k}=${v}`).join(', ') || '(ingen features lest)'}`)
   return flater
 }
 
@@ -194,6 +213,14 @@ if (import.meta.url === (process.argv[1] ? `file://${process.argv[1]}` : '')) {
       log(`\n  Skrev ${pakket.size} fliser til public/data/n50-areal/`)
     }
     if (feilet && feilet === fylker.length) process.exit(1)
+    // En gate som ikke kan feile er verre enn ingen gate. Første kjøring
+    // lastet ned 166 MB, fant 0 flater og meldte «success» — nøyaktig den
+    // stillheten som lot MCP-Workeren bygge kart uten stinett i atten
+    // versjoner. Lastet vi ned noe uten å finne én eneste flate, er det feil.
+    if (!flaterTotal && feilet < fylker.length) {
+      log('\n✗ Null myrflater fra en vellykket nedlasting — se lag- og objtype-linjene over.')
+      process.exit(1)
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
