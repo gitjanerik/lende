@@ -223,6 +223,15 @@ async function lesIsbreNavn(kilde, dir) {
       continue
     }
     const typeTall = new Map()
+    // Tre tellere, ikke én. Første utgave rapporterte bare «0 isbre-navn», og
+    // det tallet kan bety tre helt forskjellige ting: at typen ikke finnes i
+    // vokabularet, at navnestrengen står i et annet felt, eller at
+    // annotasjons-laget ikke gir brukbare punkt-koordinater gjennom
+    // `-nlt POINT`. Et script som bare sier «0» er ubrukelig; ett som sier hva
+    // det SÅ, løser saken på én kjøring til — samme grep som lag- og
+    // objtype-logginga over.
+    let treff = 0, utenNavn = 0, utenPunkt = 0
+    const breTyper = new Map()
     const rl = createInterface({ input: createReadStream(utfil), crlfDelay: Infinity })
     for await (const rad of rl) {
       if (!rad.trim()) continue
@@ -230,15 +239,26 @@ async function lesIsbreNavn(kilde, dir) {
       try { f = JSON.parse(rad) } catch { continue }
       const type = forsteFelt(f.properties, TYPE_FELT)
       typeTall.set(type || '(tom)', (typeTall.get(type || '(tom)') ?? 0) + 1)
+      // Alt som LUKTER bre logges uansett om regelen tar den, så en type vi
+      // ikke har tenkt på («isbreOgSnøfonn», «brem») blir synlig i stedet for
+      // å forsvinne i en fordeling som bare viser de femten vanligste.
+      if (/(bre|fonn|jøkul|jokul|is|snø|sno|skavl)/i.test(type)) {
+        breTyper.set(type, (breTyper.get(type) ?? 0) + 1)
+      }
       if (!erBreNavnType(type)) continue
+      treff++
       const navn = forsteFelt(f.properties, NAVN_FELT)
       const k = f.geometry?.coordinates
-      if (!navn || !Array.isArray(k) || !Number.isFinite(k[0]) || !Number.isFinite(k[1])) continue
+      if (!navn) { utenNavn++; continue }
+      if (!Array.isArray(k) || !Number.isFinite(k[0]) || !Number.isFinite(k[1])) { utenPunkt++; continue }
       ut.push({ navn, lat: Math.round(k[1] * 1e5) / 1e5, lon: Math.round(k[0] * 1e5) / 1e5 })
     }
     rmSync(utfil, { force: true })
     const topp = [...typeTall.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15)
     log(`    navnetyper: ${topp.map(([k, v]) => `${k}=${v}`).join(', ') || '(ingen)'}`)
+    log(`    bre-aktige typer: ${[...breTyper.entries()].map(([k, v]) => `${k}=${v}`).join(', ') || '(ingen)'}`)
+    log(`    bre-navn: ${treff} traff regelen, ${utenNavn} uten navnestreng, `
+      + `${utenPunkt} uten brukbart punkt → ${treff - utenNavn - utenPunkt} beholdt`)
   }
   return ut
 }

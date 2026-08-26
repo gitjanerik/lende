@@ -75,17 +75,22 @@ jobs:
           ogr2ogr --version
 
       - name: Bak flisene
-        # HEAP-TAKET ER BEVISST IKKE HEVET, og det er et MÅLT standpunkt.
-        # To nasjonale målinger døde begge med «The operation was canceled»
-        # etter 2–4 minutter, uten at noe i loggen sa hvorfor. Forsøket med
-        # `--max-old-space-size=8192` døde RASKERE (2 m 13 s) og på et MINDRE
-        # fylke (Buskerud) enn kjøringen uten (4 m 08 s, Finnmark): et større
-        # heap-tak lar node vokse lenger før GC, og da er det runneren som ryker
-        # — ikke node. Hev dette bare hvis en måling sier at node selv kaster
-        # «heap out of memory».
+        # HEAP-TAKET ER BEVISST IKKE HEVET, men grunnen er ikke den som sto her
+        # først, og historien er verdt å ha: to kjøringer ble tolket som at de
+        # «døde etter 2–4 minutter med The operation was canceled», og det ble
+        # bygget en hel OOM-hypotese på det — inkludert et forsøk på å heve
+        # taket til 8 GB. Begge kjøringene gikk helt fint. De ble avbrutt
+        # MANUELT, av en som trodde det hadde gått halvannen time når det hadde
+        # gått fjorten minutter. «Canceled» i loggen betydde nøyaktig det den sa.
         #
-        # Scriptet logger nå RSS og ledig disk per fylke, så neste kjøring sier
-        # hva som faktisk tok slutt. Bygg en MÅLING, ikke en hypotese.
+        # Målingen avgjorde saken på ett fylke: rss 0,5 GB og 91,8 GB ledig
+        # disk. Det er ikke i nærheten av noe tak, og et hevet heap-tak løser
+        # derfor ingenting. Hev det først hvis node SELV kaster «heap out of
+        # memory» — den feilen står i loggen med de ordene.
+        #
+        # Lærdommen er den samme som skyene og knappenålene ga, bare snudd:
+        # bygg en MÅLING, ikke en hypotese — og les klokka i loggen, ikke din
+        # egen, før du konkluderer med at noe henger.
         run: |
           set -o pipefail
           ARGS=""
