@@ -159,9 +159,18 @@ export function klassifiser(props, typer = TYPER_VALGT) {
 // sandkassene), så hele passet er best-effort og logger hva det SÅ. Finner den
 // ingenting, står isbre-navnene igjen på OSM alene — som dekker de store
 // breene godt, og som `arealMerge` bevisst lar overleve N50-undertrykkingen.
+// Alle tre er BEKREFTET mot ekte N50 (kjøring 32940204199), ikke gjettet:
+//   laget heter `N50_Stedsnavn_tekstplassering` (en annotasjons-tabell),
+//   navnet står i `streng`, og typen i `navneobjekttype` med SMÅ forbokstaver
+//   («tjern», «ås», «fjell», «myr»).
+//
+// `objtype` er BEVISST IKKE en type-kandidat, selv om feltet finnes: på det
+// laget er verdien «PresentasjonTekst» for titusener av rader, og med objtype
+// i lista ville diagnose-logga vist den i stedet for de faktiske navnetypene —
+// altså skjult nøyaktig det den finnes for å vise.
 const NAVN_LAG = /(stedsnavn|navn)/i
-const NAVN_FELT = ['navn', 'name', 'stedsnavn', 'skrivemåte', 'skrivemate', 'streng', 'tekst']
-const TYPE_FELT = ['navneobjekttype', 'objtype', 'navnetype', 'gruppe', 'kategori']
+const NAVN_FELT = ['streng', 'fulltekst', 'navn', 'name', 'stedsnavn']
+const TYPE_FELT = ['navneobjekttype', 'navnetype', 'navneobjektgruppe']
 const ER_BRENAVN = /(isbre|^bre$|bre$|fonn|jøkul|jokul|skavl)/i
 
 export function erBreNavnType(verdi) {
@@ -226,7 +235,21 @@ function tilRing(koord) {
   return ut
 }
 
-async function lesFlater(kilde, dir) {
+/**
+ * Les arealflatene i én kilde. Forenkler STRØMMENDE, per flate.
+ *
+ * Rekkefølgen her er ikke stil, den er minne. Fram til v5.26.0 samlet denne
+ * funksjonen RÅ ringer for hele fylket og lot kalleren forenkle etterpå. Det
+ * holdt så vidt for myr alene; med skog i tillegg døde runneren midt i Finnmark
+ * (522 MB kilde) etter fire minutter — og GitHubs API meldte «in_progress» i
+ * halvannen time etter at den var borte, så feilen så ut som en treg jobb.
+ *
+ * Et `{lat, lon}`-objekt koster 50–80 byte i V8 mot 16 byte data. Douglas-
+ * Peucker på 8 m fjerner mesteparten av punktene i en skogkant, så å forenkle
+ * FØR flata legges i lista er forskjellen på å holde de rå ringene og å holde
+ * de ferdige. Toppen ligger da på én flate om gangen, ikke på ett fylke.
+ */
+async function lesFlater(kilde, dir, stats) {
   // DIAGNOSTIKK FØRST. Første kjøring (32814994570) lastet ned 166 MB Buskerud
   // og fant 0 myrflater, fordi lag-filteret var GJETTET: /arealdekke.*flate/i.
   // Vi logger derfor ALLE lagnavn og hele objtype-fordelingen — samme grep som
@@ -264,8 +287,18 @@ async function lesFlater(kilde, dir) {
       const polygoner = f.geometry.type === 'MultiPolygon' ? f.geometry.coordinates
         : f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : []
       for (const p of polygoner) {
-        const ringer = p.map(tilRing).filter(r => r.length >= 3)
-        if (ringer.length) flater.push({ type, ringer })
+        const rå = p.map(tilRing).filter(r => r.length >= 3)
+        if (!rå.length) continue
+        const stat = stats[type]
+        const areal = arealM2(rå[0])
+        if (areal < MIN_AREAL[type]) { stat.forkastet++; continue }
+        const ringer = forenkleRinger(rå, TOLERANSE[type])
+        // Forenklingen kan spise en ring under tre punkter — da er den ikke en
+        // flate lenger.
+        if (!ringer.length) { stat.forkastet++; continue }
+        stat.km2 += areal / 1e6
+        stat.n++
+        flater.push({ type, ringer })
       }
     }
     rmSync(utfil, { force: true })
@@ -311,19 +344,12 @@ if (import.meta.url === (process.argv[1] ? `file://${process.argv[1]}` : '')) {
         if (!kilder.length) throw new Error('ingen lesbar kilde i nedlastingen')
         let n = 0
         for (const kilde of kilder) {
-          for (const flate of await lesFlater(kilde, fdir)) {
-            const stat = perType[flate.type]
-            const areal = arealM2(flate.ringer[0])
-            if (areal < MIN_AREAL[flate.type]) { stat.forkastet++; continue }
-            const ringer = forenkleRinger(flate.ringer, TOLERANSE[flate.type])
-            if (!ringer.length) { stat.forkastet++; continue }
-            stat.km2 += areal / 1e6
-            stat.n++
+          for (const flate of await lesFlater(kilde, fdir, perType)) {
             n++
-            for (const nokkel of fliserForFlate(ringer)) {
+            for (const nokkel of fliserForFlate(flate.ringer)) {
               let f = fliser.get(nokkel)
               if (!f) fliser.set(nokkel, (f = []))
-              f.push({ type: flate.type, ringer })
+              f.push(flate)
             }
           }
           if (TYPER_VALGT.has('isbre')) {

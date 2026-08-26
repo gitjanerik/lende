@@ -75,6 +75,15 @@ jobs:
           ogr2ogr --version
 
       - name: Bak flisene
+        # Heap-taket er hevet fordi baken HAR dødd på det. Med skog i tillegg
+        # til myr ble runneren borte midt i Finnmark (522 MB kilde) etter fire
+        # minutter, mens GitHubs API meldte «in_progress» i halvannen time
+        # etterpå — så et minne-drap så ut som en treg jobb. Selve årsaken er
+        # rettet i scriptet (forenkling skjer nå strømmende, per flate), men
+        # `fliser`-akkumulatoren holder fortsatt hele landet før den skrives,
+        # og runneren har 16 GB å ta av.
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
         run: |
           set -o pipefail
           ARGS=""
