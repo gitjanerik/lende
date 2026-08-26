@@ -191,7 +191,12 @@ export function klassifiser(props, typer = TYPER_VALGT) {
 // i lista ville diagnose-logga vist den i stedet for de faktiske navnetypene —
 // altså skjult nøyaktig det den finnes for å vise.
 const NAVN_LAG = /(stedsnavn|navn)/i
-const NAVN_FELT = ['streng', 'fulltekst', 'navn', 'name', 'stedsnavn']
+// `fulltekst` FØR `streng`, og det er ikke smak. Laget er en annotasjons-tabell
+// der en lang etikett deles over FLERE rader, én per tekstlinje: «Adels-» og
+// «breen» er to rader av samme navn. `streng` er radens fragment, `fulltekst`
+// er hele navnet. Første bake leste `streng` og la «breen», «breene» og
+// «skavlen» inn som selvstendige bre-navn — som ville stått slik på kartet.
+export const NAVN_FELT = ['fulltekst', 'streng', 'navn', 'name', 'stedsnavn']
 const TYPE_FELT = ['navneobjekttype', 'navnetype', 'navneobjektgruppe']
 // BEKREFTET vokabular (kjøring 32941476642, Buskerud): `isbre`=2, `fonn`=1.
 // Regelen traff alle tre. Den er likevel litt bredere enn de to ordene, fordi
@@ -438,9 +443,14 @@ if (import.meta.url === (process.argv[1] ? `file://${process.argv[1]}` : '')) {
           }
           if (TYPER_VALGT.has('isbre')) {
             for (const p of await lesIsbreNavn(kilde, fdir)) {
-              // Samme navn på samme sted fra to fylkesfiler er ÉN bre — grensa
-              // går tvers gjennom flere av dem (Folgefonna, Svartisen).
-              breNavn.set(`${p.navn}|${p.lat.toFixed(3)}|${p.lon.toFixed(3)}`, p)
+              // Samme navn i samme NABOLAG er ÉN bre. To grunner, begge målt:
+              // fylkesgrensa går tvers gjennom flere breer (Folgefonna,
+              // Svartisen), og en flerlinjet etikett gir én rad per tekstlinje
+              // som alle bærer `fulltekst`. To desimaler ≈ 1 km — nok til å
+              // slå sammen linjene i én etikett og armene av samme bre
+              // (Okstindbreen sto med tre rader innenfor to kilometer), uten
+              // å slå sammen breer som faktisk ligger fra hverandre.
+              breNavn.set(`${p.navn}|${p.lat.toFixed(2)}|${p.lon.toFixed(2)}`, p)
             }
           }
         }
