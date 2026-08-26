@@ -25,6 +25,15 @@ name: Bygg N50-arealdekke
 #     Geonorge. Alene tar den ~19 min; to samtidige kjøringer kvelte hverandre
 #     og sto fortsatt på 40 min. Skal du måle OG bake, gjør det sekvensielt.
 #
+#  0. RYDD HISTORIKKEN. Dette er avgjort, ikke opp til den som kjører jobben.
+#     Flisene er GENERERTE og kan bakes på nytt fra Geonorge når som helst, så
+#     gamle utgaver har null verdi — men de blir liggende i git for alltid.
+#     Etter v5.26.1: 200 MB pack, og gh-pages har 323 commits med hvert sitt
+#     `dist/`. Hver bake som endrer flisene legger ~117 MB på toppen.
+#     Ta gh-pages først (orphan-branch + force-push — ren generert output,
+#     ingen risiko), og master som en egen bevisst `git filter-repo`-operasjon.
+#     Se CLAUDE.md, arealdekke-seksjonen.
+#
 #  2. IKKE PUSH TIL GRENEN MENS EN BAKE KJØRER. Jobben sjekker ut én commit og
 #     pusher flisene tilbake på slutten. Kommer det en commit imellom, avvises
 #     pushen som non-fast-forward, og 25 minutters nedlasting er bortkastet.

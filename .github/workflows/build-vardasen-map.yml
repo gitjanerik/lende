@@ -39,6 +39,13 @@ jobs:
           ls -la dist/
           ls -la dist/maps/ || echo "ingen maps-mappe i dist"
 
+      # SKAL RYDDES: grenen bygges med vanlige commits i et worktree, så
+      # historikken vokser monotont — 323 commits etter v5.26.1, hver med et
+      # helt `dist/`, og fra nå med 117 MB fliser i seg. Innholdet er ren
+      # generert output; ingen har noe der å miste. Bytt til én enkelt commit
+      # (orphan-branch + force-push) ved neste bake. Se CLAUDE.md.
+      # GitHubs harde grense for et publisert Pages-nettsted er 1 GB; `dist/`
+      # er 133 MB i dag, så det haster ikke — men veksten er monoton.
       - name: Deploy to gh-pages
         run: |
           set -e
