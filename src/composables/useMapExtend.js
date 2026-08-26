@@ -1,5 +1,5 @@
 // Mosaikk + manuell kart-utvidelse — skilt ut fra MapView v1.0.8. Kanthåndtak
-// (8 runde knapper på arkets kant) utvider bruttokartet i valgt retning; flisa
+// (8 trekanter rett utenfor arkets kant) utvider bruttokartet i valgt retning; flisa
 // under skjermsenter auto-promoteres til aktiv etter litt ro. Composablen eier
 // bygge-/toast-tilstanden og håndtaks-geometrien; forelderen eier SVG-verten,
 // transform-tilstanden og mosaikken (useGhostTiles), destrukturert inn.
@@ -39,8 +39,9 @@ export function extendZoneLabelText(dir) {
 }
 
 // ── Kanthåndtak — ren geometri (ingen Vue-refs, testbar) ─────────────────────
-// De 8 kompassrosene i kart-rommet er erstattet av runde DOM-knapper som sitter
-// på ARKETS kant i skjerm-rommet (v2.4.13). Rekkefølgen er DOM-/tab-rekkefølgen
+// De 8 kompassrosene i kart-rommet er erstattet av DOM-håndtak som sitter på
+// ARKETS kant i skjerm-rommet (v2.4.13; trekanter rett utenfor kanten fra
+// v5.25.5, runde knapper på kanten før det). Rekkefølgen er DOM-/tab-rekkefølgen
 // fra designet: N → NØ → Ø → SØ → S → SV → V → NV.
 export const EDGE_DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
 // Retningsvektor i skjerm-/SVG-koordinater (y vokser nedover → nord = −y).
@@ -48,7 +49,14 @@ export const EDGE_DIR_VEC = {
   N: { dx: 0, dy: -1 }, NE: { dx: 1, dy: -1 }, E: { dx: 1, dy: 0 }, SE: { dx: 1, dy: 1 },
   S: { dx: 0, dy: 1 }, SW: { dx: -1, dy: 1 }, W: { dx: -1, dy: 0 }, NW: { dx: -1, dy: -1 },
 }
-export const EDGE_HANDLE_INSET = 4                 // px innover fra arkkanten
+// Trekantens mål (px) — likesidet, og den samme for alle åtte. Utstikket er
+// halve høyden, fordi trekant-boksen er sentrert på håndtakets punkt: da faller
+// BASEN nøyaktig på arkkanten (kardinal) eller med midtpunktet i hjørnet
+// (diagonal), og hele trekanten står utenfor kartet. Fram til v5.25.5 var dette
+// 4 px INNOVER med en 38 px rund knapp oppå — se MapEdgeHandles.vue.
+export const EDGE_TRI_SIDE = 26
+export const EDGE_TRI_HEIGHT = EDGE_TRI_SIDE * Math.sqrt(3) / 2   // ≈ 22.5
+export const EDGE_HANDLE_UTSTIKK = EDGE_TRI_HEIGHT / 2            // ≈ 11.3 px utover
 export const EDGE_LABEL_OFFSET = { x: 88, y: 44 }  // pille-forskyvning innover (px)
 
 /** Klamp `v` inn i [lo, hi]. Tåler at lo > hi (bittesmå viewporter) — da midtstilles. */
@@ -91,6 +99,22 @@ export function edgeAnchorSvg(dir, b) {
 export function edgeKnobDeg(dir, rotationDeg = 0) {
   const d = EXTEND_DIR_DEG[dir]
   return d == null ? null : d + (rotationDeg || 0)
+}
+
+// Enhetsvektoren UTOVER fra arkkanten, rotert med kartet — samme akse som
+// trekanten peker langs, og samme uttrykk som edgeLabelOffset negerer for å
+// peke innover. Den regnes fra RETNINGEN og ikke fra «ankeret minus arkets
+// senter»: for et avlangt ark går senter→hjørne ikke i 45°, så et
+// senter-avledet utstikk ville skjøvet hjørne-trekantene på skrå av sin egen
+// spiss. Diagonalene normaliseres, ellers ville de stukket √2 så langt ut.
+export function edgeUtRetning(dir, rotationDeg = 0) {
+  const v = EDGE_DIR_VEC[dir]
+  if (!v) return null
+  const n = Math.hypot(v.dx, v.dy) || 1
+  const dx = v.dx / n, dy = v.dy / n
+  const r = (rotationDeg || 0) * Math.PI / 180
+  const cos = Math.cos(r), sin = Math.sin(r)
+  return { x: dx * cos - dy * sin, y: dx * sin + dy * cos }
 }
 
 // Etikett-pillens forskyvning INNOVER fra knappen (skjerm-px). Retningsvektoren
@@ -138,7 +162,12 @@ export function edgeLabelOffset(dir, rotationDeg = 0) {
 // (~32 px) og FAB-klyngen (48 px + 12 px bunnluft) i bunnen. Safe-area er bakt
 // inn i slakken framfor å leses ut: `--safe-top` er en env()-verdi, og
 // getComputedStyle gir custom properties uoppløst.
-export const EDGE_FRAME_CHROME = { top: 168, bottom: 96, side: 30 }
+// Sidene har INGEN chrome — 30 px fram til v5.25.4 var bare en marg, og den
+// gjorde at de dokkede side-håndtakene fløt inne PÅ kartet i stedet for å ligge
+// langs kanten av det. 16 px setter trekant-spissen ~5 px fra viewportkanten:
+// den flukter med kartets ytterkant, som er hele poenget med formen. Toppen og
+// bunnen er derimot ekte chrome og står urørt.
+export const EDGE_FRAME_CHROME = { top: 168, bottom: 96, side: 16 }
 
 // Slakk rundt rammen før et anker regnes som «nært». 96 px ≈ to knappebredder:
 // håndtaket dukker opp litt før arkkanten faktisk glir inn i den frie flaten, så
@@ -398,7 +427,6 @@ export function useMapExtend({
     const frame = edgeSafeFrame(size)
     if (!frame) return []
     const b = extendZonesBounds()
-    const mid = viewBoxToScreen((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2, v)
     const counts = edgeTileCounts.value
     // Holder man inne et håndtak for å lese pilla, skal ikke avslørings-vinduet
     // rekke å lukke seg under fingeren.
@@ -407,12 +435,12 @@ export function useMapExtend({
     for (const dir of EDGE_DIRS) {
       const a = edgeAnchorSvg(dir, b)
       const p = viewBoxToScreen(a.x, a.y, v)
-      // Trekk ankeret 4 px innover mot arkets senter (designets sheetW/2 − 4),
-      // regnet i skjerm-rommet så det holder også når kartet er rotert.
-      const ix = mid.x - p.x, iy = mid.y - p.y
-      const n = Math.hypot(ix, iy) || 1
-      const ax = p.x + (ix / n) * EDGE_HANDLE_INSET
-      const ay = p.y + (iy / n) * EDGE_HANDLE_INSET
+      // Skyv punktet halve trekant-høyden UTOVER fra arkkanten, langs den
+      // roterte retningsaksen. Da flukter basen med arkets ytterkant og
+      // trekanten står helt utenfor kartet (v5.25.5).
+      const ut = edgeUtRetning(dir, v.rotationDeg)
+      const ax = p.x + ut.x * EDGE_HANDLE_UTSTIKK
+      const ay = p.y + ut.y * EDGE_HANDLE_UTSTIKK
       const naer = edgeAnkerNaer(dir, { x: ax, y: ay }, frame)
       // Dokket håndtak utenfor avslørings-vinduet: ikke render det i det hele
       // tatt. Det er hele poenget — ingen knapp under toppbaren å bomme på.
