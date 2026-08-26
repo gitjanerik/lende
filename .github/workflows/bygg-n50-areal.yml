@@ -75,15 +75,17 @@ jobs:
           ogr2ogr --version
 
       - name: Bak flisene
-        # Heap-taket er hevet fordi baken HAR dødd på det. Med skog i tillegg
-        # til myr ble runneren borte midt i Finnmark (522 MB kilde) etter fire
-        # minutter, mens GitHubs API meldte «in_progress» i halvannen time
-        # etterpå — så et minne-drap så ut som en treg jobb. Selve årsaken er
-        # rettet i scriptet (forenkling skjer nå strømmende, per flate), men
-        # `fliser`-akkumulatoren holder fortsatt hele landet før den skrives,
-        # og runneren har 16 GB å ta av.
-        env:
-          NODE_OPTIONS: --max-old-space-size=8192
+        # HEAP-TAKET ER BEVISST IKKE HEVET, og det er et MÅLT standpunkt.
+        # To nasjonale målinger døde begge med «The operation was canceled»
+        # etter 2–4 minutter, uten at noe i loggen sa hvorfor. Forsøket med
+        # `--max-old-space-size=8192` døde RASKERE (2 m 13 s) og på et MINDRE
+        # fylke (Buskerud) enn kjøringen uten (4 m 08 s, Finnmark): et større
+        # heap-tak lar node vokse lenger før GC, og da er det runneren som ryker
+        # — ikke node. Hev dette bare hvis en måling sier at node selv kaster
+        # «heap out of memory».
+        #
+        # Scriptet logger nå RSS og ledig disk per fylke, så neste kjøring sier
+        # hva som faktisk tok slutt. Bygg en MÅLING, ikke en hypotese.
         run: |
           set -o pipefail
           ARGS=""

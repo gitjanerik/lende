@@ -39,7 +39,7 @@
 // Kjør:  node scripts/bygg-n50-areal.mjs [--fylke 33] [--typer myr,skog,isbre]
 //                                        [--toleranse 4] [--minareal 2500] [--mal]
 
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, statSync, createReadStream, readdirSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, statSync, statfsSync, createReadStream, readdirSync, existsSync } from 'node:fs'
 import { createInterface } from 'node:readline'
 import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
@@ -120,6 +120,28 @@ const UT_KATALOG = join(ROT, 'public', 'data', 'n50-areal')
 const NAVN_FIL = 'isbrenavn.json'
 
 const log = (...a) => console.log(...a)
+
+/**
+ * RSS og ledig disk, som én linje per fylke.
+ *
+ * Finnes fordi to nasjonale målinger døde med «The operation was canceled»
+ * etter 2–4 minutter og loggen ikke sa ett ord om hvorfor. Uten dette er
+ * neste runde nok en hypotese: er det node som vokser, eller er det disken
+ * som fylles av GeoJSONSeq-mellomfilene? Ett tall svarer på begge.
+ *
+ * Samme lærdom som skyene og knappenålene ga: når feilen bare finnes på én
+ * maskin, mål på maskinen før du endrer kode.
+ */
+function ressurser(dir) {
+  const gb = (n) => `${(n / 1e9).toFixed(1)} GB`
+  const rss = gb(process.memoryUsage().rss)
+  let disk = '?'
+  try {
+    const f = statfsSync(dir)
+    disk = gb(f.bavail * f.bsize)
+  } catch { /* statfs finnes ikke overalt — tallet er diagnostikk, ikke en gate */ }
+  return `rss ${rss}, ledig disk ${disk}`
+}
 
 // ── Klassifisering ─────────────────────────────────────────────────────────
 // N50 Arealdekke har `objtype` per flate. Nøklene er små bokstaver; verdien
@@ -360,7 +382,7 @@ if (import.meta.url === (process.argv[1] ? `file://${process.argv[1]}` : '')) {
             }
           }
         }
-        log(`    ${n.toLocaleString('no')} flater beholdt`)
+        log(`    ${n.toLocaleString('no')} flater beholdt — ${ressurser(dir)}`)
       } catch (e) {
         feilet++
         log(`    ⚠ ${kort} feilet: ${e.message}`)
