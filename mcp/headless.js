@@ -194,6 +194,7 @@ export async function buildMapHeadless({
   // er nettopp derfor feilen fikk leve fra v5.0.16 til v5.18.6.
   let n50StiStatus = null
 
+  let n50ArealStatus = null
   const [overpass, n50Water, dem, turruteRoutes, n50StiLinjer, n50Areal] = await Promise.all([
     fetchOverpass(bbox),
     fetchN50Water(bbox).catch(() => []),
@@ -234,11 +235,14 @@ export async function buildMapHeadless({
           return []
         })
     })(),
-    // N50-myr, samme kilde-regel som stiene.
+    // N50-arealdekke (myr, skog, isbre + bre-navn), samme kilde-regel som
+    // stiene. Statusen fanges fordi DEKNING er det buildSvg trenger for å
+    // avgjøre om Turkarts skog-påstand skal vike — se mapBuilder.
     (() => {
       const kilde = n50ArealKilde(n50ArealBase)
       if (!kilde) return Promise.resolve([])
-      return fetchN50Areal(bbox, kilde).catch(() => [])
+      return fetchN50Areal(bbox, { ...kilde, onStatus: s => { n50ArealStatus = s } })
+        .catch(() => [])
     })(),
   ])
 
@@ -263,6 +267,10 @@ export async function buildMapHeadless({
     dem,
     utmBbox,
     contourIntervalM: equidistanceM,
+    // Samme dekningsflagg som appen. Uten det ville MCP-bygde høyfjellskart
+    // beholdt Turkarts skog-påstand mens appens ikke gjorde det — nøyaktig den
+    // typen sprik mellom app og headless som vann-stacken brukte månedsvis på.
+    arealDekning: n50ArealStatus?.dekning === true,
     skipContoursIfSynthetic: true,
     detaljNivaa,
     tetthet,

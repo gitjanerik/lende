@@ -1,3 +1,38 @@
+## 2026-08-26 — v5.26.3: Høyfjellet var fortsatt grønt — gaten spurte om feil ting
+
+Eieren så på et Turkart over høyfjell og meldte at det fremdeles var grønt.
+Han hadde rett, og det var ikke gamle kart: det var en feil i gaten fra
+v5.26.1.
+
+Gaten spurte **«bærer arket N50-skog?»**. Over tregrensa er svaret legitimt
+nei — og da ble arket stående med Turkarts «her er skog»-påstand. Målt:
+Hardangervidda kom ut med 151 myrflater og null skogflater. Flisene lastet
+altså helt fint; vi VISSTE at det ikke var skog der. Arket ble malt grønt
+likevel. Jo mer alpint arket var, jo sikrere ble det grønt — stikk motsatt av
+hensikten. Rondvassbu og Besseggen slapp unna bare fordi utsnittene fanget litt
+bjørkeskog i dalsidene.
+
+**Riktig spørsmål er DEKNING, ikke innhold.** «Ingen skog» er et svar når
+flisene er lest, og et ikke-svar når de ikke er det — og de to ser like ut fra
+mapBuilder, siden `n50ArealFetcher` aldri feiler hardt. Fetcheren rapporterer
+derfor `dekning` i statusen sin: vi ba om de flisene manifestet sa fantes, og
+fikk lest dem. `createMapFlow` og `mcp/headless` sender flagget videre til
+`buildSvg` — begge to, fordi et sprik mellom app og headless er nøyaktig det
+vann-stacken brukte månedsvis på.
+
+Skog på arket merker det fortsatt av seg selv, som reserve for kallere som ikke
+sender flagget (MCP-verktøy, tester, eldre kallsteder): finnes det skog, er
+dekningen uansett bevist.
+
+Verifisert i begge retninger mot de ekte flisene: Hardangervidda og Rondvassbu
+får nå åpen bakgrunn, Nordmarka likeså — og et ark utenfor det bakte området
+beholder påstanden, som det skal.
+
+Fire nye tester, blant dem den som betyr mest: et HELT tomt ark med dekning
+skal merkes. Bart fjell uten myr, skog eller bre er et svar, ikke et hull.
+
+---
+
 ## 2026-08-26 — v5.26.2: Historikken skal ryddes ved neste bake
 
 Ikke en kode-endring — en beslutning skrevet ned der den blir lest.

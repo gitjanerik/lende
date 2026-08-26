@@ -123,3 +123,38 @@ describe('--bg-apen er satt for hvert tema, aldri bare for Turkart', () => {
     }
   })
 })
+
+describe('gaten spør om DEKNING, ikke om skog', () => {
+  // v5.26.1 spurte «bærer arket N50-skog?». Over tregrensa er svaret legitimt
+  // nei, og da ble arket stående med Turkarts skog-påstand: Hardangervidda kom
+  // ut med 151 myrflater og null skog — full dekning — og ble malt grønn.
+  // Jo mer alpint arket var, jo sikrere ble det grønt.
+  const myr = {
+    type: 'way', id: 'm', geometry: ring(61.70, 9.10, 61.72, 9.14),
+    tags: { natural: 'wetland', 'lende:n50areal': 'myr' },
+  }
+
+  it('dekning uten ett eneste skogpolygon merker likevel arket', () => {
+    const { svg, counts } = buildSvg([myr], BBOX, { skipContoursIfSynthetic: true, arealDekning: true })
+    expect(counts['406']).toBe(0)
+    expect(svg).toContain('data-areal="skog"')
+    expect(svg).toContain('[data-areal~="skog"] { --bg: var(--bg-apen,')
+  })
+
+  it('et HELT tomt ark med dekning merkes også — bart fjell er et svar', () => {
+    const { svg } = buildSvg([], BBOX, { skipContoursIfSynthetic: true, arealDekning: true })
+    expect(svg).toContain('data-areal="skog"')
+  })
+
+  it('uten dekning står påstanden — offline, utenfor baken, eller gammelt kart', () => {
+    const { svg } = buildSvg([myr], BBOX, { skipContoursIfSynthetic: true, arealDekning: false })
+    expect(svg).not.toContain('data-areal=')
+  })
+
+  it('skog på arket merker det selv om flagget ikke er sendt', () => {
+    // Reserven for kallere som ikke plumber flagget: finnes det skog, er
+    // dekningen uansett bevist.
+    const { svg } = buildSvg([skog({ 'lende:n50areal': 'skog' })], BBOX, { skipContoursIfSynthetic: true })
+    expect(svg).toContain('data-areal="skog"')
+  })
+})

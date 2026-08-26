@@ -150,7 +150,10 @@ export async function fetchN50ArealFlater(bbox, opts = {}) {
   const manifest = await hentManifest(basePath, hentBytes, opts.signal)
   const nokler = manifest ? alle.filter(n => manifest.fliser.has(n)) : alle
   if (!nokler.length) {
-    onStatus({ state: 'ok', fliser: 0, flater: 0, utenfor: !!manifest })
+    // `dekning: false` — enten ligger arket utenfor det bakte området, eller
+    // så finnes det ikke noe manifest å spørre. Begge betyr at vi IKKE vet om
+    // det er skog her, og da skal Turkarts påstand bli stående.
+    onStatus({ state: 'ok', fliser: 0, flater: 0, utenfor: !!manifest, dekning: false })
     return []
   }
 
@@ -173,10 +176,21 @@ export async function fetchN50ArealFlater(bbox, opts = {}) {
 
   const flater = [...sett.values()]
   if (feilet && !flater.length) {
-    onStatus({ state: 'feil', message: `${feilet} av ${nokler.length} fliser feilet` })
+    onStatus({ state: 'feil', message: `${feilet} av ${nokler.length} fliser feilet`, dekning: false })
     return []
   }
-  onStatus({ state: 'ok', fliser: nokler.length, flater: flater.length, feilet: feilet || undefined })
+  // DEKNING, ikke innhold. Vi ba om fliser manifestet sa fantes, og fikk lest
+  // dem — da VET vi hva som er her, også når svaret er «ingen skog».
+  //
+  // Det skillet er hele poenget, og v5.26.1 bommet på det: gaten spurte «har
+  // arket skog?», og over tregrensa er svaret legitimt nei. Hardangervidda kom
+  // ut med 151 myrflater og null skog, altså full dekning — og ble likevel malt
+  // grønn som om vi ikke visste bedre. Jo mer alpint arket var, jo sikrere ble
+  // det grønt. Stikk motsatt av hensikten.
+  onStatus({
+    state: 'ok', fliser: nokler.length, flater: flater.length,
+    feilet: feilet || undefined, dekning: true,
+  })
   return flater
 }
 
