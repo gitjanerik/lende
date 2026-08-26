@@ -18,6 +18,13 @@ print og padling er lyse kart som normalt vises med mørkt app-chrome, så
 kremgul bakgrunn. Lesbarheten mot svarte stup og hvite konturer, som den runde
 flaten holdt oppe før, ligger nå i en myk skygge i motsatt tone.
 
+Den nye sjekken står SIST i lista, og det er ikke tilfeldig: den setter
+kart-temaet, og kart-temaet er inngangsverdien for 3D-visningens dag/natt.
+Første plassering var midt i lista, og da arvet sol/måne-sjekken et lyst kart
+der den før arvet Curves — dag→natt-trykket re-baket 4096²-teksturen og
+blokkerte hovedtråden forbi klikkets timeout. Sjekken var riktig, plasseringen
+var feil, og røyktesten fanget det i CI.
+
 Fargefeilen kan ikke fanges av en enhetstest — valget bor i en CSS-klasse mot en
 computed — så røyktesten har fått en ny sjekk som setter et lyst og et mørkt
 kart-tema selv og måler den FAKTISKE luminansen av streken mot kartets `--bg` i
