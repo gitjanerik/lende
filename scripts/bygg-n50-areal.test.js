@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { lesSkrue, klassifiser, erBreNavnType, punktFra } from './bygg-n50-areal.mjs'
+import { lesSkrue, klassifiser, erBreNavnType, punktFra, NAVN_FELT } from './bygg-n50-areal.mjs'
 import { TYPER } from '../src/lib/n50ArealPakke.js'
 
 const ALLE = new Set(['myr', 'skog', 'isbre'])
@@ -118,5 +118,22 @@ describe('punktFra — annotasjons-geometri gir ETT punkt', () => {
     // UTM-meter som slipper gjennom uprojisert ville lagt navnet et sted
     // ingen leter, og feilen ville først vist seg på fjellet.
     expect(punktFra({ type: 'Point', coordinates: [500000, 6700000] })).toBe(null)
+  })
+})
+
+
+describe('navnefeltet — `fulltekst` slår `streng`', () => {
+  // Annotasjons-laget deler en lang etikett over FLERE rader, én per
+  // tekstlinje. Første nasjonale bake leste `streng` (radens fragment) og la
+  // «Adels-», «breen», «breene» og «skavlen» inn som selvstendige bre-navn.
+  // `fulltekst` bærer hele navnet på hver av radene.
+  it('fulltekst står før streng i kandidatlista', () => {
+    expect(NAVN_FELT.indexOf('fulltekst')).toBeLessThan(NAVN_FELT.indexOf('streng'))
+    expect(NAVN_FELT[0]).toBe('fulltekst')
+  })
+
+  it('streng er fortsatt med som reserve', () => {
+    // Et lag uten fulltekst skal ikke miste navnene sine.
+    expect(NAVN_FELT).toContain('streng')
   })
 })
