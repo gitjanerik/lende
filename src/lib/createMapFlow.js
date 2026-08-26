@@ -707,6 +707,9 @@ export async function buildMapFromCenter({
       // stier og ruter gikk tvers over den falske sjøen). Innlands-vann kommer
       // fra NVE/N50/OSM-vektor i stedet (ekte innsjø-geometri). Samme coastal-
       // gate styrer allerede Sjøkart-WFS og 5 m-DEM-oppgraderingen.
+      // DEKNING for N50-arealdekket, ikke «fant vi skog». Over tregrensa er
+      // «ingen skog» et SVAR, ikke et manglende svar — se mapBuilder.
+      arealDekning: n50ArealStatus?.dekning === true,
       skipDemSea: !coastal,
       coastal,                       // kyst vs innland → meta.coastal (MapView høyde-ærlighet)
       // Sjøkart-utfall → meta.sjokartStatus (Utvikler-fanen): gjør den stille

@@ -3206,17 +3206,28 @@ export function buildSvg(elements, bbox, options = {}) {
   const usedCodes = new Set()
   for (const m of body.matchAll(/data-iso="([^"]+)"/g)) usedCodes.add(m[1])
 
-  // Bærer arket ekte, landsdekkende N50-skog? Turkart HEVDER skog gjennom
+  // Har vi DEKNING for arealdekket her? Turkart HEVDER skog gjennom
   // bakgrunnsfargen der vi ikke vet bedre (se temaets $comment i
-  // isomCatalog.json). Kommer det data, skal påstanden vike — ellers ligger de
-  // to oppå hverandre og høyfjellet blir like grønt som granskogen.
+  // isomCatalog.json). Vet vi bedre, skal påstanden vike — ellers ligger de to
+  // oppå hverandre og høyfjellet blir like grønt som granskogen.
   //
-  // Merkelappen står på ARKET og ikke i temaet fordi svaret er per kart, ikke
-  // per tema: et kart bygget offline, eller før baken fantes, har ingen skog å
-  // vike for, og skal beholde påstanden. `n50ArealFetcher` feiler aldri hardt,
-  // så «ingen fliser» ser ut som «ingen skog her» — uten denne gaten ville en
-  // mislykket henting gitt det tomme arket Turkart-temaet finnes for å unngå.
-  const harN50Skog = elements.some(el => el?.tags?.['lende:n50areal'] === 'skog')
+  // SPØRSMÅLET ER DEKNING, IKKE INNHOLD, og det skillet kostet en leveranse.
+  // v5.26.1 spurte «bærer arket N50-skog?». Over tregrensa er svaret legitimt
+  // nei: Hardangervidda kom ut med 151 myrflater og null skog — full dekning —
+  // og ble malt grønn som om vi ikke visste bedre. Jo mer alpint arket var, jo
+  // sikrere ble det grønt. Nettopp der åpen-tonen er riktigst.
+  //
+  // `arealDekning` kommer fra `n50ArealFetcher` sin status og er det eneste
+  // stedet svaret finnes: fetcheren feiler aldri hardt, så «ingen fliser» og
+  // «ingen skog her» ser like ut herfra. Elementene beholdes som RESERVE for
+  // kallere som ikke sender flagget (MCP-verktøy, tester, eldre kallsteder) —
+  // finnes det skog på arket, er dekningen uansett bevist.
+  //
+  // Merkelappen står på ARKET og ikke i temaet fordi svaret er per kart: et
+  // kart bygget offline, utenfor dekningsområdet, eller før baken fantes, har
+  // ingenting å vike for og skal beholde påstanden.
+  const harN50Skog = options.arealDekning === true
+    || elements.some(el => el?.tags?.['lende:n50areal'] === 'skog')
 
   const isomCss = buildIsomCss(isomCatalog, patternIds, { widthM, usedCodes, harN50Skog })
 
