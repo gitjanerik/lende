@@ -1,3 +1,40 @@
+## 2026-08-26 — v5.25.6: Kanthåndtakene er strek, ikke form — og hjørnene har rett vinkel
+
+De åtte utvidelses-håndtakene tegnes nå som bare de TO sidene av trekanten som
+peker utover: en tykk vinkel med runde ender og rund spiss, uten grunnlinje og
+uten fyll. Figuren er strek og ikke form, og legger seg over kartet uten å dekke
+noe av det — den grønne fyllte trekanten fra v5.25.5 leste fortsatt som et objekt
+oppå arket. Hjørne-håndtakene har fått RETT vinkel i stedet for 60°: dreid 45°
+blir beina parallelle med arkets to kanter, så merket leser som et hjørne-merke
+framfor en pil som tilfeldigvis står på skrå. Beinet er 19 px mot langsidenes 26,
+fordi hjørne-merket ligger langs kanten og ikke på tvers av den. Utstikket er
+uendret, så plasseringen fra v5.25.5 står: langsidene flukter med arkkanten, og
+hjørne-merket havner ~3 px utenfor hver av de to kantene det favner.
+
+Fargen er sort på lyse kart og hvit på mørke, og den avgjørelsen kommer fra
+KARTETS tema (`isDark`) og ikke app-chromets. Det er ikke en detalj: turkart,
+print og padling er lyse kart som normalt vises med mørkt app-chrome, så
+`--color-ink` — det opplagte valget — ga åtte nesten usynlige hvite vinkler på
+kremgul bakgrunn. Lesbarheten mot svarte stup og hvite konturer, som den runde
+flaten holdt oppe før, ligger nå i en myk skygge i motsatt tone.
+
+Den nye sjekken står SIST i lista, og det er ikke tilfeldig: den setter
+kart-temaet, og kart-temaet er inngangsverdien for 3D-visningens dag/natt.
+Første plassering var midt i lista, og da arvet sol/måne-sjekken et lyst kart
+der den før arvet Curves — dag→natt-trykket re-baket 4096²-teksturen og
+blokkerte hovedtråden forbi klikkets timeout. Sjekken var riktig, plasseringen
+var feil, og røyktesten fanget det i CI.
+
+Fargefeilen kan ikke fanges av en enhetstest — valget bor i en CSS-klasse mot en
+computed — så røyktesten har fått en ny sjekk som setter et lyst og et mørkt
+kart-tema selv og måler den FAKTISKE luminansen av streken mot kartets `--bg` i
+begge. Den er verifisert i to retninger: grønn på riktig kode, rød på nettopp
+`--color-ink`-varianten. Den setter dessuten temaene sine selv i stedet for å
+måle det den arver — sjekken foran slutter på et mørkt tema, og en arvende
+utgave ville bestått den lyse målingen uten å ha sett feilen den finnes for.
+
+---
+
 ## 2026-08-26 — v5.25.5: Kanthåndtakene er trekanter utenfor kartkanten
 
 De åtte utvidelses-knappene var runde, mørke skiver på 38 px som sto oppå

@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   EXTEND_DIR_WORD, EXTEND_DIR_DEG, EDGE_DIRS, EDGE_DIR_VEC, EDGE_LABEL_OFFSET,
   extendZoneLabelText, edgeAnchorSvg, edgeKnobDeg, edgeLabelOffset,
-  edgeSafeFrame, edgeStaticSlot, edgeAnkerNaer, edgeUtRetning,
-  EDGE_TRI_SIDE, EDGE_TRI_HEIGHT, EDGE_HANDLE_UTSTIKK,
+  edgeSafeFrame, edgeStaticSlot, edgeAnkerNaer, edgeUtRetning, erHjorne,
+  EDGE_TRI_SIDE, EDGE_TRI_HEIGHT, EDGE_HANDLE_UTSTIKK, EDGE_HJORNE_BEIN,
   EDGE_FRAME_CHROME, EDGE_NAERHET_PX,
   screenToViewBox, viewBoxToScreen,
   cellenokkel, ventendeSenter, ventendePaaArket, VENTENDE_RADIUS_TILES,
@@ -242,6 +242,29 @@ describe('edgeUtRetning — enhetsvektoren trekanten stikker ut langs', () => {
     }
   })
   it('ukjent retning → null', () => expect(edgeUtRetning('XX', 0)).toBe(null))
+})
+
+describe('erHjorne — diagonalene tegnes med rett vinkel', () => {
+  it('de fire diagonalene er hjørner', () => {
+    for (const dir of ['NE', 'SE', 'SW', 'NW']) expect(erHjorne(dir)).toBe(true)
+  })
+  it('de fire kardinalene er ikke', () => {
+    for (const dir of ['N', 'E', 'S', 'W']) expect(erHjorne(dir)).toBe(false)
+  })
+  it('avledes av retningsvektoren, ikke av nøkkellengden', () => {
+    for (const dir of EDGE_DIRS) {
+      const { dx, dy } = EDGE_DIR_VEC[dir]
+      expect(erHjorne(dir)).toBe(dx !== 0 && dy !== 0)
+    }
+  })
+  it('ukjent retning → false', () => expect(erHjorne('XX')).toBe(false))
+  // Hjørne-merket ligger LANGS kantene, langsidenes vinkel står på tvers av
+  // dem. Er beinet like langt eller lengre, blir hjørnene de dominerende av de
+  // åtte — stikk motsatt av hensikten.
+  it('hjørne-beinet er kortere enn langsidenes side', () => {
+    expect(EDGE_HJORNE_BEIN).toBeLessThan(EDGE_TRI_SIDE)
+    expect(EDGE_HJORNE_BEIN).toBeGreaterThan(EDGE_TRI_SIDE / 2)
+  })
 })
 
 describe('trekant-målene — utstikket ER halve høyden', () => {

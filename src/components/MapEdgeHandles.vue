@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onBeforeUnmount } from 'vue'
 
-// Kanthåndtak — de 8 trekantene på kartarkets kant som henter nye kartfliser
+// Kanthåndtak — de 8 vinklene på kartarkets kant som henter nye kartfliser
 // (v2.4.13, erstatter kompassrosene i kart-rommet; runde knapper til v5.25.5).
 // Rent presentasjonslag: geometrien (posisjon, retnings-vinkel,
 // pille-forskyvning, «+N») kommer ferdig regnet fra useMapExtend.
@@ -22,17 +22,30 @@ import { ref, onBeforeUnmount } from 'vue'
 // pila i vannet. Flaten løste lesbarheten, men åtte 38 px mørke skiver oppå
 // arket dominerte kartet de skulle ramme inn.
 //
-// v5.25.5: håndtaket ER en likesidet trekant, ikke en pil i en skive. Trekanten
-// er mindre enn skiven var (26 px side), fylt i pil-grønn med en tynn glorie i
-// temafargen — den samme lesbarheten som flaten ga, i en form som ikke tar
-// plassen til en knapp. Og den står UTENFOR kartet: geometrien i useMapExtend
-// skyver punktet halve trekant-høyden utover, så basen flukter med arkets
-// ytterkant (kardinal) eller har midtpunktet i hjørnet (diagonal). Trekanten
-// leser da som en kant-markør på arket framfor et objekt oppå det.
+// v5.25.5 gjorde håndtaket til en likesidet trekant (26 px side) fylt i
+// pil-grønn, og flyttet den UT av kartet: geometrien i useMapExtend skyver
+// punktet halve trekant-høyden utover, så basen flukter med arkets ytterkant
+// (kardinal) eller har midtpunktet i hjørnet (diagonal). Plasseringen står; det
+// var fyllet som fortsatt leste som et objekt oppå kartet.
+//
+// v5.25.6: bare de TO sidene av trekanten som peker utover tegnes — en tykk
+// vinkel («^») i blekkfargen, med runde ender og rund spiss. Basen er borte, og
+// med den den siste flaten: figuren er strek, ikke form, og legger seg over
+// kartet uten å dekke noe av det. Hjørnene har RETT vinkel og ikke 60°: dreid
+// 45° blir beina parallelle med arkets to kanter, og merket leser som et
+// hjørne-merke framfor en pil som tilfeldigvis står på skrå. Blekk framfor grønt fordi en fargeflekk uten
+// flate under er den svakeste av begge verdener — den grønne trekanten trengte
+// fyllet sitt for å lese som grønn. `--color-ink` snur med temaet (sort på
+// papir, hvit i mørkt), så streken har alltid maks kontrast mot kartet under.
+//
+// Lesbarheten som glorien holdt oppe før, ligger nå i en myk skygge i MOTSATT
+// tone (--color-overlay). Den er ikke en andre farge man ser; den er det som
+// skiller en sort strek fra en sort stup-kant og en hvit strek fra en hvit
+// kontur.
 //
 // Treffområdet er fortsatt 48 px og ligger sentrert på det samme punktet —
 // halve boksen dekker altså kartet innenfor kanten. Det er med vilje: fingeren
-// skal treffe der brukeren sikter, og en 26 px trekant er for liten å sikte på
+// skal treffe der brukeren sikter, og en 26 px vinkel er for liten å sikte på
 // med hansker.
 //
 // `h.dokket` skiller de to plasseringene useMapExtend leverer — dokket til den
@@ -41,8 +54,12 @@ import { ref, onBeforeUnmount } from 'vue'
 // og skal ikke dobbelt-animeres.
 
 const props = defineProps({
-  handles: { type: Array, default: () => [] },   // { dir, name, count, x, y, knobDeg, lx, ly, dokket }
+  handles: { type: Array, default: () => [] },   // { dir, name, count, x, y, knobDeg, lx, ly, dokket, hjorne }
   hovered: { type: String, default: null },
+  // KARTETS tema, ikke app-chromets. Streken ligger oppå kart-SVG-en, og
+  // turkart/print/padling er lyse kart også når app-chromet står mørkt — så
+  // --color-ink ville gitt hvit strek på papir. Se MapView-kallstedet.
+  isDark: { type: Boolean, default: false },
 })
 const emit = defineEmits(['preview', 'clear', 'commit'])
 
@@ -97,7 +114,7 @@ function onClick(h, ev) {
   <div class="absolute inset-0 z-[7] pointer-events-none overflow-hidden">
     <button v-for="h in props.handles" :key="h.dir" type="button"
             class="edge-handle pointer-events-auto"
-            :class="{ 'is-on': props.hovered === h.dir, 'is-dokket': h.dokket }"
+            :class="{ 'is-on': props.hovered === h.dir, 'is-dokket': h.dokket, 'er-morkt': props.isDark }"
             :style="{ left: h.x + 'px', top: h.y + 'px' }"
             :aria-label="`Hent kartfliser mot ${h.name}`"
             @pointerenter="onEnter(h, $event)"
@@ -108,12 +125,24 @@ function onClick(h, ev) {
             @blur="onLeave"
             @click="onClick(h, $event)">
       <span class="edge-knob" :style="{ '--knob-deg': h.knobDeg + 'deg' }">
-        <!-- Likesidet trekant, side 26 px, sentrert i en 28 px boks: spissen
-             2,7 px fra toppen, basen 25,3 px ned. Boksens senter ligger på
-             håndtakets punkt, og useMapExtend har alt skjøvet punktet halve
-             høyden utover — derfor havner basen på arkkanten. -->
+        <!-- De to sidene som peker utover, som én åpen linje: fra venstre
+             endepunkt, opp i spissen, ned til høyre. Ingen Z — grunnlinja skal
+             ikke tegnes. To varianter, og forskjellen er vinkelen i spissen:
+
+             LANGSIDE (60°, likesidet, side 26): spissen 2,74 px fra toppen,
+             endepunktene 25,26 px ned. Boksens senter ligger på håndtakets
+             punkt, halve trekant-høyden utenfor arkkanten, så endepunktene
+             lander PÅ kanten og figuren flukter med den.
+
+             HJØRNE (90°, bein 19): en rett vinkel dreid 45° får beina
+             parallelle med arkets to kanter — et hjørne-merke, ikke en pil på
+             skrå. Spissen ligger 6,72 px over boksens senter, altså ~3,2 px
+             utenfor selve hjørnepunktet, og beina løper da like langt utenfor
+             hver av de to kantene. Samme utstikk som langsidene bruker, ingen
+             egen geometri. -->
         <svg class="edge-tri" viewBox="0 0 28 28" width="28" height="28" aria-hidden="true">
-          <path d="M14 2.74 27 25.26 1 25.26 Z" />
+          <path v-if="h.hjorne" d="M0.56 20.72 14 7.28 27.44 20.72" />
+          <path v-else d="M1 25.26 14 2.74 27 25.26" />
         </svg>
       </span>
       <span class="edge-label"
@@ -125,7 +154,7 @@ function onClick(h, ev) {
 </template>
 
 <style scoped>
-/* 48 px treffområde (hansker), 26 px synlig trekant — begge sentrert på
+/* 48 px treffområde (hansker), 26 px synlig vinkel — begge sentrert på
    håndtakets punkt, som ligger halve trekant-høyden utenfor arkkanten. */
 .edge-handle {
   position: absolute;
@@ -151,8 +180,8 @@ function onClick(h, ev) {
   to   { opacity: 1; transform: scale(1); }
 }
 
-/* Trekanten roterer om sitt EGET senter, som er håndtakets punkt. Boksen er
-   like stor som trekantens (28 px), så rotasjonen ikke flytter tyngdepunktet. */
+/* Vinkelen roterer om sitt EGET senter, som er håndtakets punkt. Boksen er like
+   stor som trekantens (28 px), så rotasjonen ikke flytter tyngdepunktet. */
 .edge-knob {
   width: 28px;
   height: 28px;
@@ -163,22 +192,33 @@ function onClick(h, ev) {
 }
 .edge-handle.is-on .edge-knob { transform: rotate(var(--knob-deg, 0deg)) scale(1.22); }
 
-/* Grønn fyll = «legg til», samme betydning som ellers i appen. Glorien er
-   temafargen (--color-overlay, som snur i lyst tema) lagt UNDER fyllet med
-   paint-order, så den ligger som en kant utenfor trekanten: det er den som gjør
-   formen lesbar mot svarte stup og hvite konturer, samme jobb som den runde
-   flaten gjorde før. Runde hjørner på glorien myker silhuetten. */
+/* Tykk vinkel i kartets blekkfarge. `fill: none` er det som gjør trekanten til
+   to streker: uten den ville browseren lukket figuren med et fyll, og basen
+   vært tilbake i praksis.
+   Standard er SORT strek med lys glorie — lyse kart (turkart, print, padling,
+   light) er normalen. `.er-morkt` snur begge for nattkartet. Glorien er
+   lesbarhet, ikke pynt: en sort strek forsvinner i en stup-kant og en hvit i en
+   kontur uten den. Den er myk og halvgjennomsiktig, så den leses som luft rundt
+   streken og ikke som en andre farge. */
 .edge-tri { display: block; overflow: visible; }
 .edge-tri path {
-  fill: var(--pil-farge);
-  stroke: color-mix(in srgb, var(--color-overlay) 82%, transparent);
-  stroke-width: 1.8;
+  fill: none;
+  stroke: #14110d;
+  stroke-width: 4.2;
+  stroke-linecap: round;
   stroke-linejoin: round;
-  paint-order: stroke;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.28));
-  transition: fill 0.2s, stroke-width 0.2s;
+  filter:
+    drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.85))
+    drop-shadow(0 1px 3px rgba(255, 255, 255, 0.55));
+  transition: stroke-width 0.2s;
 }
-.edge-handle.is-on .edge-tri path { stroke-width: 2.6; }
+.edge-handle.er-morkt .edge-tri path {
+  stroke: #ffffff;
+  filter:
+    drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.85))
+    drop-shadow(0 1px 3px rgba(0, 0, 0, 0.55));
+}
+.edge-handle.is-on .edge-tri path { stroke-width: 5.2; }
 
 .edge-label {
   position: absolute;
