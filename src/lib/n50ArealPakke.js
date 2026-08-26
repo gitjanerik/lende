@@ -1,4 +1,4 @@
-// Kompakt flis-format for N50 arealdekke-FLATER (myr først, skog senere).
+// Kompakt flis-format for N50 arealdekke-FLATER (myr, skog, isbre).
 //
 // ── Hvorfor dette finnes ───────────────────────────────────────────────────
 // Samme diagnose som n50StiPakke.js åpner med, bare for arealdekke: OSM er
@@ -33,11 +33,16 @@ export const VERSJON = 1
 // kart trykt i 1:10 000 er 1 m = 0,1 mm. Usynlig i begge tilfeller.
 export const KVANT = 1e5
 
-// Rekkefølgen ER kodingen (u8) og kan ikke endres uten versjonsbump.
-// 'skog' og 'apen' står klare med vilje: den dagen vi baker arealdekke for
-// vegetasjon også, skal det ikke kreve et nytt format — se CLAUDE.md om
-// hvorfor Turkart-temaets grønne bakgrunn da må vike for ekte data.
-export const TYPER = Object.freeze(['myr', 'skog', 'apen', 'annet'])
+// Rekkefølgen ER kodingen (u8). Den kan UTVIDES bakerst, men aldri omordnes:
+// et navn som bytter indeks gjør hver eneste bakte flis feil-lest uten at noe
+// kaster. 'isbre' kom til i v5.26.0 og ligger derfor SIST, ikke ved siden av
+// sine slektninger — indeks 0–3 står som de sto, så en klient fra v5.25 leser
+// myr og skog riktig ut av en flis bakt i dag.
+//
+// 'apen' står fortsatt ubrukt med vilje: når Turkart-bakgrunnen ER den åpne
+// tonen, er åpenhet standardtilstanden, og 112 020 flater som maler bakgrunnen
+// på nytt er ren datamengde. Plassen koster ingenting; baken bestemmer.
+export const TYPER = Object.freeze(['myr', 'skog', 'apen', 'annet', 'isbre'])
 
 export function typeIndeks(navn) {
   const i = TYPER.indexOf(navn)

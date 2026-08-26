@@ -487,6 +487,10 @@ export function classifyToIsom(el) {
   }
   if (t.waterway === 'stream' || t.waterway === 'ditch') return { code: '305', cat: 'water' }
   if (t.waterway === 'river' || t.waterway === 'canal')  return { code: '304', cat: 'water' }
+  // Isbre / evig snø → 410. Står FØR vegetasjonen fordi en bre i OSM ofte
+  // bærer `natural=glacier` sammen med `landuse=*` fra en overlappende
+  // kommune-/verneflate, og breen er da den som beskriver marka.
+  if (t.natural === 'glacier')                      return { code: '410', cat: 'terrain' }
   if (t.natural === 'wetland')                      return { code: '308', cat: 'water' }
   if (t.natural === 'wood' || t.landuse === 'forest') return { code: '406', cat: 'terrain' }
   if (t.landuse === 'meadow' || t.landuse === 'grass') return { code: '401', cat: 'terrain' }
@@ -703,6 +707,26 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
   // Bakgrunn-rect bruker også --bg så mørk modus erstatter den kremgule
   // landoverflaten med dark brown (presentation-attr fill blir overstyrt).
   rules.push(`${root} #bakgrunn rect { fill: var(--bg, ${catalog.background.color}); }`)
+  // Arket bærer ekte N50-skog → Turkarts «her er skog»-påstand i bakgrunnen
+  // viker for kilden, og skogen males oppå som 406. Uten dette byttet ligger
+  // påstand og data oppå hverandre og alt terreng blir grønt, høyfjellet med.
+  //
+  // Regelen SKYGGER en arvet --bg, og det er nøyaktig det den skal: --bg settes
+  // av MapViews applyTheme på transform-wrapperen, og her er det arket som vet
+  // noe temaet ikke gjør. Merk forskjellen fra advarselen i mapBuilder — den
+  // gjelder en UBETINGET inline --bg på hver flis, som fanget alle flisene i
+  // mosaikken og gjorde tema-bytte til en no-op for periferien. Denne står i
+  // arkets eget stilark, gjelder bare det merkede arket, og henter verdien fra
+  // temaet via --bg-apen, så tema-bytte fortsatt slår gjennom.
+  //
+  // Fallbacken er katalogens egen bakgrunn og ikke var(--bg, …): en custom
+  // property som refererer seg selv er en syklus, og CSS gjør da HELE
+  // deklarasjonen ugyldig — mørke temaer ville fått kremgul bakgrunn. Alle
+  // temaer får derfor --bg-apen fra mapSettingsApply, også de som ikke har
+  // noen egen åpen-tone (da er den lik temaets vanlige bakgrunn).
+  if (options.harN50Skog) {
+    rules.push(`${root}[data-areal~="skog"] { --bg: var(--bg-apen, ${catalog.background.color}); }`)
+  }
   // Mosaikk-spøkelser (data-ghost-layer) får SAMME non-scaling-stroke som aktiv
   // flis, ellers skalerer strekene deres med zoom og blir tynnere enn originalen
   // når man zoomer ut for å se hele 2×2-mosaikken (rapportert v11.0.15). Samme

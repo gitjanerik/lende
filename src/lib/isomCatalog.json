@@ -72,6 +72,18 @@
           "type": "pattern",
           "pattern": "kratt"
         }
+      },
+      "410": {
+        "label": "Isbre / evig snø",
+        "$comment": "Ikke en ISOM-kode. ISOM 2017-2 har ingen bre — sportskart tegnes ikke på is. Norske turkart gjør det, og konvensjonen der er HVIT flate med en svak blågrå kant. Kanten er ikke pynt: hvitt mot en lys åpen-mark-tone har nesten ingen kontrast, så uten kanten forsvinner breen nøyaktig i det terrenget der den finnes.",
+        "fill": {
+          "color": "#ffffff"
+        },
+        "stroke": {
+          "color": "#8fb8cc",
+          "widthMm": 0.14,
+          "linejoin": "round"
+        }
       }
     },
     "water": {
@@ -1555,6 +1567,8 @@
       "group": "kartstil",
       "monochrome": false,
       "background": "#dbe8c2",
+      "$backgroundApen": "Bakgrunnen over ER påstanden «her er skog», og den gjelder bare så lenge vi ikke vet bedre. Har arket ekte N50-skog (mapBuilder setter data-areal=\"skog\" på rot-SVG-en), byttes den mot tonen under, og skogen males oppå som 406 fra kilden. Uten byttet ligger påstand og data oppå hverandre, og da er høyfjellet like grønt som granskogen uansett hva N50 sier. Tonen er den samme som 401 åpen mark: over tregrensa ER marka åpen, og da skal den ikke ha sin egen ekstra farge.",
+      "backgroundApen": "#f6f4e8",
       "depthScale": ["#bfe0f0", "#a9d5ea", "#93cae4", "#7dbfde", "#67b4d8"],
       "categories": {
         "001": {
@@ -1681,6 +1695,14 @@
             "color": "#84ba5c"
           }
         },
+        "410": {
+          "fill": {
+            "color": "#ffffff"
+          },
+          "stroke": {
+            "color": "#7fa8bf"
+          }
+        },
         "501": {
           "stroke": {
             "color": "#2b2b2b"
@@ -1759,19 +1781,19 @@
       "labels": {
         "place": {
           "color": "#1f2a1a",
-          "haloColor": "#dbe8c2"
+          "haloColor": "#f6f4e8"
         },
         "peak": {
           "color": "#5c3a1e",
-          "haloColor": "#dbe8c2"
+          "haloColor": "#f6f4e8"
         },
         "peak-ele": {
           "color": "#5c3a1e",
-          "haloColor": "#dbe8c2"
+          "haloColor": "#f6f4e8"
         },
         "kontur-tall": {
           "color": "#8a5a2b",
-          "haloColor": "#dbe8c2"
+          "haloColor": "#f6f4e8"
         },
         "vann-navn": {
           "color": "#12617f",
@@ -1787,24 +1809,24 @@
         },
         "stedsnavn": {
           "color": "#1f2a1a",
-          "haloColor": "#dbe8c2"
+          "haloColor": "#f6f4e8"
         },
         "omrade-navn": {
           "color": "#4a5540",
-          "haloColor": "#dbe8c2"
+          "haloColor": "#f6f4e8"
         },
         "hytte-navn": {
           "color": "#1f2a1a",
-          "haloColor": "#dbe8c2"
+          "haloColor": "#f6f4e8"
         },
         "naturreservat-navn": {
           "color": "#2f7d32",
-          "haloColor": "#dbe8c2"
+          "haloColor": "#f6f4e8"
         }
       },
       "symbols": {
         "ink": "#1a1a1a",
-        "paper": "#dbe8c2"
+        "paper": "#f6f4e8"
       },
       "patterns": {
         "myr": {
@@ -1950,6 +1972,14 @@
         "409": {
           "fill": {
             "color": "#b4b39c"
+          }
+        },
+        "410": {
+          "fill": {
+            "color": "#ffffff"
+          },
+          "stroke": {
+            "color": "#8fb8cc"
           }
         },
         "501": {
@@ -2221,6 +2251,14 @@
         "409": {
           "fill": {
             "color": "#9fc97e"
+          }
+        },
+        "410": {
+          "fill": {
+            "color": "#ffffff"
+          },
+          "stroke": {
+            "color": "#6b7f8c"
           }
         },
         "501": {
@@ -2504,6 +2542,14 @@
         "409": {
           "fill": {
             "color": "#348c34"
+          }
+        },
+        "410": {
+          "fill": {
+            "color": "#dfe9f2"
+          },
+          "stroke": {
+            "color": "#7d97ad"
           }
         },
         "501": {
@@ -2859,6 +2905,14 @@
             "color": "#d8c6a2"
           }
         },
+        "410": {
+          "fill": {
+            "color": "#fbf6ec"
+          },
+          "stroke": {
+            "color": "#9a8b74"
+          }
+        },
         "501": {
           "stroke": {
             "color": "#353024"
@@ -3205,6 +3259,14 @@
         "409": {
           "fill": {
             "color": "#03072f"
+          }
+        },
+        "410": {
+          "fill": {
+            "color": "#f2f4fb"
+          },
+          "stroke": {
+            "color": "#8b93b8"
           }
         },
         "501": {
@@ -3555,6 +3617,14 @@
             "color": "#001518"
           }
         },
+        "410": {
+          "fill": {
+            "color": "#f4f6f8"
+          },
+          "stroke": {
+            "color": "#8b98a4"
+          }
+        },
         "501": {
           "stroke": {
             "color": "#020e0f"
@@ -3901,6 +3971,14 @@
         "409": {
           "fill": {
             "color": "#240b00"
+          }
+        },
+        "410": {
+          "fill": {
+            "color": "#f7f1e8"
+          },
+          "stroke": {
+            "color": "#a08d78"
           }
         },
         "501": {
@@ -4251,6 +4329,14 @@
             "color": "#001702"
           }
         },
+        "410": {
+          "fill": {
+            "color": "#f4f9f6"
+          },
+          "stroke": {
+            "color": "#8fae9e"
+          }
+        },
         "501": {
           "stroke": {
             "color": "#040e05"
@@ -4597,6 +4683,14 @@
         "409": {
           "fill": {
             "color": "#07001b"
+          }
+        },
+        "410": {
+          "fill": {
+            "color": "#ffffff"
+          },
+          "stroke": {
+            "color": "#a8b6c0"
           }
         },
         "501": {

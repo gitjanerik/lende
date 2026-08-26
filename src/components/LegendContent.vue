@@ -41,7 +41,12 @@ const SECTIONS = [
     note: 'Innsjø, tjern, bekk, myr. 303 saltvann der OSM tagger fjord.' },
   { title: 'Strand', codes: ['556'], category: 'manmade',
     note: 'OSM natural=beach tegnes som sand-flate i strandens faktiske form og størrelse (eget lag, default på).' },
-  { title: 'Vegetasjon & terreng', codes: ['401', '403', '404', '405', '406', '407', '408', '409'], category: 'terrain' },
+  { title: 'Vegetasjon & terreng', codes: ['401', '403', '404', '405', '406', '407', '408', '409', '410'], category: 'terrain',
+    note: '410 isbre er ikke en ISOM-kode — ISOM 2017-2 har ingen bre, fordi sportskart ikke '
+      + 'tegnes på is. Norske turkart gjør det, og konvensjonen der er hvit flate med en svak '
+      + 'blågrå kant. Flatene kommer fra Kartverkets N50 Arealdekke, navnene fra N50 Stedsnavn '
+      + 'og OSM. Merk at ISOM har omvendt vegetasjonslogikk av andre norske kart: 405 løpbar '
+      + 'skog er HVIT og 401 åpen mark er GUL. Turkart-stilen snur det tilbake.' },
   { title: 'Veier & stier', codes: ['501', '502', '503', '504', '505', '506', '507'], category: 'manmade' },
   { title: 'Jernbane', codes: ['515'], category: 'manmade' },
   { title: 'Vinter & ski', codes: ['510', '511', '512'], category: 'manmade' },

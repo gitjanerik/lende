@@ -22,6 +22,7 @@ export const LAYERS = [
   { key: 'aapen',      label: 'Åpen mark' },
   { key: 'aker',       label: 'Åker' },
   { key: 'myr',        label: 'Myr' },
+  { key: 'isbre',      label: 'Isbre' },
   { key: 'bekk',       label: 'Bekk' },
   { key: 'strand',     label: 'Strand' },
   { key: 'naturreservat', label: 'Naturreservat' },

@@ -51,7 +51,7 @@ export const THEME_GROUPS = Object.freeze([
 /**
  * CSS-variablene et tema setter, som [navn, verdi]-par — kilden både for
  * MapViews applyTheme() (live-DOM, style.setProperty) og buildThemeCss()
- * (statisk SVG): --bg, --iso-<kode>-fill/stroke/overlay-stroke,
+ * (statisk SVG): --bg, --bg-apen, --iso-<kode>-fill/stroke/overlay-stroke,
  * --iso-depth-1..5, --label-*-fill/halo og --art-fill-opacity. 'light' er
  * katalog-defaultene → tom liste. Casing-streker følger med gratis: bakt CSS
  * faller tilbake på var(--bg).
@@ -68,6 +68,14 @@ export function themeVarEntries(temaKey, catalog = isomCatalogDefault) {
   }
   if (temaKey !== 'light') {
     if (t.background) vars.push(['--bg', t.background])
+    // Åpen-mark-tonen arket bytter til når det HAR ekte N50-skog å male oppå
+    // (symbolizer: `.isom-map[data-areal~="skog"]`). Settes for ALLE temaer,
+    // også de som ikke har noen egen — der er den lik den vanlige bakgrunnen,
+    // og byttet blir en no-op. Alternativet, å utelate den, ville sendt hvert
+    // slikt tema til katalogens kremgule fallback: mørke temaer med lyst ark.
+    if (t.background || t.backgroundApen) {
+      vars.push(['--bg-apen', t.backgroundApen ?? t.background])
+    }
     for (const [code, def] of Object.entries(t.categories ?? {})) {
       if (def.fill?.color) vars.push([`--iso-${code}-fill`, def.fill.color])
       if (def.stroke?.color) vars.push([`--iso-${code}-stroke`, def.stroke.color])

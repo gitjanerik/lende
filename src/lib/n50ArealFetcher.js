@@ -1,4 +1,5 @@
-// N50 arealdekke-flater (myr) fra statiske fliser ved siden av appen.
+// N50 arealdekke-flater (myr, skog, isbre) + isbre-navn fra statiske fliser
+// ved siden av appen.
 //
 // ── Hvorfor statisk ────────────────────────────────────────────────────────
 // Samme grunn som n50StiFetcher: OSM er tynt i norsk utmark. Ved
@@ -40,7 +41,7 @@ async function hentBytesViaFetch(url, signal) {
 // Manifestet lister hvilke fliser som FINNES. Uten det ville hvert kart bedt
 // om fliser over hav og utland og fylt konsollen med 404.
 let manifestLover = null
-export function nullstillManifestCache() { manifestLover = null }
+export function nullstillManifestCache() { manifestLover = null; navnLover = null }
 
 async function hentManifest(basePath, hentBytes, signal) {
   if (!manifestLover) {
@@ -49,11 +50,69 @@ async function hentManifest(basePath, hentBytes, signal) {
         const { bytes } = await hentBytes(`${basePath}manifest.json`, signal)
         if (!bytes) return null
         const m = JSON.parse(new TextDecoder().decode(bytes))
-        return Array.isArray(m?.fliser) ? new Set(m.fliser) : null
+        if (!Array.isArray(m?.fliser)) return null
+        // `isbreNavn` er ANTALLET navn baken skrev, ikke et boolsk flagg. Det
+        // er samme grep som `typer`: klienten skal kunne skille «ingen breer
+        // bakt» fra «navnefila finnes ikke ennå» uten å betale en 404 per kart
+        // for å finne det ut.
+        return { fliser: new Set(m.fliser), isbreNavn: Number(m.isbreNavn) || 0 }
       } catch { return null }
     })()
   }
   return manifestLover
+}
+
+// Isbre-navnene er ÉN liten fil for hele landet, ikke en flis per rute: N50
+// har noen få tusen breer, navnene er korte, og en flis-inndeling ville kostet
+// mer i manifest-oppslag enn hele fila veier. Den hentes derfor én gang og
+// filtreres på bbox lokalt.
+let navnLover = null
+export function nullstillNavnCache() { navnLover = null }
+
+async function hentIsbreNavn(basePath, hentBytes, signal) {
+  if (!navnLover) {
+    navnLover = (async () => {
+      try {
+        const { bytes } = await hentBytes(`${basePath}isbrenavn.json`, signal)
+        if (!bytes) return []
+        const liste = JSON.parse(new TextDecoder().decode(bytes))
+        return Array.isArray(liste) ? liste : []
+      } catch { return [] }
+    })()
+  }
+  return navnLover
+}
+
+/**
+ * Isbre-navn innenfor bboxen, som OSM-aktige navnepunkt.
+ *
+ * N50 Arealdekke bærer INGEN navn på flatene, og en bre som Jostedalsbreen
+ * ville uansett fått ett navn der kartet trenger armenes — Nigardsbreen,
+ * Briksdalsbreen. Navnene er derfor punkter fra N50s stedsnavn-lag, og
+ * mapBuilder etiketterer dem som områdenavn på selve punktet.
+ */
+export async function fetchIsbreNavn(bbox, opts = {}) {
+  const basePath = opts.basePath ?? BASE
+  const hentBytes = opts.hentBytes ?? hentBytesViaFetch
+  const manifest = await hentManifest(basePath, hentBytes, opts.signal)
+  if (manifest && !manifest.isbreNavn) return []
+  const liste = await hentIsbreNavn(basePath, hentBytes, opts.signal)
+  return liste
+    .filter(p => Number.isFinite(p?.lat) && Number.isFinite(p?.lon)
+      && p.lat >= bbox.south && p.lat <= bbox.north
+      && p.lon >= bbox.west && p.lon <= bbox.east
+      && String(p.navn ?? '').trim())
+    .map((p, i) => ({
+      type: 'node',
+      id: `n50isbrenavn-${i}`,
+      lat: p.lat,
+      lon: p.lon,
+      // `natural=glacier` er taggen mapBuilder alt kjenner. Noden har ingen
+      // flate, og buckets-løkka hopper over 410 på noder nettopp derfor —
+      // uten det ville hvert navn talt som en bre-flate som aldri tegnes.
+      tags: { natural: 'glacier', name: String(p.navn).trim(), 'lende:n50navn': 'isbre' },
+      _source: 'n50areal',
+    }))
 }
 
 /** Overlapper flatas bbox kartets bbox? Fliser er mye større enn kartet. */
@@ -89,7 +148,7 @@ export async function fetchN50ArealFlater(bbox, opts = {}) {
   }
   const alle = fliserForBbox(bbox)
   const manifest = await hentManifest(basePath, hentBytes, opts.signal)
-  const nokler = manifest ? alle.filter(n => manifest.has(n)) : alle
+  const nokler = manifest ? alle.filter(n => manifest.fliser.has(n)) : alle
   if (!nokler.length) {
     onStatus({ state: 'ok', fliser: 0, flater: 0, utenfor: !!manifest })
     return []
@@ -136,16 +195,23 @@ export async function fetchN50ArealFlater(bbox, opts = {}) {
 // ALLEREDE klassifiserer, i stedet for å lage en ny sti gjennom symbolizer:
 //   wetland → ISOM 308/309 (myr, mønsterfyll)
 //   wood    → ISOM 406 (skog)
+//   glacier → 410 (isbre, hvit flate — Lendes egen kode, se isomCatalog)
 // `lende:n50areal` bæres i tillegg, så diagnose-modus kan skille N50 fra OSM
 // og arealMerge kan avlede hva kilden faktisk leverte.
 const TAGG_FOR_TYPE = Object.freeze({
   myr: { natural: 'wetland' },
   skog: { natural: 'wood' },
   apen: { landuse: 'meadow' },
+  isbre: { natural: 'glacier' },
 })
 
 export function n50ArealTilElementer(flater) {
-  return (flater ?? []).map((f, i) => ({
+  // Ukjent type → INGEN flate. Fram til v5.26.0 falt den tilbake på myr, og
+  // den fallbacken er en felle så snart formatet kan utvides bakerst: en
+  // klient som ikke kjenner `isbre` ville lest indeks 4 som 'annet' og malt
+  // Jostedalsbreen som myr. Å droppe flata er feil på en måte man SER, og
+  // det er den eneste feilmåten som ikke lyver om terrenget.
+  return (flater ?? []).filter(f => TAGG_FOR_TYPE[f.type]).map((f, i) => ({
     type: f.ringer.length > 1 ? 'relation' : 'way',
     id: `n50areal-${i}`,
     ...(f.ringer.length > 1
@@ -155,12 +221,23 @@ export function n50ArealTilElementer(flater) {
         })),
       }
       : { geometry: f.ringer[0] }),
-    tags: { ...(TAGG_FOR_TYPE[f.type] ?? TAGG_FOR_TYPE.myr), 'lende:n50areal': f.type },
+    tags: { ...TAGG_FOR_TYPE[f.type], 'lende:n50areal': f.type },
     _source: 'n50areal',
   }))
 }
 
-/** Hent + konverter i én operasjon (MCP/headless og tester). */
+/**
+ * Hent + konverter i én operasjon (appen, MCP/headless og tester).
+ *
+ * Navnene henger PÅ denne, ikke på et eget kall: `fetchN50Areal` er den ene
+ * døra både `createMapFlow` og `mcp/headless` går gjennom, og et navnelag som
+ * bare den ene husket å hente er nøyaktig feilen vann-stacken brukte månedsvis
+ * på (v5.18.3). Ett kallsted, én oppførsel.
+ */
 export async function fetchN50Areal(bbox, opts = {}) {
-  return n50ArealTilElementer(await fetchN50ArealFlater(bbox, opts))
+  const [flater, navn] = await Promise.all([
+    fetchN50ArealFlater(bbox, opts),
+    fetchIsbreNavn(bbox, opts).catch(() => []),
+  ])
+  return [...n50ArealTilElementer(flater), ...navn]
 }

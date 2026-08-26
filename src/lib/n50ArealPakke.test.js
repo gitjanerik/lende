@@ -42,9 +42,18 @@ describe('n50ArealPakke — koding', () => {
     expect(lesFlis(kodeFlis([{ type: 'tullete', ringer: [KVADRAT] }]))[0].type).toBe('annet')
   })
 
-  it('skog og apen har faste plasser — en senere bake skal ikke kreve ny versjon', () => {
+  it('typene har faste plasser — nye kommer BAKERST, aldri i midten', () => {
     // Rekkefølgen ER kodingen. Endres den, leses gamle fliser med feil type.
-    expect(TYPER).toEqual(['myr', 'skog', 'apen', 'annet'])
+    // `isbre` kom til i v5.26.0 og ligger sist nettopp derfor: de fire første
+    // indeksene står som de sto, så en flis bakt i dag leses riktig av en
+    // klient fra v5.25 for alt den kjenner fra før.
+    expect(TYPER).toEqual(['myr', 'skog', 'apen', 'annet', 'isbre'])
+    expect(TYPER.slice(0, 4)).toEqual(['myr', 'skog', 'apen', 'annet'])
+  })
+
+  it('isbre koder og dekoder som seg selv', () => {
+    const rundtur = lesFlis(kodeFlis([{ type: 'isbre', ringer: [KVADRAT] }]))
+    expect(rundtur[0].type).toBe('isbre')
   })
 
   it('kaster på feil magic og feil versjon', () => {
