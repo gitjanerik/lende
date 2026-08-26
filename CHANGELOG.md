@@ -1,3 +1,31 @@
+## 2026-08-26 — v5.26.2: Historikken skal ryddes ved neste bake
+
+Ikke en kode-endring — en beslutning skrevet ned der den blir lest.
+
+v5.26.1 la 117 MB bakte fliser i repoet. `.git` er nå 200 MB pack, og
+**gh-pages har 323 commits** som hver bærer et helt `dist/`. Flisene er
+GENERERTE — de kan bakes på nytt fra Geonorge når som helst — så gamle utgaver
+har null verdi, men de blir liggende i git for alltid. Hver bake som endrer
+flisene legger ~117 MB på toppen.
+
+Notatet står tre steder, fordi det er tre steder man er når det blir relevant:
+arealdekke-seksjonen i CLAUDE.md, toppen av `bygg-n50-areal.yml` (der man står
+rett før man kjører en bake), og ved gh-pages-steget i
+`build-vardasen-map.yml`.
+
+Rekkefølgen er med vilje: **gh-pages først**, fordi den er gratis. Grenen er ren
+generert output, ingen har noe der å miste, og en orphan-branch med force-push
+fjerner 323 utgaver av nettstedet i én operasjon. **master etterpå**, som en
+egen bevisst `git filter-repo` — den omskriver delt historikk, og selv med én
+eier skal det ikke skje som biprodukt av en bake.
+
+GitHubs grenser for kontekst: 100 MB per fil er hard sperre (største flis er
+2,4 MB), 5 GB repo er der GitHub tar kontakt, og 1 GB er hard grense for det
+publiserte Pages-nettstedet (`dist/` er 133 MB). Ingen er nære — men
+gh-pages-veksten er monoton, og den løper først.
+
+---
+
 ## 2026-08-26 — v5.26.1: Skogen, myra og breene er på kartet — landsdekkende
 
 Rørene sto ferdige i v5.26.0. Nå er dataene der: **207 fliser, 117 MB, 883 903
