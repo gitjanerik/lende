@@ -2702,12 +2702,16 @@ onUnmounted(() => {
         3D
       </button>
 
-      <!-- Kanthåndtak: 8 runde knapper på ARKETS kant som henter nye kartfliser.
-           Ligger UTENFOR pinch-transformen (søsken av mapInnerRef) så knapp,
-           hårlinje og pille holder ekte skjermstørrelse, mens ankeret følger
-           arket når det vokser, panoreres eller roteres. -->
+      <!-- Kanthåndtak: 8 vinkler rett utenfor ARKETS kant som henter nye
+           kartfliser. Ligger UTENFOR pinch-transformen (søsken av mapInnerRef)
+           så strek og pille holder ekte skjermstørrelse, mens ankeret følger
+           arket når det vokser, panoreres eller roteres.
+           `is-dark` er KARTETS tema og ikke app-chromets: streken skal være
+           sort på et papirkart og hvit på et nattkart, og turkart-temaet er
+           lyst også når appen ellers står mørk (v5.25.6). -->
       <MapEdgeHandles v-if="extendZonesVisible"
                       :handles="edgeHandles"
+                      :is-dark="isDark"
                       :hovered="hoveredDir"
                       @preview="previewExtend"
                       @clear="clearExtendPreview"

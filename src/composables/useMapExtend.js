@@ -57,6 +57,12 @@ export const EDGE_DIR_VEC = {
 export const EDGE_TRI_SIDE = 26
 export const EDGE_TRI_HEIGHT = EDGE_TRI_SIDE * Math.sqrt(3) / 2   // ≈ 22.5
 export const EDGE_HANDLE_UTSTIKK = EDGE_TRI_HEIGHT / 2            // ≈ 11.3 px utover
+// Hjørne-håndtakene har RETT vinkel og ikke 60° (v5.25.6). Grunnen er geometrisk:
+// en 90° vinkel dreid 45° får beina parallelle med arkets to kanter, så merket
+// leser som et hjørne-merke på arket i stedet for en pil som tilfeldigvis står
+// på skrå. Beinet er 19 px, litt kortere enn kardinalenes 26, fordi det ligger
+// langs kanten og ikke på tvers av den.
+export const EDGE_HJORNE_BEIN = 19
 export const EDGE_LABEL_OFFSET = { x: 88, y: 44 }  // pille-forskyvning innover (px)
 
 /** Klamp `v` inn i [lo, hi]. Tåler at lo > hi (bittesmå viewporter) — da midtstilles. */
@@ -115,6 +121,12 @@ export function edgeUtRetning(dir, rotationDeg = 0) {
   const r = (rotationDeg || 0) * Math.PI / 180
   const cos = Math.cos(r), sin = Math.sin(r)
   return { x: dx * cos - dy * sin, y: dx * sin + dy * cos }
+}
+
+/** Er dette et hjørne-håndtak (diagonal), altså det som tegnes med rett vinkel? */
+export function erHjorne(dir) {
+  const v = EDGE_DIR_VEC[dir]
+  return !!v && v.dx !== 0 && v.dy !== 0
 }
 
 // Etikett-pillens forskyvning INNOVER fra knappen (skjerm-px). Retningsvektoren
@@ -461,6 +473,9 @@ export function useMapExtend({
         lx: off.lx,
         ly: off.ly,
         dokket: !naer,
+        // Diagonal = hjørne-håndtak, og det tegnes med rett vinkel. Avledes av
+        // retningsvektoren og ikke av at nøkkelen har to bokstaver.
+        hjorne: erHjorne(dir),
       })
     }
     return out

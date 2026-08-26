@@ -543,6 +543,90 @@ const SJEKKER = [
     },
   },
   {
+    // v5.25.6-regresjonsvakt. Håndtakets strek er sort på lyse kart og hvit på
+    // mørke, og den avgjørelsen MÅ komme fra KARTETS tema og ikke app-chromets:
+    // turkart, print og padling er lyse kart som normalt vises med mørkt chrome.
+    // Første utgave brukte --color-ink (app-chromet) og ga åtte nesten usynlige
+    // hvite vinkler på kremgul bakgrunn. Enhetstestene kan ikke se det —
+    // fargevalget bor i en CSS-klasse mot en computed. Derfor måler denne den
+    // FAKTISKE luminansen av streken mot kartets --bg, i begge retninger.
+    navn: 'kanthåndtakets strek kontrasterer kartet i begge temaer',
+    domene: 'useMapExtend',
+    async kjør(page) {
+      const lum = (farge) => {
+        const m = /(-?[\d.]+)[,\s]+(-?[\d.]+)[,\s]+(-?[\d.]+)/.exec(farge || '')
+        if (!m) return null
+        return 0.2126 * +m[1] + 0.7152 * +m[2] + 0.0722 * +m[3]
+      }
+      // Streken males i browseren, så vi leser den ut av getComputedStyle på en
+      // ekte path og --bg på samme sted temaet setter den.
+      const mål = () => page.evaluate(() => {
+        const el = document.querySelector('[data-map-inner]')
+        const p = document.querySelector('button[aria-label^="Hent kartfliser mot"] path')
+        if (!el) throw new Error('fant ikke [data-map-inner]')
+        if (!p) throw new Error('fant ingen kanthåndtak å måle streken på')
+        const cs = getComputedStyle(p)
+        // Tomt --bg = lyst standard-tema (det setter ingen vars). Da er
+        // bakgrunnen katalogens egen kremgule, og vi må oppgi den selv.
+        const bg = getComputedStyle(el).getPropertyValue('--bg').trim()
+        return { strek: cs.stroke, bg: bg || '#fefae0' }
+      })
+      const somRgb = async (hex) => page.evaluate((h) => {
+        if (h.startsWith('rgb')) return h
+        const d = document.createElement('div')
+        d.style.color = h; document.body.appendChild(d)
+        const ut = getComputedStyle(d).color; d.remove(); return ut
+      }, hex)
+
+      const vurder = async (merkelapp) => {
+        const { strek, bg } = await mål()
+        const ls = lum(strek), lb = lum(await somRgb(bg))
+        if (ls == null || lb == null) throw new Error(`kunne ikke lese farger (${merkelapp}): strek "${strek}", bg "${bg}"`)
+        if (Math.abs(ls - lb) < 90) {
+          throw new Error(`streken forsvinner i kartet (${merkelapp}): strek-lum ${ls.toFixed(0)} mot bg-lum ${lb.toFixed(0)} — leser fargen app-chromet i stedet for kart-temaet?`)
+        }
+        return `${merkelapp}: ${ls.toFixed(0)} mot ${lb.toFixed(0)}`
+      }
+
+      // Sjekken SETTER begge temaene selv i stedet for å måle det den arver.
+      // Sjekken over slutter på Curves (mørkt), og da ville «lyst kart» målt et
+      // mørkt kart og bestått uten å ha sett den feilen den finnes for.
+      // Merk hvor de to bor: kartstilene (Turkart, Orientering, Padling) i
+      // KARTSTIL-fanen, stemningene (Curves m.fl.) i STEMNING. Kartstil-knappene
+      // har en beskrivelse under navnet, derfor uankret regex.
+      const settKartstil = async (re) => {
+        await åpneDrawer(page)
+        await klikkTekst(page, /^KARTSTIL$/)
+        await klikkTekst(page, re)
+        await page.waitForTimeout(700)
+        await lukkDrawer(page)
+        await page.waitForTimeout(250)
+      }
+
+      await settKartstil(/^Turkart/)
+      const lyst = await vurder('lyst kart (Turkart)')
+
+      // Mørkt kart: en stemning oppå. Nå skal streken ha snudd til hvit.
+      await åpneDrawer(page)
+      await klikkTekst(page, /^STEMNING$/)
+      const morkt = await page.evaluate(() => {
+        const b = [...document.querySelectorAll('button')].find((e) =>
+          e.offsetParent && /^(Mørk|Curves|Forest|Indigo|Petrol|Mocha)$/i.test(e.innerText.trim()))
+        if (!b) return ''
+        b.click(); return b.innerText.trim()
+      })
+      if (!morkt) throw new Error('fant ingen mørk stemning å bytte til')
+      await page.waitForTimeout(900)
+      await lukkDrawer(page)
+      await page.waitForTimeout(250)
+      const morkResultat = await vurder(`mørkt kart («${morkt}»)`)
+
+      // Nøytral tilstand for neste sjekk: tilbake til det lyse utgangspunktet.
+      await settKartstil(/^Turkart/)
+      return `${lyst}; ${morkResultat}`
+    },
+  },
+  {
     navn: 'offline-fil pakkes og lastes ned',
     domene: 'useKartPakke',
     async kjør(page) {
