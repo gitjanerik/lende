@@ -193,10 +193,49 @@ export function klassifiser(props, typer = TYPER_VALGT) {
 const NAVN_LAG = /(stedsnavn|navn)/i
 const NAVN_FELT = ['streng', 'fulltekst', 'navn', 'name', 'stedsnavn']
 const TYPE_FELT = ['navneobjekttype', 'navnetype', 'navneobjektgruppe']
+// BEKREFTET vokabular (kjøring 32941476642, Buskerud): `isbre`=2, `fonn`=1.
+// Regelen traff alle tre. Den er likevel litt bredere enn de to ordene, fordi
+// SSRs typeliste har flere sammensetninger enn ett fylke viser.
 const ER_BRENAVN = /(isbre|^bre$|bre$|fonn|jøkul|jokul|skavl)/i
+// Bredere enn ER_BRENAVN, KUN for diagnose-linja: den skal vise typer vi ikke
+// har tenkt på. Merk at «is» og «snø» BEVISST ikke står her — de gjorde det i
+// første utgave og dro med seg `turisthytte`, `nesISjø` og
+// `byggForJordbrukFiskeOgFangst`, som druknet de to ekte treffene.
+const LIGNER_BRE = /(bre|fonn|jøkul|jokul|skavl)/i
 
 export function erBreNavnType(verdi) {
   return ER_BRENAVN.test(String(verdi ?? '').trim())
+}
+
+/**
+ * Ett representativt punkt fra en vilkårlig GeoJSON-geometri.
+ *
+ * `N50_Stedsnavn_tekstplassering` er et ANNOTASJONS-lag: geometrien er tekstens
+ * plassering, ikke et rent punkt, og `ogr2ogr -nlt POINT` ga ingen brukbare
+ * koordinater ut av den. Målingen sa det rett ut — «3 traff regelen, 0 uten
+ * navnestreng, 3 uten brukbart punkt» — og det er hele grunnen til at telleren
+ * ble delt i tre: «0 isbre-navn» kunne like gjerne betydd at typen ikke fantes.
+ *
+ * Vi lar derfor GDAL beholde geometrien som den er (reprojisert til 4326) og
+ * regner snittet av koordinatene selv. For en tekst-plassering er det midt i
+ * etiketten, som er nøyaktig der navnet skal stå.
+ */
+export function punktFra(geometry) {
+  let n = 0, sumLon = 0, sumLat = 0
+  const gaa = (k) => {
+    if (!Array.isArray(k) || !k.length) return
+    if (typeof k[0] === 'number' && typeof k[1] === 'number') {
+      if (Number.isFinite(k[0]) && Number.isFinite(k[1])) { sumLon += k[0]; sumLat += k[1]; n++ }
+      return
+    }
+    for (const d of k) gaa(d)
+  }
+  gaa(geometry?.coordinates)
+  if (!n) return null
+  const lon = sumLon / n, lat = sumLat / n
+  // Utenfor jorda betyr at reprojiseringen bommet, ikke at stedet ligger der.
+  if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return null
+  return { lat, lon }
 }
 
 function forsteFelt(props, kandidater) {
@@ -216,10 +255,13 @@ async function lesIsbreNavn(kilde, dir) {
     log(`    navnelag ${l}: ${feltNavn(kilde, l).join(', ') || '(ingen felter lest)'}`)
     const utfil = join(dir, `navn_${l.replace(/[^\w]/g, '_')}.geojsonl`)
     try {
+      // INGEN `-nlt POINT`: annotasjons-geometrien lar seg ikke tvinge til punkt,
+      // og forsøket ga null brukbare koordinater for alle tre bre-navnene i
+      // Buskerud. Vi tar geometrien som den er og regner punktet selv.
       execFileSync('ogr2ogr', ['-f', 'GeoJSONSeq', utfil, kilde, l,
-        '-t_srs', 'EPSG:4326', '-nlt', 'POINT'], { stdio: 'pipe' })
+        '-t_srs', 'EPSG:4326'], { stdio: 'pipe' })
     } catch (e) {
-      log(`    ⚠ ${l} lot seg ikke lese som punkt: ${String(e.message).split('\n')[0]}`)
+      log(`    ⚠ ${l} lot seg ikke lese: ${String(e.message).split('\n')[0]}`)
       continue
     }
     const typeTall = new Map()
@@ -242,16 +284,16 @@ async function lesIsbreNavn(kilde, dir) {
       // Alt som LUKTER bre logges uansett om regelen tar den, så en type vi
       // ikke har tenkt på («isbreOgSnøfonn», «brem») blir synlig i stedet for
       // å forsvinne i en fordeling som bare viser de femten vanligste.
-      if (/(bre|fonn|jøkul|jokul|is|snø|sno|skavl)/i.test(type)) {
+      if (LIGNER_BRE.test(type)) {
         breTyper.set(type, (breTyper.get(type) ?? 0) + 1)
       }
       if (!erBreNavnType(type)) continue
       treff++
       const navn = forsteFelt(f.properties, NAVN_FELT)
-      const k = f.geometry?.coordinates
+      const p = punktFra(f.geometry)
       if (!navn) { utenNavn++; continue }
-      if (!Array.isArray(k) || !Number.isFinite(k[0]) || !Number.isFinite(k[1])) { utenPunkt++; continue }
-      ut.push({ navn, lat: Math.round(k[1] * 1e5) / 1e5, lon: Math.round(k[0] * 1e5) / 1e5 })
+      if (!p) { utenPunkt++; continue }
+      ut.push({ navn, lat: Math.round(p.lat * 1e5) / 1e5, lon: Math.round(p.lon * 1e5) / 1e5 })
     }
     rmSync(utfil, { force: true })
     const topp = [...typeTall.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15)

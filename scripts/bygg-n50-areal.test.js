@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { lesSkrue, klassifiser, erBreNavnType } from './bygg-n50-areal.mjs'
+import { lesSkrue, klassifiser, erBreNavnType, punktFra } from './bygg-n50-areal.mjs'
 import { TYPER } from '../src/lib/n50ArealPakke.js'
 
 const ALLE = new Set(['myr', 'skog', 'isbre'])
@@ -84,5 +84,39 @@ describe('erBreNavnType — hvilke stedsnavn som er bre-navn', () => {
     for (const v of ['Fjell', 'Innsjø', 'Gard', 'Berg', '', null]) {
       expect(erBreNavnType(v), String(v)).toBe(false)
     }
+  })
+})
+
+
+describe('punktFra — annotasjons-geometri gir ETT punkt', () => {
+  // Målingen (kjøring 32941476642, Buskerud) sa: «3 traff regelen, 0 uten
+  // navnestreng, 3 uten brukbart punkt». Bre-navnene fantes hele tiden — det
+  // var `ogr2ogr -nlt POINT` som ikke fikk punkt ut av annotasjons-laget.
+  // Geometrien leses nå som den er, og punktet regnes her.
+  it('et punkt er seg selv', () => {
+    expect(punktFra({ type: 'Point', coordinates: [7, 60.5] })).toEqual({ lat: 60.5, lon: 7 })
+  })
+
+  it('en tekst-plassering gir midten av etiketten', () => {
+    const p = punktFra({ type: 'Polygon', coordinates: [[[7, 60], [8, 60], [8, 61], [7, 61]]] })
+    expect(p).toEqual({ lat: 60.5, lon: 7.5 })
+  })
+
+  it('nøstet geometri (MultiPolygon) håndteres', () => {
+    const p = punktFra({ type: 'MultiPolygon', coordinates: [[[[6, 60], [8, 60], [8, 62], [6, 62]]]] })
+    expect(p.lat).toBeCloseTo(61)
+    expect(p.lon).toBeCloseTo(7)
+  })
+
+  it('tom eller manglende geometri gir null, ikke NaN', () => {
+    expect(punktFra(null)).toBe(null)
+    expect(punktFra({ coordinates: [] })).toBe(null)
+    expect(punktFra({ type: 'Point', coordinates: ['a', 'b'] })).toBe(null)
+  })
+
+  it('koordinater utenfor jorda avvises — da har reprojiseringen bommet', () => {
+    // UTM-meter som slipper gjennom uprojisert ville lagt navnet et sted
+    // ingen leter, og feilen ville først vist seg på fjellet.
+    expect(punktFra({ type: 'Point', coordinates: [500000, 6700000] })).toBe(null)
   })
 })
