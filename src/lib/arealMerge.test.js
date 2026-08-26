@@ -8,19 +8,20 @@ const n50Myr = { type: 'way', id: 'n1', tags: { natural: 'wetland', 'lende:n50ar
 
 describe('arealKildeFlagg — avledet av INNHOLD, ikke av at kilden svarte', () => {
   it('tom kilde gir bare false', () => {
-    expect(arealKildeFlagg([])).toEqual({ harMyr: false, harSkog: false, harApen: false })
+    expect(arealKildeFlagg([])).toEqual({ harMyr: false, harSkog: false, harApen: false, harIsbre: false })
     expect(arealKildeFlagg(undefined).harMyr).toBe(false)
   })
 
   it('myr i kilden setter harMyr — og bare den', () => {
-    expect(arealKildeFlagg([n50Myr])).toEqual({ harMyr: true, harSkog: false, harApen: false })
+    expect(arealKildeFlagg([n50Myr])).toEqual({ harMyr: true, harSkog: false, harApen: false, harIsbre: false })
   })
 
   it('skog ville satt harSkog av seg selv den dagen baken bærer den', () => {
     // Dette er hele poenget med å avlede flagget av innholdet: en utvidet bake
     // skal ikke kreve en endring i arealMerge.
     const n50Skog = { tags: { 'lende:n50areal': 'skog' } }
-    expect(arealKildeFlagg([n50Myr, n50Skog])).toEqual({ harMyr: true, harSkog: true, harApen: false })
+    expect(arealKildeFlagg([n50Myr, n50Skog]))
+      .toEqual({ harMyr: true, harSkog: true, harApen: false, harIsbre: false })
   })
 })
 
@@ -36,7 +37,7 @@ describe('slaaSammenAreal', () => {
     expect(ut.map((e) => e.id)).toEqual(['o2', 'o3', 'n1'])
   })
 
-  it('rører ALDRI annet OSM-arealdekke — N50-baken leverer ikke skog', () => {
+  it('rører ALDRI arealdekke kilden ikke leverer', () => {
     const ut = slaaSammenAreal({ osm: [osmSkog, osmVann], n50Areal: [n50Myr] })
     expect(ut.map((e) => e.id)).toEqual(['o2', 'o3', 'n1'])
   })
@@ -76,5 +77,36 @@ describe('skog fortrenger BARE skog', () => {
     const n50Myr2 = { id: 'n1', tags: { natural: 'wetland', 'lende:n50areal': 'myr' } }
     const ut = slaaSammenAreal({ osm: [osmMyr2, osmWood], n50Areal: [n50Myr2] })
     expect(ut.map((e) => e.id)).toEqual(['o2', 'n1'])
+  })
+})
+
+
+describe('isbre — flata viker for N50, men navnet gjør det ikke', () => {
+  const n50Isbre = { id: 'n3', tags: { natural: 'glacier', 'lende:n50areal': 'isbre' } }
+  const osmBreUtenNavn = { id: 'o5', tags: { natural: 'glacier' } }
+  const osmBreMedNavn = { id: 'o6', tags: { natural: 'glacier', name: 'Nigardsbreen' } }
+  const osmSkog2 = { id: 'o7', tags: { natural: 'wood' } }
+
+  it('setter harIsbre av seg selv', () => {
+    expect(arealKildeFlagg([n50Isbre]).harIsbre).toBe(true)
+    expect(arealKildeFlagg([n50Isbre]).harSkog).toBe(false)
+  })
+
+  it('en navnløs OSM-bre viker — den er bare N50s dublett', () => {
+    const ut = slaaSammenAreal({ osm: [osmBreUtenNavn, osmSkog2], n50Areal: [n50Isbre] })
+    expect(ut.map((e) => e.id)).toEqual(['o7', 'n3'])
+  })
+
+  it('en NAVNGITT OSM-bre blir stående — N50 Arealdekke har ingen navn å erstatte den med', () => {
+    const ut = slaaSammenAreal({ osm: [osmBreMedNavn], n50Areal: [n50Isbre] })
+    expect(ut.map((e) => e.id)).toEqual(['o6', 'n3'])
+  })
+
+  it('isbre fortrenger ikke skog, og skog ikke isbre', () => {
+    const n50Skog = { id: 'n4', tags: { natural: 'wood', 'lende:n50areal': 'skog' } }
+    expect(slaaSammenAreal({ osm: [osmBreUtenNavn], n50Areal: [n50Skog] }).map((e) => e.id))
+      .toEqual(['o5', 'n4'])
+    expect(slaaSammenAreal({ osm: [osmSkog2], n50Areal: [n50Isbre] }).map((e) => e.id))
+      .toEqual(['o7', 'n3'])
   })
 })

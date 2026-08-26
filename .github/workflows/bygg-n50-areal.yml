@@ -1,7 +1,13 @@
-name: Bygg N50-myr
+name: Bygg N50-arealdekke
 
-# Baker N50 arealdekke-myr til statiske fliser i public/data/n50-areal/ og
-# committer dem tilbake til branchen.
+# Baker N50 arealdekke (myr, skog, isbre) til statiske fliser i
+# public/data/n50-areal/ og committer dem tilbake til branchen.
+#
+# «typer» ER GRUNNEN TIL AT SKOGEN MANGLET. Bake-scriptet kunne bære skog fra
+# første dag, men `--typer` sto på sin default `myr` og denne workflowen hadde
+# ingen knott for den — så det fantes ingen vei til skogen herfra, uansett hvor
+# mange ganger jobben ble kjørt. Legger du til en ny type i scriptet, legg den
+# til i beskrivelsen under samtidig; en knott ingen vet om er ingen knott.
 #
 # KJØR «bare mål» FØRST. Flater er tyngre enn linjer, og myr dekker ~9 % av
 # Norge — stinettet ble 12 MB, og vi vet ikke på forhånd hva dette blir.
@@ -31,13 +37,17 @@ on:
         required: false
         default: ''
       toleranse:
-        description: 'Forenkling i meter (standard 4).'
+        description: 'Forenkling i meter. Ett tall for alt, eller «myr=4,skog=8». Tomt = per-type-standard.'
         required: false
-        default: '4'
+        default: ''
+      typer:
+        description: 'Hvilke arealtyper: myr, skog, isbre (komma­separert). Tomt = alle tre.'
+        required: false
+        default: ''
       minareal:
-        description: 'Minste myrflate i m² (standard 2500).'
+        description: 'Minste flate i m². Ett tall for alt, eller «myr=2500,skog=5000». Tomt = per-type-standard.'
         required: false
-        default: '2500'
+        default: ''
       bare_mal:
         description: 'Bare mål — skriv ingenting, ikke commit.'
         type: boolean
@@ -65,9 +75,30 @@ jobs:
           ogr2ogr --version
 
       - name: Bak flisene
+        # HEAP-TAKET ER BEVISST IKKE HEVET, men grunnen er ikke den som sto her
+        # først, og historien er verdt å ha: to kjøringer ble tolket som at de
+        # «døde etter 2–4 minutter med The operation was canceled», og det ble
+        # bygget en hel OOM-hypotese på det — inkludert et forsøk på å heve
+        # taket til 8 GB. Begge kjøringene gikk helt fint. De ble avbrutt
+        # MANUELT, av en som trodde det hadde gått halvannen time når det hadde
+        # gått fjorten minutter. «Canceled» i loggen betydde nøyaktig det den sa.
+        #
+        # Målingen avgjorde saken på ett fylke: rss 0,5 GB og 91,8 GB ledig
+        # disk. Det er ikke i nærheten av noe tak, og et hevet heap-tak løser
+        # derfor ingenting. Hev det først hvis node SELV kaster «heap out of
+        # memory» — den feilen står i loggen med de ordene.
+        #
+        # Lærdommen er den samme som skyene og knappenålene ga, bare snudd:
+        # bygg en MÅLING, ikke en hypotese — og les klokka i loggen, ikke din
+        # egen, før du konkluderer med at noe henger.
         run: |
           set -o pipefail
-          ARGS="--toleranse ${{ inputs.toleranse || '4' }} --minareal ${{ inputs.minareal || '2500' }}"
+          ARGS=""
+          # Tomt felt = scriptets egen per-type-standard. Å sende «4» her ville
+          # tvunget myrens tall på skogen og gjort per-type-skruene meningsløse.
+          if [ -n "${{ inputs.toleranse }}" ]; then ARGS="$ARGS --toleranse ${{ inputs.toleranse }}"; fi
+          if [ -n "${{ inputs.minareal }}" ]; then ARGS="$ARGS --minareal ${{ inputs.minareal }}"; fi
+          if [ -n "${{ inputs.typer }}" ]; then ARGS="$ARGS --typer ${{ inputs.typer }}"; fi
           if [ -n "${{ inputs.fylke }}" ]; then ARGS="$ARGS --fylke ${{ inputs.fylke }}"; fi
           if [ "${{ inputs.bare_mal }}" = "true" ]; then ARGS="$ARGS --mal"; fi
           node scripts/bygg-n50-areal.mjs $ARGS
@@ -89,10 +120,10 @@ jobs:
           # Bare commit ved REELL endring — en tom commit ville tvunget alle
           # brukere til å laste ned flisene på nytt uten grunn.
           if git diff --staged --quiet; then
-            echo "Ingen endring i N50-myrflisene"
+            echo "Ingen endring i N50-arealflisene"
           else
             git -c commit.gpgsign=false commit \
               --author="Deploy <deploy@lende>" \
-              -m "N50-myr (auto-generert fra Kartverket N50 Arealdekke)"
+              -m "N50-arealdekke (auto-generert fra Kartverket N50 Arealdekke)"
             git push origin HEAD:${GITHUB_REF_NAME}
           fi

@@ -104,6 +104,22 @@ export function lagNavn(kilde, monster) {
     .filter(n => monster.test(n))
 }
 
+// Feltnavnene i ett lag. `ogrinfo -so` skriver dem som «navn: Type (bredde)».
+//
+// Finnes for å SLIPPE å gjette. Sti-baken brukte en CI-kjøring på å finne ut at
+// feltet het `typeveg`, og areal-baken brukte en 166 MB nedlasting på å finne ut
+// at laget het `N50_Arealdekke_omrade`. Et script som sier «0» er ubrukelig; ett
+// som sier hva det SÅ, løser saken på neste kjøring.
+export function feltNavn(kilde, lag) {
+  try {
+    return execFileSync('ogrinfo', ['-so', kilde, lag], { encoding: 'utf8', maxBuffer: 1 << 26 })
+      .split('\n')
+      .map(l => l.match(/^([A-Za-zÆØÅæøå_][\wÆØÅæøå:.-]*):\s+(String|Integer64|Integer|Real|Date(?:Time)?|Binary)/))
+      .filter(Boolean)
+      .map(m => `${m[1]}:${m[2]}`)
+  } catch { return [] }
+}
+
 export function krevGdal() {
   execFileSync('ogr2ogr', ['--version'], { stdio: 'pipe' })
 }

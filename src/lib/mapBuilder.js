@@ -125,6 +125,9 @@ export function buildOverpassQuery(bbox, { timeoutS = 90, includeBuildings = tru
   way["natural"="wetland"];
   way["natural"~"^(wood|scree|bare_rock)$"];
   way["landuse"~"^(forest|meadow|grass|farmland)$"];
+  way["natural"="glacier"];
+  relation["natural"="glacier"];
+  node["natural"="glacier"]["name"];
 ${includeBuildings ? '  way["building"];' : ''}
   way["leisure"~"^(park|pitch|playground|stadium|sports_centre|track|horse_racing)$"];
   way["aeroway"~"^(aerodrome|apron|helipad)$"];
@@ -655,7 +658,7 @@ function unionByName(elements, project) {
 // 513 (idrettsanlegg: stadion/idrettsbane/travbane/hoppbakke/arena) rendres
 // samme sted — et bunn-areal med anleggets «baneform» som stier/konturer/
 // veier legger seg lesbart oppå. Eget toggle-lag («Idrettsanlegg»).
-const GROUND_CODES = ['401', '403', '404', '406', '407', '408', '409', '210', '512', '513', '514']
+const GROUND_CODES = ['401', '403', '404', '406', '407', '408', '409', '410', '210', '512', '513', '514']
 // Vann-stack: dybdeareal (Sjøkart 307, diskrete blå-bånd pr dybde) først,
 // så myr-pattern, så ISOM 303/301/302 (mer mettete blå overstyrer for navn-
 // gitte vann), så bekker.
@@ -768,7 +771,7 @@ export function clusterLandingssteder(placed, minSepM = 40) {
   return placed.filter((q, i) => q.code !== '550' || keep.has(i))
 }
 
-const POLYGON_CODES = new Set(['001', '401', '403', '404', '406', '407', '408', '409', '210', '301', '302', '303', '307', '308', '309', '512', '513', '514', '520', '521', '522', '551', '552', '556'])
+const POLYGON_CODES = new Set(['001', '401', '403', '404', '406', '407', '408', '409', '410', '210', '301', '302', '303', '307', '308', '309', '512', '513', '514', '520', '521', '522', '551', '552', '556'])
 const LINE_CODES = new Set(['304', '305', '501', '502', '503', '504', '505', '506', '507', '510', '511', '515', '525', '528', '201', '203', '101', '102', '103', '104'])
 
 /**
@@ -1085,6 +1088,9 @@ export function buildSvg(elements, bbox, options = {}) {
     // i long-press-inset-en). 306 er ikke i LAYER_ORDER, så uten dette
     // droppes den.
     if (cls.code === '306') { dybdekonturer.push(el); continue }
+    // Isbre-NAVNEPUNKT bærer bare navnet. De har ingen flate å tegne, og ville
+    // ellers blåst opp 410-tellingen med features som ikke gir én piksel.
+    if (cls.code === '410' && el.type === 'node') continue
     if (buckets[cls.code]) {
       buckets[cls.code].push(el)
       counts[cls.code]++
@@ -2153,6 +2159,12 @@ export function buildSvg(elements, bbox, options = {}) {
     // navn duplisert oppå det brune). Node-øyer får label på selve punktet.
     const isIslandFeat = tags.place === 'island' || tags.place === 'islet'
     if (el.type === 'node' && tags.place && !isIslandFeat) continue
+    // Isbre-navn kommer som NODE, ikke som flate. N50 Arealdekke bærer ingen
+    // navn på selve bre-polygonene (og en bre som Jostedalsbreen ville uansett
+    // fått ETT navn der kartet trenger armenes — Nigardsbreen, Briksdalsbreen),
+    // så navnene bakes for seg fra N50 Stedsnavn og legges inn som punkter.
+    // OSM-breer med navn på flata går den vanlige areal-veien under.
+    const isGlacierNode = el.type === 'node' && tags.natural === 'glacier'
     // Lineære features (vei, sti, jernbane, gjerde, kraftlinje) og rute-
     // relasjoner (busslinjer o.l.) er IKKE arealer og skal aldri få et
     // areal-navn. Rute-relasjonens way-medlemmer har TOM rolle, så
@@ -2187,7 +2199,7 @@ export function buildSvg(elements, bbox, options = {}) {
         areaM2 = polygonAreaM2(el.geometry)
         cent = polygonCentroid(el.geometry)
       }
-    } else if (el.type === 'node' && (isSkiJump || isIslandFeat)) {
+    } else if (el.type === 'node' && (isSkiJump || isIslandFeat || isGlacierNode)) {
       cent = project(el.lat, el.lon)
     } else if (el.type === 'way' && el.geometry && el.geometry.length === 2 && isSkiJump) {
       const gm = el.geometry[0]
@@ -2230,7 +2242,7 @@ export function buildSvg(elements, bbox, options = {}) {
     // Hytter rendrer som lite symbol (13×13 m kvadrat) — minst krav er at
     // bygget er gjenkjent. Andre arealer trenger større minimum for å unngå
     // å spamme bbox med navn på tiny features.
-    const minArea = isBuilding || isSkiJump || isIslandFeat ? 0 : 1000
+    const minArea = isBuilding || isSkiJump || isIslandFeat || isGlacierNode ? 0 : 1000
     if (areaM2 < minArea) continue
     // Naturreservat-mistags (gigantiske polygoner) labels også droppes —
     // speiler maxAreaM2-cappingen i POLYGON_FILTER.naturreservat.
@@ -3194,7 +3206,19 @@ export function buildSvg(elements, bbox, options = {}) {
   const usedCodes = new Set()
   for (const m of body.matchAll(/data-iso="([^"]+)"/g)) usedCodes.add(m[1])
 
-  const isomCss = buildIsomCss(isomCatalog, patternIds, { widthM, usedCodes })
+  // Bærer arket ekte, landsdekkende N50-skog? Turkart HEVDER skog gjennom
+  // bakgrunnsfargen der vi ikke vet bedre (se temaets $comment i
+  // isomCatalog.json). Kommer det data, skal påstanden vike — ellers ligger de
+  // to oppå hverandre og høyfjellet blir like grønt som granskogen.
+  //
+  // Merkelappen står på ARKET og ikke i temaet fordi svaret er per kart, ikke
+  // per tema: et kart bygget offline, eller før baken fantes, har ingen skog å
+  // vike for, og skal beholde påstanden. `n50ArealFetcher` feiler aldri hardt,
+  // så «ingen fliser» ser ut som «ingen skog her» — uten denne gaten ville en
+  // mislykket henting gitt det tomme arket Turkart-temaet finnes for å unngå.
+  const harN50Skog = elements.some(el => el?.tags?.['lende:n50areal'] === 'skog')
+
+  const isomCss = buildIsomCss(isomCatalog, patternIds, { widthM, usedCodes, harN50Skog })
 
   // Patterns refereres fra CSS (url(#iso-pat-X)) og evt inline; symboler fra
   // body (href="#iso-sym-X"). Behold kun defs med token til stede i kilden.
@@ -3211,7 +3235,7 @@ export function buildSvg(elements, bbox, options = {}) {
   // for frittstående/print/Tegnforklaring), mens CSS-regelen
   // `#bakgrunn rect { fill: var(--bg, default) }` lar en arvet --bg overstyre.
   let svg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" class="isom-map" viewBox="${viewBox}" ${printAttrs} data-meta='${JSON.stringify(meta).replace(/'/g, '&apos;').replace(/</g, '\\u003c').replace(/>/g, '\\u003e')}'>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" class="isom-map" viewBox="${viewBox}"${harN50Skog ? ' data-areal="skog"' : ''} ${printAttrs} data-meta='${JSON.stringify(meta).replace(/'/g, '&apos;').replace(/</g, '\\u003c').replace(/>/g, '\\u003e')}'>
   <defs>${isomDefs}</defs>
   <style>${isomCss}</style>
   <g id="bakgrunn"><rect width="${fmt(widthM)}" height="${fmt(heightM)}" fill="${bgFill}"/></g>
@@ -3321,6 +3345,7 @@ function categoryFor(code) {
     case '401': case '403':                     return 'aapen'
     case '404':                                  return 'aker'
     case '406': case '407': case '408': case '409': return 'skog'
+    case '410':                                  return 'isbre'
     case '308': case '309':                     return 'myr'
     case '301': case '302': case '303': case '307': return 'vann'
     case '304': case '305':                     return 'bekk'

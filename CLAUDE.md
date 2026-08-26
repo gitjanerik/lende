@@ -126,35 +126,64 @@ noen gate så det. Land-mask (union av alt
 vann) hindrer konturer/vegetasjon over vann. OSM multipolygon-relations MÅ
 ring-sys via `assembleRelationRings` i `mapBuilder.js` (ellers wedge-artefakter).
 
-## Viktig arkitektur-merknad — arealdekke, og hvorfor bakgrunnen ER skog
+## Viktig arkitektur-merknad — arealdekke: N50 bærer det den blir bedt om
 
 Samme regel som for vann gjelder her: **en kilde er autoritativ for DET DEN
-LEVERER.** Forskjellen er at for arealdekke har vi nesten ingen kilde.
+LEVERER.** Forskjellen er at for arealdekke er kilden noe man må BE om.
 
-All vegetasjon og myr kommer fra OSM alene (`natural=wetland`,
-`natural=wood|scree|bare_rock`, `landuse=forest|meadow|grass|farmland` i
-`buildOverpassQuery`). OSM er tynt i norsk utmark — samme diagnose
-`n50StiFetcher.js` åpner med for stier, der løsningen ble å bake N50 til
-statiske fliser. For arealdekke er den baken IKKE gjort.
+OSM er tynt i norsk utmark — samme diagnose `n50StiFetcher.js` åpner med for
+stier, der løsningen ble å bake N50 til statiske fliser. Den baken finnes nå
+også for arealdekke: `scripts/bygg-n50-areal.mjs` → `public/data/n50-areal/`.
 
-Konsekvensen var at et skogsområde uten OSM-polygoner ble et helt tomt ark.
-Verre: ISOM har omvendt vegetasjonslogikk av alle andre norske kart — `405`
-løpbar skog er HVIT, `401` åpen mark er GUL — så selv der skogen fantes,
-rendret den nesten usynlig mot den kremgule bakgrunnen.
+**Baken bærer det den blir BEDT om, og det er en felle som har smelt én gang.**
+`--typer` sto på sin default `myr` fra v5.24.0 til v5.26.0, og workflowen hadde
+ingen knott for flagget — så skogen manglet på kartet i to leveranser uten at
+noe var i veien med koden. Klassifiseringen kjente den igjen, formatet hadde
+plass, klienten hadde taggen, `arealMerge` sto klar. Defaulten er nå
+`myr,skog,isbre`: man må be om MINDRE, ikke om mer. Legger du til en type,
+legg den til i workflowens `typer`-beskrivelse samtidig — en knott ingen vet om
+er ingen knott.
 
-**Turkart-temaet (v5.23.0) snur dette: bakgrunnen ER skog, og åpenhet males
-oppå** — nøyaktig samme grep som «bakgrunnen ER land, vann males oppå».
-Det flytter databyrden fra «skogpolygoner over hele Norge» til «unntakene»,
-og unntakene (dyrka mark, bymasse, berg i dagen, vann) er nettopp det OSM
-dekker godt.
+**Skruene er PER TYPE** (`--toleranse myr=4,skog=8`, `--minareal`), fordi
+flatene ikke ligner hverandre: en skogteig er kilometervis av kant der hver
+meter koster byte og ingen er synlige i 1:10 000, mens en myr bæres av hvert
+knekkpunkt. Myrens tall (4 m / 2 500 m²) skal stå urørt — en bake som endrer
+dem skriver 206 fliser på nytt og sender hver bruker ut i full nedlasting for
+en forskjell ingen kan se. `--mal` måler uten å skrive; kjør den FØRST.
 
-Prisen er en bevisst kartografisk påstand: **vi hevder skog der vi ikke vet
-bedre.** Store uregistrerte hogstfelt og åpen hei vises som skog, og over
-tregrensa er påstanden direkte gal. Legger du til en ekte arealdekke-kilde
-(N50/AR5-fliser er den åpenbare veien, se `n50StiPakke.js` for oppskriften),
-er det DEN som skal bære skogen — og da skal Turkart-temaets grønne `--bg`
-tilbake til en nøytral tone. Ikke la begge deler stå: da får du grønt over
-alt uansett hva kilden sier.
+**Turkart-temaet (v5.23.0) hevder skog i bakgrunnen, og påstanden viker for
+kilden PER ARK (v5.26.0).** Grepet er det samme som «bakgrunnen ER land, vann
+males oppå»: det flytter databyrden fra «skogpolygoner over hele Norge» til
+unntakene. Prisen er en bevisst kartografisk påstand — vi hevder skog der vi
+ikke vet bedre, og over tregrensa er den direkte gal.
+
+Derfor: bærer arket ekte N50-skog, setter `mapBuilder` `data-areal="skog"` på
+rot-SVG-en, og arkets eget stilark bytter `--bg` til temaets `--bg-apen`.
+**Gaten står på ARKET og ikke i temaet med vilje.** `n50ArealFetcher` feiler
+aldri hardt, så «ingen fliser» (offline, 404, kart bygget før baken) ser ut som
+«ingen skog her» — et tema-nivå-bytte ville da gitt nøyaktig det tomme arket
+Turkart finnes for å unngå. `--bg-apen` settes for ALLE temaer, lik den vanlige
+bakgrunnen der det ikke er noe skille: fallbacken i regelen er katalogens
+kremgule, og et mørkt tema uten variabelen ville fått lyst ark. Verdien MÅ være
+en ren farge — `--bg: var(--bg-apen, var(--bg, …))` er en syklus, og CSS gjør da
+hele deklarasjonen ugyldig.
+
+**Isbre er kode 410 og er IKKE ISOM.** ISOM 2017-2 har ingen bre; norske turkart
+har det, og konvensjonen er hvit flate med svak blågrå kant. Kanten er ikke pynt
+— hvitt mot lys åpen mark har nesten ingen flate-kontrast. Bre-NAVN er punkter
+(`isbrenavn.json` fra N50 stedsnavn + navngitte OSM-breer, som `arealMerge`
+bevisst lar overleve undertrykkingen), ikke tagger på flatene: N50 Arealdekke
+har ingen navn, og Jostedalsbreen ville uansett fått ETT navn der kartet trenger
+armenes.
+
+**`TYPER` i `n50ArealPakke.js` kan UTVIDES bakerst, aldri omordnes** —
+rekkefølgen ER kodingen. Og en ukjent type skal DROPPES, ikke falle tilbake på
+myr: fallbacken var ufarlig så lenge formatet var lukket, men betyr nå at en
+klient som ikke kjenner `isbre` maler Jostedalsbreen som myr.
+
+`ÅpentOmråde` bæres bevisst ikke: når bakgrunnen ER åpen-tonen, er åpenhet
+standardtilstanden, og 112 020 flater som maler bakgrunnen på nytt er ren
+datamengde.
 
 ## Viktig arkitektur-merknad — deling av kart har TO veier, og det er med vilje
 

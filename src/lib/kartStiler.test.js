@@ -187,3 +187,48 @@ describe('sti-stiplingen er tett nok til å leses som stiplet', () => {
     expect(katalog.themes.light.categories?.['505']?.stroke?.dash).toBeUndefined()
   })
 })
+
+describe('høyfjellet skiller seg fra skogen når arket HAR skogdata', () => {
+  // Fram til v5.26.0 hevdet Turkart skog gjennom bakgrunnsfargen, og påstanden
+  // gjaldt over alt: rett over tregrensa var arket like grønt som granskogen.
+  // Skillet kommer av at bakgrunnen viker for `backgroundApen` når arket bærer
+  // ekte N50-skog, og at 406 males oppå. De to MÅ da kunne skilles fra
+  // hverandre — hvis ikke er byttet gjort uten å ha løst noe.
+  const lum = (hex) => {
+    const n = parseInt(String(hex).replace('#', ''), 16)
+    return (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255
+  }
+  const turkart = katalog.themes.turkart
+
+  it('Turkart har en egen åpen-mark-tone, og den er ikke skog-tonen', () => {
+    expect(turkart.backgroundApen).toMatch(/^#[0-9a-f]{6}$/i)
+    expect(turkart.backgroundApen.toLowerCase()).not.toBe(turkart.background.toLowerCase())
+  })
+
+  it('skog (406) er merkbart mørkere enn åpen mark — ellers er skillet på papiret', () => {
+    const skog = turkart.categories['406'].fill.color
+    expect(lum(turkart.backgroundApen) - lum(skog)).toBeGreaterThan(0.06)
+  })
+
+  it('isbre er lysere enn åpen mark, og har en kant som holder den fra hverandre', () => {
+    // Hvit bre på lys åpen mark har nesten ingen flate-kontrast. Kanten er
+    // derfor ikke pynt: uten den forsvinner breen akkurat der breer finnes.
+    const bre = turkart.categories['410']
+    expect(lum(bre.fill.color)).toBeGreaterThanOrEqual(lum(turkart.backgroundApen))
+    expect(lum(turkart.backgroundApen) - lum(bre.stroke.color)).toBeGreaterThan(0.15)
+  })
+
+  it('ALLE temaer har en 410-farge, og ingen av dem flater breen ut mot sin egen bakgrunn', () => {
+    for (const [navn, tema] of Object.entries(katalog.themes)) {
+      const bre = tema.categories?.['410'] ?? katalog.categories.terrain['410']
+      const fyll = bre.fill?.color ?? katalog.categories.terrain['410'].fill.color
+      const strek = bre.stroke?.color ?? katalog.categories.terrain['410'].stroke.color
+      const bg = tema.background ?? katalog.background.color
+      expect(fyll, navn).toMatch(/^#[0-9a-f]{6}$/i)
+      // Enten flata eller kanten må skille seg fra bakgrunnen. På de mørke
+      // temaene er det flata som gjør jobben, på de lyse er det kanten.
+      const skille = Math.max(Math.abs(lum(fyll) - lum(bg)), Math.abs(lum(strek) - lum(bg)))
+      expect(skille, navn).toBeGreaterThan(0.1)
+    }
+  })
+})

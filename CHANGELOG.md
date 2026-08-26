@@ -1,3 +1,86 @@
+## 2026-08-26 — v5.26.0: Skogen ble aldri utelatt — den ble aldri bedt om. Og breene er på kartet
+
+**Diagnosen først, fordi den er kortere enn man skulle tro.** Skogen manglet ikke
+av en datamengde-grunn. Bake-scriptet klassifiserte `Skog` fra første dag,
+flis-formatet hadde plass til den, klienten hadde taggen klar, og `arealMerge`
+sto ferdig til å la OSM-skogen vike. Det som manglet var én streng: `--typer`
+sto på sin default `myr`, og `bygg-n50-areal.yml` hadde ingen knott for flagget.
+Det fantes altså ingen vei fra Actions-fanen til skogen, uansett hvor mange
+ganger jobben ble kjørt. Manifestet sa ærlig `typer:["myr"]` hele veien.
+
+En default som representerer et ferdig avklart mellomsteg er en felle, og denne
+sto i to leveranser. Nå er defaulten `myr,skog,isbre` — man må be om mindre, ikke
+om mer — og workflowen har feltet, dokumentert der man ser det.
+
+**Størrelses-grensa er ekte, men den gjelder noe annet.** Myr ble 57,9 MB med
+4 m forenkling og 2 500 m² minsteflate. En skogteig er kilometervis av kant der
+hver meter koster byte og ingen av dem er synlige på et kart i 1:10 000; en myr
+bæres av hvert eneste knekkpunkt. Én felles skrue måtte derfor valgt mellom å
+ødelegge myra eller å bære skogen dyrere enn `public/` tåler. Skruene er nå
+**per type** — `--toleranse myr=4,skog=8`, `--minareal myr=2500,skog=5000` — og
+manifestet skriver dem per type, fordi ett tall der ville løyet. Myrens tall står
+uendret med vilje: en bake som rørte dem ville skrevet 206 fliser på nytt og
+sendt hver bruker ut i en full nedlasting for en forskjell ingen kan se.
+
+**Isbre er en ny kode, 410, og den er ikke ISOM.** ISOM 2017-2 har ingen bre —
+sportskart tegnes ikke på is. Norske turkart gjør det, og konvensjonen er hvit
+flate med en svak blågrå kant. Kanten er ikke pynt: hvitt mot en lys
+åpen-mark-tone har nesten ingen flate-kontrast, så uten den forsvinner breen
+nøyaktig i det terrenget der breer finnes. Egen lag-bryter («Isbre»), egen farge
+i alle elleve temaer, og en test som håndhever at hvert tema skiller breen fra
+sin egen bakgrunn på flate ELLER kant.
+
+**Bre-navnene er punkter, ikke flate-tagger.** N50 Arealdekke bærer ingen navn,
+og Jostedalsbreen ville uansett fått ETT navn der kartet trenger armenes —
+Nigardsbreen, Briksdalsbreen, Austdalsbreen. Baken henter dem derfor fra
+N50s stedsnavn-lag til en egen `isbrenavn.json`, og mapBuilder etiketterer dem på
+punktet. To kilder som ikke er avhengige av hverandre: `arealMerge` lar en
+NAVNGITT OSM-bre overleve N50-undertrykkingen, siden et navngitt OSM-polygon er
+den eneste navnekilden vi har der bake-navnene ikke rekker. Navne-passet i baken
+er best-effort og logger hva det SÅ — Geonorge er blokkert fra utviklings-
+sandkassene, og et gjettet feltnavn er nøyaktig feilen som lot den første
+areal-kjøringen laste ned 166 MB og melde «success» med null flater.
+
+**Høyfjellet skiller seg nå fra granskogen.** Turkart hevdet skog gjennom
+bakgrunnsfargen — en bevisst kartografisk påstand, og riktig så lenge vi ikke
+visste bedre. Med ekte data gjaldt påstanden fortsatt over alt, og rett over
+tregrensa var arket like grønt som skogen under. CLAUDE.md sa hva som måtte
+skje: den grønne bakgrunnen skal vike for kilden. Det gjør den nå — men **per
+ark, ikke per tema.** `mapBuilder` setter `data-areal="skog"` på rot-SVG-en når
+arket faktisk bærer N50-skog, og arkets eget stilark bytter da `--bg` til temaets
+`--bg-apen`. Et kart bygget offline, med feilende fliser, eller før baken fantes,
+har ingen skog å vike for og beholder påstanden. `n50ArealFetcher` feiler aldri
+hardt, så «ingen fliser» ser ut som «ingen skog her» — uten den gaten ville en
+mislykket henting gitt nøyaktig det tomme arket Turkart-temaet finnes for å
+unngå. `--bg-apen` settes for ALLE temaer (lik den vanlige bakgrunnen der det
+ikke er noe skille), fordi fallbacken i regelen er katalogens kremgule og et
+mørkt tema uten variabelen ville fått lyst ark. Verdien må være en ren farge, og
+en test håndhever det: `--bg: var(--bg-apen, var(--bg, …))` er en syklus, og CSS
+gjør da hele deklarasjonen ugyldig.
+
+Haloene i Turkart følger den lyse tonen nå, ikke den grønne. En blek halo er
+lesbar mot BÅDE grønn skog og lys åpen mark; en grønn virker bare mot det ene.
+
+**Én felle i flis-formatet er verdt å skrive ned.** `isbre` er lagt BAKERST i
+`TYPER`, aldri i midten: rekkefølgen ER kodingen, så de fire første indeksene må
+stå. Og `n50ArealTilElementer` faller ikke lenger tilbake på myr for en ukjent
+type — den dropper flata. Fallbacken var ufarlig så lenge formatet ikke kunne
+utvides; i det øyeblikket det kan, betyr den at en klient som ikke kjenner
+`isbre` maler Jostedalsbreen som myr. Å droppe flata er feil på en måte man ser.
+
+Gater: 2 579 tester (29 nye), `npm run build`, `npm run boot:workers`,
+`npm run mcp:protokoll`. Kontrast-testene er verifisert i BEGGE retninger —
+grønne på riktig kode, røde når `backgroundApen` settes tilbake til den grønne
+tonen — for en sjekk som ikke kan feile er verre enn ingen sjekk.
+
+**Flisene er ikke bakt i denne PR-en.** Koden er klar; kjør «Bygg
+N50-arealdekke» med `bare mål` først og les tallene per type, som myr-baken
+gjorde. Fram til den kjøringen er `typer:["myr"]` fortsatt sannheten i
+manifestet, og kartet oppfører seg nøyaktig som før — det er hele poenget med at
+merkelappen står på arket.
+
+---
+
 ## 2026-08-26 — v5.25.6: Kanthåndtakene er strek, ikke form — og hjørnene har rett vinkel
 
 De åtte utvidelses-håndtakene tegnes nå som bare de TO sidene av trekanten som

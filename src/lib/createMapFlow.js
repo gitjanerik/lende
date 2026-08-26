@@ -24,7 +24,7 @@ import { fetchKulturminner } from './kulturminneFetcher.js'
 import { fetchTurruteRoutes, turruteElementsFrom } from './turrutebasenFetcher.js'
 import { fetchN50StiLinjer, n50StiElementerFra } from './n50StiFetcher.js'
 import { fetchN50Areal } from './n50ArealFetcher.js'
-import { slaaSammenAreal } from './arealMerge.js'
+import { slaaSammenAreal, arealKildeFlagg } from './arealMerge.js'
 import { fetchSjokart, sjokartToElements, sjokartTimeoutForBbox, summarizeSjokartStatus } from './sjokartFetcher.js'
 // Vann-sammenslåingen bor i vannMerge.js — delt med mcp/headless.js, som
 // MCP-serveren og fasit-suiten bygger gjennom. De to hadde hver sin versjon
@@ -674,7 +674,18 @@ export async function buildMapFromCenter({
     if (sjokartElements.length > 0) sourceParts.push(`Sjøkart (${sjokartElements.length} dybde-features)`)
     if (turruteElements.length > 0) sourceParts.push(`Turrutebasen (${turruteElements.length} rutestrekk)`)
     if (n50StiElements.length > 0) sourceParts.push(`N50-sti (${n50StiElements.length} strekk)`)
-    if (n50Areal.length > 0) sourceParts.push(`N50-myr (${n50Areal.length} flater)`)
+    if (n50Areal.length > 0) {
+      // Kilde-strengen sier hva vi FIKK, ikke hva baken kan levere: den er det
+      // eneste stedet en bruker ser at et ark mangler skog fordi flisene ikke
+      // lastet. «N50-myr» sto her fram til v5.26.0 og ville løyet om et ark
+      // fullt av skog og breer.
+      const flagg = arealKildeFlagg(n50Areal)
+      const deler = []
+      if (flagg.harMyr) deler.push('myr')
+      if (flagg.harSkog) deler.push('skog')
+      if (flagg.harIsbre) deler.push('isbre')
+      sourceParts.push(`N50-arealdekke (${n50Areal.length} flater: ${deler.join(', ') || 'navn'})`)
+    }
     sourceParts.push('DEM-sjø (NHM_DTM_25832)')
     const source = sourceParts.join(' + ')
 
