@@ -1,3 +1,51 @@
+## 2026-08-26 — v5.26.1: Skogen, myra og breene er på kartet — landsdekkende
+
+Rørene sto ferdige i v5.26.0. Nå er dataene der: **207 fliser, 117 MB, 883 903
+flater** bakt fra Kartverkets N50 Arealdekke og servert statisk ved siden av
+appen — 648 577 myrflater, 232 652 skogflater og 2 674 breflater, hvorav
+115 755 har hull. Største flis er 2,4 MB; det er det appen laster per kartrute.
+
+**Størrelsen traff anslaget.** Buskerud-målingen ga 6,0 MB mot myrens 3,1, og
+framskrivingen sa 110–120 MB nasjonalt. Fasiten ble 117. Det er innenfor det
+`public/` bærer, så R2-omveien er fortsatt unødvendig — og vi beholder det
+`public/` gir gratis: samme opprinnelse som appen, ingen CORS, ingen nøkler,
+ett deploy som holder app og dataformat i synk, og service worker-en som
+cacher flisene offline.
+
+**Skruene er per type, og det er derfor det går opp.** Myr står på 4 m
+forenkling og 2 500 m² minsteflate, uendret fra v5.25.0 — de flisene skulle
+ikke skrives om. Skog står på 8 m og 5 000 m²: en skogteig er kilometervis av
+kant der hver meter koster byte og ingen av dem er synlige i 1:10 000, mens en
+myr bæres av hvert eneste knekkpunkt. Isbre har myrens fine tall, fordi breene
+er få og formen deres er poenget.
+
+**Bre-navnene tok to runder, og den andre er verdt å skrive ned.** Første bake
+ga 608 navn, og de store var riktige — Jostedalsbreen, Hardangerjøkulen,
+Svartisen, Folgefonna, Okstindbreen, Blåmannsisen, alle med plausible
+koordinater. Men blant dem sto «Adels-», «breen», «breene» og «skavlen» som
+selvstendige navn. `N50_Stedsnavn_tekstplassering` er en annotasjons-tabell der
+en lang etikett deles over FLERE rader, én per tekstlinje: `streng` er radens
+fragment, `fulltekst` er hele navnet og står på hver rad. Kandidatlista hadde
+begge, i feil rekkefølge. Uten fiksen ville «breen» stått alene på kartet.
+
+Dedupe-nøkkelen er samtidig gjort grovere, fra tre desimaler til to (~1 km):
+med `fulltekst` gir en flerlinjet etikett N like navn på nesten samme sted, og
+Okstindbreen sto uansett med tre rader innenfor to kilometer. Resultatet er 548
+navn, «Adelsbreen» hel, Okstindbreen som én — og Jostedalsbreen med to, tjue
+kilometer fra hverandre, som er riktig for en bre av den størrelsen.
+
+**Den andre baken beviste noe verdt å vite: flisene er byte-identiske.** Bare
+`isbrenavn.json` og `manifest.json` endret seg mellom de to kjøringene. Baken
+er deterministisk, så en re-kjøring for å rette navnene koster ikke brukerne en
+ny nedlasting av 117 MB.
+
+Fra nå slår `data-areal="skog"` inn på hvert nybygd ark i dekningsområdet:
+Turkarts «her er skog»-påstand viker for kilden, bakgrunnen blir åpen-tonen, og
+skogen males oppå fra N50. Høyfjellet skiller seg fra granskogen. Kart bygget
+før dette, eller uten dekning, beholder påstanden — merkelappen står på arket.
+
+---
+
 ## 2026-08-26 — v5.26.0: Skogen ble aldri utelatt — den ble aldri bedt om. Og breene er på kartet
 
 **Diagnosen først, fordi den er kortere enn man skulle tro.** Skogen manglet ikke
