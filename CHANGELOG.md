@@ -1,3 +1,21 @@
+## 2026-08-26 — v5.25.5: Kanthåndtakene er trekanter utenfor kartkanten
+
+De åtte utvidelses-knappene var runde, mørke skiver på 38 px som sto oppå
+arkkanten, og de dominerte kartet de skulle ramme inn. Nå er hvert håndtak en
+likesidet trekant på 26 px — fylt i pil-grønn med en tynn glorie i temafargen,
+som gjør samme lesbarhets-jobb mot svarte stup og hvite konturer som den runde
+flaten gjorde, i en form som ikke tar plassen til en knapp. Trekanten er dessuten
+flyttet UT av kartet: geometrien skyver håndtakets punkt halve trekant-høyden
+utover langs den roterte retningsaksen, så basen flukter med arkets ytterkant på
+langsidene og har midtpunktet i hjørnet på diagonalene. Utover-vektoren regnes
+fra retningen og ikke fra «anker minus arkets senter» — for et avlangt ark går
+senter→hjørne ikke i 45°, og et senter-avledet utstikk ville skjøvet
+hjørne-trekantene på skrå av sin egen spiss. Treffområdet er uendret på 48 px og
+sentrert på det samme punktet: fingeren skal treffe der brukeren sikter, og en
+26 px trekant er for liten å sikte på med hansker.
+
+---
+
 ## 2026-08-25 — v5.25.4: sti-prikkene sto for spredt
 
 507 «stitråkk — vanskelig» er den vanligste stien i norsk utmark: umerket

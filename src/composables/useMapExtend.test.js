@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   EXTEND_DIR_WORD, EXTEND_DIR_DEG, EDGE_DIRS, EDGE_DIR_VEC, EDGE_LABEL_OFFSET,
   extendZoneLabelText, edgeAnchorSvg, edgeKnobDeg, edgeLabelOffset,
-  edgeSafeFrame, edgeStaticSlot, edgeAnkerNaer,
+  edgeSafeFrame, edgeStaticSlot, edgeAnkerNaer, edgeUtRetning,
+  EDGE_TRI_SIDE, EDGE_TRI_HEIGHT, EDGE_HANDLE_UTSTIKK,
   EDGE_FRAME_CHROME, EDGE_NAERHET_PX,
   screenToViewBox, viewBoxToScreen,
   cellenokkel, ventendeSenter, ventendePaaArket, VENTENDE_RADIUS_TILES,
@@ -118,14 +119,28 @@ describe('edgeSafeFrame — den frie flaten mellom chromet', () => {
     expect(915 - f.maxY).toBeGreaterThanOrEqual(60)
   })
   it('kollapset ramme (lav landskaps-viewport) midtstilles i stedet for å inverteres', () => {
-    const f = edgeSafeFrame({ w: 40, h: 200 })
+    const f = edgeSafeFrame({ w: 24, h: 200 })
     expect(f.minX).toBe(f.maxX)
     expect(f.minY).toBe(f.maxY)
+    expect(f.minX).toBe(12)
     expect(f.minY).toBe(100)
   })
   it('uten målt wrapper → null', () => {
     expect(edgeSafeFrame({ w: 0, h: 0 })).toBe(null)
     expect(edgeSafeFrame(null)).toBe(null)
+  })
+})
+
+describe('side-margen — dokkede håndtak flukter med viewportkanten', () => {
+  // v5.25.5: sidene har ingen chrome, så margen er ren kartografi. Er den større
+  // enn trekantens halve høyde pluss litt, flyter håndtaket inne PÅ kartet i
+  // stedet for å ligge langs kanten av det — som var klagen på det gamle
+  // designet. Toppen og bunnen er ekte chrome og skal IKKE strammes.
+  it('spissen havner nær kanten, men ikke utenfor den', () => {
+    const f = edgeSafeFrame({ w: 412, h: 915 })
+    const spissV = f.minX - EDGE_HANDLE_UTSTIKK
+    expect(spissV).toBeGreaterThanOrEqual(0)
+    expect(spissV).toBeLessThan(8)
   })
 })
 
@@ -189,6 +204,56 @@ describe('edgeKnobDeg — pila peker mot kanten den utvider, også rotert', () =
     expect(edgeKnobDeg('W', -90)).toBe(180)
   })
   it('ukjent retning → null', () => expect(edgeKnobDeg('XX', 0)).toBe(null))
+})
+
+describe('edgeUtRetning — enhetsvektoren trekanten stikker ut langs', () => {
+  it('kardinalene peker rett ut, uten rotasjon', () => {
+    expect(edgeUtRetning('N', 0)).toEqual({ x: 0, y: -1 })
+    expect(edgeUtRetning('S', 0)).toEqual({ x: 0, y: 1 })
+    expect(edgeUtRetning('E', 0)).toEqual({ x: 1, y: 0 })
+    expect(edgeUtRetning('W', 0)).toEqual({ x: -1, y: 0 })
+  })
+  it('diagonalene er normaliserte — ellers stakk de √2 så langt ut', () => {
+    for (const dir of ['NE', 'SE', 'SW', 'NW']) {
+      const u = edgeUtRetning(dir, 0)
+      expect(Math.hypot(u.x, u.y)).toBeCloseTo(1, 9)
+      expect(Math.abs(u.x)).toBeCloseTo(Math.SQRT1_2, 9)
+    }
+  })
+  it('alle åtte er enhetsvektorer, også rotert', () => {
+    for (const dir of EDGE_DIRS) {
+      for (const rot of [0, 37, -90, 180, 359]) {
+        const u = edgeUtRetning(dir, rot)
+        expect(Math.hypot(u.x, u.y)).toBeCloseTo(1, 9)
+      }
+    }
+  })
+  it('kart-rotasjonen dreier vektoren samme vei som knapp-vinkelen', () => {
+    const u = edgeUtRetning('N', 90)   // nord er dreid til høyre på skjermen
+    expect(u.x).toBeCloseTo(1, 9)
+    expect(u.y).toBeCloseTo(0, 9)
+  })
+  it('peker MOTSATT vei av pillens innover-offset', () => {
+    for (const dir of EDGE_DIRS) {
+      const u = edgeUtRetning(dir, 23)
+      const off = edgeLabelOffset(dir, 23)
+      if (off.lx !== 0) expect(Math.sign(off.lx)).toBe(-Math.sign(u.x))
+      if (off.ly !== 0) expect(Math.sign(off.ly)).toBe(-Math.sign(u.y))
+    }
+  })
+  it('ukjent retning → null', () => expect(edgeUtRetning('XX', 0)).toBe(null))
+})
+
+describe('trekant-målene — utstikket ER halve høyden', () => {
+  it('likesidet: høyde = side·√3/2', () => {
+    expect(EDGE_TRI_HEIGHT).toBeCloseTo(EDGE_TRI_SIDE * Math.sqrt(3) / 2, 9)
+  })
+  // Basen skal flukte med arkkanten: trekant-boksen er sentrert på håndtakets
+  // punkt, så punktet må ligge presis halve høyden utenfor kanten.
+  it('utstikket flytter basen til kanten, ikke forbi den', () => {
+    expect(EDGE_HANDLE_UTSTIKK).toBeCloseTo(EDGE_TRI_HEIGHT / 2, 9)
+    expect(EDGE_HANDLE_UTSTIKK).toBeGreaterThan(0)
+  })
 })
 
 describe('edgeLabelOffset — pilla forskyves INNOVER fra knappen', () => {
