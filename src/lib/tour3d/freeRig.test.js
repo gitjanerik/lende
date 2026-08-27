@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { Vector3, Spherical } from 'three'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 // Himmelvippen — regelen som gjør at man kan se OPP i 3D.
 //
 // Bare den rene funksjonen testes her. Selve riggen krever OrbitControls og et
@@ -15,7 +18,7 @@
 // den feilen; det var røyktesten som fanget den.
 import { describe, it, expect } from 'vitest'
 import { PerspectiveCamera, Vector3, Matrix4 } from 'three'
-import { himmelVippSteg, HIMMEL_VIPP_MAKS } from './freeRig.js'
+import { himmelVippSteg, HIMMEL_VIPP_MAKS, blikkMot, orbitPosisjon } from './freeRig.js'
 
 // Radianer per piksel, som i riggen: 2π over elementets høyde.
 const FART = (2 * Math.PI) / 900
@@ -116,5 +119,105 @@ describe('vippens retning', () => {
     const f0 = kamera.quaternion.clone()
     kamera.rotateX(0)
     expect(kamera.quaternion.equals(f0)).toBe(true)
+  })
+})
+
+describe('blikkMot — himmelretning til orbit + vipp', () => {
+  const GRAD = Math.PI / 180
+
+  // Orbiten ser PÅ blikkpunktet, så kameraet står på motsatt side av retningen.
+  // three sin spherical: theta = atan2(offset.x, offset.z), offset = kamera − mål.
+  // Vil man se mot nord (−Z), må kameraet stå i sør (+Z) ⇒ theta = 0.
+  const posisjonFra = (theta) => ({ x: Math.sin(theta), z: Math.cos(theta) })
+
+  it('setter kameraet motsatt retningen man skal se', () => {
+    // Nord: blikket mot −Z ⇒ kameraet på +Z.
+    let p = posisjonFra(blikkMot(0, 0).theta)
+    expect(p.z).toBeGreaterThan(0.99)
+    expect(Math.abs(p.x)).toBeLessThan(0.01)
+    // Øst: blikket mot +X ⇒ kameraet på −X.
+    p = posisjonFra(blikkMot(90 * GRAD, 0).theta)
+    expect(p.x).toBeLessThan(-0.99)
+    // Sør: blikket mot +Z ⇒ kameraet på −Z.
+    p = posisjonFra(blikkMot(180 * GRAD, 0).theta)
+    expect(p.z).toBeLessThan(-0.99)
+    // Vest: blikket mot −X ⇒ kameraet på +X.
+    p = posisjonFra(blikkMot(270 * GRAD, 0).theta)
+    expect(p.x).toBeGreaterThan(0.99)
+  })
+
+  it('legger all høyde over horisonten i vippen', () => {
+    // Orbiten kan ikke løfte blikket over horisonten i det hele tatt, så
+    // vippen må bære hele høyden — pluss den lille biten orbitens tak ligger
+    // UNDER horisonten (90° − 89° = 1°).
+    const fraTaket = 1 * GRAD
+    expect(blikkMot(0, 0).vipp).toBeCloseTo(fraTaket, 4)
+    expect(blikkMot(0, 30 * GRAD).vipp).toBeCloseTo(30 * GRAD + fraTaket, 4)
+    expect(blikkMot(0, 60 * GRAD).vipp).toBeCloseTo(60 * GRAD + fraTaket, 4)
+  })
+
+  it('klipper mot vippens tak og gulv', () => {
+    // Rett opp i senit er mer enn vippen rekker; den skal stoppe, ikke snurre.
+    expect(blikkMot(0, 89 * GRAD).vipp).toBe(HIMMEL_VIPP_MAKS)
+    // Og et objekt under horisonten skal ikke gi negativ vipp.
+    expect(blikkMot(0, -20 * GRAD).vipp).toBe(0)
+  })
+
+  it('er kontinuerlig rundt nord', () => {
+    // 359° og 1° skal gi nesten samme theta — ellers får man en 358°-sving når
+    // man velger noe som står rett i nord.
+    const a = blikkMot(359 * GRAD, 0).theta
+    const b = blikkMot(1 * GRAD, 0).theta
+    let d = Math.abs(a - b)
+    if (d > Math.PI) d = 2 * Math.PI - d
+    expect(d).toBeLessThan(3 * GRAD)
+  })
+})
+
+
+describe('orbitPosisjon — samme konvensjon som three', () => {
+  it('stemmer med three sin egen Spherical, tilfeldige vinkler', () => {
+    // HVORFOR DENNE FINNES: OrbitControls i three 0.185 har `getPolarAngle` og
+    // `getAzimuthalAngle`, men ingen SETTERE. `controls.setPolarAngle(...)` sto i
+    // seMot fram til v6.0.0 og kastet «is not a function» — gjennom hele
+    // enhetstest-suiten og bygget, fanget først av røyktesten i Chromium.
+    // Løsningen er å plassere kameraet i sfæriske koordinater i stedet, og da er
+    // det ETT som kan være galt uten at noe kaster: konvensjonen. Et ombyttet
+    // fortegn sender kameraet til motsatt side av himmelen.
+    const pr = [
+      [1, 0, Math.PI / 2], [500, 0.3, 1.1], [2500, -2.4, 0.4],
+      [80, Math.PI, 1.5], [1e4, 1.9, 2.7],
+    ]
+    for (const [r, theta, phi] of pr) {
+      const [x, y, z] = orbitPosisjon(r, theta, phi)
+      const v = new Vector3().setFromSpherical(new Spherical(r, phi, theta))
+      expect(x).toBeCloseTo(v.x, 6)
+      expect(y).toBeCloseTo(v.y, 6)
+      expect(z).toBeCloseTo(v.z, 6)
+      // Og tilbakeveien: three leser vinklene ut av posisjonen slik
+      // controls.update() gjør, så rundturen må være identisk.
+      const tilbake = new Spherical().setFromVector3(new Vector3(x, y, z))
+      expect(tilbake.phi).toBeCloseTo(phi, 6)
+      expect(tilbake.radius).toBeCloseTo(r, 6)
+    }
+  })
+})
+
+describe('OrbitControls-API-et vi faktisk lener oss på', () => {
+  it('har getterne, og vi kaller ingen setter som ikke finnes', () => {
+    // Grensesnitt-vakt mot neste three-oppgradering. Den påstår ikke at
+    // setterne SKAL mangle — den påstår at kodebasen ikke kaller dem, og at
+    // getterne vi bruker er der. Begge halvdeler ville fanget feilen over.
+    expect(typeof OrbitControls.prototype.getPolarAngle).toBe('function')
+    expect(typeof OrbitControls.prototype.getAzimuthalAngle).toBe('function')
+    // Kommentarlinjer strippes: forklaringen på hvorfor setteren IKKE brukes
+    // nevner den ved navn, og en vakt som feiler på sin egen dokumentasjon blir
+    // slettet framfor rettet.
+    const kode = readFileSync(new URL('./freeRig.js', import.meta.url), 'utf8')
+      .split('\n')
+      .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+      .join('\n')
+    expect(kode).not.toMatch(/controls\.setPolarAngle\s*\(/)
+    expect(kode).not.toMatch(/controls\.setAzimuthalAngle\s*\(/)
   })
 })

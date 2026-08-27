@@ -30,12 +30,15 @@ import Tour3dPinPanel from './Tour3dPinPanel.vue'
 import Tour3dInfoPanel from './Tour3dInfoPanel.vue'
 import Tour3dHud from './Tour3dHud.vue'
 import Tour3dVaerRad from './Tour3dVaerRad.vue'
+import Tour3dHimmelSok from './Tour3dHimmelSok.vue'
+import Tour3dHimmelKort from './Tour3dHimmelKort.vue'
 import { lesPinPrefs, skrivPinPrefs, paaGrupper } from '../../lib/tour3d/pinPrefs.js'
 import { svgToWgs84 } from '../../lib/utm.js'
 import { fetchVarsel, naaVarsel } from '../../lib/vaerFetcher.js'
 import { vaerTilHimmel } from '../../lib/tour3d/vaerHimmel.js'
 import { DEMO_STEG, DEMO_SEKUNDER, demoMaling } from '../../lib/tour3d/vaerDemo.js'
 import { cacheGet, cacheSet, vaerPointKey, TTL } from '../../lib/protectedAreaCache.js'
+import { himmelObjekter, naboerFor } from '../../lib/tour3d/himmelObjekter.js'
 
 const props = defineProps({
   dem: { type: Object, default: null },
@@ -83,6 +86,74 @@ const detached = ref(false)
 // Blikket er vippet opp i himmelen (freeRig.himmelVipp > 0). Da er det ikke
 // kartet man ser, og hintet nede sier hvordan man kommer tilbake.
 const serOpp = ref(false)
+
+// MAKSIMER: skjul alt UI utenom lukkeknappen, minimer-knappen og
+// himmel-søkefeltet, som da flyttes helt øverst.
+//
+// Grunnen er nattsyn og ikke plass. Etter en felttest i mørket meldte eieren at
+// de hvite flatene i overlegget ødelegger det mørkeadapterte synet — og et øye
+// bruker 20–30 minutter på å komme tilbake. Ingen knapp er verdt det når man
+// står ute for å se stjerner.
+//
+// Persisteres IKKE med vilje: åpner man 3D og alt er borte, ser det ødelagt ut.
+// Modusen er noe man går inn i for en stund, ikke en innstilling.
+const maksimert = ref(false)
+function toggleMaksimer() {
+  maksimert.value = !maksimert.value
+}
+
+// ---- Himmelsøket ---------------------------------------------------------
+// Lista over hva som er valgbart på himmelen regnes HER og sendes til motoren,
+// så søkefeltet og trykk-plukkingen aldri kan ha ulike meninger om hva som er
+// synlig. Samme regel som mosaikken i CLAUDE.md: to steder som besvarer «hva
+// ser jeg nå?» må svare likt.
+const himmelListe = ref([])
+const valgtHimmel = ref(null)
+// Porten: nattmodus UTEN vær, og først når blikket er løftet mot himmelen.
+// Feltet har ingenting å gjøre der man ser på kartet.
+// I maksimert modus er søkefeltet det eneste UI-et som er igjen, så det skal
+// ALLTID stå der — er det skjult fordi man ennå ikke har sett opp, er modusen en
+// tom skjerm med to nesten usynlige knapper.
+const himmelSokSynlig = computed(() =>
+  phase.value === 'ready' && nightOn.value && !vaerOn.value
+  && (maksimert.value || serOpp.value || !!valgtHimmel.value))
+const himmelNaboer = computed(() => naboerFor(valgtHimmel.value, himmelListe.value, 3))
+
+// ---- Månegloben ----------------------------------------------------------
+// Trykk på månen og skiva blir en kule man kan snurre. Labelene kommer fra
+// motoren som SKJERMKOORDINATER (motoren har kameraet; viseren har DOM-en), og
+// oppdateres ~8 ganger i sekundet — nok til at navnene henger med i draget uten
+// en Vue-oppdatering pr frame.
+const maneGlobeAapen = ref(false)
+const maneTrekk = ref([])
+function lukkManeGlobe() {
+  engine?.lukkManeGlobe()
+  maneGlobeAapen.value = false
+  maneTrekk.value = []
+}
+
+function byggHimmelListe() {
+  const m = props.meta
+  if (!m?.widthM || !m?.heightM) return
+  let punkt
+  try {
+    punkt = svgToWgs84(m.widthM / 2, m.heightM / 2, m)
+  } catch { return }
+  if (!Number.isFinite(punkt?.lat) || !Number.isFinite(punkt?.lon)) return
+  himmelListe.value = himmelObjekter({ lat: punkt.lat, lon: punkt.lon, dato: new Date() })
+  engine?.setHimmelObjekter(toRaw(himmelListe.value))
+}
+
+function velgHimmel(o) {
+  valgtHimmel.value = o ?? null
+  engine?.velgHimmel(o ? toRaw(o) : null)
+  // Motoren melder tilbake gjennom 'mane-globe', men bare når tilstanden
+  // FAKTISK endret seg. Velger man noe annet enn månen, er kula lukket her og nå.
+  if (o?.type !== 'mane') {
+    maneGlobeAapen.value = false
+    maneTrekk.value = []
+  }
+}
 // Fingeren ligger nede og ser seg rundt fra et frosset punkt (følge-riggens
 // hold). Vises som et hint så den som fant det ved uhell skjønner hva som skjer.
 const holdingLook = ref(false)
@@ -298,6 +369,14 @@ async function byggMotor() {
     // Trykket nål (POI, start/mål/via, parkering) — turen er pauset og
     // kameraet løsnet av motoren.
     engine.on('feature', ({ feature }) => { pickedFeature.value = feature })
+    // Trykk i himmelen: motoren har alt fremhevet og rettet blikket, viseren
+    // åpner kortet.
+    engine.on('himmel-valgt', ({ objekt }) => { valgtHimmel.value = objekt })
+    engine.on('mane-globe', ({ apen }) => {
+      maneGlobeAapen.value = !!apen
+      if (!apen) maneTrekk.value = []
+    })
+    engine.on('mane-trekk', ({ trekk }) => { maneTrekk.value = trekk ?? [] })
     // Severdighet turen stopper ved av seg selv.
     engine.on('feature-enter', ({ feature }) => { stopFeature.value = feature })
     engine.on('feature-exit', () => { stopFeature.value = null })
@@ -348,6 +427,7 @@ async function byggMotor() {
     if (nightOn.value) applyNight(true).catch(() => {})
     // Vær-valget er husket fra forrige økt; hentingen er ikke-blokkerende.
     if (vaerOn.value) void hentVaer()
+    if (nightOn.value) byggHimmelListe()
     // Vær-demoen slås på i Utvikler-fanen og overstyrer varselet.
     if (demoPaa.value) demoStart()
 
@@ -589,7 +669,13 @@ watch(vaerOn, (on) => {
 })
 // Bytter man dag/natt mens været står på, skal himmelen males om (grunnfargen
 // for torden-blinket henger på natt/dag inne i motoren).
-watch(nightOn, () => { if (vaerOn.value) leggVaerPaaHimmelen() })
+watch(nightOn, (on) => {
+  if (vaerOn.value) leggVaerPaaHimmelen()
+  // Himmellista bygges når natta slås på, og ryddes når den slås av: en valgt
+  // formasjon som står fremhevet på en dagshimmel er bare rart.
+  if (on) byggHimmelListe()
+  else velgHimmel(null)
+})
 
 // --- turen -----------------------------------------------------------------
 
@@ -662,6 +748,23 @@ function branchLabel(opt, i) {
     <div class="fixed inset-0 z-[220] bg-[#101623] flex flex-col" style="height: 100dvh;">
       <div ref="canvasHost" class="absolute inset-0"></div>
 
+      <!-- MÅNEGLOBENS NAVN. Absolutt plassert over lerretet, uten peker-treff:
+           fingeren skal snurre kula, ikke treffe en label. Navnene står med det
+           norske først der det finnes et — «Regnhavet» er til å huske, «Mare
+           Imbrium» er til å slå opp. -->
+      <div v-if="maneGlobeAapen && maneTrekk.length"
+           class="absolute inset-0 z-[5] pointer-events-none" aria-hidden="true">
+        <div v-for="t in maneTrekk" :key="t.navn"
+             class="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center"
+             :style="{ left: `${t.x}px`, top: `${t.y}px` }">
+          <span class="w-1 h-1 rounded-full bg-white/70"></span>
+          <span class="mt-0.5 text-[0.5625rem] leading-tight text-white/80
+                       [text-shadow:0_1px_3px_rgba(0,0,0,0.9)] whitespace-nowrap">
+            {{ t.norsk ?? t.navn }}
+          </span>
+        </div>
+      </div>
+
       <!-- Topprad: Pin · Sol/måne · Sti · Kryss|Stopp · Kurver — venstrestilt,
            med X aleine helt til høyre. Høyrestilt raden vokste mot venstre, og
            med seks knapper falt den første ut av skjermen på smale telefoner
@@ -669,7 +772,7 @@ function branchLabel(opt, i) {
            gapet er strammet inn for å gi mer luft i marginene. -->
       <div class="relative z-10 flex items-start justify-between gap-2 px-3"
            style="padding-top: max(env(safe-area-inset-top), 10px);">
-        <div class="flex items-center gap-1 min-w-0 flex-wrap">
+        <div v-if="!maksimert" class="flex items-center gap-1 min-w-0 flex-wrap">
           <button v-if="phase === 'ready'"
                   @click="togglePins"
                   :aria-label="pinsOn ? 'Skjul knappenåler' : 'Vis knappenåler'"
@@ -775,15 +878,60 @@ function branchLabel(opt, i) {
             <span class="max-[379px]:hidden">Kurver</span>
           </button>
         </div>
-        <button @click="requestClose"
-                aria-label="Lukk 3D-visning"
-                class="w-11 h-11 shrink-0 rounded-full bg-black/45 backdrop-blur text-white/85
-                       flex items-center justify-center active:scale-90">
-          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
-               stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-          </svg>
-        </button>
+        <!-- Maksimer og lukk. I maksimert modus er BEGGE dempet kraftig ned:
+             poenget med modusen er nattsyn, og da kan ikke de to knappene som
+             blir igjen lyse like sterkt som før. -->
+        <div v-if="maksimert" class="flex-1"></div>
+        <div class="flex items-center gap-1 shrink-0">
+          <button v-if="phase === 'ready'"
+                  @click="toggleMaksimer"
+                  :aria-label="maksimert ? 'Vis knappene igjen' : 'Skjul alt utenom himmelsøket'"
+                  class="w-11 h-11 rounded-full backdrop-blur flex items-center justify-center
+                         active:scale-90 transition-colors"
+                  :class="maksimert ? 'bg-black/25 text-white/35' : 'bg-black/45 text-white/85'">
+            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <!-- Ut av hjørnene = maksimer, inn i hjørnene = tilbake. -->
+              <template v-if="!maksimert">
+                <path d="M9 4H4v5M15 4h5v5M15 20h5v-5M9 20H4v-5"/>
+              </template>
+              <template v-else>
+                <path d="M4 9V4h5M20 9V4h-5M20 15v5h-5M4 15v5h5"/>
+              </template>
+            </svg>
+          </button>
+          <button @click="requestClose"
+                  aria-label="Lukk 3D-visning"
+                  class="w-11 h-11 shrink-0 rounded-full backdrop-blur
+                         flex items-center justify-center active:scale-90 transition-colors"
+                  :class="maksimert ? 'bg-black/25 text-white/35' : 'bg-black/45 text-white/85'">
+            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- HIMMELSØKET. I maksimert modus er dette det ENESTE som står igjen på
+           skjermen, og da ligger det helt øverst — det var hele bestillingen
+           etter felttesten i mørket. Ellers står det på egen linje rett under
+           topprada. -->
+      <div v-if="himmelSokSynlig"
+           class="relative z-10 px-3 flex justify-center"
+           :class="maksimert ? 'order-first' : 'mt-2'"
+           :style="maksimert ? 'padding-top: max(env(safe-area-inset-top), 10px);' : ''">
+        <Tour3dHimmelSok :objekter="himmelListe" :valgt-id="valgtHimmel?.id ?? null"
+                         :maksimert="maksimert" @velg="velgHimmel"/>
+      </div>
+
+      <!-- Infokortet for det valgte. Ligger under søkefeltet, og rulles om
+           teksten er lang — den kan være det for et stjernebilde. -->
+      <div v-if="phase === 'ready' && valgtHimmel"
+           class="relative z-10 px-3 mt-2 flex justify-center max-h-[52vh] overflow-y-auto">
+        <Tour3dHimmelKort :objekt="valgtHimmel" :naboer="himmelNaboer"
+                          :globe-aapen="maneGlobeAapen"
+                          @lukk="velgHimmel(null)" @velg="velgHimmel"/>
       </div>
 
       <!-- Vær-demo (Utvikler-fanen). Ligger over værraden fordi den overstyrer
@@ -833,7 +981,7 @@ function branchLabel(opt, i) {
            nå står varselet først og hjelpen under. Skjult under en gående tur —
            der konkurrerer HUD og kryssvalg om plassen, og været er ikke det man
            ser etter da. -->
-      <div v-if="phase === 'ready' && vaerOn && !walking"
+      <div v-if="phase === 'ready' && vaerOn && !walking && !maksimert"
            class="relative z-10 px-3 mt-2 flex justify-center">
         <Tour3dVaerRad :vaer="vaer"/>
       </div>
@@ -841,7 +989,7 @@ function branchLabel(opt, i) {
       <!-- Nederste linje: hjelp til venstre, POI-filter til høyre. Begge minimert
            som små piller, så de koster nesten ingen kartflate før man trenger
            dem. Items-start så en utvidet boks ikke dytter den andre nedover. -->
-      <div v-if="phase === 'ready'"
+      <div v-if="phase === 'ready' && !maksimert"
            class="relative z-10 flex items-start justify-between gap-2 px-3 mt-2">
         <Tour3dInfoPanel :modus="walking ? 'tur' : 'utforsk'"
                          :knapper="INFO_KNAPPER" :tips="INFO_TIPS"/>
@@ -880,7 +1028,8 @@ function branchLabel(opt, i) {
       </div>
 
       <!-- Bunn: kryssvalg, framdrift og turkontroller -->
-      <div v-if="phase === 'ready'" class="relative z-10 mt-auto px-3 flex flex-col gap-2"
+      <div v-if="phase === 'ready' && !maksimert"
+           class="relative z-10 mt-auto px-3 flex flex-col gap-2"
            style="padding-bottom: max(env(safe-area-inset-bottom), 12px);">
 
         <!-- Kameraet er løsnet fra turen: veien tilbake, ett trykk unna. -->

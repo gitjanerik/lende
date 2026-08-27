@@ -32,6 +32,13 @@ jobs:
           echo "--- SVG-fil ---"
           ls -la public/maps/
 
+      # Månens albedokart til 3D-globen. Feiler ALDRI hardt: klarer den ikke å
+      # hente noe, tegnes kula i månegrå, som den er laget for å tåle. Steget
+      # ligger her og ikke i repoet fordi NASA/USGS er sperret fra
+      # utviklingsmiljøet — se scripts/bygg-maanekart.mjs.
+      - name: Bake månekartet
+        run: npm run bygg:maanekart
+
       - name: Build app
         run: |
           npm run build

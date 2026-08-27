@@ -21,10 +21,12 @@ import {
   prepareMapTextureSource, rasterizeMapTexture,
 } from './mapTexture.js'
 import { buildSkyDome, buildNedbor, buildLyn, buildNightSky, makeFog, FOG_COLOR, NIGHT_FOG_COLOR } from './skyDome.js'
+import { horisontTilWorld } from './astronomi.js'
 import { buildPuffClouds } from './puffSkyer.js'
 import { lagSkyskygge } from './skyskygge.js'
 import { NEDBOR_TAK } from './vaerHimmel.js'
 import { createEngineLoop } from './engineLoop.js'
+import { buildManeGlobe } from './maneGlobe.js'
 import { svgToWgs84 } from '../utm.js'
 
 export class TourSceneError extends Error {
@@ -179,6 +181,20 @@ export async function createSceneCore(container, {
   skyskygge.uniforms.uSolRetning.value.copy(clouds.solRetning)
   skyskygge.festTil(terrain.material)
 
+  // Månegloben — bygges lazily ved første trykk på månen (se aapneManeGlobe).
+  //
+  // GLOBE_AVSTAND er hvor langt foran kameraet kula henger, og GLOBE_GRADER hvor
+  // stor den skal se ut. 34° er stort nok til at hav og krater er til å se på en
+  // telefon, og lite nok til at himmelen rundt fortsatt er der — man skal se at
+  // man ser på månen FRA kartet sitt, ikke at man har reist til den.
+  const GLOBE_AVSTAND = 4000
+  const GLOBE_GRADER = 34
+  let maneGlobe = null
+  let globeRetning = null
+  // Kula vokser fram fra skiva den var. Tallet er andelen av full størrelse.
+  let globeSkala = 0
+  let globeMaal = 0
+
   // Måne + stjerner. Skjult som default; setNightMode slår hele gruppa av/på.
   //
   // Fra v5.27.0 er himmelen ASTRONOMISK: stjernene står der de står over dette
@@ -195,7 +211,14 @@ export async function createSceneCore(container, {
       senterLon = p.lon
     }
   } catch { /* uten sted: pseudo-tilfeldig himmel, se buildNightSky */ }
-  const nightSky = buildNightSky({ lat: senterLat, lon: senterLon, dato: new Date() })
+  const nightSky = buildNightSky({
+    lat: senterLat,
+    lon: senterLon,
+    dato: new Date(),
+    // gl_PointSize og LineMaterial-bredder er i FRAMEBUFFER-piksler. Uten
+    // pixelRatio inn ble stjernene halv størrelse på en telefon (v6.0.0).
+    pikselForhold: renderer.getPixelRatio(),
+  })
   scene.add(nightSky.group)
 
   // Høydekurver i terrenget: togglebart lag — bygges lazily.
@@ -334,6 +357,8 @@ export async function createSceneCore(container, {
     renderer, camera, container,
     onResize(w, h) {
       contours?.setResolution(w, h)
+      // Stjernebilde-linjene tegnes i piksler og trenger samme oppslag.
+      nightSky.setResolution(w, h)
       hooks.onResize?.(w, h)
     },
     onFrame: (dt, timeS) => hooks.onFrame?.(dt, timeS),
@@ -397,6 +422,15 @@ export async function createSceneCore(container, {
 
   const _v = new Vector3()
 
+  // Skjermkoordinat for et world-punkt. Egen lokal funksjon fordi både det
+  // returnerte API-et og månegloben trenger den.
+  function project(x, y, z) {
+    _v.set(x, y, z).project(camera)
+    const w = container.clientWidth
+    const h = container.clientHeight
+    return { x: ((_v.x + 1) / 2) * w, y: ((1 - _v.y) / 2) * h, behind: _v.z > 1 }
+  }
+
   return {
     renderer,
     scene,
@@ -422,6 +456,32 @@ export async function createSceneCore(container, {
       // stjernene blir stående der de står.
       sky.mesh.position.copy(camera.position)
       nightSky.group.position.copy(camera.position)
+      // Globen henger i månens retning, et fast stykke foran kameraet. Den
+      // følger kameraets POSISJON som himmelen, så den blir stående i samme
+      // himmelretning når man panorerer — man ser på månen der månen er.
+      if (maneGlobe?.group.visible && globeRetning) {
+        maneGlobe.group.position.set(
+          camera.position.x + globeRetning[0],
+          camera.position.y + globeRetning[1],
+          camera.position.z + globeRetning[2],
+        )
+        // Vendes mot kameraet HVER frame: uten det peker forsida mot verdens
+        // +Z, som i denne scenen er sør (se vendMot i maneGlobe).
+        maneGlobe.vendMot(camera.position)
+        // Vokse-animasjonen. Eksponentiell demping og ikke en tidslinje: den
+        // tåler at en frame kommer sent, og den snur uten et eget «lukker»-steg.
+        if (globeSkala !== globeMaal) {
+          const k = 1 - Math.exp(-dt / 0.18)
+          globeSkala += (globeMaal - globeSkala) * k
+          if (Math.abs(globeMaal - globeSkala) < 0.004) globeSkala = globeMaal
+          maneGlobe.settSkala(globeSkala)
+          // Ferdig krympet: nå kan den skjules, ikke før.
+          if (globeSkala === 0) {
+            maneGlobe.setVisible(false)
+            nightSky.mane.group.visible = true
+          }
+        }
+      }
       // Månen er en skive som skal vende mot kameraet.
       nightSky.update(camera)
       // Kameraet må med: puff-skyene oversetter sol-retningen til view-space
@@ -441,12 +501,7 @@ export async function createSceneCore(container, {
 
     // Skjermkoordinat for et world-punkt. Leser kameraets matriser fra siste
     // render — kall etter render() for et resultat uten én frames etterslep.
-    project(x, y, z) {
-      _v.set(x, y, z).project(camera)
-      const w = container.clientWidth
-      const h = container.clientHeight
-      return { x: ((_v.x + 1) / 2) * w, y: ((1 - _v.y) / 2) * h, behind: _v.z > 1 }
-    },
+    project,
 
     async setContoursVisible(v) {
       contoursVisible = !!v
@@ -480,6 +535,16 @@ export async function createSceneCore(container, {
       }
       sky.setNight(nightOn)
       nightSky.setNight(nightOn)
+      // Slås natta av, skal ikke en måneglobe stå igjen og henge i dagslyset.
+      // Uten dette ville den blitt stående usynlig-men-åpen, og neste trykk
+      // hadde lukket den i stedet for å velge noe.
+      if (!nightOn && maneGlobe) {
+        globeMaal = 0
+        globeSkala = 0
+        maneGlobe.settSkala(0.001)
+        maneGlobe.setVisible(false)
+        nightSky.mane.group.visible = true
+      }
       oppdaterSkySynlighet()
       grunnfarge.set(nightOn ? NIGHT_FOG_COLOR : FOG_COLOR)
       lynIgjen = 0            // et pågående lyn skal ikke overleve modus-byttet
@@ -519,6 +584,82 @@ export async function createSceneCore(container, {
       else stoppTorden()
     },
     get nightOn() { return nightOn },
+
+    /** Fremhev én stjerneformasjon på natthimmelen (null rydder). */
+    settValgtFormasjon(formasjon) {
+      nightSky.settValgt(formasjon)
+    },
+
+    // ── Månegloben ──────────────────────────────────────────────────────────
+    // Bygges LAZILY ved første trykk på månen: en sfære med tekstur er ikke
+    // gratis, og de fleste åpner den aldri. Samme mønster som høydekurvene.
+    aapneManeGlobe(mane) {
+      if (!mane || !Number.isFinite(mane.azimut)) return false
+      if (!maneGlobe) {
+        maneGlobe = buildManeGlobe({
+          radius: GLOBE_AVSTAND * Math.tan((GLOBE_GRADER / 2) * Math.PI / 180),
+          // Bakt av scripts/bygg-maanekart.mjs, som kjører i CI. Ligger den
+          // ikke der, tegnes kula i månegrå — globen er laget for å tåle det.
+          teksturUrl: `${import.meta.env?.BASE_URL ?? '/'}data/maane.jpg`,
+        })
+        scene.add(maneGlobe.group)
+        loop.track(maneGlobe)
+      }
+      globeRetning = horisontTilWorld(mane.azimut, mane.hoyde, GLOBE_AVSTAND)
+      maneGlobe.settFase(mane.faseVinkel ?? 0, mane.lyssideVinkel ?? 0)
+      // Rullen er den parallaktiske vinkelen med motsatt fortegn — da står
+      // skyggelinja på kula slik sigden står på himmelen.
+      maneGlobe.settRull(-(mane.parallaktisk ?? 0))
+      maneGlobe.settRotasjon(0, 0)
+      globeSkala = 0.05
+      globeMaal = 1
+      maneGlobe.settSkala(globeSkala)
+      maneGlobe.setVisible(true)
+      // Skiva på himmelen skjules mens kula er framme: to måner i samme
+      // retning, den ene halvt inni den andre, leses som en tegnefeil.
+      nightSky.mane.group.visible = false
+      return true
+    },
+    lukkManeGlobe() {
+      // Krympes ned, og skjules først når den er nede — ellers forsvinner en
+      // tredjedel av skjermen i ett klipp.
+      globeMaal = 0
+    },
+    // ÅPEN betyr «brukeren har den framme», ikke «det tegnes noe»: krympingen
+    // varer noen frames, og et trykk i den perioden skal ikke åpne den igjen.
+    get maneGlobeAapen() { return !!maneGlobe?.group.visible && globeMaal > 0 },
+    /**
+     * Drei globen. Utslaget er i PIKSLER, og oversettes til radianer med samme
+     * følsomhet som orbiten bruker — da kjennes det som å snurre den samme
+     * verdenen, ikke som et annet instrument.
+     */
+    dreiManeGlobe(dxPx, dyPx) {
+      if (!maneGlobe?.group.visible) return
+      const h = container.clientHeight || 1
+      const radPrPiksel = (2 * Math.PI) / h
+      const r = maneGlobe.rotasjon
+      maneGlobe.settRotasjon(
+        r.lengde + dxPx * radPrPiksel,
+        r.bredde + dyPx * radPrPiksel,
+      )
+    },
+    /**
+     * De navngitte trekkene som er synlige nå, med SKJERMKOORDINATER. Kalles
+     * etter render, som project() krever.
+     */
+    maneTrekkPaaSkjerm() {
+      if (!maneGlobe?.group.visible || globeSkala < 0.6) return []
+      const ut = []
+      for (const t of maneGlobe.synligeTrekk()) {
+        const skj = project(t.verden[0], t.verden[1], t.verden[2])
+        if (skj.behind) continue
+        ut.push({ navn: t.navn, norsk: t.norsk, merk: t.merk, type: t.type, x: skj.x, y: skj.y })
+      }
+      return ut
+    },
+    get maneGlobeHarTekstur() { return !!maneGlobe?.harTekstur },
+    /** Planetene som står over horisonten nå — viseren bruker dem i lista. */
+    get synligePlaneter() { return nightSky.synligePlaneter },
 
     // Eksponert for testing og for kallere som vil sjekke etter en lang pause.
     revalidateTexture,

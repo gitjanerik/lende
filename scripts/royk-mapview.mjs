@@ -962,6 +962,101 @@ const SJEKKER = [
     },
   },
   {
+    // DELT I TO MED VILJE. Første utgave gjorde alt i én sjekk — natt, drag,
+    // søk, valg, kort, maksimer, av-maksimer og full opprydding — og brukte mer
+    // enn takets 120 s på en runner uten GPU, der nattmodus baker en 4096²-
+    // tekstur på hovedtråden. To halvparter går inn under taket hver for seg,
+    // og en feil peker dessuten på HVILKEN halvdel som brakk.
+    navn: 'stjernekikkeren finner, velger og forteller',
+    domene: 'himmelObjekter + Tour3dHimmelSok/Kort',
+    krever: 'ektekart',
+    maksMs: 180_000,
+    async kjør(page) {
+      const h = await aapneNatt3d(page)
+      if (h.hoppet) return h.hoppet
+
+      // Løft blikket. Høyre knapp (venstre panorerer) og OPPOVER — se
+      // himmelvipp-sjekken over for begge fortegnene, de var feil i første utgave.
+      const vp = page.viewportSize()
+      const x0 = Math.round(vp.width / 2)
+      const y0 = Math.round(vp.height * 0.85)
+      await page.mouse.move(x0, y0)
+      await page.mouse.down({ button: 'right' })
+      for (let i = 1; i <= 60; i++) {
+        await page.mouse.move(x0, y0 - i * 10)
+        if (i % 12 === 0) await page.waitForTimeout(60)
+      }
+      await page.mouse.up({ button: 'right' })
+      await page.waitForTimeout(900)
+
+      // Søkefeltet skal ha kommet nå, som pille.
+      const pille = page.locator('button[aria-label="Finn et stjernebilde eller en planet"]')
+      await pille.waitFor({ state: 'visible', timeout: 10_000 })
+      await pille.click({ timeout: 5000 })
+      await page.waitForTimeout(300)
+
+      // Lista skal inneholde noe — himmelen over Vardåsen har alltid noen
+      // formasjoner oppe, uansett dato. En tom liste er en ekte feil.
+      const forste = await evalMedTak(page, () => {
+        const b = document.querySelector('ul[aria-label="Treff på himmelen"] li button')
+        return b ? (b.querySelector('span.block')?.textContent ?? '').trim() : null
+      })
+      if (!forste) throw new Error('himmellista var tom — ingenting å velge')
+      await page.locator('ul[aria-label="Treff på himmelen"] li button').first()
+        .click({ timeout: 5000 })
+      await page.waitForTimeout(1600)
+
+      // Infokortet skal ha åpnet seg, og det skal handle om det vi valgte.
+      const kortTekst = await evalMedTak(page, () => document.body.innerText)
+      if (!kortTekst.includes(forste)) {
+        throw new Error(`valgte «${forste}», men kortet nevner den ikke`)
+      }
+      if (!/over horisonten/i.test(kortTekst)) {
+        throw new Error('infokortet mangler retning og høyde — det er linja man trenger')
+      }
+
+      await page.locator('button[aria-label="Lukk infokortet"]').click({ timeout: 5000 })
+      await page.waitForTimeout(400)
+      await lukkNatt3d(page, h.startSteg)
+      return `valgte «${forste}», kortet åpnet med retning og høyde`
+    },
+  },
+  {
+    navn: 'maksimert modus skjuler alt utenom himmelsøket',
+    domene: 'Viewer3D (nattsyn)',
+    krever: 'ektekart',
+    maksMs: 180_000,
+    async kjør(page) {
+      const h = await aapneNatt3d(page)
+      if (h.hoppet) return h.hoppet
+
+      // Ingen drag her: i maksimert modus SKAL søkefeltet stå uansett om blikket
+      // er løftet — ellers er modusen en tom skjerm med to nesten usynlige
+      // knapper. Det er nettopp den regelen denne sjekken håndhever.
+      await page.locator('button[aria-label="Skjul alt utenom himmelsøket"]')
+        .click({ timeout: 10_000 })
+      await page.waitForTimeout(500)
+      const i = await evalMedTak(page, () => ({
+        oversikt: /\bOversikt\b/.test(document.body.innerText),
+        hint: /Ser opp i himmelen/i.test(document.body.innerText),
+        sok: !!document.querySelector('button[aria-label^="Valgt:"], button[aria-label="Finn et stjernebilde eller en planet"]'),
+      }))
+      if (i.oversikt) throw new Error('«Oversikt» står fortsatt i maksimert modus')
+      if (i.hint) throw new Error('himmel-hintet står fortsatt i maksimert modus')
+      if (!i.sok) throw new Error('himmelsøket forsvant i maksimert modus — da er skjermen tom')
+
+      // Og tilbake: knappene skal komme igjen. En enveisdør her ville låst
+      // brukeren ute av alt annet enn stjernene.
+      await page.locator('button[aria-label="Vis knappene igjen"]').click({ timeout: 10_000 })
+      await page.waitForTimeout(500)
+      if (!await evalMedTak(page, () => /\bOversikt\b/.test(document.body.innerText))) {
+        throw new Error('maksimert modus slapp ikke knappene tilbake')
+      }
+      await lukkNatt3d(page, h.startSteg)
+      return 'Oversikt og hintet skjult, søkefeltet sto igjen'
+    },
+  },
+  {
     // v5.25.6-regresjonsvakt. Står SIST med vilje: sjekken setter kart-temaet,
     // og kart-temaet er inngangsverdi for 3D-visningens dag/natt-tilstand.
     // Første plassering var midt i lista, og da arvet sol/måne-sjekken et lyst
@@ -1059,6 +1154,8 @@ const SJEKKER = [
 // en CI-runner uten GPU) bruker under et halvt minutt, så to minutter rammer
 // bare noe som faktisk har stoppet.
 const SJEKK_TAK_MS = 120_000
+// Skjermbildet er billig når siden lever og uendelig når den ikke gjør det.
+const SKJERMBILDE_TAK_MS = 20_000
 
 /**
  * Kjør en sjekk mot klokka. Løftet vi kappløper mot kan ikke avbrytes — det
@@ -1081,6 +1178,99 @@ function medTak(løfte, ms, navn) {
 
 // Vi treffer knapper på TEKST og ikke på CSS-klasser med vilje: klassene i
 // denne appen er Tailwind-kjeder som endres støtt, mens teksten er UI-kontrakt.
+// ---- natt-3D for stjerne-sjekkene ---------------------------------------
+// Delt av de to stjerne-sjekkene. Egne hjelpere og ikke kopi: begge må inn i
+// SAMME tilstand (natt UTEN vær) og ut i NØYTRAL tilstand igjen, og to kopier av
+// den koreografien kommer i utakt ved første endring.
+
+// Sol/måne-knappens aria-label sier hva NESTE trykk gjør. Vær-biten huskes i
+// localStorage og dag/natt-biten avledes av kart-temaet, så vi kan ikke ANTA
+// noe steg — vi leser det.
+const SOLMAANE_STEG = [
+  'Vis vær', 'Bytt til natt', 'Vis vær om natta', 'Bytt til dag uten vær',
+]
+/**
+ * `page.evaluate` MED TAK. Playwright gir evaluate ingen egen timeout, så en
+ * travel hovedtråd (3D baker en 4096²-tekstur ved bytte til natt) gjør et
+ * uskyldig oppslag til en uendelig venting. Sjekk-taket over fanger det, men da
+ * har vi brent 180 s og vet ikke hvor. Et lokalt tak sier hvilken linje.
+ */
+const evalMedTak = (page, fn, arg, ms = 25_000) =>
+  medTak(page.evaluate(fn, arg), ms, 'page.evaluate')
+
+const lesSolMaaneSteg = (page) => evalMedTak(page, (steg) =>
+  [...document.querySelectorAll('button[aria-label]')]
+    .map((b) => b.getAttribute('aria-label'))
+    .find((l) => steg.includes(l)) ?? null, SOLMAANE_STEG)
+
+/**
+ * Åpne 3D og still den på NATT UTEN VÆR. Returnerer `{ startSteg }`, eller
+ * `{ hoppet }` når kartet mangler høydedata — en røyktest skal feile på en
+ * ødelagt inngang, ikke på manglende terrengdata.
+ */
+async function aapneNatt3d(page) {
+  await lukkDrawer(page)
+  await klikkTekst(page, /^3D$/)
+  const klar = await page.waitForFunction(() => {
+    const c = document.querySelector('canvas')
+    if (c && c.width > 0) return 'canvas'
+    if (/Ingen høydedata/i.test(document.body.innerText)) return 'ingen-dem'
+    return false
+  }, null, { timeout: 60_000 }).then((h) => h.jsonValue())
+  // Tekstur-skjerpingen blokkerer hovedtråden i sekunder på en runner uten GPU,
+  // og et klikk eller en page.evaluate inn i det vinduet henger framfor å feile.
+  await page.waitForFunction(
+    () => !/Skjerper kartbildet/i.test(document.body.innerText),
+    null, { timeout: 45_000 },
+  ).catch(() => { /* meldingen kan ha kommet og gått */ })
+  await page.waitForTimeout(800)
+
+  if (klar === 'ingen-dem') {
+    await page.locator('button[aria-label="Lukk 3D-visning"]').click({ timeout: 5000 })
+    await page.waitForFunction(() => !document.querySelector('canvas'), null, { timeout: 8000 })
+    return { hoppet: 'ingen-dem-melding — stjernehimmelen kan ikke prøves uten terreng' }
+  }
+
+  const startSteg = await lesSolMaaneSteg(page)
+  if (!startSteg) throw new Error('fant ikke sol/måne-knappen')
+  let steg = startSteg
+  for (let i = 0; i < 4 && steg !== 'Vis vær om natta'; i++) {
+    await page.locator(`button[aria-label="${steg}"]`).click({ timeout: 10_000 })
+    await page.waitForTimeout(900)
+    steg = await lesSolMaaneSteg(page)
+  }
+  if (steg !== 'Vis vær om natta') throw new Error('kom ikke til natt uten vær')
+  // NATTBYTTET BAKER SIN EGEN 4096²-TEKSTUR, og på en runner uten GPU blokkerer
+  // den hovedtråden i sekunder. Alt vi gjør etterpå — et klikk, et oppslag —
+  // ville køet bak den. Samme grunn som ventingen ved åpning, og det er nettopp
+  // denne som gjorde at fire-stegs-sjekken en gang gikk forbi klikkets timeout.
+  await page.waitForFunction(
+    () => !/Skjerper kartbildet/i.test(document.body.innerText),
+    null, { timeout: 45_000 },
+  ).catch(() => { /* meldingen kan ha kommet og gått */ })
+  await page.waitForTimeout(1200)
+  return { startSteg }
+}
+
+/**
+ * NØYTRAL TILSTAND (v5.8.1-fella): blikket ned, sol/måne tilbake på steget den
+ * sto på, 3D lukket. Ellers arver neste sjekk en nattvisning med et kort i
+ * bildet — og localStorage-verdien følger med inn i neste kjøring.
+ */
+async function lukkNatt3d(page, startSteg) {
+  await klikkTekst(page, /^Oversikt$/)
+  await page.waitForTimeout(1400)
+  let na = await lesSolMaaneSteg(page)
+  for (let i = 0; i < 4 && na !== startSteg; i++) {
+    await page.locator(`button[aria-label="${na}"]`).click({ timeout: 10_000 })
+    await page.waitForTimeout(900)
+    na = await lesSolMaaneSteg(page)
+  }
+  if (na !== startSteg) throw new Error(`etterlot sol/måne på «${na}», ikke «${startSteg}»`)
+  await page.locator('button[aria-label="Lukk 3D-visning"]').click({ timeout: 5000 })
+  await page.waitForFunction(() => !document.querySelector('canvas'), null, { timeout: 8000 })
+}
+
 async function klikkTekst(page, re) {
   const traff = await page.evaluate((kilde) => {
     const rx = new RegExp(kilde.source, kilde.flags)
@@ -1262,7 +1452,19 @@ try {
       console.log(`✗ ${s.navn} — ${err.message}`)
       kode = 1
     }
-    if (BILDER) await page.screenshot({ path: `${BILDER}/${s.domene}.png` }).catch(() => {})
+    // SKJERMBILDET MÅ HA SAMME TAK SOM SJEKKEN. Det sto utenfor fram til v6.0.0,
+    // og det er et hull i nettopp den beskyttelsen taket over finnes for: taket
+    // gjør en hengt sjekk til en lesbar feil, men `page.screenshot` mot en
+    // renderer som står fast venter i det uendelige — og da henger jobben
+    // likevel, nå UTEN at noe navn er skrevet, siden loggen skrives til slutt.
+    // Ingen målt hendelse bak dette; det er samme klasse feil som taket over
+    // ble laget for, lukket på samme sted.
+    if (BILDER) {
+      await medTak(
+        page.screenshot({ path: `${BILDER}/${s.domene}.png` }),
+        SKJERMBILDE_TAK_MS, `skjermbilde etter ${s.navn}`,
+      ).catch((e) => console.log(`  ⚠ ${e.message}`))
+    }
   }
 
   console.log('\n── røyktest ───────────────────────────────')

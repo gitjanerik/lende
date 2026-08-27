@@ -2,11 +2,11 @@
 // Trenger denne endringen et EKTE Vardåsen-kart i røyktesten?
 //
 // `--ektekart` bygger et ferskt kart fra Kartverket + OSM og koster ~2 av
-// røyk-jobbens ~3 minutter. Sju av de tjue sjekkene krever det; de øvrige
-// tretten klarer seg med det sporede demo-kartet i repoet.
+// røyk-jobbens ~3 minutter. Ni av sjekkene krever det; de øvrige klarer seg
+// med det sporede demo-kartet i repoet.
 //
 // Gaten er IKKE «rører endringen kart-pipelinen». Det var den første
-// formuleringen, og den er feil: de sju sjekkene dekker useNavnLod,
+// formuleringen, og den er feil: sjekkene dekker useNavnLod,
 // useViewportCull, useGhostTiles, useKartSok, useKartEksport, useGestPerf og
 // Viewer3D + vaerHimmel — altså composables og komponenter, ikke pipelinen. En
 // ren pipeline-gate ville derfor hoppet STILLE over navn-LOD-sjekken på en PR
@@ -23,9 +23,9 @@
 // Bruk:  git diff --name-only origin/master HEAD | node scripts/trenger-ektekart.mjs
 // Exit 0 = trengs (bygg ekte kart), exit 1 = trengs ikke.
 
-// Filene de sju ektekart-sjekkene faktisk trykker på, pluss kart-pipelinen
+// Filene ektekart-sjekkene faktisk trykker på, pluss kart-pipelinen
 // (src/lib/**) og selve testen. MapView.vue står her fordi den komponerer alle
-// sju domenene — endrer man den, vil man ha maks dekning.
+// domenene — endrer man den, vil man ha maks dekning.
 export const MAA_HA_EKTEKART = [
   /^src\/lib\//,
   /^src\/views\/MapView\.vue$/,

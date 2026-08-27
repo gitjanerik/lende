@@ -27,6 +27,7 @@
 import { Raycaster, Vector2 } from 'three'
 import { buildRoutingGraph, RUTE_GRAF_OPTS } from '../routing.js'
 import { realElevationAt, sampleElevation } from '../demSampling.js'
+import { horisontTilWorld } from './astronomi.js'
 import { createSceneCore, TourSceneError } from './sceneCore.js'
 import { createFreeRig } from './freeRig.js'
 import { createFollowRig } from './cameraRigs.js'
@@ -48,6 +49,7 @@ import { featureType } from './exploreData.js'
 export { TourSceneError }
 
 const PROGRESS_EMIT_MS = 250
+const TREKK_EMIT_MS = 120
 // Hvor langt fra en sti et trykk kan lande og fortsatt starte en tur.
 const PATH_HIT_TOL_M = 90
 // Med krysspause på stopper turen så mange meter FØR krysset — nær nok til å
@@ -416,15 +418,119 @@ export async function create3dScene(container, {
     freeRig.flyTo(world[0], world[1], world[2], { radiusM, headingXY })
   }
 
+  // Himmel-tilstand: hva som er valgbart nå, og hva som er valgt.
+  let himmelListe = []
+  let valgtHimmel = null
+  let sisteNdc = { x: 0, y: 0 }
+
+  /**
+   * Plukk et himmelobjekt i SKJERMROM.
+   *
+   * Hvorfor ikke raycast: en stjernebilde-strek er 1,7 piksler bred og en
+   * planetskive 0,45°. Å treffe dem med en stråle er praktisk umulig på en
+   * telefon. I skjermrom kan vi i stedet spørre «hva er nærmest fingeren», som
+   * er det brukeren mener.
+   *
+   * Skiver (månen, planetene) vinner over formasjoner når begge er innenfor
+   * terskelen: de har reell utstrekning, så et trykk PÅ månen skal velge månen
+   * og ikke stjernebildet bak.
+   */
+  function plukkHimmel() {
+    if (!himmelListe.length) return
+    const w = core.renderer.domElement.clientWidth
+    const h = core.renderer.domElement.clientHeight
+    const fx = ((sisteNdc.x + 1) / 2) * w
+    const fy = ((1 - sisteNdc.y) / 2) * h
+    // Terskelen er i CSS-piksler og romslig: en finger er ~9 mm.
+    const TERSKEL = 46
+
+    let best = null
+    let bestAvstand = Infinity
+    for (const o of himmelListe) {
+      const [wx, wy, wz] = horisontTilWorld(o.azimut, o.hoyde, 20000)
+      // Himmelen følger kameraet, så retningen må regnes fra kameraets posisjon.
+      const p = core.project(
+        camera.position.x + wx, camera.position.y + wy, camera.position.z + wz,
+      )
+      if (p.behind) continue
+      const d = Math.hypot(p.x - fx, p.y - fy)
+      if (d > TERSKEL) continue
+      // Skiver foran formasjoner: trekk fra litt for dem, så de vinner et
+      // uavgjort trykk.
+      const vektet = o.type === 'formasjon' ? d : d - 18
+      if (vektet < bestAvstand) {
+        bestAvstand = vektet
+        best = o
+      }
+    }
+    if (!best) return
+    velgHimmel(best)
+    emit('himmel-valgt', { objekt: best })
+  }
+
+  /** Fremhev og se mot et himmelobjekt. Delt av trykk og valg fra lista. */
+  function velgHimmel(o) {
+    valgtHimmel = o ?? null
+    core.settValgtFormasjon(o?.type === 'formasjon' ? o : null)
+    if (o) freeRig.seMot(o.azimut, o.hoyde)
+    // Månen er det ene valget som åpner noe: kula. Alt annet lukker den, så man
+    // aldri sitter med en måne foran seg mens infokortet snakker om Orion.
+    if (o?.type === 'mane') aapneGlobe(o)
+    else lukkGlobe()
+  }
+
+  // ── Månegloben ────────────────────────────────────────────────────────────
+  // Trykk på månen (eller velg den i lista) og den vokser til en kule man kan
+  // snurre. Man har IKKE reist til månen: kula henger i månens virkelige
+  // himmelretning, med kveldens ekte skyggelinje, og kartet ligger under.
+  //
+  // Mens den står åpen eier fingeren KULA og ikke kameraet. Den frie riggen
+  // skrus derfor av — ellers ville samme drag både snurret månen og panorert
+  // kartet, og man fikk ingen av dem.
+  let globeDrag = null
+
+  function aapneGlobe(mane) {
+    if (!core.aapneManeGlobe(mane)) return
+    freeRig.setEnabled(false)
+    emit('mane-globe', { apen: true, harTekstur: core.maneGlobeHarTekstur })
+  }
+
+  function lukkGlobe() {
+    if (!core.maneGlobeAapen) return
+    core.lukkManeGlobe()
+    globeDrag = null
+    // Riggen tilbake bare der den skulle vært på: står en tur og spiller, er
+    // det vogn-draget som eier fingeren (se armFreeRigIfIdle).
+    if (!trip || camMode === 'free' || !playback?.playing) freeRig.setEnabled(true)
+    emit('mane-globe', { apen: false })
+  }
+
+  const globeNed = (e) => {
+    if (core.maneGlobeAapen) globeDrag = { x: e.clientX, y: e.clientY }
+  }
+  const globeFlytt = (e) => {
+    if (!globeDrag || !core.maneGlobeAapen) return
+    // Fortegnene: overflaten skal følge fingeren. Positiv rotasjon om Y flytter
+    // punktet som vender mot kameraet mot HØYRE, og positiv om X flytter det
+    // NED — så begge utslagene sendes videre som de er, i skjermens retning.
+    core.dreiManeGlobe(e.clientX - globeDrag.x, e.clientY - globeDrag.y)
+    globeDrag = { x: e.clientX, y: e.clientY }
+  }
+  const globeOpp = () => { globeDrag = null }
+
   function handleTap(e) {
     // Ble gesten et hold (fingeren lå stille og så seg rundt), var den ikke et
     // trykk. tapDispatcher godtar opptil 600 ms nede, holdet slår inn etter 320,
     // så uten dette ville et kort hold også valgt nåla man tilfeldigvis så mot.
     if (camMode === 'follow' && followRig?.holdConsumed) return
+    // Står månegloben åpen, er et trykk veien ut. Et drag snurrer den (og blir
+    // aldri et trykk, slop-terskelen tar det), så de to gestene kolliderer ikke.
+    if (core.maneGlobeAapen) { velgHimmel(null); emit('himmel-valgt', { objekt: null }); return }
     const rect = core.renderer.domElement.getBoundingClientRect()
     ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
     ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
     raycaster.setFromCamera(ndc, camera)
+    sisteNdc = { x: ndc.x, y: ndc.y }
 
     // GPS-nåla først — «fly til meg». Med fersk forflytning (siste 5 min)
     // vinkles kameraet slik at man ser videre i sannsynlig bevegelsesretning.
@@ -462,7 +568,10 @@ export async function create3dScene(container, {
 
     // Ellers: traff vi terrenget, ser vi etter en sti der.
     const hit = raycaster.intersectObject(terrain.mesh, false)[0]
-    if (!hit) return
+    // BOMMET TERRENGET = trykket gikk i himmelen. Det er den eneste situasjonen
+    // himmel-plukkingen kjører i, og derfor kan den per konstruksjon ikke stjele
+    // et trykk fra en nål, en sti eller GPS-en — de er alle avklart over.
+    if (!hit) return plukkHimmel()
     const { x, y } = coords.toSvg(hit.point.x, hit.point.z)
 
     // Traff trykket en sti? Grafen bygges bare når svaret betyr noe — den
@@ -488,10 +597,18 @@ export async function create3dScene(container, {
   }
 
   const taps = attachTapDispatcher(core.renderer.domElement, handleTap)
+  {
+    const el = core.renderer.domElement
+    el.addEventListener('pointerdown', globeNed)
+    el.addEventListener('pointermove', globeFlytt)
+    el.addEventListener('pointerup', globeOpp)
+    el.addEventListener('pointercancel', globeOpp)
+  }
 
   // ---- Loop ----------------------------------------------------------------
 
   let lastProgressEmit = 0
+  let sisteTrekkEmit = 0
   let disposedFlag = false
 
   Object.assign(hooks, {
@@ -543,6 +660,13 @@ export async function create3dScene(container, {
 
       const nowMs = timeS * 1000
       pins.maybeDeclutter(nowMs)
+      // Labels på globen: skjermkoordinater må ut hver gang kula har flyttet
+      // seg, men en Vue-oppdatering pr frame er sløsing. 8/s er raskt nok til
+      // at navnene henger med i draget.
+      if (core.maneGlobeAapen && nowMs - sisteTrekkEmit > TREKK_EMIT_MS) {
+        sisteTrekkEmit = nowMs
+        emit('mane-trekk', { trekk: core.maneTrekkPaaSkjerm() })
+      }
       if (nowMs - lastProgressEmit > PROGRESS_EMIT_MS) {
         lastProgressEmit = nowMs
         if (trip && playback) {
@@ -639,6 +763,9 @@ export async function create3dScene(container, {
     /** Fugleperspektiv over hele kartet. En planlagt tur beholdes. */
     overview() {
       highlight.hide()
+      // «Oversikt» er den ene knappen som alltid skal gi oversikt — da kan den
+      // ikke etterlate en måne på 34° midt i bildet.
+      velgHimmel(null)
       if (trip) {
         playback.pause()
         detachCamera()
@@ -652,6 +779,26 @@ export async function create3dScene(container, {
     get autoRotating() { return freeRig.autoRotating },
     /** Radianer blikket er vippet opp over horisonten. 0 = ser i kartet. */
     get himmelVipp() { return freeRig.himmelVipp },
+
+    /**
+     * Hva som er valgbart på himmelen nå. Viseren regner lista (den kjenner
+     * stedet og tida) og gir den hit, så trykk-plukkingen og søkefeltet aldri
+     * kan ha ulike meninger om hva som er synlig.
+     */
+    setHimmelObjekter(liste) {
+      himmelListe = Array.isArray(liste) ? liste : []
+      // Forsvant det valgte ut av lista, skal ikke fremhevingen bli stående.
+      if (valgtHimmel && !himmelListe.some((o) => o.id === valgtHimmel.id)) {
+        velgHimmel(null)
+      }
+    },
+    /** Velg fra lista (eller null for å rydde). Samme vei som et trykk. */
+    velgHimmel,
+    get valgtHimmel() { return valgtHimmel },
+    get maneGlobeAapen() { return core.maneGlobeAapen },
+    lukkManeGlobe: lukkGlobe,
+    /** Navngitte hav og krater med skjermkoordinater. Kalles etter render. */
+    maneTrekkPaaSkjerm: () => core.maneTrekkPaaSkjerm(),
 
     // --- turen ---
     get walking() { return !!trip },
@@ -765,6 +912,13 @@ export async function create3dScene(container, {
       if (disposedFlag) return
       disposedFlag = true
       taps.dispose()
+      {
+        const el = core.renderer.domElement
+        el.removeEventListener('pointerdown', globeNed)
+        el.removeEventListener('pointermove', globeFlytt)
+        el.removeEventListener('pointerup', globeOpp)
+        el.removeEventListener('pointercancel', globeOpp)
+      }
       teardownTrip()
       freeRig.dispose()
       pins.dispose()

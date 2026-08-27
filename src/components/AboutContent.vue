@@ -209,6 +209,46 @@ async function onInstallClick() {
           </p>
         </div>
         <div class="space-y-2">
+          <h3 class="text-sm font-semibold text-ink/85">Natthimmelen — og stjernekikkeren</h3>
+          <p class="text-[13px] leading-relaxed text-ink/70">
+            Sol/måne-knappen har fire steg: dag, dag med vær, natt og natt med
+            vær. I nattmodus <strong class="text-ink/90">dra fingeren nedover for
+            å løfte blikket opp i himmelen</strong> — der ligger stjernene, og de
+            står der de faktisk står over kartet ditt i kveld.
+          </p>
+          <p class="text-[13px] leading-relaxed text-ink/70">
+            Med natt uten vær får du <strong class="text-ink/90">stjernekikkeren</strong>:
+            et søkefelt som også er en nedtrekksliste over det som virkelig er
+            over horisonten her og nå — 13 stjernebilder, de synlige planetene og
+            månen. Velg ett, eller trykk rett på det i himmelen, og stjernene og
+            strekene lyser opp mens kameraet retter blikket dit. Infokortet gir
+            navn, latinsk navn, hvor mange stjerner figuren har, hvordan du finner
+            den, mytologien bak — og snarveier til naboene, som er den beste måten
+            å lære seg en himmel. <strong class="text-ink/90">Trykk på månen</strong>
+            og skiva blir en kule du kan snurre, med navngitte hav og krater og
+            kveldens ekte skyggelinje. Maksimer-knappen oppe til høyre skjuler alt
+            annet, slik at lyse flater ikke ødelegger nattsynet.
+          </p>
+          <ul class="text-[13px] leading-relaxed text-ink/70 space-y-1.5 list-disc pl-5">
+            <li><strong class="text-ink/90">Det finnes ingen stjerne-API her.</strong>
+              Alt regnes ut på telefonen din, av samme grunn som kartene lagres
+              lokalt: en klar natt på fjellet har sjelden dekning. Stjernene er en
+              bakt katalog på 147 av de klareste fra
+              <strong class="text-ink/90">HYG</strong> (Hipparcos + Yale), flyttet
+              fra J2000 til i kveld med presesjon.</li>
+            <li>Sol, måne, månefase og lyssidens retning kommer fra Meeus'
+              <em>Astronomical Algorithms</em>; planetene fra
+              <strong class="text-ink/90">JPL</strong>s baneelementer løst med
+              Keplers likning. Alt er sammenliknet mot uavhengige
+              implementasjoner — stjernene til under ett buesekund, planetene til
+              noen få bueminutter.</li>
+            <li>Månegloben bruker <strong class="text-ink/90">NASA/USGS</strong>'
+              LRO-mosaikk som overflatekart, og lyses opp av et ekte lys fra solas
+              virkelige retning, så skyggelinja ikke er en tegning. Mangler
+              bildet, tegnes kula i månegrå med navnene på plass.</li>
+          </ul>
+        </div>
+        <div class="space-y-2">
           <h3 class="text-sm font-semibold text-ink/85">3D-visning av tur</h3>
           <p class="text-[13px] leading-relaxed text-ink/70">
             Velg en rute med stifinneren eller en rundtur, og trykk
@@ -284,6 +324,14 @@ async function onInstallClick() {
         <p>Værvarsel: <strong class="text-ink/75">Meteorologisk institutt</strong> (MET Norway) — NLOD 2.0 / CC BY 4.0.
           Værsymbolene er © 2015–2017 Yr, MIT-lisens.</p>
         <p>Verneområder og artsdata: Naturbase, NVE og GBIF.</p>
+        <p>Stjernekatalog: <strong class="text-ink/75">HYG</strong> (David Nash / astronexus,
+          fra Hipparcos, Yale BSC og Gliese) — CC BY-SA 4.0. Bane­elementer for
+          planetene: <strong class="text-ink/75">JPL</strong>, <em>Approximate Positions
+          of the Major Planets</em>. Sol, måne og presesjon etter Jean Meeus,
+          <em>Astronomical Algorithms</em>. Månens overflatekart:
+          <strong class="text-ink/75">NASA/GSFC</strong> og
+          <strong class="text-ink/75">USGS Astrogeology</strong> (LRO LROC) —
+          offentlig eiendom. Alle beregninger skjer i appen, uten nett.</p>
         <p class="pt-1">Privat, ikke-kommersielt hobbyprosjekt. Kart fra appen er
           ikke godkjent for navigasjon til sjøs eller i nødsituasjoner.</p>
       </div>

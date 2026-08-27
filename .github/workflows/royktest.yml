@@ -46,6 +46,12 @@ on:
 jobs:
   royk:
     runs-on: ubuntu-latest
+    # BAKSTOPPER. Uten den er GitHubs default seks timer, og en hengt nettleser
+    # blokkerer da hver framtidige PR i et halvt døgn. Måltid for jobben er
+    # ~5 min med ekte kart; 30 gir romslig margin og fanger hengingen i stedet
+    # for å vente den ut. Røyk-skriptet har sitt eget tak PR SJEKK (120 s) —
+    # dette er nettet under det, for det som skjer utenfor en sjekk.
+    timeout-minutes: 30
     steps:
       # IKKE fetch-depth: 0. Målt på v5.25.2-PR-en: full historikk kostet
       # 2 min 39 s av jobbens 5 min 29 s, mens CI-jobbens grunne checkout av
@@ -97,6 +103,12 @@ jobs:
       # og RAPPORTERER hva den hoppet over — en PR skal ikke blokkeres av at
       # Overpass har en dårlig dag.
       - name: Røyktest
+        # STEG-TAK I TILLEGG TIL JOBB-TAKET. Jobb-taket dekker hele jobben og
+        # sier bare AT den brukte for lang tid; steg-taket peker på hvilket steg,
+        # og lar stegene etter (ruting, navnediff) kjøre og rapportere. Det er
+        # dette steget som eier en nettleser og dermed det eneste som kan bli
+        # sittende fast.
+        timeout-minutes: 20
         run: |
           if [ "${{ steps.kart.outputs.ekte }}" = "1" ]; then
             npm run royk -- --ektekart --bilder=/tmp/royk
