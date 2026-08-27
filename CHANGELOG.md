@@ -1,3 +1,69 @@
+## 2026-08-27 — v5.28.0: Stjernehimmelen sto 16 bueminutter feil
+
+Grunnlaget for stjernekikkeren som kommer i 6.0.0. Ingenting nytt å se ennå —
+men himmelen står riktigere enn den gjorde, og det var en feil vi shippet i går.
+
+**Presesjonen manglet.** Stjernekatalogen er J2000, mens `lokalStjernetid`
+gjelder i kveld. Blander man de to, mangler hele himmelen 26 års rotasjon:
+målt til **16 bueminutter i snitt og 22′ på det verste**. Det er en halv
+fullmånebredde — usynlig på en telefonskjerm, og likevel galt. En stjernekikker
+der man peker på himmelen og sammenlikner med virkeligheten hever terskelen, så
+`presesserTilDato` (Meeus 21.3) er nå på plass. Den rigorøse formen og ikke
+tilnærmingen, fordi tilnærmingen sprenger nær polene — og Polstjerna er den ene
+stjerna alle sjekker.
+
+Fella står dokumentert tre steder, for den er ikke til å gjette: stjerner og
+planeter skal presesseres, sol og måne skal IKKE — Meeus' serier gir dem
+allerede i middeljevndøgn for datoen. To himmelobjekter i ulike rammer er en
+feil ingen test fanger uten at man vet å se etter den.
+
+Polstjerne-testen er verdt en merknad. Første utgave forventet 28′ over hundre
+år, fordi det var tallet jeg mente å huske. Riktig svar er 33,4′, og koden hadde
+rett. Testen er nå ankret i GEOMETRIEN i stedet: presesjon er en rotasjon om
+ekliptikkens pol, så forskyvningen er `rate × sin(avstand fra den polen)`. Et
+anker man kan regne seg til er verdt mer enn et anker man husker.
+
+**Stjernene er verifisert mot en uavhengig kilde.** Eieren ba om bekreftelse på
+at Lende viser ekte stjerner. Alle 147 er krysssjekket mot `d3-celestial` — en
+annen forfatter, en annen pipeline, koordinater i grader istedenfor timer:
+median 0,19 buesekund, 95-persentil 0,70″, magnitude-avvik 0,00. Verste treff er
+16,3″ på Rigil Kentaurus, som er ekte astronomi (α Centauri har himmelens
+største egenbevegelse) og ikke en feil.
+
+**Planetene kan nå regnes ut, uten API.** `lib/tour3d/planeter.js` er JPL-ens
+baneelementer pluss en Kepler-løsning: posisjon, avstand, fase, elongasjon og
+magnitude for de fem man ser med øyet. Det finnes API-er for dette (JPL
+Horizons, astronomyapi.com), og de er utelukket med vilje — hele bruksområdet er
+en natt på fjellet uten dekning.
+
+Krysssjekket mot `astronomy-engine`, en uavhengig MIT-implementasjon med full
+VSOP87: verste avvik 5,1 bueminutt på Saturn, under ett bueminutt på Merkur,
+Venus og Mars. Saturn er verst fordi lineære middel-elementer ikke modellerer
+Jupiters perturbasjoner, og det er den kjente prisen for tabellen. De 25
+referansepunktene er BAKT INN i testen framfor å hentes: en test som krever nett
+er en test som blir skrudd av.
+
+Magnitudene tok en runde til. Et lineært fase-ledd ga Venus −5,9, og Venus kan
+ikke bli lysere enn −4,9 — altså en påstand vi ikke kunne innfri om «det lyseste
+på himmelen». Almanakkens polynomer fanger sigden, og nå ligger alle fem
+innenfor sine virkelige spenn.
+
+**Formasjonene er blitt data det går an å velge.** Baken skriver nå
+`FORMASJONER` med id, latinsk navn, stjerne- og linje-indekser og senterretning,
+i tillegg til den flate `LINJER`. Senteret regnes av retningsvektorer og ikke av
+tall: et snitt av rektascensjoner som spenner over 0h peker midt på motsatt side
+av himmelen. Bayer-betegnelsen er dessuten blitt et FELT og ikke bare en
+kommentar — 24 av de 147 stjernene mangler egennavn i HYG, og «#74» duger ikke i
+et infopanel.
+
+`stjernebildeInfo.js` er den håndskrevne halvparten: mytologi, én fun fact og en
+praktisk «finn den» for hver av de tretten. Egen fil fordi `stjerner.js` er
+generert og bærer «IKKE REDIGER FOR HÅND». Testen som krever at hver tekst
+navngir minst én av sine EGNE stjerner fant tre reelle hull med en gang —
+Cassiopeia, Cepheus og Lille bjørn navnga ingen.
+
+---
+
 ## 2026-08-27 — v5.27.0: Sju justeringer i 3D — og en himmel man kan se opp i
 
 Eieren kom tilbake fra felt med en liste. Sju punkter, og de henger sammen mer
