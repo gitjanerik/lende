@@ -400,6 +400,13 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   nulles av `applyPose`, så «Oversikt» alltid gir oversikt. Regelen er ren og
   testet (`himmelVippSteg`); at `camera.rotateX(+v)` peker OPP og ikke ned er egen
   test, for det er den ene tingen som kan være snudd.
+  **RETNINGEN ER OPPOVER, og det er ikke til å gjette:** `rotateUp` gjør
+  `phi -= dy`, så et drag oppover senker blikket mot horisonten og fortsetter
+  derfra inn i himmelen; nedover løfter kameraet til fugleperspektiv. Fortegnet
+  var snudd i første utgave, og enhetstestene sto grønne hele veien — de tester
+  regelen, ikke retningen. Det var røyktesten i Chromium som fanget det, sammen
+  med at et VENSTRE-drag i denne appen panorerer (`mouseButtons` er satt om), så
+  en test som drar med venstre knapp roterer ingenting.
 - **Stier draperes IKKE på havnivå der DEM-en mangler (v5.27.0).**
   `pathNetwork.yAt` returnerer null og linja BRYTES. Før ble høyden 0, og
   stinettet plunget rett ned fra fjellsida og løp videre langs et sjøplan

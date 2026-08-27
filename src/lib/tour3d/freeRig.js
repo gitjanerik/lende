@@ -35,31 +35,33 @@ export const HIMMEL_VIPP_MAKS = (75 * Math.PI) / 180
  * Ett steg av himmelvippen, som ren funksjon — det er her regelen bor.
  *
  * Gesten er en FORTSETTELSE av orbiten, ikke en ny modus: står orbiten på taket
- * og fingeren dras videre nedover, går utslaget inn i vippen. Dras den tilbake,
- * spises vippen opp FØR orbiten får bevege seg igjen. Én finger som fortsetter
- * forbi horisonten vipper altså blikket opp i himmelen, og samme finger tilbake
- * lander deg i kartet.
+ * og fingeren dras videre i samme retning, går utslaget inn i vippen. Dras den
+ * tilbake, spises vippen opp FØR orbiten får bevege seg igjen. Én finger som
+ * fortsetter forbi horisonten vipper altså blikket opp i himmelen, og samme
+ * finger tilbake lander deg i kartet.
+ *
+ * `utslag` er i VIPPENS retning og ikke i skjermens: positivt = mot himmelen.
+ * Oversettelsen fra fingerens dy bor på kallstedet, som er der OrbitControls'
+ * eget fortegn hører hjemme.
  *
  * @param {number} vipp     nåværende vipp i radianer (0 = ser mot horisonten)
- * @param {number} dy       fingerens bevegelse i piksler; positiv = nedover på
- *                          skjermen, som i orbiten betyr «senk blikket», altså
- *                          vipp OPP når vi har passert horisonten
+ * @param {number} utslag   piksler i vippens retning; positivt = mot himmelen
  * @param {boolean} paaTaket om orbiten står i POLAR_MAKS
  * @param {number} radPrPiksel  samme følsomhet som orbitens egen rotasjon
  * @returns {number} ny vipp
  */
-export function himmelVippSteg(vipp, dy, paaTaket, radPrPiksel) {
-  if (!Number.isFinite(dy) || dy === 0) return vipp
-  // Oppover: bare når orbiten ikke har mer å gi. Uten den betingelsen ville
-  // hvert drag nedover vippet himmelen samtidig som kartet tiltet, og de to
-  // bevegelsene hadde lagt seg oppå hverandre.
-  if (dy > 0) {
+export function himmelVippSteg(vipp, utslag, paaTaket, radPrPiksel) {
+  if (!Number.isFinite(utslag) || utslag === 0) return vipp
+  // Mot himmelen: bare når orbiten ikke har mer å gi. Uten den betingelsen ville
+  // hvert drag både vippet himmelen og tiltet kartet, og de to bevegelsene hadde
+  // lagt seg oppå hverandre.
+  if (utslag > 0) {
     if (!paaTaket) return vipp
-    return Math.min(HIMMEL_VIPP_MAKS, vipp + dy * radPrPiksel)
+    return Math.min(HIMMEL_VIPP_MAKS, vipp + utslag * radPrPiksel)
   }
-  // Nedover: bare så langt vippen rekker. Resten er orbitens.
+  // Tilbake ned: bare så langt vippen rekker. Resten er orbitens.
   if (vipp <= 0) return 0
-  return Math.max(0, vipp + dy * radPrPiksel)
+  return Math.max(0, vipp + utslag * radPrPiksel)
 }
 
 const _q = new Quaternion()
@@ -201,7 +203,12 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
     const h = domElement.clientHeight || 1
     const radPrPiksel = (2 * Math.PI * controls.rotateSpeed) / h
     const paaTaket = controls.getPolarAngle() >= POLAR_MAKS - TAK_SLARK
-    const ny = himmelVippSteg(himmelVipp, dy, paaTaket, radPrPiksel)
+    // FORTEGNET, og det var feil i første utgave — røyktesten fanget det.
+    // OrbitControls gjør `phi -= 2π·dy/h` (rotateUp), så et drag OPPOVER
+    // (dy < 0) ØKER polarvinkelen og senker blikket mot horisonten, mens et
+    // drag nedover løfter kameraet til fugleperspektiv. Retningen som
+    // fortsetter forbi horisonten er altså OPPOVER, og vippens utslag er −dy.
+    const ny = himmelVippSteg(himmelVipp, -dy, paaTaket, radPrPiksel)
     if (ny === himmelVipp) return
     himmelVipp = ny
     settPolarLast(himmelVipp > 0)

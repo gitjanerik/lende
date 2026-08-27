@@ -55,8 +55,15 @@ nødløsningen selv.
 **Man kan se opp.** Det var ikke mulig før: OrbitControls ser alltid PÅ
 blikkpunktet, så 85° fra senit var et blikk nesten vannrett, og videre kom man
 ikke. Nå er gesten en FORTSETTELSE av draget — står orbiten på taket og fingeren
-dras videre, løftes blikket opp i himmelen, og samme finger tilbake lander deg i
-kartet igjen. Ingen ny knapp; topprada har alt fem-seks.
+dras videre oppover, løftes blikket opp i himmelen, og samme finger nedover
+lander deg i kartet igjen. Ingen ny knapp; topprada har alt fem-seks.
+
+Fortegnet var snudd i første utgave, og det er verdt å merke seg HVEM som fanget
+det: enhetstestene sto grønne hele veien, fordi de tester regelen og ikke
+retningen. `OrbitControls.rotateUp` gjør `phi -= dy`, så et drag OPPOVER er det
+som senker blikket mot horisonten — retningen som fortsetter forbi den er altså
+opp, ikke ned. Det var røyktesten i Chromium som sa det, og den fanget samtidig
+at et venstre-drag i denne appen panorerer og ikke roterer.
 
 Det avdekket en ekte feil: kuppelen, stjernene og månen sto i ORIGO, mens den
 frie riggen slipper kameraet 3 × arkets største mål unna. På et 3×3-ark av 5 km

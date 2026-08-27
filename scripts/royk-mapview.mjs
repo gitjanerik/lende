@@ -902,20 +902,36 @@ const SJEKKER = [
       // FAB-ene). Vi drar i mange små steg fordi både OrbitControls og
       // himmelvippen leser DELTAER — ett hopp på 1 200 px er ett delta og
       // ville rotert forbi hele veien i én frame.
+      //
+      // HØYRE museknapp, ikke venstre: freeRig setter
+      // `mouseButtons = { LEFT: PAN, RIGHT: ROTATE }`, så et venstre-drag
+      // panorerer og rører ikke polarvinkelen. Første utgave av denne sjekken
+      // brukte venstre og feilet med rette.
+      //
+      // OPPOVER, ikke nedover: OrbitControls gjør `phi -= dy` (rotateUp), så et
+      // drag oppover senker blikket mot horisonten og fortsetter derfra inn i
+      // himmelen. Det var dette fortegnet sjekken avslørte i v5.27.0.
+      //
       // Koordinatene tas fra VIEWPORTEN og ikke fra en canvas-locator: 3D-viseren
       // er fullskjerm, og kartflata har sine egne canvas-er (relieffet), så
       // `locator('canvas')` treffer flere og faller på strict mode.
       const vp = page.viewportSize()
       const x0 = Math.round(vp.width / 2)
-      const y0 = Math.round(vp.height * 0.35)
-      await page.mouse.move(x0, y0)
-      await page.mouse.down()
-      for (let i = 1; i <= 60; i++) {
-        await page.mouse.move(x0, y0 + i * 22)
-        if (i % 12 === 0) await page.waitForTimeout(60)
+      // Startpunktet følger retningen, så hele draget holder seg INNENFOR
+      // viewporten: et drag som løper ut av vinduet får hendelsene klampet, og
+      // da er utslaget et annet enn det testen tror den ga.
+      const dra = async (retning) => {
+        const y0 = Math.round(vp.height * (retning > 0 ? 0.85 : 0.15))
+        await page.mouse.move(x0, y0)
+        await page.mouse.down({ button: 'right' })
+        for (let i = 1; i <= 60; i++) {
+          await page.mouse.move(x0, y0 - retning * i * 10)
+          if (i % 12 === 0) await page.waitForTimeout(60)
+        }
+        await page.mouse.up({ button: 'right' })
+        await page.waitForTimeout(900)
       }
-      await page.mouse.up()
-      await page.waitForTimeout(900)
+      await dra(1)   // oppover: forbi horisonten og inn i himmelen
 
       // Observasjonen: viseren melder selv at blikket er oppe. Hintet er ikke
       // bare et testkrok — uten kart i bildet er det ikke åpenbart at samme
@@ -924,8 +940,17 @@ const SJEKKER = [
         /Ser opp i himmelen/i.test(document.body.innerText))
       if (!oppe) throw new Error('draget forbi horisonten løftet ikke blikket opp i himmelen')
 
+      // Samme finger tilbake skal lande deg i kartet igjen — vippen spises opp
+      // FØR orbiten får bevege seg. Uten denne halvdelen kunne vippen vært en
+      // enveisbillett og sjekken likevel stått grønn.
+      await dra(-1)
+      const tilbake = await page.evaluate(() =>
+        /Ser opp i himmelen/i.test(document.body.innerText))
+      if (tilbake) throw new Error('draget tilbake tok ikke blikket ned i kartet igjen')
+
       // Og «Oversikt» skal alltid gi oversikt: vippen nulles av enhver
-      // programmatisk pose.
+      // programmatisk pose. Vi vipper opp én gang til for å ha noe å nullstille.
+      await dra(1)
       await klikkTekst(page, /^Oversikt$/)
       await page.waitForTimeout(1400)
       const nede = await page.evaluate(() =>

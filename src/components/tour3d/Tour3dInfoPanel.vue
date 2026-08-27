@@ -44,7 +44,7 @@ const gester = computed(() => {
       ['Dra', 'flytter kartet'],
       ['Høyre-dra', 'snurrer og vipper'],
       ['Hjul', 'zoomer inn og ut'],
-      ['Høyre-dra videre ned', 'løfter blikket opp i himmelen'],
+      ['Høyre-dra videre opp', 'løfter blikket opp i himmelen'],
     ]
   }
   if (props.modus === 'tur') {
@@ -59,7 +59,7 @@ const gester = computed(() => {
     ['To fingre', 'knip for å zoome, dra for å flytte'],
     // Gesten er usynlig uten denne linja: den er en FORTSETTELSE av draget, og
     // ingen prøver å dra videre når kartet har sluttet å bevege seg.
-    ['Dra videre nedover', 'når kartet står vannrett, løftes blikket opp i himmelen'],
+    ['Dra videre oppover', 'når kartet står vannrett, løftes blikket opp i himmelen'],
   ]
 })
 </script>

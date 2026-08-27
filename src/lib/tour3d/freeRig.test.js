@@ -6,6 +6,13 @@
 // Det som IKKE kan feilsøkes fra et skjermbilde er regnestykket: at utslaget
 // bare går inn i vippen når orbiten har gitt seg, og at det spises opp igjen
 // FØR orbiten får bevege seg tilbake.
+//
+// Merk at `utslag` er i VIPPENS retning (positivt = mot himmelen) og ikke i
+// skjermens. Oversettelsen fra fingerens dy bor på kallstedet, fordi det er der
+// OrbitControls' eget fortegn hører hjemme — og det var nettopp DET som var feil
+// i første utgave: `rotateUp` gjør `phi -= dy`, så retningen som fortsetter forbi
+// horisonten er OPPOVER, ikke nedover. Enhetstestene her sto grønne gjennom hele
+// den feilen; det var røyktesten som fanget den.
 import { describe, it, expect } from 'vitest'
 import { PerspectiveCamera, Vector3, Matrix4 } from 'three'
 import { himmelVippSteg, HIMMEL_VIPP_MAKS } from './freeRig.js'
@@ -42,7 +49,7 @@ describe('himmelVippSteg', () => {
     expect(himmelVippSteg(start, -400, true, FART)).toBe(0)
   })
 
-  it('lar draget nedover være orbitens når vippen er brukt opp', () => {
+  it('lar utslaget tilbake være orbitens når vippen er brukt opp', () => {
     // Uten dette ville orbiten stått fast: et drag tilbake ville alltid gått
     // inn i en vipp som allerede var null.
     expect(himmelVippSteg(0, -80, true, FART)).toBe(0)

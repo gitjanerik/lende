@@ -973,7 +973,7 @@ function branchLabel(opt, i) {
                Hintet erstatter sti-hintet, som ikke er til hjelp der. -->
           <div v-if="serOpp"
                class="rounded-full bg-black/40 backdrop-blur px-3 py-1.5 text-[0.6875rem] text-white/70">
-            Ser opp i himmelen — dra oppover for å komme tilbake til kartet
+            Ser opp i himmelen — dra nedover for å komme tilbake til kartet
           </div>
           <!-- Hintet gjelder bare med stinettet synlig — med Sti av er det
                ingen sti å trykke på, og et trykk starter ingen tur. -->
