@@ -19,6 +19,49 @@ import { terrainYAt, clearSightLine, easeInOutCubic, framePose, TRANSITION_S } f
 // er 30 sekunder — det leses som en skjermsparer, ikke som et kart som lever.
 const AUTO_ROTATE_SPEED = 0.2
 
+// Hvor lavt orbiten selv slipper kameraet: 89° fra senit er et praktisk
+// vannrett blikk med horisonten midt i bildet. Videre opp er ikke OrbitControls'
+// jobb — den ser alltid PÅ blikkpunktet, og et blikkpunkt over kameraet finnes
+// ikke i en orbit. Derfor himmelvippen under.
+const POLAR_MAKS = (89 * Math.PI) / 180
+// Så nær taket at vi regner orbiten som klampet. Dempingen (enableDamping) gjør
+// at den nærmer seg asymptotisk, så en eksakt sammenlikning ville aldri slått til.
+const TAK_SLARK = 0.02
+// Hvor langt opp man kan vippe: 75°, altså nesten rett opp i senit. Resten av
+// veien ville gitt et bilde uten et eneste holdepunkt.
+export const HIMMEL_VIPP_MAKS = (75 * Math.PI) / 180
+
+/**
+ * Ett steg av himmelvippen, som ren funksjon — det er her regelen bor.
+ *
+ * Gesten er en FORTSETTELSE av orbiten, ikke en ny modus: står orbiten på taket
+ * og fingeren dras videre nedover, går utslaget inn i vippen. Dras den tilbake,
+ * spises vippen opp FØR orbiten får bevege seg igjen. Én finger som fortsetter
+ * forbi horisonten vipper altså blikket opp i himmelen, og samme finger tilbake
+ * lander deg i kartet.
+ *
+ * @param {number} vipp     nåværende vipp i radianer (0 = ser mot horisonten)
+ * @param {number} dy       fingerens bevegelse i piksler; positiv = nedover på
+ *                          skjermen, som i orbiten betyr «senk blikket», altså
+ *                          vipp OPP når vi har passert horisonten
+ * @param {boolean} paaTaket om orbiten står i POLAR_MAKS
+ * @param {number} radPrPiksel  samme følsomhet som orbitens egen rotasjon
+ * @returns {number} ny vipp
+ */
+export function himmelVippSteg(vipp, dy, paaTaket, radPrPiksel) {
+  if (!Number.isFinite(dy) || dy === 0) return vipp
+  // Oppover: bare når orbiten ikke har mer å gi. Uten den betingelsen ville
+  // hvert drag nedover vippet himmelen samtidig som kartet tiltet, og de to
+  // bevegelsene hadde lagt seg oppå hverandre.
+  if (dy > 0) {
+    if (!paaTaket) return vipp
+    return Math.min(HIMMEL_VIPP_MAKS, vipp + dy * radPrPiksel)
+  }
+  // Nedover: bare så langt vippen rekker. Resten er orbitens.
+  if (vipp <= 0) return 0
+  return Math.max(0, vipp + dy * radPrPiksel)
+}
+
 const _q = new Quaternion()
 const _m4 = new Matrix4()
 const _up = new Vector3(0, 1, 0)
@@ -37,7 +80,7 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
   const { OrbitControls } = await import('three/examples/jsm/controls/OrbitControls.js')
   const controls = new OrbitControls(camera, domElement)
   controls.enableDamping = true
-  controls.maxPolarAngle = (85 * Math.PI) / 180
+  controls.maxPolarAngle = POLAR_MAKS
   controls.minDistance = 50
   // Rikelig takhøyde for fugleperspektiv — hele kartet skal kunne rammes inn
   // med god margin uansett hvor avlangt utsnittet er.
@@ -66,6 +109,13 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
   // når update() faktisk flytter kameraet. Et TRYKK gir start+end uten change —
   // da var det ikke et kamera-drag, og turen skal ikke bli løsnet av det.
   let gesture = null
+  // Himmelvippen: hvor mange radianer blikket er løftet OVER orbitens eget tak.
+  // 0 = kameraet ser dit OrbitControls peker det. Se himmelVippSteg for regelen.
+  let himmelVipp = 0
+  // Orbitens polarvinkel er FROSSET mens vippen er i bruk, ellers ville et drag
+  // både vippet himmelen og tiltet kartet. Asimuten er fortsatt fri — man skal
+  // kunne se rundt seg på himmelen.
+  let polarLast = false
   const listeners = []
 
   const on = (target, event, fn, opts) => {
@@ -108,6 +158,61 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
     if (g && !g.moved) takeOverCancelCb?.()
   })
 
+  // ── Himmelvippen ────────────────────────────────────────────────────────────
+  // OrbitControls eksponerer ikke dragets utslag, så vi sporer det selv. Vi kan
+  // ikke hindre den fra å konsumere samme pointermove — derfor FRYSER vi
+  // polarvinkelen (min = maks) så lenge vippen er i bruk, framfor å forsøke å
+  // trekke bevegelsen fra i etterkant.
+  const nedePekere = new Set()
+  let dragY = null
+
+  function settPolarLast(paa) {
+    if (paa === polarLast) return
+    polarLast = paa
+    controls.minPolarAngle = paa ? POLAR_MAKS : 0
+  }
+
+  // Er dette en ROTASJONS-gest? På berøring er én finger rotasjon og to er
+  // panorering/zoom (OrbitControls' eget oppsett). På mus er venstre PANORERING
+  // i denne appen — se mouseButtons over — så bare høyre knapp roterer.
+  const erRotasjon = (e) => (e.pointerType === 'touch'
+    ? nedePekere.size === 1
+    : (e.buttons & 2) !== 0)
+
+  on(domElement, 'pointerdown', (e) => {
+    nedePekere.add(e.pointerId)
+    dragY = e.clientY
+  })
+  const slippPeker = (e) => {
+    nedePekere.delete(e.pointerId)
+    if (!nedePekere.size) dragY = null
+  }
+  on(domElement, 'pointerup', slippPeker)
+  on(domElement, 'pointercancel', slippPeker)
+
+  on(domElement, 'pointermove', (e) => {
+    if (dragY === null || !controls.enabled || transition) { dragY = e.clientY; return }
+    const dy = e.clientY - dragY
+    dragY = e.clientY
+    if (!erRotasjon(e)) return
+    // Samme følsomhet som orbitens egen polarrotasjon: 2π over elementets høyde
+    // (OrbitControls' rotateUp). Da fortsetter bevegelsen i akkurat samme tempo
+    // over horisonten som under den, og overgangen kjennes ikke.
+    const h = domElement.clientHeight || 1
+    const radPrPiksel = (2 * Math.PI * controls.rotateSpeed) / h
+    const paaTaket = controls.getPolarAngle() >= POLAR_MAKS - TAK_SLARK
+    const ny = himmelVippSteg(himmelVipp, dy, paaTaket, radPrPiksel)
+    if (ny === himmelVipp) return
+    himmelVipp = ny
+    settPolarLast(himmelVipp > 0)
+  })
+
+  /** Tilbake til et blikk langs orbitens egen retning. */
+  function nullstillVipp() {
+    himmelVipp = 0
+    settPolarLast(false)
+  }
+
   /**
    * Åpningsposen: blikkpunkt midt i kartet, kamera sør for sentrum og høyt
    * nok til at hele utsnittet får plass i bildet. Nord er −Z i world-rommet,
@@ -139,6 +244,9 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
   }
 
   function applyPose({ pos, target }, { animate = false } = {}) {
+    // Enhver programmatisk pose er et blikk NED i kartet, så himmelvippen skal
+    // ikke overleve den. «Oversikt» skal alltid gi oversikt.
+    nullstillVipp()
     if (animate) {
       transition = {
         t: 0,
@@ -160,6 +268,9 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
 
   return {
     controls,
+    /** Hvor mange radianer blikket er løftet over horisonten. 0 = ser i kartet. */
+    get himmelVipp() { return himmelVipp },
+    nullstillVipp,
     get autoRotating() { return controls.autoRotate },
     get userTookOver() { return userTook },
     /** @param {() => void} cb brukeren tok kameraet (gest startet) */
@@ -178,6 +289,9 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
     armFromCamera(distM = 400) {
       controls.enabled = true
       controls.autoRotate = false
+      // Blikkpunktet settes til det kameraet FAKTISK ser på, altså med vippen
+      // innbakt — da skal vippen nulles, ellers legges den på en gang for mye.
+      nullstillVipp()
       const dir = new Vector3()
       camera.getWorldDirection(dir)
       controls.target.copy(camera.position).addScaledVector(dir, Math.max(50, distM))
@@ -253,6 +367,11 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
       quiet = true
       controls.update()
       quiet = false
+      // Himmelvippen legges PÅ orbitens orientering, hver frame, fordi
+      // controls.update() setter kvaternionen på nytt hver gang. Bare
+      // orienteringen røres — posisjon, blikkpunkt og avstand er fortsatt
+      // orbitens, så panorering og zoom virker som før mens man ser opp.
+      if (himmelVipp > 0) camera.rotateX(himmelVipp)
     },
 
     dispose() {

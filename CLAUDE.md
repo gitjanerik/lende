@@ -55,6 +55,8 @@ npm run royk:ruter # Alle ruter, alle redirects og boot-gjenopptaket i Chromium
 npm run navnediff  # Hva forsvant ut av MapView i denne endringen — og hvem overtok
 npm run frie -- <fil>  # Refererer en fersk composable noe den ikke har fått inn?
 npm run vedlikehold    # Sårbarheter + utdaterte pakker i alle fire katalogene
+npm run bygg:stjerner  # Baker stjernekatalogen for 3D-natthimmelen fra HYG.
+                       # Kjør bare når utvalget eller stjernebildene endres.
 npm run boot:workers   # Starter Cloudflare-Workerne i workerd. Rører du src/lib
                        # eller mcp/headless.js, kjør denne — se «Workerne» under.
 npm run mcp:protokoll  # Kjører MCP-protokollen mot lende-mcp i workerd:
@@ -357,6 +359,66 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   viser (`Viewer3D.vue`), to rigger (`cameraRigs.js` = følge, `freeRig.js` =
   fri). Kommer det en tredje inngang til 3D, skal den være en OPSJON på
   `create3dScene`, ikke en ny scene.
+- **Skyene i 3D vises BARE med værvarselet på, og bare om dagen (v5.27.0).**
+  Regelen bor i ÉN funksjon, `oppdaterSkySynlighet` i `sceneCore`, fordi den
+  avhenger av to uavhengige brytere (`setVaer` og `setNightMode`) — to steder som
+  setter `visible` etter hver sin halvdel av sannheten kommer i utakt straks den
+  ene kalles alene. Skyskyggen følger samme regel: flekker på bakken uten skyer
+  over leses som en feil i karteksturen. Nedbør, torden, sikt og vinddrift henger
+  på VÆRET og ikke på skyene, så natt + vær gir fortsatt regn.
+- **Himmelen FØLGER KAMERAET (v5.27.0).** Kuppelen (radius 25 km), stjernene og
+  månen sto i origo, mens den frie riggen slipper kameraet
+  `3 × max(widthM, heightM)` unna — på et 3×3-ark av 5 km er det 45 km, altså
+  utenfor sin egen himmel. `updateAmbient` flytter derfor kuppelen og
+  natthimmel-gruppa til kameraets posisjon hver frame. Bare POSISJONEN; roterer
+  du dem, flytter stjernene seg med kameraet.
+- **Natthimmelen er ASTRONOMISK, og koordinatene er BAKT (v5.27.0).**
+  `lib/tour3d/astronomi.js` er ren (Meeus' korte serier) og gir sol/måne-posisjon,
+  månefase og lyssidens retning — dreid fra ZENIT og ikke fra himmelpolen, for
+  det er zenit som er «opp» på en skjerm (`parallaktiskVinkel`). Stjernene bakes
+  av `scripts/bygg-stjerner.mjs` (`npm run bygg:stjerner`) fra HYG-databasen til
+  `lib/tour3d/stjerner.js`: 147 stjerner + linjer for 13 stjernebilder.
+  **Ikke skriv koordinater for hånd** — de er det eneste her som kan være FEIL
+  uten at noe ser rart ut, og en stjerne 2° på skeive er en stjerne på feil
+  plass. Testene er ankret i Meeus' egne gjennomregnede eksempler og i at
+  Polstjerna står i nord i høyde lik breddegraden. **`solRetning` i `puffSkyer`
+  er fortsatt LÅST til hillshade-azimuten** (se v5.22.1 under) — astronomien
+  gjelder natthimmelen, ikke lyssettingen.
+- **Månen er geometri med en fase-shader, ikke en tekstur (v5.27.0).** Den var en
+  `THREE.Sprite` med en 128 px radiell gradient, og eieren meldte at den ikke var
+  sirkelformet. Samme klasse feil som skyene under: formen kan ikke reddes i
+  teksturen når det er teksturveien som er problemet. En shader som forkaster alt
+  utenfor `r = 1` KAN ikke tegne noe annet enn en sirkel. Vinkelstørrelsen er 3×
+  for stor med vilje (0,52° er ni piksler på en telefon) — en bevisst
+  overdrivelse, som symbolstørrelsene i ISOM-katalogen.
+- **Man kan SE OPP i 3D, og gesten er en fortsettelse av draget (v5.27.0).**
+  OrbitControls ser alltid PÅ blikkpunktet, så den kan ikke løfte blikket over
+  horisonten — 85° fra senit var taket. `freeRig` legger derfor en `himmelVipp` PÅ
+  kameraets orientering etter `controls.update()` (hver frame, siden update setter
+  kvaternionen på nytt), og FRYSER polarvinkelen mens vippen er i bruk framfor å
+  forsøke å trekke bevegelsen fra i etterkant. Asimuten er fortsatt fri. Vippen
+  nulles av `applyPose`, så «Oversikt» alltid gir oversikt. Regelen er ren og
+  testet (`himmelVippSteg`); at `camera.rotateX(+v)` peker OPP og ikke ned er egen
+  test, for det er den ene tingen som kan være snudd.
+- **Stier draperes IKKE på havnivå der DEM-en mangler (v5.27.0).**
+  `pathNetwork.yAt` returnerer null og linja BRYTES. Før ble høyden 0, og
+  stinettet plunget rett ned fra fjellsida og løp videre langs et sjøplan
+  hundrevis av meter under terrenget — synlig i felt som «stier som faller ut av
+  3D». `pinField.drapedWorld` beholder havnivå-fallbacken MED VILJE, og det står
+  hvorfor i fila: `terrainGrid` flater noData til havnivå, så der DEM-en mangler
+  ER det tegnede terrenget på 0, og en nål på 0 står PÅ bakken som vises. En sti
+  er en sammenhengende strek fra ekte terreng og ned dit, og det er streken man
+  ser. Bytt den ikke til null/NaN — verdien går rett inn i `holder.position.set`
+  i `waypointMarkers`, og en ikke-endelig instans-matrise er feilen v5.22.9–11
+  gikk tre runder på.
+- **Tekststørrelsene i 3D-overlegget er `rem`, ikke `px` (v5.27.0).** UU-tilpasning:
+  Chrome på Android skalerer rot-fontstørrelsen etter Tilgjengelighet →
+  Tekstskalering, og `rem` følger den. Faste `px` gjør det aldri. Tailwinds
+  avstandsskala er også rem-basert, så polstring og knappehøyder vokser i takt —
+  det er derfor teksten ikke sprenger boksene. Resten av appen er px (605
+  forekomster); 3D er første flate som følger systemet, og det er en bevisst
+  start. iOS trenger `font: -apple-system-body` for Dynamic Type, og
+  `index.html` setter fortsatt `user-scalable=no` — begge egne saker.
 - **Skyene i 3D er KLYNGER AV PUFFER, ikke sprites (v5.22.0, `lib/tour3d/puffSkyer.js`).**
   Hver sky er 13 kamera-vendte firkanter med hver sin posisjon i rommet, og hver
   puff skyggelegges som en kule (normal av firkantens egne koordinater, sol-retning

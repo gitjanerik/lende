@@ -836,6 +836,23 @@ const SJEKKER = [
       // miljøer, og en røyktest skal ikke feile på tredjeparts nedetid.
       if (!radSett) throw new Error('værsymbolraden dukket aldri opp i vær-stegene')
 
+      // Værraden skal stå OVER Info-pilla (v5.27.0). Rekkefølgen er hele
+      // endringen, og den er lett å miste i en senere mal-omrokering uten at
+      // noe annet feiler. compareDocumentPosition er billig og entydig.
+      const rekkefolge = await page.evaluate(() => {
+        const info = document.querySelector('button[aria-label="Vis hjelp for 3D-visningen"]')
+        if (!info) return 'ingen-info-pille'
+        const rad = [...document.querySelectorAll('div')].find((d) => d.children.length
+          && /MET\s*Norway|Henter værvarsel|Værvarsel ikke tilgjengelig/i.test(d.textContent)
+          && !d.querySelector('button[aria-label="Vis hjelp for 3D-visningen"]'))
+        if (!rad) return 'ingen-værrad'
+        // 4 = DOCUMENT_POSITION_FOLLOWING: info kommer ETTER raden.
+        return (rad.compareDocumentPosition(info) & 4) ? 'rad-først' : 'info-først'
+      })
+      if (rekkefolge === 'info-først') {
+        throw new Error('værraden ligger UNDER Info-pilla — den skal ligge over')
+      }
+
       // Fire trykk er en hel runde, så vi står der vi startet — og siden
       // localStorage-verdien er uendret er også NESTE sjekk (og neste kjøring)
       // i samme tilstand som før denne. En sjekk skal ikke etterlate seg en
@@ -844,6 +861,79 @@ const SJEKKER = [
       await x.click({ timeout: 5000 })
       await page.waitForFunction(() => !document.querySelector('canvas'), null, { timeout: 8000 })
       return `syklus lukket: ${sett.join(' → ')}, værrad sett`
+    },
+  },
+  {
+    navn: 'himmelvippen løfter blikket opp i himmelen',
+    domene: 'freeRig + sceneCore',
+    // Krever ekte kart av samme grunn som sol/måne-sjekken: uten DEM finnes
+    // ingen fri rigg å dra i.
+    krever: 'ektekart',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await klikkTekst(page, /^3D$/)
+      const klar = await page.waitForFunction(() => {
+        const c = document.querySelector('canvas')
+        if (c && c.width > 0) return 'canvas'
+        if (/Ingen høydedata/i.test(document.body.innerText)) return 'ingen-dem'
+        return false
+      }, null, { timeout: 60_000 }).then((h) => h.jsonValue())
+      // La tekstur-skjerpingen bli ferdig først — den blokkerer hovedtråden i
+      // sekunder på en CI-runner uten GPU, og et drag inn i det vinduet henger
+      // framfor å feile. Samme grunn som i sol/måne-sjekken over.
+      await page.waitForFunction(
+        () => !/Skjerper kartbildet/i.test(document.body.innerText),
+        null, { timeout: 45_000 },
+      ).catch(() => { /* meldingen kan ha kommet og gått */ })
+      await page.waitForTimeout(800)
+
+      const lukk = async () => {
+        const x = page.locator('button[aria-label="Lukk 3D-visning"]')
+        await x.click({ timeout: 5000 })
+        await page.waitForFunction(() => !document.querySelector('canvas'), null, { timeout: 8000 })
+      }
+      if (klar === 'ingen-dem') {
+        await lukk()
+        return 'ingen-dem-melding — vippen kan ikke prøves uten terreng'
+      }
+
+      // Ekte peker-sekvens: gesten er drevet av pointerdown/move/up, og
+      // OrbitControls ser aldri et programmatisk klikk (samme lærdom som
+      // FAB-ene). Vi drar i mange små steg fordi både OrbitControls og
+      // himmelvippen leser DELTAER — ett hopp på 1 200 px er ett delta og
+      // ville rotert forbi hele veien i én frame.
+      // Koordinatene tas fra VIEWPORTEN og ikke fra en canvas-locator: 3D-viseren
+      // er fullskjerm, og kartflata har sine egne canvas-er (relieffet), så
+      // `locator('canvas')` treffer flere og faller på strict mode.
+      const vp = page.viewportSize()
+      const x0 = Math.round(vp.width / 2)
+      const y0 = Math.round(vp.height * 0.35)
+      await page.mouse.move(x0, y0)
+      await page.mouse.down()
+      for (let i = 1; i <= 60; i++) {
+        await page.mouse.move(x0, y0 + i * 22)
+        if (i % 12 === 0) await page.waitForTimeout(60)
+      }
+      await page.mouse.up()
+      await page.waitForTimeout(900)
+
+      // Observasjonen: viseren melder selv at blikket er oppe. Hintet er ikke
+      // bare et testkrok — uten kart i bildet er det ikke åpenbart at samme
+      // drag den andre veien er veien ned.
+      const oppe = await page.evaluate(() =>
+        /Ser opp i himmelen/i.test(document.body.innerText))
+      if (!oppe) throw new Error('draget forbi horisonten løftet ikke blikket opp i himmelen')
+
+      // Og «Oversikt» skal alltid gi oversikt: vippen nulles av enhver
+      // programmatisk pose.
+      await klikkTekst(page, /^Oversikt$/)
+      await page.waitForTimeout(1400)
+      const nede = await page.evaluate(() =>
+        /Ser opp i himmelen/i.test(document.body.innerText))
+      if (nede) throw new Error('«Oversikt» nullstilte ikke himmelvippen')
+
+      await lukk()
+      return 'vippet opp i himmelen, Oversikt tok blikket ned igjen'
     },
   },
   {

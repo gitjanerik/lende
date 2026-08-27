@@ -553,6 +553,7 @@ export async function create3dScene(container, {
             walking: true,
             fixed: !!trip.fixed,
             detached: camMode === 'free',
+            serOpp: camMode === 'free' && freeRig.himmelVipp > 0,
             elevM: coords.worldYToElev(p[1]) - 3,
           })
           if (stats.finished) emit('finished', stats)
@@ -560,6 +561,10 @@ export async function create3dScene(container, {
           emit('progress', {
             walking: false,
             autoRotating: freeRig.autoRotating,
+            // Blikket er vippet opp i himmelen. Viseren bruker det til å si
+            // hvordan man kommer tilbake — uten kart i bildet er det ikke
+            // åpenbart at samme drag den andre veien er veien ned.
+            serOpp: freeRig.himmelVipp > 0,
             elevM: coords.worldYToElev(camera.position.y),
           })
         }
@@ -645,6 +650,8 @@ export async function create3dScene(container, {
     followRoute() { attachCamera({ inherit: true }) },
     get detached() { return camMode === 'free' },
     get autoRotating() { return freeRig.autoRotating },
+    /** Radianer blikket er vippet opp over horisonten. 0 = ser i kartet. */
+    get himmelVipp() { return freeRig.himmelVipp },
 
     // --- turen ---
     get walking() { return !!trip },

@@ -32,11 +32,24 @@ export function buildPathNetwork(features, dem, coords, { liftM = 4 } = {}) {
   const geometries = []
   const materials = []
 
+  // null når DEM-et ikke har en høyde her. Fram til v5.27.0 ble det 0 m, altså
+  // HAVNIVÅ — og da plunget stinettet rett ned fra fjellsida og løp videre langs
+  // et sjøplan langt under terrenget. Eieren så det i et nattbilde fra
+  // høyfjellet: røde streker som falt ut av visningen.
+  //
+  // Det skjer der utsnittet er større enn DEM-dekningen: `mosaikkDemFallback`
+  // fyller nabofliser uten lagret DEM med noData, og `terrainGrid` flater noData
+  // til havnivå (som er RIKTIG for kystkart — der ER noData sjø). Stinettet
+  // strekker seg over hele arket uansett, så det var stiene som havnet i sjøen.
   const yAt = (x, y) => {
     const e = sampleElevation(dem, x, y)
-    return coords.toWorld(x, y, (Number.isFinite(e) ? e : 0) + liftM)
+    if (!Number.isFinite(e)) return null
+    return coords.toWorld(x, y, e + liftM)
   }
 
+  // Bryter linja der terrenget mangler i stedet for å tegne den gjennom hullet.
+  // En sti vi ikke kan plassere skal ikke tegnes et sted den ikke er — resten av
+  // stien tegnes som før.
   const pushDraped = (pts, x1, y1, x2, y2) => {
     const d = Math.hypot(x2 - x1, y2 - y1)
     const steps = Math.max(1, Math.ceil(d / MAX_SEG_M))
@@ -44,7 +57,7 @@ export function buildPathNetwork(features, dem, coords, { liftM = 4 } = {}) {
     for (let s = 1; s <= steps; s++) {
       const t = s / steps
       const next = yAt(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t)
-      pts.push(prev[0], prev[1], prev[2], next[0], next[1], next[2])
+      if (prev && next) pts.push(prev[0], prev[1], prev[2], next[0], next[1], next[2])
       prev = next
     }
   }

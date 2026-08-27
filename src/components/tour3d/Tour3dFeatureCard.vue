@@ -66,15 +66,15 @@ function fmtObs(o, unit, digits = 1) {
       <div class="flex items-start gap-2.5">
         <div class="text-2xl leading-none mt-0.5">{{ TYPE_ICONS[feature.type] ?? '📍' }}</div>
         <div class="min-w-0 flex-1">
-          <div class="font-semibold text-[14px] leading-tight truncate">{{ feature.name }}</div>
-          <div class="text-[11px] text-white/60">{{ subtitle }}</div>
+          <div class="font-semibold text-sm leading-tight truncate">{{ feature.name }}</div>
+          <div class="text-[0.6875rem] text-white/60">{{ subtitle }}</div>
 
-          <div v-if="kulturminne" class="text-[11px] text-white/75 mt-1.5 space-y-0.5">
+          <div v-if="kulturminne" class="text-[0.6875rem] text-white/75 mt-1.5 space-y-0.5">
             <div v-if="kulturminne.art">{{ kulturminne.art }}</div>
             <div v-if="kulturminne.vernetype" class="text-white/55">{{ kulturminne.vernetype }}</div>
           </div>
 
-          <div v-if="feature.detail?.station" class="text-[11px] mt-1.5 space-y-0.5">
+          <div v-if="feature.detail?.station" class="text-[0.6875rem] mt-1.5 space-y-0.5">
             <div v-if="nveLoading" class="text-white/50">Henter siste måling …</div>
             <template v-else-if="nveLatest">
               <div v-if="fmtObs(nveLatest.discharge, 'm³/s')">Vannføring: <span class="tabular-nums">{{ fmtObs(nveLatest.discharge, 'm³/s') }}</span></div>
