@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { Vector3, Spherical } from 'three'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 // Himmelvippen — regelen som gjør at man kan se OPP i 3D.
 //
 // Bare den rene funksjonen testes her. Selve riggen krever OrbitControls og et
@@ -15,7 +18,7 @@
 // den feilen; det var røyktesten som fanget den.
 import { describe, it, expect } from 'vitest'
 import { PerspectiveCamera, Vector3, Matrix4 } from 'three'
-import { himmelVippSteg, HIMMEL_VIPP_MAKS, blikkMot } from './freeRig.js'
+import { himmelVippSteg, HIMMEL_VIPP_MAKS, blikkMot, orbitPosisjon } from './freeRig.js'
 
 // Radianer per piksel, som i riggen: 2π over elementets høyde.
 const FART = (2 * Math.PI) / 900
@@ -168,5 +171,53 @@ describe('blikkMot — himmelretning til orbit + vipp', () => {
     let d = Math.abs(a - b)
     if (d > Math.PI) d = 2 * Math.PI - d
     expect(d).toBeLessThan(3 * GRAD)
+  })
+})
+
+
+describe('orbitPosisjon — samme konvensjon som three', () => {
+  it('stemmer med three sin egen Spherical, tilfeldige vinkler', () => {
+    // HVORFOR DENNE FINNES: OrbitControls i three 0.185 har `getPolarAngle` og
+    // `getAzimuthalAngle`, men ingen SETTERE. `controls.setPolarAngle(...)` sto i
+    // seMot fram til v6.0.0 og kastet «is not a function» — gjennom hele
+    // enhetstest-suiten og bygget, fanget først av røyktesten i Chromium.
+    // Løsningen er å plassere kameraet i sfæriske koordinater i stedet, og da er
+    // det ETT som kan være galt uten at noe kaster: konvensjonen. Et ombyttet
+    // fortegn sender kameraet til motsatt side av himmelen.
+    const pr = [
+      [1, 0, Math.PI / 2], [500, 0.3, 1.1], [2500, -2.4, 0.4],
+      [80, Math.PI, 1.5], [1e4, 1.9, 2.7],
+    ]
+    for (const [r, theta, phi] of pr) {
+      const [x, y, z] = orbitPosisjon(r, theta, phi)
+      const v = new Vector3().setFromSpherical(new Spherical(r, phi, theta))
+      expect(x).toBeCloseTo(v.x, 6)
+      expect(y).toBeCloseTo(v.y, 6)
+      expect(z).toBeCloseTo(v.z, 6)
+      // Og tilbakeveien: three leser vinklene ut av posisjonen slik
+      // controls.update() gjør, så rundturen må være identisk.
+      const tilbake = new Spherical().setFromVector3(new Vector3(x, y, z))
+      expect(tilbake.phi).toBeCloseTo(phi, 6)
+      expect(tilbake.radius).toBeCloseTo(r, 6)
+    }
+  })
+})
+
+describe('OrbitControls-API-et vi faktisk lener oss på', () => {
+  it('har getterne, og vi kaller ingen setter som ikke finnes', () => {
+    // Grensesnitt-vakt mot neste three-oppgradering. Den påstår ikke at
+    // setterne SKAL mangle — den påstår at kodebasen ikke kaller dem, og at
+    // getterne vi bruker er der. Begge halvdeler ville fanget feilen over.
+    expect(typeof OrbitControls.prototype.getPolarAngle).toBe('function')
+    expect(typeof OrbitControls.prototype.getAzimuthalAngle).toBe('function')
+    // Kommentarlinjer strippes: forklaringen på hvorfor setteren IKKE brukes
+    // nevner den ved navn, og en vakt som feiler på sin egen dokumentasjon blir
+    // slettet framfor rettet.
+    const kode = readFileSync(new URL('./freeRig.js', import.meta.url), 'utf8')
+      .split('\n')
+      .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+      .join('\n')
+    expect(kode).not.toMatch(/controls\.setPolarAngle\s*\(/)
+    expect(kode).not.toMatch(/controls\.setAzimuthalAngle\s*\(/)
   })
 })

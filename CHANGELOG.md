@@ -33,6 +33,18 @@ WebGL. Begge er rettet, og størrelsene er nå i CSS-piksler. I tillegg skjuler 
 ny maksimer-knapp alt UI unntatt himmelsøket, som flytter seg helt øverst:
 hvite flater koster de 20–30 minuttene et øye bruker på å mørkeadaptere.
 
+**En ekte feil i denne PR-en, fanget av røyktesten:** `seMot` kalte
+`controls.setPolarAngle(...)`, og OrbitControls i three 0.185 har GETTERE for
+polar- og asimutvinkel men ingen settere. Alle 2 738 enhetstester og bygget sto
+grønne — 3D krever WebGL, så ingenting som ikke kjører en nettleser kan se det.
+Vinklene settes nå slik kontrollen selv leser dem, ved å plassere kameraet i
+sfæriske koordinater rundt blikkpunktet. Konvensjonen er three sin egen og er
+testet mot `Spherical`, for et ombyttet fortegn ville sendt kameraet til motsatt
+side av himmelen uten å kaste. Og røyktesten kunne selv HENGE uten å skrive en
+linje: taket pr sjekk har stått siden august, men `page.screenshot` etterpå sto
+utenfor det, og et skjermbilde mot en frossen renderer venter i det uendelige.
+Nå har begge tak, og jobben en bakstopper på 30 minutter.
+
 **Og en gate-luke som var reell:** røyktesten trigget ikke på `src/lib/**`, så
 3D-motorens egne røyk-sjekker kunne hoppes helt over. Denne endringen falt
 gjennom den. Den er tettet.

@@ -50,6 +50,27 @@ const BLIKK_TID_S = 0.9
  * @param {number} hoyde radianer over horisonten
  * @returns {{theta: number, vipp: number}}
  */
+/**
+ * Kamera-forskyvning fra blikkpunktet for gitt radius og orbit-vinkler.
+ *
+ * Ren, og eksportert for TEST: konvensjonen er three sin egen
+ * (`Spherical.setFromVector3`), og et ombyttet fortegn her ville sendt kameraet
+ * til motsatt side av himmelen uten at noe kastet. `orbitPosisjon` mot three sin
+ * Spherical er derfor egen test.
+ *
+ * @param {number} radius
+ * @param {number} theta asimut, radianer
+ * @param {number} phi polarvinkel fra +Y, radianer
+ * @returns {[number, number, number]}
+ */
+export function orbitPosisjon(radius, theta, phi) {
+  return [
+    radius * Math.sin(phi) * Math.sin(theta),
+    radius * Math.cos(phi),
+    radius * Math.sin(phi) * Math.cos(theta),
+  ]
+}
+
 export function blikkMot(azimut, hoyde) {
   // Ønsket blikkretning: (sin A, sin h, −cos A). Offset er den motsatte.
   const theta = Math.atan2(-Math.sin(azimut), Math.cos(azimut))
@@ -162,6 +183,36 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
     quiet = true
     controls.update()
     quiet = false
+  }
+
+  /**
+   * Sett orbitens polar- og/eller asimutvinkel.
+   *
+   * HVORFOR EN EGEN FUNKSJON: OrbitControls i three 0.185 har `getPolarAngle`
+   * og `getAzimuthalAngle`, men INGEN settere — de finnes bare i noen forks, og
+   * `controls.setPolarAngle(...)` kaster «is not a function». Det gikk gjennom
+   * hele enhetstest-suiten og bygget, og ble fanget av røyktesten i CI: 3D
+   * krever WebGL, så ingen test som ikke kjører en nettleser ser det.
+   *
+   * Vi setter i stedet vinklene slik kontrollen selv LESER dem — ved å plassere
+   * kameraet i sfæriske koordinater rundt blikkpunktet. Konvensjonen er three
+   * sin egen (Spherical.setFromVector3): x = r·sinφ·sinθ, y = r·cosφ,
+   * z = r·sinφ·cosθ. `controls.update()` leser posisjonen tilbake inn i sin
+   * egen tilstand, så ingen private felt røres.
+   *
+   * @param {{theta?: number, phi?: number, oppdater?: boolean}} arg
+   *   oppdater=false når kalleren kjører controls.update() rett etterpå selv —
+   *   dempingen skal ikke tikke to ganger i samme frame.
+   */
+  const settOrbitVinkler = ({ theta, phi, oppdater = true } = {}) => {
+    const r = camera.position.distanceTo(controls.target) || 1
+    const t = Number.isFinite(theta) ? theta : controls.getAzimuthalAngle()
+    const f = Number.isFinite(phi) ? phi : controls.getPolarAngle()
+    const [dx, dy, dz] = orbitPosisjon(r, t, f)
+    camera.position.set(
+      controls.target.x + dx, controls.target.y + dy, controls.target.z + dz,
+    )
+    if (oppdater) quietUpdate()
   }
 
   // Første interaksjon slår av rotasjonen. `controls.autoRotate` settes også
@@ -334,7 +385,7 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
       // Polarvinkelen låses UMIDDELBART til taket: vippen er det som bærer
       // høyden, og en orbit som fortsatt kan bevege seg i polar ville dratt
       // blikket ned mens animasjonen løfter det.
-      controls.setPolarAngle(POLAR_MAKS)
+      settOrbitVinkler({ phi: POLAR_MAKS })
       settPolarLast(true)
       // Korteste vei rundt: uten dette snurrer kameraet 350° for å komme 10°.
       const fra = controls.getAzimuthalAngle()
@@ -446,7 +497,12 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
         blikkAnim.t += dt / BLIKK_TID_S
         const k = blikkAnim.t >= 1 ? 1 : easeInOutCubic(blikkAnim.t)
         // Asimuten settes på orbiten; vippen legges på etterpå, som ellers.
-        controls.setAzimuthalAngle(blikkAnim.fraTheta + blikkAnim.dTheta * k)
+        settOrbitVinkler({
+          theta: blikkAnim.fraTheta + blikkAnim.dTheta * k,
+          // controls.update() kjører noen linjer under; dempingen skal ikke
+          // tikke to ganger i samme frame.
+          oppdater: false,
+        })
         himmelVipp = blikkAnim.fraVipp + (blikkAnim.tilVipp - blikkAnim.fraVipp) * k
         if (blikkAnim.t >= 1) {
           blikkAnim = null
