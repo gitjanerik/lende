@@ -13,6 +13,7 @@ import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import { STJERNER, LINJER } from './stjerner.js'
+import { PLANETER, synligePlaneter } from './planeter.js'
 import {
   himmelFor, lokalStjernetid, tilHorisont, horisontTilWorld, presesserTilDato,
 } from './astronomi.js'
@@ -91,11 +92,36 @@ const MANE_GRADER = 1.6
 const JORDSKINN = 0.055
 
 /**
+ * Månen. Tynn innpakning rundt buildHimmelSkive med månens tall.
+ *
  * @param {{radius?: number, avstand?: number}} [opts]
  * @returns {{group: Group, sett: (m: object) => void, update: (camera: object) => void,
  *            geometries: object[], materials: object[], dispose: () => void}}
  */
 export function buildMane({ radius = 25000, avstand = null } = {}) {
+  return buildHimmelSkive({
+    radius,
+    avstand: avstand ?? radius * 0.82,
+    grader: MANE_GRADER,
+    farge: '#fdf6df',
+    jordskinn: JORDSKINN,
+  })
+}
+
+/**
+ * Én fase-skyggelagt skive på himmelen — månen ELLER en planet.
+ *
+ * Delt fordi de er samme sak fysisk: en kule opplyst fra siden, sett på
+ * avstand. Venus viser sigd akkurat som månen, og shaderen er den samme.
+ * Forskjellen er tre tall: vinkelstørrelse, farge og hvor mye nattsida lyser.
+ *
+ * @param {{radius?: number, avstand?: number, grader?: number, farge?: string,
+ *          jordskinn?: number}} [opts]
+ */
+export function buildHimmelSkive({
+  radius = 25000, avstand = null, grader = MANE_GRADER,
+  farge = '#ffffff', jordskinn = JORDSKINN,
+} = {}) {
   const r = avstand ?? radius * 0.82
   const geometry = new PlaneGeometry(1, 1)
   const material = new ShaderMaterial({
@@ -109,8 +135,8 @@ export function buildMane({ radius = 25000, avstand = null } = {}) {
       // skjermen. Den avgjør hvilken vei månen er skåret; uten den peker en
       // halvmåne tilfeldig.
       uLysside: { value: 0 },
-      uFarge: { value: new Color('#fdf6df') },
-      uJordskinn: { value: JORDSKINN },
+      uFarge: { value: new Color(farge) },
+      uJordskinn: { value: jordskinn },
     },
     vertexShader: `
       varying vec2 vUv;
@@ -164,7 +190,7 @@ export function buildMane({ radius = 25000, avstand = null } = {}) {
   // Skala fra ønsket vinkelstørrelse ved kjent avstand. Avstanden er konstant
   // fordi himmelen følger kameraet (sceneCore.updateAmbient), så dette regnes
   // ut én gang — månen skal ikke vokse når man flyr mot den.
-  const bredde = 2 * r * Math.tan((MANE_GRADER * Math.PI / 180) / 2)
+  const bredde = 2 * r * Math.tan((grader * Math.PI / 180) / 2)
   mesh.scale.setScalar(bredde)
   mesh.frustumCulled = false
 
@@ -247,6 +273,17 @@ const VALGT_LINJE_BREDDE_PX = 2.6
 // Hvor mye større stjernene i den valgte formasjonen tegnes. 1,6 er nok til at
 // figuren løfter seg ut av himmelen uten at den ser ut som en annen himmel.
 const VALGT_STJERNE_FAKTOR = 1.6
+
+// Planetenes vinkelstørrelse. Virkelig er de 5–50 BUESEKUND, altså en tiendedel
+// av en piksel — de er prikker for øyet, og en prikk er umulig å skille fra en
+// stjerne. 0,45° er en bevisst overdrivelse, som månens: skiva skal leses som
+// «noe annet enn en stjerne», og det er hele grunnen til at planetene er med.
+// Månen er 1,6°, så en planet er godt under en tredjedel av den.
+const PLANET_GRADER = 0.45
+// Nattsida av en planet er ikke synlig i det hele tatt på den avstanden, så
+// jordskinnet er nesten null — men ikke helt null, ellers blir en Venus-sigd
+// en tynn bue som forsvinner.
+const PLANET_JORDSKINN = 0.02
 
 /**
  * Nattehimmel: ekte stjerner der de faktisk står, stjernebilde-linjer som gjør
@@ -433,6 +470,61 @@ export function buildNightSky({
     pikselMaterialer.push(valgtMat)
   }
 
+  // --- Planetene ----------------------------------------------------------
+  // Én skive per synlig planet, med planetens egen farge og fase. Skivene bygges
+  // for HELE katalogen og skjules når planeten ikke er oppe: fem materialer er
+  // gratis, og alternativet er å bygge geometri når himmelen endrer seg.
+  const planetSkiver = new Map()
+  if (ekteHimmel) {
+    for (const meta of PLANETER) {
+      const skive = buildHimmelSkive({
+        radius,
+        avstand: radius * 0.86,
+        grader: PLANET_GRADER,
+        farge: meta.farge,
+        jordskinn: PLANET_JORDSKINN,
+      })
+      skive.mesh.visible = false
+      group.add(skive.group)
+      geometrier.push(...skive.geometries)
+      materialer.push(...skive.materials)
+      planetSkiver.set(meta.id, skive)
+    }
+  }
+
+  /**
+   * Sett planetene der de står nå. Kalles ved bygging og kan kalles på nytt —
+   * planetene flytter seg for lite i en 3D-økt til at det er nødvendig, men en
+   * himmel bygget i går skal ikke vise Jupiter der den sto da.
+   */
+  function settPlaneter(naa) {
+    if (!ekteHimmel) return []
+    const synlige = synligePlaneter({ lat, lon, dato: naa })
+    const oppe = new Set()
+    for (const p of synlige) {
+      const skive = planetSkiver.get(p.id)
+      if (!skive) continue
+      oppe.add(p.id)
+      skive.sett({
+        azimut: p.azimut,
+        hoyde: p.hoyde,
+        lysAndel: p.lysAndel,
+        // Lyssida peker MOT sola. Vi har ikke en egen parallaktisk vinkel for
+        // planetene, og på 0,45° er retningen på en Venus-sigd under det man
+        // ser på en telefon — så den står opp, som en fullmåne.
+        lyssideVinkel: 0,
+      })
+    }
+    // Resten skjules. Uten dette står Jupiter igjen på himmelen etter at den
+    // har gått ned.
+    for (const [id, skive] of planetSkiver) {
+      if (!oppe.has(id)) skive.mesh.visible = false
+    }
+    return synlige
+  }
+
+  const synligePlanetListe = settPlaneter(dato ?? new Date())
+
   // --- Månen --------------------------------------------------------------
   const mane = buildMane({ radius })
   group.add(mane.group)
@@ -454,6 +546,9 @@ export function buildNightSky({
     get astronomisk() { return ekteHimmel },
     /** Hvilke katalog-indekser som faktisk ble tegnet (over horisonten). */
     get synligeStjerner() { return new Set(bufferIndeks.keys()) },
+    /** Planetene som var over horisonten da himmelen ble bygd. */
+    get synligePlaneter() { return synligePlanetListe },
+    settPlaneter,
     geometries: geometrier,
     materials: materialer,
     textures: [],

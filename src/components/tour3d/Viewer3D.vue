@@ -30,12 +30,15 @@ import Tour3dPinPanel from './Tour3dPinPanel.vue'
 import Tour3dInfoPanel from './Tour3dInfoPanel.vue'
 import Tour3dHud from './Tour3dHud.vue'
 import Tour3dVaerRad from './Tour3dVaerRad.vue'
+import Tour3dHimmelSok from './Tour3dHimmelSok.vue'
+import Tour3dHimmelKort from './Tour3dHimmelKort.vue'
 import { lesPinPrefs, skrivPinPrefs, paaGrupper } from '../../lib/tour3d/pinPrefs.js'
 import { svgToWgs84 } from '../../lib/utm.js'
 import { fetchVarsel, naaVarsel } from '../../lib/vaerFetcher.js'
 import { vaerTilHimmel } from '../../lib/tour3d/vaerHimmel.js'
 import { DEMO_STEG, DEMO_SEKUNDER, demoMaling } from '../../lib/tour3d/vaerDemo.js'
 import { cacheGet, cacheSet, vaerPointKey, TTL } from '../../lib/protectedAreaCache.js'
+import { himmelObjekter, naboerFor } from '../../lib/tour3d/himmelObjekter.js'
 
 const props = defineProps({
   dem: { type: Object, default: null },
@@ -97,6 +100,40 @@ const serOpp = ref(false)
 const maksimert = ref(false)
 function toggleMaksimer() {
   maksimert.value = !maksimert.value
+}
+
+// ---- Himmelsøket ---------------------------------------------------------
+// Lista over hva som er valgbart på himmelen regnes HER og sendes til motoren,
+// så søkefeltet og trykk-plukkingen aldri kan ha ulike meninger om hva som er
+// synlig. Samme regel som mosaikken i CLAUDE.md: to steder som besvarer «hva
+// ser jeg nå?» må svare likt.
+const himmelListe = ref([])
+const valgtHimmel = ref(null)
+// Porten: nattmodus UTEN vær, og først når blikket er løftet mot himmelen.
+// Feltet har ingenting å gjøre der man ser på kartet.
+// I maksimert modus er søkefeltet det eneste UI-et som er igjen, så det skal
+// ALLTID stå der — er det skjult fordi man ennå ikke har sett opp, er modusen en
+// tom skjerm med to nesten usynlige knapper.
+const himmelSokSynlig = computed(() =>
+  phase.value === 'ready' && nightOn.value && !vaerOn.value
+  && (maksimert.value || serOpp.value || !!valgtHimmel.value))
+const himmelNaboer = computed(() => naboerFor(valgtHimmel.value, himmelListe.value, 3))
+
+function byggHimmelListe() {
+  const m = props.meta
+  if (!m?.widthM || !m?.heightM) return
+  let punkt
+  try {
+    punkt = svgToWgs84(m.widthM / 2, m.heightM / 2, m)
+  } catch { return }
+  if (!Number.isFinite(punkt?.lat) || !Number.isFinite(punkt?.lon)) return
+  himmelListe.value = himmelObjekter({ lat: punkt.lat, lon: punkt.lon, dato: new Date() })
+  engine?.setHimmelObjekter(toRaw(himmelListe.value))
+}
+
+function velgHimmel(o) {
+  valgtHimmel.value = o ?? null
+  engine?.velgHimmel(o ? toRaw(o) : null)
 }
 // Fingeren ligger nede og ser seg rundt fra et frosset punkt (følge-riggens
 // hold). Vises som et hint så den som fant det ved uhell skjønner hva som skjer.
@@ -313,6 +350,9 @@ async function byggMotor() {
     // Trykket nål (POI, start/mål/via, parkering) — turen er pauset og
     // kameraet løsnet av motoren.
     engine.on('feature', ({ feature }) => { pickedFeature.value = feature })
+    // Trykk i himmelen: motoren har alt fremhevet og rettet blikket, viseren
+    // åpner kortet.
+    engine.on('himmel-valgt', ({ objekt }) => { valgtHimmel.value = objekt })
     // Severdighet turen stopper ved av seg selv.
     engine.on('feature-enter', ({ feature }) => { stopFeature.value = feature })
     engine.on('feature-exit', () => { stopFeature.value = null })
@@ -363,6 +403,7 @@ async function byggMotor() {
     if (nightOn.value) applyNight(true).catch(() => {})
     // Vær-valget er husket fra forrige økt; hentingen er ikke-blokkerende.
     if (vaerOn.value) void hentVaer()
+    if (nightOn.value) byggHimmelListe()
     // Vær-demoen slås på i Utvikler-fanen og overstyrer varselet.
     if (demoPaa.value) demoStart()
 
@@ -604,7 +645,13 @@ watch(vaerOn, (on) => {
 })
 // Bytter man dag/natt mens været står på, skal himmelen males om (grunnfargen
 // for torden-blinket henger på natt/dag inne i motoren).
-watch(nightOn, () => { if (vaerOn.value) leggVaerPaaHimmelen() })
+watch(nightOn, (on) => {
+  if (vaerOn.value) leggVaerPaaHimmelen()
+  // Himmellista bygges når natta slås på, og ryddes når den slås av: en valgt
+  // formasjon som står fremhevet på en dagshimmel er bare rart.
+  if (on) byggHimmelListe()
+  else velgHimmel(null)
+})
 
 // --- turen -----------------------------------------------------------------
 
@@ -823,6 +870,26 @@ function branchLabel(opt, i) {
             </svg>
           </button>
         </div>
+      </div>
+
+      <!-- HIMMELSØKET. I maksimert modus er dette det ENESTE som står igjen på
+           skjermen, og da ligger det helt øverst — det var hele bestillingen
+           etter felttesten i mørket. Ellers står det på egen linje rett under
+           topprada. -->
+      <div v-if="himmelSokSynlig"
+           class="relative z-10 px-3 flex justify-center"
+           :class="maksimert ? 'order-first' : 'mt-2'"
+           :style="maksimert ? 'padding-top: max(env(safe-area-inset-top), 10px);' : ''">
+        <Tour3dHimmelSok :objekter="himmelListe" :valgt-id="valgtHimmel?.id ?? null"
+                         :maksimert="maksimert" @velg="velgHimmel"/>
+      </div>
+
+      <!-- Infokortet for det valgte. Ligger under søkefeltet, og rulles om
+           teksten er lang — den kan være det for et stjernebilde. -->
+      <div v-if="phase === 'ready' && valgtHimmel"
+           class="relative z-10 px-3 mt-2 flex justify-center max-h-[52vh] overflow-y-auto">
+        <Tour3dHimmelKort :objekt="valgtHimmel" :naboer="himmelNaboer"
+                          @lukk="velgHimmel(null)" @velg="velgHimmel"/>
       </div>
 
       <!-- Vær-demo (Utvikler-fanen). Ligger over værraden fordi den overstyrer

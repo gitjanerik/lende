@@ -529,6 +529,13 @@ export async function createSceneCore(container, {
     },
     get nightOn() { return nightOn },
 
+    /** Fremhev én stjerneformasjon på natthimmelen (null rydder). */
+    settValgtFormasjon(formasjon) {
+      nightSky.settValgt(formasjon)
+    },
+    /** Planetene som står over horisonten nå — viseren bruker dem i lista. */
+    get synligePlaneter() { return nightSky.synligePlaneter },
+
     // Eksponert for testing og for kallere som vil sjekke etter en lang pause.
     revalidateTexture,
 

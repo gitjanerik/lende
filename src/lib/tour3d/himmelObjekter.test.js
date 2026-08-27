@@ -1,0 +1,220 @@
+import { describe, it, expect } from 'vitest'
+import {
+  himmelObjekter, filtrerHimmel, naboerFor, vinkelAvstand, kompass,
+  himmelUndertekst,
+} from './himmelObjekter.js'
+import { FORMASJONER } from './stjerner.js'
+
+const STED = { lat: 61.2, lon: 8.4 }
+const GRAD = Math.PI / 180
+// Vinternatt: Orion, Tvillingene og Kjøresvennen er oppe, Løven er på vei.
+const VINTER = new Date('2026-01-15T21:00:00Z')
+const SOMMER = new Date('2026-07-15T23:00:00Z')
+
+describe('himmelObjekter', () => {
+  it('lister bare det som faktisk er oppe', () => {
+    for (const dato of [VINTER, SOMMER]) {
+      const liste = himmelObjekter({ ...STED, dato })
+      expect(liste.length).toBeGreaterThan(3)
+      for (const o of liste) {
+        expect(o.hoyde, `${o.navn} skal være over horisonten`).toBeGreaterThan(0)
+        expect(o.id).toBeTruthy()
+        expect(o.navn).toBeTruthy()
+        expect(['formasjon', 'planet', 'mane']).toContain(o.type)
+      }
+    }
+  })
+
+  it('utelater formasjoner som bare delvis er oppe', () => {
+    // En figur med to av sju stjerner over horisonten er ikke til å kjenne
+    // igjen, og å tilby den i lista er å love noe vi ikke tegner.
+    const liste = himmelObjekter({ ...STED, dato: VINTER })
+    for (const o of liste) {
+      if (o.type !== 'formasjon') continue
+      expect(o.andelOppe, o.navn).toBeGreaterThanOrEqual(0.6)
+    }
+  })
+
+  it('himmelen snur seg gjennom året', () => {
+    // Orion er en vinterfigur og Lyren en sommerfigur. Er lista den samme i
+    // januar og juli, står himmelen stille — og da er stjernetida ignorert.
+    const navn = (d) => new Set(himmelObjekter({ ...STED, dato: d })
+      .filter((o) => o.type === 'formasjon').map((o) => o.id))
+    const vinter = navn(VINTER)
+    const sommer = navn(SOMMER)
+    expect(vinter).not.toEqual(sommer)
+    expect([...vinter].some((id) => !sommer.has(id))).toBe(true)
+  })
+
+  it('Karlsvogna er alltid oppe fra Norge', () => {
+    // Sirkumpolar på 61°N. Faller denne, er breddegraden eller horisont-
+    // transformen feil.
+    for (let m = 0; m < 12; m++) {
+      const dato = new Date(Date.UTC(2026, m, 15, 22))
+      const liste = himmelObjekter({ ...STED, dato })
+      expect(liste.some((o) => o.id === 'karlsvogna'), `måned ${m + 1}`).toBe(true)
+    }
+  })
+
+  it('sorterer månen først, så planetene etter lysstyrke, så formasjonene', () => {
+    // Rekkefølgen man legger merke til dem i: månen er umulig å overse, en
+    // planet er neste, et stjernebilde må man lete etter.
+    for (let d = 0; d < 200; d += 13) {
+      const liste = himmelObjekter({ ...STED, dato: new Date(Date.UTC(2026, 0, 1 + d, 22)) })
+      const typer = liste.map((o) => o.type)
+      const rang = { mane: 0, planet: 1, formasjon: 2 }
+      for (let i = 1; i < typer.length; i++) {
+        expect(rang[typer[i]]).toBeGreaterThanOrEqual(rang[typer[i - 1]])
+      }
+      const planeter = liste.filter((o) => o.type === 'planet')
+      for (let i = 1; i < planeter.length; i++) {
+        expect(planeter[i].mag).toBeGreaterThanOrEqual(planeter[i - 1].mag)
+      }
+      const form = liste.filter((o) => o.type === 'formasjon')
+      for (let i = 1; i < form.length; i++) {
+        expect(form[i].navn.localeCompare(form[i - 1].navn, 'nb')).toBeGreaterThanOrEqual(0)
+      }
+    }
+  })
+
+  it('gir formasjonene alt infokortet trenger', () => {
+    const liste = himmelObjekter({ ...STED, dato: VINTER })
+    for (const o of liste.filter((x) => x.type === 'formasjon')) {
+      expect(o.latin).toBeTruthy()
+      expect(o.info, o.navn).toBeTruthy()
+      expect(o.info.mytologi).toBeTruthy()
+      expect(o.antallStjerner).toBeGreaterThan(3)
+      expect(o.lysesteStjerne, o.navn).toBeTruthy()
+      // Og det som skal videre til skyDome.settValgt.
+      expect(Array.isArray(o.stjerner)).toBe(true)
+      expect(Array.isArray(o.linjer)).toBe(true)
+    }
+  })
+
+  it('svarer tomt uten sted framfor å gjette', () => {
+    expect(himmelObjekter({ lat: NaN, lon: 8 })).toEqual([])
+    expect(himmelObjekter({ lat: 61 })).toEqual([])
+  })
+})
+
+describe('filtrerHimmel', () => {
+  const liste = himmelObjekter({ ...STED, dato: VINTER })
+
+  it('tom søkestreng gir hele lista — det er nedtrekkslista', () => {
+    expect(filtrerHimmel(liste, '')).toBe(liste)
+    expect(filtrerHimmel(liste, '   ')).toBe(liste)
+    expect(filtrerHimmel(liste, null)).toBe(liste)
+  })
+
+  it('finner på norsk navn', () => {
+    const t = filtrerHimmel(liste, 'karlsvogn')
+    expect(t.length).toBe(1)
+    expect(t[0].id).toBe('karlsvogna')
+  })
+
+  it('finner på latinsk navn', () => {
+    expect(filtrerHimmel(liste, 'ursa major')[0]?.id).toBe('karlsvogna')
+  })
+
+  it('finner formasjonen via en STJERNE i den', () => {
+    // Dette er hele grunnen til at søket finnes: man husker «Vega», ikke «Lyra».
+    const dubhe = filtrerHimmel(liste, 'dubhe')
+    expect(dubhe.map((o) => o.id)).toContain('karlsvogna')
+  })
+
+  it('finner Lille bjørn på «Polstjerna»', () => {
+    // Norske stjernenavn, fordi ingen skriver «Polaris» når de leter etter
+    // Polstjerna.
+    expect(filtrerHimmel(liste, 'polstjern').map((o) => o.id)).toContain('lille-bjorn')
+  })
+
+  it('bryr seg ikke om store bokstaver', () => {
+    expect(filtrerHimmel(liste, 'ORION').length).toBe(filtrerHimmel(liste, 'orion').length)
+  })
+
+  it('gir tomt på noe som ikke finnes', () => {
+    expect(filtrerHimmel(liste, 'skorpionen')).toEqual([])
+  })
+})
+
+describe('naboerFor', () => {
+  const liste = himmelObjekter({ ...STED, dato: VINTER })
+
+  it('gir de nærmeste, sortert, og aldri seg selv', () => {
+    const orion = liste.find((o) => o.id === 'orion')
+    if (!orion) return
+    const n = naboerFor(orion, liste, 3)
+    expect(n.length).toBeLessThanOrEqual(3)
+    expect(n.some((x) => x.id === 'orion')).toBe(false)
+    for (let i = 1; i < n.length; i++) {
+      expect(n[i].avstandGrader).toBeGreaterThanOrEqual(n[i - 1].avstandGrader)
+    }
+    // Naboene skal være i nærheten, ikke på motsatt side av himmelen.
+    if (n.length) expect(n[0].avstandGrader).toBeLessThan(90)
+  })
+
+  it('Orions nærmeste er en vinterfigur, ikke en sommerfigur', () => {
+    const orion = liste.find((o) => o.id === 'orion')
+    if (!orion) return
+    const naboIder = naboerFor(orion, liste, 4).map((o) => o.id)
+    // Tvillingene og Kjøresvennen ligger rett ved Orion; Lyren er 180° unna.
+    expect(naboIder).not.toContain('lyren')
+  })
+
+  it('tåler tomt og null', () => {
+    expect(naboerFor(null, liste)).toEqual([])
+    expect(naboerFor(liste[0], [liste[0]])).toEqual([])
+  })
+})
+
+describe('vinkelAvstand og kompass', () => {
+  it('vinkelAvstand er 0 til seg selv og 180 til motsatt punkt', () => {
+    const a = { azimut: 1.2, hoyde: 0.4 }
+    expect(vinkelAvstand(a, a)).toBeCloseTo(0, 6)
+    const senit = { azimut: 0, hoyde: Math.PI / 2 }
+    const horisont = { azimut: 0, hoyde: 0 }
+    expect(vinkelAvstand(senit, horisont)).toBeCloseTo(90, 4)
+  })
+
+  it('kompass gir norske himmelretninger', () => {
+    expect(kompass(0)).toBe('nord')
+    expect(kompass(90)).toBe('øst')
+    expect(kompass(180)).toBe('sør')
+    expect(kompass(270)).toBe('vest')
+    expect(kompass(45)).toBe('nordøst')
+    // Og den skal gå rundt, ikke sprekke.
+    expect(kompass(359)).toBe('nord')
+    expect(kompass(-90)).toBe('vest')
+    expect(kompass(720)).toBe('nord')
+  })
+})
+
+describe('himmelUndertekst', () => {
+  const liste = himmelObjekter({ ...STED, dato: VINTER })
+
+  it('sier hva det er og hvor det står', () => {
+    for (const o of liste) {
+      const t = himmelUndertekst(o)
+      expect(t).toMatch(/over horisonten/)
+      expect(t).toMatch(/nord|øst|sør|vest/)
+    }
+  })
+
+  it('formasjoner får latinsk navn og stjernetall', () => {
+    const f = liste.find((o) => o.type === 'formasjon')
+    expect(himmelUndertekst(f)).toContain(f.latin)
+    expect(himmelUndertekst(f)).toMatch(/\d+ stjerner/)
+  })
+
+  it('bruker komma som desimalskilletegn, som resten av appen', () => {
+    const p = liste.find((o) => o.type === 'planet')
+    if (p) expect(himmelUndertekst(p)).toMatch(/lysstyrke -?\d+,\d/)
+  })
+
+  it('formasjonene i lista finnes i katalogen', () => {
+    const ider = new Set(FORMASJONER.map((f) => f.id))
+    for (const o of liste.filter((x) => x.type === 'formasjon')) {
+      expect(ider.has(o.id)).toBe(true)
+    }
+  })
+})

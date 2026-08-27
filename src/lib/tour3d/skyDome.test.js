@@ -8,7 +8,7 @@
 // skjermbilde. Her er det tall.
 import { describe, it, expect } from 'vitest'
 import { PerspectiveCamera, Quaternion, Euler } from 'three'
-import { buildMane, buildNightSky } from './skyDome.js'
+import { buildMane, buildNightSky, buildHimmelSkive } from './skyDome.js'
 import { FORMASJONER } from './stjerner.js'
 import { STJERNER } from './stjerner.js'
 import { lokalStjernetid, tilHorisont, presesserTilDato } from './astronomi.js'
@@ -356,6 +356,46 @@ describe('buildNightSky — fremheving av valgt formasjon', () => {
     const sky = buildNightSky({})
     expect(() => sky.settValgt(FORMASJONER[0])).not.toThrow()
     expect(() => sky.setResolution(800, 600)).not.toThrow()
+    sky.dispose()
+  })
+})
+
+describe('buildNightSky — planetene', () => {
+  it('tegner en skive per synlig planet, og skjuler resten', () => {
+    const sky = buildNightSky({ ...STED, dato: DATO })
+    const oppe = new Set(sky.synligePlaneter.map((p) => p.id))
+    expect(oppe.size).toBeGreaterThan(0)
+    // Fem skiver finnes alltid; bare de oppe er synlige. Uten skjulingen står
+    // Jupiter igjen på himmelen etter at den har gått ned.
+    const skiver = sky.group.children.filter((c) => c.type === 'Group')
+    expect(skiver.length).toBeGreaterThanOrEqual(5)
+    sky.dispose()
+  })
+
+  it('planetskivene er mye mindre enn månen, men store nok til å leses', () => {
+    // Virkelig er en planet 5–50 buesekund — en tiendedel av en piksel. Skiva
+    // er en bevisst overdrivelse, men den må være under månens, ellers leses
+    // Jupiter som en andre måne.
+    const mane = buildMane({ avstand: 10000 })
+    const planet = buildHimmelSkive({ avstand: 10000, grader: 0.45 })
+    expect(planet.mesh.scale.x).toBeLessThan(mane.mesh.scale.x / 3)
+    expect(planet.mesh.scale.x).toBeGreaterThan(0)
+    mane.dispose(); planet.dispose()
+  })
+
+  it('settPlaneter kan kalles på nytt uten å bygge geometri', () => {
+    const sky = buildNightSky({ ...STED, dato: DATO })
+    const for0 = sky.geometries.length
+    const senere = sky.settPlaneter(new Date('2026-08-14T22:00:00Z'))
+    expect(sky.geometries.length).toBe(for0)
+    expect(Array.isArray(senere)).toBe(true)
+    sky.dispose()
+  })
+
+  it('uten sted tegnes ingen planeter', () => {
+    const sky = buildNightSky({})
+    expect(sky.synligePlaneter).toEqual([])
+    expect(sky.settPlaneter(new Date())).toEqual([])
     sky.dispose()
   })
 })

@@ -27,6 +27,7 @@
 import { Raycaster, Vector2 } from 'three'
 import { buildRoutingGraph, RUTE_GRAF_OPTS } from '../routing.js'
 import { realElevationAt, sampleElevation } from '../demSampling.js'
+import { horisontTilWorld } from './astronomi.js'
 import { createSceneCore, TourSceneError } from './sceneCore.js'
 import { createFreeRig } from './freeRig.js'
 import { createFollowRig } from './cameraRigs.js'
@@ -416,6 +417,63 @@ export async function create3dScene(container, {
     freeRig.flyTo(world[0], world[1], world[2], { radiusM, headingXY })
   }
 
+  // Himmel-tilstand: hva som er valgbart nå, og hva som er valgt.
+  let himmelListe = []
+  let valgtHimmel = null
+  let sisteNdc = { x: 0, y: 0 }
+
+  /**
+   * Plukk et himmelobjekt i SKJERMROM.
+   *
+   * Hvorfor ikke raycast: en stjernebilde-strek er 1,7 piksler bred og en
+   * planetskive 0,45°. Å treffe dem med en stråle er praktisk umulig på en
+   * telefon. I skjermrom kan vi i stedet spørre «hva er nærmest fingeren», som
+   * er det brukeren mener.
+   *
+   * Skiver (månen, planetene) vinner over formasjoner når begge er innenfor
+   * terskelen: de har reell utstrekning, så et trykk PÅ månen skal velge månen
+   * og ikke stjernebildet bak.
+   */
+  function plukkHimmel() {
+    if (!himmelListe.length) return
+    const w = core.renderer.domElement.clientWidth
+    const h = core.renderer.domElement.clientHeight
+    const fx = ((sisteNdc.x + 1) / 2) * w
+    const fy = ((1 - sisteNdc.y) / 2) * h
+    // Terskelen er i CSS-piksler og romslig: en finger er ~9 mm.
+    const TERSKEL = 46
+
+    let best = null
+    let bestAvstand = Infinity
+    for (const o of himmelListe) {
+      const [wx, wy, wz] = horisontTilWorld(o.azimut, o.hoyde, 20000)
+      // Himmelen følger kameraet, så retningen må regnes fra kameraets posisjon.
+      const p = core.project(
+        camera.position.x + wx, camera.position.y + wy, camera.position.z + wz,
+      )
+      if (p.behind) continue
+      const d = Math.hypot(p.x - fx, p.y - fy)
+      if (d > TERSKEL) continue
+      // Skiver foran formasjoner: trekk fra litt for dem, så de vinner et
+      // uavgjort trykk.
+      const vektet = o.type === 'formasjon' ? d : d - 18
+      if (vektet < bestAvstand) {
+        bestAvstand = vektet
+        best = o
+      }
+    }
+    if (!best) return
+    velgHimmel(best)
+    emit('himmel-valgt', { objekt: best })
+  }
+
+  /** Fremhev og se mot et himmelobjekt. Delt av trykk og valg fra lista. */
+  function velgHimmel(o) {
+    valgtHimmel = o ?? null
+    core.settValgtFormasjon(o?.type === 'formasjon' ? o : null)
+    if (o) freeRig.seMot(o.azimut, o.hoyde)
+  }
+
   function handleTap(e) {
     // Ble gesten et hold (fingeren lå stille og så seg rundt), var den ikke et
     // trykk. tapDispatcher godtar opptil 600 ms nede, holdet slår inn etter 320,
@@ -425,6 +483,7 @@ export async function create3dScene(container, {
     ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
     ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
     raycaster.setFromCamera(ndc, camera)
+    sisteNdc = { x: ndc.x, y: ndc.y }
 
     // GPS-nåla først — «fly til meg». Med fersk forflytning (siste 5 min)
     // vinkles kameraet slik at man ser videre i sannsynlig bevegelsesretning.
@@ -462,7 +521,10 @@ export async function create3dScene(container, {
 
     // Ellers: traff vi terrenget, ser vi etter en sti der.
     const hit = raycaster.intersectObject(terrain.mesh, false)[0]
-    if (!hit) return
+    // BOMMET TERRENGET = trykket gikk i himmelen. Det er den eneste situasjonen
+    // himmel-plukkingen kjører i, og derfor kan den per konstruksjon ikke stjele
+    // et trykk fra en nål, en sti eller GPS-en — de er alle avklart over.
+    if (!hit) return plukkHimmel()
     const { x, y } = coords.toSvg(hit.point.x, hit.point.z)
 
     // Traff trykket en sti? Grafen bygges bare når svaret betyr noe — den
@@ -652,6 +714,22 @@ export async function create3dScene(container, {
     get autoRotating() { return freeRig.autoRotating },
     /** Radianer blikket er vippet opp over horisonten. 0 = ser i kartet. */
     get himmelVipp() { return freeRig.himmelVipp },
+
+    /**
+     * Hva som er valgbart på himmelen nå. Viseren regner lista (den kjenner
+     * stedet og tida) og gir den hit, så trykk-plukkingen og søkefeltet aldri
+     * kan ha ulike meninger om hva som er synlig.
+     */
+    setHimmelObjekter(liste) {
+      himmelListe = Array.isArray(liste) ? liste : []
+      // Forsvant det valgte ut av lista, skal ikke fremhevingen bli stående.
+      if (valgtHimmel && !himmelListe.some((o) => o.id === valgtHimmel.id)) {
+        velgHimmel(null)
+      }
+    },
+    /** Velg fra lista (eller null for å rydde). Samme vei som et trykk. */
+    velgHimmel,
+    get valgtHimmel() { return valgtHimmel },
 
     // --- turen ---
     get walking() { return !!trip },
