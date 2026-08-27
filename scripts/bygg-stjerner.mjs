@@ -40,16 +40,18 @@ const MAG_GRENSE = 2.6
 // Utvalget er nordlig og gjenkjennelig — dette er et norsk turkart. Kjedene er
 // forenklede figurer, ikke IAU-grensene.
 const ASTERISMER = [
-  { navn: 'Karlsvogna', kjeder: [['Alp UMa', 'Bet UMa', 'Gam UMa', 'Del UMa', 'Eps UMa', 'Zet UMa', 'Eta UMa']] },
+  { navn: 'Karlsvogna', latin: 'Ursa Major', kjeder: [['Alp UMa', 'Bet UMa', 'Gam UMa', 'Del UMa', 'Eps UMa', 'Zet UMa', 'Eta UMa']] },
   {
     navn: 'Lille bjørn',
+    latin: 'Ursa Minor',
     kjeder: [
       ['Alp UMi', 'Del UMi', 'Eps UMi', 'Zet UMi', 'Bet UMi', 'Gam UMi', 'Eta UMi', 'Zet UMi'],
     ],
   },
-  { navn: 'Cassiopeia', kjeder: [['Eps Cas', 'Del Cas', 'Gam Cas', 'Alp Cas', 'Bet Cas']] },
+  { navn: 'Cassiopeia', latin: 'Cassiopeia', kjeder: [['Eps Cas', 'Del Cas', 'Gam Cas', 'Alp Cas', 'Bet Cas']] },
   {
     navn: 'Orion',
+    latin: 'Orion',
     kjeder: [
       ['Alp Ori', 'Gam Ori'],
       ['Alp Ori', 'Zet Ori'],
@@ -61,14 +63,16 @@ const ASTERISMER = [
   },
   {
     navn: 'Svanen',
+    latin: 'Cygnus',
     kjeder: [
       ['Alp Cyg', 'Gam Cyg', 'Eta Cyg', 'Bet Cyg'],
       ['Del Cyg', 'Gam Cyg', 'Eps Cyg'],
     ],
   },
-  { navn: 'Lyren', kjeder: [['Alp Lyr', 'Zet Lyr', 'Del Lyr', 'Gam Lyr', 'Bet Lyr', 'Zet Lyr']] },
+  { navn: 'Lyren', latin: 'Lyra', kjeder: [['Alp Lyr', 'Zet Lyr', 'Del Lyr', 'Gam Lyr', 'Bet Lyr', 'Zet Lyr']] },
   {
     navn: 'Dragen',
+    latin: 'Draco',
     kjeder: [
       ['Gam Dra', 'Xi Dra', 'Bet Dra', 'Gam Dra'],
       ['Xi Dra', 'Del Dra', 'Zet Dra', 'Eta Dra', 'Iot Dra', 'Alp Dra', 'Kap Dra', 'Lam Dra'],
@@ -76,16 +80,18 @@ const ASTERISMER = [
   },
   {
     navn: 'Perseus',
+    latin: 'Perseus',
     kjeder: [
       ['Eta Per', 'Gam Per', 'Alp Per', 'Del Per', 'Eps Per'],
       ['Del Per', 'Bet Per'],
     ],
   },
-  { navn: 'Bjørnevokteren', kjeder: [['Alp Boo', 'Eps Boo', 'Del Boo', 'Bet Boo', 'Gam Boo', 'Rho Boo', 'Alp Boo']] },
-  { navn: 'Cepheus', kjeder: [['Alp Cep', 'Bet Cep', 'Gam Cep', 'Iot Cep', 'Zet Cep', 'Alp Cep']] },
-  { navn: 'Kjøresvennen', kjeder: [['Alp Aur', 'Bet Aur', 'The Aur', 'Bet Tau', 'Iot Aur', 'Alp Aur']] },
+  { navn: 'Bjørnevokteren', latin: 'Boötes', kjeder: [['Alp Boo', 'Eps Boo', 'Del Boo', 'Bet Boo', 'Gam Boo', 'Rho Boo', 'Alp Boo']] },
+  { navn: 'Cepheus', latin: 'Cepheus', kjeder: [['Alp Cep', 'Bet Cep', 'Gam Cep', 'Iot Cep', 'Zet Cep', 'Alp Cep']] },
+  { navn: 'Kjøresvennen', latin: 'Auriga', kjeder: [['Alp Aur', 'Bet Aur', 'The Aur', 'Bet Tau', 'Iot Aur', 'Alp Aur']] },
   {
     navn: 'Tvillingene',
+    latin: 'Gemini',
     kjeder: [
       ['Alp Gem', 'Bet Gem', 'Del Gem', 'Gam Gem'],
       ['Alp Gem', 'Eps Gem', 'Eta Gem'],
@@ -93,6 +99,7 @@ const ASTERISMER = [
   },
   {
     navn: 'Løven',
+    latin: 'Leo',
     kjeder: [
       ['Eps Leo', 'Mu Leo', 'Zet Leo', 'Gam Leo', 'Eta Leo', 'Alp Leo'],
       ['Gam Leo', 'Del Leo', 'Bet Leo'],
@@ -212,20 +219,66 @@ const stjerner = sortert.map(([, r]) => ({
   dek: Number(Number(r.dec).toFixed(5)),
   mag: Number(Number(r.mag).toFixed(2)),
   navn: (r.proper || '').trim() || null,
+  // Bayer-betegnelsen er et FELT og ikke bare en kommentar (v6.0.0): 21 av de
+  // 147 mangler egennavn i HYG, og «#74» duger ikke i et infopanel.
   bayer: nokkel(r),
 }))
 
+// Slug til bruk som id: små bokstaver, æøå gjort om, mellomrom til bindestrek.
+// Den er nøkkelen stjernebildeInfo.js indekseres på, så den må være stabil —
+// endrer du et norsk navn, endrer du en id, og infoteksten mister formasjonen sin.
+// Testen fanger det.
+const slug = (navn) => navn.toLowerCase()
+  .replace(/æ/g, 'ae').replace(/ø/g, 'o').replace(/å/g, 'a')
+  .replace(/ö/g, 'o').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+
 const linjer = []
+const formasjoner = []
 for (const a of ASTERISMER) {
+  const egne = []
+  const brukte = new Set()
   for (const kjede of a.kjeder) {
     for (let i = 0; i + 1 < kjede.length; i++) {
       const a1 = indeks.get(slot.get(kjede[i]))
       const a2 = indeks.get(slot.get(kjede[i + 1]))
       if (a1 == null || a2 == null) throw new Error(`Uoppløst linje: ${kjede[i]} → ${kjede[i + 1]}`)
       linjer.push([a1, a2])
+      egne.push([a1, a2])
+      brukte.add(a1)
+      brukte.add(a2)
     }
   }
+  // Senterpunktet brukes til å rette blikket mot formasjonen og til å finne
+  // naboene. Middelverdi av retningsvektorene, ikke av tallene: et snitt av
+  // rektascensjoner som spenner over 0h gir midt på motsatt side av himmelen.
+  let vx = 0
+  let vy = 0
+  let vz = 0
+  for (const i of brukte) {
+    const s2 = stjerner[i]
+    const ra = s2.ra * 15 * Math.PI / 180
+    const dek = s2.dek * Math.PI / 180
+    vx += Math.cos(dek) * Math.cos(ra)
+    vy += Math.cos(dek) * Math.sin(ra)
+    vz += Math.sin(dek)
+  }
+  const n = brukte.size || 1
+  vx /= n; vy /= n; vz /= n
+  const senterRa = ((Math.atan2(vy, vx) * 180 / Math.PI + 360) % 360) / 15
+  const senterDek = Math.atan2(vz, Math.hypot(vx, vy)) * 180 / Math.PI
+  formasjoner.push({
+    id: slug(a.navn),
+    navn: a.navn,
+    latin: a.latin,
+    stjerner: [...brukte].sort((x, y) => x - y),
+    linjer: egne,
+    senterRa: Number(senterRa.toFixed(4)),
+    senterDek: Number(senterDek.toFixed(4)),
+  })
 }
+formasjoner.sort((a, b) => a.navn.localeCompare(b.navn, 'nb'))
+const dupe = formasjoner.map((f) => f.id).find((id, i, arr) => arr.indexOf(id) !== i)
+if (dupe) throw new Error(`To formasjoner fikk samme id: ${dupe}`)
 
 process.stderr.write(
   `${stjerner.length} stjerner (${lysteAntall} lysere enn ${MAG_GRENSE}, `
@@ -251,7 +304,7 @@ const js = `// GENERERT AV scripts/bygg-stjerner.mjs — IKKE REDIGER FOR HÅND.
 /* eslint-disable */
 
 export const STJERNER = [
-${stjerner.map((s) => `  { ra: ${s.ra}, dek: ${s.dek}, mag: ${s.mag}, navn: ${s.navn ? JSON.stringify(s.navn) : 'null'} },   // ${s.bayer}`).join('\n')}
+${stjerner.map((s) => `  { ra: ${s.ra}, dek: ${s.dek}, mag: ${s.mag}, navn: ${s.navn ? JSON.stringify(s.navn) : 'null'}, bayer: ${JSON.stringify(s.bayer)} },`).join('\n')}
 ]
 
 /** Stjernebilde-linjer som indekspar inn i STJERNER. */
@@ -259,8 +312,23 @@ export const LINJER = [
 ${linjer.map(([a, b]) => `  [${a}, ${b}],`).join('\n')}
 ]
 
+/**
+ * Formasjonene som VALGBARE objekter — det er denne stjernekikkeren bruker.
+ * Sortert alfabetisk på norsk navn, som er rekkefølgen nedtrekkslista viser.
+ * Feltene stjerner og linjer er indekser inn i STJERNER; senterRa/senterDek er
+ * middelretningen, brukt til å rette blikket dit og til å finne naboer.
+ */
+export const FORMASJONER = [
+${formasjoner.map((f) => `  {
+    id: ${JSON.stringify(f.id)}, navn: ${JSON.stringify(f.navn)}, latin: ${JSON.stringify(f.latin)},
+    senterRa: ${f.senterRa}, senterDek: ${f.senterDek},
+    stjerner: [${f.stjerner.join(', ')}],
+    linjer: [${f.linjer.map(([a, b]) => `[${a}, ${b}]`).join(', ')}],
+  },`).join('\n')}
+]
+
 /** Navnene på stjernebildene linjene tegner — for kommentar og test. */
-export const STJERNEBILDER = ${JSON.stringify(ASTERISMER.map((a) => a.navn))}
+export const STJERNEBILDER = ${JSON.stringify(formasjoner.map((f) => f.navn))}
 `
 writeFileSync(ut, js)
 process.stderr.write(`Skrev ${ut} (${(js.length / 1024).toFixed(1)} kB)\n`)

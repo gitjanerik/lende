@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest'
 import { PerspectiveCamera, Quaternion, Euler } from 'three'
 import { buildMane, buildNightSky } from './skyDome.js'
 import { STJERNER } from './stjerner.js'
-import { lokalStjernetid, tilHorisont } from './astronomi.js'
+import { lokalStjernetid, tilHorisont, presesserTilDato } from './astronomi.js'
 
 // Vardåsen-aktig sted og et tidspunkt vi kan regne etter.
 const STED = { lat: 61.2, lon: 8.4 }
@@ -109,7 +109,12 @@ describe('buildNightSky — astronomisk himmel', () => {
     const sky = buildNightSky({ ...STED, dato: DATO })
     const lst = lokalStjernetid(DATO, STED.lon)
     const polaris = STJERNER.find((s) => s.navn === 'Polaris')
-    const forventet = tilHorisont(polaris.ra, polaris.dek, lst, STED.lat)
+    // Forventningen MÅ presesseres som himmelen selv gjør (v6.0.0). Uten det
+    // sammenlikner testen to ulike jevndøgn, og passerer bare fordi Polstjerna
+    // tilfeldigvis flytter seg mindre enn toleransen — altså en test som
+    // slutter å bety noe idet noen bytter stjerne eller strammer terskelen.
+    const j = presesserTilDato(polaris.ra, polaris.dek, DATO)
+    const forventet = tilHorisont(j.ra, j.dek, lst, STED.lat)
 
     const pos = sky.group.children[0].geometry.getAttribute('position').array
     // Nord er −Z, så polstjerna skal ligge på negativ Z, høyt oppe, og med

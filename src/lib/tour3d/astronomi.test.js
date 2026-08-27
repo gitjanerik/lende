@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   julianskDag, gmst, lokalStjernetid, solEkvatorial, maneEkvatorial, maneFase,
   tilHorisont, parallaktiskVinkel, horisontTilWorld, himmelFor, norm360,
+  presesserTilDato,
 } from './astronomi.js'
 import { STJERNER } from './stjerner.js'
 
@@ -212,5 +213,89 @@ describe('himmelFor — ett kall for ett sted og tidspunkt', () => {
     expect(julianskDag(utc('2000-01-01T12:00:00Z'))).toBeCloseTo(2451545, 6)
     // GMST ved J2000.0 er 280,46°.
     expect(gmst(utc('2000-01-01T12:00:00Z'))).toBeCloseTo(280.46, 1)
+  })
+})
+
+describe('presesjon J2000 → dato', () => {
+  const vinkel = (a1, d1, a2, d2) => {
+    const R = Math.PI / 180
+    const c = Math.sin(d1 * R) * Math.sin(d2 * R)
+      + Math.cos(d1 * R) * Math.cos(d2 * R) * Math.cos((a1 - a2) * 15 * R)
+    return Math.acos(Math.max(-1, Math.min(1, c))) / R * 60   // bueminutter
+  }
+
+  it('gjør ingenting ved J2000 selv', () => {
+    const p = presesserTilDato(6.75, -16.72, utc('2000-01-01T12:00:00Z'))
+    expect(p.ra).toBe(6.75)
+    expect(p.dek).toBe(-16.72)
+  })
+
+  it('flytter en stjerne ~50 buesekund i året langs ekliptikken', () => {
+    // Presesjonens hastighet er 50,29″/år i lengde. En stjerne PÅ ekliptikken
+    // flytter seg altså ~50″ i året; det er det tallet som gjør at katalogen
+    // ikke kan brukes rått i 2026.
+    const s = { ra: 6.0, dek: 23.44 }   // sommersolverv-punktet, på ekliptikken
+    const p10 = presesserTilDato(s.ra, s.dek, utc('2010-01-01T00:00:00Z'))
+    const p20 = presesserTilDato(s.ra, s.dek, utc('2020-01-01T00:00:00Z'))
+    const d10 = vinkel(s.ra, s.dek, p10.ra, p10.dek)
+    const d20 = vinkel(s.ra, s.dek, p20.ra, p20.dek)
+    expect(d10 / 10).toBeCloseTo(50.3 / 60, 1)
+    // Og den vokser lineært: dobbelt så lang tid, dobbelt så langt.
+    expect(d20 / d10).toBeCloseTo(2, 1)
+  })
+
+  it('flytter Polstjerna så mye rotasjonen om ekliptikkpolen krever', () => {
+    // Polstjerna er den harde prøven: den ligger nær himmelpolen, der den enkle
+    // tilnærmingsformelen (Δα = m + n·sinα·tanδ) sprenger fordi tanδ → ∞. Den
+    // rigorøse formen tåler det.
+    //
+    // Ankeret er GEOMETRIEN og ikke et husket tall: presesjon er en rotasjon om
+    // EKLIPTIKKENS pol med 50,29″ i året, så en stjerne flytter seg
+    //     rate × sin(vinkelavstand fra ekliptikkpolen).
+    // Polstjerna står 23,44° fra den (den er nesten i himmelpolen), altså
+    // 1,397° × sin 23,44° ≈ 33,4′ over hundre år. Går koden 28′ eller 40′, er
+    // det ikke presesjon den regner.
+    const p = STJERNER.find((s) => s.navn === 'Polaris')
+    const dato = utc('2100-01-01T00:00:00Z')
+    const f = presesserTilDato(p.ra, p.dek, dato)
+    const R = Math.PI / 180
+    const eps = 23.4393 * R
+    // Vinkelavstand Polstjerna → ekliptikkens nordpol (ra 18h, dek 90−ε).
+    const polRa = 18, polDek = 90 - 23.4393
+    const cosD = Math.sin(p.dek * R) * Math.sin(polDek * R)
+      + Math.cos(p.dek * R) * Math.cos(polDek * R) * Math.cos((p.ra - polRa) * 15 * R)
+    const fraEkliptikkpol = Math.acos(Math.max(-1, Math.min(1, cosD)))
+    const ventet = (50.2879 * 100 / 60) * Math.sin(fraEkliptikkpol)   // bueminutter
+    expect(vinkel(p.ra, p.dek, f.ra, f.dek)).toBeCloseTo(ventet, 0)
+    expect(eps).toBeGreaterThan(0)
+    // Og den er på vei MOT polen — det er den kjente historien om Polaris:
+    // nærmest rundt år 2100, deretter bort igjen.
+    expect(f.dek).toBeGreaterThan(p.dek)
+    expect(f.dek).toBeLessThan(90)
+  })
+
+  it('holder ekliptikkens pol nesten i ro', () => {
+    // Presesjonen er en rotasjon OM ekliptikkens pol, så et punkt der flytter
+    // seg minst. Den asymmetrien er selve signaturen på at aksen er riktig.
+    const polRa = 18
+    const polDek = 90 - 23.44
+    const p = presesserTilDato(polRa, polDek, utc('2050-01-01T00:00:00Z'))
+    const flyttetPol = vinkel(polRa, polDek, p.ra, p.dek)
+    const ekvator = presesserTilDato(0, 0, utc('2050-01-01T00:00:00Z'))
+    const flyttetEkvator = vinkel(0, 0, ekvator.ra, ekvator.dek)
+    expect(flyttetPol).toBeLessThan(flyttetEkvator / 5)
+  })
+
+  it('bevarer vinkelen mellom to stjerner', () => {
+    // Presesjon er en ren rotasjon av koordinatsystemet: himmelen skal ikke
+    // deformeres. Karlsvogna må ha samme form i 2026 som i 2000, ellers er det
+    // ikke presesjon vi har implementert.
+    const a = STJERNER.find((s) => s.navn === 'Dubhe')
+    const b = STJERNER.find((s) => s.navn === 'Alkaid')
+    const dato = utc('2026-08-27T22:00:00Z')
+    const pa = presesserTilDato(a.ra, a.dek, dato)
+    const pb = presesserTilDato(b.ra, b.dek, dato)
+    expect(vinkel(pa.ra, pa.dek, pb.ra, pb.dek))
+      .toBeCloseTo(vinkel(a.ra, a.dek, b.ra, b.dek), 2)
   })
 })
