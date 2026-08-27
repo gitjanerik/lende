@@ -9,6 +9,7 @@
 import { describe, it, expect } from 'vitest'
 import { PerspectiveCamera, Quaternion, Euler } from 'three'
 import { buildMane, buildNightSky } from './skyDome.js'
+import { FORMASJONER } from './stjerner.js'
 import { STJERNER } from './stjerner.js'
 import { lokalStjernetid, tilHorisont, presesserTilDato } from './astronomi.js'
 
@@ -140,10 +141,52 @@ describe('buildNightSky — astronomisk himmel', () => {
     expect(st.length).toBe(sky.stjerneAntall)
     expect(Math.max(...st)).toBeGreaterThan(Math.min(...st) + 1)
     for (let i = 0; i < st.length; i++) {
-      expect(st[i]).toBeGreaterThan(1)
-      expect(st[i]).toBeLessThanOrEqual(5)
-      expect(sty[i]).toBeGreaterThan(0.3)
+      // Grensene er CSS-piksler (se stjerneStorrelse), løftet i v6.0.0 etter
+      // felttest i mørket.
+      expect(st[i]).toBeGreaterThanOrEqual(1.7)
+      expect(st[i]).toBeLessThanOrEqual(6.2)
+      expect(sty[i]).toBeGreaterThanOrEqual(0.45)
       expect(sty[i]).toBeLessThanOrEqual(1)
+    }
+    sky.dispose()
+  })
+
+  it('skalerer prikkene med pixelRatio, ellers halveres de på en telefon', () => {
+    // Dette ER feilen fra felttesten: gl_PointSize er i FRAMEBUFFER-piksler, og
+    // sceneCore setter pixelRatio til opptil 2. En stjerne på 2,9 ble 1,5
+    // CSS-piksel på telefonen og forsvant, mens desktop (ratio 1) så fin ut.
+    const en = buildNightSky({ ...STED, dato: DATO, pikselForhold: 1 })
+    const to = buildNightSky({ ...STED, dato: DATO, pikselForhold: 2 })
+    const u = (s) => s.group.children[0].material.uniforms.uPikselForhold.value
+    expect(u(en)).toBe(1)
+    expect(u(to)).toBe(2)
+    // Attributtene er de samme — det er shaderen som ganger opp.
+    const a = en.group.children[0].geometry.getAttribute('storrelse').array
+    const b = to.group.children[0].geometry.getAttribute('storrelse').array
+    expect(Array.from(a)).toEqual(Array.from(b))
+    // Og et tull-forhold skal ikke krympe stjernene bort.
+    const null0 = buildNightSky({ ...STED, dato: DATO, pikselForhold: 0 })
+    expect(u(null0)).toBe(1)
+    en.dispose(); to.dispose(); null0.dispose()
+  })
+
+  it('tegner stjernebilde-linjene med pikselbredde, ikke LineBasicMaterial', () => {
+    // LineBasicMaterial IGNORERER linewidth i WebGL — linjene ble alltid én
+    // framebuffer-piksel, altså en halv CSS-piksel på telefonen. LineMaterial
+    // (LineSegments2) er den samme teknikken høydekurvene og stinettet bruker.
+    const sky = buildNightSky({ ...STED, dato: DATO })
+    const linjer = sky.group.children.filter((c) => c.type === 'LineSegments2')
+    expect(linjer.length).toBeGreaterThan(0)
+    for (const l of linjer) {
+      expect(l.material.linewidth).toBeGreaterThan(1)
+      expect(l.material.resolution).toBeDefined()
+    }
+    // setResolution må nå ALLE pikselmaterialene, ellers tegnes noen med feil
+    // bredde etter en rotasjon av skjermen.
+    sky.setResolution(1080, 1920)
+    for (const l of linjer) {
+      expect(l.material.resolution.x).toBe(1080)
+      expect(l.material.resolution.y).toBe(1920)
     }
     sky.dispose()
   })
@@ -221,5 +264,98 @@ describe('buildNightSky — uten sted', () => {
     expect(Array.from(pa)).toEqual(Array.from(pb))
     a.dispose()
     b.dispose()
+  })
+})
+
+describe('buildNightSky — fremheving av valgt formasjon', () => {
+  // Finn en formasjon som faktisk er over horisonten på testtidspunktet, ellers
+  // tester vi ingenting.
+  const medSynlig = (fn) => {
+    const sky = buildNightSky({ ...STED, dato: DATO })
+    const synlige = sky.synligeStjerner
+    const f = FORMASJONER.find((x) => x.stjerner.every((i) => synlige.has(i)))
+    expect(f, 'ingen formasjon helt over horisonten — velg et annet tidspunkt').toBeDefined()
+    fn(sky, f)
+    sky.dispose()
+  }
+
+  it('løfter stjernene i den valgte og bare dem', () => {
+    medSynlig((sky, f) => {
+      const st = sky.group.children[0].geometry.getAttribute('storrelse')
+      const for0 = Array.from(st.array)
+      sky.settValgt(f)
+      const etter = Array.from(st.array)
+      const bufferIdx = [...sky.synligeStjerner]
+      let loftet = 0
+      let urort = 0
+      for (let i = 0; i < for0.length; i++) {
+        if (etter[i] > for0[i] + 1e-6) loftet++
+        else if (Math.abs(etter[i] - for0[i]) < 1e-6) urort++
+      }
+      expect(loftet).toBe(f.stjerner.length)
+      expect(urort).toBe(for0.length - f.stjerner.length)
+      expect(bufferIdx.length).toBeGreaterThan(0)
+    })
+  })
+
+  it('nullstiller mellom valg, så himmelen ikke blir lysere for hvert trykk', () => {
+    // Uten nullstillingen hoper faktoren seg opp: velger man fem formasjoner
+    // etter hverandre, står den første med 1,6⁵ = 10× størrelse.
+    medSynlig((sky, f) => {
+      const st = sky.group.children[0].geometry.getAttribute('storrelse')
+      sky.settValgt(f)
+      const enGang = Array.from(st.array)
+      sky.settValgt(f)
+      sky.settValgt(f)
+      expect(Array.from(st.array)).toEqual(enGang)
+      // Og tilbake til null skal gi utgangspunktet.
+      sky.settValgt(null)
+      const grunn = Array.from(st.array)
+      expect(grunn.some((v, i) => v < enGang[i] - 1e-6)).toBe(true)
+    })
+  })
+
+  it('viser de valgte linjene og skjuler dem igjen', () => {
+    medSynlig((sky, f) => {
+      const valgt = sky.group.children.find(
+        (c) => c.type === 'LineSegments2' && c.material.linewidth > 2,
+      )
+      expect(valgt).toBeDefined()
+      expect(valgt.visible).toBe(false)
+      sky.settValgt(f)
+      expect(valgt.visible).toBe(true)
+      sky.settValgt(null)
+      expect(valgt.visible).toBe(false)
+    })
+  })
+
+  it('tåler en formasjon som er under horisonten', () => {
+    const sky = buildNightSky({ ...STED, dato: DATO })
+    const synlige = sky.synligeStjerner
+    const skjult = FORMASJONER.find((x) => x.stjerner.every((i) => !synlige.has(i)))
+    if (skjult) {
+      expect(() => sky.settValgt(skjult)).not.toThrow()
+      const valgt = sky.group.children.find(
+        (c) => c.type === 'LineSegments2' && c.material.linewidth > 2,
+      )
+      // Ingen synlige ender ⇒ ingen strek å tegne.
+      expect(valgt.visible).toBe(false)
+    }
+    sky.dispose()
+  })
+
+  it('tåler tull uten å kaste', () => {
+    const sky = buildNightSky({ ...STED, dato: DATO })
+    expect(() => sky.settValgt(undefined)).not.toThrow()
+    expect(() => sky.settValgt({})).not.toThrow()
+    expect(() => sky.settValgt({ stjerner: [9999], linjer: [[9999, 9998]] })).not.toThrow()
+    sky.dispose()
+  })
+
+  it('uten sted finnes ingen formasjoner å fremheve, og det skal ikke kaste', () => {
+    const sky = buildNightSky({})
+    expect(() => sky.settValgt(FORMASJONER[0])).not.toThrow()
+    expect(() => sky.setResolution(800, 600)).not.toThrow()
+    sky.dispose()
   })
 })

@@ -195,7 +195,14 @@ export async function createSceneCore(container, {
       senterLon = p.lon
     }
   } catch { /* uten sted: pseudo-tilfeldig himmel, se buildNightSky */ }
-  const nightSky = buildNightSky({ lat: senterLat, lon: senterLon, dato: new Date() })
+  const nightSky = buildNightSky({
+    lat: senterLat,
+    lon: senterLon,
+    dato: new Date(),
+    // gl_PointSize og LineMaterial-bredder er i FRAMEBUFFER-piksler. Uten
+    // pixelRatio inn ble stjernene halv størrelse på en telefon (v6.0.0).
+    pikselForhold: renderer.getPixelRatio(),
+  })
   scene.add(nightSky.group)
 
   // Høydekurver i terrenget: togglebart lag — bygges lazily.
@@ -334,6 +341,8 @@ export async function createSceneCore(container, {
     renderer, camera, container,
     onResize(w, h) {
       contours?.setResolution(w, h)
+      // Stjernebilde-linjene tegnes i piksler og trenger samme oppslag.
+      nightSky.setResolution(w, h)
       hooks.onResize?.(w, h)
     },
     onFrame: (dt, timeS) => hooks.onFrame?.(dt, timeS),

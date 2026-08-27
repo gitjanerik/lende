@@ -83,6 +83,21 @@ const detached = ref(false)
 // Blikket er vippet opp i himmelen (freeRig.himmelVipp > 0). Da er det ikke
 // kartet man ser, og hintet nede sier hvordan man kommer tilbake.
 const serOpp = ref(false)
+
+// MAKSIMER: skjul alt UI utenom lukkeknappen, minimer-knappen og
+// himmel-søkefeltet, som da flyttes helt øverst.
+//
+// Grunnen er nattsyn og ikke plass. Etter en felttest i mørket meldte eieren at
+// de hvite flatene i overlegget ødelegger det mørkeadapterte synet — og et øye
+// bruker 20–30 minutter på å komme tilbake. Ingen knapp er verdt det når man
+// står ute for å se stjerner.
+//
+// Persisteres IKKE med vilje: åpner man 3D og alt er borte, ser det ødelagt ut.
+// Modusen er noe man går inn i for en stund, ikke en innstilling.
+const maksimert = ref(false)
+function toggleMaksimer() {
+  maksimert.value = !maksimert.value
+}
 // Fingeren ligger nede og ser seg rundt fra et frosset punkt (følge-riggens
 // hold). Vises som et hint så den som fant det ved uhell skjønner hva som skjer.
 const holdingLook = ref(false)
@@ -669,7 +684,7 @@ function branchLabel(opt, i) {
            gapet er strammet inn for å gi mer luft i marginene. -->
       <div class="relative z-10 flex items-start justify-between gap-2 px-3"
            style="padding-top: max(env(safe-area-inset-top), 10px);">
-        <div class="flex items-center gap-1 min-w-0 flex-wrap">
+        <div v-if="!maksimert" class="flex items-center gap-1 min-w-0 flex-wrap">
           <button v-if="phase === 'ready'"
                   @click="togglePins"
                   :aria-label="pinsOn ? 'Skjul knappenåler' : 'Vis knappenåler'"
@@ -775,15 +790,39 @@ function branchLabel(opt, i) {
             <span class="max-[379px]:hidden">Kurver</span>
           </button>
         </div>
-        <button @click="requestClose"
-                aria-label="Lukk 3D-visning"
-                class="w-11 h-11 shrink-0 rounded-full bg-black/45 backdrop-blur text-white/85
-                       flex items-center justify-center active:scale-90">
-          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
-               stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-          </svg>
-        </button>
+        <!-- Maksimer og lukk. I maksimert modus er BEGGE dempet kraftig ned:
+             poenget med modusen er nattsyn, og da kan ikke de to knappene som
+             blir igjen lyse like sterkt som før. -->
+        <div v-if="maksimert" class="flex-1"></div>
+        <div class="flex items-center gap-1 shrink-0">
+          <button v-if="phase === 'ready'"
+                  @click="toggleMaksimer"
+                  :aria-label="maksimert ? 'Vis knappene igjen' : 'Skjul alt utenom himmelsøket'"
+                  class="w-11 h-11 rounded-full backdrop-blur flex items-center justify-center
+                         active:scale-90 transition-colors"
+                  :class="maksimert ? 'bg-black/25 text-white/35' : 'bg-black/45 text-white/85'">
+            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <!-- Ut av hjørnene = maksimer, inn i hjørnene = tilbake. -->
+              <template v-if="!maksimert">
+                <path d="M9 4H4v5M15 4h5v5M15 20h5v-5M9 20H4v-5"/>
+              </template>
+              <template v-else>
+                <path d="M4 9V4h5M20 9V4h-5M20 15v5h-5M4 15v5h5"/>
+              </template>
+            </svg>
+          </button>
+          <button @click="requestClose"
+                  aria-label="Lukk 3D-visning"
+                  class="w-11 h-11 shrink-0 rounded-full backdrop-blur
+                         flex items-center justify-center active:scale-90 transition-colors"
+                  :class="maksimert ? 'bg-black/25 text-white/35' : 'bg-black/45 text-white/85'">
+            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       <!-- Vær-demo (Utvikler-fanen). Ligger over værraden fordi den overstyrer
@@ -833,7 +872,7 @@ function branchLabel(opt, i) {
            nå står varselet først og hjelpen under. Skjult under en gående tur —
            der konkurrerer HUD og kryssvalg om plassen, og været er ikke det man
            ser etter da. -->
-      <div v-if="phase === 'ready' && vaerOn && !walking"
+      <div v-if="phase === 'ready' && vaerOn && !walking && !maksimert"
            class="relative z-10 px-3 mt-2 flex justify-center">
         <Tour3dVaerRad :vaer="vaer"/>
       </div>
@@ -841,7 +880,7 @@ function branchLabel(opt, i) {
       <!-- Nederste linje: hjelp til venstre, POI-filter til høyre. Begge minimert
            som små piller, så de koster nesten ingen kartflate før man trenger
            dem. Items-start så en utvidet boks ikke dytter den andre nedover. -->
-      <div v-if="phase === 'ready'"
+      <div v-if="phase === 'ready' && !maksimert"
            class="relative z-10 flex items-start justify-between gap-2 px-3 mt-2">
         <Tour3dInfoPanel :modus="walking ? 'tur' : 'utforsk'"
                          :knapper="INFO_KNAPPER" :tips="INFO_TIPS"/>
@@ -880,7 +919,8 @@ function branchLabel(opt, i) {
       </div>
 
       <!-- Bunn: kryssvalg, framdrift og turkontroller -->
-      <div v-if="phase === 'ready'" class="relative z-10 mt-auto px-3 flex flex-col gap-2"
+      <div v-if="phase === 'ready' && !maksimert"
+           class="relative z-10 mt-auto px-3 flex flex-col gap-2"
            style="padding-bottom: max(env(safe-area-inset-bottom), 12px);">
 
         <!-- Kameraet er løsnet fra turen: veien tilbake, ett trykk unna. -->

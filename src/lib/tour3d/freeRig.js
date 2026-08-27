@@ -30,6 +30,35 @@ const TAK_SLARK = 0.02
 // Hvor langt opp man kan vippe: 75°, altså nesten rett opp i senit. Resten av
 // veien ville gitt et bilde uten et eneste holdepunkt.
 export const HIMMEL_VIPP_MAKS = (75 * Math.PI) / 180
+// Hvor lang en «se mot»-sving tar. Kort nok til at det ikke føles som venting,
+// langt nok til at man beholder retningssansen — flytter blikket seg momentant,
+// mister man hvor på himmelen man var.
+const BLIKK_TID_S = 0.9
+
+/**
+ * Hvilken orbit-asimut og himmelvipp som får blikket til å peke mot et punkt på
+ * himmelen. Ren funksjon, fordi det er her fortegnene kan gå galt.
+ *
+ * Orbiten ser alltid PÅ blikkpunktet, så kameraet må stå på MOTSATT side av
+ * retningen man vil se. Og orbiten kan ikke løfte blikket over horisonten i det
+ * hele tatt (se POLAR_MAKS), så all høyde over den går inn i vippen.
+ *
+ * Scenen har nord = −Z og øst = +X. three sin spherical måler theta som
+ * atan2(x, z) på OFFSET-vektoren kamera − blikkpunkt.
+ *
+ * @param {number} azimut radianer fra nord mot øst
+ * @param {number} hoyde radianer over horisonten
+ * @returns {{theta: number, vipp: number}}
+ */
+export function blikkMot(azimut, hoyde) {
+  // Ønsket blikkretning: (sin A, sin h, −cos A). Offset er den motsatte.
+  const theta = Math.atan2(-Math.sin(azimut), Math.cos(azimut))
+  // Orbiten står på taket sitt; resten er vippens. Taket gir et blikk
+  // (90° − POLAR_MAKS) UNDER horisonten, så det må legges til.
+  const fraTaket = Math.PI / 2 - POLAR_MAKS
+  const vipp = Math.max(0, Math.min(HIMMEL_VIPP_MAKS, hoyde + fraTaket))
+  return { theta, vipp }
+}
 
 /**
  * Ett steg av himmelvippen, som ren funksjon — det er her regelen bor.
@@ -114,6 +143,10 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
   // Himmelvippen: hvor mange radianer blikket er løftet OVER orbitens eget tak.
   // 0 = kameraet ser dit OrbitControls peker det. Se himmelVippSteg for regelen.
   let himmelVipp = 0
+  // Pågående «se mot»-animasjon: { fraTheta, tilTheta, fraVipp, tilVipp, t }.
+  // Egen mekanisme og ikke `transition`, som animerer POSISJON og kvaternion mot
+  // en pose — den ville kjempet mot vippen om den fikk styre begge.
+  let blikkAnim = null
   // Orbitens polarvinkel er FROSSET mens vippen er i bruk, ellers ville et drag
   // både vippet himmelen og tiltet kartet. Asimuten er fortsatt fri — man skal
   // kunne se rundt seg på himmelen.
@@ -135,6 +168,9 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
   // av OrbitControls' egen 'start', men vi vil fange hjul og berøring før
   // dempingen rekker å flytte noe.
   const stopAuto = () => {
+    // En pågående «se mot» skal gi seg straks brukeren rører kameraet selv;
+    // ellers drar animasjonen blikket ut av fingeren.
+    blikkAnim = null
     if (!controls.autoRotate) return
     controls.autoRotate = false
     userTook = true
@@ -217,6 +253,7 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
   /** Tilbake til et blikk langs orbitens egen retning. */
   function nullstillVipp() {
     himmelVipp = 0
+    blikkAnim = null
     settPolarLast(false)
   }
 
@@ -278,6 +315,40 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
     /** Hvor mange radianer blikket er løftet over horisonten. 0 = ser i kartet. */
     get himmelVipp() { return himmelVipp },
     nullstillVipp,
+
+    /**
+     * Rett blikket mot et punkt på himmelen, mykt. Brukt av alle tre veiene inn:
+     * valg i lista, trykk i himmelen, og månen. ÉN metode, tre kallere — så
+     * himmelvippen aldri får en andre, konkurrerende eier.
+     *
+     * @param {number} azimut radianer fra nord mot øst
+     * @param {number} hoyde radianer over horisonten
+     */
+    seMot(azimut, hoyde) {
+      if (!Number.isFinite(azimut) || !Number.isFinite(hoyde)) return
+      controls.enabled = true
+      controls.autoRotate = false
+      userTook = true
+      transition = null
+      const { theta, vipp } = blikkMot(azimut, hoyde)
+      // Polarvinkelen låses UMIDDELBART til taket: vippen er det som bærer
+      // høyden, og en orbit som fortsatt kan bevege seg i polar ville dratt
+      // blikket ned mens animasjonen løfter det.
+      controls.setPolarAngle(POLAR_MAKS)
+      settPolarLast(true)
+      // Korteste vei rundt: uten dette snurrer kameraet 350° for å komme 10°.
+      const fra = controls.getAzimuthalAngle()
+      let dTheta = theta - fra
+      while (dTheta > Math.PI) dTheta -= 2 * Math.PI
+      while (dTheta < -Math.PI) dTheta += 2 * Math.PI
+      blikkAnim = {
+        t: 0,
+        fraTheta: fra,
+        dTheta,
+        fraVipp: himmelVipp,
+        tilVipp: vipp,
+      }
+    },
     get autoRotating() { return controls.autoRotate },
     get userTookOver() { return userTook },
     /** @param {() => void} cb brukeren tok kameraet (gest startet) */
@@ -370,6 +441,17 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
           quietUpdate()
         }
         return
+      }
+      if (blikkAnim) {
+        blikkAnim.t += dt / BLIKK_TID_S
+        const k = blikkAnim.t >= 1 ? 1 : easeInOutCubic(blikkAnim.t)
+        // Asimuten settes på orbiten; vippen legges på etterpå, som ellers.
+        controls.setAzimuthalAngle(blikkAnim.fraTheta + blikkAnim.dTheta * k)
+        himmelVipp = blikkAnim.fraVipp + (blikkAnim.tilVipp - blikkAnim.fraVipp) * k
+        if (blikkAnim.t >= 1) {
+          blikkAnim = null
+          settPolarLast(himmelVipp > 0)
+        }
       }
       quiet = true
       controls.update()

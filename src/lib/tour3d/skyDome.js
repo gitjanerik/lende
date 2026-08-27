@@ -9,6 +9,9 @@ import {
   BufferGeometry, BufferAttribute, PointsMaterial, Points, AdditiveBlending,
   LineSegments, LineBasicMaterial,
 } from 'three'
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import { STJERNER, LINJER } from './stjerner.js'
 import {
   himmelFor, lokalStjernetid, tilHorisont, horisontTilWorld, presesserTilDato,
@@ -199,15 +202,24 @@ export function buildMane({ radius = 25000, avstand = null } = {}) {
   }
 }
 
-// Stjernestørrelse fra magnitude. Lineær i magnitude, som er en logaritmisk
-// skala — det er nettopp derfor det ser riktig ut: øyet leser lysstyrke
-// logaritmisk. Takene er piksler på skjermen (sizeAttenuation er av i
-// praksis: vi setter gl_PointSize direkte), så de skalerer ikke med avstanden.
+// Stjernestørrelse fra magnitude, i CSS-PIKSLER. Lineær i magnitude, som er en
+// logaritmisk skala — det er nettopp derfor det ser riktig ut: øyet leser
+// lysstyrke logaritmisk.
+//
+// «CSS-piksler» er poenget, og det var feilen fram til v6.0.0: `gl_PointSize`
+// måles i FRAMEBUFFER-piksler, og sceneCore setter pixelRatio til opptil 2. En
+// stjerne på 2,9 ble derfor 1,5 CSS-piksel på eierens telefon og forsvant nesten
+// helt, mens den så helt fin ut på en desktop med pixelRatio 1. Shaderen
+// multipliserer nå med `uPikselForhold`, så tallene her betyr det samme overalt.
+//
+// Tallene er dessuten løftet et hakk etter felttest i mørket: 5,0 → 6,2 i taket
+// og 1,1 → 1,7 i gulvet. «Litt større», ikke store — en stjernehimmel av
+// diskoslys er ikke en stjernehimmel.
 function stjerneStorrelse(mag) {
-  return Math.max(1.1, Math.min(5.0, 4.6 - 0.62 * mag))
+  return Math.max(1.7, Math.min(6.2, 5.5 - 0.66 * mag))
 }
 function stjerneStyrke(mag) {
-  return Math.max(0.32, Math.min(1, 1.05 - 0.115 * mag))
+  return Math.max(0.45, Math.min(1, 1.1 - 0.1 * mag))
 }
 
 // Under horisonten er stjerna under bakken, og der har den ingenting å gjøre.
@@ -218,7 +230,23 @@ const HORISONT_MARGIN = -1 * Math.PI / 180
 // Hvor kraftig stjernebilde-linjene tegnes. Smak, ikke mekanikk: for høyt og
 // himmelen blir et planetarium, for lavt og 147 riktige punkter er ikke til å
 // skille fra 160 tilfeldige.
-const LINJE_OPASITET = 0.13
+//
+// Løftet fra 0,13 til 0,26 etter felttest — men det var ikke opasiteten som var
+// hovedproblemet: linjene var `LineBasicMaterial`, og `linewidth` er IGNORERT i
+// WebGL. De ble alltid tegnet én framebuffer-piksel bred, altså en halv
+// CSS-piksel på en telefon med pixelRatio 2. Nå brukes LineSegments2 +
+// LineMaterial, samme teknikk som høydekurvene og stinettet, der bredden
+// faktisk er i piksler. Prisen er at materialet trenger renderer-oppløsningen
+// som uniform — se setResolution, som sceneCore mater ved resize.
+const LINJE_OPASITET = 0.26
+const LINJE_BREDDE_PX = 1.7
+// Den valgte formasjonen lyser kraftigere. Verdiene er «tydelig, ikke skrikende»:
+// man skal se hvilken man har valgt uten at resten av himmelen forsvinner.
+const VALGT_LINJE_OPASITET = 0.85
+const VALGT_LINJE_BREDDE_PX = 2.6
+// Hvor mye større stjernene i den valgte formasjonen tegnes. 1,6 er nok til at
+// figuren løfter seg ut av himmelen uten at den ser ut som en annen himmel.
+const VALGT_STJERNE_FAKTOR = 1.6
 
 /**
  * Nattehimmel: ekte stjerner der de faktisk står, stjernebilde-linjer som gjør
@@ -244,6 +272,7 @@ const LINJE_OPASITET = 0.13
  */
 export function buildNightSky({
   radius = 25000, lat = null, lon = null, dato = null, starCount = 160,
+  pikselForhold = 1,
 } = {}) {
   const group = new Group()
   group.visible = false
@@ -303,15 +332,22 @@ export function buildNightSky({
     transparent: true,
     depthWrite: false,
     blending: AdditiveBlending,
-    uniforms: { uFarge: { value: new Color('#ffeec4') } },
+    uniforms: {
+      uFarge: { value: new Color('#ffeec4') },
+      // gl_PointSize er i FRAMEBUFFER-piksler, og renderer.pixelRatio er opptil
+      // 2. Uten dette blir «3 piksler» halvparten så stort på en telefon som på
+      // en desktop, og stjernene forsvinner nesten — som de gjorde til v6.0.0.
+      uPikselForhold: { value: Math.max(1, pikselForhold) },
+    },
     vertexShader: `
       attribute float storrelse;
       attribute float styrke;
+      uniform float uPikselForhold;
       varying float vStyrke;
       void main() {
         vStyrke = styrke;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        gl_PointSize = storrelse;
+        gl_PointSize = storrelse * uPikselForhold;
       }
     `,
     fragmentShader: `
@@ -336,33 +372,65 @@ export function buildNightSky({
   // en strek ut i bakken er verre enn ingen strek.
   const geometrier = [starGeo]
   const materialer = [starMat]
-  let linjeGeo = null
-  let linjeMat = null
-  if (ekteHimmel) {
-    const linjePos = []
-    for (const [a, b] of LINJER) {
+  // Materialene som trenger renderer-oppløsningen (LineMaterial). setResolution
+  // mates av sceneCore ved resize, som for høydekurvene.
+  const pikselMaterialer = []
+  let valgtLinjeGeo = null
+  let valgtLinjer = null
+
+  const linjePunkter = (par) => {
+    const ut = []
+    for (const [a, b] of par) {
       const ia = bufferIndeks.get(a)
       const ib = bufferIndeks.get(b)
+      // Bare linjer der BEGGE ender er over horisonten. Et halvt stjernebilde
+      // med en strek ut i bakken er verre enn ingen strek.
       if (ia == null || ib == null) continue
-      linjePos.push(pos[ia * 3], pos[ia * 3 + 1], pos[ia * 3 + 2])
-      linjePos.push(pos[ib * 3], pos[ib * 3 + 1], pos[ib * 3 + 2])
+      ut.push(pos[ia * 3], pos[ia * 3 + 1], pos[ia * 3 + 2])
+      ut.push(pos[ib * 3], pos[ib * 3 + 1], pos[ib * 3 + 2])
     }
+    return ut
+  }
+
+  if (ekteHimmel) {
+    const linjePos = linjePunkter(LINJER)
     if (linjePos.length) {
-      linjeGeo = new BufferGeometry()
-      linjeGeo.setAttribute('position', new BufferAttribute(new Float32Array(linjePos), 3))
-      linjeMat = new LineBasicMaterial({
+      const linjeGeo = new LineSegmentsGeometry()
+      linjeGeo.setPositions(linjePos)
+      const linjeMat = new LineMaterial({
         color: new Color('#9fb6d8'),
+        linewidth: LINJE_BREDDE_PX,
         transparent: true,
         opacity: LINJE_OPASITET,
         depthWrite: false,
-        fog: false,
       })
-      const linjer = new LineSegments(linjeGeo, linjeMat)
+      const linjer = new LineSegments2(linjeGeo, linjeMat)
       linjer.frustumCulled = false
       group.add(linjer)
       geometrier.push(linjeGeo)
       materialer.push(linjeMat)
+      pikselMaterialer.push(linjeMat)
     }
+
+    // Den valgte formasjonen tegnes i et EGET objekt oppå de svake. Geometrien
+    // skrives om ved valg; det er billigere og enklere enn en per-vertex-attributt
+    // på et LineSegmentsGeometry, og formasjonene er små (4–10 linjer).
+    valgtLinjeGeo = new LineSegmentsGeometry()
+    valgtLinjeGeo.setPositions([0, 0, 0, 0, 0, 0])
+    const valgtMat = new LineMaterial({
+      color: new Color('#ffe9a3'),
+      linewidth: VALGT_LINJE_BREDDE_PX,
+      transparent: true,
+      opacity: VALGT_LINJE_OPASITET,
+      depthWrite: false,
+    })
+    valgtLinjer = new LineSegments2(valgtLinjeGeo, valgtMat)
+    valgtLinjer.frustumCulled = false
+    valgtLinjer.visible = false
+    group.add(valgtLinjer)
+    geometrier.push(valgtLinjeGeo)
+    materialer.push(valgtMat)
+    pikselMaterialer.push(valgtMat)
   }
 
   // --- Månen --------------------------------------------------------------
@@ -384,11 +452,66 @@ export function buildNightSky({
     /** Antall stjerner som faktisk ble tegnet — for test og feilsøking. */
     get stjerneAntall() { return pos.length / 3 },
     get astronomisk() { return ekteHimmel },
+    /** Hvilke katalog-indekser som faktisk ble tegnet (over horisonten). */
+    get synligeStjerner() { return new Set(bufferIndeks.keys()) },
     geometries: geometrier,
     materials: materialer,
     textures: [],
     setNight(on) { group.visible = !!on },
     update(camera) { mane.update(camera) },
+
+    /**
+     * LineMaterial trenger renderer-oppløsningen som uniform for å kunne tegne
+     * i piksler. Mates av sceneCore ved resize, som for høydekurvene.
+     */
+    setResolution(w, h) {
+      for (const m of pikselMaterialer) m.resolution.set(w, h)
+    },
+
+    /**
+     * Fremhev én formasjon: linjene tegnes kraftigere i et eget objekt, og
+     * stjernene i den løftes i størrelse og styrke.
+     *
+     * `null` rydder opp. Attributtene skrives om — ingen geometri bygges — så
+     * dette kan kalles så ofte man vil.
+     *
+     * @param {{stjerner: number[], linjer: Array<[number,number]>}|null} formasjon
+     */
+    settValgt(formasjon) {
+      const st = starGeo.getAttribute('storrelse')
+      const sty = starGeo.getAttribute('styrke')
+      // Alltid tilbake til grunnverdiene først, ellers hoper løftene seg opp
+      // etter noen valg og himmelen blir gradvis lysere.
+      for (const [katalogIndeks, bufferI] of bufferIndeks) {
+        const mag = STJERNER[katalogIndeks].mag
+        st.array[bufferI] = stjerneStorrelse(mag)
+        sty.array[bufferI] = stjerneStyrke(mag)
+      }
+      if (formasjon?.stjerner?.length) {
+        for (const katalogIndeks of formasjon.stjerner) {
+          const bufferI = bufferIndeks.get(katalogIndeks)
+          if (bufferI == null) continue
+          st.array[bufferI] *= VALGT_STJERNE_FAKTOR
+          sty.array[bufferI] = 1
+        }
+      }
+      st.needsUpdate = true
+      sty.needsUpdate = true
+
+      if (!valgtLinjer) return
+      const par = formasjon?.linjer ?? []
+      const punkter = linjePunkter(par)
+      if (!punkter.length) {
+        valgtLinjer.visible = false
+        return
+      }
+      valgtLinjeGeo.setPositions(punkter)
+      // LineSegmentsGeometry cacher en bounding sphere som three ikke
+      // invaliderer når posisjonene byttes. Den brukes ikke til raycast her,
+      // men frustumCulled er av, så vi nuller den for ordens skyld.
+      valgtLinjeGeo.boundingSphere = null
+      valgtLinjer.visible = true
+    },
     dispose() {
       for (const g of geometrier) g.dispose()
       for (const m of materialer) m.dispose()
