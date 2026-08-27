@@ -350,9 +350,14 @@ export function himmelFor({ lat, lon, dato = new Date() }) {
       ...mh,
       lysAndel: fase.lysAndel,
       voksende: fase.voksende,
+      faseVinkel: fase.faseVinkel,
       // Lyssida dreid fra ZENITH i stedet for fra nordpolen, som er det
       // skjermen faktisk viser.
       lyssideVinkel: wrapPi(fase.lyssideVinkel - parallaktiskVinkel(m.ra, m.dek, lst, lat)),
+      // Selve dreiningen, tatt med for seg: månegloben må RULLE like mye for at
+      // nordpolen på kula skal stå der himmelens nordpol faktisk står. Uten den
+      // ville skyggelinja på kula pekt en annen vei enn sigden man nettopp så.
+      parallaktisk: parallaktiskVinkel(m.ra, m.dek, lst, lat),
     },
     sol: sh,
   }

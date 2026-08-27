@@ -416,6 +416,64 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   du om et stjernebilde i baken, mister teksten formasjonen sin, og testen
   feiler med vilje. Senterretningen regnes av retningsvektorer og ikke av tall —
   et snitt av rektascensjoner over 0h peker midt på motsatt side av himmelen.
+- **Himmelen har ÉN kilde til «hva ser jeg nå?» (v6.0.0).**
+  `lib/tour3d/himmelObjekter.js` er ren og deles av TRE kallere: søkefeltet,
+  trykk-plukkingen i himmelen og infokortets naboer. Uten den ville de hatt hver
+  sin mening om hva som er synlig, og søket ville tilbudt et stjernebilde trykk
+  ikke finner — samme lærdom som mosaikk-regelen over. Lista inneholder BARE det
+  som faktisk tegnes: en formasjon må ha 60 % av stjernene sine over horisonten
+  (`MIN_ANDEL_OPPE`) for å være til å kjenne igjen, og en planet må stå mer enn
+  12° fra sola. En nedtrekksliste som lover noe under horisonten er en felle.
+- **Trykk i himmelen plukkes i SKJERMROM, og ligger der terrenget bommer
+  (v6.0.0).** En stjernebilde-strek er 1,7 px bred og en planetskive 0,45° — å
+  treffe dem med en stråle er praktisk umulig på en telefon. `plukkHimmel` i
+  `scene3d` spør i stedet «hva er nærmest fingeren» innen 46 CSS-px. Den står
+  presis der `handleTap` FØR returnerte på bommet terreng, og kan derfor per
+  konstruksjon ikke stjele et trykk fra en nål, en sti eller GPS-en. Skiver
+  (måne, planeter) veies 18 px foran formasjoner: et trykk PÅ månen skal velge
+  månen, ikke stjernebildet bak.
+- **Månegloben er en OBJEKT-INSPEKTØR, ikke en reise (v6.0.0).**
+  `lib/tour3d/maneGlobe.js`. Eieren ba om en tur TIL månen; det ble forkastet i
+  samråd, fordi det bryter invarianten som gjør 3D til å stole på — *alt du ser
+  står der det faktisk står, sett fra din posisjon* — og fordi det krever et
+  andre kamera-regime, altså nøyaktig gjelden denne seksjonen finnes for. Kula
+  henger `GLOBE_AVSTAND` foran kameraet i månens virkelige himmelretning, og du
+  står fortsatt på kartet ditt. Tre ting som MÅ stå:
+  1. **`vendMot(kamera)` hver frame.** Uten den peker forsida mot verdens +Z,
+     som i denne scenen er SØR — sto månen i nord, så man baksida.
+  2. **Rullen er `−parallaktisk`.** Da står nordpolen der himmelens nordpol
+     faktisk står, og skyggelinja som sigden man nettopp så. Uten den er
+     terminatoren riktig i form og feil i retning.
+  3. **Lyset er et EKTE `DirectionalLight` med `target = mesh`.** Standard-målet
+     er verdens origo, og gruppa står 4 km unna det — uten `target` peker sola
+     mot midten av kartet. At terminatoren er lys og ikke shader er hele grunnen
+     til at kula er en kule: en skive KAN ikke skygges av et lys, og
+     `buildHimmelSkive` tegner derfor en ellipse (som er riktig for 1,6° på
+     himmelen, og bare der).
+  Teksturen er VALGFRI og bakes i CI (`npm run bygg:maanekart`) fordi NASA og
+  USGS er sperret fra utviklingsmiljøene. Uten den tegnes kula i månegrå med
+  samme lys og samme navn. En funksjon som krever en fil som kanskje ikke er der,
+  skal virke uten den.
+- **Stjernestørrelser er i CSS-piksler, og det var en ekte feil (v6.0.0).**
+  `gl_PointSize` og `LineMaterial`-bredder er i FRAMEBUFFER-piksler. Med
+  `setPixelRatio` opptil 2 ble stjernene halv størrelse på telefon — usynlige i
+  felt, upåfallende på desktop. `skyDome` multipliserer derfor med
+  `uPikselForhold`. Og `LineBasicMaterial.linewidth` IGNORERES helt av WebGL:
+  konstellasjonsstrekene må gå gjennom `LineSegments2`/`LineMaterial`, som er
+  prosjektets etablerte vei. `settValgt` nullstiller ALLTID til grunnverdiene
+  først — ellers ganger fremhevings-faktoren seg opp for hvert valg (1,6⁵ = 10×
+  etter fem).
+- **Maksimert modus skjuler alt unntatt himmelsøket (v6.0.0).** Bestillingen kom
+  etter felttest i mørket, og grunnen er fysiologisk: et øye bruker 20–30 minutter
+  på å mørkeadaptere, og en hvit flate kaster bort de minuttene. Søkefeltet MÅ
+  bli stående — er det skjult fordi man ennå ikke har sett opp, er modusen en tom
+  skjerm med to nesten usynlige knapper. Tilstanden persisteres bevisst IKKE: man
+  skal ikke åpne 3D neste gang og finne en skjerm uten knapper.
+- **`royktest.yml` trigget ikke på `src/lib/**` fram til v6.0.0.** Det var en
+  reell luke, ikke en detalj: hele 3D-motoren bor der, og dens egne røyk-sjekker
+  kunne hoppes over uten en lyd. Legger du til en sti i motoren, sjekk at både
+  workflowens `paths` og `MAA_HA_EKTEKART` i `scripts/trenger-ektekart.mjs`
+  dekker den.
 - **Månen er geometri med en fase-shader, ikke en tekstur (v5.27.0).** Den var en
   `THREE.Sprite` med en 128 px radiell gradient, og eieren meldte at den ikke var
   sirkelformet. Samme klasse feil som skyene under: formen kan ikke reddes i

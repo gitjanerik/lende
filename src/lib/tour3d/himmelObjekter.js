@@ -63,6 +63,11 @@ export function himmelObjekter({ lat, lon, dato = new Date() }) {
         hoyde: h.mane.hoyde,
         lysAndel: h.mane.lysAndel,
         voksende: h.mane.voksende,
+        // Med til månegloben: fase, lyssidens retning på skjermen, og rullen
+        // som setter kula i samme stilling som sigden på himmelen.
+        faseVinkel: h.mane.faseVinkel,
+        lyssideVinkel: h.mane.lyssideVinkel,
+        parallaktisk: h.mane.parallaktisk,
         sokeNavn: ['Månen', 'Måne', 'Luna', 'Moon'],
       })
     }

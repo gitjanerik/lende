@@ -119,6 +119,19 @@ const himmelSokSynlig = computed(() =>
   && (maksimert.value || serOpp.value || !!valgtHimmel.value))
 const himmelNaboer = computed(() => naboerFor(valgtHimmel.value, himmelListe.value, 3))
 
+// ---- Månegloben ----------------------------------------------------------
+// Trykk på månen og skiva blir en kule man kan snurre. Labelene kommer fra
+// motoren som SKJERMKOORDINATER (motoren har kameraet; viseren har DOM-en), og
+// oppdateres ~8 ganger i sekundet — nok til at navnene henger med i draget uten
+// en Vue-oppdatering pr frame.
+const maneGlobeAapen = ref(false)
+const maneTrekk = ref([])
+function lukkManeGlobe() {
+  engine?.lukkManeGlobe()
+  maneGlobeAapen.value = false
+  maneTrekk.value = []
+}
+
 function byggHimmelListe() {
   const m = props.meta
   if (!m?.widthM || !m?.heightM) return
@@ -134,6 +147,12 @@ function byggHimmelListe() {
 function velgHimmel(o) {
   valgtHimmel.value = o ?? null
   engine?.velgHimmel(o ? toRaw(o) : null)
+  // Motoren melder tilbake gjennom 'mane-globe', men bare når tilstanden
+  // FAKTISK endret seg. Velger man noe annet enn månen, er kula lukket her og nå.
+  if (o?.type !== 'mane') {
+    maneGlobeAapen.value = false
+    maneTrekk.value = []
+  }
 }
 // Fingeren ligger nede og ser seg rundt fra et frosset punkt (følge-riggens
 // hold). Vises som et hint så den som fant det ved uhell skjønner hva som skjer.
@@ -353,6 +372,11 @@ async function byggMotor() {
     // Trykk i himmelen: motoren har alt fremhevet og rettet blikket, viseren
     // åpner kortet.
     engine.on('himmel-valgt', ({ objekt }) => { valgtHimmel.value = objekt })
+    engine.on('mane-globe', ({ apen }) => {
+      maneGlobeAapen.value = !!apen
+      if (!apen) maneTrekk.value = []
+    })
+    engine.on('mane-trekk', ({ trekk }) => { maneTrekk.value = trekk ?? [] })
     // Severdighet turen stopper ved av seg selv.
     engine.on('feature-enter', ({ feature }) => { stopFeature.value = feature })
     engine.on('feature-exit', () => { stopFeature.value = null })
@@ -724,6 +748,23 @@ function branchLabel(opt, i) {
     <div class="fixed inset-0 z-[220] bg-[#101623] flex flex-col" style="height: 100dvh;">
       <div ref="canvasHost" class="absolute inset-0"></div>
 
+      <!-- MÅNEGLOBENS NAVN. Absolutt plassert over lerretet, uten peker-treff:
+           fingeren skal snurre kula, ikke treffe en label. Navnene står med det
+           norske først der det finnes et — «Regnhavet» er til å huske, «Mare
+           Imbrium» er til å slå opp. -->
+      <div v-if="maneGlobeAapen && maneTrekk.length"
+           class="absolute inset-0 z-[5] pointer-events-none" aria-hidden="true">
+        <div v-for="t in maneTrekk" :key="t.navn"
+             class="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center"
+             :style="{ left: `${t.x}px`, top: `${t.y}px` }">
+          <span class="w-1 h-1 rounded-full bg-white/70"></span>
+          <span class="mt-0.5 text-[0.5625rem] leading-tight text-white/80
+                       [text-shadow:0_1px_3px_rgba(0,0,0,0.9)] whitespace-nowrap">
+            {{ t.norsk ?? t.navn }}
+          </span>
+        </div>
+      </div>
+
       <!-- Topprad: Pin · Sol/måne · Sti · Kryss|Stopp · Kurver — venstrestilt,
            med X aleine helt til høyre. Høyrestilt raden vokste mot venstre, og
            med seks knapper falt den første ut av skjermen på smale telefoner
@@ -889,6 +930,7 @@ function branchLabel(opt, i) {
       <div v-if="phase === 'ready' && valgtHimmel"
            class="relative z-10 px-3 mt-2 flex justify-center max-h-[52vh] overflow-y-auto">
         <Tour3dHimmelKort :objekt="valgtHimmel" :naboer="himmelNaboer"
+                          :globe-aapen="maneGlobeAapen"
                           @lukk="velgHimmel(null)" @velg="velgHimmel"/>
       </div>
 

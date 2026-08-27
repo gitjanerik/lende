@@ -1,3 +1,44 @@
+## 2026-08-27 — v6.0.0: Stjernekikkeren — utforsk himmelen fra kartet
+
+3D-visningen har hatt en astronomisk riktig natthimmel siden v5.27.0, og et
+kamera som kan se opp i den. Nå kan man UTFORSKE den. I nattmodus uten vær, når
+blikket er løftet mot himmelen, kommer et søkefelt som også er en nedtrekksliste
+over det som FAKTISK står over horisonten her og nå: 13 stjernebilder, de
+synlige planetene og månen. Velg ett — fra lista, ved å skrive, eller ved å
+trykke rett på det i himmelen — og stjernene og strekene lyser opp mens kameraet
+retter blikket dit. Infokortet gir navn, latinsk navn, antall stjerner, hvordan
+du finner figuren, mytologien bak, en fun fact — og snarveier til de nærmeste
+naboene, som er den beste måten å lære seg en himmel. Trykker du på månen, blir
+skiva en kule du kan snurre, med navngitte hav og krater og kveldens ekte
+skyggelinje. Alt regnes ut på telefonen: stjernene er en bakt katalog fra HYG,
+planetene JPLs baneelementer løst med Keplers likning, sol og måne Meeus'
+serier. En klar natt på fjellet har sjelden dekning, og et stjerne-API ville
+gjort funksjonen ubrukelig nettopp der man står og ser opp.
+
+**Månegloben er en objekt-inspektør, ikke en reise.** Eieren ba opprinnelig om
+en tur TIL månen. Det ble forkastet i samråd: det bryter invarianten som gjør
+3D-visningen til å stole på — *alt du ser står der det faktisk står, sett fra din
+posisjon på kartet* — og det ville krevd et andre kamera-regime, som er den
+gjelden CLAUDE.md advarer sterkest mot. Kula henger derfor i månens virkelige
+himmelretning, et fast stykke foran kameraet, og ruller like mye som den
+parallaktiske vinkelen slik at skyggelinja står som sigden du nettopp så.
+Terminatoren er ET EKTE LYS fra solas virkelige retning, ikke en shader-effekt:
+en skive KAN ikke skygges av et lys, en kule kan.
+
+**Nattsynet, etter felttest i mørket.** Stjernene og strekene var nesten
+usynlige på telefon, og årsaken var ikke smak: `gl_PointSize` og
+`LineMaterial`-bredder er i FRAMEBUFFER-piksler, og med `setPixelRatio` opptil 2
+ble alt halv størrelse. `LineBasicMaterial.linewidth` ignoreres dessuten helt av
+WebGL. Begge er rettet, og størrelsene er nå i CSS-piksler. I tillegg skjuler en
+ny maksimer-knapp alt UI unntatt himmelsøket, som flytter seg helt øverst:
+hvite flater koster de 20–30 minuttene et øye bruker på å mørkeadaptere.
+
+**Og en gate-luke som var reell:** røyktesten trigget ikke på `src/lib/**`, så
+3D-motorens egne røyk-sjekker kunne hoppes helt over. Denne endringen falt
+gjennom den. Den er tettet.
+
+---
+
 ## 2026-08-27 — v5.28.0: Stjernehimmelen sto 16 bueminutter feil
 
 Grunnlaget for stjernekikkeren som kommer i 6.0.0. Ingenting nytt å se ennå —

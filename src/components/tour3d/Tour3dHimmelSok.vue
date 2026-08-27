@@ -108,7 +108,7 @@ watch(() => props.objekter, () => {
       </div>
 
       <!-- Lista rulles, og taket er satt i vh så den aldri dekker hele himmelen. -->
-      <ul v-if="treff.length"
+      <ul v-if="treff.length" aria-label="Treff på himmelen"
           class="max-h-[46vh] overflow-y-auto [scrollbar-width:thin]">
         <li v-for="o in treff" :key="o.id">
           <button @click="velg(o)"

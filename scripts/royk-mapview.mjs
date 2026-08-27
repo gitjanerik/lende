@@ -962,6 +962,135 @@ const SJEKKER = [
     },
   },
   {
+    navn: 'stjernekikkeren finner, velger og forteller',
+    domene: 'himmelObjekter + Tour3dHimmelSok/Kort + maksimert modus',
+    // Krever ekte kart: hele stjernekikkeren henger på nattmodus i 3D, og uten
+    // DEM finnes verken knappene eller den frie riggen å dra i.
+    krever: 'ektekart',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await klikkTekst(page, /^3D$/)
+      const klar = await page.waitForFunction(() => {
+        const c = document.querySelector('canvas')
+        if (c && c.width > 0) return 'canvas'
+        if (/Ingen høydedata/i.test(document.body.innerText)) return 'ingen-dem'
+        return false
+      }, null, { timeout: 60_000 }).then((h) => h.jsonValue())
+      await page.waitForFunction(
+        () => !/Skjerper kartbildet/i.test(document.body.innerText),
+        null, { timeout: 45_000 },
+      ).catch(() => { /* meldingen kan ha kommet og gått */ })
+      await page.waitForTimeout(800)
+
+      const lukk = async () => {
+        await page.locator('button[aria-label="Lukk 3D-visning"]').click({ timeout: 5000 })
+        await page.waitForFunction(() => !document.querySelector('canvas'), null, { timeout: 8000 })
+      }
+      if (klar === 'ingen-dem') {
+        await lukk()
+        return 'ingen-dem-melding — stjernekikkeren kan ikke prøves uten terreng'
+      }
+
+      // NATT UTEN VÆR, deterministisk. Vær-biten huskes i localStorage og
+      // dag/natt-biten avledes av kart-temaet, så vi kan ikke ANTA noe steg. Vi
+      // leser sol/måne-knappens aria-label — den sier hva NESTE trykk gjør — og
+      // trykker til den står på «Vis vær om natta», som er nøyaktig tilstanden
+      // natt-uten-vær. Startsteget huskes så vi kan gi det tilbake til slutt.
+      const STEG = ['Vis vær', 'Bytt til natt', 'Vis vær om natta', 'Bytt til dag uten vær']
+      const lesSteg = () => page.evaluate((steg) =>
+        [...document.querySelectorAll('button[aria-label]')]
+          .map((b) => b.getAttribute('aria-label'))
+          .find((l) => steg.includes(l)) ?? null, STEG)
+      const start = await lesSteg()
+      if (!start) throw new Error('fant ikke sol/måne-knappen')
+      let steg = start
+      for (let i = 0; i < 4 && steg !== 'Vis vær om natta'; i++) {
+        await page.locator(`button[aria-label="${steg}"]`).click({ timeout: 8000 })
+        await page.waitForTimeout(900)
+        steg = await lesSteg()
+      }
+      if (steg !== 'Vis vær om natta') throw new Error('kom ikke til natt uten vær')
+
+      // Løft blikket. Høyre knapp (venstre panorerer) og OPPOVER — se
+      // himmelvipp-sjekken over for begge fortegnene, de var feil i første utgave.
+      const vp = page.viewportSize()
+      const x0 = Math.round(vp.width / 2)
+      const y0 = Math.round(vp.height * 0.85)
+      await page.mouse.move(x0, y0)
+      await page.mouse.down({ button: 'right' })
+      for (let i = 1; i <= 60; i++) {
+        await page.mouse.move(x0, y0 - i * 10)
+        if (i % 12 === 0) await page.waitForTimeout(60)
+      }
+      await page.mouse.up({ button: 'right' })
+      await page.waitForTimeout(900)
+
+      // Søkefeltet skal ha kommet nå, som pille.
+      const pille = page.locator('button[aria-label="Finn et stjernebilde eller en planet"]')
+      await pille.waitFor({ state: 'visible', timeout: 8000 })
+      await pille.click({ timeout: 5000 })
+      await page.waitForTimeout(300)
+
+      // Lista skal inneholde noe — himmelen over Vardåsen har alltid noen
+      // formasjoner oppe, uansett dato. En tom liste er en ekte feil.
+      const forste = await page.evaluate(() => {
+        const b = document.querySelector('ul[aria-label="Treff på himmelen"] li button')
+        return b ? (b.querySelector('span.block')?.textContent ?? '').trim() : null
+      })
+      if (!forste) throw new Error('himmellista var tom — ingenting å velge')
+      await page.locator('ul[aria-label="Treff på himmelen"] li button').first()
+        .click({ timeout: 5000 })
+      await page.waitForTimeout(1600)
+
+      // Infokortet skal ha åpnet seg, og det skal handle om det vi valgte.
+      const kortTekst = await page.evaluate(() => document.body.innerText)
+      if (!kortTekst.includes(forste)) {
+        throw new Error(`valgte «${forste}», men kortet nevner den ikke`)
+      }
+      if (!/over horisonten/i.test(kortTekst)) {
+        throw new Error('infokortet mangler retning og høyde — det er linja man trenger')
+      }
+
+      // MAKSIMERT MODUS: alt UI unntatt himmelsøket skal bort. Bestillingen etter
+      // felttesten i mørket var konkret — «Oversikt» og himmel-hintet skal skjules,
+      // fordi hvite flater ødelegger nattsynet.
+      await page.locator('button[aria-label="Skjul alt utenom himmelsøket"]').click({ timeout: 8000 })
+      await page.waitForTimeout(500)
+      const iMaksimert = await page.evaluate(() => ({
+        oversikt: /\bOversikt\b/.test(document.body.innerText),
+        hint: /Ser opp i himmelen/i.test(document.body.innerText),
+        sok: !!document.querySelector('button[aria-label^="Valgt:"], button[aria-label="Finn et stjernebilde eller en planet"]'),
+      }))
+      if (iMaksimert.oversikt) throw new Error('«Oversikt» står fortsatt i maksimert modus')
+      if (iMaksimert.hint) throw new Error('himmel-hintet står fortsatt i maksimert modus')
+      if (!iMaksimert.sok) throw new Error('himmelsøket forsvant i maksimert modus — da er skjermen tom')
+
+      // Og tilbake: knappene skal komme igjen. En enveisdør her ville låst
+      // brukeren ute av alt annet enn stjernene.
+      await page.locator('button[aria-label="Vis knappene igjen"]').click({ timeout: 8000 })
+      await page.waitForTimeout(500)
+      const tilbake = await page.evaluate(() => /\bOversikt\b/.test(document.body.innerText))
+      if (!tilbake) throw new Error('maksimert modus slapp ikke knappene tilbake')
+
+      // NØYTRAL TILSTAND (v5.8.1-fella): rydd valget, ta blikket ned, og gi
+      // sol/måne-knappen tilbake steget den sto på — ellers arver neste sjekk
+      // en 3D-visning i nattmodus med et infokort i bildet.
+      await page.locator('button[aria-label="Lukk infokortet"]').click({ timeout: 5000 })
+      await page.waitForTimeout(400)
+      await klikkTekst(page, /^Oversikt$/)
+      await page.waitForTimeout(1400)
+      let na = await lesSteg()
+      for (let i = 0; i < 4 && na !== start; i++) {
+        await page.locator(`button[aria-label="${na}"]`).click({ timeout: 8000 })
+        await page.waitForTimeout(900)
+        na = await lesSteg()
+      }
+      if (na !== start) throw new Error(`etterlot sol/måne på «${na}», ikke «${start}»`)
+      await lukk()
+      return `valgte «${forste}», kortet åpnet, maksimert modus skjulte resten`
+    },
+  },
+  {
     // v5.25.6-regresjonsvakt. Står SIST med vilje: sjekken setter kart-temaet,
     // og kart-temaet er inngangsverdi for 3D-visningens dag/natt-tilstand.
     // Første plassering var midt i lista, og da arvet sol/måne-sjekken et lyst

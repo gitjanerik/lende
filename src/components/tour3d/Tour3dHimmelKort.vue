@@ -21,6 +21,8 @@ const props = defineProps({
   objekt: { type: Object, default: null },
   // De nærmeste andre, fra naboerFor().
   naboer: { type: Array, default: () => [] },
+  // Månegloben står framme. Da trenger kortet å si hvordan man snurrer den.
+  globeAapen: { type: Boolean, default: false },
 })
 const emit = defineEmits(['lukk', 'velg'])
 
@@ -80,6 +82,23 @@ const faseNavn = computed(() => {
         {{ faseNavn }} · {{ Math.round(objekt.lysAndel * 100) }} % opplyst
       </div>
 
+      <!-- Månen: hvordan man bruker kula, og det ene faktumet som forklarer
+           hvorfor man aldri får se hele den. -->
+      <template v-if="objekt.type === 'mane'">
+        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/35">Månegloben</div>
+        <p class="text-[0.6875rem] leading-relaxed text-white/70">
+          <template v-if="globeAapen">Dra for å snurre kula, og trykk én gang for å
+            legge den tilbake på himmelen. Skyggelinja er der den faktisk er i
+            kveld.</template>
+          <template v-else>Trykk på månen for å se den som en kule du kan snurre.</template>
+        </p>
+        <p class="mt-1 text-[0.6875rem] leading-relaxed text-white/70">
+          Månen snur alltid samme side mot oss — den bruker like lang tid på én
+          runde om sin egen akse som om jorda. Snurrer du forbi kanten, ser du
+          baksida, som ingen på jorda har sett med egne øyne.
+        </p>
+      </template>
+
       <!-- Teksten for stjernebildene. -->
       <template v-if="objekt.info">
         <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/35">Finn den</div>
@@ -107,7 +126,7 @@ const faseNavn = computed(() => {
       </template>
     </div>
 
-    <button @click="emit('lukk')" aria-label="Lukk"
+    <button @click="emit('lukk')" aria-label="Lukk infokortet"
             class="w-7 h-7 shrink-0 flex items-center justify-center text-white/45
                    active:scale-90">
       <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
