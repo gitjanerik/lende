@@ -40,10 +40,12 @@ grønne — 3D krever WebGL, så ingenting som ikke kjører en nettleser kan se 
 Vinklene settes nå slik kontrollen selv leser dem, ved å plassere kameraet i
 sfæriske koordinater rundt blikkpunktet. Konvensjonen er three sin egen og er
 testet mot `Spherical`, for et ombyttet fortegn ville sendt kameraet til motsatt
-side av himmelen uten å kaste. Og røyktesten kunne selv HENGE uten å skrive en
-linje: taket pr sjekk har stått siden august, men `page.screenshot` etterpå sto
-utenfor det, og et skjermbilde mot en frossen renderer venter i det uendelige.
-Nå har begge tak, og jobben en bakstopper på 30 minutter.
+side av himmelen uten å kaste. Røyktesten er samtidig strammet
+inn på et sted taket pr sjekk ikke dekket: `page.screenshot` etter hver sjekk
+sto utenfor det, og et skjermbilde mot en frossen renderer venter i det
+uendelige — da henger jobben likevel, og uten at noe navn er skrevet. Nå har
+begge tak, hvert `page.evaluate` i stjerne-sjekkene har sitt eget, og jobben og
+røyktest-steget har hver sin bakstopper.
 
 **Og en gate-luke som var reell:** røyktesten trigget ikke på `src/lib/**`, så
 3D-motorens egne røyk-sjekker kunne hoppes helt over. Denne endringen falt

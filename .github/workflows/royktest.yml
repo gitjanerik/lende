@@ -103,11 +103,11 @@ jobs:
       # og RAPPORTERER hva den hoppet over — en PR skal ikke blokkeres av at
       # Overpass har en dårlig dag.
       - name: Røyktest
-        # STEG-TAK I TILLEGG TIL JOBB-TAKET. Jobbens `timeout-minutes` skal
-        # dekke dette, men på kjøringen som avdekket problemet gjorde den det
-        # IKKE — jobben sto over en halvtime forbi taket og måtte kanselleres
-        # for hånd. Et steg-tak er nærmere det som henger, og gir loggen fra
-        # stegene før seg. To tak er ikke overdrevet når det ene har sviktet.
+        # STEG-TAK I TILLEGG TIL JOBB-TAKET. Jobb-taket dekker hele jobben og
+        # sier bare AT den brukte for lang tid; steg-taket peker på hvilket steg,
+        # og lar stegene etter (ruting, navnediff) kjøre og rapportere. Det er
+        # dette steget som eier en nettleser og dermed det eneste som kan bli
+        # sittende fast.
         timeout-minutes: 20
         run: |
           if [ "${{ steps.kart.outputs.ekte }}" = "1" ]; then

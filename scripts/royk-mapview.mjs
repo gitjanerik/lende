@@ -1452,12 +1452,13 @@ try {
       console.log(`✗ ${s.navn} — ${err.message}`)
       kode = 1
     }
-    // SKJERMBILDET MÅ HA SAMME TAK SOM SJEKKEN. Det sto utenfor til v6.0.0, og
-    // det var hele hullet: taket over gjør en hengt sjekk til en lesbar feil,
-    // men `page.screenshot` mot en renderer som står bom fast venter i det
-    // uendelige — og da henger jobben likevel, nå UTEN at noe navn er skrevet.
-    // Målt: en royk-jobb sto i over halvannen time her, med to av tre CI-jobber
-    // grønne og ingen logg å lese, fordi loggen skrives til slutt.
+    // SKJERMBILDET MÅ HA SAMME TAK SOM SJEKKEN. Det sto utenfor fram til v6.0.0,
+    // og det er et hull i nettopp den beskyttelsen taket over finnes for: taket
+    // gjør en hengt sjekk til en lesbar feil, men `page.screenshot` mot en
+    // renderer som står fast venter i det uendelige — og da henger jobben
+    // likevel, nå UTEN at noe navn er skrevet, siden loggen skrives til slutt.
+    // Ingen målt hendelse bak dette; det er samme klasse feil som taket over
+    // ble laget for, lukket på samme sted.
     if (BILDER) {
       await medTak(
         page.screenshot({ path: `${BILDER}/${s.domene}.png` }),
