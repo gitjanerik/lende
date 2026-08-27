@@ -5,10 +5,12 @@
 
 import {
   SphereGeometry, ShaderMaterial, Mesh, BackSide, Color, Fog,
-  CanvasTexture, SpriteMaterial, Sprite, Group, SRGBColorSpace,
+  Group, PlaneGeometry, DoubleSide,
   BufferGeometry, BufferAttribute, PointsMaterial, Points, AdditiveBlending,
   LineSegments, LineBasicMaterial,
 } from 'three'
+import { STJERNER, LINJER } from './stjerner.js'
+import { himmelFor, lokalStjernetid, tilHorisont, horisontTilWorld } from './astronomi.js'
 
 const ZENITH = '#3d7ec9'
 const HORIZON = '#dbe9f5'
@@ -59,99 +61,331 @@ export function makeFog(maxDimM) {
   return new Fog(new Color(FOG_COLOR), maxDimM * 0.6, maxDimM * 2.6)
 }
 
-// Dus måne: myk radiell gradient uten skarp kant, så den leses som lys bak
-// tynne skyer framfor en klistret disk.
-function moonTexture() {
-  const px = 128
-  const canvas = document.createElement('canvas')
-  canvas.width = px
-  canvas.height = px
-  const ctx = canvas.getContext('2d')
-  const g = ctx.createRadialGradient(px / 2, px / 2, 0, px / 2, px / 2, px / 2)
-  g.addColorStop(0, 'rgba(255,252,235,0.95)')
-  g.addColorStop(0.42, 'rgba(250,246,225,0.72)')
-  g.addColorStop(0.62, 'rgba(226,232,240,0.22)')
-  g.addColorStop(1, 'rgba(226,232,240,0)')
-  ctx.fillStyle = g
-  ctx.fillRect(0, 0, px, px)
-  const tex = new CanvasTexture(canvas)
-  tex.colorSpace = SRGBColorSpace
-  return tex
-}
+// Månen. Astronomisk plassert, i riktig fase, og en EKTE SIRKEL.
+//
+// Fram til v5.27.0 var den en THREE.Sprite med en 128 px radiell gradient, og
+// eieren meldte at den ikke var sirkelformet. Det er samme klasse feil som
+// puff-skyene brukte åtte forsøk på (se kommentaren nederst i fila): formen kan
+// ikke reddes i teksturen når det er teksturveien som er problemet. Så vi tok
+// teksturen ut av ligningen. En shader som forkaster alt utenfor r = 1 KAN ikke
+// tegne noe annet enn en sirkel — uansett driver, mipmap-generering, fargerom
+// eller nær-plan. Og fasen falt ut som en gratis bonus, siden vi nå eier hvert
+// piksel i skiva.
+//
+// Skiva vender alltid mot kameraet, og her er billboardet det RIKTIGE svaret og
+// ikke en snarvei: månen ER en flat skive sett fra jorda.
+
+// Vinkelstørrelse. Den virkelige månen er 0,52° — det er ni piksler på en
+// telefon, altså en lys prikk man ikke kan se fase på. Vi tegner den tre ganger
+// for stor. Det er en bevisst kartografisk overdrivelse, som symbolstørrelsene
+// i ISOM-katalogen: den skal LESES, ikke måles.
+const MANE_GRADER = 1.6
+// Nattsida er ikke svart: jordskinn (og øyets egen tilpasning) gjør at man ser
+// den mørke delen som en svak skive. Uten den leses en halvmåne som en løsrevet
+// bue framfor en kule.
+const JORDSKINN = 0.055
 
 /**
- * Nattehimmel: én dus måne høyt på kuppelen og et knippe bitte små gule
- * stjerner. Bare synlig i nattmodus — setNight() styrer hele gruppa.
+ * @param {{radius?: number, avstand?: number}} [opts]
+ * @returns {{group: Group, sett: (m: object) => void, update: (camera: object) => void,
+ *            geometries: object[], materials: object[], dispose: () => void}}
+ */
+export function buildMane({ radius = 25000, avstand = null } = {}) {
+  const r = avstand ?? radius * 0.82
+  const geometry = new PlaneGeometry(1, 1)
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    side: DoubleSide,
+    uniforms: {
+      // 0 = nymåne, 1 = fullmåne.
+      uLysAndel: { value: 0.75 },
+      // Retningen til den LYSE randen, radianer, målt mot klokka fra «opp» på
+      // skjermen. Den avgjør hvilken vei månen er skåret; uten den peker en
+      // halvmåne tilfeldig.
+      uLysside: { value: 0 },
+      uFarge: { value: new Color('#fdf6df') },
+      uJordskinn: { value: JORDSKINN },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float uLysAndel;
+      uniform float uLysside;
+      uniform vec3 uFarge;
+      uniform float uJordskinn;
+      varying vec2 vUv;
+
+      void main() {
+        // Enhetsskiva: p i [-1, 1]². Alt utenfor r = 1 finnes ikke.
+        vec2 p = (vUv - 0.5) * 2.0;
+        float r = length(p);
+        if (r > 1.0) discard;
+
+        // Roter inn i lyssidas system: u peker MOT den lyse randen.
+        float c = cos(uLysside);
+        float sn = sin(uLysside);
+        // «Opp» dreid mot klokka med uLysside blir (-sin, cos).
+        vec2 lys = vec2(-sn, c);
+        float u = dot(p, lys);
+        float v = dot(p, vec2(lys.y, -lys.x));
+
+        // Terminatoren på en kule projisert på skiva er en halv ellipse:
+        //   u_t = -cos(fasevinkel) * sqrt(1 - v²),  cos(fase) = 2k - 1
+        // k = 1 gir u_t på venstre kant (alt lyst), k = 0 på høyre (alt mørkt),
+        // k = 0,5 gir u_t = 0 — en rett skillelinje, altså halvmåne.
+        float kant = sqrt(max(0.0, 1.0 - v * v));
+        float ut = -(2.0 * uLysAndel - 1.0) * kant;
+        // Mykning på tvers av terminatoren. Skalert med kant slik at overgangen
+        // ikke blir en hard hakk der terminatoren møter randen.
+        float myk = 0.035 + 0.10 * (1.0 - kant);
+        float lyst = smoothstep(ut - myk, ut + myk, u);
+
+        // Randen: en myk kant i stedet for en trappet sirkel. Bredden er i
+        // skive-enheter, så den følger skalaen og ikke pikslene.
+        float rand = 1.0 - smoothstep(0.965, 1.0, r);
+
+        float styrke = mix(uJordskinn, 1.0, lyst);
+        gl_FragColor = vec4(uFarge * (0.55 + 0.45 * styrke), styrke * rand);
+      }
+    `,
+  })
+  const mesh = new Mesh(geometry, material)
+  // Skala fra ønsket vinkelstørrelse ved kjent avstand. Avstanden er konstant
+  // fordi himmelen følger kameraet (sceneCore.updateAmbient), så dette regnes
+  // ut én gang — månen skal ikke vokse når man flyr mot den.
+  const bredde = 2 * r * Math.tan((MANE_GRADER * Math.PI / 180) / 2)
+  mesh.scale.setScalar(bredde)
+  mesh.frustumCulled = false
+
+  const group = new Group()
+  group.add(mesh)
+
+  return {
+    group,
+    mesh,
+    geometries: [geometry],
+    materials: [material],
+    /**
+     * Sett månen der himmelen sier den står, i den fasen den har.
+     * @param {{azimut:number, hoyde:number, lysAndel:number, lyssideVinkel:number}} m
+     */
+    sett(m) {
+      if (!m || !Number.isFinite(m.azimut) || !Number.isFinite(m.hoyde)) return
+      const [x, y, z] = horisontTilWorld(m.azimut, m.hoyde, r)
+      mesh.position.set(x, y, z)
+      material.uniforms.uLysAndel.value = Math.max(0, Math.min(1, m.lysAndel ?? 0.75))
+      material.uniforms.uLysside.value = Number.isFinite(m.lyssideVinkel) ? m.lyssideVinkel : 0
+      // Månen under horisonten skal ikke stå og lyse gjennom fjellet. −2° og
+      // ikke 0: en måne som står halvveis i horisonten er riktig, og terrenget
+      // klipper den selv.
+      mesh.visible = m.hoyde > -2 * Math.PI / 180
+    },
+    /** Vend skiva mot kameraet. Månen ER en flat skive sett fra jorda. */
+    update(camera) {
+      if (camera) mesh.quaternion.copy(camera.quaternion)
+    },
+    dispose() {
+      geometry.dispose()
+      material.dispose()
+    },
+  }
+}
+
+// Stjernestørrelse fra magnitude. Lineær i magnitude, som er en logaritmisk
+// skala — det er nettopp derfor det ser riktig ut: øyet leser lysstyrke
+// logaritmisk. Takene er piksler på skjermen (sizeAttenuation er av i
+// praksis: vi setter gl_PointSize direkte), så de skalerer ikke med avstanden.
+function stjerneStorrelse(mag) {
+  return Math.max(1.1, Math.min(5.0, 4.6 - 0.62 * mag))
+}
+function stjerneStyrke(mag) {
+  return Math.max(0.32, Math.min(1, 1.05 - 0.115 * mag))
+}
+
+// Under horisonten er stjerna under bakken, og der har den ingenting å gjøre.
+// −1° og ikke 0: en stjerne rett i horisonten er riktig, og terrenget dekker
+// den selv.
+const HORISONT_MARGIN = -1 * Math.PI / 180
+
+// Hvor kraftig stjernebilde-linjene tegnes. Smak, ikke mekanikk: for høyt og
+// himmelen blir et planetarium, for lavt og 147 riktige punkter er ikke til å
+// skille fra 160 tilfeldige.
+const LINJE_OPASITET = 0.13
+
+/**
+ * Nattehimmel: ekte stjerner der de faktisk står, stjernebilde-linjer som gjør
+ * dem gjenkjennelige, og månen i riktig posisjon og fase. Bare synlig i
+ * nattmodus — setNight() styrer hele gruppa.
  *
  * Stjernene er ett Points-objekt (ikke sprites): én draw call, ingen tekstur,
- * og `sizeAttenuation: false` gjør at de holder samme pikselstørrelse uansett
- * hvor kuppelen er — de skal være prikker, ikke kuler man flyr forbi.
- * Legges på kuppel-radius × 0.9 så de ligger innenfor himmelen men langt
- * utenfor terrenget, og frustumCulled er av siden vi følger kameraet.
+ * og gl_PointSize settes direkte i piksler, så de holder samme størrelse uansett
+ * hvor kuppelen er — de skal være prikker, ikke kuler man flyr forbi. Størrelsen
+ * varierer med magnitude, som er hele grunnen til at Karlsvogna leses som
+ * Karlsvogna og ikke som sju like prikker.
+ *
+ * Himmelen er STATISK, satt ved bygging. Den roterer 15° i timen, som er usynlig
+ * i en 3D-økt — og en animert stjernehimmel ville vært en presisjon vi ikke har
+ * bruk for. Trengs et nytt tidspunkt, bygges natthimmelen på nytt.
+ *
+ * Uten lat/lon (ødelagt meta, syntetisk kart) faller vi tilbake på et
+ * pseudo-tilfeldig stjernefelt. Det er den gamle himmelen, og den er bedre enn
+ * en tom kuppel.
+ *
+ * @param {{radius?: number, lat?: number|null, lon?: number|null, dato?: Date,
+ *          starCount?: number}} [opts]
  */
-export function buildNightSky({ radius = 25000, starCount = 160 } = {}) {
+export function buildNightSky({
+  radius = 25000, lat = null, lon = null, dato = null, starCount = 160,
+} = {}) {
   const group = new Group()
   group.visible = false
 
-  const rnd = mulberry32(1337)
   const r = radius * 0.9
-  const pos = new Float32Array(starCount * 3)
-  for (let i = 0; i < starCount; i++) {
-    // Jevnt fordelt over øvre halvkule: cos-vektet høyde unngår klumping i senit.
-    const az = rnd() * Math.PI * 2
-    const h = 0.12 + rnd() * 0.88            // sin(elevasjon), aldri helt i horisonten
-    const ring = Math.sqrt(Math.max(0, 1 - h * h))
-    pos[i * 3] = Math.cos(az) * ring * r
-    pos[i * 3 + 1] = h * r
-    pos[i * 3 + 2] = Math.sin(az) * ring * r
+  const ekteHimmel = Number.isFinite(lat) && Number.isFinite(lon)
+
+  // --- Stjernene ----------------------------------------------------------
+  const pos = []
+  const storrelse = []
+  const styrke = []
+  // Katalog-indeks → indeksen stjerna fikk i bufferet, for linjene. Stjerner
+  // under horisonten er ikke i bufferet i det hele tatt.
+  const bufferIndeks = new Map()
+
+  if (ekteHimmel) {
+    const lst = lokalStjernetid(dato ?? new Date(), lon)
+    for (let i = 0; i < STJERNER.length; i++) {
+      const s = STJERNER[i]
+      const { azimut, hoyde } = tilHorisont(s.ra, s.dek, lst, lat)
+      if (hoyde < HORISONT_MARGIN) continue
+      const [x, y, z] = horisontTilWorld(azimut, hoyde, r)
+      bufferIndeks.set(i, pos.length / 3)
+      pos.push(x, y, z)
+      storrelse.push(stjerneStorrelse(s.mag))
+      styrke.push(stjerneStyrke(s.mag))
+    }
+  } else {
+    const rnd = mulberry32(1337)
+    for (let i = 0; i < starCount; i++) {
+      // Jevnt fordelt over øvre halvkule: cos-vektet høyde unngår klumping i senit.
+      const az = rnd() * Math.PI * 2
+      const h = 0.12 + rnd() * 0.88            // sin(elevasjon), aldri helt i horisonten
+      const ring = Math.sqrt(Math.max(0, 1 - h * h))
+      pos.push(Math.cos(az) * ring * r, h * r, Math.sin(az) * ring * r)
+      storrelse.push(1.6 + rnd() * 1.6)
+      styrke.push(0.55 + rnd() * 0.4)
+    }
   }
+
   const starGeo = new BufferGeometry()
-  starGeo.setAttribute('position', new BufferAttribute(pos, 3))
-  const starMat = new PointsMaterial({
-    color: new Color('#ffe9a3'),
-    size: 2.4,
-    sizeAttenuation: false,
+  starGeo.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3))
+  starGeo.setAttribute('storrelse', new BufferAttribute(new Float32Array(storrelse), 1))
+  starGeo.setAttribute('styrke', new BufferAttribute(new Float32Array(styrke), 1))
+  // Egen shader framfor PointsMaterial, fordi størrelse PER stjerne er hele
+  // poenget: med én felles `size` blir Sirius og en 4. størrelses stjerne like
+  // store, og da bærer ingen av stjernebildene.
+  //
+  // Ingen fog-chunk her, som var en egen rettelse i v5.3.0: makeFog setter far
+  // til maxDim × 2,6, så på ethvert kart smalere enn ~8,6 km lå hele
+  // stjerneskallet UTENFOR tåka og ble malt i ren tåkefarge — altså usynlig.
+  const starMat = new ShaderMaterial({
     transparent: true,
-    opacity: 0.9,
     depthWrite: false,
     blending: AdditiveBlending,
-    // Tåka må ikke røre stjernene (v5.3.0). makeFog setter far til
-    // maxDim × 2.6, så på ethvert kart smalere enn ~8,6 km lå hele
-    // stjerneskallet (22 500) UTENFOR tåka og ble malt i ren tåkefarge —
-    // altså usynlig mot nattehimmelen. Kuppelen slipper unna fordi den
-    // bruker en egen shader uten fog-chunk; her må det sies eksplisitt.
-    fog: false,
+    uniforms: { uFarge: { value: new Color('#ffeec4') } },
+    vertexShader: `
+      attribute float storrelse;
+      attribute float styrke;
+      varying float vStyrke;
+      void main() {
+        vStyrke = styrke;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = storrelse;
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 uFarge;
+      varying float vStyrke;
+      void main() {
+        // Rund prikk med myk kant. Uten dette er hver stjerne en firkant, og
+        // det ser man på de lyseste.
+        float d = length(gl_PointCoord - vec2(0.5));
+        float a = (1.0 - smoothstep(0.22, 0.5, d)) * vStyrke;
+        if (a <= 0.0) discard;
+        gl_FragColor = vec4(uFarge, a);
+      }
+    `,
   })
   const stars = new Points(starGeo, starMat)
   stars.frustumCulled = false
   group.add(stars)
 
-  const moonTex = moonTexture()
-  const moonMat = new SpriteMaterial({
-    map: moonTex, transparent: true, opacity: 0.85, depthWrite: false,
-    fog: false,   // samme grunn som stjernene — månen lå på 20 500
-  })
-  const moon = new Sprite(moonMat)
-  const moonR = radius * 0.82
-  const moonAz = 2.3
-  const moonH = 0.62
-  const moonRing = Math.sqrt(Math.max(0, 1 - moonH * moonH))
-  moon.position.set(Math.cos(moonAz) * moonRing * moonR, moonH * moonR, Math.sin(moonAz) * moonRing * moonR)
-  moon.scale.setScalar(radius * 0.075)
-  moon.frustumCulled = false
-  group.add(moon)
+  // --- Stjernebilde-linjene -----------------------------------------------
+  // Bare linjer der BEGGE endene er over horisonten. Et halvt stjernebilde med
+  // en strek ut i bakken er verre enn ingen strek.
+  const geometrier = [starGeo]
+  const materialer = [starMat]
+  let linjeGeo = null
+  let linjeMat = null
+  if (ekteHimmel) {
+    const linjePos = []
+    for (const [a, b] of LINJER) {
+      const ia = bufferIndeks.get(a)
+      const ib = bufferIndeks.get(b)
+      if (ia == null || ib == null) continue
+      linjePos.push(pos[ia * 3], pos[ia * 3 + 1], pos[ia * 3 + 2])
+      linjePos.push(pos[ib * 3], pos[ib * 3 + 1], pos[ib * 3 + 2])
+    }
+    if (linjePos.length) {
+      linjeGeo = new BufferGeometry()
+      linjeGeo.setAttribute('position', new BufferAttribute(new Float32Array(linjePos), 3))
+      linjeMat = new LineBasicMaterial({
+        color: new Color('#9fb6d8'),
+        transparent: true,
+        opacity: LINJE_OPASITET,
+        depthWrite: false,
+        fog: false,
+      })
+      const linjer = new LineSegments(linjeGeo, linjeMat)
+      linjer.frustumCulled = false
+      group.add(linjer)
+      geometrier.push(linjeGeo)
+      materialer.push(linjeMat)
+    }
+  }
+
+  // --- Månen --------------------------------------------------------------
+  const mane = buildMane({ radius })
+  group.add(mane.group)
+  geometrier.push(...mane.geometries)
+  materialer.push(...mane.materials)
+  if (ekteHimmel) {
+    mane.sett(himmelFor({ lat, lon, dato: dato ?? new Date() }).mane)
+  } else {
+    // Uten sted vet vi ikke fasen. En halvmåne høyt på kuppelen er en ærlig
+    // «vi vet ikke» — en fullmåne ville vært en påstand.
+    mane.sett({ azimut: 2.3, hoyde: 0.67, lysAndel: 0.5, lyssideVinkel: Math.PI / 2 })
+  }
 
   return {
     group,
-    geometries: [starGeo],
-    materials: [starMat, moonMat],
-    textures: [moonTex],
+    mane,
+    /** Antall stjerner som faktisk ble tegnet — for test og feilsøking. */
+    get stjerneAntall() { return pos.length / 3 },
+    get astronomisk() { return ekteHimmel },
+    geometries: geometrier,
+    materials: materialer,
+    textures: [],
     setNight(on) { group.visible = !!on },
+    update(camera) { mane.update(camera) },
     dispose() {
-      starGeo.dispose()
-      starMat.dispose()
-      moonMat.dispose()
-      moonTex.dispose()
+      for (const g of geometrier) g.dispose()
+      for (const m of materialer) m.dispose()
     },
   }
 }

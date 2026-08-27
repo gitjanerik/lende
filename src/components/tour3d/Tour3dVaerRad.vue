@@ -1,9 +1,11 @@
 <script setup>
 // Værsymbolrad øverst i 3D-visningen: timene framover for arkets senterpunkt.
 //
-// Ligger på en EGEN linje under Info/POI-raden. Topprada har alt fem-seks
-// knapper, og kommentaren over den (Viewer3D.vue) advarer eksplisitt om at den
-// falt ut av skjermen på smale telefoner — den skal ikke belastes mer.
+// Ligger på en EGEN linje rett under topprada, OVER Info/POI-raden (v5.27.0).
+// Topprada har alt fem-seks knapper, og kommentaren over den (Viewer3D.vue)
+// advarer eksplisitt om at den falt ut av skjermen på smale telefoner — den skal
+// ikke belastes mer. Under Info/POI, som raden lå fram til v5.27.0, måtte man
+// lese seg forbi to piller for å komme til det man slo på værmodus for.
 //
 // Raden er smal med vilje og ruller vannrett framfor å brekke: den skal koste så
 // lite kartflate som mulig. Symbolene tegnes med varianten MET selv har satt i
@@ -50,12 +52,12 @@ function vindTitle(t) {
 
 <template>
   <div v-if="vaer?.status === 'loading'"
-       class="rounded-full bg-black/45 backdrop-blur px-3 py-1.5 text-[11px] text-white/60">
+       class="rounded-full bg-black/45 backdrop-blur px-3 py-1.5 text-[0.6875rem] text-white/60">
     Henter værvarsel …
   </div>
   <!-- Ærlig svar framfor et oppdiktet vær. Samme regel som i infopanelet. -->
   <div v-else-if="vaer?.status === 'error'"
-       class="rounded-full bg-black/45 backdrop-blur px-3 py-1.5 text-[11px] text-white/60">
+       class="rounded-full bg-black/45 backdrop-blur px-3 py-1.5 text-[0.6875rem] text-white/60">
     Værvarsel ikke tilgjengelig
   </div>
   <div v-else-if="timer.length"
@@ -64,7 +66,7 @@ function vindTitle(t) {
     <div class="flex items-stretch divide-x divide-white/10 w-max">
       <div v-for="t in timer" :key="t.tid"
            class="flex flex-col items-center gap-0.5 px-2.5 py-1.5 min-w-[3.6rem]">
-        <span class="text-[9px] text-white/50 tabular-nums leading-none">{{ klokke(t.tid) }}</span>
+        <span class="text-[0.5625rem] text-white/50 tabular-nums leading-none">{{ klokke(t.tid) }}</span>
         <VaerIkon :symbol="t.symbol" :size="22"/>
         <!-- Temperatur og vind på SAMME linje (v5.21.2). Vind fortjener plassen,
              men ikke en femte stablet linje: raden ligger over kartet, og høyde
@@ -78,16 +80,16 @@ function vindTitle(t) {
              vindMotGrader, delt med skydriften i 3D, så de aldri kan peke i strid. -->
         <span class="flex items-baseline gap-1 leading-none">
           <span v-if="t.temperaturC != null"
-                class="text-[11px] font-medium text-white tabular-nums">
+                class="text-[0.6875rem] font-medium text-white tabular-nums">
             {{ Math.round(t.temperaturC) }}°
           </span>
           <span v-if="t.vindMs != null"
-                class="flex items-baseline gap-px text-[9px] text-white/65 tabular-nums"
+                class="flex items-baseline gap-px text-[0.5625rem] text-white/65 tabular-nums"
                 :title="vindTitle(t)">
             <!-- Med retning: en rotert pil. UTEN retning: et nøytralt vind-tegn,
                  ikke bare tallet. «8° 8» er to tall uten enhet og leses ikke som
                  vind — og MET oppgir ikke alltid retning. -->
-            <span aria-hidden="true" class="inline-block text-[8px]"
+            <span aria-hidden="true" class="inline-block text-[0.5rem]"
                   :style="vindMot(t.vindRetningGrader) !== null
                     ? { transform: `rotate(${vindMot(t.vindRetningGrader)}deg)` } : null">{{
                     vindMot(t.vindRetningGrader) !== null ? '↑' : '≈' }}</span>
@@ -96,14 +98,14 @@ function vindTitle(t) {
         </span>
         <!-- Nedbør bare når det ER nedbør: en rad med «0,0 mm» under hver time
              er støy, og det er nettopp lesbarheten dette ikke skal koste. -->
-        <span v-if="t.nedborMm" class="text-[9px] text-sky-200/80 tabular-nums leading-none">
+        <span v-if="t.nedborMm" class="text-[0.5625rem] text-sky-200/80 tabular-nums leading-none">
           {{ komma(t.nedborMm, 1) }}
         </span>
       </div>
       <!-- Lisenskravet: MET-data krever synlig attribusjon. Står den ikke her,
            står den ingen steder i 3D — infopanelet er en annen visning. -->
       <div class="flex items-center px-2.5">
-        <span class="text-[8px] leading-tight text-white/35 whitespace-nowrap">MET<br/>Norway</span>
+        <span class="text-[0.5rem] leading-tight text-white/35 whitespace-nowrap">MET<br/>Norway</span>
       </div>
     </div>
   </div>

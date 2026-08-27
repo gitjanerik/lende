@@ -37,6 +37,20 @@ const HODE_LOFT = PIN_STEM_H + PIN_HEAD_R * 0.6
 // Hvorfor grensa finnes: se `ugyldig` i buildPinField.
 const MAKS_WORLD_M = 1e6
 
+/**
+ * Bakkepunktet i world-rommet. Mangler DEM-en en høyde her, brukes HAVNIVÅ.
+ *
+ * Og det er RIKTIG her, i motsetning til i pathNetwork (v5.27.0), der samme
+ * fallback ble fjernet fordi stiene plunget ned fra fjellsida og løp langs et
+ * sjøplan. Forskjellen er at `terrainGrid` flater noData til havnivå: der DEM-en
+ * mangler, ER det tegnede terrenget på 0. En nål på 0 står altså PÅ bakken som
+ * vises — feil høyde, men ikke i løse lufta. En sti er en sammenhengende strek
+ * fra ekte terreng og NED dit, og det er streken man ser.
+ *
+ * Ikke bytt dette til null eller NaN: verdien går rett inn i
+ * `holder.position.set` i waypointMarkers, og en ikke-endelig instans-matrise er
+ * nøyaktig feilen v5.22.9–11 gikk tre runder på å bli kvitt.
+ */
 export function drapedWorld(dem, coords, x, y, liftM = 0) {
   const e = sampleElevation(dem, x, y)
   return coords.toWorld(x, y, (Number.isFinite(e) ? e : 0) + liftM)

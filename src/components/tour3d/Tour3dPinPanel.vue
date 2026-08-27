@@ -53,7 +53,7 @@ watch(visibleGroups, (gs) => { if (!gs.length) expanded.value = false })
     <button v-if="!expanded" @click="expanded = true"
             :aria-label="`Vis filter for ${tittel.toLowerCase()}`"
             class="flex items-center gap-1.5 rounded-full bg-emerald-600 text-white
-                   text-[11px] font-semibold shadow-lg pl-3 pr-2 py-1.5 active:scale-[0.97]
+                   text-[0.6875rem] font-semibold shadow-lg pl-3 pr-2 py-1.5 active:scale-[0.97]
                    tabular-nums">
       <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor"
            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -68,15 +68,15 @@ watch(visibleGroups, (gs) => { if (!gs.length) expanded.value = false })
     </button>
 
     <div v-else
-         class="rounded-md bg-emerald-600 text-white text-[11px] font-medium shadow-lg
+         class="rounded-md bg-emerald-600 text-white text-[0.6875rem] font-medium shadow-lg
                 flex items-start gap-1.5 pl-3 pr-1 py-2">
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2">
-          <div class="text-[9px] uppercase tracking-wide text-emerald-100/90 flex-1">
+          <div class="text-[0.5625rem] uppercase tracking-wide text-emerald-100/90 flex-1">
             {{ tittel }}
           </div>
           <button @click="setAll(!allOn)"
-                  class="bg-ink/15 rounded px-1.5 py-0.5 text-[10px] font-medium active:scale-95">
+                  class="bg-ink/15 rounded px-1.5 py-0.5 text-[0.625rem] font-medium active:scale-95">
             {{ allOn ? 'Ingen' : 'Alle' }}
           </button>
         </div>
@@ -96,13 +96,13 @@ watch(visibleGroups, (gs) => { if (!gs.length) expanded.value = false })
               </svg>
             </span>
             <span class="flex-1 min-w-0 truncate">{{ g.label }}</span>
-            <span class="text-[10px] text-emerald-100/85 tabular-nums shrink-0">
+            <span class="text-[0.625rem] text-emerald-100/85 tabular-nums shrink-0">
               {{ counts[g.key] ?? 0 }}
             </span>
           </button>
         </div>
 
-        <div v-if="loading" class="mt-1 text-[10px] text-emerald-100/80">
+        <div v-if="loading" class="mt-1 text-[0.625rem] text-emerald-100/80">
           Henter kulturminner og målestasjoner …
         </div>
       </div>

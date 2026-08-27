@@ -25,6 +25,7 @@ import { buildPuffClouds } from './puffSkyer.js'
 import { lagSkyskygge } from './skyskygge.js'
 import { NEDBOR_TAK } from './vaerHimmel.js'
 import { createEngineLoop } from './engineLoop.js'
+import { svgToWgs84 } from '../utm.js'
 
 export class TourSceneError extends Error {
   constructor(code, message) {
@@ -120,13 +121,41 @@ export async function createSceneCore(container, {
   const terrain = buildTerrainMesh(dem, coords, texture)
   scene.add(terrain.mesh)
 
+  // Hvor stor del av utsnittet mangler høydedata? terrainGrid flater noData til
+  // havnivå, som er riktig for kystkart — der ER noData sjø. Men når utsnittet
+  // er utvidet med nabofliser og DEM-hentingen feilet, fyller
+  // mosaikkDemFallback naboene med noData, og da får man et flatt sjøplan der
+  // det skulle vært fjell. Det ser ut som terreng, bare feil terreng, og det er
+  // umulig å vite at man ser på en nødløsning.
+  //
+  // Samme prinsipp som tekstur-notisen rett over: en nødløsning man ikke kan se
+  // at man ser på, er verre enn nødløsningen selv. Taket er høyt (en tredjedel),
+  // fordi et vanlig kystkart har mye ekte sjø og ikke skal melde noe.
+  {
+    const { data, noData } = dem
+    let hull = 0
+    for (let i = 0; i < data.length; i++) {
+      if (data[i] === noData || !Number.isFinite(data[i])) hull++
+    }
+    const andel = data.length ? hull / data.length : 0
+    if (andel > 0.33) {
+      teksturNotis(`${Math.round(andel * 100)} % av utsnittet mangler høydedata `
+        + '— terrenget der vises på havnivå')
+    }
+  }
+
   const sky = buildSkyDome()
   scene.add(sky.mesh)
+  // Skyene er skjult til noen ber om vær (v5.27.0). Fram til da sto de på i all
+  // dagvisning, og da var himmelen den samme enten man hadde slått på værvarselet
+  // eller ikke — skyene sa altså ingenting. Nå er de en DEL av værvarselet:
+  // ingen vær, ingen skyer, og en tom himmel er da et ærlig «vi viser ikke vær».
   const clouds = buildPuffClouds({
     widthM: meta.widthM,
     heightM: meta.heightM,
     baseY: Math.max(1200, terrain.maxElev * exaggeration + 350),
   })
+  clouds.group.visible = false
   scene.add(clouds.group)
   // Nedbør — skjult til setVaer sier noe annet. Punktbudsjettet avsettes én gang
   // her; setVaer flytter bare drawRange, så en værendring allokerer ingenting.
@@ -145,14 +174,28 @@ export async function createSceneCore(container, {
   // modulere. Sol-retningen tas FRA skyene, så skygge og skyggelegging aldri
   // kan komme i utakt.
   const skyskygge = lagSkyskygge()
-  // Skygge-styrken slik været sier den skal være; nattmodus nuller den.
+  // Skygge-styrken slik været sier den skal være; skjulte skyer nuller den.
   let skyggeGrunn = 0.30
   skyskygge.uniforms.uSolRetning.value.copy(clouds.solRetning)
   skyskygge.festTil(terrain.material)
 
-  // Måne + bitte små gule stjerner (v4.8.5). Skjult som default; setNightMode
-  // slår hele gruppa av/på sammen med skyene.
-  const nightSky = buildNightSky()
+  // Måne + stjerner. Skjult som default; setNightMode slår hele gruppa av/på.
+  //
+  // Fra v5.27.0 er himmelen ASTRONOMISK: stjernene står der de står over dette
+  // arket i kveld, og månen har riktig posisjon og fase. Det krever ett
+  // koordinat — arkets senterpunkt — og det er samme oppslag værvarselet gjør.
+  // Klarer vi ikke å regne det ut, faller natthimmelen tilbake på det gamle
+  // pseudo-tilfeldige feltet: en himmel er bedre enn en tom kuppel.
+  let senterLat = null
+  let senterLon = null
+  try {
+    const p = svgToWgs84(meta.widthM / 2, meta.heightM / 2, meta)
+    if (Number.isFinite(p?.lat) && Number.isFinite(p?.lon)) {
+      senterLat = p.lat
+      senterLon = p.lon
+    }
+  } catch { /* uten sted: pseudo-tilfeldig himmel, se buildNightSky */ }
+  const nightSky = buildNightSky({ lat: senterLat, lon: senterLon, dato: new Date() })
   scene.add(nightSky.group)
 
   // Høydekurver i terrenget: togglebart lag — bygges lazily.
@@ -207,6 +250,24 @@ export async function createSceneCore(container, {
   // som før værmodus fantes. setVaer(null) er veien tilbake.
   let vaerVindX = 1
   let vaerVindZ = 0
+  // Er et værpreg lagt på? Skyene henger på DENNE, ikke på om det er dag.
+  let vaerAktiv = false
+
+  /**
+   * Skyene vises bare når værvarselet vises OG det er dag (v5.27.0). Regelen bor
+   * her, i én funksjon, fordi den avhenger av to uavhengige brytere — setVaer og
+   * setNightMode — og to steder som setter `visible` etter hver sin halvdel av
+   * sannheten kommer i utakt så snart den ene kalles alene.
+   *
+   * Skyskyggen følger med: uten skyer over bakken leses flekker på terrenget som
+   * en feil i karteksturen, ikke som skygge. Om natta er det ingen sol å kaste
+   * dem med i det hele tatt.
+   */
+  function oppdaterSkySynlighet() {
+    const synlig = vaerAktiv && !nightOn
+    clouds.group.visible = synlig
+    skyskygge.uniforms.uSkyggeStyrke.value = synlig ? skyggeGrunn : 0
+  }
   // Dis-avstandene slik de var uten vær. Tåke skalerer dem ned; setVaer(null)
   // setter dem tilbake til nøyaktig disse.
   const disNear = scene.fog.near
@@ -351,14 +412,30 @@ export async function createSceneCore(container, {
 
     // Bakgrunnsbevegelse som ikke avhenger av hva kalleren gjør med kameraet.
     updateAmbient(dt) {
+      // Himmelen følger kameraet (v5.27.0). Kuppelen har radius 25 km og sto i
+      // ORIGO, mens den frie riggen slipper kameraet 3 × arkets største mål unna
+      // — på et 3×3-ark av 5 km er det 45 km, altså UTENFOR sin egen himmel.
+      // Da fløy man ut av kuppelen og så bakgrunnsfargen. Flytter vi den med,
+      // ligger himmelen i det uendelige uansett hvor kameraet står, månen har
+      // konstant vinkelstørrelse (som en måne skal), og ingenting av himmelen kan
+      // klippes av nær-planet. Bare posisjonen flyttes — orienteringen står, så
+      // stjernene blir stående der de står.
+      sky.mesh.position.copy(camera.position)
+      nightSky.group.position.copy(camera.position)
+      // Månen er en skive som skal vende mot kameraet.
+      nightSky.update(camera)
       // Kameraet må med: puff-skyene oversetter sol-retningen til view-space
       // hver frame. Uten den roterer lyset med kameraet, og skyene leses som
       // lykter framfor opplyste former.
-      clouds.update(dt, camera)
+      // Skjulte skyer koster ingenting: driften og view-space-lyssettingen er
+      // bare interessant for noe som tegnes, og standard-himmelen har ingen skyer.
+      if (clouds.group.visible) {
+        clouds.update(dt, camera)
+        // Skyggene følger skyene. Oppdateres etter clouds.update, så de aldri
+        // ligger én frame bak det man ser i himmelen.
+        skyskygge.oppdater(clouds.skyer, 900, clouds.solRetning)
+      }
       nedbor.update(dt, vaerVindX, vaerVindZ)
-      // Skyggene følger skyene. Oppdateres etter clouds.update, så de aldri
-      // ligger én frame bak det man ser i himmelen.
-      skyskygge.oppdater(clouds.skyer, 900, clouds.solRetning)
       oppdaterTorden(dt)
     },
 
@@ -385,7 +462,8 @@ export async function createSceneCore(container, {
     get contoursVisible() { return contoursVisible },
 
     // Sol/måne: bytt terrengtekstur til mørkt tema (flisene hentes lazily med
-    // dark-flagget), nattehimmel, mørk dis og skyene av.
+    // dark-flagget), nattehimmel, mørk dis og skyene av (de er en dagting —
+    // se oppdaterSkySynlighet).
     async setNightMode(on) {
       nightOn = !!on
       if (nightOn && !nightTexture) {
@@ -402,10 +480,7 @@ export async function createSceneCore(container, {
       }
       sky.setNight(nightOn)
       nightSky.setNight(nightOn)
-      clouds.group.visible = !nightOn
-      // Ingen sol om natta, altså ingen skyskygge. Uten dette lå skyggene igjen
-      // på et mørkt terreng, der de leses som flekker i kartet.
-      skyskygge.uniforms.uSkyggeStyrke.value = nightOn ? 0 : skyggeGrunn
+      oppdaterSkySynlighet()
       grunnfarge.set(nightOn ? NIGHT_FOG_COLOR : FOG_COLOR)
       lynIgjen = 0            // et pågående lyn skal ikke overleve modus-byttet
       scene.fog.color.copy(grunnfarge)
@@ -416,10 +491,12 @@ export async function createSceneCore(container, {
      * vinddrift, nedbør og torden. `null` setter alt tilbake til standard-
      * himmelen — værmodus av skal ikke etterlate spor.
      *
-     * Skyene er skjult i nattmodus (setNightMode), og det er de fortsatt: et
-     * værpreg endrer ikke HVEM som er synlig, bare hvordan de ser ut.
+     * Skyene er en DEL av værvarselet fra v5.27.0: `null` skjuler dem, og de er
+     * fortsatt skjult om natta. Et værpreg bestemmer altså både hvem som er
+     * synlig og hvordan de ser ut — se oppdaterSkySynlighet.
      */
     setVaer(preg) {
+      vaerAktiv = !!preg
       clouds.setVaer(preg)
       // Sikt: tåke er redusert sikt, ikke flere skyer. Uten dette ser tåke ut
       // som overskyet, og det gjorde den fram til v5.22.1.
@@ -431,7 +508,7 @@ export async function createSceneCore(container, {
       // retningsbestemt sol i det hele tatt.
       const dekning = preg?.dekning ?? 0.55
       skyggeGrunn = 0.30 * (1 - dekning * 0.6) * (sikt < 0.3 ? 0.15 : 1)
-      skyskygge.uniforms.uSkyggeStyrke.value = nightOn ? 0 : skyggeGrunn
+      oppdaterSkySynlighet()
       nedbor.setNedbor(preg?.nedbor ?? null, preg?.nedborTetthet ?? 0)
       vaerVindX = preg?.driftX ?? 1
       vaerVindZ = preg?.driftZ ?? 0

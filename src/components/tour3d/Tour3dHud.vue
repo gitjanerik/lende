@@ -79,8 +79,8 @@ function onPointerUp() {
     <div v-for="r in rows" :key="r.label"
          class="rounded-lg bg-black/45 backdrop-blur px-2 py-1.5 text-center min-w-0"
          :class="landscape ? 'w-28 text-right px-3' : ''">
-      <div class="text-[9px] uppercase tracking-wide text-white/50 truncate">{{ r.label }}</div>
-      <div class="text-[12px] font-semibold text-white tabular-nums whitespace-nowrap">{{ r.value }}</div>
+      <div class="text-[0.5625rem] uppercase tracking-wide text-white/50 truncate">{{ r.label }}</div>
+      <div class="text-xs font-semibold text-white tabular-nums whitespace-nowrap">{{ r.value }}</div>
     </div>
     <!-- Dra-bar tidsakse. Rikelig touch-flate (py) rundt selve sporet. -->
     <div v-if="stats"

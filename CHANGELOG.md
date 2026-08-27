@@ -1,3 +1,85 @@
+## 2026-08-27 — v5.27.0: Sju justeringer i 3D — og en himmel man kan se opp i
+
+Eieren kom tilbake fra felt med en liste. Sju punkter, og de henger sammen mer
+enn lista antyder.
+
+**Skyene er nå en del av værvarselet.** Før sto de på i all dagvisning, og da
+var himmelen den samme enten man hadde slått på været eller ikke — skyene sa
+altså ingenting. Nå vises de bare med været på, og bare om dagen.
+Skyskyggene følger med: flekker på bakken uten skyer over leses som en feil i
+kartteksturen, ikke som skygge. Regelen bor i ÉN funksjon
+(`oppdaterSkySynlighet`), fordi den avhenger av to uavhengige brytere, og to
+steder som setter `visible` etter hver sin halvdel av sannheten kommer i utakt
+straks den ene kalles alene.
+
+**Værraden er flyttet over Info og POI-filteret.** Under dem måtte man lese seg
+forbi to piller for å komme til det man slo på værmodus for.
+
+**Månen er ikke lenger en tekstur, og natthimmelen er ekte.** Månen var en
+`THREE.Sprite` med en 128 px radiell gradient, og eieren meldte at den ikke var
+sirkelformet. Det er samme klasse feil som puff-skyene brukte åtte forsøk på:
+formen kan ikke reddes i teksturen når det er teksturveien som er problemet. Så
+teksturen er ute. En shader som forkaster alt utenfor `r = 1` KAN ikke tegne noe
+annet enn en sirkel — uansett driver, mipmap-generering eller fargerom. Og fasen
+falt ut som en gratis bonus, siden vi nå eier hvert piksel i skiva.
+
+Med det på plass ble resten mulig: ny ren modul `lib/tour3d/astronomi.js`
+(Meeus' korte serier) regner ut hvor sola og månen står, hvor stor del av månen
+som er belyst, og hvilken VEI den er skåret — dreid fra zenit og ikke fra
+himmelpolen, for det er zenit som er «opp» på en skjerm. Stjernene kommer fra
+en bakt katalog (`scripts/bygg-stjerner.mjs` → 147 stjerner fra HYG-databasen,
+J2000) og står der de faktisk står over dette kartet i kveld, med
+størrelse etter magnitude. Tretten stjernebilder tegnes med svake linjer —
+uten dem er 147 riktige punkter ikke til å skille fra 160 tilfeldige.
+
+Koordinatene er bakt og ikke skrevet for hånd, fordi de er det eneste her som
+kan være FEIL uten at noe ser rart ut: en stjerne 2° på skeive er en stjerne,
+bare på feil plass. Formlene er verifisert mot Meeus' egne gjennomregnede
+eksempler (månens lengde innenfor 0,003°, lyssidens posisjonsvinkel 285,04° mot
+bokas 285,0°), og Polstjerna står i nord i en høyde lik breddegraden.
+Sol-retningen som skyggelegger terrenget er IKKE rørt: den er låst til
+hillshade-azimuten som er bakt inn i karteksturen.
+
+**Stiene faller ikke lenger ut av visningen.** Manglet DEM-en en høyde, ble den
+0 — havnivå — og stinettet plunget rett ned fra fjellsida og løp videre langs et
+sjøplan hundrevis av meter under terrenget. Det er de røde strekene i eierens
+nattbilde. Nå brytes linja der terrenget mangler; resten av stien tegnes som
+før. Nålene beholder havnivå-fallbacken med vilje, og det står nå hvorfor:
+`terrainGrid` flater noData til havnivå, så der DEM-en mangler ER det tegnede
+terrenget på 0. En nål på 0 står altså PÅ bakken som vises. En sti er en
+sammenhengende strek fra ekte terreng og NED dit, og det er streken man ser.
+I tillegg melder viseren nå fra når en stor del av utsnittet mangler
+høydedata — en nødløsning man ikke kan se at man ser på, er verre enn
+nødløsningen selv.
+
+**Man kan se opp.** Det var ikke mulig før: OrbitControls ser alltid PÅ
+blikkpunktet, så 85° fra senit var et blikk nesten vannrett, og videre kom man
+ikke. Nå er gesten en FORTSETTELSE av draget — står orbiten på taket og fingeren
+dras videre oppover, løftes blikket opp i himmelen, og samme finger nedover
+lander deg i kartet igjen. Ingen ny knapp; topprada har alt fem-seks.
+
+Fortegnet var snudd i første utgave, og det er verdt å merke seg HVEM som fanget
+det: enhetstestene sto grønne hele veien, fordi de tester regelen og ikke
+retningen. `OrbitControls.rotateUp` gjør `phi -= dy`, så et drag OPPOVER er det
+som senker blikket mot horisonten — retningen som fortsetter forbi den er altså
+opp, ikke ned. Det var røyktesten i Chromium som sa det, og den fanget samtidig
+at et venstre-drag i denne appen panorerer og ikke roterer.
+
+Det avdekket en ekte feil: kuppelen, stjernene og månen sto i ORIGO, mens den
+frie riggen slipper kameraet 3 × arkets største mål unna. På et 3×3-ark av 5 km
+er det 45 km — altså utenfor sin egen himmel på 25 km. Himmelen følger nå
+kameraet, så den ligger i det uendelige uansett hvor man flyr, og månen vokser
+ikke lenger når man nærmer seg den.
+
+**Og teksten i 3D-overlegget er lagt om fra px til rem**, så telefonens egen
+tekststørrelse-innstilling slår gjennom. Chrome på Android skalerer
+rot-fontstørrelsen etter Tilgjengelighet → Tekstskalering; faste px gjør det
+aldri. Tailwinds avstandsskala er også rem-basert, så polstring og knappehøyder
+vokser i takt av seg selv. Resten av appen er fortsatt px — 3D er første flate
+som følger systemet, og det er en bevisst start.
+
+---
+
 ## 2026-08-26 — v5.26.3: Høyfjellet var fortsatt grønt — gaten spurte om feil ting
 
 Eieren så på et Turkart over høyfjell og meldte at det fremdeles var grønt.
