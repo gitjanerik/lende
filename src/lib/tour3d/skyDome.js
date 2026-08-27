@@ -10,7 +10,9 @@ import {
   LineSegments, LineBasicMaterial,
 } from 'three'
 import { STJERNER, LINJER } from './stjerner.js'
-import { himmelFor, lokalStjernetid, tilHorisont, horisontTilWorld } from './astronomi.js'
+import {
+  himmelFor, lokalStjernetid, tilHorisont, horisontTilWorld, presesserTilDato,
+} from './astronomi.js'
 
 const ZENITH = '#3d7ec9'
 const HORIZON = '#dbe9f5'
@@ -258,10 +260,14 @@ export function buildNightSky({
   const bufferIndeks = new Map()
 
   if (ekteHimmel) {
-    const lst = lokalStjernetid(dato ?? new Date(), lon)
+    const naa = dato ?? new Date()
+    const lst = lokalStjernetid(naa, lon)
     for (let i = 0; i < STJERNER.length; i++) {
       const s = STJERNER[i]
-      const { azimut, hoyde } = tilHorisont(s.ra, s.dek, lst, lat)
+      // Katalogen er J2000; stjernetida er i kveld. Uten presesjonen mangler
+      // hele himmelen 26 års rotasjon — 16 bueminutter i snitt (v6.0.0).
+      const j = presesserTilDato(s.ra, s.dek, naa)
+      const { azimut, hoyde } = tilHorisont(j.ra, j.dek, lst, lat)
       if (hoyde < HORISONT_MARGIN) continue
       const [x, y, z] = horisontTilWorld(azimut, hoyde, r)
       bufferIndeks.set(i, pos.length / 3)

@@ -72,6 +72,9 @@ export function eklipsisTilEkvatorial(lambda, beta, eps) {
 /**
  * Sola: rektascensjon (timer), deklinasjon (grader) og avstand (km).
  * Avstanden trengs bare til månefasen.
+ *
+ * Resultatet er i MIDDELJEVNDØGN FOR DATOEN, ikke J2000 — L0-serien bærer
+ * presesjonen selv. Kjør det aldri gjennom `presesserTilDato`.
  */
 export function solEkvatorial(dato) {
   const t = T(julianskDag(dato))
@@ -175,6 +178,8 @@ function serie(ledd, a, funk) {
 /**
  * Månen: rektascensjon (timer), deklinasjon (grader), avstand (km) og
  * ekliptiske koordinater (grader).
+ *
+ * Som sola: MIDDELJEVNDØGN FOR DATOEN. Ikke gjennom `presesserTilDato`.
  */
 export function maneEkvatorial(dato) {
   const t = T(julianskDag(dato))
@@ -227,6 +232,47 @@ export function maneFase(dato) {
   // Voksende måne står ØST for sola, altså høyere rektascensjon.
   const dLambda = norm360(m.lambda - s.lambda)
   return { lysAndel, faseVinkel, lyssideVinkel, voksende: dLambda < 180 }
+}
+
+/**
+ * Presesjon: flytt J2000-koordinater til middeljevndøgn for DATOEN.
+ *
+ * Hvorfor dette må gjøres, og hvorfor det ikke ble gjort i v5.27.0: stjernene i
+ * katalogen står i J2000, mens `lokalStjernetid` gjelder i kveld. Blander man
+ * dem, mangler man all presesjon siden 2000 — målt til 16 bueminutter i snitt og
+ * 22′ på det verste i 2026. Det er en halv fullmånebredde: usynlig på en
+ * telefon, men galt, og femten linjer å rette.
+ *
+ * FELLA, og den er verdt å lese to ganger: dette gjelder KATALOG-koordinater
+ * (stjernene) og planetene, som kommer ut av JPL-elementer i J2000-rammen.
+ * `solEkvatorial` og `maneEkvatorial` skal IKKE gjennom her — Meeus' serier gir
+ * dem allerede i middeljevndøgn for datoen. To himmelobjekter i ulike rammer er
+ * en feil ingen test fanger uten at man vet å se etter den; derfor står den her
+ * og i JSDoc-en på de to andre.
+ *
+ * Formen er den rigorøse (Meeus 21.3) og ikke tilnærmingen, fordi tilnærmingen
+ * bryter sammen nær polene — og Polstjerna er den ene stjerna alle sjekker.
+ *
+ * @param {number} raTimer  rektascensjon i timer, J2000
+ * @param {number} dekGrader deklinasjon i grader, J2000
+ * @param {Date} dato
+ * @returns {{ra: number, dek: number}} samme enheter, jevndøgn for datoen
+ */
+export function presesserTilDato(raTimer, dekGrader, dato) {
+  const t = T(julianskDag(dato))
+  if (t === 0) return { ra: raTimer, dek: dekGrader }
+  const buesek = 1 / 3600
+  const zeta = (2306.2181 * t + 0.30188 * t * t + 0.017998 * t ** 3) * buesek
+  const z = (2306.2181 * t + 1.09468 * t * t + 0.018203 * t ** 3) * buesek
+  const theta = (2004.3109 * t - 0.42665 * t * t - 0.041833 * t ** 3) * buesek
+  const ra0 = raTimer * 15 + zeta
+  const A = cos(dekGrader) * sin(ra0)
+  const B = cos(theta) * cos(dekGrader) * cos(ra0) - sin(theta) * sin(dekGrader)
+  const C = sin(theta) * cos(dekGrader) * cos(ra0) + cos(theta) * sin(dekGrader)
+  return {
+    ra: norm360(Math.atan2(A, B) / GRAD + z) / 15,
+    dek: Math.asin(Math.max(-1, Math.min(1, C))) / GRAD,
+  }
 }
 
 /**

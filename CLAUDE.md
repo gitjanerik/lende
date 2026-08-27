@@ -384,6 +384,38 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   Polstjerna står i nord i høyde lik breddegraden. **`solRetning` i `puffSkyer`
   er fortsatt LÅST til hillshade-azimuten** (se v5.22.1 under) — astronomien
   gjelder natthimmelen, ikke lyssettingen.
+- **PRESESJON: stjerner og planeter JA, sol og måne NEI (v5.28.0).**
+  `astronomi.presesserTilDato` flytter J2000-koordinater til middeljevndøgn for
+  datoen. Katalogen (`stjerner.js`) og planetene (`planeter.js`) er J2000 og MÅ
+  gjennom den før de møter en stjernetid; `solEkvatorial` og `maneEkvatorial` er
+  allerede i jevndøgn for datoen — Meeus' serier bærer presesjonen selv — og skal
+  IKKE. To himmelobjekter i ulike rammer er en feil ingen test fanger uten at man
+  vet å se etter den. Fram til v5.28.0 manglet stjernene presesjonen helt: 16
+  bueminutter i snitt, 22′ på det verste. Formen er den RIGORØSE (Meeus 21.3);
+  tilnærmingen `Δα = m + n·sinα·tanδ` sprenger nær polene, og Polstjerna er den
+  ene stjerna alle sjekker.
+- **Planetene regnes lokalt, og det er et krav (v5.28.0).** `lib/tour3d/planeter.js`
+  er JPL-ens «Approximate Positions of the Major Planets» + Kepler. Det FINNES
+  API-er (JPL Horizons, astronomyapi.com) — de er utelukket fordi hele
+  bruksområdet er en natt på fjellet uten dekning. Nøyaktighet, målt mot
+  `astronomy-engine` (uavhengig VSOP87): under 1′ på de indre, 5′ på Saturn, som
+  er prisen for at lineære elementer ikke modellerer Jupiters perturbasjoner.
+  Magnitudene bruker Almanakkens POLYNOMER og ikke ett lineært fase-ledd — med
+  lineært kom Venus ut på −5,9, og Venus kan ikke bli lysere enn −4,9.
+- **Fasit fra uavhengige implementasjoner er BAKT INN i testene, ikke hentet
+  (v5.28.0).** `planeter.test.js` bærer 25 referansepunkter fra
+  `astronomy-engine`, og astronomi-testene er ankret i Meeus' egne
+  gjennomregnede eksempler. Grunnen er den samme begge steder: en egenskrevet
+  himmelmekanikk kan være helt internt konsistent og likevel peke feil vei, og en
+  test som krever nett blir skrudd av. Trenger du et nytt anker, generer det ÉN
+  gang og lim tallene inn med kildeangivelse.
+- **`stjerner.js` er generert; prosaen bor i `stjernebildeInfo.js` (v5.28.0).**
+  Baken skriver `STJERNER` (med `bayer` som felt — 24 av 147 mangler egennavn),
+  `LINJER` og `FORMASJONER` (id, latin, stjerne- og linje-indekser, senter).
+  Id-en er en slug av det NORSKE navnet, og infoteksten er nøklet på den: døper
+  du om et stjernebilde i baken, mister teksten formasjonen sin, og testen
+  feiler med vilje. Senterretningen regnes av retningsvektorer og ikke av tall —
+  et snitt av rektascensjoner over 0h peker midt på motsatt side av himmelen.
 - **Månen er geometri med en fase-shader, ikke en tekstur (v5.27.0).** Den var en
   `THREE.Sprite` med en 128 px radiell gradient, og eieren meldte at den ikke var
   sirkelformet. Samme klasse feil som skyene under: formen kan ikke reddes i
