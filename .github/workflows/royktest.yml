@@ -27,6 +27,14 @@ on:
       - 'src/views/MapView.vue'
       - 'src/composables/**'
       - 'src/components/**'
+      # src/lib/** er 3D-motoren (sceneCore, skyDome, freeRig, scene3d), og det
+      # er nettopp den de tre 3D-sjekkene trykker på. Sto ikke her fram til
+      # v5.28.0, så en ren lib-endring kunne lande uten at røyktesten kjørte i
+      # det hele tatt — hullet ble oppdaget ved at denne PR-en falt gjennom det.
+      # `scripts/trenger-ektekart.mjs` har hatt `^src/lib/` på MÅ-lista hele
+      # tida, så gaten som avgjør OM det bygges et ekte kart var enig; det var
+      # gaten som avgjør om testen kjører som manglet stien.
+      - 'src/lib/**'
       - 'scripts/royk-mapview.mjs'
       - 'scripts/navnediff.mjs'
       - 'scripts/ruter-royk.mjs'

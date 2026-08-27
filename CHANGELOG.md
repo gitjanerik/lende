@@ -62,6 +62,15 @@ generert og bærer «IKKE REDIGER FOR HÅND». Testen som krever at hver tekst
 navngir minst én av sine EGNE stjerner fant tre reelle hull med en gang —
 Cassiopeia, Cepheus og Lille bjørn navnga ingen.
 
+**Og en gate-lekkasje ble oppdaget på veien.** Røyktesten trigges på stier, og
+`src/lib/**` sto ikke blant dem — bare views, composables og components. Men
+`src/lib/tour3d/` ER 3D-motoren de tre 3D-sjekkene trykker på, så en ren
+lib-endring kunne lande uten at røyktesten kjørte. Denne PR-en falt gjennom
+hullet selv, som er hvordan det ble funnet. `scripts/trenger-ektekart.mjs` har
+hatt `^src/lib/` på MÅ-lista hele tida, så gaten som avgjør *om* det bygges et
+ekte kart var enig — det var gaten som avgjør *om testen kjører* som manglet
+stien.
+
 ---
 
 ## 2026-08-27 — v5.27.0: Sju justeringer i 3D — og en himmel man kan se opp i
