@@ -103,6 +103,12 @@ jobs:
       # og RAPPORTERER hva den hoppet over — en PR skal ikke blokkeres av at
       # Overpass har en dårlig dag.
       - name: Røyktest
+        # STEG-TAK I TILLEGG TIL JOBB-TAKET. Jobbens `timeout-minutes` skal
+        # dekke dette, men på kjøringen som avdekket problemet gjorde den det
+        # IKKE — jobben sto over en halvtime forbi taket og måtte kanselleres
+        # for hånd. Et steg-tak er nærmere det som henger, og gir loggen fra
+        # stegene før seg. To tak er ikke overdrevet når det ene har sviktet.
+        timeout-minutes: 20
         run: |
           if [ "${{ steps.kart.outputs.ekte }}" = "1" ]; then
             npm run royk -- --ektekart --bilder=/tmp/royk

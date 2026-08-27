@@ -997,7 +997,7 @@ const SJEKKER = [
 
       // Lista skal inneholde noe — himmelen over Vardåsen har alltid noen
       // formasjoner oppe, uansett dato. En tom liste er en ekte feil.
-      const forste = await page.evaluate(() => {
+      const forste = await evalMedTak(page, () => {
         const b = document.querySelector('ul[aria-label="Treff på himmelen"] li button')
         return b ? (b.querySelector('span.block')?.textContent ?? '').trim() : null
       })
@@ -1007,7 +1007,7 @@ const SJEKKER = [
       await page.waitForTimeout(1600)
 
       // Infokortet skal ha åpnet seg, og det skal handle om det vi valgte.
-      const kortTekst = await page.evaluate(() => document.body.innerText)
+      const kortTekst = await evalMedTak(page, () => document.body.innerText)
       if (!kortTekst.includes(forste)) {
         throw new Error(`valgte «${forste}», men kortet nevner den ikke`)
       }
@@ -1036,7 +1036,7 @@ const SJEKKER = [
       await page.locator('button[aria-label="Skjul alt utenom himmelsøket"]')
         .click({ timeout: 10_000 })
       await page.waitForTimeout(500)
-      const i = await page.evaluate(() => ({
+      const i = await evalMedTak(page, () => ({
         oversikt: /\bOversikt\b/.test(document.body.innerText),
         hint: /Ser opp i himmelen/i.test(document.body.innerText),
         sok: !!document.querySelector('button[aria-label^="Valgt:"], button[aria-label="Finn et stjernebilde eller en planet"]'),
@@ -1049,7 +1049,7 @@ const SJEKKER = [
       // brukeren ute av alt annet enn stjernene.
       await page.locator('button[aria-label="Vis knappene igjen"]').click({ timeout: 10_000 })
       await page.waitForTimeout(500)
-      if (!await page.evaluate(() => /\bOversikt\b/.test(document.body.innerText))) {
+      if (!await evalMedTak(page, () => /\bOversikt\b/.test(document.body.innerText))) {
         throw new Error('maksimert modus slapp ikke knappene tilbake')
       }
       await lukkNatt3d(page, h.startSteg)
@@ -1189,7 +1189,16 @@ function medTak(løfte, ms, navn) {
 const SOLMAANE_STEG = [
   'Vis vær', 'Bytt til natt', 'Vis vær om natta', 'Bytt til dag uten vær',
 ]
-const lesSolMaaneSteg = (page) => page.evaluate((steg) =>
+/**
+ * `page.evaluate` MED TAK. Playwright gir evaluate ingen egen timeout, så en
+ * travel hovedtråd (3D baker en 4096²-tekstur ved bytte til natt) gjør et
+ * uskyldig oppslag til en uendelig venting. Sjekk-taket over fanger det, men da
+ * har vi brent 180 s og vet ikke hvor. Et lokalt tak sier hvilken linje.
+ */
+const evalMedTak = (page, fn, arg, ms = 25_000) =>
+  medTak(page.evaluate(fn, arg), ms, 'page.evaluate')
+
+const lesSolMaaneSteg = (page) => evalMedTak(page, (steg) =>
   [...document.querySelectorAll('button[aria-label]')]
     .map((b) => b.getAttribute('aria-label'))
     .find((l) => steg.includes(l)) ?? null, SOLMAANE_STEG)
@@ -1231,6 +1240,15 @@ async function aapneNatt3d(page) {
     steg = await lesSolMaaneSteg(page)
   }
   if (steg !== 'Vis vær om natta') throw new Error('kom ikke til natt uten vær')
+  // NATTBYTTET BAKER SIN EGEN 4096²-TEKSTUR, og på en runner uten GPU blokkerer
+  // den hovedtråden i sekunder. Alt vi gjør etterpå — et klikk, et oppslag —
+  // ville køet bak den. Samme grunn som ventingen ved åpning, og det er nettopp
+  // denne som gjorde at fire-stegs-sjekken en gang gikk forbi klikkets timeout.
+  await page.waitForFunction(
+    () => !/Skjerper kartbildet/i.test(document.body.innerText),
+    null, { timeout: 45_000 },
+  ).catch(() => { /* meldingen kan ha kommet og gått */ })
+  await page.waitForTimeout(1200)
   return { startSteg }
 }
 
