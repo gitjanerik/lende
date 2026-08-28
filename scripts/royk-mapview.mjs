@@ -1138,13 +1138,21 @@ const SJEKKER = [
         .click({ timeout: 5000 })
       await page.waitForTimeout(1600)
 
-      // Infokortet skal ha åpnet seg, og det skal handle om det vi valgte.
-      const kortTekst = await evalMedTak(page, () => document.body.innerText)
-      if (!kortTekst.includes(forste)) {
-        throw new Error(`valgte «${forste}», men kortet nevner den ikke`)
+      // ET VALG FRA LISTA GIR MINIMERT KORT (v6.3.10). Å plukke et navn fra
+      // nedtrekkslista er NAVIGASJON — man har alt bestemt seg for hva man vil se
+      // — så kortet skal ikke legge seg over halve himmelen. Vi måler på
+      // «Historien», som bare finnes i det utvidede kortet.
+      // CASE-INSENSITIVT: «Historien», «Verdt å vite» og «Fakta» er overskrifter
+      // med `uppercase`, og `innerText` gir RENDRET tekst. Uten /i kunne ingen av
+      // dem matche, og sjekken var halvblind — grønn fordi den ikke kunne feile.
+      const harHistorien = () => evalMedTak(page, () => /Historien|Verdt å vite|Fakta/i
+        .test(document.body.innerText))
+      if (await harHistorien()) {
+        throw new Error(`valgte «${forste}» fra lista, men kortet åpnet seg — `
+          + 'et listevalg skal minimere')
       }
-      if (!/over horisonten/i.test(kortTekst)) {
-        throw new Error('infokortet mangler retning og høyde — det er linja man trenger')
+      if (!(await evalMedTak(page, () => document.body.innerText)).includes(forste)) {
+        throw new Error(`valgte «${forste}», men pilla nevner den ikke`)
       }
 
       // «SETT I FOKUS» HØRER BARE I DEN MINIMERTE PILLA (v6.3.5). Med kortet
@@ -1153,41 +1161,44 @@ const SJEKKER = [
       // er lett å legge tilbake på feil sted i god tro.
       const fokusKnapper = () => evalMedTak(page, () => document
         .querySelectorAll('button[aria-label^="Sett "][aria-label$=" i fokus"]').length)
+      if (!await fokusKnapper()) {
+        throw new Error('«Sett i fokus» mangler i den minimerte pilla — da finnes '
+          + 'ingen vei tilbake etter panorering')
+      }
+
+      // UTVID: lesestoffet og retningslinja kommer, og krysshåret går bort.
+      await page.locator(`button[aria-label="Vis mer om ${forste}"]`).click({ timeout: 5000 })
+      await page.waitForTimeout(400)
+      const kortTekst = await evalMedTak(page, () => document.body.innerText)
+      if (!kortTekst.includes(forste)) {
+        throw new Error(`utvidet kortet for «${forste}», men det nevner den ikke`)
+      }
+      if (!/over horisonten/i.test(kortTekst)) {
+        throw new Error('infokortet mangler retning og høyde — det er linja man trenger')
+      }
       if (await fokusKnapper()) throw new Error('«Sett i fokus» står i det ÅPNE kortet')
+      if (!await harHistorien()) {
+        throw new Error('det utvidede kortet mangler lesestoffet — Fakta, Verdt å '
+          + 'vite og Historien var alle borte')
+      }
       if (!await evalMedTak(page, () => !!document
         .querySelector('button[aria-label="Minimer infokortet"]'))) {
         throw new Error('kortet mangler minimer-knappen')
       }
 
-      // MINIMER (v6.1.0): navnet blir stående, lesestoffet forsvinner. Vi måler
-      // på «Historien», som bare finnes i det utvidede kortet.
-      // CASE-INSENSITIVT: «Historien», «Verdt å vite» og «Fakta» er overskrifter
-      // med `uppercase`, og `innerText` gir RENDRET tekst. Uten /i kunne ingen av
-      // dem matche, og sjekken var halvblind — grønn fordi den ikke kunne feile.
-      //
-      // «Månegloben» sto her som et fjerde alternativ og er FJERNET: ordet finnes
-      // bare i kodekommentarer, aldri i UI-et, så det matchet ingenting. Et
-      // alternativ som aldri kan treffe skjuler at de andre ikke traff heller.
-      const harHistorien = () => evalMedTak(page, () => /Historien|Verdt å vite|Fakta/i
-        .test(document.body.innerText))
-      const utvidetFor = await harHistorien()
+      // Og sammen igjen: navnet blir stående, lesestoffet forsvinner.
       await page.locator('button[aria-label="Minimer infokortet"]').click({ timeout: 5000 })
       await page.waitForTimeout(400)
       if (await harHistorien()) throw new Error('kortet ble ikke minimert')
       if (!(await evalMedTak(page, () => document.body.innerText)).includes(forste)) {
         throw new Error('navnet forsvant da kortet ble minimert — da vet man ikke hva som lyser')
       }
-      // Og HER skal krysshåret stå: sammenlagt kort betyr at man kan panorere.
-      if (!await fokusKnapper()) {
-        throw new Error('«Sett i fokus» mangler i den minimerte pilla — da finnes '
-          + 'ingen vei tilbake etter panorering')
-      }
-      // Og tilbake ut igjen.
-      await page.locator(`button[aria-label="Vis mer om ${forste}"]`).click({ timeout: 5000 })
-      await page.waitForTimeout(400)
-      if (utvidetFor && !await harHistorien()) throw new Error('kortet lot seg ikke utvide igjen')
 
       // NABO-HOPP minimerer av seg selv: man hopper for å SE, ikke for å lese.
+      // Kortet MÅ utvides først — snarveiene bor i det åpne kortet, og et hopp
+      // fra et alt sammenlagt kort ville ikke målt noe.
+      await page.locator(`button[aria-label="Vis mer om ${forste}"]`).click({ timeout: 5000 })
+      await page.waitForTimeout(400)
       const nabo = await evalMedTak(page, () => {
         const b = [...document.querySelectorAll('button[aria-label^="Hopp til "]')][0]
         return b ? b.getAttribute('aria-label').replace(/^Hopp til /, '').split(',')[0] : null
@@ -1201,10 +1212,9 @@ const SJEKKER = [
         if (!(await evalMedTak(page, () => document.body.innerText)).includes(nabo)) {
           throw new Error(`hoppet til «${nabo}», men kortet nevner den ikke`)
         }
-        // ET BYTTE BEHOLDER TILSTANDEN (v6.3.7). Kortet er sammenlagt nå, og et
-        // nytt valg fra lista skal flytte KAMERAET uten å skyve lesestoffet
-        // tilbake i ansiktet. Vi velger noe annet og krever at det fortsatt er
-        // sammenlagt — og at navnet FULGTE med, ellers flyttet ingenting seg.
+        // ET LISTEVALG MINIMERER (v6.3.10), også når kortet alt er sammenlagt.
+        // Vi velger noe annet og krever at det fortsatt er sammenlagt — og at
+        // navnet FULGTE med, ellers flyttet ingenting seg.
         await page.locator('button[aria-label^="Valgt:"]').click({ timeout: 8000 })
         await page.waitForTimeout(400)
         const annet = await evalMedTak(page, (unntak) => {
@@ -1217,18 +1227,18 @@ const SJEKKER = [
             .filter({ hasText: annet }).first().click({ timeout: 5000 })
           await page.waitForTimeout(1600)
           if (await harHistorien()) {
-            throw new Error(`byttet til «${annet}» med sammenlagt kort, men kortet `
-              + 'åpnet seg — et bytte skal beholde tilstanden')
+            throw new Error(`byttet til «${annet}» fra lista, men kortet åpnet seg `
+              + '— et listevalg skal minimere')
           }
           if (!(await evalMedTak(page, () => document.body.innerText)).includes(annet)) {
             throw new Error(`byttet til «${annet}», men pilla viser den ikke`)
           }
-          // Og kortet skal fortsatt kunne åpnes — regelen er «behold», ikke «lås».
+          // Og kortet skal fortsatt kunne åpnes — det minimeres, det låses ikke.
           await page.locator(`button[aria-label="Vis mer om ${annet}"]`).click({ timeout: 5000 })
           await page.waitForTimeout(400)
           if (!await harHistorien()) {
-            throw new Error('kortet lot seg ikke åpne etter et bytte — regelen er '
-              + '«behold tilstanden», ikke «lås sammenlagt»')
+            throw new Error('kortet lot seg ikke åpne etter et listevalg — pilla '
+              + 'skal være sammenlagt, ikke låst')
           }
         }
       }
@@ -1296,10 +1306,9 @@ const SJEKKER = [
       const globeUtfall = `${medGlobe}-globen ga ${trekk} stedsnavn; `
         + `globe-merket på ${merker.medMerke} av ${merker.rader} rader`
 
-      // KORTET MÅ ÅPNES FØRST (v6.3.7). Fra nå BEHOLDER et bytte tilstanden, og
-      // nabo-hoppet over etterlot kortet sammenlagt — så globe-valget arver det,
-      // og faktablokka finnes ikke i en sammenlagt pille. Sjekken under skal måle
-      // INNHOLDET i kortet, ikke hvordan vi tilfeldigvis kom dit.
+      // KORTET MÅ ÅPNES FØRST. Et listevalg MINIMERER (v6.3.10), så globe-valget
+      // over etterlot en sammenlagt pille — og faktablokka finnes ikke der.
+      // Sjekken under skal måle INNHOLDET i kortet, ikke hvordan vi kom dit.
       const visMer = page.locator(`button[aria-label="Vis mer om ${medGlobe}"]`)
       if (await visMer.count()) {
         await visMer.click({ timeout: 5000 })

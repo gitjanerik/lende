@@ -1,7 +1,7 @@
 {
   "name": "lende",
   "private": true,
-  "version": "6.3.8",
+  "version": "6.3.10",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,6 +10,7 @@
     "test": "vitest run",
     "royk": "node scripts/royk-mapview.mjs",
     "bygg:stjerner": "node scripts/bygg-stjerner.mjs",
+    "bygg:figurfasit": "node scripts/bygg-figurfasit.mjs",
     "bygg:himmelkart": "node scripts/bygg-himmelkart.mjs",
     "royk:ruter": "node scripts/ruter-royk.mjs",
     "boot:workers": "node scripts/worker-boot.mjs",

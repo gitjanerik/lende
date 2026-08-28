@@ -600,6 +600,29 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   og `blikk`-eventet emittes fra v6.3.2 i ALLE moduser, ikke bare om natta — et
   håndtak som bare er sant om natta lyver om dagen. Vippen har fortsatt ÉN eier:
   `freeRig`.
+- **Fremhevings-bufferet allokeres ÉN gang, på maks størrelse (v6.3.9).** three
+  setter `geometry._maxInstanceCount` FØRSTE gang en instansiert geometri bindes,
+  av bufferets lengde den gang, og fjerner det aldri igjen (bare ved dispose).
+  Tegnetallet er `min(instanceCount, _maxInstanceCount)`. `settValgt` kalte
+  `setPositions` med et nytt, mindre buffer per valg — så taket ble satt av det
+  FØRSTE valget i økta, og hver større formasjon etterpå fikk figuren KLIPPET.
+  Målt i Chromium: `_max=4` etter Kassiopeia, altså fire streker av Dragens ti.
+  Feilen ser ut som «noen streker mangler i stjernebildet», og den er usynlig i
+  enhetstester fordi geometrien er helt riktig — det er bindingen som klemmer.
+  Regelen er den samme som knappenålene (v5.22.11): `instanceCount` styrer hva
+  som SUBMITTERES, kapasiteten er konstant. Invarianten står i `skyDome.test.js`
+  og er verifisert i begge retninger.
+- **Stjernebildefigurene har en INNBAKT FASIT, og bruken er ENSRETTET (v6.3.9).**
+  `lib/tour3d/stjernefigurFasit.js` (bakt av `scripts/bygg-figurfasit.mjs`, npm
+  `bygg:figurfasit`) er d3-celestials standardfigurer slått opp mot HYG. Testen
+  krever at hver strek VI tegner finnes der; en strek i fasiten vi ikke tegner er
+  greit, for kjedene i `bygg-stjerner.mjs` er bevisste forenklinger for en
+  telefonskjerm. Grunnen til at den finnes: elleve streker i sju stjernebilder var
+  snarveier vi hadde funnet opp — Algol rett på δ Per, Dragens hode som trekant
+  der `stjernebildeInfo` alt sa «firkant» — og Karlsvogna hadde bollen ÅPEN.
+  **Ingenting i koden avslører en oppfunnet strek**, og en figur kan være helt
+  internt konsistent og likevel være feil. Legger du til et stjernebilde, kjør
+  baken; mangler den en id, feiler testen med vilje.
 - **Stjernestørrelser er i CSS-piksler, og det var en ekte feil (v6.0.0).**
   `gl_PointSize` og `LineMaterial`-bredder er i FRAMEBUFFER-piksler. Med
   `setPixelRatio` opptil 2 ble stjernene halv størrelse på telefon — usynlige i
@@ -856,16 +879,19 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   minimer/utvid, lukk. Knappene skal ligge på samme sted enten kortet er
   sammenlagt eller åpent, så man ikke må lete etter dem på nytt.
 
-  **ET BYTTE BEHOLDER KORTETS TILSTAND, første valg åpner (v6.3.7).** Har man
-  lagt kortet sammen, er man i «se på himmelen»-modus, og et nytt stjernebilde
-  skal flytte KAMERAET uten å skyve lesestoffet tilbake i ansiktet. Regelen er
-  «behold», ikke «lås»: første valg åpner, fordi der har man nettopp spurt hva noe
-  er. Nabo-hoppet minimerer fortsatt selv — det er den motsatte handlingen.
-  **Regelen bor i ÉN funksjon (`settKortTilstand`) fordi TO steder leser den:**
-  `velgHimmel` (lista) og `himmel-valgt`-handleren (trykk i himmelen). Den siste
-  setter `valgtHimmel` direkte og går ikke gjennom den første, så to kopier kommer
-  i utakt — og da oppfører de to veiene til samme valg seg ulikt, som er nøyaktig
-  feilen fra v6.1.1 speilvendt.
+  **NAVIGASJON MINIMERER, ET TRYKK ÅPNER (v6.3.10).** Søkelista og
+  nabo-snarveiene går gjennom `velgOgSe` og legger ALLTID kortet sammen: å plukke
+  et navn fra nedtrekkslista er navigasjon — man har alt bestemt seg for hva man
+  vil se — og en tekstblokk over halve himmelen står i veien for nettopp det.
+  Trykk i himmelen er den motsatte handlingen og går gjennom `settKortTilstand`:
+  første trykk ÅPNER (man har pekt på noe og spurt hva det er), et bytte BEHOLDER
+  tilstanden (v6.3.7), så et nytt trykk med sammenlagt kort flytter kameraet uten
+  å skyve lesestoffet tilbake i ansiktet.
+  **Tilstanden eies av `Viewer3D` og ikke av kortet fordi det er KALLEREN som vet
+  hva som utløste valget.** `himmel-valgt`-handleren setter `valgtHimmel` direkte
+  og går ikke gjennom `velgHimmel`, så den MÅ kalle `settKortTilstand` selv —
+  uten det arver et trykk på månen minimeringen fra forrige hopp, og kortet kommer
+  sammenlagt når man nettopp har spurt hva noe er (feilen i v6.1.1).
 
   **«SETT I FOKUS» (krysshår) STÅR BARE I DEN MINIMERTE PILLA (v6.3.5).** Den
   retter blikket mot det som ALT er valgt, via `scene3d.fokuserHimmel` — som BARE

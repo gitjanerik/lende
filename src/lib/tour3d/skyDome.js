@@ -12,7 +12,7 @@ import {
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
-import { STJERNER, LINJER } from './stjerner.js'
+import { STJERNER, LINJER, FORMASJONER } from './stjerner.js'
 import { PLANETER, synligePlaneter } from './planeter.js'
 import { harGlobe } from './himmellegemer.js'
 import {
@@ -416,6 +416,23 @@ const LINJE_BREDDE_PX = 1.7
 // man skal se hvilken man har valgt uten at resten av himmelen forsvinner.
 const VALGT_LINJE_OPASITET = 0.85
 const VALGT_LINJE_BREDDE_PX = 2.6
+// Kapasiteten til fremhevings-bufferet: den STØRSTE formasjonen, én gang for
+// alle. Den er ikke en optimalisering, den er hele grunnen til at fremhevingen
+// virker (v6.3.9).
+//
+// three setter `geometry._maxInstanceCount` FØRSTE gang en instansiert geometri
+// bindes, av bufferets lengde den gang — og fjerner det aldri igjen (bare ved
+// dispose). Tegnetallet er `min(instanceCount, _maxInstanceCount)`. Kalte man
+// `setPositions` med et større sett senere, sto taket fra første valg: valgte man
+// Kassiopeia (4 linjer) først, fikk Dragen (10) bare de fire første. Målt i
+// Chromium: `_max=4` for hvert valg etter det første. Feilen ser ut som «noen
+// streker mangler i figuren», og den rammer ALLE formasjoner større enn det
+// første valget.
+//
+// Derfor: ett buffer på maks størrelse, og `instanceCount` styrer hvor mange som
+// SUBMITTERES — samme regel som knappenålene (pinField, v5.22.11): en instans
+// som ikke skal ses, skal ikke submitteres.
+const VALGT_LINJE_KAPASITET = Math.max(1, ...FORMASJONER.map((f) => f.linjer.length))
 // Hvor mye større stjernene i den valgte formasjonen tegnes. 1,6 er nok til at
 // figuren løfter seg ut av himmelen uten at den ser ut som en annen himmel.
 const VALGT_STJERNE_FAKTOR = 1.6
@@ -560,6 +577,7 @@ export function buildNightSky({
   const pikselMaterialer = []
   let valgtLinjeGeo = null
   let valgtLinjer = null
+  let valgtBuffer = null
 
   const linjePunkter = (par) => {
     const ut = []
@@ -595,11 +613,14 @@ export function buildNightSky({
       pikselMaterialer.push(linjeMat)
     }
 
-    // Den valgte formasjonen tegnes i et EGET objekt oppå de svake. Geometrien
-    // skrives om ved valg; det er billigere og enklere enn en per-vertex-attributt
-    // på et LineSegmentsGeometry, og formasjonene er små (4–10 linjer).
+    // Den valgte formasjonen tegnes i et EGET objekt oppå de svake. Bufferet
+    // allokeres ÉN gang på maks størrelse (se VALGT_LINJE_KAPASITET) og fylles
+    // ved valg; `setPositions` med et Float32Array tar arrayet i bruk direkte, så
+    // `valgtBuffer` ER geometriens minne.
+    valgtBuffer = new Float32Array(VALGT_LINJE_KAPASITET * 6)
     valgtLinjeGeo = new LineSegmentsGeometry()
-    valgtLinjeGeo.setPositions([0, 0, 0, 0, 0, 0])
+    valgtLinjeGeo.setPositions(valgtBuffer)
+    valgtLinjeGeo.instanceCount = 0
     const valgtMat = new LineMaterial({
       color: new Color('#ffe9a3'),
       linewidth: VALGT_LINJE_BREDDE_PX,
@@ -804,11 +825,18 @@ export function buildNightSky({
       if (!valgtLinjer) return
       const par = formasjon?.linjer ?? []
       const punkter = linjePunkter(par)
-      if (!punkter.length) {
+      // Kapasiteten er den største formasjonen, så dette kan ikke klippe noe —
+      // men en katalog som vokser uten en ny bake skal degradere synlig i stedet
+      // for å skrive utenfor bufferet.
+      const antall = Math.min(punkter.length / 6, VALGT_LINJE_KAPASITET)
+      valgtLinjeGeo.instanceCount = antall
+      if (!antall) {
         valgtLinjer.visible = false
         return
       }
-      valgtLinjeGeo.setPositions(punkter)
+      for (let i = 0; i < antall * 6; i++) valgtBuffer[i] = punkter[i]
+      // Interleaved-bufferet må merkes selv; attributtene deler det.
+      valgtLinjeGeo.attributes.instanceStart.data.needsUpdate = true
       // LineSegmentsGeometry cacher en bounding sphere som three ikke
       // invaliderer når posisjonene byttes. Den brukes ikke til raycast her,
       // men frustumCulled er av, så vi nuller den for ordens skyld.

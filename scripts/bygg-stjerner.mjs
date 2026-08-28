@@ -39,8 +39,19 @@ const MAG_GRENSE = 2.6
 //
 // Utvalget er nordlig og gjenkjennelig — dette er et norsk turkart. Kjedene er
 // forenklede figurer, ikke IAU-grensene.
+//
+// FASIT (v6.3.9): kjedene er MÅLT mot d3-celestials `constellations.lines.json`
+// — standardfigurene, uavhengig av oss. Regelen som kom ut av det er at vi kan
+// utelate en strek som finnes i fasiten (forenkling), men ALDRI tegne en som
+// ikke finnes der (oppfunnet geometri). Sju av de tretten hadde snarveier som
+// hoppet over mellomliggende stjerner, og Karlsvogna hadde bollen åpen.
+// Invarianten står i stjerner.test.js mot en innbakt fasit-tabell —
+// stjernefigurFasit.js — så en ny kjede ikke kan smugle inn en strek igjen.
 const ASTERISMER = [
-  { navn: 'Karlsvogna', latin: 'Ursa Major', kjeder: [['Alp UMa', 'Bet UMa', 'Gam UMa', 'Del UMa', 'Eps UMa', 'Zet UMa', 'Eta UMa']] },
+  // Karlsvogna: bollen er en FIRKANT. Fram til v6.3.9 sto kjeden som
+  // Alp→Bet→Gam→Del→…, altså med bollen ÅPEN på oversida — δ Dubhe-linja manglet,
+  // og himmelens mest gjenkjennelige figur var en krok og ikke en vogn.
+  { navn: 'Karlsvogna', latin: 'Ursa Major', kjeder: [['Del UMa', 'Alp UMa', 'Bet UMa', 'Gam UMa', 'Del UMa', 'Eps UMa', 'Zet UMa', 'Eta UMa']] },
   {
     navn: 'Lille bjørn',
     latin: 'Ursa Minor',
@@ -58,7 +69,10 @@ const ASTERISMER = [
       ['Gam Ori', 'Del Ori'],
       ['Del Ori', 'Eps Ori', 'Zet Ori'],
       ['Zet Ori', 'Kap Ori'],
-      ['Del Ori', 'Bet Ori'],
+      // Rigel henger på beltet via η Ori, ikke rett på δ: benet er BØYD.
+      ['Del Ori', 'Eta Ori', 'Bet Ori'],
+      // Hodet (λ Ori) mellom skuldrene — med i enhver standardframstilling.
+      ['Gam Ori', 'Lam Ori', 'Alp Ori'],
     ],
   },
   {
@@ -74,27 +88,42 @@ const ASTERISMER = [
     navn: 'Dragen',
     latin: 'Draco',
     kjeder: [
-      ['Gam Dra', 'Xi Dra', 'Bet Dra', 'Gam Dra'],
-      ['Xi Dra', 'Del Dra', 'Zet Dra', 'Eta Dra', 'Iot Dra', 'Alp Dra', 'Kap Dra', 'Lam Dra'],
+      // Hodet er en FIRKANT med ν Dra, ikke en trekant: β–ξ finnes ikke i noen
+      // standardfigur, og hodet er det ene ved Dragen man kjenner igjen.
+      ['Xi Dra', 'Gam Dra', 'Bet Dra', 'Nu Dra', 'Xi Dra'],
+      // Kroppen svinger via φ og θ. Uten dem gikk streken tvers over svingene.
+      ['Xi Dra', 'Del Dra', 'Phi Dra', 'Zet Dra', 'Eta Dra', 'The Dra', 'Iot Dra', 'Alp Dra', 'Kap Dra', 'Lam Dra'],
     ],
   },
   {
     navn: 'Persevs',
     latin: 'Perseus',
     kjeder: [
-      ['Eta Per', 'Gam Per', 'Alp Per', 'Del Per', 'Eps Per'],
-      ['Del Per', 'Bet Per'],
+      // Buen går gjennom ψ og ν; Algol henger på η via τ, ι og κ — ikke rett på
+      // δ, som var en strek vi hadde funnet opp selv.
+      ['Eta Per', 'Gam Per', 'Alp Per', 'Psi Per', 'Del Per', 'Nu Per', 'Eps Per'],
+      ['Eta Per', 'Tau Per', 'Iot Per', 'Kap Per', 'Bet Per'],
     ],
   },
   { navn: 'Bjørnevokteren', latin: 'Boötes', kjeder: [['Alp Boo', 'Eps Boo', 'Del Boo', 'Bet Boo', 'Gam Boo', 'Rho Boo', 'Alp Boo']] },
-  { navn: 'Kefeus', latin: 'Cepheus', kjeder: [['Alp Cep', 'Bet Cep', 'Gam Cep', 'Iot Cep', 'Zet Cep', 'Alp Cep']] },
-  { navn: 'Kusken', latin: 'Auriga', kjeder: [['Alp Aur', 'Bet Aur', 'The Aur', 'Bet Tau', 'Iot Aur', 'Alp Aur']] },
+  {
+    navn: 'Kefeus',
+    latin: 'Cepheus',
+    // Huset: taket α–β–γ–ι med β–ι som bjelke, og veggen tilbake via δ, ζ, ε, μ.
+    kjeder: [
+      ['Alp Cep', 'Bet Cep', 'Gam Cep', 'Iot Cep', 'Del Cep', 'Zet Cep', 'Eps Cep', 'Mu Cep', 'Alp Cep'],
+      ['Bet Cep', 'Iot Cep'],
+    ],
+  },
+  // Femkanten lukkes via η Aur, ikke med en rett α–ι-strek.
+  { navn: 'Kusken', latin: 'Auriga', kjeder: [['Alp Aur', 'Bet Aur', 'The Aur', 'Bet Tau', 'Iot Aur', 'Eta Aur', 'Alp Aur']] },
   {
     navn: 'Tvillingene',
     latin: 'Gemini',
+    // ÉN kjede fra Kastors fot til Pollux' fot. Fire av de fem gamle strekene
+    // var snarveier vi hadde funnet opp; ingen av dem finnes i standardfiguren.
     kjeder: [
-      ['Alp Gem', 'Bet Gem', 'Del Gem', 'Gam Gem'],
-      ['Alp Gem', 'Eps Gem', 'Eta Gem'],
+      ['Eta Gem', 'Mu Gem', 'Eps Gem', 'Tau Gem', 'Alp Gem', 'Bet Gem', 'Ups Gem', 'Del Gem', 'Zet Gem', 'Gam Gem', 'Xi Gem'],
     ],
   },
   {
@@ -103,7 +132,8 @@ const ASTERISMER = [
     kjeder: [
       ['Eps Leo', 'Mu Leo', 'Zet Leo', 'Gam Leo', 'Eta Leo', 'Alp Leo'],
       ['Gam Leo', 'Del Leo', 'Bet Leo'],
-      ['Del Leo', 'The Leo', 'Alp Leo'],
+      // Bakparten er en trekant β–θ–α. Vi hadde δ–θ, som ikke er figuren.
+      ['Bet Leo', 'The Leo', 'Alp Leo'],
     ],
   },
 ]
