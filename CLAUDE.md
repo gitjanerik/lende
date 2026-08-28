@@ -779,6 +779,15 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   se `oppdaterSkySynlighet`). Knappen står nå HELT TIL VENSTRE i topprada, foran
   nålene: den skifter hele bildet, og i nattmodus er den den eneste som blir
   igjen på venstresida.
+- **VÆRET LUKKES MED EN X I VÆRRADEN, ikke med modus-knappen (v6.3.8).** Et trykk
+  tar bort både raden og værhimmelen (`vaerAvvist` i Viewer3D gater `vaerOn`, som
+  alt styrer begge). Den erstatter det tredje steget sol/måne-knappen hadde fram
+  til v6.1.0: knappen svarer på «dag eller natt», dette er «vis meg været eller
+  ikke», og to spørsmål på én bryter var nettopp det som gjorde tri-staten uklar.
+  **Tilstanden lagres IKKE** — dag/natt avgjøres av klokka, så neste gang 3D åpnes
+  er været med igjen; et bytte av lysmodus nullstiller flagget, og det er den ene
+  veien tilbake i samme økt. X-en ligger UTENFOR rulleflata i baren: lå den i
+  timelista, forsvant den ut til høyre når man rullet fram flere timer.
 - **NATTMODUS ER STJERNEKIKKEREN, ikke kartet i mørkt tema (v6.1.0).** Å slå på
   natt gjør fem ting på én gang, og det er en bevisst pakke: blikket løftes til
   50° med en ease-out over 1,5 s (`scene3d.seOppMotHimmelen`), kurver + stier +

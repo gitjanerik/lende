@@ -1,3 +1,15 @@
+## 2026-08-28 — v6.3.8: En X i værraden tar bort været
+
+Værraden i dagmodus har fått en liten X til høyre. Et trykk fjerner både raden og værhimmelen — regn, torden, tåke og skyene. Den erstatter det tredje steget sol/måne-knappen hadde fram til v6.1.0, og hører bedre her: knappen svarer på «dag eller natt», mens dette er «vis meg været eller ikke». To spørsmål på én bryter var nettopp det som gjorde tri-staten uklar.
+
+Tilstanden lagres bevisst ikke. Dag og natt avgjøres av klokka, så neste gang 3D åpnes er været med igjen. Vil man ha det tilbake i samme økt, går man innom natt og tilbake — og det er den ene veien, dokumentert i koden.
+
+X-en ligger utenfor rulleflata i baren. Lå den i timelista, ville den forsvunnet ut til høyre i det man rullet fram flere timer, og da er den ikke en lukkeknapp lenger. Baren er derfor to kolonner: timene som ruller, og X-en som står stille.
+
+Røyk-sjekken måler begge retninger — at trykket faktisk fjerner raden, og at en runde om natta gir den tilbake. Uten den andre halvparten kunne X-en vært en enveisbillett ut av været for hele økta og sjekken likevel stått grønn.
+
+---
+
 ## 2026-08-28 — v6.3.7: Et bytte av stjernebilde beholder kortet sammenlagt
 
 Har man lagt infokortet sammen, er man i «se på himmelen»-modus — og da skal et nytt stjernebilde flytte kameraet uten å skyve lesestoffet tilbake i ansiktet. Fram til nå åpnet hvert valg kortet på nytt, så man måtte legge det sammen igjen for hvert hopp.

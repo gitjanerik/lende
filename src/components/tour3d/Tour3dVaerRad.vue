@@ -16,6 +16,8 @@ import VaerIkon from '../VaerIkon.vue'
 import { timerFramover, vindMotGrader } from '../../lib/vaerFetcher.js'
 import { bearingToCompass } from '../../lib/mapContext.js'
 
+const emit = defineEmits(['lukk'])
+
 const props = defineProps({
   // { status: 'loading'|'done'|'error', varsel } — samme form som i 2D.
   vaer: { type: Object, default: null },
@@ -60,10 +62,15 @@ function vindTitle(t) {
        class="rounded-full bg-black/45 backdrop-blur px-3 py-1.5 text-[0.6875rem] text-white/60">
     Værvarsel ikke tilgjengelig
   </div>
+  <!-- BAREN ER TO KOLONNER (v6.3.8): timene som ruller, og en X som står stille.
+       X-en må ligge UTENFOR rulleflata — lå den i lista, ville den forsvunnet ut
+       til høyre i det man rullet fram flere timer, og da er den ikke en lukkeknapp
+       lenger. `shrink-0` på begge sider, og rullingen på den venstre alene. -->
   <div v-else-if="timer.length"
-       class="rounded-2xl bg-black/45 backdrop-blur overflow-x-auto max-w-full
-              [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-    <div class="flex items-stretch divide-x divide-white/10 w-max">
+       class="rounded-2xl bg-black/45 backdrop-blur max-w-full flex items-stretch">
+    <div class="flex items-stretch divide-x divide-white/10 overflow-x-auto
+                [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div class="flex items-stretch divide-x divide-white/10 w-max">
       <div v-for="t in timer" :key="t.tid"
            class="flex flex-col items-center gap-0.5 px-2.5 py-1.5 min-w-[3.6rem]">
         <span class="text-[0.5625rem] text-white/50 tabular-nums leading-none">{{ klokke(t.tid) }}</span>
@@ -107,6 +114,26 @@ function vindTitle(t) {
       <div class="flex items-center px-2.5">
         <span class="text-[0.5rem] leading-tight text-white/35 whitespace-nowrap">MET<br/>Norway</span>
       </div>
+      </div>
+    </div>
+
+    <!-- LUKK VÆRET. Tar bort både raden og værhimmelen — regn, torden, tåke og
+         skyer. Den erstatter det tredje steget sol/måne-knappen hadde fram til
+         v6.1.0, og er en bedre plassering: knappen sier «dag eller natt», mens
+         DETTE er «vis meg været eller ikke», og de to spørsmålene hører ikke på
+         samme bryter.
+         Tilstanden lagres IKKE: dag/natt avgjøres av klokka, og neste gang man
+         åpner 3D er været med igjen. Vil man ha det tilbake i samme økt, går man
+         innom natt og tilbake. -->
+    <div class="shrink-0 flex items-stretch border-l border-white/10">
+      <button @click="emit('lukk')" aria-label="Skjul værvarselet og værhimmelen"
+              class="w-9 flex items-center justify-center text-white/45
+                     active:scale-90 transition-transform">
+        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+             stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+        </svg>
+      </button>
     </div>
   </div>
 </template>
