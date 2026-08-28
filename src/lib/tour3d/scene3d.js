@@ -689,7 +689,7 @@ export async function create3dScene(container, {
       highlight.update(timeS, camera)
       gps?.update(timeS, camera)
       waypoints?.update(camera)
-      core.updateAmbient(dt)
+      core.updateAmbient(dt, timeS)
       pins.update(camera)
 
       core.render()
@@ -711,7 +711,10 @@ export async function create3dScene(container, {
       // eneste kilden som er sann uansett hva riggen holder på med (animasjon,
       // hold, overgang), og et kompass som viser noe annet enn det man ser er
       // verre enn ingen.
-      if (core.nightOn && nowMs - sisteBlikkEmit > TREKK_EMIT_MS) {
+      // FRA v6.3.2 EMITTES DEN I ALLE MODUSER, ikke bare om natta. Skyveknappen
+      // på desktop viser blikkets høyde, og et håndtak som bare er sant om natta
+      // er et håndtak som lyver om dagen. Takten er den samme, 8 i sekundet.
+      if (nowMs - sisteBlikkEmit > TREKK_EMIT_MS) {
         sisteBlikkEmit = nowMs
         emit('blikk', blikkNaa())
       }
@@ -842,6 +845,21 @@ export async function create3dScene(container, {
      */
     seMotNord() {
       freeRig.seMot(0, (blikkNaa().hoyde * Math.PI) / 180)
+    },
+
+    /**
+     * Blikkets høyde, i GRADER, satt direkte. Skyveknappen på desktop.
+     *
+     * HVORFOR DEN FINNES: himmelvippen drives av et DRAG, og på desktop er
+     * venstre museknapp satt om til panorering (se mouseButtons i freeRig) — så
+     * bare høyre knapp roterer, og det er ingenting på skjermen som sier det.
+     * Uten en kontroll kan man altså ikke løfte blikket til himmelen i det hele
+     * tatt med mus, og hele stjernekikkeren er utilgjengelig. Gjelder ALL
+     * 3D-visning, ikke bare natt.
+     */
+    settBlikkHoyde(grader) {
+      if (!Number.isFinite(grader)) return
+      freeRig.settBlikkHoyde((grader * Math.PI) / 180)
     },
 
     /**

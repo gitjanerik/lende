@@ -121,6 +121,28 @@ watch(() => props.objekter, () => {
               <span class="block text-[0.8125rem] font-medium text-white/90 truncate">{{ o.navn }}</span>
               <span class="block text-[0.625rem] text-white/45 truncate">{{ himmelUndertekst(o) }}</span>
             </span>
+            <!-- GLOBE-MERKET: dette legemet kan åpnes som en roterbar kule.
+                 Bare de fire som HAR en globe får det (porten er `harGlobe` i
+                 objektet, satt av himmelObjekter) — et merke som lover en globe
+                 som ikke finnes er verre enn ingen merke, samme regel som
+                 trykk-ringen på himmelen.
+
+                 En liten trådklode og ikke en emoji: 🪐 er alt brukt som
+                 TYPE-ikon til venstre for planetene, så en emoji her ville sagt
+                 «planet» to ganger og ingenting om at den kan åpnes. Kula leses
+                 som 3D fordi meridianen er en ELLIPSE — en rett strek ville gitt
+                 et delt-i-to-symbol. -->
+            <span v-if="o.harGlobe" class="shrink-0 self-center flex items-center">
+              <svg viewBox="0 0 16 16" class="w-[0.875rem] h-[0.875rem] text-white/45"
+                   fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
+                <circle cx="8" cy="8" r="6"/>
+                <ellipse cx="8" cy="8" rx="2.6" ry="6"/>
+                <path d="M2.4 6h11.2M2.4 10h11.2"/>
+              </svg>
+              <!-- Merket er informasjon, så det må finnes som TEKST også: en
+                   skjermleser skal høre hvorfor denne raden er annerledes. -->
+              <span class="sr-only">— kan åpnes som globe</span>
+            </span>
           </button>
         </li>
       </ul>

@@ -518,14 +518,64 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   fila fordi bruksområdet er en kveld ute uten dekning; et oppslag i felt er et
   oppslag som feiler i felt. Legger du til et legeme, skriv faktaene inn — ikke en
   lenke og en tom blokk.
-- **Trykk-ringen på himmelen er en AFFORDANSE (v6.2.0).** `buildHimmelSkive({ ring })`
-  tegner et tynt omriss rundt legemet, i SAMME shader og på samme plan som skiva
-  (planet skaleres opp med `RING_FAKTOR`; et eget mesh ville vært ett objekt mer å
-  holde i takt med posisjon, skala og synlighet). Den står på nøyaktig de fire
-  legemene som HAR en globe — porten er `harGlobe`, ETT sted. Merkur og Venus får
-  den ikke: et omriss som lover en globe som ikke finnes er verre enn ingen ring.
-  Fella er å glemme oppskaleringen: da spiser ringen av legemet i stedet for å
-  legge seg rundt det, og månen krymper den dagen den blir trykkbar. Egen test.
+- **Trykk-ringen på himmelen er FAST I CSS-PIKSLER, ikke i grader (v6.2.0,
+  rettet i v6.3.2).** `buildHimmelSkive({ ring })` tegner et pulserende omriss
+  rundt legemet, i SAMME shader og på samme plan som skiva (planet blåses opp til
+  det største av skive og ring; et eget mesh ville vært ett objekt mer å holde i
+  takt med posisjon, skala og synlighet).
+
+  **FEILEN SOM BLE RETTET ER VERDT Å KJENNE:** ringen var `RING_FAKTOR` × skivas
+  VINKELSTØRRELSE. For månen (1,6°) ga det et brukbart omriss, men for en planet
+  på 0,45° ble ringen 17 px i diameter og streken **under én piksel bred** —
+  altså usynlig. Eieren meldte at «de tre planetene vises ikke og må åpnes via
+  søk», og det var nettopp dette: affordansen var der, den var bare sub-piksel.
+  Samme klasse feil som stjernestørrelsene i v6.0.0 — **en affordanse må måles i
+  piksler, for det er piksler brukeren ser.**
+
+  `RING_PX` er 46, og det er ikke et rundt tall: det er samme terskel
+  `plukkHimmel` i scene3d bruker, så **det man ser er nøyaktig det man kan
+  treffe.** Ringen er derfor LIK for alle fire, uavhengig av legemets størrelse.
+  `settSkjermHoyde` regner den om ved hver resize (matet av `setResolution`) —
+  en ring i piksler som bare regnes ut ved bygging er 46 px på den skjermen appen
+  startet på og noe annet etterpå.
+
+  Ripple-en er tre lag: et svakt FAST omriss, så det alltid er et mål å sikte på
+  i det øyeblikket pulsene er svakest, pluss to pulser et halvt omløp i utakt.
+  Bevegelse er det eneste øyet finner av seg selv på en natthimmel. Guarden
+  `rq > uSkive` i shaderen er ikke valgfri: uten den kan en puls som passerer over
+  legemet overskrive det, og da BLINKER Mars i stedet for å ligge stille.
+
+  `MIN_SKIVE_PX` (5) er et GULV og ikke en forstørrelse: legemet skal ikke gjøres
+  uproporsjonalt større enn på den virkelige natthimmelen — det var uttrykkelig
+  bestillingen — men det må være noen piksler stort, ellers er det ingenting å se
+  inni ringen.
+
+  Porten står på nøyaktig de fire legemene som HAR en globe: `harGlobe`, ETT sted.
+  Merkur og Venus får den ikke — et omriss som lover en globe som ikke finnes er
+  verre enn ingen ring. **`nightSky.update(camera, tidS)` MÅ mate alle skivene**,
+  ikke bare månen: en uniform som ikke mates står stille, og fram til v6.3.2
+  vendte bare månen seg mot kameraet her.
+- **Infokortet i himmelen har FAST HEADER og RULLBAR KROPP (v6.3.2).** Med fakta
+  og utforskningshistorie inne (v6.3.0) vokste kortet rett ut av skjermen: navnet
+  og de tre knappene forsvant oppover mens teksten lå igjen over terrenget, uten
+  noen måte å lukke kortet på. Headeren — navn, retning, høyde og de tre ikonene —
+  er `shrink-0` og alltid synlig; bare lesestoffet ruller, med tak på 58 vh.
+  `overscroll-contain` og `touch-pan-y` er ikke pynt: uten dem forplanter et drag
+  som treffer enden av lista seg til 3D-lerretet og dreier kameraet under fingeren.
+- **På desktop kan man ikke løfte blikket med et venstre-drag, og det er en ekte
+  luke (v6.3.2).** `freeRig` setter `mouseButtons = { LEFT: PAN, RIGHT: ROTATE }`,
+  så bare HØYRE knapp roterer — og ingenting på skjermen sier det. Uten en
+  kontroll er hele stjernekikkeren utilgjengelig på en stor skjerm uten berøring.
+  `Tour3dBlikkSkyv.vue` på høyre kant setter blikkets høyde direkte, i BÅDE dag og
+  natt, bak porten `(hover: hover) and (pointer: fine)`.
+
+  Tre ting som må stå: den bruker `freeRig.settBlikkHoyde` og ikke `seMot`, fordi
+  en skyveknapp sender et event per piksel og hundre 0,9-sekunders animasjoner som
+  avbryter hverandre gir et blikk som rykker etter håndtaket; området kommer fra
+  `blikkHoydeGrenser()` og skrives IKKE av, ellers står håndtaket stille i endene;
+  og `blikk`-eventet emittes fra v6.3.2 i ALLE moduser, ikke bare om natta — et
+  håndtak som bare er sant om natta lyver om dagen. Vippen har fortsatt ÉN eier:
+  `freeRig`.
 - **Stjernestørrelser er i CSS-piksler, og det var en ekte feil (v6.0.0).**
   `gl_PointSize` og `LineMaterial`-bredder er i FRAMEBUFFER-piksler. Med
   `setPixelRatio` opptil 2 ble stjernene halv størrelse på telefon — usynlige i
