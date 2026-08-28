@@ -102,13 +102,27 @@ async function start(port) {
   barn.on('exit', (k) => { døde = k ?? 0 })
 
   const frist = Date.now() + BOOT_TIMEOUT_MS
+  let sisteStatus = null
   while (Date.now() < frist) {
     const h = await http(port, { sti: '/health', metode: 'GET' })
-    if (h.status) return { barn, logg: () => logg }
+    // 2xx OG BARE 2xx, og DETTE VAR DEN FALSKE RØDEN I CI (v6.3.6). Her sto
+    // `if (h.status)`, og `status: 0` betyr «ingen forbindelse» — så gaten slapp
+    // gjennom i det porten svarte HVA SOM HELST. På en kald runner svarer workerd
+    // før rutene er montert, altså 404, og `initialize` fikk da 404 rett etterpå.
+    // Målt: 1,5 sekunder fra start til «✗ initialize — HTTP 404», mens de samme
+    // tre kjøringene lokalt gikk grønt. /health svarer 200 med {"ok":true,…} når
+    // Workeren faktisk er oppe, så kravet er trygt.
+    if (h.status >= 200 && h.status < 300) return { barn, logg: () => logg }
+    if (h.status) sisteStatus = h.status
     if (døde !== null || DØDS_MØNSTER.test(logg)) throw new Error(`Workeren døde:\n${logg.slice(-1200)}`)
     await sov(500)
   }
-  throw new Error(`Workeren svarte ikke innen ${BOOT_TIMEOUT_MS / 1000} s:\n${logg.slice(-1200)}`)
+  throw new Error(
+    `${sisteStatus === null
+      ? `Workeren svarte ikke innen ${BOOT_TIMEOUT_MS / 1000} s`
+      : `Workeren svarte HTTP ${sisteStatus} på /health i ${BOOT_TIMEOUT_MS / 1000} s `
+        + '— runtimen lytter, men rutene er ikke oppe'}:\n${logg.slice(-1200)}`,
+  )
 }
 
 const resultat = []
