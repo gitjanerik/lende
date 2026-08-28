@@ -907,18 +907,16 @@ function branchLabel(opt, i) {
                   :class="stjernemodus ? 'bg-black/25 text-white/35' : 'bg-white text-gray-900'">
             <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <!-- Måne (fylt) eller sol (strek) — forskjøvet litt opp/venstre når
-                   en sky ligger under, så de to formene ikke vokser sammen. -->
-              <g :transform="vaerOn ? 'translate(-2.2,-2.2) scale(0.78)' : ''">
-                <path v-if="nightOn" fill="currentColor" stroke="none"
-                      d="M20.4 14.2A8.5 8.5 0 0 1 9.8 3.6 8.5 8.5 0 1 0 20.4 14.2z"/>
-                <template v-else>
-                  <circle cx="12" cy="12" r="4.2"/>
-                  <path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5 5l1.7 1.7M17.3 17.3 19 19M19 5l-1.7 1.7M6.7 17.3 5 19"/>
-                </template>
-              </g>
-              <path v-if="vaerOn" d="M8.2 20.5h9.3a2.9 2.9 0 0 0 .3-5.8 4 4 0 0 0-7.7-1 2.9 2.9 0 0 0-1.9 6.8z"
-                    fill="currentColor" stroke="currentColor" stroke-width="1.1"/>
+              <!-- Måne (fylt) i natt, sol (strek) i dag. SKYA ER FJERNET (v6.3.0):
+                   den sto der for å skille «dag» fra «dag med vær», og de to er
+                   nå det samme steget. Sola fyller hele ikonet igjen, sentrert og
+                   uten forskyvning — den trenger ikke lenger gi plass til noe. -->
+              <path v-if="nightOn" fill="currentColor" stroke="none"
+                    d="M20.4 14.2A8.5 8.5 0 0 1 9.8 3.6 8.5 8.5 0 1 0 20.4 14.2z"/>
+              <template v-else>
+                <circle cx="12" cy="12" r="4.2"/>
+                <path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5 5l1.7 1.7M17.3 17.3 19 19M19 5l-1.7 1.7M6.7 17.3 5 19"/>
+              </template>
             </svg>
           </button>
 

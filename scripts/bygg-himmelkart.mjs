@@ -81,17 +81,24 @@ const LEGEMER = {
 
 const MAKS_BYTES = 900 * 1024
 
+// WIKIMEDIA KREVER EN IDENTIFISERENDE User-Agent. Uten den svarer de 400/403, og
+// det var trolig hele grunnen til at første probe fikk 400 på hver eneste
+// Commons-URL. Å oppgi hvem man er, er dessuten deres uttrykte vilkår.
+const UA = 'LendeHimmelkart/1.0 (https://github.com/gitjanerik/lende; turkart-app)'
+const hentJson = async (url) => {
+  const res = await fetch(url, { headers: { 'User-Agent': UA } })
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  return res.json()
+}
+
 /**
- * URL til en nedskalert utgave av en fil på Wikimedia Commons.
+ * URL til en nedskalert utgave av en fil på Wikimedia Commons — REGNET UT.
  *
- * HVORFOR COMMONS ER MED I JAKTEN: NASAs egne kart er hundrevis av megabyte, og
- * vi har ingen bildebehandler i pipelinen — filene MÅ være små når de hentes.
- * Commons har NASA-avledede kart i offentlig eiendom OG en thumb-tjener som gir
- * en vilkårlig bredde. Det løser nettopp problemet som gjorde at Mars, Jupiter
- * og Saturn ikke kom med i v6.2.0.
- *
- * Sti-sharden er md5 av filnavnet (med understrek for mellomrom): første tegn,
- * så de to første. Den kan altså regnes ut, ikke bare slås opp.
+ * Sti-sharden er md5 av filnavnet (med understrek for mellomrom): første tegn, så
+ * de to første. Beholdt fordi den er ren og testbar, men BRUK HELLER
+ * `commonsThumb`: den spør Commons om URL-en i stedet for å gjette, og et
+ * filnavn som ikke finnes er den svake lenken her. Første probe gjettet ti
+ * filnavn og traff ingen.
  */
 export function commonsUrl(filnavn, bredde = 1024) {
   const f = filnavn.replace(/ /g, '_')
@@ -100,79 +107,107 @@ export function commonsUrl(filnavn, bredde = 1024) {
 }
 
 /**
- * KANDIDATER TIL PROBING. Ikke i bruk av baken — dette er lista `--probe` går
- * gjennom for å FINNE ut hvilke URL-er som faktisk svarer.
+ * SPØR Commons om en nedskalert utgave, framfor å gjette URL-en.
  *
- * HVORFOR EN PROBE OG IKKE FLERE GJETTINGER: NASA, USGS og Wikimedia er alle
- * sperret fra utviklingsmiljøene, så en URL kan ikke prøves der den skrives. I
- * v6.2.0 ble tre URL-er gjettet, og alle tre var feil — oppdaget først i
- * deploy-loggen etter merge. Samme lærdom som skyene og knappenålene: når du
- * ikke kan se, BYGG EN MÅLING framfor en hypotese.
+ * HVORFOR DETTE ER RIKTIG VEI: NASAs og USGS' egne kart er hundrevis av megabyte,
+ * og vi har ingen bildebehandler i pipelinen — filene MÅ være små når de hentes.
+ * Commons har NASA-avledede kart i offentlig eiendom OG en thumb-tjener som gir
+ * en vilkårlig bredde. Men filnavnet må være RIKTIG, og det er det API-et vet.
+ * Da råtner heller ikke URL-en: den slås opp på nytt ved hver bake.
  *
- * Kjøres med `--probe` fra workflowen `probe-himmelkart.yml` (workflow_dispatch).
+ * @returns {Promise<{url: string, lisens: string, bytes: number}|null>}
  */
-const KANDIDATER = {
-  mars: [
-    commonsUrl('Mars_Viking_MDIM21_ClrMosaic_global_232m.jpg'),
-    commonsUrl('Solarsystemscope_texture_8k_mars.jpg'),
-    commonsUrl('Mars_Composite_Map.jpg'),
-    commonsUrl('Marsmap.jpg'),
-    commonsUrl('OSIRIS_Mars_true_color.jpg'),
-    'https://planetarymaps.usgs.gov/mosaic/Mars_Viking_MDIM21_ClrMosaic_global_232m.jpg',
-    'https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/mars_1k_color.jpg',
-    'https://www.solarsystemscope.com/textures/download/2k_mars.jpg',
-  ],
-  jupiter: [
-    commonsUrl('Solarsystemscope_texture_8k_jupiter.jpg'),
-    commonsUrl('Jupiter_Cylindrical_Map.jpg'),
-    commonsUrl('Map_of_Jupiter.jpg'),
-    commonsUrl('Jupiter_map.jpg'),
-    commonsUrl('PIA07782.jpg'),
-    'https://www.solarsystemscope.com/textures/download/2k_jupiter.jpg',
-    'https://svs.gsfc.nasa.gov/vis/a000000/a004800/a004851/jupiter_1k.jpg',
-  ],
-  saturn: [
-    commonsUrl('Solarsystemscope_texture_8k_saturn.jpg'),
-    commonsUrl('Saturn_Cylindrical_Map.jpg'),
-    commonsUrl('Map_of_Saturn.jpg'),
-    commonsUrl('Saturn_map.jpg'),
-    'https://www.solarsystemscope.com/textures/download/2k_saturn.jpg',
-    'https://svs.gsfc.nasa.gov/vis/a000000/a004800/a004851/saturn_1k.jpg',
-  ],
-  maane: [
-    // Månen VIRKER alt — den er med for å bevise at proben måler riktig. En probe
-    // der ingenting svarer kan ikke skilles fra en probe som er ødelagt.
-    'https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/lroc_color_poles_1k.jpg',
-    commonsUrl('Solarsystemscope_texture_8k_moon.jpg'),
-  ],
+export async function commonsThumb(tittel, bredde = 1024) {
+  const api = 'https://commons.wikimedia.org/w/api.php?action=query&format=json'
+    + `&titles=${encodeURIComponent(tittel)}`
+    + `&prop=imageinfo&iiprop=url|size|extmetadata&iiurlwidth=${bredde}`
+  try {
+    const j = await hentJson(api)
+    const side = Object.values(j?.query?.pages ?? {})[0]
+    const info = side?.imageinfo?.[0]
+    if (!info?.thumburl) return null
+    const lis = info.extmetadata?.LicenseShortName?.value
+      ?? info.extmetadata?.License?.value ?? 'ukjent lisens'
+    return { url: info.thumburl, lisens: lis, bytes: info.size ?? 0 }
+  } catch {
+    return null
+  }
 }
 
-/** Prøv hver kandidat og skriv status, type og størrelse. Skriver ingen filer. */
+/**
+ * Søk Commons etter filer som kan være et overflatekart. Brukt av proben til å
+ * FINNE kandidater, så neste runde ikke er gjetting.
+ */
+export async function commonsSok(sok, antall = 8) {
+  const api = 'https://commons.wikimedia.org/w/api.php?action=query&format=json'
+    + `&list=search&srnamespace=6&srlimit=${antall}`
+    + `&srsearch=${encodeURIComponent(sok)}`
+  try {
+    const j = await hentJson(api)
+    return (j?.query?.search ?? []).map((r) => r.title)
+  } catch (e) {
+    process.stderr.write(`  søk feilet: ${e.message}\n`)
+    return []
+  }
+}
+
+/**
+ * SØK som proben bruker for å FINNE kandidater på Commons. Ikke filnavn — søk.
+ *
+ * Første probe gjettet ti filnavn og traff ingen; alle ga 400. Lærdommen er den
+ * samme som ellers i dette prosjektet: når du ikke kan se, spør noen som kan.
+ * Commons' API vet både hvilke filer som finnes, hva de heter, hvor store de er
+ * og hvilken lisens de har.
+ */
+const SOK = {
+  mars: ['Mars cylindrical map', 'Mars surface map equirectangular', 'Mars albedo map'],
+  jupiter: ['Jupiter cylindrical map', 'Jupiter map equirectangular', 'Jupiter surface texture'],
+  saturn: ['Saturn cylindrical map', 'Saturn map equirectangular', 'Saturn surface texture'],
+  maane: ['Moon LROC color map', 'Moon cylindrical map'],
+}
+
+/** Prøv å finne og løse opp kandidater. Skriver ingen filer. */
 async function probe() {
-  for (const [navn, urler] of Object.entries(KANDIDATER)) {
-    process.stderr.write(`\n── ${navn} ${'─'.repeat(40)}\n`)
-    for (const url of urler) {
-      try {
-        // GET og ikke HEAD: Commons' thumb-tjener GENERERER bildet ved første
-        // forespørsel, og en HEAD kan svare 404 på noe en GET ville laget.
-        const res = await fetch(url, { redirect: 'follow' })
-        const buf = res.ok ? Buffer.from(await res.arrayBuffer()) : null
-        const jpeg = buf && buf[0] === 0xff && buf[1] === 0xd8
-        const kB = buf ? (buf.length / 1024).toFixed(0) : '—'
-        const dom = new URL(url).hostname
-        process.stderr.write(
-          `${res.ok ? '✓' : '✗'} ${String(res.status).padEnd(4)}`
-          + `${String(kB).padStart(6)} kB  ${jpeg ? 'jpeg' : '    '}  ${dom}\n`
-          + `        ${url}\n`,
-        )
-      } catch (e) {
-        process.stderr.write(`✗ FEIL              ${e?.message ?? e}\n        ${url}\n`)
+  for (const [navn, sokene] of Object.entries(SOK)) {
+    process.stderr.write(`\n── ${navn} ${'─'.repeat(46)}\n`)
+    const sett = new Set()
+    for (const q of sokene) {
+      for (const t of await commonsSok(q)) sett.add(t)
+    }
+    if (!sett.size) {
+      process.stderr.write('  ingen treff — er commons.wikimedia.org nåbar herfra?\n')
+      continue
+    }
+    for (const tittel of sett) {
+      const r = await commonsThumb(tittel)
+      if (!r) {
+        process.stderr.write(`✗ kunne ikke løses   ${tittel}\n`)
+        continue
       }
+      // Vi laster ned for å se hva thumben FAKTISK veier: `size` fra API-et er
+      // originalens størrelse, ikke nedskaleringens.
+      let kB = '?'
+      let jpeg = false
+      try {
+        const res = await fetch(r.url, { headers: { 'User-Agent': UA } })
+        if (res.ok) {
+          const b = Buffer.from(await res.arrayBuffer())
+          kB = (b.length / 1024).toFixed(0)
+          jpeg = b[0] === 0xff && b[1] === 0xd8
+        } else {
+          kB = `HTTP ${res.status}`
+        }
+      } catch (e) { kB = e.message }
+      process.stderr.write(
+        `${jpeg ? '✓' : '✗'} ${String(kB).padStart(7)} kB  ${jpeg ? 'jpeg' : '    '}  `
+        + `${r.lisens}\n        ${tittel}\n        ${r.url}\n`,
+      )
     }
   }
   process.stderr.write(
-    `\nVelg de som er ✓, jpeg og under ${(MAKS_BYTES / 1024).toFixed(0)} kB, `
-    + 'og lim dem inn i LEGEMER.\n',
+    `\nVelg de som er ✓, jpeg, under ${(MAKS_BYTES / 1024).toFixed(0)} kB og i `
+    + 'offentlig eiendom / fri lisens. Lim TITTELEN inn i LEGEMER som '
+    + '{ commons: "File:…" }.\n',
   )
 }
 
