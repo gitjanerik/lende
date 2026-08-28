@@ -22,9 +22,10 @@
 // Et hopp til en NABO minimerer kortet av seg selv. Det er hele poenget med
 // stjernehopping: man hopper for å SE, ikke for å lese videre. Vil man lese om
 // den nye, er kortet ett trykk unna.
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { kompass } from '../../lib/tour3d/himmelObjekter.js'
 import { GLOBE_TEKST } from '../../lib/tour3d/himmellegemer.js'
+import { faktaFor, manerLinje } from '../../lib/tour3d/himmelFakta.js'
 
 const props = defineProps({
   // Objektet fra himmelObjekter().
@@ -47,8 +48,26 @@ const retning = computed(() => kompass((props.objekt?.azimut ?? 0) * GRAD))
 
 const IKON = { mane: '🌙', planet: '🪐', formasjon: '✦' }
 
+// Astronomiske fakta og utforskningshistorie. Finnes for månen og alle
+// planetene — også Merkur og Venus, som ikke har globe: at man ikke kan snurre
+// dem er ingen grunn til å slippe å vite hva de er.
+const fakta = computed(() => faktaFor(props.objekt))
+const maner = computed(() => manerLinje(fakta.value?.maner))
+
+// Utforskningslista er lang for Mars og månen. Sammenlagt viser vi de nyeste
+// fire — det er dem folk har hørt om — og «vis alle» åpner resten. Rekkefølgen
+// er ELDST FØRST når den er åpen, for da er den en historie.
+const visAllUtforskning = ref(false)
+const utforskning = computed(() => {
+  const u = fakta.value?.utforskning ?? []
+  return visAllUtforskning.value ? u : u.slice(-4)
+})
+
 // Prosaen for de legemene som HAR en globe. Nøkkelen er legeme-id-en: månen er
 // 'mane', planetene ligger som 'planet:<id>' i himmellista.
+// Nytt legeme, ny historie: en åpen liste skal ikke arves over til Saturn.
+watch(() => props.objekt?.id, () => { visAllUtforskning.value = false })
+
 const globeTekst = computed(() => {
   const o = props.objekt
   if (!o) return null
@@ -175,6 +194,54 @@ const faseNavn = computed(() => {
 
         <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/35">Verdt å vite</div>
         <p class="text-[0.6875rem] leading-relaxed text-white/70">{{ objekt.info.funFact }}</p>
+      </template>
+
+      <!-- ASTRONOMISKE FAKTA. Månen og alle planetene, også de uten globe.
+           Nøkkeltallene står som EGNE linjer og ikke som et avsnitt: de leses ett
+           for ett, i mørket, på en telefon. -->
+      <template v-if="fakta">
+        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/35">Fakta</div>
+        <div class="text-[0.6875rem] leading-relaxed text-white/70">{{ fakta.type }}</div>
+        <div v-if="maner" class="text-[0.6875rem] leading-relaxed text-white/70">{{ maner }}</div>
+        <div class="text-[0.6875rem] leading-relaxed text-white/50">{{ fakta.oppdaget }}</div>
+        <ul class="mt-1 space-y-0.5">
+          <li v-for="f in fakta.fakta" :key="f"
+              class="text-[0.6875rem] leading-relaxed text-white/70 flex gap-1.5">
+            <span class="text-white/25 shrink-0" aria-hidden="true">·</span>
+            <span>{{ f }}</span>
+          </li>
+        </ul>
+
+        <!-- MENNESKETS UTFORSKNING. Årstall til venstre, hva som skjedde til
+             høyre. Sammenlagt vises de fire nyeste; «vis alle» gir hele
+             historien, eldst først. -->
+        <div class="mt-2 flex items-baseline justify-between gap-2">
+          <span class="text-[0.5625rem] uppercase tracking-wide text-white/35">Utforsket</span>
+          <button v-if="fakta.utforskning.length > 4"
+                  @click="visAllUtforskning = !visAllUtforskning"
+                  class="text-[0.5625rem] text-white/45 active:scale-95">
+            {{ visAllUtforskning ? 'vis mindre' : `alle ${fakta.utforskning.length}` }}
+          </button>
+        </div>
+        <ul class="space-y-1">
+          <li v-for="m in utforskning" :key="m.ar + m.tekst" class="flex gap-2">
+            <span class="text-[0.625rem] font-medium text-white/55 shrink-0 tabular-nums
+                         w-[3.4em]">{{ m.ar }}</span>
+            <span class="text-[0.6875rem] leading-relaxed text-white/70">{{ m.tekst }}</span>
+          </li>
+        </ul>
+
+        <!-- LES MER. Krever dekning, og derfor står faktaene over her i appen —
+             lenkene er veien videre for den som vil lese mer hjemme igjen. SNL
+             først: redaksjonelt og på bokmål. -->
+        <div class="mt-2 flex flex-wrap gap-1">
+          <a :href="fakta.snl" target="_blank" rel="noopener noreferrer"
+             class="rounded-full bg-white/10 px-2 py-1 text-[0.625rem] text-white/75
+                    active:scale-95">Store norske leksikon ↗</a>
+          <a :href="fakta.wikipedia" target="_blank" rel="noopener noreferrer"
+             class="rounded-full bg-white/10 px-2 py-1 text-[0.625rem] text-white/75
+                    active:scale-95">Wikipedia ↗</a>
+        </div>
       </template>
 
       <!-- Snarveier: stjernehopping. Bare de som faktisk er i nærheten. -->

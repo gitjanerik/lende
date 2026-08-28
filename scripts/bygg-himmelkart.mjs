@@ -152,40 +152,87 @@ export async function commonsSok(sok, antall = 8) {
 }
 
 /**
- * SØK som proben bruker for å FINNE kandidater på Commons. Ikke filnavn — søk.
+ * Filene i en Commons-KATEGORI.
  *
- * Første probe gjettet ti filnavn og traff ingen; alle ga 400. Lærdommen er den
- * samme som ellers i dette prosjektet: når du ikke kan se, spør noen som kan.
- * Commons' API vet både hvilke filer som finnes, hva de heter, hvor store de er
- * og hvilken lisens de har.
+ * Bedre enn fritekstsøk for dette formålet, og det er en målt konklusjon: søk på
+ * «Mars cylindrical map» ga PDF-er fra 1834 og bilder av Saturns måne Daphnis.
+ * Kategoriene er kuratert av mennesker som VET hva et sylindrisk kart er.
  */
-const SOK = {
-  mars: ['Mars cylindrical map', 'Mars surface map equirectangular', 'Mars albedo map'],
-  jupiter: ['Jupiter cylindrical map', 'Jupiter map equirectangular', 'Jupiter surface texture'],
-  saturn: ['Saturn cylindrical map', 'Saturn map equirectangular', 'Saturn surface texture'],
-  maane: ['Moon LROC color map', 'Moon cylindrical map'],
+export async function commonsKategori(kategori, antall = 30) {
+  const api = 'https://commons.wikimedia.org/w/api.php?action=query&format=json'
+    + `&list=categorymembers&cmtype=file&cmlimit=${antall}`
+    + `&cmtitle=${encodeURIComponent(kategori)}`
+  try {
+    const j = await hentJson(api)
+    return (j?.query?.categorymembers ?? []).map((r) => r.title)
+  } catch {
+    return []
+  }
+}
+
+/** Vent. Commons svarte 429 da proben fyrte femti forespørsler i slengen. */
+const pust = (ms) => new Promise((r) => setTimeout(r, ms))
+
+/**
+ * KATEGORIENE proben leter i. Kategori og ikke fritekstsøk: det er en MÅLT
+ * konklusjon, ikke en preferanse. Søk på «Mars cylindrical map» ga PDF-er fra
+ * 1834 og bilder av Saturns måne Daphnis; kategoriene er kuratert av folk som vet
+ * hva et sylindrisk kart er.
+ */
+const KATEGORIER = {
+  mars: [
+    'Category:Maps of Mars',
+    'Category:Cylindrical projection maps of Mars',
+    'Category:Textures of Mars',
+  ],
+  jupiter: [
+    'Category:Maps of Jupiter',
+    'Category:Cylindrical projection maps of Jupiter',
+    'Category:Textures of Jupiter',
+  ],
+  saturn: [
+    'Category:Maps of Saturn',
+    'Category:Cylindrical projection maps of Saturn',
+    'Category:Textures of Saturn',
+  ],
+  maane: ['Category:Maps of the Moon'],
+}
+
+/**
+ * Er tittelen i det hele tatt en kandidat? Filtrerer bort det kategoriene også
+ * inneholder: PDF-er, TIFF-er (som thumbes til PNG og blir store), måne- og
+ * detaljbilder. Vi vil ha JPEG eller PNG som ser ut som et globalt kart.
+ */
+function erKandidat(tittel) {
+  if (!/\.(jpe?g|png)$/i.test(tittel)) return false
+  if (/(pdf|tif|svg)/i.test(tittel)) return false
+  // Månebilder havner i planetkategoriene. «Daphnis», «Tethys», «Hydra» osv.
+  if (/\b(phobos|deimos|io|europa|ganymede|callisto|titan|enceladus|mimas|rhea|iapetus|tethys|dione|daphnis|hydra)\b/i.test(tittel)) return false
+  return true
 }
 
 /** Prøv å finne og løse opp kandidater. Skriver ingen filer. */
 async function probe() {
-  for (const [navn, sokene] of Object.entries(SOK)) {
+  for (const [navn, kategorier] of Object.entries(KATEGORIER)) {
     process.stderr.write(`\n── ${navn} ${'─'.repeat(46)}\n`)
     const sett = new Set()
-    for (const q of sokene) {
-      for (const t of await commonsSok(q)) sett.add(t)
+    for (const k of kategorier) {
+      for (const t of await commonsKategori(k)) if (erKandidat(t)) sett.add(t)
+      await pust(250)
     }
     if (!sett.size) {
-      process.stderr.write('  ingen treff — er commons.wikimedia.org nåbar herfra?\n')
+      process.stderr.write('  ingen kandidater i kategoriene\n')
       continue
     }
-    for (const tittel of sett) {
+    // Taket er lavt med vilje: Commons svarte 429 på femti forespørsler i
+    // slengen, og en probe som blir ratebegrenset måler ingenting.
+    for (const tittel of [...sett].slice(0, 10)) {
       const r = await commonsThumb(tittel)
+      await pust(400)
       if (!r) {
         process.stderr.write(`✗ kunne ikke løses   ${tittel}\n`)
         continue
       }
-      // Vi laster ned for å se hva thumben FAKTISK veier: `size` fra API-et er
-      // originalens størrelse, ikke nedskaleringens.
       let kB = '?'
       let jpeg = false
       try {
@@ -193,21 +240,22 @@ async function probe() {
         if (res.ok) {
           const b = Buffer.from(await res.arrayBuffer())
           kB = (b.length / 1024).toFixed(0)
-          jpeg = b[0] === 0xff && b[1] === 0xd8
+          // Både JPEG (ff d8) og PNG (89 50) er brukbare for en tekstur.
+          jpeg = (b[0] === 0xff && b[1] === 0xd8) || (b[0] === 0x89 && b[1] === 0x50)
         } else {
           kB = `HTTP ${res.status}`
         }
       } catch (e) { kB = e.message }
+      await pust(400)
       process.stderr.write(
-        `${jpeg ? '✓' : '✗'} ${String(kB).padStart(7)} kB  ${jpeg ? 'jpeg' : '    '}  `
-        + `${r.lisens}\n        ${tittel}\n        ${r.url}\n`,
+        `${jpeg ? '✓' : '✗'} ${String(kB).padStart(7)} kB  ${r.lisens}\n`
+        + `        ${tittel}\n`,
       )
     }
   }
   process.stderr.write(
-    `\nVelg de som er ✓, jpeg, under ${(MAKS_BYTES / 1024).toFixed(0)} kB og i `
-    + 'offentlig eiendom / fri lisens. Lim TITTELEN inn i LEGEMER som '
-    + '{ commons: "File:…" }.\n',
+    `\nVelg de som er ✓, under ${(MAKS_BYTES / 1024).toFixed(0)} kB og i offentlig `
+    + 'eiendom / fri lisens. Lim TITTELEN inn i LEGEMER som { commons: "File:…" }.\n',
   )
 }
 
