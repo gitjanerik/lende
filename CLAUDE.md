@@ -918,6 +918,24 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   (`.github/workflows/worker-boot.yml`), som faktisk starter dem — verken
   `npm run build`, `wrangler deploy --dry-run` eller `wrangler check startup`
   fanger det (den siste returnerer 0 selv når Workeren kaster).
+- **BEREDSKAPS-GATEN I BEGGE WORKER-SJEKKENE KREVER 2xx, ikke «svarte noe»
+  (v6.3.6).** Dette var den falske røden som gjorde PR-kjøringer upålitelige, og
+  den er MÅLT: `mcp-protokoll.mjs` hadde `if (h.status) return`, og `status: 0`
+  betyr «ingen forbindelse» — så gaten slapp gjennom i det porten svarte HVA SOM
+  HELST. På en kald GitHub-runner svarer workerd før rutene er montert, altså 404,
+  og `initialize` fikk 404 rett etterpå: 1,5 sekunder fra start til rødt, mens tre
+  kjøringer på rad lokalt gikk grønt. Klassisk race, usynlig på en varm maskin.
+
+  `worker-boot.mjs` hadde SAMME feil i motsatt retning — `if (svar)` rapporterte
+  **grønt** og skrev «HTTP 404 · » i detaljfeltet. Den kunne altså ikke oppdage en
+  Worker som STARTER men ikke VIRKER, som er hele grunnen til at jobben finnes.
+  Begge krever nå 200-299, og feilmeldingen skiller «svarte ikke i det hele tatt»
+  fra «svarte 404 hele veien — runtimen lytter, men Workeren virker ikke».
+
+  **Verifisert i BEGGE retninger, som gaten fra v5.22.3:** grønn på riktig kode,
+  og rød med lesbar melding når `/health` peker på en rute som gir 404. `/health`
+  svarer 200 med `{"ok":true,…}` når Workeren er oppe, så kravet er trygt.
+  Rører du løkkene: en gate som godtar en vilkårlig status er ikke en gate.
 - **`boot:workers` er IKKE nok for MCP-verktøyene (v5.22.3).** Den spør
   `/health`. Verktøyenes zod-skjemaer serialiseres først i `tools/list` og brukes
   til validering først i `tools/call`, så Workeren kan starte helt fint og likevel
