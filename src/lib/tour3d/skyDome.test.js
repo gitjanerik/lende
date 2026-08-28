@@ -351,7 +351,15 @@ describe('buildNightSky — fremheving av valgt formasjon', () => {
     )
     const kapasitet = () => valgt.geometry.attributes.instanceStart.count
     const maksLinjer = Math.max(...FORMASJONER.map((f) => f.linjer.length))
-    expect(kapasitet()).toBeGreaterThanOrEqual(maksLinjer)
+    // ETT SEGMENT SLACK OVER DEN STØRSTE FIGUREN (v6.3.11), og det er ikke
+    // pynt. Start og ende ligger i samme interleavede buffer med 24-byte stride;
+    // `instanceEnd` starter 12 byte inn, så den SISTE instansen slutter nøyaktig
+    // på bufferets siste byte. Spesifikasjonen tillater det, men en driver som
+    // regner kravet som `offset + stride·n` finner 12 byte for lite og dropper
+    // instansen. Eierens telefon gjorde nettopp det: Dragen har 13 streker og
+    // fikk tegnet 12. SwiftShader tegner alle 13, så testen kan ikke måle
+    // effekten — den holder på PLASSEN, som er det vi kan holde på.
+    expect(kapasitet()).toBeGreaterThan(maksLinjer)
 
     const start = kapasitet()
     const synlige = sky.synligeStjerner

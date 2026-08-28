@@ -432,7 +432,18 @@ const VALGT_LINJE_BREDDE_PX = 2.6
 // Derfor: ett buffer på maks størrelse, og `instanceCount` styrer hvor mange som
 // SUBMITTERES — samme regel som knappenålene (pinField, v5.22.11): en instans
 // som ikke skal ses, skal ikke submitteres.
+//
+// OG DEN HAR ÉN SEGMENT SLACK PÅ TOPPEN — det er ikke slurv (v6.3.11). Et
+// `LineSegmentsGeometry` legger start og ende i SAMME interleavede buffer:
+// `instanceStart` leser float 0–2 av hver 24-byte stride, `instanceEnd` float
+// 3–5. For den SISTE instansen slutter `instanceEnd` nøyaktig på bufferets siste
+// byte. WebGL-spesifikasjonen tillater det (`offset + stride·(n−1) + size`), men
+// en driver som regner kravet som `offset + stride·n` finner 12 byte for lite og
+// DROPPER den siste instansen. Eierens telefon gjør nøyaktig det: Dragen har 13
+// streker og fikk tegnet 12 — halen manglet den siste. SwiftShader og desktop
+// tegner alle 13, så den er usynlig herfra. Slacken koster 24 byte.
 const VALGT_LINJE_KAPASITET = Math.max(1, ...FORMASJONER.map((f) => f.linjer.length))
+const VALGT_LINJE_SLACK = 1
 // Hvor mye større stjernene i den valgte formasjonen tegnes. 1,6 er nok til at
 // figuren løfter seg ut av himmelen uten at den ser ut som en annen himmel.
 const VALGT_STJERNE_FAKTOR = 1.6
@@ -617,7 +628,7 @@ export function buildNightSky({
     // allokeres ÉN gang på maks størrelse (se VALGT_LINJE_KAPASITET) og fylles
     // ved valg; `setPositions` med et Float32Array tar arrayet i bruk direkte, så
     // `valgtBuffer` ER geometriens minne.
-    valgtBuffer = new Float32Array(VALGT_LINJE_KAPASITET * 6)
+    valgtBuffer = new Float32Array((VALGT_LINJE_KAPASITET + VALGT_LINJE_SLACK) * 6)
     valgtLinjeGeo = new LineSegmentsGeometry()
     valgtLinjeGeo.setPositions(valgtBuffer)
     valgtLinjeGeo.instanceCount = 0

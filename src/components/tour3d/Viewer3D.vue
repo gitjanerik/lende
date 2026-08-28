@@ -192,40 +192,21 @@ function byggHimmelListe() {
   engine?.setHimmelObjekter(toRaw(himmelListe.value))
 }
 
-// Infokortet kan legges sammen til én linje. Tilstanden eies HER og ikke i
-// kortet, fordi det er kalleren som vet hva som utløste valget: navigasjon
-// (søkelista, nabo-snarveiene) minimerer, et trykk i himmelen åpner.
+// Infokortet kan legges sammen til én linje, og ETHVERT valg gir den sammenlagte
+// pilla (v6.3.11): himmelen er det man er der for, og en tekstblokk over halve
+// skjermen står i veien for den. Kortet åpnes bare når brukeren ber om det, ved å
+// trykke på pilla.
+//
+// Dette avløser tre tidligere regler — «første valg åpner» (v6.0.0), «et bytte
+// beholder tilstanden» (v6.3.7) og «lista minimerer, trykket åpner» (v6.3.10).
+// Alle tre prøvde å GJETTE om man ville lese eller se, ut fra hvordan valget kom
+// inn. Sammenlagt som standard trenger ingen gjetning, og den er billig å angre:
+// pilla er ett trykk.
 const kortMinimert = ref(false)
 
 /**
- * Skal kortet åpnes for dette valget, eller beholde tilstanden det står i?
- *
- * Denne gjelder ETT valg: TRYKK I HIMMELEN. Da har man pekt på noe og spurt hva
- * det er, så første trykk åpner kortet — et sammenlagt kort ville skjult svaret.
- *
- * ET BYTTE BEHOLDER (v6.3.7): har man lagt kortet sammen, er man i «se på
- * himmelen»-modus, og et nytt trykk skal flytte KAMERAET uten å skyve lesestoffet
- * tilbake i ansiktet.
- *
- * NAVIGASJON GÅR ANDRE VEIEN — se velgOgSe: søkelista og nabo-snarveiene
- * minimerer alltid. Tidligere delte lista denne regelen, og da åpnet det første
- * valget fra nedtrekkslista kortet over halve himmelen (v6.3.10).
- *
- * @param {boolean} haddeKort sto det et kort framme FØR dette valget?
- */
-function settKortTilstand(haddeKort) {
-  if (!haddeKort) kortMinimert.value = false
-}
-
-/**
- * Valg fra SØKELISTA og fra NABO-SNARVEIENE: flytt blikket, og la himmelen være
- * synlig. Begge er navigasjon — man har alt bestemt seg for hva man vil se — og en
- * tekstblokk over halve himmelen står i veien for nettopp det. Vil man lese, er
- * kortet ett trykk unna.
- *
- * Det er KALLEREN som vet hva som utløste valget, og det er derfor tilstanden
- * eies her og ikke i kortet: trykk i himmelen er den motsatte handlingen, og den
- * åpner (se settKortTilstand).
+ * Valg fra søkelista og fra nabo-snarveiene. Egen funksjon fordi den også skal
+ * legge kortet sammen; `velgHimmel` er mekanismen, denne er handlingen.
  */
 function velgOgSe(o) {
   velgHimmel(o)
@@ -459,15 +440,14 @@ async function byggMotor() {
     // Trykket nål (POI, start/mål/via, parkering) — turen er pauset og
     // kameraet løsnet av motoren.
     engine.on('feature', ({ feature }) => { pickedFeature.value = feature })
-    // TRYKK I HIMMELEN — den ENE veien som ÅPNER kortet. Motoren har alt
-    // fremhevet og rettet blikket; viseren styrer kortet. Uten et kall til
-    // settKortTilstand her arvet et trykk på månen minimeringen fra forrige
-    // nabo-hopp, og kortet kom sammenlagt når man nettopp hadde spurt hva noe var
-    // (feilen i v6.1.1).
+    // TRYKK I HIMMELEN. Motoren har alt fremhevet og rettet blikket; viseren
+    // styrer kortet — og det skal være SAMMENLAGT, som ved alle andre valg.
+    // Handleren setter `valgtHimmel` direkte og går ikke gjennom `velgOgSe`, så
+    // den må sette minimeringen selv; sto den ikke her, arvet trykket tilstanden
+    // fra forrige valg (feilen i v6.1.1, den gang med motsatt fortegn).
     engine.on('himmel-valgt', ({ objekt }) => {
-      const haddeKort = !!valgtHimmel.value
       valgtHimmel.value = objekt
-      settKortTilstand(haddeKort)
+      if (objekt) kortMinimert.value = true
     })
     engine.on('globe', ({ apen }) => {
       globeAapen.value = !!apen
