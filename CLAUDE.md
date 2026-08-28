@@ -478,9 +478,46 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   og USGS er sperret fra utviklingsmiljøene — «uten fotografi» er den NORMALE
   tilstanden lokalt. Uten dem tegnes kula i legemets egenfarge, og gassplanetene
   får bånd tegnet på klienten (`bandTekstur`) så de er gjenkjennelige uansett.
-  **URL-ene kan ikke verifiseres herfra**, så les siste linje av bake-steget:
-  «N av 4 kart på plass». Er N lavere enn ventet, har en URL råtnet — og det er
-  den eneste måten å oppdage det, siden alt annet fortsetter å virke.
+  Les siste linje av bake-steget: «N av 4 kart på plass». Er N lavere enn ventet,
+  har en kilde falt bort — og det er den eneste måten å oppdage det, siden alt
+  annet fortsetter å virke.
+
+  **EN KILDE-URL SKAL IKKE GJETTES, OG DET ER MÅLT (v6.3.0).** I v6.2.0 ble
+  URL-ene til Mars, Jupiter og Saturn skrevet på gjetning fordi hostene er
+  sperret herfra. Alle tre var feil, og det viste seg først i deploy-loggen etter
+  merge. Rettingen er en MÅLING og ikke en ny hypotese — samme lærdom som skyene
+  (v5.22.0) og knappenålene (v5.22.8–11): `.github/workflows/probe-himmelkart.yml`
+  kjører `bygg-himmelkart.mjs --probe`, som spør Wikimedia Commons' API om
+  kandidater i kuraterte kategorier, løser opp thumb-URL-en, leser lisensen og
+  LASTER NED bildet for å se hva det veier (API-ets `size` er originalens, ikke
+  nedskaleringens). Fire runder ga fire funn verdt å kjenne: Wikimedia krever en
+  identifiserende `User-Agent`; fritekstsøk er ubrukelig (PDF-er fra 1834, bilder
+  av Saturns måne Daphnis) mens kategorier er kuratert; femti forespørsler i
+  slengen gir 429 fra én runner-IP; og kategoriene må plukkes i RUNDGANG, ellers
+  spiser den første alfabetisk hele taket.
+
+  **Derfor oppgis en Commons-kilde som en TITTEL (`{ commons: 'File:…' }`) og
+  ikke som en URL.** Thumb-URL-ene har en md5-shard av filnavnet; en URL man
+  skriver av kan råtne stille, mens tittelen slås opp ved hver bake og gir
+  lisensen med. Månen beholder NASA SVS-URL-en, for den er den eneste av de fire
+  som beviselig svarte. Mars og Saturn er CC BY 4.0 (Solar System Scope) —
+  **attribusjonen på /om er et vilkår og ikke en høflighet.**
+- **Fakta og utforskningshistorie bor i `himmelFakta.js`, ikke i `himmellegemer.js`
+  (v6.3.0).** Den siste er GEOMETRI — aksehelling, farge, koordinater for
+  stedsnavn — og den nye er PROSA og ÅRSTALL. De endres av helt ulike grunner, og
+  en tabell som blander dem inviterer til at et faktum flyttes og en koordinat
+  blir med. Modulen er REN og dekker månen pluss alle fem planetene; testen
+  krever nettopp det mot `PLANETER` i `planeter.js`, så en ny planet i himmelen
+  ikke kan vises uten fakta. Månetallene er merket med `MANETALL_AR` fordi de
+  ENDRER seg — nye småmåner blir funnet — og et tall uten år blir feil uten at
+  noen merker det. `utforskning` er ELDST FØRST (egen test): snudd rekkefølge ser
+  helt normal ut i et panel og gjør historien uleselig. Kortet viser de fire
+  nyeste sammenlagt, og «alle N» gir resten.
+
+  **Lenkene til SNL og Wikipedia er veien VIDERE, ikke kilden.** Faktaene står i
+  fila fordi bruksområdet er en kveld ute uten dekning; et oppslag i felt er et
+  oppslag som feiler i felt. Legger du til et legeme, skriv faktaene inn — ikke en
+  lenke og en tom blokk.
 - **Trykk-ringen på himmelen er en AFFORDANSE (v6.2.0).** `buildHimmelSkive({ ring })`
   tegner et tynt omriss rundt legemet, i SAMME shader og på samme plan som skiva
   (planet skaleres opp med `RING_FAKTOR`; et eget mesh ville vært ett objekt mer å

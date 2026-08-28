@@ -1085,6 +1085,47 @@ const SJEKKER = [
       }, null, { timeout: 20_000 }).then((x) => x.jsonValue()).catch(() => 0)
       if (!trekk) throw new Error(`åpnet globen for «${medGlobe}», men ingen stedsnavn kom`)
       const globeUtfall = `${medGlobe}-globen ga ${trekk} stedsnavn`
+
+      // ASTRONOMISKE FAKTA (v6.3.0). Kortet for et legeme skal bære nøkkeltall,
+      // utforskningshistorie og lenker til SNL og Wikipedia. Alt er DATA, så
+      // koden kan ikke kaste — en glemt faktablokk viser seg bare som et tomt
+      // panel, og det er nettopp derfor sjekken må lese teksten.
+      const faktaFunn = await evalMedTak(page, () => {
+        const t = document.body.innerText
+        const lenke = (v) => !!document.querySelector(`a[href*="${v}"]`)
+        return {
+          fakta: /\bFakta\b/.test(t),
+          utforsket: /\bUtforsket\b/.test(t),
+          maner: /(måner|måne:|Ingen måner)/.test(t),
+          snl: lenke('snl.no'),
+          wiki: lenke('wikipedia.org'),
+          arstall: (t.match(/\b(1[5-9]\d\d|20[0-3]\d)\b/g) ?? []).length,
+        }
+      })
+      if (!faktaFunn.fakta) throw new Error(`kortet for «${medGlobe}» mangler faktablokka`)
+      if (!faktaFunn.maner) throw new Error(`kortet for «${medGlobe}» mangler månelinja`)
+      if (!faktaFunn.utforsket) throw new Error(`kortet for «${medGlobe}» mangler utforskningshistorien`)
+      if (faktaFunn.arstall < 2) {
+        throw new Error(`utforskningshistorien for «${medGlobe}» har ingen årstall`)
+      }
+      if (!faktaFunn.snl || !faktaFunn.wiki) {
+        throw new Error(`kortet for «${medGlobe}» mangler lenke til `
+          + `${!faktaFunn.snl ? 'snl.no' : 'Wikipedia'}`)
+      }
+      // «alle N» skal gi HELE historien. Bare de fire nyeste vises sammenlagt,
+      // og en knapp som ikke utvider noe er verre enn ingen knapp.
+      const flereFor = faktaFunn.arstall
+      const utvid = page.locator('button', { hasText: /^alle \d+$/ }).first()
+      let faktaUtfall = `fakta + ${flereFor} årstall + begge lenkene`
+      if (await utvid.count()) {
+        await utvid.click({ timeout: 5000 })
+        await page.waitForTimeout(300)
+        const etter = await evalMedTak(page, () => (document.body.innerText
+          .match(/\b(1[5-9]\d\d|20[0-3]\d)\b/g) ?? []).length)
+        if (etter <= flereFor) throw new Error('«alle N» utvidet ikke historien')
+        faktaUtfall = `fakta + ${flereFor}→${etter} årstall + begge lenkene`
+      }
+
       // Et trykk legger kula tilbake på himmelen.
       await page.mouse.click(40, Math.round(page.viewportSize().height * 0.5))
       await page.waitForTimeout(900)
@@ -1094,7 +1135,7 @@ const SJEKKER = [
       await page.waitForTimeout(400)
       await lukkNatt3d(page, h.startSteg)
       return `valgte «${forste}», minimerte, utvidet`
-        + `${nabo ? `, hoppet til «${nabo}»` : ''}; ${globeUtfall}`
+        + `${nabo ? `, hoppet til «${nabo}»` : ''}; ${globeUtfall}; ${faktaUtfall}`
     },
   },
   {

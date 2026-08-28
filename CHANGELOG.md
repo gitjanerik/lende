@@ -1,3 +1,13 @@
+## 2026-08-28 — v6.3.0: Astronomiske fakta, utforskningshistorie og tre overflatekart som faktisk kommer
+
+Infokortet i 3D gir nå astronomiske fakta for månen og alle fem synlige planeter: antall måner og navn på de største, avstander, døgn- og årslengder — og en kort liste over menneskets utforskning, fra Galileis fire Jupiter-måner i 1610 til roverne som står på Mars nå (Sojourner, Spirit, Opportunity, Curiosity, Perseverance og Zhurong, med Ingenuity som fløy 72 ganger). Sammenlagt vises de fire nyeste milepælene; «alle N» gir hele historien. Nederst går lenker til Store norske leksikon og Wikipedia. Alt er bakt inn i appen og virker uten dekning — lenkene er for når man er hjemme igjen, og det er hele grunnen til at faktaene ikke ER lenkene.
+
+Overflatekartene for Mars, Jupiter og Saturn kommer nå på plass. I v6.2.0 ble URL-ene til dem gjettet, fordi NASA og USGS er sperret fra utviklingsmiljøene, og alle tre var feil — oppdaget først i deploy-loggen etter merge, der bake-steget brukte to sekunder og ikke skrev en fil. Denne runden ble det bygget en måling i stedet for en ny hypotese: en probe-workflow som spør Wikimedia Commons' API om kandidater, løser opp thumb-URL-en, leser lisensen og laster ned bildet for å se hva det faktisk veier. Fire runder med målte funn — Wikimedia krever en identifiserende User-Agent, fritekstsøk ga PDF-er fra 1834, femti forespørsler i slengen gir 429, og kategoriene må plukkes i rundgang eller så spises taket alfabetisk — endte med tre verifiserte kilder: Cassinis sylindriske Jupiter-kart (offentlig eiendom, 154 kB) og Solar System Scopes Mars- og Saturn-teksturer (CC BY 4.0, 191 og 60 kB). En Commons-kilde oppgis nå som en TITTEL og slås opp ved hver bake, så URL-en ikke kan råtne uten at noe sier fra. Attribusjonen står på /om, som CC BY krever.
+
+Og sol-ikonet i 3D har mistet skya si. Det er dag-stillingen på modus-knappen, og en sol med sky der betydde ingenting — været vises alltid i dagmodus nå.
+
+---
+
 ## 2026-08-28 — v6.2.0: Glober for Mars, Jupiter og Saturn
 
 Månen har kunnet åpnes som en roterbar kule siden v6.0.0. Nå kan Mars, Jupiter og

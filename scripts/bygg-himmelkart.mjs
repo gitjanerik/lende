@@ -10,6 +10,16 @@
 // eiendom, men en kopi funnet i et tilfeldig repo er ikke dokumentert som det.
 // Skriptet henter fra kilden, så opphavet står i koden og ikke i hukommelsen.
 //
+// HVORFOR TRE AV FIRE GÅR VIA WIKIMEDIA COMMONS (v6.3.0), OG DET ER MÅLT: i
+// v6.2.0 ble URL-ene til NASA SVS' Mars-, Jupiter- og Saturn-kart GJETTET, fordi
+// hostene er sperret herfra. Alle tre var feil, og det viste seg først i
+// deploy-loggen etter merge. Proben (`--probe`, se probe-himmelkart.yml) målte
+// hva som faktisk svarer. Commons er svaret av to grunner: filnavnet slås OPP i
+// stedet for å skrives av, så URL-en kan ikke råtne — og thumb-tjeneren gir en
+// vilkårlig bredde, mens NASAs og USGS' egne kart er hundrevis av megabyte og vi
+// har ingen bildebehandler i pipelinen. Månen beholder SVS-URL-en, for den
+// svarer: den er den eneste av de fire som beviselig virket.
+//
 // KJØRES I CI, IKKE HERFRA. Utviklingsmiljøet har en nettverkspolicy som sperrer
 // både svs.gsfc.nasa.gov og planetarymaps.usgs.gov — bekreftet i proxy-loggen.
 // Klarer skriptet ikke å hente et kart, skriver det INGENTING for det legemet og
@@ -48,33 +58,38 @@ const LEGEMER = {
   ],
   mars: [
     {
-      navn: 'NASA SVS — Mars fargekart (MOLA + Viking)',
-      url: 'https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/mars_1k_color.jpg',
-      lisens: 'NASA/JPL/USGS — offentlig eiendom',
+      navn: 'Solar System Scope — Mars-tekstur 2k (via Commons)',
+      commons: 'File:Solarsystemscope texture 2k mars.jpg',
+      lisens: 'CC BY 4.0 — Solar System Scope (INOVE), avledet av NASA-data',
     },
     {
-      navn: 'USGS Astrogeology — Viking MDIM 2.1 fargemosaikk',
-      url: 'https://planetarymaps.usgs.gov/mosaic/Mars_Viking_MDIM21_ClrMosaic_global_232m.jpg',
-      lisens: 'USGS/NASA — offentlig eiendom',
+      navn: 'Solar System Scope — Mars-tekstur 8k (via Commons)',
+      commons: 'File:Solarsystemscope texture 8k mars.jpg',
+      lisens: 'CC BY 4.0 — Solar System Scope (INOVE), avledet av NASA-data',
     },
   ],
   jupiter: [
     {
-      navn: 'NASA SVS — Jupiter sylindrisk kart (Cassini)',
-      url: 'https://svs.gsfc.nasa.gov/vis/a000000/a004800/a004851/jupiter_1k.jpg',
+      navn: 'Cassini — sylindrisk Jupiter-kart, PIA07782 (via Commons)',
+      commons: 'File:Jupiter Cylindrical Map - Dec 2000 PIA07782.jpg',
       lisens: 'NASA/JPL/Space Science Institute — offentlig eiendom',
     },
     {
-      navn: 'NASA Photojournal — Cassini Jupiter-kart',
-      url: 'https://photojournal.jpl.nasa.gov/jpeg/PIA07782.jpg',
-      lisens: 'NASA/JPL/Space Science Institute — offentlig eiendom',
+      navn: 'Solar System Scope — Jupiter-tekstur 2k (via Commons)',
+      commons: 'File:Solarsystemscope texture 2k jupiter.jpg',
+      lisens: 'CC BY 4.0 — Solar System Scope (INOVE), avledet av NASA-data',
     },
   ],
   saturn: [
     {
-      navn: 'NASA SVS — Saturn sylindrisk kart (Cassini)',
-      url: 'https://svs.gsfc.nasa.gov/vis/a000000/a004800/a004851/saturn_1k.jpg',
-      lisens: 'NASA/JPL/Space Science Institute — offentlig eiendom',
+      navn: 'Solar System Scope — Saturn-tekstur 2k (via Commons)',
+      commons: 'File:Solarsystemscope texture 2k saturn.jpg',
+      lisens: 'CC BY 4.0 — Solar System Scope (INOVE), avledet av NASA-data',
+    },
+    {
+      navn: 'Solar System Scope — Saturn-tekstur 8k (via Commons)',
+      commons: 'File:Solarsystemscope texture 8k saturn.jpg',
+      lisens: 'CC BY 4.0 — Solar System Scope (INOVE), avledet av NASA-data',
     },
   ],
 }
