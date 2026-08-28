@@ -22,6 +22,7 @@
 export const STJERNEBILDE_INFO = {
   bjornevokteren: {
     latin: 'Boötes',
+    wikipedia: 'https://no.wikipedia.org/wiki/Bj%C3%B8rnevokteren',
     mytologi: 'Gjeteren eller plogmannen som driver bjørnene rundt himmelpolen. '
       + 'Navnet Arcturus betyr «bjørnevokter» på gresk.',
     funFact: 'Arcturus er den lyseste stjerna på hele den nordlige stjernehimmelen '
@@ -30,8 +31,9 @@ export const STJERNEBILDE_INFO = {
     finnDen: 'Følg svaien i Karlsvognas skaft videre i samme bue — den peker rett '
       + 'på Arcturus. «Følg buen til Arcturus» er den eldste huskeregelen som finnes.',
   },
-  cassiopeia: {
+  kassiopeia: {
     latin: 'Cassiopeia',
+    wikipedia: 'https://no.wikipedia.org/wiki/Kassiopeia',
     mytologi: 'Den forfengelige dronninga, mor til Andromeda. Straffen var å '
       + 'bindes til tronen sin og kjøre rundt himmelpolen i all evighet.',
     funFact: 'Fra Norge går den aldri ned. Den står rett overfor Karlsvogna med '
@@ -43,8 +45,9 @@ export const STJERNEBILDE_INFO = {
       + 'side av Polstjerna fra Karlsvogna. Caph i den ene enden ligger nesten '
       + 'på linja mellom Polstjerna og høstjevndøgnspunktet.',
   },
-  cepheus: {
+  kefeus: {
     latin: 'Cepheus',
+    wikipedia: 'https://no.wikipedia.org/wiki/Kefeus',
     mytologi: 'Kongen, Cassiopeias mann og Andromedas far. Han står ved sida av '
       + 'kona si, litt mindre iøynefallende, som en skjev husgavl.',
     funFact: 'Stjerna δ Cephei ga navn til kefeidene — de pulserende stjernene der '
@@ -57,6 +60,7 @@ export const STJERNEBILDE_INFO = {
   },
   dragen: {
     latin: 'Draco',
+    wikipedia: 'https://no.wikipedia.org/wiki/Dragen',
     mytologi: 'Dragen Ladon, som voktet de gylne eplene i Hesperidenes hage, '
       + 'slynget rundt Lille bjørn.',
     funFact: 'Thuban i dragens kropp var Polstjerna for 4 700 år siden, da de '
@@ -67,6 +71,7 @@ export const STJERNEBILDE_INFO = {
   },
   karlsvogna: {
     latin: 'Ursa Major',
+    wikipedia: 'https://no.wikipedia.org/wiki/Karlsvognen',
     mytologi: 'Kallisto, som Zeus forvandlet til en bjørn. På norsk er de sju '
       + 'stjernene en vogn og ikke en bjørn — Karlsvogna, altså Karls (Karl den '
       + 'stores) vogn.',
@@ -77,8 +82,9 @@ export const STJERNEBILDE_INFO = {
     finnDen: 'Sju sterke stjerner, fire i kassa og tre i skaftet. Fra Norge står '
       + 'den høyt på himmelen hele året.',
   },
-  kjoresvennen: {
+  kusken: {
     latin: 'Auriga',
+    wikipedia: 'https://no.wikipedia.org/wiki/Kusken',
     mytologi: 'Kjøresvennen med geita på armen. Capella betyr «den lille geita».',
     funFact: 'Capella er den sjette lyseste stjerna på himmelen, og egentlig to '
       + 'gule kjempestjerner som går rundt hverandre på 104 døgn. Femkanten deler '
@@ -100,6 +106,7 @@ export const STJERNEBILDE_INFO = {
   },
   lyren: {
     latin: 'Lyra',
+    wikipedia: 'https://no.wikipedia.org/wiki/Lyren',
     mytologi: 'Orfeus’ lyre. Da han døde, satte Zeus instrumentet blant stjernene.',
     funFact: 'Vega var Polstjerne for 14 000 år siden og blir det igjen om '
       + '12 000 år. Den var også den første stjerna som noen gang ble fotografert, '
@@ -109,6 +116,7 @@ export const STJERNEBILDE_INFO = {
   },
   loven: {
     latin: 'Leo',
+    wikipedia: 'https://no.wikipedia.org/wiki/L%C3%B8ven',
     mytologi: 'Den nemeiske løven, som Herakles kvalte som sin første oppgave. '
       + 'Hodet er en sigd, kroppen en trekant.',
     funFact: 'Regulus betyr «den lille kongen» og ligger nesten oppå ekliptikken '
@@ -119,6 +127,8 @@ export const STJERNEBILDE_INFO = {
   },
   orion: {
     latin: 'Orion',
+    // IKKE VERIFISERT — se probe-himmellenker.yml
+    wikipedia: 'https://no.wikipedia.org/wiki/Orion_(stjernebilde)',
     mytologi: 'Jegeren som skrøt av at han kunne drepe alt levende, og ble drept '
       + 'av en skorpion. De to står på motsatt side av himmelen, så de aldri '
       + 'møtes igjen.',
@@ -130,8 +140,9 @@ export const STJERNEBILDE_INFO = {
       + 'gjenkjennelige på hele himmelen. Beltet peker mot Sirius den ene veien '
       + 'og Aldebaran den andre.',
   },
-  perseus: {
+  persevs: {
     latin: 'Perseus',
+    wikipedia: 'https://no.wikipedia.org/wiki/Persevs_(stjernebilde)',
     mytologi: 'Helten som drepte Medusa og redda Andromeda. Han holder '
       + 'gorgonhodet i den ene handa.',
     funFact: 'Algol er «demonstjerna» — Medusas blinkende øye. Hvert 2,87. døgn '
@@ -143,6 +154,7 @@ export const STJERNEBILDE_INFO = {
   },
   svanen: {
     latin: 'Cygnus',
+    wikipedia: 'https://no.wikipedia.org/wiki/Svanen',
     mytologi: 'Zeus i svaneskikkelse. På norsk kalles figuren også Nordkorset, '
       + 'og det er den formen man faktisk ser.',
     funFact: 'Deneb i halen er en av de mest lysstrålende stjernene vi kjenner — '
@@ -155,6 +167,8 @@ export const STJERNEBILDE_INFO = {
   },
   tvillingene: {
     latin: 'Gemini',
+    // IKKE VERIFISERT — se probe-himmellenker.yml
+    wikipedia: 'https://no.wikipedia.org/wiki/Tvillingene_(stjernebilde)',
     mytologi: 'Castor og Pollux, dioskurene. Da Castor døde, ba Pollux om å få '
       + 'dele udødeligheten sin med broren, og de fikk vekselvis en dag hver.',
     funFact: 'Pollux er den lyseste av de to, og den nærmeste stjerna vi kjenner '

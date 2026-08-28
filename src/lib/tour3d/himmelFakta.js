@@ -158,7 +158,7 @@ export const HIMMEL_FAKTA = {
       { ar: '2023', tekst: 'ESAs JUICE er på vei til Ganymedes, Europa og Kallisto — ankomst 2031.' },
       { ar: '2024', tekst: 'Europa Clipper (NASA) skal undersøke havet under Europas isskorpe.' },
     ],
-    snl: 'https://snl.no/Jupiter_-_planet',
+    snl: 'https://snl.no/Jupiter',
     wikipedia: 'https://no.wikipedia.org/wiki/Jupiter_(planet)',
   },
 

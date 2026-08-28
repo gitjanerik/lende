@@ -1,0 +1,34 @@
+name: Probe — svarer himmel-lenkene?
+
+# EN MÅLING, IKKE EN GATE. Den finnes fordi snl.no og no.wikipedia.org er sperret
+# fra utviklingsmiljøene: en lenke kan ikke prøves der den skrives.
+#
+# Jupiter sto på snl.no/Jupiter_-_planet i tre leveranser — mønsteret de fem andre
+# planetene bruker — og var død hele veien. En pille som åpner en 404 ser helt lik
+# ut som en som virker, så ingenting i appen merket det. Eieren fant den.
+#
+# Kjøres for hånd (Actions → denne workflowen → Run workflow) og på push når
+# lenkene eller proben selv endres. Skriver ingenting og feiler aldri — LES
+# UTSKRIFTEN.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/lib/tour3d/himmelFakta.js'
+      - 'src/lib/tour3d/stjernebildeInfo.js'
+      - 'scripts/probe-himmellenker.mjs'
+      - '.github/workflows/probe-himmellenker.yml'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      # Ingen `npm ci`: proben importerer to rene datamoduler og bruker fetch.
+      - name: Slå opp hver lenke
+        run: npm run probe:lenker

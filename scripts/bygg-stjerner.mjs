@@ -48,7 +48,7 @@ const ASTERISMER = [
       ['Alp UMi', 'Del UMi', 'Eps UMi', 'Zet UMi', 'Bet UMi', 'Gam UMi', 'Eta UMi', 'Zet UMi'],
     ],
   },
-  { navn: 'Cassiopeia', latin: 'Cassiopeia', kjeder: [['Eps Cas', 'Del Cas', 'Gam Cas', 'Alp Cas', 'Bet Cas']] },
+  { navn: 'Kassiopeia', latin: 'Cassiopeia', kjeder: [['Eps Cas', 'Del Cas', 'Gam Cas', 'Alp Cas', 'Bet Cas']] },
   {
     navn: 'Orion',
     latin: 'Orion',
@@ -79,7 +79,7 @@ const ASTERISMER = [
     ],
   },
   {
-    navn: 'Perseus',
+    navn: 'Persevs',
     latin: 'Perseus',
     kjeder: [
       ['Eta Per', 'Gam Per', 'Alp Per', 'Del Per', 'Eps Per'],
@@ -87,8 +87,8 @@ const ASTERISMER = [
     ],
   },
   { navn: 'Bjørnevokteren', latin: 'Boötes', kjeder: [['Alp Boo', 'Eps Boo', 'Del Boo', 'Bet Boo', 'Gam Boo', 'Rho Boo', 'Alp Boo']] },
-  { navn: 'Cepheus', latin: 'Cepheus', kjeder: [['Alp Cep', 'Bet Cep', 'Gam Cep', 'Iot Cep', 'Zet Cep', 'Alp Cep']] },
-  { navn: 'Kjøresvennen', latin: 'Auriga', kjeder: [['Alp Aur', 'Bet Aur', 'The Aur', 'Bet Tau', 'Iot Aur', 'Alp Aur']] },
+  { navn: 'Kefeus', latin: 'Cepheus', kjeder: [['Alp Cep', 'Bet Cep', 'Gam Cep', 'Iot Cep', 'Zet Cep', 'Alp Cep']] },
+  { navn: 'Kusken', latin: 'Auriga', kjeder: [['Alp Aur', 'Bet Aur', 'The Aur', 'Bet Tau', 'Iot Aur', 'Alp Aur']] },
   {
     navn: 'Tvillingene',
     latin: 'Gemini',
