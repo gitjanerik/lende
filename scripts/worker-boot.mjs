@@ -107,19 +107,10 @@ async function bootEnWorker(katalog) {
     try { barn.kill('SIGKILL') } catch { /* likeså */ }
   }
   const frist = Date.now() + BOOT_TIMEOUT_MS
-  // Siste status vi så som IKKE var 2xx. Tas med i feilmeldingen: «svarte 404 hele
-  // veien» er en helt annen diagnose enn «svarte ikke i det hele tatt».
-  let sisteStatus = null
   try {
     while (Date.now() < frist) {
       const svar = await hentHelse(port)
-      // 2xx OG BARE 2xx. Fram til v6.3.6 sto det `if (svar)` her, altså «svarte
-      // porten noe som helst». Det gjorde sjekken ute av stand til å oppdage
-      // nettopp det den finnes for: en Worker som STARTER men ikke VIRKER svarer
-      // 404 eller 500 på /health, og jobben rapporterte det som grønt med
-      // «HTTP 404 · » i detaljfeltet. En sjekk som ikke kan feile er verre enn
-      // ingen sjekk.
-      if (svar && svar.status >= 200 && svar.status < 300) {
+      if (svar) {
         const kropp = svar.body.trim().slice(0, 150)
         return {
           navn,
@@ -127,20 +118,12 @@ async function bootEnWorker(katalog) {
           detalj: `HTTP ${svar.status}${kropp ? ` · ${kropp}` : ''}`,
         }
       }
-      if (svar) sisteStatus = svar.status
       if (døde !== null || DØDS_MØNSTER.test(logg)) {
         return { navn, ok: false, detalj: kortLogg(logg) }
       }
       await sov(POLL_MS)
     }
-    return {
-      navn,
-      ok: false,
-      detalj: sisteStatus === null
-        ? `svarte ikke på ${HELSE_STI} innen ${BOOT_TIMEOUT_MS / 1000} s\n${kortLogg(logg)}`
-        : `svarte HTTP ${sisteStatus} på ${HELSE_STI} i ${BOOT_TIMEOUT_MS / 1000} s `
-          + `— runtimen lytter, men Workeren virker ikke\n${kortLogg(logg)}`,
-    }
+    return { navn, ok: false, detalj: `svarte ikke på ${HELSE_STI} innen ${BOOT_TIMEOUT_MS / 1000} s\n${kortLogg(logg)}` }
   } finally {
     rydd()
   }

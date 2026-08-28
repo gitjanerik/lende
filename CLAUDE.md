@@ -918,24 +918,29 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   (`.github/workflows/worker-boot.yml`), som faktisk starter dem — verken
   `npm run build`, `wrangler deploy --dry-run` eller `wrangler check startup`
   fanger det (den siste returnerer 0 selv når Workeren kaster).
-- **BEREDSKAPS-GATEN I BEGGE WORKER-SJEKKENE KREVER 2xx, ikke «svarte noe»
-  (v6.3.6).** Dette var den falske røden som gjorde PR-kjøringer upålitelige, og
-  den er MÅLT: `mcp-protokoll.mjs` hadde `if (h.status) return`, og `status: 0`
-  betyr «ingen forbindelse» — så gaten slapp gjennom i det porten svarte HVA SOM
-  HELST. På en kald GitHub-runner svarer workerd før rutene er montert, altså 404,
-  og `initialize` fikk 404 rett etterpå: 1,5 sekunder fra start til rødt, mens tre
-  kjøringer på rad lokalt gikk grønt. Klassisk race, usynlig på en varm maskin.
+- **`mcp:protokoll`s beredskaps-gate krever 2xx. `boot:workers`s gjør det IKKE,
+  og det er med vilje (v6.3.6).** Forskjellen er hele poenget, og jeg tok feil om
+  den én gang — les begge før du rører noen av dem.
 
-  `worker-boot.mjs` hadde SAMME feil i motsatt retning — `if (svar)` rapporterte
-  **grønt** og skrev «HTTP 404 · » i detaljfeltet. Den kunne altså ikke oppdage en
-  Worker som STARTER men ikke VIRKER, som er hele grunnen til at jobben finnes.
-  Begge krever nå 200-299, og feilmeldingen skiller «svarte ikke i det hele tatt»
-  fra «svarte 404 hele veien — runtimen lytter, men Workeren virker ikke».
+  `mcp-protokoll.mjs` hadde `if (h.status) return`, og `status: 0` betyr «ingen
+  forbindelse» — så gaten slapp gjennom i det porten svarte HVA SOM HELST. På en
+  kald GitHub-runner svarer workerd før rutene er montert, altså 404, og
+  `initialize` fikk 404 rett etterpå: 1,5 sekunder fra start til rødt, mens tre
+  kjøringer på rad lokalt gikk grønt. Det var den falske røden som gjorde
+  PR-kjøringer upålitelige. Den spør BARE lende-mcp, som HAR `/health` og svarer
+  200 med `{"ok":true,…}` — så et 2xx-krav er riktig der. Verifisert i begge
+  retninger: grønn på riktig kode, rød med lesbar melding når `/health` peker på
+  en rute som gir 404.
 
-  **Verifisert i BEGGE retninger, som gaten fra v5.22.3:** grønn på riktig kode,
-  og rød med lesbar melding når `/health` peker på en rute som gir 404. `/health`
-  svarer 200 med `{"ok":true,…}` når Workeren er oppe, så kravet er trygt.
-  Rører du løkkene: en gate som godtar en vilkårlig status er ikke en gate.
+  **`worker-boot.mjs` SKAL godta enhver status, og det står i filhodet:** den
+  sjekker «svarer runtimen?», ikke «finnes ruta?». `lende-proxy` returnerer 404 på
+  alt annet enn sine egne ruter — med vilje, den skal ikke være en åpen proxy — og
+  et 2xx-krav gjør den EVIG RØD uten at noe er galt. Jeg strammet den likevel inn
+  i første utgave av denne fiksen, uten å lese de 27 linjene rett over koden, og
+  CI svarte umiddelbart med «GET /health 404» i loop og én Worker rød. Et 404-svar
+  fra workerd BEVISER dessuten at modulen lastet og kjørte — hadde den kastet på
+  modulnivå, ville wrangler gitt 500 og logget unntaket, som er nøyaktig feilen
+  jobben ble laget for (v5.0.16). Gaten er altså løs FORDI den er riktig løs.
 - **`boot:workers` er IKKE nok for MCP-verktøyene (v5.22.3).** Den spør
   `/health`. Verktøyenes zod-skjemaer serialiseres først i `tools/list` og brukes
   til validering først i `tools/call`, så Workeren kan starte helt fint og likevel
