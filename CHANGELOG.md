@@ -1,3 +1,37 @@
+## 2026-08-28 — v6.1.1: Kompasset dreier, og infokortet kommer åpent
+
+Tre ting fra felttesten av v6.1.0.
+
+**Infokortet kom sammenlagt når det skulle vært åpent.** Trykket man på månen —
+eller på et hvilket som helst himmellegeme i himmelen — arvet kortet minimeringen
+fra forrige nabo-hopp. Årsaken er verdt å kjenne: trykk i himmelen går gjennom
+motorens `himmel-valgt`-hendelse, som setter det valgte direkte og altså hopper
+over den funksjonen som nullstiller minimeringen. Nå nullstiller den også.
+
+**Infokortet har tre ikoner i samme rekkefølge i begge tilstander:** fokus,
+minimer/utvid, lukk. Karet manglet i den minimerte pilla, og knappene skal ligge
+på samme sted enten kortet er sammenlagt eller åpent — ellers må man lete etter
+dem på nytt hver gang. Karet peker ned når kortet er minimert og opp når det er
+åpent.
+
+**Og himmelkompasset er snudd — det var feil vei.** Første utgave hadde to
+ringer som sto stille, med N alltid på samme sted på skjermen, og en rød prikk
+som vandret rundt for å si hvor man så. Begrunnelsen var at bokstaver som står
+stille er lettere å lese i mørket. Eieren prøvde den og forsto den ikke, og det er
+den avgjørende observasjonen: en gizmo man må tolke er ingen gizmo.
+
+Nå følger den konvensjonen alle kjenner. Den røde markøren står fast øverst og
+betyr «hit ser du», og skiva med N, Ø, S og V dreier under den — som på ethvert
+kompass og i ethvert kartprogram. **Og den er en knapp:** trykk, og kameraet
+vender mot nord i den høyden du står i. Står du og ser på stjerner 50° oppe, skal
+et trykk snu deg om, ikke også dra blikket ned i bakken.
+
+Den loddrette ringen er borte. Den viste blikkets høyde, men var også det som
+gjorde bildet til en armillarsfære man måtte studere. Høyden står i infokortet og
+er dessuten åpenbar av hva man ser. Én ring man forstår slår to man ikke forstår.
+
+---
+
 ## 2026-08-28 — v6.1.0: Nattmodus er stjernekikkeren
 
 v6.0.0 ga 3D-visningen en stjernekikker med en egen maksimer-knapp foran den.

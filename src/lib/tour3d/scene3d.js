@@ -821,6 +821,17 @@ export async function create3dScene(container, {
     settTvingMane(paa) { core.settTvingMane(paa) },
 
     /**
+     * Vend blikket mot nord, i den høyden man alt står i.
+     *
+     * HØYDEN BEHOLDES med vilje: står man og ser på stjerner 50° oppe, skal et
+     * trykk på kompasset snu en om — ikke også dra blikket ned i bakken. Det er
+     * retningen man ba om, ingenting annet.
+     */
+    seMotNord() {
+      freeRig.seMot(0, (blikkNaa().hoyde * Math.PI) / 180)
+    },
+
+    /**
      * Løft blikket opp i himmelen av seg selv — stjernemodus' åpningsbilde.
      *
      * HVORFOR EN EGEN INNGANG OG IKKE BARE seMot: retningen skal IKKE endres.
