@@ -15,6 +15,14 @@ name: Probe — hvilke himmelkart-URL-er svarer?
 
 on:
   workflow_dispatch:
+  # Også på push når KANDIDATLISTA eller proben selv endres. To grunner: en
+  # workflow_dispatch registreres først når fila står på default-branch, så
+  # første kjøring må komme på en annen måte — og etterpå er det billig og nyttig
+  # at en endring i lista faktisk blir prøvd. Ingen andre stier trigger den.
+  push:
+    paths:
+      - 'scripts/bygg-himmelkart.mjs'
+      - '.github/workflows/probe-himmelkart.yml'
 
 jobs:
   probe:
