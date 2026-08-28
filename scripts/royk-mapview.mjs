@@ -1259,7 +1259,36 @@ const SJEKKER = [
       // ikke lukkes (v6.3.5). Fram til da nullstilte exit hele valget, og kortet
       // forsvant i det man forlot nærbildet: man er fortsatt på legemet, man har
       // bare lagt kula tilbake.
-      await page.mouse.click(40, Math.round(page.viewportSize().height * 0.5))
+      //
+      // PUNKTET MÅ LIGGE UTENFOR INFOKORTET, og det er ikke en detalj: kortet er
+      // 58 vh høyt fra v6.3.2, så det faste punktet (40, halve høyden) landet
+      // OPPÅ kortet og trykket nådde aldri lerretet. Den gamle utgaven av sjekken
+      // tolererte begge utfall og avslørte det derfor ikke. Vi regner nå ut et
+      // ledig punkt og VERIFISERER med elementFromPoint at det er canvaset som
+      // ligger der — ellers tester vi ingenting.
+      const utsideKortet = await evalMedTak(page, () => {
+        const kort = [...document.querySelectorAll('div')]
+          .find((d) => /Lukk infokortet/.test(d.querySelector('button[aria-label]')
+            ? [...d.querySelectorAll('button[aria-label]')]
+              .map((b) => b.getAttribute('aria-label')).join(' ') : ''))
+        const r = kort?.getBoundingClientRect()
+        const kandidater = [
+          [Math.round(window.innerWidth * 0.5), window.innerHeight - 40],
+          [30, window.innerHeight - 40],
+          [Math.round(window.innerWidth * 0.5), Math.round((r?.bottom ?? 0) + 60)],
+        ]
+        for (const [x, y] of kandidater) {
+          if (y < 0 || y > window.innerHeight - 5) continue
+          const el = document.elementFromPoint(x, y)
+          if (el && el.tagName === 'CANVAS') return { x, y }
+        }
+        return null
+      })
+      if (!utsideKortet) {
+        throw new Error('fant ikke et punkt på lerretet utenfor infokortet — '
+          + 'et trykk her ville truffet kortet og bevist ingenting')
+      }
+      await page.mouse.click(utsideKortet.x, utsideKortet.y)
       await page.waitForTimeout(900)
       const etterExit = await evalMedTak(page, (navn) => ({
         harNavn: document.body.innerText.includes(navn),
