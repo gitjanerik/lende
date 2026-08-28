@@ -199,6 +199,34 @@ const KATEGORIER = {
 }
 
 /**
+ * EKSPLISITTE MISTENKTE, prøvd FØR kategoriene.
+ *
+ * Runde tre målte to ting: kategoriene virker, men taket på ti kandidater ble
+ * spist opp av «Maps of Mars» alfabetisk — så «Textures of Mars», der de
+ * equirektangulære teksturene faktisk ligger, ble aldri nådd. Å navngi en
+ * mistenkt er billigere enn å heve taket og bli ratebegrenset igjen.
+ */
+const TITLER = {
+  mars: [
+    'File:Solarsystemscope texture 2k mars.jpg',
+    'File:Solarsystemscope texture 8k mars.jpg',
+    'File:Mars Viking MDIM21 ClrMosaic global 232m.jpg',
+    'File:Mars albedo map.jpg',
+    'File:Mars map by Askaniy.jpg',
+    'File:Marte cilindrica.jpg',
+  ],
+  jupiter: [
+    'File:Solarsystemscope texture 2k jupiter.jpg',
+    'File:Jupiter Cylindrical Map - Dec 2000 PIA07782.jpg',
+  ],
+  saturn: [
+    'File:Solarsystemscope texture 2k saturn.jpg',
+    'File:OPAL Saturn Cycle 25 Map.png',
+  ],
+  maane: ['File:Solarsystemscope texture 2k moon.jpg'],
+}
+
+/**
  * Er tittelen i det hele tatt en kandidat? Filtrerer bort det kategoriene også
  * inneholder: PDF-er, TIFF-er (som thumbes til PNG og blir store), måne- og
  * detaljbilder. Vi vil ha JPEG eller PNG som ser ut som et globalt kart.
@@ -215,10 +243,17 @@ function erKandidat(tittel) {
 async function probe() {
   for (const [navn, kategorier] of Object.entries(KATEGORIER)) {
     process.stderr.write(`\n── ${navn} ${'─'.repeat(46)}\n`)
-    const sett = new Set()
+    // RUNDGANG mellom kategoriene, ikke én om gangen. Én kategori alene fylte
+    // hele taket alfabetisk i runde tre, og de kuraterte tekstur-kategoriene ble
+    // aldri nådd. De navngitte mistenkte står først uansett.
+    const lister = []
     for (const k of kategorier) {
-      for (const t of await commonsKategori(k)) if (erKandidat(t)) sett.add(t)
+      lister.push((await commonsKategori(k)).filter(erKandidat))
       await pust(250)
+    }
+    const sett = new Set(TITLER[navn] ?? [])
+    for (let i = 0; lister.some((l) => i < l.length); i++) {
+      for (const l of lister) if (l[i]) sett.add(l[i])
     }
     if (!sett.size) {
       process.stderr.write('  ingen kandidater i kategoriene\n')
@@ -226,7 +261,7 @@ async function probe() {
     }
     // Taket er lavt med vilje: Commons svarte 429 på femti forespørsler i
     // slengen, og en probe som blir ratebegrenset måler ingenting.
-    for (const tittel of [...sett].slice(0, 10)) {
+    for (const tittel of [...sett].slice(0, 12)) {
       const r = await commonsThumb(tittel)
       await pust(400)
       if (!r) {
@@ -281,7 +316,20 @@ async function hent(navn, kilder) {
   for (const k of kilder) {
     process.stderr.write(`[${navn}] prøver ${k.navn} …\n`)
     try {
-      const res = await fetch(k.url, { redirect: 'follow' })
+      // EN COMMONS-KILDE SLÅS OPP, IKKE HARDKODES. Thumb-URL-ene inneholder en
+      // md5-shard av filnavnet, og en URL man skriver av kan råtne uten at noe
+      // sier fra. Tittelen er stabil; oppslaget gir både URL og lisens.
+      let url = k.url
+      if (k.commons) {
+        const r = await commonsThumb(k.commons, k.bredde ?? 1024)
+        if (!r) {
+          process.stderr.write('  Commons kjente ikke tittelen\n')
+          continue
+        }
+        url = r.url
+        process.stderr.write(`  Commons: ${r.lisens}\n`)
+      }
+      const res = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': UA } })
       if (!res.ok) {
         process.stderr.write(`  ${res.status} ${res.statusText}\n`)
         continue
