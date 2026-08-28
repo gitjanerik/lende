@@ -134,23 +134,70 @@ const faseNavn = computed(() => {
     </div>
   </div>
 
+  <!-- ÅPENT KORT: FAST HEADER, RULLBAR KROPP.
+       Fram til v6.3.2 var dette én kolonne uten tak, og med fakta og
+       utforskningshistorie inne vokste den rett ut av skjermen: navnet og de tre
+       knappene forsvant oppover mens teksten lå igjen midt over terrenget uten
+       noen måte å lukke kortet på. Headeren står nå fast — navn, retning og de
+       tre ikonene er ALLTID synlige — og bare lesestoffet ruller.
+
+       Taket er i vh og ikke i piksler: kortet skal ta høyst litt over halve
+       skjermen, uansett om den er en telefon på høykant eller en 27-tommer. -->
   <div v-else-if="objekt"
        class="rounded-md bg-black/80 backdrop-blur shadow-lg max-w-[86vw] sm:max-w-sm
-              flex items-start gap-1.5 pl-3 pr-1 py-2">
-    <div class="flex-1 min-w-0">
-      <div class="flex items-baseline gap-1.5">
-        <span class="text-[0.8125rem]" aria-hidden="true">{{ IKON[objekt.type] }}</span>
-        <span class="text-[0.875rem] font-semibold text-white/90 truncate">{{ objekt.navn }}</span>
-        <span v-if="objekt.latin && objekt.latin !== objekt.navn"
-              class="text-[0.625rem] italic text-white/40 truncate">{{ objekt.latin }}</span>
+              max-h-[58vh] flex flex-col overflow-hidden">
+    <!-- HEADER — shrink-0, så den aldri klemmes eller rulles bort. -->
+    <div class="shrink-0 flex items-start gap-1.5 pl-3 pr-1 py-2
+                border-b border-white/10">
+      <div class="flex-1 min-w-0">
+        <div class="flex items-baseline gap-1.5">
+          <span class="text-[0.8125rem]" aria-hidden="true">{{ IKON[objekt.type] }}</span>
+          <span class="text-[0.875rem] font-semibold text-white/90 truncate">{{ objekt.navn }}</span>
+          <span v-if="objekt.latin && objekt.latin !== objekt.navn"
+                class="text-[0.625rem] italic text-white/40 truncate">{{ objekt.latin }}</span>
+        </div>
+
+        <!-- Hvor det står. I HEADEREN, fordi det er det man trenger for å løfte
+             blikket i riktig retning — og da skal det ikke kunne rulles bort. -->
+        <div class="mt-0.5 text-[0.625rem] text-white/50">
+          {{ retning }}, {{ hoydeGrader }}° over horisonten
+        </div>
       </div>
 
-      <!-- Hvor det står. Alltid først, fordi det er det man trenger for å løfte
-           blikket i riktig retning. -->
-      <div class="mt-0.5 text-[0.625rem] text-white/50">
-        {{ retning }}, {{ hoydeGrader }}° over horisonten
+      <!-- Samme tre ikoner som i den minimerte pilla, i samme rekkefølge. -->
+      <div class="shrink-0 flex items-center">
+        <button @click="emit('fokus')" :aria-label="`Sett ${objekt.navn} i fokus`"
+                class="w-7 h-7 flex items-center justify-center text-white/55 active:scale-90">
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/>
+            <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+          </svg>
+        </button>
+        <button @click="emit('minimer')" aria-label="Minimer infokortet"
+                class="w-7 h-7 flex items-center justify-center text-white/55 active:scale-90">
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+               stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="6 15 12 9 18 15"/>
+          </svg>
+        </button>
+        <button @click="emit('lukk')" aria-label="Lukk infokortet"
+                class="w-7 h-7 flex items-center justify-center text-white/45 active:scale-90">
+          <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+               stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+          </svg>
+        </button>
       </div>
+    </div>
 
+    <!-- KROPPEN: alt lesestoffet, og det ENESTE som ruller.
+         `overscroll-contain` hindrer at et drag som treffer enden av lista
+         forplanter seg til 3D-lerretet og dreier kameraet under fingeren.
+         `touch-pan-y` sier til nettleseren at loddrett drag hører til kortet,
+         så scrollen ikke kapres av pointer-håndtererne på canvaset. -->
+    <div class="flex-1 min-w-0 overflow-y-auto overscroll-contain touch-pan-y
+                pl-3 pr-3 py-2">
       <!-- Tallene, per type. -->
       <div v-if="objekt.type === 'formasjon'" class="mt-1.5 text-[0.6875rem] text-white/70">
         {{ objekt.antallStjerner }} stjerner tegnet<template v-if="objekt.lysesteStjerne">, lyseste er
@@ -258,32 +305,6 @@ const faseNavn = computed(() => {
           </button>
         </div>
       </template>
-    </div>
-
-    <!-- Samme tre ikoner som i den minimerte pilla, i samme rekkefølge. -->
-    <div class="shrink-0 flex items-center">
-      <button @click="emit('fokus')" :aria-label="`Sett ${objekt.navn} i fokus`"
-              class="w-7 h-7 flex items-center justify-center text-white/55 active:scale-90">
-        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/>
-          <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
-        </svg>
-      </button>
-      <button @click="emit('minimer')" aria-label="Minimer infokortet"
-              class="w-7 h-7 flex items-center justify-center text-white/55 active:scale-90">
-        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-             stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polyline points="6 15 12 9 18 15"/>
-        </svg>
-      </button>
-      <button @click="emit('lukk')" aria-label="Lukk infokortet"
-              class="w-7 h-7 flex items-center justify-center text-white/45 active:scale-90">
-        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
-             stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-        </svg>
-      </button>
     </div>
   </div>
 </template>

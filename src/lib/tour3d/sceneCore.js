@@ -470,7 +470,7 @@ export async function createSceneCore(container, {
     render() { renderer.render(scene, camera) },
 
     // Bakgrunnsbevegelse som ikke avhenger av hva kalleren gjør med kameraet.
-    updateAmbient(dt) {
+    updateAmbient(dt, timeS = null) {
       // Himmelen følger kameraet (v5.27.0). Kuppelen har radius 25 km og sto i
       // ORIGO, mens den frie riggen slipper kameraet 3 × arkets største mål unna
       // — på et 3×3-ark av 5 km er det 45 km, altså UTENFOR sin egen himmel.
@@ -507,8 +507,8 @@ export async function createSceneCore(container, {
           }
         }
       }
-      // Månen er en skive som skal vende mot kameraet.
-      nightSky.update(camera)
+      // Skivene skal vende mot kameraet, og tida driver trykk-ringenes ripple.
+      nightSky.update(camera, timeS)
       // Kameraet må med: puff-skyene oversetter sol-retningen til view-space
       // hver frame. Uten den roterer lyset med kameraet, og skyene leses som
       // lykter framfor opplyste former.

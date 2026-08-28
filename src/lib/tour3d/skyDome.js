@@ -121,9 +121,39 @@ export function buildMane({ radius = 25000, avstand = null } = {}) {
  * @param {{radius?: number, avstand?: number, grader?: number, farge?: string,
  *          jordskinn?: number}} [opts]
  */
-// Hvor mye større planet er enn skiva når legemet bærer en trykk-ring. 2,3 gir
-// et omriss som er tydelig løsrevet fra kanten uten å bli en tallerken.
-const RING_FAKTOR = 2.3
+// TRYKK-RINGEN, i CSS-PIKSLER — ikke i grader, og det er hele rettingen i v6.3.2.
+//
+// Fram til da var ringen `RING_FAKTOR` × skivas VINKELSTØRRELSE. For månen
+// (1,6°) ga det et brukbart omriss, men for en planet på 0,45° ble ringen 17 px
+// i diameter og streken under én piksel bred — altså usynlig. Eieren meldte at
+// «de tre planetene vises ikke og må åpnes via søk», og det var nettopp dette:
+// ringen var der, den var bare sub-piksel.
+//
+// Nå er den FAST I SKJERMSTØRRELSE og lik for alle fire, uavhengig av hvor stort
+// legemet er. 46 px er ikke et tilfeldig tall: det er samme terskel som
+// `plukkHimmel` i scene3d bruker, så det man ser er nøyaktig det man kan treffe.
+const RING_PX = 46
+const RING_STREK_PX = 1.8
+/** Ett ripple-omløp, i sekunder. To pulser går et halvt omløp i utakt. */
+const RING_PULS_S = 2.6
+
+/**
+ * Minste skive-diameter i CSS-piksler.
+ *
+ * Legemet skal IKKE gjøres uproporsjonalt større enn på den virkelige
+ * natthimmelen — det var uttrykkelig bestillingen — men det må være noen piksler
+ * stort, ellers er det ingenting å se inni ringen. 0,45° er alt en bevisst
+ * overdrivelse (Jupiter er 0,01°); dette gulvet sikrer bare at en liten skjerm
+ * ikke tar den ned i null.
+ */
+const MIN_SKIVE_PX = 5
+
+/**
+ * Kameraets vertikale synsfelt, i grader. MÅ følge PerspectiveCamera i
+ * sceneCore: verdien oversetter piksler til verdensenheter, og en uenighet her
+ * gir ringer i feil størrelse uten at noe kaster.
+ */
+const FOV_GRADER = 55
 
 export function buildHimmelSkive({
   radius = 25000, avstand = null, grader = MANE_GRADER,
@@ -134,10 +164,11 @@ export function buildHimmelSkive({
   // Månen og de tre planetene som har en globe får den; Merkur og Venus, som
   // ikke har noen, får den ikke — ellers lover omrisset noe som ikke finnes.
   //
-  // Den tegnes i SAMME shader og på samme plan som skiva, og planet gjøres
-  // RING_FAKTOR større for å få plass. Et eget mesh ville vært et objekt mer å
-  // holde i takt med posisjon, skala og synlighet for ingen gevinst.
-  const ringFaktor = ring ? RING_FAKTOR : 1
+  // Den tegnes i SAMME shader og på samme plan som skiva, og planet blåses opp
+  // til det største av de to. Et eget mesh ville vært et objekt mer å holde i
+  // takt med posisjon, skala og synlighet for ingen gevinst — og med en ring som
+  // er fast i piksler mens skiva er fast i grader, ville de to hatt hver sin
+  // skalering å holde i sync.
   const geometry = new PlaneGeometry(1, 1)
   const material = new ShaderMaterial({
     transparent: true,
@@ -153,8 +184,15 @@ export function buildHimmelSkive({
       uFarge: { value: new Color(farge) },
       uJordskinn: { value: jordskinn },
       // Skivas radius i planets enheter. 1 = planet ER skiva (ingen ring).
-      uSkive: { value: 1 / ringFaktor },
+      uSkive: { value: 1 },
       uRing: { value: ring ? 1 : 0 },
+      // Ringens radius og strekbredde, også i planets enheter. Regnes om hver
+      // gang skjermhøyden endres, se settSkjermHoyde.
+      uRingR: { value: 0 },
+      uRingStrek: { value: 0.02 },
+      // Sekunder. Driver ripple-en; mates av update() hver frame.
+      uTid: { value: 0 },
+      uPeriode: { value: RING_PULS_S },
     },
     vertexShader: `
       varying vec2 vUv;
@@ -170,6 +208,10 @@ export function buildHimmelSkive({
       uniform float uJordskinn;
       uniform float uSkive;
       uniform float uRing;
+      uniform float uRingR;
+      uniform float uRingStrek;
+      uniform float uTid;
+      uniform float uPeriode;
       varying vec2 vUv;
 
       void main() {
@@ -179,16 +221,33 @@ export function buildHimmelSkive({
         float rq = length(q);
         if (rq > 1.0) discard;
 
-        // RINGEN: et tynt omriss ute mot kanten av planet. Tegnes FØR skiva og
-        // returnerer, så den aldri kan spise av selve legemet.
-        if (uRing > 0.5) {
-          float d = abs(rq - 0.86);
-          if (d < 0.055) {
-            // Myk på begge sider, så den ikke trapper på en telefonskjerm.
-            float a = (1.0 - smoothstep(0.012, 0.055, d)) * 0.5;
-            gl_FragColor = vec4(uFarge, a);
+        // RINGEN: en pulserende ripple rundt legemet, som en radar-ping.
+        //
+        // Den er en AFFORDANSE og ikke pynt: den sier «dette kan du trykke på»,
+        // og på en natthimmel er bevegelse det eneste øyet finner av seg selv.
+        // Tre lag: et svakt FAST omriss, så det alltid er et mål å sikte på selv
+        // i det øyeblikket pulsene er svakest, pluss to pulser som utvider seg
+        // utover og dør ut, et halvt omløp i utakt.
+        //
+        // GUARDEN rq > uSkive er ikke valgfri: uten den kan en puls som passerer
+        // over legemet overskrive det, og da blinker Mars i stedet for å ligge
+        // stille inni ringen sin.
+        if (uRing > 0.5 && rq > uSkive) {
+          float a = (1.0 - smoothstep(uRingStrek * 0.45, uRingStrek, abs(rq - uRingR))) * 0.30;
+          float indre = uSkive + (uRingR - uSkive) * 0.25;
+          for (int i = 0; i < 2; i++) {
+            float f = fract(uTid / uPeriode + float(i) * 0.5);
+            float rr = mix(indre, uRingR, f);
+            float d = abs(rq - rr);
+            // Dør ut mot ytterkanten, så pulsen forsvinner der den slutter i
+            // stedet for å bli klippet av planet.
+            a += (1.0 - smoothstep(uRingStrek * 0.45, uRingStrek, d)) * 0.62 * (1.0 - f);
+          }
+          if (a > 0.004) {
+            gl_FragColor = vec4(uFarge, min(a, 0.9));
             return;
           }
+          discard;
         }
 
         // Enhetsskiva: p i [-1, 1]². Alt utenfor r = 1 finnes ikke.
@@ -225,14 +284,35 @@ export function buildHimmelSkive({
     `,
   })
   const mesh = new Mesh(geometry, material)
-  // Skala fra ønsket vinkelstørrelse ved kjent avstand. Avstanden er konstant
-  // fordi himmelen følger kameraet (sceneCore.updateAmbient), så dette regnes
-  // ut én gang — månen skal ikke vokse når man flyr mot den.
-  // Vinkelstørrelsen gjelder SKIVA. Planet skaleres opp med ringFaktor, ellers
-  // ville ringen krympet legemet i stedet for å legge seg rundt det.
-  const bredde = 2 * r * Math.tan((grader * Math.PI / 180) / 2) * ringFaktor
-  mesh.scale.setScalar(bredde)
   mesh.frustumCulled = false
+
+  // SKALERINGEN. Avstanden er konstant fordi himmelen følger kameraet
+  // (sceneCore.updateAmbient), så én verdensenhet på skiva er alltid like mange
+  // piksler — men hvor mange, avhenger av skjermhøyden, og den endrer seg.
+  //
+  // Planet må romme det STØRSTE av skiva og ringen. Er ringen størst, blåses
+  // planet opp og `uSkive` krymper tilsvarende, så legemet beholder sin ekte
+  // vinkelstørrelse inni en ring som er like stor for alle fire.
+  let skjermHoydePx = 900
+  let skiveGrader = grader
+
+  function oppdaterSkala() {
+    // Verdensenheter per CSS-piksel ved skivas avstand.
+    const perPx = (2 * r * Math.tan((FOV_GRADER * Math.PI / 180) / 2)) / skjermHoydePx
+    const skiveBredde = Math.max(
+      2 * r * Math.tan((skiveGrader * Math.PI / 180) / 2),
+      MIN_SKIVE_PX * perPx,
+    )
+    // 1,18 gir strekken plass innenfor planet: lå ringen helt i kanten, ville
+    // `if (rq > 1.0) discard` klippet den ytre halvdelen av den.
+    const ringBredde = ring ? RING_PX * perPx * 1.18 : 0
+    const planBredde = Math.max(skiveBredde, ringBredde)
+    mesh.scale.setScalar(planBredde)
+    material.uniforms.uSkive.value = skiveBredde / planBredde
+    material.uniforms.uRingR.value = ring ? (RING_PX * perPx) / planBredde : 0
+    material.uniforms.uRingStrek.value = (RING_STREK_PX * perPx * 2) / planBredde
+  }
+  oppdaterSkala()
 
   const group = new Group()
   group.add(mesh)
@@ -257,10 +337,36 @@ export function buildHimmelSkive({
       // klipper den selv.
       mesh.visible = m.hoyde > -2 * Math.PI / 180
     },
-    /** Vend skiva mot kameraet. Månen ER en flat skive sett fra jorda. */
-    update(camera) {
+    /**
+     * Vend skiva mot kameraet, og driv ripple-en.
+     *
+     * Månen ER en flat skive sett fra jorda — derfor kvaternionen. Tida er
+     * sekunder og trenger ikke være absolutt; bare monotont voksende.
+     */
+    update(camera, tidS = null) {
       if (camera) mesh.quaternion.copy(camera.quaternion)
+      if (Number.isFinite(tidS)) material.uniforms.uTid.value = tidS
     },
+    /**
+     * Skjermhøyden i CSS-piksler. Ringen er fast i PIKSLER, så den må regnes om
+     * ved hver resize — ellers er den 46 px på den skjermen appen startet på og
+     * noe annet etterpå. sceneCore mater den fra setResolution.
+     */
+    settSkjermHoyde(px) {
+      if (!Number.isFinite(px) || px < 1) return
+      skjermHoydePx = px
+      oppdaterSkala()
+    },
+    /** Skivas vinkelstørrelse i grader — månen vokser når globen åpnes. */
+    settGrader(g) {
+      if (!Number.isFinite(g) || g <= 0) return
+      skiveGrader = g
+      oppdaterSkala()
+    },
+    /** Skivas radius i planets enheter — for test. */
+    get skiveAndel() { return material.uniforms.uSkive.value },
+    /** Ringens radius i planets enheter, 0 uten ring — for test. */
+    get ringAndel() { return material.uniforms.uRingR.value },
     dispose() {
       geometry.dispose()
       material.dispose()
@@ -615,7 +721,18 @@ export function buildNightSky({
     materials: materialer,
     textures: [],
     setNight(on) { group.visible = !!on },
-    update(camera) { mane.update(camera) },
+    /**
+     * Vend skivene mot kameraet og driv trykk-ringenes ripple.
+     *
+     * PLANETSKIVENE MÅ MED, ikke bare månen: ringen er en shader-animasjon, og
+     * en uniform som ikke mates står stille. Fram til v6.3.2 vendte bare månen
+     * seg her — planetskivene sto med kameraets kvaternion fra byggingen, som
+     * var riktig helt til man snudde seg.
+     */
+    update(camera, tidS = null) {
+      mane.update(camera, tidS)
+      for (const skive of planetSkiver.values()) skive.update(camera, tidS)
+    },
 
     /** Skiva for én planet, så sceneCore kan skjule den mens globen står. */
     planetSkive(id) { return planetSkiver.get(id) ?? null },
@@ -647,6 +764,11 @@ export function buildNightSky({
      */
     setResolution(w, h) {
       for (const m of pikselMaterialer) m.resolution.set(w, h)
+      // Trykk-ringene er faste i CSS-PIKSLER, så de må regnes om ved hver
+      // resize — ellers er de 46 px på skjermen appen startet på og noe annet
+      // etterpå. Rotasjon av telefonen er den vanlige måten å oppdage det.
+      mane.settSkjermHoyde(h)
+      for (const skive of planetSkiver.values()) skive.settSkjermHoyde(h)
     },
 
     /**

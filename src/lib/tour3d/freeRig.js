@@ -93,14 +93,33 @@ export function orbitPosisjon(radius, theta, phi) {
   ]
 }
 
-export function blikkMot(azimut, hoyde) {
-  // Ønsket blikkretning: (sin A, sin h, −cos A). Offset er den motsatte.
-  const theta = Math.atan2(-Math.sin(azimut), Math.cos(azimut))
+export function vippForHoyde(hoyde) {
   // Orbiten står på taket sitt; resten er vippens. Taket gir et blikk
   // (90° − POLAR_MAKS) UNDER horisonten, så det må legges til.
   const fraTaket = Math.PI / 2 - POLAR_MAKS
-  const vipp = Math.max(0, Math.min(HIMMEL_VIPP_MAKS, hoyde + fraTaket))
-  return { theta, vipp }
+  return Math.max(0, Math.min(HIMMEL_VIPP_MAKS, hoyde + fraTaket))
+}
+
+/**
+ * Hvilke blikkhøyder riggen FAKTISK kan levere, i grader.
+ *
+ * Avledet av POLAR_MAKS og HIMMEL_VIPP_MAKS og ikke skrevet av: en skyveknapp
+ * med et annet område enn riggen har, ender i et håndtak som står stille i
+ * endene og en bruker som tror kontrollen er ødelagt.
+ */
+export function blikkHoydeGrenser() {
+  const grad = 180 / Math.PI
+  const fraTaket = Math.PI / 2 - POLAR_MAKS
+  return {
+    minGrader: -fraTaket * grad,
+    maksGrader: (HIMMEL_VIPP_MAKS - fraTaket) * grad,
+  }
+}
+
+export function blikkMot(azimut, hoyde) {
+  // Ønsket blikkretning: (sin A, sin h, −cos A). Offset er den motsatte.
+  const theta = Math.atan2(-Math.sin(azimut), Math.cos(azimut))
+  return { theta, vipp: vippForHoyde(hoyde) }
 }
 
 /**
@@ -428,6 +447,31 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
         tid: Number.isFinite(tid) && tid > 0 ? tid : BLIKK_TID_S,
         ease: ease === 'ut' ? easeOutCubic : easeInOutCubic,
       }
+    },
+    /**
+     * Sett blikkets høyde DIREKTE, uten animasjon. Radianer over horisonten.
+     *
+     * HVORFOR EN EGEN INNGANG OG IKKE seMot: en skyveknapp sender et event per
+     * piksel fingeren flytter seg, og `seMot` starter en 0,9-sekunders animasjon
+     * hver gang. Hundre animasjoner som avbryter hverandre gir et blikk som
+     * henger etter håndtaket og rykker. Denne setter vippen rett, så håndtaket og
+     * bildet er samme bevegelse.
+     *
+     * AZIMUTEN RØRES IKKE — skyveknappen er høyde og bare høyde. Og vippen har
+     * fortsatt ÉN eier: den bor her, som draget, så de to ikke kan komme i utakt.
+     */
+    settBlikkHoyde(hoyde) {
+      if (!Number.isFinite(hoyde)) return
+      controls.enabled = true
+      controls.autoRotate = false
+      userTook = true
+      transition = null
+      blikkAnim = null
+      // Polaren låses til taket, som i seMot: vippen er det som bærer høyden, og
+      // en orbit som fortsatt kan bevege seg i polar ville dratt blikket ned.
+      settOrbitVinkler({ phi: POLAR_MAKS })
+      settPolarLast(true)
+      himmelVipp = vippForHoyde(hoyde)
     },
     get autoRotating() { return controls.autoRotate },
     get userTookOver() { return userTook },

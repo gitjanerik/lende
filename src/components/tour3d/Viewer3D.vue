@@ -33,6 +33,8 @@ import Tour3dVaerRad from './Tour3dVaerRad.vue'
 import Tour3dHimmelSok from './Tour3dHimmelSok.vue'
 import Tour3dHimmelKort from './Tour3dHimmelKort.vue'
 import Tour3dHimmelKompass from './Tour3dHimmelKompass.vue'
+import Tour3dBlikkSkyv from './Tour3dBlikkSkyv.vue'
+import { blikkHoydeGrenser } from '../../lib/tour3d/freeRig.js'
 import { lesPinPrefs, skrivPinPrefs, paaGrupper } from '../../lib/tour3d/pinPrefs.js'
 import { svgToWgs84 } from '../../lib/utm.js'
 import { fetchVarsel, naaVarsel } from '../../lib/vaerFetcher.js'
@@ -147,6 +149,24 @@ const globeTrekk = ref([])
 // da mister man himmelretningene helt — man kan stå og se på Karlsvogna uten å
 // vite at man ser nordover. Kompasset nede til høyre gir det tilbake.
 const blikk = ref(null)
+
+// ---- Skyveknappen for blikkets høyde (desktop) --------------------------
+// EN TILGJENGELIGHETSFIKS, ikke en ekstra måte å gjøre det samme. Himmelvippen
+// drives av et DRAG, og på desktop er venstre museknapp satt om til panorering
+// (mouseButtons i freeRig) — så bare høyre knapp roterer, og ingenting sier det.
+// Uten kontrollen kan man ikke løfte blikket til himmelen med mus i det hele
+// tatt, og stjernekikkeren er dermed utilgjengelig på en stor skjerm.
+//
+// GRENSENE LESES AV RIGGEN og skrives ikke av: en skyveknapp med et annet område
+// enn riggen kan levere ender i et håndtak som står stille i endene.
+const BLIKK_GRENSER = blikkHoydeGrenser()
+
+// Fin peker OG hover = mus eller styreflate, altså ingen berøring å dra med. På
+// telefon er draget der alt, og en skyveknapp ville bare tatt plass. Leses én
+// gang: en enhet bytter ikke pekertype midt i en økt.
+const finPeker = (() => {
+  try { return window.matchMedia('(hover: hover) and (pointer: fine)').matches } catch { return false }
+})()
 function lukkGlobe() {
   engine?.lukkGlobe()
   globeAapen.value = false
@@ -1247,6 +1267,20 @@ function branchLabel(opt, i) {
             {{ pathsOn ? 'Trykk på en sti for å følge den' : 'Slå på Sti for å følge en sti' }}
           </div>
         </div>
+      </div>
+
+      <!-- BLIKK-SKYVEKNAPPEN, høyre kant, loddrett midtstilt.
+           BARE PÅ FIN PEKER (mus/styreflate), og i BÅDE dag og natt: luka den
+           lukker gjelder all 3D-visning, ikke bare stjernekikkeren. Den blir
+           stående i nattmodus selv om alt annet skjules — er den skjult der, er
+           himmelen uoppnåelig på en desktop, som er hele grunnen til at den
+           finnes. I natt er den dempet og rød, som kompasset. -->
+      <div v-if="phase === 'ready' && finPeker"
+           class="absolute right-0 top-1/2 -translate-y-1/2 z-10 pointer-events-none pr-2">
+        <Tour3dBlikkSkyv :hoyde="blikk?.hoyde ?? 0"
+                         :min="BLIKK_GRENSER.minGrader" :maks="BLIKK_GRENSER.maksGrader"
+                         :natt="stjernemodus"
+                         @hoyde="engine?.settBlikkHoyde($event)"/>
       </div>
 
       <!-- HIMMELKOMPASSET, nede til høyre i nattmodus. Egen absolutt plassert

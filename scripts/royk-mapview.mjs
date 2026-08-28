@@ -974,6 +974,83 @@ const SJEKKER = [
     },
   },
   {
+    navn: 'skyveknappen løfter blikket uten et drag (desktop)',
+    domene: 'Tour3dBlikkSkyv',
+    krever: 'ektekart',
+    maksMs: 120_000,
+    async kjør(page) {
+      // HVORFOR DEN SJEKKEN FINNES: himmelvippen drives av et DRAG med HØYRE
+      // museknapp (venstre panorerer). På en stor skjerm uten berøring er det
+      // ingenting som sier det, og stjernekikkeren er dermed utilgjengelig. Denne
+      // sjekken beviser at man kommer opp i himmelen UTEN å kjenne den gesten.
+      //
+      // Playwright-konteksten setter ikke `hasTouch`, så Chromium rapporterer
+      // `(hover: hover) and (pointer: fine)` — nøyaktig porten knappen står bak.
+      // Settes hasTouch en gang i framtida, forsvinner knappen og denne sjekken
+      // skal da feile og ikke hoppe stille over.
+      await lukkDrawer(page)
+      await klikkTekst(page, /^3D$/)
+      const klar = await page.waitForFunction(() => {
+        const c = document.querySelector('canvas')
+        if (c && c.width > 0) return 'canvas'
+        if (/Ingen høydedata/i.test(document.body.innerText)) return 'ingen-dem'
+        return false
+      }, null, { timeout: 60_000 }).then((h) => h.jsonValue())
+      const lukk = async () => {
+        await page.locator('button[aria-label="Lukk 3D-visning"]').click({ timeout: 8000 })
+        await page.waitForFunction(() => !document.querySelector('canvas'),
+          null, { timeout: 8000 })
+      }
+      if (klar === 'ingen-dem') {
+        await lukk()
+        return 'ingen-dem-melding — blikket kan ikke løftes uten terreng'
+      }
+      await page.waitForFunction(
+        () => !/Skjerper kartbildet/i.test(document.body.innerText),
+        null, { timeout: 45_000 },
+      ).catch(() => { /* meldingen kan ha kommet og gått */ })
+
+      // Dagmodus: himmel-hintet og «Oversikt» er skjult om natta (v6.1.0), og de
+      // to er landemerkene sjekken leser.
+      const startSteg = await lesSolMaaneSteg(page)
+      if (startSteg === 'Bytt til dag') {
+        await page.locator('button[aria-label="Bytt til dag"]').click({ timeout: 10_000 })
+        await page.waitForTimeout(1600)
+      }
+
+      const skyv = page.locator('input.blikk-skyv')
+      if (!await skyv.count()) {
+        throw new Error('skyveknappen for blikkhøyde mangler — himmelen er '
+          + 'uoppnåelig uten et høyre-drag på desktop')
+      }
+      // Sett den til maks. `fill` på en range gir et ekte input-event, som er
+      // det komponenten lytter på — og hele poenget er at INGEN gest trengs.
+      const maks = await skyv.getAttribute('max')
+      await skyv.fill(String(maks))
+      await page.waitForTimeout(1200)
+
+      const oppe = await evalMedTak(page, () =>
+        /Ser opp i himmelen/i.test(document.body.innerText))
+      if (!oppe) throw new Error('skyveknappen på maks løftet ikke blikket opp i himmelen')
+
+      // Og ned igjen: en enveisbillett ville stått grønn på halve sjekken.
+      await skyv.fill(String(await skyv.getAttribute('min')))
+      await page.waitForTimeout(1200)
+      if (await evalMedTak(page, () => /Ser opp i himmelen/i.test(document.body.innerText))) {
+        throw new Error('skyveknappen på minimum tok ikke blikket ned i kartet igjen')
+      }
+
+      // NØYTRAL TILSTAND: modusen vi arvet, og 3D lukket. Måle-modus-fella fra
+      // v5.8.1 — en sjekk som etterlater et annet bilde felles den neste.
+      if (startSteg === 'Bytt til dag' && await lesSolMaaneSteg(page) === 'Bytt til natt') {
+        await page.locator('button[aria-label="Bytt til natt"]').click({ timeout: 10_000 })
+        await page.waitForTimeout(1600)
+      }
+      await lukk()
+      return `skyveknappen gikk 0 → ${maks}° → horisonten, uten en eneste gest`
+    },
+  },
+  {
     // DELT I TO MED VILJE. Første utgave gjorde alt i én sjekk og brukte mer enn
     // takets 120 s på en runner uten GPU, der nattmodus baker en 4096²-tekstur
     // på hovedtråden. To halvparter går inn under taket hver for seg, og en feil

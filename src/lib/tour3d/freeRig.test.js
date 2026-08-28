@@ -18,7 +18,10 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 // den feilen; det var røyktesten som fanget den.
 import { describe, it, expect } from 'vitest'
 import { PerspectiveCamera, Vector3, Matrix4 } from 'three'
-import { himmelVippSteg, HIMMEL_VIPP_MAKS, blikkMot, orbitPosisjon, azimutFraTheta } from './freeRig.js'
+import {
+  himmelVippSteg, HIMMEL_VIPP_MAKS, blikkMot, orbitPosisjon, azimutFraTheta,
+  vippForHoyde, blikkHoydeGrenser,
+} from './freeRig.js'
 
 // Radianer per piksel, som i riggen: 2π over elementets høyde.
 const FART = (2 * Math.PI) / 900
@@ -244,6 +247,45 @@ describe('azimutFraTheta — inversen av blikkMot', () => {
     // derfor står det som en test: uttrykket er en speiling.
     for (const t of [-3, -1.2, 0, 0.4, 2.9]) {
       expect(azimutFraTheta(azimutFraTheta(t))).toBeCloseTo(t, 9)
+    }
+  })
+})
+
+describe('vippForHoyde og blikkHoydeGrenser', () => {
+  // Skyveknappen på desktop (v6.3.2) leser området HERFRA. Skrev den sine egne
+  // tall, ville et håndtak stått stille i endene og brukeren trodd at kontrollen
+  // var ødelagt — så det som må holdes fast er at de to er samme regnestykke.
+  it('blikkMot bruker samme regel som vippForHoyde — én kilde', () => {
+    for (const grader of [-5, -1, 0, 10, 45, 70, 74, 90]) {
+      const h = (grader * Math.PI) / 180
+      expect(blikkMot(1.2, h).vipp).toBeCloseTo(vippForHoyde(h), 12)
+    }
+  })
+
+  it('vippen klippes i begge ender', () => {
+    // Under horisonten er orbitens jobb, ikke vippens: der skal den være 0.
+    expect(vippForHoyde(-1)).toBe(0)
+    expect(vippForHoyde(-(Math.PI / 2))).toBe(0)
+    expect(vippForHoyde(Math.PI / 2)).toBeCloseTo(HIMMEL_VIPP_MAKS, 12)
+  })
+
+  it('grensene er DET RIGGEN KAN, og endene treffer nøyaktig', () => {
+    const g = blikkHoydeGrenser()
+    expect(g.minGrader).toBeLessThan(0)
+    expect(g.maksGrader).toBeGreaterThan(60)
+    // Nedre ende gir vipp 0 (blikket ligger i orbitens eget tak), øvre ende gir
+    // taket. Traff de ikke, ville håndtaket hatt dødt slark i endene.
+    expect(vippForHoyde((g.minGrader * Math.PI) / 180)).toBeCloseTo(0, 12)
+    expect(vippForHoyde((g.maksGrader * Math.PI) / 180)).toBeCloseTo(HIMMEL_VIPP_MAKS, 12)
+  })
+
+  it('grensene er sammenhengende — ingen høyde faller utenfor', () => {
+    const g = blikkHoydeGrenser()
+    let forrige = -1
+    for (let d = g.minGrader; d <= g.maksGrader; d += 1) {
+      const v = vippForHoyde((d * Math.PI) / 180)
+      expect(v).toBeGreaterThanOrEqual(forrige)
+      forrige = v
     }
   })
 })

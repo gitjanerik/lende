@@ -480,11 +480,92 @@ describe('trykk-ringen på himmelen', () => {
     // å legge seg rundt det — og månen krymper når den blir trykkbar.
     const uten = buildHimmelSkive({ grader: 2 })
     const med = buildHimmelSkive({ grader: 2, ring: true })
+    for (const s of [uten, med]) s.settSkjermHoyde(900)
     expect(med.mesh.scale.x).toBeGreaterThan(uten.mesh.scale.x)
     // Skivas EGEN vinkelstørrelse er den samme: planet × uSkive.
     expect(med.mesh.scale.x * med.materials[0].uniforms.uSkive.value)
       .toBeCloseTo(uten.mesh.scale.x, 6)
     uten.dispose(); med.dispose()
+  })
+
+  it('ringen er LIKE STOR for alle fire, uansett hvor stort legemet er', () => {
+    // DETTE ER RETTINGEN I v6.3.2. Ringen var RING_FAKTOR × vinkelstørrelsen, så
+    // månens (1,6°) ble brukbar mens en planets (0,45°) ble 17 px i diameter med
+    // en strek under én piksel — usynlig. Eieren meldte at planetene «ikke
+    // vises». Nå er den fast i CSS-piksler og lik for alle.
+    const mane = buildHimmelSkive({ grader: 1.6, ring: true })
+    const planet = buildHimmelSkive({ grader: 0.45, ring: true })
+    for (const s of [mane, planet]) s.settSkjermHoyde(900)
+    const ringVerden = (s) => s.mesh.scale.x * s.ringAndel
+    expect(ringVerden(planet)).toBeCloseTo(ringVerden(mane), 6)
+    mane.dispose(); planet.dispose()
+  })
+
+  it('ringen er ~46 CSS-piksler i diameter, som plukke-terskelen', () => {
+    // Tallet er ikke tilfeldig: plukkHimmel i scene3d bruker 46 px, så det man
+    // SER er nøyaktig det man kan treffe. Regnestykket er FOV 55° over 900 px.
+    const s = buildHimmelSkive({ grader: 0.45, ring: true, avstand: 20000 })
+    s.settSkjermHoyde(900)
+    const perPx = (2 * 20000 * Math.tan((55 * Math.PI / 180) / 2)) / 900
+    expect((s.mesh.scale.x * s.ringAndel) / perPx).toBeCloseTo(46, 0)
+    s.dispose()
+  })
+
+  it('ringen regnes om ved resize — den er i piksler, ikke i grader', () => {
+    // Rotasjon av telefonen er den vanlige måten å oppdage at den ikke gjør det.
+    const s = buildHimmelSkive({ grader: 0.45, ring: true })
+    s.settSkjermHoyde(900)
+    const stor = s.mesh.scale.x
+    s.settSkjermHoyde(1800)
+    // Dobbelt så høy skjerm: halvparten så mange verdensenheter per piksel, så
+    // en ring på samme antall PIKSLER er halvparten så stor i verden.
+    expect(s.mesh.scale.x).toBeCloseTo(stor / 2, 4)
+    s.dispose()
+  })
+
+  it('skiva er aldri under noen få piksler, men beholder ellers sin vinkel', () => {
+    // Bestillingen var uttrykkelig at legemet IKKE skal blåses uproporsjonalt
+    // opp — bare at det må være noen piksler stort, ellers er det ingenting å se
+    // inni ringen.
+    const stor = buildHimmelSkive({ grader: 1.6, ring: true, avstand: 20000 })
+    const bitte = buildHimmelSkive({ grader: 0.002, ring: true, avstand: 20000 })
+    for (const s of [stor, bitte]) s.settSkjermHoyde(900)
+    const perPx = (2 * 20000 * Math.tan((55 * Math.PI / 180) / 2)) / 900
+    const px = (s) => (s.mesh.scale.x * s.skiveAndel) / perPx
+    // Den bitte lille løftes til gulvet, ikke lenger.
+    expect(px(bitte)).toBeCloseTo(5, 0)
+    // Den store rører gulvet ikke: 1,6° på 900 px med FOV 55 er ~26 px.
+    expect(px(stor)).toBeGreaterThan(20)
+    stor.dispose(); bitte.dispose()
+  })
+
+  it('ripple-en drives av tid, og update mater den', () => {
+    // En uniform som ikke mates står stille, og da er det ingen puls.
+    const s = buildHimmelSkive({ grader: 0.45, ring: true })
+    expect(s.materials[0].uniforms.uTid.value).toBe(0)
+    s.update(null, 3.5)
+    expect(s.materials[0].uniforms.uTid.value).toBe(3.5)
+    s.dispose()
+  })
+
+  it('nightSky.update mater ALLE skivene, ikke bare månen', () => {
+    // Fram til v6.3.2 vendte bare månen seg mot kameraet her. Planetskivene sto
+    // med kvaternionen fra byggingen, som var riktig helt til man snudde seg.
+    const h = buildNightSky({ lat: 59.91, lon: 10.75, dato: new Date('2026-08-28T22:00:00Z') })
+    h.update(null, 7.25)
+    expect(h.mane.materials[0].uniforms.uTid.value).toBe(7.25)
+    for (const id of ['mars', 'jupiter', 'saturn', 'merkur', 'venus']) {
+      expect(h.planetSkive(id).materials[0].uniforms.uTid.value, id).toBe(7.25)
+    }
+    h.dispose()
+  })
+
+  it('setResolution regner ringene om for hele himmelen', () => {
+    const h = buildNightSky({ lat: 59.91, lon: 10.75, dato: new Date('2026-08-28T22:00:00Z') })
+    const foer = h.planetSkive('jupiter').mesh.scale.x
+    h.setResolution(800, 2000)
+    expect(h.planetSkive('jupiter').mesh.scale.x).not.toBeCloseTo(foer, 4)
+    h.dispose()
   })
 
   it('bare planetene med globe får ring', () => {

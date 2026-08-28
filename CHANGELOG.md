@@ -1,3 +1,15 @@
+## 2026-08-28 — v6.3.2: Trykkbare planeter, rullbart infokort og et blikk man kan løfte med mus
+
+Tre feltfunn fra v6.3.1, og de henger sammen i at 3D-visningen var laget for en finger på en telefon.
+
+Infokortet vokste rett ut av skjermen. Med fakta og utforskningshistorie inne ble kortet høyere enn viewporten, og siden det var én kolonne uten tak forsvant navnet og de tre knappene oppover mens teksten lå igjen midt over terrenget — uten noen måte å lukke kortet på. Headeren står nå fast med navn, retning og ikoner alltid synlige, og bare lesestoffet ruller, med et tak på 58 % av skjermhøyden. `overscroll-contain` og `touch-pan-y` hindrer at et drag som treffer enden av lista forplanter seg til lerretet og dreier kameraet under fingeren.
+
+Trykk-ringen rundt månen, Mars, Jupiter og Saturn var sub-piksel tynn, og det er hele grunnen til at planetene «ikke vistes». Ringen var `RING_FAKTOR` × legemets VINKELSTØRRELSE: for månen på 1,6° ga det et brukbart omriss, men for en planet på 0,45° ble ringen 17 piksler i diameter med en strek under én piksel bred. Den var der; den var bare usynlig. Nå er den fast i CSS-PIKSLER og lik for alle fire — 46 px, som er nøyaktig samme terskel `plukkHimmel` bruker, så det man ser er det man kan treffe — og den pulserer som en radar-ping: et svakt fast omriss man alltid kan sikte på, pluss to ripples som utvider seg utover og dør ut, et halvt omløp i utakt. På en natthimmel er bevegelse det eneste øyet finner av seg selv. Legemet inni beholder sin ekte vinkelstørrelse, med et gulv på fem piksler så det ikke forsvinner helt på en liten skjerm; det var uttrykkelig bestillingen at planeten ikke skal blåses uproporsjonalt opp. Ringene regnes om ved hver resize, siden de er i piksler og ikke i grader.
+
+Og på desktop kunne man ikke løfte blikket i det hele tatt. Himmelvippen drives av et drag, men venstre museknapp er satt om til panorering, så bare høyre knapp roterer — og ingenting på skjermen sier det. Stjernekikkeren var dermed utilgjengelig på en stor skjerm uten berøring. En skyveknapp på høyre kant setter nå blikkets høyde direkte, i både dag og natt, og den vises bare ved fin peker med hover. Området leses av riggen (`blikkHoydeGrenser`) framfor å skrives av, så håndtaket ikke har dødt slark i endene, og den setter vippen rett i stedet for å starte en 0,9-sekunders animasjon per piksel fingeren flytter seg. Himmelvippen har fortsatt én eier: `freeRig`.
+
+---
+
 ## 2026-08-28 — v6.3.1: Utvikler-bryteren løfter alle fire globe-legemene
 
 «Tvungen måne i 3D» løftet bare månen, og det var en luke fra det øyeblikket Mars, Jupiter og Saturn fikk globe i v6.2.0: de tre er under horisonten store deler av året, så globene deres kunne bare prøves når himmelen tilfeldigvis stilte seg riktig. Bryteren heter nå «Tvungne himmellegemer i 3D» og løfter alle fire som HAR en globe. Merkur og Venus følger de ekte reglene — et omriss som lover en globe som ikke finnes er verre enn ingen ring, og av samme grunn er et legeme som dyttes opp på himmelen uten at man kan gjøre noe med det en ren løgn om hva som står der. Porten er `harGlobe`, ETT sted.
