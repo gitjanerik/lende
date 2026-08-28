@@ -43,20 +43,28 @@ function toggleVaerDemo() {
   try { localStorage.setItem(VAERDEMO_KEY, vaerDemo.value ? '1' : '0') } catch { /* privat modus */ }
 }
 
-// Tvungen måne i 3D. Samme mønster som vær-demoen, og av samme grunn: 3D-viseren
-// er den som leser flagget, og den monteres etterpå.
+// Tvungne himmellegemer i 3D. Samme mønster som vær-demoen, og av samme grunn:
+// 3D-viseren er den som leser flagget, og den monteres etterpå.
 //
-// Finnes fordi månen er UNDER HORISONTEN store deler av døgnet, og da er både
-// månegloben og trykk-plukkingen av den umulig å prøve — man må vente på at
-// himmelen selv stiller seg riktig. Med flagget på løftes månen opp i himmelen
-// uansett hvor den egentlig står. Fasen og retningen er fortsatt de ekte.
-const MAANE_TVANG_KEY = 'lende-3d-maane-tvang'
-const maaneTvang = ref((() => {
-  try { return localStorage.getItem(MAANE_TVANG_KEY) === '1' } catch { return false }
+// Finnes fordi legemene er UNDER HORISONTEN store deler av tida — månen store
+// deler av døgnet, Mars, Jupiter og Saturn store deler av året — og da er både
+// globen og trykk-plukkingen umulig å prøve; man må vente på at himmelen selv
+// stiller seg riktig. Med flagget på løftes alle fire som HAR en globe opp i
+// himmelen. Merkur og Venus følger de ekte reglene: de har ingen globe å prøve.
+//
+// Alt annet er fortsatt ekte — azimut, fase, lysside, avstand og lysstyrke. Bare
+// høyden er løftet, og bare for dem som sto lavere enn sin egen verdi.
+//
+// Nøkkelen het `lende-3d-maane-tvang` til v6.3.1. Den er byttet framfor migrert:
+// bryteren er utvikler-bare, og et navn som lyver om hva flagget gjør er verre
+// enn å slå den på én gang til.
+const HIMMEL_TVANG_KEY = 'lende-3d-himmel-tvang'
+const himmelTvang = ref((() => {
+  try { return localStorage.getItem(HIMMEL_TVANG_KEY) === '1' } catch { return false }
 })())
-function toggleMaaneTvang() {
-  maaneTvang.value = !maaneTvang.value
-  try { localStorage.setItem(MAANE_TVANG_KEY, maaneTvang.value ? '1' : '0') } catch { /* privat modus */ }
+function toggleHimmelTvang() {
+  himmelTvang.value = !himmelTvang.value
+  try { localStorage.setItem(HIMMEL_TVANG_KEY, himmelTvang.value ? '1' : '0') } catch { /* privat modus */ }
 }
 const metaAppVersionText = computed(() => props.meta?.appVersion ?? null)
 
@@ -267,18 +275,21 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
       Åpne 3D: værtypene spilles i rekkefølge, 10 s hver, med «neste» for å hoppe
       videre. Overstyrer det ekte varselet så lenge den står på.
     </div>
-    <!-- Tvungen måne i 3D: månen er under horisonten store deler av døgnet, og
-         da kan ikke månegloben prøves i det hele tatt. -->
-    <button @click="toggleMaaneTvang"
+    <!-- Tvungne himmellegemer i 3D: månen, Mars, Jupiter og Saturn er under
+         horisonten store deler av tida, og da kan ikke globene prøves. -->
+    <button @click="toggleHimmelTvang"
             class="w-full px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98] mb-1"
-            :class="maaneTvang
+            :class="himmelTvang
                     ? 'bg-amber-300/25 border-amber-300/50 text-ink'
                     : 'bg-ink/5 border-ink/10 text-ink/75'">
-      {{ maaneTvang ? 'Tvungen måne i 3D: PÅ' : 'Tvungen måne i 3D' }}
+      {{ himmelTvang ? 'Tvungne himmellegemer i 3D: PÅ' : 'Tvungne himmellegemer i 3D' }}
     </button>
-    <div v-if="maaneTvang" class="text-[10px] text-ink/55 leading-relaxed mb-3 px-1">
-      Nattmodus viser månen selv når den står under horisonten, så månegloben kan
-      prøves når som helst. Trykk på månen for nærbildet. Fase og lysside er
+    <div v-if="himmelTvang" class="text-[10px] text-ink/55 leading-relaxed mb-3 px-1">
+      Nattmodus viser månen, Mars, Jupiter og Saturn selv når de står under
+      horisonten, så alle fire globene kan prøves når som helst. De står i en
+      stige — Mars 30°, månen 35°, Jupiter 40°, Saturn 45° — så de ikke lander
+      oppå hverandre. Trykk på et av dem for nærbildet. Merkur og Venus følger de
+      ekte reglene; de har ingen globe. Azimut, fase, avstand og lysstyrke er
       fortsatt de ekte — bare høyden er løftet.
     </div>
     <!-- Byggetider (perf): viser localStorage-loggen så den kan kopieres

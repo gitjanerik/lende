@@ -349,7 +349,7 @@ const PLANET_JORDSKINN = 0.02
  */
 export function buildNightSky({
   radius = 25000, lat = null, lon = null, dato = null, starCount = 160,
-  pikselForhold = 1, tvingMane = false,
+  pikselForhold = 1, tvingHimmel = false,
 } = {}) {
   const group = new Group()
   group.visible = false
@@ -545,9 +545,14 @@ export function buildNightSky({
   // ville neste kall vist Jupiter-skiva igjen midt inne i Jupiter-globen.
   let globeLegeme = null
 
+  // Utvikler-bryteren. Deklarert HER, over `settPlaneter`, fordi den leser den —
+  // og det første kallet skjer noen linjer under. En `let` lenger ned ville gitt
+  // «Cannot access before initialization», som er TDZ-fella CLAUDE.md advarer om.
+  let himmelTvang = !!tvingHimmel
+
   function settPlaneter(naa) {
     if (!ekteHimmel) return []
-    const synlige = synligePlaneter({ lat, lon, dato: naa })
+    const synlige = synligePlaneter({ lat, lon, dato: naa, tving: himmelTvang })
     const oppe = new Set()
     for (const p of synlige) {
       const skive = planetSkiver.get(p.id)
@@ -572,20 +577,20 @@ export function buildNightSky({
     return synlige
   }
 
-  const synligePlanetListe = settPlaneter(dato ?? new Date())
+  let synligePlanetListe = settPlaneter(dato ?? new Date())
 
   // --- Månen --------------------------------------------------------------
   const mane = buildMane({ radius })
   group.add(mane.group)
   geometrier.push(...mane.geometries)
   materialer.push(...mane.materials)
-  // UTVIKLER-BRYTEREN bor i himmelFor, som er den ENE kilden til månens
-  // posisjon — både skiva her og lista i himmelObjekter går gjennom den. To
-  // steder som tvinger månen hver for seg kommer i utakt, og da tilbyr søket en
-  // måne trykk ikke finner (samme lærdom som mosaikk-regelen i CLAUDE.md).
-  let maneTvang = !!tvingMane
+  // UTVIKLER-BRYTEREN bor i himmelFor for månen og i synligePlaneter for
+  // planetene — de ENE kildene til hvor legemene står. Både skivene her og lista
+  // i himmelObjekter går gjennom dem. To steder som tvinger et legeme hver for
+  // seg kommer i utakt, og da tilbyr søket en planet trykk ikke finner (samme
+  // lærdom som mosaikk-regelen i CLAUDE.md).
   const settMane = () => {
-    mane.sett(himmelFor({ lat, lon, dato: dato ?? new Date(), tvingMane: maneTvang }).mane)
+    mane.sett(himmelFor({ lat, lon, dato: dato ?? new Date(), tvingMane: himmelTvang }).mane)
   }
   if (ekteHimmel) {
     settMane()
@@ -617,12 +622,24 @@ export function buildNightSky({
     /** Hvilket legeme som står som globe — settPlaneter respekterer den. */
     settGlobeLegeme(id) { globeLegeme = id ?? null },
 
-    /** Utvikler-bryter: løft månen over horisonten. Se himmelFor. */
-    settTvingMane(paa) {
-      maneTvang = !!paa
-      if (ekteHimmel) settMane()
+    /**
+     * Utvikler-bryter: løft månen OG planetene med globe over horisonten.
+     *
+     * Planetene må settes på nytt her, ikke bare månen: `settPlaneter` leser
+     * flagget, og uten kallet ville en planet som nettopp ble tvunget opp stått
+     * i søkelista uten en skive på himmelen å trykke på.
+     *
+     * MERK: appen kaller den ikke — flagget leses ved montering, som vær-demoen.
+     * Den finnes for konsoll og test, og den oppdaterer IKKE søkelista i
+     * Viewer3D. Skal den kalles fra UI, må `himmelObjekter` regnes om samtidig.
+     */
+    settTvingHimmel(paa) {
+      himmelTvang = !!paa
+      if (!ekteHimmel) return
+      settMane()
+      synligePlanetListe = settPlaneter(dato ?? new Date())
     },
-    get tvingMane() { return maneTvang },
+    get tvingHimmel() { return himmelTvang },
 
     /**
      * LineMaterial trenger renderer-oppløsningen som uniform for å kunne tegne

@@ -23,6 +23,11 @@ import {
   norm360, julianskDag, eklipsisTilEkvatorial, solEkvatorial, tilHorisont,
   presesserTilDato, lokalStjernetid,
 } from './astronomi.js'
+// REN → REN. himmellegemer.js bærer bare data (farge, aksehelling, stedsnavn) og
+// MÅ forbli fri for three.js — se CLAUDE.md. `harGlobe` er den ENE porten for
+// hvilke legemer som kan åpnes som kule, og utvikler-bryteren skal løfte nøyaktig
+// dem. Ville vi definert settet her i tillegg, hadde vi hatt to meninger om det.
+import { harGlobe } from './himmellegemer.js'
 
 const GRAD = Math.PI / 180
 
@@ -214,25 +219,50 @@ export const MIN_ELONGASJON = 12
 export const MIN_HOYDE_GRADER = 1
 
 /**
+ * HØYDENE DE TVUNGNE PLANETENE LØFTES TIL (utvikler-bryter), i grader.
+ *
+ * Hvorfor bryteren finnes: en globe kan ikke prøves før legemet er over
+ * horisonten, og Mars, Jupiter og Saturn er nede store deler av året. Uten
+ * flagget må man vente på at himmelen selv stiller seg riktig.
+ *
+ * HVORFOR TALLENE ER ULIKE, OG ULIKE FRA MÅNENS 35°: to tvungne legemer med
+ * nesten samme azimut ville landet oppå hverandre og vært umulige å trykke fra
+ * hverandre. Med 30/35/40/45 står de fire i en stige man kan plukke i. Alt annet
+ * er ekte — azimut, avstand, fase, lysstyrke — og et legeme som ALT står høyere
+ * enn sin verdi rører flagget ikke.
+ */
+export const TVANG_HOYDER = { mars: 30, jupiter: 40, saturn: 45 }
+
+/**
  * Planetene man faktisk kan se herfra, nå — over horisonten og langt nok fra
  * sola. Sortert lysest først, som er rekkefølgen man legger merke til dem i.
  *
  * Koordinatene er presessert til datoen, så de kan brukes rett sammen med
  * stjernehimmelen.
  *
- * @param {{lat:number, lon:number, dato?: Date}} sted
+ * @param {{lat:number, lon:number, dato?: Date, tving?: boolean}} sted
+ *   tving  UTVIKLER-BRYTER: løft planetene som HAR en globe over horisonten,
+ *          selv når de står under — og se bort fra elongasjonsgrensa for dem.
+ *          Begge gatene må vike: en Jupiter i konjunksjon er like utestengt av
+ *          nærheten til sola som av høyden, og en bryter som virker halve tida
+ *          er verre enn ingen bryter. Merkur og Venus følger de ekte reglene,
+ *          for de har ingen globe å prøve — porten er `harGlobe`, ETT sted.
  */
-export function synligePlaneter({ lat, lon, dato = new Date() }) {
+export function synligePlaneter({ lat, lon, dato = new Date(), tving = false }) {
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return []
   const lst = lokalStjernetid(dato, lon)
   const ut = []
   for (const meta of PLANETER) {
     const p = planetPosisjon(meta, dato)
-    if (p.elongasjon < MIN_ELONGASJON) continue
+    const tvunget = tving && harGlobe(meta.id)
+    if (!tvunget && p.elongasjon < MIN_ELONGASJON) continue
     const j = presesserTilDato(p.ra, p.dek, dato)
     const { azimut, hoyde } = tilHorisont(j.ra, j.dek, lst, lat)
-    if (hoyde / GRAD < MIN_HOYDE_GRADER) continue
-    ut.push({ ...p, ra: j.ra, dek: j.dek, azimut, hoyde })
+    const h = tvunget
+      ? Math.max(hoyde, (TVANG_HOYDER[meta.id] ?? 0) * GRAD)
+      : hoyde
+    if (!tvunget && h / GRAD < MIN_HOYDE_GRADER) continue
+    ut.push({ ...p, ra: j.ra, dek: j.dek, azimut, hoyde: h })
   }
   return ut.sort((a, b) => a.mag - b.mag)
 }
