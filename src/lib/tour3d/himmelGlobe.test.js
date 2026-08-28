@@ -261,8 +261,12 @@ describe('HIMMELLEGEMER — tabellen', () => {
       expect(spec.tekstur, id).toMatch(/\.jpg$/)
       expect(spec.trekk?.length, id).toBeGreaterThan(2)
       expect(GLOBE_TEKST[id], id).toBeTruthy()
-      expect(GLOBE_TEKST[id].bruk, id).toBeTruthy()
       expect(GLOBE_TEKST[id].omtale, id).toBeTruthy()
+      // BRUKSANVISNINGEN SKAL IKKE TILBAKE (v6.3.3). Den forklarte at man drar i
+      // en kule for å snurre den — det man prøver først uansett — og trykk-ringen
+      // sier alt om at legemet kan åpnes. Testen står her fordi en tekst er lett
+      // å legge tilbake i god tro.
+      expect(GLOBE_TEKST[id].bruk, id).toBeUndefined()
     }
     // Og motsatt: ingen tekst uten et legeme å høre til.
     for (const id of Object.keys(GLOBE_TEKST)) expect(HIMMELLEGEMER[id], id).toBeTruthy()

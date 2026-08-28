@@ -1100,12 +1100,14 @@ const SJEKKER = [
 
       // MINIMER (v6.1.0): navnet blir stående, lesestoffet forsvinner. Vi måler
       // på «Historien», som bare finnes i det utvidede kortet.
-      // CASE-INSENSITIVT: «Historien» og «Verdt å vite» er overskrifter med
-      // `uppercase`, og `innerText` gir rendret tekst. Uten /i traff bare
-      // «Månegloben», som er løpende tekst — så sjekken var halvblind og bare
-      // grønn fordi den ikke kunne feile. Oppdaget da fakta-sjekken feilet på
-      // samme årsak.
-      const harHistorien = () => evalMedTak(page, () => /Historien|Verdt å vite|Månegloben|Fakta/i
+      // CASE-INSENSITIVT: «Historien», «Verdt å vite» og «Fakta» er overskrifter
+      // med `uppercase`, og `innerText` gir RENDRET tekst. Uten /i kunne ingen av
+      // dem matche, og sjekken var halvblind — grønn fordi den ikke kunne feile.
+      //
+      // «Månegloben» sto her som et fjerde alternativ og er FJERNET: ordet finnes
+      // bare i kodekommentarer, aldri i UI-et, så det matchet ingenting. Et
+      // alternativ som aldri kan treffe skjuler at de andre ikke traff heller.
+      const harHistorien = () => evalMedTak(page, () => /Historien|Verdt å vite|Fakta/i
         .test(document.body.innerText))
       const utvidetFor = await harHistorien()
       await page.locator('button[aria-label="Minimer infokortet"]').click({ timeout: 5000 })

@@ -32,8 +32,6 @@ const props = defineProps({
   objekt: { type: Object, default: null },
   // De nærmeste andre, fra naboerFor().
   naboer: { type: Array, default: () => [] },
-  // Månegloben står framme. Da trenger kortet å si hvordan man snurrer den.
-  globeAapen: { type: Boolean, default: false },
   // Sammenslått til én linje. Eies av kalleren, som også vet at et nabo-hopp
   // skal minimere.
   minimert: { type: Boolean, default: false },
@@ -213,20 +211,22 @@ const faseNavn = computed(() => {
         {{ faseNavn }} · {{ Math.round(objekt.lysAndel * 100) }} % opplyst
       </div>
 
-      <!-- Legemer med globe: hvordan man bruker kula, og det ene faktumet som er
-           verdt å ta med seg. Teksten bor i himmellegemer.js, ikke her — den
-           skrives om uten å røre en koordinat. -->
+      <!-- Legemer med globe: det ene faktumet som er verdt å ta med seg. Teksten
+           bor i himmellegemer.js, ikke her — den skrives om uten å røre en
+           koordinat.
+
+           BRUKSANVISNINGEN ER FJERNET (v6.3.3), etter felttest. Her sto «dra for
+           å snurre Mars, og trykk én gang for å legge den tilbake på himmelen»,
+           og i lukket tilstand en tilsvarende «trykk på mars for å se planeten
+           som en kule». Ingen av dem trengs: trykk-ringen fra v6.3.2 sier at
+           legemet kan åpnes, og at man drar i en kule for å snurre den er det man
+           prøver først uansett. En instruksjon som forklarer det åpenbare stjeler
+           linjer fra det man faktisk kom for å lese. -->
       <template v-if="globeTekst">
         <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/35">
           {{ objekt.navn }} som globe
         </div>
         <p class="text-[0.6875rem] leading-relaxed text-white/70">
-          <template v-if="globeAapen">{{ globeTekst.bruk }}</template>
-          <template v-else>Trykk på {{ objekt.navn.toLowerCase() }} for å se
-            {{ objekt.type === 'mane' ? 'den' : 'planeten' }} som en kule du kan
-            snurre.</template>
-        </p>
-        <p class="mt-1 text-[0.6875rem] leading-relaxed text-white/70">
           {{ globeTekst.omtale }}
         </p>
       </template>

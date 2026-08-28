@@ -441,6 +441,14 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   denne seksjonen finnes for. Kula henger `GLOBE_AVSTAND` foran kameraet i
   legemets virkelige himmelretning, og du står fortsatt på kartet ditt.
 
+  **Bruksanvisningen i kortet er FJERNET (v6.3.3), og skal ikke tilbake.** Her
+  sto «dra for å snurre Mars, og trykk én gang for å legge den tilbake» pluss en
+  lukket-variant. Gesten trenger ikke ord: trykk-ringen sier at legemet kan åpnes,
+  globe-merket i søkelista sier hvem som kan det, og at man drar i en kule for å
+  snurre den er det man prøver først uansett. `GLOBE_TEKST` har derfor bare
+  `omtale`, og testen krever at `bruk` er `undefined` — en tekst er lett å legge
+  tilbake i god tro.
+
   **ÉN MODUL MED EN TABELL, ikke fire filer.** Da Mars, Jupiter og Saturn skulle
   ha det månen hadde, var spørsmålet regelen over tvinger fram: er varianten
   egentlig en OPSJON på originalen? Den er det. `HIMMELLEGEMER` bærer farge,
