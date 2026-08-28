@@ -330,3 +330,54 @@ describe('buildHimmelGlobe — per legeme', () => {
     g.dispose()
   })
 })
+
+describe('settRenderLag — globen tegnes i en egen dybde-pass', () => {
+  // HVORFOR: globen henger 4 km foran kameraet i legemets VIRKELIGE retning, så
+  // står legemet lavt (Mars på 3°) skjærer terrenget gjennom kula. Fikset ved å
+  // tegne globen i et eget lag etter at dybdebufferet er tømt. Da MÅ alt som
+  // hører til globen ligge i laget — og de to fellene under er begge stille.
+  const alle = (g) => { const ut = []; g.group.traverse((o) => ut.push(o)); return ut }
+
+  it('flytter HVERT objekt, ikke bare gruppa — laget arves ikke', () => {
+    const g = buildHimmelGlobe({ legeme: 'mars', radius: 100 })
+    g.settRenderLag(1)
+    for (const o of alle(g)) {
+      expect(o.layers.test({ mask: 1 << 1 }), o.type).toBe(true)
+      // Og de skal være UTE av lag 0, ellers tegnes de i begge passene.
+      expect(o.layers.test({ mask: 1 << 0 }), o.type).toBe(false)
+    }
+    g.dispose()
+  })
+
+  it('LYSENE er med — uten dem er kula kullsvart i passen', () => {
+    // three.js tester laget per objekt også for lys. Et DirectionalLight som
+    // ikke består testen bidrar ikke, og feilen kommer uten en melding.
+    const g = buildHimmelGlobe({ legeme: 'mars', radius: 100 })
+    g.settRenderLag(1)
+    const lys = alle(g).filter((o) => o.isLight)
+    expect(lys.length).toBeGreaterThanOrEqual(2)
+    for (const l of lys) expect(l.layers.test({ mask: 1 << 1 }), l.type).toBe(true)
+    g.dispose()
+  })
+
+  it('tar Saturns ringer med seg', () => {
+    // En Saturn uten ringer er en blek Jupiter — og en ring som blir igjen på
+    // lag 0 forsvinner bak terrenget mens planeten ligger oppå.
+    const g = buildHimmelGlobe({ legeme: 'saturn', radius: 100 })
+    expect(g.harRinger).toBe(true)
+    g.settRenderLag(1)
+    const mesher = alle(g).filter((o) => o.isMesh)
+    expect(mesher.length).toBeGreaterThanOrEqual(2)
+    for (const m of mesher) expect(m.layers.test({ mask: 1 << 1 })).toBe(true)
+    g.dispose()
+  })
+
+  it('avviser et ugyldig lag i stedet for å flytte noe halvveis', () => {
+    const g = buildHimmelGlobe({ legeme: 'mars', radius: 100 })
+    for (const ugyldig of [-1, 32, 1.5, NaN, null, undefined, '1']) {
+      g.settRenderLag(ugyldig)
+      expect(g.mesh.layers.test({ mask: 1 << 0 })).toBe(true)
+    }
+    g.dispose()
+  })
+})

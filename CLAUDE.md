@@ -460,6 +460,22 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   trykk-ring. En import av byggeren derfra ville trukket three.js inn i
   søkelista. Det var slik det ble skrevet først, og splittet er rettingen.
 
+  **GLOBEN TEGNES I EN EGEN DYBDE-PASS (v6.3.4).** Kula henger `GLOBE_AVSTAND`
+  (4 km) unna i legemets VIRKELIGE retning, så står legemet lavt — Mars på 3° —
+  havner den under terrengnivå og arket skjærer gjennom planeten. `render()` i
+  sceneCore tegner derfor hovedscenen (lag 0), tømmer dybdebufferet, og tegner
+  globe-laget i en andre pass. Dybden er fortsatt riktig INNE i globen, så Saturns
+  ringer ligger der de skal. De to nærliggende utveiene er forkastet: å LØFTE
+  globen ville løyet om hvor legemet står, og `depthTest = false` ville lagt
+  ringene foran planeten også der de går bak den. `autoClear` MÅ av rundt den
+  andre passen, ellers vaskes landskapet bort.
+
+  Regelen bor i `himmelGlobe.settRenderLag` og ikke på kallstedet, fordi den har
+  to stille feller: **lysene må også bestå lagtesten** (et DirectionalLight som
+  ikke gjør det bidrar ikke, og kula blir kullsvart uten en feilmelding), og
+  **laget arves ikke** av barna, så `group.layers.set` alene etterlater innholdet
+  på lag 0.
+
   Fem ting som MÅ stå:
   1. **`vendMot(kamera)` hver frame.** Uten den peker forsida mot verdens +Z,
      som i denne scenen er SØR — sto månen i nord, så man baksida.

@@ -247,6 +247,28 @@ export function buildHimmelGlobe({
     get harRinger() { return !!ringMesh },
 
     /**
+     * Legg HELE globen i ett render-lag, lysene med.
+     *
+     * HVORFOR DEN FINNES: globen tegnes i en egen pass med tømt dybdebuffer, så
+     * terrenget ikke kan skjære gjennom kula når legemet står lavt på himmelen
+     * (se GLOBE_LAG i sceneCore). Den passen ser bare ett lag, og da må ALT som
+     * hører til globen ligge der.
+     *
+     * TO FELLER, og de er grunnen til at regelen bor her og ikke på kallstedet:
+     *   1. LYSENE MÅ MED. three.js tester laget per objekt også for lys, og et
+     *      DirectionalLight som ikke består testen bidrar ikke i passet — kula
+     *      blir kullsvart, uten en feilmelding.
+     *   2. LAGET ARVES IKKE. `group.layers.set()` flytter bare gruppa; barna blir
+     *      igjen på lag 0 og forsvinner ut av passen. Derfor `traverse`.
+     *
+     * @param {number} lag lagnummer, 0–31
+     */
+    settRenderLag(lag) {
+      if (!Number.isInteger(lag) || lag < 0 || lag > 31) return
+      group.traverse((o) => o.layers.set(lag))
+    },
+
+    /**
      * Sett lysretningen fra solas posisjon RELATIVT TIL MÅNEN.
      *
      * Vi har fasevinkelen (sol–måne–jord) fra astronomi.maneFase. Ved fullmåne

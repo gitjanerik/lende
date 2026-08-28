@@ -1,3 +1,15 @@
+## 2026-08-28 — v6.3.4: Terrenget skjærer ikke gjennom globen
+
+Mars sto 3° over horisonten, og da havnet kula delvis under terrengnivå: kartflisa skar rett gjennom planeten, med Marinerdalene tegnet nede under en grønn skråning. Globen henger 4 km foran kameraet i legemets virkelige himmelretning, og det er invarianten som gjør 3D til å stole på — så plasseringen skal ikke røres.
+
+To nærliggende utveier ble forkastet. Å løfte globen ville løyet om hvor legemet står. Og `depthTest = false` på materialene ville lagt Saturns ringer foran planeten også der de går bak den.
+
+Løsningen er standardmønsteret for et «alltid øverst»-objekt: hovedscenen tegnes først, dybdebufferet tømmes, og globen tegnes i en andre pass i sitt eget render-lag. Da er dybden fortsatt korrekt inne i globen — ringene ligger riktig — men ingenting i landskapet kan skjære den. Globen er en objekt-inspektør, og en inspektør hører øverst.
+
+Regelen bor i globen selv og ikke på kallstedet, fordi den har to stille feller. Lysene må også bestå lagtesten: et DirectionalLight som ikke gjør det bidrar ikke i passen, og kula blir kullsvart uten en feilmelding. Og laget arves ikke av barna, så `group.layers.set` alene etterlater alt innholdet på lag 0. `settRenderLag` traverserer derfor hele gruppa, og fire nye tester dekker begge fellene pluss Saturns ringer. `autoClear` må av rundt den andre passen — med den på ville `render` tømt fargebufferet og vasket bort landskapet vi nettopp tegnet.
+
+---
+
 ## 2026-08-28 — v6.3.3: Bruksanvisningen ut av infokortet
 
 Infokortet for månen, Mars, Jupiter og Saturn åpnet med en instruksjon — «dra for å snurre Mars, og trykk én gang for å legge den tilbake på himmelen» — og i lukket tilstand med en tilsvarende «trykk på mars for å se planeten som en kule du kan snurre». Begge er borte etter felttest.
