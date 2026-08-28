@@ -17,6 +17,7 @@
 import { FORMASJONER, STJERNER } from './stjerner.js'
 import { STJERNEBILDE_INFO, sokeNavnFor } from './stjernebildeInfo.js'
 import { synligePlaneter } from './planeter.js'
+import { harGlobe } from './himmellegemer.js'
 import { lokalStjernetid, tilHorisont, presesserTilDato, himmelFor } from './astronomi.js'
 
 const GRAD = Math.PI / 180
@@ -71,6 +72,7 @@ export function himmelObjekter({ lat, lon, dato = new Date(), tvingMane = false 
         faseVinkel: h.mane.faseVinkel,
         lyssideVinkel: h.mane.lyssideVinkel,
         parallaktisk: h.mane.parallaktisk,
+        harGlobe: true,
         sokeNavn: ['Månen', 'Måne', 'Luna', 'Moon'],
       })
     }
@@ -89,6 +91,15 @@ export function himmelObjekter({ lat, lon, dato = new Date(), tvingMane = false 
       avstandAE: p.avstandAE,
       lysAndel: p.lysAndel,
       elongasjon: p.elongasjon,
+      // Med til globen. Fasevinkelen regnes ut av den opplyste andelen —
+      // k = (1 + cos f) / 2 — så lyset på kula står der det faktisk står. For de
+      // ytre planetene er f nær 0 (nesten fullt opplyst); for Merkur og Venus kan
+      // den være stor, men de har ingen globe.
+      faseVinkel: Math.acos(Math.max(-1, Math.min(1, 2 * (p.lysAndel ?? 1) - 1))),
+      // Ingen parallaktisk vinkel for planetene (se settPlaneter i skyDome): på
+      // 0,45° er retningen på en sigd under det man ser. Lyssida står opp.
+      lyssideVinkel: 0,
+      harGlobe: harGlobe(p.id),
       sokeNavn: [p.navn],
     })
   }

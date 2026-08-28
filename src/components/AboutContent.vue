@@ -257,10 +257,13 @@ async function onInstallClick() {
               Keplers likning. Alt er sammenliknet mot uavhengige
               implementasjoner — stjernene til under ett buesekund, planetene til
               noen få bueminutter.</li>
-            <li>Månegloben bruker <strong class="text-ink/90">NASA/USGS</strong>'
-              LRO-mosaikk som overflatekart, og lyses opp av et ekte lys fra solas
-              virkelige retning, så skyggelinja ikke er en tegning. Mangler
-              bildet, tegnes kula i månegrå med navnene på plass.</li>
+            <li>Globene bruker overflatekart fra
+              <strong class="text-ink/90">NASA</strong> og
+              <strong class="text-ink/90">USGS</strong>, og lyses opp av et ekte
+              lys fra solas virkelige retning, så skyggelinja ikke er en tegning.
+              Mangler et bilde, tegnes kula i legemets egen farge med samme lys og
+              samme stedsnavn — og gassplanetenes bånd tegnes lokalt, så Jupiter
+              er Jupiter uansett.</li>
           </ul>
         </div>
         <div class="space-y-2">
@@ -343,10 +346,11 @@ async function onInstallClick() {
           fra Hipparcos, Yale BSC og Gliese) — CC BY-SA 4.0. Bane­elementer for
           planetene: <strong class="text-ink/75">JPL</strong>, <em>Approximate Positions
           of the Major Planets</em>. Sol, måne og presesjon etter Jean Meeus,
-          <em>Astronomical Algorithms</em>. Månens overflatekart:
-          <strong class="text-ink/75">NASA/GSFC</strong> og
-          <strong class="text-ink/75">USGS Astrogeology</strong> (LRO LROC) —
-          offentlig eiendom. Alle beregninger skjer i appen, uten nett.</p>
+          <em>Astronomical Algorithms</em>. Overflatekart for månen, Mars, Jupiter
+          og Saturn: <strong class="text-ink/75">NASA</strong> (GSFC, JPL,
+          Space Science Institute) og
+          <strong class="text-ink/75">USGS Astrogeology</strong> — offentlig
+          eiendom. Alle beregninger skjer i appen, uten nett.</p>
         <p class="pt-1">Privat, ikke-kommersielt hobbyprosjekt. Kart fra appen er
           ikke godkjent for navigasjon til sjøs eller i nødsituasjoner.</p>
       </div>

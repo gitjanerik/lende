@@ -1,4 +1,11 @@
-// Månen som en roterbar globe — med ekte terminator og navngitte hav.
+// Månen og planetene som roterbare glober — med ekte terminator og navngitte
+// steder på overflata.
+//
+// ÉN MODUL, EN TABELL PER LEGEME (`HIMMELLEGEMER`). Månen kom først (v6.0.0) og
+// hadde sin egen fil; da Mars, Jupiter og Saturn skulle ha det samme, var
+// spørsmålet CLAUDE.md tvinger fram: er den nye varianten egentlig en OPSJON på
+// originalen? Den er det. Fire filer med hver sin nesten like kule er nøyaktig
+// den gjelden som lot to 3D-scener leve side om side i månedsvis.
 //
 // HVA DEN ER, OG HVA DEN IKKE ER. Den er en OBJEKT-INSPEKTØR: du står fortsatt
 // på kartet ditt, månen står fortsatt i sin virkelige himmelretning, og
@@ -20,46 +27,21 @@
 // ekte kartdata fra LRO, men den er aldri synlig fra jorda. Infopanelet sier
 // det; her står det som en påminnelse til neste leser.
 //
-// TEKSTUREN ER VALGFRI. NASA og USGS er sperret fra utviklingsmiljøet, så den
-// hentes av scripts/bygg-maanekart.mjs i CI. Uten den tegnes kula i månegrå med
-// samme lys og samme navn — gjenkjennelig, bare uten fotografiet. En funksjon
-// som krever en fil som kanskje ikke er der, skal virke uten den.
+// TEKSTUREN ER VALGFRI. NASA og USGS er sperret fra utviklingsmiljøene, så den
+// hentes av scripts/bygg-himmelkart.mjs i CI. Uten den tegnes kula i legemets
+// egenfarge med samme lys og samme navn — og gassplanetene får bånd tegnet på
+// klienten (bandTekstur), så de er gjenkjennelige uansett. En funksjon som
+// krever en fil som kanskje ikke er der, skal virke uten den.
 
 import {
   Group, Mesh, SphereGeometry, MeshStandardMaterial, DirectionalLight,
   AmbientLight, TextureLoader, SRGBColorSpace, Vector3, Color,
+  RingGeometry, ShaderMaterial, DoubleSide,
+  CanvasTexture, RepeatWrapping, ClampToEdgeWrapping,
 } from 'three'
+import { HIMMELLEGEMER } from './himmellegemer.js'
 
 const GRAD = Math.PI / 180
-
-/**
- * Navngitte trekk på månens forside, med selenografiske koordinater
- * (breddegrad, lengdegrad — øst positiv). Utvalget er det man SER med bare øyet
- * eller en enkel kikkert; en liste over alle 9 000 navngitte krater ville vært
- * en database, ikke en opplevelse.
- *
- * Koordinatene er avrundet til hele grader. Presisjonen er rikelig: en label på
- * en kule tegnet 30° bred flytter seg noen piksler av én grad.
- */
-export const MANE_TREKK = [
-  { navn: 'Mare Imbrium', norsk: 'Regnhavet', lat: 33, lon: -16, type: 'hav' },
-  { navn: 'Mare Serenitatis', norsk: 'Klarhetshavet', lat: 28, lon: 18, type: 'hav' },
-  { navn: 'Mare Tranquillitatis', norsk: 'Stillhetens hav', lat: 9, lon: 31, type: 'hav',
-    merk: 'Apollo 11 landet her i 1969.' },
-  { navn: 'Mare Crisium', norsk: 'Krisehavet', lat: 17, lon: 59, type: 'hav' },
-  { navn: 'Oceanus Procellarum', norsk: 'Stormhavet', lat: 19, lon: -57, type: 'hav',
-    merk: 'Det største av alle — en tredjedel av forsidas mørke flater.' },
-  { navn: 'Mare Nubium', norsk: 'Skyhavet', lat: -21, lon: -17, type: 'hav' },
-  { navn: 'Mare Frigoris', norsk: 'Kuldehavet', lat: 56, lon: -1, type: 'hav' },
-  { navn: 'Tycho', norsk: null, lat: -43, lon: -11, type: 'krater',
-    merk: 'Det lyse krateret nede på skiva, med stråler av utkastet materiale '
-      + 'som når en fjerdedel rundt månen. Lett å se med bare øyet ved fullmåne.' },
-  { navn: 'Copernicus', norsk: null, lat: 10, lon: -20, type: 'krater',
-    merk: '93 km bredt, med terrasserte vegger og fjell i midten.' },
-  { navn: 'Kepler', norsk: null, lat: 8, lon: -38, type: 'krater' },
-  { navn: 'Plato', norsk: null, lat: 51, lon: -9, type: 'krater' },
-  { navn: 'Grimaldi', norsk: null, lat: -6, lon: -68, type: 'krater' },
-]
 
 /**
  * Selenografisk lat/lon → punkt på enhetskula, i globens EGET koordinatsystem.
@@ -83,12 +65,48 @@ export function selenografiskTilPunkt(latGrader, lonGrader) {
 /**
  * Månegloben.
  *
- * @param {{radius?: number, teksturUrl?: string|null,
+ * @param {{legeme?: string, radius?: number, teksturUrl?: string|null,
  *          onTekstur?: (ok: boolean) => void}} [opts]
- *   teksturUrl  albedo-kart (equirektangulært, forsida sentrert på lon 0).
- *               null = ingen tekstur, og kula tegnes i månegrå.
+ *   legeme      nøkkel i HIMMELLEGEMER: 'mane' | 'mars' | 'jupiter' | 'saturn'
+ *   teksturUrl  albedo-kart (equirektangulært, sentrert på lengdegrad 0).
+ *               null = ingen tekstur, og kula tegnes i legemets egenfarge.
  */
-export function buildManeGlobe({ radius = 1, teksturUrl = null, onTekstur = null } = {}) {
+/**
+ * Båndtekstur for en gassplanet, tegnet lokalt.
+ *
+ * HVORFOR: teksturene fra NASA bakes i CI, og lokalt (og om en URL skulle råtne)
+ * finnes de ikke. En gassplanet uten bånd er en beige kule som ikke er til å
+ * kjenne igjen — mens et par striper gjør Jupiter til Jupiter. Fotografiet
+ * overstyrer denne straks det er lastet.
+ *
+ * Bredden er 4 px: båndene er rene breddegrads-striper, så det finnes ingenting
+ * å variere langs lengdegraden. Høyden bærer detaljen.
+ *
+ * Returnerer null der det ikke finnes et lerret (node, test) — kaller tåler det.
+ */
+function bandTekstur(band) {
+  if (!band?.length || typeof document === 'undefined') return null
+  const c = document.createElement('canvas')
+  c.width = 4
+  c.height = 256
+  const g = c.getContext('2d')
+  if (!g) return null
+  const grad = g.createLinearGradient(0, 0, 0, c.height)
+  for (const [stopp, farge] of band) grad.addColorStop(stopp, farge)
+  g.fillStyle = grad
+  g.fillRect(0, 0, c.width, c.height)
+  const t = new CanvasTexture(c)
+  t.colorSpace = SRGBColorSpace
+  // Gjentas rundt planeten; klemmes i høyden så polene ikke folder.
+  t.wrapS = RepeatWrapping
+  t.wrapT = ClampToEdgeWrapping
+  return t
+}
+
+export function buildHimmelGlobe({
+  legeme = 'mane', radius = 1, teksturUrl = null, onTekstur = null,
+} = {}) {
+  const spec = HIMMELLEGEMER[legeme] ?? HIMMELLEGEMER.mane
   const group = new Group()
   group.visible = false
 
@@ -96,7 +114,7 @@ export function buildManeGlobe({ radius = 1, teksturUrl = null, onTekstur = null
   // billig. Terrenget rundt bruker 512² — dette er ingenting.
   const geometry = new SphereGeometry(radius, 48, 32)
   const material = new MeshStandardMaterial({
-    color: new Color('#d8d4cc'),
+    color: new Color(spec.farge),
     roughness: 1,
     metalness: 0,
     // Månen er ikke i atmosfæren. Scenen har dis for å gi dybde til terrenget,
@@ -106,7 +124,14 @@ export function buildManeGlobe({ radius = 1, teksturUrl = null, onTekstur = null
   })
   const mesh = new Mesh(geometry, material)
   mesh.frustumCulled = false
-  group.add(mesh)
+
+  // Båndene legges på FØR fotografiet forsøkes: da er kula gjenkjennelig fra
+  // første frame, og et fotografi som kommer senere bare gjør den bedre.
+  const bandTekstur0 = bandTekstur(spec.band)
+  if (bandTekstur0) {
+    material.map = bandTekstur0
+    material.color.set('#ffffff')
+  }
 
   // Lyset. Retningen settes fra solas virkelige posisjon, så skyggelinja er der
   // den faktisk er. Ambient er lav og ikke null: en helt svart nattside gjør
@@ -119,8 +144,74 @@ export function buildManeGlobe({ radius = 1, teksturUrl = null, onTekstur = null
   // ville lyset pekt mot midten av kartet og fasen blitt tilfeldig.
   sol.target = mesh
   group.add(sol)
-  const fyll = new AmbientLight(0xffffff, 0.055)
+  const fyll = new AmbientLight(0xffffff, spec.ambient ?? 0.055)
   group.add(fyll)
+
+  // AKSEHELLINGEN legges på MESHET og ikke på gruppa: gruppa eies av vendMot og
+  // rullen, og en helling der ville blitt overskrevet hver frame. På meshet blir
+  // den en fast del av legemets egen orientering, som er hva den er.
+  const helling = (spec.akseHelling ?? 0) * GRAD
+
+  // SATURNS RINGER. Ikke valgfritt — en Saturn uten ringer er en blek Jupiter.
+  // Ett flatt annulus i planetens ekvatorplan, med Cassini-delingen som et hull
+  // i opasiteten. Teksturløst med vilje: ringene er nesten hvite, og en
+  // radiell gradient i shaderen er både lettere og skarpere enn en 4k-strimmel.
+  let ringMesh = null
+  if (spec.ringer) {
+    const { indre, ytre, deling } = spec.ringer
+    const ringGeo = new RingGeometry(radius * indre, radius * ytre, 96, 1)
+    const ringMat = new ShaderMaterial({
+      transparent: true,
+      side: DoubleSide,
+      depthWrite: false,
+      fog: false,
+      uniforms: {
+        uIndre: { value: indre },
+        uYtre: { value: ytre },
+        uDeling: { value: deling },
+        uFarge: { value: new Color('#e8ddc4') },
+      },
+      vertexShader: `
+        varying vec3 vLokal;
+        void main() {
+          vLokal = position;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uIndre;
+        uniform float uYtre;
+        uniform float uDeling;
+        uniform vec3 uFarge;
+        varying vec3 vLokal;
+        void main() {
+          // Avstand fra sentrum i PLANETRADIER. RingGeometry legger uv-en langs
+          // ringen, ikke radielt, så vi regner den ut selv.
+          float rr = length(vLokal.xy);
+          float t = (rr - uIndre) / max(0.0001, uYtre - uIndre);
+          // Cassini-delingen: et mørkt gap. Det er det ENE trekket ved ringene
+          // som er synlig i en liten kikkert, og derfor det som gjør dem ekte.
+          float gap = smoothstep(0.0, 0.035, abs(rr - uDeling));
+          // Innerst tynn, tettest på midten, tynn ut mot A-ringens kant.
+          float tetthet = smoothstep(0.0, 0.12, t) * (1.0 - smoothstep(0.72, 1.0, t));
+          gl_FragColor = vec4(uFarge, tetthet * gap * 0.85);
+        }
+      `,
+    })
+    ringMesh = new Mesh(ringGeo, ringMat)
+    // RingGeometry ligger i xy-planet; planetens ekvator er xz. Derfor −90°.
+    ringMesh.rotation.x = -Math.PI / 2
+    ringMesh.frustumCulled = false
+  }
+
+  // Holderen bærer aksehellingen og samler kule + ringer, så de skjevstiller seg
+  // sammen. Brukerens dreining går på MESHET inne i holderen — da spinner
+  // planeten om sin egen akse, ikke om en akse som står rett opp.
+  const holder = new Group()
+  holder.rotation.z = helling
+  holder.add(mesh)
+  if (ringMesh) holder.add(ringMesh)
+  group.add(holder)
 
   let teksturObjekt = null
   if (teksturUrl) {
@@ -131,6 +222,8 @@ export function buildManeGlobe({ radius = 1, teksturUrl = null, onTekstur = null
         t.colorSpace = SRGBColorSpace
         teksturObjekt = t
         material.map = t
+        // Hvit så fotografiet får bære fargen selv. Uten dette ganges bildet med
+        // egenfargen, og Mars blir rustrød to ganger.
         material.color.set('#ffffff')
         material.needsUpdate = true
         try { onTekstur?.(true) } catch { /* UI-feil skal ikke stoppe globen */ }
@@ -146,9 +239,12 @@ export function buildManeGlobe({ radius = 1, teksturUrl = null, onTekstur = null
   return {
     group,
     mesh,
-    geometries: [geometry],
-    materials: [material],
+    legeme,
+    navn: spec.navn,
+    geometries: ringMesh ? [geometry, ringMesh.geometry] : [geometry],
+    materials: ringMesh ? [material, ringMesh.material] : [material],
     get harTekstur() { return !!teksturObjekt },
+    get harRinger() { return !!ringMesh },
 
     /**
      * Sett lysretningen fra solas posisjon RELATIVT TIL MÅNEN.
@@ -231,9 +327,13 @@ export function buildManeGlobe({ radius = 1, teksturUrl = null, onTekstur = null
     synligeTrekk() {
       const ut = []
       group.updateMatrixWorld(true)
-      for (const t of MANE_TREKK) {
+      // Hellingen ligger på holderen mellom gruppa og meshet, så punktet må
+      // gjennom BÅDE meshets egen dreining og holderens. Bruker vi bare
+      // mesh.quaternion, står trekkene rett opp mens kula står skjevt.
+      holder.updateMatrixWorld(true)
+      for (const t of (spec.trekk ?? [])) {
         const [x, y, z] = selenografiskTilPunkt(t.lat, t.lon)
-        _v.set(x, y, z).applyQuaternion(mesh.quaternion)
+        _v.set(x, y, z).applyQuaternion(mesh.quaternion).applyQuaternion(holder.quaternion)
         // Punkter med z ≤ 0.18 er på baksida eller så nær kanten at en label
         // ville ligget oppå silhuetten.
         if (_v.z <= 0.18) continue
@@ -252,7 +352,10 @@ export function buildManeGlobe({ radius = 1, teksturUrl = null, onTekstur = null
     dispose() {
       geometry.dispose()
       material.dispose()
+      ringMesh?.geometry.dispose()
+      ringMesh?.material.dispose()
       teksturObjekt?.dispose()
+      bandTekstur0?.dispose()
     },
   }
 }

@@ -34,8 +34,12 @@ describe('buildMane', () => {
     const naer = buildMane({ avstand: 10000 })
     const fjern = buildMane({ avstand: 20000 })
     expect(fjern.mesh.scale.x / naer.mesh.scale.x).toBeCloseTo(2, 5)
-    // 1,6° på 10 km ≈ 279 m.
-    expect(naer.mesh.scale.x).toBeCloseTo(2 * 10000 * Math.tan((1.6 * Math.PI / 180) / 2), 3)
+    // 1,6° på 10 km ≈ 279 m. Målt på SKIVA og ikke på planet: månen bærer
+    // trykk-ringen fra v6.2.0, og da er planet større enn legemet. Skivas egen
+    // størrelse er planet ganget med uSkive, og DET er tallet som skal stemme —
+    // ellers krympet månen den dagen den ble trykkbar.
+    const skive = naer.mesh.scale.x * naer.materials[0].uniforms.uSkive.value
+    expect(skive).toBeCloseTo(2 * 10000 * Math.tan((1.6 * Math.PI / 180) / 2), 3)
     naer.dispose()
     fjern.dispose()
   })
@@ -449,6 +453,66 @@ describe('buildNightSky — tvungen måne', () => {
     const h = buildNightSky({ tvingMane: true })
     expect(h.astronomisk).toBe(false)
     expect(() => h.settTvingMane(true)).not.toThrow()
+    h.dispose()
+  })
+})
+
+
+describe('trykk-ringen på himmelen', () => {
+  // Ringen er en AFFORDANSE: den sier «dette kan du trykke på». Den må derfor
+  // stå på nøyaktig de legemene som HAR en globe — et omriss som lover en globe
+  // som ikke finnes er verre enn ingen ring.
+  it('månen har ring', () => {
+    const m = buildMane({})
+    expect(m.materials[0].uniforms.uRing.value).toBe(1)
+    m.dispose()
+  })
+
+  it('en skive uten ring har uSkive = 1, altså ingen luft rundt', () => {
+    const s = buildHimmelSkive({})
+    expect(s.materials[0].uniforms.uRing.value).toBe(0)
+    expect(s.materials[0].uniforms.uSkive.value).toBe(1)
+    s.dispose()
+  })
+
+  it('ringen gjør planet større, ikke skiva mindre', () => {
+    // Fella: skalerer man ikke planet opp, spiser ringen av legemet i stedet for
+    // å legge seg rundt det — og månen krymper når den blir trykkbar.
+    const uten = buildHimmelSkive({ grader: 2 })
+    const med = buildHimmelSkive({ grader: 2, ring: true })
+    expect(med.mesh.scale.x).toBeGreaterThan(uten.mesh.scale.x)
+    // Skivas EGEN vinkelstørrelse er den samme: planet × uSkive.
+    expect(med.mesh.scale.x * med.materials[0].uniforms.uSkive.value)
+      .toBeCloseTo(uten.mesh.scale.x, 6)
+    uten.dispose(); med.dispose()
+  })
+
+  it('bare planetene med globe får ring', () => {
+    const h = buildNightSky({ lat: 59.91, lon: 10.75, dato: new Date('2026-08-28T22:00:00Z') })
+    for (const id of ['mars', 'jupiter', 'saturn']) {
+      expect(h.planetSkive(id)?.materials[0].uniforms.uRing.value, id).toBe(1)
+    }
+    for (const id of ['merkur', 'venus']) {
+      expect(h.planetSkive(id)?.materials[0].uniforms.uRing.value, id).toBe(0)
+    }
+    h.dispose()
+  })
+
+  it('settPlaneter viser ikke skiva til det legemet globen står for', () => {
+    // Uten dette ville neste oppdatering vist Jupiter-skiva igjen midt inne i
+    // Jupiter-globen — to av samme planet i samme retning.
+    const naa = new Date('2026-08-28T22:00:00Z')
+    const h = buildNightSky({ lat: 59.91, lon: 10.75, dato: naa })
+    const oppe = h.synligePlaneter.map((p) => p.id)
+    const valgt = oppe.find((id) => ['mars', 'jupiter', 'saturn'].includes(id)) ?? oppe[0]
+    if (valgt) {
+      h.settGlobeLegeme(valgt)
+      h.settPlaneter(naa)
+      expect(h.planetSkive(valgt).mesh.visible).toBe(false)
+      h.settGlobeLegeme(null)
+      h.settPlaneter(naa)
+      expect(h.planetSkive(valgt).mesh.visible).toBe(true)
+    }
     h.dispose()
   })
 })
