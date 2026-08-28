@@ -1240,6 +1240,16 @@ const SJEKKER = [
       const globeUtfall = `${medGlobe}-globen ga ${trekk} stedsnavn; `
         + `globe-merket på ${merker.medMerke} av ${merker.rader} rader`
 
+      // KORTET MÅ ÅPNES FØRST (v6.3.7). Fra nå BEHOLDER et bytte tilstanden, og
+      // nabo-hoppet over etterlot kortet sammenlagt — så globe-valget arver det,
+      // og faktablokka finnes ikke i en sammenlagt pille. Sjekken under skal måle
+      // INNHOLDET i kortet, ikke hvordan vi tilfeldigvis kom dit.
+      const visMer = page.locator(`button[aria-label="Vis mer om ${medGlobe}"]`)
+      if (await visMer.count()) {
+        await visMer.click({ timeout: 5000 })
+        await page.waitForTimeout(400)
+      }
+
       // ASTRONOMISKE FAKTA (v6.3.0). Kortet for et legeme skal bære nøkkeltall,
       // utforskningshistorie og lenker til SNL og Wikipedia. Alt er DATA, så
       // koden kan ikke kaste — en glemt faktablokk viser seg bare som et tomt
@@ -1262,7 +1272,17 @@ const SJEKKER = [
         }
       })
       if (!faktaFunn.fakta) throw new Error(`kortet for «${medGlobe}» mangler faktablokka`)
-      if (!faktaFunn.maner) throw new Error(`kortet for «${medGlobe}» mangler månelinja`)
+      // MÅNEN HAR INGEN MÅNELINJE, og det er riktig: den ER en måne, så
+      // `manerLinje` returnerer null for den (egen test i himmelFakta.test.js).
+      //
+      // Dette var en DATOAVHENGIG feil i sjekken selv, lagt inn i v6.3.0: hvilket
+      // globe-legeme som plukkes avhenger av hva som står oppe den natta CI
+      // kjører. Tidligere kjøringer traff Venus og Jupiter og sto grønne; første
+      // gang månen kom først, feilet den. En sjekk som bare virker for noen av
+      // inndataene er en sjekk som venter på å bli rød.
+      if (medGlobe !== 'Månen' && !faktaFunn.maner) {
+        throw new Error(`kortet for «${medGlobe}» mangler månelinja`)
+      }
       if (!faktaFunn.utforsket) throw new Error(`kortet for «${medGlobe}» mangler utforskningshistorien`)
       if (faktaFunn.arstall < 2) {
         throw new Error(`utforskningshistorien for «${medGlobe}» har ingen årstall`)
