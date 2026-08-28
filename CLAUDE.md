@@ -786,8 +786,21 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   ikke», og to spørsmål på én bryter var nettopp det som gjorde tri-staten uklar.
   **Tilstanden lagres IKKE** — dag/natt avgjøres av klokka, så neste gang 3D åpnes
   er været med igjen; et bytte av lysmodus nullstiller flagget, og det er den ene
-  veien tilbake i samme økt. X-en ligger UTENFOR rulleflata i baren: lå den i
-  timelista, forsvant den ut til høyre når man rullet fram flere timer.
+  veien tilbake i samme økt.
+- **VÆRRADEN RULLER IKKE — den fyller bredden (v6.3.9).** Den var en rulleflate
+  med åtte FASTE timer, og på en 430 px-telefon fikk seks plass: to timer lå gjemt
+  bak en gest ingenting antydet, og eieren oppdaget rullingen først etter måneder.
+  **En skjult gest er ikke en affordanse.** `maalPlass` i `Tour3dVaerRad` måler
+  ledig bredde og viser bare timene som passer.
+
+  Tre ting som MÅ stå: målingen leser **forelderens** bredde, for radens egen
+  følger antallet vi nettopp valgte og ville jaget sin egen hale; kolonnebredden
+  måles i PIKSLER fra DOM-en og regnes ikke fra rem, fordi rot-fontstørrelsen
+  følger systemets tekstskalering (v5.27.0) og et hardkodet 57,6 px ville brakt
+  rullingen tilbake for den som har 150 % tekst; og startverdien er konservativ
+  (5) framfor taket, siden for få timer er ufarlig mens for mange flyter ut av
+  boksen før første måling. Røyk-sjekken måler invarianten direkte:
+  `scrollWidth − clientWidth` skal være 0.
 - **NATTMODUS ER STJERNEKIKKEREN, ikke kartet i mørkt tema (v6.1.0).** Å slå på
   natt gjør fem ting på én gang, og det er en bevisst pakke: blikket løftes til
   50° med en ease-out over 1,5 s (`scene3d.seOppMotHimmelen`), kurver + stier +

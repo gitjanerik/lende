@@ -1,12 +1,12 @@
-## 2026-08-28 — v6.3.8: En X i værraden tar bort været
+## 2026-08-28 — v6.3.8: En X i værraden tar bort været — og raden slutter å rulle
 
 Værraden i dagmodus har fått en liten X til høyre. Et trykk fjerner både raden og værhimmelen — regn, torden, tåke og skyene. Den erstatter det tredje steget sol/måne-knappen hadde fram til v6.1.0, og hører bedre her: knappen svarer på «dag eller natt», mens dette er «vis meg været eller ikke». To spørsmål på én bryter var nettopp det som gjorde tri-staten uklar.
 
 Tilstanden lagres bevisst ikke. Dag og natt avgjøres av klokka, så neste gang 3D åpnes er været med igjen. Vil man ha det tilbake i samme økt, går man innom natt og tilbake — og det er den ene veien, dokumentert i koden.
 
-X-en ligger utenfor rulleflata i baren. Lå den i timelista, ville den forsvunnet ut til høyre i det man rullet fram flere timer, og da er den ikke en lukkeknapp lenger. Baren er derfor to kolonner: timene som ruller, og X-en som står stille.
+Og samtidig: **værraden ruller ikke lenger.** Den var en rulleflate med åtte faste timer, og på en 430 px-telefon fikk seks plass — to timer lå gjemt bak en gest ingenting antydet. Eieren oppdaget rullingen først da X-en ble omtalt, og det er den avgjørende observasjonen: en skjult gest er ikke en affordanse. Raden fyller nå bredden og viser bare timene som faktisk passer, målt i piksler fra DOM-en og ikke regnet fra rem — kolonnene er rem-baserte, og en bruker med 150 % tekstskalering har bredere kolonner, så et hardkodet tall ville brakt rullingen tilbake for nettopp den brukeren. Antallet varierer med skjermen, og det er riktig bytte: en turgåer trenger de nærmeste timene, ikke et fast tall.
 
-Røyk-sjekken måler begge retninger — at trykket faktisk fjerner raden, og at en runde om natta gir den tilbake. Uten den andre halvparten kunne X-en vært en enveisbillett ut av været for hele økta og sjekken likevel stått grønn.
+X-en ligger derfor ikke lenger utenfor en rulleflate, men som en fast kolonne til høyre. Røyk-sjekken måler begge retninger — at trykket faktisk fjerner raden, og at en runde om natta gir den tilbake. Uten den andre halvparten kunne X-en vært en enveisbillett ut av været for hele økta og sjekken likevel stått grønn.
 
 ---
 

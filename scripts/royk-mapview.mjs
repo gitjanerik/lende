@@ -852,6 +852,29 @@ const SJEKKER = [
         throw new Error('værraden ligger UNDER Info-pilla — den skal ligge over')
       }
 
+      // VÆRRADEN SKAL IKKE RULLE (v6.3.9). Den var en rulleflate med åtte faste
+      // timer, og på en 430 px-telefon fikk seks plass — to timer lå gjemt bak en
+      // gest ingenting antydet. Nå fyller raden bredden og viser bare det som
+      // passer. INVARIANTEN er derfor målbar: ingenting stikker utenfor.
+      //
+      // scrollWidth > clientWidth er nettopp «det finnes skjult innhold til
+      // siden». Sjekken er streng med vilje: én piksel for mye betyr at en time
+      // er delvis skjult, og det var hele feilen.
+      const radOverflyt = await evalMedTak(page, () => {
+        const rad = [...document.querySelectorAll('div')].find((d) =>
+          /MET\s*Norway/.test(d.textContent) && d.querySelector('[data-time]'))
+        if (!rad) return null
+        return {
+          skjult: rad.scrollWidth - rad.clientWidth,
+          timer: rad.querySelectorAll('[data-time]').length,
+        }
+      })
+      if (radOverflyt && radOverflyt.skjult > 1) {
+        throw new Error(`værraden har ${radOverflyt.skjult} px skjult innhold til `
+          + `siden (${radOverflyt.timer} timer) — den skal fylle bredden, ikke rulle`)
+      }
+      const radTimer = radOverflyt ? radOverflyt.timer : 0
+
       // X-EN I VÆRRADEN (v6.3.8) tar bort både raden og værhimmelen, og gir dem
       // tilbake ved et bytte av lysmodus. Den erstatter det tredje steget
       // sol/måne-knappen hadde fram til v6.1.0.
@@ -889,7 +912,8 @@ const SJEKKER = [
       const x = page.locator('button[aria-label="Lukk 3D-visning"]')
       await x.click({ timeout: 5000 })
       await page.waitForFunction(() => !document.querySelector('canvas'), null, { timeout: 8000 })
-      return `syklus lukket: ${sett.join(' → ')}, værrad sett; ${vaerXUtfall}`
+      return `syklus lukket: ${sett.join(' → ')}, værrad med ${radTimer} timer `
+        + `uten skjult innhold; ${vaerXUtfall}`
     },
   },
   {
