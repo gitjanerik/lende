@@ -275,8 +275,18 @@ describe('vippForHoyde og blikkHoydeGrenser', () => {
     expect(g.maksGrader).toBeGreaterThan(60)
     // Nedre ende gir vipp 0 (blikket ligger i orbitens eget tak), øvre ende gir
     // taket. Traff de ikke, ville håndtaket hatt dødt slark i endene.
-    expect(vippForHoyde((g.minGrader * Math.PI) / 180)).toBeCloseTo(0, 12)
-    expect(vippForHoyde((g.maksGrader * Math.PI) / 180)).toBeCloseTo(HIMMEL_VIPP_MAKS, 12)
+    expect(vippForHoyde((g.minGrader * Math.PI) / 180)).toBeCloseTo(0, 9)
+    expect(vippForHoyde((g.maksGrader * Math.PI) / 180)).toBeCloseTo(HIMMEL_VIPP_MAKS, 9)
+  })
+
+  it('grensene er HELE GRADER — en range med step=1 må ha heltalls-stopp', () => {
+    // Regnestykket gir flyttall-støy (−0,9999999999999887 og 74,00000000000001).
+    // Med et brøkete `min` ligger ingen av skyveknappens stopp på et helt tall:
+    // den viste verdien matcher ikke input-ens egen. Røyken avslørte det som en
+    // «Malformed value» fra Playwright, men feilen var i koden og ikke i testen.
+    const g = blikkHoydeGrenser()
+    expect(Number.isInteger(g.minGrader)).toBe(true)
+    expect(Number.isInteger(g.maksGrader)).toBe(true)
   })
 
   it('grensene er sammenhengende — ingen høyde faller utenfor', () => {

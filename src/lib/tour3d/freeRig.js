@@ -110,9 +110,15 @@ export function vippForHoyde(hoyde) {
 export function blikkHoydeGrenser() {
   const grad = 180 / Math.PI
   const fraTaket = Math.PI / 2 - POLAR_MAKS
+  // HELE GRADER, og det er ikke kosmetikk. Regnestykket gir flyttall-støy
+  // (−0,9999999999999887 og 74,00000000000001), og en <input type="range"> med
+  // step=1 og et brøkete `min` har da INGEN stopp på et helt tall: hvert steg
+  // ligger en brøkdel unna, den viste avrundede verdien matcher ikke input-ens
+  // egen, og Playwright avviser en heltallsverdi som «Malformed value». Røyken
+  // fanget det; en bruker ville sett en teller som ikke stemmer med håndtaket.
   return {
-    minGrader: -fraTaket * grad,
-    maksGrader: (HIMMEL_VIPP_MAKS - fraTaket) * grad,
+    minGrader: Math.round(-fraTaket * grad),
+    maksGrader: Math.round((HIMMEL_VIPP_MAKS - fraTaket) * grad),
   }
 }
 
