@@ -432,6 +432,29 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   konstruksjon ikke stjele et trykk fra en nål, en sti eller GPS-en. Skiver
   (måne, planeter) veies 18 px foran formasjoner: et trykk PÅ månen skal velge
   månen, ikke stjernebildet bak.
+- **EN FORMASJON TREFFES PÅ STJERNENE OG STREKENE SINE, ikke i senteret
+  (v6.3.11).** `plukkHimmel` målte til formasjonens middelretning, og for en figur
+  som spenner 40° — Dragen, Karlsvognen, Kefeus — ligger den i TOM HIMMEL: man
+  måtte sikte på ingenting, og alt man faktisk så lå utenfor terskelen. Nå bærer
+  hvert formasjons-objekt `punkter` + `segmenter` (bare stjerner over horisonten
+  og streker med begge ender oppe, samme regel som `linjePunkter` i skyDome), og
+  `naermesteTreff` i `himmelObjekter` måler mot begge — ren og enhetstestet, med en
+  hul firkant som viser nettopp forskjellen. **Å gjøre strekene eller stjernene
+  større, eller å gi hver formasjon en pulsende ring som planetene, ble VURDERT OG
+  FORKASTET av eieren: det er støy på en natthimmel, og problemet var aldri at
+  figuren var vanskelig å SE.**
+- **Fremhevings-bufferet har ETT SEGMENT SLACK, og det er en driver-sak
+  (v6.3.11).** `LineSegmentsGeometry` legger start og ende i samme interleavede
+  buffer: 24-byte stride, `instanceEnd` 12 byte inn. For den SISTE instansen
+  slutter `instanceEnd` nøyaktig på bufferets siste byte — lovlig etter
+  spesifikasjonen (`offset + stride·(n−1) + size`), men en driver som regner
+  kravet som `offset + stride·n` finner 12 byte for lite og DROPPER instansen.
+  Eierens telefon gjør nettopp det: Dragen har 13 streker og fikk tegnet 12.
+  **SwiftShader og desktop tegner alle 13, så feilen er usynlig i CI og i
+  enhetstester** — modellen ble funnet ved å se at den forklarer BÅDE dette og de
+  tre gamle målingene (3 av 4, 4 av 5, 6 av 10) som `_maxInstanceCount` alene
+  ikke gjorde. Slacken koster 24 byte. Tar du bufferet ned til eksakt størrelse
+  igjen, mister du den siste streken i den største figuren.
 - **Globene er OBJEKT-INSPEKTØRER, ikke reiser (v6.0.0, utvidet i v6.2.0).**
   `lib/tour3d/himmelGlobe.js` (byggeren) + `lib/tour3d/himmellegemer.js` (dataen).
   Månen, Mars, Jupiter og Saturn kan åpnes som roterbare kuler. Eieren ba om en
@@ -879,19 +902,16 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   minimer/utvid, lukk. Knappene skal ligge på samme sted enten kortet er
   sammenlagt eller åpent, så man ikke må lete etter dem på nytt.
 
-  **NAVIGASJON MINIMERER, ET TRYKK ÅPNER (v6.3.10).** Søkelista og
-  nabo-snarveiene går gjennom `velgOgSe` og legger ALLTID kortet sammen: å plukke
-  et navn fra nedtrekkslista er navigasjon — man har alt bestemt seg for hva man
-  vil se — og en tekstblokk over halve himmelen står i veien for nettopp det.
-  Trykk i himmelen er den motsatte handlingen og går gjennom `settKortTilstand`:
-  første trykk ÅPNER (man har pekt på noe og spurt hva det er), et bytte BEHOLDER
-  tilstanden (v6.3.7), så et nytt trykk med sammenlagt kort flytter kameraet uten
-  å skyve lesestoffet tilbake i ansiktet.
-  **Tilstanden eies av `Viewer3D` og ikke av kortet fordi det er KALLEREN som vet
-  hva som utløste valget.** `himmel-valgt`-handleren setter `valgtHimmel` direkte
-  og går ikke gjennom `velgHimmel`, så den MÅ kalle `settKortTilstand` selv —
-  uten det arver et trykk på månen minimeringen fra forrige hopp, og kortet kommer
-  sammenlagt når man nettopp har spurt hva noe er (feilen i v6.1.1).
+  **ETHVERT VALG GIR SAMMENLAGT KORT (v6.3.11).** Søkelista, nabo-snarveiene og
+  trykk i himmelen ender alle i pilla; kortet åpnes bare når brukeren trykker på
+  den. Dette avløser TRE regler som alle prøvde å gjette om man ville lese eller
+  se, ut fra hvordan valget kom inn: «første valg åpner» (v6.0.0), «et bytte
+  beholder tilstanden» (v6.3.7) og «lista minimerer, trykket åpner» (v6.3.10).
+  Sammenlagt som standard trenger ingen gjetning, og den er billig å angre.
+  Tilstanden eies fortsatt av `Viewer3D` og ikke av kortet, og
+  `himmel-valgt`-handleren MÅ sette den selv — den setter `valgtHimmel` direkte og
+  går ikke gjennom `velgOgSe`, så uten det arver trykket tilstanden fra forrige
+  valg (feilen i v6.1.1, den gang med motsatt fortegn).
 
   **«SETT I FOKUS» (krysshår) STÅR BARE I DEN MINIMERTE PILLA (v6.3.5).** Den
   retter blikket mot det som ALT er valgt, via `scene3d.fokuserHimmel` — som BARE

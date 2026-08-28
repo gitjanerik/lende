@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   himmelObjekter, filtrerHimmel, naboerFor, vinkelAvstand, kompass,
-  himmelUndertekst,
+  himmelUndertekst, naermesteTreff,
 } from './himmelObjekter.js'
 import { FORMASJONER } from './stjerner.js'
 
@@ -288,5 +288,101 @@ describe('himmelObjekter — bryteren gir alle fire globe-legemene', () => {
     const paa = himmelObjekter({ ...oslo, dato, tvingHimmel: true })
     expect(paa.length).toBeGreaterThanOrEqual(av.length)
     expect(av.filter((o) => o.harGlobe).length).toBeLessThan(4)
+  })
+})
+
+describe('naermesteTreff — trefflaten for et stjernebilde', () => {
+  // Regelen som avgjør om en figur er til å treffe med en finger. Fram til
+  // v6.3.11 ble trykket målt mot formasjonens SENTER, som for en stor figur
+  // ligger i tom himmel — man måtte sikte på ingenting.
+  const firkant = {
+    // En hul firkant, 200 px på hver side, med hjørne i (100,100). Kefeus og
+    // Karlsvognas bolle er nettopp dette: alt gjenkjennelig ligger på KANTEN.
+    punkter: [
+      { x: 100, y: 100 }, { x: 300, y: 100 }, { x: 300, y: 300 }, { x: 100, y: 300 },
+    ],
+    segmenter: [[0, 1], [1, 2], [2, 3], [3, 0]],
+  }
+  const treff = (x, y, f = firkant) => naermesteTreff(x, y, f.punkter, f.segmenter)
+
+  it('treffer en stjerne på null avstand', () => {
+    expect(treff(100, 100)).toBeCloseTo(0, 6)
+    expect(treff(300, 300)).toBeCloseTo(0, 6)
+  })
+
+  it('treffer STREKEN mellom to stjerner, ikke bare endepunktene', () => {
+    // Midt på oversida: 200 px fra begge hjørnene, men rett på streken.
+    expect(treff(200, 100)).toBeCloseTo(0, 6)
+    expect(treff(200, 112)).toBeCloseTo(12, 6)
+  })
+
+  it('senteret av en hul figur er LANGT unna — det var den gamle feilen', () => {
+    // Midt i firkanten er man 100 px fra nærmeste strek. Med senter-regelen var
+    // dette punktet selve målet, og hvert punkt PÅ figuren var utenfor terskelen.
+    expect(treff(200, 200)).toBeCloseTo(100, 6)
+  })
+
+  it('måler mot streken og ikke mot linja den ligger på', () => {
+    // 100 px til venstre for venstre kant, på høyde med toppen: uten klipping av
+    // projeksjonen ville en uendelig lang linje gitt 0 her.
+    expect(treff(0, 100)).toBeCloseTo(100, 6)
+    // Diagonalt utenfor hjørnet: avstanden er til HJØRNET.
+    expect(treff(40, 40)).toBeCloseTo(Math.hypot(60, 60), 6)
+  })
+
+  it('hopper over punkter bak kameraet', () => {
+    const f = {
+      punkter: [{ x: 10, y: 10, bak: true }, { x: 500, y: 500 }],
+      segmenter: [[0, 1]],
+    }
+    // Punktet bak kameraet projiserer til et speilbilde foran; tok vi det med,
+    // ville en stjerne i ryggen stjålet trykket.
+    expect(naermesteTreff(10, 10, f.punkter, f.segmenter))
+      .toBeCloseTo(Math.hypot(490, 490), 6)
+  })
+
+  it('tåler tom og ødelagt inndata', () => {
+    expect(naermesteTreff(0, 0, [], [])).toBe(Infinity)
+    expect(naermesteTreff(0, 0, undefined, undefined)).toBe(Infinity)
+    expect(naermesteTreff(0, 0, [{ x: 0, y: 0 }], [[0, 9]])).toBeCloseTo(0, 6)
+    // Nullengde-strek skal ikke gi NaN.
+    expect(naermesteTreff(5, 0, [{ x: 0, y: 0 }], [[0, 0]])).toBeCloseTo(5, 6)
+  })
+})
+
+describe('formasjonenes trefflate følger det som tegnes', () => {
+  it('bærer punkter og segmenter for stjernene over horisonten', () => {
+    const formasjoner = himmelObjekter({ ...STED, dato: VINTER })
+      .filter((o) => o.type === 'formasjon')
+    expect(formasjoner.length).toBeGreaterThan(0)
+    for (const o of formasjoner) {
+      expect(o.punkter.length).toBeGreaterThan(0)
+      expect(o.punkter.length).toBeLessThanOrEqual(o.antallStjerner)
+      for (const p of o.punkter) {
+        expect(p.hoyde).toBeGreaterThan(0)
+        expect(Number.isFinite(p.azimut)).toBe(true)
+      }
+      // Hvert segment peker inn i punkter — en indeks på skeive gir en strek til
+      // et sted på himmelen ingen kan trykke på.
+      for (const [a, b] of o.segmenter) {
+        expect(a).toBeGreaterThanOrEqual(0)
+        expect(b).toBeGreaterThanOrEqual(0)
+        expect(a).toBeLessThan(o.punkter.length)
+        expect(b).toBeLessThan(o.punkter.length)
+        expect(a).not.toBe(b)
+      }
+      expect(o.segmenter.length).toBeLessThanOrEqual(o.linjer.length)
+    }
+  })
+
+  it('utelater strek der en ende er under horisonten, som skyDome gjør', () => {
+    // Samme regel som linjePunkter i skyDome: en halv figur med en strek ned i
+    // bakken er verre enn ingen strek — og det man KAN treffe skal være det som
+    // faktisk tegnes.
+    const delvis = himmelObjekter({ ...STED, dato: VINTER })
+      .filter((o) => o.type === 'formasjon' && o.punkter.length < o.antallStjerner)
+    for (const o of delvis) {
+      expect(o.segmenter.length).toBeLessThan(o.linjer.length)
+    }
   })
 })

@@ -121,6 +121,33 @@ export function himmelObjekter({ lat, lon, dato = new Date(), tvingHimmel = fals
     // Senterretningen presesseres som stjernene, ellers peker blikket 16′ feil.
     const js = presesserTilDato(f.senterRa, f.senterDek, dato)
     const { azimut, hoyde } = tilHorisont(js.ra, js.dek, lst, lat)
+    // TREFFLATEN. Fram til v6.3.11 ble et trykk målt mot formasjonens SENTER, og
+    // for en figur som spenner 40° — Dragen, Karlsvognen — ligger senteret i tom
+    // himmel langt fra alt man ser. Man måtte altså sikte på ingenting. Nå bærer
+    // objektet stjernene og strekene sine, og `naermesteTreff` måler mot dem: du
+    // treffer figuren der den ER.
+    //
+    // Bare stjerner OVER horisonten, og bare streker med begge ender oppe — samme
+    // regel som `linjePunkter` i skyDome, så det man kan treffe er nøyaktig det
+    // som tegnes.
+    const punktIndeks = new Map()
+    const punkter = []
+    for (const i of f.stjerner) {
+      const s = STJERNER[i]
+      const j = presesserTilDato(s.ra, s.dek, dato)
+      const h = tilHorisont(j.ra, j.dek, lst, lat)
+      if (h.hoyde <= 0) continue
+      punktIndeks.set(i, punkter.length)
+      punkter.push({ azimut: h.azimut, hoyde: h.hoyde })
+    }
+    const segmenter = []
+    for (const [a, b] of f.linjer) {
+      const ia = punktIndeks.get(a)
+      const ib = punktIndeks.get(b)
+      if (ia == null || ib == null) continue
+      segmenter.push([ia, ib])
+    }
+
     const info = STJERNEBILDE_INFO[f.id] ?? null
     const navngitte = f.stjerner
       .map((i) => STJERNER[i])
@@ -142,6 +169,9 @@ export function himmelObjekter({ lat, lon, dato = new Date(), tvingHimmel = fals
       // Sendes til skyDome.settValgt.
       stjerner: f.stjerner,
       linjer: f.linjer,
+      // Sendes til plukkHimmel (scene3d) — se naermesteTreff.
+      punkter,
+      segmenter,
       sokeNavn: [
         f.navn,
         f.latin,
@@ -156,6 +186,51 @@ export function himmelObjekter({ lat, lon, dato = new Date(), tvingHimmel = fals
     if (a.type === 'planet') return (a.mag ?? 99) - (b.mag ?? 99)
     return a.navn.localeCompare(b.navn, 'nb')
   })
+}
+
+/**
+ * Korteste avstand fra fingeren til en figur, i SKJERMPIKSLER.
+ *
+ * Trykk i himmelen plukkes i skjermrom (se plukkHimmel i scene3d) fordi en
+ * stjernebilde-strek er under to piksler bred og en stjerne en prikk — å treffe
+ * dem med en stråle er praktisk umulig på en telefon. Denne funksjonen svarer på
+ * «hvor nær er fingeren figuren», og den måler mot BÅDE punktene og strekene:
+ * en tom firkant som Kefeus har alt det gjenkjennelige på kantene, ikke i midten.
+ *
+ * Ren og enhetstestet, fordi det er regelen som avgjør om noe er til å treffe.
+ *
+ * @param {number} fx fingerens x i CSS-piksler
+ * @param {number} fy fingerens y
+ * @param {Array<{x:number,y:number,bak:boolean}>} punkter projiserte stjerner.
+ *   `bak` = bak kameraet; slike hoppes over, ellers ville et punkt rett bak deg
+ *   projisert til et speilbilde foran deg og stjålet trykket.
+ * @param {Array<[number,number]>} segmenter indekspar inn i punkter
+ * @returns {number} avstand i piksler, Infinity om ingenting er synlig
+ */
+export function naermesteTreff(fx, fy, punkter, segmenter) {
+  let best = Infinity
+  if (!punkter?.length) return best
+  for (const p of punkter) {
+    if (!p || p.bak) continue
+    const d = Math.hypot(p.x - fx, p.y - fy)
+    if (d < best) best = d
+  }
+  for (const [ia, ib] of segmenter ?? []) {
+    const a = punkter[ia]
+    const b = punkter[ib]
+    if (!a || !b || a.bak || b.bak) continue
+    const dx = b.x - a.x
+    const dy = b.y - a.y
+    const len2 = dx * dx + dy * dy
+    // Nullengde-strek: endepunktene er alt målt over.
+    if (len2 <= 1e-9) continue
+    // Projeksjonen klippes til [0,1] så vi måler mot STREKEN og ikke mot linja
+    // den ligger på — uten klippingen treffer man en uendelig lang strek.
+    const t = Math.max(0, Math.min(1, ((fx - a.x) * dx + (fy - a.y) * dy) / len2))
+    const d = Math.hypot(a.x + t * dx - fx, a.y + t * dy - fy)
+    if (d < best) best = d
+  }
+  return best
 }
 
 /**

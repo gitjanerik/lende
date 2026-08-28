@@ -28,6 +28,7 @@ import { Raycaster, Vector2, Vector3 } from 'three'
 import { buildRoutingGraph, RUTE_GRAF_OPTS } from '../routing.js'
 import { realElevationAt, sampleElevation } from '../demSampling.js'
 import { horisontTilWorld } from './astronomi.js'
+import { naermesteTreff } from './himmelObjekter.js'
 import { createSceneCore, TourSceneError } from './sceneCore.js'
 import { createFreeRig } from './freeRig.js'
 import { createFollowRig } from './cameraRigs.js'
@@ -457,6 +458,14 @@ export async function create3dScene(container, {
    * Skiver (månen, planetene) vinner over formasjoner når begge er innenfor
    * terskelen: de har reell utstrekning, så et trykk PÅ månen skal velge månen
    * og ikke stjernebildet bak.
+   *
+   * EN FORMASJON MÅLES MOT STJERNENE OG STREKENE SINE, ikke mot senterpunktet
+   * (v6.3.11). Senteret er middelretningen, og for en figur som spenner 40° —
+   * Dragen, Karlsvognen — ligger det i tom himmel langt fra alt man ser: man
+   * måtte sikte på ingenting, og eieren meldte at det var vrient å treffe.
+   * Alternativet vi FORKASTET var å gjøre strekene og stjernene større, eller å
+   * gi hver formasjon en pulsende ring som planetene: det er støy på en
+   * natthimmel, og problemet var ikke at figuren var vanskelig å SE.
    */
   function plukkHimmel() {
     if (!himmelListe.length) return
@@ -467,19 +476,33 @@ export async function create3dScene(container, {
     // Terskelen er i CSS-piksler og romslig: en finger er ~9 mm.
     const TERSKEL = 46
 
-    let best = null
-    let bestAvstand = Infinity
-    for (const o of himmelListe) {
-      const [wx, wy, wz] = horisontTilWorld(o.azimut, o.hoyde, 20000)
-      // Himmelen følger kameraet, så retningen må regnes fra kameraets posisjon.
+    // Himmelen følger kameraet, så en retning må projiseres FRA kameraets
+    // posisjon. Radien er vilkårlig — det er retningen som betyr noe.
+    const tilSkjerm = ({ azimut, hoyde }) => {
+      const [wx, wy, wz] = horisontTilWorld(azimut, hoyde, 20000)
       const p = core.project(
         camera.position.x + wx, camera.position.y + wy, camera.position.z + wz,
       )
-      if (p.behind) continue
-      const d = Math.hypot(p.x - fx, p.y - fy)
+      return { x: p.x, y: p.y, bak: p.behind }
+    }
+
+    let best = null
+    let bestAvstand = Infinity
+    for (const o of himmelListe) {
+      let d
+      if (o.type === 'formasjon') {
+        // Én projeksjon per stjerne i figuren — bare ved trykk, altså ~130
+        // projeksjoner for hele himmelen. Gratis.
+        d = naermesteTreff(fx, fy, (o.punkter ?? []).map(tilSkjerm), o.segmenter)
+      } else {
+        const p = tilSkjerm(o)
+        if (p.bak) continue
+        d = Math.hypot(p.x - fx, p.y - fy)
+      }
       if (d > TERSKEL) continue
       // Skiver foran formasjoner: trekk fra litt for dem, så de vinner et
-      // uavgjort trykk.
+      // uavgjort trykk. Nå som figuren treffes langs strekene er dette viktigere
+      // enn før — månen står ofte oppå et stjernebilde.
       const vektet = o.type === 'formasjon' ? d : d - 18
       if (vektet < bestAvstand) {
         bestAvstand = vektet

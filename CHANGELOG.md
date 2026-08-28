@@ -1,3 +1,21 @@
+## 2026-08-28 — v6.3.11: Dragens siste strek, en trefflate på figuren, og alltid sammenlagt kort
+
+Tre ting fra samme felttest. Halens siste strek manglet fordi et
+`LineSegmentsGeometry` legger start og ende i samme buffer med 24-byte stride:
+den siste instansens `instanceEnd` slutter nøyaktig på bufferets siste byte, og
+en driver som regner plassbehovet som `offset + stride·n` finner tolv byte for
+lite og dropper instansen. Ett segment slack løser det — og modellen forklarer
+også de tre gamle målingene som `_maxInstanceCount` alene ikke dekket. Feilen er
+usynlig i CI, for SwiftShader tegner alle tretten. Dernest var det vrient å
+trykke på et stjernebilde, og grunnen var ikke størrelsen: trykket ble målt mot
+formasjonens SENTER, som for en figur på 40° ligger i tom himmel. Nå måles det mot
+stjernene og strekene, så du treffer figuren der den er — uten å gjøre noe
+større eller legge ringer på himmelen. Til sist gir ethvert valg nå den
+sammenlagte pilla, også et trykk i himmelen; det avløser tre regler som alle
+prøvde å gjette om man ville lese eller se.
+
+---
+
 ## 2026-08-28 — v6.3.10: Et valg fra søkelista minimerer infopanelet
 
 Å plukke et navn fra nedtrekkslista er NAVIGASJON — man har alt bestemt seg for
