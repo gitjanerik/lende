@@ -1091,11 +1091,16 @@ const SJEKKER = [
         throw new Error('infokortet mangler retning og høyde — det er linja man trenger')
       }
 
-      // «Sett i fokus» skal finnes: har man sett seg bort, er det veien tilbake
-      // til det som er fremhevet.
+      // «SETT I FOKUS» HØRER BARE I DEN MINIMERTE PILLA (v6.3.5). Med kortet
+      // sammenlagt kan man panorere, og da er krysshåret veien tilbake; i det
+      // åpne kortet har det ingen jobb. Sjekken måler BEGGE sider, for en knapp
+      // er lett å legge tilbake på feil sted i god tro.
+      const fokusKnapper = () => evalMedTak(page, () => document
+        .querySelectorAll('button[aria-label^="Sett "][aria-label$=" i fokus"]').length)
+      if (await fokusKnapper()) throw new Error('«Sett i fokus» står i det ÅPNE kortet')
       if (!await evalMedTak(page, () => !!document
-        .querySelector('button[aria-label^="Sett "][aria-label$=" i fokus"]'))) {
-        throw new Error('kortet mangler «Sett i fokus»')
+        .querySelector('button[aria-label="Minimer infokortet"]'))) {
+        throw new Error('kortet mangler minimer-knappen')
       }
 
       // MINIMER (v6.1.0): navnet blir stående, lesestoffet forsvinner. Vi måler
@@ -1115,6 +1120,11 @@ const SJEKKER = [
       if (await harHistorien()) throw new Error('kortet ble ikke minimert')
       if (!(await evalMedTak(page, () => document.body.innerText)).includes(forste)) {
         throw new Error('navnet forsvant da kortet ble minimert — da vet man ikke hva som lyser')
+      }
+      // Og HER skal krysshåret stå: sammenlagt kort betyr at man kan panorere.
+      if (!await fokusKnapper()) {
+        throw new Error('«Sett i fokus» mangler i den minimerte pilla — da finnes '
+          + 'ingen vei tilbake etter panorering')
       }
       // Og tilbake ut igjen.
       await page.locator(`button[aria-label="Vis mer om ${forste}"]`).click({ timeout: 5000 })
@@ -1245,16 +1255,57 @@ const SJEKKER = [
         faktaUtfall = `fakta + ${flereFor}→${etter} årstall + begge lenkene`
       }
 
-      // Et trykk legger kula tilbake på himmelen.
-      await page.mouse.click(40, Math.round(page.viewportSize().height * 0.5))
+      // ET TRYKK LEGGER KULA TILBAKE PÅ HIMMELEN — og kortet skal LEGGES SAMMEN,
+      // ikke lukkes (v6.3.5). Fram til da nullstilte exit hele valget, og kortet
+      // forsvant i det man forlot nærbildet: man er fortsatt på legemet, man har
+      // bare lagt kula tilbake.
+      //
+      // PUNKTET MÅ LIGGE UTENFOR INFOKORTET, og det er ikke en detalj: kortet er
+      // 58 vh høyt fra v6.3.2, så det faste punktet (40, halve høyden) landet
+      // OPPÅ kortet og trykket nådde aldri lerretet. Den gamle utgaven av sjekken
+      // tolererte begge utfall og avslørte det derfor ikke. Vi regner nå ut et
+      // ledig punkt og VERIFISERER med elementFromPoint at det er canvaset som
+      // ligger der — ellers tester vi ingenting.
+      const utsideKortet = await evalMedTak(page, () => {
+        const kort = [...document.querySelectorAll('div')]
+          .find((d) => /Lukk infokortet/.test(d.querySelector('button[aria-label]')
+            ? [...d.querySelectorAll('button[aria-label]')]
+              .map((b) => b.getAttribute('aria-label')).join(' ') : ''))
+        const r = kort?.getBoundingClientRect()
+        const kandidater = [
+          [Math.round(window.innerWidth * 0.5), window.innerHeight - 40],
+          [30, window.innerHeight - 40],
+          [Math.round(window.innerWidth * 0.5), Math.round((r?.bottom ?? 0) + 60)],
+        ]
+        for (const [x, y] of kandidater) {
+          if (y < 0 || y > window.innerHeight - 5) continue
+          const el = document.elementFromPoint(x, y)
+          if (el && el.tagName === 'CANVAS') return { x, y }
+        }
+        return null
+      })
+      if (!utsideKortet) {
+        throw new Error('fant ikke et punkt på lerretet utenfor infokortet — '
+          + 'et trykk her ville truffet kortet og bevist ingenting')
+      }
+      await page.mouse.click(utsideKortet.x, utsideKortet.y)
       await page.waitForTimeout(900)
+      const etterExit = await evalMedTak(page, (navn) => ({
+        harNavn: document.body.innerText.includes(navn),
+        minimert: !!document.querySelector('button[aria-label="Vis hele infokortet"]'),
+      }), medGlobe)
+      if (!etterExit.harNavn) {
+        throw new Error(`exit fra globen lukket kortet helt — «${medGlobe}» er borte`)
+      }
+      if (!etterExit.minimert) throw new Error('exit fra globen la ikke kortet sammen')
 
       await page.locator('button[aria-label="Lukk infokortet"]').click({ timeout: 5000 })
-        .catch(() => { /* trykket over kan ha lukket kortet */ })
+        .catch(() => { /* kortet kan alt være lukket */ })
       await page.waitForTimeout(400)
       await lukkNatt3d(page, h.startSteg)
-      return `valgte «${forste}», minimerte, utvidet`
-        + `${nabo ? `, hoppet til «${nabo}»` : ''}; ${globeUtfall}; ${faktaUtfall}`
+      return `valgte «${forste}» (fokus bare i pilla), minimerte, utvidet`
+        + `${nabo ? `, hoppet til «${nabo}»` : ''}; ${globeUtfall}; ${faktaUtfall}; `
+        + 'exit la kortet sammen'
     },
   },
   {

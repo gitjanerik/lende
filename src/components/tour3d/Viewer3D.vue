@@ -453,6 +453,14 @@ async function byggMotor() {
       globeAapen.value = !!apen
       if (!apen) globeTrekk.value = []
     })
+    // TRYKK UT AV NÆRBILDET: kula legges tilbake på himmelen, og kortet LEGGES
+    // SAMMEN — det lukkes ikke. Man er fortsatt på Saturn, man har bare forlatt
+    // nærbildet, og et kort som forsvinner helt der leses som at valget røk.
+    // Minimert står navnet igjen, og krysshåret i pilla er veien tilbake etter
+    // panorering. Egen hendelse og ikke `globe {apen:false}`: den siste fyres
+    // også når man velger et legeme UTEN globe (Merkur, Venus), og der har man
+    // nettopp spurt hva noe er — da skal kortet stå åpent.
+    engine.on('globe-avsluttet', () => { kortMinimert.value = true })
     engine.on('globe-trekk', ({ trekk }) => { globeTrekk.value = trekk ?? [] })
     engine.on('blikk', (b) => { blikk.value = b })
     // Severdighet turen stopper ved av seg selv.
@@ -1065,7 +1073,8 @@ function branchLabel(opt, i) {
            :style="{ zoom: uiTextScale }">
         <!-- `globe-aapen` er BORTE (v6.3.3): kortet brukte den bare til å velge
              mellom to bruksanvisninger, og begge er fjernet. En prop ingen leser
-             er nettopp den stille gjelden navnediff finnes for. -->
+             er nettopp den stille gjelden navnediff finnes for.
+             `@fokus` kommer bare fra den MINIMERTE pilla (v6.3.5) — se kortet. -->
         <Tour3dHimmelKort :objekt="valgtHimmel" :naboer="himmelNaboer"
                           :minimert="kortMinimert"
                           @lukk="velgHimmel(null)" @velg="velgNabo"

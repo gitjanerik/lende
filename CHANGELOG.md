@@ -1,3 +1,13 @@
+## 2026-08-28 — v6.3.5: Krysshåret der det gjør nytte, og kortet lukkes ikke av en exit
+
+To feltfunn i infokortet i nattmodus, og de henger sammen.
+
+«Sett i fokus» sto i headeren i begge tilstander, og i det ÅPNE kortet gjorde den ingenting man trengte: både et valg fra søkelista og et trykk i himmelen retter blikket dit av seg selv. Men sammenlagt er saken en annen — da er legemet tilbake i normal størrelse og man kan panorere fritt, og krysshåret er veien tilbake til det man så på. Knappen står derfor nå BARE i den minimerte pilla. Røyk-sjekken måler begge sider: borte i åpent kort, til stede i pilla.
+
+Og et trykk ut av nærbildet lukket hele infokortet. Det var `handleTap` som kalte `velgHimmel(null)` mens globen sto åpen — som nullstiller alt — så kortet forsvant i det man la kula tilbake på himmelen. Man er fortsatt på Saturn; bare nærbildet er forlatt. Nå lukkes globen alene, og kortet LEGGES SAMMEN, med navnet stående og krysshåret klart. Hendelsen er egen (`globe-avsluttet`) og ikke `globe {apen:false}`, med vilje: den siste fyres også når man velger et legeme uten globe — Merkur eller Venus — og der har man nettopp spurt hva noe er, så kortet skal stå åpent. To grunner til at globen lukkes er ikke samme grunn til at kortet skal legges sammen.
+
+---
+
 ## 2026-08-28 — v6.3.4: Terrenget skjærer ikke gjennom globen
 
 Mars sto 3° over horisonten, og da havnet kula delvis under terrengnivå: kartflisa skar rett gjennom planeten, med Marinerdalene tegnet nede under en grønn skråning. Globen henger 4 km foran kameraet i legemets virkelige himmelretning, og det er invarianten som gjør 3D til å stole på — så plasseringen skal ikke røres.

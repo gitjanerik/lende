@@ -228,9 +228,9 @@ async function onInstallClick() {
             figuren har, hvordan du finner den, mytologien bak — og snarveier til
             naboene, som er den beste måten å lære seg en himmel. Kortet kan
             legges sammen til én linje når teksten dekker det du vil se på, og et
-            hopp til en nabo legger det sammen av seg selv;
-            <strong class="text-ink/90">Sett i fokus</strong> retter blikket
-            tilbake dit når du har sett deg bort.
+            hopp til en nabo legger det sammen av seg selv. Sammenlagt får du et
+            <strong class="text-ink/90">krysshår</strong> som retter blikket
+            tilbake dit, om du har panorert bort.
             <strong class="text-ink/90">Trykk på månen, Mars, Jupiter eller
             Saturn</strong> — de fire har et tynt omriss som sier at de kan
             åpnes — og skiva blir en kule du kan snurre, med navngitte steder,
