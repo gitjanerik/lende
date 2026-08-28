@@ -23,6 +23,7 @@
 //   node scripts/bygg-himmelkart.mjs mars       # bare ett legeme
 
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
@@ -80,6 +81,111 @@ const LEGEMER = {
 
 const MAKS_BYTES = 900 * 1024
 
+/**
+ * URL til en nedskalert utgave av en fil på Wikimedia Commons.
+ *
+ * HVORFOR COMMONS ER MED I JAKTEN: NASAs egne kart er hundrevis av megabyte, og
+ * vi har ingen bildebehandler i pipelinen — filene MÅ være små når de hentes.
+ * Commons har NASA-avledede kart i offentlig eiendom OG en thumb-tjener som gir
+ * en vilkårlig bredde. Det løser nettopp problemet som gjorde at Mars, Jupiter
+ * og Saturn ikke kom med i v6.2.0.
+ *
+ * Sti-sharden er md5 av filnavnet (med understrek for mellomrom): første tegn,
+ * så de to første. Den kan altså regnes ut, ikke bare slås opp.
+ */
+export function commonsUrl(filnavn, bredde = 1024) {
+  const f = filnavn.replace(/ /g, '_')
+  const h = createHash('md5').update(f).digest('hex')
+  return `https://upload.wikimedia.org/wikipedia/commons/thumb/${h[0]}/${h.slice(0, 2)}/${f}/${bredde}px-${f}`
+}
+
+/**
+ * KANDIDATER TIL PROBING. Ikke i bruk av baken — dette er lista `--probe` går
+ * gjennom for å FINNE ut hvilke URL-er som faktisk svarer.
+ *
+ * HVORFOR EN PROBE OG IKKE FLERE GJETTINGER: NASA, USGS og Wikimedia er alle
+ * sperret fra utviklingsmiljøene, så en URL kan ikke prøves der den skrives. I
+ * v6.2.0 ble tre URL-er gjettet, og alle tre var feil — oppdaget først i
+ * deploy-loggen etter merge. Samme lærdom som skyene og knappenålene: når du
+ * ikke kan se, BYGG EN MÅLING framfor en hypotese.
+ *
+ * Kjøres med `--probe` fra workflowen `probe-himmelkart.yml` (workflow_dispatch).
+ */
+const KANDIDATER = {
+  mars: [
+    commonsUrl('Mars_Viking_MDIM21_ClrMosaic_global_232m.jpg'),
+    commonsUrl('Solarsystemscope_texture_8k_mars.jpg'),
+    commonsUrl('Mars_Composite_Map.jpg'),
+    commonsUrl('Marsmap.jpg'),
+    commonsUrl('OSIRIS_Mars_true_color.jpg'),
+    'https://planetarymaps.usgs.gov/mosaic/Mars_Viking_MDIM21_ClrMosaic_global_232m.jpg',
+    'https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/mars_1k_color.jpg',
+    'https://www.solarsystemscope.com/textures/download/2k_mars.jpg',
+  ],
+  jupiter: [
+    commonsUrl('Solarsystemscope_texture_8k_jupiter.jpg'),
+    commonsUrl('Jupiter_Cylindrical_Map.jpg'),
+    commonsUrl('Map_of_Jupiter.jpg'),
+    commonsUrl('Jupiter_map.jpg'),
+    commonsUrl('PIA07782.jpg'),
+    'https://www.solarsystemscope.com/textures/download/2k_jupiter.jpg',
+    'https://svs.gsfc.nasa.gov/vis/a000000/a004800/a004851/jupiter_1k.jpg',
+  ],
+  saturn: [
+    commonsUrl('Solarsystemscope_texture_8k_saturn.jpg'),
+    commonsUrl('Saturn_Cylindrical_Map.jpg'),
+    commonsUrl('Map_of_Saturn.jpg'),
+    commonsUrl('Saturn_map.jpg'),
+    'https://www.solarsystemscope.com/textures/download/2k_saturn.jpg',
+    'https://svs.gsfc.nasa.gov/vis/a000000/a004800/a004851/saturn_1k.jpg',
+  ],
+  maane: [
+    // Månen VIRKER alt — den er med for å bevise at proben måler riktig. En probe
+    // der ingenting svarer kan ikke skilles fra en probe som er ødelagt.
+    'https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/lroc_color_poles_1k.jpg',
+    commonsUrl('Solarsystemscope_texture_8k_moon.jpg'),
+  ],
+}
+
+/** Prøv hver kandidat og skriv status, type og størrelse. Skriver ingen filer. */
+async function probe() {
+  for (const [navn, urler] of Object.entries(KANDIDATER)) {
+    process.stderr.write(`\n── ${navn} ${'─'.repeat(40)}\n`)
+    for (const url of urler) {
+      try {
+        // GET og ikke HEAD: Commons' thumb-tjener GENERERER bildet ved første
+        // forespørsel, og en HEAD kan svare 404 på noe en GET ville laget.
+        const res = await fetch(url, { redirect: 'follow' })
+        const buf = res.ok ? Buffer.from(await res.arrayBuffer()) : null
+        const jpeg = buf && buf[0] === 0xff && buf[1] === 0xd8
+        const kB = buf ? (buf.length / 1024).toFixed(0) : '—'
+        const dom = new URL(url).hostname
+        process.stderr.write(
+          `${res.ok ? '✓' : '✗'} ${String(res.status).padEnd(4)}`
+          + `${String(kB).padStart(6)} kB  ${jpeg ? 'jpeg' : '    '}  ${dom}\n`
+          + `        ${url}\n`,
+        )
+      } catch (e) {
+        process.stderr.write(`✗ FEIL              ${e?.message ?? e}\n        ${url}\n`)
+      }
+    }
+  }
+  process.stderr.write(
+    `\nVelg de som er ✓, jpeg og under ${(MAKS_BYTES / 1024).toFixed(0)} kB, `
+    + 'og lim dem inn i LEGEMER.\n',
+  )
+}
+
+// KJØRT DIREKTE, ikke importert. Guarden finnes for at commonsUrl skal kunne
+// enhetstestes uten at hele baken går i gang — samme mønster som
+// scripts/trenger-ektekart.mjs.
+const kjortDirekte = process.argv[1]?.endsWith('bygg-himmelkart.mjs')
+
+if (kjortDirekte && process.argv.includes('--probe')) {
+  await probe()
+  process.exit(0)
+}
+
 const bareMaling = process.argv.includes('--mal')
 const bare = process.argv.slice(2).filter((a) => !a.startsWith('--'))
 const utKatalog = join(
@@ -134,19 +240,24 @@ async function hent(navn, kilder) {
   return false
 }
 
-const valgte = Object.entries(LEGEMER)
-  .filter(([navn]) => !bare.length || bare.includes(navn))
-if (!valgte.length) {
-  process.stderr.write(`Ukjent legeme. Velg blant: ${Object.keys(LEGEMER).join(', ')}\n`)
-  process.exit(1)
-}
+if (kjortDirekte) {
+  const valgte = Object.entries(LEGEMER)
+    .filter(([navn]) => !bare.length || bare.includes(navn))
+  if (!valgte.length) {
+    process.stderr.write(`Ukjent legeme. Velg blant: ${Object.keys(LEGEMER).join(', ')}\n`)
+    process.exit(1)
+  }
 
-let ok = 0
-for (const [navn, kilder] of valgte) {
-  if (await hent(navn, kilder)) ok++
-}
+  let ok = 0
+  for (const [navn, kilder] of valgte) {
+    if (await hent(navn, kilder)) ok++
+  }
 
-// AVSLUTTER MED 0 UANSETT. Globene virker uten teksturene, og en jobb som feiler
-// på at NASA er nede ville blitt skrudd av innen en måned — samme resonnement som
-// for de tredjeparts røyktestene i deploy-proxy.yml.
-process.stderr.write(`\n${ok} av ${valgte.length} kart på plass.\n`)
+  // AVSLUTTER MED 0 UANSETT. Globene virker uten teksturene, og en jobb som
+  // feiler på at NASA er nede ville blitt skrudd av innen en måned — samme
+  // resonnement som for de tredjeparts røyktestene i deploy-proxy.yml.
+  //
+  // LES DENNE LINJA. Den er den eneste måten å oppdage en råtnet URL, siden alt
+  // annet fortsetter å virke.
+  process.stderr.write(`\n${ok} av ${valgte.length} kart på plass.\n`)
+}
