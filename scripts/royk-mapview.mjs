@@ -1023,7 +1023,12 @@ const SJEKKER = [
 
       // MINIMER (v6.1.0): navnet blir stående, lesestoffet forsvinner. Vi måler
       // på «Historien», som bare finnes i det utvidede kortet.
-      const harHistorien = () => evalMedTak(page, () => /Historien|Verdt å vite|Månegloben/
+      // CASE-INSENSITIVT: «Historien» og «Verdt å vite» er overskrifter med
+      // `uppercase`, og `innerText` gir rendret tekst. Uten /i traff bare
+      // «Månegloben», som er løpende tekst — så sjekken var halvblind og bare
+      // grønn fordi den ikke kunne feile. Oppdaget da fakta-sjekken feilet på
+      // samme årsak.
+      const harHistorien = () => evalMedTak(page, () => /Historien|Verdt å vite|Månegloben|Fakta/i
         .test(document.body.innerText))
       const utvidetFor = await harHistorien()
       await page.locator('button[aria-label="Minimer infokortet"]').click({ timeout: 5000 })
@@ -1094,9 +1099,14 @@ const SJEKKER = [
         const t = document.body.innerText
         const lenke = (v) => !!document.querySelector(`a[href*="${v}"]`)
         return {
-          fakta: /\bFakta\b/.test(t),
-          utforsket: /\bUtforsket\b/.test(t),
-          maner: /(måner|måne:|Ingen måner)/.test(t),
+          // CASE-INSENSITIVT, OG DET ER IKKE SLURV: `innerText` er RENDRET tekst,
+          // og Chromium bruker `text-transform` på den. Overskriftene i kortet
+          // har `uppercase`, så «Fakta» kommer ut som «FAKTA». Første utgave av
+          // denne sjekken feilet på nettopp det — og den samme fella gjorde
+          // `harHistorien` under blind, se kommentaren der.
+          fakta: /\bfakta\b/i.test(t),
+          utforsket: /\butforsket\b/i.test(t),
+          maner: /(måner|måne:|ingen måner)/i.test(t),
           snl: lenke('snl.no'),
           wiki: lenke('wikipedia.org'),
           arstall: (t.match(/\b(1[5-9]\d\d|20[0-3]\d)\b/g) ?? []).length,
@@ -1640,6 +1650,24 @@ try {
         page.screenshot({ path: `${BILDER}/${s.domene}.png` }),
         SKJERMBILDE_TAK_MS, `skjermbilde etter ${s.navn}`,
       ).catch((e) => console.log(`  ⚠ ${e.message}`))
+    }
+
+    // EN FEILET SJEKK SKAL IKKE ØDELEGGE DEN NESTE. Hver sjekk rydder etter seg
+    // selv på veien ut — men en sjekk som KASTER kommer aldri dit, og etterlater
+    // appen der den døde. Det skjedde 2026-08-28: fakta-sjekken feilet med
+    // månegloben åpen, og nattmodus-sjekken etter den dro i kula i stedet for
+    // kameraet og rapporterte «kompasset står stille». To feil i loggen, én
+    // årsak — og den andre var ren støy som kostet en runde å avskrive.
+    //
+    // ETTER SKJERMBILDET, ikke før: bildet er bevismaterialet for feilen.
+    // localStorage overlever en reload, så sjekker som lagrer et valg er urørt.
+    if (!resultat[resultat.length - 1].ok && !resultat[resultat.length - 1].hoppet) {
+      await medTak((async () => {
+        await page.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await page.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+      })(), 60_000, `nullstilling etter ${s.navn}`)
+        .catch((e) => console.log(`  ⚠ ${e.message}`))
     }
   }
 
