@@ -879,16 +879,19 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   minimer/utvid, lukk. Knappene skal ligge på samme sted enten kortet er
   sammenlagt eller åpent, så man ikke må lete etter dem på nytt.
 
-  **ET BYTTE BEHOLDER KORTETS TILSTAND, første valg åpner (v6.3.7).** Har man
-  lagt kortet sammen, er man i «se på himmelen»-modus, og et nytt stjernebilde
-  skal flytte KAMERAET uten å skyve lesestoffet tilbake i ansiktet. Regelen er
-  «behold», ikke «lås»: første valg åpner, fordi der har man nettopp spurt hva noe
-  er. Nabo-hoppet minimerer fortsatt selv — det er den motsatte handlingen.
-  **Regelen bor i ÉN funksjon (`settKortTilstand`) fordi TO steder leser den:**
-  `velgHimmel` (lista) og `himmel-valgt`-handleren (trykk i himmelen). Den siste
-  setter `valgtHimmel` direkte og går ikke gjennom den første, så to kopier kommer
-  i utakt — og da oppfører de to veiene til samme valg seg ulikt, som er nøyaktig
-  feilen fra v6.1.1 speilvendt.
+  **NAVIGASJON MINIMERER, ET TRYKK ÅPNER (v6.3.10).** Søkelista og
+  nabo-snarveiene går gjennom `velgOgSe` og legger ALLTID kortet sammen: å plukke
+  et navn fra nedtrekkslista er navigasjon — man har alt bestemt seg for hva man
+  vil se — og en tekstblokk over halve himmelen står i veien for nettopp det.
+  Trykk i himmelen er den motsatte handlingen og går gjennom `settKortTilstand`:
+  første trykk ÅPNER (man har pekt på noe og spurt hva det er), et bytte BEHOLDER
+  tilstanden (v6.3.7), så et nytt trykk med sammenlagt kort flytter kameraet uten
+  å skyve lesestoffet tilbake i ansiktet.
+  **Tilstanden eies av `Viewer3D` og ikke av kortet fordi det er KALLEREN som vet
+  hva som utløste valget.** `himmel-valgt`-handleren setter `valgtHimmel` direkte
+  og går ikke gjennom `velgHimmel`, så den MÅ kalle `settKortTilstand` selv —
+  uten det arver et trykk på månen minimeringen fra forrige hopp, og kortet kommer
+  sammenlagt når man nettopp har spurt hva noe er (feilen i v6.1.1).
 
   **«SETT I FOKUS» (krysshår) STÅR BARE I DEN MINIMERTE PILLA (v6.3.5).** Den
   retter blikket mot det som ALT er valgt, via `scene3d.fokuserHimmel` — som BARE

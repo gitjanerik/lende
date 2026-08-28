@@ -193,25 +193,23 @@ function byggHimmelListe() {
 }
 
 // Infokortet kan legges sammen til én linje. Tilstanden eies HER og ikke i
-// kortet, fordi det er kalleren som vet hva som utløste valget: et nabo-hopp skal
-// minimere, et valg fra lista eller et trykk i himmelen skal ikke.
+// kortet, fordi det er kalleren som vet hva som utløste valget: navigasjon
+// (søkelista, nabo-snarveiene) minimerer, et trykk i himmelen åpner.
 const kortMinimert = ref(false)
 
 /**
  * Skal kortet åpnes for dette valget, eller beholde tilstanden det står i?
  *
- * FØRSTE VALG ÅPNER: man har nettopp spurt hva noe er, og et sammenlagt kort
- * ville da skjult svaret.
+ * Denne gjelder ETT valg: TRYKK I HIMMELEN. Da har man pekt på noe og spurt hva
+ * det er, så første trykk åpner kortet — et sammenlagt kort ville skjult svaret.
  *
  * ET BYTTE BEHOLDER (v6.3.7): har man lagt kortet sammen, er man i «se på
- * himmelen»-modus — og da skal et nytt stjernebilde flytte KAMERAET, ikke skyve
- * lesestoffet tilbake i ansiktet. Fram til nå åpnet hvert valg kortet på nytt, så
- * man måtte legge det sammen igjen for hvert hopp.
+ * himmelen»-modus, og et nytt trykk skal flytte KAMERAET uten å skyve lesestoffet
+ * tilbake i ansiktet.
  *
- * REGELEN BOR HER FORDI TO STEDER LESER DEN: `velgHimmel` (lista) og
- * `himmel-valgt`-handleren (trykk i himmelen). To kopier ville kommet i utakt, og
- * da oppfører de to veiene til samme valg seg ulikt — nøyaktig feilen som ble
- * rettet i v6.1.1, bare speilvendt.
+ * NAVIGASJON GÅR ANDRE VEIEN — se velgOgSe: søkelista og nabo-snarveiene
+ * minimerer alltid. Tidligere delte lista denne regelen, og da åpnet det første
+ * valget fra nedtrekkslista kortet over halve himmelen (v6.3.10).
  *
  * @param {boolean} haddeKort sto det et kort framme FØR dette valget?
  */
@@ -220,21 +218,22 @@ function settKortTilstand(haddeKort) {
 }
 
 /**
- * Hopp til en nabo — og legg kortet sammen. Hele poenget med stjernehopping er å
- * SE det man hoppet til; en tekstblokk over halve himmelen står i veien for
- * nettopp det. Vil man lese om den nye, er kortet ett trykk unna.
+ * Valg fra SØKELISTA og fra NABO-SNARVEIENE: flytt blikket, og la himmelen være
+ * synlig. Begge er navigasjon — man har alt bestemt seg for hva man vil se — og en
+ * tekstblokk over halve himmelen står i veien for nettopp det. Vil man lese, er
+ * kortet ett trykk unna.
+ *
+ * Det er KALLEREN som vet hva som utløste valget, og det er derfor tilstanden
+ * eies her og ikke i kortet: trykk i himmelen er den motsatte handlingen, og den
+ * åpner (se settKortTilstand).
  */
-function velgNabo(o) {
+function velgOgSe(o) {
   velgHimmel(o)
-  kortMinimert.value = true
+  if (o) kortMinimert.value = true
 }
 
 function velgHimmel(o) {
-  const haddeKort = !!valgtHimmel.value
   valgtHimmel.value = o ?? null
-  // Første valg åpner kortet; et bytte beholder tilstanden. velgNabo minimerer
-  // etterpå uansett, som er unntaket. Se settKortTilstand.
-  settKortTilstand(haddeKort)
   engine?.velgHimmel(o ? toRaw(o) : null)
   // Motoren melder tilbake gjennom 'globe', men bare når tilstanden FAKTISK
   // endret seg. Velger man noe uten globe — et stjernebilde, Merkur, Venus — er
@@ -460,12 +459,11 @@ async function byggMotor() {
     // Trykket nål (POI, start/mål/via, parkering) — turen er pauset og
     // kameraet løsnet av motoren.
     engine.on('feature', ({ feature }) => { pickedFeature.value = feature })
-    // TRYKK I HIMMELEN. Motoren har alt fremhevet og rettet blikket; viseren
-    // styrer kortet. Handleren setter `valgtHimmel` DIREKTE og går ikke gjennom
-    // `velgHimmel`, så den må kalle samme regel selv — ellers oppfører de to
-    // veiene til samme valg seg ulikt. Det var feilen i v6.1.1: uten dette arvet
-    // et trykk på månen minimeringen fra forrige nabo-hopp, og kortet kom
-    // sammenlagt når man nettopp hadde spurt hva noe var.
+    // TRYKK I HIMMELEN — den ENE veien som ÅPNER kortet. Motoren har alt
+    // fremhevet og rettet blikket; viseren styrer kortet. Uten et kall til
+    // settKortTilstand her arvet et trykk på månen minimeringen fra forrige
+    // nabo-hopp, og kortet kom sammenlagt når man nettopp hadde spurt hva noe var
+    // (feilen i v6.1.1).
     engine.on('himmel-valgt', ({ objekt }) => {
       const haddeKort = !!valgtHimmel.value
       valgtHimmel.value = objekt
@@ -1084,7 +1082,7 @@ function branchLabel(opt, i) {
         <div v-if="himmelSokSynlig" class="flex-1 min-w-0 flex justify-center"
              :style="{ zoom: uiTextScale }">
           <Tour3dHimmelSok :objekter="himmelListe" :valgt-id="valgtHimmel?.id ?? null"
-                           :dempet="stjernemodus" @velg="velgHimmel"/>
+                           :dempet="stjernemodus" @velg="velgOgSe"/>
         </div>
 
         <!-- X-en. Dempet ned i nattmodus, som sol/måne: en hvit flate koster de
@@ -1114,7 +1112,7 @@ function branchLabel(opt, i) {
              `@fokus` kommer bare fra den MINIMERTE pilla (v6.3.5) — se kortet. -->
         <Tour3dHimmelKort :objekt="valgtHimmel" :naboer="himmelNaboer"
                           :minimert="kortMinimert"
-                          @lukk="velgHimmel(null)" @velg="velgNabo"
+                          @lukk="velgHimmel(null)" @velg="velgOgSe"
                           @minimer="kortMinimert = true" @utvid="kortMinimert = false"
                           @fokus="engine?.fokuserHimmel()"/>
       </div>

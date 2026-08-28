@@ -1,3 +1,17 @@
+## 2026-08-28 — v6.3.10: Et valg fra søkelista minimerer infopanelet
+
+Å plukke et navn fra nedtrekkslista er NAVIGASJON — man har alt bestemt seg for
+hva man vil se — så kortet skal ikke legge seg over halve himmelen på veien dit.
+Søkelista og nabo-snarveiene deler nå én funksjon (`velgOgSe`) som alltid
+minimerer, mens trykk i himmelen beholder den motsatte regelen: første trykk
+åpner, fordi der har man pekt på noe og spurt hva det er. Det gjør skillet
+skarpere enn det var: tidligere delte lista trykkets regel, så det første valget
+fra nedtrekkslista åpnet kortet i full høyde selv om man bare skulle se dit.
+Røyk-sjekken måler den nye retningen — et listevalg skal gi pille, og lesestoffet
+skal komme først når man utvider.
+
+---
+
 ## 2026-08-28 — v6.3.9: Fremhevingen ble klippet, og sju figurer hadde streker vi hadde funnet opp
 
 Eieren meldte at streker manglet når et stjernebilde var markert, og at det ikke
