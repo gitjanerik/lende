@@ -1157,6 +1157,35 @@ const SJEKKER = [
         // Er den tom, er det lista som er brutt — ikke astronomien.
         throw new Error('fant verken månen, Mars, Jupiter eller Saturn i himmellista')
       }
+
+      // GLOBE-MERKET i lista (v6.3.2): raden for et legeme med globe skal bære
+      // trådkloden, og en formasjon skal IKKE. Måles som et FORHOLD og ikke som
+      // et absolutt antall: hvilke legemer som er oppe avhenger av dato, men at
+      // merket står på riktige rader gjør det ikke.
+      const merker = await evalMedTak(page, () => {
+        const rader = [...document.querySelectorAll('ul[aria-label="Treff på himmelen"] li button')]
+        let medMerke = 0
+        let formasjonMedMerke = 0
+        for (const r of rader) {
+          const harMerke = /kan åpnes som globe/.test(r.textContent)
+          if (harMerke) medMerke++
+          // Formasjonene har ✦ som type-ikon.
+          if (harMerke && r.textContent.includes('✦')) formasjonMedMerke++
+        }
+        return { rader: rader.length, medMerke, formasjonMedMerke }
+      })
+      if (!merker.medMerke) {
+        throw new Error('ingen rad i himmellista bærer globe-merket, men '
+          + `«${medGlobe}» står der`)
+      }
+      if (merker.formasjonMedMerke) {
+        throw new Error(`${merker.formasjonMedMerke} stjernebilde(r) fikk globe-merket `
+          + '— et merke som lover en globe som ikke finnes')
+      }
+      if (merker.medMerke > 4) {
+        throw new Error(`${merker.medMerke} rader bærer globe-merket, men bare fire `
+          + 'legemer har globe')
+      }
       await page.locator('ul[aria-label="Treff på himmelen"] li button')
         .filter({ hasText: medGlobe }).first().click({ timeout: 5000 })
       // Globen vokser fram over noen frames, og labelene kommer først når den er
@@ -1166,7 +1195,8 @@ const SJEKKER = [
         return n > 0 ? n : false
       }, null, { timeout: 20_000 }).then((x) => x.jsonValue()).catch(() => 0)
       if (!trekk) throw new Error(`åpnet globen for «${medGlobe}», men ingen stedsnavn kom`)
-      const globeUtfall = `${medGlobe}-globen ga ${trekk} stedsnavn`
+      const globeUtfall = `${medGlobe}-globen ga ${trekk} stedsnavn; `
+        + `globe-merket på ${merker.medMerke} av ${merker.rader} rader`
 
       // ASTRONOMISKE FAKTA (v6.3.0). Kortet for et legeme skal bære nøkkeltall,
       // utforskningshistorie og lenker til SNL og Wikipedia. Alt er DATA, så
