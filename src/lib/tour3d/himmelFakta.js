@@ -15,6 +15,13 @@
 // nettleseren og krever altså dekning — derfor står FAKTAENE her, og lenkene er
 // bare veien videre for den som vil lese mer når hun er hjemme igjen.
 //
+// SNL-ADRESSENE ER MÅLT, IKKE UTLEDET (v6.3.6). Mønsteret er IKKE ensartet:
+// Merkur, Venus, Jupiter og Saturn ligger på det korte navnet (`snl.no/Venus`),
+// mens MARS faktisk bor på `snl.no/Mars_-_planet`. Jupiter sto feil i tre
+// leveranser fordi suffikset ble antatt å gjelde alle fem. Kjør
+// `npm run probe:lenker` (eller probe-himmellenker.yml i CI) framfor å gjette —
+// snl.no er sperret fra utviklingsmiljøene, så en lenke kan ikke prøves her.
+//
 // KILDER for tallene: NASA/JPL Solar System Dynamics (månetall og oppdagelser),
 // IAU Minor Planet Center (månenavn) og oppdragsoversiktene til NASA, ESA, ISRO,
 // CNSA og Roskosmos. Månetallene endrer seg — nye småmåner blir funnet — så de er
@@ -85,7 +92,7 @@ export const HIMMEL_FAKTA = {
       { ar: '2011–15', tekst: 'MESSENGER går i bane rundt Merkur og kartlegger den helt.' },
       { ar: '2025', tekst: 'BepiColombo (ESA/JAXA) skal gå i bane etter seks forbiflyvninger.' },
     ],
-    snl: 'https://snl.no/Merkur_-_planet',
+    snl: 'https://snl.no/Merkur',
     wikipedia: 'https://no.wikipedia.org/wiki/Merkur_(planet)',
   },
 
@@ -107,7 +114,7 @@ export const HIMMEL_FAKTA = {
       { ar: '2006–14', tekst: 'ESAs Venus Express studerer atmosfæren.' },
       { ar: '2030-tallet', tekst: 'DAVINCI og VERITAS (NASA) og EnVision (ESA) er planlagt.' },
     ],
-    snl: 'https://snl.no/Venus_-_planet',
+    snl: 'https://snl.no/Venus',
     wikipedia: 'https://no.wikipedia.org/wiki/Venus_(planet)',
   },
 
@@ -185,7 +192,7 @@ export const HIMMEL_FAKTA = {
       { ar: '2017', tekst: 'Cassini sendes ned i Saturns atmosfære for ikke å forurense månene.' },
       { ar: '2028', tekst: 'Dragonfly (NASA) skal fly som et drone-helikopter på Titan.' },
     ],
-    snl: 'https://snl.no/Saturn_-_planet',
+    snl: 'https://snl.no/Saturn',
     wikipedia: 'https://no.wikipedia.org/wiki/Saturn_(planet)',
   },
 }

@@ -94,6 +94,7 @@ export const STJERNEBILDE_INFO = {
   },
   'lille-bjorn': {
     latin: 'Ursa Minor',
+    wikipedia: 'https://no.wikipedia.org/wiki/Lille_bj%C3%B8rn',
     mytologi: 'Kallistos sønn Arkas, satt på himmelen ved sida av mora si. Formen '
       + 'er den samme som Karlsvogna, bare mindre og svakere.',
     funFact: 'Polstjerna — Polaris — sitter i enden av skaftet, 0,7° fra '
@@ -127,7 +128,6 @@ export const STJERNEBILDE_INFO = {
   },
   orion: {
     latin: 'Orion',
-    // IKKE VERIFISERT — se probe-himmellenker.yml
     wikipedia: 'https://no.wikipedia.org/wiki/Orion_(stjernebilde)',
     mytologi: 'Jegeren som skrøt av at han kunne drepe alt levende, og ble drept '
       + 'av en skorpion. De to står på motsatt side av himmelen, så de aldri '
@@ -167,7 +167,6 @@ export const STJERNEBILDE_INFO = {
   },
   tvillingene: {
     latin: 'Gemini',
-    // IKKE VERIFISERT — se probe-himmellenker.yml
     wikipedia: 'https://no.wikipedia.org/wiki/Tvillingene_(stjernebilde)',
     mytologi: 'Castor og Pollux, dioskurene. Da Castor døde, ba Pollux om å få '
       + 'dele udødeligheten sin med broren, og de fikk vekselvis en dag hver.',
