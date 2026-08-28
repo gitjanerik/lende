@@ -1,3 +1,15 @@
+## 2026-08-28 — v6.3.3: Bruksanvisningen ut av infokortet
+
+Infokortet for månen, Mars, Jupiter og Saturn åpnet med en instruksjon — «dra for å snurre Mars, og trykk én gang for å legge den tilbake på himmelen» — og i lukket tilstand med en tilsvarende «trykk på mars for å se planeten som en kule du kan snurre». Begge er borte etter felttest.
+
+Grunnen er at gesten ikke trenger ord. Trykk-ringen fra v6.3.2 sier at legemet kan åpnes, globe-merket i søkelista sier hvem som kan det, og at man drar i en kule for å snurre den er det man prøver først uansett. En instruksjon som forklarer det åpenbare stjeler linjer fra det man faktisk kom for å lese — og i et kort som nå bærer fakta, månetall og utforskningshistorie er linjer en knapp ressurs. `omtale` står igjen: det ene faktumet om legemet som er verdt å ta med seg.
+
+To ting fulgte av det, og begge er ryddet i samme slengen. `globeAapen`-propen på kortet ble død — den fantes bare for å velge mellom de to bruksanvisningene — og en prop ingen leser er nettopp den stille gjelden navnediff finnes for. Og i røyktesten sto «Månegloben» som et alternativ i regexen som avgjør om kortet er utvidet; ordet finnes bare i kodekommentarer og har aldri stått i UI-et, så det kunne ikke matche noe. Et alternativ som aldri kan treffe skjuler at de andre ikke traff heller.
+
+Testen håndhever nå at `bruk` IKKE finnes i `GLOBE_TEKST`. En tekst er lett å legge tilbake i god tro.
+
+---
+
 ## 2026-08-28 — v6.3.2: Trykkbare planeter, rullbart infokort og et blikk man kan løfte med mus
 
 Tre feltfunn fra v6.3.1, og de henger sammen i at 3D-visningen var laget for en finger på en telefon.

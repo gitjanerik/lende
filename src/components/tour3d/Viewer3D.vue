@@ -1063,8 +1063,11 @@ function branchLabel(opt, i) {
       <div v-if="phase === 'ready' && valgtHimmel"
            class="relative z-10 px-3 mt-2 flex justify-center max-h-[52vh] overflow-y-auto"
            :style="{ zoom: uiTextScale }">
+        <!-- `globe-aapen` er BORTE (v6.3.3): kortet brukte den bare til å velge
+             mellom to bruksanvisninger, og begge er fjernet. En prop ingen leser
+             er nettopp den stille gjelden navnediff finnes for. -->
         <Tour3dHimmelKort :objekt="valgtHimmel" :naboer="himmelNaboer"
-                          :globe-aapen="globeAapen" :minimert="kortMinimert"
+                          :minimert="kortMinimert"
                           @lukk="velgHimmel(null)" @velg="velgNabo"
                           @minimer="kortMinimert = true" @utvid="kortMinimert = false"
                           @fokus="engine?.fokuserHimmel()"/>

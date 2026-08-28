@@ -163,32 +163,31 @@ export const HIMMELLEGEMER = {
  * fordi den siste er GEOMETRI og tall — det som styrer hvordan kula tegnes — og
  * teksten er noe man skriver om uten å røre en eneste koordinat.
  *
- * `bruk` sier hvordan man snurrer kula. `omtale` er det ene faktumet som er verdt
- * å ta med seg. Begge er korte med vilje: kortet står oppå himmelen man ville se.
+ * `omtale` er det ene faktumet som er verdt å ta med seg, og kort med vilje:
+ * kortet står oppå himmelen man ville se.
+ *
+ * DET FANTES ET `bruk`-FELT MED EN BRUKSANVISNING — «dra for å snurre, trykk for
+ * å legge den tilbake» — og det er FJERNET i v6.3.3 etter felttest. Grunnen er at
+ * gesten viste seg å ikke trenge ord: trykk-ringen (v6.3.2) sier at legemet kan
+ * åpnes, og at man drar i en kule for å snurre den er det man prøver først
+ * uansett. En instruksjon som forklarer det åpenbare stjeler linjer fra det man
+ * faktisk kom for å lese. Ikke legg den tilbake uten en ny observasjon.
  */
 export const GLOBE_TEKST = {
   mane: {
-    bruk: 'Dra for å snurre kula, og trykk én gang for å legge den tilbake på '
-      + 'himmelen. Skyggelinja er der den faktisk er i kveld.',
     omtale: 'Månen snur alltid samme side mot oss — den bruker like lang tid på '
       + 'én runde om sin egen akse som om jorda.',
   },
   mars: {
-    bruk: 'Dra for å snurre Mars, og trykk én gang for å legge den tilbake på '
-      + 'himmelen.',
     omtale: 'Et døgn på Mars er 24 timer og 37 minutter — nesten vårt eget. Året '
       + 'er derimot nesten to av våre, så hver årstid varer dobbelt så lenge.',
   },
   jupiter: {
-    bruk: 'Dra for å snurre Jupiter, og trykk én gang for å legge den tilbake på '
-      + 'himmelen.',
     omtale: 'Jupiter snurrer rundt på under ti timer, så rask at planeten er '
       + 'merkbart flatklemt ved polene. Den har ingen fast overflate å lande på — '
       + 'skyene bare blir tettere nedover.',
   },
   saturn: {
-    bruk: 'Dra for å snurre Saturn, og trykk én gang for å legge den tilbake på '
-      + 'himmelen.',
     omtale: 'Ringene er milliarder av isbiter, fra sandkorn til hus, i et lag som '
       + 'stort sett er under tjue meter tykt. Saturn er dessuten så lett at den '
       + 'ville flytt i vann.',
