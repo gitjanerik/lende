@@ -214,6 +214,27 @@ export async function createSceneCore(container, {
   // er den som står framme nå.
   const globeCache = new Map()
   let globe = null
+
+  /**
+   * RENDER-LAGET GLOBEN LIGGER I, og hvorfor den trenger et eget.
+   *
+   * Globen henger `GLOBE_AVSTAND` (4 km) foran kameraet i legemets VIRKELIGE
+   * himmelretning — det er invarianten som gjør 3D til å stole på. Står legemet
+   * lavt, som Mars på 3° over horisonten, havner kula altså delvis under
+   * terrengets nivå, og arket skjærer rett gjennom planeten. Eieren så en Mars
+   * kuttet i to av en kartflis.
+   *
+   * De to andre utveiene ble forkastet: å LØFTE globen ville løyet om hvor
+   * legemet står, og `depthTest = false` på materialene ville lagt Saturns ringer
+   * foran planeten også der de går bak den.
+   *
+   * Løsningen er standardmønsteret for et «alltid øverst»-objekt: hovedscenen
+   * tegnes først, dybdebufferet tømmes, og globen tegnes i en andre pass. Da er
+   * dybden fortsatt korrekt INNE i globen (ringene ligger riktig), men ingenting
+   * i landskapet kan skjære den. Globen er en objekt-inspektør, og en inspektør
+   * hører øverst.
+   */
+  const GLOBE_LAG = 1
   let globeRetning = null
   // Kula vokser fram fra skiva den var. Tallet er andelen av full størrelse.
   let globeSkala = 0
@@ -467,7 +488,22 @@ export async function createSceneCore(container, {
     start: () => loop.start(),
     resize: () => loop.resize(),
 
-    render() { renderer.render(scene, camera) },
+    render() {
+      // Hovedscenen: alt UNNTATT globe-laget.
+      camera.layers.set(0)
+      renderer.render(scene, camera)
+      // Globen oppå, med tømt dybdebuffer. Se GLOBE_LAG for hvorfor.
+      // `autoClear` MÅ av rundt den andre passen — med den på ville
+      // `render` tømt fargebufferet og vasket bort landskapet vi nettopp tegnet.
+      if (globe?.group.visible) {
+        renderer.autoClear = false
+        renderer.clearDepth()
+        camera.layers.set(GLOBE_LAG)
+        renderer.render(scene, camera)
+        renderer.autoClear = true
+        camera.layers.set(0)
+      }
+    },
 
     // Bakgrunnsbevegelse som ikke avhenger av hva kalleren gjør med kameraet.
     updateAmbient(dt, timeS = null) {
@@ -651,6 +687,10 @@ export async function createSceneCore(container, {
           // sperret fra utviklingsmiljøene).
           teksturUrl: `${import.meta.env?.BASE_URL ?? '/'}data/${HIMMELLEGEMER[o.legeme].tekstur}`,
         })
+        // HELE gruppa inn i globe-laget, LYSENE MED. Regelen bor i globen selv
+        // (settRenderLag) fordi den har to feller som er lette å tråkke i her:
+        // lys må også bestå lagtesten, og laget arves ikke av barna.
+        globe.settRenderLag(GLOBE_LAG)
         scene.add(globe.group)
         loop.track(globe)
         globeCache.set(o.legeme, globe)
