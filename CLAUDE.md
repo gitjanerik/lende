@@ -834,6 +834,17 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   minimer/utvid, lukk. Knappene skal ligge på samme sted enten kortet er
   sammenlagt eller åpent, så man ikke må lete etter dem på nytt.
 
+  **ET BYTTE BEHOLDER KORTETS TILSTAND, første valg åpner (v6.3.7).** Har man
+  lagt kortet sammen, er man i «se på himmelen»-modus, og et nytt stjernebilde
+  skal flytte KAMERAET uten å skyve lesestoffet tilbake i ansiktet. Regelen er
+  «behold», ikke «lås»: første valg åpner, fordi der har man nettopp spurt hva noe
+  er. Nabo-hoppet minimerer fortsatt selv — det er den motsatte handlingen.
+  **Regelen bor i ÉN funksjon (`settKortTilstand`) fordi TO steder leser den:**
+  `velgHimmel` (lista) og `himmel-valgt`-handleren (trykk i himmelen). Den siste
+  setter `valgtHimmel` direkte og går ikke gjennom den første, så to kopier kommer
+  i utakt — og da oppfører de to veiene til samme valg seg ulikt, som er nøyaktig
+  feilen fra v6.1.1 speilvendt.
+
   **«SETT I FOKUS» (krysshår) STÅR BARE I DEN MINIMERTE PILLA (v6.3.5).** Den
   retter blikket mot det som ALT er valgt, via `scene3d.fokuserHimmel` — som BARE
   flytter kameraet: `velgHimmel(samme)` ville også åpnet globen på nytt og skrevet

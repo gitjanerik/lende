@@ -1145,6 +1145,36 @@ const SJEKKER = [
         if (!(await evalMedTak(page, () => document.body.innerText)).includes(nabo)) {
           throw new Error(`hoppet til «${nabo}», men kortet nevner den ikke`)
         }
+        // ET BYTTE BEHOLDER TILSTANDEN (v6.3.7). Kortet er sammenlagt nå, og et
+        // nytt valg fra lista skal flytte KAMERAET uten å skyve lesestoffet
+        // tilbake i ansiktet. Vi velger noe annet og krever at det fortsatt er
+        // sammenlagt — og at navnet FULGTE med, ellers flyttet ingenting seg.
+        await page.locator('button[aria-label^="Valgt:"]').click({ timeout: 8000 })
+        await page.waitForTimeout(400)
+        const annet = await evalMedTak(page, (unntak) => {
+          const b = [...document.querySelectorAll('ul[aria-label="Treff på himmelen"] li button')]
+            .find((e) => !e.textContent.includes(unntak))
+          return b ? (b.querySelector('span.block')?.textContent ?? '').trim() : null
+        }, nabo)
+        if (annet) {
+          await page.locator('ul[aria-label="Treff på himmelen"] li button')
+            .filter({ hasText: annet }).first().click({ timeout: 5000 })
+          await page.waitForTimeout(1600)
+          if (await harHistorien()) {
+            throw new Error(`byttet til «${annet}» med sammenlagt kort, men kortet `
+              + 'åpnet seg — et bytte skal beholde tilstanden')
+          }
+          if (!(await evalMedTak(page, () => document.body.innerText)).includes(annet)) {
+            throw new Error(`byttet til «${annet}», men pilla viser den ikke`)
+          }
+          // Og kortet skal fortsatt kunne åpnes — regelen er «behold», ikke «lås».
+          await page.locator(`button[aria-label="Vis mer om ${annet}"]`).click({ timeout: 5000 })
+          await page.waitForTimeout(400)
+          if (!await harHistorien()) {
+            throw new Error('kortet lot seg ikke åpne etter et bytte — regelen er '
+              + '«behold tilstanden», ikke «lås sammenlagt»')
+          }
+        }
       }
 
       // GLOBENE (v6.2.0): månen, Mars, Jupiter og Saturn kan åpnes som roterbare

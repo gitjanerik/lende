@@ -1,3 +1,15 @@
+## 2026-08-28 — v6.3.7: Et bytte av stjernebilde beholder kortet sammenlagt
+
+Har man lagt infokortet sammen, er man i «se på himmelen»-modus — og da skal et nytt stjernebilde flytte kameraet uten å skyve lesestoffet tilbake i ansiktet. Fram til nå åpnet hvert valg kortet på nytt, så man måtte legge det sammen igjen for hvert hopp.
+
+Regelen er «behold», ikke «lås»: første valg åpner fortsatt kortet, for der har man nettopp spurt hva noe er, og et sammenlagt kort ville skjult svaret. Etter et bytte kan kortet åpnes som før. Nabo-hoppet minimerer fortsatt av seg selv, som er den motsatte handlingen — man hopper for å se.
+
+Den bor i én funksjon fordi TO steder leser den: valget fra søkelista og trykket i himmelen. Handleren for trykk setter tilstanden direkte og går ikke gjennom `velgHimmel`, så to kopier ville kommet i utakt — og da oppfører de to veiene til samme valg seg ulikt. Det var nøyaktig feilen som ble rettet i v6.1.1, bare speilvendt.
+
+Røyk-sjekken dekker begge halvdeler: at et bytte med sammenlagt kort holder det sammenlagt og at navnet følger med, og at kortet fortsatt lar seg åpne etterpå. Rekkefølgen i sjekken måtte flyttes — den nye delen bytter bort fra naboen, så nabo-hoppets egen kontroll må komme først.
+
+---
+
 ## 2026-08-28 — v6.3.6: Wikipedia-lenker til stjernebildene, norske navn og fire døde SNL-adresser
 
 Alle tretten stjernebilder har fått en Wikipedia-pille i infokortet, med samme form legemene har. Teksten står fortsatt i appen fordi bruksområdet er en kveld uten dekning; lenka er veien videre for den som vil lese mer hjemme igjen. Stjernebildene får bare Wikipedia — SNL har ikke en artikkel per stjernebilde, og en pille dit ville vært et løfte vi ikke kan holde.

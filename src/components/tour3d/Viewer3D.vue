@@ -198,6 +198,28 @@ function byggHimmelListe() {
 const kortMinimert = ref(false)
 
 /**
+ * Skal kortet åpnes for dette valget, eller beholde tilstanden det står i?
+ *
+ * FØRSTE VALG ÅPNER: man har nettopp spurt hva noe er, og et sammenlagt kort
+ * ville da skjult svaret.
+ *
+ * ET BYTTE BEHOLDER (v6.3.7): har man lagt kortet sammen, er man i «se på
+ * himmelen»-modus — og da skal et nytt stjernebilde flytte KAMERAET, ikke skyve
+ * lesestoffet tilbake i ansiktet. Fram til nå åpnet hvert valg kortet på nytt, så
+ * man måtte legge det sammen igjen for hvert hopp.
+ *
+ * REGELEN BOR HER FORDI TO STEDER LESER DEN: `velgHimmel` (lista) og
+ * `himmel-valgt`-handleren (trykk i himmelen). To kopier ville kommet i utakt, og
+ * da oppfører de to veiene til samme valg seg ulikt — nøyaktig feilen som ble
+ * rettet i v6.1.1, bare speilvendt.
+ *
+ * @param {boolean} haddeKort sto det et kort framme FØR dette valget?
+ */
+function settKortTilstand(haddeKort) {
+  if (!haddeKort) kortMinimert.value = false
+}
+
+/**
  * Hopp til en nabo — og legg kortet sammen. Hele poenget med stjernehopping er å
  * SE det man hoppet til; en tekstblokk over halve himmelen står i veien for
  * nettopp det. Vil man lese om den nye, er kortet ett trykk unna.
@@ -208,10 +230,11 @@ function velgNabo(o) {
 }
 
 function velgHimmel(o) {
+  const haddeKort = !!valgtHimmel.value
   valgtHimmel.value = o ?? null
-  // Et nytt valg åpner kortet: man har nettopp spurt hva noe er.
-  // velgNabo minimerer etterpå, som er unntaket.
-  kortMinimert.value = false
+  // Første valg åpner kortet; et bytte beholder tilstanden. velgNabo minimerer
+  // etterpå uansett, som er unntaket. Se settKortTilstand.
+  settKortTilstand(haddeKort)
   engine?.velgHimmel(o ? toRaw(o) : null)
   // Motoren melder tilbake gjennom 'globe', men bare når tilstanden FAKTISK
   // endret seg. Velger man noe uten globe — et stjernebilde, Merkur, Venus — er
@@ -437,17 +460,16 @@ async function byggMotor() {
     // Trykket nål (POI, start/mål/via, parkering) — turen er pauset og
     // kameraet løsnet av motoren.
     engine.on('feature', ({ feature }) => { pickedFeature.value = feature })
-    // Trykk i himmelen: motoren har alt fremhevet og rettet blikket, viseren
-    // åpner kortet.
     // TRYKK I HIMMELEN. Motoren har alt fremhevet og rettet blikket; viseren
-    // åpner kortet. `kortMinimert` MÅ nullstilles her: handleren setter
-    // valgtHimmel direkte og går ikke gjennom velgHimmel, så uten dette arvet et
-    // trykk på månen (eller et hvilket som helst himmellegeme) minimeringen fra
-    // forrige nabo-hopp — og kortet kom sammenlagt når man nettopp hadde spurt
-    // hva noe var.
+    // styrer kortet. Handleren setter `valgtHimmel` DIREKTE og går ikke gjennom
+    // `velgHimmel`, så den må kalle samme regel selv — ellers oppfører de to
+    // veiene til samme valg seg ulikt. Det var feilen i v6.1.1: uten dette arvet
+    // et trykk på månen minimeringen fra forrige nabo-hopp, og kortet kom
+    // sammenlagt når man nettopp hadde spurt hva noe var.
     engine.on('himmel-valgt', ({ objekt }) => {
+      const haddeKort = !!valgtHimmel.value
       valgtHimmel.value = objekt
-      kortMinimert.value = false
+      settKortTilstand(haddeKort)
     })
     engine.on('globe', ({ apen }) => {
       globeAapen.value = !!apen
