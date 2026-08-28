@@ -1,9 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import {
-  julianskDag, gmst, lokalStjernetid, solEkvatorial, maneEkvatorial, maneFase,
+import { julianskDag, gmst, lokalStjernetid, solEkvatorial, maneEkvatorial, maneFase,
   tilHorisont, parallaktiskVinkel, horisontTilWorld, himmelFor, norm360,
-  presesserTilDato,
-} from './astronomi.js'
+  presesserTilDato, erNatt, SOL_HOYDE_SOLNEDGANG, MANE_TVANG_HOYDE } from './astronomi.js'
 import { STJERNER } from './stjerner.js'
 
 const GRAD = 180 / Math.PI
@@ -297,5 +295,105 @@ describe('presesjon J2000 → dato', () => {
     const pb = presesserTilDato(b.ra, b.dek, dato)
     expect(vinkel(pa.ra, pa.dek, pb.ra, pb.dek))
       .toBeCloseTo(vinkel(a.ra, a.dek, b.ra, b.dek), 2)
+  })
+})
+
+
+describe('erNatt — offisiell soloppgang/solnedgang', () => {
+  // Grensa er solas høyde −0°50′, som er definisjonen MET og Yr regner tidene
+  // sine fra: øvre rand ved horisonten (−16′) pluss refraksjon (−34′).
+  it('bruker den offisielle grensa og ikke null', () => {
+    expect(SOL_HOYDE_SOLNEDGANG).toBeCloseTo((-50 / 60) * Math.PI / 180, 12)
+  })
+
+  it('midt på dagen er det dag, midt på natta er det natt — Oslo, jevndøgn', () => {
+    const oslo = { lat: 59.91, lon: 10.75 }
+    // Vårjevndøgn: sola står opp ~06 og ned ~18 lokal tid, altså 05/17 UTC.
+    expect(erNatt({ ...oslo, dato: new Date('2026-03-20T11:00:00Z') })).toBe(false)
+    expect(erNatt({ ...oslo, dato: new Date('2026-03-20T23:00:00Z') })).toBe(true)
+  })
+
+  it('midnattssol og mørketid er de to prøvene som ikke kan jukses', () => {
+    // Nordkapp, 71,17° N. Over polarsirkelen er svaret det samme HELE døgnet, og
+    // et fortegn eller en tidssone på skeive faller straks igjennom her.
+    const nordkapp = { lat: 71.17, lon: 25.78 }
+    for (const t of ['00:00', '06:00', '12:00', '18:00']) {
+      expect(erNatt({ ...nordkapp, dato: new Date(`2026-06-21T${t}:00Z`) }))
+        .toBe(false)                                  // midnattssol
+      expect(erNatt({ ...nordkapp, dato: new Date(`2026-12-21T${t}:00Z`) }))
+        .toBe(true)                                   // mørketid
+    }
+  })
+
+  it('sørover snur årstidene, ikke døgnet', () => {
+    // Samme dato, motsatt halvkule: 21. juni er midnattssol i nord og mørketid
+    // i sør. Uten breddegraden i regnestykket ville begge svart likt.
+    const sorpolen = { lat: -71.17, lon: 25.78 }
+    expect(erNatt({ ...sorpolen, dato: new Date('2026-06-21T12:00:00Z') })).toBe(true)
+    expect(erNatt({ ...sorpolen, dato: new Date('2026-12-21T12:00:00Z') })).toBe(false)
+  })
+
+  it('gir null og ikke et gjett når stedet mangler', () => {
+    // Kallstedet faller tilbake på kart-temaet; det krever at vi sier fra i
+    // stedet for å svare «dag» på et ark uten posisjon.
+    expect(erNatt({ lat: NaN, lon: 10 })).toBeNull()
+    expect(erNatt({ lat: 59, lon: undefined })).toBeNull()
+  })
+})
+
+
+describe('himmelFor — tvungen måne (utvikler-bryter)', () => {
+  const oslo = { lat: 59.91, lon: 10.75 }
+
+  // Finn et tidspunkt der månen FAKTISK er nede, uten å anta noe om månefasen:
+  // månen står opp og ned nesten en time senere hvert døgn, så en fast dato ville
+  // vært et lykketreff som slutter å gjelde.
+  const naarMaanenErNede = () => {
+    for (let t = 0; t < 24 * 30; t++) {
+      const dato = new Date(Date.UTC(2026, 7, 1, t))
+      if (himmelFor({ ...oslo, dato }).mane.hoyde < 0) return dato
+    }
+    throw new Error('fant ikke et tidspunkt med månen under horisonten')
+  }
+
+  it('løfter månen over horisonten når den står under', () => {
+    const dato = naarMaanenErNede()
+    const av = himmelFor({ ...oslo, dato })
+    const paa = himmelFor({ ...oslo, dato, tvingMane: true })
+    expect(av.mane.hoyde).toBeLessThan(0)
+    expect(paa.mane.hoyde).toBeCloseTo(MANE_TVANG_HOYDE, 12)
+  })
+
+  it('rører BARE høyden — fase, lysside og retning er fortsatt de ekte', () => {
+    // Poenget med bryteren er å kunne PRØVE månegloben, ikke å se en oppdiktet
+    // måne. Er fasen falsk, tester man ingenting.
+    const dato = naarMaanenErNede()
+    const av = himmelFor({ ...oslo, dato })
+    const paa = himmelFor({ ...oslo, dato, tvingMane: true })
+    expect(paa.mane.azimut).toBeCloseTo(av.mane.azimut, 12)
+    expect(paa.mane.lysAndel).toBeCloseTo(av.mane.lysAndel, 12)
+    expect(paa.mane.lyssideVinkel).toBeCloseTo(av.mane.lyssideVinkel, 12)
+    expect(paa.mane.faseVinkel).toBeCloseTo(av.mane.faseVinkel, 12)
+    expect(paa.mane.parallaktisk).toBeCloseTo(av.mane.parallaktisk, 12)
+    expect(paa.mane.voksende).toBe(av.mane.voksende)
+  })
+
+  it('rører INGENTING når månen alt står høyt', () => {
+    // Ellers ville bryteren dratt en høytstående måne NED til 35°, og da flyttet
+    // den seg i det man skrudde den på — en bryter som endrer noe den ikke skal.
+    for (let t = 0; t < 24 * 30; t++) {
+      const dato = new Date(Date.UTC(2026, 7, 1, t))
+      const av = himmelFor({ ...oslo, dato })
+      if (av.mane.hoyde <= MANE_TVANG_HOYDE) continue
+      const paa = himmelFor({ ...oslo, dato, tvingMane: true })
+      expect(paa.mane.hoyde).toBeCloseTo(av.mane.hoyde, 12)
+      return
+    }
+    throw new Error('fant ikke et tidspunkt med månen høyt nok')
+  })
+
+  it('er av som default', () => {
+    const dato = naarMaanenErNede()
+    expect(himmelFor({ ...oslo, dato }).mane.hoyde).toBeLessThan(0)
   })
 })

@@ -211,23 +211,36 @@ async function onInstallClick() {
         <div class="space-y-2">
           <h3 class="text-sm font-semibold text-ink/85">Natthimmelen — og stjernekikkeren</h3>
           <p class="text-[13px] leading-relaxed text-ink/70">
-            Sol/måne-knappen har fire steg: dag, dag med vær, natt og natt med
-            vær. I nattmodus <strong class="text-ink/90">dra fingeren nedover for
-            å løfte blikket opp i himmelen</strong> — der ligger stjernene, og de
-            står der de faktisk står over kartet ditt i kveld.
+            Sol/måne-knappen oppe til venstre har to stillinger: dag og natt.
+            3D-visningen <strong class="text-ink/90">åpner i den himmelen som
+            faktisk er ute</strong> — står sola under horisonten der kartet
+            ligger, starter du i natt. Om dagen vises alltid værvarselet.
           </p>
           <p class="text-[13px] leading-relaxed text-ink/70">
-            Med natt uten vær får du <strong class="text-ink/90">stjernekikkeren</strong>:
-            et søkefelt som også er en nedtrekksliste over det som virkelig er
-            over horisonten her og nå — 13 stjernebilder, de synlige planetene og
-            månen. Velg ett, eller trykk rett på det i himmelen, og stjernene og
-            strekene lyser opp mens kameraet retter blikket dit. Infokortet gir
-            navn, latinsk navn, hvor mange stjerner figuren har, hvordan du finner
-            den, mytologien bak — og snarveier til naboene, som er den beste måten
-            å lære seg en himmel. <strong class="text-ink/90">Trykk på månen</strong>
-            og skiva blir en kule du kan snurre, med navngitte hav og krater og
-            kveldens ekte skyggelinje. Maksimer-knappen oppe til høyre skjuler alt
-            annet, slik at lyse flater ikke ødelegger nattsynet.
+            <strong class="text-ink/90">Natt er stjernekikkeren.</strong> Blikket
+            løftes opp i himmelen av seg selv, kurver, stier og knappenåler tas
+            bort, og alt overlegget forsvinner — igjen står sol/måne-knappen,
+            X-en, og mellom dem et søkefelt som også er en nedtrekksliste over det
+            som virkelig er over horisonten her og nå: 13 stjernebilder, de
+            synlige planetene og månen. Velg ett, eller trykk rett på det i
+            himmelen, og stjernene og strekene lyser opp mens kameraet retter
+            blikket dit. Infokortet gir navn, latinsk navn, hvor mange stjerner
+            figuren har, hvordan du finner den, mytologien bak — og snarveier til
+            naboene, som er den beste måten å lære seg en himmel. Kortet kan
+            legges sammen til én linje når teksten dekker det du vil se på, og et
+            hopp til en nabo legger det sammen av seg selv;
+            <strong class="text-ink/90">Sett i fokus</strong> retter blikket
+            tilbake dit når du har sett deg bort.
+            <strong class="text-ink/90">Trykk på månen</strong> og skiva blir en
+            kule du kan snurre, med navngitte hav og krater og kveldens ekte
+            skyggelinje. Dra nedover når du vil se landskapet igjen.
+          </p>
+          <p class="text-[13px] leading-relaxed text-ink/70">
+            Nede til høyre står et <strong class="text-ink/90">himmelkompass</strong>:
+            to ringer — jordas plan med øst–vest-aksen, og en loddrett ring med N
+            og S — og en rød prikk som viser hvor du ser. Uten kartet i bildet er
+            det lett å miste himmelretningene, og rødt er den fargen som ødelegger
+            nattsynet minst.
           </p>
           <ul class="text-[13px] leading-relaxed text-ink/70 space-y-1.5 list-disc pl-5">
             <li><strong class="text-ink/90">Det finnes ingen stjerne-API her.</strong>

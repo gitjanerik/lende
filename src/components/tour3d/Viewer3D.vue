@@ -32,6 +32,7 @@ import Tour3dHud from './Tour3dHud.vue'
 import Tour3dVaerRad from './Tour3dVaerRad.vue'
 import Tour3dHimmelSok from './Tour3dHimmelSok.vue'
 import Tour3dHimmelKort from './Tour3dHimmelKort.vue'
+import Tour3dHimmelKompass from './Tour3dHimmelKompass.vue'
 import { lesPinPrefs, skrivPinPrefs, paaGrupper } from '../../lib/tour3d/pinPrefs.js'
 import { svgToWgs84 } from '../../lib/utm.js'
 import { fetchVarsel, naaVarsel } from '../../lib/vaerFetcher.js'
@@ -39,6 +40,11 @@ import { vaerTilHimmel } from '../../lib/tour3d/vaerHimmel.js'
 import { DEMO_STEG, DEMO_SEKUNDER, demoMaling } from '../../lib/tour3d/vaerDemo.js'
 import { cacheGet, cacheSet, vaerPointKey, TTL } from '../../lib/protectedAreaCache.js'
 import { himmelObjekter, naboerFor } from '../../lib/tour3d/himmelObjekter.js'
+import { erNatt } from '../../lib/tour3d/astronomi.js'
+// Hovedmenyens 100/125/150-valg. 3D-overlegget er ellers rem-basert (v5.27.0,
+// som følger systemets tekstskalering), men nattmodus' tekst er det ENESTE man
+// leser i 3D-visningen — og da skal appens eget valg gjelde der også.
+import { useUiTextScale } from '../../composables/useUiTextScale.js'
 
 const props = defineProps({
   dem: { type: Object, default: null },
@@ -66,9 +72,18 @@ const props = defineProps({
 })
 const emit = defineEmits(['close'])
 
+const { uiTextScale } = useUiTextScale()
+
 const KRYSSPAUSE_KEY = 'lende-3d-krysspause'
-const VAER_KEY = 'lende-3d-vaer'
 const VAERDEMO_KEY = 'lende-3d-vaerdemo'
+// Utvikler-bryter fra Utvikler-fanen (DrawerDevTab): vis månen selv når den står
+// under horisonten. Månen er nede store deler av døgnet, og da kan verken
+// månegloben eller trykk-plukkingen av den prøves. Leses her framfor å gå som
+// prop gjennom hele kjeden — samme begrunnelse som vær-demoen.
+const MAANE_TVANG_KEY = 'lende-3d-maane-tvang'
+const maaneTvang = (() => {
+  try { return localStorage.getItem(MAANE_TVANG_KEY) === '1' } catch { return false }
+})()
 const TIME_SCALES = [64, 128, 256]
 const HUD_FELTER = ['gaatt', 'igjen', 'hoyde', 'stigning', 'eta']
 
@@ -87,20 +102,18 @@ const detached = ref(false)
 // kartet man ser, og hintet nede sier hvordan man kommer tilbake.
 const serOpp = ref(false)
 
-// MAKSIMER: skjul alt UI utenom lukkeknappen, minimer-knappen og
-// himmel-søkefeltet, som da flyttes helt øverst.
+// STJERNEMODUS = NATT. Ikke en modus ved siden av natta, men natta selv.
 //
-// Grunnen er nattsyn og ikke plass. Etter en felttest i mørket meldte eieren at
-// de hvite flatene i overlegget ødelegger det mørkeadapterte synet — og et øye
-// bruker 20–30 minutter på å komme tilbake. Ingen knapp er verdt det når man
-// står ute for å se stjerner.
+// v6.0.0 hadde en egen maksimer-knapp som skjulte overlegget. Den ble prøvd i
+// felt, og konklusjonen var at knappen var i veien for sin egen hensikt: den som
+// slår på natt i 3D gjør det for å se stjerner, og da er hvert hvite element på
+// skjermen en feil — inkludert knappen man må finne for å bli kvitt dem. Natt
+// går derfor RETT inn i det bildet. Én bryter, ikke to.
 //
-// Persisteres IKKE med vilje: åpner man 3D og alt er borte, ser det ødelagt ut.
-// Modusen er noe man går inn i for en stund, ikke en innstilling.
-const maksimert = ref(false)
-function toggleMaksimer() {
-  maksimert.value = !maksimert.value
-}
+// Igjen står sol/måne-knappen (veien tilbake til dag), X-en, og himmelsøket
+// mellom dem. Kurver, stier og nåler skjules — se `nattSkjulteLag`. Nattmodus er
+// stjernekikkeren, ikke kartet i mørkt tema.
+const stjernemodus = computed(() => nightOn.value)
 
 // ---- Himmelsøket ---------------------------------------------------------
 // Lista over hva som er valgbart på himmelen regnes HER og sendes til motoren,
@@ -109,14 +122,11 @@ function toggleMaksimer() {
 // ser jeg nå?» må svare likt.
 const himmelListe = ref([])
 const valgtHimmel = ref(null)
-// Porten: nattmodus UTEN vær, og først når blikket er løftet mot himmelen.
-// Feltet har ingenting å gjøre der man ser på kartet.
-// I maksimert modus er søkefeltet det eneste UI-et som er igjen, så det skal
-// ALLTID stå der — er det skjult fordi man ennå ikke har sett opp, er modusen en
-// tom skjerm med to nesten usynlige knapper.
-const himmelSokSynlig = computed(() =>
-  phase.value === 'ready' && nightOn.value && !vaerOn.value
-  && (maksimert.value || serOpp.value || !!valgtHimmel.value))
+// Porten er nå bare nattmodus. Fram til v6.1.0 krevde den i tillegg at blikket
+// var løftet — men natt løfter blikket selv, og et felt som dukker opp midt i
+// den bevegelsen leses som et blaff. Ser man ned i kartet igjen, står søket
+// fortsatt der: det er den ene tingen man leter etter i mørket.
+const himmelSokSynlig = computed(() => phase.value === 'ready' && nightOn.value)
 const himmelNaboer = computed(() => naboerFor(valgtHimmel.value, himmelListe.value, 3))
 
 // ---- Månegloben ----------------------------------------------------------
@@ -126,6 +136,12 @@ const himmelNaboer = computed(() => naboerFor(valgtHimmel.value, himmelListe.val
 // en Vue-oppdatering pr frame.
 const maneGlobeAapen = ref(false)
 const maneTrekk = ref([])
+
+// ---- Himmelkompasset -----------------------------------------------------
+// Blikkretningen i grader, fra motoren. I nattmodus er kartet ute av bildet, og
+// da mister man himmelretningene helt — man kan stå og se på Karlsvogna uten å
+// vite at man ser nordover. Kompasset nede til høyre gir det tilbake.
+const blikk = ref(null)
 function lukkManeGlobe() {
   engine?.lukkManeGlobe()
   maneGlobeAapen.value = false
@@ -140,12 +156,37 @@ function byggHimmelListe() {
     punkt = svgToWgs84(m.widthM / 2, m.heightM / 2, m)
   } catch { return }
   if (!Number.isFinite(punkt?.lat) || !Number.isFinite(punkt?.lon)) return
-  himmelListe.value = himmelObjekter({ lat: punkt.lat, lon: punkt.lon, dato: new Date() })
+  himmelListe.value = himmelObjekter({
+    lat: punkt.lat, lon: punkt.lon, dato: new Date(),
+    // MÅ være samme flagg som motoren fikk. Tvinger vi månen i himmelen men ikke
+    // i lista, tilbyr ikke søket en måne man ser — og trykk-plukkingen finner den
+    // ikke. Samme regel som mosaikken i CLAUDE.md: to steder som svarer på «hva
+    // ser jeg nå?» må svare likt.
+    tvingMane: maaneTvang,
+  })
   engine?.setHimmelObjekter(toRaw(himmelListe.value))
+}
+
+// Infokortet kan legges sammen til én linje. Tilstanden eies HER og ikke i
+// kortet, fordi det er kalleren som vet hva som utløste valget: et nabo-hopp skal
+// minimere, et valg fra lista eller et trykk i himmelen skal ikke.
+const kortMinimert = ref(false)
+
+/**
+ * Hopp til en nabo — og legg kortet sammen. Hele poenget med stjernehopping er å
+ * SE det man hoppet til; en tekstblokk over halve himmelen står i veien for
+ * nettopp det. Vil man lese om den nye, er kortet ett trykk unna.
+ */
+function velgNabo(o) {
+  velgHimmel(o)
+  kortMinimert.value = true
 }
 
 function velgHimmel(o) {
   valgtHimmel.value = o ?? null
+  // Et nytt valg åpner kortet: man har nettopp spurt hva noe er.
+  // velgNabo minimerer etterpå, som er unntaket.
+  kortMinimert.value = false
   engine?.velgHimmel(o ? toRaw(o) : null)
   // Motoren melder tilbake gjennom 'mane-globe', men bare når tilstanden
   // FAKTISK endret seg. Velger man noe annet enn månen, er kula lukket her og nå.
@@ -195,7 +236,7 @@ const errorText = computed(() => ({
 // utforsking har kryssvalg.
 const INFO_KNAPPER = computed(() => [
   { navn: 'Nåler', tekst: 'viser interessepunkter — trykk på en for å fly dit. Filteret ved siden av velger hvilke.' },
-  { navn: 'Sol/måne', tekst: 'går rundt i fire steg: dag, dag med vær, natt, natt med vær. Værsymbolene er varselet fra MET Norway for dette kartet, og himmelen følger været — skyene vises bare med været på. Om natta står stjernene og månen der de faktisk står over dette kartet i kveld, i riktig månefase.' },
+  { navn: 'Sol/måne', tekst: 'går rundt i tre steg: dag, dag med vær, natt. Værsymbolene er varselet fra MET Norway for dette kartet, og himmelen følger været. Natt er stjernekikkeren: blikket løftes opp av seg selv, kurver, stier og nåler tas bort, og stjernene, planetene og månen står der de faktisk står over dette kartet i kveld. Dra nedover for å se landskapet igjen.' },
   { navn: 'Sti', tekst: 'tegner stinettet oppå terrenget — og må være på for å kunne følge en sti.' },
   fixedTour.value
     ? { navn: 'Stopp', tekst: 'lar turen stoppe ved severdigheter langs veien.' }
@@ -349,7 +390,7 @@ async function byggMotor() {
       barrierFeatures: toRaw(props.barrierFeatures) ?? [],
       features: allFeatures,
       tour: tourOpts,
-      options: { estWalkMinutes: props.estWalkMinutes ?? null },
+      options: { estWalkMinutes: props.estWalkMinutes ?? null, tvingMane: maaneTvang },
     })
 
     engine.on('progress', (p) => {
@@ -377,6 +418,7 @@ async function byggMotor() {
       if (!apen) maneTrekk.value = []
     })
     engine.on('mane-trekk', ({ trekk }) => { maneTrekk.value = trekk ?? [] })
+    engine.on('blikk', (b) => { blikk.value = b })
     // Severdighet turen stopper ved av seg selv.
     engine.on('feature-enter', ({ feature }) => { stopFeature.value = feature })
     engine.on('feature-exit', () => { stopFeature.value = null })
@@ -432,6 +474,12 @@ async function byggMotor() {
     if (demoPaa.value) demoStart()
 
     phase.value = 'ready'
+
+    // Åpner man 3D med et mørkt kart, ER man i nattmodus fra første frame — og
+    // da skal stjernemodus gjelde her også, ikke bare når man trykker seg inn i
+    // den. Etter phase='ready' med vilje: løftet skal skje i et bilde brukeren
+    // ser, ikke bak lasteskjermen.
+    if (nightOn.value) aapneStjernemodus()
 
     // Nettbaserte kilder popper inn asynkront — feil svelges stille, som før.
     // Kartet skal aldri stå og vente på Riksantikvaren.
@@ -526,40 +574,61 @@ async function toggleContours() {
   await engine?.setContoursVisible(contoursOn.value)
 }
 
-// Sol/måne-knappen bærer FIRE tilstander, ikke to: dag → dag+vær → natt →
-// natt+vær. Egen vær-knapp ble vurdert og forkastet — topprada har alt fem-seks
-// knapper, og kommentaren over den forteller hva som skjedde sist den vokste.
+// Sol/måne-knappen bærer TRE tilstander: dag → dag med vær → natt.
+//
+// Natt+vær er FJERNET i v6.1.0. Den var fire steg der tre gjør nytten, og det
+// fjerde ga et bilde ingen av delene: værhimmelen skjuler stjernene som er hele
+// grunnen til å slå på natt, og skyene vises uansett bare om dagen (se
+// oppdaterSkySynlighet i sceneCore). Regn med at nedbør og lyn om natta var det
+// eneste som forsvant, og at ingen har bedt om det.
 //
 // Dag/natt-biten persisteres IKKE, med vilje: den avledes av kart-temaet
 // (props.isDark) slik den alltid har gjort, så 3D følger lys/mørk-valget i
 // kartet. Vær-biten persisteres, for den er et selvstendig valg brukeren har tatt.
-const nightOn = ref(props.isDark)
-const vaerOn = ref((() => {
-  try { return localStorage.getItem(VAER_KEY) === '1' } catch { return false }
+// Åpningsmodusen er HIMMELEN, ikke kart-temaet (v6.1.0). Står sola under
+// horisonten der arket ligger, åpner 3D i natt; ellers i dag. Fram til nå fulgte
+// den `props.isDark` — altså om kartet var i mørkt tema, som er et helt annet
+// spørsmål: man kan godt lese et mørkt kart midt på dagen. Grensa er den
+// offisielle (se erNatt i astronomi.js), regnet lokalt.
+//
+// Faller utregningen igjennom (ark uten brukbar posisjon), er kart-temaet
+// fortsatt et bedre gjett enn en fast verdi.
+const nightOn = ref((() => {
+  const m = props.meta
+  if (m?.widthM && m?.heightM) {
+    try {
+      const p = svgToWgs84(m.widthM / 2, m.heightM / 2, m)
+      const natt = erNatt({ lat: p?.lat, lon: p?.lon })
+      if (natt !== null) return natt
+    } catch { /* faller til temaet under */ }
+  }
+  return props.isDark
 })())
+
+// VÆRET ER ALLTID PÅ OM DAGEN (v6.1.0). Det var en egen bryter, og den var et
+// steg brukeren måtte gjennom for å komme til noe hun nesten alltid ville ha:
+// varselet for arket er billig (ett oppslag, 30 min cache), og en dagshimmel
+// uten skyer er ikke mer «nøytral» enn en med — den er bare mindre sann. Om
+// natta er været av, fordi nattmodus er stjernekikkeren.
+const vaerOn = computed(() => !nightOn.value)
 
 async function applyNight(on) {
   if (!engine) return
   await engine.setNightMode(on)
 }
 
-// Syklusen: hvert trykk går ett hakk videre, og vi lander tilbake på dag uten vær.
+// ÉN BRYTER, TO TILSTANDER: dag med vær ↔ natt. Fram til v6.1.0 var det fire
+// steg, og de to som falt bort — dag uten vær og natt med vær — var begge bilder
+// ingen hadde bedt om. Nå er spørsmålet knappen stiller det samme som himmelen
+// stiller: er det dag eller natt?
 function toggleNight() {
-  if (!nightOn.value && !vaerOn.value) setVaerPaa(true)                  // dag → dag+vær
-  else if (!nightOn.value) { nightOn.value = true; setVaerPaa(false) }    // dag+vær → natt
-  else if (!vaerOn.value) setVaerPaa(true)                               // natt → natt+vær
-  else { nightOn.value = false; setVaerPaa(false) }                      // natt+vær → dag
+  nightOn.value = !nightOn.value
   applyNight(nightOn.value)
 }
 
-function setVaerPaa(paa) {
-  vaerOn.value = paa
-  try { localStorage.setItem(VAER_KEY, paa ? '1' : '0') } catch { /* privat modus */ }
-}
-
 // Hva knappen skal si nå — brukt både som aria-label og i Info-panelet.
-const NATT_STEG_LABEL = ['Vis vær', 'Bytt til natt', 'Vis vær om natta', 'Bytt til dag uten vær']
-const nattSteg = computed(() => (nightOn.value ? (vaerOn.value ? 3 : 2) : (vaerOn.value ? 1 : 0)))
+const NATT_STEG_LABEL = ['Bytt til natt', 'Bytt til dag']
+const nattSteg = computed(() => (nightOn.value ? 1 : 0))
 
 // ---- Værvarsel for arket -------------------------------------------------
 // Ett oppslag per ark, for SENTERPUNKTET — ikke per kamerabevegelse. Det er hele
@@ -675,7 +744,44 @@ watch(nightOn, (on) => {
   // formasjon som står fremhevet på en dagshimmel er bare rart.
   if (on) byggHimmelListe()
   else velgHimmel(null)
+  if (on) aapneStjernemodus()
+  else lukkStjernemodus()
 })
+
+// ---- Stjernemodus: inn og ut ---------------------------------------------
+// Hva som var påslått da natta ble slått på. Nattmodus skjuler kurver, stier og
+// nåler — de har ingenting å gjøre i en stjernehimmel, og en rød stikrøtt over
+// silhuetten er nettopp den slags lyse flate modusen finnes for å bli kvitt.
+// Men de er brukerens valg, så de gis tilbake når hun går ut igjen.
+let lagForNatt = null
+
+function aapneStjernemodus() {
+  if (!lagForNatt) {
+    lagForNatt = {
+      nåler: pinsOn.value, stier: pathsOn.value, kurver: contoursOn.value,
+    }
+  }
+  if (pinsOn.value) togglePins()
+  if (pathsOn.value) togglePaths()
+  if (contoursOn.value) void toggleContours()
+  // Løft blikket opp i himmelen, av seg selv. Samme bevegelse brukeren gjør med
+  // fingeren — kjørt for henne, så hun vet neste gang at draget finnes. Den går
+  // etter lag-skjulingen så det ikke er noe å se forsvinne underveis.
+  engine?.seOppMotHimmelen()
+}
+
+function lukkStjernemodus() {
+  lukkManeGlobe()
+  blikk.value = null
+  const f = lagForNatt
+  lagForNatt = null
+  if (!f) return
+  if (f.nåler !== pinsOn.value) togglePins()
+  if (f.stier !== pathsOn.value) togglePaths()
+  if (f.kurver !== contoursOn.value) void toggleContours()
+  // Blikket ned i kartet igjen: går man ut av natta, er det kartet man vil se.
+  engine?.overview()
+}
 
 // --- turen -----------------------------------------------------------------
 
@@ -765,37 +871,29 @@ function branchLabel(opt, i) {
         </div>
       </div>
 
-      <!-- Topprad: Pin · Sol/måne · Sti · Kryss|Stopp · Kurver — venstrestilt,
-           med X aleine helt til høyre. Høyrestilt raden vokste mot venstre, og
-           med seks knapper falt den første ut av skjermen på smale telefoner
-           (S22+, buet kant). Venstrestilt vokser den innover i stedet, og
-           gapet er strammet inn for å gi mer luft i marginene. -->
+      <!-- Topprad: Sol/måne · Pin · Sti · Kryss|Stopp · Kurver — venstrestilt,
+           med X aleine helt til høyre og himmelsøket mellom dem i nattmodus.
+           Høyrestilt raden vokste mot venstre, og med seks knapper falt den
+           første ut av skjermen på smale telefoner (S22+, buet kant).
+           Venstrestilt vokser den innover i stedet. -->
       <div class="relative z-10 flex items-start justify-between gap-2 px-3"
            style="padding-top: max(env(safe-area-inset-top), 10px);">
-        <div v-if="!maksimert" class="flex items-center gap-1 min-w-0 flex-wrap">
-          <button v-if="phase === 'ready'"
-                  @click="togglePins"
-                  :aria-label="pinsOn ? 'Skjul knappenåler' : 'Vis knappenåler'"
-                  class="w-11 h-11 rounded-full backdrop-blur flex items-center justify-center
-                         active:scale-95 transition-colors"
-                  :class="pinsOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
-            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M12 21s-6-5.2-6-10a6 6 0 1 1 12 0c0 4.8-6 10-6 10z"/>
-              <circle cx="12" cy="11" r="2.4"/>
-            </svg>
-          </button>
-          <!-- Sol/måne bærer FIRE steg: dag → dag+vær → natt → natt+vær.
-               Ikonet forteller hvor du er (sol, sol med sky, måne, måne med sky),
-               og aria-label sier hva NESTE trykk gjør. Egen vær-knapp ble
-               forkastet — se kommentaren over topprada om hva som skjer når den
-               vokser. -->
+        <div class="flex items-center gap-1 min-w-0 flex-wrap">
+          <!-- SOL/MÅNE STÅR FØRST, helt til venstre (v6.1.0). Den er
+               modusvelgeren — den bestemmer hva de andre knappene i det hele tatt
+               handler om — og i nattmodus er den den ENESTE som blir igjen på
+               venstresida. En bryter som skifter hele bildet hører i hjørnet, ikke
+               midt i en rad med lag-knapper.
+
+               To tilstander: dag med vær ↔ natt. Ikonet forteller hvor du er
+               (sol med sky, eller måne), og aria-label sier hva NESTE trykk gjør.
+               I nattmodus er den dempet ned som X-en: poenget er nattsyn. -->
           <button v-if="phase === 'ready'"
                   @click="toggleNight"
                   :aria-label="NATT_STEG_LABEL[nattSteg]"
                   class="w-11 h-11 rounded-full backdrop-blur flex items-center justify-center
                          active:scale-95 transition-colors relative"
-                  :class="nightOn || vaerOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
+                  :class="stjernemodus ? 'bg-black/25 text-white/35' : 'bg-white text-gray-900'">
             <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <!-- Måne (fylt) eller sol (strek) — forskjøvet litt opp/venstre når
@@ -810,6 +908,23 @@ function branchLabel(opt, i) {
               </g>
               <path v-if="vaerOn" d="M8.2 20.5h9.3a2.9 2.9 0 0 0 .3-5.8 4 4 0 0 0-7.7-1 2.9 2.9 0 0 0-1.9 6.8z"
                     fill="currentColor" stroke="currentColor" stroke-width="1.1"/>
+            </svg>
+          </button>
+
+          <!-- ALT UNDER HER FORSVINNER I NATTMODUS. Kurver, stier og nåler er
+               skjult i motoren også (se aapneStjernemodus) — knappene deres ville
+               ellers stått og lyst for lag som ikke vises. -->
+          <template v-if="!stjernemodus">
+          <button v-if="phase === 'ready'"
+                  @click="togglePins"
+                  :aria-label="pinsOn ? 'Skjul knappenåler' : 'Vis knappenåler'"
+                  class="w-11 h-11 rounded-full backdrop-blur flex items-center justify-center
+                         active:scale-95 transition-colors"
+                  :class="pinsOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
+            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 21s-6-5.2-6-10a6 6 0 1 1 12 0c0 4.8-6 10-6 10z"/>
+              <circle cx="12" cy="11" r="2.4"/>
             </svg>
           </button>
           <!-- Sti-togglen bærer teksten sin, som Kryss og Kurver: ikonet aleine
@@ -877,34 +992,30 @@ function branchLabel(opt, i) {
             </svg>
             <span class="max-[379px]:hidden">Kurver</span>
           </button>
+          </template>
         </div>
-        <!-- Maksimer og lukk. I maksimert modus er BEGGE dempet kraftig ned:
-             poenget med modusen er nattsyn, og da kan ikke de to knappene som
-             blir igjen lyse like sterkt som før. -->
-        <div v-if="maksimert" class="flex-1"></div>
+
+        <!-- HIMMELSØKET STÅR MELLOM DE TO KNAPPENE (v6.1.0), på samme linje —
+             sol/måne til venstre, X til høyre, søket i midten. I nattmodus er de
+             tre det eneste som finnes på skjermen.
+             Teksten skalerer med hovedmenyens 100/125/150-valg: den som har satt
+             større tekst der har gjort det fordi hun trenger det, og en
+             stjernehimmel leses i mørket. Chromet (knappene) skalerer bevisst
+             ikke — de er 44 px fordi en finger er det. -->
+        <div v-if="himmelSokSynlig" class="flex-1 min-w-0 flex justify-center"
+             :style="{ zoom: uiTextScale }">
+          <Tour3dHimmelSok :objekter="himmelListe" :valgt-id="valgtHimmel?.id ?? null"
+                           :dempet="stjernemodus" @velg="velgHimmel"/>
+        </div>
+
+        <!-- X-en. Dempet ned i nattmodus, som sol/måne: en hvit flate koster de
+             20–30 minuttene et øye bruker på å mørkeadaptere. -->
         <div class="flex items-center gap-1 shrink-0">
-          <button v-if="phase === 'ready'"
-                  @click="toggleMaksimer"
-                  :aria-label="maksimert ? 'Vis knappene igjen' : 'Skjul alt utenom himmelsøket'"
-                  class="w-11 h-11 rounded-full backdrop-blur flex items-center justify-center
-                         active:scale-90 transition-colors"
-                  :class="maksimert ? 'bg-black/25 text-white/35' : 'bg-black/45 text-white/85'">
-            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <!-- Ut av hjørnene = maksimer, inn i hjørnene = tilbake. -->
-              <template v-if="!maksimert">
-                <path d="M9 4H4v5M15 4h5v5M15 20h5v-5M9 20H4v-5"/>
-              </template>
-              <template v-else>
-                <path d="M4 9V4h5M20 9V4h-5M20 15v5h-5M4 15v5h5"/>
-              </template>
-            </svg>
-          </button>
           <button @click="requestClose"
                   aria-label="Lukk 3D-visning"
                   class="w-11 h-11 shrink-0 rounded-full backdrop-blur
                          flex items-center justify-center active:scale-90 transition-colors"
-                  :class="maksimert ? 'bg-black/25 text-white/35' : 'bg-black/45 text-white/85'">
+                  :class="stjernemodus ? 'bg-black/25 text-white/35' : 'bg-black/45 text-white/85'">
             <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
                  stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
               <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -913,25 +1024,16 @@ function branchLabel(opt, i) {
         </div>
       </div>
 
-      <!-- HIMMELSØKET. I maksimert modus er dette det ENESTE som står igjen på
-           skjermen, og da ligger det helt øverst — det var hele bestillingen
-           etter felttesten i mørket. Ellers står det på egen linje rett under
-           topprada. -->
-      <div v-if="himmelSokSynlig"
-           class="relative z-10 px-3 flex justify-center"
-           :class="maksimert ? 'order-first' : 'mt-2'"
-           :style="maksimert ? 'padding-top: max(env(safe-area-inset-top), 10px);' : ''">
-        <Tour3dHimmelSok :objekter="himmelListe" :valgt-id="valgtHimmel?.id ?? null"
-                         :maksimert="maksimert" @velg="velgHimmel"/>
-      </div>
-
       <!-- Infokortet for det valgte. Ligger under søkefeltet, og rulles om
            teksten er lang — den kan være det for et stjernebilde. -->
       <div v-if="phase === 'ready' && valgtHimmel"
-           class="relative z-10 px-3 mt-2 flex justify-center max-h-[52vh] overflow-y-auto">
+           class="relative z-10 px-3 mt-2 flex justify-center max-h-[52vh] overflow-y-auto"
+           :style="{ zoom: uiTextScale }">
         <Tour3dHimmelKort :objekt="valgtHimmel" :naboer="himmelNaboer"
-                          :globe-aapen="maneGlobeAapen"
-                          @lukk="velgHimmel(null)" @velg="velgHimmel"/>
+                          :globe-aapen="maneGlobeAapen" :minimert="kortMinimert"
+                          @lukk="velgHimmel(null)" @velg="velgNabo"
+                          @minimer="kortMinimert = true" @utvid="kortMinimert = false"
+                          @fokus="engine?.fokuserHimmel()"/>
       </div>
 
       <!-- Vær-demo (Utvikler-fanen). Ligger over værraden fordi den overstyrer
@@ -981,7 +1083,7 @@ function branchLabel(opt, i) {
            nå står varselet først og hjelpen under. Skjult under en gående tur —
            der konkurrerer HUD og kryssvalg om plassen, og været er ikke det man
            ser etter da. -->
-      <div v-if="phase === 'ready' && vaerOn && !walking && !maksimert"
+      <div v-if="phase === 'ready' && vaerOn && !walking && !stjernemodus"
            class="relative z-10 px-3 mt-2 flex justify-center">
         <Tour3dVaerRad :vaer="vaer"/>
       </div>
@@ -989,7 +1091,7 @@ function branchLabel(opt, i) {
       <!-- Nederste linje: hjelp til venstre, POI-filter til høyre. Begge minimert
            som små piller, så de koster nesten ingen kartflate før man trenger
            dem. Items-start så en utvidet boks ikke dytter den andre nedover. -->
-      <div v-if="phase === 'ready' && !maksimert"
+      <div v-if="phase === 'ready' && !stjernemodus"
            class="relative z-10 flex items-start justify-between gap-2 px-3 mt-2">
         <Tour3dInfoPanel :modus="walking ? 'tur' : 'utforsk'"
                          :knapper="INFO_KNAPPER" :tips="INFO_TIPS"/>
@@ -1028,7 +1130,7 @@ function branchLabel(opt, i) {
       </div>
 
       <!-- Bunn: kryssvalg, framdrift og turkontroller -->
-      <div v-if="phase === 'ready' && !maksimert"
+      <div v-if="phase === 'ready' && !stjernemodus"
            class="relative z-10 mt-auto px-3 flex flex-col gap-2"
            style="padding-bottom: max(env(safe-area-inset-bottom), 12px);">
 
@@ -1131,6 +1233,17 @@ function branchLabel(opt, i) {
             {{ pathsOn ? 'Trykk på en sti for å følge den' : 'Slå på Sti for å følge en sti' }}
           </div>
         </div>
+      </div>
+
+      <!-- HIMMELKOMPASSET, nede til høyre i nattmodus. Egen absolutt plassert
+           flate og ikke en plass i bunnraden: bunnraden ER skjult om natta, og
+           kompasset skal ligge i hjørnet uansett hva annet som står på skjermen.
+           pointer-events-none på hele laget — et trykk i hjørnet skal treffe
+           himmelen bak, ikke en måler. -->
+      <div v-if="phase === 'ready' && stjernemodus"
+           class="absolute right-0 bottom-0 z-10 pointer-events-none p-3"
+           style="padding-bottom: max(env(safe-area-inset-bottom), 12px);">
+        <Tour3dHimmelKompass :blikk="blikk"/>
       </div>
 
       <!-- Skjerping av kartbildet etter at visningen er åpen -->

@@ -18,7 +18,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 // den feilen; det var røyktesten som fanget den.
 import { describe, it, expect } from 'vitest'
 import { PerspectiveCamera, Vector3, Matrix4 } from 'three'
-import { himmelVippSteg, HIMMEL_VIPP_MAKS, blikkMot, orbitPosisjon } from './freeRig.js'
+import { himmelVippSteg, HIMMEL_VIPP_MAKS, blikkMot, orbitPosisjon, azimutFraTheta } from './freeRig.js'
 
 // Radianer per piksel, som i riggen: 2π over elementets høyde.
 const FART = (2 * Math.PI) / 900
@@ -219,5 +219,31 @@ describe('OrbitControls-API-et vi faktisk lener oss på', () => {
       .join('\n')
     expect(kode).not.toMatch(/controls\.setPolarAngle\s*\(/)
     expect(kode).not.toMatch(/controls\.setAzimuthalAngle\s*\(/)
+  })
+})
+
+
+describe('azimutFraTheta — inversen av blikkMot', () => {
+  it('gir tilbake azimuten blikkMot fikk inn', () => {
+    // Stjernemodus løfter blikket UTEN å dreie det: azimuten leses av riggen og
+    // sendes uendret inn i seMot. Bommer denne, snurrer kameraet til en
+    // tilfeldig himmelretning i det natta slås på — og det ser ut som en feil i
+    // animasjonen, ikke i et fortegn.
+    for (const grader of [0, 37, 90, 143, 180, 217, 270, 359]) {
+      const a = (grader * Math.PI) / 180
+      const { theta } = blikkMot(a, 0.5)
+      const tilbake = azimutFraTheta(theta)
+      // Sammenlikn som retning, ikke som tall: 359° og −1° er samme vei.
+      expect(Math.cos(tilbake)).toBeCloseTo(Math.cos(a), 9)
+      expect(Math.sin(tilbake)).toBeCloseTo(Math.sin(a), 9)
+    }
+  })
+
+  it('er sin egen inverse', () => {
+    // Det ser ut som en tilfeldighet at samme uttrykk brukes begge veier, og
+    // derfor står det som en test: uttrykket er en speiling.
+    for (const t of [-3, -1.2, 0, 0.4, 2.9]) {
+      expect(azimutFraTheta(azimutFraTheta(t))).toBeCloseTo(t, 9)
+    }
   })
 })

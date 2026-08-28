@@ -35,6 +35,13 @@ export const HIMMEL_VIPP_MAKS = (75 * Math.PI) / 180
 // mister man hvor på himmelen man var.
 const BLIKK_TID_S = 0.9
 
+// Ease-OUT: full fart fra første frame, og bremser inn i målet. Brukt når
+// kameraet løfter blikket av seg selv (stjernemodus) — der skal bevegelsen
+// starte umiddelbart, så man ser HVA som skjer, og legge seg mykt til ro. Den
+// symmetriske easeInOutCubic er riktig når brukeren ba om flyttingen; her ba
+// hun bare om natt.
+const easeOutCubic = (t) => 1 - (1 - t) ** 3
+
 /**
  * Hvilken orbit-asimut og himmelvipp som får blikket til å peke mot et punkt på
  * himmelen. Ren funksjon, fordi det er her fortegnene kan gå galt.
@@ -50,6 +57,21 @@ const BLIKK_TID_S = 0.9
  * @param {number} hoyde radianer over horisonten
  * @returns {{theta: number, vipp: number}}
  */
+/**
+ * Orbitens theta → himmel-azimut. INVERSEN av `blikkMot`s theta-regning.
+ *
+ * Den er sin egen inverse (en speiling), og det er verdt å si fordi det ser ut
+ * som en tilfeldighet: samme uttrykk brukt begge veier. Trengs for å løfte
+ * blikket UTEN å dreie det — stjernemodus skal se opp i den retningen brukeren
+ * allerede står i, ikke snurre til nord først.
+ *
+ * @param {number} theta radianer
+ * @returns {number} azimut i radianer, 0 = nord
+ */
+export function azimutFraTheta(theta) {
+  return Math.atan2(-Math.sin(theta), Math.cos(theta))
+}
+
 /**
  * Kamera-forskyvning fra blikkpunktet for gitt radius og orbit-vinkler.
  *
@@ -375,7 +397,12 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
      * @param {number} azimut radianer fra nord mot øst
      * @param {number} hoyde radianer over horisonten
      */
-    seMot(azimut, hoyde) {
+    /**
+     * @param {number} azimut radianer, 0 = nord
+     * @param {number} hoyde radianer over horisonten
+     * @param {{tid?: number, ease?: 'inn-ut'|'ut'}} [opts]
+     */
+    seMot(azimut, hoyde, { tid = BLIKK_TID_S, ease = 'inn-ut' } = {}) {
       if (!Number.isFinite(azimut) || !Number.isFinite(hoyde)) return
       controls.enabled = true
       controls.autoRotate = false
@@ -398,6 +425,8 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
         dTheta,
         fraVipp: himmelVipp,
         tilVipp: vipp,
+        tid: Number.isFinite(tid) && tid > 0 ? tid : BLIKK_TID_S,
+        ease: ease === 'ut' ? easeOutCubic : easeInOutCubic,
       }
     },
     get autoRotating() { return controls.autoRotate },
@@ -407,6 +436,8 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
     /** @param {() => void} cb gesten var bare et trykk — ingen kamerabevegelse */
     onTakeOverCancelled(cb) { takeOverCancelCb = cb },
     get enabled() { return controls.enabled },
+    /** Himmelretningen kameraet ser i nå. Se azimutFraTheta. */
+    get blikkAzimut() { return azimutFraTheta(controls.getAzimuthalAngle()) },
 
     /**
      * Ta over kameraet der det står, uten å endre bildet: blikkpunktet settes
@@ -494,8 +525,8 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
         return
       }
       if (blikkAnim) {
-        blikkAnim.t += dt / BLIKK_TID_S
-        const k = blikkAnim.t >= 1 ? 1 : easeInOutCubic(blikkAnim.t)
+        blikkAnim.t += dt / blikkAnim.tid
+        const k = blikkAnim.t >= 1 ? 1 : blikkAnim.ease(blikkAnim.t)
         // Asimuten settes på orbiten; vippen legges på etterpå, som ellers.
         settOrbitVinkler({
           theta: blikkAnim.fraTheta + blikkAnim.dTheta * k,

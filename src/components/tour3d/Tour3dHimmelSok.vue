@@ -2,14 +2,15 @@
 // Himmelsøket: velg en formasjon, en planet eller månen — fra lista eller ved å
 // skrive.
 //
-// Vises bare i nattmodus UTEN vær, og først når blikket er løftet mot himmelen
-// (`serOpp` i Viewer3D). Porten er presis fordi feltet ikke har noe å gjøre der
-// man ser på kartet.
+// Vises bare i nattmodus — og der ALLTID, siden nattmodus ER stjernekikkeren
+// (v6.1.0). Fram til da krevde porten i tillegg at blikket var løftet, men natt
+// løfter blikket selv, og et felt som dukker opp midt i den bevegelsen leses som
+// et blaff.
 //
-// I MAKSIMERT MODUS er dette det eneste som står igjen på skjermen, og da
-// flyttes det helt øverst. Derfor er stilen dempet: mørkt glass, ingen hvite
-// flater, og teksten på 70 % hvit. Et øye bruker 20–30 minutter på å
-// mørkeadaptere, og en lys knapp kaster bort de minuttene.
+// I NATTMODUS er dette det eneste som står igjen på skjermen, mellom sol/måne-
+// knappen og X-en. Derfor er stilen dempet: mørkt glass, ingen hvite flater, og
+// teksten på 70 % hvit. Et øye bruker 20–30 minutter på å mørkeadaptere, og en
+// lys knapp kaster bort de minuttene.
 //
 // Lista inneholder BARE det Lende faktisk tegner nå (se himmelObjekter.js). En
 // nedtrekksliste som lover et stjernebilde under horisonten er en felle.
@@ -21,8 +22,8 @@ const props = defineProps({
   objekter: { type: Array, default: () => [] },
   // Id-en som er valgt, eller null.
   valgtId: { type: String, default: null },
-  // Maksimert modus: feltet står øverst og alene.
-  maksimert: { type: Boolean, default: false },
+  // Nattmodus: dempet ytterligere ned, for nattsynet.
+  dempet: { type: Boolean, default: false },
 })
 const emit = defineEmits(['velg', 'lukk'])
 
@@ -75,7 +76,7 @@ watch(() => props.objekter, () => {
             class="flex items-center gap-1.5 rounded-full bg-black/50 backdrop-blur
                    text-[0.6875rem] font-medium shadow-lg pl-2.5 pr-3 py-1.5
                    active:scale-[0.97] transition-colors"
-            :class="maksimert ? 'text-white/55' : 'text-white/85'">
+            :class="dempet ? 'text-white/55' : 'text-white/85'">
       <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/>

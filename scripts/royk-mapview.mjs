@@ -756,23 +756,21 @@ const SJEKKER = [
     },
   },
   {
-    navn: 'sol/måne går gjennom fire steg',
+    navn: 'sol/måne veksler mellom dag med vær og natt',
     domene: 'Viewer3D + vaerHimmel',
     // Krever ekte kart: knappene i 3D-viseren finnes bare når phase === 'ready',
     // og demo-kartet uten DEM lander på «ingen høydedata» der ingen knapp vises.
     krever: 'ektekart',
+    maksMs: 180_000,
     async kjør(page) {
       await lukkDrawer(page)
       await klikkTekst(page, /^3D$/)
-      // Vær-valget HUSKES i localStorage, så vi kan ikke anta hvilket steg
-      // knappen står på. Vi leser den i stedet, og krever at syklusen er LUKKET:
-      // fire trykk skal føre tilbake dit vi startet, uansett hvor det var. Det er
-      // en sterkere sjekk enn en fast rekkefølge, og immun mot husket tilstand.
-      const STEG = ['Vis vær', 'Bytt til natt', 'Vis vær om natta', 'Bytt til dag uten vær']
-      const lesSteg = () => page.evaluate((steg) =>
-        [...document.querySelectorAll('button[aria-label]')]
-          .map((b) => b.getAttribute('aria-label'))
-          .find((l) => steg.includes(l)) ?? null, STEG)
+      // ÅPNINGSMODUSEN AVHENGER AV KLOKKA (v6.1.0): 3D åpner i natt når sola er
+      // under horisonten der arket ligger. Vi kan derfor ikke anta hvilket steg
+      // knappen står på — vi leser den, og krever at syklusen er LUKKET: to trykk
+      // skal føre tilbake dit vi startet, uansett hvor det var. Det er en sterkere
+      // sjekk enn en fast rekkefølge, og immun mot både klokka og husket tilstand.
+      const lesSteg = () => lesSolMaaneSteg(page)
 
       // To gyldige utfall, som i sjekken over: knappene er der, ELLER viseren
       // melder ærlig at kartet mangler høydedata. Det siste skjer på hvert kart
@@ -784,7 +782,7 @@ const SJEKKER = [
           .some((b) => steg.includes(b.getAttribute('aria-label')))) return 'knapper'
         if (/Ingen høydedata/i.test(document.body.innerText)) return 'ingen-dem'
         return false
-      }, STEG, { timeout: 60_000 }).then((h) => h.jsonValue())
+      }, SOLMAANE_STEG, { timeout: 60_000 }).then((h) => h.jsonValue())
 
       // La motoren bli FERDIG før vi begynner å trykke. Knappene dukker opp ved
       // phase='ready', men rett etterpå skjerper sceneCore karttekstur til 4096²
@@ -807,39 +805,40 @@ const SJEKKER = [
       }
 
       const start = await lesSteg()
+      if (!start) throw new Error('fant ikke sol/måne-knappen')
       const sett = [start]
-      let radSett = false
-      for (let i = 0; i < STEG.length; i++) {
+      let radSett = start === 'Bytt til natt'
+        && await evalMedTak(page, () =>
+          /Henter værvarsel|Værvarsel ikke tilgjengelig|MET\s*Norway/i.test(document.body.innerText))
+      for (let i = 0; i < SOLMAANE_STEG.length; i++) {
         // Ekte Playwright-klikk, så et overlay som dekker knappen gir en feil og
         // ikke en stille no-op (v5.18.4-fella).
-        await page.locator(`button[aria-label="${sett[sett.length - 1]}"]`).click({ timeout: 8000 })
-        await page.waitForTimeout(900)
+        await page.locator(`button[aria-label="${sett[sett.length - 1]}"]`).click({ timeout: 10_000 })
+        await page.waitForTimeout(1200)
         const na = await lesSteg()
         if (!na) throw new Error(`knappen forsvant etter trykk ${i + 1}`)
-        if (sett.includes(na) && i < STEG.length - 1) {
-          throw new Error(`trykk ${i + 1} gikk tilbake til «${na}» — syklusen hopper over et steg`)
-        }
         sett.push(na)
-        // Er vi i et vær-steg? To av fire skal vise raden.
-        if (na === 'Bytt til natt' || na === 'Bytt til dag uten vær') {
-          radSett = radSett || await page.evaluate(() =>
+        // «Bytt til natt» betyr at vi står i DAG, og da skal værraden være der:
+        // været er alltid på om dagen fra v6.1.0, uten en egen bryter.
+        if (na === 'Bytt til natt') {
+          radSett = radSett || await evalMedTak(page, () =>
             /Henter værvarsel|Værvarsel ikke tilgjengelig|MET\s*Norway/i.test(document.body.innerText))
         }
       }
       if (sett[sett.length - 1] !== start) {
-        throw new Error(`fire trykk endte på «${sett[sett.length - 1]}», ikke tilbake på «${start}» — syklusen er ikke lukket`)
+        throw new Error(`to trykk endte på «${sett[sett.length - 1]}», ikke tilbake på «${start}» — syklusen er ikke lukket`)
       }
       // Knappen kan være riktig mens raden er koblet feil, og da ser alt ut som
-      // det virker. Etter steg 1 (dag+vær) skal raden stå der i EN av sine tre
-      // tilstander: varselet, «Henter …» eller den ærlige «ikke tilgjengelig».
-      // Vi krever ikke ekte MET-data — api.met.no er ikke nåbart fra alle
-      // miljøer, og en røyktest skal ikke feile på tredjeparts nedetid.
-      if (!radSett) throw new Error('værsymbolraden dukket aldri opp i vær-stegene')
+      // det virker. I dagmodus skal raden stå der i EN av sine tre tilstander:
+      // varselet, «Henter …» eller den ærlige «ikke tilgjengelig». Vi krever ikke
+      // ekte MET-data — api.met.no er ikke nåbart fra alle miljøer, og en
+      // røyktest skal ikke feile på tredjeparts nedetid.
+      if (!radSett) throw new Error('værsymbolraden dukket aldri opp i dagmodus')
 
       // Værraden skal stå OVER Info-pilla (v5.27.0). Rekkefølgen er hele
       // endringen, og den er lett å miste i en senere mal-omrokering uten at
       // noe annet feiler. compareDocumentPosition er billig og entydig.
-      const rekkefolge = await page.evaluate(() => {
+      const rekkefolge = await evalMedTak(page, () => {
         const info = document.querySelector('button[aria-label="Vis hjelp for 3D-visningen"]')
         if (!info) return 'ingen-info-pille'
         const rad = [...document.querySelectorAll('div')].find((d) => d.children.length
@@ -853,10 +852,8 @@ const SJEKKER = [
         throw new Error('værraden ligger UNDER Info-pilla — den skal ligge over')
       }
 
-      // Fire trykk er en hel runde, så vi står der vi startet — og siden
-      // localStorage-verdien er uendret er også NESTE sjekk (og neste kjøring)
-      // i samme tilstand som før denne. En sjekk skal ikke etterlate seg en
-      // 3D-visning i nattmodus med værrad som dytter innholdet nedover.
+      // To trykk er en hel runde, så vi står der vi startet. En sjekk skal ikke
+      // etterlate en 3D-visning i nattmodus for den neste.
       const x = page.locator('button[aria-label="Lukk 3D-visning"]')
       await x.click({ timeout: 5000 })
       await page.waitForFunction(() => !document.querySelector('canvas'), null, { timeout: 8000 })
@@ -895,6 +892,16 @@ const SJEKKER = [
       if (klar === 'ingen-dem') {
         await lukk()
         return 'ingen-dem-melding — vippen kan ikke prøves uten terreng'
+      }
+
+      // TVING DAGMODUS FØRST. Denne sjekken leser to landemerker — himmel-hintet
+      // og «Oversikt» — og BEGGE er skjult i nattmodus fra v6.1.0. Siden 3D nå
+      // åpner i den modusen himmelen faktisk er i, ville sjekken feilet halve
+      // døgnet uten dette. Modusen gis tilbake til slutt, som alltid.
+      const startSteg = await lesSolMaaneSteg(page)
+      if (startSteg === 'Bytt til dag') {
+        await page.locator('button[aria-label="Bytt til dag"]').click({ timeout: 10_000 })
+        await page.waitForTimeout(1600)
       }
 
       // Ekte peker-sekvens: gesten er drevet av pointerdown/move/up, og
@@ -957,16 +964,20 @@ const SJEKKER = [
         /Ser opp i himmelen/i.test(document.body.innerText))
       if (nede) throw new Error('«Oversikt» nullstilte ikke himmelvippen')
 
+      // Tilbake til modusen vi arvet, så neste sjekk står i samme bilde.
+      if (startSteg === 'Bytt til dag' && await lesSolMaaneSteg(page) === 'Bytt til natt') {
+        await page.locator('button[aria-label="Bytt til natt"]').click({ timeout: 10_000 })
+        await page.waitForTimeout(1600)
+      }
       await lukk()
       return 'vippet opp i himmelen, Oversikt tok blikket ned igjen'
     },
   },
   {
-    // DELT I TO MED VILJE. Første utgave gjorde alt i én sjekk — natt, drag,
-    // søk, valg, kort, maksimer, av-maksimer og full opprydding — og brukte mer
-    // enn takets 120 s på en runner uten GPU, der nattmodus baker en 4096²-
-    // tekstur på hovedtråden. To halvparter går inn under taket hver for seg,
-    // og en feil peker dessuten på HVILKEN halvdel som brakk.
+    // DELT I TO MED VILJE. Første utgave gjorde alt i én sjekk og brukte mer enn
+    // takets 120 s på en runner uten GPU, der nattmodus baker en 4096²-tekstur
+    // på hovedtråden. To halvparter går inn under taket hver for seg, og en feil
+    // peker dessuten på HVILKEN halvdel som brakk.
     navn: 'stjernekikkeren finner, velger og forteller',
     domene: 'himmelObjekter + Tour3dHimmelSok/Kort',
     krever: 'ektekart',
@@ -975,21 +986,9 @@ const SJEKKER = [
       const h = await aapneNatt3d(page)
       if (h.hoppet) return h.hoppet
 
-      // Løft blikket. Høyre knapp (venstre panorerer) og OPPOVER — se
-      // himmelvipp-sjekken over for begge fortegnene, de var feil i første utgave.
-      const vp = page.viewportSize()
-      const x0 = Math.round(vp.width / 2)
-      const y0 = Math.round(vp.height * 0.85)
-      await page.mouse.move(x0, y0)
-      await page.mouse.down({ button: 'right' })
-      for (let i = 1; i <= 60; i++) {
-        await page.mouse.move(x0, y0 - i * 10)
-        if (i % 12 === 0) await page.waitForTimeout(60)
-      }
-      await page.mouse.up({ button: 'right' })
-      await page.waitForTimeout(900)
-
-      // Søkefeltet skal ha kommet nå, som pille.
+      // INGEN DRAG HER (v6.1.0). Nattmodus løfter blikket selv, og søkefeltet
+      // står der uansett — det var hele forenklingen. At draget fortsatt virker
+      // dekkes av himmelvipp-sjekken over.
       const pille = page.locator('button[aria-label="Finn et stjernebilde eller en planet"]')
       await pille.waitFor({ state: 'visible', timeout: 10_000 })
       await pille.click({ timeout: 5000 })
@@ -1015,14 +1014,53 @@ const SJEKKER = [
         throw new Error('infokortet mangler retning og høyde — det er linja man trenger')
       }
 
+      // «Sett i fokus» skal finnes: har man sett seg bort, er det veien tilbake
+      // til det som er fremhevet.
+      if (!await evalMedTak(page, () => !!document
+        .querySelector('button[aria-label^="Sett "][aria-label$=" i fokus"]'))) {
+        throw new Error('kortet mangler «Sett i fokus»')
+      }
+
+      // MINIMER (v6.1.0): navnet blir stående, lesestoffet forsvinner. Vi måler
+      // på «Historien», som bare finnes i det utvidede kortet.
+      const harHistorien = () => evalMedTak(page, () => /Historien|Verdt å vite|Månegloben/
+        .test(document.body.innerText))
+      const utvidetFor = await harHistorien()
+      await page.locator('button[aria-label="Minimer infokortet"]').click({ timeout: 5000 })
+      await page.waitForTimeout(400)
+      if (await harHistorien()) throw new Error('kortet ble ikke minimert')
+      if (!(await evalMedTak(page, () => document.body.innerText)).includes(forste)) {
+        throw new Error('navnet forsvant da kortet ble minimert — da vet man ikke hva som lyser')
+      }
+      // Og tilbake ut igjen.
+      await page.locator(`button[aria-label="Vis mer om ${forste}"]`).click({ timeout: 5000 })
+      await page.waitForTimeout(400)
+      if (utvidetFor && !await harHistorien()) throw new Error('kortet lot seg ikke utvide igjen')
+
+      // NABO-HOPP minimerer av seg selv: man hopper for å SE, ikke for å lese.
+      const nabo = await evalMedTak(page, () => {
+        const b = [...document.querySelectorAll('button[aria-label^="Hopp til "]')][0]
+        return b ? b.getAttribute('aria-label').replace(/^Hopp til /, '').split(',')[0] : null
+      })
+      if (nabo) {
+        await page.locator('button[aria-label^="Hopp til "]').first().click({ timeout: 5000 })
+        await page.waitForTimeout(1600)
+        if (await harHistorien()) {
+          throw new Error(`hoppet til «${nabo}», men kortet ble ikke minimert`)
+        }
+        if (!(await evalMedTak(page, () => document.body.innerText)).includes(nabo)) {
+          throw new Error(`hoppet til «${nabo}», men kortet nevner den ikke`)
+        }
+      }
+
       await page.locator('button[aria-label="Lukk infokortet"]').click({ timeout: 5000 })
       await page.waitForTimeout(400)
       await lukkNatt3d(page, h.startSteg)
-      return `valgte «${forste}», kortet åpnet med retning og høyde`
+      return `valgte «${forste}», minimerte, utvidet${nabo ? `, hoppet til «${nabo}»` : ''}`
     },
   },
   {
-    navn: 'maksimert modus skjuler alt utenom himmelsøket',
+    navn: 'nattmodus er stjernekikkeren: alt annet er borte',
     domene: 'Viewer3D (nattsyn)',
     krever: 'ektekart',
     maksMs: 180_000,
@@ -1030,30 +1068,64 @@ const SJEKKER = [
       const h = await aapneNatt3d(page)
       if (h.hoppet) return h.hoppet
 
-      // Ingen drag her: i maksimert modus SKAL søkefeltet stå uansett om blikket
-      // er løftet — ellers er modusen en tom skjerm med to nesten usynlige
-      // knapper. Det er nettopp den regelen denne sjekken håndhever.
-      await page.locator('button[aria-label="Skjul alt utenom himmelsøket"]')
-        .click({ timeout: 10_000 })
-      await page.waitForTimeout(500)
-      const i = await evalMedTak(page, () => ({
-        oversikt: /\bOversikt\b/.test(document.body.innerText),
-        hint: /Ser opp i himmelen/i.test(document.body.innerText),
-        sok: !!document.querySelector('button[aria-label^="Valgt:"], button[aria-label="Finn et stjernebilde eller en planet"]'),
-      }))
-      if (i.oversikt) throw new Error('«Oversikt» står fortsatt i maksimert modus')
-      if (i.hint) throw new Error('himmel-hintet står fortsatt i maksimert modus')
-      if (!i.sok) throw new Error('himmelsøket forsvant i maksimert modus — da er skjermen tom')
+      // v6.1.0-bestillingen, punkt for punkt: igjen står sol/måne-knappen,
+      // X-en og himmelsøket mellom dem. Alt annet er borte — også maksimer-
+      // knappen, som ER fjernet: natt går rett inn i dette bildet.
+      const i = await evalMedTak(page, () => {
+        const labels = [...document.querySelectorAll('button[aria-label]')]
+          .filter((b) => b.offsetParent !== null)
+          .map((b) => b.getAttribute('aria-label'))
+        return {
+          labels,
+          oversikt: /\bOversikt\b/.test(document.body.innerText),
+          hint: /Ser opp i himmelen/i.test(document.body.innerText),
+          sok: labels.some((l) => l === 'Finn et stjernebilde eller en planet'
+            || (l ?? '').startsWith('Valgt:')),
+          // Lag-knappene og maksimer skal ikke finnes i det hele tatt.
+          naaler: labels.some((l) => /knappenåler/i.test(l ?? '')),
+          stier: labels.some((l) => /stinettet/i.test(l ?? '')),
+          kurver: labels.some((l) => /høydekurver/i.test(l ?? '')),
+          maksimer: labels.some((l) => /Skjul alt utenom|Vis knappene igjen/i.test(l ?? '')),
+        }
+      })
+      if (i.oversikt) throw new Error('«Oversikt» står fortsatt i nattmodus')
+      if (i.hint) throw new Error('himmel-hintet står fortsatt i nattmodus')
+      if (!i.sok) throw new Error('himmelsøket mangler — da er skjermen tom')
+      if (i.naaler) throw new Error('nåle-knappen står fortsatt i nattmodus')
+      if (i.stier) throw new Error('sti-knappen står fortsatt i nattmodus')
+      if (i.kurver) throw new Error('kurve-knappen står fortsatt i nattmodus')
+      if (i.maksimer) throw new Error('maksimer-knappen finnes ennå — den skulle vært fjernet')
 
-      // Og tilbake: knappene skal komme igjen. En enveisdør her ville låst
-      // brukeren ute av alt annet enn stjernene.
-      await page.locator('button[aria-label="Vis knappene igjen"]').click({ timeout: 10_000 })
-      await page.waitForTimeout(500)
-      if (!await evalMedTak(page, () => /\bOversikt\b/.test(document.body.innerText))) {
-        throw new Error('maksimert modus slapp ikke knappene tilbake')
+      // HIMMELKOMPASSET nede til høyre. Grafikken kan ikke leses fra en test,
+      // men aria-labelen ER retningen i ord — og den er dermed også sjekken på
+      // at blikk-eventet henger sammen hele veien fra kameramatrisen til SVG-en.
+      const lesKompass = () => evalMedTak(page, () => document
+        .querySelector('svg[role="img"][aria-label^="Du ser mot"]')?.getAttribute('aria-label') ?? null)
+      const forDrag = await page.waitForFunction(() => document
+        .querySelector('svg[role="img"][aria-label^="Du ser mot"]')?.getAttribute('aria-label'),
+      null, { timeout: 15_000 }).then((x) => x.jsonValue())
+      if (!forDrag) throw new Error('himmelkompasset kom ikke i nattmodus')
+
+      // Snu deg, og kompasset må følge. Høyre knapp roterer (venstre panorerer),
+      // og et halvt skjermbredde-drag er godt over 45°, altså minst én
+      // himmelretning. Sier labelen det samme etterpå, er prikken frosset.
+      const vp = page.viewportSize()
+      const y = Math.round(vp.height * 0.5)
+      await page.mouse.move(Math.round(vp.width * 0.2), y)
+      await page.mouse.down({ button: 'right' })
+      for (let k = 1; k <= 40; k++) {
+        await page.mouse.move(Math.round(vp.width * 0.2) + k * 12, y)
+        if (k % 10 === 0) await page.waitForTimeout(60)
       }
+      await page.mouse.up({ button: 'right' })
+      await page.waitForTimeout(900)
+      const etterDrag = await lesKompass()
+      if (etterDrag === forDrag) {
+        throw new Error(`kompasset står stille: «${forDrag}» både før og etter et drag`)
+      }
+
       await lukkNatt3d(page, h.startSteg)
-      return 'Oversikt og hintet skjult, søkefeltet sto igjen'
+      return `igjen sto ${i.labels.length} knapper; kompasset gikk «${forDrag}» → «${etterDrag}»`
     },
   },
   {
@@ -1186,9 +1258,7 @@ function medTak(løfte, ms, navn) {
 // Sol/måne-knappens aria-label sier hva NESTE trykk gjør. Vær-biten huskes i
 // localStorage og dag/natt-biten avledes av kart-temaet, så vi kan ikke ANTA
 // noe steg — vi leser det.
-const SOLMAANE_STEG = [
-  'Vis vær', 'Bytt til natt', 'Vis vær om natta', 'Bytt til dag uten vær',
-]
+const SOLMAANE_STEG = ['Bytt til natt', 'Bytt til dag']
 /**
  * `page.evaluate` MED TAK. Playwright gir evaluate ingen egen timeout, så en
  * travel hovedtråd (3D baker en 4096²-tekstur ved bytte til natt) gjør et
@@ -1233,13 +1303,16 @@ async function aapneNatt3d(page) {
 
   const startSteg = await lesSolMaaneSteg(page)
   if (!startSteg) throw new Error('fant ikke sol/måne-knappen')
+  // «Bytt til dag» på knappen betyr at vi ALLEREDE er i natt — og siden 3D fra
+  // v6.1.0 åpner i den modusen himmelen faktisk er i, kan vi være der uten å ha
+  // trykket. Ett trykk er nok i alle andre tilfeller.
   let steg = startSteg
-  for (let i = 0; i < 4 && steg !== 'Vis vær om natta'; i++) {
+  if (steg !== 'Bytt til dag') {
     await page.locator(`button[aria-label="${steg}"]`).click({ timeout: 10_000 })
     await page.waitForTimeout(900)
     steg = await lesSolMaaneSteg(page)
   }
-  if (steg !== 'Vis vær om natta') throw new Error('kom ikke til natt uten vær')
+  if (steg !== 'Bytt til dag') throw new Error('kom ikke i nattmodus')
   // NATTBYTTET BAKER SIN EGEN 4096²-TEKSTUR, og på en runner uten GPU blokkerer
   // den hovedtråden i sekunder. Alt vi gjør etterpå — et klikk, et oppslag —
   // ville køet bak den. Samme grunn som ventingen ved åpning, og det er nettopp
@@ -1249,6 +1322,9 @@ async function aapneNatt3d(page) {
     null, { timeout: 45_000 },
   ).catch(() => { /* meldingen kan ha kommet og gått */ })
   await page.waitForTimeout(1200)
+  // NATTMODUS LØFTER BLIKKET SELV (v6.1.0), med en ease-out over 1,5 s. Vi venter
+  // den ut: alt etterpå leser en skjerm der himmelen fyller bildet.
+  await page.waitForTimeout(1800)
   return { startSteg }
 }
 
@@ -1258,8 +1334,8 @@ async function aapneNatt3d(page) {
  * bildet — og localStorage-verdien følger med inn i neste kjøring.
  */
 async function lukkNatt3d(page, startSteg) {
-  await klikkTekst(page, /^Oversikt$/)
-  await page.waitForTimeout(1400)
+  // INGEN «Oversikt»-knapp i nattmodus — den er skjult med resten av overlegget.
+  // Veien ut er sol/måne-knappen, som også tar blikket ned i kartet igjen.
   let na = await lesSolMaaneSteg(page)
   for (let i = 0; i < 4 && na !== startSteg; i++) {
     await page.locator(`button[aria-label="${na}"]`).click({ timeout: 10_000 })

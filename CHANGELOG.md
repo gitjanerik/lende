@@ -1,3 +1,108 @@
+## 2026-08-28 — v6.1.0: Nattmodus er stjernekikkeren
+
+v6.0.0 ga 3D-visningen en stjernekikker med en egen maksimer-knapp foran den.
+Felttesten viste at knappen var i veien for sin egen hensikt: den som slår på
+natt gjør det for å se stjerner, og da er hver hvite flate på skjermen en feil —
+inkludert knappen man må finne for å bli kvitt dem. **Natt går derfor rett inn i
+det bildet.** Ett trykk løfter blikket opp i himmelen av seg selv (ease-out over
+halvannet sekund, samme bevegelse man ellers gjør med fingeren), tar bort kurver,
+stier og knappenåler, og fjerner hele overlegget. Igjen står sol/måne-knappen,
+X-en, og mellom dem søkefeltet. Ett drag nedover tar deg tilbake til landskapet,
+og det står ingen forklaring på skjermen — bevegelsen er den man nettopp så bli
+kjørt. Lag-valgene dine huskes og gis tilbake når du går ut av natta.
+
+**Modusvelgeren har to stillinger, ikke fire.** Dag uten vær og natt med vær er
+begge borte. Været vises nå ALLTID om dagen: varselet er ett oppslag med en
+halvtimes cache, og en skyfri dagshimmel er ikke mer nøytral enn en riktig — bare
+mindre sann. Natt med vær skjulte stjernene som er hele grunnen til å slå på
+natt. Knappen har også flyttet helt til venstre, foran nålene: den skifter hele
+bildet, og i nattmodus er den den eneste som blir igjen på venstresida.
+
+**3D åpner i den himmelen som faktisk er ute.** Fram til nå fulgte dag/natt
+kart-temaet — altså om KARTET sto i mørk drakt, som er et helt annet spørsmål:
+man kan godt lese et mørkt kart midt på dagen. Nå regnes solas høyde for arkets
+senterpunkt og sammenliknes med den offisielle grensa −0°50′ (øvre rand ved
+horisonten pluss refraksjon — samme definisjon MET og Yr regner tidene sine fra).
+METs Sunrise-API ble vurdert og forkastet: hele bruksområdet er en kveld ute uten
+dekning, og vi trenger ikke tidene, vi trenger solas høyde NÅ — som er det tidene
+er regnet ut FRA, og den har vi lokalt. Merk at grensa er solnedgang og ikke
+skumring: rett etter solnedgang er himmelen fortsatt lys.
+
+**Et himmelkompass nede til høyre.** Uten kartet i bildet mister man
+himmelretningene helt; man kan stå og se på Karlsvogna uten å vite at man ser
+nordover. Kompasset er to ringer i omriss — jordas plan med øst–vest-aksen, og en
+loddrett ring med N og S — pluss en rød prikk som viser hvor du ser. Ringene står
+stille og prikken flytter seg, så det er noe man leser framfor noe man må tolke.
+Ren matte og SVG, ikke en andre 3D-scene: det er et HUD på sytti piksler, og et
+andre kamera-regime er den gjelden prosjektet advarer sterkest mot. Rødt er ikke
+pynt — rødt lys ødelegger mørkeadaptasjonen minst.
+
+**Infokortet kan legges sammen**, fordi teksten dekker nettopp den delen av
+himmelen man ble bedt om å se på. Minimert står navnet og retningen igjen som én
+linje. Et hopp til en nabo legger kortet sammen av seg selv — man hopper for å
+SE, ikke for å lese videre — og «Sett i fokus» retter blikket tilbake til det som
+er fremhevet når man har sett seg bort.
+
+Teksten i nattmodus følger hovedmenyens 100/125/150-valg. Resten av
+3D-overlegget følger systemets tekstskalering, men nattmodus' søkefelt og
+infokort er det eneste man faktisk LESER i 3D, og den som har satt større tekst
+har gjort det fordi hun trenger den.
+
+Til sist en utvikler-bryter i Utvikler-fanen: **Tvungen måne i 3D.** Månen står
+under horisonten store deler av døgnet, og da kan verken månegloben eller
+trykk-plukkingen av den prøves — man må vente på at himmelen stiller seg riktig.
+Med bryteren på løftes månen til 35°, og alt annet ved den er fortsatt ekte: fase,
+lysside og retning. Den bor i `himmelFor`, som er den ene kilden både skiva på
+himmelen og lista i søkefeltet bygges av — ellers ville søket tilbudt en måne
+trykk ikke finner.
+
+---
+
+## 2026-08-28 — v6.1.0: Nattmodus er stjernekikkeren
+
+v6.0.0 ga 3D-visningen en stjernekikker med en egen maksimer-knapp foran den.
+Felttesten viste at knappen var i veien for sin egen hensikt: den som slår på
+natt gjør det for å se stjerner, og da er hver hvite flate på skjermen en feil —
+inkludert knappen man må finne for å bli kvitt dem. **Natt går derfor rett inn i
+det bildet.** Ett trykk løfter blikket opp i himmelen av seg selv (ease-out over
+halvannet sekund, samme bevegelse man ellers gjør med fingeren), tar bort kurver,
+stier og knappenåler, og fjerner hele overlegget. Igjen står sol/måne-knappen,
+X-en, og mellom dem søkefeltet. Ett drag nedover tar deg tilbake til landskapet,
+og det står ingen forklaring på skjermen — bevegelsen er den man nettopp så bli
+kjørt. Lag-valgene dine huskes og gis tilbake når du går ut av natta.
+
+**Modusvelgeren har to stillinger, ikke fire.** Dag uten vær og natt med vær er
+begge borte. Været vises nå ALLTID om dagen: varselet er ett oppslag med en
+halvtimes cache, og en skyfri dagshimmel er ikke mer nøytral enn en riktig — bare
+mindre sann. Natt med vær skjulte stjernene som er hele grunnen til å slå på
+natt. Knappen har også flyttet helt til venstre, foran nålene: den skifter hele
+bildet, og i nattmodus er den den eneste som blir igjen på venstresida.
+
+**3D åpner i den himmelen som faktisk er ute.** Fram til nå fulgte dag/natt
+kart-temaet — altså om KARTET sto i mørk drakt, som er et helt annet spørsmål:
+man kan godt lese et mørkt kart midt på dagen. Nå regnes solas høyde for arkets
+senterpunkt og sammenliknes med den offisielle grensa −0°50′ (øvre rand ved
+horisonten pluss refraksjon — samme definisjon MET og Yr regner tidene sine fra).
+METs Sunrise-API ble vurdert og forkastet: hele bruksområdet er en kveld ute uten
+dekning, og vi trenger ikke tidene, vi trenger solas høyde NÅ — som er det tidene
+er regnet ut FRA, og den har vi lokalt.
+
+**Og et himmelkompass nede til høyre.** Uten kartet i bildet mister man
+himmelretningene helt; man kan stå og se på Karlsvogna uten å vite at man ser
+nordover. Kompasset er to ringer i omriss — jordas plan med øst–vest-aksen, og en
+loddrett ring med N og S — pluss en rød prikk som viser hvor du ser. Ringene står
+stille og prikken flytter seg, så det er noe man leser framfor noe man må tolke.
+Ren matte og SVG, ikke en andre 3D-scene: det er et HUD på sytti piksler, og et
+andre kamera-regime er den gjelden prosjektet advarer sterkest mot. Rødt er ikke
+pynt — rødt lys ødelegger mørkeadaptasjonen minst.
+
+Til sist: teksten i nattmodus følger hovedmenyens 100/125/150-valg. Resten av
+3D-overlegget følger systemets tekstskalering, men nattmodus' søkefelt og
+infokort er det eneste man faktisk LESER i 3D, og den som har satt større tekst
+har gjort det fordi hun trenger den.
+
+---
+
 ## 2026-08-27 — v6.0.0: Stjernekikkeren — utforsk himmelen fra kartet
 
 3D-visningen har hatt en astronomisk riktig natthimmel siden v5.27.0, og et

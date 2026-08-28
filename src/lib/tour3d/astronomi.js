@@ -328,6 +328,52 @@ export function horisontTilWorld(azimut, hoyde, radius) {
 }
 
 /**
+ * Solas offisielle høyde ved soloppgang og solnedgang: −0°50′ (Meeus kap. 15,
+ * «standard altitude» h0). Tallet er ikke null fordi det er sola sin ØVRE RAND
+ * som skal berøre horisonten (−16′) og fordi atmosfæren løfter bildet av sola
+ * (−34′ refraksjon). Det er samme definisjon MET og Yr bruker for tidene sine,
+ * så «sola er nede» betyr her det samme som i tabellen deres.
+ */
+export const SOL_HOYDE_SOLNEDGANG = rad(-50 / 60)
+
+/**
+ * Er det natt her og nå — offisielt?
+ *
+ * HVORFOR REGNET LOKALT OG IKKE HENTET FRA METs Sunrise-API: hele bruksområdet
+ * for det som henger på svaret er en kveld ute uten dekning. Et oppslag som
+ * feiler på fjellet ville gjort valget tilfeldig nettopp der det betyr noe. Og
+ * vi trenger ikke tidene — vi trenger solas høyde NÅ, som er det tidene er
+ * regnet ut FRA, og den har vi allerede (`solEkvatorial` + `tilHorisont`).
+ *
+ * MERK at dette er soloppgang/solnedgang og ikke skumring: rett etter
+ * solnedgang er himmelen fortsatt lys, og de første stjernene kommer ved
+ * borgerlig skumring (−6°) og utover. Grensa her er den offisielle, som er den
+ * som ble bestilt.
+ *
+ * @param {{lat:number, lon:number, dato?: Date}} sted
+ * @returns {boolean|null} null når stedet ikke er brukbart
+ */
+export function erNatt({ lat, lon, dato = new Date() }) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
+  try {
+    const lst = lokalStjernetid(dato, lon)
+    const s = solEkvatorial(dato)
+    return tilHorisont(s.ra, s.dek, lst, lat).hoyde < SOL_HOYDE_SOLNEDGANG
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Høyden en TVUNGEN måne løftes til (utvikler-bryter, se himmelFor).
+ *
+ * 35° er valgt fordi den er godt over horisonten uten å være i zenit: månen skal
+ * stå der man ser den når man løfter blikket i nattmodus (som lander på 50°), og
+ * en måne rett over hodet er vanskelig å trykke på.
+ */
+export const MANE_TVANG_HOYDE = rad(35)
+
+/**
  * Alt natthimmelen trenger for ETT sted og tidspunkt, i ett kall.
  *
  * @param {{lat:number, lon:number, dato?: Date}} sted
@@ -336,7 +382,17 @@ export function horisontTilWorld(azimut, hoyde, radius) {
  *                   lyssideVinkel:number, voksende:boolean},
  *            sol: {azimut:number, hoyde:number}}}
  */
-export function himmelFor({ lat, lon, dato = new Date() }) {
+/**
+ * @param {{lat:number, lon:number, dato?: Date, tvingMane?: boolean}} sted
+ *   tvingMane  UTVIKLER-BRYTER: løft månen over horisonten selv når den står
+ *              under. Månen er nede store deler av døgnet, og da kan verken
+ *              månegloben eller trykk-plukkingen av den prøves — man må vente på
+ *              at himmelen stiller seg riktig. Alt annet ved månen er fortsatt
+ *              ekte: fase, lysside og azimut. Bare høyden er løftet, og bare når
+ *              den var under horisonten — står månen oppe, rører flagget
+ *              ingenting.
+ */
+export function himmelFor({ lat, lon, dato = new Date(), tvingMane = false }) {
   const lst = lokalStjernetid(dato, lon)
   const m = maneEkvatorial(dato)
   const s = solEkvatorial(dato)
@@ -354,6 +410,7 @@ export function himmelFor({ lat, lon, dato = new Date() }) {
       // Lyssida dreid fra ZENITH i stedet for fra nordpolen, som er det
       // skjermen faktisk viser.
       lyssideVinkel: wrapPi(fase.lyssideVinkel - parallaktiskVinkel(m.ra, m.dek, lst, lat)),
+      hoyde: tvingMane && mh.hoyde < MANE_TVANG_HOYDE ? MANE_TVANG_HOYDE : mh.hoyde,
       // Selve dreiningen, tatt med for seg: månegloben må RULLE like mye for at
       // nordpolen på kula skal stå der himmelens nordpol faktisk står. Uten den
       // ville skyggelinja på kula pekt en annen vei enn sigden man nettopp så.

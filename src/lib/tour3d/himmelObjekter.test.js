@@ -218,3 +218,39 @@ describe('himmelUndertekst', () => {
     }
   })
 })
+
+
+describe('himmelObjekter — tvungen måne må gjelde HER OGSÅ', () => {
+  // FELLA denne testen finnes for: bryteren løfter månen i himmelen (skiva i
+  // skyDome) og i LISTA (her), og begge går gjennom himmelFor. Gjorde de det
+  // ikke, ville søket manglet en måne man tydelig ser — og trykk-plukkingen
+  // ville ikke funnet den, siden den plukker fra denne lista. Samme regel som
+  // mosaikken i CLAUDE.md.
+  const oslo = { lat: 59.91, lon: 10.75 }
+  const naarMaanenErNede = () => {
+    for (let t = 0; t < 24 * 30; t++) {
+      const dato = new Date(Date.UTC(2026, 7, 1, t))
+      if (!himmelObjekter({ ...oslo, dato }).some((o) => o.type === 'mane')) return dato
+    }
+    throw new Error('fant ikke et tidspunkt uten måne i lista')
+  }
+
+  it('månen kommer i lista når bryteren står på', () => {
+    const dato = naarMaanenErNede()
+    expect(himmelObjekter({ ...oslo, dato }).some((o) => o.type === 'mane')).toBe(false)
+    const mane = himmelObjekter({ ...oslo, dato, tvingMane: true })
+      .find((o) => o.type === 'mane')
+    expect(mane).toBeTruthy()
+    expect(mane.hoyde).toBeGreaterThan(0)
+    // Og den må bære det månegloben trenger, ellers åpner ikke nærbildet.
+    expect(Number.isFinite(mane.faseVinkel)).toBe(true)
+    expect(Number.isFinite(mane.lyssideVinkel)).toBe(true)
+    expect(Number.isFinite(mane.parallaktisk)).toBe(true)
+  })
+
+  it('månen står først i lista, som ellers', () => {
+    const dato = naarMaanenErNede()
+    const liste = himmelObjekter({ ...oslo, dato, tvingMane: true })
+    expect(liste[0].type).toBe('mane')
+  })
+})
