@@ -1,114 +1,98 @@
-// Himmelkompasset: to ringer og en rød prikk som sier hvor du ser.
+// Himmelkompasset: en skive som dreier, og en markør som står stille.
 //
 // HVORFOR DET FINNES: i nattmodus er kartet ute av bildet, og da mister man
 // himmelretningene. Man kan stå og se på Karlsvogna uten å vite at man ser mot
 // nord. Kompasset er den ene tingen som gir orienteringen tilbake uten å tenne
 // en lampe på skjermen.
 //
+// FØRSTE UTGAVE (v6.1.0) SNUDDE DET MOTSATTE VEIEN, og det var feil. Da sto
+// ringene stille — N alltid samme sted på skjermen — og en rød prikk vandret
+// rundt for å si hvor man så. Begrunnelsen var at bokstaver som står stille er
+// lettere å lese i mørket. Eieren prøvde den og forsto den ikke, og det er den
+// avgjørende observasjonen: en gizmo man må tolke er ingen gizmo.
+//
+// NÅ FØLGER DEN KONVENSJONEN ALLE KJENNER: markøren står fast øverst og betyr
+// «hit ser du», og skiva med N, Ø, S, V dreier under den. Det er slik ethvert
+// kart-program og hvert eneste kompass gjør det, og da trenger ingen forklaring.
+//
+// OG DEN ANDRE RINGEN ER BORTE. Den loddrette meridianringen viste blikkets
+// HØYDE, men det var også den som gjorde bildet til en armillarsfære man måtte
+// studere. Høyden står i infokortet («45° over horisonten») og er dessuten
+// åpenbar av hva man ser. Én ring man forstår slår to man ikke forstår.
+//
 // HVORFOR REN MATTE OG SVG, OG IKKE THREE.JS: det er et HUD. En andre scene med
-// eget kamera i et hjørne er nøyaktig den gjelden CLAUDE.md advarer sterkest mot
-// (to nesten identiske kamera-regimer levde side om side i månedsvis), og en
-// gizmo som koster en ekstra render-pass hver frame er dyr for noe som er 70
-// piksler stort. Her er alt tall: ringene samples og skrives som polylinjer, og
-// hele modulen kan testes uten WebGL.
-//
-// HVORFOR RINGENE STÅR STILLE OG PRIKKEN FLYTTER SEG: N blir stående på samme
-// sted på skjermen. Det gjør kompasset til noe man LESER framfor noe man må
-// tolke — «prikken ligger oppe ved N, altså ser jeg nordover». Snurret ringene
-// i stedet, ville bokstavene flyttet seg rundt i mørket, og det er vanskeligere
-// å lese enn en prikk som beveger seg.
-//
-// KOORDINATER: øst = +x, nord = +y, opp = +z. Det er IKKE scenens system
-// (der er nord = −Z og opp = +Y) — omregningen skjer i scene3d, som eier
-// kameraet. Her inne er det det lokale, lesbare systemet.
+// eget kamera i et hjørne er nøyaktig den gjelden CLAUDE.md advarer sterkest mot,
+// og en gizmo som koster en ekstra render-pass hver frame er dyr for noe som er
+// 70 piksler stort. Her er alt tall, og hele modulen testes uten WebGL.
 
 const GRAD = Math.PI / 180
 
 /**
- * Kameraets stilling for gizmoen. Faste tall, ikke brukerens kamera: ringene
- * skal ses fra samme vinkel hele tida.
- *
- * Azimuten er 158° (fra sørøst-ish) og ikke 180°: står kameraet rett i sør,
- * ligger nord–sør-ringen EDGE-ON og blir en strek. 22° til side gir den en
- * ellipse man ser er en ring. Høyden på 24° gjør det samme for horisontringen —
- * rett fra sida ville også den blitt en strek.
+ * Skivas helling, i grader. 0 ville gitt en strek, 90 en sirkel sett rett
+ * ovenfra. 45° gir en ellipse som leses som et plan man ser på skrå — «jordas
+ * plan», som var bestillingen — mens bokstavene fortsatt står lesbare.
  */
-export const KOMPASS_KAMERA = { azimut: 158, hoyde: 24 }
+export const KOMPASS_HELLING = 45
 
 /** Ringradius i SVG-enheter, med senter i (0, 0). Viseren flytter og skalerer. */
 export const KOMPASS_RADIUS = 34
 
-/** Punkter per ring. 48 er glatt på 70 piksler og koster ingenting. */
+/** Hvor langt ut fra ringen bokstavene står. */
+const MERKE_RADIUS = 1.32
+
+/** Punkter i ellipsen. 48 er glatt på 70 piksler og koster ingenting. */
 const RING_PUNKTER = 48
 
-const kryss = (a, b) => [
-  a[1] * b[2] - a[2] * b[1],
-  a[2] * b[0] - a[0] * b[2],
-  a[0] * b[1] - a[1] * b[0],
+/** De fire himmelretningene, med NORSKE bokstaver: øst og vest, ikke E og W. */
+export const HIMMELRETNINGER = [
+  { navn: 'N', azimut: 0 },
+  { navn: 'Ø', azimut: 90 },
+  { navn: 'S', azimut: 180 },
+  { navn: 'V', azimut: 270 },
 ]
-const punkt = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-const lengde = (a) => Math.hypot(a[0], a[1], a[2])
-const normaliser = (a) => {
-  const l = lengde(a) || 1
-  return [a[0] / l, a[1] / l, a[2] / l]
-}
 
 /**
- * Retningsvektor for en himmelretning og en høyde over horisonten.
+ * Et punkt på skiva, gitt vinkelen fra markøren (toppen) målt med klokka.
  *
- * @param {number} azimutGrader 0 = nord, 90 = øst
- * @param {number} hoydeGrader over horisonten
- * @returns {[number, number, number]} [øst, nord, opp]
+ * Toppen av ellipsen er den FJERNE sida — det er den som gjør at skiva leses som
+ * et plan man ser på skrå og ikke som en ring rett foran seg.
+ *
+ * @param {number} vinkelGrader 0 = under markøren, 90 = til høyre
+ * @param {number} [radius]
+ * @returns {{x: number, y: number, naer: boolean}} naer = på siden mot seeren
  */
-export function retning(azimutGrader, hoydeGrader) {
-  const a = azimutGrader * GRAD
-  const h = hoydeGrader * GRAD
-  return [Math.cos(h) * Math.sin(a), Math.cos(h) * Math.cos(a), Math.sin(h)]
-}
-
-/**
- * Kameraets basis: blikkretning, skjerm-høyre og skjerm-opp.
- *
- * Kameraet står i retningen (azimut, hoyde) og ser MOT origo. Høyre finnes som
- * f × opp — sjekk med et konkret tilfelle om du er i tvil: står kameraet rett i
- * sør og ser nordover, skal høyre bli øst.
- */
-export function kompassBasis({ azimut, hoyde } = KOMPASS_KAMERA) {
-  const c = retning(azimut, hoyde)
-  const f = [-c[0], -c[1], -c[2]]
-  const h = normaliser(kryss(f, [0, 0, 1]))
-  return { f, hoyre: h, opp: kryss(h, f) }
-}
-
-/**
- * Ortografisk projeksjon til SVG-koordinater. Ortografisk og ikke perspektiv
- * med vilje: en gizmo på 70 piksler har ingen dybde å vise, og perspektiv ville
- * bare gjort de to ringene ulikt store uten å si noe.
- *
- * SVG har y NEDOVER, så skjerm-opp får motsatt fortegn.
- *
- * @returns {{x: number, y: number, bak: boolean}} bak = på motsatt side av kula
- */
-export function projiser(p, basis = kompassBasis(), radius = KOMPASS_RADIUS) {
+export function skivePunkt(vinkelGrader, radius = KOMPASS_RADIUS) {
+  const t = vinkelGrader * GRAD
   return {
-    x: punkt(p, basis.hoyre) * radius,
-    y: -punkt(p, basis.opp) * radius,
-    bak: punkt(p, basis.f) > 0,
+    x: radius * Math.sin(t),
+    // SVG har y NEDOVER, derfor minus: cos(0) = 1 skal bli ØVERST.
+    y: -radius * Math.cos(t) * Math.sin(KOMPASS_HELLING * GRAD),
+    naer: Math.cos(t) < 0,
   }
 }
 
-/** Sampler en enhetsring og gir SVG-path. `plan` gir de to aksene ringen spenner. */
-function ringPath(akse1, akse2, basis, radius) {
+/**
+ * Hvor på skiva en himmelretning står, gitt hvor brukeren ser.
+ *
+ * REGELEN, og den er hele kompasset: markøren står fast på toppen og betyr
+ * blikkretningen. En himmelretning `azimut` havner derfor `azimut − blikk` fra
+ * toppen. Ser du nord, står N under markøren; ser du øst, står N til venstre —
+ * som det gjør i virkeligheten når du snur deg mot øst.
+ *
+ * @param {number} azimutGrader himmelretningen (0 = nord)
+ * @param {number} blikkGrader hvor brukeren ser
+ * @returns {number} grader fra markøren, med klokka
+ */
+export function vinkelPaaSkiva(azimutGrader, blikkGrader) {
+  return (((azimutGrader - blikkGrader) % 360) + 360) % 360
+}
+
+/** Ellipsen som SVG-path. Formen er FAST — det er bokstavene som dreier. */
+function ringPath(radius) {
   let d = ''
   for (let i = 0; i <= RING_PUNKTER; i++) {
-    const t = (i / RING_PUNKTER) * Math.PI * 2
-    const p = [
-      akse1[0] * Math.cos(t) + akse2[0] * Math.sin(t),
-      akse1[1] * Math.cos(t) + akse2[1] * Math.sin(t),
-      akse1[2] * Math.cos(t) + akse2[2] * Math.sin(t),
-    ]
-    const s = projiser(p, basis, radius)
-    d += `${i === 0 ? 'M' : 'L'}${s.x.toFixed(2)},${s.y.toFixed(2)}`
+    const p = skivePunkt((i / RING_PUNKTER) * 360, radius)
+    d += `${i === 0 ? 'M' : 'L'}${p.x.toFixed(2)},${p.y.toFixed(2)}`
   }
   return `${d}Z`
 }
@@ -117,39 +101,49 @@ function ringPath(akse1, akse2, basis, radius) {
  * Alt viseren trenger for å tegne kompasset.
  *
  * @param {{azimut: number, hoyde: number}} blikk hvor brukeren ser, i GRADER
- * @param {{kamera?: object, radius?: number}} [opts]
- * @returns {{horisont: string, meridian: string, ostVest: object,
- *            merker: Array<object>, prikk: object}}
+ * @param {{radius?: number}} [opts]
+ * @returns {{ring: string, merker: Array<object>, markor: object,
+ *            nordVinkel: number, serNord: boolean}}
  */
-export function kompassGeometri(blikk, { kamera = KOMPASS_KAMERA, radius = KOMPASS_RADIUS } = {}) {
-  const basis = kompassBasis(kamera)
-  const ost = [1, 0, 0]
-  const nord = [0, 1, 0]
-  const opp = [0, 0, 1]
+export function kompassGeometri(blikk, { radius = KOMPASS_RADIUS } = {}) {
+  const b = Number.isFinite(blikk?.azimut) ? blikk.azimut : 0
 
-  // Horisontringen ligger i jordas plan (øst–nord). Meridianringen står loddrett
-  // gjennom nord og zenit — det er den som bærer N og S.
-  const horisont = ringPath(ost, nord, basis, radius)
-  const meridian = ringPath(nord, opp, basis, radius)
+  const merker = HIMMELRETNINGER.map((r) => {
+    const v = vinkelPaaSkiva(r.azimut, b)
+    const p = skivePunkt(v, radius * MERKE_RADIUS)
+    return {
+      navn: r.navn,
+      x: p.x,
+      y: p.y,
+      // Bokstaven på den nære sida står FORAN skiva og skal være tydeligst. Det
+      // er den enkleste dybdesignalen som finnes, og den koster ingenting.
+      naer: p.naer,
+      // Nord får litt mer vekt enn de tre andre: det er den man leter etter.
+      erNord: r.azimut === 0,
+    }
+  })
 
-  // Øst–vest-aksen: en strek tvers over den flate skiva, som brukeren ba om.
-  // Bokstaver bare på N og S; fire bokstaver på 70 piksler blir grøt i mørket.
-  const o = projiser(ost, basis, radius)
-  const v = projiser([-1, 0, 0], basis, radius)
-
-  const merker = [
-    { navn: 'N', ...projiser(nord, basis, radius * 1.3) },
-    { navn: 'S', ...projiser([0, -1, 0], basis, radius * 1.3) },
-  ]
-
-  const b = retning(blikk?.azimut ?? 0, blikk?.hoyde ?? 0)
-  const prikk = projiser(b, basis, radius)
+  // Markøren står fast på toppen av skiva og er blikkretningen. Den flytter seg
+  // ALDRI — det er skiva som dreier. En markør som også beveget seg ville gjort
+  // kompasset til to bevegelser man må skille fra hverandre.
+  const m = skivePunkt(0, radius)
+  const nordVinkel = vinkelPaaSkiva(0, b)
 
   return {
-    horisont,
-    meridian,
-    ostVest: { x1: o.x, y1: o.y, x2: v.x, y2: v.y },
+    ring: ringPath(radius),
     merker,
-    prikk,
+    markor: { x: m.x, y: m.y },
+    nordVinkel,
+    // Innenfor 8° regner vi det som «ser nord». Da har trykk-for-nord ingenting
+    // å gjøre, og knappen kan si det i stedet for å love en bevegelse som ikke
+    // kommer.
+    serNord: nordVinkel <= 8 || nordVinkel >= 352,
   }
+}
+
+/** Himmelretning med ord, i åtte deler. Til aria-label. */
+export function retningsNavn(azimutGrader) {
+  const navn = ['nord', 'nordøst', 'øst', 'sørøst', 'sør', 'sørvest', 'vest', 'nordvest']
+  const i = Math.round(((azimutGrader % 360) + 360) % 360 / 45) % 8
+  return navn[i]
 }

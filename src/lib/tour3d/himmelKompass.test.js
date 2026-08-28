@@ -1,139 +1,147 @@
-// Himmelkompasset. Alt her er projeksjon, og det er ETT som kan være galt uten
-// at noe kaster: retningene. Et ombyttet fortegn gir et kompass som peker sør
-// når man ser nord — og i mørket, uten kart i bildet, har brukeren ingen måte å
-// oppdage det. Derfor er testene ankret i retninger og ikke i tall.
+// Himmelkompasset. Alt her er én regel — «markøren står, skiva dreier» — og det
+// er ETT som kan være galt uten at noe kaster: dreieretningen. Et ombyttet
+// fortegn gir et kompass som peker øst når man ser vest, og i mørket, uten kart i
+// bildet, har brukeren ingen måte å oppdage det. Derfor er testene ankret i
+// retninger man kan resonnere seg til, og ikke i tall.
 import { describe, it, expect } from 'vitest'
 import {
-  retning, kompassBasis, projiser, kompassGeometri,
-  KOMPASS_KAMERA, KOMPASS_RADIUS,
+  skivePunkt, vinkelPaaSkiva, kompassGeometri, retningsNavn,
+  HIMMELRETNINGER, KOMPASS_RADIUS,
 } from './himmelKompass.js'
 
-describe('retning', () => {
-  it('nord, øst, sør og vest ligger der de skal', () => {
-    const [ø, n, o] = retning(0, 0)
-    expect(n).toBeCloseTo(1, 9); expect(ø).toBeCloseTo(0, 9); expect(o).toBeCloseTo(0, 9)
-    expect(retning(90, 0)[0]).toBeCloseTo(1, 9)     // øst = +x
-    expect(retning(180, 0)[1]).toBeCloseTo(-1, 9)   // sør = −y
-    expect(retning(270, 0)[0]).toBeCloseTo(-1, 9)   // vest = −x
+const merke = (g, navn) => g.merker.find((m) => m.navn === navn)
+
+describe('skivePunkt', () => {
+  it('0° er øverst, 180° nederst, 90° til høyre', () => {
+    // SVG-y peker NEDOVER. Glemmer man fortegnet, står N nederst og hele
+    // kompasset er opp-ned uten at noe feiler.
+    expect(skivePunkt(0).y).toBeLessThan(0)
+    expect(skivePunkt(180).y).toBeGreaterThan(0)
+    expect(skivePunkt(90).x).toBeGreaterThan(0)
+    expect(skivePunkt(270).x).toBeLessThan(0)
   })
 
-  it('zenit er rett opp, uansett himmelretning', () => {
-    for (const a of [0, 90, 200, 350]) {
-      expect(retning(a, 90)[2]).toBeCloseTo(1, 9)
-    }
+  it('er en ELLIPSE og ikke en sirkel — skiva ses på skrå', () => {
+    // «Jordas plan sett på skrå» var bestillingen. Blir hellingen 90°, er den en
+    // sirkel og illusjonen av et plan er borte.
+    const bredde = Math.abs(skivePunkt(90).x)
+    const hoyde = Math.abs(skivePunkt(0).y)
+    expect(hoyde).toBeLessThan(bredde * 0.95)
+    expect(hoyde).toBeGreaterThan(bredde * 0.3)
   })
 
-  it('er en enhetsvektor', () => {
-    for (const [a, h] of [[0, 0], [37, 12], [200, 75], [310, -20]]) {
-      expect(Math.hypot(...retning(a, h))).toBeCloseTo(1, 9)
-    }
-  })
-})
-
-describe('kompassBasis', () => {
-  it('står kameraet i sør og ser nordover, er høyre øst', () => {
-    // Det konkrete tilfellet kryssproduktets fortegn kan sjekkes mot. Bommer
-    // det, er hele kompasset speilvendt — og et speilvendt kompass er verre enn
-    // ingen, for det ser like riktig ut.
-    const b = kompassBasis({ azimut: 180, hoyde: 0 })
-    expect(b.f[1]).toBeCloseTo(1, 9)        // ser mot nord
-    expect(b.hoyre[0]).toBeCloseTo(1, 9)    // høyre er øst
-    expect(b.opp[2]).toBeCloseTo(1, 9)      // opp er opp
-  })
-
-  it('basisen er ortonormal for gizmo-kameraet vi faktisk bruker', () => {
-    const { f, hoyre, opp } = kompassBasis()
-    for (const v of [f, hoyre, opp]) expect(Math.hypot(...v)).toBeCloseTo(1, 9)
-    const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-    expect(dot(f, hoyre)).toBeCloseTo(0, 9)
-    expect(dot(f, opp)).toBeCloseTo(0, 9)
-    expect(dot(hoyre, opp)).toBeCloseTo(0, 9)
+  it('den nære halvparten er den nederste', () => {
+    expect(skivePunkt(180).naer).toBe(true)
+    expect(skivePunkt(0).naer).toBe(false)
   })
 })
 
-describe('projiser', () => {
-  it('SVG-y peker NEDOVER, så zenit får negativ y', () => {
-    // Den ene fella som ikke er matematikk men SVG: glemmer man fortegnet, ser
-    // man opp og prikken går ned.
-    const p = projiser(retning(0, 90))
-    expect(p.y).toBeLessThan(0)
+describe('vinkelPaaSkiva', () => {
+  it('ser du nord, står nord under markøren', () => {
+    expect(vinkelPaaSkiva(0, 0)).toBe(0)
   })
 
-  it('sier fra når punktet ligger på baksida av kula', () => {
-    const b = kompassBasis()
-    // Kameraet står i azimut 158°, så retningen DIT er mot kameraet (forside),
-    // og motsatt retning er bak.
-    expect(projiser(retning(KOMPASS_KAMERA.azimut, KOMPASS_KAMERA.hoyde), b).bak).toBe(false)
-    expect(projiser(retning(KOMPASS_KAMERA.azimut + 180, -KOMPASS_KAMERA.hoyde), b).bak).toBe(true)
+  it('ser du øst, står nord til VENSTRE', () => {
+    // Snur du deg mot øst, kommer nord på venstre hånd. Dette er retningen hele
+    // kompasset står og faller på.
+    expect(vinkelPaaSkiva(0, 90)).toBe(270)
+  })
+
+  it('ser du nord, står øst til HØYRE', () => {
+    expect(vinkelPaaSkiva(90, 0)).toBe(90)
+  })
+
+  it('normaliserer til [0, 360) uansett hva som kommer inn', () => {
+    for (const [a, b] of [[0, 720], [0, -90], [359, 1], [-45, 0]]) {
+      const v = vinkelPaaSkiva(a, b)
+      expect(v).toBeGreaterThanOrEqual(0)
+      expect(v).toBeLessThan(360)
+    }
   })
 })
 
 describe('kompassGeometri', () => {
-  it('N står over S på skjermen', () => {
-    // Gizmo-kameraet ser fra sørøst-ish, så nord er den fjerne sida — og fjern
-    // er OPP når kameraet står over planet. Snus dette, står bokstavene feil vei
-    // og kompasset lyver.
-    const { merker } = kompassGeometri({ azimut: 0, hoyde: 0 })
-    const N = merker.find((m) => m.navn === 'N')
-    const S = merker.find((m) => m.navn === 'S')
-    expect(N.y).toBeLessThan(S.y)
+  it('ser du nord, ligger N øverst og S nederst', () => {
+    const g = kompassGeometri({ azimut: 0, hoyde: 40 })
+    expect(merke(g, 'N').y).toBeLessThan(merke(g, 'S').y)
+    expect(merke(g, 'Ø').x).toBeGreaterThan(merke(g, 'V').x)
   })
 
-  it('begge ringene er ellipser og ikke streker', () => {
-    // Står gizmo-kameraet i nord–sør-planet, blir meridianringen edge-on: en
-    // strek. Azimuten er derfor 22° på skeive med vilje, og DET er det denne
-    // testen holder fast — den feiler om noen «retter» den til 180°.
-    const { horisont, meridian } = kompassGeometri({ azimut: 0, hoyde: 0 })
-    for (const [navn, d] of [['horisont', horisont], ['meridian', meridian]]) {
-      const tall = d.match(/-?\d+\.\d+/g).map(Number)
-      const xs = tall.filter((_, i) => i % 2 === 0)
-      const ys = tall.filter((_, i) => i % 2 === 1)
-      const bredde = Math.max(...xs) - Math.min(...xs)
-      const hoyde = Math.max(...ys) - Math.min(...ys)
-      // Den smaleste aksen må være en merkbar brøk av den bredeste.
-      expect(Math.min(bredde, hoyde) / Math.max(bredde, hoyde)).toBeGreaterThan(0.15)
-      expect(Math.max(bredde, hoyde)).toBeGreaterThan(radiusOmtrent() * 1.5, navn)
+  it('ser du øst, har skiva dreid: N til venstre, Ø øverst', () => {
+    // Selve dreiningen. Uten den ville kompasset sett likt ut uansett hvor man
+    // ser — og det er nettopp den feilen som er umulig å se på et stillbilde.
+    const g = kompassGeometri({ azimut: 90, hoyde: 40 })
+    expect(merke(g, 'N').x).toBeLessThan(0)
+    expect(merke(g, 'Ø').y).toBeLessThan(merke(g, 'V').y)
+  })
+
+  it('snur du deg halvt rundt, bytter N og S plass', () => {
+    const nord = kompassGeometri({ azimut: 0, hoyde: 40 })
+    const sor = kompassGeometri({ azimut: 180, hoyde: 40 })
+    expect(merke(nord, 'N').y).toBeCloseTo(merke(sor, 'S').y, 6)
+    expect(merke(sor, 'N').y).toBeCloseTo(merke(nord, 'S').y, 6)
+  })
+
+  it('markøren står ALDRI et annet sted', () => {
+    // Den er blikkretningen, og den er fast. Beveget den seg også, ville
+    // kompasset vært to bevegelser man må skille fra hverandre.
+    const a = kompassGeometri({ azimut: 0, hoyde: 0 })
+    for (const az of [37, 90, 210, 359]) {
+      const b = kompassGeometri({ azimut: az, hoyde: 50 })
+      expect(b.markor.x).toBeCloseTo(a.markor.x, 9)
+      expect(b.markor.y).toBeCloseTo(a.markor.y, 9)
     }
+    expect(a.markor.y).toBeLessThan(0)   // øverst
   })
 
-  it('prikken følger blikket rundt kompasset', () => {
-    // Ser man nord, skal prikken ligge på nordsida; ser man sør, på sørsida.
-    // Sammenlikner mot bokstavene, som er den samme retningen — da fanges også
-    // en feil som flytter BEGGE like mye.
-    const nord = kompassGeometri({ azimut: 0, hoyde: 10 })
-    const sor = kompassGeometri({ azimut: 180, hoyde: 10 })
-    expect(nord.prikk.y).toBeLessThan(sor.prikk.y)
-    const ost = kompassGeometri({ azimut: 90, hoyde: 10 })
-    const vest = kompassGeometri({ azimut: 270, hoyde: 10 })
-    expect(ost.prikk.x).toBeGreaterThan(vest.prikk.x)
+  it('alle fire retningene er med, og nord er merket', () => {
+    const g = kompassGeometri({ azimut: 0, hoyde: 0 })
+    expect(g.merker.map((m) => m.navn).sort()).toEqual(['N', 'S', 'V', 'Ø'])
+    expect(g.merker.filter((m) => m.erNord)).toHaveLength(1)
+    expect(merke(g, 'N').erNord).toBe(true)
+    // NORSKE bokstaver: Ø og V, ikke E og W. UI-språket er bokmål.
+    expect(HIMMELRETNINGER.map((r) => r.navn)).toContain('Ø')
+    expect(HIMMELRETNINGER.map((r) => r.navn)).toContain('V')
   })
 
-  it('prikken stiger når blikket løftes', () => {
-    // Nattmodus løfter blikket til 50°; da må prikken flytte seg oppover, ellers
-    // ser kompasset likt ut i det ene bildet man garantert er i.
-    const lavt = kompassGeometri({ azimut: 0, hoyde: 0 })
-    const hoyt = kompassGeometri({ azimut: 0, hoyde: 50 })
-    expect(hoyt.prikk.y).toBeLessThan(lavt.prikk.y)
+  it('serNord er sann bare når man faktisk ser nordover', () => {
+    // Knappen slutter å love en bevegelse den ikke gir: står man alt i nord, er
+    // det ingenting å vende.
+    expect(kompassGeometri({ azimut: 0, hoyde: 0 }).serNord).toBe(true)
+    expect(kompassGeometri({ azimut: 5, hoyde: 0 }).serNord).toBe(true)
+    expect(kompassGeometri({ azimut: 356, hoyde: 0 }).serNord).toBe(true)
+    expect(kompassGeometri({ azimut: 40, hoyde: 0 }).serNord).toBe(false)
+    expect(kompassGeometri({ azimut: 180, hoyde: 0 }).serNord).toBe(false)
   })
 
-  it('øst–vest-aksen går tvers over skiva', () => {
-    const { ostVest } = kompassGeometri({ azimut: 0, hoyde: 0 })
-    expect(ostVest.x1).toBeGreaterThan(0)     // øst til høyre
-    expect(ostVest.x2).toBeLessThan(0)        // vest til venstre
-    // Aksen er FORKORTET av projeksjonen — den står ikke normalt på
-    // blikkretningen — så den er kortere enn 2r. Men den skal fortsatt spenne
-    // det meste av skiva: blir den kort, står gizmo-kameraet nesten rett over
-    // øst, og da er det horisontringen som er blitt en strek.
-    const l = Math.hypot(ostVest.x2 - ostVest.x1, ostVest.y2 - ostVest.y1)
-    expect(l).toBeLessThanOrEqual(2 * radiusOmtrent() + 1e-6)
-    expect(l).toBeGreaterThan(1.5 * radiusOmtrent())
+  it('ringen er en lukket path med noe utstrekning i begge akser', () => {
+    const { ring } = kompassGeometri({ azimut: 0, hoyde: 0 })
+    expect(ring.endsWith('Z')).toBe(true)
+    const tall = ring.match(/-?\d+\.\d+/g).map(Number)
+    const xs = tall.filter((_, i) => i % 2 === 0)
+    const ys = tall.filter((_, i) => i % 2 === 1)
+    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(2 * KOMPASS_RADIUS, 0)
+    expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(KOMPASS_RADIUS * 0.5)
   })
 
   it('tåler tomt blikk uten å kaste', () => {
     // Kompasset tegnes før første blikk-event rekker fram.
     expect(() => kompassGeometri(null)).not.toThrow()
     expect(() => kompassGeometri({})).not.toThrow()
+    expect(kompassGeometri(null).merker).toHaveLength(4)
   })
 })
 
-function radiusOmtrent() { return KOMPASS_RADIUS }
+describe('retningsNavn', () => {
+  it('gir norsk himmelretning i åtte deler', () => {
+    expect(retningsNavn(0)).toBe('nord')
+    expect(retningsNavn(90)).toBe('øst')
+    expect(retningsNavn(180)).toBe('sør')
+    expect(retningsNavn(270)).toBe('vest')
+    expect(retningsNavn(45)).toBe('nordøst')
+    // Runder til nærmeste, og tåler tall utenfor [0, 360).
+    expect(retningsNavn(359)).toBe('nord')
+    expect(retningsNavn(-90)).toBe('vest')
+    expect(retningsNavn(720)).toBe('nord')
+  })
+})

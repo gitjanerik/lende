@@ -237,10 +237,12 @@ async function onInstallClick() {
           </p>
           <p class="text-[13px] leading-relaxed text-ink/70">
             Nede til høyre står et <strong class="text-ink/90">himmelkompass</strong>:
-            to ringer — jordas plan med øst–vest-aksen, og en loddrett ring med N
-            og S — og en rød prikk som viser hvor du ser. Uten kartet i bildet er
-            det lett å miste himmelretningene, og rødt er den fargen som ødelegger
-            nattsynet minst.
+            en skive som viser jordas plan, med N, Ø, S og V, og en rød markør
+            øverst som er blikkretningen din. Skiva dreier når du snur deg — som
+            på et vanlig kompass. <strong class="text-ink/90">Trykk på det, og
+            kameraet vender mot nord</strong> i den høyden du står i. Uten kartet
+            i bildet er det lett å miste himmelretningene, og rødt er den fargen
+            som ødelegger nattsynet minst.
           </p>
           <ul class="text-[13px] leading-relaxed text-ink/70 space-y-1.5 list-disc pl-5">
             <li><strong class="text-ink/90">Det finnes ingen stjerne-API her.</strong>

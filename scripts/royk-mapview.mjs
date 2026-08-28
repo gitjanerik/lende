@@ -1099,11 +1099,15 @@ const SJEKKER = [
       // HIMMELKOMPASSET nede til høyre. Grafikken kan ikke leses fra en test,
       // men aria-labelen ER retningen i ord — og den er dermed også sjekken på
       // at blikk-eventet henger sammen hele veien fra kameramatrisen til SVG-en.
-      const lesKompass = () => evalMedTak(page, () => document
-        .querySelector('svg[role="img"][aria-label^="Du ser mot"]')?.getAttribute('aria-label') ?? null)
-      const forDrag = await page.waitForFunction(() => document
-        .querySelector('svg[role="img"][aria-label^="Du ser mot"]')?.getAttribute('aria-label'),
-      null, { timeout: 15_000 }).then((x) => x.jsonValue())
+      // Kompasset er en KNAPP fra v6.1.1 (trykk = vend mot nord), og labelen
+      // bærer retningen i ord — den er dermed også sjekken på at blikk-eventet
+      // henger sammen hele veien fra kameramatrisen til SVG-en.
+      const KOMPASS = 'button[aria-label^="Du ser mot"]'
+      const lesKompass = () => evalMedTak(page, (sel) => document
+        .querySelector(sel)?.getAttribute('aria-label') ?? null, KOMPASS)
+      const forDrag = await page.waitForFunction((sel) => document
+        .querySelector(sel)?.getAttribute('aria-label'),
+      KOMPASS, { timeout: 15_000 }).then((x) => x.jsonValue())
       if (!forDrag) throw new Error('himmelkompasset kom ikke i nattmodus')
 
       // Snu deg, og kompasset må følge. Høyre knapp roterer (venstre panorerer),
@@ -1124,8 +1128,25 @@ const SJEKKER = [
         throw new Error(`kompasset står stille: «${forDrag}» både før og etter et drag`)
       }
 
+      // TRYKK PÅ KOMPASSET vender kameraet mot nord — den ene handlingen et
+      // kompass skal ha. Vi drar oss først bort fra nord (gjort over), så kravet
+      // er entydig: etterpå skal labelen si nord.
+      await page.locator(KOMPASS).click({ timeout: 8000 })
+      await page.waitForTimeout(1600)
+      const etterNord = await lesKompass()
+      if (!/^Du ser mot nord/.test(etterNord ?? '')) {
+        throw new Error(`trykk på kompasset ga «${etterNord}», ikke nord`)
+      }
+      // Og høyden skal være beholdt: et trykk snur deg om, det drar ikke blikket
+      // ned i bakken. Blikket sto på ~50° etter nattmodus' eget løft.
+      const grader = Number((etterNord.match(/,\s*(-?\d+)°/) ?? [])[1])
+      if (!(grader > 20)) {
+        throw new Error(`kompass-trykket tok blikket ned til ${grader}° — høyden skal beholdes`)
+      }
+
       await lukkNatt3d(page, h.startSteg)
       return `igjen sto ${i.labels.length} knapper; kompasset gikk «${forDrag}» → «${etterDrag}»`
+        + `, trykk ga nord på ${grader}°`
     },
   },
   {

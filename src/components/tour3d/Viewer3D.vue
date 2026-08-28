@@ -412,7 +412,16 @@ async function byggMotor() {
     engine.on('feature', ({ feature }) => { pickedFeature.value = feature })
     // Trykk i himmelen: motoren har alt fremhevet og rettet blikket, viseren
     // åpner kortet.
-    engine.on('himmel-valgt', ({ objekt }) => { valgtHimmel.value = objekt })
+    // TRYKK I HIMMELEN. Motoren har alt fremhevet og rettet blikket; viseren
+    // åpner kortet. `kortMinimert` MÅ nullstilles her: handleren setter
+    // valgtHimmel direkte og går ikke gjennom velgHimmel, så uten dette arvet et
+    // trykk på månen (eller et hvilket som helst himmellegeme) minimeringen fra
+    // forrige nabo-hopp — og kortet kom sammenlagt når man nettopp hadde spurt
+    // hva noe var.
+    engine.on('himmel-valgt', ({ objekt }) => {
+      valgtHimmel.value = objekt
+      kortMinimert.value = false
+    })
     engine.on('mane-globe', ({ apen }) => {
       maneGlobeAapen.value = !!apen
       if (!apen) maneTrekk.value = []
@@ -1243,7 +1252,7 @@ function branchLabel(opt, i) {
       <div v-if="phase === 'ready' && stjernemodus"
            class="absolute right-0 bottom-0 z-10 pointer-events-none p-3"
            style="padding-bottom: max(env(safe-area-inset-bottom), 12px);">
-        <Tour3dHimmelKompass :blikk="blikk"/>
+        <Tour3dHimmelKompass :blikk="blikk" @nord="engine?.seMotNord()"/>
       </div>
 
       <!-- Skjerping av kartbildet etter at visningen er åpen -->

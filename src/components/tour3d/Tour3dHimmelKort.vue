@@ -62,35 +62,47 @@ const faseNavn = computed(() => {
 </script>
 
 <template>
+  <!-- SAMME TRE IKONER I BEGGE TILSTANDER: fokus, minimer/utvid, lukk. Det var
+       bestillingen, og den er riktig — knappene skal ligge på samme sted enten
+       kortet er sammenlagt eller åpent, så man ikke må lete etter dem på nytt
+       hver gang. Karet peker NED når kortet er minimert (trykk for å åpne) og OPP
+       når det er åpent (trykk for å legge sammen). -->
+
   <!-- MINIMERT: én linje. Navnet og retningen er det man trenger for å vite hva
        som lyser der oppe; resten er lesestoff man ber om. -->
   <div v-if="objekt && minimert"
        class="rounded-full bg-black/70 backdrop-blur shadow-lg max-w-[86vw] sm:max-w-sm
-              flex items-center gap-1.5 pl-3 pr-1 py-1">
-    <button @click="emit('utvid')"
-            :aria-label="`Vis mer om ${objekt.navn}`"
+              flex items-center gap-1 pl-3 pr-1 py-1">
+    <button @click="emit('utvid')" :aria-label="`Vis mer om ${objekt.navn}`"
             class="flex-1 min-w-0 flex items-baseline gap-1.5 text-left active:scale-[0.98]">
       <span class="text-[0.75rem]" aria-hidden="true">{{ IKON[objekt.type] }}</span>
       <span class="text-[0.8125rem] font-medium text-white/85 truncate">{{ objekt.navn }}</span>
       <span class="text-[0.625rem] text-white/45 shrink-0">{{ retning }}, {{ hoydeGrader }}°</span>
     </button>
-    <button @click="emit('fokus')" :aria-label="`Sett ${objekt.navn} i fokus`"
-            class="w-7 h-7 shrink-0 flex items-center justify-center text-white/55
-                   active:scale-90">
-      <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-           stroke-width="2" stroke-linecap="round" aria-hidden="true">
-        <circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/>
-        <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
-      </svg>
-    </button>
-    <button @click="emit('lukk')" aria-label="Lukk infokortet"
-            class="w-7 h-7 shrink-0 flex items-center justify-center text-white/45
-                   active:scale-90">
-      <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
-           stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-      </svg>
-    </button>
+    <div class="shrink-0 flex items-center">
+      <button @click="emit('fokus')" :aria-label="`Sett ${objekt.navn} i fokus`"
+              class="w-7 h-7 flex items-center justify-center text-white/55 active:scale-90">
+        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/>
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+        </svg>
+      </button>
+      <button @click="emit('utvid')" aria-label="Vis hele infokortet"
+              class="w-7 h-7 flex items-center justify-center text-white/55 active:scale-90">
+        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+             stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+      <button @click="emit('lukk')" aria-label="Lukk infokortet"
+              class="w-7 h-7 flex items-center justify-center text-white/45 active:scale-90">
+        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+             stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+        </svg>
+      </button>
+    </div>
   </div>
 
   <div v-else-if="objekt"
@@ -105,23 +117,9 @@ const faseNavn = computed(() => {
       </div>
 
       <!-- Hvor det står. Alltid først, fordi det er det man trenger for å løfte
-           blikket i riktig retning. «Sett i fokus» står her og ikke i
-           knapperaden: den hører til RETNINGEN — har man sett seg bort, er dette
-           veien tilbake til det som er fremhevet. -->
-      <div class="mt-0.5 flex items-center gap-1.5 flex-wrap">
-        <span class="text-[0.625rem] text-white/50">
-          {{ retning }}, {{ hoydeGrader }}° over horisonten
-        </span>
-        <button @click="emit('fokus')" :aria-label="`Sett ${objekt.navn} i fokus`"
-                class="flex items-center gap-1 rounded-full bg-white/10 px-1.5 py-0.5
-                       text-[0.5625rem] text-white/70 active:scale-95">
-          <svg viewBox="0 0 24 24" class="w-3 h-3" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/>
-            <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
-          </svg>
-          Sett i fokus
-        </button>
+           blikket i riktig retning. -->
+      <div class="mt-0.5 text-[0.625rem] text-white/50">
+        {{ retning }}, {{ hoydeGrader }}° over horisonten
       </div>
 
       <!-- Tallene, per type. -->
@@ -184,12 +182,19 @@ const faseNavn = computed(() => {
       </template>
     </div>
 
-    <div class="shrink-0 flex flex-col items-center">
-      <!-- Minimer: legg kortet sammen til én linje, så himmelen blir synlig
-           igjen. Står over X-en fordi det er det mildere av de to valgene. -->
+    <!-- Samme tre ikoner som i den minimerte pilla, i samme rekkefølge. -->
+    <div class="shrink-0 flex items-center">
+      <button @click="emit('fokus')" :aria-label="`Sett ${objekt.navn} i fokus`"
+              class="w-7 h-7 flex items-center justify-center text-white/55 active:scale-90">
+        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/>
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+        </svg>
+      </button>
       <button @click="emit('minimer')" aria-label="Minimer infokortet"
-              class="w-7 h-7 flex items-center justify-center text-white/45 active:scale-90">
-        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+              class="w-7 h-7 flex items-center justify-center text-white/55 active:scale-90">
+        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
              stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <polyline points="6 15 12 9 18 15"/>
         </svg>

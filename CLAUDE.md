@@ -678,8 +678,16 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   (v6.1.0).** Tilstanden eies av `Viewer3D` og ikke av kortet, fordi det er
   KALLEREN som vet hva som utløste valget: `velgHimmel` utvider (man har spurt hva
   noe er), `velgNabo` minimerer (man hopper for å SE, ikke for å lese videre).
+  **`himmel-valgt`-handleren MÅ nullstille den også** (v6.1.1): den setter
+  `valgtHimmel` direkte og går ikke gjennom `velgHimmel`, så uten det arvet et
+  trykk på månen — eller et hvilket som helst himmellegeme — minimeringen fra
+  forrige nabo-hopp, og kortet kom sammenlagt når man nettopp hadde spurt hva noe
+  var.
   Minimert står navnet og retningen igjen som én linje — nok til å vite hva som er
-  fremhevet. «Sett i fokus» går gjennom `scene3d.fokuserHimmel`, som BARE flytter
+  fremhevet — og BEGGE tilstandene har de samme tre ikonene i samme rekkefølge:
+  fokus, minimer/utvid, lukk (v6.1.1). Knappene skal ligge på samme sted enten
+  kortet er sammenlagt eller åpent, så man ikke må lete etter dem på nytt.
+  «Sett i fokus» går gjennom `scene3d.fokuserHimmel`, som BARE flytter
   kameraet: `velgHimmel(samme)` ville også åpnet månegloben på nytt og skrevet
   fremhevingen om.
 - **Utvikler-bryteren «Tvungen måne i 3D» bor i `himmelFor` (v6.1.0).**
