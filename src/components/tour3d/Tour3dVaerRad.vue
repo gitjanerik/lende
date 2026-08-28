@@ -11,19 +11,77 @@
 // lite kartflate som mulig. Symbolene tegnes med varianten MET selv har satt i
 // `symbol_code` — dag/natt/polartwilight for det tidspunktet varselet gjelder.
 // Den fulgte lysmodusen i 3D fram til v5.22.12, og ga sol klokka 00.
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import VaerIkon from '../VaerIkon.vue'
 import { timerFramover, vindMotGrader } from '../../lib/vaerFetcher.js'
 import { bearingToCompass } from '../../lib/mapContext.js'
 
+const emit = defineEmits(['lukk'])
+
 const props = defineProps({
   // { status: 'loading'|'done'|'error', varsel } — samme form som i 2D.
   vaer: { type: Object, default: null },
-  antall: { type: Number, default: 8 },
+  // TAK, ikke en fast mengde: hvor mange timer som faktisk vises avgjøres av
+  // hvor mange som får PLASS. Se maalPlass under.
+  antall: { type: Number, default: 12 },
 })
 
+/**
+ * INGEN VANNRETT RULLING (v6.3.9). Raden var en rulleflate med åtte faste timer,
+ * og på en 430 px-telefon fikk seks plass — så to timer lå gjemt bak en gest
+ * ingenting antydet. Eieren oppdaget det først etter måneder, og det er den
+ * avgjørende observasjonen: en skjult gest er ikke en affordanse.
+ *
+ * Nå fyller raden bredden og viser BARE det som passer. Ingenting er skjult, så
+ * det finnes ikke noe å oppdage. Prisen er at antallet varierer med skjermen —
+ * en smal telefon får fem-seks timer, et nettbrett flere — og det er riktig
+ * bytte: en turgåer trenger de nærmeste timene, ikke et fast tall.
+ *
+ * MÅLT I PIKSLER FRA DOM-EN, ikke regnet fra rem. Kolonnene er rem-baserte, og
+ * rot-fontstørrelsen følger systemets tekstskalering (se v5.27.0) — en bruker med
+ * 150 % tekst har bredere kolonner, og et hardkodet 57,6 px ville da vist for
+ * mange og brakt rullingen tilbake.
+ */
+const radRef = ref(null)
+// KONSERVATIV START, ikke taket: målingen kommer i onMounted, og fram til den er
+// for FÅ timer ufarlig mens for mange gir en rad som flyter ut av boksen. Fem er
+// det som passer på den smaleste telefonen vi bryr oss om.
+const plass = ref(5)
+
+let ro = null
+
+function maalPlass() {
+  const el = radRef.value
+  if (!el) return
+  // LEDIG BREDDE måles på FORELDEREN og ikke på raden selv: radens bredde følger
+  // antallet vi nettopp valgte, så å måle den ville vært en løkke som jager sin
+  // egen hale.
+  const ledig = el.parentElement?.getBoundingClientRect().width
+  if (!ledig) return
+  const kolonne = el.querySelector('[data-time]')?.getBoundingClientRect().width
+  if (!kolonne) return
+  // Alt som ikke er en time: MET-attribusjonen og lukkeknappen.
+  const faste = [...el.querySelectorAll('[data-fast]')]
+    .reduce((sum, e) => sum + e.getBoundingClientRect().width, 0)
+  const passer = Math.floor((ledig - faste) / kolonne)
+  // Minst tre timer selv på en meget smal skjerm: én time er ikke et varsel.
+  plass.value = Math.max(3, Math.min(props.antall, passer))
+}
+
+onMounted(() => {
+  maalPlass()
+  // Observerer FORELDEREN, av samme grunn som målingen leser den: radens egen
+  // bredde endres av vårt eget resultat.
+  const mor = radRef.value?.parentElement
+  if (mor && typeof ResizeObserver !== 'undefined') {
+    ro = new ResizeObserver(() => maalPlass())
+    ro.observe(mor)
+  }
+})
+onBeforeUnmount(() => { ro?.disconnect(); ro = null })
+
 const timer = computed(() => (props.vaer?.status === 'done'
-  ? timerFramover(props.vaer.varsel, { antall: props.antall })
+  ? timerFramover(props.vaer.varsel, { antall: Math.min(props.antall, plass.value) })
   : []))
 
 // «14» framfor «14:00» — halve bredden, og minuttet er alltid 00.
@@ -60,11 +118,13 @@ function vindTitle(t) {
        class="rounded-full bg-black/45 backdrop-blur px-3 py-1.5 text-[0.6875rem] text-white/60">
     Værvarsel ikke tilgjengelig
   </div>
-  <div v-else-if="timer.length"
-       class="rounded-2xl bg-black/45 backdrop-blur overflow-x-auto max-w-full
-              [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-    <div class="flex items-stretch divide-x divide-white/10 w-max">
-      <div v-for="t in timer" :key="t.tid"
+  <!-- BAREN ER TO KOLONNER (v6.3.8): timene som ruller, og en X som står stille.
+       INGEN RULLING: raden viser bare timene som får plass (se maalPlass). En
+       rulleflate med skjult innhold var uu-fella som ble rettet i v6.3.9. -->
+  <div v-else-if="timer.length" ref="radRef"
+       class="rounded-2xl bg-black/45 backdrop-blur max-w-full overflow-hidden
+              flex items-stretch divide-x divide-white/10">
+      <div v-for="t in timer" :key="t.tid" data-time
            class="flex flex-col items-center gap-0.5 px-2.5 py-1.5 min-w-[3.6rem]">
         <span class="text-[0.5625rem] text-white/50 tabular-nums leading-none">{{ klokke(t.tid) }}</span>
         <VaerIkon :symbol="t.symbol" :size="22"/>
@@ -104,9 +164,27 @@ function vindTitle(t) {
       </div>
       <!-- Lisenskravet: MET-data krever synlig attribusjon. Står den ikke her,
            står den ingen steder i 3D — infopanelet er en annen visning. -->
-      <div class="flex items-center px-2.5">
+      <div class="flex items-center px-2.5 shrink-0" data-fast>
         <span class="text-[0.5rem] leading-tight text-white/35 whitespace-nowrap">MET<br/>Norway</span>
       </div>
+
+    <!-- LUKK VÆRET. Tar bort både raden og værhimmelen — regn, torden, tåke og
+         skyer. Den erstatter det tredje steget sol/måne-knappen hadde fram til
+         v6.1.0, og er en bedre plassering: knappen sier «dag eller natt», mens
+         DETTE er «vis meg været eller ikke», og de to spørsmålene hører ikke på
+         samme bryter.
+         Tilstanden lagres IKKE: dag/natt avgjøres av klokka, og neste gang man
+         åpner 3D er været med igjen. Vil man ha det tilbake i samme økt, går man
+         innom natt og tilbake. -->
+    <div class="shrink-0 flex items-stretch" data-fast>
+      <button @click="emit('lukk')" aria-label="Skjul værvarselet og værhimmelen"
+              class="w-9 flex items-center justify-center text-white/45
+                     active:scale-90 transition-transform">
+        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+             stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+        </svg>
+      </button>
     </div>
   </div>
 </template>

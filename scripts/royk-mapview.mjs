@@ -852,12 +852,68 @@ const SJEKKER = [
         throw new Error('værraden ligger UNDER Info-pilla — den skal ligge over')
       }
 
+      // VÆRRADEN SKAL IKKE RULLE (v6.3.9). Den var en rulleflate med åtte faste
+      // timer, og på en 430 px-telefon fikk seks plass — to timer lå gjemt bak en
+      // gest ingenting antydet. Nå fyller raden bredden og viser bare det som
+      // passer. INVARIANTEN er derfor målbar: ingenting stikker utenfor.
+      //
+      // scrollWidth > clientWidth er nettopp «det finnes skjult innhold til
+      // siden». Sjekken er streng med vilje: én piksel for mye betyr at en time
+      // er delvis skjult, og det var hele feilen.
+      const radOverflyt = await evalMedTak(page, () => {
+        const rad = [...document.querySelectorAll('div')].find((d) =>
+          /MET\s*Norway/.test(d.textContent) && d.querySelector('[data-time]'))
+        if (!rad) return null
+        return {
+          skjult: rad.scrollWidth - rad.clientWidth,
+          timer: rad.querySelectorAll('[data-time]').length,
+        }
+      })
+      if (radOverflyt && radOverflyt.skjult > 1) {
+        throw new Error(`værraden har ${radOverflyt.skjult} px skjult innhold til `
+          + `siden (${radOverflyt.timer} timer) — den skal fylle bredden, ikke rulle`)
+      }
+      const radTimer = radOverflyt ? radOverflyt.timer : 0
+
+      // X-EN I VÆRRADEN (v6.3.8) tar bort både raden og værhimmelen, og gir dem
+      // tilbake ved et bytte av lysmodus. Den erstatter det tredje steget
+      // sol/måne-knappen hadde fram til v6.1.0.
+      //
+      // Vi må stå i DAGMODUS for at raden skal finnes; syklusen over endte der vi
+      // startet, så det er ikke gitt. Leses av knappen framfor å antas.
+      if (await lesSolMaaneSteg(page) === 'Bytt til dag') {
+        await page.locator('button[aria-label="Bytt til dag"]').click({ timeout: 10_000 })
+        await page.waitForTimeout(1600)
+      }
+      const radFinnes = () => evalMedTak(page, () =>
+        /Henter værvarsel|Værvarsel ikke tilgjengelig|MET\s*Norway/i.test(document.body.innerText))
+      const lukkVaer = page.locator('button[aria-label="Skjul værvarselet og værhimmelen"]')
+      let vaerXUtfall = 'X-en fantes ikke (varselet kom aldri fram)'
+      if (await lukkVaer.count()) {
+        if (!await radFinnes()) throw new Error('X-en finnes, men værraden gjør det ikke')
+        await lukkVaer.click({ timeout: 5000 })
+        await page.waitForTimeout(700)
+        if (await radFinnes()) throw new Error('trykk på X-en fjernet ikke værraden')
+        // OG DEN SKAL KOMME TILBAKE av et bytte til natt og tilbake. Uten denne
+        // halvparten kunne X-en vært en enveisbillett ut av været for hele økta.
+        await page.locator('button[aria-label="Bytt til natt"]').click({ timeout: 10_000 })
+        await page.waitForTimeout(1600)
+        await page.locator('button[aria-label="Bytt til dag"]').click({ timeout: 10_000 })
+        await page.waitForTimeout(1800)
+        if (!await radFinnes()) {
+          throw new Error('værraden kom ikke tilbake etter en runde om natta — '
+            + 'da er X-en en enveisbillett')
+        }
+        vaerXUtfall = 'X-en tok bort raden, natt-runden ga den tilbake'
+      }
+
       // To trykk er en hel runde, så vi står der vi startet. En sjekk skal ikke
       // etterlate en 3D-visning i nattmodus for den neste.
       const x = page.locator('button[aria-label="Lukk 3D-visning"]')
       await x.click({ timeout: 5000 })
       await page.waitForFunction(() => !document.querySelector('canvas'), null, { timeout: 8000 })
-      return `syklus lukket: ${sett.join(' → ')}, værrad sett`
+      return `syklus lukket: ${sett.join(' → ')}, værrad med ${radTimer} timer `
+        + `uten skjult innhold; ${vaerXUtfall}`
     },
   },
   {

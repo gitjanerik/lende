@@ -779,6 +779,28 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   se `oppdaterSkySynlighet`). Knappen står nå HELT TIL VENSTRE i topprada, foran
   nålene: den skifter hele bildet, og i nattmodus er den den eneste som blir
   igjen på venstresida.
+- **VÆRET LUKKES MED EN X I VÆRRADEN, ikke med modus-knappen (v6.3.8).** Et trykk
+  tar bort både raden og værhimmelen (`vaerAvvist` i Viewer3D gater `vaerOn`, som
+  alt styrer begge). Den erstatter det tredje steget sol/måne-knappen hadde fram
+  til v6.1.0: knappen svarer på «dag eller natt», dette er «vis meg været eller
+  ikke», og to spørsmål på én bryter var nettopp det som gjorde tri-staten uklar.
+  **Tilstanden lagres IKKE** — dag/natt avgjøres av klokka, så neste gang 3D åpnes
+  er været med igjen; et bytte av lysmodus nullstiller flagget, og det er den ene
+  veien tilbake i samme økt.
+- **VÆRRADEN RULLER IKKE — den fyller bredden (v6.3.9).** Den var en rulleflate
+  med åtte FASTE timer, og på en 430 px-telefon fikk seks plass: to timer lå gjemt
+  bak en gest ingenting antydet, og eieren oppdaget rullingen først etter måneder.
+  **En skjult gest er ikke en affordanse.** `maalPlass` i `Tour3dVaerRad` måler
+  ledig bredde og viser bare timene som passer.
+
+  Tre ting som MÅ stå: målingen leser **forelderens** bredde, for radens egen
+  følger antallet vi nettopp valgte og ville jaget sin egen hale; kolonnebredden
+  måles i PIKSLER fra DOM-en og regnes ikke fra rem, fordi rot-fontstørrelsen
+  følger systemets tekstskalering (v5.27.0) og et hardkodet 57,6 px ville brakt
+  rullingen tilbake for den som har 150 % tekst; og startverdien er konservativ
+  (5) framfor taket, siden for få timer er ufarlig mens for mange flyter ut av
+  boksen før første måling. Røyk-sjekken måler invarianten direkte:
+  `scrollWidth − clientWidth` skal være 0.
 - **NATTMODUS ER STJERNEKIKKEREN, ikke kartet i mørkt tema (v6.1.0).** Å slå på
   natt gjør fem ting på én gang, og det er en bevisst pakke: blikket løftes til
   50° med en ease-out over 1,5 s (`scene3d.seOppMotHimmelen`), kurver + stier +

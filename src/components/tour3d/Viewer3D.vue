@@ -286,7 +286,7 @@ const errorText = computed(() => ({
 // utforsking har kryssvalg.
 const INFO_KNAPPER = computed(() => [
   { navn: 'Nåler', tekst: 'viser interessepunkter — trykk på en for å fly dit. Filteret ved siden av velger hvilke.' },
-  { navn: 'Sol/måne', tekst: 'går rundt i tre steg: dag, dag med vær, natt. Værsymbolene er varselet fra MET Norway for dette kartet, og himmelen følger været. Natt er stjernekikkeren: blikket løftes opp av seg selv, kurver, stier og nåler tas bort, og stjernene, planetene og månen står der de faktisk står over dette kartet i kveld. Dra nedover for å se landskapet igjen.' },
+  { navn: 'Sol/måne', tekst: 'veksler mellom dag og natt, og åpner i den himmelen som faktisk er ute. Værsymbolene er varselet fra MET Norway for dette kartet, og himmelen følger været — X-en i værraden tar bort både raden og skyene. Natt er stjernekikkeren: blikket løftes opp av seg selv, kurver, stier og nåler tas bort, og stjernene, planetene og månen står der de faktisk står over dette kartet i kveld. Dra nedover for å se landskapet igjen.' },
   { navn: 'Sti', tekst: 'tegner stinettet oppå terrenget — og må være på for å kunne følge en sti.' },
   fixedTour.value
     ? { navn: 'Stopp', tekst: 'lar turen stoppe ved severdigheter langs veien.' }
@@ -676,7 +676,19 @@ const nightOn = ref((() => {
 // varselet for arket er billig (ett oppslag, 30 min cache), og en dagshimmel
 // uten skyer er ikke mer «nøytral» enn en med — den er bare mindre sann. Om
 // natta er været av, fordi nattmodus er stjernekikkeren.
-const vaerOn = computed(() => !nightOn.value)
+// Været LUKKET for denne økta, med X-en i værraden. Erstatter det tredje steget
+// sol/måne-knappen hadde fram til v6.1.0, og hører bedre her: knappen svarer på
+// «dag eller natt», mens dette er «vis meg været eller ikke».
+//
+// LAGRES IKKE, og det er bestillingen: dag/natt avgjøres av klokka, så neste gang
+// 3D åpnes er været med igjen. En bryter som huskes ville dessuten stått i veien
+// for seg selv — man ville åpnet en dagshimmel uten vær uten å huske hvorfor.
+//
+// Nullstilles av et bytte til eller fra natt (se watch under), som er den ene
+// veien tilbake i samme økt.
+const vaerAvvist = ref(false)
+
+const vaerOn = computed(() => !nightOn.value && !vaerAvvist.value)
 
 async function applyNight(on) {
   if (!engine) return
@@ -805,6 +817,9 @@ watch(vaerOn, (on) => {
 // Bytter man dag/natt mens været står på, skal himmelen males om (grunnfargen
 // for torden-blinket henger på natt/dag inne i motoren).
 watch(nightOn, (on) => {
+  // Et bytte av lysmodus gir været tilbake. Nullstilles FØR himmelen males om,
+  // ellers ville vaerOn fortsatt vært falsk og været blitt liggende av.
+  vaerAvvist.value = false
   if (vaerOn.value) leggVaerPaaHimmelen()
   // Himmellista bygges når natta slås på, og ryddes når den slås av: en valgt
   // formasjon som står fremhevet på en dagshimmel er bare rart.
@@ -1153,7 +1168,7 @@ function branchLabel(opt, i) {
            ser etter da. -->
       <div v-if="phase === 'ready' && vaerOn && !walking && !stjernemodus"
            class="relative z-10 px-3 mt-2 flex justify-center">
-        <Tour3dVaerRad :vaer="vaer"/>
+        <Tour3dVaerRad :vaer="vaer" @lukk="vaerAvvist = true"/>
       </div>
 
       <!-- Nederste linje: hjelp til venstre, POI-filter til høyre. Begge minimert
