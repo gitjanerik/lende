@@ -24,6 +24,7 @@
 // den nye, er kortet ett trykk unna.
 import { computed } from 'vue'
 import { kompass } from '../../lib/tour3d/himmelObjekter.js'
+import { GLOBE_TEKST } from '../../lib/tour3d/himmellegemer.js'
 
 const props = defineProps({
   // Objektet fra himmelObjekter().
@@ -45,6 +46,15 @@ const hoydeGrader = computed(() => Math.round((props.objekt?.hoyde ?? 0) * GRAD)
 const retning = computed(() => kompass((props.objekt?.azimut ?? 0) * GRAD))
 
 const IKON = { mane: '🌙', planet: '🪐', formasjon: '✦' }
+
+// Prosaen for de legemene som HAR en globe. Nøkkelen er legeme-id-en: månen er
+// 'mane', planetene ligger som 'planet:<id>' i himmellista.
+const globeTekst = computed(() => {
+  const o = props.objekt
+  if (!o) return null
+  const id = o.type === 'mane' ? 'mane' : String(o.id ?? '').replace(/^planet:/, '')
+  return GLOBE_TEKST[id] ?? null
+})
 
 // Månefasen med ord. Et tall i prosent sier lite; «voksende halvmåne» er det
 // man faktisk ser opp på.
@@ -137,20 +147,21 @@ const faseNavn = computed(() => {
         {{ faseNavn }} · {{ Math.round(objekt.lysAndel * 100) }} % opplyst
       </div>
 
-      <!-- Månen: hvordan man bruker kula, og det ene faktumet som forklarer
-           hvorfor man aldri får se hele den. -->
-      <template v-if="objekt.type === 'mane'">
-        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/35">Månegloben</div>
+      <!-- Legemer med globe: hvordan man bruker kula, og det ene faktumet som er
+           verdt å ta med seg. Teksten bor i himmellegemer.js, ikke her — den
+           skrives om uten å røre en koordinat. -->
+      <template v-if="globeTekst">
+        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/35">
+          {{ objekt.navn }} som globe
+        </div>
         <p class="text-[0.6875rem] leading-relaxed text-white/70">
-          <template v-if="globeAapen">Dra for å snurre kula, og trykk én gang for å
-            legge den tilbake på himmelen. Skyggelinja er der den faktisk er i
-            kveld.</template>
-          <template v-else>Trykk på månen for å se den som en kule du kan snurre.</template>
+          <template v-if="globeAapen">{{ globeTekst.bruk }}</template>
+          <template v-else>Trykk på {{ objekt.navn.toLowerCase() }} for å se
+            {{ objekt.type === 'mane' ? 'den' : 'planeten' }} som en kule du kan
+            snurre.</template>
         </p>
         <p class="mt-1 text-[0.6875rem] leading-relaxed text-white/70">
-          Månen snur alltid samme side mot oss — den bruker like lang tid på én
-          runde om sin egen akse som om jorda. Snurrer du forbi kanten, ser du
-          baksida, som ingen på jorda har sett med egne øyne.
+          {{ globeTekst.omtale }}
         </p>
       </template>
 

@@ -1,3 +1,39 @@
+## 2026-08-28 — v6.2.0: Glober for Mars, Jupiter og Saturn
+
+Månen har kunnet åpnes som en roterbar kule siden v6.0.0. Nå kan Mars, Jupiter og
+Saturn det samme — og de fire har fått et **tynt omriss rundt seg på himmelen**,
+slik at det er til å se at de kan trykkes på.
+
+**Én modul med en tabell, ikke fire kuler.** Da de tre planetene skulle ha det
+månen hadde, var spørsmålet prosjektets egen regel tvinger fram: er den nye
+varianten egentlig en opsjon på originalen? Den er det. `himmellegemer.js` bærer
+farge, tekstur, aksehelling, stedsnavn og eventuelle ringer; `himmelGlobe.js`
+bygger kula. Fire filer med hver sin nesten like sfære er nøyaktig den gjelden som
+lot to 3D-scener leve side om side i månedsvis.
+
+**Hva du finner på dem:** Olympus Mons, Marinerdalene, Hellasbassenget og
+polkalottene på Mars. Den store røde flekken og beltene på Jupiter. Sekskanten
+ved nordpolen på Saturn — som har ringene sine, med Cassini-delingen der den skal
+være. En Saturn uten ringer er ikke Saturn, den er en blek Jupiter.
+Aksehellingen er ekte for alle fire, fordi den er synlig: Mars står 25° skjevt og
+Saturn 27°, og en kule som står rett opp ser feil ut for den som har sett et bilde.
+
+**Overflatekartene hentes fra NASA og USGS**, i CI, som månens. To ting om det:
+teksturene kan ikke verifiseres fra utviklingsmiljøet (begge hostene er sperret),
+så bake-steget skriver nå «N av 4 kart på plass» — les den linja. Og fordi «uten
+fotografi» er den normale tilstanden lokalt, tegnes gassplanetenes bånd på
+klienten: Jupiter er Jupiter selv om bildet aldri kommer.
+
+**Merkur og Venus får verken globe eller ring.** Merkur er en grå kule på en
+telefonskjerm, og Venus er et ugjennomtrengelig skydekke — en globe av dem ville
+vært en påstand om at det er noe å se. Og et omriss som lover en globe som ikke
+finnes, er verre enn ingen ring.
+
+Til sist: setningen om at ingen på jorda har sett månens bakside med egne øyne er
+fjernet fra infokortet, etter ønske.
+
+---
+
 ## 2026-08-28 — v6.1.1: Kompasset dreier, og infokortet kommer åpent
 
 Tre ting fra felttesten av v6.1.0.

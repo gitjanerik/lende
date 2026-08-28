@@ -129,23 +129,23 @@ const valgtHimmel = ref(null)
 const himmelSokSynlig = computed(() => phase.value === 'ready' && nightOn.value)
 const himmelNaboer = computed(() => naboerFor(valgtHimmel.value, himmelListe.value, 3))
 
-// ---- Månegloben ----------------------------------------------------------
-// Trykk på månen og skiva blir en kule man kan snurre. Labelene kommer fra
+// ---- Globene: månen, Mars, Jupiter, Saturn -------------------------------
+// Trykk på legemet og skiva blir en kule man kan snurre. Labelene kommer fra
 // motoren som SKJERMKOORDINATER (motoren har kameraet; viseren har DOM-en), og
 // oppdateres ~8 ganger i sekundet — nok til at navnene henger med i draget uten
 // en Vue-oppdatering pr frame.
-const maneGlobeAapen = ref(false)
-const maneTrekk = ref([])
+const globeAapen = ref(false)
+const globeTrekk = ref([])
 
 // ---- Himmelkompasset -----------------------------------------------------
 // Blikkretningen i grader, fra motoren. I nattmodus er kartet ute av bildet, og
 // da mister man himmelretningene helt — man kan stå og se på Karlsvogna uten å
 // vite at man ser nordover. Kompasset nede til høyre gir det tilbake.
 const blikk = ref(null)
-function lukkManeGlobe() {
-  engine?.lukkManeGlobe()
-  maneGlobeAapen.value = false
-  maneTrekk.value = []
+function lukkGlobe() {
+  engine?.lukkGlobe()
+  globeAapen.value = false
+  globeTrekk.value = []
 }
 
 function byggHimmelListe() {
@@ -188,11 +188,13 @@ function velgHimmel(o) {
   // velgNabo minimerer etterpå, som er unntaket.
   kortMinimert.value = false
   engine?.velgHimmel(o ? toRaw(o) : null)
-  // Motoren melder tilbake gjennom 'mane-globe', men bare når tilstanden
-  // FAKTISK endret seg. Velger man noe annet enn månen, er kula lukket her og nå.
-  if (o?.type !== 'mane') {
-    maneGlobeAapen.value = false
-    maneTrekk.value = []
+  // Motoren melder tilbake gjennom 'globe', men bare når tilstanden FAKTISK
+  // endret seg. Velger man noe uten globe — et stjernebilde, Merkur, Venus — er
+  // kula lukket her og nå. Månen og de tre planetene med globe åpner den, og
+  // motoren sier fra.
+  if (!o?.harGlobe) {
+    globeAapen.value = false
+    globeTrekk.value = []
   }
 }
 // Fingeren ligger nede og ser seg rundt fra et frosset punkt (følge-riggens
@@ -422,11 +424,11 @@ async function byggMotor() {
       valgtHimmel.value = objekt
       kortMinimert.value = false
     })
-    engine.on('mane-globe', ({ apen }) => {
-      maneGlobeAapen.value = !!apen
-      if (!apen) maneTrekk.value = []
+    engine.on('globe', ({ apen }) => {
+      globeAapen.value = !!apen
+      if (!apen) globeTrekk.value = []
     })
-    engine.on('mane-trekk', ({ trekk }) => { maneTrekk.value = trekk ?? [] })
+    engine.on('globe-trekk', ({ trekk }) => { globeTrekk.value = trekk ?? [] })
     engine.on('blikk', (b) => { blikk.value = b })
     // Severdighet turen stopper ved av seg selv.
     engine.on('feature-enter', ({ feature }) => { stopFeature.value = feature })
@@ -780,7 +782,7 @@ function aapneStjernemodus() {
 }
 
 function lukkStjernemodus() {
-  lukkManeGlobe()
+  lukkGlobe()
   blikk.value = null
   const f = lagForNatt
   lagForNatt = null
@@ -863,13 +865,13 @@ function branchLabel(opt, i) {
     <div class="fixed inset-0 z-[220] bg-[#101623] flex flex-col" style="height: 100dvh;">
       <div ref="canvasHost" class="absolute inset-0"></div>
 
-      <!-- MÅNEGLOBENS NAVN. Absolutt plassert over lerretet, uten peker-treff:
+      <!-- GLOBENS STEDSNAVN. Absolutt plassert over lerretet, uten peker-treff:
            fingeren skal snurre kula, ikke treffe en label. Navnene står med det
            norske først der det finnes et — «Regnhavet» er til å huske, «Mare
            Imbrium» er til å slå opp. -->
-      <div v-if="maneGlobeAapen && maneTrekk.length"
+      <div v-if="globeAapen && globeTrekk.length"
            class="absolute inset-0 z-[5] pointer-events-none" aria-hidden="true">
-        <div v-for="t in maneTrekk" :key="t.navn"
+        <div v-for="t in globeTrekk" :key="t.navn"
              class="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center"
              :style="{ left: `${t.x}px`, top: `${t.y}px` }">
           <span class="w-1 h-1 rounded-full bg-white/70"></span>
@@ -1039,7 +1041,7 @@ function branchLabel(opt, i) {
            class="relative z-10 px-3 mt-2 flex justify-center max-h-[52vh] overflow-y-auto"
            :style="{ zoom: uiTextScale }">
         <Tour3dHimmelKort :objekt="valgtHimmel" :naboer="himmelNaboer"
-                          :globe-aapen="maneGlobeAapen" :minimert="kortMinimert"
+                          :globe-aapen="globeAapen" :minimert="kortMinimert"
                           @lukk="velgHimmel(null)" @velg="velgNabo"
                           @minimer="kortMinimert = true" @utvid="kortMinimert = false"
                           @fokus="engine?.fokuserHimmel()"/>

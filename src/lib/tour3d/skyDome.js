@@ -14,6 +14,7 @@ import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeome
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import { STJERNER, LINJER } from './stjerner.js'
 import { PLANETER, synligePlaneter } from './planeter.js'
+import { harGlobe } from './himmellegemer.js'
 import {
   himmelFor, lokalStjernetid, tilHorisont, horisontTilWorld, presesserTilDato,
 } from './astronomi.js'
@@ -105,6 +106,8 @@ export function buildMane({ radius = 25000, avstand = null } = {}) {
     grader: MANE_GRADER,
     farge: '#fdf6df',
     jordskinn: JORDSKINN,
+    // Månen har en globe, og skal derfor bære trykk-ringen som sier det.
+    ring: true,
   })
 }
 
@@ -118,11 +121,23 @@ export function buildMane({ radius = 25000, avstand = null } = {}) {
  * @param {{radius?: number, avstand?: number, grader?: number, farge?: string,
  *          jordskinn?: number}} [opts]
  */
+// Hvor mye større planet er enn skiva når legemet bærer en trykk-ring. 2,3 gir
+// et omriss som er tydelig løsrevet fra kanten uten å bli en tallerken.
+const RING_FAKTOR = 2.3
+
 export function buildHimmelSkive({
   radius = 25000, avstand = null, grader = MANE_GRADER,
-  farge = '#ffffff', jordskinn = JORDSKINN,
+  farge = '#ffffff', jordskinn = JORDSKINN, ring = false,
 } = {}) {
   const r = avstand ?? radius * 0.82
+  // RINGEN ER EN AFFORDANSE, ikke pynt: den sier «dette kan du trykke på».
+  // Månen og de tre planetene som har en globe får den; Merkur og Venus, som
+  // ikke har noen, får den ikke — ellers lover omrisset noe som ikke finnes.
+  //
+  // Den tegnes i SAMME shader og på samme plan som skiva, og planet gjøres
+  // RING_FAKTOR større for å få plass. Et eget mesh ville vært et objekt mer å
+  // holde i takt med posisjon, skala og synlighet for ingen gevinst.
+  const ringFaktor = ring ? RING_FAKTOR : 1
   const geometry = new PlaneGeometry(1, 1)
   const material = new ShaderMaterial({
     transparent: true,
@@ -137,6 +152,9 @@ export function buildHimmelSkive({
       uLysside: { value: 0 },
       uFarge: { value: new Color(farge) },
       uJordskinn: { value: jordskinn },
+      // Skivas radius i planets enheter. 1 = planet ER skiva (ingen ring).
+      uSkive: { value: 1 / ringFaktor },
+      uRing: { value: ring ? 1 : 0 },
     },
     vertexShader: `
       varying vec2 vUv;
@@ -150,11 +168,31 @@ export function buildHimmelSkive({
       uniform float uLysside;
       uniform vec3 uFarge;
       uniform float uJordskinn;
+      uniform float uSkive;
+      uniform float uRing;
       varying vec2 vUv;
 
       void main() {
+        // Planets enheter: q i [-1, 1]². Skiva selv har radius uSkive; resten
+        // av planet er luft, og der ligger eventuelt ringen.
+        vec2 q = (vUv - 0.5) * 2.0;
+        float rq = length(q);
+        if (rq > 1.0) discard;
+
+        // RINGEN: et tynt omriss ute mot kanten av planet. Tegnes FØR skiva og
+        // returnerer, så den aldri kan spise av selve legemet.
+        if (uRing > 0.5) {
+          float d = abs(rq - 0.86);
+          if (d < 0.055) {
+            // Myk på begge sider, så den ikke trapper på en telefonskjerm.
+            float a = (1.0 - smoothstep(0.012, 0.055, d)) * 0.5;
+            gl_FragColor = vec4(uFarge, a);
+            return;
+          }
+        }
+
         // Enhetsskiva: p i [-1, 1]². Alt utenfor r = 1 finnes ikke.
-        vec2 p = (vUv - 0.5) * 2.0;
+        vec2 p = q / uSkive;
         float r = length(p);
         if (r > 1.0) discard;
 
@@ -190,7 +228,9 @@ export function buildHimmelSkive({
   // Skala fra ønsket vinkelstørrelse ved kjent avstand. Avstanden er konstant
   // fordi himmelen følger kameraet (sceneCore.updateAmbient), så dette regnes
   // ut én gang — månen skal ikke vokse når man flyr mot den.
-  const bredde = 2 * r * Math.tan((grader * Math.PI / 180) / 2)
+  // Vinkelstørrelsen gjelder SKIVA. Planet skaleres opp med ringFaktor, ellers
+  // ville ringen krympet legemet i stedet for å legge seg rundt det.
+  const bredde = 2 * r * Math.tan((grader * Math.PI / 180) / 2) * ringFaktor
   mesh.scale.setScalar(bredde)
   mesh.frustumCulled = false
 
@@ -483,6 +523,10 @@ export function buildNightSky({
         grader: PLANET_GRADER,
         farge: meta.farge,
         jordskinn: PLANET_JORDSKINN,
+        // RINGEN sier «trykk her». Bare de som HAR en globe får den — Merkur og
+        // Venus har ingen (se HIMMELLEGEMER), og et omriss som lover en globe
+        // som ikke finnes er verre enn ingen ring.
+        ring: harGlobe(meta.id),
       })
       skive.mesh.visible = false
       group.add(skive.group)
@@ -497,6 +541,10 @@ export function buildNightSky({
    * planetene flytter seg for lite i en 3D-økt til at det er nødvendig, men en
    * himmel bygget i går skal ikke vise Jupiter der den sto da.
    */
+  // Hvilket legeme som står som GLOBE nå. settPlaneter må vite det: uten dette
+  // ville neste kall vist Jupiter-skiva igjen midt inne i Jupiter-globen.
+  let globeLegeme = null
+
   function settPlaneter(naa) {
     if (!ekteHimmel) return []
     const synlige = synligePlaneter({ lat, lon, dato: naa })
@@ -505,6 +553,7 @@ export function buildNightSky({
       const skive = planetSkiver.get(p.id)
       if (!skive) continue
       oppe.add(p.id)
+      if (p.id === globeLegeme) { skive.mesh.visible = false; continue }
       skive.sett({
         azimut: p.azimut,
         hoyde: p.hoyde,
@@ -562,6 +611,11 @@ export function buildNightSky({
     textures: [],
     setNight(on) { group.visible = !!on },
     update(camera) { mane.update(camera) },
+
+    /** Skiva for én planet, så sceneCore kan skjule den mens globen står. */
+    planetSkive(id) { return planetSkiver.get(id) ?? null },
+    /** Hvilket legeme som står som globe — settPlaneter respekterer den. */
+    settGlobeLegeme(id) { globeLegeme = id ?? null },
 
     /** Utvikler-bryter: løft månen over horisonten. Se himmelFor. */
     settTvingMane(paa) {

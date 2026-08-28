@@ -495,15 +495,17 @@ export async function create3dScene(container, {
     valgtHimmel = o ?? null
     core.settValgtFormasjon(o?.type === 'formasjon' ? o : null)
     if (o) freeRig.seMot(o.azimut, o.hoyde)
-    // Månen er det ene valget som åpner noe: kula. Alt annet lukker den, så man
+    // Månen, Mars, Jupiter og Saturn åpner en globe. Alt annet lukker den, så man
     // aldri sitter med en måne foran seg mens infokortet snakker om Orion.
-    if (o?.type === 'mane') aapneGlobe(o)
+    // core.aapneGlobe sier selv nei til legemer uten globe (Merkur, Venus,
+    // stjernebilder), så porten står ETT sted — se harGlobe i himmelGlobe.js.
+    if (o && (o.type === 'mane' || o.type === 'planet')) aapneGlobe(o)
     else lukkGlobe()
   }
 
-  // ── Månegloben ────────────────────────────────────────────────────────────
-  // Trykk på månen (eller velg den i lista) og den vokser til en kule man kan
-  // snurre. Man har IKKE reist til månen: kula henger i månens virkelige
+  // ── Globene: månen, Mars, Jupiter, Saturn ─────────────────────────────────
+  // Trykk på legemet (eller velg det i lista) og skiva vokser til en kule man
+  // kan snurre. Man har IKKE reist dit: kula henger i legemets virkelige
   // himmelretning, med kveldens ekte skyggelinje, og kartet ligger under.
   //
   // Mens den står åpen eier fingeren KULA og ikke kameraet. Den frie riggen
@@ -511,31 +513,41 @@ export async function create3dScene(container, {
   // kartet, og man fikk ingen av dem.
   let globeDrag = null
 
-  function aapneGlobe(mane) {
-    if (!core.aapneManeGlobe(mane)) return
+  function aapneGlobe(o) {
+    // `legeme` er nøkkelen i HIMMELLEGEMER. Månen har id 'mane'; planetene har
+    // 'planet:<id>' i himmellista, og globen vil ha id-en alene.
+    const legeme = o.type === 'mane' ? 'mane' : String(o.id ?? '').replace(/^planet:/, '')
+    if (!core.aapneGlobe({ ...o, legeme })) {
+      // Legemet har ingen globe (Merkur, Venus). Da skal en globe som sto åpen
+      // fra forrige valg lukkes — ellers står Mars framme mens kortet sier Venus.
+      lukkGlobe()
+      return
+    }
     freeRig.setEnabled(false)
-    emit('mane-globe', { apen: true, harTekstur: core.maneGlobeHarTekstur })
+    emit('globe', {
+      apen: true, legeme, navn: core.globeNavn, harTekstur: core.globeHarTekstur,
+    })
   }
 
   function lukkGlobe() {
-    if (!core.maneGlobeAapen) return
-    core.lukkManeGlobe()
+    if (!core.globeAapen) return
+    core.lukkGlobe()
     globeDrag = null
     // Riggen tilbake bare der den skulle vært på: står en tur og spiller, er
     // det vogn-draget som eier fingeren (se armFreeRigIfIdle).
     if (!trip || camMode === 'free' || !playback?.playing) freeRig.setEnabled(true)
-    emit('mane-globe', { apen: false })
+    emit('globe', { apen: false })
   }
 
   const globeNed = (e) => {
-    if (core.maneGlobeAapen) globeDrag = { x: e.clientX, y: e.clientY }
+    if (core.globeAapen) globeDrag = { x: e.clientX, y: e.clientY }
   }
   const globeFlytt = (e) => {
-    if (!globeDrag || !core.maneGlobeAapen) return
+    if (!globeDrag || !core.globeAapen) return
     // Fortegnene: overflaten skal følge fingeren. Positiv rotasjon om Y flytter
     // punktet som vender mot kameraet mot HØYRE, og positiv om X flytter det
     // NED — så begge utslagene sendes videre som de er, i skjermens retning.
-    core.dreiManeGlobe(e.clientX - globeDrag.x, e.clientY - globeDrag.y)
+    core.dreiGlobe(e.clientX - globeDrag.x, e.clientY - globeDrag.y)
     globeDrag = { x: e.clientX, y: e.clientY }
   }
   const globeOpp = () => { globeDrag = null }
@@ -547,7 +559,7 @@ export async function create3dScene(container, {
     if (camMode === 'follow' && followRig?.holdConsumed) return
     // Står månegloben åpen, er et trykk veien ut. Et drag snurrer den (og blir
     // aldri et trykk, slop-terskelen tar det), så de to gestene kolliderer ikke.
-    if (core.maneGlobeAapen) { velgHimmel(null); emit('himmel-valgt', { objekt: null }); return }
+    if (core.globeAapen) { velgHimmel(null); emit('himmel-valgt', { objekt: null }); return }
     const rect = core.renderer.domElement.getBoundingClientRect()
     ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
     ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
@@ -686,9 +698,9 @@ export async function create3dScene(container, {
       // Labels på globen: skjermkoordinater må ut hver gang kula har flyttet
       // seg, men en Vue-oppdatering pr frame er sløsing. 8/s er raskt nok til
       // at navnene henger med i draget.
-      if (core.maneGlobeAapen && nowMs - sisteTrekkEmit > TREKK_EMIT_MS) {
+      if (core.globeAapen && nowMs - sisteTrekkEmit > TREKK_EMIT_MS) {
         sisteTrekkEmit = nowMs
-        emit('mane-trekk', { trekk: core.maneTrekkPaaSkjerm() })
+        emit('globe-trekk', { trekk: core.globeTrekkPaaSkjerm() })
       }
       // BLIKKRETNINGEN til himmelkompasset. Bare om natta — det er der kartet er
       // ute av bildet og retningene forsvinner. Samme takt som måne-labelene:
@@ -875,10 +887,10 @@ export async function create3dScene(container, {
       return true
     },
     get valgtHimmel() { return valgtHimmel },
-    get maneGlobeAapen() { return core.maneGlobeAapen },
-    lukkManeGlobe: lukkGlobe,
+    get globeAapen() { return core.globeAapen },
+    lukkGlobe: lukkGlobe,
     /** Navngitte hav og krater med skjermkoordinater. Kalles etter render. */
-    maneTrekkPaaSkjerm: () => core.maneTrekkPaaSkjerm(),
+    globeTrekkPaaSkjerm: () => core.globeTrekkPaaSkjerm(),
 
     // --- turen ---
     get walking() { return !!trip },

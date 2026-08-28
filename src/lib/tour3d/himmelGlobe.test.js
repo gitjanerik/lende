@@ -3,7 +3,8 @@
 // avgjør om skyggelinja står riktig og om labelene ligger på riktig side av kula.
 import { describe, it, expect } from 'vitest'
 import { Vector3 } from 'three'
-import { buildManeGlobe, selenografiskTilPunkt, MANE_TREKK } from './maneGlobe.js'
+import { buildHimmelGlobe, selenografiskTilPunkt } from './himmelGlobe.js'
+import { HIMMELLEGEMER, GLOBE_TEKST, MANE_TREKK, harGlobe } from './himmellegemer.js'
 
 const GRAD = Math.PI / 180
 
@@ -58,10 +59,10 @@ describe('MANE_TREKK', () => {
   })
 })
 
-describe('buildManeGlobe — fasen er ekte lys', () => {
+describe('buildHimmelGlobe — fasen er ekte lys', () => {
   it('fullmåne lyser rett på forsida', () => {
     // Fasevinkel 0 = sola bak oss. Lyset skal peke mot +Z, altså mot kameraet.
-    const g = buildManeGlobe()
+    const g = buildHimmelGlobe()
     g.settFase(0, 0)
     const sol = g.group.children.find((c) => c.type === 'DirectionalLight')
     expect(sol.position.z).toBeCloseTo(1, 5)
@@ -70,7 +71,7 @@ describe('buildManeGlobe — fasen er ekte lys', () => {
   })
 
   it('nymåne lyser fra baksida', () => {
-    const g = buildManeGlobe()
+    const g = buildHimmelGlobe()
     g.settFase(Math.PI, 0)
     const sol = g.group.children.find((c) => c.type === 'DirectionalLight')
     expect(sol.position.z).toBeCloseTo(-1, 5)
@@ -78,7 +79,7 @@ describe('buildManeGlobe — fasen er ekte lys', () => {
   })
 
   it('halvmåne lyser fra siden, og lyssideVinkel bestemmer HVILKEN side', () => {
-    const g = buildManeGlobe()
+    const g = buildHimmelGlobe()
     const sol = g.group.children.find((c) => c.type === 'DirectionalLight')
     // Fasevinkel 90° ⇒ lyset står rett på tvers.
     g.settFase(90 * GRAD, 0)
@@ -95,7 +96,7 @@ describe('buildManeGlobe — fasen er ekte lys', () => {
   })
 
   it('tåler tull uten å flytte lyset ut av enhetskula', () => {
-    const g = buildManeGlobe()
+    const g = buildHimmelGlobe()
     const sol = g.group.children.find((c) => c.type === 'DirectionalLight')
     g.settFase(NaN, undefined)
     expect(sol.position.length()).toBeCloseTo(1, 5)
@@ -106,7 +107,7 @@ describe('buildManeGlobe — fasen er ekte lys', () => {
   it('nattsida er ikke helt svart', () => {
     // Uten litt fyllys blir kula en sigd som svever, og man mister at det er en
     // kule man ser på.
-    const g = buildManeGlobe()
+    const g = buildHimmelGlobe()
     const fyll = g.group.children.find((c) => c.type === 'AmbientLight')
     expect(fyll.intensity).toBeGreaterThan(0)
     expect(fyll.intensity).toBeLessThan(0.15)
@@ -114,9 +115,9 @@ describe('buildManeGlobe — fasen er ekte lys', () => {
   })
 })
 
-describe('buildManeGlobe — rotasjon', () => {
+describe('buildHimmelGlobe — rotasjon', () => {
   it('lengderotasjon går fritt rundt', () => {
-    const g = buildManeGlobe()
+    const g = buildHimmelGlobe()
     g.settRotasjon(7 * Math.PI, 0)
     expect(g.rotasjon.lengde).toBeCloseTo(7 * Math.PI, 6)
     g.dispose()
@@ -124,7 +125,7 @@ describe('buildManeGlobe — rotasjon', () => {
 
   it('breddegrad klemmes, så månen ikke havner på hodet', () => {
     // Får man snurre forbi polene, står kula opp-ned og ingen finner tilbake.
-    const g = buildManeGlobe()
+    const g = buildHimmelGlobe()
     g.settRotasjon(0, 3)
     expect(g.rotasjon.bredde).toBeCloseTo(80 * GRAD, 6)
     g.settRotasjon(0, -3)
@@ -133,9 +134,9 @@ describe('buildManeGlobe — rotasjon', () => {
   })
 })
 
-describe('buildManeGlobe — synlige trekk', () => {
+describe('buildHimmelGlobe — synlige trekk', () => {
   it('urotert ser man forsidas trekk, og bare dem', () => {
-    const g = buildManeGlobe()
+    const g = buildHimmelGlobe()
     const synlige = g.synligeTrekk()
     expect(synlige.length).toBeGreaterThan(5)
     for (const t of synlige) {
@@ -149,7 +150,7 @@ describe('buildManeGlobe — synlige trekk', () => {
   it('snurrer man en halv omdreining, forsvinner forsida', () => {
     // Dette er testen på at rotasjonen FAKTISK flytter trekkene, og ikke bare
     // kula: uten applyQuaternion ville lista vært den samme uansett.
-    const g = buildManeGlobe()
+    const g = buildHimmelGlobe()
     const for0 = g.synligeTrekk().map((t) => t.navn)
     g.settRotasjon(Math.PI, 0)
     const etter = g.synligeTrekk().map((t) => t.navn)
@@ -161,7 +162,7 @@ describe('buildManeGlobe — synlige trekk', () => {
   })
 
   it('trekk nær kanten utelates, så labels ikke havner på silhuetten', () => {
-    const g = buildManeGlobe()
+    const g = buildHimmelGlobe()
     // Grimaldi ligger på lon −68, altså nær kanten. Snurr den til randen.
     g.settRotasjon(-22 * GRAD, 0)
     for (const t of g.synligeTrekk()) {
@@ -171,11 +172,11 @@ describe('buildManeGlobe — synlige trekk', () => {
   })
 })
 
-describe('buildManeGlobe — vendMot og rull', () => {
+describe('buildHimmelGlobe — vendMot og rull', () => {
   it('forsida vender mot kameraet uansett hvilken vei kula henger', () => {
     // DETTE ER FELLA MODULEN BLE SKREVET RUNDT: uten vendMot peker forsida mot
     // verdens +Z, som i denne scenen er SØR. Sto månen i nord, så man baksida.
-    const g = buildManeGlobe()
+    const g = buildHimmelGlobe()
     g.group.position.set(0, 0, -4000)          // månen i nord (nord = −Z)
     const kamera = new Vector3(0, 0, 0)
     g.vendMot(kamera)
@@ -187,7 +188,7 @@ describe('buildManeGlobe — vendMot og rull', () => {
   })
 
   it('rullen dreier kula, og bare den', () => {
-    const g = buildManeGlobe()
+    const g = buildHimmelGlobe()
     g.group.position.set(0, 0, -1000)
     g.settRull(0)
     g.vendMot(new Vector3(0, 0, 0))
@@ -207,7 +208,7 @@ describe('buildManeGlobe — vendMot og rull', () => {
   it('skalaen kan krympe kula uten å gjøre den til ingenting', () => {
     // Vokse-animasjonen kjører gjennom denne, og en skala på 0 ville gjort
     // matrisen singulær — samme klasse feil som nulflatene i pinField.
-    const g = buildManeGlobe()
+    const g = buildHimmelGlobe()
     g.settSkala(0)
     expect(g.skala).toBeGreaterThan(0)
     g.settSkala(1)
@@ -216,11 +217,11 @@ describe('buildManeGlobe — vendMot og rull', () => {
   })
 })
 
-describe('buildManeGlobe — teksturen er valgfri', () => {
+describe('buildHimmelGlobe — teksturen er valgfri', () => {
   it('virker uten tekstur, og sier at den ikke har en', () => {
     // NASA og USGS er sperret fra utviklingsmiljøet, så teksturen hentes i CI.
     // En funksjon som krever en fil som kanskje ikke er der, skal virke uten den.
-    const g = buildManeGlobe({ teksturUrl: null })
+    const g = buildHimmelGlobe({ teksturUrl: null })
     expect(g.harTekstur).toBe(false)
     expect(g.materials[0].map).toBeFalsy()
     // Og kula skal ha en månegrå egenfarge, ikke svart.
@@ -229,10 +230,99 @@ describe('buildManeGlobe — teksturen er valgfri', () => {
   })
 
   it('er skjult til noen ber om den', () => {
-    const g = buildManeGlobe()
+    const g = buildHimmelGlobe()
     expect(g.group.visible).toBe(false)
     g.setVisible(true)
     expect(g.group.visible).toBe(true)
+    g.dispose()
+  })
+})
+
+
+describe('HIMMELLEGEMER — tabellen', () => {
+  it('har de fire legemene som faktisk kan åpnes, og bare dem', () => {
+    // Merkur og Venus står bevisst UTENFOR: en globe av dem ville vært en
+    // påstand om at det er noe å se. Og siden trykk-ringen på himmelen leser
+    // harGlobe, ville de fått et omriss som lover en globe som ikke finnes.
+    expect(Object.keys(HIMMELLEGEMER).sort()).toEqual(['jupiter', 'mane', 'mars', 'saturn'])
+    expect(harGlobe('mane')).toBe(true)
+    expect(harGlobe('mars')).toBe(true)
+    expect(harGlobe('merkur')).toBe(false)
+    expect(harGlobe('venus')).toBe(false)
+    expect(harGlobe('orion')).toBe(false)
+  })
+
+  it('hvert legeme har fallback-farge, trekk og tekst', () => {
+    // Fallback-fargen er ikke pynt: teksturene bakes i CI, og lokalt finnes de
+    // ikke. «Uten fotografi» er den normale tilstanden, og legemet må være
+    // gjenkjennelig likevel.
+    for (const [id, spec] of Object.entries(HIMMELLEGEMER)) {
+      expect(spec.farge, id).toMatch(/^#[0-9a-f]{6}$/i)
+      expect(spec.tekstur, id).toMatch(/\.jpg$/)
+      expect(spec.trekk?.length, id).toBeGreaterThan(2)
+      expect(GLOBE_TEKST[id], id).toBeTruthy()
+      expect(GLOBE_TEKST[id].bruk, id).toBeTruthy()
+      expect(GLOBE_TEKST[id].omtale, id).toBeTruthy()
+    }
+    // Og motsatt: ingen tekst uten et legeme å høre til.
+    for (const id of Object.keys(GLOBE_TEKST)) expect(HIMMELLEGEMER[id], id).toBeTruthy()
+  })
+
+  it('alle trekk ligger innenfor gyldige koordinater', () => {
+    for (const [id, spec] of Object.entries(HIMMELLEGEMER)) {
+      for (const t of spec.trekk) {
+        expect(t.navn, id).toBeTruthy()
+        expect(Math.abs(t.lat), `${id}/${t.navn}`).toBeLessThanOrEqual(90)
+        expect(Math.abs(t.lon), `${id}/${t.navn}`).toBeLessThanOrEqual(180)
+      }
+    }
+  })
+
+  it('månens trekk er alle på FORSIDA', () => {
+    // Baksida er aldri synlig fra jorda, og en label der ville vært en label på
+    // noe man ikke kan peke på fra bakken.
+    for (const t of MANE_TREKK) expect(Math.abs(t.lon), t.navn).toBeLessThan(90)
+  })
+})
+
+describe('buildHimmelGlobe — per legeme', () => {
+  it('hvert legeme bygger, og bærer sitt eget navn og sine egne trekk', () => {
+    for (const id of Object.keys(HIMMELLEGEMER)) {
+      const g = buildHimmelGlobe({ legeme: id })
+      expect(g.legeme).toBe(id)
+      expect(g.navn).toBe(HIMMELLEGEMER[id].navn)
+      // Urotert skal noen trekk være synlige — ellers er tabellen eller
+      // projeksjonen feil, og labelene ville aldri kommet.
+      expect(g.synligeTrekk().length, id).toBeGreaterThan(0)
+      g.dispose()
+    }
+  })
+
+  it('BARE Saturn har ringer', () => {
+    // En Saturn uten ringer er en blek Jupiter; en Jupiter MED ringer er feil.
+    for (const id of Object.keys(HIMMELLEGEMER)) {
+      expect(buildHimmelGlobe({ legeme: id }).harRinger, id).toBe(id === 'saturn')
+    }
+  })
+
+  it('aksehellingen står på holderen, ikke på kula', () => {
+    // Mars står 25° skjevt og Saturn 27°. Ligger hellingen på meshet, blir den
+    // overskrevet av brukerens dreining; ligger den på gruppa, blir den
+    // overskrevet av vendMot hver frame. Derfor en holder imellom.
+    const mars = buildHimmelGlobe({ legeme: 'mars' })
+    // Gruppa har ett barn som er holderen (pluss lysene).
+    const holder = mars.group.children.find((c) => c.children.includes(mars.mesh))
+    expect(holder).toBeTruthy()
+    expect(Math.abs(holder.rotation.z)).toBeCloseTo(25.2 * Math.PI / 180, 6)
+    expect(mars.mesh.rotation.z).toBe(0)
+    mars.dispose()
+  })
+
+  it('ukjent legeme faller tilbake på månen framfor å kaste', () => {
+    // Kallstedet gater på harGlobe, men en globe som kaster ville tatt hele
+    // 3D-visningen med seg — og et fallback er billigere enn en krasj.
+    const g = buildHimmelGlobe({ legeme: 'pluto' })
+    expect(g.synligeTrekk().length).toBeGreaterThan(0)
     g.dispose()
   })
 })

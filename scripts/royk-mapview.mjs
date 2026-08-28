@@ -1053,10 +1053,48 @@ const SJEKKER = [
         }
       }
 
+      // GLOBENE (v6.2.0): månen, Mars, Jupiter og Saturn kan åpnes som roterbare
+      // kuler. Vi finner en av dem i lista og krever at et valg gir stedsnavn på
+      // overflata — det er den enden av kjeden som beviser at globen faktisk
+      // tegnes, og den kan ikke leses av noe annet.
+      // LISTA MÅ ÅPNES PÅ NYTT FØRST. Den lukker seg når man velger, så en
+      // spørring mot den her fant ingenting — og sjekken meldte «ingen
+      // globe-legeme over horisonten» og testet dermed ingenting, grønt.
+      // Nøyaktig den feilklassen prosjektet frykter mest, og den slapp gjennom
+      // én kjøring før den ble oppdaget i loggen.
+      await page.locator('button[aria-label^="Valgt:"]').click({ timeout: 8000 })
+      await page.waitForTimeout(400)
+      const medGlobe = await evalMedTak(page, () => {
+        const navn = ['Månen', 'Mars', 'Jupiter', 'Saturn']
+        const b = [...document.querySelectorAll('ul[aria-label="Treff på himmelen"] li button')]
+          .find((e) => navn.some((n) => e.textContent.includes(n)))
+        return b ? (b.querySelector('span.block')?.textContent ?? '').trim() : null
+      })
+      if (!medGlobe) {
+        // Himmelen over Vardåsen har praktisk talt alltid ett av de fire oppe.
+        // Er den tom, er det lista som er brutt — ikke astronomien.
+        throw new Error('fant verken månen, Mars, Jupiter eller Saturn i himmellista')
+      }
+      await page.locator('ul[aria-label="Treff på himmelen"] li button')
+        .filter({ hasText: medGlobe }).first().click({ timeout: 5000 })
+      // Globen vokser fram over noen frames, og labelene kommer først når den er
+      // over 60 % — så vi venter på navnene framfor en fast pause.
+      const trekk = await page.waitForFunction(() => {
+        const n = document.querySelectorAll('div[aria-hidden="true"] span + span').length
+        return n > 0 ? n : false
+      }, null, { timeout: 20_000 }).then((x) => x.jsonValue()).catch(() => 0)
+      if (!trekk) throw new Error(`åpnet globen for «${medGlobe}», men ingen stedsnavn kom`)
+      const globeUtfall = `${medGlobe}-globen ga ${trekk} stedsnavn`
+      // Et trykk legger kula tilbake på himmelen.
+      await page.mouse.click(40, Math.round(page.viewportSize().height * 0.5))
+      await page.waitForTimeout(900)
+
       await page.locator('button[aria-label="Lukk infokortet"]').click({ timeout: 5000 })
+        .catch(() => { /* trykket over kan ha lukket kortet */ })
       await page.waitForTimeout(400)
       await lukkNatt3d(page, h.startSteg)
-      return `valgte «${forste}», minimerte, utvidet${nabo ? `, hoppet til «${nabo}»` : ''}`
+      return `valgte «${forste}», minimerte, utvidet`
+        + `${nabo ? `, hoppet til «${nabo}»` : ''}; ${globeUtfall}`
     },
   },
   {

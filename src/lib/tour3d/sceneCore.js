@@ -26,7 +26,8 @@ import { buildPuffClouds } from './puffSkyer.js'
 import { lagSkyskygge } from './skyskygge.js'
 import { NEDBOR_TAK } from './vaerHimmel.js'
 import { createEngineLoop } from './engineLoop.js'
-import { buildManeGlobe } from './maneGlobe.js'
+import { buildHimmelGlobe } from './himmelGlobe.js'
+import { HIMMELLEGEMER, harGlobe } from './himmellegemer.js'
 import { svgToWgs84 } from '../utm.js'
 
 export class TourSceneError extends Error {
@@ -183,7 +184,7 @@ export async function createSceneCore(container, {
   skyskygge.uniforms.uSolRetning.value.copy(clouds.solRetning)
   skyskygge.festTil(terrain.material)
 
-  // Månegloben — bygges lazily ved første trykk på månen (se aapneManeGlobe).
+  // Globene — bygges lazily ved første trykk på et legeme (se aapneGlobe).
   //
   // GLOBE_AVSTAND er hvor langt foran kameraet kula henger, og GLOBE_GRADER hvor
   // stor den skal se ut. 34° er stort nok til at hav og krater er til å se på en
@@ -191,7 +192,27 @@ export async function createSceneCore(container, {
   // man ser på månen FRA kartet sitt, ikke at man har reist til den.
   const GLOBE_AVSTAND = 4000
   const GLOBE_GRADER = 34
-  let maneGlobe = null
+  /**
+   * Skjul eller vis skiva på himmelen for ett legeme. Månen har sin egen skive
+   * (`nightSky.mane`), planetene ligger i `nightSky.planetSkive`.
+   */
+  const skjulSkive = (id, skjul) => {
+    const s = id === 'mane' ? nightSky.mane : nightSky.planetSkive?.(id)
+    if (!s) return
+    // Planetskivene skjules og vises også av settPlaneter etter om de er over
+    // horisonten. Vi rører bare den ene som globen står for, og settPlaneter
+    // spør globen før den viser noe igjen — se `globeLegeme` under.
+    s.mesh.visible = !skjul
+    // settPlaneter kalles på nytt når himmelen oppdateres, og den ville ellers
+    // vist skiva igjen midt inne i globen.
+    nightSky.settGlobeLegeme?.(skjul ? id : null)
+  }
+
+  // Én globe PER LEGEME, bygd første gang den åpnes og deretter gjenbrukt: en
+  // sfære med tekstur er ikke gratis, og de fleste åpner aldri Saturn. `globe`
+  // er den som står framme nå.
+  const globeCache = new Map()
+  let globe = null
   let globeRetning = null
   // Kula vokser fram fra skiva den var. Tallet er andelen av full størrelse.
   let globeSkala = 0
@@ -462,26 +483,26 @@ export async function createSceneCore(container, {
       // Globen henger i månens retning, et fast stykke foran kameraet. Den
       // følger kameraets POSISJON som himmelen, så den blir stående i samme
       // himmelretning når man panorerer — man ser på månen der månen er.
-      if (maneGlobe?.group.visible && globeRetning) {
-        maneGlobe.group.position.set(
+      if (globe?.group.visible && globeRetning) {
+        globe.group.position.set(
           camera.position.x + globeRetning[0],
           camera.position.y + globeRetning[1],
           camera.position.z + globeRetning[2],
         )
         // Vendes mot kameraet HVER frame: uten det peker forsida mot verdens
-        // +Z, som i denne scenen er sør (se vendMot i maneGlobe).
-        maneGlobe.vendMot(camera.position)
+        // +Z, som i denne scenen er sør (se vendMot i globe).
+        globe.vendMot(camera.position)
         // Vokse-animasjonen. Eksponentiell demping og ikke en tidslinje: den
         // tåler at en frame kommer sent, og den snur uten et eget «lukker»-steg.
         if (globeSkala !== globeMaal) {
           const k = 1 - Math.exp(-dt / 0.18)
           globeSkala += (globeMaal - globeSkala) * k
           if (Math.abs(globeMaal - globeSkala) < 0.004) globeSkala = globeMaal
-          maneGlobe.settSkala(globeSkala)
+          globe.settSkala(globeSkala)
           // Ferdig krympet: nå kan den skjules, ikke før.
           if (globeSkala === 0) {
-            maneGlobe.setVisible(false)
-            nightSky.mane.group.visible = true
+            globe.setVisible(false)
+            skjulSkive(globe.legeme, false)
           }
         }
       }
@@ -541,12 +562,12 @@ export async function createSceneCore(container, {
       // Slås natta av, skal ikke en måneglobe stå igjen og henge i dagslyset.
       // Uten dette ville den blitt stående usynlig-men-åpen, og neste trykk
       // hadde lukket den i stedet for å velge noe.
-      if (!nightOn && maneGlobe) {
+      if (!nightOn && globe) {
         globeMaal = 0
         globeSkala = 0
-        maneGlobe.settSkala(0.001)
-        maneGlobe.setVisible(false)
-        nightSky.mane.group.visible = true
+        globe.settSkala(0.001)
+        globe.setVisible(false)
+        skjulSkive(globe.legeme, false)
       }
       oppdaterSkySynlighet()
       grunnfarge.set(nightOn ? NIGHT_FOG_COLOR : FOG_COLOR)
@@ -601,55 +622,74 @@ export async function createSceneCore(container, {
     settTvingMane(paa) { nightSky.settTvingMane(paa) },
     get tvingMane() { return nightSky.tvingMane },
 
-    // ── Månegloben ──────────────────────────────────────────────────────────
-    // Bygges LAZILY ved første trykk på månen: en sfære med tekstur er ikke
-    // gratis, og de fleste åpner den aldri. Samme mønster som høydekurvene.
-    aapneManeGlobe(mane) {
-      if (!mane || !Number.isFinite(mane.azimut)) return false
-      if (!maneGlobe) {
-        maneGlobe = buildManeGlobe({
-          radius: GLOBE_AVSTAND * Math.tan((GLOBE_GRADER / 2) * Math.PI / 180),
-          // Bakt av scripts/bygg-maanekart.mjs, som kjører i CI. Ligger den
-          // ikke der, tegnes kula i månegrå — globen er laget for å tåle det.
-          teksturUrl: `${import.meta.env?.BASE_URL ?? '/'}data/maane.jpg`,
-        })
-        scene.add(maneGlobe.group)
-        loop.track(maneGlobe)
+    // ── Globene: månen, Mars, Jupiter, Saturn ───────────────────────────────
+    // Bygges LAZILY ved første trykk på legemet: en sfære med tekstur er ikke
+    // gratis, og de fleste åpner aldri Saturn. Samme mønster som høydekurvene.
+    /**
+     * @param {{legeme: string, azimut: number, hoyde: number,
+     *          faseVinkel?: number, lyssideVinkel?: number,
+     *          parallaktisk?: number}} o
+     * @returns {boolean} false når legemet ikke har en globe
+     */
+    aapneGlobe(o) {
+      if (!o || !Number.isFinite(o.azimut) || !harGlobe(o.legeme)) return false
+      // Bytter man fra månen til Mars, skal månen bort først — ellers står to
+      // kuler i samme retning.
+      if (globe && globe.legeme !== o.legeme) {
+        globe.setVisible(false)
+        globe.settSkala(0.001)
       }
-      globeRetning = horisontTilWorld(mane.azimut, mane.hoyde, GLOBE_AVSTAND)
-      maneGlobe.settFase(mane.faseVinkel ?? 0, mane.lyssideVinkel ?? 0)
+      globe = globeCache.get(o.legeme) ?? null
+      if (!globe) {
+        globe = buildHimmelGlobe({
+          legeme: o.legeme,
+          radius: GLOBE_AVSTAND * Math.tan((GLOBE_GRADER / 2) * Math.PI / 180),
+          // Bakt av scripts/bygg-himmelkart.mjs, som kjører i CI. Ligger fila
+          // ikke der, tegnes kula i legemets egenfarge — globen er laget for å
+          // tåle det, og lokalt er det den normale tilstanden (NASA og USGS er
+          // sperret fra utviklingsmiljøene).
+          teksturUrl: `${import.meta.env?.BASE_URL ?? '/'}data/${HIMMELLEGEMER[o.legeme].tekstur}`,
+        })
+        scene.add(globe.group)
+        loop.track(globe)
+        globeCache.set(o.legeme, globe)
+      }
+      globeRetning = horisontTilWorld(o.azimut, o.hoyde, GLOBE_AVSTAND)
+      globe.settFase(o.faseVinkel ?? 0, o.lyssideVinkel ?? 0)
       // Rullen er den parallaktiske vinkelen med motsatt fortegn — da står
-      // skyggelinja på kula slik sigden står på himmelen.
-      maneGlobe.settRull(-(mane.parallaktisk ?? 0))
-      maneGlobe.settRotasjon(0, 0)
+      // skyggelinja på kula slik sigden står på himmelen. Planetene har ikke en
+      // egen parallaktisk vinkel (se settPlaneter); der er den 0, og det er
+      // uten betydning fordi de ytre planetene er nær fullt opplyst.
+      globe.settRull(-(o.parallaktisk ?? 0))
+      globe.settRotasjon(0, 0)
       globeSkala = 0.05
       globeMaal = 1
-      maneGlobe.settSkala(globeSkala)
-      maneGlobe.setVisible(true)
-      // Skiva på himmelen skjules mens kula er framme: to måner i samme
-      // retning, den ene halvt inni den andre, leses som en tegnefeil.
-      nightSky.mane.group.visible = false
+      globe.settSkala(globeSkala)
+      globe.setVisible(true)
+      // Skiva på himmelen skjules mens kula er framme: to av samme legeme i
+      // samme retning, den ene halvt inni den andre, leses som en tegnefeil.
+      skjulSkive(o.legeme, true)
       return true
     },
-    lukkManeGlobe() {
+    lukkGlobe() {
       // Krympes ned, og skjules først når den er nede — ellers forsvinner en
       // tredjedel av skjermen i ett klipp.
       globeMaal = 0
     },
     // ÅPEN betyr «brukeren har den framme», ikke «det tegnes noe»: krympingen
     // varer noen frames, og et trykk i den perioden skal ikke åpne den igjen.
-    get maneGlobeAapen() { return !!maneGlobe?.group.visible && globeMaal > 0 },
+    get globeAapen() { return !!globe?.group.visible && globeMaal > 0 },
     /**
      * Drei globen. Utslaget er i PIKSLER, og oversettes til radianer med samme
      * følsomhet som orbiten bruker — da kjennes det som å snurre den samme
      * verdenen, ikke som et annet instrument.
      */
-    dreiManeGlobe(dxPx, dyPx) {
-      if (!maneGlobe?.group.visible) return
+    dreiGlobe(dxPx, dyPx) {
+      if (!globe?.group.visible) return
       const h = container.clientHeight || 1
       const radPrPiksel = (2 * Math.PI) / h
-      const r = maneGlobe.rotasjon
-      maneGlobe.settRotasjon(
+      const r = globe.rotasjon
+      globe.settRotasjon(
         r.lengde + dxPx * radPrPiksel,
         r.bredde + dyPx * radPrPiksel,
       )
@@ -658,17 +698,21 @@ export async function createSceneCore(container, {
      * De navngitte trekkene som er synlige nå, med SKJERMKOORDINATER. Kalles
      * etter render, som project() krever.
      */
-    maneTrekkPaaSkjerm() {
-      if (!maneGlobe?.group.visible || globeSkala < 0.6) return []
+    globeTrekkPaaSkjerm() {
+      if (!globe?.group.visible || globeSkala < 0.6) return []
       const ut = []
-      for (const t of maneGlobe.synligeTrekk()) {
+      for (const t of globe.synligeTrekk()) {
         const skj = project(t.verden[0], t.verden[1], t.verden[2])
         if (skj.behind) continue
         ut.push({ navn: t.navn, norsk: t.norsk, merk: t.merk, type: t.type, x: skj.x, y: skj.y })
       }
       return ut
     },
-    get maneGlobeHarTekstur() { return !!maneGlobe?.harTekstur },
+    get globeHarTekstur() { return !!globe?.harTekstur },
+    /** Hvilket legeme globen står for nå, eller null. */
+    get globeLegeme() { return globe?.group.visible && globeMaal > 0 ? globe.legeme : null },
+    /** Navnet på legemet globen står for — viseren bruker det i overskrifter. */
+    get globeNavn() { return globe?.navn ?? null },
     /** Planetene som står over horisonten nå — viseren bruker dem i lista. */
     get synligePlaneter() { return nightSky.synligePlaneter },
 

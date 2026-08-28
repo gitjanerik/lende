@@ -432,28 +432,63 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   konstruksjon ikke stjele et trykk fra en nål, en sti eller GPS-en. Skiver
   (måne, planeter) veies 18 px foran formasjoner: et trykk PÅ månen skal velge
   månen, ikke stjernebildet bak.
-- **Månegloben er en OBJEKT-INSPEKTØR, ikke en reise (v6.0.0).**
-  `lib/tour3d/maneGlobe.js`. Eieren ba om en tur TIL månen; det ble forkastet i
-  samråd, fordi det bryter invarianten som gjør 3D til å stole på — *alt du ser
-  står der det faktisk står, sett fra din posisjon* — og fordi det krever et
-  andre kamera-regime, altså nøyaktig gjelden denne seksjonen finnes for. Kula
-  henger `GLOBE_AVSTAND` foran kameraet i månens virkelige himmelretning, og du
-  står fortsatt på kartet ditt. Tre ting som MÅ stå:
+- **Globene er OBJEKT-INSPEKTØRER, ikke reiser (v6.0.0, utvidet i v6.2.0).**
+  `lib/tour3d/himmelGlobe.js` (byggeren) + `lib/tour3d/himmellegemer.js` (dataen).
+  Månen, Mars, Jupiter og Saturn kan åpnes som roterbare kuler. Eieren ba om en
+  tur TIL månen; det ble forkastet i samråd, fordi det bryter invarianten som gjør
+  3D til å stole på — *alt du ser står der det faktisk står, sett fra din
+  posisjon* — og fordi det krever et andre kamera-regime, altså nøyaktig gjelden
+  denne seksjonen finnes for. Kula henger `GLOBE_AVSTAND` foran kameraet i
+  legemets virkelige himmelretning, og du står fortsatt på kartet ditt.
+
+  **ÉN MODUL MED EN TABELL, ikke fire filer.** Da Mars, Jupiter og Saturn skulle
+  ha det månen hadde, var spørsmålet regelen over tvinger fram: er varianten
+  egentlig en OPSJON på originalen? Den er det. `HIMMELLEGEMER` bærer farge,
+  tekstur, aksehelling, ambient, trekk og eventuelle ringer; `GLOBE_TEKST` bærer
+  prosaen, skilt ut fordi den skrives om uten å røre en koordinat.
+
+  **`himmellegemer.js` er REN og MÅ forbli det.** `himmelObjekter.js` — som er
+  ren, og som UI-et bruker — trenger `harGlobe` for å vite hvilke legemer som får
+  trykk-ring. En import av byggeren derfra ville trukket three.js inn i
+  søkelista. Det var slik det ble skrevet først, og splittet er rettingen.
+
+  Fem ting som MÅ stå:
   1. **`vendMot(kamera)` hver frame.** Uten den peker forsida mot verdens +Z,
      som i denne scenen er SØR — sto månen i nord, så man baksida.
   2. **Rullen er `−parallaktisk`.** Da står nordpolen der himmelens nordpol
      faktisk står, og skyggelinja som sigden man nettopp så. Uten den er
-     terminatoren riktig i form og feil i retning.
+     terminatoren riktig i form og feil i retning. Planetene har ingen
+     parallaktisk vinkel (se `settPlaneter`); der er den 0, og det er uten
+     betydning fordi de ytre planetene er nær fullt opplyst.
   3. **Lyset er et EKTE `DirectionalLight` med `target = mesh`.** Standard-målet
      er verdens origo, og gruppa står 4 km unna det — uten `target` peker sola
      mot midten av kartet. At terminatoren er lys og ikke shader er hele grunnen
      til at kula er en kule: en skive KAN ikke skygges av et lys, og
      `buildHimmelSkive` tegner derfor en ellipse (som er riktig for 1,6° på
      himmelen, og bare der).
-  Teksturen er VALGFRI og bakes i CI (`npm run bygg:maanekart`) fordi NASA og
-  USGS er sperret fra utviklingsmiljøene. Uten den tegnes kula i månegrå med
-  samme lys og samme navn. En funksjon som krever en fil som kanskje ikke er der,
-  skal virke uten den.
+  4. **Aksehellingen ligger på en HOLDER mellom gruppa og meshet.** På meshet
+     ville brukerens dreining overskrevet den; på gruppa ville `vendMot`
+     overskrevet den hver frame. Saturns ringer henger i samme holder, så de
+     skjevstiller seg med planeten.
+  5. **Saturns ringer er ikke valgfrie.** En Saturn uten ringer er en blek
+     Jupiter. Cassini-delingen er det ENE trekket ved ringene som er synlig i en
+     liten kikkert, og derfor det som gjør dem ekte.
+
+  **Teksturene er VALGFRIE og bakes i CI** (`npm run bygg:himmelkart`) fordi NASA
+  og USGS er sperret fra utviklingsmiljøene — «uten fotografi» er den NORMALE
+  tilstanden lokalt. Uten dem tegnes kula i legemets egenfarge, og gassplanetene
+  får bånd tegnet på klienten (`bandTekstur`) så de er gjenkjennelige uansett.
+  **URL-ene kan ikke verifiseres herfra**, så les siste linje av bake-steget:
+  «N av 4 kart på plass». Er N lavere enn ventet, har en URL råtnet — og det er
+  den eneste måten å oppdage det, siden alt annet fortsetter å virke.
+- **Trykk-ringen på himmelen er en AFFORDANSE (v6.2.0).** `buildHimmelSkive({ ring })`
+  tegner et tynt omriss rundt legemet, i SAMME shader og på samme plan som skiva
+  (planet skaleres opp med `RING_FAKTOR`; et eget mesh ville vært ett objekt mer å
+  holde i takt med posisjon, skala og synlighet). Den står på nøyaktig de fire
+  legemene som HAR en globe — porten er `harGlobe`, ETT sted. Merkur og Venus får
+  den ikke: et omriss som lover en globe som ikke finnes er verre enn ingen ring.
+  Fella er å glemme oppskaleringen: da spiser ringen av legemet i stedet for å
+  legge seg rundt det, og månen krymper den dagen den blir trykkbar. Egen test.
 - **Stjernestørrelser er i CSS-piksler, og det var en ekte feil (v6.0.0).**
   `gl_PointSize` og `LineMaterial`-bredder er i FRAMEBUFFER-piksler. Med
   `setPixelRatio` opptil 2 ble stjernene halv størrelse på telefon — usynlige i

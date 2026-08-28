@@ -1,7 +1,7 @@
 {
   "name": "lende",
   "private": true,
-  "version": "6.1.1",
+  "version": "6.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,7 +10,7 @@
     "test": "vitest run",
     "royk": "node scripts/royk-mapview.mjs",
     "bygg:stjerner": "node scripts/bygg-stjerner.mjs",
-    "bygg:maanekart": "node scripts/bygg-maanekart.mjs",
+    "bygg:himmelkart": "node scripts/bygg-himmelkart.mjs",
     "royk:ruter": "node scripts/ruter-royk.mjs",
     "boot:workers": "node scripts/worker-boot.mjs",
     "mcp:protokoll": "node scripts/mcp-protokoll.mjs",
