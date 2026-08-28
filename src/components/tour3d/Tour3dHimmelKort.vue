@@ -36,7 +36,7 @@ const props = defineProps({
   // skal minimere.
   minimert: { type: Boolean, default: false },
 })
-const emit = defineEmits(['lukk', 'velg', 'minimer', 'utvid'])
+const emit = defineEmits(['lukk', 'velg', 'minimer', 'utvid', 'fokus'])
 
 const GRAD = 180 / Math.PI
 const komma = (n, d = 1) => (Number.isFinite(n) ? n.toFixed(d).replace('.', ',') : '–')
@@ -89,16 +89,17 @@ const faseNavn = computed(() => {
 </script>
 
 <template>
-  <!-- SAMME IKONER I BEGGE TILSTANDER: minimer/utvid og lukk. Knappene skal
-       ligge på samme sted enten kortet er sammenlagt eller åpent, så man ikke må
-       lete etter dem på nytt hver gang. Karet peker NED når kortet er minimert
-       (trykk for å åpne) og OPP når det er åpent (trykk for å legge sammen).
+  <!-- MINIMER/UTVID OG LUKK STÅR I BEGGE TILSTANDER, på samme sted og i samme
+       rekkefølge, så man ikke må lete etter dem på nytt hver gang. Karet peker
+       NED når kortet er minimert (trykk for å åpne) og OPP når det er åpent
+       (trykk for å legge sammen).
 
-       «SETT I FOKUS» (krysshår) ER FJERNET i v6.3.5, etter felttest: funksjonen
-       var ikke i bruk. Den rettet blikket mot det som alt var valgt — men et valg
-       fra lista og et trykk i himmelen retter blikket dit selv, så knappen hadde
-       bare en jobb i det ene tilfellet der man hadde sett seg bort etterpå. To
-       knapper i en header man leser i mørket er bedre enn tre. -->
+       «SETT I FOKUS» (krysshår) STÅR BARE I DEN MINIMERTE PILLA (v6.3.5), og det
+       er en presis avgrensning og ikke en halv løsning. Med kortet sammenlagt og
+       legemet tilbake i normal størrelse kan man panorere fritt — og DA er dette
+       veien tilbake til det man så på. I det ÅPNE kortet har den ingen jobb: både
+       et valg fra lista og et trykk i himmelen retter blikket dit selv, så der
+       sto den bare og tok plass i en header man leser i mørket. -->
 
   <!-- MINIMERT: én linje. Navnet og retningen er det man trenger for å vite hva
        som lyser der oppe; resten er lesestoff man ber om. -->
@@ -112,6 +113,14 @@ const faseNavn = computed(() => {
       <span class="text-[0.625rem] text-white/45 shrink-0">{{ retning }}, {{ hoydeGrader }}°</span>
     </button>
     <div class="shrink-0 flex items-center">
+      <button @click="emit('fokus')" :aria-label="`Sett ${objekt.navn} i fokus`"
+              class="w-7 h-7 flex items-center justify-center text-white/55 active:scale-90">
+        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/>
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+        </svg>
+      </button>
       <button @click="emit('utvid')" aria-label="Vis hele infokortet"
               class="w-7 h-7 flex items-center justify-center text-white/55 active:scale-90">
         <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
@@ -134,7 +143,7 @@ const faseNavn = computed(() => {
        utforskningshistorie inne vokste den rett ut av skjermen: navnet og de tre
        knappene forsvant oppover mens teksten lå igjen midt over terrenget uten
        noen måte å lukke kortet på. Headeren står nå fast — navn, retning og de
-       to ikonene er ALLTID synlige — og bare lesestoffet ruller.
+       ikonene er ALLTID synlige — og bare lesestoffet ruller.
 
        Taket er i vh og ikke i piksler: kortet skal ta høyst litt over halve
        skjermen, uansett om den er en telefon på høykant eller en 27-tommer. -->
@@ -159,7 +168,8 @@ const faseNavn = computed(() => {
         </div>
       </div>
 
-      <!-- Samme to ikoner som i den minimerte pilla, i samme rekkefølge. -->
+      <!-- Minimer og lukk, som i den minimerte pilla og i samme rekkefølge.
+           Krysshåret hører ikke hit — se kommentaren i toppen av malen. -->
       <div class="shrink-0 flex items-center">
         <button @click="emit('minimer')" aria-label="Minimer infokortet"
                 class="w-7 h-7 flex items-center justify-center text-white/55 active:scale-90">

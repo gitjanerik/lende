@@ -1,8 +1,10 @@
-## 2026-08-28 — v6.3.5: «Sett i fokus» ut av infokortet
+## 2026-08-28 — v6.3.5: Krysshåret der det gjør nytte, og kortet lukkes ikke av en exit
 
-Krysshår-knappen i headeren er fjernet. Etter felttest var funksjonen ikke i bruk, og grunnen er strukturell: både et valg fra søkelista og et trykk i himmelen retter blikket dit av seg selv, så knappen hadde bare en jobb i det ene tilfellet der man hadde sett seg bort etterpå — og da er et nytt valg like nært. Headeren har nå to ikoner, minimer/utvid og lukk, i samme rekkefølge i begge tilstander. To ikoner i en header man leser i mørket er bedre enn tre.
+To feltfunn i infokortet i nattmodus, og de henger sammen.
 
-`scene3d.fokuserHimmel` er slettet sammen med knappen — den hadde ingen andre kallere. Røyk-sjekken er SNUDD framfor slettet: den krevde at knappen fantes, og krever nå at den ikke finnes, samtidig som den holder fast at minimer og lukk står der. En knapp er lett å legge tilbake i god tro, og det samme er en tekst (se `bruk` i v6.3.3). Omtalen på /om er ryddet med.
+«Sett i fokus» sto i headeren i begge tilstander, og i det ÅPNE kortet gjorde den ingenting man trengte: både et valg fra søkelista og et trykk i himmelen retter blikket dit av seg selv. Men sammenlagt er saken en annen — da er legemet tilbake i normal størrelse og man kan panorere fritt, og krysshåret er veien tilbake til det man så på. Knappen står derfor nå BARE i den minimerte pilla. Røyk-sjekken måler begge sider: borte i åpent kort, til stede i pilla.
+
+Og et trykk ut av nærbildet lukket hele infokortet. Det var `handleTap` som kalte `velgHimmel(null)` mens globen sto åpen — som nullstiller alt — så kortet forsvant i det man la kula tilbake på himmelen. Man er fortsatt på Saturn; bare nærbildet er forlatt. Nå lukkes globen alene, og kortet LEGGES SAMMEN, med navnet stående og krysshåret klart. Hendelsen er egen (`globe-avsluttet`) og ikke `globe {apen:false}`, med vilje: den siste fyres også når man velger et legeme uten globe — Merkur eller Venus — og der har man nettopp spurt hva noe er, så kortet skal stå åpent. To grunner til at globen lukkes er ikke samme grunn til at kortet skal legges sammen.
 
 ---
 

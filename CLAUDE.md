@@ -582,7 +582,7 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
 - **Infokortet i himmelen har FAST HEADER og RULLBAR KROPP (v6.3.2).** Med fakta
   og utforskningshistorie inne (v6.3.0) vokste kortet rett ut av skjermen: navnet
   og de tre knappene forsvant oppover mens teksten lå igjen over terrenget, uten
-  noen måte å lukke kortet på. Headeren — navn, retning, høyde og de to ikonene —
+  noen måte å lukke kortet på. Headeren — navn, retning, høyde og ikonene —
   er `shrink-0` og alltid synlig; bare lesestoffet ruller, med tak på 58 vh.
   `overscroll-contain` og `touch-pan-y` er ikke pynt: uten dem forplanter et drag
   som treffer enden av lista seg til 3D-lerretet og dreier kameraet under fingeren.
@@ -834,15 +834,29 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   minimer/utvid, lukk. Knappene skal ligge på samme sted enten kortet er
   sammenlagt eller åpent, så man ikke må lete etter dem på nytt.
 
-  **«SETT I FOKUS» (krysshår) ER FJERNET i v6.3.5, og skal ikke tilbake.** Den
-  rettet blikket mot det som ALT var valgt, via `scene3d.fokuserHimmel`. Etter
-  felttest var funksjonen ikke i bruk, og grunnen er strukturell: både et valg fra
-  lista og et trykk i himmelen retter blikket dit SELV (`velgHimmel` kaller
-  `seMot`), så knappen hadde bare en jobb i det ene tilfellet der man hadde sett
-  seg bort etterpå — og da er et nytt valg like nært. `fokuserHimmel` er slettet
-  med den; røyk-sjekken er SNUDD og krever nå at knappen ikke finnes, fordi en
-  knapp er lett å legge tilbake i god tro. To ikoner i en header man leser i
-  mørket er bedre enn tre.
+  **«SETT I FOKUS» (krysshår) STÅR BARE I DEN MINIMERTE PILLA (v6.3.5).** Den
+  retter blikket mot det som ALT er valgt, via `scene3d.fokuserHimmel` — som BARE
+  flytter kameraet: `velgHimmel(samme)` ville også åpnet globen på nytt og skrevet
+  fremhevingen om.
+
+  Avgrensningen er presis og ikke en halv løsning. Med kortet sammenlagt og
+  legemet tilbake i normal størrelse kan man PANORERE fritt, og da er krysshåret
+  veien tilbake til det man så på. I det ÅPNE kortet har den ingen jobb: både et
+  valg fra lista og et trykk i himmelen retter blikket dit selv, så der sto den
+  bare og tok plass i en header man leser i mørket. Røyk-sjekken måler BEGGE sider
+  — borte i åpent kort, til stede i pilla — fordi en knapp er lett å legge tilbake
+  på feil sted i god tro.
+- **ET TRYKK UT AV GLOBEN MINIMERER KORTET, det lukker det ikke (v6.3.5).**
+  `handleTap` kalte `velgHimmel(null)` når globen sto åpen, og det nullstiller
+  ALT — så infokortet forsvant i det man forlot nærbildet. Eieren meldte det som
+  forvirrende, og det er riktig: man er fortsatt på Saturn, man har bare lagt kula
+  tilbake på himmelen. Nå kalles `lukkGlobe()` og `globe-avsluttet` emittes, og
+  Viewer3D legger kortet sammen.
+
+  **EGEN HENDELSE OG IKKE `globe {apen:false}`, med vilje:** den siste fyres OGSÅ
+  når man velger et legeme uten globe (Merkur, Venus) — og der har man nettopp
+  spurt hva noe er, så kortet skal stå ÅPENT. To grunner til at globen lukkes er
+  ikke samme grunn til at kortet skal legges sammen.
 - **Utvikler-bryteren «Tvungne himmellegemer i 3D» løfter alle fire med globe
   (v6.1.0, utvidet i v6.3.1).** `lende-3d-himmel-tvang` i localStorage, satt i
   Utvikler-fanen, lest av Viewer3D som `tvingHimmel`. Månen er under horisonten

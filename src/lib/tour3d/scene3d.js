@@ -558,9 +558,20 @@ export async function create3dScene(container, {
     // trykk. tapDispatcher godtar opptil 600 ms nede, holdet slår inn etter 320,
     // så uten dette ville et kort hold også valgt nåla man tilfeldigvis så mot.
     if (camMode === 'follow' && followRig?.holdConsumed) return
-    // Står månegloben åpen, er et trykk veien ut. Et drag snurrer den (og blir
-    // aldri et trykk, slop-terskelen tar det), så de to gestene kolliderer ikke.
-    if (core.globeAapen) { velgHimmel(null); emit('himmel-valgt', { objekt: null }); return }
+    // Står globen åpen, er et trykk veien ut. Et drag snurrer den (og blir aldri
+    // et trykk, slop-terskelen tar det), så de to gestene kolliderer ikke.
+    //
+    // VALGET BEHOLDES (v6.3.5). Fram til da kalte dette `velgHimmel(null)`, som
+    // nullstiller alt — og da lukket infokortet seg helt i det man forlot
+    // nærbildet. Det forvirret: man er fortsatt på Saturn, man har bare lagt kula
+    // tilbake på himmelen. Nå lukkes bare globen, og `globe-avsluttet` sier til
+    // viseren at kortet skal LEGGES SAMMEN — ikke lukkes. Da står navnet igjen,
+    // og «sett i fokus» i den minimerte pilla er veien tilbake etter panorering.
+    if (core.globeAapen) {
+      lukkGlobe()
+      emit('globe-avsluttet', { objekt: valgtHimmel })
+      return
+    }
     const rect = core.renderer.domElement.getBoundingClientRect()
     ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
     ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
@@ -893,6 +904,24 @@ export async function create3dScene(container, {
     },
     /** Velg fra lista (eller null for å rydde). Samme vei som et trykk. */
     velgHimmel,
+    /**
+     * Rett blikket mot det som ALLEREDE er valgt, uten å velge det på nytt.
+     *
+     * Egen inngang og ikke `velgHimmel(samme)`: det siste ville også åpnet globen
+     * på nytt og skrevet fremhevingen om. Her er det bare kameraet som skal
+     * flytte seg.
+     *
+     * HVORFOR DEN FINNES BARE I DEN MINIMERTE PILLA (v6.3.5): med kortet
+     * sammenlagt og legemet tilbake i normal størrelse kan man panorere fritt —
+     * og da er dette veien tilbake til det man så på. I det ÅPNE kortet har den
+     * ingen jobb: et valg fra lista og et trykk i himmelen retter blikket dit
+     * selv, så knappen sto der bare og tok plass i en header man leser i mørket.
+     */
+    fokuserHimmel() {
+      if (!valgtHimmel) return false
+      freeRig.seMot(valgtHimmel.azimut, valgtHimmel.hoyde)
+      return true
+    },
     get valgtHimmel() { return valgtHimmel },
     get globeAapen() { return core.globeAapen },
     lukkGlobe: lukkGlobe,

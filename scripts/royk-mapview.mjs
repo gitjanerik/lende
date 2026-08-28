@@ -1091,21 +1091,16 @@ const SJEKKER = [
         throw new Error('infokortet mangler retning og høyde — det er linja man trenger')
       }
 
-      // «SETT I FOKUS» SKAL IKKE FINNES (v6.3.5). Knappen er fjernet fordi den
-      // ikke var i bruk, og sjekken er snudd framfor slettet: en knapp er lett å
-      // legge tilbake i god tro, og headeren skal ha TO ikoner i mørket.
-      const headerIkoner = await evalMedTak(page, () => {
-        const fokus = document
-          .querySelectorAll('button[aria-label^="Sett "][aria-label$=" i fokus"]').length
-        return {
-          fokus,
-          minimer: document.querySelectorAll('button[aria-label="Minimer infokortet"]').length,
-          lukk: document.querySelectorAll('button[aria-label="Lukk infokortet"]').length,
-        }
-      })
-      if (headerIkoner.fokus) throw new Error('«Sett i fokus» er tilbake i kortet')
-      if (!headerIkoner.minimer || !headerIkoner.lukk) {
-        throw new Error('kortet mangler minimer- eller lukk-knappen')
+      // «SETT I FOKUS» HØRER BARE I DEN MINIMERTE PILLA (v6.3.5). Med kortet
+      // sammenlagt kan man panorere, og da er krysshåret veien tilbake; i det
+      // åpne kortet har det ingen jobb. Sjekken måler BEGGE sider, for en knapp
+      // er lett å legge tilbake på feil sted i god tro.
+      const fokusKnapper = () => evalMedTak(page, () => document
+        .querySelectorAll('button[aria-label^="Sett "][aria-label$=" i fokus"]').length)
+      if (await fokusKnapper()) throw new Error('«Sett i fokus» står i det ÅPNE kortet')
+      if (!await evalMedTak(page, () => !!document
+        .querySelector('button[aria-label="Minimer infokortet"]'))) {
+        throw new Error('kortet mangler minimer-knappen')
       }
 
       // MINIMER (v6.1.0): navnet blir stående, lesestoffet forsvinner. Vi måler
@@ -1125,6 +1120,11 @@ const SJEKKER = [
       if (await harHistorien()) throw new Error('kortet ble ikke minimert')
       if (!(await evalMedTak(page, () => document.body.innerText)).includes(forste)) {
         throw new Error('navnet forsvant da kortet ble minimert — da vet man ikke hva som lyser')
+      }
+      // Og HER skal krysshåret stå: sammenlagt kort betyr at man kan panorere.
+      if (!await fokusKnapper()) {
+        throw new Error('«Sett i fokus» mangler i den minimerte pilla — da finnes '
+          + 'ingen vei tilbake etter panorering')
       }
       // Og tilbake ut igjen.
       await page.locator(`button[aria-label="Vis mer om ${forste}"]`).click({ timeout: 5000 })
@@ -1255,16 +1255,28 @@ const SJEKKER = [
         faktaUtfall = `fakta + ${flereFor}→${etter} årstall + begge lenkene`
       }
 
-      // Et trykk legger kula tilbake på himmelen.
+      // ET TRYKK LEGGER KULA TILBAKE PÅ HIMMELEN — og kortet skal LEGGES SAMMEN,
+      // ikke lukkes (v6.3.5). Fram til da nullstilte exit hele valget, og kortet
+      // forsvant i det man forlot nærbildet: man er fortsatt på legemet, man har
+      // bare lagt kula tilbake.
       await page.mouse.click(40, Math.round(page.viewportSize().height * 0.5))
       await page.waitForTimeout(900)
+      const etterExit = await evalMedTak(page, (navn) => ({
+        harNavn: document.body.innerText.includes(navn),
+        minimert: !!document.querySelector('button[aria-label="Vis hele infokortet"]'),
+      }), medGlobe)
+      if (!etterExit.harNavn) {
+        throw new Error(`exit fra globen lukket kortet helt — «${medGlobe}» er borte`)
+      }
+      if (!etterExit.minimert) throw new Error('exit fra globen la ikke kortet sammen')
 
       await page.locator('button[aria-label="Lukk infokortet"]').click({ timeout: 5000 })
-        .catch(() => { /* trykket over kan ha lukket kortet */ })
+        .catch(() => { /* kortet kan alt være lukket */ })
       await page.waitForTimeout(400)
       await lukkNatt3d(page, h.startSteg)
-      return `valgte «${forste}» (2 header-ikoner), minimerte, utvidet`
-        + `${nabo ? `, hoppet til «${nabo}»` : ''}; ${globeUtfall}; ${faktaUtfall}`
+      return `valgte «${forste}» (fokus bare i pilla), minimerte, utvidet`
+        + `${nabo ? `, hoppet til «${nabo}»` : ''}; ${globeUtfall}; ${faktaUtfall}; `
+        + 'exit la kortet sammen'
     },
   },
   {
