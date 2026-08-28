@@ -231,9 +231,24 @@ async function onInstallClick() {
             hopp til en nabo legger det sammen av seg selv;
             <strong class="text-ink/90">Sett i fokus</strong> retter blikket
             tilbake dit når du har sett deg bort.
-            <strong class="text-ink/90">Trykk på månen</strong> og skiva blir en
-            kule du kan snurre, med navngitte hav og krater og kveldens ekte
-            skyggelinje. Dra nedover når du vil se landskapet igjen.
+            <strong class="text-ink/90">Trykk på månen, Mars, Jupiter eller
+            Saturn</strong> — de fire har et tynt omriss som sier at de kan
+            åpnes — og skiva blir en kule du kan snurre, med navngitte steder,
+            ekte aksehelling og kveldens virkelige skyggelinje. Saturn har
+            ringene sine, med Cassini-delinga. Dra nedover når du vil se
+            landskapet igjen.
+          </p>
+          <p class="text-[13px] leading-relaxed text-ink/70">
+            Månen og alle de fem synlige planetene har
+            <strong class="text-ink/90">astronomiske fakta</strong> i infokortet:
+            hvor mange måner de har og hva de største heter, hvor langt unna de
+            er, hvor lange døgnene og årene er — og en kort liste over
+            <strong class="text-ink/90">menneskets utforskning</strong>, fra
+            Galileis fire Jupiter-måner i 1610 til roverne som står på Mars i dag.
+            Alt er bakt inn i appen, så det virker uten dekning; lenkene videre
+            til <strong class="text-ink/90">Store norske leksikon</strong> og
+            <strong class="text-ink/90">Wikipedia</strong> er for når du er hjemme
+            igjen.
           </p>
           <p class="text-[13px] leading-relaxed text-ink/70">
             Nede til høyre står et <strong class="text-ink/90">himmelkompass</strong>:
@@ -346,11 +361,15 @@ async function onInstallClick() {
           fra Hipparcos, Yale BSC og Gliese) — CC BY-SA 4.0. Bane­elementer for
           planetene: <strong class="text-ink/75">JPL</strong>, <em>Approximate Positions
           of the Major Planets</em>. Sol, måne og presesjon etter Jean Meeus,
-          <em>Astronomical Algorithms</em>. Overflatekart for månen, Mars, Jupiter
-          og Saturn: <strong class="text-ink/75">NASA</strong> (GSFC, JPL,
-          Space Science Institute) og
-          <strong class="text-ink/75">USGS Astrogeology</strong> — offentlig
-          eiendom. Alle beregninger skjer i appen, uten nett.</p>
+          <em>Astronomical Algorithms</em>. Overflatekart: månen og Jupiter fra
+          <strong class="text-ink/75">NASA</strong> (GSFC, JPL, Space Science
+          Institute) — offentlig eiendom; Mars og Saturn fra
+          <strong class="text-ink/75">Solar System Scope</strong> (INOVE), avledet
+          av NASA-data — CC BY 4.0, via
+          <strong class="text-ink/75">Wikimedia Commons</strong>. Fakta og
+          utforskningshistorie er satt sammen fra NASA/JPL Solar System Dynamics,
+          IAU og oppdragsoversiktene til NASA, ESA, ISRO, CNSA og Roskosmos.
+          Alle beregninger skjer i appen, uten nett.</p>
         <p class="pt-1">Privat, ikke-kommersielt hobbyprosjekt. Kart fra appen er
           ikke godkjent for navigasjon til sjøs eller i nødsituasjoner.</p>
       </div>

@@ -1,0 +1,40 @@
+name: Probe — hvilke himmelkart-URL-er svarer?
+
+# EN MÅLING, IKKE EN GATE. Den finnes fordi NASA, USGS og Wikimedia alle er
+# sperret fra utviklingsmiljøene: en URL kan ikke prøves der den skrives. I
+# v6.2.0 ble tre URL-er gjettet, og alle tre var feil — oppdaget først i
+# deploy-loggen etter merge, der bake-steget brukte to sekunder og ikke skrev en
+# fil.
+#
+# Samme lærdom som skyene (v5.22.0) og knappenålene (v5.22.8–11): når feilen bare
+# finnes et sted du ikke kan se, bygg en måling framfor en hypotese.
+#
+# Kjøres for hånd (Actions → denne workflowen → Run workflow). Skriver INGENTING
+# og endrer INGENTING — den bare rapporterer status, MIME-type og størrelse for
+# hver kandidat, så riktige URL-er kan limes inn i LEGEMER med fakta i hånd.
+
+on:
+  workflow_dispatch:
+  # Også på push når KANDIDATLISTA eller proben selv endres. To grunner: en
+  # workflow_dispatch registreres først når fila står på default-branch, så
+  # første kjøring må komme på en annen måte — og etterpå er det billig og nyttig
+  # at en endring i lista faktisk blir prøvd. Ingen andre stier trigger den.
+  push:
+    paths:
+      - 'scripts/bygg-himmelkart.mjs'
+      - '.github/workflows/probe-himmelkart.yml'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      # Ingen `npm ci`: proben bruker bare node:crypto og fetch.
+      - name: Prøv kandidat-URL-ene
+        run: node scripts/bygg-himmelkart.mjs --probe

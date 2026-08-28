@@ -1023,7 +1023,12 @@ const SJEKKER = [
 
       // MINIMER (v6.1.0): navnet blir stående, lesestoffet forsvinner. Vi måler
       // på «Historien», som bare finnes i det utvidede kortet.
-      const harHistorien = () => evalMedTak(page, () => /Historien|Verdt å vite|Månegloben/
+      // CASE-INSENSITIVT: «Historien» og «Verdt å vite» er overskrifter med
+      // `uppercase`, og `innerText` gir rendret tekst. Uten /i traff bare
+      // «Månegloben», som er løpende tekst — så sjekken var halvblind og bare
+      // grønn fordi den ikke kunne feile. Oppdaget da fakta-sjekken feilet på
+      // samme årsak.
+      const harHistorien = () => evalMedTak(page, () => /Historien|Verdt å vite|Månegloben|Fakta/i
         .test(document.body.innerText))
       const utvidetFor = await harHistorien()
       await page.locator('button[aria-label="Minimer infokortet"]').click({ timeout: 5000 })
@@ -1085,6 +1090,52 @@ const SJEKKER = [
       }, null, { timeout: 20_000 }).then((x) => x.jsonValue()).catch(() => 0)
       if (!trekk) throw new Error(`åpnet globen for «${medGlobe}», men ingen stedsnavn kom`)
       const globeUtfall = `${medGlobe}-globen ga ${trekk} stedsnavn`
+
+      // ASTRONOMISKE FAKTA (v6.3.0). Kortet for et legeme skal bære nøkkeltall,
+      // utforskningshistorie og lenker til SNL og Wikipedia. Alt er DATA, så
+      // koden kan ikke kaste — en glemt faktablokk viser seg bare som et tomt
+      // panel, og det er nettopp derfor sjekken må lese teksten.
+      const faktaFunn = await evalMedTak(page, () => {
+        const t = document.body.innerText
+        const lenke = (v) => !!document.querySelector(`a[href*="${v}"]`)
+        return {
+          // CASE-INSENSITIVT, OG DET ER IKKE SLURV: `innerText` er RENDRET tekst,
+          // og Chromium bruker `text-transform` på den. Overskriftene i kortet
+          // har `uppercase`, så «Fakta» kommer ut som «FAKTA». Første utgave av
+          // denne sjekken feilet på nettopp det — og den samme fella gjorde
+          // `harHistorien` under blind, se kommentaren der.
+          fakta: /\bfakta\b/i.test(t),
+          utforsket: /\butforsket\b/i.test(t),
+          maner: /(måner|måne:|ingen måner)/i.test(t),
+          snl: lenke('snl.no'),
+          wiki: lenke('wikipedia.org'),
+          arstall: (t.match(/\b(1[5-9]\d\d|20[0-3]\d)\b/g) ?? []).length,
+        }
+      })
+      if (!faktaFunn.fakta) throw new Error(`kortet for «${medGlobe}» mangler faktablokka`)
+      if (!faktaFunn.maner) throw new Error(`kortet for «${medGlobe}» mangler månelinja`)
+      if (!faktaFunn.utforsket) throw new Error(`kortet for «${medGlobe}» mangler utforskningshistorien`)
+      if (faktaFunn.arstall < 2) {
+        throw new Error(`utforskningshistorien for «${medGlobe}» har ingen årstall`)
+      }
+      if (!faktaFunn.snl || !faktaFunn.wiki) {
+        throw new Error(`kortet for «${medGlobe}» mangler lenke til `
+          + `${!faktaFunn.snl ? 'snl.no' : 'Wikipedia'}`)
+      }
+      // «alle N» skal gi HELE historien. Bare de fire nyeste vises sammenlagt,
+      // og en knapp som ikke utvider noe er verre enn ingen knapp.
+      const flereFor = faktaFunn.arstall
+      const utvid = page.locator('button', { hasText: /^alle \d+$/ }).first()
+      let faktaUtfall = `fakta + ${flereFor} årstall + begge lenkene`
+      if (await utvid.count()) {
+        await utvid.click({ timeout: 5000 })
+        await page.waitForTimeout(300)
+        const etter = await evalMedTak(page, () => (document.body.innerText
+          .match(/\b(1[5-9]\d\d|20[0-3]\d)\b/g) ?? []).length)
+        if (etter <= flereFor) throw new Error('«alle N» utvidet ikke historien')
+        faktaUtfall = `fakta + ${flereFor}→${etter} årstall + begge lenkene`
+      }
+
       // Et trykk legger kula tilbake på himmelen.
       await page.mouse.click(40, Math.round(page.viewportSize().height * 0.5))
       await page.waitForTimeout(900)
@@ -1094,7 +1145,7 @@ const SJEKKER = [
       await page.waitForTimeout(400)
       await lukkNatt3d(page, h.startSteg)
       return `valgte «${forste}», minimerte, utvidet`
-        + `${nabo ? `, hoppet til «${nabo}»` : ''}; ${globeUtfall}`
+        + `${nabo ? `, hoppet til «${nabo}»` : ''}; ${globeUtfall}; ${faktaUtfall}`
     },
   },
   {
@@ -1599,6 +1650,24 @@ try {
         page.screenshot({ path: `${BILDER}/${s.domene}.png` }),
         SKJERMBILDE_TAK_MS, `skjermbilde etter ${s.navn}`,
       ).catch((e) => console.log(`  ⚠ ${e.message}`))
+    }
+
+    // EN FEILET SJEKK SKAL IKKE ØDELEGGE DEN NESTE. Hver sjekk rydder etter seg
+    // selv på veien ut — men en sjekk som KASTER kommer aldri dit, og etterlater
+    // appen der den døde. Det skjedde 2026-08-28: fakta-sjekken feilet med
+    // månegloben åpen, og nattmodus-sjekken etter den dro i kula i stedet for
+    // kameraet og rapporterte «kompasset står stille». To feil i loggen, én
+    // årsak — og den andre var ren støy som kostet en runde å avskrive.
+    //
+    // ETTER SKJERMBILDET, ikke før: bildet er bevismaterialet for feilen.
+    // localStorage overlever en reload, så sjekker som lagrer et valg er urørt.
+    if (!resultat[resultat.length - 1].ok && !resultat[resultat.length - 1].hoppet) {
+      await medTak((async () => {
+        await page.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await page.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+      })(), 60_000, `nullstilling etter ${s.navn}`)
+        .catch((e) => console.log(`  ⚠ ${e.message}`))
     }
   }
 
