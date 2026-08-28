@@ -240,6 +240,17 @@ const faseNavn = computed(() => {
 
         <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/35">Verdt å vite</div>
         <p class="text-[0.6875rem] leading-relaxed text-white/70">{{ objekt.info.funFact }}</p>
+
+        <!-- LES MER. Samme pille som legemene har, og samme resonnement: teksten
+             over står i appen fordi bruksområdet er en kveld uten dekning, og
+             lenka er veien videre for den som vil lese mer hjemme igjen.
+             Stjernebildene har bare Wikipedia — SNL har ikke en artikkel per
+             stjernebilde, så en pille dit ville vært et løfte vi ikke kan holde. -->
+        <div v-if="objekt.info.wikipedia" class="mt-2 flex flex-wrap gap-1">
+          <a :href="objekt.info.wikipedia" target="_blank" rel="noopener noreferrer"
+             class="rounded-full bg-white/10 px-2 py-1 text-[0.625rem] text-white/75
+                    active:scale-95">Wikipedia ↗</a>
+        </div>
       </template>
 
       <!-- ASTRONOMISKE FAKTA. Månen og alle planetene, også de uten globe.

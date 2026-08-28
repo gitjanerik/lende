@@ -1,7 +1,7 @@
 {
   "name": "lende",
   "private": true,
-  "version": "6.3.5",
+  "version": "6.3.7",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,6 +13,7 @@
     "bygg:himmelkart": "node scripts/bygg-himmelkart.mjs",
     "royk:ruter": "node scripts/ruter-royk.mjs",
     "boot:workers": "node scripts/worker-boot.mjs",
+    "probe:lenker": "node scripts/probe-himmellenker.mjs",
     "mcp:protokoll": "node scripts/mcp-protokoll.mjs",
     "navnediff": "node scripts/navnediff.mjs",
     "frie": "node scripts/frie-variabler.mjs",

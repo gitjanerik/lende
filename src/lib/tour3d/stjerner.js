@@ -259,13 +259,13 @@ export const FORMASJONER = [
     linjer: [[86, 92], [92, 95], [95, 94], [94, 88], [88, 87], [87, 86]],
   },
   {
-    id: "cassiopeia", navn: "Cassiopeia", latin: "Cassiopeia",
+    id: "kassiopeia", navn: "Kassiopeia", latin: "Cassiopeia",
     senterRa: 0.9898, senterDek: 60.3626,
     stjerner: [1, 3, 5, 7, 9],
     linjer: [[9, 7], [7, 5], [5, 3], [3, 1]],
   },
   {
-    id: "cepheus", navn: "Cepheus", latin: "Cepheus",
+    id: "kefeus", navn: "Kefeus", latin: "Cepheus",
     senterRa: 22.148, senterDek: 67.4473,
     stjerner: [136, 137, 140, 142, 146],
     linjer: [[136, 137], [137, 146], [146, 142], [142, 140], [140, 136]],
@@ -283,7 +283,7 @@ export const FORMASJONER = [
     linjer: [[63, 62], [62, 68], [68, 70], [70, 77], [77, 78], [78, 81]],
   },
   {
-    id: "kjoresvennen", navn: "Kjøresvennen", latin: "Auriga",
+    id: "kusken", navn: "Kusken", latin: "Auriga",
     senterRa: 5.5189, senterDek: 38.1472,
     stjerner: [21, 23, 25, 32, 33],
     linjer: [[23, 32], [32, 33], [33, 25], [25, 21], [21, 23]],
@@ -313,7 +313,7 @@ export const FORMASJONER = [
     linjer: [[31, 24], [31, 29], [24, 26], [26, 28], [28, 29], [29, 30], [26, 22]],
   },
   {
-    id: "perseus", navn: "Perseus", latin: "Perseus",
+    id: "persevs", navn: "Persevs", latin: "Perseus",
     senterRa: 3.3865, senterDek: 48.1503,
     stjerner: [13, 15, 16, 17, 18, 19],
     linjer: [[13, 15], [15, 17], [17, 18], [18, 19], [18, 16]],

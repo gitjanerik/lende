@@ -65,3 +65,34 @@ describe('stjernebildeInfo mot FORMASJONER', () => {
     expect(infoFor(undefined)).toBeNull()
   })
 })
+
+describe('Wikipedia-lenkene', () => {
+  // Lenkene er MÅLT i CI (probe-himmellenker.yml), ikke utledet av navnet — og
+  // det er nødvendig: norsk Wikipedia bruker ikke ett mønster. Noen artikler har
+  // rent navn (Kusken, Lyren), andre trenger en presisering (Persevs
+  // (stjernebilde)), og noen er prosentkodet (Bj%C3%B8rnevokteren). Testen her
+  // kan bare holde formen; om adressen SVARER er det bare proben som vet.
+  it('hvert stjernebilde har en lenke til norsk Wikipedia', () => {
+    for (const [id, info] of Object.entries(STJERNEBILDE_INFO)) {
+      expect(info.wikipedia, `mangler wikipedia-lenke for ${id}`).toBeTruthy()
+      expect(info.wikipedia, id).toMatch(/^https:\/\/no\.wikipedia\.org\/wiki\/\S+$/)
+    }
+  })
+
+  it('ingen lenke har mellomrom eller ukodede æøå', () => {
+    // Et mellomrom i en href blir %20 i nettleseren og virker, men en ukodet ø
+    // er avhengig av at serveren gjetter riktig. Proben ville sett det; denne
+    // fanger det før CI.
+    for (const [id, info] of Object.entries(STJERNEBILDE_INFO)) {
+      expect(info.wikipedia, id).not.toMatch(/\s/)
+      expect(info.wikipedia, id).not.toMatch(/[æøåÆØÅ]/)
+    }
+  })
+
+  it('to stjernebilder deler ikke samme lenke', () => {
+    // Dragen og Lille bjørn er lette å blande, og en kopiert URL er en stille
+    // feil: kortet ser riktig ut og sender deg til naboen.
+    const urler = Object.values(STJERNEBILDE_INFO).map((i) => i.wikipedia)
+    expect(new Set(urler).size).toBe(urler.length)
+  })
+})

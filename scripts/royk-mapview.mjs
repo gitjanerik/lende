@@ -1145,6 +1145,36 @@ const SJEKKER = [
         if (!(await evalMedTak(page, () => document.body.innerText)).includes(nabo)) {
           throw new Error(`hoppet til «${nabo}», men kortet nevner den ikke`)
         }
+        // ET BYTTE BEHOLDER TILSTANDEN (v6.3.7). Kortet er sammenlagt nå, og et
+        // nytt valg fra lista skal flytte KAMERAET uten å skyve lesestoffet
+        // tilbake i ansiktet. Vi velger noe annet og krever at det fortsatt er
+        // sammenlagt — og at navnet FULGTE med, ellers flyttet ingenting seg.
+        await page.locator('button[aria-label^="Valgt:"]').click({ timeout: 8000 })
+        await page.waitForTimeout(400)
+        const annet = await evalMedTak(page, (unntak) => {
+          const b = [...document.querySelectorAll('ul[aria-label="Treff på himmelen"] li button')]
+            .find((e) => !e.textContent.includes(unntak))
+          return b ? (b.querySelector('span.block')?.textContent ?? '').trim() : null
+        }, nabo)
+        if (annet) {
+          await page.locator('ul[aria-label="Treff på himmelen"] li button')
+            .filter({ hasText: annet }).first().click({ timeout: 5000 })
+          await page.waitForTimeout(1600)
+          if (await harHistorien()) {
+            throw new Error(`byttet til «${annet}» med sammenlagt kort, men kortet `
+              + 'åpnet seg — et bytte skal beholde tilstanden')
+          }
+          if (!(await evalMedTak(page, () => document.body.innerText)).includes(annet)) {
+            throw new Error(`byttet til «${annet}», men pilla viser den ikke`)
+          }
+          // Og kortet skal fortsatt kunne åpnes — regelen er «behold», ikke «lås».
+          await page.locator(`button[aria-label="Vis mer om ${annet}"]`).click({ timeout: 5000 })
+          await page.waitForTimeout(400)
+          if (!await harHistorien()) {
+            throw new Error('kortet lot seg ikke åpne etter et bytte — regelen er '
+              + '«behold tilstanden», ikke «lås sammenlagt»')
+          }
+        }
       }
 
       // GLOBENE (v6.2.0): månen, Mars, Jupiter og Saturn kan åpnes som roterbare
@@ -1210,6 +1240,16 @@ const SJEKKER = [
       const globeUtfall = `${medGlobe}-globen ga ${trekk} stedsnavn; `
         + `globe-merket på ${merker.medMerke} av ${merker.rader} rader`
 
+      // KORTET MÅ ÅPNES FØRST (v6.3.7). Fra nå BEHOLDER et bytte tilstanden, og
+      // nabo-hoppet over etterlot kortet sammenlagt — så globe-valget arver det,
+      // og faktablokka finnes ikke i en sammenlagt pille. Sjekken under skal måle
+      // INNHOLDET i kortet, ikke hvordan vi tilfeldigvis kom dit.
+      const visMer = page.locator(`button[aria-label="Vis mer om ${medGlobe}"]`)
+      if (await visMer.count()) {
+        await visMer.click({ timeout: 5000 })
+        await page.waitForTimeout(400)
+      }
+
       // ASTRONOMISKE FAKTA (v6.3.0). Kortet for et legeme skal bære nøkkeltall,
       // utforskningshistorie og lenker til SNL og Wikipedia. Alt er DATA, så
       // koden kan ikke kaste — en glemt faktablokk viser seg bare som et tomt
@@ -1232,7 +1272,17 @@ const SJEKKER = [
         }
       })
       if (!faktaFunn.fakta) throw new Error(`kortet for «${medGlobe}» mangler faktablokka`)
-      if (!faktaFunn.maner) throw new Error(`kortet for «${medGlobe}» mangler månelinja`)
+      // MÅNEN HAR INGEN MÅNELINJE, og det er riktig: den ER en måne, så
+      // `manerLinje` returnerer null for den (egen test i himmelFakta.test.js).
+      //
+      // Dette var en DATOAVHENGIG feil i sjekken selv, lagt inn i v6.3.0: hvilket
+      // globe-legeme som plukkes avhenger av hva som står oppe den natta CI
+      // kjører. Tidligere kjøringer traff Venus og Jupiter og sto grønne; første
+      // gang månen kom først, feilet den. En sjekk som bare virker for noen av
+      // inndataene er en sjekk som venter på å bli rød.
+      if (medGlobe !== 'Månen' && !faktaFunn.maner) {
+        throw new Error(`kortet for «${medGlobe}» mangler månelinja`)
+      }
       if (!faktaFunn.utforsket) throw new Error(`kortet for «${medGlobe}» mangler utforskningshistorien`)
       if (faktaFunn.arstall < 2) {
         throw new Error(`utforskningshistorien for «${medGlobe}» har ingen årstall`)
