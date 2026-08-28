@@ -40,19 +40,22 @@ export function vinkelAvstand(a, b) {
  * til dem i — månen er umulig å overse, en planet er neste, og et stjernebilde
  * må man lete etter.
  *
- * @param {{lat:number, lon:number, dato?: Date}} sted
+ * @param {{lat:number, lon:number, dato?: Date, tvingMane?: boolean}} sted
  * @returns {Array<object>} hvert objekt har minst
  *   { id, type, navn, azimut, hoyde } — azimut/hoyde i RADIANER, som resten av
  *   3D-koden bruker.
  */
-export function himmelObjekter({ lat, lon, dato = new Date() }) {
+export function himmelObjekter({ lat, lon, dato = new Date(), tvingMane = false }) {
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return []
   const lst = lokalStjernetid(dato, lon)
   const ut = []
 
   // --- Månen ---------------------------------------------------------------
+  // tvingMane er utvikler-bryteren, og den bor i himmelFor — som er den samme
+  // funksjonen skiva på himmelen bygges av. Da kan lista og himmelen ikke komme
+  // i utakt.
   try {
-    const h = himmelFor({ lat, lon, dato })
+    const h = himmelFor({ lat, lon, dato, tvingMane })
     if (h.mane.hoyde > 0) {
       ut.push({
         id: 'mane',

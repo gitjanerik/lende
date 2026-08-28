@@ -24,7 +24,7 @@
 // Verden selv (terreng, karttekstur, himmel, natt, kurver, render-loop) eies av
 // den delte kjernen, sceneCore.
 
-import { Raycaster, Vector2 } from 'three'
+import { Raycaster, Vector2, Vector3 } from 'three'
 import { buildRoutingGraph, RUTE_GRAF_OPTS } from '../routing.js'
 import { realElevationAt, sampleElevation } from '../demSampling.js'
 import { horisontTilWorld } from './astronomi.js'
@@ -50,6 +50,11 @@ export { TourSceneError }
 
 const PROGRESS_EMIT_MS = 250
 const TREKK_EMIT_MS = 120
+// Stjernemodus' åpningsbilde: hvor høyt blikket løftes, og hvor lang tid det
+// tar. 50° er høyt nok til at himmelen fyller bildet og lavt nok til at
+// horisonten fortsatt er i kanten — mister man den, mister man hvor man står.
+const STJERNE_HOYDE = (50 * Math.PI) / 180
+const STJERNE_LOFT_S = 1.5
 // Hvor langt fra en sti et trykk kan lande og fortsatt starte en tur.
 const PATH_HIT_TOL_M = 90
 // Med krysspause på stopper turen så mange meter FØR krysset — nær nok til å
@@ -79,7 +84,12 @@ export async function create3dScene(container, {
   const hooks = {}
   const core = await createSceneCore(
     container,
-    { dem, meta, getTextureSpec, onProgress, onTextureNote, options: { exaggeration } },
+    {
+      dem, meta, getTextureSpec, onProgress, onTextureNote,
+      // tvingMane er utvikler-bryteren fra Utvikler-fanen: vis månen selv når den
+      // står under horisonten, så månegloben kan prøves når som helst.
+      options: { exaggeration, tvingMane: options.tvingMane ?? false },
+    },
     hooks,
   )
   const { scene, camera, coords, terrain, loop } = core
@@ -418,6 +428,18 @@ export async function create3dScene(container, {
     freeRig.flyTo(world[0], world[1], world[2], { radiusM, headingXY })
   }
 
+  // Blikkretningen i GRADER, lest av kameraets verdensmatrise. Scenen har
+  // nord = −Z, øst = +X og opp = +Y (coords.js), og kompasset vil ha azimut fra
+  // nord og høyde over horisonten.
+  const blikkVec = new Vector3()
+  function blikkNaa() {
+    camera.getWorldDirection(blikkVec)
+    return {
+      azimut: (Math.atan2(blikkVec.x, -blikkVec.z) * 180) / Math.PI,
+      hoyde: (Math.asin(Math.max(-1, Math.min(1, blikkVec.y))) * 180) / Math.PI,
+    }
+  }
+
   // Himmel-tilstand: hva som er valgbart nå, og hva som er valgt.
   let himmelListe = []
   let valgtHimmel = null
@@ -609,6 +631,7 @@ export async function create3dScene(container, {
 
   let lastProgressEmit = 0
   let sisteTrekkEmit = 0
+  let sisteBlikkEmit = 0
   let disposedFlag = false
 
   Object.assign(hooks, {
@@ -666,6 +689,18 @@ export async function create3dScene(container, {
       if (core.maneGlobeAapen && nowMs - sisteTrekkEmit > TREKK_EMIT_MS) {
         sisteTrekkEmit = nowMs
         emit('mane-trekk', { trekk: core.maneTrekkPaaSkjerm() })
+      }
+      // BLIKKRETNINGEN til himmelkompasset. Bare om natta — det er der kartet er
+      // ute av bildet og retningene forsvinner. Samme takt som måne-labelene:
+      // en Vue-oppdatering pr frame er sløsing, 8 i sekundet henger med i draget.
+      //
+      // Leses av KAMERAETS EGEN matrise og ikke av riggens vipp-tall: det er den
+      // eneste kilden som er sann uansett hva riggen holder på med (animasjon,
+      // hold, overgang), og et kompass som viser noe annet enn det man ser er
+      // verre enn ingen.
+      if (core.nightOn && nowMs - sisteBlikkEmit > TREKK_EMIT_MS) {
+        sisteBlikkEmit = nowMs
+        emit('blikk', blikkNaa())
       }
       if (nowMs - lastProgressEmit > PROGRESS_EMIT_MS) {
         lastProgressEmit = nowMs
@@ -780,6 +815,28 @@ export async function create3dScene(container, {
     /** Radianer blikket er vippet opp over horisonten. 0 = ser i kartet. */
     get himmelVipp() { return freeRig.himmelVipp },
 
+    /** Hvor kameraet ser NÅ, i grader. Se blikkNaa. */
+    get blikk() { return blikkNaa() },
+    /** Utvikler-bryter: løft månen over horisonten. Se astronomi.himmelFor. */
+    settTvingMane(paa) { core.settTvingMane(paa) },
+
+    /**
+     * Løft blikket opp i himmelen av seg selv — stjernemodus' åpningsbilde.
+     *
+     * HVORFOR EN EGEN INNGANG OG IKKE BARE seMot: retningen skal IKKE endres.
+     * Brukeren står i oversiktsbildet og ser nordover; nattmodus skal løfte
+     * blikket derfra, ikke snurre henne rundt først. Azimuten leses derfor av
+     * riggen og sendes tilbake uendret.
+     *
+     * Bevegelsen er den samme brukeren selv gjør med fingeren, bare kjørt for
+     * henne — det er hele poenget: neste gang vet hun at draget finnes.
+     *
+     * @param {number} [hoyde] radianer over horisonten
+     */
+    seOppMotHimmelen(hoyde = STJERNE_HOYDE) {
+      freeRig.seMot(freeRig.blikkAzimut, hoyde, { tid: STJERNE_LOFT_S, ease: 'ut' })
+    },
+
     /**
      * Hva som er valgbart på himmelen nå. Viseren regner lista (den kjenner
      * stedet og tida) og gir den hit, så trykk-plukkingen og søkefeltet aldri
@@ -794,6 +851,18 @@ export async function create3dScene(container, {
     },
     /** Velg fra lista (eller null for å rydde). Samme vei som et trykk. */
     velgHimmel,
+    /**
+     * Rett blikket mot det som ALLEREDE er valgt, uten å velge det på nytt.
+     *
+     * Egen inngang og ikke `velgHimmel(samme)`: det siste ville også åpnet
+     * månegloben på nytt og skrevet fremhevingen om. Her er det bare kameraet som
+     * skal flytte seg — man har sett seg bort og vil tilbake.
+     */
+    fokuserHimmel() {
+      if (!valgtHimmel) return false
+      freeRig.seMot(valgtHimmel.azimut, valgtHimmel.hoyde)
+      return true
+    },
     get valgtHimmel() { return valgtHimmel },
     get maneGlobeAapen() { return core.maneGlobeAapen },
     lukkManeGlobe: lukkGlobe,

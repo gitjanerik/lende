@@ -42,7 +42,7 @@ export class TourSceneError extends Error {
  *          getTextureSpec: (opts?: {dark?: boolean}) => object,
  *          onProgress?: (msg: string|null) => void,
  *          onTextureNote?: (msg: string|null) => void,
- *          options?: {exaggeration?: number}}} spec
+ *          options?: {exaggeration?: number, tvingMane?: boolean}}} spec
  *   getTextureSpec gir arkets fliser (se mapTexture.prepareMapTextureSource).
  *   Den kalles på nytt hver gang teksturen må bygges om — når den skjerpes til
  *   full oppløsning, ved nattmodus, og når nettleseren har tømt kilde-lerretet.
@@ -56,7 +56,9 @@ export async function createSceneCore(container, {
 }, hooks = {}) {
   if (!dem) throw new TourSceneError('no-dem', 'Kartet mangler høydedata')
 
-  const { exaggeration = 1.15 } = options
+  // tvingMane er en UTVIKLER-BRYTER (Utvikler-fanen): vis månen selv når den er
+  // under horisonten, så månegloben kan prøves når som helst.
+  const { exaggeration = 1.15, tvingMane = false } = options
   const melding = (m) => { try { onProgress?.(m) } catch { /* UI-feil skal ikke stoppe bygging */ } }
   const teksturNotis = (m) => { try { onTextureNote?.(m) } catch { /* samme */ } }
 
@@ -218,6 +220,7 @@ export async function createSceneCore(container, {
     // gl_PointSize og LineMaterial-bredder er i FRAMEBUFFER-piksler. Uten
     // pixelRatio inn ble stjernene halv størrelse på en telefon (v6.0.0).
     pikselForhold: renderer.getPixelRatio(),
+    tvingMane,
   })
   scene.add(nightSky.group)
 
@@ -589,6 +592,14 @@ export async function createSceneCore(container, {
     settValgtFormasjon(formasjon) {
       nightSky.settValgt(formasjon)
     },
+
+    /**
+     * UTVIKLER-BRYTER: vis månen selv når den står under horisonten, så
+     * månegloben kan prøves når som helst. Ikke bare en byggeopsjon — brytes den
+     * mens 3D står åpen, skal månen komme uten at man må lukke og åpne.
+     */
+    settTvingMane(paa) { nightSky.settTvingMane(paa) },
+    get tvingMane() { return nightSky.tvingMane },
 
     // ── Månegloben ──────────────────────────────────────────────────────────
     // Bygges LAZILY ved første trykk på månen: en sfære med tekstur er ikke

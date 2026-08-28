@@ -13,6 +13,15 @@
 // Stilen er dempet mørk av samme grunn som søkefeltet: kortet står åpent mens
 // man ser på stjerner, og et lyst kort ødelegger nattsynet det tok en halvtime
 // å bygge opp.
+//
+// KORTET KAN MINIMERES (v6.1.0), og det er ikke bare plass: teksten dekker den
+// delen av himmelen man nettopp ble bedt om å se på. Minimert står navnet og
+// retningen igjen som én linje — nok til å vite hva som er fremhevet — og et
+// trykk åpner det igjen.
+//
+// Et hopp til en NABO minimerer kortet av seg selv. Det er hele poenget med
+// stjernehopping: man hopper for å SE, ikke for å lese videre. Vil man lese om
+// den nye, er kortet ett trykk unna.
 import { computed } from 'vue'
 import { kompass } from '../../lib/tour3d/himmelObjekter.js'
 
@@ -23,8 +32,11 @@ const props = defineProps({
   naboer: { type: Array, default: () => [] },
   // Månegloben står framme. Da trenger kortet å si hvordan man snurrer den.
   globeAapen: { type: Boolean, default: false },
+  // Sammenslått til én linje. Eies av kalleren, som også vet at et nabo-hopp
+  // skal minimere.
+  minimert: { type: Boolean, default: false },
 })
-const emit = defineEmits(['lukk', 'velg'])
+const emit = defineEmits(['lukk', 'velg', 'minimer', 'utvid', 'fokus'])
 
 const GRAD = 180 / Math.PI
 const komma = (n, d = 1) => (Number.isFinite(n) ? n.toFixed(d).replace('.', ',') : '–')
@@ -50,7 +62,38 @@ const faseNavn = computed(() => {
 </script>
 
 <template>
-  <div v-if="objekt"
+  <!-- MINIMERT: én linje. Navnet og retningen er det man trenger for å vite hva
+       som lyser der oppe; resten er lesestoff man ber om. -->
+  <div v-if="objekt && minimert"
+       class="rounded-full bg-black/70 backdrop-blur shadow-lg max-w-[86vw] sm:max-w-sm
+              flex items-center gap-1.5 pl-3 pr-1 py-1">
+    <button @click="emit('utvid')"
+            :aria-label="`Vis mer om ${objekt.navn}`"
+            class="flex-1 min-w-0 flex items-baseline gap-1.5 text-left active:scale-[0.98]">
+      <span class="text-[0.75rem]" aria-hidden="true">{{ IKON[objekt.type] }}</span>
+      <span class="text-[0.8125rem] font-medium text-white/85 truncate">{{ objekt.navn }}</span>
+      <span class="text-[0.625rem] text-white/45 shrink-0">{{ retning }}, {{ hoydeGrader }}°</span>
+    </button>
+    <button @click="emit('fokus')" :aria-label="`Sett ${objekt.navn} i fokus`"
+            class="w-7 h-7 shrink-0 flex items-center justify-center text-white/55
+                   active:scale-90">
+      <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/>
+        <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+      </svg>
+    </button>
+    <button @click="emit('lukk')" aria-label="Lukk infokortet"
+            class="w-7 h-7 shrink-0 flex items-center justify-center text-white/45
+                   active:scale-90">
+      <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+           stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+      </svg>
+    </button>
+  </div>
+
+  <div v-else-if="objekt"
        class="rounded-md bg-black/80 backdrop-blur shadow-lg max-w-[86vw] sm:max-w-sm
               flex items-start gap-1.5 pl-3 pr-1 py-2">
     <div class="flex-1 min-w-0">
@@ -62,9 +105,23 @@ const faseNavn = computed(() => {
       </div>
 
       <!-- Hvor det står. Alltid først, fordi det er det man trenger for å løfte
-           blikket i riktig retning. -->
-      <div class="mt-0.5 text-[0.625rem] text-white/50">
-        {{ retning }}, {{ hoydeGrader }}° over horisonten
+           blikket i riktig retning. «Sett i fokus» står her og ikke i
+           knapperaden: den hører til RETNINGEN — har man sett seg bort, er dette
+           veien tilbake til det som er fremhevet. -->
+      <div class="mt-0.5 flex items-center gap-1.5 flex-wrap">
+        <span class="text-[0.625rem] text-white/50">
+          {{ retning }}, {{ hoydeGrader }}° over horisonten
+        </span>
+        <button @click="emit('fokus')" :aria-label="`Sett ${objekt.navn} i fokus`"
+                class="flex items-center gap-1 rounded-full bg-white/10 px-1.5 py-0.5
+                       text-[0.5625rem] text-white/70 active:scale-95">
+          <svg viewBox="0 0 24 24" class="w-3 h-3" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/>
+            <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+          </svg>
+          Sett i fokus
+        </button>
       </div>
 
       <!-- Tallene, per type. -->
@@ -117,6 +174,7 @@ const faseNavn = computed(() => {
         <div class="mt-1 flex flex-wrap gap-1">
           <button v-for="n in naboer" :key="n.id"
                   @click="emit('velg', n)"
+                  :aria-label="`Hopp til ${n.navn}, ${Math.round(n.avstandGrader)} grader unna`"
                   class="rounded-full bg-white/10 px-2 py-1 text-[0.625rem] text-white/75
                          active:scale-95 transition-colors">
             {{ IKON[n.type] }} {{ n.navn }}
@@ -126,13 +184,23 @@ const faseNavn = computed(() => {
       </template>
     </div>
 
-    <button @click="emit('lukk')" aria-label="Lukk infokortet"
-            class="w-7 h-7 shrink-0 flex items-center justify-center text-white/45
-                   active:scale-90">
-      <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
-           stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-      </svg>
-    </button>
+    <div class="shrink-0 flex flex-col items-center">
+      <!-- Minimer: legg kortet sammen til én linje, så himmelen blir synlig
+           igjen. Står over X-en fordi det er det mildere av de to valgene. -->
+      <button @click="emit('minimer')" aria-label="Minimer infokortet"
+              class="w-7 h-7 flex items-center justify-center text-white/45 active:scale-90">
+        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+             stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="6 15 12 9 18 15"/>
+        </svg>
+      </button>
+      <button @click="emit('lukk')" aria-label="Lukk infokortet"
+              class="w-7 h-7 flex items-center justify-center text-white/45 active:scale-90">
+        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+             stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+        </svg>
+      </button>
+    </div>
   </div>
 </template>

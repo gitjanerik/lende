@@ -11,7 +11,7 @@ import { PerspectiveCamera, Quaternion, Euler } from 'three'
 import { buildMane, buildNightSky, buildHimmelSkive } from './skyDome.js'
 import { FORMASJONER } from './stjerner.js'
 import { STJERNER } from './stjerner.js'
-import { lokalStjernetid, tilHorisont, presesserTilDato } from './astronomi.js'
+import { lokalStjernetid, tilHorisont, presesserTilDato, himmelFor } from './astronomi.js'
 
 // Vardåsen-aktig sted og et tidspunkt vi kan regne etter.
 const STED = { lat: 61.2, lon: 8.4 }
@@ -397,5 +397,58 @@ describe('buildNightSky — planetene', () => {
     expect(sky.synligePlaneter).toEqual([])
     expect(sky.settPlaneter(new Date())).toEqual([])
     sky.dispose()
+  })
+})
+
+
+describe('buildNightSky — tvungen måne', () => {
+  // Skiva på himmelen og lista i himmelObjekter må være enige. Testen her er
+  // halvparten av det: at flagget faktisk når fram til skiva, og at bryteren
+  // virker MENS visningen står åpen (setteren) og ikke bare ved bygging.
+  const oslo = { lat: 59.91, lon: 10.75 }
+  const naarMaanenErNede = () => {
+    for (let t = 0; t < 24 * 30; t++) {
+      const dato = new Date(Date.UTC(2026, 7, 1, t))
+      if (himmelFor({ ...oslo, dato }).mane.hoyde < 0) return dato
+    }
+    throw new Error('fant ikke et tidspunkt med månen under horisonten')
+  }
+
+  it('flagget følger med inn i byggingen', () => {
+    const dato = naarMaanenErNede()
+    const av = buildNightSky({ ...oslo, dato })
+    const paa = buildNightSky({ ...oslo, dato, tvingMane: true })
+    expect(av.tvingMane).toBe(false)
+    expect(paa.tvingMane).toBe(true)
+    // Månen står HØYERE med flagget på. Vi leser meshets y-posisjon, som er der
+    // skiva faktisk havnet — ikke tallet vi sendte inn. Og den skal være SYNLIG:
+    // `sett` skjuler en måne under −2°, så en løftet måne som fortsatt er skjult
+    // ville vært en halv fiks.
+    expect(paa.mane.mesh.position.y).toBeGreaterThan(av.mane.mesh.position.y)
+    expect(av.mane.mesh.visible).toBe(false)
+    expect(paa.mane.mesh.visible).toBe(true)
+    av.dispose(); paa.dispose()
+  })
+
+  it('setteren flytter månen uten at himmelen bygges om', () => {
+    const dato = naarMaanenErNede()
+    const h = buildNightSky({ ...oslo, dato })
+    const for0 = h.mane.mesh.position.y
+    h.settTvingMane(true)
+    expect(h.tvingMane).toBe(true)
+    expect(h.mane.mesh.position.y).toBeGreaterThan(for0)
+    // Og tilbake: bryteren skal kunne slås av igjen i samme økt.
+    h.settTvingMane(false)
+    expect(h.mane.mesh.position.y).toBeCloseTo(for0, 6)
+    h.dispose()
+  })
+
+  it('uten sted gjør flagget ingenting, og kaster ikke', () => {
+    // Kart uten brukbar posisjon får den pseudo-tilfeldige himmelen; der finnes
+    // ingen ekte månehøyde å løfte.
+    const h = buildNightSky({ tvingMane: true })
+    expect(h.astronomisk).toBe(false)
+    expect(() => h.settTvingMane(true)).not.toThrow()
+    h.dispose()
   })
 })

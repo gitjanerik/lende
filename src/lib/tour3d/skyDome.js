@@ -309,7 +309,7 @@ const PLANET_JORDSKINN = 0.02
  */
 export function buildNightSky({
   radius = 25000, lat = null, lon = null, dato = null, starCount = 160,
-  pikselForhold = 1,
+  pikselForhold = 1, tvingMane = false,
 } = {}) {
   const group = new Group()
   group.visible = false
@@ -530,8 +530,16 @@ export function buildNightSky({
   group.add(mane.group)
   geometrier.push(...mane.geometries)
   materialer.push(...mane.materials)
+  // UTVIKLER-BRYTEREN bor i himmelFor, som er den ENE kilden til månens
+  // posisjon — både skiva her og lista i himmelObjekter går gjennom den. To
+  // steder som tvinger månen hver for seg kommer i utakt, og da tilbyr søket en
+  // måne trykk ikke finner (samme lærdom som mosaikk-regelen i CLAUDE.md).
+  let maneTvang = !!tvingMane
+  const settMane = () => {
+    mane.sett(himmelFor({ lat, lon, dato: dato ?? new Date(), tvingMane: maneTvang }).mane)
+  }
   if (ekteHimmel) {
-    mane.sett(himmelFor({ lat, lon, dato: dato ?? new Date() }).mane)
+    settMane()
   } else {
     // Uten sted vet vi ikke fasen. En halvmåne høyt på kuppelen er en ærlig
     // «vi vet ikke» — en fullmåne ville vært en påstand.
@@ -554,6 +562,13 @@ export function buildNightSky({
     textures: [],
     setNight(on) { group.visible = !!on },
     update(camera) { mane.update(camera) },
+
+    /** Utvikler-bryter: løft månen over horisonten. Se himmelFor. */
+    settTvingMane(paa) {
+      maneTvang = !!paa
+      if (ekteHimmel) settMane()
+    },
+    get tvingMane() { return maneTvang },
 
     /**
      * LineMaterial trenger renderer-oppløsningen som uniform for å kunne tegne

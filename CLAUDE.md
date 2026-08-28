@@ -625,13 +625,79 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   skalerer `scene.fog.near/far`. Uten den så tåke ut som overskyet, som var
   tilfellet fram til v5.22.1. `setVaer(null)` setter dis-avstandene tilbake til
   de eksakte utgangsverdiene, som resten av værmodusen.
-- **Sol/måne-knappen i 3D har FIRE steg** (dag → dag+vær → natt → natt+vær), ikke
-  to. Egen vær-knapp ble vurdert og forkastet: topprada har alt fem-seks knapper,
-  og kommentaren over den i `Viewer3D.vue` forteller hva som skjedde sist den
-  vokste. Vær-biten persisteres (`lende-3d-vaer`); dag/natt-biten gjør det
-  bevisst IKKE — den avledes av kart-temaet, så 3D følger lys/mørk-valget i
-  kartet. Værvarselet hentes ÉN gang per ark, for senterpunktet — ikke per
-  kamerabevegelse. Det er hele debouncingen.
+- **Sol/måne-knappen i 3D har TO stillinger (v6.1.0): dag med vær ↔ natt.** Den
+  hadde fire, og de to som falt bort var begge bilder ingen hadde bedt om: dag
+  UTEN vær (varselet er ett oppslag med 30 min cache, og en skyfri dagshimmel er
+  ikke mer nøytral enn en riktig) og natt MED vær (værhimmelen skjuler stjernene
+  som er hele grunnen til å slå på natt — og skyene vises uansett bare om dagen,
+  se `oppdaterSkySynlighet`). Knappen står nå HELT TIL VENSTRE i topprada, foran
+  nålene: den skifter hele bildet, og i nattmodus er den den eneste som blir
+  igjen på venstresida.
+- **NATTMODUS ER STJERNEKIKKEREN, ikke kartet i mørkt tema (v6.1.0).** Å slå på
+  natt gjør fem ting på én gang, og det er en bevisst pakke: blikket løftes til
+  50° med en ease-out over 1,5 s (`scene3d.seOppMotHimmelen`), kurver + stier +
+  nåler skjules, hele overlegget forsvinner unntatt sol/måne, X og himmelsøket
+  mellom dem, himmelkompasset kommer nede til høyre, og været slås av.
+  **Maksimer-knappen fra v6.0.0 er FJERNET** — den var i veien for sin egen
+  hensikt: den som slår på natt gjør det for å se stjerner, og da er hver hvite
+  flate en feil, inkludert knappen man må finne for å bli kvitt dem.
+  Lag-tilstanden HUSKES og gis tilbake når man går ut igjen (`lagForNatt` i
+  Viewer3D) — de var brukerens valg. Blikket løftes uten å dreie: azimuten leses
+  av riggen (`azimutFraTheta`, som er sin egen inverse) og sendes uendret inn i
+  `seMot`. Ett drag nedover tar deg tilbake til landskapet; det står ingen
+  forklaring, for bevegelsen er den samme man nettopp så bli kjørt.
+- **Åpningsmodusen i 3D er HIMMELEN, ikke kart-temaet (v6.1.0).** `astronomi.erNatt`
+  regner solas høyde for arkets senterpunkt og sammenlikner med den OFFISIELLE
+  grensa −0°50′ (`SOL_HOYDE_SOLNEDGANG`: øvre rand ved horisonten −16′ pluss
+  refraksjon −34′, samme definisjon MET og Yr regner tidene sine fra). Fram til
+  v6.1.0 fulgte den `props.isDark`, altså om KARTET sto i mørkt tema — et helt
+  annet spørsmål, for man kan godt lese et mørkt kart midt på dagen.
+  **METs Sunrise-API ble vurdert og forkastet:** hele bruksområdet er en kveld
+  ute uten dekning, og vi trenger ikke tidene — vi trenger solas høyde NÅ, som er
+  det tidene er regnet ut FRA, og den har vi lokalt. Merk at grensa er
+  soloppgang/solnedgang og IKKE skumring: rett etter solnedgang er himmelen
+  fortsatt lys. Det er den offisielle grensa som ble bestilt.
+- **Himmelkompasset er REN MATTE OG SVG, ikke en andre 3D-scene (v6.1.0).**
+  `lib/tour3d/himmelKompass.js` + `Tour3dHimmelKompass.vue`, nede til høyre i
+  nattmodus. To ringer i omriss — jordas plan med øst–vest-aksen, og en loddrett
+  ring med N og S — pluss en rød prikk for blikket. Tre ting er verdt å vite:
+  1. **Gizmo-kameraets azimut er 158° og ikke 180°.** Står det i nord–sør-planet,
+     blir meridianringen EDGE-ON: en strek. Egen test holder det fast, så ingen
+     «retter» det til 180.
+  2. **Ringene står stille, prikken flytter seg.** N blir liggende samme sted på
+     skjermen, så kompasset er noe man LESER framfor noe man må tolke. Snurret
+     ringene i stedet, ville bokstavene vandret rundt i mørket.
+  3. **Blikkretningen leses av KAMERAETS verdensmatrise** (`camera.getWorldDirection`
+     i `scene3d.blikkNaa`), ikke av riggens vipp-tall. Det er den eneste kilden
+     som er sann uansett hva riggen holder på med, og et kompass som viser noe
+     annet enn det man ser er verre enn ingen. Emittes som `blikk` hver 120 ms,
+     bare om natta.
+  Rødt er ikke pynt: rødt lys ødelegger mørkeadaptasjonen minst, og det er den
+  ene fargen som får lyse i nattmodus.
+- **Infokortet i nattmodus kan MINIMERES, og et nabo-hopp minimerer det selv
+  (v6.1.0).** Tilstanden eies av `Viewer3D` og ikke av kortet, fordi det er
+  KALLEREN som vet hva som utløste valget: `velgHimmel` utvider (man har spurt hva
+  noe er), `velgNabo` minimerer (man hopper for å SE, ikke for å lese videre).
+  Minimert står navnet og retningen igjen som én linje — nok til å vite hva som er
+  fremhevet. «Sett i fokus» går gjennom `scene3d.fokuserHimmel`, som BARE flytter
+  kameraet: `velgHimmel(samme)` ville også åpnet månegloben på nytt og skrevet
+  fremhevingen om.
+- **Utvikler-bryteren «Tvungen måne i 3D» bor i `himmelFor` (v6.1.0).**
+  `lende-3d-maane-tvang` i localStorage, satt i Utvikler-fanen, lest av Viewer3D.
+  Månen er under horisonten store deler av døgnet, og da kan verken månegloben
+  eller trykk-plukkingen av den prøves i det hele tatt. Flagget løfter månen til
+  `MANE_TVANG_HOYDE` (35°) og rører INGENTING annet — fase, lysside, azimut og
+  parallaktisk vinkel er fortsatt de ekte, ellers tester man ikke det man tror.
+  **Den bor i `astronomi.himmelFor` fordi det er den ENE kilden både skiva
+  (`skyDome`) og lista (`himmelObjekter`) bygges av.** Tvang vi månen på to steder,
+  ville søket tilbudt en måne trykk ikke finner — samme lærdom som mosaikk-regelen
+  over. `settTvingMane` finnes også som runtime-setter, så bryteren virker mens 3D
+  står åpen.
+- **Nattmodus' tekst følger hovedmenyens 100/125/150-valg (v6.1.0).** Resten av
+  3D-overlegget er rem-basert (v5.27.0, som følger SYSTEMETS tekstskalering);
+  nattmodus' søkefelt og infokort får i tillegg `zoom: uiTextScale`, fordi det er
+  den ENESTE teksten man faktisk leser i 3D. Knappene skalerer bevisst ikke —
+  de er 44 px fordi en finger er det.
 - **3D dekker HELE arket, ikke aktiv flis (v5.18.0).** `use3dEntry` regner
   utsnittet av mosaikk-kanten (`extendZonesBounds`) ∪ rutas bbox
   (`tourExtent.computeExtent`), henter DEM for hele utsnittet og forskyver ALT

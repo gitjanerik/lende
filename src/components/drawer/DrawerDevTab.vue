@@ -42,6 +42,22 @@ function toggleVaerDemo() {
   vaerDemo.value = !vaerDemo.value
   try { localStorage.setItem(VAERDEMO_KEY, vaerDemo.value ? '1' : '0') } catch { /* privat modus */ }
 }
+
+// Tvungen måne i 3D. Samme mønster som vær-demoen, og av samme grunn: 3D-viseren
+// er den som leser flagget, og den monteres etterpå.
+//
+// Finnes fordi månen er UNDER HORISONTEN store deler av døgnet, og da er både
+// månegloben og trykk-plukkingen av den umulig å prøve — man må vente på at
+// himmelen selv stiller seg riktig. Med flagget på løftes månen opp i himmelen
+// uansett hvor den egentlig står. Fasen og retningen er fortsatt de ekte.
+const MAANE_TVANG_KEY = 'lende-3d-maane-tvang'
+const maaneTvang = ref((() => {
+  try { return localStorage.getItem(MAANE_TVANG_KEY) === '1' } catch { return false }
+})())
+function toggleMaaneTvang() {
+  maaneTvang.value = !maaneTvang.value
+  try { localStorage.setItem(MAANE_TVANG_KEY, maaneTvang.value ? '1' : '0') } catch { /* privat modus */ }
+}
 const metaAppVersionText = computed(() => props.meta?.appVersion ?? null)
 
 // Tetthets-linja: «915 /km² · svært tett → sparsom · bredde 8 → 6 km».
@@ -250,6 +266,20 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
     <div v-if="vaerDemo" class="text-[10px] text-ink/55 leading-relaxed mb-3 px-1">
       Åpne 3D: værtypene spilles i rekkefølge, 10 s hver, med «neste» for å hoppe
       videre. Overstyrer det ekte varselet så lenge den står på.
+    </div>
+    <!-- Tvungen måne i 3D: månen er under horisonten store deler av døgnet, og
+         da kan ikke månegloben prøves i det hele tatt. -->
+    <button @click="toggleMaaneTvang"
+            class="w-full px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98] mb-1"
+            :class="maaneTvang
+                    ? 'bg-amber-300/25 border-amber-300/50 text-ink'
+                    : 'bg-ink/5 border-ink/10 text-ink/75'">
+      {{ maaneTvang ? 'Tvungen måne i 3D: PÅ' : 'Tvungen måne i 3D' }}
+    </button>
+    <div v-if="maaneTvang" class="text-[10px] text-ink/55 leading-relaxed mb-3 px-1">
+      Nattmodus viser månen selv når den står under horisonten, så månegloben kan
+      prøves når som helst. Trykk på månen for nærbildet. Fase og lysside er
+      fortsatt de ekte — bare høyden er løftet.
     </div>
     <!-- Byggetider (perf): viser localStorage-loggen så den kan kopieres
          og deles — mobil-konsollen er upraktisk. -->
