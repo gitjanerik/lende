@@ -41,22 +41,23 @@ export function vinkelAvstand(a, b) {
  * til dem i — månen er umulig å overse, en planet er neste, og et stjernebilde
  * må man lete etter.
  *
- * @param {{lat:number, lon:number, dato?: Date, tvingMane?: boolean}} sted
+ * @param {{lat:number, lon:number, dato?: Date, tvingHimmel?: boolean}} sted
+ *   tvingHimmel  UTVIKLER-BRYTER: løft alle legemer med globe over horisonten.
  * @returns {Array<object>} hvert objekt har minst
  *   { id, type, navn, azimut, hoyde } — azimut/hoyde i RADIANER, som resten av
  *   3D-koden bruker.
  */
-export function himmelObjekter({ lat, lon, dato = new Date(), tvingMane = false }) {
+export function himmelObjekter({ lat, lon, dato = new Date(), tvingHimmel = false }) {
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return []
   const lst = lokalStjernetid(dato, lon)
   const ut = []
 
   // --- Månen ---------------------------------------------------------------
-  // tvingMane er utvikler-bryteren, og den bor i himmelFor — som er den samme
-  // funksjonen skiva på himmelen bygges av. Da kan lista og himmelen ikke komme
-  // i utakt.
+  // tvingHimmel er utvikler-bryteren, og for månen bor den i himmelFor — som er
+  // den samme funksjonen skiva på himmelen bygges av. Da kan lista og himmelen
+  // ikke komme i utakt. For planetene bor den i synligePlaneter, av samme grunn.
   try {
-    const h = himmelFor({ lat, lon, dato, tvingMane })
+    const h = himmelFor({ lat, lon, dato, tvingMane: tvingHimmel })
     if (h.mane.hoyde > 0) {
       ut.push({
         id: 'mane',
@@ -79,7 +80,7 @@ export function himmelObjekter({ lat, lon, dato = new Date(), tvingMane = false 
   } catch { /* uten måne: resten av himmelen står fortsatt */ }
 
   // --- Planetene -----------------------------------------------------------
-  for (const p of synligePlaneter({ lat, lon, dato })) {
+  for (const p of synligePlaneter({ lat, lon, dato, tving: tvingHimmel })) {
     ut.push({
       id: `planet:${p.id}`,
       type: 'planet',

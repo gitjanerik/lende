@@ -762,17 +762,33 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   «Sett i fokus» går gjennom `scene3d.fokuserHimmel`, som BARE flytter
   kameraet: `velgHimmel(samme)` ville også åpnet månegloben på nytt og skrevet
   fremhevingen om.
-- **Utvikler-bryteren «Tvungen måne i 3D» bor i `himmelFor` (v6.1.0).**
-  `lende-3d-maane-tvang` i localStorage, satt i Utvikler-fanen, lest av Viewer3D.
-  Månen er under horisonten store deler av døgnet, og da kan verken månegloben
-  eller trykk-plukkingen av den prøves i det hele tatt. Flagget løfter månen til
-  `MANE_TVANG_HOYDE` (35°) og rører INGENTING annet — fase, lysside, azimut og
-  parallaktisk vinkel er fortsatt de ekte, ellers tester man ikke det man tror.
-  **Den bor i `astronomi.himmelFor` fordi det er den ENE kilden både skiva
-  (`skyDome`) og lista (`himmelObjekter`) bygges av.** Tvang vi månen på to steder,
-  ville søket tilbudt en måne trykk ikke finner — samme lærdom som mosaikk-regelen
-  over. `settTvingMane` finnes også som runtime-setter, så bryteren virker mens 3D
-  står åpen.
+- **Utvikler-bryteren «Tvungne himmellegemer i 3D» løfter alle fire med globe
+  (v6.1.0, utvidet i v6.3.1).** `lende-3d-himmel-tvang` i localStorage, satt i
+  Utvikler-fanen, lest av Viewer3D som `tvingHimmel`. Månen er under horisonten
+  store deler av døgnet, og Mars, Jupiter og Saturn store deler av året — da kan
+  verken globene eller trykk-plukkingen prøves i det hele tatt.
+
+  **TVANGEN BOR I ÉN KILDE PER LEGEMETYPE, og det er ikke en detalj:** månen i
+  `astronomi.himmelFor`, planetene i `planeter.synligePlaneter`. Det er de ENE
+  funksjonene både skivene (`skyDome`) og lista (`himmelObjekter`) bygges av.
+  Tvang vi et legeme på to steder, ville søket tilbudt noe trykk ikke finner —
+  samme lærdom som mosaikk-regelen over.
+
+  **Porten for HVEM som løftes er `harGlobe`.** Merkur og Venus får ingen tvang:
+  et legeme som dyttes opp på himmelen uten at man kan gjøre noe med det er en ren
+  løgn om hva som står der, av samme grunn som at de ikke får trykk-ring. Og for
+  planetene må BEGGE gatene vike — høyden OG `MIN_ELONGASJON`: en Jupiter i
+  konjunksjon er like utestengt av nærheten til sola som av høyden, og en bryter
+  som virker halve tida er verre enn ingen bryter.
+
+  **Høydene er ulike med vilje** (`TVANG_HOYDER`: Mars 30°, Jupiter 40°, Saturn
+  45°, pluss månens `MANE_TVANG_HOYDE` 35°): to tvungne legemer med nesten samme
+  azimut ville landet oppå hverandre og vært umulige å skille med en finger, og
+  hele poenget er å kunne trykke på dem. Alt annet er ekte — azimut, fase,
+  lysside, avstand, lysstyrke — og et legeme som alt står høyere enn sin verdi
+  røres ikke. `settTvingHimmel` finnes som runtime-setter for konsoll og test, men
+  appen leser flagget ved MONTERING (som vær-demoen) og setteren oppdaterer ikke
+  søkelista.
 - **Nattmodus' tekst følger hovedmenyens 100/125/150-valg (v6.1.0).** Resten av
   3D-overlegget er rem-basert (v5.27.0, som følger SYSTEMETS tekstskalering);
   nattmodus' søkefelt og infokort får i tillegg `zoom: uiTextScale`, fordi det er

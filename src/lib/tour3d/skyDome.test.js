@@ -405,7 +405,7 @@ describe('buildNightSky — planetene', () => {
 })
 
 
-describe('buildNightSky — tvungen måne', () => {
+describe('buildNightSky — tvungne himmellegemer', () => {
   // Skiva på himmelen og lista i himmelObjekter må være enige. Testen her er
   // halvparten av det: at flagget faktisk når fram til skiva, og at bryteren
   // virker MENS visningen står åpen (setteren) og ikke bare ved bygging.
@@ -421,9 +421,9 @@ describe('buildNightSky — tvungen måne', () => {
   it('flagget følger med inn i byggingen', () => {
     const dato = naarMaanenErNede()
     const av = buildNightSky({ ...oslo, dato })
-    const paa = buildNightSky({ ...oslo, dato, tvingMane: true })
-    expect(av.tvingMane).toBe(false)
-    expect(paa.tvingMane).toBe(true)
+    const paa = buildNightSky({ ...oslo, dato, tvingHimmel: true })
+    expect(av.tvingHimmel).toBe(false)
+    expect(paa.tvingHimmel).toBe(true)
     // Månen står HØYERE med flagget på. Vi leser meshets y-posisjon, som er der
     // skiva faktisk havnet — ikke tallet vi sendte inn. Og den skal være SYNLIG:
     // `sett` skjuler en måne under −2°, så en løftet måne som fortsatt er skjult
@@ -438,11 +438,11 @@ describe('buildNightSky — tvungen måne', () => {
     const dato = naarMaanenErNede()
     const h = buildNightSky({ ...oslo, dato })
     const for0 = h.mane.mesh.position.y
-    h.settTvingMane(true)
-    expect(h.tvingMane).toBe(true)
+    h.settTvingHimmel(true)
+    expect(h.tvingHimmel).toBe(true)
     expect(h.mane.mesh.position.y).toBeGreaterThan(for0)
     // Og tilbake: bryteren skal kunne slås av igjen i samme økt.
-    h.settTvingMane(false)
+    h.settTvingHimmel(false)
     expect(h.mane.mesh.position.y).toBeCloseTo(for0, 6)
     h.dispose()
   })
@@ -450,9 +450,9 @@ describe('buildNightSky — tvungen måne', () => {
   it('uten sted gjør flagget ingenting, og kaster ikke', () => {
     // Kart uten brukbar posisjon får den pseudo-tilfeldige himmelen; der finnes
     // ingen ekte månehøyde å løfte.
-    const h = buildNightSky({ tvingMane: true })
+    const h = buildNightSky({ tvingHimmel: true })
     expect(h.astronomisk).toBe(false)
-    expect(() => h.settTvingMane(true)).not.toThrow()
+    expect(() => h.settTvingHimmel(true)).not.toThrow()
     h.dispose()
   })
 })

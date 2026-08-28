@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
-  PLANETER, planetPosisjon, synligePlaneter, MIN_ELONGASJON,
+  PLANETER, planetPosisjon, synligePlaneter, MIN_ELONGASJON, TVANG_HOYDER,
 } from './planeter.js'
-import { solEkvatorial } from './astronomi.js'
+import { solEkvatorial, MANE_TVANG_HOYDE } from './astronomi.js'
+
+const GRAD_TEST = Math.PI / 180
 
 const GRAD = Math.PI / 180
 const utc = (d) => new Date(`${d}T22:00:00Z`)
@@ -258,5 +260,69 @@ describe('synligePlaneter', () => {
     // Sola er ikke en planet, og Jorda er ikke synlig fra Jorda.
     expect(PLANETER.some((p) => p.id === 'jorda')).toBe(false)
     expect(solEkvatorial(new Date()).dek).toBeDefined()
+  })
+})
+
+describe('synligePlaneter — utvikler-bryteren tving', () => {
+  // Bryteren finnes for å kunne PRØVE globene: Mars, Jupiter og Saturn er under
+  // horisonten store deler av året, og uten flagget må man vente på at himmelen
+  // stiller seg riktig. Testene her holder fast de to tingene som kan gå galt
+  // uten at noe kaster: at ikke alle fem løftes, og at bare høyden er rørt.
+  const oslo = { lat: 59.91, lon: 10.75 }
+
+  it('løfter de tre planetene som HAR en globe, uansett dato', () => {
+    // Fire tidspunkt spredt over året, så ingen av dem kan tilfeldigvis stå
+    // oppe alle sammen.
+    for (const iso of ['2026-01-15T02:00:00Z', '2026-04-15T14:00:00Z',
+      '2026-07-15T22:00:00Z', '2026-10-15T10:00:00Z']) {
+      const ider = synligePlaneter({ ...oslo, dato: new Date(iso), tving: true })
+        .map((p) => p.id)
+      for (const id of ['mars', 'jupiter', 'saturn']) expect(ider).toContain(id)
+    }
+  })
+
+  it('løfter IKKE Merkur og Venus — de har ingen globe å prøve', () => {
+    // Et legeme som dyttes opp på himmelen uten at man kan gjøre noe med det er
+    // en ren løgn om hva som står der. Porten er harGlobe, ETT sted.
+    const dato = new Date('2026-01-15T02:00:00Z')
+    const paa = synligePlaneter({ ...oslo, dato, tving: true })
+    const av = synligePlaneter({ ...oslo, dato })
+    const smaa = (l) => l.filter((p) => p.id === 'merkur' || p.id === 'venus').map((p) => p.id)
+    expect(smaa(paa)).toEqual(smaa(av))
+  })
+
+  it('rører BARE høyden — azimut, avstand, fase og lysstyrke er de ekte', () => {
+    const dato = new Date('2026-07-15T22:00:00Z')
+    const paa = synligePlaneter({ ...oslo, dato, tving: true })
+    for (const p of paa) {
+      const ekte = planetPosisjon(p.id, dato)
+      expect(p.mag).toBeCloseTo(ekte.mag, 6)
+      expect(p.avstandAE).toBeCloseTo(ekte.avstandAE, 6)
+      expect(p.lysAndel).toBeCloseTo(ekte.lysAndel, 6)
+      expect(p.elongasjon).toBeCloseTo(ekte.elongasjon, 6)
+    }
+  })
+
+  it('gir hver tvungen planet sin egen høyde, så de ikke lander oppå hverandre', () => {
+    // To legemer med nesten samme azimut og samme høyde er umulige å trykke fra
+    // hverandre — og hele poenget med bryteren er å kunne trykke på dem.
+    const verdier = Object.values(TVANG_HOYDER)
+    expect(new Set(verdier).size).toBe(verdier.length)
+    // Månens 35° står i astronomi.js og skal ikke kollidere med noen av dem.
+    expect(verdier).not.toContain(MANE_TVANG_HOYDE / GRAD_TEST)
+  })
+
+  it('senker ALDRI en planet som alt står høyere', () => {
+    const dato = new Date('2026-07-15T22:00:00Z')
+    const av = synligePlaneter({ ...oslo, dato })
+    const paa = synligePlaneter({ ...oslo, dato, tving: true })
+    for (const a of av) {
+      const b = paa.find((x) => x.id === a.id)
+      expect(b.hoyde).toBeGreaterThanOrEqual(a.hoyde - 1e-12)
+    }
+  })
+
+  it('uten sted gir tom liste, med flagget på som av', () => {
+    expect(synligePlaneter({ lat: NaN, lon: 10, tving: true })).toEqual([])
   })
 })

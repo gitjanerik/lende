@@ -76,13 +76,18 @@ const { uiTextScale } = useUiTextScale()
 
 const KRYSSPAUSE_KEY = 'lende-3d-krysspause'
 const VAERDEMO_KEY = 'lende-3d-vaerdemo'
-// Utvikler-bryter fra Utvikler-fanen (DrawerDevTab): vis månen selv når den står
-// under horisonten. Månen er nede store deler av døgnet, og da kan verken
-// månegloben eller trykk-plukkingen av den prøves. Leses her framfor å gå som
-// prop gjennom hele kjeden — samme begrunnelse som vær-demoen.
-const MAANE_TVANG_KEY = 'lende-3d-maane-tvang'
-const maaneTvang = (() => {
-  try { return localStorage.getItem(MAANE_TVANG_KEY) === '1' } catch { return false }
+// Utvikler-bryter fra Utvikler-fanen (DrawerDevTab): vis månen OG planetene med
+// globe selv når de står under horisonten. De er nede store deler av døgnet — og
+// Mars, Jupiter og Saturn store deler av året — og da kan verken globene eller
+// trykk-plukkingen av dem prøves. Leses her framfor å gå som prop gjennom hele
+// kjeden — samme begrunnelse som vær-demoen.
+//
+// Nøkkelen het `lende-3d-maane-tvang` til v6.3.1, da de tre planetene ble med.
+// Den er byttet framfor migrert: bryteren er utvikler-bare, og et navn som lyver
+// om hva flagget gjør er verre enn å slå den på én gang til.
+const HIMMEL_TVANG_KEY = 'lende-3d-himmel-tvang'
+const himmelTvang = (() => {
+  try { return localStorage.getItem(HIMMEL_TVANG_KEY) === '1' } catch { return false }
 })()
 const TIME_SCALES = [64, 128, 256]
 const HUD_FELTER = ['gaatt', 'igjen', 'hoyde', 'stigning', 'eta']
@@ -158,11 +163,11 @@ function byggHimmelListe() {
   if (!Number.isFinite(punkt?.lat) || !Number.isFinite(punkt?.lon)) return
   himmelListe.value = himmelObjekter({
     lat: punkt.lat, lon: punkt.lon, dato: new Date(),
-    // MÅ være samme flagg som motoren fikk. Tvinger vi månen i himmelen men ikke
-    // i lista, tilbyr ikke søket en måne man ser — og trykk-plukkingen finner den
-    // ikke. Samme regel som mosaikken i CLAUDE.md: to steder som svarer på «hva
-    // ser jeg nå?» må svare likt.
-    tvingMane: maaneTvang,
+    // MÅ være samme flagg som motoren fikk. Tvinger vi et legeme opp i himmelen
+    // men ikke i lista, tilbyr ikke søket noe man ser — og trykk-plukkingen
+    // finner det ikke. Samme regel som mosaikken i CLAUDE.md: to steder som
+    // svarer på «hva ser jeg nå?» må svare likt.
+    tvingHimmel: himmelTvang,
   })
   engine?.setHimmelObjekter(toRaw(himmelListe.value))
 }
@@ -392,7 +397,7 @@ async function byggMotor() {
       barrierFeatures: toRaw(props.barrierFeatures) ?? [],
       features: allFeatures,
       tour: tourOpts,
-      options: { estWalkMinutes: props.estWalkMinutes ?? null, tvingMane: maaneTvang },
+      options: { estWalkMinutes: props.estWalkMinutes ?? null, tvingHimmel: himmelTvang },
     })
 
     engine.on('progress', (p) => {

@@ -220,7 +220,7 @@ describe('himmelUndertekst', () => {
 })
 
 
-describe('himmelObjekter — tvungen måne må gjelde HER OGSÅ', () => {
+describe('himmelObjekter — tvungne himmellegemer må gjelde HER OGSÅ', () => {
   // FELLA denne testen finnes for: bryteren løfter månen i himmelen (skiva i
   // skyDome) og i LISTA (her), og begge går gjennom himmelFor. Gjorde de det
   // ikke, ville søket manglet en måne man tydelig ser — og trykk-plukkingen
@@ -238,7 +238,7 @@ describe('himmelObjekter — tvungen måne må gjelde HER OGSÅ', () => {
   it('månen kommer i lista når bryteren står på', () => {
     const dato = naarMaanenErNede()
     expect(himmelObjekter({ ...oslo, dato }).some((o) => o.type === 'mane')).toBe(false)
-    const mane = himmelObjekter({ ...oslo, dato, tvingMane: true })
+    const mane = himmelObjekter({ ...oslo, dato, tvingHimmel: true })
       .find((o) => o.type === 'mane')
     expect(mane).toBeTruthy()
     expect(mane.hoyde).toBeGreaterThan(0)
@@ -250,7 +250,43 @@ describe('himmelObjekter — tvungen måne må gjelde HER OGSÅ', () => {
 
   it('månen står først i lista, som ellers', () => {
     const dato = naarMaanenErNede()
-    const liste = himmelObjekter({ ...oslo, dato, tvingMane: true })
+    const liste = himmelObjekter({ ...oslo, dato, tvingHimmel: true })
     expect(liste[0].type).toBe('mane')
+  })
+})
+
+describe('himmelObjekter — bryteren gir alle fire globe-legemene', () => {
+  // ENDEN AV KJEDEN. Dette er lista søkefeltet, trykk-plukkingen og infokortets
+  // naboer leses av — og hele grunnen til at tvangen bor i ÉN kilde per
+  // legemetype er at denne lista og himmelen ikke skal komme i utakt. Står et
+  // legeme her uten å være tegnet, tilbyr søket noe trykk ikke finner.
+  const oslo = { lat: 59.91, lon: 10.75 }
+
+  it('månen, Mars, Jupiter og Saturn er med, uansett dato', () => {
+    for (const iso of ['2026-01-15T02:00:00Z', '2026-04-15T14:00:00Z',
+      '2026-07-15T22:00:00Z', '2026-10-15T10:00:00Z']) {
+      const ider = himmelObjekter({ ...oslo, dato: new Date(iso), tvingHimmel: true })
+        .map((o) => o.id)
+      for (const id of ['mane', 'planet:mars', 'planet:jupiter', 'planet:saturn']) {
+        expect(ider).toContain(id)
+      }
+    }
+  })
+
+  it('alle fire står over horisonten, ellers ville de ikke vært tegnet', () => {
+    const liste = himmelObjekter({
+      ...oslo, dato: new Date('2026-01-15T02:00:00Z'), tvingHimmel: true,
+    }).filter((o) => o.harGlobe)
+    expect(liste.length).toBe(4)
+    for (const o of liste) expect(o.hoyde).toBeGreaterThan(0)
+  })
+
+  it('uten flagget er lista den ekte igjen', () => {
+    // Bryteren skal ikke etterlate spor. Er den av, er himmelen himmelen.
+    const dato = new Date('2026-01-15T02:00:00Z')
+    const av = himmelObjekter({ ...oslo, dato })
+    const paa = himmelObjekter({ ...oslo, dato, tvingHimmel: true })
+    expect(paa.length).toBeGreaterThanOrEqual(av.length)
+    expect(av.filter((o) => o.harGlobe).length).toBeLessThan(4)
   })
 })

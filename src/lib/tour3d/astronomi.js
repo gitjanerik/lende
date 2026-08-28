@@ -391,6 +391,12 @@ export const MANE_TVANG_HOYDE = rad(35)
  *              ekte: fase, lysside og azimut. Bare høyden er løftet, og bare når
  *              den var under horisonten — står månen oppe, rører flagget
  *              ingenting.
+ *
+ *              NAVNET ER PRESIST: dette er MÅNENS halvdel av utvikler-bryteren.
+ *              Flagget UI-et setter heter `tvingHimmel` og dekker også planetene
+ *              med globe — den halvdelen bor i `planeter.synligePlaneter`, fordi
+ *              det er den ENE kilden til hvor planetene står. Én kilde per
+ *              legemetype, aldri to som tvinger samme legeme.
  */
 export function himmelFor({ lat, lon, dato = new Date(), tvingMane = false }) {
   const lst = lokalStjernetid(dato, lon)

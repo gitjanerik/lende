@@ -86,9 +86,10 @@ export async function create3dScene(container, {
     container,
     {
       dem, meta, getTextureSpec, onProgress, onTextureNote,
-      // tvingMane er utvikler-bryteren fra Utvikler-fanen: vis månen selv når den
-      // står under horisonten, så månegloben kan prøves når som helst.
-      options: { exaggeration, tvingMane: options.tvingMane ?? false },
+      // tvingHimmel er utvikler-bryteren fra Utvikler-fanen: vis månen og
+      // planetene med globe selv når de står under horisonten, så globene kan
+      // prøves når som helst.
+      options: { exaggeration, tvingHimmel: options.tvingHimmel ?? false },
     },
     hooks,
   )
@@ -830,7 +831,7 @@ export async function create3dScene(container, {
     /** Hvor kameraet ser NÅ, i grader. Se blikkNaa. */
     get blikk() { return blikkNaa() },
     /** Utvikler-bryter: løft månen over horisonten. Se astronomi.himmelFor. */
-    settTvingMane(paa) { core.settTvingMane(paa) },
+    settTvingHimmel(paa) { core.settTvingHimmel(paa) },
 
     /**
      * Vend blikket mot nord, i den høyden man alt står i.

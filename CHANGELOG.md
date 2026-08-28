@@ -1,3 +1,13 @@
+## 2026-08-28 — v6.3.1: Utvikler-bryteren løfter alle fire globe-legemene
+
+«Tvungen måne i 3D» løftet bare månen, og det var en luke fra det øyeblikket Mars, Jupiter og Saturn fikk globe i v6.2.0: de tre er under horisonten store deler av året, så globene deres kunne bare prøves når himmelen tilfeldigvis stilte seg riktig. Bryteren heter nå «Tvungne himmellegemer i 3D» og løfter alle fire som HAR en globe. Merkur og Venus følger de ekte reglene — et omriss som lover en globe som ikke finnes er verre enn ingen ring, og av samme grunn er et legeme som dyttes opp på himmelen uten at man kan gjøre noe med det en ren løgn om hva som står der. Porten er `harGlobe`, ETT sted.
+
+Tvangen bor i én kilde per legemetype: månen i `astronomi.himmelFor`, planetene i `planeter.synligePlaneter`. Det er samme regel som mosaikken — to steder som svarer på «hva ser jeg nå?» må svare likt — og her betyr et brudd at søkefeltet tilbyr en planet trykk ikke finner. For planetene må BEGGE gatene vike, både høyden og elongasjonen: en Jupiter i konjunksjon er like utestengt av nærheten til sola som av høyden, og en bryter som virker halve tida er verre enn ingen bryter. De fire står i en stige — Mars 30°, månen 35°, Jupiter 40°, Saturn 45° — så to legemer med nesten samme azimut ikke lander oppå hverandre og blir umulige å skille med en finger. Alt annet er fortsatt ekte: azimut, fase, lysside, avstand og lysstyrke, og et legeme som alt står høyere enn sin verdi røres ikke.
+
+Flagget heter `tvingHimmel` gjennom hele kjeden, og localStorage-nøkkelen er `lende-3d-himmel-tvang`. Nøkkelen er byttet framfor migrert fordi bryteren er utvikler-bare, og et navn som lyver om hva flagget gjør er verre enn å slå den på én gang til — så den må slås på igjen etter denne oppdateringen.
+
+---
+
 ## 2026-08-28 — v6.3.0: Astronomiske fakta, utforskningshistorie og tre overflatekart som faktisk kommer
 
 Infokortet i 3D gir nå astronomiske fakta for månen og alle fem synlige planeter: antall måner og navn på de største, avstander, døgn- og årslengder — og en kort liste over menneskets utforskning, fra Galileis fire Jupiter-måner i 1610 til roverne som står på Mars nå (Sojourner, Spirit, Opportunity, Curiosity, Perseverance og Zhurong, med Ingenuity som fløy 72 ganger). Sammenlagt vises de fire nyeste milepælene; «alle N» gir hele historien. Nederst går lenker til Store norske leksikon og Wikipedia. Alt er bakt inn i appen og virker uten dekning — lenkene er for når man er hjemme igjen, og det er hele grunnen til at faktaene ikke ER lenkene.
