@@ -1,3 +1,11 @@
+## 2026-08-28 — v6.3.5: «Sett i fokus» ut av infokortet
+
+Krysshår-knappen i headeren er fjernet. Etter felttest var funksjonen ikke i bruk, og grunnen er strukturell: både et valg fra søkelista og et trykk i himmelen retter blikket dit av seg selv, så knappen hadde bare en jobb i det ene tilfellet der man hadde sett seg bort etterpå — og da er et nytt valg like nært. Headeren har nå to ikoner, minimer/utvid og lukk, i samme rekkefølge i begge tilstander. To ikoner i en header man leser i mørket er bedre enn tre.
+
+`scene3d.fokuserHimmel` er slettet sammen med knappen — den hadde ingen andre kallere. Røyk-sjekken er SNUDD framfor slettet: den krevde at knappen fantes, og krever nå at den ikke finnes, samtidig som den holder fast at minimer og lukk står der. En knapp er lett å legge tilbake i god tro, og det samme er en tekst (se `bruk` i v6.3.3). Omtalen på /om er ryddet med.
+
+---
+
 ## 2026-08-28 — v6.3.4: Terrenget skjærer ikke gjennom globen
 
 Mars sto 3° over horisonten, og da havnet kula delvis under terrengnivå: kartflisa skar rett gjennom planeten, med Marinerdalene tegnet nede under en grønn skråning. Globen henger 4 km foran kameraet i legemets virkelige himmelretning, og det er invarianten som gjør 3D til å stole på — så plasseringen skal ikke røres.

@@ -1069,8 +1069,7 @@ function branchLabel(opt, i) {
         <Tour3dHimmelKort :objekt="valgtHimmel" :naboer="himmelNaboer"
                           :minimert="kortMinimert"
                           @lukk="velgHimmel(null)" @velg="velgNabo"
-                          @minimer="kortMinimert = true" @utvid="kortMinimert = false"
-                          @fokus="engine?.fokuserHimmel()"/>
+                          @minimer="kortMinimert = true" @utvid="kortMinimert = false"/>
       </div>
 
       <!-- Vær-demo (Utvikler-fanen). Ligger over værraden fordi den overstyrer

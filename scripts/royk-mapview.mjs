@@ -1091,11 +1091,21 @@ const SJEKKER = [
         throw new Error('infokortet mangler retning og høyde — det er linja man trenger')
       }
 
-      // «Sett i fokus» skal finnes: har man sett seg bort, er det veien tilbake
-      // til det som er fremhevet.
-      if (!await evalMedTak(page, () => !!document
-        .querySelector('button[aria-label^="Sett "][aria-label$=" i fokus"]'))) {
-        throw new Error('kortet mangler «Sett i fokus»')
+      // «SETT I FOKUS» SKAL IKKE FINNES (v6.3.5). Knappen er fjernet fordi den
+      // ikke var i bruk, og sjekken er snudd framfor slettet: en knapp er lett å
+      // legge tilbake i god tro, og headeren skal ha TO ikoner i mørket.
+      const headerIkoner = await evalMedTak(page, () => {
+        const fokus = document
+          .querySelectorAll('button[aria-label^="Sett "][aria-label$=" i fokus"]').length
+        return {
+          fokus,
+          minimer: document.querySelectorAll('button[aria-label="Minimer infokortet"]').length,
+          lukk: document.querySelectorAll('button[aria-label="Lukk infokortet"]').length,
+        }
+      })
+      if (headerIkoner.fokus) throw new Error('«Sett i fokus» er tilbake i kortet')
+      if (!headerIkoner.minimer || !headerIkoner.lukk) {
+        throw new Error('kortet mangler minimer- eller lukk-knappen')
       }
 
       // MINIMER (v6.1.0): navnet blir stående, lesestoffet forsvinner. Vi måler
@@ -1253,7 +1263,7 @@ const SJEKKER = [
         .catch(() => { /* trykket over kan ha lukket kortet */ })
       await page.waitForTimeout(400)
       await lukkNatt3d(page, h.startSteg)
-      return `valgte «${forste}», minimerte, utvidet`
+      return `valgte «${forste}» (2 header-ikoner), minimerte, utvidet`
         + `${nabo ? `, hoppet til «${nabo}»` : ''}; ${globeUtfall}; ${faktaUtfall}`
     },
   },

@@ -893,18 +893,6 @@ export async function create3dScene(container, {
     },
     /** Velg fra lista (eller null for å rydde). Samme vei som et trykk. */
     velgHimmel,
-    /**
-     * Rett blikket mot det som ALLEREDE er valgt, uten å velge det på nytt.
-     *
-     * Egen inngang og ikke `velgHimmel(samme)`: det siste ville også åpnet
-     * månegloben på nytt og skrevet fremhevingen om. Her er det bare kameraet som
-     * skal flytte seg — man har sett seg bort og vil tilbake.
-     */
-    fokuserHimmel() {
-      if (!valgtHimmel) return false
-      freeRig.seMot(valgtHimmel.azimut, valgtHimmel.hoyde)
-      return true
-    },
     get valgtHimmel() { return valgtHimmel },
     get globeAapen() { return core.globeAapen },
     lukkGlobe: lukkGlobe,

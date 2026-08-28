@@ -582,7 +582,7 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
 - **Infokortet i himmelen har FAST HEADER og RULLBAR KROPP (v6.3.2).** Med fakta
   og utforskningshistorie inne (v6.3.0) vokste kortet rett ut av skjermen: navnet
   og de tre knappene forsvant oppover mens teksten lå igjen over terrenget, uten
-  noen måte å lukke kortet på. Headeren — navn, retning, høyde og de tre ikonene —
+  noen måte å lukke kortet på. Headeren — navn, retning, høyde og de to ikonene —
   er `shrink-0` og alltid synlig; bare lesestoffet ruller, med tak på 58 vh.
   `overscroll-contain` og `touch-pan-y` er ikke pynt: uten dem forplanter et drag
   som treffer enden av lista seg til 3D-lerretet og dreier kameraet under fingeren.
@@ -830,12 +830,19 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   forrige nabo-hopp, og kortet kom sammenlagt når man nettopp hadde spurt hva noe
   var.
   Minimert står navnet og retningen igjen som én linje — nok til å vite hva som er
-  fremhevet — og BEGGE tilstandene har de samme tre ikonene i samme rekkefølge:
-  fokus, minimer/utvid, lukk (v6.1.1). Knappene skal ligge på samme sted enten
-  kortet er sammenlagt eller åpent, så man ikke må lete etter dem på nytt.
-  «Sett i fokus» går gjennom `scene3d.fokuserHimmel`, som BARE flytter
-  kameraet: `velgHimmel(samme)` ville også åpnet månegloben på nytt og skrevet
-  fremhevingen om.
+  fremhevet — og BEGGE tilstandene har de samme TO ikonene i samme rekkefølge:
+  minimer/utvid, lukk. Knappene skal ligge på samme sted enten kortet er
+  sammenlagt eller åpent, så man ikke må lete etter dem på nytt.
+
+  **«SETT I FOKUS» (krysshår) ER FJERNET i v6.3.5, og skal ikke tilbake.** Den
+  rettet blikket mot det som ALT var valgt, via `scene3d.fokuserHimmel`. Etter
+  felttest var funksjonen ikke i bruk, og grunnen er strukturell: både et valg fra
+  lista og et trykk i himmelen retter blikket dit SELV (`velgHimmel` kaller
+  `seMot`), så knappen hadde bare en jobb i det ene tilfellet der man hadde sett
+  seg bort etterpå — og da er et nytt valg like nært. `fokuserHimmel` er slettet
+  med den; røyk-sjekken er SNUDD og krever nå at knappen ikke finnes, fordi en
+  knapp er lett å legge tilbake i god tro. To ikoner i en header man leser i
+  mørket er bedre enn tre.
 - **Utvikler-bryteren «Tvungne himmellegemer i 3D» løfter alle fire med globe
   (v6.1.0, utvidet i v6.3.1).** `lende-3d-himmel-tvang` i localStorage, satt i
   Utvikler-fanen, lest av Viewer3D som `tvingHimmel`. Månen er under horisonten
