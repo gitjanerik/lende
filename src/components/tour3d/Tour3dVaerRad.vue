@@ -177,10 +177,14 @@ function vindTitle(t) {
          åpner 3D er været med igjen. Vil man ha det tilbake i samme økt, går man
          innom natt og tilbake. -->
     <div class="shrink-0 flex items-stretch" data-fast>
+      <!-- 48 px bred, ikke 36 (v6.3.9): raden er høy nok, men bredden var under
+           44 px-minimumet for et trykkmål, og eieren meldte at X-en var for smal.
+           Kolonne-målingen (maalPlass) trekker den fra selv, siden den er
+           data-fast — bredden her koster altså en værtime, ikke en rullestripe. -->
       <button @click="emit('lukk')" aria-label="Skjul værvarselet og værhimmelen"
-              class="w-9 flex items-center justify-center text-white/45
+              class="w-12 flex items-center justify-center text-white/45
                      active:scale-90 transition-transform">
-        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
              stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
         </svg>

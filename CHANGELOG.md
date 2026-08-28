@@ -1,3 +1,25 @@
+## 2026-08-28 — v6.3.9: Fremhevingen ble klippet, og sju figurer hadde streker vi hadde funnet opp
+
+Eieren meldte at streker manglet når et stjernebilde var markert, og at det ikke
+var til å vurdere uten hjelp — så begge halvdelene ble MÅLT i stedet for gjettet.
+Den første er en ren feil: fremhevings-geometrien ble reallokert ved hvert valg,
+og three låser `_maxInstanceCount` til bufferets lengde FØRSTE gang geometrien
+bindes og fjerner det aldri. Tegnetallet er `min(instanceCount, _maxInstanceCount)`,
+så taket ble satt av det første valget i økta — målt i Chromium: valgte man
+Kassiopeia (4 streker) først, fikk Dragen (10) bare de fire første. Nå er det ETT
+buffer på den største formasjonens størrelse, og `instanceCount` styrer hvor mange
+som submitteres — samme regel som knappenålene. Den andre halvdelen er
+kartografi: kjedene er sammenliknet mot d3-celestials standardfigurer, og elleve
+streker i sju stjernebilder fantes ikke i noen standardframstilling — snarveier
+som hoppet over mellomliggende stjerner, som Algol rett på δ Per og Dragens hode
+som trekant der infoteksten vår alt sa «firkant». Karlsvogna hadde dessuten
+bollen ÅPEN. Fasiten er bakt inn som `stjernefigurFasit.js`, og testen er
+ensrettet: vi kan utelate en strek, men aldri tegne en som ikke finnes. Katalogen
+vokser fra 147 til 166 stjerner og fra 79 til 101 streker. Til sist er X-en i
+værraden 48 px bred i stedet for 36 — den var under trykkmålets minimum.
+
+---
+
 ## 2026-08-28 — v6.3.8: En X i værraden tar bort været — og raden slutter å rulle
 
 Værraden i dagmodus har fått en liten X til høyre. Et trykk fjerner både raden og værhimmelen — regn, torden, tåke og skyene. Den erstatter det tredje steget sol/måne-knappen hadde fram til v6.1.0, og hører bedre her: knappen svarer på «dag eller natt», mens dette er «vis meg været eller ikke». To spørsmål på én bryter var nettopp det som gjorde tri-staten uklar.

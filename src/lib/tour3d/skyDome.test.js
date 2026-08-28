@@ -333,6 +333,42 @@ describe('buildNightSky — fremheving av valgt formasjon', () => {
     })
   })
 
+  it('holder ETT buffer på maks størrelse, så ingen formasjon blir klippet', () => {
+    // Regresjon (v6.3.9): fremhevingen kalte setPositions med et nytt, mindre
+    // buffer for hvert valg. three setter geometry._maxInstanceCount FØRSTE gang
+    // geometrien bindes og fjerner det aldri — tegnetallet er
+    // min(instanceCount, _maxInstanceCount) — så taket ble satt av det FØRSTE
+    // valget. Målt i Chromium: valgte man Kassiopeia (4 linjer) først, fikk
+    // Dragen (10) bare de fire første strekene tegnet. Feilen ser ut som «noen
+    // streker mangler i figuren».
+    //
+    // Invarianten som hindrer det er at KAPASITETEN er konstant og minst like
+    // stor som den største formasjonen; instanceCount styrer hvor mange som
+    // faktisk submitteres.
+    const sky = buildNightSky({ ...STED, dato: DATO })
+    const valgt = sky.group.children.find(
+      (c) => c.type === 'LineSegments2' && c.material.linewidth > 2,
+    )
+    const kapasitet = () => valgt.geometry.attributes.instanceStart.count
+    const maksLinjer = Math.max(...FORMASJONER.map((f) => f.linjer.length))
+    expect(kapasitet()).toBeGreaterThanOrEqual(maksLinjer)
+
+    const start = kapasitet()
+    const synlige = sky.synligeStjerner
+    const tegnbare = (f) => f.linjer
+      .filter(([a, b]) => synlige.has(a) && synlige.has(b)).length
+    // Minste først, største etterpå — nøyaktig rekkefølgen som utløste feilen.
+    const oppe = FORMASJONER.filter((f) => tegnbare(f) > 0)
+      .sort((a, b) => tegnbare(a) - tegnbare(b))
+    expect(oppe.length).toBeGreaterThan(1)
+    for (const f of [oppe[0], oppe[oppe.length - 1], oppe[0]]) {
+      sky.settValgt(f)
+      expect(kapasitet(), 'bufferet skal aldri reallokeres').toBe(start)
+      expect(valgt.geometry.instanceCount).toBe(tegnbare(f))
+    }
+    sky.dispose()
+  })
+
   it('tåler en formasjon som er under horisonten', () => {
     const sky = buildNightSky({ ...STED, dato: DATO })
     const synlige = sky.synligeStjerner

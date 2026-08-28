@@ -600,6 +600,29 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   og `blikk`-eventet emittes fra v6.3.2 i ALLE moduser, ikke bare om natta — et
   håndtak som bare er sant om natta lyver om dagen. Vippen har fortsatt ÉN eier:
   `freeRig`.
+- **Fremhevings-bufferet allokeres ÉN gang, på maks størrelse (v6.3.9).** three
+  setter `geometry._maxInstanceCount` FØRSTE gang en instansiert geometri bindes,
+  av bufferets lengde den gang, og fjerner det aldri igjen (bare ved dispose).
+  Tegnetallet er `min(instanceCount, _maxInstanceCount)`. `settValgt` kalte
+  `setPositions` med et nytt, mindre buffer per valg — så taket ble satt av det
+  FØRSTE valget i økta, og hver større formasjon etterpå fikk figuren KLIPPET.
+  Målt i Chromium: `_max=4` etter Kassiopeia, altså fire streker av Dragens ti.
+  Feilen ser ut som «noen streker mangler i stjernebildet», og den er usynlig i
+  enhetstester fordi geometrien er helt riktig — det er bindingen som klemmer.
+  Regelen er den samme som knappenålene (v5.22.11): `instanceCount` styrer hva
+  som SUBMITTERES, kapasiteten er konstant. Invarianten står i `skyDome.test.js`
+  og er verifisert i begge retninger.
+- **Stjernebildefigurene har en INNBAKT FASIT, og bruken er ENSRETTET (v6.3.9).**
+  `lib/tour3d/stjernefigurFasit.js` (bakt av `scripts/bygg-figurfasit.mjs`, npm
+  `bygg:figurfasit`) er d3-celestials standardfigurer slått opp mot HYG. Testen
+  krever at hver strek VI tegner finnes der; en strek i fasiten vi ikke tegner er
+  greit, for kjedene i `bygg-stjerner.mjs` er bevisste forenklinger for en
+  telefonskjerm. Grunnen til at den finnes: elleve streker i sju stjernebilder var
+  snarveier vi hadde funnet opp — Algol rett på δ Per, Dragens hode som trekant
+  der `stjernebildeInfo` alt sa «firkant» — og Karlsvogna hadde bollen ÅPEN.
+  **Ingenting i koden avslører en oppfunnet strek**, og en figur kan være helt
+  internt konsistent og likevel være feil. Legger du til et stjernebilde, kjør
+  baken; mangler den en id, feiler testen med vilje.
 - **Stjernestørrelser er i CSS-piksler, og det var en ekte feil (v6.0.0).**
   `gl_PointSize` og `LineMaterial`-bredder er i FRAMEBUFFER-piksler. Med
   `setPixelRatio` opptil 2 ble stjernene halv størrelse på telefon — usynlige i
