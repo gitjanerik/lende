@@ -1451,6 +1451,75 @@ const SJEKKER = [
     },
   },
   {
+    // v6.4.0. Halve himmelen er stjerner som ikke inngår i en figur vi tegner —
+    // Sirius, Aldebaran, Altair, Antares — og fram til nå kunne man ikke spørre
+    // hva de var. Eieren leste en skjerm med prikker uten streker som en FEIL,
+    // og det er en rimelig lesning når ingenting svarer på et trykk.
+    //
+    // Sjekken TRYKKER: den finner en stjerne-rad i lista, velger den, åpner
+    // kortet og krever at kortet forteller hvem stjerna er. Enhetstestene dekker
+    // lista og teksten hver for seg; det er kjeden fra rad til kort ingen av dem
+    // ser.
+    navn: 'en løs stjerne kan velges og forteller hvem den er',
+    domene: 'himmelObjekter + Tour3dHimmelKort (stjerner)',
+    krever: 'ektekart',
+    maksMs: 180_000,
+    async kjør(page) {
+      const h = await aapneNatt3d(page)
+      if (h.hoppet) return h.hoppet
+
+      const aapneLista = async () => {
+        const pille = page.locator('button[aria-label="Finn et stjernebilde eller en planet"], '
+          + 'button[aria-label^="Valgt:"]').first()
+        await pille.click({ timeout: 8000 })
+        await page.waitForSelector('ul[aria-label="Treff på himmelen"]', { timeout: 8000 })
+      }
+      await aapneLista()
+
+      // Stjerne-radene kjennes på undertittelen, som himmelUndertekst skriver.
+      // Vi tar den ØVERSTE, som er den lyseste — den er lettest å se etterpå.
+      const stjerne = await evalMedTak(page, () => {
+        const rad = [...document.querySelectorAll('ul[aria-label="Treff på himmelen"] li button')]
+          .find((b) => /^Stjerne(\s|$)/.test(
+            (b.querySelectorAll('span.block')[1]?.textContent ?? '').trim(),
+          ))
+        return rad ? (rad.querySelector('span.block')?.textContent ?? '').trim() : null
+      })
+      // Minst sju løse stjerner er over horisonten fra Norge til enhver tid
+      // (målt over et helt år på 61°N). Er lista tom for dem, er det lista som
+      // er brutt — ikke astronomien.
+      if (!stjerne) throw new Error('ingen enkeltstjerne i himmellista')
+
+      await page.locator('ul[aria-label="Treff på himmelen"] li button')
+        .filter({ hasText: stjerne }).first().click({ timeout: 5000 })
+      await page.waitForTimeout(900)
+
+      // Et valg fra lista gir SAMMENLAGT kort (v6.3.11) — innholdet finnes bare
+      // i det åpne, så vi må trykke det opp.
+      await page.locator(`button[aria-label="Vis mer om ${stjerne}"]`).click({ timeout: 8000 })
+      await page.waitForTimeout(400)
+
+      const kort = await evalMedTak(page, () => document.body.innerText)
+      if (!kort.includes(stjerne)) {
+        throw new Error(`valgte «${stjerne}», men kortet nevner den ikke`)
+      }
+      if (!/hører til/.test(kort)) {
+        throw new Error(`kortet for «${stjerne}» sier ikke hvilket stjernebilde den hører til`)
+      }
+      // SVARET PÅ «ER DETTE EN FEIL?» skal stå i kortet og ikke bare i en
+      // CHANGELOG: vi tegner ikke figuren, derfor står stjerna uten streker.
+      if (!/Uten streker/.test(kort)) {
+        throw new Error(`kortet for «${stjerne}» forklarer ikke hvorfor den står alene`)
+      }
+
+      await page.locator('button[aria-label="Lukk infokortet"]').click({ timeout: 5000 })
+        .catch(() => { /* kortet kan alt være lukket */ })
+      await page.waitForTimeout(300)
+      await lukkNatt3d(page, h.startSteg)
+      return `valgte «${stjerne}» fra lista; kortet ga stjernebilde og forklaring`
+    },
+  },
+  {
     navn: 'nattmodus er stjernekikkeren: alt annet er borte',
     domene: 'Viewer3D (nattsyn)',
     krever: 'ektekart',
@@ -1500,6 +1569,19 @@ const SJEKKER = [
         .querySelector(sel)?.getAttribute('aria-label'),
       KOMPASS, { timeout: 15_000 }).then((x) => x.jsonValue())
       if (!forDrag) throw new Error('himmelkompasset kom ikke i nattmodus')
+
+      // INNGANGEN TIL NATTA STILLER KAMERAET TILBAKE TIL OVERSIKTEN OG SER NORD
+      // (v6.4.0). Man kommer nesten alltid hit fra dagmodus etter å ha panorert
+      // rundt, og før dette lå blikket der turen tilfeldigvis endte — man visste
+      // ikke hvilken vei man så, og da bærer ingen stjernebildetekst.
+      //
+      // DETTE ER DEN ENESTE MÅLINGEN AV DEN REGELEN. Enhetstestene ser
+      // `seMot(freeRig.blikkAzimut, …)`, altså at asimuten ikke endres — de kan
+      // ikke se hvilken asimut riggen faktisk sto i. Kompassets aria-label kan.
+      if (!/^Du ser mot nord/.test(forDrag)) {
+        throw new Error(`nattmodus åpnet med blikket mot «${forDrag}» — inngangen `
+          + 'skal nullstille kameraet til oversikten, som er nordvendt')
+      }
 
       // Snu deg, og kompasset må følge. Høyre knapp roterer (venstre panorerer),
       // og et halvt skjermbredde-drag er godt over 45°, altså minst én

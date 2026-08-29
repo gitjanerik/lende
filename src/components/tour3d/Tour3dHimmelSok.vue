@@ -1,6 +1,6 @@
 <script setup>
-// Himmelsøket: velg en formasjon, en planet eller månen — fra lista eller ved å
-// skrive.
+// Himmelsøket: velg en formasjon, en planet, månen eller én enkelt stjerne —
+// fra lista eller ved å skrive.
 //
 // Vises bare i nattmodus — og der ALLTID, siden nattmodus ER stjernekikkeren
 // (v6.1.0). Fram til da krevde porten i tillegg at blikket var løftet, men natt
@@ -36,7 +36,9 @@ const valgt = computed(() => props.objekter.find((o) => o.id === props.valgtId) 
 
 // Ikon per type. Emoji og ikke SVG: raden er tett, og et lite tegn foran navnet
 // gjør typen lesbar uten en egen kolonne.
-const IKON = { mane: '🌙', planet: '🪐', formasjon: '✦' }
+// Fylt stjerne for en figur, åpen for én enkelt stjerne — samme par som i
+// infokortet.
+const IKON = { mane: '🌙', planet: '🪐', formasjon: '✦', stjerne: '✧' }
 
 async function apne() {
   apen.value = true

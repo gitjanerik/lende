@@ -377,7 +377,7 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   månefase og lyssidens retning — dreid fra ZENIT og ikke fra himmelpolen, for
   det er zenit som er «opp» på en skjerm (`parallaktiskVinkel`). Stjernene bakes
   av `scripts/bygg-stjerner.mjs` (`npm run bygg:stjerner`) fra HYG-databasen til
-  `lib/tour3d/stjerner.js`: 147 stjerner + linjer for 13 stjernebilder.
+  `lib/tour3d/stjerner.js`: 173 stjerner + linjer for 15 stjernebilder.
   **Ikke skriv koordinater for hånd** — de er det eneste her som kan være FEIL
   uten at noe ser rart ut, og en stjerne 2° på skeive er en stjerne på feil
   plass. Testene er ankret i Meeus' egne gjennomregnede eksempler og i at
@@ -410,12 +410,53 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   test som krever nett blir skrudd av. Trenger du et nytt anker, generer det ÉN
   gang og lim tallene inn med kildeangivelse.
 - **`stjerner.js` er generert; prosaen bor i `stjernebildeInfo.js` (v5.28.0).**
-  Baken skriver `STJERNER` (med `bayer` som felt — 24 av 147 mangler egennavn),
+  Baken skriver `STJERNER` (med `bayer` som felt — 41 av 173 mangler egennavn),
   `LINJER` og `FORMASJONER` (id, latin, stjerne- og linje-indekser, senter).
   Id-en er en slug av det NORSKE navnet, og infoteksten er nøklet på den: døper
   du om et stjernebilde i baken, mister teksten formasjonen sin, og testen
   feiler med vilje. Senterretningen regnes av retningsvektorer og ikke av tall —
   et snitt av rektascensjoner over 0h peker midt på motsatt side av himmelen.
+- **NATTMODUS ÅPNER MOT NORD, og resetten er UMIDDELBAR (v6.4.0).**
+  `scene3d.apneStjernehimmel` stiller kameraet tilbake til oversiktsposen (samme
+  pose som «Oversikt»-knappen) og løfter så blikket. Grunnen er bestilt: man går
+  nesten alltid inn i natta fra dagmodus etter å ha panorert rundt, og da lå
+  blikket der turen tilfeldigvis endte — man visste ikke hvilken vei man så, og
+  da bærer ingen stjernebildetekst. **De to bevegelsene kan ikke begge animeres:**
+  `seMot` setter `transition = null`, så en flytur til oversikten ville blitt
+  avbrutt midt i, og løftet ville lest av asimuten kameraet sto i FØR flyturen.
+  Derfor `freeRig.settOversiktStraks()` (ingen animasjon, ingen autorotasjon) og
+  så løftet. Asimuten leses av riggen etterpå og sendes uendret videre —
+  oversiktsposen ER nordvendt, og å skrive 0 ville lagret det faktumet to steder.
+  **Enhetstestene kan ikke se dette**: de ser at asimuten ikke endres, ikke hvilken
+  asimut riggen sto i. Røyktesten leser himmelkompassets aria-label og krever
+  «nord».
+- **DE LØSE STJERNENE ER VALGBARE, og det er ikke en pynt (v6.4.0).** Katalogen
+  tar ALT lysere enn magnitude 2,6 (`MAG_GRENSE`), mens figurene er håndplukket —
+  57 av 173 stjerner inngår derfor ikke i noen figur vi tegner, Sirius, Aldebaran,
+  Altair og Antares blant dem. Eieren leste en skjerm med prikker uten streker som
+  en FEIL, og det er en rimelig lesning når ingenting svarer på et trykk. De er nå
+  `type: 'stjerne'` i `himmelObjekter`, med `stjerner: [i]` og `linjer: []` inn i
+  `skyDome.settValgt` — samme fremhevings-vei som en formasjon.
+  **STJERNER SOM ER I EN FIGUR TILBYS IKKE OGSÅ SOM LØSE** (`I_FORMASJON`): to
+  trefflater oppå hverandre stjeler trykk fra hverandre, og sikter man på Vega er
+  svaret Lyren. Stjernenavnet er fortsatt søkbart gjennom figuren.
+  **Trykk-vektingen har to tall med vilje** (`VEKT_PX` i `plukkHimmel`): en skive
+  er et stort mål man sikter midt på (18 px), en stjerne er én piksel man sikter
+  presist på (8 px). Fikk stjerna månens fradrag, ville den stjålet trykk fra en
+  stjernebilde-strek den tilfeldigvis lå nær — og streken er det man ser.
+  Prosaen bor i `stjerneFakta.js`, som er REN og skilt fra `stjernebildeInfo.js`
+  av samme grunn som `himmelFakta` er skilt fra `himmellegemer`: den ene endres av
+  en ny figur, den andre av en ny bake.
+- **`STJERNEBILDE_NAVN` dekker BARE stjernebilder vi IKKE tegner (v6.4.0).** De
+  femten figurene har sine navn i `FORMASJONER`; sto de også i tabellen, ville det
+  norske navnet på Orion bodd to steder. Konsekvensen er at `bayerNavn('Alp Ori')`
+  svarer null — det er riktig, betegnelsen brukes bare på løse stjerner — og
+  testen holder begge halvdelene fast.
+- **Andromeda og Pegasus kom inn i v6.4.0**, og Alpheratz står i BEGGE figurene.
+  Det er ikke en dublett: stjerna er hjørnet i Pegasus-firkanten og hodet i
+  Andromeda-kjeden samtidig. Legger du til en figur, husk begge bakene —
+  `npm run bygg:stjerner` OG `npm run bygg:figurfasit` (med `KODE` utvidet), ellers
+  feiler fasit-testen på en id den ikke kjenner.
 - **Himmelen har ÉN kilde til «hva ser jeg nå?» (v6.0.0).**
   `lib/tour3d/himmelObjekter.js` er ren og deles av TRE kallere: søkefeltet,
   trykk-plukkingen i himmelen og infokortets naboer. Uten den ville de hatt hver

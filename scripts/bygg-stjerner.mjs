@@ -60,6 +60,37 @@ const ASTERISMER = [
     ],
   },
   { navn: 'Kassiopeia', latin: 'Cassiopeia', kjeder: [['Eps Cas', 'Del Cas', 'Gam Cas', 'Alp Cas', 'Bet Cas']] },
+  // Andromeda og Pegasus henger sammen i ÉN stjerne: Alpheratz er hjørnet i
+  // Pegasus-firkanten og samtidig hodet i Andromeda-kjeden. Den står derfor i
+  // begge figurene — det er ikke en dublett, det er slik himmelen ser ut.
+  //
+  // Bakgrunnen for at de kom inn (v6.4.0): de var det eieren så på skjermen som
+  // «løse stjerner uten stjernebilde» — kjeden Almach–Mirach–Alpheratz og
+  // firkanten under den er noe av det mest gjenkjennelige på høsthimmelen, og
+  // det var bare vi som ikke tegnet dem.
+  {
+    navn: 'Andromeda',
+    latin: 'Andromeda',
+    kjeder: [
+      // Kjeden fra Pegasus-firkanten og utover: Alpheratz → δ → Mirach → Almach.
+      ['Alp And', 'Del And', 'Bet And', 'Gam And'],
+      // Beinet ut fra Mirach. Det er pekestokken til Andromedagalaksen — μ og ν
+      // står på linje fra Mirach, og galaksen ligger like over ν.
+      ['Bet And', 'Mu And', 'Nu And'],
+    ],
+  },
+  {
+    navn: 'Pegasus',
+    latin: 'Pegasus',
+    kjeder: [
+      // Firkanten, LUKKET. Den er hele figuren for de fleste, og et åpent
+      // hjørne ville vært samme feil som Karlsvognas åpne bolle (v6.3.9).
+      ['Alp And', 'Bet Peg', 'Alp Peg', 'Gam Peg', 'Alp And'],
+      // Halsen ned til Enif, hestens mule. Den går via ξ og ζ — en rett strek
+      // fra Markab til θ finnes ikke i standardfiguren.
+      ['Alp Peg', 'Xi Peg', 'Zet Peg', 'The Peg', 'Eps Peg'],
+    ],
+  },
   {
     navn: 'Orion',
     latin: 'Orion',

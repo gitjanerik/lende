@@ -3,7 +3,7 @@ import {
   himmelObjekter, filtrerHimmel, naboerFor, vinkelAvstand, kompass,
   himmelUndertekst, naermesteTreff,
 } from './himmelObjekter.js'
-import { FORMASJONER } from './stjerner.js'
+import { FORMASJONER, STJERNER } from './stjerner.js'
 
 const STED = { lat: 61.2, lon: 8.4 }
 const GRAD = Math.PI / 180
@@ -20,7 +20,7 @@ describe('himmelObjekter', () => {
         expect(o.hoyde, `${o.navn} skal være over horisonten`).toBeGreaterThan(0)
         expect(o.id).toBeTruthy()
         expect(o.navn).toBeTruthy()
-        expect(['formasjon', 'planet', 'mane']).toContain(o.type)
+        expect(['formasjon', 'planet', 'mane', 'stjerne']).toContain(o.type)
       }
     }
   })
@@ -56,13 +56,14 @@ describe('himmelObjekter', () => {
     }
   })
 
-  it('sorterer månen først, så planetene etter lysstyrke, så formasjonene', () => {
+  it('sorterer månen først, så planetene, formasjonene og til slutt stjernene', () => {
     // Rekkefølgen man legger merke til dem i: månen er umulig å overse, en
-    // planet er neste, et stjernebilde må man lete etter.
+    // planet er neste, et stjernebilde må man lete etter — og en enkeltstjerne
+    // er det man ender med å lure på når figurene er talt opp.
     for (let d = 0; d < 200; d += 13) {
       const liste = himmelObjekter({ ...STED, dato: new Date(Date.UTC(2026, 0, 1 + d, 22)) })
       const typer = liste.map((o) => o.type)
-      const rang = { mane: 0, planet: 1, formasjon: 2 }
+      const rang = { mane: 0, planet: 1, formasjon: 2, stjerne: 3 }
       for (let i = 1; i < typer.length; i++) {
         expect(rang[typer[i]]).toBeGreaterThanOrEqual(rang[typer[i - 1]])
       }
@@ -74,6 +75,55 @@ describe('himmelObjekter', () => {
       for (let i = 1; i < form.length; i++) {
         expect(form[i].navn.localeCompare(form[i - 1].navn, 'nb')).toBeGreaterThanOrEqual(0)
       }
+      const stjerner = liste.filter((o) => o.type === 'stjerne')
+      for (let i = 1; i < stjerner.length; i++) {
+        expect(stjerner[i].mag).toBeGreaterThanOrEqual(stjerner[i - 1].mag)
+      }
+    }
+  })
+
+  it('gir de løse stjernene alt infokortet trenger', () => {
+    // v6.4.0: stjerner som ikke inngår i en figur vi tegner er nå valgbare, og
+    // kortet skal kunne svare på «hva er den lyse prikken der?». Uten navn,
+    // stjernebilde og fremhevings-indeks er valget en tom rad.
+    const liste = himmelObjekter({ ...STED, dato: VINTER })
+    const stjerner = liste.filter((o) => o.type === 'stjerne')
+    expect(stjerner.length).toBeGreaterThan(0)
+    for (const o of stjerner) {
+      expect(o.navn, o.id).toBeTruthy()
+      expect(Number.isFinite(o.mag), o.navn).toBe(true)
+      expect(o.stjernebilde, o.navn).toBeTruthy()
+      expect(o.stjernebilde.norsk, o.navn).toBeTruthy()
+      // Det som skal videre til skyDome.settValgt: én indeks, ingen strek.
+      expect(o.stjerner.length, o.navn).toBe(1)
+      expect(o.linjer, o.navn).toEqual([])
+      // Og indeksen må peke på den stjerna kortet snakker om.
+      expect(STJERNER[o.stjerner[0]].mag, o.navn).toBe(o.mag)
+    }
+  })
+
+  it('en stjerne som inngår i en figur tilbys ikke også som løs stjerne', () => {
+    // TO TREFFLATER OPPÅ HVERANDRE ville stjålet trykk fra hverandre: sikter man
+    // på Vega, er svaret Lyren. Stjernenavnet er fortsatt søkbart gjennom
+    // figuren, så ingenting går tapt.
+    const liste = himmelObjekter({ ...STED, dato: VINTER })
+    const iFigur = new Set(FORMASJONER.flatMap((f) => f.stjerner))
+    for (const o of liste.filter((x) => x.type === 'stjerne')) {
+      expect(iFigur.has(o.stjerner[0]), o.navn).toBe(false)
+    }
+    // Og motprøven: figur-stjernene er fortsatt søkbare via figuren sin.
+    expect(filtrerHimmel(liste, 'Vega').some((o) => o.type === 'formasjon')).toBe(true)
+  })
+
+  it('en stjerne kan søkes opp på navn, betegnelse og stjernebilde', () => {
+    // «Tyren» er ikke en figur vi tegner, men Aldebaran ER svaret på den — og
+    // en søkeliste som ikke svarer på et stjernebildenavn er en søkeliste som
+    // ser tom ut.
+    const liste = himmelObjekter({ ...STED, dato: VINTER })
+    const aldebaran = liste.find((o) => o.navn === 'Aldebaran')
+    expect(aldebaran, 'Aldebaran skal være oppe en vinterkveld').toBeTruthy()
+    for (const q of ['aldebaran', 'α Tauri', 'Alp Tau', 'Tyren', 'Taurus']) {
+      expect(filtrerHimmel(liste, q).some((o) => o.navn === 'Aldebaran'), q).toBe(true)
     }
   })
 

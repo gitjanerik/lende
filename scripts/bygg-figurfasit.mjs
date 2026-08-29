@@ -32,7 +32,7 @@ const KODE = {
   karlsvogna: 'UMa', 'lille-bjorn': 'UMi', kassiopeia: 'Cas', orion: 'Ori',
   svanen: 'Cyg', lyren: 'Lyr', dragen: 'Dra', persevs: 'Per',
   bjornevokteren: 'Boo', kefeus: 'Cep', kusken: 'Aur', tvillingene: 'Gem',
-  loven: 'Leo',
+  loven: 'Leo', andromeda: 'And', pegasus: 'Peg',
 }
 
 const args = process.argv.slice(2)
@@ -105,9 +105,16 @@ const antall = Object.values(ut).reduce((n, a) => n + a.length, 0)
 process.stderr.write(`${antall} fasit-par i ${Object.keys(ut).length} figurer`
   + `${ukjente ? `, ${ukjente} punkter uten stjerne i HYG (hoppet over)` : ''}\n`)
 
+// Antallet skrives med bokstaver i filhodet, som ellers i prosjektet. Det er
+// dynamisk fordi det var feil i det øyeblikket figur nummer fjorten kom til.
+const TALLORD = ['null', 'én', 'to', 'tre', 'fire', 'fem', 'seks', 'sju', 'åtte',
+  'ni', 'ti', 'elleve', 'tolv', 'tretten', 'fjorten', 'femten', 'seksten',
+  'sytten', 'atten', 'nitten', 'tjue']
+const ANTALL_ORD = TALLORD[Object.keys(ut).length] ?? String(Object.keys(ut).length)
+
 const js = `// GENERERT AV scripts/bygg-figurfasit.mjs — IKKE REDIGER FOR HÅND.
 //
-// Standardfigurene for de tretten stjernebildene Lende tegner, hentet fra
+// Standardfigurene for de ${ANTALL_ORD} stjernebildene Lende tegner, hentet fra
 // d3-celestials \`data/constellations.lines.json\` (ofrohn/d3-celestial, BSD-3)
 // og slått opp mot HYG for Bayer-betegnelser.
 //

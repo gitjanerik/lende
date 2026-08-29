@@ -400,7 +400,7 @@ function stjerneStyrke(mag) {
 const HORISONT_MARGIN = -1 * Math.PI / 180
 
 // Hvor kraftig stjernebilde-linjene tegnes. Smak, ikke mekanikk: for høyt og
-// himmelen blir et planetarium, for lavt og 147 riktige punkter er ikke til å
+// himmelen blir et planetarium, for lavt og 173 riktige punkter er ikke til å
 // skille fra 160 tilfeldige.
 //
 // Løftet fra 0,13 til 0,26 etter felttest — men det var ikke opasiteten som var

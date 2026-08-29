@@ -844,10 +844,17 @@ function aapneStjernemodus() {
   if (pinsOn.value) togglePins()
   if (pathsOn.value) togglePaths()
   if (contoursOn.value) void toggleContours()
-  // Løft blikket opp i himmelen, av seg selv. Samme bevegelse brukeren gjør med
-  // fingeren — kjørt for henne, så hun vet neste gang at draget finnes. Den går
-  // etter lag-skjulingen så det ikke er noe å se forsvinne underveis.
-  engine?.seOppMotHimmelen()
+  // Still kameraet tilbake til oversikten og løft så blikket opp i himmelen, av
+  // seg selv. Løftet er samme bevegelse brukeren gjør med fingeren — kjørt for
+  // henne, så hun vet neste gang at draget finnes.
+  //
+  // RESETTEN KOM I v6.4.0, og den er bestilt: man går nesten alltid inn i natta
+  // fra dagmodus, etter å ha panorert rundt i terrenget, og da lå blikket der
+  // turen tilfeldigvis endte. Nå starter hver kveld likt — midt over kartet, med
+  // nesa mot nord — og da vet man hvor på himmelen man er før man begynner.
+  //
+  // Går etter lag-skjulingen, så det ikke er noe å se forsvinne underveis.
+  engine?.apneStjernehimmel()
 }
 
 function lukkStjernemodus() {

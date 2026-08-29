@@ -1,6 +1,6 @@
 // GENERERT AV scripts/bygg-figurfasit.mjs — IKKE REDIGER FOR HÅND.
 //
-// Standardfigurene for de tretten stjernebildene Lende tegner, hentet fra
+// Standardfigurene for de femten stjernebildene Lende tegner, hentet fra
 // d3-celestials `data/constellations.lines.json` (ofrohn/d3-celestial, BSD-3)
 // og slått opp mot HYG for Bayer-betegnelser.
 //
@@ -17,6 +17,23 @@
 /* eslint-disable */
 
 export const FIGUR_FASIT = {
+  "andromeda": [
+    "Alp And — Del And",
+    "Bet And — Del And",
+    "Bet And — Gam And",
+    "Bet And — Mu And",
+    "Del And — Eps And",
+    "Del And — Pi And",
+    "Eps And — Zet And",
+    "Eta And — Zet And",
+    "Iot And — Kap And",
+    "Iot And — Omi And",
+    "Iot And — Pi And",
+    "Kap And — Lam And",
+    "Kap And — Psi And",
+    "Mu And — Nu And",
+    "Nu And — Phi And",
+  ],
   "bjornevokteren": [
     "Alp Boo — Eps Boo",
     "Alp Boo — Eta Boo",
@@ -149,6 +166,22 @@ export const FIGUR_FASIT = {
     "Mu Ori — Xi Ori",
     "Omi Ori — Pi Ori",
     "Pi Ori — Pi Ori",
+  ],
+  "pegasus": [
+    "Alp And — Bet Peg",
+    "Alp And — Gam Peg",
+    "Alp Peg — Bet Peg",
+    "Alp Peg — Gam Peg",
+    "Alp Peg — Xi Peg",
+    "Bet Peg — Eta Peg",
+    "Bet Peg — Mu Peg",
+    "Eps Peg — The Peg",
+    "Eta Peg — Pi Peg",
+    "Iot Peg — Kap Peg",
+    "Iot Peg — Lam Peg",
+    "Lam Peg — Mu Peg",
+    "The Peg — Zet Peg",
+    "Xi Peg — Zet Peg",
   ],
   "persevs": [
     "Alp Per — Gam Per",

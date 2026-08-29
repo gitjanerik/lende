@@ -1,5 +1,7 @@
 <script setup>
-// Infokort for det valgte på himmelen: stjernebilde, planet eller månen.
+// Infokort for det valgte på himmelen: stjernebilde, planet, månen — eller én
+// enkelt stjerne (v6.4.0), som er den halvparten av himmelen som fram til nå
+// ikke kunne svare for seg.
 //
 // EGEN KOMPONENT og ikke Tour3dFeatureCard, som ble vurdert: den er bundet til
 // kart-feature-typer (TYPE_LABELS, TYPE_IKONER) og henter NVE-observasjoner
@@ -44,7 +46,10 @@ const komma = (n, d = 1) => (Number.isFinite(n) ? n.toFixed(d).replace('.', ',')
 const hoydeGrader = computed(() => Math.round((props.objekt?.hoyde ?? 0) * GRAD))
 const retning = computed(() => kompass((props.objekt?.azimut ?? 0) * GRAD))
 
-const IKON = { mane: '🌙', planet: '🪐', formasjon: '✦' }
+// FYLT stjerne for en figur, ÅPEN for én enkelt stjerne. To tegn fra samme
+// familie, så raden leses som én liste og ikke som to — men forskjellen er der
+// når man leter etter «det jeg trykket på i himmelen».
+const IKON = { mane: '🌙', planet: '🪐', formasjon: '✦', stjerne: '✧' }
 
 // Astronomiske fakta og utforskningshistorie. Finnes for månen og alle
 // planetene — også Merkur og Venus, som ikke har globe: at man ikke kan snurre
@@ -209,6 +214,33 @@ const faseNavn = computed(() => {
       <div v-else-if="objekt.type === 'mane'" class="mt-1.5 text-[0.6875rem] text-white/70">
         {{ faseNavn }} · {{ Math.round(objekt.lysAndel * 100) }} % opplyst
       </div>
+      <div v-else-if="objekt.type === 'stjerne'" class="mt-1.5 text-[0.6875rem] text-white/70">
+        Lysstyrke {{ komma(objekt.mag) }}<template v-if="objekt.stjernebilde">
+        · hører til {{ objekt.stjernebilde.norsk }}
+        <span class="italic text-white/45">{{ objekt.stjernebilde.latin }}</span></template>.
+      </div>
+
+      <!-- HVORFOR STÅR DEN ALENE? Dette er spørsmålet som ga hele funksjonen
+           (v6.4.0): en skjerm med prikker uten streker leses som en feil. Svaret
+           er at katalogen er lysstyrke-styrt mens figurene er håndplukket, og det
+           skal stå i kortet — ikke bare i en CHANGELOG. -->
+      <template v-if="objekt.type === 'stjerne' && objekt.stjernebilde && !objekt.tegnesFigur">
+        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/35">
+          Uten streker
+        </div>
+        <p class="text-[0.6875rem] leading-relaxed text-white/70">
+          Lende tegner ikke figuren for {{ objekt.stjernebilde.norsk }}, så
+          {{ objekt.navn }} står alene på himmelen. Stjerna er like fullt en av de
+          sterkeste vi viser — himmelen her er valgt etter lysstyrke, mens
+          stjernebildene er tegnet ett for ett.
+        </p>
+      </template>
+
+      <!-- Det ene som er verdt å vite om stjerna. Teksten bor i stjerneFakta.js. -->
+      <template v-if="objekt.type === 'stjerne' && objekt.fakta">
+        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/35">Verdt å vite</div>
+        <p class="text-[0.6875rem] leading-relaxed text-white/70">{{ objekt.fakta }}</p>
+      </template>
 
       <!-- Legemer med globe: det ene faktumet som er verdt å ta med seg. Teksten
            bor i himmellegemer.js, ikke her — den skrives om uten å røre en

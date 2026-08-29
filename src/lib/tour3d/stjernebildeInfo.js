@@ -30,6 +30,25 @@
 // mellom kilder (Denebs avstand) er oppgitt SOM spredning framfor å velge ett.
 
 export const STJERNEBILDE_INFO = {
+  andromeda: {
+    latin: 'Andromeda',
+    wikipedia: 'https://no.wikipedia.org/wiki/Andromeda_(stjernebilde)',
+    mytologi: 'Kongsdatteren, barnet til Kassiopeia og Kefeus. Da mora skrøt av '
+      + 'skjønnheten sin, ble Andromeda lenket til et skjær som offer til '
+      + 'sjøuhyret — og Persevs kom flygende forbi i siste liten. Hele familien '
+      + 'endte på himmelen, og de står der fortsatt ved sida av hverandre.',
+    funFact: 'Beinet ut fra Mirach peker på Andromedagalaksen: det fjerneste '
+      + 'mennesket kan se uten kikkert, 2,5 millioner lysår unna. Den er ikke et '
+      + 'punkt, men en avlang tåkeflekk på størrelse med seks fullmåner etter '
+      + 'hverandre — og den kommer mot oss. Om noen milliarder år smelter den '
+      + 'sammen med vår egen galakse. Almach i den andre enden er egentlig fire '
+      + 'stjerner, og et lite teleskop viser den som et gult og et blått par.',
+    finnDen: 'Alpheratz er hjørnet i Pegasus-firkanten som kjeden går ut fra. '
+      + 'Følg tre omtrent like sterke stjerner videre derfra — Alpheratz, Mirach, '
+      + 'Almach — så har du henne. Fra Mirach går et kort bein opp til to svakere '
+      + 'stjerner; like over den ytterste ligger galaksen som en svak, avlang '
+      + 'tåke. Vent til øynene er mørkevante, og se litt ved sida av den.',
+  },
   bjornevokteren: {
     latin: 'Boötes',
     wikipedia: 'https://no.wikipedia.org/wiki/Bj%C3%B8rnevokteren',
@@ -151,6 +170,26 @@ export const STJERNEBILDE_INFO = {
     finnDen: 'Tre like sterke stjerner på rad — beltet — er det lettest '
       + 'gjenkjennelige på hele himmelen. Beltet peker mot Sirius den ene veien '
       + 'og Aldebaran den andre.',
+  },
+  pegasus: {
+    latin: 'Pegasus',
+    wikipedia: 'https://no.wikipedia.org/wiki/Pegasus_(stjernebilde)',
+    mytologi: 'Den vingede hesten, som sprang ut av blodet da Persevs hogg hodet '
+      + 'av Medusa. Bellerofon temmet den og red den i kamp, men falt av da han '
+      + 'ville ri helt opp til gudene. Hesten står opp ned på himmelen, og bare '
+      + 'framparten er med.',
+    funFact: 'Firkanten er en målestokk: den spenner omtrent 15 grader, en knyttneve '
+      + 'med utstrakt arm, og hvor mange stjerner du klarer å telle INNI den sier '
+      + 'hvor mørk himmelen er der du står. Fra en by ser du ingen, fra fjellet et '
+      + 'titalls. Innenfor samme felt ligger 51 Pegasi, der de første planetene '
+      + 'rundt en vanlig sol ble funnet i 1995 — oppdagelsen ga nobelprisen i '
+      + 'fysikk i 2019. Scheat i det ene hjørnet er en rød kjempe som skifter '
+      + 'lysstyrke uten fast takt.',
+    finnDen: 'En stor, nesten tom firkant høyt oppe på høsthimmelen — det er den '
+      + 'tomheten som gjør den lett å kjenne igjen. Markab og Scheat er de to '
+      + 'hjørnene på den ene sida, og Alpheratz i det fjerde hjørnet deler den med '
+      + 'Andromeda. Halsen med Enif, hestens mule, stikker ut fra firkanten den '
+      + 'andre veien enn Andromeda-kjeden.',
   },
   persevs: {
     latin: 'Perseus',

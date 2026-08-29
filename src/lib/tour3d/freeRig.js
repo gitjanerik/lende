@@ -515,6 +515,26 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
       }
     },
 
+    /**
+     * Åpningsposen UMIDDELBART, uten flytur og uten autorotasjon.
+     *
+     * HVORFOR EN EGEN INNGANG VED SIDA AV resetToOverview (v6.4.0): inngangen
+     * til nattmodus skal stille kameraet tilbake til oversikten OG DERETTER
+     * løfte blikket opp i himmelen. De to kan ikke begge animeres — `seMot`
+     * nuller `transition`, så en flytur til oversikten ville blitt avbrutt midt
+     * i, og blikkløftet ville dessuten lest av asimuten kameraet sto i FØR
+     * flyturen. Altså: posen settes straks, og bevegelsen brukeren ser er
+     * løftet mot stjernene.
+     *
+     * Autorotasjonen skal heller ikke starte her: den ville snurret himmelen
+     * under føttene på en som nettopp fikk beskjed om at hun ser nordover.
+     */
+    settOversiktStraks() {
+      controls.enabled = true
+      controls.autoRotate = false
+      applyPose(overviewPose())
+    },
+
     /** Tilbake til fugleperspektivet, mykt, og rotasjonen starter igjen. */
     resetToOverview() {
       controls.enabled = true
