@@ -1,3 +1,31 @@
+## 2026-08-29 — v6.5.1: Fritt lende låner turkartets loader, og får sin egen side i Om
+
+Felttest av v6.5.0 ga to ting. Fremdrifts-chipen i Fritt lende var ren tekst med
+en Avbryt-knapp ved siden av, mens turkartet har et animert «landmåler»-ikon —
+og på en smal skjerm ble knappen klemt så «Avbryt» delte seg til «Av-bryt» over
+to linjer. En knapp som ser ødelagt ut leses som at appen er det, og dette er
+knappen man trykker for å komme seg ut av en bygging.
+
+**Ikonet er trukket ut til `KartLaster.vue` og brukes nå begge steder.** Markupen
+er flyttet ordrett, så turkartets chip ser nøyaktig lik ut som før — det var
+kravet. En kopi ville drevet fra originalen, og de skal være samme ikon fordi de
+betyr det samme. I Fritt lende står det i ALLE fasene, også «finner posisjonen
+din», som var den eneste uten noe som beveget seg og dermed den som mest så ut
+som om appen hadde hengt seg.
+
+**`/om` har fått en tredje fane.** Fritt lende var udokumentert, og teksten
+plasserer den der den hører hjemme: et supplement til turkartet og ikke en
+erstatning — små, kvadratiske ark som lages på farta, på nærtur der du har
+dekning og bare vil se et kart. Fanen forklarer de tre knappe-tilstandene og
+hvorfor arket er ferskvare, siden det er den ene tingen ved modusen som ser ut
+som en mangel og er et valg.
+
+Fane-raden er `flex-wrap` fra nå: «Ruteplanlegger» er bredt nok til at tre faner
+ikke får plass på én linje ved 150 % tekstskalering. Da er en rad som brytes
+bedre enn etiketter som forkortes.
+
+---
+
 ## 2026-08-29 — v6.5.0: Fritt lende — ett kart, én knapp
 
 En ny, avkledd turkartmodus. Alt UI er borte unntatt hovedmenyknappen øverst,
