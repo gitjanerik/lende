@@ -29,6 +29,28 @@ import { wgs84ToUtm32 } from './utm.js'
 //
 // Den som vil ha et kart som varer, har allerede verktøyet: /nytt.
 
+// ── Åpningsvisningen ────────────────────────────────────────────────────────
+// Arket er KVADRATISK (2 × 2 km) og telefonen er høy og smal. «Se hele arket»
+// (contain) fyller derfor bare bredden og etterlater et stort tomt felt over og
+// under — arket ble liggende som en frimerke-firkant midt på skjermen, og
+// kartet var mindre enn det trengte å være.
+//
+// Modusen skal vise KARTET, ikke arket. Vi dekker viewporten i stedet (cover),
+// og legger på litt margin så en arkkant ikke kommer til syne av at man
+// panorerer et lite stykke.
+export const DEKNING_MARGIN = 1.08
+
+// Skalaen regnes RELATIVT til den iboende gjengivelsen: SVG-en står på
+// 100 % × 100 % med preserveAspectRatio="xMidYMid meet", så nullpunktet
+// (scale = 1) ER contain. Derfor forholdet cover/contain og ikke cover alene.
+export function dekningsSkala({ w, h, widthM, heightM }) {
+  if (!w || !h || !widthM || !heightM) return 1
+  const contain = Math.min(w / widthM, h / heightM)
+  if (!contain) return 1
+  const cover = Math.max(w / widthM, h / heightM)
+  return (cover / contain) * DEKNING_MARGIN
+}
+
 // ── Arkets faste form ───────────────────────────────────────────────────────
 // 2 × 2 km, 10 m ekvidistanse. Ikke justerbart — det er hele poenget med
 // modusen. HALV_KM og ASPEKT sendes videre til buildMapFromCenter fordi de

@@ -3,9 +3,20 @@ import { LAYERS } from './mapLayerCatalog.js'
 import { kartStil } from './kartStiler.js'
 import { utm32ToWgs84 } from './utm.js'
 import {
-  FRITT_LENDE_LAG, FRATREKK, frittLendeTema, frittLendeUtmBbox,
-  knappeHandling, knappeEtikett, fixVurdering, arkErGammelt,
-  BREDDE_M, DEM_OPPLOSNING_M, EKVIDISTANSE_M, GAMMELT_ARK_DOGN,
+  FRITT_LENDE_LAG,
+  FRATREKK,
+  frittLendeTema,
+  frittLendeUtmBbox,
+  knappeHandling,
+  knappeEtikett,
+  fixVurdering,
+  arkErGammelt,
+  BREDDE_M,
+  DEM_OPPLOSNING_M,
+  EKVIDISTANSE_M,
+  GAMMELT_ARK_DOGN,
+  dekningsSkala,
+  DEKNING_MARGIN,
 } from './frittLende.js'
 
 const LAG_NOKLER = new Set(LAYERS.map((l) => l.key ?? l))
@@ -204,5 +215,49 @@ describe('arkets faste form', () => {
     expect(BREDDE_M).toBe(2000)
     expect(EKVIDISTANSE_M).toBe(10)
     expect(DEM_OPPLOSNING_M).toBe(10)
+  })
+})
+
+// Åpningsvisningen. Feilen dette retter var synlig i felt: et kvadratisk 2 km-ark
+// på en høy telefon la seg etter BREDDEN og etterlot et tomt felt over og under.
+describe('dekningsSkala', () => {
+  const ark = { widthM: 2000, heightM: 2000 }
+
+  it('dekker viewporten på en høy, smal skjerm', () => {
+    const { w, h } = { w: 430, h: 787 }
+    const s = dekningsSkala({ w, h, ...ark })
+    const contain = Math.min(w / 2000, h / 2000)
+    // Arkets høyde på skjermen skal være minst viewportens høyde.
+    expect(2000 * contain * s).toBeGreaterThanOrEqual(h)
+    // …og bredden er da bredere enn skjermen, som er hele poenget med cover.
+    expect(2000 * contain * s).toBeGreaterThan(w)
+  })
+
+  it('har margin, så en arkkant ikke dukker opp av litt panorering', () => {
+    const { w, h } = { w: 430, h: 787 }
+    const s = dekningsSkala({ w, h, ...ark })
+    const bart = Math.max(w / 2000, h / 2000) / Math.min(w / 2000, h / 2000)
+    expect(s).toBeGreaterThan(bart)
+    expect(s / bart).toBeCloseTo(DEKNING_MARGIN, 10)
+  })
+
+  it('zoomer mer jo høyere skjermen er', () => {
+    const lav = dekningsSkala({ w: 430, h: 600, ...ark })
+    const hoy = dekningsSkala({ w: 430, h: 900, ...ark })
+    expect(hoy).toBeGreaterThan(lav)
+  })
+
+  // Nullpunktet er contain (SVG-en står på 100 % med preserveAspectRatio=meet),
+  // så en kvadratisk viewport trenger ingen zoom utover marginen.
+  it('gir bare marginen på en kvadratisk skjerm', () => {
+    expect(dekningsSkala({ w: 800, h: 800, ...ark })).toBeCloseTo(DEKNING_MARGIN, 10)
+  })
+
+  // En umålt flate MÅ gi 1 og ikke NaN eller 0: verdien går rett inn i en
+  // CSS-transform, og NaN der gir et usynlig kart.
+  it('faller trygt tilbake til 1 uten målt flate', () => {
+    expect(dekningsSkala({ w: 0, h: 0, ...ark })).toBe(1)
+    expect(dekningsSkala({ w: 430, h: 787, widthM: 0, heightM: 0 })).toBe(1)
+    expect(dekningsSkala({})).toBe(1)
   })
 })

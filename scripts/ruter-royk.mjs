@@ -215,6 +215,32 @@ try {
     `${arket?.knapper ?? 0} knapper`)
   sjekk('Fritt lende: målestokken vises', arket?.maalestokk === true)
 
+  // Åpningsvisningen (v6.5.2). Arket er kvadratisk og telefonen høy, så
+  // «se hele arket» fylte bare bredden og la kartet bunn-nært med et tomt felt
+  // over. Kartet skal DEKKE viewporten, og det man sentrerer på skal ligge i
+  // midten — letterboxingen inni SVG-en er lett å glemme igjen.
+  const visning = await s5.evaluate(() => {
+    const svg = document.querySelector('svg.isom-map')
+    const vb = svg.viewBox.baseVal
+    const pt = (x, y) => {
+      const p = svg.createSVGPoint(); p.x = x; p.y = y
+      return p.matrixTransform(svg.getScreenCTM())
+    }
+    const a = pt(0, 0), b = pt(vb.width, vb.height), midt = pt(vb.width / 2, vb.height / 2)
+    return {
+      bredde: b.x - a.x, hoyde: b.y - a.y,
+      vpB: window.innerWidth, vpH: window.innerHeight,
+      midtAvvikX: Math.abs(midt.x - window.innerWidth / 2),
+      midtAvvikY: Math.abs(midt.y - window.innerHeight / 2),
+    }
+  })
+  sjekk('Fritt lende: kartet dekker hele viewporten',
+    !!visning && visning.bredde >= visning.vpB && visning.hoyde >= visning.vpH,
+    visning ? `kart ${Math.round(visning.bredde)}×${Math.round(visning.hoyde)} mot skjerm ${visning.vpB}×${visning.vpH}` : '')
+  sjekk('Fritt lende: sentreringen treffer viewportens midte',
+    !!visning && visning.midtAvvikX < 2 && visning.midtAvvikY < 2,
+    visning ? `avvik ${Math.round(visning.midtAvvikX)}, ${Math.round(visning.midtAvvikY)} px` : '')
+
   // /om har tre faner fra v6.5.1. Fritt lende-fanen er den eneste dokumentasjonen
   // av modusen som finnes, og en fane er lett å miste i en refaktorering av
   // v-if/v-else-kjeden. Sjekken er nettverksfri.
