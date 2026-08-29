@@ -168,13 +168,27 @@ jobs:
       # origin/master». Med fetch-depth: 0 var det checkout som skaffet refen,
       # så linja som sto her før var i praksis en no-op.
       #
-      # PR-beskrivelsen mates inn som MILJØVARIABEL og ikke inn i kommandolinja:
-      # den er uklarert tekst, og en env-variabel kan ikke bli til shell. Se
-      # traillerNavn i scripts/navnediff.mjs.
+      # PR-beskrivelsen hentes LIVE, ikke fra `github.event.pull_request.body`.
+      # Den i hendelsen er et ØYEBLIKKSBILDE fra pushet: skriver man kvitteringen
+      # inn i beskrivelsen etterpå, leser CI fortsatt den gamle teksten, og en
+      # ny kjøring av samme hendelse gjør ingen forskjell. Det er en felle som
+      # smalt med det samme — og en gate man ikke kan rette uten å pushe på nytt
+      # er halvveis tilbake til den som ikke kunne bestås.
+      #
+      # Teksten mates inn som MILJØVARIABEL og ikke inn i kommandolinja: den er
+      # uklarert (hvem som helst kan skrive en PR-beskrivelse), og en
+      # env-variabel kan ikke bli til shell. Se traillerNavn i
+      # scripts/navnediff.mjs.
       - name: Navnediff mot origin/master
         env:
-          NAVNEDIFF_PR_BODY: ${{ github.event.pull_request.body }}
-        run: npm run navnediff
+          GH_TOKEN: ${{ github.token }}
+          PR_NR: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -n "$PR_NR" ]; then
+            NAVNEDIFF_PR_BODY="$(gh pr view "$PR_NR" --json body -q .body)" npm run navnediff
+          else
+            npm run navnediff
+          fi
 
       - name: Last opp skjermbilder ved feil
         if: failure()
