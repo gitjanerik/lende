@@ -1,3 +1,27 @@
+## 2026-08-29 — v6.5.3: Chipen forsvinner når posisjonen er funnet
+
+«Finner posisjonen din …» ble stående etter at GPS-prikken var tegnet i kartet.
+Flagget ble bare nullstilt av bygge-stien, så et trykk som BARE startet GPS —
+altså den vanligste handlingen i modusen — lot chipen bli liggende for alltid,
+med posisjonen tydelig markert bak den. Nå nullstilles den når fixen faktisk
+lander. Unntaket er mens `byggNaarFix` venter på en god nok fix: da eier den
+flagget, og chipen skal stå til den har bestemt seg, ellers ser skjermen ferdig
+ut midt i en vurdering.
+
+**Og en layout-feil med en lærdom i seg.** Teksten brakk midt i ordet —
+«Finner posisjo-nen din». Chipen var `left-1/2` med `-translate-x-1/2`, og for et
+absolutt posisjonert element er tilgjengelig bredde alt fra venstrekanten og ut.
+`left: 50%` gir derfor shrink-to-fit bare HALVE skjermen å regne med — 215 px på
+en vanlig telefon — og `max-w` slo aldri inn, fordi den halve plassen var den
+bindende begrensningen hele tiden. Med `left-0 right-0 mx-auto w-fit` er hele
+bredden tilgjengelig. Målt på 360, 412 og 430 px: teksten står på én linje overalt,
+chipen er 233 px og sentrert.
+
+Røyk-sjekken er verifisert i BEGGE retninger — den er rød med fiksen skrudd av,
+med meldingen «chipen står igjen».
+
+---
+
 ## 2026-08-29 — v6.5.2: Fritt lende åpner på kartet, ikke på arket
 
 Arket i Fritt lende er kvadratisk, og en telefon er høy og smal. Visningen la

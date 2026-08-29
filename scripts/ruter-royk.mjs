@@ -246,6 +246,22 @@ try {
   sjekk('Fritt lende: kartet dekker hele viewporten',
     !!visning && visning.bredde >= visning.vpB && visning.hoyde >= visning.vpH,
     visning ? `kart ${Math.round(visning.bredde)}×${Math.round(visning.hoyde)} mot skjerm ${visning.vpB}×${visning.vpH}` : '')
+  // Fremdrifts-chipen MÅ forsvinne når fixen lander (v6.5.3). Fram til da ble
+  // flagget bare nullstilt av bygge-stien, så et trykk som bare startet GPS lot
+  // «Finner posisjonen din …» stå for alltid — med posisjonen tydelig markert i
+  // kartet bak. Sjekken trykker på ekte knapp og venter på ekte posisjon.
+  await ctx.grantPermissions(['geolocation'])
+  await ctx.setGeolocation({ latitude: 59.75211128285356, longitude: 10.185212484072062 })
+  await s5.locator('button[aria-label]').first().click()
+  await sov(2500)
+  const etterFix = await s5.evaluate(() => ({
+    chipStårIgjen: [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Avbryt'),
+    prikk: !!document.querySelector('#user-layer circle'),
+  }))
+  sjekk('Fritt lende: fremdrifts-chipen forsvinner når fixen kommer',
+    etterFix.prikk && !etterFix.chipStårIgjen,
+    etterFix.prikk ? (etterFix.chipStårIgjen ? 'chipen står igjen' : 'borte') : 'fikk ingen posisjon')
+
   sjekk('Fritt lende: sentreringen treffer viewportens midte',
     !!visning && visning.midtAvvikX < 2 && visning.midtAvvikY < 2,
     visning ? `avvik ${Math.round(visning.midtAvvikX)}, ${Math.round(visning.midtAvvikY)} px` : '')

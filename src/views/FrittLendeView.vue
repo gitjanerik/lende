@@ -369,7 +369,17 @@ function tegnPrikk() {
 
 watch(() => [userPos.svgX, userPos.svgY, userPos.accuracyM], () => {
   tegnPrikk()
-  if (sentrerPaaNesteFix.value && userPos.svgX != null && !userPos.isOutsideMap) {
+  if (userPos.svgX == null) return
+  // Fixen er inne: «Finner posisjonen din …» skal bort. Fram til v6.5.3 ble
+  // flagget bare nullstilt av bygge-stien, så et trykk som BARE startet GPS
+  // lot chipen stå for alltid — med posisjonen tydelig markert i kartet bak.
+  //
+  // Unntaket er når byggNaarFix venter på en god NOK fix: da eier den flagget,
+  // og chipen skal stå til den har bestemt seg. Ellers ville tilbakemeldingen
+  // forsvunnet mens vi fortsatt venter, og skjermen sett ferdig ut midt i en
+  // vurdering.
+  if (!fixVent) venterPaaFix.value = false
+  if (sentrerPaaNesteFix.value && !userPos.isOutsideMap) {
     sentrerPaaNesteFix.value = false
     settStandardvisning()
   }
@@ -458,15 +468,21 @@ const arkDato = computed(() => (opprettet.value
 
     <!-- Fremdrift. Ingen fullskjerm-loader: et 2 km-ark er 1/16 av
          standardkartet, så dette er sekunder og ikke minutter. -->
+    <!-- left-0 right-0 + mx-auto og IKKE left-1/2 + translate: for et absolutt
+         posisjonert element er tilgjengelig bredde alt fra venstrekanten og ut,
+         så `left: 50%` gir shrink-to-fit bare HALVE skjermen å regne med — 215 px
+         på en vanlig telefon. max-w slo derfor aldri inn, og «posisjonen» brakk
+         midt i ordet. Her er hele bredden tilgjengelig og w-fit holder chipen
+         like bred som innholdet. -->
     <div v-if="bygger || venterPaaFix"
-         class="absolute top-16 left-1/2 -translate-x-1/2 z-30 max-w-[min(22rem,92vw)]
+         class="absolute top-16 left-0 right-0 mx-auto w-fit z-30 max-w-[min(24rem,92vw)]
                 flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-2xl bg-overlay shadow-lg
                 border border-ink/10 backdrop-blur">
       <!-- Samme ikon som turkartet bruker mens det fyller inn detaljer. Det står
            i ALLE fasene, også «finner posisjonen» — den var den eneste uten noe
            som beveget seg, og en stillestående chip leses som at appen har hengt. -->
       <KartLaster storrelse="w-6 h-6" />
-      <span class="text-xs text-ink leading-snug">{{
+      <span class="text-xs text-ink leading-snug [overflow-wrap:normal] [word-break:keep-all]">{{
         venterPaaFix && !bygger ? 'Finner posisjonen din …' : fremdrift }}</span>
       <!-- shrink-0 + nowrap: uten dem klemmes knappen mot teksten og «Avbryt»
            deles til «Av-bryt» over to linjer. Den er rømningsveien ut av en
