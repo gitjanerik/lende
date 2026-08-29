@@ -164,10 +164,16 @@ try {
       t.oncomplete = ok; t.onerror = () => nei(t.error)
     })
   })
-  let eksterneKall = 0
+  // Samler URL-ene og ikke bare antallet: «1 eksterne kall forsøkt» er en
+  // opplysning man ikke kan gjøre noe med, og feilen dukket opp i CI mens den
+  // var grønn lokalt. En sjekk som ikke sier HVA som gikk galt koster en runde
+  // gjetting hver gang den slår ut.
+  const eksterneUrler = []
   await s5.route('**', (r) => {
-    if (r.request().url().startsWith(BASE.replace('/lende', ''))) return r.continue()
-    eksterneKall++; return r.abort()
+    const url = r.request().url()
+    if (url.startsWith(BASE.replace('/lende', ''))) return r.continue()
+    eksterneUrler.push(`${r.request().resourceType()} ${url}`)
+    return r.abort()
   })
   await s5.goto(`${BASE}/fritt`, { waitUntil: 'domcontentloaded' })
   let arket = null
@@ -198,8 +204,11 @@ try {
     })
   } catch { /* arket = null */ }
 
-  sjekk('Fritt lende: lagret ark lastes UTEN nettverk', !!arket && eksterneKall === 0,
-    arket ? `${eksterneKall} eksterne kall forsøkt` : 'arket kom aldri opp')
+  sjekk('Fritt lende: lagret ark lastes UTEN nettverk',
+    !!arket && eksterneUrler.length === 0,
+    arket
+      ? (eksterneUrler.length ? eksterneUrler.slice(0, 3).join(' | ') : 'ingen eksterne kall')
+      : 'arket kom aldri opp')
   sjekk('Fritt lende: navn er synlige (lod-pending fjernet)', arket?.lodPending === false)
   sjekk('Fritt lende: relieff er av', arket?.hillshade === false)
   sjekk('Fritt lende: #user-layer finnes', arket?.userLayer === true)
