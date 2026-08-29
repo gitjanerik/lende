@@ -167,7 +167,13 @@ jobs:
       # opprettet og navnediff feiler med «fant ikke MapView.vue i
       # origin/master». Med fetch-depth: 0 var det checkout som skaffet refen,
       # så linja som sto her før var i praksis en no-op.
+      #
+      # PR-beskrivelsen mates inn som MILJØVARIABEL og ikke inn i kommandolinja:
+      # den er uklarert tekst, og en env-variabel kan ikke bli til shell. Se
+      # traillerNavn i scripts/navnediff.mjs.
       - name: Navnediff mot origin/master
+        env:
+          NAVNEDIFF_PR_BODY: ${{ github.event.pull_request.body }}
         run: npm run navnediff
 
       - name: Last opp skjermbilder ved feil

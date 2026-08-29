@@ -17,7 +17,7 @@
 //   npm run navnediff -- --ok formatDistance,startGpsTick   # kvitter ut villet sletting
 //
 // I CI, der det ikke går an å sende flagg, kvitteres en villet sletting ut med
-// en trailer i en commit på grenen:
+// en linje i PR-BESKRIVELSEN (eller i en commit-trailer, som virker lokalt):
 //
 //   Navnediff-ok: formatDistance, startGpsTick
 //
@@ -47,17 +47,36 @@ const REF = flagg('ref', 'origin/master')
 // alltid rød i CI, uansett hva man skrev. Det er en gate som ikke kan bestås, og
 // slike blir skrudd av innen en måned.
 //
-// Trailer og ikke en fil-liste med vilje: den hører til ENDRINGEN, den er synlig
-// i diffen og i loggen, og den forsvinner av seg selv når grenen er merget. En
-// `.navnediff-ok` i rota ville blitt liggende og stilnet de samme navnene for
-// alltid.
+// TRE steder, og det tredje er det som virker i CI:
+//   • `--ok navn1,navn2` — lokalt
+//   • `Navnediff-ok: navn1, navn2` som commit-trailer — lokalt
+//   • samme linje i PR-BESKRIVELSEN, matet inn som NAVNEDIFF_PR_BODY
+//
+// Første forsøk (v6.3.12) leste bare trailer-en, og den er USYNLIG i CI:
+// `actions/checkout` henter en GRUNN klone (dybde 1) av PR-ens merge-ref, så
+// `origin/master..HEAD` kan ikke regnes ut og commit-meldingene finnes ikke i det
+// hele tatt. Å hente dypere ville kostet nettopp minuttene vi holder nede — dette
+// repoet har bakte kart-SVG-er i historikken, så «få commits» er ikke det samme
+// som «billig å hente».
+//
+// PR-beskrivelsen er derimot gratis: den ligger i webhook-nyttelasten. Den er
+// også det mest LESELIGE stedet — kvitteringen står der en menneskelig
+// gjennomgang faktisk ser den — og den forsvinner av seg selv når PR-en er
+// merget. En `.navnediff-ok` i rota ville blitt liggende og stilnet de samme
+// navnene for alltid.
+//
+// Teksten er UKLARERT inndata (hvem som helst kan skrive en PR-beskrivelse), og
+// det er derfor den parses HER i JS og ikke settes sammen til en kommandolinje i
+// workflowen. Det verste den kan gjøre er å dempe et navn i en rapport.
 const traillerNavn = () => {
+  const treff = (tekst) => [...String(tekst ?? '').matchAll(/^Navnediff-ok:\s*(.+)$/gim)]
+    .flatMap((m) => m[1].split(','))
+  const fraPr = treff(process.env.NAVNEDIFF_PR_BODY)
+  if (fraPr.length) return fraPr
   try {
-    const logg = execFileSync('git', ['log', '--format=%B', `${REF}..HEAD`],
-      { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 })
-    return [...logg.matchAll(/^Navnediff-ok:\s*(.+)$/gim)]
-      .flatMap((m) => m[1].split(','))
-  } catch { return [] }
+    return treff(execFileSync('git', ['log', '--format=%B', `${REF}..HEAD`],
+      { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }))
+  } catch { return [] }   // grunn klone — da er PR-beskrivelsen eneste vei
 }
 const KVITTERT = new Set([
   ...(flagg('ok', '') || '').split(','),
@@ -242,7 +261,7 @@ if (uforklart.length) {
   console.log(`\n⚠ uforklart borte (${uforklart.length}) — ikke brukt, ikke funnet i endrede filer:`)
   for (const n of uforklart) console.log(`   ${n}`)
   console.log(`   Var det med vilje? Kvitter ut: npm run navnediff -- --ok ${uforklart.join(',')}`)
-  console.log(`   … og i CI: legg «Navnediff-ok: ${uforklart.join(', ')}» som trailer i en commit.`)
+  console.log(`   … og i CI: legg «Navnediff-ok: ${uforklart.join(', ')}» i PR-beskrivelsen.`)
   kode = 1
 }
 
