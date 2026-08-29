@@ -16,6 +16,7 @@
 
 import { FORMASJONER, STJERNER } from './stjerner.js'
 import { STJERNEBILDE_INFO, sokeNavnFor } from './stjernebildeInfo.js'
+import { stjerneNavn, bayerNavn, stjernebildeFor, faktaFor } from './stjerneFakta.js'
 import { synligePlaneter } from './planeter.js'
 import { harGlobe } from './himmellegemer.js'
 import { lokalStjernetid, tilHorisont, presesserTilDato, himmelFor } from './astronomi.js'
@@ -24,6 +25,27 @@ const GRAD = Math.PI / 180
 
 /** Under dette regnes en formasjon som «ikke oppe» selv om noen stjerner er det. */
 const MIN_ANDEL_OPPE = 0.6
+
+/**
+ * Katalog-indeksene som inngår i en figur vi tegner.
+ *
+ * Alt som IKKE er her, er en «løs» stjerne: den tegnes på himmelen uten en
+ * eneste strek til noe annet, fordi vi ikke har figuren dens. Det er 57 av 173,
+ * og de er ikke svake — katalogen tar alt lysere enn magnitude 2,6, så det er
+ * blant andre Sirius, Aldebaran, Altair, Antares og Spica.
+ *
+ * FRAM TIL v6.4.0 VAR DE IKKE VALGBARE, og det leste eieren som en feil: en
+ * skjerm med prikker uten streker, uten noen måte å spørre hva de er. De er nå
+ * med i lista på lik linje med formasjonene — søkbare, valgbare og med et
+ * infokort — mens stjernene som ER i en figur bevisst IKKE er det: der er
+ * figuren svaret, og to trefflater oppå hverandre ville bare stjålet trykk fra
+ * hverandre. (Stjernenavnene i en figur er fortsatt søkbare gjennom figuren:
+ * «Vega» finner Lyren.)
+ */
+const I_FORMASJON = new Set(FORMASJONER.flatMap((f) => f.stjerner))
+
+/** De latinske navnene på figurene vi FAKTISK tegner. Se `tegnesFigur` under. */
+const TEGNEDE_FIGURER = new Set(FORMASJONER.map((f) => f.latin))
 
 /**
  * Vinkelavstand mellom to himmelretninger, i grader. Brukt til naboene.
@@ -180,10 +202,63 @@ export function himmelObjekter({ lat, lon, dato = new Date(), tvingHimmel = fals
     })
   }
 
-  const rang = { mane: 0, planet: 1, formasjon: 2 }
+  // --- Løse stjerner -------------------------------------------------------
+  // Se I_FORMASJON over for hvorfor bare disse er med.
+  for (let i = 0; i < STJERNER.length; i++) {
+    if (I_FORMASJON.has(i)) continue
+    const s = STJERNER[i]
+    const j = presesserTilDato(s.ra, s.dek, dato)
+    const { azimut, hoyde } = tilHorisont(j.ra, j.dek, lst, lat)
+    // Samme port som resten av lista: den lover bare det som faktisk tegnes.
+    // Den tar samtidig hånd om at katalogen er hel-himmels — Canopus og
+    // Sørkorset står i HYG, men kommer aldri over en norsk horisont.
+    if (hoyde <= 0) continue
+    const sb = stjernebildeFor(s.bayer)
+    ut.push({
+      id: `stjerne:${i}`,
+      type: 'stjerne',
+      navn: stjerneNavn(s),
+      // Bayer-betegnelsen skrevet ut («α Tauri») står som sekundærnavn, der
+      // formasjonene har det latinske navnet sitt. For en stjerne UTEN egennavn
+      // ER den navnet, og da settes den ikke to ganger.
+      latin: s.navn ? bayerNavn(s.bayer) : null,
+      azimut,
+      hoyde,
+      mag: s.mag,
+      // Hvilket stjernebilde stjerna hører til — det er svaret på «hvorfor står
+      // den alene?»: figuren finnes, vi tegner den bare ikke.
+      stjernebilde: sb,
+      // Tegner vi figuren stjerna hører til? I dag er svaret alltid nei — en
+      // stjerne er løs nettopp fordi ingen av kjedene våre bruker den — men det
+      // er ikke garantert av noe: en figur kan godt utelate en lys stjerne
+      // innenfor sine egne grenser. Kortet sier «vi tegner ikke figuren» bare
+      // når det er sant, framfor å anta det.
+      tegnesFigur: !!sb && TEGNEDE_FIGURER.has(sb.latin),
+      fakta: faktaFor(s),
+      // Sendes til skyDome.settValgt, som løfter stjerna. Tom linjeliste er
+      // meningen: en enkeltstjerne har ingen strek å fremheve.
+      stjerner: [i],
+      linjer: [],
+      sokeNavn: [
+        ...sokeNavnFor(s),
+        bayerNavn(s.bayer),
+        // Stjernebildets navn er søkbart gjennom stjerna: skriver man «Tyren»,
+        // er Aldebaran det nærmeste et svar vi har.
+        sb?.norsk,
+        sb?.latin,
+      ].filter(Boolean),
+    })
+  }
+
+  // Rekkefølgen er den man legger merke til dem i: månen er umulig å overse, en
+  // planet er neste, et stjernebilde må man lete etter — og en enkeltstjerne er
+  // det man ender med å lure på når figurene er talt opp. Stjernene sorteres på
+  // lysstyrke som planetene: er man i tvil om hvilken prikk man trykket på, er
+  // den lyseste det beste første gjettet.
+  const rang = { mane: 0, planet: 1, formasjon: 2, stjerne: 3 }
   return ut.sort((a, b) => {
     if (rang[a.type] !== rang[b.type]) return rang[a.type] - rang[b.type]
-    if (a.type === 'planet') return (a.mag ?? 99) - (b.mag ?? 99)
+    if (a.type === 'planet' || a.type === 'stjerne') return (a.mag ?? 99) - (b.mag ?? 99)
     return a.navn.localeCompare(b.navn, 'nb')
   })
 }
@@ -273,6 +348,10 @@ export function naboerFor(valgt, alle, antall = 3) {
 export function himmelUndertekst(o) {
   const hoyde = Math.round(o.hoyde / GRAD)
   const retning = kompass(o.azimut / GRAD)
+  if (o.type === 'stjerne') {
+    const hvor = o.stjernebilde ? `Stjerne i ${o.stjernebilde.norsk}` : 'Stjerne'
+    return `${hvor} · ${retning}, ${hoyde}° over horisonten · lysstyrke ${komma(o.mag, 1)}`
+  }
   if (o.type === 'planet') {
     return `Planet · ${retning}, ${hoyde}° over horisonten · lysstyrke ${komma(o.mag, 1)}`
   }

@@ -471,6 +471,13 @@ export async function create3dScene(container, {
    * gi hver formasjon en pulsende ring som planetene: det er støy på en
    * natthimmel, og problemet var ikke at figuren var vanskelig å SE.
    */
+  /**
+   * Hvor mange piksler et treff «rabatteres» med, per type. Se bruken under.
+   * Formasjonene står ikke her — de har ingen rabatt, og et manglende oppslag
+   * gir 0.
+   */
+  const VEKT_PX = { mane: 18, planet: 18, stjerne: 8 }
+
   function plukkHimmel() {
     if (!himmelListe.length) return
     const w = core.renderer.domElement.clientWidth
@@ -504,10 +511,16 @@ export async function create3dScene(container, {
         d = Math.hypot(p.x - fx, p.y - fy)
       }
       if (d > TERSKEL) continue
-      // Skiver foran formasjoner: trekk fra litt for dem, så de vinner et
+      // Punkt-mål foran figurer: trekk fra litt for dem, så de vinner et
       // uavgjort trykk. Nå som figuren treffes langs strekene er dette viktigere
       // enn før — månen står ofte oppå et stjernebilde.
-      const vektet = o.type === 'formasjon' ? d : d - 18
+      //
+      // TO ULIKE FRADRAG, og det er ikke smak: en skive er et STORT mål man
+      // sikter midt på (månen er 1,6° bred), mens en løs stjerne er én piksel
+      // man sikter presist på. Fikk stjerna samme fradrag som månen, ville den
+      // stjålet trykk fra en stjernebilde-strek den tilfeldigvis lå nær — og en
+      // strek er det man ser og altså det man siktet på.
+      const vektet = d - (VEKT_PX[o.type] ?? 0)
       if (vektet < bestAvstand) {
         bestAvstand = vektet
         best = o
@@ -521,7 +534,10 @@ export async function create3dScene(container, {
   /** Fremhev og se mot et himmelobjekt. Delt av trykk og valg fra lista. */
   function velgHimmel(o) {
     valgtHimmel = o ?? null
-    core.settValgtFormasjon(o?.type === 'formasjon' ? o : null)
+    // Både en formasjon og en enkeltstjerne fremheves av settValgt — den tar
+    // {stjerner, linjer}, og en løs stjerne er ett indeks og ingen strek.
+    const fremhev = o?.type === 'formasjon' || o?.type === 'stjerne' ? o : null
+    core.settValgtFormasjon(fremhev)
     if (o) freeRig.seMot(o.azimut, o.hoyde)
     // Månen, Mars, Jupiter og Saturn åpner en globe. Alt annet lukker den, så man
     // aldri sitter med en måne foran seg mens infokortet snakker om Orion.
@@ -929,6 +945,34 @@ export async function create3dScene(container, {
      * @param {number} [hoyde] radianer over horisonten
      */
     seOppMotHimmelen(hoyde = STJERNE_HOYDE) {
+      freeRig.seMot(freeRig.blikkAzimut, hoyde, { tid: STJERNE_LOFT_S, ease: 'ut' })
+    },
+
+    /**
+     * Hele inngangen til stjernemodus: still kameraet tilbake til oversikten,
+     * og løft så blikket opp i himmelen derfra.
+     *
+     * HVORFOR RESETTEN ER MED (v6.4.0): man kommer nesten alltid til natt fra
+     * dagmodus, etter å ha panorert rundt i terrenget — og da lå blikket der
+     * turen tilfeldigvis endte, i en retning man ikke kjente. Med resetten
+     * starter hver kveld likt: midt over kartet, med nesa mot NORD. Det er den
+     * ene retningen man kan bygge en himmel ut fra, og den samme knappen
+     * brukeren selv har nede til venstre.
+     *
+     * Asimuten leses av riggen ETTER resetten og sendes uendret inn i løftet:
+     * oversiktsposen ER nordvendt, og å skrive 0 her ville vært det samme
+     * faktumet lagret to steder.
+     */
+    apneStjernehimmel(hoyde = STJERNE_HOYDE) {
+      highlight.hide()
+      // Som «Oversikt»: står en tur og spiller, er det ikke turkameraet som
+      // skal bære en stjernehimmel.
+      if (trip) {
+        playback.pause()
+        detachCamera()
+        reattachPending = false
+      }
+      freeRig.settOversiktStraks()
       freeRig.seMot(freeRig.blikkAzimut, hoyde, { tid: STJERNE_LOFT_S, ease: 'ut' })
     },
 

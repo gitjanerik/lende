@@ -1,3 +1,40 @@
+## 2026-08-29 — v6.4.0: Natta åpner mot nord, og de løse stjernene svarer for seg
+
+Eieren sendte et skjermbilde fra nattmodus: en nesten tom himmel med Kassiopeia
+oppe i hjørnet og seks–sju løse prikker under, uten en strek mellom seg. To
+spørsmål fulgte med, og begge var gode.
+
+**Det første var orienteringen.** Man går nesten alltid inn i natta fra dagmodus,
+etter å ha panorert rundt i terrenget — og da lå blikket der turen tilfeldigvis
+endte. Inngangen til stjernemodus stiller nå kameraet tilbake til oversikten
+først, akkurat som «Oversikt»-knappen nede til venstre, og løfter så blikket opp
+i himmelen derfra. Hver kveld starter dermed likt: midt over kartet, med nesa mot
+NORD. Resetten er UMIDDELBAR og løftet er det som animeres — de to kan ikke begge
+være flyturer, for `seMot` avbryter en pågående pose og ville dessuten lest av
+asimuten kameraet sto i FØR den. Røyktesten leser himmelkompassets aria-label
+rett etter inngangen og krever «nord»; enhetstestene kan bare se at asimuten ikke
+endres, ikke hvilken asimut riggen faktisk sto i.
+
+**Det andre var prikkene: er det en feil?** Nei — det er to ting som møtes.
+Katalogen tar ALT som er lysere enn magnitude 2,6, mens figurene er håndplukket
+én for én, så Sirius, Aldebaran, Altair, Antares og femti andre har aldri hatt en
+strek å høre til. Svaret er delt i to. **Andromeda og Pegasus er tegnet inn** —
+det var nettopp dem eieren så, kjeden Almach–Mirach–Alpheratz og den store
+firkanten under, og de er noe av det mest gjenkjennelige på høsthimmelen.
+Alpheratz står i begge figurene, som på ekte himmel. **Og de 57 stjernene som
+fortsatt står alene er blitt valgbare**: de er med i himmelsøket, kan trykkes på i
+himmelen, fremheves som en formasjon gjør, og har et infokort som sier hva de
+heter, hvilket stjernebilde de hører til — og hvorfor de står uten streker. Der
+det er verdt å vite noe, står det: Sirius' hvite dverg, Aldebaran som ikke er en
+del av Hyadene, Pegasus-firkanten som målestokk for hvor mørk himmelen er.
+
+Kjedene til de to nye figurene er målt mot d3-celestials standardfigurer, som de
+tretten andre, og fasiten er bakt på nytt. Betegnelsene skrives ut som «α Tauri»
+og ikke «Alp Tau», og et søk på «Tyren» finner nå Aldebaran selv om vi ikke
+tegner Tyren.
+
+---
+
 ## 2026-08-29 — v6.3.12: Værraden, tipset, tekststørrelsen og nålene som var vanskelige å treffe
 
 Fem ting fra morgenens felttest. **Værraden** målte aldri hvor mange timer som
