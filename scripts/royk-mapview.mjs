@@ -1508,7 +1508,12 @@ const SJEKKER = [
       }
       // SVARET PÅ «ER DETTE EN FEIL?» skal stå i kortet og ikke bare i en
       // CHANGELOG: vi tegner ikke figuren, derfor står stjerna uten streker.
-      if (!/Uten streker/.test(kort)) {
+      //
+      // CASE-UFØLSOMT MED VILJE: `innerText` gjengir teksten SLIK DEN VISES, og
+      // seksjonsoverskriftene i kortet har `uppercase` i CSS — Chrome svarer
+      // altså «UTEN STREKER». Første utgave av sjekken feilet på nettopp det,
+      // med et kort som var helt riktig.
+      if (!/uten streker/i.test(kort)) {
         throw new Error(`kortet for «${stjerne}» forklarer ikke hvorfor den står alene`)
       }
 
