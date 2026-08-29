@@ -96,3 +96,35 @@ describe('Wikipedia-lenkene', () => {
     expect(new Set(urler).size).toBe(urler.length)
   })
 })
+
+describe('retningene i tekstene', () => {
+  // Tekstene er PROSA, og prosa kan ikke enhetstestes i sin helhet. Dette er de
+  // to tingene som KAN måles, og som begge har vært feil i praksis.
+
+  it('bruker ikke det forkastede navnet på Kusken', () => {
+    // «Kjøresvennen» var navnet fram til v6.3.7, da eieren rettet det til Kusken
+    // — men det ble stående i Persevs' finnDen, altså som navnet på et NABO-
+    // stjernebilde. En tekst kan peke på en formasjon som ikke finnes i lista,
+    // og ingenting i koden merker det.
+    for (const [id, info] of Object.entries(STJERNEBILDE_INFO)) {
+      for (const felt of ['mytologi', 'funFact', 'finnDen']) {
+        expect(info[felt] ?? '', `${id}.${felt}`).not.toMatch(/Kjøresvennen/)
+      }
+    }
+  })
+
+  it('bruker ikke himmelkoordinater som retning i finnDen', () => {
+    // «Rett nord for Orion» er astronomisk riktig og likevel misvisende: nord på
+    // stjernehimmelen er mot Polstjerna, mens himmelkompasset i 3D viser N på
+    // HORISONTEN. Eieren leste de to som en selvmotsigelse, og hadde rett i at
+    // teksten var uklar. finnDen skal beskrive det man SER: over, under, til
+    // venstre, mellom.
+    //
+    // Merk at «i sør», «høyt i sør» og «mot Polstjerna» er greit — det er
+    // horisont-retninger og et konkret holdepunkt, ikke koordinater.
+    for (const [id, info] of Object.entries(STJERNEBILDE_INFO)) {
+      expect(info.finnDen, `${id}.finnDen`)
+        .not.toMatch(/\b(nord|sør|øst|vest|nordøst|nordvest|sørøst|sørvest) for\b/i)
+    }
+  })
+})

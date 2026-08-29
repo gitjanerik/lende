@@ -18,6 +18,14 @@ dagmodus. Der lærte vi en ny felle, og den er målt: `vw` inne i et `zoom`-lag
 skaleres ikke ned, så en boks med `max-width: 78vw` dekker 117 % av skjermen ved
 150 %.
 
+**Kusken sto med «Ligger rett nord for Orion».** Det er astronomisk riktig —
+deklinasjon +39° mot Orions 0°, samme rektascensjon — men himmelkompasset i 3D
+viser N på HORISONTEN, så de to leses som en selvmotsigelse. Retningene i
+`finnDen` beskriver nå det man SER: Kusken står rett over Orion, Tvillingene opp
+til venstre for ham. Samtidig er en gammel feil rettet: Persevs' tekst pekte på
+«Kjøresvennen», navnet som ble forkastet i v6.3.7, altså på et stjernebilde som
+ikke finnes i lista. Begge er dekket av tester nå.
+
 **Knappenålene** var vrient å treffe, fordi trykket krevde et geometrisk treff på
 en liten kule eller en tynn stamme. Bommer strålen, spør vi nå i skjermrom etter
 nærmeste nålehode innen 34 px — samme grep som stjernebildene fikk i v6.3.11. Og

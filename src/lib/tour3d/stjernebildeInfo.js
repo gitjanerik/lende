@@ -16,6 +16,16 @@
 //              den praktiske pekepinnen er det som gjør forskjellen mellom en
 //              leksikonartikkel og noe man kan bruke stående i mørket.
 //
+// RETNINGER I `finnDen` ER SETT FRA BAKKEN I NORGE — «over», «under», «til
+// venstre» — og ALDRI himmelkoordinater (v6.3.12). «Nord» på stjernehimmelen
+// betyr mot Polstjerna, altså opp og bakover, mens himmelkompasset nede i hjørnet
+// viser N på HORISONTEN. Kusken sto med «rett nord for Orion», som er astronomisk
+// riktig og likevel leses som «mot kompassets nord» — eieren meldte det som en
+// selvmotsigelse mot kompasset, og hadde rett i at teksten var uklar.
+// Skriver du en ny: sjekk retningen mot senterRa/senterDek i FORMASJONER, og
+// oversett den til det man SER. Samme rektascensjon + høyere deklinasjon = alltid
+// høyere på himmelen herfra, og øst = til venstre når man ser mot sør.
+//
 // Alt her er allment kjent astronomi og gjengitt med egne ord. Tall som spriker
 // mellom kilder (Denebs avstand) er oppgitt SOM spredning framfor å velge ett.
 
@@ -85,12 +95,14 @@ export const STJERNEBILDE_INFO = {
   kusken: {
     latin: 'Auriga',
     wikipedia: 'https://no.wikipedia.org/wiki/Kusken',
-    mytologi: 'Kjøresvennen med geita på armen. Capella betyr «den lille geita».',
+    mytologi: 'Kusken — kjøresvennen med geita på armen. Capella betyr «den lille '
+      + 'geita».',
     funFact: 'Capella er den sjette lyseste stjerna på himmelen, og egentlig to '
       + 'gule kjempestjerner som går rundt hverandre på 104 døgn. Femkanten deler '
       + 'hjørnestjerne med Tyren: Elnath tilhører formelt oksens horn.',
     finnDen: 'En stor femkant høyt i sør om vinteren, med den skarpt gule Capella '
-      + 'som den lyseste. Ligger rett nord for Orion.',
+      + 'som den lyseste. Står rett OVER Orion — samme sted på himmelen, bare '
+      + 'nesten 40 grader høyere.',
   },
   'lille-bjorn': {
     latin: 'Ursa Minor',
@@ -149,7 +161,7 @@ export const STJERNEBILDE_INFO = {
       + 'formørkes den av en følgestjerne og faller fra 2,1 til 3,4 i lysstyrke, '
       + 'og det kan ses med bare øyet om man vet når. I august kommer '
       + 'perseidene, årets sikreste meteorsverm, ut herfra.',
-    finnDen: 'Mellom Cassiopeia og Kjøresvennen, som en bøyd kjede med Mirfak i '
+    finnDen: 'Mellom Cassiopeia og Kusken, som en bøyd kjede med Mirfak i '
       + 'midten.',
   },
   svanen: {
@@ -174,7 +186,8 @@ export const STJERNEBILDE_INFO = {
       + 'med en bekreftet planet rundt seg. Castor ser ut som én stjerne, men er '
       + 'seks som går rundt hverandre. I desember kommer geminidene, den tetteste '
       + 'meteorsvermen i året.',
-    finnDen: 'To like sterke stjerner tett sammen, nordøst for Orion. Pollux er '
+    finnDen: 'To like sterke stjerner tett sammen, opp til venstre for Orion når '
+      + 'han står i sør. Pollux er '
       + 'den nederste og litt gulere.',
   },
 }
