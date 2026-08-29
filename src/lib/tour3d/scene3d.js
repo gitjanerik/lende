@@ -442,6 +442,10 @@ export async function create3dScene(container, {
     }
   }
 
+  // Kameraposen fra FØR et nåletrykk. X-en på infokortet skal angre hele
+  // trykket — fremhevingen OG flyturen — og da må vi vite hvor vi kom fra.
+  let poseForFeature = null
+
   // Himmel-tilstand: hva som er valgbart nå, og hva som er valgt.
   let himmelListe = []
   let valgtHimmel = null
@@ -612,8 +616,23 @@ export async function create3dScene(container, {
     }
 
     // Nåler — de stikker opp av terrenget og er det mest presise målet.
+    //
+    // Bommer strålen, spør vi i SKJERMROM: et nålehode er en liten kule og
+    // stammen er tynn, så det geometriske treffet er noen få piksler bredt, og
+    // eieren meldte at det var vrient å treffe (v6.3.12). Terskelen er 34 px —
+    // mindre enn himmelens 46, fordi nålene står tett og fordi en sti under
+    // fingeren fortsatt skal kunne velges når man er i sti-modus.
+    const NAAL_TERSKEL_PX = 34
+    const rectW = core.renderer.domElement.clientWidth
+    const rectH = core.renderer.domElement.clientHeight
+    const fx = ((ndc.x + 1) / 2) * rectW
+    const fy = ((1 - ndc.y) / 2) * rectH
     const pin = pins.raycast(raycaster)
+      ?? pins.naermesteISkjerm?.(core.project, fx, fy, NAAL_TERSKEL_PX)
     if (pin) {
+      // Posen FØR flyturen legges til side, så X-en på kortet kan angre både
+      // fremhevingen og forflytningen (se angreFeature).
+      poseForFeature = freeRig.hentPose?.() ?? null
       highlight.showAt(...pin.world)
       lookAt(pin.world, { radiusM: pin.radiusM })
       emit('feature', { feature: { ...pin.feature, type: featureType(pin.feature) } })
@@ -1040,6 +1059,26 @@ export async function create3dScene(container, {
       if (poiStopsEnabled && playback) director.seek(playback.alongM)
     },
     skipFeature() { director.skip() },
+
+    /**
+     * X-en på infokortet for en nål: angre HELE trykket (v6.3.12).
+     *
+     * Et trykk gjorde to ting — fremhevet nåla med en gul ring og fløy dit — og
+     * kortet var det eneste som forsvant når man lukket det. Ringen ble stående
+     * på en nål ingenting lenger fortalte om, og man sto igjen i et nærbilde man
+     * ikke hadde bedt om å bli i. Nå settes begge tilbake.
+     *
+     * Posen settes bare tilbake om den ikke er rørt av noe annet siden: er man i
+     * en tur, eller har man alt flydd videre til en annen nål, eier det siste
+     * valget kameraet.
+     */
+    angreFeature() {
+      highlight.hide()
+      if (poseForFeature) {
+        freeRig.settPose?.(poseForFeature)
+        poseForFeature = null
+      }
+    },
 
     // --- delt verden ---
     setContoursVisible: (v) => core.setContoursVisible(v),

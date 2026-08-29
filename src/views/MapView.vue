@@ -1806,18 +1806,31 @@ function onShortcutInfo() {
 // Long-press er lite oppdagbart. Vis et blått tips øverst i info-arket når det
 // åpnes via Info-snarveien — men IKKE ved faktisk long-press (da kan brukeren
 // det allerede). infoTipRequested settes kun av snarveien og nullstilles så
-// snart en kart-gest (mulig long-press) starter. Dismissible, husket globalt
-// i localStorage så det ikke dukker opp igjen.
-const INFO_TIP_KEY = 'lende-info-longpress-tip-seen'
-const infoTipDismissed = ref(false)
-try { infoTipDismissed.value = localStorage.getItem(INFO_TIP_KEY) === '1' } catch {}
+// snart en kart-gest (mulig long-press) starter.
+//
+// TIPSET KAN MINIMERES, IKKE LUKKES (v6.3.12). Det var dismissible, og et trykk
+// på X-en gjorde det borte for alltid — også for den som bare ville ha det unna
+// akkurat da. Nå legges det sammen til én linje, og tilstanden huskes: den som
+// har lest det ser en tynn stripe, og den som vil lese igjen har den ett trykk
+// unna. Snarveien er dessuten den ENESTE veien til tipset, så «for alltid» var
+// nettopp den avgjørelsen brukeren ikke kunne angre.
+const INFO_TIP_MIN_KEY = 'lende-info-tips-minimert'
+// Den gamle nøkkelen betydde «avvist». Den leses fortsatt som «start sammenlagt»
+// (og skrives aldri mer): den som allerede har lukket tipset skal ikke få det i
+// ansiktet igjen fordi vi endret mening om knappen.
+const INFO_TIP_GAMMEL_KEY = 'lende-info-longpress-tip-seen'
+const infoTipMinimized = ref(false)
+try {
+  const lagret = localStorage.getItem(INFO_TIP_MIN_KEY)
+  infoTipMinimized.value = lagret !== null
+    ? lagret === '1'
+    : localStorage.getItem(INFO_TIP_GAMMEL_KEY) === '1'
+} catch { /* privat modus — tipset står åpent, og det er den trygge siden */ }
 const infoTipRequested = ref(false)
-const showInfoTip = computed(() =>
-  infoTipRequested.value && contextMenuOpen.value && !infoTipDismissed.value
-)
-function dismissInfoTip() {
-  infoTipDismissed.value = true
-  try { localStorage.setItem(INFO_TIP_KEY, '1') } catch {}
+const showInfoTip = computed(() => infoTipRequested.value && contextMenuOpen.value)
+function toggleInfoTip() {
+  infoTipMinimized.value = !infoTipMinimized.value
+  try { localStorage.setItem(INFO_TIP_MIN_KEY, infoTipMinimized.value ? '1' : '0') } catch {}
 }
 function onMapPointerDownLongPress(e) {
   infoTipRequested.value = false
@@ -3193,7 +3206,8 @@ onUnmounted(() => {
       :nearest-poi-from-point="nearestPoiFromPoint"
       :on-place-annotation-from-context="onPlaceAnnotationFromContext"
       :show-info-tip="showInfoTip"
-      :dismiss-info-tip="dismissInfoTip" />
+      :info-tip-minimized="infoTipMinimized"
+      :toggle-info-tip="toggleInfoTip" />
 
     <!-- Perf-logg-modal: byggetider fra localStorage (kun utvikler).
          Trekt ut til PerfLogModal (v1.0.5). -->

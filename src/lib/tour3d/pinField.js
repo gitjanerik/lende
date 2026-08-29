@@ -207,6 +207,10 @@ export function buildPinField(items, dem, coords, { stemColor = 0xffffff } = {})
   // om når sammensetningen endres. Det skjer bare når declutteren bytter
   // (maks ~4,5 ganger i sekundet), ikke når kameraet flytter seg.
   const slots = new Int32Array(n).fill(-1)
+  // Hodets verdensposisjon per SLOT, skrevet samtidig med matrisen. Brukes av
+  // skjermrom-plukkingen (se naermesteISkjerm) — den må kjenne hodet der det
+  // FAKTISK står, med gjeldende skala, og det tallet finnes bare her.
+  const hodeVerden = new Float32Array(n * 3)
   let tegnet = 0
   let fargerSkitne = true
 
@@ -225,6 +229,9 @@ export function buildPinField(items, dem, coords, { stemColor = 0xffffff } = {})
       dummy.position.set(bx, by + HODE_LOFT * s, bz)
       dummy.updateMatrix()
       heads.setMatrixAt(k, dummy.matrix)
+      hodeVerden[k * 3] = dummy.position.x
+      hodeVerden[k * 3 + 1] = dummy.position.y
+      hodeVerden[k * 3 + 2] = dummy.position.z
       if (slots[k] !== i) { slots[k] = i; fargerSkitne = true }
       k++
     }
@@ -285,6 +292,38 @@ export function buildPinField(items, dem, coords, { stemColor = 0xffffff } = {})
         if (visible && !visible.has(i)) return 0
         return pinScaleForCamera(_cam, bx, by, bz)
       })
+    },
+    /**
+     * Nærmeste TEGNEDE nål til et skjermpunkt, i CSS-piksler (v6.3.12).
+     *
+     * Raycasten over krever at strålen treffer geometrien. Et nålehode er en
+     * liten kule og stammen er tynn — på en telefon er det et mål på noen få
+     * piksler, og eieren meldte at det var vrient å treffe. Dette er samme grep
+     * som stjernebildene fikk i v6.3.11: spør «hva er nærmest fingeren» framfor
+     * å kreve et geometrisk treff.
+     *
+     * Måler mot HODET og ikke bakkepunktet: det er hodet man sikter på, og
+     * stammen kan være lang når nåla står langt unna.
+     *
+     * @param {(x:number,y:number,z:number)=>{x:number,y:number,behind:boolean}} project
+     * @param {number} fx fingerens x i CSS-piksler
+     * @param {number} fy fingerens y
+     * @param {number} terskel maks avstand i CSS-piksler
+     * @returns {number|null} nåle-indeks (i items), ikke slot
+     */
+    naermesteISkjerm(project, fx, fy, terskel) {
+      let best = null
+      let bestAvstand = terskel
+      for (let k = 0; k < tegnet; k++) {
+        const p = project(hodeVerden[k * 3], hodeVerden[k * 3 + 1], hodeVerden[k * 3 + 2])
+        if (!p || p.behind) continue
+        const d = Math.hypot(p.x - fx, p.y - fy)
+        if (d < bestAvstand) {
+          bestAvstand = d
+          best = slots[k]
+        }
+      }
+      return best != null && best >= 0 ? best : null
     },
     // Raycast treffer stamme eller hode; begge peker tilbake på samme indeks.
     raycast(raycaster) {

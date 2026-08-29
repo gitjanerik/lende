@@ -546,6 +546,23 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
       applyPose(framePose({ camera, dem, coords, target, radiusM, dirXZ }), { animate: true })
     },
 
+    /**
+     * Posen slik den står NÅ — kopier, ikke referanser, så den kan legges til
+     * side og settes tilbake senere (v6.3.12: et trykk på en nål skal kunne
+     * angres). Blikkpunktet er `controls.target`, som er det `applyPose` tar.
+     */
+    hentPose() {
+      return { pos: camera.position.clone(), target: controls.target.clone() }
+    },
+
+    /** Sett en pose fra `hentPose` tilbake, med samme myke flytur som flyTo. */
+    settPose(pose, { animate = true } = {}) {
+      if (!pose?.pos || !pose?.target) return
+      controls.enabled = true
+      stopAuto()
+      applyPose({ pos: pose.pos.clone(), target: pose.target.clone() }, { animate })
+    },
+
     /** Kameraets posisjon i kartets SVG-meter — brukes til «bort fra kamera». */
     cameraSvgXY() {
       const { x, y } = coords.toSvg(camera.position.x, camera.position.z)

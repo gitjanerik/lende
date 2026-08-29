@@ -1,20 +1,29 @@
-## 2026-08-29 — v6.3.12: Værradens måling kjørte aldri, og X-en ble klippet bort
+## 2026-08-29 — v6.3.12: Værraden, tipset, tekststørrelsen og nålene som var vanskelige å treffe
 
-Raden står bak `v-else-if="timer.length"`, og ved montering er varselet enda ikke
-hentet — da rendres «Henter værvarsel …», som ikke bærer ref-en. Målingen fant
-altså ingenting, returnerte, og ResizeObserveren ble aldri koblet på engang:
-antallet timer sto på startverdien for alltid. På en 412 px-telefon med vanlig
-tekst passet den tilfeldigvis, og derfor så det riktig ut i CI — men på en smal
-skjerm eller med stor systemtekst fløt raden ut, og det er X-en som havner
-utenfor og klippes av `overflow-hidden`. Målt i Chromium: 48 px for mye på
-360 px bredde, 200 px med 150 % tekst. Nå måles det når raden faktisk finnes, mot
-forelderens INNHOLDSBREDDE (rammen inkluderte polstringen og gjorde prognosen
-24–30 px for raus), med timekolonnene satt til ikke å krympe og en ettersjekk mot
-den ekte layouten. Gulvet er senket til to timer, fordi tre ikke får plass ved
-150 % tekst — og en X man ikke kan trykke på er verre enn en time mindre. MET-
-attribusjonen og X-en ligger nå i samme celle, etter eierens forslag: samlet
-leses de som «kilden, og lukk», og cellen er smalere enn de to var. Røyktesten
-måler nå også med 150 % tekst, som er tilfellet som faktisk brakk.
+Fem ting fra morgenens felttest. **Værraden** målte aldri hvor mange timer som
+passer: raden står bak `v-else-if="timer.length"`, og ved montering er varselet
+ikke hentet — da rendres «Henter værvarsel …», som ikke bærer ref-en, så
+målingen returnerte og ResizeObserveren ble aldri koblet på. Antallet sto på
+startverdien for alltid; med vanlig rot-font passet den tilfeldigvis, men på smal
+skjerm eller med stor systemtekst fløt raden ut og `overflow-hidden` klippet bort
+X-en. Målt i Chromium: 48 px for mye på 360 px bredde, 200 px med 150 % tekst.
+Nå måles det når raden finnes, mot forelderens innholdsbredde, med en ettersjekk
+mot den ekte layouten — og MET-attribusjonen og X-en ligger i samme celle.
+
+**Tipset i infopanelet** kan ikke lenger lukkes, bare legges sammen, og valget
+huskes: Info-snarveien er den eneste veien dit, så «borte for alltid» var en
+avgjørelse man ikke kunne angre. **Hjelpeboksen og POI-filteret i 3D** følger nå
+tekstvalget fra hovedmenyen (100/125/150) — de to flatene man faktisk LESER i
+dagmodus. Der lærte vi en ny felle, og den er målt: `vw` inne i et `zoom`-lag
+skaleres ikke ned, så en boks med `max-width: 78vw` dekker 117 % av skjermen ved
+150 %.
+
+**Knappenålene** var vrient å treffe, fordi trykket krevde et geometrisk treff på
+en liten kule eller en tynn stamme. Bommer strålen, spør vi nå i skjermrom etter
+nærmeste nålehode innen 34 px — samme grep som stjernebildene fikk i v6.3.11. Og
+X-en på nålekortet angrer hele trykket: den gule ringen tas bort og kameraet flyr
+tilbake dit det sto, i stedet for å etterlate en ring på en nål ingenting lenger
+forteller om.
 
 ---
 

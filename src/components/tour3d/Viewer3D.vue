@@ -76,6 +76,27 @@ const emit = defineEmits(['close'])
 
 const { uiTextScale } = useUiTextScale()
 
+/**
+ * Stil for en boks som skal SKALERE MED TEKSTVALGET (100/125/150 i hovedmenyen).
+ *
+ * `zoom` alene er ikke nok, og det er en felle som er MÅLT: `vw` og `vh` inne i
+ * et zoom-lag skaleres IKKE ned — de er absolutte mot viewporten, og blir så
+ * ganget med zoomen. Målt i Chromium: en boks med `max-width: 78vw` inne i
+ * `zoom: 1.5` dekker 117 % av skjermen, altså renner den ut på begge sider.
+ * Derfor deles taket på skalaen her, og boksene selv bruker `max-w-full`.
+ *
+ * @param {number} vw taket i prosent av skjermbredden, på skjermen
+ * @param {number} [vh] tilsvarende for høyden
+ */
+function tekstBoks(vw, vh = null) {
+  const s = uiTextScale.value || 1
+  return {
+    zoom: s,
+    maxWidth: `${vw / s}vw`,
+    ...(vh ? { maxHeight: `${vh / s}vh` } : {}),
+  }
+}
+
 const KRYSSPAUSE_KEY = 'lende-3d-krysspause'
 const VAERDEMO_KEY = 'lende-3d-vaerdemo'
 // Utvikler-bryter fra Utvikler-fanen (DrawerDevTab): vis månen OG planetene med
@@ -874,8 +895,17 @@ function onScrubEnd() { engine?.scrubEnd(); playing.value = false }
 function chooseBranch(nodeId) { engine?.chooseBranch(nodeId) }
 
 // «Videre →» på kortet: et trykket kort lukkes, et turstopp hoppes over.
+//
+// Å lukke et NÅLE-kort angrer hele trykket (v6.3.12): den gule ringen tas bort og
+// kameraet flyr tilbake dit det sto før. Trykket gjorde to ting, og X-en skal
+// undo begge — ellers står ringen igjen på en nål ingenting forteller om, og man
+// er fanget i et nærbilde man ikke ba om å bli i.
 function onCardSkip() {
-  if (pickedFeature.value) { pickedFeature.value = null; return }
+  if (pickedFeature.value) {
+    pickedFeature.value = null
+    engine?.angreFeature()
+    return
+  }
   engine?.skipFeature()
 }
 
@@ -1084,8 +1114,8 @@ function branchLabel(opt, i) {
       <!-- Infokortet for det valgte. Ligger under søkefeltet, og rulles om
            teksten er lang — den kan være det for et stjernebilde. -->
       <div v-if="phase === 'ready' && valgtHimmel"
-           class="relative z-10 px-3 mt-2 flex justify-center max-h-[52vh] overflow-y-auto"
-           :style="{ zoom: uiTextScale }">
+           class="relative z-10 px-3 mt-2 flex justify-center overflow-y-auto"
+           :style="tekstBoks(86, 52)">
         <!-- `globe-aapen` er BORTE (v6.3.3): kortet brukte den bare til å velge
              mellom to bruksanvisninger, og begge er fjernet. En prop ingen leser
              er nettopp den stille gjelden navnediff finnes for.
@@ -1151,14 +1181,27 @@ function branchLabel(opt, i) {
 
       <!-- Nederste linje: hjelp til venstre, POI-filter til høyre. Begge minimert
            som små piller, så de koster nesten ingen kartflate før man trenger
-           dem. Items-start så en utvidet boks ikke dytter den andre nedover. -->
+           dem. Items-start så en utvidet boks ikke dytter den andre nedover.
+
+           BEGGE FØLGER TEKSTVALGET fra hovedmenyen (v6.3.12). De er de to
+           tekstflatene man faktisk LESER i dagmodus — resten av overlegget er
+           knapper og tall — og de var det siste som ikke fulgte valget. Zoomen
+           ligger på hver sin innpakning og ikke på raden: raden er
+           `justify-between` over hele bredden, og en zoomet rad ville skalert
+           polstringen og dyttet begge boksene utenfor skjermen. -->
       <div v-if="phase === 'ready' && !stjernemodus"
            class="relative z-10 flex items-start justify-between gap-2 px-3 mt-2">
-        <Tour3dInfoPanel :modus="walking ? 'tur' : 'utforsk'"
-                         :knapper="INFO_KNAPPER" :tips="INFO_TIPS"/>
-        <Tour3dPinPanel v-if="pinsOn" :groups="pinGroups" :counts="pinCounts"
-                        :loading="extrasLoading"
-                        :model-value="pinPrefs" @update:model-value="setPinPrefs"/>
+        <!-- Tak på høyden og rulling: ved 150 % er den utvidede hjelpeboksen
+             målt til 527 px, og uten taket renner den under bunnraden. -->
+        <div class="overflow-y-auto" :style="tekstBoks(78, 60)">
+          <Tour3dInfoPanel :modus="walking ? 'tur' : 'utforsk'"
+                           :knapper="INFO_KNAPPER" :tips="INFO_TIPS"/>
+        </div>
+        <div v-if="pinsOn" class="overflow-y-auto" :style="tekstBoks(74, 60)">
+          <Tour3dPinPanel :groups="pinGroups" :counts="pinCounts"
+                          :loading="extrasLoading"
+                          :model-value="pinPrefs" @update:model-value="setPinPrefs"/>
+        </div>
         <div v-else></div>
       </div>
 

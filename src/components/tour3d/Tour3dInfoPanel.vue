@@ -65,7 +65,7 @@ const gester = computed(() => {
 </script>
 
 <template>
-  <div class="max-w-[78vw] sm:max-w-sm">
+  <div class="max-w-full sm:max-w-sm">
     <button v-if="!expanded" @click="expanded = true"
             aria-label="Vis hjelp for 3D-visningen"
             class="flex items-center gap-1.5 rounded-full bg-black/45 backdrop-blur

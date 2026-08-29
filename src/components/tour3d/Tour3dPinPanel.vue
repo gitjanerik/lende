@@ -49,7 +49,7 @@ watch(visibleGroups, (gs) => { if (!gs.length) expanded.value = false })
 </script>
 
 <template>
-  <div v-if="visibleGroups.length" class="on-accent max-w-[74vw] sm:max-w-xs">
+  <div v-if="visibleGroups.length" class="on-accent max-w-full sm:max-w-xs">
     <button v-if="!expanded" @click="expanded = true"
             :aria-label="`Vis filter for ${tittel.toLowerCase()}`"
             class="flex items-center gap-1.5 rounded-full bg-emerald-600 text-white

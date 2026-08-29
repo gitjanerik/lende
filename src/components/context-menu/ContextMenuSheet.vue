@@ -75,7 +75,8 @@ defineProps({
   nearestPoiFromPoint: { type: Function, required: true },
   onPlaceAnnotationFromContext: { type: Function, required: true },
   showInfoTip: { type: Boolean, default: false },
-  dismissInfoTip: { type: Function, required: true },
+  infoTipMinimized: { type: Boolean, default: false },
+  toggleInfoTip: { type: Function, required: true },
 })
 
 // Himmelretningen vinden kommer FRA. Gjenbruker bearingToCompass (16 norske
@@ -188,21 +189,41 @@ function formatDistance(m) {
            :style="{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0.75rem)' }">
 
       <!-- Blått oppdagbarhets-tips: vises kun når arket åpnes via Info-snarveien
-           (ikke ved faktisk long-press). Dismissible, husket i localStorage. -->
+           (ikke ved faktisk long-press).
+
+           MINIMERES, LUKKES IKKE (v6.3.12). Det hadde en X som gjorde tipset borte
+           for ALLTID, og Info-snarveien er den eneste veien hit — så et trykk i
+           farta var en avgjørelse man ikke kunne angre. Nå legges det sammen til
+           én linje, og valget huskes i localStorage. Hele stripa er knappen, ikke
+           bare pila: et sammenlagt tips på én linje er et lite mål, og det er
+           ingenting annet å trykke på der. -->
       <div v-if="showInfoTip" class="px-4 pt-3">
-        <div class="relative flex items-start gap-2.5 rounded-lg px-3 py-2.5 pr-9
-                    bg-sky-500/15 border border-sky-400/40 text-sky-100/95 text-[12px] leading-snug">
-          <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0 mt-0.5 text-sky-300" fill="none"
-               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/>
-            <line x1="12" y1="8" x2="12" y2="8"/>
-          </svg>
-          <div>
+        <div class="rounded-lg bg-sky-500/15 border border-sky-400/40 text-sky-100/95
+                    text-[12px] leading-snug">
+          <button @click="toggleInfoTip"
+                  :aria-expanded="!infoTipMinimized"
+                  :aria-label="infoTipMinimized ? 'Vis tipset' : 'Legg sammen tipset'"
+                  class="w-full flex items-center gap-2.5 px-3 py-2 text-left active:scale-[0.99]">
+            <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0 text-sky-300" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/>
+              <line x1="12" y1="8" x2="12" y2="8"/>
+            </svg>
+            <span class="flex-1 min-w-0 font-semibold">Tips</span>
+            <!-- Pila peker NED når tipset er sammenlagt (trykk for å åpne) og OPP
+                 når det står åpent — samme retning som i skuffene ellers. -->
+            <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0 text-sky-100/70 transition-transform"
+                 :class="infoTipMinimized ? '' : 'rotate-180'" fill="none" stroke="currentColor"
+                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          <div v-if="!infoTipMinimized" class="px-3 pb-2.5 pl-[2.375rem]">
             <p>
-              <span class="font-semibold">Tips:</span> du kan trykke-og-holde et par
-              sekunder i kartet for å åpne infopanelet du ser her. Det samme fungerer på
-              de tre knottene som åpner når du trykker på Lende-knappen nede til høyre.
-              Der kan du finjustere kantlinjer, relieff og zoom.
+              Du kan trykke-og-holde et par sekunder i kartet for å åpne infopanelet
+              du ser her. Det samme fungerer på de tre knottene som åpner når du
+              trykker på Lende-knappen nede til høyre. Der kan du finjustere
+              kantlinjer, relieff og zoom.
             </p>
             <!-- Kun for inviterte (chat-token i localStorage) — uinviterte skal
                  ikke se at funksjonen finnes, som for FAB-en. -->
@@ -214,14 +235,6 @@ function formatDistance(m) {
               lengde, stigning og gangtid for deg.
             </p>
           </div>
-          <button @click="dismissInfoTip" aria-label="Skjul tips"
-                  class="absolute top-1.5 right-1.5 w-6 h-6 flex items-center justify-center rounded-md
-                         text-sky-100/80 active:scale-90 active:bg-ink/10">
-            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
-                 stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-            </svg>
-          </button>
         </div>
       </div>
 

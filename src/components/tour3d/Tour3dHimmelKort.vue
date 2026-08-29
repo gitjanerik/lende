@@ -104,7 +104,7 @@ const faseNavn = computed(() => {
   <!-- MINIMERT: én linje. Navnet og retningen er det man trenger for å vite hva
        som lyser der oppe; resten er lesestoff man ber om. -->
   <div v-if="objekt && minimert"
-       class="rounded-full bg-black/70 backdrop-blur shadow-lg max-w-[86vw] sm:max-w-sm
+       class="rounded-full bg-black/70 backdrop-blur shadow-lg max-w-full sm:max-w-sm
               flex items-center gap-1 pl-3 pr-1 py-1">
     <button @click="emit('utvid')" :aria-label="`Vis mer om ${objekt.navn}`"
             class="flex-1 min-w-0 flex items-baseline gap-1.5 text-left active:scale-[0.98]">
@@ -148,7 +148,7 @@ const faseNavn = computed(() => {
        Taket er i vh og ikke i piksler: kortet skal ta høyst litt over halve
        skjermen, uansett om den er en telefon på høykant eller en 27-tommer. -->
   <div v-else-if="objekt"
-       class="rounded-md bg-black/80 backdrop-blur shadow-lg max-w-[86vw] sm:max-w-sm
+       class="rounded-md bg-black/80 backdrop-blur shadow-lg max-w-full sm:max-w-sm
               max-h-[58vh] flex flex-col overflow-hidden">
     <!-- HEADER — shrink-0, så den aldri klemmes eller rulles bort. -->
     <div class="shrink-0 flex items-start gap-1.5 pl-3 pr-1 py-2

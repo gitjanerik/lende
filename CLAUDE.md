@@ -432,6 +432,27 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   konstruksjon ikke stjele et trykk fra en nål, en sti eller GPS-en. Skiver
   (måne, planeter) veies 18 px foran formasjoner: et trykk PÅ månen skal velge
   månen, ikke stjernebildet bak.
+- **EN NÅL TREFFES I SKJERMROM NÅR STRÅLEN BOMMER (v6.3.12).** `pins.raycast`
+  krever et geometrisk treff på et lite kulehode eller en tynn stamme — noen få
+  piksler på en telefon. `naermesteISkjerm` i `pinField` projiserer HODENE til de
+  TEGNEDE instansene og tar den nærmeste innen 34 px. Hodet og ikke bakkepunktet:
+  det er hodet man sikter på, og stammen er lang når nåla står langt unna.
+  Terskelen er mindre enn himmelens 46 px med vilje — nålene står tett, og en sti
+  under fingeren skal fortsatt kunne velges i sti-modus. Den ser BARE de tegnede
+  slotene, så declutter-regelen og trefflaten kan ikke komme i utakt.
+- **X-EN PÅ ET NÅLEKORT ANGRER HELE TRYKKET (v6.3.12).** Et trykk gjør to ting —
+  fremhever nåla med en gul ring og flyr dit — og fram til nå forsvant bare
+  kortet. Ringen ble stående på en nål ingenting lenger fortalte om, og man sto
+  igjen i et nærbilde man ikke hadde bedt om å bli i. `scene3d.angreFeature`
+  skjuler ringen og setter kameraposen tilbake; posen legges til side i
+  `handleTap` FØR flyturen (`freeRig.hentPose`).
+- **`vw` OG `vh` INNE I ET `zoom`-LAG SKALERES IKKE NED (v6.3.12).** De er
+  absolutte mot viewporten og blir så ganget med zoomen. Målt i Chromium: en boks
+  med `max-width: 78vw` inne i `zoom: 1.5` dekker 117 % av skjermen. Derfor deler
+  `tekstBoks(vw, vh)` i Viewer3D taket på skalaen, og boksene selv bruker
+  `max-w-full`. Zoomen ligger på hver enkelt boks og ikke på raden de står i:
+  raden er `justify-between` over hele bredden, og en zoomet rad skalerer
+  polstringen og dytter begge boksene utenfor skjermen.
 - **EN FORMASJON TREFFES PÅ STJERNENE OG STREKENE SINE, ikke i senteret
   (v6.3.11).** `plukkHimmel` målte til formasjonens middelretning, og for en figur
   som spenner 40° — Dragen, Karlsvognen, Kefeus — ligger den i TOM HIMMEL: man
