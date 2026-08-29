@@ -26,6 +26,16 @@ til venstre for ham. Samtidig er en gammel feil rettet: Persevs' tekst pekte på
 «Kjøresvennen», navnet som ble forkastet i v6.3.7, altså på et stjernebilde som
 ikke finnes i lista. Begge er dekket av tester nå.
 
+**CI hadde to gratis kutt, og én gate som ikke kunne bestås.** `navnediff` leste
+bare `--ok` fra kommandolinja, mens CI kjører den uten argumenter — en villet
+sletting var altså grønn lokalt og ALLTID rød i CI. Kvitteringen leses nå også
+fra en `Navnediff-ok:`-trailer i en commit på grenen, som hører til endringen og
+forsvinner når den merges. I tillegg avbryter begge workflowene nå en kjøring når
+det pushes på nytt til samme gren (tre pushes ga tre parallelle røyktester, og de
+to første målte kode som alt var erstattet), og Chromium caches på den pinnede
+Playwright-versjonen — til sammen rundt et minutt og to bortkastede kjøringer per
+runde.
+
 **Knappenålene** var vrient å treffe, fordi trykket krevde et geometrisk treff på
 en liten kule eller en tynn stamme. Bommer strålen, spør vi nå i skjermrom etter
 nærmeste nålehode innen 34 px — samme grep som stjernebildene fikk i v6.3.11. Og

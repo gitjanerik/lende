@@ -43,6 +43,17 @@ on:
       - '.github/workflows/royktest.yml'
   workflow_dispatch:
 
+# ÉN KJØRING PER GREN. Pushes det tre ganger på ti minutter, startet det tre
+# fulle røyktester i parallell — og de to første er per definisjon bortkastet,
+# for de måler kode som alt er erstattet. `cancel-in-progress` avbryter dem, og
+# det koster ingen dekning: den siste kjøringen ser hele grenen.
+#
+# Nøkkelen er GRENA og ikke commiten, så hver ny push til samme PR avløser den
+# forrige. `workflow_dispatch` uten PR-kontekst faller tilbake på ref-en.
+concurrency:
+  group: royk-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   royk:
     runs-on: ubuntu-latest
@@ -68,8 +79,32 @@ jobs:
 
       - run: npm ci
 
+      # NETTLESEREN CACHES. Nedlastingen er ~40–60 s av jobbens ~6 minutter, og
+      # den henter nøyaktig det samme hver gang. Nøkkelen er den pinnede
+      # Playwright-versjonen fra package-lock, så en oppgradering gir ny nøkkel
+      # av seg selv — en cache som overlever en versjonsendring er verre enn
+      # ingen cache.
+      - name: Playwright-versjon
+        id: pw
+        run: echo "v=$(node -p "require('./node_modules/playwright-core/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Chromium
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.pw.outputs.v }}
+
+      # `--with-deps` installerer OS-biblioteker utenfor cachen, så det steget må
+      # kjøre uansett. Ved cache-treff hopper nedlastingen av selve nettleseren
+      # over, som er den delen som tar tid.
       - name: Hent Chromium
-        run: npx playwright install --with-deps chromium
+        run: |
+          if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then
+            npx playwright install-deps chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
 
       - run: npm run build
 
