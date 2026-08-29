@@ -110,6 +110,18 @@ export function createPinLayer({ scene, dem, coords, project, maxVisible = MAX_V
     field.setVisibleSet(new Set([...shown].map(Number)))
   }
 
+  // Nåle-indeks → det trykket skal gi. Delt av begge plukkeveiene, så en tapt
+  // nål og en truffet nål aldri kan svare ulikt.
+  const treff = (i) => {
+    if (i == null || !items[i]) return null
+    const f = items[i]
+    return {
+      feature: f,
+      world: field.basePosition(i),
+      radiusM: f.areaM2 ? Math.sqrt(f.areaM2 / Math.PI) : 60,
+    }
+  }
+
   return {
     group,
     get visible() { return visible },
@@ -178,14 +190,16 @@ export function createPinLayer({ scene, dem, coords, project, maxVisible = MAX_V
      */
     raycast(raycaster) {
       if (!field || !visible) return null
-      const i = field.raycast(raycaster)
-      if (i == null || !items[i]) return null
-      const f = items[i]
-      return {
-        feature: f,
-        world: field.basePosition(i),
-        radiusM: f.areaM2 ? Math.sqrt(f.areaM2 / Math.PI) : 60,
-      }
+      return treff(field.raycast(raycaster))
+    },
+
+    /**
+     * Nærmeste nål til et skjermpunkt — brukes når strålen bommet. Se
+     * naermesteISkjerm i pinField for hvorfor.
+     */
+    naermesteISkjerm(project, fx, fy, terskel) {
+      if (!field || !visible) return null
+      return treff(field.naermesteISkjerm(project, fx, fy, terskel))
     },
 
     dispose() {

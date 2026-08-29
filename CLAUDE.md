@@ -432,6 +432,27 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   konstruksjon ikke stjele et trykk fra en nål, en sti eller GPS-en. Skiver
   (måne, planeter) veies 18 px foran formasjoner: et trykk PÅ månen skal velge
   månen, ikke stjernebildet bak.
+- **EN NÅL TREFFES I SKJERMROM NÅR STRÅLEN BOMMER (v6.3.12).** `pins.raycast`
+  krever et geometrisk treff på et lite kulehode eller en tynn stamme — noen få
+  piksler på en telefon. `naermesteISkjerm` i `pinField` projiserer HODENE til de
+  TEGNEDE instansene og tar den nærmeste innen 34 px. Hodet og ikke bakkepunktet:
+  det er hodet man sikter på, og stammen er lang når nåla står langt unna.
+  Terskelen er mindre enn himmelens 46 px med vilje — nålene står tett, og en sti
+  under fingeren skal fortsatt kunne velges i sti-modus. Den ser BARE de tegnede
+  slotene, så declutter-regelen og trefflaten kan ikke komme i utakt.
+- **X-EN PÅ ET NÅLEKORT ANGRER HELE TRYKKET (v6.3.12).** Et trykk gjør to ting —
+  fremhever nåla med en gul ring og flyr dit — og fram til nå forsvant bare
+  kortet. Ringen ble stående på en nål ingenting lenger fortalte om, og man sto
+  igjen i et nærbilde man ikke hadde bedt om å bli i. `scene3d.angreFeature`
+  skjuler ringen og setter kameraposen tilbake; posen legges til side i
+  `handleTap` FØR flyturen (`freeRig.hentPose`).
+- **`vw` OG `vh` INNE I ET `zoom`-LAG SKALERES IKKE NED (v6.3.12).** De er
+  absolutte mot viewporten og blir så ganget med zoomen. Målt i Chromium: en boks
+  med `max-width: 78vw` inne i `zoom: 1.5` dekker 117 % av skjermen. Derfor deler
+  `tekstBoks(vw, vh)` i Viewer3D taket på skalaen, og boksene selv bruker
+  `max-w-full`. Zoomen ligger på hver enkelt boks og ikke på raden de står i:
+  raden er `justify-between` over hele bredden, og en zoomet rad skalerer
+  polstringen og dytter begge boksene utenfor skjermen.
 - **EN FORMASJON TREFFES PÅ STJERNENE OG STREKENE SINE, ikke i senteret
   (v6.3.11).** `plukkHimmel` målte til formasjonens middelretning, og for en figur
   som spenner 40° — Dragen, Karlsvognen, Kefeus — ligger den i TOM HIMMEL: man
@@ -839,14 +860,25 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   **En skjult gest er ikke en affordanse.** `maalPlass` i `Tour3dVaerRad` måler
   ledig bredde og viser bare timene som passer.
 
-  Tre ting som MÅ stå: målingen leser **forelderens** bredde, for radens egen
-  følger antallet vi nettopp valgte og ville jaget sin egen hale; kolonnebredden
-  måles i PIKSLER fra DOM-en og regnes ikke fra rem, fordi rot-fontstørrelsen
-  følger systemets tekstskalering (v5.27.0) og et hardkodet 57,6 px ville brakt
-  rullingen tilbake for den som har 150 % tekst; og startverdien er konservativ
-  (5) framfor taket, siden for få timer er ufarlig mens for mange flyter ut av
-  boksen før første måling. Røyk-sjekken måler invarianten direkte:
-  `scrollWidth − clientWidth` skal være 0.
+  Fem ting som MÅ stå. **Målingen må kjøre når RADEN FINNES, ikke ved montering
+  (v6.3.12)** — raden står bak `v-else-if="timer.length"`, og ved montering er
+  varselet ikke hentet, så ref-en er null: målingen returnerte, observeren ble
+  aldri koblet på, og antallet sto på startverdien for alltid. Med vanlig
+  rot-font passet den tilfeldigvis, så røyktesten var grønn uten å måle noe.
+  **Ledig bredde er forelderens INNHOLDSBREDDE** — `getBoundingClientRect()`
+  inkluderer `px-3`, som gjorde prognosen 24–30 px for raus, altså én time for
+  mye — og det er forelderen og ikke raden, for radens egen bredde følger
+  antallet vi nettopp valgte og ville jaget sin egen hale. **Kolonnebredden måles
+  i PIKSLER fra DOM-en** og regnes ikke fra rem, fordi rot-fontstørrelsen følger
+  systemets tekstskalering (v5.27.0); kolonnene må være `shrink-0`, ellers klemmes
+  de mot `min-w` når det er trangt og man måler minstebredden. **Prognosen
+  ettersjekkes mot den ekte layouten** (`scrollWidth > clientWidth` → ett hakk
+  ned), for avrunding og skillelinjer gjør regnestykket ett hakk optimistisk.
+  **Gulvet er to timer**, ikke tre: ved 150 % tekst på en 412 px-telefon får ikke
+  tre plass sammen med kilden og X-en, og en knapp som klippes bort er verre enn
+  en time mindre. Røyk-sjekken måler invarianten direkte — `scrollWidth −
+  clientWidth` skal være 0 — BÅDE med vanlig og med 150 % rot-font, siden det var
+  den siste som brakk.
 - **NATTMODUS ER STJERNEKIKKEREN, ikke kartet i mørkt tema (v6.1.0).** Å slå på
   natt gjør fem ting på én gang, og det er en bevisst pakke: blikket løftes til
   50° med en ease-out over 1,5 s (`scene3d.seOppMotHimmelen`), kurver + stier +

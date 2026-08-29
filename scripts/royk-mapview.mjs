@@ -875,6 +875,33 @@ const SJEKKER = [
       }
       const radTimer = radOverflyt ? radOverflyt.timer : 0
 
+      // OG DEN SKAL TÅLE STOR SYSTEMTEKST (v6.3.12). Dette er tilfellet som
+      // faktisk brakk: målingen kjørte aldri (raden finnes ikke ved montering,
+      // for varselet er ikke hentet enda), så antallet sto på startverdien og
+      // X-en ble klippet bort av overflow-hidden. Med rot-font 16 px passet
+      // startverdien tilfeldigvis, så sjekken over var grønn uten å måle noe.
+      // 24 px er 150 % tekstskalering, som er valget i hovedmenyen.
+      const stortTekstOverflyt = await evalMedTak(page, async () => {
+        const rot = document.documentElement
+        const for0 = rot.style.fontSize
+        rot.style.fontSize = '24px'
+        await new Promise((r) => setTimeout(r, 700))
+        const rad = [...document.querySelectorAll('div')].find((d) =>
+          /MET\s*Norway/.test(d.textContent) && d.querySelector('[data-time]'))
+        const svar = rad
+          ? { skjult: rad.scrollWidth - rad.clientWidth, timer: rad.querySelectorAll('[data-time]').length }
+          : null
+        // TILBAKE TIL NØYTRAL TILSTAND før neste sjekk — måle-modus-fella fra
+        // v5.8.1 gjelder rot-fontstørrelsen like mye som en åpen fane.
+        rot.style.fontSize = for0
+        await new Promise((r) => setTimeout(r, 500))
+        return svar
+      })
+      if (stortTekstOverflyt && stortTekstOverflyt.skjult > 1) {
+        throw new Error(`med 150 % tekst har værraden ${stortTekstOverflyt.skjult} px `
+          + `skjult innhold (${stortTekstOverflyt.timer} timer) — X-en blir klippet bort`)
+      }
+
       // X-EN I VÆRRADEN (v6.3.8) tar bort både raden og værhimmelen, og gir dem
       // tilbake ved et bytte av lysmodus. Den erstatter det tredje steget
       // sol/måne-knappen hadde fram til v6.1.0.

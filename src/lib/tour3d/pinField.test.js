@@ -273,3 +273,60 @@ describe('buildPinField', () => {
     field.dispose()
   })
 })
+
+describe('naermesteISkjerm — trefflaten for en nål', () => {
+  const dem = makeDem(11, 11, 100)
+  // En «project» som legger nålene på kjente skjermpunkter: vi trenger ikke et
+  // ekte kamera for å teste regelen, bare avstandene den regner ut.
+  const lagField = () => buildPinField([
+    { x: 10, y: 10, color: '#8e44ad' },
+    { x: 90, y: 90, color: '#1d4ed8' },
+  ], dem, coords)
+
+  it('finner nåla når fingeren er innenfor terskelen, og ingen når den ikke er', () => {
+    const field = lagField()
+    const skjerm = [{ x: 100, y: 100 }, { x: 300, y: 300 }]
+    let kall = 0
+    const project = () => skjerm[kall++ % 2]
+    expect(field.naermesteISkjerm(() => ({ x: 100, y: 100 }), 100, 100, 34)).toBe(0)
+    kall = 0
+    expect(field.naermesteISkjerm(project, 120, 100, 34)).toBe(0)
+    kall = 0
+    // 60 px unna begge: for langt.
+    expect(field.naermesteISkjerm(project, 160, 100, 34)).toBe(null)
+    field.dispose()
+  })
+
+  it('velger den NÆRMESTE når to er innenfor', () => {
+    const field = lagField()
+    const skjerm = [{ x: 100, y: 100 }, { x: 120, y: 100 }]
+    let kall = 0
+    const project = () => skjerm[kall++ % 2]
+    expect(field.naermesteISkjerm(project, 118, 100, 34)).toBe(1)
+    kall = 0
+    expect(field.naermesteISkjerm(project, 102, 100, 34)).toBe(0)
+    field.dispose()
+  })
+
+  it('hopper over nåler bak kameraet', () => {
+    const field = lagField()
+    let kall = 0
+    const project = () => (kall++ === 0
+      ? { x: 100, y: 100, behind: true }
+      : { x: 300, y: 300 })
+    // Nål 0 ligger rett under fingeren, men BAK kameraet: en projeksjon bak
+    // linsa er et speilbilde, og et trykk der ville valgt noe man ikke ser.
+    expect(field.naermesteISkjerm(project, 100, 100, 34)).toBe(null)
+    field.dispose()
+  })
+
+  it('ser bare nåler som FAKTISK tegnes', () => {
+    const field = lagField()
+    field.setVisibleSet(new Set([1]))
+    field.update({ position: new Vector3(0, 500, 0) })
+    const project = () => ({ x: 100, y: 100 })
+    // Alt havner på fingeren; bare den synlige kan velges.
+    expect(field.naermesteISkjerm(project, 100, 100, 34)).toBe(1)
+    field.dispose()
+  })
+})

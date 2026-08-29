@@ -1,3 +1,50 @@
+## 2026-08-29 — v6.3.12: Værraden, tipset, tekststørrelsen og nålene som var vanskelige å treffe
+
+Fem ting fra morgenens felttest. **Værraden** målte aldri hvor mange timer som
+passer: raden står bak `v-else-if="timer.length"`, og ved montering er varselet
+ikke hentet — da rendres «Henter værvarsel …», som ikke bærer ref-en, så
+målingen returnerte og ResizeObserveren ble aldri koblet på. Antallet sto på
+startverdien for alltid; med vanlig rot-font passet den tilfeldigvis, men på smal
+skjerm eller med stor systemtekst fløt raden ut og `overflow-hidden` klippet bort
+X-en. Målt i Chromium: 48 px for mye på 360 px bredde, 200 px med 150 % tekst.
+Nå måles det når raden finnes, mot forelderens innholdsbredde, med en ettersjekk
+mot den ekte layouten — og MET-attribusjonen og X-en ligger i samme celle.
+
+**Tipset i infopanelet** kan ikke lenger lukkes, bare legges sammen, og valget
+huskes: Info-snarveien er den eneste veien dit, så «borte for alltid» var en
+avgjørelse man ikke kunne angre. **Hjelpeboksen og POI-filteret i 3D** følger nå
+tekstvalget fra hovedmenyen (100/125/150) — de to flatene man faktisk LESER i
+dagmodus. Der lærte vi en ny felle, og den er målt: `vw` inne i et `zoom`-lag
+skaleres ikke ned, så en boks med `max-width: 78vw` dekker 117 % av skjermen ved
+150 %.
+
+**Kusken sto med «Ligger rett nord for Orion».** Det er astronomisk riktig —
+deklinasjon +39° mot Orions 0°, samme rektascensjon — men himmelkompasset i 3D
+viser N på HORISONTEN, så de to leses som en selvmotsigelse. Retningene i
+`finnDen` beskriver nå det man SER: Kusken står rett over Orion, Tvillingene opp
+til venstre for ham. Samtidig er en gammel feil rettet: Persevs' tekst pekte på
+«Kjøresvennen», navnet som ble forkastet i v6.3.7, altså på et stjernebilde som
+ikke finnes i lista. Begge er dekket av tester nå.
+
+**CI hadde to gratis kutt, og én gate som ikke kunne bestås.** `navnediff` leste
+bare `--ok` fra kommandolinja, mens CI kjører den uten argumenter — en villet
+sletting var altså grønn lokalt og ALLTID rød i CI. Kvitteringen leses nå også
+fra en `Navnediff-ok:`-trailer i en commit på grenen, som hører til endringen og
+forsvinner når den merges. I tillegg avbryter begge workflowene nå en kjøring når
+det pushes på nytt til samme gren (tre pushes ga tre parallelle røyktester, og de
+to første målte kode som alt var erstattet), og Chromium caches på den pinnede
+Playwright-versjonen — til sammen rundt et minutt og to bortkastede kjøringer per
+runde.
+
+**Knappenålene** var vrient å treffe, fordi trykket krevde et geometrisk treff på
+en liten kule eller en tynn stamme. Bommer strålen, spør vi nå i skjermrom etter
+nærmeste nålehode innen 34 px — samme grep som stjernebildene fikk i v6.3.11. Og
+X-en på nålekortet angrer hele trykket: den gule ringen tas bort og kameraet flyr
+tilbake dit det sto, i stedet for å etterlate en ring på en nål ingenting lenger
+forteller om.
+
+---
+
 ## 2026-08-28 — v6.3.11: Dragens siste strek, en trefflate på figuren, og alltid sammenlagt kort
 
 Tre ting fra samme felttest. Halens siste strek manglet fordi et

@@ -11,6 +11,12 @@ on:
   # og en tom commit for å vekke CI er ikke en løsning.
   workflow_dispatch:
 
+# ÉN KJØRING PER GREN — se royktest.yml for begrunnelsen. Denne jobben er
+# billigere, men en kjøring mot kode som alt er erstattet er like bortkastet.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
