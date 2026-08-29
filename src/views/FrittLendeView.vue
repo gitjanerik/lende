@@ -20,7 +20,7 @@ import {
   HALV_KM, ASPEKT, EKVIDISTANSE_M, DEM_OPPLOSNING_M, STREK_IDX, BREDDE_M,
   FRITT_LENDE_LAG, frittLendeTema, frittLendeUtmBbox,
   knappeHandling, knappeEtikett, fixVurdering, arkErGammelt,
-  FIX_VENT_MS,
+  FIX_VENT_MS, dekningsSkala,
 } from '../lib/frittLende.js'
 import KartLaster from '../components/KartLaster.vue'
 
@@ -61,6 +61,10 @@ const feilForsok = ref(0)
 // gjør første trykk ingen skade.
 const ferskLast = ref(true)
 const venterPaaFix = ref(false)
+// ENGANGS, ikke en «følg meg»-modus. Kartet skal legge seg om deg når fixen
+// kommer, men så bli liggende — panorerer du bort, skal ikke neste GPS-oppdatering
+// rykke kartet tilbake under fingeren din.
+const sentrerPaaNesteFix = ref(false)
 const harAngre = ref(false)
 const angreSynlig = ref(false)
 const gammeltArk = ref(false)
@@ -124,24 +128,53 @@ function utfor(h) {
 function startGps() {
   userPos.start()
   venterPaaFix.value = true
+  // Kartet skal legge seg om deg så snart fixen lander, ikke bli stående på
+  // arkets midtpunkt med en prikk i utkanten.
+  sentrerPaaNesteFix.value = true
 }
 
 function sentrer() {
+  if (!meta.value) return
+  userPos.refresh()
+  // Har vi ingen posisjon ennå, sentrerer vi på arket nå og flytter oss dit
+  // fixen lander. Uten dette ville et trykk gitt arkets midtpunkt og så blitt
+  // stående der, selv om posisjonen kom et halvsekund senere.
+  if (userPos.svgX == null) sentrerPaaNesteFix.value = true
+  settStandardvisning()
+}
+
+// Åpningsvisningen: dekk skjermen, og legg meg i midten. Brukes både når et ark
+// lastes eller bygges, og når man trykker «sentrer» — knappen skal gi det samme
+// bildet hver gang, uansett hvor man har panorert eller zoomet i mellomtiden.
+function settStandardvisning() {
   const m = meta.value
   if (!m) return
-  userPos.refresh()
+  const { w, h } = wrapperSize.value
+  if (!w || !h) return
+  pz.rotation.value = 0
+  pz.scale.value = dekningsSkala({ w, h, widthM: m.widthM, heightM: m.heightM })
   const inne = userPos.svgX != null && !userPos.isOutsideMap
   panTil(inne ? userPos.svgX : m.widthM / 2, inne ? userPos.svgY : m.heightM / 2)
 }
 
+// Legger kartpunktet (x, y) i viewportens midte.
+//
+// LETTERBOXINGEN MÅ MED, og det er ikke en detalj. SVG-elementet fyller hele
+// verten (100 % × 100 %), men preserveAspectRatio="xMidYMid meet" tegner det
+// KVADRATISKE kartet sentrert inni det rektangelet. På en høy telefon ligger
+// altså kartets øvre kant ~180 px ned i elementet. Uten dette leddet lander
+// punktet man «sentrerer» på en halv letterbox for lavt — som er nøyaktig det
+// som fikk arket til å se bunnjustert ut, med posisjonen din under midten.
 function panTil(x, y) {
   const { w, h } = wrapperSize.value
   const m = meta.value
   if (!w || !h || !m) return
   const fit = Math.min(w / m.widthM, h / m.heightM)
   const s = pz.scale.value
-  pz.translateX.value = w / 2 - x * fit * s
-  pz.translateY.value = h / 2 - y * fit * s
+  const forskyvX = (w - m.widthM * fit) / 2
+  const forskyvY = (h - m.heightM * fit) / 2
+  pz.translateX.value = w / 2 - s * (forskyvX + x * fit)
+  pz.translateY.value = h / 2 - s * (forskyvY + y * fit)
 }
 
 // ── Bygging ─────────────────────────────────────────────────────────────────
@@ -279,8 +312,11 @@ async function visArk(entry) {
   svgHostRef.value?.replaceChildren(svg)
   await nextTick()
   bruksUttrykk(svg)
-  pz.reset?.()
+  // Mål FØR visningen settes: wrapperSize er 0 × 0 fram til første måling, og
+  // dekningsSkala på en umålt flate faller tilbake til 1 — altså nøyaktig den
+  // contain-visningen dette skal erstatte.
   maal()
+  settStandardvisning()
   tegnPrikk()
 }
 
@@ -331,7 +367,13 @@ function tegnPrikk() {
   })
 }
 
-watch(() => [userPos.svgX, userPos.svgY, userPos.accuracyM], tegnPrikk)
+watch(() => [userPos.svgX, userPos.svgY, userPos.accuracyM], () => {
+  tegnPrikk()
+  if (sentrerPaaNesteFix.value && userPos.svgX != null && !userPos.isOutsideMap) {
+    sentrerPaaNesteFix.value = false
+    settStandardvisning()
+  }
+})
 watch(() => isDarkMap.value, () => {
   const svg = svgHostRef.value?.querySelector('svg')
   if (svg) bruksUttrykk(svg)

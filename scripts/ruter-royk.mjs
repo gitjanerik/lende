@@ -164,10 +164,16 @@ try {
       t.oncomplete = ok; t.onerror = () => nei(t.error)
     })
   })
-  let eksterneKall = 0
+  // Samler URL-ene og ikke bare antallet: «1 eksterne kall forsøkt» er en
+  // opplysning man ikke kan gjøre noe med, og feilen dukket opp i CI mens den
+  // var grønn lokalt. En sjekk som ikke sier HVA som gikk galt koster en runde
+  // gjetting hver gang den slår ut.
+  const eksterneUrler = []
   await s5.route('**', (r) => {
-    if (r.request().url().startsWith(BASE.replace('/lende', ''))) return r.continue()
-    eksterneKall++; return r.abort()
+    const url = r.request().url()
+    if (url.startsWith(BASE.replace('/lende', ''))) return r.continue()
+    eksterneUrler.push(`${r.request().resourceType()} ${url}`)
+    return r.abort()
   })
   await s5.goto(`${BASE}/fritt`, { waitUntil: 'domcontentloaded' })
   let arket = null
@@ -198,8 +204,11 @@ try {
     })
   } catch { /* arket = null */ }
 
-  sjekk('Fritt lende: lagret ark lastes UTEN nettverk', !!arket && eksterneKall === 0,
-    arket ? `${eksterneKall} eksterne kall forsøkt` : 'arket kom aldri opp')
+  sjekk('Fritt lende: lagret ark lastes UTEN nettverk',
+    !!arket && eksterneUrler.length === 0,
+    arket
+      ? (eksterneUrler.length ? eksterneUrler.slice(0, 3).join(' | ') : 'ingen eksterne kall')
+      : 'arket kom aldri opp')
   sjekk('Fritt lende: navn er synlige (lod-pending fjernet)', arket?.lodPending === false)
   sjekk('Fritt lende: relieff er av', arket?.hillshade === false)
   sjekk('Fritt lende: #user-layer finnes', arket?.userLayer === true)
@@ -214,6 +223,32 @@ try {
   sjekk('Fritt lende: nøyaktig to knapper på skjermen', arket?.knapper === 2,
     `${arket?.knapper ?? 0} knapper`)
   sjekk('Fritt lende: målestokken vises', arket?.maalestokk === true)
+
+  // Åpningsvisningen (v6.5.2). Arket er kvadratisk og telefonen høy, så
+  // «se hele arket» fylte bare bredden og la kartet bunn-nært med et tomt felt
+  // over. Kartet skal DEKKE viewporten, og det man sentrerer på skal ligge i
+  // midten — letterboxingen inni SVG-en er lett å glemme igjen.
+  const visning = await s5.evaluate(() => {
+    const svg = document.querySelector('svg.isom-map')
+    const vb = svg.viewBox.baseVal
+    const pt = (x, y) => {
+      const p = svg.createSVGPoint(); p.x = x; p.y = y
+      return p.matrixTransform(svg.getScreenCTM())
+    }
+    const a = pt(0, 0), b = pt(vb.width, vb.height), midt = pt(vb.width / 2, vb.height / 2)
+    return {
+      bredde: b.x - a.x, hoyde: b.y - a.y,
+      vpB: window.innerWidth, vpH: window.innerHeight,
+      midtAvvikX: Math.abs(midt.x - window.innerWidth / 2),
+      midtAvvikY: Math.abs(midt.y - window.innerHeight / 2),
+    }
+  })
+  sjekk('Fritt lende: kartet dekker hele viewporten',
+    !!visning && visning.bredde >= visning.vpB && visning.hoyde >= visning.vpH,
+    visning ? `kart ${Math.round(visning.bredde)}×${Math.round(visning.hoyde)} mot skjerm ${visning.vpB}×${visning.vpH}` : '')
+  sjekk('Fritt lende: sentreringen treffer viewportens midte',
+    !!visning && visning.midtAvvikX < 2 && visning.midtAvvikY < 2,
+    visning ? `avvik ${Math.round(visning.midtAvvikX)}, ${Math.round(visning.midtAvvikY)} px` : '')
 
   // /om har tre faner fra v6.5.1. Fritt lende-fanen er den eneste dokumentasjonen
   // av modusen som finnes, og en fane er lett å miste i en refaktorering av

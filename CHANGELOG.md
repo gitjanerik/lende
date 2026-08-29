@@ -1,3 +1,34 @@
+## 2026-08-29 — v6.5.2: Fritt lende åpner på kartet, ikke på arket
+
+Arket i Fritt lende er kvadratisk, og en telefon er høy og smal. Visningen la
+seg etter BREDDEN — «se hele arket» — så kartet ble en firkant med et stort tomt
+felt over og under, og posisjonen din lå under midten. Man så mindre kart enn
+skjermen hadde plass til, på et ark som er 2 × 2 km nettopp fordi det skal leses
+i farta.
+
+**Åpningsvisningen dekker nå viewporten i stedet.** `dekningsSkala` i
+`lib/frittLende.js` er forholdet cover/contain pluss litt margin, så en arkkant
+ikke dukker opp av at man panorerer et lite stykke. Nullpunktet er contain og
+ikke 1:1, fordi SVG-en står på 100 % med `preserveAspectRatio="xMidYMid meet"` —
+scale = 1 ER contain. På en vanlig telefon viser arket nå omtrent en kilometer på
+tvers i stedet for to.
+
+**Og så var det en ekte feil under, som forklarer «bunnjustert».** `panTil`
+regnet skjermposisjonen uten letterboxingen: SVG-elementet fyller hele verten,
+men det kvadratiske kartet tegnes sentrert inni det rektangelet, så kartets øvre
+kant ligger et par hundre piksler ned i elementet. Punktet man «sentrerte» på
+havnet dermed alltid en halv letterbox for lavt. Målt i Chromium på tre
+skjermstørrelser: avviket var 91–578 px, og er nå 0.
+
+**Kartet legger seg om deg når fixen lander**, ikke bare når du trykker. Det er
+en ENGANGS-sentrering og ikke en følg-meg-modus: panorerer du bort, skal ikke
+neste GPS-oppdatering rykke kartet tilbake under fingeren din.
+
+To nye røyk-sjekker holder begge deler fast — at kartet dekker viewporten, og at
+sentreringen treffer midten på piksel.
+
+---
+
 ## 2026-08-29 — v6.5.1: Fritt lende låner turkartets loader, og får sin egen side i Om
 
 Felttest av v6.5.0 ga to ting. Fremdrifts-chipen i Fritt lende var ren tekst med
