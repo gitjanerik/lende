@@ -1,3 +1,71 @@
+## 2026-08-29 — v6.5.0: Fritt lende — ett kart, én knapp
+
+En ny, avkledd turkartmodus. Alt UI er borte unntatt hovedmenyknappen øverst,
+linjalen nede til venstre og én knapp nede til høyre. Kartet er fast 2 × 2 km med
+10 m ekvidistanse i ISOM-uttrykk, bygget der du står. Modusen velges fra
+hovedmenyen og har ingen vei tilbake til det vanlige turkartet uten om den —
+`router.replace` og ikke `push`, ellers ville tilbake-knappen vært en snarvei
+rundt regelen.
+
+**Egen view og ikke et flagg i MapView.** Bestillingen var at moduler og lyttere
+ikke skal starte i det hele tatt. MapView kaller ~50 composables ubetinget på
+toppnivå i en rekkefølge som er løsbærende (TDZ- og hoisting-reglene), så et
+betinget kall er ikke lov — alternativet ville vært en `enabled`-ref tredd inn i
+tjue composables, med regresjonsflate på alle brukere og en feilmodus Vue ikke
+kaster på. Fritt lende kaller seks. Prisen er drift mellom de to visningene, og
+den dempes av at den delte koden er ekte: fire nye rene moduler brukes av begge.
+
+**Knappen har ett begrep — «hent meg hit» — og tre invarianter som gjør den
+trygg uten en eneste bekreftelsesdialog.** Første tap etter en fersk last starter
+bare GPS og bygger aldri, så det er alltid nøyaktig ett trykk mellom å åpne
+modusen og å erstatte arket; det er svaret på at posisjonen din er et helt annet
+sted i dag enn da arket ble bygget. Mens du står på arket er bygging utilgjengelig
+for tap i det hele tatt — å gå av et 2 km-ark er hovedsløyfa her, ikke et unntak,
+og en dialog i hovedsløyfa blir blindtrykket. Og det gamle arket slettes aldri før
+det nye er ferdig bygget og tegnet, med en angre-slot ved siden av. Det er dette
+siste som faktisk gjør et feiltrykk ufarlig, ikke gestespråket.
+
+**Uttrykket er låst, og relieffet er av ved konstruksjon** — `useReliefRender`
+kalles aldri, i stedet for å skrus av etterpå. Lagsettet er orientering-stilen
+minus tett bebyggelse, parkering og holdeplass, definert som et fratrekk så et
+nytt lag i katalogen kommer med av seg selv. Rotasjonen er låst til nord: kompasset
+er borte i denne modusen, og et rotert kart uten kompass og uten noen kontroll som
+nullstiller er en ekte navigasjonsfelle. Ekvidistansen står på linjalen, siden
+punkt-skuffen den ellers bor i ikke finnes her — et kart med høydekurver uten
+oppgitt ekvidistanse er ikke et topografisk kart.
+
+**Arket lagres under ett fast id og overlever reload uten nett.** Modusen krever
+dekning for å LAGE et kart, men ikke for å vise det den har; telefonen kan ha
+drept appen mens du sto på fjellet. Arkene er skjult fra «Mine kart» via et filter
+i `listMaps` og ikke hos kallerne, og gjenbruker bevisst ikke `isAuto`-flagget,
+som ville gjort dem til kandidater for mosaikk-promotering. Boot-gjenopptaket
+rører dem ikke: `lende-last-mode` får aldri verdien `fritt`.
+
+**Nettet håndteres ærlig.** `navigator.onLine === false` er en pålitelig negativ
+og en verdiløs positiv — en captive portal svarer 200 med HTML — så det finnes
+ingen probe. Byggingen er sin egen probe, og et tap under bygging avbryter den.
+Etter at arket er bygget sies det ingenting: tapt dekning endrer ikke ett piksel
+av det du ser på, og et falskt alarmerende banner på et fjell er verre enn ingen.
+
+**Fire sømmer ble trukket ut først, uten atferdsendring:** `lib/maalestokk.js`,
+`lib/strekSkala.js`, `lib/brukerPrikk.js` og `lib/kartVert.js`, pluss
+`useNettStatus` som avløser tre kopier av `navigator.onLine` med motsatt fortegn.
+`buildMapFromCenter` tar nå en valgfri `id` og `demResolutionM`, begge med dagens
+default. DEM-en tvinges til 10 m: regelen ser bare på ekvidistansen og ikke på
+arkets størrelse, så et lite ark fikk unødig grov DEM og kotene trappet seg i
+bratt terreng.
+
+**`royktest.yml` trigget bare på `src/views/MapView.vue` og ikke på `src/views/**`.**
+Det var en reell luke — samme klasse som `src/lib/**` var fram til v6.0.0 — og en
+PR som bare rørte den nye viewen ville ikke kjørt røyktesten i det hele tatt. Nå
+dekkes også Gravel, Home og Picker, som var udekket. Modusen har elleve egne
+sjekker i `royk:ruter`, blant dem at et lagret ark kommer opp uten et eneste
+eksternt nettverkskall, og at det står nøyaktig to knapper på skjermen — skrevet
+som et krav om antall og ikke som «finnes ikke X», så den også fanger en femte
+knapp noen legger til i god tro.
+
+---
+
 ## 2026-08-29 — v6.4.0: Natta åpner mot nord, og de løse stjernene svarer for seg
 
 Eieren sendte et skjermbilde fra nattmodus: en nesten tom himmel med Kassiopeia

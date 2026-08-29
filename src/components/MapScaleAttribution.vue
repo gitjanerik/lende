@@ -12,9 +12,14 @@
 // og dybde-provenens er oppslags-fakta, ikke noe du leser mens du går — de står
 // i punkt-skuffen sammen med målestokk og ekvidistanse. Selve ODbL-kreditten må
 // stå på kartet, og ligger nå som en linje under linjalen.
+// v6.5.0: valgfri ekvidistanse-linje. Fritt lende har ingen punkt-skuffe å
+// legge tallet i, og et kart med høydekurver uten oppgitt ekvidistanse er ikke
+// et topografisk kart — det er et krusedullebilde. Prop-en er valgfri, så
+// MapView er uendret.
 defineProps({
   visible: { type: Boolean, default: false },
   scaleBar: { type: Object, default: () => ({ px: 0, ticks: [], label: '' }) },
+  equidistanceM: { type: Number, default: null },
 })
 </script>
 
@@ -35,6 +40,9 @@ defineProps({
           </g>
         </svg>
         <div>{{ scaleBar.label }}</div>
+      </div>
+      <div v-if="equidistanceM" class="text-[10px] leading-tight font-normal">
+        Ekvidistanse {{ equidistanceM }} m
       </div>
       <div class="text-[9px] leading-tight font-normal text-ink/55">
         © OpenStreetMap-bidragsytere

@@ -24,6 +24,7 @@ const RUTER = [
   ['/',               '/lende/',               'body'],
   ['/nytt',           '/lende/nytt',           'body'],
   ['/rute',           '/lende/rute',           'body'],
+  ['/fritt',          '/lende/fritt',          'text=Fritt lende'],
   ['/tegnforklaring', '/lende/tegnforklaring',  'body'],
   ['/om',             '/lende/om',             'text=Om Så i lende'],
   // Redirectene. /about er den viktigste: den er den offentlige lenka utenfra.
@@ -119,6 +120,100 @@ try {
   const bootUrl = new URL(s2.url()).pathname
   sjekk('boot-gjenopptak: «/» → forrige modus', bootUrl === '/lende/rute',
     bootUrl === '/lende/rute' ? 'sendt til /rute' : `ble stående på ${bootUrl}`)
+
+  // Fritt lende skriver bevisst ALDRI `lende-last-mode`, så boot-hooken kan
+  // ikke lande der: modusen velges alltid bevisst fra hovedmenyen. Sjekken
+  // fanger at noen senere legger til en 'fritt'-gren i god tro.
+  const s4 = await ctx.newPage()
+  s4.on('pageerror', (e) => jsFeil.push(e.message))
+  await s4.goto(`${BASE}/fritt`, { waitUntil: 'domcontentloaded' })
+  await sov(900)
+  const skrevet = await s4.evaluate(() => localStorage.getItem('lende-last-mode'))
+  sjekk('Fritt lende skriver ikke lende-last-mode', skrevet !== 'fritt',
+    skrevet === null ? 'ikke satt' : `satt til ${skrevet}`)
+
+  // Modusens VIKTIGSTE invariant: arket kommer opp fra IndexedDB uten et
+  // eneste eksternt kall. Telefonen kan ha drept appen mens du sto på fjellet
+  // uten dekning, og da skal kartet være der når du åpner den igjen.
+  const s5 = await ctx.newPage()
+  s5.on('pageerror', (e) => jsFeil.push(e.message))
+  await s5.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' })
+  await s5.evaluate(async () => {
+    const SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 2000" class="isom-map">`
+      + `<g data-layer="kontur"><path d="M0 0 L100 100" data-iso="101"/></g>`
+      + `<g data-layer="sti"><path d="M0 0 L50 50" data-iso="505"/></g>`
+      + `<g data-layer="bygning"><rect width="8" height="8"/></g>`
+      + `<g data-layer="skog"><rect width="20" height="20"/></g>`
+      + `<g data-layer="bymasse"><rect width="10" height="10"/></g>`
+      + `<g data-layer="parkering"><rect width="5" height="5"/></g>`
+      + `<g data-layer="holdeplass"><rect width="5" height="5"/></g>`
+      + `<g data-layer="kulturminne"><circle r="3"/></g></svg>`
+    const entry = {
+      id: 'fritt', navn: 'Fritt lende', equidistanceM: 10,
+      utmBbox: { minE: 250000, maxE: 252000, minN: 6630000, maxN: 6632000 },
+      opprettet: Date.now(), svg: SVG, annotations: [], dem: null,
+    }
+    const db = await new Promise((ok, nei) => {
+      const r = indexedDB.open('lende-maps'); r.onsuccess = () => ok(r.result); r.onerror = () => nei(r.error)
+    })
+    await new Promise((ok, nei) => {
+      const t = db.transaction(['maps', 'meta'], 'readwrite')
+      t.objectStore('maps').put(entry)
+      const { svg, dem, annotations, ...rest } = entry
+      t.objectStore('meta').put({ ...rest, hasDem: false, sizeBytes: svg.length })
+      t.oncomplete = ok; t.onerror = () => nei(t.error)
+    })
+  })
+  let eksterneKall = 0
+  await s5.route('**', (r) => {
+    if (r.request().url().startsWith(BASE.replace('/lende', ''))) return r.continue()
+    eksterneKall++; return r.abort()
+  })
+  await s5.goto(`${BASE}/fritt`, { waitUntil: 'domcontentloaded' })
+  let arket = null
+  try {
+    await s5.waitForSelector('svg.isom-map', { timeout: 15_000 })
+    await sov(500)
+    arket = await s5.evaluate(() => {
+      const svg = document.querySelector('svg.isom-map')
+      const lag = [...svg.querySelectorAll('[data-layer]')]
+      const vis = (k) => lag.find((g) => g.getAttribute('data-layer') === k)?.style.display
+      return {
+        // Navn-LOD kjøres ikke her, så klassen MÅ være av — ellers er hvert
+        // stedsnavn usynlig for alltid, og navn er halve poenget med kartet.
+        lodPending: svg.classList.contains('lod-pending'),
+        // Relieff er av ved KONSTRUKSJON: useReliefRender kalles aldri.
+        hillshade: !!svg.querySelector('#hillshade-layer'),
+        // Uten dette laget tegner GPS-prikken seg stille bort.
+        userLayer: !!svg.querySelector('#user-layer'),
+        strokeScale: svg.style.getPropertyValue('--stroke-scale'),
+        skjulte: ['bymasse', 'parkering', 'holdeplass', 'kulturminne'].filter((k) => vis(k) === 'none').length,
+        synlige: ['kontur', 'sti', 'bygning', 'skog'].filter((k) => vis(k) !== 'none').length,
+        ekvidistanse: /Ekvidistanse 10 m/.test(document.body.innerText),
+        // Negativ UI-telling som et KRAV OM ANTALL, ikke «finnes ikke X» — da
+        // fanger den også en femte knapp noen legger til i god tro.
+        knapper: document.querySelectorAll('button').length,
+        maalestokk: !!document.querySelector('svg line'),
+      }
+    })
+  } catch { /* arket = null */ }
+
+  sjekk('Fritt lende: lagret ark lastes UTEN nettverk', !!arket && eksterneKall === 0,
+    arket ? `${eksterneKall} eksterne kall forsøkt` : 'arket kom aldri opp')
+  sjekk('Fritt lende: navn er synlige (lod-pending fjernet)', arket?.lodPending === false)
+  sjekk('Fritt lende: relieff er av', arket?.hillshade === false)
+  sjekk('Fritt lende: #user-layer finnes', arket?.userLayer === true)
+  // Tallet er flyttall (0.6 × 0.933…), så det sammenliknes numerisk — en
+  // streng-sjekk her ville feilet på 0.5599999999999999.
+  const strek = Number.parseFloat(arket?.strokeScale ?? 'NaN')
+  sjekk('Fritt lende: strek er låst til default-hakket', Math.abs(strek - 0.56) < 1e-6,
+    arket?.strokeScale)
+  sjekk('Fritt lende: de fire lagene er skjult', arket?.skjulte === 4, `${arket?.skjulte ?? 0}/4`)
+  sjekk('Fritt lende: terreng og stier er synlige', arket?.synlige === 4, `${arket?.synlige ?? 0}/4`)
+  sjekk('Fritt lende: ekvidistansen står på linjalen', arket?.ekvidistanse === true)
+  sjekk('Fritt lende: nøyaktig to knapper på skjermen', arket?.knapper === 2,
+    `${arket?.knapper ?? 0} knapper`)
+  sjekk('Fritt lende: målestokken vises', arket?.maalestokk === true)
 
   // Deep-lenker skal IKKE røres av hooken.
   const s3 = await ctx.newPage()

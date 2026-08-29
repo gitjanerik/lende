@@ -19,6 +19,7 @@ import LegendContent from './LegendContent.vue'
 import MapLibrary from './MapLibrary.vue'
 import MapPickerContent from './MapPickerContent.vue'
 import { APP_VERSION } from '../version.js'
+import { NYHET, nyhetSett, merkNyhetSett } from '../lib/nyheter.js'
 
 // Global hovedmeny — slide-in fra venstre. Montert én gang i App.vue og styrt av
 // den delte useAppMenu-tilstanden, så meny-knappen i enhver visning åpner denne.
@@ -108,6 +109,43 @@ const primaryRows = computed(() => {
     meta: id === 'kart' ? mapsSummary(maps.value) : routesSummary(routes.value),
   }))
 })
+
+// ── Fritt lende ──────────────────────────────────────────────────────────────
+// Egen rad SIST i am-primary, ikke et tredje segment i modus-bryteren: den er
+// appens to HALVDELER, og CSS-kommentaren lenger nede sier at «Turplanlegger»
+// alt er bredere enn halve skuffen ved 150 % tekst. Tre segmenter får ikke
+// plass. Raden har heller ingen «+»-knapp og ingen meta-tall — Fritt lende har
+// verken bibliotek eller antall, og ville løyet om sin egen form som et
+// primærkort.
+//
+// Vises kun i modus `kart`: å tilby en Turkart-variant mens du står i
+// Turplanleggeren er støy.
+const iFrittLende = computed(() => route.name === 'fritt-lende')
+
+// «Kun mobil» er en PRODUKTBESLUTNING, ikke en runtime-sjekk. Raden er derfor
+// synlig overalt — en desktop-bruker som åpner den får et fungerende kart, og
+// modusen forblir prøvbar og testbar. Forklaringen står i underteksten.
+function goFrittLende() {
+  close()
+  merkNyhetSett()
+  nyhetLukket.value = true
+  // replace og ikke push: ellers lander nettleserens tilbake-knapp i det
+  // vanlige kartet, altså en modus-veksling uten om hovedmenyen — som er
+  // nettopp det som ikke skal være mulig. En modus-bryter er ikke en
+  // drill-down. IKKE «rett» dette til push.
+  router.replace({ name: 'fritt-lende' })
+}
+
+// ── Nyhetsbanner ─────────────────────────────────────────────────────────────
+// Øverst i am-scroll og ikke over modus-segmentet, som aldri skal flytte seg.
+// Lukkes eksplisitt ELLER ved første vellykkede inngang — har du prøvd det,
+// trenger du ikke bli fortalt om det.
+const nyhetLukket = ref(nyhetSett())
+const visNyhet = computed(() => !nyhetLukket.value && mode.value === 'kart')
+function lukkNyhet() {
+  merkNyhetSett()
+  nyhetLukket.value = true
+}
 
 // ── Kontekst ─────────────────────────────────────────────────────────────────
 const contextEyebrow = computed(() => (mode.value === 'kart' ? 'På kartet' : 'Ruteplanlegging'))
@@ -229,6 +267,26 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       </div>
 
       <div class="am-scroll">
+        <!-- Kunngjøring. Ligger i rullefeltet, så layouten lukker seg uten at
+             noe hopper i den faste headeren når den fjernes. -->
+        <div v-if="visNyhet" class="am-nyhet">
+          <div class="am-nyhet-merke">{{ NYHET.merke }}</div>
+          <div class="am-nyhet-tittel">{{ NYHET.tittel }}</div>
+          <p class="am-nyhet-tekst">{{ NYHET.tekst }}</p>
+          <div class="am-nyhet-rad">
+            <button type="button" class="am-nyhet-cta" @click="goFrittLende">
+              {{ NYHET.handling }}
+            </button>
+            <button type="button" class="am-nyhet-lukk" aria-label="Lukk"
+                    @click="lukkNyhet">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                   stroke-width="1.8" stroke-linecap="round">
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
         <!-- Nivå 1: primærvalgene. Øverste rad (aktiv modus) er kortet. -->
         <div class="am-primary">
           <div v-for="(p, i) in primaryRows" :key="p.id" class="am-row"
@@ -249,6 +307,23 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                    stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 5.5v13M5.5 12h13" />
               </svg>
+            </button>
+          </div>
+
+          <!-- Fritt lende: full bredde, uten «+» og uten meta-tall, så den
+               leses som noe annet enn bibliotek-radene over. -->
+          <div v-if="mode === 'kart'" class="am-row am-row-fritt"
+               :class="{ 'is-card': iFrittLende }">
+            <span class="am-row-icon">
+              <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor"
+                   stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="8.5" />
+                <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M14.5 9.5l-2 5-5 2 2-5 5-2Z" />
+              </svg>
+            </span>
+            <button type="button" class="am-row-main" @click="goFrittLende">
+              <span class="am-row-title">Fritt lende</span>
+              <span class="am-row-meta">Ett kart, én knapp · krever nett · laget for mobil</span>
             </button>
           </div>
         </div>
@@ -482,6 +557,52 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 }
 
 /* ── Nivå 1: primærkort ── */
+/* Kunngjøring. Aksentkant til venstre og ingen bilde — den skal leses på ett
+   blikk og så være ferdig. */
+.am-nyhet {
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--am-card);
+  box-shadow: inset 0 0 0 1px var(--am-ring);
+  border-left: 3px solid var(--am-accent);
+}
+.am-nyhet-merke {
+  font-size: 0.66em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--am-accent);
+}
+.am-nyhet-tittel { font-size: 1.05em; font-weight: 600; margin-top: 2px; }
+.am-nyhet-tekst { font-size: 0.82em; color: var(--am-dim); margin-top: 4px; }
+.am-nyhet-rad {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+}
+.am-nyhet-cta {
+  padding: 7px 14px;
+  border-radius: 10px;
+  background: var(--am-accent);
+  color: var(--am-on-accent);
+  font-size: 0.84em;
+  font-weight: 600;
+}
+.am-nyhet-cta:active { opacity: 0.8; }
+.am-nyhet-lukk {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: var(--am-dim);
+  background: transparent;
+  flex: 0 0 auto;
+}
+.am-nyhet-lukk:active { opacity: 0.6; }
+
 .am-primary { display: flex; flex-direction: column; gap: 10px; }
 .am-row {
   display: flex;

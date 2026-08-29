@@ -42,6 +42,11 @@ export const TRYGT_UTEN_EKTEKART = [
   /^src\/composables\//,
   /^src\/components\//,
   /^src\/router\.js$/,
+  // Fritt lende (v6.5.0): røyk-sjekkene ligger i ruter-royk og SEEDER sitt eget
+  // ark i IndexedDB, så de trenger verken Kartverket eller et bygget demokart.
+  // Uten denne linja faller fila til «ukjent» → dyr side, og hver PR som rører
+  // modusen ville bygget et ekte kart den ikke bruker.
+  /^src\/views\/FrittLendeView\.vue$/,
   /^src\/App\.vue$/,
   /^src\/version\.js$/,
   /^scripts\/(navnediff|ruter-royk|frie-variabler)\.mjs$/,

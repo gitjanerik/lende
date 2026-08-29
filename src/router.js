@@ -14,6 +14,11 @@ const routes = [
   { path: '/nytt',           name: 'kart-nytt',      component: () => import('./views/MapPickerView.vue') },
   { path: '/kart/:id',       name: 'kart-vis',       component: () => import('./views/MapView.vue') },
   { path: '/rute',           name: 'ruteplanlegger', component: () => import('./views/GravelPlannerView.vue') },
+  // Fritt lende (v6.5.0). Egen rute og IKKE /kart/fritt — den ville truffet
+  // MapView med hele sitt apparat. Modusen skriver bevisst aldri
+  // `lende-last-mode`, så boot-gjenopptaket under kan ikke lande her: Fritt
+  // lende velges alltid bevisst fra hovedmenyen.
+  { path: '/fritt',          name: 'fritt-lende',    component: () => import('./views/FrittLendeView.vue') },
   { path: '/tegnforklaring', name: 'tegnforklaring', component: () => import('./views/LegendView.vue') },
   { path: '/om',             name: 'om',             component: AboutView },
   { path: '/about',          redirect: { name: 'om' } },
