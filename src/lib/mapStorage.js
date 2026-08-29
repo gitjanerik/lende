@@ -57,6 +57,26 @@ export function generateMapId() {
   return 'kart_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
 }
 
+// Fritt lende eier to faste id-er (v6.5.0). Modusen har ikke kart-identitet:
+// arket har ikke navn, kan ikke deles, og et nytt erstatter det forrige — så
+// det er ÉN slot pluss én angre-slot, ikke en voksende liste.
+//
+// De filtreres ut av listMaps() og ikke hos kallerne, fordi «Mine kart» leses
+// to steder (AppMenu.loadCounts og MapLibrary.refresh) som allerede filtrerer
+// isAuto hver for seg — en tredje kaller ville glemt det. loadMap() på id-ene
+// virker fortsatt; det er BARE lista som skjuler dem.
+//
+// Merk at de bevisst IKKE gjenbruker isAuto-flagget: det leses av promoteView,
+// currentMapIsAuto og useGhostTiles' gitter-kompatibilitet, og ville gjort
+// Fritt lende-arket til kandidat for mosaikk-promotering.
+export const FRITT_LENDE_ID = 'fritt'
+export const FRITT_LENDE_FORRIGE_ID = 'fritt-forrige'
+const SKJULTE_IDER = new Set([FRITT_LENDE_ID, FRITT_LENDE_FORRIGE_ID])
+
+export function erFrittLendeId(id) {
+  return SKJULTE_IDER.has(id)
+}
+
 /**
  * Lett liste-projeksjon av en full MapEntry: alt UNNTATT de tunge/voksende
  * feltene (svg, dem, annotations, tracks, trackStyle). `sizeBytes` beregnes
@@ -104,15 +124,26 @@ export async function listMaps() {
   ])
   if (metaCount >= mapsCount) {
     const metas = await asPromise(t.objectStore(META_STORE).getAll())
-    return metas.sort((a, b) => b.opprettet - a.opprettet)
+    return synligeKart(metas)
   }
   // Backfill: engangs full lesing (samme kost som gammel listMaps hadde hver gang)
   const all = await asPromise(t.objectStore(STORE).getAll())
   const projected = all.map(projectMetaEntry)
   const wt = await tx('readwrite', META_STORE)
   const ws = wt.objectStore(META_STORE)
+  // Backfillen skriver ALLE, Fritt lende-arkene inkludert — meta-storet skal
+  // speile maps-storet. Det er visningen som skjuler dem, ikke lagringen.
   for (const p of projected) ws.put(p)
-  return projected.sort((a, b) => b.opprettet - a.opprettet)
+  return synligeKart(projected)
+}
+
+// Hva «Mine kart» faktisk viser: alt som ikke er en Fritt lende-slot, nyeste
+// først. Eksportert fordi det er en beslutning, ikke en detalj — og fordi
+// listMaps() selv krever IndexedDB og derfor ikke kan enhetstestes her.
+export function synligeKart(entries) {
+  return entries
+    .filter((m) => !erFrittLendeId(m.id))
+    .sort((a, b) => b.opprettet - a.opprettet)
 }
 
 // Gi et lagret kart nytt navn. Oppdaterer BÅDE 'maps' (source of truth) og det

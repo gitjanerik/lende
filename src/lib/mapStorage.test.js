@@ -4,7 +4,7 @@
 // hver saveMap — kontrakten låses her (IndexedDB selv testes ikke i jsdom-løs
 // vitest; 'maps'-storet forblir source of truth og meta er gjenoppbyggbart).
 import { describe, it, expect } from 'vitest'
-import { projectMetaEntry, generateGravelRouteId } from './mapStorage.js'
+import { projectMetaEntry, generateGravelRouteId, erFrittLendeId, FRITT_LENDE_ID, FRITT_LENDE_FORRIGE_ID, synligeKart, generateMapId } from './mapStorage.js'
 
 const entry = {
   id: 'kart_abc123',
@@ -61,5 +61,53 @@ describe('generateGravelRouteId', () => {
     const b = generateGravelRouteId()
     expect(a).toMatch(/^grus_[a-z0-9]+$/)
     expect(a).not.toBe(b)
+  })
+})
+
+// ── Fritt lende-slotene ─────────────────────────────────────────────────────
+// Modusen eier to faste id-er og har ikke kart-identitet: ingen navngiving,
+// ingen liste, ett ark som erstattes. Filteret bor HER og ikke hos kallerne,
+// fordi «Mine kart» leses to steder som allerede filtrerer isAuto hver for seg.
+describe('Fritt lende-slotene', () => {
+  it('kjenner igjen begge de reserverte id-ene, og ingen andre', () => {
+    expect(erFrittLendeId(FRITT_LENDE_ID)).toBe(true)
+    expect(erFrittLendeId(FRITT_LENDE_FORRIGE_ID)).toBe(true)
+    expect(erFrittLendeId('kart_abc123')).toBe(false)
+    expect(erFrittLendeId(generateMapId())).toBe(false)
+    expect(erFrittLendeId(undefined)).toBe(false)
+  })
+
+  // De to id-ene må være ulike, ellers overskriver en ny bygging sin egen
+  // angre-slot og «Angre» henter tilbake nøyaktig det arket man nettopp fikk.
+  it('gjeldende og angre er to ulike sloter', () => {
+    expect(FRITT_LENDE_ID).not.toBe(FRITT_LENDE_FORRIGE_ID)
+  })
+
+  // Id-ene må ikke kunne kollidere med et ekte kart. generateMapId prefikser
+  // med 'kart_', så et fast id uten den prefiksen kan aldri treffes.
+  it('kan ikke kollidere med et generert kart-id', () => {
+    for (const id of [FRITT_LENDE_ID, FRITT_LENDE_FORRIGE_ID]) {
+      expect(id.startsWith('kart_')).toBe(false)
+    }
+  })
+})
+
+describe('synligeKart', () => {
+  const kart = (id, opprettet) => ({ id, opprettet })
+
+  it('skjuler begge Fritt lende-slotene fra lista', () => {
+    const ut = synligeKart([
+      kart('kart_a', 3), kart(FRITT_LENDE_ID, 2), kart(FRITT_LENDE_FORRIGE_ID, 1),
+    ])
+    expect(ut.map((m) => m.id)).toEqual(['kart_a'])
+  })
+
+  it('sorterer nyeste først', () => {
+    const ut = synligeKart([kart('a', 1), kart('c', 3), kart('b', 2)])
+    expect(ut.map((m) => m.id)).toEqual(['c', 'b', 'a'])
+  })
+
+  it('gir tom liste når brukeren bare har Fritt lende-ark', () => {
+    expect(synligeKart([kart(FRITT_LENDE_ID, 1)])).toEqual([])
   })
 })
