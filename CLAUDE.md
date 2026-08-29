@@ -839,14 +839,25 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   **En skjult gest er ikke en affordanse.** `maalPlass` i `Tour3dVaerRad` måler
   ledig bredde og viser bare timene som passer.
 
-  Tre ting som MÅ stå: målingen leser **forelderens** bredde, for radens egen
-  følger antallet vi nettopp valgte og ville jaget sin egen hale; kolonnebredden
-  måles i PIKSLER fra DOM-en og regnes ikke fra rem, fordi rot-fontstørrelsen
-  følger systemets tekstskalering (v5.27.0) og et hardkodet 57,6 px ville brakt
-  rullingen tilbake for den som har 150 % tekst; og startverdien er konservativ
-  (5) framfor taket, siden for få timer er ufarlig mens for mange flyter ut av
-  boksen før første måling. Røyk-sjekken måler invarianten direkte:
-  `scrollWidth − clientWidth` skal være 0.
+  Fem ting som MÅ stå. **Målingen må kjøre når RADEN FINNES, ikke ved montering
+  (v6.3.12)** — raden står bak `v-else-if="timer.length"`, og ved montering er
+  varselet ikke hentet, så ref-en er null: målingen returnerte, observeren ble
+  aldri koblet på, og antallet sto på startverdien for alltid. Med vanlig
+  rot-font passet den tilfeldigvis, så røyktesten var grønn uten å måle noe.
+  **Ledig bredde er forelderens INNHOLDSBREDDE** — `getBoundingClientRect()`
+  inkluderer `px-3`, som gjorde prognosen 24–30 px for raus, altså én time for
+  mye — og det er forelderen og ikke raden, for radens egen bredde følger
+  antallet vi nettopp valgte og ville jaget sin egen hale. **Kolonnebredden måles
+  i PIKSLER fra DOM-en** og regnes ikke fra rem, fordi rot-fontstørrelsen følger
+  systemets tekstskalering (v5.27.0); kolonnene må være `shrink-0`, ellers klemmes
+  de mot `min-w` når det er trangt og man måler minstebredden. **Prognosen
+  ettersjekkes mot den ekte layouten** (`scrollWidth > clientWidth` → ett hakk
+  ned), for avrunding og skillelinjer gjør regnestykket ett hakk optimistisk.
+  **Gulvet er to timer**, ikke tre: ved 150 % tekst på en 412 px-telefon får ikke
+  tre plass sammen med kilden og X-en, og en knapp som klippes bort er verre enn
+  en time mindre. Røyk-sjekken måler invarianten direkte — `scrollWidth −
+  clientWidth` skal være 0 — BÅDE med vanlig og med 150 % rot-font, siden det var
+  den siste som brakk.
 - **NATTMODUS ER STJERNEKIKKEREN, ikke kartet i mørkt tema (v6.1.0).** Å slå på
   natt gjør fem ting på én gang, og det er en bevisst pakke: blikket løftes til
   50° med en ease-out over 1,5 s (`scene3d.seOppMotHimmelen`), kurver + stier +

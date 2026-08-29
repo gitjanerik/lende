@@ -1,3 +1,23 @@
+## 2026-08-29 — v6.3.12: Værradens måling kjørte aldri, og X-en ble klippet bort
+
+Raden står bak `v-else-if="timer.length"`, og ved montering er varselet enda ikke
+hentet — da rendres «Henter værvarsel …», som ikke bærer ref-en. Målingen fant
+altså ingenting, returnerte, og ResizeObserveren ble aldri koblet på engang:
+antallet timer sto på startverdien for alltid. På en 412 px-telefon med vanlig
+tekst passet den tilfeldigvis, og derfor så det riktig ut i CI — men på en smal
+skjerm eller med stor systemtekst fløt raden ut, og det er X-en som havner
+utenfor og klippes av `overflow-hidden`. Målt i Chromium: 48 px for mye på
+360 px bredde, 200 px med 150 % tekst. Nå måles det når raden faktisk finnes, mot
+forelderens INNHOLDSBREDDE (rammen inkluderte polstringen og gjorde prognosen
+24–30 px for raus), med timekolonnene satt til ikke å krympe og en ettersjekk mot
+den ekte layouten. Gulvet er senket til to timer, fordi tre ikke får plass ved
+150 % tekst — og en X man ikke kan trykke på er verre enn en time mindre. MET-
+attribusjonen og X-en ligger nå i samme celle, etter eierens forslag: samlet
+leses de som «kilden, og lukk», og cellen er smalere enn de to var. Røyktesten
+måler nå også med 150 % tekst, som er tilfellet som faktisk brakk.
+
+---
+
 ## 2026-08-28 — v6.3.11: Dragens siste strek, en trefflate på figuren, og alltid sammenlagt kort
 
 Tre ting fra samme felttest. Halens siste strek manglet fordi et
