@@ -10,6 +10,25 @@ import { wgs84ToUtm32 } from './utm.js'
 // Alt som er en BESLUTNING må derfor bo utenfor komponenten, ellers er den
 // bare dekket av én røyk-sjekk.
 
+// «BEHOLD DETTE KARTET» ER VURDERT OG FORKASTET (v6.5.0). Ikke ta det opp igjen
+// uten nye argumenter — det ser ut som en billig, snill funksjon, og det er
+// nettopp derfor det er lett å legge til i god tro.
+//
+// Fritt lende er FERSKVARE på alle måter: arket er laget for stedet du står nå,
+// det har ikke navn, og det neste erstatter det. Det er ikke en begrensning vi
+// har råd til å myke opp — det er forutsetningen resten av modusen hviler på:
+//
+//   1. Angre-toasten avløser en bekreftelsesdialog FORDI ingen ark er verdt noe
+//      spesielt. Kan ett av dem være det du ville beholde, blir en utilsiktet
+//      rebygging dyr igjen, og da må dialogen tilbake — i hovedsløyfa, der den
+//      blir blindtrykket. «Behold» ville altså gjeninnført det den ikke ba om.
+//   2. Den legger en avgjørelse på hvert gode ark — «skal jeg ta vare på denne?»
+//      — som er nøyaktig den vurderingen modusen finnes for å fjerne.
+//   3. Uten navngiving ville «Mine kart» fylles med ark som alle heter det samme,
+//      og med navngiving er vi tilbake i det vanlige turkartet.
+//
+// Den som vil ha et kart som varer, har allerede verktøyet: /nytt.
+
 // ── Arkets faste form ───────────────────────────────────────────────────────
 // 2 × 2 km, 10 m ekvidistanse. Ikke justerbart — det er hele poenget med
 // modusen. HALV_KM og ASPEKT sendes videre til buildMapFromCenter fordi de

@@ -211,6 +211,54 @@ er 2,4 MB, god margin), **5 GB repo** er der GitHub tar kontakt, og
 **1 GB for det publiserte Pages-nettstedet** er hard grense — `dist/` er 133 MB
 i dag. Ingen av dem er nære, men gh-pages-veksten er den som løper først.
 
+## Viktig arkitektur-merknad — Fritt lende er FERSKVARE, og det er forutsetningen
+
+`/fritt` (v6.5.0) er den avkledde turkartmodusen: ett fast 2 × 2 km ISOM-ark der
+du står, hovedmenyknappen, linjalen og én knapp. Alt av beslutninger bor i
+`lib/frittLende.js` — komponenten er kabling, fordi prosjektet ikke kan
+enhetsteste en Vue-komponent (se «Arkitektur-gjeld» under).
+
+**Arket er ferskvare, og de andre valgene henger i det.** Det har ikke navn, det
+neste erstatter det, og det kan ikke tas med videre til «Mine kart».
+**«Behold dette kartet» er VURDERT OG FORKASTET** — ikke ta det opp igjen uten
+nye argumenter. Angre-toasten avløser en bekreftelsesdialog FORDI ingen ark er
+verdt noe spesielt; kan ett av dem være det du ville beholde, blir en utilsiktet
+rebygging dyr igjen og dialogen må tilbake — i hovedsløyfa, der den blir
+blindtrykket. Den som vil ha et kart som varer, har allerede `/nytt`.
+
+**Tre invarianter gjør bygging trygt uten dialog. Alle tre er lette å
+«forenkle» bort:**
+1. *Første tap etter en fersk last starter bare GPS.* Ved kald start er GPS
+   alltid av, så det er alltid nøyaktig ETT trykk mellom å åpne modusen og å
+   erstatte arket. Dette er svaret på at posisjonen din er et helt annet sted i
+   dag enn da arket ble bygget.
+2. *Tap kan aldri bygge mens du står på arket.* Muligheten finnes ikke — sterkere
+   enn en fartsdump. Å gå av et 2 km-ark er hovedsløyfa, ikke et unntak.
+3. *Det gamle arket slettes aldri før det nye er ferdig bygget og tegnet.* Det er
+   dette som gjør et feiltrykk ufarlig, ikke gestespråket. `saveMap` er en put,
+   så overskrivingen ER slettingen — ingen `deleteMap`, som ville etterlatt
+   brukeren uten kart hvis byggingen feilet.
+
+**To faste id-er (`fritt`, `fritt-forrige`), filtrert i `listMaps()` og ikke hos
+kallerne** — «Mine kart» leses to steder som allerede filtrerer `isAuto` hver for
+seg, og en tredje kaller ville glemt det. De gjenbruker bevisst IKKE `isAuto`:
+det leses av `promoteView` og `useGhostTiles`' gitter-kompatibilitet, og ville
+gjort arket til kandidat for mosaikk-promotering.
+
+**`lende-last-mode` får aldri verdien `fritt`.** Modusen velges alltid bevisst fra
+hovedmenyen, og inngangen bruker `router.replace` og ikke `push` — ellers lander
+tilbake-knappen i det vanlige kartet, altså en modus-veksling uten om menyen.
+
+**Relieff er av ved KONSTRUKSJON** (`useReliefRender` kalles aldri), ikke ved å
+skrus av. Rotasjonen er låst til nord fordi kompasset er borte, og et rotert kart
+uten kompass og uten noen kontroll som nullstiller er en navigasjonsfelle.
+Ekvidistansen står på linjalen, siden punkt-skuffen den ellers bor i ikke finnes.
+
+**Modusen krever nett for å LAGE et ark, men ikke for å vise det den har.** Det er
+det ene stedet i Lende der premisset snus, og det må stå i UI-et. Etter at arket
+er bygget varsles det IKKE om tapt dekning: arket er ferdig rendret SVG, og et
+falskt alarmerende banner på et fjell er verre enn ingen.
+
 ## Viktig arkitektur-merknad — deling av kart har TO veier, og det er med vilje
 
 1. **Lenke (`useKartDeling.js`)** — deler OPPSKRIFTEN: bbox, ekvidistanse,
