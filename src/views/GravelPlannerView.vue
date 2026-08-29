@@ -39,6 +39,7 @@ import { usePwaInstall } from '../composables/usePwaInstall.js'
 import { hasAiToken } from '../lib/lendeAi.js'
 import RouteElevationProfile from '../components/RouteElevationProfile.vue'
 import FabCluster from '../components/FabCluster.vue'
+import { useNettStatus } from '../composables/useNettStatus.js'
 
 const router = useRouter()
 const currentRoute = useRoute()
@@ -1161,9 +1162,8 @@ function onReset() {
   setPoint('B', null)
 }
 
-const isOffline = ref(!navigator.onLine)
-const onlineHandler = () => { isOffline.value = false }
-const offlineHandler = () => { isOffline.value = true }
+// Lytterne bor i useNettStatus fra v6.5.0.
+const { erOffline: isOffline } = useNettStatus()
 
 // Lås dokument-scroll mens planleggeren er åpen (samme fiks som MapView):
 // roten er h-[100dvh] overflow-hidden, men på mobil kan body likevel få en
@@ -1218,8 +1218,6 @@ onMounted(() => {
     }
   })
   window.addEventListener('resize', measureMap)
-  window.addEventListener('online', onlineHandler)
-  window.addEventListener('offline', offlineHandler)
   void planner.refreshSaved()
   mapCtx.register(menuMapPoint)
   // ?open=<id> fra hjem-sidens Ruteplanlegger-fane: åpne lagret rute direkte.
@@ -1245,8 +1243,6 @@ onUnmounted(() => {
   mapResizeObs?.disconnect()
   inviteBannerObs?.disconnect()
   window.removeEventListener('resize', measureMap)
-  window.removeEventListener('online', onlineHandler)
-  window.removeEventListener('offline', offlineHandler)
   overlayAbort?.abort()
   if (overlayDebounce) clearTimeout(overlayDebounce)
   if (shareResetTimer) clearTimeout(shareResetTimer)

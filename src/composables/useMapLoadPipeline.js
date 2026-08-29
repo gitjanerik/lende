@@ -15,6 +15,7 @@ import { buildMapFromCenter, consumeMapFinalize } from '../lib/createMapFlow.js'
 import { loadMap as loadStoredMap, deleteMap as deleteStoredMap } from '../lib/mapStorage.js'
 import { logPerf } from '../lib/perfLog.js'
 import { APP_VERSION } from '../version.js'
+import { byggVertSvg } from '../lib/kartVert.js'
 
 // Meta-felter fra buildSvg som med VILJE ikke løftes inn i MapViews meta:
 // enten fordi de pakkes ut til egne felter (utmBbox → minE/minN/maxE/maxN),
@@ -513,7 +514,6 @@ export function useMapLoadPipeline(deps) {
   }
 
   function setupHostSvg(sourceRoot, { staged = true } = {}) {
-    const ns = 'http://www.w3.org/2000/svg'
     const host = svgHostRef.value
     host.replaceChildren()
     // Ny SVG-DOM → element-referansene i culling-indeksen er foreldede.
@@ -524,61 +524,15 @@ export function useMapLoadPipeline(deps) {
     forcedVisibleNameEls.clear()
     labelBoxCache.clear()
     resetPrevShownNames()
-    const svg = document.createElementNS(ns, 'svg')
-    svg.setAttribute('viewBox', sourceRoot.getAttribute('viewBox'))
-    svg.setAttribute('xmlns', ns)
-    // v8.9.26: xmlns:xlink må deklareres her — hill-shading og dybde-skygge
-    // legger til `xlink:href` på <image>-elementer via setAttributeNS, og
-    // uten denne deklarasjonen på root får serialisert eksport "Namespace
-    // prefix xlink for href on image is not defined" i Chrome (Android).
-    svg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
-    svg.setAttribute('class', 'isom-map')
-    svg.setAttribute('width', '100%')
-    svg.setAttribute('height', '100%')
-    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet')
-    // v10.x mosaikk: la innhold utenfor viewBox (spøkelses-nabofliser) vises i
-    // stedet for å klippes ved SVG-viewporten. Skjermkanten (kart-flate-wrapperen)
-    // klipper fortsatt, og UI-chrome ligger over (høyere z-index).
-    svg.style.overflow = 'visible'
-    // Kart-innholdet (bakgrunn + vegetasjon + kurver + relieff osv.) adopteres
-    // direkte inn i SVG-roten — adoptNode re-homer nodene fra DOMParser-
-    // dokumentet uten å kopiere (den gamle cloneNode(true)-loopen traverserte
-    // hele multi-MB-treet en gang til). Parse-dokumentet brukes aldri etterpå
-    // (ghost tiles re-leser lagret SVG-tekst selv). Overlays (GPS/annotering/
-    // spor/måling/søk) appendes ETTERPÅ så de ligger øverst. Relieffet
-    // (#hillshade-layer) settes inn foran [data-layer="vann"].
-    while (sourceRoot.firstChild) {
-      svg.appendChild(document.adoptNode(sourceRoot.firstChild))
-    }
-    // v10.2.9 (perf): detalj-lagene (data-detail="1": dybdepunkt/dybdekurve)
-    // er usynlige på hovedkartet (display:none) men kostet likevel parse,
-    // style-recalc og deep-clone ved hver buildDetailInset. Løft dem UT av
-    // live-DOM-en og hold dem i en modul-ref — inset-en (eneste konsument)
-    // appender kloner derfra i stedet.
+
+    // Selve DOM-byggingen bor i lib/kartVert.js (v6.5.0) — den deles med
+    // Fritt lende, som ikke har noe av bokføringen rundt.
+    const { svg, detaljLag, kulturminneAntall, harStier } = byggVertSvg(sourceRoot)
     detachedDetailLayers.length = 0
-    for (const g of svg.querySelectorAll('[data-detail="1"]')) {
-      detachedDetailLayers.push(g)
-      g.remove()
-    }
-    // Tell INNBAKTE kulturminne-ikoner (til toggel-badgen). Gjøres her siden
-    // SVG-en nå er fullt populert.
-    // v4.8.6: ingen innbakte ikoner betyr IKKE «ingen finnes» — bygge-tids-
-    // hentingen glipper rutinemessig på mobil, og runtime-fallbacken henter
-    // live etterpå. Da er svaret «vet ikke» (null), ikke 0, ellers påstår
-    // badgen at området er tomt før noen har spurt.
-    const innbakte = svg.querySelectorAll('[data-kulturminne-id]').length
-    kulturminneCount.value = innbakte || null
-    const userLayer = document.createElementNS(ns, 'g')
-    userLayer.setAttribute('id', 'user-layer')
-    // v8.5.2: GPS-laget skal aldri sluke pinch-to-zoom-gester når brukerens
-    // finger lander på prikken/ringen.
-    userLayer.setAttribute('pointer-events', 'none')
-    svg.appendChild(userLayer)
-    // Navn-lagene holdes usynlige til det utsatte navn-LOD-passet har kjørt —
-    // ellers ville ALLE navn blinke frem i 1–2 frames før decluttering. Dekker
-    // også prefers-reduced-motion (der reveal-fade hoppes helt over).
-    svg.classList.add('lod-pending')
+    detachedDetailLayers.push(...detaljLag)
+    kulturminneCount.value = kulturminneAntall
     host.appendChild(svg)
+
     // v11.0.45: trinnvis avsløring — strukturen (bakgrunn/vann/kurver/veier) males
     // først, så toner tekstur (vegetasjon/relieff) og labels inn et lite øyeblikk
     // etter. Selv om total tid er lik, leses en trinnvis ankomst som «snappy»
@@ -592,9 +546,7 @@ export function useMapLoadPipeline(deps) {
     // Stifinner: nytt kart → avbryt evt. aktiv modus + rydd rute-overlay, og
     // avgjør om kartet har routbare sti-/vei-lag (styrer «Naviger hit»).
     if (sti.active.value) sti.cancel()
-    mapHasTrails.value = !!svg.querySelector(
-      '[data-iso="501"],[data-iso="502"],[data-iso="503"],[data-iso="504"],[data-iso="505"],[data-iso="506"],[data-iso="507"],[data-iso="509"]'
-    )
+    mapHasTrails.value = harStier
   }
 
   return {

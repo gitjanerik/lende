@@ -141,6 +141,8 @@ import {
   PIN_SCALE_VALUES, SHADOW_SCALE_VALUES,
   pinTranslateValues, randomBegin, pinPath,
 } from '../lib/stedsmerkeAnimation.js'
+import { useNettStatus } from '../composables/useNettStatus.js'
+import { beregnMaalestokk } from '../lib/maalestokk.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -317,8 +319,8 @@ const detailsFailed = ref(false)
 // avbrutt av reload/app-lukking) → viser bare terreng. MapView tilbyr «Fullfør» (B).
 const mapIsPartial = ref(false)
 // Offline-tilstand (reaktiv) — «Fullfør»/«Reparer» krever nett; knappene gråes ut.
-const isOffline = ref(typeof navigator !== 'undefined' && navigator.onLine === false)
-function updateOnlineState() { isOffline.value = navigator.onLine === false }
+// Lytterne bor i useNettStatus fra v6.5.0.
+const { erOffline: isOffline } = useNettStatus()
 let componentAlive = true
 
 // Datamengde lastet for kartet (SVG + lagret DEM). Vises i drawer-ens Debug og
@@ -2286,30 +2288,11 @@ const depthEstimateWarning = computed(() => (
   meta.value?.depthSource === 'dem-estimat' ? 'Dybde: estimat — ikke for navigasjon' : ''
 ))
 
-const SCALE_BAR_MAX_PX = 180
 const scaleBar = computed(() => {
-  if (!meta.value) return { px: 0, label: '', ticks: [] }
   const { w, h } = wrapperSize.value
-  if (!w || !h) return { px: 0, label: '', ticks: [] }
-  const fit = Math.min(w / meta.value.widthM, h / meta.value.heightM)
-  const pxPerMeter = fit * scale.value
-  // Dekker hele zoom-spennet: km-verdier holder linjalen synlig når man zoomer
-  // langt ut (1000 m ble < 30 px og baren forsvant), og finere meter-verdier
-  // når man zoomer langt inn. Største verdi som passer ≤ MAX_PX velges først.
-  const candidates = [50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5]
-  for (const m of candidates) {
-    const px = m * pxPerMeter
-    if (px <= SCALE_BAR_MAX_PX && px >= 30) {
-      // Lag tikker pr 1/4 av lengden
-      const tickStep = m / 4
-      const ticks = []
-      for (let i = 0; i <= 4; i++) {
-        ticks.push({ px: i * px / 4, m: i * tickStep })
-      }
-      return { px, label: m >= 1000 ? `${m / 1000} km` : `${m} m`, ticks }
-    }
-  }
-  return { px: 0, label: '', ticks: [] }
+  return beregnMaalestokk({
+    w, h, widthM: meta.value?.widthM, heightM: meta.value?.heightM, scale: scale.value,
+  })
 })
 
 // Tema-applisering: setter CSS-variabler pr ISOM-kode + label på den FELLES
@@ -2377,8 +2360,6 @@ onMounted(() => {
     wrapperResizeObs.observe(wrapperRef.value)
   }
   window.addEventListener('resize', measureWrapper)
-  window.addEventListener('online', updateOnlineState)
-  window.addEventListener('offline', updateOnlineState)
   loadMap()
   screenWake.start()
   mapCtx.register(menuMapPoint, mapTitle.value)
@@ -2395,8 +2376,6 @@ onUnmounted(() => {
   tabResizeObs?.disconnect()
   wrapperResizeObs?.disconnect()
   componentAlive = false
-  window.removeEventListener('online', updateOnlineState)
-  window.removeEventListener('offline', updateOnlineState)
   desktopMq?.removeEventListener('change', updateIsDesktop)
   if (skeletonTimer) clearTimeout(skeletonTimer)
   if (loadPillTimer) clearTimeout(loadPillTimer)

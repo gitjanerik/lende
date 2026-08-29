@@ -69,3 +69,26 @@ describe('trengerEktekart — faller til den dyre siden når den er i tvil', () 
     expect(ekte(['src/components/MapModeChips.vue'])).toBe(false)
   })
 })
+
+// Fritt lende (v6.5.0). Røyk-sjekkene for modusen ligger i ruter-royk og seeder
+// sitt eget ark i IndexedDB, så de trenger verken Kartverket eller demokartet.
+describe('Fritt lende', () => {
+  it('viewen og knappen klarer seg uten ekte kart', () => {
+    expect(trengerEktekart(['src/views/FrittLendeView.vue']).ekte).toBe(false)
+    expect(trengerEktekart(['src/components/FrittLendeKnapp.vue']).ekte).toBe(false)
+  })
+
+  // lib/ er og blir dyr side — kart-pipelinen bor der.
+  it('men lib/frittLende.js krever ekte kart som resten av lib', () => {
+    expect(trengerEktekart(['src/lib/frittLende.js']).ekte).toBe(true)
+  })
+
+  it('en typisk modus-PR slipper unna med demokartet', () => {
+    expect(trengerEktekart([
+      'src/views/FrittLendeView.vue',
+      'src/components/FrittLendeKnapp.vue',
+      'src/router.js',
+      'scripts/ruter-royk.mjs',
+    ]).ekte).toBe(false)
+  })
+})

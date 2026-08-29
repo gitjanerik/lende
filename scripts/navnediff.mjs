@@ -69,7 +69,12 @@ const REF = flagg('ref', 'origin/master')
 // det er derfor den parses HER i JS og ikke settes sammen til en kommandolinje i
 // workflowen. Det verste den kan gjøre er å dempe et navn i en rapport.
 const traillerNavn = () => {
-  const treff = (tekst) => [...String(tekst ?? '').matchAll(/^Navnediff-ok:\s*(.+)$/gim)]
+  // Markdown-emfase rundt linja tolereres (v6.5.0). PR-beskrivelser skrives i
+  // markdown, og `**Navnediff-ok: x**` er en helt naturlig ting å skrive — men
+  // uten dette matcher ikke ankeret, kvitteringen forsvinner stille, og gaten
+  // blir umulig å bestå uten å vite hvorfor. Det er samme feilmodus som
+  // trailer-lesingen hadde i CI fram til v6.3.12.
+  const treff = (tekst) => [...String(tekst ?? '').matchAll(/^[*_\s>]*Navnediff-ok:\s*(.+?)[*_\s]*$/gim)]
     .flatMap((m) => m[1].split(','))
   const fraPr = treff(process.env.NAVNEDIFF_PR_BODY)
   if (fraPr.length) return fraPr

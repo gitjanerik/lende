@@ -13,6 +13,7 @@ import {
   pinTranslateValues, randomBegin, pinPath,
 } from '../lib/stedsmerkeAnimation.js'
 import { ANNOTATION_SYMBOLS } from './useMapAnnotations.js'
+import { tegnBrukerPrikk } from '../lib/brukerPrikk.js'
 
 export function useSymbolRenderers({
   svgHostRef, wrapperRef, wrapperSize, scale, rotation,
@@ -843,47 +844,9 @@ export function useSymbolRenderers({
     const svg = svgHostRef.value?.querySelector('svg')
     const layer = svg?.querySelector('#user-layer')
     if (!layer) return
-    const x = userPos.svgX
-    const y = userPos.svgY
-    const acc = userPos.accuracyM ?? 30
-    layer.replaceChildren()
-    if (x == null || y == null) return
-    const ns = 'http://www.w3.org/2000/svg'
-
-    // Dynamiske skjerm-størrelser. Dot er fast 14 CSS-px. Accuracy-ringen
-    // reflekterer ekte fysisk usikkerhet (i meter) men cappes på ~28 CSS-px
-    // radius slik at dårlig GPS (urban / tog / tunnel) ikke språker ringen
-    // utover halve skjermen og dømmer kart-innholdet.
-    // v8.5.3: stroke-bredder via pxToUserUnits — non-scaling-stroke virker
-    // ikke når SVG-en CSS-transformeres av pinch-zoom-wrapperen, så stroke
-    // ble fete på høy zoom og det blå fyllet forsvant under den hvite kant-
-    // linjen. Nå skaleres bredden eksplisitt på samme måte som radius.
-    // Retningskjegla ble fjernet i v5.2.2 — den drev hit og dit når man sto
-    // stille, som er nettopp når kartet leses.
-    const dotR = pxToUserUnits(7)         // ~14 CSS-px diameter
-    const dotStroke = pxToUserUnits(1.6)  // tynn hvit halo
-    const minRingR = pxToUserUnits(12)    // ringen blir aldri mindre enn dot+halo
-    const maxRingR = pxToUserUnits(28)    // visuelt cap
-    const ringR = Math.min(maxRingR, Math.max(minRingR, acc))
-    const ringStroke = pxToUserUnits(0.8)
-
-    const ring = document.createElementNS(ns, 'circle')
-    ring.setAttribute('cx', x)
-    ring.setAttribute('cy', y)
-    ring.setAttribute('r', ringR)
-    ring.setAttribute('fill', 'rgba(56, 189, 248, 0.10)')
-    ring.setAttribute('stroke', 'rgba(56, 189, 248, 0.40)')
-    ring.setAttribute('stroke-width', ringStroke)
-    layer.appendChild(ring)
-
-    const dot = document.createElementNS(ns, 'circle')
-    dot.setAttribute('cx', x)
-    dot.setAttribute('cy', y)
-    dot.setAttribute('r', dotR)
-    dot.setAttribute('fill', '#0ea5e9')
-    dot.setAttribute('stroke', '#fff')
-    dot.setAttribute('stroke-width', dotStroke)
-    layer.appendChild(dot)
+    tegnBrukerPrikk(layer, {
+      x: userPos.svgX, y: userPos.svgY, accuracyM: userPos.accuracyM, pxToUserUnits,
+    })
   }
 
   return {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { filterOsmWaterElements } from './createMapFlow.js'
+import { filterOsmWaterElements, demProbeOpplosning } from './createMapFlow.js'
 
 // Regresjon: brede elver (Drammenselva, tagget natural=water+water=river) skal
 // IKKE forsvinne når NVE/N50 returnerer ferskvann. NVE/N50 leverer kun innsjø-
@@ -108,5 +108,35 @@ describe('filterOsmWaterElements — elve-flater overlever autoritativt ferskvan
   it('ikke-vann-elementer passerer uberørt', () => {
     const road = el({ highway: 'residential' })
     expect(filterOsmWaterElements([road], flagsWithNve)).toEqual([road])
+  })
+})
+
+// ── DEM-probe-oppløsning ────────────────────────────────────────────────────
+// Regelen bestemmer hvor fin DEM-en blir, og dermed hvor glatte kotene er.
+// Den er eksportert nettopp fordi den er en beslutning: lå den bare inne i den
+// nettverksavhengige pipelinen, kunne den ikke prøves i det hele tatt.
+describe('demProbeOpplosning', () => {
+  it('gir 10 m til fine konturer og 20 m ellers — regelen er uendret', () => {
+    expect(demProbeOpplosning(2.5)).toBe(10)
+    expect(demProbeOpplosning(5)).toBe(10)
+    expect(demProbeOpplosning(10)).toBe(20)
+    expect(demProbeOpplosning(20)).toBe(20)
+    expect(demProbeOpplosning(50)).toBe(20)
+  })
+
+  // Fritt lende: 10 m ekvidistanse på et 2 km-ark. Regelen alene ville gitt
+  // 20 m DEM, og da ligger kotene drøyt én celle fra hverandre i bratt terreng.
+  it('lar kalleren overstyre', () => {
+    expect(demProbeOpplosning(10, 10)).toBe(10)
+    expect(demProbeOpplosning(20, 5)).toBe(5)
+  })
+
+  // Default-en MÅ være uendret for alle eksisterende kallere — ingen av dem
+  // sender parameteren, og en overstyring som slo inn på undefined ville
+  // stille endret hvert eneste kart som bygges.
+  it('faller tilbake på regelen for alt som ikke er et gyldig tall', () => {
+    for (const tull of [undefined, null, 0, -5, NaN, '10']) {
+      expect(demProbeOpplosning(10, tull)).toBe(20)
+    }
   })
 })

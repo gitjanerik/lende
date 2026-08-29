@@ -16,16 +16,25 @@ import FabCluster from './FabCluster.vue'
 // størrelse (56 → 48) og posisjoneringsmodell ved navigering.
 //
 // Ligger på z-[60]: under meny-backdrop (200) og modaler (210), så den dekkes
-// naturlig når noe annet er åpent — ingen tilstands-wiring trengs. Begge
-// kartvisningene har sin egen klynge (ankeret eier kart-knottene der), så den
-// globale viker for `kart-vis` og `ruteplanlegger`.
-const CLUSTER_ROUTES = ['kart-vis', 'ruteplanlegger']
+// naturlig når noe annet er åpent — ingen tilstands-wiring trengs.
+//
+// Rutene under får IKKE den globale knappen, av to ULIKE grunner. Skillet er
+// verdt å holde, for grunnene tåler ulike endringer:
+//
+//   kart-vis, ruteplanlegger — har sin egen FabCluster nede til høyre, og
+//     ankeret eier chatten der. Fjernes klyngen i en av dem, skal ruta ut av
+//     lista igjen.
+//   fritt-lende             — HAR INGEN CHAT I DET HELE TATT. Modusen er
+//     bevisst funksjonsløs, og det står fast selv om knappen nede til høyre
+//     skulle endre seg eller forsvinne. Ikke fjern denne fordi Fritt lende
+//     «ikke har en klynge» — den er her fordi chatten ikke hører hjemme der.
+const UTEN_GLOBAL_CHAT = ['kart-vis', 'ruteplanlegger', 'fritt-lende']
 
 const { openChat } = useLendeChat()
 const visible = hasAiToken()
 const route = useRoute()
 
-const show = computed(() => visible && !CLUSTER_ROUTES.includes(route.name))
+const show = computed(() => visible && !UTEN_GLOBAL_CHAT.includes(route.name))
 
 const logoUrl = `${import.meta.env.BASE_URL}icon.svg`
 </script>

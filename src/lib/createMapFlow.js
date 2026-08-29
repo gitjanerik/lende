@@ -173,6 +173,20 @@ function withHardTimeout(promise, ms, fallback, label) {
   })
 }
 
+// DEM-probe-oppløsning: 10 m ved fine konturer (≤ 5 m ekvidistanse), ellers
+// 20 m. Regelen er en avveining for kart i VANLIG størrelse — den ser bare på
+// ekvidistansen, ikke på hvor stort arket er, så et lite ark får unødig grov
+// DEM. Derfor kan kalleren overstyre (v6.5.0): Fritt lende ber om 10 m til sin
+// 10 m ekvidistanse, fordi kotene ellers ligger drøyt én celle fra hverandre i
+// bratt terreng og trapper seg synlig.
+//
+// Egen eksportert funksjon fordi den ER en beslutning, og en beslutning som
+// bare finnes inne i en nettverksavhengig pipeline kan ikke enhetstestes.
+export function demProbeOpplosning(equidistanceM, overstyring = undefined) {
+  if (Number.isFinite(overstyring) && overstyring > 0) return overstyring
+  return equidistanceM <= 5 ? 10 : 20
+}
+
 /**
  * Bygg, lagre og returnér en kart-entry. Kaster ved feil.
  *
@@ -185,6 +199,8 @@ function withHardTimeout(promise, ms, fallback, label) {
  * @param {number} opts.equidistanceM  — kontur-intervall
  * @param {string} opts.navn  — kartets navn
  * @param {(msg:string)=>void} [opts.onProgress]  — status-callback for UI
+ * @param {string} [opts.id]  — eksplisitt kart-id; overskriver et eksisterende ark
+ * @param {number} [opts.demResolutionM]  — overstyr DEM-probe-oppløsningen
  */
 export async function buildMapFromCenter({
   center,
@@ -207,6 +223,14 @@ export async function buildMapFromCenter({
   // detaljnivået justeres. Snarvei-flyten (søk/GPS/«Bygg om») bruker en lagret
   // preferanse på et sted brukeren ikke har vurdert, og får begge trinnene.
   klampBredde = true,
+  // Eksplisitt kart-id (v6.5.0). Fritt lende bygger alltid til det SAMME id-et,
+  // så `saveMap`-put-en overskriver forrige ark — det ER «forrige kart slettes».
+  // `undefined` ⇒ nytt tilfeldig id, som før.
+  id: eksplisittId = undefined,
+  // Overstyr DEM-probe-oppløsningen (v6.5.0). Regelen under er en avveining for
+  // kart i vanlig størrelse; et lite ark har råd til finere DEM enn
+  // ekvidistansen alene tilsier. `undefined` ⇒ regelen, som før.
+  demResolutionM = undefined,
 }) {
   const throwIfAborted = () => {
     if (signal?.aborted) throw new DOMException('Avbrutt', 'AbortError')
@@ -285,7 +309,7 @@ export async function buildMapFromCenter({
   // rutenettet (multiplum av 5/10/20 → også 5 m-justert for kyst-oppgraderingen).
   // Proben holdes bevisst billig + pålitelig: den brukes til kyst-deteksjon OG
   // som fallback hvis fin-oppgraderingen under feiler/timer ut (aldri verre enn før).
-  const resolutionM = equidistanceM <= 5 ? 10 : 20
+  const resolutionM = demProbeOpplosning(equidistanceM, demResolutionM)
 
   // Fin-innlands DEM-mål: for fine-ekvidistanse-kart (≤ 5 m, inkl. 2,5 m) henter
   // vi et mye finere rutenett (2 m, evt. 5 m for større kart) fra samme NHM_DTM-
@@ -586,7 +610,7 @@ export async function buildMapFromCenter({
     })
   }).catch(() => ({ ...EMPTY_SJOKART, failed: true })))
 
-  const id = generateMapId()
+  const id = eksplisittId ?? generateMapId()
   // Marker som ferskt kart så MapView gir det en garantert «litt kontur + litt
   // relieff»-baseline (relieff persisteres globalt — er det skrudd til 0 ville
   // ellers ALLE nye kart blitt blast). Felles knutepunkt → dekker picker,
