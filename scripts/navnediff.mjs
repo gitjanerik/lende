@@ -16,6 +16,11 @@
 //   npm run navnediff -- src/views/MapView.vue --ref HEAD~1
 //   npm run navnediff -- --ok formatDistance,startGpsTick   # kvitter ut villet sletting
 //
+// I CI, der det ikke går an å sende flagg, kvitteres en villet sletting ut med
+// en trailer i en commit på grenen:
+//
+//   Navnediff-ok: formatDistance, startGpsTick
+//
 // Exit 1 hvis et navn er borte men FORTSATT brukt (sikker bug), hvis et
 // composable-kall forsvant uten å dukke opp i en ny fil, eller hvis noe er
 // uforklart borte uten --ok. Det siste er ikke mistenksomhet for moro skyld:
@@ -33,7 +38,31 @@ const flagg = (navn, def = null) => {
 }
 const FIL = args.find((a) => !a.startsWith('--') && a.includes('/')) ?? 'src/views/MapView.vue'
 const REF = flagg('ref', 'origin/master')
-const KVITTERT = new Set((flagg('ok', '') || '').split(',').map((s) => s.trim()).filter(Boolean))
+// Kvitteringer kommer fra TO steder, og det andre er ikke en bekvemmelighet:
+//   • `--ok navn1,navn2` — når man kjører lokalt
+//   • `Navnediff-ok: navn1, navn2` som trailer i en commit på grenen
+//
+// CI kjører `npm run navnediff` UTEN argumenter, så fram til v6.3.12 kunne en
+// villet sletting ikke kvitteres ut i det hele tatt der: den var grønn lokalt og
+// alltid rød i CI, uansett hva man skrev. Det er en gate som ikke kan bestås, og
+// slike blir skrudd av innen en måned.
+//
+// Trailer og ikke en fil-liste med vilje: den hører til ENDRINGEN, den er synlig
+// i diffen og i loggen, og den forsvinner av seg selv når grenen er merget. En
+// `.navnediff-ok` i rota ville blitt liggende og stilnet de samme navnene for
+// alltid.
+const traillerNavn = () => {
+  try {
+    const logg = execFileSync('git', ['log', '--format=%B', `${REF}..HEAD`],
+      { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 })
+    return [...logg.matchAll(/^Navnediff-ok:\s*(.+)$/gim)]
+      .flatMap((m) => m[1].split(','))
+  } catch { return [] }
+}
+const KVITTERT = new Set([
+  ...(flagg('ok', '') || '').split(','),
+  ...traillerNavn(),
+].map((s) => s.trim()).filter(Boolean))
 
 const git = (...a) => execFileSync('git', a, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
 
@@ -213,6 +242,7 @@ if (uforklart.length) {
   console.log(`\n⚠ uforklart borte (${uforklart.length}) — ikke brukt, ikke funnet i endrede filer:`)
   for (const n of uforklart) console.log(`   ${n}`)
   console.log(`   Var det med vilje? Kvitter ut: npm run navnediff -- --ok ${uforklart.join(',')}`)
+  console.log(`   … og i CI: legg «Navnediff-ok: ${uforklart.join(', ')}» som trailer i en commit.`)
   kode = 1
 }
 
