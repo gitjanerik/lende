@@ -24,6 +24,7 @@ import isomCatalog from '../lib/isomCatalog.json'
 import { useStrokeTuning } from './useStrokeTuning.js'
 import { useTrailColors } from './useTrailColors.js'
 import { useReliefSettings } from './useReliefSettings.js'
+import { STROKE_STEPS, STROKE_DEFAULT_IDX, strokeSizeBase } from '../lib/strekSkala.js'
 
 // Delt med MapView: maks-fliser-slideren leser samme trinn-modell fra
 // localStorage, men hører til mosaikk-lagringen og ikke til knottene.
@@ -72,11 +73,7 @@ export function useKartKnotter({
   //    kart har langt tettere kontur-tetthet — samme mm-strek blir et svart rot
   //    ved zoom. Et 10 km-kart får derfor hele skalaen skjøvet tynnere enn et
   //    1 km-kart, mens hint-boblen viser den faktiske effektive ×-verdien.
-  // v10.2.38 — hele skalaen senket 30% (× 0.7 fra [0.4, 0.6, 0.85, 1.2, 1.6, 2.2]).
-  // Maks-hakket × strokeSizeBase var litt for voldsomt (effektiv ~1.3–1.5×);
-  // 30%-kuttet lander effektiv maks på drøyt 1 på både små og store kart.
-  const STROKE_STEPS = [0.28, 0.42, 0.6, 0.84, 1.12, 1.54]
-  const STROKE_DEFAULT_IDX = 2  // 0.6× (var 0.85×) etter 30%-nedjustering
+  // Strek-hakkene og kartstørrelse-basisen bor i lib/strekSkala.js (v6.5.0).
   // v11.0.44: default-relieff senket fra 0.42 → 0.35 (idx 3 → 2). Flåten av
   // kart-eksperter (orientering + tilgjengelighet) fant at sterkt relieff drukner
   // brune koter i skyggesidene der landform-detalj bor. idx 2 = 0.35 ≈ «35 %».
@@ -90,14 +87,6 @@ export function useKartKnotter({
   const RELIEF_LS_KEY = 'lende-mapview-relief-step'
   const LABEL_SCALE_LS_KEY = 'lende-mapview-label-scale'
 
-  // Kartstørrelse-basis: 1 km → 1.0, 10 km → 0.4 (lineær mellom). Klam utenfor.
-  // Gjør at samme knott-hakk gir tynnere streker på store kart der konturene
-  // ligger tett, så maks ikke blir et svart rot og default matcher ~1 km-følelsen.
-  function strokeSizeBase(widthM) {
-    if (!Number.isFinite(widthM) || widthM <= 0) return 1
-    const t = Math.min(1, Math.max(0, (widthM - 1000) / 9000))
-    return 1 - 0.6 * t
-  }
   const strokeStepIndex = ref(loadKnobStep(STROKE_LS_KEY, STROKE_DEFAULT_IDX, STROKE_STEPS.length))
   const reliefStepIndex = ref(loadKnobStep(RELIEF_LS_KEY, RELIEF_DEFAULT_IDX, RELIEF_STEPS.length))
 
