@@ -22,6 +22,7 @@ import {
   knappeHandling, knappeEtikett, fixVurdering, arkErGammelt,
   FIX_VENT_MS,
 } from '../lib/frittLende.js'
+import KartLaster from '../components/KartLaster.vue'
 
 // ── Fritt lende ─────────────────────────────────────────────────────────────
 // Ett ark på 2 × 2 km der du står, og én knapp som sier hvor du er. Alt annet
@@ -416,10 +417,20 @@ const arkDato = computed(() => (opprettet.value
     <!-- Fremdrift. Ingen fullskjerm-loader: et 2 km-ark er 1/16 av
          standardkartet, så dette er sekunder og ikke minutter. -->
     <div v-if="bygger || venterPaaFix"
-         class="absolute top-16 left-1/2 -translate-x-1/2 z-30
-                flex items-center gap-3 px-3 py-2 rounded-full bg-overlay shadow-lg">
-      <span class="text-xs text-ink">{{ venterPaaFix && !bygger ? 'Finner posisjonen din …' : fremdrift }}</span>
-      <button type="button" class="text-xs font-semibold text-ink/70 underline"
+         class="absolute top-16 left-1/2 -translate-x-1/2 z-30 max-w-[min(22rem,92vw)]
+                flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-2xl bg-overlay shadow-lg
+                border border-ink/10 backdrop-blur">
+      <!-- Samme ikon som turkartet bruker mens det fyller inn detaljer. Det står
+           i ALLE fasene, også «finner posisjonen» — den var den eneste uten noe
+           som beveget seg, og en stillestående chip leses som at appen har hengt. -->
+      <KartLaster storrelse="w-6 h-6" />
+      <span class="text-xs text-ink leading-snug">{{
+        venterPaaFix && !bygger ? 'Finner posisjonen din …' : fremdrift }}</span>
+      <!-- shrink-0 + nowrap: uten dem klemmes knappen mot teksten og «Avbryt»
+           deles til «Av-bryt» over to linjer. Den er rømningsveien ut av en
+           bygging, og en knapp som ser ødelagt ut leses som at appen er det. -->
+      <button type="button"
+              class="shrink-0 whitespace-nowrap text-xs font-semibold text-ink/70 underline"
               @click="avbryt">Avbryt</button>
     </div>
 

@@ -215,6 +215,25 @@ try {
     `${arket?.knapper ?? 0} knapper`)
   sjekk('Fritt lende: målestokken vises', arket?.maalestokk === true)
 
+  // /om har tre faner fra v6.5.1. Fritt lende-fanen er den eneste dokumentasjonen
+  // av modusen som finnes, og en fane er lett å miste i en refaktorering av
+  // v-if/v-else-kjeden. Sjekken er nettverksfri.
+  const s6 = await ctx.newPage()
+  s6.on('pageerror', (e) => jsFeil.push(e.message))
+  await s6.goto(`${BASE}/om`, { waitUntil: 'domcontentloaded' })
+  await sov(700)
+  const faner = await s6.evaluate(() => [...document.querySelectorAll('button')]
+    .map((b) => b.textContent.trim())
+    .filter((t) => ['Turkart', 'Fritt lende', 'Ruteplanlegger'].includes(t)))
+  sjekk('/om har alle tre fanene', faner.length === 3, faner.join(', ') || 'fant ingen')
+
+  await s6.locator('button', { hasText: 'Fritt lende' }).first().click()
+  await sov(300)
+  const frittTekst = await s6.evaluate(() => document.body.innerText)
+  sjekk('/om: Fritt lende-fanen forklarer modusen',
+    /supplement/i.test(frittTekst) && /versjon 6\.5/i.test(frittTekst),
+    'nevner supplement og versjon')
+
   // Deep-lenker skal IKKE røres av hooken.
   const s3 = await ctx.newPage()
   s3.on('pageerror', (e) => jsFeil.push(e.message))

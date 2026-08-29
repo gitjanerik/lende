@@ -149,14 +149,22 @@ async function onInstallClick() {
 
     <!-- Faner: én per hovedfunksjon. -->
     <section class="space-y-4">
-      <div class="flex gap-1 p-1 rounded-xl bg-ink/5 border border-ink/10">
+      <!-- flex-wrap fra v6.5.1: med tre faner er «Ruteplanlegger» for bred til
+           at raden holder på én linje ved 150 % tekstskalering. Da er det bedre
+           at raden brytes enn at etikettene forkortes. -->
+      <div class="flex flex-wrap gap-1 p-1 rounded-xl bg-ink/5 border border-ink/10">
         <button @click="tab = 'turkart'"
-                class="flex-1 py-2 rounded-lg text-[13px] font-medium transition"
+                class="flex-1 min-w-[6rem] py-2 rounded-lg text-[13px] font-medium transition"
                 :class="tab === 'turkart' ? 'bg-[#ffd84a] text-zinc-900' : 'text-ink/60 active:text-ink/90'">
           Turkart
         </button>
+        <button @click="tab = 'fritt'"
+                class="flex-1 min-w-[6rem] py-2 rounded-lg text-[13px] font-medium transition"
+                :class="tab === 'fritt' ? 'bg-[#ffd84a] text-zinc-900' : 'text-ink/60 active:text-ink/90'">
+          Fritt lende
+        </button>
         <button @click="tab = 'rute'"
-                class="flex-1 py-2 rounded-lg text-[13px] font-medium transition"
+                class="flex-1 min-w-[6rem] py-2 rounded-lg text-[13px] font-medium transition"
                 :class="tab === 'rute' ? 'bg-[#ffd84a] text-zinc-900' : 'text-ink/60 active:text-ink/90'">
           Ruteplanlegger
         </button>
@@ -312,6 +320,57 @@ async function onInstallClick() {
               som før — har du åpnet et kart på nett, ligger den klar også uten
               dekning.</li>
           </ul>
+        </div>
+      </div>
+
+      <!-- Fritt lende-fanen (v6.5.1). -->
+      <div v-else-if="tab === 'fritt'" class="space-y-4">
+        <div class="space-y-2">
+          <h3 class="text-sm font-semibold text-ink/85">Hva det er</h3>
+          <p class="text-[13px] leading-relaxed text-ink/70">
+            En avkledd turkartmodus, levert i <strong class="text-ink/90">versjon 6.5</strong>
+            som et <strong class="text-ink/90">supplement</strong> til turkartet — ikke en
+            erstatning. Små, kvadratiske ark på 2 × 2 km som lages på farta: nærtur i
+            skog og mark, der du har dekning og bare vil se et kart. Ett kart, én
+            knapp, ingen innstillinger.
+          </p>
+          <p class="text-[13px] leading-relaxed text-ink/70">
+            Alt annet er borte fra skjermen. Ingen faner, ingen søk, ingen måling,
+            ingen 3D — bare menyknappen øverst, målestokken nede til venstre og
+            knappen nede til høyre. Kartet er alltid nord opp, i ISOM-uttrykk, med
+            10 meters ekvidistanse.
+          </p>
+        </div>
+        <div class="space-y-2">
+          <h3 class="text-sm font-semibold text-ink/85">Knappen og «deg i sentrum»</h3>
+          <ul class="text-[13px] leading-relaxed text-ink/70 space-y-1.5 list-disc pl-5">
+            <li>Første trykk etter at du har åpnet modusen <strong class="text-ink/90">starter
+              bare GPS</strong>. Da er det alltid ett trykk mellom å komme inn og å
+              bytte ark — nyttig, siden du som regel står et helt annet sted i dag
+              enn da forrige ark ble laget.</li>
+            <li>Står du <strong class="text-ink/90">på</strong> arket, sentrerer et trykk
+              kartet på deg. Da kan det ikke bygge et nytt i det hele tatt.</li>
+            <li>Har du <strong class="text-ink/90">gått av</strong> arket, lager neste
+              trykk et nytt med deg i midten. Det gamle blir liggende til det nye er
+              ferdig tegnet, så et feiltrykk kan ikke etterlate deg uten kart.</li>
+            <li><strong class="text-ink/90">Angre</strong> henter forrige ark tilbake, og
+              trenger ikke nett.</li>
+          </ul>
+        </div>
+        <div class="space-y-2">
+          <h3 class="text-sm font-semibold text-ink/85">Ferskvare — med vilje</h3>
+          <p class="text-[13px] leading-relaxed text-ink/70">
+            Arket har ikke navn, det neste erstatter det, og det havner aldri i
+            «Mine kart». Det er ikke en mangel: det er nettopp fordi ingen ark er
+            verdt å ta vare på at modusen slipper å spørre deg om noe som helst.
+            Vil du ha et kart som varer, lager du det under
+            <strong class="text-ink/90">Turkart</strong>.
+          </p>
+          <p class="text-[13px] leading-relaxed text-ink/70">
+            Modusen trenger dekning for å <em>lage</em> et ark, men ikke for å vise
+            det den har. Går nettet mens du er ute, ligger kartet der fortsatt — du
+            kan bare ikke bytte det før du har dekning igjen.
+          </p>
         </div>
       </div>
 

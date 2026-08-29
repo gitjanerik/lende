@@ -8,6 +8,7 @@
 import { computed, ref, watch } from 'vue'
 import { flisIkonRuter } from '../lib/flisIkon.js'
 import { ANNOTATION_SYMBOLS } from '../composables/useMapAnnotations.js'
+import KartLaster from './KartLaster.vue'
 
 const props = defineProps({
   autoMapToast: { type: String, default: '' },
@@ -118,28 +119,7 @@ function formatElevationDiff(m) {
                 flex items-center gap-2 pointer-events-none border border-ink/10
                 transition-[left] duration-200"
          :style="mapCenterStyle">
-      <!-- Animert «landmåler»-ikon: topo-konturer tegnes inn mens en gul
-           sveipelinje roterer over kartet (SMIL) — eye candy som matcher at
-           kartet tegnes ferdig i bakgrunnen. -->
-      <svg viewBox="0 0 32 32" class="w-7 h-7 shrink-0" fill="none" aria-hidden="true">
-        <circle cx="16" cy="16" r="14" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
-        <circle cx="16" cy="16" r="10.5" stroke="#7dd3fc" stroke-width="1.6"
-                stroke-dasharray="66" stroke-linecap="round" opacity="0.9">
-          <animate attributeName="stroke-dashoffset" values="66;0;0;66" dur="2.4s" repeatCount="indefinite"/>
-        </circle>
-        <circle cx="16" cy="16" r="6" stroke="#34d399" stroke-width="1.6"
-                stroke-dasharray="38" stroke-linecap="round" opacity="0.9">
-          <animate attributeName="stroke-dashoffset" values="38;0;0;38" dur="2.4s" begin="0.3s" repeatCount="indefinite"/>
-        </circle>
-        <g>
-          <line x1="16" y1="16" x2="16" y2="3.5" stroke="#fbbf24" stroke-width="1.6" stroke-linecap="round" opacity="0.9"/>
-          <circle cx="16" cy="3.5" r="1.7" fill="#fbbf24"/>
-          <animateTransform attributeName="transform" type="rotate" from="0 16 16" to="360 16 16" dur="1.8s" repeatCount="indefinite"/>
-        </g>
-        <circle cx="16" cy="16" r="1.8" fill="#fff">
-          <animate attributeName="r" values="1.4;2.4;1.4" dur="1.4s" repeatCount="indefinite"/>
-        </circle>
-      </svg>
+      <KartLaster />
       <span>Tegner inn stier og detaljer …</span>
     </div>
   </Transition>
