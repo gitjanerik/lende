@@ -81,14 +81,16 @@ export const HIMMELLEGEMER = {
   sol: {
     navn: 'Sola',
     farge: '#ffcf5c',
-    // INGEN FOTOGRAFI-URL, og det er et valg og ikke en forglemmelse: hostene er
-    // sperret fra utviklingsmiljøene, og CLAUDE.md sier rett ut at en kilde-URL
-    // skal MÅLES og ikke gjettes (v6.3.0, der tre gjettede URL-er alle var feil
-    // og viste seg først i deploy-loggen). Overflaten tegnes derfor lokalt, og
-    // den er god nok: granulasjon og de to flekkbeltene er det man ser i et
-    // solfilter. Skal det bli et ekte SDO-bilde, kjør probe-himmelkart.yml
-    // først og legg inn tittelen den FANT.
-    tekstur: null,
+    // MÅLT AV PROBEN, ikke gjettet (v6.5.7): 213 kB, CC BY 4.0. Det er et
+    // STILISERT solkart og ikke et fotografi — Commons har rikelig med SDO- og
+    // SOHO-opptak, men de er SKIVEBILDER av sola sett forfra, og en globe
+    // trenger et equirektangulært kart.
+    //
+    // `granulasjon` under står FORTSATT, og det er ikke en rest: den er
+    // fallbacken når fila mangler, og sola er det ene legemet som er laget for å
+    // klare seg helt uten en. Bakes kartet ikke — offline, 404, en kilde som
+    // faller bort — tegnes overflaten lokalt, med de samme to flekkbeltene.
+    tekstur: 'sol.jpg',
     selvlysende: true,
     granulasjon: true,
     akseHelling: 7.25,

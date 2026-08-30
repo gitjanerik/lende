@@ -45,6 +45,28 @@ import { dirname, join } from 'node:path'
 // Taket er lavt med vilje: bildene går i nettleser-bunten til alle brukere, og en
 // globe tegnes maks en tredjedel av skjermen. ~1k bredde er rikelig.
 const LEGEMER = {
+  // SOLA (v6.5.7). MÅLT av proben, ikke gjettet: 213 kB, CC BY 4.0. Merk at
+  // dette er et STILISERT solkart og ikke et fotografi — Commons har rikelig
+  // med SDO- og SOHO-opptak, men de er SKIVEBILDER av sola sett forfra, og en
+  // globe trenger et equirektangulært kart. Kandidatene «Sun texture map» og
+  // «Solar surface texture» finnes ikke; det gjør heller ingen av de tre
+  // sol-kategoriene proben leter i.
+  //
+  // Faller kilden bort, tegnes overflaten lokalt i stedet (granulasjonTekstur i
+  // himmelGlobe.js) — sola er det ene legemet som er laget for å klare seg helt
+  // uten fil, og den skal fortsette å være det.
+  sol: [
+    {
+      navn: 'Solar System Scope — sol-tekstur 2k (via Commons)',
+      commons: 'File:Solarsystemscope texture 2k sun.jpg',
+      lisens: 'CC BY 4.0 — Solar System Scope (INOVE)',
+    },
+    {
+      navn: 'Solar System Scope — sol-tekstur 8k (via Commons)',
+      commons: 'File:Solarsystemscope texture 8k sun.jpg',
+      lisens: 'CC BY 4.0 — Solar System Scope (INOVE)',
+    },
+  ],
   maane: [
     {
       navn: 'NASA SVS — CGI Moon Kit, fargekart 1k',

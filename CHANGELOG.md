@@ -1,3 +1,33 @@
+## 2026-08-30 — v6.5.7: Solkartet er målt, og proben spør om ett legeme om gangen
+
+Sola fikk et ekte overflatekart, og veien dit avdekket en feil i proben som
+gjorde den ubrukelig. Første kjøring med sola i kandidatlista ble ratebegrenset:
+nesten alt fra Jupiter og nedover kom tilbake som HTTP 429. Det er nøyaktig det
+skriptets egne kommentarer advarer om fra runde to — en probe som blir
+ratebegrenset måler ingenting — bare med fem legemer i lista i stedet for fire.
+`--probe sol` begrenser nå til ett legeme, som tar spørsmålene fra rundt seksti
+til rundt åtte, og en 429 gir ett forsøk til etter fem sekunder. Forskjellen på
+«filen finnes ikke» og «vi spurte for fort» er hele forskjellen på en måling og
+en gjetning, og uten den leste hele kjøringen som om ingen kilde svarte.
+Workflowen har fått en legeme-input, så den kan kjøres for ett legeme fra
+Actions-fanen — også fra mobil.
+
+Med den rene kjøringen kom svaret: Solar System Scopes sol-tekstur svarer på
+213 kB under CC BY 4.0, og navnemønsteret som er bevist for Mars, Jupiter, Saturn
+og månen holder også her. «Sun texture map» og «Solar surface texture» finnes
+ikke, og ingen av de tre sol-kategoriene ga kandidater. Attribusjonen på /om er
+utvidet — det er et vilkår for CC BY, ikke en høflighet.
+
+Det er verdt å si hva kartet ER: et STILISERT solkart, ikke et fotografi. Commons
+har rikelig med SDO- og SOHO-opptak, men de er alle skivebilder av sola sett
+forfra, og en globe trenger et equirektangulært kart. Den lokalt tegnede
+granulasjonen står derfor fortsatt i tabellen, og det er ikke en rest: sola har
+ingen lyssetting å falle tilbake på, så uten den er den en flat skive i én farge
+den dagen fila mangler. Testen holder den invarianten fast, siden feltet nå ser
+overflødig ut ved siden av en `tekstur` som er satt.
+
+---
+
 ## 2026-08-30 — v6.5.6: Sola er det femte legemet, og den står under terrenget
 
 Eieren savnet sola som noe man kan åpne som nærbilde i nattmodus, og spurte om

@@ -262,16 +262,15 @@ describe('HIMMELLEGEMER — tabellen', () => {
     // gjenkjennelig likevel.
     for (const [id, spec] of Object.entries(HIMMELLEGEMER)) {
       expect(spec.farge, id).toMatch(/^#[0-9a-f]{6}$/i)
-      // SOLA HAR INGEN BAKT FIL, og det er et valg: kilde-URL-er skal måles og
-      // ikke gjettes (v6.3.0), og hostene er sperret fra utviklingsmiljøene.
-      // Overflaten tegnes lokalt i stedet — se granulasjonTekstur. Da MÅ den
-      // også si fra at den er selvlysende, ellers står halve sola i skygge.
-      if (spec.tekstur === null) {
-        expect(spec.granulasjon || spec.band, id).toBeTruthy()
-        expect(spec.selvlysende, id).toBe(true)
-      } else {
-        expect(spec.tekstur, id).toMatch(/\.jpg$/)
-      }
+      expect(spec.tekstur, id).toMatch(/\.jpg$/)
+      // ET SELVLYSENDE LEGEME MÅ HA EN LOKAL FALLBACK. Teksturene bakes i CI, så
+      // «uten fil» er den normale tilstanden i utvikling og en reell tilstand i
+      // drift (offline, 404, en kilde som faller bort). For de fire andre er
+      // fallbacken egenfargen pluss lys; sola har ingen lyssetting å falle
+      // tilbake på, så den MÅ tegne overflaten selv — ellers blir den en flat
+      // skive i én farge. Testen står her fordi `granulasjon` ser ut som en rest
+      // nå som `tekstur` er satt, og er lett å rydde bort i god tro.
+      if (spec.selvlysende) expect(spec.granulasjon || spec.band, id).toBeTruthy()
       expect(spec.trekk?.length, id).toBeGreaterThan(2)
       expect(GLOBE_TEKST[id], id).toBeTruthy()
       expect(GLOBE_TEKST[id].omtale, id).toBeTruthy()
