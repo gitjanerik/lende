@@ -65,6 +65,18 @@ describe('cleanBeskrivelse — fjern «<etikett>: null»-artefakter', () => {
     expect(cleanBeskrivelse(null)).toBe('')
     expect(cleanBeskrivelse('')).toBe('')
   })
+
+  // Teksten er brukerskrevet på kulturminnesok.no, og markup slipper gjennom.
+  it('stripper HTML: <br> blir linjeskift, formatering og bilder forsvinner', () => {
+    const raw = 'CHARLOTTENBORG GÅRD<br />Charlottenborgvn. 3<br /><br />' +
+      '<b>Teglverket</b> lå ved sundet.<img src="http://opphav/x.jpg" /><br />Slutt.'
+    expect(cleanBeskrivelse(raw)).toBe(
+      'CHARLOTTENBORG GÅRD\nCharlottenborgvn. 3\n\nTeglverket lå ved sundet.\nSlutt.')
+  })
+
+  it('fjerner «null»-linjer også når de bærer markup', () => {
+    expect(cleanBeskrivelse('Beskrivelse: null<br />Ekte tekst.')).toBe('Ekte tekst.')
+  })
 })
 
 describe('fetchKulturminner — bbox-henting', () => {

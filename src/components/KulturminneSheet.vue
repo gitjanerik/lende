@@ -5,7 +5,7 @@
 // eier presentasjonen: kategori-etiketter/-farger og lenken til
 // kulturminnesok.no. Dra-håndteringen kommer inn som drawer-objektet
 // (useDraggableDrawer) — samme .value-idiom som ellers i appen.
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { buildKulturminnesokUrl } from '../lib/externalMapLinks.js'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
 
@@ -58,7 +58,14 @@ const facts = computed(() => {
   ].filter((r) => r.value)
 })
 
+// Bildet er en lenke til Kulturminnesøks eget opphav — det er IKKE pakket med i
+// offline-fila, så uten dekning (eller når opphavet har fjernet bildet) står det
+// en brukket ramme midt i teksten. En ramme uten innhold leses som at kortet er
+// ødelagt, så vi tar hele figuren bort i stedet. `bildeFeilet` nullstilles når
+// detaljen byttes, ellers ville neste kulturminne arvet feilen fra forrige.
 const bilde = computed(() => props.detail?.bilder?.[0] ?? null)
+const bildeFeilet = ref(false)
+watch(() => bilde.value?.url, () => { bildeFeilet.value = false })
 const link = computed(() => {
   const d = props.detail
   if (!d) return null
@@ -131,9 +138,10 @@ function onOpenKulturminnesok() {
             <p class="text-[12px] text-ink/55 leading-relaxed whitespace-pre-line break-words">{{ detail.lokalitetInfo }}</p>
           </div>
 
-          <figure v-if="bilde" class="mt-3">
+          <figure v-if="bilde && !bildeFeilet" class="mt-3">
             <img :src="bilde.url" :alt="detail.tittel"
                  loading="lazy" referrerpolicy="no-referrer"
+                 @error="bildeFeilet = true"
                  class="w-full rounded-lg border border-ink/10 bg-black/20" />
             <figcaption class="mt-1 text-[10px] text-ink/40">
               © Kulturminnesøk{{ bilde.fotograf ? ' / ' + bilde.fotograf : '' }}{{ bilde.lisens ? ', ' + bilde.lisens : ', CC BY' }}

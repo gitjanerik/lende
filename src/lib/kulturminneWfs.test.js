@@ -17,6 +17,16 @@ describe('splitInformasjon', () => {
   it('tom input', () => {
     expect(splitInformasjon(null)).toEqual({ enkeltminne: null, lokalitet: null })
   })
+  it('stripper HTML i begge halvdelene', () => {
+    const raw = 'Beskrivelse fra lokalitet:<br />Funnsted for <b>stokkanker</b>.' +
+      '<br /><br />Beskrivelse fra Enkeltminne:<br />Stokkanker, 3-4 meter høyt.'
+    const s = splitInformasjon(raw)
+    expect(s.enkeltminne).toBe('Stokkanker, 3-4 meter høyt.')
+    expect(s.lokalitet).toBe('Funnsted for stokkanker.')
+  })
+  it('input som BARE er markup gir ingen tekst', () => {
+    expect(splitInformasjon('<br /><br />')).toEqual({ enkeltminne: null, lokalitet: null })
+  })
 })
 
 const bbox = { south: 59.66, west: 10.53, north: 59.71, east: 10.62 }
