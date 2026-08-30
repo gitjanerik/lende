@@ -1,3 +1,94 @@
+## 2026-08-30 — v6.5.11: Den døde DOM10-fallbacken er ute
+
+`hoyde_dom10_33` — appens tredje DEM-endepunkt, DOM 10 m som siste utvei — er
+fjernet fra `WCS_ENDPOINTS`. Den svarer «*** UKJENT APPLIKASJON *** Applikasjon
+'/skwms1/wcs.hoyde-dom10_33' er ukjent», målt av Svalbard-proben som spurte den
+underveis. Den lå serielt ETTER de to hedgede DTM-ene, så hvert kart-bygg der
+begge feilet betalte en ekstra round-trip og et 15 s klient-tak på nøyaktig den
+stien der brukeren allerede venter lengst — samme kostnad som de tre gjettede
+DTM-1m-coveragene som ble trimmet i v8.10.18, bare med en tjeneste som en gang
+faktisk fantes. Det er lærdommen som er skrevet inn over lista: et endepunkt er
+ikke sant fordi det var sant en gang, så både tillegg og trimminger skal måles
+først, og proben er verktøyet.
+
+Sletting uten en test er en sletting som blir angret i god tro, så
+`demFetcher.timeout.test.js` låser at fetch treffer nøyaktig to endepunkter og
+at ingen av URL-ene inneholder «dom10». Den er verifisert i BEGGE retninger:
+grønn på riktig kode, rød når endepunktet settes tilbake. Fallback-testen teller
+nå 25 s i stedet for 40, siden de to gjenværende kjører hedget og er avgjort
+innen 19. Det andre funnet fra Svalbard-undersøkelsen — at pipelinen fabrikkerer
+et syntetisk ark i stillhet utenfor Kartverket-dekning — står bevisst igjen som
+et eget valg, ikke som et biprodukt av en opprydning; CLAUDE.md-seksjonen sier
+hvorfor og hva de to veiene koster.
+
+---
+
+## 2026-08-30 — v6.5.10: Svalbard-undersøkelsen skrevet ned og lagt død
+
+Proben fra v6.5.9 kjørte, og svaret er skrevet inn i CLAUDE.md framfor å bli
+liggende i en Actions-logg som ruller ut av rekkevidde. Hovedfunnet er at det
+IKKE finnes noen WCS for Svalbards høydedata: Geonorge har «Svalbard DTM 5/20/50»
+og «Høydereferansemodell på Svalbard», men alle fire som GEONORGE:DOWNLOAD. Det
+betyr at `demFetcher.js` ikke kan få en fjerde linje i `WCS_ENDPOINTS` — dette er
+en bake, som N50-flisene, og mekanismen finnes allerede i `geonorgeN50.mjs`. To
+antakelser fra utredningen ble dessuten motbevist av målingen: Terrarium over
+Svalbard har ekte detalj ned til minste piksel og er ikke GMTED2010, og UTM32 er
+ikke sperren jeg trodde — 0,31 % skalafeil ved Longyearbyen er på linje med det
+Øst-Finnmark allerede lever med, så de 35 kallstedene til `wgs84ToUtm32` trenger
+ikke røres. Seksjonen bærer også de målte negativene, så ingen prøver de samme
+fire gjettede tjenestenavnene om igjen.
+
+Eieren har lagt ønsket dødt inntil videre, så ingenting er bygget og ingen kode i
+kart-pipelinen er rørt. To funn står igjen som åpne og gjelder uansett om
+Svalbard blir noe av: `hoyde_dom10_33`, appens tredje DEM-fallback, er død og
+svarer «UKJENT APPLIKASJON» — hvert kartbygg som når den betaler en round-trip
+til en tjeneste som ikke finnes — og utenfor Kartverket-dekning fabrikkerer
+pipelinen i stillhet, fordi WCS-feil gir syntetisk DEM og Terrarium-fyllet
+eksplisitt hopper over syntetiske kilder. Proben beholdes med resultatene i
+filhodet og med sin egen kjente svakhet notert: den rapporterer ✓ for et
+HTTP 200-svar som bærer en feil-XML i kroppen.
+
+---
+
+## 2026-08-30 — v6.5.9: En probe som spør hvem som har høydedata for Svalbard
+
+`demFetcher.js` kan tre endepunkter, og alle tre er fastlands-Norge. Over
+Svalbard faller pipelinen derfor gjennom til `buildSyntheticDEM` — én gaussisk
+haug på 100 m — og `createMapFlow` hopper eksplisitt over Terrarium-fyllet for
+kilder som starter med «synthetic». Feilen er altså ikke en feilmelding, men et
+kart som ser ekte ut og er oppdiktet. Kildene kan ikke prøves der spørsmålet
+stilles: kartkatalog-, wcs-, wms-geonorge og geodata.npolar.no svarer alle 403
+fra utviklings-sandkassene. Derfor en MÅLING og ikke en hypotese, etter mønster
+av `probe-himmelkart.yml`: `npm run probe:svalbard` spør Geonorges kartkatalog
+og NPIs ArcGIS-katalog om hva som FINNES, prøver GetCapabilities mot hver
+kandidat, og gjør så én ekte GetCoverage over 2 × 2 km ved Longyearbyen gjennom
+appens egen `fetchWCSDtm` — ikke en parallell klient, så det som måles er det
+pipelinen faktisk ville gjort. Den rapporterer celler, oppløsning, høydespenn og
+noData-andel, for et 200-svar er ikke dekning: en tjeneste kan svare pent med et
+rutenett der hver celle er noData. Vinneren får to oppfølgingsspørsmål —
+`RESPONSE_CRS=25832`, som avgjør om Svalbard kan mates gjennom dagens
+UTM32-rør uten å røre de 35 kallstedene til `wgs84ToUtm32`, og et andrepunkt ved
+Ny-Ålesund, som ligger i sone 32 der Longyearbyen ligger i 33. Proben skriver
+ingenting og feiler aldri; utskriften er hele leveransen.
+
+Siste trinn måler Terrarium på 78°N, og det trinnet gikk gjennom to forkastede
+utgaver som begge er verdt å kjenne. Å telle bit-identiske nabopiksler fanger
+bare nearest-neighbour-oppskalering — resamples en grov modell bilineært, får
+hver piksel sin egen lille verdi og målingen melder «ekte detalj» om en modell
+som ikke har noen. Å lete etter perioden i andrederiverte var riktig idé med
+ubrukelig estimator: den maksimerer over k, og med 16 grupper vinner støyen, så
+den landet på taket i søket for hver eneste flis. Det som virker er
+variogrammet, altså RMS-høydeforskjell ved økende avstand: ekte terreng er
+omtrent fraktalt med stigning 0,5–0,8 i log–log helt ned til én piksel, mens
+interpolerte data er stykkevis lineære under blokkstørrelsen og derfor
+brattere. Målt fra sandkassa — AWS er ikke sperret — gir Svalbard-flisene
+stigning 0,53 ved 16 m og 0,56 ved 4 m, altså ingen interpolasjonsknekk i det
+hele tatt. Det motsier antakelsen om at Terrarium bare har GMTED2010 (~230 m)
+der oppe, og gjør den til en reell kandidat framfor bare en nødløsning. Ingen
+kode i kart-pipelinen er rørt.
+
+---
+
 ## 2026-08-30 — v6.5.8: Sol opp og sol ned, øverst i solkortet
 
 Infokortet for sola sier nå når hun står opp og når hun går ned, og det gjelder

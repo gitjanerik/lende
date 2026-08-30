@@ -1241,6 +1241,75 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   SDK v2-fabrikken: det rører hvordan hvert enkelt verktøy registreres, ikke bare
   kallstedet — og `mcp:protokoll` er gaten som vil si om det gikk bra.
 
+## Viktig arkitektur-merknad — høydedata for Svalbard er UNDERSØKT, ikke bygget
+
+Ønsket kom opp i august 2026, ble MÅLT, og så lagt dødt av eieren. Seksjonen
+finnes for at neste runde skal starte der denne sluttet og ikke på nytt.
+Målingen står i `scripts/probe-svalbard-dem.mjs` (`npm run probe:svalbard`,
+workflow `probe-svalbard-dem.yml`) — kjør den før du stoler på tallene her, for
+katalogen kan ha endret seg.
+
+**Hovedfunnet: det finnes INGEN WCS for Svalbards høydedata.** Geonorge har
+datasettene, men alle som `GEONORGE:DOWNLOAD` — «Svalbard DTM 5»
+(`010bfb4a-65aa-4d30-aba9-7d090a432df7`), «DTM 20»
+(`9d118d31-182c-495b-b7be-d819cc7444b1`), «DTM 50»
+(`3a83e0a7-113e-4850-8fed-1646838acb02`) og «Høydereferansemodell på Svalbard»
+(`c551feb6-d833-4ba8-96bf-9566ed1c6548`). `demFetcher.js` kan derfor ikke få en
+fjerde linje i `WCS_ENDPOINTS`: dette er en BAKE, som N50-flisene, ikke et
+endepunkt. Mekanismen finnes allerede i `scripts/geonorgeN50.mjs` (capabilities
+→ area/format/projection → direkte fil-URL, og `velgFormat` foretrekker alt
+25833); det N50-spesifikke er tittelen, filnavnmønsteret og at nedlastingen er
+FGDB-vektor der en DTM er GeoTIFF-raster.
+
+Målte negativer, så ingen prøver dem igjen: NHM 25832/25833 svarer på
+GetCapabilities, men GetCoverage over Longyearbyen gir `ServiceExceptionReport`
+— Kartverkets fastlands-DTM dekker ikke Svalbard. Navnene `wcs.hoyde-dtm-svalbard`,
+`wcs.hoyde-dtm20-svalbard`, `wcs.dtm-svalbard` og `wcs.hoyde-svalbard` finnes
+ikke (200 med «UKJENT APPLIKASJON» i kroppen). NPIs `NP_S0_DTM20`/`DTM5`
+WCSServer gir HTTP 400. NPIs ArcGIS har bare ferdigtegnede raster-produkter
+(`NP_TerrengFjellskygge`, `NP_TerrengHelning`, `NP_TerrengKurvePunkt`), alle i
+`Basisdata_Intern` — ingen høydeverdier.
+
+**Terrarium over Svalbard er BEDRE enn antatt, og det var en overraskelse.**
+Antakelsen var GMTED2010 (~230 m). Variogrammet sier noe annet: stigning 0,53
+ved 16 m og 0,56 ved 4 m, altså ekte fraktalt terreng ned til minste piksel
+uten interpolasjonsknekk noe sted. Web Mercator-piksler krymper med cos(lat),
+så z14 er 2,0 m/px på 78°N mot 9,6 m ved ekvator. Den er dermed en reell
+kandidat og ikke bare en nødløsning — og den avgjørende målingen før noen baker
+noe er å sample Terrarium og DTM 20 over de SAMME punktene.
+
+**UTM32 er ikke sperren, og det var også en overraskelse.** Målt med
+prosjektets egen `utm.js`: 0,31 % skalafeil og 6,5° meridiankonvergens ved
+Longyearbyen, 0,29 %/2,9° i Ny-Ålesund — på linje med det Øst-Finnmark allerede
+lever med. De 35 ikke-test-kallstedene til `wgs84ToUtm32` trenger IKKE røres for
+et brukbart ark over Spitsbergen. Øst for Edgeøya (0,37 %/11,6°) og på Kvitøya
+(0,52 %/23,3°) slutter det å være forsvarlig.
+
+**Proben fant også en død fallback, og den er FJERNET (v6.5.11).**
+`hoyde_dom10_33` — appens tredje DEM-endepunkt, DOM 10 m som siste utvei —
+svarer «UKJENT APPLIKASJON». Den lå serielt ETTER de to DTM-ene, så hvert
+kart-bygg der begge feilet betalte en ekstra round-trip og et 15 s klient-tak
+på nøyaktig den stien der brukeren allerede venter lengst. Testen i
+`demFetcher.timeout.test.js` holder den nede, og den er verifisert i begge
+retninger. Lærdommen for lista i `WCS_ENDPOINTS`: **et endepunkt er ikke sant
+fordi det var sant en gang** — legges eller trimmes noe der, mål først.
+
+**ÉN TING STÅR ÅPEN, og den er et bevisst utsatt valg:** over Svalbard
+fabrikkerer pipelinen i stillhet. WCS feiler → `buildSyntheticDEM` → og
+`maybeFillFromTerrarium` hopper eksplisitt over kilder som starter med
+«synthetic». Resultatet er ikke en feilmelding, men et kart som ser ekte ut og
+er oppdiktet. To veier ble skissert — la pipelinen NEKTE utenfor dekning, eller
+la Terrarium bli primærkilde når WCS feiler — og eieren valgte i august 2026 å
+la begge ligge framfor å endre kjernen på samme PR som en sletting. Terrarium-
+veien er den målingene peker mot, men den gjør DEM-et «ekte» for `isRealDem`,
+`demTileCache` og `seaFromDem`, altså en reell atferdsendring og ikke en
+opprydning.
+
+Og for helhetens skyld: DEM løser bare halve arket. N50-flisene (sti og areal)
+er per fylke på fastlandet, ~60 % av Svalbard er isbre (kode 410, som bor i
+nettopp den baken), og Turkart-temaets «hevd skog i bakgrunnen» er gal over hele
+øygruppa.
+
 ## Fasit-suiten — kart-pipelinen mot ekte data
 
 `node scripts/fasit-kart.js` bygger seks ekte kart og sjekker invarianter +

@@ -1,12 +1,11 @@
 // DEM-data-henting. Strategi:
-//  1. Forsøk Kartverket WCS i sekvens (vi prøver flere endpoints fordi
-//     coverage-navn har endret seg over tid og er forskjellig pr UTM-sone).
+//  1. Hedget forsøk mot Kartverkets to DTM-WCS-er (coverage-navnet er
+//     forskjellig pr UTM-sone).
 //  2. Fall tilbake til syntetisk DEM kalibrert for kjente områder.
 //
 // Aktuelle Kartverket-WCS-coverages (basert på Geonorge metadata):
 //   wcs.hoyde-dtm-nhm-25832  COVERAGE=NHM_DTM_25832  (UTM 32 — sør-Norge)
 //   wcs.hoyde-dtm-nhm-25833  COVERAGE=NHM_DTM_25833  (UTM 33 — hele Norge)
-//   wms.hoyde-dom10_33       COVERAGE=hoyde_dom10_33 (alternativ DOM 10m UTM 33)
 // WCS-server støtter i prinsippet reprojeksjon mellom 25832 og 25833 via
 // RESPONSE_CRS-parameteren, så vi kan spørre 33-tjenesten med 32-bbox.
 
@@ -18,6 +17,15 @@ import { syntheticDEM } from './dem.js'
 // — hver enkelt feilet med HTTP 4xx etter en round-trip og kostet 3-10 s
 // per kart-bygg uten å returnere data. v8.10.18: trimmet til den faktisk
 // verifiserte primær-endpointen + to fallbacks.
+//
+// v6.5.11: OG SÅ DØDE DEN TREDJE. `wms.hoyde-dom10_33` (DOM 10 m, siste utvei)
+// svarer nå «*** UKJENT APPLIKASJON *** Applikasjon '/skwms1/wcs.hoyde-dom10_33'
+// er ukjent» — målt av `npm run probe:svalbard`, som spurte den underveis.
+// Kostnaden var nøyaktig den samme som for de tre gjettede coveragene, bare med
+// en tjeneste som en gang FANTES: hvert kart-bygg der begge DTM-ene feilet
+// betalte en round-trip og et 15 s klient-tak for ingenting. Merk hva det betyr
+// for lista under — et endepunkt er ikke sant fordi det var sant en gang.
+// Trimmes eller legges det til et til, skal det MÅLES først; proben er verktøyet.
 const WCS_ENDPOINTS = [
   // ── DTM 10m UTM 32 native (verifisert virker, primær) ────────────────
   {
@@ -33,14 +41,6 @@ const WCS_ENDPOINTS = [
     bboxCrs: 'EPSG:25832',
     responseCrs: 'EPSG:25832',
     name: 'NHM_DTM_25833 (UTM 33 reprojisert)',
-  },
-  // ── DOM 10 (overflate-modell, siste utvei) ───────────────────────────
-  {
-    url: 'https://wms.geonorge.no/skwms1/wcs.hoyde-dom10_33',
-    coverage: 'hoyde_dom10_33',
-    bboxCrs: 'EPSG:25832',
-    responseCrs: 'EPSG:25832',
-    name: 'hoyde_dom10_33 (UTM 33 DOM 10m)',
   },
 ]
 
@@ -137,34 +137,21 @@ function hedgedWCSDtm(utmBbox, resolutionM, endpoints, { signal } = {}) {
 }
 
 /**
- * Hent DEM. Hedged forsøk mot de to DTM-endpointene, deretter DOM10 som
- * seriell siste utvei (overflate-modell, kun når terreng-modellene feiler),
- * til slutt syntetisk fallback. Bruker-avbrudd (signal) kastes videre i
- * stedet for å degradere til syntetisk.
+ * Hent DEM. Hedget forsøk mot de to DTM-endpointene, så syntetisk fallback.
+ * Bruker-avbrudd (signal) kastes videre i stedet for å degradere til syntetisk.
  * @returns {Promise<DEM & { source: string }>}
  */
 export async function fetchDEM(bbox, utmBbox, options = {}) {
   const { resolutionM = 10, knownArea, useReal = true, signal } = options
 
   if (useReal) {
-    const dtmEndpoints = WCS_ENDPOINTS.slice(0, 2)
-    const domFallback = WCS_ENDPOINTS[2]
     try {
-      const dem = await hedgedWCSDtm(utmBbox, resolutionM, dtmEndpoints, { signal })
+      const dem = await hedgedWCSDtm(utmBbox, resolutionM, WCS_ENDPOINTS, { signal })
       console.log(`[DEM] ✓ Hentet ${dem.cols}×${dem.rows} celler @ ${dem.resolution.toFixed(1)}m fra ${dem.source}`)
       return dem
     } catch (e) {
       if (signal?.aborted) throw e
       console.warn(`[DEM] ✗ DTM-endpoints feilet: ${e.message}`)
-    }
-    try {
-      console.log(`[DEM] Forsøker ${domFallback.name} ...`)
-      const dem = await fetchWCSDtm(utmBbox, resolutionM, domFallback, { signal })
-      console.log(`[DEM] ✓ Hentet ${dem.cols}×${dem.rows} celler @ ${dem.resolution.toFixed(1)}m fra ${domFallback.name}`)
-      return { ...dem, source: domFallback.name }
-    } catch (e) {
-      if (signal?.aborted) throw e
-      console.warn(`[DEM] ✗ ${domFallback.name} feilet: ${e.message}`)
     }
     console.warn('[DEM] Alle WCS-endpoints feilet — fallback til syntetisk')
   }

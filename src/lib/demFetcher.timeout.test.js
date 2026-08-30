@@ -82,11 +82,21 @@ describe('fetchDEM — hedge + abort-kontrakt', () => {
 
   it('faller til syntetisk når alle endpoints henger forbi timeout', async () => {
     vi.useFakeTimers()
-    vi.stubGlobal('fetch', vi.fn((url, { signal }) => hangingFetch(signal)))
+    const fetchSpy = vi.fn((url, { signal }) => hangingFetch(signal))
+    vi.stubGlobal('fetch', fetchSpy)
     const p = fetchDEM(null, utmBbox, { resolutionM: 10, useReal: true })
-    // 100×100 px → 15 s timeout per endpoint; hedge 4 s; DOM10 serielt etterpå.
-    await vi.advanceTimersByTimeAsync(40000)
+    // 100×100 px → 15 s timeout per endpoint, hedge etter 4 s. Begge kjører
+    // parallelt, så alt er avgjort innen 19 s.
+    await vi.advanceTimersByTimeAsync(25000)
     const dem = await p
     expect(dem.source).toMatch(/^synthetic/)
+    // v6.5.11: LÅSER AT DEN DØDE DOM10-FALLBACKEN IKKE KOMMER TILBAKE.
+    // `wms.hoyde-dom10_33` svarer «UKJENT APPLIKASJON» (målt av
+    // probe-svalbard-dem), og lå serielt ETTER de to DTM-ene — altså en ekstra
+    // round-trip pluss et 15 s klient-tak på nøyaktig den stien der brukeren
+    // allerede venter lengst. En sletting uten en test som holder den nede er
+    // en sletting som blir angret i god tro.
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    for (const [url] of fetchSpy.mock.calls) expect(url).not.toContain('dom10')
   })
 })
