@@ -135,9 +135,21 @@ try {
   // Modusens VIKTIGSTE invariant: arket kommer opp fra IndexedDB uten et
   // eneste eksternt kall. Telefonen kan ha drept appen mens du sto på fjellet
   // uten dekning, og da skal kartet være der når du åpner den igjen.
+  //
+  // Seedingen skjer fra /tegnforklaring og IKKE fra «/», og det er ikke smak:
+  // sjekken over satte `lende-last-mode` til 'rute', og konteksten deles — en
+  // fersk last av «/» ville derfor blitt boot-gjenopptatt til /rute, der
+  // GravelPlannerView henter OSM-fliser. De flisene er fortsatt i lufta når
+  // rute-avskjæringen under settes opp, og lander som «eksterne kall» i en
+  // sjekk som handler om noe helt annet. Nøyaktig den forurensningen fila
+  // allerede advarer mot lenger oppe, bare et hakk senere i sløyfa: den ga
+  // rødt i CI på tre OSM-fliser mens testen var grønn lokalt.
+  // /tegnforklaring har verken boot-hook eller fliser, og IndexedDB er per
+  // opphav — så seedingen virker like godt derfra.
   const s5 = await ctx.newPage()
   s5.on('pageerror', (e) => jsFeil.push(e.message))
-  await s5.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' })
+  await s5.goto(`${BASE}/tegnforklaring`, { waitUntil: 'domcontentloaded' })
+  await s5.evaluate(() => localStorage.removeItem('lende-last-mode'))
   await s5.evaluate(async () => {
     const SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 2000" class="isom-map">`
       + `<g data-layer="kontur"><path d="M0 0 L100 100" data-iso="101"/></g>`

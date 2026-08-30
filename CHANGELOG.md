@@ -2,6 +2,8 @@
 
 Kulturminnesøk-tekstene er skrevet av brukere i et felt som slipper gjennom markup, og API-et leverer den rått — beskrivelsen av Charlottenborg gård på Jeløy kom ut med et synlig «<br />» på hver eneste linje, altså uleselig uten at noe var galt med hentingen. `lib/htmlTekst.js` er nå den ene stripperen: `<br>` og blokk-tagger blir ekte linjeskift (avsnitt får tom linje, listepunkter ett skift), `<img>` forsvinner sammen med linja den sto på, og all annen formatering — fet, kursiv, farger, fontstørrelse, lenker — mistes stille mens teksten består. Entiteter dekodes først, så en dobbeltkodet kilde ikke slipper unna. Begge kildene går gjennom den: brukerminnene (`cleanBeskrivelse`, titler og bildetekster) og de fredede minnene fra WFS-en (`splitInformasjon`, navn).
 
+Rute-røyktesten fikk samtidig en fiks som ikke handler om kulturminner: «Fritt lende: lagret ark lastes UTEN nettverk» seedet IndexedDB fra «/», og siden sjekken rett før setter `lende-last-mode` til 'rute', ble den lasten boot-gjenopptatt til ruteplanleggeren — som henter OSM-fliser. Flisene var fortsatt i lufta når rute-avskjæringen ble satt opp og lander som «eksterne kall» i en sjekk om noe helt annet: rødt i CI, grønt lokalt. Seedingen skjer nå fra /tegnforklaring, som verken har boot-hook eller fliser.
+
 Bildet i detalj-skuffen er en lenke til Kulturminnesøks eget opphav og pakkes ikke med i offline-fila, så uten dekning sto det en brukket ramme midt i kortet og leste som at kortet var ødelagt. Figuren fjernes nå i sin helhet når bildet ikke lastes, og flagget nullstilles når skuffen bytter kulturminne så neste minne ikke arver feilen fra forrige.
 
 ---
