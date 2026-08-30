@@ -50,6 +50,11 @@ const komma = (n, d = 1) => (Number.isFinite(n) ? n.toFixed(d).replace('.', ',')
 // gjelder i praksis bare sola (v6.5.6).
 const hoydeGrader = computed(() => Math.abs(Math.round((props.objekt?.hoyde ?? 0) * GRAD)))
 const underHorisonten = computed(() => (props.objekt?.hoyde ?? 0) < 0)
+
+// Klokkeslett i telefonens egen tidssone, som Yr og METs tabeller leses.
+const klokke = (d) => (d instanceof Date && !Number.isNaN(d.getTime())
+  ? d.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })
+  : '—')
 const retning = computed(() => kompass((props.objekt?.azimut ?? 0) * GRAD))
 
 // FYLT stjerne for en figur, ÅPEN for én enkelt stjerne. To tegn fra samme
@@ -207,6 +212,29 @@ const faseNavn = computed(() => {
          så scrollen ikke kapres av pointer-håndtererne på canvaset. -->
     <div class="flex-1 min-w-0 overflow-y-auto overscroll-contain touch-pan-y
                 pl-3 pr-3 py-2">
+      <!-- SOLA: OPP OG NED ØVERST. Det er det man vil vite på vei ut, og det er
+           regnet for ARKET som er åpnet — ikke for der telefonen står. Tidene
+           kommer FØR prosaen fordi de er et tall man slår opp, mens resten er
+           noe man leser.
+
+           Nord for polarsirkelen finnes ingen av dem deler av året, og da sier
+           linja hva som er tilfelle i stedet for å stå tom. -->
+      <div v-if="objekt.type === 'sol' && objekt.soltilstand"
+           class="mt-1.5 flex items-baseline gap-3 text-[0.75rem] text-white/85">
+        <template v-if="objekt.soltilstand === 'normal'">
+          <span v-if="objekt.oppgang" class="tabular-nums">
+            <span class="text-white/45 text-[0.625rem] uppercase tracking-wide mr-1">Opp</span>{{ klokke(objekt.oppgang) }}
+          </span>
+          <span v-if="objekt.nedgang" class="tabular-nums">
+            <span class="text-white/45 text-[0.625rem] uppercase tracking-wide mr-1">Ned</span>{{ klokke(objekt.nedgang) }}
+          </span>
+        </template>
+        <span v-else-if="objekt.soltilstand === 'midnattssol'">
+          Midnattssol — sola går ikke ned i dag.
+        </span>
+        <span v-else>Mørketid — sola står ikke opp i dag.</span>
+      </div>
+
       <!-- Tallene, per type. -->
       <div v-if="objekt.type === 'formasjon'" class="mt-1.5 text-[0.6875rem] text-white/70">
         {{ objekt.antallStjerner }} stjerner tegnet<template v-if="objekt.lysesteStjerne">, lyseste er

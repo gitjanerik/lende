@@ -365,6 +365,101 @@ export function erNatt({ lat, lon, dato = new Date() }) {
 }
 
 /**
+ * Solas høyde over horisonten på et gitt tidspunkt, i radianer. Intern hjelper
+ * for `solTider` — den kaller den noen hundre ganger, og da skal den være billig.
+ */
+function solHoydeVed(lat, lon, ms) {
+  const d = new Date(ms)
+  const s = solEkvatorial(d)
+  return tilHorisont(s.ra, s.dek, lokalStjernetid(d, lon), lat).hoyde
+}
+
+/**
+ * Når står sola opp og ned der kartet ligger?
+ *
+ * HVORFOR REGNET LOKALT OG IKKE HENTET FRA METs Sunrise-API — samme svar som for
+ * `erNatt`, og det er en sterkere begrunnelse her enn der: tidene er akkurat det
+ * man vil vite på vei ut, altså ofte etter at dekningen tok slutt. Et oppslag som
+ * feiler på fjellet er verdiløst nettopp der spørsmålet stilles. Vi har solas
+ * posisjon lokalt (Meeus, `solEkvatorial`), og tidene er BARE det tidspunktet den
+ * posisjonen krysser en høyde vi allerede har definert.
+ *
+ * MÅLT MOT YR: Stormoen i Drammen 30. august 2026 gir opp 06:10 og ned 20:28 hos
+ * Yr, og de samme tallene her. Det er ankeret i testen — se solTider.test.js.
+ *
+ * METODEN er å SØKE og ikke å løse likningen. Den lukkede formelen (Meeus 15.1)
+ * antar at solas deklinasjon står stille gjennom dagen, og bryter sammen nær
+ * polarsirkelen der den nettopp ikke gjør det. Her samples høyden gjennom døgnet
+ * og hvert fortegnsskifte halveres inn. Det koster noen hundre evalueringer —
+ * ingenting for et kort som tegnes én gang — og polardøgnet faller ut av seg
+ * selv: finnes det ingen kryssing, er sola enten oppe hele døgnet eller nede
+ * hele døgnet, og hvilken av delene ser vi på høyden.
+ *
+ * DØGNET ER DET LOKALE, altså telefonens tidssone. Det er «i dag» for den som
+ * står med kartet, og det er sånn Yr og METs tabeller leses.
+ *
+ * @param {{lat:number, lon:number, dato?: Date, horisont?: number}} sted
+ *   horisont  høyden som regnes som oppgang/nedgang. Default er den offisielle
+ *             (−0°50′); −6° gir borgerlig skumring, om noen vil ha det senere.
+ * @returns {{oppgang: Date|null, nedgang: Date|null,
+ *            tilstand: 'normal'|'midnattssol'|'morketid'}|null}
+ *   null når stedet ikke er brukbart. `tilstand` er 'normal' straks ETT av
+ *   tidspunktene finnes — overgangsdøgnene i nord har bare det ene, og da er det
+ *   det ene som er sant.
+ */
+export function solTider({ lat, lon, dato = new Date(), horisont = SOL_HOYDE_SOLNEDGANG } = {}) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
+  try {
+    const start = new Date(dato)
+    start.setHours(0, 0, 0, 0)
+    const t0 = start.getTime()
+    const DOGN = 24 * 60 * 60 * 1000
+    // 10 minutter mellom prøvene. Sola beveger seg maks ~15°/time i høyde, så et
+    // kryss kan ikke gjemme seg mellom to prøver — bortsett fra i et polart
+    // grensetilfelle der hele buen over horisonten varer under ti minutter, og
+    // der er «sola var nede» det ærligste svaret uansett.
+    const STEG = 10 * 60 * 1000
+    const n = Math.round(DOGN / STEG)
+
+    // Halvering inn på krysset. 24 runder tar 10 minutter ned til under et
+    // sekund, altså langt under minuttet vi viser.
+    const finn = (a, b) => {
+      let lo = a
+      let hi = b
+      for (let i = 0; i < 24; i++) {
+        const mid = (lo + hi) / 2
+        if ((solHoydeVed(lat, lon, lo) - horisont) * (solHoydeVed(lat, lon, mid) - horisont) <= 0) hi = mid
+        else lo = mid
+      }
+      return new Date(Math.round((lo + hi) / 2))
+    }
+
+    let oppgang = null
+    let nedgang = null
+    let forrige = solHoydeVed(lat, lon, t0) - horisont
+    const start_oppe = forrige > 0
+    for (let i = 1; i <= n; i++) {
+      const t = t0 + i * STEG
+      const naa = solHoydeVed(lat, lon, t) - horisont
+      if (forrige <= 0 && naa > 0 && !oppgang) oppgang = finn(t - STEG, t)
+      if (forrige > 0 && naa <= 0 && !nedgang) nedgang = finn(t - STEG, t)
+      forrige = naa
+    }
+
+    if (!oppgang && !nedgang) {
+      return {
+        oppgang: null,
+        nedgang: null,
+        tilstand: start_oppe ? 'midnattssol' : 'morketid',
+      }
+    }
+    return { oppgang, nedgang, tilstand: 'normal' }
+  } catch {
+    return null
+  }
+}
+
+/**
  * Høyden en TVUNGEN måne løftes til (utvikler-bryter, se himmelFor).
  *
  * 35° er valgt fordi den er godt over horisonten uten å være i zenit: månen skal

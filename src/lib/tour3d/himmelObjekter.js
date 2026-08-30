@@ -26,7 +26,9 @@ import { STJERNEBILDE_INFO, sokeNavnFor } from './stjernebildeInfo.js'
 import { stjerneNavn, bayerNavn, stjernebildeFor, faktaFor } from './stjerneFakta.js'
 import { synligePlaneter } from './planeter.js'
 import { harGlobe } from './himmellegemer.js'
-import { lokalStjernetid, tilHorisont, presesserTilDato, himmelFor } from './astronomi.js'
+import {
+  lokalStjernetid, tilHorisont, presesserTilDato, himmelFor, solTider,
+} from './astronomi.js'
 
 const GRAD = Math.PI / 180
 
@@ -88,6 +90,11 @@ export function himmelObjekter({ lat, lon, dato = new Date(), tvingHimmel = fals
   // samme retningen. `himmelUndertekst` sier «under horisonten» når den er det.
   try {
     const h = himmelFor({ lat, lon, dato })
+    // OPP- OG NEDGANG FOR DET ARKET SOM ER ÅPNET. lat/lon er arkets midtpunkt
+    // (Viewer3D regner det av meta), så tidene gjelder der kartet ligger og ikke
+    // der telefonen tilfeldigvis står. Regnet lokalt — se solTider for hvorfor
+    // det er riktigere enn å hente dem fra MET her.
+    const tider = solTider({ lat, lon, dato })
     ut.push({
       id: 'sol',
       type: 'sol',
@@ -95,6 +102,9 @@ export function himmelObjekter({ lat, lon, dato = new Date(), tvingHimmel = fals
       latin: 'Sol',
       azimut: h.sol.azimut,
       hoyde: h.sol.hoyde,
+      oppgang: tider?.oppgang ?? null,
+      nedgang: tider?.nedgang ?? null,
+      soltilstand: tider?.tilstand ?? null,
       // Sola har ingen fase — den er sin egen lyskilde. Globen leser
       // `selvlysende` fra HIMMELLEGEMER og slår av retningslyset, men feltene
       // står her likevel så kallstedene slipper et unntak.
