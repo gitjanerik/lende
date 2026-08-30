@@ -15,6 +15,15 @@ name: Probe — hvilke himmelkart-URL-er svarer?
 
 on:
   workflow_dispatch:
+    inputs:
+      legeme:
+        description: >-
+          Hvilket legeme? Tomt = alle fem, men da svarer Wikimedia 429 på
+          nesten hele lista og kjøringen måler ingenting. Spør om ett.
+        required: false
+        default: sol
+        type: choice
+        options: ['sol', 'mars', 'jupiter', 'saturn', 'maane', '']
   # Også på push når KANDIDATLISTA eller proben selv endres. To grunner: en
   # workflow_dispatch registreres først når fila står på default-branch, så
   # første kjøring må komme på en annen måte — og etterpå er det billig og nyttig
@@ -37,4 +46,7 @@ jobs:
 
       # Ingen `npm ci`: proben bruker bare node:crypto og fetch.
       - name: Prøv kandidat-URL-ene
-        run: node scripts/bygg-himmelkart.mjs --probe
+        # Push-trigget kjøring har ingen input og spør om alle fem. Det er greit
+        # som en grov sjekk av at lista fortsatt løser opp, men skal du MÅLE noe,
+        # dispatch den for ett legeme — se ratebegrensningen i skriptet.
+        run: node scripts/bygg-himmelkart.mjs --probe ${{ inputs.legeme }}

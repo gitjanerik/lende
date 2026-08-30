@@ -30,6 +30,7 @@
 // Bruk:
 //   node scripts/bygg-himmelkart.mjs            # henter og skriver alle
 //   node scripts/bygg-himmelkart.mjs --mal      # prøver kildene, skriver ikke
+//   node scripts/bygg-himmelkart.mjs --probe sol  # leter etter kandidater, ett legeme
 //   node scripts/bygg-himmelkart.mjs mars       # bare ett legeme
 
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs'
@@ -276,9 +277,23 @@ function erKandidat(tittel) {
   return true
 }
 
-/** Prøv å finne og løse opp kandidater. Skriver ingen filer. */
-async function probe() {
-  for (const [navn, kategorier] of Object.entries(KATEGORIER)) {
+/**
+ * Prøv å finne og løse opp kandidater. Skriver ingen filer.
+ *
+ * `bare` begrenser til ett eller flere legemer, og det er ikke en bekvemmelighet
+ * (v6.5.7): kjørt for alle fem svarer Wikimedia 429 på nesten hele lista, og en
+ * probe som blir ratebegrenset MÅLER INGENTING — samme lærdom som i runde to,
+ * bare med flere legemer i lista denne gangen. Trenger du svar om ett legeme,
+ * spør om det ene.
+ */
+async function probe(bare = []) {
+  const valgte = Object.entries(KATEGORIER)
+    .filter(([navn]) => !bare.length || bare.includes(navn))
+  if (!valgte.length) {
+    process.stderr.write(`Ukjent legeme. Velg blant: ${Object.keys(KATEGORIER).join(', ')}\n`)
+    return
+  }
+  for (const [navn, kategorier] of valgte) {
     process.stderr.write(`\n── ${navn} ${'─'.repeat(46)}\n`)
     // RUNDGANG mellom kategoriene, ikke én om gangen. Én kategori alene fylte
     // hele taket alfabetisk i runde tre, og de kuraterte tekstur-kategoriene ble
@@ -307,17 +322,25 @@ async function probe() {
       }
       let kB = '?'
       let jpeg = false
-      try {
-        const res = await fetch(r.url, { headers: { 'User-Agent': UA } })
-        if (res.ok) {
-          const b = Buffer.from(await res.arrayBuffer())
-          kB = (b.length / 1024).toFixed(0)
-          // Både JPEG (ff d8) og PNG (89 50) er brukbare for en tekstur.
-          jpeg = (b[0] === 0xff && b[1] === 0xd8) || (b[0] === 0x89 && b[1] === 0x50)
-        } else {
+      // ETT FORSØK TIL VED 429, med en lang pause. Wikimedias ratebegrensning er
+      // forbigående, og forskjellen på «filen finnes ikke» og «vi spurte for
+      // fort» er hele forskjellen på en måling og en gjetning. Uten dette leste
+      // en hel kjøring som om ingen kilde svarte.
+      for (let forsok = 0; forsok < 2; forsok++) {
+        try {
+          const res = await fetch(r.url, { headers: { 'User-Agent': UA } })
+          if (res.ok) {
+            const b = Buffer.from(await res.arrayBuffer())
+            kB = (b.length / 1024).toFixed(0)
+            // Både JPEG (ff d8) og PNG (89 50) er brukbare for en tekstur.
+            jpeg = (b[0] === 0xff && b[1] === 0xd8) || (b[0] === 0x89 && b[1] === 0x50)
+            break
+          }
           kB = `HTTP ${res.status}`
-        }
-      } catch (e) { kB = e.message }
+          if (res.status !== 429) break
+        } catch (e) { kB = e.message; break }
+        await pust(5000)
+      }
       await pust(400)
       process.stderr.write(
         `${jpeg ? '✓' : '✗'} ${String(kB).padStart(7)} kB  ${r.lisens}\n`
@@ -336,13 +359,15 @@ async function probe() {
 // scripts/trenger-ektekart.mjs.
 const kjortDirekte = process.argv[1]?.endsWith('bygg-himmelkart.mjs')
 
-if (kjortDirekte && process.argv.includes('--probe')) {
-  await probe()
-  process.exit(0)
-}
-
 const bareMaling = process.argv.includes('--mal')
 const bare = process.argv.slice(2).filter((a) => !a.startsWith('--'))
+
+// Etter `bare`, så `--probe sol` kan begrense seg til ett legeme. Sto den over,
+// måtte proben alltid spørre om alle fem — og da svarer Wikimedia 429.
+if (kjortDirekte && process.argv.includes('--probe')) {
+  await probe(bare)
+  process.exit(0)
+}
 const utKatalog = join(
   dirname(fileURLToPath(import.meta.url)), '..', 'public', 'data',
 )
