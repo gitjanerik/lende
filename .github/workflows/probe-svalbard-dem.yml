@@ -1,0 +1,45 @@
+name: Probe — hvilken høydekilde svarer over Svalbard?
+
+# EN MÅLING, IKKE EN GATE. Den finnes fordi wcs.geonorge.no, wms.geonorge.no,
+# kartkatalog.geonorge.no og geodata.npolar.no ALLE er sperret fra
+# utviklings-sandkassene: spørsmålet «hva heter Svalbards DTM-coverage?» kan
+# ikke stilles der svaret skal skrives.
+#
+# Samme lærdom som himmelkartene (v6.2.0), der tre URL-er ble gjettet ut fra
+# navnekonvensjon og alle tre var feil — oppdaget først i deploy-loggen etter
+# merge. Og samme lærdom som demFetcher selv bærer: tre spekulative
+# DTM-1m-coverages ble trimmet vekk i v8.10.18 etter å ha kostet 3–10 s per
+# kartbygg uten noen gang å ha eksistert.
+#
+# Skriver INGENTING, endrer INGENTING, feiler ALDRI. LES UTSKRIFTEN — den er
+# hele leveransen. Skal en kilde inn i demFetcher.js, kopieres navnet HERFRA.
+
+on:
+  workflow_dispatch:
+  # Også på push når proben selv endres. En workflow_dispatch registreres først
+  # når fila står på default-branch, så første kjøring må komme på en annen
+  # måte — samme grep som probe-himmelkart.yml. Ingen andre stier trigger den.
+  push:
+    paths:
+      - 'scripts/probe-svalbard-dem.mjs'
+      - '.github/workflows/probe-svalbard-dem.yml'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      # `npm ci` er nødvendig her, i motsetning til de to andre probene: denne
+      # måler gjennom appens EGEN `fetchWCSDtm`, som laster `geotiff`. En
+      # parallell klient ville målt noe annet enn det som skal virke.
+      - run: npm ci
+
+      - name: Spør kildene
+        run: npm run probe:svalbard

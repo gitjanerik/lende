@@ -1,3 +1,42 @@
+## 2026-08-30 — v6.5.9: En probe som spør hvem som har høydedata for Svalbard
+
+`demFetcher.js` kan tre endepunkter, og alle tre er fastlands-Norge. Over
+Svalbard faller pipelinen derfor gjennom til `buildSyntheticDEM` — én gaussisk
+haug på 100 m — og `createMapFlow` hopper eksplisitt over Terrarium-fyllet for
+kilder som starter med «synthetic». Feilen er altså ikke en feilmelding, men et
+kart som ser ekte ut og er oppdiktet. Kildene kan ikke prøves der spørsmålet
+stilles: kartkatalog-, wcs-, wms-geonorge og geodata.npolar.no svarer alle 403
+fra utviklings-sandkassene. Derfor en MÅLING og ikke en hypotese, etter mønster
+av `probe-himmelkart.yml`: `npm run probe:svalbard` spør Geonorges kartkatalog
+og NPIs ArcGIS-katalog om hva som FINNES, prøver GetCapabilities mot hver
+kandidat, og gjør så én ekte GetCoverage over 2 × 2 km ved Longyearbyen gjennom
+appens egen `fetchWCSDtm` — ikke en parallell klient, så det som måles er det
+pipelinen faktisk ville gjort. Den rapporterer celler, oppløsning, høydespenn og
+noData-andel, for et 200-svar er ikke dekning: en tjeneste kan svare pent med et
+rutenett der hver celle er noData. Vinneren får to oppfølgingsspørsmål —
+`RESPONSE_CRS=25832`, som avgjør om Svalbard kan mates gjennom dagens
+UTM32-rør uten å røre de 35 kallstedene til `wgs84ToUtm32`, og et andrepunkt ved
+Ny-Ålesund, som ligger i sone 32 der Longyearbyen ligger i 33. Proben skriver
+ingenting og feiler aldri; utskriften er hele leveransen.
+
+Siste trinn måler Terrarium på 78°N, og det trinnet gikk gjennom to forkastede
+utgaver som begge er verdt å kjenne. Å telle bit-identiske nabopiksler fanger
+bare nearest-neighbour-oppskalering — resamples en grov modell bilineært, får
+hver piksel sin egen lille verdi og målingen melder «ekte detalj» om en modell
+som ikke har noen. Å lete etter perioden i andrederiverte var riktig idé med
+ubrukelig estimator: den maksimerer over k, og med 16 grupper vinner støyen, så
+den landet på taket i søket for hver eneste flis. Det som virker er
+variogrammet, altså RMS-høydeforskjell ved økende avstand: ekte terreng er
+omtrent fraktalt med stigning 0,5–0,8 i log–log helt ned til én piksel, mens
+interpolerte data er stykkevis lineære under blokkstørrelsen og derfor
+brattere. Målt fra sandkassa — AWS er ikke sperret — gir Svalbard-flisene
+stigning 0,53 ved 16 m og 0,56 ved 4 m, altså ingen interpolasjonsknekk i det
+hele tatt. Det motsier antakelsen om at Terrarium bare har GMTED2010 (~230 m)
+der oppe, og gjør den til en reell kandidat framfor bare en nødløsning. Ingen
+kode i kart-pipelinen er rørt.
+
+---
+
 ## 2026-08-30 — v6.5.8: Sol opp og sol ned, øverst i solkortet
 
 Infokortet for sola sier nå når hun står opp og når hun går ned, og det gjelder
