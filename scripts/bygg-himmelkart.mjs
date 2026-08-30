@@ -30,6 +30,7 @@
 // Bruk:
 //   node scripts/bygg-himmelkart.mjs            # henter og skriver alle
 //   node scripts/bygg-himmelkart.mjs --mal      # prøver kildene, skriver ikke
+//   node scripts/bygg-himmelkart.mjs --probe sol  # leter etter kandidater, ett legeme
 //   node scripts/bygg-himmelkart.mjs mars       # bare ett legeme
 
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs'
@@ -44,6 +45,28 @@ import { dirname, join } from 'node:path'
 // Taket er lavt med vilje: bildene går i nettleser-bunten til alle brukere, og en
 // globe tegnes maks en tredjedel av skjermen. ~1k bredde er rikelig.
 const LEGEMER = {
+  // SOLA (v6.5.7). MÅLT av proben, ikke gjettet: 213 kB, CC BY 4.0. Merk at
+  // dette er et STILISERT solkart og ikke et fotografi — Commons har rikelig
+  // med SDO- og SOHO-opptak, men de er SKIVEBILDER av sola sett forfra, og en
+  // globe trenger et equirektangulært kart. Kandidatene «Sun texture map» og
+  // «Solar surface texture» finnes ikke; det gjør heller ingen av de tre
+  // sol-kategoriene proben leter i.
+  //
+  // Faller kilden bort, tegnes overflaten lokalt i stedet (granulasjonTekstur i
+  // himmelGlobe.js) — sola er det ene legemet som er laget for å klare seg helt
+  // uten fil, og den skal fortsette å være det.
+  sol: [
+    {
+      navn: 'Solar System Scope — sol-tekstur 2k (via Commons)',
+      commons: 'File:Solarsystemscope texture 2k sun.jpg',
+      lisens: 'CC BY 4.0 — Solar System Scope (INOVE)',
+    },
+    {
+      navn: 'Solar System Scope — sol-tekstur 8k (via Commons)',
+      commons: 'File:Solarsystemscope texture 8k sun.jpg',
+      lisens: 'CC BY 4.0 — Solar System Scope (INOVE)',
+    },
+  ],
   maane: [
     {
       navn: 'NASA SVS — CGI Moon Kit, fargekart 1k',
@@ -211,6 +234,18 @@ const KATEGORIER = {
     'Category:Textures of Saturn',
   ],
   maane: ['Category:Maps of the Moon'],
+  // SOLA (v6.5.7). Den er annerledes enn de fire andre og det er verdt å vite
+  // FØR man leser utskriften: nesten alt Commons har av sola er SKIVEBILDER —
+  // SDO- og SOHO-opptak av sola sett forfra. De er ubrukelige som globe-tekstur;
+  // vi trenger et EQUIREKTANGULÆRT kart, altså en utbrettet kule. Den eneste
+  // familien som lager slike for sola er teksturpakkene, derav Solar System
+  // Scope blant de navngitte under. Svarer ingen av dem, er riktig konklusjon å
+  // BEHOLDE den lokalt tegnede overflaten — ikke å ta et skivebilde i stedet.
+  sol: [
+    'Category:Textures of the Sun',
+    'Category:Maps of the Sun',
+    'Category:Sun in visible light',
+  ],
 }
 
 /**
@@ -239,6 +274,16 @@ const TITLER = {
     'File:OPAL Saturn Cycle 25 Map.png',
   ],
   maane: ['File:Solarsystemscope texture 2k moon.jpg'],
+  // Navnemønsteret er allerede BEVIST for fire andre legemer i denne fila, så
+  // dette er den sterkeste enkeltmistenkte vi har. Merk at Solar System Scope
+  // sine kart er CC BY 4.0 og ikke offentlig eiendom: slår en av dem til, må
+  // attribusjonen på /om utvides — det er et vilkår, ikke en høflighet.
+  sol: [
+    'File:Solarsystemscope texture 2k sun.jpg',
+    'File:Solarsystemscope texture 8k sun.jpg',
+    'File:Sun texture map.jpg',
+    'File:Solar surface texture.jpg',
+  ],
 }
 
 /**
@@ -254,9 +299,23 @@ function erKandidat(tittel) {
   return true
 }
 
-/** Prøv å finne og løse opp kandidater. Skriver ingen filer. */
-async function probe() {
-  for (const [navn, kategorier] of Object.entries(KATEGORIER)) {
+/**
+ * Prøv å finne og løse opp kandidater. Skriver ingen filer.
+ *
+ * `bare` begrenser til ett eller flere legemer, og det er ikke en bekvemmelighet
+ * (v6.5.7): kjørt for alle fem svarer Wikimedia 429 på nesten hele lista, og en
+ * probe som blir ratebegrenset MÅLER INGENTING — samme lærdom som i runde to,
+ * bare med flere legemer i lista denne gangen. Trenger du svar om ett legeme,
+ * spør om det ene.
+ */
+async function probe(bare = []) {
+  const valgte = Object.entries(KATEGORIER)
+    .filter(([navn]) => !bare.length || bare.includes(navn))
+  if (!valgte.length) {
+    process.stderr.write(`Ukjent legeme. Velg blant: ${Object.keys(KATEGORIER).join(', ')}\n`)
+    return
+  }
+  for (const [navn, kategorier] of valgte) {
     process.stderr.write(`\n── ${navn} ${'─'.repeat(46)}\n`)
     // RUNDGANG mellom kategoriene, ikke én om gangen. Én kategori alene fylte
     // hele taket alfabetisk i runde tre, og de kuraterte tekstur-kategoriene ble
@@ -285,17 +344,25 @@ async function probe() {
       }
       let kB = '?'
       let jpeg = false
-      try {
-        const res = await fetch(r.url, { headers: { 'User-Agent': UA } })
-        if (res.ok) {
-          const b = Buffer.from(await res.arrayBuffer())
-          kB = (b.length / 1024).toFixed(0)
-          // Både JPEG (ff d8) og PNG (89 50) er brukbare for en tekstur.
-          jpeg = (b[0] === 0xff && b[1] === 0xd8) || (b[0] === 0x89 && b[1] === 0x50)
-        } else {
+      // ETT FORSØK TIL VED 429, med en lang pause. Wikimedias ratebegrensning er
+      // forbigående, og forskjellen på «filen finnes ikke» og «vi spurte for
+      // fort» er hele forskjellen på en måling og en gjetning. Uten dette leste
+      // en hel kjøring som om ingen kilde svarte.
+      for (let forsok = 0; forsok < 2; forsok++) {
+        try {
+          const res = await fetch(r.url, { headers: { 'User-Agent': UA } })
+          if (res.ok) {
+            const b = Buffer.from(await res.arrayBuffer())
+            kB = (b.length / 1024).toFixed(0)
+            // Både JPEG (ff d8) og PNG (89 50) er brukbare for en tekstur.
+            jpeg = (b[0] === 0xff && b[1] === 0xd8) || (b[0] === 0x89 && b[1] === 0x50)
+            break
+          }
           kB = `HTTP ${res.status}`
-        }
-      } catch (e) { kB = e.message }
+          if (res.status !== 429) break
+        } catch (e) { kB = e.message; break }
+        await pust(5000)
+      }
       await pust(400)
       process.stderr.write(
         `${jpeg ? '✓' : '✗'} ${String(kB).padStart(7)} kB  ${r.lisens}\n`
@@ -314,13 +381,15 @@ async function probe() {
 // scripts/trenger-ektekart.mjs.
 const kjortDirekte = process.argv[1]?.endsWith('bygg-himmelkart.mjs')
 
-if (kjortDirekte && process.argv.includes('--probe')) {
-  await probe()
-  process.exit(0)
-}
-
 const bareMaling = process.argv.includes('--mal')
 const bare = process.argv.slice(2).filter((a) => !a.startsWith('--'))
+
+// Etter `bare`, så `--probe sol` kan begrense seg til ett legeme. Sto den over,
+// måtte proben alltid spørre om alle fem — og da svarer Wikimedia 429.
+if (kjortDirekte && process.argv.includes('--probe')) {
+  await probe(bare)
+  process.exit(0)
+}
 const utKatalog = join(
   dirname(fileURLToPath(import.meta.url)), '..', 'public', 'data',
 )

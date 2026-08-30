@@ -429,7 +429,7 @@ async function onInstallClick() {
           of the Major Planets</em>. Sol, måne og presesjon etter Jean Meeus,
           <em>Astronomical Algorithms</em>. Overflatekart: månen og Jupiter fra
           <strong class="text-ink/75">NASA</strong> (GSFC, JPL, Space Science
-          Institute) — offentlig eiendom; Mars og Saturn fra
+          Institute) — offentlig eiendom; sola, Mars og Saturn fra
           <strong class="text-ink/75">Solar System Scope</strong> (INOVE), avledet
           av NASA-data — CC BY 4.0, via
           <strong class="text-ink/75">Wikimedia Commons</strong>. Fakta og

@@ -687,11 +687,19 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
 
   **Teksturene er VALGFRIE og bakes i CI** (`npm run bygg:himmelkart`) fordi NASA
   og USGS er sperret fra utviklingsmiljøene — «uten fotografi» er den NORMALE
-  tilstanden lokalt. Uten dem tegnes kula i legemets egenfarge, og gassplanetene
-  får bånd tegnet på klienten (`bandTekstur`) så de er gjenkjennelige uansett.
-  Les siste linje av bake-steget: «N av 4 kart på plass». Er N lavere enn ventet,
-  har en kilde falt bort — og det er den eneste måten å oppdage det, siden alt
-  annet fortsetter å virke.
+  tilstanden lokalt. Uten dem tegnes kula i legemets egenfarge, gassplanetene får
+  bånd tegnet på klienten (`bandTekstur`) og sola granulasjon
+  (`granulasjonTekstur`), så de er gjenkjennelige uansett. Les siste linje av
+  bake-steget: «N av 5 kart på plass». Er N lavere enn ventet, har en kilde falt
+  bort — og det er den eneste måten å oppdage det, siden alt annet fortsetter å
+  virke.
+
+  **PROBEN MÅ SPØRRE OM ETT LEGEME OM GANGEN (v6.5.7).** Med fem legemer i lista
+  svarer Wikimedia 429 på nesten hele kjøringen, og en probe som blir
+  ratebegrenset MÅLER INGENTING — samme lærdom som i runde to, bare med et legeme
+  mer. `--probe sol` tar spørsmålene fra ~60 til ~8, og workflowen har en
+  legeme-input. En 429 gir dessuten ett forsøk til: forskjellen på «filen finnes
+  ikke» og «vi spurte for fort» er hele forskjellen på en måling og en gjetning.
 
   **EN KILDE-URL SKAL IKKE GJETTES, OG DET ER MÅLT (v6.3.0).** I v6.2.0 ble
   URL-ene til Mars, Jupiter og Saturn skrevet på gjetning fordi hostene er
