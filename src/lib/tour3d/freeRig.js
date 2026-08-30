@@ -100,6 +100,39 @@ export function vippForHoyde(hoyde) {
   return Math.max(0, Math.min(HIMMEL_VIPP_MAKS, hoyde + fraTaket))
 }
 
+// Hvor bratt NED orbiten slipper kameraet når blikket skal under horisonten.
+// Ikke 0: en orbit rett over blikkpunktet er degenerert — asimuten mister
+// mening, og OrbitControls' egen oppvektor kan vippe kameraet rundt.
+const POLAR_MIN_BLIKK = (5 * Math.PI) / 180
+
+/**
+ * Orbitens polarvinkel for en ønsket blikkhøyde.
+ *
+ * TO REGIMER, OG GRENSA ER TAKET. Over horisonten — og det ene graden under
+ * taket rekker — står orbiten stille i POLAR_MAKS og VIPPEN bærer høyden
+ * (se vippForHoyde). Under det kan ikke vippen hjelpe: den går bare oppover.
+ * Da er det ORBITEN som må bære blikket, ved å heve kameraet og se ned på
+ * blikkpunktet — nøyaktig den bevegelsen man gjør når man drar for å se kartet
+ * ovenfra.
+ *
+ * Geometrien: kameraet står i polarvinkel φ fra senit og ser MOT blikkpunktet,
+ * så blikkets høyde er −(π/2 − φ). Altså φ = π/2 + høyde for en negativ høyde.
+ *
+ * Den finnes fordi SOLA (v6.5.6) er det ene himmellegemet som står under
+ * horisonten når man mest sannsynlig ser etter den: om natta er den under føttene
+ * dine, altså under terrengarket. Uten dette ville et valg i søkelista rettet
+ * blikket mot horisonten og latt sola stå utenfor skjermen.
+ *
+ * @param {number} hoyde radianer over horisonten (negativ = under)
+ * @returns {number} polarvinkel i radianer
+ */
+export function polarForHoyde(hoyde) {
+  if (!Number.isFinite(hoyde)) return POLAR_MAKS
+  const phi = Math.PI / 2 + hoyde
+  if (phi >= POLAR_MAKS) return POLAR_MAKS
+  return Math.max(POLAR_MIN_BLIKK, phi)
+}
+
 /**
  * Hvilke blikkhøyder riggen FAKTISK kan levere, i grader.
  *
@@ -125,7 +158,10 @@ export function blikkHoydeGrenser() {
 export function blikkMot(azimut, hoyde) {
   // Ønsket blikkretning: (sin A, sin h, −cos A). Offset er den motsatte.
   const theta = Math.atan2(-Math.sin(azimut), Math.cos(azimut))
-  return { theta, vipp: vippForHoyde(hoyde) }
+  // `polar` er POLAR_MAKS for alt som er oppe — da er det vippen som gjelder, og
+  // kallstedet rører ikke orbiten. Er den lavere, er målet under horisonten og
+  // orbiten bærer blikket i stedet. Se polarForHoyde.
+  return { theta, vipp: vippForHoyde(hoyde), polar: polarForHoyde(hoyde) }
 }
 
 /**
@@ -433,12 +469,18 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
       controls.autoRotate = false
       userTook = true
       transition = null
-      const { theta, vipp } = blikkMot(azimut, hoyde)
-      // Polarvinkelen låses UMIDDELBART til taket: vippen er det som bærer
-      // høyden, og en orbit som fortsatt kan bevege seg i polar ville dratt
-      // blikket ned mens animasjonen løfter det.
-      settOrbitVinkler({ phi: POLAR_MAKS })
-      settPolarLast(true)
+      const { theta, vipp, polar } = blikkMot(azimut, hoyde)
+      // TO REGIMER, og de kan ikke være i bruk samtidig (se polarForHoyde).
+      // Over horisonten bærer VIPPEN høyden, og polaren låses UMIDDELBART til
+      // taket — en orbit som fortsatt kan bevege seg i polar ville dratt blikket
+      // ned mens animasjonen løfter det. Under horisonten er det ORBITEN som
+      // bærer blikket, og da må låsen tvert imot være AV: med minPolarAngle på
+      // taket ville hvert eneste `controls.update()` klemt kameraet rett opp
+      // igjen, og sola forblitt utenfor skjermen.
+      const underHorisonten = polar < POLAR_MAKS - 1e-6
+      const fraPhi = underHorisonten ? controls.getPolarAngle() : POLAR_MAKS
+      if (!underHorisonten) settOrbitVinkler({ phi: POLAR_MAKS })
+      settPolarLast(!underHorisonten)
       // Korteste vei rundt: uten dette snurrer kameraet 350° for å komme 10°.
       const fra = controls.getAzimuthalAngle()
       let dTheta = theta - fra
@@ -450,6 +492,8 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
         dTheta,
         fraVipp: himmelVipp,
         tilVipp: vipp,
+        fraPhi,
+        tilPhi: polar,
         tid: Number.isFinite(tid) && tid > 0 ? tid : BLIKK_TID_S,
         ease: ease === 'ut' ? easeOutCubic : easeInOutCubic,
       }
@@ -617,6 +661,10 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
         // Asimuten settes på orbiten; vippen legges på etterpå, som ellers.
         settOrbitVinkler({
           theta: blikkAnim.fraTheta + blikkAnim.dTheta * k,
+          // Polaren animeres MED for mål under horisonten; for alt som er oppe
+          // er fraPhi === tilPhi === POLAR_MAKS, så linja er en no-op og
+          // oppførselen er den samme som før v6.5.6.
+          phi: blikkAnim.fraPhi + (blikkAnim.tilPhi - blikkAnim.fraPhi) * k,
           // controls.update() kjører noen linjer under; dempingen skal ikke
           // tikke to ganger i samme frame.
           oppdater: false,

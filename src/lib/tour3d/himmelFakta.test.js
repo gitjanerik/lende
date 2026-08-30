@@ -10,11 +10,13 @@ import { PLANETER } from './planeter.js'
 const ALLE = Object.entries(HIMMEL_FAKTA)
 
 describe('HIMMEL_FAKTA', () => {
-  it('dekker månen og HVER planet i planeter.js', () => {
+  it('dekker sola, månen og HVER planet i planeter.js', () => {
     // Den ene invarianten som virkelig teller: legger noen til en planet i
-    // himmelen, skal denne testen kreve fakta for den før den vises.
+    // himmelen, skal denne testen kreve fakta for den før den vises. Sola kom
+    // inn i v6.5.6 og er ikke i PLANETER — den står derfor navngitt her, som
+    // månen.
     const nokler = Object.keys(HIMMEL_FAKTA).sort()
-    const ventet = ['mane', ...PLANETER.map((p) => p.id)].sort()
+    const ventet = ['sol', 'mane', ...PLANETER.map((p) => p.id)].sort()
     expect(nokler).toEqual(ventet)
   })
 

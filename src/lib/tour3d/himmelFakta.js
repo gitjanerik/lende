@@ -52,6 +52,40 @@ export const MANETALL_AR = 2025
  *   wikipedia   norsk Wikipedia-artikkel
  */
 export const HIMMEL_FAKTA = {
+  sol: {
+    type: 'Stjerne i hovedserien (G2V) — solsystemets midtpunkt',
+    oppdaget: 'Kjent fra forhistorisk tid',
+    // null og ikke { antall: 0 }: en stjerne har ikke måner, den har planeter.
+    // «Ingen måner» ville vært et svar på feil spørsmål.
+    maner: null,
+    fakta: [
+      '149,6 millioner km unna — lyset bruker 8 minutter og 20 sekunder hit',
+      'Diameter 1,39 millioner km: 109 jordkloder på rad',
+      '99,86 % av all massen i solsystemet ligger her',
+      'Overflaten er 5 500 °C, kjernen 15 millioner',
+      'Roterer ulikt: 24,5 døgn ved ekvator, 34 døgn ved polene',
+      '4,6 milliarder år gammel — omtrent halvveis i livet',
+    ],
+    utforskning: [
+      { ar: '1610', tekst: 'Galilei og samtidige ser solflekker gjennom teleskop, og viser at sola forandrer seg. Flekkenes vandring avslører at den roterer.' },
+      { ar: '1868', tekst: 'Helium blir funnet som en ukjent linje i sollyset under en solformørkelse — 27 år før grunnstoffet ble påvist på jorda.' },
+      { ar: '1960', tekst: 'Pioneer 5 måler solvinden i rommet mellom planetene for første gang.' },
+      { ar: '1976', tekst: 'Helios 2 går inn til 43 millioner km fra sola og holdt nærhetsrekorden i over 40 år.' },
+      { ar: '1995', tekst: 'SOHO settes i bane i L1-punktet og har overvåket sola sammenhengende siden — den har også funnet over 5 000 kometer.' },
+      { ar: '2010', tekst: 'Solar Dynamics Observatory begynner å fotografere hele sola hvert sekund, i ti bølgelengder.' },
+      { ar: '2020', tekst: 'Solar Orbiter (ESA/NASA) skytes opp og forlater ekliptikken for å se solas poler for første gang.' },
+      { ar: '2024', tekst: 'Parker Solar Probe passerer 6,1 millioner km over overflaten, inne i koronaen — det nærmeste noe menneskelaget har vært en stjerne.' },
+    ],
+    // MÅLT I CI, ikke gjettet (v6.5.6). «Sola» er tvetydig på begge tjenestene —
+    // det er også en kommune i Rogaland — så proben fikk kandidatene og svarte:
+    //   snl.no/Sola          → 200 på sin egen adresse. Og snl.no/Solen
+    //                          OMDIRIGERER hit, som er beviset på at det er
+    //                          stjerna og ikke kommunen som eier det korte navnet.
+    //   snl.no/Sola_-_stjerne → 404. Mars-mønsteret gjelder altså ikke her.
+    //   no.wikipedia.org/Solen → 200 på sin egen adresse.
+    snl: 'https://snl.no/Sola',
+    wikipedia: 'https://no.wikipedia.org/wiki/Solen',
+  },
   mane: {
     type: 'Jordas eneste naturlige satellitt',
     oppdaget: 'Kjent fra forhistorisk tid',

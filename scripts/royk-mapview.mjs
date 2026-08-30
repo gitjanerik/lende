@@ -1317,8 +1317,9 @@ const SJEKKER = [
         throw new Error(`${merker.formasjonMedMerke} stjernebilde(r) fikk globe-merket `
           + '— et merke som lover en globe som ikke finnes')
       }
-      if (merker.medMerke > 4) {
-        throw new Error(`${merker.medMerke} rader bærer globe-merket, men bare fire `
+      // Fem fra v6.5.6: sola kom inn som det femte legemet med globe.
+      if (merker.medMerke > 5) {
+        throw new Error(`${merker.medMerke} rader bærer globe-merket, men bare fem `
           + 'legemer har globe')
       }
       await page.locator('ul[aria-label="Treff på himmelen"] li button')
@@ -1448,6 +1449,90 @@ const SJEKKER = [
       return `valgte «${forste}» (fokus bare i pilla), minimerte, utvidet`
         + `${nabo ? `, hoppet til «${nabo}»` : ''}; ${globeUtfall}; ${faktaUtfall}; `
         + 'exit la kortet sammen'
+    },
+  },
+  {
+    // v6.5.6. SOLA er det femte legemet med globe, og det ene som er der HELE
+    // DØGNET — står den ikke på himmelen, står den under terrengarket der den
+    // faktisk er. Enhetstestene dekker lista, teksten og riggens vinkler hver for
+    // seg; det er kjeden fra rad til kort ingen av dem ser.
+    //
+    // Sjekken TRYKKER, og den måler tre ting enhetstestene ikke kan:
+    // at raden faktisk finnes i den ekte lista, at ikonet er SVG-en og ikke
+    // ☀️-emojien, og at kortet sier hvilken side av horisonten sola er på.
+    navn: 'sola er med hele døgnet, med SVG-ikon og globe',
+    domene: 'himmelObjekter + Tour3dHimmelSok (sola)',
+    krever: 'ektekart',
+    maksMs: 180_000,
+    async kjør(page) {
+      const h = await aapneNatt3d(page)
+      if (h.hoppet) return h.hoppet
+
+      const pille = page.locator('button[aria-label="Finn et stjernebilde eller en planet"], '
+        + 'button[aria-label^="Valgt:"]').first()
+      await pille.click({ timeout: 8000 })
+      await page.waitForSelector('ul[aria-label="Treff på himmelen"]', { timeout: 8000 })
+
+      // Skriv «sol» i søkefeltet: det beviser at søket treffer den, ikke bare at
+      // den ligger i lista.
+      const felt = page.locator('ul[aria-label="Treff på himmelen"]')
+        .locator('xpath=preceding::input[1]')
+      await felt.fill('sol', { timeout: 5000 }).catch(() => { /* felt kan mangle */ })
+      await page.waitForTimeout(300)
+
+      const rad = await evalMedTak(page, () => {
+        const b = [...document.querySelectorAll('ul[aria-label="Treff på himmelen"] li button')]
+          .find((e) => /Sola/.test(e.textContent))
+        if (!b) return null
+        return {
+          tekst: b.innerText.replace(/\s+/g, ' ').trim(),
+          // SVG OG IKKE EMOJI (v6.5.6): ☀️ tegnes av systemets font i full farge
+          // og ville vært det eneste som lyste i en liste man leser i mørket.
+          harSvgIkon: b.querySelectorAll('svg').length >= 2,
+          harEmoji: /[☀🌞]/u.test(b.textContent),
+          harGlobeMerke: /kan åpnes som globe/.test(b.textContent),
+        }
+      })
+      if (!rad) throw new Error('sola sto ikke i himmellista — den skal være der hele døgnet')
+      if (rad.harEmoji) throw new Error(`sola-raden bruker emoji: «${rad.tekst}»`)
+      if (!rad.harSvgIkon) {
+        throw new Error('sola-raden mangler SVG-ikonet (fant færre enn to svg-er: '
+          + 'sol-ikonet og globe-merket)')
+      }
+      if (!rad.harGlobeMerke) throw new Error('sola-raden mangler globe-merket')
+      if (!/(over|under) horisonten/.test(rad.tekst)) {
+        throw new Error(`sola-raden sier ikke hvilken side av horisonten den er på: «${rad.tekst}»`)
+      }
+      // Ingen minus foran gradene — fortegnet bæres av ordet.
+      if (/[-−]\d+°/.test(rad.tekst)) {
+        throw new Error(`sola-raden har et minustegn foran gradene: «${rad.tekst}»`)
+      }
+
+      await page.locator('ul[aria-label="Treff på himmelen"] li button')
+        .filter({ hasText: 'Sola' }).first().click({ timeout: 5000 })
+      await page.waitForTimeout(1800)
+
+      // Kortet er sammenlagt etter et listevalg (v6.3.11). Åpne det og krev at
+      // faktaene er der — det er den enden av kjeden som beviser at HIMMEL_FAKTA
+      // faktisk nås for et legeme som ikke er en planet.
+      await page.locator('button[aria-label="Vis mer om Sola"]').click({ timeout: 8000 })
+      await page.waitForTimeout(500)
+      const kort = await evalMedTak(page, () => document.body.innerText)
+      if (!/Sola/.test(kort)) throw new Error('kortet nevner ikke Sola etter valget')
+      if (!/(over|under) horisonten/.test(kort)) {
+        throw new Error('kortet sier ikke hvilken side av horisonten sola er på')
+      }
+      if (!/Historien|Verdt å vite|Fakta/i.test(kort)) {
+        throw new Error('kortet for Sola har ingen fakta — HIMMEL_FAKTA nås ikke')
+      }
+
+      // NØYTRAL TILSTAND: kortet lukkes, og natta forlates slik neste sjekk
+      // forventer å finne appen.
+      await page.locator('button[aria-label="Lukk infokortet"]').click({ timeout: 5000 })
+        .catch(() => { /* kan alt være lukket */ })
+      await page.waitForTimeout(300)
+      await lukkNatt3d(page, h.startSteg)
+      return `sola i lista med SVG-ikon og globe-merke: «${rad.tekst}»`
     },
   },
   {

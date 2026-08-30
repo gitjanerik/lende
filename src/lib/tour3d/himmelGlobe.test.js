@@ -2,8 +2,10 @@
 // trekk som er synlige er alt tall i minnet — og det er nettopp de tallene som
 // avgjør om skyggelinja står riktig og om labelene ligger på riktig side av kula.
 import { describe, it, expect } from 'vitest'
-import { Vector3 } from 'three'
-import { buildHimmelGlobe, selenografiskTilPunkt } from './himmelGlobe.js'
+import { Vector3, Texture, RepeatWrapping, SRGBColorSpace } from 'three'
+import {
+  buildHimmelGlobe, selenografiskTilPunkt, justerTekstur, TEKSTUR_U_OFFSET,
+} from './himmelGlobe.js'
 import { HIMMELLEGEMER, GLOBE_TEKST, MANE_TREKK, harGlobe } from './himmellegemer.js'
 
 const GRAD = Math.PI / 180
@@ -240,11 +242,13 @@ describe('buildHimmelGlobe — teksturen er valgfri', () => {
 
 
 describe('HIMMELLEGEMER — tabellen', () => {
-  it('har de fire legemene som faktisk kan åpnes, og bare dem', () => {
+  it('har de fem legemene som faktisk kan åpnes, og bare dem', () => {
     // Merkur og Venus står bevisst UTENFOR: en globe av dem ville vært en
     // påstand om at det er noe å se. Og siden trykk-ringen på himmelen leser
     // harGlobe, ville de fått et omriss som lover en globe som ikke finnes.
-    expect(Object.keys(HIMMELLEGEMER).sort()).toEqual(['jupiter', 'mane', 'mars', 'saturn'])
+    expect(Object.keys(HIMMELLEGEMER).sort())
+      .toEqual(['jupiter', 'mane', 'mars', 'saturn', 'sol'])
+    expect(harGlobe('sol')).toBe(true)
     expect(harGlobe('mane')).toBe(true)
     expect(harGlobe('mars')).toBe(true)
     expect(harGlobe('merkur')).toBe(false)
@@ -258,7 +262,16 @@ describe('HIMMELLEGEMER — tabellen', () => {
     // gjenkjennelig likevel.
     for (const [id, spec] of Object.entries(HIMMELLEGEMER)) {
       expect(spec.farge, id).toMatch(/^#[0-9a-f]{6}$/i)
-      expect(spec.tekstur, id).toMatch(/\.jpg$/)
+      // SOLA HAR INGEN BAKT FIL, og det er et valg: kilde-URL-er skal måles og
+      // ikke gjettes (v6.3.0), og hostene er sperret fra utviklingsmiljøene.
+      // Overflaten tegnes lokalt i stedet — se granulasjonTekstur. Da MÅ den
+      // også si fra at den er selvlysende, ellers står halve sola i skygge.
+      if (spec.tekstur === null) {
+        expect(spec.granulasjon || spec.band, id).toBeTruthy()
+        expect(spec.selvlysende, id).toBe(true)
+      } else {
+        expect(spec.tekstur, id).toMatch(/\.jpg$/)
+      }
       expect(spec.trekk?.length, id).toBeGreaterThan(2)
       expect(GLOBE_TEKST[id], id).toBeTruthy()
       expect(GLOBE_TEKST[id].omtale, id).toBeTruthy()
@@ -309,15 +322,20 @@ describe('buildHimmelGlobe — per legeme', () => {
     }
   })
 
-  it('aksehellingen står på holderen, ikke på kula', () => {
+  it('aksehellingen står på holderens X, ikke på kula og ikke på Z', () => {
     // Mars står 25° skjevt og Saturn 27°. Ligger hellingen på meshet, blir den
     // overskrevet av brukerens dreining; ligger den på gruppa, blir den
     // overskrevet av vendMot hver frame. Derfor en holder imellom.
+    //
+    // OG DEN MÅ STÅ PÅ X. Fram til v6.5.4 sto den på Z, altså en rull om
+    // synslinja — usynlig på en kule, og dødelig for Saturns ringer, som en
+    // rull aldri kan åpne. Testen holder aksen fast, ikke bare vinkelen.
     const mars = buildHimmelGlobe({ legeme: 'mars' })
     // Gruppa har ett barn som er holderen (pluss lysene).
     const holder = mars.group.children.find((c) => c.children.includes(mars.mesh))
     expect(holder).toBeTruthy()
-    expect(Math.abs(holder.rotation.z)).toBeCloseTo(25.2 * Math.PI / 180, 6)
+    expect(Math.abs(holder.rotation.x)).toBeCloseTo(25.2 * Math.PI / 180, 6)
+    expect(holder.rotation.z).toBe(0)
     expect(mars.mesh.rotation.z).toBe(0)
     mars.dispose()
   })
@@ -378,6 +396,86 @@ describe('settRenderLag — globen tegnes i en egen dybde-pass', () => {
       g.settRenderLag(ugyldig)
       expect(g.mesh.layers.test({ mask: 1 << 0 })).toBe(true)
     }
+    g.dispose()
+  })
+})
+
+describe('buildHimmelGlobe — teksturen ligger der navnene står', () => {
+  it('lengdegrad 0 samler seg på kartets nullmeridian', () => {
+    // INVARIANTEN, IKKE TALLET: SphereGeometry legger u = 0,25 mot kameraet,
+    // mens et equirektangulært kart har nullmeridianen på u = 0,5. Uten
+    // forskyvningen viser kula kartets lengdegrad −90 der merkelappene sier 0,
+    // og «Den store røde flekken» står midt på Jupiter uten noen flekk under seg.
+    const g = buildHimmelGlobe()
+    const pos = g.mesh.geometry.attributes.position
+    const uv = g.mesh.geometry.attributes.uv
+    const mot = new Vector3(0, 0, 1)
+    let best = -1
+    let bestAvstand = Infinity
+    for (let i = 0; i < pos.count; i++) {
+      const d = new Vector3().fromBufferAttribute(pos, i).distanceTo(mot)
+      if (d < bestAvstand) { bestAvstand = d; best = i }
+    }
+    const u = (uv.getX(best) + TEKSTUR_U_OFFSET) % 1
+    expect(u).toBeCloseTo(0.5, 6)
+    g.dispose()
+  })
+
+  it('justerTekstur gjentar i u — ellers smøres kvartingen ut som en stripe', () => {
+    const t = justerTekstur(new Texture())
+    expect(t.offset.x).toBeCloseTo(TEKSTUR_U_OFFSET, 6)
+    expect(t.wrapS).toBe(RepeatWrapping)
+    expect(t.colorSpace).toBe(SRGBColorSpace)
+  })
+})
+
+describe('buildHimmelGlobe — aksehellingen åpner ringene', () => {
+  /** Ringplanets normal, i gruppas rom (der +Z er mot kameraet). */
+  const ringNormal = (g) => {
+    const ring = g.mesh.parent.children.find((c) => c.geometry?.type === 'RingGeometry')
+    return new Vector3(0, 0, 1)
+      .applyQuaternion(ring.quaternion)
+      .applyQuaternion(g.mesh.parent.quaternion)
+  }
+
+  it('Saturns ringer er åpne mot betrakteren, ikke sett i kanten', () => {
+    // FEILEN SOM BLE RETTET: hellingen sto på holderens Z, altså en RULL om
+    // synslinja — og en rull kan per konstruksjon ikke åpne et plan man ser inn
+    // i kanten på. Normalen fikk z = 0 uansett helling, og Saturn sto uten
+    // ringer på skjermen mens harRinger var sann og shaderen kjørte.
+    const g = buildHimmelGlobe({ legeme: 'saturn' })
+    expect(g.harRinger).toBe(true)
+    const n = ringNormal(g)
+    const apning = Math.asin(Math.abs(n.z)) / GRAD
+    expect(apning).toBeCloseTo(HIMMELLEGEMER.saturn.akseHelling, 4)
+    expect(apning).toBeGreaterThan(20)
+    g.dispose()
+  })
+
+  it('breddegrads-draget vipper ringene med, ikke bare kula', () => {
+    // Lå bredde på meshet — som den gjorde til v6.5.4 — ville kula vridd seg ut
+    // av ringer som sto stille så snart man dro oppover.
+    const g = buildHimmelGlobe({ legeme: 'saturn' })
+    const for0 = ringNormal(g).z
+    g.settRotasjon(0, 20 * GRAD)
+    expect(ringNormal(g).z).not.toBeCloseTo(for0, 3)
+    g.dispose()
+  })
+
+  it('klemmen gjelder summen, så aksen ikke passerer polen', () => {
+    const g = buildHimmelGlobe({ legeme: 'saturn' })
+    g.settRotasjon(0, 3)
+    const helling = HIMMELLEGEMER.saturn.akseHelling * GRAD
+    expect((g.rotasjon.bredde + helling) / GRAD).toBeCloseTo(80, 4)
+    g.settRotasjon(0, -3)
+    expect((g.rotasjon.bredde + helling) / GRAD).toBeCloseTo(-80, 4)
+    g.dispose()
+  })
+
+  it('månen har ingen helling, så ±80° står urørt', () => {
+    const g = buildHimmelGlobe()
+    g.settRotasjon(0, 3)
+    expect(g.rotasjon.bredde).toBeCloseTo(80 * GRAD, 6)
     g.dispose()
   })
 })

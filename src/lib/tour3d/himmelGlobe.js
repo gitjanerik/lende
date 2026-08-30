@@ -44,6 +44,42 @@ import { HIMMELLEGEMER } from './himmellegemer.js'
 const GRAD = Math.PI / 180
 
 /**
+ * FORSKYVNINGEN SOM SETTER FOTOGRAFIET DER NAVNENE STÅR. 90°, og den er MÅLT.
+ *
+ * `SphereGeometry` legger u = 0 ved −X og lar u vokse mot +Z: vertexen som
+ * vender mot kameraet (vår lengdegrad 0, se selenografiskTilPunkt) har u = 0,25.
+ * Et equirektangulært kart har derimot sin nullmeridian midt i bildet, altså på
+ * u = 0,5. Uten en forskyvning viser kula derfor kartets lengdegrad −90 der
+ * navnene sier 0 — hele overflaten er dreid en kvart omdreining bort fra
+ * merkelappene sine.
+ *
+ * Det så ut som en tekst-feil og var en tekstur-feil: eieren meldte at
+ * «Den store røde flekken» sto midt på Jupiter uten noen flekk under seg. Målt i
+ * det bakte kartet ligger flekken på lat −21,7 / lon −47,5, altså akkurat der
+ * merkelappen peker — 90° til siden. Månen bar den samme feilen uten at noen så
+ * den: en måne dreid 90° er fortsatt en måne.
+ *
+ * Krever `RepeatWrapping`. Med standard `ClampToEdgeWrapping` ville kvartingen
+ * som skyves rundt kanten blitt smurt ut som en stripe.
+ */
+export const TEKSTUR_U_OFFSET = 0.25
+
+/**
+ * Gjør en lastet tekstur klar for kula: fargerom, gjentakelse og forskyvningen
+ * over.
+ *
+ * Egen funksjon og ikke tre linjer inne i last-callbacken, fordi den da kan
+ * enhetstestes — og det er nettopp forskyvningen som er lett å «rydde bort» i
+ * god tro. En tekstur uten den ser helt riktig ut; den viser bare feil sted.
+ */
+export function justerTekstur(t) {
+  t.colorSpace = SRGBColorSpace
+  t.wrapS = RepeatWrapping
+  t.offset.x = TEKSTUR_U_OFFSET
+  return t
+}
+
+/**
  * Selenografisk lat/lon → punkt på enhetskula, i globens EGET koordinatsystem.
  *
  * Orienteringen er valgt slik at (0, 0) — under-jord-punktet — peker mot +Z, og
@@ -103,6 +139,69 @@ function bandTekstur(band) {
   return t
 }
 
+/**
+ * Overflatetekstur for sola, tegnet lokalt.
+ *
+ * HVORFOR IKKE ET FOTOGRAFI: se `sol` i himmellegemer.js — kilde-URL-er skal
+ * måles, ikke gjettes, og hostene er sperret herfra. Dette er dessuten godt nok
+ * for det globen skal vise: granulasjon (kokende celler på et par tusen km) og
+ * de to flekkbeltene rundt ±16°. Ingen DISKRETE flekker: en solflekk lever noen
+ * uker og driver med rotasjonen, så en fast flekk ville vært feil allerede neste
+ * måned — beltene er det som står.
+ *
+ * Bredden er full (256): granulasjonen må variere langs lengdegraden også, ellers
+ * blir sola stripete i stedet for kornete.
+ *
+ * Returnerer null uten lerret (node, test) — kaller tåler det.
+ */
+function granulasjonTekstur() {
+  if (typeof document === 'undefined') return null
+  const c = document.createElement('canvas')
+  c.width = 256
+  c.height = 128
+  const g = c.getContext('2d')
+  if (!g) return null
+  g.fillStyle = '#ffe7a4'
+  g.fillRect(0, 0, c.width, c.height)
+  // Flekkbeltene: to litt mørkere bånd, myknet i kantene.
+  for (const lat of [16, -16]) {
+    const y = (0.5 - lat / 180) * c.height
+    const grad = g.createLinearGradient(0, y - 14, 0, y + 14)
+    grad.addColorStop(0, 'rgba(190,120,30,0)')
+    grad.addColorStop(0.5, 'rgba(190,120,30,0.16)')
+    grad.addColorStop(1, 'rgba(190,120,30,0)')
+    g.fillStyle = grad
+    g.fillRect(0, y - 14, c.width, 28)
+  }
+  // Granulasjonen. Deterministisk pseudotilfeldig, så teksturen er den samme
+  // hver gang — en sol som ser ulik ut ved hver åpning leses som flimmer.
+  let frø = 1
+  const rnd = () => {
+    frø = (frø * 1103515245 + 12345) & 0x7fffffff
+    return frø / 0x7fffffff
+  }
+  // Kornene er SMÅ og SVAKE med vilje. Granulasjonsceller er ~1 000 km på en
+  // sol på 1,4 millioner — altså en fin struktur, ikke flekker. Første utgave
+  // hadde store, kontrastrike kuler og leste som en potet.
+  for (let i = 0; i < 9000; i++) {
+    const x = rnd() * c.width
+    const y = rnd() * c.height
+    const r = 0.7 + rnd() * 1.5
+    const lys = rnd()
+    g.fillStyle = lys > 0.5
+      ? `rgba(255,253,240,${0.05 + (lys - 0.5) * 0.18})`
+      : `rgba(214,150,52,${0.04 + (0.5 - lys) * 0.14})`
+    g.beginPath()
+    g.arc(x, y, r, 0, Math.PI * 2)
+    g.fill()
+  }
+  const t = new CanvasTexture(c)
+  t.colorSpace = SRGBColorSpace
+  t.wrapS = RepeatWrapping
+  t.wrapT = ClampToEdgeWrapping
+  return t
+}
+
 export function buildHimmelGlobe({
   legeme = 'mane', radius = 1, teksturUrl = null, onTekstur = null,
 } = {}) {
@@ -126,17 +225,68 @@ export function buildHimmelGlobe({
   mesh.frustumCulled = false
 
   // Båndene legges på FØR fotografiet forsøkes: da er kula gjenkjennelig fra
-  // første frame, og et fotografi som kommer senere bare gjør den bedre.
-  const bandTekstur0 = bandTekstur(spec.band)
+  // første frame, og et fotografi som kommer senere bare gjør den bedre. Sola
+  // har ingen bånd men en granulert overflate, og der ER den lokale teksturen
+  // hele svaret — det kommer ikke noe fotografi etterpå.
+  const bandTekstur0 = spec.granulasjon ? granulasjonTekstur() : bandTekstur(spec.band)
   if (bandTekstur0) {
     material.map = bandTekstur0
     material.color.set('#ffffff')
   }
 
+  /**
+   * SELVLYSENDE: teksturen tegnes som EGENLYS, ikke som en flate som belyses.
+   *
+   * Hvorfor det ikke holdt å skru ambient til 1: `MeshStandardMaterial` kjører
+   * ambient gjennom en diffus BRDF som deler på π, så teksturen kom ut mye
+   * mørkere enn den er. Målt i Chromium ble en lys gul sol sennepsbrun.
+   * `emissiveMap` går utenom lysberegningen og gir nøyaktig teksturens farger —
+   * som er hva en lyskilde ER. `color` settes samtidig til svart, ellers legger
+   * den diffuse veien et matt slør oppå.
+   */
+  // RANDMØRKNING (limb darkening), og den er ikke pynt: den er det ene trekket
+  // som gjør en lysende kule til SOLA. Sola er ikke en flat skive — man ser
+  // dypere (og varmere) lag i midten enn ute ved randen, der siktelinja går på
+  // skrå gjennom fotosfæren. Uten den ser kula ut som en lampe.
+  //
+  // Eddingtons klassiske tilnærming: I(μ)/I(0) = 0,4 + 0,6·μ, der μ er cosinus
+  // av vinkelen mellom flatenormalen og synslinja. `vNormal` og `vViewPosition`
+  // finnes allerede som varyings i MeshStandardMaterial, så det koster ingen ny
+  // geometri — vi hekter oss bare på der egenlyset er regnet ut. Samme grep som
+  // skyskygge.js bruker på terrenget.
+  const randMorkning = (m) => {
+    m.onBeforeCompile = (shader) => {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+         float muSol = clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0);
+         totalEmissiveRadiance *= 0.40 + 0.60 * muSol;`,
+      )
+    }
+    m.needsUpdate = true
+  }
+
+  const settSelvlys = (t) => {
+    if (!spec.selvlysende) return
+    material.emissive.set('#ffffff')
+    material.emissiveMap = t ?? null
+    material.emissiveIntensity = 1
+    material.color.set(t ? '#000000' : spec.farge)
+    if (!t) material.emissive.set(spec.farge)
+    material.needsUpdate = true
+  }
+  if (spec.selvlysende) randMorkning(material)
+  settSelvlys(bandTekstur0)
+
   // Lyset. Retningen settes fra solas virkelige posisjon, så skyggelinja er der
   // den faktisk er. Ambient er lav og ikke null: en helt svart nattside gjør
   // kula til en sigd som svever, og man mister følelsen av at det er en kule.
-  const sol = new DirectionalLight(0xfff6e6, 3.1)
+  // SELVLYSENDE LEGEMER FÅR INGEN RETNINGSLYS. Sola har ingen nattside, og et
+  // lys fra siden ville tegnet en terminator som ikke finnes — altså en påstand
+  // om at det står en annen sol et sted. Ambient bærer hele lyset i stedet
+  // (spec.ambient = 1). Lyset opprettes likevel, med intensitet 0, så settFase
+  // og resten av modulen slipper å vite om unntaket.
+  const sol = new DirectionalLight(0xfff6e6, spec.selvlysende ? 0 : 3.1)
   sol.position.set(1, 0, 0)
   // MÅLET MÅ VÆRE KULA, ikke standard-målet. Et DirectionalLight lyser fra sin
   // posisjon mot `target`, som som default er et objekt i verdens ORIGO — og
@@ -144,12 +294,28 @@ export function buildHimmelGlobe({
   // ville lyset pekt mot midten av kartet og fasen blitt tilfeldig.
   sol.target = mesh
   group.add(sol)
-  const fyll = new AmbientLight(0xffffff, spec.ambient ?? 0.055)
+  // Selvlysende legemer trenger ikke ambient heller — egenlyset ER lyset. En
+  // ambient oppå ville bare vasket ut kontrasten i granulasjonen.
+  const fyll = new AmbientLight(0xffffff, spec.selvlysende ? 0 : (spec.ambient ?? 0.055))
   group.add(fyll)
 
-  // AKSEHELLINGEN legges på MESHET og ikke på gruppa: gruppa eies av vendMot og
-  // rullen, og en helling der ville blitt overskrevet hver frame. På meshet blir
-  // den en fast del av legemets egen orientering, som er hva den er.
+  // AKSEHELLINGEN legges på en HOLDER mellom gruppa og meshet: gruppa eies av
+  // vendMot og rullen, og en helling der ville blitt overskrevet hver frame.
+  //
+  // OG DEN TIPPER POLEN MOT BETRAKTEREN — den lener den ikke sidelengs. Det er
+  // forskjellen på ringer og ingen ringer, og det er målt: fram til v6.5.4 sto
+  // hellingen på holderens Z, altså en RULL om synslinja. En rull kan per
+  // konstruksjon ikke åpne et plan man ser inn i kanten på — ringnormalen fikk
+  // z-komponent 0,000 uansett helling, og Saturn sto uten ringer på skjermen
+  // mens `harRinger` var sann og shaderen kjørte. Med hellingen om X blir
+  // åpningsvinkelen lik hellingen: 26,7° gir en ellipse med akseforhold 0,45,
+  // som er den Saturn alle kjenner.
+  //
+  // RETNINGEN AKSEN PEKER ER ET VALG, VINKELEN ER EKTE. Hvilken vei polen lener
+  // seg i forhold til synslinja følger av årstiden på planeten, og den modellerer
+  // vi ikke. Da er «mot betrakteren» det ene valget som gjør tallet i tabellen
+  // SYNLIG — samme slag bevisst overdrivelse som at måneskiva på himmelen tegnes
+  // tre ganger for stor. «Sidelengs» var det ene valget som skjulte det helt.
   const helling = (spec.akseHelling ?? 0) * GRAD
 
   // SATURNS RINGER. Ikke valgfritt — en Saturn uten ringer er en blek Jupiter.
@@ -205,10 +371,11 @@ export function buildHimmelGlobe({
   }
 
   // Holderen bærer aksehellingen og samler kule + ringer, så de skjevstiller seg
-  // sammen. Brukerens dreining går på MESHET inne i holderen — da spinner
-  // planeten om sin egen akse, ikke om en akse som står rett opp.
+  // sammen. Brukerens LENGDE-dreining går på MESHET inne i holderen — da spinner
+  // planeten om sin egen akse, ikke om en akse som står rett opp. BREDDE-draget
+  // går derimot på holderen (se settRotasjon), så ringene vipper med.
   const holder = new Group()
-  holder.rotation.z = helling
+  holder.rotation.x = helling
   holder.add(mesh)
   if (ringMesh) holder.add(ringMesh)
   group.add(holder)
@@ -219,12 +386,13 @@ export function buildHimmelGlobe({
     new TextureLoader().load(
       teksturUrl,
       (t) => {
-        t.colorSpace = SRGBColorSpace
+        justerTekstur(t)
         teksturObjekt = t
         material.map = t
         // Hvit så fotografiet får bære fargen selv. Uten dette ganges bildet med
         // egenfargen, og Mars blir rustrød to ganger.
         material.color.set('#ffffff')
+        settSelvlys(t)
         material.needsUpdate = true
         try { onTekstur?.(true) } catch { /* UI-feil skal ikke stoppe globen */ }
       },
@@ -235,6 +403,9 @@ export function buildHimmelGlobe({
 
   const _v = new Vector3()
   let rull = 0
+  // Brukerens breddegrads-drag, klemt. Egen variabel og ikke avlest av
+  // holder.rotation.x, som også bærer aksehellingen.
+  let breddeDrag = 0
 
   return {
     group,
@@ -326,14 +497,26 @@ export function buildHimmelGlobe({
      * mesh.rotation, fordi breddegrads-rotasjonen må klemmes: får man snurre
      * forbi polene, står månen på hodet og ingen finner tilbake.
      *
+     * DE TO AKSENE BOR PÅ HVER SIN NODE, og det er en følge av at ringene ble
+     * synlige: lengde er planetens spinn om sin EGEN akse og hører hjemme på
+     * meshet, mens bredde er hvilken breddegrad man ser den fra og må ta med seg
+     * hele systemet. Lå bredde også på meshet — som den gjorde fram til v6.5.4 —
+     * ville kula vippet inne i ringer som sto stille, altså en Saturn som vrir
+     * seg ut av sine egne ringer så snart man drar oppover.
+     *
      * @param {number} lengde radianer om Y (fri, går rundt)
-     * @param {number} bredde radianer om X (klemt til ±80°)
+     * @param {number} bredde radianer om X (klemt så aksen ikke passerer polen)
      */
     settRotasjon(lengde, bredde) {
       mesh.rotation.y = lengde
-      mesh.rotation.x = Math.max(-80 * GRAD, Math.min(80 * GRAD, bredde))
+      // Klemmen gjelder SUMMEN: for Saturn er 26,7° allerede brukt opp av
+      // hellingen, og ±80° på draget alene ville tatt aksen forbi polen.
+      const b = Number.isFinite(bredde) ? bredde : 0
+      const grense = 80 * GRAD
+      breddeDrag = Math.max(-grense - helling, Math.min(grense - helling, b))
+      holder.rotation.x = helling + breddeDrag
     },
-    get rotasjon() { return { lengde: mesh.rotation.y, bredde: mesh.rotation.x } },
+    get rotasjon() { return { lengde: mesh.rotation.y, bredde: breddeDrag } },
 
     /**
      * Hvilke navngitte trekk som er synlige nå (på den halvkula som vender mot

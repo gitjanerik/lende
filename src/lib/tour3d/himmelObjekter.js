@@ -13,6 +13,13 @@
 //
 // LISTA INNEHOLDER BARE DET LENDE FAKTISK TEGNER. En nedtrekksliste som lover
 // et stjernebilde under horisonten er en felle, ikke en tjeneste.
+//
+// SOLA ER UNNTAKET, OG DET ER FORDI DEN ALLTID TEGNES (v6.5.6). Den er det ene
+// legemet som aldri «er borte»: står den ikke på himmelen, står den UNDER deg,
+// og da tegner Lende den under terrengarket der den faktisk er. Regelen over er
+// altså ikke brutt — lista lover fortsatt bare det som tegnes. At sola er med
+// hele døgnet er en KONSEKVENS av at den tegnes hele døgnet, ikke et unntak fra
+// regelen.
 
 import { FORMASJONER, STJERNER } from './stjerner.js'
 import { STJERNEBILDE_INFO, sokeNavnFor } from './stjernebildeInfo.js'
@@ -73,6 +80,30 @@ export function himmelObjekter({ lat, lon, dato = new Date(), tvingHimmel = fals
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return []
   const lst = lokalStjernetid(dato, lon)
   const ut = []
+
+  // --- Sola ----------------------------------------------------------------
+  // ALLTID MED, uansett høyde. Høyden kan være negativ, og resten av 3D-koden
+  // tåler det: skiva tegnes der den er (skyDome), blikket rettes dit ved å senke
+  // orbiten i stedet for å vippe (freeRig.polarForHoyde), og globen henger i den
+  // samme retningen. `himmelUndertekst` sier «under horisonten» når den er det.
+  try {
+    const h = himmelFor({ lat, lon, dato })
+    ut.push({
+      id: 'sol',
+      type: 'sol',
+      navn: 'Sola',
+      latin: 'Sol',
+      azimut: h.sol.azimut,
+      hoyde: h.sol.hoyde,
+      // Sola har ingen fase — den er sin egen lyskilde. Globen leser
+      // `selvlysende` fra HIMMELLEGEMER og slår av retningslyset, men feltene
+      // står her likevel så kallstedene slipper et unntak.
+      faseVinkel: 0,
+      lyssideVinkel: 0,
+      harGlobe: true,
+      sokeNavn: ['Sola', 'Sol', 'Solen', 'Sun', 'Sol.'],
+    })
+  } catch { /* uten sol: resten av himmelen står fortsatt */ }
 
   // --- Månen ---------------------------------------------------------------
   // tvingHimmel er utvikler-bryteren, og for månen bor den i himmelFor — som er
@@ -255,7 +286,9 @@ export function himmelObjekter({ lat, lon, dato = new Date(), tvingHimmel = fals
   // det man ender med å lure på når figurene er talt opp. Stjernene sorteres på
   // lysstyrke som planetene: er man i tvil om hvilken prikk man trykket på, er
   // den lyseste det beste første gjettet.
-  const rang = { mane: 0, planet: 1, formasjon: 2, stjerne: 3 }
+  // Sola først: den er det legemet ingen trenger å lete etter, og det eneste som
+  // alltid står i lista.
+  const rang = { sol: 0, mane: 1, planet: 2, formasjon: 3, stjerne: 4 }
   return ut.sort((a, b) => {
     if (rang[a.type] !== rang[b.type]) return rang[a.type] - rang[b.type]
     if (a.type === 'planet' || a.type === 'stjerne') return (a.mag ?? 99) - (b.mag ?? 99)
@@ -346,19 +379,29 @@ export function naboerFor(valgt, alle, antall = 3) {
  * er og hvor det står, fordi «Jupiter» alene ikke hjelper noen med å finne det.
  */
 export function himmelUndertekst(o) {
-  const hoyde = Math.round(o.hoyde / GRAD)
+  const grader = Math.round(o.hoyde / GRAD)
+  // SOLA KAN STÅ UNDER HORISONTEN, og da er «−35° over horisonten» tull. Alle de
+  // andre legemene er filtrert på høyde > 0, så uttrykket er nytt fra v6.5.6 og
+  // gjelder i praksis bare sola.
+  const hoyde = Math.abs(grader)
+  const hvor = grader < 0 ? 'under horisonten' : 'over horisonten'
   const retning = kompass(o.azimut / GRAD)
+  if (o.type === 'sol') {
+    return grader < 0
+      ? `Sola · ${retning}, ${hoyde}° under horisonten — under føttene dine`
+      : `Sola · ${retning}, ${hoyde}° over horisonten`
+  }
   if (o.type === 'stjerne') {
-    const hvor = o.stjernebilde ? `Stjerne i ${o.stjernebilde.norsk}` : 'Stjerne'
-    return `${hvor} · ${retning}, ${hoyde}° over horisonten · lysstyrke ${komma(o.mag, 1)}`
+    const sted = o.stjernebilde ? `Stjerne i ${o.stjernebilde.norsk}` : 'Stjerne'
+    return `${sted} · ${retning}, ${hoyde}° ${hvor} · lysstyrke ${komma(o.mag, 1)}`
   }
   if (o.type === 'planet') {
-    return `Planet · ${retning}, ${hoyde}° over horisonten · lysstyrke ${komma(o.mag, 1)}`
+    return `Planet · ${retning}, ${hoyde}° ${hvor} · lysstyrke ${komma(o.mag, 1)}`
   }
   if (o.type === 'mane') {
-    return `Månen · ${retning}, ${hoyde}° over horisonten · ${Math.round(o.lysAndel * 100)} % opplyst`
+    return `Månen · ${retning}, ${hoyde}° ${hvor} · ${Math.round(o.lysAndel * 100)} % opplyst`
   }
-  return `${o.latin} · ${retning}, ${hoyde}° over horisonten · ${o.antallStjerner} stjerner`
+  return `${o.latin} · ${retning}, ${hoyde}° ${hvor} · ${o.antallStjerner} stjerner`
 }
 
 const komma = (n, d = 0) => (Number.isFinite(n) ? n.toFixed(d).replace('.', ',') : '–')

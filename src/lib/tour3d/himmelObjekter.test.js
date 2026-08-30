@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  himmelObjekter, filtrerHimmel, naboerFor, vinkelAvstand, kompass,
-  himmelUndertekst, naermesteTreff,
+  himmelObjekter, filtrerHimmel, naboerFor, vinkelAvstand, kompass, himmelUndertekst, naermesteTreff,
 } from './himmelObjekter.js'
 import { FORMASJONER, STJERNER } from './stjerner.js'
 
@@ -12,16 +11,33 @@ const VINTER = new Date('2026-01-15T21:00:00Z')
 const SOMMER = new Date('2026-07-15T23:00:00Z')
 
 describe('himmelObjekter', () => {
-  it('lister bare det som faktisk er oppe', () => {
+  it('lister bare det som faktisk er oppe — sola unntatt, den tegnes uansett', () => {
     for (const dato of [VINTER, SOMMER]) {
       const liste = himmelObjekter({ ...STED, dato })
       expect(liste.length).toBeGreaterThan(3)
       for (const o of liste) {
-        expect(o.hoyde, `${o.navn} skal være over horisonten`).toBeGreaterThan(0)
+        // Sola er det ene legemet som tegnes hele døgnet: er den ikke på
+        // himmelen, står den under terrengarket der den faktisk er. Regelen
+        // «lista lover bare det som tegnes» er altså ikke brutt.
+        if (o.type !== 'sol') {
+          expect(o.hoyde, `${o.navn} skal være over horisonten`).toBeGreaterThan(0)
+        }
         expect(o.id).toBeTruthy()
         expect(o.navn).toBeTruthy()
-        expect(['formasjon', 'planet', 'mane', 'stjerne']).toContain(o.type)
+        expect(['formasjon', 'planet', 'mane', 'stjerne', 'sol']).toContain(o.type)
       }
+    }
+  })
+
+  it('sola er ALLTID med, også midt på natta når den er under føttene dine', () => {
+    // Hele grunnen til at den er unntatt regelen over: et legeme som forsvinner
+    // ut av lista uten forklaring er verre enn ett som står der og sier hvor
+    // det er.
+    for (const dato of [VINTER, SOMMER, new Date('2026-01-01T01:00:00Z')]) {
+      const sol = himmelObjekter({ ...STED, dato }).find((o) => o.type === 'sol')
+      expect(sol, `sola mangler for ${dato.toISOString()}`).toBeTruthy()
+      expect(sol.harGlobe).toBe(true)
+      expect(Number.isFinite(sol.hoyde)).toBe(true)
     }
   })
 
@@ -63,7 +79,7 @@ describe('himmelObjekter', () => {
     for (let d = 0; d < 200; d += 13) {
       const liste = himmelObjekter({ ...STED, dato: new Date(Date.UTC(2026, 0, 1 + d, 22)) })
       const typer = liste.map((o) => o.type)
-      const rang = { mane: 0, planet: 1, formasjon: 2, stjerne: 3 }
+      const rang = { sol: 0, mane: 1, planet: 2, formasjon: 3, stjerne: 4 }
       for (let i = 1; i < typer.length; i++) {
         expect(rang[typer[i]]).toBeGreaterThanOrEqual(rang[typer[i - 1]])
       }
@@ -245,7 +261,12 @@ describe('himmelUndertekst', () => {
   it('sier hva det er og hvor det står', () => {
     for (const o of liste) {
       const t = himmelUndertekst(o)
-      expect(t).toMatch(/over horisonten/)
+      // Sola kan stå under horisonten, og da skal teksten SI det — «−42° over
+      // horisonten» er tull, og det var slik den leste før v6.5.6.
+      expect(t).toMatch(o.hoyde < 0 ? /under horisonten/ : /over horisonten/)
+      // Ingen minus foran GRADENE — fortegnet bæres av ordet. (Lysstyrke er
+      // legitimt negativ for Jupiter og Venus, så testen ser bare på høyden.)
+      expect(t).not.toMatch(/[-−]\d+°/)
       expect(t).toMatch(/nord|øst|sør|vest/)
     }
   })
@@ -298,10 +319,11 @@ describe('himmelObjekter — tvungne himmellegemer må gjelde HER OGSÅ', () => 
     expect(Number.isFinite(mane.parallaktisk)).toBe(true)
   })
 
-  it('månen står først i lista, som ellers', () => {
+  it('månen står først etter sola, som ellers', () => {
     const dato = naarMaanenErNede()
     const liste = himmelObjekter({ ...oslo, dato, tvingHimmel: true })
-    expect(liste[0].type).toBe('mane')
+    expect(liste[0].type).toBe('sol')
+    expect(liste[1].type).toBe('mane')
   })
 })
 
@@ -323,12 +345,19 @@ describe('himmelObjekter — bryteren gir alle fire globe-legemene', () => {
     }
   })
 
-  it('alle fire står over horisonten, ellers ville de ikke vært tegnet', () => {
+  it('de fire tvungne står over horisonten — sola gjør bevisst ikke det', () => {
+    // SOLA TVINGES IKKE OPP, og det er ikke en forglemmelse: hele poenget med
+    // den er at den står der den står, og om natta er det under terrenget.
+    // Bryteren finnes for legemer man ellers må VENTE på; sola er alltid der.
     const liste = himmelObjekter({
       ...oslo, dato: new Date('2026-01-15T02:00:00Z'), tvingHimmel: true,
     }).filter((o) => o.harGlobe)
-    expect(liste.length).toBe(4)
-    for (const o of liste) expect(o.hoyde).toBeGreaterThan(0)
+    expect(liste.length).toBe(5)
+    for (const o of liste) {
+      if (o.type === 'sol') continue
+      expect(o.hoyde, o.navn).toBeGreaterThan(0)
+    }
+    expect(liste.find((o) => o.type === 'sol').hoyde).toBeLessThan(0)
   })
 
   it('uten flagget er lista den ekte igjen', () => {
@@ -433,6 +462,51 @@ describe('formasjonenes trefflate følger det som tegnes', () => {
       .filter((o) => o.type === 'formasjon' && o.punkter.length < o.antallStjerner)
     for (const o of delvis) {
       expect(o.segmenter.length).toBeLessThan(o.linjer.length)
+    }
+  })
+})
+
+describe('sola i himmellista', () => {
+  const oslo = { lat: 59.91, lon: 10.75 }
+
+  it('står først, med globe og et søkbart navn', () => {
+    const liste = himmelObjekter({ ...oslo, dato: new Date('2026-01-15T22:00:00Z') })
+    expect(liste[0].type).toBe('sol')
+    expect(liste[0].harGlobe).toBe(true)
+    for (const q of ['sol', 'Sola', 'solen', 'sun']) {
+      expect(filtrerHimmel(liste, q).some((o) => o.type === 'sol'), q).toBe(true)
+    }
+  })
+
+  it('står under horisonten om natta og over midt på dagen', () => {
+    // Invarianten som gjør hele plasseringen riktig: sola tegnes der den er, og
+    // om natta ER det under terrengarket. Ingen tvang, ingen fast plass.
+    const natt = himmelObjekter({ ...oslo, dato: new Date('2026-01-15T23:00:00Z') })
+      .find((o) => o.type === 'sol')
+    const dag = himmelObjekter({ ...oslo, dato: new Date('2026-06-15T10:00:00Z') })
+      .find((o) => o.type === 'sol')
+    expect(natt.hoyde).toBeLessThan(0)
+    expect(dag.hoyde).toBeGreaterThan(0)
+  })
+
+  it('undertekstene sier hvilken side av horisonten den er på', () => {
+    const natt = himmelObjekter({ ...oslo, dato: new Date('2026-01-15T23:00:00Z') })
+      .find((o) => o.type === 'sol')
+    const t = himmelUndertekst(natt)
+    expect(t).toContain('under horisonten')
+    expect(t).not.toContain('over horisonten')
+    expect(t).not.toMatch(/[-−]\d+°/)
+  })
+
+  it('kan velges som nabo, og gir ikke NaN for en høyde under null', () => {
+    // vinkelAvstand regner med sin/cos av høyden, så en negativ høyde er helt
+    // lovlig — men det er verdt å holde fast, siden alt annet i lista er positivt.
+    const liste = himmelObjekter({ ...oslo, dato: new Date('2026-01-15T23:00:00Z') })
+    const sol = liste.find((o) => o.type === 'sol')
+    for (const n of naboerFor(sol, liste, 3)) {
+      expect(Number.isFinite(n.avstandGrader)).toBe(true)
+      expect(n.avstandGrader).toBeGreaterThanOrEqual(0)
+      expect(n.avstandGrader).toBeLessThanOrEqual(180)
     }
   })
 })

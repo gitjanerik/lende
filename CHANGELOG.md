@@ -1,3 +1,119 @@
+## 2026-08-30 — v6.5.6: Sola er det femte legemet, og den står under terrenget
+
+Eieren savnet sola som noe man kan åpne som nærbilde i nattmodus, og spurte om
+den kunne ligge under landskapet — som i skjermbildet, der arket er en stripe
+midt på skjermen med tomt mørke over og under. Svaret er at den gjør det helt av
+seg selv: om natta ER sola under horisonten, altså under føttene dine, og
+terrengarket er endelig. Vi tegner den derfor der den faktisk står, og da havner
+den nedenfor landskapet uten at noe må jukses. Åpner du nattmodus midt på dagen,
+står den derimot oppe i øst, og det er den samme regelen. Invarianten som gjør
+3D til å stole på — alt du ser står der det faktisk står — er altså ikke rørt.
+
+Det krevde én ny ting av kamerariggen. `seMot` kunne bare rette blikket fra én
+grad under horisonten og oppover: over horisonten er det HIMMELVIPPEN som bærer
+høyden, og den går bare én vei. Under horisonten er det i stedet ORBITEN som må
+bære den, ved å heve kameraet og se ned — nøyaktig den bevegelsen man gjør når
+man drar for å se kartet ovenfra. `polarForHoyde` er den regelen, og de to
+regimene kan aldri være i bruk samtidig: enten står orbiten på taket og vippen
+bærer høyden, eller så er vippen null og orbiten bærer den.
+
+Sola er med i søkelista HELE DØGNET, og er det ene legemet som er det. Den står
+øverst, den er merket med et strøket SVG-ikon i stedet for ☀️ — emojien tegnes av
+systemets font i full farge, og i en liste man leser i mørket ville den vært det
+eneste som lyste — og undertittelen sier hvilken side av horisonten den er på.
+«42° under horisonten» og ikke «−42° over horisonten»: fortegnet bæres av ordet,
+for det er det som leses av en som står ute.
+
+Globen bryter mønsteret på to måter, og begge er skrevet inn i tabellen framfor i
+en ny fil. Den LYSER SELV: det finnes ingen nattside, så retningslyset er av og
+teksturen tegnes som egenlys. Det holdt ikke å skru ambient til fullt — den
+diffuse BRDF-en i MeshStandardMaterial deler på π, og målt i Chromium kom en lys
+gul sol ut sennepsbrun. Randmørkningen (Eddingtons 0,4 + 0,6·μ) er lagt på i
+samme slengen; den er ikke pynt, men det ene trekket som skiller sola fra en
+lampe. Og den har INGEN FASTE TREKK: en solflekk lever noen uker og driver med
+rotasjonen, så de navngitte stedene er BREDDEGRADER — flekkbeltene rundt ±16°,
+ekvator og polområdene — som er der differensiell rotasjon er å se, altså akkurat
+det en kule kan vise og en skive ikke kan.
+
+Fotografiet mangler med vilje: kilde-URL-er skal måles og ikke gjettes (v6.3.0),
+og hostene er sperret fra utviklingsmiljøene. Overflaten tegnes derfor lokalt.
+Av samme grunn er SNL- og Wikipedia-lenkene for sola et FORSLAG og ikke en
+måling — «Sola» er også en kommune i Rogaland — og `probe-himmellenker` har fått
+kandidatene inn så CI kan si hvilken som er artikkelen om stjerna.
+
+Utvikler-bryteren løfter fortsatt bare de fire andre. En tvungen sol ville vært
+selvmotsigende: hele poenget med den er at den står der den står.
+
+---
+
+## 2026-08-30 — v6.5.5: De røde båndene i 3D var siste strek i hvert linjebuffer
+
+Eieren meldte høydekurver som ikke følger terrenget — snorrette røde bånd tvers
+over arket, fra Stormoen i Drammen og fra Stetind i Narvik, og i ett tilfelle
+svevende i lufta over horisonten. Det avgjørende i bildene var ikke hvor linjene
+lå, men hvor MANGE det var: nøyaktig to, i alle fire skjermbildene, og med hver
+sin strektykkelse. `contourLines` bygger nøyaktig to `LineSegments2` — én for
+vanlige kurver (2,2 px, opasitet 0,55) og én for tellekurver (3,2 px, 0,9) — og
+tykkelsene i bildene stemte med begge. Én bom per buffer, ikke en feil i dataene:
+en void-rampe eller et flatt platå i DEM-en ville gitt mange spøkelseslinjer
+spredt utover, ikke to.
+
+Det er den samme driver-feilen som ble funnet i v6.3.11, i en fil som ikke fikk
+fiksen. `LineSegmentsGeometry` legger start og ende i samme interleavede buffer,
+24-byte stride med `instanceEnd` 12 byte inn, så for den SISTE instansen slutter
+`instanceEnd` nøyaktig på bufferets siste byte. Spesifikasjonen tillater det; en
+driver som regner kravet som `offset + stride·n` finner 12 byte for lite og
+leverer nuller — og null i tre floats ER world-origo, altså midt på kartet i
+havnivå. Siste kurvestrek blir derfor en rett linje fra der kurven sluttet og
+tvers over arket. Det forklarer samtidig hvorfor v6.3.11 leste symptomet som at
+en strek MANGLET: i stjernehimmelen er origo kuppelens sentrum, altså kameraets
+egen posisjon, så den bomme streken peker rett mot betrakteren og kollapser til
+ingenting. Samme feil, to helt ulike symptomer, fordi origo betyr noe forskjellig
+i de to scenene.
+
+Regelen bor nå i `lib/tour3d/linjeSegmenter.js` og ikke i én kommentar ett sted:
+den gjaldt fire buffere, og bare ett av dem hadde den. Kurvene, stinettet, vegene
+og de svake stjernebilde-strekene går alle gjennom den, og `instanceCount` settes
+til de ekte segmentene så slacken aldri tegnes — en strek fra origo til origo er
+ikke ingenting når `LineMaterial` har bredde i piksler. Feilen er per
+konstruksjon usynlig i CI, i enhetstester og i røyktesten, siden SwiftShader og
+desktop leser innenfor spesifikasjonen; testene holder derfor fast mekanikken, og
+en egen sjekk feiler om et nytt buffer kaller `setPositions` direkte igjen.
+
+---
+
+## 2026-08-30 — v6.5.4: Fotografiet ligger der navnene står, og Saturn har ringene sine
+
+Eieren meldte to ting fra natthimmelen, og de viste seg å ha samme rot i den ene
+og samme fil: «Den store røde flekken» sto midt på Jupiter uten noen flekk under
+seg, og Saturn sto uten ringer selv om Om-siden lover dem. Det første var ikke en
+tekst-feil, men en tekstur-feil. `SphereGeometry` legger u = 0,25 på den vertexen
+som vender mot kameraet, mens et equirektangulært kart har nullmeridianen sin på
+u = 0,5 — så kula viste kartets lengdegrad −90 der merkelappene sa 0. Hele
+overflaten lå en kvart omdreining ved siden av navnene sine, på alle fire
+globene. Månen bar den samme feilen uten at noen så den: en måne dreid 90° er
+fortsatt en måne. Teksturen forskyves nå 0,25 i u, og målt i det bakte kartet
+ligger den røde flekken på lat −21,7 / lon −47,5 — merkelappen er flyttet dit,
+med et notat om at tallet er målt i FOTOGRAFIET og må måles på nytt om
+teksturkilden byttes. Flekken er for øvrig lakse-oransje og ikke rød i Cassinis
+mosaikk fra 2000; den bleknet gjennom 1990-tallet, og «rød» er et navn fra
+1800-tallet.
+
+Ringene manglet av en beslektet grunn: aksehellingen sto på holderens Z-akse,
+altså en RULL om synslinja. En rull kan per konstruksjon ikke åpne et plan man
+ser inn i kanten på — ringnormalen fikk z-komponent 0,000 uansett hvilken helling
+tabellen oppga, så shaderen kjørte, `harRinger` var sann, og på skjermen sto en
+blek Jupiter. Hellingen tipper nå polen MOT betrakteren (holderens X), og
+åpningsvinkelen blir lik hellingen: Saturns 26,7° gir ellipsen alle kjenner igjen.
+Hvilken vei aksen lener seg i forhold til synslinja følger av årstiden på
+planeten, og den modellerer vi ikke — da er «mot betrakteren» det ene valget som
+gjør tallet i tabellen synlig, av samme slag som at måneskiva på himmelen tegnes
+tre ganger for stor. Brukerens breddegrads-drag flyttet samtidig fra kula til
+holderen, ellers ville Saturn vridd seg ut av ringer som sto stille. Begge
+invariantene er låst i testene, og aksen — ikke bare vinkelen — holdes fast.
+
+---
+
 ## 2026-08-29 — v6.5.3: Chipen forsvinner når posisjonen er funnet
 
 «Finner posisjonen din …» ble stående etter at GPS-prikken var tegnet i kartet.
