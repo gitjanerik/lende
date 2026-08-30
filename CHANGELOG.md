@@ -1,3 +1,40 @@
+## 2026-08-30 — v6.5.8: Sol opp og sol ned, øverst i solkortet
+
+Infokortet for sola sier nå når hun står opp og når hun går ned, og det gjelder
+ARKET som er åpnet — lat/lon er kartets midtpunkt, ikke der telefonen tilfeldigvis
+befinner seg. Tidene står øverst, før prosaen, fordi de er noe man slår opp mens
+resten er noe man leser.
+
+METs Sunrise-API ble ikke brukt, og begrunnelsen er sterkere her enn den var for
+`erNatt` i v6.1.0: tidene er akkurat det man vil vite på vei ut, altså ofte etter
+at dekningen tok slutt. Et oppslag som feiler på fjellet er verdiløst nettopp der
+spørsmålet stilles. Vi har solas posisjon lokalt fra før (Meeus), og tidene er
+bare det tidspunktet den posisjonen krysser en høyde vi allerede har definert.
+
+METODEN ER Å SØKE OG IKKE Å LØSE LIKNINGEN. Den lukkede formelen (Meeus 15.1)
+antar at solas deklinasjon står stille gjennom døgnet, og bryter sammen nær
+polarsirkelen der den nettopp ikke gjør det. `solTider` sampler i stedet høyden
+gjennom døgnet og halverer seg inn på hvert fortegnsskifte. Det koster noen
+hundre evalueringer — ingenting for et kort som tegnes én gang — og polardøgnet
+faller ut av seg selv: finnes ingen kryssing, er sola enten oppe eller nede hele
+døgnet, og høyden ved midnatt sier hvilken. Kortet skriver da «midnattssol» eller
+«mørketid» framfor å stå tomt. Overgangsdøgnene, der bare den ene kryssingen
+finnes, viser det ene som er sant.
+
+MÅLT MOT YR: eieren leste av Stormoen i Drammen 30. august — opp 06:10, ned
+20:28. Vi gir 06:09 og 20:28. Det ene minuttet er avstanden mellom Yrs punkt og
+arkets midtpunkt, og det tallet er ankeret i testen. Resten av testene er
+invarianter som holder uansett sted og dato: at tidene FAKTISK er kryssingene,
+at sola er nede før oppgang og oppe etter, at dagen er lengst ved solverv, og at
+Tromsø får ti uker midnattssol og sju uker mørketid. Et enkelt anker kan treffe
+ved flaks; en invariant over hele året fra Oslo til Tromsø kan ikke.
+
+Merk at døgnvinduet er det LOKALE, altså telefonens tidssone — som er sånn Yr og
+METs tabeller leses. Første utgave av polardøgn-testen pinnet datoen for
+overgangsdøgnet og var derfor grønn i Oslo og rød i CI, som kjører i UTC.
+
+---
+
 ## 2026-08-30 — v6.5.7: Solkartet er målt, og proben spør om ett legeme om gangen
 
 Sola fikk et ekte overflatekart, og veien dit avdekket en feil i proben som
