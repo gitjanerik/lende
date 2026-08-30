@@ -211,6 +211,18 @@ const KATEGORIER = {
     'Category:Textures of Saturn',
   ],
   maane: ['Category:Maps of the Moon'],
+  // SOLA (v6.5.7). Den er annerledes enn de fire andre og det er verdt å vite
+  // FØR man leser utskriften: nesten alt Commons har av sola er SKIVEBILDER —
+  // SDO- og SOHO-opptak av sola sett forfra. De er ubrukelige som globe-tekstur;
+  // vi trenger et EQUIREKTANGULÆRT kart, altså en utbrettet kule. Den eneste
+  // familien som lager slike for sola er teksturpakkene, derav Solar System
+  // Scope blant de navngitte under. Svarer ingen av dem, er riktig konklusjon å
+  // BEHOLDE den lokalt tegnede overflaten — ikke å ta et skivebilde i stedet.
+  sol: [
+    'Category:Textures of the Sun',
+    'Category:Maps of the Sun',
+    'Category:Sun in visible light',
+  ],
 }
 
 /**
@@ -239,6 +251,16 @@ const TITLER = {
     'File:OPAL Saturn Cycle 25 Map.png',
   ],
   maane: ['File:Solarsystemscope texture 2k moon.jpg'],
+  // Navnemønsteret er allerede BEVIST for fire andre legemer i denne fila, så
+  // dette er den sterkeste enkeltmistenkte vi har. Merk at Solar System Scope
+  // sine kart er CC BY 4.0 og ikke offentlig eiendom: slår en av dem til, må
+  // attribusjonen på /om utvides — det er et vilkår, ikke en høflighet.
+  sol: [
+    'File:Solarsystemscope texture 2k sun.jpg',
+    'File:Solarsystemscope texture 8k sun.jpg',
+    'File:Sun texture map.jpg',
+    'File:Solar surface texture.jpg',
+  ],
 }
 
 /**
