@@ -1,3 +1,30 @@
+## 2026-08-30 — v6.5.10: Svalbard-undersøkelsen skrevet ned og lagt død
+
+Proben fra v6.5.9 kjørte, og svaret er skrevet inn i CLAUDE.md framfor å bli
+liggende i en Actions-logg som ruller ut av rekkevidde. Hovedfunnet er at det
+IKKE finnes noen WCS for Svalbards høydedata: Geonorge har «Svalbard DTM 5/20/50»
+og «Høydereferansemodell på Svalbard», men alle fire som GEONORGE:DOWNLOAD. Det
+betyr at `demFetcher.js` ikke kan få en fjerde linje i `WCS_ENDPOINTS` — dette er
+en bake, som N50-flisene, og mekanismen finnes allerede i `geonorgeN50.mjs`. To
+antakelser fra utredningen ble dessuten motbevist av målingen: Terrarium over
+Svalbard har ekte detalj ned til minste piksel og er ikke GMTED2010, og UTM32 er
+ikke sperren jeg trodde — 0,31 % skalafeil ved Longyearbyen er på linje med det
+Øst-Finnmark allerede lever med, så de 35 kallstedene til `wgs84ToUtm32` trenger
+ikke røres. Seksjonen bærer også de målte negativene, så ingen prøver de samme
+fire gjettede tjenestenavnene om igjen.
+
+Eieren har lagt ønsket dødt inntil videre, så ingenting er bygget og ingen kode i
+kart-pipelinen er rørt. To funn står igjen som åpne og gjelder uansett om
+Svalbard blir noe av: `hoyde_dom10_33`, appens tredje DEM-fallback, er død og
+svarer «UKJENT APPLIKASJON» — hvert kartbygg som når den betaler en round-trip
+til en tjeneste som ikke finnes — og utenfor Kartverket-dekning fabrikkerer
+pipelinen i stillhet, fordi WCS-feil gir syntetisk DEM og Terrarium-fyllet
+eksplisitt hopper over syntetiske kilder. Proben beholdes med resultatene i
+filhodet og med sin egen kjente svakhet notert: den rapporterer ✓ for et
+HTTP 200-svar som bærer en feil-XML i kroppen.
+
+---
+
 ## 2026-08-30 — v6.5.9: En probe som spør hvem som har høydedata for Svalbard
 
 `demFetcher.js` kan tre endepunkter, og alle tre er fastlands-Norge. Over

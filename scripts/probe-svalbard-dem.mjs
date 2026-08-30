@@ -43,6 +43,28 @@
 // avgjør om det er ekte detalj eller en oppskalert grovmodell — forskjellen på
 // «duger til relieff» og «duger til 5 m ekvidistanse».
 
+// ── MÅLT 2026-08-30 (kjøring 33309964796) ────────────────────────────────
+// Prosjektet ble lagt dødt etter denne kjøringen; oppsummeringen bor i
+// CLAUDE.md, «høydedata for Svalbard er UNDERSØKT». Kortversjonen, så resultatet
+// står ved siden av målingen som ga det:
+//
+//   • INGEN WCS FINNES. Geonorge har «Svalbard DTM 5/20/50» og
+//     «Høydereferansemodell på Svalbard», men alle som GEONORGE:DOWNLOAD.
+//     Dette er en BAKE (som N50-flisene), ikke et endepunkt i demFetcher.
+//   • NHM 25832/25833 svarer på GetCapabilities, men gir ServiceExceptionReport
+//     på GetCoverage over Longyearbyen. Fastlands-DTM-en dekker ikke Svalbard.
+//   • De fire gjettede `wcs.*svalbard`-navnene finnes ikke, og NPIs
+//     ImageServer-WCS gir HTTP 400. NPI har bare ferdigtegnede rasterprodukter.
+//   • Terrarium har ekte detalj ned til minste piksel (variogram-stigning 0,53
+//     ved 16 m). GMTED-antakelsen var feil.
+//
+// KJENT SVAKHET I DENNE PROBEN, ikke rettet fordi prosjektet ble lagt dødt:
+// trinn 3 rapporterer ✓ for en tjeneste som svarer HTTP 200 med en feil-XML i
+// kroppen — Geonorge gjør nettopp det («UKJENT APPLIKASJON», 319–335 B) for et
+// navn som ikke finnes. Det ekte tegnet er «0 navn». Skal proben brukes igjen,
+// la den kjenne igjen ServiceException og si ✗; ellers gjør den selv den feilen
+// den er bygget for å hindre.
+
 import { fetchWCSDtm } from '../src/lib/demFetcher.js'
 import { wgs84ToUtm32, wgs84ToUtm33 } from '../src/lib/utm.js'
 import { decodePng, decodeTerrariumPixels, lonToGlobalPx, latToGlobalPx } from '../src/lib/terrariumDem.js'
