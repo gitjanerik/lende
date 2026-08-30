@@ -44,6 +44,42 @@ import { HIMMELLEGEMER } from './himmellegemer.js'
 const GRAD = Math.PI / 180
 
 /**
+ * FORSKYVNINGEN SOM SETTER FOTOGRAFIET DER NAVNENE STÅR. 90°, og den er MÅLT.
+ *
+ * `SphereGeometry` legger u = 0 ved −X og lar u vokse mot +Z: vertexen som
+ * vender mot kameraet (vår lengdegrad 0, se selenografiskTilPunkt) har u = 0,25.
+ * Et equirektangulært kart har derimot sin nullmeridian midt i bildet, altså på
+ * u = 0,5. Uten en forskyvning viser kula derfor kartets lengdegrad −90 der
+ * navnene sier 0 — hele overflaten er dreid en kvart omdreining bort fra
+ * merkelappene sine.
+ *
+ * Det så ut som en tekst-feil og var en tekstur-feil: eieren meldte at
+ * «Den store røde flekken» sto midt på Jupiter uten noen flekk under seg. Målt i
+ * det bakte kartet ligger flekken på lat −21,7 / lon −47,5, altså akkurat der
+ * merkelappen peker — 90° til siden. Månen bar den samme feilen uten at noen så
+ * den: en måne dreid 90° er fortsatt en måne.
+ *
+ * Krever `RepeatWrapping`. Med standard `ClampToEdgeWrapping` ville kvartingen
+ * som skyves rundt kanten blitt smurt ut som en stripe.
+ */
+export const TEKSTUR_U_OFFSET = 0.25
+
+/**
+ * Gjør en lastet tekstur klar for kula: fargerom, gjentakelse og forskyvningen
+ * over.
+ *
+ * Egen funksjon og ikke tre linjer inne i last-callbacken, fordi den da kan
+ * enhetstestes — og det er nettopp forskyvningen som er lett å «rydde bort» i
+ * god tro. En tekstur uten den ser helt riktig ut; den viser bare feil sted.
+ */
+export function justerTekstur(t) {
+  t.colorSpace = SRGBColorSpace
+  t.wrapS = RepeatWrapping
+  t.offset.x = TEKSTUR_U_OFFSET
+  return t
+}
+
+/**
  * Selenografisk lat/lon → punkt på enhetskula, i globens EGET koordinatsystem.
  *
  * Orienteringen er valgt slik at (0, 0) — under-jord-punktet — peker mot +Z, og
@@ -147,9 +183,23 @@ export function buildHimmelGlobe({
   const fyll = new AmbientLight(0xffffff, spec.ambient ?? 0.055)
   group.add(fyll)
 
-  // AKSEHELLINGEN legges på MESHET og ikke på gruppa: gruppa eies av vendMot og
-  // rullen, og en helling der ville blitt overskrevet hver frame. På meshet blir
-  // den en fast del av legemets egen orientering, som er hva den er.
+  // AKSEHELLINGEN legges på en HOLDER mellom gruppa og meshet: gruppa eies av
+  // vendMot og rullen, og en helling der ville blitt overskrevet hver frame.
+  //
+  // OG DEN TIPPER POLEN MOT BETRAKTEREN — den lener den ikke sidelengs. Det er
+  // forskjellen på ringer og ingen ringer, og det er målt: fram til v6.5.4 sto
+  // hellingen på holderens Z, altså en RULL om synslinja. En rull kan per
+  // konstruksjon ikke åpne et plan man ser inn i kanten på — ringnormalen fikk
+  // z-komponent 0,000 uansett helling, og Saturn sto uten ringer på skjermen
+  // mens `harRinger` var sann og shaderen kjørte. Med hellingen om X blir
+  // åpningsvinkelen lik hellingen: 26,7° gir en ellipse med akseforhold 0,45,
+  // som er den Saturn alle kjenner.
+  //
+  // RETNINGEN AKSEN PEKER ER ET VALG, VINKELEN ER EKTE. Hvilken vei polen lener
+  // seg i forhold til synslinja følger av årstiden på planeten, og den modellerer
+  // vi ikke. Da er «mot betrakteren» det ene valget som gjør tallet i tabellen
+  // SYNLIG — samme slag bevisst overdrivelse som at måneskiva på himmelen tegnes
+  // tre ganger for stor. «Sidelengs» var det ene valget som skjulte det helt.
   const helling = (spec.akseHelling ?? 0) * GRAD
 
   // SATURNS RINGER. Ikke valgfritt — en Saturn uten ringer er en blek Jupiter.
@@ -205,10 +255,11 @@ export function buildHimmelGlobe({
   }
 
   // Holderen bærer aksehellingen og samler kule + ringer, så de skjevstiller seg
-  // sammen. Brukerens dreining går på MESHET inne i holderen — da spinner
-  // planeten om sin egen akse, ikke om en akse som står rett opp.
+  // sammen. Brukerens LENGDE-dreining går på MESHET inne i holderen — da spinner
+  // planeten om sin egen akse, ikke om en akse som står rett opp. BREDDE-draget
+  // går derimot på holderen (se settRotasjon), så ringene vipper med.
   const holder = new Group()
-  holder.rotation.z = helling
+  holder.rotation.x = helling
   holder.add(mesh)
   if (ringMesh) holder.add(ringMesh)
   group.add(holder)
@@ -219,7 +270,7 @@ export function buildHimmelGlobe({
     new TextureLoader().load(
       teksturUrl,
       (t) => {
-        t.colorSpace = SRGBColorSpace
+        justerTekstur(t)
         teksturObjekt = t
         material.map = t
         // Hvit så fotografiet får bære fargen selv. Uten dette ganges bildet med
@@ -235,6 +286,9 @@ export function buildHimmelGlobe({
 
   const _v = new Vector3()
   let rull = 0
+  // Brukerens breddegrads-drag, klemt. Egen variabel og ikke avlest av
+  // holder.rotation.x, som også bærer aksehellingen.
+  let breddeDrag = 0
 
   return {
     group,
@@ -326,14 +380,26 @@ export function buildHimmelGlobe({
      * mesh.rotation, fordi breddegrads-rotasjonen må klemmes: får man snurre
      * forbi polene, står månen på hodet og ingen finner tilbake.
      *
+     * DE TO AKSENE BOR PÅ HVER SIN NODE, og det er en følge av at ringene ble
+     * synlige: lengde er planetens spinn om sin EGEN akse og hører hjemme på
+     * meshet, mens bredde er hvilken breddegrad man ser den fra og må ta med seg
+     * hele systemet. Lå bredde også på meshet — som den gjorde fram til v6.5.4 —
+     * ville kula vippet inne i ringer som sto stille, altså en Saturn som vrir
+     * seg ut av sine egne ringer så snart man drar oppover.
+     *
      * @param {number} lengde radianer om Y (fri, går rundt)
-     * @param {number} bredde radianer om X (klemt til ±80°)
+     * @param {number} bredde radianer om X (klemt så aksen ikke passerer polen)
      */
     settRotasjon(lengde, bredde) {
       mesh.rotation.y = lengde
-      mesh.rotation.x = Math.max(-80 * GRAD, Math.min(80 * GRAD, bredde))
+      // Klemmen gjelder SUMMEN: for Saturn er 26,7° allerede brukt opp av
+      // hellingen, og ±80° på draget alene ville tatt aksen forbi polen.
+      const b = Number.isFinite(bredde) ? bredde : 0
+      const grense = 80 * GRAD
+      breddeDrag = Math.max(-grense - helling, Math.min(grense - helling, b))
+      holder.rotation.x = helling + breddeDrag
     },
-    get rotasjon() { return { lengde: mesh.rotation.y, bredde: mesh.rotation.x } },
+    get rotasjon() { return { lengde: mesh.rotation.y, bredde: breddeDrag } },
 
     /**
      * Hvilke navngitte trekk som er synlige nå (på den halvkula som vender mot

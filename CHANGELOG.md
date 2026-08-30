@@ -1,3 +1,35 @@
+## 2026-08-30 — v6.5.4: Fotografiet ligger der navnene står, og Saturn har ringene sine
+
+Eieren meldte to ting fra natthimmelen, og de viste seg å ha samme rot i den ene
+og samme fil: «Den store røde flekken» sto midt på Jupiter uten noen flekk under
+seg, og Saturn sto uten ringer selv om Om-siden lover dem. Det første var ikke en
+tekst-feil, men en tekstur-feil. `SphereGeometry` legger u = 0,25 på den vertexen
+som vender mot kameraet, mens et equirektangulært kart har nullmeridianen sin på
+u = 0,5 — så kula viste kartets lengdegrad −90 der merkelappene sa 0. Hele
+overflaten lå en kvart omdreining ved siden av navnene sine, på alle fire
+globene. Månen bar den samme feilen uten at noen så den: en måne dreid 90° er
+fortsatt en måne. Teksturen forskyves nå 0,25 i u, og målt i det bakte kartet
+ligger den røde flekken på lat −21,7 / lon −47,5 — merkelappen er flyttet dit,
+med et notat om at tallet er målt i FOTOGRAFIET og må måles på nytt om
+teksturkilden byttes. Flekken er for øvrig lakse-oransje og ikke rød i Cassinis
+mosaikk fra 2000; den bleknet gjennom 1990-tallet, og «rød» er et navn fra
+1800-tallet.
+
+Ringene manglet av en beslektet grunn: aksehellingen sto på holderens Z-akse,
+altså en RULL om synslinja. En rull kan per konstruksjon ikke åpne et plan man
+ser inn i kanten på — ringnormalen fikk z-komponent 0,000 uansett hvilken helling
+tabellen oppga, så shaderen kjørte, `harRinger` var sann, og på skjermen sto en
+blek Jupiter. Hellingen tipper nå polen MOT betrakteren (holderens X), og
+åpningsvinkelen blir lik hellingen: Saturns 26,7° gir ellipsen alle kjenner igjen.
+Hvilken vei aksen lener seg i forhold til synslinja følger av årstiden på
+planeten, og den modellerer vi ikke — da er «mot betrakteren» det ene valget som
+gjør tallet i tabellen synlig, av samme slag som at måneskiva på himmelen tegnes
+tre ganger for stor. Brukerens breddegrads-drag flyttet samtidig fra kula til
+holderen, ellers ville Saturn vridd seg ut av ringer som sto stille. Begge
+invariantene er låst i testene, og aksen — ikke bare vinkelen — holdes fast.
+
+---
+
 ## 2026-08-29 — v6.5.3: Chipen forsvinner når posisjonen er funnet
 
 «Finner posisjonen din …» ble stående etter at GPS-prikken var tegnet i kartet.

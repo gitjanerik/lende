@@ -117,7 +117,15 @@ export const HIMMELLEGEMER = {
     // Ambient er høyere så båndene leses over hele skiva.
     ambient: 0.12,
     trekk: [
-      { navn: 'Den store røde flekken', norsk: null, lat: -22, lon: -60,
+      // MÅLT I DET BAKTE KARTET, ikke slått opp: flekken driver i lengdegrad, og
+      // et Jupiter-kart er et øyeblikksbilde. Cassini-mosaikken fra desember 2000
+      // har den på lat −21,7 / lon −47,5, og merkelappen skal treffe FOTOGRAFIET
+      // brukeren ser. Byttes teksturkilden, må dette tallet måles på nytt — de to
+      // reservekildene i bygg-himmelkart.mjs har den et annet sted.
+      //
+      // Og den er ikke rød i denne mosaikken, men lakse-oransje. Det er ekte:
+      // flekken bleknet gjennom 1990-tallet, og «rød» er et navn fra 1800-tallet.
+      { navn: 'Den store røde flekken', norsk: null, lat: -22, lon: -48,
         type: 'storm',
         merk: 'En storm som har rast i minst 190 år og er bredere enn jorda. '
           + 'Den krymper: på 1800-tallet var den mer enn dobbelt så vid.' },
