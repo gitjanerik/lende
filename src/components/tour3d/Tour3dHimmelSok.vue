@@ -38,6 +38,13 @@ const valgt = computed(() => props.objekter.find((o) => o.id === props.valgtId) 
 // gjør typen lesbar uten en egen kolonne.
 // Fylt stjerne for en figur, åpen for én enkelt stjerne — samme par som i
 // infokortet.
+//
+// SOLA HAR SVG OG IKKE EMOJI (v6.5.6), og det er ikke inkonsekvens for
+// inkonsekvensens skyld. ☀️ er en av de mest fargesterke emojiene som finnes, og
+// den tegnes av SYSTEMETS font — vi bestemmer verken fargen eller størrelsen.
+// I en liste som leses i mørket, der alt annet er dempet hvitt på svart, ville
+// den vært det eneste som lyste. En strøket SVG i currentColor arver radens egen
+// farge og markeringen, akkurat som globe-merket til høyre.
 const IKON = { mane: '🌙', planet: '🪐', formasjon: '✦', stjerne: '✧' }
 
 async function apne() {
@@ -118,7 +125,16 @@ watch(() => props.objekter, () => {
                   class="w-full text-left px-3 py-2 flex items-start gap-2
                          active:bg-white/10 transition-colors"
                   :class="o.id === valgtId ? 'bg-white/10' : ''">
-            <span class="text-[0.8125rem] leading-tight shrink-0" aria-hidden="true">{{ IKON[o.type] }}</span>
+            <span v-if="o.type === 'sol'" class="shrink-0 self-start mt-[0.1rem] flex" aria-hidden="true">
+              <svg viewBox="0 0 16 16" class="w-[0.8125rem] h-[0.8125rem] text-amber-200/80"
+                   fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+                <circle cx="8" cy="8" r="3.1"/>
+                <path d="M8 1.4v1.7M8 12.9v1.7M1.4 8h1.7M12.9 8h1.7
+                         M3.3 3.3l1.2 1.2M11.5 11.5l1.2 1.2
+                         M12.7 3.3l-1.2 1.2M4.5 11.5l-1.2 1.2"/>
+              </svg>
+            </span>
+            <span v-else class="text-[0.8125rem] leading-tight shrink-0" aria-hidden="true">{{ IKON[o.type] }}</span>
             <span class="min-w-0 flex-1">
               <span class="block text-[0.8125rem] font-medium text-white/90 truncate">{{ o.navn }}</span>
               <span class="block text-[0.625rem] text-white/45 truncate">{{ himmelUndertekst(o) }}</span>

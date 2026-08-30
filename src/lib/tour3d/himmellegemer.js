@@ -6,9 +6,11 @@
 // søkefeltet tilbyr), og den er selv en ren modul som brukes av UI-et. En import
 // av byggeren derfra ville trukket three.js inn i søkelista.
 //
-// Én tabell, ikke fire filer. Månen kom først (v6.0.0) og hadde sin egen fil; da
-// Mars, Jupiter og Saturn skulle ha det samme, var spørsmålet CLAUDE.md tvinger
-// fram: er den nye varianten egentlig en OPSJON på originalen? Den er det.
+// Én tabell, ikke fem filer. Månen kom først (v6.0.0) og hadde sin egen fil; da
+// Mars, Jupiter og Saturn skulle ha det samme (v6.2.0), var spørsmålet CLAUDE.md
+// tvinger fram: er den nye varianten egentlig en OPSJON på originalen? Den er
+// det. Sola (v6.5.6) stilte spørsmålet på nytt og hardere — den lyser selv og
+// har ingen faste trekk — og svaret ble to felter i tabellen, ikke en ny fil.
 
 /**
  * Navngitte trekk på månens forside, med selenografiske koordinater
@@ -42,7 +44,7 @@ export const MANE_TREKK = [
 /**
  * HIMMELLEGEMENE MED GLOBE, med det som skiller dem.
  *
- * HVORFOR BARE DISSE FIRE: månen, Mars, Jupiter og Saturn har trekk man kan
+ * HVORFOR BARE DISSE FEM: sola, månen, Mars, Jupiter og Saturn har trekk man kan
  * kjenne igjen og navngi. Merkur er en grå kule på skjermen, og Venus er et
  * ugjennomtrengelig skydekke — en globe av dem ville vært en påstand om at det
  * er noe å se. De to får derfor heller ingen trykk-ring på himmelen: et omriss
@@ -58,6 +60,56 @@ export const MANE_TREKK = [
  * helling ser ut som en feil for den som har sett et bilde.
  */
 export const HIMMELLEGEMER = {
+  // SOLA. Femte legeme med globe (v6.5.6), og det ene som bryter mønsteret på
+  // to måter.
+  //
+  // 1. DEN LYSER SELV. De fire andre er kuler opplyst UTENFRA, og hele grunnen
+  //    til at de er kuler og ikke skiver er at et ekte lys gir terminatoren
+  //    gratis. Sola har ingen terminator — det finnes ingen nattside å vise —
+  //    så `selvlysende` slår av retningslyset og setter ambient til fullt.
+  //    Uten det ville halve sola ligget i skygge, som er en påstand om at det
+  //    finnes et lys til.
+  //
+  // 2. DEN HAR INGEN FASTE TREKK. En solflekk lever noen uker og driver med
+  //    rotasjonen, så et navngitt punkt ville vært en løgn allerede neste
+  //    måned. Det som ER fast er BREDDEGRADENE: flekkene kommer nesten bare i
+  //    to belter rundt ±16°, og sola roterer raskere ved ekvator enn ved polene
+  //    — 24,5 døgn mot 34. Differensiell rotasjon er dessuten det mest
+  //    slående ved sola som KULE, altså akkurat det globen finnes for å vise.
+  //
+  // Aksehellingen er 7,25° mot ekliptikken.
+  sol: {
+    navn: 'Sola',
+    farge: '#ffcf5c',
+    // INGEN FOTOGRAFI-URL, og det er et valg og ikke en forglemmelse: hostene er
+    // sperret fra utviklingsmiljøene, og CLAUDE.md sier rett ut at en kilde-URL
+    // skal MÅLES og ikke gjettes (v6.3.0, der tre gjettede URL-er alle var feil
+    // og viste seg først i deploy-loggen). Overflaten tegnes derfor lokalt, og
+    // den er god nok: granulasjon og de to flekkbeltene er det man ser i et
+    // solfilter. Skal det bli et ekte SDO-bilde, kjør probe-himmelkart.yml
+    // først og legg inn tittelen den FANT.
+    tekstur: null,
+    selvlysende: true,
+    granulasjon: true,
+    akseHelling: 7.25,
+    ambient: 1,
+    trekk: [
+      { navn: 'Ekvator', norsk: null, lat: 0, lon: 0, type: 'band',
+        merk: 'Sola er en gasskule og roterer ikke som ett stykke: her tar én '
+          + 'omdreining 24,5 døgn, ved polene 34. Jorda kan ikke gjøre det.' },
+      { navn: 'Solflekkbeltet nord', norsk: null, lat: 16, lon: -50, type: 'storm',
+        merk: 'Flekkene kommer nesten bare mellom 5° og 35° fra ekvator, og '
+          + 'vandrer mot ekvator gjennom et 11-årig syklus.' },
+      { navn: 'Solflekkbeltet sør', norsk: null, lat: -16, lon: 40, type: 'storm',
+        merk: 'En solflekk er kjøligere enn omgivelsene — 3 800 mot 5 500 grader '
+          + '— og ser mørk ut bare i forhold til dem. Alene ville den lyst '
+          + 'sterkere enn fullmånen.' },
+      { navn: 'Nordpolområdet', norsk: null, lat: 72, lon: 0, type: 'is',
+        merk: 'Her går rotasjonen tregest, og det er herfra solvinden slipper '
+          + 'lettest ut. Nesten aldri flekker.' },
+      { navn: 'Sørpolområdet', norsk: null, lat: -72, lon: 120, type: 'is' },
+    ],
+  },
   mane: {
     navn: 'Månen',
     farge: '#d8d4cc',
@@ -182,6 +234,11 @@ export const HIMMELLEGEMER = {
  * faktisk kom for å lese. Ikke legg den tilbake uten en ny observasjon.
  */
 export const GLOBE_TEKST = {
+  sol: {
+    omtale: 'Sola er 99,86 % av all masse i solsystemet, og lyset du ser er '
+      + 'åtte minutter gammelt. Den har ingen overflate å lande på — det du ser '
+      + 'er bare der gassen slutter å være gjennomsiktig.',
+  },
   mane: {
     omtale: 'Månen snur alltid samme side mot oss — den bruker like lang tid på '
       + 'én runde om sin egen akse som om jorda.',

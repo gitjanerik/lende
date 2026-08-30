@@ -194,11 +194,14 @@ export async function createSceneCore(container, {
   const GLOBE_AVSTAND = 4000
   const GLOBE_GRADER = 34
   /**
-   * Skjul eller vis skiva på himmelen for ett legeme. Månen har sin egen skive
-   * (`nightSky.mane`), planetene ligger i `nightSky.planetSkive`.
+   * Skjul eller vis skiva på himmelen for ett legeme. Sola og månen har hver sin
+   * egen skive (`nightSky.sol`, `nightSky.mane`), planetene ligger i
+   * `nightSky.planetSkive`.
    */
   const skjulSkive = (id, skjul) => {
-    const s = id === 'mane' ? nightSky.mane : nightSky.planetSkive?.(id)
+    const s = id === 'sol' ? nightSky.sol
+      : id === 'mane' ? nightSky.mane
+        : nightSky.planetSkive?.(id)
     if (!s) return
     // Planetskivene skjules og vises også av settPlaneter etter om de er over
     // horisonten. Vi rører bare den ene som globen står for, og settPlaneter
@@ -685,7 +688,12 @@ export async function createSceneCore(container, {
           // ikke der, tegnes kula i legemets egenfarge — globen er laget for å
           // tåle det, og lokalt er det den normale tilstanden (NASA og USGS er
           // sperret fra utviklingsmiljøene).
-          teksturUrl: `${import.meta.env?.BASE_URL ?? '/'}data/${HIMMELLEGEMER[o.legeme].tekstur}`,
+          // null for SOLA: den har ingen bakt fil, og overflaten tegnes lokalt
+          // (se granulasjonTekstur i himmelGlobe.js). Uten denne porten ville
+          // URL-en blitt «data/null» og gitt en 404 i loggen ved hver åpning.
+          teksturUrl: HIMMELLEGEMER[o.legeme].tekstur
+            ? `${import.meta.env?.BASE_URL ?? '/'}data/${HIMMELLEGEMER[o.legeme].tekstur}`
+            : null,
         })
         // HELE gruppa inn i globe-laget, LYSENE MED. Regelen bor i globen selv
         // (settRenderLag) fordi den har to feller som er lette å tråkke i her:

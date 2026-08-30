@@ -1,3 +1,51 @@
+## 2026-08-30 — v6.5.6: Sola er det femte legemet, og den står under terrenget
+
+Eieren savnet sola som noe man kan åpne som nærbilde i nattmodus, og spurte om
+den kunne ligge under landskapet — som i skjermbildet, der arket er en stripe
+midt på skjermen med tomt mørke over og under. Svaret er at den gjør det helt av
+seg selv: om natta ER sola under horisonten, altså under føttene dine, og
+terrengarket er endelig. Vi tegner den derfor der den faktisk står, og da havner
+den nedenfor landskapet uten at noe må jukses. Åpner du nattmodus midt på dagen,
+står den derimot oppe i øst, og det er den samme regelen. Invarianten som gjør
+3D til å stole på — alt du ser står der det faktisk står — er altså ikke rørt.
+
+Det krevde én ny ting av kamerariggen. `seMot` kunne bare rette blikket fra én
+grad under horisonten og oppover: over horisonten er det HIMMELVIPPEN som bærer
+høyden, og den går bare én vei. Under horisonten er det i stedet ORBITEN som må
+bære den, ved å heve kameraet og se ned — nøyaktig den bevegelsen man gjør når
+man drar for å se kartet ovenfra. `polarForHoyde` er den regelen, og de to
+regimene kan aldri være i bruk samtidig: enten står orbiten på taket og vippen
+bærer høyden, eller så er vippen null og orbiten bærer den.
+
+Sola er med i søkelista HELE DØGNET, og er det ene legemet som er det. Den står
+øverst, den er merket med et strøket SVG-ikon i stedet for ☀️ — emojien tegnes av
+systemets font i full farge, og i en liste man leser i mørket ville den vært det
+eneste som lyste — og undertittelen sier hvilken side av horisonten den er på.
+«42° under horisonten» og ikke «−42° over horisonten»: fortegnet bæres av ordet,
+for det er det som leses av en som står ute.
+
+Globen bryter mønsteret på to måter, og begge er skrevet inn i tabellen framfor i
+en ny fil. Den LYSER SELV: det finnes ingen nattside, så retningslyset er av og
+teksturen tegnes som egenlys. Det holdt ikke å skru ambient til fullt — den
+diffuse BRDF-en i MeshStandardMaterial deler på π, og målt i Chromium kom en lys
+gul sol ut sennepsbrun. Randmørkningen (Eddingtons 0,4 + 0,6·μ) er lagt på i
+samme slengen; den er ikke pynt, men det ene trekket som skiller sola fra en
+lampe. Og den har INGEN FASTE TREKK: en solflekk lever noen uker og driver med
+rotasjonen, så de navngitte stedene er BREDDEGRADER — flekkbeltene rundt ±16°,
+ekvator og polområdene — som er der differensiell rotasjon er å se, altså akkurat
+det en kule kan vise og en skive ikke kan.
+
+Fotografiet mangler med vilje: kilde-URL-er skal måles og ikke gjettes (v6.3.0),
+og hostene er sperret fra utviklingsmiljøene. Overflaten tegnes derfor lokalt.
+Av samme grunn er SNL- og Wikipedia-lenkene for sola et FORSLAG og ikke en
+måling — «Sola» er også en kommune i Rogaland — og `probe-himmellenker` har fått
+kandidatene inn så CI kan si hvilken som er artikkelen om stjerna.
+
+Utvikler-bryteren løfter fortsatt bare de fire andre. En tvungen sol ville vært
+selvmotsigende: hele poenget med den er at den står der den står.
+
+---
+
 ## 2026-08-30 — v6.5.5: De røde båndene i 3D var siste strek i hvert linjebuffer
 
 Eieren meldte høydekurver som ikke følger terrenget — snorrette røde bånd tvers

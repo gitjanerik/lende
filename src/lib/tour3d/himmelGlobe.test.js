@@ -242,11 +242,13 @@ describe('buildHimmelGlobe — teksturen er valgfri', () => {
 
 
 describe('HIMMELLEGEMER — tabellen', () => {
-  it('har de fire legemene som faktisk kan åpnes, og bare dem', () => {
+  it('har de fem legemene som faktisk kan åpnes, og bare dem', () => {
     // Merkur og Venus står bevisst UTENFOR: en globe av dem ville vært en
     // påstand om at det er noe å se. Og siden trykk-ringen på himmelen leser
     // harGlobe, ville de fått et omriss som lover en globe som ikke finnes.
-    expect(Object.keys(HIMMELLEGEMER).sort()).toEqual(['jupiter', 'mane', 'mars', 'saturn'])
+    expect(Object.keys(HIMMELLEGEMER).sort())
+      .toEqual(['jupiter', 'mane', 'mars', 'saturn', 'sol'])
+    expect(harGlobe('sol')).toBe(true)
     expect(harGlobe('mane')).toBe(true)
     expect(harGlobe('mars')).toBe(true)
     expect(harGlobe('merkur')).toBe(false)
@@ -260,7 +262,16 @@ describe('HIMMELLEGEMER — tabellen', () => {
     // gjenkjennelig likevel.
     for (const [id, spec] of Object.entries(HIMMELLEGEMER)) {
       expect(spec.farge, id).toMatch(/^#[0-9a-f]{6}$/i)
-      expect(spec.tekstur, id).toMatch(/\.jpg$/)
+      // SOLA HAR INGEN BAKT FIL, og det er et valg: kilde-URL-er skal måles og
+      // ikke gjettes (v6.3.0), og hostene er sperret fra utviklingsmiljøene.
+      // Overflaten tegnes lokalt i stedet — se granulasjonTekstur. Da MÅ den
+      // også si fra at den er selvlysende, ellers står halve sola i skygge.
+      if (spec.tekstur === null) {
+        expect(spec.granulasjon || spec.band, id).toBeTruthy()
+        expect(spec.selvlysende, id).toBe(true)
+      } else {
+        expect(spec.tekstur, id).toMatch(/\.jpg$/)
+      }
       expect(spec.trekk?.length, id).toBeGreaterThan(2)
       expect(GLOBE_TEKST[id], id).toBeTruthy()
       expect(GLOBE_TEKST[id].omtale, id).toBeTruthy()

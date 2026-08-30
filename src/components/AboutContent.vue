@@ -239,15 +239,22 @@ async function onInstallClick() {
             hopp til en nabo legger det sammen av seg selv. Sammenlagt får du et
             <strong class="text-ink/90">krysshår</strong> som retter blikket
             tilbake dit, om du har panorert bort.
-            <strong class="text-ink/90">Trykk på månen, Mars, Jupiter eller
-            Saturn</strong> — de fire har et tynt omriss som sier at de kan
+            <strong class="text-ink/90">Trykk på sola, månen, Mars, Jupiter
+            eller Saturn</strong> — de fem har et tynt omriss som sier at de kan
             åpnes — og skiva blir en kule du kan snurre, med navngitte steder,
             ekte aksehelling og kveldens virkelige skyggelinje. Saturn har
             ringene sine, med Cassini-delinga. Dra nedover når du vil se
             landskapet igjen.
+            <strong class="text-ink/90">Sola er med hele døgnet</strong>, og står
+            der den faktisk står: om natta er den under føttene dine, så Lende
+            tegner den under terrengarket. Velger du den derfra, senker
+            visningen seg og ser ned etter den. Sola har ingen skyggelinje å
+            vise — den er lyskilden — så kula er jevnt opplyst, og de navngitte
+            stedene er breddegrader og ikke flekker: solflekker lever noen uker
+            og driver med rotasjonen, mens beltene de kommer i står.
           </p>
           <p class="text-[13px] leading-relaxed text-ink/70">
-            Månen og alle de fem synlige planetene har
+            Sola, månen og alle de fem synlige planetene har
             <strong class="text-ink/90">astronomiske fakta</strong> i infokortet:
             hvor mange måner de har og hva de største heter, hvor langt unna de
             er, hvor lange døgnene og årene er — og en kort liste over

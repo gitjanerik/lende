@@ -19,8 +19,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { describe, it, expect } from 'vitest'
 import { PerspectiveCamera, Vector3, Matrix4 } from 'three'
 import {
-  himmelVippSteg, HIMMEL_VIPP_MAKS, blikkMot, orbitPosisjon, azimutFraTheta,
-  vippForHoyde, blikkHoydeGrenser,
+  himmelVippSteg, HIMMEL_VIPP_MAKS, blikkMot, orbitPosisjon, azimutFraTheta, vippForHoyde, blikkHoydeGrenser, polarForHoyde,
 } from './freeRig.js'
 
 // Radianer per piksel, som i riggen: 2π over elementets høyde.
@@ -297,5 +296,51 @@ describe('vippForHoyde og blikkHoydeGrenser', () => {
       expect(v).toBeGreaterThanOrEqual(forrige)
       forrige = v
     }
+  })
+})
+
+describe('polarForHoyde — blikket under horisonten', () => {
+  const GRAD = Math.PI / 180
+  it('lar orbiten stå på taket for alt som er oppe', () => {
+    // Over horisonten er det VIPPEN som bærer høyden, og da skal kallstedet
+    // ikke røre orbiten i det hele tatt. Uendret oppførsel fra før v6.5.6.
+    for (const h of [0, 10 * GRAD, 45 * GRAD, 74 * GRAD]) {
+      expect(polarForHoyde(h) / GRAD).toBeCloseTo(89, 6)
+    }
+  })
+
+  it('senker orbiten når målet er under horisonten', () => {
+    // Kameraet står i polarvinkel φ og ser MOT blikkpunktet, så blikkets høyde
+    // er −(90° − φ). Sola 35° under horisonten krever altså φ = 55°.
+    expect(polarForHoyde(-35 * GRAD) / GRAD).toBeCloseTo(55, 6)
+    expect(polarForHoyde(-60 * GRAD) / GRAD).toBeCloseTo(30, 6)
+  })
+
+  it('går ikke helt til senit — en orbit rett over blikkpunktet er degenerert', () => {
+    // Der mister asimuten mening, og OrbitControls' oppvektor kan vippe rundt.
+    expect(polarForHoyde(-89 * GRAD) / GRAD).toBeGreaterThanOrEqual(5)
+    expect(polarForHoyde(-200 * GRAD) / GRAD).toBeGreaterThanOrEqual(5)
+  })
+
+  it('vippen er 0 under horisonten — de to regimene overlapper aldri', () => {
+    // Dette er invarianten som gjør at seMot kan velge ETT av dem: enten bærer
+    // vippen høyden og orbiten står på taket, eller så bærer orbiten den og
+    // vippen er null. Begge samtidig ville lagt vinklene oppå hverandre.
+    for (const h of [-5 * GRAD, -35 * GRAD, -80 * GRAD]) {
+      expect(vippForHoyde(h)).toBe(0)
+      expect(polarForHoyde(h)).toBeLessThan(89 * GRAD)
+    }
+    for (const h of [5 * GRAD, 40 * GRAD]) {
+      expect(vippForHoyde(h)).toBeGreaterThan(0)
+      expect(polarForHoyde(h) / GRAD).toBeCloseTo(89, 6)
+    }
+  })
+
+  it('blikkMot bærer polaren videre, uten å røre asimuten', () => {
+    const opp = blikkMot(Math.PI / 2, 30 * GRAD)
+    const ned = blikkMot(Math.PI / 2, -30 * GRAD)
+    expect(ned.theta).toBeCloseTo(opp.theta, 9)
+    expect(ned.polar).toBeLessThan(opp.polar)
+    expect(ned.vipp).toBe(0)
   })
 })

@@ -584,7 +584,42 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   og kollapser til ingenting på skjermen; «12 av 13» og «den 13. gikk til origo»
   er samme observasjon der. På kartet er origo et sted langt unna, og da SER man
   den. Fiksen er den samme uansett hvilken av de to driveren gjør.
-- **Globene er OBJEKT-INSPEKTØRER, ikke reiser (v6.0.0, utvidet i v6.2.0).**
+- **SOLA ER DET FEMTE LEGEMET MED GLOBE, og den står UNDER terrenget om natta
+  (v6.5.6).** Den tegnes der den faktisk står — og om natta er det under
+  horisonten, altså under det endelige terrengarket. Ingen fast plass, ingen
+  tvang: invarianten «alt du ser står der det faktisk står» er ikke rørt, og at
+  den havner under landskapet er en KONSEKVENS av den, ikke et unntak.
+  Tre ting følger av det, og alle tre er lette å «rydde» bort:
+  1. **Riggen måtte kunne se NED.** `seMot` rakk bare fra én grad under
+     horisonten og opp, fordi HIMMELVIPPEN bærer høyden og bare går én vei.
+     `freeRig.polarForHoyde` lar ORBITEN bære blikket i stedet under horisonten,
+     ved å heve kameraet. **De to regimene kan aldri være i bruk samtidig** —
+     enten står orbiten på taket og vippen bærer, eller så er vippen null og
+     orbiten bærer. Låsen (`settPolarLast`) MÅ derfor være AV i det andre
+     regimet, ellers klemmer hver `controls.update()` kameraet rett opp igjen.
+  2. **Sola er i lista HELE DØGNET**, som det eneste legemet. Regelen «lista
+     lover bare det som tegnes» holder fortsatt: sola TEGNES hele døgnet.
+     `himmelUndertekst` sier «under horisonten» — fortegnet bæres av ORDET, ikke
+     av et minustegn.
+  3. **Utvikler-bryteren løfter den IKKE.** Bryteren finnes for legemer man må
+     vente på; en tvungen sol ville motsagt hele grunnen til at den er der.
+- **SOLA LYSER SELV, og ambient var ikke nok (v6.5.6).** `selvlysende` i
+  `HIMMELLEGEMER` slår av retningslyset OG ambienten, og teksturen tegnes som
+  `emissiveMap`. Første utgave skrudde bare ambient til 1 — men
+  `MeshStandardMaterial` kjører ambient gjennom en diffus BRDF som deler på π, og
+  målt i Chromium kom en lys gul sol ut SENNEPSBRUN. Randmørkningen (Eddingtons
+  `0,4 + 0,6·μ`, hektet på `emissivemap_fragment` med `onBeforeCompile`, samme
+  grep som `skyskygge.js`) er ikke pynt: uten den er kula en lampe.
+  **Sola har INGEN faste trekk** — en solflekk lever noen uker og driver med
+  rotasjonen — så de navngitte stedene er BREDDEGRADER: flekkbeltene på ±16°,
+  ekvator og polområdene. Det er der differensiell rotasjon er å se, altså det
+  ene en kule kan vise og en skive ikke kan. **Fotografiet mangler med vilje**:
+  kilde-URL-er skal måles og ikke gjettes (v6.3.0), og hostene er sperret herfra.
+  Av samme grunn er sola sine SNL-/Wikipedia-lenker et FORSLAG — «Sola» er også
+  en kommune i Rogaland — og `probe-himmellenker` bærer kandidatene til CI kan
+  avgjøre.
+- **Globene er OBJEKT-INSPEKTØRER, ikke reiser (v6.0.0, utvidet i v6.2.0 og
+  v6.5.6).**
   `lib/tour3d/himmelGlobe.js` (byggeren) + `lib/tour3d/himmellegemer.js` (dataen).
   Månen, Mars, Jupiter og Saturn kan åpnes som roterbare kuler. Eieren ba om en
   tur TIL månen; det ble forkastet i samråd, fordi det bryter invarianten som gjør

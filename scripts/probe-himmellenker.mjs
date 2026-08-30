@@ -21,6 +21,21 @@ import { STJERNEBILDE_INFO } from '../src/lib/tour3d/stjernebildeInfo.js'
 // svarer Wikimedia 400/403 — målt under himmelkart-proben.
 const UA = 'LendeLenkeprobe/1.0 (https://github.com/gitjanerik/lende; turkart-app)'
 
+// ALTERNATIVER: adresser vi IKKE har målt, men som kan være den riktige.
+//
+// Sola (v6.5.6) er tvetydig på begge tjenestene — «Sola» er også en kommune i
+// Rogaland — og hostene er sperret fra utviklingsmiljøene, så valget i
+// himmelFakta.js er et forslag og ikke en måling. Proben tester kandidatene
+// SAMMEN med den som står i koden, så utskriften sier hvilken som faktisk er
+// artikkelen om stjerna. Rett i himmelFakta.js etter det den svarer, og fjern
+// linja herfra når den er avgjort.
+const ALTERNATIVER = [
+  { hvor: 'kandidat:sol', felt: 'snl', url: 'https://snl.no/Sola_-_stjerne' },
+  { hvor: 'kandidat:sol', felt: 'snl', url: 'https://snl.no/Solen' },
+  { hvor: 'kandidat:sol', felt: 'wikipedia', url: 'https://no.wikipedia.org/wiki/Sola_(stjerne)' },
+  { hvor: 'kandidat:sol', felt: 'wikipedia', url: 'https://no.wikipedia.org/wiki/Sola' },
+]
+
 const lenker = []
 for (const [id, f] of Object.entries(HIMMEL_FAKTA)) {
   if (f.snl) lenker.push({ hvor: `fakta:${id}`, felt: 'snl', url: f.snl })
@@ -29,6 +44,8 @@ for (const [id, f] of Object.entries(HIMMEL_FAKTA)) {
 for (const [id, i] of Object.entries(STJERNEBILDE_INFO)) {
   if (i.wikipedia) lenker.push({ hvor: `stjernebilde:${id}`, felt: 'wikipedia', url: i.wikipedia })
 }
+
+lenker.push(...ALTERNATIVER)
 
 const pust = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -70,6 +87,9 @@ for (const l of lenker) {
 
 process.stdout.write(
   `\n${ok} av ${lenker.length} lenker svarte 2xx på sin egen adresse.\n`
+  + 'MERK: «kandidat:»-linjene er IKKE i bruk i appen — de er alternativer til en\n'
+  + 'lenke vi ikke har målt ennå. Svarer en av dem der den brukte lenka ikke gjør\n'
+  + 'det, er det den som skal inn i himmelFakta.js.\n'
   + (rare
     ? `${rare} gjorde det IKKE — se ✗-linjene over. En omdirigering teller som `
       + 'avvik: Wikipedia sender et feil artikkelnavn videre med 200, og da er '

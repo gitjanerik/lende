@@ -100,6 +100,38 @@ const JORDSKINN = 0.055
  * @returns {{group: Group, sett: (m: object) => void, update: (camera: object) => void,
  *            geometries: object[], materials: object[], dispose: () => void}}
  */
+/**
+ * Solskiva.
+ *
+ * TRE TING SKILLER DEN FRA DE ANDRE SKIVENE:
+ *
+ * 1. `lysAndel` er 1 og står fast. Sola har ingen fase — den er lyskilden — så
+ *    terminator-matematikken i shaderen gir en helt opplyst skive, som er riktig.
+ * 2. `jordskinn` er 1. Uniformen er styrken på NATTSIDA, og med lysAndel = 1
+ *    finnes ingen nattside; 1 gjør bare at skiva er jevnt lys helt ut i randen.
+ * 3. Den skjules ALDRI (se `settSol`). Månen gjemmes under −2° og stjernene
+ *    under −1°, fordi der er de under bakken og har ingenting å gjøre. Sola
+ *    tegnes der den ER, også under horisonten — det er hele bestillingen
+ *    (v6.5.6): om natta står den under terrengarket, og arket er endelig, så
+ *    man ser den nedenfor landskapet.
+ *
+ * Vinkelstørrelsen er den samme som månens, og det er ikke slurv: sola og månen
+ * er nesten nøyaktig like store på himmelen (0,53° mot 0,52° — det er derfor
+ * totale solformørkelser finnes), og begge tegnes med den samme bevisste
+ * overdrivelsen.
+ */
+export function buildSol({ radius = 25000, avstand = null } = {}) {
+  return buildHimmelSkive({
+    radius,
+    avstand: avstand ?? radius * 0.82,
+    grader: MANE_GRADER,
+    farge: '#ffd35c',
+    jordskinn: 1,
+    // Sola har en globe, og skal derfor bære trykk-ringen som sier det.
+    ring: true,
+  })
+}
+
 export function buildMane({ radius = 25000, avstand = null } = {}) {
   return buildHimmelSkive({
     radius,
@@ -722,6 +754,27 @@ export function buildNightSky({
 
   let synligePlanetListe = settPlaneter(dato ?? new Date())
 
+  // --- Sola ---------------------------------------------------------------
+  // Bygges FØR månen, som i lista: den er det legemet man ikke leter etter.
+  const sol = buildSol({ radius })
+  group.add(sol.group)
+  geometrier.push(...sol.geometries)
+  materialer.push(...sol.materials)
+  const settSol = () => {
+    if (!ekteHimmel) {
+      // Uten sted vet vi ikke hvor sola står. Den skjules framfor å gjettes —
+      // en sol i feil retning er en påstand, og demo-himmelen er en illustrasjon.
+      sol.mesh.visible = false
+      return
+    }
+    const s = himmelFor({ lat, lon, dato: dato ?? new Date() }).sol
+    sol.sett({ azimut: s.azimut, hoyde: s.hoyde, lysAndel: 1, lyssideVinkel: 0 })
+    // OG SÅ OVERSTYRES SYNLIGHETEN. `sett` skjuler alt under −2°, som er riktig
+    // for månen og feil for sola: den skal tegnes under terrenget når den står
+    // der. Globen kan likevel ha bedt om at skiva er borte (se settGlobeLegeme).
+    sol.mesh.visible = globeLegeme !== 'sol'
+  }
+
   // --- Månen --------------------------------------------------------------
   const mane = buildMane({ radius })
   group.add(mane.group)
@@ -743,9 +796,13 @@ export function buildNightSky({
     mane.sett({ azimut: 2.3, hoyde: 0.67, lysAndel: 0.5, lyssideVinkel: Math.PI / 2 })
   }
 
+  if (ekteHimmel) settSol()
+  else sol.mesh.visible = false
+
   return {
     group,
     mane,
+    sol,
     /** Antall stjerner som faktisk ble tegnet — for test og feilsøking. */
     get stjerneAntall() { return pos.length / 3 },
     get astronomisk() { return ekteHimmel },
@@ -767,6 +824,7 @@ export function buildNightSky({
      * var riktig helt til man snudde seg.
      */
     update(camera, tidS = null) {
+      sol.update(camera, tidS)
       mane.update(camera, tidS)
       for (const skive of planetSkiver.values()) skive.update(camera, tidS)
     },
@@ -775,6 +833,11 @@ export function buildNightSky({
     planetSkive(id) { return planetSkiver.get(id) ?? null },
     /** Hvilket legeme som står som globe — settPlaneter respekterer den. */
     settGlobeLegeme(id) { globeLegeme = id ?? null },
+    /**
+     * Sett sola der den står nå. Egen inngang fordi den ikke går gjennom
+     * `settPlaneter` (sola er ikke i PLANETER) og heller ikke gjennom `settMane`.
+     */
+    settSol,
 
     /**
      * Utvikler-bryter: løft månen OG planetene med globe over horisonten.

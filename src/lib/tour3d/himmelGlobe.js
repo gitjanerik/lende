@@ -139,6 +139,69 @@ function bandTekstur(band) {
   return t
 }
 
+/**
+ * Overflatetekstur for sola, tegnet lokalt.
+ *
+ * HVORFOR IKKE ET FOTOGRAFI: se `sol` i himmellegemer.js — kilde-URL-er skal
+ * måles, ikke gjettes, og hostene er sperret herfra. Dette er dessuten godt nok
+ * for det globen skal vise: granulasjon (kokende celler på et par tusen km) og
+ * de to flekkbeltene rundt ±16°. Ingen DISKRETE flekker: en solflekk lever noen
+ * uker og driver med rotasjonen, så en fast flekk ville vært feil allerede neste
+ * måned — beltene er det som står.
+ *
+ * Bredden er full (256): granulasjonen må variere langs lengdegraden også, ellers
+ * blir sola stripete i stedet for kornete.
+ *
+ * Returnerer null uten lerret (node, test) — kaller tåler det.
+ */
+function granulasjonTekstur() {
+  if (typeof document === 'undefined') return null
+  const c = document.createElement('canvas')
+  c.width = 256
+  c.height = 128
+  const g = c.getContext('2d')
+  if (!g) return null
+  g.fillStyle = '#ffe7a4'
+  g.fillRect(0, 0, c.width, c.height)
+  // Flekkbeltene: to litt mørkere bånd, myknet i kantene.
+  for (const lat of [16, -16]) {
+    const y = (0.5 - lat / 180) * c.height
+    const grad = g.createLinearGradient(0, y - 14, 0, y + 14)
+    grad.addColorStop(0, 'rgba(190,120,30,0)')
+    grad.addColorStop(0.5, 'rgba(190,120,30,0.16)')
+    grad.addColorStop(1, 'rgba(190,120,30,0)')
+    g.fillStyle = grad
+    g.fillRect(0, y - 14, c.width, 28)
+  }
+  // Granulasjonen. Deterministisk pseudotilfeldig, så teksturen er den samme
+  // hver gang — en sol som ser ulik ut ved hver åpning leses som flimmer.
+  let frø = 1
+  const rnd = () => {
+    frø = (frø * 1103515245 + 12345) & 0x7fffffff
+    return frø / 0x7fffffff
+  }
+  // Kornene er SMÅ og SVAKE med vilje. Granulasjonsceller er ~1 000 km på en
+  // sol på 1,4 millioner — altså en fin struktur, ikke flekker. Første utgave
+  // hadde store, kontrastrike kuler og leste som en potet.
+  for (let i = 0; i < 9000; i++) {
+    const x = rnd() * c.width
+    const y = rnd() * c.height
+    const r = 0.7 + rnd() * 1.5
+    const lys = rnd()
+    g.fillStyle = lys > 0.5
+      ? `rgba(255,253,240,${0.05 + (lys - 0.5) * 0.18})`
+      : `rgba(214,150,52,${0.04 + (0.5 - lys) * 0.14})`
+    g.beginPath()
+    g.arc(x, y, r, 0, Math.PI * 2)
+    g.fill()
+  }
+  const t = new CanvasTexture(c)
+  t.colorSpace = SRGBColorSpace
+  t.wrapS = RepeatWrapping
+  t.wrapT = ClampToEdgeWrapping
+  return t
+}
+
 export function buildHimmelGlobe({
   legeme = 'mane', radius = 1, teksturUrl = null, onTekstur = null,
 } = {}) {
@@ -162,17 +225,68 @@ export function buildHimmelGlobe({
   mesh.frustumCulled = false
 
   // Båndene legges på FØR fotografiet forsøkes: da er kula gjenkjennelig fra
-  // første frame, og et fotografi som kommer senere bare gjør den bedre.
-  const bandTekstur0 = bandTekstur(spec.band)
+  // første frame, og et fotografi som kommer senere bare gjør den bedre. Sola
+  // har ingen bånd men en granulert overflate, og der ER den lokale teksturen
+  // hele svaret — det kommer ikke noe fotografi etterpå.
+  const bandTekstur0 = spec.granulasjon ? granulasjonTekstur() : bandTekstur(spec.band)
   if (bandTekstur0) {
     material.map = bandTekstur0
     material.color.set('#ffffff')
   }
 
+  /**
+   * SELVLYSENDE: teksturen tegnes som EGENLYS, ikke som en flate som belyses.
+   *
+   * Hvorfor det ikke holdt å skru ambient til 1: `MeshStandardMaterial` kjører
+   * ambient gjennom en diffus BRDF som deler på π, så teksturen kom ut mye
+   * mørkere enn den er. Målt i Chromium ble en lys gul sol sennepsbrun.
+   * `emissiveMap` går utenom lysberegningen og gir nøyaktig teksturens farger —
+   * som er hva en lyskilde ER. `color` settes samtidig til svart, ellers legger
+   * den diffuse veien et matt slør oppå.
+   */
+  // RANDMØRKNING (limb darkening), og den er ikke pynt: den er det ene trekket
+  // som gjør en lysende kule til SOLA. Sola er ikke en flat skive — man ser
+  // dypere (og varmere) lag i midten enn ute ved randen, der siktelinja går på
+  // skrå gjennom fotosfæren. Uten den ser kula ut som en lampe.
+  //
+  // Eddingtons klassiske tilnærming: I(μ)/I(0) = 0,4 + 0,6·μ, der μ er cosinus
+  // av vinkelen mellom flatenormalen og synslinja. `vNormal` og `vViewPosition`
+  // finnes allerede som varyings i MeshStandardMaterial, så det koster ingen ny
+  // geometri — vi hekter oss bare på der egenlyset er regnet ut. Samme grep som
+  // skyskygge.js bruker på terrenget.
+  const randMorkning = (m) => {
+    m.onBeforeCompile = (shader) => {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+         float muSol = clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0);
+         totalEmissiveRadiance *= 0.40 + 0.60 * muSol;`,
+      )
+    }
+    m.needsUpdate = true
+  }
+
+  const settSelvlys = (t) => {
+    if (!spec.selvlysende) return
+    material.emissive.set('#ffffff')
+    material.emissiveMap = t ?? null
+    material.emissiveIntensity = 1
+    material.color.set(t ? '#000000' : spec.farge)
+    if (!t) material.emissive.set(spec.farge)
+    material.needsUpdate = true
+  }
+  if (spec.selvlysende) randMorkning(material)
+  settSelvlys(bandTekstur0)
+
   // Lyset. Retningen settes fra solas virkelige posisjon, så skyggelinja er der
   // den faktisk er. Ambient er lav og ikke null: en helt svart nattside gjør
   // kula til en sigd som svever, og man mister følelsen av at det er en kule.
-  const sol = new DirectionalLight(0xfff6e6, 3.1)
+  // SELVLYSENDE LEGEMER FÅR INGEN RETNINGSLYS. Sola har ingen nattside, og et
+  // lys fra siden ville tegnet en terminator som ikke finnes — altså en påstand
+  // om at det står en annen sol et sted. Ambient bærer hele lyset i stedet
+  // (spec.ambient = 1). Lyset opprettes likevel, med intensitet 0, så settFase
+  // og resten av modulen slipper å vite om unntaket.
+  const sol = new DirectionalLight(0xfff6e6, spec.selvlysende ? 0 : 3.1)
   sol.position.set(1, 0, 0)
   // MÅLET MÅ VÆRE KULA, ikke standard-målet. Et DirectionalLight lyser fra sin
   // posisjon mot `target`, som som default er et objekt i verdens ORIGO — og
@@ -180,7 +294,9 @@ export function buildHimmelGlobe({
   // ville lyset pekt mot midten av kartet og fasen blitt tilfeldig.
   sol.target = mesh
   group.add(sol)
-  const fyll = new AmbientLight(0xffffff, spec.ambient ?? 0.055)
+  // Selvlysende legemer trenger ikke ambient heller — egenlyset ER lyset. En
+  // ambient oppå ville bare vasket ut kontrasten i granulasjonen.
+  const fyll = new AmbientLight(0xffffff, spec.selvlysende ? 0 : (spec.ambient ?? 0.055))
   group.add(fyll)
 
   // AKSEHELLINGEN legges på en HOLDER mellom gruppa og meshet: gruppa eies av
@@ -276,6 +392,7 @@ export function buildHimmelGlobe({
         // Hvit så fotografiet får bære fargen selv. Uten dette ganges bildet med
         // egenfargen, og Mars blir rustrød to ganger.
         material.color.set('#ffffff')
+        settSelvlys(t)
         material.needsUpdate = true
         try { onTekstur?.(true) } catch { /* UI-feil skal ikke stoppe globen */ }
       },

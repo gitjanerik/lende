@@ -43,7 +43,13 @@ const emit = defineEmits(['lukk', 'velg', 'minimer', 'utvid', 'fokus'])
 const GRAD = 180 / Math.PI
 const komma = (n, d = 1) => (Number.isFinite(n) ? n.toFixed(d).replace('.', ',') : '–')
 
-const hoydeGrader = computed(() => Math.round((props.objekt?.hoyde ?? 0) * GRAD))
+// SOLA KAN STÅ UNDER HORISONTEN, og da er «−42°» og «over horisonten» begge
+// gale. Fortegnet bæres av ORDET og ikke av et minustegn: «42° under
+// horisonten» leses av en som står ute i mørket, «−42° over horisonten» gjør
+// det ikke. Alle andre legemer i lista er filtrert på høyde > 0, så dette
+// gjelder i praksis bare sola (v6.5.6).
+const hoydeGrader = computed(() => Math.abs(Math.round((props.objekt?.hoyde ?? 0) * GRAD)))
+const underHorisonten = computed(() => (props.objekt?.hoyde ?? 0) < 0)
 const retning = computed(() => kompass((props.objekt?.azimut ?? 0) * GRAD))
 
 // FYLT stjerne for en figur, ÅPEN for én enkelt stjerne. To tegn fra samme
@@ -169,7 +175,8 @@ const faseNavn = computed(() => {
         <!-- Hvor det står. I HEADEREN, fordi det er det man trenger for å løfte
              blikket i riktig retning — og da skal det ikke kunne rulles bort. -->
         <div class="mt-0.5 text-[0.625rem] text-white/50">
-          {{ retning }}, {{ hoydeGrader }}° over horisonten
+          {{ retning }}, {{ hoydeGrader }}°
+          {{ underHorisonten ? 'under horisonten' : 'over horisonten' }}
         </div>
       </div>
 
@@ -213,6 +220,19 @@ const faseNavn = computed(() => {
       </div>
       <div v-else-if="objekt.type === 'mane'" class="mt-1.5 text-[0.6875rem] text-white/70">
         {{ faseNavn }} · {{ Math.round(objekt.lysAndel * 100) }} % opplyst
+      </div>
+      <!-- SOLA. Under horisonten er det ikke nok å si HVOR den er — man må få
+           vite hvorfor man ser den under landskapet, ellers leses den som en
+           tegnefeil. Over horisonten trenger linja ingen forklaring. -->
+      <div v-else-if="objekt.type === 'sol'" class="mt-1.5 text-[0.6875rem] text-white/70">
+        <template v-if="underHorisonten">
+          Under horisonten nå, altså under føttene dine — Lende tegner den der den
+          faktisk står, nedenfor terrenget.
+        </template>
+        <template v-else>
+          Over horisonten nå. Se aldri på sola gjennom kikkert eller kamera uten
+          godkjent solfilter.
+        </template>
       </div>
       <div v-else-if="objekt.type === 'stjerne'" class="mt-1.5 text-[0.6875rem] text-white/70">
         Lysstyrke {{ komma(objekt.mag) }}<template v-if="objekt.stjernebilde">

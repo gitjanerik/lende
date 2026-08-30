@@ -476,7 +476,9 @@ export async function create3dScene(container, {
    * Formasjonene står ikke her — de har ingen rabatt, og et manglende oppslag
    * gir 0.
    */
-  const VEKT_PX = { mane: 18, planet: 18, stjerne: 8 }
+  // Sola veies som månen: begge er skiver på ~0,5°, altså store mål man sikter
+  // midt på — ikke prikker man sikter presist på.
+  const VEKT_PX = { sol: 18, mane: 18, planet: 18, stjerne: 8 }
 
   function plukkHimmel() {
     if (!himmelListe.length) return
@@ -539,11 +541,11 @@ export async function create3dScene(container, {
     const fremhev = o?.type === 'formasjon' || o?.type === 'stjerne' ? o : null
     core.settValgtFormasjon(fremhev)
     if (o) freeRig.seMot(o.azimut, o.hoyde)
-    // Månen, Mars, Jupiter og Saturn åpner en globe. Alt annet lukker den, så man
-    // aldri sitter med en måne foran seg mens infokortet snakker om Orion.
+    // Sola, månen, Mars, Jupiter og Saturn åpner en globe. Alt annet lukker den,
+    // så man aldri sitter med en måne foran seg mens infokortet snakker om Orion.
     // core.aapneGlobe sier selv nei til legemer uten globe (Merkur, Venus,
     // stjernebilder), så porten står ETT sted — se harGlobe i himmelGlobe.js.
-    if (o && (o.type === 'mane' || o.type === 'planet')) aapneGlobe(o)
+    if (o && (o.type === 'sol' || o.type === 'mane' || o.type === 'planet')) aapneGlobe(o)
     else lukkGlobe()
   }
 

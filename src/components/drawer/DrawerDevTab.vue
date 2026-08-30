@@ -49,8 +49,13 @@ function toggleVaerDemo() {
 // Finnes fordi legemene er UNDER HORISONTEN store deler av tida — månen store
 // deler av døgnet, Mars, Jupiter og Saturn store deler av året — og da er både
 // globen og trykk-plukkingen umulig å prøve; man må vente på at himmelen selv
-// stiller seg riktig. Med flagget på løftes alle fire som HAR en globe opp i
-// himmelen. Merkur og Venus følger de ekte reglene: de har ingen globe å prøve.
+// stiller seg riktig. Med flagget på løftes de fire opp i himmelen. Merkur og
+// Venus følger de ekte reglene: de har ingen globe å prøve.
+//
+// SOLA (v6.5.6) HAR GLOBE MEN LØFTES IKKE. Bryteren finnes for legemer man må
+// VENTE på; sola er alltid i lista og alltid til å åpne. Og en tvunget sol ville
+// vært selvmotsigende: hele poenget med den er at den står der den står, og om
+// natta er det under terrengarket — som er nettopp da man vil se på den.
 //
 // Alt annet er fortsatt ekte — azimut, fase, lysside, avstand og lysstyrke. Bare
 // høyden er løftet, og bare for dem som sto lavere enn sin egen verdi.
@@ -286,11 +291,15 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
     </button>
     <div v-if="himmelTvang" class="text-[10px] text-ink/55 leading-relaxed mb-3 px-1">
       Nattmodus viser månen, Mars, Jupiter og Saturn selv når de står under
-      horisonten, så alle fire globene kan prøves når som helst. De står i en
+      horisonten, så de fire globene kan prøves når som helst. De står i en
       stige — Mars 30°, månen 35°, Jupiter 40°, Saturn 45° — så de ikke lander
       oppå hverandre. Trykk på et av dem for nærbildet. Merkur og Venus følger de
       ekte reglene; de har ingen globe. Azimut, fase, avstand og lysstyrke er
       fortsatt de ekte — bare høyden er løftet.
+      <strong class="text-ink/75">Sola løftes ikke</strong>, og det er med vilje:
+      den er alltid i lista og alltid til å åpne, og står den under horisonten er
+      det nettopp da den er verdt å se — under terrengarket, der den faktisk er.
+      Bryteren finnes for legemer man ellers må vente på.
     </div>
     <!-- Byggetider (perf): viser localStorage-loggen så den kan kopieres
          og deles — mobil-konsollen er upraktisk. -->
