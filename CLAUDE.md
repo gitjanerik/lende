@@ -1285,16 +1285,25 @@ lever med. De 35 ikke-test-kallstedene til `wgs84ToUtm32` trenger IKKE røres fo
 et brukbart ark over Spitsbergen. Øst for Edgeøya (0,37 %/11,6°) og på Kvitøya
 (0,52 %/23,3°) slutter det å være forsvarlig.
 
-**To ting står åpne og er verdt å ta uansett om Svalbard blir noe av:**
-1. `hoyde_dom10_33`, appens TREDJE DEM-fallback, er DØD — «UKJENT APPLIKASJON».
-   Hvert kartbygg som når DOM-fallbacken betaler en round-trip til en tjeneste
-   som ikke finnes, samme kostnad som de tre spekulative DTM-1m-coveragene som
-   ble trimmet vekk i v8.10.18.
-2. Over Svalbard fabrikkerer pipelinen i stillhet: WCS feiler → `buildSyntheticDEM`
-   → og `maybeFillFromTerrarium` hopper eksplisitt over kilder som starter med
-   «synthetic». Resultatet er ikke en feilmelding, men et kart som ser ekte ut og
-   er oppdiktet. Utenfor Kartverket-dekning bør pipelinen nekte, eller la
-   Terrarium bli primærkilde.
+**Proben fant også en død fallback, og den er FJERNET (v6.5.11).**
+`hoyde_dom10_33` — appens tredje DEM-endepunkt, DOM 10 m som siste utvei —
+svarer «UKJENT APPLIKASJON». Den lå serielt ETTER de to DTM-ene, så hvert
+kart-bygg der begge feilet betalte en ekstra round-trip og et 15 s klient-tak
+på nøyaktig den stien der brukeren allerede venter lengst. Testen i
+`demFetcher.timeout.test.js` holder den nede, og den er verifisert i begge
+retninger. Lærdommen for lista i `WCS_ENDPOINTS`: **et endepunkt er ikke sant
+fordi det var sant en gang** — legges eller trimmes noe der, mål først.
+
+**ÉN TING STÅR ÅPEN, og den er et bevisst utsatt valg:** over Svalbard
+fabrikkerer pipelinen i stillhet. WCS feiler → `buildSyntheticDEM` → og
+`maybeFillFromTerrarium` hopper eksplisitt over kilder som starter med
+«synthetic». Resultatet er ikke en feilmelding, men et kart som ser ekte ut og
+er oppdiktet. To veier ble skissert — la pipelinen NEKTE utenfor dekning, eller
+la Terrarium bli primærkilde når WCS feiler — og eieren valgte i august 2026 å
+la begge ligge framfor å endre kjernen på samme PR som en sletting. Terrarium-
+veien er den målingene peker mot, men den gjør DEM-et «ekte» for `isRealDem`,
+`demTileCache` og `seaFromDem`, altså en reell atferdsendring og ikke en
+opprydning.
 
 Og for helhetens skyld: DEM løser bare halve arket. N50-flisene (sti og areal)
 er per fylke på fastlandet, ~60 % av Svalbard er isbre (kode 410, som bor i

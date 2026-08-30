@@ -1,3 +1,28 @@
+## 2026-08-30 — v6.5.11: Den døde DOM10-fallbacken er ute
+
+`hoyde_dom10_33` — appens tredje DEM-endepunkt, DOM 10 m som siste utvei — er
+fjernet fra `WCS_ENDPOINTS`. Den svarer «*** UKJENT APPLIKASJON *** Applikasjon
+'/skwms1/wcs.hoyde-dom10_33' er ukjent», målt av Svalbard-proben som spurte den
+underveis. Den lå serielt ETTER de to hedgede DTM-ene, så hvert kart-bygg der
+begge feilet betalte en ekstra round-trip og et 15 s klient-tak på nøyaktig den
+stien der brukeren allerede venter lengst — samme kostnad som de tre gjettede
+DTM-1m-coveragene som ble trimmet i v8.10.18, bare med en tjeneste som en gang
+faktisk fantes. Det er lærdommen som er skrevet inn over lista: et endepunkt er
+ikke sant fordi det var sant en gang, så både tillegg og trimminger skal måles
+først, og proben er verktøyet.
+
+Sletting uten en test er en sletting som blir angret i god tro, så
+`demFetcher.timeout.test.js` låser at fetch treffer nøyaktig to endepunkter og
+at ingen av URL-ene inneholder «dom10». Den er verifisert i BEGGE retninger:
+grønn på riktig kode, rød når endepunktet settes tilbake. Fallback-testen teller
+nå 25 s i stedet for 40, siden de to gjenværende kjører hedget og er avgjort
+innen 19. Det andre funnet fra Svalbard-undersøkelsen — at pipelinen fabrikkerer
+et syntetisk ark i stillhet utenfor Kartverket-dekning — står bevisst igjen som
+et eget valg, ikke som et biprodukt av en opprydning; CLAUDE.md-seksjonen sier
+hvorfor og hva de to veiene koster.
+
+---
+
 ## 2026-08-30 — v6.5.10: Svalbard-undersøkelsen skrevet ned og lagt død
 
 Proben fra v6.5.9 kjørte, og svaret er skrevet inn i CLAUDE.md framfor å bli
