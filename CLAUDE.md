@@ -553,8 +553,21 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   større, eller å gi hver formasjon en pulsende ring som planetene, ble VURDERT OG
   FORKASTET av eieren: det er støy på en natthimmel, og problemet var aldri at
   figuren var vanskelig å SE.**
-- **Fremhevings-bufferet har ETT SEGMENT SLACK, og det er en driver-sak
-  (v6.3.11).** `LineSegmentsGeometry` legger start og ende i samme interleavede
+- **HVERT LINJEBUFFER I 3D HAR ETT SEGMENT SLACK, og det er en driver-sak
+  (v6.3.11, utvidet til alle fire i v6.5.5).** Regelen bor i
+  `lib/tour3d/linjeSegmenter.js` — ikke kall `setPositions` direkte på en
+  `LineSegmentsGeometry`; en test feiler om noen gjør det igjen. Den gjaldt fire
+  buffere og hadde bare truffet ett: kurvene, stinettet og vegene manglet den, og
+  DER er symptomet et helt annet enn i himmelen. Origo er kartets midtpunkt i
+  havnivå, så siste kurvestrek ble en snorrett rød linje tvers over arket —
+  eieren meldte det som «høydekurver som ikke følger terrenget» fra Stormoen og
+  Stetind. Tellingen var diagnosen: NØYAKTIG to linjer i hvert skjermbilde, med
+  hver sin strektykkelse, og `contourLines` bygger nøyaktig to `LineSegments2`.
+  Én bom per buffer — en void-rampe eller et flatt platå i DEM-en ville gitt
+  mange spøkelseslinjer spredt utover. `instanceCount` MÅ settes til de ekte
+  segmentene: den er `Infinity` som default, og en strek fra origo til origo er
+  ikke ingenting når `LineMaterial` har bredde i PIKSLER.
+- **Mekanikken bak slacken (v6.3.11).** `LineSegmentsGeometry` legger start og ende i samme interleavede
   buffer: 24-byte stride, `instanceEnd` 12 byte inn. For den SISTE instansen
   slutter `instanceEnd` nøyaktig på bufferets siste byte — lovlig etter
   spesifikasjonen (`offset + stride·(n−1) + size`), men en driver som regner
@@ -565,6 +578,12 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   tre gamle målingene (3 av 4, 4 av 5, 6 av 10) som `_maxInstanceCount` alene
   ikke gjorde. Slacken koster 24 byte. Tar du bufferet ned til eksakt størrelse
   igjen, mister du den siste streken i den største figuren.
+  **RETTELSE FRA v6.5.5: driveren DROPPER trolig ikke instansen — den leverer
+  NULLER for den** (robust buffer access). I himmelen er origo kuppelens sentrum,
+  altså kameraets egen posisjon, så den bomme streken peker rett mot betrakteren
+  og kollapser til ingenting på skjermen; «12 av 13» og «den 13. gikk til origo»
+  er samme observasjon der. På kartet er origo et sted langt unna, og da SER man
+  den. Fiksen er den samme uansett hvilken av de to driveren gjør.
 - **Globene er OBJEKT-INSPEKTØRER, ikke reiser (v6.0.0, utvidet i v6.2.0).**
   `lib/tour3d/himmelGlobe.js` (byggeren) + `lib/tour3d/himmellegemer.js` (dataen).
   Månen, Mars, Jupiter og Saturn kan åpnes som roterbare kuler. Eieren ba om en

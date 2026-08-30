@@ -11,6 +11,7 @@ import {
 } from 'three'
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
+import { settLinjeSegmenter } from './linjeSegmenter.js'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import { STJERNER, LINJER, FORMASJONER } from './stjerner.js'
 import { PLANETER, synligePlaneter } from './planeter.js'
@@ -441,9 +442,10 @@ const VALGT_LINJE_BREDDE_PX = 2.6
 // en driver som regner kravet som `offset + stride·n` finner 12 byte for lite og
 // DROPPER den siste instansen. Eierens telefon gjør nøyaktig det: Dragen har 13
 // streker og fikk tegnet 12 — halen manglet den siste. SwiftShader og desktop
-// tegner alle 13, så den er usynlig herfra. Slacken koster 24 byte.
+// tegner alle 13, så den er usynlig herfra. Slacken koster 24 byte, og bor fra
+// v6.5.5 i linjeSegmenter.js — den gjaldt tre andre buffere også, og de tegnet
+// linjer tvers over kartet i stedet for å miste en strek (se den fila).
 const VALGT_LINJE_KAPASITET = Math.max(1, ...FORMASJONER.map((f) => f.linjer.length))
-const VALGT_LINJE_SLACK = 1
 // Hvor mye større stjernene i den valgte formasjonen tegnes. 1,6 er nok til at
 // figuren løfter seg ut av himmelen uten at den ser ut som en annen himmel.
 const VALGT_STJERNE_FAKTOR = 1.6
@@ -608,7 +610,11 @@ export function buildNightSky({
     const linjePos = linjePunkter(LINJER)
     if (linjePos.length) {
       const linjeGeo = new LineSegmentsGeometry()
-      linjeGeo.setPositions(linjePos)
+      // Slack på siste segment: uten den peker den siste stjernebilde-streken
+      // mot kuppelens sentrum, altså rett mot betrakteren, og LESES som at den
+      // mangler. Det var symptomet i v6.3.11 — bare fremhevings-bufferet fikk
+      // fiksen den gang. Se linjeSegmenter.js.
+      settLinjeSegmenter(linjeGeo, linjePos)
       const linjeMat = new LineMaterial({
         color: new Color('#9fb6d8'),
         linewidth: LINJE_BREDDE_PX,
@@ -628,10 +634,9 @@ export function buildNightSky({
     // allokeres ÉN gang på maks størrelse (se VALGT_LINJE_KAPASITET) og fylles
     // ved valg; `setPositions` med et Float32Array tar arrayet i bruk direkte, så
     // `valgtBuffer` ER geometriens minne.
-    valgtBuffer = new Float32Array((VALGT_LINJE_KAPASITET + VALGT_LINJE_SLACK) * 6)
     valgtLinjeGeo = new LineSegmentsGeometry()
-    valgtLinjeGeo.setPositions(valgtBuffer)
-    valgtLinjeGeo.instanceCount = 0
+    settLinjeSegmenter(valgtLinjeGeo, [], { kapasitet: VALGT_LINJE_KAPASITET })
+    valgtBuffer = valgtLinjeGeo.attributes.instanceStart.data.array
     const valgtMat = new LineMaterial({
       color: new Color('#ffe9a3'),
       linewidth: VALGT_LINJE_BREDDE_PX,

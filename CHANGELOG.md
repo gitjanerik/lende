@@ -1,3 +1,39 @@
+## 2026-08-30 — v6.5.5: De røde båndene i 3D var siste strek i hvert linjebuffer
+
+Eieren meldte høydekurver som ikke følger terrenget — snorrette røde bånd tvers
+over arket, fra Stormoen i Drammen og fra Stetind i Narvik, og i ett tilfelle
+svevende i lufta over horisonten. Det avgjørende i bildene var ikke hvor linjene
+lå, men hvor MANGE det var: nøyaktig to, i alle fire skjermbildene, og med hver
+sin strektykkelse. `contourLines` bygger nøyaktig to `LineSegments2` — én for
+vanlige kurver (2,2 px, opasitet 0,55) og én for tellekurver (3,2 px, 0,9) — og
+tykkelsene i bildene stemte med begge. Én bom per buffer, ikke en feil i dataene:
+en void-rampe eller et flatt platå i DEM-en ville gitt mange spøkelseslinjer
+spredt utover, ikke to.
+
+Det er den samme driver-feilen som ble funnet i v6.3.11, i en fil som ikke fikk
+fiksen. `LineSegmentsGeometry` legger start og ende i samme interleavede buffer,
+24-byte stride med `instanceEnd` 12 byte inn, så for den SISTE instansen slutter
+`instanceEnd` nøyaktig på bufferets siste byte. Spesifikasjonen tillater det; en
+driver som regner kravet som `offset + stride·n` finner 12 byte for lite og
+leverer nuller — og null i tre floats ER world-origo, altså midt på kartet i
+havnivå. Siste kurvestrek blir derfor en rett linje fra der kurven sluttet og
+tvers over arket. Det forklarer samtidig hvorfor v6.3.11 leste symptomet som at
+en strek MANGLET: i stjernehimmelen er origo kuppelens sentrum, altså kameraets
+egen posisjon, så den bomme streken peker rett mot betrakteren og kollapser til
+ingenting. Samme feil, to helt ulike symptomer, fordi origo betyr noe forskjellig
+i de to scenene.
+
+Regelen bor nå i `lib/tour3d/linjeSegmenter.js` og ikke i én kommentar ett sted:
+den gjaldt fire buffere, og bare ett av dem hadde den. Kurvene, stinettet, vegene
+og de svake stjernebilde-strekene går alle gjennom den, og `instanceCount` settes
+til de ekte segmentene så slacken aldri tegnes — en strek fra origo til origo er
+ikke ingenting når `LineMaterial` har bredde i piksler. Feilen er per
+konstruksjon usynlig i CI, i enhetstester og i røyktesten, siden SwiftShader og
+desktop leser innenfor spesifikasjonen; testene holder derfor fast mekanikken, og
+en egen sjekk feiler om et nytt buffer kaller `setPositions` direkte igjen.
+
+---
+
 ## 2026-08-30 — v6.5.4: Fotografiet ligger der navnene står, og Saturn har ringene sine
 
 Eieren meldte to ting fra natthimmelen, og de viste seg å ha samme rot i den ene

@@ -48,8 +48,12 @@ function yVerdier(nett) {
   const ut = []
   for (const g of nett.geometries) {
     // LineSegmentsGeometry lagrer hvert segment som start+slutt i `instanceStart`.
+    // BARE de segmentene som faktisk TEGNES: bufferet har ett segment slack på
+    // toppen (se linjeSegmenter.js), og halen er nuller. Leser man hele arrayet,
+    // ser man en sti på havnivå som ingen tegner.
     const a = g.getAttribute('instanceStart').data.array
-    for (let i = 1; i < a.length; i += 3) ut.push(a[i])
+    const slutt = g.instanceCount * 6
+    for (let i = 1; i < slutt; i += 3) ut.push(a[i])
   }
   return ut
 }

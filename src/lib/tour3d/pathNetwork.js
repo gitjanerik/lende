@@ -13,6 +13,7 @@
 import { Group } from 'three'
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
+import { settLinjeSegmenter } from './linjeSegmenter.js'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import { sampleElevation } from '../demSampling.js'
 
@@ -74,7 +75,10 @@ export function buildPathNetwork(features, dem, coords, { liftM = 4 } = {}) {
     }
     if (!pts.length) return
     const geo = new LineSegmentsGeometry()
-    geo.setPositions(pts)
+    // Slack på siste segment — samme grunn som i contourLines. Se
+    // linjeSegmenter.js: uten den blir siste veg- og siste sti-strek to rette
+    // linjer til world-origo.
+    settLinjeSegmenter(geo, pts)
     const mat = new LineMaterial({
       color: wantSti ? STI_COLOR : VEG_COLOR,
       linewidth: wantSti ? 2.6 : 3.4,
