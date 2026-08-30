@@ -12,6 +12,8 @@
 // Output er GML 3.2 (ikke GeoJSON) — vi parser med regex (DOM-fri, testbar).
 // EPSG:4258 (ETRS89) ≈ WGS84; akserekkefølge lat,lon (både i bbox og posList).
 
+import { stripHtml, stripHtmlEnLinje } from './htmlTekst.js'
+
 const WFS_BASE =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_KULTURMINNE_WFS_URL) ||
   'https://wfs.geonorge.no/skwms1/wfs.kulturminner'
@@ -166,7 +168,10 @@ export function centroidFromPosList(posList) {
 // — ellers ser alle punktene i f.eks. «Oscarsborg festning» like ut på toppen.
 export function splitInformasjon(raw) {
   if (!raw) return { enkeltminne: null, lokalitet: null }
-  const s = String(raw)
+  // Askeladden-tekstene er også brukerskrevne og kan bære markup — samme
+  // stripping som brukerminnene, gjort HER så begge halvdelene er rene.
+  const s = stripHtml(raw)
+  if (!s) return { enkeltminne: null, lokalitet: null }
   const enkIdx = s.search(/Beskrivelse fra Enkeltminne\s*:/i)
   const lokIdx = s.search(/Beskrivelse fra lokalitet\s*:/i)
   if (enkIdx >= 0) {
@@ -301,7 +306,7 @@ export function parseWfsKulturminner(gml) {
       id: firstTag(block, 'kulturminneId') || firstTag(block, 'lokalId') || idm?.[1] || null,
       lat: c.lat,
       lon: c.lon,
-      navn: firstTag(block, 'navn'),
+      navn: stripHtmlEnLinje(firstTag(block, 'navn')) || null,
       // lokalitetsart er en tallkode i WFS-en (ikke lesbar) → utelatt; full
       // lesbar info ligger i `informasjon` og bak kulturminnesok-lenken.
       vernetype: vi.text,

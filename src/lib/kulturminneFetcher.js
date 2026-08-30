@@ -27,6 +27,8 @@
 // verneFetcher/nveLakeFetcher). Overstyres med VITE_KULTURMINNE_URL; lokal dev
 // direkte mot opphavet:
 // VITE_KULTURMINNE_URL=https://api.ra.no/brukerminner/collections/brukerminner/items
+import { stripHtml, stripHtmlEnLinje } from './htmlTekst.js'
+
 const ITEMS_URL =
   import.meta.env?.VITE_KULTURMINNE_URL ??
   'https://lende-proxy.jepedersen73.workers.dev/brukerminner/collections/brukerminner/items'
@@ -63,7 +65,10 @@ export function kulturminneKategori(tittel) {
 // verdien er nøyaktig «null»), men lar ekte tekst stå urørt.
 export function cleanBeskrivelse(raw) {
   if (raw == null) return ''
-  return String(raw)
+  // Teksten er brukerskrevet og kan inneholde HTML (Charlottenborg gård kom med
+  // «<br />» på hver linje) — den strippes FØR «null»-linjene filtreres, ellers
+  // ville et «Beskrivelse: null<br />» sluppet unna linjefilteret.
+  return stripHtml(raw)
     .split('\n')
     .filter((line) => !/^\s*[^\n:]{1,40}:\s*null\s*$/i.test(line))
     .join('\n')
@@ -88,7 +93,7 @@ function mapFeatureLight(f) {
   if (!ll) return null
   const id = f?.id
   if (!id) return null
-  const tittel = f?.properties?.tittel ?? ''
+  const tittel = stripHtmlEnLinje(f?.properties?.tittel ?? '')
   return { id: String(id), lat: ll.lat, lon: ll.lon, tittel, kategori: kulturminneKategori(tittel) }
 }
 
@@ -104,7 +109,7 @@ function mapFeatureFull(f) {
           url: b.url,
           fotograf: b.fotograf ?? null,
           lisens: b.lisens ?? null,
-          beskrivelse: b.beskrivelse ?? null,
+          beskrivelse: b.beskrivelse ? stripHtml(b.beskrivelse) : null,
         }))
     : []
   return {
