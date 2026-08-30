@@ -76,13 +76,13 @@ export const HIMMEL_FAKTA = {
       { ar: '2020', tekst: 'Solar Orbiter (ESA/NASA) skytes opp og forlater ekliptikken for å se solas poler for første gang.' },
       { ar: '2024', tekst: 'Parker Solar Probe passerer 6,1 millioner km over overflaten, inne i koronaen — det nærmeste noe menneskelaget har vært en stjerne.' },
     ],
-    // LENKENE ER IKKE VERIFISERT ENNÅ (v6.5.6). «Sola» er tvetydig på begge
-    // tjenestene — det er også en kommune i Rogaland — og snl.no og
-    // no.wikipedia.org er sperret fra utviklingsmiljøene. Kandidatene under er
-    // altså et FORSLAG, ikke en måling. Kjør `npm run probe:lenker` (eller
-    // probe-himmellenker.yml i CI) og rett etter det den svarer; proben prøver
-    // alternativene i ALTERNATIVER samtidig. Se Jupiter-historien i filhodet for
-    // hva som skjer om man lar være.
+    // MÅLT I CI, ikke gjettet (v6.5.6). «Sola» er tvetydig på begge tjenestene —
+    // det er også en kommune i Rogaland — så proben fikk kandidatene og svarte:
+    //   snl.no/Sola          → 200 på sin egen adresse. Og snl.no/Solen
+    //                          OMDIRIGERER hit, som er beviset på at det er
+    //                          stjerna og ikke kommunen som eier det korte navnet.
+    //   snl.no/Sola_-_stjerne → 404. Mars-mønsteret gjelder altså ikke her.
+    //   no.wikipedia.org/Solen → 200 på sin egen adresse.
     snl: 'https://snl.no/Sola',
     wikipedia: 'https://no.wikipedia.org/wiki/Solen',
   },

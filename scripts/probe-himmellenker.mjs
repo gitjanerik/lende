@@ -23,18 +23,15 @@ const UA = 'LendeLenkeprobe/1.0 (https://github.com/gitjanerik/lende; turkart-ap
 
 // ALTERNATIVER: adresser vi IKKE har målt, men som kan være den riktige.
 //
-// Sola (v6.5.6) er tvetydig på begge tjenestene — «Sola» er også en kommune i
-// Rogaland — og hostene er sperret fra utviklingsmiljøene, så valget i
-// himmelFakta.js er et forslag og ikke en måling. Proben tester kandidatene
-// SAMMEN med den som står i koden, så utskriften sier hvilken som faktisk er
-// artikkelen om stjerna. Rett i himmelFakta.js etter det den svarer, og fjern
-// linja herfra når den er avgjort.
-const ALTERNATIVER = [
-  { hvor: 'kandidat:sol', felt: 'snl', url: 'https://snl.no/Sola_-_stjerne' },
-  { hvor: 'kandidat:sol', felt: 'snl', url: 'https://snl.no/Solen' },
-  { hvor: 'kandidat:sol', felt: 'wikipedia', url: 'https://no.wikipedia.org/wiki/Sola_(stjerne)' },
-  { hvor: 'kandidat:sol', felt: 'wikipedia', url: 'https://no.wikipedia.org/wiki/Sola' },
-]
+// Slik brukes den: står man med et tvetydig artikkelnavn, legg kandidatene her
+// og la CI svare framfor å gjette. De prøves SAMMEN med den som er i bruk, og
+// utskriften merker dem «kandidat:» så de ikke forveksles med en ekte lenke.
+// Tøm lista igjen når spørsmålet er avgjort.
+//
+// Sola (v6.5.6) gikk gjennom nettopp dette — «Sola» er også en kommune i
+// Rogaland — og svaret står nå i himmelFakta.js: snl.no/Sola er stjerna, og
+// snl.no/Solen omdirigerer dit. Kandidatene er derfor tatt ut igjen.
+const ALTERNATIVER = []
 
 const lenker = []
 for (const [id, f] of Object.entries(HIMMEL_FAKTA)) {
@@ -55,9 +52,17 @@ const pust = (ms) => new Promise((r) => setTimeout(r, ms))
  * GET og ikke HEAD: SNL svarer 405 på HEAD, og Wikipedia følger ikke omdirigering
  * likt for de to metodene. Vi leser ikke kroppen, bare statusen og hvor vi endte.
  *
- * EN OMDIRIGERING ER IKKE ET OK SVAR HER, og det er hele poenget: Wikipedia sender
- * et feilstavet artikkelnavn videre til søk eller til en annen artikkel med 200.
- * Vi rapporterer derfor sluttadressen, så et stille bytte er synlig.
+ * EN OMDIRIGERING ER IKKE ET OK SVAR HER, og det er hele poenget: en tjeneste
+ * sender et feilstavet artikkelnavn videre til en annen artikkel med 200. Vi
+ * rapporterer derfor sluttadressen, så et stille bytte er synlig. Slik ble det
+ * målt at snl.no/Solen egentlig er snl.no/Sola (v6.5.6).
+ *
+ * MERK GRENSA: dette fanger SNL, som bruker ekte HTTP-omdirigering, men ikke
+ * MediaWiki — Wikipedia serverer en omdirigert artikkel som 200 på den adressen
+ * man SPURTE om, med en «Omdirigert fra»-note i sida. En Wikipedia-lenke som
+ * svarer ✓ her er altså bevist å FINNES og å peke på riktig emne, men ikke å
+ * være det kanoniske artikkelnavnet. Det er godt nok til formålet: lenka er
+ * veien videre for en leser, ikke en kilde vi siterer.
  */
 async function slaOpp(url) {
   try {
