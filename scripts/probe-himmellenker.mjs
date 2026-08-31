@@ -34,15 +34,14 @@ const UA = 'LendeLenkeprobe/1.0 (https://github.com/gitjanerik/lende; turkart-ap
 const ALTERNATIVER = [
   // v6.5.14: Tyren, Ørnen og Nordlige krone kom inn. no.wikipedia.org er sperret
   // fra utviklingsmiljøene, så adressene kunne ikke prøves der de ble skrevet.
-  // Ørnen er BEKREFTET av eieren; de to andre står igjen med et spørsmål hver.
+  // Tyren og Ørnen er BEKREFTET av eieren; kronen står igjen med et spørsmål.
   //
-  // TYREN ER DEN SOM MÅ FØLGES OPP. Adressen i bruk er «Tyren (stjernetegn)»,
-  // altså ASTROLOGI-artikkelen — den eneste eieren fant. Alle de andre lenkene i
-  // kortet peker på stjernebildet, og et infokort om en figur på himmelen skal
-  // ikke sende leseren til horoskopet. Svarer «Tyren (stjernebilde)» her, er det
-  // den som skal brukes.
-  { hvor: 'stjernebilde:tyren', felt: 'kandidat', url: 'https://no.wikipedia.org/wiki/Tyren_(stjernebilde)' },
-  { hvor: 'stjernebilde:tyren', felt: 'kandidat', url: 'https://no.wikipedia.org/wiki/Tyren' },
+  // TYREN VAR INNOM «Tyren (stjernetegn)» i én commit, og det var feil på en
+  // måte verdt å huske: adressen SVARER, så en probe som bare måler status ville
+  // godtatt den — men artikkelen handler om ASTROLOGI. Lende peker aldri dit.
+  // Riktig adresse er den rene «Tyren». Lærdommen for lista her: en lenke som
+  // svarer er ikke det samme som en lenke som er riktig, så les hva artikkelen
+  // ER, ikke bare hva den returnerer.
   { hvor: 'stjernebilde:nordlige-krone', felt: 'kandidat', url: 'https://no.wikipedia.org/wiki/Corona_Borealis' },
   { hvor: 'stjernebilde:nordlige-krone', felt: 'kandidat', url: 'https://no.wikipedia.org/wiki/Den_nordlige_krone' },
   { hvor: 'stjernebilde:nordlige-krone', felt: 'kandidat', url: 'https://no.wikipedia.org/wiki/Nordlige_krone_(stjernebilde)' },

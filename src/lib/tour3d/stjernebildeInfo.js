@@ -191,7 +191,7 @@ export const STJERNEBILDE_INFO = {
   },
   tyren: {
     latin: 'Taurus',
-    wikipedia: 'https://no.wikipedia.org/wiki/Tyren_(stjernetegn)',
+    wikipedia: 'https://no.wikipedia.org/wiki/Tyren',
     mytologi: 'Zevs i skikkelse av en hvit okse, som bar Europa over havet til '
       + 'Kreta. Bare framparten er med på himmelen — resten er under vann, og '
       + 'oksen stiger opp av havet med jenta på ryggen.',
