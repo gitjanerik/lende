@@ -285,6 +285,28 @@ for (const id of ['kp-1m', 'kp-varsel', 'solvind-fart', 'solvind-magfelt',
     console.log(`  siste: ${JSON.stringify(d[d.length - 1])}`)
   } else if (Array.isArray(d)) {
     console.log(`  ${d.length} objekter, siste: ${JSON.stringify(d[d.length - 1])}`)
+    // FERSKHET, og den må måles og ikke leses av rekkefølgen: rtsw-filene fletter
+    // ACE og DSCOVR, så SISTE rad er ikke nødvendigvis den nyeste — og en rad kan
+    // være merket active:false. Et panel som viser «siste rad» kan derfor vise et
+    // døgngammelt tall uten at noe ser galt ut.
+    const tid = (o) => Date.parse(String(o?.time_tag ?? '').replace(' ', 'T')
+      + (String(o?.time_tag ?? '').endsWith('Z') ? '' : 'Z'))
+    const gyldige = d.filter((o) => Number.isFinite(tid(o)))
+    if (gyldige.length) {
+      const nyest = gyldige.reduce((a2, b2) => (tid(b2) > tid(a2) ? b2 : a2))
+      const alder = (Date.now() - tid(nyest)) / 60000
+      console.log(`  nyeste time_tag: ${nyest.time_tag} (${alder.toFixed(0)} min gammel)`)
+      if (gyldige.some((o) => 'active' in o)) {
+        const aktive = gyldige.filter((o) => o.active)
+        if (aktive.length) {
+          const na = aktive.reduce((a2, b2) => (tid(b2) > tid(a2) ? b2 : a2))
+          console.log(`  nyeste med active:true: ${na.time_tag} `
+            + `(${((Date.now() - tid(na)) / 60000).toFixed(0)} min, kilde ${na.source})`)
+        } else {
+          console.log('  INGEN rad har active:true — hele fila er passiv')
+        }
+      }
+    }
   } else {
     console.log(`  ${JSON.stringify(d).slice(0, 300)}`)
   }
