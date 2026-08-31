@@ -19,8 +19,53 @@
 //      jorda — et lag som ser ut til å virke og er helt galt.
 //   5. Hva står det FAKTISK over Norge nå? Uten det vet vi ikke om panelet noen
 //      gang viser noe interessant, eller om tallene er null hele året.
-//   6. Hvilken form har Kp og solvind? De er «tabell-JSON» ([[hode],[rad],…]),
-//      ikke objekter, og feltrekkefølgen må leses av og ikke antas.
+//   6. Hvilken form har Kp og solvind, og hvor FERSKE er radene? Formen må
+//      leses av og ikke antas — og ferskheten kan ikke leses av rekkefølgen.
+//
+// ── HVA TRE RUNDER 2026-08-31 FAKTISK MÅLTE ─────────────────────────────────
+// Står her og ikke bare i en commit-melding, fordi neste økt starter blind.
+//
+// ALT SVARER MED CORS «*» OG UTEN UA-KRAV. Nordlys trenger derfor IKKE en
+// Worker-rute slik værvarselet gjør — MET-ruta finnes fordi User-Agent er en
+// forbudt header i nettleserens fetch(), og NOAA stiller ikke det kravet.
+// Ruter vi det likevel, er begrunnelsen DATAMENGDE og ikke CORS.
+//
+// OVATION (json/ovation_aurora_latest.json): 65 160 punkter, 1° × 1°,
+//   897 kB rå / 152 kB gzippet, cache-control 60 s.
+//   • LENGDEGRAD ER 0–360, ikke −180..180. Fella er stille: 10,4 °E sendt som
+//     −349,6 gir svar fra feil side av jorda, og laget ser ut til å virke.
+//   • «latest» ER ET VARSEL, ikke et nå-bilde: Observation Time 22:09,
+//     Forecast Time 23:16. Panelet må si det, ellers lover vi noe om himmelen
+//     i dette øyeblikket som kilden ikke sier.
+//   • Norge-skive (55–85°N, −5–40°E): 1426 punkter, 3 kB gzippet. 50× mindre
+//     enn hele fila — DET er argumentet for at Workeren klipper.
+//   • Målt en rolig natt (Kp 0): Tromsø 10 %, Nordkapp 9 %, Trondheim 3 %,
+//     Vardåsen 0 %. Altså ikke null i nord selv når sola sover.
+//
+// SOLVIND: BRUK summary-FILENE, IKKE rtsw. Begge er like ferske (6–9 min), men
+//   /products/summary/solar-wind-speed.json      < 1 kB  {proton_speed, time_tag}
+//   /products/summary/solar-wind-mag-field.json  < 1 kB  {bt, bz_gsm, time_tag}
+//   /json/rtsw/rtsw_wind_1m.json              2 597 kB  3593 objekter à 26 felt
+//   /json/rtsw/rtsw_mag_1m.json               1 542 kB  3726 objekter
+// altså ~2 600× forskjell for de to tallene et panel viser. rtsw er riktig kilde
+// den dagen vi vil TEGNE en historikk; til ett tall er den ren datamengde.
+//
+//   OG rtsw HAR EN FELLE SOM SER RIKTIG UT: ARRAYET ER IKKE TIDSSORTERT. Siste
+//   rad i wind-fila var ACE fra 2026-08-30T22:22 med active:false — et DØGN
+//   gammel — mens nyeste rad var 22:18 samme kveld, kilde SOLAR1. En klient som
+//   gjør d[d.length − 1] får altså et plausibelt, men døgngammelt tall. Filtrer
+//   på active og velg største time_tag. (Jeg konkluderte selv feil på dette i
+//   runde 2, av nettopp den grunnen, og runde 3 rettet det.)
+//
+// Kp: json/planetary_k_index_1m.json (27 kB, {time_tag, kp_index, estimated_kp})
+// Kp-varsel: products/noaa-planetary-k-index-forecast.json (7 kB, 3-t bolker)
+//   Begge er OBJEKT-JSON og ikke tabell-JSON ([[hode],[rad],…]) som jeg antok.
+//
+// MÅLTE 404-ER, så ingen prøver dem igjen: products/solar-wind/plasma-1-day.json,
+//   mag-1-day.json, plasma-2-hour.json, mag-2-hour.json, katalogen
+//   products/solar-wind/ og products/ovation_aurora_latest.json. Det finnes
+//   INGEN egen 30-minutters OVATION — «latest» er varselet.
+// ────────────────────────────────────────────────────────────────────────────
 //
 // Skriver INGENTING og avslutter med 0 uansett — samme prinsipp som
 // probe-himmellenker og probe-himmelkart. LES UTSKRIFTEN.
