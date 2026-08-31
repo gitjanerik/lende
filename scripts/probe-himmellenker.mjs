@@ -32,14 +32,17 @@ const UA = 'LendeLenkeprobe/1.0 (https://github.com/gitjanerik/lende; turkart-ap
 // Rogaland — og svaret står nå i himmelFakta.js: snl.no/Sola er stjerna, og
 // snl.no/Solen omdirigerer dit. Kandidatene er derfor tatt ut igjen.
 const ALTERNATIVER = [
-  // v6.5.14: Tyren, Ørnen og Nordlige krone kom inn, og de tre adressene er
-  // GJETTET etter mønsteret de femten andre følger — no.wikipedia bruker bare
-  // navnet når det er entydig (Kassiopeia, Lyren, Svanen) og «(stjernebilde)»
-  // når det ikke er det (Orion, Pegasus, Persevs). Hvilken av delene som gjelder
-  // for disse tre kan ikke prøves herfra: no.wikipedia.org er sperret fra
-  // utviklingsmiljøene. La CI svare, og rydd lista når spørsmålet er avgjort.
+  // v6.5.14: Tyren, Ørnen og Nordlige krone kom inn. no.wikipedia.org er sperret
+  // fra utviklingsmiljøene, så adressene kunne ikke prøves der de ble skrevet.
+  // Ørnen er BEKREFTET av eieren; de to andre står igjen med et spørsmål hver.
+  //
+  // TYREN ER DEN SOM MÅ FØLGES OPP. Adressen i bruk er «Tyren (stjernetegn)»,
+  // altså ASTROLOGI-artikkelen — den eneste eieren fant. Alle de andre lenkene i
+  // kortet peker på stjernebildet, og et infokort om en figur på himmelen skal
+  // ikke sende leseren til horoskopet. Svarer «Tyren (stjernebilde)» her, er det
+  // den som skal brukes.
+  { hvor: 'stjernebilde:tyren', felt: 'kandidat', url: 'https://no.wikipedia.org/wiki/Tyren_(stjernebilde)' },
   { hvor: 'stjernebilde:tyren', felt: 'kandidat', url: 'https://no.wikipedia.org/wiki/Tyren' },
-  { hvor: 'stjernebilde:ornen', felt: 'kandidat', url: 'https://no.wikipedia.org/wiki/%C3%98rnen' },
   { hvor: 'stjernebilde:nordlige-krone', felt: 'kandidat', url: 'https://no.wikipedia.org/wiki/Corona_Borealis' },
   { hvor: 'stjernebilde:nordlige-krone', felt: 'kandidat', url: 'https://no.wikipedia.org/wiki/Den_nordlige_krone' },
   { hvor: 'stjernebilde:nordlige-krone', felt: 'kandidat', url: 'https://no.wikipedia.org/wiki/Nordlige_krone_(stjernebilde)' },
