@@ -56,7 +56,8 @@ export const STJERNEBILDE_INFO = {
       + 'Navnet Arcturus betyr «bjørnevokter» på gresk.',
     funFact: 'Arcturus er den lyseste stjerna på hele den nordlige stjernehimmelen '
       + 'og nummer fire i verden. Det var også her Halley i 1718 oppdaget at '
-      + 'stjerner beveger seg: Arcturus hadde flyttet seg merkbart siden antikken.',
+      + 'stjerner beveger seg: Arcturus hadde flyttet seg merkbart siden '
+      + 'antikken. Like til venstre for Arcturus ligger Nordlige krone.',
     finnDen: 'Følg svaien i Karlsvognas skaft videre i samme bue — den peker rett '
       + 'på Arcturus. «Følg buen til Arcturus» er den eldste huskeregelen som finnes.',
   },
@@ -118,7 +119,8 @@ export const STJERNEBILDE_INFO = {
       + 'geita».',
     funFact: 'Capella er den sjette lyseste stjerna på himmelen, og egentlig to '
       + 'gule kjempestjerner som går rundt hverandre på 104 døgn. Femkanten deler '
-      + 'hjørnestjerne med Tyren: Elnath tilhører formelt oksens horn.',
+      + 'hjørnestjerne med Tyren: Elnath er både kuskens hjørne og oksens '
+      + 'nordre horn, og streken deles derfor av begge figurene.',
     finnDen: 'En stor femkant høyt i sør om vinteren, med den skarpt gule Capella '
       + 'som den lyseste. Står rett OVER Orion — samme sted på himmelen, bare '
       + 'nesten 40 grader høyere.',
@@ -144,7 +146,8 @@ export const STJERNEBILDE_INFO = {
       + '12 000 år. Den var også den første stjerna som noen gang ble fotografert, '
       + 'i 1850. Mellom de to nederste stjernene i lyra ligger Ringtåken.',
     finnDen: 'Vega er den skarpt hvitblå stjerna nesten rett over hodet på '
-      + 'sommernetter, med et lite parallellogram hengende under.',
+      + 'sommernetter, med et lite parallellogram hengende under. Den er det '
+      + 'øverste hjørnet i Sommertriangelet; Svanen og Ørnen er de to andre.',
   },
   loven: {
     latin: 'Leo',
@@ -156,6 +159,21 @@ export const STJERNEBILDE_INFO = {
       + 'over. I november kommer meteorsvermen leonidene ut av dette området.',
     finnDen: 'Se etter en bakvendt spørsmålstegn-form (sigden) i sør om våren, '
       + 'med Regulus som punktet nederst.',
+  },
+  'nordlige-krone': {
+    latin: 'Corona Borealis',
+    wikipedia: 'https://no.wikipedia.org/wiki/Nordlige_krone',
+    mytologi: 'Ariadnes krone. Hun ga Tesevs tråden som førte ham ut av '
+      + 'labyrinten, og ble så forlatt på Naxos; Dionysos fant henne, giftet seg '
+      + 'med henne og kastet brudekransen opp på himmelen.',
+    funFact: 'Alphecca er den klareste perlen. I kronen ligger også T Coronae '
+      + 'Borealis, «flammestjerna» — en nova som blusser opp omtrent hvert '
+      + 'åttiende år og da blir synlig for bare øyet i noen netter. Sist gang '
+      + 'var i 1946, og den er ventet igjen. Det er ett av de få stedene på '
+      + 'himmelen der det kan stå en stjerne i kveld som ikke sto der i går.',
+    finnDen: 'En liten, tydelig halvsirkel av svake stjerner, like til venstre '
+      + 'for den sterkt gulrøde Arcturus. Halvsirkelen er åpen oppover, og '
+      + 'Alphecca sitter midt i buen.',
   },
   orion: {
     latin: 'Orion',
@@ -169,7 +187,37 @@ export const STJERNEBILDE_INFO = {
       + 'Orion-tåken, der nye stjerner blir til i dette øyeblikket.',
     finnDen: 'Tre like sterke stjerner på rad — beltet — er det lettest '
       + 'gjenkjennelige på hele himmelen. Beltet peker mot Sirius den ene veien '
-      + 'og Aldebaran den andre.',
+      + 'og mot Aldebaran i Tyren den andre.',
+  },
+  tyren: {
+    latin: 'Taurus',
+    wikipedia: 'https://no.wikipedia.org/wiki/Tyren_(stjernebilde)',
+    mytologi: 'Zevs i skikkelse av en hvit okse, som bar Europa over havet til '
+      + 'Kreta. Bare framparten er med på himmelen — resten er under vann, og '
+      + 'oksen stiger opp av havet med jenta på ryggen.',
+    funFact: 'Aldebaran er det røde øyet, en oppsvulmet kjempe 65 lysår unna — og '
+      + 'den hører IKKE til V-en den ser ut til å stå i. Hyadene bak er mer enn '
+      + 'dobbelt så langt borte, og er den nærmeste åpne stjernehopen vi har. '
+      + 'Rett over dem henger Sjustjerna. Ved det ene hornet, Tianguan, ligger '
+      + 'Krabbetåken: restene av stjerna som eksploderte i 1054 og var synlig på '
+      + 'lyse dagen i tre uker.',
+    finnDen: 'Følg Orions belte oppover mot høyre — den første sterke, rødlige '
+      + 'stjerna du treffer er Aldebaran. Rundt den ligger en tydelig V på sida, '
+      + 'som er oksens ansikt, og de to hornene peker videre oppover mot Kusken.',
+  },
+  ornen: {
+    latin: 'Aquila',
+    wikipedia: 'https://no.wikipedia.org/wiki/%C3%98rnen_(stjernebilde)',
+    mytologi: 'Zevs’ ørn, som bar tordenkilene hans og hentet gjeterguttet '
+      + 'Ganymedes opp til gudene for å skjenke i for dem.',
+    funFact: 'Altair snurrer rundt på under ti timer og er derfor målbart flat — '
+      + 'ekvator buler ut. Den er 17 lysår unna, altså en av våre nærmeste '
+      + 'naboer man kan se med bare øyet. Tarazed og Alshain står som en vakt på '
+      + 'hver sin side av den; en sterk stjerne med en følgesvenn i hver ende er '
+      + 'uvanlig, og det er dét man kjenner Ørnen på.',
+    finnDen: 'Det laveste av de tre hjørnene i Sommertriangelet, altså under '
+      + 'Vega og Deneb. Se etter en skarp stjerne med en mindre på hver side — '
+      + 'tre på rad — høyt i sør på sommernetter.',
   },
   pegasus: {
     latin: 'Pegasus',
@@ -214,7 +262,8 @@ export const STJERNEBILDE_INFO = {
       + 'gyllen og en blå stjerne side om side. Og her ligger Cygnus X-1, det '
       + 'første objektet astronomene godtok som et svart hull.',
     finnDen: 'Et stort kors langs Melkeveien, høyt i sør på sensommernetter. '
-      + 'Deneb er hjørnet i Sommertriangelet sammen med Vega og Altair.',
+      + 'Deneb er hjørnet i Sommertriangelet sammen med Vega i Lyren og '
+      + 'Altair i Ørnen.',
   },
   tvillingene: {
     latin: 'Gemini',

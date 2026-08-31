@@ -33,6 +33,7 @@ const KODE = {
   svanen: 'Cyg', lyren: 'Lyr', dragen: 'Dra', persevs: 'Per',
   bjornevokteren: 'Boo', kefeus: 'Cep', kusken: 'Aur', tvillingene: 'Gem',
   loven: 'Leo', andromeda: 'And', pegasus: 'Peg',
+  tyren: 'Tau', ornen: 'Aql', 'nordlige-krone': 'CrB',
 }
 
 const args = process.argv.slice(2)

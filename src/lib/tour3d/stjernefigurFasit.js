@@ -1,6 +1,6 @@
 // GENERERT AV scripts/bygg-figurfasit.mjs — IKKE REDIGER FOR HÅND.
 //
-// Standardfigurene for de femten stjernebildene Lende tegner, hentet fra
+// Standardfigurene for de atten stjernebildene Lende tegner, hentet fra
 // d3-celestials `data/constellations.lines.json` (ofrohn/d3-celestial, BSD-3)
 // og slått opp mot HYG for Bayer-betegnelser.
 //
@@ -147,6 +147,14 @@ export const FIGUR_FASIT = {
     "Gam Leo — Zet Leo",
     "Mu Leo — Zet Leo",
   ],
+  "nordlige-krone": [
+    "Alp CrB — Bet CrB",
+    "Alp CrB — Gam CrB",
+    "Bet CrB — The CrB",
+    "Del CrB — Eps CrB",
+    "Del CrB — Gam CrB",
+    "Eps CrB — Iot CrB",
+  ],
   "orion": [
     "Alp Ori — Gam Ori",
     "Alp Ori — Lam Ori",
@@ -226,5 +234,28 @@ export const FIGUR_FASIT = {
     "Eta Gem — Mu Gem",
     "Gam Gem — Xi Gem",
     "Gam Gem — Zet Gem",
+  ],
+  "tyren": [
+    "Alp Tau — The Tau",
+    "Alp Tau — Zet Tau",
+    "Bet Tau — Eps Tau",
+    "Del Tau — Eps Tau",
+    "Del Tau — Gam Tau",
+    "Gam Tau — Lam Tau",
+    "Gam Tau — The Tau",
+    "Lam Tau — Xi Tau",
+    "Nu Tau — Xi Tau",
+    "Omi Tau — Xi Tau",
+  ],
+  "ornen": [
+    "Alp Aql — Bet Aql",
+    "Alp Aql — Del Aql",
+    "Alp Aql — Gam Aql",
+    "Alp Aql — Zet Aql",
+    "Bet Aql — The Aql",
+    "Del Aql — Eta Aql",
+    "Del Aql — Lam Aql",
+    "Del Aql — Zet Aql",
+    "Eta Aql — The Aql",
   ],
 }

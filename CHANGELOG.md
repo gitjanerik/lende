@@ -1,3 +1,29 @@
+## 2026-08-31 — v6.5.14: Tyren, Ørnen og Nordlige krone på natthimmelen
+
+Tre nye stjernebilder, valgt etter hva som faktisk står høyt nok over en norsk
+horisont. Tyren fordi Orions eget infokort allerede pekte på Aldebaran uten at
+det fantes en figur å peke på; Ørnen fordi Sommertriangelet manglet sitt tredje
+hjørne mens Lyren og Svanen sto tegnet; Nordlige krone fordi den er en liten,
+tydelig halvsirkel som kulminerer på 57° i Oslo og 48° i Tromsø. Store hund ble
+vurdert og forkastet i samme runde: Sirius er himmelens lyseste stjerne, men
+figuren kulminerer på 13° i Oslo og 4° i Tromsø, og med 60 %-regelen i
+`MIN_ANDEL_OPPE` ville lista lovet noe man ikke kan se.
+
+Magnitudegrensa var ikke til hinder — baken henter figurstjerner uansett
+lysstyrke — så Hyadene og ørnevingene kom inn av seg selv; katalogen vokste fra
+173 til 191 stjerner. Figurene er hentet ut av den innbakte fasiten framfor å
+tegnes på frihånd, og Tyrens hals er bevisst utelatt som telefonskjerm-
+forenkling. Elnath deles med Kusken, slik Alpheratz deles av Pegasus og
+Andromeda. Kryss-lenkene er skrevet inn begge veier — Orion peker på Tyren,
+Lyren og Svanen på Ørnen, Bjørnevokteren på kronen — mens snarveiene i
+infokortet ordner seg selv, siden `naboerFor` måler vinkelavstand: kronen og
+Bjørnevokteren finner hverandre på 14°. Aldebaran, Altair og Alphecca er ikke
+lenger løse stjerner, så teksten om dem er flyttet inn i figurene og Tau, Aql og
+CrB er ute av `STJERNEBILDE_NAVN`. Wikipedia-adressene er gjettet etter mønster
+og lagt inn som kandidater i lenke-proben, siden no.wikipedia er sperret herfra.
+
+---
+
 ## 2026-08-31 — v6.5.13: «Orions belte» finner Orion
 
 Orions belte er ikke en egen konstellasjon — det er δ Mintaka, ε Alnilam og

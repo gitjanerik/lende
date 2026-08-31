@@ -132,14 +132,30 @@ describe('himmelObjekter', () => {
   })
 
   it('en stjerne kan søkes opp på navn, betegnelse og stjernebilde', () => {
-    // «Tyren» er ikke en figur vi tegner, men Aldebaran ER svaret på den — og
+    // «Lille hund» er ikke en figur vi tegner, men Procyon ER svaret på den — og
     // en søkeliste som ikke svarer på et stjernebildenavn er en søkeliste som
     // ser tom ut.
+    //
+    // STO PÅ ALDEBARAN FRAM TIL v6.5.14, og byttet er selve poenget: da Tyren
+    // ble tegnet, sluttet Aldebaran å være en løs stjerne. Testen må måle en som
+    // fortsatt er det, ellers måler den figur-stien i stedet.
     const liste = himmelObjekter({ ...STED, dato: VINTER })
-    const aldebaran = liste.find((o) => o.navn === 'Aldebaran')
-    expect(aldebaran, 'Aldebaran skal være oppe en vinterkveld').toBeTruthy()
-    for (const q of ['aldebaran', 'α Tauri', 'Alp Tau', 'Tyren', 'Taurus']) {
-      expect(filtrerHimmel(liste, q).some((o) => o.navn === 'Aldebaran'), q).toBe(true)
+    const procyon = liste.find((o) => o.navn === 'Procyon')
+    expect(procyon, 'Procyon skal være oppe en vinterkveld').toBeTruthy()
+    for (const q of ['procyon', 'α Canis Minoris', 'Alp CMi', 'Lille hund', 'Canis Minor']) {
+      expect(filtrerHimmel(liste, q).some((o) => o.navn === 'Procyon'), q).toBe(true)
+    }
+  })
+
+  it('Aldebaran svarer nå som Tyren, ikke som en løs stjerne', () => {
+    // Motprøven til testen over, og den holder v6.5.14 fast: stjerner i en figur
+    // tilbys IKKE også som løse (I_FORMASJON), så et søk på «Aldebaran» skal gi
+    // formasjonen — ikke to trefflater oppå hverandre.
+    const liste = himmelObjekter({ ...STED, dato: VINTER })
+    expect(liste.some((o) => o.type === 'stjerne' && o.navn === 'Aldebaran')).toBe(false)
+    for (const q of ['aldebaran', 'Tyren', 'Taurus', 'Elnath']) {
+      const treff = filtrerHimmel(liste, q)
+      expect(treff.some((o) => o.id === 'tyren'), q).toBe(true)
     }
   })
 

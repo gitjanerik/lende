@@ -49,9 +49,20 @@ describe('STJERNEBILDE_NAVN dekker de løse stjernene', () => {
 
 describe('bayerNavn', () => {
   it('skriver ut betegnelsen med gresk bokstav og genitiv', () => {
-    expect(bayerNavn('Alp Tau')).toBe('α Tauri')
+    expect(bayerNavn('Alp CMa')).toBe('α Canis Majoris')
     expect(bayerNavn('Zet Oph')).toBe('ζ Ophiuchi')
     expect(bayerNavn('Sig Sgr')).toBe('σ Sagittarii')
+  })
+
+  it('svarer null for et stjernebilde vi tegner figuren for', () => {
+    // Betegnelsen bygges av STJERNEBILDE_NAVN, som med vilje BARE dekker dem vi
+    // ikke tegner — figurene har navnet sitt i FORMASJONER. «Alp Tau» svarte
+    // «α Tauri» fram til v6.5.14, og slutta å gjøre det i det Tyren ble tegnet.
+    // Det er riktig: betegnelsen brukes bare på løse stjerner.
+    expect(bayerNavn('Alp Tau')).toBeNull()
+    expect(bayerNavn('Alp Aql')).toBeNull()
+    expect(bayerNavn('Alp CrB')).toBeNull()
+    expect(bayerNavn('Alp Ori')).toBeNull()
   })
 
   it('beholder komponent-nummeret som hevet skrift', () => {

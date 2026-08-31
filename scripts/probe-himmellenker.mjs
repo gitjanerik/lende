@@ -31,7 +31,19 @@ const UA = 'LendeLenkeprobe/1.0 (https://github.com/gitjanerik/lende; turkart-ap
 // Sola (v6.5.6) gikk gjennom nettopp dette — «Sola» er også en kommune i
 // Rogaland — og svaret står nå i himmelFakta.js: snl.no/Sola er stjerna, og
 // snl.no/Solen omdirigerer dit. Kandidatene er derfor tatt ut igjen.
-const ALTERNATIVER = []
+const ALTERNATIVER = [
+  // v6.5.14: Tyren, Ørnen og Nordlige krone kom inn, og de tre adressene er
+  // GJETTET etter mønsteret de femten andre følger — no.wikipedia bruker bare
+  // navnet når det er entydig (Kassiopeia, Lyren, Svanen) og «(stjernebilde)»
+  // når det ikke er det (Orion, Pegasus, Persevs). Hvilken av delene som gjelder
+  // for disse tre kan ikke prøves herfra: no.wikipedia.org er sperret fra
+  // utviklingsmiljøene. La CI svare, og rydd lista når spørsmålet er avgjort.
+  { hvor: 'stjernebilde:tyren', felt: 'kandidat', url: 'https://no.wikipedia.org/wiki/Tyren' },
+  { hvor: 'stjernebilde:ornen', felt: 'kandidat', url: 'https://no.wikipedia.org/wiki/%C3%98rnen' },
+  { hvor: 'stjernebilde:nordlige-krone', felt: 'kandidat', url: 'https://no.wikipedia.org/wiki/Corona_Borealis' },
+  { hvor: 'stjernebilde:nordlige-krone', felt: 'kandidat', url: 'https://no.wikipedia.org/wiki/Den_nordlige_krone' },
+  { hvor: 'stjernebilde:nordlige-krone', felt: 'kandidat', url: 'https://no.wikipedia.org/wiki/Nordlige_krone_(stjernebilde)' },
+]
 
 const lenker = []
 for (const [id, f] of Object.entries(HIMMEL_FAKTA)) {
