@@ -30,6 +30,7 @@ import Tour3dPinPanel from './Tour3dPinPanel.vue'
 import Tour3dInfoPanel from './Tour3dInfoPanel.vue'
 import Tour3dHud from './Tour3dHud.vue'
 import Tour3dVaerRad from './Tour3dVaerRad.vue'
+import Tour3dNordlysPanel from './Tour3dNordlysPanel.vue'
 import Tour3dHimmelSok from './Tour3dHimmelSok.vue'
 import Tour3dHimmelKort from './Tour3dHimmelKort.vue'
 import Tour3dHimmelKompass from './Tour3dHimmelKompass.vue'
@@ -40,6 +41,13 @@ import { svgToWgs84 } from '../../lib/utm.js'
 import { fetchVarsel, naaVarsel } from '../../lib/vaerFetcher.js'
 import { vaerTilHimmel } from '../../lib/tour3d/vaerHimmel.js'
 import { DEMO_STEG, DEMO_SEKUNDER, demoMaling } from '../../lib/tour3d/vaerDemo.js'
+import { hentNordlys } from '../../lib/nordlysFetcher.js'
+import { sannsynlighetFor, ovalenNordover } from '../../lib/nordlys.js'
+import { nordlysPreg } from '../../lib/tour3d/nordlysHimmel.js'
+import {
+  DEMO_STEG as NORDLYS_STEG, DEMO_SEKUNDER as NORDLYS_SEKUNDER,
+  demoMaling as nordlysDemoMaling, demoTall as nordlysDemoTall,
+} from '../../lib/tour3d/nordlysDemo.js'
 import { cacheGet, cacheSet, vaerPointKey, TTL } from '../../lib/protectedAreaCache.js'
 import { himmelObjekter, naboerFor } from '../../lib/tour3d/himmelObjekter.js'
 import { erNatt } from '../../lib/tour3d/astronomi.js'
@@ -99,6 +107,7 @@ function tekstBoks(vw, vh = null) {
 
 const KRYSSPAUSE_KEY = 'lende-3d-krysspause'
 const VAERDEMO_KEY = 'lende-3d-vaerdemo'
+const NORDLYSDEMO_KEY = 'lende-3d-nordlysdemo'
 // Utvikler-bryter fra Utvikler-fanen (DrawerDevTab): vis månen OG planetene med
 // globe selv når de står under horisonten. De er nede store deler av døgnet — og
 // Mars, Jupiter og Saturn store deler av året — og da kan verken globene eller
@@ -537,6 +546,7 @@ async function byggMotor() {
     if (nightOn.value) byggHimmelListe()
     // Vær-demoen slås på i Utvikler-fanen og overstyrer varselet.
     if (demoPaa.value) demoStart()
+    if (nordlysDemoPaa.value && nightOn.value) nordlysDemoStart()
 
     phase.value = 'ready'
 
@@ -577,6 +587,7 @@ onBeforeUnmount(() => {
   abort?.abort()
   clearTimeout(toastTimer)
   clearInterval(demoTimer)
+  clearInterval(nordlysDemoTimer)
   wake.stop()
   engine?.dispose()
   engine = null
@@ -760,6 +771,144 @@ function leggVaerPaaHimmelen() {
 // den begrunnelsen at «ser man en natthimmel, skal symbolet vise natt». Det ga
 // sol i raden klokka 00 så snart man sto i dagmodus, og det er feil på en helt
 // annen måte: raden er et VARSEL, ikke en illustrasjon av himmelen man har valgt.
+// ---- Nordlys ---------------------------------------------------------------
+// Speilbildet av værvarselet: været er en dagting, nordlyset en nattting. Samme
+// ett-oppslag-per-ark-regel, samme senterpunkt, samme graceful null.
+//
+// HENTES BARE NÅR NATTA SLÅS PÅ. Et nordlysvarsel har ingenting å si i dagmodus,
+// og OVATION-fila er 900 kB — et kall ingen ser er turgåerens datakvote. Se
+// watch(nightOn) nedenfor.
+//
+// PAKKES IKKE OFFLINE — se nordlysFetcher.js. Utdatert betyr FEIL her, som for
+// været, og en fil som har ligget en uke i en chat ville meldt forrige ukes storm
+// som om den gjaldt i kveld.
+const nordlys = ref(null)
+const nordlysAvvist = ref(false)
+let nordlysHentet = false
+
+// Panelet og gardinene henger på det SAMME flagget, så X-en tar bort begge —
+// nøyaktig som værradens X tar bort både raden og værhimmelen (v6.3.8).
+const nordlysOn = computed(() => nightOn.value && !nordlysAvvist.value)
+
+// Skydekket kommer fra MET-varselet vi ALLEREDE har hentet for arket. Vi spør
+// ikke på nytt: panelet trenger tallet, ikke en ny forespørsel.
+const nordlysSkydekke = computed(() => {
+  const v = vaer.value?.naa
+  return Number.isFinite(v?.skydekkeProsent) ? v.skydekkeProsent : null
+})
+
+async function hentNordlysdata() {
+  if (nordlysHentet) return
+  nordlysHentet = true
+  const m = props.meta
+  if (!m?.widthM || !m?.heightM) return
+  let punkt
+  try {
+    punkt = svgToWgs84(m.widthM / 2, m.heightM / 2, m)
+  } catch { return }
+  if (!Number.isFinite(punkt?.lat) || !Number.isFinite(punkt?.lon)) return
+  nordlys.value = { status: 'loading' }
+  try {
+    const d = await hentNordlys()
+    if (!d) { nordlys.value = { status: 'error' }; return }
+    const prosent = sannsynlighetFor(d.rutenett, punkt.lat, punkt.lon)
+    // Hvor ovalen ligger NORDOVER herfra avgjør hvor høyt på himmelen gardinene
+    // står. Leses av MÅLINGEN framfor å regnes ut av Kp — se ovalenNordover.
+    const oval = ovalenNordover(d.rutenett, punkt.lat, punkt.lon)
+    nordlys.value = {
+      status: 'done',
+      ...d,
+      prosent,
+      ovalGradNord: oval ? Math.max(0, oval.lat - punkt.lat) : null,
+    }
+  } catch {
+    nordlys.value = { status: 'error' }
+  }
+  // Hentingen kan ha landet etter at brukeren gikk ut av natta igjen.
+  if (nordlysOn.value) leggNordlysPaaHimmelen()
+}
+
+function leggNordlysPaaHimmelen() {
+  if (!engine) return
+  // Demoen vinner, som for været.
+  if (nordlysDemoPaa.value && nordlysDemoTimer) { nordlysDemoLegg(); return }
+  const d = nordlysOn.value && nordlys.value?.status === 'done' ? nordlys.value : null
+  engine.setNordlys(d ? nordlysPreg({
+    prosent: d.prosent,
+    ovalGradNord: d.ovalGradNord,
+    kp: d.kp,
+  }) : null)
+}
+
+// ---- Nordlys-demo (Utvikler-fanen) -----------------------------------------
+// Finnes av en enda sterkere grunn enn vær-demoen: et synlig nordlys over
+// Sør-Norge er noe som skjer noen netter i året, så uten demoen kan laget i
+// praksis bare prøves av en som tilfeldigvis står i Tromsø på en klar natt med
+// høy Kp — altså nesten aldri, og aldri i CI.
+const nordlysDemoPaa = ref((() => {
+  try { return localStorage.getItem(NORDLYSDEMO_KEY) === '1' } catch { return false }
+})())
+const nordlysDemoSteg = ref(0)
+const nordlysDemoIgjen = ref(NORDLYS_SEKUNDER)
+let nordlysDemoTimer = 0
+const nordlysDemoNaa = computed(
+  () => NORDLYS_STEG[nordlysDemoSteg.value % NORDLYS_STEG.length],
+)
+
+function nordlysDemoLegg() {
+  if (!engine) return
+  const steg = nordlysDemoNaa.value
+  engine.setNordlys(nordlysPreg(nordlysDemoMaling(steg)))
+  // Panelet viser demoens tall og SIER at det er en demo — ellers ser en Kp 8
+  // fra Utvikler-fanen ut som et ekte varsel.
+  nordlys.value = { status: 'done', ...nordlysDemoTall(steg), observert: null }
+}
+
+function nordlysDemoBla(hopp) {
+  nordlysDemoSteg.value =
+    (nordlysDemoSteg.value + hopp + NORDLYS_STEG.length) % NORDLYS_STEG.length
+  nordlysDemoIgjen.value = NORDLYS_SEKUNDER
+  nordlysDemoLegg()
+}
+
+function nordlysDemoStart() {
+  clearInterval(nordlysDemoTimer)
+  nordlysDemoIgjen.value = NORDLYS_SEKUNDER
+  nordlysDemoLegg()
+  nordlysDemoTimer = setInterval(() => {
+    nordlysDemoIgjen.value -= 1
+    if (nordlysDemoIgjen.value <= 0) {
+      nordlysDemoSteg.value = (nordlysDemoSteg.value + 1) % NORDLYS_STEG.length
+      nordlysDemoIgjen.value = NORDLYS_SEKUNDER
+      nordlysDemoLegg()
+    }
+  }, 1000)
+}
+
+function nordlysDemoStopp() {
+  clearInterval(nordlysDemoTimer)
+  nordlysDemoTimer = 0
+  // Tilbake til det ekte varselet — demoen skal ikke etterlate en Kp 8.
+  nordlys.value = null
+  nordlysHentet = false
+  if (nordlysOn.value) void hentNordlysdata()
+  else engine?.setNordlys(null)
+}
+
+function toggleNordlysDemo() {
+  nordlysDemoPaa.value = !nordlysDemoPaa.value
+  try {
+    localStorage.setItem(NORDLYSDEMO_KEY, nordlysDemoPaa.value ? '1' : '0')
+  } catch { /* privat modus */ }
+  if (nordlysDemoPaa.value) nordlysDemoStart()
+  else nordlysDemoStopp()
+}
+
+watch(nordlysOn, (on) => {
+  if (on) void hentNordlysdata()
+  leggNordlysPaaHimmelen()
+})
+
 // ---- Vær-demo (Utvikler-fanen) -------------------------------------------
 // Går gjennom værtypene, 10 s hver, og overstyrer det ekte varselet. Finnes
 // fordi vinddrift, lyn-blink og fallende nedbør er BEVEGELSE og ikke kan
@@ -826,6 +975,18 @@ watch(nightOn, (on) => {
   else velgHimmel(null)
   if (on) aapneStjernemodus()
   else lukkStjernemodus()
+  // Nordlyset er nattas motstykke til været: X-en nullstilles av et modusbytte,
+  // og varselet hentes først når natta faktisk er på — et 900 kB-kall ingen ser
+  // er turgåerens datakvote.
+  nordlysAvvist.value = false
+  if (on) {
+    if (nordlysDemoPaa.value) nordlysDemoStart()
+    else void hentNordlysdata()
+  } else {
+    clearInterval(nordlysDemoTimer)
+    nordlysDemoTimer = 0
+    engine?.setNordlys(null)
+  }
 })
 
 // ---- Stjernemodus: inn og ut ---------------------------------------------
@@ -1175,6 +1336,49 @@ function branchLabel(opt, i) {
         </div>
       </div>
 
+      <!-- Nordlys-demo (Utvikler-fanen). Samme form og samme plass som
+           vær-demoen, av samme grunn: står den på, er det ikke det ekte
+           varselet man ser, og da må det stå. Grønn i stedet for blå — det er
+           det ene som skiller de to demoene fra hverandre på et skjermbilde. -->
+      <div v-if="phase === 'ready' && nordlysDemoPaa && nightOn"
+           class="relative z-10 px-3 mt-2 flex justify-center">
+        <div class="flex items-center gap-2 rounded-2xl bg-emerald-900/70 backdrop-blur
+                    px-3 py-1.5 text-white max-w-full">
+          <button @click="nordlysDemoBla(-1)" aria-label="Forrige nordlysstyrke"
+                  class="w-7 h-7 shrink-0 rounded-full bg-white/15 flex items-center
+                         justify-center active:scale-90">
+            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+          </button>
+          <div class="min-w-0 leading-tight">
+            <div class="text-xs font-semibold truncate">
+              {{ nordlysDemoNaa.navn }}
+              <span class="text-[0.625rem] font-normal text-emerald-200/70 tabular-nums">
+                {{ nordlysDemoSteg + 1 }}/{{ NORDLYS_STEG.length }} · {{ nordlysDemoIgjen }} s
+              </span>
+            </div>
+            <div v-if="nordlysDemoNaa.merk" class="text-[0.625rem] text-emerald-100/65 truncate">
+              {{ nordlysDemoNaa.merk }}
+            </div>
+          </div>
+          <button @click="nordlysDemoBla(1)" aria-label="Neste nordlysstyrke"
+                  class="w-7 h-7 shrink-0 rounded-full bg-white/15 flex items-center
+                         justify-center active:scale-90">
+            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+          <button @click="toggleNordlysDemo" aria-label="Avslutt nordlys-demo"
+                  class="shrink-0 rounded-full bg-white/15 px-2 py-1 text-[0.625rem]
+                         font-medium active:scale-95">
+            Avslutt
+          </button>
+        </div>
+      </div>
+
       <!-- Værsymbolraden, rett under topprada. Egen linje fordi topprada alt er
            full. Den lå UNDER Info/POI-linja fram til v5.27.0, og da måtte man
            lese seg forbi to piller for å komme til det man åpnet værmodus for;
@@ -1184,6 +1388,20 @@ function branchLabel(opt, i) {
       <div v-if="phase === 'ready' && vaerOn && !walking && !stjernemodus"
            class="relative z-10 px-3 mt-2 flex justify-center">
         <Tour3dVaerRad :vaer="vaer" @lukk="vaerAvvist = true"/>
+      </div>
+
+      <!-- NORDLYSPANELET STÅR PÅ SAMME LINJE, om natta. Været er en dagting og
+           nordlyset en nattting, så de kan ikke kollidere — og at de deler plass
+           gjør at man ikke må lete etter det ene etter å ha lært det andre.
+           Nattmodus fjerner ellers hele overlegget (v6.1.0); dette er et bevisst
+           unntak på linje med himmelsøket, av samme grunn: det er nettopp DET man
+           slo på natta for å se. -->
+      <div v-if="phase === 'ready' && nordlysOn && !walking && nordlys"
+           class="relative z-10 px-3 mt-2 flex justify-center">
+        <Tour3dNordlysPanel :nordlys="nordlys" :skydekke="nordlysSkydekke"
+                            :er-natt="true"
+                            :demo="nordlysDemoPaa ? nordlysDemoNaa.navn : ''"
+                            @lukk="nordlysAvvist = true"/>
       </div>
 
       <!-- Nederste linje: hjelp til venstre, POI-filter til høyre. Begge minimert

@@ -1551,6 +1551,76 @@ const SJEKKER = [
     },
   },
   {
+    // v6.5.15. Nordlyset er nattas motstykke til værraden, og det er DEMOEN som
+    // testes her og ikke det ekte varselet — med vilje. OVATION ga 0 % over
+    // Vardåsen den natta laget ble bygget, og en sjekk som bare virker når sola
+    // er urolig er en sjekk som venter på å bli grønn ved et tilfelle. Demoen er
+    // deterministisk og går gjennom styrkene uansett hva NOAA melder.
+    //
+    // Sjekken TRYKKER: den slår på demoen i localStorage, laster på nytt, går i
+    // natt, og krever at både demo-pilla og nordlyspanelet står der — og at X-en
+    // tar dem bort. Det er kjeden fra flagg til gardin, som ingen enhetstest ser.
+    navn: 'nordlyspanelet og gardinene kommer i nattmodus',
+    domene: 'Viewer3D + nordlysGardiner',
+    krever: 'ektekart',
+    maksMs: 180_000,
+    async kjør(page) {
+      await evalMedTak(page, () => {
+        try { localStorage.setItem('lende-3d-nordlysdemo', '1') } catch { /* privat */ }
+      })
+      // Flagget leses ved MONTERING av 3D-viseren (som vær-demoen), så en
+      // reload er nødvendig — å sette det mens 3D står åpent gjør ingenting.
+      await page.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+      await page.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+        null, { timeout: 30_000 })
+
+      const rydd = async () => {
+        await evalMedTak(page, () => {
+          try { localStorage.setItem('lende-3d-nordlysdemo', '0') } catch { /* privat */ }
+        })
+      }
+
+      try {
+        const h = await aapneNatt3d(page)
+        if (h.hoppet) { await rydd(); return h.hoppet }
+
+        // Panelet: styrkeordet fra demoens første steg, og de fire tallene.
+        const panel = await page.waitForFunction(() => {
+          const t = document.body.innerText
+          return /NORDLYS/i.test(t) && /SJANSE/i.test(t) ? t : false
+        }, null, { timeout: 20_000 }).then((x) => x.jsonValue())
+        for (const felt of ['KP', 'SOLVIND']) {
+          if (!panel.includes(felt)) {
+            throw new Error(`nordlyspanelet mangler «${felt}» — de fire tallene `
+              + 'svarer på hvert sitt spørsmål, og skydekket er det som avgjør')
+          }
+        }
+        // Demo-pilla må SI at det er en demo. Et Kp 8 fra Utvikler-fanen som
+        // ser ut som et ekte varsel er verre enn ingen demo.
+        if (!/DEMO/.test(panel)) {
+          throw new Error('panelet sier ikke at tallene kommer fra demoen')
+        }
+
+        // X-EN TAR BORT BÅDE PANELET OG GARDINENE, som i værraden (v6.3.8).
+        // Vi kan ikke lese gardinene fra DOM-en, men de henger på det SAMME
+        // flagget — så at panelet forsvinner er kjeden vi kan måle.
+        const X = 'button[aria-label="Skjul nordlysvarselet og nordlyset"]'
+        await page.locator(X).click({ timeout: 8000 })
+        await page.waitForTimeout(400)
+        if (await evalMedTak(page, () => /SJANSE/i.test(document.body.innerText))) {
+          throw new Error('X-en tok ikke bort nordlyspanelet')
+        }
+        await rydd()
+        // NØYTRAL TILSTAND: ut av natta igjen, som de andre natt-sjekkene.
+        await lukkNatt3d(page, h.startSteg)
+        return `panelet kom med styrke, sjanse, Kp og solvind; X-en tok det bort`
+      } catch (e) {
+        await rydd()
+        throw e
+      }
+    },
+  },
+  {
     // v6.4.0. Halve himmelen er stjerner som ikke inngår i en figur vi tegner —
     // Sirius, Aldebaran, Altair, Antares — og fram til nå kunne man ikke spørre
     // hva de var. Eieren leste en skjerm med prikker uten streker som en FEIL,
@@ -1660,6 +1730,11 @@ const SJEKKER = [
       if (i.stier) throw new Error('sti-knappen står fortsatt i nattmodus')
       if (i.kurver) throw new Error('kurve-knappen står fortsatt i nattmodus')
       if (i.maksimer) throw new Error('maksimer-knappen finnes ennå — den skulle vært fjernet')
+      // NORDLYSPANELET ER ET BEVISST UNNTAK fra «alt annet er borte» (v6.5.15),
+      // på linje med himmelsøket og av samme grunn: det er nettopp det man slo
+      // på natta for å se. Listene over er derfor navngitte forbud og ikke en
+      // telling — en telling ville gjort hvert nytt natt-element til en rød.
+      
 
       // HIMMELKOMPASSET nede til høyre. Grafikken kan ikke leses fra en test,
       // men aria-labelen ER retningen i ord — og den er dermed også sjekken på

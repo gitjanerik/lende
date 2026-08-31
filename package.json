@@ -1,7 +1,7 @@
 {
   "name": "lende",
   "private": true,
-  "version": "6.5.14",
+  "version": "6.5.15",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,6 +15,7 @@
     "royk:ruter": "node scripts/ruter-royk.mjs",
     "boot:workers": "node scripts/worker-boot.mjs",
     "probe:lenker": "node scripts/probe-himmellenker.mjs",
+    "probe:nordlys": "node scripts/probe-nordlys.mjs",
     "probe:svalbard": "node scripts/probe-svalbard-dem.mjs",
     "mcp:protokoll": "node scripts/mcp-protokoll.mjs",
     "navnediff": "node scripts/navnediff.mjs",
