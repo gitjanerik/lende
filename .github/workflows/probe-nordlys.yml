@@ -1,0 +1,36 @@
+name: Probe — hva kan et nordlys-lag bygges på?
+
+# EN MÅLING, IKKE EN GATE. Den finnes fordi services.swpc.noaa.gov er sperret fra
+# utviklingsmiljøene (CONNECT 403), akkurat som api.met.no og no.wikipedia.org.
+#
+# Bestillingen er et nordlys-lag i 3D med et infopanel som værvarselet: skydekke,
+# sannsynlighet, styrke, Kp og solvind. Før noe av det bygges må vi vite om
+# kildene svarer, om de krever en User-Agent (som avgjør om de MÅ gjennom
+# lende-proxy), hva OVATION-rutenettet veier, og hva det faktisk står over Norge.
+#
+# NÅR DU KJØRER DEN: kjør den gjerne flere ganger, på ulike tider av døgnet og
+# helst en natt det er meldt aktivitet. Sannsynligheten er et øyeblikksbilde —
+# «0 % overalt» kan bety at kilden er feil lest ELLER at sola er rolig, og de to
+# skilles bare av flere målinger.
+#
+# Skriver ingenting og feiler aldri — LES UTSKRIFTEN.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/probe-nordlys.mjs'
+      - '.github/workflows/probe-nordlys.yml'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      # Ingen `npm ci`: proben bruker bare fetch og node:zlib.
+      - name: Spør NOAA
+        run: npm run probe:nordlys
