@@ -245,6 +245,39 @@ export const NORSKE_STJERNENAVN = {
   Betelgeuse: ['Betelgeuse'],
 }
 
+/**
+ * Navn på FIGUREN som ikke er figurens eget navn — det man faktisk skriver i
+ * søkefeltet når man ikke har det katalognavnet i hodet.
+ *
+ * «Orions belte» er saken som gjorde tabellen nødvendig: beltet er ikke en egen
+ * konstellasjon, det er de tre midtstjernene i Orion (δ, ε, ζ), og Lende tegner
+ * dem som en av kjedene i figuren. Men søket kjente bare «Orion», «Mintaka»,
+ * «Alnilam», «Alnitak» og Bayer-betegnelsene — altså ingen av ordene folk flest
+ * bruker om nettopp den delen av himmelen de kjenner best. Et søk som ikke
+ * svarer ser ut som at figuren mangler.
+ *
+ * Samme sak for Karlsvogna, som ER en asterisme inne i Ursa Major: søker man
+ * «Store bjørn», er det Karlsvogna man skal ha.
+ *
+ * Nøkkelen er `id` fra FORMASJONER, som `STJERNEBILDE_INFO`. Kort med vilje:
+ * dette er ikke en synonymordbok, det er de navnene som faktisk er i bruk.
+ */
+export const FOLKENAVN = {
+  // Jakobsstaven og Frøyas rokk (Friggerokken) er de nordiske folkenavnene på
+  // beltet. De brukes ikke lenger til daglig, men den som søker på dem mener
+  // nøyaktig disse tre stjernene.
+  orion: ['Orions belte', 'Orionbeltet', 'Jakobsstaven', 'Frøyas rokk', 'Friggerokken'],
+  karlsvogna: ['Store bjørn', 'Storebjørn'],
+}
+
+/**
+ * Alle søkbare navn for én figur ut over navnet og det latinske.
+ * @param {string} id fra FORMASJONER
+ */
+export function folkeNavnFor(id) {
+  return FOLKENAVN[id] ?? []
+}
+
 /** @param {string} id fra FORMASJONER */
 export function infoFor(id) {
   return STJERNEBILDE_INFO[id] ?? null

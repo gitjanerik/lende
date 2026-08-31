@@ -1,3 +1,20 @@
+## 2026-08-31 — v6.5.13: «Orions belte» finner Orion
+
+Orions belte er ikke en egen konstellasjon — det er δ Mintaka, ε Alnilam og
+ζ Alnitak, altså én av kjedene inne i Orion, og Lende har tegnet den siden
+figuren kom inn. Men himmelsøket kjente bare «Orion», stjernenavnene og
+Bayer-betegnelsene, så nettopp det ordet folk flest bruker om den delen av
+himmelen de kjenner best ga null treff. Et søk som ikke svarer ser ut som at
+figuren mangler. `FOLKENAVN` i `stjernebildeInfo.js` er en kort tabell med
+navn på FIGUREN som ikke er figurens eget navn, nøklet på formasjons-id-en som
+resten av prosaen: «Orions belte» og de nordiske folkenavnene Jakobsstaven og
+Frøyas rokk peker på Orion, «Store bjørn» på Karlsvogna, som er asterismen
+inne i Ursa Major. Ingen data er bakt om, og lista lover fortsatt bare det som
+faktisk tegnes — Orion er en vinterfigur og dukker opp i søket først når den
+står over horisonten.
+
+---
+
 ## 2026-08-30 — v6.5.12: HTML strippes ut av kulturminne-tekstene
 
 Kulturminnesøk-tekstene er skrevet av brukere i et felt som slipper gjennom markup, og API-et leverer den rått — beskrivelsen av Charlottenborg gård på Jeløy kom ut med et synlig «<br />» på hver eneste linje, altså uleselig uten at noe var galt med hentingen. `lib/htmlTekst.js` er nå den ene stripperen: `<br>` og blokk-tagger blir ekte linjeskift (avsnitt får tom linje, listepunkter ett skift), `<img>` forsvinner sammen med linja den sto på, og all annen formatering — fet, kursiv, farger, fontstørrelse, lenker — mistes stille mens teksten består. Entiteter dekodes først, så en dobbeltkodet kilde ikke slipper unna. Begge kildene går gjennom den: brukerminnene (`cleanBeskrivelse`, titler og bildetekster) og de fredede minnene fra WFS-en (`splitInformasjon`, navn).

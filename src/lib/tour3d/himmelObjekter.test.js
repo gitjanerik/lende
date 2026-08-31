@@ -194,6 +194,20 @@ describe('filtrerHimmel', () => {
     expect(filtrerHimmel(liste, 'polstjern').map((o) => o.id)).toContain('lille-bjorn')
   })
 
+  it('finner Orion på «Orions belte»', () => {
+    // Beltet er ikke en egen konstellasjon — det er δ, ε og ζ Ori, altså en av
+    // kjedene INNE i Orion. Søket kjente bare stjernenavnene, så det ordet folk
+    // flest bruker om den delen av himmelen de kjenner best ga null treff, og
+    // et søk som ikke svarer ser ut som at figuren mangler.
+    expect(filtrerHimmel(liste, 'orions belte').map((o) => o.id)).toContain('orion')
+    expect(filtrerHimmel(liste, 'belte').map((o) => o.id)).toContain('orion')
+  })
+
+  it('finner Karlsvogna på «Store bjørn»', () => {
+    // Samme sak andre veien: Karlsvogna ER asterismen inne i Ursa Major.
+    expect(filtrerHimmel(liste, 'store bjørn').map((o) => o.id)).toContain('karlsvogna')
+  })
+
   it('bryr seg ikke om store bokstaver', () => {
     expect(filtrerHimmel(liste, 'ORION').length).toBe(filtrerHimmel(liste, 'orion').length)
   })
