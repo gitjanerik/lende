@@ -22,7 +22,7 @@
 // regelen.
 
 import { FORMASJONER, STJERNER } from './stjerner.js'
-import { STJERNEBILDE_INFO, sokeNavnFor } from './stjernebildeInfo.js'
+import { STJERNEBILDE_INFO, sokeNavnFor, folkeNavnFor } from './stjernebildeInfo.js'
 import { stjerneNavn, bayerNavn, stjernebildeFor, faktaFor } from './stjerneFakta.js'
 import { synligePlaneter } from './planeter.js'
 import { harGlobe } from './himmellegemer.js'
@@ -238,6 +238,8 @@ export function himmelObjekter({ lat, lon, dato = new Date(), tvingHimmel = fals
       sokeNavn: [
         f.navn,
         f.latin,
+        // «Orions belte» er en DEL av denne figuren, ikke en egen — se FOLKENAVN.
+        ...folkeNavnFor(f.id),
         ...f.stjerner.flatMap((i) => sokeNavnFor(STJERNER[i])),
       ],
     })

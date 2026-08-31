@@ -167,6 +167,49 @@ const ASTERISMER = [
       ['Bet Leo', 'The Leo', 'Alp Leo'],
     ],
   },
+  {
+    navn: 'Tyren',
+    latin: 'Taurus',
+    // ÉN kjede: horntupp ζ → Aldebaran → V-en → horntupp β. V-en er Hyadene,
+    // altså oksens ansikt, med Aldebaran som det røde øyet i den ene enden og
+    // ε i den andre; γ er spissen. Hele det gjenkjennelige dyret i seks streker.
+    //
+    // Halsen (γ–λ–ξ–ν) finnes i standardfiguren og er BEVISST utelatt: den er
+    // fire stjerner på 3,4–3,9 som legger seg tett inntil V-en, og på en
+    // telefonskjerm gjør de figuren grumsete uten å gjøre den mer gjenkjennelig.
+    //
+    // Elnath (β Tau) står ALLEREDE i Kusken. Det er ikke en dublett — stjerna er
+    // oksens ene horn og kuskens hjørne samtidig, akkurat som Alpheratz deles av
+    // Pegasus og Andromeda (v6.4.0).
+    kjeder: [
+      ['Zet Tau', 'Alp Tau', 'The-2 Tau', 'Gam Tau', 'Del-1 Tau', 'Eps Tau', 'Bet Tau'],
+    ],
+  },
+  {
+    navn: 'Ørnen',
+    latin: 'Aquila',
+    // Altair er det tredje hjørnet i Sommertriangelet, og fram til nå var det
+    // eneste av de tre uten en figur: Lyren og Svanen sto tegnet, Ørnen var én
+    // løs prikk.
+    kjeder: [
+      // Raden av tre — Tarazed, Altair, Alshain — er det man kjenner den på.
+      ['Gam Aql', 'Alp Aql', 'Bet Aql'],
+      // Vingespennet gjennom Altair.
+      ['Zet Aql', 'Alp Aql', 'Del Aql', 'Lam Aql'],
+      // Kroppen, som lukker figuren. Uten den er ørna et kryss.
+      ['Bet Aql', 'The Aql', 'Eta Aql', 'Del Aql'],
+    ],
+  },
+  {
+    navn: 'Nordlige krone',
+    latin: 'Corona Borealis',
+    // Halvsirkelen, med Alphecca som den lyseste perlen. Den er ÅPEN, og det er
+    // riktig — dette er et diadem og ikke en ring. Sammenlikn Karlsvognas bolle,
+    // som var åpen ved en feil (v6.3.9); her er åpningen selve figuren.
+    kjeder: [
+      ['The CrB', 'Bet CrB', 'Alp CrB', 'Gam CrB', 'Del CrB', 'Eps CrB', 'Iot CrB'],
+    ],
+  },
 ]
 
 const args = process.argv.slice(2)

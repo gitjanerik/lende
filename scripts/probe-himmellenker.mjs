@@ -31,7 +31,16 @@ const UA = 'LendeLenkeprobe/1.0 (https://github.com/gitjanerik/lende; turkart-ap
 // Sola (v6.5.6) gikk gjennom nettopp dette — «Sola» er også en kommune i
 // Rogaland — og svaret står nå i himmelFakta.js: snl.no/Sola er stjerna, og
 // snl.no/Solen omdirigerer dit. Kandidatene er derfor tatt ut igjen.
-const ALTERNATIVER = []
+const ALTERNATIVER = [
+  // TYREN VAR INNOM «Tyren (stjernetegn)» i én commit (v6.5.14), og det er verdt
+  // å huske her: adressen SVARTE, så en probe som bare måler status ville
+  // godtatt den — men artikkelen handler om ASTROLOGI. Lende peker aldri dit.
+  // Lærdommen for denne lista: en lenke som svarer er ikke det samme som en
+  // lenke som er riktig. Les hva artikkelen ER, ikke bare hva den returnerer.
+  //
+  // Alle tre adressene fra v6.5.14 — Tyren, Ørnen og Den nordlige krone — er nå
+  // bekreftet av eieren, så lista er tom igjen.
+]
 
 const lenker = []
 for (const [id, f] of Object.entries(HIMMEL_FAKTA)) {

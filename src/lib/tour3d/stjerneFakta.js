@@ -11,7 +11,15 @@
 // BAKGRUNNEN (v6.4.0): eieren så en skjerm full av prikker uten streker mellom,
 // og spurte om det var en feil. Det var det ikke — katalogen tar ALLE stjerner
 // lysere enn magnitude 2,6, mens vi bare tegner figuren for femten stjernebilder.
-// Sirius, Aldebaran, Altair og Antares har derfor aldri hatt en strek å høre til.
+// Sirius, Procyon, Antares og Spica har derfor aldri hatt en strek å høre til.
+//
+// EN STJERNE KAN SLUTTE Å VÆRE LØS. Da Tyren, Ørnen og Nordlige krone kom inn
+// (v6.5.14), gikk Aldebaran, Altair og Alphecca fra å være løse prikker til å
+// være figurstjerner — og teksten om dem måtte UT herfra og inn i figurens
+// infokort. Det samme gjelder navnet på stjernebildet: STJERNEBILDE_NAVN
+// dekker bare dem vi IKKE tegner, så Tau, Aql og CrB er tatt ut av tabellen.
+// Begge deler håndheves av stjerneFakta.test.js, og det er med vilje: en
+// dublett her ville gitt to kort som forteller om samme stjerne.
 // Svaret er ikke å skjule dem, men å la dem svare for seg selv når man trykker.
 //
 // REN MODUL: ingen Three.js, ingen DOM — den brukes av himmelObjekter.js, som
@@ -31,14 +39,12 @@
  * «α ?» i kortet.
  */
 export const STJERNEBILDE_NAVN = {
-  Aql: { latin: 'Aquila', genitiv: 'Aquilae', norsk: 'Ørnen' },
   Ari: { latin: 'Aries', genitiv: 'Arietis', norsk: 'Væren' },
   CMa: { latin: 'Canis Major', genitiv: 'Canis Majoris', norsk: 'Store hund' },
   CMi: { latin: 'Canis Minor', genitiv: 'Canis Minoris', norsk: 'Lille hund' },
   Car: { latin: 'Carina', genitiv: 'Carinae', norsk: 'Kjølen' },
   Cen: { latin: 'Centaurus', genitiv: 'Centauri', norsk: 'Kentauren' },
   Cet: { latin: 'Cetus', genitiv: 'Ceti', norsk: 'Hvalen' },
-  CrB: { latin: 'Corona Borealis', genitiv: 'Coronae Borealis', norsk: 'Nordlige krone' },
   Cru: { latin: 'Crux', genitiv: 'Crucis', norsk: 'Sørkorset' },
   Crv: { latin: 'Corvus', genitiv: 'Corvi', norsk: 'Ravnen' },
   Eri: { latin: 'Eridanus', genitiv: 'Eridani', norsk: 'Eridanus' },
@@ -53,7 +59,6 @@ export const STJERNEBILDE_NAVN = {
   Pup: { latin: 'Puppis', genitiv: 'Puppis', norsk: 'Akterstavnen' },
   Sco: { latin: 'Scorpius', genitiv: 'Scorpii', norsk: 'Skorpionen' },
   Sgr: { latin: 'Sagittarius', genitiv: 'Sagittarii', norsk: 'Skytten' },
-  Tau: { latin: 'Taurus', genitiv: 'Tauri', norsk: 'Tyren' },
   TrA: { latin: 'Triangulum Australe', genitiv: 'Trianguli Australis', norsk: 'Sørlige triangel' },
   Vel: { latin: 'Vela', genitiv: 'Velorum', norsk: 'Seilet' },
   Vir: { latin: 'Virgo', genitiv: 'Virginis', norsk: 'Jomfruen' },
@@ -133,12 +138,6 @@ export const STJERNE_FAKTA = {
   Procyon: 'Lille hunds eneste sterke stjerne, 11 lysår unna. Sammen med Sirius '
     + 'og Betelgeuse danner den vintertrekanten — tre lyse punkter som rammer inn '
     + 'himmelen sør for Orion.',
-  Altair: 'Ørnens øye, 17 lysår unna. Den snurrer rundt på under ti timer og er '
-    + 'derfor tydelig flatklemt ved polene. Med Vega og Deneb utgjør den '
-    + 'sommertrekanten, som står høyt i sør på lyse kvelder.',
-  Aldebaran: 'Tyrens røde øye, en oppsvulmet kjempe 65 lysår unna. Den ser ut til '
-    + 'å ligge i stjernehopen Hyadene, men står i virkeligheten bare halvveis dit '
-    + 'og har ingenting med den å gjøre.',
   Spica: 'Kornakset i Jomfruens hånd: to blå stjerner så tett sammen at de går '
     + 'rundt hverandre på fire døgn. Den gamle huskeregelen fortsetter fra '
     + 'Karlsvogna — følg buen til Arcturus, og rett videre til Spica.',
@@ -169,9 +168,6 @@ export const STJERNE_FAKTA = {
     + 'babylonsk og blant de eldste stjernenavnene som fortsatt er i bruk.',
   Rasalhague: 'Slangebærerens hode. Den snurrer så fort at den er merkbart '
     + 'flatklemt, og har en følgesvenn som går rundt den på åtte år.',
-  Alphecca: 'Den klareste perlen i Nordlige krone, en halvsirkel av svake '
-    + 'stjerner mellom Bjørnevokteren og Herkules. Den dupper svakt i lysstyrke '
-    + 'hver 17. dag, når følgesvennen passerer foran.',
   Dschubba: 'Skorpionens panne. I år 2000 blusset den plutselig opp og ble '
     + 'nesten dobbelt så lys som før — den kastet av seg en gasskive, og har ikke '
     + 'roet seg helt siden.',

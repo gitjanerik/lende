@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { STJERNEBILDE_INFO, infoFor } from './stjernebildeInfo.js'
+import { STJERNEBILDE_INFO, FOLKENAVN, infoFor, folkeNavnFor } from './stjernebildeInfo.js'
 import { FORMASJONER, STJERNER } from './stjerner.js'
 
 // Denne testen finnes for ÉN feilmodus: baken lager id-ene av det norske
@@ -126,5 +126,33 @@ describe('retningene i tekstene', () => {
       expect(info.finnDen, `${id}.finnDen`)
         .not.toMatch(/\b(nord|sør|øst|vest|nordøst|nordvest|sørøst|sørvest) for\b/i)
     }
+  })
+})
+
+describe('FOLKENAVN', () => {
+  // Samme feilmodus som tabellen over, bare stillere: en id som ikke finnes gir
+  // ingen feil noe sted — søkeordet blir bare aldri koblet på en figur, og det
+  // ser ut som at søket ikke virker.
+  it('er nøklet på ekte formasjoner', () => {
+    const ider = new Set(FORMASJONER.map((f) => f.id))
+    for (const id of Object.keys(FOLKENAVN)) {
+      expect(ider.has(id), `${id} finnes ikke i FORMASJONER`).toBe(true)
+    }
+  })
+
+  it('gjentar ikke figurens egne navn', () => {
+    // Et folkenavn skal legge noe TIL. «Orion» står allerede i sokeNavn, og en
+    // dublett der er bare støy å vedlikeholde.
+    for (const f of FORMASJONER) {
+      for (const n of folkeNavnFor(f.id)) {
+        expect(n, `${f.id}: ${n}`).not.toBe(f.navn)
+        expect(n, `${f.id}: ${n}`).not.toBe(f.latin)
+      }
+    }
+  })
+
+  it('gir tom liste for en figur uten folkenavn', () => {
+    expect(folkeNavnFor('lyren')).toEqual([])
+    expect(folkeNavnFor('finnes-ikke')).toEqual([])
   })
 })

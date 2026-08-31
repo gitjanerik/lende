@@ -1,3 +1,49 @@
+## 2026-08-31 — v6.5.14: Tyren, Ørnen og Nordlige krone på natthimmelen
+
+Tre nye stjernebilder, valgt etter hva som faktisk står høyt nok over en norsk
+horisont. Tyren fordi Orions eget infokort allerede pekte på Aldebaran uten at
+det fantes en figur å peke på; Ørnen fordi Sommertriangelet manglet sitt tredje
+hjørne mens Lyren og Svanen sto tegnet; Nordlige krone fordi den er en liten,
+tydelig halvsirkel som kulminerer på 57° i Oslo og 48° i Tromsø. Store hund ble
+vurdert og forkastet i samme runde: Sirius er himmelens lyseste stjerne, men
+figuren kulminerer på 13° i Oslo og 4° i Tromsø, og med 60 %-regelen i
+`MIN_ANDEL_OPPE` ville lista lovet noe man ikke kan se.
+
+Magnitudegrensa var ikke til hinder — baken henter figurstjerner uansett
+lysstyrke — så Hyadene og ørnevingene kom inn av seg selv; katalogen vokste fra
+173 til 191 stjerner. Figurene er hentet ut av den innbakte fasiten framfor å
+tegnes på frihånd, og Tyrens hals er bevisst utelatt som telefonskjerm-
+forenkling. Elnath deles med Kusken, slik Alpheratz deles av Pegasus og
+Andromeda. Kryss-lenkene er skrevet inn begge veier — Orion peker på Tyren,
+Lyren og Svanen på Ørnen, Bjørnevokteren på kronen — mens snarveiene i
+infokortet ordner seg selv, siden `naboerFor` måler vinkelavstand: kronen og
+Bjørnevokteren finner hverandre på 14°. Aldebaran, Altair og Alphecca er ikke
+lenger løse stjerner, så teksten om dem er flyttet inn i figurene og Tau, Aql og
+CrB er ute av `STJERNEBILDE_NAVN`. Wikipedia-adressene kunne ikke prøves herfra
+— no.wikipedia er sperret fra utviklingsmiljøene — og er bekreftet av eieren.
+Tyren var innom astrologi-artikkelen «Tyren (stjernetegn)» underveis, og det er
+notert i lenke-proben: adressen svarte, så en probe som bare måler status ville
+godtatt den. En lenke som svarer er ikke det samme som en lenke som er riktig.
+
+---
+
+## 2026-08-31 — v6.5.13: «Orions belte» finner Orion
+
+Orions belte er ikke en egen konstellasjon — det er δ Mintaka, ε Alnilam og
+ζ Alnitak, altså én av kjedene inne i Orion, og Lende har tegnet den siden
+figuren kom inn. Men himmelsøket kjente bare «Orion», stjernenavnene og
+Bayer-betegnelsene, så nettopp det ordet folk flest bruker om den delen av
+himmelen de kjenner best ga null treff. Et søk som ikke svarer ser ut som at
+figuren mangler. `FOLKENAVN` i `stjernebildeInfo.js` er en kort tabell med
+navn på FIGUREN som ikke er figurens eget navn, nøklet på formasjons-id-en som
+resten av prosaen: «Orions belte» og de nordiske folkenavnene Jakobsstaven og
+Frøyas rokk peker på Orion, «Store bjørn» på Karlsvogna, som er asterismen
+inne i Ursa Major. Ingen data er bakt om, og lista lover fortsatt bare det som
+faktisk tegnes — Orion er en vinterfigur og dukker opp i søket først når den
+står over horisonten.
+
+---
+
 ## 2026-08-30 — v6.5.12: HTML strippes ut av kulturminne-tekstene
 
 Kulturminnesøk-tekstene er skrevet av brukere i et felt som slipper gjennom markup, og API-et leverer den rått — beskrivelsen av Charlottenborg gård på Jeløy kom ut med et synlig «<br />» på hver eneste linje, altså uleselig uten at noe var galt med hentingen. `lib/htmlTekst.js` er nå den ene stripperen: `<br>` og blokk-tagger blir ekte linjeskift (avsnitt får tom linje, listepunkter ett skift), `<img>` forsvinner sammen med linja den sto på, og all annen formatering — fet, kursiv, farger, fontstørrelse, lenker — mistes stille mens teksten består. Entiteter dekodes først, så en dobbeltkodet kilde ikke slipper unna. Begge kildene går gjennom den: brukerminnene (`cleanBeskrivelse`, titler og bildetekster) og de fredede minnene fra WFS-en (`splitInformasjon`, navn).

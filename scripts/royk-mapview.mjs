@@ -1156,12 +1156,27 @@ const SJEKKER = [
 
       // Lista skal inneholde noe — himmelen over Vardåsen har alltid noen
       // formasjoner oppe, uansett dato. En tom liste er en ekte feil.
+      //
+      // SOLA HOPPES OVER, og det er en RETTELSE. Sola er `rang: 0` i
+      // himmelObjekter og står derfor ALLTID først (v6.5.6), så «det første
+      // elementet» sluttet å være et stjernebilde den dagen sola kom inn i
+      // lista — sjekken het «stjernekikkeren finner, velger og forteller» og
+      // testet i praksis sola, som har sin EGEN sjekk rett under.
+      //
+      // Det avslørte seg som en tidsavhengig rød: kravet «over horisonten»
+      // lenger nede er sant for et stjernebilde (lista lover bare det som er
+      // oppe), men sola er unntaket som også listes når den står UNDER — og da
+      // sier kortet «under horisonten», helt etter planen. Alle tidligere
+      // kjøringer lå mellom 07 og 15 UTC, altså høylys dag over Vardåsen, så
+      // sjekken hadde aldri møtt en natt før 2026-08-31 21:27 UTC.
       const forste = await evalMedTak(page, () => {
-        const b = document.querySelector('ul[aria-label="Treff på himmelen"] li button')
+        const b = [...document.querySelectorAll('ul[aria-label="Treff på himmelen"] li button')]
+          .find((e) => (e.querySelector('span.block')?.textContent ?? '').trim() !== 'Sola')
         return b ? (b.querySelector('span.block')?.textContent ?? '').trim() : null
       })
-      if (!forste) throw new Error('himmellista var tom — ingenting å velge')
-      await page.locator('ul[aria-label="Treff på himmelen"] li button').first()
+      if (!forste) throw new Error('himmellista hadde ingenting utenom sola — ingenting å velge')
+      await page.locator('ul[aria-label="Treff på himmelen"] li button')
+        .filter({ hasText: forste }).first()
         .click({ timeout: 5000 })
       await page.waitForTimeout(1600)
 
