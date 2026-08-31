@@ -53,15 +53,46 @@ const ENDEPUNKT = [
     hva: 'Kp-varsel framover (3-timers bolker)',
     url: 'https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json',
   },
+  // SOLVIND: FØRSTE RUNDE BOMMET PÅ BEGGE. `/products/solar-wind/plasma-1-day.json`
+  // og `mag-1-day.json` ga 404 — de var skrevet etter hukommelsen, altså nøyaktig
+  // den gjettingen proben finnes for å avløse. Runde to LETER i stedet: vi ber om
+  // katalogene under (se KATALOGER) og prøver flere navn, så svaret kommer fra
+  // NOAA og ikke fra meg.
   {
-    id: 'solvind-plasma',
-    hva: 'Solvind: fart, tetthet, temperatur (DSCOVR/ACE)',
-    url: 'https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json',
+    id: 'solvind-fart',
+    hva: 'KANDIDAT: solvindfart som ETT tall — det panelet faktisk trenger',
+    url: 'https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json',
+    kandidat: true,
   },
   {
-    id: 'solvind-mag',
-    hva: 'Magnetfelt i solvinden: Bz er den som avgjør om nordlyset kommer sørover',
-    url: 'https://services.swpc.noaa.gov/products/solar-wind/mag-1-day.json',
+    id: 'solvind-magfelt',
+    hva: 'KANDIDAT: Bt/Bz som ett tall. Bz sør er det som slipper nordlyset ned',
+    url: 'https://services.swpc.noaa.gov/products/summary/solar-wind-mag-field.json',
+    kandidat: true,
+  },
+  {
+    id: 'rtsw-plasma',
+    hva: 'KANDIDAT: sanntids solvind-plasma, 1-minutt',
+    url: 'https://services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json',
+    kandidat: true,
+  },
+  {
+    id: 'rtsw-mag',
+    hva: 'KANDIDAT: sanntids magnetfelt, 1-minutt',
+    url: 'https://services.swpc.noaa.gov/json/rtsw/rtsw_mag_1m.json',
+    kandidat: true,
+  },
+  {
+    id: 'plasma-2t',
+    hva: 'KANDIDAT: plasma siste to timer',
+    url: 'https://services.swpc.noaa.gov/products/solar-wind/plasma-2-hour.json',
+    kandidat: true,
+  },
+  {
+    id: 'mag-2t',
+    hva: 'KANDIDAT: magnetfelt siste to timer',
+    url: 'https://services.swpc.noaa.gov/products/solar-wind/mag-2-hour.json',
+    kandidat: true,
   },
   {
     id: 'ovation-30min',
@@ -69,6 +100,15 @@ const ENDEPUNKT = [
     url: 'https://services.swpc.noaa.gov/products/ovation_aurora_latest.json',
     kandidat: true,
   },
+]
+
+// KATALOGENE. Lærdommen fra Wikimedia-proben var at fritekstsøk er ubrukelig og
+// KURATERTE lister er gull; her er motstykket en katalogfil. Svarer den, slipper
+// vi å gjette et eneste filnavn til.
+const KATALOGER = [
+  'https://services.swpc.noaa.gov/products/solar-wind/',
+  'https://services.swpc.noaa.gov/products/summary/',
+  'https://services.swpc.noaa.gov/json/rtsw/',
 ]
 
 // Steder å slå opp i rutenettet. Valgt etter BREDDEGRAD og ikke etter folketall:
@@ -128,6 +168,21 @@ for (const e of ENDEPUNKT) {
   console.log(`        ${kB(r.bytes)} rå, ${kB(gzipSync(r.buf).length)} gzippet, ${r.ms} ms`)
   console.log(`        CORS: ${r.cors ?? 'INGEN — da må den gjennom lende-proxy'}`)
   console.log(`        cache-control: ${r.cache ?? '—'}`)
+  console.log('')
+  await pust(400)
+}
+
+// --- Hva LIGGER det i katalogene? -------------------------------------------
+// Dette er svaret på solvind-spørsmålet om det finnes, og det er en måling og
+// ikke en hypotese. Vi plukker ut .json-navn og lar utskriften vise dem.
+console.log('── Kataloger ────────────────────────────────────────────')
+for (const url of KATALOGER) {
+  const r = await hent(url, true)
+  if (!r.ok) { console.log(`✗ ${r.status || r.feil}  ${url}`); await pust(400); continue }
+  const tekst = r.buf.toString('utf8')
+  const filer = [...new Set([...tekst.matchAll(/href="([^"]+\.json)"/gi)].map((m) => m[1]))]
+  console.log(`✓ ${r.status}  ${url} — ${filer.length} .json-filer`)
+  for (const f of filer.sort()) console.log(`        ${f}`)
   console.log('')
   await pust(400)
 }
@@ -217,7 +272,8 @@ if (ov?.ok) {
 }
 
 // --- Kp og solvind: feltrekkefølgen leses av, ikke antas --------------------
-for (const id of ['kp-1m', 'kp-varsel', 'solvind-plasma', 'solvind-mag']) {
+for (const id of ['kp-1m', 'kp-varsel', 'solvind-fart', 'solvind-magfelt',
+  'rtsw-plasma', 'rtsw-mag', 'plasma-2t', 'mag-2t']) {
   const r = svar.get(id)
   if (!r?.ok) continue
   console.log(`── ${id} ────────────────────────────────────────`)
