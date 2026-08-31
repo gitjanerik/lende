@@ -19,8 +19,11 @@ Lyren og Svanen på Ørnen, Bjørnevokteren på kronen — mens snarveiene i
 infokortet ordner seg selv, siden `naboerFor` måler vinkelavstand: kronen og
 Bjørnevokteren finner hverandre på 14°. Aldebaran, Altair og Alphecca er ikke
 lenger løse stjerner, så teksten om dem er flyttet inn i figurene og Tau, Aql og
-CrB er ute av `STJERNEBILDE_NAVN`. Wikipedia-adressene er gjettet etter mønster
-og lagt inn som kandidater i lenke-proben, siden no.wikipedia er sperret herfra.
+CrB er ute av `STJERNEBILDE_NAVN`. Wikipedia-adressene kunne ikke prøves herfra
+— no.wikipedia er sperret fra utviklingsmiljøene — og er bekreftet av eieren.
+Tyren var innom astrologi-artikkelen «Tyren (stjernetegn)» underveis, og det er
+notert i lenke-proben: adressen svarte, så en probe som bare måler status ville
+godtatt den. En lenke som svarer er ikke det samme som en lenke som er riktig.
 
 ---
 

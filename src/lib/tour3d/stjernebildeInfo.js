@@ -162,7 +162,7 @@ export const STJERNEBILDE_INFO = {
   },
   'nordlige-krone': {
     latin: 'Corona Borealis',
-    wikipedia: 'https://no.wikipedia.org/wiki/Nordlige_krone',
+    wikipedia: 'https://no.wikipedia.org/wiki/Den_nordlige_krone',
     mytologi: 'Ariadnes krone. Hun ga Tesevs tråden som førte ham ut av '
       + 'labyrinten, og ble så forlatt på Naxos; Dionysos fant henne, giftet seg '
       + 'med henne og kastet brudekransen opp på himmelen.',
