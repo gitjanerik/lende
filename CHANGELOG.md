@@ -1,3 +1,37 @@
+## 2026-08-31 — v6.5.15: Nordlys på natthimmelen
+
+Slår du på natt i 3D, henter Lende nordlysvarselet fra NOAAs OVATION-modell og
+legger grønne gardiner over den nordlige himmelen. Formen er loddrette stråler
+som folder seg langsomt — nordlyset følger jordas magnetfeltlinjer, og det er
+derfor strålene er parallelle — med fargene lagt etter høyde: grønt fra oksygen
+rundt 120 km, rødfiolett over 200, blåfiolett frynse nederst i sterke bånd.
+Additiv og gjennomsiktig, så stjernene skinner gjennom. Ikke fotorealisme; det
+er samme mål som med puff-skyene, en form som er gjenkjennelig i BEVEGELSE.
+
+Gardinene står der nordlyset faktisk står. Hvor høyt over horisonten de henger
+regnes ut av hvor langt nord ovalen ligger i kveld — lest av selve målingen og
+ikke av Kp — og av at lyset kommer fra rundt 120 km. Fra Tromsø kan det fylle
+senit; fra Sør-Norge ligger det lavt i nord; og er ovalen så langt unna at
+jordkrumningen skjuler den, tegnes ingenting. Første utgave lot gardinen
+kollapse til null høyde når ovalen sto rett over hodet, fordi nedre og øvre kant
+ble regnet fra samme avstand; testen fant det, og ovalen har nå bredde.
+
+Panelet øverst er speilbildet av værraden, med samme pilleform og samme X: styrke,
+sjanse der du står, skydekke, Kp og solvindfart. Skydekket er med fordi det
+avgjør — «Sterk» gjennom et tett skylag sender folk ut i kulda for ingenting — og
+det tas fra MET-varselet vi allerede har, uten et nytt kall. Alle fire
+endepunktene er MÅLT (`npm run probe:nordlys`), ikke gjettet: CORS «*» og ingen
+User-Agent-krav, så ingen Worker-rute trengs; solvinden hentes fra
+summary-filene på under 1 kB framfor rtsw på 2,6 MB; og rtsw-arrayet er ikke
+tidssortert, så siste rad kan være et døgn gammel. Varselet pakkes IKKE offline,
+av samme grunn som værvarselet: utdatert betyr feil, ikke bare mindre presist.
+
+Nordlys-demo i Utvikler-fanen går gjennom styrkene, 14 s hver, og finnes av en
+sterkere grunn enn vær-demoen: et synlig nordlys over Sør-Norge er noen netter i
+året, så uten den kan laget i praksis ikke prøves — og aldri i CI.
+
+---
+
 ## 2026-08-31 — v6.5.14: Tyren, Ørnen og Nordlige krone på natthimmelen
 
 Tre nye stjernebilder, valgt etter hva som faktisk står høyt nok over en norsk

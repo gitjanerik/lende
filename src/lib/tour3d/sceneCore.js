@@ -23,6 +23,7 @@ import {
 import { buildSkyDome, buildNedbor, buildLyn, buildNightSky, makeFog, FOG_COLOR, NIGHT_FOG_COLOR } from './skyDome.js'
 import { horisontTilWorld } from './astronomi.js'
 import { buildPuffClouds } from './puffSkyer.js'
+import { buildNordlysGardiner } from './nordlysGardiner.js'
 import { lagSkyskygge } from './skyskygge.js'
 import { NEDBOR_TAK } from './vaerHimmel.js'
 import { createEngineLoop } from './engineLoop.js'
@@ -268,6 +269,12 @@ export async function createSceneCore(container, {
     pikselForhold: renderer.getPixelRatio(),
     tvingHimmel,
   })
+  // Nordlysgardiner. De henger sammen med natthimmelen og er derfor barn av
+  // SAMME gruppe: nightSky.group flyttes til kameraets posisjon hver frame
+  // (se updateAmbient), og et nordlys som ikke fulgte med ville blitt stående
+  // igjen når den frie riggen slipper kameraet 45 km unna.
+  const nordlys = buildNordlysGardiner({ radius: 24_000 })
+  nightSky.group.add(nordlys.group)
   scene.add(nightSky.group)
 
   // Høydekurver i terrenget: togglebart lag — bygges lazily.
@@ -339,6 +346,25 @@ export async function createSceneCore(container, {
     const synlig = vaerAktiv && !nightOn
     clouds.group.visible = synlig
     skyskygge.uniforms.uSkyggeStyrke.value = synlig ? skyggeGrunn : 0
+  }
+
+  // Nordlyspreget slik det sist ble satt. Gardinene henger på DENNE og på om det
+  // er natt — aldri på bare den ene.
+  let nordlysPregNaa = null
+
+  /**
+   * SPEILBILDET AV SKYREGELEN: skyene vises bare om DAGEN, nordlyset bare om
+   * NATTA. Og regelen bor her, i én funksjon, av nøyaktig samme grunn (v5.27.0):
+   * den avhenger av to uavhengige brytere — setNordlys og setNightMode — og to
+   * steder som setter `visible` etter hver sin halvdel av sannheten kommer i
+   * utakt så snart den ene kalles alene.
+   *
+   * Nordlys om dagen er ikke bare feil, det er umulig: det er der hele tida, men
+   * dagslyset er millioner av ganger sterkere. Å tegne det på en blå himmel ville
+   * vært den samme løgnen som en tvungen sol på nattehimmelen.
+   */
+  function oppdaterNordlysSynlighet() {
+    nordlys.setPreg(nightOn ? nordlysPregNaa : null)
   }
   // Dis-avstandene slik de var uten vær. Tåke skalerer dem ned; setVaer(null)
   // setter dem tilbake til nøyaktig disse.
@@ -548,6 +574,7 @@ export async function createSceneCore(container, {
       }
       // Skivene skal vende mot kameraet, og tida driver trykk-ringenes ripple.
       nightSky.update(camera, timeS)
+      nordlys.update(timeS)
       // Kameraet må med: puff-skyene oversetter sol-retningen til view-space
       // hver frame. Uten den roterer lyset med kameraet, og skyene leses som
       // lykter framfor opplyste former.
@@ -610,6 +637,7 @@ export async function createSceneCore(container, {
         skjulSkive(globe.legeme, false)
       }
       oppdaterSkySynlighet()
+      oppdaterNordlysSynlighet()
       grunnfarge.set(nightOn ? NIGHT_FOG_COLOR : FOG_COLOR)
       lynIgjen = 0            // et pågående lyn skal ikke overleve modus-byttet
       scene.fog.color.copy(grunnfarge)
@@ -647,6 +675,20 @@ export async function createSceneCore(container, {
       if (preg?.torden) tordenPaa = true
       else stoppTorden()
     },
+    /**
+     * Legg et nordlyspreg (lib/tour3d/nordlysHimmel.js) på natthimmelen. `null`
+     * fjerner gardinene og etterlater ingen spor — samme kontrakt som setVaer.
+     *
+     * Gardinene vises BARE om natta; se oppdaterNordlysSynlighet. Preget kan
+     * derfor settes når som helst, og slår inn i det natta slås på.
+     */
+    setNordlys(preg) {
+      nordlysPregNaa = preg ?? null
+      oppdaterNordlysSynlighet()
+    },
+    get nordlysStyrke() { return nordlys.styrke },
+    get nordlysGardiner() { return nordlys.antallSynlige },
+
     get nightOn() { return nightOn },
 
     /** Fremhev én stjerneformasjon på natthimmelen (null rydder). */

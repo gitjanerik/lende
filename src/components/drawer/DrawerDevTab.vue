@@ -43,6 +43,22 @@ function toggleVaerDemo() {
   try { localStorage.setItem(VAERDEMO_KEY, vaerDemo.value ? '1' : '0') } catch { /* privat modus */ }
 }
 
+// Nordlys-demo i 3D. Samme mønster som vær-demoen, og grunnen er en sterkere
+// utgave av den samme: et synlig nordlys over Sør-Norge er noe som skjer noen
+// netter i året, så uten demoen kan laget i praksis ikke prøves i det hele tatt.
+// Foldene, strålenes drift og pulseringen er dessuten ren BEVEGELSE, som
+// vinddriften og lyn-blinket.
+const NORDLYSDEMO_KEY = 'lende-3d-nordlysdemo'
+const nordlysDemo = ref((() => {
+  try { return localStorage.getItem(NORDLYSDEMO_KEY) === '1' } catch { return false }
+})())
+function toggleNordlysDemo() {
+  nordlysDemo.value = !nordlysDemo.value
+  try {
+    localStorage.setItem(NORDLYSDEMO_KEY, nordlysDemo.value ? '1' : '0')
+  } catch { /* privat modus */ }
+}
+
 // Tvungne himmellegemer i 3D. Samme mønster som vær-demoen, og av samme grunn:
 // 3D-viseren er den som leser flagget, og den monteres etterpå.
 //
@@ -279,6 +295,22 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
     <div v-if="vaerDemo" class="text-[10px] text-ink/55 leading-relaxed mb-3 px-1">
       Åpne 3D: værtypene spilles i rekkefølge, 10 s hver, med «neste» for å hoppe
       videre. Overstyrer det ekte varselet så lenge den står på.
+    </div>
+    <!-- Nordlys-demo i 3D: går gjennom styrkene, 14 s hver. Finnes fordi et
+         synlig nordlys over Sør-Norge er noen netter i året — uten demoen kan
+         laget i praksis ikke prøves. -->
+    <button @click="toggleNordlysDemo"
+            class="w-full px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98] mb-1"
+            :class="nordlysDemo
+                    ? 'bg-emerald-400/20 border-emerald-300/50 text-ink'
+                    : 'bg-ink/5 border-ink/10 text-ink/75'">
+      {{ nordlysDemo ? 'Nordlys-demo i 3D: PÅ' : 'Nordlys-demo i 3D' }}
+    </button>
+    <div v-if="nordlysDemo" class="text-[10px] text-ink/55 leading-relaxed mb-3 px-1">
+      Åpne 3D og slå på NATT: styrkene spilles i rekkefølge, 14 s hver, fra et
+      svakt slør lavt i nord til et som fyller himmelen. Siste steg viser samme
+      styrke lenger nord, så du ser at høyden over horisonten faktisk regnes ut.
+      Overstyrer det ekte varselet så lenge den står på.
     </div>
     <!-- Tvungne himmellegemer i 3D: månen, Mars, Jupiter og Saturn er under
          horisonten store deler av tida, og da kan ikke globene prøves. -->

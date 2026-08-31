@@ -1,0 +1,135 @@
+// Fra måling til uttrykk: hvordan skal nordlyset SE UT i 3D?
+//
+// REN MODUL, og skilt fra nordlys.js av samme grunn som vaerHimmel er skilt fra
+// vaerFetcher: den ene endres når NOAA endrer seg, den andre når vi endrer mening
+// om hvordan det skal se ut. Tallene her er SMAK og kan skrus på fritt; tallene i
+// nordlys.js er geometri og astronomi og kan det ikke.
+//
+// UTTRYKKET ER IKKE FOTOREALISME, og det er bestilt. Lende tegner ISOM-kart med
+// flate farger og puff-skyer av trettens firkanter — et fotografisk nordlys ville
+// vært det eneste i scenen som lot som det var et fotografi. Det vi er ute etter
+// er det samme som med skyene (v5.22.0): en form som er GJENKJENNELIG i bevegelse.
+//
+// FIRE TING GJØR AT ET NORDLYS LESES SOM NORDLYS, og ingen av dem er oppløsning:
+//   1. Det henger i LODDRETTE stråler, ikke i flater. Strålene følger jordas
+//      magnetfeltlinjer, og det er derfor de er parallelle.
+//   2. Fargen skifter MED HØYDEN og ikke på tvers: grønt nederst, rødfiolett
+//      over. Snur man det, ser alle at det er feil uten å kunne si hvorfor.
+//   3. Det er GJENNOMSIKTIG. Stjerner skinner gjennom et nordlys, alltid.
+//   4. Det beveger seg LANGSOMT og kontinuerlig — det blinker ikke. En gardin
+//      bruker minutter på å folde seg, ikke sekunder.
+
+import { HOYDE_KM, hoydeVinkel, styrkeOrd } from '../nordlys.js'
+
+/**
+ * Fargene er de virkelige utslippslinjene, ikke valgt på palett:
+ *   557,7 nm  oksygen, det klassiske gulgrønne — 100–150 km
+ *   630,0 nm  oksygen igjen, rødt — over 200 km, og bare ved kraftig aktivitet
+ *   427,8 nm  ionisert nitrogen, blåfiolett — under grønnfargen, i sterke bånd
+ * De er dempet mot ren metning: et skjermgrønt på full styrke leses som neon.
+ */
+export const FARGER = {
+  gronn: '#3ddc84',
+  rod: '#b0407a',
+  fiolett: '#6a5acd',
+}
+
+/** Under dette tegnes ingenting. Se `nordlysPreg`. */
+export const MIN_PROSENT = 5
+
+/**
+ * Halve bredden på nordlysovalen, i breddegrader. Ovalen er et BELTE og ikke en
+ * strek — typisk noen grader bredt — og uten den bredden får gardinen ingen
+ * høyde når ovalen står rett over hodet. Se nordlysPreg.
+ */
+export const OVAL_HALVBREDDE = 3
+
+/**
+ * Minste høyde en gardin får spenne over, i grader. Se nordlysPreg: nær senit
+ * ser man LANGS lysarket, og geometrien som måler tvers over ovalen undervurderer
+ * da hvor mye himmel den dekker.
+ */
+export const MIN_SPENN_GRADER = 26
+
+/**
+ * Hvor mye av HIMMELEN nordlyset skal dekke, som en funksjon av hvor sterkt det
+ * er. Et svakt nordlys er en stripe lavt i nord; et kraftig ett strekker seg over
+ * hele himmelen og kan stå i sør.
+ *
+ * MÅLT I GRADER og ikke i «faktor», av samme grunn som vinddriften ble målt i
+ * skjermbrøk (v5.22.1): et tall uten enhet kan ikke sammenliknes med noe, og da
+ * ender man med en effekt ingen ser.
+ */
+export function bueBredde(prosent) {
+  if (prosent >= 60) return 150
+  if (prosent >= 35) return 110
+  if (prosent >= 15) return 80
+  return 55
+}
+
+/**
+ * Oversett en måling til alt gardinene trenger. `null` betyr TEGN INGENTING —
+ * ikke et svakt nordlys, ikke en gjetning. Nordlysmodus av skal se nøyaktig ut
+ * som før nordlyset fantes, samme kontrakt som `setVaer(null)`.
+ *
+ * @param {object} m
+ * @param {number|null} m.prosent OVATION-sannsynlighet der brukeren står
+ * @param {number|null} m.ovalGradNord hvor mange grader NORD for brukeren ovalens
+ *   sterkeste bånd ligger. Null = rett over hodet.
+ * @param {number|null} m.kp
+ * @returns {object|null}
+ */
+export function nordlysPreg({ prosent, ovalGradNord = null, kp = null } = {}) {
+  if (!Number.isFinite(prosent) || prosent < MIN_PROSENT) return null
+
+  // HØYDEVINKELEN ER DET SOM GJØR PÅSTANDEN SANN. Står ovalen 8° nord for deg,
+  // ligger den lavt i nord; står den over hodet, fyller den himmelen. Dette er
+  // ikke pynt — det er invarianten «alt du ser står der det faktisk står».
+  const avstand = Number.isFinite(ovalGradNord) ? Math.max(0, ovalGradNord) : 0
+
+  // OVALEN HAR BREDDE, og uten den kollapser gardinen. Første utgave regnet både
+  // nedre og øvre kant fra SAMME avstand, og da ble de to like i det ovalen sto
+  // rett over hodet: fra 90° til 90°, altså en gardin uten høyde. Testen fant
+  // det. Den ekte ovalen er typisk noen grader bred i bredderetningen, så nedre
+  // kant leses av den FJERNE sida (lavest) og øvre av den NÆRE (høyest).
+  const grunnVinkel = hoydeVinkel(avstand + OVAL_HALVBREDDE, HOYDE_KM.gronn)
+  const næreTopp = hoydeVinkel(Math.max(0, avstand - OVAL_HALVBREDDE), HOYDE_KM.rod)
+
+  // Under horisonten: da ser man det ikke, og da tegner vi det ikke. Et nordlys
+  // malt på en horisont der det fysisk ikke kan stå er nøyaktig den løgnen
+  // globe-arbeidet nektet å innføre (v6.0.0).
+  if (næreTopp <= 0) return null
+
+  // MINSTE SPENN. Står ovalen nær senit, ser man LANGS lysarket og det dekker
+  // mye himmel — geometrien over gir et smalt bånd fordi den måler tvers over
+  // ovalen, ikke langs den. Gulvet er derfor ikke pynt: uten det blir et nordlys
+  // rett over hodet en tynn strek, som er stikk motsatt av hva man ser.
+  const toppVinkel = næreTopp
+  const fraVinkel = toppVinkel - grunnVinkel < MIN_SPENN_GRADER
+    ? Math.max(0, toppVinkel - MIN_SPENN_GRADER)
+    : grunnVinkel
+
+  const styrke = Math.min(1, prosent / 70)
+  return {
+    styrke,
+    ord: styrkeOrd(prosent),
+    // Nedre og øvre kant av gardinene, i grader over horisonten.
+    fraGrader: Math.max(0, fraVinkel),
+    tilGrader: toppVinkel,
+    // Hvor bredt båndet spenner i asimut, sentrert i nord.
+    bueGrader: bueBredde(prosent),
+    // ANDELEN RØDT følger aktiviteten, fordi det gjør det i virkeligheten: den
+    // røde 630 nm-linja krever at partiklene når høyt nok, og det skjer først
+    // ved kraftige utbrudd. Et svakt nordlys som er rødt finnes ikke.
+    rodAndel: Math.min(0.55, Math.max(0, (prosent - 25) / 90)),
+    // Den fiolette frynsen nederst kommer enda senere.
+    fiolettAndel: prosent >= 45 ? 0.35 : 0,
+    // Foldehastighet. LANGSOMT er poenget: en gardin bruker minutter på å folde
+    // seg, og en som rykker leses som en animasjonsfeil. Kp løfter den litt —
+    // uro i feltet gir raskere bevegelse — men taket er lavt med vilje.
+    fart: 0.045 + Math.min(0.05, (kp ?? 0) * 0.006),
+    // Antall gardiner. Flere ved sterk aktivitet, men aldri så mange at de
+    // smelter til én flate: da mister man strålene, som er hele formen.
+    antall: prosent >= 60 ? 7 : prosent >= 35 ? 5 : prosent >= 15 ? 4 : 3,
+  }
+}

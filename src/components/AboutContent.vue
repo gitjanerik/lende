@@ -229,7 +229,7 @@ async function onInstallClick() {
             løftes opp i himmelen av seg selv, kurver, stier og knappenåler tas
             bort, og alt overlegget forsvinner — igjen står sol/måne-knappen,
             X-en, og mellom dem et søkefelt som også er en nedtrekksliste over det
-            som virkelig er over horisonten her og nå: 13 stjernebilder, de
+            som virkelig er over horisonten her og nå: 18 stjernebilder, de
             synlige planetene og månen. Velg ett, eller trykk rett på det i
             himmelen, og stjernene og strekene lyser opp mens kameraet retter
             blikket dit. Infokortet gir navn, latinsk navn, hvor mange stjerner
@@ -266,6 +266,41 @@ async function onInstallClick() {
             igjen.
           </p>
           <p class="text-[13px] leading-relaxed text-ink/70">
+            <strong class="text-ink/90">Er det nordlys ute, står det på
+            himmelen.</strong> I nattmodus henter Lende nordlysvarselet fra
+            <strong class="text-ink/90">NOAA</strong>s OVATION-modell og legger
+            grønne gardiner over den nordlige himmelen — loddrette stråler som
+            folder seg langsomt, slik nordlyset gjør fordi det følger jordas
+            magnetfeltlinjer. Fargene er de virkelige utslippslinjene: grønt fra
+            oksygen rundt 120 km, rødfiolett høyere oppe, og en blå frynse
+            nederst når det tar av. Stjernene skinner gjennom, som de skal.
+            Panelet øverst sier <strong class="text-ink/90">hvor sterkt det er,
+            sjansen akkurat der du står, skydekket, Kp-indeksen og
+            solvindfarten</strong> — og X-en tar bort både panelet og gardinene,
+            akkurat som i værraden.
+          </p>
+          <p class="text-[13px] leading-relaxed text-ink/70">
+            To ting er verdt å vite. Nordlyset står
+            <strong class="text-ink/90">der det faktisk står</strong>: hvor høyt
+            over horisonten gardinene henger regnes ut av hvor langt nord
+            nordlysovalen ligger i kveld og av at lyset kommer fra rundt 120 km
+            høyde. Fra Tromsø kan det stå rett over hodet; fra Sør-Norge ligger
+            det lavt i nord — og er ovalen for langt unna, tegnes ingenting,
+            framfor et nordlys som ikke er der. Og
+            <strong class="text-ink/90">skydekket står ved siden av styrken</strong>,
+            fordi det er det som avgjør: et kraftig nordlys bak et tett skylag er
+            ingenting, og et panel som melder «Sterk» i den situasjonen sender
+            deg ut i kulda for ingenting.
+          </p>
+          <p class="text-[12px] leading-relaxed text-ink/55">
+            Nordlysvarselet er det ene datalaget som
+            <strong class="text-ink/75">ikke</strong> pakkes med i en offline-fil,
+            og det er med vilje — samme regel som for værvarselet. For alt annet
+            betyr et gammelt tall bare «litt mindre presist»; for et varsel betyr
+            det feil. Modellen ser dessuten omtrent en time fram, så panelet
+            oppgir hvor gammel målingen er.
+          </p>
+          <p class="text-[13px] leading-relaxed text-ink/70">
             Nede til høyre står et <strong class="text-ink/90">himmelkompass</strong>:
             en skive som viser jordas plan, med N, Ø, S og V, og en rød markør
             øverst som er blikkretningen din. Skiva dreier når du snur deg — som
@@ -278,7 +313,7 @@ async function onInstallClick() {
             <li><strong class="text-ink/90">Det finnes ingen stjerne-API her.</strong>
               Alt regnes ut på telefonen din, av samme grunn som kartene lagres
               lokalt: en klar natt på fjellet har sjelden dekning. Stjernene er en
-              bakt katalog på 147 av de klareste fra
+              bakt katalog på 191 av de klareste fra
               <strong class="text-ink/90">HYG</strong> (Hipparcos + Yale), flyttet
               fra J2000 til i kveld med presesjon.</li>
             <li>Sol, måne, månefase og lyssidens retning kommer fra Meeus'
@@ -420,6 +455,10 @@ async function onInstallClick() {
       <div class="text-[12px] leading-relaxed text-ink/55 space-y-1 pt-1 border-t border-ink/10">
         <p>Kartdata © <strong class="text-ink/75">OpenStreetMap</strong>-bidragsytere (ODbL).</p>
         <p>Høydemodell, N50 og sjøkart: <strong class="text-ink/75">Kartverket</strong> (NLOD / CC BY 4.0).</p>
+        <p>Værvarsel: <strong class="text-ink/75">MET Norway</strong> (NLOD 2.0 / CC BY 4.0).</p>
+        <p>Nordlysvarsel, Kp-indeks og solvind:
+          <strong class="text-ink/75">NOAA Space Weather Prediction Center</strong>
+          (OVATION-modellen; offentlig eiendom).</p>
         <p>Værvarsel: <strong class="text-ink/75">Meteorologisk institutt</strong> (MET Norway) — NLOD 2.0 / CC BY 4.0.
           Værsymbolene er © 2015–2017 Yr, MIT-lisens.</p>
         <p>Verneområder og artsdata: Naturbase, NVE og GBIF.</p>
