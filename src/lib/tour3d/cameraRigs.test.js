@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { PerspectiveCamera } from 'three'
 import {
   createFollowRig, deriveFollowView, FOLLOW_DEFAULTS, INHERIT_DIST_RANGE,
+  terrainFloorY, KAMERA_KLARING_M,
 } from './cameraRigs.js'
+import { makeCoords } from './coords.js'
 
 // Kamera-posen følge-riggen ville satt for et gitt blikk-offset. Speiler
 // desiredFollowPose (som er intern), så testene kan gå rundturen
@@ -262,5 +264,40 @@ describe('createFollowRig — hold for å se rundt seg', () => {
     expect(rig.holding).toBe(false)
     rig.update(0.016, 0)
     expect(camera.position.distanceTo(pos)).toBeCloseTo(0, 6)
+  })
+})
+
+
+describe('terrainFloorY — gulvet begge riggene måler mot', () => {
+  // 3 × 3-rutenett over et 200 × 200 m ark: vest er havnivå, øst er 400 moh.
+  const coords = makeCoords({ widthM: 200, heightM: 200, exaggeration: 2 })
+  const dem = {
+    data: Float32Array.from([0, 200, 400, 0, 200, 400, 0, 200, 400]),
+    cols: 3, rows: 3,
+    transform: { originX: 0, originY: 0, pixelWidth: 100, pixelHeight: 100 },
+    noData: -9999,
+  }
+  // World-X = svgX − 100, world-Z = svgY − 100 (makeCoords sentrerer arket).
+  const gulv = (wx, wz) => terrainFloorY(dem, coords, wx, wz)
+
+  it('følger terrenget, med klaringen ganget opp av overdrivelsen', () => {
+    expect(gulv(-100, 0)).toBeCloseTo(0 + KAMERA_KLARING_M * 2, 6)
+    expect(gulv(0, 0)).toBeCloseTo(200 * 2 + KAMERA_KLARING_M * 2, 6)
+    expect(gulv(100, 0)).toBeCloseTo(400 * 2 + KAMERA_KLARING_M * 2, 6)
+  })
+
+  it('UTENFOR ARKET er gulvet kantens eget terreng — ikke havnivå', () => {
+    // Dette er hele forsvaret mot å komme seg under kartet: flyr man ut på
+    // øst-sida, der arket er 400 moh, skal gulvet følge med ut.
+    expect(gulv(5000, 0)).toBeCloseTo(gulv(100, 0), 6)
+    expect(gulv(-5000, 0)).toBeCloseTo(gulv(-100, 0), 6)
+    // Og et gulv som falt til havnivå utenfor ville vært lavere enn kantens.
+    expect(gulv(5000, 0)).toBeGreaterThan(KAMERA_KLARING_M * 2)
+  })
+
+  it('uten DEM finnes det ikke noe gulv', () => {
+    // Ingen høydedata = intet terreng å havne inni. Et gulv på havnivå ville
+    // bare dyttet kameraet opp uten grunn.
+    expect(terrainFloorY(null, coords, 0, 0)).toBe(-Infinity)
   })
 })

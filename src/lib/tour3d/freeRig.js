@@ -13,7 +13,9 @@
 // overgangstiden deles med følge-riggen (cameraRigs.js).
 
 import { Vector3, Quaternion, Matrix4, MOUSE } from 'three'
-import { terrainYAt, clearSightLine, easeInOutCubic, framePose, TRANSITION_S } from './cameraRigs.js'
+import {
+  terrainYAt, terrainFloorY, clearSightLine, easeInOutCubic, framePose, TRANSITION_S,
+} from './cameraRigs.js'
 
 // ≈ 5 minutter per omdreining ved 60 fps. OrbitControls' egen default (2.0)
 // er 30 sekunder — det leses som en skjermsparer, ikke som et kart som lever.
@@ -41,6 +43,36 @@ const BLIKK_TID_S = 0.9
 // symmetriske easeInOutCubic er riktig når brukeren ba om flyttingen; her ba
 // hun bare om natt.
 const easeOutCubic = (t) => 1 - (1 - t) ** 3
+
+// Hvor fort orbiten synker tilbake når terrenget under kameraet faller bort.
+// λ = 1,6 gir ~1 sekund. Bare NEDOVER: se loftSteg.
+const LOFT_DEMPING = 1.6
+
+/**
+ * Neste verdi for terrengløftet — HARDT OPP, MYKT NED, og asymmetrien er hele
+ * regelen.
+ *
+ * Opp skjer i samme frame som behovet oppstår: å være inne i en fjellside i så
+ * mye som ett bilde er nettopp feilen løftet finnes for. Ned dempes, fordi
+ * gulvet følger terrenget under kameraet — panorerer man ut over en kant, ville
+ * et hardt fall gitt et rykk i bildet av at bakken forsvant, ikke av at man
+ * gjorde noe.
+ *
+ * Ren funksjon: dette er tallet som avgjør om kameraet står trygt, og det er
+ * lettere å holde fast i en test enn i en frame-løkke.
+ *
+ * @param {number} forrige løftet i forrige frame, i world-meter
+ * @param {number} behov hvor mye som trengs NÅ (0 = ingenting)
+ * @param {number} dt sekunder siden forrige frame
+ * @returns {number}
+ */
+export function loftSteg(forrige, behov, dt, lambda = LOFT_DEMPING) {
+  const f = Number.isFinite(forrige) && forrige > 0 ? forrige : 0
+  const b = Number.isFinite(behov) && behov > 0 ? behov : 0
+  if (b >= f) return b
+  if (!Number.isFinite(dt) || dt <= 0) return f
+  return f + (b - f) * (1 - Math.exp(-lambda * dt))
+}
 
 /**
  * Hvilken orbit-asimut og himmelvipp som får blikket til å peke mot et punkt på
@@ -274,6 +306,11 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
   // både vippet himmelen og tiltet kartet. Asimuten er fortsatt fri — man skal
   // kunne se rundt seg på himmelen.
   let polarLast = false
+  // TERRENGLØFTET: hvor mange world-meter hele orbiten er hevet over den posen
+  // brukeren selv har dratt fram. Se `hevOverTerreng` — det er en STIV
+  // FORFLYTNING av kamera OG blikkpunkt, ikke en ny vinkel, så retning, tilt og
+  // avstand er fortsatt nøyaktig brukerens egne.
+  let terrengLoft = 0
   const listeners = []
 
   const on = (target, event, fn, opts) => {
@@ -414,6 +451,45 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
   }
 
   /**
+   * KAMERAET SKAL ALDRI STÅ UNDER TERRENGET — heller ikke i utforskermodus.
+   *
+   * Følge-riggen har alltid løftet kameraet over bakken; det er den som gjør at
+   * man ikke havner inne i fjellsida når stien går bratt. Den frie riggen hadde
+   * ikke noe gulv: `controls.target` beholder høyden sin når man panorerer, og
+   * med polarvinkelen nesten vannrett står kameraet omtrent i blikkpunktets
+   * høyde. Panorerte man inn i en fjellside — eller bare langt nok ut — havnet
+   * man under arket og kunne bevege seg fritt på UNDERSIDA av kartet.
+   *
+   * LØFTET ER EN STIV FORFLYTNING AV HELE ORBITEN, kamera og blikkpunkt sammen.
+   * Det er det som gjør at det ikke kan komme i konflikt med noe annet her:
+   * polarvinkel, asimut og avstand er uendret, så himmelvippens polarlås
+   * (`settPolarLast`) klemmer ikke imot, zoomen driver ikke, og bildet man ser
+   * er det samme — bare et stykke høyere. Å klemme polarvinkelen i stedet ville
+   * slåss med nettopp den låsen; å klemme bare kameraets Y ville endret både
+   * avstand og tilt bak ryggen på brukeren.
+   *
+   * Å ZOOME UT TIL MAN SER ARKETS KANTER ER MENINGEN og røres ikke — gulvet er
+   * en HØYDE, ikke en lenke i planet. Utenfor arket er gulvet kantens eget
+   * terreng (se terrainFloorY), så man kommer helt ut og ser arket fra sida.
+   */
+  function hevOverTerreng(dt) {
+    const gulv = terrainFloorY(dem, coords, camera.position.x, camera.position.z)
+    if (!Number.isFinite(gulv)) return
+    // BARE DELTAEN FLYTTES, og løftet er ÉN variabel. Alternativet — ta løftet
+    // av først i frama og legge det på til slutt — trenger et flagg for om det
+    // ligger på akkurat nå, og to variabler som må holdes i takt er nettopp den
+    // slags feil som ikke kaster: de gir bare et kamera som synker litt for
+    // hver frame.
+    const brukerY = camera.position.y - terrengLoft
+    const nytt = loftSteg(terrengLoft, gulv - brukerY, dt)
+    const delta = nytt - terrengLoft
+    if (!delta) return
+    terrengLoft = nytt
+    camera.position.y += delta
+    controls.target.y += delta
+  }
+
+  /**
    * Åpningsposen: blikkpunkt midt i kartet, kamera sør for sentrum og høyt
    * nok til at hele utsnittet får plass i bildet. Nord er −Z i world-rommet,
    * så «utsyn nordover» = kameraet står på +Z-siden og ser mot −Z.
@@ -447,6 +523,10 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
     // Enhver programmatisk pose er et blikk NED i kartet, så himmelvippen skal
     // ikke overleve den. «Oversikt» skal alltid gi oversikt.
     nullstillVipp()
+    // Posen er ABSOLUTT og har sin egen klaring (overviewPose/framePose løfter
+    // selv). Beholdt løftet ville neste frame trukket det fra en pose som aldri
+    // fikk det lagt på — og senket kameraet ned i bakken.
+    terrengLoft = 0
     if (animate) {
       transition = {
         t: 0,
@@ -759,6 +839,11 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
       quiet = true
       controls.update()
       quiet = false
+      // Terrenggulvet legges på FØR vippen: løftet flytter kameraet, vippen
+      // dreier det. Motsatt rekkefølge ville vært like riktig for bildet, men
+      // da ville `camera.rotateX` stått mellom to skriv til posisjonen, og
+      // neste øye som leser koden må sjekke om det spiller noen rolle.
+      hevOverTerreng(dt)
       // Himmelvippen legges PÅ orbitens orientering, hver frame, fordi
       // controls.update() setter kvaternionen på nytt hver gang. Bare
       // orienteringen røres — posisjon, blikkpunkt og avstand er fortsatt

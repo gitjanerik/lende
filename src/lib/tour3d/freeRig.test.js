@@ -19,7 +19,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { describe, it, expect } from 'vitest'
 import { PerspectiveCamera, Vector3, Matrix4 } from 'three'
 import {
-  himmelVippSteg, HIMMEL_VIPP_MAKS, blikkMot, orbitPosisjon, azimutFraTheta, vippForHoyde, blikkHoydeGrenser, blikkHoydeGrenserFullt, polarForHoyde,
+  himmelVippSteg, HIMMEL_VIPP_MAKS, blikkMot, orbitPosisjon, azimutFraTheta, vippForHoyde, blikkHoydeGrenser, blikkHoydeGrenserFullt, polarForHoyde, loftSteg,
 } from './freeRig.js'
 
 // Radianer per piksel, som i riggen: 2π over elementets høyde.
@@ -368,5 +368,37 @@ describe('polarForHoyde — blikket under horisonten', () => {
     expect(ned.theta).toBeCloseTo(opp.theta, 9)
     expect(ned.polar).toBeLessThan(opp.polar)
     expect(ned.vipp).toBe(0)
+  })
+})
+
+
+describe('loftSteg — hardt opp, mykt ned', () => {
+  it('tar hele behovet i samme frame når kameraet er under gulvet', () => {
+    // Å stå inne i en fjellside i så mye som ett bilde er nettopp feilen
+    // løftet finnes for. Ingen demping oppover.
+    expect(loftSteg(0, 80, 1 / 60)).toBe(80)
+    expect(loftSteg(30, 80, 1 / 60)).toBe(80)
+  })
+
+  it('synker mykt tilbake når terrenget under faller bort', () => {
+    const etter = loftSteg(100, 0, 1 / 60)
+    expect(etter).toBeLessThan(100)
+    expect(etter).toBeGreaterThan(95)          // ~2,6 % per frame ved λ = 1,6
+    // …og kommer i mål: ett sekund tar det meste.
+    expect(loftSteg(100, 0, 1)).toBeLessThan(21)
+  })
+
+  it('lander aldri under behovet på vei ned', () => {
+    let loft = 100
+    for (let i = 0; i < 600; i++) loft = loftSteg(loft, 40, 1 / 60)
+    expect(loft).toBeGreaterThanOrEqual(40)
+    expect(loft).toBeCloseTo(40, 3)
+  })
+
+  it('behandler tull som null', () => {
+    expect(loftSteg(NaN, NaN, 1 / 60)).toBe(0)
+    expect(loftSteg(-5, -5, 1 / 60)).toBe(0)
+    // dt = 0 (en frame som ikke rakk å gå) skal ikke rykke løftet noe sted.
+    expect(loftSteg(50, 0, 0)).toBe(50)
   })
 })

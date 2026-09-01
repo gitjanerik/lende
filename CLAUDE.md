@@ -614,6 +614,33 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   og kollapser til ingenting på skjermen; «12 av 13» og «den 13. gikk til origo»
   er samme observasjon der. På kartet er origo et sted langt unna, og da SER man
   den. Fiksen er den samme uansett hvilken av de to driveren gjør.
+- **KAMERAET STÅR ALDRI UNDER TERRENGET — i BEGGE riggene (v6.5.23).**
+  Følge-riggen har alltid løftet kameraet over bakken; det er den som gjør at man
+  ikke havner inne i fjellsida når stien går bratt. Den frie riggen hadde ikke
+  noe gulv i det hele tatt: `controls.target` beholder høyden sin når man
+  panorerer, og med polarvinkelen nesten vannrett (`POLAR_MAKS` = 89°) står
+  kameraet omtrent i blikkpunktets høyde — så panorerte man inn i en fjellside,
+  eller bare langt nok ut, havnet man under arket og kunne bevege seg fritt på
+  UNDERSIDA av kartet. Regelen bor nå ETT sted, `terrainFloorY` i `cameraRigs`,
+  med `KAMERA_KLARING_M` = 12 m (ganget med overdrivelsen).
+  **Samplingen KLEMMES TIL ARKET, og det er selve poenget utenfor kanten:** en
+  fallback på havnivå der ville gitt fritt leide under skjørtet. Med kantens egen
+  høyde som gulv kommer man helt ut og ser arket fra sida, men aldri under det —
+  **å zoome ut til kantene vises ER meningen**, gulvet er en HØYDE og ikke en
+  lenke i planet.
+  **I den frie riggen er løftet en STIV FORFLYTNING av hele orbiten**, kamera og
+  blikkpunkt sammen. Det er det som gjør at det ikke slåss med noe: polarvinkel,
+  asimut og avstand er uendret, så himmelvippens polarlås (`settPolarLast`,
+  v6.5.6) klemmer ikke imot og zoomen driver ikke. Å klemme POLARVINKELEN i
+  stedet ville slåss med nettopp den låsen; å klemme bare kameraets Y ville
+  endret både avstand og tilt bak ryggen på brukeren. Løftet er HARDT OPP og
+  MYKT NED (`loftSteg`, ren og testet): å stå inne i et fjell i ett eneste bilde
+  er feilen dette finnes for, mens et hardt FALL når man panorerer ut over en
+  kant leses som et rykk. `applyPose` nullstiller løftet — en programmatisk pose
+  er absolutt og har sin egen klaring.
+  **Enhetstestene ser bare regnestykket, og røyktesten ser ingenting**: det
+  eneste observerbare i DOM-en er hint-tekster, så et kamera under bakken kan
+  bare ses. Holder du regelen ren og her, er den i det minste ikke gjettet.
 - **SOLA ER DET FEMTE LEGEMET MED GLOBE, og den står UNDER terrenget om natta
   (v6.5.6).** Den tegnes der den faktisk står — og om natta er det under
   horisonten, altså under det endelige terrengarket. Ingen fast plass, ingen

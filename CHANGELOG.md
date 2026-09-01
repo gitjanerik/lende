@@ -1,3 +1,32 @@
+## 2026-09-01 — v6.5.23: Kameraet står aldri under terrenget — heller ikke i utforskermodus
+
+Følge-riggen har alltid løftet kameraet over bakken; det er den som gjør at man
+ikke plutselig står bak eller inne i et fjell når stien går bratt. Den frie
+riggen — 3D åpnet uten tur — hadde ikke noe gulv i det hele tatt. Blikkpunktet
+beholder høyden sin når man panorerer, og med polarvinkelen nesten vannrett står
+kameraet omtrent i blikkpunktets høyde, så panorerte man inn i en fjellside
+eller bare langt nok ut, havnet man under arket og kunne bevege seg fritt på
+undersida av kartet.
+
+Gulvet bor nå ett sted, `terrainFloorY` i `cameraRigs`, og begge riggene måler
+mot det: terrenget under kameraet pluss 12 meter klaring. Samplingen klemmes til
+arket, og det er selve poenget utenfor kanten — en fallback på havnivå der ville
+gitt fritt leide under skjørtet, mens kantens egen høyde som gulv lar deg komme
+helt ut og se arket fra sida uten å komme under det. Å zoome ut til kantene
+vises er fortsatt meningen: gulvet er en høyde, ikke en lenke i planet.
+
+I den frie riggen er løftet en stiv forflytning av HELE orbiten, kamera og
+blikkpunkt sammen. Det er det som gjør at det ikke slåss med noe annet der inne:
+polarvinkel, asimut og avstand er uendret, så himmelvippens polarlås klemmer
+ikke imot og zoomen driver ikke — bildet er det samme, bare et stykke høyere. Å
+klemme polarvinkelen i stedet ville slåss med nettopp den låsen, og å klemme
+bare kameraets Y ville endret både avstand og tilt bak ryggen på brukeren.
+Løftet er hardt oppover og mykt nedover: å stå inne i et fjell i ett eneste
+bilde er feilen dette finnes for, mens et hardt fall når man panorerer ut over
+en kant ville lest som et rykk i bildet.
+
+---
+
 ## 2026-09-01 — v6.5.22: Automatisk påfyll av nabofliser er fjernet — pilene er veien, ikonet ble med
 
 Automatikken lovet det de store kartappene gjør, og gjorde det dårligere. Et
