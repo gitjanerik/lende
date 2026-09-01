@@ -64,8 +64,7 @@ import { useHeritageLayers } from '../composables/useHeritageLayers.js'
 import { useHydroStations } from '../composables/useHydroStations.js'
 import { useReliefRender } from '../composables/useReliefRender.js'
 import { useGhostTiles } from '../composables/useGhostTiles.js'
-import { useMapExtend, extendZoneLabelText } from '../composables/useMapExtend.js'
-import { useAutoNabo } from '../composables/useAutoNabo.js'
+import { useMapExtend } from '../composables/useMapExtend.js'
 import { use3dEntry } from '../composables/use3dEntry.js'
 import { useKartDeling } from '../composables/useKartDeling.js'
 import { useDeltTur } from '../composables/useDeltTur.js'
@@ -93,7 +92,6 @@ import { useMapLoadPipeline } from '../composables/useMapLoadPipeline.js'
 import { buildStrokeOverrideCss } from '../lib/strokeOverrides.js'
 import { buildTrailColorCss, normalizeHex } from '../lib/trailColors.js'
 import { DEFAULT_VISIBLE_LAYER_KEYS } from '../lib/mapLayerCatalog.js'
-import { firkantKvitteringTekst } from '../lib/autoNaboValg.js'
 import { listThemes, erMorktTema } from '../lib/mapSettingsApply.js'
 import { norwegianName } from '../lib/placeName.js'
 import AnnotationIcon from '../components/AnnotationIcon.vue'
@@ -109,6 +107,7 @@ import HydroStationSheet from '../components/HydroStationSheet.vue'
 import FabSettingsPanel from '../components/FabSettingsPanel.vue'
 import FabCluster from '../components/FabCluster.vue'
 import MapModeChips from '../components/MapModeChips.vue'
+import FlisIkon from '../components/FlisIkon.vue'
 import DrawerLayersTab from '../components/drawer/DrawerLayersTab.vue'
 import DrawerThemeTab from '../components/drawer/DrawerThemeTab.vue'
 import DrawerStyleTab from '../components/drawer/DrawerStyleTab.vue'
@@ -700,10 +699,8 @@ function applyNameLanguage() {
 // Pinch/pan/rotate fryses kun mens aller første last pågår (ingen kart-DOM
 // ennå). Mens et ferskt kart fyller inn stier og detaljer (terreng-først)
 // ELLER mens et nytt kart bygges on-the-fly, lar vi brukeren pan/zoome/rotere
-// fritt — det automatiske flis-påfyllet er separat gated (useAutoNabo avviser på
-// fillingInDetails/buildingOnTheFly/gest), så gestene lager aldri en
-// konkurrerende bygging. Når
-// detaljene lander, byttes SVG-en inn via en silent re-render som beholder
+// fritt: ingenting bygges uten at brukeren har trykket en lende-pil, så en gest
+// kan ikke starte en konkurrerende bygging. Når detaljene lander, byttes SVG-en inn via en silent re-render som beholder
 // gjeldende transform, så stier/detaljer dukker opp sømløst i brukerens utsnitt.
 const pinchEnabled = computed(() => !loading.value)
 // panAtRest: la kartet dras også ved nullstilt zoom (se clampPan for canvas-rom).
@@ -1398,7 +1395,6 @@ const {
   // useGhostTiles — raster er den eneste kostnaden som skalerer med flisetallet.
   reliefEnabled: reliefActive, reliefOpacity, reliefBlendMode, RELIEF_BANDS,
   applyLayerVisibility, clampPan, maxTiles,
-  onNaboFlisKlar: (id, info) => naboFlisKlar(id, info),
 })
 
 // Re-render relieffet når DEM-en lastes eller temaet byttes (blend-modus
@@ -1453,7 +1449,7 @@ watch(storedDem, (dem) => {
 })
 // Mosaikk + manuell utvidelse — flyttet til useMapExtend; watchene blir her.
 const {
-  buildingOnTheFly, buildingProgress, autoMapToast, currentMapIsAuto,
+  buildingOnTheFly, buildingProgress, byggerFlisRetning, autoMapToast, currentMapIsAuto,
   drawerCoversCanvas, extendZonesVisible, activatableTile, mosaicGapCount,
   edgeHandles, hoveredDir, previewExtend, clearExtendPreview, avslorHandtak,
   showAutoMapToast,
@@ -1461,8 +1457,7 @@ const {
   autoMapBuildOpts, promoteTile, extendMap, armAutoMap,
   extendZonesBounds, arkRutenett, teardownMapExtend,
   refreshMosaicGaps, repairMosaicGaps,
-  firkantAntall, gjorArketFirkantet, firkantCellerListe,
-  extendMapGeometry, centerOverExistingTile,
+  firkantAntall, gjorArketFirkantet,
 } = useMapExtend({
   wrapperRef, wrapperSize, meta, mapId, router,
   scale, rotation, translateX, translateY, isGesturing, panTo,
@@ -1471,79 +1466,8 @@ const {
   ghostRects, GHOST_TRIGGER_SUPPRESS_FRAC, renderGhostTiles,
   currentTheme, visibleLayers, userPos, maxTiles, refreshAutoTileCount,
   closeDrawer, closeSearch,
-  // Gettere — useAutoNabo opprettes rett under (TDZ-regelen i CLAUDE.md).
-  byggerNaaNokkel: () => byggerNaaNokkel(),
-  autoNaboPa: () => autoNaboPa.value,
 })
 
-// Automatisk påfyll av nabofliser. MÅ stå ETTER useMapExtend: den konsumerer ni
-// navn derfra som VERDIER (destrukturerte const-er, ikke hoistede funksjoner —
-// hoisting-fella i CLAUDE.md), og leggTilSpokelse fra useGhostTiles lenger oppe.
-const {
-  autoNaboPa, settAutoNaboPa, firkantPa, settFirkantPa, autoNaboStatus,
-  sporPanIntensjon, avbrytBakgrunnsbygg, byggerNaaNokkel,
-  kvitterEksplisittHandling, teardownAutoNabo,
-} = useAutoNabo({
-  meta, mapId, isGesturing, isAlive: () => componentAlive,
-  buildingOnTheFly, fillingInDetails,
-  visibleCenterSvg, extendZonesBounds, extendMapGeometry,
-  centerOverExistingTile, autoMapBuildOpts, autoMapModeBusy,
-  leggTilSpokelse, maxTiles, refreshAutoTileCount, refreshMosaicGaps,
-  firkantCeller: firkantCellerListe,
-})
-
-// Kvitteringen: relieff-passet er ferdig på en nybygd naboflis. Chippen bytter
-// til ferdig-tilstand en liten stund — det er signalet som ALLTID kommer, også
-// når brukeren har relieff av og det ikke toner inn noe som helst.
-// Skrivbar bro til bryteren: composablen eier persisteringen (localStorage), så
-// setteren går gjennom settAutoNaboPa i stedet for å skrive refen direkte.
-const autoNaboBryter = computed({
-  get: () => autoNaboPa.value,
-  set: (v) => settAutoNaboPa(v),
-})
-const firkantBryter = computed({
-  get: () => firkantPa.value,
-  set: (v) => settFirkantPa(v),
-})
-
-// Banneret «Gjør arket firkantet» skjules bare når automatikken FAKTISK tar
-// jobben: begge bryterne på, og forrige utfylling ga seg ikke med celler igjen.
-const firkantTasAutomatisk = computed(() =>
-  autoNaboPa.value && firkantPa.value && !autoNaboStatus.firkantStopp)
-
-const naboKlarTekst = ref('')
-let naboKlarTimer = null
-// Utfyllingen til firkant er en egen fase i den samme bakgrunnsbyggingen, og
-// chipen skal si hva som faktisk skjer — «Henter Nord i lende …» er feil når
-// automatikken har gått videre til hjørnene.
-const fyllerUtArket = computed(() => autoNaboStatus.firkantIgjen > 0)
-// Chippen har to tilstander og ÉN plass: «Henter …» mens det står på, og
-// «… er klar» en liten stund etterpå. Ferdig-teksten vinner når begge er satt.
-const bakgrunnsflisTekst = computed(() => {
-  if (naboKlarTekst.value) return naboKlarTekst.value
-  if (!autoNaboStatus.byggerNokkel) return ''
-  if (fyllerUtArket.value) {
-    const n = autoNaboStatus.firkantIgjen
-    return n > 1 ? `Fyller ut arket … (${n} igjen)` : 'Fyller ut arket …'
-  }
-  const dir = autoNaboStatus.retning
-  return dir ? `Henter ${extendZoneLabelText(dir)} …` : 'Henter nytt utsnitt …'
-})
-function naboFlisKlar(id, info) {
-  if (id !== autoNaboStatus.sisteFlis) return   // ikke for fliser fra en full re-render
-  // Midt i en utfylling er ingenting «klart» ennå. Uten denne ville kvitteringen
-  // blinket én gang per hjørne-flis, med retnings-teksten fra flisa før dem.
-  if (autoNaboStatus.byggerNokkel || fyllerUtArket.value) return
-  const dir = autoNaboStatus.retning
-  naboKlarTekst.value = autoNaboStatus.fase === 'firkant'
-    ? firkantKvitteringTekst({ rest: autoNaboStatus.firkantRest, stopp: autoNaboStatus.firkantStopp })
-    : (dir ? `${extendZoneLabelText(dir)} er klar` : 'Nytt utsnitt er klart')
-  if (naboKlarTimer) clearTimeout(naboKlarTimer)
-  naboKlarTimer = setTimeout(() => { naboKlarTekst.value = '' }, 1800)
-  // Kort haptisk tikk der det finnes. Aldri påkrevd: Chromium blokkerer
-  // vibrate før første tapp i ramma, og røyktesten filtrerer den som støy.
-  try { if (info?.medRelieff) navigator.vibrate?.(12) } catch { /* noop */ }
-}
 // Mosaikken endret seg (ny flis bygd / scroll-tilbake) → re-tell hull (C) så
 // «Reparer»-banneret dukker opp/forsvinner i takt. Kanthåndtakene re-ankrer seg
 // selv (edgeHandles er en computed over ghostRects + transform-tilstanden).
@@ -1553,12 +1477,6 @@ function naboFlisKlar(id, info) {
 // ved neste GPS-poll.
 watch(ghostRects, () => { refreshMosaicGaps(); userPos.recompute() }, { deep: true })
 watch([scale, translateX, translateY, rotation], scheduleActivatableCheck)
-// Intensjons-sporing for automatisk flis-påfyll. Egen watch, ikke inne i
-// scheduleActivatableCheck: den er useMapExtends promoterings-logikk med sin
-// egen 250 ms-debounce og sine egne gater. De to deler bare kilde
-// (transform-refene) og har ulik tidsskala. At krysset er synlig HER er poenget
-// (CLAUDE.md v5.16.0) — det er lettere å forstå enn ett som er gjemt bort.
-watch([scale, translateX, translateY, rotation], sporPanIntensjon)
 // Feste-passet: hvilke nabofliser som skal ligge i DOM. Egen watch ved siden av
 // de to andre fordi den har sin egen debounce og sin egen hysterese — og fordi
 // den ALDRI skal kjøre midt i en gest. Gest-slutt tas av watchen under, samme
@@ -2427,7 +2345,6 @@ onUnmounted(() => {
   if (loadPillTimer) clearTimeout(loadPillTimer)
   teardownMapExtend()
   teardownGhostTiles()
-  teardownAutoNabo()
   if (viewSaveTimer) clearTimeout(viewSaveTimer)
   mapCtx.unregister(menuMapPoint)
 })
@@ -2497,13 +2414,12 @@ onUnmounted(() => {
          måling, sporing, info om stedet). Skjules når en modus (stifinner/måling/
          annotering) eller søk er aktiv, mens kartet bygges/utvides, og når
          highlight-pillen vises — bygge-chipen og pillen bruker samme
-         --ovl-top-slot og ville kollidert. Det gjelder ALLE chipene i den sloten:
-         bakgrunnsflis-chipen ble lagt til i v5.19.0 uten å komme med her, og la
-         seg rett oppå snarvei-raden (rapportert v5.19.3). Legger du en ny chip
-         på --ovl-top, hører den hjemme i denne lista. -->
+         --ovl-top-slot og ville kollidert. Det gjelder ALLE chipene i den sloten
+         — legger du en ny chip på --ovl-top, hører den hjemme i denne lista
+         (bakgrunnsflis-chipen kom inn i v5.19.0 uten å gjøre det, og la seg rett
+         oppå snarvei-raden; rapportert v5.19.3). -->
     <div v-if="!sti.active.value && !measureMode && !searchOpen && !annot.isAnnotateMode.value
-               && !buildingOnTheFly && !fillingInDetails && !highlightedFeature
-               && !bakgrunnsflisTekst"
+               && !buildingOnTheFly && !fillingInDetails && !highlightedFeature"
          class="absolute -translate-x-1/2 top-[var(--ovl-top)] z-20 pointer-events-none
                 transition-[left] duration-200"
          :style="mapCenterStyle">
@@ -2759,7 +2675,7 @@ onUnmounted(() => {
                       :hovered="hoveredDir"
                       @preview="previewExtend"
                       @clear="clearExtendPreview"
-                      @commit="(dir) => { kvitterEksplisittHandling(); extendMap(dir) }" />
+                      @commit="extendMap" />
     </div>
 
     <!-- Stifinner: fast midt-kikkertsikte mens startpunkt velges. Brukeren
@@ -2806,10 +2722,6 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <!-- Ingen ramme og intet trådkors i kartflaten: det automatiske flis-påfyllet
-         (useAutoNabo) kjører stille, og statusen vises som chip UTENFOR kartet.
-         Kartflaten skal stå bom stille mens en naboflis hentes. -->
-
     <!-- Modus-chips/-bannere (auto-kart-toast, detalj-chip, highlight-chip,
          annoterings-indikator, måle-readout, stifinner- og nærhetsvarsel-
          alert) — trekt ut til MapModeChips (v1.0.8). -->
@@ -2818,10 +2730,6 @@ onUnmounted(() => {
       :search-open="searchOpen"
       :map-center-style="mapCenterStyle"
       :filling-in-details="fillingInDetails"
-      :bakgrunnsflis-tekst="bakgrunnsflisTekst"
-      :bakgrunnsflis-retning="fyllerUtArket ? null : autoNaboStatus.retning"
-      :bakgrunnsflis-klar="!!naboKlarTekst"
-      :bakgrunnsflis-ark="arkRutenett"
       :highlighted-feature="highlightedFeature"
       :annot="annot"
       :measure-mode="measureMode"
@@ -2874,10 +2782,9 @@ onUnmounted(() => {
       @dismiss-details="detailsFailed = false"
       @retry-details="retryMapDetails"
       @complete-partial="retryMapDetails"
-      @repair-mosaic="() => { kvitterEksplisittHandling(); repairMosaicGaps() }"
+      @repair-mosaic="repairMosaicGaps"
       :firkant-antall="firkantAntall"
-      :firkant-tas-automatisk="firkantTasAutomatisk"
-      @square-mosaic="() => { kvitterEksplisittHandling(); gjorArketFirkantet() }"
+      @square-mosaic="gjorArketFirkantet"
       @dismiss-low-accuracy="dismissLowAccuracy"
       @retry-gps="onRetryGps" />
 
@@ -3094,8 +3001,6 @@ onUnmounted(() => {
             :rebuild-at-chosen-size="rebuildAtChosenSize"
             :building="buildingOnTheFly" :can-rebuild="!!meta?.bbox"
             :screen-wake="screenWake" :max-tiles="maxTiles"
-            v-model:auto-nabo-pa="autoNaboBryter"
-            v-model:firkant-pa="firkantBryter"
             :max-tile-index-max="MAX_TILE_STEPS.length - 1" />
 
           <DrawerDevTab v-show="activeTab === 'utvikler'"
@@ -3107,7 +3012,6 @@ onUnmounted(() => {
             v-model:diagnose="diagnose"
             :reset-lod-tuning="resetLodTuning" :map-data-label="mapDataLabel"
             :auto-tile-count="autoTileCount" :max-tiles="maxTiles"
-            :auto-nabo-status="autoNaboStatus"
             :cull-stats="cullStats" :cull-disabled="cullDisabled" :toggle-cull="toggleCull"
             :sjokart-status-text="sjokartStatusText"
             :nve-innsjo-status-text="nveInnsjoStatusText"
@@ -3259,9 +3163,15 @@ onUnmounted(() => {
 
     <!-- On-the-fly kart-bygging: IKKE-blokkerende chip (pointer-events-none).
          Tidligere var dette en full-screen blocker som frøs alt; nå forblir det
-         gjeldende kartet pan/zoom/rotér-bart mens det nye bygges. Auto-kart-
-         trigger er gated på buildingOnTheFly, så gestene lager ikke et
-         konkurrerende bygg. z-[60] holder chippen over drawer/søk visuelt. -->
+         gjeldende kartet pan/zoom/rotér-bart mens det nye bygges. z-[60] holder
+         chippen over drawer/søk visuelt.
+
+         IKONET SIER HVOR, TEKSTEN SIER HVOR LANGT (v6.5.22). Trykker du en
+         lende-pil, viser flis-ikonet arket i miniatyr med rutene som bygges
+         blinkende — det eneste som ble igjen av det automatiske påfyllet, og
+         det hørte alltid hjemme her. Bygginger uten retning (nytt kart ved et
+         søketreff, ombygging i ny størrelse) beholder spinneren: der er det
+         ingen naboflis, og et ark-ikon ville lovet noe annet enn det som skjer. -->
     <Transition name="chip-fade">
       <div v-if="buildingOnTheFly && !searchOpen"
            class="absolute top-[var(--ovl-top)] left-1/2 -translate-x-1/2 z-[60] px-3 py-1.5 rounded-2xl
@@ -3269,7 +3179,8 @@ onUnmounted(() => {
                   flex items-center gap-2 pointer-events-none border border-ink/10 max-w-[85%]
                   transition-[left] duration-200"
            :style="mapCenterStyle">
-        <span class="w-3.5 h-3.5 rounded-full border-2 border-ink/25 border-t-ink/80 animate-spin shrink-0"></span>
+        <FlisIkon v-if="byggerFlisRetning" :retning="byggerFlisRetning" :ark="arkRutenett" />
+        <span v-else class="w-3.5 h-3.5 rounded-full border-2 border-ink/25 border-t-ink/80 animate-spin shrink-0"></span>
         <span class="truncate">{{ buildingProgress || 'Oppretter kart …' }}</span>
       </div>
     </Transition>
@@ -3404,7 +3315,7 @@ onUnmounted(() => {
 
    Egne klasser, ikke cb-reveal-late: DEN settes på ROT-SVG-en og treffer også
    [data-layer="navn"] + stedsnavn. Gjenbrukt ville hele kartets stedsnavn tonet
-   ut og inn hver gang en bakgrunnsflis landet. Her er scopet én nested <svg>.
+   ut og inn hver gang en nabo-flis landet. Her er scopet én nested <svg>.
 
    Merk: CSS-opacity vinner over SVG-presentasjonsattributtet `opacity`, og det
    er nettopp derfor attributtet kan bære brukerens relieff-nivå (relieff-knotten)

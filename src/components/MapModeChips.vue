@@ -6,7 +6,6 @@
 // som props og leses med .value-idiomet, som ellers i appen. Handlinger som
 // involverer andre delsystemer sendes ut som events.
 import { computed, ref, watch } from 'vue'
-import { flisIkonRuter } from '../lib/flisIkon.js'
 import { ANNOTATION_SYMBOLS } from '../composables/useMapAnnotations.js'
 import KartLaster from './KartLaster.vue'
 
@@ -15,19 +14,6 @@ const props = defineProps({
   searchOpen: { type: Boolean, default: false },
   mapCenterStyle: { type: Object, default: () => ({}) },
   fillingInDetails: { type: Boolean, default: false },
-  // Automatisk flis-påfyll: «Henter Nord i lende …» / «Nord i lende er klar».
-  // Tom streng = ingen chip. Egen chip fordi den kan stå samtidig med
-  // fillingInDetails (terreng-først på aktiv flis er et annet fenomen).
-  bakgrunnsflisTekst: { type: String, default: '' },
-  // Retningen flisa hentes i (N/NE/E/…). Styrer HVILKE av de fire rutene i
-  // ikonet som animerer — se lib/flisIkon.js.
-  bakgrunnsflisRetning: { type: String, default: null },
-  // true når flisa er ferdig: da står alle fire rutene fylt (et helt ark) i
-  // stedet for å blinke. Kvitteringen skal se ferdig ut, ikke arbeidende.
-  bakgrunnsflisKlar: { type: Boolean, default: false },
-  // Arkets nåværende størrelse i fliser. Styrer HVOR MANGE ruter ikonet har:
-  // et ark som er én flis bredt får en stående stripe, ikke et 2×2.
-  bakgrunnsflisArk: { type: Object, default: () => ({ cols: 1, rows: 1 }) },
   highlightedFeature: { type: Object, default: null },
   annot: { type: Object, required: true },
   measureMode: { type: [Boolean, String], default: false },
@@ -47,15 +33,6 @@ defineEmits([
   'selectRoute', 'removeVia', 'beginAddVia', 'cancelStifinner',
   'followRoute', 'stopFollowing', 'shareRoundTrip', 'startGps', 'open3d',
 ])
-
-// Rutene i bygge-ikonet, i DOM-rekkefølge. `aktiv` = animerer (ligger i
-// retningen flisa hentes fra), `fylt` = ferdig-tilstanden der hele arket står.
-const ikonRuter = computed(() =>
-  flisIkonRuter(props.bakgrunnsflisRetning, props.bakgrunnsflisArk).map(r => ({
-    ...r,
-    aktiv: !props.bakgrunnsflisKlar && r.aktiv,
-    fylt: props.bakgrunnsflisKlar,
-  })))
 
 // Dele-knappens tekst sier hva som deles: en rundtur er en rundtur, men
 // Stifinnerens A→B-tur er en sti — «Del rundtur» der var direkte feil.
@@ -121,35 +98,6 @@ function formatElevationDiff(m) {
          :style="mapCenterStyle">
       <KartLaster />
       <span>Tegner inn stier og detaljer …</span>
-    </div>
-  </Transition>
-
-  <!-- Automatisk flis-påfyll (v5.19.0). Ligger UTENFOR kartflaten med vilje:
-       kravet er at kartet står helt stille mens en naboflis hentes, og et blink
-       eller en ramme inne i kartet ER bevegelse i kartflaten.
-       Dette er også den GARANTERTE kvitteringen — relieffet som toner inn er
-       den visuelle bekreftelsen, men den uteblir for brukere som har relieff av. -->
-  <Transition name="chip-fade">
-    <div v-if="bakgrunnsflisTekst && !searchOpen && !fillingInDetails"
-         class="absolute top-[var(--ovl-top)] left-1/2 -translate-x-1/2 z-30 pl-2 pr-3.5 py-1.5 rounded-2xl
-                bg-overlay/90 text-ink text-[12.5px] font-medium shadow-lg backdrop-blur
-                flex items-center gap-2 pointer-events-none border border-ink/10
-                transition-[left] duration-200"
-         :style="mapCenterStyle"
-         role="status" aria-live="polite">
-      <svg viewBox="0 0 32 32" class="w-6 h-6 shrink-0" fill="none" aria-hidden="true">
-        <template v-for="(r, i) in ikonRuter" :key="r.k">
-          <rect v-if="r.aktiv" :x="r.x" :y="r.y" :width="r.w" :height="r.h" rx="1.5"
-                :stroke="i % 2 ? '#34d399' : '#7dd3fc'" stroke-width="1.5"
-                stroke-dasharray="44" stroke-linecap="round">
-            <animate attributeName="stroke-dashoffset" values="44;0" dur="1.6s"
-                     :begin="`${(i % 2) * 0.4}s`" repeatCount="indefinite"/>
-          </rect>
-          <rect v-else :x="r.x" :y="r.y" :width="r.w" :height="r.h" rx="1.5"
-                :fill="r.fylt ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.18)'"/>
-        </template>
-      </svg>
-      <span>{{ bakgrunnsflisTekst }}</span>
     </div>
   </Transition>
 
