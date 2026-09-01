@@ -795,6 +795,32 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   og `blikk`-eventet emittes fra v6.3.2 i ALLE moduser, ikke bare om natta — et
   håndtak som bare er sant om natta lyver om dagen. Vippen har fortsatt ÉN eier:
   `freeRig`.
+
+  **AVLØST AV RETNINGSROSA (v6.5.19) — `Tour3dBlikkSkyv.vue` finnes ikke lenger.**
+  Desktop-kontrollene bor nå i `src/components/kontroller/` og deles av BEGGE
+  flatene: `ZoomSkyv.vue` (loddrett, med pluss/minus) og `RetningsRose.vue`, som
+  bærer azimut og høyde i ÉN rund flate — rosa er himmelhvelvet sett ovenfra,
+  senter rett opp, rand rett ned, horisonten den stiplede ringen imellom. I
+  kart-modus faller høyden bort og skiva snurrer i stedet. Regnestykket er rent og
+  testet i `lib/navKontroller.js`; zoomen er LOGARITMISK, så hver dobling får like
+  mye vei. **En «kube» à la Blender er VURDERT OG FORKASTET:** den snakker om et
+  objekt sett utenfra, mens man her står PÅ kartet og ser ut, og den har ingen
+  naturlig tastaturbetjening.
+
+  Fire ting som må stå. **`settBlikkRetning` i `freeRig` eier BEGGE regimene** —
+  det er derfor rosa kan tilte NEDOVER der skyven ikke kunne: over horisonten
+  bærer vippen, under bærer orbiten, og polarlåsen MÅ settes FØR vinklene (se
+  v6.5.6). Området er `blikkHoydeGrenserFullt()` (−85…74), som skiller seg fra
+  `blikkHoydeGrenser()` ved REGIME og ikke ved en strammere klamp. **De to
+  `<input type="range">`-ene under rosa er EKTE** og ligger oppå med `opacity: 0`
+  og `pointer-events: none` — ikke `sr-only` — så de beholder en ekte boks for
+  tastatur, hjelpemidler og Playwright; rosa arver `blikk-skyv`-klassen slik at
+  røyk-sjekken fra v6.3.2 fortsatt måler noe. **Zoom-området LESES** (`zoomGrenser`
+  i `usePinchZoom`, `avstandsGrenser` i `freeRig`) og skrives aldri av: gulvet i
+  kartet er mosaikk-avhengig. **Og søyla står 34 px innenfor viewportkanten** i
+  MapView, fordi de åtte lende-pilene dokker i et bånd der ute og nordøst-dokka
+  havnet under den — røyktesten fanget det, og den måler med `elementFromPoint`
+  nettopp for at neste kollisjon skal fanges av seg selv.
 - **Fremhevings-bufferet allokeres ÉN gang, på maks størrelse (v6.3.9).** three
   setter `geometry._maxInstanceCount` FØRSTE gang en instansiert geometri bindes,
   av bufferets lengde den gang, og fjerner det aldri igjen (bare ved dispose).

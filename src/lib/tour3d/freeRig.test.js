@@ -19,7 +19,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { describe, it, expect } from 'vitest'
 import { PerspectiveCamera, Vector3, Matrix4 } from 'three'
 import {
-  himmelVippSteg, HIMMEL_VIPP_MAKS, blikkMot, orbitPosisjon, azimutFraTheta, vippForHoyde, blikkHoydeGrenser, polarForHoyde,
+  himmelVippSteg, HIMMEL_VIPP_MAKS, blikkMot, orbitPosisjon, azimutFraTheta, vippForHoyde, blikkHoydeGrenser, blikkHoydeGrenserFullt, polarForHoyde,
 } from './freeRig.js'
 
 // Radianer per piksel, som i riggen: 2π over elementets høyde.
@@ -296,6 +296,32 @@ describe('vippForHoyde og blikkHoydeGrenser', () => {
       expect(v).toBeGreaterThanOrEqual(forrige)
       forrige = v
     }
+  })
+})
+
+describe('blikkHoydeGrenserFullt — rosas område', () => {
+  it('deler tak med skyven, men rekker ned i orbitens regime', () => {
+    // Samme øvre ende: over horisonten er det vippen som bærer, uansett hvem som
+    // ber. Nedre ende er derimot hele forskjellen — skyven stopper ved
+    // horisonten, rosa skal kunne legge kameraet over kartet.
+    const skyv = blikkHoydeGrenser()
+    const full = blikkHoydeGrenserFullt()
+    expect(full.maksGrader).toBe(skyv.maksGrader)
+    expect(full.minGrader).toBeLessThan(skyv.minGrader)
+    expect(full.minGrader).toBeLessThan(-80)
+  })
+
+  it('endene treffer nøyaktig det polarForHoyde kan gi', () => {
+    // Et håndtak med dødt slark i endene leses som en ødelagt kontroll.
+    const full = blikkHoydeGrenserFullt()
+    expect(polarForHoyde((full.minGrader * Math.PI) / 180) * (180 / Math.PI)).toBeCloseTo(5, 6)
+    expect(vippForHoyde((full.maksGrader * Math.PI) / 180)).toBeCloseTo(HIMMEL_VIPP_MAKS, 9)
+  })
+
+  it('grensene er HELE GRADER — samme krav som skyven', () => {
+    const full = blikkHoydeGrenserFullt()
+    expect(Number.isInteger(full.minGrader)).toBe(true)
+    expect(Number.isInteger(full.maksGrader)).toBe(true)
   })
 })
 

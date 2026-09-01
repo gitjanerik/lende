@@ -34,8 +34,10 @@ import Tour3dNordlysPanel from './Tour3dNordlysPanel.vue'
 import Tour3dHimmelSok from './Tour3dHimmelSok.vue'
 import Tour3dHimmelKort from './Tour3dHimmelKort.vue'
 import Tour3dHimmelKompass from './Tour3dHimmelKompass.vue'
-import Tour3dBlikkSkyv from './Tour3dBlikkSkyv.vue'
-import { blikkHoydeGrenser } from '../../lib/tour3d/freeRig.js'
+import RetningsRose from '../kontroller/RetningsRose.vue'
+import ZoomSkyv from '../kontroller/ZoomSkyv.vue'
+import { blikkHoydeGrenserFullt } from '../../lib/tour3d/freeRig.js'
+import { zoomBroek, zoomFraBroek } from '../../lib/navKontroller.js'
 import { lesPinPrefs, skrivPinPrefs, paaGrupper } from '../../lib/tour3d/pinPrefs.js'
 import { svgToWgs84 } from '../../lib/utm.js'
 import { fetchVarsel, naaVarsel } from '../../lib/vaerFetcher.js'
@@ -180,16 +182,48 @@ const globeTrekk = ref([])
 // vite at man ser nordover. Kompasset nede til høyre gir det tilbake.
 const blikk = ref(null)
 
-// ---- Skyveknappen for blikkets høyde (desktop) --------------------------
-// EN TILGJENGELIGHETSFIKS, ikke en ekstra måte å gjøre det samme. Himmelvippen
-// drives av et DRAG, og på desktop er venstre museknapp satt om til panorering
-// (mouseButtons i freeRig) — så bare høyre knapp roterer, og ingenting sier det.
-// Uten kontrollen kan man ikke løfte blikket til himmelen med mus i det hele
-// tatt, og stjernekikkeren er dermed utilgjengelig på en stor skjerm.
+// ---- Navigasjonskontrollene (desktop) -----------------------------------
+// EN TILGJENGELIGHETSFIKS, ikke en ekstra måte å gjøre det samme. Alle tre
+// bevegelsene i 3D er GESTER som ikke finnes på en vanlig maskin: himmelvippen
+// og rotasjonen krever HØYRE museknapp (venstre panorerer, se mouseButtons i
+// freeRig), og zoom krever et scrollhjul. Ingenting på skjermen sier det. Uten
+// kontrollene kan man verken løfte blikket, snu seg eller komme nærmere med en
+// styreflate — hele visningen er da låst i åpningsbildet.
 //
-// GRENSENE LESES AV RIGGEN og skrives ikke av: en skyveknapp med et annet område
-// enn riggen kan levere ender i et håndtak som står stille i endene.
-const BLIKK_GRENSER = blikkHoydeGrenser()
+// ROSA BÆRER TO AKSER I ÉN FLATE. Fire loddrette skyver langs kanten er et
+// instrumentbord; rotasjon og tilt er dessuten ÉN retning på en kule, ikke to
+// uavhengige tall. Se toppkommentaren i RetningsRose.vue.
+//
+// GRENSENE LESES AV RIGGEN og skrives ikke av: en kontroll med et annet område
+// enn riggen kan levere ender i et håndtak som står stille i endene. Rosa bruker
+// det FULLE området (blikkHoydeGrenserFullt) og ikke skyvens: den går gjennom
+// settBlikkRetning, som eier både vippe- og orbit-regimet, og kan derfor også
+// tilte landskapet ned til fugleperspektiv.
+const BLIKK_GRENSER = blikkHoydeGrenserFullt()
+
+// Avstands-området fra riggen, lest når motoren er klar. Null før det — og da
+// vises ingen zoom-skyv, framfor en skyv med oppdiktede endepunkter.
+const avstandGrenser = ref(null)
+const zoomBroekNaa = computed(() => {
+  const g = avstandGrenser.value
+  const a = blikk.value?.avstand
+  if (!g || !Number.isFinite(a)) return 0
+  // INVERTERT: opp på skyven er INN i kartet, altså kortere avstand.
+  return 1 - zoomBroek(a, g.min, g.maks)
+})
+const zoomAvlest = computed(() => {
+  const a = blikk.value?.avstand
+  if (!Number.isFinite(a)) return ''
+  return a >= 1000 ? `${(a / 1000).toFixed(1)} km` : `${Math.round(a)} m`
+})
+function settZoom(broek) {
+  const g = avstandGrenser.value
+  if (!g) return
+  engine?.settAvstand(zoomFraBroek(1 - broek, g.min, g.maks))
+}
+function settRetning({ azimut, hoyde }) {
+  engine?.settBlikkRetning(azimut, hoyde)
+}
 
 // Fin peker OG hover = mus eller styreflate, altså ingen berøring å dra med. På
 // telefon er draget der alt, og en skyveknapp ville bare tatt plass. Leses én
@@ -549,6 +583,10 @@ async function byggMotor() {
     if (nordlysDemoPaa.value && nightOn.value) nordlysDemoStart()
 
     phase.value = 'ready'
+    // Zoom-skyvens område kommer fra riggen og er kart-avhengig (maxDistance er
+    // 3 × største utstrekning). Leses her og ikke ved montering: riggen finnes
+    // først når motoren er bygget.
+    try { avstandGrenser.value = engine.avstandsGrenser() } catch { avstandGrenser.value = null }
 
     // Åpner man 3D med et mørkt kart, ER man i nattmodus fra første frame — og
     // da skal stjernemodus gjelde her også, ikke bare når man trykker seg inn i
@@ -1573,18 +1611,23 @@ function branchLabel(opt, i) {
         </div>
       </div>
 
-      <!-- BLIKK-SKYVEKNAPPEN, høyre kant, loddrett midtstilt.
-           BARE PÅ FIN PEKER (mus/styreflate), og i BÅDE dag og natt: luka den
-           lukker gjelder all 3D-visning, ikke bare stjernekikkeren. Den blir
-           stående i nattmodus selv om alt annet skjules — er den skjult der, er
-           himmelen uoppnåelig på en desktop, som er hele grunnen til at den
-           finnes. I natt er den dempet og rød, som kompasset. -->
+      <!-- NAVIGASJONSKONTROLLENE, høyre kant, loddrett midtstilt.
+           BARE PÅ FIN PEKER (mus/styreflate), og i BÅDE dag og natt: luka de
+           lukker gjelder all 3D-visning, ikke bare stjernekikkeren. De blir
+           stående i nattmodus selv om alt annet skjules — er de skjult der, er
+           himmelen uoppnåelig på en desktop, som er hele grunnen til at de
+           finnes. I natt er de dempet og røde, som kompasset. -->
       <div v-if="phase === 'ready' && finPeker"
-           class="absolute right-0 top-1/2 -translate-y-1/2 z-10 pointer-events-none pr-2">
-        <Tour3dBlikkSkyv :hoyde="blikk?.hoyde ?? 0"
-                         :min="BLIKK_GRENSER.minGrader" :maks="BLIKK_GRENSER.maksGrader"
-                         :natt="stjernemodus"
-                         @hoyde="engine?.settBlikkHoyde($event)"/>
+           class="absolute right-0 top-1/2 -translate-y-1/2 z-10 pointer-events-auto pr-2
+                  flex flex-col items-center gap-2 rounded-2xl bg-black/35 backdrop-blur
+                  py-3 px-1.5 mr-1 text-white/85">
+        <ZoomSkyv v-if="avstandGrenser" :broek="zoomBroekNaa" :avlest="zoomAvlest"
+                  :natt="stjernemodus" merkelapp="Zoom i 3D-visningen"
+                  @broek="settZoom"/>
+        <RetningsRose modus="himmel" :azimut="blikk?.azimut ?? 0" :hoyde="blikk?.hoyde ?? 0"
+                      :min-hoyde="BLIKK_GRENSER.minGrader" :maks-hoyde="BLIKK_GRENSER.maksGrader"
+                      :natt="stjernemodus"
+                      @retning="settRetning" @nord="engine?.seMotNord()"/>
       </div>
 
       <!-- HIMMELKOMPASSET, nede til høyre i nattmodus. Egen absolutt plassert

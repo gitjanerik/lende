@@ -439,6 +439,10 @@ export async function create3dScene(container, {
     return {
       azimut: (Math.atan2(blikkVec.x, -blikkVec.z) * 180) / Math.PI,
       hoyde: (Math.asin(Math.max(-1, Math.min(1, blikkVec.y))) * 180) / Math.PI,
+      // Avstanden til blikkpunktet følger med fordi zoom-skyven på desktop skal
+      // vise hvor man ER og ikke bare hvor man sist dro den. Samme takt som
+      // resten av blikket — 8 avlesninger i sekundet henger med i et drag.
+      avstand: freeRig.avstand,
     }
   }
 
@@ -932,6 +936,30 @@ export async function create3dScene(container, {
       if (!Number.isFinite(grader)) return
       freeRig.settBlikkHoyde((grader * Math.PI) / 180)
     },
+
+    /**
+     * Retningsrosa på desktop: begge blikkaksene i GRADER, satt direkte.
+     *
+     * HVORFOR VED SIDA AV settBlikkHoyde: den siste bor i vippe-regimet og kan
+     * bare se OPP (se freeRig.settBlikkHoyde). Rosa skal også kunne tilte
+     * landskapet ned til fugleperspektiv, altså under horisonten, og det er
+     * orbitens jobb. `settBlikkRetning` eier begge regimene.
+     *
+     * @param {number|null} azimut grader fra nord; null = behold retningen
+     * @param {number} hoyde grader over horisonten
+     */
+    settBlikkRetning(azimut, hoyde) {
+      if (!Number.isFinite(hoyde)) return
+      freeRig.settBlikkRetning(
+        Number.isFinite(azimut) ? (azimut * Math.PI) / 180 : null,
+        (hoyde * Math.PI) / 180,
+      )
+    },
+
+    /** Avstand til blikkpunktet, i meter — zoom-skyvens område og avlesning. */
+    get avstand() { return freeRig.avstand },
+    avstandsGrenser() { return freeRig.avstandsGrenser() },
+    settAvstand(meter) { freeRig.settAvstand(meter) },
 
     /**
      * Løft blikket opp i himmelen av seg selv — stjernemodus' åpningsbilde.
