@@ -252,7 +252,12 @@ function lagGardin(radius, indeks) {
         // er hardere enn den øvre, fordi et ekte nordlys har en tydelig underkant
         // (der partiklene stopper) og en diffus topp.
         float loddrett = smoothstep(0.0, 0.10, vUv.y) * (1.0 - smoothstep(0.55, 0.96, vUv.y));
-        float sidelengs = smoothstep(0.0, 0.22, vUv.x) * (1.0 - smoothstep(0.78, 1.0, vUv.x));
+        // SIDEKANTENE ER LANGE MED VILJE (v6.5.21). Platået var 56 % av bredden,
+        // så nabogardinene møttes med full styrke mot full styrke — og additivt
+        // er det dobbelt lys nøyaktig der de krysser. Med 32 % platå og lange
+        // utoninger møtes kant mot kant, altså svakt mot svakt, og bunken av sju
+        // gardiner leses som et draperi framfor én sammenhengende vegg.
+        float sidelengs = smoothstep(0.0, 0.34, vUv.x) * (1.0 - smoothstep(0.66, 1.0, vUv.x));
 
         // FARGEN SKIFTER MED HØYDEN, ikke på tvers: grønt nederst, rødt over,
         // fiolett frynse helt nede. Snudd er dette den ene feilen alle som har
@@ -281,8 +286,10 @@ function lagGardin(radius, indeks) {
         // diffuse buer uten struktur.
         float r1 = sin(vUv.x * 58.0 + vFold * 2.0 - uTid * 1.6);
         float r2 = sin(vUv.x * 23.0 - uTid * 0.4 + uFase);
-        float s = 1.0 + uStraaler * (0.45 * r1 + 0.30 * r2);
-        s = clamp(s, 0.0, 1.8);
+        // Utslaget er dempet i v6.5.21: strålene er STRUKTUR og ikke styrke, og
+        // toppene deres kom oppå både bølgen under og nabogardinene ved siden av.
+        float s = 1.0 + uStraaler * (0.34 * r1 + 0.22 * r2);
+        s = clamp(s, 0.0, 1.6);
 
         // SPILLET: en LYSBØLGE som løper langs båndet (v6.5.17). Det er dette
         // øyet leser som «dansende» nordlys, og det er lys og ikke form: en
@@ -297,12 +304,17 @@ function lagGardin(radius, indeks) {
         // «uUro» demper det bort i svake bånd, som står nesten stille.
         float surge = sin(vUv.x * 13.0 - uTid * 15.0 + uFase * 2.1)
                     + 0.6 * sin(vUv.x * 5.0 + uTid * 9.0 - uFase);
-        float bolge = 1.0 + uUro * 0.32 * surge;
+        float bolge = 1.0 + uUro * 0.24 * surge;
 
         // Svært langsom pulsering i intensitet — det er sånn et nordlys puster.
         float puls = 0.82 + 0.18 * sin(uTid * 0.7 + uFase * 1.7);
 
-        float a = uStyrke * s * max(0.0, bolge) * loddrett * sidelengs * puls * 0.48;
+        // GRUNNIVÅET ER HALVERT (v6.5.21). Ved full styrke var toppen av en
+        // ENKELT gardin alfa ≈ 0,55, og fire–sju av dem overlapper: summen
+        // klippet i alle tre kanalene, som er derfor et «svært sterkt» nordlys
+        // kom ut hvitgrønt og flatt i stedet for sterkt grønt med struktur. Det
+        // er hodetallet som må tåles her, ikke enkeltgardinen.
+        float a = uStyrke * s * max(0.0, bolge) * loddrett * sidelengs * puls * 0.24;
         if (a <= 0.002) discard;
 
         // IKKE «farge * a». AdditiveBlending i three er SRC_ALPHA + ONE, så en

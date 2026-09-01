@@ -1,3 +1,27 @@
+## 2026-09-01 — v6.5.21: Nordlyset er dempet — det er summen av gardiner som teller
+
+Eieren kjørte demoen i felt og meldte at alle seks stegene ble voldsomme, med
+for kraftige bånd. Diagnosen er at styrken er regnet PER GARDIN mens det man ser
+er SUMMEN: blandingen er additiv, et sterkt nordlys tegner sju gardiner over en
+bue på 150°, og de overlapper. Ved full styrke lå toppen av én enkelt gardin på
+alfa ≈ 0,55, så to som krysset klippet i alle tre kanalene — og et klippet grønt
+er hvitt. Det er derfor «Svært sterkt» kom ut som en flat lysvegg i stedet for
+et draperi med struktur.
+
+Fire skruer, alle i samme retning. Grunnivået i fragment-shaderen er halvert
+(0,48 → 0,24). Styrkekurven har fått komprimert topp (`0,34 + 0,50·p/65` mot
+`0,30 + 0,70·…`) — gulvet fra v6.5.16 står urørt, for det svakeste steget skal
+fortsatt være synlig, og det er hellingen som er slakere. Sidekantene på hver
+gardin er lange: platået er nede fra 56 % til 32 % av bredden, så nabogardiner
+møtes kant mot kant framfor full styrke mot full styrke. Og strålene og
+lysbølgen har mindre utslag, fordi de er struktur og ikke styrke — toppene deres
+kom oppå både hverandre og naboen. Forskjellen mellom svakt og sterkt bæres
+fortsatt av farge, høyde, buebredde og antall, som er lettere å lese enn
+lysstyrke. Taket er pinnet i en test med begrunnelsen, så ingen skrur det opp
+igjen uten å møte den.
+
+---
+
 ## 2026-09-01 — v6.5.20: Overlegget i 3D holder seg unna navigasjonssøyla
 
 Røyktesten i CI kjørte de nye kontrollene mot det ekte Vardåsen-arket for første

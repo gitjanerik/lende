@@ -138,7 +138,13 @@ export function nordlysPreg({ prosent, ovalGradNord = null, kp = null } = {}) {
   // en effekt som er korrekt skalert og likevel under terskelen for hva man ser,
   // er en effekt som ikke finnes. Forskjellen mellom svakt og sterkt bæres nå av
   // FARGE, HØYDE, BUEBREDDE og ANTALL, som alle er lettere å lese enn lysstyrke.
-  const styrke = 0.3 + 0.7 * Math.min(1, prosent / 65)
+  //
+  // TOPPEN ER KOMPRIMERT (v6.5.21), og det er OVERLAPPEN som betaler for det:
+  // gardinene blandes ADDITIVT, så et sterkt nordlys tegner sju bånd som legger
+  // seg oppå hverandre. Styrken er per gardin, mens det man SER er summen — og
+  // ved full styrke klippet summen i toppen på alle tre kanalene, altså grønt
+  // som gikk mot hvitt. Gulvet står urørt; det er hellingen som er slakere.
+  const styrke = 0.34 + 0.5 * Math.min(1, prosent / 65)
   return {
     styrke,
     ord: styrkeOrd(prosent),
