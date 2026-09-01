@@ -97,6 +97,8 @@ export function buildNordlysGardiner({ radius = 24_000, maksAntall = 7 } = {}) {
         u.uRod.value = preg.rodAndel
         u.uFiolett.value = preg.fiolettAndel
         u.uStraaler.value = preg.straaleAndel ?? 1
+        u.uFoldUtslag.value = preg.foldeUtslag ?? 0.1
+        u.uUro.value = preg.uro ?? 0.5
         u.uGronnFarge.value.copy(gronn)
         u.uRodFarge.value.copy(rod)
         u.uFiolettFarge.value.copy(fiolett)
@@ -177,12 +179,14 @@ function lagGardin(radius, indeks) {
       uRod: { value: 0 },
       uFiolett: { value: 0 },
       uStraaler: { value: 1 },
+      uFoldUtslag: { value: 0.1 },
+      uUro: { value: 0.5 },
       uGronnFarge: { value: new Color(FARGER.gronn) },
       uRodFarge: { value: new Color(FARGER.rod) },
       uFiolettFarge: { value: new Color(FARGER.fiolett) },
     },
     vertexShader: /* glsl */`
-      uniform float uTid, uFase, uRadius, uAsimut, uFra, uTil;
+      uniform float uTid, uFase, uRadius, uAsimut, uFra, uTil, uFoldUtslag;
       varying vec2 vUv;
       varying float vFold;
 
@@ -197,7 +201,9 @@ function lagGardin(radius, indeks) {
         // matematisk lik topp og bunn — det leses som en flate, ikke som et
         // draperi. Begge er deterministiske funksjoner av uFase, så ingen
         // tilfeldighet og ingen buffer å skrive om.
-        float toppFaktor = 0.82 + 0.34 * sin(uFase * 3.3);
+        // Aldri OVER uTil: taket der er satt for å unngå senit-degenerasjonen
+        // (MAKS_TOPP_GRADER), og en faktor over 1 ville spist det opp igjen.
+        float toppFaktor = 0.86 + 0.14 * sin(uFase * 3.3);
         float kantBolge = sin(uv.x * 6.2831 * 1.7 + uFase) * 0.035;
         // Klemt mot horisonten: gardinene tegnes uten depthTest, så en bølget
         // underkant under 0 ville malt grønt OVER terrenget — den ene løgnen
@@ -207,17 +213,24 @@ function lagGardin(radius, indeks) {
 
         // TRE FOLDER I UTAKT. Periodene er valgt til å IKKE gå opp i hverandre
         // (1 : 2,3 : 5,1), ellers gjentar mønsteret seg synlig hvert par sekund.
+        //
+        // FOLDEN ER SKJEVET MED HØYDEN (v6.5.17): «uv.y * 1.1» i fasen gjør at
+        // samme fold treffer toppen litt senere enn bunnen, altså at bølgen
+        // FORPLANTER SEG oppover gardinen framfor å svinge som en stiv plate.
+        // Det er den enkleste endringen som gjør at draperiet vrir seg, og
+        // det er også det et ekte nordlys gjør — foldene løper langs båndet.
         float t = uTid + uFase;
-        float f1 = sin(uv.x * 6.2831 * 1.0 + t * 1.00);
-        float f2 = sin(uv.x * 6.2831 * 2.3 - t * 0.61) * 0.55;
-        float f3 = sin(uv.x * 6.2831 * 5.1 + t * 0.33) * 0.22;
+        float tv = t + uv.y * 1.1;
+        float f1 = sin(uv.x * 6.2831 * 1.0 + tv * 1.00);
+        float f2 = sin(uv.x * 6.2831 * 2.3 - tv * 0.61) * 0.55;
+        float f3 = sin(uv.x * 6.2831 * 5.1 + tv * 0.33) * 0.22;
         float fold = f1 + f2 + f3;
         vFold = fold;
 
         // Folden slår ut i ASIMUT og ikke i høyde: en gardin bølger sidelengs
         // langs himmelen, den hopper ikke opp og ned. Utslaget vokser oppover,
         // slik en fri nedre kant henger roligere enn toppen.
-        a += fold * 0.055 * (0.35 + uv.y * 0.65);
+        a += fold * uFoldUtslag * (0.35 + uv.y * 0.65);
 
         // Nord er −Z (samme konvensjon som horisontTilWorld i astronomi.js).
         float r = cos(h) * uRadius;
@@ -226,7 +239,7 @@ function lagGardin(radius, indeks) {
       }
     `,
     fragmentShader: /* glsl */`
-      uniform float uStyrke, uRod, uFiolett, uStraaler, uTid, uFase;
+      uniform float uStyrke, uRod, uFiolett, uStraaler, uUro, uTid, uFase;
       uniform vec3 uGronnFarge, uRodFarge, uFiolettFarge;
       varying vec2 vUv;
       varying float vFold;
@@ -238,7 +251,7 @@ function lagGardin(radius, indeks) {
         // Toner ut i BEGGE ender: skarpe kanter avslører geometrien. Nedre kant
         // er hardere enn den øvre, fordi et ekte nordlys har en tydelig underkant
         // (der partiklene stopper) og en diffus topp.
-        float loddrett = smoothstep(0.0, 0.10, vUv.y) * (1.0 - smoothstep(0.62, 1.0, vUv.y));
+        float loddrett = smoothstep(0.0, 0.10, vUv.y) * (1.0 - smoothstep(0.55, 0.96, vUv.y));
         float sidelengs = smoothstep(0.0, 0.22, vUv.x) * (1.0 - smoothstep(0.78, 1.0, vUv.x));
 
         // FARGEN SKIFTER MED HØYDEN, ikke på tvers: grønt nederst, rødt over,
@@ -266,15 +279,30 @@ function lagGardin(radius, indeks) {
         // 58 gir ni, med drøye tre grader mellom, som er størrelsesordenen på
         // ekte stråler. «uStraaler» demper dem helt bort i svake bånd, som ER
         // diffuse buer uten struktur.
-        float r1 = sin(vUv.x * 58.0 + vFold * 2.0);
+        float r1 = sin(vUv.x * 58.0 + vFold * 2.0 - uTid * 1.6);
         float r2 = sin(vUv.x * 23.0 - uTid * 0.4 + uFase);
         float s = 1.0 + uStraaler * (0.45 * r1 + 0.30 * r2);
         s = clamp(s, 0.0, 1.8);
 
+        // SPILLET: en LYSBØLGE som løper langs båndet (v6.5.17). Det er dette
+        // øyet leser som «dansende» nordlys, og det er lys og ikke form: en
+        // gardin som fysisk svinger så fort ville sett ut som en animasjonsfeil,
+        // mens en lysstyrke som bølger langs den er nettopp det man ser i et
+        // kraftig utbrudd. To bølger i motsatt retning, så mønsteret ikke leses
+        // som en marsjerende stripe.
+        //
+        // FARTEN MÅ VÆRE STOR HER. «uTid» er sekunder ganget med «fart» (0,045–
+        // 0,095), så en koeffisient på 1 gir en periode på over et minutt. 15
+        // gir rundt seks sekunder, som er størrelsesordenen på ekte strålespill.
+        // «uUro» demper det bort i svake bånd, som står nesten stille.
+        float surge = sin(vUv.x * 13.0 - uTid * 15.0 + uFase * 2.1)
+                    + 0.6 * sin(vUv.x * 5.0 + uTid * 9.0 - uFase);
+        float bolge = 1.0 + uUro * 0.32 * surge;
+
         // Svært langsom pulsering i intensitet — det er sånn et nordlys puster.
         float puls = 0.82 + 0.18 * sin(uTid * 0.7 + uFase * 1.7);
 
-        float a = uStyrke * s * loddrett * sidelengs * puls * 0.48;
+        float a = uStyrke * s * max(0.0, bolge) * loddrett * sidelengs * puls * 0.48;
         if (a <= 0.002) discard;
 
         // IKKE «farge * a». AdditiveBlending i three er SRC_ALPHA + ONE, så en

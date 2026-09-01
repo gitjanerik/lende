@@ -52,6 +52,26 @@ export const OVAL_HALVBREDDE = 3
 export const MIN_SPENN_GRADER = 26
 
 /**
+ * Taket for hvor høyt en gardin får rekke, i grader over horisonten.
+ *
+ * DETTE ER EN GEOMETRISK DEGENERASJON OG IKKE SMAK (v6.5.17). Gardinene er
+ * spent ut i (asimut, høyde), og radien i asimutretningen er `cos(h)`. På 90°
+ * er den NULL: hele toppkanten av hver gardin kollapser til ett og samme punkt i
+ * senit, uansett hvilken asimut den sto i. Med ovalen rett over hodet ble
+ * `tilGrader` nøyaktig 90, og resultatet var at alle sju gardinene strålte ut av
+ * ett felles perspektivpunkt — som leses som en tegnefeil, fordi det ER en.
+ *
+ * (Et ekte nordlys i magnetisk senit gir faktisk en «korona» med stråler som
+ * peker mot betrakteren, så konvergensen er ikke usann i seg selv. Men den ekte
+ * koronaen har spredning og struktur; ett matematisk punkt har ingen av dem.)
+ *
+ * 74° koster oss ikke noe: forskjellen mellom «rett over hodet» og «nesten rett
+ * over hodet» er ikke lesbar på en skjerm, mens forskjellen mellom en gardin og
+ * et punkt er det.
+ */
+export const MAKS_TOPP_GRADER = 74
+
+/**
  * Hvor mye av HIMMELEN nordlyset skal dekke, som en funksjon av hvor sterkt det
  * er. Et svakt nordlys er en stripe lavt i nord; et kraftig ett strekker seg over
  * hele himmelen og kan stå i sør.
@@ -104,7 +124,7 @@ export function nordlysPreg({ prosent, ovalGradNord = null, kp = null } = {}) {
   // mye himmel — geometrien over gir et smalt bånd fordi den måler tvers over
   // ovalen, ikke langs den. Gulvet er derfor ikke pynt: uten det blir et nordlys
   // rett over hodet en tynn strek, som er stikk motsatt av hva man ser.
-  const toppVinkel = næreTopp
+  const toppVinkel = Math.min(MAKS_TOPP_GRADER, næreTopp)
   const fraVinkel = toppVinkel - grunnVinkel < MIN_SPENN_GRADER
     ? Math.max(0, toppVinkel - MIN_SPENN_GRADER)
     : grunnVinkel
@@ -151,5 +171,15 @@ export function nordlysPreg({ prosent, ovalGradNord = null, kp = null } = {}) {
     // stå i loddrette striper. Det hjelper dessuten synligheten, fordi et jevnt
     // bånd ikke har mørke mellomrom som spiser halve lyset.
     straaleAndel: Math.min(1, Math.max(0.2, (prosent - 5) / 45)),
+    // HVOR MYE GARDINEN FOLDER SEG, i radianer utslag i asimut. Et svakt nordlys
+    // er en rolig bue; et kraftig et draperi som vrir seg. 0,15 rad ≈ 8,6°, som
+    // er nok til å se formen endre seg mens man ser på den.
+    foldeUtslag: 0.06 + 0.09 * Math.min(1, prosent / 60),
+    // URO: hvor mye lys som løper LANGS båndet, som en bølge. Dette er det ene
+    // stedet nordlyset får lov til å være raskt — og det er riktig: de hurtige
+    // strålebevegelsene folk beskriver som «dansende» hører til kraftige
+    // substorms, mens en svak bue står nesten stille. Formen folder seg fortsatt
+    // langsomt; det er BARE lysstyrken som løper.
+    uro: Math.min(1, Math.max(0.2, (prosent - 5) / 50)),
   }
 }
