@@ -1,3 +1,33 @@
+## 2026-09-01 — v6.5.22: Automatisk påfyll av nabofliser er fjernet — pilene er veien, ikonet ble med
+
+Automatikken lovet det de store kartappene gjør, og gjorde det dårligere. Et
+kontinuerlig kart betyr sømløse fliser i alle retninger i det du drar; her betyr
+det ett 2 × 2 km-ark til, bygget på 5–30 sekunder fra Overpass og Kartverket, i
+den ene retningen dvele-triggeren gjettet på. Avstanden mellom løftet og
+leveransen er nettets og kildenes, ikke kodens, så den kunne ikke tunes bort.
+De åtte lende-pilene på arkkanten er nå den eneste veien til en ny flis: de sier
+hvor, de sier hva det koster, og de bygger ingenting uten et trykk.
+
+Borte er `useAutoNabo` med bryterne «Hent nabokart automatisk» og «Gjør arket
+firkantet» (automatikk-varianten), pan-intensjonssporingen, økt-gjerdet og
+status-raden i Utvikler-fanen — til sammen fem filer og en røyk-sjekk. «Gjør
+arket firkantet» og «Fyll hullene» står igjen som det de alltid var utenfor
+automatikken: bannere med kostnaden skrevet på. Kanthåndtakene er ikke lenger
+gated på at automatikken er av, så de står nå alltid framme når kartet er
+relevant. Gamle nøkler i localStorage (`lende-auto-nabo`, `-firkant`) blir
+liggende ubrukt på enheter som har dem; de leses ikke lenger av noe.
+
+Det ene som overlevde er den fine loaderen: flis-ikonet som viser arket i
+miniatyr med rutene som bygges blinkende — én, to eller fire, avhengig av
+retning og hvor stort arket er. Det ble laget for automatikken og kom aldri inn
+i den manuelle utvidelsen, som er der retningen ikke er gjettet men trykket.
+Ikonet bor nå i `components/FlisIkon.vue` og fôres av `byggerFlisRetning` fra
+`useMapExtend`. Bygginger uten retning — nytt kart ved et søketreff, ombygging i
+ny størrelse — beholder spinneren, for der finnes det ingen naboflis og et
+ark-ikon ville lovet noe annet enn det som skjer.
+
+---
+
 ## 2026-09-01 — v6.5.21: Nordlyset er dempet — det er summen av gardiner som teller
 
 Eieren kjørte demoen i felt og meldte at alle seks stegene ble voldsomme, med

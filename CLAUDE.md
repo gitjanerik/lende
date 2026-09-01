@@ -211,6 +211,36 @@ er 2,4 MB, god margin), **5 GB repo** er der GitHub tar kontakt, og
 **1 GB for det publiserte Pages-nettstedet** er hard grense — `dist/` er 133 MB
 i dag. Ingen av dem er nære, men gh-pages-veksten er den som løper først.
 
+## Viktig arkitektur-merknad — arket utvides BARE på bestilling
+
+**Automatisk påfyll av nabofliser er VURDERT, BYGD, PRØVD I FELT OG FJERNET
+(v5.19.0 → v6.5.22). Ikke ta det opp igjen uten nye argumenter.** Det er andre
+gang funksjonen dør: første utgave (tileCache-æraen) slettet forrige flis og
+gjorde det umulig å scrolle tilbake, og v5.19.0 rettet nettopp den feilen —
+`useAutoNabo` navigerte aldri og slettet aldri noe, triggeren leste INTENSJON
+(retning + dvele) og ikke geometri, og økt-taket lå på 12 fliser. Den var
+teknisk sett i orden. Den døde av noe annet:
+
+**Den lovet det de store kartappene gjør, og gjorde det dårligere.** Et
+kontinuerlig kart betyr sømløse fliser i alle retninger i det du drar; her betyr
+det ett 2 × 2 km-ark til, bygget på 5–30 sekunder fra Overpass og Kartverket, i
+den ene retningen automatikken gjettet på. Avstanden mellom løftet og leveransen
+er hele problemet, og den kan ikke lukkes med tuning: den er nettets og kildenes,
+ikke kodens.
+
+Derfor er **de åtte lende-pilene på arkkanten den ENESTE veien til en ny flis.**
+De sier hvor, de sier hva det koster (`+N fliser` i pilla), og de bygger
+ingenting uten et trykk. «Gjør arket firkantet» og «Fyll hullene» er fortsatt
+BANNERE med kostnaden skrevet på, aldri automatikk — se `findRectangleGaps`.
+
+**Det ene som overlevde er flis-ikonet** (`lib/flisIkon.js` +
+`components/FlisIkon.vue`): arket i miniatyr, med rutene som bygges blinkende.
+Det ble laget for automatikken og hørte hele tida hjemme i den manuelle
+utvidelsen — der er retningen ikke gjettet, den er trykket. Ikonet fôres av
+`byggerFlisRetning` fra `useMapExtend`, som er null for alt annet enn en
+kant-utvidelse; da beholder bygge-chipen spinneren, fordi et ark-ikon uten
+retning ville lovet en naboflis der det bygges et helt nytt kart.
+
 ## Viktig arkitektur-merknad — Fritt lende er FERSKVARE, og det er forutsetningen
 
 `/fritt` (v6.5.0) er den avkledde turkartmodusen: ett fast 2 × 2 km ISOM-ark der

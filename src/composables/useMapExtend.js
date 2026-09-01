@@ -275,28 +275,24 @@ export function useMapExtend({
   ghostRects, GHOST_TRIGGER_SUPPRESS_FRAC, renderGhostTiles,
   currentTheme, visibleLayers, userPos, maxTiles, refreshAutoTileCount,
   closeDrawer, closeSearch,
-  // Nøkkelen til flisa bakgrunns-byggingen jobber med akkurat nå, eller null.
-  // Getter, fordi useAutoNabo opprettes ETTER denne composablen (TDZ-regelen i
-  // CLAUDE.md). Uten den ville «Fyll hullene»-banneret blinket «1 hull» i de
-  // 5–30 sekundene en bakgrunnsbygging tar: planen bokføres FØR byggingen (for
-  // at et avbrutt bygg skal overleve en reload), og bokføringen er nettopp det
-  // manglendeFliser leser.
-  byggerNaaNokkel = () => null,
-  // Er automatisk flis-påfyll på? Da skjules kanthåndtakene. Åtte permanente
-  // knapper for noe appen gjør selv er dobbelt opp — og de konkurrerer om
-  // oppmerksomheten med kartet. Getter, fordi useAutoNabo opprettes etterpå.
-  autoNaboPa = () => false,
 }) {
   // ── Mosaikk + manuell utvidelse ───────────────────────────────────────────
-  // Arbeidsdelingen her (v5.19.0): DENNE composablen eier den EKSPLISITTE
-  // utvidelsen — kanthåndtakene på arkkanten, som bygger en hel rad eller kolonne
-  // bak en full-skjerm-loader fordi brukeren har bedt om den. Automatisk påfyll av
-  // ÉN naboflis på dvele bor i useAutoNabo og er bevisst ikke-blokkerende.
-  // Promotering på dvele (AUTO_PROMOTE_MS) er fortsatt her. Navn med
-  // «autoMap»-prefiks dekker delt infrastruktur (bygge-opts, toast, modus-gate)
-  // som begge bruker.
+  // ARKET UTVIDES BARE PÅ BESTILLING (v6.5.22). Kanthåndtakene på arkkanten er
+  // den eneste veien: åtte piler som bygger en rad eller kolonne, med kostnaden
+  // skrevet på. Automatisk påfyll av nabofliser på dvele fantes (useAutoNabo,
+  // v5.19.0) og er FJERNET — se CHANGELOG. Promotering på dvele
+  // (AUTO_PROMOTE_MS) er noe annet og står fortsatt: den navigerer mellom
+  // fliser som ALLEREDE finnes, den bygger ingenting. Navn med «autoMap»-prefiks
+  // dekker delt infrastruktur (bygge-opts, toast, modus-gate).
   const buildingOnTheFly = ref(false)  // full-screen loader-flagg (gjenbrukes)
   const buildingProgress = ref('')
+  // RETNINGEN BYGGE-CHIPEN VISER (v6.5.22). Den fôrer flis-ikonet — arket i
+  // miniatyr, med rutene som ligger i retningen blinkende — og er null for alt
+  // annet enn en kant-utvidelse. Null betyr «vi vet ikke hvor», og ikonet svarer
+  // med et helt ark der alt jobber, som er sant for en utfylling til firkant.
+  // Ikke utled den av `hoveredDir`: den følger pekeren og er borte i det man
+  // slipper håndtaket, altså nøyaktig når byggingen starter.
+  const byggerFlisRetning = ref(null)
   const autoMapToast = ref('')      // transient melding (offline, flyttet, utvidet)
   let autoMapToastTimer = null
   let autoMapOfflineNotified = false   // offline-toast vises kun én gang
@@ -337,7 +333,6 @@ export function useMapExtend({
   // Bevisst sti.active (ikke sti.blocking): kartutvidelse bygger ny SVG med
   // nytt koordinat-origo og ville invalidert en rute i bruk (following).
   const extendZonesVisible = computed(() =>
-    !autoNaboPa() &&
     !loading.value && !loadError.value && !!meta.value &&
     !buildingOnTheFly.value && !fillingInDetails.value &&
     !annot.isAnnotateMode.value &&
@@ -417,12 +412,10 @@ export function useMapExtend({
   // håndtakene blir RELEVANTE presenterer de seg én gang. Det dekker «ved lasting
   // av kart» uten en egen krok i laste-pipelinen.
   //
-  // Watchen MÅ opprettes i onMounted, ikke i setup. `watch(computed, cb)` leser
+  // Watchen opprettes i onMounted og ikke i setup: `watch(computed, cb)` leser
   // getteren ÉN gang med en gang for å ha en gammel verdi å sammenligne med, og
-  // extendZonesVisible kaller autoNaboPa() — som forelderen sender inn som en
-  // verdi fra en composable deklarert LENGER NED i MapView. I setup er den i TDZ,
-  // og røyktesten fanget nøyaktig den feilen («Cannot access before
-  // initialization» i autoNaboPa). Ved montering er alt initialisert.
+  // en getter som leser noe MapView deklarerer lenger ned i fila er i TDZ der
+  // (hoisting-fella i CLAUDE.md). Ved montering er alt initialisert.
   onMounted(() => {
     if (extendZonesVisible.value) avslorHandtak()
     watch(extendZonesVisible, (v) => { if (v) avslorHandtak() })
@@ -806,6 +799,7 @@ export function useMapExtend({
     extendingMap = true
     autoMapArmed = false
     buildingOnTheFly.value = true
+    byggerFlisRetning.value = direction
     buildingProgress.value = 'Forbereder …'
     closeDrawer()
     closeSearch()
@@ -869,6 +863,7 @@ export function useMapExtend({
         } catch { /* mosaikk-render er fail-safe */ }
       }
       buildingOnTheFly.value = false
+      byggerFlisRetning.value = null
       buildingProgress.value = ''
       autoMapArmed = true
       extendingMap = false
@@ -912,10 +907,6 @@ export function useMapExtend({
     if (!m || m.minE == null) return []
     const ut = []
     const sett = new Set()
-    // Flisa en bakgrunnsbygging holder på med er ikke et HULL — den er under
-    // arbeid. Uten dette blinker «Fyll hullene» gjennom hele byggetida.
-    const underArbeid = byggerNaaNokkel()
-    if (underArbeid) sett.add(underArbeid)
     const leggTil = (opts, utmBbox) => {
       const n = cellenokkel(utmBbox)
       if (!n || sett.has(n)) return
@@ -1038,8 +1029,6 @@ export function useMapExtend({
     if (!m || m.minE == null) return []
     const mangler = findRectangleGaps({ w: m.widthM, h: m.heightM }, ghostRects.value)
     const sett = new Set()
-    const underArbeid = byggerNaaNokkel()
-    if (underArbeid) sett.add(underArbeid)
     const ut = []
     for (const g of mangler) {
       const sx = g.col * m.widthM, sy = g.row * m.heightM
@@ -1054,11 +1043,6 @@ export function useMapExtend({
     return ut
   }
 
-  // Eksponert for useAutoNabo, som kan fylle ut arket i bakgrunnen når brukeren
-  // har slått på det valget. Samme celle-liste som knappen bygger — én kilde til
-  // hva «firkantet» betyr, så banneret og automatikken aldri er uenige.
-  function firkantCellerListe() { return firkantCeller() }
-
   function refreshFirkant() {
     firkantAntall.value = firkantCeller().length
   }
@@ -1070,7 +1054,7 @@ export function useMapExtend({
   }
 
   return {
-    buildingOnTheFly, buildingProgress, autoMapToast, currentMapIsAuto,
+    buildingOnTheFly, buildingProgress, byggerFlisRetning, autoMapToast, currentMapIsAuto,
     drawerCoversCanvas, extendZonesVisible, activatableTile, mosaicGapCount,
     edgeHandles, hoveredDir, previewExtend, clearExtendPreview, avslorHandtak,
     showAutoMapToast,
@@ -1078,10 +1062,6 @@ export function useMapExtend({
     autoMapBuildOpts, promoteTile, extendMap, armAutoMap,
     extendZonesBounds, arkRutenett, teardownMapExtend,
     refreshMosaicGaps, repairMosaicGaps,
-    firkantAntall, gjorArketFirkantet, firkantCellerListe,
-    // Eksponert for useAutoNabo — bakgrunnsbyggingen bruker NØYAKTIG samme
-    // geometri og samme «har vi den alt?»-test som kanthåndtakene, så en
-    // automatisk hentet flis lander bit-eksakt på samme gitter.
-    extendMapGeometry, centerOverExistingTile,
+    firkantAntall, gjorArketFirkantet,
   }
 }

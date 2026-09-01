@@ -52,8 +52,6 @@ const isAtDefaults = computed(() =>
 const maxTileIndex = defineModel('maxTileIndex', { type: Number, default: 0 })
 const globalReliefEnabled = defineModel('globalReliefEnabled', { type: Boolean, default: true })
 const globalReliefMode = defineModel('globalReliefMode', { type: String, default: 'vektor' })
-const autoNaboPa = defineModel('autoNaboPa', { type: Boolean, default: false })
-const firkantPa = defineModel('firkantPa', { type: Boolean, default: true })
 const densityId = defineModel('densityId', { type: String, default: 'normal' })
 const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, default: true })
 </script>
@@ -207,50 +205,6 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
         Hvor mange kart-utsnitt som beholdes i mosaikken. Flere = større sammenhengende
         område, men mer lagringsplass på enheten. De fjerneste fra der du er kappes først.
       </div>
-    </div>
-    <!-- Automatisk påfyll av nabofliser. Står rett under «Maks kartfliser» fordi
-         de to hører sammen: den ene sier hvor mange fliser vi beholder, den
-         andre hvordan de kommer inn. -->
-    <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-3 flex items-center gap-3">
-      <div class="flex-1 min-w-0">
-        <div class="text-[13px] text-ink font-medium">Hent nabokart automatisk</div>
-        <div class="text-[11px] text-ink/55 leading-snug">
-          Når du drar kartet jevnt i én retning og stopper opp, hentes utsnittet du
-          er på vei mot i bakgrunnen. Kartet står stille — flisa dukker opp når den
-          er klar, og relieffet kommer sist når alt er ferdig.
-        </div>
-      </div>
-      <button type="button" role="switch" :aria-checked="String(autoNaboPa)"
-              @click="autoNaboPa = !autoNaboPa"
-              class="relative w-11 h-6 rounded-full transition-colors shrink-0"
-              :class="autoNaboPa ? 'bg-emerald-500' : 'bg-ink/20'"
-              aria-label="Hent nabokart automatisk">
-        <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
-              :class="autoNaboPa ? 'translate-x-5' : ''"></span>
-      </button>
-    </div>
-    <!-- Under-innstilling til den over, og bare synlig når den er på: uten
-         automatikk er det kanthåndtakene som utvider, og de holder arket
-         rektangulært i seg selv. Er automatikken av, er «Gjør arket firkantet»
-         i stedet et banner på kartet — se MapStatusOverlays. -->
-    <div v-if="autoNaboPa"
-         class="rounded-lg bg-ink/5 px-3 py-2.5 mb-3 ml-4 flex items-center gap-3">
-      <div class="flex-1 min-w-0">
-        <div class="text-[13px] text-ink font-medium">Gjør arket firkantet</div>
-        <div class="text-[11px] text-ink/55 leading-snug">
-          Automatikken henter én flis om gangen, så arket får ujevn kant. Med
-          denne på fylles hjørnene ut etterpå, slik at 3D og oversikts-zoom
-          dekker hele området. Koster de ekstra flisene i nett og lagringsplass.
-        </div>
-      </div>
-      <button type="button" role="switch" :aria-checked="String(firkantPa)"
-              @click="firkantPa = !firkantPa"
-              class="relative w-11 h-6 rounded-full transition-colors shrink-0"
-              :class="firkantPa ? 'bg-emerald-500' : 'bg-ink/20'"
-              aria-label="Gjør arket firkantet automatisk">
-        <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
-              :class="firkantPa ? 'translate-x-5' : ''"></span>
-      </button>
     </div>
     <!-- Relieff av/på (GLOBAL standard — per-kart-overstyring gjøres i
          relieff-FAB-panelet via long-press): hillshade lages som ett

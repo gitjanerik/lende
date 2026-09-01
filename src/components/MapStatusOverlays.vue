@@ -23,15 +23,6 @@ const props = defineProps({
   // som er GALT (en avbrutt bygging), en ujevn kant er bare formen automatikken
   // gir. Derfor eget banner, lavere prioritet, og kostnaden skrevet på knappen.
   firkantAntall: { type: Number, default: 0 },
-  // Tar automatikken hånd om utfyllingen NÅ? Da er den en INNSTILLING (drawer-en,
-  // under auto-bryteren), ikke et banner: automatikken bygger fliser hele tida,
-  // og et banner etter hver av dem ville vært mas om noe brukeren allerede har
-  // tatt stilling til. Tar den det ikke — bryteren er av, eller utfyllingen ga
-  // seg på økt-taket med celler igjen — er banneret den eneste veien til en
-  // firkant, og da skal det stå. Fram til v5.19.11 holdt det at auto-bryteren
-  // sto på, så et ark automatikken hadde gitt opp havnet i et dødpunkt: ujevn
-  // kant, ingen knapp, og en chip som påsto at arket var firkantet.
-  firkantTasAutomatisk: { type: Boolean, default: false },
   isOffline: { type: Boolean, default: false },
   showLowAccuracy: { type: Boolean, default: false },
   accuracyM: { type: Number, default: 0 },
@@ -270,7 +261,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
        så hjørnene står tomme og du kan panorere ut i krem inne i ditt eget ark.
        Dette er et TILBUD med kostnaden skrevet på, aldri noe som skjer av seg
        selv — se findRectangleGaps for hvorfor det skillet er hele forskjellen. -->
-  <div v-else-if="firkantAntall > 0 && !firkantTasAutomatisk && !firkantDismissed && !loading"
+  <div v-else-if="firkantAntall > 0 && !firkantDismissed && !loading"
        class="absolute bottom-32 left-3 right-20 z-20 max-w-[420px]
               rounded-lg backdrop-blur bg-overlay/95 border border-ink/15
               text-ink text-[12px] shadow-lg p-3">
