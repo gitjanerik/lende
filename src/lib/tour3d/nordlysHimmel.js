@@ -109,7 +109,16 @@ export function nordlysPreg({ prosent, ovalGradNord = null, kp = null } = {}) {
     ? Math.max(0, toppVinkel - MIN_SPENN_GRADER)
     : grunnVinkel
 
-  const styrke = Math.min(1, prosent / 70)
+  // STYRKEN HAR ET GULV, og det er en bevisst overdrivelse (v6.5.16). Første
+  // utgave var lineær fra null (prosent/70), og eieren meldte fra felt at «Svakt,
+  // lavt i nord» ikke var synlig i det hele tatt og «Synlig bånd» bare så vidt.
+  // Det er riktig fysikk og feil framstilling: et nordlys på 8 % sannsynlighet er
+  // svakt for ØYET i mørket, men skjermen har allerede kastet bort det meste av
+  // dynamikken før den kommer dit. Samme lærdom som vinddriften (v5.22.1) —
+  // en effekt som er korrekt skalert og likevel under terskelen for hva man ser,
+  // er en effekt som ikke finnes. Forskjellen mellom svakt og sterkt bæres nå av
+  // FARGE, HØYDE, BUEBREDDE og ANTALL, som alle er lettere å lese enn lysstyrke.
+  const styrke = 0.3 + 0.7 * Math.min(1, prosent / 65)
   return {
     styrke,
     ord: styrkeOrd(prosent),
@@ -121,9 +130,13 @@ export function nordlysPreg({ prosent, ovalGradNord = null, kp = null } = {}) {
     // ANDELEN RØDT følger aktiviteten, fordi det gjør det i virkeligheten: den
     // røde 630 nm-linja krever at partiklene når høyt nok, og det skjer først
     // ved kraftige utbrudd. Et svakt nordlys som er rødt finnes ikke.
-    rodAndel: Math.min(0.55, Math.max(0, (prosent - 25) / 90)),
+    // Terskelen og brattheten ble skrudd opp i v6.5.16: med de gamle tallene lå
+    // rødandelen på 0,22 ved 45 %, og den ble i tillegg maskert bort av
+    // utoningen i fragment-shaderen — resultatet var et nordlys som var grønt og
+    // bare grønt uansett hvor sterkt det sto.
+    rodAndel: Math.min(0.85, Math.max(0, (prosent - 22) / 55)),
     // Den fiolette frynsen nederst kommer enda senere.
-    fiolettAndel: prosent >= 45 ? 0.35 : 0,
+    fiolettAndel: prosent >= 40 ? Math.min(0.6, 0.3 + (prosent - 40) / 80) : 0,
     // Foldehastighet. LANGSOMT er poenget: en gardin bruker minutter på å folde
     // seg, og en som rykker leses som en animasjonsfeil. Kp løfter den litt —
     // uro i feltet gir raskere bevegelse — men taket er lavt med vilje.
@@ -131,5 +144,12 @@ export function nordlysPreg({ prosent, ovalGradNord = null, kp = null } = {}) {
     // Antall gardiner. Flere ved sterk aktivitet, men aldri så mange at de
     // smelter til én flate: da mister man strålene, som er hele formen.
     antall: prosent >= 60 ? 7 : prosent >= 35 ? 5 : prosent >= 15 ? 4 : 3,
+    // HVOR MYE AV LYSET SOM LIGGER I STRÅLER. Et svakt nordlys er en DIFFUS BUE
+    // uten struktur — strålene kommer først når nedbøren av partikler blir tett
+    // nok til å følge enkeltfeltlinjer. Det er derfor dette er et eget tall og
+    // ikke bare mer styrke: ved 8 % skal båndet være jevnt, ved 70 % skal det
+    // stå i loddrette striper. Det hjelper dessuten synligheten, fordi et jevnt
+    // bånd ikke har mørke mellomrom som spiser halve lyset.
+    straaleAndel: Math.min(1, Math.max(0.2, (prosent - 5) / 45)),
   }
 }
