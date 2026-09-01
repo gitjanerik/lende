@@ -113,6 +113,20 @@ describe('nordlysPreg', () => {
       .toBeGreaterThan(nordlysPreg({ prosent: 8 }).styrke)
   })
 
+  it('styrken har også et TAK, fordi gardinene blandes additivt', () => {
+    // v6.5.21: styrken er PER GARDIN, og et sterkt nordlys tegner sju av dem
+    // oppå hverandre. Ved 1,0 klippet summen i alle tre kanalene og grønt gikk
+    // mot hvitt — eieren meldte det fra felt som «voldsomt, for kraftige bånd».
+    // Taket er derfor ikke smak i samme forstand som resten av fila: det er
+    // hodetallet som må tåles.
+    for (const p of [65, 80, 100]) {
+      expect(nordlysPreg({ prosent: p }).styrke, `${p} %`).toBeLessThanOrEqual(0.85)
+    }
+    // Og spennet mellom svakt og sterkt skal fortsatt være der å se.
+    expect(nordlysPreg({ prosent: 80 }).styrke)
+      .toBeGreaterThan(nordlysPreg({ prosent: 8 }).styrke * 1.5)
+  })
+
   it('strålene kommer med aktiviteten — et svakt nordlys er en diffus bue', () => {
     expect(nordlysPreg({ prosent: 8 }).straaleAndel)
       .toBeLessThan(nordlysPreg({ prosent: 45 }).straaleAndel)
