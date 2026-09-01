@@ -1,3 +1,26 @@
+## 2026-09-01 — v6.5.17: Nordlyset springer ikke lenger ut av ett punkt
+
+Med ovalen rett over hodet ble den øvre kanten av gardinene eksakt 90 grader, og
+der er radien i asimutretningen cos(h) altså null: hele toppkanten kollapset til
+ett og samme punkt i senit, uansett hvilken asimut gardinen sto i. Alle sju
+strålte derfor ut av ett felles perspektivpunkt, som leses som en tegnefeil
+fordi det er en. Et ekte nordlys i magnetisk senit gir riktignok en korona med
+stråler som peker mot betrakteren, men den koronaen har spredning og struktur —
+ett matematisk punkt har ingen av dem. Taket står nå på 74 grader, og
+forskjellen mellom «rett over hodet» og «nesten rett over hodet» er ikke lesbar
+på en skjerm.
+
+Samtidig har båndene fått mer spill. Foldene forplanter seg nå oppover gardinen
+i stedet for å svinge som en stiv plate, og utslaget vokser med aktiviteten. Det
+som faktisk leses som dansende nordlys er likevel lagt i LYSET og ikke i formen:
+to lysbølger løper langs båndet i motsatt retning, med en periode på noen
+sekunder. En gardin som fysisk svinger så fort ville sett ut som en
+animasjonsfeil, mens en lysstyrke som bølger langs den er nettopp det man ser i
+et kraftig utbrudd — og derfor dempes den bort i svake bånd, som står nesten
+stille.
+
+---
+
 ## 2026-09-01 — v6.5.16: Nordlyset kan faktisk ses
 
 Nordlyset fra v6.5.15 var teknisk riktig og praktisk usynlig. Fire feil dro i

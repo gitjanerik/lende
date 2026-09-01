@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { nordlysPreg, bueBredde, MIN_PROSENT, FARGER } from './nordlysHimmel.js'
+import {
+  nordlysPreg, bueBredde, MIN_PROSENT, MAKS_TOPP_GRADER, FARGER,
+} from './nordlysHimmel.js'
 
 describe('nordlysPreg', () => {
   it('gir null under terskelen — ikke et svakt nordlys', () => {
@@ -26,6 +28,34 @@ describe('nordlysPreg', () => {
     const fjernt = nordlysPreg({ prosent: 55, ovalGradNord: 9 })
     expect(over.fraGrader).toBeGreaterThan(fjernt.fraGrader)
     expect(over.tilGrader).toBeGreaterThan(fjernt.tilGrader)
+  })
+
+  it('når aldri helt til senit — ellers kollapser toppkanten til ett punkt', () => {
+    // GEOMETRISK DEGENERASJON, ikke smak (v6.5.17). Radien i asimutretningen er
+    // cos(h), altså NULL på 90°: hele toppkanten av hver gardin havner i samme
+    // punkt uansett asimut, og alle sju gardinene strålte ut av det ene punktet.
+    // Eieren så det umiddelbart som en tegnefeil, fordi det er en.
+    for (const grad of [0, 0.5, 1, 2]) {
+      const p = nordlysPreg({ prosent: 80, ovalGradNord: grad })
+      expect(p.tilGrader, `${grad}°`).toBeLessThanOrEqual(MAKS_TOPP_GRADER)
+    }
+    expect(MAKS_TOPP_GRADER).toBeLessThan(90)
+  })
+
+  it('spillet i båndet følger aktiviteten', () => {
+    // Foldene skal være langsomme uansett (se `fart`), men LYSBØLGEN som løper
+    // langs gardinen er det som leses som «dansende» — og den hører til kraftige
+    // utbrudd. En svak bue står nesten stille.
+    const svak = nordlysPreg({ prosent: 8 })
+    const sterk = nordlysPreg({ prosent: 72 })
+    expect(svak.uro).toBeLessThan(sterk.uro)
+    expect(svak.foldeUtslag).toBeLessThan(sterk.foldeUtslag)
+    for (const p of [5, 30, 99]) {
+      const v = nordlysPreg({ prosent: p })
+      expect(v.uro, `${p} %`).toBeGreaterThan(0)
+      expect(v.uro, `${p} %`).toBeLessThanOrEqual(1)
+      expect(v.foldeUtslag, `${p} %`).toBeLessThan(0.2)
+    }
   })
 
   it('tegner ingenting når ovalen er under horisonten', () => {
