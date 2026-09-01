@@ -18,25 +18,33 @@
 //
 // Testene er ute av samme grunn: de kjører ikke i byggingen.
 //
-// `package-lock.json` er MED. `polygon-clipping` er eneste tredjeparts
-// geometri-bibliotek, og en bump der kan flytte en kystlinje. Det skjer sjelden,
-// og da er en ny bake riktig.
+// `package-lock.json` er MED, men UTEN appens egen versjon — og det er ikke en
+// detalj. `polygon-clipping` er eneste tredjeparts geometri-bibliotek, og en
+// bump der kan flytte en kystlinje, så avhengighetstreet hører hjemme i
+// nøkkelen. Men lockfila bærer også appens `version`, og prosjektet bumper den
+// i HVER PR (se CLAUDE.md). Tar man fila rå, endrer nøkkelen seg hver gang og
+// cachen treffer ALDRI — den ville vært ren pynt. Dette ble målt i den PR-en som
+// innførte cachen: samme filtall, ny hash, uten at én kartkilde var rørt.
 //
 // Bruk:  node scripts/kartcache-nokkel.mjs
 // Skriver én linje: nøkkelen.
 
 import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 
 // Salt. Bumpes for å tvinge fram en ny bake uten å røre en kildefil — f.eks.
 // hvis en kilde har endret seg hos Kartverket og vi vil ha ferske data.
 export const NOKKEL_VERSJON = 1
 
-/** Filene kartet bygges AV. Alt annet kan endre seg uten å røre SVG-en. */
+/**
+ * Filene kartet bygges AV, målt på innhold (blob-SHA). `package-lock.json` er
+ * IKKE her — den går sin egen vei gjennom `laasDigest`, fordi appens egen
+ * versjon må ut av den først.
+ */
 export const KILDER = [
   /^scripts\/build-vardasen-svg\.js$/,
   /^src\/lib\//,
-  /^package-lock\.json$/,
 ]
 
 /** Unntakene inne i `src/lib` — se filhodet. */
@@ -53,6 +61,29 @@ export function erKartKilde(fil) {
 }
 
 /**
+ * Avhengighetstreet i package-lock, uten appens egen versjon.
+ *
+ * `version` står to steder — på rota og på selve pakken (`packages[""]`) — og
+ * begge bumpes av en vanlig utgivelse. Alt annet i fila er avhengigheter, som
+ * er det vi faktisk vil at nøkkelen skal følge.
+ *
+ * Ugyldig eller manglende fil → tom streng. Nøkkelen blir da svakere, ikke gal:
+ * kart-kildene bærer den fortsatt.
+ *
+ * @param {string} tekst innholdet i package-lock.json
+ * @returns {string}
+ */
+export function laasDigest(tekst) {
+  if (!tekst) return ''
+  let obj
+  try { obj = JSON.parse(tekst) } catch { return '' }
+  if (!obj || typeof obj !== 'object') return ''
+  delete obj.version
+  if (obj.packages && obj.packages['']) delete obj.packages[''].version
+  return createHash('sha256').update(JSON.stringify(obj)).digest('hex').slice(0, 16)
+}
+
+/**
  * Nøkkel fra `git ls-files -s`-linjer («100644 <blob-sha> 0\tsti»).
  *
  * Blob-SHA-en er innholdet, så nøkkelen endrer seg nøyaktig når en kildefil
@@ -63,7 +94,7 @@ export function erKartKilde(fil) {
  * @param {string[]} linjer
  * @returns {string}
  */
-export function nokkelFra(linjer) {
+export function nokkelFra(linjer, laas = '') {
   const rader = []
   for (const linje of linjer) {
     const delt = linje.split('\t')
@@ -74,13 +105,18 @@ export function nokkelFra(linjer) {
     if (sha) rader.push(`${sha} ${fil}`)
   }
   rader.sort()
-  const sum = createHash('sha256').update(rader.join('\n')).digest('hex').slice(0, 16)
+  const sum = createHash('sha256')
+    .update(rader.join('\n'))
+    .update(`\nlaas:${laas}`)
+    .digest('hex').slice(0, 16)
   return `royk-vardasen-v${NOKKEL_VERSJON}-${rader.length}-${sum}`
 }
 
 const kjørtDirekte = process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop())
 if (kjørtDirekte) {
-  const ut = execFileSync('git', ['ls-files', '-s', '--', 'scripts', 'src/lib', 'package-lock.json'],
+  const ut = execFileSync('git', ['ls-files', '-s', '--', 'scripts', 'src/lib'],
     { encoding: 'utf8' })
-  console.log(nokkelFra(ut.split('\n')))
+  let laas = ''
+  try { laas = laasDigest(readFileSync('package-lock.json', 'utf8')) } catch { /* uten lås */ }
+  console.log(nokkelFra(ut.split('\n'), laas))
 }

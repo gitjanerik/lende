@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { erKartKilde, nokkelFra, NOKKEL_VERSJON } from './kartcache-nokkel.mjs'
+import { erKartKilde, nokkelFra, laasDigest, NOKKEL_VERSJON } from './kartcache-nokkel.mjs'
 
 // Nøkkelen avgjør om røyktesten kjører mot et FERSKT kart eller et lagret. Går
 // den til feil side, går det galt begge veier: for smal, og de sju
@@ -14,8 +14,8 @@ describe('erKartKilde', () => {
     expect(erKartKilde('src/lib/mapBuilder.js')).toBe(true)
     expect(erKartKilde('src/lib/isomCatalog.json')).toBe(true)
     expect(erKartKilde('src/lib/symbolizer.js')).toBe(true)
-    // polygon-clipping kan flytte en kystlinje.
-    expect(erKartKilde('package-lock.json')).toBe(true)
+    // package-lock går sin egen vei — se laasDigest.
+    expect(erKartKilde('package-lock.json')).toBe(false)
   })
 
   it('HOLDER 3D-MOTOREN UTE — den leser kartet, den lager det ikke', () => {
@@ -71,5 +71,38 @@ describe('nokkelFra', () => {
 
   it('tåler tomme og oppstykkede linjer', () => {
     expect(() => nokkelFra(['', '   ', 'bare-en-kolonne'])).not.toThrow()
+  })
+})
+
+
+describe('laasDigest — avhengighetene teller, appens egen versjon gjør ikke', () => {
+  const laas = (v, dep) => JSON.stringify({
+    name: 'lende', version: v, lockfileVersion: 3,
+    packages: { '': { name: 'lende', version: v }, 'node_modules/polygon-clipping': { version: dep } },
+  })
+
+  it('STÅR STILLE når bare appens versjon bumpes', () => {
+    // Dette er den ene tingen som gjør cachen verdt noe: prosjektet bumper
+    // versjonen i HVER PR, så en nøkkel som fulgte den ville aldri truffet.
+    // Målt i PR-en som innførte cachen — samme filtall, ny hash, uten at én
+    // kartkilde var rørt.
+    expect(laasDigest(laas('6.5.24', '0.15.7'))).toBe(laasDigest(laas('6.5.23', '0.15.7')))
+  })
+
+  it('endrer seg når en avhengighet bumpes', () => {
+    // polygon-clipping er eneste tredjeparts geometri-bibliotek: en bump der
+    // kan flytte en kystlinje, og da skal kartet bygges på nytt.
+    expect(laasDigest(laas('6.5.24', '0.15.8'))).not.toBe(laasDigest(laas('6.5.24', '0.15.7')))
+  })
+
+  it('tåler tull uten å kaste', () => {
+    expect(laasDigest('')).toBe('')
+    expect(laasDigest('{ ikke json')).toBe('')
+    expect(laasDigest('null')).toBe('')
+  })
+
+  it('slår gjennom i nøkkelen', () => {
+    const rader = ['100644 aaa1 0\tsrc/lib/mapBuilder.js']
+    expect(nokkelFra(rader, 'abc')).not.toBe(nokkelFra(rader, 'def'))
   })
 })

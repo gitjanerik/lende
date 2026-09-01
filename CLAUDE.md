@@ -391,9 +391,13 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
 - **RØYKTESTENS VARDÅSEN-KART CACHES, og nøkkelen er poenget (v6.5.24).**
   Byggingen henter Overpass + Kartverket og er både det dyreste steget og det
   eneste som kan feile fordi en tredjepart har en dårlig dag. Kartet er en ren
-  funksjon av `src/lib` + `scripts/build-vardasen-svg.js` + `package-lock.json`,
-  og nøkkelen (`scripts/kartcache-nokkel.mjs`, med tester) er hashet over
-  nøyaktig de filene. **`src/lib/tour3d/**` er UTE av nøkkelen med vilje:**
+  funksjon av `src/lib` + `scripts/build-vardasen-svg.js` + avhengighetstreet i
+  `package-lock.json`, og nøkkelen (`scripts/kartcache-nokkel.mjs`, med tester)
+  er hashet over nøyaktig de filene. **Lockfila må inn UTEN appens egen
+  versjon:** prosjektet bumper den i hver PR, så en rå hash av fila gir en
+  nøkkel som endrer seg hver gang og en cache som ALDRI treffer. Det ble målt i
+  CI-kjøringen som innførte cachen — samme filtall, ny hash, ingen kartkilde
+  rørt. **`src/lib/tour3d/**` er UTE av nøkkelen med vilje:**
   3D-motoren LESER kartet, den lager det ikke — og det er 3D-PR-ene som trenger
   et ekte kart, så en nøkkel som tok med tour3d ville bommet på hver kjøring som
   har nytte av cachen. **Ingen `restore-keys`:** et delvis treff ville gitt et

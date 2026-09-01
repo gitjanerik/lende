@@ -9,7 +9,17 @@ seg.
 `--kartcache=<sti>` gjør at røyk-skriptet bruker et lagret kart hvis det finnes,
 og ellers bygger som før og legger resultatet der. I CI er stien en
 `actions/cache`-sti, og nøkkelen er hashet over nøyaktig de filene kartet lages
-av: `scripts/build-vardasen-svg.js`, `src/lib/**` og `package-lock.json`.
+av: `scripts/build-vardasen-svg.js`, `src/lib/**` og avhengighetstreet i
+`package-lock.json`.
+
+**Lockfila må inn UTEN appens egen versjon, og det er ikke en detalj.** Første
+utgave hashet fila rå, og CI-kjøringen avslørte det med en gang: samme filtall,
+ny hash, uten at én kartkilde var rørt. Prosjektet bumper versjonen i hver PR,
+så nøkkelen ville endret seg hver gang og cachen aldri truffet — den ville vært
+ren pynt. `laasDigest` fjerner `version` begge stedene den står og hasher
+resten, så en `polygon-clipping`-bump (som kan flytte en kystlinje) fortsatt
+tvinger en ny bake.
+
 `src/lib/tour3d/**` er UTE av nøkkelen med vilje — 3D-motoren leser kartet, den
 lager det ikke, og det er nettopp 3D-PR-ene som trenger et ekte kart. En nøkkel
 som tok med tour3d ville bommet på hver eneste kjøring som har nytte av cachen.
