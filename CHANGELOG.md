@@ -1,3 +1,23 @@
+## 2026-09-01 — v6.5.16: Nordlyset kan faktisk ses
+
+Nordlyset fra v6.5.15 var teknisk riktig og praktisk usynlig. Fire feil dro i
+samme retning, og den viktigste var en blandingsfeil: fargen ble premultiplisert
+med alfaen i shaderen samtidig som three sin additive blanding ganger med den én
+gang til, så et bånd med alfa 0,07 kom ut på 0,005 — altså ingenting. I tillegg
+lå portene for rødt og fiolett nøyaktig der utoningen var null, slik at begge
+fargene ble multiplisert bort og nordlyset var grønt uansett styrke;
+strålefrekvensen ga tretti striper over en gardin på 31 grader, som leses som
+skanlinjer og ikke som stråler; og styrken var lineær fra null, så de svakeste
+stegene i demoen aldri kom over terskelen for hva et øye ser på en skjerm.
+Styrken har nå et gulv, og forskjellen mellom svakt og sterkt bæres av farge,
+høyde, buebredde og antall gardiner i stedet. Et svakt nordlys tegnes som en
+diffus bue uten stråler, som er det et svakt nordlys faktisk er, og hver gardin
+har fått sin egen topphøyde og en bølget underkant så de sju ikke står som en
+mur. Demoteksten sier nå hvor på himmelen båndet står, siden et svakt nordlys
+lavt i nord ligger under blikket nattmodus åpner med.
+
+---
+
 ## 2026-08-31 — v6.5.15: Nordlys på natthimmelen
 
 Slår du på natt i 3D, henter Lende nordlysvarselet fra NOAAs OVATION-modell og

@@ -96,6 +96,7 @@ export function buildNordlysGardiner({ radius = 24_000, maksAntall = 7 } = {}) {
         u.uStyrke.value = preg.styrke
         u.uRod.value = preg.rodAndel
         u.uFiolett.value = preg.fiolettAndel
+        u.uStraaler.value = preg.straaleAndel ?? 1
         u.uGronnFarge.value.copy(gronn)
         u.uRodFarge.value.copy(rod)
         u.uFiolettFarge.value.copy(fiolett)
@@ -175,6 +176,7 @@ function lagGardin(radius, indeks) {
       uStyrke: { value: 0 },
       uRod: { value: 0 },
       uFiolett: { value: 0 },
+      uStraaler: { value: 1 },
       uGronnFarge: { value: new Color(FARGER.gronn) },
       uRodFarge: { value: new Color(FARGER.rod) },
       uFiolettFarge: { value: new Color(FARGER.fiolett) },
@@ -189,7 +191,19 @@ function lagGardin(radius, indeks) {
         // u spenner ut draperiet i asimut, v fra nedre til øvre kant i høyde.
         float bredde = 0.55;
         float a = uAsimut + (uv.x - 0.5) * bredde;
-        float h = mix(uFra, uTil, uv.y);
+
+        // HVER GARDIN HAR SIN EGEN HØYDE, og underkanten er ikke en sirkelbue
+        // (v6.5.16). Uten disse to sto de sju gardinene som en jevn mur med
+        // matematisk lik topp og bunn — det leses som en flate, ikke som et
+        // draperi. Begge er deterministiske funksjoner av uFase, så ingen
+        // tilfeldighet og ingen buffer å skrive om.
+        float toppFaktor = 0.82 + 0.34 * sin(uFase * 3.3);
+        float kantBolge = sin(uv.x * 6.2831 * 1.7 + uFase) * 0.035;
+        // Klemt mot horisonten: gardinene tegnes uten depthTest, så en bølget
+        // underkant under 0 ville malt grønt OVER terrenget — den ene løgnen
+        // dette laget ikke skal fortelle.
+        float fra = max(0.0, uFra + kantBolge);
+        float h = mix(fra, fra + (uTil - fra) * toppFaktor, uv.y);
 
         // TRE FOLDER I UTAKT. Periodene er valgt til å IKKE gå opp i hverandre
         // (1 : 2,3 : 5,1), ellers gjentar mønsteret seg synlig hvert par sekund.
@@ -212,7 +226,7 @@ function lagGardin(radius, indeks) {
       }
     `,
     fragmentShader: /* glsl */`
-      uniform float uStyrke, uRod, uFiolett, uTid, uFase;
+      uniform float uStyrke, uRod, uFiolett, uStraaler, uTid, uFase;
       uniform vec3 uGronnFarge, uRodFarge, uFiolettFarge;
       varying vec2 vUv;
       varying float vFold;
@@ -221,29 +235,54 @@ function lagGardin(radius, indeks) {
         // FARGEN SKIFTER MED HØYDEN, ikke på tvers: grønt nederst, rødt over,
         // fiolett frynse helt nede. Snudd er dette den ene feilen alle som har
         // sett nordlys kjenner igjen uten å kunne si hvorfor.
-        vec3 farge = uGronnFarge;
-        farge = mix(farge, uRodFarge, smoothstep(0.45, 1.0, vUv.y) * uRod);
-        farge = mix(farge, uFiolettFarge, smoothstep(0.18, 0.0, vUv.y) * uFiolett);
-
-        // LODDRETTE STRÅLER. Uten dem er gardinen en jevn flate, og en jevn flate
-        // er ikke nordlys. To frekvenser i utakt så strålene ikke blir en kam.
-        float s = 0.62
-          + 0.38 * sin(vUv.x * 190.0 + vFold * 2.0)
-          + 0.22 * sin(vUv.x * 71.0 - uTid * 0.4 + uFase);
-        s = clamp(s, 0.0, 1.4);
-
         // Toner ut i BEGGE ender: skarpe kanter avslører geometrien. Nedre kant
         // er hardere enn den øvre, fordi et ekte nordlys har en tydelig underkant
         // (der partiklene stopper) og en diffus topp.
-        float loddrett = smoothstep(0.0, 0.16, vUv.y) * (1.0 - smoothstep(0.55, 1.0, vUv.y));
+        float loddrett = smoothstep(0.0, 0.10, vUv.y) * (1.0 - smoothstep(0.62, 1.0, vUv.y));
         float sidelengs = smoothstep(0.0, 0.22, vUv.x) * (1.0 - smoothstep(0.78, 1.0, vUv.x));
+
+        // FARGEN SKIFTER MED HØYDEN, ikke på tvers: grønt nederst, rødt over,
+        // fiolett frynse helt nede. Snudd er dette den ene feilen alle som har
+        // sett nordlys kjenner igjen uten å kunne si hvorfor.
+        //
+        // PORTENE MÅ LIGGE DER «loddrett» FAKTISK SLIPPER LYS GJENNOM, og det er
+        // feilen som ble rettet i v6.5.16: rødt var portet på smoothstep(0.45,
+        // 1.0) mens loddrett begynte å tone ut allerede på 0.55 og var null på
+        // 1.0 — altså full rødblanding nøyaktig der alfaen var borte. Fiolett
+        // hadde samme feil speilvendt: smoothstep(0.18, 0.0) er full på vUv.y = 0,
+        // som er der den nedre utoningen er null. Begge fargene var i praksis
+        // multiplisert bort, og resultatet var et nordlys som alltid var grønt.
+        // Rører du den ene, se på den andre.
+        vec3 farge = uGronnFarge;
+        farge = mix(farge, uRodFarge, smoothstep(0.30, 0.85, vUv.y) * uRod);
+        farge = mix(farge, uFiolettFarge, smoothstep(0.28, 0.04, vUv.y) * uFiolett);
+
+        // LODDRETTE STRÅLER. Uten dem er gardinen en jevn flate, og en jevn flate
+        // er ikke nordlys. To frekvenser i utakt så strålene ikke blir en kam.
+        //
+        // FREKVENSEN ER MÅLT I STRÅLER PER GRAD, ikke i «en pen verdi»: gardinen
+        // er 0,55 rad ≈ 31° bred, så 190 ga tretti stråler over den — altså én
+        // per grad, som på en telefon er skanline-striper og ikke et nordlys.
+        // 58 gir ni, med drøye tre grader mellom, som er størrelsesordenen på
+        // ekte stråler. «uStraaler» demper dem helt bort i svake bånd, som ER
+        // diffuse buer uten struktur.
+        float r1 = sin(vUv.x * 58.0 + vFold * 2.0);
+        float r2 = sin(vUv.x * 23.0 - uTid * 0.4 + uFase);
+        float s = 1.0 + uStraaler * (0.45 * r1 + 0.30 * r2);
+        s = clamp(s, 0.0, 1.8);
 
         // Svært langsom pulsering i intensitet — det er sånn et nordlys puster.
         float puls = 0.82 + 0.18 * sin(uTid * 0.7 + uFase * 1.7);
 
-        float a = uStyrke * s * loddrett * sidelengs * puls * 0.42;
+        float a = uStyrke * s * loddrett * sidelengs * puls * 0.48;
         if (a <= 0.002) discard;
-        gl_FragColor = vec4(farge * a, a);
+
+        // IKKE «farge * a». AdditiveBlending i three er SRC_ALPHA + ONE, så en
+        // ferdig premultiplisert farge blir ganget med alfaen ÉN GANG TIL: ved
+        // a = 0,07 ga det 0,005 på skjermen, altså ingenting. Det var
+        // hovedgrunnen til at de svake stegene i demoen var usynlige. Skal noen
+        // premultiplisere her, må materialet samtidig få «premultipliedAlpha».
+        gl_FragColor = vec4(farge, a);
       }
     `,
   })

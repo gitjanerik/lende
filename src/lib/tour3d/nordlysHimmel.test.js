@@ -71,6 +71,29 @@ describe('nordlysPreg', () => {
       .toBeGreaterThan(nordlysPreg({ prosent: 60, kp: 0 }).fart)
   })
 
+  it('svakeste synlige nordlys har nok styrke til å SES', () => {
+    // v6.5.16: den lineære skalaen ga 0,11 ved 8 %, og gjennom utoning, stråler
+    // og en additiv blanding ble det ingenting på skjermen. Gulvet er en bevisst
+    // overdrivelse — forskjellen mellom svakt og sterkt bæres av farge, høyde,
+    // buebredde og antall gardiner, ikke av lysstyrke alene.
+    expect(nordlysPreg({ prosent: MIN_PROSENT }).styrke).toBeGreaterThan(0.25)
+    expect(nordlysPreg({ prosent: 8 }).styrke).toBeGreaterThan(0.3)
+    // Men den stiger fortsatt.
+    expect(nordlysPreg({ prosent: 70 }).styrke)
+      .toBeGreaterThan(nordlysPreg({ prosent: 8 }).styrke)
+  })
+
+  it('strålene kommer med aktiviteten — et svakt nordlys er en diffus bue', () => {
+    expect(nordlysPreg({ prosent: 8 }).straaleAndel)
+      .toBeLessThan(nordlysPreg({ prosent: 45 }).straaleAndel)
+    expect(nordlysPreg({ prosent: 70 }).straaleAndel).toBe(1)
+    for (const p of [5, 20, 50, 99]) {
+      const v = nordlysPreg({ prosent: p }).straaleAndel
+      expect(v, `${p} %`).toBeGreaterThan(0)
+      expect(v, `${p} %`).toBeLessThanOrEqual(1)
+    }
+  })
+
   it('styrken metter og går aldri over 1', () => {
     expect(nordlysPreg({ prosent: 100 }).styrke).toBeLessThanOrEqual(1)
     expect(nordlysPreg({ prosent: 400 }).styrke).toBeLessThanOrEqual(1)

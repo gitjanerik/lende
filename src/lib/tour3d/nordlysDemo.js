@@ -18,10 +18,15 @@
 export const DEMO_SEKUNDER = 14
 
 export const DEMO_STEG = [
+  // MERK-TEKSTEN SIER HVOR MAN SKAL SE, og det er ikke pynt: nattmodus åpner med
+  // blikket 50° opp (v6.1.0), mens et svakt nordlys 6° nord for deg står mellom
+  // 2° og 33° over horisonten. Det er RIKTIG — høydevinkelen er regnet ut, ikke
+  // valgt — men uten en linje som sier det, ser man ned på en tom himmel og
+  // konkluderer med at steget ikke virker. Det gjorde eieren i felt.
   { navn: 'Svakt, lavt i nord', prosent: 8, ovalGradNord: 6, kp: 1,
-    merk: 'et grønt slør over horisonten' },
+    merk: 'diffus bue uten stråler — se lavt i nord' },
   { navn: 'Synlig bånd', prosent: 22, ovalGradNord: 5, kp: 3,
-    merk: 'strålene kommer fram' },
+    merk: 'strålene kommer fram — fortsatt lavt i nord' },
   { navn: 'Sterkt', prosent: 45, ovalGradNord: 3, kp: 5,
     merk: 'rødt i toppen, fiolett frynse' },
   { navn: 'Svært sterkt', prosent: 72, ovalGradNord: 1, kp: 7,
