@@ -153,10 +153,13 @@ export function nordlysPreg({ prosent, ovalGradNord = null, kp = null } = {}) {
     // Terskelen og brattheten ble skrudd opp i v6.5.16: med de gamle tallene lå
     // rødandelen på 0,22 ved 45 %, og den ble i tillegg maskert bort av
     // utoningen i fragment-shaderen — resultatet var et nordlys som var grønt og
-    // bare grønt uansett hvor sterkt det sto.
-    rodAndel: Math.min(0.85, Math.max(0, (prosent - 22) / 55)),
+    // bare grønt uansett hvor sterkt det sto. Så ble de HALVERT igjen i v6.5.18:
+    // med den maskeringen borte (v6.5.17) traff de fulle andelene, og eieren
+    // meldte fra felt at «Sterkt» og «Svært sterkt» ble voldsomme. Rødt og
+    // fiolett skal fortelle at nordlyset står høyt, ikke overta det.
+    rodAndel: Math.min(0.45, Math.max(0, (prosent - 22) / 110)),
     // Den fiolette frynsen nederst kommer enda senere.
-    fiolettAndel: prosent >= 40 ? Math.min(0.6, 0.3 + (prosent - 40) / 80) : 0,
+    fiolettAndel: prosent >= 40 ? Math.min(0.3, 0.15 + (prosent - 40) / 160) : 0,
     // Foldehastighet. LANGSOMT er poenget: en gardin bruker minutter på å folde
     // seg, og en som rykker leses som en animasjonsfeil. Kp løfter den litt —
     // uro i feltet gir raskere bevegelse — men taket er lavt med vilje.

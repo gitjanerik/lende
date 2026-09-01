@@ -70,6 +70,24 @@ const alder = computed(() => alderMinutter(d.value.observert))
  * for detaljert for hovedlinja, men det hører hjemme i et tooltip for den som
  * lurer på hvorfor et høyt Kp ikke ga noe.
  */
+/**
+ * KILDEMERKET ER KORT MED VILJE. Det står i den lille «Nordlys»-etiketten, som er
+ * i cellen som ikke vokser — en kildetekst i X-cellen dyttet lukk-knappen forbi
+ * pillas klippekant (v6.5.18). Full attribusjon ligger i tittelen for den som
+ * holder fingeren nede.
+ */
+const kildeMerke = computed(() => {
+  if (props.demo) return 'DEMO'
+  if (alder.value != null) return `${alder.value} min`
+  return 'NOAA'
+})
+
+const kildeTittel = computed(() => {
+  if (props.demo) return `Demo fra Utvikler-fanen: ${props.demo}`
+  if (alder.value != null) return `NOAA SWPC OVATION — observert for ${alder.value} min siden`
+  return 'NOAA SWPC OVATION'
+})
+
 const vindTittel = computed(() => {
   const v = d.value.vindKmS
   const bz = d.value.bz
@@ -103,8 +121,9 @@ const vindTittel = computed(() => {
     <!-- Hovedtallet: styrkeordet stort, sannsynligheten under. Det er det man
          leser i mørket, og det eneste som er stedsspesifikt. -->
     <div class="shrink-0 flex flex-col items-start justify-center px-3 py-1.5 min-w-[6.5rem]">
-      <span class="text-[0.5rem] uppercase tracking-wide text-white/40 leading-none">
-        Nordlys
+      <span class="text-[0.5rem] uppercase tracking-wide text-white/40 leading-none"
+            :title="kildeTittel">
+        Nordlys<span v-if="kildeMerke" class="text-white/30"> · {{ kildeMerke }}</span>
       </span>
       <span class="text-[0.9375rem] font-semibold leading-tight" :class="styrkeFarge">
         {{ forhold.styrke ?? 'Ukjent' }}
@@ -141,14 +160,12 @@ const vindTittel = computed(() => {
       </span>
     </div>
 
-    <!-- Kilde + X, samme celle og samme mål som værraden (v6.3.8/v6.3.12): 44 px
-         er trykkmålets minimum, og ikke mer. -->
-    <div class="shrink-0 flex items-center gap-0.5 pl-2.5 pr-0.5">
-      <span class="text-[0.5rem] leading-tight text-white/35 whitespace-nowrap">
-        <template v-if="demo">DEMO<br/>{{ demo }}</template>
-        <template v-else-if="alder != null">NOAA<br/>{{ alder }} min</template>
-        <template v-else>NOAA<br/>SWPC</template>
-      </span>
+    <!-- BARE X-EN, ingen kildetekst ved siden av (v6.5.18). Alle cellene er
+         shrink-0 og pilla er overflow-hidden, så en lang kildetekst dyttet
+         lukk-knappen forbi klippekanten — «Rett over hodet» i demoen hadde ingen
+         X i det hele tatt. Kilden er nå ETT merke i «Nordlys»-etiketten øverst
+         til venstre, i cellen som ikke vokser. 44 px er trykkmålets minimum. -->
+    <div class="shrink-0 flex items-center pl-1 pr-0.5">
       <button @click="emit('lukk')" aria-label="Skjul nordlysvarselet og nordlyset"
               class="w-11 h-11 shrink-0 flex items-center justify-center text-white/45
                      active:scale-90 transition-transform">

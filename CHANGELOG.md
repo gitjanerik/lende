@@ -1,3 +1,20 @@
+## 2026-09-01 — v6.5.18: Mindre farge i det sterke nordlyset, og en lukk-knapp som blir stående
+
+Rødt og fiolett er halvert i de to sterkeste trinnene. Andelene ble skrudd opp i
+v6.5.16 fordi utoningen i fragment-shaderen maskerte dem bort, og da den
+maskeringen forsvant i v6.5.17 traff de fullt ut: felttest meldte at «Sterkt» og
+«Svært sterkt» ble voldsomme. Rødt står nå på 0,21 ved 45 % og 0,45 ved 72 %,
+fiolett på 0,18 og 0,30 — nok til å fortelle at nordlyset står høyt, ikke nok til
+å overta det. Terskelene er urørt: et svakt nordlys er fortsatt grønt og bare
+grønt. Kildeteksten ved siden av X-en i nordlyspanelet er dessuten fjernet. Alle
+cellene i pilla er `shrink-0` og pilla er `overflow-hidden`, så en lang
+demo-tekst dyttet lukk-knappen forbi klippekanten — «Rett over hodet» hadde ingen
+X i det hele tatt. Merket er nå ett kort ord i «Nordlys»-etiketten øverst til
+venstre, i cellen som ikke vokser, med full NOAA-attribusjon i tittelen.
+Demo-merkingen står fortsatt, som røyktesten krever.
+
+---
+
 ## 2026-09-01 — v6.5.17: Nordlyset springer ikke lenger ut av ett punkt
 
 Med ovalen rett over hodet ble den øvre kanten av gardinene eksakt 90 grader, og
