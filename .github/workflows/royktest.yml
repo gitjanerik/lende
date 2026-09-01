@@ -100,7 +100,7 @@ jobs:
 
       - name: Cache Chromium
         id: pw-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ runner.os }}-${{ steps.pw.outputs.v }}
@@ -162,7 +162,7 @@ jobs:
 
       - name: Cache Vardåsen-kartet
         if: steps.kart.outputs.ekte == '1'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .royk-kart/vardasen.svg
           key: ${{ steps.kartnokkel.outputs.k }}
