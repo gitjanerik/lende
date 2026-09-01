@@ -28,11 +28,48 @@ export function damp(current, target, lambda, dt) {
   current.lerp(target, t)
 }
 
+/**
+ * Meter klaring mellom kameraet og terrenget under det (før vertikal
+ * overdrivelse). Lavt med vilje: dette er et GULV som hindrer at man havner
+ * inne i en fjellside, ikke en flyhøyde.
+ */
+export const KAMERA_KLARING_M = 12
+
 export function terrainYAt(dem, coords, wx, wz, fallback = 0) {
   if (!dem) return fallback
   const { x, y } = coords.toSvg(wx, wz)
   const e = sampleElevation(dem, x, y)
   return Number.isFinite(e) ? coords.elevToWorldY(e) : fallback
+}
+
+/**
+ * Hvor lavt kameraet får stå over et punkt, i world-Y.
+ *
+ * ÉN KONVENSJON FOR BEGGE RIGGENE (v6.5.23). Følge-riggen har alltid løftet
+ * kameraet over terrenget — det er den som gjør at man ikke havner inne i
+ * fjellsida når stien går bratt — mens den frie riggen ikke hadde noe gulv i
+ * det hele tatt. Konstanten og regelen bor derfor her, ett sted.
+ *
+ * SAMPLINGEN KLEMMES TIL ARKET, og det er selve poenget utenfor kanten: der
+ * ville en fallback på havnivå gitt fritt leide under skjørtet, og man kunne
+ * bevege seg på UNDERSIDA av kartet. Med kantens egen høyde som gulv er det
+ * ikke mulig — man kommer helt ut til kanten og ser arket fra sida, men aldri
+ * under det.
+ *
+ * `dem` mangler → −Infinity, altså ikke noe gulv: uten høydedata finnes det
+ * heller ikke noe terreng å havne inni, og et gulv på havnivå ville bare dyttet
+ * kameraet opp uten grunn.
+ *
+ * @returns {number} laveste tillatte world-Y
+ */
+export function terrainFloorY(dem, coords, wx, wz, klaringM = KAMERA_KLARING_M) {
+  if (!dem) return -Infinity
+  const { x, y } = coords.toSvg(wx, wz)
+  const sx = Math.min(coords.widthM, Math.max(0, x))
+  const sy = Math.min(coords.heightM, Math.max(0, y))
+  const e = sampleElevation(dem, sx, sy)
+  const grunn = Number.isFinite(e) ? coords.elevToWorldY(e) : 0
+  return grunn + klaringM * coords.exaggeration
 }
 
 // Siktlinje-klaring: står terreng (bratt fjellside bak målet) mellom kamera
@@ -475,7 +512,7 @@ export function createFollowRig({ camera, dem, coords, routeLookup: initialRoute
       else desiredFollowPose(alongM, desiredPos, desiredLook)
 
       // Terrengklaring for kameraposisjonen + fri siktlinje til blikkpunktet.
-      const minY = terrainYAt(dem, coords, desiredPos.x, desiredPos.z) + 12 * coords.exaggeration
+      const minY = terrainFloorY(dem, coords, desiredPos.x, desiredPos.z)
       if (desiredPos.y < minY) desiredPos.y = minY
       clearSightLine(dem, coords, desiredPos, desiredLook)
 
