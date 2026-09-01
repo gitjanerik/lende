@@ -1279,8 +1279,74 @@ function branchLabel(opt, i) {
         </div>
       </div>
 
-      <!-- Infokortet for det valgte. Ligger under søkefeltet, og rulles om
-           teksten er lang — den kan være det for et stjernebilde. -->
+      <!-- Nordlys-demo (Utvikler-fanen). Samme form som vær-demoen, av samme
+           grunn: står den på, er det ikke det ekte varselet man ser, og da må det
+           stå. Grønn i stedet for blå — det er det ene som skiller de to demoene
+           fra hverandre på et skjermbilde.
+           PLASSEN ER IKKE DEN SAMME LENGER (v6.5.18): den står over infokortet,
+           ikke under, sammen med nordlyspanelet den overstyrer. Se panelet under
+           for hvorfor. -->
+      <div v-if="phase === 'ready' && nordlysDemoPaa && nightOn"
+           class="relative z-10 px-3 mt-2 flex justify-center">
+        <div class="flex items-center gap-2 rounded-2xl bg-emerald-900/70 backdrop-blur
+                    px-3 py-1.5 text-white max-w-full">
+          <button @click="nordlysDemoBla(-1)" aria-label="Forrige nordlysstyrke"
+                  class="w-7 h-7 shrink-0 rounded-full bg-white/15 flex items-center
+                         justify-center active:scale-90">
+            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+          </button>
+          <div class="min-w-0 leading-tight">
+            <div class="text-xs font-semibold truncate">
+              {{ nordlysDemoNaa.navn }}
+              <span class="text-[0.625rem] font-normal text-emerald-200/70 tabular-nums">
+                {{ nordlysDemoSteg + 1 }}/{{ NORDLYS_STEG.length }} · {{ nordlysDemoIgjen }} s
+              </span>
+            </div>
+            <div v-if="nordlysDemoNaa.merk" class="text-[0.625rem] text-emerald-100/65 truncate">
+              {{ nordlysDemoNaa.merk }}
+            </div>
+          </div>
+          <button @click="nordlysDemoBla(1)" aria-label="Neste nordlysstyrke"
+                  class="w-7 h-7 shrink-0 rounded-full bg-white/15 flex items-center
+                         justify-center active:scale-90">
+            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+          <button @click="toggleNordlysDemo" aria-label="Avslutt nordlys-demo"
+                  class="shrink-0 rounded-full bg-white/15 px-2 py-1 text-[0.625rem]
+                         font-medium active:scale-95">
+            Avslutt
+          </button>
+        </div>
+      </div>
+
+      <!-- NORDLYSPANELET STÅR ØVERST, RETT UNDER SØKEFELTET (v6.5.18). Det lå
+           under infokortet, altså der værraden ligger om dagen — men et
+           stjernebildekort er en høy, rullbar tekstflate, og nordlyset havnet
+           derfor midt på skjermen med demolinja klemt inn foran.
+           Sammenlikningen med værraden holdt ikke: været og nordlyset deler ikke
+           plass i praksis, for værraden er skjult i nattmodus (`!stjernemodus`) og
+           nordlyset finnes bare der. Det er altså ingen kollisjon å unngå, og da
+           skal varselet stå først — det er nettopp DET man slo på natta for å se.
+           Nattmodus fjerner ellers hele overlegget (v6.1.0); dette er et bevisst
+           unntak på linje med himmelsøket. -->
+      <div v-if="phase === 'ready' && nordlysOn && !walking && nordlys"
+           class="relative z-10 px-3 mt-2 flex justify-center">
+        <Tour3dNordlysPanel :nordlys="nordlys" :skydekke="nordlysSkydekke"
+                            :er-natt="true"
+                            :demo="nordlysDemoPaa ? nordlysDemoNaa.navn : ''"
+                            @lukk="nordlysAvvist = true"/>
+      </div>
+
+      <!-- Infokortet for det valgte. Rulles om teksten er lang — den kan være
+           det for et stjernebilde. Står UNDER nordlyset (v6.5.18), fordi det er
+           den flaten som kan bli høy: et varsel som ligger etter en rullbar
+           tekstflate er et varsel man må lete etter. -->
       <div v-if="phase === 'ready' && valgtHimmel"
            class="relative z-10 px-3 mt-2 flex justify-center overflow-y-auto"
            :style="tekstBoks(86, 52)">
@@ -1336,49 +1402,6 @@ function branchLabel(opt, i) {
         </div>
       </div>
 
-      <!-- Nordlys-demo (Utvikler-fanen). Samme form og samme plass som
-           vær-demoen, av samme grunn: står den på, er det ikke det ekte
-           varselet man ser, og da må det stå. Grønn i stedet for blå — det er
-           det ene som skiller de to demoene fra hverandre på et skjermbilde. -->
-      <div v-if="phase === 'ready' && nordlysDemoPaa && nightOn"
-           class="relative z-10 px-3 mt-2 flex justify-center">
-        <div class="flex items-center gap-2 rounded-2xl bg-emerald-900/70 backdrop-blur
-                    px-3 py-1.5 text-white max-w-full">
-          <button @click="nordlysDemoBla(-1)" aria-label="Forrige nordlysstyrke"
-                  class="w-7 h-7 shrink-0 rounded-full bg-white/15 flex items-center
-                         justify-center active:scale-90">
-            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
-                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="15 18 9 12 15 6"/>
-            </svg>
-          </button>
-          <div class="min-w-0 leading-tight">
-            <div class="text-xs font-semibold truncate">
-              {{ nordlysDemoNaa.navn }}
-              <span class="text-[0.625rem] font-normal text-emerald-200/70 tabular-nums">
-                {{ nordlysDemoSteg + 1 }}/{{ NORDLYS_STEG.length }} · {{ nordlysDemoIgjen }} s
-              </span>
-            </div>
-            <div v-if="nordlysDemoNaa.merk" class="text-[0.625rem] text-emerald-100/65 truncate">
-              {{ nordlysDemoNaa.merk }}
-            </div>
-          </div>
-          <button @click="nordlysDemoBla(1)" aria-label="Neste nordlysstyrke"
-                  class="w-7 h-7 shrink-0 rounded-full bg-white/15 flex items-center
-                         justify-center active:scale-90">
-            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
-                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="9 18 15 12 9 6"/>
-            </svg>
-          </button>
-          <button @click="toggleNordlysDemo" aria-label="Avslutt nordlys-demo"
-                  class="shrink-0 rounded-full bg-white/15 px-2 py-1 text-[0.625rem]
-                         font-medium active:scale-95">
-            Avslutt
-          </button>
-        </div>
-      </div>
-
       <!-- Værsymbolraden, rett under topprada. Egen linje fordi topprada alt er
            full. Den lå UNDER Info/POI-linja fram til v5.27.0, og da måtte man
            lese seg forbi to piller for å komme til det man åpnet værmodus for;
@@ -1388,20 +1411,6 @@ function branchLabel(opt, i) {
       <div v-if="phase === 'ready' && vaerOn && !walking && !stjernemodus"
            class="relative z-10 px-3 mt-2 flex justify-center">
         <Tour3dVaerRad :vaer="vaer" @lukk="vaerAvvist = true"/>
-      </div>
-
-      <!-- NORDLYSPANELET STÅR PÅ SAMME LINJE, om natta. Været er en dagting og
-           nordlyset en nattting, så de kan ikke kollidere — og at de deler plass
-           gjør at man ikke må lete etter det ene etter å ha lært det andre.
-           Nattmodus fjerner ellers hele overlegget (v6.1.0); dette er et bevisst
-           unntak på linje med himmelsøket, av samme grunn: det er nettopp DET man
-           slo på natta for å se. -->
-      <div v-if="phase === 'ready' && nordlysOn && !walking && nordlys"
-           class="relative z-10 px-3 mt-2 flex justify-center">
-        <Tour3dNordlysPanel :nordlys="nordlys" :skydekke="nordlysSkydekke"
-                            :er-natt="true"
-                            :demo="nordlysDemoPaa ? nordlysDemoNaa.navn : ''"
-                            @lukk="nordlysAvvist = true"/>
       </div>
 
       <!-- Nederste linje: hjelp til venstre, POI-filter til høyre. Begge minimert

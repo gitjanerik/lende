@@ -11,7 +11,13 @@ cellene i pilla er `shrink-0` og pilla er `overflow-hidden`, så en lang
 demo-tekst dyttet lukk-knappen forbi klippekanten — «Rett over hodet» hadde ingen
 X i det hele tatt. Merket er nå ett kort ord i «Nordlys»-etiketten øverst til
 venstre, i cellen som ikke vokser, med full NOAA-attribusjon i tittelen.
-Demo-merkingen står fortsatt, som røyktesten krever.
+Demo-merkingen står fortsatt, som røyktesten krever. Til sist er nordlyspanelet
+og den grønne demolinja flyttet ØVERST i nattoverlegget, rett under søkefeltet, i
+stedet for under infokortet. De sto der værraden står om dagen, men et
+stjernebildekort er en høy, rullbar tekstflate — nordlyset havnet derfor midt på
+skjermen med demolinja klemt inn foran seg. Sammenlikningen med værraden holdt
+ikke: værraden er skjult i nattmodus og nordlyset finnes bare der, så de to deler
+ikke plass i praksis, og da skal varselet stå først.
 
 ---
 
