@@ -1,3 +1,22 @@
+## 2026-09-01 — v6.5.20: Overlegget i 3D holder seg unna navigasjonssøyla
+
+Røyktesten i CI kjørte de nye kontrollene mot det ekte Vardåsen-arket for første
+gang og fant to ting. Den ene er ekte: navigasjonssøyla ligger absolutt plassert
+på høyre kant, og flyt-innholdet i 3D-overlegget la seg under den — infokortet
+er sentrert med inntil 86 vw, så på et smalt vindu havnet «alle N» i et
+stjernebildekort under zoom-skyven og var ikke til å trykke på. Polstringen er
+lagt på ROTEN av overlegget og ikke på hver rad: absolutt plasserte barn
+(lerretet, himmelkompasset, søyla selv) måler mot padding-boksen og står stille,
+mens hver flyt-rad rykker inn i én operasjon — også de som ikke kolliderer i dag,
+som POI-panelet, der 60 vh med nålegrupper vokser rett inn i søylas bånd. Den
+andre var sjekken selv: den fylte zoom-skyven med et fast «0,8», men hvor skyven
+STÅR ved start følger arkets størrelse og hva forrige sjekk etterlot, og på det
+ekte arket sto den allerede på 0,757. Skyven virket; sjekken målte et lite steg
+opp og kalte det stillstand. Den går nå fra ende til ende, som ikke antar noe om
+utgangspunktet.
+
+---
+
 ## 2026-09-01 — v6.5.19: Zoom-skyv og retningsrose for desktop, i både kart og 3D
 
 Uten hjul fantes det ingen enkel vei til å zoome, og i 3D fantes det ingen vei i

@@ -231,6 +231,24 @@ function settRetning({ azimut, hoyde }) {
 const finPeker = (() => {
   try { return window.matchMedia('(hover: hover) and (pointer: fine)').matches } catch { return false }
 })()
+
+// NAVIGASJONSSØYLA EIER SIN EGEN KANT (v6.5.20). Den ligger absolutt plassert på
+// høyre side og er en KONTROLL — et trykk der hører til zoomen og rosa. Da må
+// flyt-innholdet holde seg unna, og det gjorde det ikke: infokortet er sentrert
+// med inntil 86 vw, og på et smalt vindu la det seg under søyla. «alle 9» i et
+// stjernebildekort ble da et trykk som traff zoom-skyven, og røyktesten fanget
+// det som en klikk-timeout på en knapp som var både synlig og aktiv.
+//
+// Polstringen står på ROTEN og ikke på hver rad. Absolutt plasserte barn —
+// lerretet, himmelkompasset, søyla selv — måler mot padding-BOKSEN og står
+// stille, mens hver eneste flyt-rad rykker inn i én operasjon. Det gjelder også
+// rader som ikke kolliderer i dag: POI-panelet kan bli 60 vh høyt og vokser rett
+// inn i søylas bånd så snart noen slår på flere nålegrupper.
+const NAV_SOYLE_PX = 96   // rosa er 4,75 rem = 76 px, resten er panelets polstring og marg
+const overleggStil = computed(() => ({
+  height: '100dvh',
+  paddingRight: finPeker && phase.value === 'ready' ? `${NAV_SOYLE_PX}px` : '0px',
+}))
 function lukkGlobe() {
   engine?.lukkGlobe()
   globeAapen.value = false
@@ -1146,7 +1164,7 @@ function branchLabel(opt, i) {
 
 <template>
   <Teleport to="body">
-    <div class="fixed inset-0 z-[220] bg-[#101623] flex flex-col" style="height: 100dvh;">
+    <div class="fixed inset-0 z-[220] bg-[#101623] flex flex-col" :style="overleggStil">
       <div ref="canvasHost" class="absolute inset-0"></div>
 
       <!-- GLOBENS STEDSNAVN. Absolutt plassert over lerretet, uten peker-treff:

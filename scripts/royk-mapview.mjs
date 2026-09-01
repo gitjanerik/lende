@@ -331,21 +331,22 @@ const SJEKKER = [
         throw new Error('zoom-skyven mangler — uten scrollhjul finnes ingen vei inn i kartet')
       }
       const start = await skyv.inputValue()
-      const før = await transform()
+      // MÅLENE ER SKYVENS EGNE ENDER, ikke faste tall i midten. Hvor skyven STÅR
+      // når sjekken begynner er ikke vår å bestemme: kartets startskala følger
+      // arkets størrelse (ekte Vardåsen er fire ganger demokartet), og sjekken
+      // over kan ha etterlatt kartet dypt inne. Et fast «0,8» var derfor et lite
+      // steg OPP fra 0,757 på det ekte arket — skyven virket, og sjekken sa den
+      // ikke gjorde det. Ende mot ende beviser begge retninger uten å anta noe.
       // `fill` på en range gir et ekte input-event, som er det komponenten
       // lytter på — og hele poenget er at INGEN gest trengs.
-      await skyv.fill('0.8')
+      await skyv.fill('1')
       await page.waitForTimeout(700)
       const inne = await transform()
-      if (!(inne.skala > før.skala * 1.5)) {
-        throw new Error(`zoom-skyven zoomet ikke inn (${før.skala.toFixed(2)} → ${inne.skala.toFixed(2)})`)
-      }
-      // Og ut igjen: en enveisbillett ville stått grønn på halve sjekken.
-      await skyv.fill('0.1')
+      await skyv.fill('0')
       await page.waitForTimeout(700)
       const ute = await transform()
-      if (!(ute.skala < inne.skala * 0.7)) {
-        throw new Error(`zoom-skyven zoomet ikke ut igjen (${inne.skala.toFixed(2)} → ${ute.skala.toFixed(2)})`)
+      if (!(inne.skala > ute.skala * 1.5)) {
+        throw new Error(`zoom-skyven flyttet ikke kartet mellom endene (${ute.skala.toFixed(2)} → ${inne.skala.toFixed(2)})`)
       }
 
       const rose = page.locator('input[aria-label="Roter kartet"]').first()
@@ -364,7 +365,7 @@ const SJEKKER = [
       await rose.fill('0')
       await skyv.fill(start)
       await page.waitForTimeout(700)
-      return `zoom ${før.skala.toFixed(2)} → ${inne.skala.toFixed(2)} → ${ute.skala.toFixed(2)}, rosa til 45°`
+      return `zoom ${ute.skala.toFixed(2)} (helt ut) → ${inne.skala.toFixed(2)} (helt inn) fra ${start}, rosa til 45°`
     },
   },
   {

@@ -821,6 +821,19 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   MapView, fordi de åtte lende-pilene dokker i et bånd der ute og nordøst-dokka
   havnet under den — røyktesten fanget det, og den måler med `elementFromPoint`
   nettopp for at neste kollisjon skal fanges av seg selv.
+
+  **SØYLA TAR PLASS AV OVERLEGGET, DEN LEGGER SEG IKKE OPPÅ DET (v6.5.20).** I 3D
+  er den absolutt plassert på høyre kant, og infokortet er sentrert med inntil
+  86 vw: på et smalt vindu la kortet seg under søyla, og «alle N» i et
+  stjernebildekort var et trykk som traff zoom-skyven. Polstringen står på ROTEN
+  av overlegget og ikke på hver rad — absolutt plasserte barn (lerretet,
+  himmelkompasset, søyla selv) måler mot padding-BOKSEN og står stille, mens hver
+  flyt-rad rykker inn i én operasjon. Den gjelder også rader som ikke kolliderer i
+  dag: POI-panelet kan bli 60 vh og vokser rett inn i båndet.
+  **Og en røyk-sjekk som fyller skyven med et FAST tall måler ingenting**: hvor
+  skyven står ved start følger arkets størrelse og hva forrige sjekk etterlot —
+  på ekte Vardåsen sto den på 0,757, så «0,8» var et lite steg OPP. Sjekken går
+  fra ende til ende.
 - **Fremhevings-bufferet allokeres ÉN gang, på maks størrelse (v6.3.9).** three
   setter `geometry._maxInstanceCount` FØRSTE gang en instansiert geometri bindes,
   av bufferets lengde den gang, og fjerner det aldri igjen (bare ved dispose).
