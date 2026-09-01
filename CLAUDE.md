@@ -388,6 +388,19 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   blokka før du stoler på tallet, og følg sømmen framfor tallet.
   Rører du et domene som allerede er ute: gjør endringen i composable-en, ikke
   i MapView.
+- **RØYKTESTENS VARDÅSEN-KART CACHES, og nøkkelen er poenget (v6.5.24).**
+  Byggingen henter Overpass + Kartverket og er både det dyreste steget og det
+  eneste som kan feile fordi en tredjepart har en dårlig dag. Kartet er en ren
+  funksjon av `src/lib` + `scripts/build-vardasen-svg.js` + `package-lock.json`,
+  og nøkkelen (`scripts/kartcache-nokkel.mjs`, med tester) er hashet over
+  nøyaktig de filene. **`src/lib/tour3d/**` er UTE av nøkkelen med vilje:**
+  3D-motoren LESER kartet, den lager det ikke — og det er 3D-PR-ene som trenger
+  et ekte kart, så en nøkkel som tok med tour3d ville bommet på hver kjøring som
+  har nytte av cachen. **Ingen `restore-keys`:** et delvis treff ville gitt et
+  kart bygget av kode som ikke lenger finnes, altså grønne sjekker på et ark de
+  ikke beskriver — samme felle som `--hoppbygg` finnes for å unngå. Rører du
+  kart-pipelinen, bygges kartet på nytt av seg selv; trenger du en fersk bake
+  uten å røre en kildefil, bump `NOKKEL_VERSJON`.
 - **Rutingen har sin egen røyktest (v5.22.7).** `npm run royk:ruter` går gjennom
   hver rute, hver redirect og boot-gjenopptaket i `router.js`. `npm run royk`
   monterer ÉN rute (`/kart/:id`) og sier ingenting om at `/about` lander på `/om`

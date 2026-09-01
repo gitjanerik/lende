@@ -23,6 +23,7 @@
 import { chromium } from 'playwright'
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from 'node:fs'
+import { dirname } from 'node:path'
 import { gunzipSync } from 'node:zlib'
 
 const args = process.argv.slice(2)
@@ -33,6 +34,12 @@ const flagg = (navn, def = null) => {
 const EGEN_URL = flagg('url')
 const BILDER = flagg('bilder')
 const EKTEKART = !!flagg('ektekart')
+// Sti til et lagret ekte kart. Finnes fila, brukes den i stedet for å bygge —
+// se byggEkteKart. CI setter den til en actions/cache-sti.
+const KARTCACHE = (() => {
+  const v = flagg('kartcache')
+  return typeof v === 'string' && v ? v : null
+})()
 const PREVIEW_PORT = 4173
 const BASE = EGEN_URL || `http://localhost:${PREVIEW_PORT}/lende`
 
@@ -2116,15 +2123,66 @@ function kjør(kommando, argv) {
 // + OSM (~12 s, krever nett) og legger det i dist-en vi tester mot. Det SPOREDE
 // demo-kartet legges tilbake etterpå — røyktesten skal ikke etterlate en diff.
 const DEMO_KART = 'public/maps/vardasen.svg'
+const EKTE_KART_UT = 'dist/maps/vardasen.svg'
+
+// Minste størrelse et ekte kart kan ha. Tallene er MÅLT og ikke gjettet: det
+// sporede demo-kartet er 75 kB, og det ekte Vardåsen-arket som ligger deployet
+// på gh-pages er 691 kB. Gulvet er en SANITETSSJEKK på cachen — en avbrutt jobb
+// kan ha lagret en halvskrevet fil, og et trunkert kart ville gitt sju sjekker
+// som feiler på noe som ikke er kodens feil. Bommer gulvet den andre veien
+// (kartet krymper under 150 kB), cacher vi bare ikke, og loggen sier hvorfor.
+const EKTE_KART_MIN_BYTES = 150_000
+
+/**
+ * Er dette et brukbart ekte kart? Størrelse OG at det faktisk er et SVG —
+ * begge deler, fordi de fanger hver sin måte en cache kan være ødelagt på.
+ */
+function brukbartKart(buf) {
+  if (!buf || buf.length < EKTE_KART_MIN_BYTES) return false
+  return /<svg[\s>]/.test(buf.subarray(0, 4096).toString('utf8'))
+}
+
 // Returnerer om vi FIKK et ekte kart. Feiler byggingen (kildene er nede, ingen
 // nett), går vi videre med demo-kartet og hopper over sjekkene som krever ekte
 // geometri — en PR skal ikke blokkeres av at Overpass har en dårlig dag.
+//
+// --kartcache=<sti> ER HELE GRUNNEN TIL AT DENNE ER TO VEIER (v6.5.24):
+// byggingen henter Overpass + Kartverket WCS og koster ~2 av jobbens ~6
+// minutter, og den er dessuten den eneste delen av røyktesten som kan feile
+// fordi en tredjepart har en dårlig dag. Kartet er en REN FUNKSJON av
+// kart-pipelinen og byggeskriptet, så det trenger bare bygges når en av dem
+// endrer seg — og det er nøyaktig det CI-nøkkelen er hashet over. Er kartet
+// hentet fra cachen, rører vi ikke nettet i det hele tatt.
 async function byggEkteKart() {
+  if (KARTCACHE && existsSync(KARTCACHE)) {
+    const lagret = readFileSync(KARTCACHE)
+    if (brukbartKart(lagret)) {
+      mkdirSync(dirname(EKTE_KART_UT), { recursive: true })
+      writeFileSync(EKTE_KART_UT, lagret)
+      console.log(`→ ekte Vardåsen-kart fra cache (${KARTCACHE}, ${lagret.length} B) — ingen nett`)
+      return true
+    }
+    console.log(`⚠ cachet kart i ${KARTCACHE} er ubrukelig (${lagret.length} B) — bygger på nytt`)
+  }
+  // Byggeskriptet skriver til det SPOREDE demo-kartet, så originalen legges
+  // tilbake i finally: røyktesten skal ikke etterlate en diff.
   const original = readFileSync(DEMO_KART)
   try {
     console.log('→ bygger ekte Vardåsen-kart (nett) …')
     await kjør('node', ['scripts/build-vardasen-svg.js'])
-    copyFileSync(DEMO_KART, 'dist/maps/vardasen.svg')
+    copyFileSync(DEMO_KART, EKTE_KART_UT)
+    if (KARTCACHE) {
+      const bygd = readFileSync(EKTE_KART_UT)
+      if (brukbartKart(bygd)) {
+        mkdirSync(dirname(KARTCACHE), { recursive: true })
+        writeFileSync(KARTCACHE, bygd)
+        console.log(`→ la kartet i ${KARTCACHE} (${bygd.length} B) for neste kjøring`)
+      } else {
+        // Et for lite kart er ikke verdt å cache: da ville feilen fulgt med
+        // videre til hver kjøring som treffer nøkkelen.
+        console.log(`⚠ bygd kart er mistenkelig lite (${bygd.length} B) — cacher det ikke`)
+      }
+    }
     return true
   } catch (err) {
     console.log(`⚠ klarte ikke bygge ekte kart (${err.message}) — kjører på demo-kartet`)
