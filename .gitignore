@@ -30,3 +30,6 @@ __pycache__/
 # Cloudflare Workers (cloudflare/*/) — lokale secrets og wrangler-state
 .dev.vars
 .wrangler/
+
+# Røyktestens cache av det bygde Vardåsen-kartet (se scripts/kartcache-nokkel.mjs)
+.royk-kart/

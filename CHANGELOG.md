@@ -1,3 +1,42 @@
+## 2026-09-01 — v6.5.24: Røyktesten cacher Vardåsen-kartet — ingen nettbygging på 3D-PR-er
+
+Kart-byggingen er både den dyreste delen av røyktesten (~2 av jobbens ~6
+minutter) og den eneste som kan feile fordi en tredjepart har en dårlig dag:
+den henter Overpass og Kartverket WCS. Kartet er samtidig en ren funksjon av
+kart-pipelinen og byggeskriptet — det trenger bare bygges når en av dem endrer
+seg.
+
+`--kartcache=<sti>` gjør at røyk-skriptet bruker et lagret kart hvis det finnes,
+og ellers bygger som før og legger resultatet der. I CI er stien en
+`actions/cache`-sti, og nøkkelen er hashet over nøyaktig de filene kartet lages
+av: `scripts/build-vardasen-svg.js`, `src/lib/**` og avhengighetstreet i
+`package-lock.json`.
+
+**Lockfila må inn UTEN appens egen versjon, og det er ikke en detalj.** Første
+utgave hashet fila rå, og CI-kjøringen avslørte det med en gang: samme filtall,
+ny hash, uten at én kartkilde var rørt. Prosjektet bumper versjonen i hver PR,
+så nøkkelen ville endret seg hver gang og cachen aldri truffet — den ville vært
+ren pynt. `laasDigest` fjerner `version` begge stedene den står og hasher
+resten, så en `polygon-clipping`-bump (som kan flytte en kystlinje) fortsatt
+tvinger en ny bake.
+
+`src/lib/tour3d/**` er UTE av nøkkelen med vilje — 3D-motoren leser kartet, den
+lager det ikke, og det er nettopp 3D-PR-ene som trenger et ekte kart. En nøkkel
+som tok med tour3d ville bommet på hver eneste kjøring som har nytte av cachen.
+Logikken bor i `scripts/kartcache-nokkel.mjs` med tester, og det finnes ingen
+`restore-keys`: en delvis treff ville gitt et kart bygget av kode som ikke
+lenger finnes, altså sju grønne sjekker på et ark de ikke beskriver.
+
+Cachen sanitetssjekkes før bruk — størrelse og at det faktisk er et SVG. Tallene
+er målt: demo-kartet i repoet er 75 kB, det ekte arket 691 kB, og gulvet står på
+150. En avbrutt jobb kan ha lagret en halvskrevet fil, og et trunkert kart ville
+gitt sju sjekker som feiler på noe som ikke er kodens feil. To huller i
+workflowens `paths` er tettet samtidig: `scripts/build-vardasen-svg.js` og det
+nye nøkkel-skriptet sto ikke der, så en PR som rørte dem kunne lande uten at
+røyktesten så kartet den lagde.
+
+---
+
 ## 2026-09-01 — v6.5.23: Kameraet står aldri under terrenget — heller ikke i utforskermodus
 
 Følge-riggen har alltid løftet kameraet over bakken; det er den som gjør at man

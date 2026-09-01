@@ -42,6 +42,12 @@ on:
       - 'scripts/royk-mapview.mjs'
       - 'scripts/navnediff.mjs'
       - 'scripts/ruter-royk.mjs'
+      # Kart-cachen (v6.5.24): byggeskriptet er det kartet LAGES av, og
+      # nøkkel-skriptet avgjør når det bygges på nytt. Sto ingen av dem her, og
+      # en PR som rørte dem kunne lande uten at røyktesten så kartet den lagde
+      # — samme klasse luke som src/lib/** var fram til v6.0.0.
+      - 'scripts/build-vardasen-svg.js'
+      - 'scripts/kartcache-nokkel.mjs'
       - 'src/router.js'
       - 'src/App.vue'
       - '.github/workflows/royktest.yml'
@@ -138,6 +144,29 @@ jobs:
             echo "ekte=0" >> "$GITHUB_OUTPUT"
           fi
 
+      # KARTET CACHES (v6.5.24). Byggingen henter Overpass + Kartverket WCS og er
+      # både den dyreste og den eneste delen av jobben som kan feile fordi en
+      # TREDJEPART har en dårlig dag. Kartet er en ren funksjon av kart-pipelinen
+      # og byggeskriptet, så nøkkelen er hashet over nøyaktig de filene — og
+      # 3D-motoren (src/lib/tour3d) er UTE av den, fordi den leser kartet og ikke
+      # lager det. Det er nettopp 3D-PR-ene som trenger et ekte kart, så en
+      # nøkkel som tok med tour3d ville bommet på hver kjøring som hadde nytte av
+      # cachen. Logikken bor i scripts/kartcache-nokkel.mjs, med tester.
+      #
+      # Ved treff rører jobben ikke nettet i det hele tatt; ved bom bygges kartet
+      # som før og legges i cachen for neste gang.
+      - name: Kart-cache-nøkkel
+        if: steps.kart.outputs.ekte == '1'
+        id: kartnokkel
+        run: echo "k=$(node scripts/kartcache-nokkel.mjs)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Vardåsen-kartet
+        if: steps.kart.outputs.ekte == '1'
+        uses: actions/cache@v4
+        with:
+          path: .royk-kart/vardasen.svg
+          key: ${{ steps.kartnokkel.outputs.k }}
+
       # Feiler kart-byggingen (kildene nede), går røyktesten videre på demo-kartet
       # og RAPPORTERER hva den hoppet over — en PR skal ikke blokkeres av at
       # Overpass har en dårlig dag.
@@ -150,7 +179,7 @@ jobs:
         timeout-minutes: 20
         run: |
           if [ "${{ steps.kart.outputs.ekte }}" = "1" ]; then
-            npm run royk -- --ektekart --bilder=/tmp/royk
+            npm run royk -- --ektekart --kartcache=.royk-kart/vardasen.svg --bilder=/tmp/royk
           else
             echo "Kjører mot demo-kartet — de sju ektekart-sjekkene hoppes over."
             npm run royk -- --bilder=/tmp/royk
