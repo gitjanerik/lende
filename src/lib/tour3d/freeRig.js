@@ -140,6 +140,25 @@ export function polarForHoyde(hoyde) {
  * med et annet område enn riggen har, ender i et håndtak som står stille i
  * endene og en bruker som tror kontrollen er ødelagt.
  */
+/**
+ * HELE området riggen kan levere, ned til fugleperspektivet.
+ *
+ * FORSKJELLEN FRA `blikkHoydeGrenser` ER REGIMET, ikke en strammere klamp:
+ * skyveknappen (`settBlikkHoyde`) bor i VIPPE-regimet, som bare går oppover, og
+ * kan derfor ikke komme under horisonten i det hele tatt. Retningsrosa går
+ * gjennom `settBlikkRetning`, som eier begge regimene — og da er det ORBITEN som
+ * bærer blikket nedover, ned til POLAR_MIN_BLIKK. Det er den bevegelsen «tilt»
+ * betyr på et kart: fra rett ovenfra til vannrett.
+ */
+export function blikkHoydeGrenserFullt() {
+  const grad = 180 / Math.PI
+  const fraTaket = Math.PI / 2 - POLAR_MAKS
+  return {
+    minGrader: Math.round((POLAR_MIN_BLIKK - Math.PI / 2) * grad),
+    maksGrader: Math.round((HIMMEL_VIPP_MAKS - fraTaket) * grad),
+  }
+}
+
 export function blikkHoydeGrenser() {
   const grad = 180 / Math.PI
   const fraTaket = Math.PI / 2 - POLAR_MAKS
@@ -283,12 +302,15 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
    * z = r·sinφ·cosθ. `controls.update()` leser posisjonen tilbake inn i sin
    * egen tilstand, så ingen private felt røres.
    *
-   * @param {{theta?: number, phi?: number, oppdater?: boolean}} arg
+   * @param {{theta?: number, phi?: number, radius?: number, oppdater?: boolean}} arg
+   *   radius i meter fra blikkpunktet; utelatt = behold avstanden man står i.
    *   oppdater=false når kalleren kjører controls.update() rett etterpå selv —
    *   dempingen skal ikke tikke to ganger i samme frame.
    */
-  const settOrbitVinkler = ({ theta, phi, oppdater = true } = {}) => {
-    const r = camera.position.distanceTo(controls.target) || 1
+  const settOrbitVinkler = ({ theta, phi, radius, oppdater = true } = {}) => {
+    const r = Number.isFinite(radius) && radius > 0
+      ? radius
+      : camera.position.distanceTo(controls.target) || 1
     const t = Number.isFinite(theta) ? theta : controls.getAzimuthalAngle()
     const f = Number.isFinite(phi) ? phi : controls.getPolarAngle()
     const [dx, dy, dz] = orbitPosisjon(r, t, f)
@@ -523,6 +545,65 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
       settPolarLast(true)
       himmelVipp = vippForHoyde(hoyde)
     },
+
+    /**
+     * Sett BEGGE blikkaksene direkte, uten animasjon — retningsrosa på desktop.
+     *
+     * Den er `seMot` uten flyturen, av samme grunn som `settBlikkHoyde` finnes:
+     * en pute som dras sender et event per piksel, og hundre 0,9-sekunders
+     * animasjoner som avbryter hverandre gir et bilde som rykker etter fingeren.
+     *
+     * TO REGIMER, OG LÅSEN MÅ SETTES FØRST. Over horisonten bærer VIPPEN høyden
+     * og orbiten står låst på taket; under bærer ORBITEN, og da må låsen være AV
+     * — ellers klemmer `controls.update()` inne i `settOrbitVinkler` kameraet
+     * rett opp igjen og blikket kommer aldri ned. Rekkefølgen er derfor motsatt
+     * av i `seMot`, der animasjonen setter vinklene etterpå.
+     *
+     * @param {number|null} azimut radianer fra nord; null = behold retningen
+     * @param {number} hoyde radianer over horisonten (negativ = ned i kartet)
+     */
+    settBlikkRetning(azimut, hoyde) {
+      if (!Number.isFinite(hoyde)) return
+      controls.enabled = true
+      controls.autoRotate = false
+      userTook = true
+      transition = null
+      blikkAnim = null
+      const az = Number.isFinite(azimut)
+        ? azimut
+        : azimutFraTheta(controls.getAzimuthalAngle())
+      const { theta, vipp, polar } = blikkMot(az, hoyde)
+      const underHorisonten = polar < POLAR_MAKS - 1e-6
+      settPolarLast(!underHorisonten)
+      settOrbitVinkler({ theta, phi: polar })
+      himmelVipp = vipp
+    },
+
+    /** Avstanden fra blikkpunktet nå, i meter. Zoom-skyvens avlesning. */
+    get avstand() { return camera.position.distanceTo(controls.target) },
+
+    /** Området orbiten tillater. Leses av skyven, ikke skrevet av — se blikkHoydeGrenser. */
+    avstandsGrenser() {
+      return { min: controls.minDistance, maks: controls.maxDistance }
+    },
+
+    /**
+     * Flytt kameraet inn eller ut langs sin egen orbit-stråle. Retning og høyde
+     * røres ikke — dette er zoom, og bare zoom.
+     */
+    settAvstand(meter) {
+      if (!Number.isFinite(meter)) return
+      controls.enabled = true
+      stopAuto()
+      transition = null
+      const r = Math.max(controls.minDistance, Math.min(controls.maxDistance, meter))
+      settOrbitVinkler({
+        theta: controls.getAzimuthalAngle(),
+        phi: controls.getPolarAngle(),
+        radius: r,
+      })
+    },
+
     get autoRotating() { return controls.autoRotate },
     get userTookOver() { return userTook },
     /** @param {() => void} cb brukeren tok kameraet (gest startet) */

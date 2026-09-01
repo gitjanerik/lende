@@ -308,6 +308,67 @@ const SJEKKER = [
     },
   },
   {
+    navn: 'zoom-skyven og retningsrosa styrer kartet uten hjul (desktop)',
+    domene: 'ZoomSkyv + RetningsRose',
+    async kjør(page) {
+      // HVORFOR SJEKKEN FINNES: uten scrollhjul — styreflate, mus uten hjul —
+      // fantes det ingen vei inn i kartet i det hele tatt. Pinch krever
+      // berøring, og dobbeltklikk zoomer bare INN. Sjekken beviser at man både
+      // kommer inn OG ut igjen, og at rosa snur kartet, uten en eneste gest.
+      //
+      // Playwright-konteksten setter ikke `hasTouch`, så begge kontrollene står
+      // bak samme port de gjør på en ekte desktop. Settes hasTouch en gang i
+      // framtida, forsvinner de og sjekken skal da FEILE, ikke hoppe stille over.
+      await lukkDrawer(page)
+      const transform = () => page.evaluate(() => {
+        const el = document.querySelector('[data-map-inner]')
+        const m = new DOMMatrixReadOnly(getComputedStyle(el).transform)
+        return { skala: Math.hypot(m.a, m.b), grader: Math.atan2(m.b, m.a) * 180 / Math.PI }
+      })
+
+      const skyv = page.locator('input.zoom-skyv').first()
+      if (!await skyv.count()) {
+        throw new Error('zoom-skyven mangler — uten scrollhjul finnes ingen vei inn i kartet')
+      }
+      const start = await skyv.inputValue()
+      // MÅLENE ER SKYVENS EGNE ENDER, ikke faste tall i midten. Hvor skyven STÅR
+      // når sjekken begynner er ikke vår å bestemme: kartets startskala følger
+      // arkets størrelse (ekte Vardåsen er fire ganger demokartet), og sjekken
+      // over kan ha etterlatt kartet dypt inne. Et fast «0,8» var derfor et lite
+      // steg OPP fra 0,757 på det ekte arket — skyven virket, og sjekken sa den
+      // ikke gjorde det. Ende mot ende beviser begge retninger uten å anta noe.
+      // `fill` på en range gir et ekte input-event, som er det komponenten
+      // lytter på — og hele poenget er at INGEN gest trengs.
+      await skyv.fill('1')
+      await page.waitForTimeout(700)
+      const inne = await transform()
+      await skyv.fill('0')
+      await page.waitForTimeout(700)
+      const ute = await transform()
+      if (!(inne.skala > ute.skala * 1.5)) {
+        throw new Error(`zoom-skyven flyttet ikke kartet mellom endene (${ute.skala.toFixed(2)} → ${inne.skala.toFixed(2)})`)
+      }
+
+      const rose = page.locator('input[aria-label="Roter kartet"]').first()
+      if (!await rose.count()) {
+        throw new Error('retningsrosa mangler — kartet kan da ikke roteres uten to fingre')
+      }
+      await rose.fill('45')
+      await page.waitForTimeout(700)
+      const rotert = await transform()
+      if (Math.abs(Math.abs(rotert.grader) - 45) > 3) {
+        throw new Error(`rosa roterte ikke kartet til 45° (leste ${rotert.grader.toFixed(1)}°)`)
+      }
+
+      // NØYTRAL TILSTAND: nord opp og zoomen der vi fant den. Måle-modus-fella
+      // fra v5.8.1 — en sjekk som etterlater et annet bilde felles den neste.
+      await rose.fill('0')
+      await skyv.fill(start)
+      await page.waitForTimeout(700)
+      return `zoom ${ute.skala.toFixed(2)} (helt ut) → ${inne.skala.toFixed(2)} (helt inn) fra ${start}, rosa til 45°`
+    },
+  },
+  {
     navn: 'auto-nabo-bryteren lagrer valget, firkant-valget følger den, status rendrer',
     domene: 'useAutoNabo',
     async kjør(page) {
@@ -1057,8 +1118,8 @@ const SJEKKER = [
     },
   },
   {
-    navn: 'skyveknappen løfter blikket uten et drag (desktop)',
-    domene: 'Tour3dBlikkSkyv',
+    navn: 'retningsrosa løfter og snur blikket uten et drag (desktop)',
+    domene: 'RetningsRose',
     krever: 'ektekart',
     maksMs: 120_000,
     async kjør(page) {
@@ -1103,7 +1164,7 @@ const SJEKKER = [
 
       const skyv = page.locator('input.blikk-skyv')
       if (!await skyv.count()) {
-        throw new Error('skyveknappen for blikkhøyde mangler — himmelen er '
+        throw new Error('høyde-kontrollen i retningsrosa mangler — himmelen er '
           + 'uoppnåelig uten et høyre-drag på desktop')
       }
       // Sett den til maks. `fill` på en range gir et ekte input-event, som er
@@ -1117,10 +1178,29 @@ const SJEKKER = [
       if (!oppe) throw new Error('skyveknappen på maks løftet ikke blikket opp i himmelen')
 
       // Og ned igjen: en enveisbillett ville stått grønn på halve sjekken.
+      // Minimum er nå fugleperspektivet (−85°, orbit-regimet) og ikke bare
+      // horisonten — det er den andre halvdelen av «tilt» rosa skal kunne.
       await skyv.fill(String(await skyv.getAttribute('min')))
       await page.waitForTimeout(1200)
       if (await evalMedTak(page, () => /Ser opp i himmelen/i.test(document.body.innerText))) {
-        throw new Error('skyveknappen på minimum tok ikke blikket ned i kartet igjen')
+        throw new Error('rosa på minimum tok ikke blikket ned i kartet igjen')
+      }
+
+      // ROTASJONEN: samme luke som høyden. Uten kontrollen kan man ikke snu seg
+      // med mus i det hele tatt (venstre knapp panorerer). Avlesningen kommer
+      // fra MOTOREN via `blikk`-eventet, ikke fra vår egen prop — så en rose som
+      // bare flyttet håndtaket sitt ville stått rød her.
+      const azimut = page.locator('input[aria-label="Blikkets retning i grader fra nord"]')
+      if (!await azimut.count()) {
+        throw new Error('retnings-kontrollen mangler — man kan ikke snu seg med mus')
+      }
+      await azimut.fill('90')
+      await page.waitForTimeout(1400)
+      const lest = await page.locator('[role="group"][aria-label*="Blikkretning"]')
+        .first().getAttribute('aria-label')
+      const grader = Number((lest || '').match(/(-?\d+)\s*grader/)?.[1])
+      if (!Number.isFinite(grader) || Math.abs(grader - 90) > 8) {
+        throw new Error(`rosa snudde ikke blikket mot øst (motoren melder «${lest}»)`)
       }
 
       // NØYTRAL TILSTAND: modusen vi arvet, og 3D lukket. Måle-modus-fella fra
@@ -1130,7 +1210,7 @@ const SJEKKER = [
         await page.waitForTimeout(1600)
       }
       await lukk()
-      return `skyveknappen gikk 0 → ${maks}° → horisonten, uten en eneste gest`
+      return `rosa gikk 0 → ${maks}° → fugleperspektiv og snudde mot øst, uten en eneste gest`
     },
   },
   {

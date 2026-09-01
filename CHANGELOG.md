@@ -1,3 +1,51 @@
+## 2026-09-01 — v6.5.20: Overlegget i 3D holder seg unna navigasjonssøyla
+
+Røyktesten i CI kjørte de nye kontrollene mot det ekte Vardåsen-arket for første
+gang og fant to ting. Den ene er ekte: navigasjonssøyla ligger absolutt plassert
+på høyre kant, og flyt-innholdet i 3D-overlegget la seg under den — infokortet
+er sentrert med inntil 86 vw, så på et smalt vindu havnet «alle N» i et
+stjernebildekort under zoom-skyven og var ikke til å trykke på. Polstringen er
+lagt på ROTEN av overlegget og ikke på hver rad: absolutt plasserte barn
+(lerretet, himmelkompasset, søyla selv) måler mot padding-boksen og står stille,
+mens hver flyt-rad rykker inn i én operasjon — også de som ikke kolliderer i dag,
+som POI-panelet, der 60 vh med nålegrupper vokser rett inn i søylas bånd. Den
+andre var sjekken selv: den fylte zoom-skyven med et fast «0,8», men hvor skyven
+STÅR ved start følger arkets størrelse og hva forrige sjekk etterlot, og på det
+ekte arket sto den allerede på 0,757. Skyven virket; sjekken målte et lite steg
+opp og kalte det stillstand. Den går nå fra ende til ende, som ikke antar noe om
+utgangspunktet.
+
+---
+
+## 2026-09-01 — v6.5.19: Zoom-skyv og retningsrose for desktop, i både kart og 3D
+
+Uten hjul fantes det ingen enkel vei til å zoome, og i 3D fantes det ingen vei i
+det hele tatt til å tilte landskapet — `settBlikkHoyde` bor i vippe-regimet og
+rekker bare fra horisonten og opp. To kontroller er lagt til langs høyrekanten,
+begge bak `(hover: hover) and (pointer: fine)`: en loddrett `ZoomSkyv` med
+pluss/minus, og en `RetningsRose` som bærer BEGGE retningsaksene i én rund flate.
+Rosa er himmelhvelvet sett ovenfra — senter er rett opp, randen er rett ned,
+horisonten er den stiplede ringen imellom — så azimut og høyde er ikke to skyver,
+men én retning på en kule. I kart-modus faller høyden bort og skiva snurrer i
+stedet, med nåla mot nord og dobbelttrykk som nullstiller. En «kube» à la Blender
+ble vurdert og forkastet: den snakker om et objekt sett utenfra, mens man her står
+PÅ kartet og ser ut, og den har ingen naturlig tastaturbetjening. Regnestykket bor
+i `lib/navKontroller.js`, som er rent og har fjorten tester — zoomen er
+logaritmisk, så hver dobling får like mye vei. `freeRig` har fått
+`settBlikkRetning`, som velger regime selv og setter polarlåsen FØR vinklene, samt
+`settAvstand`/`avstandsGrenser`; `usePinchZoom` har fått `zoomTil`/`zoomGrenser`.
+De to `<input type="range">`-ene under rosa er ekte og betjenes med tastatur — de
+ligger oppå med `opacity: 0` og `pointer-events: none`, ikke `sr-only`, så de
+beholder en ekte boks. `Tour3dBlikkSkyv.vue` er erstattet av rosa, som arver
+`blikk-skyv`-klassen slik at røyk-sjekken fortsatt måler noe. Tekstskala-skyven i
+kartet er lagt bak en «A»-knapp, så høyrekanten ikke blir et instrumentbord. Og
+søyla står 34 px innenfor viewportkanten: de åtte lende-pilene dokker i et bånd
+der ute, og den høye søyla dekket nordøst-dokka. Røyktesten fanget det med
+elementFromPoint — «1 av 8 lende-piler ligger under noe annet» — som er nøyaktig
+det den sjekken ble laget for.
+
+---
+
 ## 2026-09-01 — v6.5.18: Mindre farge i det sterke nordlyset, og en lukk-knapp som blir stående
 
 Rødt og fiolett er halvert i de to sterkeste trinnene. Andelene ble skrudd opp i

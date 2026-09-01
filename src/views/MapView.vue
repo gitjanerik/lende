@@ -38,6 +38,9 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { usePinchZoom } from '../composables/usePinchZoom.js'
+import { zoomBroek, zoomFraBroek } from '../lib/navKontroller.js'
+import ZoomSkyv from '../components/kontroller/ZoomSkyv.vue'
+import RetningsRose from '../components/kontroller/RetningsRose.vue'
 import { useUserPosition } from '../composables/useUserPosition.js'
 import { useProximityAlert } from '../composables/useProximityAlert.js'
 import { useCompass } from '../composables/useCompass.js'
@@ -706,6 +709,7 @@ const pinchEnabled = computed(() => !loading.value)
 // panAtRest: la kartet dras også ved nullstilt zoom (se clampPan for canvas-rom).
 const {
   scale, translateX, translateY, rotation, reset, panTo, rotateTo, animating, isGesturing,
+  zoomTil, zoomGrenser,
 } = usePinchZoom(wrapperRef, { enabled: pinchEnabled, panAtRest: true, minScale: () => mosaicMinScale() })
 
 // Desktop uten touch: vis en rotasjons-slider (touch bruker to-finger-rotasjon).
@@ -722,9 +726,51 @@ const rotationSliderDeg = computed(() => {
   const r = ((rotation.value % 360) + 540) % 360 - 180
   return Math.round(r)
 })
-function onRotateSlider(e) {
-  rotateTo(Number(e.target.value))
+
+// ---- Desktop-navigasjon: zoom-skyv og retningsrose ------------------------
+// HVORFOR ZOOM-SKYVEN FINNES: uten scrollhjul — styreflate, mus uten hjul —
+// er det ingen enkel vei inn i kartet i det hele tatt. Pinch finnes bare på
+// berøring, og dobbeltklikk zoomer bare INN. Samme klasse luke som blikk-skyven
+// i 3D lukket: en gest som ikke finnes på maskinen du sitter ved.
+//
+// GRENSENE LESES AV ZOOMEN (zoomGrenser) og skrives ikke av: gulvet er
+// mosaikk-avhengig, så en skyv med et påskrevet område ville stått stille i den
+// ene enden på et utvidet kart.
+//
+// ROSA AVLØSER ROTASJONS-SLIDEREN. Tre skyver langs kanten er et instrumentbord;
+// en kompass-skive er dessuten den formen en retning HAR. Nåla peker mot nord,
+// som på «Sentrer»-knappen, og skiva snurrer med kartet.
+const zoomBroekNaa = computed(() => {
+  const g = zoomGrenser()
+  return zoomBroek(scale.value, g.min, g.maks)
+})
+const zoomAvlest = computed(() => {
+  const s = scale.value || 1
+  return s >= 10 ? `${Math.round(s)}×` : `${s.toFixed(1).replace('.', ',')}×`
+})
+function settZoom(broek) {
+  const g = zoomGrenser()
+  zoomTil(zoomFraBroek(broek, g.min, g.maks))
 }
+
+// Tekststørrelsen er en INNSTILLING, ikke navigasjon: den settes én gang og
+// står. Bak en knapp fordi tre skyver samtidig på et kart er et instrumentbord.
+// Tilstanden lagres bevisst ikke — knappen er ett klikk unna, og en skyv som
+// står åpen fra forrige økt er tilbake til utgangspunktet.
+const labelScaleOpen = ref(false)
+
+// SØYLA STÅR INNENFOR LENDE-PILENES BÅND. De åtte pilene dokker på rammens
+// ytterkant (EDGE_FRAME_CHROME.side = 16 px) med et ~26 px bredt knott-hode,
+// altså et bånd langs høyre viewportkant — og nordøst-dokka ligger nøyaktig der
+// søyla begynner. Søyla er høy nok til å dekke den, så på desktop skyves hele
+// kolonnen innenfor båndet. Pilene er transiente og kan ikke flyttes; søyla står
+// alltid. Røyktesten måler det med elementFromPoint og ikke med selektorer, så en
+// framtidig kollisjon fanges av seg selv.
+const NAV_KANTBAND_PX = 34
+const navRightStyle = computed(() => ({
+  right: (panelOffsetPx.value > 0 ? panelOffsetPx.value + 12 : 12)
+    + (hasTouch.value ? 0 : NAV_KANTBAND_PX) + 'px',
+}))
 
 // Pan- og zoom-grensene (hvor langt kartet kan dras, hvor langt ut det kan
 // zoomes) bor i usePanGrenser.js. Begge spør mosaikken om utstrekningen, og
@@ -2519,45 +2565,51 @@ onUnmounted(() => {
          Containeren består for desktop-sliderne + kompass-feilmelding. -->
     <div class="absolute top-[var(--ovl-rose)] z-20 pointer-events-auto select-none flex flex-col items-end
                 transition-[right] duration-200"
-         :style="floatRightStyle">
+         :style="navRightStyle">
       <div v-if="compass.error"
            class="text-[10px] text-red-300 mt-1 max-w-[80px] text-right leading-tight
                   px-1.5 py-0.5 rounded bg-overlay">
         {{ compass.error }}
       </div>
-      <!-- Rotasjons-slider (kun desktop/uten touch — touch roterer med to fingre).
-           −180…180°, midtstilt = 0 (kart-nord opp). Roterer rundt viewport-senter.
-           Dobbeltklikk = nullstill til nord. -->
+      <!-- NAVIGASJONSSØYLA (kun desktop/uten touch — berøring har pinch og
+           to-finger-rotasjon). ÉN pille med zoom og retning, ikke tre skyver
+           ved siden av hverandre: uten scrollhjul er zoom det man trenger
+           oftest, og en retning er en SKIVE og ikke en strek. Nåla peker mot
+           nord, som på «Sentrer»-knappen. Dobbeltklikk i rosa = nord opp. -->
       <div v-if="!hasTouch"
-           class="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-overlay
-                  shadow-lg select-none">
-        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-ink/55 shrink-0" fill="none"
-             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v5h-5"/>
-        </svg>
-        <input type="range" min="-180" max="180" step="1" :value="rotationSliderDeg"
-               @input="onRotateSlider" @dblclick="rotateTo(0)"
-               aria-label="Roter kartet (dobbeltklikk = nullstill til nord)"
-               class="w-24 accent-sky-400 cursor-pointer" />
-        <span class="text-[10px] text-ink/55 tabular-nums w-9 text-right">{{ rotationSliderDeg }}°</span>
+           class="mt-2 flex flex-col items-center gap-1.5 px-1.5 py-2.5 rounded-2xl
+                  bg-overlay shadow-lg select-none text-ink/70">
+        <ZoomSkyv :broek="zoomBroekNaa" :avlest="zoomAvlest" merkelapp="Zoom kartet"
+                  @broek="settZoom"/>
+        <div class="w-8 h-px bg-ink/15"></div>
+        <RetningsRose modus="kart" :azimut="rotationSliderDeg"
+                      @retning="rotateTo($event.azimut)" @nord="rotateTo(0)"/>
+        <span class="text-[10px] text-ink/50 tabular-nums leading-none">{{ rotationSliderDeg }}°</span>
       </div>
-      <!-- Tekststørrelse-slider (kun desktop, søsken til rotasjons-sliden).
-           −100…100 med midtstilt = normal (100%); skala 0.5×…2.0×. Brukeren
-           kan både øke og minske størrelsen på alle kart-etiketter (navn,
-           høyde, stedsnavn, naturreservat, vann osv). Dobbeltklikk = normal.
-           På mobil vises ingen slider — pinch holder til zoom. -->
-      <div v-if="!hasTouch"
-           class="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-overlay
-                  shadow-lg select-none">
-        <svg viewBox="0 0 28 24" class="w-4 h-3.5 text-ink/55 shrink-0" fill="currentColor">
-          <text x="0" y="20" font-size="12" font-weight="800" font-family="ui-sans-serif, sans-serif">A</text>
-          <text x="11" y="20" font-size="20" font-weight="800" font-family="ui-sans-serif, sans-serif">A</text>
-        </svg>
-        <input type="range" :min="LABEL_SCALE_MIN" :max="LABEL_SCALE_MAX" step="1"
-               v-model.number="labelScaleSlider" @dblclick="labelScaleSlider = 0"
-               aria-label="Tekststørrelse på kart-etiketter (dobbeltklikk = normal)"
-               class="w-24 accent-sky-400 cursor-pointer" />
-        <span class="text-[10px] text-ink/55 tabular-nums w-9 text-right">{{ labelScalePct }}%</span>
+
+      <!-- TEKSTSTØRRELSEN er ikke navigasjon, og den settes én gang og ikke
+           hele tida — derfor ligger den bak en knapp og ikke som en tredje
+           skyv på skjermen. −100…100 med midtstilt = normal (100 %); skala
+           0.5×…2.0× på alle kart-etiketter. Dobbeltklikk = normal. -->
+      <div v-if="!hasTouch" class="mt-2 flex items-center gap-2 justify-end">
+        <div v-if="labelScaleOpen"
+             class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-overlay shadow-lg">
+          <input type="range" :min="LABEL_SCALE_MIN" :max="LABEL_SCALE_MAX" step="1"
+                 v-model.number="labelScaleSlider" @dblclick="labelScaleSlider = 0"
+                 aria-label="Tekststørrelse på kart-etiketter (dobbeltklikk = normal)"
+                 class="w-24 accent-sky-400 cursor-pointer" />
+          <span class="text-[10px] text-ink/55 tabular-nums w-9 text-right">{{ labelScalePct }}%</span>
+        </div>
+        <button type="button" @click="labelScaleOpen = !labelScaleOpen"
+                :aria-expanded="labelScaleOpen"
+                aria-label="Tekststørrelse på kart-etiketter"
+                class="w-9 h-9 grid place-items-center rounded-full bg-overlay shadow-lg
+                       text-ink/70 hover:text-ink">
+          <svg viewBox="0 0 28 24" class="w-4 h-3.5" fill="currentColor">
+            <text x="0" y="20" font-size="12" font-weight="800" font-family="ui-sans-serif, sans-serif">A</text>
+            <text x="11" y="20" font-size="20" font-weight="800" font-family="ui-sans-serif, sans-serif">A</text>
+          </svg>
+        </button>
       </div>
     </div>
 

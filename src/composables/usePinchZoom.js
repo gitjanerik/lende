@@ -343,6 +343,36 @@ export function usePinchZoom(elementRef, options = {}) {
   function zoomOut() { zoomBy(1 / 1.5) }
 
   /**
+   * Sett skalaen ABSOLUTT, rundt viewport-senter — zoom-skyven på desktop.
+   *
+   * HVORFOR VED SIDA AV zoomBy: en skyv sier «hit», ikke «litt til». Ganget seg
+   * fram med en faktor ville håndtaket og kartet drevet fra hverandre, siden
+   * skalaen klampes i begge ender og en faktor da blir spist uten at skyven vet
+   * det. Fokuspunktet er senter av wrapperen, som i zoomBy — det er der blikket
+   * er når man ikke peker på noe.
+   */
+  function zoomTil(nyScale) {
+    const el = elementRef.value
+    if (!el || !Number.isFinite(nyScale)) return
+    const rect = el.getBoundingClientRect()
+    animate()
+    zoomAtPoint(nyScale, rect.left + rect.width / 2, rect.top + rect.height / 2)
+  }
+
+  /**
+   * Området skyven kan bevege seg i. Gulvet er DYNAMISK (mosaikk-avhengig, se
+   * usePanGrenser) og leses derfor her i stedet for å skrives av på kallstedet —
+   * en skyv med et annet område enn zoomen faktisk har, ender i et håndtak som
+   * står stille i endene.
+   */
+  function zoomGrenser() {
+    let v
+    try { v = typeof minScaleOpt === 'function' ? minScaleOpt() : unref(minScaleOpt) } catch { v = undefined }
+    const min = (typeof v === 'number' && v > 0) ? Math.min(v, MAX_SCALE) : MIN_SCALE
+    return { min, maks: MAX_SCALE }
+  }
+
+  /**
    * Panorer + skaler så viewBox-punktet (vbX, vbY) ender på et fokuspunkt i
    * wrapperen. Brukes av søke-flowen for å sentrere på et stedsnavn-treff, og
    * av long-press-menyen for å «into-focuse» punktet inn i det synlige kart-
@@ -391,5 +421,8 @@ export function usePinchZoom(elementRef, options = {}) {
     translateY.value = fy - s * (px * sin + py * cos)
   }
 
-  return { scale, translateX, translateY, rotation, reset, zoomIn, zoomOut, panTo, rotateTo, animating, isGesturing }
+  return {
+    scale, translateX, translateY, rotation, reset, zoomIn, zoomOut, zoomTil, zoomGrenser,
+    panTo, rotateTo, animating, isGesturing,
+  }
 }
