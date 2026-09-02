@@ -1431,6 +1431,7 @@ const {
   pxToUserUnits, renderHighlight, renderProximityTarget, renderMeasure,
   renderRoutes, ensureAnnotationDefs, renderAnnotations,
   applyUprightLabels, roadRefUprightDeg, renderTracks, updateUserDot,
+  mykRotasjonTikk, stoppMykRotasjon, nullstillMykRotasjon,
 } = useSymbolRenderers({
   svgHostRef, wrapperRef, wrapperSize, scale, rotation,
   highlightedFeature, proximity,
@@ -2076,6 +2077,10 @@ watch(isGesturing, (g) => {
   }
   const scaleChanged = scale.value !== gestureStartScale
   const rotationChanged = rotation.value !== gestureStartRotation
+  // Slipp det live snapshotet FØR den autoritative passeringen: snapshotet ser
+  // bare det som var synlig da gesten startet, og culling/navne-LOD kan ha vært
+  // lettet i mellomtiden.
+  stoppMykRotasjon()
   if (scaleChanged) { renderAnnotations(); updateUserDot(); renderTracks() }
   if (scaleChanged || rotationChanged) applyUprightLabels()
 })
@@ -2134,12 +2139,25 @@ function selectSymbol(key) {
 }
 
 
-// Watch rotasjon — counter-roterer alle <text>/pins så de står rett opp. Perf:
-// itererer 1000+ noder og skriver transform per endring, så vi hopper over det
-// midt i en rotasjons-gest (labels vippes med kartet og snapper opp ved gest-
-// slutt, jf. gest-slutt-watcheren) og kjører kun på hvile-endringer (f.eks.
-// programmatisk reset til 0).
-watch(rotation, () => { if (!isGesturing.value) applyUprightLabels() })
+// Watch rotasjon — counter-roterer alle <text>/pins så de står rett opp.
+//
+// Utenfor gest (rotasjons-slider, retningsrosa, kompass-følge, programmatisk
+// nullstilling) skrives det synkront, som før. MIDT I EN GEST går det gjennom
+// mykRotasjonTikk: én rAF-koalescert skriving per frame over et snapshot som er
+// bygget én gang, med et frame-budsjett som slår seg selv av hvis telefonen
+// ikke henger med (lib/mykRotasjon.js). Returnerer den false, er live-modus av
+// og labelene vipper med kartet og rettes opp av gest-slutt-watcheren — nøyaktig
+// oppførselen som gjaldt for ALLE fram til v6.5.25.
+watch(rotation, () => {
+  if (isGesturing.value) mykRotasjonTikk()
+  else applyUprightLabels()
+})
+
+// Nytt kart (annet ark, ny mosaikk, silent re-render etter detalj-påfyll) =
+// nytt sett labels og ny sjanse for myk rotasjon. Uten dette ville ett tungt
+// ark slått den av for resten av økta, også etter at brukeren gikk tilbake til
+// et lite ett.
+watch(meta, () => nullstillMykRotasjon())
 
 
 // Slå opp symbolKey + label for en lagret annotering. Faller tilbake til

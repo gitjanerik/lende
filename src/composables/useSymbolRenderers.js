@@ -5,7 +5,10 @@
 // prikken — pluss pxToUserUnits som holder dem i konstant skjermstørrelse.
 // Forelderen eier SVG-verten og all tilstand (destrukturert inn); watchene
 // som kaller rendererne ligger fortsatt i MapView.
+import { onScopeDispose } from 'vue'
 import { isomCatalog, buildPointSymbolDef } from '../lib/symbolizer.js'
+import { lagRotasjonsBudsjett, rotasjonEndret } from '../lib/mykRotasjon.js'
+import { logPerf } from '../lib/perfLog.js'
 import { polylineToPath } from '../lib/pathUtils.js'
 import {
   STEDSMERKE_KEY_TIMES, STEDSMERKE_DUR, STEDSMERKE_SHADOW_OPACITY,
@@ -573,7 +576,15 @@ export function useSymbolRenderers({
     const svg = svgHostRef.value?.querySelector('svg')
     if (!svg) return
     const kartRot = kartRotDeg ?? rotation.value
-    const rot = -kartRot
+    forHverUpright(svg, false, (el, type) => skrivUpright(el, type, kartRot))
+  }
+
+  // Iterasjonen og filtrene bak applyUprightLabels, delt med den live
+  // rotasjonen (samleUprightMaal) så de to ALDRI kan få hvert sitt syn på hva
+  // som skal stå opp. `kunSynlige` er den eneste forskjellen: den live
+  // snapshoten hopper over det som er skjult av culling/navne-LOD, mens den
+  // autoritative passeringen tar alt — culling kan være løftet siden sist.
+  function forHverUpright(svg, kunSynlige, besok) {
     // Alle tekst-labels i kart-innholdet
     const texts = svg.querySelectorAll('text')
     for (const el of texts) {
@@ -605,34 +616,32 @@ export function useSymbolRenderers({
       // Hopp over labels i skjulte lag (stedsnavn default av → 1000+ noder
       // itereres ikke). Re-orienteres når laget slås på (applyLayerVisibility).
       if (layerG && layerG.style.display === 'none') continue
+      if (kunSynlige && erSkjult(el)) continue
       let xVal = el.__ux
       if (xVal === undefined) {
         xVal = el.x?.baseVal?.[0]?.value ?? 0
         el.__ux = xVal
         el.__uy = el.y?.baseVal?.[0]?.value ?? 0
       }
-      el.setAttribute('transform', `rotate(${rot} ${xVal} ${el.__uy})`)
+      besok(el, 'tekst')
     }
     // Stedsmerke-annoteringer (rød dråpe-pin). G-en har allerede
     // translate(x,y) — counter-rotate rundt (0,0) i lokalt rom holder
     // pin-tipp-en forankret mens hodet vippes opp.
-    const pins = svg.querySelectorAll('[data-annot-type="stedsmerke"]')
-    for (const el of pins) {
-      // Bevarer eksisterende translate, bytter ut/setter rotate-segment
-      const existing = el.getAttribute('transform') ?? ''
-      const m = existing.match(/translate\([^)]+\)/)
-      const trans = m ? m[0] : ''
-      el.setAttribute('transform', `${trans} rotate(${rot})`)
-    }
-    // Auto-genererte symboler markert med data-upright (foreløpig kun
-    // parkerings-P) skal leses vannrett med skjermens topp — bruker samme
-    // mønster som stedsmerke: bevar translate, bytt rotate-segmentet.
-    const upright = svg.querySelectorAll('[data-upright="1"]')
-    for (const el of upright) {
-      const existing = el.getAttribute('transform') ?? ''
-      const m = existing.match(/translate\([^)]+\)/)
-      const trans = m ? m[0] : ''
-      el.setAttribute('transform', `${trans} rotate(${rot})`)
+    //
+    // Auto-genererte symboler markert med data-upright (parkerings-P,
+    // kulturminne-diamant, NVE-stasjon) skal leses vannrett med skjermens
+    // topp — samme mønster.
+    const grupper = svg.querySelectorAll('[data-annot-type="stedsmerke"], [data-upright="1"]')
+    for (const el of grupper) {
+      if (kunSynlige && erSkjult(el)) continue
+      // Bevar translate, bytt ut/sett rotate-segmentet. Translaten settes ved
+      // opprettelsen og endres aldri i etterkant (en flyttet pin bygges om), så
+      // den caches som på veinummer-skiltene under.
+      if (el.__trans === undefined) {
+        el.__trans = /translate\([^)]+\)/.exec(el.getAttribute('transform') ?? '')?.[0] ?? ''
+      }
+      besok(el, 'gruppe')
     }
     // v12.0.16 — Veinummer-skilt: beholder vei-bæringen sin (ikke billboard),
     // men flippes 180° når kart-rotasjonen ville lagt teksten på hodet.
@@ -649,8 +658,31 @@ export function useSymbolRenderers({
         // counter-rotation baket inn på selve teksten — fjern den.
         el.querySelector('text')?.removeAttribute('transform')
       }
+      if (kunSynlige && erSkjult(el)) continue
+      besok(el, 'skilt')
+    }
+  }
+
+  // Skriv ÉN transform. Alt som er dyrt (closest, baseVal, regex) er allerede
+  // gjort og cachet på elementet av forHverUpright, så dette er det eneste som
+  // kjøres per frame under en live rotasjon.
+  function skrivUpright(el, type, kartRot) {
+    if (type === 'tekst') {
+      el.setAttribute('transform', `rotate(${-kartRot} ${el.__ux} ${el.__uy})`)
+    } else if (type === 'gruppe') {
+      el.setAttribute('transform', `${el.__trans} rotate(${-kartRot})`)
+    } else {
       el.setAttribute('transform', `${el.__trans} rotate(${roadRefUprightDeg(el.__deg, kartRot)})`)
     }
+  }
+
+  // Skjult av viewport-culling eller navne-LOD (begge klasser er display:none i
+  // MapViews CSS). Brukes KUN av den live snapshoten: en transform på noe som
+  // ikke tegnes er en frame-kostnad uten et eneste piksel å vise for seg, og
+  // culling står stille under en gest. Den autoritative passeringen ved
+  // gest-slutt tar dem igjen.
+  function erSkjult(el) {
+    return !!el.closest('.vp-cull, .name-lod-off')
   }
 
   // Skilt-vinkel som holder veinummer-teksten lesbar: behold bygge-vinkelen
@@ -660,6 +692,93 @@ export function useSymbolRenderers({
     const eff = ((bakedDeg + mapRotDeg) % 360 + 540) % 360 - 180
     return (eff > 90 || eff <= -90) ? bakedDeg + 180 : bakedDeg
   }
+
+  // ── Myk rotasjon: labels følger kartet MENS man roterer ───────────────────
+  //
+  // Fram til v6.5.25 hoppet vi over counter-rotasjonen midt i en gest: navnene
+  // vippet med kartet og snappet opp først når fingrene slapp. Begrunnelsen var
+  // ekte (se lib/mykRotasjon.js), men prisen var et kart som ser ferdig ut i det
+  // øyeblikket man slutter å bruke det.
+  //
+  // Tre ting gjør at vi nå tør kjøre live:
+  //   1. ÉN skriving per frame. Flere touchmove-eventer i samme frame
+  //      koalesceres i en rAF, og vi sammenlikner mot sist SKREVNE vinkel.
+  //   2. Snapshoten bygges ÉN gang per gest, ikke per frame — all
+  //      querySelectorAll/closest/baseVal er ute av frame-løkka, og det som er
+  //      cullet eller LOD-skjult er ute av settet.
+  //   3. Budsjettet måler. Blir passene for dyre, faller vi tilbake til den
+  //      gamle oppførselen for resten av kartets levetid og skriver hvorfor i
+  //      perf-loggen. Vi gjetter ikke på hva telefonen tåler.
+  //
+  // Kill switch for feltmåling: localStorage 'lende-myk-rotasjon' = '0'
+  // (bryter i Utvikler-fanen).
+  const budsjett = lagRotasjonsBudsjett()
+  let mykAv = false
+  try { mykAv = localStorage.getItem('lende-myk-rotasjon') === '0' } catch { /* noop */ }
+  let liveMaal = null       // [{el, type}] — settet vi skriver hver frame
+  let liveSamleMs = 0
+  let liveSistDeg = null
+  let liveRaf = 0
+
+  function samleUprightMaal() {
+    const svg = svgHostRef.value?.querySelector('svg')
+    if (!svg) return null
+    const t0 = performance.now()
+    const ut = []
+    forHverUpright(svg, true, (el, type) => ut.push({ el, type }))
+    liveSamleMs = performance.now() - t0
+    return ut
+  }
+
+  // Kalles ved hver rotasjons-endring under en gest. Returnerer om live-modus
+  // tok jobben — er svaret false, står den gamle snapp-ved-gest-slutt igjen.
+  function mykRotasjonTikk() {
+    if (mykAv || !budsjett.erAktiv()) return false
+    if (liveRaf) return true            // allerede planlagt for neste frame
+    liveRaf = requestAnimationFrame(() => {
+      liveRaf = 0
+      if (mykAv || !budsjett.erAktiv()) return
+      if (!liveMaal) {
+        liveMaal = samleUprightMaal()
+        if (!liveMaal) return
+      }
+      const deg = rotation.value
+      if (!rotasjonEndret(liveSistDeg, deg)) return
+      const t0 = performance.now()
+      for (const m of liveMaal) skrivUpright(m.el, m.type, deg)
+      const ms = performance.now() - t0
+      liveSistDeg = deg
+      if (!budsjett.registrer(ms)) {
+        const st = budsjett.status()
+        logPerf(
+          `[perf] myk tekstrotasjon av — ${liveMaal.length} labels, verste pass ` +
+          `${st.verstMs.toFixed(1)}ms (budsjett ${st.budsjettMs}ms), ` +
+          `snapshot ${liveSamleMs.toFixed(1)}ms`
+        )
+        stoppMykRotasjon()
+      }
+    })
+    return true
+  }
+
+  // Gest-slutt (og komponent-slutt): slipp snapshoten. Den autoritative
+  // applyUprightLabels()-passeringen kjøres av MapViews gest-slutt-watcher og
+  // tar med det som var cullet bort under gesten.
+  function stoppMykRotasjon() {
+    if (liveRaf) { cancelAnimationFrame(liveRaf); liveRaf = 0 }
+    liveMaal = null
+    liveSistDeg = null
+  }
+
+  // Nytt kart = nytt sett labels og ny sjanse for live-modus. Uten dette ville
+  // en tung mosaikk slått av myk rotasjon for resten av økta, også etter at
+  // brukeren gikk tilbake til et lite ark.
+  function nullstillMykRotasjon() {
+    stoppMykRotasjon()
+    budsjett.nullstill()
+  }
+
+  onScopeDispose(stoppMykRotasjon)
 
   /**
    * Render alle synlige GPS-spor i et eget SVG-lag som ligger mellom kart-
@@ -853,5 +972,6 @@ export function useSymbolRenderers({
     pxToUserUnits, renderHighlight, renderProximityTarget, renderMeasure,
     renderRoutes, ensureAnnotationDefs, renderAnnotations,
     applyUprightLabels, roadRefUprightDeg, renderTracks, updateUserDot,
+    mykRotasjonTikk, stoppMykRotasjon, nullstillMykRotasjon,
   }
 }

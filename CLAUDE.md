@@ -388,6 +388,23 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   blokka før du stoler på tallet, og følg sømmen framfor tallet.
   Rører du et domene som allerede er ute: gjør endringen i composable-en, ikke
   i MapView.
+- **STEDSNAVN COUNTER-ROTERES LIVE UNDER GESTEN, og det er en MÅLT avveining
+  (v6.5.25).** Fram til v6.5.24 hoppet `applyUprightLabels` over hele
+  rotasjons-gesten. Grunnen var ekte: kart-diven er et composited lag under
+  gesten (`will-change: transform`), så rotasjonen er gratis — men skriver vi en
+  transform på tekstene, blir laget skittent og HELE SVG-en rasteriseres på nytt
+  hver frame. Det er ikke fjernet, det er betalt for: én rAF-koalescert skriving
+  per frame, ett snapshot per gest (querySelectorAll/closest/baseVal ut av
+  frame-løkka, cullet og LOD-skjult ut av settet), og et frame-budsjett i
+  `lib/mykRotasjon.js` som slår live-modus AV for kartets levetid når passene
+  sprekker og skriver hvorfor i perf-loggen. **Budsjettet er ikke pynt** — det er
+  det som gjør at en tung mosaikk på en gammel telefon får den gamle oppførselen
+  i stedet for hakking, og «forenkler» man det bort, er det bare de raske
+  telefonene som merker det. `forHverUpright` er ÉN iterasjon delt av den
+  autoritative passeringen og snapshotet, nettopp for at de to aldri skal få
+  hvert sitt syn på hva som skal stå opp. Røyk-sjekken måler MIDT I gesten med
+  syntetiske to-finger-eventer; en måling etter gest-slutt er grønn også uten
+  fiksen.
 - **RØYKTESTENS VARDÅSEN-KART CACHES, og nøkkelen er poenget (v6.5.24).**
   Byggingen henter Overpass + Kartverket og er både det dyreste steget og det
   eneste som kan feile fordi en tredjepart har en dårlig dag. Kartet er en ren
