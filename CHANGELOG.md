@@ -1,3 +1,20 @@
+## 2026-09-02 — v6.5.26: Kart-cachen var aldri i rekkevidde — røyktesten kjører nå også på master
+
+Cachen fra v6.5.24 virket, men ingen andre enn PR-en som skrev den kunne lese
+den. Et kjørende workflow henter bare caches fra sin egen gren eller fra
+standardgrena, og røyktesten kjørte bare på `pull_request` — så hver PR skrev
+kartet til sin egen gren og fikk det slettet i det PR-en ble merget. Målt på
+PR #373, den første etter at cachen kom inn: full bygging fra Overpass og
+Kartverket, og så «Cache saved with key: royk-vardasen-v1-123-…» til en gren
+som forsvant minutter senere. Testen kjører derfor nå også på push til master,
+som er det ene omfanget alle grener kan lese fra. Uten paths-filter, fordi
+GitHub Actions ikke støtter YAML-ankere og en kopiert sti-liste ville driftet
+fra originalen første gang noen la til en sti bare ett sted. På master avbrytes
+heller ingen kjøring lenger av en nyere push: der er jobben å FYLLE cachen, og
+en avbrutt kjøring skriver ingen.
+
+---
+
 ## 2026-09-02 — v6.5.25: Stedsnavn følger kartet mens du roterer
 
 Counter-rotasjonen av tekst hoppet over hele rotasjons-gesten: navnene lå på

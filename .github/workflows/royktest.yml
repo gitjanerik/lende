@@ -51,6 +51,24 @@ on:
       - 'src/router.js'
       - 'src/App.vue'
       - '.github/workflows/royktest.yml'
+  # OG PÅ MASTER — ikke for dekningens skyld, men for CACHENS (v6.5.26).
+  # Et kjørende workflow kan bare hente caches fra SIN EGEN gren eller fra
+  # standardgrena. En cache skrevet i en PR-kjøring er derfor låst til den
+  # PR-grena: neste PR ser den ikke, og bygger kartet fra Overpass og Kartverket
+  # på nytt. Målt på PR #373, første PR etter at cachen kom inn — full bygging,
+  # og så «Cache saved with key: royk-vardasen-v1-123-…» til en gren som ble
+  # slettet i det PR-en ble merget. Cachen virket, den var bare aldri i
+  # rekkevidde. Det er PUSHET TIL MASTER som legger kartet i det ene omfanget
+  # alle grener kan lese, og uten dette steget er hele v6.5.24 ren pynt.
+  #
+  # INGEN paths-filter her, og det er et bevisst valg. GitHub Actions støtter
+  # ikke YAML-ankere, så et filter måtte vært en KOPI av lista over — og den
+  # kopien ville driftet fra originalen første gang noen la til en sti bare ett
+  # sted. Prisen for å droppe det er at en dokument-merge også kjører røyken;
+  # med varm cache er det noen minutter uten et eneste nettkall. Prisen for
+  # drift er en cache som stille slutter å bli fylt.
+  push:
+    branches: [master]
   workflow_dispatch:
 
 # ÉN KJØRING PER GREN. Pushes det tre ganger på ti minutter, startet det tre
@@ -60,9 +78,15 @@ on:
 #
 # Nøkkelen er GRENA og ikke commiten, så hver ny push til samme PR avløser den
 # forrige. `workflow_dispatch` uten PR-kontekst faller tilbake på ref-en.
+#
+# PÅ MASTER AVBRYTES INGENTING (v6.5.26). Der er kjøringens jobb å FYLLE
+# kart-cachen for alle framtidige PR-er, og en avbrutt kjøring skriver ingen
+# cache. To merger på ti minutter ville da tatt bort nettopp det pushet som
+# skulle varme cachen — og en avbrutt kjøring ser dessuten ut som en feilet
+# kjøring i lista.
 concurrency:
   group: royk-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   royk:
