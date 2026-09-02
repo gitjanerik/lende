@@ -422,6 +422,18 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   ikke beskriver — samme felle som `--hoppbygg` finnes for å unngå. Rører du
   kart-pipelinen, bygges kartet på nytt av seg selv; trenger du en fersk bake
   uten å røre en kildefil, bump `NOKKEL_VERSJON`.
+
+  **OG DEN MÅ FYLLES FRA MASTER, ellers er hele cachen pynt (v6.5.26).** Et
+  kjørende workflow henter bare caches fra SIN EGEN gren eller fra
+  standardgrena. Kjørte røyktesten bare på `pull_request` — som den gjorde i to
+  dager — skrev hver PR kartet til en gren som ble slettet i det den ble merget,
+  og neste PR bygde fra Overpass på nytt. Det ble målt på PR #373: full bygging,
+  og så «Cache saved with key: royk-vardasen-v1-123-…» til ingen nytte. Derfor
+  kjører jobben også på push til master, UTEN paths-filter — GitHub Actions
+  støtter ikke YAML-ankere, og en kopiert sti-liste drifter fra originalen
+  første gang noen legger til en sti bare ett sted. På master står dessuten
+  `cancel-in-progress` av: der er jobben å FYLLE cachen, og en avbrutt kjøring
+  skriver ingen.
 - **Rutingen har sin egen røyktest (v5.22.7).** `npm run royk:ruter` går gjennom
   hver rute, hver redirect og boot-gjenopptaket i `router.js`. `npm run royk`
   monterer ÉN rute (`/kart/:id`) og sier ingenting om at `/about` lander på `/om`
