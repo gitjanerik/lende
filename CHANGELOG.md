@@ -1,3 +1,28 @@
+## 2026-09-02 — v6.5.25: Stedsnavn følger kartet mens du roterer
+
+Counter-rotasjonen av tekst hoppet over hele rotasjons-gesten: navnene lå på
+skrå så lenge fingrene var nede og snappet vannrett først når man slapp. Nå står
+de opp hele veien.
+
+Begrunnelsen for hoppet var ekte, og den er ikke fjernet — den er MÅLT. Under en
+gest er kart-diven et composited lag, så selve rotasjonen er gratis; i det vi
+skriver en ny transform på tekstene, må hele SVG-en rasteriseres på nytt hver
+frame, og kostnaden vokser med arket. Tre grep gjør at det nå går: én
+rAF-koalescert skriving per frame i stedet for én per touchmove, et snapshot
+bygget ÉN gang per gest (all querySelectorAll, closest og baseVal ut av
+frame-løkka, og alt som er cullet eller LOD-skjult ut av settet), og et
+frame-budsjett som tar tida på hvert pass. Sprenger passene budsjettet, faller
+den tilbake til den gamle oppførselen for resten av kartets levetid og skriver
+hvorfor i perf-loggen — vi gjetter ikke på hva telefonen tåler. Et nytt kart gir
+en ny sjanse, så ett tungt ark låser ikke resten av økta.
+
+Reglene bor i `lib/mykRotasjon.js` (ren og enhetstestet), og bryteren «Myk
+tekstrotasjon» i Utvikler-fanen slår den av for sammenlikning i felt.
+Røyk-sjekken måler MIDT I gesten med syntetiske to-finger-eventer — det er det
+eneste øyeblikket forskjellen finnes, og den er verifisert i begge retninger.
+
+---
+
 ## 2026-09-01 — v6.5.24: Røyktesten cacher Vardåsen-kartet — ingen nettbygging på 3D-PR-er
 
 Kart-byggingen er både den dyreste delen av røyktesten (~2 av jobbens ~6

@@ -679,6 +679,106 @@ const SJEKKER = [
     },
   },
   {
+    navn: 'stedsnavn står vannrett MENS kartet roteres',
+    domene: 'useSymbolRenderers',
+    krever: 'ektekart',
+    async kjør(page) {
+      // Fram til v6.5.25 hoppet counter-rotasjonen over hele gesten: navnene lå
+      // på skrå så lenge fingrene var nede og snappet opp når man slapp. Denne
+      // sjekken måler MIDT I GESTEN, som er det eneste øyeblikket forskjellen
+      // finnes — en sjekk som leser av etterpå ville vært grønn også før.
+      //
+      // Gesten er syntetiske TouchEvents: FabCluster-lærdommen gjelder her også,
+      // og usePinchZoom lytter på touchstart/touchmove med { passive: false }.
+      // To fingre 180° fra hverandre roteres i steg på 6° — over dødsonen på
+      // 1,5° som beskytter mot skjelving.
+      await lukkDrawer(page)
+      const m = await page.evaluate(async () => {
+        const inner = document.querySelector('[data-map-inner]')
+        const el = inner?.parentElement
+        if (!el) return { feil: 'fant ikke kart-wrapperen' }
+        const r = el.getBoundingClientRect()
+        const cx = r.left + r.width / 2
+        const cy = r.top + r.height / 2
+        const R = 120
+        const finger = (deg, i) => {
+          const a = (deg + i * 180) * Math.PI / 180
+          return new Touch({
+            identifier: i, target: el,
+            clientX: cx + R * Math.cos(a), clientY: cy + R * Math.sin(a),
+          })
+        }
+        const send = (type, deg) => {
+          const t = deg == null ? [] : [finger(deg, 0), finger(deg, 1)]
+          el.dispatchEvent(new TouchEvent(type, {
+            bubbles: true, cancelable: true, touches: t, targetTouches: t, changedTouches: t,
+          }))
+        }
+        const frame = () => new Promise((res) => requestAnimationFrame(res))
+        const kartRot = () => {
+          const mm = /rotate\((-?[\d.]+)deg\)/.exec(inner.style.transform || '')
+          return mm ? Number(mm[1]) : 0
+        }
+        // Bare det som faktisk tegnes: culling og navne-LOD skjuler resten, og
+        // den live passeringen hopper over dem med vilje.
+        const synligeTekster = () => [...document.querySelectorAll('svg.isom-map text')]
+          .filter((t) => !t.closest('defs, .vp-cull, .name-lod-off')
+                      && t.dataset.label !== 'veinummer'
+                      && t.closest('[data-layer]')?.style.display !== 'none')
+        const tekstRot = (t) => {
+          const mm = /rotate\((-?[\d.]+)/.exec(t.getAttribute('transform') || '')
+          return mm ? Number(mm[1]) : 0
+        }
+
+        send('touchstart', 0)
+        for (let d = 6; d <= 36; d += 6) {
+          send('touchmove', d)
+          await frame(); await frame()
+        }
+        // Måling MENS fingrene fortsatt er nede.
+        const rotUnder = kartRot()
+        const tekster = synligeTekster()
+        const følger = tekster.filter((t) => Math.abs(tekstRot(t) + rotUnder) < 1).length
+        send('touchend', null)
+        await new Promise((res) => setTimeout(res, 500))
+        const rotEtter = kartRot()
+        const etter = synligeTekster()
+        const følgerEtter = etter.filter((t) => Math.abs(tekstRot(t) + rotEtter) < 1).length
+        return {
+          rotUnder, rotEtter,
+          antall: tekster.length, følger,
+          antallEtter: etter.length, følgerEtter,
+        }
+      })
+      if (m.feil) throw new Error(m.feil)
+      if (Math.abs(m.rotUnder) < 20) throw new Error(`to-finger-rotasjonen slo ikke inn (kart ${m.rotUnder}°)`)
+      if (!m.antall) throw new Error('ingen synlige labels å måle på')
+      // Ikke «alle»: et navn kan bli cullet bort mellom snapshot og måling, og
+      // sjekken skal fange at counter-rotasjonen er BORTE, ikke jage én label.
+      if (m.følger < m.antall * 0.9) {
+        throw new Error(`bare ${m.følger}/${m.antall} labels stod vannrett MIDT I gesten `
+                      + `(kart ${m.rotUnder.toFixed(1)}°) — myk rotasjon virker ikke`)
+      }
+      // Og den autoritative passeringen ved gest-slutt tar med det snapshotet
+      // hoppet over.
+      if (m.følgerEtter < m.antallEtter) {
+        throw new Error(`${m.antallEtter - m.følgerEtter}/${m.antallEtter} labels stod skjevt ETTER gesten`)
+      }
+      // Etterlat appen i nøytral tilstand: neste sjekk skal ikke arve et
+      // rotert kart (SJEKKER-kontrakten i denne fila).
+      const nullstilt = await page.evaluate(() => {
+        const sl = document.querySelector('input[aria-label*="Roter kartet"]')
+        if (!sl) return false
+        sl.value = '0'; sl.dispatchEvent(new Event('input', { bubbles: true }))
+        return true
+      })
+      if (!nullstilt) throw new Error('fant ingen rotasjons-slider å nullstille med')
+      await page.waitForTimeout(600)
+      return `${m.følger}/${m.antall} vannrett under gest (${m.rotUnder.toFixed(0)}°), `
+           + `${m.følgerEtter}/${m.antallEtter} etter`
+    },
+  },
+  {
     navn: 'gest slår på perf-modus og rydder etter seg',
     domene: 'useGestPerf',
     krever: 'ektekart',

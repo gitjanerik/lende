@@ -17,9 +17,10 @@ describe('trengerEktekart — må-lista', () => {
   it('MapView komponerer alle sju domenene', () => {
     expect(ekte(['src/views/MapView.vue'])).toBe(true)
   })
-  it('de seks composable-ene de sju sjekkene trykker på', () => {
+  it('composable-ene røyk-sjekkene trykker på', () => {
     for (const f of ['useNavnLod', 'useViewportCull', 'useGhostTiles',
-                     'useKartSok', 'useKartEksport', 'useGestPerf']) {
+                     'useKartSok', 'useKartEksport', 'useGestPerf',
+                     'useSymbolRenderers']) {
       expect(ekte([`src/composables/${f}.js`]), f).toBe(true)
     }
   })

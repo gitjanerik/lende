@@ -42,6 +42,22 @@ function toggleVaerDemo() {
   try { localStorage.setItem(VAERDEMO_KEY, vaerDemo.value ? '1' : '0') } catch { /* privat modus */ }
 }
 
+// Myk tekstrotasjon i kartet. Samme localStorage-mønster som demoene under, men
+// motsatt polaritet: den er PÅ som standard, og bryteren finnes for å slå den AV
+// i felt. Grunnen er at effekten er en YTELSES-avveining (se lib/mykRotasjon.js)
+// — kjennes en rotasjons-gest hakkete på en gammel telefon, er dette den ene
+// tingen å prøve å skru av for å vite om det er stedsnavnene som koster.
+// Budsjettet slår seg av selv når det MÅLER at det ikke går; denne bryteren er
+// for å sammenlikne før man tror på tallet.
+const MYKROT_KEY = 'lende-myk-rotasjon'
+const mykRotAv = ref((() => {
+  try { return localStorage.getItem(MYKROT_KEY) === '0' } catch { return false }
+})())
+function toggleMykRot() {
+  mykRotAv.value = !mykRotAv.value
+  try { localStorage.setItem(MYKROT_KEY, mykRotAv.value ? '0' : '1') } catch { /* privat modus */ }
+}
+
 // Nordlys-demo i 3D. Samme mønster som vær-demoen, og grunnen er en sterkere
 // utgave av den samme: et synlig nordlys over Sør-Norge er noe som skjer noen
 // netter i året, så uten demoen kan laget i praksis ikke prøves i det hele tatt.
@@ -267,6 +283,25 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
       <span class="inline-block w-3 h-3 rounded-sm align-middle" style="background: hsl(220, 80%, 60%);"></span> OSM way,
       <span class="inline-block w-3 h-3 rounded-sm align-middle" style="background: hsl(300, 80%, 60%);"></span> OSM relation,
       <span class="inline-block w-3 h-3 rounded-sm align-middle" style="background: hsl(45, 90%, 55%);"></span> merged.
+    </div>
+    <!-- Myk tekstrotasjon: leses av useSymbolRenderers ved montering, så et
+         bytte krever et nytt kart-besøk (samme kontrakt som demo-flaggene). -->
+    <button @click="toggleMykRot"
+            class="w-full px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98] mb-1"
+            :class="mykRotAv
+                    ? 'bg-amber-400/20 border-amber-300/50 text-amber-200'
+                    : 'bg-ink/5 border-ink/10 text-ink/75'">
+      {{ mykRotAv ? 'Myk tekstrotasjon: AV' : 'Myk tekstrotasjon: PÅ' }}
+    </button>
+    <div class="text-[10px] text-ink/55 leading-relaxed mb-3 px-1">
+      <template v-if="mykRotAv">
+        Stedsnavn vipper med kartet under en rotasjons-gest og rettes opp når du
+        slipper. Åpne kartet på nytt for at endringen skal slå inn.
+      </template>
+      <template v-else>
+        Stedsnavn står vannrett hele veien mens du roterer. Slår seg av selv om
+        passene sprenger frame-budsjettet — se perf-loggen.
+      </template>
     </div>
     <!-- Vær-demo i 3D: går gjennom værtypene, 10 s hver. Finnes fordi flere av
          uttrykkene er ren BEVEGELSE (vinddrift, lyn-blink, fallende nedbør) og

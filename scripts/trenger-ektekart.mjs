@@ -30,7 +30,7 @@ export const MAA_HA_EKTEKART = [
   /^src\/lib\//,
   /^src\/views\/MapView\.vue$/,
   /^src\/components\/tour3d\//,
-  /^src\/composables\/use(NavnLod|ViewportCull|GhostTiles|KartSok|KartEksport|GestPerf)\.js$/,
+  /^src\/composables\/use(NavnLod|ViewportCull|GhostTiles|KartSok|KartEksport|GestPerf|SymbolRenderers)\.js$/,
   /^scripts\/royk-mapview\.mjs$/,
   /^scripts\/build-vardasen-svg\.js$/,
   /^scripts\/trenger-ektekart\.(mjs|test\.js)$/,
