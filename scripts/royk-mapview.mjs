@@ -1264,327 +1264,370 @@ const SJEKKER = [
     krever: 'ektekart',
     maksMs: 180_000,
     async kjør(page) {
-      const h = await aapneNatt3d(page)
-      if (h.hoppet) return h.hoppet
-
-      // INGEN DRAG HER (v6.1.0). Nattmodus løfter blikket selv, og søkefeltet
-      // står der uansett — det var hele forenklingen. At draget fortsatt virker
-      // dekkes av himmelvipp-sjekken over.
-      const pille = page.locator('button[aria-label="Finn et stjernebilde eller en planet"]')
-      await pille.waitFor({ state: 'visible', timeout: 10_000 })
-      await pille.click({ timeout: 5000 })
-      await page.waitForTimeout(300)
-
-      // Lista skal inneholde noe — himmelen over Vardåsen har alltid noen
-      // formasjoner oppe, uansett dato. En tom liste er en ekte feil.
+      // HIMMELEN TVINGES OPP, og det er en RETTELSE (v6.5.28). Globe-halvdelen
+      // under krevde at ett av månen/Mars/Jupiter/Saturn sto over horisonten, med
+      // begrunnelsen «praktisk talt alltid ett av de fire oppe». Det er ikke
+      // sant: 2026-09-03 17:39 UTC over Vardåsen sto månen 3° UNDER horisonten
+      // og ingen av de tre planetene var oppe — bare Venus, som ikke har globe.
+      // Sjekken var rød på klokkeslettet, ikke på koden, akkurat som den
+      // tidsavhengige røden kommentaren under beskriver. Alle grønne kjøringer
+      // fram til da lå mellom 06 og 15 UTC.
       //
-      // SOLA HOPPES OVER, og det er en RETTELSE. Sola er `rang: 0` i
-      // himmelObjekter og står derfor ALLTID først (v6.5.6), så «det første
-      // elementet» sluttet å være et stjernebilde den dagen sola kom inn i
-      // lista — sjekken het «stjernekikkeren finner, velger og forteller» og
-      // testet i praksis sola, som har sin EGEN sjekk rett under.
-      //
-      // Det avslørte seg som en tidsavhengig rød: kravet «over horisonten»
-      // lenger nede er sant for et stjernebilde (lista lover bare det som er
-      // oppe), men sola er unntaket som også listes når den står UNDER — og da
-      // sier kortet «under horisonten», helt etter planen. Alle tidligere
-      // kjøringer lå mellom 07 og 15 UTC, altså høylys dag over Vardåsen, så
-      // sjekken hadde aldri møtt en natt før 2026-08-31 21:27 UTC.
-      const forste = await evalMedTak(page, () => {
-        const b = [...document.querySelectorAll('ul[aria-label="Treff på himmelen"] li button')]
-          .find((e) => (e.querySelector('span.block')?.textContent ?? '').trim() !== 'Sola')
-        return b ? (b.querySelector('span.block')?.textContent ?? '').trim() : null
+      // Bryteren er `lende-3d-himmel-tvang` fra Utvikler-fanen, som finnes for
+      // nøyaktig dette: månen er under horisonten store deler av døgnet og de
+      // tre planetene store deler av året, og da kan verken globene eller
+      // trykk-plukkingen prøves i det hele tatt. Alt annet ved legemet er ekte —
+      // azimut, fase, lysside, avstand — så kjeden vi måler er den samme.
+      // Flagget leses ved MONTERING av 3D-viseren, så reloaden er nødvendig
+      // (samme mønster som nordlysdemoen under).
+      await evalMedTak(page, () => {
+        try { localStorage.setItem('lende-3d-himmel-tvang', '1') } catch { /* privat */ }
       })
-      if (!forste) throw new Error('himmellista hadde ingenting utenom sola — ingenting å velge')
-      await page.locator('ul[aria-label="Treff på himmelen"] li button')
-        .filter({ hasText: forste }).first()
-        .click({ timeout: 5000 })
-      await page.waitForTimeout(1600)
-
-      // ET VALG FRA LISTA GIR MINIMERT KORT (v6.3.10). Å plukke et navn fra
-      // nedtrekkslista er NAVIGASJON — man har alt bestemt seg for hva man vil se
-      // — så kortet skal ikke legge seg over halve himmelen. Vi måler på
-      // «Historien», som bare finnes i det utvidede kortet.
-      // CASE-INSENSITIVT: «Historien», «Verdt å vite» og «Fakta» er overskrifter
-      // med `uppercase`, og `innerText` gir RENDRET tekst. Uten /i kunne ingen av
-      // dem matche, og sjekken var halvblind — grønn fordi den ikke kunne feile.
-      const harHistorien = () => evalMedTak(page, () => /Historien|Verdt å vite|Fakta/i
-        .test(document.body.innerText))
-      if (await harHistorien()) {
-        throw new Error(`valgte «${forste}» fra lista, men kortet åpnet seg — `
-          + 'et listevalg skal minimere')
-      }
-      if (!(await evalMedTak(page, () => document.body.innerText)).includes(forste)) {
-        throw new Error(`valgte «${forste}», men pilla nevner den ikke`)
+      await page.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+      await page.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+        null, { timeout: 30_000 })
+      const rydd = async () => {
+        await evalMedTak(page, () => {
+          try { localStorage.removeItem('lende-3d-himmel-tvang') } catch { /* privat */ }
+        })
       }
 
-      // «SETT I FOKUS» HØRER BARE I DEN MINIMERTE PILLA (v6.3.5). Med kortet
-      // sammenlagt kan man panorere, og da er krysshåret veien tilbake; i det
-      // åpne kortet har det ingen jobb. Sjekken måler BEGGE sider, for en knapp
-      // er lett å legge tilbake på feil sted i god tro.
-      const fokusKnapper = () => evalMedTak(page, () => document
-        .querySelectorAll('button[aria-label^="Sett "][aria-label$=" i fokus"]').length)
-      if (!await fokusKnapper()) {
-        throw new Error('«Sett i fokus» mangler i den minimerte pilla — da finnes '
-          + 'ingen vei tilbake etter panorering')
-      }
+      try {
+        const h = await aapneNatt3d(page)
+        if (h.hoppet) return h.hoppet
 
-      // UTVID: lesestoffet og retningslinja kommer, og krysshåret går bort.
-      await page.locator(`button[aria-label="Vis mer om ${forste}"]`).click({ timeout: 5000 })
-      await page.waitForTimeout(400)
-      const kortTekst = await evalMedTak(page, () => document.body.innerText)
-      if (!kortTekst.includes(forste)) {
-        throw new Error(`utvidet kortet for «${forste}», men det nevner den ikke`)
-      }
-      if (!/over horisonten/i.test(kortTekst)) {
-        throw new Error('infokortet mangler retning og høyde — det er linja man trenger')
-      }
-      if (await fokusKnapper()) throw new Error('«Sett i fokus» står i det ÅPNE kortet')
-      if (!await harHistorien()) {
-        throw new Error('det utvidede kortet mangler lesestoffet — Fakta, Verdt å '
-          + 'vite og Historien var alle borte')
-      }
-      if (!await evalMedTak(page, () => !!document
-        .querySelector('button[aria-label="Minimer infokortet"]'))) {
-        throw new Error('kortet mangler minimer-knappen')
-      }
+        // INGEN DRAG HER (v6.1.0). Nattmodus løfter blikket selv, og søkefeltet
+        // står der uansett — det var hele forenklingen. At draget fortsatt virker
+        // dekkes av himmelvipp-sjekken over.
+        const pille = page.locator('button[aria-label="Finn et stjernebilde eller en planet"]')
+        await pille.waitFor({ state: 'visible', timeout: 10_000 })
+        await pille.click({ timeout: 5000 })
+        await page.waitForTimeout(300)
 
-      // Og sammen igjen: navnet blir stående, lesestoffet forsvinner.
-      await page.locator('button[aria-label="Minimer infokortet"]').click({ timeout: 5000 })
-      await page.waitForTimeout(400)
-      if (await harHistorien()) throw new Error('kortet ble ikke minimert')
-      if (!(await evalMedTak(page, () => document.body.innerText)).includes(forste)) {
-        throw new Error('navnet forsvant da kortet ble minimert — da vet man ikke hva som lyser')
-      }
-
-      // NABO-HOPP minimerer av seg selv: man hopper for å SE, ikke for å lese.
-      // Kortet MÅ utvides først — snarveiene bor i det åpne kortet, og et hopp
-      // fra et alt sammenlagt kort ville ikke målt noe.
-      await page.locator(`button[aria-label="Vis mer om ${forste}"]`).click({ timeout: 5000 })
-      await page.waitForTimeout(400)
-      const nabo = await evalMedTak(page, () => {
-        const b = [...document.querySelectorAll('button[aria-label^="Hopp til "]')][0]
-        return b ? b.getAttribute('aria-label').replace(/^Hopp til /, '').split(',')[0] : null
-      })
-      if (nabo) {
-        await page.locator('button[aria-label^="Hopp til "]').first().click({ timeout: 5000 })
-        await page.waitForTimeout(1600)
-        if (await harHistorien()) {
-          throw new Error(`hoppet til «${nabo}», men kortet ble ikke minimert`)
-        }
-        if (!(await evalMedTak(page, () => document.body.innerText)).includes(nabo)) {
-          throw new Error(`hoppet til «${nabo}», men kortet nevner den ikke`)
-        }
-        // ET LISTEVALG MINIMERER (v6.3.10), også når kortet alt er sammenlagt.
-        // Vi velger noe annet og krever at det fortsatt er sammenlagt — og at
-        // navnet FULGTE med, ellers flyttet ingenting seg.
-        await page.locator('button[aria-label^="Valgt:"]').click({ timeout: 8000 })
-        await page.waitForTimeout(400)
-        const annet = await evalMedTak(page, (unntak) => {
+        // Lista skal inneholde noe — himmelen over Vardåsen har alltid noen
+        // formasjoner oppe, uansett dato. En tom liste er en ekte feil.
+        //
+        // SOLA HOPPES OVER, og det er en RETTELSE. Sola er `rang: 0` i
+        // himmelObjekter og står derfor ALLTID først (v6.5.6), så «det første
+        // elementet» sluttet å være et stjernebilde den dagen sola kom inn i
+        // lista — sjekken het «stjernekikkeren finner, velger og forteller» og
+        // testet i praksis sola, som har sin EGEN sjekk rett under.
+        //
+        // Det avslørte seg som en tidsavhengig rød: kravet «over horisonten»
+        // lenger nede er sant for et stjernebilde (lista lover bare det som er
+        // oppe), men sola er unntaket som også listes når den står UNDER — og da
+        // sier kortet «under horisonten», helt etter planen. Alle tidligere
+        // kjøringer lå mellom 07 og 15 UTC, altså høylys dag over Vardåsen, så
+        // sjekken hadde aldri møtt en natt før 2026-08-31 21:27 UTC.
+        //
+        // GLOBE-LEGEMENE HOPPES OVER AV SAMME GRUNN (v6.5.28): `rang` i
+        // himmelObjekter er sol 0, måne 1, planet 2, formasjon 3 — så med tvangen
+        // over ville «det første elementet» blitt Månen, og denne halvdelen sluttet
+        // å teste et stjernebilde. Globene har sin egen halvdel lenger nede.
+        const forste = await evalMedTak(page, () => {
+          const hopp = ['Sola', 'Månen', 'Merkur', 'Venus', 'Mars', 'Jupiter', 'Saturn']
           const b = [...document.querySelectorAll('ul[aria-label="Treff på himmelen"] li button')]
-            .find((e) => !e.textContent.includes(unntak))
+            .find((e) => !hopp.includes((e.querySelector('span.block')?.textContent ?? '').trim()))
           return b ? (b.querySelector('span.block')?.textContent ?? '').trim() : null
-        }, nabo)
-        if (annet) {
-          await page.locator('ul[aria-label="Treff på himmelen"] li button')
-            .filter({ hasText: annet }).first().click({ timeout: 5000 })
+        })
+        if (!forste) {
+          throw new Error('himmellista hadde ingen stjernebilder eller stjerner — ingenting å velge')
+        }
+        await page.locator('ul[aria-label="Treff på himmelen"] li button')
+          .filter({ hasText: forste }).first()
+          .click({ timeout: 5000 })
+        await page.waitForTimeout(1600)
+
+        // ET VALG FRA LISTA GIR MINIMERT KORT (v6.3.10). Å plukke et navn fra
+        // nedtrekkslista er NAVIGASJON — man har alt bestemt seg for hva man vil se
+        // — så kortet skal ikke legge seg over halve himmelen. Vi måler på
+        // «Historien», som bare finnes i det utvidede kortet.
+        // CASE-INSENSITIVT: «Historien», «Verdt å vite» og «Fakta» er overskrifter
+        // med `uppercase`, og `innerText` gir RENDRET tekst. Uten /i kunne ingen av
+        // dem matche, og sjekken var halvblind — grønn fordi den ikke kunne feile.
+        const harHistorien = () => evalMedTak(page, () => /Historien|Verdt å vite|Fakta/i
+          .test(document.body.innerText))
+        if (await harHistorien()) {
+          throw new Error(`valgte «${forste}» fra lista, men kortet åpnet seg — `
+            + 'et listevalg skal minimere')
+        }
+        if (!(await evalMedTak(page, () => document.body.innerText)).includes(forste)) {
+          throw new Error(`valgte «${forste}», men pilla nevner den ikke`)
+        }
+
+        // «SETT I FOKUS» HØRER BARE I DEN MINIMERTE PILLA (v6.3.5). Med kortet
+        // sammenlagt kan man panorere, og da er krysshåret veien tilbake; i det
+        // åpne kortet har det ingen jobb. Sjekken måler BEGGE sider, for en knapp
+        // er lett å legge tilbake på feil sted i god tro.
+        const fokusKnapper = () => evalMedTak(page, () => document
+          .querySelectorAll('button[aria-label^="Sett "][aria-label$=" i fokus"]').length)
+        if (!await fokusKnapper()) {
+          throw new Error('«Sett i fokus» mangler i den minimerte pilla — da finnes '
+            + 'ingen vei tilbake etter panorering')
+        }
+
+        // UTVID: lesestoffet og retningslinja kommer, og krysshåret går bort.
+        await page.locator(`button[aria-label="Vis mer om ${forste}"]`).click({ timeout: 5000 })
+        await page.waitForTimeout(400)
+        const kortTekst = await evalMedTak(page, () => document.body.innerText)
+        if (!kortTekst.includes(forste)) {
+          throw new Error(`utvidet kortet for «${forste}», men det nevner den ikke`)
+        }
+        if (!/over horisonten/i.test(kortTekst)) {
+          throw new Error('infokortet mangler retning og høyde — det er linja man trenger')
+        }
+        if (await fokusKnapper()) throw new Error('«Sett i fokus» står i det ÅPNE kortet')
+        if (!await harHistorien()) {
+          throw new Error('det utvidede kortet mangler lesestoffet — Fakta, Verdt å '
+            + 'vite og Historien var alle borte')
+        }
+        if (!await evalMedTak(page, () => !!document
+          .querySelector('button[aria-label="Minimer infokortet"]'))) {
+          throw new Error('kortet mangler minimer-knappen')
+        }
+
+        // Og sammen igjen: navnet blir stående, lesestoffet forsvinner.
+        await page.locator('button[aria-label="Minimer infokortet"]').click({ timeout: 5000 })
+        await page.waitForTimeout(400)
+        if (await harHistorien()) throw new Error('kortet ble ikke minimert')
+        if (!(await evalMedTak(page, () => document.body.innerText)).includes(forste)) {
+          throw new Error('navnet forsvant da kortet ble minimert — da vet man ikke hva som lyser')
+        }
+
+        // NABO-HOPP minimerer av seg selv: man hopper for å SE, ikke for å lese.
+        // Kortet MÅ utvides først — snarveiene bor i det åpne kortet, og et hopp
+        // fra et alt sammenlagt kort ville ikke målt noe.
+        await page.locator(`button[aria-label="Vis mer om ${forste}"]`).click({ timeout: 5000 })
+        await page.waitForTimeout(400)
+        const nabo = await evalMedTak(page, () => {
+          const b = [...document.querySelectorAll('button[aria-label^="Hopp til "]')][0]
+          return b ? b.getAttribute('aria-label').replace(/^Hopp til /, '').split(',')[0] : null
+        })
+        if (nabo) {
+          await page.locator('button[aria-label^="Hopp til "]').first().click({ timeout: 5000 })
           await page.waitForTimeout(1600)
           if (await harHistorien()) {
-            throw new Error(`byttet til «${annet}» fra lista, men kortet åpnet seg `
-              + '— et listevalg skal minimere')
+            throw new Error(`hoppet til «${nabo}», men kortet ble ikke minimert`)
           }
-          if (!(await evalMedTak(page, () => document.body.innerText)).includes(annet)) {
-            throw new Error(`byttet til «${annet}», men pilla viser den ikke`)
+          if (!(await evalMedTak(page, () => document.body.innerText)).includes(nabo)) {
+            throw new Error(`hoppet til «${nabo}», men kortet nevner den ikke`)
           }
-          // Og kortet skal fortsatt kunne åpnes — det minimeres, det låses ikke.
-          await page.locator(`button[aria-label="Vis mer om ${annet}"]`).click({ timeout: 5000 })
+          // ET LISTEVALG MINIMERER (v6.3.10), også når kortet alt er sammenlagt.
+          // Vi velger noe annet og krever at det fortsatt er sammenlagt — og at
+          // navnet FULGTE med, ellers flyttet ingenting seg.
+          await page.locator('button[aria-label^="Valgt:"]').click({ timeout: 8000 })
           await page.waitForTimeout(400)
-          if (!await harHistorien()) {
-            throw new Error('kortet lot seg ikke åpne etter et listevalg — pilla '
-              + 'skal være sammenlagt, ikke låst')
+          const annet = await evalMedTak(page, (unntak) => {
+            const b = [...document.querySelectorAll('ul[aria-label="Treff på himmelen"] li button')]
+              .find((e) => !e.textContent.includes(unntak))
+            return b ? (b.querySelector('span.block')?.textContent ?? '').trim() : null
+          }, nabo)
+          if (annet) {
+            await page.locator('ul[aria-label="Treff på himmelen"] li button')
+              .filter({ hasText: annet }).first().click({ timeout: 5000 })
+            await page.waitForTimeout(1600)
+            if (await harHistorien()) {
+              throw new Error(`byttet til «${annet}» fra lista, men kortet åpnet seg `
+                + '— et listevalg skal minimere')
+            }
+            if (!(await evalMedTak(page, () => document.body.innerText)).includes(annet)) {
+              throw new Error(`byttet til «${annet}», men pilla viser den ikke`)
+            }
+            // Og kortet skal fortsatt kunne åpnes — det minimeres, det låses ikke.
+            await page.locator(`button[aria-label="Vis mer om ${annet}"]`).click({ timeout: 5000 })
+            await page.waitForTimeout(400)
+            if (!await harHistorien()) {
+              throw new Error('kortet lot seg ikke åpne etter et listevalg — pilla '
+                + 'skal være sammenlagt, ikke låst')
+            }
           }
         }
-      }
 
-      // GLOBENE (v6.2.0): månen, Mars, Jupiter og Saturn kan åpnes som roterbare
-      // kuler. Vi finner en av dem i lista og krever at et valg gir stedsnavn på
-      // overflata — det er den enden av kjeden som beviser at globen faktisk
-      // tegnes, og den kan ikke leses av noe annet.
-      // LISTA MÅ ÅPNES PÅ NYTT FØRST. Den lukker seg når man velger, så en
-      // spørring mot den her fant ingenting — og sjekken meldte «ingen
-      // globe-legeme over horisonten» og testet dermed ingenting, grønt.
-      // Nøyaktig den feilklassen prosjektet frykter mest, og den slapp gjennom
-      // én kjøring før den ble oppdaget i loggen.
-      await page.locator('button[aria-label^="Valgt:"]').click({ timeout: 8000 })
-      await page.waitForTimeout(400)
-      const medGlobe = await evalMedTak(page, () => {
-        const navn = ['Månen', 'Mars', 'Jupiter', 'Saturn']
-        const b = [...document.querySelectorAll('ul[aria-label="Treff på himmelen"] li button')]
-          .find((e) => navn.some((n) => e.textContent.includes(n)))
-        return b ? (b.querySelector('span.block')?.textContent ?? '').trim() : null
-      })
-      if (!medGlobe) {
-        // Himmelen over Vardåsen har praktisk talt alltid ett av de fire oppe.
-        // Er den tom, er det lista som er brutt — ikke astronomien.
-        throw new Error('fant verken månen, Mars, Jupiter eller Saturn i himmellista')
-      }
-
-      // GLOBE-MERKET i lista (v6.3.2): raden for et legeme med globe skal bære
-      // trådkloden, og en formasjon skal IKKE. Måles som et FORHOLD og ikke som
-      // et absolutt antall: hvilke legemer som er oppe avhenger av dato, men at
-      // merket står på riktige rader gjør det ikke.
-      const merker = await evalMedTak(page, () => {
-        const rader = [...document.querySelectorAll('ul[aria-label="Treff på himmelen"] li button')]
-        let medMerke = 0
-        let formasjonMedMerke = 0
-        for (const r of rader) {
-          const harMerke = /kan åpnes som globe/.test(r.textContent)
-          if (harMerke) medMerke++
-          // Formasjonene har ✦ som type-ikon.
-          if (harMerke && r.textContent.includes('✦')) formasjonMedMerke++
-        }
-        return { rader: rader.length, medMerke, formasjonMedMerke }
-      })
-      if (!merker.medMerke) {
-        throw new Error('ingen rad i himmellista bærer globe-merket, men '
-          + `«${medGlobe}» står der`)
-      }
-      if (merker.formasjonMedMerke) {
-        throw new Error(`${merker.formasjonMedMerke} stjernebilde(r) fikk globe-merket `
-          + '— et merke som lover en globe som ikke finnes')
-      }
-      // Fem fra v6.5.6: sola kom inn som det femte legemet med globe.
-      if (merker.medMerke > 5) {
-        throw new Error(`${merker.medMerke} rader bærer globe-merket, men bare fem `
-          + 'legemer har globe')
-      }
-      await page.locator('ul[aria-label="Treff på himmelen"] li button')
-        .filter({ hasText: medGlobe }).first().click({ timeout: 5000 })
-      // Globen vokser fram over noen frames, og labelene kommer først når den er
-      // over 60 % — så vi venter på navnene framfor en fast pause.
-      const trekk = await page.waitForFunction(() => {
-        const n = document.querySelectorAll('div[aria-hidden="true"] span + span').length
-        return n > 0 ? n : false
-      }, null, { timeout: 20_000 }).then((x) => x.jsonValue()).catch(() => 0)
-      if (!trekk) throw new Error(`åpnet globen for «${medGlobe}», men ingen stedsnavn kom`)
-      const globeUtfall = `${medGlobe}-globen ga ${trekk} stedsnavn; `
-        + `globe-merket på ${merker.medMerke} av ${merker.rader} rader`
-
-      // KORTET MÅ ÅPNES FØRST. Et listevalg MINIMERER (v6.3.10), så globe-valget
-      // over etterlot en sammenlagt pille — og faktablokka finnes ikke der.
-      // Sjekken under skal måle INNHOLDET i kortet, ikke hvordan vi kom dit.
-      const visMer = page.locator(`button[aria-label="Vis mer om ${medGlobe}"]`)
-      if (await visMer.count()) {
-        await visMer.click({ timeout: 5000 })
+        // GLOBENE (v6.2.0): månen, Mars, Jupiter og Saturn kan åpnes som roterbare
+        // kuler. Vi finner en av dem i lista og krever at et valg gir stedsnavn på
+        // overflata — det er den enden av kjeden som beviser at globen faktisk
+        // tegnes, og den kan ikke leses av noe annet.
+        // LISTA MÅ ÅPNES PÅ NYTT FØRST. Den lukker seg når man velger, så en
+        // spørring mot den her fant ingenting — og sjekken meldte «ingen
+        // globe-legeme over horisonten» og testet dermed ingenting, grønt.
+        // Nøyaktig den feilklassen prosjektet frykter mest, og den slapp gjennom
+        // én kjøring før den ble oppdaget i loggen.
+        await page.locator('button[aria-label^="Valgt:"]').click({ timeout: 8000 })
         await page.waitForTimeout(400)
-      }
-
-      // ASTRONOMISKE FAKTA (v6.3.0). Kortet for et legeme skal bære nøkkeltall,
-      // utforskningshistorie og lenker til SNL og Wikipedia. Alt er DATA, så
-      // koden kan ikke kaste — en glemt faktablokk viser seg bare som et tomt
-      // panel, og det er nettopp derfor sjekken må lese teksten.
-      const faktaFunn = await evalMedTak(page, () => {
-        const t = document.body.innerText
-        const lenke = (v) => !!document.querySelector(`a[href*="${v}"]`)
-        return {
-          // CASE-INSENSITIVT, OG DET ER IKKE SLURV: `innerText` er RENDRET tekst,
-          // og Chromium bruker `text-transform` på den. Overskriftene i kortet
-          // har `uppercase`, så «Fakta» kommer ut som «FAKTA». Første utgave av
-          // denne sjekken feilet på nettopp det — og den samme fella gjorde
-          // `harHistorien` under blind, se kommentaren der.
-          fakta: /\bfakta\b/i.test(t),
-          utforsket: /\butforsket\b/i.test(t),
-          maner: /(måner|måne:|ingen måner)/i.test(t),
-          snl: lenke('snl.no'),
-          wiki: lenke('wikipedia.org'),
-          arstall: (t.match(/\b(1[5-9]\d\d|20[0-3]\d)\b/g) ?? []).length,
+        const medGlobe = await evalMedTak(page, () => {
+          const navn = ['Månen', 'Mars', 'Jupiter', 'Saturn']
+          const b = [...document.querySelectorAll('ul[aria-label="Treff på himmelen"] li button')]
+            .find((e) => navn.some((n) => e.textContent.includes(n)))
+          return b ? (b.querySelector('span.block')?.textContent ?? '').trim() : null
+        })
+        if (!medGlobe) {
+          // Himmelen over Vardåsen har praktisk talt alltid ett av de fire oppe.
+          // Er den tom, er det lista som er brutt — ikke astronomien.
+          throw new Error('fant verken månen, Mars, Jupiter eller Saturn i himmellista')
         }
-      })
-      if (!faktaFunn.fakta) throw new Error(`kortet for «${medGlobe}» mangler faktablokka`)
-      // MÅNEN HAR INGEN MÅNELINJE, og det er riktig: den ER en måne, så
-      // `manerLinje` returnerer null for den (egen test i himmelFakta.test.js).
-      //
-      // Dette var en DATOAVHENGIG feil i sjekken selv, lagt inn i v6.3.0: hvilket
-      // globe-legeme som plukkes avhenger av hva som står oppe den natta CI
-      // kjører. Tidligere kjøringer traff Venus og Jupiter og sto grønne; første
-      // gang månen kom først, feilet den. En sjekk som bare virker for noen av
-      // inndataene er en sjekk som venter på å bli rød.
-      if (medGlobe !== 'Månen' && !faktaFunn.maner) {
-        throw new Error(`kortet for «${medGlobe}» mangler månelinja`)
-      }
-      if (!faktaFunn.utforsket) throw new Error(`kortet for «${medGlobe}» mangler utforskningshistorien`)
-      if (faktaFunn.arstall < 2) {
-        throw new Error(`utforskningshistorien for «${medGlobe}» har ingen årstall`)
-      }
-      if (!faktaFunn.snl || !faktaFunn.wiki) {
-        throw new Error(`kortet for «${medGlobe}» mangler lenke til `
-          + `${!faktaFunn.snl ? 'snl.no' : 'Wikipedia'}`)
-      }
-      // «alle N» skal gi HELE historien. Bare de fire nyeste vises sammenlagt,
-      // og en knapp som ikke utvider noe er verre enn ingen knapp.
-      const flereFor = faktaFunn.arstall
-      const utvid = page.locator('button', { hasText: /^alle \d+$/ }).first()
-      let faktaUtfall = `fakta + ${flereFor} årstall + begge lenkene`
-      if (await utvid.count()) {
-        await utvid.click({ timeout: 5000 })
-        await page.waitForTimeout(300)
-        const etter = await evalMedTak(page, () => (document.body.innerText
-          .match(/\b(1[5-9]\d\d|20[0-3]\d)\b/g) ?? []).length)
-        if (etter <= flereFor) throw new Error('«alle N» utvidet ikke historien')
-        faktaUtfall = `fakta + ${flereFor}→${etter} årstall + begge lenkene`
-      }
 
-      // ET TRYKK LEGGER KULA TILBAKE PÅ HIMMELEN — og kortet skal LEGGES SAMMEN,
-      // ikke lukkes (v6.3.5). Fram til da nullstilte exit hele valget, og kortet
-      // forsvant i det man forlot nærbildet: man er fortsatt på legemet, man har
-      // bare lagt kula tilbake.
-      //
-      // PUNKTET MÅ LIGGE UTENFOR INFOKORTET, og det er ikke en detalj: kortet er
-      // 58 vh høyt fra v6.3.2, så det faste punktet (40, halve høyden) landet
-      // OPPÅ kortet og trykket nådde aldri lerretet. Den gamle utgaven av sjekken
-      // tolererte begge utfall og avslørte det derfor ikke. Vi regner nå ut et
-      // ledig punkt og VERIFISERER med elementFromPoint at det er canvaset som
-      // ligger der — ellers tester vi ingenting.
-      const utsideKortet = await evalMedTak(page, () => {
-        const kort = [...document.querySelectorAll('div')]
-          .find((d) => /Lukk infokortet/.test(d.querySelector('button[aria-label]')
-            ? [...d.querySelectorAll('button[aria-label]')]
-              .map((b) => b.getAttribute('aria-label')).join(' ') : ''))
-        const r = kort?.getBoundingClientRect()
-        const kandidater = [
-          [Math.round(window.innerWidth * 0.5), window.innerHeight - 40],
-          [30, window.innerHeight - 40],
-          [Math.round(window.innerWidth * 0.5), Math.round((r?.bottom ?? 0) + 60)],
-        ]
-        for (const [x, y] of kandidater) {
-          if (y < 0 || y > window.innerHeight - 5) continue
-          const el = document.elementFromPoint(x, y)
-          if (el && el.tagName === 'CANVAS') return { x, y }
+        // GLOBE-MERKET i lista (v6.3.2): raden for et legeme med globe skal bære
+        // trådkloden, og en formasjon skal IKKE. Måles som et FORHOLD og ikke som
+        // et absolutt antall: hvilke legemer som er oppe avhenger av dato, men at
+        // merket står på riktige rader gjør det ikke.
+        const merker = await evalMedTak(page, () => {
+          const rader = [...document.querySelectorAll('ul[aria-label="Treff på himmelen"] li button')]
+          let medMerke = 0
+          let formasjonMedMerke = 0
+          for (const r of rader) {
+            const harMerke = /kan åpnes som globe/.test(r.textContent)
+            if (harMerke) medMerke++
+            // Formasjonene har ✦ som type-ikon.
+            if (harMerke && r.textContent.includes('✦')) formasjonMedMerke++
+          }
+          return { rader: rader.length, medMerke, formasjonMedMerke }
+        })
+        if (!merker.medMerke) {
+          throw new Error('ingen rad i himmellista bærer globe-merket, men '
+            + `«${medGlobe}» står der`)
         }
-        return null
-      })
-      if (!utsideKortet) {
-        throw new Error('fant ikke et punkt på lerretet utenfor infokortet — '
-          + 'et trykk her ville truffet kortet og bevist ingenting')
-      }
-      await page.mouse.click(utsideKortet.x, utsideKortet.y)
-      await page.waitForTimeout(900)
-      const etterExit = await evalMedTak(page, (navn) => ({
-        harNavn: document.body.innerText.includes(navn),
-        minimert: !!document.querySelector('button[aria-label="Vis hele infokortet"]'),
-      }), medGlobe)
-      if (!etterExit.harNavn) {
-        throw new Error(`exit fra globen lukket kortet helt — «${medGlobe}» er borte`)
-      }
-      if (!etterExit.minimert) throw new Error('exit fra globen la ikke kortet sammen')
+        if (merker.formasjonMedMerke) {
+          throw new Error(`${merker.formasjonMedMerke} stjernebilde(r) fikk globe-merket `
+            + '— et merke som lover en globe som ikke finnes')
+        }
+        // Fem fra v6.5.6: sola kom inn som det femte legemet med globe.
+        if (merker.medMerke > 5) {
+          throw new Error(`${merker.medMerke} rader bærer globe-merket, men bare fem `
+            + 'legemer har globe')
+        }
+        await page.locator('ul[aria-label="Treff på himmelen"] li button')
+          .filter({ hasText: medGlobe }).first().click({ timeout: 5000 })
+        // Globen vokser fram over noen frames, og labelene kommer først når den er
+        // over 60 % — så vi venter på navnene framfor en fast pause.
+        const trekk = await page.waitForFunction(() => {
+          const n = document.querySelectorAll('div[aria-hidden="true"] span + span').length
+          return n > 0 ? n : false
+        }, null, { timeout: 20_000 }).then((x) => x.jsonValue()).catch(() => 0)
+        if (!trekk) throw new Error(`åpnet globen for «${medGlobe}», men ingen stedsnavn kom`)
+        const globeUtfall = `${medGlobe}-globen ga ${trekk} stedsnavn; `
+          + `globe-merket på ${merker.medMerke} av ${merker.rader} rader`
 
-      await page.locator('button[aria-label="Lukk infokortet"]').click({ timeout: 5000 })
-        .catch(() => { /* kortet kan alt være lukket */ })
-      await page.waitForTimeout(400)
-      await lukkNatt3d(page, h.startSteg)
-      return `valgte «${forste}» (fokus bare i pilla), minimerte, utvidet`
-        + `${nabo ? `, hoppet til «${nabo}»` : ''}; ${globeUtfall}; ${faktaUtfall}; `
-        + 'exit la kortet sammen'
+        // KORTET MÅ ÅPNES FØRST. Et listevalg MINIMERER (v6.3.10), så globe-valget
+        // over etterlot en sammenlagt pille — og faktablokka finnes ikke der.
+        // Sjekken under skal måle INNHOLDET i kortet, ikke hvordan vi kom dit.
+        const visMer = page.locator(`button[aria-label="Vis mer om ${medGlobe}"]`)
+        if (await visMer.count()) {
+          await visMer.click({ timeout: 5000 })
+          await page.waitForTimeout(400)
+        }
+
+        // ASTRONOMISKE FAKTA (v6.3.0). Kortet for et legeme skal bære nøkkeltall,
+        // utforskningshistorie og lenker til SNL og Wikipedia. Alt er DATA, så
+        // koden kan ikke kaste — en glemt faktablokk viser seg bare som et tomt
+        // panel, og det er nettopp derfor sjekken må lese teksten.
+        const faktaFunn = await evalMedTak(page, () => {
+          const t = document.body.innerText
+          const lenke = (v) => !!document.querySelector(`a[href*="${v}"]`)
+          return {
+            // CASE-INSENSITIVT, OG DET ER IKKE SLURV: `innerText` er RENDRET tekst,
+            // og Chromium bruker `text-transform` på den. Overskriftene i kortet
+            // har `uppercase`, så «Fakta» kommer ut som «FAKTA». Første utgave av
+            // denne sjekken feilet på nettopp det — og den samme fella gjorde
+            // `harHistorien` under blind, se kommentaren der.
+            fakta: /\bfakta\b/i.test(t),
+            utforsket: /\butforsket\b/i.test(t),
+            maner: /(måner|måne:|ingen måner)/i.test(t),
+            snl: lenke('snl.no'),
+            wiki: lenke('wikipedia.org'),
+            arstall: (t.match(/\b(1[5-9]\d\d|20[0-3]\d)\b/g) ?? []).length,
+          }
+        })
+        if (!faktaFunn.fakta) throw new Error(`kortet for «${medGlobe}» mangler faktablokka`)
+        // MÅNEN HAR INGEN MÅNELINJE, og det er riktig: den ER en måne, så
+        // `manerLinje` returnerer null for den (egen test i himmelFakta.test.js).
+        //
+        // Dette var en DATOAVHENGIG feil i sjekken selv, lagt inn i v6.3.0: hvilket
+        // globe-legeme som plukkes avhenger av hva som står oppe den natta CI
+        // kjører. Tidligere kjøringer traff Venus og Jupiter og sto grønne; første
+        // gang månen kom først, feilet den. En sjekk som bare virker for noen av
+        // inndataene er en sjekk som venter på å bli rød.
+        if (medGlobe !== 'Månen' && !faktaFunn.maner) {
+          throw new Error(`kortet for «${medGlobe}» mangler månelinja`)
+        }
+        if (!faktaFunn.utforsket) throw new Error(`kortet for «${medGlobe}» mangler utforskningshistorien`)
+        if (faktaFunn.arstall < 2) {
+          throw new Error(`utforskningshistorien for «${medGlobe}» har ingen årstall`)
+        }
+        if (!faktaFunn.snl || !faktaFunn.wiki) {
+          throw new Error(`kortet for «${medGlobe}» mangler lenke til `
+            + `${!faktaFunn.snl ? 'snl.no' : 'Wikipedia'}`)
+        }
+        // «alle N» skal gi HELE historien. Bare de fire nyeste vises sammenlagt,
+        // og en knapp som ikke utvider noe er verre enn ingen knapp.
+        const flereFor = faktaFunn.arstall
+        const utvid = page.locator('button', { hasText: /^alle \d+$/ }).first()
+        let faktaUtfall = `fakta + ${flereFor} årstall + begge lenkene`
+        if (await utvid.count()) {
+          await utvid.click({ timeout: 5000 })
+          await page.waitForTimeout(300)
+          const etter = await evalMedTak(page, () => (document.body.innerText
+            .match(/\b(1[5-9]\d\d|20[0-3]\d)\b/g) ?? []).length)
+          if (etter <= flereFor) throw new Error('«alle N» utvidet ikke historien')
+          faktaUtfall = `fakta + ${flereFor}→${etter} årstall + begge lenkene`
+        }
+
+        // ET TRYKK LEGGER KULA TILBAKE PÅ HIMMELEN — og kortet skal LEGGES SAMMEN,
+        // ikke lukkes (v6.3.5). Fram til da nullstilte exit hele valget, og kortet
+        // forsvant i det man forlot nærbildet: man er fortsatt på legemet, man har
+        // bare lagt kula tilbake.
+        //
+        // PUNKTET MÅ LIGGE UTENFOR INFOKORTET, og det er ikke en detalj: kortet er
+        // 58 vh høyt fra v6.3.2, så det faste punktet (40, halve høyden) landet
+        // OPPÅ kortet og trykket nådde aldri lerretet. Den gamle utgaven av sjekken
+        // tolererte begge utfall og avslørte det derfor ikke. Vi regner nå ut et
+        // ledig punkt og VERIFISERER med elementFromPoint at det er canvaset som
+        // ligger der — ellers tester vi ingenting.
+        const utsideKortet = await evalMedTak(page, () => {
+          const kort = [...document.querySelectorAll('div')]
+            .find((d) => /Lukk infokortet/.test(d.querySelector('button[aria-label]')
+              ? [...d.querySelectorAll('button[aria-label]')]
+                .map((b) => b.getAttribute('aria-label')).join(' ') : ''))
+          const r = kort?.getBoundingClientRect()
+          const kandidater = [
+            [Math.round(window.innerWidth * 0.5), window.innerHeight - 40],
+            [30, window.innerHeight - 40],
+            [Math.round(window.innerWidth * 0.5), Math.round((r?.bottom ?? 0) + 60)],
+          ]
+          for (const [x, y] of kandidater) {
+            if (y < 0 || y > window.innerHeight - 5) continue
+            const el = document.elementFromPoint(x, y)
+            if (el && el.tagName === 'CANVAS') return { x, y }
+          }
+          return null
+        })
+        if (!utsideKortet) {
+          throw new Error('fant ikke et punkt på lerretet utenfor infokortet — '
+            + 'et trykk her ville truffet kortet og bevist ingenting')
+        }
+        await page.mouse.click(utsideKortet.x, utsideKortet.y)
+        await page.waitForTimeout(900)
+        const etterExit = await evalMedTak(page, (navn) => ({
+          harNavn: document.body.innerText.includes(navn),
+          minimert: !!document.querySelector('button[aria-label="Vis hele infokortet"]'),
+        }), medGlobe)
+        if (!etterExit.harNavn) {
+          throw new Error(`exit fra globen lukket kortet helt — «${medGlobe}» er borte`)
+        }
+        if (!etterExit.minimert) throw new Error('exit fra globen la ikke kortet sammen')
+
+        await page.locator('button[aria-label="Lukk infokortet"]').click({ timeout: 5000 })
+          .catch(() => { /* kortet kan alt være lukket */ })
+        await page.waitForTimeout(400)
+        await lukkNatt3d(page, h.startSteg)
+        return `valgte «${forste}» (fokus bare i pilla), minimerte, utvidet`
+          + `${nabo ? `, hoppet til «${nabo}»` : ''}; ${globeUtfall}; ${faktaUtfall}; `
+          + 'exit la kortet sammen (himmelen tvunget opp)'
+      } finally {
+        // Flagget MÅ vekk uansett utfall: localStorage overlever reloaden, og en
+        // tvungen himmel som følger med inn i neste sjekk ville gjort sola-sjekken
+        // under til en måling av noe annet enn den ekte lista.
+        await rydd()
+      }
     },
   },
   {

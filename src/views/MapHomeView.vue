@@ -20,6 +20,12 @@ watch(activeTab, (t) => {
   if ((route.query.tab ?? 'kart') === t) return
   router.replace({ path: '/', query: { ...route.query, tab: t } })
 })
+
+// «Flere valg» og søkefeltets pin-knapp ender begge her; forskjellen er ?gps=1,
+// som ber skjemaet hente posisjonen og sentrere seg der straks det er oppe.
+function apnePicker(opt) {
+  router.push(opt?.gps ? { path: '/nytt', query: { gps: '1' } } : '/nytt')
+}
 </script>
 
 <template>
@@ -55,7 +61,7 @@ watch(activeTab, (t) => {
          Siden scroller selv (ingen indre overflow-container), så mobil-nettleserens
          adressefelt oppfører seg normalt. Global tekststørrelse skalerer flaten. -->
     <div class="mx-auto w-full max-w-[700px] px-4 pt-4 pb-32" :style="{ zoom: uiTextScale }">
-      <MapLibrary v-model:tab="activeTab" @open-picker="router.push('/nytt')" />
+      <MapLibrary v-model:tab="activeTab" @open-picker="apnePicker" />
     </div>
   </div>
 </template>

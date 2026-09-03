@@ -214,9 +214,22 @@ async function onInstall() {
 // «Mine kart» — ellers ville halvparten oppført seg på den ene måten.
 const sheet = ref(null)   // 'kart' | 'rute' | 'nytt' | 'tegnforklaring' | 'om' | null
 
+// «Nytt kart»-skjemaet har tre innganger — menyens «+», «Flere valg» og
+// søkefeltets pin-knapp. Flagget er det eneste som skiller den siste: den ber
+// skjemaet hente posisjonen og sentrere seg der straks det er oppe. Det settes
+// ved HVER åpning (også til false), ellers arver neste «+» et GPS-oppslag
+// ingen ba om.
+const pickerGps = ref(false)
+
 function openSheet(name) {
+  pickerGps.value = false
   sheet.value = name
   close()
+}
+
+function apnePicker(opt) {
+  pickerGps.value = !!opt?.gps
+  sheet.value = 'nytt'
 }
 
 // Lukk ved rute-endring (f.eks. maskinvare-tilbake) og på Escape. Modalen kan
@@ -437,11 +450,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             :title="sheet === 'rute' ? 'Mine ruter' : 'Mine kart'" @close="sheet = null">
     <div class="px-4 py-4">
       <MapLibrary :tab="sheet === 'rute' ? 'rute' : 'kart'" :show-install="false"
-                  @open-picker="sheet = 'nytt'" />
+                  @open-picker="apnePicker" />
     </div>
   </AppModal>
   <AppModal :open="sheet === 'nytt'" title="Nytt turkart" @close="sheet = null">
-    <MapPickerContent />
+    <MapPickerContent :start-gps="pickerGps" />
   </AppModal>
   <AppModal :open="sheet === 'om'" title="Om Så i lende" @close="sheet = null">
     <div class="px-4 py-5"><AboutContent /></div>

@@ -23,6 +23,13 @@ import { usePwaInstall } from '../composables/usePwaInstall.js'
 import { t } from '../lib/i18n.js'
 import { gpsFeilTekst, GPS_IKKE_STOTTET } from '../lib/gpsFeil.js'
 
+const props = defineProps({
+  // Åpnet fra søkefeltets pin-knapp: hent posisjonen og sentrer skjemaet der
+  // straks det er oppe. Modal-verten (AppMenu) har ingen rute å legge ?gps=1 i,
+  // så flagget må kunne komme begge veier.
+  startGps: { type: Boolean, default: false },
+})
+
 const router = useRouter()
 const route = useRoute()
 
@@ -125,6 +132,15 @@ const shareInvite = ref(null) // { hl } — del-flyt fra delingslenke
 // nøyaktig det samme som senderen — «se det jeg ser» — så bbox, størrelse og
 // ekvidistanse skal ikke kunne endres.
 const controlsLocked = computed(() => shareInvite.value !== null)
+
+// v6.5.28: forhåndsvisningen er en gest-flate midt i et skjema man scroller
+// gjennom, og på mobil traff hvert eneste drag forbi den kartet i stedet for
+// siden — utsnittet flyttet seg uten at noen ba om det. Bryteren under
+// overskriften er derfor porten: AV som standard, og da er previewen et bilde
+// (`touch-auto`, siden ruller). PÅ fanger den gesten som før.
+const justerUtsnitt = ref(false)
+// Delte kart låser utsnittet uansett — der skal bryteren ikke engang stå.
+const previewLaast = computed(() => controlsLocked.value || !justerUtsnitt.value)
 
 const lockedSearchPlaceholder = computed(() => t('picker.searchLockedPlaceholderShared'))
 const lockedPreviewHint = computed(() => t('picker.previewLockedHintShared'))
@@ -460,7 +476,7 @@ function panShiftToCenter(dxPx, dyPx) {
 }
 
 function onPreviewTouchStart(e) {
-  if (controlsLocked.value) return
+  if (previewLaast.value) return
   if (e.touches.length === 2) {
     pinching = true
     panning = false
@@ -478,7 +494,7 @@ function onPreviewTouchStart(e) {
   }
 }
 function onPreviewTouchMove(e) {
-  if (controlsLocked.value) return
+  if (previewLaast.value) return
   if (pinching && e.touches.length === 2) {
     e.preventDefault()
     const d = touchDist(e)
@@ -506,7 +522,7 @@ function touchDist(e) {
 
 // Desktop: musedrag = pan
 function onPreviewMouseDown(e) {
-  if (controlsLocked.value) return
+  if (previewLaast.value) return
   if (e.button !== 0) return
   panning = true
   panStart = {
@@ -516,7 +532,7 @@ function onPreviewMouseDown(e) {
   e.preventDefault()
 }
 function onPreviewMouseMove(e) {
-  if (controlsLocked.value) return
+  if (previewLaast.value) return
   if (!panning || !panStart) return
   e.preventDefault()
   const dxPx = e.clientX - panStart.x
@@ -530,7 +546,7 @@ function onPreviewMouseUp() {
 }
 // Desktop: scroll-hjul = zoom (pinch-ekvivalent)
 function onPreviewWheel(e) {
-  if (controlsLocked.value) return
+  if (previewLaast.value) return
   e.preventDefault()
   const delta = e.deltaY > 0 ? 1.1 : 0.9
   const next = halfKm.value * delta
@@ -551,6 +567,12 @@ onMounted(() => {
   }
   nextTick(() => measurePreview())
   window.addEventListener('resize', measurePreview)
+  // Pin-knappen i søkefeltet på forsiden bygger ikke lenger selv — den åpner
+  // dette skjemaet og ber om posisjonen her. Feiler oppslaget, sier gpsState
+  // fra på samme sted som når knappen inne i skjemaet trykkes.
+  if (!shareInvite.value && (props.startGps || String(route.query.gps) === '1')) {
+    onCenterOnMe()
+  }
 })
 </script>
 
@@ -723,32 +745,146 @@ onMounted(() => {
       </svg>
       <span>Søk etter et sted — eller trykk den grønne knappen for å sentrere kartet der du står.</span>
     </div>
+    <!-- En nektet eller mislykket posisjon MÅ sies (samme regel som Fritt
+         lende): skjemaet åpnes nå OGSÅ av pin-knappen på forsiden, og uten
+         denne sto det bare igjen med Oslo som senter uten å si hvorfor.
+         Egen boks i lesbar størrelse — 11 px grå nederst ble ikke lest. -->
     <div v-if="gpsState.error"
-         class="mt-2 text-[11px] text-amber-300">{{ gpsState.error }}</div>
+         role="alert"
+         class="mt-2 px-3 py-2.5 rounded-lg bg-amber-500/[0.12] border border-amber-400/35
+                text-amber-100 text-[13px] leading-snug">{{ gpsState.error }}</div>
   </div>
 
-  <!-- Valgt sted. v9.1.x: skjult i delingsmodus — navn/koordinater er låst
-       til det delte kartet, ingen grunn til å vise redigerings-feltet.
+  <!-- Kartets navn. v9.1.x: skjult i delingsmodus — navnet er låst til det
+       delte kartet, ingen grunn til å vise redigerings-feltet.
        v2.4.4: også skjult når GPS ikke fant et navngitt sted (nameHidden) —
-       kartet får navn + dato fra byggeflyten, tomt navnefelt er bare støy. -->
+       kartet får navn + dato fra byggeflyten, tomt navnefelt er bare støy.
+       v6.5.28: overskriften het «Sentrum av kart», men feltet under er og har
+       alltid vært KARTETS NAVN — overskriften beskrev koordinatlinja, ikke
+       inputen. Koordinatene er borte: senteret velges i forhåndsvisningen rett
+       under, og fire desimaler er ikke noe man verifiserer et kart med. -->
   <div v-if="!shareInvite && !nameHidden" class="px-4 pb-2">
     <div class="rounded-xl bg-ink/[0.04] border border-ink/10 px-4 py-3">
-      <div class="text-[11px] text-ink/50 uppercase tracking-wide mb-1">Sentrum av kart</div>
+      <div class="text-[11px] text-ink/50 uppercase tracking-wide mb-1">Navn på kart</div>
       <input v-model="customName"
              type="text" placeholder="Navn på kart"
              :readonly="controlsLocked"
              class="w-full bg-transparent text-[15px] font-semibold focus:outline-none
                     placeholder-ink/25 read-only:opacity-70" />
-      <div class="mt-1 text-[11px] text-ink/45 tabular-nums">
-        {{ center.lat.toFixed(4) }}°N, {{ center.lon.toFixed(4) }}°E
-      </div>
     </div>
   </div>
 
-  <!-- Mini-preview + bbox. v9.x: Bredde + Høydekurver er flyttet OVER
-       forhåndsvisningen slik at brukeren ser (og kan justere) valgene før
-       hen ruller ned til CTA-knappen nederst. -->
+  <!-- Skjemaets nedre halvdel. v6.5.28: forhåndsvisningen ligger ØVERST her,
+       rett under navnet — utsnittet er hovedvalget, og de tre seksjonene under
+       (Bredde, Høydekurver, Format) justerer det man allerede ser. Fram til nå
+       lå den nederst, etter tre seksjoner man måtte scrolle forbi for å se hva
+       de gjorde med kartet. -->
   <div class="px-4 pb-3 flex flex-col gap-3">
+    <!-- Forhåndsvisning. v6.5.28: teksten «dra kartet for å plassere, pinch /
+         scroll for størrelse» er flyttet ut av overskriften og ned som label
+         på bryteren under — den beskrev en gest, ikke en seksjon, og gesten er
+         nå et VALG. Seksjonen står rett under navnet fordi den er det man
+         faktisk bestemmer her; bredde, høydekurver og format er finjustering
+         og følger etter. -->
+    <div v-if="!shareInvite" class="text-ink/65 text-[11px] uppercase tracking-wide">
+      <template v-if="controlsLocked">{{ lockedPreviewHint }}</template>
+      <template v-else>Forhåndsvisning</template>
+    </div>
+
+    <!-- Porten for gest-flaten. AV som standard: previewen er en stor flate
+         midt i et skjema man scroller gjennom, og på mobil traff hvert drag
+         forbi den kartet i stedet for siden. Skjult ved delt kart — der er
+         utsnittet låst uansett, og en bryter som ikke kan slås på er støy. -->
+    <label v-if="!controlsLocked"
+           class="-mt-1 flex items-center gap-2.5 cursor-pointer select-none">
+      <input type="checkbox" v-model="justerUtsnitt" class="sr-only peer" />
+      <span class="relative shrink-0 w-10 h-6 rounded-full bg-ink/15 border border-ink/20
+                   transition-colors peer-checked:bg-emerald-500 peer-checked:border-emerald-400
+                   peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-400/50
+                   after:content-[''] after:absolute after:top-1/2 after:-translate-y-1/2
+                   after:left-[3px] after:w-[18px] after:h-[18px] after:rounded-full
+                   after:bg-white after:shadow-md after:transition-transform
+                   peer-checked:after:translate-x-[15px]"></span>
+      <span class="text-[12px] text-ink/60 leading-snug">
+        Dra kartet for å plassere, pinch / scroll for størrelse
+      </span>
+    </label>
+
+    <!-- v8.2.2: preview-containeren er et kvadrat; netto-rammen (ROI) inni
+         viser det FAKTISKE utsnittet — kvadrat, portrett eller A-format alt
+         etter Format-valget (bboxOverlayPx følger effectiveAspect).
+         Bruttokartet (tile-mosaikken) fyller hele kvadratet på 100% opacity —
+         ingen lysegrå semitransparent maskering rundt netto-rammen. Netto-
+         rammen er bare en stiplet kontur med subtilt fokus (drop-shadow +
+         indre kant). -->
+    <!-- v9.1.x: når utsnittet er låst skal touch/scroll OVER kartet rulle siden
+         — ikke pan/pinch/rotere forhåndsvisningen. Derfor `touch-auto` ved lås,
+         `touch-none` (fang gesten) ellers. v6.5.28: låsen er `previewLaast`,
+         altså delt kart ELLER bryteren av — så standard-tilstanden er den som
+         lar siden rulle. Touch-/wheel-handlerne early-returner på det samme.
+         `mx-[50px]` gir dessuten en fingerbred renne på hver side som ALLTID
+         ruller siden, også med bryteren på. -->
+    <div ref="previewRef"
+         class="aspect-square mx-[50px] rounded-xl bg-surface-2 border border-ink/10 overflow-hidden
+                relative"
+         :class="previewLaast
+                 ? (controlsLocked ? 'cursor-not-allowed opacity-90 touch-auto' : 'touch-auto')
+                 : 'cursor-move touch-none ring-2 ring-emerald-400/40'"
+         @touchstart="onPreviewTouchStart"
+         @touchmove="onPreviewTouchMove"
+         @touchend="onPreviewTouchEnd"
+         @touchcancel="onPreviewTouchEnd"
+         @mousedown="onPreviewMouseDown"
+         @mousemove="onPreviewMouseMove"
+         @mouseup="onPreviewMouseUp"
+         @mouseleave="onPreviewMouseUp"
+         @wheel="onPreviewWheel">
+      <!-- OSM-underlag: dekker globalt (også Sverige) så grensenære utsnitt
+           ikke blir blanke der Kartverket-topo mangler. -->
+      <img v-for="t in tiles" :key="'osm-' + t.url"
+           :src="t.osmUrl" alt=""
+           class="absolute pointer-events-none select-none"
+           :style="{ left: t.leftPx + 'px', top: t.topPx + 'px', width: '256px', height: '256px' }"
+           draggable="false" />
+      <!-- Ekte Kartverket-tiler OVER OSM. Tiles flyttes når bruker drar
+           (center oppdateres → tile-mosaikken regenereres rundt ny lat/lon).
+           Skjules ved feil (utenfor norsk dekning) → OSM-underlaget viser. -->
+      <img v-for="t in tiles" :key="t.url"
+           :src="t.url" alt=""
+           class="absolute pointer-events-none select-none"
+           :style="{ left: t.leftPx + 'px', top: t.topPx + 'px', width: '256px', height: '256px' }"
+           draggable="false" @error="onTopoTileError" />
+
+      <!-- Netto-frame fast i sentrum (portrett — følger skjerm-formatet så
+           kartet fyller fullskjerm). Brukeren drar kartet UNDER rammen for å
+           velge utsnitt. Pinch / scroll endrer størrelse. Ingen dark-mask
+           rundt — bruttokartet skal være synlig på 100% opacity. -->
+      <div class="absolute pointer-events-none border-2 border-white rounded-sm
+                  shadow-[0_0_0_2px_rgba(0,0,0,0.5)]"
+           :style="{
+             width:  bboxOverlayPx.w + 'px',
+             height: bboxOverlayPx.h + 'px',
+             left:   (previewSize.w - bboxOverlayPx.w) / 2 + 'px',
+             top:    (previewSize.h - bboxOverlayPx.h) / 2 + 'px',
+             transition: 'width 200ms cubic-bezier(0.2,0.8,0.2,1), height 200ms cubic-bezier(0.2,0.8,0.2,1)',
+           }">
+        <!-- Senter-kryss -->
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none">
+          <div class="absolute top-1/2 left-0 right-0 h-0.5 bg-ink/85 -translate-y-1/2 shadow-[0_0_2px_rgba(0,0,0,0.7)]"></div>
+          <div class="absolute left-1/2 top-0 bottom-0 w-0.5 bg-ink/85 -translate-x-1/2 shadow-[0_0_2px_rgba(0,0,0,0.7)]"></div>
+        </div>
+      </div>
+
+      <div class="absolute top-3 left-3 px-2.5 py-1 rounded-md bg-surface text-[11px]
+                  text-ink border border-ink/30 font-medium shadow-lg z-10">
+        {{ sizeKm }} × {{ sizeHeightKm }} km
+      </div>
+      <div class="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-surface/85 text-ink/70 text-[8px]
+                  text-ink/75 border border-ink/15 leading-tight pointer-events-none">
+        © Kartverket
+      </div>
+    </div>
+
     <!-- Slider for størrelse -->
     <div class="rounded-xl bg-ink/[0.04] border border-ink/10 px-4 py-3">
       <div class="flex items-center justify-between mb-2">
@@ -824,79 +960,6 @@ onMounted(() => {
       </div>
     </div>
 
-    <div v-if="!shareInvite" class="text-ink/65 text-[11px] uppercase tracking-wide">
-      <template v-if="controlsLocked">{{ lockedPreviewHint }}</template>
-      <template v-else>Forhåndsvisning — dra kartet for å plassere, pinch / scroll for størrelse</template>
-    </div>
-    <!-- v8.2.2: preview-containeren er et kvadrat; netto-rammen (ROI) inni
-         viser det FAKTISKE utsnittet — kvadrat, portrett eller A-format alt
-         etter Format-valget (bboxOverlayPx følger effectiveAspect).
-         Bruttokartet (tile-mosaikken) fyller hele kvadratet på 100% opacity —
-         ingen lysegrå semitransparent maskering rundt netto-rammen. Netto-
-         rammen er bare en stiplet kontur med subtilt fokus (drop-shadow +
-         indre kant). -->
-    <!-- v9.1.x: når utsnittet er låst (delt kart / utfordring) skal touch/scroll
-         OVER kartet rulle siden — ikke pan/pinch/rotere forhåndsvisningen.
-         Derfor `touch-auto` ved lås, `touch-none` (fang gesten) ellers.
-         Touch-/wheel-handlerne early-returner alt på controlsLocked. -->
-    <div ref="previewRef"
-         class="aspect-square w-full rounded-xl bg-surface-2 border border-ink/10 overflow-hidden
-                relative"
-         :class="controlsLocked ? 'cursor-not-allowed opacity-90 touch-auto' : 'cursor-move touch-none'"
-         @touchstart="onPreviewTouchStart"
-         @touchmove="onPreviewTouchMove"
-         @touchend="onPreviewTouchEnd"
-         @touchcancel="onPreviewTouchEnd"
-         @mousedown="onPreviewMouseDown"
-         @mousemove="onPreviewMouseMove"
-         @mouseup="onPreviewMouseUp"
-         @mouseleave="onPreviewMouseUp"
-         @wheel="onPreviewWheel">
-      <!-- OSM-underlag: dekker globalt (også Sverige) så grensenære utsnitt
-           ikke blir blanke der Kartverket-topo mangler. -->
-      <img v-for="t in tiles" :key="'osm-' + t.url"
-           :src="t.osmUrl" alt=""
-           class="absolute pointer-events-none select-none"
-           :style="{ left: t.leftPx + 'px', top: t.topPx + 'px', width: '256px', height: '256px' }"
-           draggable="false" />
-      <!-- Ekte Kartverket-tiler OVER OSM. Tiles flyttes når bruker drar
-           (center oppdateres → tile-mosaikken regenereres rundt ny lat/lon).
-           Skjules ved feil (utenfor norsk dekning) → OSM-underlaget viser. -->
-      <img v-for="t in tiles" :key="t.url"
-           :src="t.url" alt=""
-           class="absolute pointer-events-none select-none"
-           :style="{ left: t.leftPx + 'px', top: t.topPx + 'px', width: '256px', height: '256px' }"
-           draggable="false" @error="onTopoTileError" />
-
-      <!-- Netto-frame fast i sentrum (portrett — følger skjerm-formatet så
-           kartet fyller fullskjerm). Brukeren drar kartet UNDER rammen for å
-           velge utsnitt. Pinch / scroll endrer størrelse. Ingen dark-mask
-           rundt — bruttokartet skal være synlig på 100% opacity. -->
-      <div class="absolute pointer-events-none border-2 border-white rounded-sm
-                  shadow-[0_0_0_2px_rgba(0,0,0,0.5)]"
-           :style="{
-             width:  bboxOverlayPx.w + 'px',
-             height: bboxOverlayPx.h + 'px',
-             left:   (previewSize.w - bboxOverlayPx.w) / 2 + 'px',
-             top:    (previewSize.h - bboxOverlayPx.h) / 2 + 'px',
-             transition: 'width 200ms cubic-bezier(0.2,0.8,0.2,1), height 200ms cubic-bezier(0.2,0.8,0.2,1)',
-           }">
-        <!-- Senter-kryss -->
-        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none">
-          <div class="absolute top-1/2 left-0 right-0 h-0.5 bg-ink/85 -translate-y-1/2 shadow-[0_0_2px_rgba(0,0,0,0.7)]"></div>
-          <div class="absolute left-1/2 top-0 bottom-0 w-0.5 bg-ink/85 -translate-x-1/2 shadow-[0_0_2px_rgba(0,0,0,0.7)]"></div>
-        </div>
-      </div>
-
-      <div class="absolute top-3 left-3 px-2.5 py-1 rounded-md bg-surface text-[11px]
-                  text-ink border border-ink/30 font-medium shadow-lg z-10">
-        {{ sizeKm }} × {{ sizeHeightKm }} km
-      </div>
-      <div class="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-surface/85 text-ink/70 text-[8px]
-                  text-ink/75 border border-ink/15 leading-tight pointer-events-none">
-        © Kartverket
-      </div>
-    </div>
   </div>
 
   <!-- Bygg-knapp. -->
