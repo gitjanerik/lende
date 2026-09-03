@@ -1,3 +1,23 @@
+## 2026-09-03 — v6.5.33: Snarveien til Fritt lende lukker panelet den står i
+
+Snarveien i den tomme «Mine kart»-lista navigerte selv, med
+`router.push('/fritt')`, og lot eieren om å rydde bort panelet. Det så riktig ut
+fordi rute-byttet uansett river modalen med seg — men står du ALLEREDE i Fritt
+lende, er navigasjonen en no-op. `route.fullPath` endrer seg ikke, watchen i
+AppMenu som nullstiller `sheet` fyrer aldri, og «Mine kart» ble stående oppå
+arket etter at menyen bak den forsvant.
+
+Knappen emitter nå i stedet, og kalleren eier både lukkingen og ruta: i
+hovedmenyen er det `goFrittLende`, som allerede er den ene som kjenner
+`replace`-regelen — modusen er en bryter og ikke en drill-down, så
+tilbake-knappen skal ikke lande i det vanlige kartet. Forsiden har fått samme
+regel; snarveien brukte `push` og var uenig med hovedmenyens egen rad.
+
+Røyktesten tar den nå fra `/fritt`, altså nettopp der navigasjonen ikke gjør
+noe, og sjekken er verifisert i begge retninger.
+
+---
+
 ## 2026-09-03 — v6.5.32: Et hold på en lende-pil åpner ikke punkt-arket lenger, og teksten skalerer videre
 
 Nettleserens EGEN long-press var problemet begge veier. Kanthåndtakene eier

@@ -34,7 +34,7 @@ const props = defineProps({
 // navigerte knappen alltid, så i modalen forsvant både menyen og modalen.
 // Nyttelasten { gps: true } (fra søkefeltets pin-knapp) ber skjemaet hente
 // posisjonen og sentrere seg der straks det er oppe.
-const emit = defineEmits(['update:tab', 'open-picker'])
+const emit = defineEmits(['update:tab', 'open-picker', 'fritt-lende'])
 
 const router = useRouter()
 const { uiTextScale } = useUiTextScale()
@@ -754,10 +754,16 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
          en tom liste er nøyaktig der noen står som ville hatt et kart uten
          skjemaet over. Den står UNDER teksten og som en tonet knapp og ikke en
          grønn CTA: skjemaet er fortsatt hovedveien, dette er alternativet for
-         den som ikke vil ha det. `router.push` og ikke en <a>: modusen skrives
-         aldri til `lende-last-mode`, så inngangen må gå gjennom ruteren som
-         resten av appen. -->
-    <button type="button" @click="router.push('/fritt')"
+         den som ikke vil ha det.
+
+         v6.5.33: den navigerte SELV, med `router.push('/fritt')`, og lot
+         eieren om å rydde. Det så riktig ut fordi rute-byttet uansett river
+         panelet med seg — men står du ALLEREDE i Fritt lende, er navigasjonen
+         en no-op: `route.fullPath` endrer seg ikke, watchen i AppMenu som
+         nullstiller `sheet` fyrer aldri, og «Mine kart» blir stående oppå
+         arket. Nå eier KALLEREN både lukkingen og ruta — AppMenu gjennom
+         `goFrittLende`, som også er den ene som kjenner `replace`-regelen. -->
+    <button type="button" @click="emit('fritt-lende')"
             class="mt-5 w-full max-w-[20rem] px-4 py-3 rounded-xl border transition
                    bg-amber-400/[0.08] border-amber-400/30 text-left
                    active:bg-amber-400/15 active:scale-[0.99]">
