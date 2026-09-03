@@ -21,6 +21,7 @@ import { reverseGeocode } from '../lib/geocode.js'
 import { tileMosaic, zoomForKm, metersPerPixel } from '../lib/tileBackground.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
 import { t } from '../lib/i18n.js'
+import { gpsFeilTekst, GPS_IKKE_STOTTET } from '../lib/gpsFeil.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -82,7 +83,7 @@ const nameHidden = ref(false)
 async function onCenterOnMe() {
   if (controlsLocked.value) return
   if (!navigator.geolocation) {
-    gpsState.value = { status: 'error', error: 'Nettleseren støtter ikke GPS' }
+    gpsState.value = { status: 'error', error: GPS_IKKE_STOTTET }
     return
   }
   gpsState.value = { status: 'locating', error: null }
@@ -92,12 +93,7 @@ async function onCenterOnMe() {
       navigator.geolocation.getCurrentPosition(resolve, reject,
         { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }))
   } catch (err) {
-    const map = {
-      1: 'GPS-tillatelse avvist',
-      2: 'GPS-posisjon ikke tilgjengelig',
-      3: 'GPS-forespørsel tok for lang tid',
-    }
-    gpsState.value = { status: 'error', error: map[err.code] ?? 'GPS-feil' }
+    gpsState.value = { status: 'error', error: gpsFeilTekst(err.code) }
     return
   }
   const lat = pos.coords.latitude

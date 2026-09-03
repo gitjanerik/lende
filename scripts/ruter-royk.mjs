@@ -207,7 +207,10 @@ try {
         strokeScale: svg.style.getPropertyValue('--stroke-scale'),
         skjulte: ['bymasse', 'parkering', 'holdeplass', 'kulturminne'].filter((k) => vis(k) === 'none').length,
         synlige: ['kontur', 'sti', 'bygning', 'skog'].filter((k) => vis(k) !== 'none').length,
-        ekvidistanse: /Ekvidistanse 10 m/.test(document.body.innerText),
+        // Ekvidistansen er BYTTET UT med avstand fra senter (v6.5.27), og
+        // avstanden vises først når GPS er på — så her skal ingen av dem stå.
+        ekvidistanse: /Ekvidistanse/.test(document.body.innerText),
+        avstand: /fra senter/.test(document.body.innerText),
         // Negativ UI-telling som et KRAV OM ANTALL, ikke «finnes ikke X» — da
         // fanger den også en femte knapp noen legger til i god tro.
         knapper: document.querySelectorAll('button').length,
@@ -231,7 +234,8 @@ try {
     arket?.strokeScale)
   sjekk('Fritt lende: de fire lagene er skjult', arket?.skjulte === 4, `${arket?.skjulte ?? 0}/4`)
   sjekk('Fritt lende: terreng og stier er synlige', arket?.synlige === 4, `${arket?.synlige ?? 0}/4`)
-  sjekk('Fritt lende: ekvidistansen står på linjalen', arket?.ekvidistanse === true)
+  sjekk('Fritt lende: ekvidistansen er borte fra linjalen', arket?.ekvidistanse === false)
+  sjekk('Fritt lende: avstanden vises ikke før GPS er på', arket?.avstand === false)
   sjekk('Fritt lende: nøyaktig to knapper på skjermen', arket?.knapper === 2,
     `${arket?.knapper ?? 0} knapper`)
   sjekk('Fritt lende: målestokken vises', arket?.maalestokk === true)
@@ -263,16 +267,44 @@ try {
   // «Finner posisjonen din …» stå for alltid — med posisjonen tydelig markert i
   // kartet bak. Sjekken trykker på ekte knapp og venter på ekte posisjon.
   await ctx.grantPermissions(['geolocation'])
-  await ctx.setGeolocation({ latitude: 59.75211128285356, longitude: 10.185212484072062 })
+  // Arkets EGET senter (utm32ToWgs84(251000, 6631000) for den seedede bboxen).
+  // Fram til v6.5.27 sto punktet 315 km unna: prikken ble tegnet, så sjekken
+  // over var grønn, men avstandsporten ville lest det som «langt utenfor arket»
+  // og bygget et nytt kart mot en avskåret rute. Senteret er dessuten det
+  // ærligste stedet å måle sentreringen fra.
+  await ctx.setGeolocation({ latitude: 59.741969744969, longitude: 4.568121301687335 })
   await s5.locator('button[aria-label]').first().click()
   await sov(2500)
   const etterFix = await s5.evaluate(() => ({
     chipStårIgjen: [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Avbryt'),
     prikk: !!document.querySelector('#user-layer circle'),
+    // Avstandsteller (v6.5.27): linjalen skal bære «N m fra senter» så snart en
+    // posisjon er kjent. Den er modusens ene tall og porten knappen står bak.
+    avstand: (document.body.innerText.match(/[\d,.]+ (?:m|km) fra senter/) ?? [''])[0],
   }))
   sjekk('Fritt lende: fremdrifts-chipen forsvinner når fixen kommer',
     etterFix.prikk && !etterFix.chipStårIgjen,
     etterFix.prikk ? (etterFix.chipStårIgjen ? 'chipen står igjen' : 'borte') : 'fikk ingen posisjon')
+  sjekk('Fritt lende: avstandstelleren står på linjalen når posisjonen er kjent',
+    /fra senter/.test(etterFix.avstand), etterFix.avstand || 'ingen avstandslinje')
+
+  // AVSTANDSPORTEN (v6.5.27). Posisjonen over ligger på arkets senter, altså
+  // godt under 500 m — et trykk skal da IKKE bygge, men si når det blir mulig.
+  // Sjekken trykker på ekte knapp; ruta er avskåret, så en bygging her ville
+  // dessuten blitt en feilmelding og ikke et nytt ark.
+  await s5.locator('button[aria-label]').first().click()
+  await sov(600)
+  const porten = await s5.evaluate(() => ({
+    melding: /Nytt utsnitt først/.test(document.body.innerText),
+    // Etiketten er avledet av samme tilstand som handlingen og skal ikke love
+    // et nytt kart under porten.
+    etikett: document.querySelector('button[aria-label]')?.getAttribute('aria-label') ?? '',
+    bygger: [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Avbryt'),
+  }))
+  sjekk('Fritt lende: porten stopper nytt ark under 500 m og sier hvorfor',
+    porten.melding && !porten.bygger, porten.bygger ? 'bygde likevel' : (porten.melding ? 'melding vist' : 'ingen melding'))
+  sjekk('Fritt lende: knappen lover ikke nytt kart under porten',
+    !/lag .*kart/i.test(porten.etikett), porten.etikett)
 
   sjekk('Fritt lende: sentreringen treffer viewportens midte',
     !!visning && visning.midtAvvikX < 2 && visning.midtAvvikY < 2,

@@ -262,12 +262,46 @@ blindtrykket. Den som vil ha et kart som varer, har allerede `/nytt`.
    alltid av, så det er alltid nøyaktig ETT trykk mellom å åpne modusen og å
    erstatte arket. Dette er svaret på at posisjonen din er et helt annet sted i
    dag enn da arket ble bygget.
-2. *Tap kan aldri bygge mens du står på arket.* Muligheten finnes ikke — sterkere
-   enn en fartsdump. Å gå av et 2 km-ark er hovedsløyfa, ikke et unntak.
+2. *Ingenting bygger før du er 500 m fra arkets senter* (`NYTT_KART_M`). Se
+   avstandsporten under — den avløste «tap kan aldri bygge mens du står på
+   arket» i v6.5.27.
 3. *Det gamle arket slettes aldri før det nye er ferdig bygget og tegnet.* Det er
    dette som gjør et feiltrykk ufarlig, ikke gestespråket. `saveMap` er en put,
    så overskrivingen ER slettingen — ingen `deleteMap`, som ville etterlatt
    brukeren uten kart hvis byggingen feilet.
+
+**AVSTANDSPORTEN ER MODUSENS ENE TALL, OG DEN AVLØSTE ARKKANTEN (v6.5.27).**
+Linjalen bærer «N m fra senter» så snart en posisjon er kjent, og ved
+`NYTT_KART_M` = 500 m skifter tallet til aksentfarge. Det er SAMME grense
+knappen står bak: over den bygger et trykk et nytt ark, under den sentrerer det
+og svarer med `forNaerTekst`. Den gamle regelen — «tap kan aldri bygge mens du
+står på arket», med et lang-trykk som eneste vei ut — var bygget rundt samme
+frykt, men målte det gale: «utenfor arket» er en grense man krysser én gang,
+mens spørsmålet man stiller på tur er «har jeg nok kart foran meg?». Tre ting
+følger, og alle tre er lette å «rydde» bort:
+1. **Porten gjelder ikke uten ark.** Det er den ene stien der modusen ikke har
+   noe å miste; ellers ville en tom skjerm vært en blindvei.
+2. **Er avstanden ukjent (GPS på, ingen fix ennå), sentreres det.** Å bygge der
+   ville brutt porten; å si «for nær» ville vært en påstand vi ikke har.
+3. **LANG-TRYKKET ER BORTE, og det er en konsekvens.** Med porten på plass gjør
+   et hold nøyaktig det tapet gjør, eller nøyaktig ingenting — og en fyllring
+   som lover noe nytt og leverer det samme er verre enn ingen ring. Legger du
+   den tilbake, må den ha en betydning porten ikke alt dekker.
+
+**Ekvidistansen står IKKE lenger på linjalen** (v6.5.27) — den er fast 10 m i
+denne modusen og leses én gang, og plassen er avstandstellerens. Merk at
+`MapScaleAttribution` derfor ikke har noen ekvidistanse-prop igjen; MapView har
+tallet i punkt-skuffen.
+
+**EN NEKTET POSISJON MÅ SIES, og det med en alert (v6.5.27).** Modusen var helt
+stille når tillatelsen ble avvist: chipen sto og lette etter en fix som aldri
+kunne komme. Teksten er den samme som «Lag kart der jeg er» viser, fra ÉN kilde
+(`lib/gpsFeil.js`, delt med `MapLibrary` og `MapPickerContent` som hadde hver
+sin kopi av kodetabellen). Alerten fyres på ENDRET feilkode og ikke per
+feil-callback — `watchPosition` kaller handleren for hvert forsøk, og en dialog
+per forsøk er en dialog man ikke slipper unna. Kode 1 (tillatelse) stopper
+watchen, så knappen faller tilbake til «Start posisjon»; kode 2/3 er forbigående
+og lar den prøve videre.
 
 **To faste id-er (`fritt`, `fritt-forrige`), filtrert i `listMaps()` og ikke hos
 kallerne** — «Mine kart» leses to steder som allerede filtrerer `isAuto` hver for
@@ -282,7 +316,6 @@ tilbake-knappen i det vanlige kartet, altså en modus-veksling uten om menyen.
 **Relieff er av ved KONSTRUKSJON** (`useReliefRender` kalles aldri), ikke ved å
 skrus av. Rotasjonen er låst til nord fordi kompasset er borte, og et rotert kart
 uten kompass og uten noen kontroll som nullstiller er en navigasjonsfelle.
-Ekvidistansen står på linjalen, siden punkt-skuffen den ellers bor i ikke finnes.
 
 **Modusen krever nett for å LAGE et ark, men ikke for å vise det den har.** Det er
 det ene stedet i Lende der premisset snus, og det må stå i UI-et. Etter at arket

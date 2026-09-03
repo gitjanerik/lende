@@ -1,3 +1,23 @@
+## 2026-09-03 — v6.5.27: Fritt lende måler avstanden fra senter, og porten er 500 m
+
+Linjalen bærer nå «N m fra senter» i stedet for ekvidistansen så snart en
+posisjon er kjent. Ekvidistansen er fast 10 m i denne modusen og leses én gang;
+avstanden er tallet man trenger mens man går, fordi arket rekker 1 000 m ut til
+hver kant og det er avstanden som sier når det tar slutt. Ved 500 m skifter
+tallet til aksentfarge, og det er samme grense knappen står bak: over den bygger
+et trykk et nytt ark der du står, under den sentrerer det og sier når et nytt
+utsnitt blir tilgjengelig. Det avløser regelen om at et tap aldri fikk bygge
+innenfor arkkanten — den var bygget rundt samme frykt, men målte det gale, for
+«utenfor arket» er en grense man krysser én gang mens «har jeg nok kart foran
+meg?» er spørsmålet man faktisk stiller. Lang-trykket er derfor borte: med
+porten på plass gjør et hold nøyaktig det tapet gjør, eller nøyaktig ingenting.
+Og en nektet posisjon sier det nå: modusen var helt stille når tillatelsen ble
+avvist, med en chip som lette etter en fix som aldri kunne komme — den samme
+alerten som «Lag kart der jeg er» viser, fra en delt kilde (`lib/gpsFeil.js`) så
+de tre stedene som melder GPS-feil ikke kan drive fra hverandre.
+
+---
+
 ## 2026-09-02 — v6.5.26: Kart-cachen var aldri i rekkevidde — røyktesten kjører nå også på master
 
 Cachen fra v6.5.24 virket, men ingen andre enn PR-en som skrev den kunne lese

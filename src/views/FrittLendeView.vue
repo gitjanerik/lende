@@ -21,7 +21,9 @@ import {
   FRITT_LENDE_LAG, frittLendeTema, frittLendeUtmBbox,
   knappeHandling, knappeEtikett, fixVurdering, arkErGammelt,
   FIX_VENT_MS, dekningsSkala,
+  avstandFraSenter, avstandTekst, forNaerTekst, NYTT_KART_M,
 } from '../lib/frittLende.js'
+import { gpsFeilTekst, GPS_IKKE_STOTTET } from '../lib/gpsFeil.js'
 import KartLaster from '../components/KartLaster.vue'
 
 // ── Fritt lende ─────────────────────────────────────────────────────────────
@@ -68,10 +70,19 @@ const sentrerPaaNesteFix = ref(false)
 const harAngre = ref(false)
 const angreSynlig = ref(false)
 const gammeltArk = ref(false)
+// Kort beskjed nederst — brukes av avstandsporten. Ikke `feil`: den har en
+// «Prøv igjen»-knapp og betyr «byggingen gikk galt», mens dette er et svar på
+// et trykk som gjorde nøyaktig det den skulle.
+const melding = ref('')
 
 let byggAvbryter = null
 let angreTimer = null
+let meldingTimer = null
 let fixVent = null
+// Hvilken GPS-feilkode brukeren alt har fått en alert på. watchPosition kaller
+// feil-handleren på nytt for hvert forsøk, og en alert per forsøk er en dialog
+// man ikke slipper unna.
+let varsletFeilkode = null
 
 const { erOffline } = useNettStatus()
 const { isDarkMap } = useMapTheme()
@@ -101,19 +112,28 @@ const scaleBar = computed(() => beregnMaalestokk({
 
 const userPos = useUserPosition(() => meta.value)
 
+// ── Avstand fra senter ──────────────────────────────────────────────────────
+// Modusens ene tall, og porten knappen står bak. Null til posisjonen er kjent —
+// linjalen viser da ingen linje i stedet for en 0 som ser målt ut.
+const avstandM = computed(() => avstandFraSenter({
+  svgX: userPos.svgX, svgY: userPos.svgY,
+  widthM: meta.value?.widthM, heightM: meta.value?.heightM,
+}))
+const avstandLinje = computed(() => (userPos.isWatching ? avstandTekst(avstandM.value) : ''))
+const avstandNaadd = computed(() => (avstandM.value ?? 0) >= NYTT_KART_M)
+
 // ── Knappen ─────────────────────────────────────────────────────────────────
 const knappeTilstand = computed(() => ({
   harArk: !!meta.value,
   gpsPaa: userPos.isWatching,
-  utenforArket: userPos.isOutsideMap,
   ferskLast: ferskLast.value,
   bygger: bygger.value,
+  avstandM: avstandM.value,
 }))
 const etikett = computed(() => knappeEtikett(knappeTilstand.value))
-const handling = computed(() => knappeHandling({ ...knappeTilstand.value, hold: false }))
+const handling = computed(() => knappeHandling(knappeTilstand.value))
 
-function onTap() { utfor(knappeHandling({ ...knappeTilstand.value, hold: false })) }
-function onHold() { utfor(knappeHandling({ ...knappeTilstand.value, hold: true })) }
+function onTap() { utfor(handling.value) }
 
 function utfor(h) {
   ferskLast.value = false
@@ -121,11 +141,25 @@ function utfor(h) {
   if (h === 'start-gps') return startGps()
   if (h === 'start-gps-og-bygg') { startGps(); return byggNaarFix() }
   if (h === 'bygg') return byggHer()
+  // Porten er stengt. Kartet sentreres likevel — det er den nyttige halvdelen
+  // av trykket, og et trykk som bare avviser deg er en knapp som ikke gjør noe.
+  if (h === 'for-naer') { sentrer(); visMelding(forNaerTekst(avstandM.value)) }
+}
+
+function visMelding(tekst) {
+  melding.value = tekst
+  clearTimeout(meldingTimer)
+  meldingTimer = setTimeout(() => { melding.value = '' }, 6000)
 }
 
 // startPositioning må kalles i SAMME bruker-gest som tapet — iOS krever det for
 // posisjons-tillatelsen, så den kan ikke ligge i en watcher.
 function startGps() {
+  // Samme alert-tekster som «Lag kart der jeg er» i turkartet, fra samme kilde
+  // (lib/gpsFeil.js). Fram til v6.5.27 sa Fritt lende INGENTING når posisjonen
+  // ble nektet: chipen sto og lette etter en fix som aldri kunne komme.
+  if (!navigator.geolocation) { alert(GPS_IKKE_STOTTET); return }
+  varsletFeilkode = null
   userPos.start()
   venterPaaFix.value = true
   // Kartet skal legge seg om deg så snart fixen lander, ikke bli stående på
@@ -370,6 +404,8 @@ function tegnPrikk() {
 watch(() => [userPos.svgX, userPos.svgY, userPos.accuracyM], () => {
   tegnPrikk()
   if (userPos.svgX == null) return
+  // Posisjonen er inne: en senere feil er en NY feil og skal varsles igjen.
+  varsletFeilkode = null
   // Fixen er inne: «Finner posisjonen din …» skal bort. Fram til v6.5.3 ble
   // flagget bare nullstilt av bygge-stien, så et trykk som BARE startet GPS
   // lot chipen stå for alltid — med posisjonen tydelig markert i kartet bak.
@@ -384,6 +420,24 @@ watch(() => [userPos.svgX, userPos.svgY, userPos.accuracyM], () => {
     settStandardvisning()
   }
 })
+// Nektet posisjon er en BLOKKERENDE beskjed her, ikke en chip. Modusen har
+// ingen annen inngang: uten posisjon kan den verken sentrere eller bygge, så en
+// stille feil etterlater en skjerm som ser ut som om den henger.
+watch(() => userPos.errorCode, (kode) => {
+  if (kode == null || kode === varsletFeilkode) return
+  varsletFeilkode = kode
+  // Byggingen som ventet på en god fix er dømt — uten den ville intervallet
+  // spunnet videre bak dialogen og chipen stått for alltid.
+  clearInterval(fixVent); fixVent = null
+  venterPaaFix.value = false
+  sentrerPaaNesteFix.value = false
+  // Kode 1 er tillatelsen: den kommer ikke av seg selv, så vi slutter å se
+  // etter en posisjon og knappen faller tilbake til «Start posisjon». Kode 2/3
+  // er forbigående — der lar vi watchPosition prøve videre.
+  if (kode === 1) userPos.stop()
+  alert(gpsFeilTekst(kode))
+})
+
 watch(() => isDarkMap.value, () => {
   const svg = svgHostRef.value?.querySelector('svg')
   if (svg) bruksUttrykk(svg)
@@ -420,6 +474,7 @@ onUnmounted(() => {
   window.removeEventListener('offline', paaOffline)
   skjerm.stop?.()
   clearTimeout(angreTimer)
+  clearTimeout(meldingTimer)
   clearInterval(fixVent)
   byggAvbryter?.abort()
   userPos.stop()
@@ -512,13 +567,29 @@ const arkDato = computed(() => (opprettet.value
       Kartet er fra {{ arkDato }}
     </div>
 
+    <!-- Linjalen bærer avstanden fra senter i stedet for ekvidistansen (v6.5.27):
+         ekvidistansen er fast 10 m og leses én gang, mens avstanden er tallet
+         som sier når arket tar slutt og knappen slipper deg videre. -->
     <MapScaleAttribution :visible="!!meta" :scale-bar="scaleBar"
-                         :equidistance-m="meta?.equidistanceM ?? null" />
+                         :avstand-tekst="avstandLinje"
+                         :avstand-naadd="avstandNaadd" />
 
     <FrittLendeKnapp :etikett="etikett" :handling="handling" :bygger="bygger"
-                     :utenfor-arket="userPos.isOutsideMap"
                      :venter-paa-fix="venterPaaFix" :offline="erOffline"
-                     @tap="onTap" @hold="onHold" />
+                     @tap="onTap" />
+
+    <!-- Avstandsporten svarer her. Ikke en alert: den er et svar på et trykk som
+         gjorde det den skulle, og en dialog man må lukke for hvert trykk på
+         hovedknappen ville vært en straff for å bruke den.
+         right-24: knappen er 56 px + 16 px marg nede til høyre, og en toast
+         under den er en toast man ikke ser. -->
+    <div v-if="melding && !bygger"
+         class="absolute left-4 right-24 z-30
+                px-4 py-2.5 rounded-xl bg-overlay shadow-lg
+                text-sm text-ink leading-snug"
+         :class="angreSynlig ? 'bottom-20' : 'bottom-6'">
+      {{ melding }}
+    </div>
 
     <!-- Angre. Gjør byggingen ikke-destruktiv, som er hvorfor modusen slipper
          en bekreftelsesdialog i sin egen hovedsløyfe. -->
