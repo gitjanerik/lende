@@ -12,14 +12,22 @@
 // og dybde-provenens er oppslags-fakta, ikke noe du leser mens du går — de står
 // i punkt-skuffen sammen med målestokk og ekvidistanse. Selve ODbL-kreditten må
 // stå på kartet, og ligger nå som en linje under linjalen.
-// v6.5.0: valgfri ekvidistanse-linje. Fritt lende har ingen punkt-skuffe å
-// legge tallet i, og et kart med høydekurver uten oppgitt ekvidistanse er ikke
-// et topografisk kart — det er et krusedullebilde. Prop-en er valgfri, så
-// MapView er uendret.
+// v6.5.0: valgfri ekvidistanse-linje for Fritt lende, som ikke har en
+// punkt-skuffe å legge tallet i.
+//
+// v6.5.27: linja bærer AVSTAND FRA SENTER i stedet, og bare når en posisjon er
+// kjent. Ekvidistansen er fast 10 m i den modusen og leses én gang; avstanden er
+// tallet man trenger MENS man går, fordi det er det som sier når arket tar slutt
+// og et nytt utsnitt er tilgjengelig. Begge prop-ene er valgfrie, så MapView er
+// uendret.
+//
+// `avstandNaadd` er en TILSTAND og ikke en farge på kallstedet: linjalen eier
+// sitt eget uttrykk, og porten (500 m) bor i lib/frittLende.js.
 defineProps({
   visible: { type: Boolean, default: false },
   scaleBar: { type: Object, default: () => ({ px: 0, ticks: [], label: '' }) },
-  equidistanceM: { type: Number, default: null },
+  avstandTekst: { type: String, default: '' },
+  avstandNaadd: { type: Boolean, default: false },
 })
 </script>
 
@@ -41,8 +49,12 @@ defineProps({
         </svg>
         <div>{{ scaleBar.label }}</div>
       </div>
-      <div v-if="equidistanceM" class="text-[10px] leading-tight font-normal">
-        Ekvidistanse {{ equidistanceM }} m
+      <!-- Tabulære siffer: tallet oppdateres hvert tredje sekund, og med
+           proporsjonale siffer flytter hele linja seg for hver 1 som blir en 8. -->
+      <div v-if="avstandTekst"
+           class="text-[10px] leading-tight font-normal [font-variant-numeric:tabular-nums]"
+           :class="avstandNaadd ? 'text-amber-200 font-semibold' : ''">
+        {{ avstandTekst }}
       </div>
       <div class="text-[9px] leading-tight font-normal text-ink/55">
         © OpenStreetMap-bidragsytere

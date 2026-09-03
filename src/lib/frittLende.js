@@ -129,11 +129,41 @@ export function fixVurdering({ accuracyM, ventetMs }) {
   return 'vent'
 }
 
+// ── Avstand fra arkets senter ───────────────────────────────────────────────
+// Modusens ene tall. Ekvidistansen sto her fram til v6.5.27 — den er fast 10 m
+// og leses én gang, mens avstanden fra senter er det man trenger å vite MENS man
+// går: arket rekker 1 000 m ut til hver kant, så tallet sier hvor mye lende du
+// har igjen foran deg, og når det er på tide å hente et nytt utsnitt.
+//
+// Tallet er også porten under: et nytt ark bygget 50 m fra det gamle senteret er
+// nesten det samme arket, hentet på nytt over 5–30 sekunders Overpass og
+// Kartverket. Grensa gjør den bomturen umulig i stedet for å advare mot den.
+export const NYTT_KART_M = 500
+
+// svgX/svgY er kartets eget koordinatrom, som ER bakke-meter (viewBox
+// `0 0 widthM heightM`) — så dette er en rett euklidsk avstand og ingen
+// projeksjon. Utenfor arket blir tallet bare større; det er riktig.
+export function avstandFraSenter({ svgX, svgY, widthM, heightM }) {
+  if (!Number.isFinite(svgX) || !Number.isFinite(svgY)) return null
+  if (!widthM || !heightM) return null
+  const dx = svgX - widthM / 2
+  const dy = svgY - heightM / 2
+  return Math.hypot(dx, dy)
+}
+
+// Avrundet til 10 m under kilometeren: GPS-en jitrer noen meter, og et tall som
+// teller oppover og nedover på siste siffer leses som støy og ikke som avstand.
+export function avstandTekst(m) {
+  if (!Number.isFinite(m)) return ''
+  if (m >= 1000) return `${(m / 1000).toFixed(1).replace('.', ',')} km fra senter`
+  return `${Math.round(m / 10) * 10} m fra senter`
+}
+
 // ── Knappens tilstandsmaskin ────────────────────────────────────────────────
 // Én knapp, ett begrep: «hent meg hit». Den bruker det billigste midlet som
 // finnes i situasjonen — panorere hvis mulig, bygge hvis ikke.
 //
-// TRE INVARIANTER SOM IKKE MÅ FORENKLES BORT. De er grunnen til at modusen kan
+// TO INVARIANTER SOM IKKE MÅ FORENKLES BORT. De er grunnen til at modusen kan
 // ha en destruktiv handling uten en eneste bekreftelsesdialog:
 //
 //   1. FØRSTE TAP ETTER EN FERSK LAST STARTER BARE GPS. Det bygger aldri.
@@ -142,39 +172,58 @@ export function fixVurdering({ accuracyM, ventetMs }) {
 //      min er et helt annet sted nå enn da jeg bygget arket»: åpner du appen
 //      hjemme med et ark fra fjellet, gjør første trykk ingen skade.
 //
-//   2. MENS DU STÅR PÅ ARKET ER BYGGING UTILGJENGELIG FOR TAP. Ikke en
-//      fartsdump — muligheten finnes ikke. Å gå av et 2 km-ark er hovedsløyfa
-//      i denne modusen, ikke et unntak, så en dialog der ville blitt blindtrykket.
-//
-//   3. (håndheves av kalleren) DET GAMLE ARKET SLETTES ALDRI FØR DET NYE ER
+//   2. (håndheves av kalleren) DET GAMLE ARKET SLETTES ALDRI FØR DET NYE ER
 //      FERDIG BYGGET OG TEGNET. Det er dette som faktisk gjør et feiltrykk
 //      ufarlig — ikke gestespråket.
+//
+// AVSTANDSPORTEN AVLØSTE INVARIANT 2 (v6.5.27), og det er en BESTILT endring.
+// Den gamle regelen var «tap kan aldri bygge mens du står på arket», med et
+// lang-trykk som eneste vei til et nytt ark der man sto. Den var bygget rundt
+// samme frykt som denne, men målte det gale: «utenfor arket» er en grense man
+// krysser én gang, mens spørsmålet man faktisk stiller på tur er «har jeg nok
+// kart foran meg?». Nå avgjør avstanden fra senter det, med samme tall som står
+// på linjalen — og lang-trykket er borte, fordi en gest som gjør det tapet
+// allerede gjør er verre enn ingen gest. Det er avstanden som beskytter arket,
+// ikke gestespråket.
 //
 // KALLERENS ANSVAR: `ferskLast` skal settes false ved FØRSTE tap. Uten det
 // står invariant 1 for alltid, og andre trykk ville også bare sentrert — man
 // ville aldri fått bygget et nytt ark etter en reload.
 //
-// Returnerer 'start-gps' | 'start-gps-og-bygg' | 'sentrer' | 'bygg' | null.
-// null = knappen er deaktivert (byggingen pågår; «Avbryt» ligger i chipen).
+// Returnerer 'start-gps' | 'start-gps-og-bygg' | 'sentrer' | 'bygg' |
+// 'for-naer' | null. null = knappen er deaktivert (byggingen pågår; «Avbryt»
+// ligger i chipen).
 export function knappeHandling({
-  harArk, gpsPaa, utenforArket, ferskLast, bygger, hold = false,
+  harArk, gpsPaa, ferskLast, bygger, avstandM = null,
 }) {
   if (bygger) return null
+  // Uten ark er det ingenting å beskytte, og porten gjelder ikke: det er den
+  // ENE stien der modusen ikke har noe å vise fram.
   if (!harArk) return gpsPaa ? 'bygg' : 'start-gps-og-bygg'
-  if (!gpsPaa) return hold ? 'start-gps-og-bygg' : 'start-gps'
-  if (ferskLast && !hold) return 'sentrer'   // invariant 1
-  if (hold) return 'bygg'
-  return utenforArket ? 'bygg' : 'sentrer'   // invariant 2
+  if (!gpsPaa) return 'start-gps'            // invariant 1 ved kald start
+  if (ferskLast) return 'sentrer'            // invariant 1
+  if (avstandM == null) return 'sentrer'     // GPS på, men ingen fix ennå
+  return avstandM >= NYTT_KART_M ? 'bygg' : 'for-naer'
 }
 
 // Hva knappen skal SI at den gjør. Avledet av samme tilstand som handlingen, så
 // etiketten kan ikke komme i utakt med oppførselen.
-export function knappeEtikett({ harArk, gpsPaa, utenforArket, ferskLast, bygger }) {
+export function knappeEtikett(tilstand) {
+  const { harArk, gpsPaa, bygger } = tilstand
   if (bygger) return 'Bygger kart …'
   if (!harArk) return 'Lag kart her'
   if (!gpsPaa) return 'Start posisjon'
-  if (!ferskLast && utenforArket) return 'Lag nytt kart her'
-  return 'Sentrer på min posisjon. Hold inne for nytt kart her.'
+  return knappeHandling(tilstand) === 'bygg'
+    ? 'Lag nytt kart her'
+    : 'Sentrer på min posisjon'
+}
+
+// Meldingen når porten er stengt. Den sier BÅDE grensa og hvor man står, fordi
+// «ikke ennå» uten et tall er en vegg uten dør: med begge er den en avstand man
+// kan gå ferdig.
+export function forNaerTekst(avstandM) {
+  const naa = Number.isFinite(avstandM) ? `${Math.round(avstandM / 10) * 10} m` : 'mindre'
+  return `Nytt utsnitt først når du er ${NYTT_KART_M} m fra midten av kartet — du er ${naa} unna.`
 }
 
 // ── Arkets alder ────────────────────────────────────────────────────────────

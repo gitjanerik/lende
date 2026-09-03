@@ -9,6 +9,10 @@ import {
   frittLendeUtmBbox,
   knappeHandling,
   knappeEtikett,
+  avstandFraSenter,
+  avstandTekst,
+  forNaerTekst,
+  NYTT_KART_M,
   fixVurdering,
   arkErGammelt,
   BREDDE_M,
@@ -107,48 +111,95 @@ describe('frittLendeUtmBbox', () => {
   })
 })
 
+describe('avstandFraSenter', () => {
+  const ark = { widthM: 2000, heightM: 2000 }
+
+  it('er null uten posisjon', () => {
+    expect(avstandFraSenter({ svgX: null, svgY: null, ...ark })).toBeNull()
+    expect(avstandFraSenter({ svgX: 1000, svgY: 1000, widthM: 0, heightM: 0 })).toBeNull()
+  })
+
+  it('er null i midten og vokser utover', () => {
+    expect(avstandFraSenter({ svgX: 1000, svgY: 1000, ...ark })).toBe(0)
+    expect(avstandFraSenter({ svgX: 1500, svgY: 1000, ...ark })).toBe(500)
+    expect(avstandFraSenter({ svgX: 1000, svgY: 300, ...ark })).toBe(700)
+  })
+
+  // Diagonalt og ikke per akse: en tur nordøst er kortere til hjørnet enn til
+  // kanten, og en akse-måling ville sagt 500 m der man har gått 707.
+  it('måler diagonalt', () => {
+    const d = avstandFraSenter({ svgX: 1300, svgY: 1400, ...ark })
+    expect(d).toBeCloseTo(500, 6)
+  })
+
+  // Utenfor arket skal tallet bare fortsette. Klampet det seg til kanten, ville
+  // knappen mistet forskjellen på «rett utenfor» og «30 km hjemmefra».
+  it('fortsetter utenfor arket', () => {
+    expect(avstandFraSenter({ svgX: -2000, svgY: 1000, ...ark })).toBe(3000)
+  })
+})
+
+describe('avstandTekst', () => {
+  it('runder til 10 m, så tallet ikke jitrer med GPS-en', () => {
+    expect(avstandTekst(312)).toBe('310 m fra senter')
+    expect(avstandTekst(0)).toBe('0 m fra senter')
+    expect(avstandTekst(996)).toBe('1000 m fra senter')
+  })
+
+  it('går over til kilometer med norsk desimalkomma', () => {
+    expect(avstandTekst(1000)).toBe('1,0 km fra senter')
+    expect(avstandTekst(1234)).toBe('1,2 km fra senter')
+  })
+
+  it('er tom uten tall', () => {
+    expect(avstandTekst(null)).toBe('')
+    expect(avstandTekst(NaN)).toBe('')
+  })
+})
+
 describe('knappeHandling', () => {
-  const grunn = { harArk: true, gpsPaa: true, utenforArket: false, ferskLast: false, bygger: false }
+  const grunn = { harArk: true, gpsPaa: true, ferskLast: false, bygger: false, avstandM: 0 }
   const h = (over = {}) => knappeHandling({ ...grunn, ...over })
 
-  it('uten ark: knappen lager ett', () => {
+  it('uten ark: knappen lager ett, uansett avstand', () => {
     expect(h({ harArk: false, gpsPaa: false })).toBe('start-gps-og-bygg')
     expect(h({ harArk: false, gpsPaa: true })).toBe('bygg')
+    expect(h({ harArk: false, gpsPaa: true, avstandM: null })).toBe('bygg')
   })
 
   // INVARIANT 1 — dette er svaret på «GPS-en min er et helt annet sted nå».
   // Åpner du appen hjemme med et ark fra fjellet, gjør første trykk ingen skade.
   it('INVARIANT: første tap etter fersk last bygger aldri', () => {
     expect(h({ gpsPaa: false, ferskLast: true })).toBe('start-gps')
-    expect(h({ gpsPaa: false, ferskLast: true, utenforArket: true })).toBe('start-gps')
-    expect(h({ gpsPaa: true, ferskLast: true, utenforArket: true })).toBe('sentrer')
+    expect(h({ gpsPaa: false, ferskLast: true, avstandM: 30000 })).toBe('start-gps')
+    expect(h({ gpsPaa: true, ferskLast: true, avstandM: 30000 })).toBe('sentrer')
   })
 
-  it('etter at ferskLast er ryddet, bygger tap utenfor arket', () => {
-    expect(h({ utenforArket: true })).toBe('bygg')
+  // AVSTANDSPORTEN (v6.5.27). Den avløste «tap kan aldri bygge mens du står på
+  // arket»: grensa er nå en avstand og ikke en arkkant, med samme tall som står
+  // på linjalen.
+  it('PORTEN: bygger ved 500 m og ikke før', () => {
+    expect(h({ avstandM: 0 })).toBe('for-naer')
+    expect(h({ avstandM: 499 })).toBe('for-naer')
+    expect(h({ avstandM: NYTT_KART_M })).toBe('bygg')
+    expect(h({ avstandM: 1400 })).toBe('bygg')
   })
 
-  // INVARIANT 2 — muligheten finnes ikke, i stedet for å ha en fartsdump.
-  it('INVARIANT: tap kan aldri bygge mens du står på arket', () => {
-    for (const ferskLast of [true, false]) {
-      expect(h({ utenforArket: false, ferskLast })).toBe('sentrer')
-    }
-  })
-
-  it('hold bygger, også innenfra arket og rett etter en fersk last', () => {
-    expect(h({ hold: true })).toBe('bygg')
-    expect(h({ hold: true, ferskLast: true })).toBe('bygg')
-    expect(h({ hold: true, gpsPaa: false })).toBe('start-gps-og-bygg')
+  // GPS på, men ingen fix ennå: da vet vi ikke avstanden, og porten kan ikke
+  // avgjøres. Å bygge der ville brutt porten; å si «for nær» ville vært en
+  // påstand vi ikke har grunnlag for.
+  it('sentrerer når avstanden ikke er kjent', () => {
+    expect(h({ avstandM: null })).toBe('sentrer')
   })
 
   it('er deaktivert mens byggingen pågår', () => {
     expect(h({ bygger: true })).toBeNull()
-    expect(h({ bygger: true, hold: true })).toBeNull()
+    expect(h({ bygger: true, avstandM: 3000 })).toBeNull()
   })
 })
 
 describe('knappeEtikett', () => {
-  const grunn = { harArk: true, gpsPaa: true, utenforArket: false, ferskLast: false, bygger: false }
+  const grunn = { harArk: true, gpsPaa: true, ferskLast: false, bygger: false, avstandM: 0 }
   const e = (over = {}) => knappeEtikett({ ...grunn, ...over })
 
   // Etiketten er avledet av SAMME tilstand som handlingen, så den kan ikke
@@ -156,8 +207,9 @@ describe('knappeEtikett', () => {
   it('lover bygging nøyaktig når et tap faktisk bygger', () => {
     const tilstander = [
       { harArk: false, gpsPaa: false }, { harArk: false, gpsPaa: true },
-      { utenforArket: true }, { utenforArket: false },
-      { gpsPaa: false }, { ferskLast: true, utenforArket: true },
+      { avstandM: 0 }, { avstandM: 499 }, { avstandM: 500 }, { avstandM: 3000 },
+      { gpsPaa: false }, { ferskLast: true, avstandM: 3000 },
+      { avstandM: null },
     ]
     for (const t of tilstander) {
       const handling = knappeHandling({ ...grunn, ...t })
@@ -169,6 +221,19 @@ describe('knappeEtikett', () => {
 
   it('sier fra mens den bygger', () => {
     expect(e({ bygger: true })).toMatch(/bygger/i)
+  })
+})
+
+describe('forNaerTekst', () => {
+  // Grensa OG hvor man står. «Ikke ennå» uten tall er en vegg uten dør.
+  it('nevner både grensa og avstanden nå', () => {
+    const t = forNaerTekst(120)
+    expect(t).toContain(String(NYTT_KART_M))
+    expect(t).toContain('120 m')
+  })
+
+  it('tåler at avstanden mangler', () => {
+    expect(forNaerTekst(null)).toContain(String(NYTT_KART_M))
   })
 })
 

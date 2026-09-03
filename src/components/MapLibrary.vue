@@ -21,6 +21,7 @@ import { reverseGeocode } from '../lib/geocode.js'
 import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
+import { gpsFeilTekst, GPS_IKKE_STOTTET } from '../lib/gpsFeil.js'
 
 // Fanen eies av VERTEN: forsiden speiler den mot ?tab=, modalen setter den fra
 // menyvalget. Toveis, så brukeren kan bytte fane inne i begge.
@@ -412,7 +413,7 @@ const buildingProgress = ref('')
 async function onCreateHere() {
   if (buildingOnTheFly.value) return
   if (!supportsGeolocation) {
-    alert('Nettleseren støtter ikke GPS')
+    alert(GPS_IKKE_STOTTET)
     return
   }
   buildingOnTheFly.value = true
@@ -429,12 +430,7 @@ async function onCreateHere() {
   } catch (err) {
     buildingOnTheFly.value = false
     buildingProgress.value = ''
-    const map = {
-      1: 'GPS-tillatelse avvist',
-      2: 'GPS-posisjon ikke tilgjengelig',
-      3: 'GPS-forespørsel tok for lang tid',
-    }
-    alert(map[err.code] ?? 'GPS-feil — kan ikke opprette kart her')
+    alert(gpsFeilTekst(err.code, 'GPS-feil — kan ikke opprette kart her'))
     return
   }
   try {
