@@ -17,11 +17,9 @@ import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { useMapSizePreference, effectiveEquidistanceForWidthKm, defaultMapDims, aspectForFormat } from '../composables/useMapSizePreference.js'
 import { useNominatim } from '../composables/useNominatim.js'
 import { useSpeechInput } from '../composables/useSpeechInput.js'
-import { reverseGeocode } from '../lib/geocode.js'
 import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
-import { gpsFeilTekst, GPS_IKKE_STOTTET } from '../lib/gpsFeil.js'
 
 // Fanen eies av VERTEN: forsiden speiler den mot ?tab=, modalen setter den fra
 // menyvalget. Toveis, så brukeren kan bytte fane inne i begge.
@@ -34,6 +32,8 @@ const props = defineProps({
 // open-picker: verten bestemmer HVORDAN «Flere valg» åpnes — forsiden navigerer
 // til /nytt, hovedmenyen åpner Nytt turkart som modal oppå seg selv. Uten dette
 // navigerte knappen alltid, så i modalen forsvant både menyen og modalen.
+// Nyttelasten { gps: true } (fra søkefeltets pin-knapp) ber skjemaet hente
+// posisjonen og sentrere seg der straks det er oppe.
 const emit = defineEmits(['update:tab', 'open-picker'])
 
 const router = useRouter()
@@ -401,84 +401,16 @@ function storrelseFor(m) {
   return `${km(ark.widthM)} × ${km(ark.heightM)} km · ${ark.fliser} fliser`
 }
 
-// ── On-the-fly snarvei: «Lag kart der jeg er» ───────────────────────────
-// Krever GPS. Ett trykk → hent posisjon → bygg standard-kartet (squareDims/
-// squareEquidistance — 5 km kvadrat + 10 m med mindre brukeren har valgt annet),
-// åpne nytt kart sentrert på brukeren. Full-screen loader vises mens
-// pipelinen kjører (Overpass, N50, Sjøkart, WMS, DEM, buildSvg, saveMap).
+// ── Bygge-tilstand for søk → kart ───────────────────────────────────────
+// Søketreffet bygger fortsatt direkte (KISS-snarveien under). GPS-pinnen gjør
+// det IKKE lenger — den åpner skjemaet sentrert på posisjonen — så det som er
+// igjen her er full-screen-loaderen søke-flyten deler med den.
 const supportsGeolocation = typeof navigator !== 'undefined' && !!navigator.geolocation
 const buildingOnTheFly = ref(false)
 const buildingProgress = ref('')
 
-async function onCreateHere() {
-  if (buildingOnTheFly.value) return
-  if (!supportsGeolocation) {
-    alert(GPS_IKKE_STOTTET)
-    return
-  }
-  buildingOnTheFly.value = true
-  buildingProgress.value = 'Henter posisjon …'
-  let coords
-  try {
-    coords = await new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(
-        resolve,
-        reject,
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
-      )
-    })
-  } catch (err) {
-    buildingOnTheFly.value = false
-    buildingProgress.value = ''
-    alert(gpsFeilTekst(err.code, 'GPS-feil — kan ikke opprette kart her'))
-    return
-  }
-  try {
-    const stamp = new Date().toLocaleDateString('no-NO', { day: '2-digit', month: 'short' })
-    // Slå opp nærmeste stedsnavn så kartet får et gjenkjennelig navn («Stormoen
-    // 19. juli») i stedet for «Din posisjon». Best-effort — feiler oppslaget
-    // (offline / Nominatim nede) faller vi tilbake til «Min posisjon».
-    buildingProgress.value = 'Finner stedsnavn …'
-    let placeName = 'Min posisjon'
-    try {
-      const rev = await reverseGeocode(coords.coords.latitude, coords.coords.longitude)
-      if (rev?.placeLabel) placeName = rev.placeLabel
-    } catch { /* behold fallback */ }
-    const { id } = await buildMapFromCenter({
-      center: {
-        lat: coords.coords.latitude,
-        lon: coords.coords.longitude,
-        name: placeName,
-      },
-      // Kvadratisk utsnitt: beholder den skjerm-utledede høyden og utvider
-      // bredden så kartet blir kvadratisk (mer slingringsrom øst/vest).
-      ...squareDims(),
-      equidistanceM: squareEquidistance(), // auto: fineste tillatte for bredden (5/10/20 m)
-      navn: `${placeName} ${stamp}`,
-      terrainFirst: true,   // vis terreng straks, fyll inn OSM i bakgrunnen
-      onProgress: (msg) => { buildingProgress.value = msg },
-    })
-    // Be MapView starte GPS automatisk — brukeren har akkurat brukt sin
-    // posisjon til å lage kartet, og forventer at posisjons-prikken er
-    // synlig idet kartet åpnes. (I MapView-FAB-flyten er GPS allerede
-    // aktivt; her er det ikke.)
-    try {
-      sessionStorage.setItem(`mapview-init-prefs:${id}`, JSON.stringify({
-        autoStartGps: true,
-      }))
-    } catch { /* noop */ }
-    router.push({ name: 'kart-vis', params: { id } })
-  } catch (e) {
-    console.error('On-the-fly kart-bygging feilet:', e)
-    buildingOnTheFly.value = false
-    buildingProgress.value = ''
-    alert('Kunne ikke opprette kart: ' + (e.message ?? 'ukjent feil'))
-  }
-}
-
 // ── Søk → bygg direkte ──────────────────────────────────────────────────
-// Søkefeltet på forsiden er en KISS-snarvei (parallelt med «Lag kart der jeg
-// er»): velg et sted fra trefflista → bygg straks et standard 10 × 10 km,
+// Søkefeltet på forsiden er en KISS-snarvei: velg et sted fra trefflista → bygg straks et standard 10 × 10 km,
 // 20 m ekvidistanse-kart sentrert der, og åpne det. Ingen mellomside med
 // størrelse/ekvidistanse-valg — det ligger fortsatt under «Flere valg»
 // (MapPickerView) for de som vil finjustere.
@@ -604,12 +536,15 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
     </button>
   </div>
 
-  <!-- Søkefelt med integrert GPS-knapp (v10.1.24). Søk = hovedflyten: velg
-       et sted → bygg straks et A-format-kart. Den grønne pin-knappen til
-       høyre er en forlengelse av feltet og lager kart der du står (GPS).
+  <!-- Søkefelt med integrert GPS-knapp. Søk = hovedflyten: velg et sted →
+       bygg straks et kart. Den grønne pin-knappen til høyre HENTER BARE
+       posisjonen og åpner det samme skjemaet som «Flere valg», sentrert der
+       du står — den bygger ingenting. Det gjør de to inngangene like: begge
+       ender i skjemaet, forskjellen er bare om senteret er søkt opp eller
+       målt. (Fram til v6.5.28 bygde den et kart direkte, og var da en
+       nøyaktig dublett av den store CTA-en i tom-tilstanden under.)
        Hjelpeteksten under forklarer knappen siden pin-ikonet alene ikke er
-       helt selvforklarende. Den tidligere store grønne CTA-en er fjernet —
-       den dominerte over søkefeltet. -->
+       helt selvforklarende. -->
   <div class="relative z-20 mb-1.5">
     <div class="relative">
       <svg viewBox="0 0 24 24" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/50"
@@ -644,9 +579,9 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
           </svg>
         </button>
         <button v-if="supportsGeolocation"
-                @click="onCreateHere"
+                @click="emit('open-picker', { gps: true })"
                 :disabled="buildingOnTheFly"
-                aria-label="Lag kart der jeg står (GPS)"
+                aria-label="Åpne valg sentrert der jeg står (GPS)"
                 class="w-10 h-10 rounded-lg bg-emerald-500 text-white flex items-center justify-center
                        shadow-md active:scale-95 transition disabled:opacity-60">
           <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
@@ -688,7 +623,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
       <circle cx="12" cy="10" r="3"/>
       <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>
     </svg>
-    <span>Søk etter et sted — eller trykk den grønne knappen for å lage kart der du står.</span>
+    <span>Søk etter et sted — eller trykk den grønne knappen for å åpne valgene der du står.</span>
   </div>
   <div v-if="searchError" class="-mt-2 mb-4 px-1 text-[11px] text-slate-300">{{ searchError }}</div>
 
@@ -803,29 +738,17 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
       <path d="M9 4 V18 M15 6 V20"/>
     </svg>
     <div class="mt-4 text-[15px] font-semibold text-ink/80">Ingen egne kart ennå</div>
+    <!-- v6.5.28: den store grønne CTA-en «Lag kart der du står» er fjernet.
+         Den gjorde nøyaktig det samme som pin-knappen i søkefeltet rett over,
+         og to grønne knapper med samme handling på samme skjerm er ikke et
+         valg — det er en gjetning om hvilken som er den ekte. Teksten peker
+         nå på inngangene som står der. -->
     <div v-if="supportsGeolocation" class="mt-1.5 text-[13px] text-ink/45 leading-relaxed max-w-[18rem]">
-      Lag ditt første turkart der du står — eller søk opp et sted øverst.
+      Søk opp et sted øverst — eller trykk den grønne pin-knappen for å starte der du står.
     </div>
     <div v-else class="mt-1.5 text-[13px] text-ink/45 leading-relaxed max-w-[18rem]">
       Søk opp et sted øverst for å lage ditt første turkart.
     </div>
-
-    <!-- Full-bredde grønn primær-CTA: lag kart der jeg står (GPS). Samme
-         handler som den integrerte GPS-knappen i søkefeltet. Kun når GPS
-         støttes — uten posisjon faller vi tilbake til søk. -->
-    <button v-if="supportsGeolocation"
-            @click="onCreateHere"
-            :disabled="buildingOnTheFly"
-            class="mt-5 w-full py-3.5 rounded-xl bg-emerald-500 text-white font-semibold
-                   flex items-center justify-center gap-2 shadow-md
-                   active:scale-[0.99] transition disabled:opacity-60">
-      <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
-           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="10" r="3"/>
-        <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>
-      </svg>
-      <span>Lag kart der du står</span>
-    </button>
   </div>
 
   <!-- Slett alle (vises kun når brukeren har lagrede kart). Linje 2 er

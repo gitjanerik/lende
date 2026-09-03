@@ -1,3 +1,26 @@
+## 2026-09-03 — v6.5.28: Én vei inn til et nytt kart, og forhåndsvisningen står først
+
+Forsiden hadde to grønne knapper som gjorde nøyaktig det samme — den store
+«Lag kart der du står» i tom-tilstanden og pin-knappen i søkefeltet — og to
+identiske primærhandlinger på samme skjerm er ikke et valg, det er en gjetning
+om hvilken som er den ekte. Den store er borte. Pin-knappen bygger ikke lenger
+selv: den henter posisjonen og åpner det samme skjemaet som «Flere valg»,
+sentrert der du står, så begge inngangene ender på samme sted og forskjellen er
+bare om senteret er søkt opp eller målt. Kan ikke posisjonen hentes, sier
+skjemaet fra i en egen boks i lesbar størrelse i stedet for elleve piksler grå
+tekst. I skjemaet heter navnefeltets overskrift nå «Navn på kart», som er det
+feltet alltid har vært — den gamle overskriften beskrev koordinatlinja under,
+og den er fjernet: senteret velges i forhåndsvisningen, ikke i fire desimaler.
+Forhåndsvisningen er flyttet opp rett under navnet, foran Bredde, Høydekurver
+og Format, fordi utsnittet er hovedvalget og de tre andre justerer noe man da
+allerede ser. Og gest-flaten har fått en port: en bryter under overskriften,
+av som standard, med den gamle overskriftsteksten som label. Uten den traff
+hvert drag forbi previewen kartet i stedet for siden, og utsnittet flyttet seg
+uten at noen ba om det. Previewen har i tillegg 50 piksler luft på hver side,
+så det finnes en renne som alltid ruller siden.
+
+---
+
 ## 2026-09-03 — v6.5.27: Fritt lende måler avstanden fra senter, og porten er 500 m
 
 Linjalen bærer nå «N m fra senter» i stedet for ekvidistansen så snart en
