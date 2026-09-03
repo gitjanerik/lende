@@ -178,11 +178,13 @@ describe('knappeHandling', () => {
   // AVSTANDSPORTEN (v6.5.27). Den avløste «tap kan aldri bygge mens du står på
   // arket»: grensa er nå en avstand og ikke en arkkant, med samme tall som står
   // på linjalen.
-  it('PORTEN: bygger ved 500 m og ikke før', () => {
+  // Tallet leses av konstanten og skrives ikke av: porten er flyttet én gang
+  // (500 → 250 i v6.5.29), og en test med tallet i seg blir grønn på feil grunn.
+  it('PORTEN: bygger ved grensa og ikke før', () => {
     expect(h({ avstandM: 0 })).toBe('for-naer')
-    expect(h({ avstandM: 499 })).toBe('for-naer')
+    expect(h({ avstandM: NYTT_KART_M - 1 })).toBe('for-naer')
     expect(h({ avstandM: NYTT_KART_M })).toBe('bygg')
-    expect(h({ avstandM: 1400 })).toBe('bygg')
+    expect(h({ avstandM: NYTT_KART_M * 3 })).toBe('bygg')
   })
 
   // GPS på, men ingen fix ennå: da vet vi ikke avstanden, og porten kan ikke
@@ -207,7 +209,8 @@ describe('knappeEtikett', () => {
   it('lover bygging nøyaktig når et tap faktisk bygger', () => {
     const tilstander = [
       { harArk: false, gpsPaa: false }, { harArk: false, gpsPaa: true },
-      { avstandM: 0 }, { avstandM: 499 }, { avstandM: 500 }, { avstandM: 3000 },
+      { avstandM: 0 }, { avstandM: NYTT_KART_M - 1 }, { avstandM: NYTT_KART_M },
+      { avstandM: 3000 },
       { gpsPaa: false }, { ferskLast: true, avstandM: 3000 },
       { avstandM: null },
     ]
@@ -230,6 +233,9 @@ describe('forNaerTekst', () => {
     const t = forNaerTekst(120)
     expect(t).toContain(String(NYTT_KART_M))
     expect(t).toContain('120 m')
+    // Avstanden må si hva den måles FRA — «du er 120 m unna» leses som «120 m
+    // fra å kunne bygge», altså stikk motsatt av det tallet betyr.
+    expect(t).toContain('fra midten av kartet')
   })
 
   it('tåler at avstanden mangler', () => {

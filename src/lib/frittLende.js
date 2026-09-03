@@ -138,7 +138,11 @@ export function fixVurdering({ accuracyM, ventetMs }) {
 // Tallet er også porten under: et nytt ark bygget 50 m fra det gamle senteret er
 // nesten det samme arket, hentet på nytt over 5–30 sekunders Overpass og
 // Kartverket. Grensa gjør den bomturen umulig i stedet for å advare mot den.
-export const NYTT_KART_M = 500
+//
+// 500 m fra v6.5.27 til v6.5.29. Eieren senket den til 250: et halvt kilometer
+// er langt å gå for å få lov, og 250 m flytter fortsatt arkkanten en åttendedel
+// av arkbredden — nok til at det nye arket er et annet ark.
+export const NYTT_KART_M = 250
 
 // svgX/svgY er kartets eget koordinatrom, som ER bakke-meter (viewBox
 // `0 0 widthM heightM`) — så dette er en rett euklidsk avstand og ingen
@@ -220,10 +224,13 @@ export function knappeEtikett(tilstand) {
 
 // Meldingen når porten er stengt. Den sier BÅDE grensa og hvor man står, fordi
 // «ikke ennå» uten et tall er en vegg uten dør: med begge er den en avstand man
-// kan gå ferdig.
+// kan gå ferdig. Avstanden må navngi hva den måles FRA: «du er 10 m unna» leste
+// eieren som «10 m fra å kunne bygge», altså stikk motsatt av det den sier.
 export function forNaerTekst(avstandM) {
-  const naa = Number.isFinite(avstandM) ? `${Math.round(avstandM / 10) * 10} m` : 'mindre'
-  return `Nytt utsnitt først når du er ${NYTT_KART_M} m fra midten av kartet — du er ${naa} unna.`
+  const grense = `Nytt utsnitt først ${NYTT_KART_M} m fra midten av kartet.`
+  if (!Number.isFinite(avstandM)) return grense
+  const naa = Math.round(avstandM / 10) * 10
+  return `Du står ${naa} m fra midten av kartet — nytt utsnitt først på ${NYTT_KART_M} m.`
 }
 
 // ── Arkets alder ────────────────────────────────────────────────────────────

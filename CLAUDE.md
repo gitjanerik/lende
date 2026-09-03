@@ -262,7 +262,7 @@ blindtrykket. Den som vil ha et kart som varer, har allerede `/nytt`.
    alltid av, så det er alltid nøyaktig ETT trykk mellom å åpne modusen og å
    erstatte arket. Dette er svaret på at posisjonen din er et helt annet sted i
    dag enn da arket ble bygget.
-2. *Ingenting bygger før du er 500 m fra arkets senter* (`NYTT_KART_M`). Se
+2. *Ingenting bygger før du er 250 m fra arkets senter* (`NYTT_KART_M`). Se
    avstandsporten under — den avløste «tap kan aldri bygge mens du står på
    arket» i v6.5.27.
 3. *Det gamle arket slettes aldri før det nye er ferdig bygget og tegnet.* Det er
@@ -272,7 +272,7 @@ blindtrykket. Den som vil ha et kart som varer, har allerede `/nytt`.
 
 **AVSTANDSPORTEN ER MODUSENS ENE TALL, OG DEN AVLØSTE ARKKANTEN (v6.5.27).**
 Linjalen bærer «N m fra senter» så snart en posisjon er kjent, og ved
-`NYTT_KART_M` = 500 m skifter tallet til aksentfarge. Det er SAMME grense
+`NYTT_KART_M` = 250 m skifter tallet til aksentfarge. Det er SAMME grense
 knappen står bak: over den bygger et trykk et nytt ark, under den sentrerer det
 og svarer med `forNaerTekst`. Den gamle regelen — «tap kan aldri bygge mens du
 står på arket», med et lang-trykk som eneste vei ut — var bygget rundt samme

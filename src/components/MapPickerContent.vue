@@ -839,11 +839,18 @@ onMounted(() => {
          @mouseup="onPreviewMouseUp"
          @mouseleave="onPreviewMouseUp"
          @wheel="onPreviewWheel">
+      <!-- `max-w-none` er IKKE pynt: Tailwinds preflight setter
+           `img { max-width: 100% }`, og flisene er absolutt plassert 256 px fra
+           hverandre. Er containeren smalere enn 256 — 204 px på en 360 px-telefon
+           etter modalens p-3, seksjonens px-4 og previewens mx-[50px] — klemmes
+           HVER flis inn til containerbredden mens posisjonene blir stående, så
+           det står en svart renne mellom hver flisekolonne. Høyden er inline og
+           uberørt, derfor er båndene loddrette og bare loddrette. -->
       <!-- OSM-underlag: dekker globalt (også Sverige) så grensenære utsnitt
            ikke blir blanke der Kartverket-topo mangler. -->
       <img v-for="t in tiles" :key="'osm-' + t.url"
            :src="t.osmUrl" alt=""
-           class="absolute pointer-events-none select-none"
+           class="absolute max-w-none pointer-events-none select-none"
            :style="{ left: t.leftPx + 'px', top: t.topPx + 'px', width: '256px', height: '256px' }"
            draggable="false" />
       <!-- Ekte Kartverket-tiler OVER OSM. Tiles flyttes når bruker drar
@@ -851,7 +858,7 @@ onMounted(() => {
            Skjules ved feil (utenfor norsk dekning) → OSM-underlaget viser. -->
       <img v-for="t in tiles" :key="t.url"
            :src="t.url" alt=""
-           class="absolute pointer-events-none select-none"
+           class="absolute max-w-none pointer-events-none select-none"
            :style="{ left: t.leftPx + 'px', top: t.topPx + 'px', width: '256px', height: '256px' }"
            draggable="false" @error="onTopoTileError" />
 

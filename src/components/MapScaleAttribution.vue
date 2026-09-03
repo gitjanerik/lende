@@ -22,7 +22,7 @@
 // uendret.
 //
 // `avstandNaadd` er en TILSTAND og ikke en farge på kallstedet: linjalen eier
-// sitt eget uttrykk, og porten (500 m) bor i lib/frittLende.js.
+// sitt eget uttrykk, og porten (NYTT_KART_M) bor i lib/frittLende.js.
 defineProps({
   visible: { type: Boolean, default: false },
   scaleBar: { type: Object, default: () => ({ px: 0, ticks: [], label: '' }) },
