@@ -1,3 +1,38 @@
+## 2026-09-03 — v6.5.31: Fritt lende får én tekststørrelse, markerbar tekst og en knapp som sier hva den gjør
+
+Oppdaterings-banneret sto i full bredde mens det ventet på et halvbygd kart.
+Teksten var riktig, men en boks over hele skjermen leses som et modalt lag — den
+ser ut til å sperre hovedmenyen og Lende-knappen, som den aldri gjorde. I arbeid
+er den nå en chip like bred som innholdet; ledig, med knapp, står den som før.
+
+Tomtilstanden i Fritt lende hadde tre tekststørrelser, og et hint i 12 px er det
+ingen som leser på en skjerm der det er det eneste som står. Nå er alt i modusen
+én størrelse, overskriften bærer forskjellen med vekt alene, og teksten følger
+hovedmenyens 100/125/150-valg — noe den som eneste tekstflate i appen ikke gjorde.
+Hintet om «Nøyaktig posisjon» sier nå HVOR innstillingen bor: under tillatelser
+for nettstedet i nettleserens egne innstillinger, som en engangsinnstilling.
+Eieren fant den ikke selv, og uten den er dette den stille feilen — omtrentlig
+plassering svarer med en fix, arket bygges, og det ser like ekte ut selv om det
+er sentrert kilometer unna. Til slutt et «God tur i fritt lende».
+
+`select-none` er flyttet fra roten til kart-flata. Den er der for gestene, men på
+roten arvet hver eneste tekst i modusen den, og da kan ingen markere noe for
+opplesing eller oversettelse. Overleggene er ren tekst over et ark og har ingen
+gest å beskytte.
+
+Knappen — modusens eneste kontroll — står nå i logoens egen gul med en myk glød
+fram til første trykk, og har fått en bue innenfor sikteringen som ekko av
+høydekurvene i merket. Over den peker en boble ned på knappen med teksten «GPS
+på? Trykk her for å hente kart», én gang, til første trykk. Et siktekors i
+chrome-grått leses som «vis hvor jeg er», ikke som «hent et kart».
+
+En tom «Mine kart» får en snarvei til Fritt lende. Modusen bor bare i
+hovedmenyen, og en tom liste er nøyaktig der noen står som ville hatt et kart
+uten skjemaet over. På /om er versjonsnummeret ute av Fritt lende-fanen, og de to
+avsnittene som fortsatt sa 500 meter er rettet til 250 — de ble glemt i v6.5.29.
+
+---
+
 ## 2026-09-03 — v6.5.30: Tomtilstanden i Fritt lende ber om posisjon, ikke om nett
 
 Under «Trykk knappen nede til høyre» sto det «Krever nett.» i kursiv. Eieren

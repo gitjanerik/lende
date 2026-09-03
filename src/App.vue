@@ -80,9 +80,16 @@ const busyLabel = computed(() =>
       <div v-if="updateAvailable"
            class="fixed inset-x-0 z-[100] flex justify-center px-3 pointer-events-none"
            :style="{ bottom: 'max(env(safe-area-inset-bottom, 0px), 0.75rem)' }">
-        <div class="pointer-events-auto w-full max-w-[420px] flex items-center gap-3
+        <!-- Bredden følger tilstanden. Ledig har en knapp til høyre og trenger
+             en fast boks; i arbeid er det bare en spinner og en linje tekst, og
+             en full boks over hele skjermen leses da som et modalt lag — den
+             ser ut til å sperre hovedmenyen og Lende-knappen, som den ikke gjør.
+             `w-fit` gjør chipen like bred som innholdet; taket holder den fra å
+             sprenge skjermen når teksten skaleres opp. -->
+        <div class="pointer-events-auto flex items-center gap-3
                     rounded-xl px-4 py-3 bg-surface-2/95 backdrop-blur border border-ink/15
-                    shadow-2xl text-[13px]">
+                    shadow-2xl text-[13px]"
+             :class="busy ? 'w-fit max-w-[min(26rem,92vw)]' : 'w-full max-w-[420px]'">
           <!-- I arbeid: spinner. Ledig: oppdater-ikon. -->
           <span v-if="busy"
                 class="w-5 h-5 shrink-0 rounded-full border-2 border-emerald-300/30
@@ -91,7 +98,7 @@ const busyLabel = computed(() =>
                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/>
           </svg>
-          <span class="flex-1 leading-snug">
+          <span class="leading-snug" :class="busy ? '' : 'flex-1'">
             {{ busy ? busyLabel : 'Ny versjon tilgjengelig' }}
           </span>
           <button v-if="!busy" @click="onUpdate"

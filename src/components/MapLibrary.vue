@@ -749,6 +749,32 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
     <div v-else class="mt-1.5 text-[13px] text-ink/45 leading-relaxed max-w-[18rem]">
       Søk opp et sted øverst for å lage ditt første turkart.
     </div>
+
+    <!-- Snarvei til Fritt lende (v6.5.31). Modusen bor bare i hovedmenyen, og
+         en tom liste er nøyaktig der noen står som ville hatt et kart uten
+         skjemaet over. Den står UNDER teksten og som en tonet knapp og ikke en
+         grønn CTA: skjemaet er fortsatt hovedveien, dette er alternativet for
+         den som ikke vil ha det. `router.push` og ikke en <a>: modusen skrives
+         aldri til `lende-last-mode`, så inngangen må gå gjennom ruteren som
+         resten av appen. -->
+    <button type="button" @click="router.push('/fritt')"
+            class="mt-5 w-full max-w-[20rem] px-4 py-3 rounded-xl border transition
+                   bg-amber-400/[0.08] border-amber-400/30 text-left
+                   active:bg-amber-400/15 active:scale-[0.99]">
+      <span class="block text-[13px] text-ink/60 leading-relaxed">
+        Vil du bare ha et turkart uten noe mer fuzz?
+      </span>
+      <span class="mt-1 flex items-center gap-1.5 text-[14px] font-semibold text-ink/90">
+        Prøv «Fritt lende»
+        <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14M13 6l6 6-6 6"/>
+        </svg>
+      </span>
+      <span class="block mt-0.5 text-[12px] text-ink/45">
+        Ett kart, én knapp — god tur.
+      </span>
+    </button>
   </div>
 
   <!-- Slett alle (vises kun når brukeren har lagrede kart). Linje 2 er

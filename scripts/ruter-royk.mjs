@@ -132,6 +132,45 @@ try {
   sjekk('Fritt lende skriver ikke lende-last-mode', skrevet !== 'fritt',
     skrevet === null ? 'ikke satt' : `satt til ${skrevet}`)
 
+  // Tom-tilstanden er den ENESTE skjermen som møter en ny bruker, og den er
+  // usynlig for de andre Fritt lende-sjekkene: de kjører med et seedet ark, så
+  // `meta` er sann og hele denne grenen rendres aldri. Tre ting måles.
+  //
+  // 1. Teksten skal kunne MARKERES (v6.5.31). `select-none` lå på roten og
+  //    arvet ned i hver eneste tekstflate; den hører hjemme på kart-flata, som
+  //    er den som har en gest å beskytte. En bruker som vil ha teksten lest
+  //    høyt må kunne ta tak i den, og regresjonen er én klasse på feil element.
+  // 2. Boblen ved knappen vises til første trykk og aldri igjen.
+  // 3. Trykket kvitterer den ut — og sjekken RYDDER etter seg (nøkkelen
+  //    slettes), så neste kjøring møter en fersk bruker.
+  const tom = await s4.evaluate(() => {
+    const el = [...document.querySelectorAll('p')].find((n) => /God tur i fritt lende/i.test(n.textContent))
+    return {
+      tekst: document.body.innerText,
+      markerbar: el ? getComputedStyle(el).userSelect !== 'none' : false,
+    }
+  })
+  sjekk('Fritt lende: tom-tilstanden forklarer posisjon og ønsker god tur',
+    /innstillinger/i.test(tom.tekst) && /God tur i fritt lende/i.test(tom.tekst),
+    'nevner nettleser-innstillingene og god tur')
+  sjekk('Fritt lende: tom-tilstandens tekst kan markeres', tom.markerbar,
+    tom.markerbar ? 'user-select arves ikke fra roten' : 'select-none arves ned i teksten')
+  sjekk('Fritt lende: førstegangs-boblen peker på knappen',
+    /GPS på\?/.test(tom.tekst), 'boblen vises før første trykk')
+
+  await s4.locator('button[aria-label]').first().click()
+  await sov(400)
+  const etterTrykk = await s4.evaluate(() => ({
+    boble: /GPS på\?/.test(document.body.innerText),
+    sett: localStorage.getItem('lende-fritt-tips-sett'),
+  }))
+  sjekk('Fritt lende: boblen kvitteres ut av første trykk',
+    !etterTrykk.boble && etterTrykk.sett === '1',
+    etterTrykk.boble ? 'boblen står igjen' : 'skjult og husket')
+  // Nøytral tilstand: neste kjøring — og neste sjekk i denne — skal møte en
+  // bruker som ikke har trykket ennå.
+  await s4.evaluate(() => localStorage.removeItem('lende-fritt-tips-sett'))
+
   // Modusens VIKTIGSTE invariant: arket kommer opp fra IndexedDB uten et
   // eneste eksternt kall. Telefonen kan ha drept appen mens du sto på fjellet
   // uten dekning, og da skal kartet være der når du åpner den igjen.
@@ -336,8 +375,12 @@ try {
   await sov(300)
   const frittTekst = await s6.evaluate(() => document.body.innerText)
   sjekk('/om: Fritt lende-fanen forklarer modusen',
-    /supplement/i.test(frittTekst) && /versjon 6\.5/i.test(frittTekst),
-    'nevner supplement og versjon')
+    // Ankeret er hva fanen SIER om modusen, ikke hvilken versjon den kom i.
+    // Versjonsnummeret sto her og ble fjernet fra teksten i v6.5.31: en fane
+    // som forklarer modusen er poenget, og et årstall i en assertion gjør
+    // sjekken rød av en helt vanlig redigering.
+    /supplement/i.test(frittTekst) && /2 × 2 km/.test(frittTekst),
+    'nevner supplement og arkstørrelsen')
 
   // Deep-lenker skal IKKE røres av hooken.
   const s3 = await ctx.newPage()

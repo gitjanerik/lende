@@ -370,8 +370,8 @@ async function onInstallClick() {
         <div class="space-y-2">
           <h3 class="text-sm font-semibold text-ink/85">Hva det er</h3>
           <p class="text-[13px] leading-relaxed text-ink/70">
-            En avkledd turkartmodus, levert i <strong class="text-ink/90">versjon 6.5</strong>
-            som et <strong class="text-ink/90">supplement</strong> til turkartet — ikke en
+            En avkledd turkartmodus, et <strong class="text-ink/90">supplement</strong>
+            til turkartet — ikke en
             erstatning. Små, kvadratiske ark på 2 × 2 km som lages på farta: nærtur i
             skog og mark, der du har dekning og bare vil se et kart. Ett kart, én
             knapp, ingen innstillinger.
@@ -392,11 +392,11 @@ async function onInstallClick() {
               bare GPS</strong>. Da er det alltid ett trykk mellom å komme inn og å
               bytte ark — nyttig, siden du som regel står et helt annet sted i dag
               enn da forrige ark ble laget.</li>
-            <li>Nærmere enn <strong class="text-ink/90">500 meter</strong> fra midten
+            <li>Nærmere enn <strong class="text-ink/90">250 meter</strong> fra midten
               sentrerer et trykk kartet på deg, og sier når et nytt utsnitt blir
               tilgjengelig. Der ville et nytt ark vært nesten det samme arket, hentet
               på nytt.</li>
-            <li>Har du gått <strong class="text-ink/90">500 meter eller mer</strong> —
+            <li>Har du gått <strong class="text-ink/90">250 meter eller mer</strong> —
               tallet under målestokken skifter farge — lager neste trykk et nytt ark
               med deg i midten, og telleren starter på null igjen. Det gamle blir
               liggende til det nye er ferdig tegnet, så et feiltrykk kan ikke
