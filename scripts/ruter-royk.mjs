@@ -289,20 +289,30 @@ try {
     /fra senter/.test(etterFix.avstand), etterFix.avstand || 'ingen avstandslinje')
 
   // AVSTANDSPORTEN (v6.5.27). Posisjonen over ligger på arkets senter, altså
-  // godt under 500 m — et trykk skal da IKKE bygge, men si når det blir mulig.
+  // godt under grensa — et trykk skal da IKKE bygge, men si når det blir mulig.
   // Sjekken trykker på ekte knapp; ruta er avskåret, så en bygging her ville
   // dessuten blitt en feilmelding og ikke et nytt ark.
+  //
+  // Meldingen matches uten hensyn til STORE og små bokstaver og uten tallet i
+  // seg: grensa er flyttet én gang (500 → 250 i v6.5.29), og setningen ble
+  // samtidig skrevet om slik at «nytt utsnitt først» havnet midt i den. En
+  // sjekk med versalen eller tallet bakt inn blir rød av en tekstendring og
+  // grønn av feil grunn når grensa flyttes.
   await s5.locator('button[aria-label]').first().click()
   await sov(600)
   const porten = await s5.evaluate(() => ({
-    melding: /Nytt utsnitt først/.test(document.body.innerText),
+    melding: /nytt utsnitt først/i.test(document.body.innerText),
+    // Avstanden må navngi hva den måles FRA (v6.5.29) — «du er 10 m unna»
+    // leses som «10 m fra å kunne bygge», altså stikk motsatt av tallet.
+    fraSenter: /fra midten av kartet/i.test(document.body.innerText),
     // Etiketten er avledet av samme tilstand som handlingen og skal ikke love
     // et nytt kart under porten.
     etikett: document.querySelector('button[aria-label]')?.getAttribute('aria-label') ?? '',
     bygger: [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Avbryt'),
   }))
-  sjekk('Fritt lende: porten stopper nytt ark under 500 m og sier hvorfor',
-    porten.melding && !porten.bygger, porten.bygger ? 'bygde likevel' : (porten.melding ? 'melding vist' : 'ingen melding'))
+  sjekk('Fritt lende: porten stopper nytt ark på senteret og sier hvorfor',
+    porten.melding && porten.fraSenter && !porten.bygger,
+    porten.bygger ? 'bygde likevel' : (porten.melding ? (porten.fraSenter ? 'melding vist' : 'meldingen sier ikke hva avstanden måles fra') : 'ingen melding'))
   sjekk('Fritt lende: knappen lover ikke nytt kart under porten',
     !/lag .*kart/i.test(porten.etikett), porten.etikett)
 

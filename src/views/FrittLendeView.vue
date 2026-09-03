@@ -517,7 +517,17 @@ const arkDato = computed(() => (opprettet.value
         <div class="text-lg font-semibold text-ink">Fritt lende</div>
         <p class="mt-2 text-sm">Trykk knappen nede til høyre.<br>
           Du får et kart på 2 × 2 km med deg selv i midten.</p>
-        <p class="mt-3 text-xs italic">Krever nett.</p>
+        <!-- Hintet handler om POSISJON og ikke om nett (v6.5.29). «Krever nett»
+             sto her i kursiv, men er implisitt for et kart som bygges av
+             Overpass og Kartverket — og hovedmenyen sier det allerede. Det
+             brukeren faktisk må gjøre for at knappen skal virke, er å slippe
+             til posisjonen; «omtrentlig» plassering i nettleseren er den
+             stille feilen, for den svarer med en fix som kan bomme med
+             kilometer og arket ser like ekte ut. -->
+        <p class="mt-3 text-xs leading-relaxed">
+          Slå på posisjon når nettleseren spør.<br>
+          Velg «Nøyaktig posisjon» — omtrentlig plassering kan bomme med kilometer.
+        </p>
       </div>
     </div>
 

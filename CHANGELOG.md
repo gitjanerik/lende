@@ -1,3 +1,23 @@
+## 2026-09-03 — v6.5.30: Tomtilstanden i Fritt lende ber om posisjon, ikke om nett
+
+Under «Trykk knappen nede til høyre» sto det «Krever nett.» i kursiv. Eieren
+leste plasseringen som rar, og den er det: nett er implisitt for et ark som
+bygges av Overpass og Kartverket i det du trykker, og hovedmenyen sier det
+allerede. Det brukeren faktisk må gjøre for at knappen skal virke, sto ikke
+noe sted — slippe til posisjonen, og velge «Nøyaktig posisjon» framfor
+omtrentlig. Den siste er den stille feilen: omtrentlig plassering svarer med en
+fix, arket bygges, og det ser like ekte ut selv om det er sentrert kilometer
+fra der du står.
+
+Samtidig er røyk-sjekken for avstandsporten rettet. Den lette etter «Nytt
+utsnitt først» med versal N, mens setningen i v6.5.29 ble skrevet om slik at
+frasen havnet midt i den. Porten virket, sjekken bommet. Den matcher nå uten
+hensyn til store og små bokstaver og uten grensa i seg, og krever i tillegg at
+meldingen navngir hva avstanden måles fra — en sjekk med tallet bakt inn blir
+grønn av feil grunn neste gang grensa flyttes.
+
+---
+
 ## 2026-09-03 — v6.5.29: Flisene får sin fulle bredde igjen, og porten er 250 m
 
 Forhåndsvisningen i «Nytt turkart» fikk loddrette svarte renner mellom
