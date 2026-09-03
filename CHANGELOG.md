@@ -1,3 +1,39 @@
+## 2026-09-03 — v6.5.30: Tomtilstanden i Fritt lende ber om posisjon, ikke om nett
+
+Under «Trykk knappen nede til høyre» sto det «Krever nett.» i kursiv. Eieren
+leste plasseringen som rar, og den er det: nett er implisitt for et ark som
+bygges av Overpass og Kartverket i det du trykker, og hovedmenyen sier det
+allerede. Det brukeren faktisk må gjøre for at knappen skal virke, sto ikke
+noe sted — slippe til posisjonen, og velge «Nøyaktig posisjon» framfor
+omtrentlig. Den siste er den stille feilen: omtrentlig plassering svarer med en
+fix, arket bygges, og det ser like ekte ut selv om det er sentrert kilometer
+fra der du står.
+
+Samtidig er røyk-sjekken for avstandsporten rettet. Den lette etter «Nytt
+utsnitt først» med versal N, mens setningen i v6.5.29 ble skrevet om slik at
+frasen havnet midt i den. Porten virket, sjekken bommet. Den matcher nå uten
+hensyn til store og små bokstaver og uten grensa i seg, og krever i tillegg at
+meldingen navngir hva avstanden måles fra — en sjekk med tallet bakt inn blir
+grønn av feil grunn neste gang grensa flyttes.
+
+---
+
+## 2026-09-03 — v6.5.29: Flisene får sin fulle bredde igjen, og porten er 250 m
+
+Forhåndsvisningen i «Nytt turkart» fikk loddrette svarte renner mellom
+flisekolonnene på en 360 px-telefon. Årsaken er Tailwinds preflight, som setter
+`img { max-width: 100% }`: flisene er absolutt plassert 256 px fra hverandre, og
+er containeren smalere enn det — 204 px etter modalens polstring, seksjonens og
+previewens nye `mx-[50px]` — klemmes hver flis inn til containerbredden mens
+posisjonene blir stående. Høyden er inline og uberørt, og det er nettopp derfor
+båndene var loddrette og bare loddrette. Målt i Chromium på 360 px: 226 px flis i
+en 228 px boks før, 256 px etter. `max-w-none` på begge fliselagene retter det.
+Samtidig er avstandsporten i Fritt lende senket fra 500 til 250 m, og teksten når
+porten er stengt sier nå hva avstanden måles fra — «du er 10 m unna» ble lest som
+«10 m fra å kunne bygge», altså stikk motsatt av det tallet betyr.
+
+---
+
 ## 2026-09-03 — v6.5.28: Én vei inn til et nytt kart, og forhåndsvisningen står først
 
 Forsiden hadde to grønne knapper som gjorde nøyaktig det samme — den store
