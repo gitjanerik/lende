@@ -5,7 +5,7 @@
 // med sine watches bor her. Forelderen eier SVG-verten og inset-refene;
 // composablen mottar refs destrukturert. Selve arket rendres av
 // ContextMenuSheet, handlings-knappene av forelderen.
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { svgToWgs84 } from '../lib/utm.js'
 import { sampleElevation } from '../lib/demSampling.js'
 import { fetchLakeData } from '../lib/nveLakeFetcher.js'
@@ -83,6 +83,38 @@ export function useContextLookups({
     lpEvent = null
   }
 
+  // ── Vakt mot nettleserens EGEN long-press ────────────────────────────────
+  // Android fyrer sin `contextmenu` og starter et tekstutvalg på det samme
+  // holdet som åpnet punkt-arket — og da ligger arket allerede under fingeren.
+  // Kartflaten er `select-none`, men arket er det ikke (teksten SKAL kunne
+  // markeres for opplesing), så koordinatlinja ble markert nesten hver gang.
+  //
+  // Vakten står fra vår timer fyrer til fingeren slippes, og dreper
+  // `selectstart` + `contextmenu` i nøyaktig den luka. Utenfor den er teksten
+  // helt vanlig: ingen `user-select: none`, ingen `pointer-events: none` —
+  // som var kravet.
+  //
+  // `contextmenu` svelges også med stopPropagation, ellers ville wrapperens
+  // egen handler åpnet det samme arket en gang til rett etterpå.
+  let slippVakt = null
+  function armerNativVakt() {
+    if (slippVakt) return
+    const sluk = (e) => { e.preventDefault(); e.stopPropagation() }
+    const slipp = () => slippVakt?.()
+    document.addEventListener('selectstart', sluk, true)
+    document.addEventListener('contextmenu', sluk, true)
+    window.addEventListener('pointerup', slipp, true)
+    window.addEventListener('pointercancel', slipp, true)
+    slippVakt = () => {
+      document.removeEventListener('selectstart', sluk, true)
+      document.removeEventListener('contextmenu', sluk, true)
+      window.removeEventListener('pointerup', slipp, true)
+      window.removeEventListener('pointercancel', slipp, true)
+      slippVakt = null
+    }
+  }
+  onBeforeUnmount(() => slippVakt?.())
+
   // Klient-koordinat → viewBox-meter. Bruker den browser-uavhengige matte-
   // inversen fra useMapExtend (clientToSvg) i stedet for svg.getScreenCTM():
   // sistnevnte regner IKKE med CSS-transformen (pan/zoom/rotasjon) på kartets
@@ -135,6 +167,9 @@ export function useContextLookups({
     lpStartY = e.clientY
     lpEvent = { clientX: e.clientX, clientY: e.clientY }
     lpTimer = setTimeout(() => {
+      // Armeres FØR arket åpnes: nettleserens eget hold lander like etter, og
+      // da er det arket som ligger under fingeren.
+      armerNativVakt()
       if (lpEvent) openContextMenuAt(lpEvent.clientX, lpEvent.clientY)
       clearLongPress()
     }, LONG_PRESS_MS)
@@ -151,6 +186,14 @@ export function useContextLookups({
   function onContextMenuEvent(e) {
     // Høyreklikk på desktop. preventDefault stopper browser-menyen.
     e.preventDefault()
+    // …men på touch er dette OGSÅ nettleserens egen long-press, og den bobler
+    // opp fra hva som helst under fingeren. Kanthåndtakene eier holdet sitt
+    // selv (de viser navn og kostnad, og henter fliser ved slipp) og stopper
+    // `pointerdown` — men `contextmenu` nådde likevel hit, så et hold på en
+    // kantpil åpnet punkt-arket i tillegg til pilla si.
+    // Samme vakt som `onPointerDownLongPress` har, av samme grunn: et element
+    // med egen klikk-handler eier trykket.
+    if (e.target?.closest?.('button, input, textarea, select, a')) return
     openContextMenuAt(e.clientX, e.clientY)
   }
 

@@ -1,3 +1,94 @@
+## 2026-09-03 — v6.5.32: Et hold på en lende-pil åpner ikke punkt-arket lenger, og teksten skalerer videre
+
+Nettleserens EGEN long-press var problemet begge veier. Kanthåndtakene eier
+holdet sitt selv og stopper `pointerdown`, så vår egen long-press-timer fyrte
+aldri på dem — men Androids `contextmenu` bobler opp fra hva som helst under
+fingeren, og kart-wrapperen åpnet punkt-arket på den. Et hold på en kantpil ga
+dermed både pilla med retning og kostnad OG et punkt-ark ingen hadde bedt om.
+`onContextMenuEvent` har nå den samme vakten `onPointerDownLongPress` alltid har
+hatt: et element med egen klikk-handler eier trykket.
+
+Den samme nabo-effekten markerte teksten i arket. Åpner du et punkt med et hold,
+ligger arket under fingeren i det nettleseren starter sitt eget tekstutvalg — og
+kartflaten er `select-none`, men arket er det ikke, for teksten SKAL kunne
+markeres for opplesing. Vakten står nå fra vår timer fyrer til fingeren slippes
+og dreper `selectstart` og `contextmenu` i nøyaktig den luka. Ingen
+`user-select: none`, ingen `pointer-events: none` på teksten: utenfor holdet er
+den helt vanlig.
+
+Headeren i punkt-arket følger dessuten hovedmenyens tekstvalg, som kroppen under
+alltid har gjort — det samme gjør tips-kortet og DETALJER-etiketten. Koordinatene
+er det man åpner arket for å lese, og de sto igjen på 13 px mens alt annet vokste.
+Zoomen ligger på tekst-kolonnen og ikke på header-raden — en zoomet
+`justify-between`-rad skalerer polstringen og dytter lukkeknappen ut av skjermen.
+
+Hovedmenyen har fått et fjerde tekstvalg: 200 %. Lista i `useUiTextScale` er den
+ene kilden — menyen utleder knappene sine av den — så et femte valg er én linje.
+Etiketten ligger nå på sin egen linje over knappene, for fire knapper og en
+etikett på samme rad får ikke plass på en telefon.
+
+I 3D er stedsnavnene på globene større (12 px mot 9), og de følger tekstvalget
+som resten av overlegget. Taket på navnet er i `vw` og ikke i rem, så det er et
+ekte tak på SKJERMEN: blir teksten stor nok, brekker «Hellasbassenget» over to
+linjer med bindestrek i stedet for å legge seg utover halve planeten. Infokortet
+i natthimmelen er samtidig blitt høyere — to tredjedeler av skjermen mot drøyt
+halve — og taket er flyttet fra den rullbare forelderen og inn i kortet selv, der
+det må ligge for at headeren skal bli stående når kroppen ruller. Og den
+minimerte pilla klipper ikke lenger navnet til «M»: retningen er detaljen som
+kan krympe, navnet er grunnen til at pilla står der.
+
+Med 200 % blir plassholderne i inputfeltene lengre enn feltene, og de ble klippet
+midt i et ord. Regelen om ellipse må stå på selve inputen og ikke på
+`::placeholder` — målt i Chromium gir den siste hard klipping, fordi
+overflow-boksen er inputens. Ved fokus får plassholderen dessuten inputens egen
+tekstfarge i full styrke, altså hvit på mørk flate og blekk på lys: den er der
+for å bli lest i det øyeblikket man skal skrive. `currentColor` og ikke `white`,
+for hele UI-en snur `--color-ink` mellom temaene.
+
+Og feltet for kartnavnet gjentok overskriften sin ordrett: «Navn på kart» sto
+både over feltet og inni det. Plassholderen spør nå om det man faktisk skriver
+inn — «Hvor i lende?».
+
+Alt er dekket av røyktesten, og de tre feilrettingene er verifisert i begge
+retninger.
+
+---
+
+## 2026-09-03 — v6.5.31: Fritt lende får én tekststørrelse, markerbar tekst og en knapp som sier hva den gjør
+
+Oppdaterings-banneret sto i full bredde mens det ventet på et halvbygd kart.
+Teksten var riktig, men en boks over hele skjermen leses som et modalt lag — den
+ser ut til å sperre hovedmenyen og Lende-knappen, som den aldri gjorde. I arbeid
+er den nå en chip like bred som innholdet; ledig, med knapp, står den som før.
+
+Tomtilstanden i Fritt lende hadde tre tekststørrelser, og et hint i 12 px er det
+ingen som leser på en skjerm der det er det eneste som står. Nå er alt i modusen
+én størrelse, overskriften bærer forskjellen med vekt alene, og teksten følger
+hovedmenyens 100/125/150-valg — noe den som eneste tekstflate i appen ikke gjorde.
+Hintet om «Nøyaktig posisjon» sier nå HVOR innstillingen bor: under tillatelser
+for nettstedet i nettleserens egne innstillinger, som en engangsinnstilling.
+Eieren fant den ikke selv, og uten den er dette den stille feilen — omtrentlig
+plassering svarer med en fix, arket bygges, og det ser like ekte ut selv om det
+er sentrert kilometer unna. Til slutt et «God tur i fritt lende».
+
+`select-none` er flyttet fra roten til kart-flata. Den er der for gestene, men på
+roten arvet hver eneste tekst i modusen den, og da kan ingen markere noe for
+opplesing eller oversettelse. Overleggene er ren tekst over et ark og har ingen
+gest å beskytte.
+
+Knappen — modusens eneste kontroll — står nå i logoens egen gul med en myk glød
+fram til første trykk, og har fått en bue innenfor sikteringen som ekko av
+høydekurvene i merket. Over den peker en boble ned på knappen med teksten «GPS
+på? Trykk her for å hente kart», én gang, til første trykk. Et siktekors i
+chrome-grått leses som «vis hvor jeg er», ikke som «hent et kart».
+
+En tom «Mine kart» får en snarvei til Fritt lende. Modusen bor bare i
+hovedmenyen, og en tom liste er nøyaktig der noen står som ville hatt et kart
+uten skjemaet over. På /om er versjonsnummeret ute av Fritt lende-fanen, og de to
+avsnittene som fortsatt sa 500 meter er rettet til 250 — de ble glemt i v6.5.29.
+
+---
+
 ## 2026-09-03 — v6.5.30: Tomtilstanden i Fritt lende ber om posisjon, ikke om nett
 
 Under «Trykk knappen nede til høyre» sto det «Krever nett.» i kursiv. Eieren

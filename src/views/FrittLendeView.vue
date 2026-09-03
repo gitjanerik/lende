@@ -8,6 +8,7 @@ import { useUserPosition } from '../composables/useUserPosition.js'
 import { useNettStatus } from '../composables/useNettStatus.js'
 import { useScreenWakeLock } from '../composables/useScreenWakeLock.js'
 import { useMapTheme } from '../composables/useMapTheme.js'
+import { useUiTextScale } from '../composables/useUiTextScale.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { loadMap, saveMap, FRITT_LENDE_ID, FRITT_LENDE_FORRIGE_ID } from '../lib/mapStorage.js'
 import { byggVertSvg } from '../lib/kartVert.js'
@@ -84,8 +85,26 @@ let fixVent = null
 // man ikke slipper unna.
 let varsletFeilkode = null
 
+// Førstegangs-hint ved knappen. Modusen har ÉN kontroll, og et siktekors sier
+// hvor du er — ikke at det henter et kart. Boblen vises til første trykk og
+// aldri igjen; nøkkelen er persistert, så den overlever en ny økt. En ny bruker
+// som ikke har skrudd på posisjon får dessuten spørsmålet stilt før trykket, i
+// stedet for en knapp som ser ut til å gjøre ingenting.
+const TIPS_KEY = 'lende-fritt-tips-sett'
+const tipsSett = ref(true)
+try { tipsSett.value = localStorage.getItem(TIPS_KEY) === '1' } catch { /* privat modus — vis én gang */ }
+function kvitterTips() {
+  if (tipsSett.value) return
+  tipsSett.value = true
+  try { localStorage.setItem(TIPS_KEY, '1') } catch { /* ignorer */ }
+}
+
 const { erOffline } = useNettStatus()
 const { isDarkMap } = useMapTheme()
+// Tekstflatene i modusen følger hovedmenyens 100/125/150/200-valg. Kartet gjør det
+// bevisst ikke — stedsnavn er kartografi og skaleres av strek/tekst-knottene i
+// turkartet, som denne modusen ikke har.
+const { uiTextScale } = useUiTextScale()
 const skjerm = useScreenWakeLock()
 
 // ── Kart-flate ──────────────────────────────────────────────────────────────
@@ -133,7 +152,7 @@ const knappeTilstand = computed(() => ({
 const etikett = computed(() => knappeEtikett(knappeTilstand.value))
 const handling = computed(() => knappeHandling(knappeTilstand.value))
 
-function onTap() { utfor(handling.value) }
+function onTap() { kvitterTips(); utfor(handling.value) }
 
 function utfor(h) {
   ferskLast.value = false
@@ -497,9 +516,14 @@ const arkDato = computed(() => (opprettet.value
 </script>
 
 <template>
-  <div class="fixed inset-0 overflow-hidden bg-map select-none">
+  <!-- `select-none` sitter på KART-FLATA og ikke på roten (v6.5.31). Den er der
+       for gestene — et drag over et ark skal ikke ende i en blå markering — men
+       på roten arvet hver eneste tekst i modusen den, og da kan ingen markere
+       noe for opplesing eller oversettelse. Overleggene er ren tekst over et
+       ark og har ingen gest å beskytte. -->
+  <div class="fixed inset-0 overflow-hidden bg-map">
     <!-- Kart-flate. Ingen long-press-handlere: infopanelet finnes ikke her. -->
-    <div ref="wrapperRef" class="absolute inset-0 touch-none">
+    <div ref="wrapperRef" class="absolute inset-0 touch-none select-none">
       <div ref="mapInnerRef" :style="transformStyle" class="w-full h-full">
         <div ref="svgHostRef" class="w-full h-full"></div>
       </div>
@@ -510,24 +534,47 @@ const arkDato = computed(() => (opprettet.value
       <AppMenuButton variant="float" />
     </div>
 
-    <!-- Tomtilstand: navngir den ene gesten hele modusen hviler på. -->
+    <!-- Tomtilstand: navngir den ene gesten hele modusen hviler på.
+         ÉN tekststørrelse i hele blokka (v6.5.31). Den hadde tre — 18, 14 og
+         12 px — og et hint i 12 px er det ingen leser på en skjerm der det er
+         det eneste som står. Overskriften bærer forskjellen med vekt alene.
+
+         `zoom` følger hovedmenyens 100/125/150/200-valg. Uten den var dette den
+         eneste teksten i appen som ikke gjorde det, og modusen er nettopp den
+         man bruker med kalde hender i dårlig lys.
+
+         `select-text` + `pointer-events-auto`: roten er `select-none` for
+         kartets skyld, og teksten arvet det. Den som trenger en opplesing må
+         kunne markere den — det koster ingenting her, siden boksen står midt på
+         et tomt ark og ikke over noen kontroll. -->
     <div v-if="!meta && !bygger"
          class="absolute inset-0 grid place-items-center px-8 pointer-events-none">
-      <div class="text-center text-ink/70 max-w-xs">
-        <div class="text-lg font-semibold text-ink">Fritt lende</div>
-        <p class="mt-2 text-sm">Trykk knappen nede til høyre.<br>
+      <div class="text-center text-ink/70 max-w-xs text-sm leading-relaxed
+                  pointer-events-auto select-text"
+           :style="{ zoom: uiTextScale }">
+        <p class="font-semibold text-ink">Fritt lende</p>
+        <p class="mt-2">Trykk knappen nede til høyre.<br>
           Du får et kart på 2 × 2 km med deg selv i midten.</p>
         <!-- Hintet handler om POSISJON og ikke om nett (v6.5.29). «Krever nett»
-             sto her i kursiv, men er implisitt for et kart som bygges av
-             Overpass og Kartverket — og hovedmenyen sier det allerede. Det
-             brukeren faktisk må gjøre for at knappen skal virke, er å slippe
-             til posisjonen; «omtrentlig» plassering i nettleseren er den
-             stille feilen, for den svarer med en fix som kan bomme med
-             kilometer og arket ser like ekte ut. -->
-        <p class="mt-3 text-xs leading-relaxed">
-          Slå på posisjon når nettleseren spør.<br>
-          Velg «Nøyaktig posisjon» — omtrentlig plassering kan bomme med kilometer.
+             sto her, men er implisitt for et kart som bygges av Overpass og
+             Kartverket — og hovedmenyen sier det allerede. Det brukeren faktisk
+             må gjøre for at knappen skal virke, er å slippe til posisjonen.
+
+             «Nøyaktig posisjon» får en HALV setning om HVOR den bor (v6.5.31).
+             Eieren fant den ikke selv: den ligger ikke i dialogen nettleseren
+             viser, men under tillatelser for nettstedet i nettleserens egne
+             innstillinger, og den settes én gang. Uten den er dette den stille
+             feilen — omtrentlig plassering svarer med en fix, arket bygges, og
+             det ser like ekte ut selv om det er sentrert kilometer unna. -->
+        <p class="mt-3">
+          Slå på posisjon når nettleseren spør.
         </p>
+        <p class="mt-2">
+          Slå også på «Nøyaktig posisjon» for dette nettstedet — en
+          engangsinnstilling under tillatelser i nettleserens innstillinger.
+          Uten den kan kartet havne kilometer fra der du står.
+        </p>
+        <p class="mt-4 text-ink/85">God tur i fritt lende.</p>
       </div>
     </div>
 
@@ -547,13 +594,14 @@ const arkDato = computed(() => (opprettet.value
            i ALLE fasene, også «finner posisjonen» — den var den eneste uten noe
            som beveget seg, og en stillestående chip leses som at appen har hengt. -->
       <KartLaster storrelse="w-6 h-6" />
-      <span class="text-xs text-ink leading-snug [overflow-wrap:normal] [word-break:keep-all]">{{
+      <span class="text-sm text-ink leading-snug [overflow-wrap:normal] [word-break:keep-all]"
+            :style="{ zoom: uiTextScale }">{{
         venterPaaFix && !bygger ? 'Finner posisjonen din …' : fremdrift }}</span>
       <!-- shrink-0 + nowrap: uten dem klemmes knappen mot teksten og «Avbryt»
            deles til «Av-bryt» over to linjer. Den er rømningsveien ut av en
            bygging, og en knapp som ser ødelagt ut leses som at appen er det. -->
       <button type="button"
-              class="shrink-0 whitespace-nowrap text-xs font-semibold text-ink/70 underline"
+              class="shrink-0 whitespace-nowrap text-sm font-semibold text-ink/70 underline"
               @click="avbryt">Avbryt</button>
     </div>
 
@@ -561,11 +609,12 @@ const arkDato = computed(() => (opprettet.value
          «du kan ikke lage et nytt nå» fra «det du har er ubrukelig». -->
     <div v-if="feil && !bygger"
          class="absolute top-16 left-1/2 -translate-x-1/2 z-30 w-[min(20rem,90vw)]
-                px-4 py-3 rounded-xl bg-overlay shadow-lg text-center">
-      <p class="text-sm text-ink">{{ feil }}</p>
-      <p v-if="meta" class="mt-1 text-xs text-ink/60">Kartet du har fungerer fortsatt.</p>
-      <p v-if="feilHint" class="mt-1 text-xs text-ink/60">{{ feilHint }}</p>
-      <button type="button" class="mt-2 text-sm font-semibold text-ink underline"
+                px-4 py-3 rounded-xl bg-overlay shadow-lg text-center text-sm"
+         :style="{ zoom: uiTextScale }">
+      <p class="text-ink">{{ feil }}</p>
+      <p v-if="meta" class="mt-1 text-ink/60">Kartet du har fungerer fortsatt.</p>
+      <p v-if="feilHint" class="mt-1 text-ink/60">{{ feilHint }}</p>
+      <button type="button" class="mt-2 font-semibold text-ink underline"
               @click="feil = ''; byggHer()">Prøv igjen</button>
     </div>
 
@@ -573,7 +622,8 @@ const arkDato = computed(() => (opprettet.value
          mandag morgen uten et ord. -->
     <div v-else-if="gammeltArk && meta && !bygger"
          class="absolute top-16 left-1/2 -translate-x-1/2 z-20
-                px-3 py-1.5 rounded-full bg-overlay shadow text-xs text-ink/70">
+                px-3 py-1.5 rounded-full bg-overlay shadow text-sm text-ink/70"
+         :style="{ zoom: uiTextScale }">
       Kartet er fra {{ arkDato }}
     </div>
 
@@ -584,8 +634,26 @@ const arkDato = computed(() => (opprettet.value
                          :avstand-tekst="avstandLinje"
                          :avstand-naadd="avstandNaadd" />
 
+    <!-- Førstegangs-boble over knappen. Den peker NED mot knappen med en
+         trekant, fordi et hint som bare svever i hjørnet ikke sier hvilken
+         knapp det gjelder — og modusen har bare den ene.
+         Den står bare før første trykk, og bare når det ikke finnes et ark:
+         har du et kart, har du alt trykket.
+         `right-4` med samme kant som knappen, og trekanten sentrert over
+         knappens midte (56 px bred → 28 px inn fra kanten). -->
+    <div v-if="!tipsSett && !meta && !bygger"
+         class="absolute bottom-20 right-4 z-30 max-w-[min(17rem,78vw)]
+                px-3.5 py-2.5 rounded-xl bg-overlay shadow-lg
+                ring-1 ring-amber-400/60 text-sm text-ink leading-snug"
+         :style="{ zoom: uiTextScale }">
+      GPS på? Trykk her for å hente kart.
+      <span class="absolute -bottom-[7px] right-[22px] w-3.5 h-3.5 rotate-45
+                   bg-overlay border-r border-b border-amber-400/60" aria-hidden="true"></span>
+    </div>
+
     <FrittLendeKnapp :etikett="etikett" :handling="handling" :bygger="bygger"
                      :venter-paa-fix="venterPaaFix" :offline="erOffline"
+                     :fremhev="!tipsSett"
                      @tap="onTap" />
 
     <!-- Avstandsporten svarer her. Ikke en alert: den er et svar på et trykk som
@@ -597,7 +665,8 @@ const arkDato = computed(() => (opprettet.value
          class="absolute left-4 right-24 z-30
                 px-4 py-2.5 rounded-xl bg-overlay shadow-lg
                 text-sm text-ink leading-snug"
-         :class="angreSynlig ? 'bottom-20' : 'bottom-6'">
+         :class="angreSynlig ? 'bottom-20' : 'bottom-6'"
+         :style="{ zoom: uiTextScale }">
       {{ melding }}
     </div>
 
@@ -605,9 +674,10 @@ const arkDato = computed(() => (opprettet.value
          en bekreftelsesdialog i sin egen hovedsløyfe. -->
     <div v-if="angreSynlig"
          class="absolute bottom-6 left-1/2 -translate-x-1/2 z-30
-                flex items-center gap-3 px-4 py-2 rounded-full bg-overlay shadow-lg">
-      <span class="text-sm text-ink">Nytt kart.</span>
-      <button type="button" class="text-sm font-semibold text-ink underline"
+                flex items-center gap-3 px-4 py-2 rounded-full bg-overlay shadow-lg text-sm"
+         :style="{ zoom: uiTextScale }">
+      <span class="text-ink">Nytt kart.</span>
+      <button type="button" class="font-semibold text-ink underline"
               @click="angre">Angre</button>
     </div>
   </div>

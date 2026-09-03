@@ -37,6 +37,11 @@ const props = defineProps({
   // Sammenslått til én linje. Eies av kalleren, som også vet at et nabo-hopp
   // skal minimere.
   minimert: { type: Boolean, default: false },
+  // Taket på det åpne kortet, som en CSS-lengde. Kalleren eier det fordi den
+  // eier `zoom`: en `vh` inne i et zoom-lag er absolutt mot viewporten og blir
+  // så ganget med skalaen, så et tak skrevet her ville vokst med tekstvalget og
+  // dekket hele skjermen på 200 %.
+  maksHoyde: { type: String, default: '58vh' },
 })
 const emit = defineEmits(['lukk', 'velg', 'minimer', 'utvid', 'fokus'])
 
@@ -125,8 +130,12 @@ const faseNavn = computed(() => {
     <button @click="emit('utvid')" :aria-label="`Vis mer om ${objekt.navn}`"
             class="flex-1 min-w-0 flex items-baseline gap-1.5 text-left active:scale-[0.98]">
       <span class="text-[0.75rem]" aria-hidden="true">{{ IKON[objekt.type] }}</span>
-      <span class="text-[0.8125rem] font-medium text-white/85 truncate">{{ objekt.navn }}</span>
-      <span class="text-[0.625rem] text-white/45 shrink-0">{{ retning }}, {{ hoydeGrader }}°</span>
+      <!-- NAVNET FØR RETNINGEN når det blir trangt: retningen er en detalj man
+           kan miste, navnet er hele grunnen til at pilla står der. Fram til nå
+           var det motsatt — retningen var `shrink-0` og navnet det eneste som
+           kunne krympe, så «Mars» ble stående som «M». -->
+      <span class="text-[0.8125rem] font-medium text-white/85 shrink-0 max-w-[60%] truncate">{{ objekt.navn }}</span>
+      <span class="text-[0.625rem] text-white/45 min-w-0 truncate">{{ retning }}, {{ hoydeGrader }}°</span>
     </button>
     <div class="shrink-0 flex items-center">
       <button @click="emit('fokus')" :aria-label="`Sett ${objekt.navn} i fokus`"
@@ -161,11 +170,16 @@ const faseNavn = computed(() => {
        noen måte å lukke kortet på. Headeren står nå fast — navn, retning og de
        ikonene er ALLTID synlige — og bare lesestoffet ruller.
 
-       Taket er i vh og ikke i piksler: kortet skal ta høyst litt over halve
-       skjermen, uansett om den er en telefon på høykant eller en 27-tommer. -->
+       Taket er i vh og ikke i piksler: kortet skal ta høyst to tredjedeler av
+       skjermen, uansett om den er en telefon på høykant eller en 27-tommer. Det
+       kommer fra kalleren (`maksHoyde`), som er den som kjenner tekstskalaen —
+       se prop-en. Og det MÅ bite her og ikke på en rullbar forelder: er det
+       forelderen som klipper, ruller headeren bort, og da er vi tilbake til
+       feilen v6.3.2 rettet. -->
   <div v-else-if="objekt"
+       :style="{ maxHeight: maksHoyde }"
        class="rounded-md bg-black/80 backdrop-blur shadow-lg max-w-full sm:max-w-sm
-              max-h-[58vh] flex flex-col overflow-hidden">
+              flex flex-col overflow-hidden">
     <!-- HEADER — shrink-0, så den aldri klemmes eller rulles bort. -->
     <div class="shrink-0 flex items-start gap-1.5 pl-3 pr-1 py-2
                 border-b border-white/10">

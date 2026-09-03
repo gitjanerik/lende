@@ -159,6 +159,126 @@ const SJEKKER = [
     },
   },
   {
+    // v6.5.32: et HOLD på en lende-pil åpnet punkt-arket i tillegg til pilla.
+    // Håndtaket stopper `pointerdown` selv, så vår egen long-press-timer fyrte
+    // aldri — men nettleserens EGEN long-press sender et `contextmenu` som
+    // bobler opp fra knappen til kart-wrapperen, og den åpnet arket.
+    //
+    // Sjekken måler nøyaktig det: samme event på pila skal IKKE åpne arket, og
+    // samme event på kartet skal fortsatt gjøre det. Uten den andre halvdelen
+    // ville en for bred vakt sett grønn ut mens høyreklikk på kartet var dødt.
+    navn: 'hold på en lende-pil åpner ikke punkt-arket',
+    domene: 'useContextLookups',
+    async kjør(page) {
+      const ARK = 'button[aria-label="Kopier koordinater"]'
+      const fyr = (sel) => page.evaluate((s2) => {
+        const el = typeof s2 === 'string' ? document.querySelector(s2) : null
+        const mål = el ?? document.querySelector('svg.isom-map')
+        const r = mål.getBoundingClientRect()
+        mål.dispatchEvent(new MouseEvent('contextmenu', {
+          bubbles: true, cancelable: true,
+          clientX: r.left + r.width / 2, clientY: r.top + r.height / 2,
+        }))
+      }, sel)
+
+      await fyr('button[aria-label^="Hent kartfliser mot"]')
+      await page.waitForTimeout(400)
+      if (await page.locator(ARK).count()) {
+        throw new Error('punkt-arket åpnet seg av et hold på kantpila')
+      }
+
+      await fyr(null)
+      await page.waitForTimeout(600)
+      if (!(await page.locator(ARK).count())) {
+        throw new Error('punkt-arket åpnet seg ikke fra kartet — er vakten for bred?')
+      }
+
+      // NØYTRALISERING: arket dekker kartet og skjuler kanthåndtakene.
+      await page.locator('button[aria-label="Lukk"]').first().click()
+      await page.waitForTimeout(300)
+      return 'pila ignorerer holdet, kartet svarer fortsatt'
+    },
+  },
+  {
+    // v6.5.32: nettleserens eget hold starter et tekstutvalg, og når vår timer
+    // har åpnet punkt-arket ligger ARKET under fingeren — så koordinatlinja ble
+    // markert nesten hver gang man åpnet et punkt. Teksten skal fortsatt kunne
+    // markeres (opplesing), så fiksen er en vakt som varer fra holdet fyrer til
+    // fingeren slippes, og ikke `user-select`/`pointer-events` på teksten.
+    //
+    // Sjekken måler BEGGE sider: prevented mens fingeren er nede, og ikke
+    // prevented etterpå. Bare den første ville stått grønn på en vakt som aldri
+    // slippes — altså et ark der ingen kan markere noe.
+    navn: 'holdet som åpner punkt-arket markerer ikke teksten i det',
+    domene: 'useContextLookups',
+    async kjør(page) {
+      const kart = await page.locator('svg.isom-map').boundingBox()
+      const x = kart.x + kart.width / 2, y = kart.y + kart.height / 2
+      const prov = () => page.evaluate(() => {
+        const el = document.querySelector('button[aria-label="Kopier koordinater"]')?.closest('div')
+        if (!el) return null
+        const ev = new Event('selectstart', { bubbles: true, cancelable: true })
+        el.dispatchEvent(ev)
+        return ev.defaultPrevented
+      })
+
+      await page.mouse.move(x, y)
+      await page.mouse.down()
+      await page.waitForTimeout(800)
+      const under = await prov()
+      await page.mouse.up()
+      await page.waitForTimeout(200)
+      const etter = await prov()
+
+      if (under === null) throw new Error('punkt-arket åpnet seg ikke av holdet')
+      if (!under) throw new Error('utvalget ble ikke stoppet mens fingeren var nede')
+      if (etter !== false) throw new Error('vakten slippes ikke — teksten kan ikke markeres etterpå')
+
+      await page.locator('button[aria-label="Lukk"]').first().click()
+      await page.waitForTimeout(300)
+      return 'stoppet under holdet, fri etterpå'
+    },
+  },
+  {
+    // v6.5.32: kroppen i punkt-arket fulgte hovedmenyens 100/125/150/200-valg,
+    // men headeren gjorde det ikke — og det er koordinatene der oppe man åpner
+    // arket for å lese. Sjekken leser den bundne zoomen på begge blokkene:
+    // står valget på 100 % er begge «1», så en sammenlikning av VERDIENE ville
+    // vært grønn uansett. Det som måles er at headeren i det hele tatt HAR
+    // bindingen — det var nettopp den som manglet.
+    navn: 'punkt-arkets header følger tekststørrelse-valget',
+    domene: 'ContextMenuSheet',
+    async kjør(page) {
+      await page.evaluate(() => {
+        const el = document.querySelector('svg.isom-map')
+        const r = el.getBoundingClientRect()
+        el.dispatchEvent(new MouseEvent('contextmenu', {
+          bubbles: true, cancelable: true,
+          clientX: r.left + r.width / 2, clientY: r.top + r.height / 2,
+        }))
+      })
+      await page.waitForTimeout(500)
+      const zoom = await page.evaluate(() => {
+        const kopi = document.querySelector('button[aria-label="Kopier koordinater"]')
+        if (!kopi) return null
+        const header = kopi.closest('[style*="zoom"]')
+        const kropp = [...document.querySelectorAll('[style*="zoom"]')]
+          .find((el) => el !== header && el.contains(kopi) === false)
+        return { header: header?.style.zoom ?? '', kropp: kropp?.style.zoom ?? '' }
+      })
+      if (!zoom) throw new Error('punkt-arket åpnet seg ikke')
+      if (!zoom.header) throw new Error('headeren har ingen zoom-binding — den følger ikke tekststørrelsen')
+      if (!zoom.kropp) throw new Error('fant ingen zoom-bundet kropp å sammenlikne med')
+      if (zoom.header !== zoom.kropp) {
+        throw new Error(`header og kropp står på ulik skala: ${zoom.header} mot ${zoom.kropp}`)
+      }
+
+      await page.locator('button[aria-label="Lukk"]').first().click()
+      await page.waitForTimeout(300)
+      return `header og kropp på samme skala (${zoom.header})`
+    },
+  },
+  {
     // v5.23.0: kartstil-velgeren er den ENE kontrollen som setter hele
     // uttrykket. Sjekken TRYKKER på den (ikke bare leter etter markup) og
     // verifiserer at BÅDE paletten og lagene flyttet seg — en knapp som bare
@@ -622,6 +742,52 @@ const SJEKKER = [
       await klikkTekst(page, /^Fjern markering$/)
       await page.waitForTimeout(400)
       return `«${traff}» → ${ring} ring-noder, transform endret`
+    },
+  },
+  {
+    navn: 'plassholder klippes med ellipse og blir full ved fokus',
+    domene: 'style.css',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await klikkTekst(page, /^Søk i kart$/)
+      await page.waitForTimeout(500)
+      const felt = page.locator('input[type="search"], input[type="text"]').first()
+      await felt.focus()
+      await page.waitForTimeout(150)
+      const m = await evalMedTak(page, () => {
+        const el = document.querySelector('input[type="search"], input[type="text"]')
+        if (!el) return null
+        const inn = getComputedStyle(el)
+        const ph = getComputedStyle(el, '::placeholder')
+        const les = (c) => (c.match(/[\d.]+/g) || []).map(Number)
+        return {
+          klipp: inn.textOverflow,
+          tekst: les(inn.color),
+          plass: les(ph.color),
+          op: parseFloat(ph.opacity),
+        }
+      })
+      // Nøytral tilstand: søkeoverlegget dekker fane-raden, så neste sjekk
+      // finner ikke 3D-knappen. Escape alene lukker det ikke når feltet har
+      // fokus — trykk lukkeknappen, og verifiser at den er borte.
+      await page.locator('button[aria-label="Lukk søk"]').first().click()
+      await page.waitForTimeout(400)
+      const åpent = await page.locator('button[aria-label="Lukk søk"]').count()
+      if (åpent) throw new Error('søkeoverlegget ble stående åpent')
+      if (!m) throw new Error('fant ikke søkefeltet')
+      // 1. Ellipsen må ligge på selve inputen — en regel på ::placeholder gir
+      //    hard klipping (målt i Chromium, v6.5.32).
+      if (m.klipp !== 'ellipsis')
+        throw new Error(`text-overflow på inputen er «${m.klipp}», ikke ellipsis`)
+      // 2. Ved fokus skal plassholderen ha inputens EGEN tekstfarge i full
+      //    styrke — «full hvit» på mørk flate, full blekk på lys. Sammenlikn
+      //    kanalene, ikke strengen: currentColor serialiseres med alfa.
+      const likeKanaler = m.tekst.slice(0, 3).every((v, i) => v === m.plass[i])
+      const fullAlfa = (m.plass[3] ?? 1) >= 0.99 && m.op >= 0.99
+      if (!likeKanaler || !fullAlfa)
+        throw new Error(`fokusert plassholder er ${m.plass.join(',')} @${m.op}, `
+          + `ikke inputens ${m.tekst.join(',')} i full styrke`)
+      return `${m.klipp}, fokus → rgb(${m.plass.slice(0, 3).join(',')}) @${m.op}`
     },
   },
   {
@@ -1504,7 +1670,37 @@ const SJEKKER = [
           return n > 0 ? n : false
         }, null, { timeout: 20_000 }).then((x) => x.jsonValue()).catch(() => 0)
         if (!trekk) throw new Error(`åpnet globen for «${medGlobe}», men ingen stedsnavn kom`)
-        const globeUtfall = `${medGlobe}-globen ga ${trekk} stedsnavn; `
+
+        // STEDSNAVNENE PÅ GLOBEN følger tekststørrelse-valget (v6.5.32), og taket
+        // deres MÅ være i `vw`. Fella er kjent fra 3D-overlegget (v6.3.12): inne i
+        // et `zoom`-lag ganges rem og px opp sammen med teksten, så en bredde i rem
+        // ville vokst i takt og «Hellasbassenget» aldri brutt — mens `vw` er
+        // absolutt mot viewporten og derfor et ekte tak på skjermen.
+        const navnStil = await evalMedTak(page, () => {
+          const el = document.querySelector('div[aria-hidden="true"] > div > span:nth-child(2)')
+          if (!el) return null
+          const c = getComputedStyle(el)
+          return {
+            px: parseFloat(c.fontSize),
+            zoom: el.style.zoom,
+            maks: el.style.maxWidth,
+            deling: c.hyphens,
+          }
+        })
+        if (!navnStil) throw new Error('fant ingen stedsnavn-span på globen å måle')
+        if (!(navnStil.px >= 12)) {
+          throw new Error(`stedsnavnet på globen er ${navnStil.px} px — for smått å lese i felt`)
+        }
+        if (!navnStil.zoom) throw new Error('stedsnavnet på globen følger ikke tekststørrelse-valget')
+        if (!/vw$/.test(navnStil.maks || '')) {
+          throw new Error(`stedsnavnets tak er «${navnStil.maks}» og ikke i vw — `
+            + 'da vokser bredden med teksten og lange navn brekker aldri')
+        }
+        if (navnStil.deling !== 'auto') {
+          throw new Error(`stedsnavnet har hyphens: ${navnStil.deling} — lange navn brytes uten bindestrek`)
+        }
+        const globeUtfall = `${medGlobe}-globen ga ${trekk} stedsnavn `
+          + `(${navnStil.px} px, tak ${navnStil.maks}); `
           + `globe-merket på ${merker.medMerke} av ${merker.rader} rader`
 
         // KORTET MÅ ÅPNES FØRST. Et listevalg MINIMERER (v6.3.10), så globe-valget
@@ -1514,6 +1710,25 @@ const SJEKKER = [
         if (await visMer.count()) {
           await visMer.click({ timeout: 5000 })
           await page.waitForTimeout(400)
+        }
+
+        // TAKET BOR PÅ KORTET SELV (v6.5.32), ikke på en rullbar forelder. Er det
+        // forelderen som klipper, ruller headeren bort — og da er vi tilbake i
+        // nøyaktig feilen v6.3.2 rettet, med navnet og knappene ute av skjermen.
+        const kortTak = await evalMedTak(page, () => {
+          const knapp = document.querySelector('button[aria-label="Lukk infokortet"]')
+          const kort = knapp?.closest('div[style*="max-height"]')
+          if (!kort) return null
+          const r = kort.getBoundingClientRect()
+          return { inline: kort.style.maxHeight, andel: r.height / window.innerHeight }
+        })
+        if (!kortTak) throw new Error('infokortet har ikke sitt eget høydetak — da klipper forelderen')
+        if (!/vh$/.test(kortTak.inline)) {
+          throw new Error(`infokortets tak er «${kortTak.inline}» og ikke i vh`)
+        }
+        if (kortTak.andel > 0.72) {
+          throw new Error(`infokortet dekker ${Math.round(kortTak.andel * 100)} % av skjermen `
+            + '— det skal stå OVER en himmel man fortsatt ser')
         }
 
         // ASTRONOMISKE FAKTA (v6.3.0). Kortet for et legeme skal bære nøkkeltall,
@@ -1577,7 +1792,8 @@ const SJEKKER = [
         // bare lagt kula tilbake.
         //
         // PUNKTET MÅ LIGGE UTENFOR INFOKORTET, og det er ikke en detalj: kortet er
-        // 58 vh høyt fra v6.3.2, så det faste punktet (40, halve høyden) landet
+        // to tredjedeler høyt (58 vh fra v6.3.2, 66 fra v6.5.32), så det faste
+        // punktet (40, halve høyden) landet
         // OPPÅ kortet og trykket nådde aldri lerretet. Den gamle utgaven av sjekken
         // tolererte begge utfall og avslørte det derfor ikke. Vi regner nå ut et
         // ledig punkt og VERIFISERER med elementFromPoint at det er canvaset som
