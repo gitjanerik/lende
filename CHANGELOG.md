@@ -19,6 +19,17 @@ hvert drag forbi previewen kartet i stedet for siden, og utsnittet flyttet seg
 uten at noen ba om det. Previewen har i tillegg 50 piksler luft på hver side,
 så det finnes en renne som alltid ruller siden.
 
+Røyktestens stjernekikker-sjekk fikk samtidig rettet en tidsavhengig rød som
+ikke hadde noe med denne endringen å gjøre. Globe-halvdelen krevde at ett av
+månen/Mars/Jupiter/Saturn sto over horisonten, med begrunnelsen «praktisk talt
+alltid ett av de fire oppe» — og det er ikke sant: 3. september 17:39 UTC sto
+månen 3° UNDER horisonten over Vardåsen og ingen av de tre planetene var oppe.
+Bare Venus, som ikke har globe. Alle grønne kjøringer fram til da lå mellom 06
+og 15 UTC. Sjekken slår nå på utvikler-bryteren `lende-3d-himmel-tvang`, som
+finnes for nøyaktig dette, og rydder den bort igjen i en `finally`. Halvdelen
+som tester et stjernebilde hopper samtidig over legemene, siden tvangen legger
+dem foran formasjonene i lista.
+
 ---
 
 ## 2026-09-03 — v6.5.27: Fritt lende måler avstanden fra senter, og porten er 500 m
