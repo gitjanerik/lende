@@ -101,7 +101,7 @@ function kvitterTips() {
 
 const { erOffline } = useNettStatus()
 const { isDarkMap } = useMapTheme()
-// Tekstflatene i modusen følger hovedmenyens 100/125/150-valg. Kartet gjør det
+// Tekstflatene i modusen følger hovedmenyens 100/125/150/200-valg. Kartet gjør det
 // bevisst ikke — stedsnavn er kartografi og skaleres av strek/tekst-knottene i
 // turkartet, som denne modusen ikke har.
 const { uiTextScale } = useUiTextScale()
@@ -539,7 +539,7 @@ const arkDato = computed(() => (opprettet.value
          12 px — og et hint i 12 px er det ingen leser på en skjerm der det er
          det eneste som står. Overskriften bærer forskjellen med vekt alene.
 
-         `zoom` følger hovedmenyens 100/125/150-valg. Uten den var dette den
+         `zoom` følger hovedmenyens 100/125/150/200-valg. Uten den var dette den
          eneste teksten i appen som ikke gjorde det, og modusen er nettopp den
          man bruker med kalde hender i dårlig lys.
 

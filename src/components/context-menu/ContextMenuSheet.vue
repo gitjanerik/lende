@@ -115,7 +115,17 @@ function formatDistance(m) {
       <!-- Header: koordinater + lukk -->
       <div class="shrink-0 px-4 pb-2.5 bg-surface/95
                   border-b border-ink/8 flex items-start justify-between gap-3">
-        <div class="min-w-0">
+        <!-- Headeren følger tekststørrelse-valget på lik linje med kroppen
+             under (v6.5.32). Den sto igjen på 10-13 px mens alt under vokste,
+             og koordinatene er nettopp det man åpner arket for å lese.
+             Zoomen ligger på TEKST-KOLONNEN og ikke på raden: raden er
+             `justify-between` over hele bredden, og en zoomet rad skalerer
+             polstringen og dytter lukkeknappen ut av skjermen (samme felle som
+             3D-overlegget gikk i, v6.3.12). Kopier-knappen står inne i kolonnen
+             og vokser med linja si — den er 28 px, altså under fingerbredden
+             uansett, så større er bare bedre. Lukkeknappen står utenfor og
+             beholder sine 32 px. -->
+        <div class="min-w-0" :style="{ zoom: uiTextScale }">
           <div class="text-[10px] uppercase tracking-wide text-ink/45">Punkt</div>
           <div class="flex items-center gap-2">
             <div class="text-ink text-[13px] font-mono tabular-nums">
@@ -198,8 +208,12 @@ function formatDistance(m) {
            bare pila: et sammenlagt tips på én linje er et lite mål, og det er
            ingenting annet å trykke på der. -->
       <div v-if="showInfoTip" class="px-4 pt-3">
+        <!-- Tipset er den lengste teksten i arket og skal følge
+             tekststørrelse-valget som resten (v6.5.32). Zoomen ligger på
+             KORTET og ikke på `px-4`-wrapperen: polstringen utenfor er margen
+             mot skjermkanten, og den skal stå stille når teksten vokser. -->
         <div class="rounded-lg bg-sky-500/15 border border-sky-400/40 text-sky-100/95
-                    text-[12px] leading-snug">
+                    text-[12px] leading-snug" :style="{ zoom: uiTextScale }">
           <button @click="toggleInfoTip"
                   :aria-expanded="!infoTipMinimized"
                   :aria-label="infoTipMinimized ? 'Vis tipset' : 'Legg sammen tipset'"
@@ -244,7 +258,9 @@ function formatDistance(m) {
            maksimert — ellers ser man samme utsnitt/crosshair dobbelt (kartet
            bak + minikartet). -->
       <div v-if="contextDrawer.isMaximized.value" class="px-4 pt-3">
-        <div class="flex items-baseline justify-between mb-1">
+        <!-- Etikettene skalerer, selve insetet gjør det ikke: det er et kart,
+             ikke tekst, og har sin egen `aspect`-boks. -->
+        <div class="flex items-baseline justify-between mb-1" :style="{ zoom: uiTextScale }">
           <span class="text-[10px] uppercase tracking-wide text-ink/45">
             Detaljer · {{ DETAIL_INSET_M }} × {{ DETAIL_INSET_M }} m
           </span>

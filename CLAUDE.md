@@ -1321,7 +1321,7 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   røres ikke. `settTvingHimmel` finnes som runtime-setter for konsoll og test, men
   appen leser flagget ved MONTERING (som vær-demoen) og setteren oppdaterer ikke
   søkelista.
-- **Nattmodus' tekst følger hovedmenyens 100/125/150-valg (v6.1.0).** Resten av
+- **Nattmodus' tekst følger hovedmenyens 100/125/150/200-valg (v6.1.0).** Resten av
   3D-overlegget er rem-basert (v5.27.0, som følger SYSTEMETS tekstskalering);
   nattmodus' søkefelt og infokort får i tillegg `zoom: uiTextScale`, fordi det er
   den ENESTE teksten man faktisk leser i 3D. Knappene skalerer bevisst ikke —

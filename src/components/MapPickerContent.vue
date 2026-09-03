@@ -762,12 +762,15 @@ onMounted(() => {
        v6.5.28: overskriften het «Sentrum av kart», men feltet under er og har
        alltid vært KARTETS NAVN — overskriften beskrev koordinatlinja, ikke
        inputen. Koordinatene er borte: senteret velges i forhåndsvisningen rett
-       under, og fire desimaler er ikke noe man verifiserer et kart med. -->
+       under, og fire desimaler er ikke noe man verifiserer et kart med.
+       v6.5.32: plassholderen gjentok overskriften ordrett — to like tekster
+       over hverandre der den ene skulle forklare den andre. Nå spør den i
+       stedet om det man faktisk skriver inn: hvor i lende kartet er. -->
   <div v-if="!shareInvite && !nameHidden" class="px-4 pb-2">
     <div class="rounded-xl bg-ink/[0.04] border border-ink/10 px-4 py-3">
       <div class="text-[11px] text-ink/50 uppercase tracking-wide mb-1">Navn på kart</div>
       <input v-model="customName"
-             type="text" placeholder="Navn på kart"
+             type="text" placeholder="Hvor i lende?"
              :readonly="controlsLocked"
              class="w-full bg-transparent text-[15px] font-semibold focus:outline-none
                     placeholder-ink/25 read-only:opacity-70" />

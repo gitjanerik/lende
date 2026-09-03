@@ -147,3 +147,27 @@ html { background: var(--color-app); }
    utenfor eksplisitt. */
 #app { hyphens: auto; }
 .isom-map { hyphens: manual; }
+
+/* UU: plassholdere skal klippes med ellipse, og bli tydelige ved fokus (v6.5.32).
+   To feller det er MÅLT på:
+
+   1. `text-overflow` MÅ stå på selve inputen, ikke på `::placeholder`. Målt i
+      Chromium: en regel på pseudo-elementet gir HARD KLIPPING uten ellipse —
+      overflow-boksen er inputens, ikke plassholderens. Den gjelder derfor også
+      verdien når feltet ikke har fokus, og det er riktig: et langt stedsnavn i
+      et smalt søkefelt skal fortelle at det fortsetter.
+   2. Fokus-fargen er `currentColor` og ikke `white`. Hele UI-en snur
+      `--color-ink` fra hvit til mørk blekk i lyst tema (se @theme over), og
+      `text-ink`/`text-white` på inputen bærer allerede riktig side av det —
+      så currentColor er «full hvit» på mørk flate og full blekk på lys.
+      Regelen står SIST i fila med vilje: den er like spesifikk som Tailwinds
+      `placeholder-ink/25` og `placeholder:text-white/35`, så det er kilde-
+      rekkefølgen som avgjør. */
+:where(input, textarea) {
+  text-overflow: ellipsis;
+}
+input:focus::placeholder,
+textarea:focus::placeholder {
+  color: currentColor;
+  opacity: 1;
+}

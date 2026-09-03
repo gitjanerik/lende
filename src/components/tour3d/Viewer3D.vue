@@ -53,7 +53,7 @@ import {
 import { cacheGet, cacheSet, vaerPointKey, TTL } from '../../lib/protectedAreaCache.js'
 import { himmelObjekter, naboerFor } from '../../lib/tour3d/himmelObjekter.js'
 import { erNatt } from '../../lib/tour3d/astronomi.js'
-// Hovedmenyens 100/125/150-valg. 3D-overlegget er ellers rem-basert (v5.27.0,
+// Hovedmenyens 100/125/150/200-valg. 3D-overlegget er ellers rem-basert (v5.27.0,
 // som følger systemets tekstskalering), men nattmodus' tekst er det ENESTE man
 // leser i 3D-visningen — og da skal appens eget valg gjelde der også.
 import { useUiTextScale } from '../../composables/useUiTextScale.js'
@@ -87,7 +87,7 @@ const emit = defineEmits(['close'])
 const { uiTextScale } = useUiTextScale()
 
 /**
- * Stil for en boks som skal SKALERE MED TEKSTVALGET (100/125/150 i hovedmenyen).
+ * Stil for en boks som skal SKALERE MED TEKSTVALGET (100/125/150/200 i hovedmenyen).
  *
  * `zoom` alene er ikke nok, og det er en felle som er MÅLT: `vw` og `vh` inne i
  * et zoom-lag skaleres IKKE ned — de er absolutte mot viewporten, og blir så
@@ -106,6 +106,10 @@ function tekstBoks(vw, vh = null) {
     ...(vh ? { maxHeight: `${vh / s}vh` } : {}),
   }
 }
+
+// Infokortets tak, som en CSS-lengde kortet selv kan bruke. Regnet her og ikke
+// der, fordi det er DENNE flaten som setter `zoom` — se `tekstBoks`.
+const himmelKortHoyde = computed(() => `${66 / (uiTextScale.value || 1)}vh`)
 
 const KRYSSPAUSE_KEY = 'lende-3d-krysspause'
 const VAERDEMO_KEY = 'lende-3d-vaerdemo'
@@ -1177,8 +1181,16 @@ function branchLabel(opt, i) {
              class="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center"
              :style="{ left: `${t.x}px`, top: `${t.y}px` }">
           <span class="w-1 h-1 rounded-full bg-white/70"></span>
-          <span class="mt-0.5 text-[0.5625rem] leading-tight text-white/80
-                       [text-shadow:0_1px_3px_rgba(0,0,0,0.9)] whitespace-nowrap">
+          <!-- TAKET MÅ VÆRE I `vw`, ikke i rem: `zoom` ganger opp rem-en også, så
+               en bredde i rem ville vokst i takt med teksten og navnet aldri
+               brutt. `tekstBoks` deler på skalaen, altså er 30 vw tretti prosent
+               av SKJERMEN på alle fire tekstvalgene — og da brekker et langt navn
+               av seg selv når teksten blir stor.
+               Orddelingen trenger et språk: `<html lang="no">` gir mønstrene, og
+               `break-words` er sikringen for et navn uten et lovlig delepunkt. -->
+          <span class="mt-0.5 text-[0.75rem] leading-tight text-white/85 text-center
+                       [text-shadow:0_1px_3px_rgba(0,0,0,0.9)] hyphens-auto break-words"
+                :style="tekstBoks(30)">
             {{ t.norsk ?? t.navn }}
           </span>
         </div>
@@ -1309,7 +1321,7 @@ function branchLabel(opt, i) {
         <!-- HIMMELSØKET STÅR MELLOM DE TO KNAPPENE (v6.1.0), på samme linje —
              sol/måne til venstre, X til høyre, søket i midten. I nattmodus er de
              tre det eneste som finnes på skjermen.
-             Teksten skalerer med hovedmenyens 100/125/150-valg: den som har satt
+             Teksten skalerer med hovedmenyens 100/125/150/200-valg: den som har satt
              større tekst der har gjort det fordi hun trenger det, og en
              stjernehimmel leses i mørket. Chromet (knappene) skalerer bevisst
              ikke — de er 44 px fordi en finger er det. -->
@@ -1404,14 +1416,14 @@ function branchLabel(opt, i) {
            den flaten som kan bli høy: et varsel som ligger etter en rullbar
            tekstflate er et varsel man må lete etter. -->
       <div v-if="phase === 'ready' && valgtHimmel"
-           class="relative z-10 px-3 mt-2 flex justify-center overflow-y-auto"
-           :style="tekstBoks(86, 52)">
+           class="relative z-10 px-3 mt-2 flex justify-center"
+           :style="tekstBoks(86)">
         <!-- `globe-aapen` er BORTE (v6.3.3): kortet brukte den bare til å velge
              mellom to bruksanvisninger, og begge er fjernet. En prop ingen leser
              er nettopp den stille gjelden navnediff finnes for.
              `@fokus` kommer bare fra den MINIMERTE pilla (v6.3.5) — se kortet. -->
         <Tour3dHimmelKort :objekt="valgtHimmel" :naboer="himmelNaboer"
-                          :minimert="kortMinimert"
+                          :minimert="kortMinimert" :maks-hoyde="himmelKortHoyde"
                           @lukk="velgHimmel(null)" @velg="velgOgSe"
                           @minimer="kortMinimert = true" @utvid="kortMinimert = false"
                           @fokus="engine?.fokuserHimmel()"/>

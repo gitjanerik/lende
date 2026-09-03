@@ -30,7 +30,7 @@ import { NYHET, nyhetSett, merkNyhetSett } from '../lib/nyheter.js'
 //      er ikke et menyvalg midt i en liste, og innholdet under følger modusen
 //   2. primærvalgene er kort med antall/undertekst, kontekst og visning er rader
 //   3. Om appen + versjon er dempet under en skillelinje
-// Tekststørrelsen er tre samtidige valg (100/125/150) som skalerer menyen live:
+// Tekststørrelsen er fire samtidige valg (100/125/150/200) som skalerer menyen live:
 // rot-fonten er 16 px × faktor, og alt innhold er i em.
 
 const { menuOpen, close } = useAppMenu()
@@ -177,7 +177,7 @@ const THEMES = [
 // Hvert valg rendres i SIN EGEN størrelse så valget er lesbart som seg selv.
 // Utledet fra UI_TEXT_SCALES, som er den ene lista setTextScale godtar — en
 // hardkodet kopi her ville stilltiende sluttet å virke om lista endres.
-const TEXT_SIZE_PX = { 1: 11, 1.25: 13, 1.5: 15 }
+const TEXT_SIZE_PX = { 1: 11, 1.25: 13, 1.5: 15, 2: 18 }
 const TEXT_SIZES = UI_TEXT_SCALES.map((s) => ({
   scale: s, label: `${Math.round(s * 100)} %`, px: TEXT_SIZE_PX[s] ?? 13,
 }))
@@ -745,11 +745,24 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .am-switch:checked::after { transform: translateX(18px); background: var(--am-on-accent); }
 .am-switch:focus-visible { outline: 2px solid var(--am-accent); outline-offset: 2px; }
 
-.am-size-row { display: flex; align-items: center; gap: 12px; padding: 2px 4px; }
-.am-size-label { font-size: 0.95em; flex: 1; }
-.am-sizes { display: flex; gap: 4px; padding: 4px; background: var(--am-surface); border-radius: 12px; }
+/* Etiketten står på sin egen linje og knappene fyller bredden under (v6.5.32).
+   Med tre valg på 52 px lå raden allerede på grensen i en 360 px skuff — med et
+   fjerde ville den rent over, og skuffens egen rot-font vokser dessuten MED
+   valget, så etiketten blir bredere jo større valget er. `flex: 1` på knappene
+   deler bredden likt uansett hvor mange hakk lista får. */
+.am-size-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 2px 4px; }
+.am-size-label { font-size: 0.95em; flex: 1 1 auto; }
+.am-sizes {
+  display: flex;
+  flex: 1 1 100%;
+  gap: 4px;
+  padding: 4px;
+  background: var(--am-surface);
+  border-radius: 12px;
+}
 .am-size-btn {
-  min-width: 52px;
+  flex: 1 1 0;
+  min-width: 0;
   min-height: 44px;
   border-radius: 9px;
   background: transparent;
