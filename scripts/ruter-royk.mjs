@@ -171,6 +171,28 @@ try {
   // bruker som ikke har trykket ennå.
   await s4.evaluate(() => localStorage.removeItem('lende-fritt-tips-sett'))
 
+  // Snarveien til Fritt lende i den tomme «Mine kart»-lista, TATT HERFRA med
+  // vilje: står du allerede i modusen, er navigasjonen en no-op, og fram til
+  // v6.5.33 lot snarveien rute-watchen i AppMenu om lukkingen — en watch på
+  // `route.fullPath` som da aldri fyrer. Panelet ble stående oppå arket.
+  await s4.locator('button[aria-label="Åpne meny"]').click()
+  await sov(400)
+  await s4.locator('.am-row-main').first().click()          // «Mine kart»
+  await sov(600)
+  const modalKom = await s4.locator('[role="dialog"]').count()
+  await s4.locator('[role="dialog"] button:has-text("Prøv")').click()
+  await sov(900)
+  const etterSnarvei = {
+    modal: await s4.locator('[role="dialog"]').count(),
+    meny: await s4.locator('.am-row-main').count(),
+    url: new URL(s4.url()).pathname,
+  }
+  sjekk('Fritt lende: snarveien lukker «Mine kart» når du alt står i modusen',
+    modalKom === 1 && etterSnarvei.modal === 0 && etterSnarvei.meny === 0
+      && etterSnarvei.url === '/lende/fritt',
+    modalKom !== 1 ? 'fikk ikke opp panelet i det hele tatt'
+      : `panel ${etterSnarvei.modal}, meny ${etterSnarvei.meny}, ${etterSnarvei.url}`)
+
   // Modusens VIKTIGSTE invariant: arket kommer opp fra IndexedDB uten et
   // eneste eksternt kall. Telefonen kan ha drept appen mens du sto på fjellet
   // uten dekning, og da skal kartet være der når du åpner den igjen.

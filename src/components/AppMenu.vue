@@ -127,6 +127,11 @@ const iFrittLende = computed(() => route.name === 'fritt-lende')
 // modusen forblir prøvbar og testbar. Forklaringen står i underteksten.
 function goFrittLende() {
   close()
+  // Modalen ryddes HER og ikke bare av rute-watchen under: står du allerede i
+  // Fritt lende, er navigasjonen en no-op og `route.fullPath` endrer seg aldri.
+  // Snarveien i «Mine kart» ender i denne funksjonen, og uten dette ble panelet
+  // stående oppå arket (v6.5.33).
+  sheet.value = null
   merkNyhetSett()
   nyhetLukket.value = true
   // replace og ikke push: ellers lander nettleserens tilbake-knapp i det
@@ -450,7 +455,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             :title="sheet === 'rute' ? 'Mine ruter' : 'Mine kart'" @close="sheet = null">
     <div class="px-4 py-4">
       <MapLibrary :tab="sheet === 'rute' ? 'rute' : 'kart'" :show-install="false"
-                  @open-picker="apnePicker" />
+                  @open-picker="apnePicker" @fritt-lende="goFrittLende" />
     </div>
   </AppModal>
   <AppModal :open="sheet === 'nytt'" title="Nytt turkart" @close="sheet = null">
