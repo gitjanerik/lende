@@ -22,6 +22,9 @@ noen vei til dem, i nettopp den innstillingen modusen finnes for å tåle.
 Sentreringen er flyttet fra `place-items-center` til auto-marger: `place-items`
 skyver et for høyt barn ut over rullestartkanten, og den overflyten er unåbar.
 
+«Fritt lende» er dessuten en ekte `h1` og ikke en fet `p`. Det er sidens eneste
+overskrift, og en skjermleser som lister overskriftene fant ingenting å liste.
+
 Om-siden beskrev dessuten en ekvidistanse-linje på linjalen som ble tatt bort i
 v6.5.27. Den sier nå det som faktisk gjelder: 1:10 000 med 10 meters
 ekvidistanse, fast i denne modusen.

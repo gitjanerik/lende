@@ -183,7 +183,8 @@ try {
       .find((n) => n.scrollHeight > n.clientHeight + 4 && /God tur/i.test(n.innerText))
     if (!boks) return { fant: false }
     const synlig = (re) => {
-      const el = [...boks.querySelectorAll('p')].find((n) => re.test(n.textContent))
+      // `h1, p`: overskrifta er en h1 (v6.5.34) og resten avsnitt.
+      const el = [...boks.querySelectorAll('h1, p')].find((n) => re.test(n.textContent))
       if (!el) return false
       const r = el.getBoundingClientRect()
       return r.top >= -1 && r.bottom <= innerHeight + 1

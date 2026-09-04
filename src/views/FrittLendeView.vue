@@ -589,7 +589,9 @@ const arkDato = computed(() => (opprettet.value
       <div class="m-auto text-center text-ink/70 max-w-xs text-sm leading-relaxed
                   select-text"
            :style="{ zoom: uiTextScale }">
-        <p class="font-semibold text-ink">Fritt lende</p>
+        <!-- `h1` og ikke en fet `p`: dette er sidens eneste overskrift, og
+             en skjermleser som lister overskriftene skal finne modusens navn. -->
+        <h1 class="text-lg font-semibold text-ink">Fritt lende</h1>
         <!-- ÉN SETNING, og den handler om «Nøyaktig posisjon» (v6.5.34).
              Blokka var fem avsnitt: hva knappen gjør, hvor stort arket blir, at
              man må svare ja i nettleserens dialog, og så det ene som faktisk
