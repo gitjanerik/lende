@@ -230,6 +230,10 @@ function apnePicker(opt) {
 
 // Lukk ved rute-endring (f.eks. maskinvare-tilbake) og på Escape. Modalen kan
 // nå stå åpen uten menyen, så den må ryddes her også.
+// Merk hva denne watchen IKKE dekker: en push til ruta man allerede står i.
+// `MapLibrary` melder derfor navigasjonen sin selv (`@navigert`), og Fritt
+// lende-snarveien rydder i `goFrittLende`. Watchen er nettet under dem — den
+// fanger tilbake-knappen og navigasjon utenfra.
 watch(() => route.fullPath, () => {
   sheet.value = null
   if (menuOpen.value) close()
@@ -431,7 +435,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     <div class="px-4 py-4">
       <MapLibrary :tab="sheet === 'rute' ? 'rute' : 'kart'" :show-install="false"
                   :show-tabs="false"
-                  @open-picker="apnePicker" @fritt-lende="goFrittLende" />
+                  @open-picker="apnePicker" @fritt-lende="goFrittLende"
+                  @navigert="sheet = null" />
     </div>
   </AppModal>
   <AppModal :open="sheet === 'nytt'" title="Nytt turkart" @close="sheet = null">
