@@ -741,12 +741,14 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
     <!-- v6.5.28: den store grønne CTA-en «Lag kart der du står» er fjernet.
          Den gjorde nøyaktig det samme som pin-knappen i søkefeltet rett over,
          og to grønne knapper med samme handling på samme skjerm er ikke et
-         valg — det er en gjetning om hvilken som er den ekte. Teksten peker
-         nå på inngangene som står der. -->
-    <div v-if="supportsGeolocation" class="mt-1.5 text-[13px] text-ink/45 leading-relaxed max-w-[18rem]">
-      Søk opp et sted øverst — eller trykk den grønne pin-knappen for å starte der du står.
-    </div>
-    <div v-else class="mt-1.5 text-[13px] text-ink/45 leading-relaxed max-w-[18rem]">
+         valg — det er en gjetning om hvilken som er den ekte.
+
+         v6.5.35: bruksanvisningen for de to inngangene er fjernet med. Søkefeltet
+         og pin-knappen står rett over, med hver sin plassholder og etikett, og
+         en linje som peker på kontroller man allerede ser er en linje man leser
+         forbi. Teksten står IGJEN der geolokasjon MANGLER: der er pin-knappen
+         borte, og «Søk opp et sted» er da det eneste som finnes å gjøre. -->
+    <div v-if="!supportsGeolocation" class="mt-1.5 text-[13px] text-ink/45 leading-relaxed max-w-[18rem]">
       Søk opp et sted øverst for å lage ditt første turkart.
     </div>
 

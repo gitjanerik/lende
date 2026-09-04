@@ -1,3 +1,14 @@
+## 2026-09-04 — v6.5.35: Tom kartliste peker ikke lenger på knappene den står under
+
+«Mine turkart» viste, når lista var tom, en linje om at man kunne søke opp et sted
+øverst eller trykke den grønne pin-knappen for å starte der man står. Begge
+inngangene står synlige rett over teksten med hver sin plassholder og etikett, så
+linja forklarte kontroller brukeren allerede så — og en bruksanvisning for noe man
+ser er en linje man leser forbi. Den er fjernet. Teksten står igjen der geolokasjon
+mangler: der finnes ikke pin-knappen, og søket er da det eneste som er å gjøre.
+
+---
+
 ## 2026-09-03 — v6.5.33: Snarveien til Fritt lende lukker panelet den står i
 
 Snarveien i den tomme «Mine kart»-lista navigerte selv, med
