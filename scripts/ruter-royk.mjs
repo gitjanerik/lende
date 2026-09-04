@@ -227,7 +227,9 @@ try {
   await s4.locator('.am-row-main').first().click()          // «Mine kart»
   await sov(600)
   const modalKom = await s4.locator('[role="dialog"]').count()
-  await s4.locator('[role="dialog"] button:has-text("Prøv")').click()
+  // Treffes på MODUSNAVNET og ikke på en oppfordring: teksten er smak og ble
+  // skrevet om i v6.5.37, navnet er kontrakten.
+  await s4.locator('[role="dialog"] button:has-text("Fritt lende")').click()
   await sov(900)
   const etterSnarvei = {
     modal: await s4.locator('[role="dialog"]').count(),

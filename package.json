@@ -1,7 +1,7 @@
 {
   "name": "lende",
   "private": true,
-  "version": "6.5.36",
+  "version": "6.5.37",
   "type": "module",
   "scripts": {
     "dev": "vite",

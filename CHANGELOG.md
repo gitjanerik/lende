@@ -1,3 +1,27 @@
+## 2026-09-04 — v6.5.37: Fritt lende-snarveien slutter å selge mot hovedveien
+
+Snarveien i den tomme kart-lista spurte «Vil du bare ha et turkart uten noe mer
+fuzz?». Låneordet var det som var hørbart, men feilen lå under: setningen påstår
+at hovedveien er tungvint, mens hele grunnen til at knappen er tonet og ikke en
+grønn CTA er at skjemaet over fortsatt skal være hovedveien. Overskriften sier nå
+forskjellen — «Ett kart, ingen innstillinger» — og ikke stedet, for «der du står»
+er nøyaktig hva den grønne pin-knappen rett over gjør. «Krever nett» blir
+stående: dette er det ene stedet i appen der premisset snus, og den som står i en
+tom liste har aldri sett hovedmenyens rad som sier det.
+
+Den gule flata er borte. Mot kortet den ligger i målte `bg-amber-400/[0.08]`
+1,02:1 i lyst tema — den kostet en fjerde betydning for gult i denne fila (valgt
+fane, FAB-ring, varselpanelet hundre linjer opp, favoritt-stjerna) og leverte
+nesten ingen flate-kontrast. Grønt var utelukket av samme grunn som i v6.5.28:
+Fritt lende ER «lag kart der jeg står». Raden er nøytral nå, og gjenkjennelsen
+bæres av kompass-glyfen fra hovedmenyens egen Fritt lende-rad, så de to
+inngangene til modusen ser ut som samme sted.
+
+De to småtekstene lå på 4,08 og 2,70 mot WCAG AAs 4,5 i lyst tema. De to linjene
+som står igjen måler 12,26 og 5,42.
+
+---
+
 ## 2026-09-04 — v6.5.36: Ingen grafikk bak hamburgeren
 
 Toppbaren på forsiden hadde fire kontur-ringer fra logoen som bakgrunn. De var
