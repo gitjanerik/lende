@@ -607,6 +607,11 @@ export async function createSceneCore(container, {
     },
     get contoursVisible() { return contoursVisible },
 
+    // Leses av trykk-plukkingen i scene3d: om natta er himmelen det som ligger
+    // over silhuetten, og da skal en stjerne kunne treffes selv om strålen
+    // landet i terrenget. Se handleTap.
+    get erNatt() { return nightOn },
+
     // Sol/måne: bytt terrengtekstur til mørkt tema (flisene hentes lazily med
     // dark-flagget), nattehimmel, mørk dis og skyene av (de er en dagting —
     // se oppdaterSkySynlighet).
