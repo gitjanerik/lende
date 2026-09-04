@@ -1,3 +1,24 @@
+## 2026-09-04 — v6.5.40: Tre trefflater — kula, stjernene og kulturminnene
+
+Planetvisningen i 3D lukkes av et trykk utenfor kula, men gesten er ikke å
+gjette på: uten en synlig utvei trykket brukerne X-en oppe til høyre, som lukker
+hele 3D-visningen. «Tilbake til natthimmel» står nå midtstilt under kula og gjør
+nøyaktig det trykket gjør — legger kula tilbake og legger infokortet SAMMEN, ikke
+lukker det (v6.3.5). Den forklarende teksten i kortet er fortsatt fjernet (v6.3.3);
+en knapp er en affordanse, en bruksanvisning er ord man må lese i mørket.
+Stjerner som ikke er med i noen figur var nesten umulige å treffe rett over
+horisonten, og årsaken var ikke terskelen på 46 px: `handleTap` spurte himmelen
+BARE når terrengstrålen bommet, så silhuetten under stjerna spiste hele nedre
+halvdel av trefflata. Himmelen konsulteres nå også etter et terrengtreff, gatet
+på NATTMODUS — der er nåler, stier og kurver skjult, så et terrengtapp har ingen
+konkurrerende betydning, og porten kan ikke stjele fra en nål, et veipunkt eller
+GPS-en fordi de avgjøres tidligere i kjeden. I turkartet får kulturminner,
+fredete minner og vannmålestasjoner en trefflate på 44 px: symbolene er 3,2 mm
+fordi ISOM-print krever det, så flaten måles i SKJERMROM (`lib/markorTreff.js`)
+framfor å tegnes inn i SVG-en, som eksporteres til PNG, PDF og `.lendekart`.
+
+---
+
 ## 2026-09-04 — v6.5.39: Flymodus startet appen i v6.5.17, og tre andre kanter
 
 Service-workeren har ikke slettet en gammel cache siden v6.5.16. Den utgaven
