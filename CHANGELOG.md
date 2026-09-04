@@ -1,3 +1,27 @@
+## 2026-09-04 — v6.5.34: Fritt lende henter kartet selv, og sier mindre
+
+Tom-tilstanden var fem avsnitt: hva knappen gjør, hvor stort arket blir, at man
+må svare ja i nettleserens dialog, og til slutt det ene som ikke sier seg selv.
+Knappen er den eneste kontrollen på skjermen og boblen peker rett på den, så nå
+står bare det ene igjen — «Nøyaktig posisjon» ligger ikke i dialogen nettleseren
+viser, men i nettleserens egne innstillinger, og uten den er dette den stille
+feilen: en omtrentlig plassering svarer med en fix, arket bygges, og det ser like
+ekte ut selv om det er sentrert kilometer unna.
+
+Har du alt gitt posisjonstillatelse, og har du ikke noe ark, henter modusen
+kartet uten et trykk. Porten er «ingen ark», og det er invariant 1: med et ark på
+skjermen er et bygg en erstatning, og da skal det fortsatt ligge et trykk mellom
+det å åpne modusen og det å miste arket. Oppslaget spør aldri om en tillatelse
+det ikke har — bare `granted` teller, `prompt` ville reist en dialog brukeren
+ikke ba om, og Safari som ikke svarer på spørsmålet gir den gamle oppførselen.
+Uten dekning bygges det ingenting.
+
+Om-siden beskrev dessuten en ekvidistanse-linje på linjalen som ble tatt bort i
+v6.5.27. Den sier nå det som faktisk gjelder: 1:10 000 med 10 meters
+ekvidistanse, fast i denne modusen.
+
+---
+
 ## 2026-09-03 — v6.5.33: Snarveien til Fritt lende lukker panelet den står i
 
 Snarveien i den tomme «Mine kart»-lista navigerte selv, med

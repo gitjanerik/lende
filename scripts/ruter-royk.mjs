@@ -144,19 +144,26 @@ try {
   // 3. Trykket kvitterer den ut — og sjekken RYDDER etter seg (nøkkelen
   //    slettes), så neste kjøring møter en fersk bruker.
   const tom = await s4.evaluate(() => {
-    const el = [...document.querySelectorAll('p')].find((n) => /God tur i fritt lende/i.test(n.textContent))
+    const el = [...document.querySelectorAll('p')].find((n) => /God tur/i.test(n.textContent))
     return {
       tekst: document.body.innerText,
       markerbar: el ? getComputedStyle(el).userSelect !== 'none' : false,
     }
   })
-  sjekk('Fritt lende: tom-tilstanden forklarer posisjon og ønsker god tur',
-    /innstillinger/i.test(tom.tekst) && /God tur i fritt lende/i.test(tom.tekst),
-    'nevner nettleser-innstillingene og god tur')
+  sjekk('Fritt lende: tom-tilstanden ber om nøyaktig posisjon og ønsker god tur',
+    /nøyaktig posisjon/i.test(tom.tekst) && /God tur/i.test(tom.tekst),
+    'nevner nøyaktig posisjon og god tur')
   sjekk('Fritt lende: tom-tilstandens tekst kan markeres', tom.markerbar,
     tom.markerbar ? 'user-select arves ikke fra roten' : 'select-none arves ned i teksten')
   sjekk('Fritt lende: førstegangs-boblen peker på knappen',
     /GPS på\?/.test(tom.tekst), 'boblen vises før første trykk')
+
+  // AUTOSTARTEN (v6.5.34) og porten under den. Uten tillatelse skal skjermen
+  // stå stille — den ovenfor beviser halvparten; her måles at oppslaget i seg
+  // selv ikke reiser nettleserens dialog og ikke setter i gang noe.
+  sjekk('Fritt lende: uten tillatelse starter ingenting av seg selv',
+    !/Finner posisjonen|Bygger kart/i.test(tom.tekst),
+    'ingen fremdriftschip på en tom skjerm')
 
   await s4.locator('button[aria-label]').first().click()
   await sov(400)
@@ -192,6 +199,39 @@ try {
       && etterSnarvei.url === '/lende/fritt',
     modalKom !== 1 ? 'fikk ikke opp panelet i det hele tatt'
       : `panel ${etterSnarvei.modal}, meny ${etterSnarvei.meny}, ${etterSnarvei.url}`)
+
+  // AUTOSTARTEN, den andre halvdelen: har brukeren ALT gitt posisjonstillatelse
+  // og finnes det ikke noe ark, skal modusen hente kartet uten et trykk
+  // (v6.5.34). Egen kontekst, fordi tillatelsen gis per kontekst — og den kan
+  // ikke gis i `ctx`, som resten av kjøringen bruker til å måle at ingenting
+  // starter av seg selv.
+  //
+  // Sjekken måler at modusen SETTER I GANG, ikke at kartet blir ferdig: chipen
+  // står i det GPS-en starter, altså før første nettkall. Vi avbryter straks —
+  // en røyktest for RUTING skal ikke bygge et ekte ark fra Overpass, og et bygg
+  // som får løpe ville tatt titalls sekunder på en kilde som kan ha en dårlig
+  // dag.
+  const ctxGps = await browser.newContext({
+    viewport: { width: 430, height: 900 },
+    permissions: ['geolocation'],
+    geolocation: { latitude: 59.8425, longitude: 10.4076 },   // Vardåsen
+  })
+  const sGps = await ctxGps.newPage()
+  sGps.on('pageerror', (e) => jsFeil.push(e.message))
+  await sGps.goto(`${BASE}/fritt`, { waitUntil: 'domcontentloaded' })
+  let startetSelv = false
+  for (let i = 0; i < 20 && !startetSelv; i++) {
+    await sov(200)
+    startetSelv = await sGps.evaluate(() => /Finner posisjonen|Bygger kart/i.test(document.body.innerText))
+  }
+  sjekk('Fritt lende: gitt tillatelse henter modusen kartet uten et trykk',
+    startetSelv, startetSelv ? 'fremdriftschipen kom av seg selv' : 'skjermen ble stående tom')
+  // Boblen peker på et trykk som allerede er gjort for brukeren.
+  const bobleEtterAutostart = await sGps.evaluate(() => /GPS på\?/.test(document.body.innerText))
+  sjekk('Fritt lende: autostarten kvitterer ut førstegangs-boblen',
+    !bobleEtterAutostart, bobleEtterAutostart ? 'boblen står igjen' : 'skjult')
+  await sGps.locator('button:has-text("Avbryt")').first().click().catch(() => {})
+  await ctxGps.close()
 
   // Modusens VIKTIGSTE invariant: arket kommer opp fra IndexedDB uten et
   // eneste eksternt kall. Telefonen kan ha drept appen mens du sto på fjellet

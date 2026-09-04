@@ -22,7 +22,7 @@ import {
   FRITT_LENDE_LAG, frittLendeTema, frittLendeUtmBbox,
   knappeHandling, knappeEtikett, fixVurdering, arkErGammelt,
   FIX_VENT_MS, dekningsSkala,
-  avstandFraSenter, avstandTekst, forNaerTekst, NYTT_KART_M,
+  avstandFraSenter, avstandTekst, forNaerTekst, NYTT_KART_M, skalAutostarte,
 } from '../lib/frittLende.js'
 import { gpsFeilTekst, GPS_IKKE_STOTTET } from '../lib/gpsFeil.js'
 import KartLaster from '../components/KartLaster.vue'
@@ -485,7 +485,25 @@ onMounted(async () => {
   const lagret = await loadMap(FRITT_LENDE_ID).catch(() => null)
   if (lagret) await visArk(lagret)
   harAngre.value = !!(await loadMap(FRITT_LENDE_FORRIGE_ID).catch(() => null))
+
+  // Har du alt sagt ja til posisjon, og har du ikke noe ark, henter modusen
+  // kartet uten et trykk (v6.5.34). Beslutningen bor i `skalAutostarte` — se
+  // den for hvorfor porten er «ingen ark» og ikke noe annet.
+  if (skalAutostarte({ harArk: !!meta.value, tillatelse: await posisjonsTillatelse(), offline: erOffline.value })) {
+    // Boblen har ingen jobb her: den peker på et trykk som allerede er gjort
+    // for brukeren. Den kvitteres ut permanent, som etter et ekte trykk.
+    kvitterTips()
+    utfor('start-gps-og-bygg')
+  }
 })
+
+// 'granted' | 'prompt' | 'denied' | null. null = nettleseren svarer ikke på
+// spørsmålet (Safari), og da autostarter vi ikke. Oppslaget SPØR ALDRI om
+// tillatelse — det leser bare svaret som alt ligger der.
+async function posisjonsTillatelse() {
+  try { return (await navigator.permissions.query({ name: 'geolocation' })).state }
+  catch { return null }
+}
 
 onUnmounted(() => {
   ro?.disconnect()
@@ -553,28 +571,24 @@ const arkDato = computed(() => (opprettet.value
                   pointer-events-auto select-text"
            :style="{ zoom: uiTextScale }">
         <p class="font-semibold text-ink">Fritt lende</p>
-        <p class="mt-2">Trykk knappen nede til høyre.<br>
-          Du får et kart på 2 × 2 km med deg selv i midten.</p>
-        <!-- Hintet handler om POSISJON og ikke om nett (v6.5.29). «Krever nett»
-             sto her, men er implisitt for et kart som bygges av Overpass og
-             Kartverket — og hovedmenyen sier det allerede. Det brukeren faktisk
-             må gjøre for at knappen skal virke, er å slippe til posisjonen.
+        <!-- ÉN SETNING, og den handler om «Nøyaktig posisjon» (v6.5.34).
+             Blokka var fem avsnitt: hva knappen gjør, hvor stort arket blir, at
+             man må svare ja i nettleserens dialog, og så det ene som faktisk
+             ikke sier seg selv. Knappen er den eneste kontrollen på skjermen og
+             boblen peker rett på den, dialogen kommer av seg selv i det GPS-en
+             starter — og fem avsnitt på et tomt ark er fem avsnitt ingen leser
+             ferdig, så det ene som betydde noe druknet.
 
-             «Nøyaktig posisjon» får en HALV setning om HVOR den bor (v6.5.31).
-             Eieren fant den ikke selv: den ligger ikke i dialogen nettleseren
-             viser, men under tillatelser for nettstedet i nettleserens egne
-             innstillinger, og den settes én gang. Uten den er dette den stille
-             feilen — omtrentlig plassering svarer med en fix, arket bygges, og
-             det ser like ekte ut selv om det er sentrert kilometer unna. -->
+             Det ene er dette: «Nøyaktig posisjon» ligger ikke i dialogen
+             nettleseren viser, men i nettleserens egne innstillinger, og den
+             settes én gang. Uten den er dette den STILLE feilen — omtrentlig
+             plassering svarer med en fix, arket bygges, og det ser like ekte ut
+             selv om det er sentrert kilometer unna. -->
         <p class="mt-3">
-          Slå på posisjon når nettleseren spør.
+          Husk å aktivere nøyaktig posisjon for Lende — en innstilling i
+          nettleseren din.
         </p>
-        <p class="mt-2">
-          Slå også på «Nøyaktig posisjon» for dette nettstedet — en
-          engangsinnstilling under tillatelser i nettleserens innstillinger.
-          Uten den kan kartet havne kilometer fra der du står.
-        </p>
-        <p class="mt-4 text-ink/85">God tur i fritt lende.</p>
+        <p class="mt-4 text-ink/85">God tur.</p>
       </div>
     </div>
 
@@ -641,12 +655,12 @@ const arkDato = computed(() => (opprettet.value
          har du et kart, har du alt trykket.
          `right-4` med samme kant som knappen, og trekanten sentrert over
          knappens midte (56 px bred → 28 px inn fra kanten). -->
-    <div v-if="!tipsSett && !meta && !bygger"
+    <div v-if="!tipsSett && !meta && !bygger && !venterPaaFix"
          class="absolute bottom-20 right-4 z-30 max-w-[min(17rem,78vw)]
                 px-3.5 py-2.5 rounded-xl bg-overlay shadow-lg
                 ring-1 ring-amber-400/60 text-sm text-ink leading-snug"
          :style="{ zoom: uiTextScale }">
-      GPS på? Trykk her for å hente kart.
+      GPS på? Nøyaktig posisjon aktivert? Lag kart!
       <span class="absolute -bottom-[7px] right-[22px] w-3.5 h-3.5 rotate-45
                    bg-overlay border-r border-b border-amber-400/60" aria-hidden="true"></span>
     </div>
