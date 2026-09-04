@@ -9,6 +9,7 @@
 import { describe, it, expect } from 'vitest'
 import { PerspectiveCamera, Quaternion, Euler } from 'three'
 import { buildMane, buildNightSky, buildHimmelSkive } from './skyDome.js'
+import { RIPPLE_VARIGHET_S } from './valgRipple.js'
 import { FORMASJONER } from './stjerner.js'
 import { STJERNER } from './stjerner.js'
 import { lokalStjernetid, tilHorisont, presesserTilDato, himmelFor } from './astronomi.js'
@@ -621,6 +622,32 @@ describe('trykk-ringen på himmelen', () => {
       expect(h.planetSkive(id)?.materials[0].uniforms.uRing.value, id).toBe(0)
     }
     h.dispose()
+  })
+
+  it('lar bekreftelses-ripplen leve og dø av seg selv', () => {
+    // Bølgene er ETT SKUDD, og klokka er motorens — den settes ved FØRSTE
+    // frame og ikke ved trykket, ellers ville en ripple startet i en pauset
+    // scene vært over før første bilde ble tegnet.
+    const sky = buildNightSky({ ...STED, dato: DATO })
+    expect(sky.valgRippleAktiv).toBe(false)
+    expect(sky.startValgRipple({ azimut: 1.2, hoyde: 0.4 })).toBe(true)
+    expect(sky.valgRippleAktiv).toBe(true)
+    sky.update(null, 1000)
+    sky.update(null, 1000 + RIPPLE_VARIGHET_S / 2)
+    expect(sky.valgRippleAktiv).toBe(true)
+    sky.update(null, 1000 + RIPPLE_VARIGHET_S + 0.01)
+    expect(sky.valgRippleAktiv).toBe(false)
+    sky.dispose()
+  })
+
+  it('rydder ripplen når natta slås av', () => {
+    // Uten dette ville bølgene stått og ventet på å bli ferdige neste gang
+    // himmelen åpnes, altså en kvittering på et valg man tok for lenge siden.
+    const sky = buildNightSky({ ...STED, dato: DATO })
+    sky.startValgRipple({ azimut: 0.5, hoyde: 0.9 })
+    sky.setNight(false)
+    expect(sky.valgRippleAktiv).toBe(false)
+    sky.dispose()
   })
 
   it('settPlaneter viser ikke skiva til det legemet globen står for', () => {
