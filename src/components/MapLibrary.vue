@@ -752,9 +752,28 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
 
     <!-- Snarvei til Fritt lende (v6.5.31). Modusen bor bare i hovedmenyen, og
          en tom liste er nøyaktig der noen står som ville hatt et kart uten
-         skjemaet over. Den står UNDER teksten og som en tonet knapp og ikke en
-         grønn CTA: skjemaet er fortsatt hovedveien, dette er alternativet for
-         den som ikke vil ha det.
+         skjemaet over. Den står UNDER teksten: skjemaet er fortsatt hovedveien.
+
+         v6.5.37 — INGEN AKSENTFARGE, og det er målt. Flata var
+         `bg-amber-400/[0.08]`, som mot kortet under gir 1,02:1 i lyst tema:
+         den kostet en fjerde betydning for gult i denne fila (valgt fane,
+         FAB-ring, varselpanelet hundre linjer opp, favoritt-stjerna) og
+         leverte nesten ingen flate-kontrast. Grønt er utelukket av samme grunn
+         som v6.5.28 over: Fritt lende ER «lag kart der jeg står», og en andre
+         grønn ting med den handlingen er ikke et valg, det er en gjetning.
+         Nøytralt `ink/[0.06]` inni kortets `ink/[0.03]` leses som et hevet
+         element i SAMME kort — gjenkjennelsen bæres nå av kompass-glyfen fra
+         hovedmenyens rad, ikke av fargen.
+
+         TEKSTEN SOLGTE MOT SEG SELV. «Vil du bare ha et turkart uten noe mer
+         fuzz?» påstår at hovedveien er tungvint, mens hele grunnen til at
+         knappen er tonet og ikke grønn er at hovedveien skal stå. Overskriften
+         sier nå forskjellen — ingen innstillinger — og ikke stedet, for «der du
+         står» er nøyaktig hva den grønne pin-knappen tre centimeter over gjør.
+         De to gamle småtekstene lå dessuten på 4,08 og 2,70 mot AAs 4,5.
+         «Krever nett» blir stående: dette er det ene stedet i appen der
+         premisset snus, og en bruker i den tomme lista har aldri sett
+         hovedmenyens rad som sier det.
 
          v6.5.33: den navigerte SELV, med `router.push('/fritt')`, og lot
          eieren om å rydde. Det så riktig ut fordi rute-byttet uansett river
@@ -764,22 +783,28 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
          arket. Nå eier KALLEREN både lukkingen og ruta — AppMenu gjennom
          `goFrittLende`, som også er den ene som kjenner `replace`-regelen. -->
     <button type="button" @click="emit('fritt-lende')"
-            class="mt-5 w-full max-w-[20rem] px-4 py-3 rounded-xl border transition
-                   bg-amber-400/[0.08] border-amber-400/30 text-left
-                   active:bg-amber-400/15 active:scale-[0.99]">
-      <span class="block text-[13px] text-ink/60 leading-relaxed">
-        Vil du bare ha et turkart uten noe mer fuzz?
+            class="mt-6 w-full max-w-[20rem] min-h-11 px-4 py-3 rounded-xl border text-left
+                   flex items-center gap-3 transition
+                   bg-ink/[0.06] border-ink/15
+                   active:bg-ink/[0.11] active:scale-[0.99]
+                   focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink/40">
+      <!-- Samme kompass-glyf som Fritt lende-raden i hovedmenyen (am-row-icon),
+           så de to inngangene til modusen leses som samme sted. -->
+      <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0 text-ink/55" fill="none" stroke="currentColor"
+           stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="8.5"/>
+        <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M14.5 9.5l-2 5-5 2 2-5 5-2Z"/>
+      </svg>
+      <span class="flex-1 min-w-0">
+        <span class="block text-[14px] font-semibold text-ink">Ett kart, ingen innstillinger</span>
+        <span class="block mt-0.5 text-[12px] leading-snug text-ink/70">
+          Fritt lende — ett ark der du står, én knapp. Krever nett.
+        </span>
       </span>
-      <span class="mt-1 flex items-center gap-1.5 text-[14px] font-semibold text-ink/90">
-        Prøv «Fritt lende»
-        <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M5 12h14M13 6l6 6-6 6"/>
-        </svg>
-      </span>
-      <span class="block mt-0.5 text-[12px] text-ink/45">
-        Ett kart, én knapp — god tur.
-      </span>
+      <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0 text-ink/55" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="m9 6 6 6-6 6"/>
+      </svg>
     </button>
   </div>
 
