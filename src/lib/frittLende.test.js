@@ -8,6 +8,7 @@ import {
   frittLendeTema,
   frittLendeUtmBbox,
   knappeHandling,
+  skalAutostarte,
   knappeEtikett,
   avstandFraSenter,
   avstandTekst,
@@ -154,6 +155,33 @@ describe('avstandTekst', () => {
   it('er tom uten tall', () => {
     expect(avstandTekst(null)).toBe('')
     expect(avstandTekst(NaN)).toBe('')
+  })
+})
+
+describe('skalAutostarte', () => {
+  const a = (over = {}) => skalAutostarte({ harArk: false, tillatelse: 'granted', offline: false, ...over })
+
+  it('henter kartet selv når tillatelsen alt er gitt og skjermen er tom', () => {
+    expect(a()).toBe(true)
+  })
+
+  // INVARIANT 1: med et ark på skjermen er et bygg en ERSTATNING, og da skal
+  // det ligge et trykk imellom. Autostarten må aldri kunne bli veien rundt den.
+  it('INVARIANT: autostarter aldri når det finnes et ark', () => {
+    expect(a({ harArk: true })).toBe(false)
+  })
+
+  // Bare 'granted'. 'prompt' ville reist nettleserens dialog uten at brukeren
+  // ba om noe, og null er nettleseren som ikke svarer på spørsmålet (Safari).
+  it('spør aldri om tillatelse den ikke har', () => {
+    expect(a({ tillatelse: 'prompt' })).toBe(false)
+    expect(a({ tillatelse: 'denied' })).toBe(false)
+    expect(a({ tillatelse: null })).toBe(false)
+    expect(a({ tillatelse: undefined })).toBe(false)
+  })
+
+  it('bygger ikke uten dekning', () => {
+    expect(a({ offline: true })).toBe(false)
   })
 })
 
