@@ -26,10 +26,9 @@ import { NYHET, nyhetSett, merkNyhetSett } from '../lib/nyheter.js'
 // Lukkes på valg, backdrop-klikk, Escape og rute-endring.
 //
 // v2.4.13 — ryddet i tre nivåer etter design-handoff:
-//   1. modus-segmentbryter øverst (Turkart / Turplanlegger) — appens to halvdeler
-//      er ikke et menyvalg midt i en liste, og innholdet under følger modusen
-//   2. primærvalgene er kort med antall/undertekst, kontekst og visning er rader
-//   3. Om appen + versjon er dempet under en skillelinje
+//   1. primærvalgene er kort med antall/undertekst, kontekst og visning er rader
+//   2. Om appen + versjon er dempet under en skillelinje
+// Modus-segmentet som lå øverst er fjernet i v6.5.35 — se «Modus» under.
 // Tekststørrelsen er fire samtidige valg (100/125/150/200) som skalerer menyen live:
 // rot-fonten er 16 px × faktor, og alt innhold er i em.
 
@@ -47,16 +46,21 @@ const router = useRouter()
 
 // ── Modus ────────────────────────────────────────────────────────────────────
 // Modusen LESES av appens tilstand (hvilken rute/fane vi står i) i stedet for å
-// være en egen preferanse — bryteren viser da alltid hvor du faktisk er.
+// være en egen preferanse.
+//
+// SEGMENTBRYTEREN ØVERST ER FJERNET (v6.5.35), og med den den ene knappen som
+// gjorde modus til et VALG. Den så ut som faner over et innhold som ikke var
+// faner: radene under er bibliotek og innstillinger, ikke to sider av det
+// segmentet sto over. Navigasjonen bor nå i radene selv, som en pil høyre —
+// «gå til funksjonen» — der «+» sto. For Turplanleggeren var «+ Ny rute»
+// dessuten NØYAKTIG samme navigasjon som segmentet, altså to knapper med én
+// handling; for Turkart åpnet «+» en modal som «Mine kart» uansett åpner selv
+// (søkefeltet står øverst i den).
+//
+// `mode` lever videre, men BARE for å vise hvor du er (`is-card` på raden).
+// Den bestemmer ikke lenger hva som står i menyen eller i hvilken rekkefølge.
 const mode = computed(() =>
   (route.name === 'ruteplanlegger' || route.query.tab === 'rute') ? 'plan' : 'kart')
-
-const MODES = [
-  { id: 'kart', label: 'Turkart', to: '/', last: 'kart',
-    d: 'M9 4 3 6.5v13L9 17l6 3 6-2.5v-13L15 7 9 4Zm0 0v13m6-10v13' },
-  { id: 'plan', label: 'Turplanlegger', to: '/rute', last: 'rute',
-    d: 'M6.5 8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm11 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm-11-4v-3m0 3a3 3 0 0 0 3 3h5a3 3 0 0 1 3 3' },
-]
 
 function go(to, last) {
   close()
@@ -71,12 +75,6 @@ function onAskLende() {
   openChat()
 }
 
-// Å trykke på modusen du alt står i skal ikke kaste deg ut av et åpent kart.
-function pickMode(m) {
-  if (mode.value === m.id) return
-  go(m.to, m.last)
-}
-
 // ── Primærvalg ───────────────────────────────────────────────────────────────
 // Antall lagrede kart/ruter hentes ved hver åpning — menyen er den ene flaten
 // der tallene skal stemme, og lesingen går mot det lette meta-storet.
@@ -88,27 +86,27 @@ async function loadCounts() {
 }
 watch(menuOpen, (open) => { if (open) void loadCounts() }, { immediate: true })
 
-const PRIMARY = {
-  kart: {
+const PRIMARY = [
+  {
     id: 'kart', label: 'Mine kart', sheet: 'kart',
-    addLabel: 'Nytt kart', addSheet: 'nytt',
+    to: '/', last: 'kart', goLabel: 'Gå til Turkart',
     d: 'M4 8.5 12 4.5l8 4-8 4-8-4Zm0 5 8 4 8-4m-16 0',
   },
-  plan: {
+  {
     id: 'plan', label: 'Mine ruter', sheet: 'rute',
-    addTo: '/rute', addLabel: 'Ny rute', last: 'rute',
+    to: '/rute', last: 'rute', goLabel: 'Gå til Turplanlegger',
     d: 'M6.5 8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm11 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm-11-4v-3m0 3a3 3 0 0 0 3 3h5a3 3 0 0 1 3 3',
   },
-}
-// Rekkefølgen følger modusen: i Turkart ligger Mine kart først, i Turplanlegger
-// ligger Mine ruter først. Den øverste raden er kortet.
-const primaryRows = computed(() => {
-  const order = mode.value === 'kart' ? ['kart', 'plan'] : ['plan', 'kart']
-  return order.map((id) => ({
-    ...PRIMARY[id],
-    meta: id === 'kart' ? mapsSummary(maps.value) : routesSummary(routes.value),
-  }))
-})
+]
+// REKKEFØLGEN ER FAST: Turkart øverst, alltid (v6.5.35). Den fulgte modusen —
+// «Mine kart» først i Turkart, «Mine ruter» først i Turplanleggeren — og en meny
+// som stokker om på seg selv etter hvor du står er en meny man må LESE hver gang
+// framfor å treffe på muskelminne. Hvor du er, sies av kort-markeringen
+// (`is-card`), som ikke flytter noe.
+const primaryRows = computed(() => PRIMARY.map((p) => ({
+  ...p,
+  meta: p.id === 'kart' ? mapsSummary(maps.value) : routesSummary(routes.value),
+})))
 
 // ── Fritt lende ──────────────────────────────────────────────────────────────
 // Egen rad SIST i am-primary, ikke et tredje segment i modus-bryteren: den er
@@ -118,8 +116,10 @@ const primaryRows = computed(() => {
 // verken bibliotek eller antall, og ville løyet om sin egen form som et
 // primærkort.
 //
-// Vises kun i modus `kart`: å tilby en Turkart-variant mens du står i
-// Turplanleggeren er støy.
+// Fast plass, som de to over (v6.5.35): raden var gatet på modus `kart`, med
+// begrunnelsen at en Turkart-variant er støy i Turplanleggeren. Da rekkefølgen
+// ble fast, ble den gaten det samme problemet i mindre — en rad som er borte
+// halve tida er en rad man ikke kan lære hvor er.
 const iFrittLende = computed(() => route.name === 'fritt-lende')
 
 // «Kun mobil» er en PRODUKTBESLUTNING, ikke en runtime-sjekk. Raden er derfor
@@ -152,8 +152,13 @@ function lukkNyhet() {
   nyhetLukket.value = true
 }
 
-// ── Kontekst ─────────────────────────────────────────────────────────────────
-const contextEyebrow = computed(() => (mode.value === 'kart' ? 'På kartet' : 'Ruteplanlegging'))
+// ── Hjelp ────────────────────────────────────────────────────────────────────
+// Ledeteksten er FAST (v6.5.35). Den sa «På kartet» / «Ruteplanlegging» etter
+// hvilken modus du sto i, altså hvor du var — men de to radene under er
+// Tegnforklaring og Spør Lende, og de er hjelp i begge halvdeler. En overskrift
+// som skifter uten at innholdet gjør det, får leseren til å tro at innholdet
+// gjorde det.
+const HJELP_LEDETEKST = 'Hjelp i lende'
 
 // Eksterne karttjenester på synlig kartsenter — kun når en kartvisning har
 // registrert en punkt-provider (useMapContext), dvs. brukeren er inne i et kart.
@@ -272,18 +277,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <div class="am-title">Så i lende</div>
       </div>
 
-      <!-- Modus: appens to halvdeler, alltid synlig øverst. -->
-      <div class="am-seg am-seg-modes" role="group" aria-label="Modus">
-        <button v-for="m in MODES" :key="m.id" type="button"
-                class="am-seg-btn am-seg-row" :class="{ 'is-on': mode === m.id }"
-                :aria-pressed="mode === m.id" @click="pickMode(m)">
-          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
-               stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <path :d="m.d" />
-          </svg><span class="am-seg-label">{{ m.label }}</span>
-        </button>
-      </div>
-
       <div class="am-scroll">
         <!-- Kunngjøring. Ligger i rullefeltet, så layouten lukker seg uten at
              noe hopper i den faste headeren når den fjernes. -->
@@ -307,8 +300,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
         <!-- Nivå 1: primærvalgene. Øverste rad (aktiv modus) er kortet. -->
         <div class="am-primary">
-          <div v-for="(p, i) in primaryRows" :key="p.id" class="am-row"
-               :class="{ 'is-card': i === 0 }">
+          <!-- `is-card` markerer HVOR DU ER og ikke hvilken rad som er øverst
+               (v6.5.35). Den fulgte indeksen, som var det samme så lenge lista
+               ble stokket om etter modus; med fast rekkefølge må den lese
+               modusen selv, ellers ville «Mine kart» sett aktiv ut i
+               Turplanleggeren. -->
+          <div v-for="p in primaryRows" :key="p.id" class="am-row"
+               :class="{ 'is-card': mode === p.id }">
             <span class="am-row-icon">
               <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor"
                    stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
@@ -319,19 +317,23 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               <span class="am-row-title">{{ p.label }}</span>
               <span class="am-row-meta">{{ p.meta }}</span>
             </button>
-            <button type="button" class="am-add" :aria-label="p.addLabel"
-                    @click="p.addSheet ? openSheet(p.addSheet) : go(p.addTo, p.last)">
+            <button type="button" class="am-add" :aria-label="p.goLabel"
+                    @click="go(p.to, p.last)">
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
                    stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 5.5v13M5.5 12h13" />
+                <path d="M5 12h13m-5.5-6 6 6-6 6" />
               </svg>
             </button>
           </div>
 
-          <!-- Fritt lende: full bredde, uten «+» og uten meta-tall, så den
-               leses som noe annet enn bibliotek-radene over. -->
-          <div v-if="mode === 'kart'" class="am-row am-row-fritt"
-               :class="{ 'is-card': iFrittLende }">
+          <!-- Fritt lende: tredje LIKEVERDIGE rad (v6.5.35), med samme pil som
+               de to over. Den sto med full bredde og uten knapp for å leses som
+               noe annet enn bibliotek-radene — men den er ikke noe annet i
+               menyen: den er appens tredje inngang, og en rad uten den grønne
+               pila leses som en overskrift framfor et sted å gå. Den har
+               fortsatt ingen meta-TALL, for modusen har verken bibliotek eller
+               antall; underteksten sier hva den er i stedet. -->
+          <div class="am-row" :class="{ 'is-card': iFrittLende }">
             <span class="am-row-icon">
               <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor"
                    stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
@@ -343,12 +345,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               <span class="am-row-title">Fritt lende</span>
               <span class="am-row-meta">Ett kart, én knapp · krever nett · laget for mobil</span>
             </button>
+            <button type="button" class="am-add" aria-label="Gå til Fritt lende"
+                    @click="goFrittLende">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+                   stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h13m-5.5-6 6 6-6 6" />
+              </svg>
+            </button>
           </div>
         </div>
 
-        <!-- Nivå 2: kontekst for der du er. -->
+        <!-- Nivå 2: hjelp — gjelder begge halvdeler av appen. -->
         <div class="am-block">
-          <div class="am-eyebrow">{{ contextEyebrow }}</div>
+          <div class="am-eyebrow">{{ HJELP_LEDETEKST }}</div>
           <button type="button" class="am-line" @click="openSheet('tegnforklaring')">
             <span class="am-line-icon">
               <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
@@ -455,6 +464,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             :title="sheet === 'rute' ? 'Mine ruter' : 'Mine kart'" @close="sheet = null">
     <div class="px-4 py-4">
       <MapLibrary :tab="sheet === 'rute' ? 'rute' : 'kart'" :show-install="false"
+                  :show-tabs="false"
                   @open-picker="apnePicker" @fritt-lende="goFrittLende" />
     </div>
   </AppModal>
@@ -523,7 +533,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .am-trigger-slot { width: 44px; height: 44px; flex: 0 0 auto; }
 .am-title { font-size: 1.25em; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
 
-/* ── Segmentbrytere (modus + tema) ── */
+/* ── Segmentbryter (tema) ──
+   Modus-segmentet er borte fra v6.5.35; `.am-seg-modes`, `.am-seg-row` og
+   `.am-seg-label` gikk med det. Igjen står tema-bryteren, som er den ENESTE
+   segmentkontrollen i menyen nå — og det er poenget: et segment skal bety «to
+   tilstander av det samme», ikke «to halvdeler av appen». */
 .am-seg {
   display: flex;
   gap: 6px;
@@ -532,7 +546,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   border-radius: 14px;
   flex: 0 0 auto;
 }
-.am-seg-modes { margin: 0 18px 20px; }
 .am-seg-btn {
   /* Like brede segmenter (flex-basis 0), men min-width 0 så teksten faktisk kan
      krympe: ved 150 % tekststørrelse er «Turplanlegger» bredere enn halve
@@ -548,14 +561,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   transition: background 0.18s, color 0.18s;
 }
 .am-seg-btn.is-on { background: var(--am-accent); color: var(--am-on-accent); }
-.am-seg-row {
-  padding: 12px 6px;
-  font-size: 0.95em;
-  justify-content: center;
-  gap: 8px;
-}
-.am-seg-row svg { flex: 0 0 auto; }
-.am-seg-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .am-seg-col {
   flex-direction: column;
   padding: 11px 4px;

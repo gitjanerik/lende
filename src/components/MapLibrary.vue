@@ -25,6 +25,8 @@ import { useUiTextScale } from '../composables/useUiTextScale.js'
 // menyvalget. Toveis, så brukeren kan bytte fane inne i begge.
 const props = defineProps({
   tab: { type: String, default: 'kart' },
+  // Fane-raden øverst. Av i menyens modaler — se malen for hvorfor.
+  showTabs: { type: Boolean, default: true },
   // Forsiden viser PWA-install-CTA-en nederst; i modalen ville den bare
   // konkurrert med menyens egen «Installer som app».
   showInstall: { type: Boolean, default: true },
@@ -505,8 +507,19 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
 <template>
 
   <!-- Fane-veksler (samme segment-stil som Om-siden): hjem-siden er felles
-       for turkart (Mine kart) og ruteplanlegger (Mine ruter). -->
-  <div class="flex gap-1 p-1 rounded-xl bg-ink/5 border border-ink/10 mb-4">
+       for turkart (Mine kart) og ruteplanlegger (Mine ruter).
+
+       IKKE I MODALENE (v6.5.35). Hovedmenyen åpner «Mine kart» og «Mine ruter»
+       som hver sin side med sin egen tittel, og en fane-rad der er en snarvei
+       til den andre halvdelen av appen midt inne i den ene: den motsier
+       tittelen over seg, og de to funksjonene brukes aldri samtidig. Etter at
+       modus-bryteren gikk ut av menyen (samme versjon) er menyen det ene
+       stedet man bytter halvdel — så raden hadde blitt appens siste sted der
+       navigasjonen mellom dem ligger gjemt inne i noe annet.
+
+       Hjem-siden BEHOLDER den: der er `?tab=` en ekte rute-kontrakt med egne
+       redirects og røyk-sjekker, og siden er per definisjon fellessiden. -->
+  <div v-if="showTabs" class="flex gap-1 p-1 rounded-xl bg-ink/5 border border-ink/10 mb-4">
     <button @click="activeTab = 'kart'"
             class="flex-1 py-2 rounded-lg text-[13px] font-medium transition"
             :class="activeTab === 'kart' ? 'bg-[#ffd84a] text-zinc-900' : 'text-ink/60 active:text-ink/90'">
