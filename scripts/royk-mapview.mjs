@@ -1775,7 +1775,11 @@ const SJEKKER = [
         // «alle N» skal gi HELE historien. Bare de fire nyeste vises sammenlagt,
         // og en knapp som ikke utvider noe er verre enn ingen knapp.
         const flereFor = faktaFunn.arstall
-        const utvid = page.locator('button', { hasText: /^alle \d+$/ }).first()
+        // Samme normaliserings-felle som «Tilbake til natthimmel» under: teksten
+        // står på egen linje i malen, så et ankret regex mot `textContent` traff
+        // aldri — og siden knappen er valgfri, hoppet sjekken bare stille over
+        // seg selv. Rollenavnet er normalisert.
+        const utvid = page.getByRole('button', { name: /^alle \d+$/ }).first()
         let faktaUtfall = `fakta + ${flereFor} årstall + begge lenkene`
         if (await utvid.count()) {
           await utvid.click({ timeout: 5000 })
@@ -1846,7 +1850,13 @@ const SJEKKER = [
           .querySelectorAll('div[aria-hidden="true"] span + span').length > 0,
         null, { timeout: 20_000 })
 
-        const tilbake = page.locator('button').filter({ hasText: /^Tilbake til natthimmel$/ })
+        // MATCHET PÅ DET TILGJENGELIGE NAVNET, ikke med et regex mot rå tekst.
+        // Playwrights `hasText` måler et REGEX mot elementets `textContent` slik
+        // det står i DOM-en — altså med malens linjeskift og innrykk rundt
+        // teksten — så `/^…$/` traff aldri, og sjekken meldte at knappen manglet
+        // mens den sto der. Rollenavnet er normalisert (og er dessuten det en
+        // skjermleser leser opp), så det er den ekte affordansen vi spør etter.
+        const tilbake = page.getByRole('button', { name: 'Tilbake til natthimmel', exact: true })
         if (!await tilbake.count()) {
           throw new Error('globen står åpen, men «Tilbake til natthimmel» mangler — '
             + 'da er den eneste synlige utveien X-en, som lukker hele 3D')
