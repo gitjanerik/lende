@@ -29,6 +29,7 @@ import { buildRoutingGraph, RUTE_GRAF_OPTS } from '../routing.js'
 import { realElevationAt, sampleElevation } from '../demSampling.js'
 import { horisontTilWorld } from './astronomi.js'
 import { naermesteTreff } from './himmelObjekter.js'
+import { skalRippe } from './valgRipple.js'
 import { createSceneCore, TourSceneError } from './sceneCore.js'
 import { createFreeRig } from './freeRig.js'
 import { createFollowRig } from './cameraRigs.js'
@@ -546,6 +547,12 @@ export async function create3dScene(container, {
     // {stjerner, linjer}, og en løs stjerne er ett indeks og ingen strek.
     const fremhev = o?.type === 'formasjon' || o?.type === 'stjerne' ? o : null
     core.settValgtFormasjon(fremhev)
+    // KVITTERINGEN. Blikket står der fingeren var, mens svaret kommer i en pille
+    // et helt annet sted — og var den alt synlig og sammenlagt (v6.3.11), er det
+    // ingenting som beveger seg der man ser. Bølgene sier «det skjedde», og de
+    // sier det PÅ legemet. Hvem som får dem avgjøres av skalRippe, ikke her.
+    if (skalRippe(o)) core.startValgRipple(o)
+    else core.stoppValgRipple()
     if (o) freeRig.seMot(o.azimut, o.hoyde)
     // Sola, månen, Mars, Jupiter og Saturn åpner en globe. Alt annet lukker den,
     // så man aldri sitter med en måne foran seg mens infokortet snakker om Orion.
