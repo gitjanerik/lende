@@ -702,6 +702,14 @@ export async function createSceneCore(container, {
     },
 
     /**
+     * Kvitter et valg med to bølger ut fra legemets retning. Hvem som får den
+     * avgjøres av `skalRippe` i valgRipple.js — her tas retningen bare imot.
+     */
+    startValgRipple(o) { return nightSky.startValgRipple(o) },
+    /** Rydd bølgene med en gang (valget nullstilles). */
+    stoppValgRipple() { nightSky.stoppValgRipple() },
+
+    /**
      * UTVIKLER-BRYTER: vis månen selv når den står under horisonten, så
      * månegloben kan prøves når som helst. Ikke bare en byggeopsjon — brytes den
      * mens 3D står åpen, skal månen komme uten at man må lukke og åpne.

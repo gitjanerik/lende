@@ -16,6 +16,7 @@ import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import { STJERNER, LINJER, FORMASJONER } from './stjerner.js'
 import { PLANETER, synligePlaneter } from './planeter.js'
 import { harGlobe } from './himmellegemer.js'
+import { buildValgRipple } from './valgRipple.js'
 import {
   himmelFor, lokalStjernetid, tilHorisont, horisontTilWorld, presesserTilDato,
 } from './astronomi.js'
@@ -799,6 +800,14 @@ export function buildNightSky({
   if (ekteHimmel) settSol()
   else sol.mesh.visible = false
 
+  // --- Bekreftelses-ripple ------------------------------------------------
+  // Ligger i natt-gruppa og ikke ved siden av den: den har ingen mening uten
+  // himmelen, og da skal den skjules av nøyaktig samme bryter (setNight).
+  const valgRipple = buildValgRipple({ radius })
+  group.add(valgRipple.group)
+  geometrier.push(...valgRipple.geometries)
+  materialer.push(...valgRipple.materials)
+
   return {
     group,
     mane,
@@ -814,7 +823,12 @@ export function buildNightSky({
     geometries: geometrier,
     materials: materialer,
     textures: [],
-    setNight(on) { group.visible = !!on },
+    setNight(on) {
+      group.visible = !!on
+      // Bølgene er ETT SKUDD; slås natta av midt i, skal de ikke stå og vente
+      // på å bli ferdige neste gang himmelen åpnes.
+      if (!on) valgRipple.stopp()
+    },
     /**
      * Vend skivene mot kameraet og driv trykk-ringenes ripple.
      *
@@ -827,7 +841,17 @@ export function buildNightSky({
       sol.update(camera, tidS)
       mane.update(camera, tidS)
       for (const skive of planetSkiver.values()) skive.update(camera, tidS)
+      valgRipple.update(camera, tidS)
     },
+
+    /**
+     * Kvitter et valg med to bølger ut fra legemet. `skalRippe` avgjør HVEM som
+     * får den; her tas bare retningen imot.
+     */
+    startValgRipple(o) { return valgRipple.start(o ?? {}) },
+    /** Rydd bølgene med en gang — natta slås av, eller valget nullstilles. */
+    stoppValgRipple() { valgRipple.stopp() },
+    get valgRippleAktiv() { return valgRipple.aktiv },
 
     /** Skiva for én planet, så sceneCore kan skjule den mens globen står. */
     planetSkive(id) { return planetSkiver.get(id) ?? null },
@@ -869,6 +893,7 @@ export function buildNightSky({
       // etterpå. Rotasjon av telefonen er den vanlige måten å oppdage det.
       mane.settSkjermHoyde(h)
       for (const skive of planetSkiver.values()) skive.settSkjermHoyde(h)
+      valgRipple.settSkjermHoyde(h)
     },
 
     /**
