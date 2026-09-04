@@ -1,3 +1,16 @@
+## 2026-09-04 — v6.5.36: Ingen grafikk bak hamburgeren
+
+Toppbaren på forsiden hadde fire kontur-ringer fra logoen som bakgrunn. De var
+ment som et diskret ekko, men de ligger under den ENE knappen i baren og bryter
+opp silhuetten hennes. I lyst tema, der ringfargen var mest mettet mot den varme
+papirtonen, leses det som et grafisk element knappen har falt oppå — en
+dekorasjon som konkurrerer med en kontroll om det samme hjørnet, taper.
+
+`--logo-ring` var toppbarens eneste bruker og er tatt med. Et tema-token uten
+konsument er en invitasjon til å sette dekorasjonen tilbake i god tro.
+
+---
+
 ## 2026-09-04 — v6.5.35: Hovedmenyen er tre likeverdige inngangar, og fanene er borte
 
 Modus-segmentet øverst i hovedmenyen så ut som faner over et innhold som ikke
