@@ -1,3 +1,48 @@
+## 2026-09-04 — v6.5.39: Flymodus startet appen i v6.5.17, og tre andre kanter
+
+Service-workeren har ikke slettet en gammel cache siden v6.5.16. Den utgaven
+droppet `lende-`-prefikset fra cache-navnene, mens opprydningen i `activate`
+fortsatte å lete etter nettopp det prefikset — så filteret traff ingenting, og
+hver utgave etter den la igjen sitt eget skall for alltid. Uten nett svarte
+`caches.match()` fra den ELDSTE av dem, siden den søker cachene i
+opprettelsesrekkefølge, og flymodus bootet derfor appen i v6.5.17 mens
+nettleseren hadde v6.5.38 på disk. Prefikset er tilbake (opprydningen tar med
+seg de prefiksløse restene fra v6.5.16–v6.5.38), oppslaget av `index.html` er
+scopet til gjeldende skall som et gjerde under opprydningen, og kartdata har
+fått en egen UVERSJONERT cache: et bygget kart-SVG endres ikke av at appen får
+en ny versjon, og lå det i det versjonerte skallet ville hver deploy tatt
+offline-kartet til brukeren var på nett igjen. Regelen er enhetstestet mot
+`public/sw.js` SELV — en kopi i testen ville stått grønn gjennom hele feilen.
+
+«Mine kart» ble stående oppå kartet når man valgte kartet man allerede sto i.
+AppMenu lukker modalen på en rute-watch, og en push til gjeldende rute er en
+no-op: `route.fullPath` endrer seg aldri, og watchen fyrer aldri. Med ETT lagret
+kart traff det hver gang — boot-gjenopptaket sender deg rett inn i det ene
+kartet du har, så raden i lista ER kartet du står i — mens man med to kart
+vanligvis traff det andre og aldri så feilen. Samme lærdom som Fritt
+lende-snarveien i v6.5.33, og løsningen er den samme: all navigasjon ut av
+panelet melder seg med `navigert`, og verten lukker på hendelsen framfor på
+ruta. Gaten er en røyk-sjekk med ett kart i basen, verifisert i begge retninger.
+
+Samme kart kunne importeres om og om igjen, og kopi nummer to fikk navnet
+«(importert)». Identiteten til et importert kart er nå avsenderens navn OG
+opprettelsestidspunkt, notert ved importen — så en ny import av det samme kartet
+åpner det du har, også om du har døpt om kopien din eller avsenderen har
+eksportert fila på nytt. Kart importert før denne versjonen mangler notatet og
+kjennes bare igjen på samme FIL, som er nøyaktig tilfellet feilen ble meldt for.
+Navnekollisjonen står urørt for to kart som faktisk ER ulike, og cache-radene
+skrives om selv ved en dublett — den ferske TTL-en er hele poenget med fila.
+
+Og «Failed to fetch» er ute av kartets feilskjerm. Den var engelsk, teknisk, og
+taus om det ene brukeren kan gjøre noe med. Oversettelsen bor i
+`lib/lastefeil.js`, som holder to ting fra hverandre: vet nettleseren at vi er
+offline, er det en pålitelig negativ og vi sier det rett ut, ellers påstår vi
+ingenting om nettet — captive portal og wifi uten oppstrøm rapporteres begge som
+online — og sier i stedet hva kartet KREVER. Våre egne norske meldinger
+(«Ugyldig SVG») slipper gjennom uendret.
+
+---
+
 ## 2026-09-04 — v6.5.38: Vedlikeholdsrapporten ser nå på tvers av de fire katalogene
 
 `npm run vedlikehold` har hele tida svart på «er denne katalogen i orden?», én
