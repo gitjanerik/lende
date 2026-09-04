@@ -1,3 +1,42 @@
+## 2026-09-04 — v6.5.35: Hovedmenyen er tre likeverdige inngangar, og fanene er borte
+
+Modus-segmentet øverst i hovedmenyen så ut som faner over et innhold som ikke
+var faner. Det er fjernet, og navigasjonen er flyttet inn i radene under som en
+grønn pil høyre — «gå til funksjonen» — der «+» sto. For Turplanleggeren var
+«+ Ny rute» dessuten nøyaktig samme navigasjon som segmentet, altså to knapper
+med én handling; for Turkart åpnet «+» en modal som «Mine kart» uansett åpner
+selv. Fritt lende har fått samme pil, så menyen har tre likeverdige inngangar.
+
+Rekkefølgen er fast: Turkart øverst, alltid. Den fulgte modusen, og en meny som
+stokker om på seg selv etter hvor du står er en meny man må lese hver gang
+framfor å treffe på muskelminne. Hvor du er, sies av kort-markeringen, som ikke
+flytter noe. Fritt lende-raden var av samme grunn gatet på modus; nå står den
+fast som de to andre.
+
+Fane-raden «Turkart / Ruteplanlegger» er borte fra menyens modaler. «Mine kart»
+og «Mine ruter» har hver sin tittel, og en fane-rad der er en snarvei til den
+andre halvdelen av appen midt inne i den ene — to funksjoner som aldri brukes
+samtidig. Hjem-siden beholder den: der er `?tab=` en ekte rute-kontrakt, og
+siden er per definisjon fellessiden.
+
+Ledeteksten over Tegnforklaring og Spør Lende er nå «Hjelp i lende». Den sa «På
+kartet» eller «Ruteplanlegging» etter modus, mens radene under er de samme i
+begge halvdeler — en overskrift som skifter uten at innholdet gjør det, får
+leseren til å tro at innholdet gjorde det.
+
+Og den tomme «Mine turkart»-lista forklarer ikke lenger søkefeltet og
+pin-knappen som står synlige rett over den. Teksten står igjen der geolokasjon
+mangler: der finnes ikke pin-knappen, og søket er det eneste som er å gjøre.
+
+Nyhetsbanneret nederst i menyen er borte, og `lib/nyheter.js` med det. Det var
+laget for å presentere Fritt lende, og den modusen har nå en fast rad med egen
+pil to skjermlinjer lenger opp — et banner som peker på noe man allerede ser er
+støy i en meny hvis hele poenget denne runden var å bli enklere. Kommer det en
+ny modus som må annonseres, er banneret én fil å skrive om igjen; å la det stå
+tomt i mellomtida er ikke gratis.
+
+---
+
 ## 2026-09-04 — v6.5.34: Fritt lende henter kartet selv, og sier mindre
 
 Tom-tilstanden var fem avsnitt: hva knappen gjør, hvor stort arket blir, at man

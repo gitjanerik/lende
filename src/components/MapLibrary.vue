@@ -25,6 +25,8 @@ import { useUiTextScale } from '../composables/useUiTextScale.js'
 // menyvalget. Toveis, så brukeren kan bytte fane inne i begge.
 const props = defineProps({
   tab: { type: String, default: 'kart' },
+  // Fane-raden øverst. Av i menyens modaler — se malen for hvorfor.
+  showTabs: { type: Boolean, default: true },
   // Forsiden viser PWA-install-CTA-en nederst; i modalen ville den bare
   // konkurrert med menyens egen «Installer som app».
   showInstall: { type: Boolean, default: true },
@@ -505,8 +507,19 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
 <template>
 
   <!-- Fane-veksler (samme segment-stil som Om-siden): hjem-siden er felles
-       for turkart (Mine kart) og ruteplanlegger (Mine ruter). -->
-  <div class="flex gap-1 p-1 rounded-xl bg-ink/5 border border-ink/10 mb-4">
+       for turkart (Mine kart) og ruteplanlegger (Mine ruter).
+
+       IKKE I MODALENE (v6.5.35). Hovedmenyen åpner «Mine kart» og «Mine ruter»
+       som hver sin side med sin egen tittel, og en fane-rad der er en snarvei
+       til den andre halvdelen av appen midt inne i den ene: den motsier
+       tittelen over seg, og de to funksjonene brukes aldri samtidig. Etter at
+       modus-bryteren gikk ut av menyen (samme versjon) er menyen det ene
+       stedet man bytter halvdel — så raden hadde blitt appens siste sted der
+       navigasjonen mellom dem ligger gjemt inne i noe annet.
+
+       Hjem-siden BEHOLDER den: der er `?tab=` en ekte rute-kontrakt med egne
+       redirects og røyk-sjekker, og siden er per definisjon fellessiden. -->
+  <div v-if="showTabs" class="flex gap-1 p-1 rounded-xl bg-ink/5 border border-ink/10 mb-4">
     <button @click="activeTab = 'kart'"
             class="flex-1 py-2 rounded-lg text-[13px] font-medium transition"
             :class="activeTab === 'kart' ? 'bg-[#ffd84a] text-zinc-900' : 'text-ink/60 active:text-ink/90'">
@@ -741,12 +754,14 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
     <!-- v6.5.28: den store grønne CTA-en «Lag kart der du står» er fjernet.
          Den gjorde nøyaktig det samme som pin-knappen i søkefeltet rett over,
          og to grønne knapper med samme handling på samme skjerm er ikke et
-         valg — det er en gjetning om hvilken som er den ekte. Teksten peker
-         nå på inngangene som står der. -->
-    <div v-if="supportsGeolocation" class="mt-1.5 text-[13px] text-ink/45 leading-relaxed max-w-[18rem]">
-      Søk opp et sted øverst — eller trykk den grønne pin-knappen for å starte der du står.
-    </div>
-    <div v-else class="mt-1.5 text-[13px] text-ink/45 leading-relaxed max-w-[18rem]">
+         valg — det er en gjetning om hvilken som er den ekte.
+
+         v6.5.35: bruksanvisningen for de to inngangene er fjernet med. Søkefeltet
+         og pin-knappen står rett over, med hver sin plassholder og etikett, og
+         en linje som peker på kontroller man allerede ser er en linje man leser
+         forbi. Teksten står IGJEN der geolokasjon MANGLER: der er pin-knappen
+         borte, og «Søk opp et sted» er da det eneste som finnes å gjøre. -->
+    <div v-if="!supportsGeolocation" class="mt-1.5 text-[13px] text-ink/45 leading-relaxed max-w-[18rem]">
       Søk opp et sted øverst for å lage ditt første turkart.
     </div>
 
