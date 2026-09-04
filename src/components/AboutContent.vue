@@ -378,11 +378,14 @@ async function onInstallClick() {
           </p>
           <p class="text-[13px] leading-relaxed text-ink/70">
             Alt annet er borte fra skjermen. Ingen faner, ingen søk, ingen måling,
-            ingen 3D — bare menyknappen øverst, målestokken nede til venstre og
-            knappen nede til høyre. Kartet er alltid nord opp, i ISOM-uttrykk, med
-            10 meters ekvidistanse. Under målestokken står avstanden fra midten av
-            arket så snart posisjonen din er kjent: arket rekker en kilometer ut til
-            hver kant, så tallet sier hvor mye kart du har igjen foran deg.
+            ingen 3D — bare menyknappen øverst og knappen nede til høyre. Kartet er
+            alltid nord opp, i ISOM-uttrykk, tegnet for
+            <strong class="text-ink/90">1:10 000</strong> med
+            <strong class="text-ink/90">10 meters ekvidistanse</strong>. Begge deler
+            er faste i denne modusen — det er ingenting å stille på. Nede til venstre
+            står avstanden fra midten av arket så snart posisjonen din er kjent:
+            arket rekker en kilometer ut til hver kant, så tallet sier hvor mye kart
+            du har igjen foran deg.
           </p>
         </div>
         <div class="space-y-2">
@@ -397,7 +400,7 @@ async function onInstallClick() {
               tilgjengelig. Der ville et nytt ark vært nesten det samme arket, hentet
               på nytt.</li>
             <li>Har du gått <strong class="text-ink/90">250 meter eller mer</strong> —
-              tallet under målestokken skifter farge — lager neste trykk et nytt ark
+              tallet nede til venstre skifter farge — lager neste trykk et nytt ark
               med deg i midten, og telleren starter på null igjen. Det gamle blir
               liggende til det nye er ferdig tegnet, så et feiltrykk kan ikke
               etterlate deg uten kart.</li>

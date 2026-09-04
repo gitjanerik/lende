@@ -23,9 +23,8 @@
    .isom-map og har sitt eget palett-system). Hele den mørke UI-en er
    «gjennomsiktig hvit på mørk bunn»; ved å snu --color-ink fra hvit til mørk
    blekk inverteres tekst/kanter/flater korrekt av seg selv i lyst tema.
-   Default (:root) = MØRKT = eksakt dagens utseende. --logo-ring styrer
-   logo-motivets kontur-ringer i chrome (gul-logoen på app-ikon-flisen røres
-   ikke — se AboutView). */
+   Default (:root) = MØRKT = eksakt dagens utseende. (Gul-logoen på
+   app-ikon-flisen røres ikke — se AboutView.) */
 @theme {
   --color-app: #0e1116;        /* sidebakgrunn (var bg-[#0e1116]) */
   --color-surface: #18181b;    /* paneler/meny (var zinc-900) */
@@ -35,7 +34,6 @@
   --color-ink: #ffffff;        /* tekst/kant/flate-base (var white) */
 }
 :root {
-  --logo-ring: #3a3d45;
   /* Pil-fargen på kanthåndtakene (MapEdgeHandles) — grønn i betydningen
      «ny/legg til», samme semantikk som ellers i appen. Egen token fordi den er
      tema-avhengig: på mørk overlay-flate trengs en lys grønn (green-400), på
@@ -52,7 +50,6 @@
   --color-overlay: #ffffff;
   --color-modal: #f6f4ea;      /* modalvinduer matcher hovedmenyens papirtone (--am-bg) */
   --color-ink: #1c1917;        /* varm mørk blekk */
-  --logo-ring: #c0392b;        /* røde konsentriske ringer i lyst tema */
   --pil-farge: #15803d;        /* green-700 — lesbar mot papirtonen */
   /* Behold anti-force-dark: temaet ER lyst, så «only light» er ærlig og
      hindrer at nettleseren auto-inverterer kart-SVG-en. */

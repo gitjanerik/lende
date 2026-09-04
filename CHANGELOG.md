@@ -21,6 +21,115 @@ fra den gang. Installasjonen er likevel riktig, siden npm installerer fra
 
 ---
 
+## 2026-09-04 — v6.5.37: Fritt lende-snarveien slutter å selge mot hovedveien
+
+Snarveien i den tomme kart-lista spurte «Vil du bare ha et turkart uten noe mer
+fuzz?». Låneordet var det som var hørbart, men feilen lå under: setningen påstår
+at hovedveien er tungvint, mens hele grunnen til at knappen er tonet og ikke en
+grønn CTA er at skjemaet over fortsatt skal være hovedveien. Overskriften sier nå
+forskjellen — «Ett kart, ingen innstillinger» — og ikke stedet, for «der du står»
+er nøyaktig hva den grønne pin-knappen rett over gjør. «Krever nett» blir
+stående: dette er det ene stedet i appen der premisset snus, og den som står i en
+tom liste har aldri sett hovedmenyens rad som sier det.
+
+Den gule flata er borte. Mot kortet den ligger i målte `bg-amber-400/[0.08]`
+1,02:1 i lyst tema — den kostet en fjerde betydning for gult i denne fila (valgt
+fane, FAB-ring, varselpanelet hundre linjer opp, favoritt-stjerna) og leverte
+nesten ingen flate-kontrast. Grønt var utelukket av samme grunn som i v6.5.28:
+Fritt lende ER «lag kart der jeg står». Raden er nøytral nå, og gjenkjennelsen
+bæres av kompass-glyfen fra hovedmenyens egen Fritt lende-rad, så de to
+inngangene til modusen ser ut som samme sted.
+
+De to småtekstene lå på 4,08 og 2,70 mot WCAG AAs 4,5 i lyst tema. De to linjene
+som står igjen måler 12,26 og 5,42.
+
+---
+
+## 2026-09-04 — v6.5.36: Ingen grafikk bak hamburgeren
+
+Toppbaren på forsiden hadde fire kontur-ringer fra logoen som bakgrunn. De var
+ment som et diskret ekko, men de ligger under den ENE knappen i baren og bryter
+opp silhuetten hennes. I lyst tema, der ringfargen var mest mettet mot den varme
+papirtonen, leses det som et grafisk element knappen har falt oppå — en
+dekorasjon som konkurrerer med en kontroll om det samme hjørnet, taper.
+
+`--logo-ring` var toppbarens eneste bruker og er tatt med. Et tema-token uten
+konsument er en invitasjon til å sette dekorasjonen tilbake i god tro.
+
+---
+
+## 2026-09-04 — v6.5.35: Hovedmenyen er tre likeverdige inngangar, og fanene er borte
+
+Modus-segmentet øverst i hovedmenyen så ut som faner over et innhold som ikke
+var faner. Det er fjernet, og navigasjonen er flyttet inn i radene under som en
+grønn pil høyre — «gå til funksjonen» — der «+» sto. For Turplanleggeren var
+«+ Ny rute» dessuten nøyaktig samme navigasjon som segmentet, altså to knapper
+med én handling; for Turkart åpnet «+» en modal som «Mine kart» uansett åpner
+selv. Fritt lende har fått samme pil, så menyen har tre likeverdige inngangar.
+
+Rekkefølgen er fast: Turkart øverst, alltid. Den fulgte modusen, og en meny som
+stokker om på seg selv etter hvor du står er en meny man må lese hver gang
+framfor å treffe på muskelminne. Hvor du er, sies av kort-markeringen, som ikke
+flytter noe. Fritt lende-raden var av samme grunn gatet på modus; nå står den
+fast som de to andre.
+
+Fane-raden «Turkart / Ruteplanlegger» er borte fra menyens modaler. «Mine kart»
+og «Mine ruter» har hver sin tittel, og en fane-rad der er en snarvei til den
+andre halvdelen av appen midt inne i den ene — to funksjoner som aldri brukes
+samtidig. Hjem-siden beholder den: der er `?tab=` en ekte rute-kontrakt, og
+siden er per definisjon fellessiden.
+
+Ledeteksten over Tegnforklaring og Spør Lende er nå «Hjelp i lende». Den sa «På
+kartet» eller «Ruteplanlegging» etter modus, mens radene under er de samme i
+begge halvdeler — en overskrift som skifter uten at innholdet gjør det, får
+leseren til å tro at innholdet gjorde det.
+
+Og den tomme «Mine turkart»-lista forklarer ikke lenger søkefeltet og
+pin-knappen som står synlige rett over den. Teksten står igjen der geolokasjon
+mangler: der finnes ikke pin-knappen, og søket er det eneste som er å gjøre.
+
+Nyhetsbanneret nederst i menyen er borte, og `lib/nyheter.js` med det. Det var
+laget for å presentere Fritt lende, og den modusen har nå en fast rad med egen
+pil to skjermlinjer lenger opp — et banner som peker på noe man allerede ser er
+støy i en meny hvis hele poenget denne runden var å bli enklere. Kommer det en
+ny modus som må annonseres, er banneret én fil å skrive om igjen; å la det stå
+tomt i mellomtida er ikke gratis.
+
+---
+
+## 2026-09-04 — v6.5.34: Fritt lende henter kartet selv, og sier mindre
+
+Tom-tilstanden var fem avsnitt: hva knappen gjør, hvor stort arket blir, at man
+må svare ja i nettleserens dialog, og til slutt det ene som ikke sier seg selv.
+Knappen er den eneste kontrollen på skjermen og boblen peker rett på den, så nå
+står bare det ene igjen — «Nøyaktig posisjon» ligger ikke i dialogen nettleseren
+viser, men i nettleserens egne innstillinger, og uten den er dette den stille
+feilen: en omtrentlig plassering svarer med en fix, arket bygges, og det ser like
+ekte ut selv om det er sentrert kilometer unna.
+
+Har du alt gitt posisjonstillatelse, og har du ikke noe ark, henter modusen
+kartet uten et trykk. Porten er «ingen ark», og det er invariant 1: med et ark på
+skjermen er et bygg en erstatning, og da skal det fortsatt ligge et trykk mellom
+det å åpne modusen og det å miste arket. Oppslaget spør aldri om en tillatelse
+det ikke har — bare `granted` teller, `prompt` ville reist en dialog brukeren
+ikke ba om, og Safari som ikke svarer på spørsmålet gir den gamle oppførselen.
+Uten dekning bygges det ingenting.
+
+Blokka kan dessuten rulles. Med 200 % tekst er den høyere enn skjermen, og roten
+er `overflow-hidden` — så både overskriften og siste linje ble klippet bort uten
+noen vei til dem, i nettopp den innstillingen modusen finnes for å tåle.
+Sentreringen er flyttet fra `place-items-center` til auto-marger: `place-items`
+skyver et for høyt barn ut over rullestartkanten, og den overflyten er unåbar.
+
+«Fritt lende» er dessuten en ekte `h1` og ikke en fet `p`. Det er sidens eneste
+overskrift, og en skjermleser som lister overskriftene fant ingenting å liste.
+
+Om-siden beskrev dessuten en ekvidistanse-linje på linjalen som ble tatt bort i
+v6.5.27. Den sier nå det som faktisk gjelder: 1:10 000 med 10 meters
+ekvidistanse, fast i denne modusen.
+
+---
+
 ## 2026-09-03 — v6.5.33: Snarveien til Fritt lende lukker panelet den står i
 
 Snarveien i den tomme «Mine kart»-lista navigerte selv, med
