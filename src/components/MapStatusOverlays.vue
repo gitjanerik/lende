@@ -4,7 +4,8 @@
 // (GPS-feil / utenfor kart), (3) detalj-feil / ufullstendig kart / mosaikk-hull /
 // lav GPS-nøyaktighet. Rent presentasjonelt — all tilstand kommer inn som props,
 // brukerhandlinger sendes ut som events. Lasteskjelettets CSS følger med hit (scoped).
-import { ref, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
+import { lastefeilPaaNorsk } from '../lib/lastefeil.js'
 const props = defineProps({
   loading: { type: Boolean, default: false },
   hasMeta: { type: Boolean, default: false },
@@ -34,6 +35,12 @@ defineEmits([
   'retryLoad', 'dismissOutside', 'dismissDetails', 'retryDetails', 'dismissLowAccuracy',
   'retryGps', 'completePartial', 'repairMosaic', 'squareMosaic',
 ])
+
+// Rå-meldingen fra pipelinen er nettleserens egen, og i den vanligste
+// situasjonen er den «Failed to fetch»: engelsk, teknisk, og taus om det ene
+// brukeren kan gjøre. Oversettelsen bor i lib/lastefeil.js — `isOffline` er en
+// pålitelig negativ, så bare DA sier vi at nettet mangler.
+const loadErrorTekst = computed(() => lastefeilPaaNorsk(props.loadError, { offline: props.isOffline }))
 
 // Lokal «lukket for denne økta»-tilstand for reparasjons-bannerne og GPS-feil.
 // De re-vises hvis tilstanden dukker opp på nytt (nytt kart / nye hull / ny feil).
@@ -88,7 +95,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
        class="absolute inset-0 flex flex-col items-center justify-center z-10 px-6 text-center"
        :class="isDark ? 'text-ink/80' : 'text-zinc-700'">
     <div class="text-lg font-semibold mb-2">Kunne ikke laste kartet</div>
-    <div class="text-sm opacity-70 mb-4">{{ loadError }}</div>
+    <div class="text-sm opacity-80 mb-4 max-w-[22rem] leading-snug">{{ loadErrorTekst }}</div>
     <button @click="$emit('retryLoad')"
             class="mt-2 px-4 py-2 rounded-lg border text-sm active:scale-95"
             :class="isDark
