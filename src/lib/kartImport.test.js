@@ -1,5 +1,6 @@
 // Importen av en delt .lendekart-fil. De to reglene som MÅ holde:
 //   • aldri overskriv et kart mottakeren allerede har (ny id, ledig navn)
+//   • samme kart to ganger gir det du alt har, ikke «(importert 2)»
 //   • isAuto: false — auto-fliser fra en annen appVersion ryddes bort av
 //     useGhostTiles/tileCache, og et importert kart ville forsvunnet av seg selv
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -12,7 +13,7 @@ vi.mock('./mapStorage.js', () => ({
 }))
 vi.mock('./offlinePakke.js', () => ({ skrivOfflineData: vi.fn(async (r) => (r?.length ?? 0)) }))
 
-const { importerKartPakke } = await import('./kartImport.js')
+const { importerKartPakke, finnAlleredeImportert } = await import('./kartImport.js')
 const { listMaps, saveMap } = await import('./mapStorage.js')
 const { skrivOfflineData } = await import('./offlinePakke.js')
 const { lagKartPakke } = await import('./kartPakke.js')
@@ -91,7 +92,7 @@ describe('navnekollisjon', () => {
     expect(navn).toBe('Vardåsen (importert)')
   })
 
-  it('teller opp ved gjentatte importer av samme fil', async () => {
+  it('teller opp når to ULIKE kart vil hete det samme', async () => {
     listMaps.mockResolvedValue([{ navn: 'Vardåsen' }, { navn: 'Vardåsen (importert)' }])
     const { navn } = await importerKartPakke(await fil())
     expect(navn).toBe('Vardåsen (importert 2)')
@@ -114,5 +115,76 @@ describe('feil', () => {
     listMaps.mockRejectedValue(new Error('idb nede'))
     const { navn } = await importerKartPakke(await fil())
     expect(navn).toBe('Vardåsen')
+  })
+})
+
+
+describe('finnAlleredeImportert', () => {
+  const post = (over = {}) => ({
+    id: 'kart_a', navn: 'Vardåsen',
+    importertFra: { eksportert: 500, opprinneligNavn: 'Vardåsen', opprinneligOpprettet: 100 },
+    ...over,
+  })
+  const kand = (over = {}) => ({ navn: 'Vardåsen', opprettet: 100, eksportert: 500, ...over })
+
+  it('kjenner igjen samme kart', () => {
+    expect(finnAlleredeImportert([post()], kand())?.id).toBe('kart_a')
+  })
+
+  it('kjenner det igjen selv om mottakeren har døpt om kopien sin', () => {
+    expect(finnAlleredeImportert([post({ navn: 'Hytteturen' })], kand())?.id).toBe('kart_a')
+  })
+
+  it('kjenner det igjen når avsenderen har eksportert det på nytt', () => {
+    expect(finnAlleredeImportert([post()], kand({ eksportert: 900 }))?.id).toBe('kart_a')
+  })
+
+  it('skiller to ulike kart med samme navn', () => {
+    expect(finnAlleredeImportert([post()], kand({ opprettet: 101, eksportert: 900 }))).toBeNull()
+  })
+
+  it('rører ikke kart brukeren har bygget selv', () => {
+    expect(finnAlleredeImportert([{ id: 'k', navn: 'Vardåsen' }], kand())).toBeNull()
+  })
+
+  it('kjenner igjen SAMME FIL for legacy-poster uten notat', () => {
+    const gammel = { id: 'kart_g', navn: 'Vardåsen (importert)', importertFra: { eksportert: 500 } }
+    expect(finnAlleredeImportert([gammel], kand())?.id).toBe('kart_g')
+    expect(finnAlleredeImportert([gammel], kand({ eksportert: 900 }))).toBeNull()
+  })
+
+  it('godtar ikke navn alene når tidspunktet mangler', () => {
+    const uten = { id: 'k', navn: 'Vardåsen', importertFra: { eksportert: null, opprinneligNavn: 'Vardåsen', opprinneligOpprettet: null } }
+    expect(finnAlleredeImportert([uten], kand({ opprettet: null, eksportert: null }))).toBeNull()
+  })
+
+  it('tåler tomme lister og navnløse kandidater', () => {
+    expect(finnAlleredeImportert([], kand())).toBeNull()
+    expect(finnAlleredeImportert(undefined, kand())).toBeNull()
+    expect(finnAlleredeImportert([post()], kand({ navn: '' }))).toBeNull()
+  })
+})
+
+describe('samme kart to ganger', () => {
+  it('åpner kartet mottakeren har i stedet for å lage en kopi', async () => {
+    const pakke = await fil({ opprettet: 100 })
+    const forste = await importerKartPakke(pakke)
+    expect(forste.alleredeImportert).toBe(false)
+    listMaps.mockResolvedValue([lagrede[0]])
+
+    const igjen = await importerKartPakke(await fil({ opprettet: 100 }))
+    expect(igjen.alleredeImportert).toBe(true)
+    expect(igjen.id).toBe(forste.id)
+    expect(igjen.navn).toBe('Vardåsen')
+    expect(lagrede).toHaveLength(1)
+    expect(saveMap).toHaveBeenCalledTimes(1)
+  })
+
+  it('friskner opp offline-cachen likevel — TTL-en er hele poenget med fila', async () => {
+    const cache = [{ key: 'kulturminne:1', data: [], expires: 1 }]
+    await importerKartPakke(await fil({ opprettet: 100 }, cache))
+    listMaps.mockResolvedValue([lagrede[0]])
+    const igjen = await importerKartPakke(await fil({ opprettet: 100 }, cache))
+    expect(igjen.cacheRader).toBe(1)
   })
 })

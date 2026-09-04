@@ -2183,6 +2183,95 @@ const SJEKKER = [
     },
   },
   {
+    // v6.5.39: «Mine kart» ble stående oppå kartet når man valgte kartet man
+    // ALLEREDE sto i. AppMenu lukker modalen på en rute-watch, og en push til
+    // gjeldende rute er en no-op — `route.fullPath` endrer seg ikke, så watchen
+    // fyrer aldri. Med ETT lagret kart traff det hver gang: boot-gjenopptaket
+    // sender deg rett inn i det ene kartet du har, så raden i lista ER kartet du
+    // står i. Med to kart traff man vanligvis det andre og så det aldri.
+    //
+    // Ingen enhetstest kan se dette — det bor i AppMenu + MapLibrary + router
+    // sammen — så det måles her, og med ETT kart i basen, som er tilfellet som
+    // brakk. Sjekken seeder derfor IndexedDB selv og rydder etter seg.
+    navn: 'Mine kart lukker seg når man velger kartet man alt står i',
+    domene: 'AppMenu + MapLibrary',
+    async kjør(page) {
+      const ID = 'royk-ett-kart'
+      const seed = () => evalMedTak(page, async (id) => {
+        const svg = await fetch(`${location.pathname.split('/kart/')[0]}/maps/vardasen.svg`)
+          .then((r) => r.text())
+        const post = {
+          id, navn: 'Røyk-arket', svg, opprettet: Date.now(),
+          bbox: { south: 59.79, north: 59.84, west: 10.37, east: 10.46 },
+          equidistanceM: 20, isAuto: false, partial: false, annotations: [], tracks: [],
+        }
+        const db = await new Promise((ok, nei) => {
+          const r = indexedDB.open('lende-maps', 3)
+          r.onsuccess = () => ok(r.result)
+          r.onerror = () => nei(r.error)
+        })
+        await new Promise((ok, nei) => {
+          const t = db.transaction(['maps', 'meta'], 'readwrite')
+          t.objectStore('maps').put(post)
+          const { svg: _s, annotations: _a, tracks: _t, ...lett } = post
+          t.objectStore('meta').put({ ...lett, hasDem: false, sizeBytes: svg.length })
+          t.oncomplete = ok
+          t.onerror = () => nei(t.error)
+        })
+        db.close()
+      }, ID)
+
+      const rydd = async () => {
+        await evalMedTak(page, async (id) => {
+          const db = await new Promise((ok, nei) => {
+            const r = indexedDB.open('lende-maps', 3)
+            r.onsuccess = () => ok(r.result)
+            r.onerror = () => nei(r.error)
+          })
+          await new Promise((ok) => {
+            const t = db.transaction(['maps', 'meta'], 'readwrite')
+            t.objectStore('maps').delete(id)
+            t.objectStore('meta').delete(id)
+            t.oncomplete = ok
+            t.onerror = ok
+          })
+          db.close()
+        }, ID).catch(() => {})
+        await page.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await page.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+      }
+
+      try {
+        await seed()
+        // STÅ I kartet. Det er hele forutsetningen: navigasjonen lista utløser
+        // er da en no-op, og det er nettopp den rute-watchen ikke ser.
+        await page.goto(`${BASE}/kart/${ID}`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await page.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+
+        await page.locator('button[aria-label="Åpne meny"]').click({ timeout: 10_000 })
+        await page.locator('aside[aria-label="Hovedmeny"]')
+          .waitFor({ state: 'visible', timeout: 10_000 })
+        await page.locator('button.am-row-main', { hasText: 'Mine kart' })
+          .click({ timeout: 10_000 })
+
+        const modal = page.locator('[role="dialog"][aria-label="Mine kart"]')
+        await modal.waitFor({ state: 'visible', timeout: 10_000 })
+        const rad = modal.locator('div.font-medium', { hasText: 'Røyk-arket' })
+        const antall = await rad.count()
+        if (antall !== 1) throw new Error(`ventet ETT kart i lista, fant ${antall}`)
+
+        await rad.first().click({ timeout: 10_000 })
+        // Modalen skal være borte. Uten fiksen står den her for alltid.
+        await modal.waitFor({ state: 'hidden', timeout: 8000 })
+        return 'ett kart, samme rute — modalen lukket'
+      } finally {
+        await rydd().catch(() => {})
+      }
+    },
+  },
+  {
     // v5.25.6-regresjonsvakt. Står SIST med vilje: sjekken setter kart-temaet,
     // og kart-temaet er inngangsverdi for 3D-visningens dag/natt-tilstand.
     // Første plassering var midt i lista, og da arvet sol/måne-sjekken et lyst

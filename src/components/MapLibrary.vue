@@ -36,7 +36,7 @@ const props = defineProps({
 // navigerte knappen alltid, så i modalen forsvant både menyen og modalen.
 // Nyttelasten { gps: true } (fra søkefeltets pin-knapp) ber skjemaet hente
 // posisjonen og sentrere seg der straks det er oppe.
-const emit = defineEmits(['update:tab', 'open-picker', 'fritt-lende'])
+const emit = defineEmits(['update:tab', 'open-picker', 'fritt-lende', 'navigert'])
 
 const router = useRouter()
 const { uiTextScale } = useUiTextScale()
@@ -94,8 +94,22 @@ function formatRouteInfo(r) {
   return parts.join(' · ')
 }
 
+// ALL navigasjon ut av dette panelet går her, og `navigert` fyres FØR pushen.
+// Samme lærdom som Fritt lende-snarveien (v6.5.33): verten lukker modalen sin på
+// en rute-watch, og en push til ruta man ALLEREDE står i er en no-op —
+// `route.fullPath` endrer seg aldri, watchen fyrer aldri, og «Mine kart» blir
+// stående oppå kartet. Det traff hardest med ETT lagret kart: boot-gjenopptaket
+// (router.js) sender deg rett inn i det ene kartet du har, så kartet i lista ER
+// det du står i, hver gang. Med to kart traff man vanligvis det andre og
+// oppdaget aldri feilen. Verten skal derfor lukke på DENNE hendelsen og ikke på
+// ruta; forsiden, som ikke har noen modal, kan la den ligge.
+function gaaTil(to) {
+  emit('navigert')
+  router.push(to)
+}
+
 function openRoute(id) {
-  router.push({ name: 'ruteplanlegger', query: { open: id } })
+  gaaTil({ name: 'ruteplanlegger', query: { open: id } })
 }
 
 async function onDeleteRoute(id, navn) {
@@ -273,7 +287,7 @@ onMounted(() => {
 onActivated(refresh)
 
 function openMap(id) {
-  router.push({ name: 'kart-vis', params: { id } })
+  gaaTil({ name: 'kart-vis', params: { id } })
 }
 
 // ── Importer et delt kart (.lendekart) ──────────────────────────────────────
@@ -298,9 +312,12 @@ async function onImportFil(e) {
   importerer.value = true
   importFeil.value = ''
   try {
+    // `alleredeImportert` trenger ingen egen beskjed: importen ender uansett i
+    // kartet, og det er nøyaktig samme utfall brukeren ba om. En melding her
+    // ville dessuten blitt vist i et panel som lukkes i samme åndedrag.
     const { id } = await importerKartPakke(fil)
     await refresh()
-    router.push({ name: 'kart-vis', params: { id } })
+    gaaTil({ name: 'kart-vis', params: { id } })
   } catch (err) {
     // Nettleserens egne lesefeil er engelske DOMException-er som ikke sier hva
     // brukeren skal gjøre. Den vanligste er NotFoundError: Filer-appen VISER
@@ -451,7 +468,7 @@ async function onSelectSearchResult(r) {
       terrainFirst: true,   // vis terreng straks, fyll inn OSM i bakgrunnen
       onProgress: (msg) => { buildingProgress.value = msg },
     })
-    router.push({ name: 'kart-vis', params: { id } })
+    gaaTil({ name: 'kart-vis', params: { id } })
   } catch (e) {
     console.error('Søk-kart-bygging feilet:', e)
     buildingOnTheFly.value = false
@@ -863,7 +880,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
               class="normal-case tracking-normal">· {{ visibleSavedRoutes.length }} av {{ savedRoutes.length }}</span>
       </span>
       <button v-if="!loading && savedRoutes.length > 0"
-              @click="router.push('/rute')"
+              @click="gaaTil('/rute')"
               class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[12px] font-medium
                      bg-emerald-500 text-white
                      transition active:scale-95">
@@ -1035,7 +1052,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
       <div class="mt-1.5 text-[13px] text-ink/45 leading-relaxed max-w-[18rem]">
         Planlegg en rute fra A til B i ruteplanleggeren og lagre den — så finner du den igjen her.
       </div>
-      <button @click="router.push('/rute')"
+      <button @click="gaaTil('/rute')"
               class="mt-5 w-full py-3.5 rounded-xl bg-emerald-500 text-white font-semibold
                      flex items-center justify-center gap-2 shadow-md
                      active:scale-[0.99] transition">
