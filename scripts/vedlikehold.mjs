@@ -12,16 +12,22 @@
 // nettleser-bunten først, så det som er deployet, så dev-bare. En «high» i
 // wrangler er ikke verre enn en «moderate» i noe brukerne laster ned.
 //
+// Rapporten svarer på TO spørsmål, og de er ulike: `npm audit`/`npm outdated`
+// spør «er denne katalogen i orden?», mens versjonsdriften nederst spør «svarer
+// de fire katalogene likt om samme pakke?». Dependabot ser hver katalog for seg
+// og kan per konstruksjon ikke stille det andre spørsmålet.
+//
 // Bruk:
-//   npm run vedlikehold             # audit + outdated, alle kataloger
-//   npm run vedlikehold -- --json   # maskinlesbart
-//   npm run vedlikehold -- --audit  # bare sårbarheter (raskere)
+//   npm run vedlikehold             # audit + outdated + drift, alle kataloger
+//   npm run vedlikehold -- --json   # maskinlesbart: { kataloger, drift }
+//   npm run vedlikehold -- --audit  # bare sårbarheter + drift (raskere)
 
 import { execFile } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
+import { deklarerteVersjoner, laasteVersjoner, finnDrift } from './versjonsdrift.mjs'
 
 const kjør = promisify(execFile)
 const ROT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -136,6 +142,28 @@ async function sePåKatalog(k) {
 }
 
 /**
+ * Leser de to filene versjonsdriften trenger. Feiler ALDRI hardt: en katalog
+ * uten lockfile skal bidra til den deklarerte lista og ikke til den låste, og en
+ * ødelagt fil skal ikke ta ned en rapport som ellers har noe å si.
+ */
+function lesVersjoner(k) {
+  const cwd = join(ROT, k.sti)
+  const les = (fil) => {
+    try {
+      return existsSync(join(cwd, fil)) ? JSON.parse(readFileSync(join(cwd, fil), 'utf-8')) : null
+    } catch { return null }
+  }
+  const pkg = les('package.json')
+  const lock = les('package-lock.json')
+  return {
+    navn: k.navn,
+    flate: k.flate,
+    deklarert: pkg ? deklarerteVersjoner(pkg) : new Map(),
+    laast: lock ? laasteVersjoner(lock) : new Map(),
+  }
+}
+
+/**
  * Er spranget BRYTENDE? Under semver er 0.x et eget regime: der er MINOR-feltet
  * det brytende, ikke major. `agents` 0.2.35 → 0.21.0 er et brudd som endrer API,
  * men en naiv major-sammenlikning leser begge som «0» og legger det i
@@ -158,6 +186,29 @@ function erNyereEnn(a, b) {
     if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0)
   }
   return false
+}
+
+function skrivDrift(drift) {
+  console.log('\n── versjonsdrift mellom katalogene ──────────────────')
+  console.log('   Samme pakke, ulik versjon i to av de fire trærne. Dependabot')
+  console.log('   ser hver katalog for seg og kan ikke se dette.')
+
+  const del = (tittel, funn, forklaring) => {
+    if (!funn.length) { console.log(`   ✓ ${tittel}: ingen drift`); return }
+    console.log(`\n   ${tittel} (${funn.length})`)
+    console.log(`   ${forklaring}`)
+    for (const f of funn) {
+      console.log(`     ${f.navn}`)
+      for (const r of f.rader) console.log(`       ${r.katalog.padEnd(14)} ${r.versjoner.join(', ')}`)
+    }
+  }
+
+  // De to listene sammenliknes ALDRI mot hverandre: `^4.0.0` og `4.125.3` er
+  // ikke et avvik, de er to ulike spørsmål. Se versjonsdrift.mjs.
+  del('deklarert (package.json)', drift.deklarert,
+    'To package.json ber om ulikt. Dette er et VALG som har drevet fra hverandre.')
+  del('låst (package-lock.json)', drift.laast,
+    'Trærne har fått ulikt. Ofte uunngåelig og ofte uten betydning — les flata.')
 }
 
 function skrivTekst(rader) {
@@ -221,8 +272,12 @@ function skrivTekst(rader) {
 const rader = []
 for (const k of KATALOGER) rader.push(await sePåKatalog(k))
 
-if (JSON_UT) console.log(JSON.stringify(rader, null, 2))
-else skrivTekst(rader)
+// Drift leser BARE filer på disk — ingen nett, ingen npm — så den kjører også
+// med `--audit`, som er der for å slippe unna `npm outdated`s round-trips.
+const drift = finnDrift(KATALOGER.filter((k) => existsSync(join(ROT, k.sti, 'package.json'))).map(lesVersjoner))
+
+if (JSON_UT) console.log(JSON.stringify({ kataloger: rader, drift }, null, 2))
+else { skrivTekst(rader); skrivDrift(drift) }
 
 // Alltid 0. Dette er en RAPPORT, ikke en gate — samme begrunnelse som
 // tredjeparts-røyktestene i deploy-proxy.yml: en PR om skyene skal ikke
