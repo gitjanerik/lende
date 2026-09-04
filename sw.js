@@ -11,15 +11,38 @@
  *   - Fetch:
  *       HTML (navigation)  → network first, fall back to cached index.html
  *       Hashed assets (/assets/*-HASH.ext) → cache first, forever
- *       Map data (/maps/*.svg) → network first, fall back to cache (offline)
+ *       Map data (/maps/*.svg) → network first, fall back to UVERSJONERT cache
  *       Icons, manifest, favicon → stale-while-revalidate
  *       Everything else → network only (Google Fonts, opentype from CDN, etc.)
  */
 
-const CACHE_VERSION = '6.5.38'
-const SHELL_CACHE   = `${CACHE_VERSION}-shell`
-const ASSET_CACHE   = `${CACHE_VERSION}-assets`
+const CACHE_VERSION = '6.5.39'
+// NAVNENE MÅ HA `lende-`-PREFIKSET, og det er ikke pynt: opprydningen under
+// gjenkjenner sine egne cacher på det, og github.io er ÉN origin delt med
+// eierens andre Pages-prosjekter — en opprydning uten prefiks ville slettet
+// deres skall. Fra v6.5.16 til v6.5.38 het de bare `6.5.x-shell`, altså uten
+// prefikset, og da traff filteret INGENTING: hver utgave la igjen sitt eget
+// skall for alltid. Uten nett svarte `caches.match()` fra den ELDSTE av dem
+// (den søker cachene i opprettelsesrekkefølge), så flymodus startet appen i
+// v6.5.17 mens nettleseren hadde v6.5.38 på disk.
+const SHELL_CACHE   = `lende-${CACHE_VERSION}-shell`
+const ASSET_CACHE   = `lende-${CACHE_VERSION}-assets`
+// Kartdata er UVERSJONERT med vilje. Et bygget kart-SVG er ikke en app-asset:
+// det endres ikke av at appen får en ny versjon, og det er det ENESTE som gjør
+// demokartet lesbart i flymodus. Lå det i det versjonerte skallet, ville hver
+// deploy slettet offline-kartet til brukeren var på nett igjen.
+const DATA_CACHE    = 'lende-data'
 const BASE = '/lende/'
+
+// Hvilke cacher opprydningen eier. `beholdes` er de tre gjeldende; alt annet som
+// ser ut som VÅRT slettes. Andre mønster enn de to her røres ikke — de kan være
+// et annet prosjekt på samme origin.
+function ryddesCache(navn, beholdes) {
+  if (beholdes.includes(navn)) return false
+  if (navn.startsWith('lende-')) return true
+  // Etterlatt av v6.5.16–v6.5.38, som droppet prefikset.
+  return /^\d+\.\d+\.\d+-(shell|assets)$/.test(navn)
+}
 
 // Absolute minimum to boot the app offline
 const SHELL_URLS = [
@@ -52,7 +75,7 @@ self.addEventListener('activate', (e) => {
     caches.keys().then((names) =>
       Promise.all(
         names
-          .filter((n) => n.startsWith('lende-') && !n.startsWith(CACHE_VERSION))
+          .filter((n) => ryddesCache(n, [SHELL_CACHE, ASSET_CACHE, DATA_CACHE]))
           .map((n) => caches.delete(n))
       )
     ).then(() => self.clients.claim())
@@ -77,7 +100,12 @@ self.addEventListener('fetch', (e) => {
           caches.open(SHELL_CACHE).then((c) => c.put(`${BASE}index.html`, copy))
           return res
         })
-        .catch(() => caches.match(`${BASE}index.html`))
+        // SCOPET til gjeldende skall. `caches.match()` uten cacheName søker
+        // ALLE cacher i opprettelsesrekkefølge og svarer fra den eldste som har
+        // treff — det var den halvdelen av flymodus-feilen som gjorde at appen
+        // faktisk BOOTET i en gammel versjon. Slår opprydningen feil igjen, er
+        // dette gjerdet som holder.
+        .catch(() => caches.open(SHELL_CACHE).then((c) => c.match(`${BASE}index.html`)))
     )
     return
   }
@@ -110,10 +138,10 @@ self.addEventListener('fetch', (e) => {
       fetch(req).then((res) => {
         if (res && res.ok) {
           const copy = res.clone()
-          caches.open(ASSET_CACHE).then((c) => c.put(req, copy))
+          caches.open(DATA_CACHE).then((c) => c.put(req, copy))
         }
         return res
-      }).catch(() => caches.match(req))
+      }).catch(() => caches.open(DATA_CACHE).then((c) => c.match(req)))
     )
     return
   }
