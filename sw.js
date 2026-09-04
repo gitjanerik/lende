@@ -16,7 +16,7 @@
  *       Everything else → network only (Google Fonts, opentype from CDN, etc.)
  */
 
-const CACHE_VERSION = '6.5.39'
+const CACHE_VERSION = '6.5.41'
 // NAVNENE MÅ HA `lende-`-PREFIKSET, og det er ikke pynt: opprydningen under
 // gjenkjenner sine egne cacher på det, og github.io er ÉN origin delt med
 // eierens andre Pages-prosjekter — en opprydning uten prefiks ville slettet
@@ -44,6 +44,19 @@ function ryddesCache(navn, beholdes) {
   return /^\d+\.\d+\.\d+-(shell|assets)$/.test(navn)
 }
 
+// DEMOKARTET ER EN DEL AV APPEN, ikke noe brukeren har lagret. Det ligger
+// ferdig bygget i bundelen (`public/maps/vardasen.svg`), men fram til v6.5.41
+// havnet det bare i cachen hvis man tilfeldigvis hadde ÅPNET det mens man var
+// på nett: kart-ruta under er network-first, og en cache fylles ikke av et
+// oppslag som aldri ble gjort. Flymodus ga da et kart som ikke fantes — på det
+// ene kartet som ikke kan mangle. Det hentes derfor ved INSTALLASJON, altså ved
+// hver deploy, som også er det som holder det ferskt: `lende-data` er
+// uversjonert, så uten en henting her ville den aller første kopien blitt
+// liggende for alltid.
+const DATA_URLS = [
+  `${BASE}maps/vardasen.svg`,
+]
+
 // Absolute minimum to boot the app offline
 const SHELL_URLS = [
   `${BASE}`,
@@ -61,13 +74,22 @@ self.addEventListener('install', (e) => {
   // message-handleren nederst). Første installasjon (ingen gammel SW som
   // kontrollerer) aktiveres uansett umiddelbart — «waiting» oppstår kun når en
   // gammel SW allerede styrer klientene.
-  e.waitUntil(
+  e.waitUntil(Promise.all([
     caches.open(SHELL_CACHE).then((c) =>
       c.addAll(SHELL_URLS).catch(() => {
         // Ignore individual failures — a missing icon shouldn't block install
       })
-    )
-  )
+    ),
+    // `cache: 'reload'` og ikke `addAll`: HTTP-cachen kan sitte på forrige
+    // deploys kart, og da ville installasjonen skrevet det gamle inn i den
+    // uversjonerte cachen som ferskt. Feiler hentingen (offline installasjon),
+    // skal den IKKE blokkere — kart-ruta fyller cachen ved første oppslag på
+    // nett, som er nøyaktig oppførselen vi hadde før.
+    caches.open(DATA_CACHE).then((c) => Promise.all(DATA_URLS.map((u) =>
+      fetch(u, { cache: 'reload' })
+        .then((res) => (res && res.ok ? c.put(u, res) : null))
+        .catch(() => null)))),
+  ]))
 })
 
 self.addEventListener('activate', (e) => {
