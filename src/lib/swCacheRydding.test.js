@@ -63,4 +63,26 @@ describe('public/sw.js', () => {
   it('holder kartdata i en UVERSJONERT cache, så en deploy ikke tar offline-kartet', () => {
     expect(kilde).toMatch(/DATA_CACHE\s*=\s*'lende-data'/)
   })
+
+  it('legger demokartet i kart-cachen ved INSTALLASJON, ikke ved første oppslag', () => {
+    // Kart-ruta er network-first, og en cache fylles ikke av et oppslag som
+    // aldri ble gjort: uten dette var demokartet offline bare for den som
+    // TILFELDIGVIS hadde åpnet det mens hen var på nett.
+    expect(kilde).toMatch(/DATA_URLS\s*=\s*\[[^\]]*\$\{BASE\}maps\/vardasen\.svg/)
+    const install = kilde.slice(kilde.indexOf("addEventListener('install'"),
+      kilde.indexOf("addEventListener('activate'"))
+    expect(install).toContain('DATA_URLS')
+    expect(install).toContain('caches.open(DATA_CACHE)')
+  })
+
+  it('henter demokartet forbi HTTP-cachen, ellers bakes forrige deploy inn som fersk', () => {
+    // `lende-data` er uversjonert, så en kopi som legges inn her blir liggende
+    // til noen henter kartet på nett igjen.
+    const install = kilde.slice(kilde.indexOf("addEventListener('install'"),
+      kilde.indexOf("addEventListener('activate'"))
+    expect(install).toMatch(/fetch\(u,\s*\{\s*cache:\s*'reload'\s*\}\)/)
+    // Og den skal ikke kunne blokkere installasjonen: en offline installasjon
+    // skal gi nøyaktig oppførselen vi hadde før, ikke en SW som aldri blir klar.
+    expect(install).toMatch(/\.catch\(\(\) => null\)/)
+  })
 })

@@ -259,6 +259,24 @@ function lukkGlobe() {
   globeTrekk.value = []
 }
 
+/**
+ * «Tilbake til natthimmel» — knappen under kula (v6.5.40).
+ *
+ * Kula lukkes ALT av et trykk utenfor den, men gesten er ikke å gjette på: uten
+ * en forklaring trykket brukerne i stedet X-en oppe til høyre, som lukker hele
+ * 3D-visningen. Knappen sier hva veien ut er, og den forklarende TEKSTEN i
+ * kortet er fortsatt fjernet med vilje (v6.3.3) — en knapp er en affordanse, en
+ * bruksanvisning er ord man må lese i mørket.
+ *
+ * Går gjennom motorens `avsluttGlobe`, som er samme kilde trykket bruker, og
+ * tilstanden kommer tilbake gjennom `globe` og `globe-avsluttet` — de to
+ * hendelsene som alt legger kortet sammen. Å sette flaggene her i tillegg ville
+ * gitt to steder som mener noe om samme tilstand.
+ */
+function tilbakeTilNatthimmel() {
+  engine?.avsluttGlobe()
+}
+
 function byggHimmelListe() {
   const m = props.meta
   if (!m?.widthM || !m?.heightM) return
@@ -1658,6 +1676,27 @@ function branchLabel(opt, i) {
                       :min-hoyde="BLIKK_GRENSER.minGrader" :maks-hoyde="BLIKK_GRENSER.maksGrader"
                       :natt="stjernemodus"
                       @retning="settRetning" @nord="engine?.seMotNord()"/>
+      </div>
+
+      <!-- VEIEN UT AV ET NÆRBILDE (v6.5.40). Midtstilt under kula, som er
+           midt på skjermen: et trykk hvor som helst utenfor kula gjør det
+           samme, men ingenting sa det, og brukerne tok X-en oppe til høyre —
+           som lukker hele 3D-visningen.
+           Står over himmelkompasset i hjørnet, ikke ved siden av det.
+           INGEN `zoom` her, i motsetning til søkefeltet og infokortet: dette er
+           en knapp og ikke lesestoff, og 44 px er 44 px fordi en finger er det
+           (v6.1.0). Teksten er `rem`, så den følger systemets tekstskalering
+           (v5.27.0), og `max-w-full` gjør at den brekker i stedet for å renne
+           ut når skalaen er stor. -->
+      <div v-if="phase === 'ready' && globeAapen"
+           class="absolute inset-x-0 bottom-28 z-20 flex justify-center px-3 pointer-events-none"
+           style="margin-bottom: max(env(safe-area-inset-bottom), 12px);">
+        <button @click="tilbakeTilNatthimmel"
+                class="pointer-events-auto max-w-full min-h-[44px] rounded-full
+                       border border-white/15 bg-black/60 backdrop-blur px-4
+                       text-[0.8125rem] leading-tight text-white/90 active:scale-95">
+          Tilbake til natthimmel
+        </button>
       </div>
 
       <!-- HIMMELKOMPASSET, nede til høyre i nattmodus. Egen absolutt plassert

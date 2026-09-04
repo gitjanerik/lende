@@ -1,3 +1,49 @@
+## 2026-09-04 — v6.5.41: Demokartet virker i flymodus, ikke bare hvis du var heldig
+
+Det innebygde Vardåsen-kartet lot seg ikke åpne uten nett. Kartdata fikk sin
+egen uversjonerte cache i v6.5.39, men den fylles av kart-ruta i
+service-workeren, som er network-first — altså først når kartet FAKTISK hentes
+over nett. Hadde man aldri åpnet demokartet mens man var på nett etter siste
+deploy, sto cachen tom, og flymodus ga «kartet finnes ikke» på det ene kartet
+som ikke kan mangle: det ligger ferdig bygget i bundelen. Kartet hentes nå ved
+INSTALLASJON av service-workeren, altså ved hver deploy — som også er det som
+holder det ferskt, siden `lende-data` er uversjonert og den første kopien ellers
+ville blitt liggende for alltid. Hentingen går forbi HTTP-cachen, ellers kunne
+forrige deploys kart blitt skrevet inn som ferskt, og den kan ikke blokkere
+installasjonen.
+
+Klienten dro i motsatt retning av seg selv. `fetchBuiltinSvg` henter med
+`cache: 'reload'` og prøver på nytt med en `?v=`-URL — begge grep for å komme
+forbi en gammel stale-while-revalidate-service-worker som kunne svare med en
+avkuttet kopi. Uten nett peker de bort fra de eneste kildene som kan svare: den
+cache-bustede URL-en har hverken kart-cachen eller HTTP-cachen sett, og `reload`
+går forbi dem begge. Vet nettleseren at vi er offline, spørres det derfor én
+gang, uten busting og med `force-cache`. Begge retningene er enhetstestet, og
+installasjons-regelen måles på `public/sw.js` selv.
+
+---
+
+## 2026-09-04 — v6.5.40: Tre trefflater — kula, stjernene og kulturminnene
+
+Planetvisningen i 3D lukkes av et trykk utenfor kula, men gesten er ikke å
+gjette på: uten en synlig utvei trykket brukerne X-en oppe til høyre, som lukker
+hele 3D-visningen. «Tilbake til natthimmel» står nå midtstilt under kula og gjør
+nøyaktig det trykket gjør — legger kula tilbake og legger infokortet SAMMEN, ikke
+lukker det (v6.3.5). Den forklarende teksten i kortet er fortsatt fjernet (v6.3.3);
+en knapp er en affordanse, en bruksanvisning er ord man må lese i mørket.
+Stjerner som ikke er med i noen figur var nesten umulige å treffe rett over
+horisonten, og årsaken var ikke terskelen på 46 px: `handleTap` spurte himmelen
+BARE når terrengstrålen bommet, så silhuetten under stjerna spiste hele nedre
+halvdel av trefflata. Himmelen konsulteres nå også etter et terrengtreff, gatet
+på NATTMODUS — der er nåler, stier og kurver skjult, så et terrengtapp har ingen
+konkurrerende betydning, og porten kan ikke stjele fra en nål, et veipunkt eller
+GPS-en fordi de avgjøres tidligere i kjeden. I turkartet får kulturminner,
+fredete minner og vannmålestasjoner en trefflate på 44 px: symbolene er 3,2 mm
+fordi ISOM-print krever det, så flaten måles i SKJERMROM (`lib/markorTreff.js`)
+framfor å tegnes inn i SVG-en, som eksporteres til PNG, PDF og `.lendekart`.
+
+---
+
 ## 2026-09-04 — v6.5.39: Flymodus startet appen i v6.5.17, og tre andre kanter
 
 Service-workeren har ikke slettet en gammel cache siden v6.5.16. Den utgaven

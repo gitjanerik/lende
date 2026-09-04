@@ -130,6 +130,7 @@ import { setBuildBusy } from '../lib/swUpdate.js'
 import { pruneAutoTiles, countAutoTiles } from '../lib/tileCache.js'
 import { renameMap } from '../lib/mapStorage.js'
 import { svgToWgs84, wgs84ToSvg } from '../lib/utm.js'
+import { naermesteMarkor } from '../lib/markorTreff.js'
 import { utNoZoomForMPerPx, UTNO_DEFAULT_ZOOM } from '../lib/utNoLink.js'
 import { useMapContext } from '../composables/useMapContext.js'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
@@ -2090,6 +2091,32 @@ watch(isGesturing, (g) => {
 // opptak (~hvert 5. m).
 
 
+// Markørene som har et infopanel bak seg. Rekkefølgen i DOM-en er
+// tegne-rekkefølgen, og querySelectorAll bevarer den — se naermesteMarkor for
+// hvorfor det avgjør et uavgjort trykk.
+const MARKOR_VELGERE = '[data-kulturminne-id],[data-fredet-id],[data-hydro-station-id]'
+
+/**
+ * Nærmeste markør til et trykk som bommet på selve figuren, eller null.
+ *
+ * SER BARE DET SOM ER TEGNET. En markør i et avslått lag, eller en som
+ * viewport-cullingen har tatt, har ingen boks — og en trefflate på noe som
+ * ikke vises er samme felle som declutteren og nålene i 3D (v5.22.11).
+ * Rektanglene leses i én bolk uten skriving imellom, så det koster ett
+ * layout-oppslag per trykk.
+ */
+function markorNaerTapp(clientX, clientY) {
+  const svg = svgHostRef.value?.querySelector('svg')
+  if (!svg) return null
+  const kandidater = []
+  for (const el of svg.querySelectorAll(MARKOR_VELGERE)) {
+    const r = el.getBoundingClientRect()
+    if (!r.width && !r.height) continue
+    kandidater.push({ el, x: r.left + r.width / 2, y: r.top + r.height / 2 })
+  }
+  return naermesteMarkor(clientX, clientY, kandidater)?.el ?? null
+}
+
 // Klikk på kart i annoteringsmodus → plasser symbol
 function onMapClick(e) {
   // Annotering deferres mens et ferskt kart fyller inn detaljer eller bygges
@@ -2105,6 +2132,13 @@ function onMapClick(e) {
     if (fmHit) { openFredetDetailFromEl(fmHit); return }
     const hydroHit = e.target?.closest?.('[data-hydro-station-id]')
     if (hydroHit) { openHydroDetailFromEl(hydroHit); return }
+    // Bommet figuren: ta den nærmeste markøren innen 22 px, så trefflaten er
+    // 44 px selv om symbolet er 3 mm. Se lib/markorTreff.js for hvorfor flaten
+    // måles i skjermrom og ikke tegnes inn i SVG-en.
+    const naer = markorNaerTapp(e.clientX, e.clientY)
+    if (naer?.hasAttribute('data-kulturminne-id')) { openKulturminneDetail(naer); return }
+    if (naer?.hasAttribute('data-fredet-id')) { openFredetDetailFromEl(naer); return }
+    if (naer?.hasAttribute('data-hydro-station-id')) { openHydroDetailFromEl(naer); return }
   }
   // Stifinner eier tap-eventet mens den er interaktiv (blocking): startpunkt
   // velges via det faste midt-siktet (bekreft-knapp), og rute-tapp håndteres

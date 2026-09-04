@@ -484,8 +484,9 @@ export async function create3dScene(container, {
   // midt på — ikke prikker man sikter presist på.
   const VEKT_PX = { sol: 18, mane: 18, planet: 18, stjerne: 8 }
 
+  /** @returns {boolean} sant hvis et himmelobjekt ble valgt. */
   function plukkHimmel() {
-    if (!himmelListe.length) return
+    if (!himmelListe.length) return false
     const w = core.renderer.domElement.clientWidth
     const h = core.renderer.domElement.clientHeight
     const fx = ((sisteNdc.x + 1) / 2) * w
@@ -532,9 +533,10 @@ export async function create3dScene(container, {
         best = o
       }
     }
-    if (!best) return
+    if (!best) return false
     velgHimmel(best)
     emit('himmel-valgt', { objekt: best })
+    return true
   }
 
   /** Fremhev og se mot et himmelobjekt. Delt av trykk og valg fra lista. */
@@ -589,6 +591,23 @@ export async function create3dScene(container, {
     emit('globe', { apen: false })
   }
 
+  /**
+   * Veien UT av et nærbilde: legg kula tilbake på himmelen og la viseren legge
+   * kortet sammen.
+   *
+   * ÉN KILDE for de to inngangene — trykket utenfor kula, og knappen «Tilbake
+   * til natthimmel» under den (v6.5.40). Knappen kom fordi gesten ikke er å
+   * gjette: brukere trykket i stedet X-en oppe til høyre, som lukker HELE
+   * 3D-visningen. Den forklarende teksten i kortet er fortsatt fjernet med vilje
+   * (v6.3.3) — dette er en knapp, ikke en bruksanvisning.
+   */
+  function avsluttGlobe() {
+    if (!core.globeAapen) return false
+    lukkGlobe()
+    emit('globe-avsluttet', { objekt: valgtHimmel })
+    return true
+  }
+
   const globeNed = (e) => {
     if (core.globeAapen) globeDrag = { x: e.clientX, y: e.clientY }
   }
@@ -616,11 +635,7 @@ export async function create3dScene(container, {
     // tilbake på himmelen. Nå lukkes bare globen, og `globe-avsluttet` sier til
     // viseren at kortet skal LEGGES SAMMEN — ikke lukkes. Da står navnet igjen,
     // og «sett i fokus» i den minimerte pilla er veien tilbake etter panorering.
-    if (core.globeAapen) {
-      lukkGlobe()
-      emit('globe-avsluttet', { objekt: valgtHimmel })
-      return
-    }
+    if (core.globeAapen) { avsluttGlobe(); return }
     const rect = core.renderer.domElement.getBoundingClientRect()
     ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
     ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
@@ -681,7 +696,24 @@ export async function create3dScene(container, {
     // BOMMET TERRENGET = trykket gikk i himmelen. Det er den eneste situasjonen
     // himmel-plukkingen kjører i, og derfor kan den per konstruksjon ikke stjele
     // et trykk fra en nål, en sti eller GPS-en — de er alle avklart over.
-    if (!hit) return plukkHimmel()
+    if (!hit) return void plukkHimmel()
+    // TRAFF TERRENGET — MEN OM NATTA LIGGER HIMMELEN LIKEVEL DER (v6.5.40).
+    //
+    // En stjerne rett over horisonten har silhuetten under seg, og bommet man
+    // nedover, spiste terrenget trykket: bare den ØVRE halvdelen av flaten
+    // virket, og sto stjerna oppå en fjellside virket den ikke i det hele tatt.
+    // Eieren meldte det for de løse stjernene, som er de minste målene, men det
+    // gjaldt hvert himmelobjekt nær horisonten.
+    //
+    // Gaten er NATTA og ikke en terskel: da er kurver, stier og nåler skjult
+    // (se aapneStjernemodus i Viewer3D), så det eneste et terreng-trykk kan
+    // gjøre er å melde at stiene er borte — mens himmelen er hele grunnen til at
+    // man står her. Invarianten fra v6.0.0 holder: himmelen kan fortsatt ikke
+    // stjele et trykk fra en nål, et veipunkt eller GPS-en, for de er avklart
+    // over. Om DAGEN er rekkefølgen uendret, og det må den være — himmellista
+    // ryddes ikke når natta slås av, så en dagshimmel bærer fortsatt objekter
+    // ingen kan se.
+    if (core.erNatt && plukkHimmel()) return
     const { x, y } = coords.toSvg(hit.point.x, hit.point.z)
 
     // Traff trykket en sti? Grafen bygges bare når svaret betyr noe — den
@@ -1041,6 +1073,8 @@ export async function create3dScene(container, {
     get valgtHimmel() { return valgtHimmel },
     get globeAapen() { return core.globeAapen },
     lukkGlobe: lukkGlobe,
+    /** Lukk globen OG legg kortet sammen — samme vei som et trykk utenfor. */
+    avsluttGlobe,
     /** Navngitte hav og krater med skjermkoordinater. Kalles etter render. */
     globeTrekkPaaSkjerm: () => core.globeTrekkPaaSkjerm(),
 

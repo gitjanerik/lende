@@ -1775,7 +1775,11 @@ const SJEKKER = [
         // «alle N» skal gi HELE historien. Bare de fire nyeste vises sammenlagt,
         // og en knapp som ikke utvider noe er verre enn ingen knapp.
         const flereFor = faktaFunn.arstall
-        const utvid = page.locator('button', { hasText: /^alle \d+$/ }).first()
+        // Samme normaliserings-felle som «Tilbake til natthimmel» under: teksten
+        // står på egen linje i malen, så et ankret regex mot `textContent` traff
+        // aldri — og siden knappen er valgfri, hoppet sjekken bare stille over
+        // seg selv. Rollenavnet er normalisert.
+        const utvid = page.getByRole('button', { name: /^alle \d+$/ }).first()
         let faktaUtfall = `fakta + ${flereFor} årstall + begge lenkene`
         if (await utvid.count()) {
           await utvid.click({ timeout: 5000 })
@@ -1831,13 +1835,80 @@ const SJEKKER = [
         }
         if (!etterExit.minimert) throw new Error('exit fra globen la ikke kortet sammen')
 
+        // «TILBAKE TIL NATTHIMMEL» (v6.5.40). Trykket utenfor kula over er den
+        // samme veien ut, men den er ikke å GJETTE på: uten en synlig utvei
+        // trykket brukerne X-en oppe til høyre, som lukker hele 3D-visningen.
+        // Knappen må derfor gjøre nøyaktig det trykket gjør — legge kula tilbake
+        // og legge kortet SAMMEN, ikke lukke det (v6.3.5) — og den må være minst
+        // 44 px høy og midtstilt under kula, ellers er den ikke affordansen den
+        // skal være. Globen åpnes på nytt, for trykket over la den bort.
+        await page.locator('button[aria-label^="Valgt:"]').click({ timeout: 8000 })
+        await page.waitForTimeout(400)
+        await page.locator('ul[aria-label="Treff på himmelen"] li button')
+          .filter({ hasText: medGlobe }).first().click({ timeout: 5000 })
+        await page.waitForFunction(() => document
+          .querySelectorAll('div[aria-hidden="true"] span + span').length > 0,
+        null, { timeout: 20_000 })
+
+        // MATCHET PÅ DET TILGJENGELIGE NAVNET, ikke med et regex mot rå tekst.
+        // Playwrights `hasText` måler et REGEX mot elementets `textContent` slik
+        // det står i DOM-en — altså med malens linjeskift og innrykk rundt
+        // teksten — så `/^…$/` traff aldri, og sjekken meldte at knappen manglet
+        // mens den sto der. Rollenavnet er normalisert (og er dessuten det en
+        // skjermleser leser opp), så det er den ekte affordansen vi spør etter.
+        const tilbake = page.getByRole('button', { name: 'Tilbake til natthimmel', exact: true })
+        if (!await tilbake.count()) {
+          throw new Error('globen står åpen, men «Tilbake til natthimmel» mangler — '
+            + 'da er den eneste synlige utveien X-en, som lukker hele 3D')
+        }
+        const knappMaal = await evalMedTak(page, () => {
+          const b = [...document.querySelectorAll('button')]
+            .find((e) => e.textContent.trim() === 'Tilbake til natthimmel')
+          const r = b.getBoundingClientRect()
+          return {
+            hoyde: Math.round(r.height),
+            avvikPx: Math.abs((r.left + r.width / 2) - window.innerWidth / 2),
+            zoom: b.style.zoom || '',
+          }
+        })
+        if (knappMaal.hoyde < 44) {
+          throw new Error(`«Tilbake til natthimmel» er ${knappMaal.hoyde} px høy — `
+            + 'en finger trenger 44')
+        }
+        if (knappMaal.avvikPx > 8) {
+          throw new Error(`«Tilbake til natthimmel» står ${Math.round(knappMaal.avvikPx)} px `
+            + 'fra midten — den skal stå midtstilt under kula')
+        }
+        // Ingen `zoom`: en knapp er ikke lesestoff, og 44 px er 44 px (v6.1.0).
+        if (knappMaal.zoom) {
+          throw new Error(`«Tilbake til natthimmel» har zoom: ${knappMaal.zoom} — `
+            + 'knapper skalerer ikke med tekstvalget')
+        }
+        await tilbake.first().click({ timeout: 5000 })
+        await page.waitForTimeout(900)
+        const etterKnapp = await evalMedTak(page, (navn) => ({
+          knappBorte: ![...document.querySelectorAll('button')]
+            .some((e) => e.textContent.trim() === 'Tilbake til natthimmel'),
+          harNavn: document.body.innerText.includes(navn),
+          minimert: !!document.querySelector('button[aria-label="Vis hele infokortet"]'),
+        }), medGlobe)
+        if (!etterKnapp.knappBorte) {
+          throw new Error('«Tilbake til natthimmel» ble stående etter trykket — kula lukket seg ikke')
+        }
+        if (!etterKnapp.harNavn) {
+          throw new Error(`knappen lukket kortet helt — «${medGlobe}» er borte, `
+            + 'og man er fortsatt på legemet')
+        }
+        if (!etterKnapp.minimert) throw new Error('knappen la ikke kortet sammen')
+
         await page.locator('button[aria-label="Lukk infokortet"]').click({ timeout: 5000 })
           .catch(() => { /* kortet kan alt være lukket */ })
         await page.waitForTimeout(400)
         await lukkNatt3d(page, h.startSteg)
         return `valgte «${forste}» (fokus bare i pilla), minimerte, utvidet`
           + `${nabo ? `, hoppet til «${nabo}»` : ''}; ${globeUtfall}; ${faktaUtfall}; `
-          + 'exit la kortet sammen (himmelen tvunget opp)'
+          + 'exit og «Tilbake til natthimmel» la begge kortet sammen '
+          + '(himmelen tvunget opp)'
       } finally {
         // Flagget MÅ vekk uansett utfall: localStorage overlever reloaden, og en
         // tvungen himmel som følger med inn i neste sjekk ville gjort sola-sjekken
