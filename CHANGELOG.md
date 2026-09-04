@@ -28,6 +28,13 @@ Og den tomme «Mine turkart»-lista forklarer ikke lenger søkefeltet og
 pin-knappen som står synlige rett over den. Teksten står igjen der geolokasjon
 mangler: der finnes ikke pin-knappen, og søket er det eneste som er å gjøre.
 
+Nyhetsbanneret nederst i menyen er borte, og `lib/nyheter.js` med det. Det var
+laget for å presentere Fritt lende, og den modusen har nå en fast rad med egen
+pil to skjermlinjer lenger opp — et banner som peker på noe man allerede ser er
+støy i en meny hvis hele poenget denne runden var å bli enklere. Kommer det en
+ny modus som må annonseres, er banneret én fil å skrive om igjen; å la det stå
+tomt i mellomtida er ikke gratis.
+
 ---
 
 ## 2026-09-03 — v6.5.33: Snarveien til Fritt lende lukker panelet den står i
