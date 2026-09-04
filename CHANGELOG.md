@@ -16,6 +16,12 @@ det ikke har — bare `granted` teller, `prompt` ville reist en dialog brukeren
 ikke ba om, og Safari som ikke svarer på spørsmålet gir den gamle oppførselen.
 Uten dekning bygges det ingenting.
 
+Blokka kan dessuten rulles. Med 200 % tekst er den høyere enn skjermen, og roten
+er `overflow-hidden` — så både overskriften og siste linje ble klippet bort uten
+noen vei til dem, i nettopp den innstillingen modusen finnes for å tåle.
+Sentreringen er flyttet fra `place-items-center` til auto-marger: `place-items`
+skyver et for høyt barn ut over rullestartkanten, og den overflyten er unåbar.
+
 Om-siden beskrev dessuten en ekvidistanse-linje på linjalen som ble tatt bort i
 v6.5.27. Den sier nå det som faktisk gjelder: 1:10 000 med 10 meters
 ekvidistanse, fast i denne modusen.

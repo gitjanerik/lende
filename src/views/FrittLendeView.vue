@@ -561,14 +561,33 @@ const arkDato = computed(() => (opprettet.value
          eneste teksten i appen som ikke gjorde det, og modusen er nettopp den
          man bruker med kalde hender i dårlig lys.
 
-         `select-text` + `pointer-events-auto`: roten er `select-none` for
-         kartets skyld, og teksten arvet det. Den som trenger en opplesing må
-         kunne markere den — det koster ingenting her, siden boksen står midt på
-         et tomt ark og ikke over noen kontroll. -->
+         `select-text`: roten er `select-none` for kartets skyld, og teksten
+         arvet det. Den som trenger en opplesing må kunne markere den — det
+         koster ingenting her, siden boksen står midt på et tomt ark og ikke
+         over noen kontroll.
+
+         BLOKKA MÅ KUNNE RULLES (v6.5.34). Med 200 % tekst er den høyere enn
+         skjermen, og roten er `overflow-hidden` — så både overskriften og siste
+         linje ble klippet bort, uten noen vei til dem. Det er nettopp den
+         innstillingen modusen finnes for å tåle.
+
+         `flex` + `m-auto` og IKKE `grid place-items-center`: sentrering med
+         `place-items` skyver et for høyt barn ut over rullestartkanten, og den
+         overflyten er UNÅBAR — man ruller ned til bunnen og kommer aldri opp
+         til toppen igjen. Auto-marger kollapser til null når plassen er
+         oppbrukt, så boksen står midtstilt når den får plass og ruller fra
+         toppen når den ikke får det.
+
+         `pointer-events-auto` på FLATA og ikke bare på boksen: en rulleflate
+         som ikke tar imot pekere kan ikke rulles med fingeren. Den er trygg
+         her fordi den bare finnes når det ikke er noe ark — menyknappen og
+         FAB-en ligger i z-30 over den. `overscroll-contain` hindrer at et drag
+         forbi enden trekker i siden bak. -->
     <div v-if="!meta && !bygger"
-         class="absolute inset-0 grid place-items-center px-8 pointer-events-none">
-      <div class="text-center text-ink/70 max-w-xs text-sm leading-relaxed
-                  pointer-events-auto select-text"
+         class="absolute inset-0 flex overflow-y-auto overscroll-contain
+                px-8 py-20 pointer-events-auto">
+      <div class="m-auto text-center text-ink/70 max-w-xs text-sm leading-relaxed
+                  select-text"
            :style="{ zoom: uiTextScale }">
         <p class="font-semibold text-ink">Fritt lende</p>
         <!-- ÉN SETNING, og den handler om «Nøyaktig posisjon» (v6.5.34).

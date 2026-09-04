@@ -165,6 +165,45 @@ try {
     !/Finner posisjonen|Bygger kart/i.test(tom.tekst),
     'ingen fremdriftschip på en tom skjerm')
 
+  // 200 % TEKST MÅ KUNNE RULLES (v6.5.34). Roten er `overflow-hidden`, så en
+  // blokk som er høyere enn skjermen ble klippet i BEGGE ender — og med
+  // `place-items-center` var toppen dessuten unåbar. Sjekken måler det som
+  // faktisk brakk: at overskriften står innenfor viewporten etter at flata er
+  // rullet til topps, og at siste linje nås ved å rulle til bunns.
+  // Viewporten settes LAV med vilje: med den trimmede teksten (v6.5.34) er
+  // blokka kort nok til å få plass selv på 200 % på en vanlig telefonhøyde, og
+  // en sjekk som bare måler «den fikk plass» måler ingenting. 380 px tvinger
+  // fram overflyten sjekken finnes for.
+  await s4.setViewportSize({ width: 430, height: 380 })
+  await s4.evaluate(() => localStorage.setItem('lende-ui-text-scale', '2'))
+  await s4.reload({ waitUntil: 'domcontentloaded' })
+  await sov(700)
+  const rull = await s4.evaluate(async () => {
+    const boks = [...document.querySelectorAll('div')]
+      .find((n) => n.scrollHeight > n.clientHeight + 4 && /God tur/i.test(n.innerText))
+    if (!boks) return { fant: false }
+    const synlig = (re) => {
+      const el = [...boks.querySelectorAll('p')].find((n) => re.test(n.textContent))
+      if (!el) return false
+      const r = el.getBoundingClientRect()
+      return r.top >= -1 && r.bottom <= innerHeight + 1
+    }
+    boks.scrollTop = 0
+    await new Promise((r) => requestAnimationFrame(r))
+    const topp = synlig(/^\s*Fritt lende\s*$/)
+    boks.scrollTop = boks.scrollHeight
+    await new Promise((r) => requestAnimationFrame(r))
+    const bunn = synlig(/God tur/)
+    return { fant: true, topp, bunn }
+  })
+  sjekk('Fritt lende: tom-tilstanden ruller ved 200 % tekst',
+    rull.fant && rull.topp && rull.bunn,
+    rull.fant ? `topp ${rull.topp}, bunn ${rull.bunn}` : 'fant ingen rullbar tekstblokk')
+  await s4.evaluate(() => localStorage.removeItem('lende-ui-text-scale'))
+  await s4.setViewportSize({ width: 430, height: 900 })
+  await s4.reload({ waitUntil: 'domcontentloaded' })
+  await sov(600)
+
   await s4.locator('button[aria-label]').first().click()
   await sov(400)
   const etterTrykk = await s4.evaluate(() => ({
