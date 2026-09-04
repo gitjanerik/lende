@@ -1,3 +1,9 @@
+## 2026-09-04 — v6.5.42: Et valg på natthimmelen kvitteres der man ser
+
+Trykker man på en løs stjerne, står blikket der fingeren var — mens hele svaret kommer et helt annet sted på skjermen, i en pille som kanskje alt sto der fra forrige valg. Stjerna løftes 1,6× i størrelse, og det er for lite til å fange et øye som ikke visste at det skulle se etter noe. Nå slippes to røde bølger ut fra legemet, ett skudd på drøyt et sekund, som ripplen i turkartets søketreff. De skiller seg fra den permanente trykk-ringen på globene med vilje: ringen sier «dette kan du åpne» og blir stående, bølgene sier «det skjedde» og dør. De starter innenfor ringens 46 px og vokser ut til 104, og de er røde fordi rødt er den ene fargen som får lyse i nattmodus. Regelen for hvor bølgene står bor i en ren modul med tester; shaderen får ferdige tall. Kvitteringen gis til det som ER et punkt og ikke har noen annen bekreftelse — løse stjerner, pluss Merkur og Venus, som verken har ring eller globe. En formasjon får den ikke: middelretningen ligger i tom himmel for en figur som spenner 40°, og figuren lyser uansett opp selv.
+
+---
+
 ## 2026-09-04 — v6.5.41: Demokartet virker i flymodus, ikke bare hvis du var heldig
 
 Det innebygde Vardåsen-kartet lot seg ikke åpne uten nett. Kartdata fikk sin
