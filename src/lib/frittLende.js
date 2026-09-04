@@ -210,6 +210,30 @@ export function knappeHandling({
   return avstandM >= NYTT_KART_M ? 'bygg' : 'for-naer'
 }
 
+// ── Autostart ───────────────────────────────────────────────────────────────
+// Har brukeren ALLEREDE gitt posisjonstillatelse, og finnes det ikke noe ark,
+// skal modusen hente kartet selv. Det er den ene skjermen der et trykk ikke
+// bærer en beslutning: knappen ville uansett gjort nøyaktig dette, og fram til
+// v6.5.34 var svaret på «hvorfor er skjermen tom?» en knapp du måtte finne.
+//
+// PORTEN ER `!harArk`, OG DEN ER INVARIANT 1 (se over). Med et ark på skjermen
+// er et bygg en ERSTATNING, og da må det ligge et trykk mellom det å åpne
+// modusen og det å miste arket — «GPS-en min er et helt annet sted i dag enn da
+// jeg bygget» er nettopp den situasjonen invarianten finnes for. Uten ark er
+// det ingenting å miste, og det er samme grense `knappeHandling` alt bruker.
+//
+// `tillatelse` er strengen fra Permissions API. BARE 'granted' teller: 'prompt'
+// ville åpnet nettleserens dialog uten at brukeren ba om noe, og en dialog man
+// ikke har utløst selv er en dialog man avviser. Safari støtter ikke oppslaget
+// i det hele tatt — da er verdien null, og modusen oppfører seg som før.
+//
+// OFFLINE BYGGER VI IKKE. Arket krever Overpass og Kartverket, så en autostart
+// uten dekning gir en feilmelding brukeren ikke har bedt om. Knappen står der
+// fortsatt og sier det samme, på et trykk.
+export function skalAutostarte({ harArk, tillatelse, offline = false }) {
+  return !harArk && !offline && tillatelse === 'granted'
+}
+
 // Hva knappen skal SI at den gjør. Avledet av samme tilstand som handlingen, så
 // etiketten kan ikke komme i utakt med oppførselen.
 export function knappeEtikett(tilstand) {
