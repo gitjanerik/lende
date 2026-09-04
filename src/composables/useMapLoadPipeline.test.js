@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest'
-import { metaFromSvgMeta, META_BEVISST_UTELATT } from './useMapLoadPipeline.js'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { DOMParser } from 'linkedom'
+import { metaFromSvgMeta, META_BEVISST_UTELATT, useMapLoadPipeline } from './useMapLoadPipeline.js'
 import { buildSvg } from '../lib/mapBuilder.js'
 
 // Hvitelisten i metaFromSvgMeta har bitt oss fire ganger: appVersion og
@@ -83,5 +84,69 @@ describe('metaFromSvgMeta — diagnose-feltene Utvikler-fanen leser', () => {
     const { meta } = buildSvg([], BBOX, { scaleDenom: 10000, turruteStatus: status })
     expect(meta.turruteStatus).toEqual(status)
     expect(metaFromSvgMeta(meta).turruteStatus).toEqual(status)
+  })
+})
+
+/**
+ * Hentingen av det INNEBYGDE kartet, målt uten nett.
+ *
+ * Grepene i `fetchBuiltinSvg` — `cache: 'reload'` og en `?v=`-URL på forsøk to —
+ * finnes for å komme forbi en gammel stale-while-revalidate-service-worker som
+ * kunne svare med en avkuttet kopi. Uten nett peker begge bort fra de eneste
+ * kildene som KAN svare: den bustede URL-en har hverken kart-cachen eller
+ * HTTP-cachen sett, og `reload` går forbi dem begge. Demokartet er nettopp det
+ * ene kartet som skal virke i flymodus, så begge retningene holdes fast her —
+ * en forgrening som ser ut som en dublett er lett å «rydde» bort.
+ */
+// Node har ingen DOMParser; linkedom er samme shim mcp/headless.js bruker.
+vi.stubGlobal('DOMParser', DOMParser)
+vi.stubGlobal('navigator', { onLine: true })
+
+const BYGD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" data-meta="{}"></svg>'
+
+function settOnline(verdi) {
+  globalThis.navigator.onLine = verdi
+}
+
+describe('fetchBuiltinSvg', () => {
+  afterEach(() => { settOnline(true) })
+
+  it('spør uten cache-busting og uten reload når nettleseren vet vi er offline', async () => {
+    settOnline(false)
+    const kall = []
+    vi.stubGlobal('fetch', vi.fn(async (url, opt) => {
+      kall.push({ url, cache: opt?.cache })
+      return { ok: true, text: async () => BYGD_SVG }
+    }))
+    const { fetchBuiltinSvg } = useMapLoadPipeline({})
+    expect(await fetchBuiltinSvg('vardasen.svg')).toBe(BYGD_SVG)
+    expect(kall).toHaveLength(1)
+    expect(kall[0].url).not.toContain('?v=')
+    expect(kall[0].cache).toBe('force-cache')
+  })
+
+  it('gir opp etter ETT forsøk offline — de to andre kan ikke svare', async () => {
+    settOnline(false)
+    const f = vi.fn(async () => { throw new TypeError('Failed to fetch') })
+    vi.stubGlobal('fetch', f)
+    const { fetchBuiltinSvg } = useMapLoadPipeline({})
+    await expect(fetchBuiltinSvg('vardasen.svg')).rejects.toThrow()
+    expect(f).toHaveBeenCalledTimes(1)
+  })
+
+  it('beholder reload og cache-busting når vi er på nett', async () => {
+    settOnline(true)
+    const kall = []
+    vi.stubGlobal('fetch', vi.fn(async (url, opt) => {
+      kall.push({ url, cache: opt?.cache })
+      // Første svar er en avkuttet kopi, slik en gammel SWR-service-worker ga.
+      if (kall.length === 1) return { ok: true, text: async () => '<svg></svg>' }
+      return { ok: true, text: async () => BYGD_SVG }
+    }))
+    const { fetchBuiltinSvg } = useMapLoadPipeline({})
+    expect(await fetchBuiltinSvg('vardasen.svg')).toBe(BYGD_SVG)
+    expect(kall).toHaveLength(2)
+    expect(kall[0].cache).toBe('reload')
+    expect(kall[1].url).toContain('?v=')
   })
 })

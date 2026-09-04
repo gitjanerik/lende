@@ -97,14 +97,21 @@ export function useMapLoadPipeline(deps) {
   // byttes ut. For å være robust UANSETT SW-tilstand: valider at svaret faktisk
   // parser som SVG med data-meta, og prøv på nytt med cache-bust (query-param
   // som hverken SW-cache eller HTTP-cache matcher) før vi gir opp.
+  // UTEN NETT ER BEGGE GREPENE OVER SNUDD (v6.5.41). `cache: 'reload'` går forbi
+  // HTTP-cachen med vilje, og cache-bustingen lager en URL hverken
+  // service-workerens kart-cache eller HTTP-cachen har sett — begge er rettet mot
+  // en revalidering som ikke KAN skje i flymodus, og de tar fra oss det ene
+  // svaret som finnes. Demokartet ligger ferdig i `lende-data` fra installasjonen
+  // (se public/sw.js); her må vi bare la det svare.
   async function fetchBuiltinSvg(file) {
     const baseUrl = `${import.meta.env.BASE_URL}maps/${file}`
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false
     let lastErr = null
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < (offline ? 1 : 3); attempt++) {
       // Cache-bust f.o.m. forsøk 2 — tvinger forbi en gammel SWR-service-worker.
       const url = attempt === 0 ? baseUrl : `${baseUrl}?v=${Date.now()}`
       try {
-        const res = await fetch(url, { cache: 'reload' })
+        const res = await fetch(url, { cache: offline ? 'force-cache' : 'reload' })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const text = await res.text()
         const doc = new DOMParser().parseFromString(text, 'image/svg+xml')
