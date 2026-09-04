@@ -1,3 +1,26 @@
+## 2026-09-04 — v6.5.38: Vedlikeholdsrapporten ser nå på tvers av de fire katalogene
+
+`npm run vedlikehold` har hele tida svart på «er denne katalogen i orden?», én
+katalog om gangen. Den svarer nå også på «svarer de fire likt om samme pakke?».
+Det er et spørsmål ingenting stilte før: Dependabot ser hver katalog for seg og
+kan per konstruksjon ikke se drift mellom dem, og det var nettopp slik
+`@modelcontextprotocol/sdk` fikk stå på 1.29 i rot og 1.23 nestet inne i den
+deployede MCP-Workeren til noen tilfeldigvis leste to filer i samme økt.
+Regelen bor i `scripts/versjonsdrift.mjs`, som er ren og enhetstestet — ingen
+fs, ingen nett; kallerne leser filene. Deklarerte områder og låste versjoner
+sammenliknes ALDRI mot hverandre: `^4.0.0` og `4.125.3` er ikke et avvik, de er
+to ulike spørsmål, og en katalog uten lockfile bidrar derfor bare til den
+deklarerte lista. Navnet leses etter SISTE `node_modules/` i stien, så en nestet
+kopi er nettopp det som telles. Lista sorteres etter FLATE og ikke etter navn,
+av samme grunn som resten av rapporten. Første kjøring fant én deklarert drift
+(`wrangler` ^4.125.0 i mcp-worker mot ^4.0.0 i proxy og ai-worker) og 22 låste —
+og den siste lista viser samtidig at rot-lockfila har fem noder der `version`
+ikke stemmer med tarballen i `resolved`, alle stemplet med appens egen versjon
+fra den gang. Installasjonen er likevel riktig, siden npm installerer fra
+`resolved` + `integrity`; reparasjonen står igjen som en egen sak.
+
+---
+
 ## 2026-09-03 — v6.5.33: Snarveien til Fritt lende lukker panelet den står i
 
 Snarveien i den tomme «Mine kart»-lista navigerte selv, med

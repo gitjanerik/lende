@@ -54,7 +54,8 @@ npm run royk       # Røyktest: monterer MapView i Chromium og trykker på domen
 npm run royk:ruter # Alle ruter, alle redirects og boot-gjenopptaket i Chromium
 npm run navnediff  # Hva forsvant ut av MapView i denne endringen — og hvem overtok
 npm run frie -- <fil>  # Refererer en fersk composable noe den ikke har fått inn?
-npm run vedlikehold    # Sårbarheter + utdaterte pakker i alle fire katalogene
+npm run vedlikehold    # Sårbarheter, utdaterte pakker og versjonsdrift mellom
+                       # de fire katalogene
 npm run bygg:stjerner  # Baker stjernekatalogen for 3D-natthimmelen fra HYG.
                        # Kjør bare når utvalget eller stjernebildene endres.
 npm run boot:workers   # Starter Cloudflare-Workerne i workerd. Rører du src/lib
@@ -1539,6 +1540,28 @@ andre versjoner av samme pakke. I august 2026 sto `@modelcontextprotocol/sdk` p�
 1.29 i rot (dev-bare, uten betydning) og på 1.23 nestet inne i `agents` i den
 DEPLOYEDE MCP-Workeren. En «high» i wrangler er dev-bare; en «moderate» i noe
 brukerne laster ned er ikke.
+
+**Rapporten har et tredje steg som stiller et ANNET spørsmål (v6.5.38).** Audit
+og outdated spør «er denne katalogen i orden?»; versjonsdriften nederst spør
+«svarer de fire katalogene likt om samme pakke?». Det siste kan Dependabot per
+konstruksjon ikke svare på — den ser hver katalog for seg, og det var nettopp
+slik `@modelcontextprotocol/sdk`-avviket over fikk stå. Regelen bor i
+`scripts/versjonsdrift.mjs` (ren, enhetstestet, ingen fs og ingen nett).
+**Deklarert og låst sammenliknes ALDRI mot hverandre:** `^4.0.0` og `4.125.3` er
+ikke et avvik, de er to ulike spørsmål, og en katalog uten lockfile bidrar bare
+til den deklarerte lista. Navnet leses etter SISTE `node_modules/` i stien, så
+den nestede kopien er nettopp den som telles.
+
+**Rot-lockfila har fem noder med FEIL `version`-felt, og det er ikke rettet.**
+`ajv-formats`, `eventsource`, `mime-types`, `raw-body` og `shebang-regex` står
+alle med appens egen versjon fra den gang (`3.0.17`) i stedet for pakkas — en
+global søk-og-erstatt under en versjons-bump som er dratt videre én patch om
+gangen siden. Installasjonen er likevel riktig, for npm installerer fra
+`resolved` + `integrity`; det er `audit`, `outdated` og dedupe som leser
+`version`, og det er trolig kilden til de sporadiske 400-ene («Invalid package
+tree») fra audit-endepunktet. `npm install --package-lock-only` retter det IKKE
+(målt: 13 av 348 noder før og etter) — det krever `rm package-lock.json &&
+npm install`, altså en egen, bevisst PR.
 
 **Dependabot-PR-er tas inn SELV, ikke merget rått (v5.22.4).** To grunner, og
 begge er konkrete: (1) roboten bumper ikke appens egen versjon, og uten en ny
