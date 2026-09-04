@@ -1,3 +1,28 @@
+## 2026-09-04 — v6.5.41: Demokartet virker i flymodus, ikke bare hvis du var heldig
+
+Det innebygde Vardåsen-kartet lot seg ikke åpne uten nett. Kartdata fikk sin
+egen uversjonerte cache i v6.5.39, men den fylles av kart-ruta i
+service-workeren, som er network-first — altså først når kartet FAKTISK hentes
+over nett. Hadde man aldri åpnet demokartet mens man var på nett etter siste
+deploy, sto cachen tom, og flymodus ga «kartet finnes ikke» på det ene kartet
+som ikke kan mangle: det ligger ferdig bygget i bundelen. Kartet hentes nå ved
+INSTALLASJON av service-workeren, altså ved hver deploy — som også er det som
+holder det ferskt, siden `lende-data` er uversjonert og den første kopien ellers
+ville blitt liggende for alltid. Hentingen går forbi HTTP-cachen, ellers kunne
+forrige deploys kart blitt skrevet inn som ferskt, og den kan ikke blokkere
+installasjonen.
+
+Klienten dro i motsatt retning av seg selv. `fetchBuiltinSvg` henter med
+`cache: 'reload'` og prøver på nytt med en `?v=`-URL — begge grep for å komme
+forbi en gammel stale-while-revalidate-service-worker som kunne svare med en
+avkuttet kopi. Uten nett peker de bort fra de eneste kildene som kan svare: den
+cache-bustede URL-en har hverken kart-cachen eller HTTP-cachen sett, og `reload`
+går forbi dem begge. Vet nettleseren at vi er offline, spørres det derfor én
+gang, uten busting og med `force-cache`. Begge retningene er enhetstestet, og
+installasjons-regelen måles på `public/sw.js` selv.
+
+---
+
 ## 2026-09-04 — v6.5.40: Tre trefflater — kula, stjernene og kulturminnene
 
 Planetvisningen i 3D lukkes av et trykk utenfor kula, men gesten er ikke å
