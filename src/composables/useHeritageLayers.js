@@ -5,7 +5,7 @@
 // som kommer inn destrukturert.
 import { ref, computed } from 'vue'
 import { wgs84ToSvg, wgs84BboxFromMeta } from '../lib/utm.js'
-import { fetchFredaKulturminner, fetchFredaCount, clusterByMinMeters, FREDET_FETCH_CAP } from '../lib/kulturminneWfs.js'
+import { fetchFredaKulturminner, fetchFredaCount, clusterByMinMeters, FREDET_FETCH_CAP, fredetErKappet } from '../lib/kulturminneWfs.js'
 import { fetchKulturminnerMedStatus } from '../lib/kulturminneFetcher.js'
 import { cacheGet, cacheSet, kulturminneBboxKey, fredetKulturminneBboxKey, TTL } from '../lib/protectedAreaCache.js'
 import { isomCatalog, buildPointSymbolDef } from '../lib/symbolizer.js'
@@ -34,8 +34,17 @@ export function useHeritageLayers({
 
   // Sant når utsnittet har flere arkeologiske kulturminner enn vi henter (taket)
   // — driver en toast som ber brukeren zoome inn for å se resten.
+  //
+  // TAKET MÅ VÆRE NÅDD, det holder ikke at tallene er ulike (v6.5.51). De to
+  // kommer fra hvert sitt WFS-kall: `fredetCount` er `numberMatched` fra et rent
+  // hits-kall, `fredetShown` er hvor mange features vi faktisk fikk PARSET — og
+  // en lokalitet uten brukbar geometri faller ut av den siste uten å falle ut av
+  // den første. Da sa toasten «97 … viser de første 96. Zoom inn for å se
+  // resten», og det var galt på begge halvdelene: ingenting var kappet, og å
+  // zoome inn ville ikke gitt den siste. Toasten handler om TAKET, så den skal
+  // bare stå når taket faktisk bet.
   const fredetTruncated = computed(() =>
-    fredetCount.value != null && fredetShown.value != null && fredetCount.value > fredetShown.value)
+    fredetErKappet(fredetCount.value, fredetShown.value, FREDET_FETCH_CAP))
 
   // WGS84-bbox fra kartets fire hjørner til WFS-spørringen (utm.js — delt med
   // NVE-laget og offline-pakkingen, som må treffe NØYAKTIG samme cache-nøkkel).

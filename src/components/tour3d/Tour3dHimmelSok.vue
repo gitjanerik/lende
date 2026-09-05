@@ -91,8 +91,13 @@ watch(() => props.objekter, () => {
            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/>
       </svg>
-      <span v-if="valgt" class="truncate">{{ IKON[valgt.type] }} {{ valgt.navn }}</span>
-      <span v-else>Finn på himmelen</span>
+      <!-- BEGGE TEKSTENE ELLIPSERER (v6.5.51). `truncate` uten `min-w-0` gjør
+           ingenting i en flex-rad — et flex-barn krymper ikke under sitt eget
+           innhold — og «Finn på himmelen» hadde ikke engang `truncate`: ved
+           200 % tekst i en smal pille brøt den over sju–ti linjer og pilla ble
+           en blokk midt på himmelen. -->
+      <span v-if="valgt" class="min-w-0 truncate">{{ IKON[valgt.type] }} {{ valgt.navn }}</span>
+      <span v-else class="min-w-0 truncate">Finn på himmelen</span>
     </button>
 
     <!-- Åpen: søkefelt + liste. -->

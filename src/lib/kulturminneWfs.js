@@ -116,6 +116,25 @@ export async function fetchFredaCount(bbox, opts = {}) {
 export const FREDET_FETCH_CAP = 600
 
 /**
+ * Ble utvalget faktisk KAPPET av taket? Ren regel, så den kan testes uten en
+ * Vue-komponent — se useHeritageLayers, som er den eneste kalleren.
+ *
+ * Begge tallene kommer fra hvert sitt WFS-kall: `count` er `numberMatched` fra
+ * et rent hits-kall, `shown` er hvor mange features vi fikk parset. En lokalitet
+ * uten brukbar geometri faller ut av den siste uten å falle ut av den første, og
+ * «97 mot 96» er derfor IKKE en kapping. Uten `shown >= cap` sa toasten «zoom
+ * inn for å se resten» om ett minne ingen zoom kan hente fram.
+ *
+ * @param {number|null} count antall i utsnittet (WFS hits)
+ * @param {number|null} shown antall features vi fikk parset
+ * @param {number} [cap] taket vi spurte med
+ */
+export function fredetErKappet(count, shown, cap = FREDET_FETCH_CAP) {
+  if (!Number.isFinite(count) || !Number.isFinite(shown)) return false
+  return shown >= cap && count > shown
+}
+
+/**
  * Hent enkeltminner i bbox som flate objekter (arkeologi-filtrert som default).
  * @returns {Promise<Array<{id,lat,lon,navn,art,vernetype,kommune,link,kategori}>>}
  */

@@ -19,8 +19,9 @@
 // bevisst start og ikke en glipp.
 //
 // Merk at iOS/Safari ikke følger Dynamic Type gjennom `rem` uten
-// `font: -apple-system-body`, og at `index.html` fortsatt setter
-// `user-scalable=no`. Begge er egne saker. Lukkeveier: X-knapp, Escape og Android-tilbakeknapp (pushState +
+// `font: -apple-system-body`. Det står fortsatt åpent. `user-scalable=no` er
+// derimot BORTE fra `index.html` fra v6.5.48 (SC 1.4.4) — denne merknaden sa
+// noe annet fram til v6.5.51. Lukkeveier: X-knapp, Escape og Android-tilbakeknapp (pushState +
 // popstate; samme URL, så vue-router er upåvirket).
 import { ref, computed, watch, onMounted, onBeforeUnmount, toRaw } from 'vue'
 import { useScreenWakeLock } from '../../composables/useScreenWakeLock.js'
@@ -250,7 +251,7 @@ const finPeker = (() => {
 // «Klikk» er feil ord på en telefon og «trykk» er feil på en maskin. Samme
 // peker-tilpasning som hjelpepanelet gjør for gestene. MÅ stå etter finPeker:
 // den er en `const`, altså ikke hoistet — se TDZ-regelen i CLAUDE.md.
-const STARGAZER_TEKST = finPeker
+const STJERNEKIKKER_TEKST = finPeker
   ? 'Klikk for å åpne natthimmelen'
   : 'Trykk for å åpne natthimmelen'
 
@@ -1238,7 +1239,7 @@ function branchLabel(opt, i) {
         </div>
       </div>
 
-      <!-- STARGAZER: veien fra en tom dagshimmel til stjernekikkeren.
+      <!-- STJERNEKIKKER: veien fra en tom dagshimmel til natthimmelen.
            Løfter man blikket om dagen, er det ingenting der — blå flate og
            noen skyer — og det ene stedet i appen der det ER noe å se opp på,
            nattmodus, nås fra en sol/måne-knapp helt nede i venstre hjørne som
@@ -1258,7 +1259,7 @@ function branchLabel(opt, i) {
            class="absolute left-0 right-0 top-[32%] z-[9] flex justify-center px-4
                   pointer-events-none">
         <button type="button" @click="toggleNight"
-                aria-label="Stargazer — åpne natthimmelen"
+                aria-label="Stjernekikker — åpne natthimmelen"
                 class="pointer-events-auto max-w-full rounded-2xl bg-black/72 backdrop-blur
                        ring-1 ring-white/20 shadow-lg px-4 py-2.5 text-white/90
                        flex items-center gap-2.5 active:scale-[0.97] transition"
@@ -1269,8 +1270,8 @@ function branchLabel(opt, i) {
             <path d="M17.2 3.1l.5 1.4 1.4.5-1.4.5-.5 1.4-.5-1.4-1.4-.5 1.4-.5z" fill="currentColor" stroke="none"/>
           </svg>
           <span class="min-w-0 text-left leading-tight">
-            <span class="block text-[0.8125rem] font-semibold">Stargazer</span>
-            <span class="block text-[0.6875rem] text-white/80">{{ STARGAZER_TEKST }}</span>
+            <span class="block text-[0.8125rem] font-semibold">Stjernekikker</span>
+            <span class="block text-[0.6875rem] text-white/80">{{ STJERNEKIKKER_TEKST }}</span>
           </span>
         </button>
       </div>
@@ -1482,12 +1483,21 @@ function branchLabel(opt, i) {
            skal varselet stå først — det er nettopp DET man slo på natta for å se.
            Nattmodus fjerner ellers hele overlegget (v6.1.0); dette er et bevisst
            unntak på linje med himmelsøket. -->
+      <!-- FØLGER TEKSTVALGET (v6.5.51), som Info-pilla og POI-filteret. Det er
+           en TEKSTFLATE — styrke, sjanse, skydekke, Kp — og det siste man leser
+           i 3D som ikke fulgte valget fra hovedmenyen.
+
+           ZOOMEN LIGGER PÅ EN INNPAKNING INNENFOR `px-3`, ikke på raden selv:
+           en zoomet `px-3` skalerer polstringen og dytter innholdet utenfor
+           skjermen (samme grunn som Info/POI-raden). -->
       <div v-if="phase === 'ready' && nordlysOn && !walking && nordlys"
-           class="relative z-10 px-3 mt-2 flex justify-center">
-        <Tour3dNordlysPanel :nordlys="nordlys" :skydekke="nordlysSkydekke"
-                            :er-natt="true"
-                            :demo="nordlysDemoPaa ? nordlysDemoNaa.navn : ''"
-                            @lukk="nordlysAvvist = true"/>
+           class="relative z-10 px-3 mt-2">
+        <div class="flex justify-center" :style="{ zoom: uiTextScale }">
+          <Tour3dNordlysPanel :nordlys="nordlys" :skydekke="nordlysSkydekke"
+                              :er-natt="true"
+                              :demo="nordlysDemoPaa ? nordlysDemoNaa.navn : ''"
+                              @lukk="nordlysAvvist = true"/>
+        </div>
       </div>
 
       <!-- Infokortet for det valgte. Rulles om teksten er lang — den kan være
@@ -1555,9 +1565,17 @@ function branchLabel(opt, i) {
            nå står varselet først og hjelpen under. Skjult under en gående tur —
            der konkurrerer HUD og kryssvalg om plassen, og været er ikke det man
            ser etter da. -->
+      <!-- FØLGER TEKSTVALGET (v6.5.51). Innpakningen er den samme som
+           nordlysets, og den er ikke valgfri her: `Tour3dVaerRad` måler
+           forelderens `clientWidth` for å velge hvor mange timer som får plass,
+           så forelderen MÅ være full bredde OG stå i samme zoom-lag som raden.
+           Legges zoomen på `px-3`-boksen i stedet, måler raden en forelder i et
+           annet enhetsrom enn seg selv. -->
       <div v-if="phase === 'ready' && vaerOn && !walking && !stjernemodus"
-           class="relative z-10 px-3 mt-2 flex justify-center">
-        <Tour3dVaerRad :vaer="vaer" @lukk="vaerAvvist = true"/>
+           class="relative z-10 px-3 mt-2">
+        <div class="flex justify-center" :style="{ zoom: uiTextScale }">
+          <Tour3dVaerRad :vaer="vaer" @lukk="vaerAvvist = true"/>
+        </div>
       </div>
 
       <!-- Nederste linje: hjelp til venstre, POI-filter til høyre. Begge er

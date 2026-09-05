@@ -100,12 +100,18 @@ async function maalPlass() {
   const ledig = mor.clientWidth
     - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0)
   if (!(ledig > 0)) return
-  const kolonne = el.querySelector('[data-time]')?.getBoundingClientRect().width
+  // `offsetWidth` OG IKKE `getBoundingClientRect()` (v6.5.51), fordi raden fra
+  // og med nå står i et `zoom`-lag: rammen er VISUELLE piksler (ganget med
+  // zoomen), mens `clientWidth` over er lokale. Med 200 % tekst ble kolonnen
+  // målt dobbelt så bred som den ledige plassen var talt i, og raden falt til
+  // gulvet på to timer uansett hvor bred skjermen var. `offsetWidth` runder til
+  // hele piksler; ettersjekken under fanger avrundingen.
+  const kolonne = el.querySelector('[data-time]')?.offsetWidth
   if (!kolonne) return
   // Alt som ikke er en time: MET-attribusjonen og lukkeknappen, som nå ligger i
   // samme celle.
   const faste = [...el.querySelectorAll('[data-fast]')]
-    .reduce((sum, e) => sum + e.getBoundingClientRect().width, 0)
+    .reduce((sum, e) => sum + e.offsetWidth, 0)
   maaler = true
   try {
     plass.value = grense(Math.floor((ledig - faste) / kolonne))
