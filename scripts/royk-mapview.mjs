@@ -2388,6 +2388,18 @@ const SJEKKER = [
         // tekst skal de i stedet ha falt ned på en EGEN linje under hodet, og
         // X-en skal stå i ro i hjørnet: hun er ute av flyten nettopp for at
         // brytingen ikke skal kunne ta henne med seg.
+        // ANTALLET TELLES FØRST, VED VANLIG TEKST. Påstanden «fire tall» var min
+        // egen og den er gal: SKYER-raden kommer fra MET-varselet
+        // (`nordlysSkydekke`) og ikke fra demoen, så på en runner der varselet
+        // ikke svarer er tre tall det RIKTIGE svaret — panelet gjetter ikke om
+        // skyer. Invarianten er at stor tekst ikke skal ta noe bort: det som sto
+        // der ved vanlig tekst skal stå der ved 200 %, på en linje til.
+        const tallFoer = await evalMedTak(page, () =>
+          document.querySelector('[data-nordlys-tall]')?.children.length ?? 0)
+        if (tallFoer < 3) {
+          throw new Error(`bare ${tallFoer} tall ved vanlig tekst — sjanse, Kp og `
+            + 'solvind kommer alle fra demoen og skal alltid stå der')
+        }
         await evalMedTak(page, () => { document.documentElement.style.fontSize = '32px' })
         await page.waitForTimeout(400)
         const nordlysMaal = await evalMedTak(page, () => {
@@ -2420,9 +2432,9 @@ const SJEKKER = [
           throw new Error(`pilla flyter over med ${nordlysMaal.flyter} px ved stor tekst `
             + '— tall-cella krymper ikke (mangler `min-width: 0`?)')
         }
-        if (nordlysMaal.tall < 4) {
-          throw new Error(`bare ${nordlysMaal.tall} av fire tall ved stor tekst — de svarer `
-            + 'på hvert sitt spørsmål, og skal få en linje til i stedet for å falle bort')
+        if (nordlysMaal.tall < tallFoer) {
+          throw new Error(`${tallFoer} tall ved vanlig tekst, ${nordlysMaal.tall} ved 200 % — `
+            + 'de svarer på hvert sitt spørsmål, og skal få en linje til i stedet for å falle bort')
         }
         if (!nordlysMaal.stablet) {
           throw new Error('tallene sto fortsatt på hode-linja ved 200 % tekst — '
@@ -2539,6 +2551,16 @@ const SJEKKER = [
           () => !/Skjerper kartbildet/i.test(document.body.innerText),
           null, { timeout: 45_000 },
         ).catch(() => { /* meldingen kan ha kommet og gått */ })
+
+        // OVERLEGGET MÅ VÆRE `ready` FØR VI LESER DET. Knappene står bak
+        // `v-if="phase === 'ready'"`, så et oppslag rett etter at lerretet har
+        // fått bredde treffer et overlegg uten en eneste knapp — og
+        // `lesSolMaaneSteg` svarer da `null`, som leses som «vi kom ikke i
+        // natt». `aapneNatt3d` skjuler dette bak en fast venting på 800 ms;
+        // her ventes det på det vi faktisk trenger.
+        await p2.waitForFunction((steg) => [...document.querySelectorAll('button[aria-label]')]
+          .some((b) => steg.includes(b.getAttribute('aria-label'))),
+        SOLMAANE_STEG, { timeout: 30_000 })
 
         // FORUTSETNINGEN FØRST: står vi faktisk i natt uten å ha trykket? Feiler
         // klokke-skjøvet, skal sjekken si DET og ikke «nordlyset mangler».

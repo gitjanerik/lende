@@ -1,3 +1,31 @@
+## 2026-09-05 — v6.5.58: Nordlyspilla klippet seg selv ved stor tekst
+
+Hode-cella i nordlyspanelet var `shrink-0` med `min-width: 6.5rem`, og begge
+deler bommet ved stor systemtekst. `shrink-0` låser cella til sin
+max-content-bredde — «Svært sterk» er 213 px ved 200 % — mens pillas
+innholdsboks bare er 170 px når strimmelen til lukkeknappen er trukket fra. Da
+fløt pilla over, og `overflow: hidden` klippet. Gulvet i rem gjorde det verre:
+det vokste i takt med teksten mens plassen ikke gjorde det, så det var størst
+nettopp der det gjorde mest skade. Cella kan nå krympe (`flex: 0 1 auto`),
+styrkeordet kan brytes (`overflow-wrap: anywhere`, uten den er et ord på 90 px
+et gulv ingen flex-regel kommer under), og polstringen viker sist
+(`min-width: 0`). Feilen kom inn i v6.5.54 og sto rød i røyktesten på master i
+tre leveranser fordi jeg merget uten å vente på CI — og den slapp gjennom
+verifiseringen i v6.5.55 fordi jeg målte på 406 px, mens 3D-overlegget gir raden
+310 px når navigasjonssøyla står der. Denne gangen er den ekte komponenten målt
+med ekte demotall over 200–406 px × rot-font 16/20/24/32 × alle seks
+demo-stegene: ingen overflyt, X-en aldri klippet, alle fire tallene i behold, og
+fortsatt én linje ved vanlig tekst. Samtidig venter den nye røyk-sjekken fra
+v6.5.57 på at 3D-overlegget faktisk er `ready` før den leser sol/måne-knappen —
+knappene står bak `phase === 'ready'`, så et for tidlig oppslag svarte `null` og
+ble lest som «vi kom ikke i natt». Og kravet om «fire tall» var en påstand som
+ikke holdt: SKYER-raden kommer fra MET-varselet og ikke fra demoen, så tre tall
+er det riktige svaret på en runner der varselet ikke svarer — panelet gjetter
+ikke om skyer. Sjekken teller nå tallene ved vanlig tekst og krever at stor tekst
+ikke tar noen av dem bort.
+
+---
+
 ## 2026-09-05 — v6.5.57: Nordlysvarselet kommer også når 3D åpner rett i natt
 
 Åpner man 3D når sola alt står under horisonten, åpner visningen i nattmodus av
