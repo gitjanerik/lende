@@ -533,6 +533,45 @@ try {
   await sL.evaluate(() => localStorage.removeItem('lende-ui-text-scale'))
   await sL.close()
 
+  // «Nytt turkart» ved 200 % tekst (v6.5.45). To ting brakk der, og begge er
+  // usynlige ved 100 %: forhåndsvisningens 50 px-renne på hver side spiste den
+  // halverte logiske bredden, så kartet kollapset til en 24 px firkant; og
+  // «Lag turkart» var festet til bunnen i dobbel høyde og etterlot knapt plass
+  // til én rad i trefflista.
+  // MÅLES I MODALEN, ikke på /nytt: `zoom` settes av AppModal, mens
+  // MapPickerView ikke skalerer i det hele tatt — en måling på ruta ville stått
+  // grønn uansett hva koden gjorde, som den gjorde i første utgave av sjekken.
+  const sN = await ctx.newPage()
+  sN.on('pageerror', (e) => jsFeil.push(e.message))
+  await sN.setViewportSize({ width: 360, height: 780 })   // smal telefon = verste fall
+  await sN.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' })
+  await sN.evaluate(() => localStorage.setItem('lende-ui-text-scale', '2'))
+  await sN.reload({ waitUntil: 'domcontentloaded' })
+  await sov(700)
+  await sN.locator('button[aria-label="Åpne meny"]').click()
+  await sov(400)
+  await sN.locator('.am-row-main').first().click()          // «Mine kart»
+  await sov(700)
+  await sN.locator('[role="dialog"] button', { hasText: 'Flere valg' }).first().click()
+  await sov(900)
+  const nytt200 = await sN.evaluate(() => {
+    const rute = [...document.querySelectorAll('[role="dialog"] div.aspect-square')]
+      .find((n) => n.getBoundingClientRect().width > 0)
+    const knapp = [...document.querySelectorAll('[role="dialog"] button')]
+      .find((n) => /Lag turkart/.test(n.textContent))
+    return {
+      bredde: rute ? Math.round(rute.getBoundingClientRect().width) : -1,
+      festet: knapp ? getComputedStyle(knapp.parentElement).position : 'fant-ingen',
+    }
+  })
+  // Terskelen er FYSISKE piksler: `zoom: 2` gjør 120 logiske til 240 på skjermen.
+  sjekk('Nytt turkart: forhåndsvisningen overlever 200 % tekst',
+    nytt200.bredde >= 120, `preview ${nytt200.bredde} px`)
+  sjekk('Nytt turkart: «Lag turkart» slipper bunnen over 125 %',
+    nytt200.festet === 'static', `position: ${nytt200.festet}`)
+  await sN.evaluate(() => localStorage.removeItem('lende-ui-text-scale'))
+  await sN.close()
+
   // Deep-lenker skal IKKE røres av hooken.
   const s3 = await ctx.newPage()
   s3.on('pageerror', (e) => jsFeil.push(e.message))

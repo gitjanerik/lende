@@ -210,21 +210,16 @@ async function onInstall() {
 // «Mine kart» — ellers ville halvparten oppført seg på den ene måten.
 const sheet = ref(null)   // 'kart' | 'rute' | 'nytt' | 'tegnforklaring' | 'om' | null
 
-// «Nytt kart»-skjemaet har tre innganger — menyens «+», «Flere valg» og
-// søkefeltets pin-knapp. Flagget er det eneste som skiller den siste: den ber
-// skjemaet hente posisjonen og sentrere seg der straks det er oppe. Det settes
-// ved HVER åpning (også til false), ellers arver neste «+» et GPS-oppslag
-// ingen ba om.
-const pickerGps = ref(false)
-
+// «Nytt kart»-skjemaet har to innganger — menyens «+» og «Flere valg».
+// v6.5.45: den tredje er borte. Søkefeltets grønne pin bygger nå kartet der den
+// står, så flagget som ba dette skjemaet hente posisjonen hadde ingen avsender
+// igjen.
 function openSheet(name) {
-  pickerGps.value = false
   sheet.value = name
   close()
 }
 
-function apnePicker(opt) {
-  pickerGps.value = !!opt?.gps
+function apnePicker() {
   sheet.value = 'nytt'
 }
 
@@ -440,7 +435,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     </div>
   </AppModal>
   <AppModal :open="sheet === 'nytt'" title="Nytt turkart" @close="sheet = null">
-    <MapPickerContent :start-gps="pickerGps" />
+    <MapPickerContent />
   </AppModal>
   <AppModal :open="sheet === 'om'" title="Om Så i lende" @close="sheet = null">
     <div class="px-4 py-5"><AboutContent /></div>

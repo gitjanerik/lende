@@ -21,10 +21,10 @@ watch(activeTab, (t) => {
   router.replace({ path: '/', query: { ...route.query, tab: t } })
 })
 
-// «Flere valg» og søkefeltets pin-knapp ender begge her; forskjellen er ?gps=1,
-// som ber skjemaet hente posisjonen og sentrere seg der straks det er oppe.
-function apnePicker(opt) {
-  router.push(opt?.gps ? { path: '/nytt', query: { gps: '1' } } : '/nytt')
+// «Flere valg» ender her. v6.5.45: `?gps=1` er borte — søkefeltets grønne pin
+// bygger nå kartet på stedet, den navigerer ikke hit.
+function apnePicker() {
+  router.push('/nytt')
 }
 
 // Snarveien til Fritt lende i den tomme lista. `replace` og ikke `push`, samme
