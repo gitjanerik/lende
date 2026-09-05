@@ -2,7 +2,7 @@ import { createApp } from 'vue'
 import './style.css'
 import App from './App.vue'
 import router from './router'
-import { setWaitingWorker } from './lib/swUpdate.js'
+import { setWaitingWorker, checkForUpdateNow } from './lib/swUpdate.js'
 import { pickupInviteTokenFromLocation } from './lib/lendeAi.js'
 
 // KI-invitasjon: en delt lenke med `?ai-token=<guid>` gir tilgang til
@@ -82,7 +82,18 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
         // Sjekk etter ny versjon periodisk + når appen kommer i forgrunnen, så
         // banneret dukker opp selv om appen står åpen lenge (typisk PWA på
         // mobil) — uten dette ville en deploy mens appen var åpen gått upåaktet.
-        const checkForUpdate = () => { reg.update().catch(() => {}) }
+        //
+        // GÅR GJENNOM `checkForUpdateNow()` OG IKKE RÅ `reg.update()` (v6.5.50),
+        // fordi den siste kan kjøre seg fast for godt: `reg.waiting` leses bare
+        // ÉN gang, i blokka over, og bare hvis en gammel SW kontrollerte siden
+        // da. Sto en ny SW allerede og ventet uten at banneret rakk å bli satt
+        // — hard reload, eller `controller` ennå null ved registrering — gir
+        // `update()` INGEN `updatefound`, for skriptet på serveren er identisk
+        // med det som alt venter. Da kunne appen foregrunnes hver time i en uke
+        // uten at banneret noen gang dukket opp. `checkForUpdateNow()` leser
+        // `reg.waiting` PÅ NYTT etter hver sjekk, og er dermed den ene av de to
+        // som kommer seg løs igjen.
+        const checkForUpdate = () => { checkForUpdateNow().catch(() => {}) }
         setInterval(checkForUpdate, 60 * 60 * 1000)
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') checkForUpdate()

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { APP_VERSION } from '../version.js'
+import VersjonSjekk from './VersjonSjekk.vue'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
 
 // Innholdet i «Om Så i lende» — delt mellom ruten /om (AboutView, som holder
@@ -514,7 +514,7 @@ async function onInstallClick() {
         <p class="pt-1">Privat, ikke-kommersielt hobbyprosjekt. Kart fra appen er
           ikke godkjent for navigasjon til sjøs eller i nødsituasjoner.</p>
       </div>
-      <p class="text-[11px] text-ink-4 pt-1">Versjon {{ APP_VERSION }}</p>
+      <VersjonSjekk class="text-[11px] text-ink-4 pt-1" />
     </section>
   </div>
 </template>

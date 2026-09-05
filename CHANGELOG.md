@@ -1,3 +1,28 @@
+## 2026-09-05 — v6.5.50: «Se etter oppdatering», og den automatiske sjekken som kunne kjøre seg fast
+
+`checkForUpdateNow()` i `lib/swUpdate.js` ble skrevet for en «Se etter
+oppdatering»-knapp, men knappen ble igjen i svg-insights da Lende ble skilt ut:
+funksjonen sto med null kallere, og appen hadde ingen manuell vei til en ny
+versjon i det hele tatt. Den er nå én komponent, `VersjonSjekk.vue`, delt av de
+to stedene versjonen står — hovedmenyen og Om-siden — fordi en knapp bare det
+ene stedet er en knapp halve appen ikke vet om. Den har sin egen «Oppdater
+nå»-knapp selv om App.vue alt viser et banner ved treff: banneret ligger på
+z-100 og hovedmenyen på z-201, så et treff funnet fra menyen ville svart med en
+knapp bak menyen man står i. Samtidig går den automatiske sjekken i `main.js`
+gjennom samme funksjon i stedet for rå `reg.update()`. Det siste kunne kjøre seg
+fast for godt: `reg.waiting` ble lest bare én gang, ved registrering, og bare
+hvis en gammel service worker kontrollerte siden da. Sto en ny worker allerede og
+ventet uten at banneret rakk å bli satt — hard reload, eller `controller` ennå
+null — ga `update()` ingen `updatefound`, for skriptet på serveren er identisk
+med det som alt venter, og appen kunne foregrunnes hver time i en uke uten at
+banneret dukket opp. `checkForUpdateNow()` leser `reg.waiting` på nytt etter hver
+sjekk og er dermed den ene av de to som kommer seg løs igjen. En ubrukt eksport
+er helt gyldig kode og et manglende kallsted er nettopp ingenting, så ingen
+enhetstest kunne se dette; røyktesten åpner nå menyen og krever at knappen
+svarer.
+
+---
+
 ## 2026-09-05 — v6.5.49: Zoom-knappene ned og inn i Fritt lende, ruteliste, punkt-ark og 3D-filter tåler 200 % tekst
 
 Zoom-pilla på høyre kant lå på `--ovl-rose` og dermed oppå snarvei-raden
