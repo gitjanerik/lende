@@ -1,3 +1,13 @@
+## 2026-09-05 — v6.5.44: Stargazer i himmelen, og en hjelp som ikke dytter
+
+Løfter man blikket i dagmodus, er himmelen tom — blå flate og noen skyer — mens det ene stedet i appen der det faktisk er noe å se opp på, nattmodus, nås fra en sol/måne-knapp nede i venstre hjørne som ikke handler om himmelen man nettopp så opp i. «Stargazer» står nå midtstilt der blikket er, og bare der: den vises på `serOpp` og forsvinner i det man drar seg ned igjen, så den koster ingen kartflate. Den ligger under resten av overlegget i stablingen, og raden den står i slipper pekeren gjennom — ellers ville den svelget nettopp det draget nedover som er veien tilbake til kartet.
+
+Infopanelet i 3D byttet fram til nå pilla si ut med den utvidede boksen, og boksen sto i flyten i en `justify-between`-rad. En åpnet hjelp dyttet derfor det grønne POI-filteret ut av skjermen og tok med seg sin egen lukkeknapp ut av syne — man satt igjen med en tekstblokk uten noen synlig vei ut. Headeren blir nå stående og er selve bryteren, med en chevron som sier hvilken vei neste trykk går, og kroppen henger under som et nedtrekk utenfor flyten. Raden er dermed like bred åpen som lukket, og filteret flytter seg aldri. Kroppen bærer sitt eget tak og sin egen rulling, siden kallstedet ikke lenger kan pakke den i en `overflow`-boks uten å klippe nedtrekket bort. To røyk-sjekker holder begge delene fast: Stargazer må dukke opp når blikket er løftet og faktisk åpne natta når man trykker, og POI-filteret måles til å stå stille og innenfor skjermen med hjelpen åpen.
+
+Kommentaren over `HALF_KM` i `scripts/build-vardasen-svg.js` hevdet samtidig at demokartets 4 km var «samme utsnitt som app-standarden». Det stemte da den ble skrevet, men app-standarden er siden blitt 8 km med 20 m ekvidistanse (`DEFAULT_MAP_WIDTH_KM`) mens demokartet ble stående — så kommentaren pekte på en binding som ikke lenger fantes. Utsnittet er likevel ikke vilkårlig, og kommentaren sier nå hvorfor det er som det er: røyktesten avviser et kart under `EKTE_KART_MIN_BYTES` som mistenkelig lite og cacher det ikke, så et halvert ark ville sendt hver eneste kjøring tilbake til Overpass; 16 av 36 røyk-sjekker krever ekte kart og blir grønne fordi de er tomme om stier, vann og navn forsvinner; og kartet er et produkt-artefakt som service-workeren forhåndshenter for flymodus. En nabo-kommentar med samme feil er rettet i samme slengen: DEM-en sto oppført som 1000 × 1000 celler for et 5 × 5 km-ark og er i virkeligheten 800 × 800 for 4 × 4 km.
+
+---
+
 ## 2026-09-05 — v6.5.43: Skjermen din, ikke vår — rotasjon og en A-knapp i hvert panel
 
 Manifestet låste den installerte appen til høykant. Det er borte: `orientation`
