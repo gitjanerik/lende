@@ -1,3 +1,58 @@
+## 2026-09-05 — v6.5.58: Nordlyspilla klippet seg selv ved stor tekst
+
+Hode-cella i nordlyspanelet var `shrink-0` med `min-width: 6.5rem`, og begge
+deler bommet ved stor systemtekst. `shrink-0` låser cella til sin
+max-content-bredde — «Svært sterk» er 213 px ved 200 % — mens pillas
+innholdsboks bare er 170 px når strimmelen til lukkeknappen er trukket fra. Da
+fløt pilla over, og `overflow: hidden` klippet. Gulvet i rem gjorde det verre:
+det vokste i takt med teksten mens plassen ikke gjorde det, så det var størst
+nettopp der det gjorde mest skade. Cella kan nå krympe (`flex: 0 1 auto`),
+styrkeordet kan brytes (`overflow-wrap: anywhere`, uten den er et ord på 90 px
+et gulv ingen flex-regel kommer under), og polstringen viker sist
+(`min-width: 0`). Feilen kom inn i v6.5.54 og sto rød i røyktesten på master i
+tre leveranser fordi jeg merget uten å vente på CI — og den slapp gjennom
+verifiseringen i v6.5.55 fordi jeg målte på 406 px, mens 3D-overlegget gir raden
+310 px når navigasjonssøyla står der. Denne gangen er den ekte komponenten målt
+med ekte demotall over 200–406 px × rot-font 16/20/24/32 × alle seks
+demo-stegene: ingen overflyt, X-en aldri klippet, alle fire tallene i behold, og
+fortsatt én linje ved vanlig tekst. Samtidig venter den nye røyk-sjekken fra
+v6.5.57 på at 3D-overlegget faktisk er `ready` før den leser sol/måne-knappen —
+knappene står bak `phase === 'ready'`, så et for tidlig oppslag svarte `null` og
+ble lest som «vi kom ikke i natt». Og kravet om «fire tall» var en påstand som
+ikke holdt: SKYER-raden kommer fra MET-varselet og ikke fra demoen, så tre tall
+er det riktige svaret på en runner der varselet ikke svarer — panelet gjetter
+ikke om skyer. Sjekken teller nå tallene ved vanlig tekst og krever at stor tekst
+ikke tar noen av dem bort.
+
+---
+
+## 2026-09-05 — v6.5.57: Nordlysvarselet kommer også når 3D åpner rett i natt
+
+Åpner man 3D når sola alt står under horisonten, åpner visningen i nattmodus av
+seg selv (v6.1.0) — men nordlyspanelet kom ikke. Man måtte innom dagmodus og
+tilbake for å se varselet, og gardinene med det.
+
+Årsaken er at natt-inngangen fantes som to lister: mount-stien, som kjører når
+3D åpner i en modus den allerede står i, og `watch(nightOn)`, som kjører når
+brukeren bytter. Mount-lista startet nordlysdemoen, men ikke det ekte varselet.
+Sto `nightOn` sann fra første frame, endret den seg aldri, watchen fyrte aldri,
+og hentingen skjedde ikke. Samme klasse som målingen som aldri kjørte fordi raden
+ikke fantes ved montering (v6.3.12): en tilstand som er sann fra start ser ut som
+«ingen endring». Begge kallerne går nå gjennom ÉN funksjon, `startNordlys`, så de
+to sidene ikke kan drive fra hverandre igjen.
+
+Røyktesten har fått en sjekk som faktisk dekker den stien. Den eksisterende går
+inn i natta ved å TRYKKE og ville ikke sett dette. Den nye åpner 3D som allerede
+står der, i en egen nettleser-kontekst med `Date` forskjøvet til en januarnatt
+over Vardåsen — om 3D åpner i natt avgjøres ellers av når CI kjører, og en sjekk
+som bare virker om kvelden blir grønn ved et tilfelle. Klokka går fortsatt (bare
+et fast tillegg); `page.clock` ville frosset timerne 3D-byggingen henger på.
+NOAA stubbes, så panelet vises fordi hentingen ble startet og ikke fordi sola er
+urolig. Sjekken sier fra hvis klokke-skjøvet slutter å virke, i stedet for å
+rapportere det som manglende nordlys.
+
+---
+
 ## 2026-09-05 — v6.5.56: Zoom-knappene i ruteplanleggeren finner plassen sin selv
 
 Delings-banneret og zoom-kontrollene i `/rute` lå som hver sin absolutt boks, og

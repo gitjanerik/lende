@@ -151,7 +151,7 @@ const verdier = computed(() => {
               overflow-hidden flex flex-wrap items-stretch">
     <!-- Hovedtallet: styrkeordet stort, sannsynligheten under. Det er det man
          leser i mørket, og det eneste som er stedsspesifikt. -->
-    <div class="shrink-0 flex flex-col items-start justify-center px-3 py-1.5 min-w-[6.5rem]">
+    <div class="nordlys-hode flex flex-col items-start justify-center px-3 py-1.5">
       <span class="text-[0.5rem] uppercase tracking-wide text-white/70 leading-none"
             :title="kildeTittel">
         Nordlys<span v-if="kildeMerke" class="text-white/70"> · {{ kildeMerke }}</span>
@@ -228,6 +228,43 @@ const verdier = computed(() => {
 .nordlys-tall {
   flex: 1 1 max-content;
   min-width: 0;
+}
+
+/*
+ * HODE-CELLA MÅ KUNNE KRYMPE (v6.5.58).
+ *
+ * Den var `shrink-0` med `min-width: 6.5rem`, og begge deler bommet ved stor
+ * tekst. `shrink-0` låser cella til sin MAX-content-bredde — «Svært sterk» ved
+ * 200 % er 213 px — mens pillas innholdsboks er 170 px når X-ens strimmel er
+ * trukket fra. Da flyter pilla over, og `overflow: hidden` klipper. Målt på den
+ * ekte komponenten: 43 px utenfor ved rot-font 32 og 310 px tilgjengelig, som er
+ * bredden 3D-overlegget faktisk gir raden når navigasjonssøyla står der
+ * (430 − 96 − 24). Det var ikke bredden jeg målte i v6.5.55, og det er hele
+ * grunnen til at feilen slapp gjennom.
+ *
+ * De tre linjene er tre ulike gulv, og alle tre må vike:
+ *   flex: 0 1 auto        cella VOKSER ikke (tallene skal ta ledig plass), men
+ *                         den kan krympe. Det er `shrink-0` som var feil, ikke
+ *                         `grow`.
+ *   overflow-wrap         uten den er min-content det BREDESTE ORDET — «Synlig»
+ *                         er 90 px ved 200 % — og et ord som ikke kan brytes er
+ *                         et gulv ingen flex-regel kommer under.
+ *   min-width: 0          siste gulv er cellas egen `px-3`, som ved 200 % er
+ *                         48 px. Under den klippes polstring, ikke tekst.
+ *
+ * `min-width: 6.5rem` er FJERNET og skal ikke tilbake i rem: gulvet vokste i
+ * takt med teksten mens plassen ikke gjorde det, så det var størst nettopp der
+ * det gjorde mest skade. Ved vanlig tekst er cella like bred som før av seg selv
+ * — etiketten «Nordlys · NOAA» er det som setter bredden.
+ *
+ * Målt over 200–406 px tilgjengelig bredde × rot-font 16/20/24/32 × alle seks
+ * demo-stegene: ingen overflyt, X-en aldri klippet, alle fire tallene i behold,
+ * og fortsatt ÉN linje ved vanlig tekst og full bredde.
+ */
+.nordlys-hode {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /*
