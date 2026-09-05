@@ -1,3 +1,33 @@
+## 2026-09-05 — v6.5.55: Nordlyspanelet bryter seg selv, uten måling
+
+Brytingen som kom i v6.5.54 var en ResizeObserver: den la tallene på én linje,
+spurte browseren om det fløt over, og stablet hvis det gjorde det. Den virket,
+men den var en løkke rundt et spørsmål CSS kan svare på selv — og en løkke som
+observerer sin egen layout har en feilklasse ingen deklarativ regel har. Den slo
+til underveis: panelet ble stående stablet når teksten ble skrudd ned igjen,
+fordi det observerte elementet var vårt eget svar. `flex-basis: max-content` på
+tall-cella sier nøyaktig det vi mener — cellas ønskede bredde er tallenes
+naturlige bredde — og `flex-wrap` gjør resten. Ingen em-terskel, ingen container
+query, ingen måling, og dermed ingenting som kan bomme når fonten på en annen
+telefon er bredere enn den vi målte på. En terskel ble vurdert og forkastet
+nettopp derfor: den målte bredden varierte 20,2–21,7 em med innholdet alene, så
+ett tall ville stablet for tidlig i den ene enden og klippet i den andre.
+
+X-en er samtidig tatt ut av flyten og plassert i pillas eget hjørne. Det er det
+som gjør henne umulig å klippe: flex-bryting tar med seg alt etter brytepunktet,
+så en X i flyten etter tallene følger dem ned på neste linje. Plassen hennes
+reserveres av `padding-inline-end` i rem, altså knappens egen størrelse og ikke
+et brytepunkt. Målt i Chromium på 412 px: brytepunktet følger nå innholdet — ett
+tall står på linja til 150 % tekst, fire brede tall bryter allerede ved 125 % —
+og X-en står innenfor pilla med null overflyt i hver eneste kombinasjon.
+
+Samtidig slettet: `src/lib/coastline.js`, 344 linjer og fem eksporter uten en
+eneste referanse i verken app, MCP-server eller skript. Den rekonstruerte land
+fra OSM-kystlinjer, og ble avløst av `seaFromDem.js` og `marineTopology.js`, som
+bygger ÉN autoritativ sjø-geometri.
+
+---
+
 ## 2026-09-05 — v6.5.54: Stor tekst brekker ikke lenger overleggene i 3D
 
 Infokortet i natthimmelen hadde navnet og de tre knappene på samme rad: knappene

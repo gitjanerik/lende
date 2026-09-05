@@ -2378,32 +2378,33 @@ const SJEKKER = [
         // begge tekststørrelser, så dette kan BARE måles. Rot-fonten settes
         // tilbake etterpå, ellers arver neste sjekk den.
         //
-        // MÅLINGEN ER ASYNKRON: panelet måler seg selv fra en ResizeObserver og
-        // svarer over `nextTick`, så en avlesning i samme synkrone eval som
-        // setter fonten ville lest layouten FØR panelet rakk å reagere. Vi
-        // setter fonten, venter, og måler i en egen runde.
+        // INGEN VENTING PÅ EN MÅLING HER (v6.5.55): brytingen er ren CSS, så
+        // den er på plass i samme layout-pass som fonten. Vi venter likevel én
+        // runde, fordi rot-fonten settes i en egen eval.
         //
         // ALLE FIRE TALLENE SKAL STÅ IGJEN. De svarer på hvert sitt spørsmål —
         // sjanse, skyer, Kp og solvind — så et panel som løser plassmangelen
         // ved å droppe to av dem har byttet bort selve innholdet. Ved stor
-        // tekst skal de derfor ligge på en EGEN rad under hode-cella
-        // (`stablet`), ikke på hode-raden.
+        // tekst skal de i stedet ha falt ned på en EGEN linje under hodet, og
+        // X-en skal stå i ro i hjørnet: hun er ute av flyten nettopp for at
+        // brytingen ikke skal kunne ta henne med seg.
         await evalMedTak(page, () => { document.documentElement.style.fontSize = '32px' })
-        await page.waitForTimeout(700)
+        await page.waitForTimeout(400)
         const nordlysMaal = await evalMedTak(page, () => {
           const rot = document.documentElement
           const knapp = document.querySelector(
             'button[aria-label="Skjul nordlysvarselet og nordlyset"]')
-          const pille = knapp?.closest('.rounded-2xl')
+          const pille = knapp?.closest('.nordlys-pille')
           const tall = document.querySelector('[data-nordlys-tall]')
-          const m = knapp && pille
+          const m = knapp && pille && tall
             ? {
                 utenfor: Math.round(knapp.getBoundingClientRect().right
                   - pille.getBoundingClientRect().right),
                 bredde: Math.round(knapp.getBoundingClientRect().width),
-                flyter: tall ? Math.round(tall.scrollWidth - tall.clientWidth) : 0,
-                tall: tall ? tall.children.length : 0,
-                stablet: !!tall && tall.parentElement === pille,
+                flyter: Math.round(pille.scrollWidth - pille.clientWidth),
+                tall: tall.children.length,
+                // Stablet = tall-cella brøt til en linje under hode-cella.
+                stablet: tall.offsetTop > pille.firstElementChild.offsetTop,
               }
             : null
           rot.style.fontSize = ''
@@ -2413,19 +2414,19 @@ const SJEKKER = [
         if (!nordlysMaal) throw new Error('fant ikke X-en i nordlyspanelet ved stor tekst')
         if (nordlysMaal.utenfor > 1 || nordlysMaal.bredde < 20) {
           throw new Error(`X-en klippes ved stor tekst: ${nordlysMaal.utenfor} px utenfor `
-            + `pilla, ${nordlysMaal.bredde} px bred — tall-cella tar ikke plassen`)
+            + `pilla, ${nordlysMaal.bredde} px bred`)
         }
         if (nordlysMaal.flyter > 1) {
-          throw new Error(`tall-cella flyter over med ${nordlysMaal.flyter} px ved stor `
-            + 'tekst — plass-målingen fyrte ikke')
+          throw new Error(`pilla flyter over med ${nordlysMaal.flyter} px ved stor tekst `
+            + '— tall-cella krymper ikke (mangler `min-width: 0`?)')
         }
         if (nordlysMaal.tall < 4) {
           throw new Error(`bare ${nordlysMaal.tall} av fire tall ved stor tekst — de svarer `
-            + 'på hvert sitt spørsmål, og skal få en rad til i stedet for å falle bort')
+            + 'på hvert sitt spørsmål, og skal få en linje til i stedet for å falle bort')
         }
         if (!nordlysMaal.stablet) {
-          throw new Error('tallene sto fortsatt på hode-raden ved 200 % tekst — målingen '
-            + 'fant ikke overflyten, eller stablingen slo ikke inn')
+          throw new Error('tallene sto fortsatt på hode-linja ved 200 % tekst — '
+            + '`flex-basis: max-content` på .nordlys-tall er trolig borte')
         }
 
         // X-EN TAR BORT BÅDE PANELET OG GARDINENE, som i værraden (v6.3.8).
