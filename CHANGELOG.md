@@ -1,3 +1,20 @@
+## 2026-09-05 — v6.5.52: Stjernemerkede kulturminner, og ikonene vekk på mobil
+
+Kulturminner og fredede lokaliteter kan nå stjernemerkes fra infopanelet, og merkingen
+bor i kart-recorden og ikke i et eget bibliotek: slettes turkartet, forsvinner
+merkene med det, uten noen forelder-løs rad å rydde etterpå. I selve kartet får
+et merket minne den samme svake ripple-ringen som et himmellegeme har i
+stjernehimmelen — to pulser i utakt rundt et fast omriss, i to valører så den
+holder kontrasten på både lyst og mørkt ark, og borte i eksporten fordi en
+frossen puls på papir bare leses som en feil i kartet. I «Mine kart» står antallet
+som en gul pille foran kartnavnet, og bare når det er noe å telle. Innebygde kart
+har ingen record å skrive til, så der tilbys ikke knappen i det hele tatt. I
+tillegg skjules det venstrestilte ikonet per lagret kart og rute på små skjermer:
+det bar ingen informasjon, og ved 200 % tekst spiste det bredden de to tekstlinjene
+trengte.
+
+---
+
 ## 2026-09-05 — v6.5.51: Stjernekikker, lesbart infokort i natta, og en toast som ikke lover for mye
 
 Natthimmelens infokort tåler nå stor tekst: det latinske navnet er flyttet ned på

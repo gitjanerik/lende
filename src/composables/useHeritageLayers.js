@@ -11,10 +11,15 @@ import { cacheGet, cacheSet, kulturminneBboxKey, fredetKulturminneBboxKey, TTL }
 import { isomCatalog, buildPointSymbolDef } from '../lib/symbolizer.js'
 import { FREDET_KAT_COLOR } from '../lib/poiColors.js'
 import { separasjonerFor } from '../lib/mapDensityRules.js'
+import { KILDE_FREDET, minneNokkel } from '../lib/stjerneminner.js'
 
 export function useHeritageLayers({
   svgHostRef, visibleLayers, meta, applyUprightLabels, kulturminneCount,
   kulturminneDetail, kulturminneLoading, kulturminneOpen, kulturminneDrawer,
+  // Stjerneringene tegnes på markørene ETTER at et lag er bygget. Begge lagene
+  // her kommer asynkront — fredet-laget først når brukeren slår det på — så
+  // kart-lastens ene kall ville aldri sett dem (v6.5.52).
+  merkStjerneminner = () => {},
 }) {
   // Utfallet av brukerminne-hentingen, så UI-et kan skille «vet ikke» fra
   // «fant ingenting» fra «hentingen feilet» (v4.8.6). Før var alle tre «(0)»,
@@ -133,6 +138,7 @@ export function useHeritageLayers({
       // NotFoundError og laget ble aldri satt inn. appendChild er robust.)
       svg.appendChild(g)
       applyUprightLabels()   // orienter de nye data-upright-markørene til kart-rotasjonen
+      merkStjerneminner()
     } finally {
       if (reqId === fredetReqId) fredetLoading.value = false
     }
@@ -211,6 +217,7 @@ export function useHeritageLayers({
       svg.appendChild(g)
       kulturminneCount.value = data.length
       applyUprightLabels()
+      merkStjerneminner()
     } catch (e) {
       if (reqId === kmFallbackReqId) kulturminneStatus.value = 'feilet'
       console.warn('[Kulturminne] runtime-fallback feilet:', e?.message ?? e)
@@ -223,6 +230,9 @@ export function useHeritageLayers({
     const art = el.getAttribute('data-art') || null
     kulturminneDetail.value = {
       id: null, kategori: 'annet',
+      // Fredet-minnene har sitt EGET id-rom: en id fra Askeladden kan være lik
+      // en id fra brukerminnene uten å peke på det samme, så nøkkelen prefikses.
+      stjerneNokkel: minneNokkel(KILDE_FREDET, el.getAttribute('data-fredet-id')),
       // Mange enkeltminner mangler eget navn → bruk arten («Gravrøys») som tittel.
       tittel: el.getAttribute('data-navn') || art || 'Fredet kulturminne',
       kategoriLabel: el.getAttribute('data-kategori-label') || null,

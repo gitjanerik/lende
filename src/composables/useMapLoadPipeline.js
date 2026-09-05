@@ -85,7 +85,7 @@ export function useMapLoadPipeline(deps) {
     renderGhostTiles, renderAnnotations, renderTracks,
     renderMeasure, renderProximityTarget, refreshAutoTileCount,
     computePoiAvailability, maybeHighlightFromQuery, maybeRestoreRoundTripFromQuery, mapSearch,
-    annot, tracker, sti, userPos, restoreProximityAlert,
+    annot, tracker, sti, userPos, restoreProximityAlert, stjerne,
     detachedDetailLayers, showAutoMapToast, armAutoMap,
     reliefStepIndex, FRESH_RELIEF_MIN_IDX,
   } = deps
@@ -284,6 +284,12 @@ export function useMapLoadPipeline(deps) {
       if (pendingAutoStartGps) userPos.start()
       await annot.load(stored)
       renderAnnotations()
+      // Stjernemerkene bor i kart-recorden, så de leses her sammen med
+      // annoteringene. `merkAlle` treffer bare markørene som ALT står i SVG-en
+      // (de innbakte); de to kulturminne-lagene som bygges runtime merker seg
+      // selv når de er ferdige — se merkStjerneminner i useHeritageLayers.
+      stjerne.load(stored)
+      stjerne.merkAlle()
       await tracker.load(stored)
       renderTracks()
       // Gjenoppta GPS-opptak etter et auto-kart-bytte. userPos.start() er allerede

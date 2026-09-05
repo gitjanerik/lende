@@ -50,6 +50,8 @@ import { useDraggableDrawer } from '../composables/useDraggableDrawer.js'
 import { useFloatAboveSheets } from '../composables/useFloatAboveSheets.js'
 import { useResizablePanel } from '../composables/useResizablePanel.js'
 import { useMapAnnotations, ANNOTATION_SYMBOLS } from '../composables/useMapAnnotations.js'
+import { useStjerneminner } from '../composables/useStjerneminner.js'
+import { KILDE_BRUKER, minneNokkel } from '../lib/stjerneminner.js'
 import { useStifinner } from '../composables/useStifinner.js'
 import { findByName } from '../composables/useMapSearch.js'
 import { useNominatim } from '../composables/useNominatim.js'
@@ -497,7 +499,14 @@ async function openKulturminneDetail(el) {
   const kategori = el.getAttribute('data-kat') || 'annet'
   const tittel = el.getAttribute('data-tittel') || 'Kulturminne'
   // Vis tittel/kategori straks fra SVG-attributtene; hent resten.
-  kulturminneDetail.value = { id, kategori, tittel, beskrivelse: '', kommune: null, fylke: null, opprettetAv: null, link: null, bilder: [] }
+  kulturminneDetail.value = {
+    id, kategori, tittel, beskrivelse: '', kommune: null, fylke: null, opprettetAv: null, link: null, bilder: [],
+    // Nøkkelen bæres av DETALJEN og ikke av skuffen, fordi de to kildene har
+    // hvert sitt id-rom (se lib/stjerneminner.js) og skuffen ikke vet hvilken
+    // den viser. `full` fra fetchKulturminneById har ikke feltet, så spreaden
+    // under beholder den.
+    stjerneNokkel: minneNokkel(KILDE_BRUKER, id),
+  }
   kulturminneOpen.value = true
   kulturminneDrawer.reset()
   const reqId = ++kulturminneReqId
@@ -514,6 +523,12 @@ async function openKulturminneDetail(el) {
   } finally {
     if (reqId === kulturminneReqId) kulturminneLoading.value = false
   }
+}
+
+// Ringen i kartet må skrives om i det stjerna endres, og merkAlle() gjør begge
+// veier — den fjerner like gjerne som den legger til.
+function onVeksleStjerne(nokkel) {
+  stjerne.veksle(nokkel)
 }
 
 function closeKulturminneDetail() {
@@ -667,6 +682,15 @@ function onResetAndRefreshGps() {
   avslorHandtak()
 }
 
+// Stjernemerkede kulturminner — brukerens egne markeringer på DETTE kartet.
+// Må stå FØR useHeritageLayers: den får `stjerne.merkAlle` inn, og `stjerne` er
+// en const (ikke hoistet, se TDZ-regelen i CLAUDE.md). Hooken der er likevel en
+// pilfunksjon, så rekkefølgen er belte og seler.
+const stjerne = useStjerneminner({ svgHostRef, mapId: () => mapId.value, isDark })
+// Ringen har to valører (lys/mørkt ark), så den må skrives om ved temabytte —
+// ellers står en mørk gulltone igjen på et natt-tema der den ikke er å se.
+watch(isDark, () => stjerne.merkAlle())
+
 // Fredet-kulturminne-lag + brukerminne-fallback — flyttet til
 // useHeritageLayers; meta-watchen under blir her.
 const {
@@ -675,6 +699,7 @@ const {
   openFredetDetailFromEl, refreshFredetCount,
 } = useHeritageLayers({
   svgHostRef, visibleLayers, meta,
+  merkStjerneminner: () => stjerne.merkAlle(),
   // Lazy wrapper: applyUprightLabels destruktureres fra useSymbolRenderers
   // lenger nede — direkte referanse her ville truffet TDZ ved setup.
   applyUprightLabels: (...a) => applyUprightLabels(...a),
@@ -2341,7 +2366,7 @@ const { loadMap, retryMapDetails } = useMapLoadPipeline({
   renderGhostTiles, renderAnnotations, renderTracks,
   renderMeasure, renderProximityTarget, refreshAutoTileCount,
   computePoiAvailability, maybeHighlightFromQuery, maybeRestoreRoundTripFromQuery, mapSearch,
-  annot, tracker, sti, userPos, restoreProximityAlert,
+  annot, tracker, sti, userPos, restoreProximityAlert, stjerne,
   detachedDetailLayers, showAutoMapToast, armAutoMap,
   reliefStepIndex, FRESH_RELIEF_MIN_IDX,
 })
@@ -3252,6 +3277,10 @@ onUnmounted(() => {
       :detail="kulturminneDetail"
       :loading="kulturminneLoading"
       :drawer="kulturminneDrawer"
+      :stjerne-nokkel="kulturminneDetail?.stjerneNokkel ?? null"
+      :stjernet="stjerne.erStjernet(kulturminneDetail?.stjerneNokkel)"
+      :kan-stjerne="stjerne.kanLagre.value"
+      @veksle-stjerne="onVeksleStjerne"
       @close="closeKulturminneDetail" />
 
     <!-- Hydrologisk målestasjon (NVE HydAPI) — blått tema, sanntidsverdier. -->

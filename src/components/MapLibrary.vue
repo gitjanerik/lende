@@ -14,6 +14,13 @@ import { delEllerLastNedFil, pakkKartTilFil } from '../lib/kartFilDeling.js'
 import { APP_VERSION } from '../version.js'
 import { arkExtentFor } from '../lib/tileCache.js'
 import { routeShareToken, MAX_SHARE_ROUTES } from '../lib/routeShare.js'
+import { stjerneAntall } from '../lib/stjerneminner.js'
+
+// Entall/flertall skrives ut fordi tittelen er hele setningen brukeren hører
+// eller ser i hover — «1 stjernemerkede kulturminner» er norsk ingen skriver.
+function stjerneTittel(n) {
+  return n === 1 ? '1 stjernemerket kulturminne' : `${n} stjernemerkede kulturminner`
+}
 import RenameMapDialog from './RenameMapDialog.vue'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { useMapSizePreference, effectiveEquidistanceForWidthKm, defaultMapDims, aspectForFormat } from '../composables/useMapSizePreference.js'
@@ -849,8 +856,12 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
             class="w-full text-left flex items-center gap-3 px-4 pt-3 pb-2
                    active:bg-ink/[0.07] focus-visible:outline-2 focus-visible:-outline-offset-2
                    focus-visible:outline-emerald-400">
-      <div class="shrink-0 w-10 h-10 rounded-lg bg-slate-500/15 border border-slate-300/25
-                  flex items-center justify-center text-slate-300">
+      <!-- Ikonet er ren dekorasjon: hvert kort i lista har det samme, så det
+           skiller ingenting. På en stående telefon — og særlig ved 200 %
+           tekstskalering — spiser det bredden de tre tekstlinjene trenger, så
+           det står bare fra `md` og opp. -->
+      <div class="hidden md:flex shrink-0 w-10 h-10 rounded-lg bg-slate-500/15 border border-slate-300/25
+                  items-center justify-center text-slate-300">
         <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
              stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M3 6 L9 4 L15 6 L21 4 L21 18 L15 20 L9 18 L3 20 Z"/>
@@ -858,7 +869,23 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
         </svg>
       </div>
       <div class="flex-1 min-w-0">
-        <div class="font-medium text-[14px] truncate text-ink">{{ m.navn }}</div>
+        <!-- Stjernemerkede kulturminner på dette kartet. Pilla står FORAN navnet
+             fordi den er en egenskap ved kartet og ikke en handling, og den er
+             HELT BORTE ved null: «0 ★» er en opplysning ingen har bruk for, og
+             en kolonne med nuller ville drukna de kartene som faktisk har noe. -->
+        <div class="flex items-baseline gap-1.5 min-w-0">
+          <span v-if="stjerneAntall(m.stjerneminner)"
+                class="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full
+                       bg-amber-400/15 border border-amber-400/30 text-amber-300 text-[11px]
+                       font-medium leading-none"
+                :title="stjerneTittel(stjerneAntall(m.stjerneminner))">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="currentColor" aria-hidden="true">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/>
+            </svg>
+            <span class="sr-only">Stjernemerkede kulturminner: </span>{{ stjerneAntall(m.stjerneminner) }}
+          </span>
+          <div class="font-medium text-[14px] truncate text-ink min-w-0">{{ m.navn }}</div>
+        </div>
         <div class="text-[12px] text-ink-3 truncate">
           {{ [storrelseFor(m), m.equidistanceM ? `${m.equidistanceM} m ekv.` : '', demLabel(m.demResolutionM, m.demSource)].filter(Boolean).join(' · ') }}
         </div>
@@ -1134,7 +1161,9 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
                  @click="shareSelectMode || openRoute(rec.id)"
                  class="w-full text-left flex items-center gap-3 px-4 pt-3"
                  :class="shareSelectMode ? 'pb-3' : 'pb-1 active:opacity-70 transition'">
-        <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0 text-ink-4" fill="none"
+        <!-- Samme grunn som på kart-kortet: identisk på hver rad, og dyrt i
+             bredde på en stående telefon med stor tekst. -->
+        <svg viewBox="0 0 24 24" class="hidden md:block w-5 h-5 shrink-0 text-ink-4" fill="none"
              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
              aria-hidden="true">
           <circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/>
