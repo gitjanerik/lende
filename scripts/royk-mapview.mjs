@@ -2667,6 +2667,120 @@ const SJEKKER = [
     },
   },
   {
+    // v6.5.52. Stjernemerkingen bor i tre lag som ingen enhetstest ser sammen:
+    // kart-recorden i IndexedDB, ringen som pipelinen tegner inn i SVG-en, og
+    // pilla i «Mine kart». Sjekken seeder derfor sitt eget kart — Vardåsen har
+    // ingen record, og `kanLagre` er falsk nettopp der — og legger to
+    // kulturminne-markører i arket, der BARE den ene er stjernemerket. To
+    // retninger er hele poenget: en `merkAlle` som ringer alt, eller ingenting,
+    // ville sett like grønn ut med bare den positive halvdelen.
+    navn: 'stjernemerket kulturminne får ring, og kartet får pille',
+    domene: 'useStjerneminner + MapLibrary',
+    async kjør(page) {
+      const ID = 'royk-stjerneminne'
+      const rydd = async () => {
+        await evalMedTak(page, async (id) => {
+          const db = await new Promise((ok, nei) => {
+            const r = indexedDB.open('lende-maps', 3)
+            r.onsuccess = () => ok(r.result)
+            r.onerror = () => nei(r.error)
+          })
+          await new Promise((ok) => {
+            const t = db.transaction(['maps', 'meta'], 'readwrite')
+            t.objectStore('maps').delete(id)
+            t.objectStore('meta').delete(id)
+            t.oncomplete = ok
+            t.onerror = ok
+          })
+          db.close()
+        }, ID).catch(() => {})
+        await page.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await page.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+      }
+
+      try {
+        await evalMedTak(page, async (id) => {
+          const rå = await fetch(`${location.pathname.split('/kart/')[0]}/maps/vardasen.svg`)
+            .then((r) => r.text())
+          // To markører av samme form som useHeritageLayers bygger: en <g> med
+          // data-kulturminne-id, plassert i meter-rommet.
+          const markorer =
+            '<g data-kulturminne-id="royk-1" transform="translate(400,400)">' +
+            '<circle r="1.2" fill="#b03a2e"/></g>' +
+            '<g data-kulturminne-id="royk-2" transform="translate(600,400)">' +
+            '<circle r="1.2" fill="#b03a2e"/></g>'
+          const svg = rå.replace(/<\/svg>\s*$/, `${markorer}</svg>`)
+          const post = {
+            id, navn: 'Stjerne-arket', svg, opprettet: Date.now(),
+            bbox: { south: 59.79, north: 59.84, west: 10.37, east: 10.46 },
+            equidistanceM: 20, isAuto: false, partial: false, annotations: [], tracks: [],
+            stjerneminner: ['k:royk-1'],
+          }
+          const db = await new Promise((ok, nei) => {
+            const r = indexedDB.open('lende-maps', 3)
+            r.onsuccess = () => ok(r.result)
+            r.onerror = () => nei(r.error)
+          })
+          await new Promise((ok, nei) => {
+            const t = db.transaction(['maps', 'meta'], 'readwrite')
+            t.objectStore('maps').put(post)
+            const { svg: _s, annotations: _a, tracks: _t, ...lett } = post
+            t.objectStore('meta').put({ ...lett, hasDem: false, sizeBytes: svg.length })
+            t.oncomplete = ok
+            t.onerror = () => nei(t.error)
+          })
+          db.close()
+        }, ID)
+
+        await page.goto(`${BASE}/kart/${ID}`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await page.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+        await page.waitForFunction(
+          () => !!document.querySelector('[data-kulturminne-id="royk-1"] > .stjerne-ring'),
+          null, { timeout: 15_000 })
+
+        const ring = await evalMedTak(page, () => {
+          const merket = document.querySelector('[data-kulturminne-id="royk-1"] > .stjerne-ring')
+          const umerket = document.querySelector('[data-kulturminne-id="royk-2"] > .stjerne-ring')
+          const cs = getComputedStyle(merket)
+          return {
+            umerket: !!umerket,
+            farge: cs.color,
+            treff: cs.pointerEvents,
+            pulser: merket.querySelectorAll('.stjerne-puls').length,
+            // Ringen skal ligge UNDER symbolet, altså først i markøren.
+            forst: merket.parentElement.firstElementChild === merket,
+          }
+        })
+        if (ring.umerket) throw new Error('markør uten stjerne fikk ring likevel')
+        // De to valørene fra stjerneRingFarge(): mørkt ark #ffd24a, lyst #8a5f00.
+        const FARGER = ['rgb(255, 210, 74)', 'rgb(138, 95, 0)']
+        if (!FARGER.includes(ring.farge)) throw new Error(`uventet ringfarge: ${ring.farge}`)
+        if (ring.treff !== 'none') throw new Error(`ringen tar trykk (${ring.treff})`)
+        if (ring.pulser !== 2) throw new Error(`ventet to pulser, fant ${ring.pulser}`)
+        if (!ring.forst) throw new Error('ringen ligger over symbolet, ikke under')
+
+        await page.locator('button[aria-label="Åpne meny"]').click({ timeout: 10_000 })
+        await page.locator('aside[aria-label="Hovedmeny"]')
+          .waitFor({ state: 'visible', timeout: 10_000 })
+        await page.locator('button.am-row-main', { hasText: 'Mine kart' })
+          .click({ timeout: 10_000 })
+        const modal = page.locator('[role="dialog"][aria-label="Mine kart"]')
+        await modal.waitFor({ state: 'visible', timeout: 10_000 })
+        const pille = modal.locator('span[title*="stjernemerke"]')
+        await pille.first().waitFor({ state: 'visible', timeout: 10_000 })
+        const tekst = (await pille.first().innerText()).trim()
+        if (!tekst.endsWith('1')) throw new Error(`ventet «1» i pilla, fant «${tekst}»`)
+
+        await page.keyboard.press('Escape')
+        return `ring i kartet (${ring.farge}), pille med 1 i Mine kart`
+      } finally {
+        await rydd().catch(() => {})
+      }
+    },
+  },
+  {
     // v5.25.6-regresjonsvakt. Står SIST med vilje: sjekken setter kart-temaet,
     // og kart-temaet er inngangsverdi for 3D-visningens dag/natt-tilstand.
     // Første plassering var midt i lista, og da arvet sol/måne-sjekken et lyst

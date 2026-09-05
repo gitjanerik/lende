@@ -247,3 +247,34 @@ textarea:focus::placeholder {
   color: currentColor;
   opacity: 1;
 }
+
+/* Stjernemerket kulturminne i kartet (v6.5.52). Ringen bygges i SVG-en av
+   useStjerneminner; animasjonen bor HER, i app-CSS-en og ikke i kartets eget
+   stilark, fordi den er en skjerm-affordanse og ikke karttegn. Det er også
+   grunnen til at eksporten stripper `.stjerne-ring` bort: en SVG-fil, en PDF
+   eller 3D-teksturen har ingen animasjon å vise, og tre stillestående sirkler
+   utenpå hverandre leses som en feil i kartet.
+
+   Fargen settes inline pr ring (`stjerneRingFarge`) — den må skifte valør
+   mellom et kremgult ISOM-ark og et natt-tema, og et tema er ikke det samme som
+   nettleserens `prefers-color-scheme`.
+
+   Pulsen skalerer en NESTET <g> uten egen transform: origo er da markørens eget
+   (0,0), altså midt i symbolet, så ringen vokser fra sentrum uten
+   `transform-box`. */
+.stjerne-ring-fast { opacity: 0.34; }
+.stjerne-puls { animation: stjerne-puls 2.6s ease-out infinite; }
+.stjerne-puls-2 { animation-delay: 1.3s; }
+@keyframes stjerne-puls {
+  0%   { transform: scale(0.62); opacity: 0.5; }
+  70%  { opacity: 0; }
+  100% { transform: scale(1.28); opacity: 0; }
+}
+
+/* UU (WCAG 2.3.3): pulsen er ren dekorasjon, så den skal stoppe helt for den
+   som har bedt om mindre bevegelse. Det FASTE omrisset blir tydeligere i
+   stedet — markeringen må fortsatt være å se, den skal bare stå stille. */
+@media (prefers-reduced-motion: reduce) {
+  .stjerne-puls { display: none; }
+  .stjerne-ring-fast { opacity: 0.85; }
+}

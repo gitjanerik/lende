@@ -56,6 +56,11 @@ export function useKartEksport({ svgHostRef, meta, mapTitle, currentTheme, autoM
     hooks.applyUprightLabels(0)
     const clone = svg.cloneNode(true)
     hooks.applyUprightLabels()      // tilbake til brukerens rotasjon
+    // Stjernemerke-ringene er en SKJERM-affordanse (pulsen bor i app-CSS, ikke
+    // i kartets stilark). En fil, et ark eller 3D-teksturen har ingen animasjon
+    // å vise, og tre stillestående sirkler utenpå hverandre leses som en feil i
+    // kartet — ikke som «dette minnet har jeg merket».
+    for (const r of clone.querySelectorAll('.stjerne-ring')) r.remove()
     if (extent) {
       // Utvidet 3D-tur: behold nabo-flisene og utvid viewBoxen til union-
       // utsnittet. width/height settes i px med nytt aspekt — print-mm-attrs
@@ -156,6 +161,8 @@ export function useKartEksport({ svgHostRef, meta, mapTitle, currentTheme, autoM
     hooks.applyUprightLabels(0)
     const clone = svg.cloneNode(true)
     hooks.applyUprightLabels()
+    // Samme grunn som i eksporten over: ringen er en skjerm-affordanse.
+    for (const r of clone.querySelectorAll('.stjerne-ring')) r.remove()
 
     const themeKey = theme ?? currentTheme.value
     const themeCss = buildThemeCss(themeKey)

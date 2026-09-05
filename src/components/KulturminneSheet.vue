@@ -17,8 +17,14 @@ const props = defineProps({
   detail: { type: Object, default: null },
   loading: { type: Boolean, default: false },
   drawer: { type: Object, required: true },
+  // Stjernemerking (v6.5.52). `nokkel` er null når kilden ikke ga minnet en
+  // brukbar id — da har vi ingenting stabilt å feste merkingen til, og knappen
+  // skal være borte framfor å lagre noe som ikke finnes igjen neste gang.
+  stjerneNokkel: { type: String, default: null },
+  stjernet: { type: Boolean, default: false },
+  kanStjerne: { type: Boolean, default: false },
 })
-defineEmits(['close'])
+defineEmits(['close', 'veksle-stjerne'])
 
 const KAT_LABEL = {
   fangst: 'Fangstminne',
@@ -101,8 +107,29 @@ function onOpenKulturminnesok() {
               <div class="text-ink text-[15px] font-medium leading-snug break-words">{{ detail.tittel }}</div>
             </div>
           </div>
-          <!-- Tekststørrelse + lukk, utenfor den zoomede kroppen under. -->
+          <!-- Stjerne + tekststørrelse + lukk, utenfor den zoomede kroppen under. -->
           <div class="shrink-0 flex items-center gap-1.5 -mr-1 -mt-0.5">
+            <!-- Merkingen hører hjemme HER og ikke i en egen rad: det er den ene
+                 handlingen kortet har på selve minnet, og den skal være på
+                 samme sted enten skuffen er minimert eller åpen. -->
+            <button v-if="kanStjerne && stjerneNokkel"
+                    type="button"
+                    @click="$emit('veksle-stjerne', stjerneNokkel)"
+                    :aria-pressed="stjernet"
+                    :aria-label="stjernet
+                      ? `Fjern stjernemerket fra ${detail.tittel}`
+                      : `Stjernemerk ${detail.tittel}`"
+                    class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center
+                           border active:scale-90 transition"
+                    :class="stjernet
+                      ? 'bg-amber-400/20 border-amber-400/50 text-amber-300'
+                      : 'bg-ink/5 border-ink/10 text-ink-3'">
+              <svg viewBox="0 0 24 24" class="w-4 h-4" aria-hidden="true"
+                   :fill="stjernet ? 'currentColor' : 'none'"
+                   stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/>
+              </svg>
+            </button>
             <TekstStorrelseKnapp />
             <button @click="$emit('close')"
                     aria-label="Lukk"

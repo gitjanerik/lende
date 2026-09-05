@@ -178,6 +178,34 @@ export async function renameMap(id, navn) {
   return trimmed
 }
 
+// Delvis oppdatering av et lagret kart (v6.5.52 — stjernemerkede kulturminner).
+// Leser og skriver i SAMME readwrite-transaksjon, så to raske trykk på
+// stjerna ikke kan overskrive hverandre — samme grep som updateGravelRoute.
+//
+// Den finnes ved siden av saveMap fordi kallstedet her BARE eier ett felt: en
+// full `loadMap` → muter → `saveMap`-runde ville dratt hele SVG-en (flere MB)
+// gjennom JS for å endre en liste med noen få strenger, og ville skrevet
+// tilbake en record som kan ha blitt endret av annoteringene imellom.
+export async function updateMap(id, patch) {
+  const t = await tx('readwrite', [STORE, META_STORE])
+  const store = t.objectStore(STORE)
+  const metaStore = t.objectStore(META_STORE)
+  const entry = await asPromise(store.get(id))
+  if (!entry) return null
+  const next = { ...entry, ...patch }
+  store.put(next)
+  // Meta-storet er en PROJEKSJON og skal speile maps-storet — listMaps() leser
+  // det, så en patch som bare traff `maps` ville vært usynlig i «Mine kart»
+  // til neste backfill.
+  metaStore.put(projectMetaEntry(next))
+  await new Promise((resolve, reject) => {
+    t.oncomplete = resolve
+    t.onerror = () => reject(t.error)
+    t.onabort = () => reject(t.error)
+  })
+  return next
+}
+
 export async function deleteMap(id) {
   const t = await tx('readwrite', [STORE, META_STORE])
   t.objectStore(STORE).delete(id)
