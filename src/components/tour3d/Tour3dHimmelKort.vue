@@ -204,28 +204,38 @@ const faseNavn = computed(() => {
        feilen v6.3.2 rettet. -->
   <div v-else-if="objekt"
        :style="{ maxHeight: maksHoyde }"
-       class="rounded-md bg-black/80 backdrop-blur shadow-lg max-w-full sm:max-w-sm
+       class="rounded-md bg-black/80 backdrop-blur shadow-lg max-w-full sm:max-w-md
               flex flex-col overflow-hidden">
-    <!-- HEADER — shrink-0, så den aldri klemmes eller rulles bort. -->
-    <div class="shrink-0 pl-3 pr-1 py-2 border-b border-white/10">
-      <!-- RAD 1: navnet og knappene. Bare navnet deler linje med dem, fordi det
-           er det eneste som MÅ leses samtidig som man rekker etter lukkeknappen. -->
-      <div class="flex items-start gap-1.5">
-        <div class="flex-1 min-w-0 flex items-baseline gap-1.5">
-          <span class="text-[0.8125rem] shrink-0" aria-hidden="true">{{ IKON[objekt.type] }}</span>
-          <!-- Ikke `truncate`: navnet er det man kom hit for, og med stor tekst
-               ble «Cassiopeia» til «Cas…». Det får heller bryte over to linjer. -->
-          <span class="min-w-0 text-[0.875rem] font-semibold text-white/90
-                       leading-tight break-words">{{ objekt.navn }}</span>
-        </div>
+    <!-- HEADER — shrink-0, så den aldri klemmes eller rulles bort.
 
-      <!-- Tekststørrelse, minimer og lukk, som i den minimerte pilla og i samme
-           rekkefølge. Krysshåret hører ikke hit — se kommentaren i toppen av
+         KNAPPENE OG TEKSTEN ER STABLET, ikke satt opp mot hverandre (v6.5.54).
+         Fram til nå delte navnet rad med de tre knappene: knappene var
+         `shrink-0` og navnekolonnen `flex-1 min-w-0`, altså basis 0 uten
+         min-content-gulv. Det er en kolonne som får DET SOM BLIR TIL OVERS — og
+         ved 200 % app-tekst oppå Androids egen tekstskalering ble det ingenting.
+         Målt i Chromium ved 200 % zoom og 200 % rot-font: navnet 0 px bredt over
+         28 linjer, altså «Bjørnevokteren» én bokstav om gangen.
+
+         Et gulv på navnekolonnen ville bare flyttet spørsmålet: for smalt og
+         feilen står, for bredt og knappene klippes bort av kortets
+         `overflow-hidden` — nøyaktig feilen v6.3.2 rettet. To ting som skal
+         vokse uavhengig av hverandre hører ikke hjemme på samme rad. Nå har hver
+         sin: knappene er én rad som ALDRI trenger å krympe, navnet en rad som
+         alltid har hele kortbredden å bryte over. Da finnes det ingen
+         tekststørrelse der de kan ta plassen fra hverandre. -->
+    <div class="shrink-0 px-3 py-2 border-b border-white/10">
+      <!-- RAD 1: knappene. Øverst til høyre, samme sted og samme rekkefølge som
+           i den minimerte pilla, så man ikke må lete etter dem på nytt når
+           kortet åpnes. Krysshåret hører ikke hit — se kommentaren i toppen av
            malen. Merk at HELE kortet er én zoomet boks her (Viewer3D's
            `tekstBoks`), i motsetning til ark-panelene der bare kroppen zoomes —
-           så denne knappen vokser med sin egen effekt, og det er riktig: den
-           skal være like lett å treffe igjen ved 200 %. -->
-      <div class="shrink-0 flex items-center">
+           så knappene vokser med sin egen effekt, og det er riktig: de skal være
+           like lette å treffe ved 200 %.
+
+           De negative margene trekker den 28 px høye trykkflata ut i kortets
+           polstring, så ikonene står optisk i hjørnet og raden koster nesten
+           ingen ekstra høyde. -->
+      <div data-himmel-knapper class="flex items-center justify-end -mt-1 -mr-2 -mb-0.5">
         <TekstStorrelseKnapp tema="natt" />
         <button @click="emit('minimer')" aria-label="Minimer infokortet"
                 class="w-7 h-7 flex items-center justify-center text-white/75 active:scale-90">
@@ -241,23 +251,35 @@ const faseNavn = computed(() => {
             <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
           </svg>
         </button>
-        </div>
       </div>
 
-      <!-- RAD 2: det latinske navnet, på EGEN LINJE (v6.5.51). Det sto før inne
+      <!-- RAD 2: navnet, over HELE kortbredden. -->
+      <div class="flex items-baseline gap-1.5">
+        <span class="text-[0.8125rem] shrink-0" aria-hidden="true">{{ IKON[objekt.type] }}</span>
+        <!-- Ikke `truncate`: navnet er det man kom hit for, og med stor tekst
+             ble «Cassiopeia» til «Cas…». Det får heller bryte over to linjer.
+             `data-himmel-navn` er et målepunkt for røyktesten: bredden her er
+             invarianten stablingen finnes for, og den kan ikke leses av markup
+             alene. -->
+        <span data-himmel-navn
+              class="min-w-0 text-[0.875rem] font-semibold text-white/90
+                     leading-tight break-words">{{ objekt.navn }}</span>
+      </div>
+
+      <!-- RAD 3: det latinske navnet, på EGEN LINJE (v6.5.51). Det sto før inne
            i navnelinja, og der var det det første som ble klemt: tre tekster og
            tre knapper på én rad ga «Cas… Cas…» ved stor tekst. Det står bevisst
            IKKE i den minimerte pilla — der er én linje hele poenget. -->
       <div v-if="objekt.latin && objekt.latin !== objekt.navn"
-           class="mt-0.5 pr-1 text-[0.625rem] italic text-white/70 break-words">
+           class="mt-0.5 text-[0.625rem] italic text-white/70 break-words">
         {{ objekt.latin }}
       </div>
 
-      <!-- RAD 3: hvor det står. I HEADEREN, fordi det er det man trenger for å
+      <!-- RAD 4: hvor det står. I HEADEREN, fordi det er det man trenger for å
            løfte blikket i riktig retning — og da skal det ikke kunne rulles
            bort. FULL BREDDE (v6.5.51): som en kolonne ved siden av knappene
            brøt «nord, 79° over horisonten» over fire linjer ved 200 % tekst. -->
-      <div class="mt-0.5 pr-1 text-[0.625rem] text-white/72">
+      <div class="mt-0.5 text-[0.625rem] text-white/72">
         {{ retning }}, {{ hoydeGrader }}°
         {{ underHorisonten ? 'under horisonten' : 'over horisonten' }}
       </div>
@@ -269,7 +291,7 @@ const faseNavn = computed(() => {
          `touch-pan-y` sier til nettleseren at loddrett drag hører til kortet,
          så scrollen ikke kapres av pointer-håndtererne på canvaset. -->
     <div class="flex-1 min-w-0 overflow-y-auto overscroll-contain touch-pan-y
-                pl-3 pr-3 py-2">
+                px-3 py-2">
       <!-- SOLA: OPP OG NED ØVERST. Det er det man vil vite på vei ut, og det er
            regnet for ARKET som er åpnet — ikke for der telefonen står. Tidene
            kommer FØR prosaen fordi de er et tall man slår opp, mens resten er

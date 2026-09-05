@@ -244,8 +244,7 @@ function vindTitle(t) {
          Tilstanden lagres IKKE: dag/natt avgjøres av klokka, og neste gang man
          åpner 3D er været med igjen. Vil man ha det tilbake i samme økt, går man
          innom natt og tilbake. -->
-    <div class="shrink-0 flex items-center gap-0.5 pl-2.5 pr-0.5" data-fast>
-      <span class="text-[0.5rem] leading-tight text-white/70 whitespace-nowrap">MET<br/>Norway</span>
+    <div class="shrink-0 flex flex-col items-center justify-center pl-2 pr-1" data-fast>
       <!-- 44 × 44 px: trykkmålets minimum, og ikke mer — hver piksel her er en
            værtime mindre. Kolonne-målingen trekker cellen fra selv, siden den er
            data-fast. -->
@@ -257,6 +256,15 @@ function vindTitle(t) {
           <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
         </svg>
       </button>
+      <!-- Attribusjonen STABLES UNDER X-en og står på ÉN linje (v6.5.54). Ved
+           siden av hverandre måtte navnet brekkes over to linjer for at cellen
+           ikke skulle spise en værtime, og en X presset mot høyre kant av et
+           tekstbrudd leses som at noe er klemt. Stablet er cellen like bred som
+           det bredeste av de to — altså smalere enn før — X-en sitter midt i
+           den, og én linje tekst under holder lisenskravet uten å se ut som en
+           feil. Den negative margen henter tilbake luften i knappens
+           trykkmål, som er høyere enn ikonet. -->
+      <span class="-mt-1.5 text-[0.5rem] leading-none text-white/70 whitespace-nowrap">MET Norway</span>
     </div>
   </div>
 </template>
