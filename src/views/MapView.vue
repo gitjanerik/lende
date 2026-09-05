@@ -42,6 +42,7 @@ import { dekningsSkala } from '../lib/viewFit.js'
 import { zoomBroek, zoomFraBroek } from '../lib/navKontroller.js'
 import ZoomSkyv from '../components/kontroller/ZoomSkyv.vue'
 import RetningsRose from '../components/kontroller/RetningsRose.vue'
+import ZoomKnapper from '../components/kontroller/ZoomKnapper.vue'
 import { useUserPosition } from '../composables/useUserPosition.js'
 import { useProximityAlert } from '../composables/useProximityAlert.js'
 import { useCompass } from '../composables/useCompass.js'
@@ -2613,7 +2614,7 @@ onUnmounted(() => {
     <!-- Kompass-FAB-en er fjernet (v1.0.77) — nåla bor nå som ikon på
          «Sentrer»-knappen i FAB-stacken (som uansett nullstiller rotasjonen).
          Containeren består for desktop-sliderne + kompass-feilmelding. -->
-    <div class="absolute top-[var(--ovl-rose)] z-20 pointer-events-auto select-none flex flex-col items-end
+    <div class="absolute top-[var(--ovl-nav)] z-20 pointer-events-auto select-none flex flex-col items-end
                 transition-[right] duration-200"
          :style="navRightStyle">
       <div v-if="compass.error"
@@ -2637,44 +2638,11 @@ onUnmounted(() => {
         <span class="text-[10px] text-ink-4 tabular-nums leading-none">{{ rotationSliderDeg }}°</span>
       </div>
 
-      <!-- BERØRING: samme funksjoner, én finger (v6.5.48). Zoom fantes bare som
-           pinch og rotasjon bare som to-finger-vri — begge er fleirpunkts-gester,
-           og WCAG 2.5.2 krever at alt som kan gjøres med en slik gest også kan
-           gjøres med ÉN peker. Vi tar ikke inn hele desktop-søyla: skyven og
-           rosa er kontinuerlige kontroller man sikter på med en musepeker, mens
-           det som mangler på en telefon er tre trykk. Nord-knappen står bare når
-           kartet FAKTISK er dreid — ellers er den en knapp som ikke gjør noe. -->
-      <div v-if="hasTouch"
-           class="mt-2 flex flex-col items-center gap-1 p-1 rounded-2xl
-                  bg-overlay/95 shadow-lg select-none text-ink-2">
-        <button type="button" aria-label="Zoom inn"
-                @click="settZoom(Math.min(1, zoomBroekNaa + 0.12))"
-                class="w-10 h-10 grid place-items-center rounded-full active:bg-ink/10">
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-               stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-        </button>
-        <span class="w-6 h-px bg-ink/15"></span>
-        <button type="button" aria-label="Zoom ut"
-                @click="settZoom(Math.max(0, zoomBroekNaa - 0.12))"
-                class="w-10 h-10 grid place-items-center rounded-full active:bg-ink/10">
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-               stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14"/></svg>
-        </button>
-        <template v-if="rotationSliderDeg !== 0">
-          <span class="w-6 h-px bg-ink/15"></span>
-          <button type="button" :aria-label="`Vend kartet mot nord. Nå ${rotationSliderDeg} grader.`"
-                  @click="rotateTo(0)"
-                  class="w-10 h-10 grid place-items-center rounded-full active:bg-ink/10">
-            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
-                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
-                 :style="{ transform: `rotate(${-rotationSliderDeg}deg)` }">
-              <circle cx="12" cy="12" r="9"/>
-              <polygon points="12 5 14 12 12 13 10 12" fill="currentColor"/>
-              <polygon points="12 19 14 12 12 11 10 12"/>
-            </svg>
-          </button>
-        </template>
-      </div>
+      <!-- BERØRING: samme funksjoner, én finger (v6.5.48). Pilla bor i
+           ZoomKnapper og deles med Fritt lende — se komponenten for hvorfor. -->
+      <ZoomKnapper v-if="hasTouch" class="mt-2"
+                   :broek="zoomBroekNaa" :azimut="rotationSliderDeg"
+                   @broek="settZoom" @nord="rotateTo(0)" />
 
       <!-- TEKSTSTØRRELSEN er ikke navigasjon, og den settes én gang og ikke
            hele tida — derfor ligger den bak en knapp og ikke som en tredje

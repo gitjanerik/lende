@@ -26,6 +26,8 @@ import {
 } from '../lib/frittLende.js'
 import { gpsFeilTekst, GPS_IKKE_STOTTET } from '../lib/gpsFeil.js'
 import KartLaster from '../components/KartLaster.vue'
+import ZoomKnapper from '../components/kontroller/ZoomKnapper.vue'
+import { zoomBroek, zoomFraBroek } from '../lib/navKontroller.js'
 
 // ── Fritt lende ─────────────────────────────────────────────────────────────
 // Ett ark på 2 × 2 km der du står, og én knapp som sier hvor du er. Alt annet
@@ -128,6 +130,19 @@ const scaleBar = computed(() => beregnMaalestokk({
   widthM: meta.value?.widthM, heightM: meta.value?.heightM,
   scale: pz.scale.value,
 }))
+
+// Zoom som TRYKK (v6.5.49). Pinch var den eneste veien inn og ut av arket her,
+// altså en fleirpunkts-gest uten enkeltpeker-alternativ (WCAG 2.5.2) — og
+// modusen er nettopp den man bruker med votter. Grensene LESES av zoomen og
+// skrives ikke av; rotasjon finnes ikke her, så nord-knappen faller bort.
+const zoomBroekNaa = computed(() => {
+  const g = pz.zoomGrenser()
+  return zoomBroek(pz.scale.value, g.min, g.maks)
+})
+function settZoom(broek) {
+  const g = pz.zoomGrenser()
+  pz.zoomTil(zoomFraBroek(broek, g.min, g.maks))
+}
 
 const userPos = useUserPosition(() => meta.value)
 
@@ -660,6 +675,13 @@ const arkDato = computed(() => (opprettet.value
                 px-3 py-1.5 rounded-full bg-overlay shadow text-sm text-ink-2"
          :style="{ zoom: uiTextScale }">
       Kartet er fra {{ arkDato }}
+    </div>
+
+    <!-- Zoom-knappene. Bare når det FINNES et ark — på et tomt ark er det
+         ingenting å zoome i, og modusens regel er at skjermen bærer det som
+         gjør noe. Står under hovedmenyknappen på høyre kant. -->
+    <div v-if="meta && !bygger" class="absolute top-[var(--ovl-top)] right-3 z-20">
+      <ZoomKnapper :broek="zoomBroekNaa" @broek="settZoom" />
     </div>
 
     <!-- Linjalen bærer avstanden fra senter i stedet for ekvidistansen (v6.5.27):

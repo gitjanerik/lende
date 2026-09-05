@@ -1125,18 +1125,25 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
                     ? 'ring-1 ring-sky-400/70 bg-sky-500/[0.08] border-sky-400/40'
                     : 'border-ink/10 bg-ink/[0.03]']"
          @click="shareSelectMode && toggleShareSelect(rec.id)">
-      <div class="flex items-center gap-3 px-4 pt-3"
-           :class="shareSelectMode ? 'pb-3' : ''">
+      <!-- Samme oppdeling som kart-kortet (v6.5.47): teksten får hele bredden,
+           og det man kan GJØRE med ruta ligger under den. Del og slett satt før
+           til høyre for navnet og spiste den bredden de to tekstlinjene trengte.
+           I velg-modus er kortet én trykkflate, så åpne-knappen faller bort. -->
+      <component :is="shareSelectMode ? 'div' : 'button'"
+                 :type="shareSelectMode ? undefined : 'button'"
+                 @click="shareSelectMode || openRoute(rec.id)"
+                 class="w-full text-left flex items-center gap-3 px-4 pt-3"
+                 :class="shareSelectMode ? 'pb-3' : 'pb-1 active:opacity-70 transition'">
         <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0 text-ink-4" fill="none"
-             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true">
           <circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/>
           <path d="M9 19h6a3 3 0 0 0 3-3V8"/><path d="M6 16V8a3 3 0 0 1 3-3h6"/>
         </svg>
-        <button class="flex-1 min-w-0 text-left active:opacity-70 transition"
-                @click="shareSelectMode || openRoute(rec.id)">
+        <div class="flex-1 min-w-0">
           <div class="font-medium text-[14px] truncate text-ink">{{ rec.navn }}</div>
           <div class="text-[12px] text-ink-4 truncate">{{ formatRouteInfo(rec) }}</div>
-        </button>
+        </div>
         <!-- Velg-modus: sjekkboks-visual i stedet for del/slett -->
         <div v-if="shareSelectMode"
              class="shrink-0 w-6 h-6 rounded-md border flex items-center justify-center transition"
@@ -1145,40 +1152,56 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
                fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"
                stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
-        <template v-else>
-          <button @click.stop="onShareRoute(rec)" aria-label="Del rute"
-                  class="w-8 h-8 rounded-full flex items-center justify-center text-ink-4
-                         active:text-sky-300 active:bg-sky-500/10 transition shrink-0">
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-            </svg>
-          </button>
-          <button @click.stop="onDeleteRoute(rec.id, rec.navn)" aria-label="Slett rute"
-                  class="w-8 h-8 rounded-full flex items-center justify-center text-ink-4
-                         active:text-rose-200 active:bg-rose-500/10 transition shrink-0">
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-            </svg>
-          </button>
-        </template>
-      </div>
-      <!-- Stjernemerking 1–5: samme stjerne igjen = fjern. -->
-      <div v-if="!shareSelectMode" class="pb-2 pl-11 flex items-center gap-0.5">
-        <button v-for="s in 5" :key="s"
-                @click.stop="onSetStars(rec.id, (rec.stjerner ?? 0) === s ? 0 : s)"
+      </component>
+
+      <!-- Stjernemerking 1–5: samme stjerne igjen = fjern. Den står OVER
+           handlingsraden og i motsatt ende av den: en stjerne er en vurdering
+           man endrer ofte og bommer på uten straff, mens slett-knappen er
+           endelig. Ligger de på samme linje, er de to naboer på 8 px. -->
+      <div v-if="!shareSelectMode" class="px-3 pl-11 flex items-center gap-0.5">
+        <button v-for="s in 5" :key="s" type="button"
+                @click="onSetStars(rec.id, (rec.stjerner ?? 0) === s ? 0 : s)"
                 :aria-label="`Gi ${s} ${s === 1 ? 'stjerne' : 'stjerner'}`"
                 :aria-pressed="(rec.stjerner ?? 0) >= s"
-                class="w-7 h-7 flex items-center justify-center active:scale-90 transition"
+                class="w-9 h-9 flex items-center justify-center active:scale-90 transition
+                       focus-visible:outline-2 focus-visible:outline-offset-1
+                       focus-visible:outline-amber-400 rounded-lg"
                 :class="(rec.stjerner ?? 0) >= s ? 'text-amber-400' : 'text-ink-4'">
-          <svg viewBox="0 0 24 24" class="w-4 h-4"
+          <svg viewBox="0 0 24 24" class="w-4 h-4" aria-hidden="true"
                :fill="(rec.stjerner ?? 0) >= s ? 'currentColor' : 'none'"
                stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Handlingsraden ligger UTENFOR åpne-knappen, ikke oppå den: en knapp i
+           en knapp er ugyldig markup. Motsatt ende av stjernene, med en hel
+           raddbredde imellom. -->
+      <div v-if="!shareSelectMode" class="flex items-center justify-end gap-1 px-3 pb-2">
+        <button type="button" @click="onShareRoute(rec)" :aria-label="`Del ${rec.navn}`"
+                class="w-9 h-9 rounded-lg flex items-center justify-center text-ink-3
+                       active:bg-ink/10 active:text-ink
+                       focus-visible:outline-2 focus-visible:outline-offset-1
+                       focus-visible:outline-emerald-400">
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+          </svg>
+        </button>
+        <button type="button" @click="onDeleteRoute(rec.id, rec.navn)"
+                :aria-label="`Slett ${rec.navn}`"
+                class="w-9 h-9 rounded-lg flex items-center justify-center text-ink-3
+                       active:bg-ink/10 active:text-ink
+                       focus-visible:outline-2 focus-visible:outline-offset-1
+                       focus-visible:outline-emerald-400">
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6 L18 20 a2 2 0 0 1 -2 2 H8 a2 2 0 0 1 -2 -2 L5 6"/>
+            <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
           </svg>
         </button>
       </div>

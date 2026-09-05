@@ -117,6 +117,10 @@ const himmelKortHoyde = computed(() => `${66 / (uiTextScale.value || 1)}vh`)
 // bunnraden.
 const infoMaksBredde = computed(() => `${78 / (uiTextScale.value || 1)}vw`)
 const infoMaksHoyde = computed(() => `${60 / (uiTextScale.value || 1)}vh`)
+// POI-filterets nedtrekk (v6.5.49). Smalere enn hjelpens fordi det henger i
+// HØYRE kant og hjelpe-pilla står i venstre — 78 vw derfra ville lagt seg oppå
+// den. Høyden er den samme; begge er lister som skal kunne rulles.
+const filterMaksBredde = computed(() => `${74 / (uiTextScale.value || 1)}vw`)
 
 const KRYSSPAUSE_KEY = 'lende-3d-krysspause'
 const VAERDEMO_KEY = 'lende-3d-vaerdemo'
@@ -1556,9 +1560,10 @@ function branchLabel(opt, i) {
         <Tour3dVaerRad :vaer="vaer" @lukk="vaerAvvist = true"/>
       </div>
 
-      <!-- Nederste linje: hjelp til venstre, POI-filter til høyre. Begge minimert
-           som små piller, så de koster nesten ingen kartflate før man trenger
-           dem. Items-start så en utvidet boks ikke dytter den andre nedover.
+      <!-- Nederste linje: hjelp til venstre, POI-filter til høyre. Begge er
+           PILLER I FLYTEN og bare det (v6.5.49) — kroppene deres er nedtrekk
+           utenfor flyten, så raden er nøyaktig like bred åpen som lukket og
+           ingen av de to kan dytte den andre noe sted.
 
            BEGGE FØLGER TEKSTVALGET fra hovedmenyen (v6.3.12). De er de to
            tekstflatene man faktisk LESER i dagmodus — resten av overlegget er
@@ -1578,9 +1583,13 @@ function branchLabel(opt, i) {
                            :knapper="INFO_KNAPPER" :tips="INFO_TIPS"
                            :maks-bredde="infoMaksBredde" :maks-hoyde="infoMaksHoyde"/>
         </div>
-        <div v-if="pinsOn" class="overflow-y-auto" :style="tekstBoks(74, 60)">
+        <!-- INGEN `overflow` HER HELLER (v6.5.49): filterets kropp er nå det
+             samme nedtrekket som hjelpens, altså absolutt plassert under pilla,
+             og en `overflow`-boks rundt den ville klippet den bort. -->
+        <div v-if="pinsOn" :style="tekstBoks(74)">
           <Tour3dPinPanel :groups="pinGroups" :counts="pinCounts"
                           :loading="extrasLoading"
+                          :maks-bredde="filterMaksBredde" :maks-hoyde="infoMaksHoyde"
                           :model-value="pinPrefs" @update:model-value="setPinPrefs"/>
         </div>
         <div v-else></div>

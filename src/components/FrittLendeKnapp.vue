@@ -48,7 +48,11 @@ const ringStil = computed(() => (byggerNytt.value || props.fremhev
 </script>
 
 <template>
+  <!-- `data-hovedknapp`: modusens ene handling, og røyktesten pekte på den som
+       «første knapp med aria-label» — en peker som brakk i det zoom-knappene
+       kom inn foran den i DOM-en (v6.5.49). -->
   <button type="button"
+          data-hovedknapp
           :aria-label="etikett"
           :disabled="bygger"
           @click="!bygger && emit('tap')"

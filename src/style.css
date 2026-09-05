@@ -158,6 +158,11 @@ html { background: var(--color-app); }
   --safe-top: env(safe-area-inset-top, 0px);
   --ovl-top: calc(4rem + var(--safe-top));    /* rett under knapperaden (var top-16) */
   --ovl-rose: calc(5rem + var(--safe-top));   /* kompassrosen (var top-20) */
+  /* Navigasjonssøyla på høyre kant. Den lå på --ovl-rose og havnet da OPPÅ
+     snarvei-raden (Stifinner/Runde/Måling/3D/Info), som står på --ovl-top og er
+     56 px høy — på en telefon er raden bred nok til å nå helt ut i kanten.
+     Slotten er derfor snarvei-radens underkant (4rem + 56 px) pluss luft. */
+  --ovl-nav: calc(8.5rem + var(--safe-top));
   --ovl-top-2: calc(7.5rem + var(--safe-top)); /* andre stable-slot når måling/sti er aktiv */
   --ovl-top-3: calc(12rem + var(--safe-top));  /* tredje stable-slot */
   --ovl-poi: calc(16rem + var(--safe-top));    /* POI-info-boks (var top-[16rem]) */

@@ -1,3 +1,44 @@
+## 2026-09-05 — v6.5.49: Zoom-knappene ned og inn i Fritt lende, ruteliste, punkt-ark og 3D-filter tåler 200 % tekst
+
+Zoom-pilla på høyre kant lå på `--ovl-rose` og dermed oppå snarvei-raden
+(Stifinner/Runde/Måling/3D/Info), som står på `--ovl-top` og er 56 px høy — på en
+telefon når raden helt ut i kanten. Søyla har fått sin egen slot, `--ovl-nav`,
+som er radens underkant pluss luft. Selve pilla er flyttet ut i
+`kontroller/ZoomKnapper.vue` og tatt i bruk i Fritt lende, der zoom fram til nå
+bare fantes som pinch — altså en fleirpunkts-gest uten enkeltpeker-alternativ
+(WCAG 2.5.2) i den ene modusen som er laget for votter og kaldt vær. Uten
+`azimut` faller nord-knappen bort av seg selv, så modusens rotasjonslås står
+urørt; røyktesten for ruter teller nå fire knapper i stedet for to.
+
+«Mine ruter» har fått samme oppdeling som «Mine kart» (v6.5.47): teksten får hele
+bredden, stjernene ligger under den, og del/slett står i motsatt ende av en egen
+rad nederst. Del og slett satt før til høyre for navnet og spiste den bredden de
+to tekstlinjene trengte, og stjernene lå som 28 px-mål rett ved siden av en
+slette-knapp — en vurdering man endrer ofte, vegg i vegg med noe endelig.
+Trykkflatene er 36 px, og åpne-knappen omslutter ikke lenger de andre.
+
+Punkt-arket brakk ved 200 % tekst. Hele kroppen ligger i en `zoom`-blokk, så den
+effektive bredden halveres — og med faste `grid-cols-2`/`grid-cols-3` fikk «Del
+kart og sted» rundt 100 px og ble fire ord under hverandre, «Parkering» ble
+«Par-ke-ring», og annoteringene ble klippet til «Kn…». Rutenettene brekker nå
+etter plass (`auto-fit` + `minmax`), som gir det vante antallet kolonner ved
+100 % og færre når plassen tar slutt, uten et eneste mediespørsmål. Meta-linjene
+i headeren brekker i stedet for å klippes, og kopier-knappen følger første linje
+når koordinatparet går over to.
+
+POI-filteret i 3D har fått samme grep som Info-pilla fikk i v6.5.44. Fram til nå
+byttet den grønne pilla seg ut med den utvidede boksen, og boksen sto i FLYTEN i
+en `justify-between`-rad: den vokste mot venstre til den nådde Info-pilla og rant
+så ut over høyre skjermkant, med sin egen minimer-knapp utenfor skjermen. Pilla
+er nå den eneste bryteren og står i flyten alene, så raden er nøyaktig like bred
+åpen som lukket, og kroppen henger som et nedtrekk forankret i høyre kant med
+eget tak og egen rulling. Merkelappene brekker i stedet for å klippes — «Kn…»
+sier ikke hvilket lag man skrur av. Røyk-sjekken måler nå begge retninger: at
+verken hjelpen eller filteret flytter den andre, og at filterkroppen holder seg
+innenfor skjermen.
+
+---
+
 ## 2026-09-05 — v6.5.48: Universell utforming — hele appen gjennom WCAG 2.2
 
 Fem grupper i én leveranse, i den rekkefølgen de betaler seg. Byggingen på forsiden og i kart-utvidelsen kan nå AVBRYTES (`AbortController` hele veien ned i `buildMapFromCenter`), `/nytt` har fått hovedmenyknappen tilbake, Utvikler-fanen er `userOnly`, og lang-trykk på FAB-knottene har samme fyllring som ankeret — gesten sto bare i en `aria-label`. Lyst tema remapper nå også aksentskyggene 300/400: førti tekststeder skrevet som `text-amber-300/80` sto igjen som lys aksent på lys papir, målt 1,29:1. Alle interaktive elementer har fått en global `:focus-visible`-ring, og de ni `focus:outline-none`-ene som slo den i hjel er borte. `user-scalable=no` er ute av viewporten (SC 1.4.4). Skjemaer, faner og brytere har fått navn, roller og live-regioner: forsidens og skuffens fanerader er ekte `tablist`-er med piltaster og roving tabindex, 3D-ens knapperad er `aria-pressed`-brytere med tempo som `radiogroup`, tur-scrubberen er en `role="slider"` med piltaster, og statusbannere skiller `role="status"` fra `role="alert"`.

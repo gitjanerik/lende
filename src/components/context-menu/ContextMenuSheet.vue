@@ -128,8 +128,11 @@ function formatDistance(m) {
              beholder sine 32 px. -->
         <div class="min-w-0" :style="{ zoom: uiTextScale }">
           <div class="text-[10px] uppercase tracking-wide text-ink-4">Punkt</div>
-          <div class="flex items-center gap-2">
-            <div class="text-ink text-[13px] font-mono tabular-nums">
+          <!-- `items-start`: ved 200 % brekker koordinatparet etter kommaet, og
+               en vertikalt sentrert kopier-knapp havner da i lufta mellom de to
+               linjene. Den hører til den første. -->
+          <div class="flex items-start gap-2">
+            <div class="text-ink text-[13px] font-mono tabular-nums leading-tight">
               {{ contextMenuInfo.lat.toFixed(5) }}, {{ contextMenuInfo.lon.toFixed(5) }}
             </div>
             <!-- Snarvei: kopier koordinater uten å scrolle ned til
@@ -160,7 +163,7 @@ function formatDistance(m) {
                høy. De hører hjemme her — du slår dem opp, du følger dem ikke
                mens du går. -->
           <div v-if="printScaleLabel || equidistanceLabel"
-               class="text-[10px] text-ink-4 tabular-nums mt-0.5 truncate">
+               class="text-[10px] text-ink-4 tabular-nums mt-0.5 leading-snug">
             <span v-if="printScaleLabel">{{ printScaleLabel }}</span>
             <span v-if="printScaleLabel && equidistanceLabel" class="text-ink-4"> · </span>
             <span v-if="equidistanceLabel">{{ equidistanceLabel }}</span>
@@ -169,11 +172,11 @@ function formatDistance(m) {
                attribusjons-boksen nede til høyre i kartet. Ingen av dem sier noe
                om terrenget du står i — de hører hjemme her, ved oppslaget. -->
           <div v-if="mapSourceLabel"
-               class="text-[10px] text-ink-4 tabular-nums truncate">
+               class="text-[10px] text-ink-4 tabular-nums leading-snug">
             {{ mapSourceLabel }}
           </div>
           <div v-if="depthEstimateWarning"
-               class="text-[10px] text-amber-300 font-medium truncate">
+               class="text-[10px] text-amber-300 font-medium leading-snug">
             {{ depthEstimateWarning }}
           </div>
           <div v-if="!contextMenuInfo.inside" class="text-[10px] text-amber-300 mt-0.5">
@@ -638,10 +641,11 @@ function formatDistance(m) {
 
       <!-- Handlinger. Koordinat-kopiering bor i headeren (ved tallene);
            eksterne karttjenester (Google/UT.no/Vegkart) bor i hovedmenyen. -->
-      <div class="px-4 pt-4 grid grid-cols-2 gap-2">
+      <div class="px-4 pt-4 rutenett">
         <button @click="onShareMap"
                 class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                       flex items-center gap-2 bg-ink/5 border-ink/10 text-ink-2">
+                       flex items-center gap-2 text-left leading-snug
+                       bg-ink/5 border-ink/10 text-ink-2">
           <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 6 L9 4 L15 6 L21 4 V18 L15 20 L9 18 L3 20 Z"/>
@@ -651,7 +655,8 @@ function formatDistance(m) {
         </button>
         <button @click="onShareMapWithContextPlace"
                 class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                       flex items-center gap-2 bg-ink/5 border-ink/10 text-ink-2">
+                       flex items-center gap-2 text-left leading-snug
+                       bg-ink/5 border-ink/10 text-ink-2">
           <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>
@@ -661,7 +666,8 @@ function formatDistance(m) {
         </button>
         <button v-if="ctxCanNavigate" @click="onNavigateHere"
                 class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                       flex items-center gap-2 bg-ink/5 border-ink/10 text-ink-2">
+                       flex items-center gap-2 text-left leading-snug
+                       bg-ink/5 border-ink/10 text-ink-2">
           <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="3 11 22 2 13 21 11 13 3 11"/>
@@ -670,7 +676,8 @@ function formatDistance(m) {
         </button>
         <button v-if="ctxCanNavigate" @click="onRoundTripHere"
                 class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                       flex items-center gap-2 bg-ink/5 border-ink/10 text-ink-2">
+                       flex items-center gap-2 text-left leading-snug
+                       bg-ink/5 border-ink/10 text-ink-2">
           <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M17 2.1 21 6l-4 3.9"/>
@@ -681,7 +688,8 @@ function formatDistance(m) {
         </button>
         <button v-if="ctxCanMeasure" @click="onStartMeasureHere"
                 class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                       flex items-center gap-2 bg-ink/5 border-ink/10 text-ink-2">
+                       flex items-center gap-2 text-left leading-snug
+                       bg-ink/5 border-ink/10 text-ink-2">
           <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="3 21 9 15 13 19 21 11"/>
@@ -692,7 +700,7 @@ function formatDistance(m) {
         <button @click="toggleProximityPanel"
                 :aria-expanded="proximityPanelOpen"
                 class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                       flex items-center gap-2 transition"
+                       flex items-center gap-2 text-left leading-snug transition"
                 :class="proximityPanelOpen
                         ? 'bg-sky-500/25 border-sky-400/60 text-sky-100'
                         : 'bg-ink/5 border-ink/10 text-ink-2'">
@@ -726,7 +734,7 @@ function formatDistance(m) {
           </template>
           <template v-else-if="userPos.isWatching">
             <div class="text-[11px] uppercase tracking-wide text-sky-100/80 mb-1.5">Varsle når jeg er innen</div>
-            <div class="grid grid-cols-3 gap-2 mb-3">
+            <div class="rutenett rutenett-tre mb-3">
               <button v-for="d in proximity.DISTANCE_OPTIONS" :key="d"
                       @click="proximityCfg.distanceM = d"
                       :aria-pressed="proximityCfg.distanceM === d"
@@ -739,7 +747,7 @@ function formatDistance(m) {
             </div>
 
             <div class="text-[11px] uppercase tracking-wide text-sky-100/80 mb-1.5">Varseltype</div>
-            <div class="grid grid-cols-2 gap-2 mb-3">
+            <div class="rutenett mb-3">
               <button @click="proximityCfg.sound = !proximityCfg.sound"
                       :aria-pressed="proximityCfg.sound"
                       class="px-2 py-2 rounded-lg border text-center text-[12px] active:scale-[0.98] transition flex items-center justify-center gap-1.5"
@@ -804,14 +812,14 @@ function formatDistance(m) {
       <div class="px-4 pt-4 pb-1 text-ink-3 text-[10px] uppercase tracking-wide">
         Nærmeste herfra
       </div>
-      <div class="px-4 pb-1 grid grid-cols-3 gap-2">
+      <div class="px-4 pb-1 rutenett rutenett-tre">
         <button @click="nearestPoiFromPoint('parkering')" :disabled="!poiCounts.parkering"
                 class="flex flex-col items-center gap-1.5 px-2 py-2.5 rounded-lg border transition
                        bg-ink/5 border-ink/10 text-ink-2 active:scale-[0.98]
                        disabled:opacity-35 disabled:active:scale-100">
           <span class="w-7 h-7 rounded-md bg-[#1f5d8a] text-white text-[13px] font-bold
                        flex items-center justify-center shrink-0">P</span>
-          <span class="text-[11px]">Parkering</span>
+          <span class="text-[11px] text-center leading-snug">Parkering</span>
         </button>
         <button @click="nearestPoiFromPoint('toalett')" :disabled="!poiCounts.toalett"
                 class="flex flex-col items-center gap-1.5 px-2 py-2.5 rounded-lg border transition
@@ -819,7 +827,7 @@ function formatDistance(m) {
                        disabled:opacity-35 disabled:active:scale-100">
           <span class="w-7 h-7 rounded-md bg-[#1f5d8a] text-white text-[9px] font-bold
                        flex items-center justify-center shrink-0">WC</span>
-          <span class="text-[11px]">Toalett</span>
+          <span class="text-[11px] text-center leading-snug">Toalett</span>
         </button>
         <button @click="nearestPoiFromPoint('holdeplass')" :disabled="!poiCounts.holdeplass"
                 class="flex flex-col items-center gap-1.5 px-2 py-2.5 rounded-lg border transition
@@ -833,7 +841,7 @@ function formatDistance(m) {
               <circle cx="15.5" cy="14" r="1.2" fill="#1f5d8a"/>
             </svg>
           </span>
-          <span class="text-[11px]">Buss / tog</span>
+          <span class="text-[11px] text-center leading-snug">Buss / tog</span>
         </button>
       </div>
 
@@ -843,13 +851,13 @@ function formatDistance(m) {
         <div class="px-4 pt-4 pb-1 text-ink-3 text-[10px] uppercase tracking-wide">
           Plasser annotering
         </div>
-        <div class="px-4 pb-4 grid grid-cols-2 gap-2">
+        <div class="px-4 pb-4 rutenett">
           <button v-for="s in ANNOTATION_SYMBOLS" :key="s.code"
                   @click="onPlaceAnnotationFromContext(s.symbolKey)"
                   class="px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98]
                          flex items-center gap-2 bg-ink/5 border-ink/10 text-ink-2">
             <AnnotationIcon :symbol-key="s.symbolKey"/>
-            <span class="truncate">{{ s.label }}</span>
+            <span class="min-w-0 text-left leading-snug">{{ s.label }}</span>
           </button>
         </div>
       </template>
@@ -866,6 +874,24 @@ function formatDistance(m) {
 </template>
 
 <style scoped>
+/* Knapperutene brekker etter PLASS, ikke etter et fast kolonnetall (v6.5.49).
+   Hele kroppen ligger i en `zoom`-blokk som følger tekststørrelse-valget, og
+   ved 200 % er den effektive bredden halvert — «Del kart og sted» fikk da rundt
+   100 px og ble til fire ord under hverandre, «Parkering» til «Par-ke-ring», og
+   annoteringene ble klippet til «Kn…».
+
+   `auto-fit` + `minmax` løser det uten et eneste mediespørsmål eller en måling
+   i JS: minstebredden er den samme uansett zoom (rem løses fra rot-fonten,
+   altså utenfor zoomen, og oppfører seg her som px), så antallet kolonner
+   faller av seg selv når plassen blir borte. Minsteverdiene er valgt så det
+   fortsatt blir det VANTE antallet ved 100 %: 9.5rem gir to, 6.5rem gir tre. */
+.rutenett {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(var(--min-kol, 9.5rem), 1fr));
+}
+.rutenett-tre { --min-kol: 6.5rem; }
+
 .overlay-fade-enter-active, .overlay-fade-leave-active { transition: opacity 0.22s ease; }
 .overlay-fade-enter-from, .overlay-fade-leave-to       { opacity: 0; }
 .overlay-fade-leave-active { pointer-events: none; }
