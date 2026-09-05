@@ -612,7 +612,7 @@ onMounted(() => {
         </div>
       </div>
     </div>
-    <div class="mt-2 text-[11px] text-ink/70 leading-relaxed">
+    <div class="mt-2 text-[11px] text-ink-2 leading-relaxed">
       {{ shareInvite.hasRoundTrip ? t('share.invite.bodyRoundTrip')
          : shareInvite.hasPlace ? t('share.invite.bodyPlace')
          : t('share.invite.body') }}
@@ -650,13 +650,13 @@ onMounted(() => {
   <!-- Søkefelt. v9.1.x: skjult i delingsmodus — mottakeren skal bare se og
        lage det delte kartet, ikke søke/velge sted. -->
   <div v-if="!shareInvite" class="px-4 pt-4 pb-3 relative z-20">
-    <label class="text-ink/65 text-[11px] uppercase tracking-wide block mb-2">Sted, postnummer eller adresse</label>
+    <label for="mappicker-sok" class="text-ink-3 text-[11px] uppercase tracking-wide block mb-2">Sted, postnummer eller adresse</label>
     <div class="relative">
-      <svg viewBox="0 0 24 24" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/50"
+      <svg viewBox="0 0 24 24" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-4"
            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.65" y2="16.65"/>
       </svg>
-      <input v-model="query" type="search" autocomplete="off" autocorrect="off"
+      <input id="mappicker-sok" v-model="query" type="search" autocomplete="off" autocorrect="off"
              :readonly="controlsLocked" :disabled="controlsLocked"
              @keydown="onSearchKeydown"
              role="combobox" aria-autocomplete="list" :aria-expanded="showResults"
@@ -664,7 +664,7 @@ onMounted(() => {
              :aria-activedescendant="searchActiveIndex >= 0 ? `mappicker-opt-${searchActiveIndex}` : undefined"
              :placeholder="controlsLocked ? lockedSearchPlaceholder : 'f.eks. Sognsvann, 0855, Vardåsen Asker'"
              :class="['w-full pl-10 py-3 rounded-xl bg-ink/[0.06] border border-ink/15',
-                      'text-[14px] placeholder-ink/30 focus:outline-none focus:bg-ink/12',
+                      'text-[14px] placeholder-ink/30 focus:bg-ink/12',
                       'focus:border-slate-300/50 transition disabled:opacity-50 disabled:cursor-not-allowed',
                       searchRightPad]" />
       <div v-if="isSearching"
@@ -678,7 +678,7 @@ onMounted(() => {
                 :aria-label="micListening ? 'Stopp diktering' : 'Diktér søk (tale til tekst)'"
                 :aria-pressed="micListening"
                 :class="['w-9 h-9 rounded-lg flex items-center justify-center transition active:scale-95',
-                         micListening ? 'bg-red-500/90 text-ink animate-pulse' : 'bg-ink/10 text-ink/70']">
+                         micListening ? 'bg-red-500/90 text-ink animate-pulse' : 'bg-ink/10 text-ink-2']">
           <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
@@ -689,7 +689,7 @@ onMounted(() => {
                 @click="onCenterOnMe"
                 :disabled="gpsState.status === 'locating'"
                 aria-label="Sentrer kartet på min posisjon (GPS)"
-                class="w-9 h-9 rounded-lg bg-emerald-500 text-white flex items-center justify-center
+                class="w-9 h-9 rounded-lg bg-emerald-700 text-white flex items-center justify-center
                        shadow-md active:scale-95 transition disabled:opacity-60">
           <svg v-if="gpsState.status === 'locating'"
                viewBox="0 0 24 24" class="w-5 h-5 animate-spin" fill="none" stroke="currentColor"
@@ -706,12 +706,20 @@ onMounted(() => {
     </div>
 
     <!-- Søkeresultater -->
+    <!-- Treff-telling som live-region (v6.5.48). Lista er en listbox, og en
+         listbox annonserer bare det som er MARKERT — så en skjermleser-bruker
+         som skrev og ventet fikk ingen beskjed om at det kom fem treff, eller
+         ingen. Teksten er sr-only; tallet står ikke i UI-et fra før. -->
+    <div class="sr-only" role="status" aria-live="polite">
+      <template v-if="isSearching">Søker …</template>
+      <template v-else-if="showResults">{{ results.length }} treff</template>
+    </div>
     <Transition name="fade">
       <div v-if="showResults" id="mappicker-results" role="listbox"
            class="absolute left-4 right-4 mt-1 rounded-xl bg-surface/98 backdrop-blur
                   border border-ink/10 shadow-2xl max-h-[50dvh] overflow-y-auto z-40">
         <div v-if="results.length === 0 && !isSearching"
-             class="px-4 py-3 text-[13px] text-ink/50">Ingen treff</div>
+             class="px-4 py-3 text-[13px] text-ink-4">Ingen treff</div>
         <button v-for="(r, index) in results" :key="r.id"
                 :id="`mappicker-opt-${index}`" role="option"
                 :aria-selected="index === searchActiveIndex"
@@ -721,7 +729,7 @@ onMounted(() => {
                        border-ink/8 last:border-0"
                 :class="index === searchActiveIndex ? 'bg-ink/12' : 'active:bg-ink/10'">
           <div class="text-[13px] font-medium text-ink truncate">{{ r.shortName }}</div>
-          <div class="text-[11px] text-ink/50 truncate">{{ r.name }}</div>
+          <div class="text-[11px] text-ink-4 truncate">{{ r.name }}</div>
         </button>
       </div>
     </Transition>
@@ -759,11 +767,11 @@ onMounted(() => {
        stedet om det man faktisk skriver inn: hvor i lende kartet er. -->
   <div v-if="!shareInvite && !nameHidden" class="px-4 pb-2">
     <div class="rounded-xl bg-ink/[0.04] border border-ink/10 px-4 py-3">
-      <div class="text-[11px] text-ink/50 uppercase tracking-wide mb-1">Navn på kart</div>
-      <input v-model="customName"
-             type="text" placeholder="Hvor i lende?"
+      <div class="text-[11px] text-ink-4 uppercase tracking-wide mb-1">Navn på kart</div>
+      <input id="mappicker-navn" v-model="customName"
+             type="text" placeholder="Hvor i lende?" aria-label="Navn på kartet"
              :readonly="controlsLocked"
-             class="w-full bg-transparent text-[15px] font-semibold focus:outline-none
+             class="w-full bg-transparent text-[15px] font-semibold
                     placeholder-ink/25 read-only:opacity-70" />
     </div>
   </div>
@@ -780,7 +788,7 @@ onMounted(() => {
          nå et VALG. Seksjonen står rett under navnet fordi den er det man
          faktisk bestemmer her; bredde, høydekurver og format er finjustering
          og følger etter. -->
-    <div v-if="!shareInvite" class="text-ink/65 text-[11px] uppercase tracking-wide">
+    <div v-if="!shareInvite" class="text-ink-3 text-[11px] uppercase tracking-wide">
       <template v-if="controlsLocked">{{ lockedPreviewHint }}</template>
       <template v-else>Forhåndsvisning</template>
     </div>
@@ -799,7 +807,7 @@ onMounted(() => {
                    after:left-[3px] after:w-[18px] after:h-[18px] after:rounded-full
                    after:bg-white after:shadow-md after:transition-transform
                    peer-checked:after:translate-x-[15px]"></span>
-      <span class="text-[12px] text-ink/60 leading-snug">
+      <span class="text-[12px] text-ink-3 leading-snug">
         Dra kartet for å plassere, pinch / scroll for størrelse
       </span>
     </label>
@@ -881,8 +889,8 @@ onMounted(() => {
                   text-ink border border-ink/30 font-medium shadow-lg z-10 whitespace-nowrap">
         {{ sizeKm }} × {{ sizeHeightKm }} km
       </div>
-      <div class="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-surface/85 text-ink/70 text-[8px]
-                  text-ink/75 border border-ink/15 leading-tight pointer-events-none whitespace-nowrap">
+      <div class="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-surface/85 text-ink-2 text-[8px]
+                  text-ink-2 border border-ink/15 leading-tight pointer-events-none whitespace-nowrap">
         © Kartverket
       </div>
     </div>
@@ -890,7 +898,8 @@ onMounted(() => {
     <!-- Slider for størrelse -->
     <div class="rounded-xl bg-ink/[0.04] border border-ink/10 px-4 py-3">
       <div class="flex items-center justify-between mb-2">
-        <div class="text-[11px] text-ink/50 uppercase tracking-wide">Bredde</div>
+        <div id="mappicker-bredde-etikett"
+             class="text-[11px] text-ink-4 uppercase tracking-wide">Bredde</div>
         <div class="text-[13px] font-medium tabular-nums"
              :class="overAnbefalt ? 'text-amber-300' : ''">{{ sizeKm }} km</div>
       </div>
@@ -902,28 +911,37 @@ onMounted(() => {
              class="absolute top-1/2 -translate-y-1/2 right-0 h-1.5 rounded-r bg-amber-400/25
                     border-r border-amber-300/40 pointer-events-none"
              :style="{ width: `${Math.max(0, 100 - (anbefaltMaksKm - 1) / 15 * 100)}%` }"></div>
+        <!-- aria-valuetext fordi input-en holder HALVBREDDEN mens skjermen viser
+             hele: uten den leser skjermleseren «4» der det står «8 km». -->
         <input type="range" min="0.5" max="8" step="0.25" v-model.number="halfKm"
+               aria-labelledby="mappicker-bredde-etikett"
+               :aria-valuetext="`${sizeKm} km`"
                :disabled="controlsLocked"
                class="relative w-full accent-slate-400 disabled:opacity-50 disabled:cursor-not-allowed" />
       </div>
-      <div class="flex justify-between text-[10px] text-ink/40 mt-1">
+      <div class="flex justify-between text-[10px] text-ink-4 mt-1">
         <span>1 km</span><span>8,5 km</span><span>16 km</span>
       </div>
       <div v-if="tetthetTekst" class="text-[10px] mt-1.5"
-           :class="overAnbefalt ? 'text-amber-300/90' : 'text-ink/40'">
+           :class="overAnbefalt ? 'text-amber-300/90' : 'text-ink-4'">
         {{ tetthetTekst }}<template v-if="overAnbefalt"> — bygges enklere for å holde seg responsivt</template>
       </div>
-      <div v-else-if="tetthetLaster" class="text-[10px] text-ink/30 mt-1.5">Måler datamengden …</div>
+      <div v-else-if="tetthetLaster" class="text-[10px] text-ink-4 mt-1.5">Måler datamengden …</div>
     </div>
 
     <!-- Ekvidistanse-velger -->
     <div class="rounded-xl bg-ink/[0.04] border border-ink/10 px-4 py-3">
       <div class="flex items-center justify-between mb-2">
-        <div class="text-[11px] text-ink/50 uppercase tracking-wide">Høydekurver</div>
+        <div id="mappicker-ekvi-etikett"
+             class="text-[11px] text-ink-4 uppercase tracking-wide">Høydekurver</div>
         <div class="text-[13px] font-medium tabular-nums">hver {{ equidistanceM }} m</div>
       </div>
-      <div class="grid grid-cols-3 gap-1.5">
+      <!-- Knapperad som SER ut som et valg må også være det for en skjermleser:
+           uten radiogroup/aria-checked annonseres tre uavhengige knapper og
+           ingenting sier hvilken som gjelder. -->
+      <div class="grid grid-cols-3 gap-1.5" role="radiogroup" aria-labelledby="mappicker-ekvi-etikett">
         <button v-for="opt in EQUIDISTANCE_OPTIONS" :key="opt.value"
+                role="radio" :aria-checked="equidistanceM === opt.value"
                 :disabled="controlsLocked || opt.value < minEquidistance"
                 :title="opt.value < minEquidistance ? widthHintFor(opt.value) : opt.desc"
                 @click="equidistanceM = opt.value"
@@ -931,11 +949,11 @@ onMounted(() => {
                        disabled:cursor-not-allowed disabled:opacity-40"
                 :class="equidistanceM === opt.value
                         ? 'bg-slate-400/20 border-slate-300/60 text-slate-100'
-                        : 'bg-ink/5 border-ink/10 text-ink/65'">
+                        : 'bg-ink/5 border-ink/10 text-ink-3'">
           {{ opt.label }}
         </button>
       </div>
-      <div class="text-[10px] text-ink/40 mt-1.5">
+      <div class="text-[10px] text-ink-4 mt-1.5">
         {{ EQUIDISTANCE_OPTIONS.find(o => o.value === equidistanceM)?.desc }}
       </div>
     </div>
@@ -945,12 +963,14 @@ onMounted(() => {
          A-format √2 for ren utskrift / PDF / SVG). Previewen og det genererte
          kartet følger valget. -->
     <div class="rounded-xl bg-ink/[0.04] border border-ink/10 px-4 py-3">
-      <div class="text-[11px] text-ink/50 uppercase tracking-wide mb-2">Format</div>
+      <div id="mappicker-format-etikett"
+           class="text-[11px] text-ink-4 uppercase tracking-wide mb-2">Format</div>
       <!-- Flex-wrap og ikke `grid-cols-3`: ved 150–200 % tekst får ikke tre
            kolonner plass, og et rutenett løser det med orddeling («Kvad-
            ratisk»). Med `min-w` bryter raden i stedet, og hvert ord står helt. -->
-      <div class="flex flex-wrap gap-1.5">
+      <div class="flex flex-wrap gap-1.5" role="radiogroup" aria-labelledby="mappicker-format-etikett">
         <button v-for="opt in FORMAT_OPTIONS" :key="opt.value"
+                role="radio" :aria-checked="format === opt.value"
                 :disabled="controlsLocked"
                 @click="format = opt.value"
                 class="flex-1 min-w-[6.5rem] px-2 py-1.5 rounded-md border text-[12px] font-medium
@@ -958,7 +978,7 @@ onMounted(() => {
                        disabled:cursor-not-allowed disabled:opacity-40"
                 :class="format === opt.value
                         ? 'bg-slate-400/20 border-slate-300/60 text-slate-100'
-                        : 'bg-ink/5 border-ink/10 text-ink/65'">
+                        : 'bg-ink/5 border-ink/10 text-ink-3'">
           <span>{{ opt.label }}</span>
         </button>
       </div>
@@ -998,11 +1018,11 @@ onMounted(() => {
                 text-slate-100 text-[11px]">
       {{ buildError }}
     </div>
-    <div class="mt-3 text-[10px] text-ink/40 text-center">
+    <div class="mt-3 text-[10px] text-ink-4 text-center">
       Henter data fra OpenStreetMap (ODbL) via Overpass API.
-      <span class="text-ink/25">·</span>
+      <span class="text-ink-4">·</span>
       <button @click="router.push({ name: 'kart-vis', params: { id: 'vardasen' } })"
-              class="underline decoration-dotted underline-offset-2 hover:text-ink/70 transition">
+              class="underline decoration-dotted underline-offset-2 hover:text-ink-2 transition">
         Åpne innebygd kart
       </button>
     </div>

@@ -81,7 +81,7 @@ function onOpenNve() {
             <div class="min-w-0">
               <div class="text-[10px] uppercase tracking-wide text-sky-300/60">Målestasjon · NVE</div>
               <div class="text-ink text-[15px] font-medium leading-snug break-words">{{ detail.stationName }}</div>
-              <div v-if="detail.riverName" class="text-[11px] text-ink/45">{{ detail.riverName }}</div>
+              <div v-if="detail.riverName" class="text-[11px] text-ink-4">{{ detail.riverName }}</div>
             </div>
           </div>
           <!-- Tekststørrelse + lukk, utenfor den zoomede kroppen under. -->
@@ -89,7 +89,7 @@ function onOpenNve() {
             <TekstStorrelseKnapp />
             <button @click="$emit('close')" aria-label="Lukk"
                     class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center
-                           bg-ink/5 border border-ink/10 text-ink/70 active:scale-90">
+                           bg-ink/5 border border-ink/10 text-ink-2 active:scale-90">
               <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                    stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -101,24 +101,24 @@ function onOpenNve() {
         <div v-show="!drawer.isMinimized.value"
              class="flex-1 overflow-y-auto px-4 pt-3"
              :style="{ zoom: uiTextScale, paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0.75rem)' }">
-          <div v-if="loading && !hasAnyValue" class="text-[12px] text-ink/50 py-3">Henter sanntidsdata …</div>
+          <div v-if="loading && !hasAnyValue" class="text-[12px] text-ink-4 py-3">Henter sanntidsdata …</div>
 
           <div v-if="hasAnyValue" class="space-y-2">
             <div v-for="r in rows" :key="r.label"
                  class="flex items-baseline justify-between gap-3 rounded-lg bg-sky-500/[0.08] border border-sky-400/20 px-3 py-2">
               <span class="min-w-0">
                 <span class="block text-[12px] text-sky-100/80">{{ r.label }}</span>
-                <span v-if="r.note" class="block text-[10px] text-ink/35">{{ r.note }}</span>
+                <span v-if="r.note" class="block text-[10px] text-ink-4">{{ r.note }}</span>
               </span>
               <span class="text-right shrink-0">
                 <span class="text-[17px] font-semibold text-ink tabular-nums">{{ r.value }}</span>
-                <span class="ml-1 text-[11px] text-ink/50">{{ r.unit }}</span>
-                <span v-if="fmtTime(r.time)" class="block text-[10px] text-ink/35">{{ fmtTime(r.time) }}</span>
+                <span class="ml-1 text-[11px] text-ink-4">{{ r.unit }}</span>
+                <span v-if="fmtTime(r.time)" class="block text-[10px] text-ink-4">{{ fmtTime(r.time) }}</span>
               </span>
             </div>
           </div>
 
-          <div v-else-if="!loading" class="text-[12px] text-ink/50 py-3">
+          <div v-else-if="!loading" class="text-[12px] text-ink-4 py-3">
             Ingen ferske måledata for denne stasjonen akkurat nå.
           </div>
 
@@ -127,8 +127,8 @@ function onOpenNve() {
             <dl>
               <div v-for="row in infoRows" :key="row.label"
                    class="flex items-baseline justify-between gap-3 py-1.5 border-t border-ink/5 first:border-t-0">
-                <dt class="text-[12px] text-ink/50 shrink-0">{{ row.label }}</dt>
-                <dd class="text-[12px] text-ink/85 text-right break-words">{{ row.value }}</dd>
+                <dt class="text-[12px] text-ink-4 shrink-0">{{ row.label }}</dt>
+                <dd class="text-[12px] text-ink text-right break-words">{{ row.value }}</dd>
               </div>
             </dl>
           </div>
@@ -146,7 +146,7 @@ function onOpenNve() {
             <span class="flex-1 text-left font-medium">Åpne stasjonen hos NVE</span>
           </button>
 
-          <p class="mt-3 text-[10px] text-ink/35 leading-relaxed">
+          <p class="mt-3 text-[10px] text-ink-4 leading-relaxed">
             Sanntidsdata: NVE HydAPI ·
             <a href="https://hydapi.nve.no/UserDocumentation/" target="_blank" rel="noopener" class="underline">dokumentasjon</a>.
             Verdiene er foreløpige og ikke kvalitetssikret.

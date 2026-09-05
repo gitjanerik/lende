@@ -82,7 +82,7 @@ const ringStil = computed(() => (byggerNytt.value || props.fremhev
     <!-- Sky med strek: nettleseren sier offline. Et varsel, ikke en sperre —
          brukeren kan vite bedre enn OS-et (portalen ble nettopp løst). -->
     <svg v-if="offline" viewBox="0 0 24 24"
-         class="absolute -top-0.5 -right-0.5 w-4 h-4 text-ink/70"
+         class="absolute -top-0.5 -right-0.5 w-4 h-4 text-ink-2"
          fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
          aria-hidden="true">
       <circle cx="12" cy="12" r="11" fill="var(--color-overlay, #fff)" stroke="none" />

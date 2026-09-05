@@ -285,6 +285,13 @@ export function useMapExtend({
   // fliser som ALLEREDE finnes, den bygger ingenting. Navn med «autoMap»-prefiks
   // dekker delt infrastruktur (bygge-opts, toast, modus-gate).
   const buildingOnTheFly = ref(false)  // full-screen loader-flagg (gjenbrukes)
+  // Utvidelsen er ikke-blokkerende, men den kan ta et halvminutt per flis — og
+  // fram til v6.5.48 fantes det ingen vei ut av den. Avbryteren aborterer den
+  // flisa som er under arbeid og stopper løkka mellom fliser; det som ALLEREDE
+  // er bygd beholdes og tegnes i finally, som er den samme stien en flis som
+  // feiler går. Ventelista er derfor fortsatt sannheten om hva som gjenstår.
+  let byggAvbryter = null
+  function avbrytUtvidelse() { byggAvbryter?.abort() }
   const buildingProgress = ref('')
   // RETNINGEN BYGGE-CHIPEN VISER (v6.5.22). Den fôrer flis-ikonet — arket i
   // miniatyr, med rutene som ligger i retningen blinkende — og er null for alt
@@ -809,8 +816,10 @@ export function useMapExtend({
     const plan = toBuild.map(({ center, utmBbox }) => ({ opts: autoMapBuildOpts(center), utmBbox }))
     leggTilVentende(plan)
     let tegnet = false
+    byggAvbryter = new AbortController()
     try {
       for (let i = 0; i < toBuild.length; i++) {
+        if (byggAvbryter.signal.aborted) break
         const prefix = toBuild.length > 1 ? `Utsnitt ${i + 1}/${toBuild.length}` : ''
         buildingProgress.value = toBuild.length > 1
           ? `Bygger utsnitt ${i + 1} av ${toBuild.length} …`
@@ -819,6 +828,7 @@ export function useMapExtend({
           ...plan[i].opts,
           utmBbox: toBuild[i].utmBbox,   // eksakt ±W/±H-offset → flukter med aktiv flis
           terrainFirst: false,   // full flis med en gang
+          signal: byggAvbryter.signal,
           onProgress: (msg) => {
             buildingProgress.value = prefix ? `${prefix}: ${msg}` : msg
           },
@@ -849,9 +859,13 @@ export function useMapExtend({
       showAutoMapToast(`Utvidet kartet mot ${EXTEND_DIR_WORD[direction]}`)
       avslorHandtak()
     } catch (e) {
-      console.error('Kant-sone-utvidelse feilet:', e)
-      showAutoMapToast('Kunne ikke lage nytt utsnitt')
+      if (e?.name === 'AbortError') showAutoMapToast('Avbrutt')
+      else {
+        console.error('Kant-sone-utvidelse feilet:', e)
+        showAutoMapToast('Kunne ikke lage nytt utsnitt')
+      }
     } finally {
+      byggAvbryter = null
       // Feilet løkka, rakk vi aldri å tegne det som FAKTISK ble bygd — og
       // banneret om det som mangler leses av mosaikken. Tegn derfor uansett, og
       // tell på nytt: det er dette som gjør at «Fyll hullene» dukker opp med en
@@ -947,11 +961,13 @@ export function useMapExtend({
     closeSearch()
     const builtIds = []
     let failed = 0
+    byggAvbryter = new AbortController()
     try {
       // Per-flis feilhåndtering: én flis som feiler (f.eks. Overpass nede) skal
       // ikke forkaste flisene som lyktes — vi bygger så mange som mulig og
       // tegner mosaikken på nytt uansett i finally.
       for (let i = 0; i < cells.length; i++) {
+        if (byggAvbryter.signal.aborted) break
         const prefix = cells.length > 1 ? `Flis ${i + 1}/${cells.length}` : ''
         buildingProgress.value = cells.length > 1
           ? `Bygger flis ${i + 1} av ${cells.length} …`
@@ -961,6 +977,7 @@ export function useMapExtend({
             ...cells[i].opts,
             utmBbox: cells[i].utmBbox,
             terrainFirst: false,
+            signal: byggAvbryter.signal,
             onProgress: (msg) => {
               buildingProgress.value = prefix ? `${prefix}: ${msg}` : msg
             },
@@ -970,11 +987,12 @@ export function useMapExtend({
             fjernVentende(cells[i].utmBbox)
           } else failed++
         } catch (e) {
-          console.error('Flis feilet:', e)
+          if (e?.name !== 'AbortError') console.error('Flis feilet:', e)
           failed++
         }
       }
     } finally {
+      byggAvbryter = null
       // Tegn mosaikken på nytt så det som FAKTISK ble bygd vises (også ved delvis
       // feil), kapp cachen og re-tell → bannerne speiler ny tilstand.
       try {
@@ -1054,7 +1072,7 @@ export function useMapExtend({
   }
 
   return {
-    buildingOnTheFly, buildingProgress, byggerFlisRetning, autoMapToast, currentMapIsAuto,
+    buildingOnTheFly, buildingProgress, byggerFlisRetning, avbrytUtvidelse, autoMapToast, currentMapIsAuto,
     drawerCoversCanvas, extendZonesVisible, activatableTile, mosaicGapCount,
     edgeHandles, hoveredDir, previewExtend, clearExtendPreview, avslorHandtak,
     showAutoMapToast,

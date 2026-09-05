@@ -67,21 +67,21 @@ function fmtObs(o, unit, digits = 1) {
         <div class="text-2xl leading-none mt-0.5">{{ TYPE_ICONS[feature.type] ?? '📍' }}</div>
         <div class="min-w-0 flex-1">
           <div class="font-semibold text-sm leading-tight truncate">{{ feature.name }}</div>
-          <div class="text-[0.6875rem] text-white/60">{{ subtitle }}</div>
+          <div class="text-[0.6875rem] text-white/78">{{ subtitle }}</div>
 
           <div v-if="kulturminne" class="text-[0.6875rem] text-white/75 mt-1.5 space-y-0.5">
             <div v-if="kulturminne.art">{{ kulturminne.art }}</div>
-            <div v-if="kulturminne.vernetype" class="text-white/55">{{ kulturminne.vernetype }}</div>
+            <div v-if="kulturminne.vernetype" class="text-white/75">{{ kulturminne.vernetype }}</div>
           </div>
 
           <div v-if="feature.detail?.station" class="text-[0.6875rem] mt-1.5 space-y-0.5">
-            <div v-if="nveLoading" class="text-white/50">Henter siste måling …</div>
+            <div v-if="nveLoading" class="text-white/72">Henter siste måling …</div>
             <template v-else-if="nveLatest">
               <div v-if="fmtObs(nveLatest.discharge, 'm³/s')">Vannføring: <span class="tabular-nums">{{ fmtObs(nveLatest.discharge, 'm³/s') }}</span></div>
               <div v-if="fmtObs(nveLatest.waterLevel, 'm', 2)">Vannstand: <span class="tabular-nums">{{ fmtObs(nveLatest.waterLevel, 'm', 2) }}</span></div>
               <div v-if="fmtObs(nveLatest.waterTemp, '°C')">Vanntemp: <span class="tabular-nums">{{ fmtObs(nveLatest.waterTemp, '°C') }}</span></div>
             </template>
-            <div v-if="nveInfo?.riverLength" class="text-white/55">{{ feature.detail.station.riverName }}</div>
+            <div v-if="nveInfo?.riverLength" class="text-white/75">{{ feature.detail.station.riverName }}</div>
           </div>
         </div>
         <!-- Lukk. Het «Videre →» fram til v5.18.0, fra den første 3D-visningen

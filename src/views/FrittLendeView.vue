@@ -586,7 +586,7 @@ const arkDato = computed(() => (opprettet.value
     <div v-if="!meta && !bygger"
          class="absolute inset-0 flex overflow-y-auto overscroll-contain
                 px-8 py-20 pointer-events-auto">
-      <div class="m-auto text-center text-ink/70 max-w-xs text-sm leading-relaxed
+      <div class="m-auto text-center text-ink-2 max-w-xs text-sm leading-relaxed
                   select-text"
            :style="{ zoom: uiTextScale }">
         <!-- `h1` og ikke en fet `p`: dette er sidens eneste overskrift, og
@@ -609,7 +609,7 @@ const arkDato = computed(() => (opprettet.value
           Husk å aktivere nøyaktig posisjon for Lende — en innstilling i
           nettleseren din.
         </p>
-        <p class="mt-4 text-ink/85">God tur.</p>
+        <p class="mt-4 text-ink">God tur.</p>
       </div>
     </div>
 
@@ -621,7 +621,7 @@ const arkDato = computed(() => (opprettet.value
          på en vanlig telefon. max-w slo derfor aldri inn, og «posisjonen» brakk
          midt i ordet. Her er hele bredden tilgjengelig og w-fit holder chipen
          like bred som innholdet. -->
-    <div v-if="bygger || venterPaaFix"
+    <div v-if="bygger || venterPaaFix" role="status" aria-live="polite"
          class="absolute top-16 left-0 right-0 mx-auto w-fit z-30 max-w-[min(24rem,92vw)]
                 flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-2xl bg-overlay shadow-lg
                 border border-ink/10 backdrop-blur">
@@ -636,19 +636,19 @@ const arkDato = computed(() => (opprettet.value
            deles til «Av-bryt» over to linjer. Den er rømningsveien ut av en
            bygging, og en knapp som ser ødelagt ut leses som at appen er det. -->
       <button type="button"
-              class="shrink-0 whitespace-nowrap text-sm font-semibold text-ink/70 underline"
+              class="shrink-0 whitespace-nowrap text-sm font-semibold text-ink-2 underline"
               @click="avbryt">Avbryt</button>
     </div>
 
     <!-- Feil. «Kartet du har fungerer fortsatt» er ikke pynt: den skiller
          «du kan ikke lage et nytt nå» fra «det du har er ubrukelig». -->
-    <div v-if="feil && !bygger"
+    <div v-if="feil && !bygger" role="alert"
          class="absolute top-16 left-1/2 -translate-x-1/2 z-30 w-[min(20rem,90vw)]
                 px-4 py-3 rounded-xl bg-overlay shadow-lg text-center text-sm"
          :style="{ zoom: uiTextScale }">
       <p class="text-ink">{{ feil }}</p>
-      <p v-if="meta" class="mt-1 text-ink/60">Kartet du har fungerer fortsatt.</p>
-      <p v-if="feilHint" class="mt-1 text-ink/60">{{ feilHint }}</p>
+      <p v-if="meta" class="mt-1 text-ink-3">Kartet du har fungerer fortsatt.</p>
+      <p v-if="feilHint" class="mt-1 text-ink-3">{{ feilHint }}</p>
       <button type="button" class="mt-2 font-semibold text-ink underline"
               @click="feil = ''; byggHer()">Prøv igjen</button>
     </div>
@@ -657,7 +657,7 @@ const arkDato = computed(() => (opprettet.value
          mandag morgen uten et ord. -->
     <div v-else-if="gammeltArk && meta && !bygger"
          class="absolute top-16 left-1/2 -translate-x-1/2 z-20
-                px-3 py-1.5 rounded-full bg-overlay shadow text-sm text-ink/70"
+                px-3 py-1.5 rounded-full bg-overlay shadow text-sm text-ink-2"
          :style="{ zoom: uiTextScale }">
       Kartet er fra {{ arkDato }}
     </div>
@@ -701,6 +701,7 @@ const arkDato = computed(() => (opprettet.value
                 px-4 py-2.5 rounded-xl bg-overlay shadow-lg
                 text-sm text-ink leading-snug"
          :class="angreSynlig ? 'bottom-20' : 'bottom-6'"
+         role="status" aria-live="polite"
          :style="{ zoom: uiTextScale }">
       {{ melding }}
     </div>

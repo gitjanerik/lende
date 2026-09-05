@@ -67,7 +67,7 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
         <div class="text-[13px] text-ink font-medium">Kartstørrelse (nye kart)</div>
         <div class="text-[13px] text-ink font-semibold tabular-nums">{{ mapSizeSlider }} × {{ mapSizeSlider }} km</div>
       </div>
-      <div class="text-[11px] text-ink/55 leading-snug mb-2">
+      <div class="text-[11px] text-ink-3 leading-snug mb-2">
         Bredde på nye kart fra søk/GPS. Større kart tar lengre tid å bygge. I
         svært datatette områder (bykjerner) bygges kartet enklere og om nødvendig
         mindre, så det holder seg responsivt — «Flere valg» viser grensen på
@@ -77,7 +77,7 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
              v-model.number="mapSizeSlider"
              aria-label="Kartstørrelse i km (bredde på nye kart)"
              class="w-full accent-emerald-400 cursor-pointer" />
-      <div class="flex justify-between text-[10px] text-ink/35 tabular-nums mt-1 px-0.5">
+      <div class="flex justify-between text-[10px] text-ink-4 tabular-nums mt-1 px-0.5">
         <span>{{ MAP_SIZE_MIN_KM }} km</span>
         <span>{{ MAP_SIZE_MAX_KM }} km</span>
       </div>
@@ -90,7 +90,7 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
                 :aria-pressed="mapFormat === opt.value"
                 class="flex-1 min-w-[6.5rem] rounded-md px-1 py-1.5 text-[12px] font-medium
                        transition-colors leading-tight"
-                :class="mapFormat === opt.value ? 'bg-emerald-500 text-white' : 'bg-ink/10 text-ink/70'">
+                :class="mapFormat === opt.value ? 'bg-emerald-700 text-white' : 'bg-ink/10 text-ink-2'">
           {{ opt.label }}
         </button>
       </div>
@@ -98,7 +98,7 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
            (< 4 km: alle; 4–6 km: min 10 m; ≥ 6 km: min 20 m). -->
       <div class="flex items-baseline justify-between mt-3 mb-1.5">
         <div class="text-[13px] text-ink font-medium">Høydekurver</div>
-        <div class="text-[12px] text-ink/60 tabular-nums">hver {{ effectiveEq }} m</div>
+        <div class="text-[12px] text-ink-3 tabular-nums">hver {{ effectiveEq }} m</div>
       </div>
       <div class="flex gap-1.5" role="group" aria-label="Høydekurve-intervall for nye kart">
         <button v-for="eq in MAP_EQ_OPTIONS" :key="eq"
@@ -108,11 +108,11 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
                 :aria-pressed="effectiveEq === eq"
                 class="flex-1 rounded-md px-1 py-1.5 text-[12px] font-medium transition-colors tabular-nums
                        disabled:opacity-35 disabled:cursor-not-allowed"
-                :class="effectiveEq === eq ? 'bg-emerald-500 text-white' : 'bg-ink/10 text-ink/70'">
+                :class="effectiveEq === eq ? 'bg-emerald-700 text-white' : 'bg-ink/10 text-ink-2'">
           {{ eq }} m
         </button>
       </div>
-      <div v-if="minEq > 5" class="text-[10px] text-ink/40 leading-snug mt-1">
+      <div v-if="minEq > 5" class="text-[10px] text-ink-4 leading-snug mt-1">
         Tette kurver ({{ minEq === 20 ? '5 og 10 m' : '5 m' }}) krever smalere kart
         — dra slideren ned for å låse opp.
       </div>
@@ -120,7 +120,7 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
       <button @click="onReset()" :disabled="isAtDefaults"
               class="w-full mt-3 px-3 py-2 rounded-lg text-[12px] font-medium border transition
                      active:scale-[0.98] disabled:opacity-40
-                     bg-ink/5 border-ink/15 text-ink/85">
+                     bg-ink/5 border-ink/15 text-ink">
         Nullstill til standard ({{ DEFAULT_MAP_WIDTH_KM }} km · {{ defaultEq }} m · kvadratisk)
       </button>
       <!-- Bygg om gjeldende område i valgt størrelse — slipper å gå til
@@ -139,7 +139,7 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
     <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-3 flex items-center gap-3">
       <div class="flex-1 min-w-0">
         <div class="text-[13px] text-ink font-medium">Vis fulle navn</div>
-        <div class="text-[11px] text-ink/55 leading-snug">
+        <div class="text-[11px] text-ink-3 leading-snug">
           I Nord-Norge har mange steder navn på norsk, samisk og kvensk.
           Av: vis kun det norske navnet (renere kart). På: vis hele det
           flerspråklige navnet. Søk finner alle språk uansett.
@@ -164,8 +164,8 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
       <div class="flex items-center gap-3">
         <div class="flex-1 min-w-0">
           <div class="text-[13px] text-ink font-medium">Hold skjerm våken</div>
-          <div class="text-[11px] text-ink/55 leading-snug">
-            Hindrer at telefonen låser skjermen mens du bruker kartet, så GPS-posisjonen ikke stopper. Skjermen holdes våken sammenhengende så lenge dette er på. <span class="text-ink/70">Et aktivt nærhetsvarsel holder skjermen våken uansett — uavhengig av denne bryteren.</span>
+          <div class="text-[11px] text-ink-3 leading-snug">
+            Hindrer at telefonen låser skjermen mens du bruker kartet, så GPS-posisjonen ikke stopper. Skjermen holdes våken sammenhengende så lenge dette er på. <span class="text-ink-2">Et aktivt nærhetsvarsel holder skjermen våken uansett — uavhengig av denne bryteren.</span>
           </div>
         </div>
         <button @click="screenWake.setEnabled(!screenWake.enabled.value)"
@@ -196,13 +196,13 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
     <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-3">
       <div class="flex items-center justify-between gap-3 mb-1.5">
         <div class="text-[13px] text-ink font-medium">Maks kartfliser</div>
-        <span class="text-ink/60 text-[12px] tabular-nums">{{ maxTiles }}</span>
+        <span class="text-ink-3 text-[12px] tabular-nums">{{ maxTiles }}</span>
       </div>
       <input type="range" min="0" :max="maxTileIndexMax" step="1"
              v-model.number="maxTileIndex"
              aria-label="Maks antall kartfliser i mosaikken"
              class="w-full accent-sky-400"/>
-      <div class="text-[11px] text-ink/55 leading-snug mt-1.5">
+      <div class="text-[11px] text-ink-3 leading-snug mt-1.5">
         Hvor mange kart-utsnitt som beholdes i mosaikken. Flere = større sammenhengende
         område, men mer lagringsplass på enheten. De fjerneste fra der du er kappes først.
       </div>
@@ -213,7 +213,7 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
     <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-3 flex items-center gap-3">
       <div class="flex-1 min-w-0">
         <div class="text-[13px] text-ink font-medium">Relieff (terrengskygge)</div>
-        <div class="text-[11px] text-ink/55 leading-snug">
+        <div class="text-[11px] text-ink-3 leading-snug">
           Standard for alle kart. Lages som ett bilde per kartflis og bruker mer
           minne/GPU — slå av (eller senk antall fliser) på svake enheter.
           Hold relieff-knappen på kartet for å overstyre kun dette kartet.
@@ -236,17 +236,17 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
         <button @click="globalReliefMode = 'vektor'"
                 :aria-pressed="globalReliefMode === 'vektor'"
                 class="flex-1 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors"
-                :class="globalReliefMode === 'vektor' ? 'bg-emerald-500 text-white' : 'bg-ink/10 text-ink/70'">
+                :class="globalReliefMode === 'vektor' ? 'bg-emerald-700 text-white' : 'bg-ink/10 text-ink-2'">
           Skarp (vektor)
         </button>
         <button @click="globalReliefMode = 'mjuk'"
                 :aria-pressed="globalReliefMode === 'mjuk'"
                 class="flex-1 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors"
-                :class="globalReliefMode === 'mjuk' ? 'bg-emerald-500 text-white' : 'bg-ink/10 text-ink/70'">
+                :class="globalReliefMode === 'mjuk' ? 'bg-emerald-700 text-white' : 'bg-ink/10 text-ink-2'">
           Mjuk (bilde)
         </button>
       </div>
-      <div class="text-[11px] text-ink/55 leading-snug mt-1.5">
+      <div class="text-[11px] text-ink-3 leading-snug mt-1.5">
         Skarp = tone-bånd som vektor: liten fil, knivskarpt ved zoom og print.
         Mjuk = myk gradient (foto-relieff), men gir et tungt bilde i kart-fila.
       </div>
@@ -259,20 +259,20 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
         <button v-for="p in DENSITY_PRESETS" :key="p.id" @click="densityId = p.id"
                 :aria-pressed="densityId === p.id"
                 class="flex-1 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors"
-                :class="densityId === p.id ? 'bg-emerald-500 text-white' : 'bg-ink/10 text-ink/70'">
+                :class="densityId === p.id ? 'bg-emerald-700 text-white' : 'bg-ink/10 text-ink-2'">
           {{ p.label }}
         </button>
       </div>
-      <div class="text-[11px] text-ink/55 leading-snug mt-1.5">
+      <div class="text-[11px] text-ink-3 leading-snug mt-1.5">
         Hvor mange navn som vises samtidig. Kartet avdekker flere når du zoomer inn;
         topp, vann og område prioriteres, og et søketreff vises alltid.
       </div>
       <!-- PÅ: tettheten gjelder konsekvent for alle kart. AV: valget over
            gjelder kun kartet du ser på nå (per-kart-overstyring). -->
       <label class="flex items-center justify-between gap-3 mt-3 cursor-pointer">
-        <span class="text-[12px] text-ink/80 leading-snug">
+        <span class="text-[12px] text-ink-2 leading-snug">
           Bruk på alle kart
-          <span class="block text-[11px] text-ink/45">
+          <span class="block text-[11px] text-ink-4">
             {{ densityApplyToAll ? 'Samme tetthet overalt' : 'Gjelder kun dette kartet' }}
           </span>
         </span>
@@ -285,6 +285,6 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
         </button>
       </label>
     </div>
-    <p class="text-ink/35 text-[10px] mt-1">v{{ APP_VERSION }}</p>
+    <p class="text-ink-4 text-[10px] mt-1">v{{ APP_VERSION }}</p>
   </div>
 </template>

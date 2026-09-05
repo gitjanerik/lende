@@ -54,7 +54,7 @@ const busyLabel = computed(() =>
 </script>
 
 <template>
-  <div class="min-h-[100dvh] bg-app text-ink/90 antialiased">
+  <div class="min-h-[100dvh] bg-app text-ink antialiased">
     <RouterView v-slot="{ Component, route }">
       <Transition
         :name="route.meta.transition || 'fade'"
@@ -102,7 +102,7 @@ const busyLabel = computed(() =>
             {{ busy ? busyLabel : 'Ny versjon tilgjengelig' }}
           </span>
           <button v-if="!busy" @click="onUpdate"
-                  class="shrink-0 px-3.5 py-1.5 rounded-lg font-medium bg-emerald-500 text-white
+                  class="shrink-0 px-3.5 py-1.5 rounded-lg font-medium bg-emerald-700 text-white
                          active:scale-95 transition">
             Oppdater
           </button>

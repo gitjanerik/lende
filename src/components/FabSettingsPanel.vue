@@ -62,7 +62,7 @@ const title = computed(() => (
           <div class="text-ink text-[14px] font-semibold">{{ title }}</div>
           <button @click="emit('close')" aria-label="Lukk panel"
                   class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center
-                         bg-ink/5 border border-ink/10 text-ink/60 active:scale-90 transition">
+                         bg-ink/5 border border-ink/10 text-ink-3 active:scale-90 transition">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round">
               <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -74,7 +74,7 @@ const title = computed(() => (
 
           <!-- STREK: per-element strekbredde for dette kartet -->
           <template v-if="panel === 'stroke'">
-            <div class="text-[11px] text-ink/55 leading-snug mb-3">
+            <div class="text-[11px] text-ink-3 leading-snug mb-3">
               Strekbredde per element for dette kartet. Ganges med Strek-knotten,
               som fortsatt skalerer alt under ett.
             </div>
@@ -82,7 +82,7 @@ const title = computed(() => (
                  class="rounded-lg bg-ink/5 px-3 py-2.5 mb-2">
               <div class="flex items-center justify-between gap-3 mb-1.5">
                 <div class="text-[13px] text-ink font-medium">{{ g.label }}</div>
-                <span class="text-ink/60 text-[12px] tabular-nums">{{ strokeEffective[g.id].toFixed(2) }}×</span>
+                <span class="text-ink-3 text-[12px] tabular-nums">{{ strokeEffective[g.id].toFixed(2) }}×</span>
               </div>
               <input type="range" min="0.5" max="2.5" step="0.05"
                      :value="strokeEffective[g.id]"
@@ -100,14 +100,14 @@ const title = computed(() => (
                            @input="emit('setTrailColor', 'fg', $event.target.value)"
                            aria-label="Farge på sti-strek"
                            class="w-7 h-7 rounded shrink-0 bg-transparent border-0 p-0 cursor-pointer"/>
-                    <span class="text-[11px] text-ink/70 leading-tight">Strek</span>
+                    <span class="text-[11px] text-ink-2 leading-tight">Strek</span>
                   </label>
                   <label class="flex items-center gap-2 rounded-md bg-ink/5 px-2 py-1.5">
                     <input type="color" :value="trailSwatches.bg"
                            @input="emit('setTrailColor', 'bg', $event.target.value)"
                            aria-label="Farge på sti-bakgrunn"
                            class="w-7 h-7 rounded shrink-0 bg-transparent border-0 p-0 cursor-pointer"/>
-                    <span class="text-[11px] text-ink/70 leading-tight">Bakgrunn</span>
+                    <span class="text-[11px] text-ink-2 leading-tight">Bakgrunn</span>
                   </label>
                 </div>
                 <button @click="emit('resetTrailColors')"
@@ -115,10 +115,10 @@ const title = computed(() => (
                         class="w-full mt-2 px-3 py-1.5 rounded-md border text-[11px] active:scale-[0.98]"
                         :class="trailColorsOverridden
                                 ? 'bg-amber-400/15 border-amber-300/40 text-ink'
-                                : 'bg-ink/5 border-ink/10 text-ink/35'">
+                                : 'bg-ink/5 border-ink/10 text-ink-4'">
                   ↺ Nullstill farger
                 </button>
-                <div class="text-[11px] text-ink/45 leading-snug mt-1.5">
+                <div class="text-[11px] text-ink-4 leading-snug mt-1.5">
                   Nullstill gir temaets sti-farger — svart stiplet strek på hvit
                   bakgrunn i Lys (ISOM). Stitråkk (svakeste sti) har ingen
                   bakgrunnslinje og påvirkes bare av strek-fargen.
@@ -129,14 +129,14 @@ const title = computed(() => (
 
           <!-- RELIEFF: av/på + stil for dette kartet -->
           <template v-else-if="panel === 'relief'">
-            <div class="text-[11px] text-ink/55 leading-snug mb-3">
+            <div class="text-[11px] text-ink-3 leading-snug mb-3">
               Gjelder dette kartet. Standard for alle kart settes i Innstillinger-fanen
               eller med «Angi som standard» under.
             </div>
             <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-2 flex items-center gap-3">
               <div class="flex-1 min-w-0">
                 <div class="text-[13px] text-ink font-medium">Relieff (terrengskygge)</div>
-                <div class="text-[11px] text-ink/55 leading-snug">
+                <div class="text-[11px] text-ink-3 leading-snug">
                   Bruker mer minne/GPU — slå av på svake enheter.
                 </div>
               </div>
@@ -155,17 +155,17 @@ const title = computed(() => (
                 <button @click="reliefMode = 'vektor'"
                         :aria-pressed="reliefMode === 'vektor'"
                         class="flex-1 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors"
-                        :class="reliefMode === 'vektor' ? 'bg-emerald-500 text-white' : 'bg-ink/10 text-ink/70'">
+                        :class="reliefMode === 'vektor' ? 'bg-emerald-700 text-white' : 'bg-ink/10 text-ink-2'">
                   Skarp (vektor)
                 </button>
                 <button @click="reliefMode = 'mjuk'"
                         :aria-pressed="reliefMode === 'mjuk'"
                         class="flex-1 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors"
-                        :class="reliefMode === 'mjuk' ? 'bg-emerald-500 text-white' : 'bg-ink/10 text-ink/70'">
+                        :class="reliefMode === 'mjuk' ? 'bg-emerald-700 text-white' : 'bg-ink/10 text-ink-2'">
                   Mjuk (bilde)
                 </button>
               </div>
-              <div class="text-[11px] text-ink/55 leading-snug mt-1.5">
+              <div class="text-[11px] text-ink-3 leading-snug mt-1.5">
                 Skarp = tone-bånd som vektor: liten fil, knivskarpt ved zoom og print.
                 Mjuk = myk gradient (foto-relieff), men gir et tungt bilde i kart-fila.
               </div>
@@ -177,7 +177,7 @@ const title = computed(() => (
             <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-2">
               <div class="flex items-center justify-between gap-3 mb-1.5">
                 <div class="text-[13px] text-ink font-medium">Standard zoom-nivå</div>
-                <span class="text-ink/60 text-[12px] tabular-nums">
+                <span class="text-ink-3 text-[12px] tabular-nums">
                   {{ defaultZoomScale === 1 ? 'Hele kartet' : `${defaultZoomScale.toFixed(1)}×` }}
                 </span>
               </div>
@@ -185,7 +185,7 @@ const title = computed(() => (
                      v-model.number="defaultZoomScale"
                      aria-label="Standard zoom-nivå for Sentrer-knappen"
                      class="w-full accent-sky-400"/>
-              <div class="text-[11px] text-ink/55 leading-snug mt-1.5">
+              <div class="text-[11px] text-ink-3 leading-snug mt-1.5">
                 Hva Sentrer-knappen zoomer til: 1× viser hele kartet; høyere nivå
                 sentrerer på GPS-posisjonen (eller kartsenteret) ved den skalaen.
               </div>
@@ -193,26 +193,26 @@ const title = computed(() => (
             <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-2">
               <div class="flex items-center justify-between gap-3 mb-1.5">
                 <div class="text-[13px] text-ink font-medium">Maks kartfliser</div>
-                <span class="text-ink/60 text-[12px] tabular-nums">{{ maxTiles }}</span>
+                <span class="text-ink-3 text-[12px] tabular-nums">{{ maxTiles }}</span>
               </div>
               <input type="range" min="0" :max="maxTileIndexMax" step="1"
                      v-model.number="maxTileIndex"
                      aria-label="Maks antall kartfliser i mosaikken"
                      class="w-full accent-sky-400"/>
-              <div class="text-[11px] text-ink/55 leading-snug mt-1.5">
+              <div class="text-[11px] text-ink-3 leading-snug mt-1.5">
                 Hvor mange kart-utsnitt som beholdes i mosaikken. Gjelder alle kart.
               </div>
             </div>
             <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-2">
               <div class="flex items-center justify-between gap-3 mb-1.5">
                 <div class="text-[13px] text-ink font-medium">Kartstørrelse</div>
-                <span class="text-ink/60 text-[12px] tabular-nums">{{ rebuildSizeKm }} km</span>
+                <span class="text-ink-3 text-[12px] tabular-nums">{{ rebuildSizeKm }} km</span>
               </div>
               <input type="range" :min="MAP_SIZE_MIN_KM" :max="MAP_SIZE_MAX_KM" step="1"
                      v-model.number="rebuildSizeKm"
                      aria-label="Kartstørrelse for ombygging av dette området"
                      class="w-full accent-sky-400"/>
-              <div class="text-[11px] text-ink/55 leading-snug mt-1.5">
+              <div class="text-[11px] text-ink-3 leading-snug mt-1.5">
                 Gjelder kun dette kartet: bygger området på nytt i valgt bredde
                 (nytt kart, samme senter).
               </div>
@@ -235,7 +235,7 @@ const title = computed(() => (
             </button>
             <button @click="emit('reset')"
                     class="flex-1 px-3 py-2 rounded-lg text-[12px] font-medium border transition
-                           active:scale-[0.98] bg-ink/5 border-ink/15 text-ink/80">
+                           active:scale-[0.98] bg-ink/5 border-ink/15 text-ink-2">
               Nullstill
             </button>
           </div>

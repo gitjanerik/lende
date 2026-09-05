@@ -18,17 +18,21 @@ describe('tegnBrukerPrikk', () => {
   it('tegner ring før prikk, så prikken ligger øverst', () => {
     tegnBrukerPrikk(layer, { x: 100, y: 200, accuracyM: 30, pxToUserUnits: px })
     const barn = [...layer.children]
-    expect(barn).toHaveLength(2)
+    expect(barn).toHaveLength(3)
     expect(barn[0].getAttribute('fill')).toBe('rgba(56, 189, 248, 0.10)')
-    expect(barn[1].getAttribute('fill')).toBe('#0ea5e9')
-    expect(barn[1].getAttribute('cx')).toBe('100')
-    expect(barn[1].getAttribute('cy')).toBe('200')
+    // Den mørke ytterkonturen ligger mellom nøyaktighetsringen og prikken, og
+    // utenfor prikkens hvite strek — den er kontrast mot lys kartbunn, ikke pynt.
+    expect(barn[1].getAttribute('stroke')).toBe('rgba(15, 23, 42, 0.55)')
+    expect(Number(barn[1].getAttribute('r'))).toBeGreaterThan(Number(barn[2].getAttribute('r')))
+    expect(barn[2].getAttribute('fill')).toBe('#0ea5e9')
+    expect(barn[2].getAttribute('cx')).toBe('100')
+    expect(barn[2].getAttribute('cy')).toBe('200')
   })
 
   it('tømmer laget først, så prikken ikke hoper seg opp', () => {
     tegnBrukerPrikk(layer, { x: 1, y: 1, accuracyM: 30, pxToUserUnits: px })
     tegnBrukerPrikk(layer, { x: 2, y: 2, accuracyM: 30, pxToUserUnits: px })
-    expect(layer.children).toHaveLength(2)
+    expect(layer.children).toHaveLength(3)
   })
 
   it('tømmer laget og tegner ingenting uten posisjon', () => {
@@ -65,7 +69,8 @@ describe('tegnBrukerPrikk', () => {
 
   it('skalerer strekbredder med samme omregner som radius', () => {
     tegnBrukerPrikk(layer, { x: 0, y: 0, accuracyM: 30, pxToUserUnits: px })
-    expect(Number(layer.children[1].getAttribute('stroke-width'))).toBe(px(1.6))
+    expect(Number(layer.children[2].getAttribute('stroke-width'))).toBe(px(1.6))
+    expect(Number(layer.children[1].getAttribute('stroke-width'))).toBe(px(1.6) * 0.6)
     expect(Number(layer.children[0].getAttribute('stroke-width'))).toBe(px(0.8))
   })
 

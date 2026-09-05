@@ -2655,6 +2655,99 @@ const SJEKKER = [
       return `liggende doc-overflyt ${liggende.doc} px (stående ${stående.doc}), skuffen brukbar`
     },
   },
+  {
+    // v6.5.48: kartflata var en ren peker-kontroll — drag for å panorere, hjul
+    // for å zoome — altså appens kjernefunksjon uten en eneste tastatur-inngang.
+    // Enhetstester ser ikke dette: regnestykket i onKartKeydown er trivielt,
+    // spørsmålet er om flata i det hele tatt KAN få fokus i en nettleser.
+    navn: 'kartflata panorerer og zoomer fra tastatur',
+    domene: 'MapView',
+    async kjør(page) {
+      const trans = () => page.evaluate(() =>
+        getComputedStyle(document.querySelector('[data-map-inner]')).transform)
+      const SEL = '[role="application"][aria-label^="Kartflate"]'
+      if (!(await page.locator(SEL).count())) throw new Error('fant ingen role="application" på kartflata')
+      await page.locator(SEL).focus()
+      const fikkFokus = await page.evaluate((sel) => document.activeElement?.matches(sel), SEL)
+      if (!fikkFokus) throw new Error('kartflata tok ikke fokus — mangler tabindex?')
+
+      // Zoom først: et nylastet ark fyller skjermen, og da klamper clampPan
+      // panoreringen bort. Zoomen lager rommet piltasten skal bevege seg i.
+      const start = await trans()
+      await page.keyboard.press('+')
+      await page.waitForTimeout(400)
+      const zoomet = await trans()
+      if (zoomet === start) throw new Error(`pluss zoomet ikke (${start})`)
+      await page.keyboard.press('ArrowLeft')
+      await page.waitForTimeout(400)
+      const panorert = await trans()
+      if (panorert === zoomet) throw new Error('ArrowLeft flyttet ikke kartet')
+
+      // NØYTRAL TILSTAND: samme vei tilbake, og slipp fokus.
+      await page.keyboard.press('ArrowRight')
+      await page.waitForTimeout(250)
+      await page.keyboard.press('-')
+      await page.waitForTimeout(400)
+      await page.evaluate(() => document.activeElement?.blur())
+      return 'pluss zoomer, piltast panorerer, minus tilbake'
+    },
+  },
+  {
+    // v6.5.48: skuffa hadde ingen vei ut fra tastatur (X eller et drag nedover),
+    // og fokus ble stående igjen ute på kartet når den åpnet. Begge halvdelene
+    // måles her — en fokusflytting er per definisjon usynlig i en enhetstest.
+    navn: 'innstillings-skuffa tar fokus og lukkes med Escape',
+    domene: 'MapView',
+    async kjør(page) {
+      await åpneDrawer(page)
+      await page.waitForTimeout(250)
+      const inne = await page.evaluate(() => {
+        const d = document.querySelector('[role="dialog"][aria-label="Innstillinger"]')
+        if (!d) return 'ingen role=dialog på skuffa'
+        if (d.getAttribute('aria-modal')) return 'skuffa satte aria-modal — kartet ved siden av er betjenbart'
+        return d.contains(document.activeElement) ? null : 'fokus havnet ikke i skuffa'
+      })
+      if (inne) { await lukkDrawer(page); throw new Error(inne) }
+      // En fokusflytting kan RULLE en `overflow-hidden` rot (det gjorde den, og
+      // lende-pilene forsvant ut av viewporten). Målt her fordi det er den ene
+      // bivirkningen fokus-koden har utenfor seg selv.
+      const rullet = await page.evaluate(() =>
+        [...document.querySelectorAll('.kart-ui')].some((e) => e.scrollTop || e.scrollLeft))
+      if (rullet) { await lukkDrawer(page); throw new Error('fokuseringen rullet kart-flata — mangler preventScroll?') }
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(450)
+      if (await erDrawerÅpen(page)) { await lukkDrawer(page); throw new Error('Escape lukket ikke skuffa') }
+      return 'fokus flyttes inn uten å rulle, Escape lukker, ingen aria-modal'
+    },
+  },
+  {
+    // v6.5.48: den globale :focus-visible-regelen er det ENE som gjør en
+    // tastatur-tur mulig å følge med øynene. Den bor i style.css og kan brytes
+    // av en hvilken som helst `outline-none`-klasse lenger ned i kaskaden —
+    // altså en feil ingen enhetstest kan se.
+    navn: 'fokusringen males på tastatur-fokus',
+    domene: 'style.css',
+    async kjør(page) {
+      await page.evaluate(() => document.activeElement?.blur?.())
+      await page.keyboard.press('Tab')
+      const ring = await page.evaluate(() => {
+        const el = document.activeElement
+        if (!el || el === document.body) return null
+        const s = getComputedStyle(el)
+        return {
+          hvem: (el.getAttribute('aria-label') || el.textContent || el.tagName).trim().slice(0, 40),
+          bredde: s.outlineWidth,
+          stil: s.outlineStyle,
+        }
+      })
+      if (!ring) throw new Error('Tab flyttet ikke fokus til noe fokuserbart')
+      if (ring.stil === 'none' || !(parseFloat(ring.bredde) >= 1)) {
+        throw new Error(`ingen fokusring på «${ring.hvem}» (${ring.stil} ${ring.bredde})`)
+      }
+      await page.evaluate(() => document.activeElement?.blur?.())
+      return `fokusring ${ring.stil} ${ring.bredde} på «${ring.hvem}»`
+    },
+  },
 ]
 
 // ---- små hjelpere ---------------------------------------------------------

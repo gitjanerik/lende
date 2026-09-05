@@ -56,7 +56,7 @@ defineProps({
            :class="avstandNaadd ? 'text-amber-200 font-semibold' : ''">
         {{ avstandTekst }}
       </div>
-      <div class="text-[9px] leading-tight font-normal text-ink/55">
+      <div class="text-[9px] leading-tight font-normal text-ink-3">
         © OpenStreetMap-bidragsytere
       </div>
     </div>

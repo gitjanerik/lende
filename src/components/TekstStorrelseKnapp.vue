@@ -33,8 +33,8 @@ const prosent = computed(() => Math.round((uiTextScale.value || 1) * 100))
 // Nattvarianten er nakent ikon i 28 px, lik de andre knappene i 3D-kortet;
 // lysvarianten er en pille i 32 px, lik lukkeknappen i arkene.
 const temaKlasse = computed(() => props.tema === 'natt'
-  ? 'h-7 px-1 text-white/55'
-  : 'h-8 px-1.5 rounded-full bg-ink/5 border border-ink/10 text-ink/70')
+  ? 'h-7 px-1 text-white/75'
+  : 'h-8 px-1.5 rounded-full bg-ink/5 border border-ink/10 text-ink-2')
 </script>
 
 <template>

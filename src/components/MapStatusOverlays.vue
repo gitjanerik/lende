@@ -78,22 +78,22 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
     <!-- Tekst + spinner er tema-bevisste: hvitt på kremgult lyst skjelett ble
          nesten usynlig. Mørk på lyst tema, lys på mørkt. -->
     <div class="absolute inset-0 flex flex-col items-center justify-center"
-         :class="isDark ? 'text-ink/70' : 'text-zinc-800/80'">
+         :class="isDark ? 'text-ink-2' : 'text-zinc-800/80'">
       <div class="w-8 h-8 border-2 rounded-full animate-spin mb-3"
            :class="isDark ? 'border-ink/25 border-t-ink/85' : 'border-zinc-900/20 border-t-zinc-900/80'"/>
       <div class="text-sm">Laster kart …</div>
     </div>
   </div>
-  <div v-else-if="loading && loadPillVisible"
+  <div v-else-if="loading && loadPillVisible" role="status" aria-live="polite"
        class="absolute top-3 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-full
-              bg-overlay/85 text-ink/90 text-[12px] flex items-center gap-2 shadow-lg pointer-events-none">
+              bg-overlay/85 text-ink text-[12px] flex items-center gap-2 shadow-lg pointer-events-none">
     <span class="w-3.5 h-3.5 rounded-full border-2 border-ink/30 border-t-ink/85 animate-spin shrink-0"/>
     <span>Laster kart …</span>
   </div>
 
-  <div v-else-if="loadError"
+  <div v-else-if="loadError" role="alert"
        class="absolute inset-0 flex flex-col items-center justify-center z-10 px-6 text-center"
-       :class="isDark ? 'text-ink/80' : 'text-zinc-700'">
+       :class="isDark ? 'text-ink-2' : 'text-zinc-700'">
     <div class="text-lg font-semibold mb-2">Kunne ikke laste kartet</div>
     <div class="text-sm opacity-80 mb-4 max-w-[22rem] leading-snug">{{ loadErrorTekst }}</div>
     <button @click="$emit('retryLoad')"
@@ -109,7 +109,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
        kartet viser et utvalg. Ren info (ingen handling) — auto-skjules. Egen
        v-if utenfor feil-kjedene: kan sameksistere, men er sjelden samtidig. -->
   <Transition name="fredet-toast">
-    <div v-if="fredetTruncated && !fredetTruncDismissed && !loading"
+    <div v-if="fredetTruncated && !fredetTruncDismissed && !loading" role="status" aria-live="polite"
          class="absolute bottom-32 left-3 right-20 z-20 max-w-[420px]
                 rounded-lg backdrop-blur bg-surface/95 border border-amber-400/30
                 text-ink text-[12px] shadow-2xl flex items-start gap-2 pl-3 pr-1 py-2.5">
@@ -124,7 +124,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
       </span>
       <button @click="fredetTruncDismissed = true" aria-label="Lukk"
               class="w-6 h-6 -mt-0.5 flex items-center justify-center rounded-md
-                     text-ink/80 active:scale-90 active:bg-ink/10 shrink-0">
+                     text-ink-2 active:scale-90 active:bg-ink/10 shrink-0">
         <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
              stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
           <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -138,9 +138,9 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
        — nettleseren kan ikke skru på GPS selv, men et nytt forsøk trigger enten
        tillatelses-dialogen på nytt eller fanger opp at brukeren nå har slått på
        stedstjenester. -->
-  <div v-if="!loading && positionError && !positionErrorDismissed"
+  <div v-if="!loading && positionError && !positionErrorDismissed" role="alert"
        class="absolute bottom-32 left-1/2 -translate-x-1/2 z-20 max-w-[90%] pl-3 pr-1 py-2
-              rounded-lg backdrop-blur bg-amber-600/95 border border-slate-300/40
+              rounded-lg backdrop-blur on-accent bg-amber-800/95 border border-slate-300/40
               text-ink text-[12px] shadow-lg
               transition-[left] duration-200"
        :style="mapCenterStyle">
@@ -148,7 +148,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
       <span class="flex-1 min-w-0 leading-snug pt-0.5">{{ positionError }}</span>
       <button @click="positionErrorDismissed = true" aria-label="Lukk"
               class="w-6 h-6 -mt-0.5 flex items-center justify-center rounded-md
-                     text-ink/90 active:scale-90 active:bg-ink/10 shrink-0">
+                     text-ink active:scale-90 active:bg-ink/10 shrink-0">
         <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
              stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
           <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -161,16 +161,16 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
       Prøv igjen
     </button>
   </div>
-  <div v-else-if="!loading && showOutsideMap"
+  <div v-else-if="!loading && showOutsideMap" role="status" aria-live="polite"
        class="absolute bottom-32 left-1/2 -translate-x-1/2 z-20 max-w-[90%]
-              rounded-lg backdrop-blur bg-amber-600/95 border border-slate-300/40
+              rounded-lg backdrop-blur on-accent bg-amber-800/95 border border-slate-300/40
               text-ink text-[12px] shadow-lg flex items-center gap-1.5 pl-3 pr-1 py-2
               transition-[left] duration-200"
        :style="mapCenterStyle">
     <span>Du er utenfor dette kartet.</span>
     <button @click="$emit('dismissOutside')" aria-label="Greit, skjønner"
             class="w-6 h-6 -my-0.5 flex items-center justify-center rounded-md
-                   text-ink/90 active:scale-90 active:bg-ink/10 shrink-0">
+                   text-ink active:scale-90 active:bg-ink/10 shrink-0">
       <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
            stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
         <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -180,9 +180,9 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
 
   <!-- Detalj-feil-banner: bakgrunns-byggingen (stier/veier fra Overpass) feilet,
        så kartet viser bare terreng. Lesbart, med «Prøv på nytt»-knapp. -->
-  <div v-if="detailsFailed && !loading"
+  <div v-if="detailsFailed && !loading" role="status" aria-live="polite"
        class="absolute bottom-32 left-3 right-20 z-20 max-w-[420px]
-              rounded-lg backdrop-blur bg-amber-600/95 border border-amber-300/40
+              rounded-lg backdrop-blur on-accent bg-amber-800/95 border border-amber-300/40
               text-ink text-[12px] shadow-lg p-3">
     <div class="flex items-start gap-2">
       <div class="flex-1 min-w-0 leading-snug">
@@ -190,7 +190,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
       </div>
       <button @click="$emit('dismissDetails')" aria-label="Lukk"
               class="w-6 h-6 -mt-0.5 -mr-1 flex items-center justify-center rounded-md
-                     text-ink/90 active:scale-90 active:bg-ink/10 shrink-0">
+                     text-ink active:scale-90 active:bg-ink/10 shrink-0">
         <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
              stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
           <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -207,18 +207,18 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
   <!-- Ufullstendig kart (B): stored.partial = bygging avbrutt (reload/lukking)
        før OSM-detaljene ble fylt inn. Ikke-destruktivt — «Fullfør» bygger flisa
        om og erstatter den. Krever nett (knapp gråes ut offline). -->
-  <div v-else-if="mapIsPartial && !partialDismissed && !loading"
+  <div v-else-if="mapIsPartial && !partialDismissed && !loading" role="status" aria-live="polite"
        class="absolute bottom-32 left-3 right-20 z-20 max-w-[420px]
-              rounded-lg backdrop-blur bg-amber-600/95 border border-amber-300/40
+              rounded-lg backdrop-blur on-accent bg-amber-800/95 border border-amber-300/40
               text-ink text-[12px] shadow-lg p-3">
     <div class="flex items-start gap-2">
       <div class="flex-1 min-w-0 leading-snug">
         Dette kartet ble ikke ferdig bygd og viser bare terreng.
-        <span v-if="isOffline" class="block mt-0.5 text-ink/80">Koble til nett for å fullføre det.</span>
+        <span v-if="isOffline" class="block mt-0.5 text-ink-2">Koble til nett for å fullføre det.</span>
       </div>
       <button @click="partialDismissed = true" aria-label="Lukk"
               class="w-6 h-6 -mt-0.5 -mr-1 flex items-center justify-center rounded-md
-                     text-ink/90 active:scale-90 active:bg-ink/10 shrink-0">
+                     text-ink active:scale-90 active:bg-ink/10 shrink-0">
         <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
              stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
           <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -236,18 +236,18 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
   <!-- Mosaikk-hull (C): en avbrutt bygging etterlot manglende fliser inni det
        rektangulære bruttokartet. «Fyll hull» bygger KUN de manglende cellene,
        rører aldri eksisterende fliser. Krever nett. -->
-  <div v-else-if="mosaicGapCount > 0 && !gapsDismissed && !loading"
+  <div v-else-if="mosaicGapCount > 0 && !gapsDismissed && !loading" role="status" aria-live="polite"
        class="absolute bottom-32 left-3 right-20 z-20 max-w-[420px]
-              rounded-lg backdrop-blur bg-amber-600/95 border border-amber-300/40
+              rounded-lg backdrop-blur on-accent bg-amber-800/95 border border-amber-300/40
               text-ink text-[12px] shadow-lg p-3">
     <div class="flex items-start gap-2">
       <div class="flex-1 min-w-0 leading-snug">
         Kartet har {{ mosaicGapCount === 1 ? 'et hull' : `${mosaicGapCount} hull` }} etter en avbrutt utvidelse.
-        <span v-if="isOffline" class="block mt-0.5 text-ink/80">Koble til nett for å fylle {{ mosaicGapCount === 1 ? 'det' : 'dem' }}.</span>
+        <span v-if="isOffline" class="block mt-0.5 text-ink-2">Koble til nett for å fylle {{ mosaicGapCount === 1 ? 'det' : 'dem' }}.</span>
       </div>
       <button @click="gapsDismissed = true" aria-label="Lukk"
               class="w-6 h-6 -mt-0.5 -mr-1 flex items-center justify-center rounded-md
-                     text-ink/90 active:scale-90 active:bg-ink/10 shrink-0">
+                     text-ink active:scale-90 active:bg-ink/10 shrink-0">
         <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
              stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
           <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -268,7 +268,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
        så hjørnene står tomme og du kan panorere ut i krem inne i ditt eget ark.
        Dette er et TILBUD med kostnaden skrevet på, aldri noe som skjer av seg
        selv — se findRectangleGaps for hvorfor det skillet er hele forskjellen. -->
-  <div v-else-if="firkantAntall > 0 && !firkantDismissed && !loading"
+  <div v-else-if="firkantAntall > 0 && !firkantDismissed && !loading" role="status" aria-live="polite"
        class="absolute bottom-32 left-3 right-20 z-20 max-w-[420px]
               rounded-lg backdrop-blur bg-overlay/95 border border-ink/15
               text-ink text-[12px] shadow-lg p-3">
@@ -276,11 +276,11 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
       <div class="flex-1 min-w-0 leading-snug">
         Arket har ujevn kant. Fyller du ut til firkant, dekker 3D og
         oversikts-zoom hele området.
-        <span v-if="isOffline" class="block mt-0.5 text-ink/70">Koble til nett for å bygge.</span>
+        <span v-if="isOffline" class="block mt-0.5 text-ink-2">Koble til nett for å bygge.</span>
       </div>
       <button @click="firkantDismissed = true" aria-label="Lukk"
               class="w-6 h-6 -mt-0.5 -mr-1 flex items-center justify-center rounded-md
-                     text-ink/70 active:scale-90 active:bg-ink/10 shrink-0">
+                     text-ink-2 active:scale-90 active:bg-ink/10 shrink-0">
         <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
              stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
           <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -301,22 +301,22 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
        på en maskin uten ekte GPS (de fleste laptoper triangulerer på wifi og
        treffer sjelden bedre enn ±100 m, så den sto der hele tiden). Samme
        right-20 + max-w som de andre bannerne i denne filen: klar av knottene. -->
-  <div v-else-if="!loading && showLowAccuracy"
+  <div v-else-if="!loading && showLowAccuracy" role="status" aria-live="polite"
        class="absolute bottom-32 left-3 right-20 z-20 max-w-[420px] px-3 py-2.5
-              rounded-lg backdrop-blur bg-amber-600/95 border border-amber-300/40
+              rounded-lg backdrop-blur on-accent bg-amber-800/95 border border-amber-300/40
               text-ink text-[12px] shadow-lg flex items-start gap-2">
     <div class="flex-1 min-w-0 leading-snug">
       <div class="font-semibold mb-0.5">
         Unøyaktig posisjon (&plusmn;{{ Math.round(accuracyM) }} m)
       </div>
-      <div class="text-ink/90">
+      <div class="text-ink">
         Sjekk at appen har «Presis posisjon» (Android: Innstillinger →
         Apper → din nettleser → Tillatelser → Posisjon).
       </div>
     </div>
     <button @click="$emit('dismissLowAccuracy')" aria-label="Skjul advarsel"
             class="w-6 h-6 -mt-0.5 -mr-1 flex items-center justify-center rounded-md
-                   text-ink/85 active:scale-90 hover:bg-ink/10 shrink-0">
+                   text-ink active:scale-90 hover:bg-ink/10 shrink-0">
       <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
            stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
         <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>

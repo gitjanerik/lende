@@ -32,6 +32,22 @@
   --color-overlay: #09090b;    /* dype overlays, søk (var zinc-950) */
   --color-modal: #09090b;      /* modalvinduer (AppModal) — mørkt: som overlay */
   --color-ink: #ffffff;        /* tekst/kant/flate-base (var white) */
+
+  /* Semantiske teksttokens (v6.5.48). `text-ink/55` o.l. var HIERARKI skrevet
+     som opasitet, og opasitet er ikke tema-nøytral: hvit på #0e1116 gir 6,1:1
+     ved 55 %, mens #1c1917 på papirtonen gir 3,8:1 — samme klasse, bestått i
+     mørkt og strøket i lyst. Tokenene er FASTE farger per tema, målt mot alle
+     fire flatene i uiKontrast.test.js, så et nivå ikke kan legges til uten at
+     gulvet holdes. `text-ink` er nivå 1; -2/-3/-4 er avtagende. */
+  --color-ink-2: #d4d4d8;
+  --color-ink-3: #a1a1aa;
+  --color-ink-4: #90909a;
+
+  /* Fokusringen og «sterk» kant er egne tokens fordi de skal være SYNLIGE og
+     ikke følge tekstens nedtoning — en kant man skal kunne sikte på er ikke
+     samme sak som en tekst man skal kunne lese. */
+  --color-focus-ring: #ffffff;
+  --color-border-strong: #a1a1aa;
 }
 :root {
   /* Pil-fargen på kanthåndtakene (MapEdgeHandles) — grønn i betydningen
@@ -60,7 +76,14 @@
      på-hvitt. Vi remapper KUN 100/200-skyggene til mørke aksenttoner i lyst
      tema, så all «text-<aksent>-100/200» blir lesbar mørk aksenttekst uten å
      røre hvert element. 500-tonede bakgrunner (bg-*-500/15) beholdes — de
-     leses som lys tone på papir. */
+     leses som lys tone på papir.
+
+     300/400 kom med i v6.5.48. De manglet, og det var ikke en detalj: 40
+     tekststeder skrevet som `text-amber-300/80` o.l. sto igjen som lys aksent
+     på lys papirbunn — målt 1,29:1 i Utvikler-fanen, altså usynlig. De
+     remappes til SAMME mørke tone som 50/100 og ikke til en mellomtone, fordi
+     nesten alle bærer en opasitet (`/60`–`/90`) som spiser kontrasten videre;
+     en 600-tone ville vært lesbar bare uten opasitet. */
   --color-sky-50: #075985;       --color-sky-100: #075985;      --color-sky-200: #0369a1;
   --color-emerald-50: #065f46;   --color-emerald-100: #065f46;  --color-emerald-200: #047857;
   --color-amber-50: #92400e;     --color-amber-100: #92400e;    --color-amber-200: #b45309;
@@ -69,6 +92,25 @@
   --color-lime-50: #3f6212;      --color-lime-100: #3f6212;     --color-lime-200: #4d7c0f;
   --color-pink-50: #9d174d;      --color-pink-100: #9d174d;     --color-pink-200: #be185d;
   --color-slate-100: #1e293b;    --color-slate-200: #334155;
+
+  --color-sky-300: #075985;      --color-sky-400: #075985;
+  --color-emerald-300: #065f46;  --color-emerald-400: #065f46;
+  --color-amber-300: #92400e;    --color-amber-400: #92400e;
+  --color-rose-300: #9f1239;     --color-rose-400: #9f1239;
+  --color-red-300: #991b1b;      --color-red-400: #991b1b;
+  --color-lime-300: #3f6212;     --color-lime-400: #3f6212;
+  --color-pink-300: #9d174d;     --color-pink-400: #9d174d;
+  --color-slate-300: #1e293b;    --color-slate-400: #334155;
+
+  /* Teksthierarkiet i lyst tema. Alle fire ligger over 4,5:1 mot papirtonen,
+     mot surface, mot hvit og mot modal-tonen — det er hele grunnen til at de
+     er faste toner og ikke opasiteter. */
+  --color-ink-2: #44403c;
+  --color-ink-3: #57534e;
+  --color-ink-4: #6b645d;
+
+  --color-focus-ring: #1c1917;
+  --color-border-strong: #57534e;
 }
 
 html { background: var(--color-app); }
@@ -88,6 +130,22 @@ html { background: var(--color-app); }
   --color-rose-50: #fff1f2;    --color-rose-100: #ffe4e6;    --color-rose-200: #fecdd3;
   --color-lime-50: #f7fee7;    --color-lime-100: #ecfccb;    --color-lime-200: #d9f99d;
   --color-pink-50: #fdf2f8;    --color-pink-100: #fce7f3;    --color-pink-200: #fbcfe8;
+  --color-emerald-300: #6ee7b7; --color-emerald-400: #34d399;
+  --color-sky-300: #7dd3fc;     --color-sky-400: #38bdf8;
+  --color-amber-300: #fcd34d;   --color-amber-400: #fbbf24;
+  --color-rose-300: #fda4af;    --color-rose-400: #fb7185;
+  --color-lime-300: #bef264;    --color-lime-400: #a3e635;
+  --color-pink-300: #f9a8d4;    --color-pink-400: #f472b6;
+  --color-slate-100: #f1f5f9;   --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;   --color-slate-400: #94a3b8;
+  /* Teksthierarkiet må snus tilbake her av samme grunn som --color-ink:
+     bakgrunnen er farget i BEGGE tema, så en mørk «ink-3» ville lagt
+     stone-600 på emerald-600. */
+  --color-ink-2: #d4d4d8;
+  --color-ink-3: #a1a1aa;
+  --color-ink-4: #90909a;
+  --color-focus-ring: #ffffff;
+  --color-border-strong: #a1a1aa;
 }
 
 /* iOS-statuslinje-høyde (notch/Dynamic Island) i frittstående app-modus.
@@ -144,6 +202,22 @@ html { background: var(--color-app); }
    utenfor eksplisitt. */
 #app { hyphens: auto; }
 .isom-map { hyphens: manual; }
+
+/* UU: ETT synlig fokusmerke for hele appen (v6.5.48, WCAG 2.4.7/2.4.11).
+   Fram til nå fantes fokusomriss fire steder i hele kodebasen, og ni felter
+   slo det AKTIVT av med `focus:outline-none` uten å sette noe i stedet — en
+   tastaturbruker mistet markøren i det hun forlot det siste av dem. De ni er
+   fjernet; denne regelen er gulvet under resten.
+
+   `:where()` gjør spesifisiteten NULL med vilje: komponenter som har sitt eget
+   ring (emerald-omrisset i kartlista, `focus:ring-*` i tema- og
+   tegnforklaringsfanen) skal fortsatt vinne. Fargen er `--color-ink`, altså
+   hvit på mørk flate og blekk på lys — samme mekanikk som plassholder-regelen
+   under. */
+:where(a, button, summary, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
 
 /* UU: plassholdere skal klippes med ellipse, og bli tydelige ved fokus (v6.5.32).
    To feller det er MÅLT på:

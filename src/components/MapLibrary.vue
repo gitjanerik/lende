@@ -5,7 +5,7 @@
 // denne komponenten i stedet for å duplisere 500 linjer liste-logikk.
 //
 // Verten eier ramme, padding, scroll og tekst-skalering; her ligger innholdet.
-import { ref, computed, watch, onMounted, onActivated, onUnmounted, onDeactivated } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onActivated, onUnmounted, onDeactivated } from 'vue'
 import { useRouter } from 'vue-router'
 import { listMaps, loadMap, deleteMap, clearAll, renameMap, listGravelRoutes, deleteGravelRoute, updateGravelRoute } from '../lib/mapStorage.js'
 import { importerKartPakke } from '../lib/kartImport.js'
@@ -484,12 +484,19 @@ const showResults = computed(() =>
 // nå OGSÅ herfra, så et trykk på den og et valg i trefflista gjør nøyaktig det
 // samme — det er hele skillet mot «Flere valg», der et sted bare VELGES og
 // brukeren gjør resten av innstillingene selv.
+// Byggingen tar 5–30 sekunder mot Overpass og Kartverket, og overlegget som
+// dekker skjerma imens hadde ingen vei ut. Avbryteren er den samme
+// AbortController-en Ruteplanleggeren og Fritt lende bruker — `buildMapFromCenter`
+// videresender signalet helt ned i hver enkelt henting.
+let byggAvbryter = null
+
 async function byggKartFra(sted) {
   if (buildingOnTheFly.value) return
   query.value = ''
   results.value = []
   buildingOnTheFly.value = true
   buildingProgress.value = 'Henter kartdata …'
+  byggAvbryter = new AbortController()
   try {
     const stamp = new Date().toLocaleDateString('no-NO', { day: '2-digit', month: 'short' })
     const { id } = await buildMapFromCenter({
@@ -498,15 +505,27 @@ async function byggKartFra(sted) {
       equidistanceM: squareEquidistance(), // auto: fineste tillatte for bredden (5/10/20 m)
       navn: `${sted.navn} ${stamp}`,
       terrainFirst: true,   // vis terreng straks, fyll inn OSM i bakgrunnen
+      signal: byggAvbryter.signal,
       onProgress: (msg) => { buildingProgress.value = msg },
     })
+    byggAvbryter = null
     gaaTil({ name: 'kart-vis', params: { id } })
   } catch (e) {
-    console.error('Søk-kart-bygging feilet:', e)
+    const avbrutt = e?.name === 'AbortError'
+    byggAvbryter = null
     buildingOnTheFly.value = false
     buildingProgress.value = ''
+    if (avbrutt) return
+    console.error('Søk-kart-bygging feilet:', e)
     alert('Kunne ikke opprette kart: ' + (e.message ?? 'ukjent feil'))
   }
+}
+
+function avbrytBygging() {
+  byggAvbryter?.abort()
+  byggAvbryter = null
+  buildingOnTheFly.value = false
+  buildingProgress.value = ''
 }
 
 function onSelectSearchResult(r) {
@@ -573,6 +592,22 @@ function onWindowKeydown(e) {
   onMapsKeydown(e)
 }
 
+// Piltaster bytter fane, som i APG-ens tab-mønster. Home/End tas med fordi de
+// er billige og forventet i en fane-rad med bare to elementer også.
+function onTabKeydown(e) {
+  const rekke = ['kart', 'rute']
+  const i = rekke.indexOf(activeTab.value)
+  let neste = null
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') neste = rekke[(i + 1) % rekke.length]
+  else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') neste = rekke[(i - 1 + rekke.length) % rekke.length]
+  else if (e.key === 'Home') neste = rekke[0]
+  else if (e.key === 'End') neste = rekke[rekke.length - 1]
+  if (!neste) return
+  e.preventDefault()
+  activeTab.value = neste
+  nextTick(() => document.getElementById(`hjem-fane-${neste}`)?.focus())
+}
+
 // Duplikat-add er ufarlig (samme funksjonsreferanse er no-op), så mounted +
 // activated kan begge legge til — viewet lever i keep-alive.
 onMounted(() => window.addEventListener('keydown', onWindowKeydown))
@@ -599,26 +634,37 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
 
        Hjem-siden BEHOLDER den: der er `?tab=` en ekte rute-kontrakt med egne
        redirects og røyk-sjekker, og siden er per definisjon fellessiden. -->
-  <div v-if="showTabs" class="flex gap-1 p-1 rounded-xl bg-ink/5 border border-ink/10 mb-4">
-    <button @click="activeTab = 'kart'"
+  <!-- Ekte tablist (v6.5.48): to knapper som SER ut som faner ble annonsert som
+       to uavhengige knapper, uten at noe sa hvilken halvdel man sto i. Roving
+       tabindex + piltaster er APG-mønsteret — TAB hopper til innholdet, pilene
+       bytter fane. -->
+  <div v-if="showTabs" role="tablist" aria-label="Mine kart og ruter"
+       @keydown="onTabKeydown"
+       class="flex gap-1 p-1 rounded-xl bg-ink/5 border border-ink/10 mb-4">
+    <button id="hjem-fane-kart" role="tab" :aria-selected="activeTab === 'kart'"
+            aria-controls="hjem-panel-kart" :tabindex="activeTab === 'kart' ? 0 : -1"
+            @click="activeTab = 'kart'"
             class="flex-1 py-2 rounded-lg text-[13px] font-medium transition"
-            :class="activeTab === 'kart' ? 'bg-[#ffd84a] text-zinc-900' : 'text-ink/60 active:text-ink/90'">
+            :class="activeTab === 'kart' ? 'bg-[#ffd84a] text-zinc-900' : 'text-ink-3 active:text-ink'">
       Turkart{{ maps.length ? ` (${maps.length})` : '' }}
     </button>
-    <button @click="activeTab = 'rute'"
+    <button id="hjem-fane-rute" role="tab" :aria-selected="activeTab === 'rute'"
+            aria-controls="hjem-panel-rute" :tabindex="activeTab === 'rute' ? 0 : -1"
+            @click="activeTab = 'rute'"
             class="flex-1 py-2 rounded-lg text-[13px] font-medium transition"
-            :class="activeTab === 'rute' ? 'bg-[#ffd84a] text-zinc-900' : 'text-ink/60 active:text-ink/90'">
+            :class="activeTab === 'rute' ? 'bg-[#ffd84a] text-zinc-900' : 'text-ink-3 active:text-ink'">
       Ruteplanlegger{{ savedRoutes.length ? ` (${savedRoutes.length})` : '' }}
     </button>
   </div>
 
-  <template v-if="activeTab === 'kart'">
+  <div id="hjem-panel-kart" role="tabpanel" aria-labelledby="hjem-fane-kart"
+       v-if="activeTab === 'kart'">
   <!-- Lag-nytt-flyten (søk/GPS/Flere valg) ligger alltid øverst — søk er
        hovedflyten. Kartlista følger rett under, uten egen «Mine kart»-label. -->
   <div class="flex items-center justify-between mb-2 mt-3">
-    <div class="text-ink/45 text-[11px] uppercase tracking-wide">Lag nytt kart</div>
+    <div class="text-ink-4 text-[11px] uppercase tracking-wide">Lag nytt kart</div>
     <button @click="emit('open-picker')"
-            class="text-[11px] font-medium text-ink/55 active:text-ink/85
+            class="text-[11px] font-medium text-ink-3 active:text-ink
                    flex items-center gap-1 transition">
       <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -641,7 +687,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
        rett over. Da trenger knappen ingen hjelpetekst. -->
   <div class="relative z-20 mb-1.5">
     <div class="relative">
-      <svg viewBox="0 0 24 24" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/50"
+      <svg viewBox="0 0 24 24" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-4"
            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.65" y2="16.65"/>
       </svg>
@@ -651,8 +697,9 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
              aria-controls="maphome-results"
              :aria-activedescendant="searchActiveIndex >= 0 ? `maphome-opt-${searchActiveIndex}` : undefined"
              placeholder="Søk etter sted, postnummer eller adresse"
+             aria-label="Søk etter sted, postnummer eller adresse"
              :class="['w-full pl-11 py-3.5 rounded-xl bg-ink/[0.06] border border-ink/20 text-[15px]',
-                      'placeholder-ink/35 focus:outline-none focus:bg-ink/[0.1]',
+                      'placeholder-ink/35 focus:bg-ink/[0.1]',
                       'focus:border-emerald-300/40 focus:ring-2 focus:ring-emerald-400/15 transition',
                       searchRightPad]" />
       <!-- Søke-spinner (til venstre for kontroll-knappene) -->
@@ -665,7 +712,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
                 :aria-label="micListening ? 'Stopp diktering' : 'Diktér søk (tale til tekst)'"
                 :aria-pressed="micListening"
                 :class="['w-9 h-9 rounded-lg flex items-center justify-center transition active:scale-95',
-                         micListening ? 'bg-red-500/90 text-ink animate-pulse' : 'bg-ink/10 text-ink/70']">
+                         micListening ? 'bg-red-500/90 text-ink animate-pulse' : 'bg-ink/10 text-ink-2']">
           <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
@@ -676,7 +723,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
                 @click="onGpsBygg"
                 :disabled="buildingOnTheFly || gpsLeter"
                 aria-label="Lag turkart der jeg står (GPS)"
-                class="w-9 h-9 rounded-lg bg-emerald-500 text-white flex items-center justify-center
+                class="w-9 h-9 rounded-lg bg-emerald-700 text-white flex items-center justify-center
                        shadow-md active:scale-95 transition disabled:opacity-60">
           <svg v-if="gpsLeter" viewBox="0 0 24 24" class="w-5 h-5 animate-spin" fill="none"
                stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -692,12 +739,20 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
     </div>
 
     <!-- Søkeresultater -->
+      <!-- Treff-telling som live-region (v6.5.48). Lista er en listbox, og en
+           listbox annonserer bare det som er MARKERT — så en skjermleser-bruker
+           som skrev og ventet fikk ingen beskjed om at det kom fem treff, eller
+           ingen. Teksten er sr-only; tallet står ikke i UI-et fra før. -->
+    <div class="sr-only" role="status" aria-live="polite">
+      <template v-if="isSearching">Søker …</template>
+      <template v-else-if="showResults">{{ results.length }} treff</template>
+    </div>
     <Transition name="fade">
       <div v-if="showResults" id="maphome-results" role="listbox"
            class="absolute left-0 right-0 mt-1 rounded-xl bg-surface/98 backdrop-blur
                   border border-ink/10 shadow-2xl max-h-[50dvh] overflow-y-auto z-30">
         <div v-if="results.length === 0 && !isSearching"
-             class="px-4 py-3 text-[13px] text-ink/50">Ingen treff</div>
+             class="px-4 py-3 text-[13px] text-ink-4">Ingen treff</div>
         <button v-for="(r, index) in results" :key="r.id"
                 :id="`maphome-opt-${index}`" role="option"
                 :aria-selected="index === searchActiveIndex"
@@ -707,7 +762,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
                        border-ink/8 last:border-0"
                 :class="index === searchActiveIndex ? 'bg-ink/12' : 'active:bg-ink/10'">
           <div class="text-[13px] font-medium text-ink truncate">{{ r.shortName }}</div>
-          <div class="text-[11px] text-ink/50 truncate">{{ r.name }}</div>
+          <div class="text-[11px] text-ink-4 truncate">{{ r.name }}</div>
         </button>
       </div>
     </Transition>
@@ -730,7 +785,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
        lista på. Virker uten nett — fila inneholder alt. -->
   <button type="button" @click="onVelgImportFil" :disabled="importerer"
           class="w-full mb-3 px-3 py-3 rounded-lg border border-ink/10 bg-ink/[0.04]
-                 text-ink/70 text-[14px] active:scale-[0.99] disabled:opacity-60
+                 text-ink-2 text-[14px] active:scale-[0.99] disabled:opacity-60
                  flex items-center justify-center gap-2 transition">
     <span v-if="importerer"
           class="w-4 h-4 rounded-full border-2 border-ink/20 border-t-ink/70 animate-spin shrink-0"></span>
@@ -804,10 +859,10 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
       </div>
       <div class="flex-1 min-w-0">
         <div class="font-medium text-[14px] truncate text-ink">{{ m.navn }}</div>
-        <div class="text-[12px] text-ink/60 truncate">
+        <div class="text-[12px] text-ink-3 truncate">
           {{ [storrelseFor(m), m.equidistanceM ? `${m.equidistanceM} m ekv.` : '', demLabel(m.demResolutionM, m.demSource)].filter(Boolean).join(' · ') }}
         </div>
-        <div class="text-[11px] text-ink/50 truncate">
+        <div class="text-[11px] text-ink-4 truncate">
           {{ formatDateTime(m.opprettet) }}<template v-if="formatBytes(m.sizeBytes)"> · {{ formatBytes(m.sizeBytes) }}</template>
         </div>
       </div>
@@ -819,7 +874,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
       <button type="button" @click="onLastNed(m)" :disabled="!!lasterNed"
               :aria-label="`Last ned ${m.navn} som fil`"
               :aria-busy="lasterNed === m.id ? 'true' : undefined"
-              class="w-9 h-9 rounded-lg flex items-center justify-center text-ink/55
+              class="w-9 h-9 rounded-lg flex items-center justify-center text-ink-3
                      active:bg-ink/10 active:text-ink disabled:opacity-40
                      focus-visible:outline-2 focus-visible:outline-offset-1
                      focus-visible:outline-emerald-400">
@@ -834,7 +889,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
       </button>
       <button type="button" @click="onRename(m.id, m.navn)"
               :aria-label="`Gi ${m.navn} nytt navn`"
-              class="w-9 h-9 rounded-lg flex items-center justify-center text-ink/55
+              class="w-9 h-9 rounded-lg flex items-center justify-center text-ink-3
                      active:bg-ink/10 active:text-ink
                      focus-visible:outline-2 focus-visible:outline-offset-1
                      focus-visible:outline-emerald-400">
@@ -846,7 +901,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
       </button>
       <button type="button" @click="onDelete(m.id, m.navn)"
               :aria-label="`Slett ${m.navn}`"
-              class="w-9 h-9 rounded-lg flex items-center justify-center text-ink/55
+              class="w-9 h-9 rounded-lg flex items-center justify-center text-ink-3
                      active:bg-ink/10 active:text-ink
                      focus-visible:outline-2 focus-visible:outline-offset-1
                      focus-visible:outline-emerald-400">
@@ -869,7 +924,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
       <path d="M3 6 L9 4 L15 6 L21 4 L21 18 L15 20 L9 18 L3 20 Z"/>
       <path d="M9 4 V18 M15 6 V20"/>
     </svg>
-    <div class="mt-4 text-[15px] font-semibold text-ink/80">Ingen egne kart ennå</div>
+    <div class="mt-4 text-[15px] font-semibold text-ink-2">Ingen egne kart ennå</div>
     <!-- v6.5.28: den store grønne CTA-en «Lag kart der du står» er fjernet.
          Den gjorde nøyaktig det samme som pin-knappen i søkefeltet rett over,
          og to grønne knapper med samme handling på samme skjerm er ikke et
@@ -880,7 +935,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
          en linje som peker på kontroller man allerede ser er en linje man leser
          forbi. Teksten står IGJEN der geolokasjon MANGLER: der er pin-knappen
          borte, og «Søk opp et sted» er da det eneste som finnes å gjøre. -->
-    <div v-if="!supportsGeolocation" class="mt-1.5 text-[13px] text-ink/45 leading-relaxed max-w-[18rem]">
+    <div v-if="!supportsGeolocation" class="mt-1.5 text-[13px] text-ink-4 leading-relaxed max-w-[18rem]">
       Søk opp et sted øverst for å lage ditt første turkart.
     </div>
 
@@ -924,18 +979,18 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
                    focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink/40">
       <!-- Samme kompass-glyf som Fritt lende-raden i hovedmenyen (am-row-icon),
            så de to inngangene til modusen leses som samme sted. -->
-      <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0 text-ink/55" fill="none" stroke="currentColor"
+      <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0 text-ink-3" fill="none" stroke="currentColor"
            stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="8.5"/>
         <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M14.5 9.5l-2 5-5 2 2-5 5-2Z"/>
       </svg>
       <span class="flex-1 min-w-0">
         <span class="block text-[14px] font-semibold text-ink">Ett kart, ingen innstillinger</span>
-        <span class="block mt-0.5 text-[12px] leading-snug text-ink/70">
+        <span class="block mt-0.5 text-[12px] leading-snug text-ink-2">
           Fritt lende — ett ark der du står, én knapp. Krever nett.
         </span>
       </span>
-      <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0 text-ink/55" fill="none" stroke="currentColor"
+      <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0 text-ink-3" fill="none" stroke="currentColor"
            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="m9 6 6 6-6 6"/>
       </svg>
@@ -963,28 +1018,28 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
       </svg>
       <span>Slett alle kart</span>
     </span>
-    <span class="block mt-0.5 text-[11px] font-normal text-ink/50 tabular-nums">
+    <span class="block mt-0.5 text-[11px] font-normal text-ink-4 tabular-nums">
       {{ maps.length }} kart<template v-if="formatBytes(totalBytes)"> · {{ formatBytes(totalBytes) }}</template>
     </span>
   </button>
 
   <!-- Tegnforklaring-knappen er fjernet fra forsiden (v9.3.38) — den finnes
        fortsatt som hurtigvalg inne i kart-visningen (MapView-drawer). -->
-  </template>
+  </div>
 
   <!-- Ruteplanlegger-fanen: Mine ruter øverst, «+ Ny rute» som diskret
        handling. Hele forvaltnings-flyten (stjerner/sortering/deling) bor
        HER — portert fra planleggerens gamle «Mine ruter»-ark. -->
-  <template v-else>
+  <div id="hjem-panel-rute" role="tabpanel" aria-labelledby="hjem-fane-rute" v-else>
     <div class="mb-2 flex items-center justify-between gap-2">
-      <span class="text-ink/45 text-[11px] uppercase tracking-wide">Mine ruter
+      <span class="text-ink-4 text-[11px] uppercase tracking-wide">Mine ruter
         <span v-if="starFilter && savedRoutes.length"
               class="normal-case tracking-normal">· {{ visibleSavedRoutes.length }} av {{ savedRoutes.length }}</span>
       </span>
       <button v-if="!loading && savedRoutes.length > 0"
               @click="gaaTil('/rute')"
               class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[12px] font-medium
-                     bg-emerald-500 text-white
+                     bg-emerald-700 text-white
                      transition active:scale-95">
         <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
              stroke-width="2.4" stroke-linecap="round">
@@ -1008,9 +1063,9 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
           </button>
           <button @click="cancelShareSelect"
                   class="px-3 py-2 rounded-lg text-[12px] font-medium border bg-ink/5
-                         border-ink/15 text-ink/60 active:scale-95 transition">Avbryt</button>
+                         border-ink/15 text-ink-3 active:scale-95 transition">Avbryt</button>
         </div>
-        <div class="text-[10px] text-ink/45">
+        <div class="text-[10px] text-ink-4">
           Trykk på rutene du vil dele (inntil {{ MAX_SHARE_ROUTES }}) — mottakeren får alle i én lenke.
         </div>
       </template>
@@ -1018,12 +1073,12 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
         <label class="sr-only" for="hjem-rute-sortering">Sorter etter</label>
         <select id="hjem-rute-sortering" v-model="savedSort.key"
                 class="flex-1 min-w-0 px-2 py-1.5 rounded-lg text-[11px] bg-surface-2 border
-                       border-ink/15 text-ink/80 focus:outline-none">
+                       border-ink/15 text-ink-2">
           <option v-for="f in SORT_FIELDS" :key="f.key" :value="f.key">{{ f.label }}</option>
         </select>
         <button @click="savedSort.dir = savedSort.dir === 'desc' ? 'asc' : 'desc'"
                 :aria-label="savedSort.dir === 'desc' ? 'Synkende — bytt til stigende' : 'Stigende — bytt til synkende'"
-                class="shrink-0 w-8 h-8 rounded-lg border bg-ink/5 border-ink/15 text-ink/70
+                class="shrink-0 w-8 h-8 rounded-lg border bg-ink/5 border-ink/15 text-ink-2
                        flex items-center justify-center active:scale-95 transition">
           <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1038,8 +1093,8 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
         <label class="sr-only" for="hjem-rute-stjernefilter">Stjernefilter</label>
         <select id="hjem-rute-stjernefilter" v-model.number="starFilter"
                 class="shrink-0 w-[5.5rem] px-2 py-1.5 rounded-lg text-[11px] bg-surface-2 border
-                       border-ink/15 focus:outline-none"
-                :class="starFilter ? 'text-amber-300 border-amber-400/40' : 'text-ink/80'">
+                       border-ink/15"
+                :class="starFilter ? 'text-amber-300 border-amber-400/40' : 'text-ink-2'">
           <option :value="-1">Ingen</option>
           <option :value="0">★ Alle</option>
           <option :value="5">★ 5</option>
@@ -1057,7 +1112,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
     </div>
 
     <div v-if="savedRoutes.length && !visibleSavedRoutes.length"
-         class="text-[13px] text-ink/50 text-center py-6">
+         class="text-[13px] text-ink-4 text-center py-6">
       <template v-if="starFilter === -1">Alle rutene er vurdert — ingen uten stjerner.</template>
       <template v-else>Ingen ruter med {{ starFilter }} {{ starFilter === 1 ? 'stjerne' : 'stjerner' }} ennå.</template>
     </div>
@@ -1072,7 +1127,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
          @click="shareSelectMode && toggleShareSelect(rec.id)">
       <div class="flex items-center gap-3 px-4 pt-3"
            :class="shareSelectMode ? 'pb-3' : ''">
-        <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0 text-ink/40" fill="none"
+        <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0 text-ink-4" fill="none"
              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/>
           <path d="M9 19h6a3 3 0 0 0 3-3V8"/><path d="M6 16V8a3 3 0 0 1 3-3h6"/>
@@ -1080,7 +1135,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
         <button class="flex-1 min-w-0 text-left active:opacity-70 transition"
                 @click="shareSelectMode || openRoute(rec.id)">
           <div class="font-medium text-[14px] truncate text-ink">{{ rec.navn }}</div>
-          <div class="text-[12px] text-ink/50 truncate">{{ formatRouteInfo(rec) }}</div>
+          <div class="text-[12px] text-ink-4 truncate">{{ formatRouteInfo(rec) }}</div>
         </button>
         <!-- Velg-modus: sjekkboks-visual i stedet for del/slett -->
         <div v-if="shareSelectMode"
@@ -1092,7 +1147,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
         </div>
         <template v-else>
           <button @click.stop="onShareRoute(rec)" aria-label="Del rute"
-                  class="w-8 h-8 rounded-full flex items-center justify-center text-ink/40
+                  class="w-8 h-8 rounded-full flex items-center justify-center text-ink-4
                          active:text-sky-300 active:bg-sky-500/10 transition shrink-0">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1102,7 +1157,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
             </svg>
           </button>
           <button @click.stop="onDeleteRoute(rec.id, rec.navn)" aria-label="Slett rute"
-                  class="w-8 h-8 rounded-full flex items-center justify-center text-ink/40
+                  class="w-8 h-8 rounded-full flex items-center justify-center text-ink-4
                          active:text-rose-200 active:bg-rose-500/10 transition shrink-0">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1119,7 +1174,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
                 :aria-label="`Gi ${s} ${s === 1 ? 'stjerne' : 'stjerner'}`"
                 :aria-pressed="(rec.stjerner ?? 0) >= s"
                 class="w-7 h-7 flex items-center justify-center active:scale-90 transition"
-                :class="(rec.stjerner ?? 0) >= s ? 'text-amber-400' : 'text-ink/25'">
+                :class="(rec.stjerner ?? 0) >= s ? 'text-amber-400' : 'text-ink-4'">
           <svg viewBox="0 0 24 24" class="w-4 h-4"
                :fill="(rec.stjerner ?? 0) >= s ? 'currentColor' : 'none'"
                stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
@@ -1145,17 +1200,17 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
 
     <div v-if="!loading && savedRoutes.length === 0"
          class="mt-10 flex flex-col items-center text-center">
-      <svg viewBox="0 0 24 24" class="w-14 h-14 text-ink/20" fill="none"
+      <svg viewBox="0 0 24 24" class="w-14 h-14 text-ink-4" fill="none"
            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/>
         <path d="M9 19h6a3 3 0 0 0 3-3V8"/><path d="M6 16V8a3 3 0 0 1 3-3h6"/>
       </svg>
-      <div class="mt-4 text-[15px] font-semibold text-ink/80">Ingen lagrede ruter ennå</div>
-      <div class="mt-1.5 text-[13px] text-ink/45 leading-relaxed max-w-[18rem]">
+      <div class="mt-4 text-[15px] font-semibold text-ink-2">Ingen lagrede ruter ennå</div>
+      <div class="mt-1.5 text-[13px] text-ink-4 leading-relaxed max-w-[18rem]">
         Planlegg en rute fra A til B i ruteplanleggeren og lagre den — så finner du den igjen her.
       </div>
       <button @click="gaaTil('/rute')"
-              class="mt-5 w-full py-3.5 rounded-xl bg-emerald-500 text-white font-semibold
+              class="mt-5 w-full py-3.5 rounded-xl bg-emerald-700 text-white font-semibold
                      flex items-center justify-center gap-2 shadow-md
                      active:scale-[0.99] transition">
         <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
@@ -1166,7 +1221,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
         <span>Åpne ruteplanleggeren</span>
       </button>
     </div>
-  </template>
+  </div>
 
   <!-- «Installer som app»: nederst, diskret — skal ikke konkurrere med
        listene. Vises når nettleseren tilbyr PWA-install (canInstall) eller
@@ -1174,7 +1229,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
   <button v-if="showInstallButton"
           @click="onInstallClick"
           class="w-full mt-6 py-3 rounded-xl bg-ink/[0.06] border border-ink/20
-                 text-ink/85 text-[14px] font-medium flex items-center justify-center gap-2
+                 text-ink text-[14px] font-medium flex items-center justify-center gap-2
                  active:bg-ink/[0.1] active:scale-[0.99] transition">
     <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
          stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1195,10 +1250,22 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
       </svg>
     </div>
     <div class="text-[16px] font-semibold mb-1">Oppretter kart</div>
-    <div class="text-[12px] text-ink/65 px-6 text-center max-w-[280px]
-                min-h-[18px] leading-snug">
+    <div class="text-[12px] text-ink-2 px-6 text-center max-w-[280px]
+                min-h-[18px] leading-snug" role="status" aria-live="polite">
       {{ buildingProgress }}
     </div>
+    <!-- Ærlig ventetid: kartdataene hentes fra Overpass og Kartverket, og på
+         dårlig dekning er det de sekundene det tar. Uten tallet leses et
+         overlegg som står i ti sekunder som en app som har hengt seg. -->
+    <div class="text-[11px] text-ink-3 mt-1.5 px-6 text-center">
+      Tar vanligvis 5–30 sekunder.
+    </div>
+    <button type="button" @click="avbrytBygging"
+            class="mt-6 px-5 py-2.5 rounded-xl text-[13px] font-medium border
+                   bg-ink/5 border-ink/15 text-ink-2
+                   active:bg-ink/10 active:scale-[0.98] transition">
+      Avbryt
+    </button>
   </div>
 </Transition>
 

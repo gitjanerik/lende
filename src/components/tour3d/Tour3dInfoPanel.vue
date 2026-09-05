@@ -89,7 +89,7 @@ const gester = computed(() => {
             class="flex items-center gap-1.5 rounded-full backdrop-blur text-white/85
                    text-[0.6875rem] font-medium shadow-lg pl-2.5 pr-2 py-1.5
                    active:scale-[0.97] transition-colors"
-            :class="expanded ? 'bg-black/75' : 'bg-black/45'">
+            :class="expanded ? 'bg-black/75' : 'bg-black/72'">
       <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/>
@@ -112,7 +112,7 @@ const gester = computed(() => {
                 touch-pan-y rounded-md bg-black/75 backdrop-blur text-white/90
                 text-[0.6875rem] shadow-lg px-3 py-2"
          :style="{ maxWidth: props.maksBredde, maxHeight: props.maksHoyde }">
-      <div class="text-[0.5625rem] uppercase tracking-wide text-white/50">Slik beveger du deg</div>
+      <div class="text-[0.5625rem] uppercase tracking-wide text-white/72">Slik beveger du deg</div>
       <ul class="mt-1 flex flex-col gap-0.5">
         <li v-for="[hva, gjor] in gester" :key="hva" class="leading-snug">
           <span class="font-semibold">{{ hva }}</span>
@@ -121,7 +121,7 @@ const gester = computed(() => {
       </ul>
 
       <template v-if="knapper.length">
-        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/50">Knappene</div>
+        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/72">Knappene</div>
         <ul class="mt-1 flex flex-col gap-0.5">
           <li v-for="k in knapper" :key="k.navn" class="leading-snug">
             <span class="font-semibold">{{ k.navn }}</span>
@@ -131,7 +131,7 @@ const gester = computed(() => {
       </template>
 
       <template v-if="tips.length">
-        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/50">Tips</div>
+        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/72">Tips</div>
         <ul class="mt-1 flex flex-col gap-0.5">
           <li v-for="t in tips" :key="t" class="leading-snug text-white/70">{{ t }}</li>
         </ul>

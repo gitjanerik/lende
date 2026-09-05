@@ -59,7 +59,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   <AppModal :open="chatOpen" title="Lende-chat" @close="closeChat">
     <template #header>
       <button v-if="messages.length" type="button" @click="nySamtale"
-              class="px-3 h-9 rounded-full bg-ink/10 text-ink/80 text-[12px] font-medium
+              class="px-3 h-9 rounded-full bg-ink/10 text-ink-2 text-[12px] font-medium
                      active:scale-95 transition shrink-0">
         Ny samtale
       </button>
@@ -67,8 +67,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
     <div class="flex flex-col h-full min-h-[50dvh]">
       <div ref="listRef" class="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-        <div v-if="!messages.length" class="text-ink/60 text-[14px] leading-relaxed">
-          <p class="font-medium text-ink/80 mb-1.5">Hei! 👋</p>
+        <div v-if="!messages.length" class="text-ink-3 text-[14px] leading-relaxed">
+          <p class="font-medium text-ink-2 mb-1.5">Hei! 👋</p>
           <p>
             Spør meg om stedet og kartet du ser på, terrenget eller turmuligheter —
             jeg vet hvilket kart du har åpent. Jeg kan også bygge nye kart, tegne
@@ -81,9 +81,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           <div class="max-w-[85%] rounded-2xl px-3.5 py-2 text-[14px] leading-relaxed whitespace-pre-wrap"
                :class="m.role === 'user'
                  ? 'bg-ink/10 text-ink rounded-br-md'
-                 : 'bg-ink/5 text-ink/90 rounded-bl-md'">
+                 : 'bg-ink/5 text-ink rounded-bl-md'">
             <template v-if="busy && i === messages.length - 1 && m.role === 'assistant' && !m.content">
-              <span class="italic text-ink/50 animate-pulse">{{ busyLabel || 'Tenker …' }}</span>
+              <span class="italic text-ink-4 animate-pulse">{{ busyLabel || 'Tenker …' }}</span>
             </template>
             <template v-else>{{ m.content }}<span v-if="busy && i === messages.length - 1 && m.role === 'assistant'"
                                  class="chat-cursor" aria-hidden="true" /></template>
@@ -102,7 +102,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
                   placeholder="Spør om kartet, stedet eller turen …"
                   @keydown.enter.exact.prevent="onSend"
                   class="flex-1 resize-none rounded-xl bg-ink/5 border border-ink/10 px-3 py-2
-                         text-[14px] text-ink placeholder:text-ink/40 focus:outline-none
+                         text-[14px] text-ink placeholder:text-ink-4
                          focus:border-ink/30 [field-sizing:content]
                          min-h-[3.75rem] max-h-[6.5rem] overflow-y-auto" />
         <button v-if="micSupported && !busy" type="button" @click="toggleMic"
@@ -110,7 +110,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
                 :aria-pressed="micListening"
                 :class="['w-10 h-10 rounded-full flex items-center justify-center transition',
                          'active:scale-95 shrink-0',
-                         micListening ? 'bg-red-500/90 text-white animate-pulse' : 'bg-ink/10 text-ink/70']">
+                         micListening ? 'bg-red-500/90 text-white animate-pulse' : 'bg-ink/10 text-ink-2']">
           <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
@@ -118,7 +118,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           </svg>
         </button>
         <button v-if="busy" type="button" @click="stopp" aria-label="Stopp svaret"
-                class="w-10 h-10 rounded-full bg-ink/10 text-ink/80 flex items-center justify-center
+                class="w-10 h-10 rounded-full bg-ink/10 text-ink-2 flex items-center justify-center
                        active:scale-95 transition shrink-0">
           <svg viewBox="0 0 24 24" class="w-4 h-4" fill="currentColor">
             <rect x="6" y="6" width="12" height="12" rx="2"/>

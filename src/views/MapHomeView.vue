@@ -36,7 +36,7 @@ function goFrittLende() {
 </script>
 
 <template>
-  <div class="kart-ui relative w-full min-h-[100dvh] bg-app text-ink/90">
+  <div class="kart-ui relative w-full min-h-[100dvh] bg-app text-ink">
 
     <!-- Toppbar: full bredde som en chrome-stripe, men innholdet sentreres i
          samme 700 px-spalte som panelet under, så hamburgeren og tittelen flukter
@@ -53,7 +53,7 @@ function goFrittLende() {
                 bg-surface/80 backdrop-blur border-b border-ink/10">
       <div class="relative mx-auto w-full max-w-[700px] px-3 py-2.5 flex items-center gap-2">
         <AppMenuButton variant="header" />
-        <div class="flex-1 text-[15px] font-semibold text-ink">Så i lende</div>
+        <h1 class="flex-1 text-[15px] font-semibold text-ink">Så i lende</h1>
       </div>
     </div>
 
@@ -62,9 +62,9 @@ function goFrittLende() {
          kartnavnet i venstre kant og knappene nesten en halvmeter unna (v2.4.17).
          Siden scroller selv (ingen indre overflow-container), så mobil-nettleserens
          adressefelt oppfører seg normalt. Global tekststørrelse skalerer flaten. -->
-    <div class="mx-auto w-full max-w-[700px] px-4 pt-4 pb-32" :style="{ zoom: uiTextScale }">
+    <main class="mx-auto w-full max-w-[700px] px-4 pt-4 pb-32" :style="{ zoom: uiTextScale }">
       <MapLibrary v-model:tab="activeTab" @open-picker="apnePicker"
                   @fritt-lende="goFrittLende" />
-    </div>
+    </main>
   </div>
 </template>

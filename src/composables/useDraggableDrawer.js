@@ -197,6 +197,25 @@ export function useDraggableDrawer({
     snapTo(max && maxPx.value > 0 ? minTranslate.value : 0)
   }
 
+  // Tastatur-veien til det draget gjør. Uten den er høyden på skuffa en ren
+  // peker-egenskap: pil opp/ned flytter ett hakk i snap-rekka, som er det
+  // draget gjør når det slipper. `retning` er -1 for større (opp) og +1 for
+  // mindre (ned) — translateY vokser nedover.
+  function stegSnap(retning) {
+    const pts = snapPoints.value
+    if (pts.length < 2) return false
+    // Nærmeste punkt er utgangspunktet: mellomlandinger fra et avbrutt drag
+    // skal ikke gjøre første tastetrykk til et hopp brukeren ikke ba om.
+    let i = 0
+    for (let k = 1; k < pts.length; k++) {
+      if (Math.abs(pts[k] - translateY.value) < Math.abs(pts[i] - translateY.value)) i = k
+    }
+    const neste = i + (retning < 0 ? -1 : 1)
+    if (neste < 0 || neste >= pts.length) return false
+    snapTo(pts[neste])
+    return true
+  }
+
   // When the drawer is unmounted (panel closed) reset to expanded so the
   // next mount starts in a known state.
   function reset() {
@@ -225,6 +244,8 @@ export function useDraggableDrawer({
     onPointerUp,
     setMinimized,
     setMaximized,
+    stegSnap,
+    snapPoints,
     reset,
   }
 }

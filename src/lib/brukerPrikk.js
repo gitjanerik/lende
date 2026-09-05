@@ -40,6 +40,19 @@ export function tegnBrukerPrikk(layer, { x, y, accuracyM, pxToUserUnits }) {
   ring.setAttribute('stroke-width', ringStroke)
   layer.appendChild(ring)
 
+  // Mørk ytterkontur rundt den hvite ringen (v6.5.48). Den hvite ringen alene
+  // måler 1,05:1 mot ISOM-kartets kremgule bunn — altså ingen kontur i det hele
+  // tatt der prikken oftest står. Konturen ligger UTENFOR den hvite, så prikken
+  // beholder sin lyse ring mot mørk skog og får en mørk mot lys mark.
+  const kontur = doc.createElementNS(NS, 'circle')
+  kontur.setAttribute('cx', x)
+  kontur.setAttribute('cy', y)
+  kontur.setAttribute('r', dotR + dotStroke)
+  kontur.setAttribute('fill', 'none')
+  kontur.setAttribute('stroke', 'rgba(15, 23, 42, 0.55)')
+  kontur.setAttribute('stroke-width', dotStroke * 0.6)
+  layer.appendChild(kontur)
+
   const dot = doc.createElementNS(NS, 'circle')
   dot.setAttribute('cx', x)
   dot.setAttribute('cy', y)

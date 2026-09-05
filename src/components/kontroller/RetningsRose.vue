@@ -172,11 +172,11 @@ function settHoyde(e) {
   margin: 0;
 }
 .flate { fill: color-mix(in srgb, currentColor 8%, transparent); stroke: currentColor; stroke-opacity: 0.3; stroke-width: 1.5; }
-.horisont { fill: none; stroke: currentColor; stroke-opacity: 0.28; stroke-width: 1; stroke-dasharray: 3 3; }
-.tick { stroke: currentColor; stroke-opacity: 0.45; stroke-width: 2; stroke-linecap: round; }
+.horisont { fill: none; stroke: currentColor; stroke-opacity: 0.45; stroke-width: 1; stroke-dasharray: 3 3; }
+.tick { stroke: currentColor; stroke-opacity: 0.7; stroke-width: 2; stroke-linecap: round; }
 .tick.nord { stroke: #ef4444; stroke-opacity: 0.95; }
 .bokstav {
-  fill: currentColor; fill-opacity: 0.55; font-size: 15px; font-weight: 700;
+  fill: currentColor; fill-opacity: 0.92; font-size: 15px; font-weight: 700;
   text-anchor: middle; dominant-baseline: middle;
   font-family: ui-sans-serif, system-ui, sans-serif;
 }

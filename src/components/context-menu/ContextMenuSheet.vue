@@ -127,7 +127,7 @@ function formatDistance(m) {
              uansett, så større er bare bedre. Lukkeknappen står utenfor og
              beholder sine 32 px. -->
         <div class="min-w-0" :style="{ zoom: uiTextScale }">
-          <div class="text-[10px] uppercase tracking-wide text-ink/45">Punkt</div>
+          <div class="text-[10px] uppercase tracking-wide text-ink-4">Punkt</div>
           <div class="flex items-center gap-2">
             <div class="text-ink text-[13px] font-mono tabular-nums">
               {{ contextMenuInfo.lat.toFixed(5) }}, {{ contextMenuInfo.lon.toFixed(5) }}
@@ -143,7 +143,7 @@ function formatDistance(m) {
                             ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-200'
                             : contextActionState === 'failed'
                               ? 'bg-rose-500/20 border-rose-400/50 text-rose-200'
-                              : 'bg-ink/5 border-ink/10 text-ink/60'">
+                              : 'bg-ink/5 border-ink/10 text-ink-3'">
               <svg v-if="contextActionState !== 'copied'" viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="9" y="9" width="11" height="11" rx="2"/>
@@ -160,16 +160,16 @@ function formatDistance(m) {
                høy. De hører hjemme her — du slår dem opp, du følger dem ikke
                mens du går. -->
           <div v-if="printScaleLabel || equidistanceLabel"
-               class="text-[10px] text-ink/50 tabular-nums mt-0.5 truncate">
+               class="text-[10px] text-ink-4 tabular-nums mt-0.5 truncate">
             <span v-if="printScaleLabel">{{ printScaleLabel }}</span>
-            <span v-if="printScaleLabel && equidistanceLabel" class="text-ink/30"> · </span>
+            <span v-if="printScaleLabel && equidistanceLabel" class="text-ink-4"> · </span>
             <span v-if="equidistanceLabel">{{ equidistanceLabel }}</span>
           </div>
           <!-- Kilde-fakta (v2.4.26): ISOM-variant og DEM-kilde sto i den svarte
                attribusjons-boksen nede til høyre i kartet. Ingen av dem sier noe
                om terrenget du står i — de hører hjemme her, ved oppslaget. -->
           <div v-if="mapSourceLabel"
-               class="text-[10px] text-ink/40 tabular-nums truncate">
+               class="text-[10px] text-ink-4 tabular-nums truncate">
             {{ mapSourceLabel }}
           </div>
           <div v-if="depthEstimateWarning"
@@ -187,7 +187,7 @@ function formatDistance(m) {
           <button @click="closeContextMenu"
                   aria-label="Lukk"
                   class="w-8 h-8 -mr-1 -mt-0.5 rounded-full flex items-center justify-center
-                         bg-ink/5 border border-ink/10 text-ink/70 active:scale-90">
+                         bg-ink/5 border border-ink/10 text-ink-2 active:scale-90">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
               <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -265,10 +265,10 @@ function formatDistance(m) {
         <!-- Etikettene skalerer, selve insetet gjør det ikke: det er et kart,
              ikke tekst, og har sin egen `aspect`-boks. -->
         <div class="flex items-baseline justify-between mb-1" :style="{ zoom: uiTextScale }">
-          <span class="text-[10px] uppercase tracking-wide text-ink/45">
+          <span class="text-[10px] uppercase tracking-wide text-ink-4">
             Detaljer · {{ DETAIL_INSET_M }} × {{ DETAIL_INSET_M }} m
           </span>
-          <span class="text-[10px] text-ink/30">dra · knip for zoom</span>
+          <span class="text-[10px] text-ink-4">dra · knip for zoom</span>
         </div>
         <div :ref="setInsetEl"
              class="w-[90%] aspect-[16/9] max-w-[380px] mx-auto rounded-lg overflow-hidden
@@ -282,107 +282,107 @@ function formatDistance(m) {
         <!-- Innsjø med ekte data fra NVE Innsjødatabase (+ HydAPI sanntid). -->
         <template v-if="lakeQuery?.status === 'done'">
           <div class="flex items-baseline gap-2 text-[12px]">
-            <span class="text-ink/45 w-20 shrink-0">Vannflate</span>
+            <span class="text-ink-4 w-20 shrink-0">Vannflate</span>
             <span class="text-ink font-medium tabular-nums">
-              {{ Math.round(lakeQuery.lake.hoyde) }} moh<template v-if="lakeQuery.lake.navn"><span class="text-ink/55 font-normal"> · {{ lakeQuery.lake.navn }}</span></template>
+              {{ Math.round(lakeQuery.lake.hoyde) }} moh<template v-if="lakeQuery.lake.navn"><span class="text-ink-3 font-normal"> · {{ lakeQuery.lake.navn }}</span></template>
             </span>
           </div>
           <!-- Dyp (bathymetri) — kun for oppmålte innsjøer. -->
           <div v-if="lakeQuery.lake.maxDybde != null"
                class="flex items-baseline gap-2 text-[12px]">
-            <span class="text-ink/45 w-20 shrink-0">Dyp</span>
+            <span class="text-ink-4 w-20 shrink-0">Dyp</span>
             <span class="text-ink tabular-nums">
-              maks {{ Math.round(lakeQuery.lake.maxDybde) }} m<template v-if="lakeQuery.lake.midDybde != null"><span class="text-ink/55"> · snitt {{ Math.round(lakeQuery.lake.midDybde) }} m</span></template>
+              maks {{ Math.round(lakeQuery.lake.maxDybde) }} m<template v-if="lakeQuery.lake.midDybde != null"><span class="text-ink-3"> · snitt {{ Math.round(lakeQuery.lake.midDybde) }} m</span></template>
             </span>
           </div>
           <!-- Areal / volum når NVE har det. -->
           <div v-if="lakeQuery.lake.arealKm2 != null || lakeQuery.lake.volumMillM3 != null"
                class="flex items-baseline gap-2 text-[12px]">
-            <span class="text-ink/45 w-20 shrink-0">Areal</span>
-            <span class="text-ink/80 tabular-nums">
-              <template v-if="lakeQuery.lake.arealKm2 != null">{{ formatAreaKm2(lakeQuery.lake.arealKm2) }} km²</template><template v-if="lakeQuery.lake.volumMillM3 != null"><span class="text-ink/55"><template v-if="lakeQuery.lake.arealKm2 != null"> · </template>{{ formatVolum(lakeQuery.lake.volumMillM3) }}</span></template>
+            <span class="text-ink-4 w-20 shrink-0">Areal</span>
+            <span class="text-ink-2 tabular-nums">
+              <template v-if="lakeQuery.lake.arealKm2 != null">{{ formatAreaKm2(lakeQuery.lake.arealKm2) }} km²</template><template v-if="lakeQuery.lake.volumMillM3 != null"><span class="text-ink-3"><template v-if="lakeQuery.lake.arealKm2 != null"> · </template>{{ formatVolum(lakeQuery.lake.volumMillM3) }}</span></template>
             </span>
           </div>
           <!-- Regulert vannkraftmagasin. -->
           <div v-if="lakeQuery.lake.magasin"
                class="flex items-baseline gap-2 text-[12px]">
-            <span class="text-ink/45 w-20 shrink-0">Magasin</span>
-            <span class="text-ink/80">
-              Regulert<template v-if="lakeQuery.lake.magasin.navn"><span class="text-ink/55"> · {{ lakeQuery.lake.magasin.navn }}</span></template>
+            <span class="text-ink-4 w-20 shrink-0">Magasin</span>
+            <span class="text-ink-2">
+              Regulert<template v-if="lakeQuery.lake.magasin.navn"><span class="text-ink-3"> · {{ lakeQuery.lake.magasin.navn }}</span></template>
             </span>
           </div>
           <!-- Sanntid fra HydAPI (vannstand / temperatur) når tilgjengelig. -->
           <div v-if="lakeQuery.live?.waterLevel"
                class="flex items-baseline gap-2 text-[12px]">
-            <span class="text-ink/45 w-20 shrink-0">Vannstand</span>
-            <span class="text-ink/80 tabular-nums">
-              {{ lakeQuery.live.waterLevel.value.toFixed(2) }} moh<span class="text-ink/45"> · {{ lakeQuery.live.stationName }}</span>
+            <span class="text-ink-4 w-20 shrink-0">Vannstand</span>
+            <span class="text-ink-2 tabular-nums">
+              {{ lakeQuery.live.waterLevel.value.toFixed(2) }} moh<span class="text-ink-4"> · {{ lakeQuery.live.stationName }}</span>
             </span>
           </div>
           <div v-if="lakeQuery.live?.waterTemp"
                class="flex items-baseline gap-2 text-[12px]">
-            <span class="text-ink/45 w-20 shrink-0">Vanntemp</span>
-            <span class="text-ink/80 tabular-nums">{{ lakeQuery.live.waterTemp.value.toFixed(1) }} °C</span>
+            <span class="text-ink-4 w-20 shrink-0">Vanntemp</span>
+            <span class="text-ink-2 tabular-nums">{{ lakeQuery.live.waterTemp.value.toFixed(1) }} °C</span>
           </div>
         </template>
         <!-- Vann, men NVE ennå ikke svart. -->
         <div v-else-if="contextMenuInfo.isWater && lakeQuery?.status === 'loading'"
              class="flex items-baseline gap-2 text-[12px]">
-          <span class="text-ink/45 w-20 shrink-0">Vannflate</span>
-          <span class="text-ink/50">henter innsjøhøyde …</span>
+          <span class="text-ink-4 w-20 shrink-0">Vannflate</span>
+          <span class="text-ink-4">henter innsjøhøyde …</span>
         </div>
         <!-- Vann, men NVE har ingen registrert innsjøhøyde her (eller var
              utilgjengelig) — ærlig svar, aldri en falsk 0. -->
         <div v-else-if="contextMenuInfo.isWater"
              class="flex items-baseline gap-2 text-[12px]">
-          <span class="text-ink/45 w-20 shrink-0">Høyde</span>
-          <span class="text-ink/70">
+          <span class="text-ink-4 w-20 shrink-0">Høyde</span>
+          <span class="text-ink-2">
             Vannflate-høyde ikke tilgjengelig
           </span>
         </div>
         <!-- Land: DEM-høyde. -->
         <div v-else-if="contextMenuInfo.elevationM != null"
              class="flex items-baseline gap-2 text-[12px]">
-          <span class="text-ink/45 w-20 shrink-0">Høyde</span>
+          <span class="text-ink-4 w-20 shrink-0">Høyde</span>
           <span class="text-ink font-medium tabular-nums">
             {{ Math.round(contextMenuInfo.elevationM) }} moh
           </span>
         </div>
         <div v-if="contextMenuInfo.place"
              class="flex items-baseline gap-2 text-[12px]">
-          <span class="text-ink/45 w-20 shrink-0">{{ contextMenuInfo.place.onFeature ? 'Sted' : 'Nærmest' }}</span>
+          <span class="text-ink-4 w-20 shrink-0">{{ contextMenuInfo.place.onFeature ? 'Sted' : 'Nærmest' }}</span>
           <span class="text-ink truncate">
             {{ contextMenuInfo.place.name }}
-            <span v-if="!contextMenuInfo.place.onFeature" class="text-ink/55 tabular-nums">
+            <span v-if="!contextMenuInfo.place.onFeature" class="text-ink-3 tabular-nums">
               · {{ formatDistanceM(contextMenuInfo.place.distM) }}
             </span>
           </span>
         </div>
         <div v-if="contextMenuInfo.fromUser"
              class="flex items-baseline gap-2 text-[12px]">
-          <span class="text-ink/45 w-20 shrink-0">Fra deg</span>
+          <span class="text-ink-4 w-20 shrink-0">Fra deg</span>
           <span class="text-ink">
             {{ contextMenuInfo.fromUser.compass }}
-            <span class="text-ink/55 tabular-nums">
+            <span class="text-ink-3 tabular-nums">
               · {{ formatDistanceM(contextMenuInfo.fromUser.distM) }}
             </span>
           </span>
         </div>
         <div v-if="mapDataLabel" class="flex items-baseline gap-2 text-[12px]">
-          <span class="text-ink/45 w-20 shrink-0">Kartdata</span>
-          <span class="text-ink/85 tabular-nums">{{ mapDataLabel }}</span>
+          <span class="text-ink-4 w-20 shrink-0">Kartdata</span>
+          <span class="text-ink tabular-nums">{{ mapDataLabel }}</span>
         </div>
         <!-- Vær fra MET Norway. Nedbøren skriver PERIODEN med («0,4 mm/1 t» vs
              «/6 t») fordi MET slutter å levere 1-times-oppløsning etter et
              døgn-to, og «4,8 mm» uten periode leser som mm/time. -->
         <div v-if="vaerQuery?.status === 'done'" class="flex items-baseline gap-2 text-[12px]">
-          <span class="text-ink/45 w-20 shrink-0">Vær</span>
+          <span class="text-ink-4 w-20 shrink-0">Vær</span>
           <span class="text-ink flex items-baseline gap-1.5 min-w-0">
             <VaerIkon :symbol="vaerQuery.naa.symbol" :size="18" class="self-center -my-0.5"/>
             <span v-if="vaerQuery.naa.temperaturC != null" class="font-medium tabular-nums">
               {{ Math.round(vaerQuery.naa.temperaturC) }} °C
             </span>
-            <span v-if="vaerQuery.naa.nedborMm" class="text-ink/55 tabular-nums">
+            <span v-if="vaerQuery.naa.nedborMm" class="text-ink-3 tabular-nums">
               · {{ vaerQuery.naa.nedborMm.toFixed(1).replace('.', ',') }} mm/{{ vaerQuery.naa.nedborTimer }} t
             </span>
           </span>
@@ -396,29 +396,29 @@ function formatDistance(m) {
              i farten; grader beholdes i title for den som vil ha tallet. -->
         <div v-if="vaerQuery?.status === 'done' && vaerQuery.naa.vindMs != null"
              class="flex items-baseline gap-2 text-[12px]">
-          <span class="text-ink/45 w-20 shrink-0">Vind</span>
+          <span class="text-ink-4 w-20 shrink-0">Vind</span>
           <span class="text-ink font-medium tabular-nums">
             {{ vaerQuery.naa.vindMs.toFixed(1).replace('.', ',') }} m/s<template
               v-if="vindFra(vaerQuery.naa.vindRetningGrader)"><span
-                class="text-ink/55 font-normal"
+                class="text-ink-3 font-normal"
                 :title="`Vind fra ${Math.round(vaerQuery.naa.vindRetningGrader)}°`">
               · fra {{ vindFra(vaerQuery.naa.vindRetningGrader) }}</span></template>
           </span>
         </div>
         <div v-else-if="vaerQuery?.status === 'loading'"
              class="flex items-baseline gap-2 text-[12px]">
-          <span class="text-ink/45 w-20 shrink-0">Vær</span>
-          <span class="text-ink/50">henter værvarsel …</span>
+          <span class="text-ink-4 w-20 shrink-0">Vær</span>
+          <span class="text-ink-4">henter værvarsel …</span>
         </div>
         <!-- Ærlig svar framfor et oppdiktet vær. Samme regel som vannflate-høyden. -->
         <div v-else-if="vaerQuery?.status === 'error'"
              class="flex items-baseline gap-2 text-[12px]">
-          <span class="text-ink/45 w-20 shrink-0">Vær</span>
-          <span class="text-ink/70">Værvarsel ikke tilgjengelig</span>
+          <span class="text-ink-4 w-20 shrink-0">Vær</span>
+          <span class="text-ink-2">Værvarsel ikke tilgjengelig</span>
         </div>
         <!-- Lisenskravet: MET-data krever synlig attribusjon (NLOD / CC BY 4.0).
              Den står her og i /om — fjernes den, bryter vi lisensen. -->
-        <div v-if="vaerQuery?.status === 'done'" class="text-[10px] text-ink/35 pl-[5.5rem]">
+        <div v-if="vaerQuery?.status === 'done'" class="text-[10px] text-ink-4 pl-[5.5rem]">
           Værdata fra MET Norway
         </div>
       </div>
@@ -641,7 +641,7 @@ function formatDistance(m) {
       <div class="px-4 pt-4 grid grid-cols-2 gap-2">
         <button @click="onShareMap"
                 class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                       flex items-center gap-2 bg-ink/5 border-ink/10 text-ink/80">
+                       flex items-center gap-2 bg-ink/5 border-ink/10 text-ink-2">
           <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 6 L9 4 L15 6 L21 4 V18 L15 20 L9 18 L3 20 Z"/>
@@ -651,7 +651,7 @@ function formatDistance(m) {
         </button>
         <button @click="onShareMapWithContextPlace"
                 class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                       flex items-center gap-2 bg-ink/5 border-ink/10 text-ink/80">
+                       flex items-center gap-2 bg-ink/5 border-ink/10 text-ink-2">
           <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>
@@ -661,7 +661,7 @@ function formatDistance(m) {
         </button>
         <button v-if="ctxCanNavigate" @click="onNavigateHere"
                 class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                       flex items-center gap-2 bg-ink/5 border-ink/10 text-ink/80">
+                       flex items-center gap-2 bg-ink/5 border-ink/10 text-ink-2">
           <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="3 11 22 2 13 21 11 13 3 11"/>
@@ -670,7 +670,7 @@ function formatDistance(m) {
         </button>
         <button v-if="ctxCanNavigate" @click="onRoundTripHere"
                 class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                       flex items-center gap-2 bg-ink/5 border-ink/10 text-ink/80">
+                       flex items-center gap-2 bg-ink/5 border-ink/10 text-ink-2">
           <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M17 2.1 21 6l-4 3.9"/>
@@ -681,7 +681,7 @@ function formatDistance(m) {
         </button>
         <button v-if="ctxCanMeasure" @click="onStartMeasureHere"
                 class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                       flex items-center gap-2 bg-ink/5 border-ink/10 text-ink/80">
+                       flex items-center gap-2 bg-ink/5 border-ink/10 text-ink-2">
           <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="3 21 9 15 13 19 21 11"/>
@@ -695,7 +695,7 @@ function formatDistance(m) {
                        flex items-center gap-2 transition"
                 :class="proximityPanelOpen
                         ? 'bg-sky-500/25 border-sky-400/60 text-sky-100'
-                        : 'bg-ink/5 border-ink/10 text-ink/80'">
+                        : 'bg-ink/5 border-ink/10 text-ink-2'">
           <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="2.5"/>
@@ -717,7 +717,7 @@ function formatDistance(m) {
                 <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>
                 <path d="M12 9 v4 M12 17 h.01"/>
               </svg>
-              <div class="text-[12px] text-ink/85 leading-snug">
+              <div class="text-[12px] text-ink leading-snug">
                 Du er {{ formatDistance(ctxDistFromUser) }} unna. Nærhetsvarsel er for
                 <span class="text-ink font-medium">siste etappe</span> og varsler kun mens
                 appen er åpen — aktiver det når du er innen 2 km av målet.
@@ -733,7 +733,7 @@ function formatDistance(m) {
                       class="px-2 py-2 rounded-lg border text-center text-[13px] active:scale-[0.98] transition"
                       :class="proximityCfg.distanceM === d
                               ? 'bg-sky-500/30 border-sky-300/70 text-ink font-semibold'
-                              : 'bg-ink/5 border-ink/10 text-ink/65'">
+                              : 'bg-ink/5 border-ink/10 text-ink-3'">
                 {{ d }} m
               </button>
             </div>
@@ -745,7 +745,7 @@ function formatDistance(m) {
                       class="px-2 py-2 rounded-lg border text-center text-[12px] active:scale-[0.98] transition flex items-center justify-center gap-1.5"
                       :class="proximityCfg.sound
                               ? 'bg-sky-500/30 border-sky-300/70 text-ink font-medium'
-                              : 'bg-ink/5 border-ink/10 text-ink/55'">
+                              : 'bg-ink/5 border-ink/10 text-ink-3'">
                 <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M11 5 L6 9 H2 v6 h4 l5 4 Z"/>
@@ -758,7 +758,7 @@ function formatDistance(m) {
                       class="px-2 py-2 rounded-lg border text-center text-[12px] active:scale-[0.98] transition flex items-center justify-center gap-1.5"
                       :class="proximityCfg.vibration
                               ? 'bg-sky-500/30 border-sky-300/70 text-ink font-medium'
-                              : 'bg-ink/5 border-ink/10 text-ink/55'">
+                              : 'bg-ink/5 border-ink/10 text-ink-3'">
                 <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <rect x="8" y="4" width="8" height="16" rx="1.5"/>
@@ -786,7 +786,7 @@ function formatDistance(m) {
             </button>
           </template>
           <template v-else>
-            <div class="text-[12px] text-ink/80 mb-2 leading-snug">
+            <div class="text-[12px] text-ink-2 mb-2 leading-snug">
               Nærhetsvarsel krever aktiv GPS — start posisjonering for å varsle når du nærmer deg stedet.
             </div>
             <button @click="startPositioning"
@@ -801,13 +801,13 @@ function formatDistance(m) {
       <!-- Nærmeste POI relativt til DETTE punktet. Highlighter med rosa
            puls-ring (samme som søk). Knappen gråes ut når kartet ikke har
            typen (f.eks. ingen holdeplass i utsnittet). -->
-      <div class="px-4 pt-4 pb-1 text-ink/55 text-[10px] uppercase tracking-wide">
+      <div class="px-4 pt-4 pb-1 text-ink-3 text-[10px] uppercase tracking-wide">
         Nærmeste herfra
       </div>
       <div class="px-4 pb-1 grid grid-cols-3 gap-2">
         <button @click="nearestPoiFromPoint('parkering')" :disabled="!poiCounts.parkering"
                 class="flex flex-col items-center gap-1.5 px-2 py-2.5 rounded-lg border transition
-                       bg-ink/5 border-ink/10 text-ink/80 active:scale-[0.98]
+                       bg-ink/5 border-ink/10 text-ink-2 active:scale-[0.98]
                        disabled:opacity-35 disabled:active:scale-100">
           <span class="w-7 h-7 rounded-md bg-[#1f5d8a] text-white text-[13px] font-bold
                        flex items-center justify-center shrink-0">P</span>
@@ -815,7 +815,7 @@ function formatDistance(m) {
         </button>
         <button @click="nearestPoiFromPoint('toalett')" :disabled="!poiCounts.toalett"
                 class="flex flex-col items-center gap-1.5 px-2 py-2.5 rounded-lg border transition
-                       bg-ink/5 border-ink/10 text-ink/80 active:scale-[0.98]
+                       bg-ink/5 border-ink/10 text-ink-2 active:scale-[0.98]
                        disabled:opacity-35 disabled:active:scale-100">
           <span class="w-7 h-7 rounded-md bg-[#1f5d8a] text-white text-[9px] font-bold
                        flex items-center justify-center shrink-0">WC</span>
@@ -823,7 +823,7 @@ function formatDistance(m) {
         </button>
         <button @click="nearestPoiFromPoint('holdeplass')" :disabled="!poiCounts.holdeplass"
                 class="flex flex-col items-center gap-1.5 px-2 py-2.5 rounded-lg border transition
-                       bg-ink/5 border-ink/10 text-ink/80 active:scale-[0.98]
+                       bg-ink/5 border-ink/10 text-ink-2 active:scale-[0.98]
                        disabled:opacity-35 disabled:active:scale-100">
           <span class="w-7 h-7 rounded-md bg-[#1f5d8a] flex items-center justify-center shrink-0">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="#fff">
@@ -840,20 +840,20 @@ function formatDistance(m) {
       <!-- Plasser annotering — kun for bruker-kart, og ikke mens
            sporing/måling pågår. -->
       <template v-if="ctxCanAnnotate">
-        <div class="px-4 pt-4 pb-1 text-ink/55 text-[10px] uppercase tracking-wide">
+        <div class="px-4 pt-4 pb-1 text-ink-3 text-[10px] uppercase tracking-wide">
           Plasser annotering
         </div>
         <div class="px-4 pb-4 grid grid-cols-2 gap-2">
           <button v-for="s in ANNOTATION_SYMBOLS" :key="s.code"
                   @click="onPlaceAnnotationFromContext(s.symbolKey)"
                   class="px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98]
-                         flex items-center gap-2 bg-ink/5 border-ink/10 text-ink/80">
+                         flex items-center gap-2 bg-ink/5 border-ink/10 text-ink-2">
             <AnnotationIcon :symbol-key="s.symbolKey"/>
             <span class="truncate">{{ s.label }}</span>
           </button>
         </div>
       </template>
-      <div v-else class="px-4 pt-3 pb-4 text-[10px] text-ink/40 leading-snug">
+      <div v-else class="px-4 pt-3 pb-4 text-[10px] text-ink-4 leading-snug">
         <template v-if="ctxBusy">
           Avslutt pågående {{ measureMode ? 'måling' : 'sporing' }} for flere valg.
         </template>

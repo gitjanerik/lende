@@ -43,25 +43,25 @@ const sections = computed(() => {
 
 <template>
   <div>
-    <p class="text-[11px] text-ink/50 leading-snug mb-3">
+    <p class="text-[11px] text-ink-4 leading-snug mb-3">
       Stemninger er rene fargeeksperimenter oppå kartet du allerede har valgt.
       Skal du bytte selve kartstilen — farger, lag, strek og sti-farger
       samlet — ligger det under Kartstil.
     </p>
 
     <section v-for="s in sections" :key="s.key" class="mb-3">
-      <h3 class="text-[11px] uppercase tracking-wide text-ink/45 mb-1.5">{{ s.label }}</h3>
+      <h3 class="text-[11px] uppercase tracking-wide text-ink-4 mb-1.5">{{ s.label }}</h3>
       <div class="grid grid-cols-3 gap-2">
         <button v-for="t in s.themes" :key="t.key"
                 @click="onThemeTap(t.key)"
                 class="px-3 py-2 rounded-lg border text-[11px] active:scale-[0.98] transition text-center"
                 :class="currentTheme === t.key
                         ? 'bg-slate-400/25 border-slate-300/50 text-ink font-medium'
-                        : 'bg-ink/5 border-ink/10 text-ink/65'">
+                        : 'bg-ink/5 border-ink/10 text-ink-3'">
           {{ t.label }}
         </button>
       </div>
-      <p v-if="s.beskrivelse" class="text-[11px] text-ink/45 leading-snug mt-1.5">
+      <p v-if="s.beskrivelse" class="text-[11px] text-ink-4 leading-snug mt-1.5">
         {{ s.beskrivelse }}
       </p>
     </section>
@@ -77,10 +77,10 @@ const sections = computed(() => {
         <option v-for="p in FONT_PAIRS" :key="p.id" :value="p.id">{{ p.id }}</option>
       </select>
       <div class="mt-2 flex items-baseline gap-2" aria-hidden="true">
-        <span class="text-ink/85 text-[14px]" :style="{ fontFamily: landFont }">Stubdalskampen</span>
+        <span class="text-ink text-[14px]" :style="{ fontFamily: landFont }">Stubdalskampen</span>
         <span class="text-sky-300 text-[14px] italic" :style="{ fontFamily: waterFont }">Damtjern</span>
       </div>
-      <div class="text-[11px] text-ink/55 leading-snug mt-1.5">
+      <div class="text-[11px] text-ink-3 leading-snug mt-1.5">
         Bebyggelse, topp og område settes i sans; vann-navn i kursiv serif.
         Gjelder kart bygd etter denne oppdateringen — eldre kart må regenereres.
       </div>

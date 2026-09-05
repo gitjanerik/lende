@@ -40,7 +40,7 @@ function formatElevationDiff(m) {
       <button v-if="!measureMode"
               @click="startMeasure"
               class="w-full px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                     bg-ink/5 border-ink/10 text-ink/75 flex items-center justify-center gap-2">
+                     bg-ink/5 border-ink/10 text-ink-2 flex items-center justify-center gap-2">
         <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="3 21 9 15 13 19 21 11"/>
@@ -55,7 +55,7 @@ function formatElevationDiff(m) {
           </div>
           <button @click="stopMeasure"
                   aria-label="Avslutt måling"
-                  class="text-ink/70 active:scale-90 text-[10px] px-1.5 py-0.5 rounded
+                  class="text-ink-2 active:scale-90 text-[10px] px-1.5 py-0.5 rounded
                          bg-ink/10 hover:bg-ink/15">
             Lukk
           </button>
@@ -66,7 +66,7 @@ function formatElevationDiff(m) {
             · {{ formatArea(measureStats.areaM2) }}
           </span>
           <span v-if="measureVertices.length === 0"
-                class="text-ink/45 text-[11px] font-normal">
+                class="text-ink-4 text-[11px] font-normal">
             (ingen punkter ennå)
           </span>
         </div>
@@ -87,19 +87,19 @@ function formatElevationDiff(m) {
           <button @click="undoMeasureVertex"
                   :disabled="!measureVertices.length"
                   class="flex-1 px-2 py-1.5 rounded-md text-[11px] border active:scale-[0.98]
-                         bg-ink/5 border-ink/15 text-ink/75 disabled:opacity-40">
+                         bg-ink/5 border-ink/15 text-ink-2 disabled:opacity-40">
             Angre
           </button>
           <button @click="clearMeasure"
                   :disabled="!measureVertices.length"
                   class="flex-1 px-2 py-1.5 rounded-md text-[11px] border active:scale-[0.98]
-                         bg-ink/5 border-ink/15 text-ink/75 disabled:opacity-40">
+                         bg-ink/5 border-ink/15 text-ink-2 disabled:opacity-40">
             Tøm
           </button>
         </div>
       </div>
     </div>
-    <div class="text-[10px] text-ink/40 leading-snug">
+    <div class="text-[10px] text-ink-4 leading-snug">
       Distanse summeres som rette linjer mellom punkter. Areal beregnes
       med shoelace-formelen når polygonen er lukket. m² · ha · km² —
       det som passer best for areal-størrelsen.

@@ -134,7 +134,7 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
     <button @click="openVardasen"
             class="w-full mb-3 px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
                    flex items-center justify-center gap-2 transition
-                   bg-ink/5 border-ink/10 text-ink/80">
+                   bg-ink/5 border-ink/10 text-ink-2">
       <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
            stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
         <path d="M3 6 L9 4 L15 6 L21 4 L21 18 L15 20 L9 18 L3 20 Z"/>
@@ -148,21 +148,21 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
          lag som gates er bakt inn i kartets CSS ved bygging. -->
     <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-3">
       <div class="flex items-baseline justify-between gap-2 mb-1.5">
-        <span class="text-ink/55 text-[11px] uppercase tracking-wide">Zoom-LOD</span>
+        <span class="text-ink-3 text-[11px] uppercase tracking-wide">Zoom-LOD</span>
         <span class="text-[11px] tabular-nums"
-              :class="{ 'text-ink/45': zoomTier === 'far', 'text-sky-300': zoomTier === 'mid', 'text-emerald-300': zoomTier === 'near' }">
+              :class="{ 'text-ink-4': zoomTier === 'far', 'text-sky-300': zoomTier === 'mid', 'text-emerald-300': zoomTier === 'near' }">
           {{ (scale || 1).toFixed(2) }}× · {{ zoomTier }}
         </span>
       </div>
       <div class="flex items-center justify-between gap-3 mb-0.5">
-        <span class="text-ink/55 text-[11px]">Detalj-terskel (.zoom-near)</span>
-        <span class="text-ink/55 text-[11px] tabular-nums">{{ zoomNearThreshold.toFixed(1) }}×</span>
+        <span class="text-ink-3 text-[11px]">Detalj-terskel (.zoom-near)</span>
+        <span class="text-ink-3 text-[11px] tabular-nums">{{ zoomNearThreshold.toFixed(1) }}×</span>
       </div>
       <input type="range" min="1.5" max="5" step="0.1" v-model.number="zoomNearThreshold"
              aria-label="Detalj-terskel" class="w-full accent-emerald-400 mb-2"/>
       <div class="flex items-center justify-between gap-3 mb-0.5">
-        <span class="text-ink/55 text-[11px]">Navne-budsjett (far/mid/near)</span>
-        <span class="text-ink/55 text-[11px] tabular-nums">{{ nameBudgetFar }}/{{ nameBudgetMid }}/{{ nameBudgetNear }}</span>
+        <span class="text-ink-3 text-[11px]">Navne-budsjett (far/mid/near)</span>
+        <span class="text-ink-3 text-[11px] tabular-nums">{{ nameBudgetFar }}/{{ nameBudgetMid }}/{{ nameBudgetNear }}</span>
       </div>
       <input type="range" min="20" max="150" step="10" v-model.number="nameBudgetFar"
              aria-label="Navne-budsjett oversikt" class="w-full accent-ink/40"/>
@@ -172,25 +172,25 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
              aria-label="Navne-budsjett detalj" class="w-full accent-emerald-400"/>
       <button @click="resetLodTuning"
               class="mt-1.5 w-full px-3 py-1.5 rounded-lg text-[11px] border
-                     bg-ink/5 border-ink/10 text-ink/70 active:scale-[0.98]">
+                     bg-ink/5 border-ink/10 text-ink-2 active:scale-[0.98]">
         Nullstill ({{ LOD_DEFAULTS.near }}× · {{ LOD_DEFAULTS.budgetFar }}/{{ LOD_DEFAULTS.budgetMid }}/{{ LOD_DEFAULTS.budgetNear }})
       </button>
     </div>
 
     <div class="flex items-baseline justify-between gap-2 mb-2">
-      <span class="text-ink/55 text-[11px] uppercase tracking-wide">Debug</span>
-      <span v-if="mapDataLabel" class="text-ink/45 text-[11px] tabular-nums">{{ mapDataLabel }}</span>
+      <span class="text-ink-3 text-[11px] uppercase tracking-wide">Debug</span>
+      <span v-if="mapDataLabel" class="text-ink-4 text-[11px] tabular-nums">{{ mapDataLabel }}</span>
     </div>
     <!-- Tile-cache: antall auto-fliser lagret (scroll-tilbake-mosaikk). -->
     <div class="flex items-baseline justify-between gap-2 mb-2 px-1">
-      <span class="text-ink/45 text-[11px]">Auto-fliser i cache</span>
-      <span class="text-ink/55 text-[11px] tabular-nums">{{ autoTileCount }} / {{ maxTiles }}</span>
+      <span class="text-ink-4 text-[11px]">Auto-fliser i cache</span>
+      <span class="text-ink-3 text-[11px] tabular-nums">{{ autoTileCount }} / {{ maxTiles }}</span>
     </div>
     <!-- Viewport-culling: hvor mange indekserte elementer som er skjult
          utenfor utsnittet akkurat nå + siste cull-beregning i ms. -->
     <div class="flex items-center justify-between gap-2 mb-2 px-1">
-      <span class="text-ink/45 text-[11px]">Viewport-culling</span>
-      <span v-if="!cullDisabled && cullStats.indexed" class="text-ink/55 text-[11px] tabular-nums">
+      <span class="text-ink-4 text-[11px]">Viewport-culling</span>
+      <span v-if="!cullDisabled && cullStats.indexed" class="text-ink-3 text-[11px] tabular-nums">
         {{ cullStats.culled }} / {{ cullStats.indexed }} skjult · {{ cullStats.ms }} ms
       </span>
       <!-- Feilsøk: culling av/på uten reload. Forsvinner «borte» innhold
@@ -199,28 +199,28 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
               class="px-2 py-1 rounded-md border text-[11px] active:scale-[0.98]"
               :class="cullDisabled
                       ? 'bg-amber-400/20 border-amber-300/50 text-amber-200'
-                      : 'bg-ink/5 border-ink/10 text-ink/70'">
+                      : 'bg-ink/5 border-ink/10 text-ink-2'">
         {{ cullDisabled ? 'AV — slå på' : 'Slå av' }}
       </button>
     </div>
     <!-- Datatetthet: hva sonderingen fant, og hva den gjorde med kartet. Eneste
          sporet av HVORFOR et kart ble lettere eller mindre enn brukeren ba om. -->
     <div v-if="tetthetTekst" class="flex items-baseline justify-between gap-2 mb-2 px-1">
-      <span class="text-ink/45 text-[11px]">Datatetthet</span>
-      <span class="text-ink/55 text-[11px] text-right">{{ tetthetTekst }}</span>
+      <span class="text-ink-4 text-[11px]">Datatetthet</span>
+      <span class="text-ink-3 text-[11px] text-right">{{ tetthetTekst }}</span>
     </div>
     <!-- Sjøkart-status: WFS-hentingen feiler stille (timeout/CORS/tom) —
          her vises HVORFOR dybdetall/kai mangler på kystkart. -->
     <div v-if="sjokartStatusText" class="mb-2 px-1">
       <div class="flex items-baseline justify-between gap-2">
-        <span class="text-ink/45 text-[11px]">Sjøkart-WFS</span>
+        <span class="text-ink-4 text-[11px]">Sjøkart-WFS</span>
         <span class="text-[11px]"
-              :class="meta?.sjokartStatus?.state === 'ok' ? 'text-ink/55' : 'text-amber-300/80'">
+              :class="meta?.sjokartStatus?.state === 'ok' ? 'text-ink-3' : 'text-amber-300/80'">
           {{ sjokartStatusText }}
         </span>
       </div>
       <div v-for="(err, i) in (meta?.sjokartStatus?.errors ?? [])" :key="i"
-           class="text-ink/35 text-[10px] leading-tight break-all">
+           class="text-ink-4 text-[10px] leading-tight break-all">
         {{ err.endpoint }}{{ err.typeName ? ` ${err.typeName}` : '' }} · {{ err.kind }}: {{ err.message }}
       </div>
     </div>
@@ -228,8 +228,8 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
          Avgjør på sekundet om en «kartet mangler X»-feil bare er et gammelt
          ark: bygd-med ≠ kjørende versjon → bygg kartet på nytt. -->
     <div v-if="meta" class="flex items-baseline justify-between gap-2 mb-2 px-1">
-      <span class="text-ink/45 text-[11px]">Kart bygd med</span>
-      <span class="text-[11px]" :class="metaAppVersionText === appVersion ? 'text-ink/55' : 'text-amber-300/80'">
+      <span class="text-ink-4 text-[11px]">Kart bygd med</span>
+      <span class="text-[11px]" :class="metaAppVersionText === appVersion ? 'text-ink-3' : 'text-amber-300/80'">
         {{ metaAppVersionText === appVersion ? `v${metaAppVersionText}` : `${metaAppVersionText ? 'v' + metaAppVersionText : 'eldre enn v1.0.47'} — app kjører v${appVersion}; bygg på nytt for ferske data` }}
       </span>
     </div>
@@ -239,9 +239,9 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
          diagnosen (ark bygd før v1.0.45). -->
     <div v-if="nveInnsjoStatusText" class="mb-2 px-1">
       <div class="flex items-baseline justify-between gap-2">
-        <span class="text-ink/45 text-[11px]">NVE-innsjø</span>
+        <span class="text-ink-4 text-[11px]">NVE-innsjø</span>
         <span class="text-[11px] text-right break-all"
-              :class="meta?.nveInnsjoStatus?.state === 'ok' ? 'text-ink/55' : 'text-amber-300/80'">
+              :class="meta?.nveInnsjoStatus?.state === 'ok' ? 'text-ink-3' : 'text-amber-300/80'">
           {{ nveInnsjoStatusText }}
         </span>
       </div>
@@ -251,9 +251,9 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
          hvor mye som faktisk kom i tillegg til OSM etter uttynningen. -->
     <div v-if="turruteStatusText" class="mb-2 px-1">
       <div class="flex items-baseline justify-between gap-2">
-        <span class="text-ink/45 text-[11px]">Turrutebasen</span>
+        <span class="text-ink-4 text-[11px]">Turrutebasen</span>
         <span class="text-[11px] text-right break-all"
-              :class="meta?.turruteStatus?.state === 'ok' ? 'text-ink/55' : 'text-amber-300/80'">
+              :class="meta?.turruteStatus?.state === 'ok' ? 'text-ink-3' : 'text-amber-300/80'">
           {{ turruteStatusText }}
         </span>
       </div>
@@ -262,9 +262,9 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
          tillegg til OSM og Turrutebasen etter uttynningen. -->
     <div v-if="n50StiStatusText" class="mb-2 px-1">
       <div class="flex items-baseline justify-between gap-2">
-        <span class="text-ink/45 text-[11px]">N50-sti</span>
+        <span class="text-ink-4 text-[11px]">N50-sti</span>
         <span class="text-[11px] text-right break-all"
-              :class="meta?.n50StiStatus?.state === 'ok' ? 'text-ink/55' : 'text-amber-300/80'">
+              :class="meta?.n50StiStatus?.state === 'ok' ? 'text-ink-3' : 'text-amber-300/80'">
           {{ n50StiStatusText }}
         </span>
       </div>
@@ -273,10 +273,10 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
             class="w-full px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98] mb-2"
             :class="diagnose
                     ? 'bg-slate-400/20 border-slate-300/50 text-ink'
-                    : 'bg-ink/5 border-ink/10 text-ink/75'">
+                    : 'bg-ink/5 border-ink/10 text-ink-2'">
       {{ diagnose ? 'Diagnose: AV' : 'Diagnose-modus' }}
     </button>
-    <div v-if="diagnose" class="text-[10px] text-ink/55 leading-relaxed mb-3 px-1">
+    <div v-if="diagnose" class="text-[10px] text-ink-3 leading-relaxed mb-3 px-1">
       Polygon-fargen viser kilden:
       <span class="inline-block w-3 h-3 rounded-sm align-middle" style="background: hsl(180, 80%, 55%);"></span> N50,
       <span class="inline-block w-3 h-3 rounded-sm align-middle" style="background: hsl(140, 70%, 45%);"></span> NVE innsjø,
@@ -290,10 +290,10 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
             class="w-full px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98] mb-1"
             :class="mykRotAv
                     ? 'bg-amber-400/20 border-amber-300/50 text-amber-200'
-                    : 'bg-ink/5 border-ink/10 text-ink/75'">
+                    : 'bg-ink/5 border-ink/10 text-ink-2'">
       {{ mykRotAv ? 'Myk tekstrotasjon: AV' : 'Myk tekstrotasjon: PÅ' }}
     </button>
-    <div class="text-[10px] text-ink/55 leading-relaxed mb-3 px-1">
+    <div class="text-[10px] text-ink-3 leading-relaxed mb-3 px-1">
       <template v-if="mykRotAv">
         Stedsnavn vipper med kartet under en rotasjons-gest og rettes opp når du
         slipper. Åpne kartet på nytt for at endringen skal slå inn.
@@ -310,10 +310,10 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
             class="w-full px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98] mb-1"
             :class="vaerDemo
                     ? 'bg-sky-400/20 border-sky-300/50 text-ink'
-                    : 'bg-ink/5 border-ink/10 text-ink/75'">
+                    : 'bg-ink/5 border-ink/10 text-ink-2'">
       {{ vaerDemo ? 'Vær-demo i 3D: PÅ' : 'Vær-demo i 3D' }}
     </button>
-    <div v-if="vaerDemo" class="text-[10px] text-ink/55 leading-relaxed mb-3 px-1">
+    <div v-if="vaerDemo" class="text-[10px] text-ink-3 leading-relaxed mb-3 px-1">
       Åpne 3D: værtypene spilles i rekkefølge, 10 s hver, med «neste» for å hoppe
       videre. Overstyrer det ekte varselet så lenge den står på.
     </div>
@@ -324,10 +324,10 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
             class="w-full px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98] mb-1"
             :class="nordlysDemo
                     ? 'bg-emerald-400/20 border-emerald-300/50 text-ink'
-                    : 'bg-ink/5 border-ink/10 text-ink/75'">
+                    : 'bg-ink/5 border-ink/10 text-ink-2'">
       {{ nordlysDemo ? 'Nordlys-demo i 3D: PÅ' : 'Nordlys-demo i 3D' }}
     </button>
-    <div v-if="nordlysDemo" class="text-[10px] text-ink/55 leading-relaxed mb-3 px-1">
+    <div v-if="nordlysDemo" class="text-[10px] text-ink-3 leading-relaxed mb-3 px-1">
       Åpne 3D og slå på NATT: styrkene spilles i rekkefølge, 14 s hver, fra et
       svakt slør lavt i nord til et som fyller himmelen. Siste steg viser samme
       styrke lenger nord, så du ser at høyden over horisonten faktisk regnes ut.
@@ -339,17 +339,17 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
             class="w-full px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98] mb-1"
             :class="himmelTvang
                     ? 'bg-amber-300/25 border-amber-300/50 text-ink'
-                    : 'bg-ink/5 border-ink/10 text-ink/75'">
+                    : 'bg-ink/5 border-ink/10 text-ink-2'">
       {{ himmelTvang ? 'Tvungne himmellegemer i 3D: PÅ' : 'Tvungne himmellegemer i 3D' }}
     </button>
-    <div v-if="himmelTvang" class="text-[10px] text-ink/55 leading-relaxed mb-3 px-1">
+    <div v-if="himmelTvang" class="text-[10px] text-ink-3 leading-relaxed mb-3 px-1">
       Nattmodus viser månen, Mars, Jupiter og Saturn selv når de står under
       horisonten, så de fire globene kan prøves når som helst. De står i en
       stige — Mars 30°, månen 35°, Jupiter 40°, Saturn 45° — så de ikke lander
       oppå hverandre. Trykk på et av dem for nærbildet. Merkur og Venus følger de
       ekte reglene; de har ingen globe. Azimut, fase, avstand og lysstyrke er
       fortsatt de ekte — bare høyden er løftet.
-      <strong class="text-ink/75">Sola løftes ikke</strong>, og det er med vilje:
+      <strong class="text-ink-2">Sola løftes ikke</strong>, og det er med vilje:
       den er alltid i lista og alltid til å åpne, og står den under horisonten er
       det nettopp da den er verdt å se — under terrengarket, der den faktisk er.
       Bryteren finnes for legemer man ellers må vente på.
@@ -358,7 +358,7 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
          og deles — mobil-konsollen er upraktisk. -->
     <button @click="openPerfLog"
             class="w-full px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98]
-                   bg-ink/5 border-ink/10 text-ink/75">
+                   bg-ink/5 border-ink/10 text-ink-2">
       Byggetider (perf-logg)
     </button>
   </div>
