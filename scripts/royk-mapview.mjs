@@ -279,6 +279,87 @@ const SJEKKER = [
     },
   },
   {
+    // v6.5.49: kroppen i punkt-arket ligger i en `zoom`-blokk, så ved 200 % er
+    // den effektive bredden HALVERT — og med faste `grid-cols-2`/`grid-cols-3`
+    // fikk «Del kart og sted» rundt 100 px og ble fire ord under hverandre,
+    // mens annoteringene ble klippet til «Kn…». Enhetstester ser ingenting av
+    // dette: markupen er den samme, det er layouten som brekker.
+    navn: 'punkt-arkets knapper klippes ikke ved 200 % tekst',
+    domene: 'ContextMenuSheet',
+    async kjør(page) {
+      const åpne = () => page.evaluate(() => {
+        const el = document.querySelector('svg.isom-map')
+        const r = el.getBoundingClientRect()
+        el.dispatchEvent(new MouseEvent('contextmenu', {
+          bubbles: true, cancelable: true,
+          clientX: r.left + r.width / 2, clientY: r.top + r.height / 2,
+        }))
+      })
+      await åpne()
+      await page.waitForTimeout(500)
+      const A = 'button[aria-label^="Tekststørrelse i grensesnittet"]'
+      if (!(await page.locator(A).count())) throw new Error('punkt-arket åpnet seg ikke')
+      // 100 → 125 → 150 → 200. Knappen runder tilbake til 100 på det femte.
+      let prosent = 0
+      for (let i = 0; i < 4; i++) {
+        await page.locator(A).first().click()
+        await page.waitForTimeout(180)
+        prosent = Number(await page.locator(A).first().getAttribute('aria-label')
+          .then((s) => (s.match(/(\d+) prosent/) ?? [])[1]))
+        if (prosent === 200) break
+      }
+      const feil = []
+      if (prosent !== 200) feil.push(`kom bare til ${prosent} %`)
+      const maalt = await page.evaluate(() => {
+        const kopi = document.querySelector('button[aria-label="Kopier koordinater"]')
+        const ark = kopi?.closest('.drawer-shell')
+        if (!ark) return null
+        // LINJETALL, ikke `scrollWidth`. Feilen var ikke at teksten ble klippet
+        // — en flex-knapp bryter i stedet, og «Del kart og sted» ble til fire
+        // ord under hverandre uten at én eneste piksel var i overflyt. Range
+        // over tekstnoden gir ett rektangel per linje, altså det man ser.
+        const linjer = (el) => {
+          const r = document.createRange()
+          r.selectNodeContents(el)
+          return r.getClientRects().length
+        }
+        const brede = [...ark.querySelectorAll('button span')]
+          .filter((el) => el.textContent.trim().length > 4 && el.offsetParent)
+          .map((el) => ({ tekst: el.textContent.trim().slice(0, 24), n: linjer(el) }))
+          .filter((x) => x.n > 2)
+        // Et `truncate` som klipper bort et ord er den andre halvdelen.
+        const klippet = [...ark.querySelectorAll('button span, button div')]
+          .filter((el) => el.scrollWidth > el.clientWidth + 1 && el.textContent.trim())
+          .map((el) => el.textContent.trim().slice(0, 24))
+        return {
+          brede: brede.slice(0, 4).map((x) => `«${x.tekst}» på ${x.n} linjer`),
+          klippet: klippet.slice(0, 4),
+          // Arket selv skal aldri kunne rulles sidelengs.
+          sidelengs: ark.scrollWidth - ark.clientWidth,
+        }
+      })
+      if (!maalt) feil.push('fant ikke arket etter skalering')
+      else {
+        if (maalt.brede.length) feil.push(maalt.brede.join(', '))
+        if (maalt.klippet.length) feil.push(`klippet tekst: ${maalt.klippet.join(', ')}`)
+        if (maalt.sidelengs > 1) feil.push(`arket ruller ${maalt.sidelengs} px sidelengs`)
+      }
+
+      // NØYTRAL TILSTAND: runde tilbake til 100 % og lukke arket.
+      for (let i = 0; i < 4; i++) {
+        const na = Number(await page.locator(A).first().getAttribute('aria-label')
+          .then((s) => (s.match(/(\d+) prosent/) ?? [])[1]))
+        if (na === 100) break
+        await page.locator(A).first().click()
+        await page.waitForTimeout(180)
+      }
+      await page.locator('button[aria-label="Lukk"]').first().click()
+      await page.waitForTimeout(300)
+      if (feil.length) throw new Error(feil.join(' | '))
+      return 'ingen klippede etiketter, ingen sidelengs rulling ved 200 %'
+    },
+  },
+  {
     // v5.23.0: kartstil-velgeren er den ENE kontrollen som setter hele
     // uttrykket. Sjekken TRYKKER på den (ikke bare leter etter markup) og
     // verifiserer at BÅDE paletten og lagene flyttet seg — en knapp som bare
@@ -1348,8 +1429,8 @@ const SJEKKER = [
     },
   },
   {
-    navn: 'åpen Info dytter ikke POI-filteret ut av skjermen',
-    domene: 'Tour3dInfoPanel',
+    navn: 'Info og POI-filter åpner som nedtrekk og flytter ikke hverandre',
+    domene: 'Tour3dInfoPanel + Tour3dPinPanel',
     // Kunne i prinsippet kjørt uten DEM, men uten terreng er 3D-overlegget en
     // «Ingen høydedata»-melding og ingen av pillene finnes. Samme port som de
     // andre 3D-sjekkene.
@@ -1435,12 +1516,50 @@ const SJEKKER = [
       await page.waitForTimeout(400)
       if (await kropp.count()) throw new Error('trykk på headeren lukket ikke hjelpekroppen igjen')
 
+      // SPEILVENDT (v6.5.49): filteret skal like lite kunne flytte hjelpen.
+      // Det var den retningen som faktisk brakk — den grønne boksen vokste mot
+      // venstre til den nådde Info-pilla og rant så ut over høyre skjermkant.
+      let filterUtfall = 'POI-filteret finnes ikke i dette kartet'
+      if (boksFor) {
+        const infoFor = await infoPille.boundingBox()
+        await poi.click({ timeout: 5000 })
+        await page.waitForTimeout(500)
+
+        const filterKropp = page.locator('#tour3d-poi-kropp')
+        if (!await filterKropp.count()) {
+          throw new Error('trykk på filter-headeren åpnet ikke filterkroppen')
+        }
+        const skjulFilter = page.locator('button[aria-label^="Skjul filter for"]')
+        if (!await skjulFilter.count()) {
+          throw new Error('filter-headeren forsvant da kroppen åpnet seg — den skal bli stående og lukke igjen')
+        }
+
+        const infoEtter = await infoPille.boundingBox()
+        const infoFlyttet = Math.round(Math.abs(infoEtter.x - infoFor.x) + Math.abs(infoEtter.y - infoFor.y))
+        if (infoFlyttet > 1) {
+          throw new Error(`Info-pilla flyttet seg ${infoFlyttet} px da filteret ble åpnet — `
+            + 'raden skal være like bred åpen som lukket')
+        }
+
+        const vp = page.viewportSize()
+        const kroppBoks = await filterKropp.boundingBox()
+        if (kroppBoks.x < -1 || kroppBoks.x + kroppBoks.width > vp.width + 1) {
+          throw new Error('filterkroppen ligger utenfor skjermen '
+            + `(x ${Math.round(kroppBoks.x)}–${Math.round(kroppBoks.x + kroppBoks.width)} av ${vp.width})`)
+        }
+
+        await skjulFilter.click({ timeout: 5000 })
+        await page.waitForTimeout(400)
+        if (await filterKropp.count()) throw new Error('trykk på headeren lukket ikke filterkroppen igjen')
+        filterUtfall = 'filteret åpnet som nedtrekk uten å flytte Info'
+      }
+
       if (startSteg === 'Bytt til dag' && await lesSolMaaneSteg(page) === 'Bytt til natt') {
         await page.locator('button[aria-label="Bytt til natt"]').click({ timeout: 10_000 })
         await page.waitForTimeout(1600)
       }
       await lukk()
-      return `headeren åpnet og lukket hjelpen; ${poiUtfall}`
+      return `headeren åpnet og lukket hjelpen; ${poiUtfall}; ${filterUtfall}`
     },
   },
   {

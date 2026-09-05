@@ -205,7 +205,7 @@ try {
   await s4.reload({ waitUntil: 'domcontentloaded' })
   await sov(600)
 
-  await s4.locator('button[aria-label]').first().click()
+  await s4.locator('button[data-hovedknapp]').first().click()
   await sov(400)
   const etterTrykk = await s4.evaluate(() => ({
     boble: /GPS på\?/.test(document.body.innerText),
@@ -379,7 +379,10 @@ try {
   sjekk('Fritt lende: terreng og stier er synlige', arket?.synlige === 4, `${arket?.synlige ?? 0}/4`)
   sjekk('Fritt lende: ekvidistansen er borte fra linjalen', arket?.ekvidistanse === false)
   sjekk('Fritt lende: avstanden vises ikke før GPS er på', arket?.avstand === false)
-  sjekk('Fritt lende: nøyaktig to knapper på skjermen', arket?.knapper === 2,
+  // Fire fra v6.5.49: hovedmenyen, hovedknappen og de to zoom-knappene. Zoom
+  // fantes bare som pinch, og en fleirpunkts-gest uten enkeltpeker-alternativ
+  // er et WCAG-brudd (2.5.2) i den ene modusen som brukes med votter.
+  sjekk('Fritt lende: nøyaktig fire knapper på skjermen', arket?.knapper === 4,
     `${arket?.knapper ?? 0} knapper`)
   sjekk('Fritt lende: målestokken vises', arket?.maalestokk === true)
 
@@ -416,7 +419,7 @@ try {
   // og bygget et nytt kart mot en avskåret rute. Senteret er dessuten det
   // ærligste stedet å måle sentreringen fra.
   await ctx.setGeolocation({ latitude: 59.741969744969, longitude: 4.568121301687335 })
-  await s5.locator('button[aria-label]').first().click()
+  await s5.locator('button[data-hovedknapp]').first().click()
   await sov(2500)
   const etterFix = await s5.evaluate(() => ({
     chipStårIgjen: [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Avbryt'),
@@ -441,7 +444,7 @@ try {
   // samtidig skrevet om slik at «nytt utsnitt først» havnet midt i den. En
   // sjekk med versalen eller tallet bakt inn blir rød av en tekstendring og
   // grønn av feil grunn når grensa flyttes.
-  await s5.locator('button[aria-label]').first().click()
+  await s5.locator('button[data-hovedknapp]').first().click()
   await sov(600)
   const porten = await s5.evaluate(() => ({
     melding: /nytt utsnitt først/i.test(document.body.innerText),
@@ -450,7 +453,7 @@ try {
     fraSenter: /fra midten av kartet/i.test(document.body.innerText),
     // Etiketten er avledet av samme tilstand som handlingen og skal ikke love
     // et nytt kart under porten.
-    etikett: document.querySelector('button[aria-label]')?.getAttribute('aria-label') ?? '',
+    etikett: document.querySelector('button[data-hovedknapp]')?.getAttribute('aria-label') ?? '',
     bygger: [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Avbryt'),
   }))
   sjekk('Fritt lende: porten stopper nytt ark på senteret og sier hvorfor',
