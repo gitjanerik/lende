@@ -59,7 +59,7 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
 <template>
   <div>
     <!-- Standarder for NYE kart (søk/GPS på forsiden): bredde-slider, format
-         (kvadrat/portrett/A4) og høydekurve-intervall — samme tre valg som
+         (kvadratisk/stående/liggende) og høydekurve-intervall — samme tre valg som
          «Flere valg» i pickeren, med samme bredde-gating for høydekurvene.
          Påvirker ikke kartet som vises nå, kun neste nye kart. -->
     <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-3">
@@ -83,14 +83,15 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
       </div>
       <!-- Kartformat: samme trippel som «Flere valg». -->
       <div class="text-[13px] text-ink font-medium mt-3 mb-1.5">Kartformat</div>
-      <div class="flex gap-2" role="group" aria-label="Kartformat for nye kart">
+      <!-- Wrap framfor tre faste kolonner: se format-knappene i pickeren. -->
+      <div class="flex flex-wrap gap-2" role="group" aria-label="Kartformat for nye kart">
         <button v-for="opt in MAP_FORMAT_OPTIONS" :key="opt.value"
                 @click="mapFormat = opt.value"
                 :aria-pressed="mapFormat === opt.value"
-                class="flex-1 rounded-md px-1 py-1.5 text-[12px] font-medium transition-colors leading-tight"
+                class="flex-1 min-w-[6.5rem] rounded-md px-1 py-1.5 text-[12px] font-medium
+                       transition-colors leading-tight"
                 :class="mapFormat === opt.value ? 'bg-emerald-500 text-white' : 'bg-ink/10 text-ink/70'">
           {{ opt.label }}
-          <span v-if="opt.sub" class="block text-[10px] font-normal opacity-75">{{ opt.sub }}</span>
         </button>
       </div>
       <!-- Høydekurver: samme valg og bredde-gating som «Flere valg»

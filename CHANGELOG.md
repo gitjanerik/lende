@@ -1,3 +1,19 @@
+## 2026-09-05 — v6.5.46: Kvadratisk, stående, liggende — og kompasset dekker skjermen
+
+Formatvelgeren har tre valg med ett ord hver. «Portrett (mobilskjerm)» og
+«Utskrift (A4)» er slått sammen til STÅENDE, og LIGGENDE er ny — begge er
+A-format, samme ark snudd. Skjerm-aspektet var aldri et format: det var
+telefonens tilfeldige forhold, altså et annet ark på hver enhet og et som ikke
+lar seg skrive ut. Undertekstene var dessuten det som brakk ved 150 % tekst,
+der tre kolonner delte ordene midt i seg («Kvad-ratisk»); knapperaden bryter nå
+i stedet for å dele. Lagrede valg fra før migreres — begge de gamle var høye
+ark, så begge blir stående. Og «Sentrer»-knappen skalerer nå til DEKNING og
+ikke bare til brukerens standard-zoom: regelen om at kartet fyller skjermen med
+god margin gjaldt bare ved åpning, og med et liggende ark på en høy skjerm ble
+letterboxen to kremgule felt over halve visningen.
+
+---
+
 ## 2026-09-05 — v6.5.45: Den grønne knappen gjør det lista gjør, og skjemaet tåler 200 % tekst
 
 Hjelpeteksten under søkefeltet — «Søk etter et sted — eller trykk den grønne knappen …» — er fjernet begge steder den sto. Den forklarte en pin som står rett ved siden av feltet den snakket om, og ved stor tekst spiste den plassen til det den forklarte. Den grønne knappen er samtidig skrumpet fra 40 til 36 piksler, altså lik mikrofonen ved siden av; høyre-paddingen og spinner-plasseringen i begge søkefeltene følger de nye målene.

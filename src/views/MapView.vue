@@ -38,6 +38,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { usePinchZoom } from '../composables/usePinchZoom.js'
+import { dekningsSkala } from '../lib/viewFit.js'
 import { zoomBroek, zoomFraBroek } from '../lib/navKontroller.js'
 import ZoomSkyv from '../components/kontroller/ZoomSkyv.vue'
 import RetningsRose from '../components/kontroller/RetningsRose.vue'
@@ -585,8 +586,17 @@ function onResetAndRefreshGps() {
   // nord» mens den er på gir ingen mening, så den slås av først (samme
   // semantikk som den gamle kompass-FAB-en, som denne knappen har absorbert).
   if (compass.isActive) compass.stop()
-  const z = defaultZoomScale.value
   const m = meta.value
+  // Skalaen er den STØRSTE av brukerens standard-zoom og DEKNING (v6.5.46).
+  // `reset()` alene er meet-tilpasningen: hele arket i letterbox. Det er samme
+  // tomrom åpningen ble kvitt i v5.19.2 — og med liggende ark på en høy
+  // telefonskjerm er letterboxen nå to kremgule felt over halve skjermen.
+  // Regelen «kartet fyller skjermen med god margin» gjelder derfor også her.
+  const wrap = wrapperRef.value?.getBoundingClientRect()
+  const dekning = dekningsSkala({
+    w: wrap?.width, h: wrap?.height, widthM: m?.widthM, heightM: m?.heightM,
+  })
+  const z = Math.max(defaultZoomScale.value, dekning)
   if (z > 1 && m?.widthM && m?.heightM) {
     const gpsOk = userPos.isWatching && userPos.svgX != null && !userPos.isOutsideMap
     panTo(gpsOk ? userPos.svgX : m.widthM / 2, gpsOk ? userPos.svgY : m.heightM / 2,

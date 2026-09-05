@@ -12,7 +12,7 @@ import { useNominatim } from '../composables/useNominatim.js'
 import { useSpeechInput } from '../composables/useSpeechInput.js'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
 import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
-import { bboxFromCenter, viewportAspect, PRINT_ASPECT } from '../lib/mapBuilder.js'
+import { bboxFromCenter, PRINT_ASPECT } from '../lib/mapBuilder.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { minEquidistanceForWidthKm } from '../lib/equidistanceRules.js'
 import { probeDensityCached } from '../lib/densityProbe.js'
@@ -41,22 +41,20 @@ const DEFAULT_CENTER = { lat: 59.9139, lon: 10.7522, name: 'Oslo' }
 
 const center = ref({ ...DEFAULT_CENTER })
 const halfKm = ref(4)  // halv-bredde av bbox i km (E/V). Kart blir 2*halfKm bredt (8 km = standarden, jf. DEFAULT_MAP_WIDTH_KM)
-// Skjerm-format (høyde/bredde): kartet strekkes N/S til dette så det fyller
-// fullskjerm uten letterbox (v10.1.10). Settes på mount + resize. buildMapFrom-
-// Center utleder samme aspekt selv, så previewen viser det faktiske utsnittet.
-const mapAspect = ref(viewportAspect())
 const equidistanceM = ref(20)  // høydekurve-intervall, 5/10/20/25/50 m
 const customName = ref('')
 
 // Format-velger (trippel toggle). Styrer utsnittets høyde/bredde-forhold;
 // bredden styres uansett av slideren, høyden utledes av valgt aspekt.
 //   'square'   → kvadrat (aspect = 1) — default
-//   'portrait' → skjerm-format (mobilskjerm, ~1:2,2) — tidligere default
-//   'print'    → stående A-format (√2 ≈ 1,4142) for ren utskrift / PDF / SVG
+//   'staaende' → stående A-format (√2 ≈ 1,4142)
+//   'liggende' → liggende A-format (1/√2 ≈ 0,7071)
+// Lista er den samme som i useMapSizePreference (MAP_FORMAT_OPTIONS) — se
+// v6.5.46-merknaden der for hvorfor skjerm-aspektet og undertekstene falt bort.
 const FORMAT_OPTIONS = [
-  { value: 'square',   label: 'Kvadratisk', sub: '' },
-  { value: 'portrait', label: 'Portrett',   sub: 'mobilskjerm' },
-  { value: 'print',    label: 'Utskrift',   sub: 'A4' },
+  { value: 'square',   label: 'Kvadratisk' },
+  { value: 'staaende', label: 'Stående' },
+  { value: 'liggende', label: 'Liggende' },
 ]
 const format = ref('square')
 // «Del kart og sted»-invitasjoner bærer avsenderens aspekt (?asp=) så
@@ -67,8 +65,8 @@ const inviteAspect = ref(null)
 watch(format, () => { inviteAspect.value = null })
 const effectiveAspect = computed(() => {
   if (inviteAspect.value) return inviteAspect.value
-  if (format.value === 'portrait') return mapAspect.value
-  if (format.value === 'print') return PRINT_ASPECT
+  if (format.value === 'staaende') return PRINT_ASPECT
+  if (format.value === 'liggende') return 1 / PRINT_ASPECT
   return 1
 })
 
@@ -169,10 +167,12 @@ function parseShareInvite() {
   if (Number.isFinite(eq) && [2.5, 5, 10, 20, 25, 50].includes(eq)) {
     equidistanceM.value = Math.max(eq, minEquidistanceForWidthKm(halfKm.value * 2))
   }
-  format.value = 'portrait'
-  // Avsenderens aspekt (clampet til fornuftig spenn). Settes ETTER format-
-  // tilordningen over — format-watchen nullstiller inviteAspect.
+  // Avsenderens aspekt (clampet til fornuftig spenn). Format-KNAPPEN settes
+  // etter formen i lenka: et liggende ark skal ikke lyse opp «Stående», selv om
+  // det er inviteAspect som faktisk bestemmer utsnittet. Rekkefølgen er
+  // bevisst — format-watchen nullstiller inviteAspect, så den må settes sist.
   const asp = parseFloat(q.asp)
+  format.value = Number.isFinite(asp) && asp < 1 ? 'liggende' : 'staaende'
   if (Number.isFinite(asp) && asp >= 0.3 && asp <= 3) {
     nextTick(() => { inviteAspect.value = asp })
   }
@@ -425,8 +425,6 @@ const previewZoom = computed(() => zoomForKm(halfKm.value * 2 * effectiveAspect.
 function measurePreview() {
   const r = previewRef.value?.getBoundingClientRect()
   if (r) previewSize.value = { w: r.width, h: r.height }
-  // Oppdater skjerm-aspektet så previewen følger rotasjon/vindusendring.
-  mapAspect.value = viewportAspect()
 }
 
 const tiles = computed(() => {
@@ -948,18 +946,20 @@ onMounted(() => {
          kartet følger valget. -->
     <div class="rounded-xl bg-ink/[0.04] border border-ink/10 px-4 py-3">
       <div class="text-[11px] text-ink/50 uppercase tracking-wide mb-2">Format</div>
-      <div class="grid grid-cols-3 gap-1.5">
+      <!-- Flex-wrap og ikke `grid-cols-3`: ved 150–200 % tekst får ikke tre
+           kolonner plass, og et rutenett løser det med orddeling («Kvad-
+           ratisk»). Med `min-w` bryter raden i stedet, og hvert ord står helt. -->
+      <div class="flex flex-wrap gap-1.5">
         <button v-for="opt in FORMAT_OPTIONS" :key="opt.value"
                 :disabled="controlsLocked"
                 @click="format = opt.value"
-                class="px-2 py-1.5 rounded-md border text-[12px] font-medium active:scale-95 transition
-                       flex flex-col items-center justify-center gap-0.5
+                class="flex-1 min-w-[6.5rem] px-2 py-1.5 rounded-md border text-[12px] font-medium
+                       active:scale-95 transition text-center
                        disabled:cursor-not-allowed disabled:opacity-40"
                 :class="format === opt.value
                         ? 'bg-slate-400/20 border-slate-300/60 text-slate-100'
                         : 'bg-ink/5 border-ink/10 text-ink/65'">
           <span>{{ opt.label }}</span>
-          <span v-if="opt.sub" class="text-[9px] font-normal text-ink/45 leading-none">{{ opt.sub }}</span>
         </button>
       </div>
     </div>

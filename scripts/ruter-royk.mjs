@@ -559,14 +559,25 @@ try {
       .find((n) => n.getBoundingClientRect().width > 0)
     const knapp = [...document.querySelectorAll('[role="dialog"] button')]
       .find((n) => /Lag turkart/.test(n.textContent))
+    // Format-knappene: ett ord hver, og ingen av dem skal klippes. Med tre
+    // faste kolonner ble «Kvadratisk» delt midt i ordet ved stor tekst — det
+    // er nettopp den overflyten `scrollWidth > clientWidth` fanger.
+    const fmt = [...document.querySelectorAll('[role="dialog"] button')]
+      .filter((n) => /^(Kvadratisk|Stående|Liggende)$/.test(n.textContent.trim()))
     return {
       bredde: rute ? Math.round(rute.getBoundingClientRect().width) : -1,
       festet: knapp ? getComputedStyle(knapp.parentElement).position : 'fant-ingen',
+      formater: fmt.map((n) => n.textContent.trim()),
+      formatSol: Math.max(0, ...fmt.map((n) => n.scrollWidth - n.clientWidth)),
     }
   })
   // Terskelen er FYSISKE piksler: `zoom: 2` gjør 120 logiske til 240 på skjermen.
   sjekk('Nytt turkart: forhåndsvisningen overlever 200 % tekst',
     nytt200.bredde >= 120, `preview ${nytt200.bredde} px`)
+  sjekk('Nytt turkart: tre formater med ett ord hver',
+    nytt200.formater.join(',') === 'Kvadratisk,Stående,Liggende', nytt200.formater.join(',') || 'fant ingen')
+  sjekk('Nytt turkart: formatknappene klippes ikke ved 200 % tekst',
+    nytt200.formatSol === 0, `overflyt ${nytt200.formatSol} px`)
   sjekk('Nytt turkart: «Lag turkart» slipper bunnen over 125 %',
     nytt200.festet === 'static', `position: ${nytt200.festet}`)
   await sN.evaluate(() => localStorage.removeItem('lende-ui-text-scale'))

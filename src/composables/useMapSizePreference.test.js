@@ -4,7 +4,7 @@ import {
   effectiveEquidistanceForWidthKm, aspectForFormat, resetMapPreferences,
   useMapSizePreference,
   DEFAULT_MAP_WIDTH_KM, MAP_SIZE_MIN_KM, MAP_SIZE_MAX_KM,
-  MAP_FORMAT_OPTIONS, DEFAULT_MAP_FORMAT, MAP_EQ_OPTIONS,
+  MAP_FORMAT_OPTIONS, DEFAULT_MAP_FORMAT, MAP_EQ_OPTIONS, formatFraLagret,
 } from './useMapSizePreference.js'
 import { PRINT_ASPECT } from '../lib/mapBuilder.js'
 
@@ -60,17 +60,27 @@ describe('equidistanceForWidthKm — fineste tillatte (samme gulv som «Flere va
 
 describe('format-preferansen', () => {
   it('har de tre «Flere valg»-formatene, kvadratisk som standard', () => {
-    expect(MAP_FORMAT_OPTIONS.map(o => o.value)).toEqual(['square', 'portrait', 'print'])
+    expect(MAP_FORMAT_OPTIONS.map(o => o.value)).toEqual(['square', 'staaende', 'liggende'])
     expect(DEFAULT_MAP_FORMAT).toBe('square')
   })
-  it('aspectForFormat: kvadrat = 1, print = √2, portrett = viewportAspect', () => {
+  it('ingen av knappene har undertekst — ett ord per knapp (v6.5.46)', () => {
+    for (const o of MAP_FORMAT_OPTIONS) expect(o.sub).toBeUndefined()
+  })
+  it('gamle lagrede formater migreres: begge var høye ark → stående', () => {
+    expect(formatFraLagret('portrait')).toBe('staaende')
+    expect(formatFraLagret('print')).toBe('staaende')
+    expect(formatFraLagret('liggende')).toBe('liggende')
+    expect(formatFraLagret('tull')).toBe(DEFAULT_MAP_FORMAT)
+    expect(formatFraLagret(null)).toBe(DEFAULT_MAP_FORMAT)
+  })
+  it('aspectForFormat: kvadrat = 1, stående = √2, liggende = 1/√2', () => {
     expect(aspectForFormat('square')).toBe(1)
-    expect(aspectForFormat('print')).toBeCloseTo(PRINT_ASPECT, 9)
-    // I Node (ingen window) faller viewportAspect til 1; i nettleser er den
-    // klampet til [1, 2.2]. Begge er gyldige her.
-    const p = aspectForFormat('portrait')
-    expect(p).toBeGreaterThanOrEqual(1)
-    expect(p).toBeLessThanOrEqual(2.2)
+    expect(aspectForFormat('staaende')).toBeCloseTo(PRINT_ASPECT, 9)
+    expect(aspectForFormat('liggende')).toBeCloseTo(1 / PRINT_ASPECT, 9)
+    // Samme ark snudd: produktet er 1.
+    expect(aspectForFormat('staaende') * aspectForFormat('liggende')).toBeCloseTo(1, 9)
+    // Ukjent/utdatert verdi faller til kvadrat framfor å gi NaN-dimensjoner.
+    expect(aspectForFormat('portrait')).toBe(1)
   })
 })
 
@@ -94,7 +104,7 @@ describe('effektiv ekvidistanse + Nullstill', () => {
   it('Nullstill setter 8 km + auto (20 m) + kvadratisk', () => {
     const { mapSizeKm, mapFormat, mapEquidistance } = useMapSizePreference()
     mapSizeKm.value = 7
-    mapFormat.value = 'print'
+    mapFormat.value = 'liggende'
     mapEquidistance.value = 50
     resetMapPreferences()
     expect(mapSizeKm.value).toBeNull()                       // null = 8 km-default
