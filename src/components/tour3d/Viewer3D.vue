@@ -24,6 +24,7 @@
 // popstate; samme URL, så vue-router er upåvirket).
 import { ref, computed, watch, onMounted, onBeforeUnmount, toRaw } from 'vue'
 import { useScreenWakeLock } from '../../composables/useScreenWakeLock.js'
+import { useFokusFelle } from '../../composables/useFokusFelle.js'
 import { sampleProfile } from '../../lib/elevationProfile.js'
 import Tour3dFeatureCard from './Tour3dFeatureCard.vue'
 import Tour3dPinPanel from './Tour3dPinPanel.vue'
@@ -365,6 +366,11 @@ const toast = ref('')
 const isLandscape = ref(typeof window !== 'undefined' && window.innerWidth > window.innerHeight)
 
 const canvasHost = ref(null)
+// 3D er en `aria-modal`-dialog over hele kartet, og da må Tab holde seg her:
+// kartet under er fortsatt i DOM-en, med hele skuffa og FAB-klyngen sin.
+// Fokus gis tilbake til 3D-knappen når visningen lukkes.
+const overleggRef = ref(null)
+useFokusFelle(overleggRef, () => true)
 let engine = null
 let abort = null
 let poppedByHistory = false
@@ -1199,7 +1205,8 @@ function branchLabel(opt, i) {
 
 <template>
   <Teleport to="body">
-    <div class="fixed inset-0 z-[220] bg-[#101623] flex flex-col" :style="overleggStil">
+    <div ref="overleggRef" role="dialog" aria-modal="true" aria-label="3D-visning"
+         class="fixed inset-0 z-[220] bg-[#101623] flex flex-col" :style="overleggStil">
       <div ref="canvasHost" class="absolute inset-0"></div>
 
       <!-- GLOBENS STEDSNAVN. Absolutt plassert over lerretet, uten peker-treff:
@@ -1248,7 +1255,7 @@ function branchLabel(opt, i) {
                   pointer-events-none">
         <button type="button" @click="toggleNight"
                 aria-label="Stargazer — åpne natthimmelen"
-                class="pointer-events-auto max-w-full rounded-2xl bg-black/45 backdrop-blur
+                class="pointer-events-auto max-w-full rounded-2xl bg-black/72 backdrop-blur
                        ring-1 ring-white/20 shadow-lg px-4 py-2.5 text-white/90
                        flex items-center gap-2.5 active:scale-[0.97] transition"
                 :style="tekstBoks(80)">
@@ -1259,7 +1266,7 @@ function branchLabel(opt, i) {
           </svg>
           <span class="min-w-0 text-left leading-tight">
             <span class="block text-[0.8125rem] font-semibold">Stargazer</span>
-            <span class="block text-[0.6875rem] text-white/65">{{ STARGAZER_TEKST }}</span>
+            <span class="block text-[0.6875rem] text-white/80">{{ STARGAZER_TEKST }}</span>
           </span>
         </button>
       </div>
@@ -1286,7 +1293,7 @@ function branchLabel(opt, i) {
                   :aria-label="NATT_STEG_LABEL[nattSteg]"
                   class="w-11 h-11 rounded-full backdrop-blur flex items-center justify-center
                          active:scale-95 transition-colors relative"
-                  :class="stjernemodus ? 'bg-black/25 text-white/35' : 'bg-white text-gray-900'">
+                  :class="stjernemodus ? 'bg-black/60 text-white/70' : 'bg-white text-gray-900'">
             <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <!-- Måne (fylt) i natt, sol (strek) i dag. SKYA ER FJERNET (v6.3.0):
@@ -1308,10 +1315,10 @@ function branchLabel(opt, i) {
           <template v-if="!stjernemodus">
           <button v-if="phase === 'ready'"
                   @click="togglePins"
-                  :aria-label="pinsOn ? 'Skjul knappenåler' : 'Vis knappenåler'"
+                  aria-label="Knappenåler" :aria-pressed="pinsOn"
                   class="w-11 h-11 rounded-full backdrop-blur flex items-center justify-center
                          active:scale-95 transition-colors"
-                  :class="pinsOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
+                  :class="pinsOn ? 'bg-white text-gray-900' : 'bg-black/72 text-white/85'">
             <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M12 21s-6-5.2-6-10a6 6 0 1 1 12 0c0 4.8-6 10-6 10z"/>
@@ -1325,11 +1332,11 @@ function branchLabel(opt, i) {
                enn tre ikoner. -->
           <button v-if="phase === 'ready' && hasPaths"
                   @click="togglePaths"
-                  :aria-label="pathsOn ? 'Skjul stinettet' : 'Vis stinettet'"
+                  aria-label="Sti — vis stinettet" :aria-pressed="pathsOn"
                   class="h-11 px-2 max-[379px]:w-11 max-[379px]:px-0 rounded-full backdrop-blur
                          text-xs font-medium flex items-center justify-center gap-1
                          active:scale-95 transition-colors"
-                  :class="pathsOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
+                  :class="pathsOn ? 'bg-white text-gray-900' : 'bg-black/72 text-white/85'">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M4 20c3-1 4-4 3-7s1-6 4-7 6 1 8 3"/>
@@ -1343,12 +1350,12 @@ function branchLabel(opt, i) {
           <button v-if="phase === 'ready' && hasPaths && !fixedTour"
                   @click="toggleKryssPause"
                   :disabled="!pathsOn"
-                  :aria-label="kryssPauseOn ? 'Ikke stopp i stikryss' : 'Stopp i stikryss'"
+                  aria-label="Kryss — stopp i stikryss" :aria-pressed="kryssPauseOn && pathsOn"
                   class="h-11 px-2 max-[379px]:w-11 max-[379px]:px-0 rounded-full backdrop-blur
                          text-xs font-medium flex items-center justify-center gap-1
                          active:scale-95 transition-colors
                          disabled:opacity-40 disabled:pointer-events-none"
-                  :class="kryssPauseOn && pathsOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
+                  :class="kryssPauseOn && pathsOn ? 'bg-white text-gray-900' : 'bg-black/72 text-white/85'">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M12 21v-8"/>
@@ -1359,11 +1366,11 @@ function branchLabel(opt, i) {
           </button>
           <button v-if="phase === 'ready' && fixedTour"
                   @click="togglePoiStops"
-                  :aria-label="poiStopsOn ? 'Ikke stopp ved severdigheter' : 'Stopp ved severdigheter'"
+                  aria-label="Stopp — stopp ved severdigheter" :aria-pressed="poiStopsOn"
                   class="h-11 px-2 max-[379px]:w-11 max-[379px]:px-0 rounded-full backdrop-blur
                          text-xs font-medium flex items-center justify-center gap-1
                          active:scale-95 transition-colors"
-                  :class="poiStopsOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
+                  :class="poiStopsOn ? 'bg-white text-gray-900' : 'bg-black/72 text-white/85'">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <circle cx="12" cy="12" r="8.5"/><path d="M12 8v4l3 2"/>
@@ -1372,11 +1379,11 @@ function branchLabel(opt, i) {
           </button>
           <button v-if="phase === 'ready'"
                   @click="toggleContours"
-                  aria-label="Vis høydekurver i terrenget"
+                  aria-label="Kurver — vis høydekurver i terrenget" :aria-pressed="contoursOn"
                   class="h-11 px-2 max-[379px]:w-11 max-[379px]:px-0 rounded-full backdrop-blur
                          text-xs font-medium flex items-center justify-center gap-1
                          active:scale-95 transition-colors"
-                  :class="contoursOn ? 'bg-white text-gray-900' : 'bg-black/45 text-white/85'">
+                  :class="contoursOn ? 'bg-white text-gray-900' : 'bg-black/72 text-white/85'">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
               <path d="M4 9c3-3.5 13-3.5 16 0M5.5 13c2.5-2.6 10.5-2.6 13 0M7.5 17c2-1.8 7-1.8 9 0"/>
@@ -1406,7 +1413,7 @@ function branchLabel(opt, i) {
                   aria-label="Lukk 3D-visning"
                   class="w-11 h-11 shrink-0 rounded-full backdrop-blur
                          flex items-center justify-center active:scale-90 transition-colors"
-                  :class="stjernemodus ? 'bg-black/25 text-white/35' : 'bg-black/45 text-white/85'">
+                  :class="stjernemodus ? 'bg-black/60 text-white/70' : 'bg-black/72 text-white/85'">
             <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
                  stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
               <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -1586,13 +1593,13 @@ function branchLabel(opt, i) {
            feilet 3D-visningen, var den eneste veien ut Escape (som ikke finnes
            på mobil) eller Android-tilbakeknappen. Innholdet her er ren
            informasjon og trenger ingen treff selv. -->
-      <div v-if="phase === 'loading'"
+      <div v-if="phase === 'loading'" role="status" aria-live="polite"
            class="absolute inset-0 z-20 pointer-events-none flex flex-col items-center
                   justify-center gap-3 text-white/80">
         <div class="w-10 h-10 rounded-full border-2 border-white/25 border-t-white animate-spin"></div>
         <div class="text-[0.8125rem]">{{ buildMsg || 'Bygger 3D-terreng …' }}</div>
       </div>
-      <div v-else-if="errorText"
+      <div v-else-if="errorText" role="alert"
            class="absolute inset-0 z-20 pointer-events-none flex items-center justify-center p-6">
         <div class="rounded-xl bg-amber-500/10 border border-amber-300/30 px-4 py-3
                     text-amber-100/90 text-[0.8125rem] max-w-sm text-center">
@@ -1614,7 +1621,7 @@ function branchLabel(opt, i) {
 
         <!-- Kameraet er løsnet fra turen: veien tilbake, ett trykk unna. -->
         <button v-if="walking && detached" @click="followRoute"
-                class="self-start w-fit flex items-center gap-1.5 rounded-full bg-black/55 backdrop-blur
+                class="self-start w-fit flex items-center gap-1.5 rounded-full bg-black/72 backdrop-blur
                        px-3 py-1.5 text-[0.6875rem] font-medium text-white/90 active:scale-95">
           <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
                stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1628,7 +1635,7 @@ function branchLabel(opt, i) {
              `self-start w-fit` holder boksen så smal som innholdet — full bredde
              la et grønt teppe over kartet for to korte knapper. -->
         <div v-if="walking && junction"
-             class="on-accent self-start w-fit max-w-full rounded-md bg-emerald-600 text-white
+             class="on-accent self-start w-fit max-w-full rounded-md bg-emerald-700 text-white
                     text-[0.6875rem] shadow-lg px-3 py-2">
           <div class="text-[0.5625rem] uppercase tracking-wide text-emerald-100/90 mb-1">
             {{ !playing ? 'Kryss — velg vei, eller ▶ for rett fram' : 'Kryss — fortsetter rett fram' }}
@@ -1651,7 +1658,7 @@ function branchLabel(opt, i) {
                starter man på nytt ved å trykke på en sti. -->
           <button v-if="fixedTour" @click="restart"
                   aria-label="Start turen på nytt"
-                  class="w-10 h-10 shrink-0 rounded-full bg-black/45 backdrop-blur text-white/85
+                  class="w-10 h-10 shrink-0 rounded-full bg-black/72 backdrop-blur text-white/85
                          flex items-center justify-center active:scale-90">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -1670,14 +1677,16 @@ function branchLabel(opt, i) {
               <polygon points="8,5 8,19 19,12"/></svg>
           </button>
           <button v-if="!fixedTour" @click="stopTrip"
-                  class="h-12 px-4 rounded-full bg-black/45 backdrop-blur text-white/85
+                  class="h-12 px-4 rounded-full bg-black/72 backdrop-blur text-white/85
                          text-xs font-medium active:scale-95">
             Avslutt turen
           </button>
           <!-- Tempo, nede til høyre. -->
-          <div class="ml-auto flex items-center gap-1 rounded-full bg-black/45 backdrop-blur p-1">
+          <div class="ml-auto flex items-center gap-1 rounded-full bg-black/72 backdrop-blur p-1"
+               role="radiogroup" aria-label="Tempo">
             <button v-for="x in TIME_SCALES" :key="x"
                     @click="setTimeScale(x)"
+                    role="radio" :aria-checked="timeScale === x"
                     :aria-label="`Tempo ${x} ganger`"
                     class="h-9 px-2.5 rounded-full text-[0.6875rem] font-semibold tabular-nums
                            active:scale-95 transition-colors"
@@ -1689,7 +1698,7 @@ function branchLabel(opt, i) {
 
         <div v-else class="flex items-center gap-2">
           <button @click="overview"
-                  class="h-11 px-3 rounded-full bg-black/45 backdrop-blur text-white/85
+                  class="h-11 px-3 rounded-full bg-black/72 backdrop-blur text-white/85
                          text-xs font-medium flex items-center gap-1.5 active:scale-95">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1701,13 +1710,13 @@ function branchLabel(opt, i) {
                ikke åpenbart at samme drag den andre veien er veien ned igjen.
                Hintet erstatter sti-hintet, som ikke er til hjelp der. -->
           <div v-if="serOpp"
-               class="rounded-full bg-black/40 backdrop-blur px-3 py-1.5 text-[0.6875rem] text-white/70">
+               class="rounded-full bg-black/70 backdrop-blur px-3 py-1.5 text-[0.6875rem] text-white/70">
             Ser opp i himmelen — dra nedover for å komme tilbake til kartet
           </div>
           <!-- Hintet gjelder bare med stinettet synlig — med Sti av er det
                ingen sti å trykke på, og et trykk starter ingen tur. -->
           <div v-else-if="hasPaths"
-               class="rounded-full bg-black/40 backdrop-blur px-3 py-1.5 text-[0.6875rem] text-white/70">
+               class="rounded-full bg-black/70 backdrop-blur px-3 py-1.5 text-[0.6875rem] text-white/70">
             {{ pathsOn ? 'Trykk på en sti for å følge den' : 'Slå på Sti for å følge en sti' }}
           </div>
         </div>
@@ -1721,7 +1730,7 @@ function branchLabel(opt, i) {
            finnes. I natt er de dempet og røde, som kompasset. -->
       <div v-if="phase === 'ready' && finPeker"
            class="absolute right-0 top-1/2 -translate-y-1/2 z-10 pointer-events-auto pr-2
-                  flex flex-col items-center gap-2 rounded-2xl bg-black/35 backdrop-blur
+                  flex flex-col items-center gap-2 rounded-2xl bg-black/65 backdrop-blur
                   py-3 px-1.5 mr-1 text-white/85">
         <ZoomSkyv v-if="avstandGrenser" :broek="zoomBroekNaa" :avlest="zoomAvlest"
                   :natt="stjernemodus" merkelapp="Zoom i 3D-visningen"
@@ -1767,7 +1776,7 @@ function branchLabel(opt, i) {
       <!-- Skjerping av kartbildet etter at visningen er åpen -->
       <div v-if="phase === 'ready' && buildMsg"
            class="absolute left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 rounded-full
-                  bg-black/55 backdrop-blur px-3 py-1.5 text-[0.6875rem] text-white/85"
+                  bg-black/72 backdrop-blur px-3 py-1.5 text-[0.6875rem] text-white/85"
            :class="isLandscape ? 'top-16' : 'top-32'">
         <span class="w-3 h-3 rounded-full border-2 border-white/30 border-t-white animate-spin"></span>
         {{ buildMsg }}
@@ -1781,7 +1790,7 @@ function branchLabel(opt, i) {
       </div>
 
       <!-- Kortvarig melding -->
-      <div v-if="toast"
+      <div v-if="toast" role="status" aria-live="polite"
            class="absolute left-1/2 -translate-x-1/2 bottom-28 z-30 max-w-[86vw] text-center rounded-full
                   bg-black/70 backdrop-blur px-3 py-1.5 text-xs text-white/90">
         {{ toast }}

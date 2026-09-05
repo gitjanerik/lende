@@ -52,7 +52,7 @@ watch(visibleGroups, (gs) => { if (!gs.length) expanded.value = false })
   <div v-if="visibleGroups.length" class="on-accent max-w-full sm:max-w-xs">
     <button v-if="!expanded" @click="expanded = true"
             :aria-label="`Vis filter for ${tittel.toLowerCase()}`"
-            class="flex items-center gap-1.5 rounded-full bg-emerald-600 text-white
+            class="flex items-center gap-1.5 rounded-full bg-emerald-700 text-white
                    text-[0.6875rem] font-semibold shadow-lg pl-3 pr-2 py-1.5 active:scale-[0.97]
                    tabular-nums">
       <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor"
@@ -68,7 +68,7 @@ watch(visibleGroups, (gs) => { if (!gs.length) expanded.value = false })
     </button>
 
     <div v-else
-         class="rounded-md bg-emerald-600 text-white text-[0.6875rem] font-medium shadow-lg
+         class="rounded-md bg-emerald-700 text-white text-[0.6875rem] font-medium shadow-lg
                 flex items-start gap-1.5 pl-3 pr-1 py-2">
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2">
@@ -82,8 +82,12 @@ watch(visibleGroups, (gs) => { if (!gs.length) expanded.value = false })
         </div>
 
         <div class="mt-1.5 flex flex-col gap-0.5">
+          <!-- Avkryssings-semantikk: raden ER en avkryssingsboks (rute + hake),
+               og uten role/aria-checked annonseres den som en vanlig knapp der
+               ingenting sier om lagets nåler vises. -->
           <button v-for="g in visibleGroups" :key="g.key"
                   @click="toggle(g.key)"
+                  role="checkbox" :aria-checked="!!modelValue[g.key]"
                   class="flex items-center gap-2 rounded px-1 py-1 text-left active:scale-[0.98]"
                   :class="modelValue[g.key] ? 'bg-ink/10' : 'opacity-55'">
             <span class="w-3.5 h-3.5 shrink-0 rounded-sm border border-white/70

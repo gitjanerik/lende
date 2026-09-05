@@ -28,10 +28,10 @@ defineProps({
 
 <template>
   <div>
-    <div class="text-[11px] font-semibold text-ink/55 uppercase tracking-wide mb-1.5">
+    <div class="text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1.5">
       Enkeltlag
     </div>
-    <p class="text-[11px] text-ink/45 leading-snug mb-2">
+    <p class="text-[11px] text-ink-4 leading-snug mb-2">
       Finjustering oppå kartstilen. Vil du bytte hele uttrykket — farger,
       strek og sti-farger — ligger det under Kartstil.
     </p>
@@ -43,7 +43,7 @@ defineProps({
               class="px-3 py-2 rounded-lg border text-left transition"
               :class="layersDirty
                       ? 'bg-amber-400/20 border-amber-300/50 text-ink active:scale-[0.98]'
-                      : 'bg-ink/5 border-ink/5 text-ink/25 cursor-default'">
+                      : 'bg-ink/5 border-ink/5 text-ink-4 cursor-default'">
         <span class="text-[12px]">↺ Nullstill</span>
       </button>
       <button v-for="lay in landLayerButtons" :key="lay.key"
@@ -52,7 +52,7 @@ defineProps({
               class="px-3 py-2 rounded-lg border text-left active:scale-[0.98] transition"
               :class="visibleLayers.has(lay.key)
                       ? 'bg-slate-400/25 border-slate-300/50 text-ink'
-                      : 'bg-ink/5 border-ink/10 text-ink/45'">
+                      : 'bg-ink/5 border-ink/10 text-ink-4'">
         <span class="text-[12px]">{{ lay.label }}</span>
         <!-- Tre utfall, tre tegn (v4.8.6): «(0)» betyr nå at tjenesten svarte og
              området er tomt, «(–)» at vi ennå ikke vet, og «(!)» at hentingen
@@ -65,16 +65,16 @@ defineProps({
                           ? 'Ikke hentet ennå'
                           : `${kulturminneCount} kulturminner i dette utsnittet`"
               :class="kulturminneStatus === 'feilet' ? 'text-amber-300/90'
-                      : kulturminneCount ? 'text-emerald-300/80' : 'text-ink/30'">{{
+                      : kulturminneCount ? 'text-emerald-300/80' : 'text-ink-4'">{{
                 kulturminneStatus === 'feilet' ? '(!)'
                 : kulturminneCount == null ? '(–)'
                 : '(' + kulturminneCount + ')' }}</span>
         <span v-else-if="lay.key === 'fredet-kulturminne' && (fredetLoading || fredetCount != null)"
               class="ml-1 text-[10px] tabular-nums"
-              :class="fredetCount ? 'text-emerald-300/80' : 'text-ink/30'">{{ fredetLoading ? '…' : '(' + fredetCount + ')' }}</span>
+              :class="fredetCount ? 'text-emerald-300/80' : 'text-ink-4'">{{ fredetLoading ? '…' : '(' + fredetCount + ')' }}</span>
         <span v-else-if="lay.key === 'vannstasjon' && (hydroLoading || hydroCount != null)"
               class="ml-1 text-[10px] tabular-nums"
-              :class="hydroCount ? 'text-sky-300/80' : 'text-ink/30'">{{ hydroLoading ? '…' : '(' + hydroCount + ')' }}</span>
+              :class="hydroCount ? 'text-sky-300/80' : 'text-ink-4'">{{ hydroLoading ? '…' : '(' + hydroCount + ')' }}</span>
       </button>
     </div>
     <!-- Gruppert seksjon: Sjø & padling -->
@@ -88,7 +88,7 @@ defineProps({
               class="px-3 py-2 rounded-lg border text-left active:scale-[0.98] transition"
               :class="visibleLayers.has(lay.key)
                       ? 'bg-sky-400/25 border-sky-300/50 text-ink'
-                      : 'bg-ink/5 border-ink/10 text-ink/45'">
+                      : 'bg-ink/5 border-ink/10 text-ink-4'">
         <span class="text-[12px]">{{ lay.label }}</span>
       </button>
       <!-- Dybde-lag: kun når kartet har ekte Sjøkart-dybde. Default av —
@@ -98,17 +98,17 @@ defineProps({
               class="px-3 py-2 rounded-lg border text-left active:scale-[0.98] transition"
               :class="visibleLayers.has('dybde')
                       ? 'bg-sky-400/25 border-sky-300/50 text-ink'
-                      : 'bg-ink/5 border-ink/10 text-ink/45'">
+                      : 'bg-ink/5 border-ink/10 text-ink-4'">
         <span class="text-[12px]">Dybde (Sjøkart)</span>
       </button>
     </div>
-    <div class="text-[10px] text-ink/40 leading-snug mb-2">
+    <div class="text-[10px] text-ink-4 leading-snug mb-2">
       Fyr, sjømerker, skjær, småbåthavner, landingssteder, toalett og
       drikkevann. «Sjønavn» viser geografiske navn i sjøen (bukt, vik,
       sund, nes, grunne, holme, skjær). Dybdetall vises ved å holde inne
       et punkt på kartet.
     </div>
-    <div class="text-[10px] text-ink/40 leading-snug mt-2">
+    <div class="text-[10px] text-ink-4 leading-snug mt-2">
       Reliefskygge er DEM-derivert hill-shading rendret som grayscale-
       PNG inne i SVG-en med <code>mix-blend-mode: multiply</code>.
     </div>

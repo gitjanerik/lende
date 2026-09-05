@@ -19,6 +19,7 @@ import LegendContent from './LegendContent.vue'
 import MapLibrary from './MapLibrary.vue'
 import MapPickerContent from './MapPickerContent.vue'
 import { APP_VERSION } from '../version.js'
+import { useFokusFelle } from '../composables/useFokusFelle.js'
 
 // Global hovedmeny — slide-in fra venstre. Montert én gang i App.vue og styrt av
 // den delte useAppMenu-tilstanden, så meny-knappen i enhver visning åpner denne.
@@ -241,6 +242,14 @@ function onKey(e) {
   if (sheet.value) sheet.value = null
   else if (menuOpen.value) close()
 }
+// Skuffa er en dialog: Tab skal holde seg i den mens den er åpen, og fokus
+// skal tilbake til hamburgeren når den lukkes. Uten fella tabber man rett ut i
+// forsiden bak, som fortsatt ligger der og er fullt betjenbar.
+const menuRef = ref(null)
+useFokusFelle(menuRef, () => menuOpen.value, {
+  ogsaa: () => [...document.querySelectorAll('[data-hovedmeny-knapp]')],
+})
+
 onMounted(() => window.addEventListener('keydown', onKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
@@ -251,8 +260,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   </Transition>
 
   <Transition name="menu-slide">
-    <aside v-if="menuOpen" class="app-menu" :style="{ fontSize: rootFontSize }"
-           aria-label="Hovedmeny">
+    <aside v-if="menuOpen" ref="menuRef" class="app-menu" :style="{ fontSize: rootFontSize }"
+           role="dialog" aria-modal="true" aria-label="Hovedmeny">
       <div class="am-head">
         <!-- Ingen egen X: hamburger-knappen som åpnet menyen ER lukkekontrollen.
              Den bor permanent i <body> med z-[205] (se AppMenuButton), altså oppå

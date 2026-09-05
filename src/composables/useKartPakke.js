@@ -7,21 +7,17 @@
 // SVG-en, DEM-rutenettet og datalagene, og går telefon-til-telefon med AirDrop,
 // Nearby Share, Bluetooth eller minnepinne.
 //
-// Selve formatet bor i lib/kartPakke.js, innsamlingen i lib/offlinePakke.js.
-// Her er bare rekkefølgen, statusen knappen leser, og valget mellom
-// delings-arket og en vanlig nedlasting.
+// Selve formatet bor i lib/kartPakke.js, innsamlingen i lib/offlinePakke.js,
+// og selve pakke-/leverings-rekkefølgen i lib/kartFilDeling.js — DELT med
+// nedlastings-knappen i «Mine kart» (v6.5.47), så de to veiene ikke kan gi hver
+// sin fil. Her er bare statusen knappen leser og det MapView kan som lista ikke
+// kan: å pakke et INNEBYGD kart av det som står på skjermen.
 
 import { ref, computed } from 'vue'
 import { loadMap } from '../lib/mapStorage.js'
-import { lagKartPakke, pakkeFilnavn, sikreDataMeta } from '../lib/kartPakke.js'
-import { samleOfflineData } from '../lib/offlinePakke.js'
-import { triggerDownload } from '../lib/printExport.js'
+import { sikreDataMeta } from '../lib/kartPakke.js'
+import { delEllerLastNedFil, filStorrelseTekst, pakkKartTilFil, STOR_FIL_MB } from '../lib/kartFilDeling.js'
 import { APP_VERSION } from '../version.js'
-
-// Over dette advarer vi i toasten. Grensa er ikke teknisk — den er sosial: en
-// fil på flere titalls MB kommer ikke gjennom en meldingstjeneste, og brukeren
-// bør vite det FØR de prøver å sende den til turkameraten.
-const STOR_FIL_MB = 40
 
 /**
  * @param {{
@@ -96,48 +92,30 @@ export function useKartPakke({ meta, mapTitle, kartId, autoMapToast, hentSvgMark
       const kart = (await loadMap(id)) ?? entryFraSkjermen(id)
       if (!kart?.svg) throw new Error('Fant ikke kartet å pakke.')
 
-      const cache = await samleOfflineData({
+      // meta sendes inn her, men leses av forankringFraSvg i lista: MapView HAR
+      // allerede det ferdig parsede utsnittet, og et innebygd kart har ingen
+      // lagret SVG å lese det ut av.
+      const { blob, filnavn } = await pakkKartTilFil({
+        kart,
+        navn: mapTitle.value || kart.navn,
         meta: meta.value,
-        svg: kart.svg,
-        onProgress: (t) => { if (pakkeStatus.value === 'samler') pakkeDetalj.value = t },
+        appVersion: APP_VERSION,
+        onProgress: (t) => {
+          if (t === 'Pakker fila …') settStatus('pakker')
+          else if (pakkeStatus.value === 'samler') pakkeDetalj.value = t
+        },
       })
 
-      settStatus('pakker')
-      const blob = await lagKartPakke({ kart, cache, appVersion: APP_VERSION })
-      const filnavn = pakkeFilnavn(mapTitle.value || kart.navn)
-      const mb = blob.size / (1024 * 1024)
-
-      // Delings-arket først: der ligger AirDrop, Nearby Share, Bluetooth og
-      // «Lagre i Filer» — alle sammen uten nett. Klarer ikke nettleseren å dele
-      // filer, faller vi tilbake til en vanlig nedlasting.
-      //
-      // DETTE er Bluetooth-støtten vår, og det er et bevisst valg: å sende
-      // direkte mellom to telefoner fra webappen selv ble vurdert og forkastet
-      // (v5.20.1). Web Bluetooth finnes ikke på iOS og er «central-only» på
-      // Android, så to nettsider ser aldri hverandre; WebRTC over felles hotspot
-      // med QR-håndhilsning ville virket, men kostet for mye å teste i felt.
-      // Begrunnelsen i sin helhet står i CLAUDE.md. Operativsystemet er bedre på
-      // nærradio enn vi blir — vi leverer en FIL og lar det ta seg av resten.
-      const fil = new File([blob], filnavn, { type: 'application/gzip' })
-      if (typeof navigator.share === 'function'
-          && typeof navigator.canShare === 'function'
-          && navigator.canShare({ files: [fil] })) {
-        settStatus('deler')
-        try {
-          await navigator.share({ files: [fil], title: mapTitle.value || 'Lende — turkart' })
-          settStatus('ferdig')
-          return
-        } catch (err) {
-          // Bruker lukket arket — ikke en feil, og ikke noe å laste ned heller.
-          if (err && err.name === 'AbortError') { settStatus(''); return }
-          // Alt annet: fall gjennom til nedlasting.
-        }
-      }
-      triggerDownload(blob, filnavn)
+      settStatus('deler')
+      const utfall = await delEllerLastNedFil(blob, filnavn, mapTitle.value || 'Lende — turkart')
+      if (utfall === 'avbrutt') { settStatus(''); return }
       settStatus('ferdig')
-      toast(mb > STOR_FIL_MB
-        ? `Fila er ${mb.toFixed(0)} MB — for stor for de fleste meldingsapper. Bruk AirDrop, kabel eller minnepinne.`
-        : `${filnavn} lagret (${mb < 1 ? `${Math.round(blob.size / 1024)} kB` : `${mb.toFixed(1)} MB`}).`)
+      if (utfall === 'lastet-ned') {
+        const mb = blob.size / (1024 * 1024)
+        toast(mb > STOR_FIL_MB
+          ? `Fila er ${mb.toFixed(0)} MB — for stor for de fleste meldingsapper. Bruk AirDrop, kabel eller minnepinne.`
+          : `${filnavn} lagret (${filStorrelseTekst(blob.size)}).`)
+      }
     } catch (e) {
       console.error('Offline-pakking feilet:', e)
       settStatus('feil')

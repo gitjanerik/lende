@@ -24,10 +24,10 @@ const stiler = computed(() => KARTSTILER.map((s) => ({
 
 <template>
   <div>
-    <div class="text-[11px] font-semibold text-ink/55 uppercase tracking-wide mb-1.5">
+    <div class="text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1.5">
       Kartstil
     </div>
-    <p class="text-[11px] text-ink/50 leading-snug mb-2.5">
+    <p class="text-[11px] text-ink-4 leading-snug mb-2.5">
       Ett valg som setter farger, lag, strektykkelse og sti-farger samtidig.
       Finjuster under — kartstilen er utgangspunktet, ikke en tvangstrøye.
     </p>
@@ -54,8 +54,8 @@ const stiler = computed(() => KARTSTILER.map((s) => ({
         </svg>
         <span class="min-w-0 flex-1">
           <span class="block text-[13px] font-medium"
-                :class="aktivStil === s.key ? 'text-ink' : 'text-ink/80'">{{ s.label }}</span>
-          <span class="block text-[11px] leading-snug text-ink/50">{{ s.beskrivelse }}</span>
+                :class="aktivStil === s.key ? 'text-ink' : 'text-ink-2'">{{ s.label }}</span>
+          <span class="block text-[11px] leading-snug text-ink-4">{{ s.beskrivelse }}</span>
         </span>
       </button>
     </div>
@@ -64,7 +64,7 @@ const stiler = computed(() => KARTSTILER.map((s) => ({
          Den frie fg/bg-fargevelgeren bor fortsatt i Strek-FAB-panelet. Her
          ligger de navngitte palettene, som er det valget folk faktisk tar:
          to fargevelgere med 16 millioner verdier hver er ikke et valg. -->
-    <div class="text-[11px] font-semibold text-ink/55 uppercase tracking-wide mb-1.5">
+    <div class="text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1.5">
       Tilpass — sti-farge
     </div>
     <div class="flex flex-wrap gap-2 mb-1.5">
@@ -76,7 +76,7 @@ const stiler = computed(() => KARTSTILER.map((s) => ({
                      active:scale-[0.98] transition"
               :class="aktivStiPalett === p.key
                       ? 'bg-slate-400/25 border-slate-300/50 text-ink'
-                      : 'bg-ink/5 border-ink/10 text-ink/65'">
+                      : 'bg-ink/5 border-ink/10 text-ink-3'">
         <svg viewBox="0 0 20 10" class="w-5 h-2.5 shrink-0" aria-hidden="true">
           <template v-if="p.farger">
             <path d="M0 5 H20" :stroke="p.farger.bg" stroke-width="6" stroke-linecap="round" />
@@ -90,7 +90,7 @@ const stiler = computed(() => KARTSTILER.map((s) => ({
         <span class="text-[11px] truncate">{{ p.label }}</span>
       </button>
     </div>
-    <p class="text-[11px] text-ink/45 leading-snug">
+    <p class="text-[11px] text-ink-4 leading-snug">
       Stier tegnes som en sammenhengende underlinje med den stiplede streken
       oppå. «Følg tema» lar kartstilen bestemme begge — de andre overstyrer.
       Vil du ha en helt egen farge, ligger fargevelgeren i Strek-panelet.

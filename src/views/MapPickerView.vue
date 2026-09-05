@@ -1,6 +1,7 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import MapPickerContent from '../components/MapPickerContent.vue'
+import AppMenuButton from '../components/AppMenuButton.vue'
 
 // Ruten /nytt. Skjemaet ligger i MapPickerContent, som deles med modalen
 // hovedmenyens «+» åpner. Ruten består fordi den er inngangen for delte
@@ -10,7 +11,7 @@ const router = useRouter()
 </script>
 
 <template>
-  <div class="kart-ui relative w-full min-h-[100dvh] flex flex-col bg-app text-ink/90">
+  <div class="kart-ui relative w-full min-h-[100dvh] flex flex-col bg-app text-ink">
     <!-- Toppbar -->
     <div class="relative shrink-0 px-3 py-3 flex items-center justify-between
                 bg-surface/80 border-b border-ink/10 z-30">
@@ -22,10 +23,13 @@ const router = useRouter()
           <polyline points="15 18 9 12 15 6"/>
         </svg>
       </button>
-      <div class="text-[14px] font-semibold">Nytt turkart</div>
-      <div class="w-10 h-10"/>
+      <h1 class="text-[14px] font-semibold">Nytt turkart</h1>
+      <!-- Hovedmenyen skal være nåbar fra hver rute (WCAG 2.2 SC 3.2.6,
+           konsekvent hjelp): /nytt hadde bare tilbakepila, så den eneste veien
+           til menyen var å forlate siden man holdt på å fylle ut. -->
+      <AppMenuButton variant="header" />
     </div>
 
-    <MapPickerContent />
+    <main class="contents"><MapPickerContent /></main>
   </div>
 </template>

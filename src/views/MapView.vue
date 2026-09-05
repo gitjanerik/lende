@@ -376,7 +376,10 @@ const ALL_TABS = [
   { key: 'sporing',     label: 'Sporing',    userOnly: true },
   { key: 'eksport',     label: 'Eksport' },
   { key: 'om',          label: 'Innstillinger' },
-  { key: 'utvikler',    label: 'Utvikler' },
+  // userOnly som Annotering/Sporing: Utvikler-fanen er LOD-terskler, vær-demo
+  // og himmel-tvang — knotter for det man bygger selv. På demokartet sto den
+  // som niende fane hos alle som åpnet appen for første gang.
+  { key: 'utvikler',    label: 'Utvikler', userOnly: true },
 ]
 const activeTab = ref('lag')
 try {
@@ -390,6 +393,21 @@ const visibleTabs = computed(() => {
 watch(activeTab, (v) => {
   try { localStorage.setItem(ACTIVE_TAB_KEY, v) } catch { /* noop */ }
 })
+// Piltaster bytter fane (APG). Lista er `visibleTabs` og ikke `ALL_TABS`, så
+// piltasten aldri lander på en fane som er filtrert bort.
+function onDrawerTabKeydown(e) {
+  const keys = visibleTabs.value.map(t => t.key)
+  const i = keys.indexOf(activeTab.value)
+  let neste = null
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') neste = keys[(i + 1) % keys.length]
+  else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') neste = keys[(i - 1 + keys.length) % keys.length]
+  else if (e.key === 'Home') neste = keys[0]
+  else if (e.key === 'End') neste = keys[keys.length - 1]
+  if (!neste) return
+  e.preventDefault()
+  activeTab.value = neste
+  nextTick(() => document.getElementById(`drawer-fane-${neste}`)?.focus({ preventScroll: true }))
+}
 // Hvis fanen ble usynlig (f.eks. åpnet et Vardåsen-kart med Sporing aktiv),
 // fall tilbake til Lag som er garantert alltid synlig.
 watch(visibleTabs, (tabs) => {
@@ -535,6 +553,37 @@ const mapCenterStyle = computed(() => ({
 // vært åpne samtidig, med Innstillinger usynlig bak info-draweren.
 function openDrawer() { closeContextMenu(); showControls.value = true; drawer.reset() }
 function closeDrawer() { showControls.value = false }
+
+// Skuffa er en `role="dialog"`, men BEVISST uten `aria-modal` (v6.5.48): på
+// desktop er den et sidepanel uten bakteppe, og kartet ved siden av er fullt
+// betjenbart. `aria-modal="true"` ville skjult nettopp det kartet for
+// skjermlesere mens brukeren fortsatt kan panorere det med musa. Vi flytter
+// fokus INN når den åpnes og TILBAKE når den lukkes, og lar Tab gå videre.
+//
+// `preventScroll: true` er IKKE valgfritt: MapViews rot er `overflow-hidden`,
+// og en `overflow-hidden` boks kan fortsatt RULLES programmatisk. Uten flagget
+// dro fokuseringen av skuffas første knapp rota 465 px opp, og de åtte
+// lende-pilene havnet utenfor viewporten — de er dokket mot arkkanten, ikke mot
+// vinduet. Røyktesten fanget det; ingen enhetstest kan se det.
+const drawerRef = ref(null)
+let forrigeFokusForSkuff = null
+watch(showControls, (paa) => {
+  if (paa) {
+    forrigeFokusForSkuff = document.activeElement
+    requestAnimationFrame(() => drawerRef.value?.querySelector('button')?.focus({ preventScroll: true }))
+    return
+  }
+  if (forrigeFokusForSkuff?.isConnected) forrigeFokusForSkuff.focus({ preventScroll: true })
+  forrigeFokusForSkuff = null
+})
+
+// Escape lukker skuffa. Den fantes bare som X og som et drag nedover — altså
+// ingen vei ut fra tastatur.
+function onSkuffKey(e) {
+  if (e.key !== 'Escape' || !showControls.value) return
+  e.stopPropagation()
+  closeDrawer()
+}
 
 function onThemeTap(key) {
   setMapTheme(key)
@@ -762,6 +811,29 @@ function settZoom(broek) {
   zoomTil(zoomFraBroek(broek, g.min, g.maks))
 }
 
+// KARTFLATA FRA TASTATUR (v6.5.48). Panorering fantes bare som drag og zoom bare
+// som hjul/pinch — altså et kart uten en eneste tastatur-inngang, midt i appen.
+// Piltastene panorerer, Shift tar tre steg, pluss/minus zoomer. Vi skriver rett
+// på translate-refene: watchen på [scale, translateX, translateY, rotation]
+// kaller clampPan uansett, så grensene er de samme som for draget. Translate
+// ligger UTENFOR rotasjonen i transformen (T ∘ R ∘ S), så «venstre» er venstre
+// på skjermen og ikke vestover i terrenget — det er skjermen fingeren drar i.
+const KART_PAN_PX = 64
+function onKartKeydown(e) {
+  if (e.altKey || e.ctrlKey || e.metaKey) return
+  const steg = e.shiftKey ? KART_PAN_PX * 3 : KART_PAN_PX
+  switch (e.key) {
+    case 'ArrowLeft': translateX.value += steg; break
+    case 'ArrowRight': translateX.value -= steg; break
+    case 'ArrowUp': translateY.value += steg; break
+    case 'ArrowDown': translateY.value -= steg; break
+    case '+': case '=': settZoom(Math.min(1, zoomBroekNaa.value + 0.12)); break
+    case '-': settZoom(Math.max(0, zoomBroekNaa.value - 0.12)); break
+    default: return
+  }
+  e.preventDefault()
+}
+
 // Tekststørrelsen er en INNSTILLING, ikke navigasjon: den settes én gang og
 // står. Bak en knapp fordi tre skyver samtidig på et kart er et instrumentbord.
 // Tilstanden lagres bevisst ikke — knappen er ett klikk unna, og en skyv som
@@ -777,8 +849,7 @@ const labelScaleOpen = ref(false)
 // framtidig kollisjon fanges av seg selv.
 const NAV_KANTBAND_PX = 34
 const navRightStyle = computed(() => ({
-  right: (panelOffsetPx.value > 0 ? panelOffsetPx.value + 12 : 12)
-    + (hasTouch.value ? 0 : NAV_KANTBAND_PX) + 'px',
+  right: (panelOffsetPx.value > 0 ? panelOffsetPx.value + 12 : 12) + NAV_KANTBAND_PX + 'px',
 }))
 
 // Pan- og zoom-grensene (hvor langt kartet kan dras, hvor langt ut det kan
@@ -1462,7 +1533,7 @@ watch(storedDem, (dem) => {
 })
 // Mosaikk + manuell utvidelse — flyttet til useMapExtend; watchene blir her.
 const {
-  buildingOnTheFly, buildingProgress, byggerFlisRetning, autoMapToast, currentMapIsAuto,
+  buildingOnTheFly, buildingProgress, byggerFlisRetning, avbrytUtvidelse, autoMapToast, currentMapIsAuto,
   drawerCoversCanvas, extendZonesVisible, activatableTile, mosaicGapCount,
   edgeHandles, hoveredDir, previewExtend, clearExtendPreview, avslorHandtak,
   showAutoMapToast,
@@ -2440,7 +2511,7 @@ onUnmounted(() => {
                      text-[12px] text-ink font-medium shadow-lg max-w-[42%]
                      flex items-center gap-1.5 active:scale-95 transition">
         <span class="truncate">{{ mapTitle }}</span>
-        <svg viewBox="0 0 24 24" class="w-3 h-3 shrink-0 text-ink/50" fill="none"
+        <svg viewBox="0 0 24 24" class="w-3 h-3 shrink-0 text-ink-4" fill="none"
              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 20h9"/>
           <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
@@ -2557,13 +2628,52 @@ onUnmounted(() => {
            nord, som på «Sentrer»-knappen. Dobbeltklikk i rosa = nord opp. -->
       <div v-if="!hasTouch"
            class="mt-2 flex flex-col items-center gap-1.5 px-1.5 py-2.5 rounded-2xl
-                  bg-overlay shadow-lg select-none text-ink/70">
+                  bg-overlay shadow-lg select-none text-ink-2">
         <ZoomSkyv :broek="zoomBroekNaa" :avlest="zoomAvlest" merkelapp="Zoom kartet"
                   @broek="settZoom"/>
         <div class="w-8 h-px bg-ink/15"></div>
         <RetningsRose modus="kart" :azimut="rotationSliderDeg"
                       @retning="rotateTo($event.azimut)" @nord="rotateTo(0)"/>
-        <span class="text-[10px] text-ink/50 tabular-nums leading-none">{{ rotationSliderDeg }}°</span>
+        <span class="text-[10px] text-ink-4 tabular-nums leading-none">{{ rotationSliderDeg }}°</span>
+      </div>
+
+      <!-- BERØRING: samme funksjoner, én finger (v6.5.48). Zoom fantes bare som
+           pinch og rotasjon bare som to-finger-vri — begge er fleirpunkts-gester,
+           og WCAG 2.5.2 krever at alt som kan gjøres med en slik gest også kan
+           gjøres med ÉN peker. Vi tar ikke inn hele desktop-søyla: skyven og
+           rosa er kontinuerlige kontroller man sikter på med en musepeker, mens
+           det som mangler på en telefon er tre trykk. Nord-knappen står bare når
+           kartet FAKTISK er dreid — ellers er den en knapp som ikke gjør noe. -->
+      <div v-if="hasTouch"
+           class="mt-2 flex flex-col items-center gap-1 p-1 rounded-2xl
+                  bg-overlay/95 shadow-lg select-none text-ink-2">
+        <button type="button" aria-label="Zoom inn"
+                @click="settZoom(Math.min(1, zoomBroekNaa + 0.12))"
+                class="w-10 h-10 grid place-items-center rounded-full active:bg-ink/10">
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+               stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <span class="w-6 h-px bg-ink/15"></span>
+        <button type="button" aria-label="Zoom ut"
+                @click="settZoom(Math.max(0, zoomBroekNaa - 0.12))"
+                class="w-10 h-10 grid place-items-center rounded-full active:bg-ink/10">
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+               stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14"/></svg>
+        </button>
+        <template v-if="rotationSliderDeg !== 0">
+          <span class="w-6 h-px bg-ink/15"></span>
+          <button type="button" :aria-label="`Vend kartet mot nord. Nå ${rotationSliderDeg} grader.`"
+                  @click="rotateTo(0)"
+                  class="w-10 h-10 grid place-items-center rounded-full active:bg-ink/10">
+            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                 :style="{ transform: `rotate(${-rotationSliderDeg}deg)` }">
+              <circle cx="12" cy="12" r="9"/>
+              <polygon points="12 5 14 12 12 13 10 12" fill="currentColor"/>
+              <polygon points="12 19 14 12 12 11 10 12"/>
+            </svg>
+          </button>
+        </template>
       </div>
 
       <!-- TEKSTSTØRRELSEN er ikke navigasjon, og den settes én gang og ikke
@@ -2577,13 +2687,13 @@ onUnmounted(() => {
                  v-model.number="labelScaleSlider" @dblclick="labelScaleSlider = 0"
                  aria-label="Tekststørrelse på kart-etiketter (dobbeltklikk = normal)"
                  class="w-24 accent-sky-400 cursor-pointer" />
-          <span class="text-[10px] text-ink/55 tabular-nums w-9 text-right">{{ labelScalePct }}%</span>
+          <span class="text-[10px] text-ink-3 tabular-nums w-9 text-right">{{ labelScalePct }}%</span>
         </div>
         <button type="button" @click="labelScaleOpen = !labelScaleOpen"
                 :aria-expanded="labelScaleOpen"
                 aria-label="Tekststørrelse på kart-etiketter"
                 class="w-9 h-9 grid place-items-center rounded-full bg-overlay shadow-lg
-                       text-ink/70 hover:text-ink">
+                       text-ink-2 hover:text-ink">
           <svg viewBox="0 0 28 24" class="w-4 h-3.5" fill="currentColor">
             <text x="0" y="20" font-size="12" font-weight="800" font-family="ui-sans-serif, sans-serif">A</text>
             <text x="11" y="20" font-size="20" font-weight="800" font-family="ui-sans-serif, sans-serif">A</text>
@@ -2661,6 +2771,9 @@ onUnmounted(() => {
     <div ref="wrapperRef" class="absolute inset-0 touch-none select-none transition-[right] duration-200"
          :class="annot.isAnnotateMode.value ? 'cursor-crosshair' : ''"
          :style="{ right: panelOffsetPx + 'px' }"
+         tabindex="0" role="application"
+         aria-label="Kartflate. Piltaster panorerer, pluss og minus zoomer."
+         @keydown="onKartKeydown"
          @pointerdown="onMapPointerDownLongPress"
          @pointermove="onPointerMoveLongPress"
          @pointerup="onPointerUpLongPress"
@@ -2861,7 +2974,8 @@ onUnmounted(() => {
     <!-- Kontrollpanel (drawer). Desktop (≥768px): høyrestilt fullhøyde side-
          panel (som illustrasjons-sporet). Mobil: dragbart bunn-ark. -->
     <Transition :name="isDesktop ? 'drawer-side' : 'drawer'">
-      <div v-if="showControls"
+      <div v-if="showControls" ref="drawerRef"
+           role="dialog" aria-label="Innstillinger" @keydown.esc="onSkuffKey"
            :class="['absolute z-30 backdrop-blur-md bg-surface/92 flex flex-col shadow-2xl',
                     isDesktop
                       ? 'top-0 right-0 bottom-0 border-l border-ink/10'
@@ -2870,8 +2984,11 @@ onUnmounted(() => {
                      ? { width: panel.width.value + 'px', transition: panel.isResizing.value ? 'none' : undefined }
                      : drawer.drawerHeightStyle.value">
         <!-- Desktop: dra-bar venstrekant for å justere panelbredden (360px–50vw). -->
-        <div v-if="isDesktop"
+        <div v-if="isDesktop" role="separator" tabindex="0"
+             aria-label="Bredde på panelet" aria-orientation="vertical"
              class="absolute left-0 top-0 bottom-0 w-1.5 -ml-0.5 z-10 cursor-col-resize group"
+             @keydown.left.prevent="panel.nudge(-24)"
+             @keydown.right.prevent="panel.nudge(24)"
              @pointerdown="panel.onResizeStart($event)">
           <div class="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-ink/10
                       group-hover:bg-sky-400/60 transition-colors"
@@ -2883,10 +3000,23 @@ onUnmounted(() => {
              @pointermove="isDesktop || drawer.onPointerMove($event)"
              @pointerup="isDesktop || drawer.onPointerUp($event)"
              @pointercancel="isDesktop || drawer.onPointerUp($event)">
-          <div v-if="!isDesktop" class="pt-3.5 pb-2 flex justify-center">
-            <div class="w-12 h-1.5 rounded-full bg-ink/40"
-                 :style="{ opacity: drawer.handleOpacity.value }"></div>
-          </div>
+          <!-- Håndtaket er en EKTE knapp (v6.5.48). Det var en `div` med
+               peker-lyttere, altså en kontroll som bare fantes for fingeren:
+               ingen tab-stopp, ingen navn, og høyden på skuffa var utilgjengelig
+               fra tastatur. Ett trykk minimerer/utvider (SC 2.5.7 — draget er
+               ikke lenger eneste vei), pil opp/ned flytter ett hakk i snap-rekka.
+               Ingen `pointerdown.stop`: draget hører fortsatt til hele stripa, og
+               det er nettopp her man tar tak. -->
+          <button v-if="!isDesktop" type="button"
+                  class="w-full pt-3.5 pb-2 flex justify-center"
+                  :aria-label="drawer.isMinimized.value ? 'Utvid innstillinger' : 'Minimer innstillinger'"
+                  :aria-expanded="!drawer.isMinimized.value"
+                  @click="drawer.setMinimized(!drawer.isMinimized.value)"
+                  @keydown.up.prevent="drawer.stegSnap(-1)"
+                  @keydown.down.prevent="drawer.stegSnap(1)">
+            <span class="w-12 h-1.5 rounded-full bg-ink/40"
+                  :style="{ opacity: drawer.handleOpacity.value }"></span>
+          </button>
           <div class="px-4 pb-2 flex items-center justify-between"
                :class="isDesktop ? 'pt-3' : ''">
             <div class="text-ink text-sm font-semibold">Innstillinger</div>
@@ -2897,7 +3027,7 @@ onUnmounted(() => {
               <button @pointerdown.stop @click.stop="closeDrawer"
                       aria-label="Lukk innstillinger"
                       class="w-8 h-8 -mr-1 rounded-full flex items-center justify-center
-                             text-ink/70 active:bg-ink/10">
+                             text-ink-2 active:bg-ink/10">
                 <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -2912,7 +3042,7 @@ onUnmounted(() => {
              global tekststørrelse (zoom) som fanene og fane-innholdet under. -->
         <div class="shrink-0 px-4 pb-2 grid grid-cols-3 gap-1.5" :style="{ zoom: uiTextScale }">
           <button @click="router.push('/tegnforklaring')"
-                  class="px-2 py-2 rounded-lg bg-ink/5 border border-ink/10 text-ink/80
+                  class="px-2 py-2 rounded-lg bg-ink/5 border border-ink/10 text-ink-2
                          text-[11px] font-medium active:scale-[0.98] flex flex-col items-center gap-1">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -2928,7 +3058,7 @@ onUnmounted(() => {
                          flex flex-col items-center gap-1"
                   :class="userPos.isWatching
                           ? 'bg-sky-500/20 border-sky-400/50 text-ink'
-                          : 'bg-ink/5 border-ink/10 text-ink/80'">
+                          : 'bg-ink/5 border-ink/10 text-ink-2'">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="10" r="3"/>
@@ -2941,7 +3071,7 @@ onUnmounted(() => {
                          flex flex-col items-center gap-1"
                   :class="compass.isActive
                           ? 'bg-sky-500/20 border-sky-400/50 text-ink'
-                          : 'bg-ink/5 border-ink/10 text-ink/80'">
+                          : 'bg-ink/5 border-ink/10 text-ink-2'">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="9"/>
@@ -2966,24 +3096,33 @@ onUnmounted(() => {
                   aria-label="Vis faner til venstre"
                   class="shrink-0 px-1 flex items-center transition-colors"
                   :class="canScrollTabsLeft
-                          ? 'text-ink/70 active:scale-90 cursor-pointer'
-                          : 'text-ink/15 cursor-default'">
+                          ? 'text-ink-2 active:scale-90 cursor-pointer'
+                          : 'text-ink-4 cursor-default'">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="15 18 9 12 15 6"/>
             </svg>
           </button>
 
+          <!-- Ekte tablist (v6.5.48): ni knapper i en rullbar rad ble annonsert
+               som ni uavhengige knapper. Roving tabindex + piltaster er
+               APG-mønsteret; TAB hopper videre til innholdet i stedet for å gå
+               gjennom alle ni. -->
           <div ref="tabScroller" @scroll="updateTabScroll"
+               role="tablist" aria-label="Kartinnstillinger" @keydown="onDrawerTabKeydown"
                class="flex-1 flex overflow-x-auto map-tabs"
                style="scrollbar-width: none;">
             <button v-for="tab in visibleTabs" :key="tab.key"
+                    :id="`drawer-fane-${tab.key}`" role="tab"
+                    :aria-selected="activeTab === tab.key"
+                    :aria-controls="`drawer-panel-${tab.key}`"
+                    :tabindex="activeTab === tab.key ? 0 : -1"
                     @click="activeTab = tab.key"
                     class="px-3 py-2.5 text-[10px] uppercase tracking-wider whitespace-nowrap shrink-0
                            transition-colors"
                     :class="activeTab === tab.key
                             ? 'text-ink border-b-2 border-slate-200'
-                            : 'text-ink/40'">
+                            : 'text-ink-4'">
               {{ tab.label }}
             </button>
           </div>
@@ -2994,8 +3133,8 @@ onUnmounted(() => {
                   aria-label="Vis faner til høyre"
                   class="shrink-0 px-1 flex items-center transition-colors"
                   :class="canScrollTabsRight
-                          ? 'text-ink/70 active:scale-90 cursor-pointer'
-                          : 'text-ink/15 cursor-default'">
+                          ? 'text-ink-2 active:scale-90 cursor-pointer'
+                          : 'text-ink-4 cursor-default'">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="9 18 15 12 9 6"/>
@@ -3010,10 +3149,12 @@ onUnmounted(() => {
                src/components/drawer/. v-show (ikke v-if) beholder DOM-en
                levende ved fanebytte, som før. -->
           <DrawerStyleTab v-show="activeTab === 'kartstil'"
+            id="drawer-panel-kartstil" role="tabpanel" aria-labelledby="drawer-fane-kartstil"
             :aktiv-stil="aktivStil" :velg-stil="bruksKartStil"
             :aktiv-sti-palett="aktivStiPalett" :velg-sti-palett="velgStiPalett" />
 
           <DrawerLayersTab v-show="activeTab === 'lag'"
+            id="drawer-panel-lag" role="tabpanel" aria-labelledby="drawer-fane-lag"
             :reset-layers="resetLayers" :layers-dirty="layersDirty"
             :land-layer-buttons="landLayerButtons" :marine-layer-buttons="marineLayerButtons"
             :toggle-layer="toggleLayer" :toggle-depth="toggleDepth"
@@ -3023,15 +3164,18 @@ onUnmounted(() => {
             :hydro-loading="hydroLoadingLayer" :hydro-count="hydroCount" :meta="meta" />
 
           <DrawerThemeTab v-show="activeTab === 'tema'"
+            id="drawer-panel-tema" role="tabpanel" aria-labelledby="drawer-fane-tema"
             :themes="THEMES" :current-theme="currentTheme" :on-theme-tap="onThemeTap"
             :land-font="landFont" :water-font="waterFont"
             v-model:font-pair-id="fontPairId" />
 
           <DrawerAnnotateTab v-show="activeTab === 'annotering'"
+            id="drawer-panel-annotering" role="tabpanel" aria-labelledby="drawer-fane-annotering"
             :annot="annot" :select-symbol="selectSymbol"
             :label-for-annotation="labelForAnnotation" />
 
           <DrawerMeasureTab v-show="activeTab === 'maaling'"
+            id="drawer-panel-maaling" role="tabpanel" aria-labelledby="drawer-fane-maaling"
             :measure-mode="measureMode" :measure-stats="measureStats"
             :measure-closed="measureClosed" :measure-vertices="measureVertices"
             :start-measure="startMeasure" :stop-measure="stopMeasure"
@@ -3039,6 +3183,7 @@ onUnmounted(() => {
             :clear-measure="clearMeasure" />
 
           <DrawerTracksTab v-show="activeTab === 'sporing'"
+            id="drawer-panel-sporing" role="tabpanel" aria-labelledby="drawer-fane-sporing"
             :tracker="tracker" :user-pos="userPos" :live-track-stats="liveTrackStats"
             :on-toggle-recording="onToggleRecording" :on-export-track-gpx="onExportTrackGpx"
             :on-delete-track="onDeleteTrack" :profile-for="profileFor"
@@ -3048,6 +3193,7 @@ onUnmounted(() => {
             :dismiss-gps-tip="dismissGpsTip" />
 
           <DrawerExportTab v-show="activeTab === 'eksport'"
+            id="drawer-panel-eksport" role="tabpanel" aria-labelledby="drawer-fane-eksport"
             :share-state="shareState" :highlighted-feature="highlightedFeature"
             :exporting="exporting" :on-share-map="onShareMap"
             :on-share-map-with-place="onShareMapWithPlace"
@@ -3057,6 +3203,7 @@ onUnmounted(() => {
             :on-export-pdf="onExportPdf" :on-print="onPrint" />
 
           <DrawerAboutTab v-show="activeTab === 'om'"
+            id="drawer-panel-om" role="tabpanel" aria-labelledby="drawer-fane-om"
             v-model:map-size-slider="mapSizeSlider"
             v-model:show-full-names="showFullNames"
             v-model:max-tile-index="maxTileIndex"
@@ -3070,6 +3217,7 @@ onUnmounted(() => {
             :max-tile-index-max="MAX_TILE_STEPS.length - 1" />
 
           <DrawerDevTab v-show="activeTab === 'utvikler'"
+            id="drawer-panel-utvikler" role="tabpanel" aria-labelledby="drawer-fane-utvikler"
             :scale="scale" :zoom-tier="zoomTier"
             v-model:zoom-near-threshold="zoomNearThreshold"
             v-model:name-budget-far="nameBudgetFar"
@@ -3242,12 +3390,24 @@ onUnmounted(() => {
       <div v-if="buildingOnTheFly && !searchOpen"
            class="absolute top-[var(--ovl-top)] left-1/2 -translate-x-1/2 z-[60] px-3 py-1.5 rounded-2xl
                   bg-overlay/90 text-ink text-[12px] font-medium shadow-lg backdrop-blur
-                  flex items-center gap-2 pointer-events-none border border-ink/10 max-w-[85%]
+                  flex items-center gap-2 border border-ink/10 max-w-[85%]
                   transition-[left] duration-200"
-           :style="mapCenterStyle">
+           :style="mapCenterStyle" role="status" aria-live="polite">
         <FlisIkon v-if="byggerFlisRetning" :retning="byggerFlisRetning" :ark="arkRutenett" />
         <span v-else class="w-3.5 h-3.5 rounded-full border-2 border-ink/25 border-t-ink/80 animate-spin shrink-0"></span>
         <span class="truncate">{{ buildingProgress || 'Oppretter kart …' }}</span>
+        <!-- Chippen er ikke-blokkerende, men byggingen kan ta et halvminutt per
+             flis. X-en stopper løkka mellom fliser og aborterer den som er
+             under arbeid; det som alt er bygd beholdes. Derfor er
+             pointer-events tilbake på chippen (den er 12 px høy og står midt
+             oppe — den stjeler ikke kartflate). -->
+        <button type="button" @click="avbrytUtvidelse"
+                aria-label="Avbryt byggingen"
+                class="shrink-0 -mr-1 w-6 h-6 rounded-full flex items-center justify-center
+                       text-ink-3 active:bg-ink/10 transition">
+          <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+               stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
       </div>
     </Transition>
 

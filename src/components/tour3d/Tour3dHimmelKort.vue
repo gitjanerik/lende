@@ -136,14 +136,14 @@ const faseNavn = computed(() => {
            var det motsatt — retningen var `shrink-0` og navnet det eneste som
            kunne krympe, så «Mars» ble stående som «M». -->
       <span class="text-[0.8125rem] font-medium text-white/85 shrink-0 max-w-[60%] truncate">{{ objekt.navn }}</span>
-      <span class="text-[0.625rem] text-white/45 min-w-0 truncate">{{ retning }}, {{ hoydeGrader }}°</span>
+      <span class="text-[0.625rem] text-white/70 min-w-0 truncate">{{ retning }}, {{ hoydeGrader }}°</span>
     </button>
     <!-- Tekststørrelse hører til det ÅPNE kortet og ikke hit: pilla er én linje
          som sier hva som er valgt, og en fjerde knapp på den linja spiser navnet
          den finnes for. -->
     <div class="shrink-0 flex items-center">
       <button @click="emit('fokus')" :aria-label="`Sett ${objekt.navn} i fokus`"
-              class="w-7 h-7 flex items-center justify-center text-white/55 active:scale-90">
+              class="w-7 h-7 flex items-center justify-center text-white/75 active:scale-90">
         <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
              stroke-width="2" stroke-linecap="round" aria-hidden="true">
           <circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/>
@@ -151,14 +151,14 @@ const faseNavn = computed(() => {
         </svg>
       </button>
       <button @click="emit('utvid')" aria-label="Vis hele infokortet"
-              class="w-7 h-7 flex items-center justify-center text-white/55 active:scale-90">
+              class="w-7 h-7 flex items-center justify-center text-white/75 active:scale-90">
         <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
              stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <polyline points="6 9 12 15 18 9"/>
         </svg>
       </button>
       <button @click="emit('lukk')" aria-label="Lukk infokortet"
-              class="w-7 h-7 flex items-center justify-center text-white/45 active:scale-90">
+              class="w-7 h-7 flex items-center justify-center text-white/70 active:scale-90">
         <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
              stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -192,12 +192,12 @@ const faseNavn = computed(() => {
           <span class="text-[0.8125rem]" aria-hidden="true">{{ IKON[objekt.type] }}</span>
           <span class="text-[0.875rem] font-semibold text-white/90 truncate">{{ objekt.navn }}</span>
           <span v-if="objekt.latin && objekt.latin !== objekt.navn"
-                class="text-[0.625rem] italic text-white/40 truncate">{{ objekt.latin }}</span>
+                class="text-[0.625rem] italic text-white/70 truncate">{{ objekt.latin }}</span>
         </div>
 
         <!-- Hvor det står. I HEADEREN, fordi det er det man trenger for å løfte
              blikket i riktig retning — og da skal det ikke kunne rulles bort. -->
-        <div class="mt-0.5 text-[0.625rem] text-white/50">
+        <div class="mt-0.5 text-[0.625rem] text-white/72">
           {{ retning }}, {{ hoydeGrader }}°
           {{ underHorisonten ? 'under horisonten' : 'over horisonten' }}
         </div>
@@ -212,14 +212,14 @@ const faseNavn = computed(() => {
       <div class="shrink-0 flex items-center">
         <TekstStorrelseKnapp tema="natt" />
         <button @click="emit('minimer')" aria-label="Minimer infokortet"
-                class="w-7 h-7 flex items-center justify-center text-white/55 active:scale-90">
+                class="w-7 h-7 flex items-center justify-center text-white/75 active:scale-90">
           <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="6 15 12 9 18 15"/>
           </svg>
         </button>
         <button @click="emit('lukk')" aria-label="Lukk infokortet"
-                class="w-7 h-7 flex items-center justify-center text-white/45 active:scale-90">
+                class="w-7 h-7 flex items-center justify-center text-white/70 active:scale-90">
           <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
                stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -246,10 +246,10 @@ const faseNavn = computed(() => {
            class="mt-1.5 flex items-baseline gap-3 text-[0.75rem] text-white/85">
         <template v-if="objekt.soltilstand === 'normal'">
           <span v-if="objekt.oppgang" class="tabular-nums">
-            <span class="text-white/45 text-[0.625rem] uppercase tracking-wide mr-1">Opp</span>{{ klokke(objekt.oppgang) }}
+            <span class="text-white/70 text-[0.625rem] uppercase tracking-wide mr-1">Opp</span>{{ klokke(objekt.oppgang) }}
           </span>
           <span v-if="objekt.nedgang" class="tabular-nums">
-            <span class="text-white/45 text-[0.625rem] uppercase tracking-wide mr-1">Ned</span>{{ klokke(objekt.nedgang) }}
+            <span class="text-white/70 text-[0.625rem] uppercase tracking-wide mr-1">Ned</span>{{ klokke(objekt.nedgang) }}
           </span>
         </template>
         <span v-else-if="objekt.soltilstand === 'midnattssol'">
@@ -288,7 +288,7 @@ const faseNavn = computed(() => {
       <div v-else-if="objekt.type === 'stjerne'" class="mt-1.5 text-[0.6875rem] text-white/70">
         Lysstyrke {{ komma(objekt.mag) }}<template v-if="objekt.stjernebilde">
         · hører til {{ objekt.stjernebilde.norsk }}
-        <span class="italic text-white/45">{{ objekt.stjernebilde.latin }}</span></template>.
+        <span class="italic text-white/70">{{ objekt.stjernebilde.latin }}</span></template>.
       </div>
 
       <!-- HVORFOR STÅR DEN ALENE? Dette er spørsmålet som ga hele funksjonen
@@ -296,7 +296,7 @@ const faseNavn = computed(() => {
            er at katalogen er lysstyrke-styrt mens figurene er håndplukket, og det
            skal stå i kortet — ikke bare i en CHANGELOG. -->
       <template v-if="objekt.type === 'stjerne' && objekt.stjernebilde && !objekt.tegnesFigur">
-        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/35">
+        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/70">
           Uten streker
         </div>
         <p class="text-[0.6875rem] leading-relaxed text-white/70">
@@ -309,7 +309,7 @@ const faseNavn = computed(() => {
 
       <!-- Det ene som er verdt å vite om stjerna. Teksten bor i stjerneFakta.js. -->
       <template v-if="objekt.type === 'stjerne' && objekt.fakta">
-        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/35">Verdt å vite</div>
+        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/70">Verdt å vite</div>
         <p class="text-[0.6875rem] leading-relaxed text-white/70">{{ objekt.fakta }}</p>
       </template>
 
@@ -325,7 +325,7 @@ const faseNavn = computed(() => {
            prøver først uansett. En instruksjon som forklarer det åpenbare stjeler
            linjer fra det man faktisk kom for å lese. -->
       <template v-if="globeTekst">
-        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/35">
+        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/70">
           {{ objekt.navn }} som globe
         </div>
         <p class="text-[0.6875rem] leading-relaxed text-white/70">
@@ -335,13 +335,13 @@ const faseNavn = computed(() => {
 
       <!-- Teksten for stjernebildene. -->
       <template v-if="objekt.info">
-        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/35">Finn den</div>
+        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/70">Finn den</div>
         <p class="text-[0.6875rem] leading-relaxed text-white/70">{{ objekt.info.finnDen }}</p>
 
-        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/35">Historien</div>
+        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/70">Historien</div>
         <p class="text-[0.6875rem] leading-relaxed text-white/70">{{ objekt.info.mytologi }}</p>
 
-        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/35">Verdt å vite</div>
+        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/70">Verdt å vite</div>
         <p class="text-[0.6875rem] leading-relaxed text-white/70">{{ objekt.info.funFact }}</p>
 
         <!-- LES MER. Samme pille som legemene har, og samme resonnement: teksten
@@ -360,14 +360,14 @@ const faseNavn = computed(() => {
            Nøkkeltallene står som EGNE linjer og ikke som et avsnitt: de leses ett
            for ett, i mørket, på en telefon. -->
       <template v-if="fakta">
-        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/35">Fakta</div>
+        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/70">Fakta</div>
         <div class="text-[0.6875rem] leading-relaxed text-white/70">{{ fakta.type }}</div>
         <div v-if="maner" class="text-[0.6875rem] leading-relaxed text-white/70">{{ maner }}</div>
-        <div class="text-[0.6875rem] leading-relaxed text-white/50">{{ fakta.oppdaget }}</div>
+        <div class="text-[0.6875rem] leading-relaxed text-white/72">{{ fakta.oppdaget }}</div>
         <ul class="mt-1 space-y-0.5">
           <li v-for="f in fakta.fakta" :key="f"
               class="text-[0.6875rem] leading-relaxed text-white/70 flex gap-1.5">
-            <span class="text-white/25 shrink-0" aria-hidden="true">·</span>
+            <span class="text-white/70 shrink-0" aria-hidden="true">·</span>
             <span>{{ f }}</span>
           </li>
         </ul>
@@ -376,16 +376,16 @@ const faseNavn = computed(() => {
              høyre. Sammenlagt vises de fire nyeste; «vis alle» gir hele
              historien, eldst først. -->
         <div class="mt-2 flex items-baseline justify-between gap-2">
-          <span class="text-[0.5625rem] uppercase tracking-wide text-white/35">Utforsket</span>
+          <span class="text-[0.5625rem] uppercase tracking-wide text-white/70">Utforsket</span>
           <button v-if="fakta.utforskning.length > 4"
                   @click="visAllUtforskning = !visAllUtforskning"
-                  class="text-[0.5625rem] text-white/45 active:scale-95">
+                  class="text-[0.5625rem] text-white/70 active:scale-95">
             {{ visAllUtforskning ? 'vis mindre' : `alle ${fakta.utforskning.length}` }}
           </button>
         </div>
         <ul class="space-y-1">
           <li v-for="m in utforskning" :key="m.ar + m.tekst" class="flex gap-2">
-            <span class="text-[0.625rem] font-medium text-white/55 shrink-0 tabular-nums
+            <span class="text-[0.625rem] font-medium text-white/75 shrink-0 tabular-nums
                          w-[3.4em]">{{ m.ar }}</span>
             <span class="text-[0.6875rem] leading-relaxed text-white/70">{{ m.tekst }}</span>
           </li>
@@ -406,7 +406,7 @@ const faseNavn = computed(() => {
 
       <!-- Snarveier: stjernehopping. Bare de som faktisk er i nærheten. -->
       <template v-if="naboer.length">
-        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/35">I nærheten</div>
+        <div class="mt-2 text-[0.5625rem] uppercase tracking-wide text-white/70">I nærheten</div>
         <div class="mt-1 flex flex-wrap gap-1">
           <button v-for="n in naboer" :key="n.id"
                   @click="emit('velg', n)"
@@ -414,7 +414,7 @@ const faseNavn = computed(() => {
                   class="rounded-full bg-white/10 px-2 py-1 text-[0.625rem] text-white/75
                          active:scale-95 transition-colors">
             {{ IKON[n.type] }} {{ n.navn }}
-            <span class="text-white/40">{{ Math.round(n.avstandGrader) }}°</span>
+            <span class="text-white/70">{{ Math.round(n.avstandGrader) }}°</span>
           </button>
         </div>
       </template>

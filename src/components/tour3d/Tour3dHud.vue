@@ -69,6 +69,25 @@ function onPointerUp() {
   scrubbing.value = false
   emit('scrub-end', dragPct.value)
 }
+// Piltaster: 1 % per hakk, 10 % med PageUp/Down, endene med Home/End. Samme
+// tre eventer som draget sender, så motoren ikke trenger å vite hvem som styrer.
+function onScrubKeydown(e) {
+  if (!props.stats) return
+  const naa = pct.value
+  const steg = { ArrowRight: 0.01, ArrowUp: 0.01, ArrowLeft: -0.01, ArrowDown: -0.01,
+                 PageUp: 0.1, PageDown: -0.1 }[e.key]
+  let mål = null
+  if (steg != null) mål = naa + steg
+  else if (e.key === 'Home') mål = 0
+  else if (e.key === 'End') mål = 1
+  if (mål == null) return
+  e.preventDefault()
+  mål = Math.min(1, Math.max(0, mål))
+  emit('scrub-start')
+  emit('scrub', mål)
+  emit('scrub-end', mål)
+}
+
 </script>
 
 <template>
@@ -77,16 +96,26 @@ function onPointerUp() {
          : 'grid gap-1.5 w-full'"
        :style="gridStyle">
     <div v-for="r in rows" :key="r.label"
-         class="rounded-lg bg-black/45 backdrop-blur px-2 py-1.5 text-center min-w-0"
+         class="rounded-lg bg-black/72 backdrop-blur px-2 py-1.5 text-center min-w-0"
          :class="landscape ? 'w-28 text-right px-3' : ''">
-      <div class="text-[0.5625rem] uppercase tracking-wide text-white/50 truncate">{{ r.label }}</div>
+      <div class="text-[0.5625rem] uppercase tracking-wide text-white/72 truncate">{{ r.label }}</div>
       <div class="text-xs font-semibold text-white tabular-nums whitespace-nowrap">{{ r.value }}</div>
     </div>
     <!-- Dra-bar tidsakse. Rikelig touch-flate (py) rundt selve sporet. -->
+    <!-- Tidsaksen er tegnet for finger og peker, men den er en SLIDER: uten
+         role/verdier og uten piltaster fantes det ingen vei til den fra
+         tastatur (WCAG 2.1.1), og en skjermleser fikk verken lest av eller
+         satt posisjonen. Pointer-stien er urørt. -->
     <div v-if="stats"
-         class="rounded-lg bg-black/45 backdrop-blur px-2.5 py-2.5 cursor-pointer select-none"
+         role="slider" tabindex="0"
+         aria-label="Posisjon i turen"
+         aria-valuemin="0" aria-valuemax="100"
+         :aria-valuenow="Math.round(pct * 100)"
+         :aria-valuetext="`${Math.round(pct * 100)} prosent av turen`"
+         class="rounded-lg bg-black/72 backdrop-blur px-2.5 py-2.5 cursor-pointer select-none"
          :class="landscape ? 'w-28' : ''"
          :style="landscape ? 'touch-action: none;' : 'touch-action: none; grid-column: 1 / -1;'"
+         @keydown="onScrubKeydown"
          @pointerdown="onPointerDown"
          @pointermove="onPointerMove"
          @pointerup="onPointerUp"

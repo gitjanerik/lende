@@ -80,12 +80,13 @@ watch(() => props.objekter, () => {
     <!-- Lukket: en pille som sier hva som er valgt, eller inviterer til å velge. -->
     <button v-if="!apen"
             @click="apne"
+            aria-expanded="false" aria-controls="himmelsok-panel"
             :aria-label="valgt ? `Valgt: ${valgt.navn}. Velg noe annet på himmelen`
               : 'Finn et stjernebilde eller en planet'"
-            class="flex items-center gap-1.5 rounded-full bg-black/50 backdrop-blur
+            class="flex items-center gap-1.5 rounded-full bg-black/72 backdrop-blur
                    text-[0.6875rem] font-medium shadow-lg pl-2.5 pr-3 py-1.5
                    active:scale-[0.97] transition-colors"
-            :class="dempet ? 'text-white/55' : 'text-white/85'">
+            :class="dempet ? 'text-white/75' : 'text-white/85'">
       <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/>
@@ -95,10 +96,10 @@ watch(() => props.objekter, () => {
     </button>
 
     <!-- Åpen: søkefelt + liste. -->
-    <div v-else
+    <div v-else id="himmelsok-panel"
          class="rounded-md bg-black/80 backdrop-blur shadow-lg overflow-hidden">
       <div class="flex items-center gap-1 px-2 py-1.5 border-b border-white/10">
-        <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0 text-white/40" fill="none"
+        <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0 text-white/70" fill="none"
              stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
           <circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/>
         </svg>
@@ -106,9 +107,9 @@ watch(() => props.objekter, () => {
                placeholder="Stjernebilde, planet, stjerne …"
                aria-label="Søk på himmelen"
                class="flex-1 min-w-0 bg-transparent text-[0.8125rem] text-white/90
-                      placeholder:text-white/35 outline-none py-1"/>
+                      placeholder:text-white/70 outline-none py-1"/>
         <button @click="lukk" aria-label="Lukk himmelsøket"
-                class="w-7 h-7 shrink-0 flex items-center justify-center text-white/50
+                class="w-7 h-7 shrink-0 flex items-center justify-center text-white/72
                        active:scale-90">
           <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
                stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
@@ -122,6 +123,7 @@ watch(() => props.objekter, () => {
           class="max-h-[46vh] overflow-y-auto [scrollbar-width:thin]">
         <li v-for="o in treff" :key="o.id">
           <button @click="velg(o)"
+                  :aria-current="o.id === valgtId ? 'true' : undefined"
                   class="w-full text-left px-3 py-2 flex items-start gap-2
                          active:bg-white/10 transition-colors"
                   :class="o.id === valgtId ? 'bg-white/10' : ''">
@@ -137,7 +139,7 @@ watch(() => props.objekter, () => {
             <span v-else class="text-[0.8125rem] leading-tight shrink-0" aria-hidden="true">{{ IKON[o.type] }}</span>
             <span class="min-w-0 flex-1">
               <span class="block text-[0.8125rem] font-medium text-white/90 truncate">{{ o.navn }}</span>
-              <span class="block text-[0.625rem] text-white/45 truncate">{{ himmelUndertekst(o) }}</span>
+              <span class="block text-[0.625rem] text-white/70 truncate">{{ himmelUndertekst(o) }}</span>
             </span>
             <!-- GLOBE-MERKET: dette legemet kan åpnes som en roterbar kule.
                  Bare de fire som HAR en globe får det (porten er `harGlobe` i
@@ -151,7 +153,7 @@ watch(() => props.objekter, () => {
                  som 3D fordi meridianen er en ELLIPSE — en rett strek ville gitt
                  et delt-i-to-symbol. -->
             <span v-if="o.harGlobe" class="shrink-0 self-center flex items-center">
-              <svg viewBox="0 0 16 16" class="w-[0.875rem] h-[0.875rem] text-white/45"
+              <svg viewBox="0 0 16 16" class="w-[0.875rem] h-[0.875rem] text-white/70"
                    fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
                 <circle cx="8" cy="8" r="6"/>
                 <ellipse cx="8" cy="8" rx="2.6" ry="6"/>
@@ -166,7 +168,7 @@ watch(() => props.objekter, () => {
       </ul>
       <!-- Ærlig svar framfor en tom liste uten forklaring. Det kan være at
            stjernebildet ikke er oppe akkurat nå, og det er verdt å si. -->
-      <div v-else class="px-3 py-3 text-[0.6875rem] text-white/50 leading-relaxed">
+      <div v-else class="px-3 py-3 text-[0.6875rem] text-white/72 leading-relaxed">
         Ingen treff. Er du sikker på at den er over horisonten nå? Lista viser
         bare det som faktisk står på himmelen herfra i kveld.
       </div>

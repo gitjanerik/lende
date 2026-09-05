@@ -15,6 +15,10 @@
  *   - width        ref<number>  current panel width in px
  *   - isResizing   ref<boolean> true while the user drags the handle
  *   - onResizeStart(e)          pointerdown handler for the left-edge handle
+ *   - nudge(dx)                 keyboard step (v6.5.48). Kanten var en ren
+ *                               peker-kontroll: uten den finnes bredden ikke
+ *                               for et tastatur. Positiv dx gjør panelet
+ *                               BREDERE, som å dra kanten mot venstre.
  */
 import { ref, onBeforeUnmount } from 'vue'
 
@@ -76,6 +80,11 @@ export function useResizablePanel(storageKey, { defaultWidth = MIN_W } = {}) {
     e.preventDefault()
   }
 
+  function nudge(dx) {
+    width.value = clamp(width.value + dx)
+    persist()
+  }
+
   // Re-clamp when the viewport shrinks so the 50vw ceiling stays honoured.
   function onWindowResize() {
     const c = clamp(width.value)
@@ -94,5 +103,5 @@ export function useResizablePanel(storageKey, { defaultWidth = MIN_W } = {}) {
     document.body.style.userSelect = ''
   })
 
-  return { width, isResizing, onResizeStart }
+  return { width, isResizing, onResizeStart, nudge }
 }

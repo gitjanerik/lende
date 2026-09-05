@@ -70,7 +70,7 @@ defineProps({
       <span class="font-medium">Del kart og sted</span>
     </button>
     <div v-if="highlightedFeature"
-         class="text-[10px] text-ink/55 leading-snug mb-3 px-1 -mt-1">
+         class="text-[10px] text-ink-3 leading-snug mb-3 px-1 -mt-1">
       Markert sted: <span class="text-pink-300 font-medium">{{ highlightedFeature.name }}</span>.
       Mottakeren ser samme markering, og utsnittet er låst så stedet ikke går tapt.
     </div>
@@ -97,7 +97,7 @@ defineProps({
       </svg>
       <span class="font-medium truncate">{{ pakkeTekst }}</span>
     </button>
-    <div class="text-[10px] text-ink/55 leading-snug mb-3 px-1">
+    <div class="text-[10px] text-ink-3 leading-snug mb-3 px-1">
       Hele kartet i én fil — kart, høyder, kulturminner og vannmålestasjoner.
       Send den med AirDrop, Bluetooth eller minnepinne. Mottakeren importerer
       den fra forsiden og trenger ikke dekning.
@@ -105,7 +105,7 @@ defineProps({
 
     <div class="grid grid-cols-2 gap-2 mb-3">
       <button @click="onExportSvg" :disabled="!!exporting"
-              class="px-3 py-2 rounded-lg bg-ink/5 border border-ink/10 text-ink/75
+              class="px-3 py-2 rounded-lg bg-ink/5 border border-ink/10 text-ink-2
                      text-[11px] active:scale-[0.98] disabled:opacity-50
                      flex items-center justify-center gap-1.5">
         <span v-if="exporting === 'svg'"
@@ -113,7 +113,7 @@ defineProps({
         {{ exporting === 'svg' ? 'Lagrer …' : 'Lagre .svg' }}
       </button>
       <button @click="onExportPng" :disabled="!!exporting"
-              class="px-3 py-2 rounded-lg bg-ink/5 border border-ink/10 text-ink/75
+              class="px-3 py-2 rounded-lg bg-ink/5 border border-ink/10 text-ink-2
                      text-[11px] active:scale-[0.98] disabled:opacity-50
                      flex items-center justify-center gap-1.5">
         <span v-if="exporting === 'png'"
@@ -121,7 +121,7 @@ defineProps({
         {{ exporting === 'png' ? 'Lager PNG …' : 'Lagre .png (300 dpi)' }}
       </button>
       <button @click="onExportPdf" :disabled="!!exporting"
-              class="px-3 py-2 rounded-lg bg-ink/5 border border-ink/10 text-ink/75
+              class="px-3 py-2 rounded-lg bg-ink/5 border border-ink/10 text-ink-2
                      text-[11px] active:scale-[0.98] disabled:opacity-50
                      flex items-center justify-center gap-1.5">
         <span v-if="exporting === 'pdf'"
@@ -129,7 +129,7 @@ defineProps({
         {{ exporting === 'pdf' ? 'Lager PDF …' : 'Lagre som PDF' }}
       </button>
       <button @click="onPrint" :disabled="!!exporting"
-              class="px-3 py-2 rounded-lg bg-ink/5 border border-ink/10 text-ink/75
+              class="px-3 py-2 rounded-lg bg-ink/5 border border-ink/10 text-ink-2
                      text-[11px] active:scale-[0.98] disabled:opacity-50
                      flex items-center justify-center gap-1.5">
         <span v-if="exporting === 'print'"

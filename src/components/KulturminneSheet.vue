@@ -107,7 +107,7 @@ function onOpenKulturminnesok() {
             <button @click="$emit('close')"
                     aria-label="Lukk"
                     class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center
-                           bg-ink/5 border border-ink/10 text-ink/70 active:scale-90">
+                           bg-ink/5 border border-ink/10 text-ink-2 active:scale-90">
               <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                    stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -124,23 +124,23 @@ function onOpenKulturminnesok() {
           <dl v-if="facts.length"
               class="grid grid-cols-2 gap-x-4 gap-y-2.5 pb-3 mb-3 border-b border-ink/8">
             <div v-for="f in facts" :key="f.label" class="min-w-0">
-              <dt class="text-[10px] uppercase tracking-wide text-ink/40">{{ f.label }}</dt>
-              <dd class="text-[12.5px] text-ink/85 leading-snug break-words">{{ f.value }}</dd>
+              <dt class="text-[10px] uppercase tracking-wide text-ink-4">{{ f.label }}</dt>
+              <dd class="text-[12.5px] text-ink leading-snug break-words">{{ f.value }}</dd>
             </div>
           </dl>
 
           <div v-if="loading && !detail.beskrivelse"
-               class="text-[12px] text-ink/50 py-3">Henter detaljer …</div>
+               class="text-[12px] text-ink-4 py-3">Henter detaljer …</div>
 
           <p v-if="detail.beskrivelse"
-             class="text-[13px] text-ink/85 leading-relaxed whitespace-pre-line break-words">{{ detail.beskrivelse }}</p>
+             class="text-[13px] text-ink leading-relaxed whitespace-pre-line break-words">{{ detail.beskrivelse }}</p>
 
           <!-- Sekundær kontekst: felles beskrivelse for hele lokaliteten
                (f.eks. «Oscarsborg festning»), skilt fra den unike enkeltminne-
                teksten over. -->
           <div v-if="detail.lokalitetInfo" class="mt-3">
-            <div class="text-[10px] uppercase tracking-wide text-ink/40 mb-0.5">Om lokaliteten</div>
-            <p class="text-[12px] text-ink/55 leading-relaxed whitespace-pre-line break-words">{{ detail.lokalitetInfo }}</p>
+            <div class="text-[10px] uppercase tracking-wide text-ink-4 mb-0.5">Om lokaliteten</div>
+            <p class="text-[12px] text-ink-3 leading-relaxed whitespace-pre-line break-words">{{ detail.lokalitetInfo }}</p>
           </div>
 
           <figure v-if="bilde && !bildeFeilet" class="mt-3">
@@ -148,7 +148,7 @@ function onOpenKulturminnesok() {
                  loading="lazy" referrerpolicy="no-referrer"
                  @error="bildeFeilet = true"
                  class="w-full rounded-lg border border-ink/10 bg-black/20" />
-            <figcaption class="mt-1 text-[10px] text-ink/40">
+            <figcaption class="mt-1 text-[10px] text-ink-4">
               © Kulturminnesøk{{ bilde.fotograf ? ' / ' + bilde.fotograf : '' }}{{ bilde.lisens ? ', ' + bilde.lisens : ', CC BY' }}
             </figcaption>
           </figure>
@@ -167,7 +167,7 @@ function onOpenKulturminnesok() {
             <span class="flex-1 text-left font-medium">Åpne på kulturminnesok.no</span>
           </button>
 
-          <p class="mt-3 text-[10px] text-ink/35 leading-relaxed">
+          <p class="mt-3 text-[10px] text-ink-4 leading-relaxed">
             Data: Kulturminnesøk (Riksantikvaren) ·
             <a href="https://data.norge.no/nlod" target="_blank" rel="noopener" class="underline">NLOD</a>
           </p>

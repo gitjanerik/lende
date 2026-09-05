@@ -72,7 +72,7 @@ const isFloat = computed(() => props.variant === 'float')
 const sizeClass = computed(() => (isFloat.value ? 'w-10 h-10' : 'w-9 h-9'))
 const skinClass = computed(() => (isFloat.value
   ? 'bg-overlay text-ink shadow-lg'
-  : 'bg-ink/5 border border-ink/10 text-ink/70'))
+  : 'bg-ink/5 border border-ink/10 text-ink-2'))
 </script>
 
 <template>
@@ -82,6 +82,7 @@ const skinClass = computed(() => (isFloat.value
       <button
         @click="toggle"
         :aria-label="menuOpen ? 'Lukk meny' : 'Åpne meny'"
+        data-hovedmeny-knapp
         :aria-expanded="menuOpen"
         class="fixed z-[205] flex items-center justify-center rounded-full shrink-0
                active:scale-95 transition"

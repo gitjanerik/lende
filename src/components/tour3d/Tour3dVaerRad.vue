@@ -164,26 +164,26 @@ function vindTitle(t) {
 
 <template>
   <div v-if="vaer?.status === 'loading'"
-       class="rounded-full bg-black/45 backdrop-blur px-3 py-1.5 text-[0.6875rem] text-white/60">
+       class="rounded-full bg-black/72 backdrop-blur px-3 py-1.5 text-[0.6875rem] text-white/78">
     Henter værvarsel …
   </div>
   <!-- Ærlig svar framfor et oppdiktet vær. Samme regel som i infopanelet. -->
   <div v-else-if="vaer?.status === 'error'"
-       class="rounded-full bg-black/45 backdrop-blur px-3 py-1.5 text-[0.6875rem] text-white/60">
+       class="rounded-full bg-black/72 backdrop-blur px-3 py-1.5 text-[0.6875rem] text-white/78">
     Værvarsel ikke tilgjengelig
   </div>
   <!-- BAREN ER TO KOLONNER (v6.3.8): timene som ruller, og en X som står stille.
        INGEN RULLING: raden viser bare timene som får plass (se maalPlass). En
        rulleflate med skjult innhold var uu-fella som ble rettet i v6.3.9. -->
   <div v-else-if="timer.length" ref="radRef"
-       class="rounded-2xl bg-black/45 backdrop-blur max-w-full overflow-hidden
+       class="rounded-2xl bg-black/72 backdrop-blur max-w-full overflow-hidden
               flex items-stretch divide-x divide-white/10">
       <!-- shrink-0 (v6.3.12): uten den klemmes kolonnene mot min-w når det er
            trangt, og da måler vi minstebredden i stedet for den ekte — som gjør
            prognosen for optimistisk og gir én time for mye. -->
       <div v-for="t in timer" :key="t.tid" data-time
            class="shrink-0 flex flex-col items-center gap-0.5 px-2.5 py-1.5 min-w-[3.6rem]">
-        <span class="text-[0.5625rem] text-white/50 tabular-nums leading-none">{{ klokke(t.tid) }}</span>
+        <span class="text-[0.5625rem] text-white/72 tabular-nums leading-none">{{ klokke(t.tid) }}</span>
         <VaerIkon :symbol="t.symbol" :size="22"/>
         <!-- Temperatur og vind på SAMME linje (v5.21.2). Vind fortjener plassen,
              men ikke en femte stablet linje: raden ligger over kartet, og høyde
@@ -201,7 +201,7 @@ function vindTitle(t) {
             {{ Math.round(t.temperaturC) }}°
           </span>
           <span v-if="t.vindMs != null"
-                class="flex items-baseline gap-px text-[0.5625rem] text-white/65 tabular-nums"
+                class="flex items-baseline gap-px text-[0.5625rem] text-white/80 tabular-nums"
                 :title="vindTitle(t)">
             <!-- Med retning: en rotert pil. UTEN retning: et nøytralt vind-tegn,
                  ikke bare tallet. «8° 8» er to tall uten enhet og leses ikke som
@@ -211,6 +211,10 @@ function vindTitle(t) {
                     ? { transform: `rotate(${vindMot(t.vindRetningGrader)}deg)` } : null">{{
                     vindMot(t.vindRetningGrader) !== null ? '↑' : '≈' }}</span>
             {{ Math.round(t.vindMs) }}
+            <!-- `title` er ikke en tilgjengelig tekst på en touch-skjerm, og
+                 tallet alene («8») sier verken enhet eller retning. sr-only
+                 bærer hele setningen; pila og tallet er det seende ser. -->
+            <span class="sr-only">{{ vindTitle(t) }}</span>
           </span>
         </span>
         <!-- Nedbør bare når det ER nedbør: en rad med «0,0 mm» under hver time
@@ -235,12 +239,12 @@ function vindTitle(t) {
          åpner 3D er været med igjen. Vil man ha det tilbake i samme økt, går man
          innom natt og tilbake. -->
     <div class="shrink-0 flex items-center gap-0.5 pl-2.5 pr-0.5" data-fast>
-      <span class="text-[0.5rem] leading-tight text-white/35 whitespace-nowrap">MET<br/>Norway</span>
+      <span class="text-[0.5rem] leading-tight text-white/70 whitespace-nowrap">MET<br/>Norway</span>
       <!-- 44 × 44 px: trykkmålets minimum, og ikke mer — hver piksel her er en
            værtime mindre. Kolonne-målingen trekker cellen fra selv, siden den er
            data-fast. -->
       <button @click="emit('lukk')" aria-label="Skjul værvarselet og værhimmelen"
-              class="w-11 h-11 shrink-0 flex items-center justify-center text-white/45
+              class="w-11 h-11 shrink-0 flex items-center justify-center text-white/70
                      active:scale-90 transition-transform">
         <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
              stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

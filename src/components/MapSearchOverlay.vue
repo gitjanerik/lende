@@ -46,7 +46,7 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
            baserte min-bredde og ikonene havner utenfor skjermen. -->
       <div class="px-3 py-2.5 flex items-center gap-2 border-b border-ink/10"
            :style="{ zoom: uiTextScale }">
-        <svg viewBox="0 0 24 24" class="w-4 h-4 text-ink/55 shrink-0" fill="none"
+        <svg viewBox="0 0 24 24" class="w-4 h-4 text-ink-3 shrink-0" fill="none"
              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="11" cy="11" r="7"/>
           <line x1="20" y1="20" x2="16.65" y2="16.65"/>
@@ -60,14 +60,13 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
                role="combobox" aria-autocomplete="list"
                :aria-expanded="results.length > 0" aria-controls="mapsearch-results"
                :aria-activedescendant="activeIndex >= 0 ? `mapsearch-opt-${activeIndex}` : undefined"
-               class="flex-1 min-w-0 bg-transparent text-[14px] text-ink placeholder-ink/35
-                      focus:outline-none"/>
+               class="flex-1 min-w-0 bg-transparent text-[14px] text-ink placeholder-ink/35"/>
         <!-- Tale-til-tekst — vises bare når nettleseren støtter SpeechRecognition -->
         <button v-if="micSupported" type="button" @click="toggleMic"
                 :aria-label="micListening ? 'Stopp diktering' : 'Diktér søk (tale til tekst)'"
                 :aria-pressed="micListening"
                 :class="['w-7 h-7 rounded-full flex items-center justify-center transition active:scale-95 shrink-0',
-                         micListening ? 'bg-red-500/90 text-ink animate-pulse' : 'text-ink/65 active:bg-ink/10']">
+                         micListening ? 'bg-red-500/90 text-ink animate-pulse' : 'text-ink-3 active:bg-ink/10']">
           <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
@@ -76,7 +75,7 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
         </button>
         <button @click="emit('close')" aria-label="Lukk søk"
                 class="w-7 h-7 -mr-1 shrink-0 rounded-full flex items-center justify-center
-                       text-ink/65 active:bg-ink/10">
+                       text-ink-3 active:bg-ink/10">
           <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
             <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -86,8 +85,8 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
       <div class="flex-1 overflow-y-auto" id="mapsearch-results" role="listbox"
            :style="{ zoom: uiTextScale }">
         <div v-if="!query"
-             class="px-4 py-4 text-[11px] text-ink/45 leading-relaxed">
-          Søker i navn i <span class="text-ink/70">dette kartet</span> — steder, vann,
+             class="px-4 py-4 text-[11px] text-ink-4 leading-relaxed">
+          Søker i navn i <span class="text-ink-2">dette kartet</span> — steder, vann,
           topper og områder ({{ indexCount }} treffbare).
           Skriv «vann» for å se alle innsjøer i utsnittet.
           Skriv «parkering» for å liste utfartsparkeringene.
@@ -117,15 +116,15 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
                  innenfor arket brukeren har bygd. Kartet panorerer dit som til
                  et hvilket som helst annet treff — merkelappen er bare en
                  forklaring på hvorfor det ligger utenfor skjermkanten. -->
-            <div class="text-[10px] text-ink/45 uppercase tracking-wide">
+            <div class="text-[10px] text-ink-4 uppercase tracking-wide">
               {{ r.label }}<span v-if="r.ele != null"> · {{ r.ele }} moh</span><span
                 v-if="r.utenforAktiv" class="text-amber-300/70"> · i naboflis</span>
             </div>
-            <div v-if="r.kind === 'parkering'" class="text-[10px] text-ink/45 leading-tight mt-0.5">
+            <div v-if="r.kind === 'parkering'" class="text-[10px] text-ink-4 leading-tight mt-0.5">
               * Navnet er utledet fra nærmeste sted, ikke et offisielt navn
             </div>
           </div>
-          <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-ink/35 shrink-0" fill="none"
+          <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-ink-4 shrink-0" fill="none"
                stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="9 18 15 12 9 6"/>
           </svg>
@@ -137,10 +136,10 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
              navn etter treffet. -->
         <template v-if="query && (globalSearching || globalResults.length || results.length === 0)">
           <div class="px-4 pt-4 pb-1.5">
-            <div v-if="results.length === 0" class="text-[11px] text-ink/45 mb-1">Ingen treff i dette kartet.</div>
+            <div v-if="results.length === 0" class="text-[11px] text-ink-4 mb-1">Ingen treff i dette kartet.</div>
             <span class="text-[11px] font-semibold uppercase tracking-wider text-sky-300/80">Andre steder i Norge</span>
           </div>
-          <div v-if="globalSearching" class="px-4 py-3 text-[11px] text-ink/40">
+          <div v-if="globalSearching" class="px-4 py-3 text-[11px] text-ink-4">
             Søker …
           </div>
           <button v-for="r in globalResults" :key="'g' + r.id"
@@ -157,13 +156,13 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
               <div class="text-[13px] font-medium text-ink truncate">{{ r.shortName }}</div>
               <div class="text-[10px] text-sky-300/80 uppercase tracking-wide">Bygg nytt kart her</div>
             </div>
-            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-ink/35 shrink-0" fill="none"
+            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-ink-4 shrink-0" fill="none"
                  stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="9 18 15 12 9 6"/>
             </svg>
           </button>
           <div v-if="!globalSearching && globalResults.length === 0 && results.length === 0"
-               class="px-4 py-6 text-center text-[12px] text-ink/45">
+               class="px-4 py-6 text-center text-[12px] text-ink-4">
             Ingen treff på «{{ query }}»
           </div>
         </template>

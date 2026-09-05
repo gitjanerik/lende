@@ -22,12 +22,12 @@ defineProps({
                 class="px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98] transition flex items-center gap-2"
                 :class="annot.selectedSymbol.value === s.symbolKey
                         ? 'bg-slate-400/30 border-slate-200/60 text-ink'
-                        : 'bg-ink/5 border-ink/10 text-ink/70'">
+                        : 'bg-ink/5 border-ink/10 text-ink-2'">
           <AnnotationIcon :symbol-key="s.symbolKey"/>
           {{ s.label }}
         </button>
       </div>
-      <div class="flex gap-2 text-[11px] text-ink/55">
+      <div class="flex gap-2 text-[11px] text-ink-3">
         <span>{{ annot.annotations.value.length }} symbol(er)</span>
         <button v-if="annot.annotations.value.length"
                 @click="annot.clearAll(); annot.persist()"
@@ -37,7 +37,7 @@ defineProps({
 
     <!-- Lay-toggles pr type — kun synlig når noe er plassert -->
     <template v-if="annot.annotations.value.length">
-      <div class="text-ink/55 text-[11px] uppercase tracking-wide mb-2">Synlighet pr type</div>
+      <div class="text-ink-3 text-[11px] uppercase tracking-wide mb-2">Synlighet pr type</div>
       <div class="grid grid-cols-2 gap-2 mb-3">
         <button v-for="s in ANNOTATION_SYMBOLS.filter(x => annot.countByType.value[x.symbolKey] > 0)"
                 :key="s.code"
@@ -46,25 +46,25 @@ defineProps({
                        flex items-center gap-2"
                 :class="annot.visibleTypes.value.has(s.symbolKey)
                         ? 'bg-slate-400/25 border-slate-300/50 text-ink'
-                        : 'bg-ink/5 border-ink/10 text-ink/45'">
+                        : 'bg-ink/5 border-ink/10 text-ink-4'">
           <AnnotationIcon :symbol-key="s.symbolKey"/>
           <span class="text-[12px]">{{ s.label }} ({{ annot.countByType.value[s.symbolKey] }})</span>
         </button>
       </div>
 
-      <div class="text-ink/55 text-[11px] uppercase tracking-wide mb-2">Alle plasserte</div>
+      <div class="text-ink-3 text-[11px] uppercase tracking-wide mb-2">Alle plasserte</div>
       <div class="space-y-1 mb-2 max-h-56 overflow-y-auto pr-1">
         <div v-for="a in annot.annotations.value" :key="a.id"
              class="flex items-center gap-2 px-2.5 py-1.5 rounded-md
-                    bg-ink/5 border border-ink/10 text-ink/75">
+                    bg-ink/5 border border-ink/10 text-ink-2">
           <AnnotationIcon :symbol-key="labelForAnnotation(a).symbolKey"/>
           <span class="text-[12px] flex-1 truncate">{{ labelForAnnotation(a).label }}</span>
-          <span class="text-[10px] text-ink/35 tabular-nums shrink-0">
+          <span class="text-[10px] text-ink-4 tabular-nums shrink-0">
             {{ Math.round(a.x) }},&nbsp;{{ Math.round(a.y) }}
           </span>
           <button @click="annot.remove(a.id); annot.persist()"
                   class="w-6 h-6 flex items-center justify-center rounded-md
-                         text-ink/55 active:scale-90 active:bg-rose-500/20
+                         text-ink-3 active:scale-90 active:bg-rose-500/20
                          active:text-rose-200 shrink-0"
                   aria-label="Slett annotering">
             <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
@@ -75,7 +75,7 @@ defineProps({
         </div>
       </div>
     </template>
-    <div v-else class="text-[10px] text-ink/40 leading-snug">
+    <div v-else class="text-[10px] text-ink-4 leading-snug">
       Velg et symbol over og tap på kartet for å plassere.
     </div>
   </div>

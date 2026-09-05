@@ -161,7 +161,7 @@ function sampleSvg(category, code) {
          nødvendig — et <select> har en egen minstebredde og krymper ikke uten. -->
     <div class="px-4 pt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
       <span class="text-sm font-semibold uppercase tracking-wide"
-            :class="isDark ? 'text-white/55' : 'text-zinc-500'">Tema</span>
+            :class="isDark ? 'text-white/75' : 'text-zinc-500'">Tema</span>
       <select v-model="currentTheme" aria-label="Tema for tegnforklaringen"
               class="min-w-0 max-w-full rounded-lg text-xs px-2 py-1.5 border focus:outline-none focus:ring-1 focus:ring-emerald-400
                      [&>option]:text-zinc-900 [&>option]:bg-white"
@@ -171,7 +171,7 @@ function sampleSvg(category, code) {
         </optgroup>
       </select>
     </div>
-    <p class="px-4 pt-2 text-xs leading-snug" :class="isDark ? 'text-white/55' : 'text-zinc-600'">
+    <p class="px-4 pt-2 text-xs leading-snug" :class="isDark ? 'text-white/75' : 'text-zinc-600'">
       ISOM 2017-2 inspirerte symboler brukt i turkartene. Print-kvalitet, 1:10000.
       Prøvene vises i valgt tema, akkurat som i kartet.
     </p>
@@ -179,11 +179,11 @@ function sampleSvg(category, code) {
     <div class="px-4 py-4 space-y-6">
       <section v-for="section in SECTIONS" :key="section.title">
         <h2 class="text-sm font-semibold uppercase tracking-wide mb-2"
-            :class="isDark ? 'text-white/55' : 'text-zinc-500'">
+            :class="isDark ? 'text-white/75' : 'text-zinc-500'">
           {{ section.title }}
         </h2>
         <p v-if="section.note" class="text-[11px] mb-2 leading-relaxed"
-           :class="isDark ? 'text-white/45' : 'text-zinc-500'">
+           :class="isDark ? 'text-white/70' : 'text-zinc-500'">
           {{ section.note }}
         </p>
         <div class="space-y-1.5">
@@ -205,7 +205,7 @@ function sampleSvg(category, code) {
                 {{ defForCode(catFor(section, code), code)?.label ?? '—' }}
               </div>
               <div class="text-[10px] mt-0.5"
-                   :class="isDark ? 'text-white/45' : 'text-zinc-500'">
+                   :class="isDark ? 'text-white/70' : 'text-zinc-500'">
                 ISOM {{ code }}
               </div>
             </div>
@@ -213,7 +213,7 @@ function sampleSvg(category, code) {
         </div>
       </section>
 
-      <p class="text-[11px] pt-4 pb-8" :class="isDark ? 'text-white/40' : 'text-zinc-500'">
+      <p class="text-[11px] pt-4 pb-8" :class="isDark ? 'text-white/70' : 'text-zinc-500'">
         Tegnforklaring er datadrevet fra <code>isomCatalog.json</code>. Endringer i katalogen reflekteres her automatisk.
       </p>
     </div>

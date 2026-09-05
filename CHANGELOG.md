@@ -1,3 +1,31 @@
+## 2026-09-05 — v6.5.48: Universell utforming — hele appen gjennom WCAG 2.2
+
+Fem grupper i én leveranse, i den rekkefølgen de betaler seg. Byggingen på forsiden og i kart-utvidelsen kan nå AVBRYTES (`AbortController` hele veien ned i `buildMapFromCenter`), `/nytt` har fått hovedmenyknappen tilbake, Utvikler-fanen er `userOnly`, og lang-trykk på FAB-knottene har samme fyllring som ankeret — gesten sto bare i en `aria-label`. Lyst tema remapper nå også aksentskyggene 300/400: førti tekststeder skrevet som `text-amber-300/80` sto igjen som lys aksent på lys papir, målt 1,29:1. Alle interaktive elementer har fått en global `:focus-visible`-ring, og de ni `focus:outline-none`-ene som slo den i hjel er borte. `user-scalable=no` er ute av viewporten (SC 1.4.4). Skjemaer, faner og brytere har fått navn, roller og live-regioner: forsidens og skuffens fanerader er ekte `tablist`-er med piltaster og roving tabindex, 3D-ens knapperad er `aria-pressed`-brytere med tempo som `radiogroup`, tur-scrubberen er en `role="slider"` med piltaster, og statusbannere skiller `role="status"` fra `role="alert"`.
+
+Teksthierarkiet er ikke lenger skrevet som opasitet. `text-ink/55` og slektningene komponerte mot ulik bunn i de to temaene — 6,1:1 i mørkt og 3,8:1 i lyst, altså én klasse som besto i det ene og strøk i det andre. 555 kallsteder er byttet til `--color-ink-2/-3/-4`, faste toner per tema, og `uiKontrast.test.js` måler hvert nivå mot hver flate i CI og feiler både på et gulv under 4,5:1 og på drift mellom tabellen og `style.css`. Grønne knapper med hvit tekst målte 2,5:1 og er nå emerald-700; de gule toastene er amber-800 med `on-accent`; GPS-prikken har fått en mørk ytterkontur, siden den hvite ringen målte 1,05:1 mot kartets kremgule bunn. Til sist tastaturet: FAB-ankeret og -knottene svarer på Enter og mellomrom (og Meny-tasten for holdet), skuffa er en `role="dialog"` med Escape og fokus inn og ut, hovedmenyen og 3D har fokusfelle (`lib/fokusFelle.js`, ren og testet), håndtakene er ekte kontroller med piltaster, kartflata kan panoreres og zoomes med tastatur, og berøring har fått zoom og nord-knapp med én finger — pinch og to-finger-vri var eneste vei, som SC 2.5.2 ikke tillater. Alle fokusflyttinger bruker `preventScroll` — MapViews rot er `overflow-hidden`, men en slik boks kan fortsatt rulles programmatisk, og uten flagget dro fokuseringen av skuffas første knapp flata 465 px opp så de åtte lende-pilene havnet utenfor viewporten. Røyktesten har fått tre nye sjekker som måler nettopp dette: tastatur på kartflata, fokus inn og Escape ut av skuffa (og at flata ikke rullet), og at fokusringen faktisk males.
+
+---
+
+## 2026-09-05 — v6.5.47: Nedlasting rett fra kartlista
+
+Kart-radene i «Mine kart» har fått handlingene på egen linje, og en ny
+nedlastings-knapp ved siden av «gi nytt navn» og «slett». Knappene sto før til
+høyre for kartnavnet og stjal bredden fra de to metadatalinjene under det, som
+dermed ble kuttet med «…» på en vanlig telefon; nå får teksten hele bredden.
+Nedlastingen gir samme `.lendekart`-fil som «Del som offline-fil» inne i
+kart-visningen — importen sto allerede rett over lista, så eksport og import
+henger nå sammen på samme side.
+
+Selve pakke- og leveringsveien er flyttet til `lib/kartFilDeling.js` og DELT av
+de to knappene. Det er poenget med uttrekket: en snarvei som pakket «nesten det
+samme» ville gitt turkameraten et kart uten kulturminner eller verneområder,
+uten at noe i UI-et sa hvilken knapp som ga hvilken fil. Kart-raden er dessuten
+blitt en ekte `<button>` med egen fokusring, og de tre ikonknappene ligger nå
+utenfor den — en knapp i en knapp er ugyldig markup, og `@click.stop` er en
+avtale man må huske hver gang det kommer en knapp til.
+
+---
+
 ## 2026-09-05 — v6.5.46: Kvadratisk, stående, liggende — og kompasset dekker skjermen
 
 Formatvelgeren har tre valg med ett ord hver. «Portrett (mobilskjerm)» og

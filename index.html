@@ -8,7 +8,10 @@
          knapper (f.eks. «Lagre rute»/«Avbryt» i Ruteplanleggerens skuff-footer)
          var usynlige mens tastaturet var åpent. Eldre Chrome og iOS Safari
          ignorerer nøkkelordet (iOS beholder overlay-oppførselen sin). -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
+    <!-- Ingen maximum-scale/user-scalable: WCAG 1.4.4 krever at siden kan
+         forstørres til 200 %, og `user-scalable=no` sperret knipe-zoom i hele
+         appen. Kartet har sin egen gest-håndtering og påvirkes ikke. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#0e1116" />
     <!-- Chromium «Auto Dark Theme» (Edge Android: «Dark mode for nettsteder»,
          Chrome Android: auto-mørking) tvangs-inverterer mørke farger på sider

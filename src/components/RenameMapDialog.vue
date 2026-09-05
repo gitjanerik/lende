@@ -48,7 +48,7 @@ function save() {
         <div class="text-ink text-sm font-semibold">Gi kart nytt navn</div>
         <button @click="close" aria-label="Lukk"
                 class="w-8 h-8 rounded-full bg-ink/5 border border-ink/10
-                       text-ink/65 flex items-center justify-center active:scale-90">
+                       text-ink-3 flex items-center justify-center active:scale-90">
           <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
             <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -61,18 +61,18 @@ function save() {
              @keydown.enter.prevent="save"
              @keydown.esc.prevent="close"
              class="w-full px-3 py-3 rounded-xl bg-ink/[0.06] border border-ink/15
-                    text-[15px] text-ink placeholder-ink/30 focus:outline-none
+                    text-[15px] text-ink placeholder-ink/30
                     focus:bg-ink/12 focus:border-emerald-300/50 transition" />
 
       <div class="mt-3 flex gap-2">
         <button @click="close"
                 class="flex-1 px-3 py-2.5 rounded-lg border text-[13px] font-medium
-                       bg-ink/5 border-ink/10 text-ink/70 active:scale-[0.98] transition">
+                       bg-ink/5 border-ink/10 text-ink-2 active:scale-[0.98] transition">
           Avbryt
         </button>
         <button @click="save" :disabled="!canSave()"
                 class="flex-1 px-3 py-2.5 rounded-lg text-[13px] font-semibold
-                       bg-emerald-600 text-white active:scale-[0.98] transition
+                       bg-emerald-700 text-white active:scale-[0.98] transition
                        disabled:opacity-50 disabled:cursor-not-allowed">
           Lagre
         </button>

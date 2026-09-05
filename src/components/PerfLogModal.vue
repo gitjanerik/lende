@@ -54,7 +54,7 @@ function clear() {
         <div class="text-ink text-sm font-semibold">Byggetider (perf-logg)</div>
         <button @click="emit('update:open', false)" aria-label="Lukk"
                 class="w-8 h-8 rounded-full bg-ink/5 border border-ink/10
-                       text-ink/65 flex items-center justify-center active:scale-90">
+                       text-ink-3 flex items-center justify-center active:scale-90">
           <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
             <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -67,23 +67,23 @@ function clear() {
                 class="flex-1 px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98]"
                 :class="copied
                         ? 'bg-emerald-500/20 border-emerald-400/50 text-ink'
-                        : 'bg-ink/5 border-ink/10 text-ink/80'">
+                        : 'bg-ink/5 border-ink/10 text-ink-2'">
           {{ copied ? 'Kopiert ✓' : 'Kopier alt' }}
         </button>
         <button @click="clear"
                 class="px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98]
-                       bg-ink/5 border-ink/10 text-ink/60">
+                       bg-ink/5 border-ink/10 text-ink-3">
           Tøm
         </button>
       </div>
 
-      <div v-if="!entries.length" class="text-[12px] text-ink/50 py-6 text-center">
+      <div v-if="!entries.length" class="text-[12px] text-ink-4 py-6 text-center">
         Ingen byggetider ennå. Lag et nytt kart (auto-kart eller «lag her»), så dukker tallene opp her.
       </div>
       <div v-else class="overflow-y-auto -mx-1 px-1">
         <div v-for="(e, i) in entries" :key="i"
              class="mb-2 rounded-lg bg-overlay/70 border border-ink/5 px-2.5 py-2">
-          <div class="text-[9px] text-ink/40 tabular-nums mb-0.5">
+          <div class="text-[9px] text-ink-4 tabular-nums mb-0.5">
             {{ new Date(e.t).toLocaleString('no-NO') }}
           </div>
           <div class="text-[11px] text-emerald-200/90 font-mono break-all leading-snug">{{ e.msg }}</div>

@@ -56,7 +56,7 @@ const prosentTekst = computed(() => (
 // (FARGER.gronn) — panelet og himmelen skal ikke ha hver sin nordlysgrønn.
 const styrkeFarge = computed(() => {
   const p = d.value.prosent
-  if (!Number.isFinite(p) || p < 5) return 'text-white/50'
+  if (!Number.isFinite(p) || p < 5) return 'text-white/72'
   if (p < 15) return 'text-emerald-300/80'
   if (p < 35) return 'text-emerald-300'
   return 'text-emerald-400'
@@ -106,24 +106,24 @@ const vindTittel = computed(() => {
 
 <template>
   <div v-if="nordlys?.status === 'loading'"
-       class="rounded-full bg-black/45 backdrop-blur px-3 py-1.5 text-[0.6875rem] text-white/60">
+       class="rounded-full bg-black/72 backdrop-blur px-3 py-1.5 text-[0.6875rem] text-white/78">
     Henter nordlysvarsel …
   </div>
   <!-- Ærlig svar framfor et oppdiktet nordlys. Samme regel som værraden. -->
   <div v-else-if="nordlys?.status === 'error'"
-       class="rounded-full bg-black/45 backdrop-blur px-3 py-1.5 text-[0.6875rem] text-white/60">
+       class="rounded-full bg-black/72 backdrop-blur px-3 py-1.5 text-[0.6875rem] text-white/78">
     Nordlysvarsel ikke tilgjengelig
   </div>
 
   <div v-else-if="nordlys?.status === 'done'"
-       class="rounded-2xl bg-black/45 backdrop-blur max-w-full overflow-hidden
+       class="rounded-2xl bg-black/72 backdrop-blur max-w-full overflow-hidden
               flex items-stretch divide-x divide-white/10">
     <!-- Hovedtallet: styrkeordet stort, sannsynligheten under. Det er det man
          leser i mørket, og det eneste som er stedsspesifikt. -->
     <div class="shrink-0 flex flex-col items-start justify-center px-3 py-1.5 min-w-[6.5rem]">
-      <span class="text-[0.5rem] uppercase tracking-wide text-white/40 leading-none"
+      <span class="text-[0.5rem] uppercase tracking-wide text-white/70 leading-none"
             :title="kildeTittel">
-        Nordlys<span v-if="kildeMerke" class="text-white/30"> · {{ kildeMerke }}</span>
+        Nordlys<span v-if="kildeMerke" class="text-white/70"> · {{ kildeMerke }}</span>
       </span>
       <span class="text-[0.9375rem] font-semibold leading-tight" :class="styrkeFarge">
         {{ forhold.styrke ?? 'Ukjent' }}
@@ -131,31 +131,31 @@ const vindTittel = computed(() => {
       <!-- HVORFOR man ikke ser noe, når man ikke gjør det. «Sterk» over et tett
            skylag er verre enn ingen melding. -->
       <span v-if="forhold.hvorfor"
-            class="text-[0.5625rem] text-white/45 leading-none">{{ forhold.hvorfor }}</span>
+            class="text-[0.5625rem] text-white/70 leading-none">{{ forhold.hvorfor }}</span>
     </div>
 
     <div class="shrink-0 flex items-center gap-2.5 px-3 py-1.5">
       <span class="flex flex-col items-center leading-none">
-        <span class="text-[0.5rem] text-white/40">SJANSE</span>
+        <span class="text-[0.5rem] text-white/70">SJANSE</span>
         <span class="text-[0.75rem] text-white tabular-nums mt-0.5">{{ prosentTekst }}</span>
       </span>
       <span v-if="skydekke != null" class="flex flex-col items-center leading-none">
-        <span class="text-[0.5rem] text-white/40">SKYER</span>
+        <span class="text-[0.5rem] text-white/70">SKYER</span>
         <span class="text-[0.75rem] text-white/85 tabular-nums mt-0.5">
           {{ Math.round(skydekke) }} %
         </span>
       </span>
       <span v-if="Number.isFinite(d.kp)" class="flex flex-col items-center leading-none">
-        <span class="text-[0.5rem] text-white/40">KP</span>
+        <span class="text-[0.5rem] text-white/70">KP</span>
         <span class="text-[0.75rem] text-white/85 tabular-nums mt-0.5">
           {{ d.kp.toFixed(1) }}
         </span>
       </span>
       <span v-if="Number.isFinite(d.vindKmS)" class="flex flex-col items-center leading-none"
             :title="vindTittel">
-        <span class="text-[0.5rem] text-white/40">SOLVIND</span>
+        <span class="text-[0.5rem] text-white/70">SOLVIND</span>
         <span class="text-[0.75rem] text-white/85 tabular-nums mt-0.5">
-          {{ Math.round(d.vindKmS) }}<span class="text-[0.5rem] text-white/45">km/s</span>
+          {{ Math.round(d.vindKmS) }}<span class="text-[0.5rem] text-white/70">km/s</span>
         </span>
       </span>
     </div>
@@ -167,7 +167,7 @@ const vindTittel = computed(() => {
          til venstre, i cellen som ikke vokser. 44 px er trykkmålets minimum. -->
     <div class="shrink-0 flex items-center pl-1 pr-0.5">
       <button @click="emit('lukk')" aria-label="Skjul nordlysvarselet og nordlyset"
-              class="w-11 h-11 shrink-0 flex items-center justify-center text-white/45
+              class="w-11 h-11 shrink-0 flex items-center justify-center text-white/70
                      active:scale-90 transition-transform">
         <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
              stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

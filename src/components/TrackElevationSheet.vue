@@ -43,7 +43,7 @@ function formatDuration(ms) {
           <div class="text-ink text-sm font-semibold">
             {{ track.navn || ('Tur ' + new Date(track.opprettet).toLocaleDateString('no-NO', { day: '2-digit', month: 'short', year: 'numeric' })) }}
           </div>
-          <div class="text-[11px] text-ink/55 tabular-nums">
+          <div class="text-[11px] text-ink-3 tabular-nums">
             {{ formatDistance(trackLengthM(track)) }} ·
             {{ formatDuration(trackDurationMs(track)) }} ·
             {{ track.points.length }} punkter
@@ -54,7 +54,7 @@ function formatDuration(ms) {
           <button @click="$emit('close')"
                   aria-label="Lukk"
                   class="w-8 h-8 rounded-full bg-ink/5 border border-ink/10
-                         text-ink/65 flex items-center justify-center active:scale-90">
+                         text-ink-3 flex items-center justify-center active:scale-90">
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                  stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
               <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
@@ -100,19 +100,19 @@ function formatDuration(ms) {
 
         <div class="grid grid-cols-2 gap-2 mt-3 text-[12px]">
           <div class="rounded-md bg-ink/5 border border-ink/10 px-3 py-2">
-            <div class="text-ink/45 text-[10px] uppercase tracking-wide">Total stigning</div>
+            <div class="text-ink-4 text-[10px] uppercase tracking-wide">Total stigning</div>
             <div class="text-ink font-semibold tabular-nums">↗ {{ Math.round(profile.totalAscent) }} m</div>
           </div>
           <div class="rounded-md bg-ink/5 border border-ink/10 px-3 py-2">
-            <div class="text-ink/45 text-[10px] uppercase tracking-wide">Total fall</div>
+            <div class="text-ink-4 text-[10px] uppercase tracking-wide">Total fall</div>
             <div class="text-ink font-semibold tabular-nums">↘ {{ Math.round(profile.totalDescent) }} m</div>
           </div>
           <div class="rounded-md bg-ink/5 border border-ink/10 px-3 py-2">
-            <div class="text-ink/45 text-[10px] uppercase tracking-wide">Høyeste punkt</div>
+            <div class="text-ink-4 text-[10px] uppercase tracking-wide">Høyeste punkt</div>
             <div class="text-ink font-semibold tabular-nums">{{ Math.round(profile.maxElev) }} moh</div>
           </div>
           <div class="rounded-md bg-ink/5 border border-ink/10 px-3 py-2">
-            <div class="text-ink/45 text-[10px] uppercase tracking-wide">Laveste punkt</div>
+            <div class="text-ink-4 text-[10px] uppercase tracking-wide">Laveste punkt</div>
             <div class="text-ink font-semibold tabular-nums">{{ Math.round(profile.minElev) }} moh</div>
           </div>
         </div>

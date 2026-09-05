@@ -1252,7 +1252,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="relative h-[100dvh] bg-app text-ink/90 overflow-hidden flex flex-col">
+  <div class="relative h-[100dvh] bg-app text-ink overflow-hidden flex flex-col">
 
     <!-- Flytende chrome oppå kartet: kun hovedmenyen (venstre). Lagrede-ruter-
          FAB-en øverst til høyre er fjernet (kolliderte med +/−-zoomknappene);
@@ -1369,7 +1369,7 @@ onUnmounted(() => {
           <div class="rounded-xl bg-overlay/95 backdrop-blur border border-ink/15 shadow-2xl
                       px-3 py-2.5" :style="{ width: PIN_CARD_W + 'px' }">
             <div class="flex items-center gap-1.5">
-              <div class="flex-1 text-[10px] text-ink/80 font-mono tabular-nums truncate">
+              <div class="flex-1 text-[10px] text-ink-2 font-mono tabular-nums truncate">
                 {{ utNoPin.lat.toFixed(5) }}, {{ utNoPin.lon.toFixed(5) }}
               </div>
               <button @click="onCopyPinCoords" aria-label="Kopier koordinater"
@@ -1379,7 +1379,7 @@ onUnmounted(() => {
                               ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-200'
                               : pinCopyState === 'failed'
                                 ? 'bg-rose-500/20 border-rose-400/50 text-rose-200'
-                                : 'bg-ink/5 border-ink/10 text-ink/55'">
+                                : 'bg-ink/5 border-ink/10 text-ink-3'">
                 <svg v-if="pinCopyState !== 'copied'" viewBox="0 0 24 24" class="w-3 h-3" fill="none"
                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <rect x="9" y="9" width="11" height="11" rx="2"/>
@@ -1392,7 +1392,7 @@ onUnmounted(() => {
               </button>
               <button @click="utNoPin = null" aria-label="Lukk"
                       class="w-6 h-6 -mr-1 shrink-0 rounded-full flex items-center justify-center
-                             text-ink/50 hover:text-ink/80 active:scale-90 transition">
+                             text-ink-4 hover:text-ink-2 active:scale-90 transition">
                 <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2"
                      stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
               </button>
@@ -1418,15 +1418,15 @@ onUnmounted(() => {
                 <polyline points="9 18 15 12 9 6"/>
               </svg>
             </button>
-            <div class="mt-1.5 text-[9px] uppercase tracking-wide text-ink/45">Åpne i</div>
+            <div class="mt-1.5 text-[9px] uppercase tracking-wide text-ink-4">Åpne i</div>
             <div class="mt-1 space-y-1">
               <a v-for="l in pinLinks" :key="l.label" :href="l.href"
                  target="_blank" rel="noopener noreferrer" @click="utNoPin = null"
                  class="flex items-center justify-between gap-3 px-3 py-1.5 rounded-lg text-[12px]
-                        font-medium border bg-ink/[0.06] border-ink/15 text-ink/85
+                        font-medium border bg-ink/[0.06] border-ink/15 text-ink
                         active:scale-[0.98] transition">
                 {{ l.label }}
-                <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0 text-ink/50" fill="none"
+                <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0 text-ink-4" fill="none"
                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
                   <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
@@ -1455,7 +1455,7 @@ onUnmounted(() => {
         <button @click.stop="stepZoom(-1)" aria-label="Zoom ut"
                 class="w-9 h-9 rounded-lg bg-overlay/90 border border-ink/15 text-ink text-lg font-medium
                        flex items-center justify-center active:scale-95 transition">−</button>
-        <div class="px-1.5 py-0.5 rounded-md bg-overlay/85 border border-ink/15 text-ink/60 text-[10px]
+        <div class="px-1.5 py-0.5 rounded-md bg-overlay/85 border border-ink/15 text-ink-3 text-[10px]
                     tabular-nums pointer-events-none">z{{ zoom }}</div>
       </div>
 
@@ -1574,7 +1574,7 @@ onUnmounted(() => {
                            text-[12px] font-medium active:scale-[0.99] transition"
                     :class="invitePicked === i
                             ? 'bg-sky-400/20 border-sky-300/50 text-sky-100'
-                            : 'bg-ink/[0.05] border-ink/15 text-ink/75'">
+                            : 'bg-ink/[0.05] border-ink/15 text-ink-2'">
               <span class="flex-1 truncate">{{ r.navn ?? `Rute ${i + 1}` }}</span>
               <svg v-if="invitePicked === i" viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0"
                    fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
@@ -1583,7 +1583,7 @@ onUnmounted(() => {
           </div>
           <!-- Footer: infotekst + Lukk (X) — samlet nederst (v12.1.28) -->
           <div class="mt-2 flex items-center gap-2">
-            <div class="flex-1 text-[11px] text-ink/70 leading-relaxed">
+            <div class="flex-1 text-[11px] text-ink-2 leading-relaxed">
               <template v-if="inviteRoutes.length > 1">
                 Velg en rute og trykk «Finn grusrute» — rutene beregnes én om gangen. God tur!
               </template>
@@ -1636,11 +1636,11 @@ onUnmounted(() => {
           Trykk i kartet for å sette {{ armedField === 'A' ? 'start' : 'mål' }}
         </div>
         <div v-else-if="overlayGated && !route"
-             class="px-3 py-1.5 rounded-full bg-overlay/85 border border-ink/15 text-ink/75 text-[11px] shadow">
+             class="px-3 py-1.5 rounded-full bg-overlay/85 border border-ink/15 text-ink-2 text-[11px] shadow">
           Zoom inn for å se grusveier
         </div>
         <div v-if="overlayState === 'loading'"
-             class="px-3 py-1.5 rounded-full bg-overlay/85 border border-ink/15 text-ink/75 text-[11px]
+             class="px-3 py-1.5 rounded-full bg-overlay/85 border border-ink/15 text-ink-2 text-[11px]
                     shadow flex items-center gap-2">
           <span class="w-3 h-3 border-2 border-ink/20 border-t-ink/80 rounded-full animate-spin"></span>
           Henter kartlag …
@@ -1665,15 +1665,15 @@ onUnmounted(() => {
                   px-2.5 py-2 shadow-xl"
            @mousedown.stop @touchstart.stop @wheel.stop>
         <div class="flex items-center justify-between gap-4 mb-1">
-          <div class="text-[9px] uppercase tracking-wide text-ink/45">Kartlag</div>
+          <div class="text-[9px] uppercase tracking-wide text-ink-4">Kartlag</div>
           <button @click.stop="layersPanelOpen = false" aria-label="Lukk kartlag"
-                  class="w-5 h-5 -mr-1 rounded-full flex items-center justify-center text-ink/50
-                         hover:text-ink/80 active:scale-90 transition">
+                  class="w-5 h-5 -mr-1 rounded-full flex items-center justify-center text-ink-4
+                         hover:text-ink-2 active:scale-90 transition">
             <svg viewBox="0 0 24 24" class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.4"
                  stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
           </button>
         </div>
-        <div class="text-[10px] text-ink/75 space-y-0.5">
+        <div class="text-[10px] text-ink-2 space-y-0.5">
           <button @click="toggleLayer('surfaced')" :aria-pressed="layers.surfaced"
                   class="flex items-center gap-1.5 w-full text-left py-0.5 active:opacity-60 transition"
                   :class="layers.surfaced ? '' : 'opacity-40'">
@@ -1727,7 +1727,7 @@ onUnmounted(() => {
 
       <!-- Attribusjon: fast nederst til høyre når den får plass i kartmargen ved
            siden av skuffen, ellers løftet over skuffen (se attributionStyle). -->
-      <div class="absolute right-1 px-1.5 py-0.5 rounded bg-surface/85 text-ink/60 text-[8px]
+      <div class="absolute right-1 px-1.5 py-0.5 rounded bg-surface/85 text-ink-3 text-[8px]
                   border border-ink/15 leading-tight pointer-events-none z-10 text-right"
            :style="attributionStyle">
         © Kartverket · © OpenStreetMap-bidragsytere · Ruting: BRouter (brouter.de)
@@ -1739,7 +1739,7 @@ onUnmounted(() => {
          class="absolute left-3 right-3 z-30 max-w-[560px] mx-auto rounded-xl border px-4 py-3
                 text-[13px] shadow-2xl"
          :style="{ bottom: (floatBottomPx + 12) + 'px' }"
-         :class="isOffline ? 'bg-surface/95 border-ink/15 text-ink/80'
+         :class="isOffline ? 'bg-surface/95 border-ink/15 text-ink-2'
                            : 'bg-rose-950/95 border-rose-500/40 text-rose-100'">
       <template v-if="isOffline">Ruteplanleggeren krever nettilkobling.</template>
       <template v-else>
@@ -1771,12 +1771,12 @@ onUnmounted(() => {
         <div class="px-4 pb-2 w-full max-w-[560px] mx-auto flex items-center gap-2">
           <div class="flex-1 min-w-0">
             <template v-if="route && routeState !== 'routing'">
-              <div class="text-[10px] uppercase tracking-wide text-ink/45">Grusrute</div>
+              <div class="text-[10px] uppercase tracking-wide text-ink-4">Grusrute</div>
               <div class="flex items-baseline gap-2 mt-0.5">
                 <span class="text-[26px] leading-none font-bold text-ink tabular-nums">{{ fmtKm(route.lengthM) }} km</span>
                 <span v-if="fmtGrus(route.gravelShare)" class="text-[14px] font-semibold text-[#e8802b]">
                   · Grus {{ fmtGrus(route.gravelShare) }}</span>
-                <span v-else class="text-[12px] text-ink/45">· Grusandel utilgjengelig</span>
+                <span v-else class="text-[12px] text-ink-4">· Grusandel utilgjengelig</span>
               </div>
             </template>
             <div v-else class="text-[14px] font-semibold text-ink">Planlegg grusrute</div>
@@ -1789,7 +1789,7 @@ onUnmounted(() => {
                lukkeknappen i «Mine ruter»). -->
           <template v-if="drawer.isMinimized.value">
             <button @pointerdown.stop @click.stop="onReset" aria-label="Nullstill"
-                    class="shrink-0 w-9 h-9 rounded-xl bg-ink/5 border border-ink/15 text-ink/60
+                    class="shrink-0 w-9 h-9 rounded-xl bg-ink/5 border border-ink/15 text-ink-3
                            flex items-center justify-center active:scale-95 transition">
               <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
                    stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
@@ -1821,7 +1821,7 @@ onUnmounted(() => {
              Åpen/lukket persisteres bevisst IKKE. -->
         <div v-if="!routeInvite"
              class="mb-2.5 px-3 py-2 rounded-lg bg-sky-500/[0.07] border border-sky-400/15
-                    text-[11px] text-ink/60 leading-snug">
+                    text-[11px] text-ink-3 leading-snug">
           <template v-if="hintOpen">
             Trykk i kartet for å sette start
             <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-500
@@ -1844,7 +1844,7 @@ onUnmounted(() => {
         <div v-for="field in ['A', 'B']" :key="field" class="relative">
           <div v-if="field === 'B'" class="flex justify-center -my-1 relative z-10">
             <button @click="swapPoints" aria-label="Bytt start og mål" :disabled="!!routeInvite"
-                    class="w-8 h-8 rounded-full bg-surface-2 border border-ink/15 text-ink/70
+                    class="w-8 h-8 rounded-full bg-surface-2 border border-ink/15 text-ink-2
                            flex items-center justify-center active:scale-90 transition disabled:opacity-35">
               <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2"
                    stroke-linecap="round" stroke-linejoin="round">
@@ -1866,8 +1866,8 @@ onUnmounted(() => {
                    :aria-activedescendant="activeSearch === field && searchActiveIndex >= 0 ? `route-opt-${searchActiveIndex}` : undefined"
                    type="search" autocomplete="off" :readonly="!!routeInvite"
                    :placeholder="field === 'A' ? 'Fra — startsted' : 'Til — destinasjon'"
-                   class="flex-1 min-w-0 py-2 bg-transparent text-[13px] placeholder-ink/35
-                          focus:outline-none" />
+                   :aria-label="field === 'A' ? 'Fra — startsted' : 'Til — destinasjon'"
+                   class="flex-1 min-w-0 py-2 bg-transparent text-[13px] placeholder-ink/35" />
             <!-- Tale-til-tekst: diktér Fra/Til (skjult uten nettleser-støtte / i delingsmodus) -->
             <button v-if="micSupported && !routeInvite" type="button"
                     @click="(field === 'A' ? speechA : speechB).toggle()"
@@ -1876,7 +1876,7 @@ onUnmounted(() => {
                     :class="['w-8 h-8 shrink-0 rounded-lg border flex items-center justify-center active:scale-95 transition',
                              (field === 'A' ? speechA : speechB).isListening.value
                                ? 'bg-red-500/90 border-red-400/40 text-ink animate-pulse'
-                               : 'bg-ink/5 border-ink/10 text-ink/50']">
+                               : 'bg-ink/5 border-ink/10 text-ink-4']">
               <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
                    stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
@@ -1887,7 +1887,7 @@ onUnmounted(() => {
             <button v-if="(field === 'A' ? pointA : pointB) && !routeInvite"
                     @click="setPoint(field, null)"
                     :aria-label="`Fjern ${field === 'A' ? 'start' : 'mål'}`"
-                    class="w-8 h-8 shrink-0 rounded-lg bg-ink/5 border border-ink/10 text-ink/50
+                    class="w-8 h-8 shrink-0 rounded-lg bg-ink/5 border border-ink/10 text-ink-4
                            flex items-center justify-center active:scale-95 transition">
               <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2"
                    stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
@@ -1911,7 +1911,7 @@ onUnmounted(() => {
                     :aria-label="`Velg ${field === 'A' ? 'start' : 'mål'} i kartet`"
                     class="w-8 h-8 shrink-0 rounded-lg border flex items-center justify-center
                            active:scale-95 transition disabled:opacity-35"
-                    :class="armedField === field ? 'bg-sky-500/25 border-sky-400/50 text-sky-200' : 'bg-ink/5 border-ink/10 text-ink/60'">
+                    :class="armedField === field ? 'bg-sky-500/25 border-sky-400/50 text-sky-200' : 'bg-ink/5 border-ink/10 text-ink-3'">
               <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
                    stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
@@ -1920,6 +1920,9 @@ onUnmounted(() => {
           </div>
           <!-- Nominatim-treff (åpner NEDOVER — skuffens innhold scroller, så
                treff over feltet ville klippes mot scroll-toppen) -->
+          <div class="sr-only" role="status" aria-live="polite">
+            <template v-if="activeSearch === field">{{ (field === 'A' ? searchA : searchB).results.value.length }} treff</template>
+          </div>
           <div v-if="activeSearch === field && (field === 'A' ? searchA : searchB).results.value.length"
                :id="`route-results-${field}`" role="listbox"
                class="absolute left-0 right-0 top-full mt-1 rounded-xl bg-surface/98 backdrop-blur
@@ -1932,11 +1935,11 @@ onUnmounted(() => {
                     class="w-full text-left px-3 py-2 transition border-b border-ink/8 last:border-0"
                     :class="index === searchActiveIndex ? 'bg-ink/12' : 'active:bg-ink/10'">
               <div class="text-[13px] font-medium text-ink truncate">{{ r.shortName }}</div>
-              <div class="text-[11px] text-ink/50 truncate">{{ r.name }}</div>
+              <div class="text-[11px] text-ink-4 truncate">{{ r.name }}</div>
             </button>
           </div>
         </div>
-        <div v-if="gpsState.error" class="mt-1.5 text-[11px] text-amber-300">{{ gpsState.error }}</div>
+        <div v-if="gpsState.error" role="alert" class="mt-1.5 text-[11px] text-amber-300">{{ gpsState.error }}</div>
         <!-- Antatt grus i ruteforslag (v12.1.19, default AV): track uten
              registrert dekke kan i praksis være skiløype/turdrag — brukeren
              velger selv om ruteren får bruke dem. Gjelder kun rutingen;
@@ -1945,9 +1948,9 @@ onUnmounted(() => {
                :class="routeInvite ? 'opacity-40 pointer-events-none' : ''">
           <input type="checkbox" v-model="includeAssumed" :disabled="!!routeInvite"
                  class="mt-0.5 w-4 h-4 shrink-0 accent-sky-400 cursor-pointer" />
-          <span class="text-[12px] text-ink/75 leading-snug">
+          <span class="text-[12px] text-ink-2 leading-snug">
             Inkluder antatt grusvei i ruteforslag
-            <span class="block text-[10px] text-ink/45">
+            <span class="block text-[10px] text-ink-4">
               Stiplet i kartet — kan være skiløype/turdrag
             </span>
           </span>
@@ -1978,7 +1981,7 @@ onUnmounted(() => {
       <template v-else>
       <div class="flex-1 min-h-0 overflow-y-auto px-4 pb-3" :style="{ zoom: uiTextScale }">
       <div class="max-w-[560px] mx-auto">
-        <div class="text-[12px] text-ink/50 truncate">
+        <div class="text-[12px] text-ink-4 truncate">
           {{ route.navn ?? `${labelFor(pointA)} → ${labelFor(pointB)}` }}
         </div>
         <!-- Fallback-varsel: grusprofilen kunne ikke brukes → standard
@@ -2003,8 +2006,8 @@ onUnmounted(() => {
         <!-- Ruteforslag -->
         <template v-if="proposals.length > 1">
           <div class="flex items-center justify-between mt-3 mb-1.5">
-            <div class="text-[10px] uppercase tracking-wide text-ink/45">{{ proposals.length }} ruteforslag</div>
-            <div v-if="route.directM" class="text-[11px] text-ink/45 tabular-nums">Luftlinje {{ fmtKm(route.directM) }} km</div>
+            <div class="text-[10px] uppercase tracking-wide text-ink-4">{{ proposals.length }} ruteforslag</div>
+            <div v-if="route.directM" class="text-[11px] text-ink-4 tabular-nums">Luftlinje {{ fmtKm(route.directM) }} km</div>
           </div>
           <button v-for="p in proposals" :key="p.id" @click="planner.selectProposal(p.id)"
                   class="w-full rounded-lg px-3 py-2.5 mb-1.5 flex items-center gap-3 text-left border transition
@@ -2020,7 +2023,7 @@ onUnmounted(() => {
                               ? 'bg-emerald-500/25 border-emerald-400/40 text-emerald-200'
                               : 'bg-sky-500/25 border-sky-400/40 text-sky-200'">{{ b.text }}</span>
               </div>
-              <div class="text-[11px] text-ink/50 tabular-nums">
+              <div class="text-[11px] text-ink-4 tabular-nums">
                 {{ fmtKm(p.lengthM) }} km<template v-if="fmtGrus(p.gravelShare)"> · Grus {{ fmtGrus(p.gravelShare) }}</template><template v-if="fmtTid(p.estimatedTimeS)"> · {{ fmtTid(p.estimatedTimeS) }}</template>
               </div>
             </div>
@@ -2035,7 +2038,7 @@ onUnmounted(() => {
           <div class="mt-2 h-2 rounded-full overflow-hidden bg-[#94a3b8]/60 flex">
             <div class="h-full bg-[#e8802b]" :style="{ width: Math.round(route.gravelShare * 100) + '%' }"></div>
           </div>
-          <div class="flex justify-between mt-1 text-[11px] text-ink/55">
+          <div class="flex justify-between mt-1 text-[11px] text-ink-3">
             <span><span class="inline-block w-2 h-2 rounded-sm bg-[#e8802b] mr-1"></span>Grus {{ fmtGrus(route.gravelShare) }}</span>
             <span><span class="inline-block w-2 h-2 rounded-sm bg-[#94a3b8] mr-1"></span>Asfalt {{ Math.round((1 - route.gravelShare) * 100) }} %</span>
           </div>
@@ -2044,16 +2047,16 @@ onUnmounted(() => {
         <!-- Stat-fliser -->
         <div class="grid grid-cols-3 gap-2 mt-3">
           <div class="rounded-lg bg-ink/5 px-2.5 py-2">
-            <div class="text-[10px] text-ink/45">Estimert tid</div>
+            <div class="text-[10px] text-ink-4">Estimert tid</div>
             <div class="text-[13px] font-semibold text-ink tabular-nums">{{ fmtTid(route.estimatedTimeS) ?? '–' }}</div>
           </div>
           <div class="rounded-lg bg-ink/5 px-2.5 py-2">
-            <div class="text-[10px] text-ink/45">Grus-strekk</div>
+            <div class="text-[10px] text-ink-4">Grus-strekk</div>
             <div class="text-[13px] font-semibold text-ink tabular-nums">
               {{ route.gravelM != null ? fmtKm(route.gravelM) + ' km' : '–' }}</div>
           </div>
           <div class="rounded-lg bg-ink/5 px-2.5 py-2">
-            <div class="text-[10px] text-ink/45">Luftlinje</div>
+            <div class="text-[10px] text-ink-4">Luftlinje</div>
             <div class="text-[13px] font-semibold text-ink tabular-nums">
               {{ route.directM != null ? fmtKm(route.directM) + ' km' : '–' }}</div>
           </div>
@@ -2068,10 +2071,10 @@ onUnmounted(() => {
         <div class="mt-3 flex gap-1.5">
           <button @click="planner.exportGpx()" aria-label="Last ned GPX"
                   class="flex-1 px-3 py-2 rounded-lg text-[12px] font-medium border bg-ink/5 border-ink/15
-                         text-ink/80 active:scale-95 transition">GPX</button>
+                         text-ink-2 active:scale-95 transition">GPX</button>
           <button @click="onShareRoute" aria-label="Del rute"
                   class="flex-1 px-3 py-2 rounded-lg text-[12px] font-medium border bg-ink/5 border-ink/15
-                         text-ink/80 active:scale-95 transition">
+                         text-ink-2 active:scale-95 transition">
             {{ shareState === 'copied' ? 'Kopiert!' : (shareState === 'error' ? 'Feilet' : 'Del') }}</button>
         </div>
       </div>
@@ -2087,7 +2090,7 @@ onUnmounted(() => {
           <div v-if="!savingName" class="flex gap-1.5">
             <button @click="onReset" aria-label="Nullstill rute"
                     class="flex-1 px-3 py-2.5 rounded-xl text-[13px] font-medium border bg-ink/5 border-ink/15
-                           text-ink/60 active:scale-95 transition">Nullstill</button>
+                           text-ink-3 active:scale-95 transition">Nullstill</button>
             <button @click="startSave" aria-label="Lagre rute"
                     class="flex-1 px-3 py-2.5 rounded-xl text-[13px] font-semibold border bg-emerald-500/20
                            border-emerald-400/50 text-emerald-100 active:scale-95 transition">Lagre …</button>
@@ -2097,13 +2100,13 @@ onUnmounted(() => {
             <input ref="saveNameInput" v-model="saveName" type="text" placeholder="Navn på ruta"
                    @keyup.enter="confirmSave"
                    class="w-full px-3 py-2 rounded-lg bg-ink/[0.06] border border-ink/15 text-[13px]
-                          placeholder-ink/30 focus:outline-none focus:border-emerald-300/50 transition" />
+                          placeholder-ink/30 focus:border-emerald-300/50 transition" />
             <div class="flex gap-1.5 mt-2">
               <button @click="confirmSave"
-                      class="flex-1 px-4 py-2 rounded-lg text-[12px] font-semibold bg-emerald-500 text-white
+                      class="flex-1 px-4 py-2 rounded-lg text-[12px] font-semibold bg-emerald-700 text-white
                              active:scale-95 transition">Lagre rute</button>
               <button @click="savingName = false"
-                      class="px-4 py-2 rounded-lg text-[12px] border bg-ink/5 border-ink/15 text-ink/60
+                      class="px-4 py-2 rounded-lg text-[12px] border bg-ink/5 border-ink/15 text-ink-3
                              active:scale-95 transition">Avbryt</button>
             </div>
           </div>
@@ -2127,13 +2130,13 @@ onUnmounted(() => {
           </svg>
         </div>
         <div class="text-[16px] font-semibold mb-1">Oppretter turkart</div>
-        <div class="text-[12px] text-ink/65 px-6 text-center max-w-[280px]
+        <div class="text-[12px] text-ink-3 px-6 text-center max-w-[280px]
                     min-h-[18px] leading-snug">
           {{ buildTurkartProgress }}
         </div>
         <button @click="cancelTurkart"
                 class="mt-6 px-5 py-2.5 rounded-xl text-[13px] font-medium border
-                       bg-ink/5 border-ink/15 text-ink/80
+                       bg-ink/5 border-ink/15 text-ink-2
                        active:bg-ink/10 active:scale-[0.98] transition">
           Avbryt
         </button>

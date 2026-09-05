@@ -134,6 +134,41 @@ function onAnchorContextMenu() {
 const RING_R = 22
 const RING_C = 2 * Math.PI * RING_R
 const ringOffset = computed(() => RING_C * (1 - anchorPress.holdProgress.value))
+// Samme ring på KNOTTENE (v6.5.48). Lang-trykk åpner et panel på Sentrer,
+// Strektykkelse og Relieff, og det sto bare i deres aria-label — altså en
+// gest ingen seende bruker kunne finne. Ringen tegnes for den knotten trykket
+// gjelder, og bare mens timeren er armert (`hasPanel`), så knotter uten panel
+// ser den aldri.
+const satRingOffset = computed(() => RING_C * (1 - satPress.holdProgress.value))
+
+// TASTATUR (v6.5.48). Knappene er drevet av peker-events for å skille tap fra
+// hold, og konsekvensen var at Enter og mellomrom ikke gjorde NOE — verken på
+// ankeret eller på knottene. Vi kan ikke bare legge på `@click`: et lang-trykk
+// med musa sender også click ved slipp, og da ville tapet fyrt oppå holdet.
+// `event.detail === 0` skiller tastaturets syntetiske click fra pekerens, men
+// keydown er tydeligere på kallstedet, så vi tar den.
+function tapFraTast(e, gjor) {
+  if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return
+  e.preventDefault()   // mellomrom ruller sida
+  gjor()
+}
+function onAnchorKeydown(e) {
+  tapFraTast(e, () => {
+    if (hasSatellites.value) open.value = !open.value
+    else emit('chat')
+  })
+}
+function onSatKeydown(sat, e) {
+  tapFraTast(e, () => emit('tap', sat.key))
+}
+// Holdets tastatur-ekvivalent på knottene er den samme som på ankeret:
+// Meny-tasten / Shift+F10, som nettleseren sender som `contextmenu`. Uten den
+// er panelene bak lang-trykket utilgjengelige fra tastatur.
+function onSatContextMenu(sat) {
+  if (hasTouch || !sat.hasPanel) return
+  open.value = false
+  emit('hold', sat.key)
+}
 </script>
 
 <template>
@@ -162,6 +197,8 @@ const ringOffset = computed(() => RING_C * (1 - anchorPress.holdProgress.value))
               @pointermove="satPress.onPointerMove($event)"
               @pointerup="satPress.onPointerUp()"
               @pointercancel="satPress.onPointerCancel()"
+              @keydown="onSatKeydown(sat, $event)"
+              @contextmenu.prevent="onSatContextMenu(sat)"
               :aria-label="sat.label"
               :aria-hidden="!open" :tabindex="open ? 0 : -1"
               class="fab-sat w-12 h-12 rounded-full bg-overlay text-ink shadow-lg touch-none
@@ -169,6 +206,12 @@ const ringOffset = computed(() => RING_C * (1 - anchorPress.holdProgress.value))
               :class="open ? 'fab-sat-open' : ''"
               :style="satStyle(sat)">
         <slot :name="sat.key" v-bind="sat" />
+        <svg v-if="satPress.isHolding.value && activeSat?.key === sat.key" viewBox="0 0 48 48"
+             class="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true">
+          <circle cx="24" cy="24" :r="RING_R" fill="none" stroke="#ffd84a" stroke-width="3"
+                  stroke-linecap="round" :stroke-dasharray="RING_C"
+                  :stroke-dashoffset="satRingOffset" transform="rotate(-90 24 24)"/>
+        </svg>
       </button>
     </div>
 
@@ -181,6 +224,7 @@ const ringOffset = computed(() => RING_C * (1 - anchorPress.holdProgress.value))
             @pointerup="anchorPress.onPointerUp()"
             @pointercancel="anchorPress.onPointerCancel()"
             @contextmenu.prevent="onAnchorContextMenu"
+            @keydown="onAnchorKeydown"
             :aria-label="anchorLabel"
             :aria-expanded="hasSatellites ? open : undefined"
             :aria-controls="hasSatellites ? 'lende-fab-knotter' : undefined"

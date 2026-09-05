@@ -74,19 +74,19 @@ const ariaLabel = computed(() => {
 <template>
   <div v-if="state !== 'idle'" class="rounded-lg bg-ink/5 px-2.5 py-2">
     <div class="flex items-baseline justify-between gap-2">
-      <div class="text-[10px] uppercase tracking-wide text-ink/45">Høydeprofil</div>
+      <div class="text-[10px] uppercase tracking-wide text-ink-4">Høydeprofil</div>
       <div v-if="profile" class="text-[11px] tabular-nums"
-           :class="active ? 'text-ink font-semibold' : 'text-ink/55'">
+           :class="active ? 'text-ink font-semibold' : 'text-ink-3'">
         <template v-if="active">{{ (active.dM / 1000).toFixed(1) }} km · {{ Math.round(active.eleM) }} moh</template>
         <template v-else>↗ {{ profile.ascentM }} m · ↘ {{ profile.descentM }} m</template>
       </div>
     </div>
 
-    <div v-if="state === 'loading'" class="flex items-center gap-2 py-4 text-[11px] text-ink/55">
+    <div v-if="state === 'loading'" class="flex items-center gap-2 py-4 text-[11px] text-ink-3">
       <span class="w-3 h-3 border-2 border-ink/20 border-t-ink/80 rounded-full animate-spin"></span>
       Henter høydedata fra Kartverket …
     </div>
-    <div v-else-if="state === 'unavailable'" class="py-3 text-[11px] text-ink/45 leading-snug">
+    <div v-else-if="state === 'unavailable'" class="py-3 text-[11px] text-ink-4 leading-snug">
       Høydeprofil utilgjengelig — fikk ikke høydedata for denne ruta.
     </div>
 
@@ -123,7 +123,7 @@ const ariaLabel = computed(() => {
                   stroke="#0e1116" stroke-width="1.5"/>
         </g>
       </svg>
-      <div class="text-right text-[9px] text-ink/30">
+      <div class="text-right text-[9px] text-ink-4">
         Høyder: {{ source === 'dem' ? 'Kartverket DTM' : 'BRouter' }}
       </div>
     </template>
