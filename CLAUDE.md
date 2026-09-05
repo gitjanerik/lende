@@ -1206,6 +1206,26 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   en time mindre. Røyk-sjekken måler invarianten direkte — `scrollWidth −
   clientWidth` skal være 0 — BÅDE med vanlig og med 150 % rot-font, siden det var
   den siste som brakk.
+- **STARGAZER STÅR DER BLIKKET ER, og bare der (v6.5.44).** Løfter man blikket i
+  dagmodus, er himmelen tom, mens veien til det ene stedet det er noe å se opp
+  på — nattmodus — er en sol/måne-knapp nede i venstre hjørne som ikke handler om
+  himmelen man nettopp så opp i. Knappen vises på `serOpp` og forsvinner i det
+  man drar seg ned igjen, så den koster ingen kartflate. Tre ting må stå:
+  `z-[9]`, altså UNDER resten av overlegget — hjelpens nedtrekk og værraden skal
+  male over den; `pointer-events-none` på raden og `auto` på knappen, ellers
+  svelger den fullbreddes raden nettopp det draget nedover som er veien tilbake
+  til kartet; og skjult under en gående tur, der kameraet er turens.
+  `STARGAZER_TEKST` MÅ stå etter `finPeker` — den er en `const`, altså ikke
+  hoistet (TDZ-regelen).
+- **INFO-HEADEREN BLIR STÅENDE, OG KROPPEN ER ET NEDTREKK (v6.5.44).** Fram til
+  nå BYTTET Info-pilla seg ut med den utvidede boksen, og boksen sto i FLYTEN i
+  en `justify-between`-rad — så en åpnet hjelp dyttet det grønne POI-filteret ut
+  av skjermen og tok med seg sin egen lukkeknapp ut av syne. Pilla er nå den
+  eneste bryteren og står i flyten alene, så raden er like bred åpen som lukket.
+  **Kroppen er ABSOLUTT plassert, og da kan kallstedet IKKE pakke den i en
+  `overflow`-boks** — en slik boks klipper nedtrekket bort. Taket og rullingen
+  bor derfor i panelet selv, med målene som CSS-lengder fra Viewer3D: det er DER
+  `zoom` settes, og `vw`/`vh` skaleres ikke ned av den (v6.3.12).
 - **NATTMODUS ER STJERNEKIKKEREN, ikke kartet i mørkt tema (v6.1.0).** Å slå på
   natt gjør fem ting på én gang, og det er en bevisst pakke: blikket løftes til
   50° med en ease-out over 1,5 s (`scene3d.seOppMotHimmelen`), kurver + stier +

@@ -1,3 +1,41 @@
+## 2026-09-05 — v6.5.46: Kvadratisk, stående, liggende — og kompasset dekker skjermen
+
+Formatvelgeren har tre valg med ett ord hver. «Portrett (mobilskjerm)» og
+«Utskrift (A4)» er slått sammen til STÅENDE, og LIGGENDE er ny — begge er
+A-format, samme ark snudd. Skjerm-aspektet var aldri et format: det var
+telefonens tilfeldige forhold, altså et annet ark på hver enhet og et som ikke
+lar seg skrive ut. Undertekstene var dessuten det som brakk ved 150 % tekst,
+der tre kolonner delte ordene midt i seg («Kvad-ratisk»); knapperaden bryter nå
+i stedet for å dele. Lagrede valg fra før migreres — begge de gamle var høye
+ark, så begge blir stående. Og «Sentrer»-knappen skalerer nå til DEKNING og
+ikke bare til brukerens standard-zoom: regelen om at kartet fyller skjermen med
+god margin gjaldt bare ved åpning, og med et liggende ark på en høy skjerm ble
+letterboxen to kremgule felt over halve visningen.
+
+---
+
+## 2026-09-05 — v6.5.45: Den grønne knappen gjør det lista gjør, og skjemaet tåler 200 % tekst
+
+Hjelpeteksten under søkefeltet — «Søk etter et sted — eller trykk den grønne knappen …» — er fjernet begge steder den sto. Den forklarte en pin som står rett ved siden av feltet den snakket om, og ved stor tekst spiste den plassen til det den forklarte. Den grønne knappen er samtidig skrumpet fra 40 til 36 piksler, altså lik mikrofonen ved siden av; høyre-paddingen og spinner-plasseringen i begge søkefeltene følger de nye målene.
+
+Knappen betyr nå det samme som lista over den, men bare der lista bygger. På «Mine kart» — forsiden og modalen — lager et trykk et kart der du står, nøyaktig som et valg fra trefflista gjør: posisjon, stedsnavnoppslag, og så samme `byggKartFra` som søket bruker. I «Flere valg» er ingenting endret: der VELGES stedet bare, og brukeren gjør resten av innstillingene før kartet lages. Det er hele skillet mellom de to flatene, og nå sier knappen det. Følgen er at `open-picker { gps: true }` → `pickerGps` → `start-gps` / `?gps=1` ikke har noen avsender igjen, og hele den kjeden er borte.
+
+En nektet tillatelse blir sagt. Både mikrofonen og posisjonen var helt stille når nettleseren sa nei — `useSpeechInput` fanget koden i en `error`-ref ingen leste, og knappen slo seg av igjen med det samme, så det så ut som om den var i stykker. `lib/mikrofonFeil.js` er ny og er søsteren til `lib/gpsFeil.js`: én kilde til teksten, delt av begge søkefeltene. Begge modulene har fått et RÅD ved siden av etiketten, for en tillatelse man har avvist én gang spørres ikke om på nytt — brukeren må vite hvor den slås på igjen, og at man alltid kan skrive søket i stedet.
+
+To ting som brakk ved 200 % tekst er rettet. Forhåndsvisningen hadde en fingerbred renne på 50 piksler på hver side som alltid skal kunne rulle siden; inne i et `zoom`-lag halveres den logiske bredden, så rennen spiste 100 av 168 piksler og kartet kollapset til en 24 pikslers firkant med sin egen km-merkelapp og Kartverket-kreditering brettet over seg. Rennen er nå `clamp(0px, (100% - 160px) / 2, 50px)`: uendret der det er plass, og den viker for kartet når det blir trangt. Begge merkelappene har fått `whitespace-nowrap`. Og «Lag turkart» er festet til bunnen bare opp til 125 %: over det er baren dobbelt så høy som den er tegnet for og spiste nesten hele den synlige delen av skjemaet, så det var knapt plass til én rad i trefflista. Ved 150 og 200 % ruller den med som siste rad, og trefflista maler nå uansett over den. To røyk-sjekker i `royk:ruter` holder begge fast, og de måler i MODALEN og ikke på `/nytt`: `zoom` settes av `AppModal`, mens `MapPickerView` ikke skalerer i det hele tatt — første utgave av sjekken sto grønn uansett hva koden gjorde. Verifisert i begge retninger: 72 piksler uten fiksen, 272 med.
+
+---
+
+## 2026-09-05 — v6.5.44: Stargazer i himmelen, og en hjelp som ikke dytter
+
+Løfter man blikket i dagmodus, er himmelen tom — blå flate og noen skyer — mens det ene stedet i appen der det faktisk er noe å se opp på, nattmodus, nås fra en sol/måne-knapp nede i venstre hjørne som ikke handler om himmelen man nettopp så opp i. «Stargazer» står nå midtstilt der blikket er, og bare der: den vises på `serOpp` og forsvinner i det man drar seg ned igjen, så den koster ingen kartflate. Den ligger under resten av overlegget i stablingen, og raden den står i slipper pekeren gjennom — ellers ville den svelget nettopp det draget nedover som er veien tilbake til kartet.
+
+Infopanelet i 3D byttet fram til nå pilla si ut med den utvidede boksen, og boksen sto i flyten i en `justify-between`-rad. En åpnet hjelp dyttet derfor det grønne POI-filteret ut av skjermen og tok med seg sin egen lukkeknapp ut av syne — man satt igjen med en tekstblokk uten noen synlig vei ut. Headeren blir nå stående og er selve bryteren, med en chevron som sier hvilken vei neste trykk går, og kroppen henger under som et nedtrekk utenfor flyten. Raden er dermed like bred åpen som lukket, og filteret flytter seg aldri. Kroppen bærer sitt eget tak og sin egen rulling, siden kallstedet ikke lenger kan pakke den i en `overflow`-boks uten å klippe nedtrekket bort. To røyk-sjekker holder begge delene fast: Stargazer må dukke opp når blikket er løftet og faktisk åpne natta når man trykker, og POI-filteret måles til å stå stille og innenfor skjermen med hjelpen åpen.
+
+Kommentaren over `HALF_KM` i `scripts/build-vardasen-svg.js` hevdet samtidig at demokartets 4 km var «samme utsnitt som app-standarden». Det stemte da den ble skrevet, men app-standarden er siden blitt 8 km med 20 m ekvidistanse (`DEFAULT_MAP_WIDTH_KM`) mens demokartet ble stående — så kommentaren pekte på en binding som ikke lenger fantes. Utsnittet er likevel ikke vilkårlig, og kommentaren sier nå hvorfor det er som det er: røyktesten avviser et kart under `EKTE_KART_MIN_BYTES` som mistenkelig lite og cacher det ikke, så et halvert ark ville sendt hver eneste kjøring tilbake til Overpass; 16 av 36 røyk-sjekker krever ekte kart og blir grønne fordi de er tomme om stier, vann og navn forsvinner; og kartet er et produkt-artefakt som service-workeren forhåndshenter for flymodus. En nabo-kommentar med samme feil er rettet i samme slengen: DEM-en sto oppført som 1000 × 1000 celler for et 5 × 5 km-ark og er i virkeligheten 800 × 800 for 4 × 4 km.
+
+---
+
 ## 2026-09-05 — v6.5.43: Skjermen din, ikke vår — rotasjon og en A-knapp i hvert panel
 
 Manifestet låste den installerte appen til høykant. Det er borte: `orientation`

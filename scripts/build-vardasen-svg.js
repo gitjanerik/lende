@@ -17,8 +17,18 @@ import { utm32BboxFromWgs84 } from '../src/lib/utm.js'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const CENTER = { lat: 59.813746, lon: 10.414616 }
-// Samme utsnitt som app-standarden (v1.0.27): 4 km bredt kvadrat med 10 m
-// ekvidistanse — demokartet viser nøyaktig det en «standard»-bygging gir.
+// 4 km bredt kvadrat med 10 m ekvidistanse. Dette var app-standarden fram til
+// den ble 8 km / 20 m (`DEFAULT_MAP_WIDTH_KM`), og demokartet FULGTE den ikke
+// videre — utsnittet er nå valgt for sin egen del og skal ikke «synkes» tilbake:
+//  · Røyktesten avviser et kart under `EKTE_KART_MIN_BYTES` (150 kB) som
+//    mistenkelig lite og cacher det ikke. 4 km gir ~690 kB deployet; halverer du
+//    bredden faller arket under gulvet, og HVER kjøring bygger fra Overpass.
+//  · 16 av 36 røyk-sjekker krever ekte kart — stier, vann, navn og POI-er må
+//    faktisk finnes i arket, ellers blir sjekkene grønne fordi de er tomme.
+//  · Kartet er et produkt-artefakt: det er dette brukerne åpner på
+//    /kart/vardasen, og service-workeren forhåndshenter det for flymodus.
+// Å ØKE til 8 km firedobler Overpass-, DEM- og SVG-kostnaden i det steget som
+// allerede er dyrest i deploy og røyktest, uten at noen sjekk blir bedre.
 const HALF_KM = 2
 const bbox = bboxFromCenter(CENTER.lat, CENTER.lon, HALF_KM)
 
@@ -59,7 +69,7 @@ console.log(`Etter merge: ${elements.length} elementer (N50-vann ${N50_USE_FOR_W
 // Fire-hjørners UTM-extent (utm32BboxFromWgs84) så demokartet blir kvadratisk
 // som brukerkartene, og samme bboks brukes til BÅDE DEM-fetch og buildSvg.
 const utmBbox = utm32BboxFromWgs84(bbox)
-// 5m oppløsning: 1000×1000 celler for 5×5 km — ~4 MB GeoTIFF.
+// 5m oppløsning: 800×800 celler for 4×4 km-arket.
 // Hvis WCS-tjenesten har 1m-data tilgjengelig blir det resamplet ved
 // kilden; hvis bare 10m, får vi resampled 5m (ikke ekte detalj, men
 // får skikkelig stupkant-vectorisering uansett).

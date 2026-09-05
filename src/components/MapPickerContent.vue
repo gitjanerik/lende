@@ -10,8 +10,9 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useNominatim } from '../composables/useNominatim.js'
 import { useSpeechInput } from '../composables/useSpeechInput.js'
+import { useUiTextScale } from '../composables/useUiTextScale.js'
 import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
-import { bboxFromCenter, viewportAspect, PRINT_ASPECT } from '../lib/mapBuilder.js'
+import { bboxFromCenter, PRINT_ASPECT } from '../lib/mapBuilder.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { minEquidistanceForWidthKm } from '../lib/equidistanceRules.js'
 import { probeDensityCached } from '../lib/densityProbe.js'
@@ -21,17 +22,12 @@ import { reverseGeocode } from '../lib/geocode.js'
 import { tileMosaic, zoomForKm, metersPerPixel } from '../lib/tileBackground.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
 import { t } from '../lib/i18n.js'
-import { gpsFeilTekst, GPS_IKKE_STOTTET } from '../lib/gpsFeil.js'
-
-const props = defineProps({
-  // Åpnet fra søkefeltets pin-knapp: hent posisjonen og sentrer skjemaet der
-  // straks det er oppe. Modal-verten (AppMenu) har ingen rute å legge ?gps=1 i,
-  // så flagget må kunne komme begge veier.
-  startGps: { type: Boolean, default: false },
-})
+import { gpsFeilForklaring, GPS_IKKE_STOTTET } from '../lib/gpsFeil.js'
+import { mikrofonFeilForklaring } from '../lib/mikrofonFeil.js'
 
 const router = useRouter()
 const route = useRoute()
+const { uiTextScale } = useUiTextScale()
 
 // v9.1.x: PWA-install fra del-kart-banneret. Hvis mottakeren ikke alt
 // kjører appen i standalone-modus tilbyr vi å installere den når de
@@ -45,22 +41,20 @@ const DEFAULT_CENTER = { lat: 59.9139, lon: 10.7522, name: 'Oslo' }
 
 const center = ref({ ...DEFAULT_CENTER })
 const halfKm = ref(4)  // halv-bredde av bbox i km (E/V). Kart blir 2*halfKm bredt (8 km = standarden, jf. DEFAULT_MAP_WIDTH_KM)
-// Skjerm-format (høyde/bredde): kartet strekkes N/S til dette så det fyller
-// fullskjerm uten letterbox (v10.1.10). Settes på mount + resize. buildMapFrom-
-// Center utleder samme aspekt selv, så previewen viser det faktiske utsnittet.
-const mapAspect = ref(viewportAspect())
 const equidistanceM = ref(20)  // høydekurve-intervall, 5/10/20/25/50 m
 const customName = ref('')
 
 // Format-velger (trippel toggle). Styrer utsnittets høyde/bredde-forhold;
 // bredden styres uansett av slideren, høyden utledes av valgt aspekt.
 //   'square'   → kvadrat (aspect = 1) — default
-//   'portrait' → skjerm-format (mobilskjerm, ~1:2,2) — tidligere default
-//   'print'    → stående A-format (√2 ≈ 1,4142) for ren utskrift / PDF / SVG
+//   'staaende' → stående A-format (√2 ≈ 1,4142)
+//   'liggende' → liggende A-format (1/√2 ≈ 0,7071)
+// Lista er den samme som i useMapSizePreference (MAP_FORMAT_OPTIONS) — se
+// v6.5.46-merknaden der for hvorfor skjerm-aspektet og undertekstene falt bort.
 const FORMAT_OPTIONS = [
-  { value: 'square',   label: 'Kvadratisk', sub: '' },
-  { value: 'portrait', label: 'Portrett',   sub: 'mobilskjerm' },
-  { value: 'print',    label: 'Utskrift',   sub: 'A4' },
+  { value: 'square',   label: 'Kvadratisk' },
+  { value: 'staaende', label: 'Stående' },
+  { value: 'liggende', label: 'Liggende' },
 ]
 const format = ref('square')
 // «Del kart og sted»-invitasjoner bærer avsenderens aspekt (?asp=) så
@@ -71,8 +65,8 @@ const inviteAspect = ref(null)
 watch(format, () => { inviteAspect.value = null })
 const effectiveAspect = computed(() => {
   if (inviteAspect.value) return inviteAspect.value
-  if (format.value === 'portrait') return mapAspect.value
-  if (format.value === 'print') return PRINT_ASPECT
+  if (format.value === 'staaende') return PRINT_ASPECT
+  if (format.value === 'liggende') return 1 / PRINT_ASPECT
   return 1
 })
 
@@ -100,7 +94,7 @@ async function onCenterOnMe() {
       navigator.geolocation.getCurrentPosition(resolve, reject,
         { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }))
   } catch (err) {
-    gpsState.value = { status: 'error', error: gpsFeilTekst(err.code) }
+    gpsState.value = { status: 'error', error: gpsFeilForklaring(err.code) }
     return
   }
   const lat = pos.coords.latitude
@@ -173,10 +167,12 @@ function parseShareInvite() {
   if (Number.isFinite(eq) && [2.5, 5, 10, 20, 25, 50].includes(eq)) {
     equidistanceM.value = Math.max(eq, minEquidistanceForWidthKm(halfKm.value * 2))
   }
-  format.value = 'portrait'
-  // Avsenderens aspekt (clampet til fornuftig spenn). Settes ETTER format-
-  // tilordningen over — format-watchen nullstiller inviteAspect.
+  // Avsenderens aspekt (clampet til fornuftig spenn). Format-KNAPPEN settes
+  // etter formen i lenka: et liggende ark skal ikke lyse opp «Stående», selv om
+  // det er inviteAspect som faktisk bestemmer utsnittet. Rekkefølgen er
+  // bevisst — format-watchen nullstiller inviteAspect, så den må settes sist.
   const asp = parseFloat(q.asp)
+  format.value = Number.isFinite(asp) && asp < 1 ? 'liggende' : 'staaende'
   if (Number.isFinite(asp) && asp >= 0.3 && asp <= 3) {
     nextTick(() => { inviteAspect.value = asp })
   }
@@ -302,8 +298,8 @@ watch(center, async (c) => {
 const { query, results, isSearching, error: searchError } = useNominatim()
 
 // Tale-til-tekst for stedssøket (skjules der nettleseren ikke støtter det).
-const { isSupported: micSupported, isListening: micListening, toggle: toggleMic } =
-  useSpeechInput({ onResult: (t) => { query.value = t } })
+const { isSupported: micSupported, isListening: micListening, error: micError, toggle: toggleMic } =
+  useSpeechInput({ onResult: (t) => { query.value = t; micError.value = null } })
 
 // GPS-snarveien er nå en grønn pin integrert i søkefeltet (samme som forsiden),
 // ikke lenger en egen full-bredde-knapp under feltet. Høyre-padding + spinner-
@@ -311,10 +307,12 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
 const supportsGeolocation = typeof navigator !== 'undefined' && !!navigator.geolocation
 const rightControlCount = computed(() =>
   controlsLocked.value ? 0 : (supportsGeolocation ? 1 : 0) + (micSupported.value ? 1 : 0))
+// v6.5.45: den grønne knappen er 36 px, altså lik mikrofonen. To knapper måler
+// 36 + 4 + 36 + 6 = 82 px, én måler 42 px.
 const searchRightPad = computed(() =>
-  rightControlCount.value === 2 ? 'pr-24' : rightControlCount.value === 1 ? 'pr-14' : 'pr-3')
+  rightControlCount.value === 2 ? 'pr-22' : rightControlCount.value === 1 ? 'pr-13' : 'pr-3')
 const spinnerRight = computed(() =>
-  rightControlCount.value === 2 ? 'right-[5.9rem]' : rightControlCount.value === 1 ? 'right-[3.4rem]' : 'right-3')
+  rightControlCount.value === 2 ? 'right-[5.5rem]' : rightControlCount.value === 1 ? 'right-[3rem]' : 'right-3')
 
 const showResults = computed(() =>
   query.value.trim().length >= 2 && (results.value.length > 0 || isSearching.value)
@@ -427,8 +425,6 @@ const previewZoom = computed(() => zoomForKm(halfKm.value * 2 * effectiveAspect.
 function measurePreview() {
   const r = previewRef.value?.getBoundingClientRect()
   if (r) previewSize.value = { w: r.width, h: r.height }
-  // Oppdater skjerm-aspektet så previewen følger rotasjon/vindusendring.
-  mapAspect.value = viewportAspect()
 }
 
 const tiles = computed(() => {
@@ -567,12 +563,10 @@ onMounted(() => {
   }
   nextTick(() => measurePreview())
   window.addEventListener('resize', measurePreview)
-  // Pin-knappen i søkefeltet på forsiden bygger ikke lenger selv — den åpner
-  // dette skjemaet og ber om posisjonen her. Feiler oppslaget, sier gpsState
-  // fra på samme sted som når knappen inne i skjemaet trykkes.
-  if (!shareInvite.value && (props.startGps || String(route.query.gps) === '1')) {
-    onCenterOnMe()
-  }
+  // v6.5.45: `startGps`/`?gps=1` er borte. Den grønne knappen på «Mine kart»
+  // BYGGER nå der, så ingen navigerer hit for å få posisjonen hentet — og en
+  // prop ingen setter er en prop som råtner. HER er posisjonen fortsatt bare et
+  // VALG: brukeren skal gjøre flere innstillinger før kartet lages.
 })
 </script>
 
@@ -695,7 +689,7 @@ onMounted(() => {
                 @click="onCenterOnMe"
                 :disabled="gpsState.status === 'locating'"
                 aria-label="Sentrer kartet på min posisjon (GPS)"
-                class="w-10 h-10 rounded-lg bg-emerald-500 text-white flex items-center justify-center
+                class="w-9 h-9 rounded-lg bg-emerald-500 text-white flex items-center justify-center
                        shadow-md active:scale-95 transition disabled:opacity-60">
           <svg v-if="gpsState.status === 'locating'"
                viewBox="0 0 24 24" class="w-5 h-5 animate-spin" fill="none" stroke="currentColor"
@@ -715,7 +709,7 @@ onMounted(() => {
     <Transition name="fade">
       <div v-if="showResults" id="mappicker-results" role="listbox"
            class="absolute left-4 right-4 mt-1 rounded-xl bg-surface/98 backdrop-blur
-                  border border-ink/10 shadow-2xl max-h-[50dvh] overflow-y-auto z-30">
+                  border border-ink/10 shadow-2xl max-h-[50dvh] overflow-y-auto z-40">
         <div v-if="results.length === 0 && !isSearching"
              class="px-4 py-3 text-[13px] text-ink/50">Ingen treff</div>
         <button v-for="(r, index) in results" :key="r.id"
@@ -734,25 +728,22 @@ onMounted(() => {
 
     <div v-if="searchError" class="mt-2 text-[11px] text-slate-300">{{ searchError }}</div>
 
-    <!-- Hjelpetekst som forklarer den integrerte GPS-pinnen (samme mønster
-         som forsiden — pin-ikonet alene er ikke helt selvforklarende). -->
-    <div v-if="supportsGeolocation && !controlsLocked"
-         class="mt-2 px-1 text-[11.5px] text-ink/45 flex items-center gap-1.5 leading-snug">
-      <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-emerald-300/80 shrink-0" fill="none"
-           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="10" r="3"/>
-        <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>
-      </svg>
-      <span>Søk etter et sted — eller trykk den grønne knappen for å sentrere kartet der du står.</span>
-    </div>
-    <!-- En nektet eller mislykket posisjon MÅ sies (samme regel som Fritt
-         lende): skjemaet åpnes nå OGSÅ av pin-knappen på forsiden, og uten
-         denne sto det bare igjen med Oslo som senter uten å si hvorfor.
-         Egen boks i lesbar størrelse — 11 px grå nederst ble ikke lest. -->
+    <!-- v6.5.45: hjelpeteksten under søkefeltet er fjernet. Den forklarte en
+         pin som står rett ved siden av søkefeltet den snakket om, og ved stor
+         tekst spiste den plassen til trefflista.
+         En nektet eller mislykket posisjon MÅ derimot sies (samme regel som
+         Fritt lende) — uten den sto skjemaet igjen med Oslo som senter uten å
+         si hvorfor. Egen boks i lesbar størrelse: 11 px grå nederst ble ikke
+         lest. Teksten kommer fra `lib/gpsFeil.js` og `lib/mikrofonFeil.js`,
+         ÉN kilde hver, delt med «Mine kart». -->
     <div v-if="gpsState.error"
          role="alert"
          class="mt-2 px-3 py-2.5 rounded-lg bg-amber-500/[0.12] border border-amber-400/35
                 text-amber-100 text-[13px] leading-snug">{{ gpsState.error }}</div>
+    <div v-if="micError"
+         role="alert"
+         class="mt-2 px-3 py-2.5 rounded-lg bg-amber-500/[0.12] border border-amber-400/35
+                text-amber-100 text-[13px] leading-snug">{{ mikrofonFeilForklaring(micError) }}</div>
   </div>
 
   <!-- Kartets navn. v9.1.x: skjult i delingsmodus — navnet er låst til det
@@ -828,7 +819,8 @@ onMounted(() => {
          `mx-[50px]` gir dessuten en fingerbred renne på hver side som ALLTID
          ruller siden, også med bryteren på. -->
     <div ref="previewRef"
-         class="aspect-square mx-[50px] rounded-xl bg-surface-2 border border-ink/10 overflow-hidden
+         style="margin-inline: clamp(0px, (100% - 160px) / 2, 50px)"
+         class="aspect-square rounded-xl bg-surface-2 border border-ink/10 overflow-hidden
                 relative"
          :class="previewLaast
                  ? (controlsLocked ? 'cursor-not-allowed opacity-90 touch-auto' : 'touch-auto')
@@ -886,11 +878,11 @@ onMounted(() => {
       </div>
 
       <div class="absolute top-3 left-3 px-2.5 py-1 rounded-md bg-surface text-[11px]
-                  text-ink border border-ink/30 font-medium shadow-lg z-10">
+                  text-ink border border-ink/30 font-medium shadow-lg z-10 whitespace-nowrap">
         {{ sizeKm }} × {{ sizeHeightKm }} km
       </div>
       <div class="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-surface/85 text-ink/70 text-[8px]
-                  text-ink/75 border border-ink/15 leading-tight pointer-events-none">
+                  text-ink/75 border border-ink/15 leading-tight pointer-events-none whitespace-nowrap">
         © Kartverket
       </div>
     </div>
@@ -954,26 +946,35 @@ onMounted(() => {
          kartet følger valget. -->
     <div class="rounded-xl bg-ink/[0.04] border border-ink/10 px-4 py-3">
       <div class="text-[11px] text-ink/50 uppercase tracking-wide mb-2">Format</div>
-      <div class="grid grid-cols-3 gap-1.5">
+      <!-- Flex-wrap og ikke `grid-cols-3`: ved 150–200 % tekst får ikke tre
+           kolonner plass, og et rutenett løser det med orddeling («Kvad-
+           ratisk»). Med `min-w` bryter raden i stedet, og hvert ord står helt. -->
+      <div class="flex flex-wrap gap-1.5">
         <button v-for="opt in FORMAT_OPTIONS" :key="opt.value"
                 :disabled="controlsLocked"
                 @click="format = opt.value"
-                class="px-2 py-1.5 rounded-md border text-[12px] font-medium active:scale-95 transition
-                       flex flex-col items-center justify-center gap-0.5
+                class="flex-1 min-w-[6.5rem] px-2 py-1.5 rounded-md border text-[12px] font-medium
+                       active:scale-95 transition text-center
                        disabled:cursor-not-allowed disabled:opacity-40"
                 :class="format === opt.value
                         ? 'bg-slate-400/20 border-slate-300/60 text-slate-100'
                         : 'bg-ink/5 border-ink/10 text-ink/65'">
           <span>{{ opt.label }}</span>
-          <span v-if="opt.sub" class="text-[9px] font-normal text-ink/45 leading-none">{{ opt.sub }}</span>
         </button>
       </div>
     </div>
 
   </div>
 
-  <!-- Bygg-knapp. -->
-  <div class="sticky bottom-0 z-30 p-4 pb-4 bg-surface/95 backdrop-blur border-t border-ink/10">
+  <!-- Bygg-knapp. v6.5.45: den er festet til bunnen BARE opp til 125 % tekst.
+       Over det er baren dobbelt så høy som den er tegnet for, og på en telefon
+       spiste den nesten hele den synlige delen av skjemaet — det var knapt plass
+       til én rad i trefflista over den. Da er en fast knapp ikke lenger en
+       snarvei, den er en vegg. Ved 150/200 % ruller den med som siste rad, der
+       den uansett er ett drag unna, og trefflista (z-40) maler over den så en
+       rad alltid er synlig mens man skriver. -->
+  <div class="p-4 pb-4 bg-surface/95 backdrop-blur border-t border-ink/10"
+       :class="uiTextScale <= 1.25 ? 'sticky bottom-0 z-30' : ''">
     <button @click="generateMap" :disabled="buildState !== 'idle' && buildState !== 'error'"
             class="w-full py-4 rounded-xl text-ink font-semibold flex items-center justify-center gap-2
                    active:scale-[0.99] transition disabled:opacity-60

@@ -111,6 +111,12 @@ function tekstBoks(vw, vh = null) {
 // der, fordi det er DENNE flaten som setter `zoom` — se `tekstBoks`.
 const himmelKortHoyde = computed(() => `${66 / (uiTextScale.value || 1)}vh`)
 
+// Samme regel for hjelpe-nedtrekket i «Info». Taket er ikke pynt: ved 150 %
+// er den utvidede hjelpeboksen målt til 527 px, og uten det renner den under
+// bunnraden.
+const infoMaksBredde = computed(() => `${78 / (uiTextScale.value || 1)}vw`)
+const infoMaksHoyde = computed(() => `${60 / (uiTextScale.value || 1)}vh`)
+
 const KRYSSPAUSE_KEY = 'lende-3d-krysspause'
 const VAERDEMO_KEY = 'lende-3d-vaerdemo'
 const NORDLYSDEMO_KEY = 'lende-3d-nordlysdemo'
@@ -235,6 +241,13 @@ function settRetning({ azimut, hoyde }) {
 const finPeker = (() => {
   try { return window.matchMedia('(hover: hover) and (pointer: fine)').matches } catch { return false }
 })()
+
+// «Klikk» er feil ord på en telefon og «trykk» er feil på en maskin. Samme
+// peker-tilpasning som hjelpepanelet gjør for gestene. MÅ stå etter finPeker:
+// den er en `const`, altså ikke hoistet — se TDZ-regelen i CLAUDE.md.
+const STARGAZER_TEKST = finPeker
+  ? 'Klikk for å åpne natthimmelen'
+  : 'Trykk for å åpne natthimmelen'
 
 // NAVIGASJONSSØYLA EIER SIN EGEN KANT (v6.5.20). Den ligger absolutt plassert på
 // høyre side og er en KONTROLL — et trykk der hører til zoomen og rosa. Da må
@@ -1214,6 +1227,43 @@ function branchLabel(opt, i) {
         </div>
       </div>
 
+      <!-- STARGAZER: veien fra en tom dagshimmel til stjernekikkeren.
+           Løfter man blikket om dagen, er det ingenting der — blå flate og
+           noen skyer — og det ene stedet i appen der det ER noe å se opp på,
+           nattmodus, nås fra en sol/måne-knapp helt nede i venstre hjørne som
+           ikke handler om himmelen man nettopp så opp i. Knappen står derfor
+           DER blikket er, og bare der: den vises på `serOpp` og forsvinner i
+           det man drar seg ned igjen, så den koster ingen kartflate.
+
+           Tre ting som må stå:
+             · `z-[9]`, altså UNDER resten av overlegget (z-10). Hjelpens
+               nedtrekk og værraden skal male over den, ikke omvendt.
+             · `pointer-events-none` på raden og `auto` på knappen. Raden
+               spenner hele bredden, og uten dette ville den svelget nettopp
+               det draget nedover som er veien tilbake til kartet.
+             · Skjult under en gående tur: der er kameraet turens, og et bytte
+               til natt midt i den er ikke det man ber om ved å se opp. -->
+      <div v-if="phase === 'ready' && serOpp && !stjernemodus && !walking"
+           class="absolute left-0 right-0 top-[32%] z-[9] flex justify-center px-4
+                  pointer-events-none">
+        <button type="button" @click="toggleNight"
+                aria-label="Stargazer — åpne natthimmelen"
+                class="pointer-events-auto max-w-full rounded-2xl bg-black/45 backdrop-blur
+                       ring-1 ring-white/20 shadow-lg px-4 py-2.5 text-white/90
+                       flex items-center gap-2.5 active:scale-[0.97] transition"
+                :style="tekstBoks(80)">
+          <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20.4 14.2A8.5 8.5 0 0 1 9.8 3.6 8.5 8.5 0 1 0 20.4 14.2z"/>
+            <path d="M17.2 3.1l.5 1.4 1.4.5-1.4.5-.5 1.4-.5-1.4-1.4-.5 1.4-.5z" fill="currentColor" stroke="none"/>
+          </svg>
+          <span class="min-w-0 text-left leading-tight">
+            <span class="block text-[0.8125rem] font-semibold">Stargazer</span>
+            <span class="block text-[0.6875rem] text-white/65">{{ STARGAZER_TEKST }}</span>
+          </span>
+        </button>
+      </div>
+
       <!-- Topprad: Sol/måne · Pin · Sti · Kryss|Stopp · Kurver — venstrestilt,
            med X aleine helt til høyre og himmelsøket mellom dem i nattmodus.
            Høyrestilt raden vokste mot venstre, og med seks knapper falt den
@@ -1511,11 +1561,15 @@ function branchLabel(opt, i) {
            polstringen og dyttet begge boksene utenfor skjermen. -->
       <div v-if="phase === 'ready' && !stjernemodus"
            class="relative z-10 flex items-start justify-between gap-2 px-3 mt-2">
-        <!-- Tak på høyden og rulling: ved 150 % er den utvidede hjelpeboksen
-             målt til 527 px, og uten taket renner den under bunnraden. -->
-        <div class="overflow-y-auto" :style="tekstBoks(78, 60)">
+        <!-- INGEN `overflow` HER, og det er ikke en forglemmelse: hjelpekroppen
+             er et nedtrekk under pilla, altså absolutt plassert, og en
+             `overflow`-boks rundt den ville klippet den bort. Taket og
+             rullingen bor derfor i panelet selv — målene regnes her, fordi det
+             er her `zoom` settes og `vw`/`vh` ikke skaleres ned av den. -->
+        <div :style="tekstBoks(78)">
           <Tour3dInfoPanel :modus="walking ? 'tur' : 'utforsk'"
-                           :knapper="INFO_KNAPPER" :tips="INFO_TIPS"/>
+                           :knapper="INFO_KNAPPER" :tips="INFO_TIPS"
+                           :maks-bredde="infoMaksBredde" :maks-hoyde="infoMaksHoyde"/>
         </div>
         <div v-if="pinsOn" class="overflow-y-auto" :style="tekstBoks(74, 60)">
           <Tour3dPinPanel :groups="pinGroups" :counts="pinCounts"

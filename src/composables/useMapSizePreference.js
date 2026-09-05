@@ -1,9 +1,9 @@
 import { ref, watch } from 'vue'
-import { viewportAspect, PRINT_ASPECT } from '../lib/mapBuilder.js'
+import { PRINT_ASPECT } from '../lib/mapBuilder.js'
 
 // Brukerstyrte standarder for NYE kart laget via forsidens søk/GPS-flyt
 // (MapHomeView) og «Bygg om»-knappen: kart-BREDDE (fri km-slider), FORMAT
-// (kvadrat/portrett/A4) og HØYDEKURVE-intervall (ekvidistanse). Settes i
+// (kvadrat/stående/liggende) og HØYDEKURVE-intervall (ekvidistanse). Settes i
 // «Innstillinger»-fanen (MapView). Persisteres i localStorage.
 //
 // v11.0.59: «Standard» var `autoMapSquare(2)` = et skjerm-skalert kvadrat
@@ -48,23 +48,46 @@ export const DEFAULT_MAP_WIDTH_KM = 8
 
 // Format-valg for nye kart — samme trippel som «Flere valg» i pickeren.
 //   'square'   → kvadrat (aspect = 1) — standard
-//   'portrait' → skjerm-format (mobilskjerm, ~1:2,2)
-//   'print'    → stående A-format (√2) for ren utskrift / PDF / SVG
+//   'staaende' → stående A-format (√2)
+//   'liggende' → liggende A-format (1/√2)
+//
+// v6.5.46: «Portrett (mobilskjerm)» og «Utskrift (A4)» er slått sammen til
+// STÅENDE, og LIGGENDE er ny. To grunner. Skjerm-aspektet var ikke et format i
+// det hele tatt — det var telefonens tilfeldige forhold (~1:2,2), altså et
+// annet ark på hver enhet og et som ikke lar seg skrive ut. Og undertekstene
+// («mobilskjerm», «A4») var det som brakk: ved 150 % tekst orket ikke knappene
+// tre ord hver, og «Kvad-ratisk» / «Por-trett» delte seg midt i ordet. Formatet
+// er nå ETT ord per knapp, og begge de to A-formatene er samme ark snudd.
+//
+// At man ikke lenger kan velge skjerm-aspektet er en BEVISST tap: regelen om at
+// kartet skal fylle skjermen ved åpning (lib/viewFit.js) gjør det unødvendig —
+// et stående A-ark dekker en mobilskjerm med god margin uansett.
 export const MAP_FORMAT_OPTIONS = [
-  { value: 'square',   label: 'Kvadratisk', sub: '' },
-  { value: 'portrait', label: 'Portrett',   sub: 'mobilskjerm' },
-  { value: 'print',    label: 'Utskrift',   sub: 'A4' },
+  { value: 'square',   label: 'Kvadratisk' },
+  { value: 'staaende', label: 'Stående' },
+  { value: 'liggende', label: 'Liggende' },
 ]
 export const DEFAULT_MAP_FORMAT = 'square'
+
+// Lagrede valg fra før v6.5.46. Begge de gamle var HØYE ark, så begge blir
+// stående — en bruker som hadde valgt portrett skal ikke plutselig få liggende.
+const GAMLE_FORMAT = Object.freeze({ portrait: 'staaende', print: 'staaende' })
+
+// Ren oversetter fra lagret verdi til gyldig format. Skilt ut fra `loadFormat`
+// så migreringen kan testes uten localStorage — den kjører ved modul-last og
+// er ellers usynlig helt til en gammel klient åpner appen.
+export function formatFraLagret(v) {
+  if (MAP_FORMAT_OPTIONS.some(o => o.value === v)) return v
+  return GAMLE_FORMAT[v] ?? DEFAULT_MAP_FORMAT
+}
 
 // Ekvidistanse-valg — samme liste som «Flere valg» (MapPickerView).
 export const MAP_EQ_OPTIONS = [2.5, 5, 10, 20, 25, 50]
 
-// Høyde/bredde-forhold for et format-valg. Portrett leses ved KALL (ikke
-// modul-last) så rotasjon/resize fanges opp.
+// Høyde/bredde-forhold for et format-valg.
 export function aspectForFormat(format) {
-  if (format === 'portrait') return viewportAspect()
-  if (format === 'print') return PRINT_ASPECT
+  if (format === 'staaende') return PRINT_ASPECT
+  if (format === 'liggende') return 1 / PRINT_ASPECT
   return 1
 }
 
@@ -85,7 +108,7 @@ function load() {
 function loadFormat() {
   try {
     const v = localStorage.getItem(FORMAT_KEY)
-    if (MAP_FORMAT_OPTIONS.some(o => o.value === v)) return v
+    if (v != null) return formatFraLagret(v)
   } catch { /* private mode */ }
   return DEFAULT_MAP_FORMAT
 }

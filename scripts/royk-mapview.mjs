@@ -1315,13 +1315,132 @@ const SJEKKER = [
         /Ser opp i himmelen/i.test(document.body.innerText))
       if (nede) throw new Error('«Oversikt» nullstilte ikke himmelvippen')
 
+      // STARGAZER (v6.5.44): veien fra en tom dagshimmel til stjernekikkeren.
+      // Den finnes BARE mens blikket står oppe, så den kan ikke prøves før vi
+      // har løftet det igjen — og «Oversikt» over tok det nettopp ned, som er
+      // den negative halvdelen av sjekken. Den ligger SIST med vilje: et trykk
+      // åpner nattmodus, som stiller kameraet om (apneStjernehimmel), og et
+      // bytte midt i sjekken ville flyttet grunnen under målingene over.
+      const stargazer = page.locator('button[aria-label="Stargazer — åpne natthimmelen"]')
+      if (await stargazer.count()) {
+        throw new Error('Stargazer-knappen står i kartbildet — den skal bare vises med blikket i himmelen')
+      }
+      await dra(1)
+      if (!await stargazer.count()) {
+        throw new Error('Stargazer-knappen kom ikke fram da blikket sto i himmelen')
+      }
+      await stargazer.click({ timeout: 5000 })
+      await page.waitForTimeout(1800)
+      if (await lesSolMaaneSteg(page) !== 'Bytt til dag') {
+        throw new Error('trykk på Stargazer åpnet ikke nattmodus')
+      }
+      // Tilbake til dag, så modus-gjenopprettingen under regner på det den tror.
+      await page.locator('button[aria-label="Bytt til dag"]').click({ timeout: 10_000 })
+      await page.waitForTimeout(1800)
+
       // Tilbake til modusen vi arvet, så neste sjekk står i samme bilde.
       if (startSteg === 'Bytt til dag' && await lesSolMaaneSteg(page) === 'Bytt til natt') {
         await page.locator('button[aria-label="Bytt til natt"]').click({ timeout: 10_000 })
         await page.waitForTimeout(1600)
       }
       await lukk()
-      return 'vippet opp i himmelen, Oversikt tok blikket ned igjen'
+      return 'vippet opp i himmelen, Oversikt tok blikket ned igjen, Stargazer åpnet natta'
+    },
+  },
+  {
+    navn: 'åpen Info dytter ikke POI-filteret ut av skjermen',
+    domene: 'Tour3dInfoPanel',
+    // Kunne i prinsippet kjørt uten DEM, men uten terreng er 3D-overlegget en
+    // «Ingen høydedata»-melding og ingen av pillene finnes. Samme port som de
+    // andre 3D-sjekkene.
+    krever: 'ektekart',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await klikkTekst(page, /^3D$/)
+      const klar = await page.waitForFunction(() => {
+        const c = document.querySelector('canvas')
+        if (c && c.width > 0) return 'canvas'
+        if (/Ingen høydedata/i.test(document.body.innerText)) return 'ingen-dem'
+        return false
+      }, null, { timeout: 60_000 }).then((h) => h.jsonValue())
+      await page.waitForFunction(
+        () => !/Skjerper kartbildet/i.test(document.body.innerText),
+        null, { timeout: 45_000 },
+      ).catch(() => { /* meldingen kan ha kommet og gått */ })
+      await page.waitForTimeout(800)
+
+      const lukk = async () => {
+        await page.locator('button[aria-label="Lukk 3D-visning"]').click({ timeout: 5000 })
+        await page.waitForFunction(() => !document.querySelector('canvas'), null, { timeout: 8000 })
+      }
+      if (klar === 'ingen-dem') {
+        await lukk()
+        return 'ingen-dem-melding — pillene finnes ikke uten terreng'
+      }
+
+      // DAGMODUS: både Info-pilla og POI-filteret er skjult i nattmodus, og 3D
+      // åpner i den modusen himmelen faktisk er i. Modusen gis tilbake til slutt.
+      const startSteg = await lesSolMaaneSteg(page)
+      if (startSteg === 'Bytt til dag') {
+        await page.locator('button[aria-label="Bytt til dag"]').click({ timeout: 10_000 })
+        await page.waitForTimeout(1600)
+      }
+
+      const infoPille = page.locator('button[aria-label="Vis hjelp for 3D-visningen"]')
+      if (!await infoPille.count()) throw new Error('Info-pilla finnes ikke i dagmodus')
+
+      // POI-pilla er kartets egen: finnes den ikke, er det ingen kollisjon å
+      // måle, og det er ikke en feil i denne koden. Den halvdelen rapporteres
+      // framfor å feile — men header-toggelen under prøves uansett.
+      const poi = page.locator('button[aria-label^="Vis filter for"]')
+      const boksFor = await poi.count() ? await poi.boundingBox() : null
+
+      await infoPille.click({ timeout: 5000 })
+      await page.waitForTimeout(500)
+
+      const kropp = page.locator('#tour3d-info-kropp')
+      if (!await kropp.count()) throw new Error('trykk på Info-headeren åpnet ikke hjelpekroppen')
+
+      // HEADEREN BLIR STÅENDE, og den er nå den eneste veien ut. Fram til
+      // v6.5.44 byttet pilla seg ut med boksen, og lukkeknappen fulgte boksen
+      // ut av skjermen når den vokste.
+      const lukkPille = page.locator('button[aria-label="Skjul hjelp for 3D-visningen"]')
+      if (!await lukkPille.count()) {
+        throw new Error('Info-headeren forsvant da kroppen åpnet seg — den skal bli stående og lukke igjen')
+      }
+
+      // KJERNEN: en åpen hjelp skal ikke flytte POI-filteret. Boksen er den
+      // eneste observasjonen som fanger det — markup-en er lik i begge
+      // tilfeller, det er LAYOUTEN som brakk.
+      let poiUtfall = 'POI-filteret finnes ikke i dette kartet'
+      if (boksFor) {
+        const boksEtter = await poi.boundingBox()
+        if (!boksEtter) throw new Error('POI-filteret forsvant da Info ble åpnet')
+        const flyttet = Math.round(Math.abs(boksEtter.x - boksFor.x) + Math.abs(boksEtter.y - boksFor.y))
+        if (flyttet > 1) {
+          throw new Error(`POI-filteret flyttet seg ${flyttet} px da Info ble åpnet — `
+            + 'raden skal være like bred åpen som lukket')
+        }
+        const vp = page.viewportSize()
+        if (boksEtter.x < 0 || boksEtter.x + boksEtter.width > vp.width + 1) {
+          throw new Error(`POI-filteret ligger utenfor skjermen med Info åpen `
+            + `(x ${Math.round(boksEtter.x)}–${Math.round(boksEtter.x + boksEtter.width)} av ${vp.width})`)
+        }
+        poiUtfall = 'POI-filteret sto stille og innenfor skjermen'
+      }
+
+      // TILBAKE TIL NØYTRAL TILSTAND: en åpen hjelpeboks dekker halve
+      // overlegget, og neste sjekk ville ikke funnet knappene sine.
+      await lukkPille.click({ timeout: 5000 })
+      await page.waitForTimeout(400)
+      if (await kropp.count()) throw new Error('trykk på headeren lukket ikke hjelpekroppen igjen')
+
+      if (startSteg === 'Bytt til dag' && await lesSolMaaneSteg(page) === 'Bytt til natt') {
+        await page.locator('button[aria-label="Bytt til natt"]').click({ timeout: 10_000 })
+        await page.waitForTimeout(1600)
+      }
+      await lukk()
+      return `headeren åpnet og lukket hjelpen; ${poiUtfall}`
     },
   },
   {

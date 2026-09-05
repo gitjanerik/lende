@@ -20,6 +20,9 @@ import { useSpeechInput } from '../composables/useSpeechInput.js'
 import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
+import { reverseGeocode } from '../lib/geocode.js'
+import { gpsFeilForklaring, GPS_IKKE_STOTTET } from '../lib/gpsFeil.js'
+import { mikrofonFeilForklaring } from '../lib/mikrofonFeil.js'
 
 // Fanen eies av VERTEN: forsiden speiler den mot ?tab=, modalen setter den fra
 // menyvalget. Toveis, så brukeren kan bytte fane inne i begge.
@@ -34,8 +37,8 @@ const props = defineProps({
 // open-picker: verten bestemmer HVORDAN «Flere valg» åpnes — forsiden navigerer
 // til /nytt, hovedmenyen åpner Nytt turkart som modal oppå seg selv. Uten dette
 // navigerte knappen alltid, så i modalen forsvant både menyen og modalen.
-// Nyttelasten { gps: true } (fra søkefeltets pin-knapp) ber skjemaet hente
-// posisjonen og sentrere seg der straks det er oppe.
+// v6.5.45: nyttelasten { gps: true } er borte. Den grønne knappen i søkefeltet
+// BYGGER nå her — se onGpsBygg — så «Flere valg» åpnes bare av «Flere valg».
 const emit = defineEmits(['update:tab', 'open-picker', 'fritt-lende', 'navigert'])
 
 const router = useRouter()
@@ -436,23 +439,29 @@ const buildingProgress = ref('')
 const { query, results, isSearching, error: searchError } = useNominatim()
 
 // Tale-til-tekst: diktér søket. Knappen vises kun der nettleseren støtter det.
-const { isSupported: micSupported, isListening: micListening, toggle: toggleMic } =
-  useSpeechInput({ onResult: (t) => { query.value = t } })
+const { isSupported: micSupported, isListening: micListening, error: micError, toggle: toggleMic } =
+  useSpeechInput({ onResult: (t) => { query.value = t; micError.value = null } })
 
 // Høyre-padding + spinner-plassering avhenger av hvor mange kontroll-knapper
 // (mikrofon + GPS) som faktisk vises.
 const rightControlCount = computed(() =>
   (supportsGeolocation ? 1 : 0) + (micSupported.value ? 1 : 0))
+// v6.5.45: den grønne knappen er skrumpet fra 40 til 36 px, altså lik
+// mikrofonen. To knapper måler nå 36 + 4 + 36 + 6 = 82 px, én måler 42 px.
 const searchRightPad = computed(() =>
-  rightControlCount.value === 2 ? 'pr-24' : rightControlCount.value === 1 ? 'pr-14' : 'pr-3')
+  rightControlCount.value === 2 ? 'pr-22' : rightControlCount.value === 1 ? 'pr-13' : 'pr-3')
 const spinnerRight = computed(() =>
-  rightControlCount.value === 2 ? 'right-[5.9rem]' : rightControlCount.value === 1 ? 'right-[3.4rem]' : 'right-3.5')
+  rightControlCount.value === 2 ? 'right-[5.5rem]' : rightControlCount.value === 1 ? 'right-[3rem]' : 'right-3.5')
 
 const showResults = computed(() =>
   query.value.trim().length >= 2 && (results.value.length > 0 || isSearching.value)
 )
 
-async function onSelectSearchResult(r) {
+// Ett sted der «Mine kart» lager kart. v6.5.45: den grønne GPS-knappen bygger
+// nå OGSÅ herfra, så et trykk på den og et valg i trefflista gjør nøyaktig det
+// samme — det er hele skillet mot «Flere valg», der et sted bare VELGES og
+// brukeren gjør resten av innstillingene selv.
+async function byggKartFra(sted) {
   if (buildingOnTheFly.value) return
   query.value = ''
   results.value = []
@@ -461,10 +470,10 @@ async function onSelectSearchResult(r) {
   try {
     const stamp = new Date().toLocaleDateString('no-NO', { day: '2-digit', month: 'short' })
     const { id } = await buildMapFromCenter({
-      center: { lat: r.lat, lon: r.lon, name: r.shortName },
+      center: { lat: sted.lat, lon: sted.lon, name: sted.navn },
       ...squareDims(),   // valgt format/bredde — standard 5 km kvadrat
       equidistanceM: squareEquidistance(), // auto: fineste tillatte for bredden (5/10/20 m)
-      navn: `${r.shortName} ${stamp}`,
+      navn: `${sted.navn} ${stamp}`,
       terrainFirst: true,   // vis terreng straks, fyll inn OSM i bakgrunnen
       onProgress: (msg) => { buildingProgress.value = msg },
     })
@@ -475,6 +484,37 @@ async function onSelectSearchResult(r) {
     buildingProgress.value = ''
     alert('Kunne ikke opprette kart: ' + (e.message ?? 'ukjent feil'))
   }
+}
+
+function onSelectSearchResult(r) {
+  return byggKartFra({ lat: r.lat, lon: r.lon, navn: r.shortName })
+}
+
+// ── GPS → bygg direkte ──────────────────────────────────────────────────
+// Feilen MÅ sies, og med en forklaring: en nektet posisjon var stille her, og
+// knappen så da ut som om den var i stuss. Teksten kommer fra `lib/gpsFeil.js`
+// — ÉN kilde, delt med «Flere valg» og Fritt lende.
+const gpsLeter = ref(false)
+const gpsFeil = ref('')
+
+function onGpsBygg() {
+  if (buildingOnTheFly.value || gpsLeter.value) return
+  gpsFeil.value = ''
+  if (!supportsGeolocation) { gpsFeil.value = GPS_IKKE_STOTTET; return }
+  gpsLeter.value = true
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    gpsLeter.value = false
+    const lat = pos.coords.latitude, lon = pos.coords.longitude
+    let navn = 'Min posisjon'
+    try {
+      const g = await reverseGeocode(lat, lon)
+      navn = g?.placeLabel || g?.shortName || navn
+    } catch { /* uten navn er kartet like brukbart */ }
+    await byggKartFra({ lat, lon, navn })
+  }, (err) => {
+    gpsLeter.value = false
+    gpsFeil.value = gpsFeilForklaring(err.code)
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 })
 }
 
 // ── Tastaturnavigasjon (desktop) ────────────────────────────────────────
@@ -567,14 +607,15 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
   </div>
 
   <!-- Søkefelt med integrert GPS-knapp. Søk = hovedflyten: velg et sted →
-       bygg straks et kart. Den grønne pin-knappen til høyre HENTER BARE
-       posisjonen og åpner det samme skjemaet som «Flere valg», sentrert der
-       du står — den bygger ingenting. Det gjør de to inngangene like: begge
-       ender i skjemaet, forskjellen er bare om senteret er søkt opp eller
-       målt. (Fram til v6.5.28 bygde den et kart direkte, og var da en
-       nøyaktig dublett av den store CTA-en i tom-tilstanden under.)
-       Hjelpeteksten under forklarer knappen siden pin-ikonet alene ikke er
-       helt selvforklarende. -->
+       bygg straks et kart. v6.5.45: den grønne pin-knappen gjør nøyaktig det
+       SAMME, bare med et målt senter i stedet for et søkt opp. Forskjellen på
+       de to inngangene er hvor senteret kommer fra, ikke hva som skjer etterpå,
+       og de deler derfor `byggKartFra`.
+       Fram til v6.5.28 bygde den et kart direkte; v6.5.28–44 lot den åpne
+       «Flere valg» sentrert der du står, med en hjelpetekst under som forklarte
+       forskjellen. Den runden er reversert med vilje: er dette «Mine kart»,
+       lager begge veier et kart, og vil man justere først, står «Flere valg»
+       rett over. Da trenger knappen ingen hjelpetekst. -->
   <div class="relative z-20 mb-1.5">
     <div class="relative">
       <svg viewBox="0 0 24 24" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/50"
@@ -609,12 +650,16 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
           </svg>
         </button>
         <button v-if="supportsGeolocation"
-                @click="emit('open-picker', { gps: true })"
-                :disabled="buildingOnTheFly"
-                aria-label="Åpne valg sentrert der jeg står (GPS)"
-                class="w-10 h-10 rounded-lg bg-emerald-500 text-white flex items-center justify-center
+                @click="onGpsBygg"
+                :disabled="buildingOnTheFly || gpsLeter"
+                aria-label="Lag turkart der jeg står (GPS)"
+                class="w-9 h-9 rounded-lg bg-emerald-500 text-white flex items-center justify-center
                        shadow-md active:scale-95 transition disabled:opacity-60">
-          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+          <svg v-if="gpsLeter" viewBox="0 0 24 24" class="w-5 h-5 animate-spin" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+          </svg>
+          <svg v-else viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="10" r="3"/>
             <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>
@@ -645,16 +690,16 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
     </Transition>
   </div>
 
-  <!-- Hjelpetekst som forklarer den integrerte GPS-knappen. -->
-  <div v-if="supportsGeolocation"
-       class="mb-4 px-1 text-[11.5px] text-ink/45 flex items-center gap-1.5 leading-snug">
-    <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-emerald-300/80 shrink-0" fill="none"
-         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="10" r="3"/>
-      <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>
-    </svg>
-    <span>Søk etter et sted — eller trykk den grønne knappen for å åpne valgene der du står.</span>
-  </div>
+  <!-- v6.5.45: hjelpeteksten under søkefeltet er fjernet. Den forklarte en
+       knapp som nå gjør det samme som lista over den, og den sto i veien for
+       nettopp den lista ved stor tekst. Det som ER verdt plass er en NEKTET
+       tillatelse: begge knappene var helt stille når nettleseren sa nei. -->
+  <div v-if="gpsFeil" role="alert"
+       class="mb-4 px-3 py-2.5 rounded-lg bg-amber-500/[0.12] border border-amber-400/35
+              text-amber-100 text-[13px] leading-snug">{{ gpsFeil }}</div>
+  <div v-if="micError" role="alert"
+       class="mb-4 px-3 py-2.5 rounded-lg bg-amber-500/[0.12] border border-amber-400/35
+              text-amber-100 text-[13px] leading-snug">{{ mikrofonFeilForklaring(micError) }}</div>
   <div v-if="searchError" class="-mt-2 mb-4 px-1 text-[11px] text-slate-300">{{ searchError }}</div>
 
   <!-- Importer et kart en turkamerat har delt som fil. Står her, mellom
