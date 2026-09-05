@@ -2449,6 +2449,127 @@ const SJEKKER = [
     },
   },
   {
+    // v6.5.57. Sjekken over går inn i natta ved å TRYKKE. Denne åpner 3D som
+    // allerede står der — og det var nettopp den stien som var brutt: mount-
+    // lista startet nordlysdemoen, men ikke det ekte varselet, så `nightOn`
+    // endret seg aldri, watch(nightOn) fyrte aldri, og panelet kom først etter
+    // en tur innom dag og tilbake.
+    //
+    // TO TING GJØR DEN DETERMINISTISK, og begge er nødvendige:
+    // 1. EGEN KONTEKST MED FORSKJØVET KLOKKE. Om 3D åpner i natt avgjøres av
+    //    solas høyde over arket (v6.1.0), altså av når CI kjører — en sjekk som
+    //    bare virker om kvelden er en sjekk som blir grønn ved et tilfelle. Vi
+    //    flytter `Date` til en januarnatt over Vardåsen. Klokka GÅR fortsatt
+    //    (bare et fast tillegg): `page.clock` ville frosset timerne som 3D-
+    //    byggingen henger på. Konteksten er egen fordi et addInitScript ikke kan
+    //    tas bort igjen, og den ville da fulgt hver senere sjekk.
+    // 2. NOAA STUBBES. Panelet skal vises fordi hentingen ble STARTET, ikke
+    //    fordi sola tilfeldigvis er urolig — OVATION ga 0 % over Vardåsen den
+    //    natta laget ble bygget. Stubben gir 42 % rett over arket.
+    navn: 'nordlysvarselet kommer også når 3D åpner rett i natt',
+    domene: 'Viewer3D (nordlys ved montering)',
+    krever: 'ektekart',
+    maksMs: 180_000,
+    async kjør(page) {
+      const nattCtx = await page.context().browser().newContext({
+        viewport: { width: 430, height: 900 },
+        permissions: ['geolocation'],
+        geolocation: { latitude: 59.8412, longitude: 10.4123 },
+      })
+      // Fast tillegg på Date — ikke en frossen klokke. Konstruktøren uten
+      // argumenter og Date.now() forskyves; alt annet er den ekte Date.
+      await nattCtx.addInitScript((maal) => {
+        const Ekte = Date
+        const naa = Ekte.now.bind(Ekte)
+        const delta = maal - naa()
+        // Subklasse og ikke Proxy: en Proxy videresender `Skjov.now = …` til
+        // TARGET, altså den ekte Date.now — som da kaller seg selv i evig løkke.
+        // Målt: «Maximum call stack size exceeded» ved første oppslag.
+        class Skjov extends Ekte {
+          constructor(...a) { super(...(a.length ? a : [naa() + delta])) }
+          static now() { return naa() + delta }
+        }
+        window.Date = Skjov
+      }, Date.UTC(2026, 0, 15, 23, 0, 0))
+
+      const noaa = []
+      await nattCtx.route('**/services.swpc.noaa.gov/**', (rute) => {
+        const u = rute.request().url()
+        noaa.push(u)
+        const svar = (o) => rute.fulfill({ contentType: 'application/json', body: JSON.stringify(o) })
+        if (/ovation_aurora_latest/.test(u)) {
+          return svar({
+            'Observation Time': '2026-01-15T22:50:00Z',
+            'Forecast Time': '2026-01-15T23:50:00Z',
+            // [lon 0–360, lat, prosent]. Tett rutenett rundt Vardåsen, pluss
+            // ovalen et stykke nordover så gardinene får en høyde å stå i.
+            coordinates: [
+              [10, 59, 42], [10, 60, 42], [11, 59, 42], [11, 60, 42],
+              [10, 66, 80], [11, 66, 80],
+            ],
+          })
+        }
+        if (/planetary_k_index_1m/.test(u)) {
+          return svar([{ time_tag: '2026-01-15T22:59:00Z', estimated_kp: 5.3 }])
+        }
+        if (/solar-wind-speed/.test(u)) return svar({ proton_speed: 612 })
+        if (/solar-wind-mag-field/.test(u)) return svar({ bt: 14, bz_gsm: -9 })
+        return svar({})
+      })
+
+      const p2 = await nattCtx.newPage()
+      const jsFeil = []
+      p2.on('pageerror', (e) => jsFeil.push(e.message))
+      try {
+        await p2.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await p2.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+        await lukkDrawer(p2)
+        await klikkTekst(p2, /^3D$/)
+        const klar = await p2.waitForFunction(() => {
+          const c = document.querySelector('canvas')
+          if (c && c.width > 0) return 'canvas'
+          if (/Ingen høydedata/i.test(document.body.innerText)) return 'ingen-dem'
+          return false
+        }, null, { timeout: 60_000 }).then((h) => h.jsonValue())
+        if (klar === 'ingen-dem') {
+          return 'ingen-dem-melding — nordlyset ved montering kan ikke prøves uten terreng'
+        }
+        await p2.waitForFunction(
+          () => !/Skjerper kartbildet/i.test(document.body.innerText),
+          null, { timeout: 45_000 },
+        ).catch(() => { /* meldingen kan ha kommet og gått */ })
+
+        // FORUTSETNINGEN FØRST: står vi faktisk i natt uten å ha trykket? Feiler
+        // klokke-skjøvet, skal sjekken si DET og ikke «nordlyset mangler».
+        const steg = await lesSolMaaneSteg(p2)
+        if (steg !== 'Bytt til dag') {
+          throw new Error(`3D åpnet ikke i natt (sol/måne sier «${steg}») — `
+            + 'klokke-skjøvet i denne sjekken virker ikke lenger')
+        }
+
+        // Panelet — uten et eneste trykk.
+        const tekst = await p2.waitForFunction(() => {
+          const t = document.body.innerText
+          return /NORDLYS/i.test(t) && /SJANSE/i.test(t) ? t : false
+        }, null, { timeout: 30_000 }).then((h) => h.jsonValue())
+          .catch(() => null)
+        if (!tekst) {
+          throw new Error('nordlyspanelet kom ikke av seg selv i natt — '
+            + `mount-stien starter det ikke (NOAA-kall: ${noaa.length})`)
+        }
+        if (!noaa.length) throw new Error('nordlyspanelet står der, men NOAA ble aldri spurt')
+        if (!/42\s*%/.test(tekst)) {
+          throw new Error(`sjansen fra stubben (42 %) står ikke i panelet: ${tekst.slice(0, 200)}`)
+        }
+        if (jsFeil.length) throw new Error(`JS-feil i natt-konteksten: ${jsFeil[0]}`)
+        return `panelet kom uten et trykk, med 42 % fra ${noaa.length} NOAA-kall`
+      } finally {
+        await nattCtx.close().catch(() => {})
+      }
+    },
+  },
+  {
     // v6.4.0. Halve himmelen er stjerner som ikke inngår i en figur vi tegner —
     // Sirius, Aldebaran, Altair, Antares — og fram til nå kunne man ikke spørre
     // hva de var. Eieren leste en skjerm med prikker uten streker som en FEIL,

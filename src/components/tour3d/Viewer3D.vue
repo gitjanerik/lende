@@ -644,7 +644,9 @@ async function byggMotor() {
     if (nightOn.value) byggHimmelListe()
     // Vær-demoen slås på i Utvikler-fanen og overstyrer varselet.
     if (demoPaa.value) demoStart()
-    if (nordlysDemoPaa.value && nightOn.value) nordlysDemoStart()
+    // Åpner 3D rett i natt, er det her nordlyset kommer fra: watch(nightOn)
+    // fyrer ikke på en tilstand som var sann fra første frame.
+    if (nightOn.value) startNordlys()
 
     phase.value = 'ready'
     // Zoom-skyvens område kommer fra riggen og er kart-avhengig (maxDistance er
@@ -930,6 +932,19 @@ async function hentNordlysdata() {
   if (nordlysOn.value) leggNordlysPaaHimmelen()
 }
 
+// NATTA ER PÅ: SETT NORDLYSET I GANG. Én funksjon, to kallere — mount-stien og
+// watch(nightOn) — og det er hele poenget. Fram til v6.5.57 sto de to sidene som
+// hver sin liste, og mount-lista manglet det ekte varselet: den startet demoen,
+// men ikke hentingen. Åpnet man 3D i natt (som det gjør av seg selv når sola er
+// under horisonten, v6.1.0), endret `nightOn` seg aldri, watchen fyrte aldri, og
+// nordlyspanelet kom først etter en tur innom dag og tilbake. Samme klasse som
+// målingen som aldri kjørte fordi raden ikke fantes ved montering (v6.3.12): en
+// tilstand som er sann fra første frame ser ut som «ingen endring».
+function startNordlys() {
+  if (nordlysDemoPaa.value) nordlysDemoStart()
+  else void hentNordlysdata()
+}
+
 function leggNordlysPaaHimmelen() {
   if (!engine) return
   // Demoen vinner, som for været.
@@ -1082,8 +1097,7 @@ watch(nightOn, (on) => {
   // er turgåerens datakvote.
   nordlysAvvist.value = false
   if (on) {
-    if (nordlysDemoPaa.value) nordlysDemoStart()
-    else void hentNordlysdata()
+    startNordlys()
   } else {
     clearInterval(nordlysDemoTimer)
     nordlysDemoTimer = 0
