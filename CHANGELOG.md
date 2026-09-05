@@ -1,3 +1,46 @@
+## 2026-09-05 — v6.5.54: Stor tekst brekker ikke lenger overleggene i 3D
+
+Infokortet i natthimmelen hadde navnet og de tre knappene på samme rad: knappene
+`shrink-0`, navnekolonnen `flex-1 min-w-0` — altså basis 0 uten min-content-gulv,
+en kolonne som får det som blir til overs. Ved 200 % app-tekst oppå Androids egen
+tekstskalering ble det ingenting, og «Bjørnevokteren» ble målt til 0 px bredt over
+28 linjer, én bokstav om gangen. Et gulv på navnekolonnen ville bare flyttet
+spørsmålet — for smalt og feilen står, for bredt og knappene klippes bort av
+kortets `overflow-hidden`. To ting som skal vokse uavhengig av hverandre hører
+ikke hjemme på samme rad, så nå har hver sin: knappene er én rad som aldri trenger
+å krympe, navnet en rad som alltid har hele kortbredden å bryte over. Kortet er
+samtidig gjort bredere (96 vw mot 86, og `sm:max-w-md`), fordi det er det eneste
+panelet i 3D som bærer løpende tekst. Røyktesten måler invarianten direkte ved
+32 px rot-font: navnelinja skal holde minst 60 % av kortbredden, og knapperaden
+skal ikke stikke utenfor kortet.
+
+Værraden og nordlyspanelet hadde hver sin utgave av samme feil. I værraden er
+MET-attribusjonen nå stablet UNDER X-en og satt på én linje: cellen er 58 px mot
+85 og X-en sitter midt i den, så et tekstbrudd ved siden av lukkeknappen leses
+ikke lenger som noe klemt — og den sparte bredden gir en værtime tilbake. I
+nordlyspanelet sto hode, tall og X på én linje med `shrink-0` på alle tre, i en
+pille med `overflow-hidden`; ved 200 % tekst fikk tallene ikke plass, og det som
+ble klippet var LUKKEKNAPPEN ytterst — altså et varsel man ikke kunne bli kvitt.
+Svaret er ikke å fjerne tall, for alle fire svarer på hvert sitt spørsmål, men å
+gi dem en linje til når de trenger den: over et målt tekstnivå faller de ned på
+egen rad under hodet og X-en og bryter fritt der. Målt i Chromium på 412 px
+holder alle fire tallene seg fra 100 % til 200 % tekst, X-en står innenfor pilla
+hele veien, og panelet faller tilbake til én linje når teksten skrus ned igjen.
+
+---
+
+## 2026-09-05 — v6.5.53: Stjernemerkene er kuratering, og følger med fila
+
+Stjernemerkede kulturminner har fulgt med i `.lendekart`-fila siden de kom, fordi
+`kartPakke` sprer hele kart-posten og bare stripper markeringer, GPS-spor og
+strekstil. Det var riktig, men utilsiktet — og et felt som ser personlig ut, men
+ikke står i lista over personlige felt, er nøyaktig den slags som ryddes inn dit i
+god tro. Beslutningen står nå skrevet begge steder: en stjerne er kuratering,
+«disse er verdt å se på denne turen», og det er det som har verdi for den som får
+fila, mens markeringer og spor er en dagbok. Ingen atferd er endret.
+
+---
+
 ## 2026-09-05 — v6.5.52: Stjernemerkede kulturminner, og ikonene vekk på mobil
 
 Kulturminner og fredede lokaliteter kan nå stjernemerkes fra infopanelet, og merkingen

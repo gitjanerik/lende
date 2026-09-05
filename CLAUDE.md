@@ -333,6 +333,17 @@ falskt alarmerende banner på et fjell er verre enn ingen.
 
 Ikke slå dem sammen. De løser hver sin situasjon, og begge skal stå.
 
+**Stjernemerkede kulturminner FØLGER MED i fila, og det er en beslutning
+(v6.5.53).** `PERSONLIGE_FELTER` i `kartPakke.js` stripper markeringer, GPS-spor
+og strekstil på vei ut; `stjerneminner` står bevisst IKKE der. En stjerne er
+kuratering — «disse er verdt å se på denne turen» — og det er nettopp det som har
+verdi for den som får fila, mens markeringer og spor er en dagbok. Nøklene er
+kildens egne ider (`k:`/`f:`), altså de samme hos mottakeren, og
+`samleOfflineData` tar allerede med begge bboksene og detaljteksten bak hvert
+ikon. Ringen strippes derimot i BEGGE klone-stiene i `useKartEksport`: pulsen bor
+i app-CSS, så et statisk ark ville vist tre frosne sirkler som leses som en feil
+i kartet.
+
 **Datalagene virker offline fordi de allerede sjekker `protectedAreaCache` før
 nettet.** Eksporten (`lib/offlinePakke.js`) fyller cachen mens den har dekning,
 tar radene med i fila, og importen skriver dem inn igjen med FERSK TTL — en fil

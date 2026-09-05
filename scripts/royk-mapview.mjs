@@ -1829,6 +1829,48 @@ const SJEKKER = [
           throw new Error('kortet mangler minimer-knappen')
         }
 
+        // HEADEREN HOLDER VED STOR TEKST (v6.5.54). Navnet og knappene sto på
+        // samme rad: knappene `shrink-0`, navnet `flex-1 min-w-0`, altså det som
+        // fikk det som ble til overs — og ved 200 % app-tekst oppå Androids egen
+        // tekstskalering ble det ingenting. «Bjørnevokteren» kom ut som én
+        // bokstav per linje. Det er en ren layout-feil: markupen er den samme,
+        // så den kan BARE måles.
+        //
+        // Vi hever rot-fonten til 32 px (Androids 200 %) og krever to ting av
+        // headeren: at navnet får en reell del av kortbredden, og at knappene
+        // holder seg innenfor kortet — kortet er `overflow-hidden`, så en
+        // knapperad som stikker ut er en lukkeknapp brukeren ikke har. Rot-fonten
+        // settes tilbake etterpå, ellers arver neste sjekk den.
+        const headerMaal = await evalMedTak(page, () => {
+          const rot = document.documentElement
+          const forrige = rot.style.fontSize
+          rot.style.fontSize = '32px'
+          const navn = document.querySelector('[data-himmel-navn]')
+          const knapper = document.querySelector('[data-himmel-knapper]')
+          const kort = navn?.closest('.rounded-md')
+          const m = navn && knapper && kort
+            ? {
+                // PLASSEN navnet har, ikke bredden på akkurat dette navnet:
+                // «Lyren» er kort uansett hvor godt headeren oppfører seg.
+                navn: Math.round(navn.parentElement.getBoundingClientRect().width),
+                kort: Math.round(kort.getBoundingClientRect().width),
+                utenfor: Math.round(knapper.getBoundingClientRect().right
+                  - kort.getBoundingClientRect().right),
+              }
+            : null
+          rot.style.fontSize = forrige
+          return m
+        })
+        if (!headerMaal) throw new Error('fant ikke navnet eller knappene i infokortets header')
+        if (headerMaal.navn < headerMaal.kort * 0.6) {
+          throw new Error(`navnelinja klemmes ved stor tekst: ${headerMaal.navn} px av `
+            + `${headerMaal.kort} px kortbredde — headeren er ikke stablet`)
+        }
+        if (headerMaal.utenfor > 1) {
+          throw new Error(`knapperaden stikker ${headerMaal.utenfor} px utenfor kortet, `
+            + 'som er overflow-hidden — lukkeknappen klippes bort')
+        }
+
         // Og sammen igjen: navnet blir stående, lesestoffet forsvinner.
         await page.locator('button[aria-label="Minimer infokortet"]').click({ timeout: 5000 })
         await page.waitForTimeout(400)
@@ -2327,6 +2369,63 @@ const SJEKKER = [
         // ser ut som et ekte varsel er verre enn ingen demo.
         if (!/DEMO/.test(panel)) {
           throw new Error('panelet sier ikke at tallene kommer fra demoen')
+        }
+
+        // X-EN OVERLEVER STOR TEKST (v6.5.54). Alle cellene var `shrink-0` og
+        // pilla er `overflow-hidden`, så ved 200 % systemtekst var det
+        // LUKKEKNAPPEN som ble klippet bort — panelet viste to av fire tall og
+        // ingen X, og var dermed umulig å bli kvitt. Markupen er den samme ved
+        // begge tekststørrelser, så dette kan BARE måles. Rot-fonten settes
+        // tilbake etterpå, ellers arver neste sjekk den.
+        //
+        // MÅLINGEN ER ASYNKRON: panelet måler seg selv fra en ResizeObserver og
+        // svarer over `nextTick`, så en avlesning i samme synkrone eval som
+        // setter fonten ville lest layouten FØR panelet rakk å reagere. Vi
+        // setter fonten, venter, og måler i en egen runde.
+        //
+        // ALLE FIRE TALLENE SKAL STÅ IGJEN. De svarer på hvert sitt spørsmål —
+        // sjanse, skyer, Kp og solvind — så et panel som løser plassmangelen
+        // ved å droppe to av dem har byttet bort selve innholdet. Ved stor
+        // tekst skal de derfor ligge på en EGEN rad under hode-cella
+        // (`stablet`), ikke på hode-raden.
+        await evalMedTak(page, () => { document.documentElement.style.fontSize = '32px' })
+        await page.waitForTimeout(700)
+        const nordlysMaal = await evalMedTak(page, () => {
+          const rot = document.documentElement
+          const knapp = document.querySelector(
+            'button[aria-label="Skjul nordlysvarselet og nordlyset"]')
+          const pille = knapp?.closest('.rounded-2xl')
+          const tall = document.querySelector('[data-nordlys-tall]')
+          const m = knapp && pille
+            ? {
+                utenfor: Math.round(knapp.getBoundingClientRect().right
+                  - pille.getBoundingClientRect().right),
+                bredde: Math.round(knapp.getBoundingClientRect().width),
+                flyter: tall ? Math.round(tall.scrollWidth - tall.clientWidth) : 0,
+                tall: tall ? tall.children.length : 0,
+                stablet: !!tall && tall.parentElement === pille,
+              }
+            : null
+          rot.style.fontSize = ''
+          return m
+        })
+        await page.waitForTimeout(300)
+        if (!nordlysMaal) throw new Error('fant ikke X-en i nordlyspanelet ved stor tekst')
+        if (nordlysMaal.utenfor > 1 || nordlysMaal.bredde < 20) {
+          throw new Error(`X-en klippes ved stor tekst: ${nordlysMaal.utenfor} px utenfor `
+            + `pilla, ${nordlysMaal.bredde} px bred — tall-cella tar ikke plassen`)
+        }
+        if (nordlysMaal.flyter > 1) {
+          throw new Error(`tall-cella flyter over med ${nordlysMaal.flyter} px ved stor `
+            + 'tekst — plass-målingen fyrte ikke')
+        }
+        if (nordlysMaal.tall < 4) {
+          throw new Error(`bare ${nordlysMaal.tall} av fire tall ved stor tekst — de svarer `
+            + 'på hvert sitt spørsmål, og skal få en rad til i stedet for å falle bort')
+        }
+        if (!nordlysMaal.stablet) {
+          throw new Error('tallene sto fortsatt på hode-raden ved 200 % tekst — målingen '
+            + 'fant ikke overflyten, eller stablingen slo ikke inn')
         }
 
         // X-EN TAR BORT BÅDE PANELET OG GARDINENE, som i værraden (v6.3.8).

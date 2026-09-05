@@ -22,6 +22,14 @@ export const PAKKE_FILENDELSE = '.lendekart'
 // Felter som IKKE følger med: brukerens egne markeringer og GPS-spor er
 // personlige, og eieren valgte bort dem. De nullstilles ved import i stedet for
 // å bli skrevet ut her, så en gammel fil aldri kan smugle dem inn.
+//
+// STJERNEMERKEDE KULTURMINNER (`stjerneminner`) HØRER BEVISST IKKE HJEMME HER
+// (v6.5.53). De ser ut som personlig innhold og er det ikke: en stjerne er
+// kuratering — «disse er verdt å se på denne turen» — og det er nettopp det som
+// har verdi for den som får fila. Markeringer og spor er en dagbok; dette er en
+// anbefaling. Nøklene er dessuten kildens egne ider (k:/f:), altså de samme hos
+// mottakeren, og offlinePakke tar allerede med både bboksene og detaljteksten
+// bak hvert ikon — så merkene har markører å feste seg på uten dekning.
 const PERSONLIGE_FELTER = ['annotations', 'tracks', 'trackStyle']
 
 // ── base64 ──────────────────────────────────────────────────────────────────

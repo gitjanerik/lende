@@ -1504,9 +1504,18 @@ function branchLabel(opt, i) {
            det for et stjernebilde. Står UNDER nordlyset (v6.5.18), fordi det er
            den flaten som kan bli høy: et varsel som ligger etter en rullbar
            tekstflate er et varsel man må lete etter. -->
+      <!-- KORTET ER BREDERE ENN DE ANDRE RADENE (v6.5.54): 96 mot 86. Det er
+           det eneste panelet her som bærer LØPENDE TEKST — stjernebildeprosa,
+           utforskningshistorie, et navn som skal få bryte pent — og en smal
+           spalte er nettopp det som gjør stor tekst uleselig. Taket er fortsatt
+           et TAK og ikke en bredde: `justify-center` gjør at kortet bare blir så
+           bredt som innholdet trenger på en stor skjerm, mens det på en telefon
+           ved 200 % tekst får hele den ledige bredden i stedet for å stoppe 10 %
+           for tidlig. Roten polstrer allerede unna navigasjonssøyla, så det
+           kolliderer ikke med den. -->
       <div v-if="phase === 'ready' && valgtHimmel"
            class="relative z-10 px-3 mt-2 flex justify-center"
-           :style="tekstBoks(86)">
+           :style="tekstBoks(96)">
         <!-- `globe-aapen` er BORTE (v6.3.3): kortet brukte den bare til å velge
              mellom to bruksanvisninger, og begge er fjernet. En prop ingen leser
              er nettopp den stille gjelden navnediff finnes for.
