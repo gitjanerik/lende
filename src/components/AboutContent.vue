@@ -147,6 +147,33 @@ async function onInstallClick() {
       </p>
     </section>
 
+    <!-- Skjermen: rotasjon + tekststørrelse. Begge er tilgjengelighet, og
+         begge er ting man ikke finner uten at noen sier det. -->
+    <section class="rounded-2xl bg-ink/5 border border-ink/10 p-4 space-y-2">
+      <h3 class="text-sm font-semibold uppercase tracking-wide text-ink/55">Skjermen</h3>
+      <p class="text-[13px] leading-relaxed text-ink/70">
+        Lende kan brukes både <strong class="text-ink/90">stående og liggende</strong>,
+        også som installert app. Kartarket er kvadratisk (2 × 2 km), så liggende
+        gir deg mer av det i bredden — nyttig på sykkelstyret, i bilholderen, i
+        3D-visningen og på høydeprofilen. Stående gir mest plass til lange
+        infokort og til tastaturet når du søker.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink/70">
+        Prisen for at rotasjon er skrudd på, er at telefonen kan snu når du ikke
+        vil — typisk når du går med den i hånda. Vil du unngå det, lås
+        skjermretningen i telefonens egne hurtiginnstillinger; Lende følger
+        låsen. Vi lar altså <em>deg</em> bestemme framfor å bestemme for deg:
+        en app som er låst til én retning stenger ute den som ikke kan holde
+        telefonen den veien.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink/70">
+        <strong class="text-ink/90">Tekststørrelse</strong> settes i hovedmenyen
+        (100–200 %), og fra <strong class="text-ink/90">A-knappen</strong> i
+        toppen av hvert infopanel — den viser hvilken størrelse du står på og går
+        ett hakk opp for hvert trykk, med runding tilbake til 100 %.
+      </p>
+    </section>
+
     <!-- Faner: én per hovedfunksjon. -->
     <section class="space-y-4">
       <!-- flex-wrap fra v6.5.1: med tre faner er «Ruteplanlegger» for bred til

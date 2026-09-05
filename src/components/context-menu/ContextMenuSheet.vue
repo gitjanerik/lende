@@ -7,6 +7,7 @@
 // buildDetailInset/attachInsetPanZoom er uendret.
 import { ANNOTATION_SYMBOLS } from '../../composables/useMapAnnotations.js'
 import AnnotationIcon from '../AnnotationIcon.vue'
+import TekstStorrelseKnapp from '../TekstStorrelseKnapp.vue'
 import VaerIkon from '../VaerIkon.vue'
 import { formatDistanceM, bearingToCompass } from '../../lib/mapContext.js'
 import { hasAiToken } from '../../lib/lendeAi.js'
@@ -179,7 +180,10 @@ function formatDistance(m) {
             Utenfor kart-utsnittet
           </div>
         </div>
+        <!-- Tekststørrelse + lukk. Begge står UTENFOR den zoomede kolonnen
+             over, altså beholder de sine 32 px ved 200 % — se kommentaren der. -->
         <div class="flex items-center gap-1.5 shrink-0">
+          <TekstStorrelseKnapp />
           <button @click="closeContextMenu"
                   aria-label="Lukk"
                   class="w-8 h-8 -mr-1 -mt-0.5 rounded-full flex items-center justify-center

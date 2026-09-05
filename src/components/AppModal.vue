@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, nextTick } from 'vue'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
+import TekstStorrelseKnapp from './TekstStorrelseKnapp.vue'
 
 // Felles modal-skall for «sidene» hovedmenyen åpner (Om appen, Tegnforklaring …).
 // De var egne ruter: menyen lukket seg, og veien tilbake gikk via nettleserens
@@ -53,6 +54,9 @@ watch(() => props.open, async (open) => {
         <div class="shrink-0 px-4 py-3 flex items-center gap-3 border-b border-ink/10">
           <h2 class="text-lg font-semibold flex-1 min-w-0 truncate text-ink">{{ props.title }}</h2>
           <slot name="header" />
+          <!-- Tekststørrelse for kroppen under. Den står i HEADEREN, altså
+               utenfor `zoom`-flaten, og vokser derfor ikke med sin egen effekt. -->
+          <TekstStorrelseKnapp />
           <button ref="closeBtnRef" type="button" @click="emit('close')" aria-label="Lukk"
                   class="w-9 h-9 rounded-full flex items-center justify-center bg-ink/10
                          text-ink/80 active:scale-95 transition shrink-0">

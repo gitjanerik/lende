@@ -103,6 +103,7 @@ import MapEdgeHandles from '../components/MapEdgeHandles.vue'
 import MapStatusOverlays from '../components/MapStatusOverlays.vue'
 import MapScaleAttribution from '../components/MapScaleAttribution.vue'
 import KulturminneSheet from '../components/KulturminneSheet.vue'
+import TekstStorrelseKnapp from '../components/TekstStorrelseKnapp.vue'
 import HydroStationSheet from '../components/HydroStationSheet.vue'
 import FabSettingsPanel from '../components/FabSettingsPanel.vue'
 import FabCluster from '../components/FabCluster.vue'
@@ -2880,6 +2881,9 @@ onUnmounted(() => {
                :class="isDesktop ? 'pt-3' : ''">
             <div class="text-ink text-sm font-semibold">Innstillinger</div>
             <div class="flex items-center gap-1">
+              <!-- Tekststørrelse for skuffens innhold. Står utenfor zoom-flatene
+                   under, som lukkeknappen. -->
+              <TekstStorrelseKnapp />
               <button @pointerdown.stop @click.stop="closeDrawer"
                       aria-label="Lukk innstillinger"
                       class="w-8 h-8 -mr-1 rounded-full flex items-center justify-center

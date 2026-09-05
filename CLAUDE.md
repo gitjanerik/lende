@@ -1645,9 +1645,10 @@ gaten som faktisk starter dem.
    (bokmål), så `---`. Håndheves av `.claude/hooks/pre-commit-changelog.sh`.
 4. Patch-bump (1.0.x) som default; brukeren sier fra ved minor/major.
 5. Aldri gjenbruk en branch som allerede er merget.
-6. **Eieren foretrekker FLERE COMMITS per PR, ikke én samlecommit.** Del opp
-   etter hva som kan leses for seg: en ren modul i én commit, kallstedet som tar
-   den i bruk i neste, testene i sin egen, og versjons-bump + CHANGELOG til
-   slutt. Poenget er ikke antallet — det er at diffen kan leses ett steg om
-   gangen, og at et steg kan revertes uten å dra resten med seg. Én commit er
-   riktig når endringen faktisk ER ett steg.
+6. **ÉN COMMIT OG ÉN PR PER LEVERANSE — minst mulig fuzz.** Regelen her sa en
+   periode det motsatte («flere commits per PR»), og eieren strøk den: det er
+   PR-en som er lese-enheten, og en oppdeling i fem commits gir fem ting å bla
+   gjennom uten at noen av dem kan slippes ut for seg. Samle endringen i én
+   commit, med versjons-bump og CHANGELOG i den samme. Flere commits er greit
+   når en PR faktisk bærer to uavhengige ting som må kunne reverteres hver for
+   seg — men da er spørsmålet først om det egentlig er to PR-er.

@@ -1,3 +1,24 @@
+## 2026-09-05 — v6.5.43: Skjermen din, ikke vår — rotasjon og en A-knapp i hvert panel
+
+Manifestet låste den installerte appen til høykant. Det er borte: `orientation`
+er `any`, så Lende roterer med telefonen på Android slik den alltid har gjort på
+iOS (som aldri har støttet feltet). Kartarket er kvadratisk, så liggende gir mer
+av det i bredden — på sykkelstyret, i bilholderen, i 3D og på høydeprofilen — og
+WCAG 2.1 SC 1.3.4 sier at innhold ikke skal være bundet til én retning uten at
+retningen er vesentlig. Prisen er at telefonen kan snu når man går med den i
+hånda, og svaret på det er telefonens egen retningslås, som appen nå følger.
+Røyktesten måler liggende mot stående framfor mot null: kart-SVG-en og de dokkede
+lende-pilene stikker utenfor i begge retninger med vilje, så spørsmålet er om
+rotasjonen gjorde det verre. Samtidig fikk hvert infopanel en A-knapp som går ett
+hakk opp i hovedmenyens egen skala og runder tilbake til 100 %. Syklus-knappen
+ble fjernet i v2.4.13 fordi tilstanden var skjult; den innvendingen er besvart
+ved at knappen bærer verdien i klartekst på sin egen flate. Tegnforklaringens
+rader er samtidig gjort fleksible — prøven har 120 px som basis og ikke som lov,
+og teksten legger seg på egen linje når det blir trangt, i stedet for å stå som
+én bokstav per linje og renne ut av arket ved 200 %.
+
+---
+
 ## 2026-09-04 — v6.5.42: Et valg på natthimmelen kvitteres der man ser
 
 Trykker man på en løs stjerne, står blikket der fingeren var — mens hele svaret kommer et helt annet sted på skjermen, i en pille som kanskje alt sto der fra forrige valg. Stjerna løftes 1,6× i størrelse, og det er for lite til å fange et øye som ikke visste at det skulle se etter noe. Nå slippes to røde bølger ut fra legemet, ett skudd på drøyt et sekund, som ripplen i turkartets søketreff. De skiller seg fra den permanente trykk-ringen på globene med vilje: ringen sier «dette kan du åpne» og blir stående, bølgene sier «det skjedde» og dør. De starter innenfor ringens 46 px og vokser ut til 104, og de er røde fordi rødt er den ene fargen som får lyse i nattmodus. Regelen for hvor bølgene står bor i en ren modul med tester; shaderen får ferdige tall. Kvitteringen gis til det som ER et punkt og ikke har noen annen bekreftelse — løse stjerner, pluss Merkur og Venus, som verken har ring eller globe. En formasjon får den ikke: middelretningen ligger i tom himmel for en figur som spenner 40°, og figuren lyser uansett opp selv.
