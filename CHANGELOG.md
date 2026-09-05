@@ -1,3 +1,15 @@
+## 2026-09-05 — v6.5.53: Stjernemerkene er kuratering, og følger med fila
+
+Stjernemerkede kulturminner har fulgt med i `.lendekart`-fila siden de kom, fordi
+`kartPakke` sprer hele kart-posten og bare stripper markeringer, GPS-spor og
+strekstil. Det var riktig, men utilsiktet — og et felt som ser personlig ut, men
+ikke står i lista over personlige felt, er nøyaktig den slags som ryddes inn dit i
+god tro. Beslutningen står nå skrevet begge steder: en stjerne er kuratering,
+«disse er verdt å se på denne turen», og det er det som har verdi for den som får
+fila, mens markeringer og spor er en dagbok. Ingen atferd er endret.
+
+---
+
 ## 2026-09-05 — v6.5.52: Stjernemerkede kulturminner, og ikonene vekk på mobil
 
 Kulturminner og fredede lokaliteter kan nå stjernemerkes fra infopanelet, og merkingen
