@@ -8,7 +8,10 @@
          knapper (f.eks. «Lagre rute»/«Avbryt» i Ruteplanleggerens skuff-footer)
          var usynlige mens tastaturet var åpent. Eldre Chrome og iOS Safari
          ignorerer nøkkelordet (iOS beholder overlay-oppførselen sin). -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
+    <!-- Ingen maximum-scale/user-scalable: WCAG 1.4.4 krever at siden kan
+         forstørres til 200 %, og `user-scalable=no` sperret knipe-zoom i hele
+         appen. Kartet har sin egen gest-håndtering og påvirkes ikke. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#0e1116" />
     <!-- Chromium «Auto Dark Theme» (Edge Android: «Dark mode for nettsteder»,
          Chrome Android: auto-mørking) tvangs-inverterer mørke farger på sider
@@ -65,7 +68,7 @@
         window.__appInstalled = true
       })
     </script>
-    <script type="module" src="/lende/assets/index-CHwqduFn.js"></script>
+    <script type="module" src="/lende/assets/index-Fq8oEGwq.js"></script>
     <link rel="modulepreload" href="/lende/assets/rolldown-runtime-hePW80VL.js">
     <link rel="modulepreload" href="/lende/assets/_plugin-vue_export-helper-J7_3jmMe.js">
     <link rel="modulepreload" href="/lende/assets/mapStorage-cQS6j40H.js">
@@ -73,19 +76,20 @@
     <link rel="modulepreload" href="/lende/assets/demSampling-DI9gC2JC.js">
     <link rel="modulepreload" href="/lende/assets/rbush-CaohfFwn.js">
     <link rel="modulepreload" href="/lende/assets/pathUtils-CVBFLPUB.js">
-    <link rel="modulepreload" href="/lende/assets/routing-Cx7PSPjd.js">
     <link rel="modulepreload" href="/lende/assets/poiColors-B4p52jof.js">
     <link rel="modulepreload" href="/lende/assets/symbolizer-DkiC6-ua.js">
-    <link rel="modulepreload" href="/lende/assets/preload-helper-CdCo1_m3.js">
     <link rel="modulepreload" href="/lende/assets/kulturminneWfs-Dqlh9Th0.js">
-    <link rel="modulepreload" href="/lende/assets/kulturminneFetcher-CMLpXvnk.js">
+    <link rel="modulepreload" href="/lende/assets/kulturminneFetcher-BAUHNzaG.js">
     <link rel="modulepreload" href="/lende/assets/protectedAreaCache-FjpSItxq.js">
     <link rel="modulepreload" href="/lende/assets/dem-CLPiA3ZU.js">
+    <link rel="modulepreload" href="/lende/assets/preload-helper-CdCo1_m3.js">
     <link rel="modulepreload" href="/lende/assets/demTileCache-BnTnsAcT.js">
     <link rel="modulepreload" href="/lende/assets/terrariumDem-DJp_hYBn.js">
-    <link rel="modulepreload" href="/lende/assets/createMapFlow-DPUxOFU4.js">
+    <link rel="modulepreload" href="/lende/assets/AppMenuButton-BaHXZH8Q.js">
+    <link rel="modulepreload" href="/lende/assets/routing-Cx7PSPjd.js">
     <link rel="modulepreload" href="/lende/assets/nveHydApi-MOos0AOR.js">
-    <link rel="stylesheet" href="/lende/assets/index-CsnT4NRS.css">
+    <link rel="stylesheet" href="/lende/assets/AppMenuButton-CE4CcIYg.css">
+    <link rel="stylesheet" href="/lende/assets/index-CSV1MJ_M.css">
   </head>
   <body class="overscroll-none">
     <div id="app"></div>
