@@ -1,3 +1,22 @@
+## 2026-09-05 — v6.5.56: Zoom-knappene i ruteplanleggeren finner plassen sin selv
+
+Delings-banneret og zoom-kontrollene i `/rute` lå som hver sin absolutt boks, og
+zoom-boksen fikk `top` i piksler fra en ResizeObserver på banneret — banneret har
+to størrelser og kan endre høyde underveis (install-info, rutevalg), så høyden
+ble målt live. Men «ligg under banneret, og øverst når det ikke finnes» er
+nettopp det normal flyt gjør gratis: de to deler nå én absolutt kolonne med
+`flex-col` og `gap-2.5`, og hele målingen er borte. Avstandene er verifisert
+uendret i Chromium — 12 px fra toppen uten banner, 10 px under banneret med det,
+i både kollapset og utvidet tilstand — og de skalerer nå MED tekststørrelsen,
+siden `gap` og `top` er rem, der de faste pikslene sto stille. Kolonnen er
+`pointer-events-none` og bare banneret og knappesøyla slår trykk på igjen, så den
+tomme plassen ved siden av og mellom dem slipper kart-trykk gjennom slik den
+gjorde før. `inviteBannerRef` måles fortsatt, men bare av `inviteTopObstructPx`,
+som er ekte geometri — hvor mye av kartflaten banneret dekker, til innrammingen
+av ruta — og ikke layout.
+
+---
+
 ## 2026-09-05 — v6.5.55: Nordlyspanelet bryter seg selv, uten måling
 
 Brytingen som kom i v6.5.54 var en ResizeObserver: den la tallene på én linje,
