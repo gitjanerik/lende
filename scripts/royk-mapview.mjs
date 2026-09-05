@@ -1251,6 +1251,45 @@ const SJEKKER = [
           + `skjult innhold (${stortTekstOverflyt.timer} timer) — X-en blir klippet bort`)
       }
 
+      // OG DEN SKAL TÅLE Å STÅ I ET `zoom`-LAG (v6.5.51). Raden følger nå
+      // tekstvalget fra hovedmenyen, og det er `zoom` på innpakningen som gjør
+      // det. Det er en felle for målingen: `getBoundingClientRect()` gir
+      // VISUELLE piksler (ganget med zoomen) mens `clientWidth` gir lokale, så
+      // en kolonne målt med rammen ble dobbelt så bred som den ledige plassen
+      // var talt i — og raden falt til gulvet på to timer uansett skjermbredde.
+      // Vi setter zoomen direkte på innpakningen framfor å gå veien om
+      // hovedmenyen: verdien er den samme, og en tur ut av 3D og inn igjen ville
+      // kostet en ny 4096²-tekstur.
+      const zoomOverflyt = await evalMedTak(page, async () => {
+        const rad = [...document.querySelectorAll('div')].find((d) =>
+          /MET\s*Norway/.test(d.textContent) && d.querySelector('[data-time]'))
+        if (!rad) return null
+        const mor = rad.parentElement
+        const for0 = mor.style.zoom
+        mor.style.zoom = '2'
+        await new Promise((r) => setTimeout(r, 900))
+        const svar = {
+          skjult: rad.scrollWidth - rad.clientWidth,
+          timer: rad.querySelectorAll('[data-time]').length,
+          // Zoomen MÅ ligge på en full-bredde forelder: er den flyttet til en
+          // `justify-center`-boks som krymper til innholdet, måler raden en
+          // forelder som følger sitt eget resultat.
+          morBredde: mor.clientWidth,
+        }
+        // NØYTRAL TILSTAND før neste sjekk (v5.8.1-fella).
+        mor.style.zoom = for0
+        await new Promise((r) => setTimeout(r, 700))
+        return svar
+      })
+      if (zoomOverflyt && zoomOverflyt.skjult > 1) {
+        throw new Error(`med 200 % tekst (zoom) har værraden ${zoomOverflyt.skjult} px `
+          + `skjult innhold (${zoomOverflyt.timer} timer)`)
+      }
+      if (zoomOverflyt && zoomOverflyt.timer < 2) {
+        throw new Error('værraden falt under gulvet på to timer i zoom-laget — '
+          + 'målingen blander visuelle og lokale piksler')
+      }
+
       // X-EN I VÆRRADEN (v6.3.8) tar bort både raden og værhimmelen, og gir dem
       // tilbake ved et bytte av lysmodus. Den erstatter det tredje steget
       // sol/måne-knappen hadde fram til v6.1.0.
@@ -1396,24 +1435,24 @@ const SJEKKER = [
         /Ser opp i himmelen/i.test(document.body.innerText))
       if (nede) throw new Error('«Oversikt» nullstilte ikke himmelvippen')
 
-      // STARGAZER (v6.5.44): veien fra en tom dagshimmel til stjernekikkeren.
+      // STJERNEKIKKER (v6.5.44): veien fra en tom dagshimmel til natthimmelen.
       // Den finnes BARE mens blikket står oppe, så den kan ikke prøves før vi
       // har løftet det igjen — og «Oversikt» over tok det nettopp ned, som er
       // den negative halvdelen av sjekken. Den ligger SIST med vilje: et trykk
       // åpner nattmodus, som stiller kameraet om (apneStjernehimmel), og et
       // bytte midt i sjekken ville flyttet grunnen under målingene over.
-      const stargazer = page.locator('button[aria-label="Stargazer — åpne natthimmelen"]')
-      if (await stargazer.count()) {
-        throw new Error('Stargazer-knappen står i kartbildet — den skal bare vises med blikket i himmelen')
+      const stjernekikker = page.locator('button[aria-label="Stjernekikker — åpne natthimmelen"]')
+      if (await stjernekikker.count()) {
+        throw new Error('Stjernekikker-knappen står i kartbildet — den skal bare vises med blikket i himmelen')
       }
       await dra(1)
-      if (!await stargazer.count()) {
-        throw new Error('Stargazer-knappen kom ikke fram da blikket sto i himmelen')
+      if (!await stjernekikker.count()) {
+        throw new Error('Stjernekikker-knappen kom ikke fram da blikket sto i himmelen')
       }
-      await stargazer.click({ timeout: 5000 })
+      await stjernekikker.click({ timeout: 5000 })
       await page.waitForTimeout(1800)
       if (await lesSolMaaneSteg(page) !== 'Bytt til dag') {
-        throw new Error('trykk på Stargazer åpnet ikke nattmodus')
+        throw new Error('trykk på Stjernekikker åpnet ikke nattmodus')
       }
       // Tilbake til dag, så modus-gjenopprettingen under regner på det den tror.
       await page.locator('button[aria-label="Bytt til dag"]').click({ timeout: 10_000 })
@@ -1425,7 +1464,7 @@ const SJEKKER = [
         await page.waitForTimeout(1600)
       }
       await lukk()
-      return 'vippet opp i himmelen, Oversikt tok blikket ned igjen, Stargazer åpnet natta'
+      return 'vippet opp i himmelen, Oversikt tok blikket ned igjen, Stjernekikker åpnet natta'
     },
   },
   {

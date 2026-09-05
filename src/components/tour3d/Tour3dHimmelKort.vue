@@ -86,7 +86,25 @@ const utforskning = computed(() => {
 // Prosaen for de legemene som HAR en globe. Nøkkelen er legeme-id-en: månen er
 // 'mane', planetene ligger som 'planet:<id>' i himmellista.
 // Nytt legeme, ny historie: en åpen liste skal ikke arves over til Saturn.
-watch(() => props.objekt?.id, () => { visAllUtforskning.value = false })
+//
+// KRYSSHÅRET BLINKER NÅR KORTET BYTTER OBJEKT (v6.5.51), og det er et svar på
+// at kortet nesten alltid står MINIMERT: ethvert valg legger det sammen
+// (v6.3.11), så et trykk i himmelen, et søketreff og et nabo-hopp ender alle i
+// den samme lille pilla — og på en natthimmel er det ikke gitt at man ser at
+// den ene tekstlinja i den ble en annen. Blinket er den kvitteringen.
+//
+// TELLER OG IKKE ET FLAGG: `:key` på ikonet gjør at elementet bygges på nytt,
+// og da starter CSS-animasjonen forfra. Et flagg + timer måtte ha nullstilt seg
+// selv mellom to raske bytter, og et halvferdig blink som ikke starter om er
+// nøyaktig den kvitteringen som ikke kommer.
+//
+// FYRER IKKE VED FØRSTE ÅPNING (`gammel` må finnes): da har man nettopp bedt om
+// kortet selv, og en blinkende knapp ville vært en beskjed om noe man alt vet.
+const blinkNr = ref(0)
+watch(() => props.objekt?.id, (ny, gammel) => {
+  visAllUtforskning.value = false
+  if (ny && gammel && ny !== gammel) blinkNr.value += 1
+})
 
 const globeTekst = computed(() => {
   const o = props.objekt
@@ -144,7 +162,11 @@ const faseNavn = computed(() => {
     <div class="shrink-0 flex items-center">
       <button @click="emit('fokus')" :aria-label="`Sett ${objekt.navn} i fokus`"
               class="w-7 h-7 flex items-center justify-center text-white/75 active:scale-90">
-        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+        <!-- `:key` er blinkets motor: en ny nøkkel bygger ikonet på nytt, og da
+             starter animasjonen forfra også midt i et pågående blink. -->
+        <svg :key="blinkNr" viewBox="0 0 24 24" class="w-4 h-4"
+             :class="blinkNr ? 'kryss-blink' : ''"
+             fill="none" stroke="currentColor"
              stroke-width="2" stroke-linecap="round" aria-hidden="true">
           <circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/>
           <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
@@ -185,23 +207,17 @@ const faseNavn = computed(() => {
        class="rounded-md bg-black/80 backdrop-blur shadow-lg max-w-full sm:max-w-sm
               flex flex-col overflow-hidden">
     <!-- HEADER — shrink-0, så den aldri klemmes eller rulles bort. -->
-    <div class="shrink-0 flex items-start gap-1.5 pl-3 pr-1 py-2
-                border-b border-white/10">
-      <div class="flex-1 min-w-0">
-        <div class="flex items-baseline gap-1.5">
-          <span class="text-[0.8125rem]" aria-hidden="true">{{ IKON[objekt.type] }}</span>
-          <span class="text-[0.875rem] font-semibold text-white/90 truncate">{{ objekt.navn }}</span>
-          <span v-if="objekt.latin && objekt.latin !== objekt.navn"
-                class="text-[0.625rem] italic text-white/70 truncate">{{ objekt.latin }}</span>
+    <div class="shrink-0 pl-3 pr-1 py-2 border-b border-white/10">
+      <!-- RAD 1: navnet og knappene. Bare navnet deler linje med dem, fordi det
+           er det eneste som MÅ leses samtidig som man rekker etter lukkeknappen. -->
+      <div class="flex items-start gap-1.5">
+        <div class="flex-1 min-w-0 flex items-baseline gap-1.5">
+          <span class="text-[0.8125rem] shrink-0" aria-hidden="true">{{ IKON[objekt.type] }}</span>
+          <!-- Ikke `truncate`: navnet er det man kom hit for, og med stor tekst
+               ble «Cassiopeia» til «Cas…». Det får heller bryte over to linjer. -->
+          <span class="min-w-0 text-[0.875rem] font-semibold text-white/90
+                       leading-tight break-words">{{ objekt.navn }}</span>
         </div>
-
-        <!-- Hvor det står. I HEADEREN, fordi det er det man trenger for å løfte
-             blikket i riktig retning — og da skal det ikke kunne rulles bort. -->
-        <div class="mt-0.5 text-[0.625rem] text-white/72">
-          {{ retning }}, {{ hoydeGrader }}°
-          {{ underHorisonten ? 'under horisonten' : 'over horisonten' }}
-        </div>
-      </div>
 
       <!-- Tekststørrelse, minimer og lukk, som i den minimerte pilla og i samme
            rekkefølge. Krysshåret hører ikke hit — se kommentaren i toppen av
@@ -225,6 +241,25 @@ const faseNavn = computed(() => {
             <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
           </svg>
         </button>
+        </div>
+      </div>
+
+      <!-- RAD 2: det latinske navnet, på EGEN LINJE (v6.5.51). Det sto før inne
+           i navnelinja, og der var det det første som ble klemt: tre tekster og
+           tre knapper på én rad ga «Cas… Cas…» ved stor tekst. Det står bevisst
+           IKKE i den minimerte pilla — der er én linje hele poenget. -->
+      <div v-if="objekt.latin && objekt.latin !== objekt.navn"
+           class="mt-0.5 pr-1 text-[0.625rem] italic text-white/70 break-words">
+        {{ objekt.latin }}
+      </div>
+
+      <!-- RAD 3: hvor det står. I HEADEREN, fordi det er det man trenger for å
+           løfte blikket i riktig retning — og da skal det ikke kunne rulles
+           bort. FULL BREDDE (v6.5.51): som en kolonne ved siden av knappene
+           brøt «nord, 79° over horisonten» over fire linjer ved 200 % tekst. -->
+      <div class="mt-0.5 pr-1 text-[0.625rem] text-white/72">
+        {{ retning }}, {{ hoydeGrader }}°
+        {{ underHorisonten ? 'under horisonten' : 'over horisonten' }}
       </div>
     </div>
 
@@ -421,3 +456,31 @@ const faseNavn = computed(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* BLINKENDE KRYSSHÅR NÅR KORTET BYTTER OBJEKT (v6.5.51).
+   Fargen er `#ffe9a3` — nøyaktig den himmelen selv fremhever med (VALGT_LINJE i
+   skyDome). Det er ikke pynt: kvitteringen skal peke på det som nettopp ble
+   gult der oppe, og en fjerde farge ville bare vært en fjerde farge.
+
+   Tre pulser og så slutt. Animasjonen er endelig med vilje — et krysshår som
+   pulser videre ville lest som en varsling, ikke som «se her, dette er nytt».
+   Restarten kommer fra `:key` og ikke fra en klasse som skrus av og på: en
+   CSS-animasjon starter ikke forfra av at klassen settes på nytt i samme frame. */
+@keyframes kryss-blink {
+  0%, 100% { color: rgb(255 255 255 / 0.75); transform: scale(1); }
+  50%      { color: #ffe9a3; transform: scale(1.22); }
+}
+.kryss-blink { animation: kryss-blink 0.52s ease-in-out 3; }
+
+/* Redusert bevegelse: skalaen faller bort, fargen blir stående et øyeblikk.
+   Kvitteringen er informasjon, så den skal ikke forsvinne helt — det er
+   bevegelsen som er problemet, ikke beskjeden. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes kryss-blink-rolig {
+    0%, 80% { color: #ffe9a3; }
+    100%    { color: rgb(255 255 255 / 0.75); }
+  }
+  .kryss-blink { animation: kryss-blink-rolig 1.6s ease-out 1; }
+}
+</style>

@@ -1,3 +1,21 @@
+## 2026-09-05 — v6.5.51: Stjernekikker, lesbart infokort i natta, og en toast som ikke lover for mye
+
+Natthimmelens infokort tåler nå stor tekst: det latinske navnet er flyttet ned på
+egen linje, posisjonslinja («nord, 79° over horisonten») fyller full bredde i
+stedet for å brekke i en smal kolonne ved siden av knappene, og navnet får bryte
+framfor å bli klippet til «Cas…». Bytter kortet objekt, blinker krysshåret i den
+minimerte pilla tre ganger i himmelens egen fremhevingsfarge — kortet står nesten
+alltid sammenlagt, og da er det ikke gitt at man ser at den ene tekstlinja ble en
+annen. Værraden og nordlyspanelet følger nå tekstvalget fra hovedmenyen, som Info
+og POI-filteret alt gjorde; værradens plassmåling er lagt om fra ramme til
+`offsetWidth`, siden de to enhetene spriker inne i et `zoom`-lag. Pilla i
+himmelsøket ellipserer i stedet for å brekke «Finn på himmelen» over ti linjer.
+«Stargazer» heter Stjernekikker. Og toasten om kappede kulturminner krever nå at
+taket faktisk bet: den sa «97 i dette utsnittet — viser de første 96, zoom inn for
+å se resten», der ingenting var kappet og ingen zoom kunne hentet det siste.
+
+---
+
 ## 2026-09-05 — v6.5.50: «Se etter oppdatering», og den automatiske sjekken som kunne kjøre seg fast
 
 `checkForUpdateNow()` i `lib/swUpdate.js` ble skrevet for en «Se etter

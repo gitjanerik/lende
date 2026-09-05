@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   buildWfsUrl, centroidFromPosList, vernInfo, parseWfsKulturminner, splitInformasjon,
-  enkeltminnekategoriLabel, dateringLabel, enkeltminneartLabel,
+  enkeltminnekategoriLabel, dateringLabel, enkeltminneartLabel, fredetErKappet,
+  FREDET_FETCH_CAP,
 } from './kulturminneWfs.js'
 
 describe('splitInformasjon', () => {
@@ -191,5 +192,27 @@ describe('parseWfsKulturminner', () => {
   it('returnerer [] for tomt/ugyldig', () => {
     expect(parseWfsKulturminner('')).toEqual([])
     expect(parseWfsKulturminner(null)).toEqual([])
+  })
+})
+
+describe('fredetErKappet', () => {
+  it('er falsk når taket ikke er nådd, selv om tallene spriker', () => {
+    // Den ekte observasjonen fra Tromsø: 97 i hits, 96 parset. Ingenting er
+    // kappet — én lokalitet manglet brukbar geometri — og «zoom inn for å se
+    // resten» er da et løfte ingen zoom kan innfri.
+    expect(fredetErKappet(97, 96)).toBe(false)
+  })
+
+  it('er sann først når vi faktisk fikk taket i retur', () => {
+    expect(fredetErKappet(825, FREDET_FETCH_CAP)).toBe(true)
+  })
+
+  it('er falsk når taket er nådd og det er alt som finnes', () => {
+    expect(fredetErKappet(FREDET_FETCH_CAP, FREDET_FETCH_CAP)).toBe(false)
+  })
+
+  it('er falsk før begge tallene er kjent', () => {
+    expect(fredetErKappet(null, 96)).toBe(false)
+    expect(fredetErKappet(97, null)).toBe(false)
   })
 })
