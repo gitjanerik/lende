@@ -156,11 +156,14 @@ function sampleSvg(category, code) {
        (LegendView, for deep-lenker) og modalen hovedmenyen åpner. Flaten maler
        seg selv fordi prøvene skal vises i KARTETS tema, ikke UI-temaet. -->
   <div class="min-h-full" :class="isDark ? 'bg-zinc-950 text-white/85' : 'bg-stone-100 text-zinc-900'">
-    <div class="px-4 pt-4 flex items-center gap-3">
+    <!-- Tema-velgeren wrapper ved 200 % tekst: etiketten og nedtrekket får hver
+         sin linje framfor at nedtrekket klippes av arkkanten. `min-w-0` er
+         nødvendig — et <select> har en egen minstebredde og krymper ikke uten. -->
+    <div class="px-4 pt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
       <span class="text-sm font-semibold uppercase tracking-wide"
             :class="isDark ? 'text-white/55' : 'text-zinc-500'">Tema</span>
       <select v-model="currentTheme" aria-label="Tema for tegnforklaringen"
-              class="rounded-lg text-xs px-2 py-1.5 border focus:outline-none focus:ring-1 focus:ring-emerald-400
+              class="min-w-0 max-w-full rounded-lg text-xs px-2 py-1.5 border focus:outline-none focus:ring-1 focus:ring-emerald-400
                      [&>option]:text-zinc-900 [&>option]:bg-white"
               :class="isDark ? 'bg-white/10 text-white border-white/10' : 'bg-white text-zinc-800 border-zinc-300'">
         <optgroup v-for="s in sections" :key="s.key" :label="s.label">
@@ -184,13 +187,20 @@ function sampleSvg(category, code) {
           {{ section.note }}
         </p>
         <div class="space-y-1.5">
+          <!-- RADEN MÅ TÅLE 200 % TEKST (v6.5.43). Prøven var `w-30 shrink-0` og
+               teksten `flex-1 min-w-0`: ved 200 % ble tekstspalta så smal at
+               etiketten sto som «Hø-/kur-» i én bokstavs bredde, og på en smal
+               telefon rant den ut av arket. Nå wrapper raden — prøven beholder
+               sine 120 px som BASIS men får krympe til 72, og blir det for
+               trangt, legger teksten seg på egen linje under i full bredde.
+               Ingen fast bredde noe sted er derfor et tak lenger. -->
           <div v-for="code in section.codes" :key="code"
-               class="flex items-center gap-3 rounded-lg px-3 py-2"
+               class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg px-3 py-2"
                :class="isDark ? 'bg-white/5' : 'bg-white border border-zinc-200'">
-            <div class="w-30 h-8 shrink-0 rounded overflow-hidden ring-1"
+            <div class="basis-30 min-w-18 grow-0 h-8 rounded overflow-hidden ring-1"
                  :class="isDark ? 'ring-white/10' : 'ring-zinc-200'"
                  v-html="sampleSvg(catFor(section, code), code)" />
-            <div class="flex-1 min-w-0">
+            <div class="flex-1 basis-40 min-w-0">
               <div class="text-sm leading-tight">
                 {{ defForCode(catFor(section, code), code)?.label ?? '—' }}
               </div>
@@ -211,5 +221,10 @@ function sampleSvg(category, code) {
 </template>
 
 <style scoped>
-.w-30 { width: 120px; }
+/* Tailwind har ingen ferdig klasse for disse pikselverdiene; de er prøvens
+   naturlige bredde (120 px), dens gulv, og tekstspaltas ønskede minstebredde
+   før raden heller wrapper. */
+.basis-30 { flex-basis: 120px; }
+.min-w-18 { min-width: 72px; }
+.basis-40 { flex-basis: 160px; }
 </style>

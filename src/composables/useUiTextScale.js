@@ -12,6 +12,14 @@ import { ref } from 'vue'
 // tilstand, og man kan gå rett tilbake. Derfor setTextScale i stedet for
 // cycleTextScale.
 //
+// v6.5.43: `cycleTextScale` kommer tilbake — men BARE for infopanelene, ikke
+// for hovedmenyen. Innvendingen fra v2.4.13 står fortsatt, og knappen svarer på
+// den på to måter: den bærer den gjeldende verdien i klartekst på sin egen
+// flate (ingen skjult tilstand), og den RUNDER (200 → 100), så veien tilbake er
+// tre trykk og ikke en blindvei. Hovedmenyen beholder samtidige valg — der er
+// det plass til fire knapper, og det er der man går for å velge en størrelse.
+// I et infopanel er plassen én knapp, og spørsmålet er «litt større, takk».
+//
 // v6.5.32: 200 % kom til. Lista er den ENE kilden — `load()` validerer mot den,
 // og hovedmenyens knapperad utledes av den — så et nytt hakk er én linje her.
 // Tallet er ikke et rundt hopp fra 150: det er der en tekst blir lesbar for den
@@ -31,11 +39,23 @@ function load() {
 
 const uiTextScale = ref(load())
 
+// Neste hakk i lista, med runding. Ren funksjon, så regelen kan testes uten
+// hverken localStorage eller en Vue-komponent. En verdi som ikke er i lista
+// (skrevet av en eldre utgave, eller for hånd i localStorage) faller til
+// første hakk framfor å låse knappen.
+export function nesteTextScale(v, skalaer = UI_TEXT_SCALES) {
+  const i = skalaer.indexOf(v)
+  return i < 0 ? skalaer[0] : skalaer[(i + 1) % skalaer.length]
+}
+
 export function useUiTextScale() {
   function setTextScale(v) {
     if (!UI_TEXT_SCALES.includes(v) || v === uiTextScale.value) return
     uiTextScale.value = v
     try { localStorage.setItem(LS_KEY, String(v)) } catch { /* ignorer */ }
   }
-  return { uiTextScale, setTextScale }
+  function cycleTextScale() {
+    setTextScale(nesteTextScale(uiTextScale.value))
+  }
+  return { uiTextScale, setTextScale, cycleTextScale }
 }

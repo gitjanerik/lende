@@ -4,6 +4,10 @@
 // NVE (Sildre). Navn/lenke vises straks fra kart-ikonets data-*; måleverdiene
 // hentes lazy av forelderen (useHydroStations) og fylles inn i `detail`.
 import { computed } from 'vue'
+import { useUiTextScale } from '../composables/useUiTextScale.js'
+import TekstStorrelseKnapp from './TekstStorrelseKnapp.vue'
+
+const { uiTextScale } = useUiTextScale()
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -80,19 +84,23 @@ function onOpenNve() {
               <div v-if="detail.riverName" class="text-[11px] text-ink/45">{{ detail.riverName }}</div>
             </div>
           </div>
-          <button @click="$emit('close')" aria-label="Lukk"
-                  class="w-8 h-8 -mr-1 -mt-0.5 shrink-0 rounded-full flex items-center justify-center
-                         bg-ink/5 border border-ink/10 text-ink/70 active:scale-90">
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-            </svg>
-          </button>
+          <!-- Tekststørrelse + lukk, utenfor den zoomede kroppen under. -->
+          <div class="shrink-0 flex items-center gap-1.5 -mr-1 -mt-0.5">
+            <TekstStorrelseKnapp />
+            <button @click="$emit('close')" aria-label="Lukk"
+                    class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center
+                           bg-ink/5 border border-ink/10 text-ink/70 active:scale-90">
+              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                   stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+              </svg>
+            </button>
+          </div>
         </div>
         <!-- Kropp: måleverdier + lenke -->
         <div v-show="!drawer.isMinimized.value"
              class="flex-1 overflow-y-auto px-4 pt-3"
-             :style="{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0.75rem)' }">
+             :style="{ zoom: uiTextScale, paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0.75rem)' }">
           <div v-if="loading && !hasAnyValue" class="text-[12px] text-ink/50 py-3">Henter sanntidsdata …</div>
 
           <div v-if="hasAnyValue" class="space-y-2">

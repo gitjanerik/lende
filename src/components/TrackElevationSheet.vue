@@ -5,6 +5,10 @@
 // (null → DEM utilgjengelig for dette kartet).
 import { buildProfilePath } from '../lib/elevationProfile.js'
 import { trackLengthM, trackDurationMs } from '../lib/gpxExport.js'
+import { useUiTextScale } from '../composables/useUiTextScale.js'
+import TekstStorrelseKnapp from './TekstStorrelseKnapp.vue'
+
+const { uiTextScale } = useUiTextScale()
 
 defineProps({
   track: { type: Object, default: null },     // { id, navn, opprettet, points }
@@ -45,17 +49,21 @@ function formatDuration(ms) {
             {{ track.points.length }} punkter
           </div>
         </div>
-        <button @click="$emit('close')"
-                aria-label="Lukk"
-                class="w-8 h-8 rounded-full bg-ink/5 border border-ink/10
-                       text-ink/65 flex items-center justify-center active:scale-90">
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-               stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-          </svg>
-        </button>
+        <div class="shrink-0 flex items-center gap-1.5">
+          <TekstStorrelseKnapp />
+          <button @click="$emit('close')"
+                  aria-label="Lukk"
+                  class="w-8 h-8 rounded-full bg-ink/5 border border-ink/10
+                         text-ink/65 flex items-center justify-center active:scale-90">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
+      <div :style="{ zoom: uiTextScale }">
       <template v-if="profile">
         <svg viewBox="0 0 600 180" preserveAspectRatio="none"
              class="w-full h-44 block rounded-lg bg-overlay text-ink">
@@ -114,6 +122,7 @@ function formatDuration(ms) {
           Høydeprofil ikke tilgjengelig — DEM kunne ikke leses for dette kartet.
         </div>
       </template>
+      </div>
     </div>
   </div>
 </template>

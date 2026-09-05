@@ -2,6 +2,7 @@
 import { useRouter } from 'vue-router'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
 import LegendContent from '../components/LegendContent.vue'
+import TekstStorrelseKnapp from '../components/TekstStorrelseKnapp.vue'
 
 // Full side på ruten /tegnforklaring. Innholdet ligger i LegendContent, som deles
 // med modalen hovedmenyen åpner. Ruten beholdes for deep-lenker.
@@ -20,6 +21,7 @@ const { uiTextScale } = useUiTextScale()
                stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
         <h1 class="text-lg font-semibold flex-1 text-ink">Tegnforklaring</h1>
+        <TekstStorrelseKnapp />
       </div>
     </header>
 

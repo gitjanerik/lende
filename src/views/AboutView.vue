@@ -2,6 +2,7 @@
 import { useRouter } from 'vue-router'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
 import AboutContent from '../components/AboutContent.vue'
+import TekstStorrelseKnapp from '../components/TekstStorrelseKnapp.vue'
 
 // Full side på ruten /om. Selve innholdet ligger i AboutContent, som deles med
 // AboutModal (hovedmenyens «Om appen»). Ruten beholdes for deep-lenker, /about-
@@ -22,6 +23,7 @@ const { uiTextScale } = useUiTextScale()
                stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
         <h1 class="text-lg font-semibold flex-1">Om Så i lende</h1>
+        <TekstStorrelseKnapp />
       </div>
     </header>
 

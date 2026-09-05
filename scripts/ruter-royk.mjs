@@ -486,6 +486,53 @@ try {
     /supplement/i.test(frittTekst) && /2 × 2 km/.test(frittTekst),
     'nevner supplement og arkstørrelsen')
 
+  // TEGNFORKLARINGEN MÅ TÅLE 200 % TEKST (v6.5.43). Raden var en fast
+  // 120 px-prøve med `shrink-0` og en tekstspalte som fikk resten: ved 200 % på
+  // en telefon ble spalta så smal at etiketten sto som én bokstav pr linje, og
+  // arket rant ut til høyre. Sjekken TRYKKER på den nye A-knappen framfor å
+  // seede localStorage — det er knappen som er ny, og en seedet verdi ville
+  // målt layouten uten å si om knappen virker.
+  const sL = await ctx.newPage()
+  sL.on('pageerror', (e) => jsFeil.push(e.message))
+  await sL.setViewportSize({ width: 360, height: 780 })   // smal telefon = verste fall
+  await sL.goto(`${BASE}/tegnforklaring`, { waitUntil: 'domcontentloaded' })
+  await sL.evaluate(() => localStorage.removeItem('lende-ui-text-scale'))
+  await sL.reload({ waitUntil: 'domcontentloaded' })
+  await sov(600)
+  const aKnapp = sL.locator('button[aria-label^="Tekststørrelse i grensesnittet"]').first()
+  const startEtikett = await aKnapp.getAttribute('aria-label')
+  // Fra 100 % til 200 %: tre trykk. Fjerde trykk skal RUNDE tilbake til 100 %.
+  for (let i = 0; i < 3; i++) { await aKnapp.click(); await sov(250) }
+  const paa200 = await aKnapp.getAttribute('aria-label')
+  const flyt = await sL.evaluate(() => {
+    const d = document.documentElement
+    // Bredeste synlige element mot viewporten — samme spørsmål som
+    // «renner arket ut», men det peker på HVEM som gjør det.
+    let verst = null
+    for (const el of document.querySelectorAll('body *')) {
+      const r = el.getBoundingClientRect()
+      if (r.width === 0) continue
+      const ut = Math.round(r.right - innerWidth)
+      if (ut > 2 && (!verst || ut > verst.ut)) {
+        verst = { ut, hvem: `${el.tagName.toLowerCase()}.${String(el.className).slice(0, 40)}` }
+      }
+    }
+    return { doc: d.scrollWidth - d.clientWidth, verst }
+  })
+  sjekk('Tegnforklaringen renner ikke ut ved 200 % tekst',
+    flyt.doc <= 1 && !flyt.verst,
+    flyt.verst ? `${flyt.verst.hvem} stikker ${flyt.verst.ut} px utenfor` : `doc-overflyt ${flyt.doc} px`)
+  sjekk('A-knappen i Tegnforklaringen bærer sin egen tilstand',
+    /100 prosent/.test(startEtikett || '') && /200 prosent/.test(paa200 || ''),
+    `${startEtikett} → ${paa200}`)
+  await aKnapp.click(); await sov(250)
+  const rundet = await aKnapp.getAttribute('aria-label')
+  sjekk('A-knappen runder tilbake til 100 %', /100 prosent/.test(rundet || ''), rundet || '')
+  // NØYTRAL TILSTAND: skalaen er global og persistert, så en sjekk som lar den
+  // stå på 200 % måler neste sjekk på en helt annen layout.
+  await sL.evaluate(() => localStorage.removeItem('lende-ui-text-scale'))
+  await sL.close()
+
   // Deep-lenker skal IKKE røres av hooken.
   const s3 = await ctx.newPage()
   s3.on('pageerror', (e) => jsFeil.push(e.message))

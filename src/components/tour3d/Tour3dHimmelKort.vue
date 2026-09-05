@@ -26,6 +26,7 @@
 // den nye, er kortet ett trykk unna.
 import { computed, ref, watch } from 'vue'
 import { kompass } from '../../lib/tour3d/himmelObjekter.js'
+import TekstStorrelseKnapp from '../TekstStorrelseKnapp.vue'
 import { GLOBE_TEKST } from '../../lib/tour3d/himmellegemer.js'
 import { faktaFor, manerLinje } from '../../lib/tour3d/himmelFakta.js'
 
@@ -137,6 +138,9 @@ const faseNavn = computed(() => {
       <span class="text-[0.8125rem] font-medium text-white/85 shrink-0 max-w-[60%] truncate">{{ objekt.navn }}</span>
       <span class="text-[0.625rem] text-white/45 min-w-0 truncate">{{ retning }}, {{ hoydeGrader }}°</span>
     </button>
+    <!-- Tekststørrelse hører til det ÅPNE kortet og ikke hit: pilla er én linje
+         som sier hva som er valgt, og en fjerde knapp på den linja spiser navnet
+         den finnes for. -->
     <div class="shrink-0 flex items-center">
       <button @click="emit('fokus')" :aria-label="`Sett ${objekt.navn} i fokus`"
               class="w-7 h-7 flex items-center justify-center text-white/55 active:scale-90">
@@ -199,9 +203,14 @@ const faseNavn = computed(() => {
         </div>
       </div>
 
-      <!-- Minimer og lukk, som i den minimerte pilla og i samme rekkefølge.
-           Krysshåret hører ikke hit — se kommentaren i toppen av malen. -->
+      <!-- Tekststørrelse, minimer og lukk, som i den minimerte pilla og i samme
+           rekkefølge. Krysshåret hører ikke hit — se kommentaren i toppen av
+           malen. Merk at HELE kortet er én zoomet boks her (Viewer3D's
+           `tekstBoks`), i motsetning til ark-panelene der bare kroppen zoomes —
+           så denne knappen vokser med sin egen effekt, og det er riktig: den
+           skal være like lett å treffe igjen ved 200 %. -->
       <div class="shrink-0 flex items-center">
+        <TekstStorrelseKnapp tema="natt" />
         <button @click="emit('minimer')" aria-label="Minimer infokortet"
                 class="w-7 h-7 flex items-center justify-center text-white/55 active:scale-90">
           <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"

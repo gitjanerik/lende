@@ -2432,6 +2432,110 @@ const SJEKKER = [
       return `${lyst}; ${morkResultat}`
     },
   },
+  {
+    // v6.5.43: A-knappen i infopanelenes hode. Enhetstesten dekker regelen
+    // (`nesteTextScale`), men ikke at knappen sitter i skuffen, at den treffer
+    // den globale singletonen, eller at skuffen tåler resultatet. Sjekken
+    // TRYKKER derfor og LESER `zoom` på flata under.
+    navn: 'A-knappen i skuffen skrur tekststørrelsen',
+    domene: 'useUiTextScale',
+    async kjør(page) {
+      await åpneDrawer(page)
+      const knapp = page.locator('button[aria-label^="Tekststørrelse i grensesnittet"]').first()
+      if (!(await knapp.count())) throw new Error('fant ingen A-knapp i skuffens hode')
+      const zoomNå = () => page.evaluate(() => {
+        const el = [...document.querySelectorAll('[style*="zoom"]')]
+          .find((n) => n.offsetParent && n.closest('.drawer-shell, [class*="drawer"]'))
+        return el ? getComputedStyle(el).zoom : null
+      })
+      const før = await zoomNå()
+      await knapp.click()
+      await page.waitForTimeout(300)
+      const etter = await zoomNå()
+      const etikett = await knapp.getAttribute('aria-label')
+      if (etter === før) throw new Error(`zoom sto stille på ${før} etter trykk`)
+      if (!/125 prosent/.test(etikett || '')) {
+        throw new Error(`knappen bærer ikke sin egen tilstand: «${etikett}»`)
+      }
+      // Skuffen må fortsatt kunne rulles til bunns — en tekstskala som skyver
+      // fanene ut av flata er verre enn ingen knapp.
+      const rull = await page.evaluate(() => {
+        const el = [...document.querySelectorAll('div')]
+          .find((n) => n.offsetParent && n.scrollHeight > n.clientHeight + 4 && /KARTLAG/.test(n.innerText))
+        if (!el) return null
+        el.scrollTop = el.scrollHeight
+        return el.scrollTop > 0
+      })
+      // NØYTRAL TILSTAND: skalaen er global og persistert. Rund tilbake til
+      // 100 % framfor å la neste sjekk måle en 125 %-layout.
+      for (let i = 0; i < 3; i++) { await knapp.click(); await page.waitForTimeout(200) }
+      const tilbake = await knapp.getAttribute('aria-label')
+      await lukkDrawer(page)
+      if (!/100 prosent/.test(tilbake || '')) throw new Error(`rundet ikke tilbake: «${tilbake}»`)
+      return `zoom ${før} → ${etter}, skuffen ruller ${rull}, runder tilbake til 100 %`
+    },
+  },
+  {
+    // v6.5.43: manifestet låste den installerte appen til høykant. Nå roterer
+    // den, og da må liggende faktisk være brukbart. Enhetstesten ser bare
+    // manifest-feltet; dette måler layouten i den retningen ingen sjekk hittil
+    // har sett.
+    navn: 'kartet tåler liggende skjerm',
+    domene: 'MapView',
+    async kjør(page) {
+      const mål = async () => page.evaluate(() => {
+        const d = document.documentElement
+        let verst = null
+        for (const el of document.querySelectorAll('.kart-ui *')) {
+          const r = el.getBoundingClientRect()
+          if (r.width === 0 || r.height === 0) continue
+          if (getComputedStyle(el).position === 'absolute' && el.tagName === 'IMG') continue
+          const ut = Math.round(r.right - innerWidth)
+          if (ut > 2 && (!verst || ut > verst.ut)) {
+            verst = { ut, hvem: `${el.tagName.toLowerCase()}.${String(el.className).slice(0, 40)}` }
+          }
+        }
+        return { doc: d.scrollWidth - d.clientWidth, verst }
+      })
+      const stående = await mål()
+      await page.setViewportSize({ width: 900, height: 430 })
+      await page.waitForTimeout(700)
+      const liggende = await mål()
+      // Sammenlikningen er mot STÅENDE og ikke mot null: kart-SVG-en og de
+      // dokkede lende-pilene stikker utenfor i begge retninger med vilje, så en
+      // absolutt terskel ville vært rød fra dag én. Spørsmålet er om ROTASJONEN
+      // gjorde det verre.
+      if (liggende.doc > stående.doc + 1) {
+        throw new Error(`dokumentet renner ut i liggende: ${liggende.doc} px mot ${stående.doc} px stående`)
+      }
+      // Skuffen må åpne og lukke på 430 px høyde — det er den flata som har
+      // minst å gå på når høyden halveres.
+      await åpneDrawer(page)
+      // Spørsmålet er om skuffen er BRUKBAR, ikke om den tilfeldigvis renner
+      // over: på 900 px bredde kan innholdet få plass, og en sjekk som krever
+      // en rulleflate ville da vært rød uten at noe var galt. Måler derfor at
+      // fane-knappen finnes, er synlig, og ligger innenfor viewporten.
+      const skuff = await page.evaluate(() => {
+        const b = [...document.querySelectorAll('button')]
+          .find((n) => n.offsetParent && /^KARTLAG$/.test(n.innerText.trim()))
+        if (!b) return null
+        const r = b.getBoundingClientRect()
+        const treff = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+        return {
+          innenfor: r.top >= -1 && r.bottom <= innerHeight + 1,
+          trykkbar: !!treff && b.contains(treff),
+        }
+      })
+      if (!skuff) throw new Error('skuffen åpnet ikke i liggende')
+      if (!skuff.innenfor) throw new Error('skuffens fane-rad ligger utenfor viewporten i liggende')
+      if (!skuff.trykkbar) throw new Error('skuffens fane-rad ligger under noe annet i liggende')
+      await lukkDrawer(page)
+      // NØYTRAL TILSTAND: tilbake til mobil-viewporten resten av sjekkene måler i.
+      await page.setViewportSize({ width: 430, height: 900 })
+      await page.waitForTimeout(600)
+      return `liggende doc-overflyt ${liggende.doc} px (stående ${stående.doc}), skuffen brukbar`
+    },
+  },
 ]
 
 // ---- små hjelpere ---------------------------------------------------------
