@@ -7,9 +7,11 @@
 // Verten eier ramme, padding, scroll og tekst-skalering; her ligger innholdet.
 import { ref, computed, watch, onMounted, onActivated, onUnmounted, onDeactivated } from 'vue'
 import { useRouter } from 'vue-router'
-import { listMaps, deleteMap, clearAll, renameMap, listGravelRoutes, deleteGravelRoute, updateGravelRoute } from '../lib/mapStorage.js'
+import { listMaps, loadMap, deleteMap, clearAll, renameMap, listGravelRoutes, deleteGravelRoute, updateGravelRoute } from '../lib/mapStorage.js'
 import { importerKartPakke } from '../lib/kartImport.js'
 import { PAKKE_FILENDELSE, lesefeilPaaNorsk } from '../lib/kartPakke.js'
+import { delEllerLastNedFil, pakkKartTilFil } from '../lib/kartFilDeling.js'
+import { APP_VERSION } from '../version.js'
 import { arkExtentFor } from '../lib/tileCache.js'
 import { routeShareToken, MAX_SHARE_ROUTES } from '../lib/routeShare.js'
 import RenameMapDialog from './RenameMapDialog.vue'
@@ -19,7 +21,6 @@ import { useNominatim } from '../composables/useNominatim.js'
 import { useSpeechInput } from '../composables/useSpeechInput.js'
 import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
-import { useUiTextScale } from '../composables/useUiTextScale.js'
 import { reverseGeocode } from '../lib/geocode.js'
 import { gpsFeilForklaring, GPS_IKKE_STOTTET } from '../lib/gpsFeil.js'
 import { mikrofonFeilForklaring } from '../lib/mikrofonFeil.js'
@@ -42,12 +43,6 @@ const props = defineProps({
 const emit = defineEmits(['update:tab', 'open-picker', 'fritt-lende', 'navigert'])
 
 const router = useRouter()
-const { uiTextScale } = useUiTextScale()
-
-// Ved forstørret tekst (> 100 %) blir kart-radene trange: kartnavnet får nesten
-// ikke plass ved siden av «blyant»/«søppel»-knappene. Da legger vi knappene på
-// egen linje under navnet i stedet (se kort-radens layout under).
-const isEnlarged = computed(() => uiTextScale.value > 1)
 
 // ── «Installer som app» ───────────────────────────────────────────────────
 // Forsiden tilbyr PWA-install. Knappen vises når nettleseren har fyrt av
@@ -332,6 +327,34 @@ async function onImportFil(e) {
     importFeil.value = lesefeilPaaNorsk(err) || err?.message || 'Kunne ikke lese kartfila.'
   } finally {
     importerer.value = false
+  }
+}
+
+// ── Last ned et kart som .lendekart-fil ─────────────────────────────────────
+// Motstykket til «Importer delt kart» rett over lista, og en snarvei til det
+// «Del som offline-fil» gjør inne i kart-visningen. Veien er DELT
+// (lib/kartFilDeling.js), så snarveien ikke kan gi en tynnere fil enn den lange
+// veien: begge samler datalagene først og leverer via delings-arket når
+// telefonen har et, ellers som nedlasting.
+//
+// Statusen er per kart og ikke én global: lista har mange rader, og en spinner
+// på feil rad er verre enn ingen.
+const lasterNed = ref('')      // kart-id under pakking, eller ''
+const nedlastFeil = ref('')
+
+async function onLastNed(m) {
+  if (lasterNed.value) return
+  lasterNed.value = m.id
+  nedlastFeil.value = ''
+  try {
+    const kart = await loadMap(m.id)
+    const { blob, filnavn } = await pakkKartTilFil({ kart, navn: m.navn, appVersion: APP_VERSION })
+    await delEllerLastNedFil(blob, filnavn, m.navn || 'Lende — turkart')
+  } catch (err) {
+    console.error('Nedlasting av kartfil feilet:', err)
+    nedlastFeil.value = `Kunne ikke lage fila for «${m.navn}». ${err?.message || ''}`.trim()
+  } finally {
+    lasterNed.value = ''
   }
 }
 
@@ -747,59 +770,93 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
     <div class="w-5 h-5 border-2 border-ink/15 border-t-ink/60 rounded-full animate-spin"/>
   </div>
 
+  <!-- Kunne ikke lage fila for ett av kartene. Står over lista, ikke i raden:
+       en feiltekst inne i en rad ville presset kortet ut av form akkurat der
+       brukeren nettopp trykket. -->
+  <div v-if="nedlastFeil" role="alert"
+       class="mb-3 px-3 py-2.5 rounded-lg bg-rose-500/[0.10] border border-rose-400/30
+              text-rose-200 text-[13px] leading-snug">{{ nedlastFeil }}</div>
+
+  <!-- Kart-kortet har TO linjer: kartet selv (ikon + navn + to metadatalinjer),
+       og en handlingsrad under. Fram til v6.5.47 sto knappene til høyre for
+       navnet og stjal bredden fra nettopp de to metadatalinjene, som da ble
+       kuttet med «…» på en vanlig telefon. Nå får teksten hele bredden, og
+       nedlastingen får plass ved siden av de to andre — det er den samme fila
+       «Importer delt kart» over lista tar imot, så eksport og import står nå
+       på samme side. -->
   <div v-for="(m, index) in maps" :key="m.id"
        :id="`maphome-map-${index}`"
        class="mb-2 rounded-lg border overflow-hidden"
        :class="index === mapsActiveIndex
          ? 'border-emerald-300/50 bg-ink/[0.08]'
          : 'border-ink/10 bg-ink/[0.04]'">
-    <div class="flex gap-3 px-4 py-3 active:bg-ink/[0.07]"
-         :class="isEnlarged ? 'flex-col' : 'items-center'"
-         @click="openMap(m.id)">
-      <div class="flex items-center gap-3 min-w-0" :class="isEnlarged ? '' : 'flex-1'">
-        <div class="shrink-0 w-10 h-10 rounded-lg bg-slate-500/15 border border-slate-300/25
-                    flex items-center justify-center text-slate-300">
-          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
-               stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 6 L9 4 L15 6 L21 4 L21 18 L15 20 L9 18 L3 20 Z"/>
-            <path d="M9 4 V18 M15 6 V20"/>
-          </svg>
+    <button type="button" @click="openMap(m.id)"
+            class="w-full text-left flex items-center gap-3 px-4 pt-3 pb-2
+                   active:bg-ink/[0.07] focus-visible:outline-2 focus-visible:-outline-offset-2
+                   focus-visible:outline-emerald-400">
+      <div class="shrink-0 w-10 h-10 rounded-lg bg-slate-500/15 border border-slate-300/25
+                  flex items-center justify-center text-slate-300">
+        <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+             stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 6 L9 4 L15 6 L21 4 L21 18 L15 20 L9 18 L3 20 Z"/>
+          <path d="M9 4 V18 M15 6 V20"/>
+        </svg>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="font-medium text-[14px] truncate text-ink">{{ m.navn }}</div>
+        <div class="text-[12px] text-ink/60 truncate">
+          {{ [storrelseFor(m), m.equidistanceM ? `${m.equidistanceM} m ekv.` : '', demLabel(m.demResolutionM, m.demSource)].filter(Boolean).join(' · ') }}
         </div>
-        <div class="flex-1 min-w-0">
-          <div class="font-medium text-[14px] truncate text-ink">{{ m.navn }}</div>
-          <div class="text-[12px] text-ink/50 truncate">
-            {{ [storrelseFor(m), m.equidistanceM ? `${m.equidistanceM} m ekv.` : '', demLabel(m.demResolutionM, m.demSource)].filter(Boolean).join(' · ') }}
-          </div>
-          <div class="text-[11px] text-ink/35 truncate">
-            {{ formatDateTime(m.opprettet) }}<template v-if="formatBytes(m.sizeBytes)"> · {{ formatBytes(m.sizeBytes) }}</template>
-          </div>
+        <div class="text-[11px] text-ink/50 truncate">
+          {{ formatDateTime(m.opprettet) }}<template v-if="formatBytes(m.sizeBytes)"> · {{ formatBytes(m.sizeBytes) }}</template>
         </div>
       </div>
-      <!-- Blyant/søppel: på egen linje (høyrestilt) når teksten er forstørret,
-           ellers til høyre for navnet som før. -->
-      <div class="shrink-0 flex items-center gap-1" :class="isEnlarged ? 'justify-end -mr-1' : ''">
-        <button @click.stop="onRename(m.id, m.navn)"
-                aria-label="Gi kart nytt navn"
-                class="w-9 h-9 rounded-lg flex items-center justify-center text-ink/35
-                       active:bg-ink/10 active:text-ink/70">
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 20h9"/>
-            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
-          </svg>
-        </button>
-        <button @click.stop="onDelete(m.id, m.navn)"
-                aria-label="Slett kart"
-                class="w-9 h-9 rounded-lg flex items-center justify-center text-ink/35
-                       active:bg-ink/10 active:text-ink/70">
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="3 6 5 6 21 6"/>
-            <path d="M19 6 L18 20 a2 2 0 0 1 -2 2 H8 a2 2 0 0 1 -2 -2 L5 6"/>
-            <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
-          </svg>
-        </button>
-      </div>
+    </button>
+    <!-- Handlingsraden ligger UTENFOR kart-knappen, ikke oppå den: en knapp i
+         en knapp er ugyldig markup, og @click.stop er en avtale man må huske
+         hver gang det kommer en knapp til. -->
+    <div class="flex items-center justify-end gap-1 px-3 pb-2">
+      <button type="button" @click="onLastNed(m)" :disabled="!!lasterNed"
+              :aria-label="`Last ned ${m.navn} som fil`"
+              :aria-busy="lasterNed === m.id ? 'true' : undefined"
+              class="w-9 h-9 rounded-lg flex items-center justify-center text-ink/55
+                     active:bg-ink/10 active:text-ink disabled:opacity-40
+                     focus-visible:outline-2 focus-visible:outline-offset-1
+                     focus-visible:outline-emerald-400">
+        <span v-if="lasterNed === m.id"
+              class="w-4 h-4 rounded-full border-2 border-ink/20 border-t-ink/70 animate-spin"></span>
+        <svg v-else viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </button>
+      <button type="button" @click="onRename(m.id, m.navn)"
+              :aria-label="`Gi ${m.navn} nytt navn`"
+              class="w-9 h-9 rounded-lg flex items-center justify-center text-ink/55
+                     active:bg-ink/10 active:text-ink
+                     focus-visible:outline-2 focus-visible:outline-offset-1
+                     focus-visible:outline-emerald-400">
+        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 20h9"/>
+          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+        </svg>
+      </button>
+      <button type="button" @click="onDelete(m.id, m.navn)"
+              :aria-label="`Slett ${m.navn}`"
+              class="w-9 h-9 rounded-lg flex items-center justify-center text-ink/55
+                     active:bg-ink/10 active:text-ink
+                     focus-visible:outline-2 focus-visible:outline-offset-1
+                     focus-visible:outline-emerald-400">
+        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6 L18 20 a2 2 0 0 1 -2 2 H8 a2 2 0 0 1 -2 -2 L5 6"/>
+          <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+        </svg>
+      </button>
     </div>
   </div>
 

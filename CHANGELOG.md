@@ -1,3 +1,23 @@
+## 2026-09-05 — v6.5.47: Nedlasting rett fra kartlista
+
+Kart-radene i «Mine kart» har fått handlingene på egen linje, og en ny
+nedlastings-knapp ved siden av «gi nytt navn» og «slett». Knappene sto før til
+høyre for kartnavnet og stjal bredden fra de to metadatalinjene under det, som
+dermed ble kuttet med «…» på en vanlig telefon; nå får teksten hele bredden.
+Nedlastingen gir samme `.lendekart`-fil som «Del som offline-fil» inne i
+kart-visningen — importen sto allerede rett over lista, så eksport og import
+henger nå sammen på samme side.
+
+Selve pakke- og leveringsveien er flyttet til `lib/kartFilDeling.js` og DELT av
+de to knappene. Det er poenget med uttrekket: en snarvei som pakket «nesten det
+samme» ville gitt turkameraten et kart uten kulturminner eller verneområder,
+uten at noe i UI-et sa hvilken knapp som ga hvilken fil. Kart-raden er dessuten
+blitt en ekte `<button>` med egen fokusring, og de tre ikonknappene ligger nå
+utenfor den — en knapp i en knapp er ugyldig markup, og `@click.stop` er en
+avtale man må huske hver gang det kommer en knapp til.
+
+---
+
 ## 2026-09-05 — v6.5.46: Kvadratisk, stående, liggende — og kompasset dekker skjermen
 
 Formatvelgeren har tre valg med ett ord hver. «Portrett (mobilskjerm)» og
