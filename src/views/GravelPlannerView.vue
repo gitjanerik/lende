@@ -978,33 +978,14 @@ function inviteTopObstructPx() {
   return b && m ? Math.max(0, b.bottom - m.top + 8) : 0
 }
 
-// Reaktiv banner-underkant (v12.1.31): zoom-kontrollene (+/−/nivå) flyttes
-// under banneret så de aldri skjules — banneret har to størrelser (kollapset/
-// utvidet) og kan endre høyde (install-info, rutevalg), så høyden observeres
-// live med ResizeObserver i stedet for å utledes av tilstander.
-const inviteBannerBottomPx = ref(0)
-const zoomCtrlTopPx = computed(() =>
-  inviteBannerBottomPx.value > 0 ? inviteBannerBottomPx.value + 10 : 12)
-let inviteBannerObs = null
-watch(routeInvite, (inv) => {
-  inviteBannerObs?.disconnect()
-  inviteBannerObs = null
-  if (!inv) { inviteBannerBottomPx.value = 0; return }
-  nextTick(() => {
-    const el = inviteBannerRef.value
-    if (!el) return
-    const update = () => {
-      const b = el.getBoundingClientRect()
-      const m = mapRef.value?.getBoundingClientRect()
-      inviteBannerBottomPx.value = b && m ? Math.max(0, b.bottom - m.top) : 0
-    }
-    update()
-    if (typeof ResizeObserver !== 'undefined') {
-      inviteBannerObs = new ResizeObserver(update)
-      inviteBannerObs.observe(el)
-    }
-  })
-}, { immediate: true })
+// ZOOM-KONTROLLENE MÅLES IKKE LENGER (v6.5.56). Fram til nå hadde de en
+// `top` i piksler, satt av en ResizeObserver på banneret, fordi banneret har to
+// størrelser (kollapset/utvidet) og kan endre høyde (install-info, rutevalg).
+// Men «ligg under banneret, og øverst når det ikke finnes» ER normal flyt: de to
+// deler nå én kolonne i malen, og flyten gjør jobben uten et eneste tall. Merk
+// at `inviteBannerRef` fortsatt måles — av `inviteTopObstructPx` over, som er
+// ekte geometri (hvor mye av kartflaten er dekket, til innrammingen av ruta) og
+// ikke layout.
 
 // Velg en delt rute fra banner-lista (flerdelings-mottak): prefyller A/B og
 // nullstiller ev. forrige beregning så «Finn grusrute» gjelder valget.
@@ -1241,7 +1222,6 @@ onUnmounted(() => {
   mapCtx.unregister(menuMapPoint)
   unlockBodyScroll()
   mapResizeObs?.disconnect()
-  inviteBannerObs?.disconnect()
   window.removeEventListener('resize', measureMap)
   overlayAbort?.abort()
   if (overlayDebounce) clearTimeout(overlayDebounce)
@@ -1441,24 +1421,6 @@ onUnmounted(() => {
         </div>
       </template>
 
-      <!-- Zoom-knapper + nivå-badge. mousedown/touchstart stoppes så knappe-
-           trykk ikke tolkes som kart-tap (tap-to-set for A/B). Toppen følger
-           delings-banneret dynamisk (v12.1.31): default topp-høyre, men under
-           banneret når det vises — både kollapset og utvidet størrelse måles
-           live (ResizeObserver), så +/−/nivå alltid er synlige. -->
-      <div class="absolute right-3 z-10 flex flex-col items-center gap-1.5 transition-[top] duration-200"
-           :style="{ top: zoomCtrlTopPx + 'px' }"
-           @mousedown.stop @touchstart.stop>
-        <button @click.stop="stepZoom(1)" aria-label="Zoom inn"
-                class="w-9 h-9 rounded-lg bg-overlay/90 border border-ink/15 text-ink text-lg font-medium
-                       flex items-center justify-center active:scale-95 transition">+</button>
-        <button @click.stop="stepZoom(-1)" aria-label="Zoom ut"
-                class="w-9 h-9 rounded-lg bg-overlay/90 border border-ink/15 text-ink text-lg font-medium
-                       flex items-center justify-center active:scale-95 transition">−</button>
-        <div class="px-1.5 py-0.5 rounded-md bg-overlay/85 border border-ink/15 text-ink-3 text-[10px]
-                    tabular-nums pointer-events-none">z{{ zoom }}</div>
-      </div>
-
       <!-- FAB-klynge (v4.8.2): samme anker som turkartet. Nord-knotten viser
            hele ruten når det finnes en, ellers sentrerer den på GPS-posisjonen
            — plassen betyr «legg kartet der jeg trenger det» i begge visninger.
@@ -1507,124 +1469,152 @@ onUnmounted(() => {
       <!-- z-[15] (v12.1.31, var z-30): banneret skal ligge over kartet men
            UNDER skuffen (z-20), så en maksimert skuff dekker det i stedet for
            å klinsje. -->
-      <div v-if="routeInvite" class="absolute top-3 left-3 right-3 z-[15] flex justify-center"
-           @mousedown.stop @touchstart.stop @wheel.stop>
-        <div ref="inviteBannerRef"
-             class="relative w-full max-w-[560px] rounded-xl border border-sky-300/40 bg-overlay/92
-                    backdrop-blur shadow-2xl"
-             :class="inviteCollapsed ? 'px-3 py-2' : 'px-4 py-3'">
-          <!-- Minifisert (v12.1.28): én linje + pil ned — trykk for å utvide.
-               Frigjør kartflaten mens man studerer den valgte ruta. -->
-          <button v-if="inviteCollapsed" @click="inviteCollapsed = false"
-                  aria-label="Utvid delings-panelet" :aria-expanded="false"
-                  class="w-full flex items-center gap-2 text-left active:opacity-70 transition">
-            <!-- Mini-utgave av delingsikonet (w-5 = radhøyden, øker ikke
-                 kollapset høyde) -->
-            <span class="shrink-0 w-5 h-5 -my-1 rounded-full bg-sky-400/20 border border-sky-300/40
-                         flex items-center justify-center text-sky-200">
-              <svg viewBox="0 0 24 24" class="w-3 h-3" fill="none" stroke="currentColor"
-                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-              </svg>
-            </span>
-            <span class="flex-1 truncate text-[12px] font-semibold text-sky-100">
-              Noen har delt {{ inviteRoutes.length > 1 ? `${inviteRoutes.length} grusruter` : 'en grusrute' }} med deg!
-            </span>
-            <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0 text-sky-200/80" fill="none"
-                 stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                 stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-          <template v-else>
-          <!-- Minimer-pil øverst til høyre (X-en bor i footeren, v12.1.28) -->
-          <button @click="inviteCollapsed = true" aria-label="Minimer delings-panelet"
-                  :aria-expanded="true"
-                  class="absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center
-                         text-sky-200/70 hover:text-sky-100 hover:bg-sky-400/15 active:scale-95 transition">
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
-                 stroke-linecap="round" stroke-linejoin="round"><polyline points="6 15 12 9 18 15"/></svg>
-          </button>
-          <div class="flex items-center gap-3 pr-8">
-            <div class="shrink-0 w-10 h-10 rounded-full bg-sky-400/20 border border-sky-300/40
-                        flex items-center justify-center text-sky-200">
-              <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
-                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-              </svg>
-            </div>
-            <div class="flex-1 min-w-0">
-              <div class="text-[13px] font-semibold text-sky-100">
-                Noen har delt {{ inviteRoutes.length > 1 ? `${inviteRoutes.length} grusruter` : 'en grusrute' }} med deg!
-              </div>
-              <div v-if="inviteRoutes.length === 1 && inviteActive?.navn"
-                   class="text-[11px] text-sky-100/75 truncate">
-                Rute: {{ inviteActive.navn }}
-              </div>
-            </div>
-          </div>
-          <!-- Flerdeling: velg rute fra lista — én beregnes om gangen. Maks
-               ~3 rader synlige (v12.1.27), resten scroller — banneret skal
-               ikke spise kartflaten der den valgte ruta rammes inn. -->
-          <div v-if="inviteRoutes.length > 1" class="mt-2.5 space-y-1 max-h-[6.75rem] overflow-y-auto">
-            <button v-for="(r, i) in inviteRoutes" :key="i" @click="pickInviteRoute(i)"
-                    class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg border text-left
-                           text-[12px] font-medium active:scale-[0.99] transition"
-                    :class="invitePicked === i
-                            ? 'bg-sky-400/20 border-sky-300/50 text-sky-100'
-                            : 'bg-ink/[0.05] border-ink/15 text-ink-2'">
-              <span class="flex-1 truncate">{{ r.navn ?? `Rute ${i + 1}` }}</span>
-              <svg v-if="invitePicked === i" viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0"
-                   fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
-                   stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            </button>
-          </div>
-          <!-- Footer: infotekst + Lukk (X) — samlet nederst (v12.1.28) -->
-          <div class="mt-2 flex items-center gap-2">
-            <div class="flex-1 text-[11px] text-ink-2 leading-relaxed">
-              <template v-if="inviteRoutes.length > 1">
-                Velg en rute og trykk «Finn grusrute» — rutene beregnes én om gangen. God tur!
-              </template>
-              <template v-else>
-                Start og mål er fylt inn. Trykk «Finn grusrute», så beregnes den samme grusruta for deg. God tur!
-              </template>
-            </div>
-            <button @click="dismissRouteInvite" aria-label="Avbryt delt rute"
-                    class="shrink-0 w-8 h-8 rounded-full border border-ink/15 bg-ink/5
-                           flex items-center justify-center text-sky-200/70 hover:text-sky-100
-                           active:scale-95 transition">
-              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
-                   stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
-          </div>
-          <div v-if="!isStandalone" class="mt-2.5 pt-2.5 border-t border-sky-300/15">
-            <label class="flex items-start gap-2.5 cursor-pointer">
-              <input type="checkbox" v-model="installRequested"
-                     class="mt-0.5 w-4 h-4 shrink-0 accent-sky-400 cursor-pointer" />
-              <span class="flex-1 text-[11px] text-sky-100/85 leading-relaxed">
-                Installer appen for en bedre opplevelse
-                <button type="button" @click.prevent="showInstallInfo = !showInstallInfo"
-                        aria-label="Hva betyr det?" :aria-expanded="showInstallInfo"
-                        class="inline-flex items-center justify-center align-middle ml-1
-                               w-4 h-4 rounded-full border border-sky-300/50 text-sky-200/90
-                               text-[9px] font-bold leading-none active:scale-90 transition">
-                  i
-                </button>
+      <!-- BANNERET OG ZOOM-KONTROLLENE DELER ÉN KOLONNE (v6.5.56), og det er
+           flyten som holder dem fra hverandre. Før lå de som hver sin absolutt
+           boks, og zoom-knappene fikk toppen sin fra en ResizeObserver på
+           banneret — en måling for å svare på «hva ligger under hva», som er
+           nettopp det normal flyt gjør gratis. Kolonnen er `pointer-events-none`
+           så den tomme plassen mellom radene ikke stjeler kart-trykk; hver rad
+           slår det på igjen for seg.
+           z-[15]: over kartet, men UNDER skuffen (z-20), så en maksimert skuff
+           dekker begge i stedet for å klinsje. -->
+      <div class="absolute top-3 left-3 right-3 z-[15] flex flex-col gap-2.5
+                  pointer-events-none">
+        <div v-if="routeInvite" class="flex justify-center"
+             @mousedown.stop @touchstart.stop @wheel.stop>
+          <div ref="inviteBannerRef"
+               class="relative w-full max-w-[560px] rounded-xl border border-sky-300/40 bg-overlay/92
+                      backdrop-blur shadow-2xl pointer-events-auto"
+               :class="inviteCollapsed ? 'px-3 py-2' : 'px-4 py-3'">
+            <!-- Minifisert (v12.1.28): én linje + pil ned — trykk for å utvide.
+                 Frigjør kartflaten mens man studerer den valgte ruta. -->
+            <button v-if="inviteCollapsed" @click="inviteCollapsed = false"
+                    aria-label="Utvid delings-panelet" :aria-expanded="false"
+                    class="w-full flex items-center gap-2 text-left active:opacity-70 transition">
+              <!-- Mini-utgave av delingsikonet (w-5 = radhøyden, øker ikke
+                   kollapset høyde) -->
+              <span class="shrink-0 w-5 h-5 -my-1 rounded-full bg-sky-400/20 border border-sky-300/40
+                           flex items-center justify-center text-sky-200">
+                <svg viewBox="0 0 24 24" class="w-3 h-3" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                </svg>
               </span>
-            </label>
-            <Transition name="overlay-fade">
-              <div v-if="showInstallInfo"
-                   class="mt-2 ml-[26px] text-[10px] text-sky-100/60 leading-relaxed">
-                Installasjon legger appen på hjemskjermen din, så den åpner i fullskjerm og fungerer
-                offline. Du kan også gjøre dette senere fra forsiden.
+              <span class="flex-1 truncate text-[12px] font-semibold text-sky-100">
+                Noen har delt {{ inviteRoutes.length > 1 ? `${inviteRoutes.length} grusruter` : 'en grusrute' }} med deg!
+              </span>
+              <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0 text-sky-200/80" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                   stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <template v-else>
+            <!-- Minimer-pil øverst til høyre (X-en bor i footeren, v12.1.28) -->
+            <button @click="inviteCollapsed = true" aria-label="Minimer delings-panelet"
+                    :aria-expanded="true"
+                    class="absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center
+                           text-sky-200/70 hover:text-sky-100 hover:bg-sky-400/15 active:scale-95 transition">
+              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round"><polyline points="6 15 12 9 18 15"/></svg>
+            </button>
+            <div class="flex items-center gap-3 pr-8">
+              <div class="shrink-0 w-10 h-10 rounded-full bg-sky-400/20 border border-sky-300/40
+                          flex items-center justify-center text-sky-200">
+                <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                </svg>
               </div>
-            </Transition>
+              <div class="flex-1 min-w-0">
+                <div class="text-[13px] font-semibold text-sky-100">
+                  Noen har delt {{ inviteRoutes.length > 1 ? `${inviteRoutes.length} grusruter` : 'en grusrute' }} med deg!
+                </div>
+                <div v-if="inviteRoutes.length === 1 && inviteActive?.navn"
+                     class="text-[11px] text-sky-100/75 truncate">
+                  Rute: {{ inviteActive.navn }}
+                </div>
+              </div>
+            </div>
+            <!-- Flerdeling: velg rute fra lista — én beregnes om gangen. Maks
+                 ~3 rader synlige (v12.1.27), resten scroller — banneret skal
+                 ikke spise kartflaten der den valgte ruta rammes inn. -->
+            <div v-if="inviteRoutes.length > 1" class="mt-2.5 space-y-1 max-h-[6.75rem] overflow-y-auto">
+              <button v-for="(r, i) in inviteRoutes" :key="i" @click="pickInviteRoute(i)"
+                      class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg border text-left
+                             text-[12px] font-medium active:scale-[0.99] transition"
+                      :class="invitePicked === i
+                              ? 'bg-sky-400/20 border-sky-300/50 text-sky-100'
+                              : 'bg-ink/[0.05] border-ink/15 text-ink-2'">
+                <span class="flex-1 truncate">{{ r.navn ?? `Rute ${i + 1}` }}</span>
+                <svg v-if="invitePicked === i" viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0"
+                     fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                     stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </button>
+            </div>
+            <!-- Footer: infotekst + Lukk (X) — samlet nederst (v12.1.28) -->
+            <div class="mt-2 flex items-center gap-2">
+              <div class="flex-1 text-[11px] text-ink-2 leading-relaxed">
+                <template v-if="inviteRoutes.length > 1">
+                  Velg en rute og trykk «Finn grusrute» — rutene beregnes én om gangen. God tur!
+                </template>
+                <template v-else>
+                  Start og mål er fylt inn. Trykk «Finn grusrute», så beregnes den samme grusruta for deg. God tur!
+                </template>
+              </div>
+              <button @click="dismissRouteInvite" aria-label="Avbryt delt rute"
+                      class="shrink-0 w-8 h-8 rounded-full border border-ink/15 bg-ink/5
+                             flex items-center justify-center text-sky-200/70 hover:text-sky-100
+                             active:scale-95 transition">
+                <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <div v-if="!isStandalone" class="mt-2.5 pt-2.5 border-t border-sky-300/15">
+              <label class="flex items-start gap-2.5 cursor-pointer">
+                <input type="checkbox" v-model="installRequested"
+                       class="mt-0.5 w-4 h-4 shrink-0 accent-sky-400 cursor-pointer" />
+                <span class="flex-1 text-[11px] text-sky-100/85 leading-relaxed">
+                  Installer appen for en bedre opplevelse
+                  <button type="button" @click.prevent="showInstallInfo = !showInstallInfo"
+                          aria-label="Hva betyr det?" :aria-expanded="showInstallInfo"
+                          class="inline-flex items-center justify-center align-middle ml-1
+                                 w-4 h-4 rounded-full border border-sky-300/50 text-sky-200/90
+                                 text-[9px] font-bold leading-none active:scale-90 transition">
+                    i
+                  </button>
+                </span>
+              </label>
+              <Transition name="overlay-fade">
+                <div v-if="showInstallInfo"
+                     class="mt-2 ml-[26px] text-[10px] text-sky-100/60 leading-relaxed">
+                  Installasjon legger appen på hjemskjermen din, så den åpner i fullskjerm og fungerer
+                  offline. Du kan også gjøre dette senere fra forsiden.
+                </div>
+              </Transition>
+            </div>
+            </template>
           </div>
-          </template>
+        </div>
+        <!-- Zoom-knapper + nivå-badge. mousedown/touchstart stoppes så
+             knappe-trykk ikke tolkes som kart-tap (tap-to-set for A/B).
+             Ingen egen topp-verdi: raden ligger under banner-raden når den
+             finnes, og øverst når den ikke gjør det. -->
+        <div class="flex justify-end" @mousedown.stop @touchstart.stop>
+          <div class="flex flex-col items-center gap-1.5 pointer-events-auto">
+            <button @click.stop="stepZoom(1)" aria-label="Zoom inn"
+                    class="w-9 h-9 rounded-lg bg-overlay/90 border border-ink/15 text-ink text-lg font-medium
+                           flex items-center justify-center active:scale-95 transition">+</button>
+            <button @click.stop="stepZoom(-1)" aria-label="Zoom ut"
+                    class="w-9 h-9 rounded-lg bg-overlay/90 border border-ink/15 text-ink text-lg font-medium
+                           flex items-center justify-center active:scale-95 transition">−</button>
+            <div class="px-1.5 py-0.5 rounded-md bg-overlay/85 border border-ink/15 text-ink-3 text-[10px]
+                        tabular-nums pointer-events-none">z{{ zoom }}</div>
+          </div>
         </div>
       </div>
 
