@@ -18,7 +18,7 @@ import AboutContent from './AboutContent.vue'
 import LegendContent from './LegendContent.vue'
 import MapLibrary from './MapLibrary.vue'
 import MapPickerContent from './MapPickerContent.vue'
-import { APP_VERSION } from '../version.js'
+import VersjonSjekk from './VersjonSjekk.vue'
 import { useFokusFelle } from '../composables/useFokusFelle.js'
 
 // Global hovedmeny — slide-in fra venstre. Montert én gang i App.vue og styrt av
@@ -426,7 +426,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               </svg>
             </span>Om appen
           </button>
-          <div class="am-version">Versjon {{ APP_VERSION }}</div>
+          <VersjonSjekk class="am-version" />
         </div>
       </div>
     </aside>

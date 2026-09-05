@@ -2492,6 +2492,53 @@ const SJEKKER = [
     },
   },
   {
+    // v6.5.50: `checkForUpdateNow()` i lib/swUpdate.js ble skrevet for en
+    // «Se etter oppdatering»-knapp som ble igjen i svg-insights da Lende ble
+    // skilt ut — funksjonen sto med NULL kallere, og appen hadde ingen manuell
+    // vei til en ny versjon. Ingen enhetstest kan se det: en ubrukt eksport er
+    // helt gyldig kode, og et manglende kallsted er nettopp ingenting. Derfor
+    // måles knappen her, der den faktisk må stå og svare.
+    navn: 'versjonslinja i hovedmenyen kan se etter oppdatering',
+    domene: 'VersjonSjekk + swUpdate',
+    async kjør(page) {
+      await page.locator('button[aria-label="Åpne meny"]').click({ timeout: 10_000 })
+      const meny = page.locator('aside[aria-label="Hovedmeny"]')
+      await meny.waitFor({ state: 'visible', timeout: 10_000 })
+
+      const versjon = meny.locator('.vs-rad')
+      if (!await versjon.count()) throw new Error('fant ingen versjonslinje i hovedmenyen')
+      const linje = (await versjon.first().innerText()).trim()
+      if (!/Versjon \d+\.\d+\.\d+/.test(linje)) {
+        throw new Error(`versjonslinja mangler versjonsnummeret: «${linje}»`)
+      }
+
+      const knapp = meny.locator('button.vs-knapp')
+      if (!await knapp.count()) throw new Error('«Se etter oppdatering» finnes ikke i versjonslinja')
+      const status = meny.locator('.vs-status')
+      if ((await status.innerText()).trim()) {
+        throw new Error('statuslinja hadde tekst FØR noen spurte')
+      }
+
+      await knapp.first().click({ timeout: 10_000 })
+      // Utfallet avhenger av om preview-serveren rakk å registrere en SW, og
+      // begge svarene er riktige — det som måles er at knappen svarer I DET HELE
+      // TATT. En knapp som blir stående taus er den ene feilen som ikke synes.
+      await status.filter({ hasText: /\S/ }).waitFor({ state: 'visible', timeout: 20_000 })
+      const svar = (await status.innerText()).trim()
+      const kjente = [
+        'Ser etter ny versjon …', 'Ny versjon er klar.',
+        'Du har nyeste versjon.', 'Kan ikke sjekke her.', 'Fikk ikke kontakt. Prøv igjen.',
+      ]
+      if (!kjente.includes(svar)) throw new Error(`ukjent svar fra versjonssjekken: «${svar}»`)
+
+      // NØYTRAL TILSTAND: menyen lukkes igjen, ellers står den over kartet og
+      // neste sjekk finner ingenting å trykke på.
+      await page.keyboard.press('Escape')
+      await meny.waitFor({ state: 'hidden', timeout: 8000 })
+      return `versjonslinja svarte «${svar}»`
+    },
+  },
+  {
     // v6.5.39: «Mine kart» ble stående oppå kartet når man valgte kartet man
     // ALLEREDE sto i. AppMenu lukker modalen på en rute-watch, og en push til
     // gjeldende rute er en no-op — `route.fullPath` endrer seg ikke, så watchen
