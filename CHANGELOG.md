@@ -1,3 +1,18 @@
+## 2026-09-06 — v6.5.64: Sann nord overlevde ikke sitt eget panTo
+
+Et ferskt ark skulle åpne med sann nord opp, men gjorde det ikke: lasteløypa satte
+rotasjonen riktig og kalte så `panTo` for å åpne på dekning — og `panTo` satte
+rotasjonen til 0, altså kartnord. Samme linje gjorde at «Sentrer»-knappen på
+Lende-FAB-en rettet arket opp på rutenettet i stedet for mot nordpolen, og at et
+søketreff vred et rotert ark tilbake til kartnord. Kompassknappen ved pluss og
+minus var den ene veien som virket, fordi den går rett på `rotateTo`. Regelen bor
+nå ett sted: «ikke behold rotasjonen» betyr sann nord, samme hvile-vinkel som
+`reset()` allerede brukte — i `panTo`, i `reset()` og i dobbelttrykk-nullstillingen.
+Flatene uten nord-UI sender ingen nordvinkel og er uendret. Avviket er størst der
+det merkes: 9,4° i Tromsø, 20,9° i Vardø.
+
+---
+
 ## 2026-09-06 — v6.5.62: De to kompassnålene peker samme vei
 
 På en telefon står det to nåler på skjermen samtidig: nord-knappen i zoom-pilla

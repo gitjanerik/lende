@@ -171,12 +171,13 @@ export function usePinchZoom(elementRef, options = {}) {
       if (now - lastTapAt < 300 && within) {
         if (scale.value >= DOUBLE_TAP_RESET) {
           // Allerede zoomet inn → full reset (også rotasjon, så bruker
-          // får et rent uvridd kart som referansepunkt)
+          // får et rent uvridd kart som referansepunkt). «Uvridd» er sann
+          // nord, ikke kartnord — samme hvile-vinkel som reset() og panTo().
           animate()
           scale.value = 1
           translateX.value = 0
           translateY.value = 0
-          rotation.value = 0
+          rotation.value = nordRotasjon()
         } else {
           animate()
           zoomAtPoint(scale.value * 2, t.clientX, t.clientY)
@@ -420,10 +421,14 @@ export function usePinchZoom(elementRef, options = {}) {
     const fy = focusY != null ? focusY : h / 2
     animate()
     scale.value = s
-    if (!keepRotation) rotation.value = 0
+    // «Ikke behold rotasjonen» betyr NORD OPP, og nord er sann nord — samme
+    // hvile-vinkel som reset(). Fram til v6.5.64 sto det 0 her, altså kartnord:
+    // et ferskt ark fikk sann nord av lasteløypa og mistet den i det samme
+    // kallets panTo, «Sentrer»-FAB-en rettet arket opp på rutenettet, og et
+    // søketreff vred et rotert ark tilbake til kartnord.
+    if (!keepRotation) rotation.value = nordRotasjon()
     // M(px,py) = T(tx,ty) + R(rot)·S(s)·(px,py). Løs for tx,ty så punktet
-    // lander på (fx,fy). Ved keepRotation=false er rot=0 → cos=1,sin=0 og
-    // dette degenererer til den enkle translate-formelen (bakoverkompatibelt).
+    // lander på (fx,fy).
     const rot = rotation.value * Math.PI / 180
     const cos = Math.cos(rot)
     const sin = Math.sin(rot)
