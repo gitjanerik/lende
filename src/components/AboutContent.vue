@@ -208,14 +208,6 @@ async function onInstallClick() {
         dal du ser inn i.
       </p>
       <p class="text-[13px] leading-relaxed text-ink-2">
-        De åtte pilene på arkkanten peker også mot sann nord.
-        <em>«Nord i lende»</em> er en påstand om himmelretningen, så pila skal si
-        det den heter. Flisa den bygger ligger fortsatt i rutenettet, og derfor
-        står merket noen grader på skrå av kanten det sitter på — i Finnmark godt
-        synlig. Det er med vilje: en pil som lyver om nord er verre enn et merke
-        som ikke flukter med papiret.
-      </p>
-      <p class="text-[13px] leading-relaxed text-ink-2">
         <strong class="text-ink">Det samme gjelder eksport og utskrift.</strong>
         En fil har ingen app rundt seg til å rotere den, så der roteres selve
         kartet. Papiret må da vokse litt, siden et skrått rektangel ikke får plass

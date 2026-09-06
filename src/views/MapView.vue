@@ -1588,9 +1588,6 @@ const {
 } = useMapExtend({
   wrapperRef, wrapperSize, meta, mapId, router,
   scale, rotation, translateX, translateY, isGesturing, panTo,
-  // Getter og ikke verdi: `nordRotasjon` er en computed lenger oppe i fila, og
-  // kanthåndtakene skal lese den ferske når et nytt ark lastes (TDZ-regelen).
-  nordRotasjon: () => nordRotasjon.value,
   loading, loadError, fillingInDetails,
   annot, measureMode, sti, searchOpen, showControls, drawer,
   ghostRects, GHOST_TRIGGER_SUPPRESS_FRAC, renderGhostTiles,
