@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { wgs84ToUtm32, wgs84ToUtm33, utm32ToWgs84, utm32BboxFromWgs84, wgs84BboxFromMeta, svgToWgs84 } from './utm.js'
+import {
+  wgs84ToUtm32, wgs84ToUtm33, utm32ToWgs84, utm32BboxFromWgs84, wgs84BboxFromMeta, svgToWgs84,
+  nordavvikDeg, nordavvikForMeta, sannNordRotasjonForMeta, nordavvikTekst,
+} from './utm.js'
 
 // v12.1.64: forward-projeksjonen er 6. ordens Krüger (Karney/etmerc-ekvivalent).
 // Fasit generert med proj4 (+proj=utm +zone=32/33 +ellps=GRS80) — sann UTM.
@@ -140,5 +143,53 @@ describe('wgs84BboxFromMeta', () => {
 
   it('er stabil — samme meta gir bit-identisk bboks (cache-nøkkelen avhenger av det)', () => {
     expect(wgs84BboxFromMeta(meta)).toEqual(wgs84BboxFromMeta({ ...meta }))
+  })
+})
+
+describe('nordavvik — sann nord vs kartnord', () => {
+  it('er null på sentralmeridianen (9°Ø)', () => {
+    expect(nordavvikDeg(60, 9)).toBeCloseTo(0, 6)
+    expect(nordavvikDeg(70, 9)).toBeCloseTo(0, 6)
+  })
+
+  // FORTEGNET ER DEN ENE TINGEN SOM KAN VÆRE SNUDD, og en snudd konvergens er
+  // usynlig i alt annet enn feltet. Vest for sentralmeridianen ligger sann nord
+  // ØST for kartnord (positiv), øst for den ligger den vest (negativ).
+  it('har positivt avvik vest for sentralmeridianen, negativt øst for den', () => {
+    expect(nordavvikDeg(60.39, 5.32)).toBeGreaterThan(0)    // Bergen
+    expect(nordavvikDeg(59.91, 10.75)).toBeLessThan(0)      // Oslo
+  })
+
+  it('treffer de kjente verdiene', () => {
+    expect(nordavvikDeg(60.39, 5.32)).toBeCloseTo(3.20, 1)    // Bergen
+    expect(nordavvikDeg(59.91, 10.75)).toBeCloseTo(-1.51, 1)  // Oslo
+    expect(nordavvikDeg(69.73, 30.05)).toBeCloseTo(-19.85, 1) // Kirkenes
+    expect(nordavvikDeg(55.68, 12.57)).toBeCloseTo(-2.95, 1)  // København
+  })
+
+  // Tilnærmingen (λ − λ0)·sin φ er nær nok i sør, men bommer med 6 bueminutter
+  // i Kirkenes. Vi regner gjennom vår EGEN projeksjon, og det er den forskjellen.
+  it('avviker fra den sfæriske tilnærmingen der den slutter å holde', () => {
+    const enkel = (lat, lon) => (lon - 9) * Math.sin(lat * Math.PI / 180)
+    expect(Math.abs(nordavvikDeg(69.73, 30.05) + enkel(69.73, 30.05))).toBeGreaterThan(0.05)
+    expect(Math.abs(nordavvikDeg(59.91, 10.75) + enkel(59.91, 10.75))).toBeLessThan(0.01)
+  })
+
+  it('rotasjonen er den MOTSATTE av avviket', () => {
+    const meta = { widthM: 2000, heightM: 2000, minE: 1063000, minN: 7734000 }
+    expect(sannNordRotasjonForMeta(meta)).toBeCloseTo(-nordavvikForMeta(meta), 9)
+  })
+
+  it('svarer 0 på meta som mangler geometri i stedet for å kaste', () => {
+    expect(nordavvikForMeta(null)).toBe(0)
+    expect(nordavvikForMeta({ widthM: 0, heightM: 0 })).toBe(0)
+    expect(nordavvikDeg(NaN, 10)).toBe(0)
+  })
+
+  // Retningsordet bærer fortegnet — et minustegn i en kolofon på papir er
+  // ikke til å tyde.
+  it('skriver retningen med ord og komma', () => {
+    expect(nordavvikTekst(3.2)).toBe('3,2° mot øst')
+    expect(nordavvikTekst(-19.85)).toBe('19,9° mot vest')
   })
 })

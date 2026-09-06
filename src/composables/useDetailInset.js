@@ -79,7 +79,11 @@ export function useDetailInset({
       el.style.display = ''
     }
 
-    // Inset-en er ALLTID nord-opp (viewBox-basert, ingen rotasjon). NÅR hovedkartet
+    // Inset-en er ALLTID KARTNORD-opp (viewBox-basert, ingen rotasjon) — den er
+    // et LESEVINDU for et 1 × 1 km utsnitt, ikke et navigasjonsbilde, og en
+    // rotasjon her ville krevd sitt eget vokse-omriss inne i en fast rute.
+    // Hovedkartet står i sann nord (lib/utm.js), så de to skiller seg med
+    // meridiankonvergensen — under to grader i det meste av Sør-Norge. NÅR hovedkartet
     // er rotert, har applyUprightLabels bakt en billboard-counter-rotation
     // (transform="rotate(-rotation x y)") inn i navn/symboler så de står vannrett
     // mens kartet roteres. I nord-opp-inset-en (ingen +rotation å kansellere) tipper

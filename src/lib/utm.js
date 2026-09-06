@@ -191,3 +191,68 @@ export function wgs84BboxFromMeta(meta) {
   }
   return { south, west, north, east }
 }
+
+// ── Sann nord vs kartnord ──────────────────────────────────────────────────
+//
+// Et Lende-ark er UTM 32N-projisert, og «opp» i arket er KARTNORD (rutenettets
+// nord), ikke sann nord. Vinkelen mellom dem er meridiankonvergensen, og den er
+// null bare på sentralmeridianen (9°Ø). Den vokser med avstanden dit og med
+// breddegraden: +3,2° i Bergen, −1,5° i Oslo, −19,8° i Kirkenes.
+//
+// Over ét 2 × 2 km-ark er konvergensen praktisk talt konstant, så den er en REN
+// ROTASJON av hele arket — ikke en forvrengning. Det er derfor kartet kan vises
+// og eksporteres med sann nord opp uten å røre en eneste koordinat.
+//
+// TALLET REGNES GJENNOM VÅR EGEN PROJEKSJON, ikke av en lukket formel. Den
+// vanlige tilnærmingen γ ≈ (λ − λ0)·sin φ bommer med 6 bueminutter i Kirkenes,
+// og — viktigere — den ville vært en ANDRE mening om hvor nord ligger. Her går
+// spørsmålet gjennom `wgs84ToUtm32`, så svaret kan per konstruksjon ikke drifte
+// fra der kartet faktisk tegner ting.
+
+const NORD_STEG_DEG = 0.0005   // ~55 m; sentraldifferansen gjør steget uviktig
+
+/**
+ * Hvor sann nord ligger, sett fra kartnord, i grader — positiv MED KLOKKA på
+ * skjermen (sann nord øst for kartnord), negativ mot vest.
+ *
+ * Dette er tallet man beskriver for en bruker («sann nord 19,8° mot vest»).
+ * Rotasjonen kartet skal legges i er den motsatte; se `sannNordRotasjonForMeta`.
+ */
+export function nordavvikDeg(lat, lon) {
+  const la = Number(lat), lo = Number(lon)
+  if (!Number.isFinite(la) || !Number.isFinite(lo)) return 0
+  const a = wgs84ToUtm32(la - NORD_STEG_DEG, lo)
+  const b = wgs84ToUtm32(la + NORD_STEG_DEG, lo)
+  // Kartrommet har y NEDOVER, så en vektor mot nord er (ΔE, −ΔN) på skjermen.
+  // Vinkelen fra «opp» med klokka er da atan2(ΔE, ΔN).
+  const t = Math.atan2(b.e - a.e, b.n - a.n) * 180 / Math.PI
+  return Number.isFinite(t) ? t : 0
+}
+
+// Nordavvik i arkets SENTER. Konvergensen varierer så lite over et ark at
+// senterets verdi gjelder hele flata — å regne den per punkt ville gitt et kart
+// som ikke lenger var én stiv rotasjon.
+export function nordavvikForMeta(meta) {
+  if (!meta || !(meta.widthM > 0) || !(meta.heightM > 0)) return 0
+  const c = svgToWgs84(meta.widthM / 2, meta.heightM / 2, meta)
+  return nordavvikDeg(c.lat, c.lon)
+}
+
+/**
+ * Rotasjonen som legges på kartet (CSS/SVG-grader, positiv med klokka) for at
+ * SANN NORD skal peke opp. Alle kallsteder skal bruke denne og ikke negere
+ * `nordavvikDeg` selv — et fortegn på et kallsted er et fortegn som kan bli
+ * borte i en opprydning.
+ */
+export function sannNordRotasjonForMeta(meta) {
+  return -nordavvikForMeta(meta)
+}
+
+// «19,8° mot vest» / «3,2° mot øst» — retningsordet bærer fortegnet, slik
+// himmelens «under horisonten» gjør (v6.5.6). Et minustegn i en kolofon på et
+// papirark er ikke til å tyde.
+export function nordavvikTekst(avvikDeg) {
+  const v = Number(avvikDeg) || 0
+  const grader = Math.abs(v).toFixed(1).replace('.', ',')
+  return `${grader}° mot ${v >= 0 ? 'øst' : 'vest'}`
+}

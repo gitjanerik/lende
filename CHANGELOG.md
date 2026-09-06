@@ -1,3 +1,29 @@
+## 2026-09-06 — v6.5.59: Nord er nord
+
+Kartet er UTM 32N-projisert, og rutenettets nord er ikke sann nord — avviket er
+opptil 19,9° i Kirkenes, 3,2° i Bergen og 1,5° i Oslo. Over et 2 km-ark er
+meridiankonvergensen praktisk talt konstant, så det er en ren ROTASJON av hele
+arket og ingen forvrengning: to ting som ligger rett nord–sør i terrenget kan
+gjøres til å ligge rett nord–sør på skjermen. Et ferskt ark åpnes derfor ferdig
+rotert, og «nord»-knappene lander samme sted. Vinkelen måles med prosjektets
+egen `wgs84ToUtm32` gjennom en sentraldifferanse (`nordavvikDeg` i `lib/utm.js`)
+og ikke med den sfæriske tilnærmingen, som bommer med seks bueminutter i
+Kirkenes — da kan den aldri komme i utakt med der kartet faktisk tegner ting.
+`rotation` er fortsatt SKJERMROTASJONEN, så alt som regner på skjerm-geometri er
+urørt; det er bare brukerens avlesning — rosa, gradtallet, kompassnåla — som
+trekker korreksjonen fra. Eksporten har fått en bryter i Eksport-fanen, fordi
+rotasjonen der koster papir: arket må vokse så det roterte rektangelet får
+plass (`lib/nordRamme.js`). Uansett hvilken vei bryteren står, skriver kolofonen
+nederst til venstre ut orienteringen og antall grader — et ark uten app rundt
+seg må si det selv. Labelene counter-roteres mot ARKETS rotasjon og ikke mot
+null, ellers ville hvert stedsnavn stått 19,9° på skrå på papiret. Offline-fila
+og 3D-teksturen roteres ALDRI: den første vises igjen i en app som roterer
+arket selv, den andre legges på et terreng som bygger sin egen orientering.
+Ingen bakoverkompatibilitet: kart lagret før denne versjonen gjenopprettes i
+den rotasjonen de ble forlatt i.
+
+---
+
 ## 2026-09-05 — v6.5.58: Nordlyspilla klippet seg selv ved stor tekst
 
 Hode-cella i nordlyspanelet var `shrink-0` med `min-width: 6.5rem`, og begge

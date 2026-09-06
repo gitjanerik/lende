@@ -174,6 +174,52 @@ async function onInstallClick() {
       </p>
     </section>
 
+    <!-- Nord er nord: meridiankonvergensen, hvorfor arket står litt på skrå og
+         hva bryteren i Eksport-fanen gjør. Står som egen seksjon fordi den
+         gjelder ALLE modusene — kart, Fritt lende og fila du deler. -->
+    <section class="space-y-2">
+      <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Nord er nord</h3>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        Et Lende-kart er projisert i <strong class="text-ink">UTM 32N</strong>, og
+        i en projeksjon peker rutenettets nord ikke helt der sann nord er. Avviket
+        heter <em>meridiankonvergens</em> og er null bare på sentralmeridianen
+        (9° øst, omtrent gjennom Sunnmøre). Det vokser jo lenger unna du er — og
+        jo lenger nord.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        De fleste turkart lever med det. Lende gjør ikke det:
+        <strong class="text-ink">arket lastes ferdig rotert, så sann nord er
+        opp.</strong> To ting som ligger rett nord–sør i terrenget gjør det da
+        også på skjermen, og kompasset i handa er enig med kartet. Nord-knappen
+        på kompassrosa og «Sentrer» tar deg tilbake hit, ikke til rutenettets
+        nord.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        Det er en ren rotasjon av hele arket — ikke en forvrengning. Over 2 × 2 km
+        er konvergensen praktisk talt konstant, så ingen koordinat er rørt; kartet
+        er bare snudd de få gradene det skal.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        Hvor mye det utgjør, avhenger av hvor du står:
+        <strong class="text-ink">Bergen 3,2° mot øst</strong>,
+        <strong class="text-ink">Oslo 1,5° mot vest</strong>,
+        <strong class="text-ink">Kirkenes 19,9° mot vest</strong>. I Finnmark er
+        det altså mer enn to streker på et kompass — nok til å ta feil av hvilken
+        dal du ser inn i.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        <strong class="text-ink">Det samme gjelder eksport og utskrift.</strong>
+        En fil har ingen app rundt seg til å rotere den, så der roteres selve
+        kartet. Papiret må da vokse litt, siden et skrått rektangel ikke får plass
+        i sitt eget omriss, og hjørnene som blir til overs males i
+        bakgrunnsfargen. Vil du heller ha det rene UTM-arket, slår du av
+        <em>«Sann nord opp i fila»</em> i Eksport-fanen. Uansett hvilken vei
+        bryteren står, skriver kartet det ut selv: i boksen nederst til venstre,
+        sammen med målestokk og ekvidistanse, står det hvilken nord arket har og
+        hvor mange grader det er snakk om.
+      </p>
+    </section>
+
     <!-- Faner: én per hovedfunksjon. -->
     <section class="space-y-4">
       <!-- flex-wrap fra v6.5.1: med tre faner er «Ruteplanlegger» for bred til

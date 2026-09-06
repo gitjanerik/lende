@@ -134,7 +134,7 @@ import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { setBuildBusy } from '../lib/swUpdate.js'
 import { pruneAutoTiles, countAutoTiles } from '../lib/tileCache.js'
 import { renameMap } from '../lib/mapStorage.js'
-import { svgToWgs84, wgs84ToSvg } from '../lib/utm.js'
+import { svgToWgs84, wgs84ToSvg, nordavvikForMeta, sannNordRotasjonForMeta } from '../lib/utm.js'
 import { naermesteMarkor } from '../lib/markorTreff.js'
 import { utNoZoomForMPerPx, UTNO_DEFAULT_ZOOM } from '../lib/utNoLink.js'
 import { useMapContext } from '../composables/useMapContext.js'
@@ -794,7 +794,24 @@ const pinchEnabled = computed(() => !loading.value)
 const {
   scale, translateX, translateY, rotation, reset, panTo, rotateTo, animating, isGesturing,
   zoomTil, zoomGrenser,
-} = usePinchZoom(wrapperRef, { enabled: pinchEnabled, panAtRest: true, minScale: () => mosaicMinScale() })
+} = usePinchZoom(wrapperRef, {
+  enabled: pinchEnabled, panAtRest: true, minScale: () => mosaicMinScale(),
+  // Getter: meta finnes ikke ved oppsett (TDZ/livssyklus), og et kart kan byttes.
+  nordRotasjon: () => nordRotasjon.value,
+})
+
+// ── Sann nord opp ──────────────────────────────────────────────────────────
+// `rotation` er og blir SKJERMROTASJONEN av arket. Kartnord (UTM-rutenettet) er
+// ikke sann nord, så et ark i hvile står i `nordRotasjon` og ikke i 0 — da peker
+// sann nord opp, og to ting som ligger rett nord-sør i terrenget gjør det også
+// på skjermen.
+//
+// AT `rotation` FORTSATT ER SKJERMROTASJONEN ER POENGET: alt som regner på
+// skjerm-geometri (upright-labels, pan-clamp, spøkelsesfliser, kontekstnåla)
+// leser den og er uendret. Det som er BRUKERENS vinkel — rosa, gradtallet,
+// kompassnåla — trekker `nordRotasjon` fra og er den ENE tingen som ble flyttet.
+const nordRotasjon = computed(() => sannNordRotasjonForMeta(meta.value))
+const nordavvik = computed(() => nordavvikForMeta(meta.value))
 
 // Desktop uten touch: vis en rotasjons-slider (touch bruker to-finger-rotasjon).
 // Detekteres på mount (touch-evner endrer seg ikke i en sesjon i praksis).
@@ -807,7 +824,7 @@ function updateIsDesktop() { isDesktop.value = !!desktopMq?.matches }
 // Slider-verdi i [-180, 180]. rotation.value akkumulerer fritt; vi normaliserer
 // for visning og setter absolutt vinkel via rotateTo ved drag.
 const rotationSliderDeg = computed(() => {
-  const r = ((rotation.value % 360) + 540) % 360 - 180
+  const r = (((rotation.value - nordRotasjon.value) % 360) + 540) % 360 - 180
   return Math.round(r)
 })
 
@@ -2318,7 +2335,7 @@ function labelForAnnotation(a) {
 // useKartEksport.js. Markup-byggingen der er delikat: temaet bakes inn,
 // spøkelses-flisene klippes bort, og 3D-turen får en utvidet viewBox i piksler.
 const {
-  mapSvgMarkupForExport, mapSvgTilesFor3d, exporting,
+  mapSvgMarkupForExport, mapSvgTilesFor3d, exporting, sannNordEksport,
   onExportSvg, onExportPng, onExportPdf, onPrint,
 } = useKartEksport({
   svgHostRef, meta, mapTitle, currentTheme, autoMapToast,
@@ -2355,6 +2372,7 @@ const { applyTheme, applyDiagnoseMode } = useTemaBytte({
 const { loadMap, retryMapDetails } = useMapLoadPipeline({
   route, router, svgHostRef, wrapperRef, meta, storedDem, mapId, mapTitle, mapDataSize,
   loading, loadError, isAlive: () => componentAlive, isGesturing, scale, rotation, panTo,
+  nordRotasjon: () => nordRotasjon.value,
   BUILTIN, kulturminneCount, mapHasTrails, currentMapIsAuto,
   fillingInDetails, detailsFailed, mapIsPartial, buildingOnTheFly, buildingProgress,
   visibleLayers, currentTheme, applyTheme,
@@ -2659,7 +2677,7 @@ onUnmounted(() => {
                   @broek="settZoom"/>
         <div class="w-8 h-px bg-ink/15"></div>
         <RetningsRose modus="kart" :azimut="rotationSliderDeg"
-                      @retning="rotateTo($event.azimut)" @nord="rotateTo(0)"/>
+                      @retning="rotateTo($event.azimut + nordRotasjon)" @nord="rotateTo(nordRotasjon)"/>
         <span class="text-[10px] text-ink-4 tabular-nums leading-none">{{ rotationSliderDeg }}°</span>
       </div>
 
@@ -2667,7 +2685,7 @@ onUnmounted(() => {
            ZoomKnapper og deles med Fritt lende — se komponenten for hvorfor. -->
       <ZoomKnapper v-if="hasTouch" class="mt-2"
                    :broek="zoomBroekNaa" :azimut="rotationSliderDeg"
-                   @broek="settZoom" @nord="rotateTo(0)" />
+                   @broek="settZoom" @nord="rotateTo(nordRotasjon)" />
 
       <!-- TEKSTSTØRRELSEN er ikke navigasjon, og den settes én gang og ikke
            hele tida — derfor ligger den bak en knapp og ikke som en tredje
@@ -2722,7 +2740,7 @@ onUnmounted(() => {
         <svg viewBox="-50 -50 100 100" class="w-8 h-8"
              :style="{ transform: compass.isActive && compass.headingDeg !== null
                                   ? `rotate(${-compass.headingDeg}deg)`
-                                  : `rotate(${rotation}deg)`,
+                                  : `rotate(${rotationSliderDeg}deg)`,
                        transition: 'transform 0.2s linear' }">
           <circle r="44" fill="none" stroke="currentColor" stroke-width="4" opacity="0.35"/>
           <polygon points="0,-40 10,0 0,12 -10,0" fill="#ef4444"/>
@@ -3187,6 +3205,7 @@ onUnmounted(() => {
 
           <DrawerExportTab v-show="activeTab === 'eksport'"
             id="drawer-panel-eksport" role="tabpanel" aria-labelledby="drawer-fane-eksport"
+            v-model:sann-nord="sannNordEksport" :nordavvik-deg="nordavvik"
             :share-state="shareState" :highlighted-feature="highlightedFeature"
             :exporting="exporting" :on-share-map="onShareMap"
             :on-share-map-with-place="onShareMapWithPlace"

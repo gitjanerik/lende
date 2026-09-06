@@ -73,7 +73,7 @@ export function metaFromSvgMeta(m) {
 export function useMapLoadPipeline(deps) {
   const {
     route, router, svgHostRef, wrapperRef, meta, storedDem, mapId, mapTitle, mapDataSize,
-    loading, loadError, isAlive, isGesturing, scale, rotation, panTo,
+    loading, loadError, isAlive, isGesturing, scale, rotation, panTo, nordRotasjon,
     BUILTIN, kulturminneCount, mapHasTrails, currentMapIsAuto,
     fillingInDetails, detailsFailed, mapIsPartial, buildingOnTheFly, buildingProgress,
     visibleLayers, currentTheme, applyTheme,
@@ -349,6 +349,11 @@ export function useMapLoadPipeline(deps) {
           targetScale: pendingRestoreView.scale, keepRotation: true,
         })
       } else if (!silent) {
+        // Et FERSKT ark åpnes med SANN nord opp: kartnord (UTM-rutenettet) er
+        // ikke sann nord, og avviket er en ren rotasjon av hele arket (se
+        // lib/utm.js). De to grenene over eier sin egen visning og skal beholde
+        // rotasjonen brukeren forlot.
+        rotation.value = nordRotasjon?.() ?? 0
         // Åpne på DEKNING, ikke på «hele arket i letterbox» (v5.19.2). Skala 1 er
         // meet-tilpasningen, og den lar kremgul bakgrunn ligge over og under
         // kartet — arket ser ut som et ark, og kanten leser som verdens ende.
