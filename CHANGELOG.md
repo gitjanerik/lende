@@ -1,3 +1,24 @@
+## 2026-09-06 — v6.5.60: Kanthåndtakene peker mot sann nord
+
+De åtte pilene på arkkanten pekte langs flisrutenettet, som er UTM. Etter at
+arket i v6.5.59 begynte å stå ferdig rotert mot sann nord, arvet merkene den
+skjevheten: pila merket «Nord i lende» sto 1,5° fra loddrett i Oslo og 19,9° i
+Kirkenes, altså tydelig på skrå på en skjerm der nord ellers er opp. «Nord» er en
+påstand om himmelretningen, og et merke som sier det uten å peke dit er en feil
+man kan navigere etter. `edgeKnobDeg` trekker derfor nord-korreksjonen fra, og
+merket peker rett opp på et ark i hvile — og fortsetter å peke mot sann nord når
+brukeren dreier kartet selv.
+
+Prisen er betalt bevisst: trekant-geometrien i MapEdgeHandles ble tegnet for å
+flukte med arkets ytterkant (v5.25.5–6), og hjørnemerket for å ha beina parallelt
+med arkets to kanter. Ingen av delene holder lenger. Ankeret og utstikket er
+urørt — de er geometri mot arkkanten og ikke en retningspåstand — så det er
+`knobDeg` alene som er kompass. Ny røyk-sjekk leser den ekte `--knob-deg` på en
+ekte knapp, fordi enhetstesten ser regnestykket men ikke om MapView faktisk
+sender korreksjonen inn.
+
+---
+
 ## 2026-09-06 — v6.5.59: Nord er nord
 
 Kartet er UTM 32N-projisert, og rutenettets nord er ikke sann nord — avviket er
