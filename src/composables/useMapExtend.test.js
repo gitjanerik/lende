@@ -195,13 +195,33 @@ describe('edgeAnkerNaer — bare aksene retningen faktisk har en komponent på',
   })
 })
 
-describe('edgeKnobDeg — pila peker mot kanten den utvider, også rotert', () => {
-  it('uten kart-rotasjon = retningsvinkelen', () => {
+describe('edgeKnobDeg — merket peker mot SANN nord, ikke langs rutenettet', () => {
+  it('uten kart-rotasjon og uten nord-korreksjon = retningsvinkelen', () => {
     for (const dir of EDGE_DIRS) expect(edgeKnobDeg(dir, 0)).toBe(EXTEND_DIR_DEG[dir])
   })
   it('kart-rotasjonen legges til (håndtaket sitter på arket)', () => {
     expect(edgeKnobDeg('N', 37)).toBe(37)
     expect(edgeKnobDeg('W', -90)).toBe(180)
+  })
+  // Invarianten hele endringen finnes for: et ark i HVILE står på nordRotasjon
+  // (v6.5.59), og da skal merket peke rett opp på skjermen. Holder denne, kan
+  // ingen «forenkling» av fortegnet stå — den er skrevet med Kirkenes' κ, der
+  // en bom er 19,9° og ikke en avrundingsfeil.
+  it('et ark i hvile gir merket sin egen retningsvinkel, uansett κ', () => {
+    for (const nordRot of [-19.9, -3.2, -1.5, 0, 1.5, 19.9]) {
+      for (const dir of EDGE_DIRS) {
+        expect(edgeKnobDeg(dir, nordRot, nordRot)).toBeCloseTo(EXTEND_DIR_DEG[dir], 9)
+      }
+    }
+  })
+  it('brukerens egen dreining følges, målt fra sann nord', () => {
+    // Kirkenes: rutenettets nord ligger 19,9° fra sann nord, så arket i hvile
+    // står på −19,9. Dreier brukeren 30° videre, skal nord-merket vise 30.
+    expect(edgeKnobDeg('N', -19.9 + 30, -19.9)).toBeCloseTo(30, 9)
+    expect(edgeKnobDeg('NE', -19.9, -19.9)).toBeCloseTo(45, 9)
+  })
+  it('nord-korreksjonen er valgfri og defaulter til 0', () => {
+    expect(edgeKnobDeg('N', 37)).toBe(edgeKnobDeg('N', 37, 0))
   })
   it('ukjent retning → null', () => expect(edgeKnobDeg('XX', 0)).toBe(null))
 })

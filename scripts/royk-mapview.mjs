@@ -1041,6 +1041,68 @@ const SJEKKER = [
     },
   },
   {
+    // Kanthåndtaket er et KOMPASS, ikke et arkmerke (v6.5.60). Enhetstesten ser
+    // regnestykket i edgeKnobDeg; den kan ikke se at MapView faktisk sender
+    // korreksjonen inn, eller at MapEdgeHandles skriver den ut som --knob-deg.
+    // Det er nøyaktig den klassen stille feil et uttrekk gir (se v5.8.1), så
+    // sjekken leser den EKTE inline-variabelen på en ekte knapp.
+    navn: 'kanthåndtaket peker mot sann nord, ikke langs rutenettet',
+    domene: 'useMapExtend',
+    krever: 'ektekart',
+    async kjør(page) {
+      await lukkDrawer(page)
+      // Rosa skyves SELV, av samme grunn som sjekken over: harnessen laster
+      // siden på nytt etter en rød sjekk, localStorage overlever, og en lagret
+      // visning kan gjenopprettes — «i hvile» er da ikke den ferske tilstanden.
+      const settRosa = (v) => page.evaluate((deg) => {
+        const sl = document.querySelector('input[aria-label="Roter kartet"]')
+        if (!sl) return false
+        sl.value = String(deg)
+        sl.dispatchEvent(new Event('input', { bubbles: true }))
+        return true
+      }, v)
+      const les = () => page.evaluate(() => {
+        const el = document.querySelector('[data-map-inner]')
+        const m = /rotate\((-?[\d.]+)deg\)/.exec(el?.style.transform || '')
+        const knapp = document.querySelector('button[aria-label^="Hent kartfliser mot Nord i lende"]')
+        const knott = knapp?.querySelector('.edge-knob')
+        const kd = knott?.style.getPropertyValue('--knob-deg')
+        return {
+          ark: m ? Number(m[1]) : 0,
+          knob: kd ? Number(kd.replace('deg', '')) : null,
+        }
+      })
+      // Normaliser til (−180, 180]: merket er en retning, og 359,9 og −0,1 er
+      // det samme merket. Uten dette ville en helt riktig knott feilet på 360.
+      const norm = (v) => ((((v % 360) + 540) % 360) - 180)
+
+      if (!(await settRosa(0))) throw new Error('fant ingen rosa-skyv (kjører testen i mobil-viewport?)')
+      await page.waitForTimeout(700)
+      const hvile = await les()
+      if (hvile.knob == null) throw new Error('fant ingen synlig nord-håndtak å lese --knob-deg av')
+      if (Math.abs(hvile.ark) < 0.05) {
+        throw new Error('arket står i 0° på rosas 0 — nord-korreksjonen slo ikke inn i det hele tatt')
+      }
+      if (Math.abs(norm(hvile.knob)) > 0.05) {
+        throw new Error(`nord-merket står ${norm(hvile.knob).toFixed(3)}° på et ark i hvile `
+          + `(ark ${hvile.ark}°) — det peker langs rutenettet og ikke mot sann nord`)
+      }
+      // Og det MÅ følge brukerens egen dreining, ellers er merket bare limt fast
+      // til skjermen: 25° på rosa skal gi 25° på merket.
+      await settRosa(25)
+      await page.waitForTimeout(700)
+      const dreid = await les()
+      if (Math.abs(norm(dreid.knob) - 25) > 0.05) {
+        throw new Error(`rosa på 25° ga nord-merket ${norm(dreid.knob).toFixed(3)}° — `
+          + 'merket følger ikke brukerens dreining')
+      }
+      await settRosa(0)
+      await page.waitForTimeout(400)
+      return `ark ${hvile.ark}° i hvile → nord-merket ${norm(hvile.knob).toFixed(3)}°, `
+        + `rosa 25° → merket ${norm(dreid.knob).toFixed(3)}°`
+    },
+  },
+  {
     navn: 'stedsnavn står vannrett MENS kartet roteres',
     domene: 'useSymbolRenderers',
     krever: 'ektekart',

@@ -16,7 +16,7 @@
  *       Everything else → network only (Google Fonts, opentype from CDN, etc.)
  */
 
-const CACHE_VERSION = '6.5.59'
+const CACHE_VERSION = '6.5.60'
 // NAVNENE MÅ HA `lende-`-PREFIKSET, og det er ikke pynt: opprydningen under
 // gjenkjenner sine egne cacher på det, og github.io er ÉN origin delt med
 // eierens andre Pages-prosjekter — en opprydning uten prefiks ville slettet

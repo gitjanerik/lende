@@ -4,7 +4,7 @@
 // bygge-/toast-tilstanden og håndtaks-geometrien; forelderen eier SVG-verten,
 // transform-tilstanden og mosaikken (useGhostTiles), destrukturert inn.
 // Watchene som driver re-render/aktiverings-sjekk ligger fortsatt i MapView.
-import { ref, computed, nextTick, watch, onMounted } from 'vue'
+import { ref, computed, nextTick, watch, onMounted, unref } from 'vue'
 import { svgToWgs84 } from '../lib/utm.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { pruneAutoTiles, rectOverlapFraction, findGridGaps, findRectangleGaps } from '../lib/tileCache.js'
@@ -99,12 +99,28 @@ export function edgeAnchorSvg(dir, b) {
   }
 }
 
-// Knapp-rotasjon. Pil-ikonet peker opp i hvile; vi legger kart-rotasjonen til
-// retningsvinkelen så pila peker mot den kanten den faktisk utvider PÅ SKJERMEN
-// (håndtakene sitter på arket, som roterer med kartet).
-export function edgeKnobDeg(dir, rotationDeg = 0) {
+// Knapp-rotasjon. Pil-ikonet peker opp i hvile, og vi legger kart-rotasjonen til
+// retningsvinkelen så merket følger arket gjennom pan/zoom/rotasjon.
+//
+// `nordRotasjonDeg` trekkes fra, og det er den ene tingen som gjør merket til et
+// KOMPASS og ikke et arkmerke (v6.5.60). Arket er UTM-projisert, så flisrutenettets
+// nord er ikke sann nord — og siden v6.5.59 står arket i hvile på nettopp
+// `nordRotasjon`, altså litt på skrå på skjermen. Uten fradraget arvet merket den
+// skjevheten: pila merket «Nord i lende» pekte langs rutenettet, 1,5° fra loddrett
+// i Oslo og 19,9° i Kirkenes. Med fradraget peker den rett opp på et ark i hvile,
+// og fortsetter å peke mot sann nord når brukeren dreier kartet selv.
+//
+// PRISEN ER AT MERKET IKKE LENGER FLUKTER MED ARKKANTEN, og det er bestilt.
+// Trekant-geometrien i MapEdgeHandles er tegnet for å flukte (v5.25.5–6), så en
+// kardinal står nå κ grader på skrå av kanten sin og et hjørnemerke har ikke
+// lenger beina parallelle med arkets to kanter. Det er den bevisste avveiningen:
+// «nord» er en påstand om himmelretningen, og en pil som lyver om den er verre
+// enn et merke som ikke flukter. ANKERET og UTSTIKKET er urørt — de er geometri
+// mot arkkanten, ikke en retningspåstand, og de skal fortsatt følge kanten
+// (se edgeUtRetning og edgeLabelOffset, som begge står på arkets akser).
+export function edgeKnobDeg(dir, rotationDeg = 0, nordRotasjonDeg = 0) {
   const d = EXTEND_DIR_DEG[dir]
-  return d == null ? null : d + (rotationDeg || 0)
+  return d == null ? null : d + (rotationDeg || 0) - (nordRotasjonDeg || 0)
 }
 
 // Enhetsvektoren UTOVER fra arkkanten, rotert med kartet — samme akse som
@@ -269,13 +285,22 @@ export function viewBoxToScreen(vx, vy, v) {
 
 export function useMapExtend({
   wrapperRef, wrapperSize, meta, mapId, router,
-  scale, rotation, translateX, translateY, isGesturing, panTo,
+  scale, rotation, translateX, translateY, isGesturing, panTo, nordRotasjon,
   loading, loadError, fillingInDetails,
   annot, measureMode, sti, searchOpen, showControls, drawer,
   ghostRects, GHOST_TRIGGER_SUPPRESS_FRAC, renderGhostTiles,
   currentTheme, visibleLayers, userPos, maxTiles, refreshAutoTileCount,
   closeDrawer, closeSearch,
 }) {
+  // Sann nord-korreksjonen for dette arket, som getter. Den EIES av MapView
+  // (`nordRotasjon`), og hentes ikke fra `meta` her: to steder som regner den ut
+  // hver for seg er to steder å glemme å endre. Kanthåndtakene er den eneste
+  // konsumenten i denne fila — se edgeKnobDeg for hvorfor merket trenger den.
+  const nordRot = () => {
+    const v = typeof nordRotasjon === 'function' ? nordRotasjon() : unref(nordRotasjon)
+    return Number.isFinite(v) ? v : 0
+  }
+
   // ── Mosaikk + manuell utvidelse ───────────────────────────────────────────
   // ARKET UTVIDES BARE PÅ BESTILLING (v6.5.22). Kanthåndtakene på arkkanten er
   // den eneste veien: åtte piler som bygger en rad eller kolonne, med kostnaden
@@ -469,7 +494,7 @@ export function useMapExtend({
         y: pos.y,
         // Dokkede håndtak peker mot en kant man ikke ser, og roterer derfor med
         // KARTET og ikke med arket — retningen er fortsatt sann på skjermen.
-        knobDeg: edgeKnobDeg(dir, v.rotationDeg),
+        knobDeg: edgeKnobDeg(dir, v.rotationDeg, nordRot()),
         lx: off.lx,
         ly: off.ly,
         dokket: !naer,

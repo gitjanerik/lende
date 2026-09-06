@@ -48,6 +48,16 @@ import { ref, onBeforeUnmount } from 'vue'
 // skal treffe der brukeren sikter, og en 26 px vinkel er for liten å sikte på
 // med hansker.
 //
+// v6.5.60: MERKET ER ET KOMPASS, ikke et arkmerke — og det gjør deler av
+// begrunnelsen over til historie. Arket står i hvile på sann nord (v6.5.59),
+// altså litt på skrå på skjermen, og `knobDeg` trekker den korreksjonen fra så
+// «Nord i lende» peker rett opp. Følgen er at BASEN IKKE LENGER FLUKTER med
+// arkets ytterkant, og at hjørnemerkets bein ikke lenger er parallelle med
+// arkets to kanter: begge sto det som en grunn til geometrien, og begge er nå
+// betalt for bevisst. Til gjengjeld er merkene skjerm-rette på et ark i hvile,
+// akkurat som de var før nord-korreksjonen fantes. ANKERET og UTSTIKKET følger
+// fortsatt arkkanten — det er `knobDeg` alene som er kompass.
+//
 // `h.dokket` skiller de to plasseringene useMapExtend leverer — dokket til den
 // trygge rammen (kort avslørings-vindu) eller på selve arkkanten (brukeren har
 // panorert dit). Bare de dokkede fades inn; de på arkkanten glir inn med kartet
