@@ -42,7 +42,7 @@ import { dekningsSkala } from '../lib/viewFit.js'
 import { zoomBroek, zoomFraBroek } from '../lib/navKontroller.js'
 import ZoomSkyv from '../components/kontroller/ZoomSkyv.vue'
 import RetningsRose from '../components/kontroller/RetningsRose.vue'
-import ZoomKnapper from '../components/kontroller/ZoomKnapper.vue'
+import NavKnapper from '../components/kontroller/NavKnapper.vue'
 import { useUserPosition } from '../composables/useUserPosition.js'
 import { useProximityAlert } from '../composables/useProximityAlert.js'
 import { useCompass } from '../composables/useCompass.js'
@@ -458,11 +458,12 @@ watch([showControls, visibleTabs], () => {
 // Maks-visning lar en tynn kart-stripe stå igjen i toppen (100dvh − denne) så
 // bruker ser at det ligger et kart under: 32px header-knapp + 12px lik marg over/under.
 const MAX_DRAWER_TOP_GAP_PX = 56
-// «Minimert» peek for hovedmeny-skuffen: høy nok til at håndtak + tittel +
-// hurtigvalg-raden (Tegnforklaring/GPS/Kompass) er synlig (v11.0.61) — før
-// viste 32 px bare håndtaket, som forsvant bak nav-baren. Fane-innholdet
-// renderes da under skjermkanten. Juster ved behov etter tekststørrelse.
-const MAIN_DRAWER_PEEK_PX = 138
+// «Minimert» peek for hovedmeny-skuffen: høy nok til at håndtak + tittel er
+// synlig (v11.0.61) — før viste 32 px bare håndtaket, som forsvant bak
+// nav-baren. Fane-innholdet renderes da under skjermkanten. Tallet er skrudd
+// ned fra 138 i v6.5.68: det bar hurtigvalg-raden (Tegnforklaring/GPS/Kompass),
+// og med den borte sto peeken igjen med en tom stripe under tittelen.
+const MAIN_DRAWER_PEEK_PX = 84
 // Kontekst-skuffens minimerte peek: håndtak + koordinat-header synlig.
 const CONTEXT_DRAWER_PEEK_PX = 76
 const drawer = useDraggableDrawer({ expandedHeight: 0.45, minimizedPeek: MAIN_DRAWER_PEEK_PX, maxTopGapPx: MAX_DRAWER_TOP_GAP_PX })
@@ -1493,7 +1494,7 @@ function gjenskapTur(tour, svg) {
 // tilbakekall (det kalles bare når spor endres, altså etter oppsettet).
 const {
   tracker,
-  startPositioning, onRetryGps, gpsNow,
+  startPositioning, stopPositioning, onRetryGps, gpsNow,
   liveTrackStats, onToggleRecording, onDeleteTrack, onExportTrackGpx,
   expandedTrackId, expandedTrack, profileFor,
 } = useGpsSpor({
@@ -2529,7 +2530,14 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="kart-ui relative w-full h-[100dvh] overflow-hidden"
+  <!-- `overflow-clip` OG IKKE `overflow-hidden` (v6.5.68): begge klipper likt,
+       men `hidden` lager en RULLEBOKS som bare mangler rullefelt — og da holder
+       det at nettleseren gir fokus til noe utenfor kanten, så rulles HELE
+       kart-chromet opp og skuffens fane-rad havner over skjermtoppen. Målt i
+       liggende (900 × 430) med skuffen åpen: `.kart-ui` sto med
+       `scrollTop = 112`. `clip` lager ingen rulleboks, så tallet kan ikke bli
+       annet enn 0. -->
+  <div class="kart-ui relative w-full h-[100dvh] overflow-clip"
        :class="isDark ? 'bg-surface' : 'bg-stone-100'">
 
     <!-- Toppbar. v8.7.1: skjult i Curve Invaders-modus — den lå tidligere
@@ -2657,8 +2665,15 @@ onUnmounted(() => {
     <!-- Kompass-FAB-en er fjernet (v1.0.77) — nåla bor nå som ikon på
          «Sentrer»-knappen i FAB-stacken (som uansett nullstiller rotasjonen).
          Containeren består for desktop-sliderne + kompass-feilmelding. -->
+    <!-- SØYLA BÆRER SIN EGEN HØYDE (v6.5.68). På en liggende telefon (430 px
+         høy, men bred nok til at appen regner seg som desktop) er zoom-skyven,
+         retningsrosa, posisjonen og tekststørrelsen til sammen høyere enn det
+         som er igjen under topprada — og uten et tak rant søyla ut under
+         skjermkanten, der de nederste knappene ikke kunne nås i det hele tatt.
+         Taket gjør resten rullbar i søyla selv i stedet for å flytte kartet. -->
     <div class="absolute top-[var(--ovl-nav)] z-20 pointer-events-auto select-none flex flex-col items-end
-                transition-[right] duration-200"
+                transition-[right] duration-200
+                max-h-[calc(100dvh-var(--ovl-nav)-0.75rem)] overflow-y-auto overscroll-contain"
          :style="navRightStyle">
       <div v-if="compass.error"
            class="text-[10px] text-red-300 mt-1 max-w-[80px] text-right leading-tight
@@ -2681,11 +2696,21 @@ onUnmounted(() => {
         <span class="text-[10px] text-ink-4 tabular-nums leading-none">{{ rotationSliderDeg }}°</span>
       </div>
 
-      <!-- BERØRING: samme funksjoner, én finger (v6.5.48). Pilla bor i
-           ZoomKnapper og deles med Fritt lende — se komponenten for hvorfor. -->
-      <ZoomKnapper v-if="hasTouch" class="mt-2"
-                   :broek="zoomBroekNaa" :azimut="rotationSliderDeg" :mork="isDark"
-                   @broek="settZoom" @nord="rotateTo(nordRotasjon)" />
+      <!-- POSISJON + «NORD OPP» PÅ ARKET (v6.5.68). Knappene står HER og ikke i
+           innstillings-skuffen fordi de er de to man rekker etter mens man går,
+           og en skuff over kartet er feil sted for begge. Posisjonen vises på
+           BÅDE berøring og desktop — den var før den ene av tre hurtigknapper i
+           skuffen, og de er nå borte — mens kompasset bare gis til berøring:
+           desktop har retningsrosa i søyla over.
+           AV SLÅR OGSÅ AV KOMPASSFØLGINGEN. `startPositioning` slår dem på
+           sammen (iOS krever samme bruker-gest for begge), og med skuffens
+           kompass-bryter borte ville et kart som fortsatt dreide seg etter
+           telefonen vært uten en eneste vei ut. -->
+      <NavKnapper class="mt-2"
+                  :azimut="hasTouch ? rotationSliderDeg : null" :mork="isDark"
+                  :gps-pa="userPos.isWatching"
+                  @gps="userPos.isWatching ? stopPositioning() : startPositioning()"
+                  @nord="rotateTo(nordRotasjon)" />
 
       <!-- TEKSTSTØRRELSEN er ikke navigasjon, og den settes én gang og ikke
            hele tida — derfor ligger den bak en knapp og ikke som en tredje
@@ -2736,7 +2761,7 @@ onUnmounted(() => {
       <!-- Sentrer (nord, v1.0.77) — REWIND OG IKKE KOMPASSNÅL (v6.5.66).
            Knotten bar en nål som pekte mot nord, og zoom-søyla bar en til: to
            kompass på samme skjerm, som begge vendte kartet nordover. Nåla bor
-           nå ETT sted (ZoomKnapper), og knotten viser det den faktisk gjør —
+           nå ETT sted (NavKnapper), og knotten viser det den faktisk gjør —
            legger visningen tilbake slik kartet åpnet seg. Ikonet er 3D-visningens
            «Oversikt», som er nøyaktig samme handling i den andre flata.
            Handlingen er uendret: tap = sentrer, nord opp og oppdater GPS,
@@ -3065,56 +3090,11 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- Hurtigvalg: alltid synlig over fanene (v8.9.6). Tegnforklaring +
-             GPS/kompass-toggles trengs hyppig uavhengig av aktiv fane. Følger
-             global tekststørrelse (zoom) som fanene og fane-innholdet under. -->
-        <div class="shrink-0 px-4 pb-2 grid grid-cols-3 gap-1.5" :style="{ zoom: uiTextScale }">
-          <button @click="router.push('/tegnforklaring')"
-                  class="px-2 py-2 rounded-lg bg-ink/5 border border-ink/10 text-ink-2
-                         text-[11px] font-medium active:scale-[0.98] flex flex-col items-center gap-1">
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="4" width="18" height="16" rx="2"/>
-              <line x1="7" y1="9" x2="17" y2="9"/>
-              <line x1="7" y1="13" x2="17" y2="13"/>
-              <line x1="7" y1="17" x2="13" y2="17"/>
-            </svg>
-            Tegnforklaring
-          </button>
-          <button @click="userPos.isWatching ? userPos.stop() : startPositioning()"
-                  class="px-2 py-2 rounded-lg border text-[11px] font-medium active:scale-[0.98]
-                         flex flex-col items-center gap-1"
-                  :class="userPos.isWatching
-                          ? 'bg-sky-500/20 border-sky-400/50 text-ink'
-                          : 'bg-ink/5 border-ink/10 text-ink-2'">
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="10" r="3"/>
-              <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>
-            </svg>
-            {{ userPos.isWatching ? 'Følger GPS' : 'Start GPS' }}
-          </button>
-          <button @click="compass.isActive ? compass.stop() : compass.start()"
-                  class="px-2 py-2 rounded-lg border text-[11px] font-medium active:scale-[0.98]
-                         flex flex-col items-center gap-1"
-                  :class="compass.isActive
-                          ? 'bg-sky-500/20 border-sky-400/50 text-ink'
-                          : 'bg-ink/5 border-ink/10 text-ink-2'">
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="9"/>
-              <polygon points="12 5 14 12 12 13 10 12" fill="currentColor"/>
-              <polygon points="12 19 14 12 12 11 10 12"/>
-            </svg>
-            {{ compass.isActive ? 'Kompass på' : 'Kompass' }}
-          </button>
-        </div>
-
         <!-- Tab-bar — understreket aktiv fane (samme stil som illustrasjons-
              sporet). Horisontal scroll når labels ikke får plass. Pil
              venstre/høyre (v9.3.6) er alltid synlig som hint om flere faner,
              og disables i hver ende. Skjult når skuffen er minimert (v11.0.61)
-             så minimert-peeken viser kun håndtak + tittel + hurtigvalg. -->
+             så minimert-peeken viser kun håndtak + tittel. -->
         <div v-show="!drawer.isMinimized.value"
              class="shrink-0 mx-4 mb-2 flex items-stretch border-b border-ink/10"
              :style="{ zoom: uiTextScale }">

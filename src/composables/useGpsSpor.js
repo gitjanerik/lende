@@ -45,6 +45,15 @@ export function useGpsSpor({
     if (!compass.isActive) compass.start()
   }
 
+  // AV SLÅR AV BEGGE, fordi PÅ slår på begge (v6.5.68). Fram til da stoppet
+  // GPS-bryteren bare `userPos`, og kompasset ble stående og dreie kartet etter
+  // telefonen — det gikk an så lenge skuffen hadde sin egen kompass-bryter, men
+  // den er borte, og en rotasjon uten en vei ut er en navigasjonsfelle.
+  function stopPositioning() {
+    userPos.stop()
+    if (compass.isActive) compass.stop()
+  }
+
   // «Prøv igjen» fra GPS-feil-toasten. Nettleseren kan ikke skru på enhetens
   // stedstjenester, men et nytt forsøk trigger enten tillatelses-dialogen på nytt
   // eller fanger opp at brukeren nettopp slo på GPS. start() er idempotent
@@ -144,7 +153,7 @@ export function useGpsSpor({
 
   return {
     tracker,
-    startPositioning, onRetryGps, gpsNow,
+    startPositioning, stopPositioning, onRetryGps, gpsNow,
     liveTrackStats, onToggleRecording, onDeleteTrack, onExportTrackGpx,
     expandedTrackId, expandedTrack, profileFor,
   }
