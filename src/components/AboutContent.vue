@@ -176,7 +176,11 @@ async function onInstallClick() {
 
     <!-- Nord er nord: meridiankonvergensen, hvorfor arket står litt på skrå og
          hva bryteren i Eksport-fanen gjør. Står som egen seksjon fordi den
-         gjelder ALLE modusene — kart, Fritt lende og fila du deler. -->
+         gjelder ALLE modusene — kart, Fritt lende og fila du deler.
+         Sone-avsnittene svarer på det spørsmålet tallene reiser av seg selv:
+         hvorfor nullinja ligger på 9° øst og ikke på Greenwich, og hvorfor
+         fortegnet snur. Uten dem leser Bergens «mot øst» og Oslos «mot vest»
+         som en inkonsekvens. -->
     <section class="space-y-2">
       <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Nord er nord</h3>
       <p class="text-[13px] leading-relaxed text-ink-2">
@@ -206,6 +210,41 @@ async function onInstallClick() {
         <strong class="text-ink">Kirkenes 19,9° mot vest</strong>. I Finnmark er
         det altså mer enn to streker på et kompass — nok til å ta feil av hvilken
         dal du ser inn i.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        <strong class="text-ink">Merk at fortegnet snur.</strong> Vest for 9° øst
+        ligger Nordpolen litt nord-<em>øst</em> for rutenettets nord, og arket
+        vris mot klokka; øst for 9° ligger den nord-<em>vest</em>, og arket vris
+        med klokka. Bergen og Tromsø heller derfor hver sin vei. Hvor mye det blir,
+        er lengdegradsforskjellen ganget med <em>sinus av breddegraden</em> — det
+        er den andre faktoren som gjør nord så skjevt: på ekvator er den null, i
+        Tromsø er den 0,94.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        <strong class="text-ink">Hvorfor 9° øst, og ikke Greenwich?</strong>
+        Greenwich er nullpunktet for å <em>telle</em> lengdegrader — en avtale fra
+        1884, valgt fordi britene hadde flest sjøkart. Meridianen der er ikke
+        geometrisk annerledes enn den gjennom Bergen. En sentralmeridian er
+        derimot et ingeniørvalg: den legges der kartet skal <em>brukes</em>, fordi
+        forvrengningen vokser med avstanden fra den.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        UTM deler kloden i 60 soner à 6°, og tellingen starter ved 180° —
+        datolinja, ikke Greenwich. Sentralmeridianen i sone <em>n</em> er
+        6<em>n</em> − 183, altså 3°, 9°, 15°, 21° … Greenwich havner derfor på en
+        sonegrense og aldri i en sonemidte: den er vestkanten av sone 31. At
+        sonene er praktiske valg og ikke naturlover, ser man på unntakene — sone
+        32 er strukket vestover til 3° øst mellom 56° og 64° nord, nettopp så
+        Sørvestlandet ikke skal deles av en grense. Uten det unntaket hadde Bergen
+        ligget i sone 31.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        <strong class="text-ink">Lende gjør sitt eget slike valg:</strong> hele
+        landet projiseres i sone 32, også der Kartverket ville brukt 33 eller 35.
+        Det er derfor arket står så tydelig på skrå i nord — Tromsø får 9,4° i
+        stedet for 3,7°, Vardø 20,9° i stedet for 3,9°. Til gjengjeld ligger hele
+        landet i ett og samme rutenett, så to nabofliser alltid passer sammen,
+        også tvers over et sted der Kartverket ville byttet sone.
       </p>
       <p class="text-[13px] leading-relaxed text-ink-2">
         <strong class="text-ink">Det samme gjelder eksport og utskrift.</strong>
