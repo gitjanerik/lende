@@ -15,7 +15,9 @@
 const props = defineProps({
   // Zoomens plass i sitt eget område, 0…1. Kalleren eier grensene.
   broek: { type: Number, required: true },
-  // Kartets rotasjon i grader, eller null når modusen ikke roterer.
+  // HVOR NORD LIGGER PÅ SKJERMEN, i grader med klokka — samme kontrakt som
+  // RetningsRose og kompass-FAB-en leser, og samme verdi (`rotationSliderDeg`).
+  // Null når modusen ikke roterer; da faller nord-knappen bort.
   azimut: { type: Number, default: null },
 })
 const emit = defineEmits(['broek', 'nord'])
@@ -40,7 +42,15 @@ const steg = (d) => emit('broek', Math.min(1, Math.max(0, props.broek + d)))
            stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14"/></svg>
     </button>
     <!-- Nord-knappen står bare når kartet FAKTISK er dreid — ellers er den en
-         knapp som ikke gjør noe. -->
+         knapp som ikke gjør noe.
+
+         NÅLA ROTERES MED `azimut` OG IKKE MOT DEN (v6.5.62). Fortegnet sto
+         snudd her fra v6.5.48, så denne nåla og kompass-FAB-ens pekte hver sin
+         vei så snart kartet var dreid — speilet om loddrett, altså like på et
+         ark i hvile og mest galt på 90°. `azimut` ER skjermvinkelen til nord, så
+         et ikon som peker opp i hvile skal roteres MED den; RetningsRose gjør
+         det samme med sin skive, og FAB-en med sin nål. Tre avlesninger av én
+         verdi, og et løst minustegn i én av dem er hele feilen. -->
     <template v-if="azimut">
       <span class="w-6 h-px bg-ink/15"></span>
       <button type="button" :aria-label="`Vend kartet mot nord. Nå ${azimut} grader.`"
@@ -48,7 +58,7 @@ const steg = (d) => emit('broek', Math.min(1, Math.max(0, props.broek + d)))
               class="w-10 h-10 grid place-items-center rounded-full active:bg-ink/10">
         <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
-             :style="{ transform: `rotate(${-azimut}deg)` }">
+             :style="{ transform: `rotate(${azimut}deg)` }">
           <circle cx="12" cy="12" r="9"/>
           <polygon points="12 5 14 12 12 13 10 12" fill="currentColor"/>
           <polygon points="12 19 14 12 12 11 10 12"/>

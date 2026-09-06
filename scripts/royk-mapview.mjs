@@ -1041,6 +1041,114 @@ const SJEKKER = [
     },
   },
   {
+    // DE TO NÅLENE MÅ PEKE SAMME VEI. Kartet har tre avlesninger av én og samme
+    // verdi (`rotationSliderDeg`, altså skjermvinkelen til nord): kompass-FAB-en,
+    // desktop-rosa og zoom-pillas nord-knapp. Fram til v6.5.62 hadde den siste
+    // fortegnet snudd, så de to nålene på en telefon pekte hver sin vei så snart
+    // kartet var dreid — speilet om loddrett, altså LIKE på et ark i hvile og
+    // mest gale på 90°. Ingen enhetstest kan se dette: begge er riktige tall som
+    // ender i hver sin `transform`, og prosjektet enhetstester ikke Vue-
+    // komponenter. Det er bare å måle på skjermen.
+    //
+    // EGEN KONTEKST MED `hasTouch`, fordi zoom-pilla er berøringens kontroll:
+    // standard-konteksten rapporterer `pointer: fine` og får desktop-søyla i
+    // stedet, så sjekken ville hoppet stille over det den finnes for.
+    navn: 'de to kompassnålene peker samme vei',
+    domene: 'ZoomKnapper + FabCluster',
+    krever: 'ektekart',
+    maksMs: 120_000,
+    async kjør(page) {
+      const ctx = await page.context().browser().newContext({
+        viewport: { width: 430, height: 900 },
+        hasTouch: true,
+        isMobile: false,
+      })
+      const p2 = await ctx.newPage()
+      try {
+        await p2.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await p2.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+        await lukkDrawer(p2)
+
+        // Kartet MÅ dreies først: nord-knappen står bak `v-if="azimut"`, og på
+        // et ark i hvile er nålene like uansett fortegn — det er nettopp derfor
+        // feilen fikk stå. Gesten er syntetiske TouchEvents, samme grep som
+        // sjekken under (usePinchZoom lytter med { passive: false }); vi slipper
+        // fingrene igjen, for her måles hviletilstanden etter gesten.
+        const dreid = await p2.evaluate(async () => {
+          const inner = document.querySelector('[data-map-inner]')
+          const el = inner?.parentElement
+          if (!el) return { feil: 'fant ikke kart-wrapperen' }
+          const r = el.getBoundingClientRect()
+          const cx = r.left + r.width / 2
+          const cy = r.top + r.height / 2
+          const R = 120
+          const finger = (deg, i) => {
+            const a = (deg + i * 180) * Math.PI / 180
+            return new Touch({
+              identifier: i, target: el,
+              clientX: cx + R * Math.cos(a), clientY: cy + R * Math.sin(a),
+            })
+          }
+          const send = (type, deg) => {
+            const t = deg == null ? [] : [finger(deg, 0), finger(deg, 1)]
+            el.dispatchEvent(new TouchEvent(type, {
+              bubbles: true, cancelable: true, touches: t, targetTouches: t, changedTouches: t,
+            }))
+          }
+          const frame = () => new Promise((res) => requestAnimationFrame(res))
+          send('touchstart', 0)
+          for (let d = 6; d <= 60; d += 6) { send('touchmove', d); await frame(); await frame() }
+          send('touchend', null)
+          const mm = /rotate\((-?[\d.]+)deg\)/.exec(inner.style.transform || '')
+          return { rot: mm ? Number(mm[1]) : 0 }
+        })
+        if (dreid.feil) throw new Error(dreid.feil)
+        await p2.waitForTimeout(700)
+        // Et snudd fortegn er bare utvetydig når kartet står langt fra både 0 og
+        // 180 — der er de to nålene like uansett hvem som har rett.
+        if (Math.abs(dreid.rot) < 20) {
+          throw new Error(`to-finger-rotasjonen slo ikke inn (kart ${dreid.rot}°) — `
+            + 'uten en dreining måler denne sjekken ingenting')
+        }
+
+        const lest = await p2.evaluate(() => {
+          const grad = (el) => {
+            if (!el) return null
+            const t = el.style.transform || ''
+            const m = /rotate\((-?[\d.]+)deg\)/.exec(t)
+            return m ? Number(m[1]) : null
+          }
+          const pilla = document.querySelector('button[aria-label^="Vend kartet mot nord"] svg')
+          // FAB-ens nål er den ENESTE svg-en med den røde spissen (#ef4444) i
+          // knappe-stacken; vi finner den på fyllfargen og ikke på en klasse,
+          // som er stylet av Tailwind og kan endres uten at nåla gjør det.
+          const fab = [...document.querySelectorAll('svg')].find(
+            (s) => s !== pilla && s.querySelector('polygon[fill="#ef4444"]'))
+          return { pilla: grad(pilla), fab: grad(fab) }
+        })
+
+        if (lest.pilla == null) {
+          throw new Error('fant ingen nord-knapp i zoom-pilla — dreide ikke kartet, '
+            + 'eller står pilla bak en annen port nå?')
+        }
+        if (lest.fab == null) throw new Error('fant ingen kompassnål på FAB-en')
+
+        const norm = (v) => ((((v % 360) + 540) % 360) - 180)
+        const avvik = Math.abs(norm(lest.pilla - lest.fab))
+        if (avvik > 1) {
+          const speilet = Math.abs(norm(lest.pilla + lest.fab)) <= 1
+          throw new Error(`nålene peker ${avvik.toFixed(1)}° fra hverandre `
+            + `(pilla ${lest.pilla}°, FAB ${lest.fab}°)`
+            + (speilet ? ' — de er speilvendte, altså et snudd fortegn i den ene' : ''))
+        }
+        return `dreid 70°: pilla ${lest.pilla}°, FAB ${lest.fab}° — samme vei`
+      } finally {
+        await ctx.close()
+      }
+    },
+  },
+  {
     navn: 'stedsnavn står vannrett MENS kartet roteres',
     domene: 'useSymbolRenderers',
     krever: 'ektekart',
