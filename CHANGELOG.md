@@ -1,3 +1,26 @@
+## 2026-09-06 — v6.5.62: De to kompassnålene peker samme vei
+
+På en telefon står det to nåler på skjermen samtidig: nord-knappen i zoom-pilla
+oppe til høyre, og kompasset på «Sentrer» nede til høyre. Så snart kartet var
+dreid, pekte de hver sin vei — speilet om loddrett, altså like på et ark i hvile
+og mest gale på 90°. Feilen er ett løst minustegn: pilla roterte nåla MOT
+skjermvinkelen til nord i stedet for MED den, og har gjort det siden pilla kom i
+v6.5.48. Den har ingenting med sann nord å gjøre; nord-arbeidet gjorde den bare
+lettere å få øye på, siden et dreid ark nå er den vanlige tilstanden i Finnmark.
+
+Kartet har tre avlesninger av én og samme verdi — `rotationSliderDeg`, altså hvor
+nord ligger på skjermen: kompass-FAB-en, desktop-rosa og zoom-pilla. De to første
+var enige, og pilla er rettet etter dem. Kontrakten er nå skrevet på propen, så
+neste leser ikke må utlede den av tre kallsteder.
+
+Ingen enhetstest kan se dette: begge nålene er riktige tall som ender i hver sin
+`transform`, og prosjektet enhetstester ikke Vue-komponenter. Ny røyk-sjekk dreier
+kartet 60° i en egen berøringskontekst og krever at de to nålene står innenfor én
+grad av hverandre — og sier fra når de er speilvendte, som er signaturen til
+nettopp denne feilen.
+
+---
+
 ## 2026-09-06 — v6.5.61: Kanthåndtakene peker langs arket igjen
 
 v6.5.60 dreide de åtte kantpilene mot sann nord. Resonnementet holdt på papiret —

@@ -1,4 +1,4 @@
 // Autoritativ app-versjon. Skal matche "version" i package.json +
 // package-lock.json og CACHE_VERSION i public/sw.js — alle fire bumpes
 // i samme commit.
-export const APP_VERSION = '6.5.61'
+export const APP_VERSION = '6.5.62'
