@@ -2684,7 +2684,7 @@ onUnmounted(() => {
       <!-- BERØRING: samme funksjoner, én finger (v6.5.48). Pilla bor i
            ZoomKnapper og deles med Fritt lende — se komponenten for hvorfor. -->
       <ZoomKnapper v-if="hasTouch" class="mt-2"
-                   :broek="zoomBroekNaa" :azimut="rotationSliderDeg"
+                   :broek="zoomBroekNaa" :azimut="rotationSliderDeg" :mork="isDark"
                    @broek="settZoom" @nord="rotateTo(nordRotasjon)" />
 
       <!-- TEKSTSTØRRELSEN er ikke navigasjon, og den settes én gang og ikke
@@ -2743,9 +2743,25 @@ onUnmounted(() => {
            lang-trykk = zoom-panelet. Liten GPS-prikk (v8.5.2) viser at knappen
            også refresher posisjonen. -->
       <template #center>
-        <svg viewBox="0 0 24 24" class="w-7 h-7" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 4 3 9 8 9"/>
+        <!-- IKONET BÆRER SØSKENFLATEN SIN (v6.5.67). Første utgave var 3D-ens
+             «Oversikt»-glyf limt rett inn i 24×24-boksen: full bredde, strek 2,
+             ingen ring — og den ropte ved siden av strek- og relieff-knottene,
+             som begge er en tynn bue rundt en liten glyf.
+             Ringen her er HEL og ikke en 270° bue: de to andre måler et nivå,
+             denne har ingen — en bue med gap ville lovet en fylling som aldri
+             kommer. Glyfen står innenfor `knobArc`-ens egen radius med luft, så
+             de tre knottene har samme optiske vekt.
+             Fire hjørner og ikke en rewind-pil: knotten RAMMER INN arket slik
+             det åpner, den spoler ikke noe tilbake i tid. -->
+        <svg viewBox="0 0 24 24" class="w-7 h-7" fill="none">
+          <circle cx="12" cy="12" r="8.5" stroke="currentColor"
+                  stroke-width="1.1" opacity="0.28"/>
+          <g stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+            <path d="M7.9 10.5V8.9a1 1 0 0 1 1-1h1.6"/>
+            <path d="M13.5 7.9h1.6a1 1 0 0 1 1 1v1.6"/>
+            <path d="M16.1 13.5v1.6a1 1 0 0 1-1 1h-1.6"/>
+            <path d="M10.5 16.1H8.9a1 1 0 0 1-1-1v-1.6"/>
+          </g>
         </svg>
         <span v-if="userPos.isWatching"
               class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-sky-400 shadow-[0_0_4px_rgba(56,189,248,0.8)]" />
