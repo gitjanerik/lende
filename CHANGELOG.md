@@ -1,3 +1,30 @@
+## 2026-09-06 — v6.5.65: Hvorfor nullinja ligger på 9° øst
+
+«Nord er nord» på /Om oppga tallene — Bergen 3,2° mot øst, Oslo 1,5° mot vest —
+uten å si hvorfor de peker hver sin vei. Lest av en som ikke kan projeksjoner
+framstår det som en inkonsekvens i kartet, og det var nettopp slik det ble lest.
+Seksjonen forklarer nå fortegnet: Nordpolen ligger nord-øst for rutenettet når du
+er vest for sentralmeridianen og nord-vest når du er øst for den, og størrelsen er
+lengdegradsforskjellen ganget med sinus av breddegraden — den andre faktoren, som
+er null på ekvator og 0,94 i Tromsø.
+
+Så svares spørsmålet tallene reiser av seg selv: hvorfor 9° øst og ikke Greenwich.
+Greenwich er en avtale om hvor lengdegrader skal telles fra, ikke et geometrisk
+særpunkt; en sentralmeridian legges derimot der kartet skal brukes. UTM teller
+soner fra datolinja, sentralmeridianen i sone n er 6n − 183, og Greenwich havner
+derfor på en sonegrense og aldri i en sonemidte. Norges eget unntak — sone 32
+strukket vest til 3° øst mellom 56° og 64° nord, så Sørvestlandet ikke deles —
+viser at soneinndelingen er praktiske valg og ikke naturlover.
+
+Til slutt Lendes eget valg, som er det brukeren faktisk ser: hele landet
+projiseres i sone 32, også der Kartverket ville brukt 33 eller 35. Det er derfor
+arket står markert på skrå i nord — Tromsø 9,4° mot 3,7°, Vardø 20,9° mot 3,9° —
+og gevinsten er at hele landet ligger i ett rutenett, så to nabofliser passer
+sammen tvers over et sted der en sonegrense ellers ville gått. Ren tekst; ingen
+kode er rørt.
+
+---
+
 ## 2026-09-06 — v6.5.64: Sann nord overlevde ikke sitt eget panTo
 
 Et ferskt ark skulle åpne med sann nord opp, men gjorde det ikke: lasteløypa satte
