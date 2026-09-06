@@ -1,3 +1,22 @@
+## 2026-09-06 — v6.5.61: Kanthåndtakene peker langs arket igjen
+
+v6.5.60 dreide de åtte kantpilene mot sann nord. Resonnementet holdt på papiret —
+«Nord i lende» er en påstand om himmelretningen — men felttesten avgjorde motsatt:
+merket sluttet å flukte med arkkanten det sitter på, og et håndtak på skrå av sin
+egen kant leses som en feil i kartet lenge før noen leser det som en kompassretning.
+Trekant-geometrien er tegnet for å flukte (v5.25.5–6), og hjørnemerket for å ha
+beina parallelle med arkets to kanter; begge deler er gjenopprettet.
+
+Merket er altså et ARKMERKE og ikke et kompass: det sier hvilken flis et trykk
+bygger, og flisene ligger i UTM-rutenettet. Kompasset er kompassnåla og rosa, som
+begge trekker nord-korreksjonen fra og fortsatt gjør det — v6.5.59 er urørt, arket
+lastes fortsatt ferdig rotert mot sann nord og eksporten likeså. Reverten er
+fullstendig: fradraget i `edgeKnobDeg`, propen i MapView, røyk-sjekken og
+/Om-avsnittet er tatt ut. Begrunnelsen står igjen som en merknad i koden, så neste
+leser ikke tar den skjeve pila for en bug og gjør forsøket om igjen.
+
+---
+
 ## 2026-09-06 — v6.5.60: Kanthåndtakene peker mot sann nord
 
 De åtte pilene på arkkanten pekte langs flisrutenettet, som er UTM. Etter at
