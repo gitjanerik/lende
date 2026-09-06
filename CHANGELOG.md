@@ -1,3 +1,11 @@
+## 2026-09-06 — v6.5.66: Ett kompass, og en knott som viser det den gjør
+
+Turkartet hadde to kompassnåler som begge vendte kartet mot nord: zoom-søylas nord-knapp og den øverste knotten under Lende-knappen. Nåla bor nå ETT sted. I zoom-søyla er den fristilt fra pluss/minus-pilla — den står i en egen, alltid synlig knapp med luft over, i en halvgjennomsiktig hvit sirkel (grå i mørkt tema, via `surface-2`-tokenet), og bærer Lende-knappens egen nål med rød spiss mot nord. Fram til nå sto den bak `v-if="azimut"` inne i pilla, så den dukket opp og forsvant under fingeren og skiftet pillas høyde i det kartet ble dreid. Trykket er uendret: kartet vris tilbake til nord uten at brukerens utsnitt eller zoom rører seg. Fritt lende har fortsatt ingen rotasjon, så knappen faller bort av seg selv der.
+
+Knotten har fått 3D-visningens «Oversikt»-ikon — et rewind — fordi det er nøyaktig samme handling i den andre flata: legg visningen tilbake slik kartet åpnet seg. Funksjonen er uendret, lang-trykket åpner fortsatt zoom-panelet med standard-zoom, kartstørrelse og antall fliser. Røyk-sjekken som målte at de to nålene pekte samme vei har mistet sin andre nål; den måler nå det samme fortegnet direkte — at nåla dreier like mye og samme vei som arket — og at knappen faktisk står der på et ark i hvile.
+
+---
+
 ## 2026-09-06 — v6.5.65: Hvorfor nullinja ligger på 9° øst
 
 «Nord er nord» på /Om oppga tallene — Bergen 3,2° mot øst, Oslo 1,5° mot vest —

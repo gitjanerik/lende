@@ -2733,18 +2733,19 @@ onUnmounted(() => {
       @hold="onFabKnobHold"
       @chat="openChat">
 
-      <!-- Sentrer (nord, v1.0.77): nåla roterer med kompass-heading eller
-           kartrotasjon. Liten GPS-prikk (v8.5.2) viser at knappen også
-           refresher posisjonen. -->
+      <!-- Sentrer (nord, v1.0.77) — REWIND OG IKKE KOMPASSNÅL (v6.5.66).
+           Knotten bar en nål som pekte mot nord, og zoom-søyla bar en til: to
+           kompass på samme skjerm, som begge vendte kartet nordover. Nåla bor
+           nå ETT sted (ZoomKnapper), og knotten viser det den faktisk gjør —
+           legger visningen tilbake slik kartet åpnet seg. Ikonet er 3D-visningens
+           «Oversikt», som er nøyaktig samme handling i den andre flata.
+           Handlingen er uendret: tap = sentrer, nord opp og oppdater GPS,
+           lang-trykk = zoom-panelet. Liten GPS-prikk (v8.5.2) viser at knappen
+           også refresher posisjonen. -->
       <template #center>
-        <svg viewBox="-50 -50 100 100" class="w-8 h-8"
-             :style="{ transform: compass.isActive && compass.headingDeg !== null
-                                  ? `rotate(${-compass.headingDeg}deg)`
-                                  : `rotate(${rotationSliderDeg}deg)`,
-                       transition: 'transform 0.2s linear' }">
-          <circle r="44" fill="none" stroke="currentColor" stroke-width="4" opacity="0.35"/>
-          <polygon points="0,-40 10,0 0,12 -10,0" fill="#ef4444"/>
-          <polygon points="0,40 10,0 0,-12 -10,0" fill="currentColor" opacity="0.85"/>
+        <svg viewBox="0 0 24 24" class="w-7 h-7" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 4 3 9 8 9"/>
         </svg>
         <span v-if="userPos.isWatching"
               class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-sky-400 shadow-[0_0_4px_rgba(56,189,248,0.8)]" />
