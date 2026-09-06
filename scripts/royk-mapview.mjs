@@ -1156,6 +1156,99 @@ const SJEKKER = [
     },
   },
   {
+    // KOMPASSKIVA LESER MOT KARTET, IKKE MOT APP-CHROMET (v6.5.67).
+    //
+    // Knappen har ingen egen flate lenger — skiva i nåla ER knappen — og da er
+    // det arkets valør den må stå mot: et mørkt kart kan godt leses i en lys
+    // UI, og en hvit skive ville da vært et hull i kartet. Feilen er nettopp
+    // den lette å gjøre: `bg-surface-2` eller `isDark` fra en tema-klasse ser
+    // riktig ut helt til de to er i utakt, og da er sjekken den eneste som ser
+    // det. Derfor BYTTER sjekken kartstil og måler fyllet begge veier.
+    //
+    // Den måler i tillegg at skiva er like bred som pilla over: de står på
+    // samme akse, og en smalere skive leser som en tredje, mindre knapp.
+    //
+    // EGEN KONTEKST MED `hasTouch` — samme grunn som sjekken over.
+    navn: 'kompasskiva følger kartets valør, og er like bred som pilla',
+    domene: 'ZoomKnapper',
+    maksMs: 120_000,
+    async kjør(page) {
+      const ctx = await page.context().browser().newContext({
+        viewport: { width: 430, height: 900 },
+        hasTouch: true,
+        isMobile: false,
+      })
+      const p2 = await ctx.newPage()
+      try {
+        await p2.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await p2.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+        await lukkDrawer(p2)
+
+        const les = () => p2.evaluate(() => {
+          const knapp = document.querySelector('button[aria-label^="Vend kartet mot nord"]')
+          if (!knapp) return null
+          const pille = document.querySelector('button[aria-label="Zoom inn"]')?.parentElement
+          const skive = knapp.querySelector('circle')
+          return {
+            fyll: skive ? getComputedStyle(skive).fill : null,
+            bredde: Math.round(knapp.getBoundingClientRect().width),
+            pilleBredde: pille ? Math.round(pille.getBoundingClientRect().width) : null,
+          }
+        })
+        const lum = (farge) => {
+          const m = /(-?[\d.]+)[,\s]+(-?[\d.]+)[,\s]+(-?[\d.]+)/.exec(farge || '')
+          return m ? 0.2126 * +m[1] + 0.7152 * +m[2] + 0.0722 * +m[3] : null
+        }
+
+        const settKartstil = async (re) => {
+          await åpneDrawer(p2)
+          await klikkTekst(p2, /^KARTSTIL$/)
+          await klikkTekst(p2, re)
+          await p2.waitForTimeout(700)
+          await lukkDrawer(p2)
+          await p2.waitForTimeout(250)
+        }
+
+        await settKartstil(/^Turkart/)
+        const lyst = await les()
+        if (!lyst) throw new Error('fant ingen kompassknapp i en berøringskontekst')
+        if (lyst.pilleBredde == null) throw new Error('fant ikke zoom-pilla å måle bredden mot')
+        if (lyst.bredde !== lyst.pilleBredde) {
+          throw new Error(`kompassknappen er ${lyst.bredde} px og pilla ${lyst.pilleBredde} px — `
+            + 'de står på samme akse og skal være like brede')
+        }
+        const lysLum = lum(lyst.fyll)
+        if (lysLum == null) throw new Error(`kunne ikke lese skivas fyll: "${lyst.fyll}"`)
+
+        // Mørkt kart: en stemning oppå. Nå skal skiva ha snudd til grå.
+        await åpneDrawer(p2)
+        await klikkTekst(p2, /^STEMNING$/)
+        const stemning = await p2.evaluate(() => {
+          const b = [...document.querySelectorAll('button')].find((e) =>
+            e.offsetParent && /^(Mørk|Curves|Forest|Indigo|Petrol|Mocha)$/i.test(e.innerText.trim()))
+          if (!b) return ''
+          b.click(); return b.innerText.trim()
+        })
+        if (!stemning) throw new Error('fant ingen mørk stemning å bytte til')
+        await p2.waitForTimeout(900)
+        await lukkDrawer(p2)
+        await p2.waitForTimeout(250)
+        const morkLum = lum((await les()).fyll)
+        if (morkLum == null) throw new Error('kunne ikke lese skivas fyll på et mørkt kart')
+
+        if (lysLum - morkLum < 100) {
+          throw new Error(`skiva snudde ikke med kartet: lum ${lysLum.toFixed(0)} på Turkart mot `
+            + `${morkLum.toFixed(0)} på «${stemning}» — leser den app-chromet i stedet for kart-temaet?`)
+        }
+        return `${lyst.bredde} px som pilla; skive-lum ${lysLum.toFixed(0)} (Turkart) → `
+          + `${morkLum.toFixed(0)} («${stemning}»)`
+      } finally {
+        await ctx.close()
+      }
+    },
+  },
+  {
     navn: 'stedsnavn står vannrett MENS kartet roteres',
     domene: 'useSymbolRenderers',
     krever: 'ektekart',
