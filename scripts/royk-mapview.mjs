@@ -464,12 +464,16 @@ const SJEKKER = [
     navn: 'GPS starter og gir posisjon',
     domene: 'useGpsSpor',
     async kjør(page) {
-      await åpneDrawer(page)
-      await klikkTekst(page, /Start GPS/)
+      // Drawer-raden med «Start GPS» er borte (v6.5.68); pin-knappen i
+      // høyre søyle er nå den eneste veien inn i posisjonen.
+      await lukkDrawer(page)
+      await page.locator('button[aria-label^="Posisjon av"]').first().click()
       await page.waitForTimeout(2500)
       const prikk = await page.evaluate(() =>
         document.querySelectorAll('svg.isom-map [id*="user"], svg.isom-map [data-user-pos]').length)
       if (!prikk) throw new Error('ingen brukerposisjon i kartet etter Start GPS')
+      const av = await page.locator('button[aria-label^="Posisjon på"]').count()
+      if (!av) throw new Error('pin-knappen sier fortsatt «Posisjon av» etter at GPS-en er i gang')
       return `${prikk} posisjons-node(r)`
     },
   },
@@ -1061,7 +1065,7 @@ const SJEKKER = [
     // standard-konteksten rapporterer `pointer: fine` og får desktop-søyla i
     // stedet, så sjekken ville hoppet stille over det den finnes for.
     navn: 'kompassnåla står i hvile og følger arket',
-    domene: 'ZoomKnapper',
+    domene: 'NavKnapper',
     krever: 'ektekart',
     maksMs: 120_000,
     async kjør(page) {
@@ -1165,18 +1169,26 @@ const SJEKKER = [
     // riktig ut helt til de to er i utakt, og da er sjekken den eneste som ser
     // det. Derfor BYTTER sjekken kartstil og måler fyllet begge veier.
     //
-    // Den måler i tillegg at skiva er like bred som pilla over: de står på
-    // samme akse, og en smalere skive leser som en tredje, mindre knapp.
+    // Den måler i tillegg at skiva er like bred som posisjons-knappen over:
+    // de står på samme akse, og en smalere skive leser som en tredje, mindre
+    // knapp. Zoom-pilla den før ble målt mot er fjernet i v6.5.68.
+    //
+    // OG DEN MÅLER AT PIN-EN SKIFTER FARGE (v6.5.68). Knappen er hele svaret
+    // på «er posisjonen på?», og av/på skilles bare av fyllet i ikonet — en
+    // grå pin og en blå pin er samme markup. Blir de like, er det ingenting
+    // igjen som sier hvilken tilstand man står i, og ingen enhetstest ser det.
     //
     // EGEN KONTEKST MED `hasTouch` — samme grunn som sjekken over.
-    navn: 'kompasskiva følger kartets valør, og er like bred som pilla',
-    domene: 'ZoomKnapper',
+    navn: 'kompasskiva følger kartets valør, og pin-en sier av/på',
+    domene: 'NavKnapper',
     maksMs: 120_000,
     async kjør(page) {
       const ctx = await page.context().browser().newContext({
         viewport: { width: 430, height: 900 },
         hasTouch: true,
         isMobile: false,
+        permissions: ['geolocation'],
+        geolocation: { latitude: 59.8412, longitude: 10.4123 },
       })
       const p2 = await ctx.newPage()
       try {
@@ -1188,12 +1200,13 @@ const SJEKKER = [
         const les = () => p2.evaluate(() => {
           const knapp = document.querySelector('button[aria-label^="Vend kartet mot nord"]')
           if (!knapp) return null
-          const pille = document.querySelector('button[aria-label="Zoom inn"]')?.parentElement
+          const gps = document.querySelector('button[aria-label^="Posisjon "]')
           const skive = knapp.querySelector('circle')
           return {
             fyll: skive ? getComputedStyle(skive).fill : null,
             bredde: Math.round(knapp.getBoundingClientRect().width),
-            pilleBredde: pille ? Math.round(pille.getBoundingClientRect().width) : null,
+            gpsBredde: gps ? Math.round(gps.getBoundingClientRect().width) : null,
+            pin: gps ? getComputedStyle(gps.querySelector('g')).stroke : null,
           }
         })
         const lum = (farge) => {
@@ -1213,10 +1226,10 @@ const SJEKKER = [
         await settKartstil(/^Turkart/)
         const lyst = await les()
         if (!lyst) throw new Error('fant ingen kompassknapp i en berøringskontekst')
-        if (lyst.pilleBredde == null) throw new Error('fant ikke zoom-pilla å måle bredden mot')
-        if (lyst.bredde !== lyst.pilleBredde) {
-          throw new Error(`kompassknappen er ${lyst.bredde} px og pilla ${lyst.pilleBredde} px — `
-            + 'de står på samme akse og skal være like brede')
+        if (lyst.gpsBredde == null) throw new Error('fant ingen posisjons-knapp over kompasset')
+        if (lyst.bredde !== lyst.gpsBredde) {
+          throw new Error(`kompassknappen er ${lyst.bredde} px og posisjons-knappen `
+            + `${lyst.gpsBredde} px — de står på samme akse og skal være like brede`)
         }
         const lysLum = lum(lyst.fyll)
         if (lysLum == null) throw new Error(`kunne ikke lese skivas fyll: "${lyst.fyll}"`)
@@ -1241,8 +1254,19 @@ const SJEKKER = [
           throw new Error(`skiva snudde ikke med kartet: lum ${lysLum.toFixed(0)} på Turkart mot `
             + `${morkLum.toFixed(0)} på «${stemning}» — leser den app-chromet i stedet for kart-temaet?`)
         }
-        return `${lyst.bredde} px som pilla; skive-lum ${lysLum.toFixed(0)} (Turkart) → `
-          + `${morkLum.toFixed(0)} («${stemning}»)`
+        // Av/på i pin-en: grå skal skille seg klart fra den blå GPS-prikken.
+        const av = (await les()).pin
+        await p2.locator('button[aria-label^="Posisjon av"]').first().click()
+        await p2.waitForTimeout(1500)
+        const på = (await les()).pin
+        if (!av || !på) throw new Error('fant ingen strekfarge i pin-ikonet')
+        if (av === på) {
+          throw new Error(`pin-en har samme farge av og på (${av}) — `
+            + 'da sier knappen ingenting om tilstanden')
+        }
+
+        return `${lyst.bredde} px som posisjons-knappen; skive-lum ${lysLum.toFixed(0)} (Turkart) → `
+          + `${morkLum.toFixed(0)} («${stemning}»); pin ${av} → ${på}`
       } finally {
         await ctx.close()
       }
@@ -3533,16 +3557,38 @@ const SJEKKER = [
         return {
           innenfor: r.top >= -1 && r.bottom <= innerHeight + 1,
           trykkbar: !!treff && b.contains(treff),
+          // Overlegget skal ikke kunne rulles i det hele tatt (v6.5.68) — er
+          // det rullet, har noe fått fokus utenfor kanten og dratt hele
+          // kart-chromet med seg.
+          rullet: Math.round(document.querySelector('.kart-ui')?.scrollTop || 0),
+          // Navigasjonssøyla skal holde seg innenfor skjermen og rulle i seg
+          // selv når den ikke får plass — renner den ut, er de nederste
+          // knappene ikke til å nå.
+          søyleUt: (() => {
+            const g = document.querySelector('button[aria-label^="Posisjon "]')
+              ?.closest('.absolute')
+            return g ? Math.round(g.getBoundingClientRect().bottom - innerHeight) : null
+          })(),
         }
       })
       if (!skuff) throw new Error('skuffen åpnet ikke i liggende')
+      if (skuff.rullet) {
+        throw new Error(`kart-overlegget er rullet ${skuff.rullet} px i liggende — `
+          + 'en fokusert kontroll utenfor kanten har flyttet hele chromet')
+      }
       if (!skuff.innenfor) throw new Error('skuffens fane-rad ligger utenfor viewporten i liggende')
       if (!skuff.trykkbar) throw new Error('skuffens fane-rad ligger under noe annet i liggende')
+      if (skuff.søyleUt == null) throw new Error('fant ikke navigasjonssøyla i liggende')
+      if (skuff.søyleUt > 1) {
+        throw new Error(`navigasjonssøyla stikker ${skuff.søyleUt} px under skjermkanten i `
+          + 'liggende — de nederste knappene er ikke til å nå')
+      }
       await lukkDrawer(page)
       // NØYTRAL TILSTAND: tilbake til mobil-viewporten resten av sjekkene måler i.
       await page.setViewportSize({ width: 430, height: 900 })
       await page.waitForTimeout(600)
-      return `liggende doc-overflyt ${liggende.doc} px (stående ${stående.doc}), skuffen brukbar`
+      return `liggende doc-overflyt ${liggende.doc} px (stående ${stående.doc}), skuffen brukbar, `
+        + 'søyla innenfor og overlegget urullet'
     },
   },
   {

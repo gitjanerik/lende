@@ -379,10 +379,15 @@ try {
   sjekk('Fritt lende: terreng og stier er synlige', arket?.synlige === 4, `${arket?.synlige ?? 0}/4`)
   sjekk('Fritt lende: ekvidistansen er borte fra linjalen', arket?.ekvidistanse === false)
   sjekk('Fritt lende: avstanden vises ikke før GPS er på', arket?.avstand === false)
-  // Fire fra v6.5.49: hovedmenyen, hovedknappen og de to zoom-knappene. Zoom
-  // fantes bare som pinch, og en fleirpunkts-gest uten enkeltpeker-alternativ
-  // er et WCAG-brudd (2.5.2) i den ene modusen som brukes med votter.
-  sjekk('Fritt lende: nøyaktig fire knapper på skjermen', arket?.knapper === 4,
+  // To fra v6.5.68: hovedmenyen og hovedknappen. Zoom-knappene kom inn i
+  // v6.5.49 som enkeltpeker-alternativ til pinch (WCAG 2.5.1), og er tatt ut
+  // igjen etter en bevisst avveining fra eieren: pilla var støy over kartet i
+  // hovedsløyfa, og zoom med to fingre er så innarbeidet at den ikke ble brukt.
+  // PRISEN ER REELL og skal ikke bortforklares: i Fritt lende finnes det nå
+  // ingen enkeltpeker-vei til å zoome UT. Tallet står som et KRAV OM ANTALL og
+  // ikke som «finnes ikke X», så det fanger også en tredje knapp noen legger
+  // til i god tro.
+  sjekk('Fritt lende: nøyaktig to knapper på skjermen', arket?.knapper === 2,
     `${arket?.knapper ?? 0} knapper`)
   sjekk('Fritt lende: målestokken vises', arket?.maalestokk === true)
 
