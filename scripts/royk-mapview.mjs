@@ -1041,20 +1041,27 @@ const SJEKKER = [
     },
   },
   {
-    // DE TO NÅLENE MÅ PEKE SAMME VEI. Kartet har tre avlesninger av én og samme
-    // verdi (`rotationSliderDeg`, altså skjermvinkelen til nord): kompass-FAB-en,
-    // desktop-rosa og zoom-pillas nord-knapp. Fram til v6.5.62 hadde den siste
-    // fortegnet snudd, så de to nålene på en telefon pekte hver sin vei så snart
-    // kartet var dreid — speilet om loddrett, altså LIKE på et ark i hvile og
-    // mest gale på 90°. Ingen enhetstest kan se dette: begge er riktige tall som
-    // ender i hver sin `transform`, og prosjektet enhetstester ikke Vue-
-    // komponenter. Det er bare å måle på skjermen.
+    // KOMPASSNÅLA FØLGER ARKET, OG DEN STÅR DER I HVILE.
     //
-    // EGEN KONTEKST MED `hasTouch`, fordi zoom-pilla er berøringens kontroll:
+    // Fram til v6.5.66 hadde kartet TO nåler — kompass-FAB-en og zoom-søylas
+    // nord-knapp — og denne sjekken målte at de pekte samme vei, fordi den ene
+    // hadde fortegnet snudd fra v6.5.48 til v6.5.62. FAB-en bærer nå et
+    // rewind-ikon, så det finnes bare én nål igjen, og det er ingen andre
+    // avlesning å holde den opp mot. Invarianten som blir igjen er den samme
+    // feilen målt direkte: nåla skal dreie MED arket, like mye og samme vei.
+    // Et snudd fortegn gir dobbelt utslag med motsatt retning.
+    //
+    // Sjekken måler i tillegg at knappen står der på et ark i HVILE — fram til
+    // v6.5.66 sto den bak `v-if="azimut"` og dukket opp først når kartet var
+    // dreid. Ingen enhetstest kan se noe av dette: prosjektet enhetstester
+    // ikke Vue-komponenter, og begge tallene er riktige tall som ender i hver
+    // sin `transform`. Det er bare å måle på skjermen.
+    //
+    // EGEN KONTEKST MED `hasTouch`, fordi zoom-søyla er berøringens kontroll:
     // standard-konteksten rapporterer `pointer: fine` og får desktop-søyla i
     // stedet, så sjekken ville hoppet stille over det den finnes for.
-    navn: 'de to kompassnålene peker samme vei',
-    domene: 'ZoomKnapper + FabCluster',
+    navn: 'kompassnåla står i hvile og følger arket',
+    domene: 'ZoomKnapper',
     krever: 'ektekart',
     maksMs: 120_000,
     async kjør(page) {
@@ -1070,11 +1077,31 @@ const SJEKKER = [
           null, { timeout: 30_000 })
         await lukkDrawer(p2)
 
-        // Kartet MÅ dreies først: nord-knappen står bak `v-if="azimut"`, og på
-        // et ark i hvile er nålene like uansett fortegn — det er nettopp derfor
-        // feilen fikk stå. Gesten er syntetiske TouchEvents, samme grep som
-        // sjekken under (usePinchZoom lytter med { passive: false }); vi slipper
-        // fingrene igjen, for her måles hviletilstanden etter gesten.
+        const les = () => p2.evaluate(() => {
+          const inner = document.querySelector('[data-map-inner]')
+          const mm = /rotate\((-?[\d.]+)deg\)/.exec(inner?.style.transform || '')
+          const knapp = document.querySelector('button[aria-label^="Vend kartet mot nord"]')
+          const nal = knapp?.querySelector('svg')
+          const nm = /rotate\((-?[\d.]+)deg\)/.exec(nal?.style.transform || '')
+          return {
+            ark: mm ? Number(mm[1]) : 0,
+            nal: nal ? (nm ? Number(nm[1]) : 0) : null,
+            rod: !!knapp?.querySelector('polygon[fill="#ef4444"]'),
+            synlig: !!knapp?.getBoundingClientRect().width,
+          }
+        })
+
+        const hvile = await les()
+        if (hvile.nal == null) {
+          throw new Error('fant ingen kompassknapp på et ark i hvile — '
+            + 'står den bak en port igjen?')
+        }
+        if (!hvile.synlig) throw new Error('kompassknappen finnes i DOM-en, men har ingen boks')
+        if (!hvile.rod) throw new Error('kompassknappen mangler den røde nordspissen')
+
+        // Kartet dreies med syntetiske TouchEvents (usePinchZoom lytter med
+        // { passive: false }); vi slipper fingrene igjen, for her måles
+        // hviletilstanden etter gesten.
         const dreid = await p2.evaluate(async () => {
           const inner = document.querySelector('[data-map-inner]')
           const el = inner?.parentElement
@@ -1100,49 +1127,29 @@ const SJEKKER = [
           send('touchstart', 0)
           for (let d = 6; d <= 60; d += 6) { send('touchmove', d); await frame(); await frame() }
           send('touchend', null)
-          const mm = /rotate\((-?[\d.]+)deg\)/.exec(inner.style.transform || '')
-          return { rot: mm ? Number(mm[1]) : 0 }
+          return {}
         })
         if (dreid.feil) throw new Error(dreid.feil)
         await p2.waitForTimeout(700)
-        // Et snudd fortegn er bare utvetydig når kartet står langt fra både 0 og
-        // 180 — der er de to nålene like uansett hvem som har rett.
-        if (Math.abs(dreid.rot) < 20) {
-          throw new Error(`to-finger-rotasjonen slo ikke inn (kart ${dreid.rot}°) — `
+
+        const etter = await les()
+        const norm = (v) => ((((v % 360) + 540) % 360) - 180)
+        const arkDelta = norm(etter.ark - hvile.ark)
+        const nalDelta = norm(etter.nal - hvile.nal)
+        // Et snudd fortegn er bare utvetydig når dreiningen er stor nok; en
+        // gest som ikke slo inn ville ellers vært grønn med to nuller.
+        if (Math.abs(arkDelta) < 20) {
+          throw new Error(`to-finger-rotasjonen slo ikke inn (arket dreide ${arkDelta.toFixed(1)}°) — `
             + 'uten en dreining måler denne sjekken ingenting')
         }
-
-        const lest = await p2.evaluate(() => {
-          const grad = (el) => {
-            if (!el) return null
-            const t = el.style.transform || ''
-            const m = /rotate\((-?[\d.]+)deg\)/.exec(t)
-            return m ? Number(m[1]) : null
-          }
-          const pilla = document.querySelector('button[aria-label^="Vend kartet mot nord"] svg')
-          // FAB-ens nål er den ENESTE svg-en med den røde spissen (#ef4444) i
-          // knappe-stacken; vi finner den på fyllfargen og ikke på en klasse,
-          // som er stylet av Tailwind og kan endres uten at nåla gjør det.
-          const fab = [...document.querySelectorAll('svg')].find(
-            (s) => s !== pilla && s.querySelector('polygon[fill="#ef4444"]'))
-          return { pilla: grad(pilla), fab: grad(fab) }
-        })
-
-        if (lest.pilla == null) {
-          throw new Error('fant ingen nord-knapp i zoom-pilla — dreide ikke kartet, '
-            + 'eller står pilla bak en annen port nå?')
-        }
-        if (lest.fab == null) throw new Error('fant ingen kompassnål på FAB-en')
-
-        const norm = (v) => ((((v % 360) + 540) % 360) - 180)
-        const avvik = Math.abs(norm(lest.pilla - lest.fab))
+        const avvik = Math.abs(norm(nalDelta - arkDelta))
         if (avvik > 1) {
-          const speilet = Math.abs(norm(lest.pilla + lest.fab)) <= 1
-          throw new Error(`nålene peker ${avvik.toFixed(1)}° fra hverandre `
-            + `(pilla ${lest.pilla}°, FAB ${lest.fab}°)`
-            + (speilet ? ' — de er speilvendte, altså et snudd fortegn i den ene' : ''))
+          const speilet = Math.abs(norm(nalDelta + arkDelta)) <= 1
+          throw new Error(`arket dreide ${arkDelta.toFixed(1)}°, nåla ${nalDelta.toFixed(1)}° `
+            + `(${avvik.toFixed(1)}° fra hverandre)`
+            + (speilet ? ' — de er speilvendte, altså et snudd fortegn i nåla' : ''))
         }
-        return `dreid 70°: pilla ${lest.pilla}°, FAB ${lest.fab}° — samme vei`
+        return `nål i hvile ${hvile.nal}°, ark dreid ${arkDelta.toFixed(1)}° → nål ${nalDelta.toFixed(1)}°`
       } finally {
         await ctx.close()
       }
