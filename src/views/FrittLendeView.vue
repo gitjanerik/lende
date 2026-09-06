@@ -12,6 +12,7 @@ import { useUiTextScale } from '../composables/useUiTextScale.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { loadMap, saveMap, FRITT_LENDE_ID, FRITT_LENDE_FORRIGE_ID } from '../lib/mapStorage.js'
 import { byggVertSvg } from '../lib/kartVert.js'
+import { sannNordRotasjonForMeta } from '../lib/utm.js'
 import { tegnBrukerPrikk } from '../lib/brukerPrikk.js'
 import { beregnMaalestokk } from '../lib/maalestokk.js'
 import { strekSkala } from '../lib/strekSkala.js'
@@ -219,7 +220,9 @@ function settStandardvisning() {
   if (!m) return
   const { w, h } = wrapperSize.value
   if (!w || !h) return
-  pz.rotation.value = 0
+  // Rotasjonen er låst til nord fordi kompasset er borte — og «nord» er SANN
+  // nord, ikke kartnord. Avviket er en ren rotasjon av arket (lib/utm.js).
+  pz.rotation.value = sannNordRotasjonForMeta(m)
   pz.scale.value = dekningsSkala({ w, h, widthM: m.widthM, heightM: m.heightM })
   const inne = userPos.svgX != null && !userPos.isOutsideMap
   panTil(inne ? userPos.svgX : m.widthM / 2, inne ? userPos.svgY : m.heightM / 2)

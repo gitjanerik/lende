@@ -10,6 +10,8 @@
 // tungt men virker på fjellet. Rekkefølgen er med vilje — lenka er det vanlige
 // valget.
 defineProps({
+  sannNord: { type: Boolean, default: true },
+  nordavvikDeg: { type: Number, default: 0 },
   shareState: { type: String, default: 'idle' },
   highlightedFeature: { type: Object, default: null },
   exporting: { type: String, default: null },
@@ -23,6 +25,7 @@ defineProps({
   onExportPdf: { type: Function, required: true },
   onPrint: { type: Function, required: true },
 })
+defineEmits(['update:sannNord'])
 </script>
 
 <template>
@@ -101,6 +104,38 @@ defineProps({
       Hele kartet i én fil — kart, høyder, kulturminner og vannmålestasjoner.
       Send den med AirDrop, Bluetooth eller minnepinne. Mottakeren importerer
       den fra forsiden og trenger ikke dekning.
+    </div>
+
+    <!-- Sann nord opp i FILA. Skjermen står alltid slik; her er det et valg,
+         fordi rotasjonen koster papir: arket får vokse så det roterte
+         rektangelet får plass, og hjørnene males i bakgrunnsfargen. Av gir det
+         rene UTM-arket. Uansett hvilken vei bryteren står, skrives orienteringen
+         ut i kolofonen nederst til venstre — et ark uten app rundt seg må si
+         det selv. -->
+    <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-3">
+      <div class="flex items-center gap-3">
+        <div class="flex-1 min-w-0">
+          <div class="text-[13px] text-ink font-medium">Sann nord opp i fila</div>
+          <div class="text-[11px] text-ink-3 leading-snug">
+            Kartet er UTM-projisert, så rutenettets nord er ikke helt sann nord.
+            <template v-if="Math.abs(nordavvikDeg) >= 0.05">
+              Her er avviket
+              <span class="text-ink-2 font-medium tabular-nums">{{ Math.abs(nordavvikDeg).toFixed(1).replace('.', ',') }}°</span>
+              mot {{ nordavvikDeg >= 0 ? 'øst' : 'vest' }}.
+            </template>
+            <template v-else>Her er avviket forsvinnende lite.</template>
+            På: fila roteres, som skjermen. Av: det rene UTM-arket.
+          </div>
+        </div>
+        <button @click="$emit('update:sannNord', !sannNord)"
+                :aria-pressed="sannNord"
+                :aria-label="sannNord ? 'Eksporter uten nord-korreksjon' : 'Eksporter med sann nord opp'"
+                class="relative w-11 h-6 rounded-full transition-colors shrink-0"
+                :class="sannNord ? 'bg-emerald-500' : 'bg-ink/15'">
+          <span class="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
+                :class="sannNord ? 'left-5' : 'left-0.5'" />
+        </button>
+      </div>
     </div>
 
     <div class="grid grid-cols-2 gap-2 mb-3">

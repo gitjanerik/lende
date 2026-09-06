@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { ref } from 'vue'
 import { parseHTML } from 'linkedom'
 import { useKartEksport } from './useKartEksport.js'
+import { sannNordRotasjonForMeta } from '../lib/utm.js'
 
 // 3D-teksturen bygges av arkets fliser HVER FOR SEG (v5.18.1). Delingen skjer
 // her, i DOM-en, og det er den som er lett å få subtilt feil: en naboflis uten
@@ -140,5 +141,94 @@ describe('mapSvgMarkupForExport', () => {
     const { mapSvgMarkupForExport } = lagEksport(globalThis.document.querySelector('#vert'))
     const ut = mapSvgMarkupForExport({ colophon: false })
     expect(ut).not.toContain('ghost-tiles')
+  })
+})
+
+// ── Sann nord i fila ────────────────────────────────────────────────────────
+// På skjermen bor rotasjonen på wrapper-diven og er gratis. En fil har ingen
+// wrapper, så der roteres selve SVG-en — og da må papiret vokse. Det er derfor
+// dette er en OPSJON: bare de fire fil-utgangene ber om den.
+describe('mapSvgMarkupForExport — sann nord', () => {
+  const nordRad = (ut) => /<text[^>]*>([^<]*nord[^<]*)</i.exec(ut)?.[1] ?? ''
+
+  it('roterer ikke uten at kalleren ber om det — offline-pakka får arket som før', () => {
+    const { mapSvgMarkupForExport } = lagEksport(arkMedNaboer())
+    const ut = mapSvgMarkupForExport()
+    expect(ut).toContain('viewBox="0 0 4000 3000"')
+    expect(ut).not.toContain('data-sann-nord')
+    expect(nordRad(ut)).toBe('')
+  })
+
+  it('roterer arket og utvider ramma når sannNord er på', () => {
+    const { mapSvgMarkupForExport } = lagEksport(arkMedNaboer())
+    const ut = mapSvgMarkupForExport({ sannNord: true })
+    expect(ut).toContain('data-sann-nord')
+    const vb = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(ut)
+    expect(Number(vb[1])).toBeGreaterThan(4000)
+    expect(Number(vb[2])).toBeGreaterThan(3000)
+    expect(nordRad(ut)).toMatch(/^Sann nord opp/)
+  })
+
+  // Bakgrunnen MÅ ligge utenfor det roterte <g>-et, ellers står hjørnene som
+  // ble til overs hvite på arket.
+  it('legger bakgrunnen utenfor den roterte gruppa', () => {
+    const { mapSvgMarkupForExport } = lagEksport(arkMedNaboer())
+    const ut = mapSvgMarkupForExport({ sannNord: true })
+    expect(ut.indexOf('<rect')).toBeLessThan(ut.indexOf('data-sann-nord'))
+  })
+
+  it('skriver nordretningen i kolofonen også når bryteren er AV', () => {
+    const { mapSvgMarkupForExport } = lagEksport(arkMedNaboer())
+    const ut = mapSvgMarkupForExport({ sannNord: false })
+    expect(ut).toContain('viewBox="0 0 4000 3000"')
+    expect(ut).not.toContain('data-sann-nord')
+    expect(nordRad(ut)).toMatch(/^Kartnord \(UTM 32N\) opp/)
+  })
+
+  // 3D-scenen har nord = −Z og bygger sin egen orientering; en rotert tekstur
+  // ville lagt kartet skjevt på terrenget.
+  it('roterer ALDRI et extent-utsnitt — det er 3D-teksturen', () => {
+    const { mapSvgMarkupForExport } = lagEksport(arkMedNaboer(NABO(4000, 0)))
+    const ut = mapSvgMarkupForExport({
+      sannNord: true, colophon: false,
+      extent: { minX: 0, minY: 0, widthM: 8000, heightM: 3000 },
+    })
+    expect(ut).not.toContain('data-sann-nord')
+    expect(ut).toContain('viewBox="0 0 8000 3000"')
+  })
+
+  // Rotasjonen legger seg på <g>-et og treffer HVER tekst i arket. Skjermens
+  // counter-rotasjon mot brukerens egen rotasjon skal ikke ut i fila — men
+  // arkets egen rotasjon MÅ counter-roteres, ellers står navnene 19,9° på skrå
+  // i Kirkenes.
+  it('ber om counter-rotasjon mot ARKETS rotasjon, ikke mot null', () => {
+    const kall = []
+    const vert = arkMedNaboer()
+    const { mapSvgMarkupForExport } = useKartEksport({
+      svgHostRef: ref(vert), meta: ref(META), mapTitle: ref('Testkart'),
+      currentTheme: ref('dark'), autoMapToast: ref(''),
+      hooks: { applyUprightLabels: (v) => kall.push(v) },
+    })
+    mapSvgMarkupForExport({ sannNord: true })
+    expect(kall[0]).toBeCloseTo(sannNordRotasjonForMeta(META), 6)
+    expect(kall[0]).not.toBe(0)
+    expect(kall[1]).toBeUndefined()      // tilbake til brukerens rotasjon
+
+    kall.length = 0
+    mapSvgMarkupForExport({ sannNord: false })
+    expect(kall[0]).toBe(0)
+  })
+
+  it('skalerer width/height i takt med ramma så rasteret ikke letterboxes', () => {
+    const vert = arkMedNaboer()
+    const svg = vert.querySelector('svg')
+    svg.setAttribute('width', '400mm')
+    svg.setAttribute('height', '300mm')
+    const { mapSvgMarkupForExport } = lagEksport(vert)
+    const ut = mapSvgMarkupForExport({ sannNord: true })
+    const vb = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(ut)
+    const w = Number(/width="([\d.]+)mm"/.exec(ut)[1])
+    const h = Number(/height="([\d.]+)mm"/.exec(ut)[1])
+    expect(w / h).toBeCloseTo(Number(vb[1]) / Number(vb[2]), 3)
   })
 })

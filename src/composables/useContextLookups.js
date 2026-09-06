@@ -6,7 +6,7 @@
 // composablen mottar refs destrukturert. Selve arket rendres av
 // ContextMenuSheet, handlings-knappene av forelderen.
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
-import { svgToWgs84 } from '../lib/utm.js'
+import { svgToWgs84, nordavvikForMeta } from '../lib/utm.js'
 import { sampleElevation } from '../lib/demSampling.js'
 import { fetchLakeData } from '../lib/nveLakeFetcher.js'
 import { fetchLiveWater } from '../lib/nveHydApi.js'
@@ -363,7 +363,12 @@ export function useContextLookups({
       const dx = p.svgX - userPos.svgX
       const dy = p.svgY - userPos.svgY
       const distM = Math.hypot(dx, dy)
-      const deg = bearingDeg(userPos.svgX, userPos.svgY, p.svgX, p.svgY)
+      // Retningen regnes i kart-/UTM-rommet og er derfor mot KARTNORD. Uten
+      // korreksjonen er «rett nord» i teksten rutenettets nord, som i Kirkenes
+      // er 19,9° unna det kompasset i handa peker på — og `bearingToCompass`
+      // deler i 22,5°-sektorer, så det er nok til å bomme på hele himmelretningen.
+      const deg = (bearingDeg(userPos.svgX, userPos.svgY, p.svgX, p.svgY)
+                   - nordavvikForMeta(meta.value) + 360) % 360
       fromUser = { distM, deg, compass: bearingToCompass(deg) }
     }
 

@@ -877,9 +877,13 @@ const SJEKKER = [
     krever: 'ektekart',
     async kjør(page) {
       // Skjermen counter-roterer labels så de står vannrett mens kartet er
-      // rotert. Den eksporterte SVG-en er ALLTID nord-opp, så counter-
-      // rotasjonen må ikke følge med ut — ellers står 179 navn skjevt på et
-      // rett kart (rapportert etter PDF-test, rettet i v5.14.0).
+      // rotert, og den counter-rotasjonen må ikke følge med ut — ellers står
+      // 179 navn skjevt (rapportert etter PDF-test, rettet i v5.14.0).
+      //
+      // MEN fila er ikke lenger nødvendigvis rett: eksporten roterer arket til
+      // sann nord, og da bærer teksten sin egen counter-rotasjon mot NØYAKTIG
+      // den. Invarianten er derfor ikke «rotate(0)» men SUMMEN: tekstens
+      // rotasjon pluss arkets skal være null, altså vannrett på papiret.
       await lukkDrawer(page)
       const rotert = await page.evaluate(() => {
         const sl = document.querySelector('input[aria-label*="Roter kartet"]')
@@ -890,8 +894,14 @@ const SJEKKER = [
       })
       if (!rotert) throw new Error('fant ingen rotasjons-slider (kjører testen i mobil-viewport?)')
       await page.waitForTimeout(1200)
-      const skjermFør = await page.evaluate(() =>
-        document.querySelectorAll('svg.isom-map text[transform^="rotate(-40"]').length)
+      // Skjermrotasjonen er sliderens 40° pluss arkets nord-korreksjon, så
+      // tallet er ikke rundt. Vi krever bare at det ligger nær −40.
+      const skjermFør = await page.evaluate(() => {
+        const t = [...document.querySelectorAll('svg.isom-map text[transform]')]
+          .map((e) => Number(/rotate\((-?[\d.]+)/.exec(e.getAttribute('transform'))?.[1]))
+          .filter((v) => Number.isFinite(v) && Math.abs(v + 40) < 2)
+        return t.length
+      })
       if (!skjermFør) throw new Error('labels ble ikke counter-rotert på skjermen — rotasjonen slo ikke inn')
 
       await åpneDrawer(page)
@@ -900,8 +910,36 @@ const SJEKKER = [
       await klikkTekst(page, /Lagre \.svg/)
       const sti = await (await last).path()
       const fil = sti ? readFileSync(sti, 'utf8') : ''
-      const skjeve = (fil.match(/<text[^>]*transform="rotate\((?!0[\s)])/g) || []).length
-      if (skjeve) throw new Error(`${skjeve} labels er rotert i den eksporterte fila`)
+      // Fila parses, den regexes ikke: `forHverUpright` hopper med vilje over
+      // tekst i <defs> (maler, ikke tegnet tekst) og over tekst i lag som er
+      // skrudd AV — de bærer en foreldet rotasjon, men de vises ikke på
+      // papiret. En telling som tar dem med måler noe annet enn den påstår.
+      const papir = await page.evaluate((txt) => {
+        const doc = new DOMParser().parseFromString(txt, 'image/svg+xml')
+        const ark = Number(doc.querySelector('[data-sann-nord]')?.getAttribute('data-sann-nord') ?? 0)
+        let sett = 0
+        const feil = []
+        for (const t of doc.querySelectorAll('text')) {
+          if (t.closest('defs')) continue
+          const lag = t.closest('[data-layer]')
+          if (lag && /display:\s*none/.test(lag.getAttribute('style') || '')) continue
+          const r = /rotate\((-?[\d.]+)/.exec(t.getAttribute('transform') || '')
+          if (!r) continue
+          sett++
+          if (Math.abs(Number(r[1]) + ark) > 0.05) {
+            feil.push(`${r[1]}° i ${lag?.getAttribute('data-layer') || '(uten lag)'}`)
+          }
+        }
+        return { ark, sett, feil }
+      }, fil)
+      const arkRot = papir.ark
+      if (!Number.isFinite(arkRot)) throw new Error('data-sann-nord er ikke et tall')
+      if (papir.feil.length) {
+        const unike = [...new Set(papir.feil)].slice(0, 6).join(', ')
+        throw new Error(`${papir.feil.length} av ${papir.sett} labels står skjevt på papiret `
+          + `(ark ${arkRot}°): ${unike}`)
+      }
+      if (!papir.sett) throw new Error('fant ingen roterte labels i fila — målte den noe?')
 
       // Eksporten skal IKKE røre brukerens visning (v5.16.1): kartet står
       // fortsatt rotert, og labelene står fortsatt vannrett PÅ SKJERMEN — det er
@@ -914,15 +952,92 @@ const SJEKKER = [
         return m ? Math.round(Number(m[1])) : 0
       })
       if (rotEtter === 0) throw new Error('eksporten nullstilte brukerens rotasjon — den skal stå urørt')
-      const skjermEtter = await page.evaluate(() =>
-        document.querySelectorAll('svg.isom-map text[transform^="rotate(-40"]').length)
+      const skjermEtter = await page.evaluate(() => [...document.querySelectorAll('svg.isom-map text[transform]')]
+        .map((e) => Number(/rotate\((-?[\d.]+)/.exec(e.getAttribute('transform'))?.[1]))
+        .filter((v) => Number.isFinite(v) && Math.abs(v + 40) < 2).length)
       if (!skjermEtter) throw new Error('skjermens labels ble IKKE gjenopprettet etter eksport')
       await page.evaluate(() => {
         const sl = document.querySelector('input[aria-label*="Roter kartet"]')
         sl.value = '0'; sl.dispatchEvent(new Event('input', { bubbles: true }))
       })
       await page.waitForTimeout(600)
-      return `${skjermFør} skjeve på skjerm → 0 i fil → ${skjermEtter} urørt på skjerm (rot ${rotEtter}°)`
+      return `${skjermFør} vannrette på skjerm → 0 av ${papir.sett} skjeve i fil `
+        + `(ark ${arkRot}°) → ${skjermEtter} urørt (rot ${rotEtter}°)`
+    },
+  },
+  {
+    navn: 'sann nord: arket står rotert i hvile, og bryteren styrer fila',
+    domene: 'useKartEksport',
+    krever: 'ektekart',
+    async kjør(page) {
+      // Kartnord (UTM-rutenettet) er ikke sann nord, og arket lastes ferdig
+      // rotert så nord er nord. To ting måles her:
+      //  1. NULL PÅ ROSA ER SANN NORD, ikke null på arket. Sjekken TRYKKER seg
+      //     dit framfor å lese av «i hvile»: harnessen laster siden på nytt
+      //     etter en rød sjekk, localStorage overlever, og en tidligere sjekk
+      //     kan ha lagret en visning som gjenopprettes — da er hvile-tilstanden
+      //     ikke den ferske. Skyver vi rosa til 0 SELV, måler vi invarianten
+      //     uansett hva som lå lagret.
+      //  2. Bryteren i Eksport-fanen styrer FILA. Av gir det rene UTM-arket.
+      //     Kolofonen skriver orienteringen begge veier: et ark uten app rundt
+      //     seg må si det selv.
+      await lukkDrawer(page)
+      // Rosas egen skyv bærer gradtallet brukeren leser, så den er entydig —
+      // et span-søk ville plukket zoom-avlesningen like gjerne.
+      const settRosa = (v) => page.evaluate((deg) => {
+        const sl = document.querySelector('input[aria-label="Roter kartet"]')
+        if (!sl) return false
+        sl.value = String(deg)
+        sl.dispatchEvent(new Event('input', { bubbles: true }))
+        return true
+      }, v)
+      const lesRosa = () => page.evaluate(() => {
+        const el = document.querySelector('[data-map-inner]')
+        const m = /rotate\((-?[\d.]+)deg\)/.exec(el?.style.transform || '')
+        const sl = document.querySelector('input[aria-label="Roter kartet"]')
+        return { ark: m ? Number(m[1]) : 0, grad: sl ? Number(sl.value) : null }
+      })
+      if (!(await settRosa(40))) throw new Error('fant ingen rosa-skyv (kjører testen i mobil-viewport?)')
+      await page.waitForTimeout(700)
+      const skrå = await lesRosa()
+      if (skrå.grad !== 40) throw new Error(`rosa leser ${skrå.grad}° etter et skyv til 40`)
+      const avvik = skrå.ark - 40
+      if (Math.abs(avvik) < 0.05) {
+        throw new Error('arket står nøyaktig på rosas 40° — nord-korreksjonen slo ikke inn')
+      }
+      await settRosa(0)
+      await page.waitForTimeout(700)
+      const nord = await lesRosa()
+      if (nord.grad !== 0) throw new Error(`rosa leser ${nord.grad}° etter et skyv til 0`)
+      if (Math.abs(nord.ark) < 0.05) {
+        throw new Error('0 på rosa ga 0° på arket — da er rosa kartnord og ikke sann nord')
+      }
+      if (Math.abs(nord.ark - avvik) > 0.05) {
+        throw new Error(`arket står ${nord.ark}° på rosas 0, men korreksjonen målte ${avvik}°`)
+      }
+
+      await åpneDrawer(page)
+      await klikkTekst(page, /^EKSPORT$/)
+      const les = async () => {
+        const last = page.waitForEvent('download', { timeout: 20_000 })
+        await klikkTekst(page, /Lagre \.svg/)
+        const sti = await (await last).path()
+        return sti ? readFileSync(sti, 'utf8') : ''
+      }
+      const på = await les()
+      if (!/data-sann-nord/.test(på)) throw new Error('bryteren står PÅ, men fila er ikke rotert')
+      if (!/Sann nord opp/.test(på)) throw new Error('kolofonen mangler «Sann nord opp»')
+
+      await klikkTekst(page, /Eksporter uten nord-korreksjon/)
+      const av = await les()
+      if (/data-sann-nord/.test(av)) throw new Error('bryteren står AV, men fila er likevel rotert')
+      if (!/Kartnord \(UTM 32N\) opp/.test(av)) throw new Error('kolofonen mangler kartnord-raden')
+
+      // Nøytral tilstand: bryteren tilbake på (den er persistert i localStorage
+      // og ville fulgt med inn i neste sjekk), og skuffen lukket.
+      await klikkTekst(page, /Eksporter med sann nord opp/)
+      await lukkDrawer(page)
+      return `rosa 0° → ark ${nord.ark}° (korreksjon ${avvik.toFixed(3)}°) → fil rotert på, rett av`
     },
   },
   {
@@ -2896,7 +3011,12 @@ const SJEKKER = [
 
         const modal = page.locator('[role="dialog"][aria-label="Mine kart"]')
         await modal.waitFor({ state: 'visible', timeout: 10_000 })
+        // Modalen er synlig FØR lista er lest: `listMaps()` er et async
+        // IndexedDB-oppslag, og `count()` venter ikke. Uten en waitFor er
+        // sjekken en kappestrid mot databasen som den taper når runneren har
+        // en treg dag.
         const rad = modal.locator('div.font-medium', { hasText: 'Røyk-arket' })
+        await rad.first().waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {})
         const antall = await rad.count()
         if (antall !== 1) throw new Error(`ventet ETT kart i lista, fant ${antall}`)
 

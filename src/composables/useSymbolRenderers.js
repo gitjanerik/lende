@@ -566,12 +566,14 @@ export function useSymbolRenderers({
    * Kjøres som lett attributt-oppdatering ved hver rotasjons-endring —
    * ingen DOM-creation, så det er trygt å kalle hver touchmove-frame.
    */
-  // `kartRotDeg` finnes for EKSPORT. Skjermen counter-roterer labels så de står
-  // vannrett mens kartet er rotert; den eksporterte SVG-en er derimot ALLTID
-  // nord-opp (rotasjonen bor på wrapper-diven, ikke på SVG-en). Uten dette
-  // beholdt labelene sin counter-rotation i PDF/SVG/PNG og sto skjevt på et
-  // rett kart — 179 skjeve navn ved 40° rotasjon. Eksporten kaller derfor
-  // applyUprightLabels(0) rett før den kloner, og uten argument etterpå.
+  // `kartRotDeg` finnes for EKSPORT, og det er ikke det samme som «0». Skjermen
+  // counter-roterer labels mot brukerens rotasjon, som bor på wrapper-diven og
+  // ikke skal følge med ut i fila. Men fila kan ha sin EGEN rotasjon: eksporten
+  // roterer arket til sann nord i selve SVG-en (useKartEksport), og da skal
+  // labelene counter-roteres mot NØYAKTIG den. Uten argumentet sto 179 navn
+  // skjeve ved 40° skjermrotasjon; med feil argument ville de stått 19,9°
+  // skjeve i Kirkenes. Eksporten sender derfor arkets rotasjon (0 når arket
+  // ikke roteres) rett før den kloner, og kaller uten argument etterpå.
   function applyUprightLabels(kartRotDeg = null) {
     const svg = svgHostRef.value?.querySelector('svg')
     if (!svg) return

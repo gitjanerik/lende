@@ -18,6 +18,10 @@ import { ref, unref, onMounted, onUnmounted } from 'vue'
  * options.enabled (ref|computed|bool) — handlere skipper input når false.
  * options.rotateEnabled (default true) — sett false for å fryse rotasjon
  *   (brukes i ViewerView som ikke har rotasjons-UI).
+ * options.nordRotasjon (number | ref | () => number, default 0) — vinkelen
+ *   «nullstilt» rotasjon skal lande på. MapView sender meridiankonvergensen hit
+ *   så et nullstilt kart har SANN nord opp og ikke kartnord; flatene uten
+ *   nord-UI (ViewerView) lar den stå på 0 og er uendret.
  * options.panAtRest (default false) — tillat én-finger-pan også ved scale=1 og
  *   rotasjon=0 (default «hvile»). MapView slår dette på så kartet kan dras rundt
  *   i et canvas-rom selv ved nullstilt zoom; ViewerView lar det stå av.
@@ -26,6 +30,12 @@ export function usePinchZoom(elementRef, options = {}) {
   const enabledOpt = options.enabled
   const rotateEnabled = options.rotateEnabled !== false
   const panAtRest = options.panAtRest === true
+  // Leses LAZY: kartets meta finnes ikke ennå når composable-en opprettes.
+  const nordRotasjon = () => {
+    const v = typeof options.nordRotasjon === 'function'
+      ? options.nordRotasjon() : unref(options.nordRotasjon)
+    return Number.isFinite(Number(v)) ? Number(v) : 0
+  }
   // options.minScale (number | ref | () => number) — dynamisk zoom-ut-gulv. Lar
   // konsumenten senke gulvet så hele en mosaikk kan zoomes ut til (se MapView).
   // Faller tilbake til MIN_SCALE når ikke satt / ugyldig.
@@ -37,7 +47,7 @@ export function usePinchZoom(elementRef, options = {}) {
   const scale = ref(1)
   const translateX = ref(0)
   const translateY = ref(0)
-  const rotation = ref(0)  // grader, 0 = ikke rotert
+  const rotation = ref(0)  // grader SKJERMROTASJON, 0 = kartnord (rutenettet) opp
   const animating = ref(false)
   // isGesturing: true mens brukeren pinch-zoomer, panorerer eller wheel-zoomer.
   // Brukes av MapView for å midlertidig slå av kostbare CSS-effekter
@@ -300,7 +310,7 @@ export function usePinchZoom(elementRef, options = {}) {
     scale.value = 1
     translateX.value = 0
     translateY.value = 0
-    rotation.value = 0
+    rotation.value = nordRotasjon()
   }
 
   onMounted(() => {

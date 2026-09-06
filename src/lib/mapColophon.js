@@ -120,11 +120,13 @@ export function chooseScaleBar(scaleDenom, widthM, k = 1) {
  * @param {number} [o.equidistance] ekvidistanse i meter
  * @param {string} [o.title]       kartets navn
  * @param {string} [o.generated]   ISO-tidspunkt kartet ble bygd
+ * @param {string} [o.nordText]    én linje om arkets nordretning (se withColophon)
  * @returns {string} `<g …>…</g>`, eller '' hvis geometrien mangler
  */
 export function buildColophonSvg({
   widthM, heightM, scaleDenom,
   equidistance = null, title = '', generated = null, appName = APP_NAME,
+  nordText = '',
 } = {}) {
   const w = Number(widthM), h = Number(heightM), denom = Number(scaleDenom)
   if (!(w > 0) || !(h > 0) || !(denom > 0)) return ''
@@ -138,6 +140,11 @@ export function buildColophonSvg({
     : scaleText
   const creditText = [appName, String(title || '').trim(), formatDato(generated)]
     .filter(Boolean).join('  ·  ')
+  // Nordretningen får en EGEN RAD og limes ikke bak målestokken. En lengre
+  // infoText hever Math.max i boxWidthAt og krymper k for HELE kolofonen —
+  // linjal-etiketten med — mens en ny rad bare legger til høyde. Den står i
+  // kreditt-størrelse: det er en opplysning om arket, ikke en måleverdi.
+  const nord = String(nordText || '').trim()
 
   // Boks-bredden i FAKTISKE mm for en gitt skala. Linjalen er absolutt (den
   // måler en rund bakke-avstand og kan ikke skaleres), typografi og luft rundt
@@ -145,6 +152,7 @@ export function buildColophonSvg({
   const boxWidthAt = (k) => PAD_MM * 2 * k + Math.max(
     bar.printMm + (GAP_MM + textWidthMm(bar.label, FS_MAIN_MM)) * k,
     textWidthMm(infoText, FS_MAIN_MM) * k,
+    textWidthMm(nord, FS_CREDIT_MM) * k,
     textWidthMm(creditText, FS_CREDIT_MM) * k,
   )
 
@@ -164,7 +172,8 @@ export function buildColophonSvg({
   // Rad-layout i mm, målt fra boksens topp-venstre hjørne.
   const barBaselineY = PAD_MM + TICK_MM
   const infoBaselineY = barBaselineY + ROW_GAP_MM + FS_MAIN_MM
-  const creditBaselineY = infoBaselineY + ROW_GAP_MM + FS_CREDIT_MM
+  const nordBaselineY = infoBaselineY + ROW_GAP_MM + FS_CREDIT_MM
+  const creditBaselineY = (nord ? nordBaselineY : infoBaselineY) + ROW_GAP_MM + FS_CREDIT_MM
   const boxHMm = creditBaselineY + PAD_MM * 0.7
   const boxWU = Number((boxWidthAt(k) * denom / 1000).toFixed(3))
 
@@ -203,6 +212,10 @@ export function buildColophonSvg({
     ` font-size="${u(FS_MAIN_MM)}" style="${textStyle(600)}">${escapeXml(bar.label)}</text>`,
     `<text x="${u(PAD_MM)}" y="${u(infoBaselineY)}"`,
     ` font-size="${u(FS_MAIN_MM)}" style="${textStyle(600)}">${escapeXml(infoText)}</text>`,
+    nord
+      ? `<text x="${u(PAD_MM)}" y="${u(nordBaselineY)}"`
+        + ` font-size="${u(FS_CREDIT_MM)}" style="${textStyle(600)}">${escapeXml(nord)}</text>`
+      : '',
     `<text x="${u(PAD_MM)}" y="${u(creditBaselineY)}"`,
     ` font-size="${u(FS_CREDIT_MM)}" style="${textStyle(400)};fill:#3d3d3d">${escapeXml(creditText)}</text>`,
     `</g>`,
@@ -220,7 +233,7 @@ export function buildColophonSvg({
  * arket ALLTID er datert. `now` finnes for at tester skal kunne fryse den.
  */
 export function withColophon(svgString, {
-  meta = null, title = '', generated = null, now = null,
+  meta = null, title = '', generated = null, now = null, nordText = '',
 } = {}) {
   if (!svgString) return svgString
   const vb = /viewBox="([^"]+)"/.exec(svgString)?.[1]?.trim().split(/[\s,]+/).map(Number)
@@ -233,6 +246,7 @@ export function withColophon(svgString, {
     equidistance: meta?.equidistance ?? null,
     title,
     generated: generated ?? meta?.generated ?? now ?? new Date().toISOString(),
+    nordText,
   })
   if (!g) return svgString
 
