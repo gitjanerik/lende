@@ -1,3 +1,33 @@
+## 2026-09-07 — v6.5.70: Posisjons-knappen er grønn når den er på
+
+Aktiv posisjon males nå på hele knappen og ikke i ikonet. Skiva bytter til
+`emerald-600` og pin-en blir et hvitt omriss; av er som før en grå pin på den
+halvgjennomsiktige skiva. Fargen er hentet fra appens egen konvensjon for «på» og
+ikke fra GPS-prikken: hver vippebryter i skuffene er grønn når den står på, og
+måle- og stifinner-varslene som ligger rett på kartet er `emerald-600` med hvitt
+innhold — knappen har nå nøyaktig det mønsteret. Blått knyttet knappen til prikken
+den slår på, men svarte på et annet spørsmål enn det brukeren stiller når hun ser
+etter om posisjonen er i gang. Tonen er -600 og ikke -500 fordi hvitt på -500 gir
+2,6:1, altså under WCAG 1.4.11 sitt krav på 3:1 for grafiske objekter; -600 gir
+3,8:1, og den er lik på lyst og mørkt ark siden en farget flate bærer sin egen
+kontrast.
+
+Dette er tredje forsøk på samme skille, og de to første er verdt å ha i loggen:
+først skiftet bare ikonets farge (blått mot grått), altså to like figurer man måtte
+huske forskjellen på, og så ble ikonet fylt blått (v6.5.69), som var tydelig nok
+men gjorde selve pin-en til flekken man leste — på en knapp som er 48 px. Flaten
+er ti ganger større enn ikonet og leses i et øyekast på en telefon i sola.
+
+Røyk-sjekken måler de tre tingene som kan ryke stille i den nye formen: at skiva
+faktisk skifter, at ikonet IKKE blir fylt igjen — et fyll ville lagt en flekk oppå
+aksentfargen — og at streken er lesbar mot flaten den ligger på. Den siste bruker
+en ny `kontrast`-hjelper med den ekte gamma-lineariseringen; sjekkens gamle `lum`
+er en rå vekting av 0–255 og holder til «snudde skiva med kartet», men kan ikke
+svare på om hvitt er lesbart på en gitt aksentfarge. Alle fire er verifisert i
+begge retninger.
+
+---
+
 ## 2026-09-07 — v6.5.69: Posisjons-pin-en er solid når den er på
 
 Pin-knappen over kompasset skiftet bare FARGE mellom av og på — et blått
