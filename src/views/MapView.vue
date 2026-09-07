@@ -2673,7 +2673,8 @@ onUnmounted(() => {
          Taket gjør resten rullbar i søyla selv i stedet for å flytte kartet. -->
     <div class="absolute top-[var(--ovl-nav)] z-20 pointer-events-auto select-none flex flex-col items-end
                 transition-[right] duration-200
-                max-h-[calc(100dvh-var(--ovl-nav)-0.75rem)] overflow-y-auto overscroll-contain"
+                max-h-[calc(100dvh-var(--ovl-nav)-0.75rem)] overflow-y-auto overflow-x-clip
+                overscroll-contain nav-soyle"
          :style="navRightStyle">
       <div v-if="compass.error"
            class="text-[10px] text-red-300 mt-1 max-w-[80px] text-right leading-tight
@@ -3459,6 +3460,25 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* RULLEFELTET SKJULES, RULLINGEN BLIR (v6.5.69). Søyla fikk `overflow-y-auto`
+   i v6.5.68 fordi den rant ut under skjermkanten i liggende, og da tegnet
+   telefonen rullefelt oppå kartet: en grå strek langs knappene og en under
+   den nederste. To streker som leses som en feil i kartet.
+   Rullingen selv MÅ stå — den er hele grunnen til at knappene er å nå på en
+   liggende telefon. Det er bare krommet som skjules; flata er fortsatt
+   rullbar med finger, hjul og tastatur.
+   Den vannrette streken har i tillegg en strukturell årsak: `overflow-y: auto`
+   gjør `overflow-x` til `auto` av seg selv, altså en rulleakse ingenting
+   trenger. Den er nå `clip`, som klipper akkurat som `auto` gjorde men aldri
+   kan tegne et felt. (Målt: den REGNES som `hidden` her — er én akse `clip` og
+   den andre en rulleverdi, sier spec-en at `clip` blir `hidden`. Begge tegner
+   null felt, så forskjellen er uten betydning for det denne linja gjør.)
+   MERK at røyktesten bare kan måle DEKLARASJONEN og ikke pikslene: headless
+   Chromium bruker overleggs-rullefelt, så `offsetWidth − clientWidth` er 0
+   enten feltet er skjult eller ikke. Målt her, ikke gjettet. */
+.nav-soyle { scrollbar-width: none; }
+.nav-soyle::-webkit-scrollbar { display: none; }
+
 /* Snarvei-rad-knapp: ikon over liten etikett, mørk flytende pille. */
 .shortcut-btn {
   display: flex;

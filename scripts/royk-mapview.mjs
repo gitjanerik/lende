@@ -1173,10 +1173,11 @@ const SJEKKER = [
     // de står på samme akse, og en smalere skive leser som en tredje, mindre
     // knapp. Zoom-pilla den før ble målt mot er fjernet i v6.5.68.
     //
-    // OG DEN MÅLER AT PIN-EN SKIFTER FARGE (v6.5.68). Knappen er hele svaret
-    // på «er posisjonen på?», og av/på skilles bare av fyllet i ikonet — en
-    // grå pin og en blå pin er samme markup. Blir de like, er det ingenting
-    // igjen som sier hvilken tilstand man står i, og ingen enhetstest ser det.
+    // OG DEN MÅLER AT PIN-EN SKIFTER FARGE OG FYLL (v6.5.68, utvidet i
+    // v6.5.69). Knappen er hele svaret på «er posisjonen på?», og av/på
+    // skilles bare av ikonet — en grå pin og en blå pin er samme markup. Blir
+    // de like, er det ingenting igjen som sier hvilken tilstand man står i,
+    // og ingen enhetstest ser det.
     //
     // EGEN KONTEKST MED `hasTouch` — samme grunn som sjekken over.
     navn: 'kompasskiva følger kartets valør, og pin-en sier av/på',
@@ -1206,7 +1207,8 @@ const SJEKKER = [
             fyll: skive ? getComputedStyle(skive).fill : null,
             bredde: Math.round(knapp.getBoundingClientRect().width),
             gpsBredde: gps ? Math.round(gps.getBoundingClientRect().width) : null,
-            pin: gps ? getComputedStyle(gps.querySelector('g')).stroke : null,
+            pin: gps ? getComputedStyle(gps.querySelector('path')).stroke : null,
+            pinFyll: gps ? getComputedStyle(gps.querySelector('path')).fill : null,
           }
         })
         const lum = (farge) => {
@@ -1254,19 +1256,38 @@ const SJEKKER = [
           throw new Error(`skiva snudde ikke med kartet: lum ${lysLum.toFixed(0)} på Turkart mot `
             + `${morkLum.toFixed(0)} på «${stemning}» — leser den app-chromet i stedet for kart-temaet?`)
         }
-        // Av/på i pin-en: grå skal skille seg klart fra den blå GPS-prikken.
-        const av = (await les()).pin
+        // Av/på i pin-en, og BEGGE halvdelene av skillet (v6.5.69): grå skal
+        // skille seg klart fra den blå GPS-prikken, OG pin-en skal være FYLT
+        // når posisjonen er på. Fargen alene holdt ikke i felt — et blått og
+        // et grått omriss er samme figur, og man måtte huske hvordan på ser
+        // ut for å se at det var av. Fyllet er det som gjør de to til ulike
+        // figurer, og et `fill` som faller tilbake til «none» er nettopp den
+        // stille feilen ingen enhetstest ser.
+        const førPå = await les()
+        const av = førPå.pin
+        if (førPå.pinFyll && førPå.pinFyll !== 'none') {
+          throw new Error(`pin-en er fylt (${førPå.pinFyll}) mens posisjonen er AV — `
+            + 'da er av og på samme figur')
+        }
         await p2.locator('button[aria-label^="Posisjon av"]').first().click()
         await p2.waitForTimeout(1500)
-        const på = (await les()).pin
+        const etterPå = await les()
+        const på = etterPå.pin
         if (!av || !på) throw new Error('fant ingen strekfarge i pin-ikonet')
         if (av === på) {
           throw new Error(`pin-en har samme farge av og på (${av}) — `
             + 'da sier knappen ingenting om tilstanden')
         }
+        if (!etterPå.pinFyll || etterPå.pinFyll === 'none') {
+          throw new Error('pin-en er ufylt mens posisjonen er PÅ — PÅ skal være solid')
+        }
+        if (etterPå.pinFyll !== på) {
+          throw new Error(`pin-ens fyll (${etterPå.pinFyll}) og strek (${på}) er ulike — `
+            + 'den fylte pin-en skal være ETT flak i GPS-prikkens farge')
+        }
 
         return `${lyst.bredde} px som posisjons-knappen; skive-lum ${lysLum.toFixed(0)} (Turkart) → `
-          + `${morkLum.toFixed(0)} («${stemning}»); pin ${av} → ${på}`
+          + `${morkLum.toFixed(0)} («${stemning}»); pin ${av} omriss → ${på} fylt`
       } finally {
         await ctx.close()
       }
@@ -3569,6 +3590,23 @@ const SJEKKER = [
               ?.closest('.absolute')
             return g ? Math.round(g.getBoundingClientRect().bottom - innerHeight) : null
           })(),
+          // OG SØYLA SKAL IKKE TEGNE RULLEFELT (v6.5.69). Taket over gjorde
+          // den rullbar, og telefonen tegnet da rullefelt oppå kartet: en grå
+          // strek langs knappene og en under den nederste.
+          // DENNE MÅLER DEKLARASJONEN OG IKKE PIKSLENE, og det er en målt
+          // begrensning: headless Chromium bruker overleggs-rullefelt, så
+          // `offsetWidth − clientWidth` er 0 enten feltet er skjult eller
+          // ikke — en piksel-sjekk her kunne ALDRI blitt rød. Det som kan bli
+          // rødt er at CSS-en forsvinner, og det er også slik feilen kommer
+          // tilbake. Rullingen skal fortsatt finnes, så `overflow-y` måles i
+          // samme åndedrag: er den borte, er liggende-fiksen borte med den.
+          søyleFelt: (() => {
+            const g = document.querySelector('button[aria-label^="Posisjon "]')
+              ?.closest('.absolute')
+            if (!g) return null
+            const cs = getComputedStyle(g)
+            return { sbw: cs.scrollbarWidth, ovY: cs.overflowY, ovX: cs.overflowX }
+          })(),
         }
       })
       if (!skuff) throw new Error('skuffen åpnet ikke i liggende')
@@ -3583,12 +3621,29 @@ const SJEKKER = [
         throw new Error(`navigasjonssøyla stikker ${skuff.søyleUt} px under skjermkanten i `
           + 'liggende — de nederste knappene er ikke til å nå')
       }
+      if (!skuff.søyleFelt) throw new Error('fant ikke navigasjonssøyla å måle rullefelt på')
+      if (skuff.søyleFelt.sbw !== 'none') {
+        throw new Error(`navigasjonssøyla har scrollbar-width: ${skuff.søyleFelt.sbw} — `
+          + 'da tegner telefonen grå rullefelt-streker oppå kartet')
+      }
+      // `clip` MÅLES SOM `hidden` HER, og det er spec: er én akse `clip` og
+      // den andre en rulleverdi, regnes `clip` om til `hidden`. Begge tegner
+      // null rullefelt, som er det sjekken finnes for; `auto` og `scroll` er
+      // de to som gjør det.
+      if (!/^(hidden|clip)$/.test(skuff.søyleFelt.ovX)) {
+        throw new Error(`navigasjonssøyla har overflow-x: ${skuff.søyleFelt.ovX} — `
+          + 'en rulleakse ingenting trenger, som kan tegne et vannrett felt')
+      }
+      if (!/^(auto|scroll)$/.test(skuff.søyleFelt.ovY)) {
+        throw new Error(`navigasjonssøyla har overflow-y: ${skuff.søyleFelt.ovY} — `
+          + 'da ruller den ikke i seg selv, og de nederste knappene forsvinner i liggende')
+      }
       await lukkDrawer(page)
       // NØYTRAL TILSTAND: tilbake til mobil-viewporten resten av sjekkene måler i.
       await page.setViewportSize({ width: 430, height: 900 })
       await page.waitForTimeout(600)
       return `liggende doc-overflyt ${liggende.doc} px (stående ${stående.doc}), skuffen brukbar, `
-        + 'søyla innenfor og overlegget urullet'
+        + 'søyla innenfor uten rullefelt og overlegget urullet'
     },
   },
   {
