@@ -378,7 +378,7 @@ const ALL_TABS = [
   { key: 'maaling',     label: 'Måling' },
   { key: 'sporing',     label: 'Sporing',    userOnly: true },
   { key: 'eksport',     label: 'Eksport' },
-  { key: 'om',          label: 'Innstillinger' },
+  { key: 'om',          label: 'Format' },
   // userOnly som Annotering/Sporing: Utvikler-fanen er LOD-terskler, vær-demo
   // og himmel-tvang — knotter for det man bygger selv. På demokartet sto den
   // som niende fane hos alle som åpnet appen for første gang.
@@ -2653,7 +2653,6 @@ onUnmounted(() => {
       v-model:query="searchQuery"
       v-model:active-index="searchActiveIndex"
       :results="searchResults"
-      :index-count="arkIndex.length"
       :global-results="globalResults"
       :global-searching="globalSearching"
       :ui-text-scale="uiTextScale"

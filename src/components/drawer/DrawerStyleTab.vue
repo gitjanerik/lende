@@ -27,11 +27,6 @@ const stiler = computed(() => KARTSTILER.map((s) => ({
     <div class="text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1.5">
       Kartstil
     </div>
-    <p class="text-[11px] text-ink-4 leading-snug mb-2.5">
-      Ett valg som setter farger, lag, strektykkelse og sti-farger samtidig.
-      Finjuster under — kartstilen er utgangspunktet, ikke en tvangstrøye.
-    </p>
-
     <div class="flex flex-col gap-2 mb-4">
       <button v-for="s in stiler" :key="s.key"
               @click="velgStil(s.key)"
@@ -67,7 +62,7 @@ const stiler = computed(() => KARTSTILER.map((s) => ({
     <div class="text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1.5">
       Tilpass — sti-farge
     </div>
-    <div class="flex flex-wrap gap-2 mb-1.5">
+    <div class="flex flex-wrap gap-2">
       <button v-for="p in STI_PALETTER" :key="p.key"
               @click="velgStiPalett(p.key)"
               :aria-pressed="aktivStiPalett === p.key"
@@ -90,10 +85,5 @@ const stiler = computed(() => KARTSTILER.map((s) => ({
         <span class="text-[11px] truncate">{{ p.label }}</span>
       </button>
     </div>
-    <p class="text-[11px] text-ink-4 leading-snug">
-      Stier tegnes som en sammenhengende underlinje med den stiplede streken
-      oppå. «Følg tema» lar kartstilen bestemme begge — de andre overstyrer.
-      Vil du ha en helt egen farge, ligger fargevelgeren i Strek-panelet.
-    </p>
   </div>
 </template>
