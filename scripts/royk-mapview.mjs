@@ -1209,11 +1209,30 @@ const SJEKKER = [
             gpsBredde: gps ? Math.round(gps.getBoundingClientRect().width) : null,
             pin: gps ? getComputedStyle(gps.querySelector('path')).stroke : null,
             pinFyll: gps ? getComputedStyle(gps.querySelector('path')).fill : null,
+            gpsSkive: gps ? getComputedStyle(gps.querySelector('circle')).fill : null,
           }
         })
         const lum = (farge) => {
           const m = /(-?[\d.]+)[,\s]+(-?[\d.]+)[,\s]+(-?[\d.]+)/.exec(farge || '')
           return m ? 0.2126 * +m[1] + 0.7152 * +m[2] + 0.0722 * +m[3] : null
+        }
+        // WCAG-kontrast, med den EKTE gamma-lineariseringen. `lum` over er en rå
+        // vekting av 0–255 og holder til «snudde skiva med kartet», men den kan
+        // ikke svare på om hvitt er lesbart på en gitt aksentfarge — der er
+        // forskjellen mellom rå og linearisert flere hele trinn.
+        const kontrast = (a, b) => {
+          const rel = (farge) => {
+            const m = /(-?[\d.]+)[,\s]+(-?[\d.]+)[,\s]+(-?[\d.]+)/.exec(farge || '')
+            if (!m) return null
+            const k = [+m[1], +m[2], +m[3]].map((v) => {
+              const c = v / 255
+              return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+            })
+            return 0.2126 * k[0] + 0.7152 * k[1] + 0.0722 * k[2]
+          }
+          const [x, y] = [rel(a), rel(b)]
+          if (x == null || y == null) return null
+          return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
         }
 
         const settKartstil = async (re) => {
@@ -1256,38 +1275,53 @@ const SJEKKER = [
           throw new Error(`skiva snudde ikke med kartet: lum ${lysLum.toFixed(0)} på Turkart mot `
             + `${morkLum.toFixed(0)} på «${stemning}» — leser den app-chromet i stedet for kart-temaet?`)
         }
-        // Av/på i pin-en, og BEGGE halvdelene av skillet (v6.5.69): grå skal
-        // skille seg klart fra den blå GPS-prikken, OG pin-en skal være FYLT
-        // når posisjonen er på. Fargen alene holdt ikke i felt — et blått og
-        // et grått omriss er samme figur, og man måtte huske hvordan på ser
-        // ut for å se at det var av. Fyllet er det som gjør de to til ulike
-        // figurer, og et `fill` som faller tilbake til «none» er nettopp den
-        // stille feilen ingen enhetstest ser.
+        // SKIVA BÆRER AV/PÅ, IKONET STÅR STILLE (v6.5.70). To utgaver før denne
+        // la skillet i pin-en selv — først som farge alene, så som et blått
+        // fyll — og eieren leste begge dårlig på en telefon i sola. Nå er det
+        // FLATEN som skifter, og de tre tingene som kan ryke stille er nettopp
+        // dem det måles på her: at skiva faktisk skifter, at ikonet IKKE blir
+        // fylt igjen (et fyll ville lagt en flekk oppå aksentfargen), og at
+        // streken er lesbar mot flaten den ligger på.
         const førPå = await les()
         const av = førPå.pin
+        const avSkive = førPå.gpsSkive
+        if (!avSkive) throw new Error('fant ingen skive i posisjons-knappen')
+        if (avSkive !== førPå.fyll) {
+          throw new Error(`posisjons-skiva (${avSkive}) og kompass-skiva (${førPå.fyll}) er `
+            + 'ulike mens posisjonen er AV — i hvile skal de to være samme flate')
+        }
         if (førPå.pinFyll && førPå.pinFyll !== 'none') {
-          throw new Error(`pin-en er fylt (${førPå.pinFyll}) mens posisjonen er AV — `
-            + 'da er av og på samme figur')
+          throw new Error(`pin-ikonet er fylt (${førPå.pinFyll}) — det skal være et omriss `
+            + 'i BEGGE tilstandene, det er skiva som skifter')
         }
         await p2.locator('button[aria-label^="Posisjon av"]').first().click()
         await p2.waitForTimeout(1500)
         const etterPå = await les()
         const på = etterPå.pin
+        const påSkive = etterPå.gpsSkive
         if (!av || !på) throw new Error('fant ingen strekfarge i pin-ikonet')
+        if (påSkive === avSkive) {
+          throw new Error(`skiva er ${påSkive} både av og på — da sier knappen `
+            + 'ingenting om tilstanden')
+        }
+        if (etterPå.pinFyll && etterPå.pinFyll !== 'none') {
+          throw new Error(`pin-ikonet ble fylt (${etterPå.pinFyll}) da posisjonen ble slått på `
+            + '— PÅ bæres av skiva, ikonet skal stå stille')
+        }
         if (av === på) {
-          throw new Error(`pin-en har samme farge av og på (${av}) — `
-            + 'da sier knappen ingenting om tilstanden')
+          throw new Error(`pin-ikonet har samme strekfarge av og på (${av}) — `
+            + 'streken skal snu med flaten under den')
         }
-        if (!etterPå.pinFyll || etterPå.pinFyll === 'none') {
-          throw new Error('pin-en er ufylt mens posisjonen er PÅ — PÅ skal være solid')
-        }
-        if (etterPå.pinFyll !== på) {
-          throw new Error(`pin-ens fyll (${etterPå.pinFyll}) og strek (${på}) er ulike — `
-            + 'den fylte pin-en skal være ETT flak i GPS-prikkens farge')
+        const kr = kontrast(på, påSkive)
+        if (kr == null) throw new Error(`kunne ikke måle kontrast mellom ${på} og ${påSkive}`)
+        if (kr < 3) {
+          throw new Error(`pin-ikonet har ${kr.toFixed(2)}:1 mot den aktive skiva — `
+            + 'WCAG 1.4.11 krever 3:1 for grafiske objekter')
         }
 
         return `${lyst.bredde} px som posisjons-knappen; skive-lum ${lysLum.toFixed(0)} (Turkart) → `
-          + `${morkLum.toFixed(0)} («${stemning}»); pin ${av} omriss → ${på} fylt`
+          + `${morkLum.toFixed(0)} («${stemning}»); posisjon av ${avSkive} → på ${påSkive}, `
+          + `ikon ${kr.toFixed(1)}:1`
       } finally {
         await ctx.close()
       }

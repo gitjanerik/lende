@@ -23,7 +23,7 @@ const props = defineProps({
   // Er KARTET mørkt? Ikke UI-temaet — knappene står rett på arket, så det er
   // arkets valør de må lese mot. Se malen.
   mork: { type: Boolean, default: false },
-  // Følger vi posisjonen nå? Styrer fyll, farge OG aria-pressed.
+  // Følger vi posisjonen nå? Styrer SKIVAS farge, ikonets strek og aria-pressed.
   gpsPa: { type: Boolean, default: false },
 })
 const emit = defineEmits(['nord', 'gps'])
@@ -34,14 +34,23 @@ const emit = defineEmits(['nord', 'gps'])
 const skive = () => (props.mork ? 'rgba(63,63,70,0.82)' : 'rgba(255,255,255,0.82)')
 const blekk = () => (props.mork ? '#e4e4e7' : '#1c1917')
 
-// PÅ er GPS-PRIKKENS EGEN BLÅ (useSymbolRenderers: #0284c7 i kjernen, #38bdf8 i
-// ringen). Knappen og prikken den slår på skal være samme farge — da er det
-// ikonet som forklarer prikken, ikke omvendt. Den lyse tas på mørkt ark, der den
-// mørke ville forsvunnet i skiva.
-// AV er en NØYTRAL GRÅ og ikke en dempet blå. Fargen er likevel bare halve
-// skillet — se `fill` i malen: PÅ er en FYLT pin, AV er et omriss.
-const gpsFarge = () => (props.gpsPa
-  ? (props.mork ? '#38bdf8' : '#0284c7')
+// PÅ ER APPENS AKSENTGRØNNE, IKKE GPS-PRIKKENS BLÅ (v6.5.70). Blått var valgt
+// for å knytte knappen til prikken den slår på, og det var feil spørsmål: en
+// bryter som står PÅ er den samme tilstanden her som overalt ellers i appen, og
+// den tilstanden er grønn — hver eneste vippebryter i skuffene er
+// `bg-emerald-500` mot `bg-ink/15`, og måle- og stifinner-varslene som ligger
+// rett på kartet er `bg-emerald-600` med hvitt innhold. Knappen har nå nøyaktig
+// det mønsteret: farget skive, hvitt ikon.
+// Emerald-600 og ikke -500: hvitt på -500 gir 2,6:1, altså under WCAG 1.4.11 sitt
+// krav på 3:1 for grafiske objekter. -600 gir 3,8:1. Samme tall på begge ark —
+// en farget skive bærer sin egen kontrast og trenger ikke lese arkets valør.
+const AKTIV = '#059669'
+
+// AV er en NØYTRAL GRÅ på den vanlige halvgjennomsiktige skiva. Skillet bæres
+// nå av SKIVA og ikke av ikonet: se malen — ikonet er et omriss i BEGGE
+// tilstandene, det er flaten under som skifter.
+const gpsBlekk = () => (props.gpsPa
+  ? '#ffffff'
   : (props.mork ? '#a1a1aa' : '#78716c'))
 
 // Skiva bærer sin egen lesbarhet: en skygge som følger grafikkens alfa, ikke en
@@ -67,9 +76,9 @@ const KANT_OPASITET = 0.18
          (Tegnforklaring, Kompass) er borte: tegnforklaringen bor i hovedmenyen,
          og kompassfølgingen slås på og av sammen med posisjonen, som er den
          eneste kombinasjonen som gir mening ute.
-         Tilstanden bæres av FYLL, FARGE og `aria-pressed`, ikke av tekst:
-         knappen er 48 px og har ikke plass til et ord, og verken form eller
-         farge er noe en skjermleser kan lese. -->
+         Tilstanden bæres av SKIVAS FARGE og `aria-pressed`, ikke av tekst:
+         knappen er 48 px og har ikke plass til et ord, og en farge er ikke noe
+         en skjermleser kan lese. -->
     <button type="button" :aria-pressed="gpsPa"
             :aria-label="gpsPa ? 'Posisjon på. Slå av.' : 'Posisjon av. Slå på.'"
             @click="emit('gps')"
@@ -77,24 +86,25 @@ const KANT_OPASITET = 0.18
                    active:scale-95 transition-transform">
       <svg viewBox="-50 -50 100 100" class="w-12 h-12" aria-hidden="true"
            :style="{ filter: SKYGGE }">
-        <circle r="46" :fill="skive()" :stroke="blekk()"
+        <!-- SKIVA BÆRER TILSTANDEN, IKONET STÅR STILLE (v6.5.70). Kort historikk,
+             for begge de forkastede utgavene er lette å foreslå på nytt: først
+             skiftet bare ikonets FARGE (blått mot grått), og det var to like
+             figurer man måtte huske forskjellen på; så ble ikonet FYLT blått, som
+             var et tydelig skille men gjorde selve pin-en til flekken man leste,
+             på en knapp som er 48 px. Nå er det FLATEN som skifter — den er ti
+             ganger større enn ikonet og leses i et øyekast på en telefon i sola.
+             Ikonet er derfor et omriss i begge tilstandene, med bare `stroke`
+             som endres, og silhuetten er identisk av og på. -->
+        <circle r="46" :fill="gpsPa ? AKTIV : skive()" :stroke="blekk()"
                 :stroke-width="KANT_BREDDE" :stroke-opacity="KANT_OPASITET"/>
-        <!-- PÅ ER SOLID, OG DET ER ÉN PATH MED `evenodd` (v6.5.69). Et blått
-             omriss mot et grått omriss er samme figur i to valører — man må
-             huske hvordan på ser ut for å se at det er av. Fylt mot ufylt er
-             derimot to ulike figurer, og forskjellen bæres av FLATEN og ikke
-             av fargen alene.
-             Hullet er en ekte UTSTANSING: prikken er en subbane i samme path,
-             så skiva bak skinner gjennom der. Et eget fylt element ville måttet
-             holde skivas farge i takt med den, og to halvgjennomsiktige lag
-             oppå hverandre gir en annen valør enn ett.
-             Streken står i BEGGE tilstandene med samme bredde, så silhuetten
-             er identisk av og på — det er bare interiøret som fylles, og
-             knappen «vokser» ikke når man slår på posisjonen. -->
+        <!-- ÉN PATH MED `evenodd`, og hullet er en ekte UTSTANSING: prikken er en
+             subbane i samme path, så skiva bak skinner gjennom der. `fill` er
+             `none` i BEGGE tilstandene — det er streken som gir figuren, og et
+             fyll her ville lagt en flekk oppå den fargede skiva. -->
         <path transform="translate(-28.8 -28.8) scale(2.4)"
               d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0Z
                  M15 10a3 3 0 1 1-6 0 3 3 0 1 1 6 0Z"
-              fill-rule="evenodd" :fill="gpsPa ? gpsFarge() : 'none'" :stroke="gpsFarge()"
+              fill-rule="evenodd" fill="none" :stroke="gpsBlekk()"
               stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </button>
