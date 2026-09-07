@@ -31,10 +31,6 @@ defineProps({
     <div class="text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1.5">
       Enkeltlag
     </div>
-    <p class="text-[11px] text-ink-4 leading-snug mb-2">
-      Finjustering oppå kartstilen. Vil du bytte hele uttrykket — farger,
-      strek og sti-farger — ligger det under Kartstil.
-    </p>
     <div class="grid grid-cols-2 gap-2 mb-2">
       <!-- Knapp #1: Nullstill lag-synlighet. Default disabled; blir
            aktiv først når minst ett lag avviker fra default-tilstand. -->

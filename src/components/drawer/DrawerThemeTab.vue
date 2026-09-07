@@ -43,12 +43,6 @@ const sections = computed(() => {
 
 <template>
   <div>
-    <p class="text-[11px] text-ink-4 leading-snug mb-3">
-      Stemninger er rene fargeeksperimenter oppå kartet du allerede har valgt.
-      Skal du bytte selve kartstilen — farger, lag, strek og sti-farger
-      samlet — ligger det under Kartstil.
-    </p>
-
     <section v-for="s in sections" :key="s.key" class="mb-3">
       <h3 class="text-[11px] uppercase tracking-wide text-ink-4 mb-1.5">{{ s.label }}</h3>
       <div class="grid grid-cols-3 gap-2">

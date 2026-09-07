@@ -1,3 +1,9 @@
+## 2026-09-07 — v6.5.71: Færre ord i skuffen og i søket
+
+Forklaringstekstene i drawer-fanene Kartstil, Kartlag og Stemning er fjernet, og det samme er monokrom-gruppas note om at relieff slås av automatisk. De var skrevet da kartstil-begrepet var nytt og trengte å forsvare seg; nå står knappene med sine egne miniatyrer og beskrivelser, og et avsnitt over dem er bare noe å bla forbi på en telefon. «Innstillinger»-fanen heter nå «Format», som er det den faktisk inneholder — kartstørrelse, format og ekvidistanse for nye kart. Søkefeltet i turkartet har fått «Søk sted» som ledetekst i stedet for en setning ingen leser ferdig, og hjelpeteksten er trimmet ned til de tre snarveiene som faktisk gjør noe («vann», «parkering», «topp»); telletallet over treffbare navn og noten om at Norge-treff ligger nederst er borte, for begge deler ser man i lista i det man skriver.
+
+---
+
 ## 2026-09-07 — v6.5.70: Posisjons-knappen er grønn når den er på
 
 Aktiv posisjon males nå på hele knappen og ikke i ikonet. Skiva bytter til

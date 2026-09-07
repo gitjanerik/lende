@@ -41,11 +41,7 @@ export const THEME_GROUPS = Object.freeze([
   // løse tema-knapper — ellers ville samme utseende hatt to kontroller, som er
   // nettopp forvirringen kartstil-begrepet finnes for å fjerne.
   { key: 'kartstil', label: 'Kartstiler', beskrivelse: 'Velges under Kartstil.' },
-  {
-    key: 'monokrom',
-    label: 'Monokrom',
-    beskrivelse: 'Ensfargede kart. Relieff slås av automatisk — trykk på relieff-knotten for å hente det tilbake.',
-  },
+  { key: 'monokrom', label: 'Monokrom', beskrivelse: '' },
 ])
 
 /**

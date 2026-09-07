@@ -11,7 +11,6 @@ const props = defineProps({
   open: { type: Boolean, default: false },
   query: { type: String, default: '' },
   results: { type: Array, default: () => [] },
-  indexCount: { type: Number, default: 0 },      // antall treffbare navn i kartet
   activeIndex: { type: Number, default: -1 },
   globalResults: { type: Array, default: () => [] },
   globalSearching: { type: Boolean, default: false },
@@ -54,7 +53,7 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
         <input :value="query" @input="emit('update:query', $event.target.value)"
                type="search" autocomplete="off"
                autocorrect="off" autocapitalize="off" spellcheck="false"
-               placeholder="Søk i dette kartet — steder, vann, øyer …"
+               placeholder="Søk sted"
                ref="inputRef"
                @keydown="emit('keydown', $event)"
                role="combobox" aria-autocomplete="list"
@@ -86,13 +85,9 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
            :style="{ zoom: uiTextScale }">
         <div v-if="!query"
              class="px-4 py-4 text-[11px] text-ink-4 leading-relaxed">
-          Søker i navn i <span class="text-ink-2">dette kartet</span> — steder, vann,
-          topper og områder ({{ indexCount }} treffbare).
           Skriv «vann» for å se alle innsjøer i utsnittet.
           Skriv «parkering» for å liste utfartsparkeringene.
           Skriv «topp» for kartets ti høyeste punkter.
-          Steder ellers i Norge foreslås alltid nederst — velg ett for å bygge
-          nytt kart der.
         </div>
         <!-- Overskrift for kart-treffene, symmetrisk med «Andre steder i
              Norge:» under — gjør det tydelig at dette er treff INNE i det
