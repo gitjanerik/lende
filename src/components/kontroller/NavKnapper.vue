@@ -23,7 +23,7 @@ const props = defineProps({
   // Er KARTET mørkt? Ikke UI-temaet — knappene står rett på arket, så det er
   // arkets valør de må lese mot. Se malen.
   mork: { type: Boolean, default: false },
-  // Følger vi posisjonen nå? Styrer BÅDE farge og aria-pressed.
+  // Følger vi posisjonen nå? Styrer fyll, farge OG aria-pressed.
   gpsPa: { type: Boolean, default: false },
 })
 const emit = defineEmits(['nord', 'gps'])
@@ -38,8 +38,8 @@ const blekk = () => (props.mork ? '#e4e4e7' : '#1c1917')
 // ringen). Knappen og prikken den slår på skal være samme farge — da er det
 // ikonet som forklarer prikken, ikke omvendt. Den lyse tas på mørkt ark, der den
 // mørke ville forsvunnet i skiva.
-// AV er en NØYTRAL GRÅ og ikke en dempet blå: forskjellen på av og på skal
-// kunne ses uten å huske hvordan på ser ut.
+// AV er en NØYTRAL GRÅ og ikke en dempet blå. Fargen er likevel bare halve
+// skillet — se `fill` i malen: PÅ er en FYLT pin, AV er et omriss.
 const gpsFarge = () => (props.gpsPa
   ? (props.mork ? '#38bdf8' : '#0284c7')
   : (props.mork ? '#a1a1aa' : '#78716c'))
@@ -47,6 +47,16 @@ const gpsFarge = () => (props.gpsPa
 // Skiva bærer sin egen lesbarhet: en skygge som følger grafikkens alfa, ikke en
 // firkant bak den.
 const SKYGGE = 'drop-shadow(0 1px 2px rgba(0,0,0,0.35))'
+
+// KANTEN ER EN SKYGGE, IKKE EN RAMME (v6.5.69). Ringen sto på 3 px og 45 %
+// opasitet, og da leste den som et omriss TEGNET rundt knappen — et grått
+// strekelement som konkurrerte med ikonet inni. Jobben dens er bare å løsne
+// skiva fra kartet i kanten der drop-shadow-en er svakest, altså å FORTSETTE
+// skyggen og ikke å ramme inn.
+// Begge knappene deler tallene fordi de står på samme akse: en ring som er
+// tynnere på den ene enn på den andre leses som at de er ulike flater.
+const KANT_BREDDE = 2
+const KANT_OPASITET = 0.18
 </script>
 
 <template>
@@ -57,9 +67,9 @@ const SKYGGE = 'drop-shadow(0 1px 2px rgba(0,0,0,0.35))'
          (Tegnforklaring, Kompass) er borte: tegnforklaringen bor i hovedmenyen,
          og kompassfølgingen slås på og av sammen med posisjonen, som er den
          eneste kombinasjonen som gir mening ute.
-         Tilstanden bæres av FARGE og av `aria-pressed`, ikke av tekst: knappen
-         er 48 px og har ikke plass til et ord, og en farge alene er ikke nok
-         for en skjermleser. -->
+         Tilstanden bæres av FYLL, FARGE og `aria-pressed`, ikke av tekst:
+         knappen er 48 px og har ikke plass til et ord, og verken form eller
+         farge er noe en skjermleser kan lese. -->
     <button type="button" :aria-pressed="gpsPa"
             :aria-label="gpsPa ? 'Posisjon på. Slå av.' : 'Posisjon av. Slå på.'"
             @click="emit('gps')"
@@ -67,12 +77,25 @@ const SKYGGE = 'drop-shadow(0 1px 2px rgba(0,0,0,0.35))'
                    active:scale-95 transition-transform">
       <svg viewBox="-50 -50 100 100" class="w-12 h-12" aria-hidden="true"
            :style="{ filter: SKYGGE }">
-        <circle r="46" :fill="skive()" :stroke="blekk()" stroke-width="3" stroke-opacity="0.45"/>
-        <g transform="translate(-28.8 -28.8) scale(2.4)" fill="none" :stroke="gpsFarge()"
-           stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="10" r="3"/>
-          <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>
-        </g>
+        <circle r="46" :fill="skive()" :stroke="blekk()"
+                :stroke-width="KANT_BREDDE" :stroke-opacity="KANT_OPASITET"/>
+        <!-- PÅ ER SOLID, OG DET ER ÉN PATH MED `evenodd` (v6.5.69). Et blått
+             omriss mot et grått omriss er samme figur i to valører — man må
+             huske hvordan på ser ut for å se at det er av. Fylt mot ufylt er
+             derimot to ulike figurer, og forskjellen bæres av FLATEN og ikke
+             av fargen alene.
+             Hullet er en ekte UTSTANSING: prikken er en subbane i samme path,
+             så skiva bak skinner gjennom der. Et eget fylt element ville måttet
+             holde skivas farge i takt med den, og to halvgjennomsiktige lag
+             oppå hverandre gir en annen valør enn ett.
+             Streken står i BEGGE tilstandene med samme bredde, så silhuetten
+             er identisk av og på — det er bare interiøret som fylles, og
+             knappen «vokser» ikke når man slår på posisjonen. -->
+        <path transform="translate(-28.8 -28.8) scale(2.4)"
+              d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0Z
+                 M15 10a3 3 0 1 1-6 0 3 3 0 1 1 6 0Z"
+              fill-rule="evenodd" :fill="gpsPa ? gpsFarge() : 'none'" :stroke="gpsFarge()"
+              stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </button>
 
@@ -94,7 +117,8 @@ const SKYGGE = 'drop-shadow(0 1px 2px rgba(0,0,0,0.35))'
       <svg viewBox="-50 -50 100 100" class="w-12 h-12" aria-hidden="true"
            :style="{ transform: `rotate(${azimut}deg)`, transition: 'transform 0.2s linear',
                      filter: SKYGGE }">
-        <circle r="46" :fill="skive()" :stroke="blekk()" stroke-width="3" stroke-opacity="0.45"/>
+        <circle r="46" :fill="skive()" :stroke="blekk()"
+                :stroke-width="KANT_BREDDE" :stroke-opacity="KANT_OPASITET"/>
         <polygon points="0,-40 10,0 0,12 -10,0" fill="#ef4444"/>
         <polygon points="0,40 10,0 0,-12 -10,0" :fill="blekk()" opacity="0.85"/>
       </svg>

@@ -1,3 +1,43 @@
+## 2026-09-07 — v6.5.69: Posisjons-pin-en er solid når den er på
+
+Pin-knappen over kompasset skiftet bare FARGE mellom av og på — et blått
+omriss mot et grått omriss — og det er samme figur i to valører: man måtte
+huske hvordan på ser ut for å se at det var av. Nå er PÅ en fylt pin med et
+utstanset hull der prikken sitter, og AV er omrisset som før. Fylt mot ufylt
+er to ulike figurer, så skillet bæres av flaten og ikke av fargen alene.
+
+Hullet er en ekte utstansing og ikke en overmalt prikk: pin-en og prikken er
+subbaner i ÉN path med `fill-rule="evenodd"`, så den halvgjennomsiktige skiva
+bak skinner gjennom midten. Et eget fylt element måtte holdt skivas farge i
+takt med den, og to halvgjennomsiktige lag oppå hverandre gir en annen valør
+enn ett. Streken står i begge tilstandene med samme bredde, så silhuetten er
+identisk av og på — knappen «vokser» ikke når man slår på posisjonen.
+
+Den grå ringen rundt begge skivene er samtidig dempet fra 3 px / 45 % til
+2 px / 18 %. Jobben dens er å løsne skiva fra kartet der drop-shadow-en er
+svakest, altså å fortsette skyggen — på de gamle tallene leste den som et
+omriss tegnet rundt knappen, et strekelement som konkurrerte med ikonet inni.
+Tallene er delt av de to knappene fordi de står på samme akse.
+
+Og en regresjon fra i går: taket som gjorde navigasjonssøyla rullbar i
+liggende fikk telefonen til å tegne rullefelt oppå kartet — en grå strek langs
+knappene og en under den nederste, som leses som en feil i kartet. Rullingen
+står, for den er hele grunnen til at knappene er å nå i liggende; det er bare
+krommet som er skjult. Den vannrette streken hadde i tillegg en strukturell
+årsak: `overflow-y: auto` gjør `overflow-x` til `auto` av seg selv, altså en
+rulleakse ingenting trenger, og den er nå `clip`.
+
+Røyk-sjekken måler nå begge halvdelene av skillet på pin-en — fargen skifter,
+pin-en er ufylt av og fylt på, og fyllet er samme farge som streken — og at
+søyla ikke kan tegne rullefelt. Det siste måler DEKLARASJONEN og ikke
+pikslene, og det er en målt begrensning og ikke slurv: headless Chromium
+bruker overleggs-rullefelt, så `offsetWidth − clientWidth` er 0 enten feltet
+er skjult eller ikke, og en piksel-sjekk kunne aldri blitt rød. Begge
+sjekkene er verifisert i to retninger. Et `fill` som faller tilbake til «none»
+og en CSS-linje som forsvinner er stille feil ingen enhetstest ser.
+
+---
+
 ## 2026-09-06 — v6.5.68: Zoom-pilla er borte, og posisjonen har flyttet ut på kartet
 
 Pluss- og minus-pilla kom inn etter en UU-gjennomgang som et enkeltpeker-alternativ til pinch, og er nå fjernet igjen: zoom er så innarbeidet på en telefon at pilla i praksis bare la seg over kartet uten å bli brukt. Dobbelttrykk zoomer fortsatt inn, og desktop har hele søyla (ZoomSkyv + RetningsRose) pluss tastatur. Prisen er reell og skal ikke bortforklares: pilla var enkeltpeker-alternativet til pinch (WCAG 2.5.1), og med den borte finnes det ingen enkeltpeker-vei til å zoome UT på berøring — hverken i hovedkartet eller i Fritt lende, der knappetallet i røyktesten går fra fire til to. `ZoomKnapper.vue` het derfor et navn den ikke lenger fortjente og heter nå `NavKnapper.vue`. Samtidig er alle tre hurtigknappene øverst i innstillings-skuffen borte — tegnforklaringen bor i hovedmenyen, og kompassfølgingen har aldri vært en egen beslutning: den slås på og av sammen med posisjonen, som er den eneste kombinasjonen som gir mening ute. Skuffens peek er derfor senket fra 138 til 84 px.
