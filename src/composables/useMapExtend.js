@@ -536,9 +536,22 @@ export function useMapExtend({
   // preserveAspectRatio="xMidYMid meet", deretter M = T(tx,ty)∘R(rot)∘S(s).
   // Nåværende transform-tilstand for de rene matte-kjernene (screenToViewBox /
   // viewBoxToScreen). null når kartet ikke er målbart ennå.
+  // Wrapper-rekta, cachet gjennom en gest (v6.5.72). getBoundingClientRect() er
+  // en LAYOUT-LESNING: den tvinger nettleseren til å flushe stil og layout for et
+  // dokument kart-transformen nettopp skitnet. transformView kalles fra
+  // pointermove-stien (clampPan → visibleCenterSvg) og betalte den flushen på
+  // hvert eneste touchmove. Wrapperen kan ikke flytte seg MENS en gest pågår —
+  // den endrer seg av resize, orientering og desktop-panelet, som alle lander
+  // utenfor en gest — så under gest leses siste måling, ellers måles det ferskt.
+  let cachetWrapRekt = null
+  function maalWrapper() {
+    const r = wrapperRef.value?.getBoundingClientRect()
+    if (r) cachetWrapRekt = r
+    return r
+  }
   function transformView() {
     const m = meta.value
-    const wrap = wrapperRef.value?.getBoundingClientRect()
+    const wrap = (isGesturing?.value && cachetWrapRekt) ? cachetWrapRekt : maalWrapper()
     if (!m || !wrap || !wrap.width || !wrap.height) return null
     return {
       wrap, w: wrap.width, h: wrap.height, widthM: m.widthM, heightM: m.heightM,

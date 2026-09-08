@@ -240,7 +240,11 @@ export function rectOverlapFraction(a, b) {
  * @param {{utmBbox?:object}} entry            kartet raden gjelder
  * @param {Array<{utmBbox?:object}>} alle      alle lagrede poster (inkl. auto-fliser)
  * @param {{radiusTiles?:number}} [opts]
- * @returns {{widthM:number, heightM:number, fliser:number}|null}
+ * `bytes` er summen av `sizeBytes` for flisene som teller med — altså hele
+ * arkets datamengde, ikke midtflisas (v6.5.72). Km-tallet beskrev arket mens
+ * MB-tallet beskrev flisa, så MB sto stille mens brukeren utvidet kartet.
+ *
+ * @returns {{widthM:number, heightM:number, fliser:number, bytes:number}|null}
  */
 export function arkExtentFor(entry, alle, { radiusTiles = 4 } = {}) {
   const b = entry?.utmBbox
@@ -250,6 +254,7 @@ export function arkExtentFor(entry, alle, { radiusTiles = 4 } = {}) {
   const selv = { minE: b.minE, minN: b.minN, widthM: W, heightM: H }
   let minE = b.minE, maxE = b.maxE, minN = b.minN, maxN = b.maxN
   let fliser = 1
+  let bytes = entry?.sizeBytes ?? 0
   for (const t of alle ?? []) {
     const o = t?.utmBbox
     if (!o || o === b || o.minE == null) continue
@@ -263,8 +268,9 @@ export function arkExtentFor(entry, alle, { radiusTiles = 4 } = {}) {
     if (o.minN < minN) minN = o.minN
     if (o.maxN > maxN) maxN = o.maxN
     fliser++
+    bytes += t.sizeBytes ?? 0
   }
-  return { widthM: maxE - minE, heightM: maxN - minN, fliser }
+  return { widthM: maxE - minE, heightM: maxN - minN, fliser, bytes }
 }
 
 /**

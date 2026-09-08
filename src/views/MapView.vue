@@ -85,6 +85,7 @@ import { useTemaBytte } from '../composables/useTemaBytte.js'
 import { useGpsTips } from '../composables/useGpsTips.js'
 import { useKartSok } from '../composables/useKartSok.js'
 import { usePanGrenser } from '../composables/usePanGrenser.js'
+import { kartdataTekst } from '../lib/kartStorrelse.js'
 import { useGestPerf } from '../composables/useGestPerf.js'
 import { useGpsSpor } from '../composables/useGpsSpor.js'
 import { useSymbolRenderers } from '../composables/useSymbolRenderers.js'
@@ -900,7 +901,7 @@ const navRightStyle = computed(() => ({
 // zoomes) bor i usePanGrenser.js. Begge spør mosaikken om utstrekningen, og
 // useMapExtend opprettes lenger ned — derfor tilbakekall.
 const { mosaicMinScale, clampPan } = usePanGrenser({
-  meta, wrapperRef, scale, rotation, translateX, translateY,
+  meta, wrapperRef, wrapperSize, scale, rotation, translateX, translateY,
   ghostRects: () => ghostRects,
   hooks: {
     extendZonesBounds: () => extendZonesBounds(),
@@ -1604,6 +1605,32 @@ const {
 // posisjonen innenfor, og da skal varselet forsvinne med en gang og ikke først
 // ved neste GPS-poll.
 watch(ghostRects, () => { refreshMosaicGaps(); userPos.recompute() }, { deep: true })
+
+// «Kartdata» i info-arket: arkets mål og datamengde (v6.5.72). Står her og ikke
+// oppe ved mapDataLabel fordi den leser mosaikk-modellen — ghostRects og
+// extendZonesBounds eies av composables som opprettes lenger opp i fila.
+//
+// Tallene gjelder HELE arket, aktiv flis pluss naboene, av samme grunn som i
+// «Mine kart»: det er arket brukeren opplever som «kartet sitt», og et MB-tall
+// for midtflisa alene ville stått stille mens arket vokste. Computed over
+// ghostRects, så begge tallene følger en utvidelse uten et eget oppdaterings-
+// kall — «live», som var bestillingen. Debug-fanen beholder sin egen SVG/DEM-
+// oppdeling (mapDataLabel): den svarer på et annet spørsmål.
+const kartdataLabel = computed(() => {
+  const m = meta.value
+  if (!m) return ''
+  const b = extendZonesBounds()
+  const d = mapDataSize.value
+  const naboer = ghostRects.value
+  const bytes = (d.svgBytes || 0) + (d.demBytes || 0) +
+    naboer.reduce((sum, g) => sum + (g.bytes || 0), 0)
+  return kartdataTekst({
+    widthM: b.maxX - b.minX,
+    heightM: b.maxY - b.minY,
+    bytes,
+    fliser: 1 + naboer.length,
+  })
+})
 watch([scale, translateX, translateY, rotation], scheduleActivatableCheck)
 // Feste-passet: hvilke nabofliser som skal ligge i DOM. Egen watch ved siden av
 // de to andre fordi den har sin egen debounce og sin egen hysterese — og fordi
@@ -2098,10 +2125,14 @@ function positionContextPin() {
   const el = contextPinElRef.value
   if (!el) return
   const p = contextMenuPoint.value
-  const wrap = wrapperRef.value?.getBoundingClientRect()
-  if (!p || !contextMenuOpen.value || !wrap) return
+  // Gaten står FØR rekt-lesningen med vilje (v6.5.72): getBoundingClientRect()
+  // tvinger layout, og denne kalles fra transform-watcheren — altså hvert
+  // touchmove, også når kontekstmenyen er lukket og vi uansett returnerer.
+  if (!p || !contextMenuOpen.value) return
   const scr = svgToClient(p.svgX, p.svgY)   // viewport (skjerm)-koordinat
   if (!scr) return
+  const wrap = wrapperRef.value?.getBoundingClientRect()
+  if (!wrap) return
   el.style.left = (scr.x - wrap.left) + 'px'
   el.style.top = (scr.y - wrap.top) + 'px'
 }
@@ -3329,7 +3360,7 @@ onUnmounted(() => {
       :place-wiki-card="placeWikiCard"
       :vaer-query="vaerQuery"
       :expanded-red-cat="expandedRedCat"
-      :map-data-label="mapDataLabel"
+      :map-data-label="kartdataLabel"
       :print-scale-label="printScaleLabel"
       :equidistance-label="equidistanceLabel"
       :map-source-label="mapSourceLabel"
@@ -3532,6 +3563,21 @@ onUnmounted(() => {
 <style>
 .isom-map .name-lod-off { display: none !important; }
 .isom-map .vp-cull { display: none !important; }
+
+/* Gest-perf: stiplede streker gjøres solide mens brukeren drar/pincher/roterer.
+   På et 10 km-kart blir den merge-de sti-pathen tusenvis av dash-segmenter som
+   reberegnes hver frame — den desidert dyreste enkeltposten (v9.1.15).
+   Én CSS-regel, ikke inline style per path (v6.5.72): useGestPerf skrev
+   `p.style.strokeDasharray` på HVER path i dokumentet ved gest-start og igjen
+   ved gjenopprettingen — en full querySelectorAll pluss titusener av
+   style-skrivinger, på nøyaktig den touch-down-stien som skal være billig.
+   Samme grep som `vector-effect: none`, som symbolizer alt emitterer for
+   `.is-zooming`. `!important` fordi katalog-CSS-en har mer spesifikke
+   dash-regler (tunnel-overlays), og den gamle inline-stilen slo dem alle.
+   Lever her og ikke i SVG-ens egen <style>, så eksport/print beholder stiplingen
+   — samme kontrakt som .name-lod-off. */
+.isom-map.is-zooming [data-layer] path,
+.isom-map.is-zooming [data-ghost-layer] path { stroke-dasharray: none !important; }
 
 /* Perf: content-visibility lar nettleseren HOPPE OVER layout/paint av av-skjerm
    bucket-geometri (de merge-de data-bbox-pathene) helt selv, kontinuerlig og fra

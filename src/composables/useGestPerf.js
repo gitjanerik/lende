@@ -15,7 +15,13 @@
 //     relieff mens aktiv flis flater ut (v10.1.17).
 //   • Stiplede streker gjøres solide. På et 10 km-kart blir den merge-de
 //     sti-pathen tusenvis av dash-segmenter som reberegnes hver frame — den
-//     desidert dyreste enkeltposten (v9.1.15).
+//     desidert dyreste enkeltposten (v9.1.15). Fra v6.5.72 gjør `.is-zooming`
+//     det med ÉN CSS-regel (i MapViews ikke-scopede <style>) i stedet for en
+//     inline stil per path: den gamle veien gikk gjennom hele dokumentet og
+//     skrev titusener av stiler ved gest-start OG ved gjenopprettingen, på
+//     nøyaktig den stien som skal være billig. Relieffet står igjen som løkke
+//     her fordi det er en håndfull elementer, og fordi `visibility` må kunne
+//     settes uavhengig av lag-synligheten.
 //
 // Gjenopprettingen er UTSATT ~120 ms med vilje: snap-back-repainten (retessellering
 // + dash + relieff-blend) skal ikke lande på samme frame som compositorens siste
@@ -46,10 +52,6 @@ export function useGestPerf({ svgHostRef, meta, isGesturing }) {
     // Matcher BÅDE <image> (mjuk) og <g> (vektor) ghost-relieff (v11.0.51).
     const reliefImgs = svg.querySelectorAll('#hillshade-layer, #ghost-tiles [data-ghost-relief]')
     for (const hs of reliefImgs) hs.style.visibility = on ? 'hidden' : ''
-    // Inline style overstyrer den katalog-genererte data-iso-CSS-en. Gjelder
-    // også spøkelses-flisene (data-ghost-layer) av samme grunn.
-    const paths = svg.querySelectorAll('[data-layer] path, [data-ghost-layer] path')
-    for (const p of paths) p.style.strokeDasharray = on ? 'none' : ''
   }
 
   watch(isGesturing, (g) => {

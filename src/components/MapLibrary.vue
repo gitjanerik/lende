@@ -13,6 +13,7 @@ import { PAKKE_FILENDELSE, lesefeilPaaNorsk } from '../lib/kartPakke.js'
 import { delEllerLastNedFil, pakkKartTilFil } from '../lib/kartFilDeling.js'
 import { APP_VERSION } from '../version.js'
 import { arkExtentFor } from '../lib/tileCache.js'
+import { formatKartBytes, formatKartKm, kartdataTekst } from '../lib/kartStorrelse.js'
 import { routeShareToken, MAX_SHARE_ROUTES } from '../lib/routeShare.js'
 import { stjerneAntall } from '../lib/stjerneminner.js'
 
@@ -423,12 +424,9 @@ function formatDateTime(ts) {
   return `${formatDate(d)} · ${formatTime(d)}`
 }
 
-// Lagringsstørrelse → kort KB/MB-streng. < 1 MB vises i KB, ellers MB med 1 desimal.
-function formatBytes(n) {
-  if (!Number.isFinite(n) || n <= 0) return null
-  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`
-}
+// Lagringsstørrelse → kort KB/MB-streng. Ligger i lib/kartStorrelse.js fordi
+// info-arket inne i kartet skal si nøyaktig det samme.
+const formatBytes = formatKartBytes
 // Total lagringsbruk for brukerens lagrede kart (sum av sizeBytes).
 const totalBytes = computed(() => maps.value.reduce((s, m) => s + (m.sizeBytes ?? 0), 0))
 
@@ -442,15 +440,30 @@ function demLabel(resM, source) {
 
 // Info-linje (linje 2): størrelse · ekvidistanse · DEM. Deler som mangler
 // (eldre kart uten metadata) utelates stille.
-// Størrelses-teksten for én rad. Har kartet blitt utvidet, er det ARKET som er
-// interessant — «8,0 × 8,0 km» på et 3×3-ark er teknisk sant om midtflisa og
-// misvisende om kartet. Eldre poster mangler utmBbox; da faller vi tilbake til
-// flisas egen bredde, som før.
+// Arkets mål og datamengde for én rad. Har kartet blitt utvidet, er det ARKET
+// som er interessant — «8,0 × 8,0 km» på et 3×3-ark er teknisk sant om midtflisa
+// og misvisende om kartet.
+//
+// TO FELLER RETTET I v6.5.72, og begge så ut som at tallene «ikke oppdaterte
+// seg»: (1) et ark på ÉN flis falt tilbake på halfKm og ble skrevet som et
+// KVADRAT, så et 10 × 20 km-kart sto som «10,0 × 10,0 km» — utmBbox har de
+// ekte målene, og fallbacken hører bare hjemme der den mangler; (2) MB-tallet
+// var midtflisas `sizeBytes` ved siden av arkets mål, altså to ulike ting i
+// samme setning, og det sto stille mens brukeren utvidet kartet.
+function arkFor(m) {
+  return arkExtentFor(m, alleFliser.value)
+}
 function storrelseFor(m) {
-  const km = (v) => (v / 1000).toFixed(1)
-  const ark = arkExtentFor(m, alleFliser.value)
-  if (!ark || ark.fliser < 2) return `${(m.halfKm * 2).toFixed(1)} × ${(m.halfKm * 2).toFixed(1)} km`
-  return `${km(ark.widthM)} × ${km(ark.heightM)} km · ${ark.fliser} fliser`
+  const ark = arkFor(m)
+  if (!ark) {
+    const side = (m.halfKm * 2)
+    return `${formatKartKm(side * 1000)} × ${formatKartKm(side * 1000)} km`
+  }
+  return kartdataTekst({ widthM: ark.widthM, heightM: ark.heightM, fliser: ark.fliser })
+}
+// Datamengden for HELE arket. Uten utmBbox vet vi bare om flisa selv.
+function arkBytesFor(m) {
+  return arkFor(m)?.bytes || m.sizeBytes
 }
 
 // ── Bygge-tilstand for søk → kart ───────────────────────────────────────
@@ -890,7 +903,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
           {{ [storrelseFor(m), m.equidistanceM ? `${m.equidistanceM} m ekv.` : '', demLabel(m.demResolutionM, m.demSource)].filter(Boolean).join(' · ') }}
         </div>
         <div class="text-[11px] text-ink-4 truncate">
-          {{ formatDateTime(m.opprettet) }}<template v-if="formatBytes(m.sizeBytes)"> · {{ formatBytes(m.sizeBytes) }}</template>
+          {{ formatDateTime(m.opprettet) }}<template v-if="formatBytes(arkBytesFor(m))"> · {{ formatBytes(arkBytesFor(m)) }}</template>
         </div>
       </div>
     </button>

@@ -9,7 +9,8 @@
 //
 //   modell   `ghostRects`  — alle kjente naboer. Driver clampPan,
 //                            extendZonesBounds, findGridGaps,
-//                            centerOverExistingTile, use3dEntry, promoteTile.
+//                            centerOverExistingTile, use3dEntry, promoteTile,
+//                            og «Kartdata»-tallet (byte for HELE arket).
 //   node     `ghostNoder`  — parset <svg> i minnet. Tak MAX_GHOST_NODER.
 //   festet   `festede`     — faktisk i #ghost-tiles. Utsnitts-drevet.
 //
@@ -29,6 +30,14 @@ import { tileOffset, tilesAreGridCompatible } from '../lib/tileCache.js'
 import { velgFestede, utvidRekt } from '../lib/ghostFeste.js'
 import { viewRectSvg, expandRect, needsRecull } from '../lib/viewportCull.js'
 import { logPerf } from '../lib/perfLog.js'
+
+// Datamengden én flis koster. Meta-oppføringene fra listMaps() bærer `sizeBytes`
+// ferdig regnet; en full entry (leggTilSpokelse laster hele posten) gjør det
+// ikke, så den regnes med samme formel som projectMetaEntry (v6.5.72).
+function flisBytes(e) {
+  if (Number.isFinite(e?.sizeBytes)) return e.sizeBytes
+  return (e?.svg?.length ?? 0) + (e?.dem?.buffer?.byteLength ?? 0)
+}
 
 export function useGhostTiles({
   svgHostRef, wrapperRef, meta, mapId, isAlive, isGesturing,
@@ -420,7 +429,7 @@ export function useGhostTiles({
     const uparsede = []
     for (const { t } of cands) {
       const rect = rectFraLagretMeta(t, m)
-      if (rect) rects.push({ id: t.id, isAuto: !!t.isAuto, ...rect })
+      if (rect) rects.push({ id: t.id, isAuto: !!t.isAuto, bytes: flisBytes(t), ...rect })
       else uparsede.push(t)   // eldre post uten utmBbox → må parses for å plasseres
     }
 
@@ -443,7 +452,7 @@ export function useGhostTiles({
       ghostNoder.set(t.id, { el: ghost.el, stored, relieffPaa: false })
       // Eldre post uten utmBbox: nå VET vi rektangelet, så modellen kan fylles.
       if (!rects.some(r => r.id === t.id)) {
-        rects.push({ id: t.id, isAuto: !!t.isAuto, ...ghost.rect })
+        rects.push({ id: t.id, isAuto: !!t.isAuto, bytes: flisBytes(t), ...ghost.rect })
       }
     }
     if (token !== ghostRenderToken) { container.remove(); return }
@@ -606,7 +615,7 @@ export function useGhostTiles({
     festede.add(tileId)
     ghostRects.value = [
       ...ghostRects.value.filter(r => r.id !== tileId),
-      { id: tileId, isAuto: !!stored.isAuto, ...ghost.rect },
+      { id: tileId, isAuto: !!stored.isAuto, bytes: flisBytes(stored), ...ghost.rect },
     ]
     // ETTER appendChild: ensureGhostIsomStyles skanner containeren for [data-iso]
     // og skriver et supplerende stilark. Kalles den før, mangler den nye flisas
