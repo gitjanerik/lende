@@ -1,3 +1,13 @@
+## 2026-09-08 — v6.5.80: Lende-chatten bytter til gpt-oss-120b
+
+Llama 4 Scout svarte ustøtt: unødvendige oppklaringsspørsmål, en selvmotsigelse rett etter et vellykket verktøykall («det høyeste punktet er ikke funnet» like etter at det var markert) og ugrammatisk norsk. `MODEL` i `cloudflare/ai-worker/wrangler.toml` peker nå på `@cf/openai/gpt-oss-120b`: sterkere på funksjonskalling og strukturert output, 131K kontekst, og $0,35 inn / $0,39 ut per M tokens mot Scouts $0,27/$0,85 — litt dyrere inn, under halve prisen ut, og det er output som dominerer i en chat.
+
+gpt-oss ER en resonnerings-modell, altså samme familie som GLM-4.7-flash, som ble forkastet fordi den brant budsjettet på engelsk «tenking». Forskjellen er at denne har en knott: `REASONING_EFFORT` er en egen var, satt til `low`. Feltet finnes ikke på alle modeller, så Workeren kjører kallet om igjen uten det hvis første forsøk kaster — et senere modellbytte forblir én linje i wrangler.toml.
+
+Klienten kjenner nå den tredje svarformen. Workeren tolker med vilje ikke svaret, den sender det rått videre, og gpt-oss svarer i Responses-API-form: en `output`-liste der `message`-posten er svaret, `reasoning`-posten er tenkingen og `function_call`-postene er verktøykallene. `extractText`, `extractToolCalls` og SSE-parsingen håndterer den ved siden av de to gamle formene, og tenkingen ignoreres i alle tre — også de typede strømhendelsene `response.reasoning_*.delta`. Det er ikke pynt: lekket engelsk tenking i svaret var nettopp det som gjorde GLM ubrukelig. Seks nye tester, verifisert i begge retninger.
+
+---
+
 ## 2026-09-08 — v6.5.79: Chattens skrivefelt brekker av seg selv ved stor skrift
 
 AppModal legger `zoom` på hele kroppen, så mikrofon- og send-knappen i Lende-chatten vokser med teksten selv om de bare er ikoner. Ved 200 % tok de to knappene og mellomrommene rundt 120 av 178 px i det zoomede laget, og skrivefeltet satt igjen med ~58 px: plassholderen brakk til ett ord per linje og ble klippet i bunnen.

@@ -160,6 +160,15 @@ alternativet som gir minst infrastruktur totalt.
   caching): Haiku 4.5 ~$8/mnd, Sonnet 5 ~$16–24/mnd, Opus 5 ~$39/mnd.
   Gemini Flash har også en gratis-tier (~15 req/min, ~1 500/dag, med
   function calling) som dekker volumet — men krever nøkkel i proxy.
+- **Modellen i drift (oppdatert v6.5.80):** `@cf/openai/gpt-oss-120b`,
+  $0,35 inn / $0,39 ut per M tokens. Avløste Llama 4 Scout ($0,27/$0,85), som
+  igjen avløste Llama 3.3 70B. Byttet er begrunnet i output-prisen — den
+  dominerer i en chat — og i at Scout svarte ustøtt: unødvendige oppklarings-
+  spørsmål, selvmotsigelser rett etter et vellykket verktøykall og ugrammatisk
+  norsk. gpt-oss ER en resonnerings-modell, altså samme familie som forkastede
+  GLM-4.7-flash, men har en knott: `REASONING_EFFORT` i wrangler.toml, satt til
+  `low`. Workeren kjører kallet om igjen uten feltet hvis modellen ikke kjenner
+  det, så et senere modellbytte forblir én linje.
 - **Forbehold å teste tidlig:** norsk bokmål-kvalitet i svarene, og
   verktøykjede-pålitelighet på norske prompts. Siden `/api/ai`-endepunktet
   designes leverandør-agnostisk (jf. `AI_ARKITEKTUR.md`) er fallback til

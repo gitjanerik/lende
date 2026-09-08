@@ -66,19 +66,47 @@ export function pickupInviteTokenFromLocation() {
 
 /**
  * Trekk svar-tekst ut av én chunk/ett svar-objekt fra Workers AI. Modellene
- * der svarer i to ulike former (oppdaget i røyktesten, v3.0.31):
+ * der svarer i TRE ulike former, og klienten kjenner alle tre fordi Workeren
+ * med vilje sender svaret rått videre (modellbytte skal være én linje i
+ * wrangler.toml, ikke en klientendring):
  *  • klassisk Workers AI:  { response: "…" }
  *  • OpenAI-kompatibel:    { choices: [{ delta: { content: "…" } }] } (stream)
  *                          { choices: [{ message: { content: "…" } }] } (ikke-stream)
- * Resonnerings-felter (delta.reasoning o.l.) ignoreres bevisst — de er
- * modellens interne tenking og skal aldri vises i chatten.
+ *  • Responses-API:        { output: [{ type: 'message', content: [
+ *                            { type: 'output_text', text: "…" } ] }] }, og i
+ *                          strømmen TYPEDE hendelser (v6.5.80, gpt-oss)
+ * Resonnering ignoreres bevisst i alle tre — `delta.reasoning`, `output`-poster
+ * av typen `reasoning` og `response.reasoning_*.delta` er modellens interne
+ * tenking og skal aldri vises i chatten. Det er ikke pynt: det var nettopp
+ * engelsk «tenking» lekket inn i svaret som gjorde GLM-4.7-flash ubrukelig.
  */
 export function extractText(obj) {
   if (!obj || typeof obj !== 'object') return ''
   if (typeof obj.response === 'string') return obj.response
+  // Responses-strømmen er typede hendelser: bare output_text-deltaene er svar.
+  if (typeof obj.type === 'string') {
+    return obj.type.endsWith('output_text.delta') && typeof obj.delta === 'string'
+      ? obj.delta
+      : ''
+  }
+  if (typeof obj.output_text === 'string') return obj.output_text
+  if (Array.isArray(obj.output)) return tekstFraOutput(obj.output)
   const valg = obj.choices?.[0]
   const tekst = valg?.delta?.content ?? valg?.message?.content
   return typeof tekst === 'string' ? tekst : ''
+}
+
+// Responses-API-ens `output` er en LISTE av poster, og bare `message`-postene
+// er svaret — `reasoning` og `function_call` ligger i samme liste.
+function tekstFraOutput(output) {
+  let ut = ''
+  for (const post of output) {
+    if (post?.type !== 'message') continue
+    for (const del of post.content ?? []) {
+      if (del?.type === 'output_text' && typeof del.text === 'string') ut += del.text
+    }
+  }
+  return ut
 }
 
 /**
@@ -113,14 +141,20 @@ export function parseSseBuffer(buffer) {
 
 /**
  * Trekk verktøykall ut av et svar-objekt, normalisert til { id, name, args }.
- * Håndterer begge Workers AI-formene:
- *  • OpenAI-stil: choices[0].message.tool_calls[] med function.arguments som
+ * Håndterer alle tre Workers AI-formene:
+ *  • OpenAI-stil:   choices[0].message.tool_calls[] med function.arguments som
  *    JSON-STRENG
- *  • klassisk:    tool_calls[] med { name, arguments } som OBJEKT
+ *  • klassisk:      tool_calls[] med { name, arguments } som OBJEKT
+ *  • Responses-API: output[]-poster av typen `function_call`, med `call_id`
+ *    som id (v6.5.80, gpt-oss)
  * Uparsbare argumenter gir {} i stedet for å knekke kjeden.
  */
 export function extractToolCalls(obj) {
-  const raa = obj?.choices?.[0]?.message?.tool_calls ?? obj?.tool_calls
+  const raa = obj?.choices?.[0]?.message?.tool_calls
+    ?? obj?.tool_calls
+    ?? (Array.isArray(obj?.output)
+      ? obj.output.filter((p) => p?.type === 'function_call')
+      : null)
   if (!Array.isArray(raa) || raa.length === 0) return []
   return raa
     .map((tc, i) => {
@@ -130,7 +164,7 @@ export function extractToolCalls(obj) {
       if (typeof args === 'string') {
         try { args = JSON.parse(args) } catch { args = {} }
       }
-      return { id: tc?.id ?? `verktoey_${i}`, name, args: args ?? {}, raw: tc }
+      return { id: tc?.id ?? tc?.call_id ?? `verktoey_${i}`, name, args: args ?? {}, raw: tc }
     })
     .filter(Boolean)
 }
