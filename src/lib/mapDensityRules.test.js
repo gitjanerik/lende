@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   tetthetsIndeks, tetthetsklasse, detaljNivaaFor, maxWidthKmFor, kostnad,
   tetthetsBeslutning, tetthetsBegrunnelse, separasjonerFor, erDroppet,
-  konturTallTakFor, KOSTNADSBUDSJETT, BREDDE_STEG_KM, BREDDE_MAKS_KM,
+  konturTallTakFor, KOSTNADSBUDSJETT, BREDDE_STEG_KM, BREDDE_MAKS_KM, BREDDE_MIN_KM,
   DETALJ_NIVAAER, NIVAA_FAKTOR,
 } from './mapDensityRules.js'
 
@@ -108,7 +108,7 @@ describe('maxWidthKmFor — trinn 2', () => {
   })
 
   it('holder seg innenfor [minKm, maksKm] også ved absurd tetthet', () => {
-    expect(maxWidthKmFor(1e9, 'sparsom')).toBe(1)
+    expect(maxWidthKmFor(1e9, 'sparsom')).toBe(BREDDE_MIN_KM)
     expect(maxWidthKmFor(1e-9, 'full')).toBe(BREDDE_MAKS_KM)
   })
 
@@ -234,8 +234,8 @@ describe('separasjoner og dropp', () => {
 
 describe('tetthetsBegrunnelse', () => {
   it('sier at hele skalaen er greit når taket er maks', () => {
-    expect(tetthetsBegrunnelse(4, 16)).toContain('hele skalaen')
-    expect(tetthetsBegrunnelse(4, 16)).toContain('Åpent')
+    expect(tetthetsBegrunnelse(4, BREDDE_MAKS_KM)).toContain('hele skalaen')
+    expect(tetthetsBegrunnelse(4, BREDDE_MAKS_KM)).toContain('Åpent')
   })
 
   it('oppgir taket når det er lavere enn maks', () => {

@@ -1,5 +1,7 @@
 import { ref, watch } from 'vue'
 import { PRINT_ASPECT } from '../lib/mapBuilder.js'
+import { BREDDE_MIN_KM, BREDDE_MAKS_KM } from '../lib/mapDensityRules.js'
+import { EQUIDISTANSE_M, minEquidistanceForWidthKm as minEqFraBredde } from '../lib/equidistanceRules.js'
 
 // Brukerstyrte standarder for NYE kart laget via forsidens søk/GPS-flyt
 // (MapHomeView) og «Bygg om»-knappen: kart-BREDDE (fri km-slider), FORMAT
@@ -33,6 +35,11 @@ import { PRINT_ASPECT } from '../lib/mapBuilder.js'
 // standardkart. 8 km-default gir 20 m auto-ekvidistanse (≥ 6 km → 20 m). 16 km-
 // kart faller tilbake til grovere DEM via celletaket (createMapFlow), aldri
 // avvist. Lagrede preferanser > 16 km ugyldiggjøres i load() → faller til DEFAULT.
+// v6.5.76: spennet er 2–20 km, og BÅDE grensene og ekvidistanse-tabellen er nå
+// re-eksporter fra lib — de sto i to nesten like kopier her og i
+// equidistanceRules/mapDensityRules, og en tabell som må endres to steder blir
+// endret ett sted. En lagret bredde utenfor spennet, eller en lagret
+// ekvidistanse på 2,5/5 m, faller til DEFAULT/auto av seg selv i load().
 //
 // Modul-nivå refs ⇒ delte singletons mellom MapHomeView (leser), MapView og
 // DrawerAboutTab (skriver).
@@ -40,11 +47,15 @@ const KEY = 'lende-map-size-km'
 const FORMAT_KEY = 'lende-map-format'
 const EQ_KEY = 'lende-map-eq'
 
-export const MAP_SIZE_MIN_KM = 1
-export const MAP_SIZE_MAX_KM = 16
+// Slider-grensene ER tetthets-reglenes bredde-spenn (mapDensityRules) — det
+// rådgivende taket måles mot de samme endene som slideren har.
+export const MAP_SIZE_MIN_KM = BREDDE_MIN_KM
+export const MAP_SIZE_MAX_KM = BREDDE_MAKS_KM
 // «Standard»-bredden (km) for nye kart når brukeren ikke har valgt noe.
 // Fast kvadrat — IKKE skjerm-skalert (se v11.0.59-merknaden over).
-export const DEFAULT_MAP_WIDTH_KM = 8
+// v6.5.76: 8 → 10 km. Sammen med ekvidistanse-tabellen (≥ 10 km → 25 m) gir
+// det et standardkart i norsk N50-manér: 10 × 10 km med 25 m høydekurver.
+export const DEFAULT_MAP_WIDTH_KM = 10
 
 // Format-valg for nye kart — samme trippel som «Flere valg» i pickeren.
 //   'square'   → kvadrat (aspect = 1) — standard
@@ -81,8 +92,9 @@ export function formatFraLagret(v) {
   return GAMLE_FORMAT[v] ?? DEFAULT_MAP_FORMAT
 }
 
-// Ekvidistanse-valg — samme liste som «Flere valg» (MapPickerView).
-export const MAP_EQ_OPTIONS = [2.5, 5, 10, 20, 25, 50]
+// Ekvidistanse-valg — samme liste som «Flere valg» (MapPickerContent), fra
+// den delte kilden.
+export const MAP_EQ_OPTIONS = EQUIDISTANSE_M
 
 // Høyde/bredde-forhold for et format-valg.
 export function aspectForFormat(format) {
@@ -115,32 +127,26 @@ function loadFormat() {
 
 function loadEq() {
   try {
-    const n = parseFloat(localStorage.getItem(EQ_KEY))   // parseFloat: 2,5 m er ikke heltall
+    // parseFloat og ikke parseInt: en lagret 2,5 fra før v6.5.76 skal leses
+    // som 2.5 og forkastes av lista under, ikke leses som 2 og forkastes der.
+    const n = parseFloat(localStorage.getItem(EQ_KEY))
     if (MAP_EQ_OPTIONS.includes(n)) return n
   } catch { /* private mode */ }
   return null   // null = auto (fineste tillatte for bredden)
 }
 
-// Minste TILLATTE ekvidistanse for en kart-bredde — samme tabell som «Flere
-// valg»-gatingen (MapPickerView.minEquidistance): tette kurver drukner på
-// store kart.
-//   ≤ 2 km  → 2,5 m   (ISOM-sprint — kun små kart)
-//   < 4 km  → 5 m
-//   4–6 km  → 10 m
-//   ≥ 6 km  → 20 m
+// Minste TILLATTE ekvidistanse for en kart-bredde — den delte tabellen
+// (lib/equidistanceRules), med DEFAULT_MAP_WIDTH_KM for «ikke valgt».
 export function minEquidistanceForWidthKm(km) {
-  const w = km || DEFAULT_MAP_WIDTH_KM
-  if (w >= 6) return 20
-  if (w >= 4) return 10
-  if (w > 2) return 5
-  return 2.5
+  return minEqFraBredde(km || DEFAULT_MAP_WIDTH_KM)
 }
 
 // Auto-ekvidistanse for snarvei-kart (søk/GPS): den FINESTE tillatte for
-// bredden, men ALDRI finere enn 5 m automatisk — 2,5 m er et bevisst manuelt
-// valg (dobbelt så tette kurver), ikke noe snarvei-kart skal få uoppfordret.
+// bredden. Fram til v6.5.76 hadde denne et eget 5 m-gulv, fordi 2,5 m var et
+// bevisst manuelt valg ingen snarvei skulle få uoppfordret. Med 2,5 og 5 m ute
+// av lista er fineste tillatte 10 m, og gulvet har ingenting å gjøre.
 export function equidistanceForWidthKm(km) {
-  return Math.max(5, minEquidistanceForWidthKm(km))
+  return minEquidistanceForWidthKm(km)
 }
 
 const mapSizeKm = ref(load())
@@ -177,8 +183,9 @@ export function effectiveEquidistanceForWidthKm(km) {
   return Math.max(chosen, min)
 }
 
-// Felles «Nullstill»-standard: 8 km bredde + 20 m ekvidistanse + kvadratisk.
-// (null-verdiene ER standarden: 8 km-default og auto-ekvidistanse for 8 km = 20 m.)
+// Felles «Nullstill»-standard: 10 km bredde + 25 m ekvidistanse + kvadratisk.
+// (null-verdiene ER standarden: 10 km-default og auto-ekvidistanse for 10 km
+// = 25 m, altså N50.)
 export function resetMapPreferences() {
   mapSizeKm.value = null
   mapFormat.value = DEFAULT_MAP_FORMAT

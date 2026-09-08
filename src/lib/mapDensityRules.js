@@ -135,8 +135,11 @@ export function konturTallTakFor(nivaa) {
 export const KOSTNADSBUDSJETT = 20000
 
 export const BREDDE_STEG_KM = 0.5   // pickerens slider-steg (halfKm-steg 0,25)
-export const BREDDE_MIN_KM = 1
-export const BREDDE_MAKS_KM = 16
+// v6.5.76: spennet er 2–20 km. Nedre grense hevet fra 1 km fordi et 1 km-ark
+// er mindre enn én mosaikk-flis og aldri var et turkart; øvre hevet fra 16 km
+// etter at mosaikken ble rettet (v6.5.74–75) og store ark faktisk bærer.
+export const BREDDE_MIN_KM = 2
+export const BREDDE_MAKS_KM = 20
 
 /** Kostnaden for et utsnitt på et gitt detaljnivå. */
 export function kostnad(indeks, arealKm2, nivaa = 'full') {

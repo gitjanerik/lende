@@ -11,6 +11,7 @@ import {
   MAP_SIZE_MIN_KM, MAP_SIZE_MAX_KM, DEFAULT_MAP_WIDTH_KM,
   MAP_FORMAT_OPTIONS, MAP_EQ_OPTIONS,
 } from '../../composables/useMapSizePreference.js'
+import { breddeHintFor } from '../../lib/equidistanceRules.js'
 import { DENSITY_PRESETS } from '../../composables/useLabelDensity.js'
 import { APP_VERSION } from '../../version.js'
 
@@ -31,12 +32,9 @@ const { mapFormat, mapEquidistance } = useMapSizePreference()
 const minEq = computed(() => minEquidistanceForWidthKm(mapSizeSlider.value))
 // Effektiv (markert) verdi: brukerens valg klampet til tillatt, auto ellers.
 const effectiveEq = computed(() => effectiveEquidistanceForWidthKm(mapSizeSlider.value))
-function eqHintFor(value) {
-  if (value === 2.5) return 'Krever bredde ≤ 2 km'
-  if (value === 5)  return 'Krever bredde < 4 km'
-  if (value === 10) return 'Krever bredde < 6 km'
-  return ''
-}
+// Samme forklaring som pickeren viser — én kilde, så teksten ikke kan si noe
+// annet enn tabellen gjør.
+const eqHintFor = breddeHintFor
 // Felles «Nullstill»: default-bredde + auto-ekvidistanse + kvadratisk. Slider-
 // modellen settes via MapView-computeden (som lagrer null når verdien er default).
 const defaultEq = computed(() => minEquidistanceForWidthKm(DEFAULT_MAP_WIDTH_KM))
@@ -68,10 +66,11 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
         <div class="text-[13px] text-ink font-semibold tabular-nums">{{ mapSizeSlider }} × {{ mapSizeSlider }} km</div>
       </div>
       <div class="text-[11px] text-ink-3 leading-snug mb-2">
-        Bredde på nye kart fra søk/GPS. Større kart tar lengre tid å bygge. I
-        svært datatette områder (bykjerner) bygges kartet enklere og om nødvendig
-        mindre, så det holder seg responsivt — «Flere valg» viser grensen på
-        stedet, og Utvikler-fanen hva som ble justert.
+        Bredde på nye kart fra søk/GPS, {{ MAP_SIZE_MIN_KM }}–{{ MAP_SIZE_MAX_KM }} km.
+        Større kart tar lengre tid å bygge, og fra 6 km krever de 20 m høydekurver
+        (fra 10 km: 25 m). I svært datatette områder (bykjerner) bygges kartet
+        enklere og om nødvendig mindre, så det holder seg responsivt — «Flere valg»
+        viser grensen på stedet, og Utvikler-fanen hva som ble justert.
       </div>
       <input type="range" :min="MAP_SIZE_MIN_KM" :max="MAP_SIZE_MAX_KM" step="1"
              v-model.number="mapSizeSlider"
@@ -95,7 +94,7 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
         </button>
       </div>
       <!-- Høydekurver: samme valg og bredde-gating som «Flere valg»
-           (< 4 km: alle; 4–6 km: min 10 m; ≥ 6 km: min 20 m). -->
+           (< 6 km: alle; 6–10 km: min 20 m; ≥ 10 km: min 25 m). -->
       <div class="flex items-baseline justify-between mt-3 mb-1.5">
         <div class="text-[13px] text-ink font-medium">Høydekurver</div>
         <div class="text-[12px] text-ink-3 tabular-nums">hver {{ effectiveEq }} m</div>
@@ -112,8 +111,8 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
           {{ eq }} m
         </button>
       </div>
-      <div v-if="minEq > 5" class="text-[10px] text-ink-4 leading-snug mt-1">
-        Tette kurver ({{ minEq === 20 ? '5 og 10 m' : '5 m' }}) krever smalere kart
+      <div v-if="minEq > 10" class="text-[10px] text-ink-4 leading-snug mt-1">
+        Tette kurver ({{ minEq === 25 ? '10 og 20 m' : '10 m' }}) krever smalere kart
         — dra slideren ned for å låse opp.
       </div>
       <!-- Felles standard: default-bredde + auto-ekvidistanse + kvadratisk. -->

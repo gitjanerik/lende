@@ -1,3 +1,33 @@
+## 2026-09-08 — v6.5.76: Kartbredde 2–20 km, høydekurver 10/20/25/50 m, standard 10 km · 25 m
+
+Kartstørrelsen går nå fra 2 til 20 km bredde, mot 1–16 km før. Nedre grense er
+hevet fordi et 1 km-ark er mindre enn én mosaikk-flis og aldri var et turkart;
+øvre er hevet fordi mosaikken bærer store ark etter v6.5.74–75. Spennet står ETT
+sted (`BREDDE_MIN_KM`/`BREDDE_MAKS_KM` i `mapDensityRules`) og leses av både
+pickerens slider, pinch- og hjul-klampene, Innstillinger, «Bygg om»-panelet og
+det rådgivende tetthets-taket — den gule sonen på slideren regnes nå av spennet
+i stedet for av innbakte tall, som var det som ville bommet på grensa den skulle
+vise i det endene flyttet seg.
+
+Høydekurve-valgene 2,5 m og 5 m er fjernet; igjen står 10, 20, 25 og 50 m. Begge
+forutsatte 1 m DTM og et lite ark, og med 2 km som minste bredde fantes
+2,5 m-vinduet ikke lenger i det hele tatt. Standardkartet er samtidig endret fra
+8 km · 20 m til **10 × 10 km · 25 m**, altså norsk N50-manér, og tabellen som
+hindrer for tette kurver på store kart følger den: under 6 km alle valg, 6–10 km
+minst 20 m, fra 10 km minst 25 m. 50 m er fortsatt alltid valgbart og aldri
+påtvunget. Et lagret valg på 2,5 eller 5 m faller til «auto» av seg selv, og en
+lagret bredde utenfor spennet til standarden.
+
+Under dette lå en dublett verdt å nevne: `minEquidistanceForWidthKm` sto i to
+nesten like kopier — `lib/equidistanceRules.js` og
+`composables/useMapSizePreference.js` — sammen med to kopier av valglista og to
+av forklaringsteksten for hvorfor en knapp er grået ut. En tabell som må endres
+to steder blir endret ett sted. Alt er nå ÉN kilde i `equidistanceRules`
+(`EQUIDISTANSE_VALG`, `EQUIDISTANSE_M`, `minEquidistanceForWidthKm`,
+`breddeHintFor`), som pickeren, Innstillinger og MCP-serverens `bygg_kart` deler.
+
+---
+
 ## 2026-09-08 — v6.5.75: Arket bygger ikke fliser det skal slette igjen
 
 Andre halvdel av Kirkenes-feilsøkingen. Med tegne-taket rettet i v6.5.74 sto den
