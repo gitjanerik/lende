@@ -160,6 +160,71 @@ describe('extractText', () => {
   })
 })
 
+describe('Responses-API-formen (gpt-oss, v6.5.80)', () => {
+  // Formen Workeren sender rått videre når MODEL er @cf/openai/gpt-oss-120b.
+  // `reasoning`-posten ligger i SAMME liste som svaret, og den skal aldri
+  // vises — det var lekket engelsk «tenking» som gjorde GLM-4.7-flash ubrukelig.
+  const svar = {
+    output: [
+      { type: 'reasoning', summary: [{ type: 'summary_text', text: 'The user asks …' }] },
+      { type: 'message', content: [{ type: 'output_text', text: 'Vardåsen ligger i Asker.' }] },
+    ],
+  }
+
+  it('tar teksten ut av message-posten og hopper over reasoning', () => {
+    expect(extractText(svar)).toBe('Vardåsen ligger i Asker.')
+  })
+
+  it('skjøter flere output_text-deler i samme melding', () => {
+    expect(extractText({
+      output: [{ type: 'message', content: [
+        { type: 'output_text', text: 'Hei ' },
+        { type: 'output_text', text: 'der' },
+      ] }],
+    })).toBe('Hei der')
+  })
+
+  it('godtar snarveien output_text', () => {
+    expect(extractText({ output_text: 'Hei' })).toBe('Hei')
+  })
+
+  it('strømmen: bare output_text-deltaene er svar', () => {
+    expect(extractText({ type: 'response.output_text.delta', delta: 'Hei' })).toBe('Hei')
+    expect(extractText({ type: 'response.reasoning_text.delta', delta: 'thinking' })).toBe('')
+    expect(extractText({ type: 'response.reasoning_summary_text.delta', delta: 'x' })).toBe('')
+    expect(extractText({ type: 'response.completed', response: { output: [] } })).toBe('')
+  })
+
+  it('parseSseBuffer plukker typede hendelser og lar tenkingen ligge', () => {
+    const { deltas, done } = parseSseBuffer(
+      'data: {"type":"response.reasoning_text.delta","delta":"hm"}\n' +
+      'data: {"type":"response.output_text.delta","delta":"Vard"}\n' +
+      'data: {"type":"response.output_text.delta","delta":"åsen"}\n' +
+      'data: [DONE]\n'
+    )
+    expect(deltas.join('')).toBe('Vardåsen')
+    expect(done).toBe(true)
+  })
+
+  it('verktøykall: function_call-poster med call_id og argumenter som streng', () => {
+    const kall = extractToolCalls({
+      output: [
+        { type: 'reasoning', summary: [] },
+        { type: 'function_call', call_id: 'fc_1', name: 'bygg_kart',
+          arguments: '{"sted":"Vardåsen","bredde_km":10}' },
+      ],
+    })
+    expect(kall).toHaveLength(1)
+    expect(kall[0].id).toBe('fc_1')
+    expect(kall[0].name).toBe('bygg_kart')
+    expect(kall[0].args).toEqual({ sted: 'Vardåsen', bredde_km: 10 })
+  })
+
+  it('et rent tekstsvar gir ingen verktøykall', () => {
+    expect(extractToolCalls(svar)).toEqual([])
+  })
+})
+
 describe('extractInviteToken', () => {
   it('plukker token og fjerner kun ai-token fra query', () => {
     const hit = extractInviteToken('?slat=59.8&ai-token=abc-123&slon=10.5')

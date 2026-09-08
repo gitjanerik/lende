@@ -12,12 +12,20 @@ binding = "AI"
 # engelsk «tenking»). Llama 3.3 70B fp8-fast (v3.0.31–v4.3.10) hadde solid
 # norsk men beviselig skjør funksjonskalling — hermetiske engelske avvisninger
 # («Your input is lacking …») og verktøykall dumpet som råtekst med
-# hallusinerte koordinater. Llama 4 Scout (v4.3.11): nyere funksjonskalling,
-# samme chat-completions+tools-form (drop-in for lendeAi.js), og ~1/3 av
-# output-prisen ($0,66 vs $2,25 per M tokens) — neurons-forbruket omtrent
-# halveres per melding.
+# hallusinerte koordinater. Llama 4 Scout (v4.3.11–v6.5.79, $0,27/$0,85 per M)
+# rettet funksjonskallingen, men svarte ustøtt: unødvendige oppklarings-
+# spørsmål, selvmotsigelser rett etter et vellykket verktøykall og ugrammatisk
+# norsk.
+# gpt-oss-120b (v6.5.80): $0,35 inn / $0,39 ut per M — litt dyrere inn, under
+# HALVE prisen ut, og det er output som dominerer i en chat. Sterkere på
+# funksjonskalling og strukturert output, 131K kontekst.
 [vars]
-MODEL = "@cf/meta/llama-4-scout-17b-16e-instruct"
+MODEL = "@cf/openai/gpt-oss-120b"
+
+# gpt-oss ER en resonnerings-modell, og det var nettopp det som drepte
+# GLM-4.7-flash: tenkingen gikk på engelsk og spiste budsjettet. Forskjellen er
+# at denne har en knott. Tom verdi = ikke send feltet i det hele tatt.
+REASONING_EFFORT = "low"
 
 # Secreten LENDE_AI_TOKENS (kommaseparerte per-bruker-tokens) settes IKKE her.
 # CI-deployen (.github/workflows/deploy-ai-worker.yml) pusher den fra GitHub-

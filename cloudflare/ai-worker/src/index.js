@@ -97,15 +97,35 @@ export default {
     if (Array.isArray(body.tools) && body.tools.length > 0) params.tools = body.tools
     if (body.stream === true) params.stream = true
 
+    // Resonnerings-innsats (gpt-oss). Feltet finnes ikke på alle modeller, og
+    // et ukjent felt kan avvises av skjemavalideringen — derfor kjøres kallet
+    // om igjen UTEN det hvis første forsøk kaster. Det koster en ekstra
+    // round-trip i den ene retningen der vi ellers ville levert 502 på hver
+    // eneste melding, og det gjør modellbyttet til en ren én-linjes deploy:
+    // treffer knotten ikke, blir den bare ignorert.
+    const innsats = (env.REASONING_EFFORT ?? '').trim()
+    if (innsats) params.reasoning = { effort: innsats }
+
     let result
     try {
       result = await env.AI.run(env.MODEL, params)
     } catch (err) {
-      return json(502, { error: `Workers AI feilet: ${err?.message ?? 'ukjent'}` }, cors)
+      if (!params.reasoning) {
+        return json(502, { error: `Workers AI feilet: ${err?.message ?? 'ukjent'}` }, cors)
+      }
+      delete params.reasoning
+      try {
+        result = await env.AI.run(env.MODEL, params)
+      } catch (err2) {
+        return json(502, { error: `Workers AI feilet: ${err2?.message ?? 'ukjent'}` }, cors)
+      }
     }
 
-    // Streaming gir en ReadableStream med SSE-bytes; ellers et JSON-objekt
-    // ({ response, tool_calls? … } — formen varierer noe per modell).
+    // Streaming gir en ReadableStream med SSE-bytes; ellers et JSON-objekt.
+    // Formen varierer per modell — klassisk Workers AI ({ response }),
+    // OpenAI-kompatibel ({ choices }) eller Responses-API ({ output: [...] },
+    // som gpt-oss bruker. Workeren tolker den IKKE; den sendes rå videre, og
+    // klienten (src/lib/lendeAi.js) kjenner alle tre.
     if (params.stream && result instanceof ReadableStream) {
       return new Response(result, {
         headers: { ...cors, 'Content-Type': 'text/event-stream' },
