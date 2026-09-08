@@ -331,11 +331,28 @@ const SJEKKER = [
         const klippet = [...ark.querySelectorAll('button span, button div')]
           .filter((el) => el.scrollWidth > el.clientWidth + 1 && el.textContent.trim())
           .map((el) => el.textContent.trim().slice(0, 24))
+        // v6.5.77: tekst-kolonnen i headeren skal ha HELE bredden. A-knappen
+        // og X sto i samme rad og tok ~80 px, og en kolonne som er 80 px for
+        // smal ser helt normal ut i markup — det er bare linjene som brekker.
+        // Kolonnen bærer `zoom`, og rektangelet er den VISUELLE bredden, altså
+        // direkte sammenliknbar med forelderens.
+        // Forelderens INNHOLDSBREDDE, ikke rektangelet: headeren har `px-4`,
+        // og en rå sammenlikning ville meldt 32 px tap på en kolonne som
+        // allerede fyller alt den kan (samme felle som værradens måling,
+        // v6.3.12).
+        const kolonne = kopi.closest('[style*="zoom"]')
+        const vert = kolonne?.parentElement
+        const cs = vert ? getComputedStyle(vert) : null
+        const bredde = kolonne && vert
+          ? Math.round(vert.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+                       - kolonne.getBoundingClientRect().width)
+          : null
         return {
           brede: brede.slice(0, 4).map((x) => `«${x.tekst}» på ${x.n} linjer`),
           klippet: klippet.slice(0, 4),
           // Arket selv skal aldri kunne rulles sidelengs.
           sidelengs: ark.scrollWidth - ark.clientWidth,
+          breddetap: bredde,
         }
       })
       if (!maalt) feil.push('fant ikke arket etter skalering')
@@ -343,6 +360,10 @@ const SJEKKER = [
         if (maalt.brede.length) feil.push(maalt.brede.join(', '))
         if (maalt.klippet.length) feil.push(`klippet tekst: ${maalt.klippet.join(', ')}`)
         if (maalt.sidelengs > 1) feil.push(`arket ruller ${maalt.sidelengs} px sidelengs`)
+        if (maalt.breddetap == null) feil.push('fant ikke tekst-kolonnen i headeren')
+        else if (maalt.breddetap > 4) {
+          feil.push(`headerens tekst-kolonne er ${maalt.breddetap} px smalere enn arket`)
+        }
       }
 
       // NØYTRAL TILSTAND: runde tilbake til 100 % og lukke arket.
@@ -356,7 +377,7 @@ const SJEKKER = [
       await page.locator('button[aria-label="Lukk"]').first().click()
       await page.waitForTimeout(300)
       if (feil.length) throw new Error(feil.join(' | '))
-      return 'ingen klippede etiketter, ingen sidelengs rulling ved 200 %'
+      return 'full bredde i headeren, ingen klippede etiketter ved 200 %'
     },
   },
   {

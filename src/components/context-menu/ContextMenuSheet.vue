@@ -113,21 +113,40 @@ function formatDistance(m) {
         <div class="w-12 h-1.5 rounded-full bg-ink/40"
              :style="{ opacity: contextDrawer.handleOpacity.value }"></div>
       </div>
-      <!-- Header: koordinater + lukk -->
-      <div class="shrink-0 px-4 pb-2.5 bg-surface/95
-                  border-b border-ink/8 flex items-start justify-between gap-3">
-        <!-- Headeren følger tekststørrelse-valget på lik linje med kroppen
-             under (v6.5.32). Den sto igjen på 10-13 px mens alt under vokste,
-             og koordinatene er nettopp det man åpner arket for å lese.
-             Zoomen ligger på TEKST-KOLONNEN og ikke på raden: raden er
-             `justify-between` over hele bredden, og en zoomet rad skalerer
-             polstringen og dytter lukkeknappen ut av skjermen (samme felle som
-             3D-overlegget gikk i, v6.3.12). Kopier-knappen står inne i kolonnen
-             og vokser med linja si — den er 28 px, altså under fingerbredden
-             uansett, så større er bare bedre. Lukkeknappen står utenfor og
-             beholder sine 32 px. -->
+      <!-- Header: kontrollrad øverst, tekstlinjene i FULL BREDDE under.
+           Fram til v6.5.77 sto A-knappen og X i SAMME rad som teksten og tok
+           ~80 px av en 380 px bred header. Kolonnen bærer `zoom`, så ved 200 %
+           er den effektive bredden halvert igjen: koordinatparet brakk etter
+           kommaet, og «ISOM 2017-2-derived · DEM: WCS (flis-cache) · 20 m» ble
+           fire linjer med en tom høyrekant ved siden av. Samme grep som i kart-
+           og rutelista (v6.5.47/6.5.49): teksten får hele bredden, og det man
+           kan TRYKKE på ligger på en egen rad.
+           Raden koster ingen høyde — «Punkt»-etiketten sto der fra før og har
+           flyttet opp i den. Etiketten er zoomet FOR SEG og ikke raden: en
+           zoomet rad skalerer polstringen og dytter X-en ut av skjermen (samme
+           felle som 3D-overlegget gikk i, v6.3.12), så knappene står utenfor og
+           beholder sine 32 px. Kopier-knappen står derimot inne i tekst-
+           kolonnen og vokser med linja si — den hører til koordinatene. -->
+      <div class="shrink-0 px-4 pb-2.5 bg-surface/95 border-b border-ink/8">
+        <div class="flex items-center justify-between gap-2">
+          <div class="min-w-0 truncate text-[10px] uppercase tracking-wide text-ink-4"
+               :style="{ zoom: uiTextScale }">Punkt</div>
+          <!-- Tekststørrelse + lukk. Begge står UTENFOR de zoomede flatene,
+               altså beholder de sine 32 px ved 200 %. -->
+          <div class="flex items-center gap-1.5 shrink-0">
+            <TekstStorrelseKnapp />
+            <button @click="closeContextMenu"
+                    aria-label="Lukk"
+                    class="w-8 h-8 -mr-1 rounded-full flex items-center justify-center
+                           bg-ink/5 border border-ink/10 text-ink-2 active:scale-90">
+              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                   stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+              </svg>
+            </button>
+          </div>
+        </div>
         <div class="min-w-0" :style="{ zoom: uiTextScale }">
-          <div class="text-[10px] uppercase tracking-wide text-ink-4">Punkt</div>
           <!-- `items-start`: ved 200 % brekker koordinatparet etter kommaet, og
                en vertikalt sentrert kopier-knapp havner da i lufta mellom de to
                linjene. Den hører til den første. -->
@@ -182,20 +201,6 @@ function formatDistance(m) {
           <div v-if="!contextMenuInfo.inside" class="text-[10px] text-amber-300 mt-0.5">
             Utenfor kart-utsnittet
           </div>
-        </div>
-        <!-- Tekststørrelse + lukk. Begge står UTENFOR den zoomede kolonnen
-             over, altså beholder de sine 32 px ved 200 % — se kommentaren der. -->
-        <div class="flex items-center gap-1.5 shrink-0">
-          <TekstStorrelseKnapp />
-          <button @click="closeContextMenu"
-                  aria-label="Lukk"
-                  class="w-8 h-8 -mr-1 -mt-0.5 rounded-full flex items-center justify-center
-                         bg-ink/5 border border-ink/10 text-ink-2 active:scale-90">
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-            </svg>
-          </button>
         </div>
       </div>
       <!-- Scrollbar kropp: detalj-inset (uten zoom) + tekst-info (zoom-bar).
@@ -267,7 +272,12 @@ function formatDistance(m) {
       <div v-if="contextDrawer.isMaximized.value" class="px-4 pt-3">
         <!-- Etikettene skalerer, selve insetet gjør det ikke: det er et kart,
              ikke tekst, og har sin egen `aspect`-boks. -->
-        <div class="flex items-baseline justify-between mb-1" :style="{ zoom: uiTextScale }">
+        <!-- `flex-wrap` (v6.5.77): ved 200 % får ikke «Detaljer · 500 × 500 m»
+             og gest-hintet plass på samme linje, og uten bryting delte begge
+             seg midt i seg selv — to ord over hverandre i hver ende. Hintet
+             faller nå ned på en egen linje i stedet. -->
+        <div class="flex flex-wrap items-baseline justify-between gap-x-2 mb-1"
+             :style="{ zoom: uiTextScale }">
           <span class="text-[10px] uppercase tracking-wide text-ink-4">
             Detaljer · {{ DETAIL_INSET_M }} × {{ DETAIL_INSET_M }} m
           </span>

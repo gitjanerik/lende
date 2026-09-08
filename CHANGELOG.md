@@ -1,3 +1,27 @@
+## 2026-09-08 — v6.5.77: Punkt-arkets header gir teksten hele bredden
+
+Tekststørrelse-knappen og lukkeknappen sto i samme rad som koordinatene i
+punkt-arkets header og tok rundt 80 px av en 380 px bred flate. Kolonnen ved
+siden av dem bærer `zoom`, så ved 200 % tekst var den effektive bredden halvert
+igjen: koordinatparet brakk etter kommaet, «1:10 000 · Høydekurver pr 20 m»
+delte seg i to, og kildelinja ble fire linjer med en tom høyrekant ved siden av.
+Samme grep som i kart- og rutelista: teksten får hele bredden, og det man kan
+trykke på ligger på en egen rad. Raden koster ingen høyde — «Punkt»-etiketten
+sto der fra før og har flyttet opp i den, mens knappene står utenfor de zoomede
+flatene og beholder sine 32 px. Etikettene over detalj-utsnittet brekker nå
+etter plass i stedet for midt i seg selv.
+
+Røyk-sjekken for 200 % tekst måler invarianten direkte: tekst-kolonnen i
+headeren skal være like bred som arket. En kolonne som er 89 px for smal ser
+helt normal ut i markup — det er bare linjene som brekker, og det ser ingen
+enhetstest.
+
+Samme sak i Innstillinger: forklaringen over bredde-slideren sto som fem faste
+linjer mellom overskriften og kontrollen, og skjøv selve slideren nedover. Den
+ligger nå bak «Info» under slideren — man leser den én gang.
+
+---
+
 ## 2026-09-08 — v6.5.76: Kartbredde 2–20 km, høydekurver 10/20/25/50 m, standard 10 km · 25 m
 
 Kartstørrelsen går nå fra 2 til 20 km bredde, mot 1–16 km før. Nedre grense er
