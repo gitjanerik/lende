@@ -1096,8 +1096,15 @@ watch(maxTileIndex, () => {
   const c = m ? visibleCenterSvg() : null
   let center = null
   try { if (m && c) center = svgToWgs84(c.x, c.y, m) } catch { center = null }
+  // Vernet er BARE aktiv flis her, med vilje: senker brukeren grensa, er det
+  // arket som skal krympe. Derfor må mosaikken også tegnes på nytt når noe
+  // faktisk ble kastet — modellen bygges av lagringen, og en modell som påstår
+  // fliser IndexedDB ikke har er det hullbanneret feilleser (v6.5.75).
   pruneAutoTiles({ center: center ?? undefined, max: maxTiles.value, protectIds: [mapId.value] })
-    .then(() => { void refreshAutoTileCount() })
+    .then(async ({ evicted }) => {
+      if (evicted) { await renderGhostTiles(); await nextTick(); refreshMosaicGaps() }
+      void refreshAutoTileCount()
+    })
     .catch(() => {})
   flashKnobHint(`Maks ${maxTiles.value} kartfliser`)
 })

@@ -1,3 +1,31 @@
+## 2026-09-08 — v6.5.75: Arket bygger ikke fliser det skal slette igjen
+
+Andre halvdel av Kirkenes-feilsøkingen. Med tegne-taket rettet i v6.5.74 sto den
+andre feilen igjen: kappingen av flis-cachen slettet arkets EGNE fliser rett
+etter at de var bygd. `pruneAutoTiles` ble kalt fire-and-forget med et vern som
+bare dekket aktiv flis og de nettopp bygde flisene, mens de øvrige flisene i
+arket sto ubeskyttet — så et ark på grensa mistet åtte til elleve fliser i det
+utvidelsen var ferdig, etter at mosaikken var tegnet og før hull-tellingen
+rakk å kjøre. «Gjør arket firkantet» bygde dem opp igjen, neste kapping tok dem
+igjen, og hullbanneret sa noe nytt for hver runde. Det var tredemølla.
+
+Tre endringer, og de henger sammen. Vernet dekker nå HELE mosaikk-modellen
+(`arkVernIds`). Kappingen awaites før hull-tellingen, og tegner mosaikken på
+nytt når noe faktisk ble kastet — modellen bygges av lagringen, og en modell som
+påstår fliser IndexedDB ikke har er nøyaktig det hullbanneret feilleser. Og
+siden et vernet ark ellers bare hadde vokst forbi taket i stillhet, sier en port
+NEI før byggingen: `plassIArket` (ren, enhetstestet) sammenlikner arkets
+størrelse med «Maks kartfliser» og svarer med en toast som peker på
+innstillingen, i stedet for å bygge fliser brukeren venter på og slette dem i
+samme operasjon. Porten står i både kant-utvidelsen og i «Fyll hullene» /
+«Gjør arket firkantet».
+
+Senker brukeren grensa selv, er det fortsatt arket som skal krympe — der er
+vernet bevisst bare aktiv flis, men mosaikken tegnes nå på nytt etterpå så
+modellen og lagringen er enige.
+
+---
+
 ## 2026-09-08 — v6.5.74: Nabofliser tegnes så langt arket rekker, ikke bare tolv
 
 Et ark større enn tretten celler har vært halvtomt siden mosaikken fikk et
