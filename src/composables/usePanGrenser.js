@@ -13,10 +13,19 @@
 //   • Frontier-slakken (en halv flis i hver retning) er ikke slurv. Uten den kan
 //     ikke auto-kart trigges på ukjent grunn, fordi brukeren aldri får panorert
 //     utenfor det som alt finnes.
+//
+// Wrapper-målet kommer inn som en ref og MÅLES IKKE her (v6.5.72).
+// getBoundingClientRect() tvinger nettleseren til å flushe stil og layout for et
+// dokument kart-transformen nettopp skitnet, og clampPan kjører på hver eneste
+// transform-endring — altså hvert touchmove. MapView eier målingen
+// (`measureWrapper`, matet av ResizeObserver + resize), så den er fersk uten at
+// gest-stien betaler for den. Fallbacken til en direkte måling gjelder bare det
+// ene tilfellet der observeren ikke har rukket å svare ennå.
 
 /**
  * @param {{
  *   meta: import('vue').Ref, wrapperRef: import('vue').Ref,
+ *   wrapperSize: import('vue').Ref,   // { w, h } — målt av MapView
  *   scale: import('vue').Ref, rotation: import('vue').Ref,
  *   translateX: import('vue').Ref, translateY: import('vue').Ref,
  *   ghostRects: () => import('vue').Ref,   // getter: eies av useGhostTiles
@@ -27,8 +36,17 @@
  * }} deps
  */
 export function usePanGrenser({
-  meta, wrapperRef, scale, rotation, translateX, translateY, ghostRects, hooks,
+  meta, wrapperRef, wrapperSize, scale, rotation, translateX, translateY, ghostRects, hooks,
 }) {
+  // Siste kjente wrapper-mål, uten å tvinge layout. Er målingen ikke kommet
+  // ennå (første frame etter montering), måles det én gang direkte.
+  function wrapMaal() {
+    const s = wrapperSize?.value
+    if (s?.w && s?.h) return s
+    const r = wrapperRef.value?.getBoundingClientRect()
+    return r?.width && r?.height ? { w: r.width, h: r.height } : null
+  }
+
   // Dynamisk zoom-ut-gulv: la brukeren zoome ut akkurat langt nok til å se HELE
   // bruttokartet (aktiv flis ∪ nabofliser) med litt margin rundt — så man raskt
   // ser totalområdet et lagret/utvidet kart spenner over. Ett-flis-kart beholder
@@ -36,15 +54,15 @@ export function usePanGrenser({
   // Absolutt bunn (0.06) hindrer at en svær mosaikk forsvinner i tomrom.
   function mosaicMinScale() {
     const m = meta.value
-    const wrap = wrapperRef.value?.getBoundingClientRect()
-    if (!m || !wrap?.width || !wrap?.height) return 0.5
-    const fit = Math.min(wrap.width / m.widthM, wrap.height / m.heightM)
+    const wrap = wrapMaal()
+    if (!m || !wrap) return 0.5
+    const fit = Math.min(wrap.w / m.widthM, wrap.h / m.heightM)
     if (!(fit > 0)) return 0.5
     const b = hooks.extendZonesBounds()   // union (alltid rektangulær)
     const unionW = Math.max(m.widthM, b.maxX - b.minX)
     const unionH = Math.max(m.heightM, b.maxY - b.minY)
     // scale der mosaikken fyller ~82 % av viewporten (margin rundt)
-    const fitMosaic = 0.82 * Math.min(wrap.width / (unionW * fit), wrap.height / (unionH * fit))
+    const fitMosaic = 0.82 * Math.min(wrap.w / (unionW * fit), wrap.h / (unionH * fit))
     return Math.max(0.06, Math.min(0.5, fitMosaic))
   }
 
@@ -57,11 +75,9 @@ export function usePanGrenser({
   // Rotasjons-trygt: vi klamper det synlige sentrum og inverterer til translate.
   function clampPan() {
     const m = meta.value
-    const el = wrapperRef.value
-    if (!m || !el) return
-    const r = el.getBoundingClientRect()
-    const w = r.width, h = r.height
-    if (!w || !h) return
+    const wrap = wrapMaal()
+    if (!m || !wrap) return
+    const w = wrap.w, h = wrap.h
     const c = hooks.visibleCenterSvg()
     if (!c) return
     // Mosaikk-bbox i aktiv-flis-koordinater = aktiv flis ∪ alle spøkelses-rekter.

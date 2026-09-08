@@ -1436,12 +1436,32 @@ const SJEKKER = [
       // et uhell: de er usynlige når de virker, så ingenting brekker visuelt om
       // de forsvinner — kartet blir bare hakkete igjen på mobil.
       await lukkDrawer(page)
+      // Dash-en måles COMPUTED og ikke som inline stil (v6.5.72): fra da av er
+      // det en CSS-regel som gjør strekene solide, og en sjekk som leser
+      // `style.strokeDasharray` ville stått grønn på en regel som ikke virket.
+      // Vi finner først en path som FAKTISK er stiplet i hvile — en heltrukken
+      // strek computer også til «none», og ville gjort sjekken meningsløs.
+      const finnStiplet = () => page.evaluate(() => {
+        const svg = document.querySelector('svg.isom-map')
+        if (!svg) return null
+        const paths = svg.querySelectorAll('[data-layer] path')
+        for (let i = 0; i < paths.length; i++) {
+          const d = getComputedStyle(paths[i]).strokeDasharray
+          if (d && d !== 'none') {
+            paths[i].setAttribute('data-royk-dash', '1')
+            return d
+          }
+        }
+        return null
+      })
+      const iHvile = await finnStiplet()
+      if (!iHvile) throw new Error('fant ingen stiplet strek å måle dash-overstyringen på')
       const les = () => page.evaluate(() => {
         const svg = document.querySelector('svg.isom-map')
-        const p = svg?.querySelector('[data-layer] path')
+        const p = svg?.querySelector('[data-royk-dash]')
         return {
           zoomer: !!svg?.classList.contains('is-zooming'),
-          solid: p?.style.strokeDasharray === 'none',
+          dash: p ? getComputedStyle(p).strokeDasharray : null,
         }
       })
       await pekMidtPaaKartet(page)
@@ -1450,13 +1470,13 @@ const SJEKKER = [
       await page.waitForTimeout(60)
       const under = await les()
       if (!under.zoomer) throw new Error('.is-zooming ble ikke satt under gest')
-      if (!under.solid) throw new Error('stiplede streker ble ikke gjort solide under gest')
+      if (under.dash !== 'none') throw new Error(`stiplede streker ble ikke gjort solide under gest (${under.dash})`)
       // Etter gesten (200 ms wheel-end + 120 ms utsatt gjenoppretting + slakk).
       await page.waitForTimeout(1200)
       const etter = await les()
       if (etter.zoomer) throw new Error('.is-zooming ble ikke fjernet etter gest')
-      if (etter.solid) throw new Error('dash-overstyringen ble ikke ryddet etter gest')
-      return 'is-zooming + solid dash under gest, ryddet etterpå'
+      if (etter.dash === 'none') throw new Error('dash-overstyringen ble ikke ryddet etter gest')
+      return `is-zooming + solid dash under gest (${iHvile} → none), ryddet etterpå`
     },
   },
   {
