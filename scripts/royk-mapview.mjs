@@ -381,6 +381,47 @@ const SJEKKER = [
     },
   },
   {
+    // v6.5.78: Tips-stripa i punkt-arket er en ekte <details>. Vue eier
+    // tilstanden (den bor i localStorage), <details> eier sin egen `open` — og
+    // to eiere av samme sannhet er nettopp der en toggle-løkke oppstår. Sjekken
+    // TRYKKER på stripa og krever at begge sidene snudde, og at det bare skjedde
+    // én gang.
+    navn: 'Tips-stripa i punkt-arket åpner og lukker som en disclosure',
+    domene: 'ContextMenuSheet',
+    async kjør(page) {
+      await page.evaluate(() => localStorage.removeItem('lende-info-tips-minimert'))
+      await page.locator('button[aria-label="Informasjon om stedet"]').first().click()
+      await page.waitForTimeout(500)
+      const tips = page.locator('details:has(summary span:text-is("Tips"))').first()
+      if (!(await tips.count())) throw new Error('Tips-stripa kom ikke fram i punkt-arket')
+      const les = () => page.evaluate(() => {
+        const d = [...document.querySelectorAll('details')]
+          .find((el) => el.querySelector('summary')?.textContent.trim() === 'Tips')
+        return { open: !!d?.open, lagret: localStorage.getItem('lende-info-tips-minimert') }
+      })
+      const feil = []
+      const før = await les()
+      if (!før.open) feil.push('stripa sto sammenlagt uten at noe var lagret')
+      await tips.locator('summary').click()
+      await page.waitForTimeout(200)
+      const etter = await les()
+      if (etter.open) feil.push('trykket lukket ikke stripa')
+      if (etter.lagret !== '1') feil.push(`Vue-tilstanden fulgte ikke med (lagret=${etter.lagret})`)
+      await tips.locator('summary').click()
+      await page.waitForTimeout(200)
+      const igjen = await les()
+      if (!igjen.open) feil.push('trykk nummer to åpnet ikke igjen')
+      if (igjen.lagret !== '0') feil.push(`lagret verdi ble ikke satt tilbake (${igjen.lagret})`)
+
+      // NØYTRAL TILSTAND: lukk arket og fjern nøkkelen igjen.
+      await page.locator('button[aria-label="Lukk"]').first().click()
+      await page.waitForTimeout(300)
+      await page.evaluate(() => localStorage.removeItem('lende-info-tips-minimert'))
+      if (feil.length) throw new Error(feil.join(' | '))
+      return 'åpner, lukker og holder Vue-tilstanden i takt'
+    },
+  },
+  {
     // v5.23.0: kartstil-velgeren er den ENE kontrollen som setter hele
     // uttrykket. Sjekken TRYKKER på den (ikke bare leter etter markup) og
     // verifiserer at BÅDE paletten og lagene flyttet seg — en knapp som bare

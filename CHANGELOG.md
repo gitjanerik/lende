@@ -1,3 +1,33 @@
+## 2026-09-08 — v6.5.78: Native `<details>` for tipset, og full bredde i tre ark til
+
+Tips-stripa i punkt-arket var en knapp og et `v-if`. Den er nå et ekte
+`<details>` — stripa står over innholdet sitt, og innholdet er ren tekst, som er
+akkurat formen elementet finnes for. Gevinsten er ikke færre linjer, men det
+nettleseren gjør gratis: tastaturbetjening, utvidet/sammenlagt annonsert av seg
+selv, og — det som faktisk er nytt — Ctrl+F finner teksten inne i det lukkede
+tipset og åpner det for å vise treffet. Vue eier fortsatt tilstanden (den ligger
+i localStorage), så `open` synkes fra `@toggle`, og handleren kaller bare når de
+to er uenige; to eiere av samme sannhet er nettopp der en toggle-løkke oppstår.
+Røyk-sjekken trykker på stripa og krever at begge sidene snudde.
+
+Resten av `aria-expanded`-stedene i appen er gjennomgått og blir stående som de
+er. De er ikke disclosures: to av dem er en «i»-knapp inne i en `<label>` med
+teksten som søsken utenfor (et `<details>` ville brutt avkryssings-etiketten), to
+har den utvidede teksten FØR utløseren, og resten er kombobokser, popovere og
+dra-styrte paneler.
+
+De tre andre arkene har fått samme header som punkt-arket i v6.5.77: knappene
+ligger på en egen rad, og teksten under får hele bredden. Kulturminne-arket var
+verst — stjerne, A-knapp og X tok rundt 120 px av en 380 px bred header, så en
+tittel som «Gravfelt fra eldre jernalder på Nordre Fjellstad» brakk i fire linjer
+mot en tom høyrekant. Kategori-merket og -navnet flytter opp i kontrollraden, så
+raden koster ingen høyde. Målestasjon-arket gjør det samme med «Målestasjon ·
+NVE», mens tur-arket får en «Tur»-etikett det ikke hadde — der koster raden en
+linje, og til gjengjeld står de tre nøkkeltallene (lengde · varighet · punkter)
+på én linje i stedet for å brekke med ett ledd alene nederst.
+
+---
+
 ## 2026-09-08 — v6.5.77: Punkt-arkets header gir teksten hele bredden
 
 Tekststørrelse-knappen og lukkeknappen sto i samme rad som koordinatene i
