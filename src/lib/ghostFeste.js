@@ -71,3 +71,56 @@ export function velgFestede(modell, { festeRekt, losneRekt, forrigeFestede } = {
 
   return { fest, losne, festede }
 }
+
+/**
+ * Hvilke MODELL-fliser mangler en parset node innenfor feste-rektangelet?
+ *
+ * Dette er halvdelen feste-passet ikke hadde: det festet bare fliser som ALT
+ * hadde node, så en flis modellen kjente men som aldri ble parset var usynlig
+ * for alltid — panorerte man dit, sto cellen tom, og «Fyll hull» så ingenting
+ * å fylle fordi modellen var komplett. Ark på 16–36 fliser kunne derfor aldri
+ * tegne mer enn de tolv naboene som tilfeldigvis lå nærmest AKTIV flis.
+ *
+ * Nærmest utsnittets senter først: det er den cellen brukeren ser på, og
+ * parsingen er dyr nok til at rekkefølgen er merkbar.
+ *
+ * @param {Array<{id:string,x:number,y:number,w:number,h:number}>} modell
+ * @param {{festeRekt:object, harNode:(id:string)=>boolean, senter?:{x:number,y:number}, ledige?:number}} opts
+ * @returns {string[]} id-er å parse, nærmest først
+ */
+export function manglendeNoder(modell, { festeRekt, harNode, senter, ledige = Infinity } = {}) {
+  if (!festeRekt || typeof harNode !== 'function' || !(ledige > 0)) return []
+  const c = senter ?? { x: (festeRekt.minX + festeRekt.maxX) / 2, y: (festeRekt.minY + festeRekt.maxY) / 2 }
+  return (modell ?? [])
+    .filter(t => t?.id && !harNode(t.id) && skjaerer(somRekt(t), festeRekt))
+    .map(t => ({ id: t.id, d: Math.hypot(t.x + t.w / 2 - c.x, t.y + t.h / 2 - c.y) }))
+    .sort((a, b) => a.d - b.d)
+    .slice(0, ledige === Infinity ? undefined : ledige)
+    .map(t => t.id)
+}
+
+/**
+ * Hvilken parset node skal slippes når node-taket er nådd?
+ *
+ * Fjernest fra UTSNITTET, ikke fra flisa som nettopp kom inn: taket ble før
+ * målt fra den nye flisa, så en flis brukeren så på kunne ryke for en nabo
+ * utenfor skjermen. Fliser som ikke er festet ryker først — de er ikke i DOM,
+ * og å slippe dem koster ingenting synlig.
+ *
+ * @param {Iterable<string>} nodeIds       parsede noder nå
+ * @param {{modell:Array, festede?:Set<string>, senter?:{x:number,y:number}, beskyttId?:string}} opts
+ * @returns {string|null}
+ */
+export function fjernesteNode(nodeIds, { modell, festede, senter, beskyttId } = {}) {
+  const kandidater = [...(nodeIds ?? [])].filter(id => id !== beskyttId)
+  if (!kandidater.length) return null
+  const rekt = new Map((modell ?? []).filter(r => r?.id).map(r => [r.id, r]))
+  const erFestet = (id) => !!(festede && festede.has ? festede.has(id) : false)
+  const avstand = (id) => {
+    const r = rekt.get(id)
+    if (!r || !senter) return Infinity
+    return Math.hypot(r.x + r.w / 2 - senter.x, r.y + r.h / 2 - senter.y)
+  }
+  kandidater.sort((a, b) => (erFestet(a) - erFestet(b)) || (avstand(b) - avstand(a)))
+  return kandidater[0]
+}

@@ -27,7 +27,7 @@ import { unpackDem } from '../lib/demSampling.js'
 import { computeHillshade } from '../lib/hillshade.js'
 import { buildReliefBands } from '../lib/reliefBands.js'
 import { tileOffset, tilesAreGridCompatible } from '../lib/tileCache.js'
-import { velgFestede, utvidRekt } from '../lib/ghostFeste.js'
+import { velgFestede, utvidRekt, manglendeNoder, fjernesteNode } from '../lib/ghostFeste.js'
 import { viewRectSvg, expandRect, needsRecull } from '../lib/viewportCull.js'
 import { logPerf } from '../lib/perfLog.js'
 
@@ -50,10 +50,18 @@ export function useGhostTiles({
   let ghostRenderToken = 0             // invaliderer pågående render ved navigasjon
   const GHOST_OPACITY = 1.0            // opake spøkelser: ingen dobbel-mørkning/bånd i overlapp-soner
   const GHOST_RENDER_RADIUS_TILES = 3  // hvor mange flis-bredder unna vi modellerer
-  // Tak på PARSEDE noder i minnet. Samme tall som det gamle MAX_GHOSTS_RENDERED,
-  // med vilje: minnebruken blir identisk med før. Det som er nytt er at 12
-  // parsede fliser ikke lenger betyr 12 FESTEDE fliser.
+  // Tak på PARSEDE noder i minnet — GULVET, og budsjettet for den FØRSTE
+  // parse-runden i renderGhostTiles. Selve taket er `flisTak()`: brukerens
+  // «Maks kartfliser» (4–36), fordi et ark på 25 fliser som bare kan tegne 13
+  // celler er et ark med halve innholdet borte (v6.5.74). Første runde står
+  // fortsatt på tolv så en kart-last ikke betaler 24 sekvensielle multi-MB-
+  // parser før første maling; resten fylles av feste-passet, i den rekkefølgen
+  // utsnittet faktisk trenger dem.
   const MAX_GHOST_NODER = 12
+  // Modell og noder deler tak. Fram til v6.5.74 var node-taket fast 12 mens
+  // modellen fulgte maxTiles, og DA var invarianten øverst halvsann: modellen
+  // speilet det som var bygd, men arket kunne ikke tegne det modellen påstod.
+  const flisTak = () => Math.max(MAX_GHOST_NODER, maxTiles?.value ?? MAX_GHOST_NODER)
   const GHOST_TRIGGER_SUPPRESS_FRAC = 0.35  // overlapp-andel som undertrykker auto-kart
   // Hvor mange meter hver flis blør ut over cellen sin for å dekke søm-streken
   // mellom nabofliser (se buildGhostSvg). 0,5 m er 0,05 mm på trykk i 1:10 000 —
@@ -69,6 +77,10 @@ export function useGhostTiles({
   // hovedtråden), og den kan ikke skje inne i et 120 ms debounce-vindu.
   const ghostNoder = new Map()
   let festede = new Set()              // id-ene som er i #ghost-tiles nå
+  // Måling for Utvikler-fanen. De tre nivåene sto bare i perf-loggen, og et ark
+  // som modellerte 25 fliser og tegnet 13 så ut som et kart med manglende data
+  // (v6.5.74) — tallene ved siden av hverandre er hele diagnosen.
+  const mosaikkStats = ref({ modellert: 0, noder: 0, festet: 0, tak: 0 })
   let festeState = null                // needsRecull-tilstand for feste-passet
   let festeTimer = null
   const FESTE_DEBOUNCE_MS = 120
@@ -409,7 +421,7 @@ export function useGhostTiles({
         deleteStoredMap(t.id).catch(() => {})
       }
     }
-    const modellTak = Math.max(MAX_GHOST_NODER, maxTiles?.value ?? MAX_GHOST_NODER)
+    const modellTak = flisTak()
     const cands = tiles
       .filter(t => tileIsCurrent(t, APP_VERSION))
       .filter(t => t.id !== mapId.value && t.center && (!activeCenter ||
@@ -473,6 +485,7 @@ export function useGhostTiles({
     }
     logPerf(`[mosaikk] render: ${Math.round(performance.now() - tParse)} ms parse, ` +
       `${rects.length} modellert, ${ghostNoder.size} noder, ${festede.size} festet`)
+    oppdaterMosaikkStats()
     clampPan()   // utvid pan-grensa til mosaikken
     planleggRelieffPass({ fade: false })
   }
@@ -547,6 +560,65 @@ export function useGhostTiles({
     }
     festede = nye
     festeState = { viewRect: view, expandedRect: festeRekt, scale: scale?.value ?? 1 }
+    oppdaterMosaikkStats()
+    void fyllManglendeNoder(festeRekt)
+  }
+
+  // Parse modell-fliser som utsnittet trenger men som ikke har node ennå.
+  // Progressiv med vilje: hver flis er en multi-MB DOMParser på hovedtråden, så
+  // vi tar dem én om gangen, nærmest utsnittet først, og lar IndexedDB-awaiten
+  // mellom dem slippe fram et bilde. Taket er `flisTak()` — er det nådd, står de
+  // fjerneste igjen uten node, og DET er ærlig: brukeren har satt grensa selv.
+  let fyllerNoder = false
+  async function fyllManglendeNoder(festeRekt) {
+    if (fyllerNoder || !festeRekt) return
+    if (isGesturing?.value) return
+    const m = meta.value
+    const svg = svgHostRef.value?.querySelector('svg')
+    if (!m || m.minE == null || !svg) return
+    const ids = manglendeNoder(ghostRects.value, {
+      festeRekt,
+      harNode: (id) => ghostNoder.has(id),
+      senter: utsnittSenter(),
+      ledige: Math.max(0, flisTak() - ghostNoder.size),
+    })
+    if (!ids.length) return
+    fyllerNoder = true
+    const token = ghostRenderToken
+    const t0 = performance.now()
+    let nye = 0
+    try {
+      for (const id of ids) {
+        let stored
+        try { stored = await loadStoredMap(id) } catch { continue }
+        // Token-vakt: en full renderGhostTiles mens vi ventet på IndexedDB har
+        // revet containeren, og noden ville hørt hjemme i et opphevet ark.
+        if (token !== ghostRenderToken || !isAlive()) return
+        if (!stored?.svg) continue
+        const ghost = buildGhostSvg(stored, m)
+        if (!ghost) continue
+        ghost.el.classList.add('gh-relieff-vent')
+        ghostNoder.set(id, { el: ghost.el, stored, relieffPaa: false })
+        nye++
+      }
+      if (!nye || token !== ghostRenderToken || !isAlive()) return
+      // Feste-passet gjør innsettingen, så hysteresen og utsnittet bestemmer hva
+      // som faktisk havner i DOM — panorerte brukeren videre mens vi parset, blir
+      // den nye noden stående i minnet uten å bli festet. Kallet står INNENFOR
+      // `fyllerNoder`: halen av anvendGhostFeste kaller hit igjen, og en runde vi
+      // selv utløste skal ikke starte en ny.
+      anvendGhostFeste({ force: true })
+      // ETTER innsettingen: ensureGhostIsomStyles skanner containeren for
+      // [data-iso], og en kode bare den nye flisa har rendres SVART uten regel.
+      const container = finnEllerLagGhostContainer(svg)
+      ensureGhostIsomStyles(svg, container)
+      ensureGhostStrokeStyle(svg)
+      logPerf(`[mosaikk] fylte ${nye} node${nye === 1 ? '' : 'r'} for utsnittet: ` +
+        `${Math.round(performance.now() - t0)} ms, ${ghostNoder.size}/${flisTak()} noder`)
+      planleggRelieffPass({ fade: true })
+    } finally {
+      fyllerNoder = false
+    }
   }
 
   function scheduleGhostFeste() {
@@ -583,8 +655,9 @@ export function useGhostTiles({
     const m = meta.value
     const svg = svgHostRef.value?.querySelector('svg')
     if (!svg || !m) return fn()
-    // Modell-oppføringer uten node (utenfor MAX_GHOST_NODER) må parses først —
-    // 3D skal dekke HELE arket, ikke bare det som tilfeldigvis var i minnet.
+    // Modell-oppføringer uten node (utenfor node-taket) må parses først — 3D og
+    // eksport skal dekke HELE arket, ikke bare det som tilfeldigvis var i
+    // minnet. Taket brytes med vilje her: neste leggTilSpokelse trimmer igjen.
     const manglerNode = ghostRects.value.filter(r => !ghostNoder.has(r.id))
     for (const r of manglerNode) {
       let stored
@@ -595,6 +668,7 @@ export function useGhostTiles({
       ghostNoder.set(r.id, { el: ghost.el, stored, relieffPaa: false })
       paaforGhostRelieff(r.id, { fade: false })
     }
+    oppdaterMosaikkStats()
     return medAlleSpokelserFestet(fn)
   }
 
@@ -638,7 +712,8 @@ export function useGhostTiles({
     varsleFesteEndret()
     // Node-taket: slipp den fjerneste noden vi ikke trenger. Aldri den vi nettopp
     // la til, og aldri en som er festet i utsnittet nå.
-    if (ghostNoder.size > MAX_GHOST_NODER) slippFjernesteNode(tileId)
+    if (ghostNoder.size > flisTak()) slippFjernesteNode(tileId)
+    oppdaterMosaikkStats()
     logPerf(`[mosaikk] flis inn ${tileId}: ${Math.round(performance.now() - t0)} ms, ` +
       `${ghostNoder.size} noder, ${festede.size} festet`)
     planleggRelieffPass({ fade: true })
@@ -649,20 +724,30 @@ export function useGhostTiles({
   // noden slippes. Kommer brukeren tilbake, går gjenfestingen via
   // leggTilSpokelse og betaler parsen på nytt. Verste fall er dagens kostnad.
   function slippFjernesteNode(beskyttId) {
-    const senter = ghostRects.value.find(r => r.id === beskyttId)
-    const kandidater = [...ghostNoder.keys()]
-      .filter(id => id !== beskyttId && !festede.has(id))
-    if (!kandidater.length) return
-    const avstand = (id) => {
-      const r = ghostRects.value.find(x => x.id === id)
-      if (!r || !senter) return Infinity
-      return Math.hypot(r.x - senter.x, r.y - senter.y)
-    }
-    kandidater.sort((a, b) => avstand(b) - avstand(a))
-    const offer = kandidater[0]
+    const offer = fjernesteNode(ghostNoder.keys(), {
+      modell: ghostRects.value, festede, beskyttId, senter: utsnittSenter(),
+    })
+    if (!offer) return
     ghostNoder.get(offer)?.el.remove()
     ghostNoder.delete(offer)
     festede.delete(offer)
+  }
+
+  function oppdaterMosaikkStats() {
+    mosaikkStats.value = {
+      modellert: ghostRects.value.length,
+      noder: ghostNoder.size,
+      festet: festede.size,
+      tak: flisTak(),
+    }
+  }
+
+  // Utsnittets senter i aktiv flis' meter-rom, fra siste feste-pass. Null før
+  // det første — da faller fjernesteNode tilbake på beskyttet flis.
+  function utsnittSenter() {
+    const v = festeState?.viewRect
+    if (!v) return null
+    return { x: (v.minX + v.maxX) / 2, y: (v.minY + v.maxY) / 2 }
   }
 
   // Gi spøkelses-strekene SAMME non-scaling-stroke som aktiv flis. Nyere kart har
@@ -714,7 +799,7 @@ export function useGhostTiles({
   }
 
   return {
-    ghostRects, GHOST_TRIGGER_SUPPRESS_FRAC,
+    ghostRects, GHOST_TRIGGER_SUPPRESS_FRAC, mosaikkStats,
     renderGhostTiles, updateGhostReliefOpacity,
     leggTilSpokelse, scheduleGhostFeste, anvendGhostFeste,
     medAlleSpokelserFestet, medAlleSpokelserFestetAsync,
