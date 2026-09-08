@@ -520,6 +520,126 @@ const SJEKKER = [
     },
   },
   {
+    navn: 'spøkelses-fliser culles — hel flis og per element',
+    domene: 'useViewportCull (mosaikk)',
+    krever: 'ektekart',
+    async kjør(page) {
+      // HVORFOR SJEKKEN FABRIKKERER NABOFLISENE: royktesten bygger ETT ark, og
+      // en ekte mosaikk krever to lagrede fliser side om side — flere minutter
+      // Overpass og Kartverket til. Nodene lages derfor her, med NØYAKTIG
+      // attributtene buildGhostSvg skriver (x/y = dx − blø, viewBox med
+      // blø-offset, data-layer → data-ghost-layer), og den EKTE cull-koden
+      // avgjør resten. Feilmodusene sjekken finnes for — en bommet forskyvning,
+      // en selektor som ikke treffer data-ghost-layer, en hel flis som blir
+      // stående — slår ut uansett hvem som bygde noden.
+      //
+      // Den NÆRE flisa legges rett oppå aktiv flis (dx = dy = 0). Da er den per
+      // konstruksjon delvis inne i cull-rekta i akkurat de utsnittene der aktiv
+      // flis selv culles, og sjekken slipper å gjette hvor rekta går.
+      await lukkDrawer(page)
+      await zoomInn(page, 14)
+      const bygget = await page.evaluate(() => {
+        const svg = document.querySelector('svg.isom-map')
+        if (!svg) return 'fant ingen kart-SVG'
+        const vb = svg.viewBox?.baseVal
+        if (!vb?.width) return 'kart-SVG-en mangler viewBox'
+        const ns = 'http://www.w3.org/2000/svg'
+        const W = vb.width, H = vb.height, blo = 0.5
+        const settRom = (el, dx, dy) => {
+          el.setAttribute('x', String(dx - blo))
+          el.setAttribute('y', String(dy - blo))
+          el.setAttribute('width', String(W + 2 * blo))
+          el.setAttribute('height', String(H + 2 * blo))
+          el.setAttribute('viewBox', `${-blo} ${-blo} ${W + 2 * blo} ${H + 2 * blo}`)
+          el.setAttribute('class', 'isom-map')
+          el.setAttribute('pointer-events', 'none')
+        }
+        let cont = svg.querySelector('#ghost-tiles')
+        const lagetCont = !cont
+        if (!cont) {
+          cont = document.createElementNS(ns, 'g')
+          cont.setAttribute('id', 'ghost-tiles')
+          const bg = svg.querySelector('#bakgrunn')
+          svg.insertBefore(cont, bg ?? svg.firstChild)
+        }
+        cont.setAttribute('data-royk-cont', lagetCont ? 'laget' : 'fantes')
+
+        const naer = svg.cloneNode(true)
+        naer.querySelector('#ghost-tiles')?.remove()
+        for (const st of naer.querySelectorAll(':scope > style')) st.remove()
+        for (const el of naer.querySelectorAll('[data-layer]')) {
+          el.setAttribute('data-ghost-layer', el.getAttribute('data-layer'))
+          el.removeAttribute('data-layer')
+        }
+        // Klonen bærer aktiv flis' egne cull-klasser og id-er. Klassene ville
+        // gjort tellingen under falsk grønn (den ville telt forrige pass' arbeid),
+        // og id-ene ville skygget for originalene — spøkelses-containeren står
+        // FØR #bakgrunn, så klonen kommer først i dokumentrekkefølgen.
+        for (const el of naer.querySelectorAll('.vp-cull')) el.classList.remove('vp-cull')
+        for (const el of naer.querySelectorAll('[id]')) el.removeAttribute('id')
+        naer.removeAttribute('id')
+        settRom(naer, 0, 0)
+        naer.setAttribute('data-royk-ghost', 'naer')
+        cont.appendChild(naer)
+
+        // Den FJERNE trenger ikke innhold: hel-flis-kuttet skjer på rota, og en
+        // tom flis beviser nettopp at det ikke er per-element-passet som gjør det.
+        const fjern = document.createElementNS(ns, 'svg')
+        settRom(fjern, 8 * W, 0)
+        fjern.setAttribute('data-royk-ghost', 'fjern')
+        cont.appendChild(fjern)
+        return null
+      })
+      if (bygget) throw new Error(bygget)
+
+      const rydd = () => page.evaluate(() => {
+        for (const el of document.querySelectorAll('[data-royk-ghost]')) el.remove()
+        const cont = document.querySelector('#ghost-tiles[data-royk-cont]')
+        if (cont?.getAttribute('data-royk-cont') === 'laget') cont.remove()
+        else cont?.removeAttribute('data-royk-cont')
+      })
+
+      try {
+        // Cull-passet er debounced og hysterese-gated, så nodene må følges av
+        // noe som FAKTISK utløser en ny beregning. TRE feller ligger her, og
+        // alle tre har smelt:
+        //   • Kartet panorerer bare på `touchstart` (usePinchZoom), så en
+        //     mus-drag flytter ingenting og watcheren fyrer aldri.
+        //   • Etter zoom-sjekken over står zoomen på taket, så et hjul-tikk INN
+        //     endrer heller ikke skalaen.
+        //   • Og en tur UT og inn igjen ender der den startet: hysteresen måler
+        //     mot forrige KJØRTE pass, og de mellomliggende tikkene spises av
+        //     debouncen — så netto null er netto ingen re-beregning.
+        // Vi zoomer derfor UT og blir der. Hvert tikk er ~1,25×, altså er tre
+        // godt over RECULL_SCALE_RATIO, og kartet er fortsatt dypt zoomet.
+        await pekMidtPaaKartet(page)
+        for (let i = 0; i < 3; i++) {
+          await page.mouse.wheel(0, 260)
+          await page.waitForTimeout(160)
+        }
+        await page.waitForTimeout(900)
+
+        const res = await page.evaluate(() => {
+          const naer = document.querySelector('[data-royk-ghost="naer"]')
+          const fjern = document.querySelector('[data-royk-ghost="fjern"]')
+          return {
+            fjernSkjult: !!fjern?.classList.contains('vp-cull'),
+            naerSkjult: !!naer?.classList.contains('vp-cull'),
+            naerElementer: naer ? naer.querySelectorAll('[data-ghost-layer] .vp-cull, [data-ghost-layer].vp-cull').length : -1,
+          }
+        })
+        if (!res.fjernSkjult) throw new Error('naboflis langt utenfor utsnittet fikk ikke vp-cull på rota')
+        if (res.naerSkjult) throw new Error('naboflis midt i utsnittet ble skjult i sin helhet')
+        if (res.naerElementer <= 0) {
+          throw new Error('ingen elementer cullet inne i naboflisa — traff indekseringen data-ghost-layer?')
+        }
+        return `hel flis skjult, ${res.naerElementer} elementer cullet i naboen`
+      } finally {
+        await rydd()
+      }
+    },
+  },
+  {
     navn: 'zoom-skyven og retningsrosa styrer kartet uten hjul (desktop)',
     domene: 'ZoomSkyv + RetningsRose',
     async kjør(page) {

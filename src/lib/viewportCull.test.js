@@ -7,6 +7,8 @@ import {
   needsRecull,
   computeCullDiff,
   parseBboxAttr,
+  rectsOverlap,
+  ghostFlisRom,
   CULL_MARGIN_FACTOR,
 } from './viewportCull.js'
 
@@ -157,5 +159,50 @@ describe('parseBboxAttr', () => {
     expect(parseBboxAttr('1,2,3')).toBeNull()
     expect(parseBboxAttr('a,b,c,d')).toBeNull()
     expect(parseBboxAttr('100,0,50,10')).toBeNull()   // maxX < minX
+  })
+})
+
+describe('rectsOverlap', () => {
+  const a = { minX: 0, minY: 0, maxX: 100, maxY: 100 }
+  it('true på overlapp og på ren kant-berøring', () => {
+    expect(rectsOverlap(a, { minX: 50, minY: 50, maxX: 150, maxY: 150 })).toBe(true)
+    expect(rectsOverlap(a, { minX: 100, minY: 0, maxX: 200, maxY: 100 })).toBe(true)
+  })
+  it('false når de er adskilt i én akse', () => {
+    expect(rectsOverlap(a, { minX: 101, minY: 0, maxX: 200, maxY: 100 })).toBe(false)
+    expect(rectsOverlap(a, { minX: 0, minY: -200, maxX: 100, maxY: -1 })).toBe(false)
+  })
+  it('er symmetrisk', () => {
+    const b = { minX: -50, minY: -50, maxX: 10, maxY: 10 }
+    expect(rectsOverlap(a, b)).toBe(rectsOverlap(b, a))
+  })
+})
+
+describe('ghostFlisRom', () => {
+  // Slik buildGhostSvg skriver en nabo-flis 2000 m øst, med 0,5 m blø-sone.
+  const attr = { x: '1999.5', y: '-0.5', width: '2001', height: '2001', viewBox: '-0.5 -0.5 2001 2001' }
+  it('trekker blø-sonen ut av forskyvningen', () => {
+    const rom = ghostFlisRom(attr)
+    expect(rom.dx).toBe(2000)
+    expect(rom.dy).toBe(0)
+  })
+  it('rekta dekker hele flisa inkludert blø-sonen', () => {
+    expect(ghostFlisRom(attr).rect).toEqual({ minX: 1999.5, minY: -0.5, maxX: 4000.5, maxY: 2000.5 })
+  })
+  it('viewBox uten offset gir forskyvning lik x/y', () => {
+    const rom = ghostFlisRom({ x: '2000', y: '0', width: '2000', height: '2000', viewBox: '0 0 2000 2000' })
+    expect(rom.dx).toBe(2000)
+    expect(rom.dy).toBe(0)
+  })
+  it('komma-separert viewBox leses likt', () => {
+    expect(ghostFlisRom({ ...attr, viewBox: '-0.5,-0.5,2001,2001' }).dx).toBe(2000)
+  })
+  it('manglende viewBox faller tilbake på null-offset', () => {
+    expect(ghostFlisRom({ x: '10', y: '20', width: '5', height: '5' }).dx).toBe(10)
+  })
+  it('null på søppel og på ikke-positiv størrelse', () => {
+    expect(ghostFlisRom()).toBeNull()
+    expect(ghostFlisRom({ x: 'a', y: '0', width: '10', height: '10' })).toBeNull()
+    expect(ghostFlisRom({ x: '0', y: '0', width: '0', height: '10' })).toBeNull()
   })
 })

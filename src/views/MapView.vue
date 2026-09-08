@@ -1523,6 +1523,10 @@ const {
   // useGhostTiles — raster er den eneste kostnaden som skalerer med flisetallet.
   reliefEnabled: reliefActive, reliefOpacity, reliefBlendMode, RELIEF_BANDS,
   applyLayerVisibility, clampPan, maxTiles,
+  // Spøkelses-cullingen må vite når feste-settet endrer seg (v6.5.73). Wrapper,
+  // ikke verdien: kallet står etter useViewportCull, men wrapperen holder
+  // koblingen uavhengig av rekkefølgen om noen flytter på kallene.
+  onFesteEndret: () => applyViewportCull(true),
 })
 
 // Re-render relieffet når DEM-en lastes eller temaet byttes (blend-modus

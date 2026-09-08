@@ -43,7 +43,7 @@ export function useGhostTiles({
   svgHostRef, wrapperRef, meta, mapId, isAlive, isGesturing,
   scale, rotation, translateX, translateY,
   reliefEnabled, reliefOpacity, reliefBlendMode, RELIEF_BANDS,
-  applyLayerVisibility, clampPan, maxTiles, onNaboFlisKlar,
+  applyLayerVisibility, clampPan, maxTiles, onNaboFlisKlar, onFesteEndret,
 }) {
   // ── Mosaikk / spøkelses-fliser ──────────────────────────────────────────────
   const ghostRects = ref([])           // modellen — se invarianten øverst
@@ -499,10 +499,20 @@ export function useGhostTiles({
 
   // ── Feste-passet — hvilke fliser skal faktisk ligge i DOM ───────────────────
   // Gevinsten er ikke rasterminne, den er FULLT-DOKUMENT-TRAVERSERINGENE:
-  // useGestPerf går over hver eneste path i [data-layer], [data-ghost-layer] og
-  // setter en inline strokeDasharray — ved BÅDE start og slutt av hver gest, altså
-  // på touch-down-stien. applyLayerVisibility gjør 35 querySelectorAll over samme
-  // dokument. En demontert flis er usynlig for begge.
+  // applyLayerVisibility gjør 35 querySelectorAll over hele dokumentet, og
+  // viewport-cullingen skanner hver festet flis én gang. En demontert flis er
+  // usynlig for begge. (Fram til v6.5.72 gjorde useGestPerf det samme med en
+  // inline strokeDasharray per path ved BÅDE start og slutt av hver gest; det er
+  // nå én CSS-regel, så den posten er borte — men ringen rundt utsnittet er
+  // fortsatt tolv fliser DOM som ingen ser på.)
+  // Viewport-cullingen indekserer spøkelsene PER FLIS (v6.5.73), og den kan ikke
+  // se en gjenfesting selv: dens egen watcher er registrert FØR denne composablen
+  // i MapView, så i samme tikk kjører cull-passet før feste-passet og den nye
+  // flisa ville stått ucullet til neste pan. Derfor varsler feste-siden.
+  function varsleFesteEndret() {
+    if (typeof onFesteEndret === 'function') onFesteEndret()
+  }
+
   function anvendGhostFeste({ force = false } = {}) {
     const svg = svgHostRef.value?.querySelector('svg')
     const m = meta.value
@@ -533,6 +543,7 @@ export function useGhostTiles({
         if (node) container.appendChild(node.el)
       }
       if (fest.length) applyLayerVisibility()
+      varsleFesteEndret()
     }
     festede = nye
     festeState = { viewRect: view, expandedRect: festeRekt, scale: scale?.value ?? 1 }
@@ -624,6 +635,7 @@ export function useGhostTiles({
     ensureGhostStrokeStyle(svg)
     applyLayerVisibility()
     clampPan()
+    varsleFesteEndret()
     // Node-taket: slipp den fjerneste noden vi ikke trenger. Aldri den vi nettopp
     // la til, og aldri en som er festet i utsnittet nå.
     if (ghostNoder.size > MAX_GHOST_NODER) slippFjernesteNode(tileId)
