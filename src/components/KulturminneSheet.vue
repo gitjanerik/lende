@@ -99,48 +99,55 @@ function onOpenKulturminnesok() {
           <div class="w-12 h-1.5 rounded-full bg-ink/40"
                :style="{ opacity: drawer.handleOpacity.value }"></div>
         </div>
-        <!-- Header: kategori-merke + tittel + lukk -->
-        <div class="shrink-0 px-4 pb-2.5 bg-surface/95 border-b border-ink/8 flex items-start justify-between gap-3">
-          <div class="min-w-0 flex items-start gap-2.5">
-            <span class="mt-0.5 w-3.5 h-3.5 shrink-0 rounded-sm" :style="{ background: katColor }"></span>
-            <div class="min-w-0">
-              <div class="text-ink text-[15px] font-medium leading-snug break-words">{{ detail.tittel }}</div>
+        <!-- Header: kontrollrad øverst, tittelen i FULL BREDDE under (v6.5.78,
+             samme grep som punkt-arket i v6.5.77). Stjerne, A-knapp og X sto i
+             samme rad som tittelen og tok ~120 px av en 380 px bred header, så
+             «Gravfelt fra eldre jernalder på Nordre Fjellstad» brakk i fire
+             linjer mot en tom høyrekant. Kategori-merket og -navnet flytter opp
+             i kontrollraden — den sier hva slags minne dette er, og den er kort
+             nok til å dele linje med tre knapper. -->
+        <div class="shrink-0 px-4 pb-2.5 bg-surface/95 border-b border-ink/8">
+          <div class="flex items-center justify-between gap-2">
+            <div class="min-w-0 flex items-center gap-2">
+              <span class="w-3.5 h-3.5 shrink-0 rounded-sm" :style="{ background: katColor }"></span>
+              <span class="min-w-0 truncate text-[10px] uppercase tracking-wide text-ink-4">{{ katLabel }}</span>
+            </div>
+            <!-- Stjerne + tekststørrelse + lukk, utenfor den zoomede kroppen under. -->
+            <div class="shrink-0 flex items-center gap-1.5 -mr-1">
+              <!-- Merkingen hører hjemme HER og ikke i en egen rad: det er den ene
+                   handlingen kortet har på selve minnet, og den skal være på
+                   samme sted enten skuffen er minimert eller åpen. -->
+              <button v-if="kanStjerne && stjerneNokkel"
+                      type="button"
+                      @click="$emit('veksle-stjerne', stjerneNokkel)"
+                      :aria-pressed="stjernet"
+                      :aria-label="stjernet
+                        ? `Fjern stjernemerket fra ${detail.tittel}`
+                        : `Stjernemerk ${detail.tittel}`"
+                      class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center
+                             border active:scale-90 transition"
+                      :class="stjernet
+                        ? 'bg-amber-400/20 border-amber-400/50 text-amber-300'
+                        : 'bg-ink/5 border-ink/10 text-ink-3'">
+                <svg viewBox="0 0 24 24" class="w-4 h-4" aria-hidden="true"
+                     :fill="stjernet ? 'currentColor' : 'none'"
+                     stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/>
+                </svg>
+              </button>
+              <TekstStorrelseKnapp />
+              <button @click="$emit('close')"
+                      aria-label="Lukk"
+                      class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center
+                             bg-ink/5 border border-ink/10 text-ink-2 active:scale-90">
+                <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                     stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+                </svg>
+              </button>
             </div>
           </div>
-          <!-- Stjerne + tekststørrelse + lukk, utenfor den zoomede kroppen under. -->
-          <div class="shrink-0 flex items-center gap-1.5 -mr-1 -mt-0.5">
-            <!-- Merkingen hører hjemme HER og ikke i en egen rad: det er den ene
-                 handlingen kortet har på selve minnet, og den skal være på
-                 samme sted enten skuffen er minimert eller åpen. -->
-            <button v-if="kanStjerne && stjerneNokkel"
-                    type="button"
-                    @click="$emit('veksle-stjerne', stjerneNokkel)"
-                    :aria-pressed="stjernet"
-                    :aria-label="stjernet
-                      ? `Fjern stjernemerket fra ${detail.tittel}`
-                      : `Stjernemerk ${detail.tittel}`"
-                    class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center
-                           border active:scale-90 transition"
-                    :class="stjernet
-                      ? 'bg-amber-400/20 border-amber-400/50 text-amber-300'
-                      : 'bg-ink/5 border-ink/10 text-ink-3'">
-              <svg viewBox="0 0 24 24" class="w-4 h-4" aria-hidden="true"
-                   :fill="stjernet ? 'currentColor' : 'none'"
-                   stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/>
-              </svg>
-            </button>
-            <TekstStorrelseKnapp />
-            <button @click="$emit('close')"
-                    aria-label="Lukk"
-                    class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center
-                           bg-ink/5 border border-ink/10 text-ink-2 active:scale-90">
-              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                   stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-              </svg>
-            </button>
-          </div>
+          <div class="text-ink text-[15px] font-medium leading-snug break-words">{{ detail.tittel }}</div>
         </div>
         <!-- Kropp: beskrivelse/sted/bilde + lenke -->
         <div v-show="!drawer.isMinimized.value"

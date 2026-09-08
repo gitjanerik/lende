@@ -38,28 +38,37 @@ function formatDuration(ms) {
        class="absolute inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-end justify-center"
        @click.self="$emit('close')">
     <div class="drawer-shell bg-surface border-t border-ink/10 rounded-t-2xl p-4 max-h-[75dvh] overflow-y-auto">
-      <div class="flex items-start justify-between mb-3">
-        <div>
-          <div class="text-ink text-sm font-semibold">
-            {{ track.navn || ('Tur ' + new Date(track.opprettet).toLocaleDateString('no-NO', { day: '2-digit', month: 'short', year: 'numeric' })) }}
-          </div>
-          <div class="text-[11px] text-ink-3 tabular-nums">
-            {{ formatDistance(trackLengthM(track)) }} ·
-            {{ formatDuration(trackDurationMs(track)) }} ·
-            {{ track.points.length }} punkter
+      <!-- Header: kontrollrad øverst, navn og nøkkeltall i FULL BREDDE under
+           (v6.5.78, samme grep som punkt-arket i v6.5.77). De to knappene sto i
+           samme rad og tok ~80 px, og nøkkeltall-linja er tre ledd med
+           midtstilte skilletegn — den brakk til to linjer med et ledd alene på
+           den andre. «Tur»-etiketten fantes ikke fra før, så raden koster her
+           en linje; til gjengjeld sier den hva arket viser. -->
+      <div class="mb-3">
+        <div class="flex items-center justify-between gap-2">
+          <div class="min-w-0 truncate text-[10px] uppercase tracking-wide text-ink-4">Tur</div>
+          <div class="shrink-0 flex items-center gap-1.5 -mr-1">
+            <TekstStorrelseKnapp />
+            <button @click="$emit('close')"
+                    aria-label="Lukk"
+                    class="w-8 h-8 rounded-full bg-ink/5 border border-ink/10
+                           text-ink-3 flex items-center justify-center active:scale-90">
+              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                   stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+              </svg>
+            </button>
           </div>
         </div>
-        <div class="shrink-0 flex items-center gap-1.5">
-          <TekstStorrelseKnapp />
-          <button @click="$emit('close')"
-                  aria-label="Lukk"
-                  class="w-8 h-8 rounded-full bg-ink/5 border border-ink/10
-                         text-ink-3 flex items-center justify-center active:scale-90">
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-            </svg>
-          </button>
+        <div class="text-ink text-sm font-semibold leading-snug break-words">
+          <!-- Uten navn er datoen tittelen: etiketten over sier alt «Tur», og
+               «Tur 8. sep 2026» under «TUR» er ordet to ganger. -->
+          {{ track.navn || new Date(track.opprettet).toLocaleDateString('no-NO', { day: '2-digit', month: 'short', year: 'numeric' }) }}
+        </div>
+        <div class="text-[11px] text-ink-3 tabular-nums">
+          {{ formatDistance(trackLengthM(track)) }} ·
+          {{ formatDuration(trackDurationMs(track)) }} ·
+          {{ track.points.length }} punkter
         </div>
       </div>
 

@@ -75,27 +75,32 @@ function onOpenNve() {
           <div class="w-12 h-1.5 rounded-full bg-ink/40"
                :style="{ opacity: drawer.handleOpacity.value }"></div>
         </div>
-        <!-- Header: stasjonsnavn + lukk -->
-        <div class="shrink-0 px-4 pb-2.5 bg-surface/95 border-b border-ink/8 flex items-start justify-between gap-3">
-          <div class="min-w-0 flex items-start gap-2.5">
-            <div class="min-w-0">
-              <div class="text-[10px] uppercase tracking-wide text-sky-300/60">Målestasjon · NVE</div>
-              <div class="text-ink text-[15px] font-medium leading-snug break-words">{{ detail.stationName }}</div>
-              <div v-if="detail.riverName" class="text-[11px] text-ink-4">{{ detail.riverName }}</div>
+        <!-- Header: kontrollrad øverst, navnet i FULL BREDDE under (v6.5.78,
+             samme grep som punkt-arket i v6.5.77). Stasjonsnavnene fra NVE er
+             lange og stedsspesifikke («Nedre Sjodalsvatn ndf. utløp»), og de to
+             knappene tok ~80 px av linja de trengte. «Målestasjon · NVE» sto
+             der fra før og deler nå linje med dem, så raden koster ingen
+             høyde. -->
+        <div class="shrink-0 px-4 pb-2.5 bg-surface/95 border-b border-ink/8">
+          <div class="flex items-center justify-between gap-2">
+            <div class="min-w-0 truncate text-[10px] uppercase tracking-wide text-sky-300/60">
+              Målestasjon · NVE
+            </div>
+            <!-- Tekststørrelse + lukk, utenfor den zoomede kroppen under. -->
+            <div class="shrink-0 flex items-center gap-1.5 -mr-1">
+              <TekstStorrelseKnapp />
+              <button @click="$emit('close')" aria-label="Lukk"
+                      class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center
+                             bg-ink/5 border border-ink/10 text-ink-2 active:scale-90">
+                <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                     stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+                </svg>
+              </button>
             </div>
           </div>
-          <!-- Tekststørrelse + lukk, utenfor den zoomede kroppen under. -->
-          <div class="shrink-0 flex items-center gap-1.5 -mr-1 -mt-0.5">
-            <TekstStorrelseKnapp />
-            <button @click="$emit('close')" aria-label="Lukk"
-                    class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center
-                           bg-ink/5 border border-ink/10 text-ink-2 active:scale-90">
-              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                   stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-              </svg>
-            </button>
-          </div>
+          <div class="text-ink text-[15px] font-medium leading-snug break-words">{{ detail.stationName }}</div>
+          <div v-if="detail.riverName" class="text-[11px] text-ink-4">{{ detail.riverName }}</div>
         </div>
         <!-- Kropp: måleverdier + lenke -->
         <div v-show="!drawer.isMinimized.value"

@@ -15,7 +15,7 @@ import { hasAiToken } from '../../lib/lendeAi.js'
 // Chat-avsnittet i oppdagbarhets-tipset vises kun for inviterte (samme
 // token-gate som LendeChatFab) — uinviterte skal ikke se funksjonen.
 const harChat = hasAiToken()
-defineProps({
+const props = defineProps({
   contextMenuOpen: { type: Boolean, default: false },
   contextMenuInfo: { type: Object, default: null },
   contextDrawer: { type: Object, required: true },
@@ -79,6 +79,13 @@ defineProps({
   infoTipMinimized: { type: Boolean, default: false },
   toggleInfoTip: { type: Function, required: true },
 })
+// `<details>` eier sin egen `open`, mens tilstanden bor i MapView (og i
+// localStorage). Handleren synker DEM og ikke seg selv: den kaller bare når de
+// to er uenige, så en re-render som setter `open` på nytt ikke slår tilbake i
+// en løkke.
+function onTipsToggle(e) {
+  if (e.target.open === props.infoTipMinimized) props.toggleInfoTip()
+}
 
 // Himmelretningen vinden kommer FRA. Gjenbruker bearingToCompass (16 norske
 // retninger) — samme tabell som «Fra deg»-raden, så nord-nordøst heter det samme
@@ -223,28 +230,39 @@ function formatDistance(m) {
         <!-- Tipset er den lengste teksten i arket og skal følge
              tekststørrelse-valget som resten (v6.5.32). Zoomen ligger på
              KORTET og ikke på `px-4`-wrapperen: polstringen utenfor er margen
-             mot skjermkanten, og den skal stå stille når teksten vokser. -->
-        <div class="rounded-lg bg-sky-500/15 border border-sky-400/40 text-sky-100/95
-                    text-[12px] leading-snug" :style="{ zoom: uiTextScale }">
-          <button @click="toggleInfoTip"
-                  :aria-expanded="!infoTipMinimized"
-                  :aria-label="infoTipMinimized ? 'Vis tipset' : 'Legg sammen tipset'"
-                  class="w-full flex items-center gap-2.5 px-3 py-2 text-left active:scale-[0.99]">
+             mot skjermkanten, og den skal stå stille når teksten vokser.
+
+             `<details>` og ikke knapp + `v-if` (v6.5.78): dette er en ekte
+             disclosure — stripa står over innholdet sitt, og innholdet er ren
+             tekst. Da gjør nettleseren jobben: tastatur, utvidet/sammenlagt
+             annonsert av seg selv, og — det som faktisk er nytt — Ctrl+F
+             finner teksten og ÅPNER tipset for å vise treffet. Markøren må
+             skjules i to nettlesere (`list-none` for standarden, `::-webkit-
+             details-marker` for WebKit); glipper den ene, står det en trekant
+             foran «Tips» i akkurat den nettleseren. -->
+        <details class="group rounded-lg bg-sky-500/15 border border-sky-400/40 text-sky-100/95
+                        text-[12px] leading-snug" :style="{ zoom: uiTextScale }"
+                 :open="!infoTipMinimized" @toggle="onTipsToggle">
+          <summary class="flex items-center gap-2.5 px-3 py-2 cursor-pointer select-none
+                          list-none [&::-webkit-details-marker]:hidden active:scale-[0.99]
+                          focus-visible:outline-2 focus-visible:outline-offset-2
+                          focus-visible:outline-sky-300 rounded-lg">
             <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0 text-sky-300" fill="none"
-                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true">
               <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/>
               <line x1="12" y1="8" x2="12" y2="8"/>
             </svg>
             <span class="flex-1 min-w-0 font-semibold">Tips</span>
             <!-- Pila peker NED når tipset er sammenlagt (trykk for å åpne) og OPP
                  når det står åpent — samme retning som i skuffene ellers. -->
-            <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0 text-sky-100/70 transition-transform"
-                 :class="infoTipMinimized ? '' : 'rotate-180'" fill="none" stroke="currentColor"
+            <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0 text-sky-100/70 transition-transform
+                        group-open:rotate-180" fill="none" stroke="currentColor"
                  stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <polyline points="6 9 12 15 18 9"/>
             </svg>
-          </button>
-          <div v-if="!infoTipMinimized" class="px-3 pb-2.5 pl-[2.375rem]">
+          </summary>
+          <div class="px-3 pb-2.5 pl-[2.375rem]">
             <p>
               Du kan trykke-og-holde et par sekunder i kartet for å åpne infopanelet
               du ser her. Det samme fungerer på de tre knottene som åpner når du
@@ -261,7 +279,7 @@ function formatDistance(m) {
               lengde, stigning og gangtid for deg.
             </p>
           </div>
-        </div>
+        </details>
       </div>
 
       <!-- Detalj-inset: roambart 500×500 m utsnitt (start 250 m) med alle
