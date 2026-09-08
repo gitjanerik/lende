@@ -1,3 +1,28 @@
+## 2026-09-08 — v6.5.74: Nabofliser tegnes så langt arket rekker, ikke bare tolv
+
+Et ark større enn tretten celler har vært halvtomt siden mosaikken fikk et
+node-tak. `MAX_GHOST_NODER` sto på tolv PARSEDE nabofliser, mens modellen fulgte
+brukerens «Maks kartfliser» (16 som standard, 36 på det høyeste) — så et 5 × 5-ark
+modellerte 25 fliser, lovte dem i kantpilene, i pan-grensa, i «+N fliser» og i
+«6,5 × 6,5 km · 25 fliser», og kunne tegne tretten av dem. Å panorere hjalp ikke:
+feste-passet filtrerer modellen ned til fliser som ALT har node, den eneste kilden
+til nye noder var den første render-runden rundt aktiv flis, og auto-promotering
+er av på oversikts-zoom — altså nettopp når hele arket er synlig.
+
+Node-taket følger nå `maxTiles`, med tolv som gulv og som budsjett for den første
+runden: en kart-last skal ikke betale 24 sekvensielle multi-MB-parser før første
+maling. Resten fylles av feste-passet, progressivt og nærmest utsnittet først, og
+utkastingen måler nå fra UTSNITTET i stedet for fra den beskyttede flisa og tar
+ufestede noder før festede. Begge reglene er rene funksjoner i `ghostFeste.js`
+(`manglendeNoder`, `fjernesteNode`) med enhetstester.
+
+Utvikler-fanen har fått de tre nivåene ved siden av hverandre — festet / noder /
+modellert, med taket. Det er målingen hele denne feilklassen var usynlig uten:
+står «noder» stille på taket mens «modellert» er høyere, tegnes ikke hele arket,
+og det ser ut som et kart med manglende data.
+
+---
+
 ## 2026-09-08 — v6.5.73: Spøkelses-flisene culles også, i to nivåer og med måling
 
 Viewport-cullingen har siden den kom bare sett den aktive flisa. Mosaikken rundt — inntil tolv nabofliser, festet med et rausere rekt enn cull-rekta nettopp for at et pan ikke skal blottlegge tomrom — lå upåvirket i DOM-en med alt den bærer av stier, flater og navn. På et 10 × 20 km-ark er det den største posten som ingen ser på. Passet er nå todelt, og det er den billige halvdelen som gjør mest: ligger flisa helt utenfor cull-rekta, får ROT-noden `vp-cull` — én klasse, ingen DOM-skanning, hele flisa ut av layout og paint. Ligger den delvis inne, indekseres innholdet som den aktive flisa og diffes mot sitt eget synlighets-sett.

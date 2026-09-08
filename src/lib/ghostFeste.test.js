@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { velgFestede, utvidRekt } from './ghostFeste.js'
+import { velgFestede, utvidRekt, manglendeNoder, fjernesteNode } from './ghostFeste.js'
 
 // Et rutenett av 1000×1000 m nabofliser rundt aktiv flis (som selv ligger på
 // 0,0 og ikke er med i modellen).
@@ -154,5 +154,58 @@ describe('velgFestede — idempotens og tomme tilfeller', () => {
     const ut = velgFestede([flis('a', 1, 0)], { festeRekt: FESTE, forrigeFestede: ['a'] })
     expect(ut.fest).toEqual([])
     expect([...ut.festede]).toEqual(['a'])
+  })
+})
+
+describe('manglendeNoder', () => {
+  const modell = [flis('a', 1, 0), flis('b', 2, 0), flis('c', 5, 0)]
+  const harNode = (id) => id === 'a'
+
+  it('tar bare fliser i feste-rektangelet som mangler node', () => {
+    const ut = manglendeNoder(modell, { festeRekt: { minX: 0, minY: 0, maxX: 3000, maxY: 1000 }, harNode })
+    expect(ut).toEqual(['b'])   // a har node, c er utenfor
+  })
+
+  it('nærmest utsnittets senter først', () => {
+    const rekt = { minX: 0, minY: 0, maxX: 6000, maxY: 1000 }
+    const nord = manglendeNoder(modell, { festeRekt: rekt, harNode, senter: { x: 5500, y: 500 } })
+    expect(nord).toEqual(['c', 'b'])
+  })
+
+  it('respekterer antall ledige node-plasser', () => {
+    const rekt = { minX: 0, minY: 0, maxX: 6000, maxY: 1000 }
+    expect(manglendeNoder(modell, { festeRekt: rekt, harNode, ledige: 1 })).toHaveLength(1)
+    expect(manglendeNoder(modell, { festeRekt: rekt, harNode, ledige: 0 })).toEqual([])
+  })
+
+  it('tomme/ugyldige tilfeller gir tom liste', () => {
+    expect(manglendeNoder(modell, { festeRekt: null, harNode })).toEqual([])
+    expect(manglendeNoder(null, { festeRekt: FESTE, harNode })).toEqual([])
+    expect(manglendeNoder(modell, { festeRekt: FESTE })).toEqual([])
+  })
+})
+
+describe('fjernesteNode', () => {
+  const modell = [flis('naer', 1, 0), flis('midt', 3, 0), flis('fjern', 6, 0)]
+  const senter = { x: 500, y: 500 }
+
+  it('slipper den fjerneste fra UTSNITTET, ikke fra den nye flisa', () => {
+    const ut = fjernesteNode(['naer', 'midt', 'fjern'], { modell, senter, beskyttId: 'naer' })
+    expect(ut).toBe('fjern')
+  })
+
+  it('beskyttet flis slippes aldri', () => {
+    expect(fjernesteNode(['fjern'], { modell, senter, beskyttId: 'fjern' })).toBe(null)
+  })
+
+  it('ufestede fliser ryker før festede — også når de er nærmere', () => {
+    const festede = new Set(['fjern'])
+    const ut = fjernesteNode(['naer', 'midt', 'fjern'], { modell, senter, festede, beskyttId: 'naer' })
+    expect(ut).toBe('midt')
+  })
+
+  it('uten noder å velge blant returneres null', () => {
+    expect(fjernesteNode([], { modell, senter })).toBe(null)
+    expect(fjernesteNode(null, { modell, senter })).toBe(null)
   })
 })

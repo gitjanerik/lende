@@ -17,6 +17,7 @@ const props = defineProps({
   autoTileCount: { type: Number, default: 0 },
   maxTiles: { type: Number, default: 0 },
   cullStats: { type: Object, default: () => ({ indexed: 0, culled: 0, ms: 0, ghostFliser: 0, ghostHele: 0, ghostIndeksert: 0, ghostCulled: 0 }) },
+  mosaikkStats: { type: Object, default: () => ({ modellert: 0, noder: 0, festet: 0, tak: 0 }) },
   // Automatisk flis-påfyll: hva triggeren ser akkurat nå. Uten denne raden er
   // «hvorfor bygde den ikke?» ikke et spørsmål man kan svare på fra en mobil.
   cullDisabled: { type: Boolean, default: false },
@@ -185,6 +186,18 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
     <div class="flex items-baseline justify-between gap-2 mb-2 px-1">
       <span class="text-ink-4 text-[11px]">Auto-fliser i cache</span>
       <span class="text-ink-3 text-[11px] tabular-nums">{{ autoTileCount }} / {{ maxTiles }}</span>
+    </div>
+    <!-- Mosaikk-nivåene (v6.5.74): modellert = alle grid-kompatible nabofliser
+         useGhostTiles kjenner, noder = de som er parset inn i minnet, festet =
+         de som faktisk henger i #ghost-tiles. Står «noder» stille på taket
+         mens «modellert» er høyere, tegnes ikke hele arket — det var nettopp
+         den feilen som var usynlig fram til denne målingen fantes. -->
+    <div v-if="mosaikkStats.modellert" class="flex items-baseline justify-between gap-2 mb-2 px-1">
+      <span class="text-ink-4 text-[11px]">Mosaikk-noder</span>
+      <span class="text-ink-3 text-[11px] tabular-nums">
+        {{ mosaikkStats.festet }} festet / {{ mosaikkStats.noder }} noder /
+        {{ mosaikkStats.modellert }} modellert · tak {{ mosaikkStats.tak }}
+      </span>
     </div>
     <!-- Viewport-culling: hvor mange indekserte elementer som er skjult
          utenfor utsnittet akkurat nå + siste cull-beregning i ms. -->

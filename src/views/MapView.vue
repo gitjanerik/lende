@@ -1060,8 +1060,9 @@ async function rebuildAtChosenSize(km = mapSizeKm.value) {
 
 // Maks kartfliser i mosaikk-cachen — bruker-innstilling (slider i Innstillinger).
 // Diskrete trinn (kvadrat-tall, matcher et n×n grid-mentalt-bilde), default 16.
-// Påvirker hovedsakelig LAGRING (IndexedDB); live GPU/RAM er separat begrenset av
-// MAX_GHOSTS_RENDERED. pruneAutoTiles kapper fjerneste fliser til denne grensa.
+// Påvirker BÅDE lagring (IndexedDB) og hvor mange nabofliser som kan TEGNES:
+// useGhostTiles' node-tak er max(MAX_GHOST_NODER, maxTiles), så et ark på 25
+// fliser tegnes fullt ut. pruneAutoTiles kapper fjerneste fliser til grensa.
 const MAX_TILE_STEPS = [4, 9, 16, 25, 36]
 const MAX_TILE_DEFAULT_IDX = 2  // = 16
 const MAX_TILES_LS_KEY = 'lende-max-tiles'
@@ -1511,7 +1512,7 @@ const { applyHillshade, reliefBlendMode, invalidateReliefBands } = useReliefRend
 
 // Spøkelses-fliser — flyttet til useGhostTiles.
 const {
-  ghostRects, GHOST_TRIGGER_SUPPRESS_FRAC,
+  ghostRects, GHOST_TRIGGER_SUPPRESS_FRAC, mosaikkStats,
   renderGhostTiles, updateGhostReliefOpacity,
   leggTilSpokelse, scheduleGhostFeste, anvendGhostFeste,
   medAlleSpokelserFestet, medAlleSpokelserFestetAsync, teardownGhostTiles,
@@ -3271,6 +3272,7 @@ onUnmounted(() => {
             :reset-lod-tuning="resetLodTuning" :map-data-label="mapDataLabel"
             :auto-tile-count="autoTileCount" :max-tiles="maxTiles"
             :cull-stats="cullStats" :cull-disabled="cullDisabled" :toggle-cull="toggleCull"
+            :mosaikk-stats="mosaikkStats"
             :sjokart-status-text="sjokartStatusText"
             :nve-innsjo-status-text="nveInnsjoStatusText"
             :turrute-status-text="turruteStatusText"
