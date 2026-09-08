@@ -14,9 +14,9 @@ import { useUiTextScale } from '../composables/useUiTextScale.js'
 import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
 import { bboxFromCenter, PRINT_ASPECT } from '../lib/mapBuilder.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
-import { minEquidistanceForWidthKm } from '../lib/equidistanceRules.js'
+import { minEquidistanceForWidthKm, EQUIDISTANSE_VALG, EQUIDISTANSE_M, breddeHintFor } from '../lib/equidistanceRules.js'
 import { probeDensityCached } from '../lib/densityProbe.js'
-import { tetthetsBeslutning, tetthetsBegrunnelse } from '../lib/mapDensityRules.js'
+import { tetthetsBeslutning, tetthetsBegrunnelse, BREDDE_MIN_KM, BREDDE_MAKS_KM } from '../lib/mapDensityRules.js'
 import { DEFAULT_MAP_WIDTH_KM } from '../composables/useMapSizePreference.js'
 import { reverseGeocode } from '../lib/geocode.js'
 import { tileMosaic, zoomForKm, metersPerPixel } from '../lib/tileBackground.js'
@@ -40,8 +40,17 @@ const showInstallInfo = ref(false)    // info-tooltip toggle
 const DEFAULT_CENTER = { lat: 59.9139, lon: 10.7522, name: 'Oslo' }
 
 const center = ref({ ...DEFAULT_CENTER })
-const halfKm = ref(4)  // halv-bredde av bbox i km (E/V). Kart blir 2*halfKm bredt (8 km = standarden, jf. DEFAULT_MAP_WIDTH_KM)
-const equidistanceM = ref(20)  // høydekurve-intervall, 5/10/20/25/50 m
+// Halv-bredde av bbox i km (E/V). Kart blir 2*halfKm bredt. Spennet er
+// BREDDE_MIN_KM–BREDDE_MAKS_KM = 2–20 km, altså halfKm 1–10 — pinch og hjul
+// klampes til de samme endene som slideren.
+const HALV_MIN = BREDDE_MIN_KM / 2
+const HALV_MAKS = BREDDE_MAKS_KM / 2
+const halfKm = ref(DEFAULT_MAP_WIDTH_KM / 2)
+// Høydekurve-intervall, 10/20/25/50 m. Startverdien utledes av standard-bredden
+// framfor å stå som et tall her: skrevet av hånd ble den stående på 20 m da
+// standarden ble 10 km, og watch(minEquidistance) fyrer bare når minimumet
+// ENDRES — altså aldri, ved mount.
+const equidistanceM = ref(minEquidistanceForWidthKm(DEFAULT_MAP_WIDTH_KM))
 const customName = ref('')
 
 // Format-velger (trippel toggle). Styrer utsnittets høyde/bredde-forhold;
@@ -158,13 +167,15 @@ function parseShareInvite() {
   const eq = parseFloat(q.eq)
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
   center.value = { lat, lon, name: q.hl ? String(q.hl).slice(0, 60) : '' }
-  // Eldre delte lenker kan ha km opptil 12 — clamp til dagens 16 km-tak.
-  if (Number.isFinite(km) && km >= 1 && km <= 24) halfKm.value = Math.min(km, 16) / 2
+  // Eldre delte lenker kan bære en bredde utenfor dagens spenn — klamp til det.
+  if (Number.isFinite(km) && km > 0 && km <= 40) {
+    halfKm.value = Math.min(Math.max(km, BREDDE_MIN_KM), BREDDE_MAKS_KM) / 2
+  }
   // Klamp mot bredde-regelen HER — watch(minEquidistance) fyrer bare når
-  // minimumet ENDRES, og med 8 km som default-bredde står det allerede på
-  // 20 m ved mount. En lenke med eq=5 og km=14 slapp derfor gjennom og ga
-  // ISOM-tette kurver + knauser på mottakerens store kart.
-  if (Number.isFinite(eq) && [2.5, 5, 10, 20, 25, 50].includes(eq)) {
+  // minimumet ENDRES, og ved mount står det allerede på standard-breddens
+  // verdi. En lenke med en fin ekvidistanse og en stor bredde slapp derfor
+  // gjennom og ga tette kurver + knauser på mottakerens store kart.
+  if (Number.isFinite(eq) && EQUIDISTANSE_M.includes(eq)) {
     equidistanceM.value = Math.max(eq, minEquidistanceForWidthKm(halfKm.value * 2))
   }
   // Avsenderens aspekt (clampet til fornuftig spenn). Format-KNAPPEN settes
@@ -221,30 +232,15 @@ function parseShareInvite() {
   }
 }
 
-const EQUIDISTANCE_OPTIONS = [
-  { value: 2.5, label: '2,5 m', desc: 'ISOM-sprint — kun kart ≤ 2 km' },
-  { value: 5,   label: '5 m',   desc: 'ISOM-orientering — krever 1m DTM' },
-  { value: 10,  label: '10 m',  desc: 'tett — for små områder' },
-  { value: 20,  label: '20 m',  desc: 'turkart-standard' },
-  { value: 25,  label: '25 m',  desc: 'norsk N50-standard' },
-  { value: 50,  label: '50 m',  desc: 'oversikt — for store områder' },
-]
+const EQUIDISTANCE_OPTIONS = EQUIDISTANSE_VALG
 
 // v10.1.x: minste tillatte ekvidistanse skaleres med bbox-bredde. Tett
-// kontur-rendering er meningsløst på store kart (overlappende streker,
-// rotete kart uten lesbarhet). Maks kartstørrelse er nå 16×16 km, men terskel-
-// tabellen topper på 20 m: store kart (≥ 6 km, inkl. de nye 7–16 km) beholder
-// 20/25/50 m som aktive valg, slik at 25 og 50 m alltid er tilgjengelig.
-// Selve terskel-tabellen deles med MCP-serverens bygg_kart (equidistanceRules).
+// kontur-rendering er meningsløst på store kart (overlappende streker, rotete
+// kart uten lesbarhet). Tabellen — og teksten som forklarer hvorfor et valg er
+// grået ut — deles med Innstillinger og MCP-serverens bygg_kart
+// (lib/equidistanceRules).
 const minEquidistance = computed(() => minEquidistanceForWidthKm(halfKm.value * 2))
-
-// Forklarende tooltip når et ekvidistanse-valg er utelukket av gjeldende bredde.
-function widthHintFor(value) {
-  if (value === 2.5) return 'Krever bredde ≤ 2 km'
-  if (value === 5)  return 'Krever bredde < 4 km'
-  if (value === 10) return 'Krever bredde < 6 km'
-  return ''
-}
+const widthHintFor = breddeHintFor
 
 // Auto-bump ekvidistanse n&aring;r bredde &oslash;kes forbi en grense og
 // gjeldende valg blir ulovlig.
@@ -271,6 +267,15 @@ const tetthetBeslutning = computed(() => tetthetsBeslutning(tetthetProbe.value, 
 const anbefaltMaksKm = computed(() => tetthetBeslutning.value?.maksBreddeKm ?? null)
 const overAnbefalt = computed(() =>
   anbefaltMaksKm.value != null && halfKm.value * 2 > anbefaltMaksKm.value)
+// Hvor stor del av slider-sporet som ligger OVER det anbefalte taket, i prosent
+// fra høyre. Regnes av bredde-spennet og ikke av faste tall — sonen bommet på
+// grensa den skulle vise første gang endene flyttet seg.
+const amberAndel = computed(() => {
+  const maks = anbefaltMaksKm.value
+  if (maks == null) return 0
+  const andel = (maks - BREDDE_MIN_KM) / (BREDDE_MAKS_KM - BREDDE_MIN_KM)
+  return Math.min(100, Math.max(0, 100 - andel * 100))
+})
 const tetthetTekst = computed(() => {
   const b = tetthetBeslutning.value
   if (!b) return ''
@@ -496,7 +501,7 @@ function onPreviewTouchMove(e) {
     const d = touchDist(e)
     const ratio = d / lastDist
     const next = halfKm.value / ratio
-    halfKm.value = Math.max(0.5, Math.min(8, next))
+    halfKm.value = Math.max(HALV_MIN, Math.min(HALV_MAKS, next))
     lastDist = d
   } else if (panning && e.touches.length === 1 && panStart) {
     e.preventDefault()
@@ -546,7 +551,7 @@ function onPreviewWheel(e) {
   e.preventDefault()
   const delta = e.deltaY > 0 ? 1.1 : 0.9
   const next = halfKm.value * delta
-  halfKm.value = Math.max(0.5, Math.min(8, next))
+  halfKm.value = Math.max(HALV_MIN, Math.min(HALV_MAKS, next))
 }
 
 // Chat-bygging (lag_kart i Lende-chat): ?auto=1 sammen med utfylte felter
@@ -907,20 +912,20 @@ onMounted(() => {
            det er synlig HVOR grensen går, men slideren er ikke sperret — drar du
            forbi, bygges bredden du ba om. -->
       <div class="relative">
-        <div v-if="anbefaltMaksKm != null && anbefaltMaksKm < 16"
+        <div v-if="anbefaltMaksKm != null && anbefaltMaksKm < BREDDE_MAKS_KM"
              class="absolute top-1/2 -translate-y-1/2 right-0 h-1.5 rounded-r bg-amber-400/25
                     border-r border-amber-300/40 pointer-events-none"
-             :style="{ width: `${Math.max(0, 100 - (anbefaltMaksKm - 1) / 15 * 100)}%` }"></div>
+             :style="{ width: `${amberAndel}%` }"></div>
         <!-- aria-valuetext fordi input-en holder HALVBREDDEN mens skjermen viser
-             hele: uten den leser skjermleseren «4» der det står «8 km». -->
-        <input type="range" min="0.5" max="8" step="0.25" v-model.number="halfKm"
+             hele: uten den leser skjermleseren «5» der det står «10 km». -->
+        <input type="range" :min="HALV_MIN" :max="HALV_MAKS" step="0.25" v-model.number="halfKm"
                aria-labelledby="mappicker-bredde-etikett"
                :aria-valuetext="`${sizeKm} km`"
                :disabled="controlsLocked"
                class="relative w-full accent-slate-400 disabled:opacity-50 disabled:cursor-not-allowed" />
       </div>
       <div class="flex justify-between text-[10px] text-ink-4 mt-1">
-        <span>1 km</span><span>8,5 km</span><span>16 km</span>
+        <span>{{ BREDDE_MIN_KM }} km</span><span>{{ (BREDDE_MIN_KM + BREDDE_MAKS_KM) / 2 }} km</span><span>{{ BREDDE_MAKS_KM }} km</span>
       </div>
       <div v-if="tetthetTekst" class="text-[10px] mt-1.5"
            :class="overAnbefalt ? 'text-amber-300/90' : 'text-ink-4'">
@@ -937,9 +942,11 @@ onMounted(() => {
         <div class="text-[13px] font-medium tabular-nums">hver {{ equidistanceM }} m</div>
       </div>
       <!-- Knapperad som SER ut som et valg må også være det for en skjermleser:
-           uten radiogroup/aria-checked annonseres tre uavhengige knapper og
+           uten radiogroup/aria-checked annonseres fire uavhengige knapper og
            ingenting sier hvilken som gjelder. -->
-      <div class="grid grid-cols-3 gap-1.5" role="radiogroup" aria-labelledby="mappicker-ekvi-etikett">
+      <!-- To kolonner: med fire valg gir det to rader med brede trykkflater,
+           og «25 m» står helt også ved 200 % tekst. -->
+      <div class="grid grid-cols-2 gap-1.5" role="radiogroup" aria-labelledby="mappicker-ekvi-etikett">
         <button v-for="opt in EQUIDISTANCE_OPTIONS" :key="opt.value"
                 role="radio" :aria-checked="equidistanceM === opt.value"
                 :disabled="controlsLocked || opt.value < minEquidistance"
