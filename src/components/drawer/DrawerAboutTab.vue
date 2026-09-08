@@ -65,21 +65,41 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
         <div class="text-[13px] text-ink font-medium">Kartstørrelse (nye kart)</div>
         <div class="text-[13px] text-ink font-semibold tabular-nums">{{ mapSizeSlider }} × {{ mapSizeSlider }} km</div>
       </div>
-      <div class="text-[11px] text-ink-3 leading-snug mb-2">
-        Bredde på nye kart fra søk/GPS, {{ MAP_SIZE_MIN_KM }}–{{ MAP_SIZE_MAX_KM }} km.
-        Større kart tar lengre tid å bygge, og fra 6 km krever de 20 m høydekurver
-        (fra 10 km: 25 m). I svært datatette områder (bykjerner) bygges kartet
-        enklere og om nødvendig mindre, så det holder seg responsivt — «Flere valg»
-        viser grensen på stedet, og Utvikler-fanen hva som ble justert.
-      </div>
       <input type="range" :min="MAP_SIZE_MIN_KM" :max="MAP_SIZE_MAX_KM" step="1"
              v-model.number="mapSizeSlider"
              aria-label="Kartstørrelse i km (bredde på nye kart)"
-             class="w-full accent-emerald-400 cursor-pointer" />
+             class="w-full accent-emerald-400 cursor-pointer mt-1.5" />
       <div class="flex justify-between text-[10px] text-ink-4 tabular-nums mt-1 px-0.5">
         <span>{{ MAP_SIZE_MIN_KM }} km</span>
         <span>{{ MAP_SIZE_MAX_KM }} km</span>
       </div>
+      <!-- Forklaringen sto som fem faste linjer mellom overskriften og
+           slideren og skjøv selve kontrollen ned under skjermkanten ved 150 %
+           tekst. Den er et OPPSLAG — man leser den én gang — så den ligger nå
+           bak «Info», under slideren. `<details>` og ikke en egen ref: den er
+           tastaturbetjent og annonsert av seg selv, og tilstanden trenger ikke
+           overleve at fana lukkes. -->
+      <details class="mt-1.5 group">
+        <summary class="inline-flex items-center gap-1 text-[11px] text-ink-3
+                        cursor-pointer select-none list-none active:opacity-70
+                        [&::-webkit-details-marker]:hidden
+                        focus-visible:outline-2 focus-visible:outline-offset-2
+                        focus-visible:outline-emerald-400 rounded">
+          <svg viewBox="0 0 24 24" class="w-3 h-3 transition-transform group-open:rotate-90"
+               fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+               stroke-linejoin="round" aria-hidden="true">
+            <polyline points="9 6 15 12 9 18"/>
+          </svg>
+          Info
+        </summary>
+        <div class="text-[11px] text-ink-3 leading-snug mt-1">
+          Bredde på nye kart fra søk/GPS, {{ MAP_SIZE_MIN_KM }}–{{ MAP_SIZE_MAX_KM }} km.
+          Større kart tar lengre tid å bygge, og fra 6 km krever de 20 m høydekurver
+          (fra 10 km: 25 m). I svært datatette områder (bykjerner) bygges kartet
+          enklere og om nødvendig mindre, så det holder seg responsivt — «Flere valg»
+          viser grensen på stedet, og Utvikler-fanen hva som ble justert.
+        </div>
+      </details>
       <!-- Kartformat: samme trippel som «Flere valg». -->
       <div class="text-[13px] text-ink font-medium mt-3 mb-1.5">Kartformat</div>
       <!-- Wrap framfor tre faste kolonner: se format-knappene i pickeren. -->
