@@ -93,47 +93,57 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         <p v-if="error" class="text-[13px] text-red-600/90 px-1">{{ error }}</p>
       </div>
 
-      <div class="shrink-0 border-t border-ink/10 px-3 py-2.5 flex items-end gap-2"
+      <!-- AppModal legger `zoom` på HELE kroppen, så ikonknappene vokser med
+           teksten: ved 200 % tok de to knappene og mellomrommene ~120 av 178 px
+           i den zoomede flaten, og feltet satt igjen med ~58 px — ett ord per
+           linje og klippet plassholder. Raden brekker derfor av seg selv:
+           `flex-wrap` pluss et bredde-GULV på feltet (`min-w-[10rem]`, som er
+           det flex-linja måler mot) legger knappene under så snart de to ikke
+           lenger får plass ved siden av hverandre. Ingen JS-terskel — grensa er
+           innholdets, ikke et tall vi har gjettet på. -->
+      <div class="shrink-0 border-t border-ink/10 px-3 py-2.5 flex flex-wrap items-end gap-2"
            :style="{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0.625rem)' }">
         <!-- field-sizing:content: feltet vokser med innholdet (2–4 rader via
              min/max-height); bunnforankret rad → veksten skjer oppover.
              Nettlesere uten støtte faller tilbake til fast 2 rader (rows). -->
         <textarea ref="inputRef" v-model="input" rows="2" enterkeyhint="send"
-                  placeholder="Spør om kartet, stedet eller turen …"
                   @keydown.enter.exact.prevent="onSend"
-                  class="flex-1 resize-none rounded-xl bg-ink/5 border border-ink/10 px-3 py-2
+                  placeholder="Spør om kartet, stedet eller turen …"
+                  class="flex-1 min-w-[10rem] resize-none rounded-xl bg-ink/5 border border-ink/10 px-3 py-2
                          text-[14px] text-ink placeholder:text-ink-4
                          focus:border-ink/30 [field-sizing:content]
                          min-h-[3.75rem] max-h-[6.5rem] overflow-y-auto" />
-        <button v-if="micSupported && !busy" type="button" @click="toggleMic"
-                :aria-label="micListening ? 'Stopp diktering' : 'Diktér melding (tale til tekst)'"
-                :aria-pressed="micListening"
-                :class="['w-10 h-10 rounded-full flex items-center justify-center transition',
-                         'active:scale-95 shrink-0',
-                         micListening ? 'bg-red-500/90 text-white animate-pulse' : 'bg-ink/10 text-ink-2']">
-          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
-            <path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/>
-          </svg>
-        </button>
-        <button v-if="busy" type="button" @click="stopp" aria-label="Stopp svaret"
-                class="w-10 h-10 rounded-full bg-ink/10 text-ink-2 flex items-center justify-center
-                       active:scale-95 transition shrink-0">
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="currentColor">
-            <rect x="6" y="6" width="12" height="12" rx="2"/>
-          </svg>
-        </button>
-        <button v-else type="button" @click="onSend" :disabled="!input.trim()"
-                aria-label="Send"
-                class="w-10 h-10 rounded-full bg-ink text-app flex items-center justify-center
-                       active:scale-95 transition shrink-0 disabled:opacity-30">
-          <svg viewBox="0 0 24 24" class="w-4.5 h-4.5" fill="none" stroke="currentColor"
-               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 19V5"/>
-            <path d="m5 12 7-7 7 7"/>
-          </svg>
-        </button>
+        <div class="flex items-center gap-2 shrink-0 ml-auto">
+          <button v-if="micSupported && !busy" type="button" @click="toggleMic"
+                  :aria-label="micListening ? 'Stopp diktering' : 'Diktér melding (tale til tekst)'"
+                  :aria-pressed="micListening"
+                  :class="['w-10 h-10 rounded-full flex items-center justify-center transition',
+                           'active:scale-95 shrink-0',
+                           micListening ? 'bg-red-500/90 text-white animate-pulse' : 'bg-ink/10 text-ink-2']">
+            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/>
+            </svg>
+          </button>
+          <button v-if="busy" type="button" @click="stopp" aria-label="Stopp svaret"
+                  class="w-10 h-10 rounded-full bg-ink/10 text-ink-2 flex items-center justify-center
+                         active:scale-95 transition shrink-0">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="currentColor">
+              <rect x="6" y="6" width="12" height="12" rx="2"/>
+            </svg>
+          </button>
+          <button v-else type="button" @click="onSend" :disabled="!input.trim()"
+                  aria-label="Send"
+                  class="w-10 h-10 rounded-full bg-ink text-app flex items-center justify-center
+                         active:scale-95 transition shrink-0 disabled:opacity-30">
+            <svg viewBox="0 0 24 24" class="w-4.5 h-4.5" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 19V5"/>
+              <path d="m5 12 7-7 7 7"/>
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   </AppModal>
