@@ -16,7 +16,7 @@ const props = defineProps({
   mapDataLabel: { type: String, default: '' },
   autoTileCount: { type: Number, default: 0 },
   maxTiles: { type: Number, default: 0 },
-  cullStats: { type: Object, default: () => ({ indexed: 0, culled: 0, ms: 0 }) },
+  cullStats: { type: Object, default: () => ({ indexed: 0, culled: 0, ms: 0, ghostFliser: 0, ghostHele: 0, ghostIndeksert: 0, ghostCulled: 0 }) },
   // Automatisk flis-påfyll: hva triggeren ser akkurat nå. Uten denne raden er
   // «hvorfor bygde den ikke?» ikke et spørsmål man kan svare på fra en mobil.
   cullDisabled: { type: Boolean, default: false },
@@ -202,6 +202,18 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
                       : 'bg-ink/5 border-ink/10 text-ink-2'">
         {{ cullDisabled ? 'AV — slå på' : 'Slå av' }}
       </button>
+    </div>
+    <!-- Spøkelses-culling (v6.5.73): hvor mange nabofliser som er festet, hvor
+         mange av dem som er skjult i sin helhet, og per-element-tallet for de
+         som ligger delvis inne. Målingen er hele grunnen til at tiltaket kan
+         vurderes i felt i stedet for å gjettes på. -->
+    <div v-if="!cullDisabled && cullStats.ghostFliser"
+         class="flex items-baseline justify-between gap-2 mb-2 px-1">
+      <span class="text-ink-4 text-[11px]">Spøkelses-culling</span>
+      <span class="text-ink-3 text-[11px] tabular-nums">
+        {{ cullStats.ghostHele }} / {{ cullStats.ghostFliser }} fliser skjult ·
+        {{ cullStats.ghostCulled }} / {{ cullStats.ghostIndeksert }} elementer
+      </span>
     </div>
     <!-- Datatetthet: hva sonderingen fant, og hva den gjorde med kartet. Eneste
          sporet av HVORFOR et kart ble lettere eller mindre enn brukeren ba om. -->

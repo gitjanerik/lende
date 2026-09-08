@@ -79,6 +79,12 @@ export function rectContains(outer, inner) {
          outer.maxX >= inner.maxX && outer.maxY >= inner.maxY
 }
 
+/** True når to rekter overlapper (deler kant teller som overlapp). */
+export function rectsOverlap(a, b) {
+  return a.minX <= b.maxX && a.maxX >= b.minX &&
+         a.minY <= b.maxY && a.maxY >= b.minY
+}
+
 /**
  * Bygg rbush-indeks fra entries `{ minX, minY, maxX, maxY, el }`.
  * `el` er en opaque referanse (DOM-element i MapView, plain object i test).
@@ -137,6 +143,32 @@ export function computeCullDiff(index, expandedRect, prevVisible) {
     }
   }
   return { show, hide, visible }
+}
+
+/**
+ * Rommet en spøkelses-flis opptar i den AKTIVE flisas meter-rom, utledet av
+ * attributtene buildGhostSvg skrev på den nestede <svg>-en.
+ *
+ * En spøkelses-flis er `x/y = dx-bleed`, `viewBox = "-bleed -bleed …"` og
+ * `width/height = W+2·bleed` (se GHOST_EDGE_BLEED_M). Skalaen er dermed 1:1, og
+ * et indre koordinat `u` ligger på `x - viewBoxMinX + u` i aktiv flis. Vi leser
+ * viewBox framfor å anta blø-bredden: gjør noen om på blø-sonen, følger
+ * forskyvningen med av seg selv i stedet for å bomme med et halvt hakk.
+ *
+ * @returns {{ dx:number, dy:number, rect:{minX,minY,maxX,maxY} }|null}
+ */
+export function ghostFlisRom({ x, y, width, height, viewBox } = {}) {
+  const px = Number(x), py = Number(y)
+  const w = Number(width), h = Number(height)
+  if (![px, py, w, h].every(Number.isFinite) || w <= 0 || h <= 0) return null
+  const vb = String(viewBox ?? '').trim().split(/[\s,]+/).map(Number)
+  const vbMinX = vb.length === 4 && Number.isFinite(vb[0]) ? vb[0] : 0
+  const vbMinY = vb.length === 4 && Number.isFinite(vb[1]) ? vb[1] : 0
+  return {
+    dx: px - vbMinX,
+    dy: py - vbMinY,
+    rect: { minX: px, minY: py, maxX: px + w, maxY: py + h },
+  }
 }
 
 /**
