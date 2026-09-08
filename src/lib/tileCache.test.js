@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { tileDistance, selectTilesToEvict, tileOffset, rectOverlapFraction, tilesAreGridCompatible, findGridGaps, tileIsCurrent } from './tileCache.js'
+import { tileDistance, selectTilesToEvict, tileOffset, rectOverlapFraction, tilesAreGridCompatible, findGridGaps, tileIsCurrent, plassIArket } from './tileCache.js'
 
 const at = (id, lat, lon) => ({ id, center: { lat, lon } })
 
@@ -259,5 +259,49 @@ describe('tileIsCurrent — versjons-gate for auto-flis-cachen', () => {
   it('auto-flis med annen eller manglende versjon er stale', () => {
     expect(tileIsCurrent({ isAuto: true, appVersion: '1.0.44' }, '1.0.48')).toBe(false)
     expect(tileIsCurrent({ isAuto: true }, '1.0.48')).toBe(false)
+  })
+})
+
+describe('plassIArket — porten som hindrer bygg-og-slett', () => {
+  it('gir plass når arket har rom under taket', () => {
+    const p = plassIArket({ arkFliser: 9, nye: 7, max: 16 })
+    expect(p.ok).toBe(true)
+    expect(p.ledig).toBe(7)
+    expect(p.mangler).toBe(0)
+  })
+
+  it('nekter når arket alt står på taket', () => {
+    const p = plassIArket({ arkFliser: 16, nye: 5, max: 16 })
+    expect(p.ok).toBe(false)
+    expect(p.ledig).toBe(0)
+    expect(p.mangler).toBe(5)
+  })
+
+  it('nekter delvis plass — brukeren skal se hvor mange som mangler', () => {
+    const p = plassIArket({ arkFliser: 13, nye: 7, max: 16 })
+    expect(p.ok).toBe(false)
+    expect(p.ledig).toBe(3)
+    expect(p.mangler).toBe(4)
+  })
+
+  it('siste flisa som fyller taket eksakt slipper gjennom', () => {
+    expect(plassIArket({ arkFliser: 15, nye: 1, max: 16 }).ok).toBe(true)
+    expect(plassIArket({ arkFliser: 15, nye: 2, max: 16 }).ok).toBe(false)
+  })
+
+  it('Kirkenes-sekvensen: 1 → +3 → +5 → +7 stopper på det fjerde steget ved 16', () => {
+    // Arket vokser 1 → 4 → 9 → 16 → 25; taket er 16.
+    const steg = [{ har: 1, nye: 3 }, { har: 4, nye: 5 }, { har: 9, nye: 7 }, { har: 16, nye: 9 }]
+    expect(steg.map(s => plassIArket({ arkFliser: s.har, nye: s.nye, max: 16 }).ok))
+      .toEqual([true, true, true, false])
+    // Med grensa hevet til 36 går hele sekvensen igjennom.
+    expect(steg.map(s => plassIArket({ arkFliser: s.har, nye: s.nye, max: 36 }).ok))
+      .toEqual([true, true, true, true])
+  })
+
+  it('tåler tull i inndata uten å slippe gjennom et ubegrenset bygg', () => {
+    expect(plassIArket().ok).toBe(true)              // 0 nye fliser er alltid ok
+    expect(plassIArket({ arkFliser: NaN, nye: 99, max: 16 }).ok).toBe(false)
+    expect(plassIArket({ arkFliser: -5, nye: 1, max: 0 }).tak).toBe(16)
   })
 })

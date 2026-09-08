@@ -7,7 +7,7 @@
 import { ref, computed, nextTick, watch, onMounted } from 'vue'
 import { svgToWgs84 } from '../lib/utm.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
-import { pruneAutoTiles, rectOverlapFraction, findGridGaps, findRectangleGaps } from '../lib/tileCache.js'
+import { pruneAutoTiles, rectOverlapFraction, findGridGaps, findRectangleGaps, plassIArket } from '../lib/tileCache.js'
 import {
   lesVentende, leggTilVentende, fjernVentende,
   cellenokkel, ventendeSenter, ventendePaaArket, VENTENDE_RADIUS_TILES,
@@ -830,6 +830,17 @@ export function useMapExtend({
       showAutoMapToast('Allerede bygd — flytter dit')
       return
     }
+    // Fliser vi ikke har plass til bygges IKKE. Se plassIArket: alternativet er
+    // å bygge dem og la kappingen slette dem igjen i samme operasjon.
+    const plass = plassIArket({
+      arkFliser: ghostRects.value.length + 1, nye: toBuild.length, max: maxTiles.value,
+    })
+    if (!plass.ok) {
+      showAutoMapToast(plass.ledig
+        ? `Bare plass til ${plass.ledig} av ${toBuild.length} fliser — øk «Maks kartfliser» i Innstillinger`
+        : `Arket er på grensa (${plass.tak} fliser) — øk «Maks kartfliser» i Innstillinger`)
+      return
+    }
     extendingMap = true
     autoMapArmed = false
     buildingOnTheFly.value = true
@@ -875,14 +886,9 @@ export function useMapExtend({
         vbWidth: m.widthM, vbHeight: m.heightM,
         targetScale: scale.value, keepRotation: true,
       })
-      // Kapp auto-flis-cachen til bruker-valgt grense, beskytt aktiv flis + det vi
-      // nettopp bygde.
-      try {
-        const ll = svgToWgs84(geom.panPoint.x, geom.panPoint.y, m)
-        pruneAutoTiles({ center: { lat: ll.lat, lon: ll.lon }, max: maxTiles.value, protectIds: [mapId.value, ...builtIds] })
-          .then(() => { void refreshAutoTileCount() })
-          .catch(() => {})
-      } catch { /* svgToWgs84 feilet → hopp over pruning */ }
+      // Kapp auto-flis-cachen til bruker-valgt grense. Vernet dekker HELE arket
+      // og ikke bare aktiv flis + det vi nettopp bygde — se arkVernIds.
+      await kappCachen(geom.panPoint, builtIds)
       showAutoMapToast(`Utvidet kartet mot ${EXTEND_DIR_WORD[direction]}`)
       avslorHandtak()
     } catch (e) {
@@ -959,6 +965,36 @@ export function useMapExtend({
     for (const c of mosaicGapCells()) leggTil(autoMapBuildOpts(c.center), c.utmBbox)
     return ut
   }
+  // Vern for pruneAutoTiles: aktiv flis, HELE mosaikk-modellen og det vi nettopp
+  // bygde. Fram til v6.5.75 sto bare aktiv flis + builtIds her, og på et ark
+  // over grensa slettet kappingen arkets EGNE fliser rett etter at mosaikken var
+  // tegnet — så «Gjør arket firkantet» bygde dem opp igjen, neste kapping tok dem
+  // igjen, og hullbanneret sa noe nytt for hver runde. Porten (plassIArket) er
+  // det som gjør vernet trygt: uten den ville et ark over taket bare vokst.
+  function arkVernIds(builtIds = []) {
+    return [mapId.value, ...ghostRects.value.map(r => r.id), ...builtIds].filter(Boolean)
+  }
+
+  // Kapp cachen og hold modellen i takt. Kastet kappingen noe ut, MÅ mosaikken
+  // tegnes på nytt: modellen bygges av lagringen, og en modell som påstår fliser
+  // IndexedDB ikke har er nøyaktig det hullbanneret feilleser.
+  async function kappCachen(senterSvg, builtIds = []) {
+    const m = meta.value
+    if (!m) return
+    let ll
+    try { ll = svgToWgs84(senterSvg.x, senterSvg.y, m) } catch { return }
+    try {
+      const { evicted } = await pruneAutoTiles({
+        center: { lat: ll.lat, lon: ll.lon }, max: maxTiles.value, protectIds: arkVernIds(builtIds),
+      })
+      if (evicted) {
+        await renderGhostTiles()
+        await nextTick()
+      }
+    } catch { /* best effort — kappingen er ikke kritisk */ }
+    void refreshAutoTileCount()
+  }
+
   function refreshMosaicGaps() {
     mosaicGapCount.value = manglendeFliser().length
     refreshFirkant()
@@ -978,6 +1014,18 @@ export function useMapExtend({
     if (!cells.length) { refreshMosaicGaps(); return }
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       showAutoMapToast(`Offline — kan ikke ${ord.gerund}`)
+      return
+    }
+    // Samme port som extendMap. Den er strengt nødvendig HER også: med hele
+    // arket vernet mot kapping ville en reparasjon over grensa bare vokst
+    // cachen forbi taket i stillhet i stedet for å tredemølle.
+    const plass = plassIArket({
+      arkFliser: ghostRects.value.length + 1, nye: cells.length, max: maxTiles.value,
+    })
+    if (!plass.ok) {
+      showAutoMapToast(plass.ledig
+        ? `Bare plass til ${plass.ledig} av ${cells.length} — øk «Maks kartfliser» i Innstillinger`
+        : `Arket er på grensa (${plass.tak} fliser) — øk «Maks kartfliser» i Innstillinger`)
       return
     }
     extendingMap = true
@@ -1026,14 +1074,9 @@ export function useMapExtend({
         await renderGhostTiles()
         await nextTick()
       } catch { /* noop — mosaikk-render er fail-safe */ }
-      if (builtIds.length) {
-        try {
-          const ll = svgToWgs84(m.widthM / 2, m.heightM / 2, m)
-          pruneAutoTiles({ center: { lat: ll.lat, lon: ll.lon }, max: maxTiles.value, protectIds: [mapId.value, ...builtIds] })
-            .then(() => { void refreshAutoTileCount() })
-            .catch(() => {})
-        } catch { /* svgToWgs84 feilet → hopp over pruning */ }
-      }
+      // MÅ awaites før refreshMosaicGaps under: en kapping som lander etterpå
+      // gjør bannerne til en beskrivelse av en tilstand som ikke finnes lenger.
+      if (builtIds.length) await kappCachen({ x: m.widthM / 2, y: m.heightM / 2 }, builtIds)
       buildingOnTheFly.value = false
       buildingProgress.value = ''
       autoMapArmed = true

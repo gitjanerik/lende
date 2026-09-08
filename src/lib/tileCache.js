@@ -322,3 +322,26 @@ export function findRectangleGaps(activeRect, ghostRects, { tolFrac = 0.25 } = {
   }
   return ut
 }
+
+/**
+ * Har arket plass til `nye` fliser innenfor bruker-grensa «Maks kartfliser»?
+ *
+ * Grunnen til at dette er en PORT og ikke bare et tak på utkastingen: fram til
+ * v6.5.75 bygde utvidelsen så mange fliser den ble bedt om, og lot
+ * pruneAutoTiles slette de fjerneste rett etterpå. På et ark som alt var på
+ * grensa betydde det at flisene brukeren nettopp ventet på ble bygd og slettet
+ * i samme operasjon — og «Fyll hullene» bygde dem opp igjen for at neste
+ * kapping skulle ta dem, altså en tredemølle. En port som sier NEI før
+ * byggingen koster ingenting og er til å forstå.
+ *
+ * @param {object} p arkFliser = fliser arket ALT består av (aktiv flis med),
+ *   nye = fliser vi vil bygge, max = bruker-grensa.
+ * @returns {{ ok:boolean, ledig:number, tak:number, mangler:number }}
+ */
+export function plassIArket({ arkFliser, nye, max } = {}) {
+  const har = Math.max(0, Math.floor(Number(arkFliser)) || 0)
+  const vil = Math.max(0, Math.floor(Number(nye)) || 0)
+  const tak = Math.max(1, Math.floor(Number(max)) || MAX_AUTO_TILES)
+  const ledig = Math.max(0, tak - har)
+  return { ok: vil <= ledig, ledig, tak, mangler: Math.max(0, vil - ledig) }
+}
