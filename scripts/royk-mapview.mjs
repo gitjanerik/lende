@@ -3975,6 +3975,83 @@ const SJEKKER = [
       return `fokusring ${ring.stil} ${ring.bredde} på «${ring.hvem}»`
     },
   },
+  {
+    // v6.5.79: AppModal legger `zoom` på hele kroppen, så chattens mikrofon- og
+    // send-knapp vokste med teksten enda de bare er ikoner. Ved 200 % tok de to
+    // og mellomrommene ~120 av 178 px i den zoomede flaten, og skrivefeltet satt
+    // igjen med ~58: plassholderen brakk til ett ord per linje. Sjekken står
+    // SIST fordi den laster sida på nytt (chatten er token-gatet ved montering).
+    navn: 'chattens skrivefelt får full bredde ved 200 % tekst',
+    domene: 'LendeChat',
+    async kjør(page) {
+      await page.evaluate(() => localStorage.setItem('lende-ai-token', 'royk-token'))
+      await page.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+      await page.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+        null, { timeout: 30_000 })
+      // Høyreklikk på FAB-ankeret ER lang-trykkets mus-ekvivalent (FabCluster),
+      // og lang-trykket er inngangen til chatten fra kartet.
+      await page.locator('button[aria-label^="Lende —"]').first()
+        .click({ button: 'right', timeout: 10_000 })
+      const felt = page.locator('textarea[placeholder^="Spør om kartet"]')
+      await felt.waitFor({ state: 'visible', timeout: 10_000 })
+
+      const mål = () => page.evaluate(() => {
+        const t = document.querySelector('textarea[placeholder^="Spør om kartet"]')
+        const send = document.querySelector('button[aria-label="Send"]')
+        if (!t || !send) return null
+        const rad = t.parentElement
+        const cs = getComputedStyle(rad)
+        const plass = rad.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+        const tr = t.getBoundingClientRect()
+        const sr = send.getBoundingClientRect()
+        return {
+          // Bredden måles med offsetWidth/clientWidth, altså i det zoomede
+          // lagets EGNE px — samme enhet på begge sider. Rektanglene under er
+          // visuelle, men der sammenliknes rektangel mot rektangel.
+          tap: Math.round(plass - t.offsetWidth),
+          ved_siden: sr.left >= tr.right - 1,
+          under: sr.top >= tr.bottom - 1,
+        }
+      })
+
+      const A = 'button[aria-label^="Tekststørrelse i grensesnittet"]'
+      const skala = async () => Number(await page.locator(A).first()
+        .getAttribute('aria-label').then((s) => (s.match(/(\d+) prosent/) ?? [])[1]))
+      const tilProsent = async (mål) => {
+        for (let i = 0; i < 5; i++) {
+          if (await skala() === mål) return true
+          await page.locator(A).first().click()
+          await page.waitForTimeout(180)
+        }
+        return await skala() === mål
+      }
+
+      const feil = []
+      const ved100 = await mål()
+      if (!ved100) feil.push('fant ikke skrivefeltet eller send-knappen')
+      else if (!ved100.ved_siden) feil.push('knappene lå ikke ved siden av feltet ved 100 %')
+
+      if (!(await tilProsent(200))) feil.push('kom ikke til 200 %')
+      const ved200 = await mål()
+      if (!ved200) feil.push('fant ikke feltet etter skalering')
+      else {
+        if (!ved200.under) feil.push('knappene ble ikke lagt under feltet ved 200 %')
+        if (ved200.tap > 4) feil.push(`feltet er ${ved200.tap} px smalere enn raden ved 200 %`)
+      }
+
+      // NØYTRAL TILSTAND: tilbake til 100 %, lukk chatten, fjern tokenet og
+      // last kartet på nytt — chat-FAB-en skal ikke bli stående for de andre.
+      await tilProsent(100)
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(200)
+      await page.evaluate(() => localStorage.removeItem('lende-ai-token'))
+      await page.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+      await page.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+        null, { timeout: 30_000 })
+      if (feil.length) throw new Error(feil.join(' | '))
+      return 'ved siden ved 100 %, under og i full bredde ved 200 %'
+    },
+  },
 ]
 
 // ---- små hjelpere ---------------------------------------------------------

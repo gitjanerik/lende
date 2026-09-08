@@ -1,3 +1,13 @@
+## 2026-09-08 — v6.5.79: Chattens skrivefelt brekker av seg selv ved stor skrift
+
+AppModal legger `zoom` på hele kroppen, så mikrofon- og send-knappen i Lende-chatten vokser med teksten selv om de bare er ikoner. Ved 200 % tok de to knappene og mellomrommene rundt 120 av 178 px i det zoomede laget, og skrivefeltet satt igjen med ~58 px: plassholderen brakk til ett ord per linje og ble klippet i bunnen.
+
+Raden brekker nå av seg selv. Den er `flex-wrap`, og feltet har fått et bredde-GULV (`min-w-[10rem]`) — det er den verdien flex-linja måler mot, så knappene legger seg under feltet så snart de to ikke lenger får plass ved siden av hverandre, og feltet får hele bredden på sin egen linje. Ingen JS-terskel og ingen tekstskala-lytter: grensa er innholdets, ikke et tall vi har gjettet på, så den treffer like riktig på en smal telefon som ved 200 % skrift. Plassholderen er igjen én fast tekst.
+
+Røyk-sjekken måler begge sidene — knappene ved siden av feltet ved 100 %, under det ved 200 %, og feltet like bredt som raden — og er verifisert i begge retninger: uten gulvet feiler den med «feltet er 96 px smalere enn raden ved 200 %».
+
+---
+
 ## 2026-09-08 — v6.5.78: Native `<details>` for tipset, og full bredde i tre ark til
 
 Tips-stripa i punkt-arket var en knapp og et `v-if`. Den er nå et ekte
