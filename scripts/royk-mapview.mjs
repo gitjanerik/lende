@@ -900,7 +900,10 @@ const SJEKKER = [
       // Åpne nedtrekket → «Sorter snarveier» → flytt førstemann ned → sjekk at
       // raden faktisk skiftet rekkefølge (det er lagringen som er poenget).
       const forFor = (await les()).ider
-      await klikkTekst(page, /^(Mer|Vis .*snarvei)/i)
+      // Badge-tallet ligger FØRST i knappens innerText («2\nMer»), og
+      // `klikkTekst` leser innerText før aria-label — et regex ankret på «Mer»
+      // alene finner den derfor aldri når noe er skjult.
+      await klikkTekst(page, /^(\d+\s*)?Mer$|^Vis .*snarvei/i)
       await klikkTekst(page, /^Sorter snarveier$/)
       const iSkuff = await page.evaluate(() =>
         [...document.querySelectorAll('button')]
@@ -912,22 +915,73 @@ const SJEKKER = [
         b.click()
       })
       await page.waitForTimeout(400)
+      // Lista er fasiten mens skuffa står åpen — raden bak den er bare de
+      // snarveiene som får plass. Piltrykket og draget kontrolleres derfor
+      // hver for seg her, og til slutt at raden faktisk speiler lista.
+      const listeIder = () => page.evaluate(() =>
+        [...document.querySelectorAll('[data-rad-id]')].map((e) => e.getAttribute('data-rad-id')))
+      const etterPil = await listeIder()
+      if (etterPil[0] === forFor[0]) {
+        throw new Error(`ned-pila flyttet ingenting: ${etterPil.join(',')}`)
+      }
+
+      // DRAGET MÅ SES, ellers er det ikke et drag (v6.6.1). Fram til v6.6.0
+      // sorterte lista seg live under fingeren: raden man holdt i sto stille
+      // mens naboene byttet plass rundt den, og eieren meldte at han knapt så
+      // at noe var sortert. De to tingene som gjør det synlig — at raden man
+      // drar i FØLGER fingeren, og at et spøkelse holder plassen den forlot —
+      // finnes ikke i noen enhetstest: det ene er en `transform` skrevet fra
+      // en pekerhendelse, det andre et element som bare finnes mens man drar.
+      const drag = await (async () => {
+        const grep = page.locator('[data-rad] [aria-hidden="true"].cursor-grab').first()
+        const boks = await grep.boundingBox()
+        if (!boks) return { feil: 'fant ikke drag-grepet i sorteringslista' }
+        await page.mouse.move(boks.x + boks.width / 2, boks.y + boks.height / 2)
+        await page.mouse.down()
+        await page.mouse.move(boks.x + boks.width / 2, boks.y + boks.height / 2 + 20, { steps: 4 })
+        await page.mouse.move(boks.x + boks.width / 2, boks.y + boks.height / 2 + 70, { steps: 8 })
+        const midt = await page.evaluate(() => {
+          const drar = document.querySelector('.sorter-rad--drar')
+          const spok = document.querySelector('.sorter-ghost')
+          const m = /translateY\((-?[\d.]+)px\)/.exec(drar?.style.transform || '')
+          return { dy: m ? Number(m[1]) : null, spokelse: !!spok }
+        })
+        await page.mouse.up()
+        await page.waitForTimeout(400)
+        return midt
+      })()
+      if (drag.feil) throw new Error(drag.feil)
+      if (!(Math.abs(drag.dy ?? 0) > 40)) {
+        throw new Error(`raden man drar i fulgte ikke fingeren (translateY ${drag.dy}) `
+          + '— da er det bare naboene som beveger seg, altså feilen fra v6.6.0')
+      }
+      if (!drag.spokelse) {
+        throw new Error('ingen spøkelses-boks der raden lå — lista kollapser i det draget starter')
+      }
+
+      const etterDrag = await listeIder()
+      if (etterDrag.join(',') === etterPil.join(',')) {
+        throw new Error(`draget flyttet ingenting: ${etterDrag.join(',')}`)
+      }
+
       await lukkFunksjonsSkuff(page, 'Sorter snarveier')
       const etter = (await les()).ider
-      if (etter[0] === forFor[0]) {
-        throw new Error(`rekkefølgen endret seg ikke: ${forFor.join(',')} → ${etter.join(',')}`)
+      if (etter.join(',') !== etterDrag.slice(0, etter.length).join(',')) {
+        throw new Error(`raden speiler ikke den lagrede rekkefølgen: `
+          + `${etter.join(',')} mot ${etterDrag.join(',')}`)
       }
 
       // Rydd etter seg — neste sjekk skal møte standard rekkefølge, og en
       // localStorage-nøkkel som blir liggende gjør sjekker etter denne
       // avhengige av hvilken rekkefølge DENNE endte på.
-      await klikkTekst(page, /^(Mer|Vis .*snarvei)/i)
+      await klikkTekst(page, /^(\d+\s*)?Mer$|^Vis .*snarvei/i)
       await klikkTekst(page, /^Sorter snarveier$/)
       await klikkTekst(page, /^Tilbakestill til standard rekkefølge$/)
       await lukkFunksjonsSkuff(page, 'Sorter snarveier')
       const slutt = (await les()).ider
       if (slutt[0] !== forFor[0]) throw new Error('tilbakestillingen ga ikke standard rekkefølge')
-      return `${funn.join(', ')}; sortering flyttet ${forFor[0]} og tilbakestilte`
+      return `${funn.join(', ')}; sortering flyttet ${forFor[0]}, `
+        + `draget fulgte fingeren (${Math.round(drag.dy)}px) med spøkelse, og tilbakestilte`
     },
   },
   {
@@ -1343,8 +1397,8 @@ const SJEKKER = [
     // EGEN KONTEKST MED `hasTouch`, fordi zoom-søyla er berøringens kontroll:
     // standard-konteksten rapporterer `pointer: fine` og får desktop-søyla i
     // stedet, så sjekken ville hoppet stille over det den finnes for.
-    navn: 'kompassnåla står i hvile og følger arket',
-    domene: 'NavKnapper',
+    navn: 'kompassnåla i snarvei-raden står i hvile og følger arket',
+    domene: 'SnarveiRad (nav)',
     krever: 'ektekart',
     maksMs: 120_000,
     async kjør(page) {
@@ -1369,7 +1423,10 @@ const SJEKKER = [
           return {
             ark: mm ? Number(mm[1]) : 0,
             nal: nal ? (nm ? Number(nm[1]) : 0) : null,
-            rod: !!knapp?.querySelector('polygon[fill="#ef4444"]'),
+            // Nordhalvdelen er FYLT, sørhalvdelen er et omriss. Blir de like,
+            // har nåla ingen retning å lese — og i et 20 px ikon i raden er
+            // det den ene tingen som skiller den fra en rombe.
+            rod: !!knapp?.querySelector('polygon[fill="currentColor"]'),
             synlig: !!knapp?.getBoundingClientRect().width,
           }
         })
@@ -1380,7 +1437,7 @@ const SJEKKER = [
             + 'står den bak en port igjen?')
         }
         if (!hvile.synlig) throw new Error('kompassknappen finnes i DOM-en, men har ingen boks')
-        if (!hvile.rod) throw new Error('kompassknappen mangler den røde nordspissen')
+        if (!hvile.rod) throw new Error('kompassnåla mangler den fylte nordspissen')
 
         // Kartet dreies med syntetiske TouchEvents (usePinchZoom lytter med
         // { passive: false }); vi slipper fingrene igjen, for her måles
@@ -1439,32 +1496,29 @@ const SJEKKER = [
     },
   },
   {
-    // KOMPASSKIVA LESER MOT KARTET, IKKE MOT APP-CHROMET (v6.5.67).
+    // NAV-GRUPPEN ER FAST, OG DET ER HELE POENGET (v6.6.1).
     //
-    // Knappen har ingen egen flate lenger — skiva i nåla ER knappen — og da er
-    // det arkets valør den må stå mot: et mørkt kart kan godt leses i en lys
-    // UI, og en hvit skive ville da vært et hull i kartet. Feilen er nettopp
-    // den lette å gjøre: `bg-surface-2` eller `isDark` fra en tema-klasse ser
-    // riktig ut helt til de to er i utakt, og da er sjekken den eneste som ser
-    // det. Derfor BYTTER sjekken kartstil og måler fyllet begge veier.
+    // Posisjon og «nord opp» lå som to runde skiver på arket til v6.6.0. I
+    // raden er de en gruppe med to invarianter som ingen enhetstest ser, og
+    // som begge er lette å «rydde» bort:
     //
-    // Den måler i tillegg at skiva er like bred som posisjons-knappen over:
-    // de står på samme akse, og en smalere skive leser som en tredje, mindre
-    // knapp. Zoom-pilla den før ble målt mot er fjernet i v6.5.68.
+    //   1. DE KOLLAPSER ALDRI. Måler raden feil, eller sorterer man Stifinner
+    //      først på en smal skjerm, havner en vanlig snarvei bak «Mer» — og
+    //      det skal aldri kunne skje med posisjonen. Derfor måles gruppa ved
+    //      360 px, altså den smaleste telefonen vi bryr oss om.
+    //   2. PÅ ER EN AKSENTFLATE MED HVITT INNHOLD, ikke en fargeforskjell i
+    //      ikonet. Av og på må skilles av noe større enn en strek, og hvitt
+    //      på flaten må bestå WCAG 1.4.11 sitt 3:1 for grafiske objekter.
     //
-    // OG DEN MÅLER AT PIN-EN SKIFTER FARGE OG FYLL (v6.5.68, utvidet i
-    // v6.5.69). Knappen er hele svaret på «er posisjonen på?», og av/på
-    // skilles bare av ikonet — en grå pin og en blå pin er samme markup. Blir
-    // de like, er det ingenting igjen som sier hvilken tilstand man står i,
-    // og ingen enhetstest ser det.
-    //
-    // EGEN KONTEKST MED `hasTouch` — samme grunn som sjekken over.
-    navn: 'kompasskiva følger kartets valør, og pin-en sier av/på',
-    domene: 'NavKnapper',
+    // EGEN KONTEKST MED `hasTouch` — samme grunn som sjekken over: kompasset
+    // gis bare til berøring, så standard-konteksten ville hoppet stille over
+    // halve gruppa.
+    navn: 'nav-gruppen i raden kollapser aldri, og på er en aksentflate',
+    domene: 'SnarveiRad (nav)',
     maksMs: 120_000,
     async kjør(page) {
       const ctx = await page.context().browser().newContext({
-        viewport: { width: 430, height: 900 },
+        viewport: { width: 360, height: 780 },
         hasTouch: true,
         isMobile: false,
         permissions: ['geolocation'],
@@ -1478,27 +1532,45 @@ const SJEKKER = [
         await lukkDrawer(p2)
 
         const les = () => p2.evaluate(() => {
-          const knapp = document.querySelector('button[aria-label^="Vend kartet mot nord"]')
-          if (!knapp) return null
-          const gps = document.querySelector('button[aria-label^="Posisjon "]')
-          const skive = knapp.querySelector('circle')
+          const gps = document.querySelector('[data-nav-id="posisjon"]')
+          const nord = document.querySelector('[data-nav-id="kompass"]')
+          if (!gps) return null
+          const r = gps.getBoundingClientRect()
+          const cs = getComputedStyle(gps)
+          const ikon = gps.querySelector('svg')
           return {
-            fyll: skive ? getComputedStyle(skive).fill : null,
-            bredde: Math.round(knapp.getBoundingClientRect().width),
-            gpsBredde: gps ? Math.round(gps.getBoundingClientRect().width) : null,
-            pin: gps ? getComputedStyle(gps.querySelector('path')).stroke : null,
-            pinFyll: gps ? getComputedStyle(gps.querySelector('path')).fill : null,
-            gpsSkive: gps ? getComputedStyle(gps.querySelector('circle')).fill : null,
+            synlig: r.width > 0 && r.left >= -1 && r.right <= window.innerWidth + 1,
+            nordSynlig: !!nord && nord.getBoundingClientRect().width > 0,
+            flate: cs.backgroundColor,
+            blekk: ikon ? getComputedStyle(ikon).stroke : null,
+            trykt: gps.getAttribute('aria-pressed'),
+            // Står gruppa på samme linje som resten av raden?
+            topp: Math.round(r.top),
+            radTopper: [...document.querySelectorAll('[data-linje]')]
+              .filter(e => e.getBoundingClientRect().width > 0)
+              .map(e => Math.round(e.getBoundingClientRect().top)),
           }
         })
-        const lum = (farge) => {
-          const m = /(-?[\d.]+)[,\s]+(-?[\d.]+)[,\s]+(-?[\d.]+)/.exec(farge || '')
-          return m ? 0.2126 * +m[1] + 0.7152 * +m[2] + 0.0722 * +m[3] : null
+
+        const av = await les()
+        if (!av) throw new Error('fant ingen posisjons-knapp i snarvei-raden')
+        if (!av.synlig) throw new Error('posisjons-knappen er kollapset eller ligger utenfor skjermen')
+        if (!av.nordSynlig) throw new Error('nord-knappen mangler på en berøringsflate')
+        if (new Set(av.radTopper).size !== 1) {
+          throw new Error(`snarvei-raden brøt til ${new Set(av.radTopper).size} linjer ved 360 px `
+            + '— den sammenlagte raden skal stå på én')
         }
-        // WCAG-kontrast, med den EKTE gamma-lineariseringen. `lum` over er en rå
-        // vekting av 0–255 og holder til «snudde skiva med kartet», men den kan
-        // ikke svare på om hvitt er lesbart på en gitt aksentfarge — der er
-        // forskjellen mellom rå og linearisert flere hele trinn.
+        if (av.trykt !== 'false') throw new Error(`posisjonen sier aria-pressed="${av.trykt}" i hvile`)
+
+        await p2.locator('[data-nav-id="posisjon"]').click()
+        await p2.waitForTimeout(600)
+        const pa = await les()
+        if (pa.trykt !== 'true') throw new Error('et trykk på posisjonen slo den ikke på')
+        if (pa.flate === av.flate) {
+          throw new Error(`av og på har samme flate (${pa.flate}) — tilstanden bæres av `
+            + 'aksentflaten, ikke av ikonet')
+        }
+
         const kontrast = (a, b) => {
           const rel = (farge) => {
             const m = /(-?[\d.]+)[,\s]+(-?[\d.]+)[,\s]+(-?[\d.]+)/.exec(farge || '')
@@ -1513,94 +1585,16 @@ const SJEKKER = [
           if (x == null || y == null) return null
           return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
         }
-
-        const settKartstil = async (re) => {
-          await åpneDrawer(p2)
-          await klikkTekst(p2, /^KARTSTIL$/)
-          await klikkTekst(p2, re)
-          await p2.waitForTimeout(700)
-          await lukkDrawer(p2)
-          await p2.waitForTimeout(250)
+        const k = kontrast(pa.blekk, pa.flate)
+        if (k != null && k < 3) {
+          throw new Error(`ikonet gir ${k.toFixed(2)}:1 mot den påslåtte flaten `
+            + '— WCAG 1.4.11 krever 3:1 for grafiske objekter')
         }
 
-        await settKartstil(/^Turkart/)
-        const lyst = await les()
-        if (!lyst) throw new Error('fant ingen kompassknapp i en berøringskontekst')
-        if (lyst.gpsBredde == null) throw new Error('fant ingen posisjons-knapp over kompasset')
-        if (lyst.bredde !== lyst.gpsBredde) {
-          throw new Error(`kompassknappen er ${lyst.bredde} px og posisjons-knappen `
-            + `${lyst.gpsBredde} px — de står på samme akse og skal være like brede`)
-        }
-        const lysLum = lum(lyst.fyll)
-        if (lysLum == null) throw new Error(`kunne ikke lese skivas fyll: "${lyst.fyll}"`)
-
-        // Mørkt kart: en stemning oppå. Nå skal skiva ha snudd til grå.
-        await åpneDrawer(p2)
-        await klikkTekst(p2, /^STEMNING$/)
-        const stemning = await p2.evaluate(() => {
-          const b = [...document.querySelectorAll('button')].find((e) =>
-            e.offsetParent && /^(Mørk|Curves|Forest|Indigo|Petrol|Mocha)$/i.test(e.innerText.trim()))
-          if (!b) return ''
-          b.click(); return b.innerText.trim()
-        })
-        if (!stemning) throw new Error('fant ingen mørk stemning å bytte til')
-        await p2.waitForTimeout(900)
-        await lukkDrawer(p2)
-        await p2.waitForTimeout(250)
-        const morkLum = lum((await les()).fyll)
-        if (morkLum == null) throw new Error('kunne ikke lese skivas fyll på et mørkt kart')
-
-        if (lysLum - morkLum < 100) {
-          throw new Error(`skiva snudde ikke med kartet: lum ${lysLum.toFixed(0)} på Turkart mot `
-            + `${morkLum.toFixed(0)} på «${stemning}» — leser den app-chromet i stedet for kart-temaet?`)
-        }
-        // SKIVA BÆRER AV/PÅ, IKONET STÅR STILLE (v6.5.70). To utgaver før denne
-        // la skillet i pin-en selv — først som farge alene, så som et blått
-        // fyll — og eieren leste begge dårlig på en telefon i sola. Nå er det
-        // FLATEN som skifter, og de tre tingene som kan ryke stille er nettopp
-        // dem det måles på her: at skiva faktisk skifter, at ikonet IKKE blir
-        // fylt igjen (et fyll ville lagt en flekk oppå aksentfargen), og at
-        // streken er lesbar mot flaten den ligger på.
-        const førPå = await les()
-        const av = førPå.pin
-        const avSkive = førPå.gpsSkive
-        if (!avSkive) throw new Error('fant ingen skive i posisjons-knappen')
-        if (avSkive !== førPå.fyll) {
-          throw new Error(`posisjons-skiva (${avSkive}) og kompass-skiva (${førPå.fyll}) er `
-            + 'ulike mens posisjonen er AV — i hvile skal de to være samme flate')
-        }
-        if (førPå.pinFyll && førPå.pinFyll !== 'none') {
-          throw new Error(`pin-ikonet er fylt (${førPå.pinFyll}) — det skal være et omriss `
-            + 'i BEGGE tilstandene, det er skiva som skifter')
-        }
-        await p2.locator('button[aria-label^="Posisjon av"]').first().click()
-        await p2.waitForTimeout(1500)
-        const etterPå = await les()
-        const på = etterPå.pin
-        const påSkive = etterPå.gpsSkive
-        if (!av || !på) throw new Error('fant ingen strekfarge i pin-ikonet')
-        if (påSkive === avSkive) {
-          throw new Error(`skiva er ${påSkive} både av og på — da sier knappen `
-            + 'ingenting om tilstanden')
-        }
-        if (etterPå.pinFyll && etterPå.pinFyll !== 'none') {
-          throw new Error(`pin-ikonet ble fylt (${etterPå.pinFyll}) da posisjonen ble slått på `
-            + '— PÅ bæres av skiva, ikonet skal stå stille')
-        }
-        if (av === på) {
-          throw new Error(`pin-ikonet har samme strekfarge av og på (${av}) — `
-            + 'streken skal snu med flaten under den')
-        }
-        const kr = kontrast(på, påSkive)
-        if (kr == null) throw new Error(`kunne ikke måle kontrast mellom ${på} og ${påSkive}`)
-        if (kr < 3) {
-          throw new Error(`pin-ikonet har ${kr.toFixed(2)}:1 mot den aktive skiva — `
-            + 'WCAG 1.4.11 krever 3:1 for grafiske objekter')
-        }
-
-        return `${lyst.bredde} px som posisjons-knappen; skive-lum ${lysLum.toFixed(0)} (Turkart) → `
-          + `${morkLum.toFixed(0)} («${stemning}»); posisjon av ${avSkive} → på ${påSkive}, `
-          + `ikon ${kr.toFixed(1)}:1`
+        // Nøytral tilstand: posisjonen skrur seg ikke av selv.
+        await p2.locator('[data-nav-id="posisjon"]').click()
+        await p2.waitForTimeout(300)
+        return `én linje ved 360 px, av→på bytter flate (${pa.flate}), ikon ${k ? k.toFixed(1) : '?'}:1`
       } finally {
         await ctx.close()
       }

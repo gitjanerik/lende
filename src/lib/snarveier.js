@@ -36,6 +36,30 @@ export const SNARVEIER = [
 export const STANDARD_REKKEFOLGE = SNARVEIER.map(s => s.id)
 
 /**
+ * NAVIGASJONSKNAPPENE ER EN FAST GRUPPE, IKKE SNARVEIER (v6.6.1).
+ *
+ * Posisjon og «nord opp» sto som to runde skiver rett på arket (NavKnapper,
+ * v6.5.68) og lå i veien for kartet. De hører hjemme i raden — men de er ikke
+ * det samme som resten av den, og forskjellen må være synlig:
+ *
+ *   • De GJØR ikke noe med kartet, de SLÅR NOE PÅ. Derfor bærer de en
+ *     tilstand (`aktiv`), og aksentflaten som sier PÅ er den samme grønne som
+ *     hver eneste vippebryter i skuffene.
+ *   • De sorteres IKKE og kollapser ALDRI inn i nedtrekket. Posisjonen er den
+ *     ene knappen man rekker etter mens man går, og en knapp som havner bak
+ *     «Mer» fordi man sorterte Stifinner først er en knapp man ikke finner i
+ *     regnvær. Derfor står de først, foran en skillelinje, og derfor er de
+ *     ikke med i `SNARVEIER`.
+ *
+ * `kunRotasjon` er kompassets port: uten en azimut å nullstille — desktop har
+ * retningsrosa, og en modus uten rotasjon har ingen retning — faller den bort.
+ */
+export const NAV_SNARVEIER = [
+  { id: 'posisjon', label: 'Posisjon', aria: 'Posisjon' },
+  { id: 'kompass',  label: 'Nord',     aria: 'Vend kartet mot nord', kunRotasjon: true },
+]
+
+/**
  * Normaliserer en lagret rekkefølge mot katalogen: ukjente ider droppes (en
  * funksjon kan ha blitt fjernet), og nye legges BAKERST i katalogens egen
  * rekkefølge. Å legge dem først ville flyttet på noe brukeren har sortert.
@@ -71,15 +95,16 @@ export function flyttSnarvei(rekkefolge, fra, til) {
 /**
  * Hvor mange knapper får plass på ÉN linje ved siden av nedtrekks-knappen.
  *
- * Budsjettet er hele radens bredde minus knappen, og gapet betales for hvert
+ * Budsjettet er hele radens bredde minus nedtrekket og minus den faste
+ * nav-gruppen (`fastPx`, med sitt eget mellomrom), og gapet betales for hvert
  * mellomrom og ikke per knapp — en av-for-én her er én knapp for mye, altså
  * nøyaktig den overflowen målingen finnes for å unngå. Gulvet er ÉN: en rad
  * uten en eneste synlig funksjon er bare et nedtrekk, og da har raden ingen
  * grunn til å stå der.
  */
-export function antallSomFar(bredder, ledigPx, handlePx, gapPx) {
+export function antallSomFar(bredder, ledigPx, handlePx, gapPx, fastPx = 0) {
   if (!bredder.length) return 0
-  let plass = ledigPx - handlePx - gapPx
+  let plass = ledigPx - handlePx - gapPx - (fastPx ? fastPx + gapPx : 0)
   let n = 0
   for (const b of bredder) {
     const kost = n === 0 ? b : b + gapPx
@@ -91,12 +116,16 @@ export function antallSomFar(bredder, ledigPx, handlePx, gapPx) {
 }
 
 /**
- * Hvilken plass et drag over sorterings-lista peker på. `sentre` er hvert
- * elements midtpunkt i samme y-rom som `y`. Ren funksjon, fordi den ellers
- * bare kan prøves med en finger.
+ * Hvilken plass et drag peker på, regnet av HVOR LANGT fingeren har flyttet
+ * seg og ikke av hvor de andre radene ligger nå.
+ *
+ * Det er forskjellen på en liste som sorterer seg live og en som viser hva som
+ * kommer til å skje: her flyttes ingenting før fingeren slippes, så radhøyden
+ * er konstant hele draget og indeksen er ren aritmetikk. En måling av
+ * midtpunktene ville lest av rader som selv er forskjøvet av draget.
  */
-export function dropIndeks(sentre, y) {
-  let i = 0
-  while (i < sentre.length && y > sentre[i]) i++
-  return Math.max(0, Math.min(sentre.length - 1, i))
+export function flytteIndeks(fra, dy, radHoyde, antall) {
+  if (!(radHoyde > 0) || antall <= 0) return fra
+  const til = fra + Math.round(dy / radHoyde)
+  return Math.max(0, Math.min(antall - 1, til))
 }

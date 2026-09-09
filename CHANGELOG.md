@@ -1,3 +1,36 @@
+## 2026-09-09 — v6.6.1: Nav-knappene inn i raden, og sorteringen viser hva den gjør
+
+Posisjon og «nord opp» sto som to runde skiver midt på arkets høyre kant og lå
+i veien for kartet de sto på. De er flyttet inn i snarvei-raden som en FAST
+gruppe: samme ikon-over-etikett-form som resten, men foran en skillelinje og
+med aksentgrønn flate når de er på — de bærer en tilstand, resten gjør noe. De
+sorteres ikke og kollapser aldri inn i nedtrekket, for posisjonen er den ene
+knappen man rekker etter mens man går.
+
+Den sammenlagte raden brøt til to linjer på en vanlig telefon. Ettersjekken
+spurte «er raden bredere enn budsjettet?», og med `flex-wrap: wrap` som
+sikkerhetsnett kan den per konstruksjon aldri bli det — den bryter i stedet.
+Den leser nå `offsetTop`: er ikke alle knappene på samme linje, er prognosen én
+for høy. Men målingen var uansett ikke den skyldige: raden hang i den vanlige
+midtstillings-innpakningen, `left: 50%` med en transform tilbake — og et
+absolutt plassert element med `left: 50%` får bare halve viewporten som
+tilgjengelig bredde. Raden hadde 180 px å bryte innenfor på en 360 px-skjerm,
+uansett hvor riktig den regnet. Den har nå sin egen innpakning i full bredde
+med samme midtpunkt, og står på én linje.
+
+GPS-prikken i lende-knappens øverste knott er borte: posisjonen har nå en fast
+av/på-knapp i raden, og to steder som sier det samme kommer i utakt.
+
+Sorteringen flyttet lista LIVE under fingeren, så det eneste som beveget seg
+var radene man IKKE holdt i. Nå er det motsatt: raden man drar i løftes ut av
+flyten og følger fingeren, et stiplet spøkelse blir igjen der den lå så lista
+ikke kollapser, de andre radene glir til side for å vise hvor den vil lande, og
+spøkelset tones stille ut når slippet er commitet. Nummereringen er borte og
+opp/ned-knappene er 32 px, slik at raden holder seg innenfor boksen sin også
+ved 200 % tekst.
+
+---
+
 ## 2026-09-09 — v6.6.0: Funksjon og innstilling er to ulike ting
 
 Turkart-modusen hadde Måling, Sporing og Annotering som faner i innstillings-

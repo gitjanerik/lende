@@ -20,12 +20,30 @@
 //    egen bredde og jaget sin egen hale (værrad-fella, v6.3.12). Derfor
 //    `innerWidth − KANT_PX`, og derfor ETTERSJEKKEN under: prognosen
 //    kontrolleres mot den ekte rendrede bredden.
+//    MEN DA MÅ INNPAKNINGEN VÆRE FULL BREDDE (v6.6.1). Raden lå i den vanlige
+//    `left: 50%` + `-translate-x-1/2`-innpakningen, og et absolutt plassert
+//    element med `left: 50%` får bare halve viewporten som tilgjengelig
+//    bredde — 180 px på en 360 px-skjerm. Raden brøt til to linjer med et
+//    budsjett på 336 px og et innhold på 292. Kallstedet i MapView bruker nå
+//    `snarveiRadStyle` (full bredde + `justify-center`); flytter du raden,
+//    må den innpakningen bli med.
 // 3. KNAPPENE MÅLES SYNLIGE. En skjult knapp har bredde 0, så første måling
 //    (og hver ommåling) skjer med alle knappene i DOM-en; raden står
 //    `visibility: hidden` det ene bildet det tar. Tekstskala og fontlasting
 //    endrer bredden, så begge utløser ommåling.
-// 4. UTVIDET BRUKER `flex-wrap: balance`. Faller den ut (eldre nettleser),
-//    står `wrap` igjen i deklarasjonen over — samme rader, bare ujevnt fylt.
+// 4. RADEN BRYTER, DEN KLIPPER ALDRI. `flex-wrap: wrap` står i BEGGE
+//    tilstandene som sikkerhetsnett, med `flex-wrap: balance` lagt oppå i den
+//    utvidede (Chrome/Safari; andre forkaster linja og beholder `wrap`).
+//    MERK AT SIKKERHETSNETTET GJØR ETTERSJEKKEN BLIND FOR BREDDE (v6.6.1): en
+//    rad som bryter blir aldri bredere enn taket sitt, så `bredde > budsjett`
+//    kan per konstruksjon ikke bli sant. Den sammenlikningen sto her i v6.6.0,
+//    og resultatet var en sammenlagt rad på to linjer på eierens telefon.
+//    Ettersjekken leser derfor `offsetTop`: er ikke alle knappene på samme
+//    linje, er prognosen én for høy.
+// 5. NAV-GRUPPEN ER FAST OG TELLES IKKE MED. Posisjon og «nord opp» står
+//    først, foran en skillelinje, og kollapser aldri — se `NAV_SNARVEIER`.
+//    De spiser derimot av budsjettet (`fastPx`), ellers ville målingen lovt
+//    plass til knapper gruppa allerede har tatt.
 // ─────────────────────────────────────────────────────────────────────────────
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import SnarveiIkon from './SnarveiIkon.vue'
@@ -34,9 +52,13 @@ import { antallSomFar } from '../lib/snarveier.js'
 const props = defineProps({
   // [{ id, label, aria }] i brukerens rekkefølge.
   snarveier: { type: Array, required: true },
+  // Den faste gruppen: [{ id, label, aria, aktiv }] — se punkt 5 i filhodet.
+  nav: { type: Array, default: () => [] },
+  // Hvor nord ligger på skjermen, i grader med klokka. Roterer kompassnåla.
+  azimut: { type: Number, default: 0 },
   uiTextScale: { type: Number, default: 1 },
 })
-const emit = defineEmits(['velg', 'sorter'])
+const emit = defineEmits(['velg', 'nav', 'sorter'])
 
 // Margin til hver skjermkant. Raden er sentrert, så halve verdien per side.
 const KANT_PX = 24
@@ -44,8 +66,10 @@ const KANT_PX = 24
 const apen = ref(false)
 const radRef = ref(null)
 const handleRef = ref(null)
+const fastRef = ref(null)
 const bredder = ref([])
 const handlePx = ref(0)
+const fastPx = ref(0)
 const gapPx = ref(4)
 const ledigPx = ref(0)
 const maalt = ref(false)
@@ -55,7 +79,8 @@ const korreksjon = ref(0)
 
 const antallSynlig = computed(() => {
   if (!maalt.value || apen.value) return props.snarveier.length
-  const n = antallSomFar(bredder.value, ledigPx.value, handlePx.value, gapPx.value)
+  const n = antallSomFar(bredder.value, ledigPx.value, handlePx.value,
+                        gapPx.value, fastPx.value)
   return Math.max(1, n - korreksjon.value)
 })
 const antallSkjult = computed(() =>
@@ -73,6 +98,7 @@ function maal() {
   const padd = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0)
   ledigPx.value = Math.max(0, (window.innerWidth || 360) - KANT_PX - padd)
   handlePx.value = handleRef.value?.getBoundingClientRect().width || 0
+  fastPx.value = fastRef.value?.getBoundingClientRect().width || 0
   const el = [...rad.querySelectorAll('[data-snarvei]')]
   if (el.length !== props.snarveier.length) return
   bredder.value = el.map(e => e.getBoundingClientRect().width)
@@ -81,17 +107,24 @@ function maal() {
   void etterSjekk()
 }
 
-// Prognosen ettersjekkes mot den ekte layouten. Løkka er begrenset av gulvet
-// i `antallSynlig` (minst én knapp), så den kan ikke gå rundt for alltid.
+// Prognosen ettersjekkes mot den EKTE layouten, og spørsmålet er «står alt på
+// samme linje?» og ikke «er raden for bred?» — se punkt 4 i filhodet. Løkka er
+// begrenset av gulvet i `antallSynlig` (minst én knapp), så den kan ikke gå
+// rundt for alltid.
+function paaEnLinje(rad) {
+  const el = [...rad.querySelectorAll('[data-linje]')]
+    .filter(e => e.offsetParent !== null || e.getClientRects().length)
+  if (el.length < 2) return true
+  const topp = Math.round(el[0].getBoundingClientRect().top)
+  return el.every(e => Math.abs(Math.round(e.getBoundingClientRect().top) - topp) <= 1)
+}
+
 async function etterSjekk() {
   for (let runde = 0; runde < props.snarveier.length; runde++) {
     await nextTick()
     const rad = radRef.value
     if (!rad || apen.value) return
-    // Radens boks INKLUDERER polstringen, mens `ledigPx` er trukket fra den —
-    // så sammenlikningen må gå mot hele budsjettet, ikke mot innholdsbredden.
-    const bredde = rad.getBoundingClientRect().width
-    if (bredde <= (window.innerWidth || 360) - KANT_PX + 0.5) return
+    if (paaEnLinje(rad)) return
     if (antallSynlig.value <= 1) return
     korreksjon.value += 1
   }
@@ -120,6 +153,9 @@ function velg(id) {
   apen.value = false
   emit('velg', id)
 }
+function navTrykk(id) {
+  emit('nav', id)
+}
 function sorter() {
   apen.value = false
   emit('sorter')
@@ -134,8 +170,31 @@ function sorter() {
          :class="apen ? 'snarvei-rad--apen' : ''"
          :style="{ visibility: maalt ? 'visible' : 'hidden',
                    maxWidth: `calc(100vw - ${KANT_PX}px)` }">
+      <!-- DEN FASTE NAV-GRUPPEN (v6.6.1). Samme ikon-over-etikett-form som
+           resten av raden, men to ting skiller den, og begge er med vilje:
+           knappene bærer en TILSTAND (aksentgrønn flate + `aria-pressed`,
+           samme mønster som vippebryterne i skuffene), og de står foran en
+           skillelinje som sier at de ikke hører til det som kan sorteres. -->
+      <template v-if="nav.length">
+        <div ref="fastRef" class="flex items-stretch gap-1">
+          <button v-for="n in nav" :key="n.id" data-linje data-nav
+                  :data-nav-id="n.id" type="button"
+                  @click="navTrykk(n.id)" :aria-pressed="!!n.aktiv"
+                  :aria-label="n.ariaTekst || n.aria"
+                  class="shortcut-btn shortcut-btn--nav"
+                  :class="n.aktiv ? 'shortcut-btn--pa' : ''">
+            <SnarveiIkon :id="n.id" class="w-5 h-5"
+                         :style="n.id === 'kompass'
+                           ? { transform: `rotate(${azimut}deg)`, transition: 'transform 0.2s linear' }
+                           : null" />
+            <span>{{ n.label }}</span>
+          </button>
+        </div>
+        <div class="shrink-0 self-stretch w-px my-1 bg-ink/20" aria-hidden="true"></div>
+      </template>
+
       <button v-for="(s, i) in snarveier" :key="s.id"
-              data-snarvei :data-snarvei-id="s.id"
+              data-snarvei :data-snarvei-id="s.id" data-linje
               v-show="synlig(i)"
               @click="velg(s.id)" :aria-label="s.aria"
               class="shortcut-btn">
@@ -145,7 +204,7 @@ function sorter() {
 
       <!-- Nedtrekket. Står ALLTID, også når ingenting er skjult — se punkt 1
            i filhodet. Tallet i merket sier hvor mange som ligger bak. -->
-      <button ref="handleRef" type="button"
+      <button ref="handleRef" type="button" data-linje
               @click="apen = !apen" :aria-expanded="apen"
               :aria-label="apen
                 ? 'Skjul flere snarveier'
@@ -212,6 +271,14 @@ function sorter() {
 .shortcut-btn:active { transform: scale(0.94); }
 .shortcut-btn:hover { background: color-mix(in oklab, var(--color-ink) 8%, transparent); }
 .shortcut-btn--handle { min-width: 44px; color: var(--color-ink-2, var(--color-ink)); }
+
+/* NAV-GRUPPEN: av er nøytral, på er appens aksentgrønne med hvitt innhold —
+   samme par som hver vippebryter i skuffene og som de gamle runde skivene
+   (v6.5.70). Emerald-600 og ikke -500: hvitt på -500 gir 2,6:1, altså under
+   WCAG 1.4.11 sitt krav på 3:1 for grafiske objekter. */
+.shortcut-btn--nav { min-width: 50px; }
+.shortcut-btn--pa { background: #059669; color: #fff; }
+.shortcut-btn--pa:hover { background: #047857; }
 
 /* SIKKERHETSNETTET: raden BRYTER, den klipper aldri. Målingen skal gjøre at
    den sammenlagte raden holder seg på én linje, men bommer den — en font som

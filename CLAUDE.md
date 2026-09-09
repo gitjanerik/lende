@@ -351,6 +351,18 @@ ikke en affordanse, mens en pil ned er det. Fire ting er lette å «forenkle» b
    og jaget sin egen hale (værrad-fella, v6.3.12). Derfor
    `innerWidth − KANT_PX`, og derfor ettersjekken mot den ekte rendrede bredden:
    avrunding gjør prognosen ett hakk optimistisk.
+   **MEN DA MÅ FORELDEREN FAKTISK VÆRE FULL BREDDE, og det var den ikke
+   (v6.6.1).** Raden hang i den vanlige midtstillings-innpakningen —
+   `position: absolute` med `left: 50%` og `-translate-x-1/2`, som resten av
+   `--ovl-top`-chipene bruker (`mapCenterStyle`). Et absolutt plassert element
+   med `left: 50%` og `right: auto` får bare avstanden fra `left` til
+   containerens høyrekant som tilgjengelig bredde: **180 px på en 360 px-skjerm.**
+   Transformen flytter boksen etterpå og gir ingenting tilbake. Raden brøt derfor
+   til to linjer med et budsjett på 336 px og et innhold på 292 — og hver
+   forklaring man leter etter i målingen er feil sted. Raden har nå sin EGEN
+   innpakning (`snarveiRadStyle`: `left: 0`, `right: <panelbredde>`, med
+   `justify-center`), som gir samme midtpunkt og hele bredden. Chipene som ikke
+   bryter kan gjerne bli i `mapCenterStyle`; en boks som bryter, kan ikke.
 3. **Knappene måles SYNLIGE.** En skjult knapp har bredde 0, så hver måling
    skjer med alle knappene i DOM-en og raden `visibility: hidden` det ene bildet
    det tar. Tekstskala og fontlasting endrer bredden, så begge utløser ommåling.
@@ -359,10 +371,44 @@ ikke en affordanse, mens en pil ned er det. Fire ting er lette å «forenkle» b
    linja og beholder `wrap`). Bommer målingen, koster det en ekstra linje —
    aldri en knapp utenfor skjermkanten.
 
+**POSISJON OG «NORD OPP» ER EN FAST GRUPPE I RADEN, ikke snarveier (v6.6.1).**
+De sto som to runde skiver på arkets høyre kant fra v6.5.68 — riktig tanke, feil
+sted: de lå midt i kartflata man leser. `NAV_SNARVEIER` i `lib/snarveier.js` er
+bevisst en EGEN liste og ikke to oppføringer i `SNARVEIER`, fordi de skiller seg
+på to måter som begge må være synlige: de SLÅR NOE PÅ (aksentgrønn flate +
+`aria-pressed`, samme par som hver vippebryter i skuffene) framfor å gjøre noe,
+og **de sorteres ikke og kollapser aldri inn i nedtrekket** — posisjonen er den
+ene knappen man rekker etter mens man går, og en knapp som havner bak «Mer»
+fordi man sorterte Stifinner først er en knapp man ikke finner i regnvær. De
+spiser derimot av målingens budsjett (`fastPx`), ellers ville raden lovt plass
+til knapper gruppa allerede har tatt. Kompasset faller bort uten rotasjon.
+
+**MERK AT SIKKERHETSNETTET GJØR ETTERSJEKKEN BLIND FOR BREDDE (v6.6.1).** Den
+spurte «er raden bredere enn budsjettet?», og med `flex-wrap: wrap` på kan det
+per konstruksjon ikke bli sant — raden bryter i stedet. Resultatet var en
+sammenlagt rad på to linjer på en vanlig telefon. Ettersjekken leser nå
+`offsetTop` på alt som er merket `data-linje`: er de ikke på samme linje, er
+prognosen én for høy.
+
 **Rekkefølgen er brukerens og persisteres** (`lende-snarvei-rekkefolge`).
 Sorteringen er dra-og-slipp MED opp/ned-knapper ved siden av: et drag uten et
 tastatur-alternativ er en funksjon som ikke finnes for den som ikke kan dra
 (SC 2.5.7).
+
+**DRAGET FLYTTER INGENTING FØR FINGEREN SLIPPES (v6.6.1).** Første utgave
+sorterte lista LIVE: raden man holdt i sto stille, mens de andre byttet plass
+rundt den — så det eneste som beveget seg var det man IKKE så på, og eieren
+meldte at han knapt så at noe var sortert. Nå løftes raden man drar i ut av
+flyten og følger fingeren, et stiplet SPØKELSE blir igjen der den lå (uten det
+kollapser lista i det draget starter, og alt under spretter opp et hakk før man
+har flyttet noe), de andre radene glir én radhøyde til side for å vise hvor den
+lander, og spøkelset tones ut når slippet er commitet. Fordi ingenting flytter
+seg underveis er radhøyden konstant og målindeksen ren aritmetikk
+(`flytteIndeks`) — den gamle måtte lese midtpunktene på nytt for hver bevegelse,
+fordi radene den målte selv var forskjøvet av draget. Nummereringen er borte og
+opp/ned er 32 px: 44 px-regelen gjelder knapper som står alene på et kart, ikke
+to naboer i en liste, og ved 200 % tekst var tallkolonna det som dyttet knappene
+ut av boksen.
 
 **Funksjons-skuffene deler ETT skall** (`FunksjonDrawer.vue`), og formen er
 punkt-arkets med vilje: 45 dvh starthøyde, dra-håndtak som er en EKTE knapp
