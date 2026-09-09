@@ -15,6 +15,12 @@ const props = defineProps({
   velgStil: { type: Function, required: true },
   aktivStiPalett: { type: String, default: 'tema' },
   velgStiPalett: { type: Function, required: true },
+  // De to frie fargevelgerne bodde i Strek-FAB-panelet fram til v6.5.82. De
+  // hører hjemme her: paletten og den frie fargen svarer på SAMME spørsmål, og
+  // to steder å stille det ga to «nullstill»-knapper som ikke visste om
+  // hverandre. «Følg tema» er nå den ene — den tømmer overstyringen.
+  trailSwatches: { type: Object, default: () => ({ fg: '#000000', bg: '#fbf7ec' }) },
+  setTrailColor: { type: Function, default: null },
 })
 
 const stiler = computed(() => KARTSTILER.map((s) => ({
@@ -56,9 +62,11 @@ const stiler = computed(() => KARTSTILER.map((s) => ({
     </div>
 
     <!-- ── Tilpass ──────────────────────────────────────────────────────
-         Den frie fg/bg-fargevelgeren bor fortsatt i Strek-FAB-panelet. Her
-         ligger de navngitte palettene, som er det valget folk faktisk tar:
-         to fargevelgere med 16 millioner verdier hver er ikke et valg. -->
+         De navngitte palettene først — det er valget folk faktisk tar; to
+         fargevelgere med 16 millioner verdier hver er ikke et valg. Den frie
+         velgeren står under, for den som vil noe eget. «Følg tema» er seksjonens
+         ENESTE nullstilling: den tømmer overstyringen på begge nivåer, og et
+         eget «Nullstill farger» ved siden av ville sagt det samme en gang til. -->
     <div class="text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1.5">
       Tilpass — sti-farge
     </div>
@@ -84,6 +92,31 @@ const stiler = computed(() => KARTSTILER.map((s) => ({
         </svg>
         <span class="text-[11px] truncate">{{ p.label }}</span>
       </button>
+    </div>
+
+    <!-- Fri farge: forgrunn = den stiplede streken (505/506/507), bakgrunn =
+         den kontinuerlige casing-linja under (505/506). Et valg her gjør
+         paletten «egendefinert» av seg selv — aktivStiPalett AVLEDES av de
+         faktiske fargene, så de to kan ikke komme i utakt. -->
+    <div v-if="setTrailColor" class="grid grid-cols-2 gap-2 mt-2">
+      <label class="flex items-center gap-2 rounded-lg bg-ink/5 border border-ink/10 px-2.5 py-2">
+        <input type="color" :value="trailSwatches.fg"
+               @input="setTrailColor('fg', $event.target.value)"
+               aria-label="Egen farge på sti-strek"
+               class="w-7 h-7 rounded shrink-0 bg-transparent border-0 p-0 cursor-pointer"/>
+        <span class="text-[11px] text-ink-2 leading-tight">Egen strek</span>
+      </label>
+      <label class="flex items-center gap-2 rounded-lg bg-ink/5 border border-ink/10 px-2.5 py-2">
+        <input type="color" :value="trailSwatches.bg"
+               @input="setTrailColor('bg', $event.target.value)"
+               aria-label="Egen farge på sti-bakgrunn"
+               class="w-7 h-7 rounded shrink-0 bg-transparent border-0 p-0 cursor-pointer"/>
+        <span class="text-[11px] text-ink-2 leading-tight">Egen bakgrunn</span>
+      </label>
+    </div>
+    <div class="text-[11px] text-ink-4 leading-snug mt-1.5">
+      «Følg tema» gir kartstilens egne sti-farger igjen. Stitråkk (svakeste sti)
+      har ingen bakgrunnslinje og påvirkes bare av strek-fargen.
     </div>
   </div>
 </template>

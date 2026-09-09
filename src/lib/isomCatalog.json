@@ -689,6 +689,26 @@
           "symbol": "holdeplass",
           "scaleMm": 2.0
         }
+      },
+      "561": {
+        "label": "B\u00e5trute",
+        "$comment": "Trafikkert b\u00e5t-/fergerute i sj\u00f8en \u2014 IKKE ISOM. OSM route=ferry og Turrutebasen-strekk der ruteF\u00f8lger er b\u00e5t/ferge. Sj\u00f8kart-konvensjonen: kontinuerlig hvit underlinje med lang bl\u00e5 stipling oppp\u00e5, s\u00e5 ruta leses som ferdsel og ikke som en dybdekurve. Dashen er lang med vilje \u2014 stiens korte ~6:5-stipling ville lest som en sti p\u00e5 vannet.",
+        "casingStroke": {
+          "color": "#ffffff",
+          "widthMm": 0.5,
+          "linecap": "round",
+          "linejoin": "round"
+        },
+        "stroke": {
+          "color": "#1d6fb8",
+          "widthMm": 0.3,
+          "dasharray": [
+            1.2,
+            0.9
+          ],
+          "linecap": "butt",
+          "linejoin": "round"
+        }
       }
     }
   },
@@ -1571,6 +1591,14 @@
       "backgroundApen": "#f6f4e8",
       "depthScale": ["#bfe0f0", "#a9d5ea", "#93cae4", "#7dbfde", "#67b4d8"],
       "categories": {
+        "561": {
+          "stroke": {
+            "color": "#1a5f96"
+          },
+          "casingStroke": {
+            "color": "#ffffff"
+          }
+        },
         "001": {
           "fill": {
             "color": "#dbe8c2"
@@ -1850,6 +1878,14 @@
       "background": "#efeadd",
       "depthScale": ["#8fcbe6", "#6fb7db", "#54a4d0", "#3d92c6", "#2a81bb"],
       "categories": {
+        "561": {
+          "stroke": {
+            "color": "#0d5b87"
+          },
+          "casingStroke": {
+            "color": "#ffffff"
+          }
+        },
         "001": {
           "fill": {
             "color": "#efeadd"
@@ -2129,6 +2165,14 @@
       "background": "#fcfbf7",
       "depthScale": ["#e2eef4", "#d2e5ee", "#c2dce8", "#b2d3e2", "#a2cadc"],
       "categories": {
+        "561": {
+          "stroke": {
+            "color": "#14568c"
+          },
+          "casingStroke": {
+            "color": "#ffffff"
+          }
+        },
         "001": {
           "fill": {
             "color": "#fcfbf7"
@@ -2420,6 +2464,14 @@
       "background": "#14181c",
       "depthScale": ["#295970", "#255169", "#214a64", "#1d415d", "#1a3856"],
       "categories": {
+        "561": {
+          "stroke": {
+            "color": "#7fd0ff"
+          },
+          "casingStroke": {
+            "color": "#0b2233"
+          }
+        },
         "001": {
           "fill": {
             "color": "#14181c"
@@ -2773,6 +2825,14 @@
       "background": "#f4e7ce",
       "depthScale": ["#afe4df", "#9fd9d3", "#8fcec8", "#7fc3bd", "#6eb9b2"],
       "categories": {
+        "561": {
+          "stroke": {
+            "color": "#4a3f2c"
+          },
+          "casingStroke": {
+            "color": "#f9f2e2"
+          }
+        },
         "001": {
           "fill": {
             "color": "#f4e7ce"
@@ -3129,6 +3189,14 @@
       "background": "#16203c",
       "depthScale": ["#153d48", "#023945", "#00333f", "#002e39", "#002933"],
       "categories": {
+        "561": {
+          "stroke": {
+            "color": "#9fb4e8"
+          },
+          "casingStroke": {
+            "color": "#0e1730"
+          }
+        },
         "001": {
           "fill": {
             "color": "#16203c"
@@ -3485,6 +3553,14 @@
       "background": "#0c2a2e",
       "depthScale": ["#1f4050", "#123b4e", "#00364c", "#003145", "#002b3e"],
       "categories": {
+        "561": {
+          "stroke": {
+            "color": "#8fc3c8"
+          },
+          "casingStroke": {
+            "color": "#06191c"
+          }
+        },
         "001": {
           "fill": {
             "color": "#0c2a2e"
@@ -3841,6 +3917,14 @@
       "background": "#39210e",
       "depthScale": ["#1b4642", "#09423d", "#003d38", "#003733", "#00312d"],
       "categories": {
+        "561": {
+          "stroke": {
+            "color": "#d9b48f"
+          },
+          "casingStroke": {
+            "color": "#26150a"
+          }
+        },
         "001": {
           "fill": {
             "color": "#39210e"
@@ -4197,6 +4281,14 @@
       "background": "#142a18",
       "depthScale": ["#164243", "#003e3f", "#003839", "#003333", "#002d2e"],
       "categories": {
+        "561": {
+          "stroke": {
+            "color": "#9fd0b0"
+          },
+          "casingStroke": {
+            "color": "#0c1c10"
+          }
+        },
         "001": {
           "fill": {
             "color": "#142a18"
@@ -4553,6 +4645,14 @@
       "background": "#0d0520",
       "depthScale": ["#0d1d2d", "#07192b", "#02152a", "#001128", "#000d25"],
       "categories": {
+        "561": {
+          "stroke": {
+            "color": "#8a86a8"
+          },
+          "casingStroke": {
+            "color": "#1a0f33"
+          }
+        },
         "001": {
           "fill": {
             "color": "#0d0520"

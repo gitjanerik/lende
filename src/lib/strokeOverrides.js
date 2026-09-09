@@ -15,6 +15,7 @@ export const STROKE_GROUPS = Object.freeze([
   { id: 'verne',    label: 'Naturreservat-omriss', codes: ['520'] },
   { id: 'bygg',     label: 'Store bygninger',      codes: ['521'] },
   { id: 'bane',     label: 'Idrettsbaner',         codes: ['513'] },
+  { id: 'batrute',  label: 'Båtruter',              codes: ['561'] },
 ])
 
 export const NEUTRAL_MULTIPLIER = 1

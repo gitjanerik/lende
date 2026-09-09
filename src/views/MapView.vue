@@ -983,9 +983,9 @@ const {
   reliefEnabled, reliefMode, reliefActive, reliefAutoOff,
   globalReliefEnabled, globalReliefMode, clearReliefAutoOff,
   strokeTuning, strokeEffective, trailColors, trailColorsEffective,
-  trailColorsOverridden, trailColorSwatches,
+  trailColorSwatches,
   knobPanel, panelHint, flashPanelHint, closeKnobPanel,
-  strokePanelSaveDefault, strokePanelReset, trailColorsReset,
+  strokePanelSaveDefault, strokePanelReset,
   reliefPanelSaveDefault, reliefPanelReset,
   onFabKnobTap, onFabKnobHold,
   applyStrokeScale, applyStrokeOverrides, applyTrailColors,
@@ -3206,7 +3206,9 @@ onUnmounted(() => {
           <DrawerStyleTab v-show="activeTab === 'kartstil'"
             id="drawer-panel-kartstil" role="tabpanel" aria-labelledby="drawer-fane-kartstil"
             :aktiv-stil="aktivStil" :velg-stil="bruksKartStil"
-            :aktiv-sti-palett="aktivStiPalett" :velg-sti-palett="velgStiPalett" />
+            :aktiv-sti-palett="aktivStiPalett" :velg-sti-palett="velgStiPalett"
+            :trail-swatches="trailColorSwatches"
+            :set-trail-color="(role, v) => trailColors.setColor(role, v)" />
 
           <DrawerLayersTab v-show="activeTab === 'lag'"
             id="drawer-panel-lag" role="tabpanel" aria-labelledby="drawer-fane-lag"
@@ -3300,8 +3302,6 @@ onUnmounted(() => {
       :panel="knobPanel"
       :drawer="knobDrawer"
       :stroke-effective="strokeEffective"
-      :trail-swatches="trailColorSwatches"
-      :trail-colors-overridden="trailColorsOverridden"
       v-model:relief-enabled="reliefEnabled"
       v-model:relief-mode="reliefMode"
       v-model:default-zoom-scale="defaultZoomScale"
@@ -3316,8 +3316,6 @@ onUnmounted(() => {
       :hint="panelHint"
       @close="closeKnobPanel"
       @set-stroke-group="(id, v) => strokeTuning.setGroup(id, v)"
-      @set-trail-color="(role, v) => trailColors.setColor(role, v)"
-      @reset-trail-colors="trailColorsReset"
       @save-default="knobPanel === 'stroke' ? strokePanelSaveDefault() : reliefPanelSaveDefault()"
       @reset="knobPanel === 'stroke' ? strokePanelReset() : reliefPanelReset()"
       @rebuild="rebuildAtChosenSize" />

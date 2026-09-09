@@ -1,3 +1,28 @@
+## 2026-09-09 — v6.5.82: Båtruter er et eget lag, og sti-fargen flyttet dit den hører hjemme
+
+De stiplede linjene ute i fjorden var aldri stier. Rundt Håøya og Drøbak tegnet
+kartet trafikkerte båt- og fergeruter med sti-symbolet, og en stiplet sti tvers
+over sjøen leses som et tråkk man kan gå. De har nå sitt eget lag: ISOM-derivert
+kode 561, kontinuerlig hvit underlinje med lang blå stipling oppå — sjøkartets
+egen konvensjon, og bevisst en LENGRE dash enn stiens, for det er rytmen og ikke
+fargen som skiller en ferdselstype fra en annen. Laget er default PÅ, ligger i
+«Sjø & padling» i Lag-fanen og har sin egen slider i «Strek — dette kartet».
+Kildene er to: OSM `route=ferry` (som fram til nå ble luket ut sammen med
+buss-relasjonene, og som spørringen nå henter) og de Turrutebasen-strekkene der
+`ruteFølger` sier båt eller ferge — attributtet ble alt parset, det var bare
+ingen som spurte det. Unntaket i rute-filteret gjelder bevisst bare WAYS: en
+ferge-RELASJON bærer det samme «A – B»-navnet som busslinjene gjorde, og
+way-medlemmene er alt med hver for seg.
+
+Samtidig er «Tilpass — sti-farge» samlet ett sted. De to frie fargevelgerne bodde
+i Strek-FAB-panelet mens de navngitte palettene bodde i Innstillinger → Kartstil,
+og de svarte på nøyaktig samme spørsmål fra hver sin kant — med hver sin
+nullstilling som ikke visste om den andre. Velgerne står nå under palettene, og
+seksjonen har ÉN tilbakevei: «Følg tema», som alt var paletten for «ingen
+overstyring». Strek-panelet er igjen bare strekbredde.
+
+---
+
 ## 2026-09-09 — v6.5.81: «I naboflis» er borte — trefflista sier avstand i stedet
 
 Søkefeltet merket hvert treff som lå utenfor flisa brukeren tilfeldigvis sto i med «· i naboflis». På et ark bygd ut til mange fliser sto merkelappen på hver eneste rad, og det den forklarte var appens indre oppdeling av kartet — et begrep brukeren aldri har bedt om, og som ikke sier noe om hva man skal gjøre. Kartet panorerte uansett dit som til et hvilket som helst annet treff.

@@ -4068,6 +4068,46 @@ const SJEKKER = [
       return 'ved siden ved 100 %, under og i full bredde ved 200 %'
     },
   },
+  {
+    // v6.5.82: de frie sti-fargevelgerne flyttet fra Strek-FAB-panelet til
+    // Innstillinger → Kartstil → «Tilpass — sti-farge», der de navngitte
+    // palettene alt bodde. Enhetstestene ser CSS-en (trailColors.test.js), men
+    // ikke at velgeren står i den nye fanen, treffer den samme singletonen, og
+    // at «Følg tema» — seksjonens ENESTE nullstilling — faktisk rydder etter
+    // seg. Sjekken SETTER en farge og LESER den ut av kartet.
+    navn: 'sti-fargevelgeren bor i Kartstil-fanen, og «Følg tema» nullstiller',
+    domene: 'DrawerStyleTab',
+    async kjør(page) {
+      const strekFarge = () => page.evaluate(() => {
+        const el = document.querySelector('svg.isom-map [data-iso="505"] path:not(.casing), svg.isom-map [data-iso="506"] path:not(.casing)')
+        return el ? getComputedStyle(el).stroke : null
+      })
+      await åpneDrawer(page)
+      await klikkTekst(page, /^KARTSTIL$/)
+      const velger = page.locator('input[aria-label="Egen farge på sti-strek"]')
+      if (!(await velger.count())) throw new Error('fant ingen fri sti-fargevelger i Kartstil-fanen')
+      const før = await strekFarge()
+      // <input type="color"> tar ikke .click() — sett verdien og fyr input.
+      await velger.evaluate((el) => {
+        el.value = '#ff00ff'
+        el.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      await page.waitForTimeout(400)
+      const etter = await strekFarge()
+      if (etter !== 'rgb(255, 0, 255)') {
+        throw new Error(`fargevelgeren slo ikke gjennom på kartet (${før} → ${etter})`)
+      }
+      // NØYTRAL TILSTAND — og selve poenget: «Følg tema» er den ene knappen
+      // som rydder. Finnes den ikke, blir kartet magenta for alle sjekkene
+      // etter denne, og det er nettopp feilen vi vil se.
+      await klikkTekst(page, /^Følg tema$/)
+      await page.waitForTimeout(400)
+      const tilbake = await strekFarge()
+      await lukkDrawer(page)
+      if (tilbake === 'rgb(255, 0, 255)') throw new Error('«Følg tema» nullstilte ikke sti-fargen')
+      return `satt til magenta, «Følg tema» ga ${tilbake}`
+    },
+  },
 ]
 
 // ---- små hjelpere ---------------------------------------------------------

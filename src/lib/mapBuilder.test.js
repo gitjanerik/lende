@@ -355,10 +355,14 @@ describe('routes filtreres ut globalt før all prosessering (v10.2.43)', () => {
     expect(svg).not.toContain('Buss 251')
   })
 
-  it('ferge-way (route=ferry) droppes', () => {
+  // v6.5.82: fergeruta SLETTES ikke lenger — den er en tegnet trasé i sjøen og
+  // har sitt eget lag (561 båtrute, se batrute.test.js). Det som fortsatt må
+  // holde er at RUTENAVNET ikke lekker inn i område-navn-laget.
+  it('ferge-way (route=ferry) tegnes som båtrute, men rutenavnet blir ikke et områdenavn', () => {
     const ferry = { type: 'way', id: 96, tags: { route: 'ferry', name: 'Buss 251' }, geometry: ring(59.01, 10.02, 59.04, 10.07) }
     const { svg } = buildSvg([ferry], bbox, {})
     expect(svg).not.toContain('Buss 251')
+    expect(svg).toContain('data-layer="batrute" data-iso="561"')
   })
 })
 

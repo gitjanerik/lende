@@ -118,6 +118,7 @@ export function buildOverpassQuery(bbox, { timeoutS = 90, includeBuildings = tru
   way["highway"~"^(motorway_link|trunk_link|primary_link|secondary_link|tertiary_link)$"];
   way["highway"~"^(path|track|bridleway|steps)$"];
   way["highway"~"^(footway|cycleway)$"]["bridge"]["bridge"!~"^no$"];
+  way["route"="ferry"];
   way["natural"="water"];
   way["water"];
   way["natural"="coastline"];
@@ -678,7 +679,7 @@ const STRAND_CODES = ['556']
 // overlay rendret ETTER vann men FØR konturer/veier, slik at underliggende
 // terreng forblir lesbart og konturer/stier tydelig tegnes oppå.
 const PROTECTED_CODES = ['520']
-const ROAD_CODES   = ['501', '502', '503', '504', '515', '505', '506', '507', '510', '511']
+const ROAD_CODES   = ['561', '501', '502', '503', '504', '515', '505', '506', '507', '510', '511']
 // Veitunneler (tunnel=yes på highway) tegnes som stiplet veifarge uten sort
 // casing — samme konvensjon som UT.no/Norgeskart, slik at man ser hvor veien
 // går under bakken i stedet for å tro den ligger i dagen. Jernbane (515) har
@@ -772,7 +773,7 @@ export function clusterLandingssteder(placed, minSepM = 40) {
 }
 
 const POLYGON_CODES = new Set(['001', '401', '403', '404', '406', '407', '408', '409', '410', '210', '301', '302', '303', '307', '308', '309', '512', '513', '514', '520', '521', '522', '551', '552', '556'])
-const LINE_CODES = new Set(['304', '305', '501', '502', '503', '504', '505', '506', '507', '510', '511', '515', '525', '528', '201', '203', '101', '102', '103', '104'])
+const LINE_CODES = new Set(['561', '304', '305', '501', '502', '503', '504', '505', '506', '507', '510', '511', '515', '525', '528', '201', '203', '101', '102', '103', '104'])
 
 /**
  * Bygg ferdig SVG-streng for et bbox + Overpass-elementer. ISOM-inspirert
@@ -820,14 +821,21 @@ export function buildSvg(elements, bbox, options = {}) {
   const droppet = (lag) => erDroppet(lag, detaljNivaa)
 
   // «Fjern routes generelt» (v10.2.43): rute-relasjoner og rute-taggede
-  // elementer (buss/sykkel/vandre-linjer, ferge-ruter, løyper — type=route /
-  // route_master eller route=*) er aldri ekte kart-areal. Navnet deres er
-  // typisk en lang «A – B / A – (C) – B»-streng (busslinje) som forurenset
-  // område-navn-laget OG søk/highlight. De skal ikke bidra til NOE i pipelinen,
-  // så vi luker dem ut helt før all videre prosessering.
+  // elementer (buss/sykkel/vandre-linjer, løyper — type=route / route_master
+  // eller route=*) er aldri ekte kart-areal. Navnet deres er typisk en lang
+  // «A – B / A – (C) – B»-streng (busslinje) som forurenset område-navn-laget
+  // OG søk/highlight. De skal ikke bidra til NOE i pipelinen, så vi luker dem
+  // ut helt før all videre prosessering.
+  //
+  // ÉN unntagelse (v6.5.82): `route=ferry` på en WAY. Den er ikke en abstrakt
+  // rute-relasjon, men en tegnet trasé i sjøen — båtruta man faktisk tar til
+  // øya — og den har sitt eget lag (561, categoryFor → 'batrute'). Unntaket
+  // gjelder bevisst ikke relasjoner: en ferge-RELASJON bærer det samme
+  // «A – B»-navnet som busslinjene, og way-medlemmene er alt med hver for seg.
   elements = (elements ?? []).filter(el => {
     const t = el?.tags
     if (!t) return true
+    if (el.type === 'way' && t.route === 'ferry' && !t.type) return true
     return !(t.route || t.type === 'route' || t.type === 'route_master')
   })
 
@@ -3381,6 +3389,7 @@ function categoryFor(code) {
     case '526':                                  return 'bom'
     case '534':                                  return 'parkering'
     case '560':                                  return 'holdeplass'
+    case '561':                                  return 'batrute'
     case '551':                                  return 'kai'
     case '552':                                  return 'sjo-poi'
     case '556':                                  return 'strand'

@@ -341,6 +341,15 @@ export function classifyToIsom(el) {
   // (533/540–543/211/550) som tidligere ble klassifisert men ikke rendret.
   // Kilder: OSM (man_made=lighthouse, seamark:type, leisure=marina/slipway,
   // natural=beach, amenity=toilets/drinking_water) + Sjøkart-WFS.
+  // ── Båtrute (561) — IKKE ISOM ─────────────────────────────────────────
+  // To kilder, ett symbol: OSM `route=ferry` og de Turrutebasen-strekkene der
+  // ruteFølger sier båt/ferge (turrutebasenFetcher). Sto tidligere som sti i
+  // sjøen — en stiplet sti tvers over fjorden leses som et tråkk man kan gå.
+  // Regelen står FØR både vann- og vei-reglene: en fergelenke er ofte en lukket
+  // eller vann-tagget way, og en `route=ferry` som havnet i 301 ville blitt en
+  // innsjø midt i fjorden.
+  if (t.route === 'ferry' || t['lende:batrute']) return { code: '561', cat: 'manmade' }
+
   if (t.man_made === 'lighthouse') return { code: '533', cat: 'point' }
   const seamark = t['seamark:type']
   if (seamark) {
