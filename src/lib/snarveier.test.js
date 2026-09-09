@@ -11,12 +11,13 @@ describe('katalogen', () => {
     expect(SNARVEIER.every(s => s.label && s.aria)).toBe(true)
   })
   it('bærer funksjonene skillet mellom funksjon og innstilling ga, og de som ikke gjør noe med kartet sist', () => {
-    // Rekkefølgen ER standarden brukeren møter først: alt som gjør noe med
-    // kartet, så de to som FORLATER appen, så de to som stiller kartet inn,
-    // og til slutt chatten og inngangen til skuffen — se katalogen.
+    // Rekkefølgen ER standarden brukeren møter først: søk og posisjon (de to
+    // man rekker etter oftest), så alt som gjør noe med kartet, så de to som
+    // FORLATER appen, så de to som stiller kartet inn, og til slutt chatten og
+    // inngangen til skuffen — se katalogen.
     expect(STANDARD_REKKEFOLGE).toEqual(
-      ['stifinner', 'runde', 'maaling', 'tre-d', 'annotering', 'sporing', 'info',
-       'utno', 'gmaps', 'strek', 'relieff', 'chat', 'innstillinger'])
+      ['sok', 'posisjon', 'stifinner', 'runde', 'maaling', 'tre-d', 'annotering',
+       'sporing', 'info', 'utno', 'gmaps', 'strek', 'relieff', 'chat', 'innstillinger'])
   })
   it('gir strek og relieff en pille med tannhjul, og bare dem', () => {
     // `gruppe` er kontrakten SnarveiRad rendrer den andre trykkflata av, og
@@ -120,9 +121,10 @@ describe('NAV_SNARVEIER', () => {
     const ider = new Set(STANDARD_REKKEFOLGE)
     for (const n of NAV_SNARVEIER) expect(ider.has(n.id)).toBe(false)
   })
-  it('har posisjon først, og kompasset bak rotasjons-porten', () => {
-    expect(NAV_SNARVEIER.map(n => n.id)).toEqual(['posisjon', 'kompass'])
-    expect(NAV_SNARVEIER[0].kunRotasjon).toBeUndefined()
-    expect(NAV_SNARVEIER[1].kunRotasjon).toBe(true)
+  it('er kompasset alene, bak rotasjons-porten (v7.1.0)', () => {
+    // Posisjonen flyttet ut i den sorterbare katalogen; gruppa er nå kompasset
+    // pluss hamburgeren, og hamburgeren kommer inn som slot fra kallstedet.
+    expect(NAV_SNARVEIER.map(n => n.id)).toEqual(['kompass'])
+    expect(NAV_SNARVEIER[0].kunRotasjon).toBe(true)
   })
 })

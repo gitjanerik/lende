@@ -24,6 +24,13 @@ export const SNARVEI_REKKEFOLGE_KEY = 'lende-snarvei-rekkefolge'
 // `kunEgne` er samme port som fanene hadde: på de innebygde demokartene
 // (Vardåsen) finnes verken egne markeringer eller GPS-spor å vise.
 export const SNARVEIER = [
+  // SØK OG POSISJON ER VANLIGE SNARVEIER (v7.1.0), og de står først fordi det
+  // er de to man rekker etter oftest — ikke fordi de er unntatt noe. Søket lå
+  // ytterst til høyre i topprada og posisjonen i den faste nav-gruppen; med
+  // begge her er topprada borte, og kartet får hele skjermen. Posisjonen bærer
+  // fortsatt en TILSTAND (`aktiv` fylles av kallstedet), for den slår noe på.
+  { id: 'sok',        label: 'Søk',        aria: 'Søk i kart' },
+  { id: 'posisjon',   label: 'Posisjon',   aria: 'Posisjon' },
   { id: 'stifinner',  label: 'Stifinner',  aria: 'Stifinner' },
   { id: 'runde',      label: 'Runde',      aria: 'Gå en runde' },
   { id: 'maaling',    label: 'Måling',     aria: 'Måling' },
@@ -82,26 +89,23 @@ export const SNARVEIER = [
 export const STANDARD_REKKEFOLGE = SNARVEIER.map(s => s.id)
 
 /**
- * NAVIGASJONSKNAPPENE ER EN FAST GRUPPE, IKKE SNARVEIER (v6.6.1).
+ * DEN FASTE VENSTREGRUPPEN (v6.6.1, omgjort i v7.1.0).
  *
- * Posisjon og «nord opp» sto som to runde skiver rett på arket (NavKnapper,
- * v6.5.68) og lå i veien for kartet. De hører hjemme i raden — men de er ikke
- * det samme som resten av den, og forskjellen må være synlig:
+ * Gruppen var Posisjon + «nord opp»: to knapper som SLÅR NOE PÅ, sto først
+ * foran en skillelinje, og kollapset aldri inn i nedtrekket. Posisjonen er nå
+ * en vanlig snarvei — den er brukerens å sortere som alt annet, og den står
+ * først i standarden uansett — mens KOMPASSET ble igjen, sammen med
+ * hamburgeren, som raden får som slot fra kallstedet.
  *
- *   • De GJØR ikke noe med kartet, de SLÅR NOE PÅ. Derfor bærer de en
- *     tilstand (`aktiv`), og aksentflaten som sier PÅ er den samme grønne som
- *     hver eneste vippebryter i skuffene.
- *   • De sorteres IKKE og kollapser ALDRI inn i nedtrekket. Posisjonen er den
- *     ene knappen man rekker etter mens man går, og en knapp som havner bak
- *     «Mer» fordi man sorterte Stifinner først er en knapp man ikke finner i
- *     regnvær. Derfor står de først, foran en skillelinje, og derfor er de
- *     ikke med i `SNARVEIER`.
+ * De to som står igjen har det til felles at de ikke handler om KARTET men om
+ * hvordan du ser på det: hamburgeren er veien ut av visningen, kompasset er
+ * veien tilbake til nord og hele arket. Ingen av dem tåler å havne bak «Mer» —
+ * en knapp man ikke finner i regnvær er en knapp som ikke finnes.
  *
  * `kunRotasjon` er kompassets port: uten en azimut å nullstille — desktop har
  * retningsrosa, og en modus uten rotasjon har ingen retning — faller den bort.
  */
 export const NAV_SNARVEIER = [
-  { id: 'posisjon', label: 'Posisjon', aria: 'Posisjon' },
   { id: 'kompass',  label: 'Nord',     aria: 'Vend kartet mot nord', kunRotasjon: true },
 ]
 

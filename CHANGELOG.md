@@ -1,3 +1,25 @@
+## 2026-09-09 — v7.1.0: Topprada er borte, og kartet fikk plassen
+
+Knapperaden over kartet er fjernet, og de tre tingene den bar har hver sin nye
+plass. Hamburgeren er nå venstre halvdel av snarvei-radens faste gruppe, ved
+siden av kompasset — de to som ikke handler om kartet, men om hvordan du ser på
+det. Søket og posisjonen er blitt vanlige snarveier, plassert først i standard-
+rekkefølgen fordi det er dem man rekker etter oftest, og dermed brukerens å
+sortere som alt annet. Kartnavnet står på linja som kommer fram når raden åpnes,
+sammen med «Sorter»: navnet er ikke noe man leser mens man går, det er noe man
+slår opp, og den plassen er kartets. Hele overleggs-stabelen er flyttet 3,25 rem
+opp med raden, så det som teller på tur — å se kartet så stort som mulig — har
+fått igjen det baren tok. Raden skjules ikke lenger i måling, stifinner og
+annotering eller mens kartet bygges; den KRYMPER til venstregruppen, dyttet mot
+venstre kant der hamburgeren sto før, for en modus som tar veien ut av visningen
+med seg er en blindvei. Åpen er raden tre linjer høy på en telefon og løftes
+derfor over navigasjonssøyla, som ellers fanget trykkene på de nederste
+snarveiene. Og den teleporterte menyknappen observerer nå hele forelderkjeden:
+plassholderen er 40 × 40 px og flytter seg uten å endre størrelse, så en
+observer på den alene ville aldri fyrt igjen.
+
+---
+
 ## 2026-09-09 — v7.0.0: Lende-knappen er borte, og alt den bar er snarveier
 
 Lende-FAB-en nede til høyre var appens siste sted der en funksjon bare fantes for den som gjettet en gest: tap på en knott ga ett hakk, lang-trykk åpnet et panel, og ingenting på skjermen sa det. Ankeret er fjernet. Strek og relieff er nå snarveier med to trykkflater i én pille — venstre halvdel er hakket, tannhjulet til høyre er panelet — og den blå og oransje ringen som viser nivået er med videre, fordi den er hele grunnen til at de to ikke bare er nok et strekikon. Chatten er en snarvei helt sist for dem som har den. Det tredje knott-panelet, «Zoom og kartutsnitt», er slettet i sin helhet: «standard zoom-nivå» satte et gulv under dekningsskalaen som dekningen svarer bedre på selv, «bygg om i valgt størrelse» sto allerede i Format-fanen, og maks kartfliser er nå et fast tall (25, altså et 5 × 5-ark) framfor en skyve som var vanskelig å ta stilling til og lett å angre for sent. «Sentrer» er absorbert av «Nord opp» i nav-gruppen, som dermed både vender kartet mot nord, sentrerer og zoomer ut. Til slutt flyttet Innstillinger ut av topprada og inn i raden som en sorterbar snarvei: søket har høyrekanten alene, og kartnavnet i midten står symmetrisk med 52 % av bredden i stedet for 42 %.

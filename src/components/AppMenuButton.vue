@@ -63,6 +63,23 @@ function measure() {
   if (r) pos.value = { top: `${Math.round(r.top)}px`, left: `${Math.round(r.left)}px` }
 }
 
+// OBSERVEREN MÅ SE FORELDRENE OG IKKE BARE PLASSHOLDEREN (v7.1.0).
+// Plassholderen er 40 × 40 px og endrer ALDRI størrelse — så en observer på
+// den alene fyrer én gang ved oppstart og aldri mer. Det holdt så lenge
+// knappen sto i en topprad som spente hele bredden: da flyttet den seg bare
+// når vinduet gjorde det. Fra v7.1.0 bor hamburgeren i snarvei-raden, som er
+// en midtstilt pille som VOKSER når raden åpnes og krymper i kompakt modus —
+// plassholderen flytter seg uten å endre størrelse, og den teleporterte
+// knappen ble stående igjen der raden var. Vi observerer derfor hele
+// forelderkjeden opp til <body>: en bredde-endring hvor som helst der er
+// nettopp det som kan flytte plassholderen sidelengs.
+function observerte() {
+  const ut = []
+  for (let el = slotRef.value; el && el !== document.body; el = el.parentElement) ut.push(el)
+  if (document.body) ut.push(document.body)
+  return ut
+}
+
 let ro = null
 onMounted(() => {
   measure()
@@ -71,7 +88,7 @@ onMounted(() => {
   window.visualViewport?.addEventListener('resize', measure)
   if (typeof ResizeObserver !== 'undefined' && slotRef.value) {
     ro = new ResizeObserver(measure)
-    ro.observe(slotRef.value)
+    for (const el of observerte()) ro.observe(el)
   }
 })
 onBeforeUnmount(() => {

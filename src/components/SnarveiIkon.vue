@@ -35,7 +35,11 @@ defineProps({
       <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
       <circle cx="12" cy="12" r="8"/>
     </template>
-    <!-- Nav-gruppen. Posisjonen er PIN-en fra de runde knappene (v6.5.70), med
+    <template v-else-if="id === 'sok'">
+      <circle cx="11" cy="11" r="7"/>
+      <line x1="20" y1="20" x2="16.65" y2="16.65"/>
+    </template>
+    <!-- Posisjonen er PIN-en fra de runde knappene (v6.5.70), med
          hullet som en ekte utstansing; kompassnåla roteres av kallstedet, så
          den må peke rett OPP i hvile.
          NORD ER RØDT OG SØR ER HVITT (v6.6.2), som på ethvert fysisk kompass —
@@ -44,7 +48,8 @@ defineProps({
          på grønt når posisjonen står på, og en nord-ende som følger med der
          ville mistet nettopp det den er til for. Nåla fyller nesten hele
          viewBoxen — den er den ene av de sju ikonene som bærer to farger, og
-         under ~10 px blir waisten en strek. -->
+         under ~10 px blir waisten en strek. Posisjonen er en vanlig snarvei
+         fra v7.1.0; kompasset står igjen i den faste venstregruppen. -->
     <template v-else-if="id === 'posisjon'">
       <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0Z"/>
       <circle cx="12" cy="10" r="3"/>

@@ -1966,6 +1966,8 @@ const synligeSnarveier = computed(() =>
     { egetKart: egetKart.value, chat: lendeChatEnabled })
     .map(s => s.id === 'strek' ? { ...s, bue: strekBue.value, label: s.label }
             : s.id === 'relieff' ? { ...s, bue: relieffBue.value, dimmet: !reliefActive.value }
+            : s.id === 'posisjon' ? { ...s, aktiv: userPos.isWatching,
+                ariaTekst: userPos.isWatching ? 'Posisjon på. Slå av.' : 'Posisjon av. Slå på.' }
             : s))
 const skjulteSnarveiIder = computed(() => {
   const synlige = new Set(synligeSnarveier.value.map(s => s.id))
@@ -1976,6 +1978,11 @@ const skjulteSnarveiIder = computed(() => {
 // der de fire domenene den rører (måling, annotering, sti, kontekstmeny)
 // allerede møtes.
 const SNARVEI_HANDLING = {
+  // De to som kom fra topprada og nav-gruppen (v7.1.0). Posisjonen bærer
+  // fortsatt en tilstand — se `synligeSnarveier` — og AV slår også av
+  // kompassfølgingen, som før.
+  sok: () => openSearch(),
+  posisjon: () => (userPos.isWatching ? stopPositioning() : startPositioning()),
   stifinner: () => onShortcutStifinner(),
   runde: () => onShortcutRoundTrip(),
   maaling: () => onShortcutMeasure(),
@@ -2014,29 +2021,34 @@ function onSnarveiInnstilling(id) {
   if (panel) onFabKnobHold(panel)
 }
 
-// DEN FASTE NAV-GRUPPEN (v6.6.1). Posisjon og «nord opp» sto som to runde
-// skiver på arkets høyre kant (NavKnapper, v6.5.68) og lå i veien for kartet
-// de sto på. De er flyttet inn i raden — men de kan verken sorteres eller
-// kollapse inn i nedtrekket: posisjonen er den ene knappen man rekker etter
-// mens man går, og en knapp som havner bak «Mer» fordi man sorterte Stifinner
-// først er en knapp man ikke finner i regnvær.
+// DEN FASTE VENSTREGRUPPEN (v6.6.1, halvert i v7.1.0). Den var Posisjon +
+// «nord opp»; posisjonen er nå en vanlig snarvei — brukerens å sortere som alt
+// annet — og kompasset står igjen, sammen med hamburgeren raden får som slot.
+// De to som ble igjen handler ikke om KARTET men om hvordan du ser på det, og
+// ingen av dem tåler å havne bak «Mer»: en knapp man ikke finner i regnvær er
+// en knapp som ikke finnes.
 // KOMPASSET FALLER BORT UTEN ROTASJON — desktop har retningsrosa i søyla, og
 // en modus uten rotasjon har ingen retning å nullstille.
 const navSnarveier = computed(() => NAV_SNARVEIER
   .filter(n => !n.kunRotasjon || hasTouch.value)
-  .map(n => n.id === 'posisjon'
-    ? { ...n, aktiv: userPos.isWatching,
-        ariaTekst: userPos.isWatching ? 'Posisjon på. Slå av.' : 'Posisjon av. Slå på.' }
-    : { ...n, aktiv: false,
-        ariaTekst: `Vend kartet mot nord. Nå ${rotationSliderDeg.value} grader.` }))
+  .map(n => ({ ...n, aktiv: false,
+    ariaTekst: `Vend kartet mot nord. Nå ${rotationSliderDeg.value} grader.` })))
 
-// AV SLÅR OGSÅ AV KOMPASSFØLGINGEN. `startPositioning` slår dem på sammen (iOS
-// krever samme bruker-gest for begge), og med skuffens kompass-bryter borte
-// ville et kart som fortsatt dreide seg etter telefonen vært uten vei ut.
+// RADEN KRYMPER, DEN FORSVINNER IKKE (v7.1.0). Den ble skjult i disse
+// tilstandene fordi bygge-chipen og highlight-pilla bruker samme
+// `--ovl-top`-slot — men hamburgeren bor i raden nå, og en modus som tar veien
+// ut av visningen med seg er en blindvei. Kompakt = bare venstregruppen, dyttet
+// mot venstre kant, altså akkurat der hamburgeren sto før.
+// Løftet over navigasjonssøyla mens raden er åpen — se malen.
+const snarveiApen = ref(false)
+
+const snarveiKompakt = computed(() =>
+  sti.active.value || measureMode.value || searchOpen.value
+  || annot.isAnnotateMode.value || buildingOnTheFly.value || fillingInDetails.value
+  || !!highlightedFeature.value)
+
 function onNavSnarvei(id) {
-  if (id === 'posisjon') {
-    userPos.isWatching ? stopPositioning() : startPositioning()
-  } else if (id === 'kompass') {
+  if (id === 'kompass') {
     // «NORD OPP» HAR ABSORBERT «SENTRER» (v7.0.0). Knappen dreide bare kartet
     // mot nord; zoomen ble stående der man hadde dratt den, og veien tilbake
     // til hele arket var Lende-knappens nord-knott. Med ankeret borte er det
@@ -2681,79 +2693,58 @@ onUnmounted(() => {
   <div class="kart-ui relative w-full h-[100dvh] overflow-clip"
        :class="isDark ? 'bg-surface' : 'bg-stone-100'">
 
-    <!-- Toppbar. v8.7.1: skjult i Curve Invaders-modus — den lå tidligere
-         halvveis bak game-HUD-en, og hamburger-knappen i høyre hjørne var
-         delvis klikkbar med uønskede effekter (drawer åpnet seg midt i
-         spillet). Skjuler hele toppbaren, matcher kompass-rosen og andre
-         map-only UI som allerede har samme v-if. -->
-    <!-- Toppbaren krympes til den synlige kart-flaten på desktop (høyre kant =
-         panelbredden) så den midtstilte tittel-badgen re-sentreres responsivt
-         når side-panelet endrer bredde, og søke-/meny-knappene ikke havner bak
-         panelet. Mobil/lukket: full bredde (panelOffsetPx = 0). -->
-    <div class="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-3 pb-3
-                pointer-events-none transition-[right] duration-200"
-         :style="{ right: panelOffsetPx + 'px',
-                   paddingTop: 'max(env(safe-area-inset-top, 0px), 0.75rem)' }">
-      <div class="flex items-center gap-2 pointer-events-auto">
-        <AppMenuButton variant="float" />
-      </div>
-
-      <button v-if="canRenameMap" @click="openRename"
-              aria-label="Gi kart nytt navn"
-              class="pointer-events-auto px-3 py-1.5 rounded-full bg-overlay
-                     text-[12px] text-ink font-medium shadow-lg max-w-[52%]
-                     flex items-center gap-1.5 active:scale-95 transition">
-        <span class="truncate">{{ mapTitle }}</span>
-        <svg viewBox="0 0 24 24" class="w-3 h-3 shrink-0 text-ink-4" fill="none"
-             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 20h9"/>
-          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
-        </svg>
-      </button>
-      <div v-else class="pointer-events-none px-3 py-1.5 rounded-full bg-overlay
-                  text-[12px] text-ink font-medium shadow-lg max-w-[52%] truncate">
-        {{ mapTitle }}
-      </div>
-
-      <!-- SØKET HAR HØYREKANTEN ALENE (v7.0.0). Innstillinger sto her og er nå
-           en snarvei: de to spurte om ulike ting — søket om kartet man ser på,
-           skuffen om hvordan appen er stilt inn — og med bare én knapp på hver
-           side er kartnavnet i midten symmetrisk og har 52 % av bredden i
-           stedet for 42 %. -->
-      <div class="flex items-center gap-2 pointer-events-auto">
-        <button @click="openSearch" aria-label="Søk i kart"
-                class="rounded-full w-10 h-10 flex items-center justify-center
-                       bg-overlay text-ink shadow-lg active:scale-95 transition">
-          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.4"
-               stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="7"/>
-            <line x1="20" y1="20" x2="16.65" y2="16.65"/>
-          </svg>
-        </button>
-      </div>
-    </div>
+    <!-- TOPPRADA ER BORTE (v7.1.0). Den bar tre ting over kartet hele tida:
+         hamburgeren, kartnavnet og søket. Hamburgeren er nå venstregruppens
+         andre halvdel i snarvei-raden, søket er en vanlig snarvei (nummer én i
+         standarden), og navnet står på linja som kommer fram når raden åpnes.
+         Gevinsten er en stripe kart på toppen av skjermen — som er hele
+         poenget med appen. Se SnarveiRad.vue. -->
 
     <!-- SNARVEI-RADEN: turkart-modusens FUNKSJONER (v6.6.0). Alt man GJØR
          ligger her; innstillings-skuffen er bare innstillinger. Raden måler
          seg selv og legger det som ikke får plass bak et nedtrekk — se
-         SnarveiRad.vue. Rekkefølgen er brukerens, og «Sorter snarveier» står
-         fast i nedtrekket.
-         Skjules når en modus (stifinner/måling/annotering) eller søk er aktiv,
-         mens kartet bygges/utvides, og når highlight-pillen vises — bygge-chipen
-         og pillen bruker samme --ovl-top-slot og ville kollidert. Det gjelder
-         ALLE chipene i den sloten: legger du en ny chip på --ovl-top, hører den
-         hjemme i denne lista (bakgrunnsflis-chipen kom inn i v5.19.0 uten å
-         gjøre det, og la seg rett oppå snarvei-raden; rapportert v5.19.3). -->
-    <div v-if="!sti.active.value && !measureMode && !searchOpen && !annot.isAnnotateMode.value
-               && !buildingOnTheFly && !fillingInDetails && !highlightedFeature"
-         class="absolute left-0 top-[var(--ovl-top)] z-20 flex justify-center
+         SnarveiRad.vue. Rekkefølgen er brukerens, og «Sorter» står på navne-
+         linja som kommer fram når raden åpnes.
+         Den KRYMPER i stedet for å forsvinne når en modus eller søk er aktiv
+         (v7.1.0) — hamburgeren bor i den nå. Se `snarveiKompakt`.
+         ÅPEN LØFTES DEN OVER NAVIGASJONSSØYLA. Åpen er raden tre linjer høy på
+         en telefon og strekker seg ned i `--ovl-nav`, der søyla står; uten
+         løftet fanger søyla trykkene på de nederste snarveiene. Slotten kan
+         ikke gjøres lavere i stedet — den åpne raden er en transient tilstand,
+         og søyla skal ikke stå permanent lenger ned for den. -->
+    <div class="absolute left-0 top-[var(--ovl-top)] flex
                 pointer-events-none transition-[right] duration-200"
+         :class="[snarveiKompakt ? 'justify-start pl-3' : 'justify-center',
+                  snarveiApen ? 'z-30' : 'z-20']"
          :style="snarveiRadStyle">
-      <div class="flex flex-col items-center gap-1">
+      <div class="flex flex-col items-center gap-1"
+           :class="snarveiKompakt ? '' : 'w-full'">
         <SnarveiRad :snarveier="synligeSnarveier" :nav="navSnarveier"
                     :azimut="rotationSliderDeg" :ui-text-scale="uiTextScale"
+                    :kompakt="snarveiKompakt"
                     @velg="onSnarvei" @nav="onNavSnarvei"
-                    @innstilling="onSnarveiInnstilling" @sorter="onApneSortering" />
+                    @innstilling="onSnarveiInnstilling" @sorter="onApneSortering"
+                    @apen="snarveiApen = $event">
+          <template #venstre><AppMenuButton variant="float" /></template>
+          <template #navn>
+            <button v-if="canRenameMap" @click="openRename"
+                    aria-label="Gi kart nytt navn"
+                    class="w-full min-w-0 flex items-center gap-1.5 px-1 py-0.5 rounded-lg
+                           text-[12px] text-ink font-medium text-left
+                           active:scale-[0.98] transition hover:bg-ink/8">
+              <span class="truncate">{{ mapTitle }}</span>
+              <svg viewBox="0 0 24 24" class="w-3 h-3 shrink-0 text-ink-4" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                   stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 20h9"/>
+                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+              </svg>
+            </button>
+            <div v-else class="px-1 py-0.5 text-[12px] text-ink font-medium truncate">
+              {{ mapTitle }}
+            </div>
+          </template>
+        </SnarveiRad>
         <!-- KNOTT-HINTET FULGTE MED KNOTTENE (v7.0.0). «Strek 1,20×» var
              FAB-ankerets hint-boble, og uten den er et hakk opp en usynlig
              endring på et tett kart. Den står nå under raden trykket kom fra,
