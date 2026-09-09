@@ -1,3 +1,17 @@
+## 2026-09-09 — v6.6.2: Kompassnåla får rød nord
+
+Nåla i snarvei-radens «Nord»-knapp var fylt i nord og et omriss i sør. Det
+sier at nåla HAR en retning, men ikke hvilken — og i et 20 px ikon er
+forskjellen på fylt og åpen det første som forsvinner. Nord er nå rødt og sør
+hvitt, konvensjonen fra ethvert fysisk kompass, og nåla fyller nesten hele
+viewBoxen slik at waisten ikke kollapser til en strek. Rødt er bakt inn og
+arver ikke `currentColor`: knappen er hvit på grønt når posisjonen står på, og
+en nord-ende som fulgte med dit ville mistet nettopp det den er til for.
+Røyk-sjekken krevde bare at det fantes en fylt polygon — sant også for en
+ensfarget rombe — og krever nå begge halvdelene med hver sin fyllfarge.
+
+---
+
 ## 2026-09-09 — v6.6.1: Nav-knappene inn i raden, og sorteringen viser hva den gjør
 
 Posisjon og «nord opp» sto som to runde skiver midt på arkets høyre kant og lå

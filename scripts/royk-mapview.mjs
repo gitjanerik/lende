@@ -1423,10 +1423,13 @@ const SJEKKER = [
           return {
             ark: mm ? Number(mm[1]) : 0,
             nal: nal ? (nm ? Number(nm[1]) : 0) : null,
-            // Nordhalvdelen er FYLT, sørhalvdelen er et omriss. Blir de like,
-            // har nåla ingen retning å lese — og i et 20 px ikon i raden er
-            // det den ene tingen som skiller den fra en rombe.
-            rod: !!knapp?.querySelector('polygon[fill="currentColor"]'),
+            // Nord er RØDT og sør arver tekstfargen (v6.6.2). Sjekken måtte
+            // skjerpes: fram til da leste den bare «finnes det en fylt
+            // polygon», og det er sant også for en ensfarget rombe — altså en
+            // nål uten retning å lese. Nå kreves BEGGE halvdelene, hver med
+            // sin fyllfarge.
+            rod: !!nal?.querySelector('polygon[fill="#ef4444"]')
+              && !!nal?.querySelector('polygon[fill="currentColor"]'),
             synlig: !!knapp?.getBoundingClientRect().width,
           }
         })
@@ -1437,7 +1440,7 @@ const SJEKKER = [
             + 'står den bak en port igjen?')
         }
         if (!hvile.synlig) throw new Error('kompassknappen finnes i DOM-en, men har ingen boks')
-        if (!hvile.rod) throw new Error('kompassnåla mangler den fylte nordspissen')
+        if (!hvile.rod) throw new Error('kompassnåla mangler den røde nordspissen eller den hvite sørenden')
 
         // Kartet dreies med syntetiske TouchEvents (usePinchZoom lytter med
         // { passive: false }); vi slipper fingrene igjen, for her måles

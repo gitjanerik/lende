@@ -30,15 +30,21 @@ defineProps({ id: { type: String, required: true } })
     </template>
     <!-- Nav-gruppen. Posisjonen er PIN-en fra de runde knappene (v6.5.70), med
          hullet som en ekte utstansing; kompassnåla roteres av kallstedet, så
-         den må peke rett OPP i hvile. Nordhalvdelen er fylt: en helt symmetrisk
-         nål har ingen retning å lese. -->
+         den må peke rett OPP i hvile.
+         NORD ER RØDT OG SØR ER HVITT (v6.6.2), som på ethvert fysisk kompass —
+         en fylt/åpen halvdel sier bare at nåla har en retning, ikke HVILKEN.
+         Rødt er derfor bakt inn og arver ikke `currentColor`: knappen er hvit
+         på grønt når posisjonen står på, og en nord-ende som følger med der
+         ville mistet nettopp det den er til for. Nåla fyller nesten hele
+         viewBoxen — den er den ene av de sju ikonene som bærer to farger, og
+         under ~10 px blir waisten en strek. -->
     <template v-else-if="id === 'posisjon'">
       <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0Z"/>
       <circle cx="12" cy="10" r="3"/>
     </template>
     <template v-else-if="id === 'kompass'">
-      <polygon points="12 2.5 16 12 12 10 8 12" fill="currentColor" stroke="none"/>
-      <polygon points="12 21.5 16 12 12 14 8 12" stroke-width="1.6"/>
+      <polygon points="12 1.4 17.2 12 12 9.4 6.8 12" fill="#ef4444" stroke="none"/>
+      <polygon points="12 22.6 17.2 12 12 14.6 6.8 12" fill="currentColor" stroke="none"/>
     </template>
     <template v-else-if="id === 'info'">
       <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/>
