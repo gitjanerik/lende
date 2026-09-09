@@ -107,13 +107,14 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
             <div class="text-[13px] font-medium text-ink truncate">
               {{ r.name }}<span v-if="r.kind === 'parkering'" aria-hidden="true"> *</span>
             </div>
-            <!-- «i naboflis»: treffet ligger utenfor flisa som er aktiv nå, men
-                 innenfor arket brukeren har bygd. Kartet panorerer dit som til
-                 et hvilket som helst annet treff — merkelappen er bare en
-                 forklaring på hvorfor det ligger utenfor skjermkanten. -->
+            <!-- Avstanden fra utsnittet avløste merkelappen «i naboflis»
+                 (v6.5.81). Den gamle forklarte kartets indre oppdeling — og sto
+                 på hver eneste rad i et utbygd ark — mens dette er tallet som
+                 avgjør hvilket «Vann» man vil ha. Det betyr det samme enten
+                 kartet er én flis eller trettiseks, og lista er sortert på det. -->
             <div class="text-[10px] text-ink-4 uppercase tracking-wide">
               {{ r.label }}<span v-if="r.ele != null"> · {{ r.ele }} moh</span><span
-                v-if="r.utenforAktiv" class="text-amber-300/70"> · i naboflis</span>
+                v-if="r.avstand"> · {{ r.avstand }}</span>
             </div>
             <div v-if="r.kind === 'parkering'" class="text-[10px] text-ink-4 leading-tight mt-0.5">
               * Navnet er utledet fra nærmeste sted, ikke et offisielt navn

@@ -986,6 +986,21 @@ const SJEKKER = [
       await page.locator('input[type="search"], input[type="text"]').first()
         .fill(navn.slice(0, 4))
       await page.waitForTimeout(900)
+      // Radene skal si HVOR LANGT UNNA treffet er, aldri hvilken flis det ligger
+      // i (v6.5.81). Merkelappen «i naboflis» sto på hver rad i et utbygd ark og
+      // forklarte appens indre oppdeling; avstanden betyr det samme enten kartet
+      // er én flis eller trettiseks. Måles her fordi den avhenger av at
+      // visibleCenterSvg faktisk svarer når søket åpnes — ingen enhetstest ser det.
+      const rader = await page.evaluate(() =>
+        [...document.querySelectorAll('#mapsearch-results [role="option"]')]
+          .map((e) => e.innerText.trim()))
+      if (!rader.length) throw new Error(`ingen trefferader for «${navn.slice(0, 4)}»`)
+      const flisord = rader.find((t) => /naboflis|kartflis/i.test(t))
+      if (flisord) throw new Error(`trefflista nevner fliser: «${flisord}»`)
+      // Radene leses med innerText, som respekterer text-transform: uppercase —
+      // «930 m» kommer ut som «930 M». Derfor i-flagget.
+      const medAvstand = rader.filter((t) => /·\s*\d+([,.]\d+)?\s*(m|km)\b/i.test(t)).length
+      if (!medAvstand) throw new Error(`ingen avstand på radene: «${rader[0]}»`)
       // Første treff i kart-lista (ikke «Andre steder» — det bygger nytt kart).
       const traff = await page.evaluate(() => {
         const b = [...document.querySelectorAll('button, [role="option"]')]
@@ -1008,7 +1023,8 @@ const SJEKKER = [
       await page.waitForTimeout(300)
       await klikkTekst(page, /^Fjern markering$/)
       await page.waitForTimeout(400)
-      return `«${traff}» → ${ring} ring-noder, transform endret`
+      return `«${traff}» → ${ring} ring-noder, transform endret, `
+        + `${medAvstand}/${rader.length} rader med avstand, ingen flis-ord`
     },
   },
   {

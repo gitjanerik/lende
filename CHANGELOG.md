@@ -1,3 +1,13 @@
+## 2026-09-09 — v6.5.81: «I naboflis» er borte — trefflista sier avstand i stedet
+
+Søkefeltet merket hvert treff som lå utenfor flisa brukeren tilfeldigvis sto i med «· i naboflis». På et ark bygd ut til mange fliser sto merkelappen på hver eneste rad, og det den forklarte var appens indre oppdeling av kartet — et begrep brukeren aldri har bedt om, og som ikke sier noe om hva man skal gjøre. Kartet panorerte uansett dit som til et hvilket som helst annet treff.
+
+Radene bærer nå avstanden fra utsnittet i stedet — «· 1,2 km» — og lista er sortert nærmest først. Det tallet betyr det samme enten kartet er én flis eller trettiseks, og det er dessuten det som avgjør valget når seks rader heter noe med «vann». Rangerte lister rører vi ikke: «topp» står fortsatt på høyde, og navnløse vann nederst på areal, men begge bærer avstanden. Avstanden måles fra der brukeren ser når søket ÅPNES, ikke live: `results` er en computed, og en avstand lest av transform-tilstanden ville sortert lista på nytt for hver frame man panorerer bak overlegget. Uten et målt senter (test, eller en wrapper som ikke har svart ennå) står den gamle alfabetiske rekkefølgen — `filterIndex` er fortsatt ren.
+
+Begrepet er tatt ut av chatten samtidig, for det var samme lekkasje: verktøysvarene fortalte modellen om «naboflisene», og modellen fortalte det videre til brukeren. Nå sier de at kartId er appens interne oppdeling og at den aldri skal nevnes. `merk_i_kartet` skiller derfor på noe den ikke skilte på før: et sted lenger ute i det SAMME arket merkes uten et ord om hvor det lå, mens et bytte til et annet av brukerens kart fortsatt sies — det er et ekte bytte. Røyk-sjekken for søket måler begge halvdelene: ingen rad nevner fliser, og radene bærer avstand.
+
+---
+
 ## 2026-09-08 — v6.5.80: Lende-chatten bytter til gpt-oss-120b
 
 Llama 4 Scout svarte ustøtt: unødvendige oppklaringsspørsmål, en selvmotsigelse rett etter et vellykket verktøykall («det høyeste punktet er ikke funnet» like etter at det var markert) og ugrammatisk norsk. `MODEL` i `cloudflare/ai-worker/wrangler.toml` peker nå på `@cf/openai/gpt-oss-120b`: sterkere på funksjonskalling og strukturert output, 131K kontekst, og $0,35 inn / $0,39 ut per M tokens mot Scouts $0,27/$0,85 — litt dyrere inn, under halve prisen ut, og det er output som dominerer i en chat.
