@@ -6,7 +6,6 @@ import FrittLendeKnapp from '../components/FrittLendeKnapp.vue'
 import { usePinchZoom } from '../composables/usePinchZoom.js'
 import { useUserPosition } from '../composables/useUserPosition.js'
 import { useNettStatus } from '../composables/useNettStatus.js'
-import { useScreenWakeLock } from '../composables/useScreenWakeLock.js'
 import { useMapTheme } from '../composables/useMapTheme.js'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
@@ -106,7 +105,6 @@ const { isDarkMap } = useMapTheme()
 // bevisst ikke — stedsnavn er kartografi og skaleres av strek/tekst-knottene i
 // turkartet, som denne modusen ikke har.
 const { uiTextScale } = useUiTextScale()
-const skjerm = useScreenWakeLock()
 
 // ── Kart-flate ──────────────────────────────────────────────────────────────
 const wrapperSize = ref({ w: 0, h: 0 })
@@ -480,7 +478,6 @@ onMounted(async () => {
     ro.observe(wrapperRef.value)
   }
   window.addEventListener('resize', maal)
-  skjerm.start?.()
 
   // Reload henter arket rett fra IndexedDB — ingen nettverk, ingen rebuild.
   // Det er modusens viktigste enkeltoppførsel: telefonen kan ha drept appen
@@ -512,7 +509,6 @@ onUnmounted(() => {
   ro?.disconnect()
   window.removeEventListener('resize', maal)
   window.removeEventListener('offline', paaOffline)
-  skjerm.stop?.()
   clearTimeout(angreTimer)
   clearTimeout(meldingTimer)
   clearInterval(fixVent)

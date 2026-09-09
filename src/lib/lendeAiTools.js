@@ -30,6 +30,8 @@ import { listThemes } from './mapSettingsApply.js'
 import { LAYERS } from './mapLayerCatalog.js'
 import { KARTSTILER, kartStil } from './kartStiler.js'
 import { useMapTheme } from '../composables/useMapTheme.js'
+import { useHoldVaken } from '../composables/useHoldVaken.js'
+import { MAKS_MINUTTER, klemMinutter } from './holdVaken.js'
 import { useMapLayerControl, sendLagKommando } from '../composables/useMapLayerControl.js'
 import { useMapHighlight, sendMerkeKommando } from '../composables/useMapHighlight.js'
 
@@ -203,6 +205,30 @@ export const AI_TOOLS = [
           },
         },
         required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'hold_skjermen_vaken',
+      description:
+        'Hindre at telefonen låser skjermen, i et bestemt antall minutter (1–60). Bruk ved ' +
+        '«hold skjermen våken i en time», «ikke la skjermen slukne mens jeg går», «behold ' +
+        'skjermen på i 20 minutter». Regn om til minutter selv: «en time» = 60, «en halvtime» ' +
+        '= 30. Nedtellingen vises som en gul ring rundt menyknappen øverst til venstre. ' +
+        'minutter: 0 slår den AV igjen («la skjermen slukne som vanlig», «avbryt»). Et nytt ' +
+        'tall starter nedtellingen på nytt. Den varer bare denne økta — lukker brukeren appen, ' +
+        'er den av.',
+      parameters: {
+        type: 'object',
+        properties: {
+          minutter: {
+            type: 'number',
+            description: `Antall minutter skjermen skal holdes våken, 1–${MAKS_MINUTTER}. 0 slår av.`,
+          },
+        },
+        required: ['minutter'],
       },
     },
   },
@@ -1066,6 +1092,25 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         if (ukjente.length) svar.ukjente = ukjente
         return svar
       }
+      case 'hold_skjermen_vaken': {
+        const vaken = useHoldVaken()
+        if (!vaken.stottes.value) {
+          return { feil: 'Denne nettleseren kan ikke holde skjermen våken. På iPhone krever det Safari 16.4 eller nyere.' }
+        }
+        // Modellen kan sende «60 minutter» som 3600 (sekunder) eller «en time»
+        // som 1. Vi klemmer til [0, 60] framfor å avvise: en skjerm som holdes
+        // våken i 60 minutter når brukeren ba om en time er riktig svar uansett
+        // hvilken enhet modellen trodde den brukte.
+        const bedt = Number(args?.minutter)
+        if (!Number.isFinite(bedt)) return { feil: 'Mangler antall minutter.' }
+        const minutter = vaken.settMinutter(klemMinutter(bedt))
+        if (!minutter) return { ok: true, av: true, merknad: 'Skjermen slukner nå som vanlig.' }
+        return {
+          ok: true,
+          minutter,
+          merknad: `Skjermen holdes våken i ${minutter} minutter. Nedtellingen vises som en gul ring rundt menyknappen. Den varer bare denne økta.`,
+        }
+      }
       case 'bytt_kart_tema': {
         const temaer = listThemes()
         const valgbare = temaer.map((t) => ({ nokkel: t.key, navn: t.label }))
@@ -1626,6 +1671,9 @@ export function toolStatusLabel(name, args) {
       ? 'Fjerner markeringen …'
       : `Merker ${args?.navn ? `«${args.navn}»` : 'stedet'} i kartet …`
     case 'bytt_kart_tema': return 'Bytter kart-tema …'
+    case 'hold_skjermen_vaken': return Number(args?.minutter) > 0
+      ? 'Holder skjermen våken …'
+      : 'Lar skjermen slukne …'
     case 'styr_kartlag': return 'Justerer kartlagene …'
     case 'foreslaa_tur':
     case 'vis_tur_i_3d': return 'Beregner turen …'

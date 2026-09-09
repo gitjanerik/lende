@@ -3563,6 +3563,55 @@ const SJEKKER = [
     },
   },
   {
+    // v6.6.4: «Hold skjermen våken» har verken knapp eller tekst — sliderens tall
+    // og den gule ringen rundt hamburgeren ER hele grensesnittet. Ringen tegnes
+    // av `ringDash`, som er enhetstestet, men INGEN enhetstest kan se at ringen
+    // faktisk havner i DOM-en, at den forsvinner igjen på 0, eller at
+    // nedtellingen når hamburger-knappen — den bor i et annet komponenttre,
+    // teleportert til <body>, og bindes bare gjennom singletonen.
+    navn: 'hold skjermen våken: slider i menyen gir ring på hamburgeren',
+    domene: 'useHoldVaken + AppMenu + AppMenuButton',
+    async kjør(page) {
+      await page.locator('button[aria-label^="Åpne meny"]').click({ timeout: 10_000 })
+      const meny = page.locator('aside[aria-label="Hovedmeny"]')
+      await meny.waitFor({ state: 'visible', timeout: 10_000 })
+
+      const slider = meny.locator('.am-wake-range')
+      if (!await slider.count()) throw new Error('fant ingen «hold skjermen våken»-slider i hovedmenyen')
+      const meta = meny.locator('.am-wake-meta')
+      if ((await meta.innerText()).trim() !== 'Av') {
+        throw new Error('nedtellingen sto PÅ før noen dro i slideren')
+      }
+      const ring = page.locator('[data-hovedmeny-knapp] svg circle')
+      if (await ring.count()) throw new Error('ringen var tegnet før nedtellingen startet')
+
+      await slider.fill('30')
+      const tekst = (await meta.innerText()).trim()
+      if (tekst !== '30 minutter igjen') throw new Error(`slideren svarte «${tekst}»`)
+      await ring.waitFor({ state: 'attached', timeout: 5000 })
+      const strek = await ring.getAttribute('stroke')
+      if (strek !== '#ffd84a') throw new Error(`ringen er ikke gul, men «${strek}»`)
+      // Full andel = hele omkretsen tegnet, altså offset 0. Er den negativ her,
+      // spises ringen feil vei fra første bilde.
+      const offset = Number(await ring.getAttribute('stroke-dashoffset'))
+      if (offset !== 0) throw new Error(`ringen startet på dashoffset ${offset}, ikke 0`)
+      const label = await page.locator('[data-hovedmeny-knapp]').getAttribute('aria-label')
+      if (!/våken i 30 minutter/.test(label ?? '')) {
+        throw new Error(`hamburgerens aria-label sier ingenting om nedtellingen: «${label}»`)
+      }
+
+      // NØYTRAL TILSTAND: 0 slår av igjen, ellers står ringen og teller mens de
+      // neste sjekkene måler farger og trefflater på kartet.
+      await slider.fill('0')
+      if ((await meta.innerText()).trim() !== 'Av') throw new Error('0 slo ikke av nedtellingen')
+      if (await ring.count()) throw new Error('ringen ble stående etter at nedtellingen ble slått av')
+
+      await page.keyboard.press('Escape')
+      await meny.waitFor({ state: 'hidden', timeout: 8000 })
+      return 'slider → 30 min ga gul ring og aria-label; 0 ryddet den bort'
+    },
+  },
+  {
     // v6.5.50: `checkForUpdateNow()` i lib/swUpdate.js ble skrevet for en
     // «Se etter oppdatering»-knapp som ble igjen i svg-insights da Lende ble
     // skilt ut — funksjonen sto med NULL kallere, og appen hadde ingen manuell

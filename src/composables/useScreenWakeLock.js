@@ -15,6 +15,12 @@
 // Dette hindrer at GPS-sporingen dør fordi skjermen sovner mens brukeren
 // orienterer ute. Kompromisset er batteri; UI-en advarer tydelig om det.
 //
+// v6.6.4: `persist: true` (den generelle «hold skjerm våken»-settingen med
+// nøkkelen under) har ingen kallere igjen. Den var en PERSISTERT av/på-bryter i
+// Innstillinger → Format, og er avløst av `useHoldVaken` — en efemer nedtelling
+// i hovedmenyen. Persisteringen står igjen fordi den er testdekket og ufarlig,
+// men legger du en ny bryter på den, les hvorfor nedtellingen ikke lagres først.
+//
 // Skiller seg fra wake-lock inne i useTrackRecorder: den er kun aktiv mens
 // brukeren tar opp et spor (og uten timeout — skjermen skal være våken hele
 // turen); denne her er en generell visnings-modus.

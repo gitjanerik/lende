@@ -1,6 +1,6 @@
 <script setup>
 // Drawer-fane «Om» (innstillinger), skilt ut fra MapView v1.0.8. Kartstørrelse/
-// format/høydekurver for nye kart, fulle navn, skjerm-våken, maks fliser,
+// format/høydekurver for nye kart, fulle navn, maks fliser,
 // global relieff-standard og navnetetthet. Størrelsen bindes toveis via
 // v-model (MapView eier slider-computeden); format- og ekvidistanse-refene er
 // modul-singletons og hentes rett fra composablen.
@@ -19,7 +19,6 @@ defineProps({
   rebuildAtChosenSize: { type: Function, required: true },
   building: { type: Boolean, default: false },
   canRebuild: { type: Boolean, default: false },
-  screenWake: { type: Object, required: true },
   maxTiles: { type: Number, default: 0 },
   maxTileIndexMax: { type: Number, default: 4 },
 })
@@ -172,43 +171,6 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
         <span class="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
               :class="showFullNames ? 'left-5' : 'left-0.5'" />
       </button>
-    </div>
-    <!-- Innstillinger: hold skjerm våken. Default AV (opt-in, v10.1.24) —
-         nyttig når brukeren bruker kartet til orientering ute og ikke vil at
-         telefonen skal låse skjermen midt i navigasjonen. Fra v2.4.2 holdes
-         skjermen våken sammenhengende (ingen 2-min idle-slipp), så GPS ikke
-         dør — derfor batteri-advarselen under. -->
-    <div v-if="screenWake.supported"
-         class="rounded-lg bg-ink/5 px-3 py-2.5 mb-3">
-      <div class="flex items-center gap-3">
-        <div class="flex-1 min-w-0">
-          <div class="text-[13px] text-ink font-medium">Hold skjerm våken</div>
-          <div class="text-[11px] text-ink-3 leading-snug">
-            Hindrer at telefonen låser skjermen mens du bruker kartet, så GPS-posisjonen ikke stopper. Skjermen holdes våken sammenhengende så lenge dette er på. <span class="text-ink-2">Et aktivt nærhetsvarsel holder skjermen våken uansett — uavhengig av denne bryteren.</span>
-          </div>
-        </div>
-        <button @click="screenWake.setEnabled(!screenWake.enabled.value)"
-                :aria-pressed="screenWake.enabled.value"
-                :aria-label="screenWake.enabled.value ? 'Slå av skjerm-våken' : 'Slå på skjerm-våken'"
-                class="relative w-11 h-6 rounded-full transition-colors shrink-0"
-                :class="screenWake.enabled.value ? 'bg-emerald-500' : 'bg-ink/15'">
-          <span class="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
-                :class="screenWake.enabled.value ? 'left-5' : 'left-0.5'" />
-        </button>
-      </div>
-      <!-- Batteri-advarsel: skjermen slipper ikke lenger automatisk, så en
-           glemt mobil med kartet oppe tapper batteri. -->
-      <div v-if="screenWake.enabled.value"
-           class="mt-2.5 flex items-start gap-2 rounded-md bg-red-500/10 border border-red-500/25 px-2.5 py-2">
-        <svg viewBox="0 0 24 24" class="w-4 h-4 text-red-400 shrink-0 mt-px" fill="none"
-             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-        </svg>
-        <div class="text-[11px] text-red-200/90 leading-snug">
-          Bruk med varsomhet: skjermen slås ikke av av seg selv og tapper batteri raskt. Slå av her når du er ferdig, eller lås mobilen manuelt når du legger den fra deg.
-        </div>
-      </div>
     </div>
     <!-- Maks kartfliser: hvor mange utsnitt mosaikk-cachen beholder.
          Trinn 4/9/16/25/36 (n×n), default 16. Påvirker mest lagring. -->

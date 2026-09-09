@@ -1,3 +1,25 @@
+## 2026-09-09 — v6.6.4: Hold skjermen våken er en nedtelling i hovedmenyen
+
+«Hold skjerm våken» lå i Innstillinger → Format, mellom papirformat og
+høydekurver, og gjaldt bare kartet — mens en telefon som låser seg midt i
+navigasjonen er like ille i Turplanleggeren. Den bor nå i hovedmenyen, som er
+den ene flaten begge halvdelene deler, og formen byttet samtidig: av/på-bryteren
+ble en slider fra 0 til 60 minutter. En bryter må slås av igjen, og den som
+glemmer det finner en tom telefon — det var derfor den gamle raden bar en rød
+batteri-advarsel. En nedtelling som løper ut av seg selv trenger ingen advarsel,
+men bare hvis den faktisk starter på null hver økt, så den lagres ikke: en time
+som gjenopptar seg selv etter en omlasting er nøyaktig den glemte telefonen
+igjen. Indikatoren er en gul ring rundt hamburger-knappen, i samme farge og
+strek som FAB-knottenes hold-ring, og den spises MED klokka fra toppen —
+`ringDash` i `lib/holdVaken.js` er ren og testet, for en nedtelling som tegner
+feil vei ser helt normal ut på et stillbilde. Nedtellingen er en singleton
+(`useHoldVaken`), fordi slideren, ringen og Lende-chattens nye verktøy
+`hold_skjermen_vaken` («hold skjermen våken i en time») skal svare på det samme
+spørsmålet. MCP-serveren har bevisst ikke fått verktøyet: den kjører headless i
+node/workerd og har ingen skjerm å holde våken.
+
+---
+
 ## 2026-09-09 — v6.6.3: X-en i annoterings-arket avslutter plasseringen
 
 Valgte man et symbol og trykket X, ble arket borte mens kartet sto igjen i
