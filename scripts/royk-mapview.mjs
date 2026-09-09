@@ -776,23 +776,13 @@ const SJEKKER = [
         return el.tagName.toLowerCase()
       })
       const før = await synlig()
-      let etter
-      // FAB-klyngen MÅ lukkes igjen. Sjekken etter denne åpner den selv, og en
-      // klynge som alt står åpen blir LUKKET av det trykket — da finner den
-      // ikke knotten sin. Nøyaktig den kollateralskaden dette gjorde første
-      // gang: strek-sjekken feilet på noe som ikke var dens feil.
-      try {
-        // Relieff-knotten kaller renderGhostTiles() — altså hele den nye
-        // render- + relieff-pass-stien, inkludert planleggRelieffPass.
-        await page.locator('[aria-label*="vis kartknappene"]').click()
-        await page.waitForTimeout(700)
-        await page.locator('[aria-label^="Relieff"]').click()
-        await page.waitForTimeout(1200)
-        etter = await synlig()
-      } finally {
-        await page.locator('[aria-label*="kartknappene"]').click().catch(() => {})
-        await page.waitForTimeout(400)
-      }
+      // Relieff-snarveien kaller renderGhostTiles() — altså hele render- +
+      // relieff-pass-stien, inkludert planleggRelieffPass. Venstre halvdel av
+      // pilla er hakket; tannhjulet ved siden av åpner panelet (egen sjekk).
+      await apneSnarveiRad(page)
+      await page.locator('[aria-label="Relieff"]').click()
+      await page.waitForTimeout(1200)
+      const etter = await synlig()
       if (før === etter && før === 'borte') {
         throw new Error('relieff-laget dukket aldri opp — kjørte applyHillshade?')
       }
@@ -804,19 +794,15 @@ const SJEKKER = [
     },
   },
   {
-    navn: 'strek-knotten endrer --stroke-scale',
+    navn: 'strek-snarveien endrer --stroke-scale',
     domene: 'useKartKnotter',
     async kjør(page) {
       await lukkDrawer(page)
       const les = () => page.evaluate(() =>
         document.querySelector('svg.isom-map')?.style.getPropertyValue('--stroke-scale') || '')
       const før = await les()
-      // FAB-ene styres av pointerdown/pointerup (useLongPress), ikke @click — et
-      // el.click() fra evaluate() gjør INGENTING her. Playwright-locator sender
-      // en ekte peker-sekvens, så den må brukes for alt i FabCluster.
-      await page.locator('[aria-label*="vis kartknappene"]').click()
-      await page.waitForTimeout(700)
-      await page.locator('[aria-label^="Strektykkelse"]').click()
+      await apneSnarveiRad(page)
+      await page.locator('[aria-label="Strektykkelse"]').click()
       await page.waitForTimeout(800)
       const etter = await les()
       if (!etter || etter === før) {
@@ -825,26 +811,24 @@ const SJEKKER = [
       // Hint-boblen er knottens egen tilbakemelding — den beviser at watchen kjørte
       // (og ikke bare at en computed ble lest).
       const hint = await page.evaluate(() => /Strek [\d.]+×/.test(document.body.innerText))
-      if (!hint) throw new Error('ingen hint-boble etter knott-tapp — kjørte watchen?')
+      if (!hint) throw new Error('ingen hint-boble etter hakket — kjørte watchen?')
       return `--stroke-scale ${Number(før).toFixed(3)} → ${Number(etter).toFixed(3)}, hint vist`
     },
   },
   {
-    navn: 'hold på knotten åpner FAB-panelet',
+    navn: 'tannhjulet i strek-pilla åpner panelet',
     domene: 'useKartKnotter',
     async kjør(page) {
-      // Lang-trykk (600 ms) = åpne panelet. Panelet er per-kart-finjusteringen,
-      // og «Angi som standard»/«Nullstill» bor der.
-      const knott = page.locator('[aria-label^="Strektykkelse"]')
-      const boks = await knott.boundingBox()
-      await page.mouse.move(boks.x + boks.width / 2, boks.y + boks.height / 2)
-      await page.mouse.down()
-      await page.waitForTimeout(900)
-      await page.mouse.up()
+      // TANNHJULET ER DET LANG-TRYKKET VAR (v7.0.0). Panelet er per-kart-
+      // finjusteringen, og «Angi som standard»/«Nullstill» bor der. Sjekken
+      // står her fordi den er den ENESTE som beviser at pillas høyre halvdel
+      // er en egen trykkflate og ikke bare pynt på venstre.
+      await apneSnarveiRad(page)
+      await page.locator('[aria-label^="Strek-innstillinger"]').click()
       await page.waitForTimeout(600)
       const åpent = await page.evaluate(() =>
         !!document.querySelector('[aria-label="Lukk panel"]'))
-      if (!åpent) throw new Error('FAB-panelet åpnet ikke på lang-trykk')
+      if (!åpent) throw new Error('panelet åpnet ikke fra tannhjulet')
       const harNullstill = await page.evaluate(() =>
         [...document.querySelectorAll('button')].some((b) => b.offsetParent && /Nullstill/i.test(b.innerText)))
       await page.locator('[aria-label="Lukk panel"]').click()
@@ -4286,10 +4270,10 @@ const SJEKKER = [
       await page.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
       await page.waitForFunction(() => !!document.querySelector('svg.isom-map'),
         null, { timeout: 30_000 })
-      // Høyreklikk på FAB-ankeret ER lang-trykkets mus-ekvivalent (FabCluster),
-      // og lang-trykket er inngangen til chatten fra kartet.
-      await page.locator('button[aria-label^="Lende —"]').first()
-        .click({ button: 'right', timeout: 10_000 })
+      // Chatten er en SNARVEI fra v7.0.0 (Lende-FAB-en er borte), og den står
+      // sist i rekkefølgen — altså bak «Mer» på en smal skjerm.
+      await apneSnarveiRad(page)
+      await page.locator('[aria-label="Spør Lende om kartet"]').click({ timeout: 10_000 })
       const felt = page.locator('textarea[placeholder^="Spør om kartet"]')
       await felt.waitFor({ state: 'visible', timeout: 10_000 })
 
@@ -4551,9 +4535,28 @@ async function zoomInn(page, tikk) {
   await page.waitForTimeout(1000)
 }
 
+// INNGANGEN TIL SKUFFEN ER EN SNARVEI FRA v7.0.0. Knappen sto ytterst til
+// høyre i topprada; nå heter den «Oppsett» i raden over kartet og står sist,
+// altså bak «Mer» på en smal skjerm. `klikkTekst` duger ikke her: den leser
+// innerText FØR aria-label, og teksten er «Oppsett».
 async function åpneDrawer(page) {
-  if (!(await erDrawerÅpen(page))) await klikkTekst(page, /^Innstillinger$/)
-  await page.waitForTimeout(400)
+  if (await erDrawerÅpen(page)) return
+  await apneSnarveiRad(page)
+  await page.locator('.snarvei-rad [aria-label="Innstillinger"]').click()
+  await page.waitForTimeout(500)
+}
+
+// SNARVEI-RADEN ER INNGANGEN TIL KNOTTENE FRA v7.0.0. Strek og relieff lå bak
+// et FAB-anker som måtte trykkes opp først; nå er de snarveier — men de står
+// sist i standard-rekkefølgen, altså bak «Mer» på en smal skjerm. Helperen
+// åpner nedtrekket bare når det trengs, og et trykk på en snarvei lukker det
+// igjen av seg selv (`velg()` setter apen = false), så kallerne rydder ikke.
+async function apneSnarveiRad(page) {
+  const handle = page.locator('.snarvei-rad [aria-expanded]')
+  if ((await handle.getAttribute('aria-expanded')) === 'false') {
+    await handle.click()
+    await page.waitForTimeout(300)
+  }
 }
 
 async function lukkDrawer(page) {

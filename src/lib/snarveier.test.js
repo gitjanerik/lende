@@ -10,12 +10,20 @@ describe('katalogen', () => {
     expect(new Set(ider).size).toBe(ider.length)
     expect(SNARVEIER.every(s => s.label && s.aria)).toBe(true)
   })
-  it('bærer funksjonene skillet mellom funksjon og innstilling ga, og de to eksterne sist', () => {
-    // Rekkefølgen ER standarden brukeren møter først, og de to som FORLATER
-    // appen skal stå bak alt som gjør noe med kartet — se katalogen.
+  it('bærer funksjonene skillet mellom funksjon og innstilling ga, og de som ikke gjør noe med kartet sist', () => {
+    // Rekkefølgen ER standarden brukeren møter først: alt som gjør noe med
+    // kartet, så de to som FORLATER appen, så de to som stiller kartet inn,
+    // og til slutt chatten og inngangen til skuffen — se katalogen.
     expect(STANDARD_REKKEFOLGE).toEqual(
       ['stifinner', 'runde', 'maaling', 'tre-d', 'annotering', 'sporing', 'info',
-       'utno', 'gmaps'])
+       'utno', 'gmaps', 'strek', 'relieff', 'chat', 'innstillinger'])
+  })
+  it('gir strek og relieff en pille med tannhjul, og bare dem', () => {
+    // `gruppe` er kontrakten SnarveiRad rendrer den andre trykkflata av, og
+    // uten en aria-tekst er tannhjulet en knapp uten navn.
+    const grupper = SNARVEIER.filter(s => s.gruppe)
+    expect(grupper.map(s => s.id)).toEqual(['strek', 'relieff'])
+    expect(grupper.every(s => s.tannhjulAria)).toBe(true)
   })
 })
 
@@ -47,8 +55,16 @@ describe('snarveierIRekkefolge', () => {
     expect(ider).not.toContain('sporing')
     expect(ider).toContain('maaling')
   })
-  it('gir alle på egne kart', () => {
-    expect(snarveierIRekkefolge(STANDARD_REKKEFOLGE)).toHaveLength(SNARVEIER.length)
+  it('gir alle på egne kart når chatten er med', () => {
+    expect(snarveierIRekkefolge(STANDARD_REKKEFOLGE, { chat: true }))
+      .toHaveLength(SNARVEIER.length)
+  })
+  it('holder chatten ute uten token, og slipper den inn med', () => {
+    // Samme port som `hasAiToken()` gater alt annet med: uten token skal
+    // funksjonen ikke engang være synlig i sorteringen.
+    expect(snarveierIRekkefolge(STANDARD_REKKEFOLGE).map(s => s.id)).not.toContain('chat')
+    expect(snarveierIRekkefolge(STANDARD_REKKEFOLGE, { chat: true }).map(s => s.id))
+      .toContain('chat')
   })
 })
 

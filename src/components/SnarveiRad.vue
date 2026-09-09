@@ -50,7 +50,9 @@ import SnarveiIkon from './SnarveiIkon.vue'
 import { antallSomFar } from '../lib/snarveier.js'
 
 const props = defineProps({
-  // [{ id, label, aria }] i brukerens rekkefølge.
+  // [{ id, label, aria, gruppe?, bue?, dimmet?, tannhjulAria? }] i brukerens
+  // rekkefølge. `gruppe` gir pille med tannhjul; `bue` er knott-ringens
+  // geometri, som SnarveiIkon tegner nivået med.
   snarveier: { type: Array, required: true },
   // Den faste gruppen: [{ id, label, aria, aktiv }] — se punkt 5 i filhodet.
   nav: { type: Array, default: () => [] },
@@ -58,7 +60,7 @@ const props = defineProps({
   azimut: { type: Number, default: 0 },
   uiTextScale: { type: Number, default: 1 },
 })
-const emit = defineEmits(['velg', 'nav', 'sorter'])
+const emit = defineEmits(['velg', 'nav', 'innstilling', 'sorter'])
 
 // Margin til hver skjermkant. Raden er sentrert, så halve verdien per side.
 const KANT_PX = 24
@@ -153,6 +155,10 @@ function velg(id) {
   apen.value = false
   emit('velg', id)
 }
+function innstilling(id) {
+  apen.value = false
+  emit('innstilling', id)
+}
 function navTrykk(id) {
   emit('nav', id)
 }
@@ -193,14 +199,41 @@ function sorter() {
         <div class="shrink-0 self-stretch w-px my-1 bg-ink/20" aria-hidden="true"></div>
       </template>
 
-      <button v-for="(s, i) in snarveier" :key="s.id"
-              data-snarvei :data-snarvei-id="s.id" data-linje
-              v-show="synlig(i)"
-              @click="velg(s.id)" :aria-label="s.aria"
-              class="shortcut-btn">
-        <SnarveiIkon :id="s.id" class="w-5 h-5" />
-        <span>{{ s.label }}</span>
-      </button>
+      <template v-for="(s, i) in snarveier" :key="s.id">
+        <!-- GRUPPE-SNARVEIEN: én pille med TO trykkflater (v7.0.0). Venstre er
+             hakket — det tapet på knotten gjorde — høyre er tannhjulet som
+             åpner panelet, altså det lang-trykket sa. Boksen er ETT
+             `data-snarvei`/`data-linje`-element, slik at målingen og
+             ettersjekken ser pilla som én knapp. -->
+        <div v-if="s.gruppe" data-snarvei :data-snarvei-id="s.id" data-linje
+             v-show="synlig(i)" class="shortcut-group">
+          <button type="button" @click="velg(s.id)" :aria-label="s.aria"
+                  class="shortcut-btn shortcut-btn--venstre"
+                  :class="s.dimmet ? 'shortcut-btn--dim' : ''">
+            <SnarveiIkon :id="s.id" :bue="s.bue" class="w-5 h-5" />
+            <span>{{ s.label }}</span>
+          </button>
+          <span class="shortcut-group__strek" aria-hidden="true"></span>
+          <button type="button" @click="innstilling(s.id)"
+                  :aria-label="s.tannhjulAria || `Innstillinger for ${s.label}`"
+                  class="shortcut-btn shortcut-btn--tannhjul">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.2.62.79 1.02 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
+        </div>
+
+        <button v-else data-snarvei :data-snarvei-id="s.id" data-linje
+                v-show="synlig(i)"
+                @click="velg(s.id)" :aria-label="s.aria"
+                class="shortcut-btn">
+          <SnarveiIkon :id="s.id" class="w-5 h-5" />
+          <span>{{ s.label }}</span>
+        </button>
+      </template>
 
       <!-- Nedtrekket. Står ALLTID, også når ingenting er skjult — se punkt 1
            i filhodet. Tallet i merket sier hvor mange som ligger bak. -->
@@ -271,6 +304,37 @@ function sorter() {
 .shortcut-btn:active { transform: scale(0.94); }
 .shortcut-btn:hover { background: color-mix(in oklab, var(--color-ink) 8%, transparent); }
 .shortcut-btn--handle { min-width: 44px; color: var(--color-ink-2, var(--color-ink)); }
+
+/* GRUPPE-PILLA (v7.0.0): to trykkflater i én boks. Boksen har radens egen
+   avrunding og en hårfin ramme, slik at de to leses som ÉN funksjon med en
+   innstilling — ikke som to snarveier som tilfeldigvis står inntil hverandre.
+   `flex-shrink: 0` av samme grunn som på knappene: målingen skal se den ekte
+   bredden, ikke minstebredden. */
+.shortcut-group {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  border-radius: 12px;
+  border: 1px solid color-mix(in oklab, var(--color-ink) 14%, transparent);
+  background: color-mix(in oklab, var(--color-ink) 5%, transparent);
+}
+.shortcut-group .shortcut-btn { border-radius: 11px; }
+.shortcut-btn--venstre { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.shortcut-btn--tannhjul {
+  min-width: 32px;
+  padding: 6px 7px;
+  justify-content: center;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  color: var(--color-ink-2, var(--color-ink));
+}
+.shortcut-group__strek {
+  width: 1px;
+  margin: 6px 0;
+  background: color-mix(in oklab, var(--color-ink) 18%, transparent);
+}
+/* Relieff av: ikonet skal si det uten en egen etikett. */
+.shortcut-btn--dim { opacity: 0.55; }
 
 /* NAV-GRUPPEN: av er nøytral, på er appens aksentgrønne med hvitt innhold —
    samme par som hver vippebryter i skuffene og som de gamle runde skivene

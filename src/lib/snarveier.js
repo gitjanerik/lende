@@ -44,6 +44,39 @@ export const SNARVEIER = [
   // ut av det — og rekkefølgen er uansett brukerens.
   { id: 'utno',       label: 'UT.no',      aria: 'Åpne stedet på UT.no' },
   { id: 'gmaps',      label: 'Google',     aria: 'Åpne stedet i Google Maps' },
+  // ARVEN ETTER LENDE-KNAPPEN (v7.0.0). Strek og relieff var to knotter som
+  // sprang ut bak et FAB-anker nede til høyre: tap = ett hakk, lang-trykk =
+  // panelet. Ankeret er borte — det var appens siste sted der en funksjon bare
+  // fantes for den som gjettet en gest — og de to er nå snarveier som alt
+  // annet man GJØR med kartet.
+  //
+  // `gruppe` er forskjellen: de rendres som en pille med TO trykkflater, der
+  // venstre er hakket og høyre er et tannhjul som åpner panelet. Det er det
+  // lang-trykket sa, sagt med en knapp. `bue` fylles av kallstedet med
+  // knott-buens geometri — den blå/oransje ringen som viser NIVÅET er hele
+  // grunnen til at de to ikke bare er nok et strekikon.
+  //
+  // De står SIST, foran chatten: de stiller inn hvordan kartet ser ut, mens
+  // resten av raden gjør noe med det. Rekkefølgen er uansett brukerens.
+  { id: 'strek',      label: 'Strek',      aria: 'Strektykkelse', gruppe: true,
+    tannhjulAria: 'Strek-innstillinger for dette kartet' },
+  { id: 'relieff',    label: 'Relieff',    aria: 'Relieff',       gruppe: true,
+    tannhjulAria: 'Relieff-innstillinger for dette kartet' },
+  // Chatten er HELT sist, og den finnes bare for den som har invitasjonstoken
+  // — `kunChat` er samme port som `hasAiToken()` gater alt annet med. Uten
+  // token skal funksjonen ikke engang være synlig i sorteringen.
+  { id: 'chat',       label: 'Lende',      aria: 'Spør Lende om kartet', kunChat: true },
+  // INNSTILLINGER ER OGSÅ EN SNARVEI (v7.0.0), og den står helt sist. Knappen
+  // lå ytterst til høyre i topprada ved siden av søket, og de to spurte om
+  // ulike ting: søket handler om kartet man ser på, skuffen om hvordan appen
+  // er stilt inn. Med skuffen ute får søket høyrekanten alene og kartnavnet
+  // den plassen mellom hamburgeren og søket det manglet.
+  //
+  // Den er en INNGANG og ikke en funksjon, men den sorteres som resten:
+  // rekkefølgen er brukerens, og en knapp som er unntatt fra sorteringen er en
+  // knapp man ikke finner igjen der man la den. Nav-gruppen er fortsatt det
+  // eneste unntaket, og den er det fordi den bærer en TILSTAND.
+  { id: 'innstillinger', label: 'Oppsett', aria: 'Innstillinger' },
 ]
 
 export const STANDARD_REKKEFOLGE = SNARVEIER.map(s => s.id)
@@ -89,11 +122,11 @@ export function normaliserRekkefolge(lagret) {
 }
 
 /** Katalog-oppslagene i brukerens rekkefølge, filtrert på kart-typen. */
-export function snarveierIRekkefolge(rekkefolge, { egetKart = true } = {}) {
+export function snarveierIRekkefolge(rekkefolge, { egetKart = true, chat = false } = {}) {
   const kat = new Map(SNARVEIER.map(s => [s.id, s]))
   return normaliserRekkefolge(rekkefolge)
     .map(id => kat.get(id))
-    .filter(s => s && (egetKart || !s.kunEgne))
+    .filter(s => s && (egetKart || !s.kunEgne) && (chat || !s.kunChat))
 }
 
 /** Flytter ett element fra `fra` til `til`. Utenfor rekkevidde = uendret. */

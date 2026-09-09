@@ -1,3 +1,9 @@
+## 2026-09-09 — v7.0.0: Lende-knappen er borte, og alt den bar er snarveier
+
+Lende-FAB-en nede til høyre var appens siste sted der en funksjon bare fantes for den som gjettet en gest: tap på en knott ga ett hakk, lang-trykk åpnet et panel, og ingenting på skjermen sa det. Ankeret er fjernet. Strek og relieff er nå snarveier med to trykkflater i én pille — venstre halvdel er hakket, tannhjulet til høyre er panelet — og den blå og oransje ringen som viser nivået er med videre, fordi den er hele grunnen til at de to ikke bare er nok et strekikon. Chatten er en snarvei helt sist for dem som har den. Det tredje knott-panelet, «Zoom og kartutsnitt», er slettet i sin helhet: «standard zoom-nivå» satte et gulv under dekningsskalaen som dekningen svarer bedre på selv, «bygg om i valgt størrelse» sto allerede i Format-fanen, og maks kartfliser er nå et fast tall (25, altså et 5 × 5-ark) framfor en skyve som var vanskelig å ta stilling til og lett å angre for sent. «Sentrer» er absorbert av «Nord opp» i nav-gruppen, som dermed både vender kartet mot nord, sentrerer og zoomer ut. Til slutt flyttet Innstillinger ut av topprada og inn i raden som en sorterbar snarvei: søket har høyrekanten alene, og kartnavnet i midten står symmetrisk med 52 % av bredden i stedet for 42 %.
+
+---
+
 ## 2026-09-09 — v6.6.5: Nedtellingen får et tall, og de eksterne kartene blir snarveier
 
 Tre ting fra felttest av v6.6.4. **Nedtellings-teksten står nå OVER slideren**,
