@@ -71,6 +71,10 @@ export const LAYERS = [
   // Sjø & padling — marine POI (fyr, sjømerker, skjær, marina, toalett,
   // drikkevann) + fareområde (data-layer 'sjo-poi'). Dybdepunkt/dybdekurver
   // er IKKE her — de er skjulte detalj-lag (long-press-inset / 'dybde').
+  // Båtruter (ISOM-derivert 561): trafikkerte båt-/fergeruter i sjøen. Egen
+  // toggle fordi de er ferdselslinjer og ikke sjø-POI — men de bor i den
+  // marine seksjonen, som er der man leter etter dem. Default PÅ.
+  { key: 'batrute',    label: 'Båtruter' },
   { key: 'kai',        label: 'Kai / brygge / molo' },
   { key: 'sjo-poi',    label: 'Sjø & padling' },
   // Sjønavn — geografiske navn i/ved sjøen. Eget lag så man kan slå av
@@ -79,7 +83,7 @@ export const LAYERS = [
 ]
 
 // Lag som hører til den marine «Sjø & padling»-seksjonen i drawer-en.
-export const MARINE_LAYER_KEYS = new Set(['kai', 'sjo-poi', 'sjo-navn'])
+export const MARINE_LAYER_KEYS = new Set(['batrute', 'kai', 'sjo-poi', 'sjo-navn'])
 
 export const DEFAULT_OFF_LAYERS = new Set(['lysloype'])
 

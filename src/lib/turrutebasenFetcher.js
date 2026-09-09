@@ -101,6 +101,21 @@ export function parseFotruter(gml) {
   return out
 }
 
+// Turrutebasens `ruteFølger` sier hva strekket FØLGER — sti, veg, trapp, bru …
+// og båt/ferge der ruta krysser vann med rutebåt. De siste er det som tegnet
+// «stier» tvers over Oslofjorden: en stiplet sti over sjøen leses som et tråkk
+// man kan gå. De går nå til båtrute-laget (ISOM-derivert 561) i stedet.
+//
+// Matchingen er en SUBSTRENG og ikke en kodeliste-verdi med vilje: Kartverkets
+// kodeliste er ikke pinned her, og verdiene varierer mellom «Båt», «båtrute»,
+// «Ferge» og «Ferje» i dataene. En for vid regel koster et blått strekk der
+// det skulle vært en sti; en for smal koster en sti tvers over fjorden.
+const BAT_RE = /b(å|aa|a)t|ferg|ferj/i
+
+export function erBatStrekk(ruteFolger) {
+  return BAT_RE.test(String(ruteFolger ?? ''))
+}
+
 // Uttynningen mot allerede tegnede linjer bor i linjeDedup.js — delt med
 // N50-stinettet, som trenger nøyaktig samme behandling.
 //
@@ -126,18 +141,24 @@ export { travelLineGeometries, dedupeRoutesAgainstLines, DEDUP_TOLERANCE_M, MIN_
  * for framtidig bruk (klikk-info).
  */
 export function turruterToElements(routes) {
-  return (routes ?? []).map((r, i) => ({
-    type: 'way',
-    id: `turrute-${r.id ?? i}`,
-    geometry: r.geometry,
-    tags: {
-      'lende:turrute': 'fotrute',
-      merking: r.merking === 'JA' ? 'JA' : 'NEI',
-      ...(r.navn ? { 'lende:rutenavn': r.navn } : {}),
-      ...(r.ansvarlig ? { 'lende:ansvarlig': r.ansvarlig } : {}),
-    },
-    _source: 'turrutebasen',
-  }))
+  return (routes ?? []).map((r, i) => {
+    const bat = erBatStrekk(r.ruteFolger)
+    return {
+      type: 'way',
+      id: `turrute-${r.id ?? i}`,
+      geometry: r.geometry,
+      tags: {
+        // Båtstrekk får IKKE `lende:turrute`: taggen er dedup-nøkkelen i
+        // linjeDedup.travelLineGeometries, og et båtstrekk er ikke en linje
+        // N50-stier skal tynnes mot.
+        ...(bat ? { 'lende:batrute': 'turrute' } : { 'lende:turrute': 'fotrute' }),
+        merking: r.merking === 'JA' ? 'JA' : 'NEI',
+        ...(r.navn ? { 'lende:rutenavn': r.navn } : {}),
+        ...(r.ansvarlig ? { 'lende:ansvarlig': r.ansvarlig } : {}),
+      },
+      _source: 'turrutebasen',
+    }
+  })
 }
 
 async function safeFetchText(url, { signal, timeoutMs = 15000, retries = 1 } = {}) {
