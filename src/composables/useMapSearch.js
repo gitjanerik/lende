@@ -19,8 +19,16 @@ export { readPeakLabel }
  *
  * `naboIndex` er ARKETS ØVRIGE FLISER, bygget av navnelabelene i `#ghost-tiles`
  * (se lib/kartNavn.lesSpokelsesNavn). Oppføringene har `el: null` — de skal
- * ALDRI havne i en DOM-toggling — og `utenforAktiv: true`. `arkIndex` er de to
- * flettet, og det er den SØKET filtrerer mot. LOD-en ser den aldri.
+ * ALDRI havne i en DOM-toggling. `arkIndex` er de to flettet, og det er den
+ * SØKET filtrerer mot. LOD-en ser den aldri.
+ *
+ * En oppføring bærer IKKE hvilken flis den kom fra, og det er en beslutning
+ * (v6.5.81): fram til da fikk nabo-treffene merkelappen «i naboflis» i lista.
+ * Den forklarte kartets indre topologi i stedet for å svare på det brukeren
+ * lurer på — «hvor langt unna er det?» — og på et ark på 36 fliser sto den på
+ * hver eneste rad. Avstanden fra utsnittet (`avstandM`, satt av `filterIndex`)
+ * betyr det samme i et ett-flis-kart som i en mosaikk, og er derfor det ENESTE
+ * som skal si noe om hvor treffet ligger.
  *
  * Indeksen plukker:
  *   - <text>-noder med data-label (stedsnavn, vann-navn, peak osv) — bruker
@@ -285,7 +293,7 @@ function pushRaw(out, name, kind, pos, el, extra = {}) {
     // id-en må være unik på tvers av BEGGE indeksene — `filterIndex` dedup-er
     // på den, og Vue bruker den som `:key`. Nabo-indeksen sender derfor inn en
     // prefiks; uten den kolliderte «stedsnavn-3» i aktiv flis med «stedsnavn-3»
-    // i naboflisa, og ett av de to treffene forsvant.
+    // i nabo-indeksen, og ett av de to treffene forsvant.
     id: `${extra.idPrefix ?? ''}${kind}-${out.length}`,
     name,
     folded: foldName(name),
@@ -300,9 +308,6 @@ function pushRaw(out, name, kind, pos, el, extra = {}) {
     // Rennende vann tegnet som flate (elv/kanal) — blå flate som en innsjø,
     // men ikke et vann i norsk forstand. Se isFlowingWaterArea i symbolizer.
     elv: extra.elv ?? false,
-    // Treffet ligger i en naboflis, ikke i den aktive. Kun for å si det i
-    // trefflista — koordinatene er allerede løftet til aktiv flis' meter-rom.
-    utenforAktiv: extra.utenforAktiv ?? false,
   })
 }
 
@@ -675,7 +680,7 @@ export function buildNaboSearchIndex(svgEl) {
     const kind = n.label
     if (SKIP_LABELS.has(kind)) continue
     if (NUMERIC_RE.test(n.name)) continue
-    const extra = { idPrefix: 'nabo-', utenforAktiv: true }
+    const extra = { idPrefix: 'nabo-' }
     if (kind === 'peak') {
       extra.categories = ['topp']
       extra.ele = n.ele
@@ -738,17 +743,44 @@ export function slaaSammenArkIndeks(aktiv, nabo, radiusM = NAVN_DEDUP_RADIUS_M) 
   return dedupPaaNavnOgSted(aktiv ?? [], nabo, radiusM)
 }
 
+// Avstand fra utsnittet, som den vises i trefflista. Avrundet til 10 m under
+// kilometeren av samme grunn som linjalen i Fritt lende: et siste siffer som
+// teller opp og ned leses som støy, ikke som avstand.
+export function avstandKort(m) {
+  if (!Number.isFinite(m)) return ''
+  if (m >= 1000) return `${(m / 1000).toFixed(1).replace('.', ',')} km`
+  return `${Math.round(m / 10) * 10} m`
+}
+
+// Legger avstanden fra `senter` på en KOPI av oppføringen. Kopi og ikke mutasjon:
+// indeks-objektene deles av navn-LOD-en og lever mellom søk, og en avstand bakt
+// inn der ville vært et tall fra et utsnitt brukeren for lengst har forlatt.
+function medAvstand(r, senter) {
+  if (!senter) return r
+  const d = Math.hypot(r.x - senter.x, r.y - senter.y)
+  // Tallet sorterer, teksten vises. Formateringen bor her og ikke i overlegget
+  // fordi overlegget er rent presentasjonelt — og fordi «1,2 km» da er testet.
+  return { ...r, avstandM: d, avstand: avstandKort(d) }
+}
+
 /**
- * Filtrer indeksen mot et søk. Returnerer maks `limit` treff,
- * prefix-matcher først, så kortere navn først.
+ * Filtrer indeksen mot et søk. Returnerer maks `limit` treff.
  *
  * Kategori-søk: når query er nøyaktig "vann", "innsjo" eller "tjern" (etter
  * folding), inkluderes alle entries med matchende `categories`-tag, ikke
  * bare de der søkeordet står i navnet. Slik får brukeren oversikt over
  * alle blå ferskvann-områder i kartet — inkludert navngitte hvis navn
  * ikke inneholder ordet "vann".
+ *
+ * `senter` er utsnittets midtpunkt i samme meter-rom som oppføringene (fra
+ * useMapExtend.visibleCenterSvg). Er det kjent, sorteres treffene NÆRMEST
+ * FØRST og hver rad bærer avstanden. Det er svaret på at et ark kan være én
+ * flis eller trettiseks: alfabetisk rekkefølge over 500 tjern er en liste man
+ * ikke leser, mens «nærmest først» betyr det samme uansett hvor stort arket er.
+ * Uten senter (test, eller et utsnitt vi ikke har målt) står den gamle
+ * alfabetiske rekkefølgen — funksjonen er fortsatt ren.
  */
-export function filterIndex(index, query, limit = 60) {
+export function filterIndex(index, query, limit = 60, senter = null) {
   const q = foldName(query)
   if (!q) return []
   // «topp»-søk: kartets N høyeste punkter, sortert på høyde desc. Egen gren
@@ -762,10 +794,14 @@ export function filterIndex(index, query, limit = 60) {
     const pool = peaks.length
       ? peaks
       : index.filter(r => r.kind === 'hoydepunkt' && Number.isFinite(r.ele))
+    // Topp-lista er RANGERT på høyde og skal ikke sorteres om av avstand —
+    // spørsmålet er «hva er høyest», ikke «hva er nærmest». Avstanden er
+    // likevel med på raden, fordi den er svaret på «rekker jeg dit i dag».
     return pool
       .slice()
       .sort((a, b) => b.ele - a.ele || a.name.localeCompare(b.name, 'no'))
       .slice(0, TOP_PEAKS_COUNT)
+      .map(r => medAvstand(r, senter))
   }
   const categoryTag = CATEGORY_ALIASES[q] ?? null
   // Kategori-søk ("vann"/"innsjø"/"tjern"/"parkering") er en OVERSIKT — UI-en
@@ -795,19 +831,23 @@ export function filterIndex(index, query, limit = 60) {
   //      (største vann øverst i den gruppen). De har syntetiske «Innsjø/
   //      Tjern uten navn (~X ha)»-navn som blander seg i alfabetisk
   //      rekkefølge på en ulesbar måte — derfor er de skilt ut.
-  out.sort((a, b) => {
+  const ut = out.map(r => medAvstand(r, senter))
+  ut.sort((a, b) => {
     const aUnnamed = a.kind === 'vann-omrade' ? 1 : 0
     const bUnnamed = b.kind === 'vann-omrade' ? 1 : 0
     if (aUnnamed !== bUnnamed) return aUnnamed - bUnnamed
     if (aUnnamed) {
-      // Begge er unavngitte vann — sorter etter areal desc
+      // Begge er unavngitte vann — sorter etter areal desc. Den står også når
+      // avstanden er kjent: et navnløst tjern velges på størrelse, ikke på navn.
       const aArea = a.areaM2 ?? 0
       const bArea = b.areaM2 ?? 0
       if (aArea !== bArea) return bArea - aArea
+    } else if (a.avstandM != null && b.avstandM != null && a.avstandM !== b.avstandM) {
+      return a.avstandM - b.avstandM
     }
     return a.name.localeCompare(b.name, 'no')
   })
-  return out.slice(0, effLimit)
+  return ut.slice(0, effLimit)
 }
 
 /**
@@ -833,7 +873,14 @@ export function findByName(index, name) {
   return exact ?? prefix ?? any
 }
 
-export function useMapSearch() {
+/**
+ * @param {{ senter?: import('vue').Ref<{x:number,y:number}|null> }} opts
+ *   `senter` er utsnittets midtpunkt i kartets meter-rom. Den er en REF og ikke
+ *   en getter som leser transform-tilstanden direkte: `results` er en computed,
+ *   og en getter over translate/scale ville gjort hele trefflista reaktiv på
+ *   hver eneste touchmove. Kalleren tar et øyeblikksbilde når søket åpnes.
+ */
+export function useMapSearch({ senter } = {}) {
   // shallowRef siden vi bytter hele array-referansen ved rebuild og ikke
   // muterer enkeltelementer — sparer Vue for deep-tracking.
   const index = shallowRef([])       // aktiv flis — også navn-LOD-ens budsjett
@@ -860,7 +907,7 @@ export function useMapSearch() {
   // Det søket faktisk filtrerer mot. Naboflisene er IKKE i `index` — se
   // notatet øverst i fila om hvorfor de to må holdes fra hverandre.
   const arkIndex = computed(() => slaaSammenArkIndeks(index.value, naboIndex.value))
-  const results = computed(() => filterIndex(arkIndex.value, query.value, 60))
+  const results = computed(() => filterIndex(arkIndex.value, query.value, 60, senter?.value ?? null))
 
   return { query, results, index, naboIndex, arkIndex, rebuild, rebuildNabo, clear }
 }

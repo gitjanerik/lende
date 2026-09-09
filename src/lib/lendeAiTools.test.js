@@ -289,6 +289,16 @@ describe('merkeSvarTekst', () => {
     })).not.toContain('elveflate')
   })
 
+  it('nevner kartet bare når det er et ANNET av brukerens kart', () => {
+    // byttetKart settes fra v6.5.81 KUN ved et ekte bytte i biblioteket. Et sted
+    // lenger ute i det samme arket merkes uten et ord om hvor det lå — begrepet
+    // «kartflis» var appens indre oppdeling, ikke noe brukeren har bedt om.
+    const bytte = merkeSvarTekst({ navn: 'Kvitvatnet', byttetKart: 'Rondane vest' })
+    expect(bytte).toContain('kartet «Rondane vest»')
+    expect(bytte).not.toContain('flis')
+    expect(merkeSvarTekst({ navn: 'Kvitvatnet' })).not.toContain('flis')
+  })
+
   it('bøyer superlativet riktig for topper og for minste', () => {
     expect(merkeSvarTekst({ navn: 'Vardåsen', rangering: { kategori: 'topp', retning: 'storst', antall: 9, storrelse: '349 moh' } }))
       .toContain('den høyeste av 9 topper')

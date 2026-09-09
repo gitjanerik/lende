@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { parseHTML } from 'linkedom'
 import {
   filterIndex, foldName, elementPosition, dedupeHeightPoints, readPeakLabel,
-  buildSearchIndex,
+  buildSearchIndex, avstandKort,
 } from './useMapSearch.js'
 
 // Pure-funksjons-tester. buildSearchIndex tester vi ikke her — den krever
@@ -88,6 +88,63 @@ describe('useMapSearch', () => {
       // entries der "vannet" finnes som substring i navnet. Ingen gjør.
       const results = filterIndex(mockIndex, 'vannet')
       expect(results.length).toBe(0)
+    })
+
+    // ── Avstand fra utsnittet (v6.5.81) ────────────────────────────────────
+    // Erstatter merkelappen «i naboflis», som sto på hver rad i et utbygd ark
+    // og fortalte om appens indre oppdeling i stedet for om turen.
+    describe('avstand fra utsnittet', () => {
+      // Utsnittet står nær Tjern (300,300) og langt fra Hestesund (100,100).
+      const senter = { x: 320, y: 300 }
+
+      it('lar rekkefølgen stå urørt uten et senter — funksjonen er fortsatt ren', () => {
+        expect(filterIndex(mockIndex, 'vann').map(r => r.name)).toEqual([
+          'Hestesund',
+          'Innsjø uten navn (~1 ha)',
+          'Tjern uten navn (~500 m²)',
+        ])
+        expect(filterIndex(mockIndex, 'vann')[0].avstand).toBeUndefined()
+      })
+
+      it('sorterer navngitte treff nærmest først når senteret er kjent', () => {
+        const mini = [
+          { id: 'x', name: 'Åvatnet', folded: 'aavatnet', kind: 'omrade', label: 'Vann', x: 300, y: 300, categories: ['vann'] },
+          { id: 'y', name: 'Bortevatnet', folded: 'bortevatnet', kind: 'omrade', label: 'Vann', x: 5000, y: 300, categories: ['vann'] },
+        ]
+        // Alfabetisk ville Bortevatnet kommet først (Å sist i norsk collation).
+        expect(filterIndex(mini, 'vann', 60, senter).map(r => r.name))
+          .toEqual(['Åvatnet', 'Bortevatnet'])
+      })
+
+      it('holder navnløse vann nederst, sortert på areal — også med senter', () => {
+        const navn = filterIndex(mockIndex, 'vann', 60, senter).map(r => r.name)
+        expect(navn).toEqual([
+          'Hestesund',
+          'Innsjø uten navn (~1 ha)',
+          'Tjern uten navn (~500 m²)',
+        ])
+      })
+
+      it('måler i kartets meter-rom og formaterer teksten', () => {
+        const treff = filterIndex(mockIndex, 'hestesund', 60, senter)[0]
+        expect(Math.round(treff.avstandM)).toBe(Math.round(Math.hypot(220, 200)))
+        expect(treff.avstand).toBe('300 m')
+      })
+
+      it('rører ikke indeks-objektene — avstanden er et øyeblikksbilde', () => {
+        filterIndex(mockIndex, 'hestesund', 60, senter)
+        expect(mockIndex[0].avstandM).toBeUndefined()
+      })
+
+      it('topp-lista står rangert på høyde, men bærer avstanden', () => {
+        const topper = [
+          { id: 'p1', name: 'Nær men lav', folded: 'naer men lav', kind: 'peak', label: 'Topp', x: 300, y: 300, ele: 400 },
+          { id: 'p2', name: 'Fjern og høy', folded: 'fjern og hoey', kind: 'peak', label: 'Topp', x: 9000, y: 300, ele: 1200 },
+        ]
+        const ut = filterIndex(topper, 'topp', 60, senter)
+        expect(ut.map(r => r.name)).toEqual(['Fjern og høy', 'Nær men lav'])
+        expect(ut[0].avstand).toBe('8,7 km')
+      })
     })
 
     it('returns [] for empty query', () => {
@@ -583,5 +640,28 @@ describe('buildSearchIndex — areal flettes fra polygon til navne-label', () =>
     expect(treff[0].kind).toBe('vann-navn')      // labelen vant
     expect(Math.round(treff[0].areaM2)).toBe(10_000)
     expect(treff[0].categories).toContain('vann')
+  })
+})
+
+// Avstanden i trefflista. Avrundingen er den samme som linjalen i Fritt lende
+// bruker, og av samme grunn: et siste siffer som teller opp og ned leses som
+// støy og ikke som avstand.
+describe('avstandKort', () => {
+  it('runder til 10 m under kilometeren', () => {
+    expect(avstandKort(0)).toBe('0 m')
+    expect(avstandKort(312)).toBe('310 m')
+    expect(avstandKort(996)).toBe('1000 m')
+  })
+
+  it('går over til km med komma-desimal', () => {
+    expect(avstandKort(1000)).toBe('1,0 km')
+    expect(avstandKort(1234)).toBe('1,2 km')
+    expect(avstandKort(12_400)).toBe('12,4 km')
+  })
+
+  it('gir tom streng for ukjent avstand — raden viser da ingenting', () => {
+    expect(avstandKort(null)).toBe('')
+    expect(avstandKort(NaN)).toBe('')
+    expect(avstandKort(undefined)).toBe('')
   })
 })

@@ -1247,6 +1247,10 @@ const {
   // direkte referanse ville truffet TDZ (samme grunn som `sti` over). Søket
   // bruker den til å lese navn i nabofliser som er demontert fra DOM-en.
   medAlleFliser: (fn) => medAlleSpokelserFestet(fn),
+  // Samme grunn — useMapExtend opprettes lenger ned. Søket måler avstanden fra
+  // utsnittet med den, så trefflista kan si «1,2 km» i stedet for hvilken flis
+  // treffet tilfeldigvis ligger i (v6.5.81).
+  visibleCenterSvg: () => visibleCenterSvg(),
   hooks: {
     renderHighlight: () => renderHighlight(),
     closeDrawer: () => closeDrawer(),

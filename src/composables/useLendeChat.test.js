@@ -153,7 +153,10 @@ describe('useLendeChat — merking i kartet', () => {
     expect(sisteSvar()).toContain('340 moh')
   })
 
-  it('sier fra når markeringen lå i en naboflis', async () => {
+  // byttetKart settes fra v6.5.81 bare ved et ekte bytte til et ANNET av
+  // brukerens kart — et sted lenger ute i det samme arket merkes uten et ord
+  // om hvor det lå, siden oppdelingen i fliser er appens og ikke brukerens.
+  it('sier fra når markeringen lå i et annet av brukerens kart', async () => {
     runTool.mockResolvedValue({
       ok: true,
       merket: { navn: 'Kvitvatnet', lat: 64.6, lon: 13.2 },

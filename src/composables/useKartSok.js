@@ -20,9 +20,17 @@
 // til søket. Herfra kalles bare `hooks.clearGlobalSearch()`.
 //
 // ── Hele arket, ikke bare midtflisa (v5.19.x) ───────────────────────────────
-// Brukeren bygger nabofliser bare ved å panorere, og et søk som stoppet ved
-// aktiv flis fant ikke stedet de nettopp så på skjermen. Nabo-indeksen bygges
+// Brukeren bygger ut arket bare ved å panorere, og et søk som stoppet ved aktiv
+// flis fant ikke stedet de nettopp så på skjermen. Den øvrige indeksen bygges
 // derfor av navnelabelene i `#ghost-tiles` (useMapSearch.rebuildNabo).
+//
+// FRA v6.5.81 SIER LISTA IKKE HVILKEN FLIS ET TREFF LIGGER I. Merkelappen «i
+// naboflis» sto på hver eneste rad i et utbygd ark og forklarte kartets indre
+// oppdeling — et begrep brukeren aldri har bedt om — i stedet for å svare på
+// det som avgjør valget: hvor langt unna er det. Avstanden fra utsnittet
+// (`sokSenter` under) betyr det samme enten arket er én flis eller trettiseks,
+// og den sorterer også lista. Legger du merkelappen tilbake, forklar først hva
+// brukeren skal GJØRE med den.
 //
 // To ting styrer NÅR den bygges, og begge er valgt for ytelse:
 //   1. Ikke i `scheduleDeferredMapPasses`. Det passet eier første-paint-budsjettet,
@@ -49,6 +57,7 @@ import { logPerf } from '../lib/perfLog.js'
  *   panTo: (x: number, y: number, opts?: object) => void,
  *   forcedVisibleNameEls: () => Set,   // getter: eies av useNavnLod (deklareres senere)
  *   medAlleFliser?: (fn: Function) => any,  // wrapper: eies av useGhostTiles (deklareres senere)
+ *   visibleCenterSvg?: () => { x: number, y: number } | null,  // getter: eies av useMapExtend
  *   hooks: {
  *     renderHighlight: () => void, closeDrawer: () => void,
  *     clearGlobalSearch: () => void,
@@ -57,13 +66,20 @@ import { logPerf } from '../lib/perfLog.js'
  */
 export function useKartSok({
   svgHostRef, wrapperRef, meta, scale, isGesturing, zoomNearThreshold,
-  panTo, forcedVisibleNameEls, medAlleFliser, hooks,
+  panTo, forcedVisibleNameEls, medAlleFliser, visibleCenterSvg, hooks,
 }) {
+
+  // Utsnittets midtpunkt da søket ble åpnet — det trefflista måler avstand fra.
+  // Et ØYEBLIKKSBILDE og ikke en live-lesing: `results` er en computed, og en
+  // avstand som leses av transform-tilstanden ville sortert lista på nytt for
+  // hver frame brukeren panorerer bak overlegget. Nullstilles ikke ved lukking;
+  // neste åpning skriver den.
+  const sokSenter = ref(null)
 
   // Søk i kart — bygger indeks etter map-load, viser dropdown med treff og
   // sentrerer på valgte stedsnavn. Highlight-ringen sitter til brukeren tømmer
   // søket eller scroller bort.
-  const mapSearch = useMapSearch()
+  const mapSearch = useMapSearch({ senter: sokSenter })
   // Destrukturér refs så template auto-unwrapper dem (Vue auto-unwrapper kun
   // top-level setup-refs, ikke properties på ett objekt).
   const searchQuery = mapSearch.query
@@ -92,9 +108,13 @@ export function useKartSok({
   function openSearch() {
     searchOpen.value = true
     hooks.closeDrawer()
-    // Naboflisene kan ha kommet til siden sist (auto-bygging mens brukeren
-    // panorerte), så indeksen bygges ved hver åpning — ikke ved kart-lasting.
+    // Nabo-indeksen kan ha kommet til siden sist (brukeren har bygd ut arket),
+    // så den bygges ved hver åpning — ikke ved kart-lasting.
     rebuildNaboIndeks()
+    // Avstandene i lista måles fra der brukeren ser NÅ, ikke fra der kartet ble
+    // åpnet. Feiler målingen (ingen wrapper ennå), står lista alfabetisk — som
+    // før — i stedet for å måle fra et punkt vi ikke har.
+    try { sokSenter.value = visibleCenterSvg?.() ?? null } catch { sokSenter.value = null }
     // Fokus håndteres av MapSearchOverlay når open blir true.
   }
   function closeSearch() {
@@ -178,7 +198,7 @@ export function useKartSok({
 
   return {
     mapSearch, searchQuery, searchResults, searchIndex, arkIndex,
-    searchOpen, highlightedFeature,
+    searchOpen, highlightedFeature, sokSenter,
     openSearch, closeSearch, clearHighlight, rebuildNaboIndeks,
     panToSettled, stopPanSettle, selectSearchResult,
     searchActiveIndex, onSearchKeydown,

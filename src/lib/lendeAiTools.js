@@ -137,10 +137,11 @@ export const AI_TOOLS = [
     function: {
       name: 'sok_i_kartet',
       description:
-        'Søk etter navngitte steder INNE i et lagret kart og naboflisene dets (mosaikken) — ' +
-        'tjern/vann, topper, hytter, parkeringer, stedsnavn — med kartets egne, eksakte ' +
-        'koordinater (samme søk som appens søkefelt). Hvert treff oppgir hvilken kartflis det ' +
-        'ligger i (kartId). Bruk ALLTID denne for å finne start/mål/vendepunkt til foreslaa_tur/' +
+        'Søk etter navngitte steder INNE i brukerens kart — hele arket, ikke bare utsnittet ' +
+        'på skjermen: tjern/vann, topper, hytter, parkeringer, stedsnavn, med kartets egne, ' +
+        'eksakte koordinater (samme søk som appens søkefelt). Hvert treff oppgir en kartId, ' +
+        'som er APPENS INTERNE OPPDELING av arket — den skal ALDRI nevnes for brukeren, som ' +
+        'opplever alt dette som ETT kart. Bruk ALLTID denne for å finne start/mål/vendepunkt til foreslaa_tur/' +
         'foreslaa_rundtur — den er fasit; sok_sted (nettbasert geokoding) kan treffe navnebrødre ' +
         'andre steder. Nøkkelord gir OVERSIKTER: «vann»/«innsjø» alle ferskvann sortert på ' +
         'areal (største først, arealM2 per treff), «topp» de høyeste toppene (moh), ' +
@@ -217,7 +218,7 @@ export const AI_TOOLS = [
         'i sti-summen; korte isolerte stumper ekskluderes. Bruk ved spørsmål som «hvor mange km ' +
         'sti er det her?», «hva er den lengste turen?», «hvilken tur har minst stigning?». Hver ' +
         'tur returnerer koordinater du kan sende rett videre: start/slutt/via → foreslaa_tur, ' +
-        'origo/via → foreslaa_rundtur. Analysen gjelder kun dette kartet (ikke nabofliser). ' +
+        'origo/via → foreslaa_rundtur. Analysen gjelder bare den delen av arket brukeren står i. ' +
         'treff kan være 0 når nettet bare har korte fragmenter — si det ærlig da. Står ' +
         'brukeren i et kart trengs INGEN argumenter — kall verktøyet uten kartId.',
       parameters: {
@@ -240,7 +241,8 @@ export const AI_TOOLS = [
         'merke det», «marker Stordammen», «vis meg hvor det er»), og tilby det gjerne selv rett ' +
         'etter at du har navngitt et sted i kartet. Oppgi HELST bare «navn» — appen slår det opp ' +
         'i kartets egne navn og finner koordinatene selv; lat/lon er bare for punkter uten navn. ' +
-        'Ligger stedet i en naboflis, åpnes den flisen. Sett «fjern» for å fjerne markeringen. ' +
+        'Ligger stedet i en annen del av arket, flyttes utsnittet dit av seg selv — det er ikke '
+        + 'noe å nevne for brukeren. Sett «fjern» for å fjerne markeringen. ' +
         'Påstå ALDRI at noe er merket uten at dette verktøyet har svart ok.',
       parameters: {
         type: 'object',
@@ -828,8 +830,10 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
 
         // Mosaikk: den viste flaten kan bestå av flere grid-kompatible fliser
         // (spøkelses-fliser i MapView). Søk i aktiv flis + naboene, så hele det
-        // synlige kartet oppleves som ETT kart — treffene merkes med hvilken
-        // flis de ligger i.
+        // synlige kartet oppleves som ETT kart. kartId følger med FOR APPENS
+        // skyld (den må vite hvor markeringen skal settes) — merknaden under
+        // forbyr modellen å nevne den, av samme grunn som søkefeltet sluttet å
+        // skrive «i naboflis» i v6.5.81: oppdelingen er vår, ikke brukerens.
         const naboer = await mosaikkNaboer(id, kart)
 
         const treff = [...sokIEttKart(kart, args?.sok, maks)]
@@ -843,8 +847,7 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
             treff: [],
             sokteKart: [kart.navn ?? id, ...naboer.map((n) => n.navn ?? n.id)],
             merknad:
-              `Ingen treff for «${args?.sok}» i kartet «${kart.navn ?? id}»` +
-              (naboer.length ? ` eller de ${naboer.length} naboflisene` : '') +
+              `Ingen treff for «${args?.sok}» noe sted i kartet «${kart.navn ?? id}»` +
               '. Stedet ligger trolig utenfor — forklar det ærlig, og tilby å bygge et nytt ' +
               'kart som dekker området (lag_kart) hvis brukeren vil dit.',
           }
@@ -867,9 +870,11 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
               : 'Største først (arealM2). Vann uten kjent areal ligger nederst.')
             : undefined,
           merknad:
-            'Treff med annen kartId enn brukerens aktive kart ligger i en NABOFLIS i samme ' +
-            'mosaikk — turer kan tegnes på tvers: bruk koordinatene direkte i foreslaa_tur/' +
-            'foreslaa_rundtur (appen laster naboflisene automatisk).' +
+            'Treff med annen kartId enn brukerens aktive ligger fortsatt i det SAMME kartet — ' +
+            'kartId er appens interne oppdeling av arket, og brukeren har aldri sett den. Bruk ' +
+            'koordinatene direkte i foreslaa_tur/foreslaa_rundtur (turer kan tegnes på tvers, ' +
+            'appen henter det den trenger selv), og si ALDRI noe om fliser, nabofliser eller ' +
+            'kart-id-er i svaret.' +
             (kategoriOnske
               ? ' Skal brukeren ha det største/minste merket, send ønsket ordrett videre til ' +
                 'merk_i_kartet (f.eks. navn: «største innsjø») — appen rangerer selv.'
@@ -925,7 +930,7 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
           }
           return {
             feil: navn
-              ? `Fant ikke «${navn}» blant navnene i kartet «${kart.navn ?? id}» eller naboflisene. ` +
+              ? `Fant ikke «${navn}» blant navnene i kartet «${kart.navn ?? id}». ` +
                 'Si det ærlig, og tilby å bygge et kart over området (lag_kart).'
               : 'Oppgi navnet på stedet som skal merkes (navn), eller lat/lon for et punkt uten navn.',
           }
@@ -960,8 +965,18 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
               'pannet dit. Bekreft kort at stedet er merket — ikke gjenta koordinatene.',
           }
         }
-        // Annen flis eller et annet lagret kart: åpne det med samme dyplenke
-        // «Del kart og sted» bruker, så markeringen settes når kartet er lastet.
+        // Et annet sted i det samme arket, eller et helt annet lagret kart:
+        // begge åpnes med samme dyplenke «Del kart og sted» bruker, så
+        // markeringen settes når kartet er lastet.
+        //
+        // FORSKJELLEN PÅ DE TO ER HVA BRUKEREN SKAL HØRE (v6.5.81). Er målet en
+        // del av arket brukeren alt står i, har ingenting skiftet fra brukerens
+        // side — utsnittet flyttet seg, som ved et hvilket som helst søketreff —
+        // og et svar om at «kartflisen Otersjøen nord ble åpnet» ville innført
+        // nettopp begrepet søkefeltet sluttet å bruke. Er det derimot et ANNET
+        // kart i biblioteket, er byttet ekte og skal sies: `byttetKart` settes
+        // bare da, og det er den som styrer bekreftelsen i merkeSvarTekst.
+        const iSammeArk = naboer.some((n) => n.id === målKart)
         onNavigate?.()
         await navigerTil({
           name: 'kart-vis',
@@ -975,9 +990,14 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         return {
           ok: true,
           merket,
-          byttetKart: merket.kart,
-          merknad: `Stedet ligger i «${merket.kart}» — kartet åpnes med markeringen satt. ` +
-            'Bekreft kort, og nevn at du byttet kartflis. Ikke gjenta koordinatene.',
+          byttetKart: iSammeArk ? null : merket.kart,
+          merknad: iSammeArk
+            ? 'Stedet ligger i en annen del av det samme kartet — utsnittet flyttes dit og ' +
+              'markeringen settes. Bekreft kort AT stedet er merket, uten å nevne fliser, ' +
+              'kart-id-er eller at noe ble åpnet. Ikke gjenta koordinatene.'
+            : `Stedet ligger i et annet av brukerens kart, «${merket.kart}» — det åpnes med ` +
+              'markeringen satt. Bekreft kort, og nevn hvilket kart du byttet til. Ikke ' +
+              'gjenta koordinatene.',
         }
       }
       case 'styr_kartlag': {
@@ -1126,7 +1146,7 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
             return {
               feil:
                 `${rolle} (${r.punkt.lat}, ${r.punkt.lon}) ligger ~${km.toFixed(1)} km utenfor ` +
-                `kartet «${kart.navn ?? id}» og naboflisene — ingen rundtur ble startet. ` +
+                `kartet «${kart.navn ?? id}» — ingen rundtur ble startet. ` +
                 'Prøv på nytt med stedsnavnet i origoNavn/viaNavn i stedet for koordinater: ' +
                 'da slår appen det opp i kartets egne navn, som er fasit.',
             }
@@ -1186,7 +1206,7 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
             return {
               feil:
                 `${rolle} (${r.punkt.lat}, ${r.punkt.lon}) ligger ~${km.toFixed(1)} km utenfor ` +
-                `kartet «${kart.navn ?? id}» og naboflisene — ingen tur ble startet. Prøv på ` +
+                `kartet «${kart.navn ?? id}» — ingen tur ble startet. Prøv på ` +
                 'nytt med stedsnavnet i fraNavn/tilNavn i stedet for koordinater: da slår ' +
                 'appen det opp i kartets egne navn, som er fasit. Finnes stedet ikke der, ' +
                 'tilby å bygge et nytt kart over riktig område med lag_kart.',
@@ -1416,8 +1436,10 @@ export function merkeSvarTekst({ navn, fjernet = false, byttetKart = null, range
   if (fjernet) return 'Markeringen er fjernet fra kartet.'
   const stedet = navn ? `«${navn}»` : 'Stedet'
   const ringen = 'merket i kartet med en rosa, blinkende ring'
+  // Bare et ekte bytte til et ANNET av brukerens kart havner her — et sted
+  // lenger ute i det samme arket merkes uten et ord om hvor det lå (v6.5.81).
   if (byttetKart) {
-    return `${stedet} ligger i kartflisen «${byttetKart}» — jeg åpnet den og merket stedet med den rosa ringen.`
+    return `${stedet} ligger i kartet «${byttetKart}» — jeg åpnet det og merket stedet med den rosa ringen.`
   }
   // Var det en rangering («den største innsjøen»), skal svaret si HVILKET sted
   // som vant og hvor mange det ble målt mot — ellers kan brukeren ikke se at
