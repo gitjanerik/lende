@@ -6,6 +6,8 @@ import { useMapContext } from '../composables/useMapContext.js'
 import { useUiTextScale, UI_TEXT_SCALES } from '../composables/useUiTextScale.js'
 import { useUiTheme } from '../composables/useUiTheme.js'
 import { useMapTheme } from '../composables/useMapTheme.js'
+import { useHoldVaken } from '../composables/useHoldVaken.js'
+import { MAKS_MINUTTER } from '../lib/holdVaken.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
 import { useLendeChat } from '../composables/useLendeChat.js'
 import { hasAiToken } from '../lib/lendeAi.js'
@@ -40,6 +42,26 @@ const { theme, setTheme } = useUiTheme()
 // Innstillinger → Tema. Av som default (ISOM-paletten kartene er tegnet for).
 const { isDarkMap, setDarkMap } = useMapTheme()
 const { openChat } = useLendeChat()
+
+// ── Hold skjermen våken ──────────────────────────────────────────────────────
+// Flyttet hit fra Innstillinger → Format (v6.6.4). Den lå fire trykk unna, i en
+// fane om papirformat og høydekurver, og gjaldt bare kartet — mens funksjonen er
+// like nødvendig i Turplanleggeren. Hovedmenyen er den ene flaten begge
+// halvdelene deler.
+//
+// Formen byttet samtidig: av/på-bryteren ble en NEDTELLING. En bryter må slås
+// av igjen, og den som glemmer det finner en tom telefon; en time som løper ut
+// av seg selv trenger verken advarsel eller opprydding. Derfor er det heller
+// ingen «på»-tekst og ingen knapp her: sliderens tall og den gule ringen rundt
+// hamburgeren sier alt som skal sies.
+const holdVaken = useHoldVaken()
+// Sliderens visningsverdi: nedtellingen, ikke det som ble valgt. Drar man til 30
+// og lar den gå i ti minutter, skal håndtaket stå på 20 — ellers lyver den om
+// hvor mye tid som er igjen.
+const vakenMin = computed(() => (holdVaken.aktiv.value ? holdVaken.igjenMinutter.value : 0))
+const vakenTekst = computed(() => (holdVaken.aktiv.value
+  ? `${holdVaken.igjenMinutter.value} minutter igjen`
+  : 'Av'))
 
 const route = useRoute()
 const router = useRouter()
@@ -408,6 +430,22 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           </div>
         </div>
 
+        <!-- Hold skjermen våken: én slider, ingen knapp. Egen blokk og ikke en
+             rad i «Visning» — det er en FUNKSJON som gjør noe med telefonen, ikke
+             en innstilling for hvordan appen ser ut. -->
+        <div v-if="holdVaken.stottes.value" class="am-block am-block-wide">
+          <div class="am-eyebrow">Hold skjermen våken</div>
+          <div class="am-wake">
+            <input type="range" class="am-wake-range"
+                   min="0" :max="MAKS_MINUTTER" step="1" :value="vakenMin"
+                   aria-label="Hold skjermen våken, minutter"
+                   :aria-valuetext="vakenTekst"
+                   @input="holdVaken.settMinutter($event.target.valueAsNumber)" />
+            <div class="am-wake-meta" :class="{ 'is-on': holdVaken.aktiv.value }"
+                 role="status" aria-live="polite">{{ vakenTekst }}</div>
+          </div>
+        </div>
+
         <!-- Dempet bunn under skillelinja. -->
         <div class="am-foot">
           <button v-if="showInstall" type="button" class="am-line am-line-dim" @click="onInstall">
@@ -729,4 +767,25 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 .menu-slide-enter-active, .menu-slide-leave-active { transition: transform 0.28s ease; }
 .menu-slide-enter-from, .menu-slide-leave-to { transform: translateX(-100%); }
+
+/* ── Hold skjermen våken ──
+   Sporet er gult (samme #ffd84a som ringen rundt hamburgeren og FAB-ens
+   hold-ring), så sliderens fylte del og ringen leses som samme funksjon. */
+.am-wake { display: flex; align-items: center; gap: 12px; }
+.am-wake-range {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 28px;
+  background: transparent;
+  accent-color: #ffd84a;
+  cursor: pointer;
+}
+.am-wake-meta {
+  flex: 0 0 auto;
+  font-size: 0.8em;
+  font-variant-numeric: tabular-nums;
+  color: var(--am-dim);
+  white-space: nowrap;
+}
+.am-wake-meta.is-on { color: #ffd84a; font-weight: 600; }
 </style>

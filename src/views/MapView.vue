@@ -57,7 +57,6 @@ import { KILDE_BRUKER, minneNokkel } from '../lib/stjerneminner.js'
 import { useStifinner } from '../composables/useStifinner.js'
 import { findByName } from '../composables/useMapSearch.js'
 import { useNominatim } from '../composables/useNominatim.js'
-import { useScreenWakeLock } from '../composables/useScreenWakeLock.js'
 import { useMapSizePreference, effectiveEquidistanceForWidthKm, aspectForFormat, DEFAULT_MAP_WIDTH_KM, MAP_SIZE_MIN_KM, MAP_SIZE_MAX_KM } from '../composables/useMapSizePreference.js'
 import { useLodTuning } from '../composables/useLodTuning.js'
 import { useLabelFonts } from '../composables/useLabelFonts.js'
@@ -2655,8 +2654,6 @@ const {
   dismissGpsTip, dismissLowAccuracy, dismissOutsideMap,
 } = useGpsTips({ userPos, gpsNow })
 
-const screenWake = useScreenWakeLock()
-
 // Egen efemer wake-lock som holder skjermen våken mens et nærhetsvarsel er
 // aktivt (uten idle-slipp), uavhengig av brukerens generelle «hold skjerm
 // våken»-setting. GPS-loopen som oppdager ankomst kjører i siden, så skjermen
@@ -2709,7 +2706,6 @@ onMounted(() => {
   }
   window.addEventListener('resize', measureWrapper)
   loadMap()
-  screenWake.start()
   mapCtx.register(menuMapPoint, mapTitle.value)
 })
 // Hovedmenyens snarvei-blokk skriver «Åpne <sted> i» — hold navnet i sync med
@@ -2719,7 +2715,6 @@ watch(mapTitle, (t) => mapCtx.setPlaceName(t))
 onUnmounted(() => {
   unlockBodyScroll()
   // GPS-tikkeren ryddes av useGpsSpor selv.
-  screenWake.stop()
   stopPanSettle()
   tabResizeObs?.disconnect()
   wrapperResizeObs?.disconnect()
@@ -3372,7 +3367,7 @@ onUnmounted(() => {
             v-model:density-apply-to-all="densityApplyToAll"
             :rebuild-at-chosen-size="rebuildAtChosenSize"
             :building="buildingOnTheFly" :can-rebuild="!!meta?.bbox"
-            :screen-wake="screenWake" :max-tiles="maxTiles"
+            :max-tiles="maxTiles"
             :max-tile-index-max="MAX_TILE_STEPS.length - 1" />
 
           <DrawerDevTab v-show="activeTab === 'utvikler'"

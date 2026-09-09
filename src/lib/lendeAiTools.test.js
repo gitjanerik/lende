@@ -26,6 +26,15 @@ describe('AI_TOOLS', () => {
     expect(new Set(navn).size).toBe(navn.length)
   })
 
+  it('hold_skjermen_vaken krever minutter, og sier at 0 slår av', () => {
+    // Uten «0 slår av» i beskrivelsen har modellen ingen vei tilbake: verktøyet
+    // er den eneste inngangen chatten har til nedtellingen.
+    const t = AI_TOOLS.find((x) => x.function.name === 'hold_skjermen_vaken')
+    expect(t.function.parameters.properties.minutter.type).toBe('number')
+    expect(t.function.parameters.required).toEqual(['minutter'])
+    expect(t.function.description).toMatch(/0 slår den AV/)
+  })
+
   it('turverktøyene tar stedsnavn, og krever bare kartId', () => {
     // Navn slår koordinater (v4.4.2): appen slår dem opp i kartets egne navn,
     // så en navnebror milevis unna ikke kan snike seg inn via sok_sted.

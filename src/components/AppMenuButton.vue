@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useAppMenu } from '../composables/useAppMenu.js'
+import { useHoldVaken } from '../composables/useHoldVaken.js'
+import { ringDash } from '../lib/holdVaken.js'
 
 // Trigger for den globale hovedmenyen. Tre streker (hamburger) som animeres til
 // et kryss (X) når menyen er åpen. Deler tilstand med AppMenu via useAppMenu.
@@ -38,6 +40,17 @@ const props = defineProps({
 
 const { menuOpen, toggle } = useAppMenu()
 
+// «Hold skjermen våken» har ingen egen knapp og ingen tekst — den vises som en
+// gul ring rundt hamburgeren, og ringen ER indikatoren (v6.6.4). Den ligger her
+// og ikke i menyen fordi menyen er lukket i det man går: nedtellingen må kunne
+// leses av på skjermen man faktisk har foran seg. Fargen og streken er
+// FAB-knottenes hold-ring (#ffd84a, 3 px), så en gul ring betyr det samme to
+// steder i appen: «noe holder på nå».
+const holdVaken = useHoldVaken()
+const RING_R = 22.5
+const RING_C = 2 * Math.PI * RING_R
+const ring = computed(() => ringDash(holdVaken.andel.value, RING_C))
+
 const slotRef = ref(null)
 const pos = ref(null)
 
@@ -68,6 +81,14 @@ onBeforeUnmount(() => {
   ro?.disconnect()
 })
 
+// Ringen er dekorativ (aria-hidden), så nedtellingen må stå i knappens navn —
+// ellers er den usynlig for en skjermleser.
+const menyLabel = computed(() => {
+  const base = menuOpen.value ? 'Lukk meny' : 'Åpne meny'
+  if (!holdVaken.aktiv.value) return base
+  return `${base}. Skjermen holdes våken i ${holdVaken.igjenMinutter.value} minutter til`
+})
+
 const isFloat = computed(() => props.variant === 'float')
 const sizeClass = computed(() => (isFloat.value ? 'w-10 h-10' : 'w-9 h-9'))
 const skinClass = computed(() => (isFloat.value
@@ -81,7 +102,7 @@ const skinClass = computed(() => (isFloat.value
     <Teleport to="body">
       <button
         @click="toggle"
-        :aria-label="menuOpen ? 'Lukk meny' : 'Åpne meny'"
+        :aria-label="menyLabel"
         data-hovedmeny-knapp
         :aria-expanded="menuOpen"
         class="fixed z-[205] flex items-center justify-center rounded-full shrink-0
@@ -93,6 +114,16 @@ const skinClass = computed(() => (isFloat.value
           <span class="menu-bar bar-mid" />
           <span class="menu-bar bar-bot" />
         </span>
+        <!-- Analog nedtelling: streken spises MED klokka fra toppen
+             (`ringDash`). viewBox-en er fast, så samme ring passer både
+             float-knappen (40 px) og header-knappen (36 px). -->
+        <svg v-if="holdVaken.aktiv.value" viewBox="0 0 48 48"
+             class="absolute inset-0 w-full h-full pointer-events-none overflow-visible"
+             aria-hidden="true">
+          <circle cx="24" cy="24" :r="RING_R" fill="none" stroke="#ffd84a" stroke-width="3"
+                  stroke-linecap="round" :stroke-dasharray="ring.dasharray"
+                  :stroke-dashoffset="ring.dashoffset" transform="rotate(-90 24 24)" />
+        </svg>
       </button>
     </Teleport>
   </span>
