@@ -1019,6 +1019,97 @@ const SJEKKER = [
     },
   },
   {
+    // X-en lukket bare arket, mens kartet sto igjen og ventet på et trykk
+    // (v6.6.3). Modusen har ingen annen bryter, så neste tapp i kartet
+    // plasserte et symbol brukeren hadde gått bort fra. Sjekken må måle at
+    // INDIKATOREN er borte — at arket er lukket var sant også før fiksen.
+    //
+    // Den må seede sitt eget kart: Annotering er `kunEgne`, altså skjult på
+    // demokartene, og `/kart/vardasen` er det suiten ellers står i. Samme
+    // seeding som «Mine kart»-sjekken over, og den rydder etter seg.
+    navn: 'X-en i annoterings-arket avslutter plasserings-modusen',
+    domene: 'MapView (annotering)',
+    async kjør(page) {
+      const ID = 'royk-annotering'
+      const seed = () => evalMedTak(page, async (id) => {
+        const svg = await fetch(`${location.pathname.split('/kart/')[0]}/maps/vardasen.svg`)
+          .then((r) => r.text())
+        const post = {
+          id, navn: 'Annoterings-arket', svg, opprettet: Date.now(),
+          bbox: { south: 59.79, north: 59.84, west: 10.37, east: 10.46 },
+          equidistanceM: 20, isAuto: false, partial: false, annotations: [], tracks: [],
+        }
+        const db = await new Promise((ok, nei) => {
+          const r = indexedDB.open('lende-maps', 3)
+          r.onsuccess = () => ok(r.result)
+          r.onerror = () => nei(r.error)
+        })
+        await new Promise((ok, nei) => {
+          const t = db.transaction(['maps', 'meta'], 'readwrite')
+          t.objectStore('maps').put(post)
+          const { svg: _s, annotations: _a, tracks: _t, ...lett } = post
+          t.objectStore('meta').put({ ...lett, hasDem: false, sizeBytes: svg.length })
+          t.oncomplete = ok
+          t.onerror = () => nei(t.error)
+        })
+        db.close()
+      }, ID)
+
+      const indikator = () => page.evaluate(() =>
+        [...document.querySelectorAll('div')].some((d) =>
+          d.offsetParent && /^Trykk på kartet for å plassere/.test(d.innerText.trim())))
+
+      try {
+        await seed()
+        await page.goto(`${BASE}/kart/${ID}`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await page.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+        await lukkDrawer(page)
+
+        // Annotering kan ligge bak nedtrekket på en smal skjerm — raden viser
+        // bare det som får plass.
+        try {
+          await klikkTekst(page, /^Annotering$/)
+        } catch {
+          await klikkTekst(page, /^(\d+\s*)?Mer$|^Vis .*snarvei/i)
+          await page.waitForTimeout(250)
+          await klikkTekst(page, /^Annotering$/)
+        }
+        await page.waitForTimeout(600)
+        await klikkTekst(page, /^Knaus$/)
+        await page.waitForTimeout(400)
+        if (!await indikator()) {
+          throw new Error('valgte «Knaus», men kartet sier ikke at det venter på et trykk')
+        }
+
+        await lukkFunksjonsSkuff(page, 'Annotering')
+        if (await indikator()) {
+          throw new Error('arket er lukket, men kartet venter fortsatt på et annoterings-trykk')
+        }
+        return 'plasserings-modus fulgte arket ut'
+      } finally {
+        await evalMedTak(page, async (id) => {
+          const db = await new Promise((ok, nei) => {
+            const r = indexedDB.open('lende-maps', 3)
+            r.onsuccess = () => ok(r.result)
+            r.onerror = () => nei(r.error)
+          })
+          await new Promise((ok) => {
+            const t = db.transaction(['maps', 'meta'], 'readwrite')
+            t.objectStore('maps').delete(id)
+            t.objectStore('meta').delete(id)
+            t.oncomplete = ok
+            t.onerror = ok
+          })
+          db.close()
+        }, ID).catch(() => {})
+        await page.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await page.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+      }
+    },
+  },
+  {
     navn: 'eksport bygger SVG-markup, tema-bytte maler om',
     domene: 'useKartEksport+useTemaBytte',
     async kjør(page) {

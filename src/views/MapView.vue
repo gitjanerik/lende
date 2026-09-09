@@ -512,8 +512,20 @@ const sorterOpen = ref(false)
 function lukkFunksjonsSkuffer() {
   maalingOpen.value = false
   sporingOpen.value = false
-  annoteringOpen.value = false
+  avsluttAnnotering()
   sorterOpen.value = false
+}
+// Å lukke annoterings-arket avslutter OGSÅ plasserings-modusen (v6.6.3).
+// Arket er det eneste stedet modusen kan ses eller slås av: velger man
+// «Knaus» og trykker X, ble arket borte mens kartet sto igjen og ventet på et
+// trykk, med den lilla ringen rundt symbolene som eneste spor. Neste tapp
+// plasserte da et symbol man for lengst hadde gått bort fra. Regelen bor her
+// og ikke i `@lukk`-handleren, fordi hver modus-inngang går gjennom
+// `lukkFunksjonsSkuffer` og alle skal rydde det samme.
+function avsluttAnnotering() {
+  annoteringOpen.value = false
+  annot.isAnnotateMode.value = false
+  annot.selectedSymbol.value = null
 }
 
 // Kulturminne-detalj-skuff (Kulturminnesøk brukerminner). Åpnes ved tapp på et
@@ -1882,8 +1894,7 @@ function onNavigateHere() {
   const p = contextMenuPoint.value
   if (!p) return
   measureMode.value = false
-  annot.isAnnotateMode.value = false
-  annot.selectedSymbol.value = null
+  avsluttAnnotering()
   renderMeasure()
   void ensureDem()
   sti.begin({ svgX: p.svgX, svgY: p.svgY })
@@ -1896,8 +1907,7 @@ function onRoundTripHere() {
   const p = contextMenuPoint.value
   if (!p) return
   measureMode.value = false
-  annot.isAnnotateMode.value = false
-  annot.selectedSymbol.value = null
+  avsluttAnnotering()
   renderMeasure()
   void ensureDem()
   sti.beginLoop({ svgX: p.svgX, svgY: p.svgY })
@@ -1951,8 +1961,7 @@ function onConfirmVia() {
 function stifinnerReset() {
   void ensureDem()          // terreng-regelen i hull-broingen trenger DEM
   measureMode.value = false
-  annot.isAnnotateMode.value = false
-  annot.selectedSymbol.value = null
+  avsluttAnnotering()
   renderMeasure()
   closeContextMenu()
   closeDrawer()
@@ -3457,7 +3466,7 @@ onUnmounted(() => {
 
     <FunksjonDrawer :open="annoteringOpen" :drawer="annoteringDrawer" etikett="Annotering"
                     :ui-text-scale="uiTextScale"
-                    @lukk="annoteringOpen = false">
+                    @lukk="avsluttAnnotering">
       <DrawerAnnotateTab
         :annot="annot" :select-symbol="selectSymbol"
         :label-for-annotation="labelForAnnotation" />

@@ -1,3 +1,17 @@
+## 2026-09-09 — v6.6.3: X-en i annoterings-arket avslutter plasseringen
+
+Valgte man et symbol og trykket X, ble arket borte mens kartet sto igjen i
+plasserings-modus. Arket er det eneste stedet modusen kan ses eller slås av,
+så det eneste sporet var den lilla ringen rundt symbolene — og neste tapp i
+kartet plasserte en «Knaus» man for lengst hadde gått bort fra. Å lukke arket
+avslutter nå modusen og nullstiller det valgte symbolet. Regelen bor i
+`avsluttAnnotering`, som `lukkFunksjonsSkuffer` kaller: hver modus-inngang
+rydder de andre, og de tre stedene som gjorde de to linjene for hånd går
+gjennom den samme funksjonen nå. Røyktesten måler at indikatoren i kartet er
+borte etter X — at arket var lukket var sant også før.
+
+---
+
 ## 2026-09-09 — v6.6.2: Kompassnåla får rød nord
 
 Nåla i snarvei-radens «Nord»-knapp var fylt i nord og et omriss i sør. Det
