@@ -15,7 +15,10 @@
 //     måling, annotering, sti, kontekstmeny — og et uttrekk ville trengt 23
 //     avhengigheter. Det er ikke en søm, det er et kryss. Se CLAUDE.md.
 //   • Malen (~840 linjer): stort sett prop-kabling til ferdig uttrukne
-//     komponenter (MapModeChips, ContextMenuSheet, FabCluster, 8 Drawer*Tab).
+//     komponenter (MapModeChips, SnarveiRad, ContextMenuSheet, FabCluster,
+//     Drawer*Tab). MERK skillet fra v6.6.0: innstillings-skuffen bærer BARE
+//     innstillinger, og alt man GJØR er en snarvei — tre av dem (Måling,
+//     Sporing, Annotering) i hver sin FunksjonDrawer. Se CLAUDE.md.
 //
 // HVA SOM ER FLYTTET UT (v5.8.0–v5.15.0) — rør domenet i composable-en, ikke her:
 //   3D-inngangen ......... use3dEntry            Deling (ut) ...... useKartDeling
@@ -98,6 +101,8 @@ import { buildStrokeOverrideCss } from '../lib/strokeOverrides.js'
 import { buildTrailColorCss, normalizeHex } from '../lib/trailColors.js'
 import { DEFAULT_VISIBLE_LAYER_KEYS } from '../lib/mapLayerCatalog.js'
 import { listThemes, erMorktTema } from '../lib/mapSettingsApply.js'
+import { SNARVEI_REKKEFOLGE_KEY, STANDARD_REKKEFOLGE, normaliserRekkefolge,
+         snarveierIRekkefolge } from '../lib/snarveier.js'
 import { norwegianName } from '../lib/placeName.js'
 import AnnotationIcon from '../components/AnnotationIcon.vue'
 import TrackElevationSheet from '../components/TrackElevationSheet.vue'
@@ -113,6 +118,9 @@ import HydroStationSheet from '../components/HydroStationSheet.vue'
 import FabSettingsPanel from '../components/FabSettingsPanel.vue'
 import FabCluster from '../components/FabCluster.vue'
 import MapModeChips from '../components/MapModeChips.vue'
+import SnarveiRad from '../components/SnarveiRad.vue'
+import FunksjonDrawer from '../components/FunksjonDrawer.vue'
+import SorterSnarveier from '../components/SorterSnarveier.vue'
 import FlisIkon from '../components/FlisIkon.vue'
 import DrawerLayersTab from '../components/drawer/DrawerLayersTab.vue'
 import DrawerThemeTab from '../components/drawer/DrawerThemeTab.vue'
@@ -362,28 +370,26 @@ const mapDataLabel = computed(() => {
 const showPerfLog = ref(false)
 const showControls = ref(false)
 
-// Drawer-faner (v8.9.6) — drawer-en hadde vokst seg ulesbar med 10+ vertikale
-// seksjoner. Splittet i faner: Lag / Tema / Annotering / Måling / Sporing /
-// Eksport / Om / Utvikler. Annotering og Sporing skjules for built-in kart
-// (Vardåsen). «Utvikler» (v11.0.32) er en debug-fane lengst til høyre — åpne
-// Vardåsen-referansekartet, diagnose-modus og byggetider.
+// Drawer-faner — BARE INNSTILLINGER (v6.6.0). Fram til nå sto Annotering,
+// Måling og Sporing i samme fane-rad som Kartlag og Eksport, og det er to helt
+// ulike ting: en fane som STILLER INN kartet, og en fane som GJØR noe med det.
+// Skillet er nå ryddet — alt man gjør er en snarvei over kartet (se
+// `lib/snarveier.js`), og denne skuffen er bare innstillinger. Rekkefølgen går
+// fra det groveste valget til det smaleste: Kartlag og Kartstil setter hva som
+// vises og hvordan, Stemning og Format finjusterer, Eksport tar det ut.
+// «Utvikler» (v11.0.32) er en debug-fane lengst til høyre.
 // Aktiv fane huskes i localStorage så drawer åpner tilbake i samme kontekst.
 const ACTIVE_TAB_KEY = 'lende-mapview-active-tab'
 const ALL_TABS = [
-  // Kartstil står FØRST: det er valget som setter hele uttrykket, og
-  // Kartlag/Stemning er finjustering oppå den.
-  { key: 'kartstil',    label: 'Kartstil' },
-  { key: 'lag',         label: 'Kartlag' },
-  { key: 'tema',        label: 'Stemning' },
-  { key: 'annotering',  label: 'Annotering', userOnly: true },
-  { key: 'maaling',     label: 'Måling' },
-  { key: 'sporing',     label: 'Sporing',    userOnly: true },
-  { key: 'eksport',     label: 'Eksport' },
-  { key: 'om',          label: 'Format' },
-  // userOnly som Annotering/Sporing: Utvikler-fanen er LOD-terskler, vær-demo
-  // og himmel-tvang — knotter for det man bygger selv. På demokartet sto den
-  // som niende fane hos alle som åpnet appen for første gang.
-  { key: 'utvikler',    label: 'Utvikler', userOnly: true },
+  { key: 'lag',      label: 'Kartlag' },
+  { key: 'kartstil', label: 'Kartstil' },
+  { key: 'tema',     label: 'Stemning' },
+  { key: 'om',       label: 'Format' },
+  { key: 'eksport',  label: 'Eksport' },
+  // userOnly: Utvikler-fanen er LOD-terskler, vær-demo og himmel-tvang —
+  // knotter for det man bygger selv. På demokartet sto den som niende fane hos
+  // alle som åpnet appen for første gang.
+  { key: 'utvikler', label: 'Utvikler', userOnly: true },
 ]
 const activeTab = ref('lag')
 try {
@@ -479,6 +485,38 @@ const KNOB_PANEL_PEEK_PX = 76
 // lar brukeren lynraskt justere → minimere → se på kartet → maksimere igjen.
 const knobDrawer = useDraggableDrawer({ expandedHeight: 0.45, minimizedPeek: KNOB_PANEL_PEEK_PX, maxTopGapPx: MAX_DRAWER_TOP_GAP_PX, allowMinimize: true })
 
+// ── FUNKSJONS-SKUFFENE (v6.6.0) ───────────────────────────────────────────
+// Måling, Sporing og Annotering var faner i innstillings-skuffen. Nå har hver
+// av dem sitt eget ark, med SAMME form som punkt-arket: 45 dvh starthøyde,
+// dra-håndtak med maksimer/minimer, tekststørrelse og lukk i headeren. Skallet
+// bor i FunksjonDrawer.vue — kommer det en fjerde funksjon som trenger et
+// panel, er den en instans her og ikke en ny komponent.
+const FUNKSJON_DRAWER_PEEK_PX = 76
+function funksjonDrawer() {
+  return useDraggableDrawer({
+    expandedHeight: 0.45,
+    minimizedPeek: FUNKSJON_DRAWER_PEEK_PX,
+    maxTopGapPx: MAX_DRAWER_TOP_GAP_PX,
+    allowMinimize: true,
+  })
+}
+const maalingDrawer = funksjonDrawer()
+const sporingDrawer = funksjonDrawer()
+const annoteringDrawer = funksjonDrawer()
+const sorterDrawer = funksjonDrawer()
+const maalingOpen = ref(false)
+const sporingOpen = ref(false)
+const annoteringOpen = ref(false)
+const sorterOpen = ref(false)
+// Ett sted å lukke alle fire fra: hver modus-inngang må rydde de andre, og en
+// liste med fire kall per kallsted blir tre kall neste gang noen legger til en.
+function lukkFunksjonsSkuffer() {
+  maalingOpen.value = false
+  sporingOpen.value = false
+  annoteringOpen.value = false
+  sorterOpen.value = false
+}
+
 // Kulturminne-detalj-skuff (Kulturminnesøk brukerminner). Åpnes ved tapp på et
 // kulturminne-ikon i kartet. Tittel/kategori er allerede i SVG-en (data-*), mens
 // beskrivelse/sted/bilde hentes lazy via fetchKulturminneById (cachet) og fylles
@@ -569,7 +607,15 @@ const mapCenterStyle = computed(() => ({
 
 // Lukk en åpen info-drawer (kontekstmeny) først — ellers ville begge skuffene
 // vært åpne samtidig, med Innstillinger usynlig bak info-draweren.
-function openDrawer() { closeContextMenu(); showControls.value = true; drawer.reset() }
+// Ett ark om gangen: innstillinger legger seg ellers oppå en åpen funksjons-
+// skuff, og begge har samme z-40 — den som kom sist vinner, uten at noe sier
+// hvorfor.
+function openDrawer() {
+  closeContextMenu()
+  lukkFunksjonsSkuffer()
+  showControls.value = true
+  drawer.reset()
+}
 function closeDrawer() { showControls.value = false }
 
 // Skuffa er en `role="dialog"`, men BEVISST uten `aria-modal` (v6.5.48): på
@@ -1754,6 +1800,10 @@ const fabFloat = useFloatAboveSheets(
     { open: () => !!knobPanel.value, drawer: knobDrawer },
     { open: kulturminneOpen, drawer: kulturminneDrawer },
     { open: hydroOpen, drawer: hydroDrawer },
+    { open: maalingOpen, drawer: maalingDrawer },
+    { open: sporingOpen, drawer: sporingDrawer },
+    { open: annoteringOpen, drawer: annoteringDrawer },
+    { open: sorterOpen, drawer: sorterDrawer },
   ],
   {
     mapWidthPx: () => wrapperSize.value.w,
@@ -1809,13 +1859,16 @@ async function onCopyCoords() {
 function onStartMeasureHere() {
   const p = contextMenuPoint.value
   if (!p) return
-  // Bytt til Måling-fanen så brukeren ser hva som skjer videre, åpne drawer
-  // og legg første vertex på long-press-punktet.
+  // Åpne måle-arket så brukeren ser hva som skjer videre, og legg første
+  // vertex på long-press-punktet. Samme ark snarveien åpner — én måling, ett
+  // sted å styre den fra, uansett hvilken vei man kom inn.
   startMeasure()
   measureVertices.value = [{ x: p.svgX, y: p.svgY }]
-  activeTab.value = 'maaling'
   closeContextMenu()
-  openDrawer()
+  closeDrawer()
+  lukkFunksjonsSkuffer()
+  maalingDrawer.reset()
+  maalingOpen.value = true
 }
 // Start Stifinner mot long-press-punktet (B). Lukk arket; brukeren velger
 // startpunkt (A) via midt-siktet. Måling/annotering tvinges av.
@@ -1897,6 +1950,7 @@ function stifinnerReset() {
   renderMeasure()
   closeContextMenu()
   closeDrawer()
+  lukkFunksjonsSkuffer()
 }
 function onShortcutStifinner() {
   stifinnerReset()
@@ -1921,12 +1975,29 @@ function onConfirmLoopOrigin() {
   sti.confirmLoopOrigin(c)
 }
 function onShortcutMeasure() {
+  closeDrawer()
+  lukkFunksjonsSkuffer()
   measureMode.value || startMeasure()
-  activeTab.value = 'maaling'
-  openDrawer()
+  maalingDrawer.reset()
+  maalingOpen.value = true
 }
-// Sporing hadde en egen snarvei her til v5.1.0. Plassen gikk til 3D-utforskeren;
-// selve sporingen er uendret og styres fra «Sporing»-fanen i innstillinger.
+// Sporing var en snarvei til v5.1.0, ble en fane i innstillinger, og er nå en
+// snarvei igjen (v6.6.0) — den hører hjemme sammen med det man GJØR.
+function onShortcutSporing() {
+  closeDrawer()
+  lukkFunksjonsSkuffer()
+  sporingDrawer.reset()
+  sporingOpen.value = true
+}
+// Annotering slår IKKE på plasserings-modus av seg selv: arket er der man
+// velger symbol, og et kart som venter på et trykk før man har valgt hva som
+// skal plasseres er en modus man ikke ba om.
+function onShortcutAnnotering() {
+  closeDrawer()
+  lukkFunksjonsSkuffer()
+  annoteringDrawer.reset()
+  annoteringOpen.value = true
+}
 function onShortcut3d() {
   openExplore3d()
 }
@@ -1938,6 +2009,51 @@ function onShortcutInfo() {
   const r = el.getBoundingClientRect()
   infoTipRequested.value = true
   openContextMenuAt(r.left + r.width / 2, r.top + r.height / 2)
+}
+
+// ── Snarvei-rekkefølgen ───────────────────────────────────────────────────
+// Brukerens egen sortering, persistert. Den betyr noe: raden viser så mange
+// funksjoner som får plass på skjermen og legger resten bak nedtrekket, så
+// rekkefølgen avgjør hva som er ett trykk unna på en smal telefon.
+const snarveiRekkefolge = ref([...STANDARD_REKKEFOLGE])
+try {
+  const lagret = localStorage.getItem(SNARVEI_REKKEFOLGE_KEY)
+  if (lagret) snarveiRekkefolge.value = normaliserRekkefolge(JSON.parse(lagret))
+} catch { /* privat modus / ugyldig JSON — standarden er den trygge siden */ }
+function settSnarveiRekkefolge(ny) {
+  snarveiRekkefolge.value = normaliserRekkefolge(ny)
+  try {
+    localStorage.setItem(SNARVEI_REKKEFOLGE_KEY, JSON.stringify(snarveiRekkefolge.value))
+  } catch { /* noop */ }
+}
+// Samme port som fanene hadde: på de innebygde demokartene finnes verken egne
+// markeringer eller GPS-spor, så Annotering og Sporing står ikke i raden.
+const egetKart = computed(() => !(route.params.id ?? 'vardasen').startsWith('vardasen'))
+const synligeSnarveier = computed(() =>
+  snarveierIRekkefolge(snarveiRekkefolge.value, { egetKart: egetKart.value }))
+const skjulteSnarveiIder = computed(() => {
+  const synlige = new Set(synligeSnarveier.value.map(s => s.id))
+  return snarveiRekkefolge.value.filter(id => !synlige.has(id))
+})
+
+// ÉN inngang for alle snarveiene. Raden vet bare id-en; hva den gjør bor her,
+// der de fire domenene den rører (måling, annotering, sti, kontekstmeny)
+// allerede møtes.
+const SNARVEI_HANDLING = {
+  stifinner: () => onShortcutStifinner(),
+  runde: () => onShortcutRoundTrip(),
+  maaling: () => onShortcutMeasure(),
+  'tre-d': () => onShortcut3d(),
+  annotering: () => onShortcutAnnotering(),
+  sporing: () => onShortcutSporing(),
+  info: () => onShortcutInfo(),
+}
+function onSnarvei(id) { SNARVEI_HANDLING[id]?.() }
+function onApneSortering() {
+  closeDrawer()
+  lukkFunksjonsSkuffer()
+  sorterDrawer.reset()
+  sorterOpen.value = true
 }
 
 // Long-press er lite oppdagbart. Vis et blått tips øverst i info-arket når det
@@ -2643,54 +2759,24 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Snarvei-rad: de mest brukte kart-funksjonene (stifinner, rundtur,
-         måling, sporing, info om stedet). Skjules når en modus (stifinner/måling/
-         annotering) eller søk er aktiv, mens kartet bygges/utvides, og når
-         highlight-pillen vises — bygge-chipen og pillen bruker samme
-         --ovl-top-slot og ville kollidert. Det gjelder ALLE chipene i den sloten
-         — legger du en ny chip på --ovl-top, hører den hjemme i denne lista
-         (bakgrunnsflis-chipen kom inn i v5.19.0 uten å gjøre det, og la seg rett
-         oppå snarvei-raden; rapportert v5.19.3). -->
+    <!-- SNARVEI-RADEN: turkart-modusens FUNKSJONER (v6.6.0). Alt man GJØR
+         ligger her; innstillings-skuffen er bare innstillinger. Raden måler
+         seg selv og legger det som ikke får plass bak et nedtrekk — se
+         SnarveiRad.vue. Rekkefølgen er brukerens, og «Sorter snarveier» står
+         fast i nedtrekket.
+         Skjules når en modus (stifinner/måling/annotering) eller søk er aktiv,
+         mens kartet bygges/utvides, og når highlight-pillen vises — bygge-chipen
+         og pillen bruker samme --ovl-top-slot og ville kollidert. Det gjelder
+         ALLE chipene i den sloten: legger du en ny chip på --ovl-top, hører den
+         hjemme i denne lista (bakgrunnsflis-chipen kom inn i v5.19.0 uten å
+         gjøre det, og la seg rett oppå snarvei-raden; rapportert v5.19.3). -->
     <div v-if="!sti.active.value && !measureMode && !searchOpen && !annot.isAnnotateMode.value
                && !buildingOnTheFly && !fillingInDetails && !highlightedFeature"
          class="absolute -translate-x-1/2 top-[var(--ovl-top)] z-20 pointer-events-none
                 transition-[left] duration-200"
          :style="mapCenterStyle">
-      <div class="pointer-events-auto flex items-stretch gap-1 px-1.5 py-1.5 rounded-2xl
-                  bg-overlay/90 backdrop-blur shadow-lg">
-        <button @click="onShortcutStifinner" class="shortcut-btn" aria-label="Stifinner">
-          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
-          <span>Stifinner</span>
-        </button>
-        <button @click="onShortcutRoundTrip" class="shortcut-btn" aria-label="Gå en runde">
-          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 4 3 9 8 9"/></svg>
-          <span>Runde</span>
-        </button>
-        <button @click="onShortcutMeasure" class="shortcut-btn" aria-label="Måling">
-          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/>
-            <line x1="6.4" y1="17.6" x2="17.6" y2="6.4" stroke-dasharray="2 2.5"/></svg>
-          <span>Måling</span>
-        </button>
-        <button @click="onShortcut3d" class="shortcut-btn" aria-label="Se kartet i 3D">
-          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/>
-            <path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>
-          <span>3D</span>
-        </button>
-        <button @click="onShortcutInfo" class="shortcut-btn" aria-label="Informasjon om stedet">
-          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/>
-            <circle cx="12" cy="8" r="0.6" fill="currentColor"/></svg>
-          <span>Info</span>
-        </button>
-      </div>
+      <SnarveiRad :snarveier="synligeSnarveier" :ui-text-scale="uiTextScale"
+                  @velg="onSnarvei" @sorter="onApneSortering" />
     </div>
 
     <!-- Søke-overlay — trekt ut til MapSearchOverlay (v1.0.6). Logikk
@@ -3119,10 +3205,16 @@ onUnmounted(() => {
           </button>
           <div class="px-4 pb-2 flex items-center justify-between"
                :class="isDesktop ? 'pt-3' : ''">
-            <div class="text-ink text-sm font-semibold">Innstillinger</div>
-            <div class="flex items-center gap-1">
-              <!-- Tekststørrelse for skuffens innhold. Står utenfor zoom-flatene
-                   under, som lukkeknappen. -->
+            <!-- Tittelen ZOOMES med resten av innholdet (v6.6.0): fram til nå
+                 sto den fast mens kroppen vokste, og A-knappen gjorde dermed noe
+                 annet her enn i punkt-arket. Den er zoomet FOR SEG og ikke
+                 raden — en zoomet rad skalerer polstringen og dytter X-en ut av
+                 skjermen (v6.3.12). -->
+            <div class="text-ink text-sm font-semibold min-w-0 truncate"
+                 :style="{ zoom: uiTextScale }">Innstillinger</div>
+            <div class="flex items-center gap-1 shrink-0">
+              <!-- Tekststørrelse og lukk beholder sine 32 px: de er veien
+                   TILBAKE fra et valg som nettopp gjorde alt større. -->
               <TekstStorrelseKnapp />
               <button @pointerdown.stop @click.stop="closeDrawer"
                       aria-label="Lukk innstillinger"
@@ -3226,29 +3318,6 @@ onUnmounted(() => {
             :land-font="landFont" :water-font="waterFont"
             v-model:font-pair-id="fontPairId" />
 
-          <DrawerAnnotateTab v-show="activeTab === 'annotering'"
-            id="drawer-panel-annotering" role="tabpanel" aria-labelledby="drawer-fane-annotering"
-            :annot="annot" :select-symbol="selectSymbol"
-            :label-for-annotation="labelForAnnotation" />
-
-          <DrawerMeasureTab v-show="activeTab === 'maaling'"
-            id="drawer-panel-maaling" role="tabpanel" aria-labelledby="drawer-fane-maaling"
-            :measure-mode="measureMode" :measure-stats="measureStats"
-            :measure-closed="measureClosed" :measure-vertices="measureVertices"
-            :start-measure="startMeasure" :stop-measure="stopMeasure"
-            :close-measure="closeMeasure" :undo-measure-vertex="undoMeasureVertex"
-            :clear-measure="clearMeasure" />
-
-          <DrawerTracksTab v-show="activeTab === 'sporing'"
-            id="drawer-panel-sporing" role="tabpanel" aria-labelledby="drawer-fane-sporing"
-            :tracker="tracker" :user-pos="userPos" :live-track-stats="liveTrackStats"
-            :on-toggle-recording="onToggleRecording" :on-export-track-gpx="onExportTrackGpx"
-            :on-delete-track="onDeleteTrack" :profile-for="profileFor"
-            v-model:expanded-track-id="expandedTrackId"
-            :gps-debug-line="gpsDebugLine" :copy-gps-coords="copyGpsCoords"
-            :copy-state="copyState" :show-gps-tip="showGpsTip"
-            :dismiss-gps-tip="dismissGpsTip" />
-
           <DrawerExportTab v-show="activeTab === 'eksport'"
             id="drawer-panel-eksport" role="tabpanel" aria-labelledby="drawer-fane-eksport"
             v-model:sann-nord="sannNordEksport" :nordavvik-deg="nordavvik"
@@ -3334,6 +3403,53 @@ onUnmounted(() => {
          kontekst, uavhengig av mini-kartets eget zoom-nivå i arket. -->
     <!-- Kulturminne-detalj-skuff — trekt ut til KulturminneSheet (v1.0.8).
          Henting/cache blir her (openKulturminneDetail). -->
+    <!-- ── FUNKSJONS-SKUFFENE (v6.6.0) ──────────────────────────────────
+         Måling, Sporing og Annotering — de tre snarveiene som trenger et
+         panel. Samme ark-form som punkt-arket, og innholdet er de samme
+         Drawer*Tab-komponentene som før lå som faner i innstillinger; bare
+         verten er ny. -->
+    <FunksjonDrawer :open="maalingOpen" :drawer="maalingDrawer" etikett="Måling"
+                    :ui-text-scale="uiTextScale"
+                    @lukk="maalingOpen = false">
+      <DrawerMeasureTab
+        :measure-mode="measureMode" :measure-stats="measureStats"
+        :measure-closed="measureClosed" :measure-vertices="measureVertices"
+        :start-measure="startMeasure" :stop-measure="stopMeasure"
+        :close-measure="closeMeasure" :undo-measure-vertex="undoMeasureVertex"
+        :clear-measure="clearMeasure" />
+    </FunksjonDrawer>
+
+    <FunksjonDrawer :open="sporingOpen" :drawer="sporingDrawer" etikett="Sporing"
+                    :ui-text-scale="uiTextScale"
+                    @lukk="sporingOpen = false">
+      <DrawerTracksTab
+        :tracker="tracker" :user-pos="userPos" :live-track-stats="liveTrackStats"
+        :on-toggle-recording="onToggleRecording" :on-export-track-gpx="onExportTrackGpx"
+        :on-delete-track="onDeleteTrack" :profile-for="profileFor"
+        v-model:expanded-track-id="expandedTrackId"
+        :gps-debug-line="gpsDebugLine" :copy-gps-coords="copyGpsCoords"
+        :copy-state="copyState" :show-gps-tip="showGpsTip"
+        :dismiss-gps-tip="dismissGpsTip" />
+    </FunksjonDrawer>
+
+    <FunksjonDrawer :open="annoteringOpen" :drawer="annoteringDrawer" etikett="Annotering"
+                    :ui-text-scale="uiTextScale"
+                    @lukk="annoteringOpen = false">
+      <DrawerAnnotateTab
+        :annot="annot" :select-symbol="selectSymbol"
+        :label-for-annotation="labelForAnnotation" />
+    </FunksjonDrawer>
+
+    <!-- Sorteringen av snarvei-raden. Egen skuff og ikke en fane i
+         innstillinger: den handler om raden man nettopp trykket i, og veien
+         tilbake skal være ett trykk fra samme sted. -->
+    <FunksjonDrawer :open="sorterOpen" :drawer="sorterDrawer" etikett="Sorter snarveier"
+                    :ui-text-scale="uiTextScale"
+                    @lukk="sorterOpen = false">
+      <SorterSnarveier :rekkefolge="snarveiRekkefolge" :skjulte-ider="skjulteSnarveiIder"
+                       @oppdater="settSnarveiRekkefolge" />
+    </FunksjonDrawer>
+
     <KulturminneSheet
       :open="kulturminneOpen"
       :detail="kulturminneDetail"
@@ -3524,27 +3640,8 @@ onUnmounted(() => {
 .nav-soyle { scrollbar-width: none; }
 .nav-soyle::-webkit-scrollbar { display: none; }
 
-/* Snarvei-rad-knapp: ikon over liten etikett, mørk flytende pille. */
-.shortcut-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  min-width: 54px;
-  padding: 6px 8px;
-  border-radius: 12px;
-  color: var(--color-ink);
-  font-size: 10px;
-  line-height: 1;
-  transition: background 0.15s ease, transform 0.1s ease;
-  /* Snarvei-etikettene er ett kort ord hver — de skal aldri orddeles/brytes
-     («Stifin-ner»). Overstyrer det globale hyphens: auto på #app. */
-  hyphens: manual;
-  white-space: nowrap;
-}
-.shortcut-btn:active { transform: scale(0.94); }
-.shortcut-btn:hover { background: color-mix(in oklab, var(--color-ink) 8%, transparent); }
-
+/* .shortcut-btn bor i SnarveiRad.vue fra v6.6.0 — sammen med målingen
+   som avgjør hvor mange av dem som får plass. */
 .drawer-enter-active, .drawer-leave-active { transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
 .drawer-enter-from, .drawer-leave-to       { transform: translateY(100%); }
 /* Desktop: side-panelet glir inn fra høyre i stedet for opp fra bunnen. */

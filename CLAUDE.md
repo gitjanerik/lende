@@ -323,6 +323,63 @@ det ene stedet i Lende der premisset snus, og det må stå i UI-et. Etter at ark
 er bygget varsles det IKKE om tapt dekning: arket er ferdig rendret SVG, og et
 falskt alarmerende banner på et fjell er verre enn ingen.
 
+## Viktig arkitektur-merknad — FUNKSJON og INNSTILLING er to ulike ting
+
+Fram til v6.6.0 sto Måling, Sporing og Annotering som faner i innstillings-
+skuffen, ved siden av Kartlag og Eksport. To helt ulike ting i samme fane-rad:
+en fane som STILLER INN kartet, og en fane som GJØR noe med det. Prisen var at
+man måtte gjennom «Innstillinger» for å måle en avstand.
+
+**Skuffen er nå BARE innstillinger** — Kartlag, Kartstil, Stemning, Format,
+Eksport, Utvikler, i den rekkefølgen (grovest valg først). **Alt man GJØR er en
+snarvei**, katalogisert i `lib/snarveier.js`: Stifinner, Runde, Måling, 3D,
+Annotering, Sporing, Info. Legger du til noe nytt, er spørsmålet hvilken av de
+to det er — ikke hvilken fane som har plass.
+
+**Raden MÅLER seg, den ruller ikke og den klipper ikke** (`SnarveiRad.vue`).
+Samme grep som værraden i 3D fikk i v6.3.9, og av samme grunn: en skjult gest er
+ikke en affordanse, mens en pil ned er det. Fire ting er lette å «forenkle» bort:
+
+1. **Nedtrekks-knappen skjules ALDRI**, heller ikke når alt får plass på én
+   linje. Den er ikke bare «resten av funksjonene» — den er også eneste vei til
+   «Sorter snarveier», og rekkefølgen er nettopp det som avgjør hva som havner
+   bak den på en smal skjerm. Skjuler du knappen der alt får plass, forsvinner
+   sorteringen på de skjermene den er lettest å prøve ut i.
+2. **Budsjettet er VIEWPORTEN, ikke en forelder.** Raden er en pille med
+   `width: max-content` som svever midt over kartet — det finnes ingen boks som
+   klemmer den, så en måling av forelderens bredde ville målt radens EGEN bredde
+   og jaget sin egen hale (værrad-fella, v6.3.12). Derfor
+   `innerWidth − KANT_PX`, og derfor ettersjekken mot den ekte rendrede bredden:
+   avrunding gjør prognosen ett hakk optimistisk.
+3. **Knappene måles SYNLIGE.** En skjult knapp har bredde 0, så hver måling
+   skjer med alle knappene i DOM-en og raden `visibility: hidden` det ene bildet
+   det tar. Tekstskala og fontlasting endrer bredden, så begge utløser ommåling.
+4. **`flex-wrap: wrap` står som sikkerhetsnett i BEGGE tilstander**, med
+   `flex-wrap: balance` lagt oppå i den utvidede (Chrome/Safari; andre forkaster
+   linja og beholder `wrap`). Bommer målingen, koster det en ekstra linje —
+   aldri en knapp utenfor skjermkanten.
+
+**Rekkefølgen er brukerens og persisteres** (`lende-snarvei-rekkefolge`).
+Sorteringen er dra-og-slipp MED opp/ned-knapper ved siden av: et drag uten et
+tastatur-alternativ er en funksjon som ikke finnes for den som ikke kan dra
+(SC 2.5.7).
+
+**Funksjons-skuffene deler ETT skall** (`FunksjonDrawer.vue`), og formen er
+punkt-arkets med vilje: 45 dvh starthøyde, dra-håndtak som er en EKTE knapp
+(v6.5.48), tekststørrelse og lukk i headeren. En funksjon som ser ut som noe
+annet leses som noe annet. Kommer det en fjerde funksjon som trenger et panel,
+er den en INSTANS her og ikke en ny komponent.
+
+**Tekststørrelse-knappen gjør nå det samme i alle ark** (`SkuffHeader.vue`).
+Den gjorde det ikke: punkt-arket zoomet etikett og tittel, innstillings-skuffen
+bare kroppen, og turark/målestasjon/kulturminne lot tittelen stå fast. Regelen
+er den som allerede var riktig: **alt som er INNHOLD zoomes** — etikett, tittel,
+undertekster og ikonene som hører til dem — mens **A-knappen og X-en beholder
+sine 32 px**, fordi de er veien TILBAKE fra et valg som nettopp gjorde alt
+større. Zoom settes på etiketten og tittelen HVER FOR SEG og aldri på
+kontrollraden: en zoomet rad skalerer polstringen og dytter X-en ut av skjermen
+(v6.3.12).
+
 ## Viktig arkitektur-merknad — deling av kart har TO veier, og det er med vilje
 
 1. **Lenke (`useKartDeling.js`)** — deler OPPSKRIFTEN: bbox, ekvidistanse,

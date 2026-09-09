@@ -1,3 +1,40 @@
+## 2026-09-09 — v6.6.0: Funksjon og innstilling er to ulike ting
+
+Turkart-modusen hadde Måling, Sporing og Annotering som faner i innstillings-
+skuffen, ved siden av Kartlag og Eksport. Det er to helt ulike ting i samme
+fane-rad: en fane som STILLER INN kartet, og en fane som GJØR noe med det — og
+prisen var at man måtte gjennom «Innstillinger» for å måle en avstand. Skillet
+er nå ryddet. Innstillinger er bare innstillinger, med seks faner i rekkefølgen
+Kartlag, Kartstil, Stemning, Format, Eksport, Utvikler. Alt man gjør er en
+snarvei over kartet: Stifinner, Runde, Måling, 3D, Annotering, Sporing, Info —
+og de tre som trenger et panel har fått sin egen skuff, med samme form som
+punkt-arket (45 dvh starthøyde, dra-håndtak med maksimer og minimer,
+tekststørrelse og lukk i headeren).
+
+Snarvei-raden måler seg selv i stedet for å rulle eller klippe: den viser så
+mange knapper som faktisk får plass på skjermen og legger resten bak et
+nedtrekk, med tallet på hvor mange som ligger der. Utvidet bruker
+`flex-wrap: balance` for jevnt fylte rader der nettleseren kan det, med `wrap`
+som fallback under — raden bryter, den klipper aldri, så en bom i målingen
+koster en ekstra linje og ikke en knapp utenfor skjermkanten. Nedtrekket skjules
+ALDRI, heller ikke når alt får plass, for det er også eneste vei til «Sorter
+snarveier»: rekkefølgen er brukerens, den persisteres, og det er nettopp den som
+avgjør hva som er ett trykk unna på en smal telefon. Sorteringen er dra-og-slipp
+med opp/ned-knapper ved siden av — et drag uten et tastatur-alternativ er en
+funksjon som ikke finnes for den som ikke kan dra.
+
+Og en opprydning som hører til: tekststørrelse-knappen virket ULIKT fra ark til
+ark. Punkt-arket zoomet etikett og tittel, innstillings-skuffen zoomet bare
+kroppen, og turark, målestasjon og kulturminne lot tittelen stå fast — så
+«A 200 %» gjorde tre forskjellige ting avhengig av hvor man sto. Regelen bor nå
+ett sted (`SkuffHeader.vue`), og den er den som allerede var riktig: alt som er
+innhold zoomes, inkludert ikonene som hører til det, mens A-knappen og X-en
+beholder sine 32 px — de er veien tilbake fra et valg som nettopp gjorde alt
+større, og en A-knapp som vokser med sin egen effekt er en knapp man til slutt
+ikke finner.
+
+---
+
 ## 2026-09-09 — v6.5.82: Båtruter er et eget lag, og sti-fargen flyttet dit den hører hjemme
 
 De stiplede linjene ute i fjorden var aldri stier. Rundt Håøya og Drøbak tegnet
