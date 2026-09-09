@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   SNARVEIER, STANDARD_REKKEFOLGE, normaliserRekkefolge, snarveierIRekkefolge,
-  flyttSnarvei, antallSomFar, dropIndeks,
+  flyttSnarvei, antallSomFar, flytteIndeks, NAV_SNARVEIER,
 } from './snarveier.js'
 
 describe('katalogen', () => {
@@ -80,14 +80,30 @@ describe('antallSomFar', () => {
   })
 })
 
-describe('dropIndeks', () => {
-  const sentre = [20, 60, 100]
-  it('peker på plassen fingeren står over', () => {
-    expect(dropIndeks(sentre, 0)).toBe(0)
-    expect(dropIndeks(sentre, 61)).toBe(2)
+describe('flytteIndeks', () => {
+  it('runder til nærmeste radhøyde', () => {
+    expect(flytteIndeks(0, 0, 50, 5)).toBe(0)
+    expect(flytteIndeks(0, 24, 50, 5)).toBe(0)
+    expect(flytteIndeks(0, 26, 50, 5)).toBe(1)
+    expect(flytteIndeks(2, -60, 50, 5)).toBe(1)
   })
-  it('klemmes til lista i begge ender', () => {
-    expect(dropIndeks(sentre, -500)).toBe(0)
-    expect(dropIndeks(sentre, 5000)).toBe(2)
+  it('klemmes til lista', () => {
+    expect(flytteIndeks(0, -5000, 50, 5)).toBe(0)
+    expect(flytteIndeks(0, 5000, 50, 5)).toBe(4)
+  })
+  it('en radhøyde på null flytter ingenting', () => {
+    expect(flytteIndeks(2, 300, 0, 5)).toBe(2)
+  })
+})
+
+describe('NAV_SNARVEIER', () => {
+  it('er en egen gruppe som ikke ligger i den sorterbare katalogen', () => {
+    const ider = new Set(STANDARD_REKKEFOLGE)
+    for (const n of NAV_SNARVEIER) expect(ider.has(n.id)).toBe(false)
+  })
+  it('har posisjon først, og kompasset bak rotasjons-porten', () => {
+    expect(NAV_SNARVEIER.map(n => n.id)).toEqual(['posisjon', 'kompass'])
+    expect(NAV_SNARVEIER[0].kunRotasjon).toBeUndefined()
+    expect(NAV_SNARVEIER[1].kunRotasjon).toBe(true)
   })
 })

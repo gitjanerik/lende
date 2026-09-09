@@ -28,6 +28,18 @@ defineProps({ id: { type: String, required: true } })
       <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
       <circle cx="12" cy="12" r="8"/>
     </template>
+    <!-- Nav-gruppen. Posisjonen er PIN-en fra de runde knappene (v6.5.70), med
+         hullet som en ekte utstansing; kompassnåla roteres av kallstedet, så
+         den må peke rett OPP i hvile. Nordhalvdelen er fylt: en helt symmetrisk
+         nål har ingen retning å lese. -->
+    <template v-else-if="id === 'posisjon'">
+      <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0Z"/>
+      <circle cx="12" cy="10" r="3"/>
+    </template>
+    <template v-else-if="id === 'kompass'">
+      <polygon points="12 2.5 16 12 12 10 8 12" fill="currentColor" stroke="none"/>
+      <polygon points="12 21.5 16 12 12 14 8 12" stroke-width="1.6"/>
+    </template>
     <template v-else-if="id === 'info'">
       <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/>
       <circle cx="12" cy="8" r="0.6" fill="currentColor"/>

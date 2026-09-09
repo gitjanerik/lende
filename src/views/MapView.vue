@@ -45,7 +45,6 @@ import { dekningsSkala } from '../lib/viewFit.js'
 import { zoomBroek, zoomFraBroek } from '../lib/navKontroller.js'
 import ZoomSkyv from '../components/kontroller/ZoomSkyv.vue'
 import RetningsRose from '../components/kontroller/RetningsRose.vue'
-import NavKnapper from '../components/kontroller/NavKnapper.vue'
 import { useUserPosition } from '../composables/useUserPosition.js'
 import { useProximityAlert } from '../composables/useProximityAlert.js'
 import { useCompass } from '../composables/useCompass.js'
@@ -102,7 +101,7 @@ import { buildTrailColorCss, normalizeHex } from '../lib/trailColors.js'
 import { DEFAULT_VISIBLE_LAYER_KEYS } from '../lib/mapLayerCatalog.js'
 import { listThemes, erMorktTema } from '../lib/mapSettingsApply.js'
 import { SNARVEI_REKKEFOLGE_KEY, STANDARD_REKKEFOLGE, normaliserRekkefolge,
-         snarveierIRekkefolge } from '../lib/snarveier.js'
+         snarveierIRekkefolge, NAV_SNARVEIER } from '../lib/snarveier.js'
 import { norwegianName } from '../lib/placeName.js'
 import AnnotationIcon from '../components/AnnotationIcon.vue'
 import TrackElevationSheet from '../components/TrackElevationSheet.vue'
@@ -604,6 +603,13 @@ const floatRightStyle = computed(() => ({
 const mapCenterStyle = computed(() => ({
   left: panelOffsetPx.value > 0 ? `calc(50% - ${panelOffsetPx.value / 2}px)` : '50%',
 }))
+
+// Snarvei-raden sentreres i den SAMME flaten, men kan ikke bruke stilen over:
+// et absolutt plassert element med `left: 50%` får bare halve viewporten som
+// tilgjengelig bredde, og en rad med `flex-wrap: wrap` bryter da til to linjer
+// lenge før den er for bred (målt: 180 px budsjett på en 360 px-skjerm).
+// Full bredde + `justify-center` gir samme midtpunkt og hele bredden.
+const snarveiRadStyle = computed(() => ({ right: `${panelOffsetPx.value}px` }))
 
 // Lukk en åpen info-drawer (kontekstmeny) først — ellers ville begge skuffene
 // vært åpne samtidig, med Innstillinger usynlig bak info-draweren.
@@ -2049,6 +2055,33 @@ const SNARVEI_HANDLING = {
   info: () => onShortcutInfo(),
 }
 function onSnarvei(id) { SNARVEI_HANDLING[id]?.() }
+
+// DEN FASTE NAV-GRUPPEN (v6.6.1). Posisjon og «nord opp» sto som to runde
+// skiver på arkets høyre kant (NavKnapper, v6.5.68) og lå i veien for kartet
+// de sto på. De er flyttet inn i raden — men de kan verken sorteres eller
+// kollapse inn i nedtrekket: posisjonen er den ene knappen man rekker etter
+// mens man går, og en knapp som havner bak «Mer» fordi man sorterte Stifinner
+// først er en knapp man ikke finner i regnvær.
+// KOMPASSET FALLER BORT UTEN ROTASJON — desktop har retningsrosa i søyla, og
+// en modus uten rotasjon har ingen retning å nullstille.
+const navSnarveier = computed(() => NAV_SNARVEIER
+  .filter(n => !n.kunRotasjon || hasTouch.value)
+  .map(n => n.id === 'posisjon'
+    ? { ...n, aktiv: userPos.isWatching,
+        ariaTekst: userPos.isWatching ? 'Posisjon på. Slå av.' : 'Posisjon av. Slå på.' }
+    : { ...n, aktiv: false,
+        ariaTekst: `Vend kartet mot nord. Nå ${rotationSliderDeg.value} grader.` }))
+
+// AV SLÅR OGSÅ AV KOMPASSFØLGINGEN. `startPositioning` slår dem på sammen (iOS
+// krever samme bruker-gest for begge), og med skuffens kompass-bryter borte
+// ville et kart som fortsatt dreide seg etter telefonen vært uten vei ut.
+function onNavSnarvei(id) {
+  if (id === 'posisjon') {
+    userPos.isWatching ? stopPositioning() : startPositioning()
+  } else if (id === 'kompass') {
+    rotateTo(nordRotasjon.value)
+  }
+}
 function onApneSortering() {
   closeDrawer()
   lukkFunksjonsSkuffer()
@@ -2772,11 +2805,12 @@ onUnmounted(() => {
          gjøre det, og la seg rett oppå snarvei-raden; rapportert v5.19.3). -->
     <div v-if="!sti.active.value && !measureMode && !searchOpen && !annot.isAnnotateMode.value
                && !buildingOnTheFly && !fillingInDetails && !highlightedFeature"
-         class="absolute -translate-x-1/2 top-[var(--ovl-top)] z-20 pointer-events-none
-                transition-[left] duration-200"
-         :style="mapCenterStyle">
-      <SnarveiRad :snarveier="synligeSnarveier" :ui-text-scale="uiTextScale"
-                  @velg="onSnarvei" @sorter="onApneSortering" />
+         class="absolute left-0 top-[var(--ovl-top)] z-20 flex justify-center
+                pointer-events-none transition-[right] duration-200"
+         :style="snarveiRadStyle">
+      <SnarveiRad :snarveier="synligeSnarveier" :nav="navSnarveier"
+                  :azimut="rotationSliderDeg" :ui-text-scale="uiTextScale"
+                  @velg="onSnarvei" @nav="onNavSnarvei" @sorter="onApneSortering" />
     </div>
 
     <!-- Søke-overlay — trekt ut til MapSearchOverlay (v1.0.6). Logikk
@@ -2829,21 +2863,11 @@ onUnmounted(() => {
         <span class="text-[10px] text-ink-4 tabular-nums leading-none">{{ rotationSliderDeg }}°</span>
       </div>
 
-      <!-- POSISJON + «NORD OPP» PÅ ARKET (v6.5.68). Knappene står HER og ikke i
-           innstillings-skuffen fordi de er de to man rekker etter mens man går,
-           og en skuff over kartet er feil sted for begge. Posisjonen vises på
-           BÅDE berøring og desktop — den var før den ene av tre hurtigknapper i
-           skuffen, og de er nå borte — mens kompasset bare gis til berøring:
-           desktop har retningsrosa i søyla over.
-           AV SLÅR OGSÅ AV KOMPASSFØLGINGEN. `startPositioning` slår dem på
-           sammen (iOS krever samme bruker-gest for begge), og med skuffens
-           kompass-bryter borte ville et kart som fortsatt dreide seg etter
-           telefonen vært uten en eneste vei ut. -->
-      <NavKnapper class="mt-2"
-                  :azimut="hasTouch ? rotationSliderDeg : null" :mork="isDark"
-                  :gps-pa="userPos.isWatching"
-                  @gps="userPos.isWatching ? stopPositioning() : startPositioning()"
-                  @nord="rotateTo(nordRotasjon)" />
+      <!-- POSISJON OG «NORD OPP» ER FLYTTET INN I SNARVEI-RADEN (v6.6.1).
+           De sto her som to runde skiver rett på arket fra v6.5.68 — riktig
+           tanke, feil sted: de lå midt i kartflata man leser. I raden står de
+           som en FAST gruppe foran en skillelinje, med aksentgrønn flate når
+           de er på; se NAV_SNARVEIER i lib/snarveier.js. -->
 
       <!-- TEKSTSTØRRELSEN er ikke navigasjon, og den settes én gang og ikke
            hele tida — derfor ligger den bak en knapp og ikke som en tredje
@@ -2898,8 +2922,9 @@ onUnmounted(() => {
            legger visningen tilbake slik kartet åpnet seg. Ikonet er 3D-visningens
            «Oversikt», som er nøyaktig samme handling i den andre flata.
            Handlingen er uendret: tap = sentrer, nord opp og oppdater GPS,
-           lang-trykk = zoom-panelet. Liten GPS-prikk (v8.5.2) viser at knappen
-           også refresher posisjonen. -->
+           lang-trykk = zoom-panelet. GPS-prikken er borte (v6.6.1): posisjonen
+           har nå en fast av/på-knapp i snarvei-raden, og to steder som sier det
+           samme kommer i utakt. -->
       <template #center>
         <!-- IKONET BÆRER SØSKENFLATEN SIN (v6.5.67). Første utgave var 3D-ens
              «Oversikt»-glyf limt rett inn i 24×24-boksen: full bredde, strek 2,
@@ -2921,8 +2946,6 @@ onUnmounted(() => {
             <path d="M10.5 16.1H8.9a1 1 0 0 1-1-1v-1.6"/>
           </g>
         </svg>
-        <span v-if="userPos.isWatching"
-              class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-sky-400 shadow-[0_0_4px_rgba(56,189,248,0.8)]" />
       </template>
 
       <!-- Strek (nordvest): bua viser nivå, senter-streken tegnes i faktisk
