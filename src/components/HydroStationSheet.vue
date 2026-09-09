@@ -83,7 +83,8 @@ function onOpenNve() {
              høyde. -->
         <div class="shrink-0 px-4 pb-2.5 bg-surface/95 border-b border-ink/8">
           <div class="flex items-center justify-between gap-2">
-            <div class="min-w-0 truncate text-[10px] uppercase tracking-wide text-sky-300/60">
+            <div class="min-w-0 truncate text-[10px] uppercase tracking-wide text-sky-300/60"
+                 :style="{ zoom: uiTextScale }">
               Målestasjon · NVE
             </div>
             <!-- Tekststørrelse + lukk, utenfor den zoomede kroppen under. -->
@@ -99,8 +100,13 @@ function onOpenNve() {
               </button>
             </div>
           </div>
-          <div class="text-ink text-[15px] font-medium leading-snug break-words">{{ detail.stationName }}</div>
-          <div v-if="detail.riverName" class="text-[11px] text-ink-4">{{ detail.riverName }}</div>
+          <!-- Tittelen ZOOMES med kroppen (v6.6.0): A-knappen skal gjøre det
+               samme i alle ark. Zoomet FOR SEG og ikke raden over — en zoomet
+               rad skalerer polstringen og dytter X-en ut (v6.3.12). -->
+          <div class="min-w-0" :style="{ zoom: uiTextScale }">
+            <div class="text-ink text-[15px] font-medium leading-snug break-words">{{ detail.stationName }}</div>
+            <div v-if="detail.riverName" class="text-[11px] text-ink-4">{{ detail.riverName }}</div>
+          </div>
         </div>
         <!-- Kropp: måleverdier + lenke -->
         <div v-show="!drawer.isMinimized.value"

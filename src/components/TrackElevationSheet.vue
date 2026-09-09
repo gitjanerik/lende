@@ -46,7 +46,8 @@ function formatDuration(ms) {
            en linje; til gjengjeld sier den hva arket viser. -->
       <div class="mb-3">
         <div class="flex items-center justify-between gap-2">
-          <div class="min-w-0 truncate text-[10px] uppercase tracking-wide text-ink-4">Tur</div>
+          <div class="min-w-0 truncate text-[10px] uppercase tracking-wide text-ink-4"
+               :style="{ zoom: uiTextScale }">Tur</div>
           <div class="shrink-0 flex items-center gap-1.5 -mr-1">
             <TekstStorrelseKnapp />
             <button @click="$emit('close')"
@@ -60,6 +61,9 @@ function formatDuration(ms) {
             </button>
           </div>
         </div>
+        <!-- Navn og nøkkeltall ZOOMES med kroppen (v6.6.0) — A-knappen skal
+             gjøre det samme i alle ark. Zoomet FOR SEG og ikke raden over. -->
+        <div class="min-w-0" :style="{ zoom: uiTextScale }">
         <div class="text-ink text-sm font-semibold leading-snug break-words">
           <!-- Uten navn er datoen tittelen: etiketten over sier alt «Tur», og
                «Tur 8. sep 2026» under «TUR» er ordet to ganger. -->
@@ -69,6 +73,7 @@ function formatDuration(ms) {
           {{ formatDistance(trackLengthM(track)) }} ·
           {{ formatDuration(trackDurationMs(track)) }} ·
           {{ track.points.length }} punkter
+        </div>
         </div>
       </div>
 

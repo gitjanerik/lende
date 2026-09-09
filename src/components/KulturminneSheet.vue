@@ -108,7 +108,7 @@ function onOpenKulturminnesok() {
              nok til å dele linje med tre knapper. -->
         <div class="shrink-0 px-4 pb-2.5 bg-surface/95 border-b border-ink/8">
           <div class="flex items-center justify-between gap-2">
-            <div class="min-w-0 flex items-center gap-2">
+            <div class="min-w-0 flex items-center gap-2" :style="{ zoom: uiTextScale }">
               <span class="w-3.5 h-3.5 shrink-0 rounded-sm" :style="{ background: katColor }"></span>
               <span class="min-w-0 truncate text-[10px] uppercase tracking-wide text-ink-4">{{ katLabel }}</span>
             </div>
@@ -147,7 +147,10 @@ function onOpenKulturminnesok() {
               </button>
             </div>
           </div>
-          <div class="text-ink text-[15px] font-medium leading-snug break-words">{{ detail.tittel }}</div>
+          <!-- Tittelen ZOOMES med kroppen (v6.6.0) — A-knappen skal gjøre det
+               samme i alle ark. Zoomet FOR SEG og ikke kontrollraden over. -->
+          <div class="text-ink text-[15px] font-medium leading-snug break-words"
+               :style="{ zoom: uiTextScale }">{{ detail.tittel }}</div>
         </div>
         <!-- Kropp: beskrivelse/sted/bilde + lenke -->
         <div v-show="!drawer.isMinimized.value"

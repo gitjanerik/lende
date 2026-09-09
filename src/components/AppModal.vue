@@ -59,7 +59,11 @@ watch(() => props.open, async (open) => {
                   rounded-2xl bg-modal text-ink shadow-2xl ring-1 ring-ink/10 overflow-hidden"
            role="dialog" aria-modal="true" :aria-label="props.title">
         <div class="shrink-0 px-4 py-3 flex items-center gap-3 border-b border-ink/10">
-          <h2 class="text-lg font-semibold flex-1 min-w-0 truncate text-ink">{{ props.title }}</h2>
+          <!-- Tittelen ZOOMES med kroppen (v6.6.0) — A-knappen skal gjøre det
+               samme i alle paneler. Zoomet FOR SEG og ikke headeren: en zoomet
+               rad skalerer polstringen og dytter lukkeknappen ut (v6.3.12). -->
+          <h2 class="text-lg font-semibold flex-1 min-w-0 truncate text-ink"
+              :style="{ zoom: uiTextScale }">{{ props.title }}</h2>
           <slot name="header" />
           <!-- Tekststørrelse for kroppen under. Den står i HEADEREN, altså
                utenfor `zoom`-flaten, og vokser derfor ikke med sin egen effekt. -->

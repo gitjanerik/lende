@@ -853,6 +853,84 @@ const SJEKKER = [
     },
   },
   {
+    navn: 'snarvei-raden måler seg, nedtrekket står alltid, sorteringen virker',
+    domene: 'SnarveiRad+lib/snarveier',
+    async kjør(page) {
+      await lukkDrawer(page)
+      // Målingen er hele poenget med raden: den skal aldri klippe en knapp bort
+      // over skjermkanten, og nedtrekket skal stå der uansett — det er også
+      // eneste vei til sorteringen.
+      const les = () => page.evaluate(() => {
+        const r = document.querySelector('.snarvei-rad')
+        if (!r) return null
+        const alle = [...r.querySelectorAll('[data-snarvei]')]
+        const synlige = alle.filter((b) => b.offsetParent !== null)
+        const handle = [...r.querySelectorAll('button')]
+          .find((b) => !b.hasAttribute('data-snarvei') && b.offsetParent !== null)
+        const boks = r.getBoundingClientRect()
+        return {
+          ider: synlige.map((b) => b.getAttribute('data-snarvei-id')),
+          totalt: alle.length,
+          harHandle: !!handle,
+          venstre: Math.round(boks.left),
+          hoyre: Math.round(boks.right),
+          vindu: window.innerWidth,
+        }
+      })
+
+      const forrigeVindu = page.viewportSize()
+      const funn = []
+      // Bred OG smal skjerm: på 360 px har målingen faktisk en jobb, og en
+      // rad som bare er målt på desktop er en rad som ikke er målt.
+      for (const bredde of [forrigeVindu.width, 360]) {
+        await page.setViewportSize({ width: bredde, height: forrigeVindu.height })
+        await page.waitForTimeout(500)
+        const r = await les()
+        if (!r) throw new Error(`fant ingen snarvei-rad ved ${bredde} px`)
+        if (!r.harHandle) throw new Error(`nedtrekket mangler ved ${bredde} px`)
+        if (!r.ider.length) throw new Error(`ingen synlige snarveier ved ${bredde} px`)
+        if (r.venstre < -1 || r.hoyre > r.vindu + 1) {
+          throw new Error(`raden er utenfor skjermen ved ${bredde} px: ${r.venstre}..${r.hoyre} av ${r.vindu}`)
+        }
+        funn.push(`${bredde}px → ${r.ider.length}/${r.totalt} synlige`)
+      }
+      await page.setViewportSize(forrigeVindu)
+      await page.waitForTimeout(500)
+
+      // Åpne nedtrekket → «Sorter snarveier» → flytt førstemann ned → sjekk at
+      // raden faktisk skiftet rekkefølge (det er lagringen som er poenget).
+      const forFor = (await les()).ider
+      await klikkTekst(page, /^(Mer|Vis .*snarvei)/i)
+      await klikkTekst(page, /^Sorter snarveier$/)
+      const iSkuff = await page.evaluate(() =>
+        [...document.querySelectorAll('button')]
+          .some((b) => b.offsetParent && /^Flytt .* ned$/.test(b.getAttribute('aria-label') || '')))
+      if (!iSkuff) throw new Error('sorterings-skuffen åpnet ikke')
+      await page.evaluate(() => {
+        const b = [...document.querySelectorAll('button')]
+          .find((e) => e.offsetParent && /^Flytt .* ned$/.test(e.getAttribute('aria-label') || ''))
+        b.click()
+      })
+      await page.waitForTimeout(400)
+      await lukkFunksjonsSkuff(page, 'Sorter snarveier')
+      const etter = (await les()).ider
+      if (etter[0] === forFor[0]) {
+        throw new Error(`rekkefølgen endret seg ikke: ${forFor.join(',')} → ${etter.join(',')}`)
+      }
+
+      // Rydd etter seg — neste sjekk skal møte standard rekkefølge, og en
+      // localStorage-nøkkel som blir liggende gjør sjekker etter denne
+      // avhengige av hvilken rekkefølge DENNE endte på.
+      await klikkTekst(page, /^(Mer|Vis .*snarvei)/i)
+      await klikkTekst(page, /^Sorter snarveier$/)
+      await klikkTekst(page, /^Tilbakestill til standard rekkefølge$/)
+      await lukkFunksjonsSkuff(page, 'Sorter snarveier')
+      const slutt = (await les()).ider
+      if (slutt[0] !== forFor[0]) throw new Error('tilbakestillingen ga ikke standard rekkefølge')
+      return `${funn.join(', ')}; sortering flyttet ${forFor[0]} og tilbakestilte`
+    },
+  },
+  {
     navn: 'måling legger vertices og regner distanse',
     domene: 'useMaaling',
     async kjør(page) {
@@ -876,10 +954,13 @@ const SJEKKER = [
         return m ? m.slice(0, 3).join(' ') : ''
       })
       if (!vertices && !tall) throw new Error('verken vertices i kartet eller distanse i UI etter tre tapp')
-      // Rydd etter seg: måle-modus bytter ut fane-raden, så neste sjekk fant
+      // Rydd etter seg: måle-modus bytter ut snarvei-raden, så neste sjekk fant
       // ikke 3D-knappen. En sjekk skal alltid forlate appen i nøytral tilstand.
+      // Fra v6.6.0 er Måling sin EGEN skuff, så den må lukkes også — ellers
+      // ligger arket over kartet når neste sjekk trykker.
       await klikkTekst(page, /^(Avslutt måling|Måling)$/)
       await page.waitForTimeout(500)
+      await lukkFunksjonsSkuff(page, 'Måling')
       return `${vertices} vertices, leste «${tall}»`
     },
   },
@@ -4284,6 +4365,17 @@ async function lukkDrawer(page) {
     await page.waitForTimeout(350)
   }
   if (await erDrawerÅpen(page)) throw new Error('fikk ikke lukket innstillings-skuffen')
+}
+
+// Lukker en funksjons-skuff (Måling/Sporing/Annotering/Sorter snarveier) via
+// X-en i headeren. Ingen feil om den ikke står åpen — kallerne rydder.
+async function lukkFunksjonsSkuff(page, etikett) {
+  await page.evaluate((navn) => {
+    const b = [...document.querySelectorAll('button')].find((e) =>
+      e.offsetParent !== null && e.getAttribute('aria-label') === `Lukk ${navn}`)
+    b?.click()
+  }, etikett)
+  await page.waitForTimeout(350)
 }
 
 function erDrawerÅpen(page) {
