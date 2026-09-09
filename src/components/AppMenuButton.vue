@@ -124,12 +124,44 @@ const skinClass = computed(() => (isFloat.value
                   stroke-linecap="round" :stroke-dasharray="ring.dasharray"
                   :stroke-dashoffset="ring.dashoffset" transform="rotate(-90 24 24)" />
         </svg>
+        <!-- Tallet i hjørnet (v6.6.5). Ringen sier HVOR LANGT det er igjen på
+             et blikk; merket sier NØYAKTIG hvor mange minutter. De to er
+             komplementære, ikke to utgaver av det samme — en ring alene kan
+             ikke skille 4 fra 6 minutter, og et tall alene viser ingen
+             bevegelse. Svart på gult er den ene kombinasjonen som holder
+             kontrasten uansett om knappen er den mørke flytende eller den lyse
+             i toppraden, og `aria-hidden` fordi nedtellingen alt står i
+             knappens navn. -->
+        <span v-if="holdVaken.aktiv.value" class="vaken-merke" aria-hidden="true">
+          {{ holdVaken.igjenMinutter.value }}
+        </span>
       </button>
     </Teleport>
   </span>
 </template>
 
 <style scoped>
+/* Nedtellings-merket. Sitter PÅ kanten (negativ offset) så det leses som et
+   merke og ikke som innhold i knappen, og har en ring i knappens egen
+   bakgrunnsfarge så det skiller seg fra den gule ringen rett under. */
+.vaken-merke {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: #ffd84a;
+  color: #000;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
 .menu-bars {
   position: relative;
   display: block;

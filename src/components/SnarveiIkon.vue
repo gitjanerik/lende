@@ -46,6 +46,18 @@ defineProps({ id: { type: String, required: true } })
       <polygon points="12 1.4 17.2 12 12 9.4 6.8 12" fill="#ef4444" stroke="none"/>
       <polygon points="12 22.6 17.2 12 12 14.6 6.8 12" fill="currentColor" stroke="none"/>
     </template>
+    <!-- De to eksterne (v6.6.5). Formene sier HVOR man havner og ikke hvem
+         tjenesten er: en varde med T-merket er norsk merket løype, et brettet
+         kart er kartet «der ute». Ingen logoer — de er andres varemerker, og
+         de ville dessuten vært det eneste fargede i et sett med streker. -->
+    <template v-else-if="id === 'utno'">
+      <path d="M4 20h16"/><path d="M12 20V9"/>
+      <path d="M12 4.5h6l2 2.2-2 2.3h-6z"/><path d="M12 4.5H6L4 6.7l2 2.3h6"/>
+    </template>
+    <template v-else-if="id === 'gmaps'">
+      <path d="M9 4 3 6.2v13.6L9 17.6l6 2.2 6-2.2V4l-6 2.2z"/>
+      <path d="M9 4v13.6M15 6.2v13.6"/>
+    </template>
     <template v-else-if="id === 'info'">
       <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/>
       <circle cx="12" cy="8" r="0.6" fill="currentColor"/>

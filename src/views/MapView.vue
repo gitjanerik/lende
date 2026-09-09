@@ -143,8 +143,8 @@ import { pruneAutoTiles, countAutoTiles } from '../lib/tileCache.js'
 import { renameMap } from '../lib/mapStorage.js'
 import { svgToWgs84, wgs84ToSvg, nordavvikForMeta, sannNordRotasjonForMeta } from '../lib/utm.js'
 import { naermesteMarkor } from '../lib/markorTreff.js'
-import { utNoZoomForMPerPx, UTNO_DEFAULT_ZOOM } from '../lib/utNoLink.js'
-import { useMapContext } from '../composables/useMapContext.js'
+import { utNoZoomForMPerPx, UTNO_DEFAULT_ZOOM, buildUtNoUrl } from '../lib/utNoLink.js'
+import { gmapsUrl } from '../lib/externalMapLinks.js'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
 import { fetchKulturminneById } from '../lib/kulturminneFetcher.js'
 import { polylineToPath } from '../lib/pathUtils.js'
@@ -1286,7 +1286,6 @@ const sti = useStifinner({
   dem: () => storedDem.value,
   medAlleFliser: (fn) => medAlleSpokelserFestet(fn),
 })
-const mapCtx = useMapContext()
 // Settes ved setupHostSvg: har kartet routbare sti-/vei-lag? Styrer om
 // «Naviger hit» vises.
 const mapHasTrails = ref(false)
@@ -2061,6 +2060,19 @@ const SNARVEI_HANDLING = {
   annotering: () => onShortcutAnnotering(),
   sporing: () => onShortcutSporing(),
   info: () => onShortcutInfo(),
+  utno: () => apneEksterntKart(buildUtNoUrl),
+  gmaps: () => apneEksterntKart((p) => gmapsUrl(p.lat, p.lon)),
+}
+
+// De to eksterne snarveiene (v6.6.5). Begge tar kartsenteret; bommer punktet —
+// et kart uten meta, eller før første måling — gjør knappen INGENTING framfor
+// å åpne tjenesten et vilkårlig sted. En fane som spretter opp på Oslo S er
+// verre enn en knapp som ikke svarte.
+function apneEksterntKart(byggUrl) {
+  const p = eksterntKartPunkt()
+  if (!p) return
+  const url = byggUrl(p)
+  if (url) window.open(url, '_blank', 'noopener')
 }
 function onSnarvei(id) { SNARVEI_HANDLING[id]?.() }
 
@@ -2243,9 +2255,11 @@ function currentViewWebZoom(lat) {
   } catch { /* fall tilbake til default-zoom */ }
   return UTNO_DEFAULT_ZOOM
 }
-// Punkt-provider for hovedmenyens eksterne karttjenester: synlig kartsenter
-// som lat/lon + web-zoom. Registrert så lenge denne visningen lever.
-function menuMapPoint() {
+// Punktet de to eksterne snarveiene åpner på: synlig kartsenter som lat/lon +
+// web-zoom, så UT.no og Google Maps lander på omtrent samme utsnitt som arket
+// viser. Het `menuMapPoint` fram til v6.6.5, da hovedmenyens chip-blokk (og
+// hele `useMapContext` med den) ble borte og snarvei-raden overtok.
+function eksterntKartPunkt() {
   const m = meta.value
   const c = visibleCenterSvg()
   if (!m || !c) return null
@@ -2706,12 +2720,7 @@ onMounted(() => {
   }
   window.addEventListener('resize', measureWrapper)
   loadMap()
-  mapCtx.register(menuMapPoint, mapTitle.value)
 })
-// Hovedmenyens snarvei-blokk skriver «Åpne <sted> i» — hold navnet i sync med
-// kart-tittelen (settes ved lasting og ved «Gi nytt navn»).
-watch(mapTitle, (t) => mapCtx.setPlaceName(t))
-
 onUnmounted(() => {
   unlockBodyScroll()
   // GPS-tikkeren ryddes av useGpsSpor selv.
@@ -2725,7 +2734,6 @@ onUnmounted(() => {
   teardownMapExtend()
   teardownGhostTiles()
   if (viewSaveTimer) clearTimeout(viewSaveTimer)
-  mapCtx.unregister(menuMapPoint)
 })
 </script>
 

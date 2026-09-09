@@ -31,6 +31,19 @@ export const SNARVEIER = [
   { id: 'annotering', label: 'Annotering', aria: 'Annotering', kunEgne: true },
   { id: 'sporing',    label: 'Sporing',    aria: 'Sporing',    kunEgne: true },
   { id: 'info',       label: 'Info',       aria: 'Informasjon om stedet' },
+  // EKSTERNE KART (v6.6.5). De to lå som chips i hovedmenyen sammen med Street
+  // View og Vegkart, bak «Åpne <sted> i». Menyen er appens egne halvdeler og
+  // innstillingene deres; «se dette stedet hos noen andre» er noe man GJØR med
+  // kartet man står i, altså en snarvei. Street View og Vegkart fulgte ikke
+  // med: de svarer på spørsmål om VEI, og en turkart-app har ikke veien som
+  // spørsmål. De to som ble igjen er dem man faktisk drar til fra en tur —
+  // UT.no for turbeskrivelsen, Google for satellitt og det som ligger der.
+  //
+  // De står SIST i standard-rekkefølgen, og det er ikke tilfeldig: de forlater
+  // appen. Alt som gjør noe med kartet ditt skal ligge foran det som tar deg
+  // ut av det — og rekkefølgen er uansett brukerens.
+  { id: 'utno',       label: 'UT.no',      aria: 'Åpne stedet på UT.no' },
+  { id: 'gmaps',      label: 'Google',     aria: 'Åpne stedet i Google Maps' },
 ]
 
 export const STANDARD_REKKEFOLGE = SNARVEIER.map(s => s.id)

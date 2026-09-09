@@ -33,6 +33,7 @@ describe('AI_TOOLS', () => {
     expect(t.function.parameters.properties.minutter.type).toBe('number')
     expect(t.function.parameters.required).toEqual(['minutter'])
     expect(t.function.description).toMatch(/0 slår den AV/)
+    expect(t.function.description).toMatch(/1–30/)
   })
 
   it('turverktøyene tar stedsnavn, og krever bare kartId', () => {

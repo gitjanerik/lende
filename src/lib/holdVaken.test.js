@@ -7,7 +7,7 @@ describe('klemMinutter', () => {
     expect(klemMinutter(-5)).toBe(0)
     expect(klemMinutter(12.4)).toBe(12)
     expect(klemMinutter(999)).toBe(MAKS_MINUTTER)
-    expect(klemMinutter('30')).toBe(30)
+    expect(klemMinutter('20')).toBe(20)
     expect(klemMinutter(NaN)).toBe(0)
   })
 })
@@ -18,7 +18,7 @@ describe('minutterIgjen', () => {
     expect(minutterIgjen(1)).toBe(1)
     expect(minutterIgjen(0)).toBe(0)
     expect(minutterIgjen(-100)).toBe(0)
-    expect(minutterIgjen(59 * 60_000 + 1)).toBe(60)
+    expect(minutterIgjen(29 * 60_000 + 1)).toBe(30)
   })
 })
 

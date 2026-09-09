@@ -2,7 +2,6 @@
 import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppMenu } from '../composables/useAppMenu.js'
-import { useMapContext } from '../composables/useMapContext.js'
 import { useUiTextScale, UI_TEXT_SCALES } from '../composables/useUiTextScale.js'
 import { useUiTheme } from '../composables/useUiTheme.js'
 import { useMapTheme } from '../composables/useMapTheme.js'
@@ -11,8 +10,6 @@ import { MAKS_MINUTTER } from '../lib/holdVaken.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
 import { useLendeChat } from '../composables/useLendeChat.js'
 import { hasAiToken } from '../lib/lendeAi.js'
-import { gmapsUrl, streetViewUrl, buildVegkartUrl } from '../lib/externalMapLinks.js'
-import { buildUtNoUrl } from '../lib/utNoLink.js'
 import { listMaps, listGravelRoutes } from '../lib/mapStorage.js'
 import { mapsSummary, routesSummary } from '../lib/menuSummary.js'
 import AppModal from './AppModal.vue'
@@ -35,7 +32,6 @@ import { useFokusFelle } from '../composables/useFokusFelle.js'
 // rot-fonten er 16 px × faktor, og alt innhold er i em.
 
 const { menuOpen, close } = useAppMenu()
-const { hasMapContext, getPoint, placeName } = useMapContext()
 const { uiTextScale, setTextScale } = useUiTextScale()
 const { theme, setTheme } = useUiTheme()
 // Snarvei til kartets mørke tema — samme tilstand som «Mørk» under
@@ -168,23 +164,6 @@ function goFrittLende() {
 // som skifter uten at innholdet gjør det, får leseren til å tro at innholdet
 // gjorde det.
 const HJELP_LEDETEKST = 'Hjelp i lende'
-
-// Eksterne karttjenester på synlig kartsenter — kun når en kartvisning har
-// registrert en punkt-provider (useMapContext), dvs. brukeren er inne i et kart.
-// Hele blokken er borte ellers, så menyen slipper å scrolle i det hele tatt.
-const SHORTCUTS = [
-  { key: 'gmaps', label: 'Google Maps', url: (p) => gmapsUrl(p.lat, p.lon) },
-  { key: 'streetview', label: 'Street View', url: (p) => streetViewUrl(p.lat, p.lon) },
-  { key: 'utno', label: 'UT.no', url: (p) => buildUtNoUrl(p) },
-  { key: 'vegkart', label: 'Vegkart', url: (p) => buildVegkartUrl(p) },
-]
-function openShortcut(svc) {
-  const p = getPoint()
-  if (!p) return
-  const url = svc.url(p)
-  if (url) window.open(url, '_blank', 'noopener')
-  close()
-}
 
 // ── Visning ──────────────────────────────────────────────────────────────────
 const THEMES = [
@@ -376,24 +355,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             </span>Spør Lende
           </button>
 
-          <!-- Snarveier til eksterne kart — kun når et kart er åpent. -->
-          <div v-if="hasMapContext" class="am-chips-wrap">
-            <div class="am-chips-label">
-              Åpne <strong v-if="placeName">{{ placeName }}</strong><template v-else>stedet</template> i
-            </div>
-            <div class="am-chips">
-              <button v-for="s in SHORTCUTS" :key="s.key" type="button" class="am-chip"
-                      @click="openShortcut(s)">
-                {{ s.label }}
-                <span class="am-chip-ext">
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
-                       stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M14 4h6v6M20 4l-7.5 7.5M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" />
-                  </svg>
-                </span>
-              </button>
-            </div>
-          </div>
         </div>
 
         <!-- Visning: tema + tekststørrelse. -->
@@ -435,14 +396,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
              en innstilling for hvordan appen ser ut. -->
         <div v-if="holdVaken.stottes.value" class="am-block am-block-wide">
           <div class="am-eyebrow">Hold skjermen våken</div>
+          <!-- Teksten står OVER slideren, ikke ved siden av (v6.6.5). Ved 200 %
+               tekst tok «39 minutter igjen» to tredjedeler av bredden, og
+               slideren satt igjen med en stump man ikke kan sikte i. Over
+               betyr også at sporet er like bredt i begge tilstander — det
+               flytter seg ikke når «Av» blir til et tall. -->
           <div class="am-wake">
+            <div class="am-wake-meta" :class="{ 'is-on': holdVaken.aktiv.value }"
+                 role="status" aria-live="polite">{{ vakenTekst }}</div>
             <input type="range" class="am-wake-range"
                    min="0" :max="MAKS_MINUTTER" step="1" :value="vakenMin"
                    aria-label="Hold skjermen våken, minutter"
                    :aria-valuetext="vakenTekst"
                    @input="holdVaken.settMinutter($event.target.valueAsNumber)" />
-            <div class="am-wake-meta" :class="{ 'is-on': holdVaken.aktiv.value }"
-                 role="status" aria-live="polite">{{ vakenTekst }}</div>
           </div>
         </div>
 
@@ -664,26 +630,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .am-line-icon { width: 26px; display: grid; place-items: center; color: var(--am-dim); flex: 0 0 auto; }
 .am-line-dim { color: var(--am-dim); font-size: 0.92em; padding: 12px 4px; }
 
-/* ── Snarvei-chips ── */
-.am-chips-wrap { display: flex; flex-direction: column; gap: 8px; padding: 6px 0 2px; }
-.am-chips-label { font-size: 0.8em; color: var(--am-dim); padding: 0 4px; }
-.am-chips-label strong { color: var(--am-text); font-weight: 600; }
-.am-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.am-chip {
-  background: var(--am-surface);
-  color: var(--am-text);
-  font-size: 0.82em;
-  padding: 10px 13px;
-  border-radius: 999px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  white-space: nowrap;
-  min-height: 44px;
-}
-.am-chip:active { transform: scale(0.96); }
-.am-chip-ext { color: var(--am-dim); display: grid; place-items: center; }
-
 /* ── Tekststørrelse ── */
 /* Bryter-rad: samme rytme som tekststørrelse-raden under. `appearance: none`
    + egen bakgrunn/knott, så bryteren følger meny-tokenene i begge UI-temaer i
@@ -771,17 +717,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 /* ── Hold skjermen våken ──
    Sporet er gult (samme #ffd84a som ringen rundt hamburgeren og FAB-ens
    hold-ring), så sliderens fylte del og ringen leses som samme funksjon. */
-.am-wake { display: flex; align-items: center; gap: 12px; }
+.am-wake { display: flex; flex-direction: column; gap: 4px; }
 .am-wake-range {
-  flex: 1 1 auto;
-  min-width: 0;
+  width: 100%;
   height: 28px;
   background: transparent;
   accent-color: #ffd84a;
   cursor: pointer;
 }
 .am-wake-meta {
-  flex: 0 0 auto;
   font-size: 0.8em;
   font-variant-numeric: tabular-nums;
   color: var(--am-dim);

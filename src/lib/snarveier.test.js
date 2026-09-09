@@ -10,9 +10,12 @@ describe('katalogen', () => {
     expect(new Set(ider).size).toBe(ider.length)
     expect(SNARVEIER.every(s => s.label && s.aria)).toBe(true)
   })
-  it('bærer de sju funksjonene skillet mellom funksjon og innstilling ga', () => {
+  it('bærer funksjonene skillet mellom funksjon og innstilling ga, og de to eksterne sist', () => {
+    // Rekkefølgen ER standarden brukeren møter først, og de to som FORLATER
+    // appen skal stå bak alt som gjør noe med kartet — se katalogen.
     expect(STANDARD_REKKEFOLGE).toEqual(
-      ['stifinner', 'runde', 'maaling', 'tre-d', 'annotering', 'sporing', 'info'])
+      ['stifinner', 'runde', 'maaling', 'tre-d', 'annotering', 'sporing', 'info',
+       'utno', 'gmaps'])
   })
 })
 

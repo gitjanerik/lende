@@ -1,3 +1,30 @@
+## 2026-09-09 — v6.6.5: Nedtellingen får et tall, og de eksterne kartene blir snarveier
+
+Tre ting fra felttest av v6.6.4. **Nedtellings-teksten står nå OVER slideren**,
+ikke ved siden av: ved 200 % tekst tok «39 minutter igjen» to tredjedeler av
+bredden, og sporet satt igjen som en stump man ikke kan sikte i. Over betyr
+også at slideren er like bred i begge tilstander — den flytter seg ikke når
+«Av» blir til et tall. **Taket er 30 minutter**, ikke 60; halvparten gir hvert
+minutt dobbelt så mye vei på skjermen, og en tur som trenger mer enn en
+halvtime sammenhengende skjerm er en tur der man drar i slideren igjen uansett.
+Chat-verktøyet klemmer til det samme taket og SIER fra når det klemte, ellers
+ville chatten bekreftet en time brukeren ikke får. **Hamburgeren har fått et
+gult merke i hjørnet med minutter igjen i svart skrift.** Ringen og tallet er
+komplementære og ikke to utgaver av det samme: en ring alene kan ikke skille
+fire fra seks minutter, og et tall alene viser ingen bevegelse.
+
+**De fire eksterne lenkene er ute av hovedmenyen, og to av dem kom tilbake som
+snarveier i turkartet.** Menyen er appens egne halvdeler og innstillingene
+deres; «se dette stedet hos noen andre» er noe man GJØR med kartet man står i,
+altså en snarvei — samme skille som v6.6.0 innførte. Street View og Vegkart
+fulgte ikke med: de svarer på spørsmål om VEI, og en turkart-app har ikke veien
+som spørsmål. UT.no og Google står SIST i standard-rekkefølgen, fordi de
+forlater appen, og de tar punktet rett fra kartsenteret. Med chip-blokka borte
+hadde `useMapContext` ingen konsumenter igjen, og hele composablen er slettet
+sammen med registreringene i MapView og Turplanleggeren.
+
+---
+
 ## 2026-09-09 — v6.6.4: Hold skjermen våken er en nedtelling i hovedmenyen
 
 «Hold skjerm våken» lå i Innstillinger → Format, mellom papirformat og

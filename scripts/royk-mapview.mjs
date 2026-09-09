@@ -985,6 +985,63 @@ const SJEKKER = [
     },
   },
   {
+    // v6.6.5: UT.no og Google Maps lå som chips i hovedmenyen, matet av
+    // `useMapContext` — en punkt-provider kartvisningen registrerte. Både
+    // chipsene og hele composablen er borte, og snarveiene tar punktet rett fra
+    // kartsenteret. Det som kan brekke stille er nettopp koblingen: en knapp som
+    // åpner en fane på feil sted, eller ingen fane i det hele tatt, ser helt lik
+    // ut i DOM-en. Derfor måles den ekte URL-en fanen får.
+    navn: 'UT.no og Google Maps åpner på kartsenteret',
+    domene: 'lib/snarveier + MapView (eksternt kart)',
+    async kjør(page) {
+      await lukkDrawer(page)
+      // De to står SIST i standard-rekkefølgen og ligger derfor bak «Mer».
+      await klikkTekst(page, /^(\d+\s*)?Mer$|^Vis .*snarvei/i)
+      await page.waitForTimeout(300)
+
+      // `window.open` STUBBES, og den ekte fanen åpnes ikke. Første utgave
+      // ventet på en popup og leste `page.url()` — den ble
+      // `chrome-error://chromewebdata/`, fordi ut.no ikke er nåbar herfra.
+      // Sjekken målte da nettverket og ikke koblingen. Det som KAN brekke
+      // stille er URL-en knappen ber om: stubben fanger nøyaktig den, og
+      // trykket er fortsatt et ekte klikk gjennom den ekte handleren.
+      await page.evaluate(() => {
+        window.__roykUrler = []
+        window.open = (url) => { window.__roykUrler.push(String(url)); return null }
+      })
+
+      const funn = []
+      for (const [id, etikett, monster] of [
+        ['utno', /^UT\.no$/, /ut\.no/i],
+        ['gmaps', /^Google$/, /google\.[a-z.]+\/maps/i],
+      ]) {
+        // Vent til knappen faktisk er SYNLIG. Raden setter `visibility: hidden`
+        // mens den måler seg om, og et klikk i det vinduet står og venter til
+        // det timer ut — det tok én kjøring å finne.
+        await page.waitForFunction((sel) => {
+          const b = document.querySelector(sel)
+          return !!b && b.offsetParent !== null
+        }, `[data-snarvei-id="${id}"]`, { timeout: 10_000 })
+          .catch(() => { throw new Error(`snarveien «${id}» ble aldri synlig i nedtrekket`) })
+        await klikkTekst(page, etikett)
+        const url = await page.evaluate(() => window.__roykUrler.at(-1) ?? '')
+        if (!url) throw new Error(`«${id}» åpnet ingenting`)
+        if (!monster.test(url)) throw new Error(`«${id}» åpnet ${url}`)
+        // Koordinatene skal være kartets, ikke en default et sted i Norge.
+        const tall = url.match(/-?\d+\.\d+/g) || []
+        if (tall.length < 2) throw new Error(`«${id}» fikk ingen koordinater: ${url}`)
+        funn.push(`${id} → ${tall.slice(0, 2).join(',')}`)
+        // Et trykk i raden lukker nedtrekket (`velg` setter apen = false), så
+        // det må åpnes igjen før neste.
+        if (id !== 'gmaps') await klikkTekst(page, /^(\d+\s*)?Mer$|^Vis .*snarvei/i)
+      }
+
+      // NØYTRAL TILSTAND: nedtrekket er alt lukket av det siste trykket —
+      // `velg` lukker det selv. Ingenting å rydde.
+      return funn.join('; ')
+    },
+  },
+  {
     navn: 'måling legger vertices og regner distanse',
     domene: 'useMaaling',
     async kjør(page) {
@@ -3588,6 +3645,12 @@ const SJEKKER = [
       await slider.fill('30')
       const tekst = (await meta.innerText()).trim()
       if (tekst !== '30 minutter igjen') throw new Error(`slideren svarte «${tekst}»`)
+      // Merket i hjørnet (v6.6.5): ringen sier hvor langt det er igjen, tallet
+      // sier hvor mange minutter. Det bor i et annet komponenttre enn
+      // slideren, så bare en ekte måling ser at de to er i takt.
+      const merke = page.locator('[data-hovedmeny-knapp] .vaken-merke')
+      const merketekst = (await merke.innerText()).trim()
+      if (merketekst !== '30') throw new Error(`merket i hjørnet sa «${merketekst}», ikke 30`)
       await ring.waitFor({ state: 'attached', timeout: 5000 })
       const strek = await ring.getAttribute('stroke')
       if (strek !== '#ffd84a') throw new Error(`ringen er ikke gul, men «${strek}»`)
@@ -3605,10 +3668,11 @@ const SJEKKER = [
       await slider.fill('0')
       if ((await meta.innerText()).trim() !== 'Av') throw new Error('0 slo ikke av nedtellingen')
       if (await ring.count()) throw new Error('ringen ble stående etter at nedtellingen ble slått av')
+      if (await merke.count()) throw new Error('merket ble stående etter at nedtellingen ble slått av')
 
       await page.keyboard.press('Escape')
       await meny.waitFor({ state: 'hidden', timeout: 8000 })
-      return 'slider → 30 min ga gul ring og aria-label; 0 ryddet den bort'
+      return 'slider → 30 min ga gul ring, merke «30» og aria-label; 0 ryddet dem bort'
     },
   },
   {

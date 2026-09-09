@@ -213,10 +213,11 @@ export const AI_TOOLS = [
     function: {
       name: 'hold_skjermen_vaken',
       description:
-        'Hindre at telefonen låser skjermen, i et bestemt antall minutter (1–60). Bruk ved ' +
-        '«hold skjermen våken i en time», «ikke la skjermen slukne mens jeg går», «behold ' +
-        'skjermen på i 20 minutter». Regn om til minutter selv: «en time» = 60, «en halvtime» ' +
-        '= 30. Nedtellingen vises som en gul ring rundt menyknappen øverst til venstre. ' +
+        'Hindre at telefonen låser skjermen, i et bestemt antall minutter (1–30). Bruk ved ' +
+        '«hold skjermen våken», «ikke la skjermen slukne mens jeg går», «behold skjermen på ' +
+        'i 20 minutter». Regn om til minutter selv: «en halvtime» = 30. Taket er 30 minutter — ' +
+        'ber brukeren om mer (f.eks. en time), sett 30 og SI i svaret at det er maks. ' +
+        'Nedtellingen vises som en gul ring med minutter igjen rundt menyknappen øverst til venstre. ' +
         'minutter: 0 slår den AV igjen («la skjermen slukne som vanlig», «avbryt»). Et nytt ' +
         'tall starter nedtellingen på nytt. Den varer bare denne økta — lukker brukeren appen, ' +
         'er den av.',
@@ -225,7 +226,7 @@ export const AI_TOOLS = [
         properties: {
           minutter: {
             type: 'number',
-            description: `Antall minutter skjermen skal holdes våken, 1–${MAKS_MINUTTER}. 0 slår av.`,
+            description: `Antall minutter skjermen skal holdes våken, 1–${MAKS_MINUTTER}. Høyere tall klemmes til ${MAKS_MINUTTER}. 0 slår av.`,
           },
         },
         required: ['minutter'],
@@ -1097,18 +1098,23 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         if (!vaken.stottes.value) {
           return { feil: 'Denne nettleseren kan ikke holde skjermen våken. På iPhone krever det Safari 16.4 eller nyere.' }
         }
-        // Modellen kan sende «60 minutter» som 3600 (sekunder) eller «en time»
-        // som 1. Vi klemmer til [0, 60] framfor å avvise: en skjerm som holdes
-        // våken i 60 minutter når brukeren ba om en time er riktig svar uansett
-        // hvilken enhet modellen trodde den brukte.
+        // Modellen kan sende «30 minutter» som 1800 (sekunder) eller «en
+        // halvtime» som 1. Vi klemmer framfor å avvise: en skjerm som holdes
+        // våken så lenge vi kan er riktig svar uansett hvilken enhet modellen
+        // trodde den brukte. Klemte vi, SIES det — ellers ville chatten
+        // bekreftet en time brukeren ikke får.
         const bedt = Number(args?.minutter)
         if (!Number.isFinite(bedt)) return { feil: 'Mangler antall minutter.' }
         const minutter = vaken.settMinutter(klemMinutter(bedt))
         if (!minutter) return { ok: true, av: true, merknad: 'Skjermen slukner nå som vanlig.' }
+        const klemt = bedt > MAKS_MINUTTER
         return {
           ok: true,
           minutter,
-          merknad: `Skjermen holdes våken i ${minutter} minutter. Nedtellingen vises som en gul ring rundt menyknappen. Den varer bare denne økta.`,
+          maks: klemt ? MAKS_MINUTTER : undefined,
+          merknad: klemt
+            ? `Ba om ${bedt} minutter, men taket er ${MAKS_MINUTTER}. Skjermen holdes våken i ${minutter} minutter — SI at det er maks. Nedtellingen vises som en gul ring med minutter igjen rundt menyknappen, og varer bare denne økta.`
+            : `Skjermen holdes våken i ${minutter} minutter. Nedtellingen vises som en gul ring med minutter igjen rundt menyknappen. Den varer bare denne økta.`,
         }
       }
       case 'bytt_kart_tema': {
