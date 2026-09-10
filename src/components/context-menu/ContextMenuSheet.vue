@@ -113,8 +113,8 @@ function formatDistance(m) {
          class="drawer-shell bg-surface border-t border-ink/10 rounded-t-2xl flex flex-col pointer-events-auto"
          :style="contextDrawer.drawerHeightStyle.value">
       <!-- Dra-håndtak: dra opp for å maksimere (~85dvh), ned for standard.
-           Romslig hit-flate (pt-3.5 pb-3) så tappen er lett å treffe. -->
-      <div class="shrink-0 touch-none cursor-grab active:cursor-grabbing pt-3.5 pb-3 flex justify-center"
+           Romslig hit-flate (py-3) så tappen er lett å treffe. -->
+      <div class="shrink-0 touch-none cursor-grab active:cursor-grabbing py-3 flex justify-center"
            @pointerdown="contextDrawer.onPointerDown($event)"
            @pointermove="contextDrawer.onPointerMove($event)"
            @pointerup="contextDrawer.onPointerUp($event)"

@@ -91,7 +91,7 @@ function onOpenKulturminnesok() {
          @click.self="$emit('close')">
       <div class="drawer-shell bg-surface border-t border-ink/10 rounded-t-2xl flex flex-col pointer-events-auto"
            :style="drawer.drawerHeightStyle.value">
-        <div class="shrink-0 touch-none cursor-grab active:cursor-grabbing pt-3.5 pb-3 flex justify-center"
+        <div class="shrink-0 touch-none cursor-grab active:cursor-grabbing py-3 flex justify-center"
              @pointerdown="drawer.onPointerDown($event)"
              @pointermove="drawer.onPointerMove($event)"
              @pointerup="drawer.onPointerUp($event)"

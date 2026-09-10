@@ -1,34 +1,37 @@
 <script setup>
 // ─────────────────────────────────────────────────────────────────────────────
-// SnarveiRad — turkart-modusens FUNKSJONER, som én rad over kartet (v6.6.0).
+// SnarveiRad — turkart-modusens FUNKSJONER, som en skuff over kartet (v6.6.0).
 //
-// RADEN RULLER IKKE, OG DEN KLIPPER IKKE. Den måler hvor mange knapper som
-// faktisk får plass, og legger resten bak et dra-håndtak — samme grep som
-// værraden i 3D fikk i v6.3.9, og av samme grunn: en skjult gest er ikke en
-// affordanse, mens et håndtak er det.
+// RADEN ER ET GITTER, OG DEN ER EN EKTE SKUFF (v7.5.0).
 //
-// HÅNDTAKET ER ET HÅNDTAK, IKKE ENDA EN SNARVEI (v7.4.0). Fram til nå var
-// «Mer / Mindre» en knapp med ikon og etikett som sto i SAMME flex-rad som
-// funksjonene — altså formet som en snarvei, plassert som en snarvei, men den
-// eneste knappen i raden som ikke gjorde noe med kartet. Nå er det appens
-// vanlige grå drawer-håndtak, bunnplassert og midtstilt, som i punkt-arket og
-// funksjons-skuffene: dra ned for å folde ut alle snarveiene, dra opp for å
-// legge sammen igjen. Et trykk gjør det samme, så gesten aldri er eneste vei.
+// Fram til nå var den en flex-rad som målte hver knapp for seg og la resten bak
+// et nedtrekk. To ting fulgte av det, og begge ble meldt fra felt:
+//   • antallet per linje endret seg med tilstanden (sju ikoner sammenlagt, fire
+//     med etikett utfoldet), så raden så ut til å stokke om på seg selv;
+//   • knappene var ulikt brede, fordi hver av dem var så bred som ordet sitt.
+// Nå er det ett gitter med FASTE, LIKE kolonner. Kolonnetallet regnes av den
+// BREDESTE cella — altså den med etikett — og er det samme i begge tilstandene.
+// Sammenlagt vises første rad; draget avdekker resten.
 //
-// OG DRAGET AVDEKKER NAVNENE (v7.4.0). Sammenlagt er raden bare IKONER; dratt
-// ned får hver knapp etiketten sin. Det er ikke pynt — det er hva et drag i et
-// håndtak SKAL gjøre: avdekke noe. Sammenlagt er ikonene det man rekker etter
-// mens man går, og det er i den tilstanden plassen er knappest, så en rad uten
-// tekst får langt flere av dem på linja (seks mot tre ved 200 % tekst). Dratt
-// ned står navnene der for den som ikke kjenner symbolet ennå, og det er
-// samtidig den eneste tilstanden der «Sorter snarveier» finnes — altså der man
-// er når man skal lære raden å kjenne. `aria-label` bærer navnet i BEGGE
-// tilstandene, så et skjermleser-navn forsvinner aldri med etiketten.
+// DRAGET ER KONTINUERLIG, som i punkt-arket og funksjons-skuffene (v7.5.0).
+// Håndtaket satte før bare en av/på: raden hoppet mellom to former. Nå følger
+// høyden fingeren hele veien (`dra`), etikettene toner inn med den, og de neste
+// radene glir opp fra kanten. På slipp DOKKER den til nærmeste ende med appens
+// vanlige fjærkurve — og «nærmeste» er `pickSnapTarget` fra useDraggableDrawer,
+// samme retnings-baserte regel som hvert bunn-ark i appen: ett svakt drag i en
+// retning committer, man må ikke forbi midtpunktet.
 //
-// MÅLINGEN GJELDER DEN SAMMENLAGTE FORMEN, og bare den. Måler vi mens raden er
-// åpen, måler vi knapper med tekst — altså en helt annen bredde enn den som
-// skal få plass på linja. `maal()` returnerer derfor tidlig når raden er åpen,
-// og en lukking utløser ommåling.
+// KLIKK ÅPNER IKKE (v7.5.0). Håndtaket er et håndtak: man drar i det. Et
+// klikk-toggle på samme flate gjorde at et lite drag og et tapp gjorde helt
+// ulike ting på samme piksel. **Piltastene står igjen** — de er ikke et klikk,
+// og uten dem finnes skuffa ikke for den som betjener appen fra tastatur
+// (SC 2.1.1). Det er den ene grunnen til at knappen fortsatt er en `<button>`.
+//
+// HÅNDTAKET ER APPENS, IKKE RADENS. Samme grå pille, samme luft rundt seg
+// (`py-3`) som i punkt-arket og funksjons-skuffene — eieren så de to åpne
+// samtidig og meldte at lufta var ulik. Den er nå den samme overalt, og verdien
+// er LIK over og under: da er «lufta rundt håndtaket» det samme tallet enten
+// arket henger fra toppen eller fra bunnen.
 //
 // FIRE TING SOM MÅ STÅ:
 //
@@ -37,207 +40,224 @@
 //    som avgjør hva som havner bak det på en smal skjerm. Skjuler du håndtaket
 //    når alt får plass, forsvinner sorteringen på de skjermene der den er
 //    lettest å prøve ut.
-// 2. BUDSJETTET ER VIEWPORTEN, ikke en forelder. Raden er en pille med
-//    `width: max-content` som svever midt over kartet — det finnes ingen boks
-//    som klemmer den, så en måling av forelderens bredde ville målt radens
-//    egen bredde og jaget sin egen hale (værrad-fella, v6.3.12). Derfor
-//    `innerWidth − KANT_PX`, og derfor ETTERSJEKKEN under: prognosen
-//    kontrolleres mot den ekte rendrede bredden.
+// 2. BUDSJETTET ER VIEWPORTEN, ikke en forelder. Raden er en pille som svever
+//    midt over kartet — det finnes ingen boks som klemmer den, så en måling av
+//    forelderens bredde ville målt radens egen bredde og jaget sin egen hale
+//    (værrad-fella, v6.3.12). Derfor `innerWidth − KANT_PX`.
 //    MEN DA MÅ INNPAKNINGEN VÆRE FULL BREDDE (v6.6.1). Raden lå i den vanlige
 //    `left: 50%` + `-translate-x-1/2`-innpakningen, og et absolutt plassert
 //    element med `left: 50%` får bare halve viewporten som tilgjengelig
-//    bredde — 180 px på en 360 px-skjerm. Raden brøt til to linjer med et
-//    budsjett på 336 px og et innhold på 292. Kallstedet i MapView bruker nå
+//    bredde — 180 px på en 360 px-skjerm. Kallstedet i MapView bruker nå
 //    `snarveiRadStyle` (full bredde + `justify-center`); flytter du raden,
 //    må den innpakningen bli med.
-// 3. KNAPPENE MÅLES SYNLIGE. En skjult knapp har bredde 0, så første måling
-//    (og hver ommåling) skjer med alle knappene i DOM-en; raden står
-//    `visibility: hidden` det ene bildet det tar. Tekstskala og fontlasting
-//    endrer bredden, så begge utløser ommåling.
-// 4. RADEN BRYTER, DEN KLIPPER ALDRI. `flex-wrap: wrap` står i BEGGE
-//    tilstandene som sikkerhetsnett, med `flex-wrap: balance` lagt oppå i den
-//    utvidede (Chrome/Safari; andre forkaster linja og beholder `wrap`).
-//    MERK AT SIKKERHETSNETTET GJØR ETTERSJEKKEN BLIND FOR BREDDE (v6.6.1): en
-//    rad som bryter blir aldri bredere enn taket sitt, så `bredde > budsjett`
-//    kan per konstruksjon ikke bli sant. Den sammenlikningen sto her i v6.6.0,
-//    og resultatet var en sammenlagt rad på to linjer på eierens telefon.
-//    Ettersjekken leser derfor `offsetTop`: er ikke alle knappene på samme
-//    linje, er prognosen én for høy.
-// 5. ALLE KNAPPENE ER LIKEVERDIGE (v7.3.0). Raden hadde en FAST venstregruppe
-//    — posisjon og kompasset — som sto foran en skillelinje, aldri kollapset
-//    og spiste av budsjettet (`fastPx`). Den er borte: posisjonen er en vanlig
-//    sorterbar snarvei med plass #1 i standarden, kompasset bor i linjal-
-//    boksen nede til venstre. En knapp som bærer en TILSTAND (posisjonen) får
-//    fortsatt aksentgrønn flate og `aria-pressed` — det er en egenskap ved
-//    knappen, ikke en egen klasse knapper med egne plasseringsregler.
+// 3. MÅLINGEN SKJER I ÉN SKJULT PASSERING, med etikettene PÅ og gitteret AV.
+//    Cellene må stå i sin naturlige bredde for at «bredeste celle» skal bety
+//    noe — i et gitter er de alle like brede per definisjon, så en måling der
+//    ville lest kolonnebredden vi nettopp valgte og jaget sin egen hale. Derfor
+//    `maalt = false` → flex + etiketter → les → gitter. Raden står
+//    `visibility: hidden` det ene bildet det tar. Tekstskala, fontlasting og
+//    vindusbredde endrer bredden, så alle tre utløser ommåling.
+// 4. HØYDENE ER MÅLT, IKKE REGNET. `hLukket` (én rad, ikoner) og `hApen` (alle
+//    rader, etiketter) leses av den ekte layouten i samme skjulte passering.
+//    En utregning fra ikonhøyde + etiketthøyde + gap ville vært riktig helt til
+//    noen endret en polstring, og feilen ville vært en skuff som klipper det
+//    nederste av seg selv — usynlig i enhetstester.
+//
+// ALLE KNAPPENE ER LIKEVERDIGE (v7.3.0). Raden hadde en FAST venstregruppe —
+// posisjon og kompasset — som sto foran en skillelinje og aldri kollapset. Den
+// er borte: posisjonen er en vanlig sorterbar snarvei med plass #1 i standarden,
+// kompasset bor i linjal-boksen nede til venstre. En knapp som bærer en TILSTAND
+// (posisjonen) får aksentgrønn flate og `aria-pressed` — det er en egenskap ved
+// knappen, ikke en egen klasse knapper med egne plasseringsregler.
 //
 // SNARVEIENE SKALERER MED TEKSTSTØRRELSEN (v7.4.0). Hovedmenyens 100/125/150/
-// 200 gjelder nå ikon OG etikett her, som i skuffene: `zoom` settes på hver
-// KNAPP og ikke på raden, fordi en zoomet rad også skalerer sin egen polstring
-// og sitt eget gap — og da måler vi et budsjett i én enhet mot knapper i en
-// annen. Med `zoom` på knappen leser `getBoundingClientRect()` den ekte
-// skjermbredden, altså nøyaktig det målingen trenger. Prisen er at det får
-// plass på færre knapper per linje ved 200 %, og det er meningen: resten
-// ligger ett drag unna.
+// 200 gjelder ikon OG etikett her, som i skuffene: `zoom` settes på hver KNAPP
+// og ikke på gitteret, fordi et zoomet gitter også skalerer sitt eget gap — og
+// da måles et budsjett i én enhet mot celler i en annen. Med `zoom` på knappen
+// leser `getBoundingClientRect()` den ekte skjermbredden, altså nøyaktig det
+// målingen trenger. Ved 200 % blir det færre kolonner og flere rader, og det er
+// meningen: resten ligger ett drag unna.
 //
 // RADEN SPISTE TOPPRADA I v7.1.0, OG SPYTTET DEN UT IGJEN I v7.2.0. Ett forsøk
 // samlet hamburgeren, kartnavnet, søket og innstillingene her inne sammen med
 // alt annet; felttesten ga en fire linjer høy svart boks over kartet. Topprada
-// er tilbake slik den var, og raden er igjen bare FUNKSJONENE. Kompakt-modusen
-// falt bort med hamburgeren: raden skjules helt av kallstedet i måling,
-// stifinner, annotering, søk og mens kartet bygges, som før — veien ut av
-// visningen bor i topprada og forsvinner ikke med den.
+// er tilbake slik den var, og raden er igjen bare FUNKSJONENE.
 //
 // STREK OG RELIEFF ER UTE (v7.4.0). De sto som gruppe-piller med tannhjul på
 // linja raden åpnet, hver med sitt eget bunn-ark og sitt eget hint. De er ikke
 // funksjoner, de er innstillinger — og de bor nå i Innstillinger → Kartstil,
 // nederst, sammen med tema, lag og sti-farge. Se lib/snarveier.js.
 //
-// «SORTER SNARVEIER» ER FRISTILT IGJEN (v7.4.0). Den lå inne i radens egen
-// boks fra v7.3.0, ved siden av pillene. Uten pillene er det ingenting igjen å
-// dele linja med, og knappen handler ikke om kartet men om raden selv — så den
-// står som sin egen svarte, midtstilte knapp under den åpne raden.
+// «SORTER SNARVEIER» ER FRISTILT (v7.4.0): sin egen svarte, midtstilte knapp
+// under den utfoldede skuffa. Den handler om RADEN og ikke om kartet, og en
+// plass mellom Måling og 3D ville gjort den til nok en ting man trykker på ved
+// et uhell. Den toner inn med draget, som alt annet som avdekkes.
 // ─────────────────────────────────────────────────────────────────────────────
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import SnarveiIkon from './SnarveiIkon.vue'
-import { antallSomFar } from '../lib/snarveier.js'
+import { antallKolonner, antallRader } from '../lib/snarveier.js'
+import { pickSnapTarget } from '../composables/useDraggableDrawer.js'
 
 const props = defineProps({
   // [{ id, label, aria }] i brukerens rekkefølge.
   snarveier: { type: Array, required: true },
   uiTextScale: { type: Number, default: 1 },
 })
-// `apen` går UT igjen fordi den åpne raden er tre linjer høy på en telefon og
-// da dekker navigasjonssøyla, som står i sin egen `--ovl-nav`-slot rett under.
-// Slotten kan ikke dimensjoneres for den åpne raden — den er en transient
-// tilstand, og søyla ville stått permanent lavere for en rad man sjelden
-// åpner. Kallstedet løfter i stedet raden over søyla mens den er åpen. Radens
-// egen z-index duger ikke: innpakningen i MapView er `z-20 absolute`, altså
-// sin egen stacking context, og et barn kan ikke klatre ut av den.
+// `apen` går UT igjen fordi den utfoldede skuffa er flere linjer høy på en
+// telefon og da dekker navigasjonssøyla, som står i sin egen `--ovl-nav`-slot
+// rett under. Slotten kan ikke dimensjoneres for den utfoldede raden — den er
+// en transient tilstand, og søyla ville stått permanent lavere for en skuff man
+// sjelden drar ut. Kallstedet løfter i stedet raden over søyla mens den er ute.
+// Radens egen z-index duger ikke: innpakningen i MapView er `z-20 absolute`,
+// altså sin egen stacking context, og et barn kan ikke klatre ut av den.
 const emit = defineEmits(['velg', 'sorter', 'apen'])
 
 // Margin til hver skjermkant. Raden er sentrert, så halve verdien per side.
 const KANT_PX = 24
-// Hvor langt fingeren må flytte seg før draget teller som et drag og ikke som
-// et trykk. Under dette er gesten et tapp, og tappet toggler — så håndtaket
-// virker likt for den som drar og den som bare trykker.
-const DRA_TERSKEL_PX = 8
+// Fjærkurven skuffa dokker med. Samme tall og samme kurve som
+// useDraggableDrawer bruker på hvert bunn-ark — «magneten» skal kjennes lik.
+const DOKK_MS = 220
+const DOKK_KURVE = 'cubic-bezier(0.2, 0.8, 0.2, 1)'
+// Hvor stor del av gapet mot neste hakk et drag må passere før det committer.
+// Samme verdi som drawer-ens `commitFraction`.
+const COMMIT = 0.25
+// Hvor langt fingeren minst må flytte seg for å gå hele veien. Skuffa følger
+// fingeren 1:1 når den HAR noe å vokse med, men vokse-rommet kan være lite: får
+// alle snarveiene plass på én rad, er hele forskjellen på sammenlagt og utfoldet
+// de fire pikslene etiketten legger på. Et 1:1-drag ville da vært over før man
+// merket at man dro. Divisoren er derfor det STØRSTE av vokse-rommet og dette.
+const DRA_MIN_PX = 72
 
-const apen = ref(false)
-const radRef = ref(null)
-const bredder = ref([])
+// Dra-posisjonen: 0 = sammenlagt (én rad, ikoner), 1 = utfoldet (alle rader,
+// etiketter). Alt annet i komponenten avledes av den.
+const dra = ref(0)
+const drar = ref(false)
+const gitterRef = ref(null)
+const kolonner = ref(1)
 const gapPx = ref(4)
-const ledigPx = ref(0)
+const hLukket = ref(0)
+const hApen = ref(0)
 const maalt = ref(false)
-// Ettersjekkens korreksjon: avrunding og skillelinjer gjør regnestykket ett
-// hakk optimistisk, og en knapp for mye er nettopp overflowen dette unngår.
-const korreksjon = ref(0)
+// HØYDENE MÅ LESES MED `height: auto`, og det er ikke en detalj. Et gitter med
+// FAST høyde sizer radsporet etter containeren, og med `align-self: stretch`
+// blir cella nøyaktig så høy som sporet — uansett hva den inneholder. Første
+// utgave leste `scrollHeight` med høyde-bindingen på og fikk 50 px i BEGGE
+// tilstandene: etiketten var der, men cella nektet å vokse rundt den, så
+// skuffa hadde null å dra i. Under målingen står høyden derfor på `auto`.
+const maaler = ref(false)
 
-const antallSynlig = computed(() => {
-  if (!maalt.value || apen.value) return props.snarveier.length
-  const n = antallSomFar(bredder.value, ledigPx.value, gapPx.value)
-  return Math.max(1, n - korreksjon.value)
-})
-const antallSkjult = computed(() =>
-  Math.max(0, props.snarveier.length - antallSynlig.value))
+const apen = computed(() => dra.value > 0.5)
+const rader = computed(() => antallRader(props.snarveier.length, kolonner.value))
+const hoydeSpenn = computed(() => Math.max(0, hApen.value - hLukket.value))
+const draLengde = computed(() => Math.max(DRA_MIN_PX, hoydeSpenn.value))
 
-function synlig(i) {
-  return apen.value || !maalt.value || i < antallSynlig.value
-}
+// Høyden følger fingeren. `overflow: hidden` på gitteret gjør resten: radene
+// under den første ligger og venter rett utenfor kanten.
+const gitterStil = computed(() => ({
+  height: maalt.value && !maaler.value
+    ? `${hLukket.value + hoydeSpenn.value * dra.value}px`
+    : 'auto',
+  gridTemplateColumns: maalt.value
+    ? `repeat(${kolonner.value}, minmax(0, 1fr))`
+    : '',
+  transition: drar.value ? 'none' : `height ${DOKK_MS}ms ${DOKK_KURVE}`,
+}))
 
-function maal() {
-  const rad = radRef.value
-  // Åpen rad = knapper med etikett, altså en annen bredde enn den som skal få
-  // plass på den sammenlagte linja. Å måle her ville gitt et tall som er feil
-  // i nøyaktig den tilstanden det brukes i.
-  if (!rad || apen.value) return
-  const cs = getComputedStyle(rad)
-  gapPx.value = parseFloat(cs.columnGap) || 4
-  const padd = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0)
-  ledigPx.value = Math.max(0, (window.innerWidth || 360) - KANT_PX - padd)
-  const el = [...rad.querySelectorAll('[data-snarvei]')]
-  if (el.length !== props.snarveier.length) return
-  bredder.value = el.map(e => e.getBoundingClientRect().width)
-  korreksjon.value = 0
-  maalt.value = true
-  void etterSjekk()
-}
-
-// Prognosen ettersjekkes mot den EKTE layouten, og spørsmålet er «står alt på
-// samme linje?» og ikke «er raden for bred?» — se punkt 4 i filhodet. Løkka er
-// begrenset av gulvet i `antallSynlig` (minst én knapp), så den kan ikke gå
-// rundt for alltid.
-function paaEnLinje(rad) {
-  const el = [...rad.querySelectorAll('[data-linje]')]
-    .filter(e => e.offsetParent !== null || e.getClientRects().length)
-  if (el.length < 2) return true
-  const topp = Math.round(el[0].getBoundingClientRect().top)
-  return el.every(e => Math.abs(Math.round(e.getBoundingClientRect().top) - topp) <= 1)
-}
-
-async function etterSjekk() {
-  for (let runde = 0; runde < props.snarveier.length; runde++) {
-    await nextTick()
-    const rad = radRef.value
-    if (!rad || apen.value) return
-    if (paaEnLinje(rad)) return
-    if (antallSynlig.value <= 1) return
-    korreksjon.value += 1
-  }
-}
-
-async function ommaal() {
+// ── Måling ─────────────────────────────────────────────────────────────────
+// Én skjult passering: naturlige cellebredder → kolonnetall → de to høydene.
+// Se punkt 3 og 4 i filhodet for hvorfor rekkefølgen er som den er.
+async function maal() {
+  const g = gitterRef.value
+  // Målingen endrer layouten, og ResizeObserveren ser det. Uten denne vakta
+  // starter hver passering en ny midt i seg selv, og de leser hverandres
+  // halvferdige tilstand.
+  if (!g || maaler.value) return
+  maaler.value = true
   maalt.value = false
   await nextTick()
-  maal()
+
+  const cs = getComputedStyle(g)
+  gapPx.value = parseFloat(cs.columnGap) || 4
+  const padd = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0)
+  const ledig = Math.max(0, (window.innerWidth || 360) - KANT_PX - padd)
+
+  const celler = [...g.querySelectorAll('[data-snarvei]')]
+  if (celler.length !== props.snarveier.length) { maaler.value = false; return }
+  const bredest = celler.reduce((m, e) => Math.max(m, e.getBoundingClientRect().width), 0)
+  kolonner.value = antallKolonner(bredest, ledig, gapPx.value, props.snarveier.length)
+
+  // Gitteret er nå på plass; les de to høydene av den ekte layouten, med
+  // `height: auto` (se `maaler`). `offsetHeight` og ikke `scrollHeight`: det er
+  // boksen vi skal animere, ikke innholdet som måtte stikke utenfor den.
+  maalt.value = true
+  const forrige = dra.value
+  dra.value = 1
+  await nextTick()
+  hApen.value = g.offsetHeight
+
+  // SAMMENLAGT ER ÉN RAD, og den kan ikke leses av gitteret: med `height: auto`
+  // står ALLE radene der, og `offsetHeight` ville gitt full høyde også ved
+  // dra = 0. Fikk alle snarveiene plass på én rad var det tilfeldigvis riktig;
+  // på en smal skjerm sto skuffa åpen fra start. Høyden regnes derfor av FØRSTE
+  // celle pluss gitterets topp-polstring — det er nøyaktig den ene raden.
+  dra.value = 0
+  await nextTick()
+  const padTopp = parseFloat(getComputedStyle(g).paddingTop) || 0
+  hLukket.value = Math.round(padTopp + celler[0].getBoundingClientRect().height)
+  dra.value = forrige
+  maaler.value = false
 }
 
 let ro = null
 onMounted(() => {
-  void ommaal()
-  ro = new ResizeObserver(() => { void ommaal() })
+  void maal()
+  ro = new ResizeObserver(() => { void maal() })
   ro.observe(document.documentElement)
   // Fonten avgjør etikettbredden, og den er ikke nødvendigvis lastet ennå.
-  document.fonts?.ready?.then(() => { void ommaal() }).catch(() => {})
+  document.fonts?.ready?.then(() => { void maal() }).catch(() => {})
 })
 onBeforeUnmount(() => ro?.disconnect())
 
-watch(apen, (v) => {
-  emit('apen', v)
-  // Etikettene forsvinner ved lukking, så knappene er smalere enn de var —
-  // uten en ommåling her ville raden stått med prognosen fra forrige lukking.
-  if (!v) void ommaal()
-})
-watch(() => props.snarveier.map(s => s.id).join(','), () => { void ommaal() })
-watch(() => props.uiTextScale, () => { void ommaal() })
+watch(apen, v => emit('apen', v))
+watch(() => props.snarveier.map(s => s.id).join(','), () => { void maal() })
+watch(() => props.uiTextScale, () => { void maal() })
 
 function velg(id) {
-  apen.value = false
+  dra.value = 0
   emit('velg', id)
 }
 function sorter() {
-  apen.value = false
+  dra.value = 0
   emit('sorter')
 }
 
-// ── Håndtaket ──────────────────────────────────────────────────────────────
-// Retningen er den samme som i et bunn-ark, bare speilvendt: her henger arket
-// fra toppen av skjermen, så NED er «vis mer» og OPP er «legg sammen». Draget
-// avgjør ingenting før fingeren slippes — det er ingen høyde å følge underveis,
-// bare to tilstander — og en bevegelse under terskelen faller tilbake på et
-// vanlig tapp-toggle.
-const draStart = ref(null)
+// ── Draget ─────────────────────────────────────────────────────────────────
+// Retningen er den samme som i et bunn-ark, bare speilvendt: skuffa henger fra
+// toppen av skjermen, så NED er «vis mer» og OPP er «legg sammen».
+const start = ref(null)
 function onDraStart(e) {
-  draStart.value = e.clientY
+  if (!maalt.value) return
+  start.value = { y: e.clientY, dra: dra.value }
+  drar.value = true
   e.currentTarget.setPointerCapture?.(e.pointerId)
+  e.preventDefault()
 }
-function onDraSlutt(e) {
-  const start = draStart.value
-  draStart.value = null
-  if (start == null) return
-  const dy = e.clientY - start
-  if (Math.abs(dy) < DRA_TERSKEL_PX) apen.value = !apen.value
-  else apen.value = dy > 0
+function onDraFlytt(e) {
+  if (!start.value) return
+  const dy = e.clientY - start.value.y
+  dra.value = Math.max(0, Math.min(1, start.value.dra + dy / draLengde.value))
+}
+function onDraSlutt() {
+  if (!start.value) return
+  // Retnings-basert dokking, samme regel som hvert bunn-ark i appen: et svakt
+  // drag i én retning committer, man må ikke forbi midtpunktet.
+  dra.value = pickSnapTarget(dra.value, start.value.dra, [0, 1], COMMIT)
+  start.value = null
+  drar.value = false
+}
+function settDra(v) {
+  drar.value = false
+  dra.value = v
 }
 </script>
 
@@ -246,82 +266,90 @@ function onDraSlutt(e) {
     <div class="pointer-events-auto flex flex-col items-stretch rounded-2xl
                 bg-overlay/90 backdrop-blur shadow-lg"
          :style="{ maxWidth: `calc(100vw - ${KANT_PX}px)`,
-                   width: apen ? '100%' : 'auto',
                    visibility: maalt ? 'visible' : 'hidden' }">
-      <div ref="radRef"
-           class="snarvei-rad flex items-stretch gap-1 px-1.5 pt-1.5"
-           :class="apen ? 'snarvei-rad--apen' : ''"
-           :style="{ maxWidth: `calc(100vw - ${KANT_PX}px)` }">
-        <template v-for="(s, i) in snarveier" :key="s.id">
-          <!-- `aktiv` er valgfri og bæres i dag bare av posisjonen: aksentgrønn
-               flate + `aria-pressed`, samme par som vippebryterne i skuffene.
-               `aria-pressed` settes bare når knappen FAKTISK er en bryter — en
-               `aria-pressed="false"` på Stifinner ville lovet en av/på den ikke
-               har. `zoom` per knapp: se filhodet. -->
-          <button data-snarvei :data-snarvei-id="s.id" data-linje
-                  v-show="synlig(i)"
-                  @click="velg(s.id)"
-                  :aria-pressed="s.aktiv === undefined ? undefined : !!s.aktiv"
-                  :aria-label="s.ariaTekst || s.aria"
-                  :style="{ zoom: uiTextScale }"
-                  class="shortcut-btn"
-                  :class="[s.aktiv ? 'shortcut-btn--pa' : '',
-                           apen ? '' : 'shortcut-btn--ikon']">
-            <SnarveiIkon :id="s.id" class="w-5 h-5" />
-            <!-- Navnet AVDEKKES av draget. `aria-label` bærer det uansett, så
-                 den sammenlagte raden er ikke en rad med navnløse knapper. -->
-            <span v-if="apen">{{ s.label }}</span>
-          </button>
-        </template>
+      <!-- GITTERET. Sammenlagt viser det første rad; høyden følger draget, og
+           `overflow: hidden` lar de neste radene ligge og vente rett utenfor
+           kanten. Før målingen er det en flex-rad med etikettene på, så
+           cellene står i sin naturlige bredde — se punkt 3 i filhodet. -->
+      <div ref="gitterRef" data-snarvei-gitter
+           class="snarvei-rad px-1.5 pt-1.5 gap-1"
+           :class="maalt ? 'grid overflow-hidden' : 'flex flex-wrap justify-center'"
+           :style="gitterStil">
+        <!-- `aktiv` er valgfri og bæres i dag bare av posisjonen: aksentgrønn
+             flate + `aria-pressed`, samme par som vippebryterne i skuffene.
+             `aria-pressed` settes bare når knappen FAKTISK er en bryter — en
+             `aria-pressed="false"` på Stifinner ville lovet en av/på den ikke
+             har. `zoom` per knapp: se filhodet. -->
+        <button v-for="(s, i) in snarveier" :key="s.id"
+                data-snarvei :data-snarvei-id="s.id"
+                @click="velg(s.id)"
+                :aria-pressed="s.aktiv === undefined ? undefined : !!s.aktiv"
+                :aria-label="s.ariaTekst || s.aria"
+                :style="{ zoom: uiTextScale,
+                          opacity: maalt && i >= kolonner ? dra : 1 }"
+                class="shortcut-btn" :class="s.aktiv ? 'shortcut-btn--pa' : ''">
+          <SnarveiIkon :id="s.id" class="w-5 h-5 shrink-0" />
+          <!-- Navnet AVDEKKES av draget: høyden gjør at cella krymper til et
+               rent ikon sammenlagt, opasiteten at teksten ikke bare blir
+               klippet. `aria-label` bærer navnet uansett, så den sammenlagte
+               raden er ikke en rad med navnløse knapper. -->
+          <span class="shortcut-btn__navn"
+                :style="{ height: `${14 * dra}px`, opacity: dra }">{{ s.label }}</span>
+        </button>
       </div>
 
-      <!-- HÅNDTAKET: appens grå drawer-håndtak, bunnplassert og midtstilt.
-           Står ALLTID, også når ingenting er skjult — se punkt 1 i filhodet.
-           Det er en EKTE knapp (samme regel som funksjons-skuffene, v6.5.48):
-           trykk toggler, pil ned/opp folder ut og sammen, og draget er et
-           tillegg — ikke den eneste veien. -->
-      <button type="button"
+      <!-- HÅNDTAKET: appens grå drawer-håndtak, bunnplassert og midtstilt, med
+           SAMME luft rundt seg som i punkt-arket og funksjons-skuffene.
+           Det er en `<button>` for tastaturets skyld — pil ned folder ut, pil
+           opp legger sammen — men et KLIKK gjør ingenting (v7.5.0): man drar. -->
+      <button type="button" data-snarvei-handle
               class="snarvei-handle shrink-0 w-full touch-none cursor-grab
-                     active:cursor-grabbing pt-2 pb-2 flex justify-center"
+                     active:cursor-grabbing py-3 flex justify-center"
               :aria-expanded="apen"
-              :aria-label="apen
-                ? 'Legg sammen snarveiene'
-                : (antallSkjult ? `Vis ${antallSkjult} snarveier til og sortering` : 'Vis sortering av snarveier')"
-              @keydown.down.prevent="apen = true"
-              @keydown.up.prevent="apen = false"
+              :aria-label="apen ? 'Legg sammen snarveiene' : 'Dra ned for flere snarveier og sortering'"
+              @keydown.down.prevent="settDra(1)"
+              @keydown.up.prevent="settDra(0)"
               @pointerdown="onDraStart"
+              @pointermove="onDraFlytt"
               @pointerup="onDraSlutt"
-              @pointercancel="draStart = null">
-        <span class="w-12 h-1.5 rounded-full bg-ink/40 transition-colors"></span>
+              @pointercancel="onDraSlutt">
+        <span class="w-12 h-1.5 rounded-full bg-ink/40"
+              :style="{ opacity: drar ? 0.6 : 1 }"></span>
       </button>
     </div>
 
-    <!-- «SORTER SNARVEIER» ER FRISTILT (v7.4.0): sin egen svarte, midtstilte
-         knapp under den åpne raden, ikke en rad i radens boks. Den handler om
-         RADEN og ikke om kartet, og en plass mellom Måling og 3D ville gjort
-         den til nok en ting man kan trykke på ved et uhell. -->
-    <Transition name="snarvei-fade">
-      <button v-if="apen" type="button" @click="sorter"
-              :style="{ zoom: uiTextScale }"
-              class="pointer-events-auto shrink-0 px-4 py-2 rounded-xl
-                     bg-overlay/90 backdrop-blur shadow-lg text-ink text-[12px]
-                     font-medium whitespace-nowrap active:scale-95 transition">
-        Sorter snarveier
-      </button>
-    </Transition>
+    <!-- «Sorter snarveier» toner inn med draget, som alt annet det avdekker.
+         `pointer-events` følger med: en usynlig knapp skal ikke ta trykk. -->
+    <button v-if="dra > 0" type="button" @click="sorter"
+            :style="{ zoom: uiTextScale, opacity: dra,
+                      pointerEvents: apen ? 'auto' : 'none' }"
+            class="pointer-events-auto shrink-0 px-4 py-2 rounded-xl
+                   bg-overlay/90 backdrop-blur shadow-lg text-ink text-[12px]
+                   font-medium whitespace-nowrap active:scale-95 transition">
+      Sorter snarveier
+    </button>
   </div>
 </template>
 
 <style scoped>
-/* Snarvei-rad-knapp: ikon over liten etikett, mørk flytende pille. */
+/* Snarvei-cella: ikon over etikett, med sin EGEN mørkegrå flate (v7.5.0).
+   Fram til nå var flata usynlig til man holdt musa over — knappene fløt som
+   løse ikoner i én svart boks, og bare den aktive posisjonen hadde en form.
+   Nå har alle den samme: samme avrunding, samme størrelse, og «på» er en
+   FARGE-forskjell og ikke forskjellen på å ha en flate og ikke ha en. */
 .shortcut-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
-  min-width: 54px;
+  /* 44 px er WCAG 2.5.8 / Apples minste trykkflate. Sammenlagt er cella bare
+     et ikon, og da er det ingen etikett ved siden av å bomme inn på. */
+  min-width: 44px;
+  min-height: 44px;
   padding: 6px 8px;
   border-radius: 12px;
+  background: color-mix(in oklab, var(--color-ink) 12%, transparent);
   color: var(--color-ink);
   font-size: 10px;
   line-height: 1;
@@ -330,49 +358,33 @@ function onDraSlutt(e) {
      Overstyrer det globale hyphens: auto på #app. */
   hyphens: manual;
   white-space: nowrap;
-  /* Uten dette klemmes knappene mot minstebredden når det er trangt, og da
-     måler vi minstebredden i stedet for den ekte (værrad-lærdommen). */
-  flex-shrink: 0;
-}
-/* SAMMENLAGT ER KNAPPEN BARE ET IKON (v7.4.0). 44 px er ikke et rundt tall:
-   det er WCAG 2.5.8 / Apples minste trykkflate, og en ikon-knapp har ingen
-   etikett å treffe ved siden av seg. Høyden holdes lik bredden så raden ikke
-   hopper i høyde når navnene kommer og går. */
-.shortcut-btn--ikon {
-  min-width: 44px;
-  min-height: 44px;
-  justify-content: center;
-  padding: 6px;
 }
 .shortcut-btn:active { transform: scale(0.94); }
-.shortcut-btn:hover { background: color-mix(in oklab, var(--color-ink) 8%, transparent); }
+.shortcut-btn:hover { background: color-mix(in oklab, var(--color-ink) 20%, transparent); }
+
+/* Etiketten er en boks som VOKSER, ikke en tekst som dukker opp: høyden er det
+   som gjør at cella krymper til et rent ikon sammenlagt. `overflow: hidden` så
+   halve bokstaver aldri stikker ut mens den er på vei. */
+.shortcut-btn__navn {
+  display: block;
+  overflow: hidden;
+  line-height: 12px;
+}
+
+/* EN KNAPP SOM ER PÅ: av er den nøytrale grå flata, på er appens aksentgrønne
+   med hvitt innhold — samme par som hver vippebryter i skuffene. Emerald-600 og
+   ikke -500: hvitt på -500 gir 2,6:1, altså under WCAG 1.4.11 sitt krav på 3:1
+   for grafiske objekter. */
+.shortcut-btn--pa { background: #059669; color: #fff; }
+.shortcut-btn--pa:hover { background: #047857; }
 
 /* Håndtaket har ingen egen flate — det er streken som er knappen — men
    trykkflata skal svare, så hover/aktiv tar streken og ikke boksen. */
 .snarvei-handle:hover span { background: color-mix(in oklab, var(--color-ink) 62%, transparent); }
 .snarvei-handle:active span { background: color-mix(in oklab, var(--color-ink) 75%, transparent); }
 
-/* EN KNAPP SOM ER PÅ: av er nøytral, på er appens aksentgrønne med hvitt
-   innhold — samme par som hver vippebryter i skuffene og som de gamle runde
-   skivene (v6.5.70). Emerald-600 og ikke -500: hvitt på -500 gir 2,6:1, altså
-   under WCAG 1.4.11 sitt krav på 3:1 for grafiske objekter. */
-.shortcut-btn--pa { background: #059669; color: #fff; }
-.shortcut-btn--pa:hover { background: #047857; }
-
-/* SIKKERHETSNETTET: raden BRYTER, den klipper aldri. Målingen skal gjøre at
-   den sammenlagte raden holder seg på én linje, men bommer den — en font som
-   lastet sent, en tekstskala vi ikke fanget — er en ekstra linje uendelig mye
-   bedre enn en knapp som forsvinner ut av skjermkanten. */
-.snarvei-rad { flex-wrap: wrap; justify-content: center; row-gap: 2px; }
-
-/* Utvidet: flere rader, balansert fylt. `balance` støttes i Chrome og Safari,
-   som er der brukerne er; alle andre forkaster linja og beholder `wrap` over —
-   samme rader, bare ujevnt fylt. Derfor står BEGGE, i den rekkefølgen. */
-.snarvei-rad--apen {
-  flex-wrap: wrap;
-  flex-wrap: balance;
-}
-
-.snarvei-fade-enter-active, .snarvei-fade-leave-active { transition: opacity 0.16s ease; }
-.snarvei-fade-enter-from, .snarvei-fade-leave-to { opacity: 0; }
+/* SIKKERHETSNETT i den umålte tilstanden: der er raden en flex-rad med
+   etikettene på, og den skal BRYTE framfor å klippe en knapp ut over
+   skjermkanten om målingen skulle glippe et bilde. */
+.snarvei-rad { row-gap: 4px; }
 </style>

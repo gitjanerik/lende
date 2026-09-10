@@ -1743,7 +1743,7 @@ onUnmounted(() => {
            @pointermove="drawer.onPointerMove($event)"
            @pointerup="drawer.onPointerUp($event)"
            @pointercancel="drawer.onPointerUp($event)">
-        <div class="pt-3 pb-1.5 flex justify-center">
+        <div class="py-3 flex justify-center">
           <div class="w-12 h-1.5 rounded-full bg-ink/40"
                :style="{ opacity: drawer.handleOpacity.value }"></div>
         </div>

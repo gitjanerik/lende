@@ -897,34 +897,41 @@ const SJEKKER = [
     // DRAGET AVDEKKER NAVNENE (v7.4.0). Sammenlagt er raden bare IKONER; dratt
     // ned får hver knapp etiketten sin. Det er hele grunnen til at raden har et
     // håndtak og ikke en «Mer»-knapp — et drag i et håndtak skal AVDEKKE noe.
-    // Tre ting måles, og ingen av dem finnes i en enhetstest: at etiketten
-    // faktisk er borte sammenlagt, at den kommer når man drar, og at navnet
-    // ligger i `aria-label` HELE veien — ellers er den sammenlagte raden en rad
-    // med navnløse knapper for en skjermleser.
-    navn: 'draget avdekker snarvei-navnene, aria-navnet står hele veien',
+    // Fire ting måles, og ingen av dem finnes i en enhetstest: at etiketten er
+    // kollapset sammenlagt, at den kommer når man drar, at navnet ligger i
+    // `aria-label` HELE veien — ellers er den sammenlagte raden navnløs for en
+    // skjermleser — og at et KLIKK på håndtaket ikke gjør noe (v7.5.0).
+    navn: 'draget avdekker snarvei-navnene, klikk gjør ingenting',
     domene: 'SnarveiRad',
     async kjør(page) {
       await lukkDrawer(page)
       await lukkSnarveiRad(page)
+      // Etiketten er ALLTID i DOM-en fra v7.5.0 — den er en boks som vokser,
+      // ikke en node som dukker opp — så den leses på høyde og opasitet og
+      // ikke på om den finnes.
       const les = () => page.evaluate(() => {
         const rad = document.querySelector('.snarvei-rad')
-        const k = [...rad.querySelectorAll('[data-snarvei]')].find((e) => e.offsetParent)
+        const k = rad?.querySelector('[data-snarvei]')
         if (!k) return null
+        const navn = k.querySelector('span:last-child')
         const b = k.getBoundingClientRect()
         return {
-          tekst: k.innerText.trim(),
+          navnHoyde: navn ? Math.round(navn.getBoundingClientRect().height) : -1,
+          navnOpasitet: navn ? Number(getComputedStyle(navn).opacity) : -1,
+          navnTekst: navn ? navn.textContent.trim() : '',
           aria: k.getAttribute('aria-label') || '',
           bredde: Math.round(b.width),
           hoyde: Math.round(b.height),
-          synlige: [...rad.querySelectorAll('[data-snarvei]')]
-            .filter((e) => e.offsetParent !== null).length,
+          radHoyde: Math.round(rad.getBoundingClientRect().height),
+          apen: document.querySelector('.snarvei-handle')?.getAttribute('aria-expanded'),
         }
       })
 
       const lukket = await les()
-      if (!lukket) throw new Error('fant ingen synlig snarvei-knapp')
-      if (lukket.tekst) {
-        throw new Error(`sammenlagt rad viser etiketten «${lukket.tekst}» — `
+      if (!lukket) throw new Error('fant ingen snarvei-knapp')
+      if (lukket.navnHoyde > 1 || lukket.navnOpasitet > 0.02) {
+        throw new Error(`sammenlagt rad viser etiketten «${lukket.navnTekst}» `
+          + `(${lukket.navnHoyde} px, opasitet ${lukket.navnOpasitet}) — `
           + 'da er det ingenting igjen for draget å avdekke')
       }
       if (!lukket.aria) throw new Error('ikon-knappen har ingen aria-label — den er navnløs')
@@ -933,24 +940,146 @@ const SJEKKER = [
         throw new Error(`ikon-knappen er ${lukket.bredde}×${lukket.hoyde} px — under 44 px`)
       }
 
+      // KLIKK ÅPNER IKKE (v7.5.0). Håndtaket er et håndtak: man drar i det.
+      await page.locator('.snarvei-handle').click()
+      await page.waitForTimeout(500)
+      const etterKlikk = await les()
+      if (etterKlikk.apen !== 'false' || etterKlikk.navnHoyde > 1) {
+        throw new Error('et klikk på håndtaket foldet ut skuffa — den skal bare dras')
+      }
+
       await apneSnarveiRad(page)
       const apen = await les()
-      if (!apen.tekst) throw new Error('draget avdekket ingen etikett')
+      if (!(apen.navnHoyde > 1) || !(apen.navnOpasitet > 0.9)) {
+        throw new Error(`draget avdekket ingen etikett (${apen.navnHoyde} px, `
+          + `opasitet ${apen.navnOpasitet})`)
+      }
       if (apen.aria !== lukket.aria) {
         throw new Error(`aria-navnet endret seg med draget: «${lukket.aria}» → «${apen.aria}»`)
       }
-      if (apen.bredde <= lukket.bredde) {
-        throw new Error('knappen ble ikke bredere med etikett — kom teksten faktisk inn?')
+      if (apen.radHoyde <= lukket.radHoyde) {
+        throw new Error(`skuffa vokste ikke av draget (${lukket.radHoyde} → ${apen.radHoyde} px)`)
       }
+      // BREDDEN STÅR STILLE: kolonnene er faste, så en celle som blir bredere
+      // med etikett betyr at gitteret er byttet ut med en flex-rad igjen.
+      if (apen.bredde !== lukket.bredde) {
+        throw new Error(`cella endret bredde med draget (${lukket.bredde} → ${apen.bredde} px) `
+          + '— kolonnene skal være faste og like')
+      }
+
       await lukkSnarveiRad(page)
       const igjen = await les()
-      if (igjen.tekst) throw new Error('etiketten ble stående etter at raden ble lagt sammen')
-      if (igjen.synlige < lukket.synlige) {
-        throw new Error(`færre ikoner på linja etter en åpne/lukke-runde `
-          + `(${lukket.synlige} → ${igjen.synlige}) — målte vi den åpne formen?`)
+      if (igjen.navnHoyde > 1) {
+        throw new Error('etiketten ble stående etter at skuffa ble lagt sammen')
       }
-      return `ikon ${lukket.bredde}×${lukket.hoyde} px uten tekst → «${apen.tekst}» `
-        + `(${apen.bredde} px) ved drag, aria «${lukket.aria}» hele veien`
+      if (igjen.radHoyde !== lukket.radHoyde) {
+        throw new Error(`skuffa dokket ikke tilbake til samme høyde `
+          + `(${lukket.radHoyde} → ${igjen.radHoyde} px)`)
+      }
+      return `ikon ${lukket.bredde}×${lukket.hoyde} px, skuff ${lukket.radHoyde} → `
+        + `${apen.radHoyde} px ved drag, «${apen.navnTekst}» avdekket, klikk gjorde ingenting`
+    },
+  },
+  {
+    // SKUFFA FØLGER FINGEREN OG DOKKER (v7.5.0). Draget satte før bare en
+    // av/på: raden hoppet mellom to former. Nå er høyden kontinuerlig, og på
+    // slipp dokker den til nærmeste ende med appens fjærkurve. Begge deler er
+    // usynlige i en enhetstest — det ene er en høyde midt i en pekersekvens,
+    // det andre en `transition` som bare finnes når man IKKE drar.
+    navn: 'snarvei-skuffa følger fingeren og dokker på slipp',
+    domene: 'SnarveiRad + useDraggableDrawer (pickSnapTarget)',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await lukkSnarveiRad(page)
+      const hoyde = () => page.evaluate(() =>
+        Math.round(document.querySelector('.snarvei-rad').getBoundingClientRect().height))
+      const h = await page.locator('.snarvei-handle').boundingBox()
+      const x = h.x + h.width / 2
+      const y = h.y + h.height / 2
+
+      const start = await hoyde()
+      await page.mouse.move(x, y)
+      await page.mouse.down()
+      await page.mouse.move(x, y + 30, { steps: 6 })
+      await page.waitForTimeout(120)
+      const midt = await hoyde()
+      if (!(midt > start)) {
+        throw new Error(`skuffa fulgte ikke fingeren (${start} → ${midt} px) — `
+          + 'da er draget bare en av/på igjen')
+      }
+      await page.mouse.move(x, y + 130, { steps: 8 })
+      await page.mouse.up()
+      await page.waitForTimeout(500)
+      const dokket = await hoyde()
+      if (!(dokket > midt)) {
+        throw new Error(`skuffa dokket ikke til full høyde (${midt} → ${dokket} px)`)
+      }
+
+      // ET SVAKT DRAG COMMITTER. `pickSnapTarget` er retnings-basert med en
+      // fjerdedels gap: man må ikke forbi midtpunktet for å bytte tilstand.
+      // Uten den regelen blir en skuff man må dra hele veien hver gang.
+      // HÅNDTAKET HAR FLYTTET SEG: skuffa er høyere nå, så boksen må leses på
+      // nytt — et `mouse.down()` på den gamle posisjonen treffer kartet.
+      const h2 = await page.locator('.snarvei-handle').boundingBox()
+      const x2 = h2.x + h2.width / 2
+      const y2 = h2.y + h2.height / 2
+      await page.mouse.move(x2, y2)
+      await page.mouse.down()
+      await page.mouse.move(x2, y2 - 40, { steps: 5 })
+      await page.mouse.up()
+      await page.waitForTimeout(500)
+      const etterSvakt = await hoyde()
+      if (etterSvakt !== start) {
+        throw new Error(`et svakt drag oppover dokket ikke tilbake `
+          + `(${dokket} → ${etterSvakt} px, ventet ${start})`)
+      }
+      return `${start} → ${midt} px under fingeren → ${dokket} px dokket, `
+        + 'og et svakt drag tilbake committer'
+    },
+  },
+  {
+    // LUFTA RUNDT DRA-HÅNDTAKET ER DEN SAMME OVERALT (v7.5.0). Eieren hadde
+    // snarvei-skuffa og punkt-arket åpne samtidig og så at de ikke matchet.
+    // Verdien er dessuten LIK over og under, så «lufta rundt håndtaket» er ett
+    // tall enten arket henger fra toppen eller fra bunnen.
+    navn: 'dra-håndtaket har samme luft i snarvei-skuffa og punkt-arket',
+    domene: 'SnarveiRad + ContextMenuSheet',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await page.evaluate(() => {
+        const el = document.querySelector('svg.isom-map')
+        const r = el.getBoundingClientRect()
+        el.dispatchEvent(new MouseEvent('contextmenu', {
+          bubbles: true, cancelable: true,
+          clientX: r.left + r.width / 2, clientY: r.top + r.height / 2,
+        }))
+      })
+      await page.waitForTimeout(700)
+      const luft = await page.evaluate(() => {
+        const les = (el) => {
+          if (!el) return null
+          const cs = getComputedStyle(el)
+          return [Math.round(parseFloat(cs.paddingTop)), Math.round(parseFloat(cs.paddingBottom))]
+        }
+        const snar = document.querySelector('.snarvei-handle')
+        const ark = [...document.querySelectorAll('.cursor-grab')]
+          .find((e) => e.offsetParent && e !== snar && e.querySelector('.rounded-full'))
+        return { snarvei: les(snar), punktark: les(ark) }
+      })
+      if (!luft.snarvei || !luft.punktark) {
+        throw new Error(`fant ikke begge håndtakene: ${JSON.stringify(luft)}`)
+      }
+      if (luft.snarvei.join() !== luft.punktark.join()) {
+        throw new Error(`ulik luft rundt dra-håndtaket: snarvei ${luft.snarvei.join('/')} `
+          + `mot punkt-ark ${luft.punktark.join('/')}`)
+      }
+      if (luft.snarvei[0] !== luft.snarvei[1]) {
+        throw new Error(`håndtaket har ulik luft over og under (${luft.snarvei.join('/')}) `
+          + '— da er den ikke den samme når arket snus')
+      }
+      await page.locator('[aria-label="Lukk punktinfo"]').first().click().catch(() => {})
+      await page.waitForTimeout(400)
+      return `begge håndtakene har ${luft.snarvei[0]} px luft over og under`
     },
   },
   {
@@ -978,8 +1107,8 @@ const SJEKKER = [
           bredde: Math.round(b.width),
           hoyde: Math.round(b.height),
           zoom: getComputedStyle(knapp).zoom,
-          synlige: [...rad.querySelectorAll('[data-snarvei]')]
-            .filter((e) => e.offsetParent !== null).length,
+          synlige: [...rad.querySelectorAll('[data-snarvei]')].filter((e) =>
+            e.getBoundingClientRect().bottom <= rad.getBoundingClientRect().bottom + 1).length,
           hoyre: Math.round(rad.getBoundingClientRect().right),
           vindu: window.innerWidth,
         }
@@ -1028,18 +1157,23 @@ const SJEKKER = [
       // over skjermkanten, og håndtaket skal stå der uansett — det er også
       // eneste vei til sorteringen. Fra v7.4.0 er håndtaket et SØSKEN av raden
       // og ikke en knapp inne i den, så det leses utenfor `.snarvei-rad`.
+      // Fra v7.5.0 er raden et GITTER: «synlig» er ikke lenger `offsetParent`
+      // (alle cellene står i DOM-en hele tida) men om cella ligger innenfor
+      // gitterets klipp.
       const les = () => page.evaluate(() => {
         const r = document.querySelector('.snarvei-rad')
         if (!r) return null
-        const alle = [...r.querySelectorAll('[data-snarvei]')]
-        const synlige = alle.filter((b) => b.offsetParent !== null)
-        const handle = document.querySelector('.snarvei-handle')
         const boks = r.getBoundingClientRect()
+        const alle = [...r.querySelectorAll('[data-snarvei]')]
+        const synlige = alle.filter((b) => b.getBoundingClientRect().bottom <= boks.bottom + 1)
+        const handle = document.querySelector('.snarvei-handle')
         return {
           ider: synlige.map((b) => b.getAttribute('data-snarvei-id')),
           totalt: alle.length,
           harHandle: !!handle && handle.offsetParent !== null,
           handleIRaden: !!r.querySelector('.snarvei-handle'),
+          kolonner: getComputedStyle(r).gridTemplateColumns.split(' ').filter(Boolean).length,
+          bredder: [...new Set(alle.map((b) => Math.round(b.getBoundingClientRect().width)))],
           venstre: Math.round(boks.left),
           hoyre: Math.round(boks.right),
           vindu: window.innerWidth,
@@ -1064,7 +1198,14 @@ const SJEKKER = [
         if (r.venstre < -1 || r.hoyre > r.vindu + 1) {
           throw new Error(`raden er utenfor skjermen ved ${bredde} px: ${r.venstre}..${r.hoyre} av ${r.vindu}`)
         }
-        funn.push(`${bredde}px → ${r.ider.length}/${r.totalt} synlige`)
+        // ALLE CELLER ER LIKE BREDE (v7.5.0). Det var de ikke da raden var en
+        // flex-rad: hver knapp var så bred som ordet sitt. Ett `1fr`-gitter gir
+        // det gratis, men en `min-width` eller en `flex`-regel som sniker seg
+        // inn igjen tar det like gratis bort.
+        if (r.bredder.length !== 1) {
+          throw new Error(`snarveiene er ulikt brede ved ${bredde} px: ${r.bredder.join(', ')} px`)
+        }
+        funn.push(`${bredde}px → ${r.kolonner} kolonner, ${r.ider.length}/${r.totalt} i første rad`)
       }
       await page.setViewportSize(forrigeVindu)
       await page.waitForTimeout(500)
@@ -1981,8 +2122,11 @@ const SJEKKER = [
             vanlig: gps.hasAttribute('data-snarvei'),
             navIgjen: rad.querySelectorAll('[data-nav]').length,
             gpsSynlig: r.width > 0 && r.left >= -1 && r.right <= window.innerWidth + 1,
-            linjer: new Set([...document.querySelectorAll('[data-linje]')]
-              .filter(e => e.getBoundingClientRect().width > 0)
+            // Gitteret KLIPPER radene under den første sammenlagt (v7.5.0), så
+            // «linjer» er de radene som faktisk er innenfor skuffas boks — ikke
+            // alle cellene i DOM-en, som nå står der uansett tilstand.
+            linjer: new Set([...rad.querySelectorAll('[data-snarvei]')]
+              .filter(e => e.getBoundingClientRect().bottom <= rad.getBoundingClientRect().bottom + 1)
               .map(e => Math.round(e.getBoundingClientRect().top))).size,
           }
         })
@@ -4927,25 +5071,35 @@ async function åpneDrawer(page) {
   await page.waitForTimeout(500)
 }
 
-// HÅNDTAKET ER IKKE LENGER I RADEN (v7.4.0). «Mer / Mindre» var en knapp med
-// ikon og etikett INNE i `.snarvei-rad`, altså formet og plassert som en
-// snarvei. Nå er det appens grå drawer-håndtak på sin egen linje under raden
-// (`.snarvei-handle`), som i punkt-arket og funksjons-skuffene. En helper som
-// fortsatt leter i `.snarvei-rad` finner ingenting og timer ut — derfor står
-// selektoren ett sted, her.
+// HÅNDTAKET DRAS, DET KLIKKES IKKE (v7.5.0). Klikk-toggelen er fjernet: et
+// lite drag og et tapp gjorde helt ulike ting på samme piksel. Helperen gjør
+// derfor et EKTE drag — `handle.click()` ville stått og ventet på en tilstand
+// som aldri kommer. Dra-lengda må være romslig nok til å committe (skuffa
+// dokker retnings-basert på en fjerdedel av gapet), og retningen er speilvendt
+// av et bunn-ark: NED folder ut, OPP legger sammen.
+async function draSnarveiHandle(page, dy) {
+  const h = await page.locator('.snarvei-handle').boundingBox()
+  if (!h) throw new Error('fant ikke snarvei-håndtaket')
+  const x = h.x + h.width / 2
+  const y = h.y + h.height / 2
+  await page.mouse.move(x, y)
+  await page.mouse.down()
+  await page.mouse.move(x, y + dy, { steps: 8 })
+  await page.mouse.up()
+  await page.waitForTimeout(400)
+}
+
 async function apneSnarveiRad(page) {
   const handle = page.locator('.snarvei-handle')
   if ((await handle.getAttribute('aria-expanded')) === 'false') {
-    await handle.click()
-    await page.waitForTimeout(300)
+    await draSnarveiHandle(page, 120)
   }
 }
 
 async function lukkSnarveiRad(page) {
   const handle = page.locator('.snarvei-handle')
   if ((await handle.getAttribute('aria-expanded')) === 'true') {
-    await handle.click()
-    await page.waitForTimeout(300)
+    await draSnarveiHandle(page, -120)
   }
 }
 

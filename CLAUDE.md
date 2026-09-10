@@ -357,25 +357,56 @@ Knott-buen (`knobArc`) som viste nivået er slettet med dem: et tall ved en
 slider leses, en bue tolkes — og hele skalaen er synlig på én gang i stedet for
 ett hakk med wrap. Kommer det en fjerde knott, er den en seksjon her.
 
-**Raden MÅLER seg, den ruller ikke og den klipper ikke** (`SnarveiRad.vue`).
-Samme grep som værraden i 3D fikk i v6.3.9, og av samme grunn: en skjult gest er
-ikke en affordanse, mens et håndtak er det. Fire ting er lette å «forenkle» bort:
+**RADEN ER ET GITTER, OG DEN ER EN EKTE SKUFF (v7.5.0)** (`SnarveiRad.vue`).
+Fram til v7.5.0 var den en flex-rad som målte hver knapp for seg. To ting fulgte
+av det, og begge ble meldt fra felt: antallet per linje endret seg med
+tilstanden (sju ikoner sammenlagt, fire med etikett utfoldet), så raden så ut
+til å stokke om på seg selv, og knappene var ulikt brede fordi hver var så bred
+som ordet sitt. Nå er det ett gitter med FASTE, LIKE kolonner
+(`grid-template-columns: repeat(N, minmax(0, 1fr))`). `N` regnes av den
+BREDESTE cella — altså den med etikett — og er den samme i begge tilstandene.
+Sammenlagt vises første rad; draget avdekker resten.
+
+**TO TING I MÅLINGEN ER LETTE Å GJØRE FEIL, og begge ble gjort feil først:**
+1. *Høydene MÅ leses med `height: auto`.* Et gitter med FAST høyde sizer
+   radsporet etter containeren, og med `align-self: stretch` blir cella nøyaktig
+   så høy som sporet — uansett hva den inneholder. Første utgave leste
+   `scrollHeight` med høyde-bindingen på og fikk 50 px i BEGGE tilstandene:
+   etiketten var der, men cella nektet å vokse rundt den, så skuffa hadde null å
+   dra i. `maaler`-flagget står på under målingen nettopp for det.
+2. *Den SAMMENLAGTE høyden kan ikke leses av gitteret i det hele tatt.* Med
+   `height: auto` står ALLE radene der, så `offsetHeight` ved dra = 0 gir full
+   høyde. Fikk alle snarveiene plass på én rad var det tilfeldigvis riktig; på
+   en smal skjerm sto skuffa åpen fra start. Høyden regnes av FØRSTE celle
+   pluss gitterets topp-polstring.
+
+Fire ting er lette å «forenkle» bort:
 
 1. **HÅNDTAKET ER ET HÅNDTAK, IKKE ENDA EN SNARVEI (v7.4.0), og det skjules
    ALDRI.** «Mer / Mindre» var en knapp med ikon og etikett i SAMME flex-rad som
    funksjonene — formet som en snarvei, plassert som en snarvei, og den eneste
    knappen i raden som ikke gjorde noe med kartet. Nå er det appens grå
    drawer-håndtak (`.snarvei-handle`), bunnplassert og midtstilt som i
-   punkt-arket: dra ned for å folde ut, opp for å legge sammen, og et trykk gjør
-   det samme så gesten aldri er eneste vei. Det står ALLTID, også når alt får
-   plass — det er også eneste vei til «Sorter snarveier», og rekkefølgen er
-   nettopp det som avgjør hva som havner bak det på en smal skjerm. Fordi det
-   ligger på sin EGEN linje under raden spiser det ikke lenger bredde fra
-   knappene, og `antallSomFar` har derfor ingen `handlePx` igjen.
+   punkt-arket. Det står ALLTID, også når alt får plass — det er også eneste vei
+   til «Sorter snarveier», og rekkefølgen er nettopp det som avgjør hva som
+   havner bak det på en smal skjerm. Fordi det ligger på sin EGEN linje under
+   raden spiser det ikke bredde fra knappene.
+   **DRAGET ER KONTINUERLIG, OG ET KLIKK GJØR INGENTING (v7.5.0).** Høyden
+   følger fingeren (`dra` ∈ [0,1]), etikettene toner inn med den, og de neste
+   radene glir opp fra kanten. På slipp DOKKER skuffa med `pickSnapTarget` fra
+   `useDraggableDrawer` — samme retnings-baserte regel som hvert bunn-ark, så et
+   svakt drag committer. Klikk-toggelen er FJERNET: et lite drag og et tapp
+   gjorde helt ulike ting på samme piksel. **Piltastene står igjen**, og de er
+   den ene grunnen til at håndtaket fortsatt er en `<button>` — uten dem finnes
+   skuffa ikke fra tastatur (SC 2.1.1).
+   **Vokse-rommet kan være lite:** får alle snarveiene plass på én rad er hele
+   forskjellen de fire pikslene etiketten legger på, og et 1:1-drag ville vært
+   over før man merket at man dro. Divisoren er derfor det STØRSTE av
+   vokse-rommet og `DRA_MIN_PX` (72).
    **«Sorter snarveier» er FRISTILT** — sin egen svarte, midtstilte knapp under
-   den åpne raden, uten ikon. Den handler om RADEN og ikke om kartet, og en
+   den utfoldede skuffa, uten ikon. Den handler om RADEN og ikke om kartet, og en
    plass mellom Måling og 3D ville gjort den til nok en ting man trykker på ved
-   et uhell.
+   et uhell. Den toner inn med draget, som alt annet det avdekker.
 2. **Budsjettet er VIEWPORTEN, ikke en forelder.** Raden er en pille med
    `width: max-content` som svever midt over kartet — det finnes ingen boks som
    klemmer den, så en måling av forelderens bredde ville målt radens EGEN bredde
@@ -404,10 +435,19 @@ ikke en affordanse, mens et håndtak er det. Fire ting er lette å «forenkle» 
    den ekte skjermbredden, altså nøyaktig det målingen trenger. Ved 200 % får
    tre knapper plass i stedet for seks — det er MENINGEN, resten ligger ett drag
    unna.
-4. **`flex-wrap: wrap` står som sikkerhetsnett i BEGGE tilstander**, med
-   `flex-wrap: balance` lagt oppå i den utvidede (Chrome/Safari; andre forkaster
-   linja og beholder `wrap`). Bommer målingen, koster det en ekstra linje —
-   aldri en knapp utenfor skjermkanten.
+4. **HVER SNARVEI HAR SIN EGEN MØRKEGRÅ FLATE (v7.5.0).** Fram til nå var flata
+   usynlig til man holdt musa over: knappene fløt som løse ikoner i én svart
+   boks, og bare den aktive posisjonen hadde en form. Nå har alle den samme
+   avrundingen og samme størrelse, og «på» er en FARGE-forskjell og ikke
+   forskjellen på å ha en flate og ikke ha en.
+
+**LUFTA RUNDT DRA-HÅNDTAKET ER DEN SAMME OVERALT (v7.5.0), og den er LIK over og
+under.** Eieren hadde snarvei-skuffa og punkt-arket åpne samtidig og så at de
+ikke matchet — den ene hadde `pt-3.5 pb-3`, den andre noe annet. Alle fem arkene
+(punkt, funksjon, kulturminne, målestasjon, innstillinger) og snarvei-skuffa
+bruker nå `py-3`. Med LIK verdi over og under er «lufta rundt håndtaket» ett
+tall enten arket henger fra toppen eller fra bunnen; en asymmetrisk verdi ville
+sett riktig ut i det ene og feil i det andre. En røyk-sjekk måler begge deler.
 
 **POSISJON OG «NORD OPP» VAR EN FAST GRUPPE I RADEN (v6.6.1), og gruppa falt i
 v7.3.0 — les avsnittet som en begrunnelse for at posisjonen står FØRST i

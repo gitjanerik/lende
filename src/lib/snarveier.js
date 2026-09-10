@@ -103,28 +103,36 @@ export function flyttSnarvei(rekkefolge, fra, til) {
 }
 
 /**
- * Hvor mange knapper får plass på ÉN linje.
+ * Hvor mange KOLONNER raden har plass til.
  *
- * Budsjettet er hele radens bredde, og gapet betales for hvert mellomrom og
- * ikke per knapp — en av-for-én her er én knapp for mye, altså nøyaktig den
- * overflowen målingen finnes for å unngå. Gulvet er ÉN: en rad uten en eneste
- * synlig funksjon er bare et håndtak, og da har raden ingen grunn til å stå der.
+ * RADEN ER ET GITTER FRA v7.5.0, og kolonnetallet er det samme sammenlagt som
+ * utfoldet. Fram til nå var raden en flex-rad som målte hver knapp for seg, og
+ * da endret antallet per linje seg med tilstanden: sju ikoner sammenlagt, fire
+ * med etikett utfoldet. Eieren leste det som at raden stokket om på seg selv —
+ * og det gjorde den. Nå måles den BREDESTE cella (altså den med etikett, som er
+ * den brede tilstanden), og alle celler får den bredden i begge tilstandene.
+ * Sammenlagt viser gitteret første rad; draget avdekker resten.
  *
- * `fastPx` falt bort i v7.3.0 sammen med den faste venstregruppen. `handlePx`
- * falt bort i v7.4.0: nedtrekks-KNAPPEN er byttet med et dra-håndtak på sin
- * egen linje under raden, så den spiser ikke lenger bredde fra knappene.
+ * Gapet betales for hvert MELLOMROM og ikke per kolonne — derfor `+ gapPx` på
+ * begge sider av brøken. Gulvet er ÉN: en rad uten en eneste synlig funksjon er
+ * bare et håndtak, og da har raden ingen grunn til å stå der. Taket er antallet
+ * snarveier, ellers ville et bredt vindu gitt tomme kolonner.
+ *
+ * @param {number} cellePx   bredden på den bredeste cella (med etikett)
+ * @param {number} ledigPx   radens budsjett — viewporten minus kant og polstring
+ * @param {number} gapPx     mellomrom mellom kolonner
+ * @param {number} maks      antall snarveier
  */
-export function antallSomFar(bredder, ledigPx, gapPx) {
-  if (!bredder.length) return 0
-  let plass = ledigPx
-  let n = 0
-  for (const b of bredder) {
-    const kost = n === 0 ? b : b + gapPx
-    if (plass < kost) break
-    plass -= kost
-    n++
-  }
-  return Math.max(1, n)
+export function antallKolonner(cellePx, ledigPx, gapPx, maks) {
+  if (!(cellePx > 0) || !(maks > 0)) return 0
+  const n = Math.floor((ledigPx + gapPx) / (cellePx + gapPx))
+  return Math.max(1, Math.min(maks, n))
+}
+
+/** Hvor mange rader gitteret får. */
+export function antallRader(antall, kolonner) {
+  if (!(kolonner > 0) || !(antall > 0)) return 0
+  return Math.ceil(antall / kolonner)
 }
 
 /**

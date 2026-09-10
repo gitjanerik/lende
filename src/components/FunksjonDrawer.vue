@@ -56,7 +56,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
            :style="drawer.drawerHeightStyle.value">
         <button type="button"
                 class="shrink-0 w-full touch-none cursor-grab active:cursor-grabbing
-                       pt-3.5 pb-3 flex justify-center"
+                       py-3 flex justify-center"
                 :aria-label="drawer.isMinimized.value ? `Utvid ${etikett}` : `Minimer ${etikett}`"
                 :aria-expanded="!drawer.isMinimized.value"
                 @click="drawer.setMinimized(!drawer.isMinimized.value)"
