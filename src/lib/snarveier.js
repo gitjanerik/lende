@@ -34,14 +34,22 @@ export const SNARVEI_REKKEFOLGE_KEY = 'lende-snarvei-rekkefolge'
 //
 // Det som gikk ut, og hvor det gikk:
 //   sok, innstillinger  → topprada, der de lå (MapView)
-//   posisjon            → den faste nav-gruppen under, med kompasset
 //   strek, relieff      → pille-raden som kommer fram når raden åpnes
 //   utno, gmaps         → øverst i infopanelet (ContextMenuSheet)
 //   chat                → Lende-FAB-en nede til høyre, som i ruteplanleggeren
 //
-// Igjen står nøyaktig det raden ble laget for i v6.6.0: det man GJØR med
-// kartet, sorterbart, med resten bak nedtrekket.
+// ALLE SNARVEIER ER LIKEVERDIGE (v7.3.0), og det er den siste tingen som
+// falt. Posisjon og kompasset sto en periode som en FAST venstregruppe foran
+// en skillelinje, fordi posisjonen er den ene knappen man rekker etter mens
+// man går. Prisen var at raden hadde to klasser knapper med hver sine regler,
+// at gruppa spiste av målingens budsjett, og at brukeren ikke kunne sortere
+// den ene knappen hen bryr seg mest om. Posisjonen er nå en vanlig, sorterbar
+// snarvei med plass #1 i standarden — den kan altså fortsatt ikke havne bak
+// «Mer» uten at brukeren selv har bestemt det — og kompasset har forlatt raden
+// helt: det bor i linjal-boksen nede til venstre, der retningen allerede
+// leses. Skillestreken er borte med dem.
 export const SNARVEIER = [
+  { id: 'posisjon',   label: 'Posisjon',   aria: 'Posisjon' },
   { id: 'stifinner',  label: 'Stifinner',  aria: 'Stifinner' },
   { id: 'runde',      label: 'Runde',      aria: 'Gå en runde' },
   { id: 'maaling',    label: 'Måling',     aria: 'Måling' },
@@ -52,28 +60,6 @@ export const SNARVEIER = [
 ]
 
 export const STANDARD_REKKEFOLGE = SNARVEIER.map(s => s.id)
-
-/**
- * DEN FASTE VENSTREGRUPPEN (v6.6.1, gjenopprettet i v7.2.0).
- *
- * Posisjon og «nord opp» — to knapper som SLÅR NOE PÅ, står først foran en
- * skillelinje, og kollapser ALDRI inn i nedtrekket. Posisjonen ble en vanlig
- * sorterbar snarvei i v7.1.0, og det var feil av samme grunn som gruppen ble
- * laget: posisjonen er den ene knappen man rekker etter mens man går, og en
- * knapp som havner bak «Mer» fordi man sorterte Stifinner først er en knapp
- * man ikke finner i regnvær.
- *
- * De skiller seg fra resten på to måter som begge må være synlige: de SLÅR NOE
- * PÅ (aksentgrønn flate + `aria-pressed`, samme par som hver vippebryter i
- * skuffene) framfor å gjøre noe, og de sorteres ikke.
- *
- * `kunRotasjon` er kompassets port: uten en azimut å nullstille — desktop har
- * retningsrosa, og en modus uten rotasjon har ingen retning — faller den bort.
- */
-export const NAV_SNARVEIER = [
-  { id: 'posisjon', label: 'Posisjon', aria: 'Posisjon' },
-  { id: 'kompass',  label: 'Nord',     aria: 'Vend kartet mot nord', kunRotasjon: true },
-]
 
 /**
  * PILLE-RADEN (v7.2.0): strek og relieff, arven etter Lende-knottene.
@@ -135,16 +121,18 @@ export function flyttSnarvei(rekkefolge, fra, til) {
 /**
  * Hvor mange knapper får plass på ÉN linje ved siden av nedtrekks-knappen.
  *
- * Budsjettet er hele radens bredde minus nedtrekket og minus den faste
- * nav-gruppen (`fastPx`, med sitt eget mellomrom), og gapet betales for hvert
+ * Budsjettet er hele radens bredde minus nedtrekket, og gapet betales for hvert
  * mellomrom og ikke per knapp — en av-for-én her er én knapp for mye, altså
  * nøyaktig den overflowen målingen finnes for å unngå. Gulvet er ÉN: en rad
  * uten en eneste synlig funksjon er bare et nedtrekk, og da har raden ingen
  * grunn til å stå der.
+ *
+ * `fastPx` falt bort i v7.3.0 sammen med den faste venstregruppen: nå er hver
+ * knapp i raden en vanlig, målt snarvei.
  */
-export function antallSomFar(bredder, ledigPx, handlePx, gapPx, fastPx = 0) {
+export function antallSomFar(bredder, ledigPx, handlePx, gapPx) {
   if (!bredder.length) return 0
-  let plass = ledigPx - handlePx - gapPx - (fastPx ? fastPx + gapPx : 0)
+  let plass = ledigPx - handlePx - gapPx
   let n = 0
   for (const b of bredder) {
     const kost = n === 0 ? b : b + gapPx

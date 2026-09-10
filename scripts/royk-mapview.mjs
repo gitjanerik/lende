@@ -1030,10 +1030,33 @@ const SJEKKER = [
           + 'hakket er noe man tar flere av')
       }
 
+      // HINTET HENGER UNDER PILLA DET GJELDER (v7.3.0). Det sto sentrert under
+      // hele raden, altså rett under Relieff når det var Strek man hakket på.
+      const boble = await page.evaluate(() => {
+        const tekst = [...document.querySelectorAll('[role="status"]')]
+          .find(e => /^Strek /.test(e.textContent.trim()))
+        const pille = document.querySelector('[aria-label="Strektykkelse"]')
+        if (!tekst || !pille) return { mangler: !tekst ? 'hint-bobla' : 'strek-pilla' }
+        const b = tekst.getBoundingClientRect()
+        const p = pille.getBoundingClientRect()
+        return {
+          bobleMidt: Math.round(b.left + b.width / 2),
+          pilleMidt: Math.round(p.left + p.width / 2),
+          under: b.top > p.bottom,
+        }
+      })
+      if (boble.mangler) throw new Error(`fant ingen ${boble.mangler} etter et strek-hakk`)
+      if (!boble.under) throw new Error('hintet står ikke under pilla')
+      const bom = Math.abs(boble.bobleMidt - boble.pilleMidt)
+      if (bom > 60) {
+        throw new Error(`hintet står ${bom} px fra strek-pillas midtpunkt `
+          + '— det peker på feil knott')
+      }
+
       // NØYTRAL TILSTAND: raden skal ikke stå åpen inn i neste sjekk.
       await lukkSnarveiRad(page)
       return `topprada over raden (${topp.meny}/${topp.navn}/${topp.sok}/${topp.oppsett} `
-        + `< ${topp.radTopp}), pille-hakk holdt raden åpen`
+        + `< ${topp.radTopp}), pille-hakk holdt raden åpen, hint ${bom} px fra pilla`
     },
   },
   {
@@ -1593,8 +1616,8 @@ const SJEKKER = [
     // EGEN KONTEKST MED `hasTouch`, fordi zoom-søyla er berøringens kontroll:
     // standard-konteksten rapporterer `pointer: fine` og får desktop-søyla i
     // stedet, så sjekken ville hoppet stille over det den finnes for.
-    navn: 'kompassnåla i snarvei-raden står i hvile og følger arket',
-    domene: 'SnarveiRad (nav)',
+    navn: 'kompassnåla i linjal-boksen står i hvile og følger arket',
+    domene: 'MapScaleAttribution (kompass)',
     krever: 'ektekart',
     maksMs: 120_000,
     async kjør(page) {
@@ -1695,31 +1718,27 @@ const SJEKKER = [
     },
   },
   {
-    // VENSTREGRUPPEN ER FAST, OG DET ER HELE POENGET (v6.6.1, gjenopprettet
-    // v7.2.0).
+    // ALLE SNARVEIER ER LIKEVERDIGE (v7.3.0), OG POSISJONEN BÆRER TILSTANDEN.
     //
-    // Gruppa er Posisjon + «nord opp». Den ble halvert i v7.1.0 — posisjonen
-    // ble en vanlig, sorterbar snarvei — og det var feil av nøyaktig den
-    // grunnen gruppa finnes: posisjonen er den ene knappen man rekker etter
-    // mens man går, og en knapp som havner bak «Mer» fordi man sorterte
-    // Stifinner først er en knapp man ikke finner i regnvær.
+    // Raden hadde en FAST venstregruppe — posisjon + «nord opp» — foran en
+    // skillestrek. Den er borte: posisjonen er en vanlig, sorterbar snarvei
+    // med plass #1 i standarden, og kompasset har flyttet ned i linjal-boksen.
+    // Fire invarianter som ingen enhetstest ser:
     //
-    // Tre invarianter som ingen enhetstest ser, og som alle er lette å «rydde»
-    // bort:
-    //
-    //   1. GRUPPA KOLLAPSER ALDRI, og den sammenlagte raden står på ÉN linje.
-    //      Måles ved 360 px, den smaleste telefonen vi bryr oss om.
-    //   2. BEGGE ER SYNLIGE INNENFOR SKJERMEN. En knapp som er klippet av
-    //      kanten finnes fortsatt i DOM-en.
+    //   1. POSISJONEN ER EN VANLIG SNARVEI — den har `data-snarvei` som de
+    //      andre, og ingen `data-nav`-gruppe står igjen i raden.
+    //   2. RADEN STÅR PÅ ÉN LINJE ved 360 px, den smaleste telefonen vi bryr
+    //      oss om, og posisjonen er synlig innenfor skjermen.
     //   3. POSISJONEN BÆRER EN TILSTAND: på er en AKSENTFLATE med hvitt
-    //      innhold, ikke en fargeforskjell i ikonet. Av og på må skilles av noe
-    //      større enn en strek, og hvitt på flaten må bestå WCAG 1.4.11 sitt
-    //      3:1.
+    //      innhold, ikke en fargeforskjell i ikonet. Hvitt på flaten må bestå
+    //      WCAG 1.4.11 sitt 3:1.
+    //   4. KOMPASSET STÅR I LINJAL-BOKSEN, til VENSTRE for målestokken — ikke
+    //      i raden.
     //
     // EGEN KONTEKST MED `hasTouch` — kompasset gis bare til berøring, så
-    // standard-konteksten ville hoppet stille over halve gruppa.
-    navn: 'venstregruppen kollapser aldri, og posisjonen bærer tilstand',
-    domene: 'SnarveiRad (nav)',
+    // standard-konteksten ville hoppet stille over punkt 4.
+    navn: 'posisjonen er en vanlig snarvei, og kompasset står i linjalen',
+    domene: 'SnarveiRad',
     maksMs: 120_000,
     async kjør(page) {
       const ctx = await page.context().browser().newContext({
@@ -1736,43 +1755,60 @@ const SJEKKER = [
           null, { timeout: 30_000 })
         await lukkDrawer(p2)
 
-        const gruppa = await p2.evaluate(() => {
+        const raden = await p2.evaluate(() => {
           const rad = document.querySelector('.snarvei-rad')
-          const nord = document.querySelector('[data-nav-id="kompass"]')
-          const gps = document.querySelector('[data-nav-id="posisjon"]')
-          if (!rad || !nord || !gps) {
-            return { mangler: !rad ? 'raden' : !nord ? 'kompasset' : 'posisjonen' }
-          }
-          const inne = (el) => {
-            const r = el.getBoundingClientRect()
-            return r.width > 0 && r.left >= -1 && r.right <= window.innerWidth + 1
-          }
+          const gps = document.querySelector('[data-snarvei-id="posisjon"]')
+          if (!rad || !gps) return { mangler: !rad ? 'raden' : 'posisjons-snarveien' }
+          const r = gps.getBoundingClientRect()
           return {
-            nordSynlig: inne(nord),
-            gpsSynlig: inne(gps),
-            // Gruppa står FØRST: begge skal ligge til venstre for den første
-            // sorterbare snarveien.
-            forst: (() => {
-              const s1 = rad.querySelector('[data-snarvei]')
-              if (!s1) return true
-              return gps.getBoundingClientRect().left < s1.getBoundingClientRect().left
-            })(),
+            vanlig: gps.hasAttribute('data-snarvei'),
+            navIgjen: rad.querySelectorAll('[data-nav]').length,
+            gpsSynlig: r.width > 0 && r.left >= -1 && r.right <= window.innerWidth + 1,
             linjer: new Set([...document.querySelectorAll('[data-linje]')]
               .filter(e => e.getBoundingClientRect().width > 0)
               .map(e => Math.round(e.getBoundingClientRect().top))).size,
           }
         })
-        if (gruppa.mangler) throw new Error(`fant ingen ${gruppa.mangler} ved 360 px`)
-        if (!gruppa.nordSynlig) throw new Error('nord-knappen mangler på en berøringsflate')
-        if (!gruppa.gpsSynlig) throw new Error('posisjonen er klippet av skjermkanten ved 360 px')
-        if (!gruppa.forst) throw new Error('posisjonen står ikke først i raden')
-        if (gruppa.linjer !== 1) {
-          throw new Error(`snarvei-raden brøt til ${gruppa.linjer} linjer ved 360 px `
+        if (raden.mangler) throw new Error(`fant ingen ${raden.mangler} ved 360 px`)
+        if (!raden.vanlig) throw new Error('posisjonen er ikke merket som en vanlig snarvei')
+        if (raden.navIgjen) {
+          throw new Error(`${raden.navIgjen} knapp(er) står igjen i en fast nav-gruppe `
+            + '— alle snarveier skal være likeverdige')
+        }
+        if (!raden.gpsSynlig) throw new Error('posisjonen er klippet av skjermkanten ved 360 px')
+        if (raden.linjer !== 1) {
+          throw new Error(`snarvei-raden brøt til ${raden.linjer} linjer ved 360 px `
             + '— den sammenlagte raden skal stå på én')
         }
 
+        // KOMPASSET: i linjal-boksen, og til VENSTRE for målestokken.
+        const kompass = await p2.evaluate(() => {
+          const knapp = document.querySelector('button[aria-label^="Vend kartet mot nord"]')
+          if (!knapp) return { mangler: true }
+          const boks = knapp.closest('div')
+          const svgLinjal = boks?.parentElement?.querySelector('svg:not([viewBox="0 0 24 24"])')
+          const kr = knapp.getBoundingClientRect()
+          const lr = svgLinjal?.getBoundingClientRect()
+          return {
+            iRaden: !!knapp.closest('.snarvei-rad'),
+            venstre: lr ? kr.left < lr.left : null,
+            nede: kr.top > window.innerHeight / 2,
+            bredde: Math.round(kr.width),
+          }
+        })
+        if (kompass.mangler) throw new Error('fant ingen kompassknapp på en berøringsflate')
+        if (kompass.iRaden) throw new Error('kompasset står fortsatt i snarvei-raden')
+        if (!kompass.nede) throw new Error('kompasset står ikke i nedre halvdel av skjermen')
+        if (kompass.venstre === false) {
+          throw new Error('kompasset står til høyre for målestokken — det skal stå til venstre')
+        }
+        if (kompass.bredde < 44) {
+          throw new Error(`kompassknappen er ${kompass.bredde} px bred — en knapp som står `
+            + 'alene på et kart skal være minst 44')
+        }
+
         const les = () => p2.evaluate(() => {
-          const gps = document.querySelector('[data-nav-id="posisjon"]')
+          const gps = document.querySelector('[data-snarvei-id="posisjon"]')
           if (!gps || !gps.getBoundingClientRect().width) return null
           const ikon = gps.querySelector('svg')
           return {
@@ -1785,7 +1821,7 @@ const SJEKKER = [
         if (!av) throw new Error('fant ingen synlig posisjons-knapp')
         if (av.trykt !== 'false') throw new Error(`posisjonen sier aria-pressed="${av.trykt}" i hvile`)
 
-        await p2.locator('[data-nav-id="posisjon"]').click()
+        await p2.locator('[data-snarvei-id="posisjon"]').click()
         await p2.waitForTimeout(600)
         const pa = await les()
         if (pa.trykt !== 'true') throw new Error('et trykk på posisjonen slo den ikke på')
@@ -1815,10 +1851,10 @@ const SJEKKER = [
         }
 
         // Nøytral tilstand: posisjonen skrur seg ikke av selv.
-        await p2.locator('[data-nav-id="posisjon"]').click()
+        await p2.locator('[data-snarvei-id="posisjon"]').click()
         await p2.waitForTimeout(300)
-        return `én linje ved 360 px, gruppa først, av→på bytter flate `
-          + `(${pa.flate}), ikon ${k ? k.toFixed(1) : '?'}:1`
+        return `én linje ved 360 px, kompasset i linjalen (${kompass.bredde} px), `
+          + `av→på bytter flate (${pa.flate}), ikon ${k ? k.toFixed(1) : '?'}:1`
       } finally {
         await ctx.close()
       }

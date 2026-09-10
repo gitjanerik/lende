@@ -99,7 +99,7 @@ import { buildTrailColorCss, normalizeHex } from '../lib/trailColors.js'
 import { DEFAULT_VISIBLE_LAYER_KEYS } from '../lib/mapLayerCatalog.js'
 import { listThemes, erMorktTema } from '../lib/mapSettingsApply.js'
 import { SNARVEI_REKKEFOLGE_KEY, STANDARD_REKKEFOLGE, normaliserRekkefolge,
-         snarveierIRekkefolge, NAV_SNARVEIER, PILLER } from '../lib/snarveier.js'
+         snarveierIRekkefolge, PILLER } from '../lib/snarveier.js'
 import { norwegianName } from '../lib/placeName.js'
 import AnnotationIcon from '../components/AnnotationIcon.vue'
 import TrackElevationSheet from '../components/TrackElevationSheet.vue'
@@ -1994,7 +1994,11 @@ const relieffBue = computed(() => ({
 }))
 
 const synligeSnarveier = computed(() =>
-  snarveierIRekkefolge(snarveiRekkefolge.value, { egetKart: egetKart.value }))
+  snarveierIRekkefolge(snarveiRekkefolge.value, { egetKart: egetKart.value })
+    .map(s => s.id === 'posisjon'
+      ? { ...s, aktiv: userPos.isWatching,
+          ariaTekst: userPos.isWatching ? 'Posisjon på. Slå av.' : 'Posisjon av. Slå på.' }
+      : s))
 
 // Pillene på åpen-linja (v7.2.0). Katalogen bærer etiketten og aria-teksten;
 // nivået — buens geometri, og om relieffet i det hele tatt er på — er kartets
@@ -2011,6 +2015,10 @@ const skjulteSnarveiIder = computed(() => {
 // der de fire domenene den rører (måling, annotering, sti, kontekstmeny)
 // allerede møtes.
 const SNARVEI_HANDLING = {
+  // POSISJONEN ER EN VANLIG SNARVEI (v7.3.0) — den eneste som bærer en av/på,
+  // og den eneste grunnen til at raden fortsatt kjenner `aktiv`. AV slår også
+  // av kompass-følgingen, som `stopPositioning` gjør.
+  posisjon: () => { if (userPos.isWatching) stopPositioning(); else startPositioning() },
   stifinner: () => onShortcutStifinner(),
   runde: () => onShortcutRoundTrip(),
   maaling: () => onShortcutMeasure(),
@@ -2061,41 +2069,19 @@ function onSnarveiInnstilling(id) {
   if (panel) onFabKnobHold(panel)
 }
 
-// DEN FASTE VENSTREGRUPPEN (v6.6.1, gjenopprettet i v7.2.0). Posisjon og «nord
-// opp» — to knapper som SLÅR NOE PÅ, og som ikke tåler å havne bak «Mer»: en
-// knapp man ikke finner i regnvær er en knapp som ikke finnes. Posisjonen var
-// en vanlig sorterbar snarvei i v7.1.0, og det var feil av nettopp den grunnen
-// gruppen ble laget.
-// KOMPASSET FALLER BORT UTEN ROTASJON — desktop har retningsrosa i søyla, og
-// en modus uten rotasjon har ingen retning å nullstille.
-const navSnarveier = computed(() => NAV_SNARVEIER
-  .filter(n => !n.kunRotasjon || hasTouch.value)
-  .map(n => n.id === 'posisjon'
-    ? { ...n, aktiv: userPos.isWatching,
-        ariaTekst: userPos.isWatching ? 'Posisjon på. Slå av.' : 'Posisjon av. Slå på.' }
-    : { ...n, aktiv: false,
-        ariaTekst: `Vend kartet mot nord. Nå ${rotationSliderDeg.value} grader.` }))
-
 // Løftet over navigasjonssøyla mens raden er åpen — se malen.
 const snarveiApen = ref(false)
 
-function onNavSnarvei(id) {
-  // Posisjonen bærer en tilstand, og AV slår også av kompassfølgingen.
-  if (id === 'posisjon') {
-    if (userPos.isWatching) stopPositioning()
-    else startPositioning()
-    return
-  }
-  if (id === 'kompass') {
-    // «NORD OPP» HAR ABSORBERT «SENTRER» (v7.0.0). Knappen dreide bare kartet
-    // mot nord; zoomen ble stående der man hadde dratt den, og veien tilbake
-    // til hele arket var Lende-knappens nord-knott. Med ankeret borte er det
-    // denne knappen — og de to hørte uansett sammen: man vil se arket rett vei
-    // OG se hele det. `onResetAndRefreshGps` gjør begge deler, slår av
-    // kompass-følgingen og henter en fersk GPS-fix.
-    onResetAndRefreshGps()
-  }
-}
+// HINTET PEKER PÅ PILLA DET GJELDER (v7.3.0). «Strek 0,11×» sto sentrert under
+// hele raden, altså rett under Relieff på en telefon. Teksten begynner med
+// pillens egen etikett, så koblingen er allerede der; den var bare ikke brukt.
+// Hint fra knotter som IKKE har en pille (tekststørrelse, font — de bor i
+// skuffen) faller tilbake på den sentrerte bobla under raden.
+const knobHintPille = computed(() =>
+  PILLER.find(p => (knobHint.value || '').startsWith(p.label))?.id || '')
+const knobHintISkuff = computed(() => !!knobHint.value
+  && !(snarveiApen.value && knobHintPille.value))
+
 function onApneSortering() {
   closeDrawer()
   lukkFunksjonsSkuffer()
@@ -2796,10 +2782,10 @@ onUnmounted(() => {
          :class="snarveiApen ? 'z-30' : 'z-20'"
          :style="snarveiRadStyle">
       <div class="flex flex-col items-center gap-1 w-full">
-        <SnarveiRad :snarveier="synligeSnarveier" :nav="navSnarveier"
-                    :piller="snarveiPiller"
-                    :azimut="rotationSliderDeg" :ui-text-scale="uiTextScale"
-                    @velg="onSnarvei" @nav="onNavSnarvei"
+        <SnarveiRad :snarveier="synligeSnarveier" :piller="snarveiPiller"
+                    :hint="knobHint" :hint-pille="knobHintPille"
+                    :ui-text-scale="uiTextScale"
+                    @velg="onSnarvei"
                     @innstilling="onSnarveiInnstilling" @sorter="onApneSortering"
                     @apen="snarveiApen = $event" />
         <!-- KNOTT-HINTET FULGTE MED KNOTTENE (v7.0.0). «Strek 1,20×» var
@@ -2807,7 +2793,7 @@ onUnmounted(() => {
              endring på et tett kart. Den står nå under raden trykket kom fra,
              og er pekerdød: den svarer, den kan ikke trykkes på. -->
         <Transition name="snarvei-fade">
-          <div v-if="knobHint" role="status" aria-live="polite"
+          <div v-if="knobHintISkuff" role="status" aria-live="polite"
                class="px-3 py-1.5 rounded-lg bg-overlay/95 text-ink text-[11px] font-medium
                       leading-tight shadow-lg whitespace-nowrap pointer-events-none
                       border border-ink/10">
@@ -2867,11 +2853,10 @@ onUnmounted(() => {
         <span class="text-[10px] text-ink-4 tabular-nums leading-none">{{ rotationSliderDeg }}°</span>
       </div>
 
-      <!-- POSISJON OG «NORD OPP» ER FLYTTET INN I SNARVEI-RADEN (v6.6.1).
-           De sto her som to runde skiver rett på arket fra v6.5.68 — riktig
-           tanke, feil sted: de lå midt i kartflata man leser. I raden står de
-           som en FAST gruppe foran en skillelinje, med aksentgrønn flate når
-           de er på; se NAV_SNARVEIER i lib/snarveier.js. -->
+      <!-- POSISJON OG «NORD OPP» STÅR IKKE HER (v6.6.1). De sto som to runde
+           skiver rett på arket fra v6.5.68 — riktig tanke, feil sted: de lå
+           midt i kartflata man leser. Posisjonen er nå en vanlig snarvei i
+           raden (v7.3.0), og kompasset bor i linjal-boksen nede til venstre. -->
 
       <!-- TEKSTSTØRRELSEN er ikke navigasjon, og den settes én gang og ikke
            hele tida — derfor ligger den bak en knapp og ikke som en tredje
@@ -3118,9 +3103,17 @@ onUnmounted(() => {
     <!-- Linjal + OSM-kreditt — trekt ut til MapScaleAttribution (v1.0.8).
          Målestokk/ekvidistanse (v2.4.20) og ISOM/DEM/dybde-provenens (v2.4.26)
          står i punkt-skuffen, ikke her. -->
+    <!-- KOMPASSET STÅR I LINJAL-BOKSEN (v7.3.0), til venstre for målestokken.
+         Det var en fast knapp i snarvei-raden fram til nå; her koster det
+         ingen radplass, og retningen står sammen med avstanden. Bare med
+         berøring: uten rotasjon finnes ingen azimut å nullstille, og desktop
+         har retningsrosa i søyla. -->
     <MapScaleAttribution
       :visible="!loading && !searchOpen"
-      :scale-bar="scaleBar" />
+      :scale-bar="scaleBar"
+      :kompass="hasTouch"
+      :azimut="rotationSliderDeg"
+      @nord="onResetAndRefreshGps" />
 
     <!-- Kontrollpanel (drawer). Desktop (≥768px): høyrestilt fullhøyde side-
          panel (som illustrasjons-sporet). Mobil: dragbart bunn-ark. -->

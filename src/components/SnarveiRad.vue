@@ -40,10 +40,13 @@
 //    og resultatet var en sammenlagt rad på to linjer på eierens telefon.
 //    Ettersjekken leser derfor `offsetTop`: er ikke alle knappene på samme
 //    linje, er prognosen én for høy.
-// 5. VENSTREGRUPPEN ER FAST OG TELLES IKKE MED. Posisjon og kompasset står
-//    først, foran en skillelinje, og kollapser aldri — se `NAV_SNARVEIER`. De
-//    spiser derimot av budsjettet (`fastPx`), ellers ville målingen lovt plass
-//    til knapper gruppa allerede har tatt.
+// 5. ALLE KNAPPENE ER LIKEVERDIGE (v7.3.0). Raden hadde en FAST venstregruppe
+//    — posisjon og kompasset — som sto foran en skillelinje, aldri kollapset
+//    og spiste av budsjettet (`fastPx`). Den er borte: posisjonen er en vanlig
+//    sorterbar snarvei med plass #1 i standarden, kompasset bor i linjal-
+//    boksen nede til venstre. En knapp som bærer en TILSTAND (posisjonen) får
+//    fortsatt aksentgrønn flate og `aria-pressed` — det er en egenskap ved
+//    knappen, ikke en egen klasse knapper med egne plasseringsregler.
 //
 // RADEN SPISTE TOPPRADA I v7.1.0, OG SPYTTET DEN UT IGJEN I v7.2.0. Ett forsøk
 // samlet hamburgeren, kartnavnet, søket og innstillingene her inne sammen med
@@ -57,6 +60,12 @@
 // NIVÅ, ikke funksjoner, og de spiste to plasser av raden på hver skjerm. De
 // står nå ved siden av «Sorter», altså bare når raden er åpnet — og et trykk
 // på knotten LUKKER IKKE raden: hakket er noe man tar flere av.
+//
+// MEN DET ER ÉN BOKS (v7.3.0). Åpen-linja lå i sin egen mørke pille under
+// raden, med luft imellom, og to bokser over kartet leses som to systemer —
+// den nederste så ut som et eget panel som tilfeldigvis kom fram. Nå er alt
+// samme boks, og skillet gjøres av en hårfin strek på tvers: det som er over
+// er det man GJØR, det som er under stiller inn raden og kartets uttrykk.
 // ─────────────────────────────────────────────────────────────────────────────
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import SnarveiIkon from './SnarveiIkon.vue'
@@ -65,13 +74,15 @@ import { antallSomFar } from '../lib/snarveier.js'
 const props = defineProps({
   // [{ id, label, aria }] i brukerens rekkefølge.
   snarveier: { type: Array, required: true },
-  // Den faste gruppen: [{ id, label, aria, aktiv }] — se punkt 5 i filhodet.
-  nav: { type: Array, default: () => [] },
   // Pillene på åpen-linja: [{ id, label, aria, bue, dimmet?, tannhjulAria? }].
   // `bue` er knott-ringens geometri, som SnarveiIkon tegner nivået med.
   piller: { type: Array, default: () => [] },
-  // Hvor nord ligger på skjermen, i grader med klokka. Roterer kompassnåla.
-  azimut: { type: Number, default: 0 },
+  // Knott-hintet («Strek 1,20×»), og hvilken pille det gjelder. Det sto
+  // sentrert under hele raden fram til v7.3.0, altså midt mellom to piller som
+  // begge kan ha utløst det — og på en telefon endte «Strek 0,11×» rett under
+  // Relieff. En boble som peker feil vei er verre enn ingen boble.
+  hint: { type: String, default: '' },
+  hintPille: { type: String, default: '' },
   uiTextScale: { type: Number, default: 1 },
 })
 // `apen` går UT igjen fordi den åpne raden er tre linjer høy på en telefon og
@@ -81,7 +92,7 @@ const props = defineProps({
 // åpner. Kallstedet løfter i stedet raden over søyla mens den er åpen. Radens
 // egen z-index duger ikke: innpakningen i MapView er `z-20 absolute`, altså
 // sin egen stacking context, og et barn kan ikke klatre ut av den.
-const emit = defineEmits(['velg', 'nav', 'innstilling', 'sorter', 'apen'])
+const emit = defineEmits(['velg', 'innstilling', 'sorter', 'apen'])
 
 // Margin til hver skjermkant. Raden er sentrert, så halve verdien per side.
 const KANT_PX = 24
@@ -89,10 +100,8 @@ const KANT_PX = 24
 const apen = ref(false)
 const radRef = ref(null)
 const handleRef = ref(null)
-const fastRef = ref(null)
 const bredder = ref([])
 const handlePx = ref(0)
-const fastPx = ref(0)
 const gapPx = ref(4)
 const ledigPx = ref(0)
 const maalt = ref(false)
@@ -102,8 +111,7 @@ const korreksjon = ref(0)
 
 const antallSynlig = computed(() => {
   if (!maalt.value || apen.value) return props.snarveier.length
-  const n = antallSomFar(bredder.value, ledigPx.value, handlePx.value,
-                        gapPx.value, fastPx.value)
+  const n = antallSomFar(bredder.value, ledigPx.value, handlePx.value, gapPx.value)
   return Math.max(1, n - korreksjon.value)
 })
 const antallSkjult = computed(() =>
@@ -121,7 +129,6 @@ function maal() {
   const padd = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0)
   ledigPx.value = Math.max(0, (window.innerWidth || 360) - KANT_PX - padd)
   handlePx.value = handleRef.value?.getBoundingClientRect().width || 0
-  fastPx.value = fastRef.value?.getBoundingClientRect().width || 0
   const el = [...rad.querySelectorAll('[data-snarvei]')]
   if (el.length !== props.snarveier.length) return
   bredder.value = el.map(e => e.getBoundingClientRect().width)
@@ -183,9 +190,6 @@ function velg(id) {
 // raden på nytt mellom hvert hakk.
 function pilleTrykk(id) { emit('velg', id) }
 function innstilling(id) { emit('innstilling', id) }
-function navTrykk(id) {
-  emit('nav', id)
-}
 function sorter() {
   apen.value = false
   emit('sorter')
@@ -193,42 +197,27 @@ function sorter() {
 </script>
 
 <template>
-  <div class="pointer-events-auto flex flex-col items-center gap-1"
-       :style="{ maxWidth: `calc(100vw - ${KANT_PX}px)`, width: apen ? '100%' : 'auto' }">
+  <div class="pointer-events-auto flex flex-col items-stretch rounded-2xl
+              bg-overlay/90 backdrop-blur shadow-lg"
+       :style="{ maxWidth: `calc(100vw - ${KANT_PX}px)`,
+                 width: apen ? '100%' : 'auto',
+                 visibility: maalt ? 'visible' : 'hidden' }">
     <div ref="radRef"
-         class="snarvei-rad flex items-stretch gap-1 px-1.5 py-1.5 rounded-2xl
-                bg-overlay/90 backdrop-blur shadow-lg"
+         class="snarvei-rad flex items-stretch gap-1 px-1.5 py-1.5"
          :class="apen ? 'snarvei-rad--apen' : ''"
-         :style="{ visibility: maalt ? 'visible' : 'hidden',
-                   maxWidth: `calc(100vw - ${KANT_PX}px)` }">
-      <!-- DEN FASTE NAV-GRUPPEN (v6.6.1). Samme ikon-over-etikett-form som
-           resten av raden, men to ting skiller den, og begge er med vilje:
-           knappene bærer en TILSTAND (aksentgrønn flate + `aria-pressed`,
-           samme mønster som vippebryterne i skuffene), og de står foran en
-           skillelinje som sier at de ikke hører til det som kan sorteres. -->
-      <div ref="fastRef" class="flex items-stretch gap-1">
-        <template v-if="nav.length">
-          <button v-for="n in nav" :key="n.id" data-linje data-nav
-                  :data-nav-id="n.id" type="button"
-                  @click="navTrykk(n.id)" :aria-pressed="!!n.aktiv"
-                  :aria-label="n.ariaTekst || n.aria"
-                  class="shortcut-btn shortcut-btn--nav"
-                  :class="n.aktiv ? 'shortcut-btn--pa' : ''">
-            <SnarveiIkon :id="n.id" class="w-5 h-5"
-                         :style="n.id === 'kompass'
-                           ? { transform: `rotate(${azimut}deg)`, transition: 'transform 0.2s linear' }
-                           : null" />
-            <span>{{ n.label }}</span>
-          </button>
-        </template>
-      </div>
-      <div v-if="nav.length" class="shrink-0 self-stretch w-px my-1 bg-ink/20" aria-hidden="true"></div>
-
+         :style="{ maxWidth: `calc(100vw - ${KANT_PX}px)` }">
       <template v-for="(s, i) in snarveier" :key="s.id">
+        <!-- `aktiv` er valgfri og bæres i dag bare av posisjonen: aksentgrønn
+             flate + `aria-pressed`, samme par som vippebryterne i skuffene.
+             `aria-pressed` settes bare når knappen FAKTISK er en bryter — en
+             `aria-pressed="false"` på Stifinner ville lovet en av/på den ikke
+             har. -->
         <button data-snarvei :data-snarvei-id="s.id" data-linje
                 v-show="synlig(i)"
                 @click="velg(s.id)"
-                :aria-label="s.aria" class="shortcut-btn">
+                :aria-pressed="s.aktiv === undefined ? undefined : !!s.aktiv"
+                :aria-label="s.ariaTekst || s.aria"
+                class="shortcut-btn" :class="s.aktiv ? 'shortcut-btn--pa' : ''">
           <SnarveiIkon :id="s.id" class="w-5 h-5" />
           <span>{{ s.label }}</span>
         </button>
@@ -258,7 +247,8 @@ function sorter() {
       </button>
     </div>
 
-    <!-- ÅPEN-LINJA: pillene til venstre, «Sorter snarveier» til høyre.
+    <!-- ÅPEN-LINJA: pillene til venstre, «Sorter snarveier» til høyre — i
+         SAMME boks som raden, bak en tydelig skillestrek.
          Strek og relieff er ikke funksjoner man rekker etter mens man går —
          de er knotter med et nivå — så de tok to plasser av raden for lite. Her
          står de der man alt har åpnet noe for å stille inn, ved siden av
@@ -267,45 +257,54 @@ function sorter() {
          handler om raden selv, og en plass mellom Måling og 3D ville gjort den
          til nok en ting man kan trykke på ved et uhell. -->
     <Transition name="snarvei-fade">
-      <div v-if="apen"
-           class="pointer-events-auto w-full flex items-center gap-2 px-2 py-1.5 rounded-2xl
-                  bg-overlay/90 backdrop-blur shadow-lg">
-        <!-- GRUPPE-PILLA: én boks med TO trykkflater (v7.0.0). Venstre er
-             hakket — det tapet på knotten gjorde — høyre er tannhjulet som
-             åpner panelet, altså det lang-trykket sa. -->
-        <div class="flex-1 min-w-0 flex flex-wrap items-stretch gap-1.5">
-          <div v-for="pille in piller" :key="pille.id" class="shortcut-group">
-            <button type="button" @click="pilleTrykk(pille.id)" :aria-label="pille.aria"
-                    class="shortcut-btn shortcut-btn--venstre"
-                    :class="pille.dimmet ? 'shortcut-btn--dim' : ''">
-              <SnarveiIkon :id="pille.id" :bue="pille.bue" class="w-5 h-5" />
-              <span>{{ pille.label }}</span>
-            </button>
-            <span class="shortcut-group__strek" aria-hidden="true"></span>
-            <button type="button" @click="innstilling(pille.id)"
-                    :aria-label="pille.tannhjulAria || `Innstillinger for ${pille.label}`"
-                    class="shortcut-btn shortcut-btn--tannhjul">
-              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                   aria-hidden="true">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.2.62.79 1.02 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-              </svg>
-            </button>
+      <div v-if="apen" class="w-full">
+        <div class="h-px mx-2 bg-ink/20" aria-hidden="true"></div>
+        <div class="flex items-center gap-2 px-2 py-1.5">
+          <!-- GRUPPE-PILLA: én boks med TO trykkflater (v7.0.0). Venstre er
+               hakket — det tapet på knotten gjorde — høyre er tannhjulet som
+               åpner panelet, altså det lang-trykket sa. -->
+          <div class="flex-1 min-w-0 flex flex-wrap items-stretch gap-1.5">
+            <div v-for="pille in piller" :key="pille.id" class="shortcut-group relative">
+              <!-- Hintet henger under PILLA det gjelder, ikke under raden. -->
+              <div v-if="hint && hintPille === pille.id" role="status" aria-live="polite"
+                   class="absolute left-1/2 -translate-x-1/2 top-[calc(100%+10px)] z-10
+                          px-3 py-1.5 rounded-lg bg-overlay/95 text-ink text-[11px]
+                          font-medium leading-tight shadow-lg whitespace-nowrap
+                          pointer-events-none border border-ink/10">
+                {{ hint }}
+              </div>
+              <button type="button" @click="pilleTrykk(pille.id)" :aria-label="pille.aria"
+                      class="shortcut-btn shortcut-btn--venstre"
+                      :class="pille.dimmet ? 'shortcut-btn--dim' : ''">
+                <SnarveiIkon :id="pille.id" :bue="pille.bue" class="w-5 h-5" />
+                <span>{{ pille.label }}</span>
+              </button>
+              <span class="shortcut-group__strek" aria-hidden="true"></span>
+              <button type="button" @click="innstilling(pille.id)"
+                      :aria-label="pille.tannhjulAria || `Innstillinger for ${pille.label}`"
+                      class="shortcut-btn shortcut-btn--tannhjul">
+                <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                     aria-hidden="true">
+                  <circle cx="12" cy="12" r="3"/>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.2.62.79 1.02 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+              </button>
+            </div>
           </div>
+          <button type="button" @click="sorter" aria-label="Sorter snarveier"
+                  class="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-xl
+                         text-ink text-[11px] font-medium active:scale-95 transition
+                         hover:bg-ink/8">
+            <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="4" y1="7" x2="14" y2="7"/><line x1="4" y1="12" x2="11" y2="12"/>
+              <line x1="4" y1="17" x2="17" y2="17"/>
+              <polyline points="17 4 20 7 17 10"/>
+            </svg>
+            <span class="whitespace-nowrap">Sorter</span>
+          </button>
         </div>
-        <button type="button" @click="sorter" aria-label="Sorter snarveier"
-                class="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-xl
-                       text-ink text-[11px] font-medium active:scale-95 transition
-                       hover:bg-ink/8">
-          <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="4" y1="7" x2="14" y2="7"/><line x1="4" y1="12" x2="11" y2="12"/>
-            <line x1="4" y1="17" x2="17" y2="17"/>
-            <polyline points="17 4 20 7 17 10"/>
-          </svg>
-          <span class="whitespace-nowrap">Sorter</span>
-        </button>
       </div>
     </Transition>
   </div>
@@ -368,11 +367,10 @@ function sorter() {
 /* Relieff av: ikonet skal si det uten en egen etikett. */
 .shortcut-btn--dim { opacity: 0.55; }
 
-/* NAV-GRUPPEN: av er nøytral, på er appens aksentgrønne med hvitt innhold —
-   samme par som hver vippebryter i skuffene og som de gamle runde skivene
-   (v6.5.70). Emerald-600 og ikke -500: hvitt på -500 gir 2,6:1, altså under
-   WCAG 1.4.11 sitt krav på 3:1 for grafiske objekter. */
-.shortcut-btn--nav { min-width: 50px; }
+/* EN KNAPP SOM ER PÅ: av er nøytral, på er appens aksentgrønne med hvitt
+   innhold — samme par som hver vippebryter i skuffene og som de gamle runde
+   skivene (v6.5.70). Emerald-600 og ikke -500: hvitt på -500 gir 2,6:1, altså
+   under WCAG 1.4.11 sitt krav på 3:1 for grafiske objekter. */
 .shortcut-btn--pa { background: #059669; color: #fff; }
 .shortcut-btn--pa:hover { background: #047857; }
 

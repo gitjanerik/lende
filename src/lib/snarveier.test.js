@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   SNARVEIER, STANDARD_REKKEFOLGE, normaliserRekkefolge, snarveierIRekkefolge,
-  flyttSnarvei, antallSomFar, flytteIndeks, NAV_SNARVEIER, PILLER,
+  flyttSnarvei, antallSomFar, flytteIndeks, PILLER,
 } from './snarveier.js'
 
 describe('katalogen', () => {
@@ -12,10 +12,19 @@ describe('katalogen', () => {
   })
   it('bærer BARE funksjonene, slanket tilbake etter felttesten (v7.2.0)', () => {
     // Alt som ikke GJØR noe med kartet er ute igjen: søket og innstillingene
-    // står i topprada, posisjonen i den faste nav-gruppen, de eksterne kartene
-    // øverst i infopanelet, chatten i Lende-FAB-en, og strek/relieff i PILLER.
+    // står i topprada, de eksterne kartene øverst i infopanelet, chatten i
+    // Lende-FAB-en, og strek/relieff i PILLER.
     expect(STANDARD_REKKEFOLGE).toEqual(
-      ['stifinner', 'runde', 'maaling', 'tre-d', 'annotering', 'sporing', 'info'])
+      ['posisjon', 'stifinner', 'runde', 'maaling', 'tre-d', 'annotering',
+       'sporing', 'info'])
+  })
+  it('gir posisjonen plass #1, og kompasset er ikke i lista (v7.3.0)', () => {
+    // Alle snarveier er likeverdige og sorterbare: den faste venstregruppen er
+    // borte. Posisjonen står først i STANDARDEN — altså kan den bare havne bak
+    // «Mer» hvis brukeren selv har sortert den dit — og kompasset har forlatt
+    // raden helt, til fordel for linjal-boksen nede til venstre.
+    expect(STANDARD_REKKEFOLGE[0]).toBe('posisjon')
+    expect(STANDARD_REKKEFOLGE).not.toContain('kompass')
   })
   it('har ingen piller — de er sin egen liste', () => {
     expect(SNARVEIER.some(s => s.gruppe)).toBe(false)
@@ -112,20 +121,5 @@ describe('flytteIndeks', () => {
   })
   it('en radhøyde på null flytter ingenting', () => {
     expect(flytteIndeks(2, 300, 0, 5)).toBe(2)
-  })
-})
-
-describe('NAV_SNARVEIER', () => {
-  it('er en egen gruppe som ikke ligger i den sorterbare katalogen', () => {
-    const ider = new Set(STANDARD_REKKEFOLGE)
-    for (const n of NAV_SNARVEIER) expect(ider.has(n.id)).toBe(false)
-  })
-  it('er posisjon og kompass, i den rekkefølgen (v7.2.0)', () => {
-    // Posisjonen var en sorterbar snarvei i v7.1.0 og kunne havne bak «Mer».
-    // Den er den ene knappen man rekker etter mens man går; gruppa finnes
-    // nettopp for de knappene. Bare kompasset har rotasjons-porten.
-    expect(NAV_SNARVEIER.map(n => n.id)).toEqual(['posisjon', 'kompass'])
-    expect(NAV_SNARVEIER.find(n => n.id === 'kompass').kunRotasjon).toBe(true)
-    expect(NAV_SNARVEIER.find(n => n.id === 'posisjon').kunRotasjon).toBeUndefined()
   })
 })

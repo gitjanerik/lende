@@ -1,3 +1,22 @@
+## 2026-09-10 — v7.3.0: Alle snarveier likeverdige, kompasset ned i linjalen
+
+Snarvei-raden hadde to klasser knapper: en fast venstregruppe med Posisjon og
+«Nord» foran en skillestrek, og resten som kunne sorteres. Nå er alle
+likeverdige. Posisjonen er en vanlig, sorterbar snarvei med plass #1 i
+standarden — den kan altså bare havne bak «Mer» hvis brukeren selv har sortert
+den dit — og kompasset har forlatt raden helt til fordel for linjal-boksen nede
+til venstre, der retningen står sammen med målestokken og ikke koster radplass.
+Skillestreken og målingens `fastPx`-budsjett falt bort med gruppa. Samtidig er
+raden ÉN boks igjen: pillene for strek og relieff og «Sorter» sto i en egen
+mørk pille under raden, og to bokser over kartet leses som to systemer — de er
+nå i samme boks, skilt av en hårfin strek. Knott-hintet («Strek 0,11×») sto
+sentrert under hele raden og landet dermed under Relieff når det var Strek man
+hakket på; det henger nå under pilla det gjelder. Og Lende-FAB-en er en ren
+chat-inngang: lang-trykk-timeren er uarmert uten knotter, så et vanlig trykk er
+hele gesten.
+
+---
+
 ## 2026-09-10 — v7.2.0: Topprada tilbake, pillene på åpen-linja, Lende-FAB-en tilbake
 
 Felttesten av v7.0.0 og v7.1.0 svarte «for mye»: alt som kunne trykkes var flyttet inn i snarvei-raden, og resultatet ble en fire linjer høy svart boks midt over kartet — mer dekket flate enn den ene stripa som ble spart, og kartnavnet gjemt bak et nedtrekk man måtte åpne for å se hvilket kart man sto i. Topprada er derfor nøyaktig den fra v6.6.5 igjen: hamburger, kartnavn, søk og oppsett på sin egen linje over raden. Snarvei-raden er igjen bare FUNKSJONENE, med posisjon og kompassnål som en fast venstregruppe som aldri kollapser inn i «Mer» — posisjonen er den ene knappen man rekker etter mens man går. Strek og relieff er ikke funksjoner, men knotter med et nivå; de står nå som piller på linja som kommer fram når raden åpnes, ved siden av «Sorter», og et hakk på knotten lukker ikke raden, fordi hakket er noe man tar flere av. De to eksterne kartene (UT.no og Google Maps) har flyttet øverst i infopanelet, altså i panelet om nettopp det punktet de handler om. Og Lende-chatten er tilbake som FAB nede til høyre med logoen som symbol, nå med ett tapp i stedet for et lang-trykk — samme anker, samme hjørne og samme gest som i ruteplanleggeren.
