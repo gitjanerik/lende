@@ -1998,24 +1998,30 @@ const SJEKKER = [
         const logo = await fab.locator('img').count()
         if (!logo) throw new Error('FAB-en mangler Lende-logoen')
 
-        // ETT TAPP, ikke et hold. FabCluster er drevet av pointerdown/-up via
-        // useLongPress, så `el.click()` gjør ingenting — det må være en ekte
-        // peker-sekvens (FAB-lærdommen i CLAUDE.md).
-        // ET EKTE TRYKK, ikke `el.click()`: FabCluster er drevet av
-        // pointerdown/-up via useLongPress. Playwrights `tap()` duger heller
-        // ikke — den sender CDP-touch, og Chromium syntetiserer da ingen
-        // peker-eventer her, så trykket ble aldri sett. Musa gjør det.
-        await p2.mouse.move(boks.x + boks.width / 2, boks.y + boks.height / 2)
-        await p2.mouse.down()
-        await p2.waitForTimeout(80)
-        await p2.mouse.up()
-        await p2.waitForTimeout(700)
-        const apen = await p2.evaluate(() =>
+        // ETT TAPP MED FINGEREN, ikke et hold og ikke musa. FabCluster er
+        // drevet av pointerdown/-up via useLongPress, så `el.click()` gjør
+        // ingenting. Og TOUCH er ikke et strengere mus-trykk: den sender en
+        // kompatibilitets-`click` ~25 ms etter `touchend`, som fram til v7.3.3
+        // traff bakteppet modalen nettopp la under fingeren og lukket chatten
+        // igjen. Musa gjør ikke det — derfor sto denne sjekken grønn mens
+        // chatten i praksis bare kunne åpnes med lang-trykk på telefon.
+        const midtX = boks.x + boks.width / 2
+        const midtY = boks.y + boks.height / 2
+        await p2.touchscreen.tap(midtX, midtY)
+        const seChat = () => p2.evaluate(() =>
           [...document.querySelectorAll('h1, h2, h3, [role="dialog"]')]
             .some((e) => e.offsetParent !== null && /Lende-chat/.test(e.textContent || '')))
-        if (!apen) throw new Error('ett tapp på FAB-en åpnet ikke chatten')
+        await p2.waitForTimeout(120)
+        if (!(await seChat())) throw new Error('ett tapp på FAB-en åpnet ikke chatten')
+        // ETTER spøkelsesklikket, ikke før: åpner og lukker den i samme
+        // øyeblikk, er en måling på 120 ms grønn og brukeren uten chat.
+        await p2.waitForTimeout(700)
+        if (!(await seChat())) {
+          throw new Error('chatten åpnet, men lukket seg igjen — spøkelsesklikket '
+            + 'fra touchend traff bakteppet (AppModal.bakteppeKlikk)')
+        }
         return `FAB nede til høyre (${Math.round(boks.x)},${Math.round(boks.y)}), `
-          + 'logo som symbol, ett tapp åpnet chatten'
+          + 'logo som symbol, ett finger-tapp åpnet chatten og den ble stående'
       } finally {
         await ctx.close()
       }
