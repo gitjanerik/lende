@@ -26,17 +26,29 @@
 //
 // v7.3.0: KOMPASSET BOR HER. Det sto som en fast knapp i snarvei-raden (med
 // posisjonen) foran en skillestrek, og var den ene tingen som gjorde radens
-// knapper ulikeverdige. Her hører det bedre hjemme: linjal-boksen er allerede
-// stedet man leser kartets METRIKK — hvor langt, og nå hvilken vei — den står
-// nede til venstre der tommelen er, og den koster ingen plass i raden.
-// Nåla står til VENSTRE for linjalen og har ingen etikett: den peker mot nord,
-// og en rød nordende er selvforklarende der ordet «Nord» bare er støy.
+// knapper ulikeverdige. Her hører det bedre hjemme: nede til venstre der
+// tommelen er, sammen med avstanden — og det koster ingen plass i raden.
+// Nåla har ingen etikett: den peker mot nord, og en rød nordende er
+// selvforklarende der ordet «Nord» bare er støy.
+//
+// v7.3.2: NÅLA ER FRISTILT IGJEN — den står PÅ KARTET, ikke inne i den mørke
+// linjal-boksen. Inne i boksen måtte de to dele høyde: en 44 px trykkflate
+// gjorde hele avlesningen dobbelt så høy for noe man leser i et øyekast, og
+// skillestreken var et element til. Nåla har derfor tilbake sin egen skive fra
+// v6.5.67 — halvgjennomsiktig hvit (mørk grå på et mørkt ark), så kartet
+// skinner svakt gjennom og knappen ikke blir en klistrelapp.
+//
+// Raden er `items-end`: kompasset og linjalen deler BUNNLINJE, og bunnen er
+// FAB-ens egen (`safe-area-inset-bottom + 0.75rem`) og ikke en naken `bottom-3`
+// — ellers skiller de lag med nøyaktig safe-area-en på en telefon som har en. Boksen slipper da å strekke seg til
+// kompassets høyde, og de tre flatene langs bunnen leses som én linje.
 //
 // Boksen er `pointer-events-none` fordi den er en avlesning; kompass-knappen
 // tar derfor sin egen `pointer-events-auto`.
+import { computed } from 'vue'
 import SnarveiIkon from './SnarveiIkon.vue'
 
-defineProps({
+const props = defineProps({
   visible: { type: Boolean, default: false },
   scaleBar: { type: Object, default: () => ({ px: 0, ticks: [], label: '' }) },
   avstandTekst: { type: String, default: '' },
@@ -46,26 +58,37 @@ defineProps({
   // finnes det ingen retning å nullstille.
   kompass: { type: Boolean, default: false },
   azimut: { type: Number, default: 0 },
+  // Er KARTET mørkt? Ikke UI-temaet — skiva ligger rett på arket, så det er
+  // arkets valør den må lese mot (samme kontrakt som NavKnapper hadde).
+  mork: { type: Boolean, default: false },
 })
 defineEmits(['nord'])
+
+// Skiva og blekket fra v6.5.67. Alfaen er ikke pynt: en ugjennomsiktig skive
+// blir en klistrelapp på kartet, og nåla skal leses som en del av arket.
+const skive = computed(() => (props.mork ? 'rgba(63,63,70,0.82)' : 'rgba(255,255,255,0.82)'))
+const blekk = computed(() => (props.mork ? '#e4e4e7' : '#1c1917'))
 </script>
 
 <template>
   <!-- Skjult under aktivt søk så den ikke ligger under treff-listen. -->
   <div v-if="visible"
-       class="absolute bottom-3 left-3 z-20 pointer-events-none">
-    <div class="flex items-stretch gap-2 pl-1.5 pr-3 py-1.5 rounded-lg bg-overlay text-ink
+       class="absolute left-3 z-20 pointer-events-none flex items-end gap-2.5"
+       :style="{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }">
+    <!-- FRISTILT NÅL PÅ EGEN SKIVE (v7.3.2). 48 px som resten av kart-knappene,
+         og `place-items-center` fordi ikonet er kvadratisk i en sirkel. -->
+    <button v-if="kompass" type="button" @click="$emit('nord')"
+            class="pointer-events-auto shrink-0 w-12 h-12 rounded-full grid place-items-center
+                   select-none active:scale-95 transition-transform"
+            :style="{ background: skive, color: blekk,
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.35)' }"
+            :aria-label="`Vend kartet mot nord. Nå ${Math.round(azimut)} grader.`">
+      <SnarveiIkon id="kompass" class="w-8 h-8"
+                   :style="{ transform: `rotate(${azimut}deg)`,
+                             transition: 'transform 0.2s linear' }" />
+    </button>
+    <div class="flex items-stretch gap-2 px-3 py-1.5 rounded-lg bg-overlay text-ink
                 text-[11px] font-medium shadow-lg">
-      <button v-if="kompass" type="button" @click="$emit('nord')"
-              class="pointer-events-auto shrink-0 self-center flex items-center justify-center
-                     w-11 h-11 rounded-lg text-ink active:scale-95 transition
-                     hover:bg-ink/8"
-              :aria-label="`Vend kartet mot nord. Nå ${Math.round(azimut)} grader.`">
-        <SnarveiIkon id="kompass" class="w-6 h-6"
-                     :style="{ transform: `rotate(${azimut}deg)`,
-                               transition: 'transform 0.2s linear' }" />
-      </button>
-      <span v-if="kompass" class="shrink-0 w-px my-0.5 bg-ink/15" aria-hidden="true"></span>
       <div class="min-w-0">
         <div v-if="scaleBar.px > 0" class="flex items-end gap-2">
           <!-- currentColor, ikke hardkodet hvit: bakgrunnen (bg-overlay) er hvit i
