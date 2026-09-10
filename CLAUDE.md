@@ -171,6 +171,16 @@ kremgule, og et mørkt tema uten variabelen ville fått lyst ark. Verdien MÅ v�
 en ren farge — `--bg: var(--bg-apen, var(--bg, …))` er en syklus, og CSS gjør da
 hele deklarasjonen ugyldig.
 
+**NATURRESERVAT (520) MÅ HA ALFA I ALLE TEMAER, og det er ikke en smakssak
+(v7.4.0).** Overlayen males ETTER vann, så et opakt fyll maler over innsjøen,
+øy-hullene og strandlinja i én flat farge. Alle seks monokrom-temaene hadde et
+opakt hex fram til v7.4.0, og symptomet ser ikke ut som en fargefeil i det hele
+tatt: eieren meldte «øyene forsvinner når jeg velger en Stemning — innsjøen blir
+heldekkende» (målt på Nesøytjern i Asker, der diagnose-modus viste at øya var ETT
+lag mens vannet rundt var to). Vasken er temaets egen 520-KANT med alfa: kanten
+er allerede valgt for å leses på det temaet, og ramme og vask i samme blekk leses
+som ett merke. En test i `symbolizer.test.js` holder alfaen på plass.
+
 **Isbre er kode 410 og er IKKE ISOM.** ISOM 2017-2 har ingen bre; norske turkart
 har det, og konvensjonen er hvit flate med svak blågrå kant. Kanten er ikke pynt
 — hvitt mot lys åpen mark har nesten ingen flate-kontrast. Bre-NAVN er punkter
@@ -332,19 +342,40 @@ man måtte gjennom «Innstillinger» for å måle en avstand.
 
 **Skuffen er nå BARE innstillinger** — Kartlag, Kartstil, Stemning, Format,
 Eksport, Utvikler, i den rekkefølgen (grovest valg først). **Alt man GJØR er en
-snarvei**, katalogisert i `lib/snarveier.js`: Stifinner, Runde, Måling, 3D,
-Annotering, Sporing, Info. Legger du til noe nytt, er spørsmålet hvilken av de
-to det er — ikke hvilken fane som har plass.
+snarvei**, katalogisert i `lib/snarveier.js`: Posisjon, Stifinner, Runde, Måling,
+3D, Annotering, Sporing, Info. Legger du til noe nytt, er spørsmålet hvilken av
+de to det er — ikke hvilken fane som har plass.
+
+**STREK OG RELIEFF ER INNSTILLINGER, og de endte der (v7.4.0).** De hadde tre
+bærere etter hverandre: et FAB-anker med tap/lang-trykk (til v7.0.0), to
+gruppe-piller med tannhjul på snarvei-radens åpen-linje (v7.0.0–v7.3.3), og et
+delt bunn-ark (`FabSettingsPanel`) bak dem begge. Alle tre er slettet. De er en
+tredje klasse kontroll — en knott med et NIVÅ — og en slik i en rad som ellers
+bare bærer funksjoner betyr at kartets uttrykk stilles inn to steder. De bor nå
+som to seksjoner NEDERST i Kartstil-fana, sammen med tema, lag og sti-farge.
+Knott-buen (`knobArc`) som viste nivået er slettet med dem: et tall ved en
+slider leses, en bue tolkes — og hele skalaen er synlig på én gang i stedet for
+ett hakk med wrap. Kommer det en fjerde knott, er den en seksjon her.
 
 **Raden MÅLER seg, den ruller ikke og den klipper ikke** (`SnarveiRad.vue`).
 Samme grep som værraden i 3D fikk i v6.3.9, og av samme grunn: en skjult gest er
-ikke en affordanse, mens en pil ned er det. Fire ting er lette å «forenkle» bort:
+ikke en affordanse, mens et håndtak er det. Fire ting er lette å «forenkle» bort:
 
-1. **Nedtrekks-knappen skjules ALDRI**, heller ikke når alt får plass på én
-   linje. Den er ikke bare «resten av funksjonene» — den er også eneste vei til
-   «Sorter snarveier», og rekkefølgen er nettopp det som avgjør hva som havner
-   bak den på en smal skjerm. Skjuler du knappen der alt får plass, forsvinner
-   sorteringen på de skjermene den er lettest å prøve ut i.
+1. **HÅNDTAKET ER ET HÅNDTAK, IKKE ENDA EN SNARVEI (v7.4.0), og det skjules
+   ALDRI.** «Mer / Mindre» var en knapp med ikon og etikett i SAMME flex-rad som
+   funksjonene — formet som en snarvei, plassert som en snarvei, og den eneste
+   knappen i raden som ikke gjorde noe med kartet. Nå er det appens grå
+   drawer-håndtak (`.snarvei-handle`), bunnplassert og midtstilt som i
+   punkt-arket: dra ned for å folde ut, opp for å legge sammen, og et trykk gjør
+   det samme så gesten aldri er eneste vei. Det står ALLTID, også når alt får
+   plass — det er også eneste vei til «Sorter snarveier», og rekkefølgen er
+   nettopp det som avgjør hva som havner bak det på en smal skjerm. Fordi det
+   ligger på sin EGEN linje under raden spiser det ikke lenger bredde fra
+   knappene, og `antallSomFar` har derfor ingen `handlePx` igjen.
+   **«Sorter snarveier» er FRISTILT** — sin egen svarte, midtstilte knapp under
+   den åpne raden, uten ikon. Den handler om RADEN og ikke om kartet, og en
+   plass mellom Måling og 3D ville gjort den til nok en ting man trykker på ved
+   et uhell.
 2. **Budsjettet er VIEWPORTEN, ikke en forelder.** Raden er en pille med
    `width: max-content` som svever midt over kartet — det finnes ingen boks som
    klemmer den, så en måling av forelderens bredde ville målt radens EGEN bredde
@@ -366,12 +397,21 @@ ikke en affordanse, mens en pil ned er det. Fire ting er lette å «forenkle» b
 3. **Knappene måles SYNLIGE.** En skjult knapp har bredde 0, så hver måling
    skjer med alle knappene i DOM-en og raden `visibility: hidden` det ene bildet
    det tar. Tekstskala og fontlasting endrer bredden, så begge utløser ommåling.
+   **SNARVEIENE FØLGER TEKSTSTØRRELSEN, OPP TIL 200 % (v7.4.0)**, som resten av
+   appen. `zoom` settes på hver KNAPP og ikke på raden: en zoomet rad skalerer
+   også sitt eget gap og sin egen polstring, og da måles et budsjett i én enhet
+   mot knapper i en annen. Med `zoom` på knappen leser `getBoundingClientRect()`
+   den ekte skjermbredden, altså nøyaktig det målingen trenger. Ved 200 % får
+   tre knapper plass i stedet for seks — det er MENINGEN, resten ligger ett drag
+   unna.
 4. **`flex-wrap: wrap` står som sikkerhetsnett i BEGGE tilstander**, med
    `flex-wrap: balance` lagt oppå i den utvidede (Chrome/Safari; andre forkaster
    linja og beholder `wrap`). Bommer målingen, koster det en ekstra linje —
    aldri en knapp utenfor skjermkanten.
 
-**POSISJON OG «NORD OPP» ER EN FAST GRUPPE I RADEN, ikke snarveier (v6.6.1).**
+**POSISJON OG «NORD OPP» VAR EN FAST GRUPPE I RADEN (v6.6.1), og gruppa falt i
+v7.3.0 — les avsnittet som en begrunnelse for at posisjonen står FØRST i
+standard-rekkefølgen, ikke som gjeldende layout.**
 De sto som to runde skiver på arkets høyre kant fra v6.5.68 — riktig tanke, feil
 sted: de lå midt i kartflata man leser. `NAV_SNARVEIER` i `lib/snarveier.js` er
 bevisst en EGEN liste og ikke to oppføringer i `SNARVEIER`, fordi de skiller seg
@@ -610,6 +650,21 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   er drevet av `pointerdown`/`pointerup` via useLongPress, så `el.click()` fra
   `page.evaluate` gjør ingenting. Bruk Playwright-locator (ekte peker-sekvens),
   eller `page.mouse.down()` + ventetid + `up()` for lang-trykk.
+- **`insertBefore`-fella: ANKERET MÅ VÆRE ET DIREKTE BARN (v7.4.0).**
+  `svg.querySelector('[data-label]')` ser ut som «første navne-lag», men den
+  FØRSTE `[data-label]` på et ekte kart er en NESTET node — `<g
+  data-label="kontur-tall">` ligger inne i `<g data-layer="kontur">`.
+  `insertBefore` svarer `NotFoundError` på en node som ikke er barn, og kastet
+  tar med seg hele funksjonen det står i. Det har smelt to ganger: fredet-
+  kulturminne-laget (`useHeritageLayers`, som nå bruker `appendChild`) og
+  dybde-laget (`useLagStyring.dybdeAnker`, v7.4.0). Den siste var dyr å finne,
+  for symptomet lå et helt annet sted: `applyLayerVisibility` kalles FØR
+  `setMapTheme` i `bruksKartStil`, så kartstilen «Padling» — den eneste som slår
+  på `dybde` — satte lagene, viste bryggene og stoppet uten å bytte tema eller
+  bli markert. Feilen krever i tillegg et kart med Sjøkart-detaljlag, altså et
+  kystkart. Trenger du en posisjon i z-rekka, plukk ankeret blant `svg.children`
+  (`dybdeAnker` gjør det og er testet), og husk at `insertBefore(node, null)` er
+  `appendChild`.
 - **Hoisting-fella (v5.12.0):** `function foo()` er HOISTET, så noen kunne godt
   sende den inn i en composable lenger OPPE i fila. Flytter du den samme
   funksjonen ut, blir den en `const` fra en destrukturering — og den er ikke

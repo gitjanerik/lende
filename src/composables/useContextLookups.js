@@ -28,7 +28,7 @@ import {
 export function useContextLookups({
   svgHostRef, wrapperRef, meta, storedDem, ensureDem, userPos, searchIndex,
   buildingOnTheFly, searchOpen, fillingInDetails, sti, scale, mapSearch,
-  contextDrawer, mapId, closeDrawer, knobPanel, proximityPanelOpen, clientToSvg,
+  contextDrawer, mapId, closeDrawer, proximityPanelOpen, clientToSvg,
 }) {
   // ── Long-press kontekstmeny ──────────────────────────────────────────────
   // Long-press (~550ms hold uten bevegelse) eller høyreklikk på kartet åpner
@@ -139,7 +139,6 @@ export function useContextLookups({
     contextMenuOpen.value = true
     contextDrawer.reset()
     closeDrawer()
-    knobPanel.value = null   // FAB-panelet viker for kontekst-arket (unngå stablede sheets)
     // v9.3.3: INGEN auto-pan av hovedkartet. Brukeren har allerede plassert/
     // zoomet/rotert kartet slik de vil — å flytte det ved long-press var
     // forvirrende og ødela oversikten. Punktet vises i pin + detalj-inset.

@@ -510,7 +510,7 @@
       },
       "520": {
         "label": "Naturreservat / verneområde",
-        "$comment": "Norge-spesifikk utvidelse: ISOM 2017-2 har ingen dedikert kode for naturvernområder. Vi bruker 520 (i ISOM = 'Out-of-bounds') for naturreservat, nasjonalpark og landskapsvernområde. Lett grønn semi-transparent overlay + tydelig grønn kant matcher Kartverkets konvensjon på Norgeskart. Renders etter vann men før konturer/veier, så underliggende terreng forblir lesbart gjennom overlayen.",
+        "$comment": "Norge-spesifikk utvidelse: ISOM 2017-2 har ingen dedikert kode for naturvernområder. Vi bruker 520 (i ISOM = 'Out-of-bounds') for naturreservat, nasjonalpark og landskapsvernområde. Lett grønn semi-transparent overlay + tydelig grønn kant matcher Kartverkets konvensjon på Norgeskart. Renders etter vann men før konturer/veier, så underliggende terreng forblir lesbart gjennom overlayen. FYLLET MÅ HA ALFA I ALLE TEMAER, og det er ikke en smakssak: 520 males ETTER vann, så en opak reservat-flate maler over innsjøen, øy-hullene og strandlinja i én flat farge. Det sto slik i alle seks monokrom-temaene fram til v7.4.0, og symptomet var «øyene forsvinner når jeg velger en Stemning — innsjøen blir heldekkende» (Nesøytjern, Asker). Vasken er temaets egen 520-KANT med alfa: kanten er allerede valgt for å leses på det temaet, og ramme og vask i samme blekk leses som étt merke. En test i symbolizer.test.js holder alfaen på plass.",
         "fill": {
           "color": "rgba(140, 198, 100, 0.32)"
         },
@@ -3066,7 +3066,7 @@
         },
         "520": {
           "fill": {
-            "color": "#fcdfa6"
+            "color": "rgba(102, 99, 92, 0.22)"
           },
           "stroke": {
             "color": "#66635c"
@@ -3430,7 +3430,7 @@
         },
         "520": {
           "fill": {
-            "color": "#15224f"
+            "color": "rgba(155, 158, 166, 0.2)"
           },
           "stroke": {
             "color": "#9b9ea6"
@@ -3794,7 +3794,7 @@
         },
         "520": {
           "fill": {
-            "color": "#003136"
+            "color": "rgba(150, 161, 162, 0.2)"
           },
           "stroke": {
             "color": "#96a1a2"
@@ -4158,7 +4158,7 @@
         },
         "520": {
           "fill": {
-            "color": "#462100"
+            "color": "rgba(164, 157, 151, 0.2)"
           },
           "stroke": {
             "color": "#a49d97"
@@ -4522,7 +4522,7 @@
         },
         "520": {
           "fill": {
-            "color": "#00340d"
+            "color": "rgba(154, 161, 154, 0.2)"
           },
           "stroke": {
             "color": "#9aa19a"
@@ -4886,7 +4886,7 @@
         },
         "520": {
           "fill": {
-            "color": "#0f0a20"
+            "color": "rgba(58, 57, 65, 0.28)"
           },
           "stroke": {
             "color": "#3a3941"

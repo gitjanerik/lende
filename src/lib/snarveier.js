@@ -11,9 +11,9 @@
  *
  * REKKEFØLGEN ER BRUKERENS. Standarden under er en påstand om hva folk bruker
  * mest, ikke en sannhet — og på en smal skjerm er det nettopp rekkefølgen som
- * avgjør hva som havner bak nedtrekket. Derfor kan den sorteres, og derfor er
- * «Sorter snarveier» en FAST knapp i nedtrekket og ikke noe som forsvinner når
- * alt får plass på én linje: en knott ingen vet om er ingen knott.
+ * avgjør hva som havner bak håndtaket. Derfor kan den sorteres, og derfor står
+ * «Sorter snarveier» som en fast, fristilt knapp under den ÅPNE raden: en knott
+ * ingen vet om er ingen knott.
  *
  * Modulen er REN — ingen DOM, ingen Vue, ingen localStorage-lesing på
  * modulnivå — slik at reglene kan enhetstestes uten en nettleser.
@@ -34,9 +34,17 @@ export const SNARVEI_REKKEFOLGE_KEY = 'lende-snarvei-rekkefolge'
 //
 // Det som gikk ut, og hvor det gikk:
 //   sok, innstillinger  → topprada, der de lå (MapView)
-//   strek, relieff      → pille-raden som kommer fram når raden åpnes
 //   utno, gmaps         → øverst i infopanelet (ContextMenuSheet)
 //   chat                → Lende-FAB-en nede til høyre, som i ruteplanleggeren
+//   strek, relieff      → Innstillinger → Kartstil (v7.4.0)
+//
+// STREK OG RELIEFF ER INNSTILLINGER, OG DE ENDTE DER (v7.4.0). De sto som to
+// gruppe-piller med tannhjul på linja raden åpnet — altså en tredje klasse
+// kontroll, med sin egen form, sitt eget bunn-ark og sitt eget hint, midt i en
+// rad som ellers bare bærer FUNKSJONER. Det er nøyaktig skillet denne fila
+// finnes for: en knott med et nivå stiller inn kartets uttrykk, og uttrykket
+// bor i Kartstil-fanen sammen med tema, lag og sti-farge. Pillene, tannhjulene,
+// gruppe-pille-formen og hele FabSettingsPanel er slettet — ikke flyttet.
 //
 // ALLE SNARVEIER ER LIKEVERDIGE (v7.3.0), og det er den siste tingen som
 // falt. Posisjon og kompasset sto en periode som en FAST venstregruppe foran
@@ -60,30 +68,6 @@ export const SNARVEIER = [
 ]
 
 export const STANDARD_REKKEFOLGE = SNARVEIER.map(s => s.id)
-
-/**
- * PILLE-RADEN (v7.2.0): strek og relieff, arven etter Lende-knottene.
- *
- * De er verken funksjoner eller innstillinger, men en tredje ting: en knott
- * med et NIVÅ man skrur på uten å åpne noe. `gruppe` gir dem to trykkflater —
- * venstre er hakket (det knott-tapet gjorde), høyre er tannhjulet som åpner
- * panelet (det lang-trykket gjorde). `bue` fylles av kallstedet med
- * knott-buens geometri; den blå/oransje ringen som viser nivået er hele
- * grunnen til at de to ikke bare er nok et strekikon.
- *
- * De sto i snarvei-raden i v7.0.0 og spiste to plasser av den på hver skjerm.
- * Nå står de på linja som kommer fram når raden åpnes — samme sted man alt
- * finner «Sorter», altså der man er når man stiller inn og ikke når man går.
- * Derfor må et trykk på knotten heller ikke lukke raden: hakket er noe man tar
- * flere av, og en rad som lukker seg etter det første er en rad man må åpne på
- * nytt for hvert hakk.
- */
-export const PILLER = [
-  { id: 'strek',   label: 'Strek',   aria: 'Strektykkelse', gruppe: true,
-    tannhjulAria: 'Strek-innstillinger for dette kartet' },
-  { id: 'relieff', label: 'Relieff', aria: 'Relieff',       gruppe: true,
-    tannhjulAria: 'Relieff-innstillinger for dette kartet' },
-]
 
 /**
  * Normaliserer en lagret rekkefølge mot katalogen: ukjente ider droppes (en
@@ -119,20 +103,20 @@ export function flyttSnarvei(rekkefolge, fra, til) {
 }
 
 /**
- * Hvor mange knapper får plass på ÉN linje ved siden av nedtrekks-knappen.
+ * Hvor mange knapper får plass på ÉN linje.
  *
- * Budsjettet er hele radens bredde minus nedtrekket, og gapet betales for hvert
- * mellomrom og ikke per knapp — en av-for-én her er én knapp for mye, altså
- * nøyaktig den overflowen målingen finnes for å unngå. Gulvet er ÉN: en rad
- * uten en eneste synlig funksjon er bare et nedtrekk, og da har raden ingen
- * grunn til å stå der.
+ * Budsjettet er hele radens bredde, og gapet betales for hvert mellomrom og
+ * ikke per knapp — en av-for-én her er én knapp for mye, altså nøyaktig den
+ * overflowen målingen finnes for å unngå. Gulvet er ÉN: en rad uten en eneste
+ * synlig funksjon er bare et håndtak, og da har raden ingen grunn til å stå der.
  *
- * `fastPx` falt bort i v7.3.0 sammen med den faste venstregruppen: nå er hver
- * knapp i raden en vanlig, målt snarvei.
+ * `fastPx` falt bort i v7.3.0 sammen med den faste venstregruppen. `handlePx`
+ * falt bort i v7.4.0: nedtrekks-KNAPPEN er byttet med et dra-håndtak på sin
+ * egen linje under raden, så den spiser ikke lenger bredde fra knappene.
  */
-export function antallSomFar(bredder, ledigPx, handlePx, gapPx) {
+export function antallSomFar(bredder, ledigPx, gapPx) {
   if (!bredder.length) return 0
-  let plass = ledigPx - handlePx - gapPx
+  let plass = ledigPx
   let n = 0
   for (const b of bredder) {
     const kost = n === 0 ? b : b + gapPx

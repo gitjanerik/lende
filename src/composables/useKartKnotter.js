@@ -47,7 +47,6 @@ export function loadKnobStep(key, def, len) {
  *     applyHillshade: () => void, updateGhostReliefOpacity: () => void,
  *     renderGhostTiles: () => Promise|void, invalidateReliefBands: () => void,
  *     scheduleNameLOD: () => void,
- *     closeDrawer: () => void, knobDrawerReset: () => void,
  *   },
  * }} deps
  */
@@ -157,31 +156,12 @@ export function useKartKnotter({
   const labelScalePct = computed(() => Math.round(userLabelScale.value * 100))
   const strokeScale = computed(() => STROKE_STEPS[strokeStepIndex.value] * strokeSizeBase(meta.value?.widthM))
   const reliefOpacity = computed(() => RELIEF_STEPS[reliefStepIndex.value])
-  const strokeFrac = computed(() => strokeStepIndex.value / (STROKE_STEPS.length - 1))
-  const reliefFrac = computed(() => reliefStepIndex.value / (RELIEF_STEPS.length - 1))
-
-  // ---- gauge-geometri og hint-boble --------------------------------
-  // Gauge-geometri: 270° sveip med gap nederst, i et 24×24 viewBox.
-  const KNOB_R = 8.5
-  function knobPolar(deg, r) {
-    const a = deg * Math.PI / 180
-    return [12 + r * Math.cos(a), 12 + r * Math.sin(a)]
-  }
-  function knobArc(frac, r = KNOB_R) {
-    if (frac <= 0) return ''
-    const sweep = 270 * frac
-    const [x0, y0] = knobPolar(135, r)
-    const [x1, y1] = knobPolar(135 + sweep, r)
-    const large = sweep > 180 ? 1 : 0
-    return `M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`
-  }
-  const knobTrackD = knobArc(1)
-  const strokeArcD = computed(() => knobArc(strokeFrac.value))
-  const reliefArcD = computed(() => knobArc(reliefFrac.value))
-  // Senter-strek tegnes i faktisk valgt tykkelse — selv-demonstrerende ikon.
-  const strokeGlyphW = computed(() => (0.9 + 3.0 * strokeFrac.value).toFixed(2))
-  const reliefGlyphOpacity = computed(() => (0.18 + 0.7 * reliefFrac.value).toFixed(2))
-
+  // ---- hint-boble ---------------------------------------------------
+  // GAUGE-GEOMETRIEN ER SLETTET (v7.4.0). `knobArc` tegnet 270°-buen som viste
+  // nivået i Strek- og Relieff-ikonene, først på Lende-knottene og så på de to
+  // gruppe-pillene i snarvei-raden. Begge bærerne er borte: nivået står nå som
+  // et tall ved siden av sliderne i Innstillinger → Kartstil, der det er lest
+  // og ikke gjettet av en bue.
   // Transient hint-boble ved justering.
   const knobHint = ref('')
   let knobHintTimer = null
@@ -318,52 +298,22 @@ export function useKartKnotter({
     flashKnobHint(reliefMode.value === 'vektor' ? 'Skarpt relieff (vektor)' : 'Mjukt relieff (bilde)')
   })
 
-  // ---- hva et hakk og et panel BETYR -------------------------------
-  // KNOTTENE ER SNARVEIER, OG GESTEN ER BORTE (v7.0.0). Tap og lang-trykk på et
-  // FAB-anker er byttet med en pille som har to trykkflater: venstre halvdel
-  // kaller `onFabKnobTap` (ett hakk opp, med wrap), tannhjulet til høyre
-  // kaller `onFabKnobHold` (åpne panelet). Navnene står igjen fordi de sier
-  // hva handlingen ER, ikke hvordan den ble utløst — og `useLongPress` er ikke
-  // lenger involvert. Den tredje knotten, «Sentrer», er absorbert av «Nord
-  // opp» i nav-gruppen, så kind er nå bare de to som har et panel.
-  const knobPanel = ref(null)   // 'stroke' | 'relief' | null
-
-  function onFabKnobTap(kind) {
-    if (kind === 'stroke') {
-      strokeStepIndex.value = (strokeStepIndex.value + 1) % STROKE_STEPS.length
-    } else if (kind === 'relief') {
-      // Auto-av fra et monokrom-tema er ment å være lett å angre: ett tap skrur
-      // relieffet på igjen i stedet for å telle et hakk. Brukerens eget «av»
-      // (reliefEnabled) beholder derimot dagens hold-for-innstillinger-vakt.
-      if (reliefAutoOff.value) {
-        clearReliefAutoOff()
-        flashKnobHint('Relieff på')
-        return
-      }
-      if (!reliefEnabled.value) { flashKnobHint('Relieff er av — se tannhjulet'); return }
-      reliefStepIndex.value = (reliefStepIndex.value + 1) % RELIEF_STEPS.length
-    }
-  }
-
-  function onFabKnobHold(kind) {
-    hooks.closeDrawer()        // hovedmeny-skuffen viker for panelet (som ved long-press på kart)
-    hooks.knobDrawerReset()   // alltid åpne i standard-høyde (45 dvh)
-    knobPanel.value = kind
-  }
-
-  // ---- panel-handlinger: standard og nullstill ---------------------
-
-  // Panel-handlinger: «Angi som standard» løfter kartets verdier til global
-  // standard; «Nullstill» setter kartet tilbake (strek → 1× + knott-default,
-  // relieff → på + vektor + knott-default). Feedback vises i panel-footeren
-  // (panelHint) — knobHint-bobla ligger bak panelet.
-  const panelHint = ref('')
-  let panelHintTimer = null
-  function flashPanelHint(text) {
-    panelHint.value = text
-    if (panelHintTimer) clearTimeout(panelHintTimer)
-    panelHintTimer = setTimeout(() => { panelHint.value = '' }, 2000)
-  }
+  // ---- seksjons-handlinger: standard og nullstill ------------------
+  //
+  // KNOTTENE OG PANELET ER SLETTET (v7.4.0). Strek og relieff hadde tre bærere
+  // etter hverandre — et FAB-anker med tap/lang-trykk (til v7.0.0), to
+  // gruppe-piller med tannhjul i snarvei-raden (v7.0.0–v7.3.3), og et delt
+  // bunn-ark (`FabSettingsPanel`) bak dem begge. Alle tre er borte. De to er
+  // INNSTILLINGER, og de bor nå nederst i Innstillinger → Kartstil, sammen med
+  // tema, lag og sti-farge — der nivået står som et TALL ved en slider i stedet
+  // for som en bue man skal tolke, og der «ett hakk opp med wrap» ikke lenger
+  // trengs fordi hele skalaen er synlig på én gang.
+  //
+  // «Angi som standard» løfter kartets verdier til global standard; «Nullstill»
+  // setter kartet tilbake (strek → 1× + knott-default, relieff → på + vektor +
+  // knott-default). Feedback går til den vanlige hint-bobla over kartet, som
+  // for hvert annet knott-hakk — seksjonen har ingen egen footer å skrive i.
+  const flashPanelHint = flashKnobHint
   function strokePanelSaveDefault() {
     strokeTuning.saveAsDefault()
     trailColors.saveAsDefault()
@@ -387,10 +337,6 @@ export function useKartKnotter({
     reliefStepIndex.value = RELIEF_DEFAULT_IDX
     flashPanelHint('Relieff nullstilt')
   }
-  function closeKnobPanel() {
-    knobPanel.value = null
-    panelHint.value = ''
-  }
   // Per-kart-binding: alle tre overstyrings-lagene (strek-tuning, sti-farger,
   // relieff) må følge kartet som vises. Én funksjon i stedet for tre kall fra
   // MapView, så det ikke er mulig å glemme det tredje ved neste kartbytte.
@@ -407,8 +353,6 @@ export function useKartKnotter({
     labelScaleSlider, userLabelScale, labelScalePct,
     LABEL_SCALE_MIN, LABEL_SCALE_MAX, STROKE_STEPS, RELIEF_STEPS, RELIEF_BANDS,
     FRESH_RELIEF_MIN_IDX, RELIEF_LS_KEY, RELIEF_DEFAULT_IDX,
-    // gauge-geometri for FAB-ene
-    knobTrackD, strokeArcD, reliefArcD, strokeGlyphW, reliefGlyphOpacity,
     knobHint, flashKnobHint,
     // relieff
     reliefEnabled, reliefMode, reliefActive, reliefAutoOff,
@@ -416,11 +360,10 @@ export function useKartKnotter({
     // panel-innhold
     strokeTuning, strokeEffective, trailColors, trailColorsEffective,
     trailColorsOverridden, trailColorSwatches,
-    knobPanel, panelHint, flashPanelHint, closeKnobPanel,
+    flashPanelHint,
     strokePanelSaveDefault, strokePanelReset, trailColorsReset,
     reliefPanelSaveDefault, reliefPanelReset,
     // gest-betydning
-    onFabKnobTap, onFabKnobHold,
     // applisering (kalles også ved kart-bytte fra useMapLoadPipeline)
     applyStrokeScale, applyStrokeOverrides, applyTrailColors,
     applyLabelScale, applyLabelFonts,

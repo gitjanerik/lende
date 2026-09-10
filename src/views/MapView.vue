@@ -99,7 +99,7 @@ import { buildTrailColorCss, normalizeHex } from '../lib/trailColors.js'
 import { DEFAULT_VISIBLE_LAYER_KEYS } from '../lib/mapLayerCatalog.js'
 import { listThemes, erMorktTema } from '../lib/mapSettingsApply.js'
 import { SNARVEI_REKKEFOLGE_KEY, STANDARD_REKKEFOLGE, normaliserRekkefolge,
-         snarveierIRekkefolge, PILLER } from '../lib/snarveier.js'
+         snarveierIRekkefolge } from '../lib/snarveier.js'
 import { norwegianName } from '../lib/placeName.js'
 import AnnotationIcon from '../components/AnnotationIcon.vue'
 import TrackElevationSheet from '../components/TrackElevationSheet.vue'
@@ -112,7 +112,6 @@ import MapScaleAttribution from '../components/MapScaleAttribution.vue'
 import KulturminneSheet from '../components/KulturminneSheet.vue'
 import TekstStorrelseKnapp from '../components/TekstStorrelseKnapp.vue'
 import HydroStationSheet from '../components/HydroStationSheet.vue'
-import FabSettingsPanel from '../components/FabSettingsPanel.vue'
 import MapModeChips from '../components/MapModeChips.vue'
 import SnarveiRad from '../components/SnarveiRad.vue'
 import FunksjonDrawer from '../components/FunksjonDrawer.vue'
@@ -476,13 +475,6 @@ const drawer = useDraggableDrawer({ expandedHeight: 0.45, minimizedPeek: MAIN_DR
 // minimer (v11.0.61). Minimert viser håndtak + koordinat-header; resten (inset
 // + info) skjules under skjermkanten. Lukkes fortsatt helt med X.
 const contextDrawer = useDraggableDrawer({ expandedHeight: 0.45, minimizedPeek: CONTEXT_DRAWER_PEEK_PX, maxTopGapPx: MAX_DRAWER_TOP_GAP_PX, allowMinimize: true })
-// FAB-panelenes peek: håndtak + tittel-header synlig når minimert.
-const KNOB_PANEL_PEEK_PX = 76
-// FAB-innstillingspanelene (strek/relieff/zoom): SAMME drawer-UX som kontekst-
-// skuffen — 45 dvh standard, dra i håndtaket for å maksimere/minimere. Minimert
-// lar brukeren lynraskt justere → minimere → se på kartet → maksimere igjen.
-const knobDrawer = useDraggableDrawer({ expandedHeight: 0.45, minimizedPeek: KNOB_PANEL_PEEK_PX, maxTopGapPx: MAX_DRAWER_TOP_GAP_PX, allowMinimize: true })
-
 // ── FUNKSJONS-SKUFFENE (v6.6.0) ───────────────────────────────────────────
 // Måling, Sporing og Annotering var faner i innstillings-skuffen. Nå har hver
 // av dem sitt eget ark, med SAMME form som punkt-arket: 45 dvh starthøyde,
@@ -513,10 +505,6 @@ function lukkFunksjonsSkuffer() {
   sporingOpen.value = false
   avsluttAnnotering()
   sorterOpen.value = false
-  // Knott-panelet (strek/relieff) er det femte arket på samme z-40, og de tre
-  // inngangene fra snarvei-radens nederste linje kan nå hverandre i begge
-  // retninger: Sorter → Strek → Relieff. Ryddes det ikke her, stables de.
-  closeKnobPanel()
 }
 // Å lukke annoterings-arket avslutter OGSÅ plasserings-modusen (v6.6.3).
 // Arket er det eneste stedet modusen kan ses eller slås av: velger man
@@ -1035,16 +1023,13 @@ const {
   labelScaleSlider, userLabelScale, labelScalePct,
   LABEL_SCALE_MIN, LABEL_SCALE_MAX, STROKE_STEPS, RELIEF_STEPS, RELIEF_BANDS,
   FRESH_RELIEF_MIN_IDX, RELIEF_LS_KEY, RELIEF_DEFAULT_IDX,
-  knobTrackD, strokeArcD, reliefArcD, strokeGlyphW, reliefGlyphOpacity,
   knobHint, flashKnobHint,
   reliefEnabled, reliefMode, reliefActive, reliefAutoOff,
   globalReliefEnabled, globalReliefMode, clearReliefAutoOff,
   strokeTuning, strokeEffective, trailColors, trailColorsEffective,
   trailColorSwatches,
-  knobPanel, panelHint, flashPanelHint, closeKnobPanel,
   strokePanelSaveDefault, strokePanelReset,
   reliefPanelSaveDefault, reliefPanelReset,
-  onFabKnobTap, onFabKnobHold,
   applyStrokeScale, applyStrokeOverrides, applyTrailColors,
   applyLabelScale, applyLabelFonts,
 } = useKartKnotter({
@@ -1059,8 +1044,6 @@ const {
     renderGhostTiles: () => renderGhostTiles(),
     invalidateReliefBands: () => invalidateReliefBands(),
     scheduleNameLOD: () => scheduleNameLOD(),
-    closeDrawer: () => closeDrawer(),
-    knobDrawerReset: () => knobDrawer.reset(),
   },
 })
 
@@ -1089,7 +1072,6 @@ async function rebuildAtChosenSize(km = mapSizeKm.value) {
     aspect: aspectForFormat(mapFormat.value),
   }
   closeDrawer()
-  knobPanel.value = null
   buildingOnTheFly.value = true
   buildingProgress.value = 'Bygger om i valgt størrelse …'
   try {
@@ -1725,7 +1707,7 @@ const {
 } = useContextLookups({
   svgHostRef, wrapperRef, meta, storedDem, ensureDem, userPos, searchIndex,
   buildingOnTheFly, searchOpen, fillingInDetails, sti, scale, mapSearch,
-  contextDrawer, mapId, closeDrawer, knobPanel, proximityPanelOpen, clientToSvg,
+  contextDrawer, mapId, closeDrawer, proximityPanelOpen, clientToSvg,
 })
 
 // Utgående deling (kart, sted, tur) — plassert HER fordi den trenger
@@ -1752,7 +1734,6 @@ const fabFloat = useFloatAboveSheets(
   () => [
     { open: showControls, drawer },
     { open: contextMenuOpen, drawer: contextDrawer },
-    { open: () => !!knobPanel.value, drawer: knobDrawer },
     { open: kulturminneOpen, drawer: kulturminneDrawer },
     { open: hydroOpen, drawer: hydroDrawer },
     { open: maalingOpen, drawer: maalingDrawer },
@@ -1985,18 +1966,6 @@ function settSnarveiRekkefolge(ny) {
 // Samme port som fanene hadde: på de innebygde demokartene finnes verken egne
 // markeringer eller GPS-spor, så Annotering og Sporing står ikke i raden.
 const egetKart = computed(() => !(route.params.id ?? 'vardasen').startsWith('vardasen'))
-// KNOTT-RINGEN BLE MED (v7.0.0). Den blå buen sier hvor tykk streken er og den
-// oransje hvor mye relieff — et nivå man ser uten å åpne noe. Geometrien er
-// den samme `knobArc` knottene brukte; bare bæreren er ny.
-const strekBue = computed(() => ({
-  trackD: knobTrackD, arcD: strokeArcD.value, farge: '#38bdf8',
-  strekBredde: strokeGlyphW.value,
-}))
-const relieffBue = computed(() => ({
-  trackD: knobTrackD, arcD: reliefArcD.value, farge: '#f59e0b',
-  flateOpacity: reliefGlyphOpacity.value,
-}))
-
 const synligeSnarveier = computed(() =>
   snarveierIRekkefolge(snarveiRekkefolge.value, { egetKart: egetKart.value })
     .map(s => s.id === 'posisjon'
@@ -2004,12 +1973,6 @@ const synligeSnarveier = computed(() =>
           ariaTekst: userPos.isWatching ? 'Posisjon på. Slå av.' : 'Posisjon av. Slå på.' }
       : s))
 
-// Pillene på åpen-linja (v7.2.0). Katalogen bærer etiketten og aria-teksten;
-// nivået — buens geometri, og om relieffet i det hele tatt er på — er kartets
-// og fylles her.
-const snarveiPiller = computed(() => PILLER.map(p =>
-  p.id === 'strek' ? { ...p, bue: strekBue.value }
-  : { ...p, bue: relieffBue.value, dimmet: !reliefActive.value }))
 const skjulteSnarveiIder = computed(() => {
   const synlige = new Set(synligeSnarveier.value.map(s => s.id))
   return snarveiRekkefolge.value.filter(id => !synlige.has(id))
@@ -2030,12 +1993,6 @@ const SNARVEI_HANDLING = {
   annotering: () => onShortcutAnnotering(),
   sporing: () => onShortcutSporing(),
   info: () => onShortcutInfo(),
-  // Arven etter Lende-knappen (v7.0.0): et trykk på pillens venstre halvdel er
-  // det knott-tapet var — ett hakk opp, med wrap. Tannhjulet til høyre er det
-  // lang-trykket var (`onSnarveiInnstilling`). Pillene er ikke i katalogen,
-  // men de kommer inn samme vei, og betydningen hører hjemme her med resten.
-  strek: () => onFabKnobTap('stroke'),
-  relieff: () => onFabKnobTap('relief'),
 }
 
 // DE EKSTERNE KARTENE BOR I INFOPANELET (v7.2.0). De var chips i hovedmenyen
@@ -2065,32 +2022,13 @@ function onApneEksterntKart(id) {
 }
 function onSnarvei(id) { SNARVEI_HANDLING[id]?.() }
 
-// Tannhjulet i de to gruppe-pillene. Katalogen kjenner bare id-en; hvilket
-// panel den åpner bor her, som resten av snarvei-betydningen.
-const SNARVEI_PANEL = { strek: 'stroke', relieff: 'relief' }
-function onSnarveiInnstilling(id) {
-  const panel = SNARVEI_PANEL[id]
-  if (!panel) return
-  // Lukk FØR vi åpner: `onFabKnobHold` rydder bare hovedmeny-skuffen, så uten
-  // dette ville et tannhjul-trykk lagt panelet oppå et åpent Sorter-ark — og
-  // det andre tannhjulet oppå det første.
-  lukkFunksjonsSkuffer()
-  onFabKnobHold(panel)
-}
-
 // Løftet over navigasjonssøyla mens raden er åpen — se malen.
 const snarveiApen = ref(false)
 
-// HINTET PEKER PÅ PILLA DET GJELDER (v7.3.0). «Strek 0,11×» sto sentrert under
-// hele raden, altså rett under Relieff på en telefon. Teksten begynner med
-// pillens egen etikett, så koblingen er allerede der; den var bare ikke brukt.
-// Hint fra knotter som IKKE har en pille (tekststørrelse, font — de bor i
-// skuffen) faller tilbake på den sentrerte bobla under raden.
-const knobHintPille = computed(() =>
-  PILLER.find(p => (knobHint.value || '').startsWith(p.label))?.id || '')
-const knobHintISkuff = computed(() => !!knobHint.value
-  && !(snarveiApen.value && knobHintPille.value))
-
+// KNOTT-HINTET ER TILBAKE TIL ÉN BOBLE (v7.4.0). Den pekte på pilla den gjaldt
+// så lenge strek og relieff sto i raden; nå kommer alle hint fra knotter i
+// skuffen (strek, relieff, tekststørrelse, font), og bobla står midtstilt under
+// raden slik den gjorde før pillene fantes.
 function onApneSortering() {
   closeDrawer()
   lukkFunksjonsSkuffer()
@@ -2773,8 +2711,8 @@ onUnmounted(() => {
     <!-- SNARVEI-RADEN: turkart-modusens FUNKSJONER (v6.6.0). Alt man GJØR
          ligger her; innstillings-skuffen er bare innstillinger. Raden måler
          seg selv og legger det som ikke får plass bak et nedtrekk — se
-         SnarveiRad.vue. Rekkefølgen er brukerens, og «Sorter» står sammen med
-         strek- og relieff-pillene på linja som kommer fram når raden åpnes.
+         SnarveiRad.vue. Rekkefølgen er brukerens, og «Sorter snarveier» står
+         som en fristilt knapp under raden når den er foldet ut.
          Skjules når en modus (stifinner/måling/annotering) eller søk er aktiv,
          mens kartet bygges/utvides, og når highlight-pillen vises — bygge-chipen
          og pillen bruker samme --ovl-top-slot og ville kollidert. Det gjelder
@@ -2791,18 +2729,16 @@ onUnmounted(() => {
          :class="snarveiApen ? 'z-30' : 'z-20'"
          :style="snarveiRadStyle">
       <div class="flex flex-col items-center gap-1 w-full">
-        <SnarveiRad :snarveier="synligeSnarveier" :piller="snarveiPiller"
-                    :hint="knobHint" :hint-pille="knobHintPille"
+        <SnarveiRad :snarveier="synligeSnarveier"
                     :ui-text-scale="uiTextScale"
-                    @velg="onSnarvei"
-                    @innstilling="onSnarveiInnstilling" @sorter="onApneSortering"
+                    @velg="onSnarvei" @sorter="onApneSortering"
                     @apen="snarveiApen = $event" />
         <!-- KNOTT-HINTET FULGTE MED KNOTTENE (v7.0.0). «Strek 1,20×» var
              FAB-ankerets hint-boble, og uten den er et hakk opp en usynlig
              endring på et tett kart. Den står nå under raden trykket kom fra,
              og er pekerdød: den svarer, den kan ikke trykkes på. -->
         <Transition name="snarvei-fade">
-          <div v-if="knobHintISkuff" role="status" aria-live="polite"
+          <div v-if="knobHint" role="status" aria-live="polite"
                class="px-3 py-1.5 rounded-lg bg-overlay/95 text-ink text-[11px] font-medium
                       leading-tight shadow-lg whitespace-nowrap pointer-events-none
                       border border-ink/10">
@@ -3270,7 +3206,19 @@ onUnmounted(() => {
             :aktiv-stil="aktivStil" :velg-stil="bruksKartStil"
             :aktiv-sti-palett="aktivStiPalett" :velg-sti-palett="velgStiPalett"
             :trail-swatches="trailColorSwatches"
-            :set-trail-color="(role, v) => trailColors.setColor(role, v)" />
+            :set-trail-color="(role, v) => trailColors.setColor(role, v)"
+            :strek-trinn="strokeStepIndex" :strek-trinn-antall="STROKE_STEPS.length"
+            :strek-skala="strokeScale" :stroke-effective="strokeEffective"
+            :relief-trinn="reliefStepIndex" :relief-trinn-antall="RELIEF_STEPS.length"
+            :relief-prosent="Math.round(reliefOpacity * 100)"
+            :relief-auto-av="reliefAutoOff"
+            v-model:relief-enabled="reliefEnabled"
+            v-model:relief-mode="reliefMode"
+            @set-strek-trinn="strokeStepIndex = $event"
+            @set-stroke-group="(id, v) => strokeTuning.setGroup(id, v)"
+            @strek-standard="strokePanelSaveDefault" @strek-nullstill="strokePanelReset"
+            @set-relief-trinn="reliefStepIndex = $event"
+            @relieff-standard="reliefPanelSaveDefault" @relieff-nullstill="reliefPanelReset" />
 
           <DrawerLayersTab v-show="activeTab === 'lag'"
             id="drawer-panel-lag" role="tabpanel" aria-labelledby="drawer-fane-lag"
@@ -3332,21 +3280,6 @@ onUnmounted(() => {
         </div>
       </div>
     </Transition>
-
-    <!-- Knott-panelet: tannhjulet i Strek- og Relieff-pillene åpner ett delt
-         bottom-sheet. Het FAB-panelet til v7.0.0, da ankeret og det tredje
-         panelet («Zoom og kartutsnitt») forsvant. -->
-    <FabSettingsPanel
-      :panel="knobPanel"
-      :drawer="knobDrawer"
-      :stroke-effective="strokeEffective"
-      v-model:relief-enabled="reliefEnabled"
-      v-model:relief-mode="reliefMode"
-      :hint="panelHint"
-      @close="closeKnobPanel"
-      @set-stroke-group="(id, v) => strokeTuning.setGroup(id, v)"
-      @save-default="knobPanel === 'stroke' ? strokePanelSaveDefault() : reliefPanelSaveDefault()"
-      @reset="knobPanel === 'stroke' ? strokePanelReset() : reliefPanelReset()" />
 
     <!-- Long-press kontekstmeny (bottom-sheet). Åpnes ved long-press eller
          høyreklikk på kartet. Viser koordinater, høyde, nærmeste sted/sti,
