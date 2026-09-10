@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   SNARVEIER, STANDARD_REKKEFOLGE, normaliserRekkefolge, snarveierIRekkefolge,
-  flyttSnarvei, antallSomFar, flytteIndeks, PILLER,
+  flyttSnarvei, antallSomFar, flytteIndeks,
 } from './snarveier.js'
 
 describe('katalogen', () => {
@@ -13,7 +13,7 @@ describe('katalogen', () => {
   it('bærer BARE funksjonene, slanket tilbake etter felttesten (v7.2.0)', () => {
     // Alt som ikke GJØR noe med kartet er ute igjen: søket og innstillingene
     // står i topprada, de eksterne kartene øverst i infopanelet, chatten i
-    // Lende-FAB-en, og strek/relieff i PILLER.
+    // Lende-FAB-en, og strek/relieff i Innstillinger → Kartstil (v7.4.0).
     expect(STANDARD_REKKEFOLGE).toEqual(
       ['posisjon', 'stifinner', 'runde', 'maaling', 'tre-d', 'annotering',
        'sporing', 'info'])
@@ -26,21 +26,13 @@ describe('katalogen', () => {
     expect(STANDARD_REKKEFOLGE[0]).toBe('posisjon')
     expect(STANDARD_REKKEFOLGE).not.toContain('kompass')
   })
-  it('har ingen piller — de er sin egen liste', () => {
+  it('bærer ingen knotter — strek og relieff er innstillinger (v7.4.0)', () => {
+    // De sto som gruppe-piller ved siden av funksjonene fram til v7.4.0, med
+    // en egen form (`gruppe`) og et eget bunn-ark. Begge deler er slettet, og
+    // en gjenoppstått `gruppe`-oppføring her ville bygget pille-formen på nytt.
     expect(SNARVEIER.some(s => s.gruppe)).toBe(false)
-  })
-})
-
-describe('PILLER', () => {
-  it('er strek og relieff, med tannhjul og en egen aria-tekst', () => {
-    // `gruppe` er kontrakten SnarveiRad rendrer den andre trykkflata av, og
-    // uten en aria-tekst er tannhjulet en knapp uten navn.
-    expect(PILLER.map(p => p.id)).toEqual(['strek', 'relieff'])
-    expect(PILLER.every(p => p.gruppe && p.tannhjulAria && p.label && p.aria)).toBe(true)
-  })
-  it('ligger utenfor den sorterbare katalogen', () => {
-    const ider = new Set(STANDARD_REKKEFOLGE)
-    for (const p of PILLER) expect(ider.has(p.id)).toBe(false)
+    expect(STANDARD_REKKEFOLGE).not.toContain('strek')
+    expect(STANDARD_REKKEFOLGE).not.toContain('relieff')
   })
 })
 
@@ -96,15 +88,16 @@ describe('flyttSnarvei', () => {
 
 describe('antallSomFar', () => {
   it('betaler gap for mellomrommene og ikke for første knapp', () => {
-    // 3 × 70 px + 2 × 4 px gap = 218; pluss handle 36 + gap 4 = 258.
-    expect(antallSomFar([70, 70, 70], 258, 36, 4)).toBe(3)
-    expect(antallSomFar([70, 70, 70], 257, 36, 4)).toBe(2)
+    // 3 × 70 px + 2 × 4 px gap = 218. Håndtaket ligger på sin EGEN linje under
+    // raden fra v7.4.0 og spiser derfor ingen bredde her.
+    expect(antallSomFar([70, 70, 70], 218, 4)).toBe(3)
+    expect(antallSomFar([70, 70, 70], 217, 4)).toBe(2)
   })
   it('gulvet er én knapp', () => {
-    expect(antallSomFar([200, 200], 10, 36, 4)).toBe(1)
+    expect(antallSomFar([200, 200], 10, 4)).toBe(1)
   })
   it('gir null uten knapper', () => {
-    expect(antallSomFar([], 500, 36, 4)).toBe(0)
+    expect(antallSomFar([], 500, 4)).toBe(0)
   })
 })
 

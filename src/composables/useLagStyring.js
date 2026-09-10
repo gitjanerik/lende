@@ -23,6 +23,36 @@ import {
 } from '../lib/mapLayerCatalog.js'
 
 /**
+ * Hvor dybde-hovedlaget skal settes inn: rett ETTER siste vann-gruppe, altså
+ * over sjø/innsjø/bekk og under alt planimetri og alle navn.
+ *
+ * ANKERET MÅ VÆRE ET DIREKTE BARN AV SVG-EN, og det er hele grunnen til at
+ * regelen står her som en egen, testet funksjon. Fram til v7.4.0 var den
+ * `svg.querySelector('[data-label]')` — og på et ekte kart er den FØRSTE
+ * `[data-label]` en NESTET node: `<g data-label="kontur-tall">` ligger inne i
+ * `<g data-layer="kontur">`. `insertBefore` kaster `NotFoundError` på en node
+ * som ikke er barn, og kastet drepte hele `applyLayerVisibility` — som kalles
+ * FØR `setMapTheme` i `bruksKartStil`. Symptomet var at kartstilen «Padling»
+ * (den eneste som slår på `dybde`) satte lagene og så stoppet: bryggene kom
+ * fram, mens temaet og den grønne markeringen aldri fulgte etter. Nøyaktig
+ * samme felle som fredet-kulturminne-laget gikk i, se useHeritageLayers.
+ *
+ * `insertBefore(node, null)` er `appendChild`, så et kart uten vann-grupper
+ * legger laget øverst i stedet for å kaste.
+ *
+ * @param {SVGElement} svg  kart-SVG-ens rot
+ * @returns {ChildNode|null} noden dybde-laget skal settes inn foran
+ */
+export function dybdeAnker(svg) {
+  let sisteVann = null
+  for (const el of svg.children) {
+    const lag = el.getAttribute?.('data-layer')
+    if (lag === 'vann' || lag === 'bekk') sisteVann = el
+  }
+  return sisteVann?.nextSibling ?? null
+}
+
+/**
  * @param {{
  *   svgHostRef: import('vue').Ref,
  *   detachedDetailLayers: () => Array<Element>,   // getter: lista byttes ut
@@ -97,10 +127,7 @@ export function useLagStyring({ svgHostRef, detachedDetailLayers, hooks }) {
       c.removeAttribute('data-detail')
       wrap.appendChild(c)
     }
-    // Under navne-labels, over vann/marine — sett inn foran første label-gruppe.
-    const before = svg.querySelector('[data-label]')
-    if (before) svg.insertBefore(wrap, before)
-    else svg.appendChild(wrap)
+    svg.insertBefore(wrap, dybdeAnker(svg))
   }
   function toggleDepth() {
     const next = new Set(visibleLayers.value)

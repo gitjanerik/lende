@@ -3,13 +3,11 @@
 // innrykkede <svg>-blokker midt i MapView-malen; nå trengs de tre steder —
 // raden, nedtrekket og sorterings-lista — og en kopi per sted er en kopi som
 // kommer i utakt.
-// `bue` er knott-geometrien for Strek og Relieff (v7.0.0): den blå/oransje
-// ringen som viser NIVÅET, arvet fra Lende-knappens knotter. Den kommer inn
-// utenfra fordi tallene bor i useKartKnotter — ikonet tegner, det regner ikke.
+// STREK- OG RELIEFF-IKONENE ER UTE (v7.4.0), og med dem `bue`-propen: den bar
+// knott-gaugens geometri for de to gruppe-pillene, og pillene er slettet. Strek
+// og relieff er innstillinger og bor i Innstillinger → Kartstil.
 defineProps({
   id: { type: String, required: true },
-  // { trackD, arcD, farge, strekBredde?, flateOpacity? }
-  bue: { type: Object, default: null },
 })
 </script>
 
@@ -69,27 +67,6 @@ defineProps({
     <template v-else-if="id === 'gmaps'">
       <path d="M9 4 3 6.2v13.6L9 17.6l6 2.2 6-2.2V4l-6 2.2z"/>
       <path d="M9 4v13.6M15 6.2v13.6"/>
-    </template>
-    <!-- ARVEN ETTER LENDE-KNAPPEN (v7.0.0). Buen er den samme 270°-gaugen
-         knottene bar, og glyfen demonstrerer seg selv: streken tegnes i den
-         tykkelsen som er valgt, og fjellets skygge i den opasiteten. Uten
-         `bue` (sorterings-lista, som ikke kjenner kart-tilstanden) tegnes bare
-         glyfen i nøytral form — en tom gauge ville løyet om et nivå på null. -->
-    <template v-else-if="id === 'strek'">
-      <template v-if="bue">
-        <path :d="bue.trackD" stroke="currentColor" stroke-width="2" opacity="0.22"/>
-        <path :d="bue.arcD" :stroke="bue.farge" stroke-width="2"/>
-      </template>
-      <line x1="7.5" y1="12" x2="16.5" y2="12" :stroke-width="bue?.strekBredde ?? 2"/>
-    </template>
-    <template v-else-if="id === 'relieff'">
-      <template v-if="bue">
-        <path :d="bue.trackD" stroke="currentColor" stroke-width="2" opacity="0.22"/>
-        <path :d="bue.arcD" :stroke="bue.farge" stroke-width="2"/>
-      </template>
-      <path d="M6.5 15.5 L9.5 10 L11.8 12.8 L14.3 8.5 L17.5 15.5 Z"
-            fill="currentColor" :fill-opacity="bue?.flateOpacity ?? 0.45"
-            stroke-width="1"/>
     </template>
     <!-- Chatten (v7.0.0): en snakkeboble med tre prikker. Ingen Lende-logo —
          logoen var ANKERET, og et ikon som ser ut som appen selv sier «hjem»

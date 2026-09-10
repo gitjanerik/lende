@@ -419,3 +419,39 @@ describe('507 sti-prikker — blekk-andelen i prikkelinja', () => {
     }
   })
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ISOM 520 (naturreservat) MÅ HA ALFA I HVERT ENESTE TEMA.
+//
+// Overlayen males ETTER vann, så et opakt fyll maler over innsjøen, øy-hullene
+// og strandlinja i én flat farge. Alle seks monokrom-temaene hadde et opakt
+// hex her fram til v7.4.0, og feilen ser ikke ut som en fargefeil i det hele
+// tatt: brukeren melder «øyene forsvinner når jeg velger en Stemning —
+// innsjøen blir heldekkende». Testen er billig og fanger nøyaktig det.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('naturreservat-overlayen (520) slipper kartet gjennom', () => {
+  const alfa = (farge) => {
+    const m = /^rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*([\d.]+)\s*\)$/.exec(farge || '')
+    return m ? Number(m[1]) : null
+  }
+  const basis = isomCatalog.categories.manmade['520'].fill.color
+
+  it('katalogens egen 520 er semi-transparent', () => {
+    expect(alfa(basis)).toBeGreaterThan(0)
+    expect(alfa(basis)).toBeLessThan(1)
+  })
+
+  it('ingen tema bytter den mot et opakt fyll', () => {
+    const overstyringer = Object.entries(isomCatalog.themes)
+      .map(([navn, t]) => [navn, t.categories?.['520']?.fill?.color])
+      .filter(([, farge]) => !!farge)
+    // Vakt mot at testen stille slutter å dekke noe.
+    expect(overstyringer.length).toBeGreaterThan(0)
+    for (const [navn, farge] of overstyringer) {
+      const a = alfa(farge)
+      expect(a, `tema «${navn}» setter 520 til «${farge}» — den må ha alfa`).not.toBeNull()
+      expect(a, `tema «${navn}»`).toBeGreaterThan(0)
+      expect(a, `tema «${navn}»`).toBeLessThan(1)
+    }
+  })
+})
