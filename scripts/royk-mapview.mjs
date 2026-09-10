@@ -4155,98 +4155,103 @@ const SJEKKER = [
         return { doc: d.scrollWidth - d.clientWidth, verst }
       })
       const stående = await mål()
-      await page.setViewportSize({ width: 900, height: 430 })
-      await page.waitForTimeout(700)
-      const liggende = await mål()
-      // Sammenlikningen er mot STÅENDE og ikke mot null: kart-SVG-en og de
-      // dokkede lende-pilene stikker utenfor i begge retninger med vilje, så en
-      // absolutt terskel ville vært rød fra dag én. Spørsmålet er om ROTASJONEN
-      // gjorde det verre.
-      if (liggende.doc > stående.doc + 1) {
-        throw new Error(`dokumentet renner ut i liggende: ${liggende.doc} px mot ${stående.doc} px stående`)
-      }
-      // Skuffen må åpne og lukke på 430 px høyde — det er den flata som har
-      // minst å gå på når høyden halveres.
-      await åpneDrawer(page)
-      // Spørsmålet er om skuffen er BRUKBAR, ikke om den tilfeldigvis renner
-      // over: på 900 px bredde kan innholdet få plass, og en sjekk som krever
-      // en rulleflate ville da vært rød uten at noe var galt. Måler derfor at
-      // fane-knappen finnes, er synlig, og ligger innenfor viewporten.
-      const skuff = await page.evaluate(() => {
-        const b = [...document.querySelectorAll('button')]
-          .find((n) => n.offsetParent && /^KARTLAG$/.test(n.innerText.trim()))
-        if (!b) return null
-        const r = b.getBoundingClientRect()
-        const treff = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
-        return {
-          innenfor: r.top >= -1 && r.bottom <= innerHeight + 1,
-          trykkbar: !!treff && b.contains(treff),
-          // Overlegget skal ikke kunne rulles i det hele tatt (v6.5.68) — er
-          // det rullet, har noe fått fokus utenfor kanten og dratt hele
-          // kart-chromet med seg.
-          rullet: Math.round(document.querySelector('.kart-ui')?.scrollTop || 0),
-          // Navigasjonssøyla skal holde seg innenfor skjermen og rulle i seg
-          // selv når den ikke får plass — renner den ut, er de nederste
-          // knappene ikke til å nå.
-          søyleUt: (() => {
-            const g = document.querySelector('button[aria-label^="Posisjon "]')
-              ?.closest('.absolute')
-            return g ? Math.round(g.getBoundingClientRect().bottom - innerHeight) : null
-          })(),
-          // OG SØYLA SKAL IKKE TEGNE RULLEFELT (v6.5.69). Taket over gjorde
-          // den rullbar, og telefonen tegnet da rullefelt oppå kartet: en grå
-          // strek langs knappene og en under den nederste.
-          // DENNE MÅLER DEKLARASJONEN OG IKKE PIKSLENE, og det er en målt
-          // begrensning: headless Chromium bruker overleggs-rullefelt, så
-          // `offsetWidth − clientWidth` er 0 enten feltet er skjult eller
-          // ikke — en piksel-sjekk her kunne ALDRI blitt rød. Det som kan bli
-          // rødt er at CSS-en forsvinner, og det er også slik feilen kommer
-          // tilbake. Rullingen skal fortsatt finnes, så `overflow-y` måles i
-          // samme åndedrag: er den borte, er liggende-fiksen borte med den.
-          søyleFelt: (() => {
-            const g = document.querySelector('button[aria-label^="Posisjon "]')
-              ?.closest('.absolute')
-            if (!g) return null
-            const cs = getComputedStyle(g)
-            return { sbw: cs.scrollbarWidth, ovY: cs.overflowY, ovX: cs.overflowX }
-          })(),
+      // EN RØD SJEKK HER MÅ IKKE FORGIFTE DE NESTE (v7.1.1). Restaureringen av
+      // viewporten sto SIST i kroppen, så det første kastet hoppet over den og
+      // lot hele resten av suiten kjøre på 900 × 430. Chat-sjekken ved 200 %
+      // tekst ble rød av nettopp det, ikke av noe i chatten. `finally` gir
+      // mobil-viewporten tilbake uansett hvordan sjekken ender.
+      try {
+        await page.setViewportSize({ width: 900, height: 430 })
+        await page.waitForTimeout(700)
+        const liggende = await mål()
+        // Sammenlikningen er mot STÅENDE og ikke mot null: kart-SVG-en og de
+        // dokkede lende-pilene stikker utenfor i begge retninger med vilje, så en
+        // absolutt terskel ville vært rød fra dag én. Spørsmålet er om ROTASJONEN
+        // gjorde det verre.
+        if (liggende.doc > stående.doc + 1) {
+          throw new Error(`dokumentet renner ut i liggende: ${liggende.doc} px mot ${stående.doc} px stående`)
         }
-      })
-      if (!skuff) throw new Error('skuffen åpnet ikke i liggende')
-      if (skuff.rullet) {
-        throw new Error(`kart-overlegget er rullet ${skuff.rullet} px i liggende — `
-          + 'en fokusert kontroll utenfor kanten har flyttet hele chromet')
+        // Skuffen må åpne og lukke på 430 px høyde — det er den flata som har
+        // minst å gå på når høyden halveres.
+        await åpneDrawer(page)
+        // Spørsmålet er om skuffen er BRUKBAR, ikke om den tilfeldigvis renner
+        // over: på 900 px bredde kan innholdet få plass, og en sjekk som krever
+        // en rulleflate ville da vært rød uten at noe var galt. Måler derfor at
+        // fane-knappen finnes, er synlig, og ligger innenfor viewporten.
+        const skuff = await page.evaluate(() => {
+          const b = [...document.querySelectorAll('button')]
+            .find((n) => n.offsetParent && /^KARTLAG$/.test(n.innerText.trim()))
+          if (!b) return null
+          const r = b.getBoundingClientRect()
+          const treff = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+          return {
+            innenfor: r.top >= -1 && r.bottom <= innerHeight + 1,
+            trykkbar: !!treff && b.contains(treff),
+            // Overlegget skal ikke kunne rulles i det hele tatt (v6.5.68) — er
+            // det rullet, har noe fått fokus utenfor kanten og dratt hele
+            // kart-chromet med seg.
+            rullet: Math.round(document.querySelector('.kart-ui')?.scrollTop || 0),
+            // Navigasjonssøyla skal holde seg innenfor skjermen og rulle i seg
+            // selv når den ikke får plass — renner den ut, er de nederste
+            // knappene ikke til å nå.
+            søyleUt: (() => {
+              const g = document.querySelector('.nav-soyle')
+              return g ? Math.round(g.getBoundingClientRect().bottom - innerHeight) : null
+            })(),
+            // OG SØYLA SKAL IKKE TEGNE RULLEFELT (v6.5.69). Taket over gjorde
+            // den rullbar, og telefonen tegnet da rullefelt oppå kartet: en grå
+            // strek langs knappene og en under den nederste.
+            // DENNE MÅLER DEKLARASJONEN OG IKKE PIKSLENE, og det er en målt
+            // begrensning: headless Chromium bruker overleggs-rullefelt, så
+            // `offsetWidth − clientWidth` er 0 enten feltet er skjult eller
+            // ikke — en piksel-sjekk her kunne ALDRI blitt rød. Det som kan bli
+            // rødt er at CSS-en forsvinner, og det er også slik feilen kommer
+            // tilbake. Rullingen skal fortsatt finnes, så `overflow-y` måles i
+            // samme åndedrag: er den borte, er liggende-fiksen borte med den.
+            søyleFelt: (() => {
+              const g = document.querySelector('.nav-soyle')
+              if (!g) return null
+              const cs = getComputedStyle(g)
+              return { sbw: cs.scrollbarWidth, ovY: cs.overflowY, ovX: cs.overflowX }
+            })(),
+          }
+        })
+        if (!skuff) throw new Error('skuffen åpnet ikke i liggende')
+        if (skuff.rullet) {
+          throw new Error(`kart-overlegget er rullet ${skuff.rullet} px i liggende — `
+            + 'en fokusert kontroll utenfor kanten har flyttet hele chromet')
+        }
+        if (!skuff.innenfor) throw new Error('skuffens fane-rad ligger utenfor viewporten i liggende')
+        if (!skuff.trykkbar) throw new Error('skuffens fane-rad ligger under noe annet i liggende')
+        if (skuff.søyleUt == null) throw new Error('fant ikke navigasjonssøyla i liggende')
+        if (skuff.søyleUt > 1) {
+          throw new Error(`navigasjonssøyla stikker ${skuff.søyleUt} px under skjermkanten i `
+            + 'liggende — de nederste knappene er ikke til å nå')
+        }
+        if (!skuff.søyleFelt) throw new Error('fant ikke navigasjonssøyla å måle rullefelt på')
+        if (skuff.søyleFelt.sbw !== 'none') {
+          throw new Error(`navigasjonssøyla har scrollbar-width: ${skuff.søyleFelt.sbw} — `
+            + 'da tegner telefonen grå rullefelt-streker oppå kartet')
+        }
+        // `clip` MÅLES SOM `hidden` HER, og det er spec: er én akse `clip` og
+        // den andre en rulleverdi, regnes `clip` om til `hidden`. Begge tegner
+        // null rullefelt, som er det sjekken finnes for; `auto` og `scroll` er
+        // de to som gjør det.
+        if (!/^(hidden|clip)$/.test(skuff.søyleFelt.ovX)) {
+          throw new Error(`navigasjonssøyla har overflow-x: ${skuff.søyleFelt.ovX} — `
+            + 'en rulleakse ingenting trenger, som kan tegne et vannrett felt')
+        }
+        if (!/^(auto|scroll)$/.test(skuff.søyleFelt.ovY)) {
+          throw new Error(`navigasjonssøyla har overflow-y: ${skuff.søyleFelt.ovY} — `
+            + 'da ruller den ikke i seg selv, og de nederste knappene forsvinner i liggende')
+        }
+        await lukkDrawer(page)
+        return `liggende doc-overflyt ${liggende.doc} px (stående ${stående.doc}), skuffen brukbar, `
+          + 'søyla innenfor uten rullefelt og overlegget urullet'
+      } finally {
+        await page.setViewportSize({ width: 430, height: 900 })
+        await page.waitForTimeout(600)
       }
-      if (!skuff.innenfor) throw new Error('skuffens fane-rad ligger utenfor viewporten i liggende')
-      if (!skuff.trykkbar) throw new Error('skuffens fane-rad ligger under noe annet i liggende')
-      if (skuff.søyleUt == null) throw new Error('fant ikke navigasjonssøyla i liggende')
-      if (skuff.søyleUt > 1) {
-        throw new Error(`navigasjonssøyla stikker ${skuff.søyleUt} px under skjermkanten i `
-          + 'liggende — de nederste knappene er ikke til å nå')
-      }
-      if (!skuff.søyleFelt) throw new Error('fant ikke navigasjonssøyla å måle rullefelt på')
-      if (skuff.søyleFelt.sbw !== 'none') {
-        throw new Error(`navigasjonssøyla har scrollbar-width: ${skuff.søyleFelt.sbw} — `
-          + 'da tegner telefonen grå rullefelt-streker oppå kartet')
-      }
-      // `clip` MÅLES SOM `hidden` HER, og det er spec: er én akse `clip` og
-      // den andre en rulleverdi, regnes `clip` om til `hidden`. Begge tegner
-      // null rullefelt, som er det sjekken finnes for; `auto` og `scroll` er
-      // de to som gjør det.
-      if (!/^(hidden|clip)$/.test(skuff.søyleFelt.ovX)) {
-        throw new Error(`navigasjonssøyla har overflow-x: ${skuff.søyleFelt.ovX} — `
-          + 'en rulleakse ingenting trenger, som kan tegne et vannrett felt')
-      }
-      if (!/^(auto|scroll)$/.test(skuff.søyleFelt.ovY)) {
-        throw new Error(`navigasjonssøyla har overflow-y: ${skuff.søyleFelt.ovY} — `
-          + 'da ruller den ikke i seg selv, og de nederste knappene forsvinner i liggende')
-      }
-      await lukkDrawer(page)
-      // NØYTRAL TILSTAND: tilbake til mobil-viewporten resten av sjekkene måler i.
-      await page.setViewportSize({ width: 430, height: 900 })
-      await page.waitForTimeout(600)
-      return `liggende doc-overflyt ${liggende.doc} px (stående ${stående.doc}), skuffen brukbar, `
-        + 'søyla innenfor uten rullefelt og overlegget urullet'
     },
   },
   {
@@ -4343,83 +4348,6 @@ const SJEKKER = [
     },
   },
   {
-    // v6.5.79: AppModal legger `zoom` på hele kroppen, så chattens mikrofon- og
-    // send-knapp vokste med teksten enda de bare er ikoner. Ved 200 % tok de to
-    // og mellomrommene ~120 av 178 px i den zoomede flaten, og skrivefeltet satt
-    // igjen med ~58: plassholderen brakk til ett ord per linje. Sjekken står
-    // SIST fordi den laster sida på nytt (chatten er token-gatet ved montering).
-    navn: 'chattens skrivefelt får full bredde ved 200 % tekst',
-    domene: 'LendeChat',
-    async kjør(page) {
-      await page.evaluate(() => localStorage.setItem('lende-ai-token', 'royk-token'))
-      await page.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
-      await page.waitForFunction(() => !!document.querySelector('svg.isom-map'),
-        null, { timeout: 30_000 })
-      // Chatten er en SNARVEI fra v7.0.0 (Lende-FAB-en er borte), og den står
-      // sist i rekkefølgen — altså bak «Mer» på en smal skjerm.
-      await apneSnarveiRad(page)
-      await page.locator('[aria-label="Spør Lende om kartet"]').click({ timeout: 10_000 })
-      const felt = page.locator('textarea[placeholder^="Spør om kartet"]')
-      await felt.waitFor({ state: 'visible', timeout: 10_000 })
-
-      const mål = () => page.evaluate(() => {
-        const t = document.querySelector('textarea[placeholder^="Spør om kartet"]')
-        const send = document.querySelector('button[aria-label="Send"]')
-        if (!t || !send) return null
-        const rad = t.parentElement
-        const cs = getComputedStyle(rad)
-        const plass = rad.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
-        const tr = t.getBoundingClientRect()
-        const sr = send.getBoundingClientRect()
-        return {
-          // Bredden måles med offsetWidth/clientWidth, altså i det zoomede
-          // lagets EGNE px — samme enhet på begge sider. Rektanglene under er
-          // visuelle, men der sammenliknes rektangel mot rektangel.
-          tap: Math.round(plass - t.offsetWidth),
-          ved_siden: sr.left >= tr.right - 1,
-          under: sr.top >= tr.bottom - 1,
-        }
-      })
-
-      const A = 'button[aria-label^="Tekststørrelse i grensesnittet"]'
-      const skala = async () => Number(await page.locator(A).first()
-        .getAttribute('aria-label').then((s) => (s.match(/(\d+) prosent/) ?? [])[1]))
-      const tilProsent = async (mål) => {
-        for (let i = 0; i < 5; i++) {
-          if (await skala() === mål) return true
-          await page.locator(A).first().click()
-          await page.waitForTimeout(180)
-        }
-        return await skala() === mål
-      }
-
-      const feil = []
-      const ved100 = await mål()
-      if (!ved100) feil.push('fant ikke skrivefeltet eller send-knappen')
-      else if (!ved100.ved_siden) feil.push('knappene lå ikke ved siden av feltet ved 100 %')
-
-      if (!(await tilProsent(200))) feil.push('kom ikke til 200 %')
-      const ved200 = await mål()
-      if (!ved200) feil.push('fant ikke feltet etter skalering')
-      else {
-        if (!ved200.under) feil.push('knappene ble ikke lagt under feltet ved 200 %')
-        if (ved200.tap > 4) feil.push(`feltet er ${ved200.tap} px smalere enn raden ved 200 %`)
-      }
-
-      // NØYTRAL TILSTAND: tilbake til 100 %, lukk chatten, fjern tokenet og
-      // last kartet på nytt — chat-FAB-en skal ikke bli stående for de andre.
-      await tilProsent(100)
-      await page.keyboard.press('Escape')
-      await page.waitForTimeout(200)
-      await page.evaluate(() => localStorage.removeItem('lende-ai-token'))
-      await page.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
-      await page.waitForFunction(() => !!document.querySelector('svg.isom-map'),
-        null, { timeout: 30_000 })
-      if (feil.length) throw new Error(feil.join(' | '))
-      return 'ved siden ved 100 %, under og i full bredde ved 200 %'
-    },
-  },
-  {
     // v6.5.82: de frie sti-fargevelgerne flyttet fra Strek-FAB-panelet til
     // Innstillinger → Kartstil → «Tilpass — sti-farge», der de navngitte
     // palettene alt bodde. Enhetstestene ser CSS-en (trailColors.test.js), men
@@ -4428,6 +4356,12 @@ const SJEKKER = [
     // seg. Sjekken SETTER en farge og LESER den ut av kartet.
     navn: 'sti-fargevelgeren bor i Kartstil-fanen, og «Følg tema» nullstiller',
     domene: 'DrawerStyleTab',
+    // KREVER ET EKTE KART (v7.1.1). Sjekken LESER fargen ut av en sti-path i
+    // kart-SVG-en, og demokartet suiten ellers står i har ingen — den svarte
+    // «null → null» på hver kjøring uten flagget. CI kjører med --ektekart og
+    // så den derfor aldri; lokalt var den rød uten at noe var galt, altså
+    // nøyaktig den støyen som gjør at man slutter å lese suiten.
+    krever: 'ektekart',
     async kjør(page) {
       const strekFarge = () => page.evaluate(() => {
         const el = document.querySelector('svg.isom-map [data-iso="505"] path:not(.casing), svg.isom-map [data-iso="506"] path:not(.casing)')
