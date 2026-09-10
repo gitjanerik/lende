@@ -40,40 +40,39 @@
 //    og resultatet var en sammenlagt rad på to linjer på eierens telefon.
 //    Ettersjekken leser derfor `offsetTop`: er ikke alle knappene på samme
 //    linje, er prognosen én for høy.
-// 5. VENSTREGRUPPEN ER FAST OG TELLES IKKE MED. Hamburgeren (som slot fra
-//    kallstedet) og kompasset står først, foran en skillelinje, og kollapser
-//    aldri — se `NAV_SNARVEIER`. De spiser derimot av budsjettet (`fastPx`),
-//    ellers ville målingen lovt plass til knapper gruppa allerede har tatt.
+// 5. VENSTREGRUPPEN ER FAST OG TELLES IKKE MED. Posisjon og kompasset står
+//    først, foran en skillelinje, og kollapser aldri — se `NAV_SNARVEIER`. De
+//    spiser derimot av budsjettet (`fastPx`), ellers ville målingen lovt plass
+//    til knapper gruppa allerede har tatt.
 //
-// RADEN HAR SPIST TOPPRADA (v7.1.0). Hamburgeren, søket og kartnavnet lå i en
-// egen rad over kartet; nå er hamburgeren venstregruppens andre halvdel, søket
-// og posisjonen er vanlige snarveier, og NAVNET står på linja med «Sorter
-// snarveier» — altså bare når raden er åpnet. Navnet er ikke noe man leser mens
-// man går; det er noe man slår opp, og den plassen er kartets.
+// RADEN SPISTE TOPPRADA I v7.1.0, OG SPYTTET DEN UT IGJEN I v7.2.0. Ett forsøk
+// samlet hamburgeren, kartnavnet, søket og innstillingene her inne sammen med
+// alt annet; felttesten ga en fire linjer høy svart boks over kartet. Topprada
+// er tilbake slik den var, og raden er igjen bare FUNKSJONENE. Kompakt-modusen
+// falt bort med hamburgeren: raden skjules helt av kallstedet i måling,
+// stifinner, annotering, søk og mens kartet bygges, som før — veien ut av
+// visningen bor i topprada og forsvinner ikke med den.
 //
-// KOMPAKT-MODUSEN ER PRISEN FOR AT HAMBURGEREN BOR HER. Raden skjules i
-// måling/stifinner/annotering og mens kartet bygges — og med menyknappen inni
-// ville den forsvunnet med den. `kompakt` beholder derfor venstregruppen alene,
-// dyttet mot venstre kant, nøyaktig der hamburgeren sto før. Sentrert ville den
-// kollidert med bygge-chipen i samme `--ovl-top`-slot.
+// PILLENE STÅR PÅ ÅPEN-LINJA (v7.2.0). Strek og relieff er knotter med et
+// NIVÅ, ikke funksjoner, og de spiste to plasser av raden på hver skjerm. De
+// står nå ved siden av «Sorter», altså bare når raden er åpnet — og et trykk
+// på knotten LUKKER IKKE raden: hakket er noe man tar flere av.
 // ─────────────────────────────────────────────────────────────────────────────
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import SnarveiIkon from './SnarveiIkon.vue'
 import { antallSomFar } from '../lib/snarveier.js'
 
 const props = defineProps({
-  // [{ id, label, aria, gruppe?, bue?, dimmet?, tannhjulAria? }] i brukerens
-  // rekkefølge. `gruppe` gir pille med tannhjul; `bue` er knott-ringens
-  // geometri, som SnarveiIkon tegner nivået med.
+  // [{ id, label, aria }] i brukerens rekkefølge.
   snarveier: { type: Array, required: true },
   // Den faste gruppen: [{ id, label, aria, aktiv }] — se punkt 5 i filhodet.
   nav: { type: Array, default: () => [] },
+  // Pillene på åpen-linja: [{ id, label, aria, bue, dimmet?, tannhjulAria? }].
+  // `bue` er knott-ringens geometri, som SnarveiIkon tegner nivået med.
+  piller: { type: Array, default: () => [] },
   // Hvor nord ligger på skjermen, i grader med klokka. Roterer kompassnåla.
   azimut: { type: Number, default: 0 },
   uiTextScale: { type: Number, default: 1 },
-  // Bare venstregruppen, venstrestilt: en modus eller en bygging eier
-  // skjermen, men veien ut av visningen skal aldri gjøre det.
-  kompakt: { type: Boolean, default: false },
 })
 // `apen` går UT igjen fordi den åpne raden er tre linjer høy på en telefon og
 // da dekker navigasjonssøyla, som står i sin egen `--ovl-nav`-slot rett under.
@@ -171,7 +170,6 @@ onMounted(() => {
 onBeforeUnmount(() => ro?.disconnect())
 
 watch(apen, v => emit('apen', v))
-watch(() => props.kompakt, k => { if (k) apen.value = false; else void ommaal() })
 watch(() => props.snarveier.map(s => s.id).join(','), () => { void ommaal() })
 watch(() => props.uiTextScale, () => { void ommaal() })
 
@@ -179,10 +177,12 @@ function velg(id) {
   apen.value = false
   emit('velg', id)
 }
-function innstilling(id) {
-  apen.value = false
-  emit('innstilling', id)
-}
+// PILLENE LUKKER IKKE RADEN (v7.2.0). Begge halvdelene av en pille er noe man
+// gjør FLERE av — et hakk opp, et hakk til, så panelet — og de står uansett
+// bare på linja raden nettopp åpnet. En lukking her ville bedt brukeren åpne
+// raden på nytt mellom hvert hakk.
+function pilleTrykk(id) { emit('velg', id) }
+function innstilling(id) { emit('innstilling', id) }
 function navTrykk(id) {
   emit('nav', id)
 }
@@ -207,13 +207,6 @@ function sorter() {
            samme mønster som vippebryterne i skuffene), og de står foran en
            skillelinje som sier at de ikke hører til det som kan sorteres. -->
       <div ref="fastRef" class="flex items-stretch gap-1">
-        <!-- Hamburgeren kommer utenfra: den er appens globale menyknapp, og
-             raden skal ikke kjenne hovedmenyen for å vise den. Knappen selv er
-             teleportert til <body> og følger plassholderen sin, så animasjonen
-             til X overlever flyttingen hit. -->
-        <span v-if="$slots.venstre" class="self-center flex items-center px-0.5">
-          <slot name="venstre" />
-        </span>
         <template v-if="nav.length">
           <button v-for="n in nav" :key="n.id" data-linje data-nav
                   :data-nav-id="n.id" type="button"
@@ -229,45 +222,13 @@ function sorter() {
           </button>
         </template>
       </div>
-      <div v-if="!kompakt" class="shrink-0 self-stretch w-px my-1 bg-ink/20" aria-hidden="true"></div>
+      <div v-if="nav.length" class="shrink-0 self-stretch w-px my-1 bg-ink/20" aria-hidden="true"></div>
 
-      <template v-if="!kompakt">
       <template v-for="(s, i) in snarveier" :key="s.id">
-        <!-- GRUPPE-SNARVEIEN: én pille med TO trykkflater (v7.0.0). Venstre er
-             hakket — det tapet på knotten gjorde — høyre er tannhjulet som
-             åpner panelet, altså det lang-trykket sa. Boksen er ETT
-             `data-snarvei`/`data-linje`-element, slik at målingen og
-             ettersjekken ser pilla som én knapp. -->
-        <div v-if="s.gruppe" data-snarvei :data-snarvei-id="s.id" data-linje
-             v-show="synlig(i)" class="shortcut-group">
-          <button type="button" @click="velg(s.id)" :aria-label="s.aria"
-                  class="shortcut-btn shortcut-btn--venstre"
-                  :class="s.dimmet ? 'shortcut-btn--dim' : ''">
-            <SnarveiIkon :id="s.id" :bue="s.bue" class="w-5 h-5" />
-            <span>{{ s.label }}</span>
-          </button>
-          <span class="shortcut-group__strek" aria-hidden="true"></span>
-          <button type="button" @click="innstilling(s.id)"
-                  :aria-label="s.tannhjulAria || `Innstillinger for ${s.label}`"
-                  class="shortcut-btn shortcut-btn--tannhjul">
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                 aria-hidden="true">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.2.62.79 1.02 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-            </svg>
-          </button>
-        </div>
-
-        <!-- `aktiv` er posisjonens (v7.1.0): den SLÅR NOE PÅ, og aksentflaten
-             pluss `aria-pressed` er samme par som hver vippebryter i skuffene.
-             Den lå i den faste gruppen fram til nå og bar tilstanden der. -->
-        <button v-else data-snarvei :data-snarvei-id="s.id" data-linje
+        <button data-snarvei :data-snarvei-id="s.id" data-linje
                 v-show="synlig(i)"
                 @click="velg(s.id)"
-                :aria-label="s.ariaTekst || s.aria"
-                :aria-pressed="s.aktiv === undefined ? undefined : !!s.aktiv"
-                class="shortcut-btn" :class="s.aktiv ? 'shortcut-btn--pa' : ''">
+                :aria-label="s.aria" class="shortcut-btn">
           <SnarveiIkon :id="s.id" class="w-5 h-5" />
           <span>{{ s.label }}</span>
         </button>
@@ -295,23 +256,44 @@ function sorter() {
         </span>
         <span>{{ apen ? 'Mindre' : 'Mer' }}</span>
       </button>
-      </template>
     </div>
 
-    <!-- ÅPEN-LINJA: kartets NAVN til venstre, «Sorter snarveier» til høyre.
-         Navnet lå i en egen toppraud og tok en stripe av kartet hele tida for
-         et spørsmål man stiller sjelden — nå står det der man alt har åpnet
-         noe. Det tar den ledige plassen i flexen og BRYTER ALDRI: et kartnavn
-         på to linjer ville dyttet sorteringsknappen ned og gjort en fast rad
-         til en som hopper.
+    <!-- ÅPEN-LINJA: pillene til venstre, «Sorter snarveier» til høyre.
+         Strek og relieff er ikke funksjoner man rekker etter mens man går —
+         de er knotter med et nivå — så de tok to plasser av raden for lite. Her
+         står de der man alt har åpnet noe for å stille inn, ved siden av
+         sorteringen. Raden lukkes IKKE av et trykk på dem; se `pilleTrykk`.
          «Sorter snarveier» er en FAST knapp her, ikke en funksjon i raden: den
          handler om raden selv, og en plass mellom Måling og 3D ville gjort den
          til nok en ting man kan trykke på ved et uhell. -->
     <Transition name="snarvei-fade">
-      <div v-if="apen && !kompakt"
+      <div v-if="apen"
            class="pointer-events-auto w-full flex items-center gap-2 px-2 py-1.5 rounded-2xl
                   bg-overlay/90 backdrop-blur shadow-lg">
-        <div class="flex-1 min-w-0"><slot name="navn" /></div>
+        <!-- GRUPPE-PILLA: én boks med TO trykkflater (v7.0.0). Venstre er
+             hakket — det tapet på knotten gjorde — høyre er tannhjulet som
+             åpner panelet, altså det lang-trykket sa. -->
+        <div class="flex-1 min-w-0 flex flex-wrap items-stretch gap-1.5">
+          <div v-for="pille in piller" :key="pille.id" class="shortcut-group">
+            <button type="button" @click="pilleTrykk(pille.id)" :aria-label="pille.aria"
+                    class="shortcut-btn shortcut-btn--venstre"
+                    :class="pille.dimmet ? 'shortcut-btn--dim' : ''">
+              <SnarveiIkon :id="pille.id" :bue="pille.bue" class="w-5 h-5" />
+              <span>{{ pille.label }}</span>
+            </button>
+            <span class="shortcut-group__strek" aria-hidden="true"></span>
+            <button type="button" @click="innstilling(pille.id)"
+                    :aria-label="pille.tannhjulAria || `Innstillinger for ${pille.label}`"
+                    class="shortcut-btn shortcut-btn--tannhjul">
+              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                   aria-hidden="true">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.2.62.79 1.02 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
         <button type="button" @click="sorter" aria-label="Sorter snarveier"
                 class="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-xl
                        text-ink text-[11px] font-medium active:scale-95 transition

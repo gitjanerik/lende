@@ -783,6 +783,7 @@ const SJEKKER = [
       await page.locator('[aria-label="Relieff"]').click()
       await page.waitForTimeout(1200)
       const etter = await synlig()
+      await lukkSnarveiRad(page)
       if (før === etter && før === 'borte') {
         throw new Error('relieff-laget dukket aldri opp — kjørte applyHillshade?')
       }
@@ -805,6 +806,7 @@ const SJEKKER = [
       await page.locator('[aria-label="Strektykkelse"]').click()
       await page.waitForTimeout(800)
       const etter = await les()
+      await lukkSnarveiRad(page)
       if (!etter || etter === før) {
         throw new Error(`--stroke-scale endret seg ikke ("${før}" → "${etter}")`)
       }
@@ -833,6 +835,7 @@ const SJEKKER = [
         [...document.querySelectorAll('button')].some((b) => b.offsetParent && /Nullstill/i.test(b.innerText)))
       await page.locator('[aria-label="Lukk panel"]').click()
       await page.waitForTimeout(400)
+      await lukkSnarveiRad(page)
       return `panel åpnet${harNullstill ? ' med Nullstill' : ' (fant ingen Nullstill)'}`
     },
   },
@@ -969,118 +972,120 @@ const SJEKKER = [
     },
   },
   {
-    // KARTNAVNET OG KOMPAKT-MODUSEN (v7.1.0).
+    // TOPPRADA ER TILBAKE, OG PILLENE LUKKER IKKE RADEN (v7.2.0).
     //
-    // Topprada er borte, og de to tingene den bar som ikke ble snarveier har
-    // hver sin nye regel — begge usynlige for en enhetstest:
+    // v7.1.0 flyttet hamburgeren, kartnavnet, søket og innstillingene inn i
+    // snarvei-raden. Felttesten svarte at raden ble fire linjer svart boks over
+    // kartet, og at man måtte åpne et nedtrekk for å se hvilket kart man sto i.
+    // Rada er nøyaktig den fra v6.6.5 igjen. To ting måles her, begge usynlige
+    // for en enhetstest:
     //
-    //   1. NAVNET STÅR BARE PÅ DEN ÅPNE LINJA. Det er ikke noe man leser mens
-    //      man går; det er noe man slår opp, og den plassen er kartets. Står
-    //      det i den sammenlagte raden, er hele opprydningen omgjort.
-    //   2. KOMPAKT KRYMPER, DEN SKJULER IKKE. Raden ble `v-if`-skjult i
-    //      måling/stifinner/annotering — med hamburgeren inni ville veien ut av
-    //      visningen forsvunnet med den. Kompakt beholder venstregruppen alene,
-    //      dyttet mot venstre kant, og slipper snarveiene.
-    navn: 'kartnavnet kommer først når raden åpnes, og kompakt beholder hamburgeren',
-    domene: 'SnarveiRad + MapView (topprada)',
+    //   1. ALLE FIRE STÅR OVER RADEN. Ikke bare at de finnes — at de ligger
+    //      HØYERE på skjermen enn snarvei-raden. En knapp som havner inni raden
+    //      igjen ser helt lik ut i DOM-en.
+    //   2. ET TRYKK PÅ PILLENS KNOTT LUKKER IKKE RADEN. Hakket er noe man tar
+    //      flere av, og pillene står bare på linja raden nettopp åpnet — en
+    //      lukking her ber brukeren åpne raden på nytt mellom hvert hakk.
+    navn: 'topprada står over raden, og et pille-hakk lukker den ikke',
+    domene: 'MapView (topprada) + SnarveiRad (piller)',
     async kjør(page) {
       await lukkDrawer(page)
-      const les = () => page.evaluate(() => {
+      const topp = await page.evaluate(() => {
         const rad = document.querySelector('.snarvei-rad')
-        const navn = [...document.querySelectorAll('button, div')]
-          .find((e) => e.getAttribute('aria-label') === 'Gi kart nytt navn'
-            || (e.className && String(e.className).includes('truncate') && /Vard/i.test(e.textContent || '')))
-        const meny = document.querySelector('[data-hovedmeny-knapp]')
+        if (!rad) return { mangler: 'snarvei-raden' }
+        const radTopp = rad.getBoundingClientRect().top
+        const finn = (velger) => {
+          const e = document.querySelector(velger)
+          if (!e) return null
+          const r = e.getBoundingClientRect()
+          return r.width > 0 ? Math.round(r.top) : null
+        }
         return {
-          snarveier: rad ? [...rad.querySelectorAll('[data-snarvei]')]
-            .filter((b) => b.offsetParent !== null).length : -1,
-          navnSynlig: !!navn && navn.getBoundingClientRect().width > 0,
-          menySynlig: !!meny && meny.getBoundingClientRect().width > 0,
+          radTopp: Math.round(radTopp),
+          meny: finn('[data-hovedmeny-knapp]'),
+          // `data-kartnavn` og ikke aria-label: på et innebygd demokart kan
+          // navnet ikke endres, og da er det en statisk pille uten etikett.
+          navn: finn('[data-kartnavn]'),
+          sok: finn('button[aria-label="Søk i kart"]'),
+          oppsett: finn('button[aria-label="Innstillinger"]'),
         }
       })
-
-      const lukket = await les()
-      if (lukket.navnSynlig) throw new Error('kartnavnet står i den sammenlagte raden — det hører til den åpne linja')
-      if (!lukket.menySynlig) throw new Error('hamburgeren mangler i den sammenlagte raden')
-
-      await apneSnarveiRad(page)
-      const apen = await les()
-      if (!apen.navnSynlig) throw new Error('kartnavnet kom ikke fram da raden ble åpnet')
-
-      // Kompakt: måle-modus eier skjermen. Raden skal krympe til venstregruppen.
-      await klikkSnarvei(page, /^Måling$/)
-      await page.waitForTimeout(700)
-      const kompakt = await les()
-      if (kompakt.snarveier !== 0) {
-        throw new Error(`kompakt raden viser ${kompakt.snarveier} snarveier — den skal vise venstregruppen alene`)
+      if (topp.mangler) throw new Error(`fant ingen ${topp.mangler}`)
+      for (const [id, y] of [['hamburgeren', topp.meny], ['kartnavnet', topp.navn],
+                             ['søket', topp.sok], ['oppsettet', topp.oppsett]]) {
+        if (y == null) throw new Error(`${id} har ingen synlig boks — er den flyttet inn i raden igjen?`)
+        if (y >= topp.radTopp) {
+          throw new Error(`${id} står på ${y}, altså ikke over snarvei-raden på ${topp.radTopp}`)
+        }
       }
-      if (!kompakt.menySynlig) throw new Error('hamburgeren forsvant i kompakt modus — veien ut av visningen er en blindvei')
 
-      // Rydd: modusen har sin egen bryter i tillegg til skuffen — lukkes bare
-      // skuffen, står kartet igjen i måle-modus og raden er fortsatt kompakt.
-      await klikkTekst(page, /^(Avslutt måling|Måling)$/)
+      // Pillene: venstre halvdel er hakket. Raden skal stå åpen etterpå.
+      await apneSnarveiRad(page)
+      await page.locator('[aria-label="Strektykkelse"]').click()
       await page.waitForTimeout(500)
-      await lukkFunksjonsSkuff(page, 'Måling')
-      await page.waitForTimeout(500)
-      const etter = await les()
-      if (!etter.snarveier) throw new Error('raden kom ikke tilbake etter måle-modus')
-      return `lukket: navn skjult, hamburger på; åpen: navn fram; kompakt: 0 snarveier, hamburger på`
+      const apen = await page.evaluate(() =>
+        document.querySelector('.snarvei-rad [aria-expanded]')?.getAttribute('aria-expanded'))
+      if (apen !== 'true') {
+        throw new Error('raden lukket seg av et hakk på strek-knotten — '
+          + 'hakket er noe man tar flere av')
+      }
+
+      // NØYTRAL TILSTAND: raden skal ikke stå åpen inn i neste sjekk.
+      await lukkSnarveiRad(page)
+      return `topprada over raden (${topp.meny}/${topp.navn}/${topp.sok}/${topp.oppsett} `
+        + `< ${topp.radTopp}), pille-hakk holdt raden åpen`
     },
   },
   {
-    // v6.6.5: UT.no og Google Maps lå som chips i hovedmenyen, matet av
-    // `useMapContext` — en punkt-provider kartvisningen registrerte. Både
-    // chipsene og hele composablen er borte, og snarveiene tar punktet rett fra
-    // kartsenteret. Det som kan brekke stille er nettopp koblingen: en knapp som
-    // åpner en fane på feil sted, eller ingen fane i det hele tatt, ser helt lik
-    // ut i DOM-en. Derfor måles den ekte URL-en fanen får.
-    navn: 'UT.no og Google Maps åpner på kartsenteret',
-    domene: 'lib/snarveier + MapView (eksternt kart)',
+    // DE EKSTERNE KARTENE BOR ØVERST I INFOPANELET (v7.2.0). De var chips i
+    // hovedmenyen til v6.6.5, snarveier bak «Mer» i v7.0.0, og er nå der de
+    // hører hjemme: i panelet om DETTE punktet, som åpnes både av Info-snarveien
+    // og av et lang-trykk i kartet. Det som kan brekke stille er koblingen — en
+    // knapp som åpner en fane på feil sted, eller ingen fane i det hele tatt,
+    // ser helt lik ut i DOM-en. Derfor måles den ekte URL-en fanen får.
+    navn: 'UT.no og Google Maps åpner på punktet i infopanelet',
+    domene: 'ContextMenuSheet + MapView (eksternt kart)',
     async kjør(page) {
       await lukkDrawer(page)
-      // De to står SIST i standard-rekkefølgen og ligger derfor bak «Mer».
-      await klikkTekst(page, /^(\d+\s*)?Mer$|^Vis .*snarvei/i)
-      await page.waitForTimeout(300)
 
       // `window.open` STUBBES, og den ekte fanen åpnes ikke. Første utgave
       // ventet på en popup og leste `page.url()` — den ble
       // `chrome-error://chromewebdata/`, fordi ut.no ikke er nåbar herfra.
-      // Sjekken målte da nettverket og ikke koblingen. Det som KAN brekke
-      // stille er URL-en knappen ber om: stubben fanger nøyaktig den, og
-      // trykket er fortsatt et ekte klikk gjennom den ekte handleren.
+      // Sjekken målte da nettverket og ikke koblingen. Stubben fanger nøyaktig
+      // URL-en knappen ber om, og trykket er fortsatt et ekte klikk gjennom den
+      // ekte handleren.
       await page.evaluate(() => {
         window.__roykUrler = []
         window.open = (url) => { window.__roykUrler.push(String(url)); return null }
       })
 
+      await klikkSnarvei(page, /^Info$/)
+      await page.waitForTimeout(700)
+      await page.waitForFunction(() => {
+        const b = [...document.querySelectorAll('button')]
+          .find((e) => e.offsetParent !== null && /^UT\.no$/.test(e.innerText.trim()))
+        return !!b
+      }, null, { timeout: 10_000 })
+        .catch(() => { throw new Error('infopanelet viste ingen UT.no-knapp øverst') })
+
       const funn = []
       for (const [id, etikett, monster] of [
         ['utno', /^UT\.no$/, /ut\.no/i],
-        ['gmaps', /^Google$/, /google\.[a-z.]+\/maps/i],
+        ['gmaps', /^Google Maps$/, /google\.[a-z.]+\/maps/i],
       ]) {
-        // Vent til knappen faktisk er SYNLIG. Raden setter `visibility: hidden`
-        // mens den måler seg om, og et klikk i det vinduet står og venter til
-        // det timer ut — det tok én kjøring å finne.
-        await page.waitForFunction((sel) => {
-          const b = document.querySelector(sel)
-          return !!b && b.offsetParent !== null
-        }, `[data-snarvei-id="${id}"]`, { timeout: 10_000 })
-          .catch(() => { throw new Error(`snarveien «${id}» ble aldri synlig i nedtrekket`) })
         await klikkTekst(page, etikett)
         const url = await page.evaluate(() => window.__roykUrler.at(-1) ?? '')
         if (!url) throw new Error(`«${id}» åpnet ingenting`)
         if (!monster.test(url)) throw new Error(`«${id}» åpnet ${url}`)
-        // Koordinatene skal være kartets, ikke en default et sted i Norge.
+        // Koordinatene skal være punktets, ikke en default et sted i Norge.
         const tall = url.match(/-?\d+\.\d+/g) || []
         if (tall.length < 2) throw new Error(`«${id}» fikk ingen koordinater: ${url}`)
         funn.push(`${id} → ${tall.slice(0, 2).join(',')}`)
-        // Et trykk i raden lukker nedtrekket (`velg` setter apen = false), så
-        // det må åpnes igjen før neste.
-        if (id !== 'gmaps') await klikkTekst(page, /^(\d+\s*)?Mer$|^Vis .*snarvei/i)
       }
 
-      // NØYTRAL TILSTAND: nedtrekket er alt lukket av det siste trykket —
-      // `velg` lukker det selv. Ingenting å rydde.
+      // NØYTRAL TILSTAND: punkt-arket ligger over kartet til det lukkes.
+      await page.locator('button[aria-label="Lukk"]').first().click()
+      await page.waitForTimeout(300)
       return funn.join('; ')
     },
   },
@@ -1307,7 +1312,7 @@ const SJEKKER = [
       if (!navn) throw new Error('fant ingen stedsnavn i kartet å søke på')
       const før = await page.evaluate(() =>
         document.querySelector('[data-map-inner]')?.style.transform || '')
-      await klikkSnarvei(page, /^Søk$/)
+      await klikkTekst(page, /^Søk i kart$/)
       await page.waitForTimeout(500)
       await page.locator('input[type="search"], input[type="text"]').first()
         .fill(navn.slice(0, 4))
@@ -1358,7 +1363,7 @@ const SJEKKER = [
     domene: 'style.css',
     async kjør(page) {
       await lukkDrawer(page)
-      await klikkSnarvei(page, /^Søk$/)
+      await klikkTekst(page, /^Søk i kart$/)
       await page.waitForTimeout(500)
       const felt = page.locator('input[type="search"], input[type="text"]').first()
       await felt.focus()
@@ -1690,30 +1695,30 @@ const SJEKKER = [
     },
   },
   {
-    // VENSTREGRUPPEN ER FAST, OG DET ER HELE POENGET (v6.6.1, halvert v7.1.0).
+    // VENSTREGRUPPEN ER FAST, OG DET ER HELE POENGET (v6.6.1, gjenopprettet
+    // v7.2.0).
     //
-    // Gruppa var Posisjon + «nord opp»; fra v7.1.0 er den HAMBURGEREN og
-    // kompasset, og posisjonen er en vanlig snarvei. Tre invarianter som ingen
-    // enhetstest ser, og som alle er lette å «rydde» bort:
+    // Gruppa er Posisjon + «nord opp». Den ble halvert i v7.1.0 — posisjonen
+    // ble en vanlig, sorterbar snarvei — og det var feil av nøyaktig den
+    // grunnen gruppa finnes: posisjonen er den ene knappen man rekker etter
+    // mens man går, og en knapp som havner bak «Mer» fordi man sorterte
+    // Stifinner først er en knapp man ikke finner i regnvær.
     //
-    //   1. GRUPPA KOLLAPSER ALDRI. Måler raden feil, havner en vanlig snarvei
-    //      bak «Mer» — og det skal aldri kunne skje med veien ut av visningen.
-    //      Derfor måles den ved 360 px, den smaleste telefonen vi bryr oss om.
-    //   2. HAMBURGEREN STÅR PÅ PLASSHOLDEREN SIN. Knappen er teleportert til
-    //      <body> og `position: fixed` (v2.4.27, som er det animasjonen til X
-    //      overlever på), så den følger plassholderen bare så lenge noe måler
-    //      om. Plassholderen er 40 × 40 px og endrer aldri STØRRELSE — den
-    //      flytter seg bare — så en ResizeObserver på den alene fyrer aldri.
-    //      Sjekken måler at den fixed knappen faktisk ligger oppå plassholderen.
-    //   3. POSISJONEN BÆRER FORTSATT EN TILSTAND, selv om den er blitt en
-    //      vanlig snarvei: på er en AKSENTFLATE med hvitt innhold, ikke en
-    //      fargeforskjell i ikonet. Av og på må skilles av noe større enn en
-    //      strek, og hvitt på flaten må bestå WCAG 1.4.11 sitt 3:1.
+    // Tre invarianter som ingen enhetstest ser, og som alle er lette å «rydde»
+    // bort:
     //
-    // EGEN KONTEKST MED `hasTouch` — samme grunn som sjekken over: kompasset
-    // gis bare til berøring, så standard-konteksten ville hoppet stille over
-    // halve gruppa.
-    navn: 'venstregruppen kollapser aldri, hamburgeren følger plassholderen, posisjonen bærer tilstand',
+    //   1. GRUPPA KOLLAPSER ALDRI, og den sammenlagte raden står på ÉN linje.
+    //      Måles ved 360 px, den smaleste telefonen vi bryr oss om.
+    //   2. BEGGE ER SYNLIGE INNENFOR SKJERMEN. En knapp som er klippet av
+    //      kanten finnes fortsatt i DOM-en.
+    //   3. POSISJONEN BÆRER EN TILSTAND: på er en AKSENTFLATE med hvitt
+    //      innhold, ikke en fargeforskjell i ikonet. Av og på må skilles av noe
+    //      større enn en strek, og hvitt på flaten må bestå WCAG 1.4.11 sitt
+    //      3:1.
+    //
+    // EGEN KONTEKST MED `hasTouch` — kompasset gis bare til berøring, så
+    // standard-konteksten ville hoppet stille over halve gruppa.
+    navn: 'venstregruppen kollapser aldri, og posisjonen bærer tilstand',
     domene: 'SnarveiRad (nav)',
     maksMs: 120_000,
     async kjør(page) {
@@ -1734,19 +1739,24 @@ const SJEKKER = [
         const gruppa = await p2.evaluate(() => {
           const rad = document.querySelector('.snarvei-rad')
           const nord = document.querySelector('[data-nav-id="kompass"]')
-          const meny = document.querySelector('[data-hovedmeny-knapp]')
-          if (!rad || !nord || !meny) return { mangler: !rad ? 'raden' : !nord ? 'kompasset' : 'hamburgeren' }
-          const r = rad.getBoundingClientRect()
-          const n = nord.getBoundingClientRect()
-          const m = meny.getBoundingClientRect()
+          const gps = document.querySelector('[data-nav-id="posisjon"]')
+          if (!rad || !nord || !gps) {
+            return { mangler: !rad ? 'raden' : !nord ? 'kompasset' : 'posisjonen' }
+          }
+          const inne = (el) => {
+            const r = el.getBoundingClientRect()
+            return r.width > 0 && r.left >= -1 && r.right <= window.innerWidth + 1
+          }
           return {
-            nordSynlig: n.width > 0 && n.left >= -1 && n.right <= window.innerWidth + 1,
-            // Den fixed knappen skal ligge oppå plassholderen sin, altså inne i
-            // raden. Slingringsmonn på 4 px for avrunding.
-            menyPaaPlass: m.width > 0 && m.top >= r.top - 4 && m.bottom <= r.bottom + 4
-              && m.left >= r.left - 4 && m.right <= r.right + 4,
-            menyBoks: `${Math.round(m.left)},${Math.round(m.top)}`,
-            radBoks: `${Math.round(r.left)},${Math.round(r.top)}`,
+            nordSynlig: inne(nord),
+            gpsSynlig: inne(gps),
+            // Gruppa står FØRST: begge skal ligge til venstre for den første
+            // sorterbare snarveien.
+            forst: (() => {
+              const s1 = rad.querySelector('[data-snarvei]')
+              if (!s1) return true
+              return gps.getBoundingClientRect().left < s1.getBoundingClientRect().left
+            })(),
             linjer: new Set([...document.querySelectorAll('[data-linje]')]
               .filter(e => e.getBoundingClientRect().width > 0)
               .map(e => Math.round(e.getBoundingClientRect().top))).size,
@@ -1754,18 +1764,15 @@ const SJEKKER = [
         })
         if (gruppa.mangler) throw new Error(`fant ingen ${gruppa.mangler} ved 360 px`)
         if (!gruppa.nordSynlig) throw new Error('nord-knappen mangler på en berøringsflate')
-        if (!gruppa.menyPaaPlass) {
-          throw new Error(`hamburgeren står på ${gruppa.menyBoks}, utenfor raden på ${gruppa.radBoks} `
-            + '— den teleporterte knappen har mistet plassholderen sin')
-        }
+        if (!gruppa.gpsSynlig) throw new Error('posisjonen er klippet av skjermkanten ved 360 px')
+        if (!gruppa.forst) throw new Error('posisjonen står ikke først i raden')
         if (gruppa.linjer !== 1) {
           throw new Error(`snarvei-raden brøt til ${gruppa.linjer} linjer ved 360 px `
             + '— den sammenlagte raden skal stå på én')
         }
 
-        // Posisjonen: vanlig snarvei fra v7.1.0, men den slår noe PÅ.
         const les = () => p2.evaluate(() => {
-          const gps = document.querySelector('[data-snarvei-id="posisjon"]')
+          const gps = document.querySelector('[data-nav-id="posisjon"]')
           if (!gps || !gps.getBoundingClientRect().width) return null
           const ikon = gps.querySelector('svg')
           return {
@@ -1774,14 +1781,12 @@ const SJEKKER = [
             trykt: gps.getAttribute('aria-pressed'),
           }
         })
-        await apneSnarveiRad(p2)
         const av = await les()
-        if (!av) throw new Error('fant ingen synlig posisjons-snarvei')
+        if (!av) throw new Error('fant ingen synlig posisjons-knapp')
         if (av.trykt !== 'false') throw new Error(`posisjonen sier aria-pressed="${av.trykt}" i hvile`)
 
-        await p2.locator('[data-snarvei-id="posisjon"]').click()
+        await p2.locator('[data-nav-id="posisjon"]').click()
         await p2.waitForTimeout(600)
-        await apneSnarveiRad(p2)
         const pa = await les()
         if (pa.trykt !== 'true') throw new Error('et trykk på posisjonen slo den ikke på')
         if (pa.flate === av.flate) {
@@ -1810,11 +1815,81 @@ const SJEKKER = [
         }
 
         // Nøytral tilstand: posisjonen skrur seg ikke av selv.
-        await apneSnarveiRad(p2)
-        await p2.locator('[data-snarvei-id="posisjon"]').click()
+        await p2.locator('[data-nav-id="posisjon"]').click()
         await p2.waitForTimeout(300)
-        return `én linje ved 360 px, hamburgeren på plassholderen, av→på bytter flate `
+        return `én linje ved 360 px, gruppa først, av→på bytter flate `
           + `(${pa.flate}), ikon ${k ? k.toFixed(1) : '?'}:1`
+      } finally {
+        await ctx.close()
+      }
+    },
+  },
+  {
+    // LENDE-FAB-EN ER TILBAKE NEDE TIL HØYRE (v7.2.0), OG ET TAPP ÅPNER
+    // CHATTEN.
+    //
+    // Chatten var en snarvei i raden i v7.0.0–7.1.0. Den er nå den samme
+    // FAB-en som i ruteplanleggeren: samme anker, samme logo, samme hjørne —
+    // og uten knotter rundt seg gjør `anchorPress.onTap` rett `emit('chat')`,
+    // altså ingen lang-trykk-ring å vente ut. To ting kan brekke stille: at
+    // FAB-en ikke rendres i det hele tatt (den er portet på et AI-token), og
+    // at tappet åpner knotte-klyngen i stedet for chatten.
+    //
+    // EGEN KONTEKST med tokenet lagt inn FØR appen monterer — `hasAiToken()`
+    // leses én gang i oppsettet, så en localStorage-skriving etterpå kommer
+    // for sent.
+    navn: 'Lende-FAB-en står nede til høyre og åpner chatten med ett tapp',
+    domene: 'MapView (FabCluster)',
+    maksMs: 120_000,
+    async kjør(page) {
+      const ctx = await page.context().browser().newContext({
+        viewport: { width: 430, height: 900 },
+        hasTouch: true,
+        isMobile: false,
+      })
+      await ctx.addInitScript(() => {
+        try { localStorage.setItem('lende-ai-token', 'royk-token') } catch { /* tom */ }
+      })
+      const p2 = await ctx.newPage()
+      try {
+        await p2.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await p2.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+        await lukkDrawer(p2)
+
+        const fab = p2.locator('button[aria-label="Spør Lende"]')
+        if (!(await fab.count())) {
+          throw new Error('fant ingen Lende-FAB — rendres FabCluster med tokenet på plass?')
+        }
+        const boks = await fab.boundingBox()
+        const vp = p2.viewportSize()
+        if (!boks) throw new Error('Lende-FAB-en har ingen boks')
+        if (boks.x + boks.width / 2 < vp.width / 2 || boks.y + boks.height / 2 < vp.height / 2) {
+          throw new Error(`Lende-FAB-en står på ${Math.round(boks.x)},${Math.round(boks.y)} `
+            + '— den hører hjemme nede til høyre, som i ruteplanleggeren')
+        }
+        // Logoen er symbolet, ikke et ikon vi tegner selv.
+        const logo = await fab.locator('img').count()
+        if (!logo) throw new Error('FAB-en mangler Lende-logoen')
+
+        // ETT TAPP, ikke et hold. FabCluster er drevet av pointerdown/-up via
+        // useLongPress, så `el.click()` gjør ingenting — det må være en ekte
+        // peker-sekvens (FAB-lærdommen i CLAUDE.md).
+        // ET EKTE TRYKK, ikke `el.click()`: FabCluster er drevet av
+        // pointerdown/-up via useLongPress. Playwrights `tap()` duger heller
+        // ikke — den sender CDP-touch, og Chromium syntetiserer da ingen
+        // peker-eventer her, så trykket ble aldri sett. Musa gjør det.
+        await p2.mouse.move(boks.x + boks.width / 2, boks.y + boks.height / 2)
+        await p2.mouse.down()
+        await p2.waitForTimeout(80)
+        await p2.mouse.up()
+        await p2.waitForTimeout(700)
+        const apen = await p2.evaluate(() =>
+          [...document.querySelectorAll('h1, h2, h3, [role="dialog"]')]
+            .some((e) => e.offsetParent !== null && /Lende-chat/.test(e.textContent || '')))
+        if (!apen) throw new Error('ett tapp på FAB-en åpnet ikke chatten')
+        return `FAB nede til høyre (${Math.round(boks.x)},${Math.round(boks.y)}), `
+          + 'logo som symbol, ett tapp åpnet chatten'
       } finally {
         await ctx.close()
       }
@@ -4554,14 +4629,13 @@ async function zoomInn(page, tikk) {
   await page.waitForTimeout(1000)
 }
 
-// INNGANGEN TIL SKUFFEN ER EN SNARVEI FRA v7.0.0. Knappen sto ytterst til
-// høyre i topprada; nå heter den «Oppsett» i raden over kartet og står sist,
-// altså bak «Mer» på en smal skjerm. `klikkTekst` duger ikke her: den leser
-// innerText FØR aria-label, og teksten er «Oppsett».
+// INNGANGEN TIL SKUFFEN ER TILBAKE I TOPPRADA (v7.2.0). Den var en snarvei i
+// v7.0.0–7.1.0, altså bak «Mer» på en smal skjerm; nå står tannhjulet ytterst
+// til høyre over kartet igjen. `klikkTekst` duger ikke: den ville truffet
+// dialogen, som har samme aria-label.
 async function åpneDrawer(page) {
   if (await erDrawerÅpen(page)) return
-  await apneSnarveiRad(page)
-  await page.locator('.snarvei-rad [aria-label="Innstillinger"]').click()
+  await page.locator('button[aria-label="Innstillinger"]').first().click()
   await page.waitForTimeout(500)
 }
 
@@ -4578,11 +4652,21 @@ async function apneSnarveiRad(page) {
   }
 }
 
-// ALT SOM NÅS FRA RADEN MÅ GÅ VIA NEDTREKKET (v7.1.0). Søket, posisjonen,
-// Info og 3D lå i topprada eller i den faste nav-gruppen; nå er de vanlige
-// snarveier, og på en 430 px-skjerm ligger flere av dem bak «Mer». En
-// `klikkTekst` rett på etiketten finner da en knapp som er `v-show`-skjult og
-// står og venter til den timer ut.
+// PILLENE LUKKER IKKE RADEN (v7.2.0) — hakket er noe man tar flere av. En
+// sjekk som har trykket på strek eller relieff må derfor lukke raden selv,
+// ellers finner neste sjekk «Mindre» der den leter etter «Mer».
+async function lukkSnarveiRad(page) {
+  const handle = page.locator('.snarvei-rad [aria-expanded]')
+  if ((await handle.getAttribute('aria-expanded')) === 'true') {
+    await handle.click()
+    await page.waitForTimeout(300)
+  }
+}
+
+// EN SNARVEI KAN LIGGE BAK «MER». På en 430 px-skjerm får ikke alle sju plass
+// på én linje, og en `klikkTekst` rett på etiketten finner da en knapp som er
+// `v-show`-skjult og står og venter til den timer ut. Søket og innstillingene
+// er IKKE snarveier lenger (v7.2.0) — de trykkes rett i topprada.
 async function klikkSnarvei(page, re) {
   await apneSnarveiRad(page)
   await klikkTekst(page, re)

@@ -21,9 +21,10 @@ import FabCluster from './FabCluster.vue'
 // Rutene under får IKKE den globale knappen, av to ULIKE grunner. Skillet er
 // verdt å holde, for grunnene tåler ulike endringer:
 //
-//   kart-vis               — har chatten som SNARVEI i raden over kartet
-//     (v7.0.0, etter at Lende-FAB-en forsvant). Faller snarveien bort, skal
-//     ruta ut av lista igjen.
+//   kart-vis               — har sin EGEN FabCluster nede til høyre (v7.2.0,
+//     etter at chat-snarveien i raden ble rullet tilbake). Ankeret eier
+//     chatten der, som i ruteplanleggeren. Fjernes klyngen, skal ruta ut av
+//     lista igjen.
 //   ruteplanlegger         — har sin egen FabCluster nede til høyre, og
 //     ankeret eier chatten der. Fjernes klyngen, skal ruta ut av lista igjen.
 //   fritt-lende             — HAR INGEN CHAT I DET HELE TATT. Modusen er

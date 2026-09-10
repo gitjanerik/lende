@@ -75,6 +75,8 @@ const props = defineProps({
   startPositioning: { type: Function, required: true },
   nearestPoiFromPoint: { type: Function, required: true },
   onPlaceAnnotationFromContext: { type: Function, required: true },
+  // De to eksterne kartene, øverst i kroppen (v7.2.0) — se malen.
+  onApneEksterntKart: { type: Function, required: true },
   showInfoTip: { type: Boolean, default: false },
   infoTipMinimized: { type: Boolean, default: false },
   toggleInfoTip: { type: Function, required: true },
@@ -217,6 +219,47 @@ function formatDistance(m) {
            class="flex-1 overflow-y-auto"
            :style="{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0.75rem)' }">
 
+      <!-- «ÅPNE STEDET I» ØVERST I KROPPEN (v7.2.0). De to lenkene var chips i
+           hovedmenyen (til v6.6.5) og så snarveier i raden (v6.6.5–v7.1.1).
+           Begge stedene var feil av samme grunn: de spør «vis meg DETTE STEDET
+           hos noen andre», og stedet er nettopp det dette arket handler om —
+           long-press-punktet, som er mer presist enn kartsenteret snarveien
+           måtte nøye seg med. Her leser man alt hva stedet heter, hvor høyt det
+           ligger og hva som er i nærheten; «se det hos noen andre» er neste
+           spørsmål, ikke et nytt.
+           De står ØVERST og ikke nederst: de forlater appen, og det er en ting
+           man gjør etter å ha lest, ikke etter å ha rullet forbi alt.
+           Ikke `<a href>`: URL-en avhenger av gjeldende zoom og regnes ut i
+           MapView når trykket kommer. -->
+      <div class="px-4 pt-3 flex flex-wrap items-center gap-2"
+           :style="{ zoom: uiTextScale }">
+        <span class="text-[10px] uppercase tracking-wide text-ink-4 mr-0.5">Åpne stedet i</span>
+        <button type="button" @click="onApneEksterntKart('utno')"
+                class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-ink/8
+                       text-[12px] text-ink font-medium active:scale-95 transition
+                       hover:bg-ink/12">
+          <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0 text-ink-3" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round"
+               stroke-linejoin="round" aria-hidden="true">
+            <path d="M15 3h6v6"/><path d="M10 14 21 3"/>
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+          </svg>
+          UT.no
+        </button>
+        <button type="button" @click="onApneEksterntKart('gmaps')"
+                class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-ink/8
+                       text-[12px] text-ink font-medium active:scale-95 transition
+                       hover:bg-ink/12">
+          <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0 text-ink-3" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round"
+               stroke-linejoin="round" aria-hidden="true">
+            <path d="M15 3h6v6"/><path d="M10 14 21 3"/>
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+          </svg>
+          Google Maps
+        </button>
+      </div>
+
       <!-- Blått oppdagbarhets-tips: vises kun når arket åpnes via Info-snarveien
            (ikke ved faktisk long-press).
 
@@ -265,15 +308,15 @@ function formatDistance(m) {
           <div class="px-3 pb-2.5 pl-[2.375rem]">
             <p>
               Du kan trykke-og-holde et par sekunder i kartet for å åpne infopanelet
-              du ser her. Det samme fungerer på de tre knottene som åpner når du
-              trykker på Lende-knappen nede til høyre. Der kan du finjustere
-              kantlinjer, relieff og zoom.
+              du ser her. Vil du finjustere kantlinjer eller relieff, åpner du
+              snarvei-raden øverst med «Mer» — der står de to som piller, med et
+              tannhjul hver.
             </p>
             <!-- Kun for inviterte (chat-token i localStorage) — uinviterte skal
                  ikke se at funksjonen finnes, som for FAB-en. -->
             <p v-if="harChat" class="mt-2.5">
               <span class="font-semibold">Chat:</span> du har tilgang til Lende-chat —
-              hold inne Lende-knappen og spør med egne ord. «Hvor mange km sti er det
+              trykk på Lende-knappen nede til høyre og spør med egne ord. «Hvor mange km sti er det
               her?», «gå en tur fra parkeringa til toppen» eller «lag et kart over
               Sirikjerke» — den finner stedene i kartet, tegner ruta og regner ut
               lengde, stigning og gangtid for deg.
