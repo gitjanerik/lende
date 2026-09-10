@@ -3112,16 +3112,19 @@ onUnmounted(() => {
     <!-- Linjal + OSM-kreditt — trekt ut til MapScaleAttribution (v1.0.8).
          Målestokk/ekvidistanse (v2.4.20) og ISOM/DEM/dybde-provenens (v2.4.26)
          står i punkt-skuffen, ikke her. -->
-    <!-- KOMPASSET STÅR I LINJAL-BOKSEN (v7.3.0), til venstre for målestokken.
-         Det var en fast knapp i snarvei-raden fram til nå; her koster det
-         ingen radplass, og retningen står sammen med avstanden. Bare med
-         berøring: uten rotasjon finnes ingen azimut å nullstille, og desktop
-         har retningsrosa i søyla. -->
+    <!-- KOMPASSET STÅR NEDE TIL VENSTRE (v7.3.0), fristilt fra linjal-boksen
+         igjen i v7.3.2: egen halvgjennomsiktig skive rett på arket, med
+         linjalen ved siden av på samme bunnlinje som Lende-FAB-en. Det var en
+         fast knapp i snarvei-raden fram til v7.3.0; her koster det ingen
+         radplass. Bare med berøring: uten rotasjon finnes ingen azimut å
+         nullstille, og desktop har retningsrosa i søyla.
+         `mork` er ARKETS valør og ikke UI-temaet — skiva ligger på kartet. -->
     <MapScaleAttribution
       :visible="!loading && !searchOpen"
       :scale-bar="scaleBar"
       :kompass="hasTouch"
       :azimut="rotationSliderDeg"
+      :mork="isDark"
       @nord="onResetAndRefreshGps" />
 
     <!-- Kontrollpanel (drawer). Desktop (≥768px): høyrestilt fullhøyde side-

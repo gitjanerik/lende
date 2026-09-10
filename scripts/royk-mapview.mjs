@@ -1677,7 +1677,7 @@ const SJEKKER = [
     // EGEN KONTEKST MED `hasTouch`, fordi zoom-søyla er berøringens kontroll:
     // standard-konteksten rapporterer `pointer: fine` og får desktop-søyla i
     // stedet, så sjekken ville hoppet stille over det den finnes for.
-    navn: 'kompassnåla i linjal-boksen står i hvile og følger arket',
+    navn: 'kompassnåla nede til venstre står i hvile og følger arket',
     domene: 'MapScaleAttribution (kompass)',
     krever: 'ektekart',
     maksMs: 120_000,
@@ -1798,7 +1798,7 @@ const SJEKKER = [
     //
     // EGEN KONTEKST MED `hasTouch` — kompasset gis bare til berøring, så
     // standard-konteksten ville hoppet stille over punkt 4.
-    navn: 'posisjonen er en vanlig snarvei, og kompasset står i linjalen',
+    navn: 'posisjonen er en vanlig snarvei, og kompasset står fristilt ved linjalen',
     domene: 'SnarveiRad',
     maksMs: 120_000,
     async kjør(page) {
@@ -1842,26 +1842,54 @@ const SJEKKER = [
             + '— den sammenlagte raden skal stå på én')
         }
 
-        // KOMPASSET: i linjal-boksen, og til VENSTRE for målestokken.
+        // KOMPASSET ER FRISTILT (v7.3.2): egen rund, halvgjennomsiktig skive
+        // til VENSTRE for linjal-boksen — ikke inni den — og på samme bunnlinje.
+        // Alle fire egenskapene er lette å miste i en opprydning, og ingen av
+        // dem gir en JS-feil når de forsvinner.
         const kompass = await p2.evaluate(() => {
           const knapp = document.querySelector('button[aria-label^="Vend kartet mot nord"]')
           if (!knapp) return { mangler: true }
-          const boks = knapp.closest('div')
-          const svgLinjal = boks?.parentElement?.querySelector('svg:not([viewBox="0 0 24 24"])')
+          // Linjal-boksen er den som bærer OSM-kreditten.
+          const kreditt = [...document.querySelectorAll('div')]
+            .find((e) => e.children.length === 0 && /OpenStreetMap/.test(e.textContent || ''))
+          const boks = kreditt?.closest('.rounded-lg')
+          const svgLinjal = boks?.querySelector('svg')
           const kr = knapp.getBoundingClientRect()
+          const br = boks?.getBoundingClientRect()
           const lr = svgLinjal?.getBoundingClientRect()
+          const st = getComputedStyle(knapp)
           return {
             iRaden: !!knapp.closest('.snarvei-rad'),
+            iBoksen: boks ? boks.contains(knapp) : null,
             venstre: lr ? kr.left < lr.left : null,
+            gap: br ? Math.round(br.left - kr.right) : null,
+            bunnAvvik: br ? Math.round(Math.abs(br.bottom - kr.bottom)) : null,
             nede: kr.top > window.innerHeight / 2,
             bredde: Math.round(kr.width),
+            rund: parseFloat(st.borderRadius) >= kr.width / 2 - 1,
+            // rgba(...) med alfa < 1 — skiva skal slippe kartet gjennom.
+            gjennomsiktig: /rgba\(.*,\s*0?\.\d+\)$/.test(st.backgroundColor),
           }
         })
         if (kompass.mangler) throw new Error('fant ingen kompassknapp på en berøringsflate')
         if (kompass.iRaden) throw new Error('kompasset står fortsatt i snarvei-raden')
+        if (kompass.iBoksen === null) throw new Error('fant ingen linjal-boks å måle mot')
+        if (kompass.iBoksen) throw new Error('kompasset ligger inne i linjal-boksen igjen')
         if (!kompass.nede) throw new Error('kompasset står ikke i nedre halvdel av skjermen')
         if (kompass.venstre === false) {
           throw new Error('kompasset står til høyre for målestokken — det skal stå til venstre')
+        }
+        if (!(kompass.gap > 0)) {
+          throw new Error(`kompasset og linjal-boksen har ${kompass.gap} px mellom seg `
+            + '— fristilt betyr en luft imellom')
+        }
+        if (kompass.bunnAvvik > 2) {
+          throw new Error(`kompasset og linjalen står ${kompass.bunnAvvik} px fra hverandre `
+            + 'i bunn — de skal dele bunnlinje')
+        }
+        if (!kompass.rund) throw new Error('kompass-skiva er ikke sirkelformet')
+        if (!kompass.gjennomsiktig) {
+          throw new Error('kompass-skiva er ugjennomsiktig — den skal slippe kartet svakt gjennom')
         }
         if (kompass.bredde < 44) {
           throw new Error(`kompassknappen er ${kompass.bredde} px bred — en knapp som står `
@@ -1914,7 +1942,8 @@ const SJEKKER = [
         // Nøytral tilstand: posisjonen skrur seg ikke av selv.
         await p2.locator('[data-snarvei-id="posisjon"]').click()
         await p2.waitForTimeout(300)
-        return `én linje ved 360 px, kompasset i linjalen (${kompass.bredde} px), `
+        return `én linje ved 360 px, kompasset fristilt (${kompass.bredde} px, `
+          + `${kompass.gap} px luft, bunnavvik ${kompass.bunnAvvik} px), `
           + `av→på bytter flate (${pa.flate}), ikon ${k ? k.toFixed(1) : '?'}:1`
       } finally {
         await ctx.close()

@@ -1,3 +1,9 @@
+## 2026-09-10 — v7.3.2: Kompassnåla fristilt fra linjalen igjen
+
+Nåla flyttet inn i den mørke linjal-boksen i v7.3.0, og prisen var at de to måtte dele høyde: en 44 px trykkflate gjorde hele avlesningen dobbelt så høy for noe man leser i et øyekast, med en skillestrek som element nummer tre. Nåla står nå fritt på kartet igjen, på sin egen halvgjennomsiktige skive fra v6.5.67 — hvit på et lyst ark, mørkegrå på et mørkt, så kartet skinner svakt gjennom og knappen ikke blir en klistrelapp. Skiva og linjal-boksen ligger side om side med luft imellom og deler bunnlinje, og bunnen er FAB-ens egen (`safe-area-inset-bottom` + 0,75 rem) og ikke en naken `bottom-3`: ellers skiller de tre flatene langs bunnen lag med nøyaktig safe-area-en på en telefon som har en. Røyk-sjekken måler nå alle fire egenskapene — utenfor boksen, luft imellom, felles bunnlinje, rund og halvgjennomsiktig skive — siden ingen av dem gir en JS-feil når de forsvinner.
+
+---
+
 ## 2026-09-10 — v7.3.1: Ett ark om gangen fra snarvei-radens åpen-linje
 
 De tre panelene som åpnes fra den nederste linja i snarvei-raden — Strek, Relieff og Sorter snarveier — kunne stables oppå hverandre. Sorter-arket ryddet funksjons-skuffene, men ikke knott-panelet, og tannhjulene ryddet bare hovedmeny-skuffen: åpnet man Sorter og så Strek, ble Sorter-arket liggende under, og et hakk videre til Relieff la et tredje ark på samme z-40. X-en i det øverste avdekket da et ark man for lengst hadde gått bort fra. Knott-panelet er nå en del av `lukkFunksjonsSkuffer`, og `onSnarveiInnstilling` lukker før den åpner — så alle tre inngangene rydder det samme, i begge retninger. Ny røyk-sjekk går runden Sorter → Strek → Relieff → Sorter og krever ett ark hele veien.
