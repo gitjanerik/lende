@@ -1,44 +1,35 @@
 <script setup>
-// FAB-innstillingspanel (knob-panelet), skilt ut fra MapView v1.0.8. Bunn-ark
-// med tre sub-paneler: STREK (per-element strekbredde), RELIEFF (av/på + stil)
-// og ZOOM (standard zoom / maks fliser / ombygging). Samme drawer-UX som
-// kontekst-arket: 45 dvh standard, dra i håndtaket for maksimer/standard/
+// Knott-panelet, skilt ut fra MapView v1.0.8. Bunn-ark med to sub-paneler:
+// STREK (per-element strekbredde) og RELIEFF (av/på + stil). Samme drawer-UX
+// som kontekst-arket: 45 dvh standard, dra i håndtaket for maksimer/standard/
 // minimer; kun maksimert dimmer + sperrer kartet. Presentasjonelt — verdiene
 // bindes toveis via v-model, handlinger sendes som events.
+//
+// DET TREDJE PANELET, «ZOOM OG KARTUTSNITT», ER SLETTET (v7.0.0). Det bar tre
+// ting, og ingen av dem overlevde: «standard zoom-nivå» satte et gulv under
+// dekningsskalaen som dekningen svarer bedre på selv, «maks kartfliser» er nå
+// et fast tall (25), og «bygg om i valgt størrelse» sto allerede i
+// Format-fanen. Panelet nås ikke lenger — inngangen var et lang-trykk på en
+// FAB som ikke finnes.
 import { computed } from 'vue'
 import { STROKE_GROUPS } from '../lib/strokeOverrides.js'
-import { MAP_SIZE_MIN_KM, MAP_SIZE_MAX_KM } from '../composables/useMapSizePreference.js'
 
 const props = defineProps({
-  panel: { type: String, default: null },          // 'stroke' | 'relief' | 'zoom' | null
+  panel: { type: String, default: null },          // 'stroke' | 'relief' | null
   drawer: { type: Object, required: true },        // useDraggableDrawer-objekt
   strokeEffective: { type: Object, default: () => ({}) },
-  zoomMin: { type: Number, default: 1 },
-  zoomMax: { type: Number, default: 5 },
-  maxTiles: { type: Number, default: 0 },
-  maxTileIndexMax: { type: Number, default: 4 },
-  canRebuild: { type: Boolean, default: false },
-  building: { type: Boolean, default: false },
   hint: { type: String, default: '' },
 })
 // v6.5.82: sti-fargene bor i Innstillinger → Kartstil → «Tilpass — sti-farge».
 // Panelet her er strekBREDDE; fargen er et stil-valg, og de to hørte aldri
 // sammen annet enn ved at begge tilfeldigvis gjaldt stien.
-const emit = defineEmits([
-  'close', 'setStrokeGroup', 'saveDefault', 'reset', 'rebuild',
-])
+const emit = defineEmits(['close', 'setStrokeGroup', 'saveDefault', 'reset'])
 
 const reliefEnabled = defineModel('reliefEnabled', { type: Boolean, default: false })
 const reliefMode = defineModel('reliefMode', { type: String, default: 'vektor' })
-const defaultZoomScale = defineModel('defaultZoomScale', { type: Number, default: 1 })
-const maxTileIndex = defineModel('maxTileIndex', { type: Number, default: 0 })
-const rebuildSizeKm = defineModel('rebuildSizeKm', { type: Number, default: 4 })
 
-const title = computed(() => (
-  props.panel === 'stroke' ? 'Strek — dette kartet'
-  : props.panel === 'relief' ? 'Relieff — dette kartet'
-  : 'Zoom og kartutsnitt'
-))
+const title = computed(() =>
+  props.panel === 'stroke' ? 'Strek — dette kartet' : 'Relieff — dette kartet')
 </script>
 
 <template>
@@ -93,7 +84,7 @@ const title = computed(() => (
           </template>
 
           <!-- RELIEFF: av/på + stil for dette kartet -->
-          <template v-else-if="panel === 'relief'">
+          <template v-else>
             <div class="text-[11px] text-ink-3 leading-snug mb-3">
               Gjelder dette kartet. Standard for alle kart settes i Innstillinger-fanen
               eller med «Angi som standard» under.
@@ -137,62 +128,8 @@ const title = computed(() => (
             </div>
           </template>
 
-          <!-- ZOOM: standard zoom-nivå + kartfliser + ombygging -->
-          <template v-else>
-            <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-2">
-              <div class="flex items-center justify-between gap-3 mb-1.5">
-                <div class="text-[13px] text-ink font-medium">Standard zoom-nivå</div>
-                <span class="text-ink-3 text-[12px] tabular-nums">
-                  {{ defaultZoomScale === 1 ? 'Hele kartet' : `${defaultZoomScale.toFixed(1)}×` }}
-                </span>
-              </div>
-              <input type="range" :min="zoomMin" :max="zoomMax" step="0.5"
-                     v-model.number="defaultZoomScale"
-                     aria-label="Standard zoom-nivå for Sentrer-knappen"
-                     class="w-full accent-sky-400"/>
-              <div class="text-[11px] text-ink-3 leading-snug mt-1.5">
-                Hva Sentrer-knappen zoomer til: 1× viser hele kartet; høyere nivå
-                sentrerer på GPS-posisjonen (eller kartsenteret) ved den skalaen.
-              </div>
-            </div>
-            <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-2">
-              <div class="flex items-center justify-between gap-3 mb-1.5">
-                <div class="text-[13px] text-ink font-medium">Maks kartfliser</div>
-                <span class="text-ink-3 text-[12px] tabular-nums">{{ maxTiles }}</span>
-              </div>
-              <input type="range" min="0" :max="maxTileIndexMax" step="1"
-                     v-model.number="maxTileIndex"
-                     aria-label="Maks antall kartfliser i mosaikken"
-                     class="w-full accent-sky-400"/>
-              <div class="text-[11px] text-ink-3 leading-snug mt-1.5">
-                Hvor mange kart-utsnitt som beholdes i mosaikken. Gjelder alle kart.
-              </div>
-            </div>
-            <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-2">
-              <div class="flex items-center justify-between gap-3 mb-1.5">
-                <div class="text-[13px] text-ink font-medium">Kartstørrelse</div>
-                <span class="text-ink-3 text-[12px] tabular-nums">{{ rebuildSizeKm }} km</span>
-              </div>
-              <input type="range" :min="MAP_SIZE_MIN_KM" :max="MAP_SIZE_MAX_KM" step="1"
-                     v-model.number="rebuildSizeKm"
-                     aria-label="Kartstørrelse for ombygging av dette området"
-                     class="w-full accent-sky-400"/>
-              <div class="text-[11px] text-ink-3 leading-snug mt-1.5">
-                Gjelder kun dette kartet: bygger området på nytt i valgt bredde
-                (nytt kart, samme senter).
-              </div>
-              <button @click="emit('rebuild', rebuildSizeKm)"
-                      :disabled="building || !canRebuild"
-                      class="w-full mt-2 px-3 py-2 rounded-lg text-[12px] font-medium border transition
-                             active:scale-[0.98] disabled:opacity-50
-                             bg-sky-500/15 border-sky-400/40 text-sky-100">
-                Bygg om dette området i valgt størrelse
-              </button>
-            </div>
-          </template>
-
           <!-- Footer: Angi som standard / Nullstill (strek + relieff) + feedback -->
-          <div v-if="panel !== 'zoom'" class="flex gap-2 mt-3">
+          <div class="flex gap-2 mt-3">
             <button @click="emit('saveDefault')"
                     class="flex-1 px-3 py-2 rounded-lg text-[12px] font-medium border transition
                            active:scale-[0.98] bg-emerald-500/15 border-emerald-400/40 text-emerald-100">

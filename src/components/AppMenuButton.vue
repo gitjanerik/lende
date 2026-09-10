@@ -63,6 +63,23 @@ function measure() {
   if (r) pos.value = { top: `${Math.round(r.top)}px`, left: `${Math.round(r.left)}px` }
 }
 
+// OBSERVEREN MÅ SE FORELDRENE OG IKKE BARE PLASSHOLDEREN (v7.1.0).
+// Plassholderen er 40 × 40 px og endrer ALDRI størrelse — så en observer på
+// den alene fyrer én gang ved oppstart og aldri mer. Det holdt så lenge
+// knappen sto i en topprad som spente hele bredden: da flyttet den seg bare
+// når vinduet gjorde det. Fra v7.1.0 bor hamburgeren i snarvei-raden, som er
+// en midtstilt pille som VOKSER når raden åpnes og krymper i kompakt modus —
+// plassholderen flytter seg uten å endre størrelse, og den teleporterte
+// knappen ble stående igjen der raden var. Vi observerer derfor hele
+// forelderkjeden opp til <body>: en bredde-endring hvor som helst der er
+// nettopp det som kan flytte plassholderen sidelengs.
+function observerte() {
+  const ut = []
+  for (let el = slotRef.value; el && el !== document.body; el = el.parentElement) ut.push(el)
+  if (document.body) ut.push(document.body)
+  return ut
+}
+
 let ro = null
 onMounted(() => {
   measure()
@@ -71,7 +88,7 @@ onMounted(() => {
   window.visualViewport?.addEventListener('resize', measure)
   if (typeof ResizeObserver !== 'undefined' && slotRef.value) {
     ro = new ResizeObserver(measure)
-    ro.observe(slotRef.value)
+    for (const el of observerte()) ro.observe(el)
   }
 })
 onBeforeUnmount(() => {
@@ -124,12 +141,44 @@ const skinClass = computed(() => (isFloat.value
                   stroke-linecap="round" :stroke-dasharray="ring.dasharray"
                   :stroke-dashoffset="ring.dashoffset" transform="rotate(-90 24 24)" />
         </svg>
+        <!-- Tallet i hjørnet (v6.6.5). Ringen sier HVOR LANGT det er igjen på
+             et blikk; merket sier NØYAKTIG hvor mange minutter. De to er
+             komplementære, ikke to utgaver av det samme — en ring alene kan
+             ikke skille 4 fra 6 minutter, og et tall alene viser ingen
+             bevegelse. Svart på gult er den ene kombinasjonen som holder
+             kontrasten uansett om knappen er den mørke flytende eller den lyse
+             i toppraden, og `aria-hidden` fordi nedtellingen alt står i
+             knappens navn. -->
+        <span v-if="holdVaken.aktiv.value" class="vaken-merke" aria-hidden="true">
+          {{ holdVaken.igjenMinutter.value }}
+        </span>
       </button>
     </Teleport>
   </span>
 </template>
 
 <style scoped>
+/* Nedtellings-merket. Sitter PÅ kanten (negativ offset) så det leses som et
+   merke og ikke som innhold i knappen, og har en ring i knappens egen
+   bakgrunnsfarge så det skiller seg fra den gule ringen rett under. */
+.vaken-merke {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: #ffd84a;
+  color: #000;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
 .menu-bars {
   position: relative;
   display: block;

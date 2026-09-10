@@ -69,7 +69,7 @@ describe('useHoldVaken', () => {
 
   it('0 slår av og slipper locken', async () => {
     const v = useHoldVaken()
-    v.settMinutter(30)
+    v.settMinutter(20)
     await flush()
     expect(v.settMinutter(0)).toBe(0)
     await flush()
@@ -77,8 +77,8 @@ describe('useHoldVaken', () => {
     expect(releaseSpy).toHaveBeenCalled()
   })
 
-  it('klemmer til maks en time', () => {
+  it('klemmer til maks en halvtime', () => {
     const v = useHoldVaken()
-    expect(v.settMinutter(180)).toBe(60)
+    expect(v.settMinutter(180)).toBe(30)
   })
 })

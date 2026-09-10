@@ -46,7 +46,7 @@ export function loadKnobStep(key, def, len) {
  *   hooks: {
  *     applyHillshade: () => void, updateGhostReliefOpacity: () => void,
  *     renderGhostTiles: () => Promise|void, invalidateReliefBands: () => void,
- *     scheduleNameLOD: () => void, onResetAndRefreshGps: () => void,
+ *     scheduleNameLOD: () => void,
  *     closeDrawer: () => void, knobDrawerReset: () => void,
  *   },
  * }} deps
@@ -141,7 +141,8 @@ export function useKartKnotter({
   // Tekststørrelse-slider (desktop) — søsken til rotasjons-sliden. Verdien er
   // −100…100 med 0 = «normal» (midtstilt); skala = 2^(v/100) → 0.5×…2.0×, så
   // brukeren både kan øke og minske størrelsen på alle kart-etiketter. Lagres i
-  // localStorage, men nullstilles av «Sentrer/Nullstill»-FAB (onResetAndRefreshGps).
+  // localStorage, men nullstilles av «Nord opp» i nav-gruppen, som fra v7.0.0
+  // også sentrerer og zoomer ut (onResetAndRefreshGps i MapView).
   const LABEL_SCALE_MIN = -100
   const LABEL_SCALE_MAX = 100
   function loadLabelScaleSlider() {
@@ -317,13 +318,15 @@ export function useKartKnotter({
     flashKnobHint(reliefMode.value === 'vektor' ? 'Skarpt relieff (vektor)' : 'Mjukt relieff (bilde)')
   })
 
-  // ---- tap og hold på knottene -------------------------------------
-  // Tap = step (wrap) / sentrer, lang-trykk (600 ms) = åpne FAB-ens innstillings-
-  // panel (v12.0.18 — erstattet lang-trykk-nullstill; nullstilling bor nå som
-  // egen knapp i panelene). Selve gest-håndteringen — settled-vakten,
-  // Samsung-pointercancel-en og avstands-avbruddet — bor i useLongPress via
-  // FabCluster fra v4.8.2. Her står bare hva et tap og et hold BETYR.
-  const knobPanel = ref(null)   // 'stroke' | 'relief' | 'zoom' | null
+  // ---- hva et hakk og et panel BETYR -------------------------------
+  // KNOTTENE ER SNARVEIER, OG GESTEN ER BORTE (v7.0.0). Tap og lang-trykk på et
+  // FAB-anker er byttet med en pille som har to trykkflater: venstre halvdel
+  // kaller `onFabKnobTap` (ett hakk opp, med wrap), tannhjulet til høyre
+  // kaller `onFabKnobHold` (åpne panelet). Navnene står igjen fordi de sier
+  // hva handlingen ER, ikke hvordan den ble utløst — og `useLongPress` er ikke
+  // lenger involvert. Den tredje knotten, «Sentrer», er absorbert av «Nord
+  // opp» i nav-gruppen, så kind er nå bare de to som har et panel.
+  const knobPanel = ref(null)   // 'stroke' | 'relief' | null
 
   function onFabKnobTap(kind) {
     if (kind === 'stroke') {
@@ -337,17 +340,15 @@ export function useKartKnotter({
         flashKnobHint('Relieff på')
         return
       }
-      if (!reliefEnabled.value) { flashKnobHint('Relieff er av — hold for innstillinger'); return }
+      if (!reliefEnabled.value) { flashKnobHint('Relieff er av — se tannhjulet'); return }
       reliefStepIndex.value = (reliefStepIndex.value + 1) % RELIEF_STEPS.length
-    } else {
-      hooks.onResetAndRefreshGps()
     }
   }
 
   function onFabKnobHold(kind) {
     hooks.closeDrawer()        // hovedmeny-skuffen viker for panelet (som ved long-press på kart)
     hooks.knobDrawerReset()   // alltid åpne i standard-høyde (45 dvh)
-    knobPanel.value = kind === 'center' ? 'zoom' : kind
+    knobPanel.value = kind
   }
 
   // ---- panel-handlinger: standard og nullstill ---------------------

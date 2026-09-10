@@ -26,7 +26,6 @@ import { reverseNearestPlace } from '../lib/nominatimReverse.js'
 import { parseRouteToken, MAX_SHARE_ROUTES } from '../lib/routeShare.js'
 import { useGravelPlanner } from '../composables/useGravelPlanner.js'
 import { loadGravelRoute } from '../lib/mapStorage.js'
-import { useMapContext } from '../composables/useMapContext.js'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
 import AppMenuButton from '../components/AppMenuButton.vue'
 import { useLendeChat } from '../composables/useLendeChat.js'
@@ -117,13 +116,6 @@ const view = computed(() => ({
   centerLat: center.value.lat, centerLon: center.value.lon,
   zoom: zoom.value, wPx: mapSize.value.w, hPx: mapSize.value.h,
 }))
-
-// Punkt-provider for hovedmenyens eksterne karttjenester (Google/UT.no/
-// Vegkart): synlig kartsenter + web-zoom. Registrert i onMounted.
-const mapCtx = useMapContext()
-function menuMapPoint() {
-  return { lat: center.value.lat, lon: center.value.lon, zoom: zoom.value }
-}
 
 const tiles = computed(() => {
   if (!mapSize.value.w) return []
@@ -1200,7 +1192,6 @@ onMounted(() => {
   })
   window.addEventListener('resize', measureMap)
   void planner.refreshSaved()
-  mapCtx.register(menuMapPoint)
   // ?open=<id> fra hjem-sidens Ruteplanlegger-fane: åpne lagret rute direkte.
   const openId = currentRoute.query.open
   if (openId && !routeInvite.value) {
@@ -1219,7 +1210,6 @@ onMounted(() => {
 })
 onUnmounted(() => {
   setChatContext(null)
-  mapCtx.unregister(menuMapPoint)
   unlockBodyScroll()
   mapResizeObs?.disconnect()
   window.removeEventListener('resize', measureMap)

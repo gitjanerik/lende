@@ -4,10 +4,13 @@
 // FEIL uten at noe ser rart ut er ringen rundt hamburgeren — en nedtelling som
 // tegner feil vei ser helt normal ut på et stillbilde.
 
-export const MAKS_MINUTTER = 60
+export const MAKS_MINUTTER = 30
 export const MS_PER_MIN = 60_000
 
-// Slider-verdien: hele minutter i [0, 60]. 0 er AV, og det er defaulten.
+// Slider-verdien: hele minutter i [0, MAKS_MINUTTER]. 0 er AV, og det er
+// defaulten. Taket var 60 fram til v6.6.5; halvparten gir sliderens 30 hakk
+// dobbelt så mye vei per minutt, og en tur som trenger mer enn en halvtime
+// sammenhengende skjerm er en tur der man drar i den igjen uansett.
 export function klemMinutter(n) {
   const v = Math.round(Number(n))
   if (!Number.isFinite(v) || v <= 0) return 0

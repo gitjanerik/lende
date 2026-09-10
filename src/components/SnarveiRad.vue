@@ -40,25 +40,49 @@
 //    og resultatet var en sammenlagt rad på to linjer på eierens telefon.
 //    Ettersjekken leser derfor `offsetTop`: er ikke alle knappene på samme
 //    linje, er prognosen én for høy.
-// 5. NAV-GRUPPEN ER FAST OG TELLES IKKE MED. Posisjon og «nord opp» står
-//    først, foran en skillelinje, og kollapser aldri — se `NAV_SNARVEIER`.
-//    De spiser derimot av budsjettet (`fastPx`), ellers ville målingen lovt
-//    plass til knapper gruppa allerede har tatt.
+// 5. VENSTREGRUPPEN ER FAST OG TELLES IKKE MED. Hamburgeren (som slot fra
+//    kallstedet) og kompasset står først, foran en skillelinje, og kollapser
+//    aldri — se `NAV_SNARVEIER`. De spiser derimot av budsjettet (`fastPx`),
+//    ellers ville målingen lovt plass til knapper gruppa allerede har tatt.
+//
+// RADEN HAR SPIST TOPPRADA (v7.1.0). Hamburgeren, søket og kartnavnet lå i en
+// egen rad over kartet; nå er hamburgeren venstregruppens andre halvdel, søket
+// og posisjonen er vanlige snarveier, og NAVNET står på linja med «Sorter
+// snarveier» — altså bare når raden er åpnet. Navnet er ikke noe man leser mens
+// man går; det er noe man slår opp, og den plassen er kartets.
+//
+// KOMPAKT-MODUSEN ER PRISEN FOR AT HAMBURGEREN BOR HER. Raden skjules i
+// måling/stifinner/annotering og mens kartet bygges — og med menyknappen inni
+// ville den forsvunnet med den. `kompakt` beholder derfor venstregruppen alene,
+// dyttet mot venstre kant, nøyaktig der hamburgeren sto før. Sentrert ville den
+// kollidert med bygge-chipen i samme `--ovl-top`-slot.
 // ─────────────────────────────────────────────────────────────────────────────
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import SnarveiIkon from './SnarveiIkon.vue'
 import { antallSomFar } from '../lib/snarveier.js'
 
 const props = defineProps({
-  // [{ id, label, aria }] i brukerens rekkefølge.
+  // [{ id, label, aria, gruppe?, bue?, dimmet?, tannhjulAria? }] i brukerens
+  // rekkefølge. `gruppe` gir pille med tannhjul; `bue` er knott-ringens
+  // geometri, som SnarveiIkon tegner nivået med.
   snarveier: { type: Array, required: true },
   // Den faste gruppen: [{ id, label, aria, aktiv }] — se punkt 5 i filhodet.
   nav: { type: Array, default: () => [] },
   // Hvor nord ligger på skjermen, i grader med klokka. Roterer kompassnåla.
   azimut: { type: Number, default: 0 },
   uiTextScale: { type: Number, default: 1 },
+  // Bare venstregruppen, venstrestilt: en modus eller en bygging eier
+  // skjermen, men veien ut av visningen skal aldri gjøre det.
+  kompakt: { type: Boolean, default: false },
 })
-const emit = defineEmits(['velg', 'nav', 'sorter'])
+// `apen` går UT igjen fordi den åpne raden er tre linjer høy på en telefon og
+// da dekker navigasjonssøyla, som står i sin egen `--ovl-nav`-slot rett under.
+// Slotten kan ikke dimensjoneres for den åpne raden — den er en transient
+// tilstand, og søyla ville stått permanent lavere for en rad man sjelden
+// åpner. Kallstedet løfter i stedet raden over søyla mens den er åpen. Radens
+// egen z-index duger ikke: innpakningen i MapView er `z-20 absolute`, altså
+// sin egen stacking context, og et barn kan ikke klatre ut av den.
+const emit = defineEmits(['velg', 'nav', 'innstilling', 'sorter', 'apen'])
 
 // Margin til hver skjermkant. Raden er sentrert, så halve verdien per side.
 const KANT_PX = 24
@@ -146,12 +170,18 @@ onMounted(() => {
 })
 onBeforeUnmount(() => ro?.disconnect())
 
+watch(apen, v => emit('apen', v))
+watch(() => props.kompakt, k => { if (k) apen.value = false; else void ommaal() })
 watch(() => props.snarveier.map(s => s.id).join(','), () => { void ommaal() })
 watch(() => props.uiTextScale, () => { void ommaal() })
 
 function velg(id) {
   apen.value = false
   emit('velg', id)
+}
+function innstilling(id) {
+  apen.value = false
+  emit('innstilling', id)
 }
 function navTrykk(id) {
   emit('nav', id)
@@ -163,7 +193,8 @@ function sorter() {
 </script>
 
 <template>
-  <div class="pointer-events-auto flex flex-col items-center gap-1">
+  <div class="pointer-events-auto flex flex-col items-center gap-1"
+       :style="{ maxWidth: `calc(100vw - ${KANT_PX}px)`, width: apen ? '100%' : 'auto' }">
     <div ref="radRef"
          class="snarvei-rad flex items-stretch gap-1 px-1.5 py-1.5 rounded-2xl
                 bg-overlay/90 backdrop-blur shadow-lg"
@@ -175,8 +206,15 @@ function sorter() {
            knappene bærer en TILSTAND (aksentgrønn flate + `aria-pressed`,
            samme mønster som vippebryterne i skuffene), og de står foran en
            skillelinje som sier at de ikke hører til det som kan sorteres. -->
-      <template v-if="nav.length">
-        <div ref="fastRef" class="flex items-stretch gap-1">
+      <div ref="fastRef" class="flex items-stretch gap-1">
+        <!-- Hamburgeren kommer utenfra: den er appens globale menyknapp, og
+             raden skal ikke kjenne hovedmenyen for å vise den. Knappen selv er
+             teleportert til <body> og følger plassholderen sin, så animasjonen
+             til X overlever flyttingen hit. -->
+        <span v-if="$slots.venstre" class="self-center flex items-center px-0.5">
+          <slot name="venstre" />
+        </span>
+        <template v-if="nav.length">
           <button v-for="n in nav" :key="n.id" data-linje data-nav
                   :data-nav-id="n.id" type="button"
                   @click="navTrykk(n.id)" :aria-pressed="!!n.aktiv"
@@ -189,18 +227,51 @@ function sorter() {
                            : null" />
             <span>{{ n.label }}</span>
           </button>
-        </div>
-        <div class="shrink-0 self-stretch w-px my-1 bg-ink/20" aria-hidden="true"></div>
-      </template>
+        </template>
+      </div>
+      <div v-if="!kompakt" class="shrink-0 self-stretch w-px my-1 bg-ink/20" aria-hidden="true"></div>
 
-      <button v-for="(s, i) in snarveier" :key="s.id"
-              data-snarvei :data-snarvei-id="s.id" data-linje
-              v-show="synlig(i)"
-              @click="velg(s.id)" :aria-label="s.aria"
-              class="shortcut-btn">
-        <SnarveiIkon :id="s.id" class="w-5 h-5" />
-        <span>{{ s.label }}</span>
-      </button>
+      <template v-if="!kompakt">
+      <template v-for="(s, i) in snarveier" :key="s.id">
+        <!-- GRUPPE-SNARVEIEN: én pille med TO trykkflater (v7.0.0). Venstre er
+             hakket — det tapet på knotten gjorde — høyre er tannhjulet som
+             åpner panelet, altså det lang-trykket sa. Boksen er ETT
+             `data-snarvei`/`data-linje`-element, slik at målingen og
+             ettersjekken ser pilla som én knapp. -->
+        <div v-if="s.gruppe" data-snarvei :data-snarvei-id="s.id" data-linje
+             v-show="synlig(i)" class="shortcut-group">
+          <button type="button" @click="velg(s.id)" :aria-label="s.aria"
+                  class="shortcut-btn shortcut-btn--venstre"
+                  :class="s.dimmet ? 'shortcut-btn--dim' : ''">
+            <SnarveiIkon :id="s.id" :bue="s.bue" class="w-5 h-5" />
+            <span>{{ s.label }}</span>
+          </button>
+          <span class="shortcut-group__strek" aria-hidden="true"></span>
+          <button type="button" @click="innstilling(s.id)"
+                  :aria-label="s.tannhjulAria || `Innstillinger for ${s.label}`"
+                  class="shortcut-btn shortcut-btn--tannhjul">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.2.62.79 1.02 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- `aktiv` er posisjonens (v7.1.0): den SLÅR NOE PÅ, og aksentflaten
+             pluss `aria-pressed` er samme par som hver vippebryter i skuffene.
+             Den lå i den faste gruppen fram til nå og bar tilstanden der. -->
+        <button v-else data-snarvei :data-snarvei-id="s.id" data-linje
+                v-show="synlig(i)"
+                @click="velg(s.id)"
+                :aria-label="s.ariaTekst || s.aria"
+                :aria-pressed="s.aktiv === undefined ? undefined : !!s.aktiv"
+                class="shortcut-btn" :class="s.aktiv ? 'shortcut-btn--pa' : ''">
+          <SnarveiIkon :id="s.id" class="w-5 h-5" />
+          <span>{{ s.label }}</span>
+        </button>
+      </template>
 
       <!-- Nedtrekket. Står ALLTID, også når ingenting er skjult — se punkt 1
            i filhodet. Tallet i merket sier hvor mange som ligger bak. -->
@@ -224,24 +295,36 @@ function sorter() {
         </span>
         <span>{{ apen ? 'Mindre' : 'Mer' }}</span>
       </button>
+      </template>
     </div>
 
-    <!-- «Sorter snarveier» er en FAST knapp i nedtrekket, ikke en funksjon i
-         raden: den handler om raden selv, og en plass mellom Måling og 3D
-         ville gjort den til nok en ting man kan trykke på ved et uhell. -->
+    <!-- ÅPEN-LINJA: kartets NAVN til venstre, «Sorter snarveier» til høyre.
+         Navnet lå i en egen toppraud og tok en stripe av kartet hele tida for
+         et spørsmål man stiller sjelden — nå står det der man alt har åpnet
+         noe. Det tar den ledige plassen i flexen og BRYTER ALDRI: et kartnavn
+         på to linjer ville dyttet sorteringsknappen ned og gjort en fast rad
+         til en som hopper.
+         «Sorter snarveier» er en FAST knapp her, ikke en funksjon i raden: den
+         handler om raden selv, og en plass mellom Måling og 3D ville gjort den
+         til nok en ting man kan trykke på ved et uhell. -->
     <Transition name="snarvei-fade">
-      <button v-if="apen" type="button" @click="sorter"
-              class="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-2xl
-                     bg-overlay/90 backdrop-blur shadow-lg text-ink text-[11px] font-medium
-                     active:scale-95 transition">
-        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <line x1="4" y1="7" x2="14" y2="7"/><line x1="4" y1="12" x2="11" y2="12"/>
-          <line x1="4" y1="17" x2="17" y2="17"/>
-          <polyline points="17 4 20 7 17 10"/>
-        </svg>
-        Sorter snarveier
-      </button>
+      <div v-if="apen && !kompakt"
+           class="pointer-events-auto w-full flex items-center gap-2 px-2 py-1.5 rounded-2xl
+                  bg-overlay/90 backdrop-blur shadow-lg">
+        <div class="flex-1 min-w-0"><slot name="navn" /></div>
+        <button type="button" @click="sorter" aria-label="Sorter snarveier"
+                class="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-xl
+                       text-ink text-[11px] font-medium active:scale-95 transition
+                       hover:bg-ink/8">
+          <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="4" y1="7" x2="14" y2="7"/><line x1="4" y1="12" x2="11" y2="12"/>
+            <line x1="4" y1="17" x2="17" y2="17"/>
+            <polyline points="17 4 20 7 17 10"/>
+          </svg>
+          <span class="whitespace-nowrap">Sorter</span>
+        </button>
+      </div>
     </Transition>
   </div>
 </template>
@@ -271,6 +354,37 @@ function sorter() {
 .shortcut-btn:active { transform: scale(0.94); }
 .shortcut-btn:hover { background: color-mix(in oklab, var(--color-ink) 8%, transparent); }
 .shortcut-btn--handle { min-width: 44px; color: var(--color-ink-2, var(--color-ink)); }
+
+/* GRUPPE-PILLA (v7.0.0): to trykkflater i én boks. Boksen har radens egen
+   avrunding og en hårfin ramme, slik at de to leses som ÉN funksjon med en
+   innstilling — ikke som to snarveier som tilfeldigvis står inntil hverandre.
+   `flex-shrink: 0` av samme grunn som på knappene: målingen skal se den ekte
+   bredden, ikke minstebredden. */
+.shortcut-group {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  border-radius: 12px;
+  border: 1px solid color-mix(in oklab, var(--color-ink) 14%, transparent);
+  background: color-mix(in oklab, var(--color-ink) 5%, transparent);
+}
+.shortcut-group .shortcut-btn { border-radius: 11px; }
+.shortcut-btn--venstre { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.shortcut-btn--tannhjul {
+  min-width: 32px;
+  padding: 6px 7px;
+  justify-content: center;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  color: var(--color-ink-2, var(--color-ink));
+}
+.shortcut-group__strek {
+  width: 1px;
+  margin: 6px 0;
+  background: color-mix(in oklab, var(--color-ink) 18%, transparent);
+}
+/* Relieff av: ikonet skal si det uten en egen etikett. */
+.shortcut-btn--dim { opacity: 0.55; }
 
 /* NAV-GRUPPEN: av er nøytral, på er appens aksentgrønne med hvitt innhold —
    samme par som hver vippebryter i skuffene og som de gamle runde skivene
