@@ -156,20 +156,20 @@ html { background: var(--color-app); }
    rundt «+», og Tailwind-klasse-tokens kan ikke inneholde mellomrom. */
 :root {
   --safe-top: env(safe-area-inset-top, 0px);
-  /* TOPPRADA ER BORTE (v7.1.0), og hele stabelen flyttet 3,25rem opp med den.
-     Slotten var «rett under knapperaden»; nå er den skjermens egen overkant
-     pluss litt luft, og snarvei-raden er det som står der. Avstandene MELLOM
-     slottene er uendret — de er målt mot radens egen høyde, ikke mot baren. */
-  --ovl-top: calc(0.75rem + var(--safe-top));  /* snarvei-raden, øverst */
-  --ovl-rose: calc(1.75rem + var(--safe-top)); /* kompassrosen */
+  /* TOPPRADA ER TILBAKE (v7.2.0), og hele stabelen flyttet 3,25rem ned igjen.
+     Slotten er «rett under knapperaden», som den var til og med v6.6.5.
+     Avstandene MELLOM slottene er uendret — de er målt mot snarvei-radens egen
+     høyde, ikke mot baren. */
+  --ovl-top: calc(4rem + var(--safe-top));    /* rett under knapperaden (var top-16) */
+  --ovl-rose: calc(5rem + var(--safe-top));   /* kompassrosen (var top-20) */
   /* Navigasjonssøyla på høyre kant. Den lå på --ovl-rose og havnet da OPPÅ
      snarvei-raden, som står på --ovl-top og er 56 px høy — på en telefon er
      raden bred nok til å nå helt ut i kanten. Slotten er derfor snarvei-radens
-     underkant (0,75rem + 56 px) pluss luft. */
-  --ovl-nav: calc(5.25rem + var(--safe-top));
-  --ovl-top-2: calc(4.25rem + var(--safe-top)); /* andre stable-slot når måling/sti er aktiv */
-  --ovl-top-3: calc(8.75rem + var(--safe-top)); /* tredje stable-slot */
-  --ovl-poi: calc(12.75rem + var(--safe-top));  /* POI-info-boks */
+     underkant (4rem + 56 px) pluss luft. */
+  --ovl-nav: calc(8.5rem + var(--safe-top));
+  --ovl-top-2: calc(7.5rem + var(--safe-top)); /* andre stable-slot når måling/sti er aktiv */
+  --ovl-top-3: calc(12rem + var(--safe-top));  /* tredje stable-slot */
+  --ovl-poi: calc(16rem + var(--safe-top));    /* POI-info-boks (var top-[16rem]) */
 }
 
 /* Bunn-skuffer (info-paneler som glir opp fra bunnen av viewporten) deler

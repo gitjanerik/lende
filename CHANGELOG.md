@@ -1,3 +1,9 @@
+## 2026-09-10 — v7.2.0: Topprada tilbake, pillene på åpen-linja, Lende-FAB-en tilbake
+
+Felttesten av v7.0.0 og v7.1.0 svarte «for mye»: alt som kunne trykkes var flyttet inn i snarvei-raden, og resultatet ble en fire linjer høy svart boks midt over kartet — mer dekket flate enn den ene stripa som ble spart, og kartnavnet gjemt bak et nedtrekk man måtte åpne for å se hvilket kart man sto i. Topprada er derfor nøyaktig den fra v6.6.5 igjen: hamburger, kartnavn, søk og oppsett på sin egen linje over raden. Snarvei-raden er igjen bare FUNKSJONENE, med posisjon og kompassnål som en fast venstregruppe som aldri kollapser inn i «Mer» — posisjonen er den ene knappen man rekker etter mens man går. Strek og relieff er ikke funksjoner, men knotter med et nivå; de står nå som piller på linja som kommer fram når raden åpnes, ved siden av «Sorter», og et hakk på knotten lukker ikke raden, fordi hakket er noe man tar flere av. De to eksterne kartene (UT.no og Google Maps) har flyttet øverst i infopanelet, altså i panelet om nettopp det punktet de handler om. Og Lende-chatten er tilbake som FAB nede til høyre med logoen som symbol, nå med ett tapp i stedet for et lang-trykk — samme anker, samme hjørne og samme gest som i ruteplanleggeren.
+
+---
+
 ## 2026-09-10 — v7.1.1: Skrivefeltet i chatten er full bredde, og liggende-sjekken rydder etter seg
 
 Chattens skrivefelt delte en `flex-wrap`-rad med mikrofon- og send-knappen, med et

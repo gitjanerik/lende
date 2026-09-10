@@ -23,14 +23,25 @@ export const SNARVEI_REKKEFOLGE_KEY = 'lende-snarvei-rekkefolge'
 
 // `kunEgne` er samme port som fanene hadde: på de innebygde demokartene
 // (Vardåsen) finnes verken egne markeringer eller GPS-spor å vise.
+//
+// KATALOGEN ER SLANKET TILBAKE (v7.2.0). I v7.0.0 og v7.1.0 vandret alt inn
+// hit — søket, innstillingene, de to eksterne lenkene, chatten og de to
+// knott-pillene — og topprada ble borte. Felttesten svarte: raden ble fire
+// linjer svart boks over kartet, og gevinsten «en stripe kart på toppen» ble
+// spist av at raden tok fire. Lærdommen er verdt å ha skrevet ned: en
+// FORENKLING som samler alt på ett sted er bare en forenkling hvis stedet
+// tåler alt som kommer.
+//
+// Det som gikk ut, og hvor det gikk:
+//   sok, innstillinger  → topprada, der de lå (MapView)
+//   posisjon            → den faste nav-gruppen under, med kompasset
+//   strek, relieff      → pille-raden som kommer fram når raden åpnes
+//   utno, gmaps         → øverst i infopanelet (ContextMenuSheet)
+//   chat                → Lende-FAB-en nede til høyre, som i ruteplanleggeren
+//
+// Igjen står nøyaktig det raden ble laget for i v6.6.0: det man GJØR med
+// kartet, sorterbart, med resten bak nedtrekket.
 export const SNARVEIER = [
-  // SØK OG POSISJON ER VANLIGE SNARVEIER (v7.1.0), og de står først fordi det
-  // er de to man rekker etter oftest — ikke fordi de er unntatt noe. Søket lå
-  // ytterst til høyre i topprada og posisjonen i den faste nav-gruppen; med
-  // begge her er topprada borte, og kartet får hele skjermen. Posisjonen bærer
-  // fortsatt en TILSTAND (`aktiv` fylles av kallstedet), for den slår noe på.
-  { id: 'sok',        label: 'Søk',        aria: 'Søk i kart' },
-  { id: 'posisjon',   label: 'Posisjon',   aria: 'Posisjon' },
   { id: 'stifinner',  label: 'Stifinner',  aria: 'Stifinner' },
   { id: 'runde',      label: 'Runde',      aria: 'Gå en runde' },
   { id: 'maaling',    label: 'Måling',     aria: 'Måling' },
@@ -38,75 +49,54 @@ export const SNARVEIER = [
   { id: 'annotering', label: 'Annotering', aria: 'Annotering', kunEgne: true },
   { id: 'sporing',    label: 'Sporing',    aria: 'Sporing',    kunEgne: true },
   { id: 'info',       label: 'Info',       aria: 'Informasjon om stedet' },
-  // EKSTERNE KART (v6.6.5). De to lå som chips i hovedmenyen sammen med Street
-  // View og Vegkart, bak «Åpne <sted> i». Menyen er appens egne halvdeler og
-  // innstillingene deres; «se dette stedet hos noen andre» er noe man GJØR med
-  // kartet man står i, altså en snarvei. Street View og Vegkart fulgte ikke
-  // med: de svarer på spørsmål om VEI, og en turkart-app har ikke veien som
-  // spørsmål. De to som ble igjen er dem man faktisk drar til fra en tur —
-  // UT.no for turbeskrivelsen, Google for satellitt og det som ligger der.
-  //
-  // De står SIST i standard-rekkefølgen, og det er ikke tilfeldig: de forlater
-  // appen. Alt som gjør noe med kartet ditt skal ligge foran det som tar deg
-  // ut av det — og rekkefølgen er uansett brukerens.
-  { id: 'utno',       label: 'UT.no',      aria: 'Åpne stedet på UT.no' },
-  { id: 'gmaps',      label: 'Google',     aria: 'Åpne stedet i Google Maps' },
-  // ARVEN ETTER LENDE-KNAPPEN (v7.0.0). Strek og relieff var to knotter som
-  // sprang ut bak et FAB-anker nede til høyre: tap = ett hakk, lang-trykk =
-  // panelet. Ankeret er borte — det var appens siste sted der en funksjon bare
-  // fantes for den som gjettet en gest — og de to er nå snarveier som alt
-  // annet man GJØR med kartet.
-  //
-  // `gruppe` er forskjellen: de rendres som en pille med TO trykkflater, der
-  // venstre er hakket og høyre er et tannhjul som åpner panelet. Det er det
-  // lang-trykket sa, sagt med en knapp. `bue` fylles av kallstedet med
-  // knott-buens geometri — den blå/oransje ringen som viser NIVÅET er hele
-  // grunnen til at de to ikke bare er nok et strekikon.
-  //
-  // De står SIST, foran chatten: de stiller inn hvordan kartet ser ut, mens
-  // resten av raden gjør noe med det. Rekkefølgen er uansett brukerens.
-  { id: 'strek',      label: 'Strek',      aria: 'Strektykkelse', gruppe: true,
-    tannhjulAria: 'Strek-innstillinger for dette kartet' },
-  { id: 'relieff',    label: 'Relieff',    aria: 'Relieff',       gruppe: true,
-    tannhjulAria: 'Relieff-innstillinger for dette kartet' },
-  // Chatten er HELT sist, og den finnes bare for den som har invitasjonstoken
-  // — `kunChat` er samme port som `hasAiToken()` gater alt annet med. Uten
-  // token skal funksjonen ikke engang være synlig i sorteringen.
-  { id: 'chat',       label: 'Lende',      aria: 'Spør Lende om kartet', kunChat: true },
-  // INNSTILLINGER ER OGSÅ EN SNARVEI (v7.0.0), og den står helt sist. Knappen
-  // lå ytterst til høyre i topprada ved siden av søket, og de to spurte om
-  // ulike ting: søket handler om kartet man ser på, skuffen om hvordan appen
-  // er stilt inn. Med skuffen ute får søket høyrekanten alene og kartnavnet
-  // den plassen mellom hamburgeren og søket det manglet.
-  //
-  // Den er en INNGANG og ikke en funksjon, men den sorteres som resten:
-  // rekkefølgen er brukerens, og en knapp som er unntatt fra sorteringen er en
-  // knapp man ikke finner igjen der man la den. Nav-gruppen er fortsatt det
-  // eneste unntaket, og den er det fordi den bærer en TILSTAND.
-  { id: 'innstillinger', label: 'Oppsett', aria: 'Innstillinger' },
 ]
 
 export const STANDARD_REKKEFOLGE = SNARVEIER.map(s => s.id)
 
 /**
- * DEN FASTE VENSTREGRUPPEN (v6.6.1, omgjort i v7.1.0).
+ * DEN FASTE VENSTREGRUPPEN (v6.6.1, gjenopprettet i v7.2.0).
  *
- * Gruppen var Posisjon + «nord opp»: to knapper som SLÅR NOE PÅ, sto først
- * foran en skillelinje, og kollapset aldri inn i nedtrekket. Posisjonen er nå
- * en vanlig snarvei — den er brukerens å sortere som alt annet, og den står
- * først i standarden uansett — mens KOMPASSET ble igjen, sammen med
- * hamburgeren, som raden får som slot fra kallstedet.
+ * Posisjon og «nord opp» — to knapper som SLÅR NOE PÅ, står først foran en
+ * skillelinje, og kollapser ALDRI inn i nedtrekket. Posisjonen ble en vanlig
+ * sorterbar snarvei i v7.1.0, og det var feil av samme grunn som gruppen ble
+ * laget: posisjonen er den ene knappen man rekker etter mens man går, og en
+ * knapp som havner bak «Mer» fordi man sorterte Stifinner først er en knapp
+ * man ikke finner i regnvær.
  *
- * De to som står igjen har det til felles at de ikke handler om KARTET men om
- * hvordan du ser på det: hamburgeren er veien ut av visningen, kompasset er
- * veien tilbake til nord og hele arket. Ingen av dem tåler å havne bak «Mer» —
- * en knapp man ikke finner i regnvær er en knapp som ikke finnes.
+ * De skiller seg fra resten på to måter som begge må være synlige: de SLÅR NOE
+ * PÅ (aksentgrønn flate + `aria-pressed`, samme par som hver vippebryter i
+ * skuffene) framfor å gjøre noe, og de sorteres ikke.
  *
  * `kunRotasjon` er kompassets port: uten en azimut å nullstille — desktop har
  * retningsrosa, og en modus uten rotasjon har ingen retning — faller den bort.
  */
 export const NAV_SNARVEIER = [
+  { id: 'posisjon', label: 'Posisjon', aria: 'Posisjon' },
   { id: 'kompass',  label: 'Nord',     aria: 'Vend kartet mot nord', kunRotasjon: true },
+]
+
+/**
+ * PILLE-RADEN (v7.2.0): strek og relieff, arven etter Lende-knottene.
+ *
+ * De er verken funksjoner eller innstillinger, men en tredje ting: en knott
+ * med et NIVÅ man skrur på uten å åpne noe. `gruppe` gir dem to trykkflater —
+ * venstre er hakket (det knott-tapet gjorde), høyre er tannhjulet som åpner
+ * panelet (det lang-trykket gjorde). `bue` fylles av kallstedet med
+ * knott-buens geometri; den blå/oransje ringen som viser nivået er hele
+ * grunnen til at de to ikke bare er nok et strekikon.
+ *
+ * De sto i snarvei-raden i v7.0.0 og spiste to plasser av den på hver skjerm.
+ * Nå står de på linja som kommer fram når raden åpnes — samme sted man alt
+ * finner «Sorter», altså der man er når man stiller inn og ikke når man går.
+ * Derfor må et trykk på knotten heller ikke lukke raden: hakket er noe man tar
+ * flere av, og en rad som lukker seg etter det første er en rad man må åpne på
+ * nytt for hvert hakk.
+ */
+export const PILLER = [
+  { id: 'strek',   label: 'Strek',   aria: 'Strektykkelse', gruppe: true,
+    tannhjulAria: 'Strek-innstillinger for dette kartet' },
+  { id: 'relieff', label: 'Relieff', aria: 'Relieff',       gruppe: true,
+    tannhjulAria: 'Relieff-innstillinger for dette kartet' },
 ]
 
 /**
@@ -126,11 +116,11 @@ export function normaliserRekkefolge(lagret) {
 }
 
 /** Katalog-oppslagene i brukerens rekkefølge, filtrert på kart-typen. */
-export function snarveierIRekkefolge(rekkefolge, { egetKart = true, chat = false } = {}) {
+export function snarveierIRekkefolge(rekkefolge, { egetKart = true } = {}) {
   const kat = new Map(SNARVEIER.map(s => [s.id, s]))
   return normaliserRekkefolge(rekkefolge)
     .map(id => kat.get(id))
-    .filter(s => s && (egetKart || !s.kunEgne) && (chat || !s.kunChat))
+    .filter(s => s && (egetKart || !s.kunEgne))
 }
 
 /** Flytter ett element fra `fra` til `til`. Utenfor rekkevidde = uendret. */
