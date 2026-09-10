@@ -1,3 +1,19 @@
+## 2026-09-11 — v7.5.0: Snarvei-raden er et gitter, og håndtaket er et ekte drag
+
+Snarvei-raden var en flex-rad som målte hver knapp for seg. To ting fulgte av det, og begge ble meldt fra felt: antallet per linje endret seg med tilstanden — sju ikoner sammenlagt, fire med etikett utfoldet — så raden så ut til å stokke om på seg selv, og knappene var ulikt brede, fordi hver av dem var så bred som ordet sitt. Nå er det ett gitter med faste, like kolonner. Kolonnetallet regnes av den bredeste cella, altså den med etikett, og er det samme i begge tilstandene. Sammenlagt vises første rad; draget avdekker resten.
+
+Draget følger fingeren hele veien. Håndtaket satte før bare en av/på, så raden hoppet mellom to former; nå vokser høyden kontinuerlig, etikettene toner inn med den, og de neste radene glir opp fra kanten. På slipp dokker skuffa til nærmeste ende med appens vanlige fjærkurve, og «nærmeste» er `pickSnapTarget` fra useDraggableDrawer — samme retnings-baserte regel som hvert bunn-ark i appen, så et svakt drag i én retning committer og man må ikke forbi midtpunktet. Følger alle snarveiene på én rad er vokse-rommet bare de fire pikslene etiketten legger på, og et 1:1-drag ville vært over før man merket at man dro; divisoren er derfor det største av vokse-rommet og 72 px.
+
+Et klikk på håndtaket gjør ingenting. Et lite drag og et tapp gjorde helt ulike ting på samme piksel. Piltastene står igjen — de er ikke et klikk, og uten dem finnes skuffa ikke for den som betjener appen fra tastatur.
+
+Hver snarvei har fått sin egen mørkegrå flate. Fram til nå var flata usynlig til man holdt musa over: knappene fløt som løse ikoner i én svart boks, og bare den aktive posisjonen hadde en form. Nå har alle den samme, med samme avrunding og samme størrelse — og «på» er en farge-forskjell, ikke forskjellen på å ha en flate og ikke ha en.
+
+Til slutt har dra-håndtaket samme luft rundt seg overalt. Eieren hadde snarvei-skuffa og punkt-arket åpne samtidig og så at de ikke matchet. Verdien er nå lik over og under (12 px) i alle fem arkene, så «lufta rundt håndtaket» er ett tall enten arket henger fra toppen eller fra bunnen.
+
+To ting i målingen er verdt å kjenne igjen. Høydene MÅ leses med `height: auto`: et gitter med fast høyde sizer radsporet etter containeren, og med `align-self: stretch` blir cella nøyaktig så høy som sporet — første utgave leste 50 px i begge tilstandene, så skuffa hadde null å dra i. Og den sammenlagte høyden kan ikke leses av gitteret i det hele tatt: med `height: auto` står alle radene der, så den regnes av første celle pluss topp-polstringen.
+
+---
+
 ## 2026-09-10 — v7.4.0: Padling kan velges, øyene er tilbake, og snarvei-raden har fått et håndtak
 
 Kartstilen «Padling» kunne ikke velges. Et trykk satte lagene — bryggene kom fram — og stoppet der: temaet skiftet ikke, og knappen ble aldri grønn. Årsaken var et kast, ikke en manglende linje. `applyDepthLayer` satte dybde-laget inn foran `svg.querySelector('[data-label]')`, og på et ekte kart er den første `[data-label]` en NESTET node: `<g data-label="kontur-tall">` ligger inne i `<g data-layer="kontur">`. `insertBefore` svarer `NotFoundError` på en node som ikke er barn, og kastet drepte hele `applyLayerVisibility` — som kalles FØR `setMapTheme` i `bruksKartStil`. Padling er den eneste kartstilen som slår på `dybde`, og feilen krevde i tillegg et kart med Sjøkart-detaljlag, så den traff bare kystkart. Ankeret er nå en egen, testet funksjon som lander rett etter siste vann-gruppe og garantert er et direkte barn. Nøyaktig samme felle som fredet-kulturminne-laget gikk i.

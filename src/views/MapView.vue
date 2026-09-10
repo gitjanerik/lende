@@ -3100,7 +3100,7 @@ onUnmounted(() => {
                Ingen `pointerdown.stop`: draget hører fortsatt til hele stripa, og
                det er nettopp her man tar tak. -->
           <button v-if="!isDesktop" type="button"
-                  class="w-full pt-3.5 pb-2 flex justify-center"
+                  class="w-full py-3 flex justify-center"
                   :aria-label="drawer.isMinimized.value ? 'Utvid innstillinger' : 'Minimer innstillinger'"
                   :aria-expanded="!drawer.isMinimized.value"
                   @click="drawer.setMinimized(!drawer.isMinimized.value)"

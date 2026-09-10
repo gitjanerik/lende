@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   SNARVEIER, STANDARD_REKKEFOLGE, normaliserRekkefolge, snarveierIRekkefolge,
-  flyttSnarvei, antallSomFar, flytteIndeks,
+  flyttSnarvei, antallKolonner, antallRader, flytteIndeks,
 } from './snarveier.js'
 
 describe('katalogen', () => {
@@ -86,18 +86,32 @@ describe('flyttSnarvei', () => {
   })
 })
 
-describe('antallSomFar', () => {
-  it('betaler gap for mellomrommene og ikke for første knapp', () => {
-    // 3 × 70 px + 2 × 4 px gap = 218. Håndtaket ligger på sin EGEN linje under
-    // raden fra v7.4.0 og spiser derfor ingen bredde her.
-    expect(antallSomFar([70, 70, 70], 218, 4)).toBe(3)
-    expect(antallSomFar([70, 70, 70], 217, 4)).toBe(2)
+describe('antallKolonner', () => {
+  it('betaler gap for mellomrommene og ikke for første kolonne', () => {
+    // 3 × 70 px + 2 × 4 px gap = 218.
+    expect(antallKolonner(70, 218, 4, 8)).toBe(3)
+    expect(antallKolonner(70, 217, 4, 8)).toBe(2)
   })
-  it('gulvet er én knapp', () => {
-    expect(antallSomFar([200, 200], 10, 4)).toBe(1)
+  it('gulvet er én kolonne — et gitter uten celler er bare et håndtak', () => {
+    expect(antallKolonner(200, 10, 4, 8)).toBe(1)
   })
-  it('gir null uten knapper', () => {
-    expect(antallSomFar([], 500, 4)).toBe(0)
+  it('taket er antall snarveier, ellers blir det tomme kolonner', () => {
+    expect(antallKolonner(44, 4000, 4, 8)).toBe(8)
+  })
+  it('gir null uten en målt cellebredde', () => {
+    expect(antallKolonner(0, 500, 4, 8)).toBe(0)
+  })
+})
+
+describe('antallRader', () => {
+  it('runder opp — siste rad kan være halvfull', () => {
+    expect(antallRader(8, 4)).toBe(2)
+    expect(antallRader(8, 3)).toBe(3)
+    expect(antallRader(8, 8)).toBe(1)
+  })
+  it('gir null før gitteret er målt', () => {
+    expect(antallRader(8, 0)).toBe(0)
+    expect(antallRader(0, 4)).toBe(0)
   })
 })
 
