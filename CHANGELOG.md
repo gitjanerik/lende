@@ -1,3 +1,21 @@
+## 2026-09-10 — v7.1.1: Skrivefeltet i chatten er full bredde, og liggende-sjekken rydder etter seg
+
+Chattens skrivefelt delte en `flex-wrap`-rad med mikrofon- og send-knappen, med et
+bredde-gulv som la knappene under feltet FØRST når de to ikke lenger fikk plass ved
+siden av hverandre. Feltet er det ene man skriver i, og en halv linje av det er ikke
+verdt to ikonknapper på noen skjerm — det er nå full bredde overalt, med knappene
+under. Røyk-sjekken som målte nettopp den terskelen er slettet: uten en terskel er
+det ingenting igjen å måle.
+
+Liggende-sjekken pekte dessuten på feil element. Den fant navigasjonssøyla via
+`aria-label^="Posisjon "`, og Posisjon-knappen flyttet inn i snarvei-raden — så
+sjekken målte radens innpakning og meldte «scrollbar-width: auto» om en søyle som
+sto som den skulle. Den leser nå `.nav-soyle`, altså elementet CSS-regelen under
+test faktisk treffer. Og fordi kastet sto FØR restaureringen av viewporten, kjørte
+hele resten av suiten på 900 × 430 etterpå; restaureringen er flyttet til `finally`.
+
+---
+
 ## 2026-09-09 — v7.1.0: Topprada er borte, og kartet fikk plassen
 
 Knapperaden over kartet er fjernet, og de tre tingene den bar har hver sin nye

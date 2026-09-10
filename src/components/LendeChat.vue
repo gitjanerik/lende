@@ -93,15 +93,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         <p v-if="error" class="text-[13px] text-red-600/90 px-1">{{ error }}</p>
       </div>
 
-      <!-- AppModal legger `zoom` på HELE kroppen, så ikonknappene vokser med
-           teksten: ved 200 % tok de to knappene og mellomrommene ~120 av 178 px
-           i den zoomede flaten, og feltet satt igjen med ~58 px — ett ord per
-           linje og klippet plassholder. Raden brekker derfor av seg selv:
-           `flex-wrap` pluss et bredde-GULV på feltet (`min-w-[10rem]`, som er
-           det flex-linja måler mot) legger knappene under så snart de to ikke
-           lenger får plass ved siden av hverandre. Ingen JS-terskel — grensa er
-           innholdets, ikke et tall vi har gjettet på. -->
-      <div class="shrink-0 border-t border-ink/10 px-3 py-2.5 flex flex-wrap items-end gap-2"
+      <!-- SKRIVEFELTET ER FULL BREDDE PÅ ALLE SKJERMER (v7.1.1), og knappene
+           står under det. Fram til nå delte de en `flex-wrap`-rad med et
+           bredde-gulv på feltet, slik at knappene la seg under FØRST når de to
+           ikke lenger fikk plass ved siden av hverandre — en grense som måtte
+           måles for å vites, og som ble målt i en røyk-sjekk. Feltet er den
+           ene tingen man skriver i; det er ingenting å vinne på å gi de to
+           ikonknappene en halv linje av det på en bred skjerm. Uten terskelen
+           er det heller ingenting å måle, og røyk-sjekken er slettet med den. -->
+      <div class="shrink-0 border-t border-ink/10 px-3 py-2.5 flex flex-col gap-2"
            :style="{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0.625rem)' }">
         <!-- field-sizing:content: feltet vokser med innholdet (2–4 rader via
              min/max-height); bunnforankret rad → veksten skjer oppover.
@@ -109,11 +109,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         <textarea ref="inputRef" v-model="input" rows="2" enterkeyhint="send"
                   @keydown.enter.exact.prevent="onSend"
                   placeholder="Spør om kartet, stedet eller turen …"
-                  class="flex-1 min-w-[10rem] resize-none rounded-xl bg-ink/5 border border-ink/10 px-3 py-2
+                  class="w-full resize-none rounded-xl bg-ink/5 border border-ink/10 px-3 py-2
                          text-[14px] text-ink placeholder:text-ink-4
                          focus:border-ink/30 [field-sizing:content]
                          min-h-[3.75rem] max-h-[6.5rem] overflow-y-auto" />
-        <div class="flex items-center gap-2 shrink-0 ml-auto">
+        <div class="flex items-center gap-2 shrink-0 self-end">
           <button v-if="micSupported && !busy" type="button" @click="toggleMic"
                   :aria-label="micListening ? 'Stopp diktering' : 'Diktér melding (tale til tekst)'"
                   :aria-pressed="micListening"
