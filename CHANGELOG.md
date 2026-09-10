@@ -1,3 +1,9 @@
+## 2026-09-10 — v7.3.3: Ett tapp åpner Lende-chatten igjen
+
+Chatten kunne i praksis bare åpnes med lang-trykk på telefon, og årsaken lå ikke i FAB-en: et tapp åpnet modalen som det skulle, men nettleseren sender en kompatibilitets-`click` rundt 25 ms etter `touchend`, og den traff bakteppet modalen nettopp hadde lagt under fingeren — så chatten lukket seg igjen i samme øyeblikk. Holdet virket fordi det konsumerte trykket før den klikken kunne oppstå. `AppModal` lukker nå bare når trykket BEGYNTE på bakteppet, noe som samtidig fanger et drag som starter inne i dialogen og slippes utenfor. Røyk-sjekken for FAB-en brukte musa, som ikke sender spøkelsesklikk, og sto derfor grønn hele veien; den bruker nå et ekte finger-tapp og måler at chatten fortsatt står åpen etter at klikken har vært innom.
+
+---
+
 ## 2026-09-10 — v7.3.2: Kompassnåla fristilt fra linjalen igjen
 
 Nåla flyttet inn i den mørke linjal-boksen i v7.3.0, og prisen var at de to måtte dele høyde: en 44 px trykkflate gjorde hele avlesningen dobbelt så høy for noe man leser i et øyekast, med en skillestrek som element nummer tre. Nåla står nå fritt på kartet igjen, på sin egen halvgjennomsiktige skive fra v6.5.67 — hvit på et lyst ark, mørkegrå på et mørkt, så kartet skinner svakt gjennom og knappen ikke blir en klistrelapp. Skiva og linjal-boksen ligger side om side med luft imellom og deler bunnlinje, og bunnen er FAB-ens egen (`safe-area-inset-bottom` + 0,75 rem) og ikke en naken `bottom-3`: ellers skiller de tre flatene langs bunnen lag med nøyaktig safe-area-en på en telefon som har en. Røyk-sjekken måler nå alle fire egenskapene — utenfor boksen, luft imellom, felles bunnlinje, rund og halvgjennomsiktig skive — siden ingen av dem gir en JS-feil når de forsvinner.

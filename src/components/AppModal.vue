@@ -27,6 +27,19 @@ const emit = defineEmits(['close'])
 
 const { uiTextScale } = useUiTextScale()
 const closeBtnRef = ref(null)
+// Bakteppet lukker bare når trykket BEGYNTE på bakteppet. Uten det lukket et
+// SPØKELSESKLIKK modalen i samme øyeblikk den åpnet: nettleseren sender en
+// kompatibilitets-`click` ~25 ms etter `touchend`, og åpnet et trykk nede til
+// høyre modalen (Lende-chatten fra FAB-en), traff den klikken bakteppet som
+// nettopp dukket opp under fingeren. Chatten så da ut til å kreve lang-trykk —
+// holdet rakk å konsumere trykket, så det var det ENESTE som virket.
+// Samme vakt fanger også et drag som starter i dialogen og slippes utenfor.
+const nedPaaBakteppe = ref(false)
+function bakteppeKlikk() {
+  if (!nedPaaBakteppe.value) return
+  nedPaaBakteppe.value = false
+  emit('close')
+}
 const scrollerRef = ref(null)
 const dialogRef = ref(null)
 
@@ -38,6 +51,7 @@ useFokusFelle(dialogRef, () => props.open, { forsteFokus: () => closeBtnRef.valu
 // Flytt fokus til lukke-knappen ved åpning, og start alltid øverst — modalen
 // gjenbrukes, så uten dette hadde forrige scroll-posisjon hengt igjen.
 watch(() => props.open, async (open) => {
+  nedPaaBakteppe.value = false
   if (!open) return
   await nextTick()
   if (scrollerRef.value) scrollerRef.value.scrollTop = 0
@@ -47,7 +61,9 @@ watch(() => props.open, async (open) => {
 
 <template>
   <Transition name="modal-fade">
-    <div v-if="props.open" class="fixed inset-0 z-[210] bg-black/60" @click="emit('close')" />
+    <div v-if="props.open" class="fixed inset-0 z-[210] bg-black/60"
+         @pointerdown.self="nedPaaBakteppe = true"
+         @click.self="bakteppeKlikk" />
   </Transition>
 
   <Transition name="modal-pop">
