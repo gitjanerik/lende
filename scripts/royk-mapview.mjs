@@ -840,6 +840,67 @@ const SJEKKER = [
     },
   },
   {
+    // DE TRE PANELENE FRA ÅPEN-LINJA STABLER SEG IKKE (v7.3.1). Sorter,
+    // Strek og Relieff åpnes fra samme linje og deler z-40 med hverandre — den
+    // som kom sist vinner, uten at noe sier hvorfor, og X-en i det øverste
+    // etterlater det under. Regelen bor i `lukkFunksjonsSkuffer`, som knott-
+    // panelet nå er en del av; her måles den i alle tre retningene, for et
+    // manglende kall ser helt likt ut i koden som et som er der.
+    navn: 'de tre panelene fra åpen-linja lukker hverandre',
+    domene: 'MapView (lukkFunksjonsSkuffer)',
+    async kjør(page) {
+      const åpne = () => page.evaluate(() => {
+        // Tittelen er den ENESTE forskjellen på de to knott-panelene i DOM-en.
+        const tittel = [...document.querySelectorAll('div')]
+          .map((e) => e.textContent?.trim() || '')
+          .find((t) => /^(Strek|Relieff) — dette kartet$/.test(t)) || ''
+        return {
+          knott: [...document.querySelectorAll('[aria-label="Lukk panel"]')]
+            .filter((e) => e.offsetParent !== null).length,
+          sorter: [...document.querySelectorAll('[aria-label="Lukk Sorter snarveier"]')]
+            .filter((e) => e.offsetParent !== null).length,
+          tittel: tittel || '',
+        }
+      })
+
+      await lukkDrawer(page)
+      await apneSnarveiRad(page)
+      await klikkTekst(page, /^Sorter$/)
+      await page.waitForTimeout(400)
+      let n = await åpne()
+      if (n.sorter !== 1) throw new Error('Sorter-arket åpnet ikke')
+
+      // Sorter → Strek: arket skal være borte, ikke ligge under panelet.
+      await apneSnarveiRad(page)
+      await page.locator('[aria-label^="Strek-innstillinger"]').click()
+      await page.waitForTimeout(500)
+      n = await åpne()
+      if (n.sorter !== 0) throw new Error('Sorter-arket ble stående under strek-panelet')
+      if (n.knott !== 1) throw new Error(`fant ${n.knott} knott-paneler, ventet ett`)
+      if (!/^Strek/.test(n.tittel)) throw new Error(`feil panel åpent: «${n.tittel}»`)
+
+      // Strek → Relieff: ETT panel, og det er relieffets.
+      await apneSnarveiRad(page)
+      await page.locator('[aria-label^="Relieff-innstillinger"]').click()
+      await page.waitForTimeout(500)
+      n = await åpne()
+      if (n.knott !== 1) throw new Error(`to knott-paneler oppå hverandre (${n.knott})`)
+      if (!/^Relieff/.test(n.tittel)) throw new Error(`strek-panelet ble liggende: «${n.tittel}»`)
+
+      // Relieff → Sorter, altså den motsatte veien.
+      await apneSnarveiRad(page)
+      await klikkTekst(page, /^Sorter$/)
+      await page.waitForTimeout(400)
+      n = await åpne()
+      if (n.knott !== 0) throw new Error('relieff-panelet ble stående under Sorter-arket')
+      if (n.sorter !== 1) throw new Error('Sorter-arket åpnet ikke fra relieff-panelet')
+
+      await lukkFunksjonsSkuff(page, 'Sorter snarveier')
+      await lukkSnarveiRad(page)
+      return 'Sorter → Strek → Relieff → Sorter ga ett ark hele veien'
+    },
+  },
+  {
     navn: 'snarvei-raden måler seg, nedtrekket står alltid, sorteringen virker',
     domene: 'SnarveiRad+lib/snarveier',
     async kjør(page) {

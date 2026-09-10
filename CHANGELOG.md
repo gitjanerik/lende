@@ -1,3 +1,9 @@
+## 2026-09-10 — v7.3.1: Ett ark om gangen fra snarvei-radens åpen-linje
+
+De tre panelene som åpnes fra den nederste linja i snarvei-raden — Strek, Relieff og Sorter snarveier — kunne stables oppå hverandre. Sorter-arket ryddet funksjons-skuffene, men ikke knott-panelet, og tannhjulene ryddet bare hovedmeny-skuffen: åpnet man Sorter og så Strek, ble Sorter-arket liggende under, og et hakk videre til Relieff la et tredje ark på samme z-40. X-en i det øverste avdekket da et ark man for lengst hadde gått bort fra. Knott-panelet er nå en del av `lukkFunksjonsSkuffer`, og `onSnarveiInnstilling` lukker før den åpner — så alle tre inngangene rydder det samme, i begge retninger. Ny røyk-sjekk går runden Sorter → Strek → Relieff → Sorter og krever ett ark hele veien.
+
+---
+
 ## 2026-09-10 — v7.3.0: Alle snarveier likeverdige, kompasset ned i linjalen
 
 Snarvei-raden hadde to klasser knapper: en fast venstregruppe med Posisjon og

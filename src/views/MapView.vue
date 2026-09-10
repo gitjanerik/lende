@@ -513,6 +513,10 @@ function lukkFunksjonsSkuffer() {
   sporingOpen.value = false
   avsluttAnnotering()
   sorterOpen.value = false
+  // Knott-panelet (strek/relieff) er det femte arket på samme z-40, og de tre
+  // inngangene fra snarvei-radens nederste linje kan nå hverandre i begge
+  // retninger: Sorter → Strek → Relieff. Ryddes det ikke her, stables de.
+  closeKnobPanel()
 }
 // Å lukke annoterings-arket avslutter OGSÅ plasserings-modusen (v6.6.3).
 // Arket er det eneste stedet modusen kan ses eller slås av: velger man
@@ -2066,7 +2070,12 @@ function onSnarvei(id) { SNARVEI_HANDLING[id]?.() }
 const SNARVEI_PANEL = { strek: 'stroke', relieff: 'relief' }
 function onSnarveiInnstilling(id) {
   const panel = SNARVEI_PANEL[id]
-  if (panel) onFabKnobHold(panel)
+  if (!panel) return
+  // Lukk FØR vi åpner: `onFabKnobHold` rydder bare hovedmeny-skuffen, så uten
+  // dette ville et tannhjul-trykk lagt panelet oppå et åpent Sorter-ark — og
+  // det andre tannhjulet oppå det første.
+  lukkFunksjonsSkuffer()
+  onFabKnobHold(panel)
 }
 
 // Løftet over navigasjonssøyla mens raden er åpen — se malen.
