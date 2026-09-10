@@ -73,12 +73,15 @@ function satDown(sat, e) {
 
 const hasSatellites = computed(() => props.satellites.length > 0)
 
+// LANG-TRYKK ER BARE FOR KLYNGEN. Uten knotter er ankeret en ren chat-FAB, og
+// da åpnes chatten med et VANLIG TRYKK — ikke en gest man må lære. Timeren er
+// derfor uarmert der: uten den ville fyllringen lovet at noe annet skjer om man
+// holder, og et tapp som «ikke ble registrert» fordi fingeren lå litt for lenge
+// er nettopp den blindgata en ren chat-inngang ikke skal ha.
 const anchorPress = useLongPress({
   holdMs: HOLD_MS,
-  armed: () => props.chatEnabled,
+  armed: () => props.chatEnabled && hasSatellites.value,
   onTap: () => {
-    // Uten knotter er ankeret ren chat-inngang: tap og hold gir samme
-    // resultat, så den innlærte gesten aldri stopper i en blindgate.
     if (hasSatellites.value) open.value = !open.value
     else emit('chat')
   },
@@ -124,7 +127,7 @@ const anchorLabel = computed(() => {
 const hasTouch = typeof window !== 'undefined' &&
   ('ontouchstart' in window || (navigator.maxTouchPoints ?? 0) > 0)
 function onAnchorContextMenu() {
-  if (!hasTouch && props.chatEnabled) emit('chat')
+  if (!hasTouch && props.chatEnabled && hasSatellites.value) emit('chat')
 }
 
 // Ring rundt ankeret som fyller seg over holdMs. Gjør lang-trykk selv-
