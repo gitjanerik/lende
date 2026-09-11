@@ -42,7 +42,7 @@
     "polygon-clipping": "^0.15.7",
     "rbush": "^4.0.1",
     "simplify-js": "^1.2.4",
-    "three": "^0.185.1",
+    "three": "^0.186.0",
     "vue": "^3.5.42",
     "vue-router": "^5.3.1"
   },
