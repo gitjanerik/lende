@@ -1650,6 +1650,12 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   handler om at kart-tilstanden bor i R2, ikke om transporten. Skal noen gå til
   SDK v2-fabrikken: det rører hvordan hvert enkelt verktøy registreres, ikke bare
   kallstedet — og `mcp:protokoll` er gaten som vil si om det gikk bra.
+  **Og stien har en utløpsdato (v7.7.10):** i agents 0.23 sier typene at det å
+  sende en SDK v1-server inn i `createMcpHandler` «will be removed in the next
+  major version», mens `createLegacyMcpHandler` står igjen som den midlertidige
+  veien til sessionful v1-oppførsel. Den er altså ikke et sted å bli — men det er
+  heller ikke et navnebytte som haster, for det er registreringen av hvert verktøy
+  som må skrives om, ikke kallstedet.
 
 ## Viktig arkitektur-merknad — høydedata for Svalbard er UNDERSØKT, ikke bygget
 
