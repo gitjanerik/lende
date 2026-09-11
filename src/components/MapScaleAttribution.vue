@@ -38,12 +38,29 @@
 // v6.5.67 — halvgjennomsiktig hvit (mørk grå på et mørkt ark), så kartet
 // skinner svakt gjennom og knappen ikke blir en klistrelapp.
 //
-// Raden er `items-end`: kompasset og linjalen deler BUNNLINJE, og bunnen er
-// FAB-ens egen (`safe-area-inset-bottom + 0.75rem`) og ikke en naken `bottom-3`
-// — ellers skiller de lag med nøyaktig safe-area-en på en telefon som har en. Boksen slipper da å strekke seg til
-// kompassets høyde, og de tre flatene langs bunnen leses som én linje.
+// v7.6.0: NÅLA STÅR PÅ RADEN OVER LINJALEN, OG LINJALEN HELT TIL VENSTRE.
+// De sto side om side på samme bunnlinje, og det holdt så lenge begge var faste
+// i størrelse. Fra v7.6.0 følger kompass-knappen tekststørrelsen — et ikon
+// «leses» som tekst, og ved 200 % er nåla 96 px bred — mens linjalen samtidig
+// vokser med sin egen meterangivelse. Side om side ville de to spist bredden av
+// hverandre og dyttet linjalen inn mot midten av kartet, der man ikke leser den.
+// Stablet har hver sin fulle bredde, og linjalen begynner der venstrekanten er.
 //
-// Boksen er `pointer-events-none` fordi den er en avlesning; kompass-knappen
+// Kolonnen er `items-start` og bunnen er FAB-ens egen
+// (`safe-area-inset-bottom + 0.75rem`) og ikke en naken `bottom-3` — ellers
+// skiller linjalen og Lende-knappen lag med nøyaktig safe-area-en på en telefon
+// som har en.
+//
+// TEKSTSTØRRELSEN GJELDER TALLENE, IKKE KREDITTEN (v7.6.0). Målestokken og
+// avstanden er det man leser mens man går, og de skalerer med hovedmenyens
+// 100/125/150/200. ODbL-kreditten står der fordi lisensen krever det, ikke
+// fordi noen leser den — en linje som vokser til 18 px ville tatt plassen fra
+// nettopp tallene den står under. Selve LINJALSTREKEN skalerer heller ikke:
+// den er en MÅLESTOKK, altså en fysisk lengde på skjermen som svarer til
+// `scaleBar.label` meter i terrenget, og en zoomet strek ville løyet om
+// avstanden.
+//
+// Kolonnen er `pointer-events-none` fordi den er en avlesning; kompass-knappen
 // tar derfor sin egen `pointer-events-auto`.
 import { computed } from 'vue'
 import SnarveiIkon from './SnarveiIkon.vue'
@@ -61,6 +78,8 @@ const props = defineProps({
   // Er KARTET mørkt? Ikke UI-temaet — skiva ligger rett på arket, så det er
   // arkets valør den må lese mot (samme kontrakt som NavKnapper hadde).
   mork: { type: Boolean, default: false },
+  // Hovedmenyens 100/125/150/200. Se filhodet for hva den gjelder og ikke.
+  uiTextScale: { type: Number, default: 1 },
 })
 defineEmits(['nord'])
 
@@ -73,14 +92,17 @@ const blekk = computed(() => (props.mork ? '#e4e4e7' : '#1c1917'))
 <template>
   <!-- Skjult under aktivt søk så den ikke ligger under treff-listen. -->
   <div v-if="visible"
-       class="absolute left-3 z-20 pointer-events-none flex items-end gap-2.5"
+       class="absolute left-3 z-20 pointer-events-none flex flex-col items-start gap-2"
        :style="{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }">
-    <!-- FRISTILT NÅL PÅ EGEN SKIVE (v7.3.2). 48 px som resten av kart-knappene,
-         og `place-items-center` fordi ikonet er kvadratisk i en sirkel. -->
+    <!-- FRISTILT NÅL PÅ EGEN SKIVE (v7.3.2), på RADEN OVER LINJALEN fra v7.6.0.
+         48 px som resten av kart-knappene, og `place-items-center` fordi ikonet
+         er kvadratisk i en sirkel. `zoom` og ikke en større `w-*`: et ikon leses
+         som tekst, og da skal det følge tekststørrelsen som all annen chrome. -->
     <button v-if="kompass" type="button" @click="$emit('nord')"
+            data-kompass-knapp
             class="pointer-events-auto shrink-0 w-12 h-12 rounded-full grid place-items-center
                    select-none active:scale-95 transition-transform"
-            :style="{ background: skive, color: blekk,
+            :style="{ background: skive, color: blekk, zoom: uiTextScale,
                       boxShadow: '0 1px 3px rgba(0,0,0,0.35)' }"
             :aria-label="`Vend kartet mot nord. Nå ${Math.round(azimut)} grader.`">
       <SnarveiIkon id="kompass" class="w-8 h-8"
@@ -90,26 +112,30 @@ const blekk = computed(() => (props.mork ? '#e4e4e7' : '#1c1917'))
     <div class="flex items-stretch gap-2 px-3 py-1.5 rounded-lg bg-overlay text-ink
                 text-[11px] font-medium shadow-lg">
       <div class="min-w-0">
+        <!-- STREKEN ER EN FYSISK LENGDE og står utenfor zoomen; bare tallet
+             ved siden av den skalerer. Derfor ligger `zoom` på etiketten og
+             ikke på raden de to deler. -->
         <div v-if="scaleBar.px > 0" class="flex items-end gap-2">
           <!-- currentColor, ikke hardkodet hvit: bakgrunnen (bg-overlay) er hvit i
                lyst tema, der en hvit linjal var usynlig. -->
-          <svg :width="scaleBar.px" height="14" class="overflow-visible text-ink">
+          <svg :width="scaleBar.px" height="14" class="overflow-visible text-ink shrink-0">
             <line x1="0" y1="6" :x2="scaleBar.px" y2="6" stroke="currentColor" stroke-width="2"/>
             <g v-for="(t, i) in scaleBar.ticks" :key="i">
               <line :x1="t.px" y1="2" :x2="t.px" y2="10" stroke="currentColor"
                     :stroke-width="i === 0 || i === scaleBar.ticks.length - 1 ? 2 : 1"/>
             </g>
           </svg>
-          <div>{{ scaleBar.label }}</div>
+          <div data-linjal-meter :style="{ zoom: uiTextScale }">{{ scaleBar.label }}</div>
         </div>
         <!-- Tabulære siffer: tallet oppdateres hvert tredje sekund, og med
              proporsjonale siffer flytter hele linja seg for hver 1 som blir en 8. -->
-        <div v-if="avstandTekst"
+        <div v-if="avstandTekst" :style="{ zoom: uiTextScale }"
              class="text-[10px] leading-tight font-normal [font-variant-numeric:tabular-nums]"
              :class="avstandNaadd ? 'text-amber-200 font-semibold' : ''">
           {{ avstandTekst }}
         </div>
-        <div class="text-[9px] leading-tight font-normal text-ink-3">
+        <!-- KREDITTEN SKALERER IKKE (v7.6.0) — se filhodet. -->
+        <div data-osm-kreditt class="text-[9px] leading-tight font-normal text-ink-3">
           © OpenStreetMap-bidragsytere
         </div>
       </div>

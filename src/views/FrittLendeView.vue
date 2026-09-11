@@ -666,7 +666,8 @@ const arkDato = computed(() => (opprettet.value
          som sier når arket tar slutt og knappen slipper deg videre. -->
     <MapScaleAttribution :visible="!!meta" :scale-bar="scaleBar"
                          :avstand-tekst="avstandLinje"
-                         :avstand-naadd="avstandNaadd" />
+                         :avstand-naadd="avstandNaadd"
+                         :ui-text-scale="uiTextScale" />
 
     <!-- Førstegangs-boble over knappen. Den peker NED mot knappen med en
          trekant, fordi et hint som bare svever i hjørnet ikke sier hvilken

@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { hasAiToken } from '../lib/lendeAi.js'
 import { useLendeChat } from '../composables/useLendeChat.js'
+import { useUiTextScale } from '../composables/useUiTextScale.js'
 import FabCluster from './FabCluster.vue'
 
 // Inngangen til Lende-chatten på innholdssidene (forsiden, kartvelgeren,
@@ -34,6 +35,7 @@ import FabCluster from './FabCluster.vue'
 const UTEN_GLOBAL_CHAT = ['kart-vis', 'ruteplanlegger', 'fritt-lende']
 
 const { openChat } = useLendeChat()
+const { uiTextScale } = useUiTextScale()
 const visible = hasAiToken()
 const route = useRoute()
 
@@ -44,5 +46,5 @@ const logoUrl = `${import.meta.env.BASE_URL}icon.svg`
 
 <template>
   <FabCluster v-if="show" positioning="fixed" chat-enabled :logo-url="logoUrl"
-              @chat="openChat" />
+              :ui-text-scale="uiTextScale" @chat="openChat" />
 </template>

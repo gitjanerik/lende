@@ -390,7 +390,7 @@ const SJEKKER = [
     domene: 'ContextMenuSheet',
     async kjør(page) {
       await page.evaluate(() => localStorage.removeItem('lende-info-tips-minimert'))
-      await klikkSnarvei(page, /^Info$/)
+      await klikkSnarvei(page, 'info')
       await page.waitForTimeout(500)
       const tips = page.locator('details:has(summary span:text-is("Tips"))').first()
       if (!(await tips.count())) throw new Error('Tips-stripa kom ikke fram i punkt-arket')
@@ -500,10 +500,10 @@ const SJEKKER = [
         .filter((g) => g.style.display !== 'none').length)
       const før = await synlige()
       if (!før) throw new Error('fant ingen synlige sti-grupper å slå av')
-      await klikkTekst(page, /^Sti$/)
+      await klikkTekst(page, /^Sti$/, SKUFF)
       const av = await synlige()
       if (av !== 0) throw new Error(`Sti-laget ble ikke skjult (${før} → ${av})`)
-      await klikkTekst(page, /^Sti$/)
+      await klikkTekst(page, /^Sti$/, SKUFF)
       const på = await synlige()
       if (på !== før) throw new Error(`Sti-laget kom ikke tilbake (${før} → ${av} → ${på})`)
       return `${før} → 0 → ${på} grupper`
@@ -861,7 +861,7 @@ const SJEKKER = [
       const åpne = () => page.evaluate(() => ({
         sorter: [...document.querySelectorAll('[aria-label="Lukk Sorter snarveier"]')]
           .filter((e) => e.offsetParent !== null).length,
-        skuff: [...document.querySelectorAll('[aria-label="Lukk innstillinger"]')]
+        skuff: [...document.querySelectorAll('[aria-label="Lukk Valg"]')]
           .filter((e) => e.offsetParent !== null).length,
       }))
 
@@ -894,21 +894,25 @@ const SJEKKER = [
     },
   },
   {
-    // DRAGET AVDEKKER NAVNENE (v7.4.0). Sammenlagt er raden bare IKONER; dratt
-    // ned får hver knapp etiketten sin. Det er hele grunnen til at raden har et
-    // håndtak og ikke en «Mer»-knapp — et drag i et håndtak skal AVDEKKE noe.
-    // Fire ting måles, og ingen av dem finnes i en enhetstest: at etiketten er
-    // kollapset sammenlagt, at den kommer når man drar, at navnet ligger i
-    // `aria-label` HELE veien — ellers er den sammenlagte raden navnløs for en
-    // skjermleser — og at et KLIKK på håndtaket ikke gjør noe (v7.5.0).
-    navn: 'draget avdekker snarvei-navnene, klikk gjør ingenting',
+    // NAVNET STÅR ALLTID (v7.6.0). Draget avdekket etikettene fra v7.4.0; det
+    // ble målt i felt og forkastet — gevinsten var fjorten piksler, prisen at
+    // ikonene måtte bære betydningen alene. Fire ting måles, og ingen av dem
+    // finnes i en enhetstest: at etiketten er SYNLIG sammenlagt, at cella ikke
+    // endrer form av draget (det er nå bare flere RADER som avdekkes), at
+    // navnet ligger i `aria-label` — teksten der er fyldigere enn kortformen
+    // under ikonet — og at et KLIKK på håndtaket ikke gjør noe (v7.5.0).
+    navn: 'snarvei-navnene står alltid, klikk på håndtaket gjør ingenting',
     domene: 'SnarveiRad',
     async kjør(page) {
       await lukkDrawer(page)
+      // EN SMAL SKJERM, ellers har draget ingenting å avdekke: etikettene er
+      // kortformer fra v7.6.0, og på et desktop-vindu får alle snarveiene plass
+      // på ÉN rad — da er sammenlagt og utfoldet like høye, og «vokste skuffa?»
+      // er et spørsmål om ingenting. 360 px er der målingen har en jobb.
+      const forrigeVindu = page.viewportSize()
+      await page.setViewportSize({ width: 360, height: forrigeVindu.height })
+      await page.waitForTimeout(600)
       await lukkSnarveiRad(page)
-      // Etiketten er ALLTID i DOM-en fra v7.5.0 — den er en boks som vokser,
-      // ikke en node som dukker opp — så den leses på høyde og opasitet og
-      // ikke på om den finnes.
       const les = () => page.evaluate(() => {
         const rad = document.querySelector('.snarvei-rad')
         const k = rad?.querySelector('[data-snarvei]')
@@ -929,30 +933,34 @@ const SJEKKER = [
 
       const lukket = await les()
       if (!lukket) throw new Error('fant ingen snarvei-knapp')
-      if (lukket.navnHoyde > 1 || lukket.navnOpasitet > 0.02) {
-        throw new Error(`sammenlagt rad viser etiketten «${lukket.navnTekst}» `
+      if (!(lukket.navnHoyde > 1) || !(lukket.navnOpasitet > 0.9)) {
+        throw new Error(`den sammenlagte raden viser ingen etikett `
           + `(${lukket.navnHoyde} px, opasitet ${lukket.navnOpasitet}) — `
-          + 'da er det ingenting igjen for draget å avdekke')
+          + 'navnene skal stå alltid fra v7.6.0')
       }
-      if (!lukket.aria) throw new Error('ikon-knappen har ingen aria-label — den er navnløs')
-      // 44 px er WCAG 2.5.8: en ikon-knapp har ingen etikett å treffe ved siden av seg.
+      if (!lukket.navnTekst) throw new Error('etiketten er tom')
+      if (!lukket.aria) throw new Error('snarvei-knappen har ingen aria-label')
+      // 44 px er WCAG 2.5.8.
       if (lukket.bredde < 44 || lukket.hoyde < 44) {
-        throw new Error(`ikon-knappen er ${lukket.bredde}×${lukket.hoyde} px — under 44 px`)
+        throw new Error(`snarvei-knappen er ${lukket.bredde}×${lukket.hoyde} px — under 44 px`)
       }
 
       // KLIKK ÅPNER IKKE (v7.5.0). Håndtaket er et håndtak: man drar i det.
       await page.locator('.snarvei-handle').click()
       await page.waitForTimeout(500)
       const etterKlikk = await les()
-      if (etterKlikk.apen !== 'false' || etterKlikk.navnHoyde > 1) {
+      if (etterKlikk.apen !== 'false') {
         throw new Error('et klikk på håndtaket foldet ut skuffa — den skal bare dras')
       }
 
       await apneSnarveiRad(page)
       const apen = await les()
-      if (!(apen.navnHoyde > 1) || !(apen.navnOpasitet > 0.9)) {
-        throw new Error(`draget avdekket ingen etikett (${apen.navnHoyde} px, `
-          + `opasitet ${apen.navnOpasitet})`)
+      // CELLA ER UENDRET AV DRAGET: bredde OG høyde. Endrer noen av dem seg,
+      // er etiketten blitt noe som vokser fram igjen.
+      if (apen.bredde !== lukket.bredde || apen.hoyde !== lukket.hoyde) {
+        throw new Error(`cella endret form med draget `
+          + `(${lukket.bredde}×${lukket.hoyde} → ${apen.bredde}×${apen.hoyde} px) `
+          + '— draget skal bare avdekke flere rader')
       }
       if (apen.aria !== lukket.aria) {
         throw new Error(`aria-navnet endret seg med draget: «${lukket.aria}» → «${apen.aria}»`)
@@ -960,24 +968,251 @@ const SJEKKER = [
       if (apen.radHoyde <= lukket.radHoyde) {
         throw new Error(`skuffa vokste ikke av draget (${lukket.radHoyde} → ${apen.radHoyde} px)`)
       }
-      // BREDDEN STÅR STILLE: kolonnene er faste, så en celle som blir bredere
-      // med etikett betyr at gitteret er byttet ut med en flex-rad igjen.
-      if (apen.bredde !== lukket.bredde) {
-        throw new Error(`cella endret bredde med draget (${lukket.bredde} → ${apen.bredde} px) `
-          + '— kolonnene skal være faste og like')
-      }
 
       await lukkSnarveiRad(page)
       const igjen = await les()
-      if (igjen.navnHoyde > 1) {
-        throw new Error('etiketten ble stående etter at skuffa ble lagt sammen')
-      }
       if (igjen.radHoyde !== lukket.radHoyde) {
         throw new Error(`skuffa dokket ikke tilbake til samme høyde `
           + `(${lukket.radHoyde} → ${igjen.radHoyde} px)`)
       }
-      return `ikon ${lukket.bredde}×${lukket.hoyde} px, skuff ${lukket.radHoyde} → `
-        + `${apen.radHoyde} px ved drag, «${apen.navnTekst}» avdekket, klikk gjorde ingenting`
+      await page.setViewportSize(forrigeVindu)
+      await page.waitForTimeout(400)
+      return `«${lukket.navnTekst}» synlig sammenlagt ved 360 px, celle `
+        + `${lukket.bredde}×${lukket.hoyde} px uendret av draget, skuff `
+        + `${lukket.radHoyde} → ${apen.radHoyde} px, klikk gjorde ingenting`
+    },
+  },
+  {
+    // DE FASTE IKONENE FØLGER TEKSTSTØRRELSEN (v7.6.0). Hamburgeren, søket,
+    // kompassnåla og Lende-chatten er de fire runde knappene som ikke bærer en
+    // etikett, og et ikon «leses» som tekst: den som skrur opp til 200 % fordi
+    // etikettene er for små, trenger også en større trykkflate.
+    //
+    // TRE TING MÅLES, og ingen av dem finnes i en enhetstest:
+    //   • at knappene faktisk BLIR STØRRE;
+    //   • at hamburgeren står der plassholderen sin står. Den er teleportert til
+    //     <body> og `position: fixed` med koordinater fra plassholderens rect,
+    //     mens `zoom` multipliserer nettopp de brukte verdiene — uten
+    //     divisjonen havner den dobbelt så langt ned og inn;
+    //   • at snarvei-raden fortsatt står UNDER knapperada. `--ovl-top` var
+    //     faste 4rem, og en bar som vokser ville da fått raden oppå seg.
+    navn: 'hamburger, søk og kompass vokser med tekststørrelsen',
+    domene: 'AppMenuButton + MapView (topprada) + MapScaleAttribution + style.css',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await lukkSnarveiRad(page)
+      const mål = () => page.evaluate(() => {
+        const boks = (v) => {
+          const e = document.querySelector(v)
+          if (!e) return null
+          const r = e.getBoundingClientRect()
+          return { b: Math.round(r.width), h: Math.round(r.height),
+                   x: Math.round(r.left), y: Math.round(r.top) }
+        }
+        const rad = document.querySelector('.snarvei-rad')
+        return {
+          meny: boks('[data-hovedmeny-knapp]'),
+          plass: boks('[data-hovedmeny-plass]'),
+          sok: boks('[data-sok-knapp]'),
+          kompass: boks('[data-kompass-knapp]'),
+          radTopp: rad ? Math.round(rad.getBoundingClientRect().top) : null,
+          barBunn: (() => {
+            const e = document.querySelector('[data-sok-knapp]')
+            return e ? Math.round(e.getBoundingClientRect().bottom) : null
+          })(),
+        }
+      })
+      const sett = async (skala) => {
+        await page.evaluate((v) => {
+          localStorage.setItem('lende-ui-text-scale', String(v))
+        }, skala)
+        await page.reload({ waitUntil: 'domcontentloaded' })
+        await page.waitForTimeout(2500)
+        await lukkDrawer(page)
+      }
+
+      const ved100 = await mål()
+      if (!ved100.meny || !ved100.sok) throw new Error('fant ikke hamburgeren eller søket')
+      try {
+        await sett(2)
+        const ved200 = await mål()
+        for (const [id, a, b] of [['hamburgeren', ved100.meny, ved200.meny],
+                                  ['søket', ved100.sok, ved200.sok],
+                                  ['kompasset', ved100.kompass, ved200.kompass]]) {
+          if (!a || !b) continue   // kompasset finnes bare med berøring
+          if (!(b.h > a.h * 1.4)) {
+            throw new Error(`${id} vokste ikke med tekststørrelsen (${a.h} → ${b.h} px)`)
+          }
+        }
+        // HAMBURGEREN ER TELEPORTERT: den skal ligge på plassholderens
+        // koordinater, ikke på dem ganget med zoomen.
+        if (ved200.plass && Math.abs(ved200.meny.x - ved200.plass.x) > 4) {
+          throw new Error(`hamburgeren står ${ved200.meny.x} px fra venstre, `
+            + `plassholderen på ${ved200.plass.x} — er koordinaten delt på skalaen?`)
+        }
+        if (ved200.meny.x < 0 || ved200.meny.y < 0) {
+          throw new Error(`hamburgeren er utenfor skjermen ved 200 % `
+            + `(${ved200.meny.x}, ${ved200.meny.y})`)
+        }
+        if (ved200.radTopp != null && ved200.barBunn != null
+            && ved200.radTopp < ved200.barBunn) {
+          throw new Error(`snarvei-raden (${ved200.radTopp}) ligger oppå knapperada `
+            + `(bunn ${ved200.barBunn}) ved 200 % — følger --ovl-top skalaen?`)
+        }
+        return `hamburger ${ved100.meny.h} → ${ved200.meny.h} px, søk `
+          + `${ved100.sok.h} → ${ved200.sok.h} px, raden fortsatt under baren`
+      } finally {
+        await sett(1)
+        await lukkSnarveiRad(page)
+      }
+    },
+  },
+  {
+    // «VIS NAVN NÅR MINIMERT» ER EN BRYTER (v7.6.0), øverst i Sorter-panelet og
+    // PÅ som standard. Sjekken slår den AV og krever de tre tingene som skiller
+    // den fra en ren visning/skjuling, og som ingen enhetstest kan se:
+    //   • cella blir MERKBART LAVERE sammenlagt — er høyden uendret, gjør
+    //     bryteren ingenting, og da er den bare en knott som lyver;
+    //   • etiketten er kollapset, ikke bare gjennomsiktig (høyden ER gevinsten);
+    //   • draget gir BEGGE deler tilbake — navn og høyde i samme bevegelse.
+    // Til slutt settes den tilbake: resten av suiten kjører med standarden.
+    navn: 'bryteren «Vis navn når minimert» krymper cella og draget gir den tilbake',
+    domene: 'SorterSnarveier + SnarveiRad + lib/snarveier',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await lukkSnarveiRad(page)
+      const les = () => page.evaluate(() => {
+        const k = document.querySelector('.snarvei-rad [data-snarvei]')
+        if (!k) return null
+        const navn = k.querySelector('span:last-child')
+        return {
+          celle: Math.round(k.getBoundingClientRect().height),
+          navnHoyde: navn ? Math.round(navn.getBoundingClientRect().height) : -1,
+          navnOpasitet: navn ? Number(getComputedStyle(navn).opacity) : -1,
+        }
+      })
+      const vipp = async () => {
+        await apneSnarveiRad(page)
+        await klikkTekst(page, /^Sorter snarveier$/)
+        await page.waitForTimeout(400)
+        const ok = await page.evaluate(() => {
+          const b = [...document.querySelectorAll('[role="switch"]')]
+            .find((e) => e.offsetParent !== null)
+          if (!b) return null
+          const før = b.getAttribute('aria-checked')
+          b.click()
+          return før
+        })
+        if (ok === null) throw new Error('fant ingen bryter i Sorter-panelet')
+        await page.waitForTimeout(400)
+        await lukkFunksjonsSkuff(page, 'Sorter snarveier')
+        await lukkSnarveiRad(page)
+        await page.waitForTimeout(500)
+        return ok
+      }
+
+      const paa = await les()
+      if (!paa) throw new Error('fant ingen snarvei-knapp')
+      if (!(paa.navnHoyde > 1)) {
+        throw new Error('standarden viser ikke navnet sammenlagt — bryteren skal være PÅ')
+      }
+
+      let tilbakestilt = false
+      try {
+        const før = await vipp()
+        if (før !== 'true') throw new Error(`bryteren sto på «${før}» — standarden er PÅ`)
+        const av = await les()
+        if (av.navnHoyde > 1 || av.navnOpasitet > 0.02) {
+          throw new Error(`navnet står fortsatt sammenlagt med bryteren av `
+            + `(${av.navnHoyde} px, opasitet ${av.navnOpasitet})`)
+        }
+        // «Nokså mye» lavere: mister vi høyden, er hele gevinsten borte.
+        if (!(av.celle <= paa.celle - 6)) {
+          throw new Error(`cella krympet ikke nok (${paa.celle} → ${av.celle} px) `
+            + '— minstehøyden klemmer trolig animasjonen flat')
+        }
+
+        // DRAGET GIR BEGGE DELER TILBAKE, i samme bevegelse.
+        await apneSnarveiRad(page)
+        const dratt = await les()
+        if (!(dratt.navnHoyde > 1) || !(dratt.navnOpasitet > 0.9)) {
+          throw new Error(`draget avdekket ikke navnet (${dratt.navnHoyde} px, `
+            + `opasitet ${dratt.navnOpasitet})`)
+        }
+        if (!(dratt.celle > av.celle)) {
+          throw new Error(`cella vokste ikke med draget (${av.celle} → ${dratt.celle} px)`)
+        }
+        await lukkSnarveiRad(page)
+
+        await vipp()
+        tilbakestilt = true
+        const igjen = await les()
+        if (!(igjen.navnHoyde > 1)) throw new Error('bryteren ga ikke navnene tilbake')
+        return `celle ${paa.celle} px med navn → ${av.celle} px uten, `
+          + `draget ga ${dratt.celle} px og navnet tilbake`
+      } finally {
+        // NØYTRAL TILSTAND: resten av suiten kjører med standarden.
+        if (!tilbakestilt) {
+          await page.evaluate(() => {
+            try { localStorage.removeItem('lende-snarvei-navn-minimert') } catch { /* tom */ }
+          })
+          await page.reload({ waitUntil: 'domcontentloaded' })
+          await page.waitForTimeout(2500)
+        }
+      }
+    },
+  },
+  {
+    // HELE PILLA ER GRIPEFLATE (v7.6.0). Håndtaket er 44 px nederst i en boks
+    // som er dobbelt så høy — man måtte sikte på den nederste tredjedelen, og
+    // bommet man, trykket man på en snarvei. Sjekken drar fra MIDT PÅ EN
+    // SNARVEI-KNAPP, altså nøyaktig der det gamle draget ikke tok tak, og
+    // krever to ting av samme gest: at skuffa åpner seg, og at knappen man dro
+    // fra IKKE ble utløst. Det siste er hele grunnen til at draget har en slop.
+    navn: 'et sveip ned på en snarvei åpner skuffa uten å utløse den',
+    domene: 'SnarveiRad (gripeflate + slop)',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await lukkSnarveiRad(page)
+      // «Valg» åpner en skuff vi kan se; drar vi fra den og skuffa likevel
+      // dukker opp, har slop-en sviktet. Den ligger i første rad på et bredt
+      // vindu — sjekken kjører i suitens vanlige viewport.
+      const boks = await page.locator('[data-snarvei-id="innstillinger"]').boundingBox()
+      if (!boks) throw new Error('fant ingen «Valg»-snarvei å dra fra')
+      const x = boks.x + boks.width / 2
+      const y = boks.y + boks.height / 2
+
+      await page.mouse.move(x, y)
+      await page.mouse.down()
+      await page.mouse.move(x, y + 140, { steps: 10 })
+      await page.mouse.up()
+      await page.waitForTimeout(600)
+
+      const etter = await page.evaluate(() => ({
+        apen: document.querySelector('.snarvei-handle')?.getAttribute('aria-expanded'),
+        skuff: !!document.querySelector('[role="dialog"][aria-label="Valg"]'),
+      }))
+      if (etter.skuff) {
+        await lukkDrawer(page)
+        await lukkSnarveiRad(page)
+        throw new Error('draget utløste snarveien det startet på — slop-en avlyser ikke trykket')
+      }
+      if (etter.apen !== 'true') {
+        throw new Error('et sveip ned på en snarvei åpnet ikke skuffa — '
+          + 'gripeflata er håndtaket alene igjen')
+      }
+
+      // OG ET TRYKK SKAL FORTSATT VÆRE ET TRYKK: uten et drag imellom må
+      // knappen virke som før. Ett svakt drag under slop-en teller som trykk.
+      await lukkSnarveiRad(page)
+      await page.locator('[data-snarvei-id="innstillinger"]').click()
+      await page.waitForTimeout(600)
+      const aapnet = await page.evaluate(() =>
+        !!document.querySelector('[role="dialog"][aria-label="Valg"]'))
+      if (!aapnet) throw new Error('et vanlig trykk på «Valg» åpnet ingen skuff')
+      await lukkDrawer(page)
+      await lukkSnarveiRad(page)
+      return 'sveip fra en snarvei åpner skuffa uten å utløse den, og trykket virker'
     },
   },
   {
@@ -990,6 +1225,11 @@ const SJEKKER = [
     domene: 'SnarveiRad + useDraggableDrawer (pickSnapTarget)',
     async kjør(page) {
       await lukkDrawer(page)
+      // SMAL SKJERM, av samme grunn som sjekken over: uten en andre rad har
+      // skuffa ingen høyde å følge fingeren med.
+      const forrigeVindu = page.viewportSize()
+      await page.setViewportSize({ width: 360, height: forrigeVindu.height })
+      await page.waitForTimeout(600)
       await lukkSnarveiRad(page)
       const hoyde = () => page.evaluate(() =>
         Math.round(document.querySelector('.snarvei-rad').getBoundingClientRect().height))
@@ -1033,6 +1273,8 @@ const SJEKKER = [
         throw new Error(`et svakt drag oppover dokket ikke tilbake `
           + `(${dokket} → ${etterSvakt} px, ventet ${start})`)
       }
+      await page.setViewportSize(forrigeVindu)
+      await page.waitForTimeout(400)
       return `${start} → ${midt} px under fingeren → ${dokket} px dokket, `
         + 'og et svakt drag tilbake committer'
     },
@@ -1319,7 +1561,7 @@ const SJEKKER = [
     //      snarveier» står FRISTILT under raden — ikke inne i radens boks.
     //      Begge er ren geometri: de ser identiske ut i DOM-en om de havner
     //      feil sted, og en enhetstest ser ingen av delene.
-    navn: 'topprada over raden, håndtaket under den, Sorter fristilt',
+    navn: 'topprada over raden, tannhjulet ute, håndtaket under den',
     domene: 'MapView (topprada) + SnarveiRad (håndtak)',
     async kjør(page) {
       await lukkDrawer(page)
@@ -1340,12 +1582,18 @@ const SJEKKER = [
           // navnet ikke endres, og da er det en statisk pille uten etikett.
           navn: finn('[data-kartnavn]'),
           sok: finn('button[aria-label="Søk i kart"]'),
-          oppsett: finn('button[aria-label="Innstillinger"]'),
+          // TANNHJULET ER UTE AV TOPPRADA (v7.6.0) — «Valg» er en snarvei. Den
+          // skal ikke kunne snike seg tilbake i god tro og gi to veier til
+          // samme skuff; `[data-snarvei]` skiller den fra snarvei-cella.
+          oppsett: !!document.querySelector('button[aria-label="Innstillinger"], button[aria-label="Valg"]:not([data-snarvei])'),
         }
       })
       if (topp.mangler) throw new Error(`fant ingen ${topp.mangler}`)
+      if (topp.oppsett) {
+        throw new Error('tannhjulet står i topprada igjen — innstillingene er snarveien «Valg»')
+      }
       for (const [id, y] of [['hamburgeren', topp.meny], ['kartnavnet', topp.navn],
-                             ['søket', topp.sok], ['oppsettet', topp.oppsett]]) {
+                             ['søket', topp.sok]]) {
         if (y == null) throw new Error(`${id} har ingen synlig boks — er den flyttet inn i raden igjen?`)
         if (y >= topp.radTopp) {
           throw new Error(`${id} står på ${y}, altså ikke over snarvei-raden på ${topp.radTopp}`)
@@ -1412,9 +1660,9 @@ const SJEKKER = [
 
       // NØYTRAL TILSTAND: raden skal ikke stå åpen inn i neste sjekk.
       await lukkSnarveiRad(page)
-      return `topprada over raden (${topp.meny}/${topp.navn}/${topp.sok}/${topp.oppsett} `
-        + `< ${topp.radTopp}), håndtak ${geo.strekBredde} px midtstilt under raden, `
-        + 'Sorter fristilt under håndtaket'
+      return `topprada over raden (${topp.meny}/${topp.navn}/${topp.sok} `
+        + `< ${topp.radTopp}), tannhjulet ute, håndtak ${geo.strekBredde} px `
+        + 'midtstilt under raden, Sorter fristilt under håndtaket'
     },
   },
   {
@@ -1440,7 +1688,7 @@ const SJEKKER = [
         window.open = (url) => { window.__roykUrler.push(String(url)); return null }
       })
 
-      await klikkSnarvei(page, /^Info$/)
+      await klikkSnarvei(page, 'info')
       await page.waitForTimeout(700)
       await page.waitForFunction(() => {
         const b = [...document.querySelectorAll('button')]
@@ -1475,7 +1723,7 @@ const SJEKKER = [
     domene: 'useMaaling',
     async kjør(page) {
       await lukkDrawer(page)
-      await klikkTekst(page, /^Måling$/)
+      await klikkSnarvei(page, 'maaling')
       await page.waitForTimeout(700)
       // Tre tapp i kartflaten = to strekk. Ekte museklikk: måle-modus lytter på
       // kart-tappen, ikke på en knapp.
@@ -1552,15 +1800,9 @@ const SJEKKER = [
           null, { timeout: 30_000 })
         await lukkDrawer(page)
 
-        // Annotering kan ligge bak nedtrekket på en smal skjerm — raden viser
-        // bare det som får plass.
-        try {
-          await klikkTekst(page, /^Annotering$/)
-        } catch {
-          await klikkTekst(page, /^(\d+\s*)?Mer$|^Vis .*snarvei/i)
-          await page.waitForTimeout(250)
-          await klikkTekst(page, /^Annotering$/)
-        }
+        // Annotering kan ligge bak håndtaket på en smal skjerm — raden viser
+        // bare den første raden sammenlagt. `klikkSnarvei` drar den ut først.
+        await klikkSnarvei(page, 'annotering')
         await page.waitForTimeout(600)
         await klikkTekst(page, /^Knaus$/)
         await page.waitForTimeout(400)
@@ -2095,7 +2337,7 @@ const SJEKKER = [
     //
     // EGEN KONTEKST MED `hasTouch` — kompasset gis bare til berøring, så
     // standard-konteksten ville hoppet stille over punkt 4.
-    navn: 'posisjonen er en vanlig snarvei, og kompasset står fristilt ved linjalen',
+    navn: 'posisjonen er en vanlig snarvei, og nåla står over linjalen',
     domene: 'SnarveiRad',
     maksMs: 120_000,
     async kjør(page) {
@@ -2143,9 +2385,12 @@ const SJEKKER = [
         }
 
         // KOMPASSET ER FRISTILT (v7.3.2): egen rund, halvgjennomsiktig skive
-        // til VENSTRE for linjal-boksen — ikke inni den — og på samme bunnlinje.
-        // Alle fire egenskapene er lette å miste i en opprydning, og ingen av
-        // dem gir en JS-feil når de forsvinner.
+        // utenfor linjal-boksen. Fra v7.6.0 står den på RADEN OVER linjalen og
+        // deler VENSTREKANT med den, ikke bunnlinje: begge to skalerer nå med
+        // tekststørrelsen, og side om side ville de spist bredden av hverandre
+        // og dyttet linjalen inn mot midten av kartet. Egenskapene er lette å
+        // miste i en opprydning, og ingen av dem gir en JS-feil når de
+        // forsvinner. Kreditten måles samtidig: den skal IKKE skalere.
         const kompass = await p2.evaluate(() => {
           const knapp = document.querySelector('button[aria-label^="Vend kartet mot nord"]')
           if (!knapp) return { mangler: true }
@@ -2156,19 +2401,24 @@ const SJEKKER = [
           const svgLinjal = boks?.querySelector('svg')
           const kr = knapp.getBoundingClientRect()
           const br = boks?.getBoundingClientRect()
-          const lr = svgLinjal?.getBoundingClientRect()
           const st = getComputedStyle(knapp)
           return {
             iRaden: !!knapp.closest('.snarvei-rad'),
             iBoksen: boks ? boks.contains(knapp) : null,
-            venstre: lr ? kr.left < lr.left : null,
-            gap: br ? Math.round(br.left - kr.right) : null,
-            bunnAvvik: br ? Math.round(Math.abs(br.bottom - kr.bottom)) : null,
+            // Linjalen skal ligge HELT til venstre, altså med samme venstrekant
+            // som nåla over den. Målestokk-SVG-en er der bare for å bekrefte at
+            // boksen vi måler faktisk er linjalen.
+            harStrek: !!svgLinjal,
+            overLinjalen: br ? Math.round(br.top - kr.bottom) : null,
+            venstreAvvik: br ? Math.round(Math.abs(br.left - kr.left)) : null,
             nede: kr.top > window.innerHeight / 2,
             bredde: Math.round(kr.width),
             rund: parseFloat(st.borderRadius) >= kr.width / 2 - 1,
             // rgba(...) med alfa < 1 — skiva skal slippe kartet gjennom.
             gjennomsiktig: /rgba\(.*,\s*0?\.\d+\)$/.test(st.backgroundColor),
+            // Tallet skalerer med tekststørrelsen, kreditten ikke. `zoom`
+            // rapporteres som «1» eller «normal» avhengig av motor.
+            kredittZoom: kreditt ? getComputedStyle(kreditt).zoom : null,
           }
         })
         if (kompass.mangler) throw new Error('fant ingen kompassknapp på en berøringsflate')
@@ -2176,16 +2426,18 @@ const SJEKKER = [
         if (kompass.iBoksen === null) throw new Error('fant ingen linjal-boks å måle mot')
         if (kompass.iBoksen) throw new Error('kompasset ligger inne i linjal-boksen igjen')
         if (!kompass.nede) throw new Error('kompasset står ikke i nedre halvdel av skjermen')
-        if (kompass.venstre === false) {
-          throw new Error('kompasset står til høyre for målestokken — det skal stå til venstre')
+        if (!kompass.harStrek) throw new Error('fant ingen målestokk-strek i linjal-boksen')
+        if (!(kompass.overLinjalen > 0)) {
+          throw new Error(`nåla står ${kompass.overLinjalen} px over linjal-boksen `
+            + '— den skal stå på raden OVER, med luft imellom (v7.6.0)')
         }
-        if (!(kompass.gap > 0)) {
-          throw new Error(`kompasset og linjal-boksen har ${kompass.gap} px mellom seg `
-            + '— fristilt betyr en luft imellom')
+        if (kompass.venstreAvvik > 2) {
+          throw new Error(`nåla og linjalen står ${kompass.venstreAvvik} px fra hverandre `
+            + 'til venstre — de skal dele venstrekant')
         }
-        if (kompass.bunnAvvik > 2) {
-          throw new Error(`kompasset og linjalen står ${kompass.bunnAvvik} px fra hverandre `
-            + 'i bunn — de skal dele bunnlinje')
+        if (!['1', 'normal'].includes(kompass.kredittZoom)) {
+          throw new Error(`ODbL-kreditten er zoomet (${kompass.kredittZoom}) — `
+            + 'meterangivelsen skalerer, kreditten skal stå fast')
         }
         if (!kompass.rund) throw new Error('kompass-skiva er ikke sirkelformet')
         if (!kompass.gjennomsiktig) {
@@ -2242,8 +2494,8 @@ const SJEKKER = [
         // Nøytral tilstand: posisjonen skrur seg ikke av selv.
         await p2.locator('[data-snarvei-id="posisjon"]').click()
         await p2.waitForTimeout(300)
-        return `én linje ved 360 px, kompasset fristilt (${kompass.bredde} px, `
-          + `${kompass.gap} px luft, bunnavvik ${kompass.bunnAvvik} px), `
+        return `én linje ved 360 px, nåla ${kompass.bredde} px over linjalen `
+          + `(${kompass.overLinjalen} px luft, venstreavvik ${kompass.venstreAvvik} px), `
           + `av→på bytter flate (${pa.flate}), ikon ${k ? k.toFixed(1) : '?'}:1`
       } finally {
         await ctx.close()
@@ -2255,7 +2507,7 @@ const SJEKKER = [
     // CHATTEN.
     //
     // Chatten var en snarvei i raden i v7.0.0–7.1.0. Den er nå den samme
-    // FAB-en som i ruteplanleggeren: samme anker, samme logo, samme hjørne —
+    // FAB-en som i ruteplanleggeren: samme anker, samme hjørne —
     // og uten knotter rundt seg gjør `anchorPress.onTap` rett `emit('chat')`,
     // altså ingen lang-trykk-ring å vente ut. To ting kan brekke stille: at
     // FAB-en ikke rendres i det hele tatt (den er portet på et AI-token), og
@@ -2294,9 +2546,17 @@ const SJEKKER = [
           throw new Error(`Lende-FAB-en står på ${Math.round(boks.x)},${Math.round(boks.y)} `
             + '— den hører hjemme nede til høyre, som i ruteplanleggeren')
         }
-        // Logoen er symbolet, ikke et ikon vi tegner selv.
-        const logo = await fab.locator('img').count()
-        if (!logo) throw new Error('FAB-en mangler Lende-logoen')
+        // IKONET ER EN SNAKKEBOBLE (v7.6.0), ikke Lende-logoen. Uten knotter
+        // ER knappen chatten, og logoen sa «hjem». Den ene måten å se det på i
+        // DOM-en er at `img`-en er borte og en SVG står i stedet — begge ser ut
+        // som «et ikon i en rund knapp» for alt annet.
+        if (await fab.locator('img').count()) {
+          throw new Error('FAB-en viser Lende-logoen igjen — den rene chat-inngangen '
+            + 'skal ha en snakkeboble')
+        }
+        if (!(await fab.locator('svg').count())) {
+          throw new Error('FAB-en har verken logo eller ikon')
+        }
 
         // ETT TAPP MED FINGEREN, ikke et hold og ikke musa. FabCluster er
         // drevet av pointerdown/-up via useLongPress, så `el.click()` gjør
@@ -2321,7 +2581,7 @@ const SJEKKER = [
             + 'fra touchend traff bakteppet (AppModal.bakteppeKlikk)')
         }
         return `FAB nede til høyre (${Math.round(boks.x)},${Math.round(boks.y)}), `
-          + 'logo som symbol, ett finger-tapp åpnet chatten og den ble stående'
+          + 'snakkeboble som symbol, ett finger-tapp åpnet chatten og den ble stående'
       } finally {
         await ctx.close()
       }
@@ -2484,7 +2744,7 @@ const SJEKKER = [
     domene: 'use3dEntry',
     async kjør(page) {
       await lukkDrawer(page)
-      await klikkSnarvei(page, /^3D$/)
+      await klikkSnarvei(page, 'tre-d')
       // To gyldige utfall: en three.js-canvas, ELLER viserens ærlige «ingen
       // høydedata»-melding. Det siste er hva demo-kartet i repoet gir (det har
       // ingen DEM), og en røyktest skal ikke feile på manglende terrengdata —
@@ -2535,7 +2795,7 @@ const SJEKKER = [
     maksMs: 180_000,
     async kjør(page) {
       await lukkDrawer(page)
-      await klikkSnarvei(page, /^3D$/)
+      await klikkSnarvei(page, 'tre-d')
       // ÅPNINGSMODUSEN AVHENGER AV KLOKKA (v6.1.0): 3D åpner i natt når sola er
       // under horisonten der arket ligger. Vi kan derfor ikke anta hvilket steg
       // knappen står på — vi leser den, og krever at syklusen er LUKKET: to trykk
@@ -2761,7 +3021,7 @@ const SJEKKER = [
     krever: 'ektekart',
     async kjør(page) {
       await lukkDrawer(page)
-      await klikkSnarvei(page, /^3D$/)
+      await klikkSnarvei(page, 'tre-d')
       const klar = await page.waitForFunction(() => {
         const c = document.querySelector('canvas')
         if (c && c.width > 0) return 'canvas'
@@ -2898,7 +3158,7 @@ const SJEKKER = [
     krever: 'ektekart',
     async kjør(page) {
       await lukkDrawer(page)
-      await klikkSnarvei(page, /^3D$/)
+      await klikkSnarvei(page, 'tre-d')
       const klar = await page.waitForFunction(() => {
         const c = document.querySelector('canvas')
         if (c && c.width > 0) return 'canvas'
@@ -3039,7 +3299,7 @@ const SJEKKER = [
       // Settes hasTouch en gang i framtida, forsvinner knappen og denne sjekken
       // skal da feile og ikke hoppe stille over.
       await lukkDrawer(page)
-      await klikkSnarvei(page, /^3D$/)
+      await klikkSnarvei(page, 'tre-d')
       const klar = await page.waitForFunction(() => {
         const c = document.querySelector('canvas')
         if (c && c.width > 0) return 'canvas'
@@ -3959,7 +4219,7 @@ const SJEKKER = [
         await p2.waitForFunction(() => !!document.querySelector('svg.isom-map'),
           null, { timeout: 30_000 })
         await lukkDrawer(p2)
-        await klikkSnarvei(p2, /^3D$/)
+        await klikkSnarvei(p2, 'tre-d')
         const klar = await p2.waitForFunction(() => {
           const c = document.querySelector('canvas')
           if (c && c.width > 0) return 'canvas'
@@ -4808,7 +5068,7 @@ const SJEKKER = [
       await åpneDrawer(page)
       await page.waitForTimeout(250)
       const inne = await page.evaluate(() => {
-        const d = document.querySelector('[role="dialog"][aria-label="Innstillinger"]')
+        const d = document.querySelector('[role="dialog"][aria-label="Valg"]')
         if (!d) return 'ingen role=dialog på skuffa'
         if (d.getAttribute('aria-modal')) return 'skuffa satte aria-modal — kartet ved siden av er betjenbart'
         return d.contains(document.activeElement) ? null : 'fokus havnet ikke i skuffa'
@@ -4962,7 +5222,7 @@ const lesSolMaaneSteg = (page) => evalMedTak(page, (steg) =>
  */
 async function aapneNatt3d(page) {
   await lukkDrawer(page)
-  await klikkSnarvei(page, /^3D$/)
+  await klikkSnarvei(page, 'tre-d')
   const klar = await page.waitForFunction(() => {
     const c = document.querySelector('canvas')
     if (c && c.width > 0) return 'canvas'
@@ -5029,18 +5289,29 @@ async function lukkNatt3d(page, startSteg) {
   await page.waitForFunction(() => !document.querySelector('canvas'), null, { timeout: 8000 })
 }
 
-async function klikkTekst(page, re) {
+async function klikkTekst(page, re, innenfor = null) {
   const traff = await page.evaluate((kilde) => {
     const rx = new RegExp(kilde.source, kilde.flags)
-    const b = [...document.querySelectorAll('button, [role="button"]')].find((e) =>
+    const rot = kilde.innenfor ? document.querySelector(kilde.innenfor) : document
+    if (!rot) return false
+    const b = [...rot.querySelectorAll('button, [role="button"]')].find((e) =>
       e.offsetParent !== null && rx.test((e.innerText || e.getAttribute('aria-label') || '').trim()))
     if (!b) return false
     b.click()
     return true
-  }, { source: re.source, flags: re.flags })
-  if (!traff) throw new Error(`fant ingen synlig knapp som matcher ${re}`)
+  }, { source: re.source, flags: re.flags, innenfor })
+  if (!traff) {
+    throw new Error(`fant ingen synlig knapp som matcher ${re}`
+      + (innenfor ? ` inne i ${innenfor}` : ''))
+  }
   await page.waitForTimeout(700)
 }
+
+// SKUFFA, IKKE HELE SIDA. Snarvei-etikettene ble kortformer i v7.6.0, og «Sti»
+// er nå BÅDE en snarvei i raden og et lag i Kartlag-fana — en uskopet
+// tekst-klikking treffer den som står først i DOM-en, altså snarveien. Det
+// koster ikke noe å si hvilken av de to man mener.
+const SKUFF = '[role="dialog"][aria-label="Valg"]'
 
 // Hjul = zoom i denne appen (usePinchZoom.onWheel, 1.1× pr tikk — ingen
 // ctrl-tast). Små pauser fordi både LOD og culling er debouncet 120 ms.
@@ -5061,13 +5332,15 @@ async function zoomInn(page, tikk) {
   await page.waitForTimeout(1000)
 }
 
-// INNGANGEN TIL SKUFFEN ER TILBAKE I TOPPRADA (v7.2.0). Den var en snarvei i
-// v7.0.0–7.1.0, altså bak «Mer» på en smal skjerm; nå står tannhjulet ytterst
-// til høyre over kartet igjen. `klikkTekst` duger ikke: den ville truffet
-// dialogen, som har samme aria-label.
+// INNGANGEN TIL SKUFFEN ER EN SNARVEI IGJEN (v7.6.0), sist i raden og under
+// navnet «Valg». Tannhjulet i topprada er borte. Den kan ligge bak håndtaket på
+// en smal skjerm, så raden dras ut først; `velg` legger den sammen igjen selv.
+// Vi går på `data-snarvei-id` og ikke på etiketten: dialogen som åpnes har
+// `aria-label="Valg"`, altså det samme som knappen.
 async function åpneDrawer(page) {
   if (await erDrawerÅpen(page)) return
-  await page.locator('button[aria-label="Innstillinger"]').first().click()
+  await apneSnarveiRad(page)
+  await page.locator('[data-snarvei-id="innstillinger"]').first().click()
   await page.waitForTimeout(500)
 }
 
@@ -5103,13 +5376,19 @@ async function lukkSnarveiRad(page) {
   }
 }
 
-// EN SNARVEI KAN LIGGE BAK «MER». På en 430 px-skjerm får ikke alle sju plass
-// på én linje, og en `klikkTekst` rett på etiketten finner da en knapp som er
-// `v-show`-skjult og står og venter til den timer ut. Søket og innstillingene
-// er IKKE snarveier lenger (v7.2.0) — de trykkes rett i topprada.
-async function klikkSnarvei(page, re) {
+// EN SNARVEI KAN LIGGE BAK HÅNDTAKET. På en smal skjerm får ikke alle plass i
+// første rad, og gitteret KLIPPER resten (v7.5.0) — en klikk rett på en celle
+// i rad to treffer ingenting. Derfor dras raden ut først.
+//
+// ID OG IKKE ETIKETT (v7.6.0): etikettene er kortformer nå («Mål», «Merk»,
+// «Spor», «GPS»), og de er valgt for å spare kolonnebredde — ikke for å være
+// stabile testankere. `data-snarvei-id` er kontrakten.
+async function klikkSnarvei(page, id) {
   await apneSnarveiRad(page)
-  await klikkTekst(page, re)
+  const knapp = page.locator(`[data-snarvei-id="${id}"]`)
+  if (!(await knapp.count())) throw new Error(`fant ingen snarvei «${id}»`)
+  await knapp.first().click()
+  await page.waitForTimeout(400)
 }
 
 // SETT EN SLIDER TIL EN VERDI. `input[type=range]` reagerer ikke på et klikk
@@ -5137,7 +5416,7 @@ async function lukkDrawer(page) {
   // sjekken etterpå kjørte med skuffen fortsatt over FAB-ene.
   for (let i = 0; i < 3; i++) {
     if (!(await erDrawerÅpen(page))) return
-    await klikkTekst(page, /^Lukk innstillinger$/)
+    await klikkTekst(page, /^Lukk Valg$/)
     await page.waitForTimeout(350)
   }
   if (await erDrawerÅpen(page)) throw new Error('fikk ikke lukket innstillings-skuffen')

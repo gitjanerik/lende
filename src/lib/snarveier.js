@@ -21,6 +21,43 @@
 
 export const SNARVEI_REKKEFOLGE_KEY = 'lende-snarvei-rekkefolge'
 
+/**
+ * Skal navnene stå UNDER ikonene også når raden er sammenlagt?
+ *
+ * PÅ er standard, og det er en beslutning (v7.6.0): ikonene bærer ikke
+ * betydningen alene — en linjal med to prikker, en åttekant med streker og en
+ * pil er ikke selvforklarende for den som ikke alt vet hva de gjør. Prisen er
+ * fjorten piksler høyde, og raden er uansett bare ÉN rad sammenlagt.
+ *
+ * AV er for den som HAR lært ikonene og vil ha kartet tilbake: da krymper cella
+ * til ikon-høyde sammenlagt (`SNARVEI_MIN_H_SMAL`), og navnene kommer fram med
+ * draget — høyde og opasitet animeres begge av samme `dra`, så det er én
+ * bevegelse og ikke en tekst som blinker på et ferdig utvokst rutenett.
+ */
+export const SNARVEI_NAVN_KEY = 'lende-snarvei-navn-minimert'
+
+/**
+ * Cellas minstehøyde, i piksler, med og uten navn sammenlagt.
+ *
+ * 44 er WCAG 2.5.5 (AAA) og Apples minstemål; 36 er den smale, og den ligger
+ * fortsatt godt over SC 2.5.8 (AA) sitt krav på 24. Den smale gjelder BARE
+ * sammenlagt med navnene av — dratt ut har cella etiketten sin og er høy av
+ * seg selv. Tallene bor her og ikke i CSS-en fordi det er de som gjør
+ * forskjellen på tilstandene målbar.
+ */
+export const SNARVEI_MIN_H = 44
+export const SNARVEI_MIN_H_SMAL = 36
+
+/** Leser bryteren fra localStorage. PÅ er standarden, også ved søppel. */
+export function lesVisNavn(store) {
+  try { return store?.getItem(SNARVEI_NAVN_KEY) !== '0' } catch { return true }
+}
+
+/** Skriver bryteren. Feiler stille i privat modus, som resten av appen. */
+export function skrivVisNavn(store, pa) {
+  try { store?.setItem(SNARVEI_NAVN_KEY, pa ? '1' : '0') } catch { /* noop */ }
+}
+
 // `kunEgne` er samme port som fanene hadde: på de innebygde demokartene
 // (Vardåsen) finnes verken egne markeringer eller GPS-spor å vise.
 //
@@ -56,15 +93,40 @@ export const SNARVEI_REKKEFOLGE_KEY = 'lende-snarvei-rekkefolge'
 // «Mer» uten at brukeren selv har bestemt det — og kompasset har forlatt raden
 // helt: det bor i linjal-boksen nede til venstre, der retningen allerede
 // leses. Skillestreken er borte med dem.
+//
+// SKUFFEN HETER «VALG» NÅ, OG DEN ER EN SNARVEI (v7.6.0). Tannhjulet sto
+// øverst til høyre, ved siden av søket, og var det ene stedet i turkartet der en
+// kontroll bodde utenfor raden uten å være en av de tre faste runde knappene.
+// Den er nå SIST i standard-rekkefølgen — den er det man går til når man har
+// satt seg ned, ikke det man rekker etter mens man går.
+//
+// NAVNET ER «VALG» HELE VEIEN: etiketten i raden, `aria` på knappen og
+// overskriften i selve skuffa. Et kort ord i raden og «Innstillinger» i
+// headeren ville vært to navn på samme sted — den som trykker «Valg» og lander
+// i «Innstillinger» må selv slutte at det er det samme. Skillet mellom FUNKSJON
+// og INNSTILLING står likevel: skuffa bærer fortsatt bare innstillinger, det er
+// VEIEN dit og NAVNET som har flyttet.
+//
+// ETIKETTEN ER KORT, `aria` ER FULL (v7.6.0), og de to er ikke to navn på
+// samme ting — de svarer på hver sin ting. Navnene sto alltid skjult sammenlagt
+// fram til v7.5.0 og kom fram med draget; fra v7.6.0 står de ALLTID, og da er
+// det den LENGSTE etiketten som setter kolonnebredden for ALLE cellene — ett
+// «Annotering» gjorde hver av de ni så bred som det ordet, og halverte antallet
+// som fikk plass på en telefon. Etikettene er derfor kortformer man leser i et
+// øyekast (GPS, Sti, Mål, Merk, Spor), mens `aria` bærer det fulle navnet for
+// skjermleseren — der finnes ingen kolonnebredde å spare, og «Merk» alene sier
+// ingenting uten ikonet ved siden av. Legger du til en snarvei: hold etiketten
+// på fem tegn eller under, ellers betaler alle de andre for den.
 export const SNARVEIER = [
-  { id: 'posisjon',   label: 'Posisjon',   aria: 'Posisjon' },
-  { id: 'stifinner',  label: 'Stifinner',  aria: 'Stifinner' },
-  { id: 'runde',      label: 'Runde',      aria: 'Gå en runde' },
-  { id: 'maaling',    label: 'Måling',     aria: 'Måling' },
-  { id: 'tre-d',      label: '3D',         aria: 'Se kartet i 3D' },
-  { id: 'annotering', label: 'Annotering', aria: 'Annotering', kunEgne: true },
-  { id: 'sporing',    label: 'Sporing',    aria: 'Sporing',    kunEgne: true },
-  { id: 'info',       label: 'Info',       aria: 'Informasjon om stedet' },
+  { id: 'posisjon',   label: 'GPS',   aria: 'Posisjon' },
+  { id: 'stifinner',  label: 'Sti',   aria: 'Stifinner' },
+  { id: 'runde',      label: 'Runde', aria: 'Gå en runde' },
+  { id: 'maaling',    label: 'Mål',   aria: 'Måling' },
+  { id: 'tre-d',      label: '3D',    aria: 'Se kartet i 3D' },
+  { id: 'annotering', label: 'Merk',  aria: 'Annotering', kunEgne: true },
+  { id: 'sporing',    label: 'Spor',  aria: 'Sporing',    kunEgne: true },
+  { id: 'info',       label: 'Info',  aria: 'Informasjon om stedet' },
+  { id: 'innstillinger', label: 'Valg', aria: 'Valg' },
 ]
 
 export const STANDARD_REKKEFOLGE = SNARVEIER.map(s => s.id)
@@ -107,18 +169,23 @@ export function flyttSnarvei(rekkefolge, fra, til) {
  *
  * RADEN ER ET GITTER FRA v7.5.0, og kolonnetallet er det samme sammenlagt som
  * utfoldet. Fram til nå var raden en flex-rad som målte hver knapp for seg, og
- * da endret antallet per linje seg med tilstanden: sju ikoner sammenlagt, fire
- * med etikett utfoldet. Eieren leste det som at raden stokket om på seg selv —
- * og det gjorde den. Nå måles den BREDESTE cella (altså den med etikett, som er
- * den brede tilstanden), og alle celler får den bredden i begge tilstandene.
- * Sammenlagt viser gitteret første rad; draget avdekker resten.
+ * da endret antallet per linje seg med tilstanden. Nå måles den BREDESTE cella,
+ * og alle celler får den bredden. Sammenlagt viser gitteret første rad; draget
+ * avdekker resten.
+ *
+ * NAVNET STÅR ALLTID (v7.6.0). Sammenlagt var cella et rent ikon, og draget
+ * avdekket etiketten. Det ble målt i felt og forkastet: gevinsten er de fjorten
+ * pikslene etiketten er høy — raden er uansett bare ÉN rad sammenlagt — mens
+ * prisen er at ikonene må bære betydningen alene, og en linjal-med-prikker eller
+ * en åttekant med streker gjør ikke det. Cella er derfor like bred og like høy i
+ * begge tilstandene, og draget avdekker bare FLERE RADER.
  *
  * Gapet betales for hvert MELLOMROM og ikke per kolonne — derfor `+ gapPx` på
  * begge sider av brøken. Gulvet er ÉN: en rad uten en eneste synlig funksjon er
  * bare et håndtak, og da har raden ingen grunn til å stå der. Taket er antallet
  * snarveier, ellers ville et bredt vindu gitt tomme kolonner.
  *
- * @param {number} cellePx   bredden på den bredeste cella (med etikett)
+ * @param {number} cellePx   bredden på den bredeste cella
  * @param {number} ledigPx   radens budsjett — viewporten minus kant og polstring
  * @param {number} gapPx     mellomrom mellom kolonner
  * @param {number} maks      antall snarveier

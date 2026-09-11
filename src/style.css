@@ -160,16 +160,29 @@ html { background: var(--color-app); }
      Slotten er «rett under knapperaden», som den var til og med v6.6.5.
      Avstandene MELLOM slottene er uendret — de er målt mot snarvei-radens egen
      høyde, ikke mot baren. */
-  --ovl-top: calc(4rem + var(--safe-top));    /* rett under knapperaden (var top-16) */
-  --ovl-rose: calc(5rem + var(--safe-top));   /* kompassrosen (var top-20) */
+  /* KNAPPERADA VOKSER MED TEKSTSTØRRELSEN (v7.6.0), og hele stabelen under må
+     følge den. Hamburgeren og søket er 2,5rem høye ved 100 % og skalerer med
+     hovedmenyens 100/125/150/200; polstringen over og under (0,75rem hver vei)
+     gjør det ikke. `--ui-skala` settes av kart-visningene på rot-diven sin —
+     den er 1 her, så alt utenfor dem står som før.
+
+     SLOTTENE UNDER ER UTTRYKT SOM AVSTAND FRA `--ovl-top` og ikke som egne
+     absolutte tall. Tallene er nøyaktig de samme ved 100 % (4 / 5 / 8,5 / 7,5 /
+     12 / 16rem); forskjellen er at de nå FLYTTER SEG MED baren i stedet for å
+     bli liggende igjen under den. Bare de slottene som huser noe som SELV
+     skalerer, ganger med `--ui-skala` — snarvei-raden gjør det (derfor
+     `--ovl-nav`), modus-chipene gjør det ikke. */
+  --ui-skala: 1;
+  --ovl-top: calc(2.5rem * var(--ui-skala) + 1.5rem + var(--safe-top));
+  --ovl-rose: calc(var(--ovl-top) + 1rem);    /* kompassrosen */
   /* Navigasjonssøyla på høyre kant. Den lå på --ovl-rose og havnet da OPPÅ
      snarvei-raden, som står på --ovl-top og er 56 px høy — på en telefon er
      raden bred nok til å nå helt ut i kanten. Slotten er derfor snarvei-radens
-     underkant (4rem + 56 px) pluss luft. */
-  --ovl-nav: calc(8.5rem + var(--safe-top));
-  --ovl-top-2: calc(7.5rem + var(--safe-top)); /* andre stable-slot når måling/sti er aktiv */
-  --ovl-top-3: calc(12rem + var(--safe-top));  /* tredje stable-slot */
-  --ovl-poi: calc(16rem + var(--safe-top));    /* POI-info-boks (var top-[16rem]) */
+     underkant pluss luft, og raden skalerer, så høyden ganges med skalaen. */
+  --ovl-nav: calc(var(--ovl-top) + 3.5rem * var(--ui-skala) + 1rem);
+  --ovl-top-2: calc(var(--ovl-top) + 3.5rem); /* andre stable-slot når måling/sti er aktiv */
+  --ovl-top-3: calc(var(--ovl-top) + 8rem);   /* tredje stable-slot */
+  --ovl-poi: calc(var(--ovl-top) + 12rem);    /* POI-info-boks */
 }
 
 /* Bunn-skuffer (info-paneler som glir opp fra bunnen av viewporten) deler

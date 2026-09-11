@@ -2,7 +2,50 @@ import { describe, it, expect } from 'vitest'
 import {
   SNARVEIER, STANDARD_REKKEFOLGE, normaliserRekkefolge, snarveierIRekkefolge,
   flyttSnarvei, antallKolonner, antallRader, flytteIndeks,
+  SNARVEI_NAVN_KEY, SNARVEI_MIN_H, SNARVEI_MIN_H_SMAL, lesVisNavn, skrivVisNavn,
 } from './snarveier.js'
+
+// Et minimalt localStorage: testene skal si noe om REGELEN, ikke om jsdom.
+function fakeStore(start = {}) {
+  const data = { ...start }
+  return {
+    getItem: (k) => (k in data ? data[k] : null),
+    setItem: (k, v) => { data[k] = String(v) },
+    _data: data,
+  }
+}
+
+describe('«Vis navn når minimert» (v7.6.0)', () => {
+  it('er PÅ når ingenting er lagret', () => {
+    expect(lesVisNavn(fakeStore())).toBe(true)
+  })
+  it('er PÅ for alt annet enn en eksplisitt «0»', () => {
+    // Standarden skal overleve søppel: en halvskrevet verdi fra en eldre
+    // utgave skal ikke skjule navnene for noen.
+    expect(lesVisNavn(fakeStore({ [SNARVEI_NAVN_KEY]: '1' }))).toBe(true)
+    expect(lesVisNavn(fakeStore({ [SNARVEI_NAVN_KEY]: 'ja' }))).toBe(true)
+    expect(lesVisNavn(fakeStore({ [SNARVEI_NAVN_KEY]: '0' }))).toBe(false)
+  })
+  it('tåler at det ikke finnes noe lager (privat modus)', () => {
+    expect(lesVisNavn(null)).toBe(true)
+    expect(() => skrivVisNavn(null, false)).not.toThrow()
+  })
+  it('skriver «1»/«0» og leses tilbake likt', () => {
+    const s = fakeStore()
+    skrivVisNavn(s, false)
+    expect(s._data[SNARVEI_NAVN_KEY]).toBe('0')
+    expect(lesVisNavn(s)).toBe(false)
+    skrivVisNavn(s, true)
+    expect(lesVisNavn(s)).toBe(true)
+  })
+  it('har en smal celle som er merkbart lavere, men over SC 2.5.8', () => {
+    // Hele gevinsten ved å skru bryteren av er høyden; er de to like, gjør
+    // bryteren ingenting. 24 px er AA-kravet til trykkflate.
+    expect(SNARVEI_MIN_H_SMAL).toBeLessThan(SNARVEI_MIN_H)
+    expect(SNARVEI_MIN_H - SNARVEI_MIN_H_SMAL).toBeGreaterThanOrEqual(6)
+    expect(SNARVEI_MIN_H_SMAL).toBeGreaterThanOrEqual(24)
+  })
+})
 
 describe('katalogen', () => {
   it('har unike ider og en etikett per funksjon', () => {
@@ -10,13 +53,40 @@ describe('katalogen', () => {
     expect(new Set(ider).size).toBe(ider.length)
     expect(SNARVEIER.every(s => s.label && s.aria)).toBe(true)
   })
-  it('bærer BARE funksjonene, slanket tilbake etter felttesten (v7.2.0)', () => {
-    // Alt som ikke GJØR noe med kartet er ute igjen: søket og innstillingene
-    // står i topprada, de eksterne kartene øverst i infopanelet, chatten i
-    // Lende-FAB-en, og strek/relieff i Innstillinger → Kartstil (v7.4.0).
+  it('bærer funksjonene pluss «Valg» sist (v7.6.0)', () => {
+    // Søket og de eksterne kartene er fortsatt ute (v7.2.0), og chatten bor i
+    // Lende-FAB-en. Innstillingene er derimot tilbake som snarvei — sist, fordi
+    // de er det man går til når man har satt seg ned.
     expect(STANDARD_REKKEFOLGE).toEqual(
       ['posisjon', 'stifinner', 'runde', 'maaling', 'tre-d', 'annotering',
-       'sporing', 'info'])
+       'sporing', 'info', 'innstillinger'])
+    expect(STANDARD_REKKEFOLGE.at(-1)).toBe('innstillinger')
+    expect(STANDARD_REKKEFOLGE).not.toContain('sok')
+    expect(STANDARD_REKKEFOLGE).not.toContain('chat')
+  })
+  it('holder etikettene korte — de setter kolonnebredden (v7.6.0)', () => {
+    // Alle cellene er like brede, så den LENGSTE etiketten koster for alle ni.
+    // «Annotering» gjorde hver celle så bred som det ordet og halverte antallet
+    // som fikk plass på en telefon; kortformene er det som kjøpte plassen
+    // tilbake da navnene sluttet å være skjult sammenlagt.
+    for (const s of SNARVEIER) expect(s.label.length).toBeLessThanOrEqual(5)
+    expect(SNARVEIER.find(s => s.id === 'posisjon').label).toBe('GPS')
+    expect(SNARVEIER.find(s => s.id === 'annotering').label).toBe('Merk')
+  })
+  it('lar `aria` bære det fulle navnet der etiketten er en kortform', () => {
+    // Det er ikke to navn på samme ting: «Merk» leses sammen med ikonet, mens
+    // en skjermleser bare får ordet. Der finnes ingen kolonnebredde å spare.
+    const merk = SNARVEIER.find(s => s.id === 'annotering')
+    expect(merk.aria).toBe('Annotering')
+    expect(SNARVEIER.find(s => s.id === 'posisjon').aria).toBe('Posisjon')
+  })
+  it('kaller innstillingene «Valg» BEGGE steder (v7.6.0)', () => {
+    // Etiketten i raden og `aria` på knappen er det samme ordet, og det samme
+    // som overskriften i skuffa. Et kort ord i raden og «Innstillinger» i
+    // headeren ville vært to navn på samme sted.
+    const valg = SNARVEIER.find(s => s.id === 'innstillinger')
+    expect(valg.label).toBe('Valg')
+    expect(valg.aria).toBe('Valg')
   })
   it('gir posisjonen plass #1, og kompasset er ikke i lista (v7.3.0)', () => {
     // Alle snarveier er likeverdige og sorterbare: den faste venstregruppen er
