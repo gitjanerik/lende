@@ -1,3 +1,29 @@
+## 2026-09-11 — v7.6.1: Toastene og bannerne på kartet følger tekststørrelsen
+
+Tekstskalaen fra hovedmenyen nådde snarveiene, kartnavnet, linjalen og de faste
+ikonene i v7.6.0, men ikke det som faktisk BÆRER en beskjed: «N arkeologiske
+kulturminner i dette utsnittet», «Tegner inn stier og detaljer …», måleboksens
+grønne readout og GPS-feilen som sier at posisjonen er avslått. De er de eneste
+flatene i appen der teksten er hele innholdet, og de sto på 11–12 px uansett hva
+brukeren hadde valgt. Nå følger de skalaen — i MapStatusOverlays (lasting,
+last-feil, kulturminne-toasten, posisjonsfeil, utenfor-kartet, detalj-feil,
+ufullstendig kart, mosaikk-hull, firkant-tilbudet, lav nøyaktighet), i
+MapModeChips (auto-kart-toast, detalj-chip, highlight, annotering, måling,
+stifinner, følg rute, nærhetsvarsel) og i MapViews egne bygge-chip, knott-hint
+og 3D-feil.
+
+Zoomen settes på TEKSTEN og aldri på boksen, som i SkuffHeader: polstringen og
+lukke-krysset skal bli stående, ellers dyttes X-en ut av skjermen ved 200 % og
+beskjeden blir umulig å bli kvitt. Knappetekstene («Prøv igjen», «Fullfør
+kartet», «Fyll hullene») ligger i en egen zoomet span inni knappen, så knappen
+vokser i høyde uten å sprenge bredden. Og prosent-takene på bredden — 55 % for
+måleboksen, 60 % for nærhetsvarselet, 70 % for stifinneren, 85 % for toastene —
+følger nå skalaen med 92 % som tak (`maksBredde`): et fast tak ville presset
+«1,23 km» over to linjer ved 200 %, altså nøyaktig den lesbarheten skalaen
+finnes for.
+
+---
+
 ## 2026-09-11 — v7.6.0: Snarveiene har navn, «Valg» er en av dem, og ikonene følger tekststørrelsen
 
 Snarvei-navnene sto skjult sammenlagt og kom fram med draget; det er snudd. Gevinsten var

@@ -1068,6 +1068,81 @@ const SJEKKER = [
     },
   },
   {
+    // TOASTENE OG BANNERNE PÅ KARTET FØLGER TEKSTSTØRRELSEN (v7.6.1), og de er
+    // de eneste flatene der teksten ER hele innholdet. Måleboksen står modell
+    // for dem alle — den har både et tekstfelt og et lukke-kryss, altså
+    // nøyaktig den kombinasjonen regelen handler om. Tre ting måles, og bare
+    // det første kan en enhetstest se:
+    //   • tekstblokka VOKSER (zoom ligger på innholdet);
+    //   • X-EN GJØR DET IKKE — zoom på boksen ville skalert polstringen og
+    //     dyttet krysset ut, altså en beskjed man ikke blir kvitt ved 200 %;
+    //   • boksen holder seg innenfor skjermen, fordi bredde-taket følger
+    //     skalaen (`maksBredde`) med 92 % som tak.
+    navn: 'måleboksens tekst vokser med tekststørrelsen, krysset blir stående',
+    domene: 'MapModeChips + MapStatusOverlays (zoom på innhold, ikke på boksen)',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await lukkSnarveiRad(page)
+      const mål = () => page.evaluate(() => {
+        const boks = document.querySelector('[data-maal-boks]')
+        if (!boks) return null
+        const tekst = boks.querySelector('[data-maal-tekst]')
+        const kryss = boks.querySelector('[aria-label="Avslutt måling"]')
+        const r = (e) => { const q = e.getBoundingClientRect(); return { b: Math.round(q.width), h: Math.round(q.height) } }
+        return {
+          tekst: r(tekst), kryss: r(kryss),
+          hoyre: Math.round(boks.getBoundingClientRect().right),
+          vindu: window.innerWidth,
+          zoom: getComputedStyle(tekst).zoom,
+        }
+      })
+      const sett = async (skala) => {
+        await page.evaluate((v) => { localStorage.setItem('lende-ui-text-scale', String(v)) }, skala)
+        await page.reload({ waitUntil: 'domcontentloaded' })
+        await page.waitForTimeout(2500)
+        await lukkDrawer(page)
+      }
+
+      // MÅLE-MODUS SKJULER SNARVEI-RADEN (se v-if-en i MapView), så håndtaket
+      // finnes ikke mens målingen står på — raden må lukkes FØR og målingen
+      // avsluttes før neste gang den skal åpnes.
+      const stoppMåling = async () => {
+        const x = page.locator('[aria-label="Avslutt måling"]')
+        if (await x.count()) { await x.first().click(); await page.waitForTimeout(300) }
+      }
+      await klikkSnarvei(page, 'maaling')
+      const ved100 = await mål()
+      if (!ved100) throw new Error('fant ikke måleboksen etter at målingen ble slått på')
+      try {
+        await stoppMåling()
+        await sett(2)
+        // Målemodus overlever ikke en reload — slå den på igjen.
+        await klikkSnarvei(page, 'maaling')
+        const ved200 = await mål()
+        if (!ved200) throw new Error('måleboksen kom ikke tilbake ved 200 %')
+        if (!(ved200.tekst.h > ved100.tekst.h * 1.4)) {
+          throw new Error(`måleboksens tekst vokste ikke (${ved100.tekst.h} → ${ved200.tekst.h} px) `
+            + '— følger den uiTextScale?')
+        }
+        if (Math.abs(ved200.kryss.b - ved100.kryss.b) > 2) {
+          throw new Error(`lukke-krysset endret størrelse (${ved100.kryss.b} → ${ved200.kryss.b} px) `
+            + '— ligger zoomen på boksen i stedet for på teksten?')
+        }
+        if (ved200.hoyre > ved200.vindu) {
+          throw new Error(`måleboksen går ${ved200.hoyre - ved200.vindu} px utenfor skjermen ved 200 % `
+            + '— følger bredde-taket skalaen?')
+        }
+        return `tekst ${ved100.tekst.h} → ${ved200.tekst.h} px (zoom ${ved200.zoom}), `
+          + `krysset ${ved200.kryss.b} px, boksen innenfor ${ved200.vindu} px`
+      } finally {
+        // NØYTRAL TILSTAND: måle-modus bytter ut kart-flata for neste sjekk.
+        await stoppMåling()
+        await sett(1)
+        await lukkSnarveiRad(page)
+      }
+    },
+  },
+  {
     // «VIS NAVN NÅR MINIMERT» ER EN BRYTER (v7.6.0), øverst i Sorter-panelet og
     // PÅ som standard. Sjekken slår den AV og krever de tre tingene som skiller
     // den fra en ren visning/skjuling, og som ingen enhetstest kan se:

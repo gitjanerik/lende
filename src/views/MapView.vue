@@ -2761,7 +2761,8 @@ onUnmounted(() => {
           <div v-if="knobHint" role="status" aria-live="polite"
                class="px-3 py-1.5 rounded-lg bg-overlay/95 text-ink text-[11px] font-medium
                       leading-tight shadow-lg whitespace-nowrap pointer-events-none
-                      border border-ink/10">
+                      border border-ink/10"
+               :style="{ zoom: uiTextScale }">
             {{ knobHint }}
           </div>
         </Transition>
@@ -3007,6 +3008,7 @@ onUnmounted(() => {
          alert) — trekt ut til MapModeChips (v1.0.8). -->
     <MapModeChips
       :auto-map-toast="autoMapToast"
+      :ui-text-scale="uiTextScale"
       :search-open="searchOpen"
       :map-center-style="mapCenterStyle"
       :filling-in-details="fillingInDetails"
@@ -3054,6 +3056,7 @@ onUnmounted(() => {
       :is-offline="isOffline"
       :show-low-accuracy="showLowAccuracyBanner"
       :accuracy-m="userPos.accuracyM ?? 0"
+      :ui-text-scale="uiTextScale"
       :fredet-truncated="showFredetToast"
       :fredet-count="fredetCount ?? 0"
       :fredet-shown="fredetShown ?? 0"
@@ -3489,7 +3492,7 @@ onUnmounted(() => {
            :style="mapCenterStyle" role="status" aria-live="polite">
         <FlisIkon v-if="byggerFlisRetning" :retning="byggerFlisRetning" :ark="arkRutenett" />
         <span v-else class="w-3.5 h-3.5 rounded-full border-2 border-ink/25 border-t-ink/80 animate-spin shrink-0"></span>
-        <span class="truncate">{{ buildingProgress || 'Oppretter kart …' }}</span>
+        <span class="truncate" :style="{ zoom: uiTextScale }">{{ buildingProgress || 'Oppretter kart …' }}</span>
         <!-- Chippen er ikke-blokkerende, men byggingen kan ta et halvminutt per
              flis. X-en stopper løkka mellom fliser og aborterer den som er
              under arbeid; det som alt er bygd beholdes. Derfor er
@@ -3532,7 +3535,8 @@ onUnmounted(() => {
     <Transition name="chip-fade">
       <div v-if="tour3dError"
            class="absolute bottom-24 left-1/2 -translate-x-1/2 z-[60] px-3 py-2 rounded-xl
-                  bg-red-600/95 text-white text-[12px] font-medium shadow-lg max-w-[85%]">
+                  bg-red-600/95 text-white text-[12px] font-medium shadow-lg max-w-[85%]"
+           :style="{ zoom: uiTextScale }">
         {{ tour3dError }}
       </div>
     </Transition>
