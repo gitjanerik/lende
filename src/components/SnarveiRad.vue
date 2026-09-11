@@ -252,11 +252,31 @@ const rader = computed(() => antallRader(props.snarveier.length, kolonner.value)
 const hoydeSpenn = computed(() => Math.max(0, hApen.value - hLukket.value))
 const draLengde = computed(() => Math.max(DRA_MIN_PX, hoydeSpenn.value))
 
+// LUFT UNDER SISTE RAD I SORTERINGS-MODUS (v7.7.4). Gitteret har polstring på
+// tre sider (`px-1.5 pt-1.5`) og ingen under: cellene har bare en flate, og
+// lufta under siste rad er håndtakets `py-3`. Sorteringen legger en stiplet
+// kant PÅ cella — altså helt ute ved kanten gitteret klipper mot
+// (`overflow: hidden`) — og da forsvant den nederste streken i siste rad. Den
+// var ikke borte, den lå under footeren.
+//
+// TALLET LEGGES PÅ BÅDE POLSTRINGEN OG HØYDEN, og det er derfor modusbyttet
+// ikke trenger en ny måling: `hApen` er lest uten polstringen, så samme
+// konstant på begge sider gir nøyaktig plass til den. En ommåling ville vært
+// den verste kuren — den kjører med pilla `visibility: hidden`, altså et blink
+// i det man trykker «Sorter», og den blender cella man har fokus på.
+//
+// Målt i Chromium sto nederste celle 2 px UTENFOR klippekanten før dette:
+// `hApen` er `offsetHeight`, altså et heltall der layouten er brøk, så det var
+// ikke bare streken som lå utenfor. De seks gir 4 px synlig luft.
+const SORTER_LUFT_PX = 6
+
 // Høyden følger fingeren. `overflow: hidden` på gitteret gjør resten: radene
 // under den første ligger og venter rett utenfor kanten.
 const gitterStil = computed(() => ({
+  paddingBottom: sorterer.value ? `${SORTER_LUFT_PX}px` : null,
   height: maalt.value && !maaler.value
-    ? `${hLukket.value + hoydeSpenn.value * dra.value}px`
+    ? `${hLukket.value + hoydeSpenn.value * dra.value
+       + (sorterer.value ? SORTER_LUFT_PX : 0)}px`
     : 'auto',
   gridTemplateColumns: maalt.value
     ? `repeat(${kolonner.value}, minmax(0, 1fr))`
