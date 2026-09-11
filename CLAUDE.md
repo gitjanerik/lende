@@ -198,29 +198,34 @@ klient som ikke kjenner `isbre` maler Jostedalsbreen som myr.
 standardtilstanden, og 112 020 flater som maler bakgrunnen på nytt er ren
 datamengde.
 
-**VED NESTE BAKE SKAL HISTORIKKEN RYDDES. Dette er en beslutning, ikke et
-forslag.** Flisene er GENERERTE — de kan bakes på nytt fra Geonorge når som
-helst — og gamle utgaver har derfor null verdi. Etter v5.26.1 er tallene:
-`.git` 200 MB pack, 129 MB bakte fliser i arbeidstreet (117 areal + 12 sti),
-og **gh-pages har 323 commits** som hver bærer et helt `dist/`. Hver bake som
-endrer flisene legger et nytt sett på ~117 MB i historikken for alltid.
+**HISTORIKKEN SKAL RYDDES. Dette er en beslutning, ikke et forslag.** Flisene
+er GENERERTE — de kan bakes på nytt fra Geonorge når som helst — og gamle
+utgaver har derfor null verdi. Hver bake som endrer flisene legger et nytt sett
+på ~117 MB i historikken for alltid.
 
-To ryddejobber, med ulik risiko:
+To ryddejobber, med ulik risiko. **Den første er gjort, den andre står igjen:**
 
-1. **gh-pages — gjør dette først, det er gratis.** Grenen er ren generert
-   output; ingen har noe der å miste. `build-vardasen-map.yml` bygger den med
-   vanlige commits i et worktree, så historikken vokser monotont. Bytt til én
-   enkelt commit (orphan-branch + force-push) og 323 utgaver av nettstedet
-   forsvinner.
-2. **master — større inngrep, men det er der flisene ligger.** `git filter-repo`
-   kan droppe gamle flis-blobs fra historikken, etterfulgt av force-push. Det
-   omskriver delt historikk. Repoet har én eier, så prisen er lav — men gjør
-   det som en egen, bevisst operasjon, ikke som et biprodukt av en bake.
+1. **gh-pages — GJORT i v7.7.7.** Grenen er ren generert output; ingen hadde
+   noe der å miste. `build-vardasen-map.yml` bygget den med vanlige commits i
+   et worktree, så historikken vokste monotont — 434 commits, hver med et helt
+   `dist/`. Deploy-steget lager nå en foreldreløs commit og force-pusher, så
+   grenen er alltid nøyaktig én utgave av nettstedet. **Den henter bevisst ikke
+   gh-pages først** (halve gevinsten er at runneren slipper å laste ned en
+   historikk vi er i ferd med å kaste), og **«ingen endringer i dist» er borte
+   som begrep**: uten en forelder finnes det ingenting å diffe mot, og sjekken
+   hadde aldri noe å spare fordi hver PR bumper `CACHE_VERSION` i `sw.js`.
+2. **master — STÅR IGJEN, og det er der flisene ligger.** `.git` er 223 MB pack
+   mot 129 MB bakte fliser i arbeidstreet (117 areal + 12 sti).
+   `git filter-repo` kan droppe gamle flis-blobs fra historikken, etterfulgt av
+   force-push. Det omskriver delt historikk. Repoet har én eier, så prisen er
+   lav — men gjør det som en egen, bevisst operasjon, ikke som et biprodukt av
+   en bake. Merk at `build-vardasen-map.yml` kloner med `fetch-depth: 0`, så
+   hver deploy betaler for den pakka.
 
 GitHubs grenser, for kontekst: **100 MB per fil** er hard sperre (største flis
 er 2,4 MB, god margin), **5 GB repo** er der GitHub tar kontakt, og
 **1 GB for det publiserte Pages-nettstedet** er hard grense — `dist/` er 133 MB
-i dag. Ingen av dem er nære, men gh-pages-veksten er den som løper først.
+i dag, og med én commit er det også alt gh-pages veier.
 
 ## Viktig arkitektur-merknad — arket utvides BARE på bestilling
 

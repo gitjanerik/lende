@@ -1,3 +1,9 @@
+## 2026-09-11 — v7.7.7: gh-pages har én commit, ikke 434
+
+Deploy-grenen bygget seg opp med en vanlig commit per bake, og etter v5.26.0 bar hver av dem et helt `dist/` med 117 MB fliser i seg — 434 utgaver av nettstedet lagret for alltid, uten at én av dem hadde verdi. Innholdet er ren generert output som kan bakes på nytt fra master når som helst. `build-vardasen-map.yml` lager nå en foreldreløs commit og force-pusher, så grenen alltid er nøyaktig én utgave. To ting følger, og begge er lette å «rette» tilbake i god tro: den henter bevisst ikke gh-pages først — halve gevinsten er at runneren slipper å laste ned en historikk vi er i ferd med å kaste — og «ingen endringer i dist» er borte som begrep, siden det uten en forelder ikke finnes noe å diffe mot, og sjekken uansett aldri hadde noe å spare fordi hver PR bumper `CACHE_VERSION` i `sw.js`. Dette var den første av de to ryddejobbene i CLAUDE.md; den andre — flis-blobbene i masters egen historikk, 223 MB pack — står fortsatt igjen som en egen, bevisst operasjon.
+
+---
+
 ## 2026-09-11 — v7.7.6: kompasset og Lende-FAB-en deler bunnlinje
 
 De to bunnhjørnene svarte på hver sin regel: Lende-FAB-en gikk gjennom

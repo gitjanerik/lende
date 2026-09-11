@@ -52,26 +52,32 @@ jobs:
           ls -la dist/
           ls -la dist/maps/ || echo "ingen maps-mappe i dist"
 
-      # SKAL RYDDES: grenen bygges med vanlige commits i et worktree, så
-      # historikken vokser monotont — 323 commits etter v5.26.1, hver med et
-      # helt `dist/`, og fra nå med 117 MB fliser i seg. Innholdet er ren
-      # generert output; ingen har noe der å miste. Bytt til én enkelt commit
-      # (orphan-branch + force-push) ved neste bake. Se CLAUDE.md.
+      # GRENEN HAR ÉN COMMIT, OG DET ER MED VILJE. Fram til v7.7.7 ble den
+      # bygget med vanlige commits i et worktree, så historikken vokste
+      # monotont — 434 commits ved v7.7.6, hver med et helt `dist/`, og fra
+      # v5.26.0 med 117 MB fliser i seg. Innholdet er REN GENERERT OUTPUT:
+      # det kan bakes på nytt fra master når som helst, og ingen har noe der å
+      # miste. Derfor en foreldreløs commit og en force-push hver gang.
+      #
+      # To ting følger, og begge er lette å «rette» tilbake:
+      #   1. Vi HENTER IKKE gh-pages først. Det er halve gevinsten — runneren
+      #      slipper å laste ned en historikk vi er i ferd med å kaste.
+      #   2. «Ingen endringer i dist» er borte som begrep. Uten en forelder
+      #      finnes det ingenting å diffe mot, og sjekken hadde uansett aldri
+      #      noe å spare: hver PR bumper versjonen, som står i `sw.js`, så
+      #      `dist/` er ulikt ved hver eneste kjøring.
+      #
       # GitHubs harde grense for et publisert Pages-nettsted er 1 GB; `dist/`
-      # er 133 MB i dag, så det haster ikke — men veksten er monoton.
+      # er 133 MB i dag, og med én commit er det også alt grenen veier.
       - name: Deploy to gh-pages
         run: |
           set -e
           APP_VERSION=$(node -p "require('./package.json').version")
           SHORT_SHA=$(git rev-parse --short HEAD)
           SOURCE_MSG=$(git log -1 --pretty=%s)
-          git fetch origin gh-pages || true
-          if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
-            git worktree add /tmp/ghp gh-pages
-          else
-            git worktree add --orphan -b gh-pages /tmp/ghp
-          fi
-          find /tmp/ghp -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+          # Eget lokalt grennavn, så dette aldri kolliderer med en gh-pages-ref
+          # som måtte ligge igjen i klonen.
+          git worktree add --orphan -b gh-pages-bake /tmp/ghp
           cp -r dist/. /tmp/ghp/
           touch /tmp/ghp/.nojekyll
           cp /tmp/ghp/index.html /tmp/ghp/404.html
@@ -79,15 +85,11 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
-          if git diff --staged --quiet; then
-            echo "Ingen endringer i dist — hopper over deploy"
-          else
-            git -c commit.gpgsign=false commit \
-              --author="Deploy <deploy@lende>" \
-              -m "deploy v${APP_VERSION} (${SHORT_SHA}): ${SOURCE_MSG}"
-            git push -u origin gh-pages
-            echo "Deployet v${APP_VERSION} til gh-pages"
-          fi
+          git -c commit.gpgsign=false commit \
+            --author="Deploy <deploy@lende>" \
+            -m "deploy v${APP_VERSION} (${SHORT_SHA}): ${SOURCE_MSG}"
+          git push --force origin HEAD:gh-pages
+          echo "Deployet v${APP_VERSION} til gh-pages (én commit)"
 
       - name: Verify gh-pages root is live
         run: |
