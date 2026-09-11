@@ -1,6 +1,7 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useAppMenu } from '../composables/useAppMenu.js'
+import { useUiTextScale } from '../composables/useUiTextScale.js'
 import { useHoldVaken } from '../composables/useHoldVaken.js'
 import { ringDash } from '../lib/holdVaken.js'
 
@@ -39,6 +40,30 @@ const props = defineProps({
 })
 
 const { menuOpen, toggle } = useAppMenu()
+
+// HAMBURGEREN FØLGER TEKSTSTØRRELSEN — MEN BARE SOM `float` (v7.6.0). Over
+// kartet er den en av de tre faste runde knappene, og der finnes det ingen
+// tekst i det hele tatt: ikonet ER kontrollen, og den som skrur opp til 200 %
+// fordi etikettene er for små trenger også en større trykkflate. Samme grep
+// som snarveiene, søket, kompasset og Lende-knappen.
+//
+// `header`-varianten skalerer IKKE, og det er ikke en forglemmelse. Den står i
+// en topprad ved siden av en overskrift som ikke skalerer, på en side der
+// tekstvalget allerede slår gjennom i innholdet under. En 72 px hamburger ved
+// siden av en 15 px tittel er ikke den samme kontrollen gjort større — det er
+// en rad som er gått i stykker.
+//
+// KOORDINATEN MÅ DELES PÅ SKALAEN, og det er ikke valgfritt. Knappen er
+// `position: fixed` med `top`/`left` fra plassholderens rect — altså ekte
+// skjermpiksler — men `zoom` multipliserer nettopp de brukte verdiene. Uten
+// divisjonen havner knappen dobbelt så langt ned og inn ved 200 %.
+// Plassholderen zoomes også, så toppraden reserverer den plassen knappen
+// faktisk tar.
+const { uiTextScale } = useUiTextScale()
+// TDZ-regelen (se CLAUDE.md): `const` er ikke hoistet, og `watch(skala, …)`
+// under leser den ved oppsett — derfor står den her og ikke nede ved
+// `isFloat`, der den ellers ville hørt hjemme.
+const skala = computed(() => (props.variant === 'float' ? uiTextScale.value || 1 : 1))
 
 // «Hold skjermen våken» har ingen egen knapp og ingen tekst — den vises som en
 // gul ring rundt hamburgeren, og ringen ER indikatoren (v6.6.4). Den ligger her
@@ -91,6 +116,8 @@ onMounted(() => {
     for (const el of observerte()) ro.observe(el)
   }
 })
+watch(skala, () => { nextTick(measure) })
+
 onBeforeUnmount(() => {
   window.removeEventListener('resize', measure)
   window.removeEventListener('orientationchange', measure)
@@ -106,6 +133,16 @@ const menyLabel = computed(() => {
   return `${base}. Skjermen holdes våken i ${holdVaken.igjenMinutter.value} minutter til`
 })
 
+const knappStil = computed(() => {
+  const z = skala.value
+  if (!pos.value) return { zoom: z }
+  return {
+    zoom: z,
+    top: `${Math.round(parseFloat(pos.value.top) / z)}px`,
+    left: `${Math.round(parseFloat(pos.value.left) / z)}px`,
+  }
+})
+
 const isFloat = computed(() => props.variant === 'float')
 const sizeClass = computed(() => (isFloat.value ? 'w-10 h-10' : 'w-9 h-9'))
 const skinClass = computed(() => (isFloat.value
@@ -115,7 +152,8 @@ const skinClass = computed(() => (isFloat.value
 
 <template>
   <!-- Plassholder: holder plassen i toppraden, og er målepunktet knappen følger. -->
-  <span ref="slotRef" class="inline-flex shrink-0" :class="sizeClass">
+  <span ref="slotRef" data-hovedmeny-plass class="inline-flex shrink-0" :class="sizeClass"
+        :style="{ zoom: skala }">
     <Teleport to="body">
       <button
         @click="toggle"
@@ -125,7 +163,7 @@ const skinClass = computed(() => (isFloat.value
         class="fixed z-[205] flex items-center justify-center rounded-full shrink-0
                active:scale-95 transition"
         :class="[sizeClass, skinClass, { 'is-open': menuOpen, invisible: !pos }]"
-        :style="pos">
+        :style="knappStil">
         <span class="menu-bars" :class="{ 'menu-bars-lg': isFloat }">
           <span class="menu-bar bar-top" />
           <span class="menu-bar bar-mid" />

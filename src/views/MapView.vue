@@ -99,6 +99,7 @@ import { buildTrailColorCss, normalizeHex } from '../lib/trailColors.js'
 import { DEFAULT_VISIBLE_LAYER_KEYS } from '../lib/mapLayerCatalog.js'
 import { listThemes, erMorktTema } from '../lib/mapSettingsApply.js'
 import { SNARVEI_REKKEFOLGE_KEY, STANDARD_REKKEFOLGE, normaliserRekkefolge,
+  lesVisNavn, skrivVisNavn,
          snarveierIRekkefolge } from '../lib/snarveier.js'
 import { norwegianName } from '../lib/placeName.js'
 import AnnotationIcon from '../components/AnnotationIcon.vue'
@@ -1963,6 +1964,16 @@ function settSnarveiRekkefolge(ny) {
     localStorage.setItem(SNARVEI_REKKEFOLGE_KEY, JSON.stringify(snarveiRekkefolge.value))
   } catch { /* noop */ }
 }
+// «VIS NAVN NÅR MINIMERT» (v7.6.0), satt øverst i Sorter-panelet. PÅ er
+// standard: ikonene bærer ikke betydningen alene. AV krymper cella til
+// ikon-høyde sammenlagt og lar navnene vokse fram med draget — se
+// lib/snarveier.js og SnarveiRad.vue.
+const snarveiVisNavn = ref(lesVisNavn(globalThis.localStorage))
+function settSnarveiVisNavn(pa) {
+  snarveiVisNavn.value = pa
+  skrivVisNavn(globalThis.localStorage, pa)
+}
+
 // Samme port som fanene hadde: på de innebygde demokartene finnes verken egne
 // markeringer eller GPS-spor, så Annotering og Sporing står ikke i raden.
 const egetKart = computed(() => !(route.params.id ?? 'vardasen').startsWith('vardasen'))
@@ -1993,6 +2004,11 @@ const SNARVEI_HANDLING = {
   annotering: () => onShortcutAnnotering(),
   sporing: () => onShortcutSporing(),
   info: () => onShortcutInfo(),
+  // DEN ENE SNARVEIEN SOM IKKE ÅPNER EN FUNKSJON (v7.6.0). Skillet mellom
+  // funksjon og innstilling står fortsatt — skuffen bærer bare innstillinger —
+  // men VEIEN dit er nå raden og ikke et tannhjul i topprada. `openDrawer`
+  // lukker kontekstmenyen og funksjons-skuffene først, som før.
+  innstillinger: () => openDrawer(),
 }
 
 // DE EKSTERNE KARTENE BOR I INFOPANELET (v7.2.0). De var chips i hovedmenyen
@@ -2650,6 +2666,10 @@ onUnmounted(() => {
        liggende (900 × 430) med skuffen åpen: `.kart-ui` sto med
        `scrollTop = 112`. `clip` lager ingen rulleboks, så tallet kan ikke bli
        annet enn 0. -->
+  <!-- `--ui-skala` mater overlay-slottene i style.css, men den settes på
+       ROT-ELEMENTET av useUiTextScale og ikke her: et `var()` inne i en custom
+       property substitueres der PROPERTYEN er deklarert, altså i `:root`. Se
+       kommentaren i useUiTextScale.js. -->
   <div class="kart-ui relative w-full h-[100dvh] overflow-clip"
        :class="isDark ? 'bg-surface' : 'bg-stone-100'">
 
@@ -2659,7 +2679,14 @@ onUnmounted(() => {
          summen ble verre: raden ble fire linjer svart boks midt over kartet,
          altså mer dekket flate enn den ene stripa som ble spart, og navnet lå
          gjemt bak et nedtrekk man måtte åpne for å se hvilket kart man sto i.
-         Rada er nøyaktig den fra v6.6.5 — hamburger, navn, søk, oppsett. -->
+         Rada er nøyaktig den fra v6.6.5 — hamburger, navn, søk, oppsett.
+
+         TANNHJULET ER UTE (v7.6.0). Innstillingene er en snarvei igjen, sist i
+         raden og under navnet «Valg» — se lib/snarveier.js. Det som står igjen
+         her er de to FASTE ikonene: hamburgeren og søket. De er de eneste to
+         kontrollene i turkartet som verken er en funksjon eller en innstilling,
+         og de trenger ingen etikett — men de SKALERER med tekststørrelsen, for
+         et ikon leses som tekst. Kartnavnet er tekst og gjør det samme. -->
     <div class="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-3 pb-3
                 pointer-events-none transition-[right] duration-200"
          :style="{ right: panelOffsetPx + 'px',
@@ -2669,7 +2696,7 @@ onUnmounted(() => {
       </div>
 
       <button v-if="canRenameMap" @click="openRename" data-kartnavn
-              aria-label="Gi kart nytt navn"
+              aria-label="Gi kart nytt navn" :style="{ zoom: uiTextScale }"
               class="pointer-events-auto px-3 py-1.5 rounded-full bg-overlay
                      text-[12px] text-ink font-medium shadow-lg max-w-[42%]
                      flex items-center gap-1.5 active:scale-95 transition">
@@ -2680,29 +2707,21 @@ onUnmounted(() => {
           <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
         </svg>
       </button>
-      <div v-else data-kartnavn
+      <div v-else data-kartnavn :style="{ zoom: uiTextScale }"
                   class="pointer-events-none px-3 py-1.5 rounded-full bg-overlay
                   text-[12px] text-ink font-medium shadow-lg max-w-[42%] truncate">
         {{ mapTitle }}
       </div>
 
       <div class="flex items-center gap-2 pointer-events-auto">
-        <button @click="openSearch" aria-label="Søk i kart"
+        <button @click="openSearch" aria-label="Søk i kart" data-sok-knapp
+                :style="{ zoom: uiTextScale }"
                 class="rounded-full w-10 h-10 flex items-center justify-center
                        bg-overlay text-ink shadow-lg active:scale-95 transition">
           <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.4"
                stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="7"/>
             <line x1="20" y1="20" x2="16.65" y2="16.65"/>
-          </svg>
-        </button>
-        <button @click="openDrawer" aria-label="Innstillinger"
-                class="rounded-full w-10 h-10 flex items-center justify-center
-                       bg-overlay text-ink shadow-lg active:scale-95 transition">
-          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
         </button>
       </div>
@@ -2731,6 +2750,7 @@ onUnmounted(() => {
       <div class="flex flex-col items-center gap-1 w-full">
         <SnarveiRad :snarveier="synligeSnarveier"
                     :ui-text-scale="uiTextScale"
+                    :vis-navn="snarveiVisNavn"
                     @velg="onSnarvei" @sorter="onApneSortering"
                     @apen="snarveiApen = $event" />
         <!-- KNOTT-HINTET FULGTE MED KNOTTENE (v7.0.0). «Strek 1,20×» var
@@ -2831,9 +2851,11 @@ onUnmounted(() => {
 
     <!-- LENDE-FAB-EN ER TILBAKE, SOM REN CHAT-INNGANG (v7.2.0). Ankeret bar
          tre knotter og en lang-trykk-gest til chatten fram til v7.0.0; knottene
-         er nå strek- og relieff-pillene, og det som ble igjen er logoen med ETT
-         trykk = spør Lende. Ingen gest å gjette på, og samme plass og samme
-         symbol som i ruteplanleggeren — chatten ser lik ut i begge visningene.
+         er nå innstillinger, og det som ble igjen er ETT trykk = spør Lende.
+         Ingen gest å gjette på, og samme plass som i ruteplanleggeren.
+         IKONET ER EN SNAKKEBOBLE (v7.6.0), ikke Lende-logoen: uten knotter ER
+         knappen chatten, og logoen sa «hjem». Den skalerer med tekststørrelsen
+         som de to andre faste runde knappene — se FabCluster.vue.
          Tom `satellites` er FabClusters egen rene chat-modus.
          Uten invitasjonstoken finnes knappen ikke: et anker uten knotter og
          uten chat ville vært en knapp som ikke gjør noe. -->
@@ -2844,6 +2866,7 @@ onUnmounted(() => {
       :right-style="floatRightStyle"
       :hidden="fabHidden"
       :logo-url="lendeLogoUrl"
+      :ui-text-scale="uiTextScale"
       @chat="openChat" />
 
     <!-- Kart-flate. Unified transform (translate ∘ rotate ∘ scale) på ett
@@ -3061,13 +3084,14 @@ onUnmounted(() => {
       :kompass="hasTouch"
       :azimut="rotationSliderDeg"
       :mork="isDark"
+      :ui-text-scale="uiTextScale"
       @nord="onResetAndRefreshGps" />
 
     <!-- Kontrollpanel (drawer). Desktop (≥768px): høyrestilt fullhøyde side-
          panel (som illustrasjons-sporet). Mobil: dragbart bunn-ark. -->
     <Transition :name="isDesktop ? 'drawer-side' : 'drawer'">
       <div v-if="showControls" ref="drawerRef"
-           role="dialog" aria-label="Innstillinger" @keydown.esc="onSkuffKey"
+           role="dialog" aria-label="Valg" @keydown.esc="onSkuffKey"
            :class="['absolute z-30 backdrop-blur-md bg-surface/92 flex flex-col shadow-2xl',
                     isDesktop
                       ? 'top-0 right-0 bottom-0 border-l border-ink/10'
@@ -3101,7 +3125,7 @@ onUnmounted(() => {
                det er nettopp her man tar tak. -->
           <button v-if="!isDesktop" type="button"
                   class="w-full py-3 flex justify-center"
-                  :aria-label="drawer.isMinimized.value ? 'Utvid innstillinger' : 'Minimer innstillinger'"
+                  :aria-label="drawer.isMinimized.value ? 'Utvid Valg' : 'Minimer Valg'"
                   :aria-expanded="!drawer.isMinimized.value"
                   @click="drawer.setMinimized(!drawer.isMinimized.value)"
                   @keydown.up.prevent="drawer.stegSnap(-1)"
@@ -3117,13 +3141,13 @@ onUnmounted(() => {
                  raden — en zoomet rad skalerer polstringen og dytter X-en ut av
                  skjermen (v6.3.12). -->
             <div class="text-ink text-sm font-semibold min-w-0 truncate"
-                 :style="{ zoom: uiTextScale }">Innstillinger</div>
+                 :style="{ zoom: uiTextScale }">Valg</div>
             <div class="flex items-center gap-1 shrink-0">
               <!-- Tekststørrelse og lukk beholder sine 32 px: de er veien
                    TILBAKE fra et valg som nettopp gjorde alt større. -->
               <TekstStorrelseKnapp />
               <button @pointerdown.stop @click.stop="closeDrawer"
-                      aria-label="Lukk innstillinger"
+                      aria-label="Lukk Valg"
                       class="w-8 h-8 -mr-1 rounded-full flex items-center justify-center
                              text-ink-2 active:bg-ink/10">
                 <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor"
@@ -3339,7 +3363,9 @@ onUnmounted(() => {
                     :ui-text-scale="uiTextScale"
                     @lukk="sorterOpen = false">
       <SorterSnarveier :rekkefolge="snarveiRekkefolge" :skjulte-ider="skjulteSnarveiIder"
-                       @oppdater="settSnarveiRekkefolge" />
+                       :vis-navn="snarveiVisNavn"
+                       @oppdater="settSnarveiRekkefolge"
+                       @vis-navn="settSnarveiVisNavn" />
     </FunksjonDrawer>
 
     <KulturminneSheet

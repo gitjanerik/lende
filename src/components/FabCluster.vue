@@ -13,6 +13,7 @@
 // at mental-modellen brekker.
 import { computed, ref, watch } from 'vue'
 import { useLongPress } from '../composables/useLongPress.js'
+import SnarveiIkon from './SnarveiIkon.vue'
 
 const HOLD_MS = 600
 
@@ -36,6 +37,14 @@ const props = defineProps({
   hint: { type: String, default: '' },
   hidden: { type: Boolean, default: false },
   logoUrl: { type: String, required: true },
+  /**
+   * Hovedmenyens 100/125/150/200. Gjelder BARE den rene chat-knappen (v7.6.0):
+   * et ikon leses som tekst, og chat-inngangen er en av de tre faste runde
+   * knappene i turkartet. På en KLYNGE skalerer den ikke — knottenes offsets
+   * (`--sat-x`/`--sat-y`) er faste piksler, og en zoomet forelder ville flyttet
+   * dem uten å flytte geometrien de er valgt for.
+   */
+  uiTextScale: { type: Number, default: 1 },
 })
 
 const emit = defineEmits(['tap', 'hold', 'chat'])
@@ -178,7 +187,7 @@ function onSatContextMenu(sat) {
   <div v-if="!hidden"
        class="w-12 h-12 pointer-events-auto select-none transition-[bottom,right] duration-200"
        :class="positioning === 'fixed' ? 'fixed z-[60]' : 'absolute z-40'"
-       :style="{ ...rightStyle, bottom }">
+       :style="{ ...rightStyle, bottom, zoom: hasSatellites ? undefined : uiTextScale }">
 
     <!-- Transient hint-boble — til venstre for vest-knotten når klyngen er
          åpen, ellers tett inntil ankeret. aria-live så knott-hakk annonseres. -->
@@ -218,10 +227,18 @@ function onSatContextMenu(sat) {
       </button>
     </div>
 
-    <!-- Ankeret: Lende-logoen, synlig for alle brukere. Ligger over knottene
-         (z-10) så de visuelt springer ut bakfra. contextmenu.prevent +
-         pekerdød/callout-fri img: lang-trykk er en app-gest (chat) — «Kopier
-         bilde» skal aldri opp. Mister du én av de tre, er den tilbake. -->
+    <!-- Ankeret. Ligger over knottene (z-10) så de visuelt springer ut bakfra.
+         contextmenu.prevent + pekerdød/callout-fri img: lang-trykk er en
+         app-gest (chat) — «Kopier bilde» skal aldri opp. Mister du én av de
+         tre, er den tilbake.
+
+         IKONET SIER HVA KNAPPEN GJØR (v7.6.0). Logoen sto der uansett, og som
+         ren chat-inngang sa den «hjem» og ikke «spør» — eieren meldte den som
+         intetsigende. Uten knotter er knappen chatten, og da er den en
+         SNAKKEBOBLE (samme glyf som `chat` i SnarveiIkon, den raden brukte i
+         v7.0.0). MED knotter er den fortsatt LOGOEN: der er ankeret ikke
+         chatten, det er stedet knottene springer ut fra, og en snakkeboble
+         ville lovet en samtale et tapp ikke gir. -->
     <button @pointerdown="anchorPress.onPointerDown($event)"
             @pointermove="anchorPress.onPointerMove($event)"
             @pointerup="anchorPress.onPointerUp()"
@@ -232,9 +249,11 @@ function onSatContextMenu(sat) {
             :aria-expanded="hasSatellites ? open : undefined"
             :aria-controls="hasSatellites ? 'lende-fab-knotter' : undefined"
             class="relative z-10 w-12 h-12 rounded-full overflow-hidden bg-overlay
-                   shadow-lg ring-1 ring-ink/15 touch-none active:scale-95 transition">
-      <img :src="logoUrl" alt="" draggable="false"
+                   shadow-lg ring-1 ring-ink/15 touch-none active:scale-95 transition
+                   grid place-items-center text-ink">
+      <img v-if="hasSatellites" :src="logoUrl" alt="" draggable="false"
            class="w-full h-full pointer-events-none select-none [-webkit-touch-callout:none]" />
+      <SnarveiIkon v-else id="chat" class="w-6 h-6 pointer-events-none" />
       <svg v-if="anchorPress.isHolding.value" viewBox="0 0 48 48"
            class="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true">
         <circle cx="24" cy="24" :r="RING_R" fill="none" stroke="#ffd84a" stroke-width="3"

@@ -40,6 +40,13 @@
 // sier, og den var det første som måtte vike da knappene skulle få plass ved
 // 200 % tekst. Opp/ned er 32 px og ikke 36: 44 px-regelen gjelder knapper som
 // står alene på et kart, ikke to naboer i en liste man leser med begge hender.
+//
+// «VIS NAVN NÅR MINIMERT» STÅR ØVERST (v7.6.0), over lista og ikke under den.
+// Panelet handler om RADEN, og bryteren avgjør hvor mange snarveier som får
+// plass på den — altså premisset for sorteringen man gjør nedenfor. Den hører
+// derfor hjemme her og ikke i Valg-skuffa: det er det ENE stedet i appen der
+// man allerede ser på raden som et objekt. Standarden er PÅ; se lib/snarveier.js
+// for hvorfor.
 // ─────────────────────────────────────────────────────────────────────────────
 import { ref, computed, onBeforeUnmount } from 'vue'
 import SnarveiIkon from './SnarveiIkon.vue'
@@ -50,8 +57,10 @@ const props = defineProps({
   rekkefolge: { type: Array, required: true },
   // Ider som ikke vises på dette kartet — de står i lista, men merket.
   skjulteIder: { type: Array, default: () => [] },
+  // «Vis navn når minimert» (v7.6.0). Eies av MapView og persisteres der.
+  visNavn: { type: Boolean, default: true },
 })
-const emit = defineEmits(['oppdater'])
+const emit = defineEmits(['oppdater', 'vis-navn'])
 
 const GHOST_UT_MS = 260
 
@@ -135,9 +144,30 @@ function tilbakestill() { emit('oppdater', [...STANDARD_REKKEFOLGE]) }
 
 <template>
   <div>
+    <!-- BRYTEREN FØRST: den avgjør hvor mange snarveier som får plass, altså
+         premisset for sorteringen under. Samme vippebryter-form som i
+         skuffene — aksentgrønn på, nøytral av. -->
+    <label class="flex items-center justify-between gap-3 mb-3 cursor-pointer">
+      <span class="text-[12px] text-ink-2 leading-snug">
+        Vis navn når minimert
+        <span class="block text-[11px] text-ink-4">
+          {{ visNavn
+            ? 'Navnet står under ikonet hele tiden'
+            : 'Bare ikoner — navnene kommer fram når du drar raden ned' }}
+        </span>
+      </span>
+      <button type="button" role="switch" :aria-checked="visNavn"
+              @click="emit('vis-navn', !visNavn)"
+              class="relative w-11 h-6 rounded-full transition-colors shrink-0"
+              :class="visNavn ? 'bg-emerald-500' : 'bg-ink/15'">
+        <span class="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
+              :class="visNavn ? 'left-5' : 'left-0.5'" />
+      </button>
+    </label>
+
     <p class="text-[12px] text-ink-3 leading-snug mb-3">
       Dra i grepet for å endre rekkefølgen, eller bruk pilene. Snarveiene som
-      ikke får plass på raden legger seg bak pila lengst til høyre.
+      ikke får plass på raden legger seg bak håndtaket nederst i raden.
     </p>
 
     <ul ref="listeRef" class="relative flex flex-col gap-1.5"

@@ -1,3 +1,28 @@
+## 2026-09-11 — v7.6.0: Snarveiene har navn, «Valg» er en av dem, og ikonene følger tekststørrelsen
+
+Snarvei-navnene sto skjult sammenlagt og kom fram med draget; det er snudd. Gevinsten var
+fjorten piksler på en rad som uansett bare er én rad sammenlagt, og prisen var at ikonene
+måtte bære betydningen alene — en linjal med to prikker og en åttekant med streker gjør ikke
+det. Navnene står nå alltid, i kortform (GPS, Sti, Mål, Merk, Spor) fordi alle cellene er like
+brede og det lengste ordet koster for alle; `aria` bærer fortsatt det fulle navnet. Den som HAR
+lært ikonene får pikslene tilbake med «Vis navn når minimert», øverst i Sorter-panelet: av
+krymper cella til ikon-høyde sammenlagt, og navnene vokser fram sammen med de nye radene når
+man drar. Gripeflata er dessuten hele pilla og ikke bare håndtaket — et sveip ned hvor som
+helst i raden åpner den, og en slop skiller draget fra trykket på snarveien man tok tak i.
+
+Tannhjulet i topprada er borte. Innstillingene er en snarvei igjen, sist i rekkefølgen, og
+skuffa heter «Valg» hele veien — i raden, i `aria` og i overskriften. Det som står igjen av
+faste runde knapper er hamburgeren, søket og Lende-chatten, og alle tre følger nå hovedmenyens
+100/125/150/200: et ikon leses som tekst, og den som skrur opp fordi etikettene er for små
+trenger også en større trykkflate. Overlay-slottene i `style.css` er uttrykt som avstand fra
+knapperada og ganger med den nye `--ui-skala`, ellers ville raden lagt seg oppå baren ved
+200 %. Lende-knappen har byttet logoen mot en snakkeboble — uten knotter ER den chatten, og
+logoen sa «hjem». Kompassnåla har flyttet til raden over linjalen og deler venstrekant med
+den, slik at linjalen står helt ute til venstre: begge skalerer nå, og side om side ville de
+spist bredden av hverandre. Meterangivelsen vokser med teksten, ODbL-kreditten ikke.
+
+---
+
 ## 2026-09-11 — v7.5.0: Snarvei-raden er et gitter, og håndtaket er et ekte drag
 
 Snarvei-raden var en flex-rad som målte hver knapp for seg. To ting fulgte av det, og begge ble meldt fra felt: antallet per linje endret seg med tilstanden — sju ikoner sammenlagt, fire med etikett utfoldet — så raden så ut til å stokke om på seg selv, og knappene var ulikt brede, fordi hver av dem var så bred som ordet sitt. Nå er det ett gitter med faste, like kolonner. Kolonnetallet regnes av den bredeste cella, altså den med etikett, og er det samme i begge tilstandene. Sammenlagt vises første rad; draget avdekker resten.
