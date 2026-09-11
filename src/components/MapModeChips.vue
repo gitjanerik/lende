@@ -13,6 +13,12 @@ const props = defineProps({
   autoMapToast: { type: String, default: '' },
   searchOpen: { type: Boolean, default: false },
   mapCenterStyle: { type: Object, default: () => ({}) },
+  // Full-bredde-båndet detalj-chipen sentreres i (`right: <panelbredde>`),
+  // delt med snarvei-raden og toastene. `mapCenterStyle` er `left: 50%`, og et
+  // absolutt plassert element med `right: auto` får da bare halve viewporten
+  // som tilgjengelig bredde (v6.6.1). Chipene som får plass uansett blir i
+  // `mapCenterStyle`; denne teksten er lang nok til å bryte, så den kan ikke.
+  bandStyle: { type: Object, default: () => ({}) },
   fillingInDetails: { type: Boolean, default: false },
   highlightedFeature: { type: Object, default: null },
   annot: { type: Object, required: true },
@@ -102,13 +108,15 @@ function formatElevationDiff(m) {
        stier og detaljer fylles inn i bakgrunnen (Overpass laster). -->
   <Transition name="chip-fade">
     <div v-if="fillingInDetails && !searchOpen"
-         class="absolute top-[var(--ovl-top)] left-1/2 -translate-x-1/2 z-30 pl-2 pr-3.5 py-1.5 rounded-2xl
-                bg-overlay/90 text-ink text-[12.5px] font-medium shadow-lg backdrop-blur
-                flex items-center gap-2 pointer-events-none border border-ink/10
-                transition-[left] duration-200"
-         :style="mapCenterStyle">
-      <KartLaster />
-      <span :style="{ zoom: uiTextScale }">Tegner inn stier og detaljer …</span>
+         class="absolute top-[var(--ovl-top)] left-0 z-30 px-3 flex justify-center
+                pointer-events-none transition-[right] duration-200"
+         :style="bandStyle">
+      <div class="max-w-full pl-2 pr-3.5 py-1.5 rounded-2xl
+                  bg-overlay/90 text-ink text-[12.5px] font-medium shadow-lg backdrop-blur
+                  flex items-center gap-2 border border-ink/10">
+        <KartLaster />
+        <span class="min-w-0" :style="{ zoom: uiTextScale }">Tegner inn stier og detaljer …</span>
+      </div>
     </div>
   </Transition>
 

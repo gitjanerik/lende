@@ -14,7 +14,6 @@ const props = defineProps({
   loadPillVisible: { type: Boolean, default: false },
   loadError: { type: String, default: null },
   positionError: { type: String, default: null },
-  mapCenterStyle: { type: Object, default: () => ({}) },
   showOutsideMap: { type: Boolean, default: false },
   detailsFailed: { type: Boolean, default: false },
   mapIsPartial: { type: Boolean, default: false },
@@ -31,9 +30,23 @@ const props = defineProps({
   fredetCount: { type: Number, default: 0 },
   fredetShown: { type: Number, default: 0 },
   // Tekstskala fra hovedmenyen (100–200 %). Den settes på TEKSTEN i hvert
-  // banner og aldri på boksen: polstringen og lukke-krysset skal bli stående,
-  // ellers dyttes X-en ut av skjermen ved 200 % (samme regel som SkuffHeader).
+  // banner og aldri på boksen: en zoomet boks skalerer polstringen sin med og
+  // vokser fortere enn innholdet (samme regel som SkuffHeader).
+  // KRYSSET ER UNNTAKET FRA v7.7.2, og det er en retting og ikke et brudd:
+  // 24 px er under 44 px-målet i utgangspunktet, og den som skrur teksten til
+  // 200 % gjør det nettopp fordi små mål er vanskelige. Det var trygt å la det
+  // stå fast så lenge toastene var klemt inn på halve skjermen; nå har de hele
+  // båndets bredde, så et dobbelt kryss tar av TEKSTENS plass, ikke av
+  // skjermens. Måleboksens X i MapModeChips står fortsatt fast — den bor i en
+  // boks som er ankret i hjørnet og ikke i et bånd.
   uiTextScale: { type: Number, default: 1 },
+  // Full-bredde-båndet de midtstilte toastene sentreres i (`right: <panel>`).
+  // Et absolutt plassert element med `left: 50%` og `right: auto` får BARE
+  // avstanden fra left til høyrekanten som tilgjengelig bredde — 180 px på en
+  // 360 px-skjerm — og transformen som midtstiller det etterpå gir ingenting
+  // tilbake. Det er samme felle snarvei-raden gikk i (v6.6.1), og den er hele
+  // grunnen til at GPS-toasten brøt til fire linjer på en telefon.
+  bandStyle: { type: Object, default: () => ({}) },
 })
 defineEmits([
   'retryLoad', 'dismissOutside', 'dismissDetails', 'retryDetails', 'dismissLowAccuracy',
@@ -45,6 +58,13 @@ defineEmits([
 // brukeren kan gjøre. Oversettelsen bor i lib/lastefeil.js — `isOffline` er en
 // pålitelig negativ, så bare DA sier vi at nettet mangler.
 const loadErrorTekst = computed(() => lastefeilPaaNorsk(props.loadError, { offline: props.isOffline }))
+
+// Bredde-taket følger tekstskalaen: 420 px er romslig ved 100 %, men ved 200 %
+// er det tre ord per linje. `min(100%, …)` lar båndets egen polstring være det
+// harde taket, så toasten vokser til den trenger det og aldri lenger.
+const toastMaks = computed(() => ({
+  maxWidth: `min(100%, ${Math.round(420 * (props.uiTextScale || 1))}px)`,
+}))
 
 // Lokal «lukket for denne økta»-tilstand for reparasjons-bannerne og GPS-feil.
 // De re-vises hvis tilstanden dukker opp på nytt (nytt kart / nye hull / ny feil).
@@ -112,29 +132,40 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
 
   <!-- Toast: utsnittet har flere arkeologiske kulturminner enn vi henter, så
        kartet viser et utvalg. Ren info (ingen handling) — auto-skjules. Egen
-       v-if utenfor feil-kjedene: kan sameksistere, men er sjelden samtidig. -->
+       v-if utenfor feil-kjedene: kan sameksistere, men er sjelden samtidig.
+       MIDTSTILT I BÅNDET FRA v7.7.2. Den var venstre-ankret (`left-3 right-20`)
+       som reparasjons-bannerne under, men de har en KNAPP man skal treffe og
+       hører derfor sammen med resten av venstresida; dette er en melding man
+       bare leser, og da er midten stedet øyet allerede er. Båndet gir den
+       samtidig hele bredden i stedet for de 268 px `right-20` lot stå igjen. -->
   <Transition name="fredet-toast">
-    <div v-if="fredetTruncated && !fredetTruncDismissed && !loading" role="status" aria-live="polite"
-         class="absolute bottom-32 left-3 right-20 z-20 max-w-[420px]
-                rounded-lg backdrop-blur bg-surface/95 border border-amber-400/30
-                text-ink text-[12px] shadow-2xl flex items-start gap-2 pl-3 pr-1 py-2.5">
-      <svg viewBox="0 0 24 24" class="w-4 h-4 mt-0.5 text-amber-300 shrink-0" fill="none"
-           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/>
-        <circle cx="12" cy="8" r="0.6" fill="currentColor"/>
-      </svg>
-      <span class="flex-1 leading-snug" :style="{ zoom: uiTextScale }">
-        {{ fredetCount }} arkeologiske kulturminner i dette utsnittet — viser
-        de første {{ fredetShown }}. Zoom inn på et mindre område for å se resten.
-      </span>
-      <button @click="fredetTruncDismissed = true" aria-label="Lukk"
-              class="w-6 h-6 -mt-0.5 flex items-center justify-center rounded-md
-                     text-ink-2 active:scale-90 active:bg-ink/10 shrink-0">
-        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
-             stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+    <div v-if="fredetTruncated && !fredetTruncDismissed && !loading"
+         class="absolute bottom-32 left-0 z-20 px-3 flex justify-center
+                pointer-events-none transition-[right] duration-200"
+         :style="bandStyle">
+      <div role="status" aria-live="polite" :style="toastMaks"
+           class="pointer-events-auto
+                  rounded-lg backdrop-blur bg-surface/95 border border-amber-400/30
+                  text-ink text-[12px] shadow-2xl flex items-start gap-2 pl-3 pr-1 py-2.5">
+        <svg viewBox="0 0 24 24" class="w-4 h-4 mt-0.5 text-amber-300 shrink-0" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/>
+          <circle cx="12" cy="8" r="0.6" fill="currentColor"/>
         </svg>
-      </button>
+        <span class="flex-1 min-w-0 leading-snug" :style="{ zoom: uiTextScale }">
+          {{ fredetCount }} arkeologiske kulturminner i dette utsnittet — viser
+          de første {{ fredetShown }}. Zoom inn på et mindre område for å se resten.
+        </span>
+        <button @click="fredetTruncDismissed = true" aria-label="Lukk"
+                :style="{ zoom: uiTextScale }"
+                class="w-6 h-6 -mt-0.5 flex items-center justify-center rounded-md
+                       text-ink-2 active:scale-90 active:bg-ink/10 shrink-0">
+          <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+               stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+          </svg>
+        </button>
+      </div>
     </div>
   </Transition>
 
@@ -143,17 +174,46 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
        — nettleseren kan ikke skru på GPS selv, men et nytt forsøk trigger enten
        tillatelses-dialogen på nytt eller fanger opp at brukeren nå har slått på
        stedstjenester. -->
-  <div v-if="!loading && positionError && !positionErrorDismissed" role="alert"
-       class="absolute bottom-32 left-1/2 -translate-x-1/2 z-20 max-w-[90%] pl-3 pr-1 py-2
-              rounded-lg backdrop-blur on-accent bg-amber-800/95 border border-slate-300/40
-              text-ink text-[12px] shadow-lg
-              transition-[left] duration-200"
-       :style="mapCenterStyle">
-    <div class="flex items-start gap-1.5">
-      <span class="flex-1 min-w-0 leading-snug pt-0.5"
-            :style="{ zoom: uiTextScale }">{{ positionError }}</span>
-      <button @click="positionErrorDismissed = true" aria-label="Lukk"
-              class="w-6 h-6 -mt-0.5 flex items-center justify-center rounded-md
+  <div v-if="!loading && positionError && !positionErrorDismissed"
+       class="absolute bottom-32 left-0 z-20 px-3 flex justify-center
+              pointer-events-none transition-[right] duration-200"
+       :style="bandStyle">
+    <div role="alert" :style="toastMaks"
+         class="pointer-events-auto pl-3 pr-1 py-2
+                rounded-lg backdrop-blur on-accent bg-amber-800/95 border border-slate-300/40
+                text-ink text-[12px] shadow-lg">
+      <div class="flex items-start gap-1.5">
+        <span class="flex-1 min-w-0 leading-snug pt-0.5"
+              :style="{ zoom: uiTextScale }">{{ positionError }}</span>
+        <button @click="positionErrorDismissed = true" aria-label="Lukk"
+                :style="{ zoom: uiTextScale }"
+                class="w-6 h-6 -mt-0.5 flex items-center justify-center rounded-md
+                       text-ink active:scale-90 active:bg-ink/10 shrink-0">
+          <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+               stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <button @click="$emit('retryGps')"
+              class="mt-1.5 mb-0.5 w-full px-3 py-1 rounded-md bg-ink/20 border border-ink/30 text-ink
+                     text-[12px] font-medium active:scale-[0.98] transition">
+        <span :style="{ zoom: uiTextScale }">Prøv igjen</span>
+      </button>
+    </div>
+  </div>
+  <div v-else-if="!loading && showOutsideMap"
+       class="absolute bottom-32 left-0 z-20 px-3 flex justify-center
+              pointer-events-none transition-[right] duration-200"
+       :style="bandStyle">
+    <div role="status" aria-live="polite" :style="toastMaks"
+         class="pointer-events-auto
+                rounded-lg backdrop-blur on-accent bg-amber-800/95 border border-slate-300/40
+                text-ink text-[12px] shadow-lg flex items-center gap-1.5 pl-3 pr-1 py-2">
+      <span class="min-w-0 leading-snug" :style="{ zoom: uiTextScale }">Du er utenfor dette kartet.</span>
+      <button @click="$emit('dismissOutside')" aria-label="Greit, skjønner"
+              :style="{ zoom: uiTextScale }"
+              class="w-6 h-6 -my-0.5 flex items-center justify-center rounded-md
                      text-ink active:scale-90 active:bg-ink/10 shrink-0">
         <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
              stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
@@ -161,27 +221,6 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
         </svg>
       </button>
     </div>
-    <button @click="$emit('retryGps')"
-            class="mt-1.5 mb-0.5 w-full px-3 py-1 rounded-md bg-ink/20 border border-ink/30 text-ink
-                   text-[12px] font-medium active:scale-[0.98] transition">
-      <span :style="{ zoom: uiTextScale }">Prøv igjen</span>
-    </button>
-  </div>
-  <div v-else-if="!loading && showOutsideMap" role="status" aria-live="polite"
-       class="absolute bottom-32 left-1/2 -translate-x-1/2 z-20 max-w-[90%]
-              rounded-lg backdrop-blur on-accent bg-amber-800/95 border border-slate-300/40
-              text-ink text-[12px] shadow-lg flex items-center gap-1.5 pl-3 pr-1 py-2
-              transition-[left] duration-200"
-       :style="mapCenterStyle">
-    <span :style="{ zoom: uiTextScale }">Du er utenfor dette kartet.</span>
-    <button @click="$emit('dismissOutside')" aria-label="Greit, skjønner"
-            class="w-6 h-6 -my-0.5 flex items-center justify-center rounded-md
-                   text-ink active:scale-90 active:bg-ink/10 shrink-0">
-      <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
-           stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-      </svg>
-    </button>
   </div>
 
   <!-- Detalj-feil-banner: bakgrunns-byggingen (stier/veier fra Overpass) feilet,
@@ -195,6 +234,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
         Fikk ikke lastet stier og detaljer. Kartet viser bare terreng nå.
       </div>
       <button @click="$emit('dismissDetails')" aria-label="Lukk"
+              :style="{ zoom: uiTextScale }"
               class="w-6 h-6 -mt-0.5 -mr-1 flex items-center justify-center rounded-md
                      text-ink active:scale-90 active:bg-ink/10 shrink-0">
         <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
@@ -223,6 +263,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
         <span v-if="isOffline" class="block mt-0.5 text-ink-2">Koble til nett for å fullføre det.</span>
       </div>
       <button @click="partialDismissed = true" aria-label="Lukk"
+              :style="{ zoom: uiTextScale }"
               class="w-6 h-6 -mt-0.5 -mr-1 flex items-center justify-center rounded-md
                      text-ink active:scale-90 active:bg-ink/10 shrink-0">
         <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
@@ -252,6 +293,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
         <span v-if="isOffline" class="block mt-0.5 text-ink-2">Koble til nett for å fylle {{ mosaicGapCount === 1 ? 'det' : 'dem' }}.</span>
       </div>
       <button @click="gapsDismissed = true" aria-label="Lukk"
+              :style="{ zoom: uiTextScale }"
               class="w-6 h-6 -mt-0.5 -mr-1 flex items-center justify-center rounded-md
                      text-ink active:scale-90 active:bg-ink/10 shrink-0">
         <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
@@ -285,6 +327,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
         <span v-if="isOffline" class="block mt-0.5 text-ink-2">Koble til nett for å bygge.</span>
       </div>
       <button @click="firkantDismissed = true" aria-label="Lukk"
+              :style="{ zoom: uiTextScale }"
               class="w-6 h-6 -mt-0.5 -mr-1 flex items-center justify-center rounded-md
                      text-ink-2 active:scale-90 active:bg-ink/10 shrink-0">
         <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
@@ -321,6 +364,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
       </div>
     </div>
     <button @click="$emit('dismissLowAccuracy')" aria-label="Skjul advarsel"
+            :style="{ zoom: uiTextScale }"
             class="w-6 h-6 -mt-0.5 -mr-1 flex items-center justify-center rounded-md
                    text-ink active:scale-90 hover:bg-ink/10 shrink-0">
       <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"

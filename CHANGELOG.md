@@ -1,3 +1,26 @@
+## 2026-09-11 — v7.7.2: toastene får hele bredden, og krysset følger teksten
+
+GPS-toasten, kulturminne-toasten og «Tegner inn stier»-chipen satt alle i samme
+felle som snarvei-raden gikk i (v6.6.1): et absolutt plassert element med
+`left: 50%` og `right: auto` får bare avstanden fra `left` til høyrekanten som
+tilgjengelig bredde — 180 px på en 360 px-skjerm — og transformen som midtstiller
+det etterpå gir ingenting tilbake. De brøt derfor til flere linjer med god plass
+på begge sider. Alle tre henger nå i det samme full-bredde-båndet snarvei-raden
+bruker, med `justify-center` og et bredde-tak som følger tekstskalaen. Toasten om
+mange kulturminner er samtidig flyttet fra venstrekanten til midten: den har
+ingen knapp man skal treffe, den er en melding man bare leser, og da er midten
+der øyet allerede er. Reparasjons-bannerne står igjen til venstre, for de bærer
+en handling og hører sammen med resten av venstresida. Lukke-krysset i alle
+bannerne i `MapStatusOverlays` skalerer nå med tekststørrelsen: 24 px er under
+44 px-målet i utgangspunktet, og den som skrur teksten til 200 % gjør det
+nettopp fordi små mål er vanskelige — det var bare trygt å la det stå fast så
+lenge boksene var klemt inn på halve skjermen. Måleboksens X i `MapModeChips` er
+urørt; den bor i en boks som er ankret i hjørnet og ikke i et bånd. Én ny
+røyk-sjekk måler båndet, midtstillingen og kryss-veksten i en egen
+Chromium-kontekst uten posisjons-tillatelse.
+
+---
+
 ## 2026-09-11 — v7.7.1: Navne-bryteren står ved siden av «Sorter», utenfor boksen
 
 «Vis navn når minimert» fulgte med inn i sorterings-footeren da panelet ble

@@ -611,6 +611,10 @@ const mapCenterStyle = computed(() => ({
 // tilgjengelig bredde, og en rad med `flex-wrap: wrap` bryter da til to linjer
 // lenge før den er for bred (målt: 180 px budsjett på en 360 px-skjerm).
 // Full bredde + `justify-center` gir samme midtpunkt og hele bredden.
+// FRA v7.7.2 DELES BÅNDET MED TOASTENE (MapStatusOverlays) OG DETALJ-CHIPEN
+// (MapModeChips): de gikk i nøyaktig samme felle — GPS-toasten brøt til fire
+// linjer på en telefon med god plass på begge sider. Chipene som IKKE bryter
+// kan gjerne bli i `mapCenterStyle`; en boks som bryter, kan ikke.
 const snarveiRadStyle = computed(() => ({ right: `${panelOffsetPx.value}px` }))
 
 // Lukk en åpen info-drawer (kontekstmeny) først — ellers ville begge skuffene
@@ -3011,6 +3015,7 @@ onUnmounted(() => {
       :ui-text-scale="uiTextScale"
       :search-open="searchOpen"
       :map-center-style="mapCenterStyle"
+      :band-style="snarveiRadStyle"
       :filling-in-details="fillingInDetails"
       :highlighted-feature="highlightedFeature"
       :annot="annot"
@@ -3048,7 +3053,7 @@ onUnmounted(() => {
       :load-pill-visible="loadPillVisible"
       :load-error="loadError"
       :position-error="userPos.error"
-      :map-center-style="mapCenterStyle"
+      :band-style="snarveiRadStyle"
       :show-outside-map="showOutsideMapBanner"
       :details-failed="detailsFailed"
       :map-is-partial="mapIsPartial && !buildingOnTheFly && !fillingInDetails"
