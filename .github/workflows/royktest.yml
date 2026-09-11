@@ -19,6 +19,24 @@ name: Røyktest — MapView i en ekte nettleser
 #
 # Kjører på PR-er som rører MapView, composable-ene eller malen. Kartet
 # (public/maps/vardasen.svg) ligger i repoet, så monteringen trenger ikke nett.
+#
+# ── DELT PÅ TRE (v7.7.12) ─────────────────────────────────────────────────────
+# Røyktesten var jobbens ene lange steg og vokste med hver leveranse: CLAUDE.md
+# krever én ny sjekk per uttrekk fra MapView, så lista er 65 sjekker, og de
+# fjorten siste kjøringene gikk fra 8,7 til 10,6 minutter. Sjekkene er per
+# kontrakt uavhengige — hver skal FORLATE APPEN I NØYTRAL TILSTAND — så de kan
+# kjøres i tre nettlesere i stedet for én. Ingen sjekk er fjernet.
+#
+# Fire jobber:
+#   • kart   — bygger (eller henter fra cachen) Vardåsen-arket ÉN gang og sender
+#              det videre som artefakt, slik at de tre delene ikke kan ende opp
+#              med hvert sitt.
+#   • del    — 1/3, 2/3, 3/3. Rundgang og ikke sammenhengende blokker; hvorfor
+#              står i scripts/royk-mapview.mjs, med tallene bak.
+#   • ruter  — royk:ruter + navnediff, som svarer på noe om HELE endringen og
+#              derfor skal kjøre nøyaktig én gang.
+#   • royk   — samler de fire til én grønn eller rød sjekk, og beholder navnet
+#              «royk» som gren-beskyttelsen kan være satt opp på.
 
 on:
   pull_request:
@@ -89,21 +107,27 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  royk:
+  # ── forjobb: ETT kart, delt av alle delene ────────────────────────────────
+  # KARTET BYGGES ÉN GANG OG SENDES VIDERE SOM ARTEFAKT, og det er hele grunnen
+  # til at denne jobben finnes. Lot vi hver del hente cachen selv, ville en PR
+  # som rører kart-pipelinen — altså nøyaktig de PR-ene som TRENGER et ferskt
+  # kart — bomme på nøkkelen i alle tre delene samtidig, og da står tre
+  # parallelle bygg mot Overpass og Kartverket for det samme arket. Verre enn
+  # kostnaden: de tre kunne fått ULIKT svar (en kilde med en dårlig dag), og da
+  # ville de sju ektekart-sjekkene hoppet over i én del og kjørt i en annen,
+  # uten at noe i loggen sa hvorfor.
+  #
+  # Prisen er ~30 s serielt på varm cache. Den betales av at delene sparer 2/3
+  # av en kjøring på ti minutter.
+  kart:
     runs-on: ubuntu-latest
-    # BAKSTOPPER. Uten den er GitHubs default seks timer, og en hengt nettleser
-    # blokkerer da hver framtidige PR i et halvt døgn. Måltid for jobben er
-    # ~5 min med ekte kart; 30 gir romslig margin og fanger hengingen i stedet
-    # for å vente den ut. Røyk-skriptet har sitt eget tak PR SJEKK (120 s) —
-    # dette er nettet under det, for det som skjer utenfor en sjekk.
-    timeout-minutes: 30
+    timeout-minutes: 15
+    outputs:
+      # ekte = trenger denne endringen et ekte kart i det hele tatt?
+      # har   = fikk vi faktisk et? (kildene kan ha en dårlig dag)
+      ekte: ${{ steps.kart.outputs.ekte }}
+      har: ${{ steps.lag.outputs.har }}
     steps:
-      # IKKE fetch-depth: 0. Målt på v5.25.2-PR-en: full historikk kostet
-      # 2 min 39 s av jobbens 5 min 29 s, mens CI-jobbens grunne checkout av
-      # samme commit tok 3 s. Repoet har bare ~51 commits, men et .git på 100 MB
-      # (genererte kart-SVG-er i historikken), så «kort historikk» er ikke det
-      # samme som «billig å hente». Navnediff trenger ÉN blob — MapView.vue på
-      # master-tippen — og den hentes eksplisitt i sitt eget steg under.
       - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v7
@@ -113,47 +137,18 @@ jobs:
 
       - run: npm ci
 
-      # NETTLESEREN CACHES. Nedlastingen er ~40–60 s av jobbens ~6 minutter, og
-      # den henter nøyaktig det samme hver gang. Nøkkelen er den pinnede
-      # Playwright-versjonen fra package-lock, så en oppgradering gir ny nøkkel
-      # av seg selv — en cache som overlever en versjonsendring er verre enn
-      # ingen cache.
-      - name: Playwright-versjon
-        id: pw
-        run: echo "v=$(node -p "require('./node_modules/playwright-core/package.json').version")" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Chromium
-        id: pw-cache
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ runner.os }}-${{ steps.pw.outputs.v }}
-
-      # `--with-deps` installerer OS-biblioteker utenfor cachen, så det steget må
-      # kjøre uansett. Ved cache-treff hopper nedlastingen av selve nettleseren
-      # over, som er den delen som tar tid.
-      - name: Hent Chromium
-        run: |
-          if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then
-            npx playwright install-deps chromium
-          else
-            npx playwright install --with-deps chromium
-          fi
-
-      - run: npm run build
-
-      # Hentes ÉN gang her: både ektekart-gaten under og navnediff til slutt
-      # måler mot master-tippen. Eksplisitt refspec — se navnediff-steget for
-      # hvorfor `git fetch origin master` ikke holder på en grunn klone.
+      # Hentes her fordi ektekart-gaten under måler mot master-tippen. Eksplisitt
+      # refspec — se navnediff-steget i «ruter» for hvorfor `git fetch origin
+      # master` ikke holder på en grunn klone.
       - name: Hent master-tippen
         run: git fetch --depth=1 origin +refs/heads/master:refs/remotes/origin/master
 
-      # --ektekart bygger et ferskt Vardåsen-kart fra Kartverket + OSM og koster
-      # ~2 av jobbens ~3 minutter. Sju av tjue sjekker krever det; de tretten
-      # andre klarer seg med det sporede demo-kartet. Gaten avgjør hvilken vei vi
-      # går, og logikken bor i scripts/trenger-ektekart.mjs — med enhetstester,
-      # fordi en gate som faller til feil side lar sju sjekker hoppe STILLE over.
-      # Ukjente stier faller til den dyre siden med vilje.
+      # --ektekart bygger et ferskt Vardåsen-kart fra Kartverket + OSM. 22 av de
+      # 65 sjekkene krever det; de 43 andre klarer seg med det sporede
+      # demo-kartet. Gaten avgjør hvilken vei vi går, og logikken bor i
+      # scripts/trenger-ektekart.mjs — med enhetstester, fordi en gate som faller
+      # til feil side lar 22 sjekker hoppe STILLE over. Ukjente stier faller til
+      # den dyre siden med vilje.
       - name: Trenger endringen et ekte kart?
         id: kart
         run: |
@@ -191,46 +186,191 @@ jobs:
           path: .royk-kart/vardasen.svg
           key: ${{ steps.kartnokkel.outputs.k }}
 
-      # Feiler kart-byggingen (kildene nede), går røyktesten videre på demo-kartet
-      # og RAPPORTERER hva den hoppet over — en PR skal ikke blokkeres av at
-      # Overpass har en dårlig dag.
-      - name: Røyktest
-        # STEG-TAK I TILLEGG TIL JOBB-TAKET. Jobb-taket dekker hele jobben og
-        # sier bare AT den brukte for lang tid; steg-taket peker på hvilket steg,
-        # og lar stegene etter (ruting, navnediff) kjøre og rapportere. Det er
-        # dette steget som eier en nettleser og dermed det eneste som kan bli
-        # sittende fast.
-        timeout-minutes: 20
+      # --lagkart bygger (eller henter fra cachen) og stopper — ingen nettleser,
+      # ingen npm run build. Feiler byggingen, er det IKKE en feil her: `har`
+      # blir 0, delene kjører på demo-kartet og rapporterer hva de hoppet over.
+      # En PR skal ikke blokkeres av at Overpass har en dårlig dag.
+      - name: Lag kartet
+        if: steps.kart.outputs.ekte == '1'
+        id: lag
+        timeout-minutes: 10
         run: |
-          if [ "${{ steps.kart.outputs.ekte }}" = "1" ]; then
-            npm run royk -- --ektekart --kartcache=.royk-kart/vardasen.svg --bilder=/tmp/royk
+          npm run royk -- --lagkart --kartcache=.royk-kart/vardasen.svg
+          if [ -s .royk-kart/vardasen.svg ]; then
+            echo "har=1" >> "$GITHUB_OUTPUT"
           else
-            echo "Kjører mot demo-kartet — de sju ektekart-sjekkene hoppes over."
-            npm run royk -- --bilder=/tmp/royk
+            echo "har=0" >> "$GITHUB_OUTPUT"
+            echo "→ intet ekte kart — delene kjører på demo-kartet"
           fi
 
-      # Rutingen: alle ruter, alle redirects, boot-gjenopptaket. Bruker samme
-      # dist/ som røyktesten over, så den koster bare noen sekunder.
+      - name: Send kartet videre
+        if: steps.lag.outputs.har == '1'
+        uses: actions/upload-artifact@v7
+        with:
+          name: royk-kart
+          path: .royk-kart/vardasen.svg
+          retention-days: 1
+
+  # ── de parallelle delene ──────────────────────────────────────────────────
+  # TRE DELER, IKKE FLERE. Hver del betaler ~40 s oppstart (checkout, npm ci,
+  # Chromium, npm run build) før den første sjekken kjører, så gevinsten flater
+  # ut: 65 sjekker på ~8,5 min gir ~3,3 min per del ved tre, og ~2,5 ved fire —
+  # et halvt minutt for enda en runner og enda en logg å lete i.
+  del:
+    name: røyk ${{ matrix.del }}/3
+    needs: kart
+    runs-on: ubuntu-latest
+    # BAKSTOPPER. Uten den er GitHubs default seks timer, og en hengt nettleser
+    # blokkerer da hver framtidige PR i et halvt døgn. Røyk-skriptet har sitt
+    # eget tak PR SJEKK (120 s) — dette er nettet under det, for det som skjer
+    # utenfor en sjekk.
+    timeout-minutes: 20
+    strategy:
+      # EN RØD DEL SKAL IKKE AVLYSE DE TO ANDRE. Sjekkene er uavhengige, og en
+      # avlyst del skjuler nettopp de andre feilene man trenger for å se om
+      # årsaken er én eller flere. Med fail-fast ville en enkelt tidlig feil
+      # kostet en hel ny runde for å finne resten.
+      fail-fast: false
+      matrix:
+        del: [1, 2, 3]
+    steps:
+      # IKKE fetch-depth: 0. Målt på v5.25.2-PR-en: full historikk kostet
+      # 2 min 39 s av jobbens 5 min 29 s, mens CI-jobbens grunne checkout av
+      # samme commit tok 3 s. Repoet har et .git på flere hundre MB (bakte
+      # kart-fliser i historikken), så «kort historikk» er ikke det samme som
+      # «billig å hente». Navnediff trenger ÉN blob og henter den selv, i
+      # «ruter»-jobben under.
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # NETTLESEREN CACHES. Nedlastingen er ~40–60 s, og den henter nøyaktig det
+      # samme hver gang. Nøkkelen er den pinnede Playwright-versjonen fra
+      # package-lock, så en oppgradering gir ny nøkkel av seg selv — en cache som
+      # overlever en versjonsendring er verre enn ingen cache.
+      - name: Playwright-versjon
+        id: pw
+        run: echo "v=$(node -p "require('./node_modules/playwright-core/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Chromium
+        id: pw-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.pw.outputs.v }}
+
+      # `--with-deps` installerer OS-biblioteker utenfor cachen, så det steget må
+      # kjøre uansett. Ved cache-treff hopper nedlastingen av selve nettleseren
+      # over, som er den delen som tar tid.
+      - name: Hent Chromium
+        run: |
+          if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then
+            npx playwright install-deps chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
+
+      - name: Hent kartet fra forjobben
+        if: needs.kart.outputs.har == '1'
+        uses: actions/download-artifact@v7
+        with:
+          name: royk-kart
+          path: .royk-kart
+
+      # --ikkebyggkart: kom ikke kartet fram, hopper sjekkene som krever det over
+      # — vi bygger det ALDRI her. Tre samtidige bygg mot Overpass for det samme
+      # arket er både unødvendig last og tre sjanser til å svare forskjellig.
+      - name: Røyktest
+        # STEG-TAK I TILLEGG TIL JOBB-TAKET. Jobb-taket sier bare AT jobben
+        # brukte for lang tid; steg-taket peker på hvilket steg.
+        timeout-minutes: 18
+        run: |
+          if [ "${{ needs.kart.outputs.har }}" = "1" ]; then
+            npm run royk -- --ektekart --ikkebyggkart --kartcache=.royk-kart/vardasen.svg \
+              --del=${{ matrix.del }}/3 --bilder=/tmp/royk
+          else
+            echo "Kjører mot demo-kartet — ektekart-sjekkene hoppes over."
+            npm run royk -- --del=${{ matrix.del }}/3 --bilder=/tmp/royk
+          fi
+
+      # EGET NAVN PR DEL. Tre opplastinger med samme navn er en kollisjon, og
+      # da mister man bildene fra nettopp den delen som feilet.
+      - name: Last opp skjermbilder ved feil
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: royk-skjermbilder-${{ matrix.del }}
+          path: /tmp/royk
+          if-no-files-found: ignore
+
+  # ── ruting og navnediff: én gang, ved siden av delene ─────────────────────
+  # De hører ikke hjemme i matrisen: begge svarer på noe om HELE endringen, og
+  # tre identiske kjøringer ville kostet tre ganger og sagt det samme. De er
+  # dessuten billige (~30 s + ~1 s), så de ligger i sin egen jobb og går
+  # parallelt med delene i stedet for å henge bakerst i én av dem.
+  ruter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Playwright-versjon
+        id: pw
+        run: echo "v=$(node -p "require('./node_modules/playwright-core/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Chromium
+        id: pw-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.pw.outputs.v }}
+
+      - name: Hent Chromium
+        run: |
+          if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then
+            npx playwright install-deps chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
+
+      - run: npm run build
+
+      # Rutingen: alle ruter, alle redirects, boot-gjenopptaket. royk-mapview
+      # monterer ÉN rute og sier ingenting om at /about lander på /om eller at en
+      # funksjons-redirect beholder query-en.
       - name: Røyktest — ruting
         run: npm run royk:ruter
 
       # Navnediff er en LESE-gate: den skal fortelle mennesket hva som forsvant.
       # Villede slettinger kvitteres ut med `--ok navn1,navn2` i PR-en som gjør
       # dem, ikke ved å skru av jobben.
-      # Refen er hentet i «Hent master-tippen» over. Formen der er eksplisitt
-      # refspec og ikke `git fetch origin master`: på en grunn klone lagrer den
-      # formen bare i FETCH_HEAD og avvises dessuten med «shallow roots are not
-      # allowed to be updated», så refs/remotes/origin/master blir aldri
-      # opprettet og navnediff feiler med «fant ikke MapView.vue i
-      # origin/master». Med fetch-depth: 0 var det checkout som skaffet refen,
-      # så linja som sto her før var i praksis en no-op.
       #
+      # Formen på fetchen er eksplisitt refspec og ikke `git fetch origin
+      # master`: på en grunn klone lagrer den formen bare i FETCH_HEAD og avvises
+      # dessuten med «shallow roots are not allowed to be updated», så
+      # refs/remotes/origin/master blir aldri opprettet og navnediff feiler med
+      # «fant ikke MapView.vue i origin/master».
+      - name: Hent master-tippen
+        run: git fetch --depth=1 origin +refs/heads/master:refs/remotes/origin/master
+
       # PR-beskrivelsen hentes LIVE, ikke fra `github.event.pull_request.body`.
       # Den i hendelsen er et ØYEBLIKKSBILDE fra pushet: skriver man kvitteringen
-      # inn i beskrivelsen etterpå, leser CI fortsatt den gamle teksten, og en
-      # ny kjøring av samme hendelse gjør ingen forskjell. Det er en felle som
-      # smalt med det samme — og en gate man ikke kan rette uten å pushe på nytt
-      # er halvveis tilbake til den som ikke kunne bestås.
+      # inn i beskrivelsen etterpå, leser CI fortsatt den gamle teksten, og en ny
+      # kjøring av samme hendelse gjør ingen forskjell. Det er en felle som smalt
+      # med det samme — og en gate man ikke kan rette uten å pushe på nytt er
+      # halvveis tilbake til den som ikke kunne bestås.
       #
       # Teksten mates inn som MILJØVARIABEL og ikke inn i kommandolinja: den er
       # uklarert (hvem som helst kan skrive en PR-beskrivelse), og en
@@ -247,10 +387,23 @@ jobs:
             npm run navnediff
           fi
 
-      - name: Last opp skjermbilder ved feil
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: royk-skjermbilder
-          path: /tmp/royk
-          if-no-files-found: ignore
+  # ── ÉN sjekk å lese, og ÉT navn som overlever delingen ────────────────────
+  # Jobben gjør ingenting selv. Den finnes fordi «royk» fram til nå var ÉN
+  # status-sjekk: er den navngitt i en gren-beskyttelse, ville delingen fjernet
+  # den sjekken og gjort regelen til en som aldri kan brytes. Den samler også de
+  # fire jobbene til ett grønt eller rødt, så man slipper å lese fem rader for å
+  # vite om røyktesten gikk.
+  #
+  # `always()` er ikke valgfritt: uten den HOPPES jobben over når en del feiler,
+  # og en hoppet sjekk regnes som grønn av gren-beskyttelsen.
+  royk:
+    needs: [del, ruter]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gikk alt grønt?
+        run: |
+          echo "deler: ${{ needs.del.result }}"
+          echo "ruting + navnediff: ${{ needs.ruter.result }}"
+          [ "${{ needs.del.result }}" = "success" ] || exit 1
+          [ "${{ needs.ruter.result }}" = "success" ] || exit 1

@@ -1,3 +1,11 @@
+## 2026-09-11 — v7.7.12: røyktesten delt på tre, og to ekte feil kom ut av delingen
+
+Røyktesten var PR-enes lange steg: 65 sjekker etter hverandre i én nettleser, oppe i ti minutter, og lista vokser med hver leveranse fordi regelen er én ny sjekk per uttrekk fra MapView. Nå kjører den i tre parallelle jobber bak en forjobb som bygger Vardåsen-arket ÉN gang og sender det videre — ingen sjekk er fjernet, og en ny sjekk er fortsatt bare en oppføring i `SJEKKER`. Fordelingen er rundgang og ikke sammenhengende blokker, og det er målt: de elleve 3D-sjekkene sto for 282 av 508 sekunder, de ligger etter hverandre i lista, og tre sammenhengende tredjedeler ville lagt hele klyngen i én jobb som var nesten like treg som før.
+
+Delingen hviler på kontrakten om at hver sjekk skal forlate appen i nøytral tilstand, og den er dermed den første håndhevingen den regelen har hatt — den fant to ekte feil med en gang. Ventingen på et ferdig kart bodde i den første sjekken, og alle de andre arvet den ved å ligge bak den; del 3 startet derfor på et halvferdig kart, så kjøre-løkka venter nå selv, i både delt og udelt kjøring. Og service worker-reloaden (`clients.claim()` → `controllerchange` → reload) traff midt i sjekkene: udelt gikk det bra fordi de to første sjekkene er trege nok til at reloaden skjedde i skyggen av dem, mens del 3 startet rett i vinduet og fikk et element som nettopp fantes tilbake som null. Røyktesten kjører nå med service workeren blokkert i alle kontekster — ingen sjekk måler den, og den ene som er i nærheten godtar «Kan ikke sjekke her.» som et gyldig svar.
+
+---
+
 ## 2026-09-11 — v7.7.11: cache-actionen til v6, og proxyen får endelig en lockfil
 
 To ryddejobber i byggeriggen, ingen av dem i appkoden. `actions/cache` går fra v4 til v6 i røyktesten: v5 flyttet actionen til Node 24-runtimen (krever runner ≥ 2.327.1, og vi står på `ubuntu-latest`), v6 la om til ESM, og ingen av dem rører `path` eller `key` — som er hele inngangsflaten vi bruker begge stedene, uten `restore-keys`. Verdt å vente på ÉN kald kjøring: om v6 leser v4-ens cache-oppføringer er ikke dokumentert, så både Chromium-cachen og Vardåsen-kartet kan bomme én gang og så fylles på nytt. Vardåsen-nøkkelen fylles uansett først fra master, som er hele grunnen til at jobben også kjører på push dit.
