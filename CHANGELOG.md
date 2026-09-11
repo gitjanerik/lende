@@ -1,3 +1,35 @@
+## 2026-09-11 — v7.7.0: Snarveiene sorteres i raden, ikke i et panel
+
+«Sorter snarveier» åpnet en skuff med en liste: ni rader med et grep og to
+pil-knapper, altså en modell av raden man nettopp sto i. Man sorterte én ting
+mens man så på en annen, og det ene spørsmålet sorteringen finnes for — hva
+havner bak håndtaket på MIN skjerm? — kunne lista per konstruksjon ikke svare
+på, for den kjenner verken kolonnetallet eller hvor raden brytes. Nå flyttes
+knappene der de står, i det ekte gitteret: knappen starter en sorterings-modus i
+raden selv, cella man drar følger fingeren, naboene glir til side og viser hvor
+den lander, og et stiplet spøkelse blir igjen der den lå. Panelet er slettet, og
+«Vis navn når minimert» og «Tilbakestill» fulgte med inn i radens egen footer,
+der håndtaket står ellers.
+
+Det er en MODUS og ikke en alltid-på-gest, og det er ikke forsiktighet:
+gripeflata er hele pilla siden v7.6.0, så et sveip ned hvor som helst i boksen
+åpner skuffa — den flata kan ikke også bety «løft denne knappen». Sammenlagt er
+raden dessuten klippet, så en alltid-på-sortering ville latt deg dra mot celler
+du ikke kan se. Modusen låser raden åpen, slipper pille-draget og lar cellene
+overta det. Tre veier fører til en flytting, og de dekker hver sin sperre: dra
+cella dit den skal, trykk én celle og så plassen den skal til (SC 2.5.7 — det
+var panelets opp/ned-knapper som bar det kravet, og et tastatur-alternativ
+dekker det ikke), eller flytt den fokuserte cella med piltastene, der fokus
+følger med til den nye plassen (SC 2.1.1). «Ferdig» legger raden sammen igjen,
+så man ser resultatet. Raden sorterer bare det den VISER, så den nye rekkefølgen
+flettes inn i den lagrede: på et demokart står Annotering og Sporing utenfor
+raden og beholder plassen sin uten å kunne flyttes der. Og målingen ser nå
+SETTET av snarveier og ikke rekkefølgen: en ommåling er en skjult passering der
+raden står usynlig, og den blendet cella man nettopp flyttet — fokus falt til
+bunns for hvert piltast-hakk.
+
+---
+
 ## 2026-09-11 — v7.6.1: Toastene og bannerne på kartet følger tekststørrelsen
 
 Tekstskalaen fra hovedmenyen nådde snarveiene, kartnavnet, linjalen og de faste

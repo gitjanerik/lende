@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   SNARVEIER, STANDARD_REKKEFOLGE, normaliserRekkefolge, snarveierIRekkefolge,
-  flyttSnarvei, antallKolonner, antallRader, flytteIndeks,
+  flyttSnarvei, antallKolonner, antallRader,
+  gitterIndeks, gitterForskyvning, flettSynligRekkefolge,
   SNARVEI_NAVN_KEY, SNARVEI_MIN_H, SNARVEI_MIN_H_SMAL, lesVisNavn, skrivVisNavn,
 } from './snarveier.js'
 
@@ -185,18 +186,77 @@ describe('antallRader', () => {
   })
 })
 
-describe('flytteIndeks', () => {
-  it('runder til nærmeste radhøyde', () => {
-    expect(flytteIndeks(0, 0, 50, 5)).toBe(0)
-    expect(flytteIndeks(0, 24, 50, 5)).toBe(0)
-    expect(flytteIndeks(0, 26, 50, 5)).toBe(1)
-    expect(flytteIndeks(2, -60, 50, 5)).toBe(1)
+describe('gitterIndeks', () => {
+  // 9 snarveier i et 4-kolonners gitter: tre rader, den siste med én celle.
+  const idx = (x, y) => gitterIndeks(x, y, 60, 50, 4, 9)
+
+  it('leser kolonne og rad av punktet', () => {
+    expect(idx(5, 5)).toBe(0)
+    expect(idx(65, 5)).toBe(1)
+    expect(idx(5, 55)).toBe(4)
+    expect(idx(185, 55)).toBe(7)
   })
-  it('klemmes til lista', () => {
-    expect(flytteIndeks(0, -5000, 50, 5)).toBe(0)
-    expect(flytteIndeks(0, 5000, 50, 5)).toBe(4)
+  it('klemmes til gitteret, ikke til rektangelet', () => {
+    // Siste rad har bare plass 8; et punkt langt til høyre der skal ikke gi 11.
+    expect(idx(230, 120)).toBe(8)
+    expect(idx(-500, -500)).toBe(0)
+    expect(idx(5000, 5000)).toBe(8)
   })
-  it('en radhøyde på null flytter ingenting', () => {
-    expect(flytteIndeks(2, 300, 0, 5)).toBe(2)
+  it('gir null før stegene er målt', () => {
+    expect(gitterIndeks(100, 100, 0, 50, 4, 9)).toBe(0)
+    expect(gitterIndeks(100, 100, 60, 50, 0, 9)).toBe(0)
+  })
+})
+
+describe('gitterForskyvning', () => {
+  it('lar alt utenfor strekningen stå', () => {
+    expect(gitterForskyvning(0, 2, 5, 4)).toEqual({ dKol: 0, dRad: 0 })
+    expect(gitterForskyvning(7, 2, 5, 4)).toEqual({ dKol: 0, dRad: 0 })
+    expect(gitterForskyvning(2, 2, 5, 4)).toEqual({ dKol: 0, dRad: 0 })
+  })
+  it('skyver de mellomliggende ett hakk MOT den som dras', () => {
+    // 2 → 5: plassene 3, 4 og 5 rykker ned til 2, 3 og 4.
+    expect(gitterForskyvning(3, 2, 5, 4)).toEqual({ dKol: -1, dRad: 0 })
+    expect(gitterForskyvning(5, 2, 5, 4)).toEqual({ dKol: -1, dRad: 0 })
+    // 5 → 2: samme strekning, motsatt vei. Plass 3 er siste celle i rad 1 og
+    // rykker opp til første celle i rad 2 — ett hakk, men en ny rad.
+    expect(gitterForskyvning(3, 5, 2, 4)).toEqual({ dKol: -3, dRad: 1 })
+    expect(gitterForskyvning(4, 5, 2, 4)).toEqual({ dKol: 1, dRad: 0 })
+  })
+  it('bytter RAD når hakket krysser en radkant', () => {
+    // Plass 4 er første celle i rad 2; ett hakk ned er siste celle i rad 1.
+    expect(gitterForskyvning(4, 1, 6, 4)).toEqual({ dKol: 3, dRad: -1 })
+    expect(gitterForskyvning(3, 6, 1, 4)).toEqual({ dKol: -3, dRad: 1 })
+  })
+  it('står stille uten et gyldig drag', () => {
+    expect(gitterForskyvning(1, -1, -1, 4)).toEqual({ dKol: 0, dRad: 0 })
+    expect(gitterForskyvning(1, 0, 2, 0)).toEqual({ dKol: 0, dRad: 0 })
+  })
+})
+
+describe('flettSynligRekkefolge', () => {
+  const full = [...STANDARD_REKKEFOLGE]
+  const skjulte = ['annotering', 'sporing']
+  const synlig = full.filter(id => !skjulte.includes(id))
+
+  it('beholder alle idene', () => {
+    const ny = flettSynligRekkefolge(full, [...synlig].reverse())
+    expect([...ny].sort()).toEqual([...full].sort())
+  })
+  it('gir den synlige rekkefølgen forrang', () => {
+    const snudd = [...synlig].reverse()
+    const ny = flettSynligRekkefolge(full, snudd)
+    expect(ny.filter(id => !skjulte.includes(id))).toEqual(snudd)
+  })
+  it('lar en skjult id følge den synlige den lå etter', () => {
+    // Standarden er ... tre-d, annotering, sporing, info ... — flytter vi
+    // «tre-d» bakerst, skal Annotering og Sporing bli med dit.
+    const utenTreD = synlig.filter(id => id !== 'tre-d')
+    const ny = flettSynligRekkefolge(full, [...utenTreD, 'tre-d'])
+    expect(ny.slice(-3)).toEqual(['tre-d', 'annotering', 'sporing'])
+  })
+  it('holder en skjult id først når den lå først', () => {
+    const ny = flettSynligRekkefolge(['sporing', ...synlig], synlig)
+    expect(ny[0]).toBe('sporing')
   })
 })
