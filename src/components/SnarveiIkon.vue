@@ -70,12 +70,23 @@ defineProps({
     </template>
     <!-- Chatten (v7.0.0): en snakkeboble med tre prikker. Ingen Lende-logo —
          logoen var ANKERET, og et ikon som ser ut som appen selv sier «hjem»
-         og ikke «spør». -->
+         og ikke «spør».
+         FORMEN ER TEGNET OM (v7.7.3), og begge feilene var geometri, ikke smak.
+         Bobla var en sirkel med en lang hale ned mot venstre, og halen dro
+         tyngdepunktet med seg: målt i Chromium lå glyfen på y 6,98…21,5 i
+         24-boksen, altså med sitt midtpunkt 2,24 px UNDER boksens. Knappen
+         midtstiller boksen (`place-items-center`), ikke tegningen inni den, så
+         den skjevheten er nøyaktig den man ser — og FAB-en zoomer hele knappen,
+         så på 200 % er den 4,5 px. Nå er glyfen en avrundet boks med hale,
+         3…21 i x og 4…20 i y, altså symmetrisk om 12/12.
+         Prikkene var r 0,7 — 1,4 px brede ved 24 px, mot en 2 px strek rundt —
+         og det var «utydeligheten». De er r 1,1 og står i BOBLAS midtfelt
+         (y 10,25), ikke i glyfens: halen hører til formen, ikke til teksten. -->
     <template v-else-if="id === 'chat'">
-      <path d="M20.5 12.2a8 8 0 0 1-8.5 7.9L4 21.5l1.4-3.6a8 8 0 1 1 15.1-5.7Z"/>
-      <circle cx="8.6" cy="12" r="0.7" fill="currentColor" stroke="none"/>
-      <circle cx="12.2" cy="12" r="0.7" fill="currentColor" stroke="none"/>
-      <circle cx="15.8" cy="12" r="0.7" fill="currentColor" stroke="none"/>
+      <path d="M6.5 4H17.5A3.5 3.5 0 0 1 21 7.5V13A3.5 3.5 0 0 1 17.5 16.5H11L7.5 20V16.5H6.5A3.5 3.5 0 0 1 3 13V7.5A3.5 3.5 0 0 1 6.5 4Z"/>
+      <circle cx="8" cy="10.25" r="1.1" fill="currentColor" stroke="none"/>
+      <circle cx="12" cy="10.25" r="1.1" fill="currentColor" stroke="none"/>
+      <circle cx="16" cy="10.25" r="1.1" fill="currentColor" stroke="none"/>
     </template>
     <template v-else-if="id === 'innstillinger'">
       <circle cx="12" cy="12" r="3"/>

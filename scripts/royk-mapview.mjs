@@ -2785,6 +2785,36 @@ const SJEKKER = [
           throw new Error('FAB-en har verken logo eller ikon')
         }
 
+        // OG BOBLA MÅ VÆRE MIDTSTILT I KNAPPEN (v7.7.3). Knappen midtstiller
+        // ikon-BOKSEN (`grid place-items-center`), ikke tegningen inni den — så
+        // en glyf med tyngdepunktet utenfor viewBoxens midte står skjevt uansett
+        // hvor riktig knappen er plassert. Den gamle snakkebobla lå 2,24 px for
+        // lavt (hale ned mot venstre), og FAB-en zoomer hele knappen, så på
+        // 200 % tekst var det 4,5 px. Måles som blekkets union mot knappens
+        // boks; 1,5 px slingring for avrunding og strek-asymmetri.
+        const skjev = await fab.evaluate((knapp) => {
+          const svg = knapp.querySelector('svg')
+          const deler = [...svg.children]
+          if (!deler.length) return null
+          const r = deler.map((e) => e.getBoundingClientRect())
+          const boks = {
+            left: Math.min(...r.map((b) => b.left)),
+            right: Math.max(...r.map((b) => b.right)),
+            top: Math.min(...r.map((b) => b.top)),
+            bottom: Math.max(...r.map((b) => b.bottom)),
+          }
+          const k = knapp.getBoundingClientRect()
+          return {
+            dx: (boks.left + boks.right) / 2 - (k.left + k.right) / 2,
+            dy: (boks.top + boks.bottom) / 2 - (k.top + k.bottom) / 2,
+          }
+        })
+        if (!skjev) throw new Error('snakkebobla har ingen tegning å måle')
+        if (Math.abs(skjev.dx) > 1.5 || Math.abs(skjev.dy) > 1.5) {
+          throw new Error(`snakkebobla står ${skjev.dx.toFixed(1)},${skjev.dy.toFixed(1)} px `
+            + 'fra knappens midte — glyfen må være symmetrisk om 12/12 i viewBoxen')
+        }
+
         // ETT TAPP MED FINGEREN, ikke et hold og ikke musa. FabCluster er
         // drevet av pointerdown/-up via useLongPress, så `el.click()` gjør
         // ingenting. Og TOUCH er ikke et strengere mus-trykk: den sender en
@@ -2808,7 +2838,8 @@ const SJEKKER = [
             + 'fra touchend traff bakteppet (AppModal.bakteppeKlikk)')
         }
         return `FAB nede til høyre (${Math.round(boks.x)},${Math.round(boks.y)}), `
-          + 'snakkeboble som symbol, ett finger-tapp åpnet chatten og den ble stående'
+          + `snakkebobla ${skjev.dx.toFixed(1)},${skjev.dy.toFixed(1)} px fra midten, `
+          + 'ett finger-tapp åpnet chatten og den ble stående'
       } finally {
         await ctx.close()
       }
