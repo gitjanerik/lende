@@ -1,3 +1,25 @@
+## 2026-09-11 — v7.7.5: kanten rundt snarveien står alltid
+
+Den stiplede kanten i sorterings-modus ble borte i nederste rad igjen ved 150 %
+og 200 % tekst, og v7.7.4-fiksen — seks piksler luft lagt på i modusbyttet —
+kunne ikke holde: den dekket over symptomet og ikke årsaken. Årsaken er at cella
+VOKSTE av kanten sin. Bredden er kolonnens og lot seg holde i ro med
+`box-sizing`, men høyden er innholdets med `min-height` som gulv, og der legger
+en border seg på toppen: to piksler per rad, ganget med cellenes `zoom`. Målt i
+Chromium på 412 px ble gitteret dermed 2 px for lavt for sitt eget innhold ved
+100 %, 4 px ved 150 % og 12 px ved 200 % — og det klipper. Det forklarer også
+hvorfor den «rettet seg selv» av en tur innom en annen tekststørrelse: en
+ommåling leste da den kantede cella.
+
+Kanten står nå ton i ton på hver snarvei i alle moduser, og sorteringen bytter
+bare type og farge på den. Da er cella like stor hele veien, det finnes ingen
+vekst å kompensere for, og gitteret er polstret likt på alle fire sider i stedet
+for å få et tillegg i det man trykker «Sorter». Røyk-sjekken for lufta under
+siste rad målte bare standard tekststørrelse, altså nøyaktig den skalaen feilen
+var minst i; den måles nå også ved 200 %.
+
+---
+
 ## 2026-09-11 — v7.7.4: den stiplede kanten er hel hele veien rundt
 
 I sorterings-modus får hver celle en stiplet kant, og den nederste streken i
