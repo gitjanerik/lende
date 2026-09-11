@@ -1180,6 +1180,108 @@ const SJEKKER = [
     },
   },
   {
+    // TOASTENE HAR HELE BREDDEN, IKKE HALVE (v7.7.2). GPS-toasten hang i
+    // `left: 50%` + `-translate-x-1/2`, og et absolutt plassert element med
+    // `right: auto` får da BARE avstanden fra `left` til høyrekanten som
+    // tilgjengelig bredde — 180 px på en 360 px-skjerm. Transformen flytter
+    // boksen etterpå og gir ingenting tilbake, så toasten brøt til fire linjer
+    // med god plass på begge sider. Nøyaktig samme felle som snarvei-raden gikk
+    // i (v6.6.1), og den er usynlig i enhetstester: markupen er helt riktig,
+    // det er den tilgjengelige bredden som er halv.
+    // Tre ting måles, og alle tre er lette å «rydde» bort igjen:
+    //   1. båndet toasten sentreres i dekker hele den synlige kartflata;
+    //   2. toasten står midt i det, med samme luft på begge sider;
+    //   3. KRYSSET VOKSER med tekststørrelsen (v7.7.2). Det sto fast fordi en
+    //      zoomet boks dytter X-en ut av skjermen — men zoomen ligger på
+    //      KNAPPEN, og med båndets bredde tar et dobbelt kryss av tekstens
+    //      plass og ikke av skjermens. 24 px er under 44 px-målet, og den som
+    //      skrur teksten til 200 % gjør det nettopp fordi små mål er vanskelige.
+    // EGEN KONTEKST MED EN STUBBET GEOLOCATION: standard-konteksten GIR
+    // posisjons-tillatelsen, og en kontekst som bare lar være å gi den er ikke
+    // nok — målt: uten tillatelse svarer headless Chromium hverken med posisjon
+    // eller med feil, så toasten kom aldri. Stubben kaller feil-callbacken med
+    // kode 1 (avslått), som er nøyaktig den tilstanden toasten finnes for, og
+    // den overlever reloaden fordi den ligger i `addInitScript`.
+    navn: 'GPS-toasten er midtstilt med hele bredden, og krysset følger teksten',
+    domene: 'MapStatusOverlays (bånd + kryss-zoom)',
+    maksMs: 120_000,
+    async kjør(page) {
+      const ctx = await page.context().browser().newContext({
+        viewport: { width: 360, height: 780 },
+        hasTouch: true,
+      })
+      await ctx.addInitScript(() => {
+        const feil = { code: 1, message: 'Posisjon avslått', PERMISSION_DENIED: 1 }
+        const nekt = (_ok, err) => { if (err) setTimeout(() => err(feil), 60) }
+        navigator.geolocation.getCurrentPosition = nekt
+        navigator.geolocation.watchPosition = (ok, err) => { nekt(ok, err); return 1 }
+        navigator.geolocation.clearWatch = () => {}
+      })
+      const p2 = await ctx.newPage()
+      try {
+        await p2.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await p2.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+
+        const framToasten = async () => {
+          await lukkDrawer(p2)
+          await klikkSnarvei(p2, 'posisjon')
+          await p2.waitForFunction(
+            () => !![...document.querySelectorAll('[role="alert"]')]
+              .find((e) => e.querySelector('[aria-label="Lukk"]')),
+            null, { timeout: 20_000 })
+          await p2.waitForTimeout(250)
+        }
+        const mål = () => p2.evaluate(() => {
+          const boks = [...document.querySelectorAll('[role="alert"]')]
+            .find((e) => e.querySelector('[aria-label="Lukk"]'))
+          if (!boks) return null
+          const b = boks.getBoundingClientRect()
+          const band = boks.parentElement.getBoundingClientRect()
+          const k = boks.querySelector('[aria-label="Lukk"]').getBoundingClientRect()
+          return {
+            vindu: window.innerWidth,
+            band: Math.round(band.width),
+            venstre: Math.round(b.left),
+            hoyre: Math.round(window.innerWidth - b.right),
+            kryss: Math.round(k.width),
+          }
+        })
+
+        await framToasten()
+        const ved100 = await mål()
+        if (!ved100) throw new Error('fikk ikke fram GPS-toasten etter en avvist posisjon')
+        if (ved100.band < ved100.vindu - 1) {
+          throw new Error(`båndet er ${ved100.band} px av ${ved100.vindu} px `
+            + '— toasten måler mot halve skjermen igjen (left: 50 %-fella)')
+        }
+        if (Math.abs(ved100.venstre - ved100.hoyre) > 2) {
+          throw new Error(`toasten står ikke midt i båndet (${ved100.venstre} px mot `
+            + `${ved100.hoyre} px luft)`)
+        }
+
+        await p2.evaluate(() => { localStorage.setItem('lende-ui-text-scale', '2') })
+        await p2.reload({ waitUntil: 'domcontentloaded' })
+        await p2.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+        await framToasten()
+        const ved200 = await mål()
+        if (!ved200) throw new Error('GPS-toasten kom ikke tilbake ved 200 %')
+        if (!(ved200.kryss > ved100.kryss * 1.5)) {
+          throw new Error(`lukke-krysset vokste ikke (${ved100.kryss} → ${ved200.kryss} px) `
+            + '— mangler zoom-bindingen på knappen?')
+        }
+        if (ved200.hoyre < 0 || ved200.venstre < 0) {
+          throw new Error('toasten går utenfor skjermen ved 200 % — følger bredde-taket skalaen?')
+        }
+        return `bånd ${ved100.band}/${ved100.vindu} px, luft ${ved100.venstre}/${ved100.hoyre} px, `
+          + `krysset ${ved100.kryss} → ${ved200.kryss} px`
+      } finally {
+        await ctx.close()
+      }
+    },
+  },
+  {
     // «VIS NAVN NÅR MINIMERT» ER EN BRYTER (v7.6.0), øverst i Sorter-panelet og
     // PÅ som standard. Sjekken slår den AV og krever de tre tingene som skiller
     // den fra en ren visning/skjuling, og som ingen enhetstest kan se:
