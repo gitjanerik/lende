@@ -1,3 +1,20 @@
+## 2026-09-11 — v7.7.3: snakkebobla på Lende-FAB-en er tegnet om
+
+Chat-ikonet var utydelig og sto skjevt i den runde knappen, og begge deler var
+geometri. Bobla var en sirkel med en lang hale ned mot venstre, og halen dro
+tyngdepunktet med seg: målt i Chromium lå glyfen på y 6,98…21,5 i 24-boksen,
+altså med midtpunktet 2,24 px under boksens eget. Knappen midtstiller
+ikon-boksen og ikke tegningen inni den, så den skjevheten er nøyaktig den man
+ser — og FAB-en zoomer hele knappen, så på 200 % tekst er den 4,5 px. Prikkene
+var dessuten r 0,7, altså 1,4 px brede ved 24 px mot en 2 px strek rundt seg.
+Bobla er nå en avrundet boks med hale, symmetrisk om 12/12 i viewBoxen, og
+prikkene er r 1,1 plassert i boblas eget midtfelt framfor i glyfens — halen
+hører til formen, ikke til teksten. Røyk-sjekken for FAB-en måler nå blekkets
+avstand fra knappens midte, så en glyf med tyngdepunktet på avveie ikke kan
+snike seg inn igjen.
+
+---
+
 ## 2026-09-11 — v7.7.2: toastene får hele bredden, og krysset følger teksten
 
 GPS-toasten, kulturminne-toasten og «Tegner inn stier»-chipen satt alle i samme
