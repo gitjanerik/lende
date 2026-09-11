@@ -16,9 +16,8 @@
 // NAVNET STÅR ALLTID — MEN DET ER EN BRYTER (v7.6.0). Fram til v7.5.0 avdekket
 // draget etikettene, og den STANDARDEN er snudd: ikonene bærer ikke betydningen
 // alene, og gevinsten ved å skjule dem var fjorten piksler på en rad som
-// uansett bare er ÉN rad sammenlagt. «Vis navn når minimert» står derfor øverst
-// i Sorter-panelet med PÅ som default, for den som HAR lært ikonene og vil ha
-// de pikslene tilbake.
+// uansett bare er ÉN rad sammenlagt. Bryteren står derfor UNDER pilla med PÅ som
+// default, for den som HAR lært ikonene og vil ha de pikslene tilbake.
 //
 // DE TO TILSTANDENE ER ULIKE, OG BEGGE ANIMERES AV SAMME `dra`:
 //   • PÅ  — cella er like bred og like høy hele veien, og draget avdekker bare
@@ -59,7 +58,7 @@
 // FIRE TING SOM MÅ STÅ:
 //
 // 1. HÅNDTAKET SKJULES ALDRI. Det er ikke bare «resten av funksjonene» — det
-//    er også eneste vei til «Sorter snarveier», og rekkefølgen er nettopp det
+//    er også eneste vei til «Sorter» og navne-bryteren, og rekkefølgen er det
 //    som avgjør hva som havner bak det på en smal skjerm. Skjuler du håndtaket
 //    når alt får plass, forsvinner sorteringen på de skjermene der den er
 //    lettest å prøve ut.
@@ -114,15 +113,72 @@
 // funksjoner, de er innstillinger — og de bor nå i Innstillinger → Kartstil,
 // nederst, sammen med tema, lag og sti-farge. Se lib/snarveier.js.
 //
-// «SORTER SNARVEIER» ER FRISTILT (v7.4.0): sin egen svarte, midtstilte knapp
+// «SORTER» ER FRISTILT (v7.4.0, kortet ned i v7.7.1): sin egen midtstilte knapp
 // under den utfoldede skuffa. Den handler om RADEN og ikke om kartet, og en
 // plass mellom Måling og 3D ville gjort den til nok en ting man trykker på ved
-// et uhell. Den toner inn med draget, som alt annet som avdekkes.
+// et uhell. Den toner inn med draget, som alt annet som avdekkes. Ordet er ett:
+// den står nå ved siden av «Navn», og «Sorter snarveier» der sa «snarveier» om
+// noe man ser på.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// SORTERINGEN SKJER I RADEN SELV (v7.7.0) — panelet er slettet, ikke flyttet.
+//
+// Fram til nå åpnet knappen en skuff med en LISTE: ni rader med et grep og to
+// pil-knapper, altså en modell av raden man nettopp sto i. Man sorterte én ting
+// mens man så på en annen, og det ENE spørsmålet sorteringen finnes for — hva
+// havner bak håndtaket på min skjerm? — kunne lista per konstruksjon ikke svare
+// på: den kjenner verken kolonnetallet eller hvor raden brytes. Nå flyttes
+// knappene der de står, i det ekte gitteret, så svaret er det man ser på.
+//
+// DET ER EN MODUS, IKKE EN ALLTID-PÅ-GEST, og det er ikke en forsiktighet.
+// Gripeflata er HELE PILLA (v7.6.0): et sveip ned hvor som helst i boksen åpner
+// skuffa. Den flata kan ikke også bety «løft denne knappen» — én flate, to
+// betydninger, og den ene er en gest man gjør hver gang man vil se resten. I
+// tillegg er raden sammenlagt KLIPPET, så en alltid-på-sortering ville latt deg
+// dra mot celler du ikke kan se. Modusen løser begge: `dra` låses til 1 (alt
+// står framme), pilla slipper draget, og cellene overtar det.
+//
+// TRE VEIER TIL EN FLYTTING, og de dekker hver sin sperre:
+//   • DRA cella dit den skal. De andre glir til side og viser gapet; et stiplet
+//     spøkelse blir igjen der den lå. Ingenting flyttes før fingeren slippes —
+//     samme regel som panelet hadde (v6.6.1), og grunnen er den samme: står
+//     rekkefølgen stille, er stegene konstante og målplassen ren aritmetikk.
+//   • TRYKK én celle, så plassen den skal til. Dette er SC 2.5.7 sitt krav om
+//     at en dra-bevegelse skal kunne gjøres med ett enkelt trykk — det var
+//     panelets opp/ned-knapper som bar det før, og det kravet er IKKE dekket av
+//     et tastatur-alternativ.
+//   • PILTASTENE på en fokusert celle flytter den ett hakk (venstre/høyre) eller
+//     én rad (opp/ned) — SC 2.1.1. Fokus følger cella til den nye plassen, ellers
+//     må man tabbe seg fram på nytt for hvert hakk.
+//
+// FOOTEREN ERSTATTER HÅNDTAKET MENS MODUSEN STÅR PÅ. Håndtaket skjules aldri
+// ellers (punkt 1 under), og begrunnelsen der er at det er eneste vei til
+// sorteringen — i sorterings-modus er man allerede framme, og et håndtak som
+// ikke kan dra noe er verre enn ingen. «Ferdig» legger raden sammen igjen, så
+// man ser resultatet: hva som ble stående på første linje.
+//
+// «TILBAKESTILL» FULGTE MED HIT. Den hørte hjemme i panelet fordi panelet var
+// det ene stedet man så på raden som et objekt — nå er det raden selv.
+//
+// «VIS NAVN» GJORDE DET OGSÅ, OG DET VAR FEIL PLASS (v7.7.1). Bryteren fulgte
+// med da panelet ble slettet, men å skru navnene av er ingen sorterings-
+// handling: man vil ha en tettere rad, og da måtte man inn i en modus man ikke
+// hadde noe å gjøre i for å komme til den. Den står nå UTENFOR den svarte
+// boksen, ved siden av «Sorter» — begge er knotter som handler om RADEN og
+// ikke om kartet, og de avdekkes av samme drag. Den er SKJULT i sorterings-
+// modus: der er hver celle et objekt man flytter, og en bryter som endrer
+// cellehøyden midt i et drag er en form som skifter under fingeren.
+//
+// UTENFOR PILLA BÆRER BRYTEREN ET EKTE SPOR. Inne i boksen var «på» allerede en
+// FARGE (aksentgrønn flate), og et spor i tillegg ville vært to former for av/på
+// på samme flate. Ute står den ved siden av «Sorter», som bare GJØR noe — og da
+// er forskjellen på en av/på og en handling bare en farge man må ha sett før.
 // ─────────────────────────────────────────────────────────────────────────────
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import SnarveiIkon from './SnarveiIkon.vue'
 import {
   antallKolonner, antallRader, SNARVEI_MIN_H, SNARVEI_MIN_H_SMAL,
+  gitterIndeks, gitterForskyvning, flyttSnarvei,
 } from '../lib/snarveier.js'
 import { pickSnapTarget } from '../composables/useDraggableDrawer.js'
 
@@ -140,7 +196,7 @@ const props = defineProps({
 // sjelden drar ut. Kallstedet løfter i stedet raden over søyla mens den er ute.
 // Radens egen z-index duger ikke: innpakningen i MapView er `z-20 absolute`,
 // altså sin egen stacking context, og et barn kan ikke klatre ut av den.
-const emit = defineEmits(['velg', 'sorter', 'apen'])
+const emit = defineEmits(['velg', 'flytt', 'vis-navn', 'tilbakestill', 'apen'])
 
 // Margin til hver skjermkant. Raden er sentrert, så halve verdien per side.
 const KANT_PX = 24
@@ -267,7 +323,13 @@ onMounted(() => {
 onBeforeUnmount(() => { ro?.disconnect(); losne?.() })
 
 watch(apen, v => emit('apen', v))
-watch(() => props.snarveier.map(s => s.id).join(','), () => { void maal() })
+// SETTET, IKKE REKKEFØLGEN (v7.7.0). Målingen leter etter den BREDESTE cella,
+// og den er den samme uansett hvilken rekkefølge de står i — mens en ommåling
+// koster en skjult passering der raden står `visibility: hidden`. Den passeringen
+// BLENDER cella man nettopp flyttet: et element uten synlighet kan ikke ha
+// fokus, så piltast-veien mistet fokus for hvert hakk (SC 2.1.1), og et drag
+// ville fått transformene sine nullstilt midt i seg selv.
+watch(() => [...props.snarveier.map(s => s.id)].sort().join(','), () => { void maal() })
 watch(() => props.uiTextScale, () => { void maal() })
 // Bryteren endrer den SAMMENLAGTE høyden (og bare den), så begge tallene må
 // leses på nytt — ellers drar man i en skuff som tror den er 46 px høy.
@@ -277,10 +339,6 @@ function velg(id) {
   if (sluk) { sluk = false; return }
   dra.value = 0
   emit('velg', id)
-}
-function sorter() {
-  dra.value = 0
-  emit('sorter')
 }
 
 // ── Draget ─────────────────────────────────────────────────────────────────
@@ -340,7 +398,10 @@ function lyttPaaVinduet() {
 function onDraStart(e) {
   sluk = false
   losne?.()
-  if (!maalt.value || e.button > 0) return
+  // I sorterings-modus eier CELLENE pekeren. Pilla kan ikke også dras: den
+  // står låst åpen, og en skuff som legger seg sammen midt i en flytting ville
+  // klippet bort nettopp plassen man siktet på.
+  if (!maalt.value || sorterer.value || e.button > 0) return
   start.value = { x: e.clientX, y: e.clientY, dra: dra.value, tatt: false }
   lyttPaaVinduet()
   // INGEN `preventDefault` HER: den ville tatt `click` fra snarvei-knappene,
@@ -375,6 +436,183 @@ function settDra(v) {
   drar.value = false
   dra.value = v
 }
+
+// ── Sortering ──────────────────────────────────────────────────────────────
+// Se filhodet for hvorfor dette er en MODUS og ikke en alltid-på-gest, og for
+// de tre veiene til en flytting. Under står bare mekanikken.
+const sorterer = ref(false)
+const drarCelle = ref(-1)   // hvilken celle fingeren holder i
+const overCelle = ref(-1)   // hvor den vil lande
+const valgtCelle = ref(-1)  // løftet med ett trykk, venter på en plass
+const celleDy = ref({ x: 0, y: 0 })
+const kolSteg = ref(0)
+const radSteg = ref(0)
+const spokelse = ref(null)  // { x, y, w, h } i gitterets eget rom
+const sisteFlytting = ref('')
+
+function startSortering() {
+  sorterer.value = true
+  valgtCelle.value = -1
+  sisteFlytting.value = ''
+  settDra(1)
+}
+function avsluttSortering() {
+  sorterer.value = false
+  valgtCelle.value = -1
+  drarCelle.value = -1
+  spokelse.value = null
+  // Sammenlagt igjen, så man ser hva sorteringen faktisk gjorde: hvem som ble
+  // stående på første linje.
+  settDra(0)
+}
+
+const sorterHint = computed(() => {
+  if (valgtCelle.value >= 0) {
+    return `Trykk der «${props.snarveier[valgtCelle.value]?.label}» skal stå`
+  }
+  return sisteFlytting.value || 'Dra en knapp dit du vil ha den, eller trykk to'
+})
+
+/** Flytter en snarvei og sier fra hva som skjedde. `fokus` følger piltastene. */
+async function flyttCelle(fra, til, { fokus = false } = {}) {
+  const n = props.snarveier.length
+  if (fra < 0 || til < 0 || til >= n || fra === til) return
+  const s = props.snarveier[fra]
+  emit('flytt', flyttSnarvei(props.snarveier.map(x => x.id), fra, til))
+  sisteFlytting.value = `${s.label} flyttet til plass ${til + 1} av ${n}`
+  if (!fokus) return
+  await nextTick()
+  gitterRef.value?.querySelector(`[data-snarvei-id="${s.id}"]`)?.focus()
+}
+
+/** Ett trykk løfter cella, det neste plasserer den. SC 2.5.7. */
+function trykkCelle(i) {
+  if (sluk) { sluk = false; return }
+  if (valgtCelle.value < 0) { valgtCelle.value = i; return }
+  if (valgtCelle.value === i) { valgtCelle.value = -1; return }
+  void flyttCelle(valgtCelle.value, i)
+  valgtCelle.value = -1
+}
+
+function tastCelle(e, i) {
+  const k = kolonner.value || 1
+  const til = e.key === 'ArrowLeft' ? i - 1
+    : e.key === 'ArrowRight' ? i + 1
+      : e.key === 'ArrowUp' ? i - k
+        : e.key === 'ArrowDown' ? i + k : null
+  if (til === null) return
+  e.preventDefault()
+  e.stopPropagation()
+  void flyttCelle(i, Math.max(0, Math.min(props.snarveier.length - 1, til)), { fokus: true })
+}
+
+// STEGENE MÅLES, DE REGNES IKKE. Cellene bærer `zoom`, så «cellebredde + gap»
+// er riktig ved 100 % og feil ved 200 %; avstanden mellom to naboceller er
+// riktig uansett. Måles ved hvert pekertrykk — tekstskala og vindusbredde kan
+// ha endret seg siden forrige.
+let celleStart = null
+function maalSteg(celler) {
+  const r0 = celler[0].getBoundingClientRect()
+  const r1 = celler[1]?.getBoundingClientRect()
+  const rN = celler[kolonner.value]?.getBoundingClientRect()
+  kolSteg.value = (kolonner.value > 1 && r1) ? r1.left - r0.left : r0.width + gapPx.value
+  const rg = parseFloat(getComputedStyle(gitterRef.value).rowGap) || 4
+  radSteg.value = rN ? rN.top - r0.top : r0.height + rg
+  return r0
+}
+
+function onCelleStart(e, i) {
+  if (!sorterer.value || e.button > 0) return
+  const g = gitterRef.value
+  const celler = [...g.querySelectorAll('[data-snarvei]')]
+  if (celler.length !== props.snarveier.length) return
+  const r0 = maalSteg(celler)
+  const rG = g.getBoundingClientRect()
+  const r = celler[i].getBoundingClientRect()
+  celleStart = { x: e.clientX, y: e.clientY, r, r0, tatt: false }
+  spokelse.value = { x: r.left - rG.left, y: r.top - rG.top, w: r.width, h: r.height }
+  drarCelle.value = i
+  overCelle.value = i
+  celleDy.value = { x: 0, y: 0 }
+  lyttPaaCelle()
+}
+
+let losneCelle = null
+function lyttPaaCelle() {
+  losneCelle?.()
+  const flytt = (e) => onCelleFlytt(e)
+  const slutt = () => onCelleSlutt()
+  window.addEventListener('pointermove', flytt, { passive: false })
+  window.addEventListener('pointerup', slutt)
+  window.addEventListener('pointercancel', slutt)
+  losneCelle = () => {
+    window.removeEventListener('pointermove', flytt)
+    window.removeEventListener('pointerup', slutt)
+    window.removeEventListener('pointercancel', slutt)
+    losneCelle = null
+  }
+}
+
+function onCelleFlytt(e) {
+  const s = celleStart
+  if (!s) return
+  const dx = e.clientX - s.x
+  const dy = e.clientY - s.y
+  if (!s.tatt) {
+    // Samme slop som pilla, men i BEGGE retninger: et gitter flyttes like mye
+    // sidelengs som opp og ned, så en akse-test ville sperret halve draget.
+    if (Math.hypot(dx, dy) < SLOP_PX) return
+    s.tatt = true
+    sluk = true   // avlyser trykket som ellers ville løftet cella
+  }
+  if (e.cancelable) e.preventDefault()
+  celleDy.value = { x: dx, y: dy }
+  // PUNKTET ER CELLAS SENTER, ikke fingeren: griper man i kanten av en knapp,
+  // skal den lande der knappen er.
+  overCelle.value = gitterIndeks(
+    s.r.left + s.r.width / 2 + dx - s.r0.left,
+    s.r.top + s.r.height / 2 + dy - s.r0.top,
+    kolSteg.value, radSteg.value, kolonner.value, props.snarveier.length)
+}
+
+function onCelleSlutt() {
+  const s = celleStart
+  celleStart = null
+  losneCelle?.()
+  const fra = drarCelle.value
+  const til = overCelle.value
+  drarCelle.value = -1
+  overCelle.value = -1
+  celleDy.value = { x: 0, y: 0 }
+  spokelse.value = null
+  if (!s?.tatt) return
+  valgtCelle.value = -1
+  void flyttCelle(fra, til)
+  setTimeout(() => { sluk = false }, 0)
+}
+
+onBeforeUnmount(() => losneCelle?.())
+
+/**
+ * Cellas plassering mens en annen dras. Den dratte følger fingeren; de andre
+ * glir én plass for å åpne gapet der den vil lande.
+ *
+ * TRANSFORMEN DELES PÅ ZOOMEN. `zoom` står på knappen, så en `translate` på den
+ * samme knappen måles i zoomede piksler — ved 200 % ville cella flyttet seg
+ * dobbelt så langt som fingeren.
+ */
+function celleTransform(i) {
+  if (drarCelle.value < 0) return null
+  const z = props.uiTextScale || 1
+  if (i === drarCelle.value) {
+    return {
+      transform: `translate(${celleDy.value.x / z}px, ${celleDy.value.y / z}px)`,
+      transition: 'none',
+    }
+  }
+  const f = gitterForskyvning(i, drarCelle.value, overCelle.value, kolonner.value)
+  return { transform: `translate(${f.dKol * kolSteg.value / z}px, ${f.dRad * radSteg.value / z}px)` }
+}
 </script>
 
 <template>
@@ -393,9 +631,16 @@ function settDra(v) {
            kanten. Før målingen er det en flex-rad med etikettene på, så
            cellene står i sin naturlige bredde — se punkt 3 i filhodet. -->
       <div ref="gitterRef" data-snarvei-gitter
-           class="snarvei-rad px-1.5 pt-1.5 gap-1"
+           class="snarvei-rad relative px-1.5 pt-1.5 gap-1"
            :class="maalt ? 'grid overflow-hidden' : 'flex flex-wrap justify-center'"
            :style="gitterStil">
+        <!-- SPØKELSET: der cella lå da draget startet. Absolutt plassert, så
+             det holder ingen gitter-plass — cella den tilhører står fortsatt i
+             sin egen rute og er bare forskjøvet, så ruta kollapser ikke. -->
+        <div v-if="spokelse" aria-hidden="true"
+             class="absolute rounded-xl border border-dashed border-ink/40 pointer-events-none"
+             :style="{ left: `${spokelse.x}px`, top: `${spokelse.y}px`,
+                       width: `${spokelse.w}px`, height: `${spokelse.h}px` }"></div>
         <!-- `aktiv` er valgfri og bæres i dag bare av posisjonen: aksentgrønn
              flate + `aria-pressed`, samme par som vippebryterne i skuffene.
              `aria-pressed` settes bare når knappen FAKTISK er en bryter — en
@@ -403,13 +648,22 @@ function settDra(v) {
              har. `zoom` per knapp: se filhodet. -->
         <button v-for="(s, i) in snarveier" :key="s.id"
                 data-snarvei :data-snarvei-id="s.id"
-                @click="velg(s.id)"
-                :aria-pressed="s.aktiv === undefined ? undefined : !!s.aktiv"
-                :aria-label="s.ariaTekst || s.aria"
-                :style="{ zoom: uiTextScale,
-                          minHeight: `${celleMinH}px`,
-                          opacity: maalt && i >= kolonner ? dra : 1 }"
-                class="shortcut-btn" :class="s.aktiv ? 'shortcut-btn--pa' : ''">
+                @click="sorterer ? trykkCelle(i) : velg(s.id)"
+                @pointerdown="sorterer ? onCelleStart($event, i) : null"
+                @keydown="sorterer ? tastCelle($event, i) : null"
+                :aria-pressed="sorterer || s.aktiv === undefined ? undefined : !!s.aktiv"
+                :aria-label="sorterer
+                  ? `Flytt ${s.aria}. Plass ${i + 1} av ${snarveier.length}. Bruk piltastene.`
+                  : (s.ariaTekst || s.aria)"
+                :style="[{ zoom: uiTextScale,
+                           minHeight: `${celleMinH}px`,
+                           opacity: maalt && i >= kolonner ? dra : 1 },
+                         celleTransform(i)]"
+                class="shortcut-btn"
+                :class="[s.aktiv && !sorterer ? 'shortcut-btn--pa' : '',
+                         sorterer ? 'shortcut-btn--sorter' : '',
+                         drarCelle === i ? 'shortcut-btn--loftet' : '',
+                         valgtCelle === i ? 'shortcut-btn--valgt' : '']">
           <SnarveiIkon :id="s.id" class="w-5 h-5 shrink-0" />
           <!-- NAVNET. Med bryteren PÅ (standard) er `navnAndel` fast 1 og
                etiketten står; med den AV følger både høyden og opasiteten
@@ -431,7 +685,7 @@ function settDra(v) {
            kan dras, og det er den eneste veien inn i skuffa fra tastatur
            (pil ned folder ut, pil opp legger sammen, SC 2.1.1). Et KLIKK gjør
            fortsatt ingenting (v7.5.0). -->
-      <button type="button" data-snarvei-handle
+      <button v-if="!sorterer" type="button" data-snarvei-handle
               class="snarvei-handle shrink-0 w-full cursor-grab
                      active:cursor-grabbing py-3 flex justify-center"
               :aria-expanded="apen"
@@ -441,18 +695,55 @@ function settDra(v) {
         <span class="w-12 h-1.5 rounded-full bg-ink/40"
               :style="{ opacity: drar ? 0.6 : 1 }"></span>
       </button>
+
+      <!-- SORTERINGS-FOOTEREN står der håndtaket sto. Hintet er et `status`-
+           felt: det sier både hva man kan gjøre og hva som NETTOPP skjedde, og
+           en flytting med piltastene eller med to trykk har ellers ingen
+           tilbakemelding for den som ikke ser gitteret. -->
+      <div v-else data-sorter-footer class="px-2 pt-1 pb-2 flex flex-col items-center gap-1.5">
+        <p role="status" aria-live="polite"
+           class="text-[11px] leading-snug text-center text-ink/70"
+           :style="{ zoom: uiTextScale }">{{ sorterHint }}</p>
+        <div class="flex flex-wrap items-center justify-center gap-1.5"
+             :style="{ zoom: uiTextScale }">
+          <button type="button" class="sorter-knapp" @click="emit('tilbakestill')">
+            Tilbakestill
+          </button>
+          <button type="button" class="sorter-knapp sorter-knapp--ferdig"
+                  @click="avsluttSortering">
+            Ferdig
+          </button>
+        </div>
+      </div>
     </div>
 
-    <!-- «Sorter snarveier» toner inn med draget, som alt annet det avdekker.
-         `pointer-events` følger med: en usynlig knapp skal ikke ta trykk. -->
-    <button v-if="dra > 0" type="button" @click="sorter"
-            :style="{ zoom: uiTextScale, opacity: dra,
-                      pointerEvents: apen ? 'auto' : 'none' }"
-            class="pointer-events-auto shrink-0 px-4 py-2 rounded-xl
-                   bg-overlay/90 backdrop-blur shadow-lg text-ink text-[12px]
-                   font-medium whitespace-nowrap active:scale-95 transition">
-      Sorter snarveier
-    </button>
+    <!-- UNDER PILLA: de to knottene som handler om RADEN og ikke om kartet.
+         Begge toner inn med draget, som alt annet det avdekker, og
+         `pointer-events` følger med — en usynlig knapp skal ikke ta trykk.
+
+         BRYTEREN STÅR HER OG IKKE I SORTERINGS-FOOTEREN (v7.7.1). Den lå der
+         først fordi den fulgte med da panelet ble slettet, men å skru navnene
+         av er ikke en sorterings-handling: man vil ha en tettere rad, og da
+         måtte man inn i en modus man ikke hadde noe å gjøre i for å komme til
+         den. Den er SKJULT i sorterings-modus — der er hver celle et objekt man
+         flytter, og en bryter som endrer cellehøyden midt i et drag er en form
+         som skifter under fingeren. -->
+    <div v-if="dra > 0 && !sorterer" class="pointer-events-auto flex items-center gap-2"
+         :style="{ zoom: uiTextScale, opacity: dra,
+                   pointerEvents: apen ? 'auto' : 'none' }">
+      <button type="button" role="switch" :aria-checked="visNavn"
+              aria-label="Vis navn under ikonene når raden er sammenlagt"
+              @click="emit('vis-navn', !visNavn)"
+              class="rad-knott" :class="visNavn ? 'rad-knott--pa' : ''">
+        <span class="rad-knott__spor" aria-hidden="true">
+          <span class="rad-knott__kule"></span>
+        </span>
+        Navn
+      </button>
+      <button type="button" class="rad-knott" @click="startSortering">
+        Sorter
+      </button>
+    </div>
   </div>
 </template>
 
@@ -504,6 +795,121 @@ function settDra(v) {
    for grafiske objekter. */
 .shortcut-btn--pa { background: #059669; color: #fff; }
 .shortcut-btn--pa:hover { background: #047857; }
+
+/* SORTERINGS-MODUS. Cella er den samme knappen — samme størrelse, samme plass
+   i gitteret — men den er nå et OBJEKT man flytter og ikke en funksjon man
+   utløser, og det må ses uten at raden skifter form. `grab`-pekeren og den
+   stiplede kanten sier det på desktop; den løftede cella og spøkelset sier det
+   i bevegelse. */
+.shortcut-btn--sorter {
+  cursor: grab;
+  border: 1px dashed color-mix(in oklab, var(--color-ink) 30%, transparent);
+  /* Kanten legges INNI cella: en ekte border ville gjort den 2 px bredere enn
+     kolonnen den ble målt for, og hele gitteret ville skiftet ved modusbytte. */
+  box-sizing: border-box;
+  transition: transform 0.18s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+.shortcut-btn--sorter:active { transform: none; cursor: grabbing; }
+
+/* Den man holder i: løftet ut av flata, over naboene den passerer. `transition:
+   none` settes inline fra `celleTransform` — uten den henger cella etter
+   fingeren. */
+.shortcut-btn--loftet {
+  z-index: 20;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
+  background: color-mix(in oklab, var(--color-ink) 28%, transparent);
+  border-style: solid;
+}
+
+/* Løftet med ETT trykk, venter på en plass (SC 2.5.7). Aksentfargen er radens
+   egen «på»-grønn: i denne boksen betyr grønt allerede «denne er aktiv». */
+.shortcut-btn--valgt {
+  background: #059669;
+  color: #fff;
+  border-color: #fff;
+}
+
+/* Footer-knappene. Samme form som snarvei-cellene, bare lavere: de hører til
+   raden og ikke til et panel. */
+.sorter-knapp {
+  padding: 5px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 1.1;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--color-ink);
+  background: color-mix(in oklab, var(--color-ink) 12%, transparent);
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.sorter-knapp:active { transform: scale(0.94); }
+.sorter-knapp:hover { background: color-mix(in oklab, var(--color-ink) 20%, transparent); }
+.sorter-knapp--pa { background: #059669; color: #fff; }
+.sorter-knapp--pa:hover { background: #047857; }
+/* «Ferdig» er veien ut, og den eneste knappen her som avslutter noe. */
+.sorter-knapp--ferdig {
+  background: var(--color-ink);
+  color: var(--color-overlay, #111);
+}
+.sorter-knapp--ferdig:hover { background: color-mix(in oklab, var(--color-ink) 85%, transparent); }
+
+/* KNOTTENE UNDER PILLA. De bor UTENFOR den svarte boksen, og har derfor sin
+   egen flate — samme pille-form som overlegget ellers, så de leses som en del
+   av raden og ikke som noe på kartet.
+
+   BRYTEREN BÆRER ET EKTE SPOR, og det er ikke pynt: her står den ved siden av
+   «Sorter», som bare GJØR noe, og uten sporet er forskjellen på en av/på og en
+   handling bare en farge man må ha sett før. Inne i skuffene er den samme
+   forskjellen allerede etablert, men denne står alene over kartet. Sporet er
+   `aria-hidden` — `role="switch"` + `aria-checked` er det hjelpemidlene leser. */
+.rad-knott {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.1;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--color-ink);
+  background: color-mix(in oklab, var(--color-overlay, #111) 90%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.rad-knott:active { transform: scale(0.95); }
+.rad-knott:hover { background: var(--color-overlay, #111); }
+
+/* Sporet: 26 × 14 px er lite nok til å stå i en pille og stort nok til å leses
+   som en bryter. Kula flyttes med `translate` og ikke med `margin`, så
+   bevegelsen er komposittert og ikke en layout-endring. */
+.rad-knott__spor {
+  display: inline-block;
+  width: 26px;
+  height: 14px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--color-ink) 25%, transparent);
+  transition: background 0.15s ease;
+}
+.rad-knott__kule {
+  display: block;
+  width: 10px;
+  height: 10px;
+  margin: 2px;
+  border-radius: 999px;
+  background: var(--color-ink);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+/* PÅ er appens aksentgrønne, som hver vippebryter i skuffene. Emerald-600 og
+   ikke -500: hvitt på -500 gir 2,6:1, under WCAG 1.4.11 sitt krav på 3:1. */
+.rad-knott--pa .rad-knott__spor { background: #059669; }
+.rad-knott--pa .rad-knott__kule { transform: translateX(12px); background: #fff; }
+
+@media (prefers-reduced-motion: reduce) {
+  .shortcut-btn--sorter { transition: none; }
+  .rad-knott__kule { transition: none; }
+}
 
 /* Håndtaket har ingen egen flate — det er streken som er knappen — men
    trykkflata skal svare, så hover/aktiv tar streken og ikke boksen. */

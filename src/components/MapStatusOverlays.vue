@@ -30,6 +30,10 @@ const props = defineProps({
   fredetTruncated: { type: Boolean, default: false },
   fredetCount: { type: Number, default: 0 },
   fredetShown: { type: Number, default: 0 },
+  // Tekstskala fra hovedmenyen (100–200 %). Den settes på TEKSTEN i hvert
+  // banner og aldri på boksen: polstringen og lukke-krysset skal bli stående,
+  // ellers dyttes X-en ut av skjermen ved 200 % (samme regel som SkuffHeader).
+  uiTextScale: { type: Number, default: 1 },
 })
 defineEmits([
   'retryLoad', 'dismissOutside', 'dismissDetails', 'retryDetails', 'dismissLowAccuracy',
@@ -88,20 +92,21 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
        class="absolute top-3 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-full
               bg-overlay/85 text-ink text-[12px] flex items-center gap-2 shadow-lg pointer-events-none">
     <span class="w-3.5 h-3.5 rounded-full border-2 border-ink/30 border-t-ink/85 animate-spin shrink-0"/>
-    <span>Laster kart …</span>
+    <span :style="{ zoom: uiTextScale }">Laster kart …</span>
   </div>
 
   <div v-else-if="loadError" role="alert"
        class="absolute inset-0 flex flex-col items-center justify-center z-10 px-6 text-center"
        :class="isDark ? 'text-ink-2' : 'text-zinc-700'">
-    <div class="text-lg font-semibold mb-2">Kunne ikke laste kartet</div>
-    <div class="text-sm opacity-80 mb-4 max-w-[22rem] leading-snug">{{ loadErrorTekst }}</div>
+    <div class="text-lg font-semibold mb-2" :style="{ zoom: uiTextScale }">Kunne ikke laste kartet</div>
+    <div class="text-sm opacity-80 mb-4 max-w-[22rem] leading-snug"
+         :style="{ zoom: uiTextScale }">{{ loadErrorTekst }}</div>
     <button @click="$emit('retryLoad')"
             class="mt-2 px-4 py-2 rounded-lg border text-sm active:scale-95"
             :class="isDark
                     ? 'bg-ink/10 border-ink/20 text-ink'
                     : 'bg-white border-zinc-300 text-zinc-800'">
-      Prøv igjen
+      <span :style="{ zoom: uiTextScale }">Prøv igjen</span>
     </button>
   </div>
 
@@ -118,7 +123,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
         <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/>
         <circle cx="12" cy="8" r="0.6" fill="currentColor"/>
       </svg>
-      <span class="flex-1 leading-snug">
+      <span class="flex-1 leading-snug" :style="{ zoom: uiTextScale }">
         {{ fredetCount }} arkeologiske kulturminner i dette utsnittet — viser
         de første {{ fredetShown }}. Zoom inn på et mindre område for å se resten.
       </span>
@@ -145,7 +150,8 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
               transition-[left] duration-200"
        :style="mapCenterStyle">
     <div class="flex items-start gap-1.5">
-      <span class="flex-1 min-w-0 leading-snug pt-0.5">{{ positionError }}</span>
+      <span class="flex-1 min-w-0 leading-snug pt-0.5"
+            :style="{ zoom: uiTextScale }">{{ positionError }}</span>
       <button @click="positionErrorDismissed = true" aria-label="Lukk"
               class="w-6 h-6 -mt-0.5 flex items-center justify-center rounded-md
                      text-ink active:scale-90 active:bg-ink/10 shrink-0">
@@ -158,7 +164,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
     <button @click="$emit('retryGps')"
             class="mt-1.5 mb-0.5 w-full px-3 py-1 rounded-md bg-ink/20 border border-ink/30 text-ink
                    text-[12px] font-medium active:scale-[0.98] transition">
-      Prøv igjen
+      <span :style="{ zoom: uiTextScale }">Prøv igjen</span>
     </button>
   </div>
   <div v-else-if="!loading && showOutsideMap" role="status" aria-live="polite"
@@ -167,7 +173,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
               text-ink text-[12px] shadow-lg flex items-center gap-1.5 pl-3 pr-1 py-2
               transition-[left] duration-200"
        :style="mapCenterStyle">
-    <span>Du er utenfor dette kartet.</span>
+    <span :style="{ zoom: uiTextScale }">Du er utenfor dette kartet.</span>
     <button @click="$emit('dismissOutside')" aria-label="Greit, skjønner"
             class="w-6 h-6 -my-0.5 flex items-center justify-center rounded-md
                    text-ink active:scale-90 active:bg-ink/10 shrink-0">
@@ -185,7 +191,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
               rounded-lg backdrop-blur on-accent bg-amber-800/95 border border-amber-300/40
               text-ink text-[12px] shadow-lg p-3">
     <div class="flex items-start gap-2">
-      <div class="flex-1 min-w-0 leading-snug">
+      <div class="flex-1 min-w-0 leading-snug" :style="{ zoom: uiTextScale }">
         Fikk ikke lastet stier og detaljer. Kartet viser bare terreng nå.
       </div>
       <button @click="$emit('dismissDetails')" aria-label="Lukk"
@@ -200,7 +206,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
     <button @click="$emit('retryDetails')"
             class="mt-2 w-full px-3 py-1.5 rounded-md bg-ink/15 border border-ink/25
                    text-ink text-[12px] font-medium active:scale-[0.98]">
-      Prøv på nytt
+      <span :style="{ zoom: uiTextScale }">Prøv på nytt</span>
     </button>
   </div>
 
@@ -212,7 +218,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
               rounded-lg backdrop-blur on-accent bg-amber-800/95 border border-amber-300/40
               text-ink text-[12px] shadow-lg p-3">
     <div class="flex items-start gap-2">
-      <div class="flex-1 min-w-0 leading-snug">
+      <div class="flex-1 min-w-0 leading-snug" :style="{ zoom: uiTextScale }">
         Dette kartet ble ikke ferdig bygd og viser bare terreng.
         <span v-if="isOffline" class="block mt-0.5 text-ink-2">Koble til nett for å fullføre det.</span>
       </div>
@@ -229,7 +235,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
             class="mt-2 w-full px-3 py-1.5 rounded-md bg-ink/15 border border-ink/25
                    text-ink text-[12px] font-medium active:scale-[0.98]
                    disabled:opacity-50 disabled:active:scale-100">
-      {{ isOffline ? 'Fullfør (krever nett)' : 'Fullfør kartet' }}
+      <span :style="{ zoom: uiTextScale }">{{ isOffline ? 'Fullfør (krever nett)' : 'Fullfør kartet' }}</span>
     </button>
   </div>
 
@@ -241,7 +247,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
               rounded-lg backdrop-blur on-accent bg-amber-800/95 border border-amber-300/40
               text-ink text-[12px] shadow-lg p-3">
     <div class="flex items-start gap-2">
-      <div class="flex-1 min-w-0 leading-snug">
+      <div class="flex-1 min-w-0 leading-snug" :style="{ zoom: uiTextScale }">
         Kartet har {{ mosaicGapCount === 1 ? 'et hull' : `${mosaicGapCount} hull` }} etter en avbrutt utvidelse.
         <span v-if="isOffline" class="block mt-0.5 text-ink-2">Koble til nett for å fylle {{ mosaicGapCount === 1 ? 'det' : 'dem' }}.</span>
       </div>
@@ -258,7 +264,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
             class="mt-2 w-full px-3 py-1.5 rounded-md bg-ink/15 border border-ink/25
                    text-ink text-[12px] font-medium active:scale-[0.98]
                    disabled:opacity-50 disabled:active:scale-100">
-      {{ isOffline ? 'Fyll hull (krever nett)' : (mosaicGapCount === 1 ? 'Fyll hullet' : 'Fyll hullene') }}
+      <span :style="{ zoom: uiTextScale }">{{ isOffline ? 'Fyll hull (krever nett)' : (mosaicGapCount === 1 ? 'Fyll hullet' : 'Fyll hullene') }}</span>
     </button>
   </div>
 
@@ -273,7 +279,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
               rounded-lg backdrop-blur bg-overlay/95 border border-ink/15
               text-ink text-[12px] shadow-lg p-3">
     <div class="flex items-start gap-2">
-      <div class="flex-1 min-w-0 leading-snug">
+      <div class="flex-1 min-w-0 leading-snug" :style="{ zoom: uiTextScale }">
         Arket har ujevn kant. Fyller du ut til firkant, dekker 3D og
         oversikts-zoom hele området.
         <span v-if="isOffline" class="block mt-0.5 text-ink-2">Koble til nett for å bygge.</span>
@@ -291,7 +297,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
             class="mt-2 w-full px-3 py-1.5 rounded-md bg-ink/10 border border-ink/20
                    text-ink text-[12px] font-medium active:scale-[0.98]
                    disabled:opacity-50 disabled:active:scale-100">
-      {{ isOffline ? 'Gjør arket firkantet (krever nett)' : `Gjør arket firkantet · +${firkantAntall} ${firkantAntall === 1 ? 'flis' : 'fliser'}` }}
+      <span :style="{ zoom: uiTextScale }">{{ isOffline ? 'Gjør arket firkantet (krever nett)' : `Gjør arket firkantet · +${firkantAntall} ${firkantAntall === 1 ? 'flis' : 'fliser'}` }}</span>
     </button>
   </div>
 
@@ -305,7 +311,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
        class="absolute bottom-32 left-3 right-20 z-20 max-w-[420px] px-3 py-2.5
               rounded-lg backdrop-blur on-accent bg-amber-800/95 border border-amber-300/40
               text-ink text-[12px] shadow-lg flex items-start gap-2">
-    <div class="flex-1 min-w-0 leading-snug">
+    <div class="flex-1 min-w-0 leading-snug" :style="{ zoom: uiTextScale }">
       <div class="font-semibold mb-0.5">
         Unøyaktig posisjon (&plusmn;{{ Math.round(accuracyM) }} m)
       </div>

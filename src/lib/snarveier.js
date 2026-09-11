@@ -12,7 +12,8 @@
  * REKKEFØLGEN ER BRUKERENS. Standarden under er en påstand om hva folk bruker
  * mest, ikke en sannhet — og på en smal skjerm er det nettopp rekkefølgen som
  * avgjør hva som havner bak håndtaket. Derfor kan den sorteres, og derfor står
- * «Sorter snarveier» som en fast, fristilt knapp under den ÅPNE raden: en knott
+ * «Sorter» som en fast, fristilt knapp under den ÅPNE raden — ved siden av
+ * navne-bryteren, som er den andre knotten som handler om raden selv: en knott
  * ingen vet om er ingen knott.
  *
  * Modulen er REN — ingen DOM, ingen Vue, ingen localStorage-lesing på
@@ -203,16 +204,69 @@ export function antallRader(antall, kolonner) {
 }
 
 /**
- * Hvilken plass et drag peker på, regnet av HVOR LANGT fingeren har flyttet
- * seg og ikke av hvor de andre radene ligger nå.
+ * Hvilken PLASS i gitteret et punkt peker på — sorteringens ene måling.
  *
- * Det er forskjellen på en liste som sorterer seg live og en som viser hva som
- * kommer til å skje: her flyttes ingenting før fingeren slippes, så radhøyden
- * er konstant hele draget og indeksen er ren aritmetikk. En måling av
- * midtpunktene ville lest av rader som selv er forskjøvet av draget.
+ * SORTERINGEN SKJER I SELVE RADEN (v7.7.0), ikke i en liste i et panel, og da
+ * er målet et 2D-gitter og ikke en kolonne. Koordinatene er relative til FØRSTE
+ * celles hjørne, og stegene er MÅLT av den ekte layouten (avstanden mellom to
+ * naboceller) og ikke regnet av cellebredde + gap: cellene bærer `zoom`, så en
+ * utregning ville vært riktig ved 100 % og feil ved 200 %.
+ *
+ * Punktet som sendes inn er den dratte cellas SENTER, ikke fingeren: griper man
+ * i kanten av en knapp, skal den lande der knappen er — ikke der tommelen er.
  */
-export function flytteIndeks(fra, dy, radHoyde, antall) {
-  if (!(radHoyde > 0) || antall <= 0) return fra
-  const til = fra + Math.round(dy / radHoyde)
-  return Math.max(0, Math.min(antall - 1, til))
+export function gitterIndeks(x, y, kolSteg, radSteg, kolonner, antall) {
+  if (!(kolSteg > 0) || !(radSteg > 0) || !(kolonner > 0) || !(antall > 0)) return 0
+  const k = Math.max(0, Math.min(kolonner - 1, Math.floor(x / kolSteg)))
+  const r = Math.max(0, Math.min(antallRader(antall, kolonner) - 1, Math.floor(y / radSteg)))
+  return Math.min(antall - 1, r * kolonner + k)
+}
+
+/**
+ * Hvor mange kolonner og rader celle `i` må gli for å åpne gapet der cella som
+ * dras (`fra`) vil lande (`til`).
+ *
+ * Dette er forhåndsvisningen av slippet, og den er hele grunnen til at ingenting
+ * flyttes før fingeren slippes: rekkefølgen står stille, så stegene er konstante
+ * og forskyvningen ren aritmetikk. I et gitter kan ett hakk bety at cella hopper
+ * til NESTE RAD — derfor to tall og ikke ett.
+ */
+export function gitterForskyvning(i, fra, til, kolonner) {
+  const ingen = { dKol: 0, dRad: 0 }
+  if (!(kolonner > 0) || fra < 0 || til < 0 || fra === til || i === fra) return ingen
+  let ny = i
+  if (fra < til && i > fra && i <= til) ny = i - 1
+  else if (til < fra && i >= til && i < fra) ny = i + 1
+  if (ny === i) return ingen
+  return {
+    dKol: (ny % kolonner) - (i % kolonner),
+    dRad: Math.floor(ny / kolonner) - Math.floor(i / kolonner),
+  }
+}
+
+/**
+ * Fletter en ny SYNLIG rekkefølge inn i den fulle.
+ *
+ * Raden sorterer bare det den viser, og på de innebygde demokartene faller
+ * Annotering og Sporing bort (`kunEgne`) — de står fortsatt i brukerens lagrede
+ * rekkefølge og skal ikke miste plassen sin av at man sorterte et kart der de
+ * ikke finnes. Hver skjulte id blir derfor liggende ETTER den synlige den lå
+ * etter fra før; lå den først av alt, blir den liggende først.
+ */
+export function flettSynligRekkefolge(full, synligNy) {
+  const synlig = new Set(synligNy)
+  const etter = new Map()
+  let forrige = null
+  for (const id of Array.isArray(full) ? full : []) {
+    if (synlig.has(id)) { forrige = id; continue }
+    const arr = etter.get(forrige) || []
+    arr.push(id)
+    etter.set(forrige, arr)
+  }
+  const ut = [...(etter.get(null) || [])]
+  for (const id of synligNy) {
+    ut.push(id)
+    for (const skjult of etter.get(id) || []) ut.push(skjult)
+  }
+  return normaliserRekkefolge(ut)
 }

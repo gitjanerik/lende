@@ -848,49 +848,86 @@ const SJEKKER = [
     },
   },
   {
-    // «SORTER SNARVEIER» ER DET ENESTE ARKET RADEN ÅPNER (v7.4.0). Fram til nå
-    // åpnet åpen-linja tre ark på samme z-40 — Sorter, Strek og Relieff — som
-    // kunne stables oppå hverandre, og v7.3.1 måtte gjøre `lukkFunksjonsSkuffer`
-    // til én felles rydding. Strek og relieff er innstillinger nå og bor i
-    // skuffa; det som står igjen å måle er at Sorter-arket og innstillings-
-    // skuffen viker for hverandre begge veier, siden de bærer nettopp de to
-    // kontrollene som nettopp byttet hjem.
-    navn: 'Sorter-arket og innstillings-skuffen viker for hverandre',
-    domene: 'MapView (lukkFunksjonsSkuffer)',
+    // SORTERINGEN SKJER I RADEN (v7.7.0), og de to veiene som IKKE er et drag
+    // måles her — de er akkurat de som forsvinner stille om noen «rydder» i
+    // modusen senere:
+    //
+    //   • ETT TRYKK LØFTER, DET NESTE PLASSERER. Dette er SC 2.5.7: en
+    //     dra-bevegelse skal kunne gjøres med ett enkelt trykk. Det var
+    //     panelets opp/ned-knapper som bar kravet før, og et tastatur-
+    //     alternativ dekker det IKKE.
+    //   • PILTASTENE flytter den fokuserte cella, og FOKUS FØLGER MED. Uten
+    //     det må man tabbe seg fram på nytt for hvert eneste hakk, og da er
+    //     tastatur-veien teknisk til stede og praktisk ubrukelig (SC 2.1.1).
+    //
+    // Måles på DOM-en og ikke på pikslene: begge deler er rene rekkefølge-
+    // endringer, og de har ingen egen geometri å lese av.
+    navn: 'sorteringen i raden: ett trykk løfter, piltastene flytter',
+    domene: 'SnarveiRad (sorterings-modus) + lib/snarveier',
     async kjør(page) {
-      const åpne = () => page.evaluate(() => ({
-        sorter: [...document.querySelectorAll('[aria-label="Lukk Sorter snarveier"]')]
-          .filter((e) => e.offsetParent !== null).length,
-        skuff: [...document.querySelectorAll('[aria-label="Lukk Valg"]')]
-          .filter((e) => e.offsetParent !== null).length,
-      }))
+      const ider = () => page.evaluate(() =>
+        [...document.querySelectorAll('[data-snarvei-id]')].map((e) => e.getAttribute('data-snarvei-id')))
 
       await lukkDrawer(page)
-      await apneSnarveiRad(page)
-      await klikkTekst(page, /^Sorter snarveier$/)
-      await page.waitForTimeout(400)
-      let n = await åpne()
-      if (n.sorter !== 1) throw new Error('Sorter-arket åpnet ikke')
-
-      // Sorter → Innstillinger: arket skal være borte, ikke ligge under skuffa.
-      await åpneDrawer(page)
-      await page.waitForTimeout(400)
-      n = await åpne()
-      if (n.skuff !== 1) throw new Error('innstillings-skuffen åpnet ikke')
-      if (n.sorter !== 0) throw new Error('Sorter-arket ble stående under skuffa')
-
-      // Innstillinger → Sorter, altså den motsatte veien.
-      await lukkDrawer(page)
-      await apneSnarveiRad(page)
-      await klikkTekst(page, /^Sorter snarveier$/)
-      await page.waitForTimeout(400)
-      n = await åpne()
-      if (n.sorter !== 1) throw new Error('Sorter-arket åpnet ikke andre gang')
-      if (n.skuff !== 0) throw new Error('skuffa ble stående under Sorter-arket')
-
-      await lukkFunksjonsSkuff(page, 'Sorter snarveier')
       await lukkSnarveiRad(page)
-      return 'Sorter ↔ Innstillinger ga ett ark hele veien'
+      const start = await ider()
+      if (start.length < 3) throw new Error('for få snarveier til å sortere')
+
+      await startSortering(page)
+      if (!(await page.locator('[data-sorter-footer]').count())) {
+        throw new Error('sorterings-modus startet ikke — ingen footer i raden')
+      }
+      if (await page.locator('.snarvei-handle').count()) {
+        throw new Error('håndtaket står igjen i sorterings-modus — det kan ikke dra noe der')
+      }
+
+      // ETT TRYKK, SÅ ETT TIL: løft den første og legg den på tredjeplass.
+      const celle = (i) => page.locator('[data-snarvei]').nth(i)
+      await celle(0).click()
+      await page.waitForTimeout(200)
+      const loftet = await page.locator('.shortcut-btn--valgt').count()
+      if (loftet !== 1) throw new Error(`ett trykk løftet ${loftet} celler, ikke én`)
+      await celle(2).click()
+      await page.waitForTimeout(300)
+      const etterTrykk = await ider()
+      if (etterTrykk[2] !== start[0]) {
+        throw new Error(`to trykk flyttet ikke ${start[0]} til plass 3: ${etterTrykk.join(',')}`)
+      }
+      if (await page.locator('.shortcut-btn--valgt').count()) {
+        throw new Error('cella står fortsatt løftet etter at den ble plassert')
+      }
+
+      // PILTASTENE: fokuser cella som nettopp landet, og send den ett hakk
+      // tilbake. Fokus skal være PÅ DEN SAMME cella etterpå.
+      await celle(2).focus()
+      await page.keyboard.press('ArrowLeft')
+      await page.waitForTimeout(300)
+      const etterPil = await ider()
+      if (etterPil[1] !== start[0]) {
+        throw new Error(`piltasten flyttet ikke cella: ${etterPil.join(',')}`)
+      }
+      const fokusId = await page.evaluate(() =>
+        document.activeElement?.getAttribute('data-snarvei-id') || null)
+      if (fokusId !== start[0]) {
+        throw new Error(`fokus fulgte ikke cella (sto på «${fokusId}») — `
+          + 'da må man tabbe seg fram på nytt for hvert hakk')
+      }
+
+      // NØYTRAL TILSTAND: standard rekkefølge tilbake, modusen av, raden sammen.
+      await klikkTekst(page, /^Tilbakestill$/, '[data-sorter-footer]')
+      await avsluttSortering(page)
+      await page.waitForTimeout(300)
+      const slutt = await ider()
+      if (slutt.join(',') !== start.join(',')) {
+        throw new Error(`«Tilbakestill» ga ikke standard rekkefølge: ${slutt.join(',')}`)
+      }
+      if (await page.locator('[data-sorter-footer]').count()) {
+        throw new Error('«Ferdig» avsluttet ikke sorterings-modus')
+      }
+      const apen = await page.locator('.snarvei-handle').getAttribute('aria-expanded')
+      if (apen !== 'false') throw new Error('«Ferdig» la ikke raden sammen igjen')
+      return `to trykk og en piltast flyttet ${start[0]}, fokus fulgte med, `
+        + 'Tilbakestill + Ferdig ryddet'
     },
   },
   {
@@ -1068,6 +1105,81 @@ const SJEKKER = [
     },
   },
   {
+    // TOASTENE OG BANNERNE PÅ KARTET FØLGER TEKSTSTØRRELSEN (v7.6.1), og de er
+    // de eneste flatene der teksten ER hele innholdet. Måleboksen står modell
+    // for dem alle — den har både et tekstfelt og et lukke-kryss, altså
+    // nøyaktig den kombinasjonen regelen handler om. Tre ting måles, og bare
+    // det første kan en enhetstest se:
+    //   • tekstblokka VOKSER (zoom ligger på innholdet);
+    //   • X-EN GJØR DET IKKE — zoom på boksen ville skalert polstringen og
+    //     dyttet krysset ut, altså en beskjed man ikke blir kvitt ved 200 %;
+    //   • boksen holder seg innenfor skjermen, fordi bredde-taket følger
+    //     skalaen (`maksBredde`) med 92 % som tak.
+    navn: 'måleboksens tekst vokser med tekststørrelsen, krysset blir stående',
+    domene: 'MapModeChips + MapStatusOverlays (zoom på innhold, ikke på boksen)',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await lukkSnarveiRad(page)
+      const mål = () => page.evaluate(() => {
+        const boks = document.querySelector('[data-maal-boks]')
+        if (!boks) return null
+        const tekst = boks.querySelector('[data-maal-tekst]')
+        const kryss = boks.querySelector('[aria-label="Avslutt måling"]')
+        const r = (e) => { const q = e.getBoundingClientRect(); return { b: Math.round(q.width), h: Math.round(q.height) } }
+        return {
+          tekst: r(tekst), kryss: r(kryss),
+          hoyre: Math.round(boks.getBoundingClientRect().right),
+          vindu: window.innerWidth,
+          zoom: getComputedStyle(tekst).zoom,
+        }
+      })
+      const sett = async (skala) => {
+        await page.evaluate((v) => { localStorage.setItem('lende-ui-text-scale', String(v)) }, skala)
+        await page.reload({ waitUntil: 'domcontentloaded' })
+        await page.waitForTimeout(2500)
+        await lukkDrawer(page)
+      }
+
+      // MÅLE-MODUS SKJULER SNARVEI-RADEN (se v-if-en i MapView), så håndtaket
+      // finnes ikke mens målingen står på — raden må lukkes FØR og målingen
+      // avsluttes før neste gang den skal åpnes.
+      const stoppMåling = async () => {
+        const x = page.locator('[aria-label="Avslutt måling"]')
+        if (await x.count()) { await x.first().click(); await page.waitForTimeout(300) }
+      }
+      await klikkSnarvei(page, 'maaling')
+      const ved100 = await mål()
+      if (!ved100) throw new Error('fant ikke måleboksen etter at målingen ble slått på')
+      try {
+        await stoppMåling()
+        await sett(2)
+        // Målemodus overlever ikke en reload — slå den på igjen.
+        await klikkSnarvei(page, 'maaling')
+        const ved200 = await mål()
+        if (!ved200) throw new Error('måleboksen kom ikke tilbake ved 200 %')
+        if (!(ved200.tekst.h > ved100.tekst.h * 1.4)) {
+          throw new Error(`måleboksens tekst vokste ikke (${ved100.tekst.h} → ${ved200.tekst.h} px) `
+            + '— følger den uiTextScale?')
+        }
+        if (Math.abs(ved200.kryss.b - ved100.kryss.b) > 2) {
+          throw new Error(`lukke-krysset endret størrelse (${ved100.kryss.b} → ${ved200.kryss.b} px) `
+            + '— ligger zoomen på boksen i stedet for på teksten?')
+        }
+        if (ved200.hoyre > ved200.vindu) {
+          throw new Error(`måleboksen går ${ved200.hoyre - ved200.vindu} px utenfor skjermen ved 200 % `
+            + '— følger bredde-taket skalaen?')
+        }
+        return `tekst ${ved100.tekst.h} → ${ved200.tekst.h} px (zoom ${ved200.zoom}), `
+          + `krysset ${ved200.kryss.b} px, boksen innenfor ${ved200.vindu} px`
+      } finally {
+        // NØYTRAL TILSTAND: måle-modus bytter ut kart-flata for neste sjekk.
+        await stoppMåling()
+        await sett(1)
+        await lukkSnarveiRad(page)
+      }
+    },
+  },
+  {
     // «VIS NAVN NÅR MINIMERT» ER EN BRYTER (v7.6.0), øverst i Sorter-panelet og
     // PÅ som standard. Sjekken slår den AV og krever de tre tingene som skiller
     // den fra en ren visning/skjuling, og som ingen enhetstest kan se:
@@ -1077,7 +1189,7 @@ const SJEKKER = [
     //   • draget gir BEGGE deler tilbake — navn og høyde i samme bevegelse.
     // Til slutt settes den tilbake: resten av suiten kjører med standarden.
     navn: 'bryteren «Vis navn når minimert» krymper cella og draget gir den tilbake',
-    domene: 'SorterSnarveier + SnarveiRad + lib/snarveier',
+    domene: 'SnarveiRad (navne-bryteren) + lib/snarveier',
     async kjør(page) {
       await lukkDrawer(page)
       await lukkSnarveiRad(page)
@@ -1091,21 +1203,21 @@ const SJEKKER = [
           navnOpasitet: navn ? Number(getComputedStyle(navn).opacity) : -1,
         }
       })
+      // BRYTEREN BOR UNDER PILLA, VED SIDEN AV «Sorter» (v7.7.1) — ikke i et
+      // panel, og ikke i sorterings-footeren: å skru navnene av er ingen
+      // sorterings-handling, så veien dit skal ikke gå gjennom en modus.
       const vipp = async () => {
         await apneSnarveiRad(page)
-        await klikkTekst(page, /^Sorter snarveier$/)
-        await page.waitForTimeout(400)
         const ok = await page.evaluate(() => {
-          const b = [...document.querySelectorAll('[role="switch"]')]
-            .find((e) => e.offsetParent !== null)
+          const b = [...document.querySelectorAll('[role="switch"]')].find((e) =>
+            e.offsetParent && /Vis navn/.test(e.getAttribute('aria-label') || ''))
           if (!b) return null
           const før = b.getAttribute('aria-checked')
           b.click()
           return før
         })
-        if (ok === null) throw new Error('fant ingen bryter i Sorter-panelet')
+        if (ok === null) throw new Error('fant ingen «Navn»-bryter under raden')
         await page.waitForTimeout(400)
-        await lukkFunksjonsSkuff(page, 'Sorter snarveier')
         await lukkSnarveiRad(page)
         await page.waitForTimeout(500)
         return ok
@@ -1452,97 +1564,72 @@ const SJEKKER = [
       await page.setViewportSize(forrigeVindu)
       await page.waitForTimeout(500)
 
-      // Åpne nedtrekket → «Sorter snarveier» → flytt førstemann ned → sjekk at
-      // raden faktisk skiftet rekkefølge (det er lagringen som er poenget).
+      // SORTERINGEN SKJER I SELVE RADEN (v7.7.0), og det er nettopp derfor den
+      // hører hjemme i DENNE sjekken: den måler hvor mange kolonner raden får
+      // og hvem som havner i første rad, og det er samme gitter man nå flytter
+      // knappene i. Panelet kunne per konstruksjon ikke svare på det — det var
+      // en loddrett liste uten et kolonnetall.
+      //
+      // TRE TING MÅLES, og ingen av dem finnes i en enhetstest:
+      //   • cella man drar FØLGER FINGEREN (en `transform` skrevet fra en
+      //     pekerhendelse), og et SPØKELSE holder plassen den forlot;
+      //   • naboene GLIR til side, altså forhåndsvisningen av slippet;
+      //   • rekkefølgen endrer seg først VED SLIPP, og raden speiler den.
       const forFor = (await les()).ider
-      await apneSnarveiRad(page)
-      await klikkTekst(page, /^Sorter snarveier$/)
-      const iSkuff = await page.evaluate(() =>
-        [...document.querySelectorAll('button')]
-          .some((b) => b.offsetParent && /^Flytt .* ned$/.test(b.getAttribute('aria-label') || '')))
-      if (!iSkuff) throw new Error('sorterings-skuffen åpnet ikke')
-      await page.evaluate(() => {
-        const b = [...document.querySelectorAll('button')]
-          .find((e) => e.offsetParent && /^Flytt .* ned$/.test(e.getAttribute('aria-label') || ''))
-        b.click()
-      })
-      await page.waitForTimeout(400)
-      // Lista er fasiten mens skuffa står åpen — raden bak den er bare de
-      // snarveiene som får plass. Piltrykket og draget kontrolleres derfor
-      // hver for seg her, og til slutt at raden faktisk speiler lista.
-      const listeIder = () => page.evaluate(() =>
-        [...document.querySelectorAll('[data-rad-id]')].map((e) => e.getAttribute('data-rad-id')))
-      const etterPil = await listeIder()
-      if (etterPil[0] === forFor[0]) {
-        throw new Error(`ned-pila flyttet ingenting: ${etterPil.join(',')}`)
+      await startSortering(page)
+      if (!(await page.locator('[data-sorter-footer]').count())) {
+        throw new Error('sorterings-modus startet ikke')
       }
 
-      // DRAGET MÅ SES, ellers er det ikke et drag (v6.6.1). Fram til v6.6.0
-      // sorterte lista seg live under fingeren: raden man holdt i sto stille
-      // mens naboene byttet plass rundt den, og eieren meldte at han knapt så
-      // at noe var sortert. De to tingene som gjør det synlig — at raden man
-      // drar i FØLGER fingeren, og at et spøkelse holder plassen den forlot —
-      // finnes ikke i noen enhetstest: det ene er en `transform` skrevet fra
-      // en pekerhendelse, det andre et element som bare finnes mens man drar.
       const drag = await (async () => {
-        const grep = page.locator('[data-rad] [aria-hidden="true"].cursor-grab').first()
-        const boks = await grep.boundingBox()
-        if (!boks) return { feil: 'fant ikke drag-grepet i sorteringslista' }
-        await page.mouse.move(boks.x + boks.width / 2, boks.y + boks.height / 2)
+        const celler = page.locator('[data-snarvei]')
+        const fra = await celler.nth(0).boundingBox()
+        const til = await celler.nth(1).boundingBox()
+        if (!fra || !til) return { feil: 'fant ikke to celler å bytte om på' }
+        await page.mouse.move(fra.x + fra.width / 2, fra.y + fra.height / 2)
         await page.mouse.down()
-        await page.mouse.move(boks.x + boks.width / 2, boks.y + boks.height / 2 + 20, { steps: 4 })
-        await page.mouse.move(boks.x + boks.width / 2, boks.y + boks.height / 2 + 70, { steps: 8 })
+        await page.mouse.move(fra.x + fra.width / 2 + 12, fra.y + fra.height / 2, { steps: 3 })
+        await page.mouse.move(til.x + til.width / 2, til.y + til.height / 2, { steps: 8 })
         const midt = await page.evaluate(() => {
-          const drar = document.querySelector('.sorter-rad--drar')
-          const spok = document.querySelector('.sorter-ghost')
-          const m = /translateY\((-?[\d.]+)px\)/.exec(drar?.style.transform || '')
-          return { dy: m ? Number(m[1]) : null, spokelse: !!spok }
+          const loftet = document.querySelector('.shortcut-btn--loftet')
+          const spok = document.querySelector('.snarvei-rad > [aria-hidden="true"]')
+          const nabo = document.querySelectorAll('[data-snarvei]')[1]
+          const tall = (el) => {
+            const m = /translate\((-?[\d.]+)px/.exec(el?.style.transform || '')
+            return m ? Number(m[1]) : null
+          }
+          return { dx: tall(loftet), naboDx: tall(nabo), spokelse: !!spok }
         })
         await page.mouse.up()
         await page.waitForTimeout(400)
         return midt
       })()
       if (drag.feil) throw new Error(drag.feil)
-      if (!(Math.abs(drag.dy ?? 0) > 40)) {
-        throw new Error(`raden man drar i fulgte ikke fingeren (translateY ${drag.dy}) `
-          + '— da er det bare naboene som beveger seg, altså feilen fra v6.6.0')
+      if (!(Math.abs(drag.dx ?? 0) > 20)) {
+        throw new Error(`cella man drar i fulgte ikke fingeren (translate ${drag.dx}px)`)
       }
       if (!drag.spokelse) {
-        throw new Error('ingen spøkelses-boks der raden lå — lista kollapser i det draget starter')
+        throw new Error('ingen spøkelses-boks der cella lå — man ser ikke hvor den kom fra')
+      }
+      if (!(Math.abs(drag.naboDx ?? 0) > 20)) {
+        throw new Error(`naboen gled ikke til side (translate ${drag.naboDx}px) — `
+          + 'da er det ingen forhåndsvisning av hva slippet gjør')
       }
 
-      const etterDrag = await listeIder()
-      if (etterDrag.join(',') === etterPil.join(',')) {
+      const etterDrag = (await les()).ider
+      if (etterDrag[0] === forFor[0]) {
         throw new Error(`draget flyttet ingenting: ${etterDrag.join(',')}`)
-      }
-
-      await lukkFunksjonsSkuff(page, 'Sorter snarveier')
-      const etter = (await les()).ider
-      // Raden er et UTVALG av lista og ikke et prefiks av den: på et innebygd
-      // demokart faller Annotering og Sporing bort (`kunEgne`), og når hele
-      // raden får plass er den derfor kortere enn lista uten å begynne likt.
-      // Invarianten er at radens ider kommer i SAMME REKKEFØLGE som lagret.
-      const erDelsekvens = (kort, lang) => {
-        let i = 0
-        for (const id of lang) if (id === kort[i]) i++
-        return i === kort.length
-      }
-      if (!erDelsekvens(etter, etterDrag)) {
-        throw new Error(`raden speiler ikke den lagrede rekkefølgen: `
-          + `${etter.join(',')} mot ${etterDrag.join(',')}`)
       }
 
       // Rydd etter seg — neste sjekk skal møte standard rekkefølge, og en
       // localStorage-nøkkel som blir liggende gjør sjekker etter denne
       // avhengige av hvilken rekkefølge DENNE endte på.
-      await apneSnarveiRad(page)
-      await klikkTekst(page, /^Sorter snarveier$/)
-      await klikkTekst(page, /^Tilbakestill til standard rekkefølge$/)
-      await lukkFunksjonsSkuff(page, 'Sorter snarveier')
+      await klikkTekst(page, /^Tilbakestill$/, '[data-sorter-footer]')
+      await avsluttSortering(page)
       const slutt = (await les()).ider
       if (slutt[0] !== forFor[0]) throw new Error('tilbakestillingen ga ikke standard rekkefølge')
-      return `${funn.join(', ')}; sortering flyttet ${forFor[0]}, `
-        + `draget fulgte fingeren (${Math.round(drag.dy)}px) med spøkelse, og tilbakestilte`
+      return `${funn.join(', ')}; draget i raden byttet ${forFor[0]} og ${forFor[1]} `
+        + `(cella ${Math.round(drag.dx)}px, naboen ${Math.round(drag.naboDx)}px), og tilbakestilte`
     },
   },
   {
@@ -1609,10 +1696,16 @@ const SJEKKER = [
         const rad = document.querySelector('.snarvei-rad')
         const handle = document.querySelector('.snarvei-handle')
         const sorter = [...document.querySelectorAll('button')]
-          .find((b) => b.offsetParent && b.innerText.trim() === 'Sorter snarveier')
+          .find((b) => b.offsetParent && b.innerText.trim() === 'Sorter')
         if (!rad || !handle || !sorter) {
-          return { mangler: !rad ? 'raden' : !handle ? 'håndtaket' : '«Sorter snarveier»' }
+          return { mangler: !rad ? 'raden' : !handle ? 'håndtaket' : '«Sorter»' }
         }
+        // KNOTTE-RADA er det midtstilte, ikke knappen: fra v7.7.1 står «Sorter»
+        // ved siden av navne-bryteren, og en knapp som er midtstilt for seg selv
+        // ville betydd at den andre knotten ikke finnes.
+        const knotter = sorter.parentElement
+        const bryter = knotter.querySelector('[role="switch"]')
+        const kr = knotter.getBoundingClientRect()
         const r = rad.getBoundingClientRect()
         const h = handle.getBoundingClientRect()
         const so = sorter.getBoundingClientRect()
@@ -1626,8 +1719,12 @@ const SJEKKER = [
           strekMidt: strek ? Math.round(strek.left + strek.width / 2) : 0,
           sorterUnderHandtaket: so.top >= h.bottom - 1,
           sorterUtenforBoksen: !rad.parentElement.contains(sorter),
-          sorterMidt: Math.round(so.left + so.width / 2),
+          knotterMidt: Math.round(kr.left + kr.width / 2),
           sorterHarIkon: !!sorter.querySelector('svg'),
+          harBryter: !!bryter,
+          bryterSjekket: bryter?.getAttribute('aria-checked') || null,
+          bryterVedSiden: !!bryter
+            && Math.abs(bryter.getBoundingClientRect().top - so.top) < 6,
         }
       })
       if (geo.mangler) throw new Error(`fant ingen ${geo.mangler}`)
@@ -1646,23 +1743,51 @@ const SJEKKER = [
           'det er ikke appens drawer-håndtak lenger')
       }
       if (!geo.sorterUnderHandtaket) {
-        throw new Error('«Sorter snarveier» står ikke under håndtaket')
+        throw new Error('«Sorter» står ikke under håndtaket')
       }
       if (!geo.sorterUtenforBoksen) {
-        throw new Error('«Sorter snarveier» ligger inne i radens boks — den skal være fristilt')
+        throw new Error('«Sorter» ligger inne i radens boks — den skal være fristilt')
       }
       if (geo.sorterHarIkon) {
-        throw new Error('«Sorter snarveier» har fått et ikon igjen — knappen er ren tekst')
+        throw new Error('«Sorter» har fått et ikon igjen — knappen er ren tekst')
       }
-      if (Math.abs(geo.sorterMidt - geo.radMidt) > 4) {
-        throw new Error('«Sorter snarveier» er ikke midtstilt under raden')
+      if (Math.abs(geo.knotterMidt - geo.radMidt) > 4) {
+        throw new Error('knotte-rada under håndtaket er ikke midtstilt under raden')
       }
+      // NAVNE-BRYTEREN STÅR HER, IKKE I SORTERINGS-FOOTEREN (v7.7.1). Den satt
+      // der ett øyeblikk fordi den fulgte med da panelet ble slettet — og da
+      // måtte man inn i sorterings-modus for å skru navnene av.
+      if (!geo.harBryter) {
+        throw new Error('navne-bryteren står ikke ved siden av «Sorter» — '
+          + 'da må man inn i sorterings-modus for å skru navnene av')
+      }
+      if (!geo.bryterVedSiden) {
+        throw new Error('navne-bryteren ligger ikke på samme linje som «Sorter»')
+      }
+      if (geo.bryterSjekket === null) {
+        throw new Error('navne-bryteren mangler aria-checked — den er en switch')
+      }
+      // ... OG DEN ER BORTE I SORTERINGS-MODUS: der er hver celle et objekt man
+      // flytter, og en bryter som endrer cellehøyden midt i et drag er en form
+      // som skifter under fingeren.
+      await klikkTekst(page, /^Sorter$/)
+      await page.waitForTimeout(300)
+      const iModus = await page.evaluate(() => ({
+        bryter: !![...document.querySelectorAll('[role="switch"]')]
+          .find((b) => b.offsetParent && /Vis navn/.test(b.getAttribute('aria-label') || '')),
+        sorter: !![...document.querySelectorAll('button')]
+          .find((b) => b.offsetParent && b.innerText.trim() === 'Sorter'),
+      }))
+      if (iModus.bryter) throw new Error('navne-bryteren står igjen i sorterings-modus')
+      if (iModus.sorter) throw new Error('«Sorter» står igjen i sorterings-modus')
+      await avsluttSortering(page)
 
       // NØYTRAL TILSTAND: raden skal ikke stå åpen inn i neste sjekk.
       await lukkSnarveiRad(page)
       return `topprada over raden (${topp.meny}/${topp.navn}/${topp.sok} `
         + `< ${topp.radTopp}), tannhjulet ute, håndtak ${geo.strekBredde} px `
-        + 'midtstilt under raden, Sorter fristilt under håndtaket'
+        + 'midtstilt under raden, Navn + Sorter fristilt under håndtaket '
+        + 'og begge borte i sorterings-modus'
     },
   },
   {
@@ -5362,7 +5487,22 @@ async function draSnarveiHandle(page, dy) {
   await page.waitForTimeout(400)
 }
 
+// SORTERINGS-MODUS SKJULER HÅNDTAKET (v7.7.0) — footeren står der. Begge
+// hjelperne under venter på `.snarvei-handle`, så en sjekk som lot modusen stå
+// igjen ville hengt 30 sekunder i den NESTE sjekken i stedet for i sin egen.
+async function avsluttSortering(page) {
+  if (await page.locator('[data-sorter-footer]').count()) {
+    await klikkTekst(page, /^Ferdig$/, '[data-sorter-footer]')
+  }
+}
+
+async function startSortering(page) {
+  await apneSnarveiRad(page)
+  await klikkTekst(page, /^Sorter$/)
+}
+
 async function apneSnarveiRad(page) {
+  await avsluttSortering(page)
   const handle = page.locator('.snarvei-handle')
   if ((await handle.getAttribute('aria-expanded')) === 'false') {
     await draSnarveiHandle(page, 120)
@@ -5370,6 +5510,7 @@ async function apneSnarveiRad(page) {
 }
 
 async function lukkSnarveiRad(page) {
+  await avsluttSortering(page)
   const handle = page.locator('.snarvei-handle')
   if ((await handle.getAttribute('aria-expanded')) === 'true') {
     await draSnarveiHandle(page, -120)
@@ -5422,7 +5563,7 @@ async function lukkDrawer(page) {
   if (await erDrawerÅpen(page)) throw new Error('fikk ikke lukket innstillings-skuffen')
 }
 
-// Lukker en funksjons-skuff (Måling/Sporing/Annotering/Sorter snarveier) via
+// Lukker en funksjons-skuff (Måling/Sporing/Annotering) via
 // X-en i headeren. Ingen feil om den ikke står åpen — kallerne rydder.
 async function lukkFunksjonsSkuff(page, etikett) {
   await page.evaluate((navn) => {

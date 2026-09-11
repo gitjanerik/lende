@@ -99,7 +99,7 @@ import { buildTrailColorCss, normalizeHex } from '../lib/trailColors.js'
 import { DEFAULT_VISIBLE_LAYER_KEYS } from '../lib/mapLayerCatalog.js'
 import { listThemes, erMorktTema } from '../lib/mapSettingsApply.js'
 import { SNARVEI_REKKEFOLGE_KEY, STANDARD_REKKEFOLGE, normaliserRekkefolge,
-  lesVisNavn, skrivVisNavn,
+  lesVisNavn, skrivVisNavn, flettSynligRekkefolge,
          snarveierIRekkefolge } from '../lib/snarveier.js'
 import { norwegianName } from '../lib/placeName.js'
 import AnnotationIcon from '../components/AnnotationIcon.vue'
@@ -116,7 +116,6 @@ import HydroStationSheet from '../components/HydroStationSheet.vue'
 import MapModeChips from '../components/MapModeChips.vue'
 import SnarveiRad from '../components/SnarveiRad.vue'
 import FunksjonDrawer from '../components/FunksjonDrawer.vue'
-import SorterSnarveier from '../components/SorterSnarveier.vue'
 import FlisIkon from '../components/FlisIkon.vue'
 import DrawerLayersTab from '../components/drawer/DrawerLayersTab.vue'
 import DrawerThemeTab from '../components/drawer/DrawerThemeTab.vue'
@@ -494,18 +493,17 @@ function funksjonDrawer() {
 const maalingDrawer = funksjonDrawer()
 const sporingDrawer = funksjonDrawer()
 const annoteringDrawer = funksjonDrawer()
-const sorterDrawer = funksjonDrawer()
 const maalingOpen = ref(false)
 const sporingOpen = ref(false)
 const annoteringOpen = ref(false)
-const sorterOpen = ref(false)
-// Ett sted å lukke alle fire fra: hver modus-inngang må rydde de andre, og en
-// liste med fire kall per kallsted blir tre kall neste gang noen legger til en.
+// Ett sted å lukke alle fra: hver modus-inngang må rydde de andre, og en liste
+// med tre kall per kallsted blir to kall neste gang noen legger til en.
+// SORTERINGEN STÅR IKKE I LISTA LENGER (v7.7.0): den er ikke et ark, den er en
+// modus i snarvei-raden — og raden skjules uansett av hver av modusene her.
 function lukkFunksjonsSkuffer() {
   maalingOpen.value = false
   sporingOpen.value = false
   avsluttAnnotering()
-  sorterOpen.value = false
 }
 // Å lukke annoterings-arket avslutter OGSÅ plasserings-modusen (v6.6.3).
 // Arket er det eneste stedet modusen kan ses eller slås av: velger man
@@ -1740,7 +1738,6 @@ const fabFloat = useFloatAboveSheets(
     { open: maalingOpen, drawer: maalingDrawer },
     { open: sporingOpen, drawer: sporingDrawer },
     { open: annoteringOpen, drawer: annoteringDrawer },
-    { open: sorterOpen, drawer: sorterDrawer },
   ],
   {
     mapWidthPx: () => wrapperSize.value.w,
@@ -1964,7 +1961,7 @@ function settSnarveiRekkefolge(ny) {
     localStorage.setItem(SNARVEI_REKKEFOLGE_KEY, JSON.stringify(snarveiRekkefolge.value))
   } catch { /* noop */ }
 }
-// «VIS NAVN NÅR MINIMERT» (v7.6.0), satt øverst i Sorter-panelet. PÅ er
+// «VIS NAVN NÅR MINIMERT» (v7.6.0), satt i radens sorterings-footer. PÅ er
 // standard: ikonene bærer ikke betydningen alene. AV krymper cella til
 // ikon-høyde sammenlagt og lar navnene vokse fram med draget — se
 // lib/snarveier.js og SnarveiRad.vue.
@@ -1984,10 +1981,10 @@ const synligeSnarveier = computed(() =>
           ariaTekst: userPos.isWatching ? 'Posisjon på. Slå av.' : 'Posisjon av. Slå på.' }
       : s))
 
-const skjulteSnarveiIder = computed(() => {
-  const synlige = new Set(synligeSnarveier.value.map(s => s.id))
-  return snarveiRekkefolge.value.filter(id => !synlige.has(id))
-})
+// `skjulteSnarveiIder` gikk ut med panelet (v7.7.0): sorteringen skjer i raden,
+// og raden kan bare flytte det den viser. På et demokart står Annotering og
+// Sporing derfor utenfor sorteringen — men de beholder plassen sin i den
+// lagrede rekkefølgen, se `flettSynligRekkefolge`.
 
 // ÉN inngang for alle snarveiene. Raden vet bare id-en; hva den gjør bor her,
 // der de fire domenene den rører (måling, annotering, sti, kontekstmeny)
@@ -2045,11 +2042,12 @@ const snarveiApen = ref(false)
 // så lenge strek og relieff sto i raden; nå kommer alle hint fra knotter i
 // skuffen (strek, relieff, tekststørrelse, font), og bobla står midtstilt under
 // raden slik den gjorde før pillene fantes.
-function onApneSortering() {
-  closeDrawer()
-  lukkFunksjonsSkuffer()
-  sorterDrawer.reset()
-  sorterOpen.value = true
+// SORTERINGEN SKJER I RADEN (v7.7.0). Raden sorterer bare det den VISER, så
+// den nye rekkefølgen flettes inn i den lagrede: på et demokart står Annotering
+// og Sporing utenfor raden (`kunEgne`) og skal ikke miste plassen sin av at man
+// sorterte et kart der de ikke finnes. Regelen er ren og testet.
+function onSnarveiFlytt(synligNy) {
+  settSnarveiRekkefolge(flettSynligRekkefolge(snarveiRekkefolge.value, synligNy))
 }
 
 // Long-press er lite oppdagbart. Vis et blått tips øverst i info-arket når det
@@ -2730,8 +2728,8 @@ onUnmounted(() => {
     <!-- SNARVEI-RADEN: turkart-modusens FUNKSJONER (v6.6.0). Alt man GJØR
          ligger her; innstillings-skuffen er bare innstillinger. Raden måler
          seg selv og legger det som ikke får plass bak et nedtrekk — se
-         SnarveiRad.vue. Rekkefølgen er brukerens, og «Sorter snarveier» står
-         som en fristilt knapp under raden når den er foldet ut.
+         SnarveiRad.vue. Rekkefølgen er brukerens, og «Sorter» står sammen med
+         navne-bryteren som fristilte knotter under raden når den er foldet ut.
          Skjules når en modus (stifinner/måling/annotering) eller søk er aktiv,
          mens kartet bygges/utvides, og når highlight-pillen vises — bygge-chipen
          og pillen bruker samme --ovl-top-slot og ville kollidert. Det gjelder
@@ -2751,7 +2749,9 @@ onUnmounted(() => {
         <SnarveiRad :snarveier="synligeSnarveier"
                     :ui-text-scale="uiTextScale"
                     :vis-navn="snarveiVisNavn"
-                    @velg="onSnarvei" @sorter="onApneSortering"
+                    @velg="onSnarvei" @flytt="onSnarveiFlytt"
+                    @vis-navn="settSnarveiVisNavn"
+                    @tilbakestill="settSnarveiRekkefolge([...STANDARD_REKKEFOLGE])"
                     @apen="snarveiApen = $event" />
         <!-- KNOTT-HINTET FULGTE MED KNOTTENE (v7.0.0). «Strek 1,20×» var
              FAB-ankerets hint-boble, og uten den er et hakk opp en usynlig
@@ -2761,7 +2761,8 @@ onUnmounted(() => {
           <div v-if="knobHint" role="status" aria-live="polite"
                class="px-3 py-1.5 rounded-lg bg-overlay/95 text-ink text-[11px] font-medium
                       leading-tight shadow-lg whitespace-nowrap pointer-events-none
-                      border border-ink/10">
+                      border border-ink/10"
+               :style="{ zoom: uiTextScale }">
             {{ knobHint }}
           </div>
         </Transition>
@@ -3007,6 +3008,7 @@ onUnmounted(() => {
          alert) — trekt ut til MapModeChips (v1.0.8). -->
     <MapModeChips
       :auto-map-toast="autoMapToast"
+      :ui-text-scale="uiTextScale"
       :search-open="searchOpen"
       :map-center-style="mapCenterStyle"
       :filling-in-details="fillingInDetails"
@@ -3054,6 +3056,7 @@ onUnmounted(() => {
       :is-offline="isOffline"
       :show-low-accuracy="showLowAccuracyBanner"
       :accuracy-m="userPos.accuracyM ?? 0"
+      :ui-text-scale="uiTextScale"
       :fredet-truncated="showFredetToast"
       :fredet-count="fredetCount ?? 0"
       :fredet-shown="fredetShown ?? 0"
@@ -3356,18 +3359,6 @@ onUnmounted(() => {
         :label-for-annotation="labelForAnnotation" />
     </FunksjonDrawer>
 
-    <!-- Sorteringen av snarvei-raden. Egen skuff og ikke en fane i
-         innstillinger: den handler om raden man nettopp trykket i, og veien
-         tilbake skal være ett trykk fra samme sted. -->
-    <FunksjonDrawer :open="sorterOpen" :drawer="sorterDrawer" etikett="Sorter snarveier"
-                    :ui-text-scale="uiTextScale"
-                    @lukk="sorterOpen = false">
-      <SorterSnarveier :rekkefolge="snarveiRekkefolge" :skjulte-ider="skjulteSnarveiIder"
-                       :vis-navn="snarveiVisNavn"
-                       @oppdater="settSnarveiRekkefolge"
-                       @vis-navn="settSnarveiVisNavn" />
-    </FunksjonDrawer>
-
     <KulturminneSheet
       :open="kulturminneOpen"
       :detail="kulturminneDetail"
@@ -3489,7 +3480,7 @@ onUnmounted(() => {
            :style="mapCenterStyle" role="status" aria-live="polite">
         <FlisIkon v-if="byggerFlisRetning" :retning="byggerFlisRetning" :ark="arkRutenett" />
         <span v-else class="w-3.5 h-3.5 rounded-full border-2 border-ink/25 border-t-ink/80 animate-spin shrink-0"></span>
-        <span class="truncate">{{ buildingProgress || 'Oppretter kart …' }}</span>
+        <span class="truncate" :style="{ zoom: uiTextScale }">{{ buildingProgress || 'Oppretter kart …' }}</span>
         <!-- Chippen er ikke-blokkerende, men byggingen kan ta et halvminutt per
              flis. X-en stopper løkka mellom fliser og aborterer den som er
              under arbeid; det som alt er bygd beholdes. Derfor er
@@ -3532,7 +3523,8 @@ onUnmounted(() => {
     <Transition name="chip-fade">
       <div v-if="tour3dError"
            class="absolute bottom-24 left-1/2 -translate-x-1/2 z-[60] px-3 py-2 rounded-xl
-                  bg-red-600/95 text-white text-[12px] font-medium shadow-lg max-w-[85%]">
+                  bg-red-600/95 text-white text-[12px] font-medium shadow-lg max-w-[85%]"
+           :style="{ zoom: uiTextScale }">
         {{ tour3dError }}
       </div>
     </Transition>

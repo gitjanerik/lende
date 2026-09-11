@@ -27,12 +27,23 @@ const props = defineProps({
   shareState: { type: String, default: 'idle' },
   gpsWatching: { type: Boolean, default: false },
   proximity: { type: Object, required: true },
+  // Tekstskala fra hovedmenyen (100–200 %). Settes på TEKSTEN i hver chip og
+  // aldri på boksen: polstringen og lukke-krysset skal bli stående (samme regel
+  // som SkuffHeader — en zoomet rad dytter X-en ut av skjermen).
+  uiTextScale: { type: Number, default: 1 },
 })
 defineEmits([
   'clearHighlight', 'stopMeasure',
   'selectRoute', 'removeVia', 'beginAddVia', 'cancelStifinner',
   'followRoute', 'stopFollowing', 'shareRoundTrip', 'startGps', 'open3d',
 ])
+
+// Boksene har prosent-tak på bredden, og teksten i dem vokser med skalaen —
+// et fast tak ville presset «1,23 km» over to linjer ved 200 %. Taket følger
+// derfor skalaen, med 92 % som gulv mot kanten av skjermen.
+function maksBredde(pst) {
+  return { maxWidth: `${Math.min(92, pst * (props.uiTextScale || 1))}%` }
+}
 
 // Dele-knappens tekst sier hva som deles: en rundtur er en rundtur, men
 // Stifinnerens A→B-tur er en sti — «Del rundtur» der var direkte feil.
@@ -80,10 +91,10 @@ function formatElevationDiff(m) {
     <div v-if="autoMapToast && !searchOpen"
          class="absolute left-1/2 -translate-x-1/2 z-30 px-3 py-2 rounded-2xl
                 bg-overlay/90 text-ink text-[12px] font-medium shadow-lg backdrop-blur
-                text-center max-w-[85%] pointer-events-none border border-ink/10
+                text-center pointer-events-none border border-ink/10
                 transition-[left] duration-200"
-         :style="[mapCenterStyle, { bottom: 'calc(env(safe-area-inset-bottom, 0px) + 5rem)' }]">
-      {{ autoMapToast }}
+         :style="[mapCenterStyle, maksBredde(85), { bottom: 'calc(env(safe-area-inset-bottom, 0px) + 5rem)' }]">
+      <span :style="{ zoom: uiTextScale }">{{ autoMapToast }}</span>
     </div>
   </Transition>
 
@@ -97,7 +108,7 @@ function formatElevationDiff(m) {
                 transition-[left] duration-200"
          :style="mapCenterStyle">
       <KartLaster />
-      <span>Tegner inn stier og detaljer …</span>
+      <span :style="{ zoom: uiTextScale }">Tegner inn stier og detaljer …</span>
     </div>
   </Transition>
 
@@ -107,15 +118,15 @@ function formatElevationDiff(m) {
     <div v-if="highlightedFeature && !searchOpen"
          class="on-accent absolute top-[var(--ovl-top)] left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 rounded-2xl
                 bg-pink-500/95 text-ink text-[12px] font-medium shadow-lg
-                flex items-center gap-2 max-w-[85%] pointer-events-auto
+                flex items-center gap-2 pointer-events-auto
                 transition-[left] duration-200"
-         :style="mapCenterStyle">
+         :style="[mapCenterStyle, maksBredde(85)]">
       <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor"
            stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="10" r="3"/>
         <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>
       </svg>
-      <span class="min-w-0 flex flex-col leading-tight">
+      <span class="min-w-0 flex flex-col leading-tight" :style="{ zoom: uiTextScale }">
         <span class="truncate font-semibold">{{ highlightedFeature.name }}</span>
         <span v-if="highlightedFeature.sub"
               class="truncate text-[11px] font-normal text-ink">{{ highlightedFeature.sub }}</span>
@@ -135,20 +146,23 @@ function formatElevationDiff(m) {
   <div v-if="annot.isAnnotateMode.value && annot.selectedSymbol.value"
        class="on-accent absolute top-[var(--ovl-poi)] right-3 z-20 px-2.5 py-1.5 rounded-md bg-slate-600
               text-ink text-[11px] font-medium shadow-lg pointer-events-none">
-    Trykk på kartet for å plassere
-    <div class="text-[9px] text-ink-2 mt-0.5">
-      {{ ANNOTATION_SYMBOLS.find(s => s.symbolKey === annot.selectedSymbol.value)?.label }}
+    <div :style="{ zoom: uiTextScale }">
+      Trykk på kartet for å plassere
+      <div class="text-[9px] text-ink-2 mt-0.5">
+        {{ ANNOTATION_SYMBOLS.find(s => s.symbolKey === annot.selectedSymbol.value)?.label }}
+      </div>
     </div>
   </div>
 
   <!-- Måleverktøy-indikator. Live-readout direkte på kartet, top-left (under
        back-knappen) så den ikke ligger bak FAB-stacken. X-knappen avslutter
        målingen direkte fra kartet uten å åpne drawer-en. -->
-  <div v-if="measureMode"
+  <div v-if="measureMode" data-maal-boks
        class="on-accent absolute top-[var(--ovl-top)] left-3 z-20 rounded-md bg-emerald-600
               text-ink text-[11px] font-medium shadow-lg
-              tabular-nums max-w-[55%] flex items-start gap-1.5 pl-3 pr-1 py-2">
-    <div class="flex-1 min-w-0">
+              tabular-nums flex items-start gap-1.5 pl-3 pr-1 py-2"
+       :style="maksBredde(55)">
+    <div class="flex-1 min-w-0" data-maal-tekst :style="{ zoom: uiTextScale }">
       <div class="text-[9px] uppercase tracking-wide text-emerald-100/90">Mål</div>
       <div class="text-[13px] font-semibold">{{ formatDistance(measureStats.distM) }}</div>
       <div v-if="measureClosed" class="text-[11px] text-emerald-100/95">
@@ -178,8 +192,9 @@ function formatElevationDiff(m) {
   <div v-if="sti.active.value && sti.mode.value !== 'following'"
        class="on-accent absolute top-[var(--ovl-top)] left-3 z-20 rounded-md bg-emerald-600
               text-ink text-[11px] font-medium shadow-lg
-              max-w-[70%] flex items-start gap-1.5 pl-3 pr-1 py-2">
-    <div class="flex-1 min-w-0">
+              flex items-start gap-1.5 pl-3 pr-1 py-2"
+       :style="maksBredde(70)">
+    <div class="flex-1 min-w-0" :style="{ zoom: uiTextScale }">
       <div class="text-[9px] uppercase tracking-wide text-emerald-100/90">
         {{ sti.isLoop.value ? 'Rundtur' : 'Stifinner' }}
       </div>
@@ -312,12 +327,14 @@ function formatElevationDiff(m) {
        fritt (long-press/POI/måling virker). Tap utvider til panel med
        distanse/tid/høydemeter + GPS-fremdrift, «Til forslag» og X. -->
   <!-- Måling kan pågå samtidig (samme hjørne) → still pillen under readouten. -->
-  <div v-if="sti.mode.value === 'following'" class="on-accent absolute left-3 z-20 max-w-[70%]"
+  <div v-if="sti.mode.value === 'following'" class="on-accent absolute left-3 z-20"
+       :style="maksBredde(70)"
        :class="measureMode ? 'top-[var(--ovl-top-2)]' : 'top-[var(--ovl-top)]'">
     <button v-if="!followExpanded" @click="followExpanded = true"
             class="flex items-center gap-1.5 rounded-full bg-emerald-700 text-white
                    text-[11px] font-semibold shadow-lg pl-3 pr-2 py-1.5 active:scale-[0.97]
-                   tabular-nums">
+                   tabular-nums"
+            :style="{ zoom: uiTextScale }">
       <span>{{ sti.isLoop.value ? 'Rundtur' : 'Rute' }}</span>
       <span v-if="followedRoute" class="font-normal text-emerald-100/95">
         · {{ onRoute ? formatDistance(stiProgress.remainingM) + ' igjen' : formatDistance(followedRoute.lengthM) }}
@@ -330,7 +347,7 @@ function formatElevationDiff(m) {
     <div v-else
          class="rounded-md bg-emerald-700 text-white text-[11px] font-medium shadow-lg
                 flex items-start gap-1.5 pl-3 pr-1 py-2">
-      <div class="flex-1 min-w-0">
+      <div class="flex-1 min-w-0" :style="{ zoom: uiTextScale }">
         <div class="text-[9px] uppercase tracking-wide text-emerald-100/90">
           {{ sti.isLoop.value ? 'Følger rundtur' : 'Følger rute' }}
         </div>
@@ -422,10 +439,11 @@ function formatElevationDiff(m) {
   <div v-if="proximity.active.value"
        class="on-accent absolute left-3 z-20 rounded-md bg-sky-600
               text-ink text-[11px] font-medium shadow-lg
-              tabular-nums max-w-[60%] flex items-start gap-1.5 pl-3 pr-1 py-2"
+              tabular-nums flex items-start gap-1.5 pl-3 pr-1 py-2"
+       :style="maksBredde(60)"
        :class="(measureMode && sti.mode.value === 'following') ? 'top-[var(--ovl-top-3)]'
                : (measureMode || sti.active.value) ? 'top-[var(--ovl-top-2)]' : 'top-[var(--ovl-top)]'">
-    <div class="flex-1 min-w-0">
+    <div class="flex-1 min-w-0" :style="{ zoom: uiTextScale }">
       <div class="text-[9px] uppercase tracking-wide text-sky-100/90">Nærhetsvarsel</div>
       <div class="text-[12px] font-semibold truncate">{{ proximity.active.value.label }}</div>
       <div v-if="proximity.status.value === 'triggered'" class="text-[12px] text-amber-200 font-semibold">

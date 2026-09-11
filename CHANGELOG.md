@@ -1,3 +1,77 @@
+## 2026-09-11 — v7.7.1: Navne-bryteren står ved siden av «Sorter», utenfor boksen
+
+«Vis navn når minimert» fulgte med inn i sorterings-footeren da panelet ble
+slettet, og det var feil plass: å skru navnene av er ingen sorterings-handling —
+man vil ha en tettere rad — så veien dit gikk gjennom en modus man ikke hadde
+noe å gjøre i. Bryteren står nå utenfor den svarte boksen, ved siden av
+«Sorter», som er kortet ned fra «Sorter snarveier»: begge er knotter som handler
+om RADEN og ikke om kartet, begge avdekkes av samme drag. Ute i det fri bærer
+bryteren et ekte spor — inne i boksen var «på» allerede en aksentgrønn flate,
+men ved siden av en knapp som bare GJØR noe er forskjellen på en av/på og en
+handling ellers bare en farge man må ha sett før. Begge knottene er SKJULT i
+sorterings-modus: der er hver celle et objekt man flytter, og en bryter som
+endrer cellehøyden midt i et drag er en form som skifter under fingeren.
+
+---
+
+## 2026-09-11 — v7.7.0: Snarveiene sorteres i raden, ikke i et panel
+
+«Sorter snarveier» åpnet en skuff med en liste: ni rader med et grep og to
+pil-knapper, altså en modell av raden man nettopp sto i. Man sorterte én ting
+mens man så på en annen, og det ene spørsmålet sorteringen finnes for — hva
+havner bak håndtaket på MIN skjerm? — kunne lista per konstruksjon ikke svare
+på, for den kjenner verken kolonnetallet eller hvor raden brytes. Nå flyttes
+knappene der de står, i det ekte gitteret: knappen starter en sorterings-modus i
+raden selv, cella man drar følger fingeren, naboene glir til side og viser hvor
+den lander, og et stiplet spøkelse blir igjen der den lå. Panelet er slettet, og
+«Vis navn når minimert» og «Tilbakestill» fulgte med inn i radens egen footer,
+der håndtaket står ellers.
+
+Det er en MODUS og ikke en alltid-på-gest, og det er ikke forsiktighet:
+gripeflata er hele pilla siden v7.6.0, så et sveip ned hvor som helst i boksen
+åpner skuffa — den flata kan ikke også bety «løft denne knappen». Sammenlagt er
+raden dessuten klippet, så en alltid-på-sortering ville latt deg dra mot celler
+du ikke kan se. Modusen låser raden åpen, slipper pille-draget og lar cellene
+overta det. Tre veier fører til en flytting, og de dekker hver sin sperre: dra
+cella dit den skal, trykk én celle og så plassen den skal til (SC 2.5.7 — det
+var panelets opp/ned-knapper som bar det kravet, og et tastatur-alternativ
+dekker det ikke), eller flytt den fokuserte cella med piltastene, der fokus
+følger med til den nye plassen (SC 2.1.1). «Ferdig» legger raden sammen igjen,
+så man ser resultatet. Raden sorterer bare det den VISER, så den nye rekkefølgen
+flettes inn i den lagrede: på et demokart står Annotering og Sporing utenfor
+raden og beholder plassen sin uten å kunne flyttes der. Og målingen ser nå
+SETTET av snarveier og ikke rekkefølgen: en ommåling er en skjult passering der
+raden står usynlig, og den blendet cella man nettopp flyttet — fokus falt til
+bunns for hvert piltast-hakk.
+
+---
+
+## 2026-09-11 — v7.6.1: Toastene og bannerne på kartet følger tekststørrelsen
+
+Tekstskalaen fra hovedmenyen nådde snarveiene, kartnavnet, linjalen og de faste
+ikonene i v7.6.0, men ikke det som faktisk BÆRER en beskjed: «N arkeologiske
+kulturminner i dette utsnittet», «Tegner inn stier og detaljer …», måleboksens
+grønne readout og GPS-feilen som sier at posisjonen er avslått. De er de eneste
+flatene i appen der teksten er hele innholdet, og de sto på 11–12 px uansett hva
+brukeren hadde valgt. Nå følger de skalaen — i MapStatusOverlays (lasting,
+last-feil, kulturminne-toasten, posisjonsfeil, utenfor-kartet, detalj-feil,
+ufullstendig kart, mosaikk-hull, firkant-tilbudet, lav nøyaktighet), i
+MapModeChips (auto-kart-toast, detalj-chip, highlight, annotering, måling,
+stifinner, følg rute, nærhetsvarsel) og i MapViews egne bygge-chip, knott-hint
+og 3D-feil.
+
+Zoomen settes på TEKSTEN og aldri på boksen, som i SkuffHeader: polstringen og
+lukke-krysset skal bli stående, ellers dyttes X-en ut av skjermen ved 200 % og
+beskjeden blir umulig å bli kvitt. Knappetekstene («Prøv igjen», «Fullfør
+kartet», «Fyll hullene») ligger i en egen zoomet span inni knappen, så knappen
+vokser i høyde uten å sprenge bredden. Og prosent-takene på bredden — 55 % for
+måleboksen, 60 % for nærhetsvarselet, 70 % for stifinneren, 85 % for toastene —
+følger nå skalaen med 92 % som tak (`maksBredde`): et fast tak ville presset
+«1,23 km» over to linjer ved 200 %, altså nøyaktig den lesbarheten skalaen
+finnes for.
+
+---
+
 ## 2026-09-11 — v7.6.0: Snarveiene har navn, «Valg» er en av dem, og ikonene følger tekststørrelsen
 
 Snarvei-navnene sto skjult sammenlagt og kom fram med draget; det er snudd. Gevinsten var
