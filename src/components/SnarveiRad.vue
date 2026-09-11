@@ -252,31 +252,22 @@ const rader = computed(() => antallRader(props.snarveier.length, kolonner.value)
 const hoydeSpenn = computed(() => Math.max(0, hApen.value - hLukket.value))
 const draLengde = computed(() => Math.max(DRA_MIN_PX, hoydeSpenn.value))
 
-// LUFT UNDER SISTE RAD I SORTERINGS-MODUS (v7.7.4). Gitteret har polstring på
-// tre sider (`px-1.5 pt-1.5`) og ingen under: cellene har bare en flate, og
-// lufta under siste rad er håndtakets `py-3`. Sorteringen legger en stiplet
-// kant PÅ cella — altså helt ute ved kanten gitteret klipper mot
-// (`overflow: hidden`) — og da forsvant den nederste streken i siste rad. Den
-// var ikke borte, den lå under footeren.
-//
-// TALLET LEGGES PÅ BÅDE POLSTRINGEN OG HØYDEN, og det er derfor modusbyttet
-// ikke trenger en ny måling: `hApen` er lest uten polstringen, så samme
-// konstant på begge sider gir nøyaktig plass til den. En ommåling ville vært
-// den verste kuren — den kjører med pilla `visibility: hidden`, altså et blink
-// i det man trykker «Sorter», og den blender cella man har fokus på.
-//
-// Målt i Chromium sto nederste celle 2 px UTENFOR klippekanten før dette:
-// `hApen` er `offsetHeight`, altså et heltall der layouten er brøk, så det var
-// ikke bare streken som lå utenfor. De seks gir 4 px synlig luft.
-const SORTER_LUFT_PX = 6
+// LUFTA UNDER SISTE RAD ER POLSTRING, IKKE ET MODUS-TILLEGG (v7.7.5).
+// Gitteret hadde polstring på tre sider og ingen under: cellene hadde bare en
+// flate, så det var ingenting å klippe, og lufta under raden var håndtakets
+// `py-3`. v7.7.4 la seks piksler på BÅDE polstringen og høyden når man
+// sorterte — en konstant som skulle dekke over at cella samtidig VOKSTE av
+// kanten sin, og som derfor bare holdt ved 100 %. Nå står kanten i begge
+// modusene (se `.shortcut-btn`), cella har samme mål hele veien, og gitteret
+// er polstret likt på alle fire sider (`p-1.5`). Høydene måles med den
+// polstringen inne, så det finnes ikke lenger noe modus-tillegg å holde styr
+// på.
 
 // Høyden følger fingeren. `overflow: hidden` på gitteret gjør resten: radene
 // under den første ligger og venter rett utenfor kanten.
 const gitterStil = computed(() => ({
-  paddingBottom: sorterer.value ? `${SORTER_LUFT_PX}px` : null,
   height: maalt.value && !maaler.value
-    ? `${hLukket.value + hoydeSpenn.value * dra.value
-       + (sorterer.value ? SORTER_LUFT_PX : 0)}px`
+    ? `${hLukket.value + hoydeSpenn.value * dra.value}px`
     : 'auto',
   gridTemplateColumns: maalt.value
     ? `repeat(${kolonner.value}, minmax(0, 1fr))`
@@ -326,8 +317,13 @@ async function maal() {
   // celle pluss gitterets topp-polstring — det er nøyaktig den ene raden.
   maalTvang.value = 0
   await nextTick()
-  const padTopp = parseFloat(getComputedStyle(g).paddingTop) || 0
-  hLukket.value = Math.round(padTopp + celler[0].getBoundingClientRect().height)
+  // BEGGE POLSTRINGENE. Den nederste er ikke pynt her: cella har en kant hele
+  // veien rundt (v7.7.5), og uten lufta under ville den nederste streken i
+  // sammenlagt rad ligget nøyaktig på kanten gitteret klipper mot.
+  const cs2 = getComputedStyle(g)
+  const padTopp = parseFloat(cs2.paddingTop) || 0
+  const padBunn = parseFloat(cs2.paddingBottom) || 0
+  hLukket.value = Math.round(padTopp + padBunn + celler[0].getBoundingClientRect().height)
   maalTvang.value = null
   maaler.value = false
 }
@@ -651,7 +647,7 @@ function celleTransform(i) {
            kanten. Før målingen er det en flex-rad med etikettene på, så
            cellene står i sin naturlige bredde — se punkt 3 i filhodet. -->
       <div ref="gitterRef" data-snarvei-gitter
-           class="snarvei-rad relative px-1.5 pt-1.5 gap-1"
+           class="snarvei-rad relative p-1.5 gap-1"
            :class="maalt ? 'grid overflow-hidden' : 'flex flex-wrap justify-center'"
            :style="gitterStil">
         <!-- SPØKELSET: der cella lå da draget startet. Absolutt plassert, så
@@ -785,6 +781,17 @@ function celleTransform(i) {
   min-width: 44px;
   padding: 6px 8px;
   border-radius: 12px;
+  /* KANTEN STÅR ALLTID, TON I TON (v7.7.5). Den er så vidt synlig i hvile —
+     den gir cella en form på en flate som ellers flyter — men den er her først
+     og fremst fordi sorteringen skal kunne SKIFTE den uten å endre noe mål:
+     bredden er kolonnens, men høyden er innholdets med `min-height` som gulv,
+     og en border som kommer til i sorterings-modus legger seg PÅ den. Det var
+     nettopp det som klippet den nederste streken: cella vokste 2 px per rad i
+     det man trykket «Sorter», cellene bærer `zoom`, og ved 200 % var gitteret
+     12 px for lavt for sitt eget innhold. Står kanten i begge modusene, er det
+     ingenting å måle om og ingenting å kompensere for. */
+  border: 1px solid color-mix(in oklab, var(--color-ink) 18%, transparent);
+  box-sizing: border-box;
   background: color-mix(in oklab, var(--color-ink) 12%, transparent);
   color: var(--color-ink);
   font-size: 10px;
@@ -823,11 +830,12 @@ function celleTransform(i) {
    i bevegelse. */
 .shortcut-btn--sorter {
   cursor: grab;
-  border: 1px dashed color-mix(in oklab, var(--color-ink) 30%, transparent);
-  /* Kanten legges INNI cella: en ekte border ville gjort den 2 px bredere enn
-     kolonnen den ble målt for, og hele gitteret ville skiftet ved modusbytte. */
-  box-sizing: border-box;
-  transition: transform 0.18s ease, background 0.15s ease, box-shadow 0.15s ease;
+  /* BARE TYPE OG FARGE — bredden er den samme 1 px som i hvile, så cella har
+     nøyaktig samme mål i begge modusene. Se `.shortcut-btn`. */
+  border-style: dashed;
+  border-color: color-mix(in oklab, var(--color-ink) 45%, transparent);
+  transition: transform 0.18s ease, background 0.15s ease,
+              box-shadow 0.15s ease, border-color 0.15s ease;
 }
 .shortcut-btn--sorter:active { transform: none; cursor: grabbing; }
 

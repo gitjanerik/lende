@@ -885,6 +885,8 @@ const SJEKKER = [
       // klipper (`overflow: hidden`) og hadde ingen polstring under siste rad,
       // så den nederste streken lå under footeren. Måles som lufta mellom
       // nederste celle og gitterets klippekant — den var 0 px før fiksen.
+      // Den SAMME lufta måles ved 200 % i tekstskala-sjekken over: her var den
+      // grønn hele tida mens 200 % var rød (v7.7.5).
       const luft = await page.evaluate(() => {
         const g = document.querySelector('[data-snarvei-gitter]')
         const celler = [...g.querySelectorAll('[data-snarvei]')]
@@ -1612,8 +1614,27 @@ const SJEKKER = [
           throw new Error(`flere knapper synlige ved 200 % (${ved100.synlige} → `
             + `${ved200.synlige}) — da er ikke den store teksten målt`)
         }
+        // OG KANTEN RUNDT CELLA MÅ VÆRE HEL VED 200 % (v7.7.5). Sjekken for
+        // dette sto i sorterings-sjekken og målte BARE standard tekststørrelse,
+        // og det var nøyaktig hullet: veksten som klippet den nederste streken
+        // var 2 px per rad ganget med cellenes `zoom`, altså minst ved 100 % og
+        // verst ved 200 %. Lufta måles derfor der den brakk.
+        await startSortering(page)
+        const luft200 = await page.evaluate(() => {
+          const g = document.querySelector('[data-snarvei-gitter]')
+          const celler = [...g.querySelectorAll('[data-snarvei]')]
+          const gb = g.getBoundingClientRect()
+          const nederst = Math.max(...celler.map((c) => c.getBoundingClientRect().bottom))
+          return Math.round((gb.bottom - nederst) * 10) / 10
+        })
+        await avsluttSortering(page)
+        if (luft200 < 1) {
+          throw new Error(`siste rad har ${luft200} px under seg i sorterings-modus `
+            + 'ved 200 % — kanten rundt cella klippes bort av gitteret')
+        }
         return `knapp ${ved100.hoyde} → ${ved200.hoyde} px høy, `
-          + `${ved100.synlige} → ${ved200.synlige} på linja, ingen overflyt`
+          + `${ved100.synlige} → ${ved200.synlige} på linja, ingen overflyt, `
+          + `${luft200} px luft under siste rad ved 200 %`
       } finally {
         // NØYTRAL TILSTAND: hele resten av suiten kjører på 100 %.
         await sett(1)
