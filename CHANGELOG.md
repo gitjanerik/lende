@@ -1,3 +1,11 @@
+## 2026-09-11 — v7.7.11: cache-actionen til v6, og proxyen får endelig en lockfil
+
+To ryddejobber i byggeriggen, ingen av dem i appkoden. `actions/cache` går fra v4 til v6 i røyktesten: v5 flyttet actionen til Node 24-runtimen (krever runner ≥ 2.327.1, og vi står på `ubuntu-latest`), v6 la om til ESM, og ingen av dem rører `path` eller `key` — som er hele inngangsflaten vi bruker begge stedene, uten `restore-keys`. Verdt å vente på ÉN kald kjøring: om v6 leser v4-ens cache-oppføringer er ikke dokumentert, så både Chromium-cachen og Vardåsen-kartet kan bomme én gang og så fylles på nytt. Vardåsen-nøkkelen fylles uansett først fra master, som er hele grunnen til at jobben også kjører på push dit.
+
+Og `cloudflare/proxy` får sin egen `package-lock.json`, slik `mcp-worker` og `ai-worker` allerede har. Uten den løses `wrangler: ^4.0.0` fritt ved hver CI-kjøring og hver deploy, altså en ny wrangler-versjon i produksjon uten at noe i repoet endret seg — og `versjonsdrift.mjs` så bare den deklarerte siden av den katalogen. Den deklarerte spennet står urørt; det er låsingen som manglet, ikke spennet.
+
+---
+
 ## 2026-09-11 — v7.7.10: MCP-Workerens agents-bump, gjennom protokoll-gaten
 
 `agents` 0.21 → 0.23, `zod` 4.4.3 → 4.6.2 og `wrangler` 4.125 → 4.131 i `cloudflare/mcp-worker`. For `0.x`-pakker er minor-feltet det brytende, så dette er to brytende hopp i den pakka som eier hele handler-valget — derfor sin egen leveranse, og derfor målt framfor lest: `createLegacyMcpHandler` finnes fortsatt i 0.23 med uendret signatur (`server`, `{ route }`), `npm run boot:workers` starter alle tre Workerne i workerd, og `npm run mcp:protokoll` går grønt gjennom initialize → tools/list → tools/call med 14 verktøy. Den siste er gaten som faktisk svarer på en zod-bump: `z.record`-feltene må fortsatt serialiseres som objekt-skjema, og et ugyldig argument må fortsatt avvises — begge deler sjekkes eksplisitt. Bumpen lukker samtidig versjonsdriften mot `ai-worker`, som lå på wrangler 4.130 mens MCP-Workeren sto på 4.125. Notatet i CLAUDE.md er utvidet med at stien har en utløpsdato: agents 0.23 sier at SDK v1-serveren inn i `createMcpHandler` fjernes i neste major, og `createLegacyMcpHandler` står igjen som den midlertidige veien — ikke et sted å bli, men heller ikke et navnebytte som haster, siden det er registreringen av hvert verktøy som må skrives om.
