@@ -99,8 +99,7 @@ import { buildTrailColorCss, normalizeHex } from '../lib/trailColors.js'
 import { DEFAULT_VISIBLE_LAYER_KEYS } from '../lib/mapLayerCatalog.js'
 import { listThemes, erMorktTema } from '../lib/mapSettingsApply.js'
 import { SNARVEI_REKKEFOLGE_KEY, STANDARD_REKKEFOLGE, normaliserRekkefolge,
-  lesVisNavn, skrivVisNavn, flettSynligRekkefolge,
-         snarveierIRekkefolge } from '../lib/snarveier.js'
+         flettSynligRekkefolge, snarveierIRekkefolge } from '../lib/snarveier.js'
 import { norwegianName } from '../lib/placeName.js'
 import AnnotationIcon from '../components/AnnotationIcon.vue'
 import TrackElevationSheet from '../components/TrackElevationSheet.vue'
@@ -1727,13 +1726,23 @@ const {
 })
 
 
-// ── LENDE-FAB-ENS ARK-REGEL (v4.8.2, gjenopprettet i v7.2.0) ─────────────────
-// FAB-en står fast nederst til høyre, dokker rett over en minimert peek-kant,
-// og forsvinner når et ark er dratt opp. ALLE arkene mates inn, også
-// hjelpe-arkene: de deler z-40 med FAB-en, og et ark senere i DOM-en ville
-// dekket den stille. Deklarert her fordi contextMenuOpen kommer fra
+// ── BUNNLINJA (v4.8.2, gjenopprettet i v7.2.0, delt med kompasset i v7.7.6) ──
+// Ett flytende element nederst til høyre (Lende-FAB-en) og ett nederst til
+// venstre (linjalen med kompass-nåla) står fast nederst, dokker rett over en
+// minimert peek-kant, og forsvinner når et ark er dratt opp. ALLE arkene mates
+// inn, også hjelpe-arkene: de deler z-40 med FAB-en, og et ark senere i DOM-en
+// ville dekket den stille. Deklarert her fordi contextMenuOpen kommer fra
 // useContextLookups over.
-const fabFloat = useFloatAboveSheets(
+//
+// DE TO DELER ÉN REGEL, OG DET ER HELE POENGET (v7.7.6). Fram til nå hadde
+// linjalen ingen: den sto på sin egen faste bunn og ble liggende HALVT BAK et
+// minimert ark, mens FAB-en på samme bunnlinje lå pent over det. To knapper i
+// samme kant som svarer ulikt på det samme arket leses som en feil i den ene.
+// Én `useFloatAboveSheets` og ikke to: to instanser med hver sine tall er
+// nøyaktig det som kan komme i utakt uten at noen test ser det, og bredde-
+// unntaket (`roomy`) er symmetrisk — arket er midtstilt, så det er like mye
+// kart igjen på hver side.
+const bunnFloat = useFloatAboveSheets(
   () => [
     { open: showControls, drawer },
     { open: contextMenuOpen, drawer: contextDrawer },
@@ -1751,9 +1760,11 @@ const fabFloat = useFloatAboveSheets(
   }
 )
 // Søke-overlayet er også z-40 og ville stacket med FAB-en; høydeprofil-modalen
-// har eget scrim over den. Begge fjerner den helt.
-const fabHidden = computed(() =>
-  fabFloat.hidden.value || searchOpen.value || !!expandedTrack.value
+// har eget scrim over den. Begge fjerner den helt — og linjalen med, fra
+// v7.7.6: treff-lista dekker den venstre kanten, og en avlesning under et
+// scrim er en avlesning man ikke kan bruke.
+const bunnSkjult = computed(() =>
+  bunnFloat.hidden.value || searchOpen.value || !!expandedTrack.value
 )
 
 // Hvilke parker faktaboksen faktisk skal vise. Trykker du INNE i en
@@ -1965,16 +1976,6 @@ function settSnarveiRekkefolge(ny) {
     localStorage.setItem(SNARVEI_REKKEFOLGE_KEY, JSON.stringify(snarveiRekkefolge.value))
   } catch { /* noop */ }
 }
-// «VIS NAVN NÅR MINIMERT» (v7.6.0), satt i radens sorterings-footer. PÅ er
-// standard: ikonene bærer ikke betydningen alene. AV krymper cella til
-// ikon-høyde sammenlagt og lar navnene vokse fram med draget — se
-// lib/snarveier.js og SnarveiRad.vue.
-const snarveiVisNavn = ref(lesVisNavn(globalThis.localStorage))
-function settSnarveiVisNavn(pa) {
-  snarveiVisNavn.value = pa
-  skrivVisNavn(globalThis.localStorage, pa)
-}
-
 // Samme port som fanene hadde: på de innebygde demokartene finnes verken egne
 // markeringer eller GPS-spor, så Annotering og Sporing står ikke i raden.
 const egetKart = computed(() => !(route.params.id ?? 'vardasen').startsWith('vardasen'))
@@ -2752,9 +2753,7 @@ onUnmounted(() => {
       <div class="flex flex-col items-center gap-1 w-full">
         <SnarveiRad :snarveier="synligeSnarveier"
                     :ui-text-scale="uiTextScale"
-                    :vis-navn="snarveiVisNavn"
                     @velg="onSnarvei" @flytt="onSnarveiFlytt"
-                    @vis-navn="settSnarveiVisNavn"
                     @tilbakestill="settSnarveiRekkefolge([...STANDARD_REKKEFOLGE])"
                     @apen="snarveiApen = $event" />
         <!-- KNOTT-HINTET FULGTE MED KNOTTENE (v7.0.0). «Strek 1,20×» var
@@ -2867,9 +2866,9 @@ onUnmounted(() => {
     <FabCluster
       v-if="lendeChatEnabled"
       :chat-enabled="true"
-      :bottom="fabFloat.bottomStyle.value"
+      :bottom="bunnFloat.bottomStyle.value"
       :right-style="floatRightStyle"
-      :hidden="fabHidden"
+      :hidden="bunnSkjult"
       :logo-url="lendeLogoUrl"
       :ui-text-scale="uiTextScale"
       @chat="openChat" />
@@ -3081,13 +3080,18 @@ onUnmounted(() => {
          står i punkt-skuffen, ikke her. -->
     <!-- KOMPASSET STÅR NEDE TIL VENSTRE (v7.3.0), fristilt fra linjal-boksen
          igjen i v7.3.2: egen halvgjennomsiktig skive rett på arket, med
-         linjalen ved siden av på samme bunnlinje som Lende-FAB-en. Det var en
-         fast knapp i snarvei-raden fram til v7.3.0; her koster det ingen
-         radplass. Bare med berøring: uten rotasjon finnes ingen azimut å
-         nullstille, og desktop har retningsrosa i søyla.
-         `mork` er ARKETS valør og ikke UI-temaet — skiva ligger på kartet. -->
+         linjalen under, på SAMME BUNNLINJE som Lende-FAB-en. Det var en fast
+         knapp i snarvei-raden fram til v7.3.0; her koster det ingen radplass.
+         Bare med berøring: uten rotasjon finnes ingen azimut å nullstille, og
+         desktop har retningsrosa i søyla.
+         `mork` er ARKETS valør og ikke UI-temaet — skiva ligger på kartet.
+
+         BUNNEN OG SYNLIGHETEN ER FAB-ENS (v7.7.6): samme `bunnFloat`, samme
+         `bunnSkjult`. Boksen hadde en fast bunn og ble liggende halvt bak et
+         minimert ark mens FAB-en lå over det. -->
     <MapScaleAttribution
-      :visible="!loading && !searchOpen"
+      :visible="!loading && !bunnSkjult"
+      :bottom="bunnFloat.bottomStyle.value"
       :scale-bar="scaleBar"
       :kompass="hasTouch"
       :azimut="rotationSliderDeg"

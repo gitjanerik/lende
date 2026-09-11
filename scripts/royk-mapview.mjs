@@ -1300,101 +1300,6 @@ const SJEKKER = [
     },
   },
   {
-    // «VIS NAVN NÅR MINIMERT» ER EN BRYTER (v7.6.0), øverst i Sorter-panelet og
-    // PÅ som standard. Sjekken slår den AV og krever de tre tingene som skiller
-    // den fra en ren visning/skjuling, og som ingen enhetstest kan se:
-    //   • cella blir MERKBART LAVERE sammenlagt — er høyden uendret, gjør
-    //     bryteren ingenting, og da er den bare en knott som lyver;
-    //   • etiketten er kollapset, ikke bare gjennomsiktig (høyden ER gevinsten);
-    //   • draget gir BEGGE deler tilbake — navn og høyde i samme bevegelse.
-    // Til slutt settes den tilbake: resten av suiten kjører med standarden.
-    navn: 'bryteren «Vis navn når minimert» krymper cella og draget gir den tilbake',
-    domene: 'SnarveiRad (navne-bryteren) + lib/snarveier',
-    async kjør(page) {
-      await lukkDrawer(page)
-      await lukkSnarveiRad(page)
-      const les = () => page.evaluate(() => {
-        const k = document.querySelector('.snarvei-rad [data-snarvei]')
-        if (!k) return null
-        const navn = k.querySelector('span:last-child')
-        return {
-          celle: Math.round(k.getBoundingClientRect().height),
-          navnHoyde: navn ? Math.round(navn.getBoundingClientRect().height) : -1,
-          navnOpasitet: navn ? Number(getComputedStyle(navn).opacity) : -1,
-        }
-      })
-      // BRYTEREN BOR UNDER PILLA, VED SIDEN AV «Sorter» (v7.7.1) — ikke i et
-      // panel, og ikke i sorterings-footeren: å skru navnene av er ingen
-      // sorterings-handling, så veien dit skal ikke gå gjennom en modus.
-      const vipp = async () => {
-        await apneSnarveiRad(page)
-        const ok = await page.evaluate(() => {
-          const b = [...document.querySelectorAll('[role="switch"]')].find((e) =>
-            e.offsetParent && /Vis navn/.test(e.getAttribute('aria-label') || ''))
-          if (!b) return null
-          const før = b.getAttribute('aria-checked')
-          b.click()
-          return før
-        })
-        if (ok === null) throw new Error('fant ingen «Navn»-bryter under raden')
-        await page.waitForTimeout(400)
-        await lukkSnarveiRad(page)
-        await page.waitForTimeout(500)
-        return ok
-      }
-
-      const paa = await les()
-      if (!paa) throw new Error('fant ingen snarvei-knapp')
-      if (!(paa.navnHoyde > 1)) {
-        throw new Error('standarden viser ikke navnet sammenlagt — bryteren skal være PÅ')
-      }
-
-      let tilbakestilt = false
-      try {
-        const før = await vipp()
-        if (før !== 'true') throw new Error(`bryteren sto på «${før}» — standarden er PÅ`)
-        const av = await les()
-        if (av.navnHoyde > 1 || av.navnOpasitet > 0.02) {
-          throw new Error(`navnet står fortsatt sammenlagt med bryteren av `
-            + `(${av.navnHoyde} px, opasitet ${av.navnOpasitet})`)
-        }
-        // «Nokså mye» lavere: mister vi høyden, er hele gevinsten borte.
-        if (!(av.celle <= paa.celle - 6)) {
-          throw new Error(`cella krympet ikke nok (${paa.celle} → ${av.celle} px) `
-            + '— minstehøyden klemmer trolig animasjonen flat')
-        }
-
-        // DRAGET GIR BEGGE DELER TILBAKE, i samme bevegelse.
-        await apneSnarveiRad(page)
-        const dratt = await les()
-        if (!(dratt.navnHoyde > 1) || !(dratt.navnOpasitet > 0.9)) {
-          throw new Error(`draget avdekket ikke navnet (${dratt.navnHoyde} px, `
-            + `opasitet ${dratt.navnOpasitet})`)
-        }
-        if (!(dratt.celle > av.celle)) {
-          throw new Error(`cella vokste ikke med draget (${av.celle} → ${dratt.celle} px)`)
-        }
-        await lukkSnarveiRad(page)
-
-        await vipp()
-        tilbakestilt = true
-        const igjen = await les()
-        if (!(igjen.navnHoyde > 1)) throw new Error('bryteren ga ikke navnene tilbake')
-        return `celle ${paa.celle} px med navn → ${av.celle} px uten, `
-          + `draget ga ${dratt.celle} px og navnet tilbake`
-      } finally {
-        // NØYTRAL TILSTAND: resten av suiten kjører med standarden.
-        if (!tilbakestilt) {
-          await page.evaluate(() => {
-            try { localStorage.removeItem('lende-snarvei-navn-minimert') } catch { /* tom */ }
-          })
-          await page.reload({ waitUntil: 'domcontentloaded' })
-          await page.waitForTimeout(2500)
-        }
-      }
-    },
-  },
-  {
     // HELE PILLA ER GRIPEFLATE (v7.6.0). Håndtaket er 44 px nederst i en boks
     // som er dobbelt så høy — man måtte sikte på den nederste tredjedelen, og
     // bommet man, trykket man på en snarvei. Sjekken drar fra MIDT PÅ EN
@@ -1835,15 +1740,14 @@ const SJEKKER = [
         const rad = document.querySelector('.snarvei-rad')
         const handle = document.querySelector('.snarvei-handle')
         const sorter = [...document.querySelectorAll('button')]
-          .find((b) => b.offsetParent && b.innerText.trim() === 'Sorter')
+          .find((b) => b.offsetParent && b.innerText.trim() === 'Sorter snarveier')
         if (!rad || !handle || !sorter) {
           return { mangler: !rad ? 'raden' : !handle ? 'håndtaket' : '«Sorter»' }
         }
-        // KNOTTE-RADA er det midtstilte, ikke knappen: fra v7.7.1 står «Sorter»
-        // ved siden av navne-bryteren, og en knapp som er midtstilt for seg selv
-        // ville betydd at den andre knotten ikke finnes.
+        // KNOTTE-RADA er det midtstilte, ikke knappen. De to falt sammen igjen
+        // i v7.7.6 da navne-bryteren ble slettet, men raden er fortsatt det som
+        // midtstilles — kommer det en knott til, er det den som skal stemme.
         const knotter = sorter.parentElement
-        const bryter = knotter.querySelector('[role="switch"]')
         const kr = knotter.getBoundingClientRect()
         const r = rad.getBoundingClientRect()
         const h = handle.getBoundingClientRect()
@@ -1860,10 +1764,9 @@ const SJEKKER = [
           sorterUtenforBoksen: !rad.parentElement.contains(sorter),
           knotterMidt: Math.round(kr.left + kr.width / 2),
           sorterHarIkon: !!sorter.querySelector('svg'),
-          harBryter: !!bryter,
-          bryterSjekket: bryter?.getAttribute('aria-checked') || null,
-          bryterVedSiden: !!bryter
-            && Math.abs(bryter.getBoundingClientRect().top - so.top) < 6,
+          // NAVNE-BRYTEREN ER SLETTET (v7.7.6): navnene står alltid, og en
+          // knott med et NIVÅ hørte ikke hjemme i en rad med bare funksjoner.
+          harBryter: !!knotter.querySelector('[role="switch"]'),
         }
       })
       if (geo.mangler) throw new Error(`fant ingen ${geo.mangler}`)
@@ -1893,31 +1796,19 @@ const SJEKKER = [
       if (Math.abs(geo.knotterMidt - geo.radMidt) > 4) {
         throw new Error('knotte-rada under håndtaket er ikke midtstilt under raden')
       }
-      // NAVNE-BRYTEREN STÅR HER, IKKE I SORTERINGS-FOOTEREN (v7.7.1). Den satt
-      // der ett øyeblikk fordi den fulgte med da panelet ble slettet — og da
-      // måtte man inn i sorterings-modus for å skru navnene av.
-      if (!geo.harBryter) {
-        throw new Error('navne-bryteren står ikke ved siden av «Sorter» — '
-          + 'da må man inn i sorterings-modus for å skru navnene av')
+      // NAVNE-BRYTEREN ER BORTE (v7.7.6) — navnene står alltid. Sjekken måler
+      // fraværet fordi en bryter er lett å legge tilbake i god tro.
+      if (geo.harBryter) {
+        throw new Error('det står en vippebryter ved siden av «Sorter» igjen — '
+          + 'navnene skal alltid stå, uten en knott som kan skru dem av')
       }
-      if (!geo.bryterVedSiden) {
-        throw new Error('navne-bryteren ligger ikke på samme linje som «Sorter»')
-      }
-      if (geo.bryterSjekket === null) {
-        throw new Error('navne-bryteren mangler aria-checked — den er en switch')
-      }
-      // ... OG DEN ER BORTE I SORTERINGS-MODUS: der er hver celle et objekt man
-      // flytter, og en bryter som endrer cellehøyden midt i et drag er en form
-      // som skifter under fingeren.
-      await klikkTekst(page, /^Sorter$/)
+      // «Sorter» ER BORTE I SORTERINGS-MODUS: der er man allerede inne i den.
+      await klikkTekst(page, /^Sorter snarveier$/)
       await page.waitForTimeout(300)
       const iModus = await page.evaluate(() => ({
-        bryter: !![...document.querySelectorAll('[role="switch"]')]
-          .find((b) => b.offsetParent && /Vis navn/.test(b.getAttribute('aria-label') || '')),
         sorter: !![...document.querySelectorAll('button')]
-          .find((b) => b.offsetParent && b.innerText.trim() === 'Sorter'),
+          .find((b) => b.offsetParent && b.innerText.trim() === 'Sorter snarveier'),
       }))
-      if (iModus.bryter) throw new Error('navne-bryteren står igjen i sorterings-modus')
       if (iModus.sorter) throw new Error('«Sorter» står igjen i sorterings-modus')
       await avsluttSortering(page)
 
@@ -1925,8 +1816,8 @@ const SJEKKER = [
       await lukkSnarveiRad(page)
       return `topprada over raden (${topp.meny}/${topp.navn}/${topp.sok} `
         + `< ${topp.radTopp}), tannhjulet ute, håndtak ${geo.strekBredde} px `
-        + 'midtstilt under raden, Navn + Sorter fristilt under håndtaket '
-        + 'og begge borte i sorterings-modus'
+        + 'midtstilt under raden, «Sorter» fristilt under håndtaket '
+        + 'og borte i sorterings-modus'
     },
   },
   {
@@ -2880,6 +2771,126 @@ const SJEKKER = [
       } finally {
         await ctx.close()
       }
+    },
+  },
+  {
+    // KOMPASSET OG LENDE-FAB-EN DELER BUNNLINJE (v7.7.6).
+    //
+    // De to flytende elementene i hver sin nedre kant hadde hver sin regel:
+    // FAB-en gikk gjennom useFloatAboveSheets og dokket over et minimert ark,
+    // mens linjal-boksen med kompass-nåla sto på en FAST bunn og ble liggende
+    // halvt bak arkets peek-kant. To knapper i samme kant som svarer ulikt på
+    // det samme arket leses som en feil i den ene. Nå mates begge av ÉN
+    // `useFloatAboveSheets`.
+    //
+    // MÅLES VED 200 % OGSÅ, og det er der den andre halvdelen av feilen satt:
+    // `zoom` lå på FAB-ens PLASSERTE boks, og zoom skalerer et elements egne
+    // offsets — så den dokkede verdien (`peek + 12`) ble dobbelt så høy og
+    // FAB-en fløt hundre piksler over arket. Zoomen bor nå på en indre boks
+    // forankret i hjørnet, så plasseringen er i ekte skjermpiksler.
+    //
+    // Tre tilstander, og alle tre er i bestillingen: uten ark står begge
+    // nederst, over et MINIMERT ark står begge like høyt over peek-kanten, og
+    // med arket dratt opp er begge borte.
+    navn: 'kompasset og Lende-FAB-en står på samme bunnlinje over et minimert ark',
+    domene: 'MapView (bunnlinja) + MapScaleAttribution + FabCluster',
+    maksMs: 150_000,
+    async kjør(page) {
+      const resultat = []
+      for (const skala of [1, 2]) {
+        const ctx = await page.context().browser().newContext({
+          viewport: { width: 430, height: 900 },
+          hasTouch: true,
+        })
+        await ctx.addInitScript((s) => {
+          try {
+            localStorage.setItem('lende-ai-token', 'royk-token')
+            localStorage.setItem('lende-ui-text-scale', String(s))
+          } catch { /* tom */ }
+        }, skala)
+        const p2 = await ctx.newPage()
+        try {
+          await p2.goto(`${BASE}/kart/vardasen`,
+            { waitUntil: 'domcontentloaded', timeout: 60_000 })
+          await p2.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+            null, { timeout: 30_000 })
+          await lukkDrawer(p2)
+
+          // Bunnen måles fra VIEWPORTENS underkant, ikke fra elementets top:
+          // det er avstanden ned til skjermkanten (eller opp fra arket) de to
+          // skal dele, og høydene deres er ulike.
+          const les = () => p2.evaluate(() => {
+            const vh = innerHeight
+            const fab = document.querySelector('button[aria-label="Spør Lende"]')
+            const sk = document.querySelector('[data-osm-kreditt]')?.closest('div.absolute')
+            const ark = [...document.querySelectorAll('.drawer-shell')]
+              .filter((e) => e.offsetParent)
+            const bunn = (e) => (e ? Math.round(vh - e.getBoundingClientRect().bottom) : null)
+            return {
+              fab: bunn(fab),
+              linjal: sk ? Math.round(vh - sk.getBoundingClientRect().bottom) : null,
+              arkHoyde: ark.length
+                ? Math.round(vh - Math.max(...ark.map((a) => a.getBoundingClientRect().top)))
+                : 0,
+            }
+          })
+          const like = (m, hva) => {
+            if (m.fab === null || m.linjal === null) {
+              throw new Error(`ved ${skala * 100} %, ${hva}: `
+                + `${m.fab === null ? 'FAB-en' : 'linjalen'} er borte — begge skal stå`)
+            }
+            if (Math.abs(m.fab - m.linjal) > 2) {
+              throw new Error(`ved ${skala * 100} %, ${hva}: FAB-en står ${m.fab} px `
+                + `over skjermkanten og linjalen ${m.linjal} px — de skal dele bunnlinje`)
+            }
+          }
+
+          const fritt = await les()
+          like(fritt, 'uten ark')
+
+          // Punkt-arket åpner MIDTSTORT av et hold i kartet; peek nås med et
+          // drag ned i håndtaket. Begge tilstandene er i bestillingen.
+          const kart = await p2.locator('svg.isom-map').boundingBox()
+          await p2.mouse.move(kart.x + kart.width / 2, kart.y + kart.height * 0.55)
+          await p2.mouse.down()
+          await p2.waitForTimeout(800)
+          await p2.mouse.up()
+          await p2.waitForTimeout(1200)
+          const midt = await les()
+          if (!midt.arkHoyde) throw new Error('holdet åpnet ikke punkt-arket')
+          if (midt.fab !== null || midt.linjal !== null) {
+            throw new Error(`ved ${skala * 100} % står `
+              + `${midt.fab !== null ? 'FAB-en' : 'linjalen'} igjen under et `
+              + 'oppslått ark — begge skal være borte')
+          }
+
+          const ark = await p2.locator('.drawer-shell').first().boundingBox()
+          await p2.mouse.move(ark.x + ark.width / 2, ark.y + 10)
+          await p2.mouse.down()
+          await p2.mouse.move(ark.x + ark.width / 2, ark.y + 330, { steps: 14 })
+          await p2.mouse.up()
+          await p2.waitForTimeout(700)
+          const peek = await les()
+          if (!(peek.arkHoyde > 0 && peek.arkHoyde < midt.arkHoyde)) {
+            throw new Error(`arket ble ikke minimert (${peek.arkHoyde} px)`)
+          }
+          like(peek, 'over et minimert ark')
+          if (!(peek.fab > peek.arkHoyde)) {
+            throw new Error(`ved ${skala * 100} % ligger begge ${peek.fab} px over kanten, `
+              + `men arkets peek er ${peek.arkHoyde} px — de står bak arket`)
+          }
+          // OG IKKE SVEVENDE HØYT OVER DET: zoom-fella ga dobbelt avstand.
+          if (peek.fab > peek.arkHoyde + 40) {
+            throw new Error(`ved ${skala * 100} % står de ${peek.fab - peek.arkHoyde} px `
+              + 'over arkets peek-kant — skalerer zoomen plasseringen igjen?')
+          }
+          resultat.push(`${skala * 100} %: ${fritt.fab} px fritt, `
+            + `${peek.fab} px over en peek på ${peek.arkHoyde} px`)
+        } finally {
+          await ctx.close()
+        }
+      }
+      return resultat.join('; ')
     },
   },
   {
@@ -5668,7 +5679,7 @@ async function avsluttSortering(page) {
 
 async function startSortering(page) {
   await apneSnarveiRad(page)
-  await klikkTekst(page, /^Sorter$/)
+  await klikkTekst(page, /^Sorter snarveier$/)
 }
 
 async function apneSnarveiRad(page) {

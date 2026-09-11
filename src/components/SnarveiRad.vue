@@ -13,20 +13,13 @@
 // BREDESTE cella, og er det samme i begge tilstandene. Sammenlagt vises første
 // rad; draget avdekker resten.
 //
-// NAVNET STÅR ALLTID — MEN DET ER EN BRYTER (v7.6.0). Fram til v7.5.0 avdekket
-// draget etikettene, og den STANDARDEN er snudd: ikonene bærer ikke betydningen
-// alene, og gevinsten ved å skjule dem var fjorten piksler på en rad som
-// uansett bare er ÉN rad sammenlagt. Bryteren står derfor UNDER pilla med PÅ som
-// default, for den som HAR lært ikonene og vil ha de pikslene tilbake.
-//
-// DE TO TILSTANDENE ER ULIKE, OG BEGGE ANIMERES AV SAMME `dra`:
-//   • PÅ  — cella er like bred og like høy hele veien, og draget avdekker bare
-//           FLERE RADER.
-//   • AV  — cella krymper til ikon-høyde sammenlagt (`SNARVEI_MIN_H_SMAL`), og
-//           navnene vokser fram MED de nye radene. Høyden og opasiteten på
-//           etiketten henger begge på `dra`, så det er én sammenhengende
-//           bevegelse — en tekst som blinker på et ferdig utvokst rutenett
-//           leses som en feil.
+// NAVNET STÅR ALLTID, UTEN BRYTER (v7.7.6). Fram til v7.5.0 avdekket draget
+// etikettene; v7.6.0 snudde standarden og la et valg under pilla. Valget er nå
+// borte: ikonene bærer ikke betydningen alene — en linjal med to prikker, en
+// åttekant med streker og en pil er ikke selvforklarende — og gevinsten var
+// fjorten piksler på en rad som uansett bare er ÉN rad sammenlagt. Prisen var
+// en knott med et NIVÅ i en rad som ellers bare bærer funksjoner, og to
+// cellehøyder å måle og animere mellom. Draget avdekker nå bare FLERE RADER.
 //
 // DRAGET ER KONTINUERLIG, som i punkt-arket og funksjons-skuffene (v7.5.0).
 // Håndtaket satte før bare en av/på: raden hoppet mellom to former. Nå følger
@@ -58,7 +51,7 @@
 // FIRE TING SOM MÅ STÅ:
 //
 // 1. HÅNDTAKET SKJULES ALDRI. Det er ikke bare «resten av funksjonene» — det
-//    er også eneste vei til «Sorter» og navne-bryteren, og rekkefølgen er det
+//    er også eneste vei til «Sorter snarveier», og rekkefølgen er det
 //    som avgjør hva som havner bak det på en smal skjerm. Skjuler du håndtaket
 //    når alt får plass, forsvinner sorteringen på de skjermene der den er
 //    lettest å prøve ut.
@@ -117,8 +110,7 @@
 // under den utfoldede skuffa. Den handler om RADEN og ikke om kartet, og en
 // plass mellom Måling og 3D ville gjort den til nok en ting man trykker på ved
 // et uhell. Den toner inn med draget, som alt annet som avdekkes. Ordet er ett:
-// den står nå ved siden av «Navn», og «Sorter snarveier» der sa «snarveier» om
-// noe man ser på.
+// «Sorter snarveier» sa «snarveier» om noe man ser på.
 //
 // ─────────────────────────────────────────────────────────────────────────────
 // SORTERINGEN SKJER I RADEN SELV (v7.7.0) — panelet er slettet, ikke flyttet.
@@ -160,24 +152,16 @@
 // «TILBAKESTILL» FULGTE MED HIT. Den hørte hjemme i panelet fordi panelet var
 // det ene stedet man så på raden som et objekt — nå er det raden selv.
 //
-// «VIS NAVN» GJORDE DET OGSÅ, OG DET VAR FEIL PLASS (v7.7.1). Bryteren fulgte
-// med da panelet ble slettet, men å skru navnene av er ingen sorterings-
-// handling: man vil ha en tettere rad, og da måtte man inn i en modus man ikke
-// hadde noe å gjøre i for å komme til den. Den står nå UTENFOR den svarte
-// boksen, ved siden av «Sorter» — begge er knotter som handler om RADEN og
-// ikke om kartet, og de avdekkes av samme drag. Den er SKJULT i sorterings-
-// modus: der er hver celle et objekt man flytter, og en bryter som endrer
-// cellehøyden midt i et drag er en form som skifter under fingeren.
-//
-// UTENFOR PILLA BÆRER BRYTEREN ET EKTE SPOR. Inne i boksen var «på» allerede en
-// FARGE (aksentgrønn flate), og et spor i tillegg ville vært to former for av/på
-// på samme flate. Ute står den ved siden av «Sorter», som bare GJØR noe — og da
-// er forskjellen på en av/på og en handling bare en farge man må ha sett før.
+// «VIS NAVN» FULGTE OGSÅ MED HIT (v7.7.1), vandret ut av modusen og er nå
+// SLETTET (v7.7.6). Den var en knott med et NIVÅ i en rad som ellers bare bærer
+// funksjoner — samme klasse som strek og relieff, som gikk til Innstillinger i
+// v7.4.0 — og den betalte med to cellehøyder å måle og animere mellom. Navnene
+// står alltid.
 // ─────────────────────────────────────────────────────────────────────────────
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import SnarveiIkon from './SnarveiIkon.vue'
 import {
-  antallKolonner, antallRader, SNARVEI_MIN_H, SNARVEI_MIN_H_SMAL,
+  antallKolonner, antallRader, SNARVEI_MIN_H,
   gitterIndeks, gitterForskyvning, flyttSnarvei,
 } from '../lib/snarveier.js'
 import { pickSnapTarget } from '../composables/useDraggableDrawer.js'
@@ -186,8 +170,6 @@ const props = defineProps({
   // [{ id, label, aria }] i brukerens rekkefølge.
   snarveier: { type: Array, required: true },
   uiTextScale: { type: Number, default: 1 },
-  // «Vis navn når minimert» fra Sorter-panelet. PÅ er standard — se filhodet.
-  visNavn: { type: Boolean, default: true },
 })
 // `apen` går UT igjen fordi den utfoldede skuffa er flere linjer høy på en
 // telefon og da dekker navigasjonssøyla, som står i sin egen `--ovl-nav`-slot
@@ -196,7 +178,7 @@ const props = defineProps({
 // sjelden drar ut. Kallstedet løfter i stedet raden over søyla mens den er ute.
 // Radens egen z-index duger ikke: innpakningen i MapView er `z-20 absolute`,
 // altså sin egen stacking context, og et barn kan ikke klatre ut av den.
-const emit = defineEmits(['velg', 'flytt', 'vis-navn', 'tilbakestill', 'apen'])
+const emit = defineEmits(['velg', 'flytt', 'tilbakestill', 'apen'])
 
 // Margin til hver skjermkant. Raden er sentrert, så halve verdien per side.
 const KANT_PX = 24
@@ -236,16 +218,6 @@ const maaler = ref(false)
 // brukerens faktiske dra-posisjon røres. `null` = ikke under måling.
 const maalTvang = ref(null)
 const draNaa = computed(() => maalTvang.value ?? dra.value)
-
-// Hvor mye av etiketten som vises. Med bryteren PÅ er den alltid hel; med den
-// AV følger den draget, så navn og radhøyde er én bevegelse.
-const navnAndel = computed(() => (props.visNavn ? 1 : draNaa.value))
-// Sammenlagt uten navn er cella bare et ikon, og da skal den være LAV — det er
-// hele gevinsten ved å skru bryteren av. Minstehøyden går derfor ned med
-// etiketten i stedet for å klemme animasjonen flat.
-const celleMinH = computed(() => (props.visNavn
-  ? SNARVEI_MIN_H
-  : SNARVEI_MIN_H_SMAL + (SNARVEI_MIN_H - SNARVEI_MIN_H_SMAL) * draNaa.value))
 
 const apen = computed(() => dra.value > 0.5)
 const rader = computed(() => antallRader(props.snarveier.length, kolonner.value))
@@ -347,9 +319,6 @@ watch(apen, v => emit('apen', v))
 // ville fått transformene sine nullstilt midt i seg selv.
 watch(() => [...props.snarveier.map(s => s.id)].sort().join(','), () => { void maal() })
 watch(() => props.uiTextScale, () => { void maal() })
-// Bryteren endrer den SAMMENLAGTE høyden (og bare den), så begge tallene må
-// leses på nytt — ellers drar man i en skuff som tror den er 46 px høy.
-watch(() => props.visNavn, () => { void maal() })
 
 function velg(id) {
   if (sluk) { sluk = false; return }
@@ -672,7 +641,7 @@ function celleTransform(i) {
                   ? `Flytt ${s.aria}. Plass ${i + 1} av ${snarveier.length}. Bruk piltastene.`
                   : (s.ariaTekst || s.aria)"
                 :style="[{ zoom: uiTextScale,
-                           minHeight: `${celleMinH}px`,
+                           minHeight: `${SNARVEI_MIN_H}px`,
                            opacity: maalt && i >= kolonner ? dra : 1 },
                          celleTransform(i)]"
                 class="shortcut-btn"
@@ -681,16 +650,10 @@ function celleTransform(i) {
                          drarCelle === i ? 'shortcut-btn--loftet' : '',
                          valgtCelle === i ? 'shortcut-btn--valgt' : '']">
           <SnarveiIkon :id="s.id" class="w-5 h-5 shrink-0" />
-          <!-- NAVNET. Med bryteren PÅ (standard) er `navnAndel` fast 1 og
-               etiketten står; med den AV følger både høyden og opasiteten
-               draget, så navnet vokser fram sammen med de nye radene.
-               `aria-label` på knappen bærer den fulle teksten uansett —
-               «Posisjon på. Slå av.» sier mer enn ordet under ikonet — så en
-               skjult etikett gjør aldri raden navnløs. -->
-          <span class="shortcut-btn__navn"
-                :style="navnAndel < 1
-                        ? { height: `${12 * navnAndel}px`, opacity: navnAndel }
-                        : null">{{ s.label }}</span>
+          <!-- NAVNET STÅR ALLTID (v7.7.6). `aria-label` på knappen bærer den
+               fulle teksten — «Posisjon på. Slå av.» sier mer enn ordet under
+               ikonet — så etiketten her er kortformen. -->
+          <span class="shortcut-btn__navn">{{ s.label }}</span>
         </button>
       </div>
 
@@ -733,31 +696,17 @@ function celleTransform(i) {
       </div>
     </div>
 
-    <!-- UNDER PILLA: de to knottene som handler om RADEN og ikke om kartet.
-         Begge toner inn med draget, som alt annet det avdekker, og
+    <!-- UNDER PILLA: «Sorter snarveier», den ene knotten som handler om RADEN og ikke om
+         kartet. Den toner inn med draget, som alt annet det avdekker, og
          `pointer-events` følger med — en usynlig knapp skal ikke ta trykk.
+         Den er SKJULT i sorterings-modus: der er man alt inne i den.
 
-         BRYTEREN STÅR HER OG IKKE I SORTERINGS-FOOTEREN (v7.7.1). Den lå der
-         først fordi den fulgte med da panelet ble slettet, men å skru navnene
-         av er ikke en sorterings-handling: man vil ha en tettere rad, og da
-         måtte man inn i en modus man ikke hadde noe å gjøre i for å komme til
-         den. Den er SKJULT i sorterings-modus — der er hver celle et objekt man
-         flytter, og en bryter som endrer cellehøyden midt i et drag er en form
-         som skifter under fingeren. -->
+         NAVNE-BRYTEREN STO HER FRAM TIL v7.7.6 og er fjernet — se filhodet. -->
     <div v-if="dra > 0 && !sorterer" class="pointer-events-auto flex items-center gap-2"
          :style="{ zoom: uiTextScale, opacity: dra,
                    pointerEvents: apen ? 'auto' : 'none' }">
-      <button type="button" role="switch" :aria-checked="visNavn"
-              aria-label="Vis navn under ikonene når raden er sammenlagt"
-              @click="emit('vis-navn', !visNavn)"
-              class="rad-knott" :class="visNavn ? 'rad-knott--pa' : ''">
-        <span class="rad-knott__spor" aria-hidden="true">
-          <span class="rad-knott__kule"></span>
-        </span>
-        Navn
-      </button>
       <button type="button" class="rad-knott" @click="startSortering">
-        Sorter
+        Sorter snarveier
       </button>
     </div>
   </div>
@@ -776,8 +725,8 @@ function celleTransform(i) {
   justify-content: center;
   gap: 2px;
   /* Et gulv, ikke en bredde: kolonnen er uansett så bred som det lengste ordet
-     i settet. Minstehøyden settes inline (`celleMinH`) fordi den følger
-     bryteren og draget — se filhodet. */
+     i settet. Minstehøyden settes inline (`SNARVEI_MIN_H`) fordi cella bærer
+     `zoom`, og tallet hører sammen med de andre målene i lib/snarveier.js. */
   min-width: 44px;
   padding: 6px 8px;
   border-radius: 12px;
@@ -807,12 +756,9 @@ function celleTransform(i) {
 
 /* Fast `line-height` og ikke `normal`: cella er en gitter-celle, og et
    linjehøyde-tall som følger fonten gjør radhøyden avhengig av hvilken font som
-   rakk å laste da målingen kjørte. `overflow: hidden` er for den AV-slåtte
-   bryteren, der høyden animeres fra 0 — uten den stikker halve bokstaver ut
-   mens etiketten er på vei opp. */
+   rakk å laste da målingen kjørte. */
 .shortcut-btn__navn {
   display: block;
-  overflow: hidden;
   line-height: 12px;
 }
 
@@ -881,15 +827,10 @@ function celleTransform(i) {
 }
 .sorter-knapp--ferdig:hover { background: color-mix(in oklab, var(--color-ink) 85%, transparent); }
 
-/* KNOTTENE UNDER PILLA. De bor UTENFOR den svarte boksen, og har derfor sin
-   egen flate — samme pille-form som overlegget ellers, så de leses som en del
-   av raden og ikke som noe på kartet.
-
-   BRYTEREN BÆRER ET EKTE SPOR, og det er ikke pynt: her står den ved siden av
-   «Sorter», som bare GJØR noe, og uten sporet er forskjellen på en av/på og en
-   handling bare en farge man må ha sett før. Inne i skuffene er den samme
-   forskjellen allerede etablert, men denne står alene over kartet. Sporet er
-   `aria-hidden` — `role="switch"` + `aria-checked` er det hjelpemidlene leser. */
+/* KNOTTEN UNDER PILLA. Den bor UTENFOR den svarte boksen, og har derfor sin
+   egen flate — samme pille-form som overlegget ellers, så den leses som en del
+   av raden og ikke som noe på kartet. Vippebryter-sporet forsvant med
+   navne-bryteren (v7.7.6); her står bare en knapp som GJØR noe. */
 .rad-knott {
   display: flex;
   align-items: center;
@@ -909,34 +850,8 @@ function celleTransform(i) {
 .rad-knott:active { transform: scale(0.95); }
 .rad-knott:hover { background: var(--color-overlay, #111); }
 
-/* Sporet: 26 × 14 px er lite nok til å stå i en pille og stort nok til å leses
-   som en bryter. Kula flyttes med `translate` og ikke med `margin`, så
-   bevegelsen er komposittert og ikke en layout-endring. */
-.rad-knott__spor {
-  display: inline-block;
-  width: 26px;
-  height: 14px;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--color-ink) 25%, transparent);
-  transition: background 0.15s ease;
-}
-.rad-knott__kule {
-  display: block;
-  width: 10px;
-  height: 10px;
-  margin: 2px;
-  border-radius: 999px;
-  background: var(--color-ink);
-  transition: transform 0.15s ease, background 0.15s ease;
-}
-/* PÅ er appens aksentgrønne, som hver vippebryter i skuffene. Emerald-600 og
-   ikke -500: hvitt på -500 gir 2,6:1, under WCAG 1.4.11 sitt krav på 3:1. */
-.rad-knott--pa .rad-knott__spor { background: #059669; }
-.rad-knott--pa .rad-knott__kule { transform: translateX(12px); background: #fff; }
-
 @media (prefers-reduced-motion: reduce) {
   .shortcut-btn--sorter { transition: none; }
-  .rad-knott__kule { transition: none; }
 }
 
 /* Håndtaket har ingen egen flate — det er streken som er knappen — men
