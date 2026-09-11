@@ -198,29 +198,34 @@ klient som ikke kjenner `isbre` maler Jostedalsbreen som myr.
 standardtilstanden, og 112 020 flater som maler bakgrunnen på nytt er ren
 datamengde.
 
-**VED NESTE BAKE SKAL HISTORIKKEN RYDDES. Dette er en beslutning, ikke et
-forslag.** Flisene er GENERERTE — de kan bakes på nytt fra Geonorge når som
-helst — og gamle utgaver har derfor null verdi. Etter v5.26.1 er tallene:
-`.git` 200 MB pack, 129 MB bakte fliser i arbeidstreet (117 areal + 12 sti),
-og **gh-pages har 323 commits** som hver bærer et helt `dist/`. Hver bake som
-endrer flisene legger et nytt sett på ~117 MB i historikken for alltid.
+**HISTORIKKEN SKAL RYDDES. Dette er en beslutning, ikke et forslag.** Flisene
+er GENERERTE — de kan bakes på nytt fra Geonorge når som helst — og gamle
+utgaver har derfor null verdi. Hver bake som endrer flisene legger et nytt sett
+på ~117 MB i historikken for alltid.
 
-To ryddejobber, med ulik risiko:
+To ryddejobber, med ulik risiko. **Den første er gjort, den andre står igjen:**
 
-1. **gh-pages — gjør dette først, det er gratis.** Grenen er ren generert
-   output; ingen har noe der å miste. `build-vardasen-map.yml` bygger den med
-   vanlige commits i et worktree, så historikken vokser monotont. Bytt til én
-   enkelt commit (orphan-branch + force-push) og 323 utgaver av nettstedet
-   forsvinner.
-2. **master — større inngrep, men det er der flisene ligger.** `git filter-repo`
-   kan droppe gamle flis-blobs fra historikken, etterfulgt av force-push. Det
-   omskriver delt historikk. Repoet har én eier, så prisen er lav — men gjør
-   det som en egen, bevisst operasjon, ikke som et biprodukt av en bake.
+1. **gh-pages — GJORT i v7.7.7.** Grenen er ren generert output; ingen hadde
+   noe der å miste. `build-vardasen-map.yml` bygget den med vanlige commits i
+   et worktree, så historikken vokste monotont — 434 commits, hver med et helt
+   `dist/`. Deploy-steget lager nå en foreldreløs commit og force-pusher, så
+   grenen er alltid nøyaktig én utgave av nettstedet. **Den henter bevisst ikke
+   gh-pages først** (halve gevinsten er at runneren slipper å laste ned en
+   historikk vi er i ferd med å kaste), og **«ingen endringer i dist» er borte
+   som begrep**: uten en forelder finnes det ingenting å diffe mot, og sjekken
+   hadde aldri noe å spare fordi hver PR bumper `CACHE_VERSION` i `sw.js`.
+2. **master — STÅR IGJEN, og det er der flisene ligger.** `.git` er 223 MB pack
+   mot 129 MB bakte fliser i arbeidstreet (117 areal + 12 sti).
+   `git filter-repo` kan droppe gamle flis-blobs fra historikken, etterfulgt av
+   force-push. Det omskriver delt historikk. Repoet har én eier, så prisen er
+   lav — men gjør det som en egen, bevisst operasjon, ikke som et biprodukt av
+   en bake. Merk at `build-vardasen-map.yml` kloner med `fetch-depth: 0`, så
+   hver deploy betaler for den pakka.
 
 GitHubs grenser, for kontekst: **100 MB per fil** er hard sperre (største flis
 er 2,4 MB, god margin), **5 GB repo** er der GitHub tar kontakt, og
 **1 GB for det publiserte Pages-nettstedet** er hard grense — `dist/` er 133 MB
-i dag. Ingen av dem er nære, men gh-pages-veksten er den som løper først.
+i dag, og med én commit er det også alt gh-pages veier.
 
 ## Viktig arkitektur-merknad — arket utvides BARE på bestilling
 
@@ -1781,16 +1786,40 @@ ikke et avvik, de er to ulike spørsmål, og en katalog uten lockfile bidrar bar
 til den deklarerte lista. Navnet leses etter SISTE `node_modules/` i stien, så
 den nestede kopien er nettopp den som telles.
 
-**Rot-lockfila har fem noder med FEIL `version`-felt, og det er ikke rettet.**
-`ajv-formats`, `eventsource`, `mime-types`, `raw-body` og `shebang-regex` står
-alle med appens egen versjon fra den gang (`3.0.17`) i stedet for pakkas — en
-global søk-og-erstatt under en versjons-bump som er dratt videre én patch om
-gangen siden. Installasjonen er likevel riktig, for npm installerer fra
-`resolved` + `integrity`; det er `audit`, `outdated` og dedupe som leser
-`version`, og det er trolig kilden til de sporadiske 400-ene («Invalid package
-tree») fra audit-endepunktet. `npm install --package-lock-only` retter det IKKE
-(målt: 13 av 348 noder før og etter) — det krever `rm package-lock.json &&
-npm install`, altså en egen, bevisst PR.
+**Rot-lockfila hadde TRETTEN noder med feil `version`-felt — rettet i v7.7.8,
+og oppskriften som sto her ville gjort skade.** Notatet sa «fem noder» og «`rm
+package-lock.json && npm install`». Begge deler var feil, og det andre er
+verdt å kjenne. Nodene var tretten (`ajv-formats`, `canvg`, `domelementtype`,
+`eventsource`, `geotiff`, `html-escaper`, `lerc`, `mime-types`, `nth-check`,
+`quickselect`, `raw-body`, `robust-predicates`, `shebang-regex`) — alle med
+appens egen versjon fra den gang (`3.0.17`) i stedet for pakkas, fra en global
+søk-og-erstatt under en versjons-bump. Fellesnevneren er at pakkas ekte
+versjon begynner på `3.0.`, så erstatningen traff akkurat dem.
+
+**`rm package-lock.json && npm install` FIKSER IKKE NOE, og den koster.** npm
+skriver en SKJULT lockfile, `node_modules/.package-lock.json`, som bar
+nøyaktig samme korrupsjon — og med den på plass tar npm en snarvei forbi hele
+registeroppslaget («up to date in 618ms»). Den nye fila fikk derfor de gale
+tallene tilbake OG mistet 52 noder: hver plattform-spesifikke valgfrie binær
+(`@napi-rs/canvas-darwin-arm64`, `@rolldown/binding-win32-x64-msvc`,
+`lightningcss-*`, `fsevents`, …). En lockfile bakt slik på en Linux-runner er
+en lockfile som ikke installerer på eierens egen maskin. Og `rm -rf
+node_modules` i tillegg er ingen utvei herfra: npm 10.9.7 kræsjer på et ferskt
+oppslag (`Cannot read properties of null (reading 'edgesOut')` i arborists
+peer-sett, rundt `vitest`).
+
+**Rettingen var KIRURGISK, og det er den formen en slik feil skal ha.** Feltet
+ble satt fra pakkas egen `package.json` på disk, med versjonen i
+`resolved`-URL-en som kryssjekk — enighet krevd før noe ble skrevet.
+`JSON.parse` → `JSON.stringify(…, null, 2)` er byte-identisk round-trip på
+npms format, så diffen ble nøyaktig 13 linjer og ingenting annet. `npm ci`
+etterpå gjenskaper treet uendret og skriver den skjulte fila på nytt med
+riktige tall.
+
+Feilen var aldri i installasjonen — npm installerer fra `resolved` +
+`integrity` — men `audit`, `outdated` og dedupe leser `version`, og feltet var
+trolig kilden til de sporadiske 400-ene («Invalid package tree») fra
+audit-endepunktet.
 
 **Dependabot-PR-er tas inn SELV, ikke merget rått (v5.22.4).** To grunner, og
 begge er konkrete: (1) roboten bumper ikke appens egen versjon, og uten en ny
