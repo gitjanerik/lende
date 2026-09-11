@@ -1786,16 +1786,40 @@ ikke et avvik, de er to ulike spørsmål, og en katalog uten lockfile bidrar bar
 til den deklarerte lista. Navnet leses etter SISTE `node_modules/` i stien, så
 den nestede kopien er nettopp den som telles.
 
-**Rot-lockfila har fem noder med FEIL `version`-felt, og det er ikke rettet.**
-`ajv-formats`, `eventsource`, `mime-types`, `raw-body` og `shebang-regex` står
-alle med appens egen versjon fra den gang (`3.0.17`) i stedet for pakkas — en
-global søk-og-erstatt under en versjons-bump som er dratt videre én patch om
-gangen siden. Installasjonen er likevel riktig, for npm installerer fra
-`resolved` + `integrity`; det er `audit`, `outdated` og dedupe som leser
-`version`, og det er trolig kilden til de sporadiske 400-ene («Invalid package
-tree») fra audit-endepunktet. `npm install --package-lock-only` retter det IKKE
-(målt: 13 av 348 noder før og etter) — det krever `rm package-lock.json &&
-npm install`, altså en egen, bevisst PR.
+**Rot-lockfila hadde TRETTEN noder med feil `version`-felt — rettet i v7.7.8,
+og oppskriften som sto her ville gjort skade.** Notatet sa «fem noder» og «`rm
+package-lock.json && npm install`». Begge deler var feil, og det andre er
+verdt å kjenne. Nodene var tretten (`ajv-formats`, `canvg`, `domelementtype`,
+`eventsource`, `geotiff`, `html-escaper`, `lerc`, `mime-types`, `nth-check`,
+`quickselect`, `raw-body`, `robust-predicates`, `shebang-regex`) — alle med
+appens egen versjon fra den gang (`3.0.17`) i stedet for pakkas, fra en global
+søk-og-erstatt under en versjons-bump. Fellesnevneren er at pakkas ekte
+versjon begynner på `3.0.`, så erstatningen traff akkurat dem.
+
+**`rm package-lock.json && npm install` FIKSER IKKE NOE, og den koster.** npm
+skriver en SKJULT lockfile, `node_modules/.package-lock.json`, som bar
+nøyaktig samme korrupsjon — og med den på plass tar npm en snarvei forbi hele
+registeroppslaget («up to date in 618ms»). Den nye fila fikk derfor de gale
+tallene tilbake OG mistet 52 noder: hver plattform-spesifikke valgfrie binær
+(`@napi-rs/canvas-darwin-arm64`, `@rolldown/binding-win32-x64-msvc`,
+`lightningcss-*`, `fsevents`, …). En lockfile bakt slik på en Linux-runner er
+en lockfile som ikke installerer på eierens egen maskin. Og `rm -rf
+node_modules` i tillegg er ingen utvei herfra: npm 10.9.7 kræsjer på et ferskt
+oppslag (`Cannot read properties of null (reading 'edgesOut')` i arborists
+peer-sett, rundt `vitest`).
+
+**Rettingen var KIRURGISK, og det er den formen en slik feil skal ha.** Feltet
+ble satt fra pakkas egen `package.json` på disk, med versjonen i
+`resolved`-URL-en som kryssjekk — enighet krevd før noe ble skrevet.
+`JSON.parse` → `JSON.stringify(…, null, 2)` er byte-identisk round-trip på
+npms format, så diffen ble nøyaktig 13 linjer og ingenting annet. `npm ci`
+etterpå gjenskaper treet uendret og skriver den skjulte fila på nytt med
+riktige tall.
+
+Feilen var aldri i installasjonen — npm installerer fra `resolved` +
+`integrity` — men `audit`, `outdated` og dedupe leser `version`, og feltet var
+trolig kilden til de sporadiske 400-ene («Invalid package tree») fra
+audit-endepunktet.
 
 **Dependabot-PR-er tas inn SELV, ikke merget rått (v5.22.4).** To grunner, og
 begge er konkrete: (1) roboten bumper ikke appens egen versjon, og uten en ny
