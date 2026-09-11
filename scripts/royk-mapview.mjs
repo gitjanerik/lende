@@ -881,6 +881,22 @@ const SJEKKER = [
         throw new Error('håndtaket står igjen i sorterings-modus — det kan ikke dra noe der')
       }
 
+      // OG DEN STIPLEDE KANTEN MÅ VÆRE HEL HELE VEIEN RUNDT (v7.7.4). Gitteret
+      // klipper (`overflow: hidden`) og hadde ingen polstring under siste rad,
+      // så den nederste streken lå under footeren. Måles som lufta mellom
+      // nederste celle og gitterets klippekant — den var 0 px før fiksen.
+      const luft = await page.evaluate(() => {
+        const g = document.querySelector('[data-snarvei-gitter]')
+        const celler = [...g.querySelectorAll('[data-snarvei]')]
+        const gb = g.getBoundingClientRect()
+        const nederst = Math.max(...celler.map((c) => c.getBoundingClientRect().bottom))
+        return Math.round((gb.bottom - nederst) * 10) / 10
+      })
+      if (luft < 1) {
+        throw new Error(`siste rad har ${luft} px under seg i sorterings-modus — `
+          + 'den stiplede kanten klippes bort av gitteret')
+      }
+
       // ETT TRYKK, SÅ ETT TIL: løft den første og legg den på tredjeplass.
       const celle = (i) => page.locator('[data-snarvei]').nth(i)
       await celle(0).click()
@@ -927,7 +943,7 @@ const SJEKKER = [
       const apen = await page.locator('.snarvei-handle').getAttribute('aria-expanded')
       if (apen !== 'false') throw new Error('«Ferdig» la ikke raden sammen igjen')
       return `to trykk og en piltast flyttet ${start[0]}, fokus fulgte med, `
-        + 'Tilbakestill + Ferdig ryddet'
+        + `${luft} px luft under siste rad, Tilbakestill + Ferdig ryddet`
     },
   },
   {

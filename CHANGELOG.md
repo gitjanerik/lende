@@ -1,3 +1,20 @@
+## 2026-09-11 — v7.7.4: den stiplede kanten er hel hele veien rundt
+
+I sorterings-modus får hver celle en stiplet kant, og den nederste streken i
+siste rad var borte. Den var ikke borte — den lå under footeren. Gitteret har
+polstring på tre sider og ingen under, fordi lufta der normalt er håndtakets
+egen; cellene har bare en flate, så det har aldri vært noe å se helt ute ved
+kanten. Kanten tegnes på cella, altså nøyaktig der gitteret klipper
+(`overflow: hidden`). Målt i Chromium sto nederste celle faktisk 2 px utenfor
+klippekanten — den åpne høyden leses som `offsetHeight`, et heltall der
+layouten er brøk — så det var ikke bare streken som lå utenfor. Sorterings-
+modus legger nå seks piksler under siste rad og samme tall på gitterets høyde,
+altså 4 px synlig luft. Da trengs ingen ny måling ved modusbyttet, som ville
+gitt et blink i det man trykker «Sorter» og blendet cella man har fokus på.
+Røyk-sjekken for sorteringen måler nå den lufta.
+
+---
+
 ## 2026-09-11 — v7.7.3: snakkebobla på Lende-FAB-en er tegnet om
 
 Chat-ikonet var utydelig og sto skjevt i den runde knappen, og begge deler var
