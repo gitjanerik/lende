@@ -40,6 +40,26 @@ const KARTCACHE = (() => {
   const v = flagg('kartcache')
   return typeof v === 'string' && v ? v : null
 })()
+// --lagkart bygger (eller henter fra --kartcache) det ekte Vardåsen-kartet og
+// stopper. CI kjører den i en egen forjobb, slik at de parallelle delene kan
+// dele ETT kart i stedet for å bygge hvert sitt fra Overpass samtidig.
+const LAGKART = !!flagg('lagkart')
+// --ikkebyggkart: bruk et cachet kart hvis det finnes, men rør ALDRI nettet.
+// Delene kjører med den, så et tapt artefakt gir sju hoppede sjekker og ikke tre
+// samtidige bygg mot Overpass — og delene svarer i det minste likt.
+const IKKE_BYGG_KART = !!flagg('ikkebyggkart')
+// --del=N/M kjører bare hver M-te sjekk med rest N-1 — CI deler røyktesten
+// på M parallelle jobber. Se DEL-kommentaren over kjøre-løkka for hvorfor
+// fordelingen er rundgang og ikke sammenhengende blokker.
+const DEL = (() => {
+  const v = flagg('del')
+  if (typeof v !== 'string' || !v) return null
+  const m = /^(\d+)\/(\d+)$/.exec(v)
+  if (!m) throw new Error(`--del må være på formen N/M, fikk «${v}»`)
+  const n = Number(m[1]); const av = Number(m[2])
+  if (av < 1 || n < 1 || n > av) throw new Error(`--del=${v} er utenfor 1/1 … ${av}/${av}`)
+  return { n, av }
+})()
 const PREVIEW_PORT = 4173
 const BASE = EGEN_URL || `http://localhost:${PREVIEW_PORT}/lende`
 
@@ -67,25 +87,11 @@ const SJEKKER = [
     navn: 'kartet monterer',
     domene: 'MapView',
     async kjør(page) {
-      await page.waitForSelector('svg.isom-map', { timeout: 60_000 })
-      // Terreng-først: skjelettet er i DOM-en før detalj-passet. Vent til
-      // symbol-/geometri-antallet har roet seg, ellers måler de neste sjekkene
-      // på et halvferdig kart.
-      const tell = () => page.evaluate(() =>
-        document.querySelectorAll('svg.isom-map path, svg.isom-map use, svg.isom-map polygon').length)
-      let forrige = -1
-      let n = await tell()
-      for (let i = 0; i < 20 && n !== forrige; i++) {
-        forrige = n
-        await page.waitForTimeout(500)
-        n = await tell()
-      }
+      const { n, lag } = await ventPåFerdigKart(page)
       // Innebygde vardasen.svg i repoet er en symbol-demo (~400 elementer) —
       // det ekte kartet bygges i deploy-workflowen. Terskelen må derfor treffe
       // «noe er faktisk tegnet», ikke «kartet er detaljrikt».
       if (n < 50) throw new Error(`bare ${n} tegnede elementer — rendret kartet egentlig?`)
-      const lag = await page.evaluate(() =>
-        new Set([...document.querySelectorAll('[data-layer]')].map((g) => g.dataset.layer)).size)
       if (lag < 5) throw new Error(`bare ${lag} lag-grupper i SVG-en`)
       return `${n} elementer i ${lag} lag`
     },
@@ -1224,7 +1230,7 @@ const SJEKKER = [
     domene: 'MapStatusOverlays (bånd + kryss-zoom)',
     maksMs: 120_000,
     async kjør(page) {
-      const ctx = await page.context().browser().newContext({
+      const ctx = await egenKontekst(page, {
         viewport: { width: 360, height: 780 },
         hasTouch: true,
       })
@@ -2376,7 +2382,7 @@ const SJEKKER = [
     krever: 'ektekart',
     maksMs: 120_000,
     async kjør(page) {
-      const ctx = await page.context().browser().newContext({
+      const ctx = await egenKontekst(page, {
         viewport: { width: 430, height: 900 },
         hasTouch: true,
         isMobile: false,
@@ -2496,7 +2502,7 @@ const SJEKKER = [
     domene: 'SnarveiRad',
     maksMs: 120_000,
     async kjør(page) {
-      const ctx = await page.context().browser().newContext({
+      const ctx = await egenKontekst(page, {
         viewport: { width: 360, height: 780 },
         hasTouch: true,
         isMobile: false,
@@ -2675,7 +2681,7 @@ const SJEKKER = [
     domene: 'MapView (FabCluster)',
     maksMs: 120_000,
     async kjør(page) {
-      const ctx = await page.context().browser().newContext({
+      const ctx = await egenKontekst(page, {
         viewport: { width: 430, height: 900 },
         hasTouch: true,
         isMobile: false,
@@ -2798,7 +2804,7 @@ const SJEKKER = [
     async kjør(page) {
       const resultat = []
       for (const skala of [1, 2]) {
-        const ctx = await page.context().browser().newContext({
+        const ctx = await egenKontekst(page, {
           viewport: { width: 430, height: 900 },
           hasTouch: true,
         })
@@ -4471,7 +4477,7 @@ const SJEKKER = [
     krever: 'ektekart',
     maksMs: 180_000,
     async kjør(page) {
-      const nattCtx = await page.context().browser().newContext({
+      const nattCtx = await egenKontekst(page, {
         viewport: { width: 430, height: 900 },
         permissions: ['geolocation'],
         geolocation: { latitude: 59.8412, longitude: 10.4123 },
@@ -5483,6 +5489,53 @@ const SKJERMBILDE_TAK_MS = 20_000
  * sjekken er da alt merket feilet, og det er hele poenget: vi mister én sjekk
  * framfor hele jobben.
  */
+// VENTER TIL KARTET STÅR STILLE, og den er delt fordi DELINGEN gjorde den delt.
+// Terreng-først: skjelettet er i DOM-en før detalj-passet, så et `goto` som har
+// svart sier ingenting om at kartet er ferdig. Ventingen bodde i den FØRSTE
+// sjekken («kartet monterer»), og alle de andre arvet den gratis ved å ligge bak
+// den i lista. Med --del er det ikke lenger sant: hver del starter på sin egen
+// første sjekk, og del 3 startet på et halvferdig kart («Cannot read properties
+// of null (reading 'getBoundingClientRect')» på noe som ennå ikke var tegnet).
+// Kjøre-løkka venter derfor selv, FØR første sjekk, i både delt og udelt
+// kjøring — så en del starter i nøyaktig samme tilstand som en hel kjøring.
+async function ventPåFerdigKart(page) {
+  await page.waitForSelector('svg.isom-map', { timeout: 60_000 })
+  const tell = () => page.evaluate(() =>
+    document.querySelectorAll('svg.isom-map path, svg.isom-map use, svg.isom-map polygon').length)
+  let forrige = -1
+  let n = await tell()
+  for (let i = 0; i < 20 && n !== forrige; i++) {
+    forrige = n
+    await page.waitForTimeout(500)
+    n = await tell()
+  }
+  const lag = await page.evaluate(() =>
+    new Set([...document.querySelectorAll('[data-layer]')].map((g) => g.dataset.layer)).size)
+  return { n, lag }
+}
+
+// SERVICE WORKEREN ER BLOKKERT I ALLE KONTEKSTER, og det er ikke en snarvei.
+// `sw.js` kaller `self.clients.claim()` i activate, og `main.js` reloader på
+// `controllerchange`: appen laster seg selv om igjen ett ubestemt sted mellom en
+// halv og et par sekunder etter FØRSTE `goto` i en kontekst. En `evaluate` som
+// havner i det vinduet dør med «Execution context was destroyed», og et element
+// man nettopp ventet på er plutselig null. Begge deler er sett i felt, og begge
+// ganger så det ut som en feil i sjekken.
+//
+// Udelt gikk det som regel bra fordi de to første sjekkene er trege nok til at
+// reloaden rakk å skje i skyggen av dem. Delt er det ikke sant lenger: hver del
+// starter på sin egen første sjekk, og del 3 startet rett i vinduet. Vi kan ikke
+// vente oss ut av det — vi vet ikke når det kommer — så vi fjerner det.
+//
+// INGEN sjekk måler service workeren. Den ene som er i nærheten,
+// «versjonslinja i hovedmenyen kan se etter oppdatering», måler at KNAPPEN
+// svarer i det hele tatt, og godtar «Kan ikke sjekke her.» som et av fem
+// gyldige svar — det står i sjekkens egen kommentar, og var sant også før
+// blokkeringen (preview-serveren rakk ikke alltid å registrere noen SW).
+async function egenKontekst(page, opts) {
+  return page.context().browser().newContext({ serviceWorkers: 'block', ...opts })
+}
+
 function medTak(løfte, ms, navn) {
   let timer
   return Promise.race([
@@ -5828,6 +5881,10 @@ async function byggEkteKart() {
     }
     console.log(`⚠ cachet kart i ${KARTCACHE} er ubrukelig (${lagret.length} B) — bygger på nytt`)
   }
+  if (IKKE_BYGG_KART) {
+    console.log('→ --ikkebyggkart: ingen brukbar kart-cache, kjører på demo-kartet')
+    return false
+  }
   // Byggeskriptet skriver til det SPOREDE demo-kartet, så originalen legges
   // tilbake i finally: røyktesten skal ikke etterlate en diff.
   const original = readFileSync(DEMO_KART)
@@ -5883,6 +5940,14 @@ let browser = null
 let kode = 0
 
 try {
+  if (LAGKART) {
+    // Verken bygg eller nettleser — bare kartet. Feiler byggingen, er det IKKE
+    // en feil: kallerne hopper da over sjekkene som krever ekte geometri, og
+    // det er om kartfila finnes etterpå de leser svaret, ikke exit-koden.
+    const ok = await byggEkteKart()
+    console.log(ok ? '→ kartet er på plass' : '⚠ intet ekte kart — det kjøres på demo-kartet')
+    process.exit(0)
+  }
   if (!EGEN_URL) preview = await startPreview()
   else await ventPå(`${BASE}/`, 10_000)
 
@@ -5891,6 +5956,7 @@ try {
       || (existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium' : undefined),
   })
   const ctx = await browser.newContext({
+    serviceWorkers: 'block',                            // se egenKontekst()
     viewport: { width: 430, height: 900 },              // mobil — appens hjemmebane
     permissions: ['geolocation', 'clipboard-read', 'clipboard-write'],
     geolocation: { latitude: 59.8412, longitude: 10.4123 },   // Vardåsen, Asker
@@ -5906,10 +5972,36 @@ try {
   })
 
   await page.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+  await ventPåFerdigKart(page)
 
   if (BILDER) mkdirSync(BILDER, { recursive: true })
   const resultat = []
-  for (const s of SJEKKER) {
+  // DELINGEN ER RUNDGANG (i % M), IKKE SAMMENHENGENDE BLOKKER, og det er MÅLT.
+  // Tidsstemplene i CI-loggen for kjøring 34645932028 (master, varmt kart) sier
+  // at de ELLEVE 3D-sjekkene — fra «3D-visningen åpner» til «nattmodus er
+  // stjernekikkeren» — sto for 282 av stegets 508 sekunder, altså 56 % av
+  // kjøretida på 17 % av sjekkene. Himmelvippen alene tok 71 s, stjernekikkeren
+  // 48 s, Info/POI-filteret 39 s. De ligger ETTER HVERANDRE i lista, fordi den
+  // vokser kronologisk med uttrekkene. Tre sammenhengende tredjedeler ville
+  // derfor lagt hele 3D-blokka i ÉN jobb, og den jobben ville vært nesten like
+  // treg som dagens udelte kjøring — parallelliseringen ville sett ut som den
+  // virket og spart under to minutter.
+  //
+  // Rundgang fordeler klyngen av seg selv (fire, fire og tre av de elleve) og
+  // trenger ingen vedlikeholdt vekt-tabell når det kommer en sjekk til. Prisen
+  // er at NABOSKAPET brytes: sjekk 5 følger sjekk 2 i stedet for sjekk 4. Det er
+  // lov fordi kontrakten allerede sier at hver sjekk skal FORLATE APPEN I
+  // NØYTRAL TILSTAND — og delingen er dermed også den første håndhevingen den
+  // regelen har hatt. Ryker en sjekk bare når den kjøres delt, er det sjekken
+  // FØR den som ikke ryddet opp; det er en ekte feil, ikke en delings-artefakt.
+  const mine = DEL ? SJEKKER.filter((_, i) => i % DEL.av === DEL.n - 1) : SJEKKER
+  if (DEL) console.log(`→ del ${DEL.n}/${DEL.av}: ${mine.length} av ${SJEKKER.length} sjekker`)
+  // EN TOM DEL ER EN GRØNN LØGN. Hver del rapporterer for seg, så en del som
+  // velger null sjekker passerer uten et ord — og en feil i regnestykket over
+  // ville da tatt bort en tredjedel av dekningen uten at noe ble rødt. Det er
+  // nøyaktig den stille klassen hele denne fila finnes for å lukke.
+  if (!mine.length) throw new Error(`del ${DEL.n}/${DEL.av} valgte ingen sjekker`)
+  for (const s of mine) {
     // Legger du til en NY `krever: 'ektekart'`-sjekk: sjekk at domenets filer
     // står på MAA_HA_EKTEKART i scripts/trenger-ektekart.mjs. Den lista styrer
     // om CI i det hele tatt bygger et ekte kart for en gitt PR, og står domenet
@@ -5930,9 +6022,11 @@ try {
       // har INGEN egen timeout, så er sidas hovedtråd travel (3D bygger tekstur)
       // venter den i det uendelige. Taket gjør hengingen til en lesbar feil med
       // et skjermbilde ved siden av.
+      const t0 = Date.now()
       const obs = await medTak(s.kjør(page), s.maksMs ?? SJEKK_TAK_MS, s.navn)
-      resultat.push({ ...s, ok: true, obs })
-      console.log(`✓ ${s.navn} — ${obs}`)
+      const ms = Date.now() - t0
+      resultat.push({ ...s, ok: true, obs, ms })
+      console.log(`✓ ${s.navn} — ${obs} (${(ms / 1000).toFixed(1)} s)`)
     } catch (err) {
       resultat.push({ ...s, ok: false, obs: err.message })
       console.log(`✗ ${s.navn} — ${err.message}`)
@@ -5973,7 +6067,10 @@ try {
 
   console.log('\n── røyktest ───────────────────────────────')
   for (const r of resultat) {
-    console.log(`${r.hoppet ? '⊘' : r.ok ? '✓' : '✗'} ${r.domene.padEnd(24)} ${r.navn}`)
+    // Tida per sjekk står her fordi den er det eneste grunnlaget en framtidig
+    // omfordeling av --del har: en klynge som vokser seg tung vises her først.
+    const tid = r.ms ? `${(r.ms / 1000).toFixed(1).padStart(6)} s` : ' '.repeat(8)
+    console.log(`${r.hoppet ? '⊘' : r.ok ? '✓' : '✗'} ${tid}  ${r.domene.padEnd(24)} ${r.navn}`)
   }
   const hoppet = resultat.filter((r) => r.hoppet)
   if (hoppet.length) {

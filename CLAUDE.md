@@ -695,6 +695,46 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   er drevet av `pointerdown`/`pointerup` via useLongPress, så `el.click()` fra
   `page.evaluate` gjør ingenting. Bruk Playwright-locator (ekte peker-sekvens),
   eller `page.mouse.down()` + ventetid + `up()` for lang-trykk.
+- **RØYKTESTEN KJØRER DELT PÅ TRE, OG DELINGEN ER RUNDGANG (v7.7.12).** Regelen
+  over — én ny sjekk per uttrekk — gjør lista monotont lengre, og 65 sjekker i
+  ÉN nettleser var oppe i ti minutter per PR. `--del=N/M` i
+  `scripts/royk-mapview.mjs` kjører hver M-te sjekk; `royktest.yml` er fire
+  jobber (`kart` → `del` ×3 + `ruter` → `royk`), og `royk` er en samlejobb som
+  beholder navnet gren-beskyttelsen kan stå på. **Legger du til en sjekk, gjør du
+  fortsatt bare det: en oppføring i `SJEKKER`.**
+
+  **Fordelingen er `i % M` og IKKE sammenhengende blokker, fordi det er MÅLT.**
+  De elleve 3D-sjekkene sto for 282 av 508 sekunder — 56 % av tida på 17 % av
+  sjekkene — og de ligger ETTER HVERANDRE i lista, siden den vokser kronologisk.
+  Tre sammenhengende tredjedeler ville lagt hele 3D-blokka i én jobb, og den
+  jobben ville vært nesten like treg som dagens udelte kjøring. Rundgang sprer
+  klyngen av seg selv og trenger ingen vedlikeholdt vekt-tabell. Tidene står i
+  oppsummeringstabellen nettopp for at en klynge som vokser seg tung skal være
+  til å se.
+
+  **KARTET BYGGES I EN FORJOBB, ikke i hver del.** Delene kjører med
+  `--ikkebyggkart`, så et tapt artefakt gir hoppede sjekker og ikke tre samtidige
+  bygg mot Overpass — og alle tre delene svarer likt om de 22 `krever:
+  'ektekart'`-sjekkene kjørte. `--lagkart` er forjobbens ene steg.
+
+  **TO EKTE FEIL KOM UT AV DELINGEN, og begge er verdt å kjenne:**
+  1. *Hver del starter på sin EGEN første sjekk.* Ventingen på et ferdig kart
+     bodde i sjekk nummer én, og alle de andre arvet den ved å ligge bak den.
+     Del 3 startet derfor på et halvferdig kart. `ventPåFerdigKart` er nå
+     kjøre-løkkas, ikke én sjekks — i BÅDE delt og udelt kjøring.
+  2. *Service worker-reloaden traff midt i sjekkene.* `sw.js` kaller
+     `clients.claim()` og `main.js` reloader på `controllerchange`, så appen
+     laster seg om igjen et ubestemt sted etter første `goto` i HVER kontekst.
+     Udelt gikk det bra fordi de to første sjekkene er trege nok til at reloaden
+     skjedde i skyggen av dem; delt startet del 3 rett i vinduet og fikk et
+     element som nettopp fantes tilbake som null. Røyktesten kjører derfor med
+     `serviceWorkers: 'block'` i ALLE kontekster — ingen sjekk måler den, og den
+     ene som er i nærheten godtar «Kan ikke sjekke her.» som et gyldig svar.
+
+  Og det delingen HVILER på: kontrakten sier alt at hver sjekk skal FORLATE
+  APPEN I NØYTRAL TILSTAND. Delingen er den første håndhevingen den regelen har
+  hatt. Ryker en sjekk bare når den kjøres delt, er det sjekken FØR den som ikke
+  ryddet opp — en ekte feil, ikke en delings-artefakt.
 - **`insertBefore`-fella: ANKERET MÅ VÆRE ET DIREKTE BARN (v7.4.0).**
   `svg.querySelector('[data-label]')` ser ut som «første navne-lag», men den
   FØRSTE `[data-label]` på et ekte kart er en NESTET node — `<g
