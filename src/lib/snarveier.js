@@ -12,9 +12,9 @@
  * REKKEFØLGEN ER BRUKERENS. Standarden under er en påstand om hva folk bruker
  * mest, ikke en sannhet — og på en smal skjerm er det nettopp rekkefølgen som
  * avgjør hva som havner bak håndtaket. Derfor kan den sorteres, og derfor står
- * «Sorter» som en fast, fristilt knapp under den ÅPNE raden — ved siden av
- * navne-bryteren, som er den andre knotten som handler om raden selv: en knott
- * ingen vet om er ingen knott.
+ * «Sorter snarveier» som en fast, fristilt knapp under den ÅPNE raden. Den
+ * heter det den gjør (v7.7.6): «Sorter» alene sto der uten et objekt, og
+ * plassen finnes nå som navne-bryteren ved siden av er borte.
  *
  * Modulen er REN — ingen DOM, ingen Vue, ingen localStorage-lesing på
  * modulnivå — slik at reglene kan enhetstestes uten en nettleser.
@@ -23,41 +23,17 @@
 export const SNARVEI_REKKEFOLGE_KEY = 'lende-snarvei-rekkefolge'
 
 /**
- * Skal navnene stå UNDER ikonene også når raden er sammenlagt?
+ * Cellas minstehøyde i piksler. 44 er WCAG 2.5.5 (AAA) og Apples minstemål.
  *
- * PÅ er standard, og det er en beslutning (v7.6.0): ikonene bærer ikke
- * betydningen alene — en linjal med to prikker, en åttekant med streker og en
- * pil er ikke selvforklarende for den som ikke alt vet hva de gjør. Prisen er
- * fjorten piksler høyde, og raden er uansett bare ÉN rad sammenlagt.
+ * Tallet bor her og ikke i CSS-en fordi cella bærer `zoom` fra tekststørrelsen,
+ * og minstehøyden settes inline på knappen.
  *
- * AV er for den som HAR lært ikonene og vil ha kartet tilbake: da krymper cella
- * til ikon-høyde sammenlagt (`SNARVEI_MIN_H_SMAL`), og navnene kommer fram med
- * draget — høyde og opasitet animeres begge av samme `dra`, så det er én
- * bevegelse og ikke en tekst som blinker på et ferdig utvokst rutenett.
- */
-export const SNARVEI_NAVN_KEY = 'lende-snarvei-navn-minimert'
-
-/**
- * Cellas minstehøyde, i piksler, med og uten navn sammenlagt.
- *
- * 44 er WCAG 2.5.5 (AAA) og Apples minstemål; 36 er den smale, og den ligger
- * fortsatt godt over SC 2.5.8 (AA) sitt krav på 24. Den smale gjelder BARE
- * sammenlagt med navnene av — dratt ut har cella etiketten sin og er høy av
- * seg selv. Tallene bor her og ikke i CSS-en fordi det er de som gjør
- * forskjellen på tilstandene målbar.
+ * DEN SMALE VARIANTEN ER BORTE (v7.7.6). Fram til nå kunne navnene skrus av
+ * sammenlagt, og da krympet cella til ikon-høyde. Bryteren er fjernet: ikonene
+ * bærer ikke betydningen alene, og gevinsten var fjorten piksler på en rad som
+ * uansett bare er ÉN rad sammenlagt. Navnene står alltid.
  */
 export const SNARVEI_MIN_H = 44
-export const SNARVEI_MIN_H_SMAL = 36
-
-/** Leser bryteren fra localStorage. PÅ er standarden, også ved søppel. */
-export function lesVisNavn(store) {
-  try { return store?.getItem(SNARVEI_NAVN_KEY) !== '0' } catch { return true }
-}
-
-/** Skriver bryteren. Feiler stille i privat modus, som resten av appen. */
-export function skrivVisNavn(store, pa) {
-  try { store?.setItem(SNARVEI_NAVN_KEY, pa ? '1' : '0') } catch { /* noop */ }
-}
 
 // `kunEgne` er samme port som fanene hadde: på de innebygde demokartene
 // (Vardåsen) finnes verken egne markeringer eller GPS-spor å vise.

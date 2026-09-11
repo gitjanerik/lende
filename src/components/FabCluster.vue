@@ -184,10 +184,21 @@ function onSatContextMenu(sat) {
 </script>
 
 <template>
+  <!-- TO BOKSER, OG SKILLET ER `zoom` (v7.7.6). Zoomen lå på den PLASSERTE
+       boksen, og `zoom` skalerer et elements egne offsets: ved 200 % ble
+       `bottom: 12px` til 24 px og `right: 12px` til 24 px — og verre, den
+       dokkede verdien fra useFloatAboveSheets (`peek + 12`) ble DOBBELT så
+       høy, så FAB-en fløt hundre piksler over det minimerte arket den skulle
+       ligge på. Nå bærer den ytre boksen plasseringen i ekte skjermpiksler, og
+       den indre bærer zoomen, forankret i hjørnet (`bottom-0 right-0`) så
+       knappen vokser OPP og INN. Linjalen nede til venstre står på nøyaktig
+       samme bunnlinje (MapScaleAttribution). -->
   <div v-if="!hidden"
        class="w-12 h-12 pointer-events-auto select-none transition-[bottom,right] duration-200"
        :class="positioning === 'fixed' ? 'fixed z-[60]' : 'absolute z-40'"
-       :style="{ ...rightStyle, bottom, zoom: hasSatellites ? undefined : uiTextScale }">
+       :style="{ ...rightStyle, bottom }">
+   <div class="absolute bottom-0 right-0 w-12 h-12"
+        :style="{ zoom: hasSatellites ? undefined : uiTextScale }">
 
     <!-- Transient hint-boble — til venstre for vest-knotten når klyngen er
          åpen, ellers tett inntil ankeret. aria-live så knott-hakk annonseres. -->
@@ -261,6 +272,7 @@ function onSatContextMenu(sat) {
                 :stroke-dashoffset="ringOffset" transform="rotate(-90 24 24)"/>
       </svg>
     </button>
+   </div>
   </div>
 </template>
 

@@ -1,3 +1,25 @@
+## 2026-09-11 — v7.7.6: kompasset og Lende-FAB-en deler bunnlinje
+
+De to bunnhjørnene svarte på hver sin regel: Lende-FAB-en gikk gjennom
+`useFloatAboveSheets` og løftet seg over et minimert bunn-ark, mens linjalen og
+kompasset sto på en fast `bottom` og ble liggende halvt bak arket — og i
+medium/maksimert ark forsvant FAB-en mens kompasset ble stående. Nå mates begge
+fra ÉN `useFloatAboveSheets` i MapView (`bunnFloat`/`bunnSkjult`), så de deler
+bunnlinje i ro, løftes likt over en peek og skjules samtidig; én instans og ikke
+to, nettopp for at de ikke skal kunne drifte fra hverandre. Målingen avdekket
+samtidig en ekte feil ved 200 % tekst: `zoom` lå på den PLASSERTE boksen i
+FabCluster, og `zoom` skalerer et elements egne offsets — `bottom: 12px` ble
+24 px, og den dokkede verdien over et ark ble dobbelt så høy. Zoomen er flyttet
+til en indre boks forankret i hjørnet, så plasseringen står i ekte skjermpiksler.
+Bryteren «Vis navn når minimert» er fjernet i samme slengen: snarvei-navnene står
+alltid, og den smale celle-varianten er borte. Sorteringsknappen heter nå
+«Sorter snarveier»: plassen ved siden av ble ledig da bryteren gikk, og
+«Sorter» alene sto uten et objekt. En ny røyk-sjekk måler bunnlinja
+ved 100 % og 200 % i alle tre ark-tilstandene, og er verifisert rød i begge
+retningene den kan brekke.
+
+---
+
 ## 2026-09-11 — v7.7.5: kanten rundt snarveien står alltid
 
 Den stiplede kanten i sorterings-modus ble borte i nederste rad igjen ved 150 %

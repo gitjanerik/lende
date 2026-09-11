@@ -46,10 +46,14 @@
 // hverandre og dyttet linjalen inn mot midten av kartet, der man ikke leser den.
 // Stablet har hver sin fulle bredde, og linjalen begynner der venstrekanten er.
 //
-// Kolonnen er `items-start` og bunnen er FAB-ens egen
-// (`safe-area-inset-bottom + 0.75rem`) og ikke en naken `bottom-3` — ellers
-// skiller linjalen og Lende-knappen lag med nøyaktig safe-area-en på en telefon
-// som har en.
+// Kolonnen er `items-start`, og BUNNEN KOMMER UTENFRA (v7.7.6): kallstedet
+// sender inn den SAMME `bottom` som Lende-FAB-en får, fra én
+// `useFloatAboveSheets`. Fram til nå hadde boksen en fast bunn her — riktig
+// nok FAB-ens egen hvilebunn (`safe-area-inset-bottom + 0.75rem`) og ikke en
+// naken `bottom-3`, så de to sto likt i ro — men et minimert bunn-ark løftet
+// bare FAB-en, og kompass-nåla ble liggende halvt bak arkets peek-kant. To
+// knapper i samme kant som svarer ulikt på det samme arket leses som en feil i
+// den ene. Defaulten er den gamle verdien, så komponenten står riktig alene.
 //
 // TEKSTSTØRRELSEN GJELDER TALLENE, IKKE KREDITTEN (v7.6.0). Målestokken og
 // avstanden er det man leser mens man går, og de skalerer med hovedmenyens
@@ -80,6 +84,8 @@ const props = defineProps({
   mork: { type: Boolean, default: false },
   // Hovedmenyens 100/125/150/200. Se filhodet for hva den gjelder og ikke.
   uiTextScale: { type: Number, default: 1 },
+  // Bunnlinja, delt med Lende-FAB-en — se filhodet.
+  bottom: { type: String, default: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' },
 })
 defineEmits(['nord'])
 
@@ -92,8 +98,9 @@ const blekk = computed(() => (props.mork ? '#e4e4e7' : '#1c1917'))
 <template>
   <!-- Skjult under aktivt søk så den ikke ligger under treff-listen. -->
   <div v-if="visible"
-       class="absolute left-3 z-20 pointer-events-none flex flex-col items-start gap-2"
-       :style="{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }">
+       class="absolute left-3 z-20 pointer-events-none flex flex-col items-start gap-2
+              transition-[bottom] duration-200"
+       :style="{ bottom }">
     <!-- FRISTILT NÅL PÅ EGEN SKIVE (v7.3.2), på RADEN OVER LINJALEN fra v7.6.0.
          48 px som resten av kart-knappene, og `place-items-center` fordi ikonet
          er kvadratisk i en sirkel. `zoom` og ikke en større `w-*`: et ikon leses

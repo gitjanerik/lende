@@ -2,49 +2,14 @@ import { describe, it, expect } from 'vitest'
 import {
   SNARVEIER, STANDARD_REKKEFOLGE, normaliserRekkefolge, snarveierIRekkefolge,
   flyttSnarvei, antallKolonner, antallRader,
-  gitterIndeks, gitterForskyvning, flettSynligRekkefolge,
-  SNARVEI_NAVN_KEY, SNARVEI_MIN_H, SNARVEI_MIN_H_SMAL, lesVisNavn, skrivVisNavn,
+  gitterIndeks, gitterForskyvning, flettSynligRekkefolge, SNARVEI_MIN_H,
 } from './snarveier.js'
 
-// Et minimalt localStorage: testene skal si noe om REGELEN, ikke om jsdom.
-function fakeStore(start = {}) {
-  const data = { ...start }
-  return {
-    getItem: (k) => (k in data ? data[k] : null),
-    setItem: (k, v) => { data[k] = String(v) },
-    _data: data,
-  }
-}
-
-describe('«Vis navn når minimert» (v7.6.0)', () => {
-  it('er PÅ når ingenting er lagret', () => {
-    expect(lesVisNavn(fakeStore())).toBe(true)
-  })
-  it('er PÅ for alt annet enn en eksplisitt «0»', () => {
-    // Standarden skal overleve søppel: en halvskrevet verdi fra en eldre
-    // utgave skal ikke skjule navnene for noen.
-    expect(lesVisNavn(fakeStore({ [SNARVEI_NAVN_KEY]: '1' }))).toBe(true)
-    expect(lesVisNavn(fakeStore({ [SNARVEI_NAVN_KEY]: 'ja' }))).toBe(true)
-    expect(lesVisNavn(fakeStore({ [SNARVEI_NAVN_KEY]: '0' }))).toBe(false)
-  })
-  it('tåler at det ikke finnes noe lager (privat modus)', () => {
-    expect(lesVisNavn(null)).toBe(true)
-    expect(() => skrivVisNavn(null, false)).not.toThrow()
-  })
-  it('skriver «1»/«0» og leses tilbake likt', () => {
-    const s = fakeStore()
-    skrivVisNavn(s, false)
-    expect(s._data[SNARVEI_NAVN_KEY]).toBe('0')
-    expect(lesVisNavn(s)).toBe(false)
-    skrivVisNavn(s, true)
-    expect(lesVisNavn(s)).toBe(true)
-  })
-  it('har en smal celle som er merkbart lavere, men over SC 2.5.8', () => {
-    // Hele gevinsten ved å skru bryteren av er høyden; er de to like, gjør
-    // bryteren ingenting. 24 px er AA-kravet til trykkflate.
-    expect(SNARVEI_MIN_H_SMAL).toBeLessThan(SNARVEI_MIN_H)
-    expect(SNARVEI_MIN_H - SNARVEI_MIN_H_SMAL).toBeGreaterThanOrEqual(6)
-    expect(SNARVEI_MIN_H_SMAL).toBeGreaterThanOrEqual(24)
+describe('cellas minstehøyde', () => {
+  it('holder WCAG 2.5.5 sitt AAA-mål', () => {
+    // Navnene står alltid fra v7.7.6, så det finnes bare ETT tall — og cella
+    // er en trykkflate på et kart man betjener med tommelen.
+    expect(SNARVEI_MIN_H).toBeGreaterThanOrEqual(44)
   })
 })
 
