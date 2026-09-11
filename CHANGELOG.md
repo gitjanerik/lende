@@ -1,3 +1,19 @@
+## 2026-09-11 — v7.7.1: Navne-bryteren står ved siden av «Sorter», utenfor boksen
+
+«Vis navn når minimert» fulgte med inn i sorterings-footeren da panelet ble
+slettet, og det var feil plass: å skru navnene av er ingen sorterings-handling —
+man vil ha en tettere rad — så veien dit gikk gjennom en modus man ikke hadde
+noe å gjøre i. Bryteren står nå utenfor den svarte boksen, ved siden av
+«Sorter», som er kortet ned fra «Sorter snarveier»: begge er knotter som handler
+om RADEN og ikke om kartet, begge avdekkes av samme drag. Ute i det fri bærer
+bryteren et ekte spor — inne i boksen var «på» allerede en aksentgrønn flate,
+men ved siden av en knapp som bare GJØR noe er forskjellen på en av/på og en
+handling ellers bare en farge man må ha sett før. Begge knottene er SKJULT i
+sorterings-modus: der er hver celle et objekt man flytter, og en bryter som
+endrer cellehøyden midt i et drag er en form som skifter under fingeren.
+
+---
+
 ## 2026-09-11 — v7.7.0: Snarveiene sorteres i raden, ikke i et panel
 
 «Sorter snarveier» åpnet en skuff med en liste: ni rader med et grep og to

@@ -2728,8 +2728,8 @@ onUnmounted(() => {
     <!-- SNARVEI-RADEN: turkart-modusens FUNKSJONER (v6.6.0). Alt man GJØR
          ligger her; innstillings-skuffen er bare innstillinger. Raden måler
          seg selv og legger det som ikke får plass bak et nedtrekk — se
-         SnarveiRad.vue. Rekkefølgen er brukerens, og «Sorter snarveier» står
-         som en fristilt knapp under raden når den er foldet ut.
+         SnarveiRad.vue. Rekkefølgen er brukerens, og «Sorter» står sammen med
+         navne-bryteren som fristilte knotter under raden når den er foldet ut.
          Skjules når en modus (stifinner/måling/annotering) eller søk er aktiv,
          mens kartet bygges/utvides, og når highlight-pillen vises — bygge-chipen
          og pillen bruker samme --ovl-top-slot og ville kollidert. Det gjelder

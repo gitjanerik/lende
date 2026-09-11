@@ -16,9 +16,8 @@
 // NAVNET STÅR ALLTID — MEN DET ER EN BRYTER (v7.6.0). Fram til v7.5.0 avdekket
 // draget etikettene, og den STANDARDEN er snudd: ikonene bærer ikke betydningen
 // alene, og gevinsten ved å skjule dem var fjorten piksler på en rad som
-// uansett bare er ÉN rad sammenlagt. «Vis navn når minimert» står derfor øverst
-// i Sorter-panelet med PÅ som default, for den som HAR lært ikonene og vil ha
-// de pikslene tilbake.
+// uansett bare er ÉN rad sammenlagt. Bryteren står derfor UNDER pilla med PÅ som
+// default, for den som HAR lært ikonene og vil ha de pikslene tilbake.
 //
 // DE TO TILSTANDENE ER ULIKE, OG BEGGE ANIMERES AV SAMME `dra`:
 //   • PÅ  — cella er like bred og like høy hele veien, og draget avdekker bare
@@ -59,7 +58,7 @@
 // FIRE TING SOM MÅ STÅ:
 //
 // 1. HÅNDTAKET SKJULES ALDRI. Det er ikke bare «resten av funksjonene» — det
-//    er også eneste vei til «Sorter snarveier», og rekkefølgen er nettopp det
+//    er også eneste vei til «Sorter» og navne-bryteren, og rekkefølgen er det
 //    som avgjør hva som havner bak det på en smal skjerm. Skjuler du håndtaket
 //    når alt får plass, forsvinner sorteringen på de skjermene der den er
 //    lettest å prøve ut.
@@ -114,10 +113,12 @@
 // funksjoner, de er innstillinger — og de bor nå i Innstillinger → Kartstil,
 // nederst, sammen med tema, lag og sti-farge. Se lib/snarveier.js.
 //
-// «SORTER SNARVEIER» ER FRISTILT (v7.4.0): sin egen svarte, midtstilte knapp
+// «SORTER» ER FRISTILT (v7.4.0, kortet ned i v7.7.1): sin egen midtstilte knapp
 // under den utfoldede skuffa. Den handler om RADEN og ikke om kartet, og en
 // plass mellom Måling og 3D ville gjort den til nok en ting man trykker på ved
-// et uhell. Den toner inn med draget, som alt annet som avdekkes.
+// et uhell. Den toner inn med draget, som alt annet som avdekkes. Ordet er ett:
+// den står nå ved siden av «Navn», og «Sorter snarveier» der sa «snarveier» om
+// noe man ser på.
 //
 // ─────────────────────────────────────────────────────────────────────────────
 // SORTERINGEN SKJER I RADEN SELV (v7.7.0) — panelet er slettet, ikke flyttet.
@@ -156,11 +157,22 @@
 // ikke kan dra noe er verre enn ingen. «Ferdig» legger raden sammen igjen, så
 // man ser resultatet: hva som ble stående på første linje.
 //
-// «VIS NAVN NÅR MINIMERT» OG «TILBAKESTILL» FULGTE MED HIT. De hørte hjemme i
-// panelet fordi panelet var det ene stedet man så på raden som et objekt — nå
-// er det raden selv. Bryteren er en snarvei-formet pille med `role="switch"`,
-// ikke en vippebryter: i denne boksen er «på» allerede en FARGE (aksentgrønn
-// flate), og to former for av/på på samme flate leses som to slags valg.
+// «TILBAKESTILL» FULGTE MED HIT. Den hørte hjemme i panelet fordi panelet var
+// det ene stedet man så på raden som et objekt — nå er det raden selv.
+//
+// «VIS NAVN» GJORDE DET OGSÅ, OG DET VAR FEIL PLASS (v7.7.1). Bryteren fulgte
+// med da panelet ble slettet, men å skru navnene av er ingen sorterings-
+// handling: man vil ha en tettere rad, og da måtte man inn i en modus man ikke
+// hadde noe å gjøre i for å komme til den. Den står nå UTENFOR den svarte
+// boksen, ved siden av «Sorter» — begge er knotter som handler om RADEN og
+// ikke om kartet, og de avdekkes av samme drag. Den er SKJULT i sorterings-
+// modus: der er hver celle et objekt man flytter, og en bryter som endrer
+// cellehøyden midt i et drag er en form som skifter under fingeren.
+//
+// UTENFOR PILLA BÆRER BRYTEREN ET EKTE SPOR. Inne i boksen var «på» allerede en
+// FARGE (aksentgrønn flate), og et spor i tillegg ville vært to former for av/på
+// på samme flate. Ute står den ved siden av «Sorter», som bare GJØR noe — og da
+// er forskjellen på en av/på og en handling bare en farge man må ha sett før.
 // ─────────────────────────────────────────────────────────────────────────────
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import SnarveiIkon from './SnarveiIkon.vue'
@@ -694,12 +706,6 @@ function celleTransform(i) {
            :style="{ zoom: uiTextScale }">{{ sorterHint }}</p>
         <div class="flex flex-wrap items-center justify-center gap-1.5"
              :style="{ zoom: uiTextScale }">
-          <button type="button" role="switch" :aria-checked="visNavn"
-                  aria-label="Vis navn under ikonene når raden er sammenlagt"
-                  @click="emit('vis-navn', !visNavn)"
-                  class="sorter-knapp" :class="visNavn ? 'sorter-knapp--pa' : ''">
-            Navn
-          </button>
           <button type="button" class="sorter-knapp" @click="emit('tilbakestill')">
             Tilbakestill
           </button>
@@ -711,16 +717,33 @@ function celleTransform(i) {
       </div>
     </div>
 
-    <!-- «Sorter snarveier» toner inn med draget, som alt annet det avdekker.
-         `pointer-events` følger med: en usynlig knapp skal ikke ta trykk. -->
-    <button v-if="dra > 0 && !sorterer" type="button" @click="startSortering"
-            :style="{ zoom: uiTextScale, opacity: dra,
-                      pointerEvents: apen ? 'auto' : 'none' }"
-            class="pointer-events-auto shrink-0 px-4 py-2 rounded-xl
-                   bg-overlay/90 backdrop-blur shadow-lg text-ink text-[12px]
-                   font-medium whitespace-nowrap active:scale-95 transition">
-      Sorter snarveier
-    </button>
+    <!-- UNDER PILLA: de to knottene som handler om RADEN og ikke om kartet.
+         Begge toner inn med draget, som alt annet det avdekker, og
+         `pointer-events` følger med — en usynlig knapp skal ikke ta trykk.
+
+         BRYTEREN STÅR HER OG IKKE I SORTERINGS-FOOTEREN (v7.7.1). Den lå der
+         først fordi den fulgte med da panelet ble slettet, men å skru navnene
+         av er ikke en sorterings-handling: man vil ha en tettere rad, og da
+         måtte man inn i en modus man ikke hadde noe å gjøre i for å komme til
+         den. Den er SKJULT i sorterings-modus — der er hver celle et objekt man
+         flytter, og en bryter som endrer cellehøyden midt i et drag er en form
+         som skifter under fingeren. -->
+    <div v-if="dra > 0 && !sorterer" class="pointer-events-auto flex items-center gap-2"
+         :style="{ zoom: uiTextScale, opacity: dra,
+                   pointerEvents: apen ? 'auto' : 'none' }">
+      <button type="button" role="switch" :aria-checked="visNavn"
+              aria-label="Vis navn under ikonene når raden er sammenlagt"
+              @click="emit('vis-navn', !visNavn)"
+              class="rad-knott" :class="visNavn ? 'rad-knott--pa' : ''">
+        <span class="rad-knott__spor" aria-hidden="true">
+          <span class="rad-knott__kule"></span>
+        </span>
+        Navn
+      </button>
+      <button type="button" class="rad-knott" @click="startSortering">
+        Sorter
+      </button>
+    </div>
   </div>
 </template>
 
@@ -830,8 +853,62 @@ function celleTransform(i) {
 }
 .sorter-knapp--ferdig:hover { background: color-mix(in oklab, var(--color-ink) 85%, transparent); }
 
+/* KNOTTENE UNDER PILLA. De bor UTENFOR den svarte boksen, og har derfor sin
+   egen flate — samme pille-form som overlegget ellers, så de leses som en del
+   av raden og ikke som noe på kartet.
+
+   BRYTEREN BÆRER ET EKTE SPOR, og det er ikke pynt: her står den ved siden av
+   «Sorter», som bare GJØR noe, og uten sporet er forskjellen på en av/på og en
+   handling bare en farge man må ha sett før. Inne i skuffene er den samme
+   forskjellen allerede etablert, men denne står alene over kartet. Sporet er
+   `aria-hidden` — `role="switch"` + `aria-checked` er det hjelpemidlene leser. */
+.rad-knott {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.1;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--color-ink);
+  background: color-mix(in oklab, var(--color-overlay, #111) 90%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.rad-knott:active { transform: scale(0.95); }
+.rad-knott:hover { background: var(--color-overlay, #111); }
+
+/* Sporet: 26 × 14 px er lite nok til å stå i en pille og stort nok til å leses
+   som en bryter. Kula flyttes med `translate` og ikke med `margin`, så
+   bevegelsen er komposittert og ikke en layout-endring. */
+.rad-knott__spor {
+  display: inline-block;
+  width: 26px;
+  height: 14px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--color-ink) 25%, transparent);
+  transition: background 0.15s ease;
+}
+.rad-knott__kule {
+  display: block;
+  width: 10px;
+  height: 10px;
+  margin: 2px;
+  border-radius: 999px;
+  background: var(--color-ink);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+/* PÅ er appens aksentgrønne, som hver vippebryter i skuffene. Emerald-600 og
+   ikke -500: hvitt på -500 gir 2,6:1, under WCAG 1.4.11 sitt krav på 3:1. */
+.rad-knott--pa .rad-knott__spor { background: #059669; }
+.rad-knott--pa .rad-knott__kule { transform: translateX(12px); background: #fff; }
+
 @media (prefers-reduced-motion: reduce) {
   .shortcut-btn--sorter { transition: none; }
+  .rad-knott__kule { transition: none; }
 }
 
 /* Håndtaket har ingen egen flate — det er streken som er knappen — men

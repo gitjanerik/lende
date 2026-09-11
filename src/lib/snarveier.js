@@ -12,7 +12,8 @@
  * REKKEFØLGEN ER BRUKERENS. Standarden under er en påstand om hva folk bruker
  * mest, ikke en sannhet — og på en smal skjerm er det nettopp rekkefølgen som
  * avgjør hva som havner bak håndtaket. Derfor kan den sorteres, og derfor står
- * «Sorter snarveier» som en fast, fristilt knapp under den ÅPNE raden: en knott
+ * «Sorter» som en fast, fristilt knapp under den ÅPNE raden — ved siden av
+ * navne-bryteren, som er den andre knotten som handler om raden selv: en knott
  * ingen vet om er ingen knott.
  *
  * Modulen er REN — ingen DOM, ingen Vue, ingen localStorage-lesing på

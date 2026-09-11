@@ -1189,7 +1189,7 @@ const SJEKKER = [
     //   • draget gir BEGGE deler tilbake — navn og høyde i samme bevegelse.
     // Til slutt settes den tilbake: resten av suiten kjører med standarden.
     navn: 'bryteren «Vis navn når minimert» krymper cella og draget gir den tilbake',
-    domene: 'SnarveiRad (sorterings-footer) + lib/snarveier',
+    domene: 'SnarveiRad (navne-bryteren) + lib/snarveier',
     async kjør(page) {
       await lukkDrawer(page)
       await lukkSnarveiRad(page)
@@ -1203,19 +1203,22 @@ const SJEKKER = [
           navnOpasitet: navn ? Number(getComputedStyle(navn).opacity) : -1,
         }
       })
-      // BRYTEREN BOR I RADENS SORTERINGS-FOOTER (v7.7.0), ikke i et panel.
+      // BRYTEREN BOR UNDER PILLA, VED SIDEN AV «Sorter» (v7.7.1) — ikke i et
+      // panel, og ikke i sorterings-footeren: å skru navnene av er ingen
+      // sorterings-handling, så veien dit skal ikke gå gjennom en modus.
       const vipp = async () => {
-        await startSortering(page)
+        await apneSnarveiRad(page)
         const ok = await page.evaluate(() => {
-          const b = document.querySelector('[data-sorter-footer] [role="switch"]')
+          const b = [...document.querySelectorAll('[role="switch"]')].find((e) =>
+            e.offsetParent && /Vis navn/.test(e.getAttribute('aria-label') || ''))
           if (!b) return null
           const før = b.getAttribute('aria-checked')
           b.click()
           return før
         })
-        if (ok === null) throw new Error('fant ingen «Navn»-bryter i sorterings-footeren')
+        if (ok === null) throw new Error('fant ingen «Navn»-bryter under raden')
         await page.waitForTimeout(400)
-        await avsluttSortering(page)
+        await lukkSnarveiRad(page)
         await page.waitForTimeout(500)
         return ok
       }
@@ -1693,10 +1696,16 @@ const SJEKKER = [
         const rad = document.querySelector('.snarvei-rad')
         const handle = document.querySelector('.snarvei-handle')
         const sorter = [...document.querySelectorAll('button')]
-          .find((b) => b.offsetParent && b.innerText.trim() === 'Sorter snarveier')
+          .find((b) => b.offsetParent && b.innerText.trim() === 'Sorter')
         if (!rad || !handle || !sorter) {
-          return { mangler: !rad ? 'raden' : !handle ? 'håndtaket' : '«Sorter snarveier»' }
+          return { mangler: !rad ? 'raden' : !handle ? 'håndtaket' : '«Sorter»' }
         }
+        // KNOTTE-RADA er det midtstilte, ikke knappen: fra v7.7.1 står «Sorter»
+        // ved siden av navne-bryteren, og en knapp som er midtstilt for seg selv
+        // ville betydd at den andre knotten ikke finnes.
+        const knotter = sorter.parentElement
+        const bryter = knotter.querySelector('[role="switch"]')
+        const kr = knotter.getBoundingClientRect()
         const r = rad.getBoundingClientRect()
         const h = handle.getBoundingClientRect()
         const so = sorter.getBoundingClientRect()
@@ -1710,8 +1719,12 @@ const SJEKKER = [
           strekMidt: strek ? Math.round(strek.left + strek.width / 2) : 0,
           sorterUnderHandtaket: so.top >= h.bottom - 1,
           sorterUtenforBoksen: !rad.parentElement.contains(sorter),
-          sorterMidt: Math.round(so.left + so.width / 2),
+          knotterMidt: Math.round(kr.left + kr.width / 2),
           sorterHarIkon: !!sorter.querySelector('svg'),
+          harBryter: !!bryter,
+          bryterSjekket: bryter?.getAttribute('aria-checked') || null,
+          bryterVedSiden: !!bryter
+            && Math.abs(bryter.getBoundingClientRect().top - so.top) < 6,
         }
       })
       if (geo.mangler) throw new Error(`fant ingen ${geo.mangler}`)
@@ -1730,23 +1743,51 @@ const SJEKKER = [
           'det er ikke appens drawer-håndtak lenger')
       }
       if (!geo.sorterUnderHandtaket) {
-        throw new Error('«Sorter snarveier» står ikke under håndtaket')
+        throw new Error('«Sorter» står ikke under håndtaket')
       }
       if (!geo.sorterUtenforBoksen) {
-        throw new Error('«Sorter snarveier» ligger inne i radens boks — den skal være fristilt')
+        throw new Error('«Sorter» ligger inne i radens boks — den skal være fristilt')
       }
       if (geo.sorterHarIkon) {
-        throw new Error('«Sorter snarveier» har fått et ikon igjen — knappen er ren tekst')
+        throw new Error('«Sorter» har fått et ikon igjen — knappen er ren tekst')
       }
-      if (Math.abs(geo.sorterMidt - geo.radMidt) > 4) {
-        throw new Error('«Sorter snarveier» er ikke midtstilt under raden')
+      if (Math.abs(geo.knotterMidt - geo.radMidt) > 4) {
+        throw new Error('knotte-rada under håndtaket er ikke midtstilt under raden')
       }
+      // NAVNE-BRYTEREN STÅR HER, IKKE I SORTERINGS-FOOTEREN (v7.7.1). Den satt
+      // der ett øyeblikk fordi den fulgte med da panelet ble slettet — og da
+      // måtte man inn i sorterings-modus for å skru navnene av.
+      if (!geo.harBryter) {
+        throw new Error('navne-bryteren står ikke ved siden av «Sorter» — '
+          + 'da må man inn i sorterings-modus for å skru navnene av')
+      }
+      if (!geo.bryterVedSiden) {
+        throw new Error('navne-bryteren ligger ikke på samme linje som «Sorter»')
+      }
+      if (geo.bryterSjekket === null) {
+        throw new Error('navne-bryteren mangler aria-checked — den er en switch')
+      }
+      // ... OG DEN ER BORTE I SORTERINGS-MODUS: der er hver celle et objekt man
+      // flytter, og en bryter som endrer cellehøyden midt i et drag er en form
+      // som skifter under fingeren.
+      await klikkTekst(page, /^Sorter$/)
+      await page.waitForTimeout(300)
+      const iModus = await page.evaluate(() => ({
+        bryter: !![...document.querySelectorAll('[role="switch"]')]
+          .find((b) => b.offsetParent && /Vis navn/.test(b.getAttribute('aria-label') || '')),
+        sorter: !![...document.querySelectorAll('button')]
+          .find((b) => b.offsetParent && b.innerText.trim() === 'Sorter'),
+      }))
+      if (iModus.bryter) throw new Error('navne-bryteren står igjen i sorterings-modus')
+      if (iModus.sorter) throw new Error('«Sorter» står igjen i sorterings-modus')
+      await avsluttSortering(page)
 
       // NØYTRAL TILSTAND: raden skal ikke stå åpen inn i neste sjekk.
       await lukkSnarveiRad(page)
       return `topprada over raden (${topp.meny}/${topp.navn}/${topp.sok} `
         + `< ${topp.radTopp}), tannhjulet ute, håndtak ${geo.strekBredde} px `
-        + 'midtstilt under raden, Sorter fristilt under håndtaket'
+        + 'midtstilt under raden, Navn + Sorter fristilt under håndtaket '
+        + 'og begge borte i sorterings-modus'
     },
   },
   {
@@ -5457,7 +5498,7 @@ async function avsluttSortering(page) {
 
 async function startSortering(page) {
   await apneSnarveiRad(page)
-  await klikkTekst(page, /^Sorter snarveier$/)
+  await klikkTekst(page, /^Sorter$/)
 }
 
 async function apneSnarveiRad(page) {
@@ -5522,7 +5563,7 @@ async function lukkDrawer(page) {
   if (await erDrawerÅpen(page)) throw new Error('fikk ikke lukket innstillings-skuffen')
 }
 
-// Lukker en funksjons-skuff (Måling/Sporing/Annotering/Sorter snarveier) via
+// Lukker en funksjons-skuff (Måling/Sporing/Annotering) via
 // X-en i headeren. Ingen feil om den ikke står åpen — kallerne rydder.
 async function lukkFunksjonsSkuff(page, etikett) {
   await page.evaluate((navn) => {
