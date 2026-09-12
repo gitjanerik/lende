@@ -7,8 +7,12 @@
 
 export function useDetailInset({
   detailInsetRef, svgHostRef, contextMenuPoint, detachedDetailLayers,
-  rotation, roadRefUprightDeg, meta, DETAIL_INSET_M,
+  rotation, roadRefUprightDeg, meta, DETAIL_INSET_M, insetGesterPa,
 }) {
+  // Kontrolleren fra siste attachInsetPanZoom. Insetet bygges på nytt hver gang
+  // arket åpnes eller maksimeres, så den peker alltid på det SVG-et som står i
+  // skuffa nå; en gammel kontroller ville stilt gestene på et løsrevet element.
+  let insetKontroll = null
   // ── Long-press detalj-inset ──────────────────────────────────────────────
   // Et 150×150 m utsnitt rundt long-press-punktet, rendret som et eget lite
   // SVG i bottom-sheeten. Her skrur vi PÅ de skjulte detalj-lagene
@@ -37,7 +41,8 @@ export function useDetailInset({
     svg.setAttribute('width', '100%')
     svg.setAttribute('height', '100%')
     svg.setAttribute('preserveAspectRatio', 'xMidYMid meet')
-    svg.style.touchAction = 'none'   // vi håndterer pan/zoom selv
+    // touchAction settes av kontrolleren (settGester) — av som standard, så
+    // et loddrett drag over mini-kartet ruller arket.
 
     // Klon kart-innholdet (hopp over GPS-/pin-overlays).
     for (const child of Array.from(src.childNodes)) {
@@ -142,7 +147,11 @@ export function useDetailInset({
     host.appendChild(svg)
     const mapW = meta.value?.widthM ?? DETAIL_INSET_M
     const mapH = meta.value?.heightM ?? DETAIL_INSET_M
-    attachInsetPanZoom(svg, p.svgX, p.svgY, mapW, mapH)
+    insetKontroll = attachInsetPanZoom(svg, p.svgX, p.svgY, mapW, mapH)
+    // Bryteren står utenfor insetet og overlever en rebygging — det ferske
+    // SVG-et må derfor få tilstanden med seg, ellers er gestene av rett etter
+    // at man maksimerte med bryteren på.
+    insetKontroll.settGester(insetGesterPa?.() ?? false)
   }
 
   // viewBox-basert pan + zoom (ingen rotasjon) på detalj-inset-en. Et 500×500 m
@@ -150,6 +159,11 @@ export function useDetailInset({
   // 250×250 m (= 25 % av arealet). Vektor-skarp ved enhver zoom siden vi
   // manipulerer viewBox, ikke en CSS-transform.
   function attachInsetPanZoom(svg, cx, cy, mapW, mapH) {
+    // Gestene er AV til bryteren over insetet slås på (v7.8.5). Med dem på
+    // svelger mini-kartet det loddrette draget, altså rullingen i selve arket —
+    // og arket er det man leser. `touchAction` følger flagget: 'none' mens vi
+    // håndterer pan/zoom selv, tomt ellers så nettleseren ruller som vanlig.
+    let gester = false
     const ASPECT = 16 / 9                  // matcher inset-boksen (aspect-[16/9])
     const WINDOW = DETAIL_INSET_M          // 1×1 km roambar utstrekning (m)
     const MIN_W = 40                       // maks zoom-inn (synlig bredde)
@@ -170,7 +184,8 @@ export function useDetailInset({
     // Start-visning: ~600 m synlig bredde (v11.0.61 — var 350). Lavere start-zoom
     // gir rom til å zoome BÅDE inn (mot 40 m) OG ut (mot 1 km-vinduet); 350 m lå
     // nesten på maks-zoom-ut for et midt-kart, så det føltes som «kun innover».
-    let vw = Math.min(maxVw(), 600)
+    const startVw = () => Math.min(maxVw(), 600)
+    let vw = startVw()
     let vh = vw / ASPECT
     let vx = cx - vw / 2, vy = cy - vh / 2
 
@@ -211,16 +226,19 @@ export function useDetailInset({
       y: (e.touches[0].clientY + e.touches[1].clientY) / 2 })
 
     svg.addEventListener('wheel', (e) => {
+      if (!gester) return
       e.preventDefault()
       zoomAt(e.deltaY > 0 ? 1 / 1.12 : 1.12, e.clientX, e.clientY)
     }, { passive: false })
 
     let dragging = false, lastX = 0, lastY = 0, pinchDist = 0
     svg.addEventListener('touchstart', (e) => {
+      if (!gester) return
       if (e.touches.length === 2) { pinchDist = tdist(e); dragging = false }
       else if (e.touches.length === 1) { dragging = true; lastX = e.touches[0].clientX; lastY = e.touches[0].clientY }
     }, { passive: false })
     svg.addEventListener('touchmove', (e) => {
+      if (!gester) return
       e.preventDefault()
       if (e.touches.length === 2) {
         const d = tdist(e)
@@ -238,17 +256,35 @@ export function useDetailInset({
 
     // Mus: dra for å panorere.
     svg.addEventListener('pointerdown', (e) => {
-      if (e.pointerType !== 'mouse') return
+      if (!gester || e.pointerType !== 'mouse') return
       dragging = true; lastX = e.clientX; lastY = e.clientY
       try { svg.setPointerCapture(e.pointerId) } catch { /* noop */ }
     })
     svg.addEventListener('pointermove', (e) => {
-      if (!dragging || e.pointerType !== 'mouse') return
+      if (!gester || !dragging || e.pointerType !== 'mouse') return
       panBy(e.clientX - lastX, e.clientY - lastY)
       lastX = e.clientX; lastY = e.clientY
     })
     svg.addEventListener('pointerup', (e) => { if (e.pointerType === 'mouse') dragging = false })
+
+    return {
+      settGester(pa) {
+        gester = !!pa
+        svg.style.touchAction = gester ? 'none' : ''
+        if (!gester) { dragging = false; pinchDist = 0 }
+      },
+      // Tilbake til utsnittet insetet åpnet med: senteret er long-press-punktet,
+      // altså det røde krysset, og bredden den samme start-bredden.
+      tilbakestill() {
+        vw = startVw(); vh = vw / ASPECT
+        vx = cx - vw / 2; vy = cy - vh / 2
+        clampApply()
+      },
+    }
   }
 
-  return { buildDetailInset }
+  function settInsetGester(pa) { insetKontroll?.settGester(pa) }
+  function tilbakestillInset() { insetKontroll?.tilbakestill() }
+
+  return { buildDetailInset, settInsetGester, tilbakestillInset }
 }

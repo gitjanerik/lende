@@ -285,6 +285,116 @@ const SJEKKER = [
     },
   },
   {
+    // v7.8.5: mini-kartet i punkt-arket TOK draget — også det loddrette — så et
+    // forsøk på å rulle videre i arket zoomet insetet i stedet. Gestene ligger
+    // nå bak en bryter som er AV som standard, og krysshår-knappen (veien
+    // tilbake til utsnittet man åpnet med) finnes bare når den er PÅ.
+    // Enhetstester ser ingenting av dette: `touch-action` og viewBox-en er
+    // begge layout/DOM-tilstand i et imperativt bygget SVG.
+    navn: 'detalj-insetets gester ligger bak en bryter, og krysshåret sentrerer',
+    domene: 'ContextMenuSheet + useDetailInset',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await page.evaluate(() => {
+        const el = document.querySelector('svg.isom-map')
+        const r = el.getBoundingClientRect()
+        el.dispatchEvent(new MouseEvent('contextmenu', {
+          bubbles: true, cancelable: true,
+          clientX: r.left + r.width / 2, clientY: r.top + r.height / 2,
+        }))
+      })
+      await page.waitForTimeout(600)
+      // Detalj-blokka er v-if-gatet på MAKSIMERT skuffe — dra håndtaket opp.
+      const h = await page.evaluate(() => {
+        const el = [...document.querySelectorAll('.cursor-grab')]
+          .find((e) => e.offsetParent && e.closest('.drawer-shell'))
+        if (!el) return null
+        const r = el.getBoundingClientRect()
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+      })
+      if (!h) throw new Error('punkt-arket åpnet seg ikke')
+      await page.mouse.move(h.x, h.y)
+      await page.mouse.down()
+      for (let i = 1; i <= 10; i++) {
+        await page.mouse.move(h.x, h.y - i * 40)
+        await page.waitForTimeout(20)
+      }
+      await page.mouse.up()
+      await page.waitForTimeout(700)
+
+      const les = () => page.evaluate(() => {
+        const ark = document.querySelector('.drawer-shell')
+        const label = [...ark.querySelectorAll('label')]
+          .find((l) => /knip for zoom/.test(l.textContent))
+        const blokk = label?.closest('.px-4')
+        const host = blokk?.querySelector('div[class*="aspect-"]')
+        const svg = host?.querySelector('svg')
+        const header = ark.querySelector('.border-b')
+        return {
+          harBryter: !!label?.querySelector('button[role="switch"]'),
+          pa: label?.querySelector('button[role="switch"]')?.getAttribute('aria-checked'),
+          touch: svg ? getComputedStyle(svg).touchAction : null,
+          viewBox: svg?.getAttribute('viewBox') ?? null,
+          krysshår: !!document.querySelector('[aria-label="Sentrer detaljkartet på punktet"]'),
+          blokkTekst: blokk?.innerText ?? '',
+          headerTekst: header?.innerText ?? '',
+        }
+      })
+
+      const av = await les()
+      if (!av.harBryter) throw new Error('fant ingen gest-bryter over detalj-insetet')
+      if (av.pa !== 'false') throw new Error('bryteren står PÅ fra start — den skal være av')
+      if (av.touch === 'none') {
+        throw new Error('insetet svelger draget med bryteren av — arket kan ikke rulles')
+      }
+      if (av.krysshår) throw new Error('krysshår-knappen vises med gestene av')
+      // Kart-faktaene flyttet ut av headeren og inn under Detaljer (v7.8.5).
+      const fakta = /1:\s?\d|Høydekurver|ISOM/i
+      if (fakta.test(av.headerTekst)) {
+        throw new Error('kart-faktaene står ennå i headeren')
+      }
+      if (!fakta.test(av.blokkTekst)) {
+        throw new Error('kart-faktaene kom ikke med under Detaljer')
+      }
+
+      await page.locator('label:has-text("knip for zoom") button[role="switch"]').first().click()
+      await page.waitForTimeout(300)
+      const pa = await les()
+      if (pa.pa !== 'true') throw new Error('bryteren slo ikke på')
+      if (pa.touch !== 'none') throw new Error('gestene ble ikke slått på (touch-action står igjen)')
+      if (!pa.krysshår) throw new Error('krysshår-knappen kom ikke fram med bryteren på')
+
+      // Panorer, og se at krysshåret legger utsnittet tilbake der det startet.
+      const midt = await page.evaluate(() => {
+        const svg = document.querySelector('.drawer-shell div[class*="aspect-"] svg')
+        const r = svg.getBoundingClientRect()
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+      })
+      await page.mouse.move(midt.x, midt.y)
+      await page.mouse.down()
+      for (let i = 1; i <= 6; i++) {
+        await page.mouse.move(midt.x - i * 8, midt.y - i * 4)
+        await page.waitForTimeout(20)
+      }
+      await page.mouse.up()
+      await page.waitForTimeout(200)
+      const flyttet = await les()
+      if (flyttet.viewBox === pa.viewBox) {
+        throw new Error('draget flyttet ikke utsnittet — gest-gaten slipper ingenting gjennom')
+      }
+      await page.locator('[aria-label="Sentrer detaljkartet på punktet"]').first().click()
+      await page.waitForTimeout(250)
+      const tilbake = await les()
+      if (tilbake.viewBox !== pa.viewBox) {
+        throw new Error(`krysshåret sentrerte ikke: ${tilbake.viewBox} mot ${pa.viewBox}`)
+      }
+
+      await page.locator('button[aria-label="Lukk"]').first().click()
+      await page.waitForTimeout(400)
+      return `av → arket ruller, på → ${flyttet.viewBox.split(' ')[0]} og krysshåret tilbake`
+    },
+  },
+  {
     // v6.5.49: kroppen i punkt-arket ligger i en `zoom`-blokk, så ved 200 % er
     // den effektive bredden HALVERT — og med faste `grid-cols-2`/`grid-cols-3`
     // fikk «Del kart og sted» rundt 100 px og ble fire ord under hverandre,

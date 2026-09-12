@@ -1,3 +1,26 @@
+## 2026-09-12 — v7.8.5: kart-faktaene under Detaljer, og insetets gester bak en bryter
+
+Punkt-arkets header bar fire linjer: koordinatene man kom for, og så
+målestokk, ekvidistanse, ISOM-variant og DEM-kilde. De tre siste beskriver
+ARKET og ikke punktet, så de står nå under Detaljer, ved mini-kartet de
+faktisk handler om. Prisen er at de først er synlige når skuffa er maksimert
+— det er der detalj-blokka bor. «Åpne stedet i»-etiketten er fjernet: to
+knapper med hvert sitt «åpne i nytt vindu»-ikon og navnet på tjenesten sier
+det samme, og etiketten dyttet dem ned på en egen linje ved stor tekst.
+Hintet «dra · knip for zoom» var en påstand uten en bryter bak seg: insetet
+tok draget, også det loddrette, så et forsøk på å rulle videre i arket zoomet
+mini-kartet i stedet. Hintet er nå etiketten til en bryter som slår gestene
+på, og den er AV som standard — da lar insetet draget gå videre til arket, og
+`touch-action` følger flagget i stedet for å stå fast på `none`. Med bryteren
+på kommer en liten kvadratisk knapp i nederste høyre hjørne av preview-kartet:
+den legger utsnittet tilbake der det åpnet, sentrert på det røde krysset. Den
+finnes ikke med gestene av — uten dem kan man ikke ha flyttet noe, og en knapp
+som ikke gjør noe er verre enn ingen knapp. Bryteren bor i MapView og ikke i
+arket, fordi insetet bygges på nytt hver gang skuffa maksimeres, og den
+nullstilles når arket lukkes.
+
+---
+
 ## 2026-09-12 — v7.8.4: fri tekststørrelse, nåla til høyre og et tak på snarvei-skuffa
 
 Tekststørrelsen i hovedmenyen er ikke lenger fire knapper, men én slider fra 100
