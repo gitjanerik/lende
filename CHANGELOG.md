@@ -1,3 +1,39 @@
+## 2026-09-12 — v7.8.2: kirkegård blir et eget kartlag, og Fritt lende-knappen følger tekststørrelsen
+
+Østenstad kirkegård i Asker sto på arket uten verken markering eller bakgrunn:
+ingen kode plukket opp OSMs gravplass-flate, og `landuse=grass` under den gjorde
+den til åpen mark. Gravplass er nå kode 516 — en Norge-spesifikk utvidelse, for
+ISOM 2017-2 har ingen (orienteringsløp går ikke der) mens norske turkart alltid
+har hatt den. Konvensjonen er kartverkets: en dempet grågrønn flate med et
+glissent kors-raster, ikke bare en flate — en flate alene leses som en park, og
+halvparten av gravplassene i OSM mangler `name`, så navnet kan ikke bære
+symbolikken. Begge OSM-taggene hentes (`landuse=cemetery` er dagens standard,
+`amenity=grave_yard` det eldre for gravplassen som hører til en kirke), på way og
+relation, og klassifiseringen står FØR idrettsanlegg og bygg slik at en flate som
+også bærer `leisure=park` fortsatt blir gravplass. Laget er delt av alle
+kartstiler og Fritt lende uten et eneste nytt kallested — `kartStiler` bygger
+hvert sett som en unntaks-liste og `frittLende` avleder sitt fra orienterings-
+stilen — og det er default PÅ. Alle elleve temaer har fått sin egen bunn og sine
+egne kors. Merk at eksisterende lagrede kart bærer ferdig rendret SVG:
+gravplassen dukker opp på kart bygget etter denne versjonen.
+
+Mens mønsteret kom på plass ble en felle i pinch-fallbacken lukket samtidig:
+under gest byttes mønsteret til flat farge for ytelsens skyld, og den fargen ble
+lest rett fra katalogens bakte bunn. Den går nå gjennom mønsterets egen
+tema-variabel, så et mørkt tema ikke blinker en lys bunn i 200 millisekunder per
+gest. For dagens mønstre er endringen byte-identisk; det er kirkegården som
+trengte veien.
+
+Og i Fritt lende følger hovedknappen nå tekststørrelsen. Den var modusens eneste
+flate som ikke gjorde det — linjalen, boblen, meldingen og angre-toasten bar alle
+viewets `zoom` — så ved 200 % vokste alt rundt knappen mens knappen selv ble
+stående igjen som den minste tingen på skjermen. Her skal koordinaten ikke deles
+på skalaen slik hamburgeren gjør: den er `absolute` med Tailwind-avstander som
+skalerer sammen med knappen, så marg og knapp vokser i takt og boblas trekant
+peker fortsatt på knappens midte.
+
+---
+
 ## 2026-09-12 — v7.8.1: kartnavnet fyller stripa, og tre ting om tekststørrelse
 
 Kartnavnet i topprada sto på `max-w-[42%]` — under halvparten av den ledige

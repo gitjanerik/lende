@@ -200,6 +200,41 @@ try {
   sjekk('Fritt lende: tom-tilstanden ruller ved 200 % tekst',
     rull.fant && rull.topp && rull.bunn,
     rull.fant ? `topp ${rull.topp}, bunn ${rull.bunn}` : 'fant ingen rullbar tekstblokk')
+
+  // HOVEDKNAPPEN FØLGER TEKSTSTØRRELSEN (v7.8.2). Den var modusens eneste flate
+  // som IKKE gjorde det: linjalen, boblen, meldingen og angre-toasten bar alle
+  // viewets `zoom`, så ved 200 % vokste alt rundt knappen mens den selv sto
+  // igjen som den minste tingen på skjermen. Måles i EKTE skjermpiksler
+  // (`getBoundingClientRect`), som er det eneste `zoom` er til å lese av på —
+  // `offsetWidth` er i elementets eget, uskalerte rom.
+  //
+  // Margen måles med: `bottom-4 right-4` er Tailwind-avstander som skaleres
+  // SAMMEN med knappen, i motsetning til hamburgerens målte fixed-koordinat som
+  // må deles på skalaen. Blir margen stående på 16 px mens knappen dobler seg,
+  // er det den fella som har smelt igjen.
+  await s4.setViewportSize({ width: 430, height: 900 })
+  const fabMaal = async () => s4.evaluate(() => {
+    const b = document.querySelector('button[data-hovedknapp]')
+    if (!b) return null
+    const r = b.getBoundingClientRect()
+    return { bredde: Math.round(r.width), marg: Math.round(innerWidth - r.right) }
+  })
+  await s4.evaluate(() => localStorage.removeItem('lende-ui-text-scale'))
+  await s4.reload({ waitUntil: 'domcontentloaded' })
+  await sov(600)
+  const fab100 = await fabMaal()
+  await s4.evaluate(() => localStorage.setItem('lende-ui-text-scale', '2'))
+  await s4.reload({ waitUntil: 'domcontentloaded' })
+  await sov(600)
+  const fab200 = await fabMaal()
+  sjekk('Fritt lende: hovedknappen dobler seg ved 200 % tekst, margen med',
+    fab100 && fab200
+      && Math.abs(fab100.bredde - 56) <= 2 && Math.abs(fab200.bredde - 112) <= 3
+      && Math.abs(fab200.marg - fab100.marg * 2) <= 3,
+    fab100 && fab200
+      ? `${fab100.bredde} px / ${fab100.marg} px marg → ${fab200.bredde} px / ${fab200.marg} px`
+      : 'fant ikke hovedknappen')
+
   await s4.evaluate(() => localStorage.removeItem('lende-ui-text-scale'))
   await s4.setViewportSize({ width: 430, height: 900 })
   await s4.reload({ waitUntil: 'domcontentloaded' })

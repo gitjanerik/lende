@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { useUiTextScale } from '../composables/useUiTextScale.js'
 
 // Fritt lendes eneste kontroll. Ett begrep — «hent meg hit» — som bruker det
 // billigste midlet situasjonen tillater: panorere hvis mulig, bygge hvis ikke.
@@ -42,9 +43,28 @@ const byggerNytt = computed(() => props.handling === 'bygg' || props.handling ==
 // appens knapp. Ett sted, så de to aldri kommer i utakt.
 const LENDE_GUL = '#ffd84a'
 const aksent = computed(() => (byggerNytt.value || props.fremhev ? LENDE_GUL : 'currentColor'))
-const ringStil = computed(() => (byggerNytt.value || props.fremhev
-  ? { boxShadow: `0 0 0 2px ${LENDE_GUL}, 0 0 18px -2px ${LENDE_GUL}99` }
-  : null))
+
+// KNAPPEN FØLGER TEKSTSTØRRELSEN (v7.8.2). Den er den eneste kontrollen i
+// modusen, og fram til nå den eneste flata i Fritt lende som IKKE gjorde det:
+// linjalen, boblen, meldingen og angre-toasten bar alle `zoom` fra viewet, så
+// ved 200 % vokste alt rundt knappen mens knappen selv sto igjen som den
+// minste tingen på skjermen. Samme begrunnelse som hamburgerens `float`-variant
+// (v7.6.0): her finnes det ingen tekst i det hele tatt — ikonet ER kontrollen —
+// og den som skrur opp fordi ting er for smått trenger også trykkflata større.
+//
+// Og her skal koordinaten IKKE deles på skalaen, i motsetning til hamburgeren.
+// Den er `fixed` på målte skjermpiksler, som `zoom` ganger opp; denne er
+// `absolute` med Tailwind-avstander (`bottom-4 right-4`) som skaleres sammen
+// med knappen — nøyaktig som naboene, som bærer samme `zoom`. Marg og knapp
+// vokser da i takt, og boblas trekant peker fortsatt på knappens midte.
+const { uiTextScale } = useUiTextScale()
+
+const ringStil = computed(() => ({
+  zoom: uiTextScale.value || 1,
+  ...(byggerNytt.value || props.fremhev
+    ? { boxShadow: `0 0 0 2px ${LENDE_GUL}, 0 0 18px -2px ${LENDE_GUL}99` }
+    : {}),
+}))
 </script>
 
 <template>

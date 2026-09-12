@@ -32,6 +32,12 @@ export const LAYERS = [
   { key: 'bygning',    label: 'Hus og hytter' },
   { key: 'bymasse',    label: 'Tett bebyggelse' },
   { key: 'kirke',      label: 'Kirker' },
+  // Kirkegård / gravplass (ISOM-derivert 516). Default PÅ, og delt av alle
+  // kartstiler og Fritt lende av seg selv: kartStiler bygger hvert sett som en
+  // UNNTAKS-liste fra ALL_LAYER_KEYS, og frittLende avleder sitt fra
+  // orienterings-stilen. En ny nøkkel som ikke står i DEFAULT_OFF_LAYERS er
+  // dermed på overalt uten flere kallesteder.
+  { key: 'kirkegard',  label: 'Kirkegård' },
   { key: 'parkering',  label: 'Parkering' },
   { key: 'holdeplass', label: 'Holdeplass' },
   { key: 'bro',        label: 'Bro' },
