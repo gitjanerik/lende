@@ -118,7 +118,12 @@ describe('fetchN50StiLinjer', () => {
     }))
     const linjer = await fetchN50StiLinjer(BBOX, { basePath: '/d/' })
     expect(linjer).toHaveLength(1)
-    expect(hentet).toEqual(['/d/manifest.json', '/d/59.5_10.0.bin'])
+    // v7.7.14: flisa bærer manifest-hashen som `?m=…` så service workeren kan
+    // cache den cache-first uten å servere et gammelt svar etter en ny bake.
+    // Manifestet selv skal ALDRI ha nøkkel — det er det nøkkelen lages av.
+    expect(hentet[0]).toBe('/d/manifest.json')
+    expect(hentet[1]).toMatch(/^\/d\/59\.5_10\.0\.bin\?m=[a-z0-9]+$/)
+    expect(hentet).toHaveLength(2)
   })
 
   it('ber ikke om fliser manifestet ikke har (hav og utland)', async () => {

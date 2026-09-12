@@ -17,7 +17,7 @@
 
 import { fetchOverpass, probeCoastline, bboxFromCenter, viewportAspect } from './mapBuilder.js'
 import { APP_VERSION } from '../version.js'
-import { buildSvgClient } from './buildSvgClient.js'
+import { apneByggeOkt } from './buildSvgClient.js'
 import { fetchN50Water } from './n50Fetcher.js'
 import { fetchNveLakePolygons } from './nveLakeFetcher.js'
 import { fetchKulturminner } from './kulturminneFetcher.js'
@@ -33,7 +33,6 @@ import { fetchSjokart, sjokartToElements, sjokartTimeoutForBbox, summarizeSjokar
 import { slaaSammenVann, vannKildeFlagg, filterOsmWaterElements } from './vannMerge.js'
 export { filterOsmWaterElements }
 import { fillDemVoidsFromTerrarium } from './terrariumDem.js'
-import { findHighestPoint, packDem, downsampleDem } from './demSampling.js'
 import { utm32ToWgs84, utm32BboxFromWgs84 } from './utm.js'
 import { saveMap, generateMapId } from './mapStorage.js'
 import { snapUtmBboxToGrid, fetchDEMWithCache } from './demTileCache.js'
@@ -53,6 +52,28 @@ export function consumeMapFinalize(id) {
   if (p) mapFinalizers.delete(id)
   return p ?? null
 }
+
+// Entry-register: kart-entryen ligger ferdig i minnet når byggingen er over,
+// men MapView leste den ut av IndexedDB igjen (og finalize en gang til) — to
+// runder med strukturert kloning av en 1–5 MB SVG-streng og et DEM-buffer for
+// data vi nettopp hadde. Registeret leverer den ÉN gang til `loadMap`.
+//
+// ÉN plass, ikke en Map: registeret er en snarvei og ikke en cache, og et kart
+// som aldri blir hentet skal ikke holde megabyte i live lenger enn til neste
+// bygg. `loadMap` faller tilbake til IndexedDB for alt annet — gjenåpning,
+// nabofliser, og et bygg brukeren navigerte vekk fra.
+let ferskEntry = null
+export function consumeMapEntry(id) {
+  if (!ferskEntry || ferskEntry.id !== id) return null
+  const { entry } = ferskEntry
+  ferskEntry = null
+  return entry
+}
+function registrerEntry(id, entry) { ferskEntry = { id, entry } }
+
+// Restbudsjett for sekundærkildene, målt fra at OSM + DEM + vann er inne.
+// Se assembleAndBuildFull for hvorfor det er så romslig som det er.
+const SEKUNDAER_BUDSJETT_MS = 5000
 
 const EMPTY_SJOKART = {
   dybdeareal: [], dybdekontur: [], grunne: [], lanterne: [], dybdepunkt: [],
@@ -202,6 +223,15 @@ export async function buildMapFromCenter({
   // ekvidistansen alene tilsier. `undefined` ⇒ regelen, som før.
   demResolutionM = undefined,
 }) {
+  // Forhåndslast MapView-chunken (439 kB, 133 kB gz + avhengigheter) SAMTIDIG
+  // med at byggingen starter. Uten den lastes den først ved `router.push` etter
+  // at kartet er ferdig — altså hundrevis av ms til sekunder rett foran det
+  // første kartet på første besøk eller etter en ny service-worker-versjon.
+  // Gaten er `terrainFirst`, som er nøyaktig de flytene som navigerer TIL
+  // MapView: Fritt lende har sin egen visning, og kant-utvidelsen står allerede
+  // i MapView. Rein prefetch — feiler den, laster router-en chunken som før.
+  if (terrainFirst) import('../views/MapView.vue').catch(() => {})
+
   const throwIfAborted = () => {
     if (signal?.aborted) throw new DOMException('Avbrutt', 'AbortError')
   }
@@ -370,13 +400,22 @@ export async function buildMapFromCenter({
     nveInnsjoStatus = { state: 'feil', message: String(e?.message ?? e) }
     return []
   }))
-  // NVE innsjø-flater: CORS-pålitelig autoritativ innlands-vannkilde. Brukes
-  // når N50-WFS svikter klient-side (vanlig på mobil) — uten den faller vi
-  // tilbake til rå OSM-vann som flommer ut over land på store norske innsjøer
-  // (Røssvatnet, Namsvatnet osv.). Feiler aldri hardt → [].
-  const nveLakesP = timeAsync('nve', fetchNveLakePolygons(bbox, { signal }).catch(e => {
-    console.warn('NVE-innsjø ikke tilgjengelig:', e?.message ?? e)
-    return []
+  // NVE innsjø-flater via `identify`. Dette er ØYEBLIKKELIG SAMME DATABASE som
+  // fetchN50Water over, spurt på en annen måte — og den andre måten er
+  // dårligere: identify mister øy-hullene. Fram til v7.7.14 ble begge fyrt på
+  // hvert eneste bygg, og identify-svaret ble deretter kastet i vannMerge der
+  // query hadde dekning: to fulle spørringer mot samme server for data vi
+  // brukte én av. Nå er identify en EKTE fallback — den fyres bare når query
+  // kom tomhendt tilbake (nede, CORS, ingen treff), som er nøyaktig det
+  // tilfellet den ble laget for: uten den faller vi til rå OSM-vann som flommer
+  // ut over land på store norske innsjøer (Røssvatnet, Namsvatnet). Feiler
+  // aldri hardt → [].
+  const nveLakesP = timeAsync('nve', n50P.then(n50Water => {
+    if (n50Water.length) return []
+    return fetchNveLakePolygons(bbox, { signal }).catch(e => {
+      console.warn('NVE-innsjø ikke tilgjengelig:', e?.message ?? e)
+      return []
+    })
   }))
   // Merkede fotruter (Kartverkets Turrutebasen). Fyrt parallelt med Overpass;
   // uttynningen mot OSM-stiene skjer i assembleAndBuildFull når begge er inne,
@@ -412,8 +451,8 @@ export async function buildMapFromCenter({
     return []
   }))
   // Kulturminner (Kulturminnesøk brukerminner) — klikkbare tema-ikoner. Hentes
-  // alltid ved bygging (default-AV lag i MapView → skjult til brukeren slår det
-  // på, uten ombygging). Cachet pr kvantisert bbox (30 d). Feiler aldri hardt → [].
+  // alltid ved bygging, så laget kan slås på uten ombygging. Cachet pr
+  // kvantisert bbox (30 d). Feiler aldri hardt → [].
   const kulturminneP = timeAsync('kulturminne', (async () => {
     const key = kulturminneBboxKey(bbox)
     const cached = await cacheGet(key)
@@ -439,11 +478,20 @@ export async function buildMapFromCenter({
   // tregeste kallet) bare for å få ja/nei på saltvann — proben løser det
   // 4–12 s tidligere på kystkart. Feiler proben, faller vi tilbake til det
   // autoritative svaret fra hovedspørringen (dagens oppførsel).
-  const coastalPromise = probeDemPromise.then(async (probeDem) => {
-    if (!hasNearSeaLevelPixels(probeDem)) return false
+  //
+  // v7.7.14: proben fyres ved t = 0 og ikke etter probe-DEM-et. Den er ~200 B
+  // og trenger bare bbox — lot vi den henge på DEM-et, startet den tidligst
+  // etter en full WCS-rundtur, og Sjøkart (som gates på samme promise) med
+  // den. DEM-havflaten er fortsatt et KRAV, den er bare ikke lenger en
+  // STARTPORT: hasNearSeaLevelPixels leses som et kortslutnings-nei etterpå.
+  const saltvannPromise = (async () => {
     const fullP = overpassP.then(osm => osmHasSaltwater(osm?.elements))
     const probeP = probeCoastline(bbox, { signal }).catch(() => fullP)
     return Promise.race([probeP, fullP]).catch(() => false)
+  })()
+  const coastalPromise = probeDemPromise.then(async (probeDem) => {
+    if (!hasNearSeaLevelPixels(probeDem)) return false
+    return saltvannPromise
   })
 
   // Grense-kart: fyll celler utenfor norsk WCS-dekning (noData, eller en
@@ -550,7 +598,18 @@ export async function buildMapFromCenter({
   // hjem-FAB og auto-kart likt. Consume-on-read i MapView.
   try { sessionStorage.setItem(`mapview-freshlook:${id}`, '1') } catch { /* noop */ }
   const isRealDem = (d) => d && !d.source?.startsWith('synthetic')
-  const buildEntry = ({ svg, counts, dem, source }, partial) => ({
+
+  // ÉN worker for hele byggingen (v7.7.14). Terreng-først bygger samme ark to
+  // ganger; med en fersk worker per kall kostet det to kloner av DEM-et og to
+  // komplette kontur-/stup-/topp-pass over et rutenett som ikke hadde endret
+  // seg. Økta holder begge deler. Den lukkes når kartet er ferdig — i
+  // finalize for terreng-først, ellers rett etter fullbygget.
+  const byggOkt = apneByggeOkt({ signal })
+  // DEM-et previewen brukte. Er fullbyggets DEM det SAMME objektet (ingen
+  // kyst-oppgradering, ingen Terrarium-fyll), kan konturene gjenbrukes.
+  let previewDem = null
+
+  const buildEntry = ({ svg, counts, dem, source, pakketDem, hoyestePunkt }, partial) => ({
     id,
     navn,
     bbox,
@@ -582,9 +641,11 @@ export async function buildMapFromCenter({
     annotations: [],
     // Lagret DEM kappes til ~10 m: kartet er alt bakt med full oppløsning, og
     // det innebygde rutenettet trengs bare til høyde-ved-trykk/ruteprofil. Kutter
-    // kartfila kraftig (1 m/1 km ≈ 4 MB → ~40 KB) uten merkbart tap.
-    dem: isRealDem(dem) ? packDem(downsampleDem(dem, 10)) : null,
-    highestPoint: isRealDem(dem) ? findHighestPoint(dem) : null,
+    // kartfila kraftig (1 m/1 km ≈ 4 MB → ~40 KB) uten merkbart tap. Selve
+    // nedskaleringen skjer i bygge-workeren (pakkLagretDem) og kommer tilbake
+    // som et transferert buffer — den lå på hovedtråden, på fullt rutenett.
+    dem: pakketDem ?? null,
+    highestPoint: hoyestePunkt ?? null,
     opprettet: Date.now(),
     partial: !!partial,
     // Auto-genererte fliser markeres så tileCache kan kappe dem (de fjerneste
@@ -599,7 +660,34 @@ export async function buildMapFromCenter({
 
   // Full bygging: vent på alle kilder, slå sammen, bygg full SVG (worker).
   const assembleAndBuildFull = async () => {
-    const [osmData, n50Water, nveLakes, dem, sjokart, kulturminner, turruteRoutes, n50StiLinjer, n50Areal] = await Promise.all([overpassP, n50P, nveLakesP, demPromise, sjokartPromise, kulturminneP, turruteP, n50StiP, n50ArealP])
+    // Kritisk sti: OSM + DEM + vann. Disse AVGJØR om kartet er lesbart — et ark
+    // uten stinett eller uten innsjøer er ikke et turkart, så her venter vi så
+    // lenge kildenes egne tidsgrenser sier.
+    const [osmData, n50Water, nveLakes, dem] = await Promise.all([overpassP, n50P, nveLakesP, demPromise])
+    // Sekundærkildene får et RESTBUDSJETT målt fra at kritisk sti er inne
+    // (v7.7.14). De fyres alle ved t = 0, altså parallelt med Overpass — som er
+    // flaskehalsen (81–97 % av tida) — så når vi står her har de allerede hatt
+    // hele Overpass-tida på seg. Budsjettet biter derfor bare når en tjeneste
+    // henger, og det er nøyaktig tilfellet der ÉN treg tredjepart tidligere
+    // holdt hele kartet: kulturminner kunne bruke 12 s × 3 forsøk × 20 sider.
+    // Alle fire degraderer allerede trygt til tomt, og statusen skrives så
+    // Utvikler-fanen viser HVORFOR laget mangler.
+    const budsjett = (p, fallback, label, settStatus) => withHardTimeout(
+      p.then(v => v, () => fallback), SEKUNDAER_BUDSJETT_MS, fallback, label,
+    ).then(v => {
+      if (v === fallback) settStatus?.()
+      return v
+    })
+    const [sjokart, kulturminner, turruteRoutes, n50StiLinjer, n50Areal] = await Promise.all([
+      budsjett(sjokartPromise, { ...EMPTY_SJOKART, timedOut: true }, 'Sjøkart (restbudsjett)'),
+      budsjett(kulturminneP, [], 'Kulturminner (restbudsjett)'),
+      budsjett(turruteP, [], 'Turrutebasen (restbudsjett)',
+        () => { turruteStatus = { state: 'feil', message: 'svarte ikke innen restbudsjettet' } }),
+      budsjett(n50StiP, [], 'N50-sti (restbudsjett)',
+        () => { n50StiStatus = { state: 'feil', message: 'svarte ikke innen restbudsjettet' } }),
+      budsjett(n50ArealP, [], 'N50-areal (restbudsjett)',
+        () => { n50ArealStatus = { state: 'feil', message: 'svarte ikke innen restbudsjettet' } }),
+    ])
     const sjokartElements = sjokartToElements(sjokart)
     // Merkede fotruter, tynnet mot OSM-ferdselslinjene: ~72 % av Turrutebasen
     // ligger oppå stier vi allerede tegner, og uten uttynning ville hver av dem
@@ -651,8 +739,7 @@ export async function buildMapFromCenter({
     onProgress(`Bygger SVG fra ${elements.length} elementer …`)
     // buildSvg i Web Worker så det tunge passet ikke fryser UI-en. signal
     // avbryter (terminerer workeren) ved prefetch-bom.
-    const { svg, counts, timings } = await timeAsync('buildSvg', buildSvgClient(elements, bbox, {
-      dem,
+    const { svg, counts, timings, pakketDem, hoyestePunkt } = await timeAsync('buildSvg', byggOkt.bygg(elements, bbox, {
       utmBbox,                       // authoritativ extent (samme som DEM-fetch) → kvadratisk + bit-eksakt
       contourIntervalM: equidistanceM,
       scaleDenom: 10000,
@@ -679,7 +766,13 @@ export async function buildMapFromCenter({
       // droppes og navne-takene. 'full' = byte-identisk med før.
       detaljNivaa,
       tetthet,
-    }, { signal }))
+    }, {
+      dem,
+      // Samme DEM-objekt som previewen? Da er konturene, stupkantene og
+      // toppene allerede regnet ut inne i workeren.
+      gjenbrukDem: previewDem != null && dem === previewDem,
+      pakkDem: isRealDem(dem),
+    }))
 
     const ti = timings ?? {}
     const inner = ['contours', 'cliffs', 'buildingMass']
@@ -693,7 +786,7 @@ export async function buildMapFromCenter({
       `sjøkart ${marks['sjøkart'] ?? '-'} | turrute ${marks.turrute ?? '-'} | n50sti ${marks.n50sti ?? '-'} | n50areal ${marks.n50areal ?? '-'} | buildSvg ${marks.buildSvg ?? '-'}${inner ? ` (${inner})` : ''}` +
       `${terrainFirst ? ' [terreng-først]' : ''} [ms]`
     )
-    return { svg, counts, dem, source }
+    return { svg, counts, dem, source, pakketDem, hoyestePunkt }
   }
 
   // Terreng-først: vent KUN på DEM, bygg konturer + DEM-sjø straks og lagre, og
@@ -702,13 +795,16 @@ export async function buildMapFromCenter({
   // Trygg fallback: syntetisk DEM eller feil → bygg full som vanlig.
   if (terrainFirst) {
     try {
-      // Kjerne-DEM uten Terrarium-fyll: previewen skal ikke vente på opptil 64
-      // ekstra flis-fetches for grensekart — fullbygget (assembleAndBuildFull)
-      // bruker det fylte DEM-et og overskriver previewen når det er klart.
-      const dem = await demCorePromise
+      // Previewen bygges fra PROBE-DEM-et, ikke fra kjerne-DEM-et. Kjernen
+      // venter på kyst-signalet og så på en ny WCS-henting i 5/10 m (opptil
+      // 4 MB), altså to rundturer til før «terrenget straks» i det hele tatt
+      // kan tegnes på et kystkart. Probe-DEM-et er alt i hånda her, og
+      // fullbygget bruker uansett det oppgraderte + Terrarium-fylte DEM-et og
+      // overskriver previewen når det er klart.
+      const dem = await probeDemPromise
       if (isRealDem(dem)) {
-        const terrain = await timeAsync('terreng', buildSvgClient([], bbox, {
-          dem,
+        previewDem = dem
+        const terrain = await timeAsync('terreng', byggOkt.bygg([], bbox, {
           utmBbox,                   // samme authoritative extent som full-bygget
           contourIntervalM: equidistanceM,
           scaleDenom: 10000,
@@ -719,21 +815,28 @@ export async function buildMapFromCenter({
           // Samme kontur-tall-tak som full-bygget, ellers ville antall høydetall
           // hoppet når full-SVG-en erstatter terreng-previewen.
           detaljNivaa,
-        }, { signal }))
+        }, { dem, pakkDem: true }))
         throwIfAborted()
         const entry = buildEntry(
-          { svg: terrain.svg, counts: terrain.counts, dem, source: 'Terreng (DEM) — fyller inn detaljer …' },
+          { ...terrain, dem, source: 'Terreng (DEM) — fyller inn detaljer …' },
           true,
         )
         await saveMap(entry)
+        registrerEntry(id, entry)
         onProgress('Terreng klart — fyller inn stier og detaljer …')
         const finalize = (async () => {
           const full = await assembleAndBuildFull()
           const fullEntry = buildEntry(full, false)
           await saveMap(fullEntry)
+          // Legg den ferdige entryen i registeret FØR promisen resolver, så den
+          // stille re-lastingen i MapView rendrer denne i stedet for å lese
+          // IndexedDB om igjen.
+          registrerEntry(id, fullEntry)
           return fullEntry
         })()
         finalize.catch(() => { /* MapView-konsumenten håndterer feil */ })
+        // Økta (og DEM-et den holder) lever til fullbygget er ferdig.
+        finalize.then(() => byggOkt.avslutt(), () => byggOkt.avslutt())
         mapFinalizers.set(id, finalize)
         return { id, entry, finalize }
       }
@@ -744,9 +847,15 @@ export async function buildMapFromCenter({
   }
 
   // Normal / fallback: bygg full og lagre.
-  const full = await assembleAndBuildFull()
+  let full
+  try {
+    full = await assembleAndBuildFull()
+  } finally {
+    byggOkt.avslutt()
+  }
   const entry = buildEntry(full, false)
   throwIfAborted()
   await saveMap(entry)
+  registrerEntry(id, entry)
   return { id, entry }
 }

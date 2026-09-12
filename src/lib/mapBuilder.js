@@ -781,6 +781,13 @@ export function buildSvg(elements, bbox, options = {}) {
     printSize = true,
     dem = null,
     contourIntervalM = 5,
+    // DEM-avledet resultat (konturer, stupkanter, topper) fra et TIDLIGERE
+    // buildSvg-kall med samme DEM. Terreng-først bygger samme ark to ganger, og
+    // uten dette kjøres marching squares og skeletoniseringen om igjen på et
+    // rutenett som ikke har endret seg. Gjenbruk er KALLERENS beslutning — den
+    // vet om kyst-oppgraderingen eller Terrarium-fyllet byttet ut DEM-et — men
+    // ekvidistansen kryssjekkes her, siden konturene er bakt for én verdi.
+    demDerived = null,
     skipDemSea = false,
     utmBbox = null,                // authoritativ UTM-extent fra kalleren (se under)
     coastal = null,                // true=kyst (ekte sjø), false=innland, null=ukjent.
@@ -1147,20 +1154,26 @@ export function buildSvg(elements, bbox, options = {}) {
   let demSeaBands = []
   let demSummits = []
   if (usableDem) {
-    const c = _time('contours', () => buildContours(usableDem, contourIntervalM, 5))
-    const cl = _time('cliffs', () => detectCliffs(usableDem, 45, 10))
-    demFeatures = { contours: c, cliffs: cl, equidistanceM: contourIntervalM }
-    // Ekte topper (lokale høyde-maksima) for «topp»-søket. Brukes kun når kartet
-    // ikke har OSM-toppmarkører; emitteres som skjult søkbart lag uansett.
-    // Topp-deteksjon på et ~10 m-nedskalert DEM. detectSummits' vindu er i METER
-    // (250 m); på et fint rutenett (2 m) blir det et 125-cellers vindu pr celle =
-    // ~1,5e11 ops ≈ 48 s (minutter på mobil). Topper trenger ikke 2 m-presisjon —
-    // 10 m finner dem like godt, og world-koordinatene er uendret (downsampleDem
-    // bevarer origin). Kutter «summits» fra ~48 s til < 1 s på fine kart.
-    const summitDem = Math.abs(usableDem.transform?.pixelWidth || 10) < 8
-      ? downsampleDem(usableDem, 10)
-      : usableDem
-    demSummits = _time('summits', () => detectSummits(summitDem, { windowM: 250, minProminenceM: 15, maxCount: 60 }))
+    const gjenbruk = demDerived?.contourIntervalM === contourIntervalM ? demDerived : null
+    if (gjenbruk) {
+      demFeatures = { contours: gjenbruk.contours, cliffs: gjenbruk.cliffs, equidistanceM: contourIntervalM }
+      demSummits = gjenbruk.summits
+    } else {
+      const c = _time('contours', () => buildContours(usableDem, contourIntervalM, 5))
+      const cl = _time('cliffs', () => detectCliffs(usableDem, 45, 10))
+      demFeatures = { contours: c, cliffs: cl, equidistanceM: contourIntervalM }
+      // Ekte topper (lokale høyde-maksima) for «topp»-søket. Brukes kun når kartet
+      // ikke har OSM-toppmarkører; emitteres som skjult søkbart lag uansett.
+      // Topp-deteksjon på et ~10 m-nedskalert DEM. detectSummits' vindu er i METER
+      // (250 m); på et fint rutenett (2 m) blir det et 125-cellers vindu pr celle =
+      // ~1,5e11 ops ≈ 48 s (minutter på mobil). Topper trenger ikke 2 m-presisjon —
+      // 10 m finner dem like godt, og world-koordinatene er uendret (downsampleDem
+      // bevarer origin). Kutter «summits» fra ~48 s til < 1 s på fine kart.
+      const summitDem = Math.abs(usableDem.transform?.pixelWidth || 10) < 8
+        ? downsampleDem(usableDem, 10)
+        : usableDem
+      demSummits = _time('summits', () => detectSummits(summitDem, { windowM: 250, minProminenceM: 15, maxCount: 60 }))
+    }
     // Sjø-deteksjon fra DTM: Kartverket NHM_DTM_25832 returnerer havflaten på
     // 0 m. Områder ≤ 0.5 m blir blå sjø-polygon (ISOM 303). FALLBACK når
     // WMTS-vannmaske ikke leverte data — heuristikken kan "smitte" inn på
@@ -3205,7 +3218,12 @@ ${body}</svg>
     svg = svg.replace(/\n[ ]+</g, '\n<')
   }
 
-  return { svg, counts, meta, timings }
+  // demDerived ut igjen så en økt kan gi den tilbake ved neste bygg av SAMME
+  // kart (buildSvgClient). Ingen kopi: det er de samme objektene.
+  const utAvledet = usableDem
+    ? { contourIntervalM, contours: demFeatures.contours, cliffs: demFeatures.cliffs, summits: demSummits }
+    : null
+  return { svg, counts, meta, timings, demDerived: utAvledet }
 }
 
 // Global navn-dedup for kart-labels (v12.1.22 — var ren «ett navn = én label»).

@@ -38,6 +38,29 @@ describe('fetchOverpass speil-kappløp', () => {
     expect(data.elements).toEqual(['rask'])
   })
 
+  // v7.7.14: vinneren avgjøres på svar-hodene, så taperne skal være avbrutt
+  // FØR kroppen deres leses. Med `Promise.any` over `res.json()` strømmet alle
+  // tre speilene hele payloaden (0,4–5 MB hver) før noen tapte.
+  it('avbryter de tapende speilene før kroppen deres leses', async () => {
+    const jsonKalt = []
+    const svar = (navn, { treg = false } = {}) => ({
+      ok: true,
+      json: async () => { jsonKalt.push(navn); return { elements: [navn] } },
+    })
+    vi.stubGlobal('fetch', vi.fn((url, { signal }) => {
+      if (url.includes('kumi')) return Promise.resolve(svar('kumi'))
+      // De to andre svarer med hoder senere; de skal da alt være avbrutt.
+      return new Promise((resolve, reject) => {
+        const t = setTimeout(() => resolve(svar('treg')), 30)
+        signal?.addEventListener('abort', () => { clearTimeout(t); reject(new DOMException('Avbrutt', 'AbortError')) })
+      })
+    }))
+    const data = await fetchOverpass(bbox)
+    expect(data.elements).toEqual(['kumi'])
+    await new Promise(r => setTimeout(r, 60))
+    expect(jsonKalt).toEqual(['kumi'])
+  })
+
   it('faller over til et annet speil når ett feiler', async () => {
     vi.stubGlobal('fetch', vi.fn((url) => {
       if (url.includes('kumi')) return Promise.reject(new Error('nett-feil'))

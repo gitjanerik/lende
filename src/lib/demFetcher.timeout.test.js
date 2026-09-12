@@ -80,6 +80,29 @@ describe('fetchDEM — hedge + abort-kontrakt', () => {
     expect(fetchSpy.mock.calls[1][0]).toContain('25833')
   })
 
+  // v7.7.14: hedgen måles på tid til FØRSTE BYTE. Et stort kyst-DEM (~4 MB)
+  // bruker lett mer enn 4 s på selve kroppen, og med det gamle målet fyrte
+  // hedgen derfor alltid på nøyaktig de hentingene som var dyrest fra før.
+  it('hedgen fyrer ikke når primæren svarer med hoder, men laster tregt', async () => {
+    vi.useFakeTimers()
+    const fetchSpy = vi.fn((url) => {
+      if (url.includes('25832')) return Promise.resolve({
+        ok: true,
+        headers: { get: () => 'image/tiff' },
+        // Kroppen bruker 20 s — langt forbi hedge-forsinkelsen på 4 s.
+        arrayBuffer: () => new Promise(resolve => setTimeout(() => resolve(new ArrayBuffer(2000)), 20000)),
+      })
+      return Promise.resolve(okTiff())
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+    const p = fetchDEM(utmBbox, { resolutionM: 10 })
+    await vi.advanceTimersByTimeAsync(25000)
+    const dem = await p
+    expect(dem.source).toContain('25832')
+    // Bare primæren ble spurt — fallback-endepunktet er aldri startet.
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
   it('faller til syntetisk når alle endpoints henger forbi timeout', async () => {
     vi.useFakeTimers()
     const fetchSpy = vi.fn((url, { signal }) => hangingFetch(signal))

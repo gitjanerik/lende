@@ -69,8 +69,8 @@ npm run mcp:protokoll  # Kjører MCP-protokollen mot lende-mcp i workerd:
 
 - **Kart-pipelinen orkestreres fra `src/lib/createMapFlow.js`** —
   `buildMapFromCenter()` kjører Overpass + N50 + DEM parallelt, gater
-  Sjøkart-WFS på DEM-resultat, og kaller `buildSvg` (`src/lib/mapBuilder.js`).
-  Endringer i hvordan kartet bygges skal komme her.
+  Sjøkart-WFS på DEM-resultat, og kaller `buildSvg` (`src/lib/mapBuilder.js`)
+  gjennom en bygge-ØKT. Endringer i hvordan kartet bygges skal komme her.
 - **Symbolisering**: datadrevet ISOM-katalog (`src/lib/isomCatalog.json`) via
   `src/lib/symbolizer.js`. All SVG-CSS scopes til `.isom-map`.
 - **Terreng**: `demFetcher.js` (Kartverket WCS, multi-endpoint, CORS-trygg),
@@ -96,6 +96,83 @@ npm run mcp:protokoll  # Kjører MCP-protokollen mot lende-mcp i workerd:
   `finn_stinett_brudd`.** Den bygger grafen med samme opsjoner som ruteren
   (`RUTE_GRAF_OPTS`) og lister hull i stinettet med posisjon, hullstørrelse og
   omveien de koster — se `src/lib/stinettBrudd.js`.
+
+## Viktig arkitektur-merknad — ÉN bygge-økt per kart, og hva som ligger på kritisk sti
+
+**`buildSvgClient.js` er en ØKT, ikke en funksjon (v7.7.14).** `apneByggeOkt()`
+gir én langlivet worker for HELE byggingen av ett kart; `avslutt()` terminerer
+den. Grunnen er terreng-først: det bygger samme ark to ganger — konturer alene,
+så hele arket — og med en fersk worker per kall kostet det to struktur-kloner av
+DEM-et (opptil 4 MB) og to komplette kontur-, stup- og topp-pass over et
+rutenett som ikke hadde endret seg.
+
+**Gjenbruken er KALLERENS beslutning, ikke workerens, og det er med vilje.**
+Workeren kan ikke vite at kyst-oppgraderingen eller Terrarium-fyllet byttet ut
+DEM-et; `createMapFlow` kan, med en identitets-sjekk (`dem === previewDem`).
+Derfor `bygg(..., { gjenbrukDem })`. `buildSvg` tar imot `demDerived` og
+returnerer sitt eget, og kryssjekker ekvidistansen — konturene er bakt for ÉN
+verdi. Det som gjenbrukes er konturer, stupkanter og topper; DEM-sjøen er det
+ikke, fordi previewen kjører med `skipDemSea: true` og fullbygget ikke gjør det.
+**`demDerived` krysser aldri tråd-grensa** — den blir liggende i workeren, som
+er hele poenget.
+
+**Lagrings-DEM-et pakkes i workeren** (`pakkLagretDem` i `demSampling.js`:
+downsample → `packDem` → `findHighestPoint`) og bufferet TRANSFERERES tilbake.
+Det lå på hovedtråden, på fullt rutenett, én gang per bygg.
+
+**Entry-registeret i `createMapFlow` har ÉN plass, og det er en snarvei — ikke
+en cache.** `consumeMapEntry(id)` leverer den ferske entryen én gang til
+`loadMap`, så MapView slipper å lese 1–5 MB ut av IndexedDB rett etter at vi
+skrev dem dit (og finalize en gang til). Alt annet — gjenåpning, nabofliser, et
+bygg brukeren navigerte vekk fra — går mot IndexedDB som før. Én plass fordi et
+kart som aldri hentes ikke skal holde megabyte i live lenger enn til neste bygg.
+
+**Kritisk sti er OSM + DEM + VANN, og bare det.** Sekundærkildene (Sjøkart,
+kulturminner, Turrutebasen, N50-sti, N50-areal) får et RESTBUDSJETT på 5 s målt
+fra at kritisk sti er inne. De fyres alle ved t = 0, altså parallelt med
+Overpass — som er flaskehalsen (81–97 % av tida) — så når budsjettet starter har
+de allerede hatt hele Overpass-tida på seg. Budsjettet biter derfor bare når en
+tjeneste HENGER, og det var nøyaktig der én treg tredjepart holdt hele kartet
+(kulturminner kunne bruke 12 s × 3 forsøk × 20 sider). Legger du til en ny
+kilde, er spørsmålet hvilken av de to den er — avgjør den om kartet er LESBART,
+eller fyller den inn?
+
+**Terreng-først-previewen bygges fra PROBE-DEM-et, ikke kjerne-DEM-et.** Kjernen
+venter på kyst-signalet og så på en ny WCS-henting i 5/10 m, altså to rundturer
+til før «terrenget straks» kan tegnes på et kystkart. Fullbygget bruker det
+oppgraderte + Terrarium-fylte DEM-et og overskriver previewen.
+
+**Kystlinje-proben fyres ved t = 0.** DEM-havflaten er fortsatt et KRAV, men
+ikke lenger en STARTPORT: `hasNearSeaLevelPixels` leses som et
+kortslutnings-nei etter at proben er i gang. Sjøkart gates på samme promise og
+starter derfor like tidlig.
+
+**NVE Innsjødatabasen spørres ÉN gang.** `fetchN50Water` (query) og
+`fetchNveLakePolygons` (identify) treffer samme database på to måter, og
+identify mister øy-hullene. Fram til v7.7.14 ble begge fyrt hvert bygg og
+identify-svaret kastet i `vannMerge` der query hadde dekning. Identify er nå en
+ekte fallback — den fyres bare når query kom tomhendt tilbake.
+
+**N50-flisene caches av service workeren, i en UVERSJONERT cache** (`lende-n50`,
+samme begrunnelse som `lende-data`: en deploy skal ikke koste brukeren 100+ MB).
+Filnavnene er faste, så cache-first krever en nøkkel: klienten henger en
+manifest-hash på hver flis-URL (`lib/n50FlisNokkel.js`), og en ny bake blir
+dermed en cache-bom i stedet for et gammelt svar. Service workeren forstår
+ingenting om N50 — den ser bare en annen URL. Manifestet selv er network-first;
+det ER nøkkelen, og en gammel manifest ville skjult både nye fliser og ny
+nøkkel. Gamle nøkler for samme flis ryddes når den nye lagres.
+
+**Overpass-kappløpet avgjør vinneren på SVAR-HODENE**, ikke på ferdig parset
+JSON: `Promise.any` over `res.json()` lot alle tre speilene strømme 0,4–5 MB
+hver før noen tapte. **DEM-hedgen måles på tid til FØRSTE BYTE** av samme grunn
+— et 4 MB kyst-DEM bruker lett mer enn hedge-forsinkelsen bare på kroppen, så
+det gamle målet fyrte fallback-endepunktet på nøyaktig de hentingene som var
+dyrest fra før.
+
+**Rasterisert bakgrunn er VURDERT OG FORKASTET (v7.7.14).** Turkartet er ren
+SVG, «genetisk» og med vilje — Lende skal ikke være som andre kartapper. De
+eneste raster-unntakene er de som alt finnes: det røde crosshair-ikonet ved
+lang-trykk og det mjuke relieffet (hillshade). Ikke foreslå hybrid igjen.
 
 ## Viktig arkitektur-merknad — enheter i kart-SVG-en (IKKE skaler koordinatrommet)
 
@@ -580,7 +657,7 @@ FØRST og spør om varianten egentlig er en OPSJON på originalen.**
 
 Kjent gjeld, oppdatert etter hver leveranse som rører den:
 
-- **`MapView.vue` er ~3 153 linjer** og er fortsatt appens største risiko: alt
+- **`MapView.vue` er ~3 670 linjer** og er fortsatt appens største risiko: alt
   møtes der, og Claude ser bare utsnitt av den om gangen. Fem domener ble
   trukket ut i v5.8.0 — `use3dEntry.js` (3D-inngangen), `useKartDeling.js`
   (utgående deling), `useDeltTur.js` (innkommende tur-lenke),
@@ -764,7 +841,7 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   ned i fila, send en getter (`() => x`) — ikke verdien. To av de tre feilene
   over var dette. Må kallet stå etter en annen composable, skriv HVORFOR på
   kallstedet (se `useDeltTur`-kallet, som må stå etter `useGhostTiles`).
-- **`mapBuilder.js` er ~3 300 linjer** og gjør henting, klassifisering,
+- **`mapBuilder.js` er ~3 350 linjer** og gjør henting, klassifisering,
   geometri-sying og SVG-emittering i én fil. Ikke del den opp uten grunn, men
   legg nye kilder som egne `*Fetcher.js` + et lite klassifiseringssteg.
 - **Ingen dubletter kjent i 3D** etter v5.7.0: én scene (`scene3d.js`), én
