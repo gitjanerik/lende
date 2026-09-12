@@ -1,3 +1,26 @@
+## 2026-09-12 — v7.8.6: Tannhjul i stedet for Skarp/Mjuk, ny «Natt»-snarvei
+
+Skarp/Mjuk-pilla nederst i snarvei-skuffa er fjernet, og med den hint-boblen
+som svarte under raden på et trykk man gjorde inne i skuffa. I stedet står det
+et lite tannhjul ved hver av de to skyvene: begge åpner Innstillinger med
+Kartstil-fana valgt og ruller til henholdsvis «Strek» og «Relieff», der
+relieff-stilen alltid har hørt hjemme. Raden sier ikke lenger hvilken stil som
+er i bruk — den følger det brukeren har valgt fra før, eller standarden.
+Rullingen måles med `offsetTop` mot rulleflata og ikke med `scrollIntoView`,
+som kan dra hele appen ut av sin egen ramme. Den stiplede kantlinja per knapp i
+sorteringsmodus er hevet til full ink-farge; den var der hele tida, men på 45 %
+var den ikke til å se. Ny snarvei «Natt» på plass #9, foran «Valg»: månen
+bytter turkartet til mørkt tema, og knappen heter da «Dag» med et sol-ikon.
+Bryteren «Turkart i mørkt tema» er tatt ut av hovedmenyen — den gjaldt bare
+kartet. En ny id i katalogen legges nå rett bak sin nærmeste nabo i en lagret
+rekkefølge, slik at «Natt» havner foran «Valg» også for den som har sortert
+raden selv. Og ikonet foran «Mine ruter» i hovedmenyen henger endelig sammen:
+den buede streken gikk fra løse lufta under den øverste sirkelen til et punkt
+forbi den nederste, og er nå ett eget subpath i absolutte koordinater fra kant
+til kant.
+
+---
+
 ## 2026-09-12 — v7.8.5: kart-faktaene under Detaljer, og insetets gester bak en bryter
 
 Punkt-arkets header bar fire linjer: koordinatene man kom for, og så

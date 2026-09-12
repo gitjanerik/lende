@@ -460,8 +460,9 @@ ett hakk med wrap. Kommer det en fjerde knott, er den en seksjon her.
 
 **MEN RADEN HAR DEM SOM ET EGET NIVÅ IGJEN FRA v7.8.0, og det motsier ikke
 avsnittet over — det er nettopp det som gjør at det ikke gjør det.** Skuffa har
-tre stillinger: sammenlagt, alle radene, og KNOTTENE (strek + relieff-styrke +
-skarp/mjuk-pille). Forskjellen fra v7.0.0-pillene er hele poenget: de sto som en
+tre stillinger: sammenlagt, alle radene, og KNOTTENE (strek + relieff-styrke,
+med hvert sitt tannhjul inn til Kartstil). Forskjellen fra v7.0.0-pillene er
+hele poenget: de sto som en
 TREDJE KLASSE KONTROLL midt inne i funksjons-raden, med sin egen form, sitt eget
 bunn-ark og sitt eget hint — nå er det et eget dra-nivå BAK funksjonene, og det
 koster ingen kartflate før man har dratt to ganger. Nivået er en SNARVEI til
@@ -480,14 +481,49 @@ skal stoppe på nivå 1 og VISE at det stopper der. «Sorter snarveier» toner u
 det samme draget som toner knottene inn: den handler om raden, knottene om
 kartet.
 
-**DEN VALGTE HALVDELEN AV SKARP/MJUK-PILLA MÅ HA HVIT SKRIFT, og selektoren
-avgjorde det (v7.8.1).** `.knott-pille__pa` er (0,1,0) og taper mot
-`.knott-pille button` (0,1,1), så `color: #fff` ble aldri brukt: i lyst tema
-sto mørk ink-tekst på mørkegrønt. Mørkt tema skjulte feilen helt, fordi ink-2
-der er lys fra før — så den ene flata med for lav kontrast var også den ene
-ingen ville sett i en rask sjekk. Selektoren er nå
-`.knott-pille button.knott-pille__pa`. Gjør du noe likt et annet sted: en
-tilstands-klasse må være minst like spesifikk som grunnregelen den overstyrer.
+**SKARP/MJUK-PILLA ER BORTE, OG ET TANNHJUL STÅR I STEDET (v7.8.6).** Den var
+den siste kontrollen i knott-panelet som ikke var en knott: en tilstand med to
+navngitte stillinger, ved siden av to tall man drar. Den svarte dessuten med en
+hint-boble UNDER raden på et trykk man gjorde INNE i skuffa — altså et svar et
+annet sted enn spørsmålet. Relieff-stilen bor der den alltid har hørt hjemme,
+i Kartstil-fana, og hver av de to skyvene har nå et lite tannhjul som åpner
+Innstillinger med den fana valgt og ruller til «Strek» eller «Relieff». Raden
+sier ikke lenger hvilken stil som er i bruk — den følger brukerens tidligere
+valg, eller standarden.
+
+**RULLINGEN BRUKER `offsetTop` MOT RULLEFLATA, IKKE `scrollIntoView`.** Anker-
+seksjonene er `[data-stil-seksjon]` i `DrawerStyleTab`, og rulleflata
+(skuff-kroppen i MapView) må ha `position: relative` — uten den måles
+`offsetTop` mot en helt annen forelder. To grunner til at det ikke er
+`scrollIntoView`: MapViews rot er `overflow-hidden`, men kan likevel rulles
+PROGRAMMATISK (feilen lende-pilene gikk på i v6.5.48), og skuff-kroppen bærer
+`zoom` — en delta målt med `getBoundingClientRect` ville vært i feil enhet,
+mens `offsetTop` er i lagets egne piksler.
+
+Lærdommen fra pilla står igjen, for den gjelder enhver tilstands-klasse: den må
+være minst like spesifikk som grunnregelen den overstyrer. `.knott-pille__pa`
+var (0,1,0) og tapte mot `.knott-pille button` (0,1,1), så `color: #fff` ble
+aldri brukt — og i mørkt tema var feilen usynlig, fordi ink-2 der er lys fra
+før.
+
+**«NATT» ER EN SNARVEI, OG HOVEDMENYENS BRYTER ER BORTE (v7.8.6).** «Turkart i
+mørkt tema» sto i hovedmenyen sammen med tekststørrelse og appens egne valg —
+men den gjelder KARTET og ingenting annet, og var derfor plassert et sted man
+ikke er når man ser på kartet. Snarveien VISER HANDLINGEN og ikke tilstanden:
+måne + «Natt» i lyst kart, sol + «Dag» i mørkt. Den bærer bevisst ingen
+`aria-pressed` og ingen grønn på-flate — etiketten sier alt, og en grønn flate
+ville sagt det samme en gang til med motsatt fortegn. Tilstanden er
+`useMapTheme`-singletonen, altså nøyaktig den bryteren eide, så Stemning-fana
+følger med av seg selv.
+
+**EN NY ID I KATALOGEN LEGGES VED NABOEN SIN, IKKE BAKERST (v7.8.6).** «Natt»
+kom inn på plass #9, foran «Valg» — og for alle som hadde en lagret rekkefølge
+ville den gamle regelen lagt den ETTER innstillingene, altså gjort
+katalog-plasseringen til en påstand som bare gjaldt ferske brukere.
+`normaliserRekkefolge` setter nå en manglende id rett bak den nærmeste
+katalog-FORGJENGEREN brukeren faktisk har. Etterfølger-varianten ble prøvd og
+målt feil: en lagret liste som starter med «Info» fikk hele resten av katalogen
+dyttet inn foran seg.
 
 **RELIEFF-SLIDEREN SKRIVER TO TING, og det er kallstedets ansvar (MapView,
 `settSnarveiRelieff`).** Av/på lagres PER KART og styrken er GLOBAL — to ting på

@@ -315,7 +315,7 @@ const {
 // Tilstanden bor i useMapTheme (delt singleton, lagret i localStorage) så
 // Tema-fanen her og «Turkart i mørkt tema»-bryteren i hovedmenyen styrer det
 // samme — og valget overlever at appen lukkes.
-const { mapTheme: currentTheme, setMapTheme } = useMapTheme()
+const { mapTheme: currentTheme, setMapTheme, setDarkMap } = useMapTheme()
 // v5.23.0: 'light' er ikke lenger det eneste lyse temaet — turkart, padling
 // og print er også lyse. Avled av temaets egen bakgrunn i stedet for å liste
 // nøkler, ellers ville hvert nye lyse tema måttet huskes her.
@@ -629,6 +629,29 @@ function openDrawer() {
   drawer.reset()
 }
 function closeDrawer() { showControls.value = false }
+
+// TANNHJULET VED SNARVEI-KNOTTENE (v7.8.6). Raden bærer grov-knottene for strek
+// og relieff; alt annet om kartets uttrykk bor i Kartstil-fana, og dette er
+// veien dit — åpnet på riktig fane og rullet til riktig seksjon, så man ikke
+// lander øverst i en fane og må lete etter det man nettopp sto i.
+//
+// RULLINGEN GÅR PÅ SKUFFAS EGEN RULLEFLATE og ikke via `scrollIntoView`:
+// MapViews rot er `overflow-hidden`, og en slik boks kan fortsatt rulles
+// PROGRAMMATISK — det var nettopp det som dro de åtte lende-pilene ut av
+// viewporten da skuffa fokuserte sin første knapp (se `drawerRef`).
+// `offsetTop` mot rulleflata er dessuten immun mot `zoom`-laget rundt
+// innholdet, i motsetning til en differanse av to `getBoundingClientRect`.
+const drawerBodyRef = ref(null)
+function apneKartstilSeksjon(seksjon) {
+  openDrawer()
+  activeTab.value = 'kartstil'
+  nextTick(() => {
+    const flate = drawerBodyRef.value
+    const el = flate?.querySelector(`[data-stil-seksjon="${seksjon}"]`)
+    if (!flate || !el) return
+    flate.scrollTo({ top: Math.max(0, el.offsetTop - 8), behavior: 'smooth' })
+  })
+}
 
 // Skuffa er en `role="dialog"`, men BEVISST uten `aria-modal` (v6.5.48): på
 // desktop er den et sidepanel uten bakteppe, og kartet ved siden av er fullt
@@ -1982,10 +2005,24 @@ function settSnarveiRekkefolge(ny) {
 const egetKart = computed(() => !(route.params.id ?? 'vardasen').startsWith('vardasen'))
 const synligeSnarveier = computed(() =>
   snarveierIRekkefolge(snarveiRekkefolge.value, { egetKart: egetKart.value })
-    .map(s => s.id === 'posisjon'
-      ? { ...s, aktiv: userPos.isWatching,
-          ariaTekst: userPos.isWatching ? 'Posisjon på. Slå av.' : 'Posisjon av. Slå på.' }
-      : s))
+    .map(s => {
+      if (s.id === 'posisjon') {
+        return { ...s, aktiv: userPos.isWatching,
+                 ariaTekst: userPos.isWatching ? 'Posisjon på. Slå av.' : 'Posisjon av. Slå på.' }
+      }
+      // NATT VISER HANDLINGEN, IKKE TILSTANDEN (v7.8.6). Cella heter «Natt»
+      // med en måne på et lyst kart og «Dag» med en sol på et mørkt — altså
+      // det trykket GJØR. Den har derfor ingen `aktiv`: en grønn på-flate ved
+      // siden av et ikon som allerede har snudd sier det samme to ganger, og
+      // med motsatt fortegn.
+      if (s.id === 'natt') {
+        return isDark.value
+          ? { ...s, label: 'Dag', ikon: 'dag', aria: 'Lyst turkart',
+              ariaTekst: 'Mørkt turkart på. Bytt til lyst.' }
+          : { ...s, ikon: 'natt', ariaTekst: 'Mørkt turkart av. Bytt til mørkt.' }
+      }
+      return s
+    }))
 
 // `skjulteSnarveiIder` gikk ut med panelet (v7.7.0): sorteringen skjer i raden,
 // og raden kan bare flytte det den viser. På et demokart står Annotering og
@@ -2012,6 +2049,12 @@ const SNARVEI_HANDLING = {
   // men VEIEN dit er nå raden og ikke et tannhjul i topprada. `openDrawer`
   // lukker kontekstmenyen og funksjons-skuffene først, som før.
   innstillinger: () => openDrawer(),
+  // SAMME TILSTAND SOM STEMNING-FANA, og den eneste veien til den utenfor
+  // skuffa (v7.8.6). Bryteren «Turkart i mørkt tema» i hovedmenyen er borte:
+  // den gjaldt kartflaten og ikke appen, og en kart-innstilling hører hjemme
+  // over kartet. `setDarkMap(false)` gir kartets standardpalett tilbake — også
+  // fra et monokrom-tema — nøyaktig som bryteren gjorde.
+  natt: () => setDarkMap(!isDark.value),
 }
 
 // DE EKSTERNE KARTENE BOR I INFOPANELET (v7.2.0). De var chips i hovedmenyen
@@ -2813,9 +2856,9 @@ onUnmounted(() => {
                     :relief-trinn="snarveiReliefTrinn"
                     :relief-trinn-antall="RELIEF_STEPS.length"
                     :relief-prosent="snarveiReliefProsent"
-                    v-model:relief-mode="reliefMode"
                     @set-strek-trinn="strokeStepIndex = $event"
                     @set-relief-trinn="settSnarveiRelieff"
+                    @apne-kartstil="apneKartstilSeksjon"
                     @velg="onSnarvei" @flytt="onSnarveiFlytt"
                     @tilbakestill="settSnarveiRekkefolge([...STANDARD_REKKEFOLGE])"
                     @apen="snarveiApen = $event" />
@@ -3302,8 +3345,11 @@ onUnmounted(() => {
           </button>
         </div>
 
-        <div v-show="!drawer.isMinimized.value"
-             class="flex-1 overflow-y-auto px-4 pb-6" :style="{ zoom: uiTextScale }">
+        <!-- `relative` er ikke pynt: `apneKartstilSeksjon` ruller hit med
+             `offsetTop`, og det tallet måles mot nærmeste POSISJONERTE forelder.
+             Uten den ville tannhjulene rullet til et vilkårlig sted. -->
+        <div v-show="!drawer.isMinimized.value" ref="drawerBodyRef"
+             class="relative flex-1 overflow-y-auto px-4 pb-6" :style="{ zoom: uiTextScale }">
           <!-- ── Tab: Lag ─────────────────────────────────────────── -->
           <!-- Fane-innholdet er skilt ut i egne komponenter (v1.0.8):
                src/components/drawer/. v-show (ikke v-if) beholder DOM-en

@@ -1167,7 +1167,8 @@ const SJEKKER = [
     //   • at ETT drag ned fra sammenlagt stopper på nivå 1 selv om draget er
     //     langt. Klemmingen skjer underveis, så et sveip som holder fram skal
     //     ikke skyte forbi radene og lande i knottene;
-    //   • at nivå 2 faktisk viser de to skyveknappene og stil-pilla;
+    //   • at nivå 2 faktisk viser de to skyveknappene og hvert sitt tannhjul
+    //     (Skarp/Mjuk-pilla er BORTE fra v7.8.6 — stilen velges i Kartstil);
     //   • at «Sorter snarveier» er BORTE der — den handler om raden, ikke om
     //     kartet;
     //   • at ETT sveip opp fra nivå 2 gir kartet tilbake, altså hopper over
@@ -1188,8 +1189,9 @@ const SJEKKER = [
             const id = e.getAttribute('aria-labelledby')
             return id ? (document.getElementById(id)?.textContent || '').trim() : ''
           }),
-          pille: [...document.querySelectorAll('[data-snarvei-knotter] .knott-pille button')]
-            .map((b) => b.textContent.trim()),
+          pille: document.querySelectorAll('[data-snarvei-knotter] .knott-pille').length,
+          tannhjul: [...document.querySelectorAll('[data-snarvei-knotter] .knott-tannhjul')]
+            .map((b) => b.getAttribute('aria-label') || ''),
           sorter: [...document.querySelectorAll('.rad-knott')]
             .some((b) => /Sorter/.test(b.textContent)),
         }
@@ -1215,8 +1217,17 @@ const SJEKKER = [
       if (niva2.skyvNavn.join(',') !== 'Strek,Relieff') {
         throw new Error(`nivå 2 viser «${niva2.skyvNavn.join(', ')}», ikke Strek + Relieff`)
       }
-      if (niva2.pille.join('/') !== 'Skarp/Mjuk') {
-        throw new Error(`relieff-stilpilla viser «${niva2.pille.join('/')}»`)
+      // SKARP/MJUK-PILLA SKAL VÆRE BORTE (v7.8.6). Den var en tredje klasse
+      // kontroll i en rad som ellers bare bærer nivåer, og den svarte med en
+      // hint-boble under raden på et trykk man gjorde inne i skuffa.
+      if (niva2.pille !== 0) {
+        throw new Error(`Skarp/Mjuk-pilla står igjen i knott-panelet (${niva2.pille} stk)`)
+      }
+      if (niva2.tannhjul.length !== 2) {
+        throw new Error(`fant ${niva2.tannhjul.length} tannhjul i knott-panelet, venter 2`)
+      }
+      if (!/Strek$/.test(niva2.tannhjul[0]) || !/Relieff$/.test(niva2.tannhjul[1])) {
+        throw new Error(`tannhjulene peker på «${niva2.tannhjul.join('», «')}»`)
       }
       if (niva2.sorter) {
         throw new Error('«Sorter snarveier» står igjen under knott-panelet — '
@@ -1240,8 +1251,138 @@ const SJEKKER = [
       }
       if (slutt.panelHoyde > 2) throw new Error('knott-panelet ble stående etter sveipet opp')
       return `nivå 1 stoppet på ${niva1.panelHoyde} px panel, nivå 2 ga `
-        + `${niva2.skyvNavn.join(' + ')} + ${niva2.pille.join('/')} `
+        + `${niva2.skyvNavn.join(' + ')} + 2 tannhjul og ingen stil-pille `
         + `(${niva2.panelHoyde} px), ett sveip opp la alt sammen`
+    },
+  },
+  {
+    // TANNHJULET ER EN SNARVEI TIL KARTSTIL, OG DEN MÅ LANDE PÅ SEKSJONEN
+    // (v7.8.6). Skarp/Mjuk-pilla er borte fra knott-panelet; i stedet står det
+    // et tannhjul ved hver av de to skyvene. Trykket gjør TRE ting — åpner
+    // skuffa, velger Kartstil-fana og ruller til «Strek» eller «Relieff» — og
+    // ingen av dem finnes i en enhetstest: rullingen måles mot en
+    // `position: relative` rulleflate med `offsetTop`, altså ren layout.
+    //
+    // TRE TING MÅLES:
+    //   • at Kartstil-fana faktisk er den valgte etterpå (`aria-selected`);
+    //   • at seksjonen er innenfor rulleflatas synlige bånd — ikke bare at
+    //     `scrollTop` flyttet seg, for et tall som bommer er like galt som null;
+    //   • at de to tannhjulene lander på HVER SIN seksjon. Ett anker som treffer
+    //     begge ville sett riktig ut i den ene halvdelen av sjekken.
+    navn: 'tannhjulene i knott-panelet åpner Kartstil på riktig seksjon',
+    domene: 'SnarveiRad (apne-kartstil) + MapView.apneKartstilSeksjon + DrawerStyleTab',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await lukkSnarveiRad(page)
+
+      const maal = async (seksjon) => {
+        await lukkDrawer(page)
+        await lukkSnarveiRad(page)
+        // To drag ned: nivå 1 er radene, nivå 2 er knottene.
+        await draSnarveiHandle(page, 400)
+        await draSnarveiHandle(page, 400)
+        const hjul = page.locator('[data-snarvei-knotter] .knott-tannhjul')
+          .nth(seksjon === 'strek' ? 0 : 1)
+        if (!(await hjul.count())) throw new Error(`fant ikke tannhjulet for ${seksjon}`)
+        await hjul.click()
+        await page.waitForTimeout(700)
+        return page.evaluate((s) => {
+          const fane = document.getElementById('drawer-fane-kartstil')
+          const el = document.querySelector(`[data-stil-seksjon="${s}"]`)
+          const flate = el?.closest('.overflow-y-auto')
+          if (!fane) return { feil: 'ingen Kartstil-fane' }
+          if (!el || !flate) return { feil: `ingen seksjon «${s}» i en rulleflate` }
+          const a = el.getBoundingClientRect()
+          const b = flate.getBoundingClientRect()
+          return {
+            valgt: fane.getAttribute('aria-selected'),
+            // Positivt = under toppen av rulleflata, negativt = rullet forbi.
+            avstand: Math.round(a.top - b.top),
+            hoyde: Math.round(b.height),
+          }
+        }, seksjon)
+      }
+
+      const ut = {}
+      for (const seksjon of ['strek', 'relieff']) {
+        const m = await maal(seksjon)
+        if (m.feil) throw new Error(m.feil)
+        if (m.valgt !== 'true') {
+          throw new Error(`tannhjulet for ${seksjon} åpnet ikke Kartstil-fana`)
+        }
+        // Seksjonen skal stå nær toppen av rulleflata — «synlig» er ikke nok:
+        // står den 300 px ned, har rullingen bommet og brukeren må lete.
+        if (!(m.avstand >= -4 && m.avstand < 90)) {
+          throw new Error(`«${seksjon}» havnet ${m.avstand} px fra toppen av `
+            + `rulleflata (${m.hoyde} px høy) — rullingen bommet`)
+        }
+        ut[seksjon] = m.avstand
+      }
+      await lukkDrawer(page)
+      await lukkSnarveiRad(page)
+      return `Strek landet ${ut.strek} px og Relieff ${ut.relieff} px `
+        + 'fra toppen av Kartstil-fana'
+    },
+  },
+  {
+    // «NATT» ER EN VEKSEL SOM VISER HANDLINGEN, IKKE TILSTANDEN (v7.8.6).
+    // Snarveien byttet ut bryteren «Turkart i mørkt tema» i hovedmenyen, og
+    // etiketten er derfor «Natt» i lyst kart og «Dag» i mørkt — med sol-ikonet
+    // i stedet for månen. Rekkefølgen lagres per ID, så identiteten («natt»)
+    // står stille mens etiketten og ikonet snur.
+    //
+    // TRE TING MÅLES:
+    //   • at et trykk faktisk maler KARTET om (`--bg` på kartflata);
+    //   • at etiketten og `aria-label` snur med det — en veksel som ser lik ut
+    //     i begge stillinger sier ingenting om hva neste trykk gjør;
+    //   • at id-en IKKE endres. Den er nøkkelen i den lagrede rekkefølgen.
+    navn: '«Natt» bytter kart-temaet og snur til «Dag»',
+    domene: 'lib/snarveier (natt) + MapView.SNARVEI_HANDLING + useMapTheme',
+    async kjør(page) {
+      await lukkDrawer(page)
+      // BAKGRUNNEN OG IKKE `lende-map-theme` ER FASITEN på nøytral tilstand.
+      // Nøkkelen er USKREVET før første valg, og et trykk fram og tilbake
+      // skriver standardtemaet EKSPLISITT — så «null → dark → turkart» er
+      // nøyaktig samme kart i begge ender, men to ulike strenger. Kartflata
+      // svarer på det brukeren ser.
+      const les = () => page.evaluate(() => {
+        const b = document.querySelector('[data-snarvei-id="natt"]')
+        const inner = document.querySelector('[data-map-inner]')
+        return {
+          finnes: !!b,
+          tekst: (b?.textContent || '').trim(),
+          aria: b?.getAttribute('aria-label') || '',
+          tema: localStorage.getItem('lende-map-theme'),
+          bg: inner ? getComputedStyle(inner).getPropertyValue('--bg').trim() : '',
+        }
+      })
+
+      await apneSnarveiRad(page)
+      const før = await les()
+      if (!før.finnes) throw new Error('fant ingen snarvei «natt»')
+
+      await klikkSnarvei(page, 'natt')
+      const etter = await les()
+      if (etter.bg === før.bg) {
+        throw new Error(`kartflata står fortsatt på «${etter.bg}» etter trykket`)
+      }
+      if (etter.tekst === før.tekst) {
+        throw new Error(`etiketten står på «${etter.tekst}» i begge stillinger`)
+      }
+      if (!etter.finnes) throw new Error('snarveien forsvant — id-en må stå stille')
+
+      // TILBAKE IGJEN: sjekken skal forlate appen i nøytral tilstand, og et
+      // mørkt kart ville endret hva NESTE sjekk måler.
+      await klikkSnarvei(page, 'natt')
+      const slutt = await les()
+      if (slutt.bg !== før.bg) {
+        throw new Error(`kom ikke tilbake til «${før.bg}» (står på «${slutt.bg}»)`)
+      }
+      if (slutt.tekst !== før.tekst) {
+        throw new Error(`etiketten kom ikke tilbake til «${før.tekst}»`)
+      }
+      await lukkSnarveiRad(page)
+      return `«${før.tekst}» (${før.bg}) → «${etter.tekst}» (${etter.bg}, tema «${etter.tema}») og tilbake`
     },
   },
   {

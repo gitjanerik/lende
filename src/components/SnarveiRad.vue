@@ -41,11 +41,19 @@
 // og relieff flyttet ut av denne raden i v7.4.0 nettopp fordi kartets uttrykk
 // ikke skal stilles inn to steder, og den beslutningen står: fana eier fortsatt
 // per-element-strek, relieff-stilens forklaring, «angi som standard» og
-// «nullstill». Her står bare de to GROV-knottene og valget mellom skarpt og
-// mjukt — det man vil ha i hånda på en sti, ikke det man setter opp hjemme.
-// Forskjellen fra v7.0.0-pillene er at knottene ikke er blandet INN blant
-// funksjonene: de bor bak et eget drag, og koster ingen kartflate før man har
-// dratt to ganger.
+// «nullstill». Her står bare de to GROV-knottene — det man vil ha i hånda på en
+// sti, ikke det man setter opp hjemme. Forskjellen fra v7.0.0-pillene er at
+// knottene ikke er blandet INN blant funksjonene: de bor bak et eget drag, og
+// koster ingen kartflate før man har dratt to ganger.
+//
+// SKARP/MJUK-PILLA ER BORTE (v7.8.6), OG ET TANNHJUL STÅR I STEDET. Pilla var
+// den tredje tingen i en boks som ellers stiller ETT tall, og den viste hvilken
+// relieff-stil som var i bruk — men stilen er ikke noe man bytter mens man går:
+// den er valgt én gang, og raden trenger ikke rapportere den. Hver slider har
+// nå et lite tannhjul som åpner Innstillinger → Kartstil rullet til «Strek» og
+// «Relieff», altså veien til alt det raden bevisst ikke bærer. Verdien følger
+// det brukeren har valgt før (eller «vektor», standarden) — den leses og settes
+// bare der nå.
 //
 // NED ÅPNER ETT NIVÅ, OPP MINIMERER I ETT STEG (`draSpenn` i lib/snarveier.js).
 // Å åpne er et valg man tar ett hakk om gangen og ser resultatet av; å legge
@@ -225,11 +233,10 @@ const props = defineProps({
 const emit = defineEmits([
   'velg', 'flytt', 'tilbakestill', 'apen',
   'set-strek-trinn', 'set-relief-trinn',
+  // 'strek' | 'relieff' — kallstedet åpner Innstillinger → Kartstil og ruller
+  // til seksjonen. Raden vet ikke hva en fane er, og skal ikke vite det.
+  'apne-kartstil',
 ])
-// 'vektor' = skarpe tone-bånd, 'mjuk' = gradient-bilde. Samme to verdier som
-// Kartstil-fana binder; navnene er kortet ned til ett ord hver her, fordi pilla
-// står i en boks som skal tåle 200 % tekst.
-const reliefMode = defineModel('reliefMode', { type: String, default: 'vektor' })
 
 // Margin til hver skjermkant. Raden er sentrert, så halve verdien per side.
 const KANT_PX = 24
@@ -815,7 +822,10 @@ function celleTransform(i) {
                          sorterer ? 'shortcut-btn--sorter' : '',
                          drarCelle === i ? 'shortcut-btn--loftet' : '',
                          valgtCelle === i ? 'shortcut-btn--valgt' : '']">
-          <SnarveiIkon :id="s.id" class="w-5 h-5 shrink-0" />
+          <!-- `s.ikon` overstyrer id-en: «Natt» bytter til en sol når kartet
+               alt er mørkt, uten at snarveien bytter identitet (rekkefølgen er
+               lagret på id-en). -->
+          <SnarveiIkon :id="s.ikon || s.id" class="w-5 h-5 shrink-0" />
           <!-- NAVNET STÅR ALLTID (v7.7.6). `aria-label` på knappen bærer den
                fulle teksten — «Posisjon på. Slå av.» sier mer enn ordet under
                ikonet — så etiketten her er kortformen. -->
@@ -842,9 +852,14 @@ function celleTransform(i) {
         <div class="mx-2 pb-1 pt-2 flex flex-col gap-2"
              :style="{ zoom: uiTextScale }">
           <div class="knott-boks">
-            <div class="flex items-baseline justify-between gap-2">
+            <div class="flex items-center justify-between gap-2">
               <span id="snarvei-strek-navn" class="min-w-0 truncate font-medium">Strek</span>
               <span class="shrink-0 tabular-nums text-ink-3">{{ strekSkala.toFixed(2) }}×</span>
+              <button type="button" class="knott-tannhjul shrink-0"
+                      aria-label="Åpne Kartstil og gå til Strek"
+                      @click="emit('apne-kartstil', 'strek')">
+                <SnarveiIkon id="innstillinger" class="w-4 h-4" />
+              </button>
             </div>
             <input type="range" min="0" :max="strekTrinnAntall - 1" step="1"
                    :value="strekTrinn"
@@ -854,32 +869,22 @@ function celleTransform(i) {
           </div>
 
           <div class="knott-boks">
-            <div class="flex items-baseline justify-between gap-2">
+            <div class="flex items-center justify-between gap-2">
               <span id="snarvei-relieff-navn" class="min-w-0 truncate font-medium">Relieff</span>
               <span class="shrink-0 tabular-nums text-ink-3">
                 {{ reliefProsent === 0 ? 'av' : `${reliefProsent} %` }}
               </span>
+              <button type="button" class="knott-tannhjul shrink-0"
+                      aria-label="Åpne Kartstil og gå til Relieff"
+                      @click="emit('apne-kartstil', 'relieff')">
+                <SnarveiIkon id="innstillinger" class="w-4 h-4" />
+              </button>
             </div>
             <input type="range" min="0" :max="reliefTrinnAntall - 1" step="1"
                    :value="reliefTrinn"
                    @input="emit('set-relief-trinn', Number($event.target.value))"
                    aria-labelledby="snarvei-relieff-navn"
                    class="w-full accent-amber-400" />
-            <!-- PILLA ER STILEN, IKKE STYRKEN. Den står under slideren den
-                 hører til, og ordene er ett hvert: den fulle forklaringen
-                 («tone-bånd som vektor» mot «gradient-bilde») bor i Kartstil-
-                 fana, der det er plass til å lese den. `aria-label` bærer
-                 parentesen så skjermleseren ikke sitter igjen med «Mjuk». -->
-            <div class="knott-pille" role="group" aria-label="Relieff-stil">
-              <button type="button" @click="reliefMode = 'vektor'"
-                      :aria-pressed="reliefMode === 'vektor'"
-                      aria-label="Skarpt relieff (vektor)"
-                      :class="reliefMode === 'vektor' ? 'knott-pille__pa' : ''">Skarp</button>
-              <button type="button" @click="reliefMode = 'mjuk'"
-                      :aria-pressed="reliefMode === 'mjuk'"
-                      aria-label="Mjukt relieff (bilde)"
-                      :class="reliefMode === 'mjuk' ? 'knott-pille__pa' : ''">Mjuk</button>
-            </div>
           </div>
         </div>
       </div>
@@ -1010,9 +1015,15 @@ function celleTransform(i) {
 .shortcut-btn--sorter {
   cursor: grab;
   /* BARE TYPE OG FARGE — bredden er den samme 1 px som i hvile, så cella har
-     nøyaktig samme mål i begge modusene. Se `.shortcut-btn`. */
+     nøyaktig samme mål i begge modusene. Se `.shortcut-btn`.
+
+     FARGEN ER HEVET TIL FULL INK (v7.8.6). Kanten ER der på 45 % — målt i
+     Chromium — men 1 px stiplet i under halv styrke leses ikke som en stiplet
+     kant på en telefon i dagslys; den leses som ingenting, og eieren meldte den
+     som borte. Den er det ENESTE signalet om at cellene nå er objekter man
+     flytter, så den skal være til å se uten å måtte lete. */
   border-style: dashed;
-  border-color: color-mix(in oklab, var(--color-ink) 45%, transparent);
+  border-color: var(--color-ink);
   transition: transform 0.18s ease, background 0.15s ease,
               box-shadow 0.15s ease, border-color 0.15s ease;
 }
@@ -1106,36 +1117,29 @@ function celleTransform(i) {
    men `input[type=range]` gir tommelen hele elementhøyden å treffe innenfor. */
 .knott-boks input[type='range'] { height: 22px; }
 
-/* Stil-pilla: to like halvdeler i ETT spor, så valget leses som én bryter med
-   to stillinger og ikke som to knapper som tilfeldigvis står ved siden av
-   hverandre. `1fr 1fr` og ikke flex: ordene er ulikt lange («Skarp», «Mjuk»),
-   og en pille der den ene halvdelen er bredere ser ut som om den ene er valgt. */
-.knott-pille {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2px;
-  padding: 2px;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--color-ink) 12%, transparent);
-}
-.knott-pille button {
-  padding: 4px 6px;
-  border-radius: 999px;
-  font-size: 11px;
-  line-height: 1.2;
-  font-weight: 500;
-  white-space: nowrap;
+/* TANNHJULET VED HVER SLIDER (v7.8.6). Det avløser Skarp/Mjuk-pilla, som var
+   en TREDJE ting i en boks som ellers stiller ett tall: den viste hvilken
+   relieff-stil som var i bruk, og stilen er ikke noe man endrer mens man går.
+   Knappen GJØR ingenting med kartet — den åpner Innstillinger → Kartstil på
+   den seksjonen sliderens verdi hører hjemme i, altså veien til alt det raden
+   bevisst ikke bærer. Derfor ton i ton og ikke en aksentfarge: den er en
+   henvisning, ikke et valg. */
+.knott-tannhjul {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
   color: var(--color-ink-2, var(--color-ink));
-  transition: background 0.15s ease, color 0.15s ease;
+  background: color-mix(in oklab, var(--color-ink) 12%, transparent);
+  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
 }
-/* Emerald-700 av samme grunn som cellene bruker -600: hvitt skal ha kontrast
-   nok til å leses (WCAG 1.4.3) på en flate som er liten fra før.
-   SELEKTOREN MÅ VÆRE LIKE SPESIFIKK SOM REGELEN OVER (v7.8.1). En bar
-   `.knott-pille__pa` er (0,1,0) og taper mot `.knott-pille button` (0,1,1), så
-   `color: #fff` ble aldri brukt: i lyst tema sto den valgte halvdelen med mørk
-   ink-tekst på mørkegrønt, altså det ene stedet kontrasten var for lav. Mørkt
-   tema skjulte feilen, fordi ink-2 der er lys fra før. */
-.knott-pille button.knott-pille__pa { background: #047857; color: #fff; }
+.knott-tannhjul:hover {
+  background: color-mix(in oklab, var(--color-ink) 22%, transparent);
+  color: var(--color-ink);
+}
+.knott-tannhjul:active { transform: scale(0.92); }
 
 /* Håndtaket har ingen egen flate — det er streken som er knappen — men
    trykkflata skal svare, så hover/aktiv tar streken og ikke boksen. */
