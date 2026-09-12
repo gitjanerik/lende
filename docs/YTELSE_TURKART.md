@@ -24,6 +24,8 @@
    foreslå hybrid igjen.
 5. Fritt lende vurderes fjernet SENERE, hvis 1–6 gir det eieren håper. Ikke rør
    modusen i denne leveransen.
+6. **Punkt 22 (parallell kant-utvidelse) — bestilt og levert i v7.8.8**
+   (`lib/parallellBygg.js`, tak på to). Var ikke med i v7.7.14.
 
 ## Leveranseform
 
@@ -177,7 +179,7 @@ Standardkart i dag: 10 × 10 km, 25 m ekvidistanse → 20 m probe-DEM (250 k cel
 ### D. Større ark — teknologivalg
 
 21. **Vektor-SVG for alt er det som setter taket.** Alle paths har `non-scaling-stroke`, alle navn halo via `paint-order`, sju `<pattern>`-fyll (`symbolizer.js`); en 3 × 3-mosaikk er ni ganger nodene. Hybriden er halvveis der alt: 3D rasteriserer SVG-fliser til tekstur. Rasteriser arealfyll + relieff (evt. konturer) til én bakgrunns-PNG per flis i workeren (OffscreenCanvas), og behold linjer, punkter og navn som vektor. *Stor* — men den eneste hevarmen som skalerer med arkstørrelsen.
-22. **Kant-utvidelsen bygger fliser serielt** (`useMapExtend.js:865`, `for … await`): «Gjør arket firkantet» med tre fliser er tre fulle pipeliner etter hverandre. Kjør to i parallell (tak på to av hensyn til Overpass). *Liten.*
+22. **Kant-utvidelsen bygger fliser serielt** (`useMapExtend.js:865`, `for … await`): «Gjør arket firkantet» med tre fliser er tre fulle pipeliner etter hverandre. Kjør to i parallell (tak på to av hensyn til Overpass). *Liten.* **GJORT i v7.8.8** (`lib/parallellBygg.js`).
 23. **Overpass som primærkilde.** N50 er alt bakt for sti og areal; veier fra N50 ville krympe Overpass-spørringen til POI/navn/bygg. Bygninger fra N50 er derimot mye data — mål med `--mal` før noe bakes. Sammenlign selektorene i `buildOverpassQuery` (`mapBuilder.js:113–197`) mot det som faktisk tegnes; en selektor ingen lag leser er ren payload. Vurder `out geom qt` (raskere server-sortering) — krever at ingen pass avhenger av element-rekkefølge.
 24. **Forhåndsbakte høydekurver (N50 20 m)** kolliderer med ekvidistanse-valget (10/20/25/50). Ikke anbefalt.
 25. **Cloudflare-Workeren som Overpass-cache** gir lav treffrate (hver bbox er unik). Bare verdt det om WCS ikke komprimerer og Workeren kan gzippe på vei gjennom — se punkt 8.

@@ -1,3 +1,11 @@
+## 2026-09-12 — v7.8.8: flisene bygges to og to
+
+Punkt 22 fra ytelsesanalysen (`docs/YTELSE_TURKART.md`), det ene som ikke var med i v7.7.14: både kant-utvidelsen (`extendMap`, hjørnepilene) og «Fyll hullene» / «Gjør arket firkantet» (`byggCeller`) bygde flisene SERIELT med `for … await`, så et trykk på en hjørnepil med tre nye fliser var tre fulle pipeliner etter hverandre — og Overpass er 81–97 % av hver. Nå kjøres høyst to i flukt gjennom `lib/parallellBygg.js` (`kjorMedTak`, ren og enhetstestet: tak, rekkefølge, isolerte feil, abort). Taket er to fordi det er Overpass sin grense og ikke vår: hvert bygg kappløper alt to speil, så to bygg er fire samtidige forespørsler, og speilene svarer 429 per IP — hver 429 spiser ett av tre forsøk med backoff. Prisen på telefonen er to workere og to DEM-er i minnet samtidig; gevinsten ligger i nettventinga, som dominerer.
+
+Tre ting følger med. `extendMap` er nå per-flis, som `byggCeller` alltid har vært: én flis som feiler forkaster ikke naboen som bygges samtidig — det som lyktes tegnes og panoreres til, og toasten sier hvor mange som feilet. Chip-teksten viser spennet som pågår («Bygger utsnitt 1–2 av 3 …», «Utsnitt 1–2/3: Henter kartdata …») og den ferskeste meldinga fra et bygg som FORTSATT pågår (`lagFramdrift`) — ikke bare den siste som kom, for den kan være «Bygger SVG …» fra et bygg som nettopp ble ferdig mens naboen fortsatt henter; med én flis er tekstene nøyaktig som før. Og X-en aborterer begge i flukt og starter ingen nye; et avbrudd telles som avbrutt og ikke som feil, så toasten sier «Avbrutt» med det som ble beholdt, i begge løkkene.
+
+---
+
 ## 2026-09-12 — v7.8.7: Natt kvitterer med en gang, og skriften settes ved slipp
 
 «Natt» brukte 2–3 sekunder på å svare. Ingenting var tregt i seg selv — alt lå

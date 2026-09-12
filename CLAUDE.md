@@ -334,6 +334,27 @@ utvidelsen — der er retningen ikke gjettet, den er trykket. Ikonet fôres av
 kant-utvidelse; da beholder bygge-chipen spinneren, fordi et ark-ikon uten
 retning ville lovet en naboflis der det bygges et helt nytt kart.
 
+**FLISENE BYGGES TO OG TO (v7.8.8), OG TAKET ER OVERPASS SITT.** Både
+kant-utvidelsen (`extendMap`) og «Fyll hullene» / «Gjør arket firkantet»
+(`byggCeller`) kjørte flisene serielt — punkt 22 i `docs/YTELSE_TURKART.md` —
+så en hjørnepil med tre fliser var tre fulle pipeliner etter hverandre, med
+Overpass som 81–97 % av hver. `lib/parallellBygg.js` (`kjorMedTak`, ren og
+testet) kjører nå høyst `BYGG_SAMTIDIG` = 2 i flukt. **Ikke skru tallet opp:**
+hvert bygg kappløper alt to Overpass-speil, så to bygg er fire forespørsler, og
+speilene svarer 429 per IP — hver 429 spiser ett av tre forsøk. Tre ting
+følger, og alle tre er lette å «forenkle» bort:
+1. **`extendMap` er per-flis**, som `byggCeller` alltid var: én flis som feiler
+   forkaster ikke naboen som bygges samtidig. Det som lyktes tegnes, og
+   ventelista sier hva som gjenstår.
+2. **Chip-teksten viser SPENNET som pågår** («Utsnitt 1–2/3: …») og den
+   ferskeste meldinga fra et bygg som FORTSATT pågår (`lagFramdrift`) — ikke
+   bare den siste som kom, for den kan være «Bygger SVG …» fra et bygg som
+   nettopp ble ferdig mens naboen fortsatt henter. Med én flis er tekstene
+   nøyaktig som før parallelliseringen.
+3. **X-en aborterer begge i flukt og starter ingen nye.** Et avbrudd telles som
+   avbrutt og ikke som feil (AbortError normaliseres i `kjorMedTak`), så toasten
+   sier «Avbrutt» med det som ble beholdt — i begge løkkene.
+
 ## Viktig arkitektur-merknad — Fritt lende er FERSKVARE, og det er forutsetningen
 
 `/fritt` (v6.5.0) er den avkledde turkartmodusen: ett fast 2 × 2 km ISOM-ark der
