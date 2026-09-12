@@ -65,11 +65,17 @@ function gridToWorld([col, row], t) {
  */
 export function fillNoData(dem) {
   const { data, cols, rows, noData } = dem
+  // Tell FØR vi kopierer: full WCS-dekning er normaltilfellet, og da er hele
+  // kopien bortkastet (200–850 ms målt på store rutenett, hvert kontur-pass).
+  let remaining = 0
+  for (let i = 0; i < data.length; i++) {
+    const v = data[i]
+    if (v === noData || !Number.isFinite(v)) remaining++
+  }
+  if (remaining === 0) return { data, hadNoData: false }
+
   const out = Float32Array.from(data, v =>
     (v === noData || !Number.isFinite(v)) ? NaN : v)
-  let remaining = 0
-  for (let i = 0; i < out.length; i++) if (Number.isNaN(out[i])) remaining++
-  if (remaining === 0) return { data, hadNoData: false }
 
   const total = out.length
   for (let iter = 0; remaining > 0 && iter < 80; iter++) {
@@ -275,11 +281,13 @@ export function buildContours(dem, intervalM = 20, indexEvery = 5, options = {})
     thresholds.push(e)
   }
 
-  // d3-contour krever Array, ikke typed
-  const arr = Array.from(data, v => v === noData ? -9999 : v)
+  // d3-contour indekserer bare med [] og leser .length, så den tar en
+  // Float32Array direkte — kommentaren her sa lenge at den «krever Array», og
+  // kopien kostet et helt rutenett per pass. `data` er dessuten alt void-fylt
+  // (fillNoData over), så noData-mappingen kopien gjorde var en no-op.
   const polys = d3Contours()
     .size([cols, rows])
-    .thresholds(thresholds)(arr)
+    .thresholds(thresholds)(data)
 
   // Konverter MultiPolygon → polylines (kun ytre konturlinjer)
   const features = []

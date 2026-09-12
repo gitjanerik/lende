@@ -66,7 +66,8 @@ vi.mock('./mapBuilder.js', async (importOriginal) => {
   }
 })
 
-import { buildMapFromCenter, consumeMapFinalize } from './createMapFlow.js'
+import { buildMapFromCenter, consumeMapFinalize, consumeMapEntry } from './createMapFlow.js'
+import { fetchNveLakePolygons } from './nveLakeFetcher.js'
 import { syntheticDEM } from './dem.js'
 
 let savedEntries = []
@@ -152,6 +153,7 @@ function waterStats(svg) {
 
 beforeEach(() => {
   savedEntries = []
+  fetchNveLakePolygons.mockClear()
 })
 
 describe('buildMapFromCenter — NVE-vann i full-SVG uansett byggevei', () => {
@@ -188,4 +190,33 @@ describe('buildMapFromCenter — NVE-vann i full-SVG uansett byggevei', () => {
     expect(lastSaved.partial).toBe(false)
     expect(waterStats(lastSaved.svg).n50Paths).toBeGreaterThan(0)
   }, TUNG_MS)
+})
+
+// v7.7.14: `identify` (nveLakeFetcher) og `query` (n50Fetcher) spør SAMME
+// NVE-database, og identify-svaret ble kastet i vannMerge der query hadde
+// dekning. Nå fyres identify bare når query kom tomhendt tilbake.
+describe('NVE identify er en fallback, ikke en parallell spørring', () => {
+  const baseOpts = {
+    center: CENTER, halfKm: 2, aspect: 1, equidistanceM: 20, navn: 'Testkart',
+  }
+
+  it('query leverte innsjøer → identify spørres ikke', async () => {
+    await buildMapFromCenter({ ...baseOpts, terrainFirst: false })
+    expect(fetchNveLakePolygons).not.toHaveBeenCalled()
+  }, 30_000)
+})
+
+// v7.7.14: entryen ligger ferdig i minnet når byggingen er over — MapView skal
+// slippe å hente den ut av IndexedDB igjen.
+describe('entry-registeret', () => {
+  const baseOpts = {
+    center: CENTER, halfKm: 2, aspect: 1, equidistanceM: 20, navn: 'Testkart',
+  }
+
+  it('leverer den ferske entryen ÉN gang, og bare på riktig id', async () => {
+    const { id, entry } = await buildMapFromCenter({ ...baseOpts, terrainFirst: false })
+    expect(consumeMapEntry('et-annet-kart')).toBeNull()
+    expect(consumeMapEntry(id)).toBe(entry)
+    expect(consumeMapEntry(id)).toBeNull()
+  }, 30_000)
 })

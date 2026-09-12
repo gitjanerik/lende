@@ -176,3 +176,12 @@ export function unpackDem(packed) {
     noData: packed.noData,
   }
 }
+
+/**
+ * Lagrings-formen av et DEM: nedskalert til ~10 m, pakket til ArrayBuffer, og
+ * kartets høyeste punkt. Ett sted fordi den kjøres i mapSvg-workeren (der
+ * arbeidet hører hjemme) og på hovedtråden når workeren ikke er tilgjengelig.
+ */
+export function pakkLagretDem(dem) {
+  return { pakketDem: packDem(downsampleDem(dem, 10)), hoyestePunkt: findHighestPoint(dem) }
+}

@@ -11,7 +11,7 @@ import { nextTick } from 'vue'
 import { svgToWgs84 } from '../lib/utm.js'
 import { unpackDem } from '../lib/demSampling.js'
 import { dekningsSkala } from '../lib/viewFit.js'
-import { buildMapFromCenter, consumeMapFinalize } from '../lib/createMapFlow.js'
+import { buildMapFromCenter, consumeMapFinalize, consumeMapEntry } from '../lib/createMapFlow.js'
 import { loadMap as loadStoredMap, deleteMap as deleteStoredMap } from '../lib/mapStorage.js'
 import { logPerf } from '../lib/perfLog.js'
 import { APP_VERSION } from '../version.js'
@@ -173,7 +173,10 @@ export function useMapLoadPipeline(deps) {
         mapTitle.value = BUILTIN[id].navn
         text = await fetchBuiltinSvg(BUILTIN[id].file)
       } else {
-        stored = await loadStoredMap(id)
+        // Nettopp bygget? Da ligger entryen i minnet og trenger ikke tas ut
+        // av IndexedDB igjen (se consumeMapEntry). Registeret leverer én gang —
+        // gjenåpning av et lagret kart går som før.
+        stored = consumeMapEntry(id) ?? await loadStoredMap(id)
         if (!stored) {
           // Kartet finnes ikke lenger (typisk: slettet + hard refresh der
           // router.js gjenopptok en foreldet lende-last-map). En feilside er

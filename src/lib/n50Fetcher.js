@@ -33,13 +33,23 @@ function timeoutSignal(ms) {
   try { return AbortSignal.timeout(ms) } catch { return undefined }
 }
 
-async function queryPage(base, bbox, offset) {
+// Feltene vi FAKTISK leser: `objectid` til dedup-en over, og `navn` til
+// innsjø-etiketten (mapBuilder leser `tags.navn` med et eget notat om at
+// NVE bruker det feltnavnet og ikke `name`). `outFields: '*'` dro med seg hele
+// attributt-tabellen for hver eneste innsjø — ren payload som deretter ble
+// spredt inn i `tags` på hvert element og struktur-klonet videre til
+// bygge-workeren. Feilslår den begrensede spørringen (en ArcGIS-versjon som
+// avviser ukjente feltnavn i stedet for å ignorere dem), henter forsøk 2 alt
+// som før — da koster det en runde, ikke innsjøene.
+const OUT_FIELDS = 'objectid,navn'
+
+async function queryPage(base, bbox, offset, outFields) {
   const params = new URLSearchParams({
     geometry: `${bbox.west},${bbox.south},${bbox.east},${bbox.north}`,
     geometryType: 'esriGeometryEnvelope',
     inSR: '4326',
     spatialRel: 'esriSpatialRelIntersects',
-    outFields: '*',
+    outFields,
     returnGeometry: 'true',
     outSR: '4326',
     geometryPrecision: '6',
@@ -78,13 +88,14 @@ export async function fetchN50Water(bbox, opts = {}) {
   let lastError = null
   for (let attempt = 0; attempt < 2; attempt++) {
     if (attempt > 0) await new Promise(r => setTimeout(r, 800))
+    const outFields = attempt === 0 ? OUT_FIELDS : '*'
     const elements = []
     try {
       const seen = new Set()
       let offset = 0
       let truncated = false
       for (let page = 0; page < MAX_PAGES; page++) {
-        const { features, exceeded } = await queryPage(base, bbox, offset)
+        const { features, exceeded } = await queryPage(base, bbox, offset, outFields)
         let fresh = 0
         for (const feat of features) {
           // Dedup på objectid: hvis serveren ikke støtter resultOffset,

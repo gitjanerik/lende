@@ -58,6 +58,12 @@ export function demTimeoutForPixels(px) {
 // Hedge-forsinkelse: fallback-endpointen (UTM 33 reprojisert) startes hvis
 // primæren ikke har svart innen dette — i stedet for å vente på full timeout
 // før neste endepunkt i det gamle serielle løpet.
+//
+// Hedgen måles på TID TIL FØRSTE BYTE, ikke på fullført nedlasting (v7.7.14).
+// Et 1 M-cellers kyst-DEM er ~4 MB og bruker lett mer enn 4 s bare på kroppen,
+// så med det gamle målet fyrte hedgen ALLTID på nøyaktig de store hentingene —
+// dobbel trafikk der brukeren allerede venter lengst. Svarer primæren med
+// gyldige hoder innen fristen, er den i live, og hedgen avlyses.
 const HEDGE_DELAY_MS = 4000
 
 /**
@@ -85,10 +91,17 @@ function hedgedWCSDtm(utmBbox, resolutionM, endpoints, { signal } = {}) {
       if (hedgeTimer) clearTimeout(hedgeTimer)
       signal?.removeEventListener('abort', onOuterAbort)
     }
+    const avlysHedge = () => {
+      if (hedgeTimer) { clearTimeout(hedgeTimer); hedgeTimer = null }
+    }
     const start = (i) => {
       started++
       console.log(`[DEM] Forsøker ${endpoints[i].name} ...`)
-      fetchWCSDtm(utmBbox, resolutionM, endpoints[i], { signal: ctrls[i].signal })
+      fetchWCSDtm(utmBbox, resolutionM, endpoints[i], {
+        signal: ctrls[i].signal,
+        // Gyldige svar-hoder = endepunktet lever, uansett hvor stor kroppen er.
+        onForsteByte: avlysHedge,
+      })
         .then(dem => {
           if (settled) return
           settled = true
@@ -116,6 +129,7 @@ function hedgedWCSDtm(utmBbox, resolutionM, endpoints, { signal } = {}) {
         })
     }
     const startHedge = () => {
+      avlysHedge()
       if (settled || started >= endpoints.length) return
       start(1)
     }
@@ -213,6 +227,9 @@ export async function fetchWCSDtm(utmBbox, resolutionM, ep, opts = {}) {
       const text = await res.text()
       throw new Error(`forventet GeoTIFF, fikk ${ct}: ${text.slice(0, 200)}`)
     }
+    // Hodene er gyldige: endepunktet lever, og kroppen er bare stor. Hedgen i
+    // hedgedWCSDtm avlyses her i stedet for å fyre når nedlastingen drar ut.
+    opts.onForsteByte?.()
     arrayBuffer = await res.arrayBuffer()
   } finally {
     clearTimeout(timer)

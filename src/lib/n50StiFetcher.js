@@ -28,6 +28,8 @@ import { travelLineGeometries, dedupeRoutesAgainstLines } from './linjeDedup.js'
 
 // Vite serverer appen under `base` ('/lende/' i produksjon). Flisene ligger i
 // public/, altså på samme prefiks — hardkodet '/' ville brutt på GitHub Pages.
+import { medFlisNokkel, settFlisNokkel, nullstillFlisNokler } from './n50FlisNokkel.js'
+
 const BASE =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_N50_STI_URL) ||
   `${(typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || '/'}data/n50-sti/`
@@ -46,7 +48,12 @@ const FLIS_TIMEOUT_MS = 15000
  * @returns {Promise<{status:number, bytes:Uint8Array|null}>}
  */
 async function hentBytesViaFetch(url, signal) {
-  const res = await fetch(url, { signal: signal ?? AbortSignal.timeout(FLIS_TIMEOUT_MS) })
+  // Flis-URL-er får manifest-nøkkelen påhengt (se n50FlisNokkel): den gjør
+  // service workerens cache-first-gren trygg, siden en ny bake skriver samme
+  // filnavn med nytt innhold. Manifestet selv skal aldri ha nøkkel — det ER
+  // nøkkelen, og hentes network-first.
+  const full = url.endsWith('.bin') ? medFlisNokkel(url, url.slice(0, url.lastIndexOf('/') + 1)) : url
+  const res = await fetch(full, { signal: signal ?? AbortSignal.timeout(FLIS_TIMEOUT_MS) })
   if (!res.ok) return { status: res.status, bytes: null }
   return { status: 200, bytes: new Uint8Array(await res.arrayBuffer()) }
 }
@@ -55,7 +62,7 @@ async function hentBytesViaFetch(url, signal) {
 // om fliser over hav og utland og fylt konsollen med 404. Hentes én gang per
 // økt; feiler den, faller vi tilbake til å prøve flisene direkte.
 let manifestLover = null
-export function nullstillManifestCache() { manifestLover = null }
+export function nullstillManifestCache() { manifestLover = null; nullstillFlisNokler() }
 
 async function hentManifest(basePath, hentBytes, signal) {
   if (!manifestLover) {
@@ -63,7 +70,9 @@ async function hentManifest(basePath, hentBytes, signal) {
       try {
         const { bytes } = await hentBytes(`${basePath}manifest.json`, signal)
         if (!bytes) return null
-        const m = JSON.parse(new TextDecoder().decode(bytes))
+        const tekst = new TextDecoder().decode(bytes)
+        settFlisNokkel(basePath, tekst)
+        const m = JSON.parse(tekst)
         return Array.isArray(m?.fliser) ? new Set(m.fliser) : null
       } catch { return null }
     })()

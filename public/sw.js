@@ -16,7 +16,7 @@
  *       Everything else → network only (Google Fonts, opentype from CDN, etc.)
  */
 
-const CACHE_VERSION = '7.7.13'
+const CACHE_VERSION = '7.7.14'
 // NAVNENE MÅ HA `lende-`-PREFIKSET, og det er ikke pynt: opprydningen under
 // gjenkjenner sine egne cacher på det, og github.io er ÉN origin delt med
 // eierens andre Pages-prosjekter — en opprydning uten prefiks ville slettet
@@ -32,6 +32,15 @@ const ASSET_CACHE   = `lende-${CACHE_VERSION}-assets`
 // demokartet lesbart i flymodus. Lå det i det versjonerte skallet, ville hver
 // deploy slettet offline-kartet til brukeren var på nett igjen.
 const DATA_CACHE    = 'lende-data'
+// N50-flisene (sti + arealdekke) er 0,5° × 1° — opptil 2,4 MB hver — og et
+// 10 km-kart bruker ~3 % av det det laster ned. Fram til v7.7.14 gikk de rett
+// på nett hver gang, og GitHub Pages' 10 min max-age gjorde at et nytt kart i
+// SAMME område lastet dem om igjen. De er UVERSJONERTE av samme grunn som
+// kartdata: de hører ikke til app-versjonen, og en deploy skal ikke koste
+// brukeren 100+ MB nedlasting. Invalidering skjer i stedet på URL-en — klienten
+// henger en manifest-hash på hver flis (src/lib/n50FlisNokkel.js), så en ny
+// bake er en cache-bom, ikke et gammelt svar.
+const N50_CACHE     = 'lende-n50'
 const BASE = '/lende/'
 
 // Hvilke cacher opprydningen eier. `beholdes` er de tre gjeldende; alt annet som
@@ -97,12 +106,25 @@ self.addEventListener('activate', (e) => {
     caches.keys().then((names) =>
       Promise.all(
         names
-          .filter((n) => ryddesCache(n, [SHELL_CACHE, ASSET_CACHE, DATA_CACHE]))
+          .filter((n) => ryddesCache(n, [SHELL_CACHE, ASSET_CACHE, DATA_CACHE, N50_CACHE]))
           .map((n) => caches.delete(n))
       )
     ).then(() => self.clients.claim())
   )
 })
+
+// Slett cachede utgaver av SAMME flis med en annen manifest-hash. Kjøres etter
+// at den nye er lagret, så en avbrutt rydding aldri etterlater brukeren uten
+// flis. Én flis om gangen: en full gjennomgang av cachen ville skannet alle 206
+// oppføringene for hver eneste flis vi henter.
+function ryddGamleFliser(cache, url) {
+  return cache.keys().then((nokler) => Promise.all(
+    nokler
+      .map((k) => new URL(k.url))
+      .filter((u) => u.pathname === url.pathname && u.search !== url.search)
+      .map((u) => cache.delete(u.href))
+  )).catch(() => {})
+}
 
 self.addEventListener('fetch', (e) => {
   const req = e.request
@@ -156,6 +178,42 @@ self.addEventListener('fetch', (e) => {
   // then succeeds once the background revalidation has replaced the entry).
   // Always prefer fresh network; fall back to cache only when offline.
   if (url.pathname.startsWith(`${BASE}maps/`)) {
+    e.respondWith(
+      fetch(req).then((res) => {
+        if (res && res.ok) {
+          const copy = res.clone()
+          caches.open(DATA_CACHE).then((c) => c.put(req, copy))
+        }
+        return res
+      }).catch(() => caches.open(DATA_CACHE).then((c) => c.match(req)))
+    )
+    return
+  }
+
+  // N50-fliser (data/n50-sti/, data/n50-areal/)
+  //   *.bin          → cache-first. URL-en bærer manifest-hashen, så en ny bake
+  //                    ikke kan få et gammelt svar. Gamle nøkler for SAMME flis
+  //                    ryddes i det den nye lagres — ellers ville en bake
+  //                    etterlatt begge settene på disken for alltid.
+  //   manifest.json  → network-first: det er den som avgjør hvilke fliser som
+  //   isbrenavn.json   finnes OG hvilken nøkkel flisene får, så den må aldri bli
+  //                    stående gammel. Cachen er bare offline-fallbacken.
+  if (url.pathname.startsWith(`${BASE}data/n50-`)) {
+    if (url.pathname.endsWith('.bin')) {
+      e.respondWith(
+        caches.open(N50_CACHE).then((c) => c.match(req).then((hit) => {
+          if (hit) return hit
+          return fetch(req).then((res) => {
+            if (res && res.ok) {
+              const copy = res.clone()
+              c.put(req, copy).then(() => ryddGamleFliser(c, url))
+            }
+            return res
+          })
+        }))
+      )
+      return
+    }
     e.respondWith(
       fetch(req).then((res) => {
         if (res && res.ok) {
