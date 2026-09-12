@@ -32,7 +32,6 @@ import { fetchSjokart, sjokartToElements, sjokartTimeoutForBbox, summarizeSjokar
 // er navnet testene og kallerne kjenner.
 import { slaaSammenVann, vannKildeFlagg, filterOsmWaterElements } from './vannMerge.js'
 export { filterOsmWaterElements }
-import { fetchDEM } from './demFetcher.js'
 import { fillDemVoidsFromTerrarium } from './terrariumDem.js'
 import { findHighestPoint, packDem, downsampleDem } from './demSampling.js'
 import { utm32ToWgs84, utm32BboxFromWgs84 } from './utm.js'
@@ -42,14 +41,6 @@ import { logPerf } from './perfLog.js'
 import { cacheGet, cacheSet, TTL, kulturminneBboxKey } from './protectedAreaCache.js'
 import { probeDensityCached } from './densityProbe.js'
 import { tetthetsBeslutning } from './mapDensityRules.js'
-
-// DEM-flis-cache. Når PÅ snappes kart-bbox til res-rutenettet og DEM hentes
-// flis-vis med gjenbruk mellom overlappende kart; AV = byte-identisk med før
-// (rett fetchDEM, ingen snapping). PÅ for verifisering på ekte enhet — den
-// robuste fallback-en i fetchDEMWithCache gjør at verste fall degraderer til
-// dagens oppførsel (én full fetch). Følg med på at høydekurver flukter med
-// stier/vann (ingen forskyvning) på nabo-kart.
-const DEM_TILE_CACHE_ENABLED = true
 
 // Terreng-først «finalize»-register: når et kart bygges terreng-først lagres
 // konturer+relieff straks, og den fulle byggingen (Overpass + OSM) fortsetter
@@ -92,26 +83,6 @@ export function coastalTargetResFor(utmBbox, maxCells = COASTAL_MAX_CELLS) {
   const areaM2 = (utmBbox.maxE - utmBbox.minE) * (utmBbox.maxN - utmBbox.minN)
   if (!(areaM2 > 0)) return null
   for (const res of [COASTAL_DEM_RES_M, COASTAL_DEM_MID_RES_M]) {
-    if (areaM2 / (res * res) <= maxCells) return res
-  }
-  return null
-}
-
-// Fin-DEM-trappa for fine-ekvidistanse-kart (≤ 5 m). Kartverkets NHM_DTM er
-// nativt 1 m — vi har historisk under-bestilt rutenettet (10/20 m) og latt
-// serveren nedskalere, så konturene ble kantete (10 m-fasetter). Her velger vi
-// fineste trinn ≥ minResM (bruker-valgt kvalitet) som holder seg under celletaket.
-// For store kart over taket → grovere trinn, evt. null (behold probe).
-// Trinnene MÅ dele TILE_M (1000) jevnt så flis-cachen fluktter (2→500,
-// 5→200 celler pr flis); 3 m ville gitt off-by-one i sliceIntoTiles. (1 m er
-// bevisst utelatt — usynlig ekstra ved 5 m ekvidistanse, men 4× data/tid.)
-const FINE_DEM_STEPS_M = [2, 5]
-export function fineDemResFor(halfKm, aspect = 1, minResM = 2, maxCells = COASTAL_MAX_CELLS) {
-  if (!(halfKm > 0)) return null
-  const widthM = halfKm * 2 * 1000
-  const areaM2 = widthM * widthM * (aspect > 0 ? aspect : 1)
-  for (const res of FINE_DEM_STEPS_M) {
-    if (res < minResM) continue
     if (areaM2 / (res * res) <= maxCells) return res
   }
   return null
@@ -173,18 +144,17 @@ function withHardTimeout(promise, ms, fallback, label) {
   })
 }
 
-// DEM-probe-oppløsning: 10 m ved fine konturer (≤ 5 m ekvidistanse), ellers
-// 20 m. Regelen er en avveining for kart i VANLIG størrelse — den ser bare på
-// ekvidistansen, ikke på hvor stort arket er, så et lite ark får unødig grov
-// DEM. Derfor kan kalleren overstyre (v6.5.0): Fritt lende ber om 10 m til sin
-// 10 m ekvidistanse, fordi kotene ellers ligger drøyt én celle fra hverandre i
-// bratt terreng og trapper seg synlig.
+// DEM-probe-oppløsning: 20 m. Regelen er en avveining for kart i VANLIG
+// størrelse — den ser ikke på hvor stort arket er, så et lite ark får unødig
+// grov DEM. Derfor kan kalleren overstyre (v6.5.0): Fritt lende ber om 10 m til
+// sin 10 m ekvidistanse, fordi kotene ellers ligger drøyt én celle fra
+// hverandre i bratt terreng og trapper seg synlig.
 //
 // Egen eksportert funksjon fordi den ER en beslutning, og en beslutning som
 // bare finnes inne i en nettverksavhengig pipeline kan ikke enhetstestes.
-export function demProbeOpplosning(equidistanceM, overstyring = undefined) {
+export function demProbeOpplosning(overstyring = undefined) {
   if (Number.isFinite(overstyring) && overstyring > 0) return overstyring
-  return equidistanceM <= 5 ? 10 : 20
+  return 20
 }
 
 /**
@@ -304,20 +274,12 @@ export async function buildMapFromCenter({
   const heightKm = (effHalfKm * 2 * mapAspect).toFixed(1)
   onProgress(`Henter kartdata for ${widthKm} × ${heightKm} km …`)
 
-  // DEM-oppløsning (probe). 10 m ved fine konturer (≤ 5 m ekvidistanse),
-  // ellers 20 m. Beregnes her oppe fordi flis-cachen snapper bbox til dette
-  // rutenettet (multiplum av 5/10/20 → også 5 m-justert for kyst-oppgraderingen).
-  // Proben holdes bevisst billig + pålitelig: den brukes til kyst-deteksjon OG
-  // som fallback hvis fin-oppgraderingen under feiler/timer ut (aldri verre enn før).
-  const resolutionM = demProbeOpplosning(equidistanceM, demResolutionM)
-
-  // Fin-innlands DEM-mål: for fine-ekvidistanse-kart (≤ 5 m, inkl. 2,5 m) henter
-  // vi et mye finere rutenett (2 m, evt. 5 m for større kart) fra samme NHM_DTM-
-  // endepunkt, så konturene blir glatte/detaljerte i stedet for fasetterte.
-  // Gjelder uansett kyst/innland. null = grovt kart → ingen oppgradering.
-  const fineInlandTargetResM = equidistanceM <= 5
-    ? fineDemResFor(effHalfKm, mapAspect)
-    : null
+  // DEM-oppløsning (probe), 20 m med mindre kalleren overstyrer. Beregnes her
+  // oppe fordi flis-cachen snapper bbox til dette rutenettet (multiplum av
+  // 5/10/20 → også 5 m-justert for kyst-oppgraderingen). Proben holdes bevisst
+  // billig + pålitelig: den brukes til kyst-deteksjon OG som fallback hvis
+  // kyst-oppgraderingen under feiler/timer ut (aldri verre enn før).
+  const resolutionM = demProbeOpplosning(demResolutionM)
 
   // Recompute WGS84-bbox fra ALLE fire UTM-hjørner (ikke bare SW+NE) så Overpass
   // dekker hele det rektangulære utsnittet — med bare diagonalen ble hjørnene
@@ -333,7 +295,7 @@ export async function buildMapFromCenter({
     }
   }
 
-  // Beregn UTM-bbox tidlig så fetchDEM kan startes parallelt med Overpass/N50.
+  // Beregn UTM-bbox tidlig så DEM-hentingen kan startes parallelt med Overpass/N50.
   let utmBbox
   if (explicitUtmBbox) {
     // Kalleren ga en autoritativ, allerede rutenett-snappet UTM-extent (kant-sone-
@@ -348,20 +310,16 @@ export async function buildMapFromCenter({
     // en kvadratisk bbox — SW+NE-diagonalen alene undervurderte øst-vest og ga
     // portrett-kart vekk fra sentralmeridianen. Sendes uendret videre til buildSvg.
     utmBbox = utm32BboxFromWgs84(bbox)
-    // Flis-cache PÅ: snap bbox til res-rutenettet så kart-grid og flis-grid
-    // flukter eksakt (ingen resampling). Recompute WGS84-bbox fra de snappede
-    // hjørnene så Overpass/buildSvg bruker SAMME extent som DEM-en.
-    if (DEM_TILE_CACHE_ENABLED) {
-      utmBbox = snapUtmBboxToGrid(utmBbox, resolutionM)
-      bbox = wgs84FromUtmCorners(utmBbox)
-    }
+    // Snap bbox til res-rutenettet så kart-grid og flis-grid flukter eksakt
+    // (ingen resampling). Recompute WGS84-bbox fra de snappede hjørnene så
+    // Overpass/buildSvg bruker SAMME extent som DEM-en.
+    utmBbox = snapUtmBboxToGrid(utmBbox, resolutionM)
+    bbox = wgs84FromUtmCorners(utmBbox)
   }
 
-  // DEM-henting: via flis-cache (gjenbruk overlappende fliser) når PÅ, ellers
-  // rett fetchDEM. Begge returnerer en DEM for samme (evt. snappede) extent.
-  const fetchDemFor = (res) => DEM_TILE_CACHE_ENABLED
-    ? fetchDEMWithCache(utmBbox, { resolutionM: res, signal })
-    : fetchDEM(bbox, utmBbox, { resolutionM: res, useReal: true, signal })
+  // DEM-henting via flis-cache: gjenbruker overlappende fliser mellom kart, og
+  // degraderer til én full fetch ved enhver feil (se demTileCache).
+  const fetchDemFor = (res) => fetchDEMWithCache(utmBbox, { resolutionM: res, signal })
 
   // Vann-strategi:
   //   - SJØ: DEM (Kartverket NHM_DTM_25832). 0 m elevasjon = sjø.
@@ -519,31 +477,6 @@ export async function buildMapFromCenter({
   // det fylte DEM-et. Terrarium-fyllet (opptil 64 ekstra flis-fetches på
   // grensekart) lå tidligere på kritisk sti for previewen.
   const demCorePromise = timeAsync('dem', probeDemPromise.then(async (probeDem) => {
-    // Fin-innlands oppgradering (fine-ekvidistanse-kart): hent et mye finere
-    // rutenett (2–3 m) uansett kyst/innland. Gjøres FØR kyst-grenen og venter
-    // IKKE på kyst-signalet — dette gjelder alle fine kart. Fallback-trapp:
-    // prøv målet, så gradvis grovere trinn, og behold til slutt probe-DEM-et
-    // (aldri verre enn før) hvis alt feiler/timer ut. 2 m er allerede finere
-    // enn kyst-oppgraderingens 5 m, så dette subsumerer kysten for fine kart.
-    if (fineInlandTargetResM != null && fineInlandTargetResM < resolutionM) {
-      const fineSteps = FINE_DEM_STEPS_M.filter(
-        r => r >= fineInlandTargetResM && r < resolutionM)
-      for (const res of fineSteps) {
-        onProgress(`Henter detaljert høydedata i ${res} m for glattere høydekurver …`)
-        try {
-          const fine = await fetchDemFor(res)
-          if (fine && !fine.source?.startsWith('synthetic')) {
-            console.log(`[DEM] ✓ fin-oppgradering til ${res} m (${fine.cols}×${fine.rows})`)
-            return fine
-          }
-          console.warn(`[DEM] ${res} m fin-oppgradering ga syntetisk DEM`)
-        } catch (e) {
-          console.warn(`[DEM] ${res} m fin-oppgradering feilet (${e?.message ?? e})`)
-        }
-      }
-      console.warn(`[DEM] fin-oppgradering feilet — beholder probe ${resolutionM} m`)
-      return probeDem
-    }
     // Ingen oppgradering mulig (for stort/allerede fint) → returnér probe-DEM-et
     // med en gang; vent IKKE på kyst-signalet (som blokkerer på Overpass).
     if (!canUpgradeToFineDem) {
@@ -723,7 +656,6 @@ export async function buildMapFromCenter({
       utmBbox,                       // authoritativ extent (samme som DEM-fetch) → kvadratisk + bit-eksakt
       contourIntervalM: equidistanceM,
       scaleDenom: 10000,
-      skipContoursIfSynthetic: true,
       // DEM-sjø KUN på kystnære kart (coastal = DEM-havflate + OSM-saltvann).
       // Innlands leser NHM_DTM både innsjø-flater (ingen LiDAR-retur over vann)
       // OG nodata som ~0 m, så buildSeaFromDem ville klassifisere hele kartet
@@ -742,7 +674,6 @@ export async function buildMapFromCenter({
       nveInnsjoStatus,               // NVE-innsjø-utfall → meta (Utvikler-fanen)
       turruteStatus,                 // Turrutebasen-utfall → meta (Utvikler-fanen)
       n50StiStatus,                  // N50-sti-utfall → meta (Utvikler-fanen)
-      n50ArealStatus,                // N50-myr-utfall → meta (Utvikler-fanen)
       kulturminner,
       // Tetthets-beslutningen: styrer klynge-avstander, hvilke støy-lag som
       // droppes og navne-takene. 'full' = byte-identisk med før.
@@ -751,7 +682,7 @@ export async function buildMapFromCenter({
     }, { signal }))
 
     const ti = timings ?? {}
-    const inner = ['contours', 'cliffs', 'buildingMass', 'knauser']
+    const inner = ['contours', 'cliffs', 'buildingMass']
       .filter(k => ti[k] != null).map(k => `${k} ${ti[k]}ms`).join(', ')
     logPerf(
       `[perf] kart ${(effHalfKm * 2).toFixed(1)}km total ${Math.round(_now() - _t0)}ms | ` +
@@ -781,7 +712,6 @@ export async function buildMapFromCenter({
           utmBbox,                   // samme authoritative extent som full-bygget
           contourIntervalM: equidistanceM,
           scaleDenom: 10000,
-          skipContoursIfSynthetic: true,
           // Terreng-preview hopper over DEM-sjø: coastal-signalet er ikke
           // tilgjengelig billig her (krever Overpass), og en innlands-flom skal
           // ikke blinke til. Full-bygget fyller inn riktig vann straks det er klart.

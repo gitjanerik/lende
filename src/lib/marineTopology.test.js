@@ -1,15 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import {
   ringSignedArea,
-  ringCentroid,
   closeRing,
   pointInRing,
   pointInMultiPolygon,
   unionRingsToSea,
   unionPolygonsToSea,
-  clipPolygonToSea,
   pointFeatureKept,
-  multiPolygonToPathD,
 } from './marineTopology.js'
 
 // Hjelpere: enkle kvadrater i SVG-meter-rom (y-ned).
@@ -17,17 +14,9 @@ const square = (x0, y0, s) => [
   [x0, y0], [x0 + s, y0], [x0 + s, y0 + s], [x0, y0 + s], [x0, y0],
 ]
 
-describe('ringSignedArea / ringCentroid', () => {
+describe('ringSignedArea', () => {
   it('beregner areal av et 10×10-kvadrat', () => {
     expect(Math.abs(ringSignedArea(square(0, 0, 10)))).toBeCloseTo(100, 6)
-  })
-  it('finner sentroid i midten av kvadratet', () => {
-    const c = ringCentroid(square(0, 0, 10))
-    expect(c.x).toBeCloseTo(5, 6)
-    expect(c.y).toBeCloseTo(5, 6)
-  })
-  it('returnerer null for degenerert ring', () => {
-    expect(ringCentroid([[0, 0], [1, 1]])).toBeNull()
   })
 })
 
@@ -95,27 +84,6 @@ describe('unionPolygonsToSea — bevarer øy-hull', () => {
   })
 })
 
-describe('clipPolygonToSea — DepthArea ∩ Land = 0', () => {
-  // Sjø = høyre halvdel (x: 50..150). Dybdeareal strekker seg fra x:0..100
-  // (halvparten på land). Etter klipping skal kun x:50..100 være igjen.
-  const sea = unionRingsToSea([square(50, 0, 100)])  // x 50..150, y 0..100
-  it('klipper bort land-delen av et dybdeareal', () => {
-    const depth = square(0, 0, 100)  // x 0..100
-    const clipped = clipPolygonToSea([depth], sea)
-    expect(clipped.length).toBeGreaterThan(0)
-    const area = clipped.reduce((s, poly) => s + Math.abs(ringSignedArea(poly[0])), 0)
-    // Overlapp = x:50..100 × y:0..100 = 50×100 = 5000
-    expect(area).toBeCloseTo(5000, 0)
-  })
-  it('dybdeareal helt på land forsvinner', () => {
-    const depth = square(-200, 0, 50)  // langt unna sjøen
-    expect(clipPolygonToSea([depth], sea)).toEqual([])
-  })
-  it('tom sjø-modell gir ingen klipping (tom output)', () => {
-    expect(clipPolygonToSea([square(0, 0, 10)], [])).toEqual([])
-  })
-})
-
 describe('pointFeatureKept — Marker ∈ Water', () => {
   const sea = unionRingsToSea([square(0, 0, 100)])
   it('beholder sjømerke i vann', () => {
@@ -132,17 +100,3 @@ describe('pointFeatureKept — Marker ∈ Water', () => {
   })
 })
 
-describe('multiPolygonToPathD', () => {
-  it('produserer lukket subpath per ring', () => {
-    const mp = [[square(0, 0, 10)]]
-    const d = multiPolygonToPathD(mp)
-    expect(d.startsWith('M0,0')).toBe(true)
-    expect(d.endsWith('Z')).toBe(true)
-  })
-  it('et hull blir et eget subpath (to M…Z)', () => {
-    const mp = [[square(0, 0, 100), square(40, 40, 20)]]
-    const d = multiPolygonToPathD(mp)
-    expect((d.match(/M/g) || []).length).toBe(2)
-    expect((d.match(/Z/g) || []).length).toBe(2)
-  })
-})

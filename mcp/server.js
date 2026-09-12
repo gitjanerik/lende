@@ -338,10 +338,9 @@ server.registerTool(
       halfKm: z.number().min(0.5).max(MAX_HALF_KM).optional()
         .describe('Halv kartbredde i km (0.5–20). Utelates: auto fra stedets utstrekning, ellers 2 km'),
       equidistanceM: z.number().optional()
-        .describe('Ekvidistanse i meter. Utelatt = 20 (turkart-standard). Finere kurver (2.5/5/10) er ' +
-          'for ISOM-/sprint-kart og krever lite kart — appens bredde-regler håndheves: bredde > 2 km → ' +
-          'min 5 m, ≥ 4 km → min 10 m, ≥ 6 km → min 20 m (for grove verdier justeres opp). ' +
-          '5 m aktiverer også knaus-deteksjon, som ikke hører hjemme på vanlige turkart.'),
+        .describe('Ekvidistanse i meter (10/20/25/50). Utelatt = 20 (turkart-standard). ' +
+          'Appens bredde-regler håndheves: bredde ≥ 6 km → min 20 m, ≥ 10 km → min 25 m ' +
+          '(for fine verdier justeres opp).'),
       navn: z.string().default('mcp-kart').describe('Kartnavn, brukes i filnavn'),
       filsti: z.string().optional().describe('Hvor SVG-en skrives (default: tmp)'),
     },
@@ -362,11 +361,11 @@ server.registerTool(
     const extent = geokodet ? extentInfo(geokodet.bbox) : null
     const autoStorrelse = halfKm == null && !!extent
     const effHalfKm = halfKm ?? extent?.anbefaltHalfKm ?? 2
-    // Ekvidistanse følger appens regler (MapPickerContent.minEquidistance),
-    // selv om MCP-en får bygge større kart enn appens 16 km-tak: default er
-    // turkart-standarden 20 m (mapBuilder-defaulten på 5 m ga ISOM-tette
-    // kurver + knauser på store kart), og en eksplisitt ønsket ekvidistanse
-    // justeres opp til bredde-minimumet i stedet for å feile.
+    // Ekvidistanse følger appens regler (minEquidistanceForWidthKm), selv om
+    // MCP-en får bygge større kart enn appens 16 km-tak: default er turkart-
+    // standarden 20 m (mapBuilder-defaulten på 5 m ga ISOM-tette kurver på
+    // store kart), og en eksplisitt ønsket ekvidistanse justeres opp til
+    // bredde-minimumet i stedet for å feile.
     const widthKm = effHalfKm * 2
     const minEq = minEquidistanceForWidthKm(widthKm)
     const effEq = Math.max(equidistanceM ?? DEFAULT_EQUIDISTANCE_M, minEq)

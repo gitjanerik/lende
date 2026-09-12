@@ -2,9 +2,8 @@
 // overlappende kart (auto-kart forskyver senteret ~37,5 %, så påfølgende kart
 // overlapper ~62 %).
 //
-// STATUS: PÅ (DEM_TILE_CACHE_ENABLED = true i createMapFlow.js). Fallback-en
-// i fetchDEMWithCache degraderer til én full fetchDEM ved enhver feil, så
-// verste fall er identisk med cache av. Sjekkpunkt ved feilsøk: høydekurver
+// Fallback-en i fetchDEMWithCache degraderer til én full fetchDEM ved enhver
+// feil, så verste fall er identisk med cache av. Sjekkpunkt ved feilsøk: høydekurver
 // skal flukte med stier/vann (ingen forskyvning) på nabo-kart. De rene
 // funksjonene (snap/dekning/montering/slicing) er enhetstestet i
 // demTileCache.test.js.
@@ -246,7 +245,7 @@ export async function fetchDEMWithCache(snappedUtmBbox, { resolutionM, signal, r
     }
     if (missing.length) {
       const mb = boundingBoxOfTiles(missing)
-      const region = await fetchDEM(null, mb, { resolutionM: res, useReal: true, signal })
+      const region = await fetchDEM(mb, { resolutionM: res, signal })
       if (!region || (region.source && region.source.startsWith('synthetic'))) {
         throw new Error('region ble syntetisk')
       }
@@ -264,7 +263,7 @@ export async function fetchDEMWithCache(snappedUtmBbox, { resolutionM, signal, r
   } catch (e) {
     if (signal?.aborted) throw e
     console.warn(`[DEM-cache] fallback til full fetch: ${e?.message ?? e}`)
-    const dem = await fetchDEM(null, snappedUtmBbox, { resolutionM: res, useReal: true, signal })
+    const dem = await fetchDEM(snappedUtmBbox, { resolutionM: res, signal })
     if (rejectSynthetic && dem?.source?.startsWith('synthetic')) return null
     return dem
   }

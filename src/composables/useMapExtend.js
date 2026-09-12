@@ -681,7 +681,10 @@ export function useMapExtend({
       // (v10.1.23) eller eldre skjerm-format. Uten dette ville en ny flis falt
       // tilbake til viewportAspect() og fått feil høyde → glipper i mosaikken.
       aspect: +(m.heightM / m.widthM).toFixed(5),
-      equidistanceM: m.equidistance ?? 20,
+      // Klem til minst 10 m: gyldige ekvidistanser er 10/20/25/50
+      // (equidistanceRules), men et kart lagret før v6.5.76 kan bære 5 m, og
+      // den verdien finnes det ikke lenger kode for noe sted i pipelinen.
+      equidistanceM: Math.max(10, m.equidistance ?? 20),
       navn: `Tur ${stamp}`,
       isAuto: true,   // markér som auto-flis → inngår i tileCache (kappes, ikke brukerkart)
     }

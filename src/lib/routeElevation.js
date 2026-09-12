@@ -10,8 +10,8 @@
 //  2. Kartverket WCS DTM (demFetcher fra turkartet) — lagrede ruter mister
 //     høyden ved DP-forenkling ved lagring, da samples terrenget langs
 //     polylinjen i stedet (useRouteElevation.js). Syntetisk DEM skal ALDRI
-//     brukes her (samme stance som skipContoursIfSynthetic: falske høyder er
-//     verre enn ingen).
+//     brukes her (samme stance som buildSvg tar mot syntetisk DEM: falske
+//     høyder er verre enn ingen).
 
 import { haversineM } from './brouterClient.js'
 import { sampleElevation } from './demSampling.js'

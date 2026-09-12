@@ -1,5 +1,5 @@
 /**
- * DEM-sampling — unpack, oppslag og utklipp av lagret DEM.
+ * DEM-sampling — unpack og oppslag av lagret DEM.
  *
  * DEM-strukturen (fra demFetcher.js) har:
  *   data:      Float32Array av lengde cols*rows, indeksert [row*cols + col]
@@ -63,29 +63,6 @@ export function realElevationAt(dem) {
 }
 
 /**
- * Sentral-differanse gradient i SVG-koord. Returnerer (∂z/∂x, ∂z/∂y) i
- * meter-per-meter (dimensjonsløs helling). Steg = pixelWidth = ~25m i ekte
- * terreng, gir glatt nok gradient for fysikk-formål.
- *
- * Ved out-of-bounds eller noData i samples returneres 0 for den komponenten.
- *
- * @param {DEM} dem
- * @param {number} svgX
- * @param {number} svgY
- * @returns {{dzdx: number, dzdy: number}}
- */
-export function sampleGradient(dem, svgX, svgY) {
-  const eps = dem.transform.pixelWidth
-  const eL = sampleElevation(dem, svgX - eps, svgY)
-  const eR = sampleElevation(dem, svgX + eps, svgY)
-  const eU = sampleElevation(dem, svgX, svgY - eps)
-  const eD = sampleElevation(dem, svgX, svgY + eps)
-  const dzdx = Number.isFinite(eL) && Number.isFinite(eR) ? (eR - eL) / (2 * eps) : 0
-  const dzdy = Number.isFinite(eU) && Number.isFinite(eD) ? (eD - eU) / (2 * eps) : 0
-  return { dzdx, dzdy }
-}
-
-/**
  * Finner høyeste punkt i DEM-griddet. Returnerer SVG-koord og elevasjon,
  * eller null hvis hele griddet er noData.
  *
@@ -110,51 +87,6 @@ export function findHighestPoint(dem) {
     svgX: (col + 0.5) * transform.pixelWidth,
     svgY: (row + 0.5) * transform.pixelHeight,
     elevation: maxZ,
-  }
-}
-
-/**
- * Klipp ut et akse-justert sub-grid av DEM-en som dekker meter-rektangelet
- * [offX, offX+sizeXM] × [offY, offY+sizeYM] i kart-SVG-koord. Det returnerte
- * DEM-et har sin EGEN (0,0) i hjørnet (offX, offY) — sample(gx, gy) på utklippet
- * tilsvarer altså sample(offX+gx, offY+gy) på kilden.
- *
- * Klipper ut det største sentrerte KVADRATISKE utsnittet av et A-format
- * (portrett) kart: kalleren jobber i 0..Sm-koord mot dette utklippet og
- * tilbake til kartets senter.
- *
- * Klipping skjer på celle-grenser (round), så meter-offset kan avvike inntil en
- * halv piksel (~12 m på 25 m DTM) — usynlig på kart-skala. pixelWidth/Height
- * bevares så sample-matematikken er uendret.
- *
- * @param {DEM} dem
- * @param {number} offX  venstre kant i kilde-meter
- * @param {number} offY  topp-kant i kilde-meter
- * @param {number} sizeXM  bredde i meter
- * @param {number} sizeYM  høyde i meter (default = sizeXM, dvs. kvadrat)
- * @returns {DEM} nytt DEM med eget origo; kilde-DEM-et returneres uendret hvis
- *   utklippet degenererer (0 celler)
- */
-export function cropDem(dem, offX, offY, sizeXM, sizeYM = sizeXM) {
-  const { data, cols, rows, transform, noData } = dem
-  const pw = transform.pixelWidth
-  const ph = transform.pixelHeight
-  const c0 = Math.max(0, Math.round(offX / pw))
-  const r0 = Math.max(0, Math.round(offY / ph))
-  const colN = Math.min(Math.round(sizeXM / pw), cols - c0)
-  const rowN = Math.min(Math.round(sizeYM / ph), rows - r0)
-  if (colN <= 0 || rowN <= 0) return dem
-  const out = new Float32Array(colN * rowN)
-  for (let ry = 0; ry < rowN; ry++) {
-    const srcStart = (r0 + ry) * cols + c0
-    out.set(data.subarray(srcStart, srcStart + colN), ry * colN)
-  }
-  return {
-    data: out,
-    cols: colN,
-    rows: rowN,
-    transform: { ...transform, originX: 0, originY: 0 },
-    noData,
   }
 }
 

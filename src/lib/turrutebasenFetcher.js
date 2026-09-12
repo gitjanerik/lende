@@ -223,8 +223,3 @@ export function turruteElementsFrom(routes, osmElements, status = null) {
   return elements
 }
 
-/** Hent + tynn i én operasjon (MCP/headless og tester). */
-export async function fetchTurruter(bbox, opts = {}) {
-  const routes = await fetchTurruteRoutes(bbox, opts)
-  return turruteElementsFrom(routes, opts.osmElements)
-}

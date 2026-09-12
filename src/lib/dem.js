@@ -1,21 +1,19 @@
-// DEM (Digital Elevation Model) håndtering — konturer, hillshade,
-// helling, og deriverte features for ISOM-symbolisering.
+// DEM (Digital Elevation Model) håndtering — konturer, helling,
+// og deriverte features for ISOM-symbolisering.
 //
 // Inn: RasterGrid med Float32Array av høydeverdier i meter, sammen
 // med en AffineTransform som plasserer grid-en i UTM-rommet.
 //
 // API:
 //   buildContours(dem, intervalM, indexEvery)
-//   buildHillshade(dem, options)
 //   computeSlope(dem)
-//   computeTPI(dem, radiusPx)
 //   detectCliffs(dem, slopeDegThreshold, minLengthM)
 //   syntheticDEM(bbox, options)            for testing uten ekte data
 //
 // For ekte DTM 1m fra Kartverket: bruk demFetcher.js (krever serverside)
 
 import { contours as d3Contours } from 'd3-contour'
-import { simplifyDP, chaikin, polylineToPath, polylineLength } from './pathUtils.js'
+import { simplifyDP, chaikin, polylineLength } from './pathUtils.js'
 import { zhangSuenSkeletonize, vectorizeSkeleton } from './skeleton.js'
 
 /**
@@ -328,50 +326,6 @@ export function buildContours(dem, intervalM = 20, indexEvery = 5, options = {})
   return { features, intervalM, indexEvery, minElevM: minE, maxElevM: maxE }
 }
 
-/**
- * Hillshade etter Horn 1981 + multi-direksjonell sum (Mark 1992).
- * Returnerer en Uint8Array med 0..255 lyshet per piksel.
- *
- * @param {DEM} dem
- * @param {object} [opts]
- * @param {number} [opts.altitudeDeg=45]
- * @param {number[]} [opts.azimuthsDeg]    Sol-azimuts å gjennomsnittliggjøre
- * @param {number} [opts.zFactor=1]        Vertikal forsterkning
- */
-export function buildHillshade(dem, opts = {}) {
-  const { altitudeDeg = 45, azimuthsDeg = [225, 270, 315, 360], zFactor = 1 } = opts
-  const { data, cols, rows, transform, noData } = dem
-  const cellSize = Math.abs(transform.pixelWidth)
-  const out = new Uint8Array(data.length)
-  const altRad = altitudeDeg * Math.PI / 180
-
-  for (let y = 1; y < rows - 1; y++) {
-    for (let x = 1; x < cols - 1; x++) {
-      const i = y * cols + x
-      const a = data[i - cols - 1], b = data[i - cols], c = data[i - cols + 1]
-      const d = data[i - 1],         e = data[i],        f = data[i + 1]
-      const g = data[i + cols - 1], h = data[i + cols], k = data[i + cols + 1]
-      if ([a, b, c, d, e, f, g, h, k].some(v => v === noData)) {
-        out[i] = 200
-        continue
-      }
-      const dzDx = ((c + 2 * f + k) - (a + 2 * d + g)) / (8 * cellSize) * zFactor
-      const dzDy = ((g + 2 * h + k) - (a + 2 * b + c)) / (8 * cellSize) * zFactor
-      const slope = Math.atan(Math.hypot(dzDx, dzDy))
-      const aspect = Math.atan2(dzDy, -dzDx)
-      let sum = 0
-      for (const az of azimuthsDeg) {
-        const azRad = (az - 90) * Math.PI / 180
-        sum += Math.max(0,
-          Math.cos(altRad) * Math.cos(slope)
-          + Math.sin(altRad) * Math.sin(slope) * Math.cos(azRad - aspect))
-      }
-      out[i] = Math.round(255 * sum / azimuthsDeg.length)
-    }
-  }
-  return { ...dem, data: out }
-}
-
 export function computeSlope(dem) {
   const { data, cols, rows, transform, noData } = dem
   const cellSize = Math.abs(transform.pixelWidth)
@@ -386,64 +340,6 @@ export function computeSlope(dem) {
     }
   }
   return { ...dem, data: out }
-}
-
-/**
- * Topographic Position Index — pixel minus mean av nabo-pikslen.
- * Brukes til å finne knauser (TPI > 0) og groper (TPI < 0).
- */
-export function computeTPI(dem, radiusPx = 5) {
-  const { data, cols, rows, noData } = dem
-  const out = new Float32Array(data.length)
-  for (let y = radiusPx; y < rows - radiusPx; y++) {
-    for (let x = radiusPx; x < cols - radiusPx; x++) {
-      let sum = 0, n = 0
-      for (let dy = -radiusPx; dy <= radiusPx; dy++) {
-        for (let dx = -radiusPx; dx <= radiusPx; dx++) {
-          const v = data[(y + dy) * cols + (x + dx)]
-          if (v !== noData) { sum += v; n++ }
-        }
-      }
-      const center = data[y * cols + x]
-      out[y * cols + x] = n > 0 ? center - sum / n : 0
-    }
-  }
-  return { ...dem, data: out }
-}
-
-/**
- * Detekter knauser (TPI > terskel) og groper (TPI < -terskel) som
- * point-features i UTM. ISOM-kode 213 (knaus).
- */
-export function detectKnauser(dem, tpiRadius = 5, tpiThresholdM = 1.5) {
-  const tpi = computeTPI(dem, tpiRadius)
-  const features = []
-  const { cols, rows, transform } = dem
-  for (let y = 0; y < rows; y++) {
-    for (let x = 0; x < cols; x++) {
-      const v = tpi.data[y * cols + x]
-      if (v >= tpiThresholdM) {
-        // Bare beholde lokale maksima for å unngå duster av punkter
-        let isPeak = true
-        for (let dy = -1; dy <= 1 && isPeak; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            if (dx === 0 && dy === 0) continue
-            const yy = y + dy, xx = x + dx
-            if (yy < 0 || yy >= rows || xx < 0 || xx >= cols) continue
-            if (tpi.data[yy * cols + xx] > v) { isPeak = false; break }
-          }
-        }
-        if (isPeak) {
-          const [wx, wy] = gridToWorld([x, y], transform)
-          // gx/gy beholdes så et raster-lag kan plassere prikken som
-          // DEM-grid-fraksjon (flukter med hillshade-bildet) uten å gå
-          // veien om verdens-/viewBox-koordinater.
-          features.push({ type: 'point', isomCode: '213', x: wx, y: wy, gx: x, gy: y, tpi: v })
-        }
-      }
-    }
-  }
-  return features
 }
 
 /**
@@ -632,22 +528,3 @@ export function syntheticDEM(widthM, heightM, transform, peaks = [], baseElevM =
   }
 }
 
-/**
- * Konverter konturer fra `buildContours` til SVG-paths som kan settes
- * inn i en feature-graf eller direkte i et lag.
- *
- * @param {Array} contourFeatures
- * @param {(coords: Array<[number,number]>) => Array<[number,number]>} projectFn
- *        UTM → SVG-koord (y-flip + offset)
- */
-export function contoursToSvgPaths(contourFeatures, projectFn) {
-  const index = []   // hjelpekonturer
-  const minor = []
-  for (const f of contourFeatures) {
-    const projected = f.coordinates.map(projectFn)
-    const d = polylineToPath(projected, true)
-    if (f.isIndex) index.push({ d, elevation: f.elevation })
-    else           minor.push({ d, elevation: f.elevation })
-  }
-  return { index, minor }
-}

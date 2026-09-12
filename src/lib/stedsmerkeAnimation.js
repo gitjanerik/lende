@@ -1,15 +1,11 @@
 // Squash & stretch-animasjon for Stedsmerke-annotering.
 //
-// To moduser:
-//   - Map (kontinuerlig loop, 5s syklus): kart åpnet/gjenåpnet, pin-ene
-//     spretter én gang pr 5s med tilfeldig pre-roll så de ikke synker takt.
-//   - Hit (one-shot, 1.1s): i CurveInvaders trigges animasjonen NÅR ballen
-//     treffer bumperen, ikke kontinuerlig. Caller bruker :key på bp.hits
-//     for å tvinge Vue til å re-mounte SMIL-tagene ved hvert treff.
+// Kontinuerlig loop (5s syklus): kart åpnet/gjenåpnet, pin-ene spretter én
+// gang pr 5s med tilfeldig pre-roll så de ikke synker takt.
 //
-// Begge bruker de samme 7 nøkkelposisjonene (rest → anticipate → launch →
-// apex → impact → rebound → rest). Map-modus appender en 8. duplikert
-// hvile-frame ved keyTime=1 for å holde stille gjennom 3.9s idle-fase.
+// Sju nøkkelposisjoner (rest → anticipate → launch → apex → impact →
+// rebound → rest), pluss en 8. duplikert hvile-frame ved keyTime=1 som
+// holder pin-en stille gjennom 3,9 s idle-fase.
 //
 // Tegnes som nestede <g>-er: ytterste plasserer pin-tip-en i hvile-
 // posisjon, midtre animerer translate Y (sprett), innerste animerer scale
@@ -31,7 +27,6 @@ const SHADOW_OP = [0.55, 0.58, 0.40, 0.18, 0.62, 0.50, 0.55]
 
 const fmt = (n) => Number(n.toFixed(4)).toString()
 
-// ─── Map mode: continuous 5s loop ────────────────────────────────────────
 // Action takes first 22% (= 1.1s), så hold-rest fra 22%–100% (= 3.9s idle).
 const MAP_FRAMES   = [...ACTION_FRAMES, { sx: 1, sy: 1, ty: 0 }]
 const MAP_SHADOW_X = [...SHADOW_X, 1.00]
@@ -52,27 +47,7 @@ export const SHADOW_SCALE_VALUES =
 
 export const STEDSMERKE_SHADOW_OPACITY = MAP_SHADOW_OP.join('; ')
 
-// ─── Hit mode: 1.1s one-shot ─────────────────────────────────────────────
-// Action mapped over hele dur (0..1). Brukes med repeatCount="1" og
-// fill="freeze" — pin holder seg på siste keyframe (= rest) etter slutt.
-export const STEDSMERKE_HIT_KEY_TIMES =
-  '0; 0.0909; 0.2727; 0.5455; 0.8182; 0.9545; 1'
-export const STEDSMERKE_HIT_DUR = '1.1s'
-
-export const PIN_SCALE_VALUES_HIT =
-  ACTION_FRAMES.map(f => `${fmt(f.sx)} ${fmt(f.sy)}`).join('; ')
-
-export function pinTranslateValuesHit(s) {
-  return ACTION_FRAMES.map(f => `0 ${fmt(f.ty * s)}`).join('; ')
-}
-
-export const SHADOW_SCALE_VALUES_HIT =
-  SHADOW_X.map(f => `${fmt(f)} 1`).join('; ')
-
-export const STEDSMERKE_SHADOW_OPACITY_HIT = SHADOW_OP.join('; ')
-
-// Random pre-roll så flere kart-markører ikke spretter i takt. Brukes kun
-// av map-modus (hit-modus er allerede asynkron via treff).
+// Random pre-roll så flere kart-markører ikke spretter i takt.
 export function randomBegin() {
   return `-${(Math.random() * 5).toFixed(2)}s`
 }

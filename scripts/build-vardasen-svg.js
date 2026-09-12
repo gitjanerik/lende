@@ -73,11 +73,7 @@ const utmBbox = utm32BboxFromWgs84(bbox)
 // Hvis WCS-tjenesten har 1m-data tilgjengelig blir det resamplet ved
 // kilden; hvis bare 10m, får vi resampled 5m (ikke ekte detalj, men
 // får skikkelig stupkant-vectorisering uansett).
-const dem = await fetchDEM(bbox, utmBbox, {
-  resolutionM: 5,
-  knownArea: 'vardasen',     // fallback hvis WCS feiler
-  useReal: true,
-})
+const dem = await fetchDEM(utmBbox, { resolutionM: 5 })
 console.log(`DEM: ${dem.cols} × ${dem.rows} (oppløsning ${dem.resolution.toFixed(1)} m, kilde: ${dem.source})`)
 
 const { svg, counts, meta } = buildSvg(elements, bbox, { dem, utmBbox, contourIntervalM: 10 })

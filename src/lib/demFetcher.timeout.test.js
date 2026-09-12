@@ -60,7 +60,7 @@ describe('fetchDEM — hedge + abort-kontrakt', () => {
     const ctrl = new AbortController()
     ctrl.abort()
     await expect(
-      fetchDEM(null, utmBbox, { resolutionM: 10, useReal: true, signal: ctrl.signal }),
+      fetchDEM(utmBbox, { resolutionM: 10, signal: ctrl.signal }),
     ).rejects.toThrow()
   })
 
@@ -71,7 +71,7 @@ describe('fetchDEM — hedge + abort-kontrakt', () => {
       return hangingFetch(signal)   // primær (25832) henger
     })
     vi.stubGlobal('fetch', fetchSpy)
-    const p = fetchDEM(null, utmBbox, { resolutionM: 10, useReal: true })
+    const p = fetchDEM(utmBbox, { resolutionM: 10 })
     await vi.advanceTimersByTimeAsync(4100)
     const dem = await p
     expect(dem.source).toContain('25833')
@@ -84,7 +84,7 @@ describe('fetchDEM — hedge + abort-kontrakt', () => {
     vi.useFakeTimers()
     const fetchSpy = vi.fn((url, { signal }) => hangingFetch(signal))
     vi.stubGlobal('fetch', fetchSpy)
-    const p = fetchDEM(null, utmBbox, { resolutionM: 10, useReal: true })
+    const p = fetchDEM(utmBbox, { resolutionM: 10 })
     // 100×100 px → 15 s timeout per endpoint, hedge etter 4 s. Begge kjører
     // parallelt, så alt er avgjort innen 19 s.
     await vi.advanceTimersByTimeAsync(25000)

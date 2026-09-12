@@ -62,7 +62,7 @@ export function useRouteElevation(route) {
       if (!entry) {
         const spanM = Math.max(utmBbox.maxE - utmBbox.minE, utmBbox.maxN - utmBbox.minN)
         const resolutionM = Math.min(150, Math.max(20, Math.ceil(spanM / DEM_MAX_DIM_PX / 10) * 10))
-        const dem = await fetchDEM(bbox, utmBbox, { resolutionM, useReal: true, signal: ac.signal })
+        const dem = await fetchDEM(utmBbox, { resolutionM, signal: ac.signal })
         if (ac.signal.aborted) return
         if (String(dem.source ?? '').includes('synthetic')) {
           throw new Error('kun syntetisk DEM tilgjengelig — viser ikke falske høyder')
