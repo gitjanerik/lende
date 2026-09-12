@@ -1,3 +1,20 @@
+## 2026-09-12 — v7.8.1: kartnavnet fyller stripa, og tre ting om tekststørrelse
+
+Kartnavnet i topprada sto på `max-w-[42%]` — under halvparten av den ledige
+plassen mellom hamburgeren og søket — så «Skålsjøen, Lørenskog (Skålsjøhytta)»
+ble klippet til «Skålsjøen, L…» med tomrom på begge sider. Navnet ligger nå i en
+`flex-1`-innpakning som spenner hele stripa, med `gap-2` på rada som eneste
+luftkilde, mens pilla fortsatt vokser bare til sitt eget innhold. Rename-arket
+har fått tekststørrelse-knappen alle andre paneler har, og følger den etter
+SkuffHeaders regel: tittel, tekstfelt og Avbryt/Lagre zoomes, mens A-knappen og
+X-en beholder sine 32 px. Og den valgte halvdelen av Skarp/Mjuk-pilla fikk
+endelig den hvite skriften den alltid skulle hatt — `.knott-pille__pa` er
+(0,1,0) og tapte mot `.knott-pille button` (0,1,1), så i lyst tema sto mørk
+ink-tekst på mørkegrønt, mens mørkt tema skjulte feilen fordi ink-2 der er lys
+fra før.
+
+---
+
 ## 2026-09-12 — v7.8.0: snarvei-skuffa fikk et tredje nivå — strek og relieff
 
 Snarvei-raden hadde to stillinger: sammenlagt, og utfoldet med «Sorter snarveier» under. Nå har den tre, som infopanelet: et nytt drag ned fra den utfoldede raden avdekker de to knottene man faktisk rører mens man går — strektykkelse og relieff — med en liten pille for skarpt (vektor) mot mjukt (bilde). Etiketten står OVER skyveknappen og verdien på samme linje som den, fordi en etikett ved siden av en slider er det første som brekker ved 200 % tekst.

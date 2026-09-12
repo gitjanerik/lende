@@ -461,6 +461,15 @@ skal stoppe på nivå 1 og VISE at det stopper der. «Sorter snarveier» toner u
 det samme draget som toner knottene inn: den handler om raden, knottene om
 kartet.
 
+**DEN VALGTE HALVDELEN AV SKARP/MJUK-PILLA MÅ HA HVIT SKRIFT, og selektoren
+avgjorde det (v7.8.1).** `.knott-pille__pa` er (0,1,0) og taper mot
+`.knott-pille button` (0,1,1), så `color: #fff` ble aldri brukt: i lyst tema
+sto mørk ink-tekst på mørkegrønt. Mørkt tema skjulte feilen helt, fordi ink-2
+der er lys fra før — så den ene flata med for lav kontrast var også den ene
+ingen ville sett i en rask sjekk. Selektoren er nå
+`.knott-pille button.knott-pille__pa`. Gjør du noe likt et annet sted: en
+tilstands-klasse må være minst like spesifikk som grunnregelen den overstyrer.
+
 **RELIEFF-SLIDEREN I RADEN SKRIVER TO TING, og det er kallstedets ansvar
 (MapView, `settSnarveiRelieff`).** Kartstil-fana har en av/på-bryter (per kart)
 VED SIDEN AV styrke-knotten (global), og det er riktig der: to ting som lagres to
@@ -616,6 +625,32 @@ sine 32 px**, fordi de er veien TILBAKE fra et valg som nettopp gjorde alt
 større. Zoom settes på etiketten og tittelen HVER FOR SEG og aldri på
 kontrollraden: en zoomet rad skalerer polstringen og dytter X-en ut av skjermen
 (v6.3.12).
+
+**RENAME-ARKET FØLGER SAMME REGEL (v7.8.1), og det er ikke enda et ark som
+tilfeldigvis manglet knappen.** `RenameMapDialog` er den ene flata i appen der
+brukeren SKRIVER, og navnet man retter er ofte langt og fullt av æ/ø/å — altså
+nøyaktig der 12 px koster mest. Arket bruker ikke `SkuffHeader` (det er en
+modal, ikke et bunn-ark med håndtak), så regelen er kopiert inn for hånd:
+`zoom` på tittelen og på kroppen HVER FOR SEG, `TekstStorrelseKnapp` og X-en
+utenfor begge. Røyktesten måler at tekstfeltet vokser og at X-en blir stående —
+den kan ikke enhetstestes, siden prosjektet ikke monterer Vue-komponenter.
+
+**KARTNAVNET I TOPPRADA FÅR HELE STRIPA MELLOM DE TO FASTE IKONENE (v7.8.1).**
+Det sto på `max-w-[42%]` av rada — under halvparten av den ledige plassen — så
+et vanlig norsk stedsnavn med kommune og hytte i parentes ble klippet til de
+første tolv tegnene med tomrom på begge sider. Navnet ligger nå i en `flex-1
+min-w-0`-innpakning (`data-kartnavn-plass`) mellom hamburgeren og søket, og
+pilla selv er `w-max max-w-full`: den vokser bare til sitt eget innhold, så et
+kort navn er fortsatt en kort pille. **Lufta er `gap-2` på rada og ikke marger
+på hver del** — tre deler med hver sin marg kommer i utakt første gang noen
+rører én av dem.
+
+**Og `max-w-full` VIRKER inne i `zoom`-laget — det er målt, ikke antatt.**
+Prosenten løses mot forelderens EKTE skjermbredde, i motsetning til `vw`/`vh`
+(v6.3.12), så pilla kan beholde sin egen zoom og likevel stoppe på kanten.
+Røyk-sjekken måler begge deler ved 100 % og 200 %, og seeder sitt eget kart for
+å gjøre det: demokartene er `BUILTIN`, og der kan navnet ikke endres — så
+verken rename-pilla eller arket finnes på `/kart/vardasen`.
 
 ## Viktig arkitektur-merknad — deling av kart har TO veier, og det er med vilje
 
