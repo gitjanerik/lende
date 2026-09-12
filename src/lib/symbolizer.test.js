@@ -92,6 +92,39 @@ describe('isFlowingWaterArea — elveløp-flater som NVE/N50 aldri leverer', () 
   })
 })
 
+describe('classifyToIsom — kirkegård (516)', () => {
+  it('landuse=cemetery og amenity=grave_yard → 516, på way og relation', () => {
+    for (const tags of [{ landuse: 'cemetery' }, { amenity: 'grave_yard' }]) {
+      expect(classifyToIsom({ type: 'way', tags })).toEqual({ code: '516', cat: 'manmade' })
+      expect(classifyToIsom({ type: 'relation', tags })).toEqual({ code: '516', cat: 'manmade' })
+    }
+  })
+
+  it('gravplass vinner over landuse=grass og leisure=park på samme flate', () => {
+    // Begge kombinasjonene finnes i OSM i Norge. Det er gravplassen som
+    // beskriver marka der; en park-klassifisering ville skjult den helt.
+    expect(classifyToIsom({ type: 'way', tags: { landuse: 'cemetery', leisure: 'park' } }))
+      .toEqual({ code: '516', cat: 'manmade' })
+    expect(classifyToIsom({ type: 'way', tags: { amenity: 'grave_yard', landuse: 'grass' } }))
+      .toEqual({ code: '516', cat: 'manmade' })
+  })
+
+  it('en node blir ikke gravplass — 516 er en FLATE', () => {
+    // amenity=grave_yard står også som punkt i OSM. Et punkt har ingen form å
+    // fylle, og et flate-mønster på et punkt er ingenting.
+    expect(classifyToIsom({ type: 'node', tags: { amenity: 'grave_yard' } }))
+      .not.toEqual({ code: '516', cat: 'manmade' })
+  })
+
+  it('kirkebygget inne på gravplassen er fortsatt et bygg', () => {
+    // Gravplass-sjekken står FØR building, så et bygg som tilfeldigvis bærer
+    // en gravplass-tagg ville blitt slukt av flata. Kirka har ingen av dem —
+    // den blir 521 her og får korset sitt (532) av mapBuilders egne
+    // kirke-pass, ikke av klassifiseringen.
+    expect(classifyToIsom({ type: 'way', tags: { building: 'church' } }).code).toBe('521')
+  })
+})
+
 describe('classifyToIsom — idrettsanlegg (ISOM 513)', () => {
   it('stadion/idrettspark/idrettsbane/travbane/recreation_ground → 513', () => {
     const cases = [

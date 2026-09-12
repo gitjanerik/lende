@@ -218,6 +218,24 @@ describe('høyfjellet skiller seg fra skogen når arket HAR skogdata', () => {
     expect(lum(turkart.backgroundApen) - lum(bre.stroke.color)).toBeGreaterThan(0.15)
   })
 
+  it('ALLE temaer har en kirkegård (516) som skiller seg fra sin egen bakgrunn', () => {
+    // 516 er et MØNSTER og ikke et flatt fyll, så temaet overstyrer mønsterets
+    // egen bunn (--pattern-kirkegard-fill) framfor --iso-516-fill. Sjekken er
+    // den samme som for breen: enten bunnen eller korsene må leses mot arket.
+    for (const [navn, tema] of Object.entries(katalog.themes)) {
+      const bunn = tema.patterns?.kirkegard?.fill ?? katalog.patterns.kirkegard.background
+      const kors = tema.patterns?.kirkegard?.stroke ?? katalog.patterns.kirkegard.elements[0].stroke
+      const bg = tema.background ?? katalog.background.color
+      expect(bunn, navn).toMatch(/^#[0-9a-f]{6}$/i)
+      expect(kors, navn).toMatch(/^#[0-9a-f]{6}$/i)
+      const skille = Math.max(Math.abs(lum(bunn) - lum(bg)), Math.abs(lum(kors) - lum(bg)))
+      expect(skille, navn).toBeGreaterThan(0.05)
+      // Og korsene må leses mot sin EGEN bunn — uten det er flata bare en flate,
+      // og en flate uten raster leses som en park.
+      expect(Math.abs(lum(kors) - lum(bunn)), navn).toBeGreaterThan(0.08)
+    }
+  })
+
   it('ALLE temaer har en 410-farge, og ingen av dem flater breen ut mot sin egen bakgrunn', () => {
     for (const [navn, tema] of Object.entries(katalog.themes)) {
       const bre = tema.categories?.['410'] ?? katalog.categories.terrain['410']

@@ -447,6 +447,26 @@ export function classifyToIsom(el) {
       }
     }
   }
+  // Kirkegård / gravplass (Norge-spesifikk utvidelse 516). ISOM 2017-2 har
+  // ingen kode for gravplass — orienteringsløp går ikke der — men norske
+  // turkart har den alltid hatt, og den er et av de sikreste landemerkene i
+  // bebygd terreng: inngjerdet, åpen og alltid ved en vei.
+  //
+  // Konvensjonen er kartverkets: en egen, dempet flate MED kors-raster, ikke
+  // bare en flate. Et navn alene holder ikke (halvparten av gravplassene i OSM
+  // mangler `name`), og en flate alene leses som en park.
+  //
+  // OSM tagger den på to måter, og begge er i bruk i Norge: `landuse=cemetery`
+  // (dagens standard) og `amenity=grave_yard` (eldre, brukt om gravplassen som
+  // hører til en kirke). Vi tar begge.
+  //
+  // Sjekkes FØR idrettsanlegg, `building` og all generell landuse/leisure:
+  // gravplass-flater bærer ofte `landuse=grass` eller `leisure=park` i tillegg,
+  // og da er det gravplassen som beskriver marka. Kirkebygget inne på flata er
+  // en egen node/way og får sitt kors som før.
+  if (el.type !== 'node' && (t.landuse === 'cemetery' || t.amenity === 'grave_yard')) {
+    return { code: '516', cat: 'manmade' }
+  }
   // Idrettsanlegg (Norge-spesifikk ISOM-utvidelse 513): stadion, idrettspark,
   // idrettsbane, travbane, friidrettsbane, hoppbakke, arena. Markeres med
   // anleggets faktiske form («baneform») i en distinkt farge. Eget toggle-lag
@@ -812,7 +832,15 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
           // regelen her er mer spesifikk (2 klasser + attributt), så en bakt
           // lys-modus-farge vant over temaet og fikk kratt/hugst/strand til å
           // blinke lysegrønt/gult i ~200 ms per gest i alle mørke temaer.
-          const flat = catalog.patterns?.[def.fill.pattern]?.background ?? 'none'
+          // Bunnfargen leses gjennom SAMME variabel som mønsteret selv bruker
+          // (--pattern-<navn>-fill), for et tema kan bytte mønsterets bunn uten
+          // å røre --iso-<kode>-fill — det er nettopp slik kirkegården (516) og
+          // myra themes. Uten den mellomstasjonen ville et mørkt tema blinket
+          // katalogens lyse bunnfarge i ~200 ms per gest. Mønstre UTEN bunn
+          // (myr, torrfall, blokkmark) beholder `none` som før: de er rene
+          // strek-mønstre, og en bunnfarge der ville vært et nytt fyll.
+          const bg = catalog.patterns?.[def.fill.pattern]?.background
+          const flat = bg ? `var(--pattern-${def.fill.pattern}-fill, ${bg})` : 'none'
           rules.push(`${root}.is-zooming [data-iso="${code}"] { fill: var(--iso-${code}-fill, ${flat}); }`)
         } else if (def.fill.color) {
           props.push(`fill: var(--iso-${code}-fill, ${def.fill.color})`)

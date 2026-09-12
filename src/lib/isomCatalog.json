@@ -491,6 +491,19 @@
           ]
         }
       },
+      "516": {
+        "label": "Kirkegård",
+        "$comment": "Norge-spesifikk utvidelse — 516 sto ledig i man-made-blokka. OSM tagger gravplass på to måter, og begge er i bruk i Norge: `landuse=cemetery` (dagens standard) og `amenity=grave_yard` (eldre, gravplassen som hører til en kirke). Begge klassifiseres hit. Egen dempet kant fordi gravplassen er inngjerdet i terrenget, og kanten er det man kjenner den igjen på fra veien. Kirkebygget inne på flata er en egen feature og beholder korset sitt (532).",
+        "fill": {
+          "type": "pattern",
+          "pattern": "kirkegard"
+        },
+        "stroke": {
+          "color": "#6f7d69",
+          "widthMm": 0.14,
+          "linejoin": "round"
+        }
+      },
       "521": {
         "label": "Bygning",
         "fill": {
@@ -879,6 +892,32 @@
           "cy": 1.15,
           "r": 0.13,
           "fill": "#c99f3c"
+        }
+      ]
+    },
+    "kirkegard": {
+      "$comment": "Kirkegård / gravplass (516): dempet grågrønn bunn med et glissent kors-raster. Konvensjonen er norske turkarts og ikke ISOM — orienteringsløp går ikke på gravplass, så ISOM 2017-2 har ingen kode. Rasteret er det som skiller flata fra en park: en flate alene leses som grøntareal, og halvparten av gravplassene i OSM mangler `name`, så navnet kan ikke bære symbolikken alene. Korsene er små og glisne med vilje — de skal leses som en overflate, ikke som enkeltsymboler man teller.",
+      "widthMm": 2.4,
+      "heightMm": 2.4,
+      "background": "#e7ebe0",
+      "elements": [
+        {
+          "type": "line",
+          "x1": 1.2,
+          "y1": 0.75,
+          "x2": 1.2,
+          "y2": 1.65,
+          "stroke": "#6f7d69",
+          "widthMm": 0.1
+        },
+        {
+          "type": "line",
+          "x1": 0.9,
+          "y1": 1.05,
+          "x2": 1.5,
+          "y2": 1.05,
+          "stroke": "#6f7d69",
+          "widthMm": 0.1
         }
       ]
     }
@@ -1784,6 +1823,11 @@
             "dash": [0.06, 0.2]
           }
         },
+        "516": {
+          "stroke": {
+            "color": "#5f7a58"
+          }
+        },
         "520": {
           "stroke": {
             "color": "#2f7d32"
@@ -1864,6 +1908,10 @@
         "myr-utrygg": {
           "stroke": "#3f93c0",
           "fill": "#e8f2f8"
+        },
+        "kirkegard": {
+          "stroke": "#5f7a58",
+          "fill": "#e9eddf"
         }
       },
       "artMode": false,
@@ -2071,6 +2119,11 @@
             "dash": [0.06, 0.2]
           }
         },
+        "516": {
+          "stroke": {
+            "color": "#78806f"
+          }
+        },
         "520": {
           "stroke": {
             "color": "#5f8f62"
@@ -2151,6 +2204,10 @@
         "myr-utrygg": {
           "stroke": "#2f83ad",
           "fill": "#eaf3f8"
+        },
+        "kirkegard": {
+          "stroke": "#78806f",
+          "fill": "#e3e6da"
         }
       },
       "artMode": false,
@@ -2358,6 +2415,11 @@
             "dash": [0.06, 0.2]
           }
         },
+        "516": {
+          "stroke": {
+            "color": "#4a4a44"
+          }
+        },
         "520": {
           "stroke": {
             "color": "#2f6d32"
@@ -2438,6 +2500,10 @@
         "myr-utrygg": {
           "stroke": "#3a7fa3",
           "fill": "#eef6fa"
+        },
+        "kirkegard": {
+          "stroke": "#4a4a44",
+          "fill": "#eeeeea"
         }
       },
       "artMode": false,
@@ -2698,6 +2764,11 @@
             "color": "#14181c"
           }
         },
+        "516": {
+          "stroke": {
+            "color": "#89997f"
+          }
+        },
         "520": {
           "fill": {
             "color": "rgba(85, 176, 67, 0.22)"
@@ -2812,6 +2883,10 @@
         "myr-utrygg": {
           "stroke": "#5a93b3",
           "fill": "#1b3040"
+        },
+        "kirkegard": {
+          "stroke": "#89997f",
+          "fill": "#2a3128"
         }
       }
     },
@@ -3064,6 +3139,11 @@
             "color": "#f4e7ce"
           }
         },
+        "516": {
+          "stroke": {
+            "color": "#5c584f"
+          }
+        },
         "520": {
           "fill": {
             "color": "rgba(102, 99, 92, 0.22)"
@@ -3176,6 +3256,10 @@
         },
         "myr-utrygg": {
           "stroke": "#098b83"
+        },
+        "kirkegard": {
+          "stroke": "#5c584f",
+          "fill": "#e3ddd2"
         }
       }
     },
@@ -3428,6 +3512,11 @@
             "color": "#16203c"
           }
         },
+        "516": {
+          "stroke": {
+            "color": "#9b9ea6"
+          }
+        },
         "520": {
           "fill": {
             "color": "rgba(155, 158, 166, 0.2)"
@@ -3540,6 +3629,10 @@
         },
         "myr-utrygg": {
           "stroke": "#3b7180"
+        },
+        "kirkegard": {
+          "stroke": "#9b9ea6",
+          "fill": "#232a3f"
         }
       }
     },
@@ -3792,6 +3885,11 @@
             "color": "#0c2a2e"
           }
         },
+        "516": {
+          "stroke": {
+            "color": "#96a1a2"
+          }
+        },
         "520": {
           "fill": {
             "color": "rgba(150, 161, 162, 0.2)"
@@ -3904,6 +4002,10 @@
         },
         "myr-utrygg": {
           "stroke": "#416f85"
+        },
+        "kirkegard": {
+          "stroke": "#96a1a2",
+          "fill": "#16302f"
         }
       }
     },
@@ -4156,6 +4258,11 @@
             "color": "#39210e"
           }
         },
+        "516": {
+          "stroke": {
+            "color": "#a49d97"
+          }
+        },
         "520": {
           "fill": {
             "color": "rgba(164, 157, 151, 0.2)"
@@ -4268,6 +4375,10 @@
         },
         "myr-utrygg": {
           "stroke": "#3a746d"
+        },
+        "kirkegard": {
+          "stroke": "#a49d97",
+          "fill": "#3f2c1b"
         }
       }
     },
@@ -4520,6 +4631,11 @@
             "color": "#142a18"
           }
         },
+        "516": {
+          "stroke": {
+            "color": "#9aa19a"
+          }
+        },
         "520": {
           "fill": {
             "color": "rgba(154, 161, 154, 0.2)"
@@ -4632,6 +4748,10 @@
         },
         "myr-utrygg": {
           "stroke": "#387474"
+        },
+        "kirkegard": {
+          "stroke": "#9aa19a",
+          "fill": "#1d3320"
         }
       }
     },
@@ -4884,6 +5004,11 @@
             "color": "#0d0520"
           }
         },
+        "516": {
+          "stroke": {
+            "color": "#3a3941"
+          }
+        },
         "520": {
           "fill": {
             "color": "rgba(58, 57, 65, 0.28)"
@@ -4996,6 +5121,10 @@
         },
         "myr-utrygg": {
           "stroke": "#2b3d50"
+        },
+        "kirkegard": {
+          "stroke": "#3a3941",
+          "fill": "#16102a"
         }
       }
     }

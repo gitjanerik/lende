@@ -131,6 +131,10 @@ export function buildOverpassQuery(bbox, { timeoutS = 90, includeBuildings = tru
   node["natural"="glacier"]["name"];
 ${includeBuildings ? '  way["building"];' : ''}
   way["leisure"~"^(park|pitch|playground|stadium|sports_centre|track|horse_racing)$"];
+  way["landuse"="cemetery"];
+  way["amenity"="grave_yard"];
+  relation["landuse"="cemetery"];
+  relation["amenity"="grave_yard"];
   way["aeroway"~"^(aerodrome|apron|helipad)$"];
   relation["aeroway"="aerodrome"];
   way["landuse"="recreation_ground"];
@@ -646,7 +650,9 @@ function unionByName(elements, project) {
 // 513 (idrettsanlegg: stadion/idrettsbane/travbane/hoppbakke/arena) rendres
 // samme sted — et bunn-areal med anleggets «baneform» som stier/konturer/
 // veier legger seg lesbart oppå. Eget toggle-lag («Idrettsanlegg»).
-const GROUND_CODES = ['401', '403', '404', '406', '407', '408', '409', '410', '210', '512', '513', '514']
+// 516 (kirkegård/gravplass) rendres i samme bunn-lag: den er en areal-feature
+// som vegetasjon, og stier, veier og konturer skal legge seg lesbart oppå.
+const GROUND_CODES = ['401', '403', '404', '406', '407', '408', '409', '410', '210', '512', '513', '514', '516']
 // Vann-stack: dybdeareal (Sjøkart 307, diskrete blå-bånd pr dybde) først,
 // så myr-pattern, så ISOM 303/301/302 (mer mettete blå overstyrer for navn-
 // gitte vann), så bekker.
@@ -759,7 +765,7 @@ export function clusterLandingssteder(placed, minSepM = 40) {
   return placed.filter((q, i) => q.code !== '550' || keep.has(i))
 }
 
-const POLYGON_CODES = new Set(['001', '401', '403', '404', '406', '407', '408', '409', '410', '210', '301', '302', '303', '307', '308', '309', '512', '513', '514', '520', '521', '522', '551', '552', '556'])
+const POLYGON_CODES = new Set(['001', '401', '403', '404', '406', '407', '408', '409', '410', '210', '301', '302', '303', '307', '308', '309', '512', '513', '514', '516', '520', '521', '522', '551', '552', '556'])
 const LINE_CODES = new Set(['561', '304', '305', '501', '502', '503', '504', '505', '506', '507', '510', '511', '515', '525', '528', '201', '203', '101', '102', '103', '104'])
 
 /**
@@ -975,6 +981,12 @@ export function buildSvg(elements, bbox, options = {}) {
     myr:     { simplifyM: 2.5 * simpScale, minAreaM2: 150 * areaScale },
     vann:    { simplifyM: 2.0 * simpScale, minAreaM2: 50 * areaScale },
     aapen:   { simplifyM: VEG_SIMPLIFY_M, minAreaM2: 300 * areaScale },
+    // Gravplass: lavere areal-terskel enn vegetasjon. En gravplass ved en
+    // bygdekirke er ofte 1–3 dekar, og den er et landemerke nettopp der det
+    // er få andre — å filtrere den bort på størrelse ville tatt den der den
+    // betyr mest. Forenklingen er mild fordi kanten er et gjerde, ikke en
+    // vegetasjonsgrense: rette linjer og skarpe hjørner.
+    kirkegard: { simplifyM: 1.5 * simpScale, minAreaM2: 150 * areaScale },
     // Naturreservat: maxAreaM2 = 200 km² er forsvar mot OSM-mistags. Norges
     // største naturreservat (Mølen) er ~7 km²; største landskapsvernområde
     // (Trillemarka-Rollagsfjell) er 147 km². 200 km² catcher alle ekte
@@ -3332,6 +3344,7 @@ function categoryFor(code) {
     case '512':                                  return 'slalombakke'
     case '513':                                  return 'idrettsanlegg'
     case '514':                                  return 'flyplass'
+    case '516':                                  return 'kirkegard'
     case '515':                                  return 'tog'
     case '201': case '203':                     return 'stupkant'
     case '210': case '213':
