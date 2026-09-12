@@ -22,7 +22,7 @@ describe('Sjøkart dybdeareal (307) klippes ikke lenger bort over elvekanaler', 
       tags: { sjokart: 'dybdeareal', minDybde: '2', maxDybde: '5' },
       geometry: ll([[59.905, 10.765], [59.915, 10.765], [59.915, 10.775], [59.905, 10.775], [59.905, 10.765]]),
     }
-    const { svg } = buildSvg([n50Sea, depth], bbox, { useReal: false })
+    const { svg } = buildSvg([n50Sea, depth], bbox)
     const m = svg.match(/<g data-layer="vann" data-iso="307">([\s\S]*?)<\/g>/)
     expect(m).toBeTruthy()
     expect(/<path/.test(m[1])).toBe(true)
@@ -38,7 +38,7 @@ describe('Sjøkart dybdeareal (307) klippes ikke lenger bort over elvekanaler', 
                      properties: { minimumsdybde: 2, maksimumsdybde: 5 } }],
     })
     const big = { south: 58.9, north: 59.2, west: 9.9, east: 10.2 }
-    const { svg } = buildSvg(els, big, { useReal: false })
+    const { svg } = buildSvg(els, big)
     const m = svg.match(/<g data-layer="vann" data-iso="307">([\s\S]*?)<\/g>/)
     expect(m).toBeTruthy()
     // To subpaths (outer + hull) = to «M…»-kommandoer i samme path.

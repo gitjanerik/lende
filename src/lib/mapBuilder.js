@@ -19,7 +19,7 @@ import {
   getIsomDef,
   isomCatalog,
 } from './symbolizer.js'
-import { buildContours, detectCliffs, detectKnauser, detectSummits } from './dem.js'
+import { buildContours, detectCliffs, detectSummits } from './dem.js'
 import { downsampleDem } from './demSampling.js'
 import { buildSeaFromDem, buildSeaShallowBands } from './seaFromDem.js'
 import { depthBandClass } from './sjokartFetcher.js'
@@ -306,25 +306,12 @@ export function viewportAspect() {
 // utskrift»-valget i picker-en.
 export const PRINT_ASPECT = Math.SQRT2
 
-// Auto-kart-dimensjoner i A-format. I stedet for å strekke N/S til hele skjerm-
-// formatet (~1:2.2 på portrett-mobil → smalt, lite slingringsrom øst/vest)
-// BEHOLDER vi den skjerm-utledede HØYDEN og utvider bredden til A-format. Det
-// gir «litt ekstra venstre/høyre» (man kan dra utover uten å zoome først) og et
-// print-klart utsnitt. Returnerer { halfKm, aspect } klart til buildMapFromCenter.
-//   høyde = 2·halfKm·viewportAspect()   (uendret fra før)
-//   bredde = høyde / √2                 (A-format)
-export function autoMapAFormat(halfKm) {
-  const heightKm = 2 * halfKm * viewportAspect()
-  const widthKm = heightKm / PRINT_ASPECT
-  return { halfKm: widthKm / 2, aspect: PRINT_ASPECT }
-}
-
 // Auto-kart-dimensjoner i kvadrat (default for forsidens søk/GPS-flyt, v11.0.32).
-// Vi BEHOLDER den skjerm-utledede høyden (samme som autoMapAFormat) og utvider
+// Vi BEHOLDER den skjerm-utledede høyden og utvider
 // bredden til den matcher høyden — så utsnittet blir kvadratisk i stedet for et
 // smalt A-format-portrett. Returnerer { halfKm, aspect } klart til
 // buildMapFromCenter.
-//   høyde = 2·halfKm·viewportAspect()   (uendret fra A-format)
+//   høyde = 2·halfKm·viewportAspect()   (uendret fra skjermformatet)
 //   bredde = høyde                      (kvadrat ⇒ aspect = 1)
 export function autoMapSquare(halfKm) {
   const heightKm = 2 * halfKm * viewportAspect()
@@ -786,7 +773,6 @@ const LINE_CODES = new Set(['561', '304', '305', '501', '502', '503', '504', '50
  * @param {boolean} [options.printSize=true]
  * @param {Object} [options.dem]               Pre-prosessert DEM (valgfritt)
  * @param {number} [options.contourIntervalM=5]
- * @param {boolean} [options.includeCliffs=true]
  * @returns {{ svg: string, counts: object, meta: object }}
  */
 export function buildSvg(elements, bbox, options = {}) {
@@ -795,10 +781,6 @@ export function buildSvg(elements, bbox, options = {}) {
     printSize = true,
     dem = null,
     contourIntervalM = 5,
-    includeCliffs = true,
-    includeKnauser = true,
-    includeBuildingMass = true,    // ISOM 522 tett-bebyggelse (tung union)
-    skipContoursIfSynthetic = false,
     skipDemSea = false,
     utmBbox = null,                // authoritativ UTM-extent fra kalleren (se under)
     coastal = null,                // true=kyst (ekte sjø), false=innland, null=ukjent.
@@ -857,8 +839,7 @@ export function buildSvg(elements, bbox, options = {}) {
   }
 
   // Lett timing-instrumentering: måler de tunge stegene og returneres som
-  // `timings` (logges av createMapFlow). includeCliffs/includeBuildingMass = false
-  // (progressiv fase-1) hopper over de to dyreste CPU-lagene.
+  // `timings` (logges av createMapFlow).
   const timings = {}
   const _now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
   const _time = (label, fn) => {
@@ -868,11 +849,11 @@ export function buildSvg(elements, bbox, options = {}) {
     return r
   }
 
-  // Hvis DEM er syntetisk og bruker har bedt om at vi skal hoppe over
-  // konturer i det tilfellet, bruk DEM kun til ingenting (eller faktisk
-  // dropp den helt slik at hopp-igjennom-koden ikke prøver å bygge konturer)
+  // Et syntetisk DEM er oppdiktet terreng — konturer fra det ville vært et kart
+  // som ser ekte ut og er usant. Dropp DEM-et helt, så ingen DEM-avledet kode
+  // under prøver å bygge noe av det.
   const isSyntheticDEM = dem?.source?.startsWith('synthetic')
-  const usableDem = (skipContoursIfSynthetic && isSyntheticDEM) ? null : dem
+  const usableDem = isSyntheticDEM ? null : dem
 
   // UTM-extent. Foretrekk en authoritativ utmBbox fra kalleren (createMapFlow
   // sender sin snappede bboks så viewBox + DEM-extent er bit-eksakt like, og
@@ -1126,7 +1107,7 @@ export function buildSvg(elements, bbox, options = {}) {
   // 'bygning'). Tidligere v8.9.27 forsøk på å fjerne urbanMass helt
   // ga uakseptabel ytelse i bymiljø-kart.
   let urbanMassMultiPoly = []
-  if (includeBuildingMass && buckets['521'].length >= 5) {
+  if (buckets['521'].length >= 5) {
     const buildingsXY = buckets['521']
       .filter(el => el.geometry && el.geometry.length >= 3)
       .map(el => ({
@@ -1160,31 +1141,15 @@ export function buildSvg(elements, bbox, options = {}) {
     }
   }
 
-  // ── DEM-deriverte features (konturer, knauser, stupkanter, sjø) ──────
+  // ── DEM-deriverte features (konturer, stupkanter, sjø) ──────────────
   let demFeatures = { contours: { features: [] }, cliffs: [], equidistanceM: null }
   let demSeaPolygons = []
   let demSeaBands = []
   let demSummits = []
   if (usableDem) {
-    // Lett gaussisk rutenett-glatting KUN på fine rutenett (2 m fra fin-
-    // oppgraderingen i createMapFlow): nativt 1 m NHM_DTM har mikro-relieff som
-    // ellers lager bølgete konturer på slake partier. ~1,5× cellestørrelse er
-    // et lett pass. Grovere rutenett (≥ 5 m, bl.a. headless/Vardåsen) er alt
-    // glatte nok → 0 (av) ⇒ byte-identisk med før.
-    const demResM = Math.abs(usableDem.transform?.pixelWidth || usableDem.resolution || contourIntervalM)
-    const contourSmoothingM = demResM <= 3.5 ? demResM * 1.5 : 0
-    const c = _time('contours', () => buildContours(usableDem, contourIntervalM, 5, { smoothingM: contourSmoothingM }))
-    const cl = includeCliffs ? _time('cliffs', () => detectCliffs(usableDem, 45, 10)) : []
-    // v9.1.17 — knauser tilbake som ÉN merged vektor-<path> (ISOM 213). Etter
-    // raster-eksperimentet (v9.1.7–9.1.16, blurry «vorter» + mobil-GPU-kost):
-    // vektor er 1 DOM-node, knivskarp ved enhver zoom, og solid strek = like
-    // billig å rastere som høydekurvene (ingen dash → ingen gest-lag). TPI-
-    // terskel 2.5m gir et fornuftig antall markante knauser.
-    // v9.1.18 — knaus vises KUN ved 5 m ekvidistanse (ISOM-detaljnivå). På
-    // grovere ekvidistanse (10/20/25/50/100 m) er kartet oversiktspreget og
-    // knaus-detalj hører ikke hjemme.
-    const k = (includeKnauser && contourIntervalM === 5) ? _time('knauser', () => detectKnauser(usableDem, 5, 2.5)) : []
-    demFeatures = { contours: c, cliffs: cl, knauser: k, equidistanceM: contourIntervalM }
+    const c = _time('contours', () => buildContours(usableDem, contourIntervalM, 5))
+    const cl = _time('cliffs', () => detectCliffs(usableDem, 45, 10))
+    demFeatures = { contours: c, cliffs: cl, equidistanceM: contourIntervalM }
     // Ekte topper (lokale høyde-maksima) for «topp»-søket. Brukes kun når kartet
     // ikke har OSM-toppmarkører; emitteres som skjult søkbart lag uansett.
     // Topp-deteksjon på et ~10 m-nedskalert DEM. detectSummits' vindu er i METER
@@ -1856,7 +1821,7 @@ export function buildSvg(elements, bbox, options = {}) {
   }
 
   // ── Vann skjuler terreng-detalj via PAINTER'S ORDER, ikke en <mask> ──
-  // Tidligere ble konturer/stupkanter/knauser/vegetasjon malt OPPÅ vann og så
+  // Tidligere ble konturer/stupkanter/vegetasjon malt OPPÅ vann og så
   // skjult av en svart <mask id="land-mask"> = to representasjoner av vann (blå
   // fyll + svart maske) som måtte stemme overens. Enhver kilde masken bommet på,
   // eller evenodd-kansellering ved overlappende kilder, lakk konturer ut over
@@ -1867,7 +1832,7 @@ export function buildSvg(elements, bbox, options = {}) {
   // malt to ganger). Konturer over MYR (308/309, mønster) skinner gjennom, som
   // ISOM tilsier. (v9.3.34 — erstatter land-mask-lappeteppet.)
 
-  // ── Bygg kontur-, knaus- og cliff-lag fra DEM-features ───────────────
+  // ── Bygg kontur- og cliff-lag fra DEM-features ───────────────────────
   // DEM-transformen (demFetcher / dem.js#gridToWorld) gir world-koord der
   // row=0 (GeoTIFF øverst = NORD i UTM-bbox) maps til y=0. Det er allerede
   // samme konvensjon som OSM-`project` (nord=y=0). Identitet er korrekt;
@@ -2271,36 +2236,6 @@ export function buildSvg(elements, bbox, options = {}) {
       x: cent.x, y: cent.y, name, isBuilding, isNatRes, areaM2,
     })
   }
-
-  // v9.1.17 — knaus (ISOM 213) som ÉN merged vektor-<path>. Katalog-symbolet
-  // er en liten halvmåne «M-0.6 0.4 A0.6 0.4 0 0 0 0.6 0.4» i symbol-viewBox
-  // «-1 -1 2 2», vist i scaleMm=1.2mm. viewBox er i meter, og 1 mm = scaleDenom/
-  // 1000 enheter, så 1 symbol-enhet = (1.2/2)·(scaleDenom/1000) viewBox-enheter.
-  // Vi stamper halvmånen inn pr knaus-senter — 1 node, knivskarp, solid strek.
-  const symUnit = (1.2 / 2) * (scaleDenom / 1000)   // viewBox-enheter pr symbol-enhet
-  const krx = 0.6 * symUnit
-  const kry = 0.4 * symUnit
-  const kdy = 0.4 * symUnit                          // halvmånens y-offset (0.4 i symbolet)
-  // v10.2.9: knaus-halvmånene buckets per grid-celle (de er 1–2 m hver, så
-  // celle-tildeling er triviell) — én path per celle med data-bbox i stedet
-  // for én kart-dekkende merged path.
-  const knausBuckets = new Map()  // cellKey → { ds: [], bbox }
-  for (const k of (demFeatures.knauser ?? [])) {
-    const [x, y] = demProject([k.x, k.y])
-    const d = `M${fmt(x - krx)} ${fmt(y + kdy)}A${fmt(krx)} ${fmt(kry)} 0 0 0 ${fmt(x + krx)} ${fmt(y + kdy)}`
-    const bbox = { minX: x - krx, minY: y - kry + kdy, maxX: x + krx, maxY: y + kry + kdy }
-    const key = cellKeyFor(bbox)
-    let b = knausBuckets.get(key)
-    if (!b) { b = { ds: [], bbox: null }; knausBuckets.set(key, b) }
-    b.ds.push(d)
-    b.bbox = unionBbox(b.bbox, bbox)
-  }
-  // Knauser maskeres også av vann — DEM-deriverte punkt-symboler skal ikke
-  // ligge oppå en innsjø (samme begrunnelse som stupkanter/konturer).
-  const knauserLayerSvg = knausBuckets.size
-    ? `  <g data-layer="stein" data-iso="213">${[...knausBuckets.values()].map(b =>
-        `<path d="${b.ds.join('')}" fill="none" stroke="#7f4f24" stroke-width="0.12mm"${bboxAttr(b.bbox, fmt)}/>`).join('')}</g>\n`
-    : ''
 
   // Hule (ISOM 215) og gruve (ISOM 216): point-symboler. Sentrert ±0.7mm
   // = 1.4mm bredde (matcher scaleMm i katalogen).
@@ -3202,14 +3137,14 @@ export function buildSvg(elements, bbox, options = {}) {
   // Trygt ved konstruksjon: en def beholdes kun hvis id-token-en bokstavelig
   // finnes i kilden (CSS for patterns, body for symboler).
   // Painter's order (v9.3.34): terreng-detalj (vegetasjon → øy-overlay →
-  // konturer → knauser → stupkanter) males FØRST, deretter det OPAKE vann-
+  // konturer → stupkanter) males FØRST, deretter det OPAKE vann-
   // fyllet (demSea + vann) OPPÅ. Vann-fyllet dekker dermed alt terreng som
   // strekker seg ut over vann — ingen <mask> trengs. Øy-overlay (001, opak krem)
   // ligger UNDER konturene så øyer beholder høydekurvene sine; vann ligger over
   // begge så feilplassert terreng/vann-overlapp dekkes. Planimetri som hører
   // til OVER vann (vann-labels, verneområde, veier/broer, bygg, marine-POI,
   // tekst) males etter vannet, som før.
-  const body = `${groundLayers}${urbanMassLayerSvg}${landOverlayLayers}${strandLayers}${contourLayerSvg}${summitLayerSvg}${knauserLayerSvg}${cliffsLayerSvg}${demSeaLayerSvg}${waterLayers}${lakeLabelLayer}${waterwayLabelLayer}${protectedLayers}${roadLayers}${broLayerSvg}${bomLayerSvg}${upperLayers}${huleLayerSvg}${gruveLayerSvg}${kirkeLayerSvg}${parkeringLayerSvg}${holdeplassLayerSvg}${marineLayerSvg}${kulturminneLayerSvg}${detailLayerSvg}${placeholderLayers}${roadRefLayer}${labelLayer}${seaNamesLayer}${omradenavnLayer}${stedsnavnLayer}`
+  const body = `${groundLayers}${urbanMassLayerSvg}${landOverlayLayers}${strandLayers}${contourLayerSvg}${summitLayerSvg}${cliffsLayerSvg}${demSeaLayerSvg}${waterLayers}${lakeLabelLayer}${waterwayLabelLayer}${protectedLayers}${roadLayers}${broLayerSvg}${bomLayerSvg}${upperLayers}${huleLayerSvg}${gruveLayerSvg}${kirkeLayerSvg}${parkeringLayerSvg}${holdeplassLayerSvg}${marineLayerSvg}${kulturminneLayerSvg}${detailLayerSvg}${placeholderLayers}${roadRefLayer}${labelLayer}${seaNamesLayer}${omradenavnLayer}${stedsnavnLayer}`
 
   const usedCodes = new Set()
   for (const m of body.matchAll(/data-iso="([^"]+)"/g)) usedCodes.add(m[1])

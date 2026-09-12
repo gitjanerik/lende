@@ -8,7 +8,6 @@
 // Fiksen: velg ÉN autoritativ sjø-geometri, og klipp + valider alt annet
 // marint mot den:
 //
-//   DepthArea ∩ Land = 0     (dybdeareal klippes til sjø)
 //   Rock      ∩ Land = 0     (skjær på land droppes)
 //   Marker    ∈ Water        (sjømerke/fyr beholdes kun i vann)
 //   Island    ∩ Sea  = 0     (øyer er hull i sjøen, ikke maling oppå)
@@ -36,23 +35,6 @@ export function ringSignedArea(ring) {
     a += x1 * y2 - x2 * y1
   }
   return a / 2
-}
-
-/** Areal-vektet sentroid av en ring. Returnerer null for degenererte ringer. */
-export function ringCentroid(ring) {
-  if (!ring || ring.length < 3) return null
-  let cx = 0, cy = 0, area = 0
-  for (let i = 0, n = ring.length; i < n; i++) {
-    const [x1, y1] = ring[i]
-    const [x2, y2] = ring[(i + 1) % n]
-    const cross = x1 * y2 - x2 * y1
-    cx += (x1 + x2) * cross
-    cy += (y1 + y2) * cross
-    area += cross
-  }
-  area /= 2
-  if (Math.abs(area) < 1e-9) return null
-  return { x: cx / (6 * area), y: cy / (6 * area) }
 }
 
 /** Sørg for at en ring er lukket (siste punkt == første). Muterer ikke
@@ -156,31 +138,6 @@ export function unionPolygonsToSea(polygons) {
 }
 
 /**
- * Klipp et polygon (sett ringer) til sjø-geometrien (intersection).
- * Implementerer `DepthArea ∩ Land = 0`: dybdeareal som flyter forbi
- * kysten kappes ved strandlinjen.
- *
- * @param {Array<Array<[number,number]>>} polygonRings  [outer, ...holes]
- * @param {Array} seaMP  autoritativ sjø-MultiPolygon
- * @returns {Array} MultiPolygon (klippet). Tom hvis ingen overlapp.
- */
-export function clipPolygonToSea(polygonRings, seaMP) {
-  if (!seaMP || seaMP.length === 0) return []
-  const rings = (polygonRings ?? [])
-    .filter(r => r && r.length >= 3)
-    .map(r => closeRing(r))
-    .filter(r => r.length >= 4)
-  if (rings.length === 0) return []
-  try {
-    return polygonClipping.intersection([rings], seaMP)
-  } catch (e) {
-    console.warn(`[marineTopology] clipPolygonToSea feilet (${e?.message ?? e})`)
-    // Konservativ degradering: behold ukklippet polygon framfor å miste det
-    return [rings]
-  }
-}
-
-/**
  * Klassifiser om en marin punkt-feature skal beholdes gitt sjø-geometrien.
  *
  *   requireWater=true  (skjær, sjømerke, fyr, dybdetall): behold kun i sjø
@@ -199,22 +156,3 @@ export function pointFeatureKept(x, y, seaMP, opts = {}) {
   return pointInMultiPolygon(x, y, seaMP)
 }
 
-/**
- * Render en MultiPolygon til SVG path-d. `fmt` formaterer hvert tall
- * (default: 1 desimal). Hver ring blir et eget M…Z-subpath; bruk
- * fill-rule="evenodd" så hull virker.
- */
-export function multiPolygonToPathD(mp, fmt = (n) => Number(n.toFixed(1))) {
-  if (!Array.isArray(mp)) return ''
-  const parts = []
-  for (const polygon of mp) {
-    for (const ring of polygon) {
-      if (!ring || ring.length < 3) continue
-      let d = `M${fmt(ring[0][0])},${fmt(ring[0][1])}`
-      for (let i = 1; i < ring.length; i++) d += `L${fmt(ring[i][0])},${fmt(ring[i][1])}`
-      d += 'Z'
-      parts.push(d)
-    }
-  }
-  return parts.join(' ')
-}

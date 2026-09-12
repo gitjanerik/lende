@@ -44,18 +44,6 @@ const WCS_ENDPOINTS = [
   },
 ]
 
-const KNOWN_AREAS = {
-  vardasen: {
-    description: 'Vardåsen i Asker (1 topp 349 m)',
-    centerLat: 59.813746, centerLon: 10.414616,
-    baseElevM: 50,
-    peaks: [
-      { name: 'Vardåsen', xRel: 0.50, yRel: 0.50, h: 280, sigmaM: 800 },
-      { name: 'Bondivannet', xRel: 0.30, yRel: 0.65, h: -40, sigmaM: 600 },
-    ],
-  },
-}
-
 /**
  * Klient-timeout for én WCS GetCoverage, skalert med forespurt pikselantall.
  * 15 s grunnlag + 20 s per megapiksel, clampet til [15 s, 60 s]. Uten denne
@@ -141,39 +129,29 @@ function hedgedWCSDtm(utmBbox, resolutionM, endpoints, { signal } = {}) {
  * Bruker-avbrudd (signal) kastes videre i stedet for å degradere til syntetisk.
  * @returns {Promise<DEM & { source: string }>}
  */
-export async function fetchDEM(bbox, utmBbox, options = {}) {
-  const { resolutionM = 10, knownArea, useReal = true, signal } = options
+export async function fetchDEM(utmBbox, options = {}) {
+  const { resolutionM = 10, signal } = options
 
-  if (useReal) {
-    try {
-      const dem = await hedgedWCSDtm(utmBbox, resolutionM, WCS_ENDPOINTS, { signal })
-      console.log(`[DEM] ✓ Hentet ${dem.cols}×${dem.rows} celler @ ${dem.resolution.toFixed(1)}m fra ${dem.source}`)
-      return dem
-    } catch (e) {
-      if (signal?.aborted) throw e
-      console.warn(`[DEM] ✗ DTM-endpoints feilet: ${e.message}`)
-    }
-    console.warn('[DEM] Alle WCS-endpoints feilet — fallback til syntetisk')
+  try {
+    const dem = await hedgedWCSDtm(utmBbox, resolutionM, WCS_ENDPOINTS, { signal })
+    console.log(`[DEM] ✓ Hentet ${dem.cols}×${dem.rows} celler @ ${dem.resolution.toFixed(1)}m fra ${dem.source}`)
+    return dem
+  } catch (e) {
+    if (signal?.aborted) throw e
+    console.warn(`[DEM] ✗ DTM-endpoints feilet: ${e.message}`)
   }
+  console.warn('[DEM] Alle WCS-endpoints feilet — fallback til syntetisk')
 
-  const dem = buildSyntheticDEM(utmBbox, resolutionM, knownArea)
-  return { ...dem, source: `synthetic (${knownArea ?? 'generic'})` }
+  const dem = buildSyntheticDEM(utmBbox, resolutionM)
+  return { ...dem, source: 'synthetic (generic)' }
 }
 
-function buildSyntheticDEM(utmBbox, resolutionM, knownArea) {
+function buildSyntheticDEM(utmBbox, resolutionM) {
   const widthM = utmBbox.maxE - utmBbox.minE
   const heightM = utmBbox.maxN - utmBbox.minN
   const transform = {
     originX: 0, originY: 0,
     pixelWidth: resolutionM, pixelHeight: resolutionM,
-  }
-  if (knownArea && KNOWN_AREAS[knownArea]) {
-    const area = KNOWN_AREAS[knownArea]
-    const peaks = area.peaks.map(p => ({
-      x: p.xRel * widthM, y: p.yRel * heightM,
-      h: p.h, sigma: p.sigmaM,
-    }))
-    return syntheticDEM(widthM, heightM, transform, peaks, area.baseElevM)
   }
   return syntheticDEM(widthM, heightM, transform, [
     { x: widthM / 2, y: heightM / 2, h: 100, sigma: Math.min(widthM, heightM) / 3 },

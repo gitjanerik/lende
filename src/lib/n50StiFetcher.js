@@ -166,8 +166,3 @@ export function n50StiElementerFra(linjer, alleredeTegnet, status = null) {
   return elementer
 }
 
-/** Hent + tynn i én operasjon (MCP/headless og tester). */
-export async function fetchN50Sti(bbox, opts = {}) {
-  const linjer = await fetchN50StiLinjer(bbox, opts)
-  return n50StiElementerFra(linjer, opts.alleredeTegnet)
-}

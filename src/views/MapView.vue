@@ -677,7 +677,7 @@ async function ensureDem() {
   try {
     const m = meta.value
     const utmBbox = { minE: m.minE, maxE: m.maxE, minN: m.minN, maxN: m.maxN }
-    const dem = await fetchDEM(m.bbox, utmBbox, { resolutionM: 10, useReal: true })
+    const dem = await fetchDEM(utmBbox, { resolutionM: 10 })
     if (dem && !dem.source?.startsWith('synthetic')) {
       storedDem.value = dem
     }

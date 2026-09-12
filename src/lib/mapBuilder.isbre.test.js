@@ -17,7 +17,7 @@ const skog = (tags = {}) => ({
   type: 'way', id: 'skog', geometry: ring(61.604, 6.904, 61.608, 6.914),
   tags: { natural: 'wood', ...tags },
 })
-const bygg = (elements) => buildSvg(elements, BBOX, { skipContoursIfSynthetic: true })
+const bygg = (elements) => buildSvg(elements, BBOX)
 
 describe('isbre — egen kode, eget lag', () => {
   it('natural=glacier klassifiseres til 410 og ikke til vegetasjon', () => {
@@ -135,26 +135,26 @@ describe('gaten spør om DEKNING, ikke om skog', () => {
   }
 
   it('dekning uten ett eneste skogpolygon merker likevel arket', () => {
-    const { svg, counts } = buildSvg([myr], BBOX, { skipContoursIfSynthetic: true, arealDekning: true })
+    const { svg, counts } = buildSvg([myr], BBOX, { arealDekning: true })
     expect(counts['406']).toBe(0)
     expect(svg).toContain('data-areal="skog"')
     expect(svg).toContain('[data-areal~="skog"] { --bg: var(--bg-apen,')
   })
 
   it('et HELT tomt ark med dekning merkes også — bart fjell er et svar', () => {
-    const { svg } = buildSvg([], BBOX, { skipContoursIfSynthetic: true, arealDekning: true })
+    const { svg } = buildSvg([], BBOX, { arealDekning: true })
     expect(svg).toContain('data-areal="skog"')
   })
 
   it('uten dekning står påstanden — offline, utenfor baken, eller gammelt kart', () => {
-    const { svg } = buildSvg([myr], BBOX, { skipContoursIfSynthetic: true, arealDekning: false })
+    const { svg } = buildSvg([myr], BBOX, { arealDekning: false })
     expect(svg).not.toContain('data-areal=')
   })
 
   it('skog på arket merker det selv om flagget ikke er sendt', () => {
     // Reserven for kallere som ikke plumber flagget: finnes det skog, er
     // dekningen uansett bevist.
-    const { svg } = buildSvg([skog({ 'lende:n50areal': 'skog' })], BBOX, { skipContoursIfSynthetic: true })
+    const { svg } = buildSvg([skog({ 'lende:n50areal': 'skog' })], BBOX)
     expect(svg).toContain('data-areal="skog"')
   })
 })

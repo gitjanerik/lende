@@ -67,7 +67,6 @@ async function hentManifest(basePath, hentBytes, signal) {
 // mer i manifest-oppslag enn hele fila veier. Den hentes derfor én gang og
 // filtreres på bbox lokalt.
 let navnLover = null
-export function nullstillNavnCache() { navnLover = null }
 
 async function hentIsbreNavn(basePath, hentBytes, signal) {
   if (!navnLover) {

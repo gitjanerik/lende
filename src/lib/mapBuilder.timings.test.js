@@ -11,17 +11,7 @@ function steepDem() {
 // ~600 m bbox rundt lat 59 (eksakt justering uvesentlig for lag-tilstedeværelse).
 const bbox = { south: 59, north: 59.0054, west: 10, east: 10.0105 }
 
-describe('buildSvg progressiv skip-mekanikk', () => {
-  it('hopper over stupkant-beregning når includeCliffs=false (fase-1)', () => {
-    const dem = steepDem()
-    const full = buildSvg([], bbox, { dem, contourIntervalM: 20, includeCliffs: true })
-    const fast = buildSvg([], bbox, { dem, contourIntervalM: 20, includeCliffs: false })
-
-    // Deterministisk bevis på at den dyre beregningen ble gated bort:
-    expect(typeof full.timings.cliffs).toBe('number')   // kjørte
-    expect(fast.timings.cliffs).toBeUndefined()          // hoppet over
-  })
-
+describe('buildSvg timings', () => {
   it('måler alltid kontur-bygging (timings.contours)', () => {
     const dem = steepDem()
     const { timings } = buildSvg([], bbox, { dem, contourIntervalM: 20 })
@@ -29,10 +19,15 @@ describe('buildSvg progressiv skip-mekanikk', () => {
     expect(timings.contours).toBeGreaterThanOrEqual(0)
   })
 
-  it('includeBuildingMass=false bygger uten feil og uten bymasse-beregning', () => {
+  it('måler stupkant-beregningen på et bratt DEM', () => {
     const dem = steepDem()
-    const { svg, timings } = buildSvg([], bbox, { dem, contourIntervalM: 20, includeBuildingMass: false })
-    expect(typeof svg).toBe('string')
-    expect(timings.buildingMass).toBeUndefined()
+    const { timings } = buildSvg([], bbox, { dem, contourIntervalM: 20 })
+    expect(typeof timings.cliffs).toBe('number')
+  })
+
+  it('dropper DEM-avledede lag når DEM-et er syntetisk fra demFetcher', () => {
+    const dem = { ...steepDem(), source: 'synthetic (generic)' }
+    const { timings } = buildSvg([], bbox, { dem, contourIntervalM: 20 })
+    expect(timings.contours).toBeUndefined()
   })
 })

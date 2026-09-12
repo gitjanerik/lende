@@ -6,7 +6,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { buildCoastProbeQuery, probeCoastline } from './mapBuilder.js'
 import { isOsmWaterSalty } from './symbolizer.js'
-import { coastalTargetResFor, fineDemResFor } from './createMapFlow.js'
+import { coastalTargetResFor } from './createMapFlow.js'
 
 const bbox = { south: 59, north: 59.05, west: 10, east: 10.05 }
 
@@ -95,25 +95,3 @@ describe('coastalTargetResFor — celletak i stedet for bredde-trapp', () => {
   })
 })
 
-describe('fineDemResFor — fin-trapp [2, 5] (Standard = 2 m)', () => {
-  it('typisk 3×3 km, minRes 2 → 2 m', () => {
-    expect(fineDemResFor(1.5, 1, 2)).toBe(2)
-  })
-  it('større kart der 2 m er over taket → 5 m', () => {
-    // 3,5×3,5 km @ 2 m = 3,06M > 2,6M → 5 m.
-    expect(fineDemResFor(1.75, 1, 2)).toBe(5)
-  })
-  it('portrett-aspekt skyver 3 km over 2 m-taket → 5 m', () => {
-    expect(fineDemResFor(1.5, 2, 2)).toBe(5)
-  })
-  it('aldri finere enn minResM', () => {
-    expect(fineDemResFor(0.2, 1, 5)).toBe(5)
-  })
-  it('gigantisk kart over også 5 m-taket → null (behold probe)', () => {
-    expect(fineDemResFor(5, 1, 2)).toBe(null)
-  })
-  it('tåler degenerert halfKm', () => {
-    expect(fineDemResFor(0, 1, 2)).toBe(null)
-    expect(fineDemResFor(-1, 1, 2)).toBe(null)
-  })
-})

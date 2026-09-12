@@ -205,7 +205,7 @@ export async function buildMapHeadless({
     // Headless hoppet over fyllet, så MCP-bygde kart beholdt hullene appen var
     // ferdig med. Gaten er billig og degraderer trygt: ingen hull → ingen
     // flis-henting, feilet henting → DEM uendret.
-    fetchDEM(bbox, utmBbox, { resolutionM, useReal: true })
+    fetchDEM(utmBbox, { resolutionM })
       .then(async (rå) => {
         try {
           const { dem: fylt, replaced } = await fillDemVoidsFromTerrarium(rå, utmBbox)
@@ -271,7 +271,6 @@ export async function buildMapHeadless({
     // beholdt Turkarts skog-påstand mens appens ikke gjorde det — nøyaktig den
     // typen sprik mellom app og headless som vann-stacken brukte månedsvis på.
     arealDekning: n50ArealStatus?.dekning === true,
-    skipContoursIfSynthetic: true,
     detaljNivaa,
     tetthet,
     n50StiStatus,

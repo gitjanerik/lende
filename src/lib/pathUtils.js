@@ -2,7 +2,6 @@
 // hvor som helst vi trenger zoom-aware generalisering.
 //
 // - simplifyDP(points, tol)     Douglas-Peucker
-// - simplifyVW(points, tol)     Visvalingam-Whyatt (areal-basert)
 // - chaikin(points, iters)      Chaikin corner-cutting
 // - smoothCatmullRom(points, t) Catmull-Rom interpolation
 // - polylineLength(points)
@@ -17,41 +16,6 @@ export function simplifyDP(points, toleranceM = 1) {
   if (points.length < 3) return points
   const obj = points.map(([x, y]) => ({ x, y }))
   return simplifyJs(obj, toleranceM, true).map(p => [p.x, p.y])
-}
-
-/**
- * Visvalingam-Whyatt — areal-basert. Bedre for konturer og kyst hvor
- * vi ønsker å bevare visuell kompleksitet.
- */
-export function simplifyVW(points, toleranceArea = 1) {
-  if (points.length < 3) return points
-  const pts = points.map(([x, y], i) => ({ x, y, i, area: Infinity }))
-
-  // Beregn trekant-areal for hver indre punkt
-  for (let i = 1; i < pts.length - 1; i++) {
-    pts[i].area = triangleArea(pts[i - 1], pts[i], pts[i + 1])
-  }
-
-  // Iterativt fjern minste areal-punkt og oppdater naboer
-  while (pts.length > 2) {
-    let minIdx = 1
-    for (let i = 2; i < pts.length - 1; i++) {
-      if (pts[i].area < pts[minIdx].area) minIdx = i
-    }
-    if (pts[minIdx].area > toleranceArea) break
-    pts.splice(minIdx, 1)
-    if (minIdx > 0 && minIdx < pts.length - 1) {
-      pts[minIdx].area = triangleArea(pts[minIdx - 1], pts[minIdx], pts[minIdx + 1])
-    }
-    if (minIdx > 1) {
-      pts[minIdx - 1].area = triangleArea(pts[minIdx - 2], pts[minIdx - 1], pts[minIdx])
-    }
-  }
-  return pts.map(p => [p.x, p.y])
-}
-
-function triangleArea(a, b, c) {
-  return Math.abs((a.x - c.x) * (b.y - a.y) - (a.x - b.x) * (c.y - a.y)) / 2
 }
 
 /**
@@ -164,30 +128,6 @@ export function parsePathSubpaths(d) {
   }
   if (current && current.length) subpaths.push(current)
   return subpaths
-}
-
-/**
- * Generaliser en feature avhengig av zoom: forenkle og evt smoothe.
- * Returnerer transformert kopi.
- */
-export function generalize(geom, zoom = 14, opts = {}) {
-  const tol = opts.toleranceM ?? (zoom >= 14 ? 0.5 : zoom >= 12 ? 2 : 5)
-  const smooth = opts.smooth ?? false
-  const smoothIters = opts.smoothIters ?? 2
-
-  const transformLine = (coords, closed = false) => {
-    let p = simplifyDP(coords, tol)
-    if (smooth && p.length >= 3) p = chaikin(p, smoothIters, closed)
-    return p
-  }
-
-  if (geom.type === 'LineString') {
-    return { ...geom, coordinates: transformLine(geom.coordinates) }
-  }
-  if (geom.type === 'Polygon') {
-    return { ...geom, coordinates: geom.coordinates.map(r => transformLine(r, true)) }
-  }
-  return geom
 }
 
 // v9.1.7: konturer/cliffs er i meter-rom (viewBox). 1 desimal = 0.1 m ≈

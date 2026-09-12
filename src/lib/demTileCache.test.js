@@ -7,7 +7,7 @@ import {
 // fetchDEM mockes som ren syntetisk fallback (ingen nett i test) — brukes av
 // fetchDEMWithCache-testene nederst; de rene grid-funksjonene er upåvirket.
 vi.mock('./demFetcher.js', () => ({
-  fetchDEM: vi.fn(async (_bbox, utmBbox, { resolutionM }) => {
+  fetchDEM: vi.fn(async (utmBbox, { resolutionM }) => {
     const cols = Math.round((utmBbox.maxE - utmBbox.minE) / resolutionM)
     const rows = Math.round((utmBbox.maxN - utmBbox.minN) / resolutionM)
     return {

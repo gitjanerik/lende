@@ -45,7 +45,7 @@ describe('307-dybdefyll via CSS-klasse (v12.0.17)', () => {
       geometry: ll([[59.905, 10.765], [59.915, 10.765], [59.915, 10.775], [59.905, 10.775], [59.905, 10.765]]),
     }
     const marBbox = { south: 59.90, north: 59.92, west: 10.74, east: 10.78 }
-    const out = buildSvg([depth], marBbox, { useReal: false }).svg
+    const out = buildSvg([depth], marBbox).svg
     const m = /<g[^>]*data-iso="307"[^>]*>([\s\S]*?)<\/g>/.exec(out)
     expect(m).toBeTruthy()
     expect(m[1]).toContain('class="dyp-1"')
