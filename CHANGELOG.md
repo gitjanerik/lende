@@ -1,3 +1,13 @@
+## 2026-09-12 — v7.8.0: snarvei-skuffa fikk et tredje nivå — strek og relieff
+
+Snarvei-raden hadde to stillinger: sammenlagt, og utfoldet med «Sorter snarveier» under. Nå har den tre, som infopanelet: et nytt drag ned fra den utfoldede raden avdekker de to knottene man faktisk rører mens man går — strektykkelse og relieff — med en liten pille for skarpt (vektor) mot mjukt (bilde). Etiketten står OVER skyveknappen og verdien på samme linje som den, fordi en etikett ved siden av en slider er det første som brekker ved 200 % tekst.
+
+Dette er en SNARVEI til Kartstil-fana, ikke en andre bolig for den. Strek og relieff flyttet ut av raden i v7.4.0 nettopp fordi kartets uttrykk ikke skal stilles inn to steder, og den beslutningen står: fana eier fortsatt per-element-strek, forklaringene, «angi som standard» og «nullstill». Her står bare de to grov-knottene — og til forskjell fra v7.0.0-pillene er de ikke blandet INN blant funksjonene, de bor bak et eget drag og koster ingen kartflate før man har dratt to ganger. «Sorter snarveier» toner ut med det samme draget som toner panelet inn: den handler om raden, knottene om kartet, og en knapp som blir stående under et panel den ikke hører til leses som en del av det.
+
+Ned åpner ETT nivå, opp minimerer i ett steg — en bevisst asymmetri, og den samme man kjenner fra et hvilket som helst ark man drar fram: å åpne er et valg man tar ett hakk om gangen og ser resultatet av, mens å legge sammen er å bli ferdig, og da skal man ikke måtte dra to ganger for å få kartet tilbake. Regelen er ren og enhetstestet (`draSpenn`), og spennet klemmes MENS fingeren er nede: et langt sveip ned fra sammenlagt stopper på nivå 1 og viser at det stopper der, i stedet for å overraske ved slipp. Relieff-slideren er den ene skyven der «0» må bety AV, og den skriver derfor både det globale trinnet og kartets av/på-bryter — ellers ville den som hadde skrudd relieffet av i fana dratt slideren opp uten å se noe skje.
+
+---
+
 ## 2026-09-12 — v7.7.15: røyktestens ekte kart kom aldri fram til delene
 
 Delingen av røyktesten i v7.7.12 la kart-byggingen i en egen forjobb som kjører `--lagkart` ALENE — ingen `npm run build`, altså ingen `dist/`. Men byggestien i `byggEkteKart` kopierte kartet til `dist/maps/vardasen.svg` uten å lage katalogen først; bare cache-stien gjorde det. Resultatet var `ENOENT` rett etter et vellykket bygg, `har=0`, og alle tre delene som kjørte på demo-kartet med de 22 `krever: 'ektekart'`-sjekkene hoppet over.

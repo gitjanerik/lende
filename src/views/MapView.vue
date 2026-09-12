@@ -2043,6 +2043,30 @@ function onSnarvei(id) { SNARVEI_HANDLING[id]?.() }
 // Løftet over navigasjonssøyla mens raden er åpen — se malen.
 const snarveiApen = ref(false)
 
+// ── Snarvei-radens nivå 2: strek og relieff (v7.8.0) ────────────────────────
+// Raden har fått et tredje dra-nivå med de to knottene man rører mens man går.
+// Den er en SNARVEI til Kartstil-fana og ikke en andre bolig for den: strek er
+// samme globale trinn begge steder, og fana eier fortsatt per-element-strek,
+// «angi som standard» og forklaringene.
+//
+// RELIEFF ER TO BRYTERE OG ÉN SLIDER, og sammenhengen bor HER og ikke i
+// komponenten. Fana har en av/på-bryter (per kart) ved siden av styrke-knotten
+// (global), og det er riktig der: det er to ulike ting som lagres to steder.
+// I raden er det ÉN skyveknapp, og da må «0» bety av — ellers ville en bruker
+// som hadde skrudd relieffet av i fana dratt slideren opp og ikke sett noe
+// skje. Slideren SKRIVER derfor begge: trinnet, og av/på som `trinn > 0`.
+// Temaets auto-av ryddes av samme grunn — en knott man rører er en uttalelse
+// om relieffet, og den skal vinne over et monokromt tema (samme regel som
+// av/på-bryteren i fana har hatt siden v7.4.0).
+const snarveiReliefTrinn = computed(() => (reliefEnabled.value ? reliefStepIndex.value : 0))
+const snarveiReliefProsent = computed(() =>
+  Math.round(RELIEF_STEPS[snarveiReliefTrinn.value] * 100))
+function settSnarveiRelieff(i) {
+  reliefStepIndex.value = i
+  if (i > 0) clearReliefAutoOff()
+  if (reliefEnabled.value !== (i > 0)) reliefEnabled.value = i > 0
+}
+
 // KNOTT-HINTET ER TILBAKE TIL ÉN BOBLE (v7.4.0). Den pekte på pilla den gjaldt
 // så lenge strek og relieff sto i raden; nå kommer alle hint fra knotter i
 // skuffen (strek, relieff, tekststørrelse, font), og bobla står midtstilt under
@@ -2753,6 +2777,14 @@ onUnmounted(() => {
       <div class="flex flex-col items-center gap-1 w-full">
         <SnarveiRad :snarveier="synligeSnarveier"
                     :ui-text-scale="uiTextScale"
+                    :strek-trinn="strokeStepIndex" :strek-trinn-antall="STROKE_STEPS.length"
+                    :strek-skala="strokeScale"
+                    :relief-trinn="snarveiReliefTrinn"
+                    :relief-trinn-antall="RELIEF_STEPS.length"
+                    :relief-prosent="snarveiReliefProsent"
+                    v-model:relief-mode="reliefMode"
+                    @set-strek-trinn="strokeStepIndex = $event"
+                    @set-relief-trinn="settSnarveiRelieff"
                     @velg="onSnarvei" @flytt="onSnarveiFlytt"
                     @tilbakestill="settSnarveiRekkefolge([...STANDARD_REKKEFOLGE])"
                     @apen="snarveiApen = $event" />
