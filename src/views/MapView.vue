@@ -2326,15 +2326,25 @@ const {
 
 
 // Detalj-inset (lupe) — flyttet til useDetailInset; watch-en blir her.
-const { buildDetailInset } = useDetailInset({
+// Bryteren over insetet (v7.8.5) bor HER og ikke i arket: insetet bygges på
+// nytt hver gang skuffa maksimeres, og en tilstand som bodde i komponenten
+// ville vært borte nettopp da. Den nullstilles når arket lukkes — «av» er
+// lesetilstanden, der et loddrett drag over mini-kartet ruller arket.
+const insetGester = ref(false)
+const { buildDetailInset, settInsetGester, tilbakestillInset } = useDetailInset({
   detailInsetRef, svgHostRef, contextMenuPoint, detachedDetailLayers,
   rotation, roadRefUprightDeg, meta, DETAIL_INSET_M,
+  insetGesterPa: () => insetGester.value,
 })
+function settInsetGesterFraArk(pa) {
+  insetGester.value = !!pa
+  settInsetGester(insetGester.value)
+}
 
 // isMaximized er med fordi inset-verten er v-if-gated på maksimert skuffe
 // (unngår dobbelt crosshair-utsnitt) — elementet finnes først da.
 watch([contextMenuOpen, contextMenuPoint, () => contextDrawer.isMaximized.value], async () => {
-  if (!contextMenuOpen.value) return
+  if (!contextMenuOpen.value) { insetGester.value = false; return }
   await nextTick()
   buildDetailInset()
 })
@@ -3459,6 +3469,9 @@ onUnmounted(() => {
       :context-drawer="contextDrawer"
       :set-sheet-el="el => { contextSheetRef = el }"
       :set-inset-el="el => { detailInsetRef = el }"
+      :inset-gester="insetGester"
+      :on-sett-inset-gester="settInsetGesterFraArk"
+      :on-tilbakestill-inset="tilbakestillInset"
       :context-action-state="contextActionState"
       :ui-text-scale="uiTextScale"
       :DETAIL_INSET_M="DETAIL_INSET_M"

@@ -21,6 +21,12 @@ const props = defineProps({
   contextDrawer: { type: Object, required: true },
   setSheetEl: { type: Function, required: true },
   setInsetEl: { type: Function, required: true },
+  // Gest-bryteren over detalj-insetet (v7.8.5). Tilstanden bor i MapView —
+  // insetet bygges på nytt hver gang skuffa maksimeres, og en lokal `ref` her
+  // ville mistet valget nettopp da.
+  insetGester: { type: Boolean, default: false },
+  onSettInsetGester: { type: Function, required: true },
+  onTilbakestillInset: { type: Function, required: true },
   contextActionState: { type: String, default: 'idle' },
   uiTextScale: { type: Number, default: 1 },
   DETAIL_INSET_M: { type: Number, default: 500 },
@@ -126,8 +132,8 @@ function formatDistance(m) {
            Fram til v6.5.77 sto A-knappen og X i SAMME rad som teksten og tok
            ~80 px av en 380 px bred header. Kolonnen bærer `zoom`, så ved 200 %
            er den effektive bredden halvert igjen: koordinatparet brakk etter
-           kommaet, og «ISOM 2017-2-derived · DEM: WCS (flis-cache) · 20 m» ble
-           fire linjer med en tom høyrekant ved siden av. Samme grep som i kart-
+           kommaet, og kart-faktaene under (som siden v7.8.5 står under
+           Detaljer) ble fire linjer med en tom høyrekant ved siden av. Samme grep som i kart-
            og rutelista (v6.5.47/6.5.49): teksten får hele bredden, og det man
            kan TRYKKE på ligger på en egen rad.
            Raden koster ingen høyde — «Punkt»-etiketten sto der fra før og har
@@ -186,23 +192,6 @@ function formatDistance(m) {
               </svg>
             </button>
           </div>
-          <!-- Kart-fakta (v2.4.20): målestokk + ekvidistanse sto som to faste
-               linjer i linjal-boksen over kartet og gjorde den tre ganger så
-               høy. De hører hjemme her — du slår dem opp, du følger dem ikke
-               mens du går. -->
-          <div v-if="printScaleLabel || equidistanceLabel"
-               class="text-[10px] text-ink-4 tabular-nums mt-0.5 leading-snug">
-            <span v-if="printScaleLabel">{{ printScaleLabel }}</span>
-            <span v-if="printScaleLabel && equidistanceLabel" class="text-ink-4"> · </span>
-            <span v-if="equidistanceLabel">{{ equidistanceLabel }}</span>
-          </div>
-          <!-- Kilde-fakta (v2.4.26): ISOM-variant og DEM-kilde sto i den svarte
-               attribusjons-boksen nede til høyre i kartet. Ingen av dem sier noe
-               om terrenget du står i — de hører hjemme her, ved oppslaget. -->
-          <div v-if="mapSourceLabel"
-               class="text-[10px] text-ink-4 tabular-nums leading-snug">
-            {{ mapSourceLabel }}
-          </div>
           <div v-if="depthEstimateWarning"
                class="text-[10px] text-amber-300 font-medium leading-snug">
             {{ depthEstimateWarning }}
@@ -230,10 +219,12 @@ function formatDistance(m) {
            De står ØVERST og ikke nederst: de forlater appen, og det er en ting
            man gjør etter å ha lest, ikke etter å ha rullet forbi alt.
            Ikke `<a href>`: URL-en avhenger av gjeldende zoom og regnes ut i
-           MapView når trykket kommer. -->
+           MapView når trykket kommer.
+           ETIKETTEN «Åpne stedet i» ER FJERNET (v7.8.5): to knapper med hvert
+           sitt «åpne i nytt vindu»-ikon og navnet på tjenesten sier det samme,
+           og etiketten dyttet dem ned på en egen linje ved stor tekst. -->
       <div class="px-4 pt-3 flex flex-wrap items-center gap-2"
            :style="{ zoom: uiTextScale }">
-        <span class="text-[10px] uppercase tracking-wide text-ink-4 mr-0.5">Åpne stedet i</span>
         <button type="button" @click="onApneEksterntKart('utno')"
                 class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-ink/8
                        text-[12px] text-ink font-medium active:scale-95 transition
@@ -342,11 +333,61 @@ function formatDistance(m) {
           <span class="text-[10px] uppercase tracking-wide text-ink-4">
             Detaljer · {{ DETAIL_INSET_M }} × {{ DETAIL_INSET_M }} m
           </span>
-          <span class="text-[10px] text-ink-4">dra · knip for zoom</span>
+          <!-- Gest-bryteren (v7.8.5). Hintet var en påstand — insetet TOK
+               draget, også det loddrette, så et forsøk på å rulle videre i
+               arket zoomet mini-kartet i stedet. Nå er hintet etiketten til
+               bryteren som slår gestene på, og AV er standard: da lar insetet
+               draget gå videre til arket. -->
+          <label class="flex items-center gap-1.5 cursor-pointer select-none">
+            <span class="text-[10px] text-ink-4">dra · knip for zoom</span>
+            <button type="button" role="switch" :aria-checked="insetGester"
+                    @click="onSettInsetGester(!insetGester)"
+                    class="relative w-9 h-5 rounded-full transition-colors shrink-0"
+                    :class="insetGester ? 'bg-emerald-500' : 'bg-ink/15'">
+              <span class="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"
+                    :class="insetGester ? 'left-[1.125rem]' : 'left-0.5'" />
+            </button>
+          </label>
         </div>
-        <div :ref="setInsetEl"
-             class="w-[90%] aspect-[16/9] max-w-[380px] mx-auto rounded-lg overflow-hidden
-                    border border-ink/10 bg-[#fefae0] touch-none"></div>
+        <!-- `relative` bærer krysshår-knappen; `touch-none` følger bryteren, for
+             den er nettopp det som hindrer arket i å rulle under fingeren. -->
+        <div class="relative w-[90%] max-w-[380px] mx-auto">
+          <div :ref="setInsetEl"
+               class="aspect-[16/9] rounded-lg overflow-hidden
+                      border border-ink/10 bg-[#fefae0]"
+               :class="insetGester ? 'touch-none' : ''"></div>
+          <!-- Veien tilbake til utsnittet insetet åpnet med — det røde krysset
+               midt i bildet. Den vises bare med gestene på: uten dem kan man
+               ikke ha flyttet noe, og en knapp som ikke gjør noe er verre enn
+               ingen knapp. Kvadratisk og 28 px: den ligger OPPÅ kartet, så den
+               skal ta minst mulig av det. -->
+          <button v-if="insetGester" type="button" @click="onTilbakestillInset"
+                  aria-label="Sentrer detaljkartet på punktet"
+                  class="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-md flex items-center
+                         justify-center bg-surface/90 border border-ink/15 text-ink-2
+                         shadow active:scale-90 transition">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="6"/>
+              <line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/>
+              <line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/>
+            </svg>
+          </button>
+        </div>
+        <!-- Kart-fakta og kilde-fakta (v7.8.5): de sto i arkets header, over
+             koordinatene man faktisk kom hit for. Målestokk, ekvidistanse,
+             ISOM-variant og DEM-kilde beskriver ARKET og ikke punktet — de
+             hører til detaljbildet, ikke til oppslaget. -->
+        <div v-if="printScaleLabel || equidistanceLabel || mapSourceLabel"
+             class="mt-1.5 text-[10px] text-ink-4 tabular-nums leading-snug"
+             :style="{ zoom: uiTextScale }">
+          <div v-if="printScaleLabel || equidistanceLabel">
+            <span v-if="printScaleLabel">{{ printScaleLabel }}</span>
+            <span v-if="printScaleLabel && equidistanceLabel"> · </span>
+            <span v-if="equidistanceLabel">{{ equidistanceLabel }}</span>
+          </div>
+          <div v-if="mapSourceLabel">{{ mapSourceLabel }}</div>
+        </div>
       </div>
 
       <!-- Tekst-info-blokk: skaleres av tekststørrelse-kontrollen (zoom). -->
