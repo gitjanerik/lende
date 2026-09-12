@@ -7,6 +7,7 @@
 import { ref, computed, nextTick, watch, onMounted } from 'vue'
 import { svgToWgs84 } from '../lib/utm.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
+import { BYGG_SAMTIDIG, kjorMedTak, lagFramdrift } from '../lib/parallellBygg.js'
 import { pruneAutoTiles, rectOverlapFraction, findGridGaps, findRectangleGaps, plassIArket } from '../lib/tileCache.js'
 import {
   lesVentende, leggTilVentende, fjernVentende,
@@ -300,10 +301,11 @@ export function useMapExtend({
   // dekker delt infrastruktur (bygge-opts, toast, modus-gate).
   const buildingOnTheFly = ref(false)  // full-screen loader-flagg (gjenbrukes)
   // Utvidelsen er ikke-blokkerende, men den kan ta et halvminutt per flis — og
-  // fram til v6.5.48 fantes det ingen vei ut av den. Avbryteren aborterer den
-  // flisa som er under arbeid og stopper løkka mellom fliser; det som ALLEREDE
-  // er bygd beholdes og tegnes i finally, som er den samme stien en flis som
-  // feiler går. Ventelista er derfor fortsatt sannheten om hva som gjenstår.
+  // fram til v6.5.48 fantes det ingen vei ut av den. Avbryteren aborterer
+  // flisene som er under arbeid (inntil BYGG_SAMTIDIG, v7.8.8) og starter ingen
+  // nye; det som ALLEREDE er bygd beholdes og tegnes i finally, som er den
+  // samme stien en flis som feiler går. Ventelista er derfor fortsatt sannheten
+  // om hva som gjenstår.
   let byggAvbryter = null
   function avbrytUtvidelse() { byggAvbryter?.abort() }
   const buildingProgress = ref('')
@@ -858,48 +860,73 @@ export function useMapExtend({
     leggTilVentende(plan)
     let tegnet = false
     byggAvbryter = new AbortController()
+    const framdrift = lagFramdrift({
+      ord: { stor: 'Utsnitt', liten: 'utsnitt', en: 'Bygger nytt utsnitt …' },
+      total: toBuild.length,
+      vis: (tekst) => { buildingProgress.value = tekst },
+    })
+    let feilet = 0
+    let avbrutt = 0
     try {
-      for (let i = 0; i < toBuild.length; i++) {
-        if (byggAvbryter.signal.aborted) break
-        const prefix = toBuild.length > 1 ? `Utsnitt ${i + 1}/${toBuild.length}` : ''
-        buildingProgress.value = toBuild.length > 1
-          ? `Bygger utsnitt ${i + 1} av ${toBuild.length} …`
-          : 'Bygger nytt utsnitt …'
-        const { id } = await buildMapFromCenter({
+      // Flisene bygges TO OG TO (v7.8.8) — se BYGG_SAMTIDIG for hvorfor akkurat
+      // to. Én flis som feiler forkaster ikke naboen: det som lyktes tegnes, og
+      // ventelista sier hva som gjenstår — samme per-flis-regel som byggCeller.
+      const utfall = await kjorMedTak(
+        toBuild.map(({ utmBbox }, i) => () => buildMapFromCenter({
           ...plan[i].opts,
-          utmBbox: toBuild[i].utmBbox,   // eksakt ±W/±H-offset → flukter med aktiv flis
+          utmBbox,   // eksakt ±W/±H-offset → flukter med aktiv flis
           terrainFirst: false,   // full flis med en gang
           signal: byggAvbryter.signal,
-          onProgress: (msg) => {
-            buildingProgress.value = prefix ? `${prefix}: ${msg}` : msg
-          },
-        })
-        if (id) {
-          builtIds.push(id)
+          onProgress: (msg) => framdrift.onProgress(i, msg),
+        })),
+        {
+          tak: BYGG_SAMTIDIG, signal: byggAvbryter.signal,
+          onStart: framdrift.onStart, onSlutt: framdrift.onSlutt,
+        },
+      )
+      utfall.forEach((u, i) => {
+        if (u.status === 'ok' && u.verdi?.id) {
+          builtIds.push(u.verdi.id)
           fjernVentende(toBuild[i].utmBbox)   // denne er i boks
+        } else if (u.status === 'avbrutt') {
+          avbrutt++
+        } else {
+          feilet++
+          if (u.status === 'feil') console.error('Kant-sone-utvidelse: flis feilet:', u.feil)
         }
-      }
-      // Tegn de nye flisene som mosaikk-naboer (fullopake, full detalj) og utvid
-      // pan-grensa til mosaikken (renderGhostTiles → clampPan), så panTo ikke
-      // klampes tilbake til aktiv-flisas grenser.
-      await renderGhostTiles()
-      tegnet = true
-      await nextTick()
-      panTo(geom.panPoint.x, geom.panPoint.y, {
-        vbWidth: m.widthM, vbHeight: m.heightM,
-        targetScale: scale.value, keepRotation: true,
       })
-      // Kapp auto-flis-cachen til bruker-valgt grense. Vernet dekker HELE arket
-      // og ikke bare aktiv flis + det vi nettopp bygde — se arkVernIds.
-      await kappCachen(geom.panPoint, builtIds)
-      showAutoMapToast(`Utvidet kartet mot ${EXTEND_DIR_WORD[direction]}`)
-      avslorHandtak()
-    } catch (e) {
-      if (e?.name === 'AbortError') showAutoMapToast('Avbrutt')
-      else {
-        console.error('Kant-sone-utvidelse feilet:', e)
+      if (avbrutt) {
+        // Brukeren trykket X: det som ble bygd vises (finally), men vi
+        // panorerer ikke dit — hen ba nettopp om å slippe.
+        showAutoMapToast(builtIds.length
+          ? `Avbrutt — beholdt ${builtIds.length} av ${toBuild.length} utsnitt`
+          : 'Avbrutt')
+      } else if (!builtIds.length) {
         showAutoMapToast('Kunne ikke lage nytt utsnitt')
+      } else {
+        // Tegn de nye flisene som mosaikk-naboer (fullopake, full detalj) og utvid
+        // pan-grensa til mosaikken (renderGhostTiles → clampPan), så panTo ikke
+        // klampes tilbake til aktiv-flisas grenser.
+        await renderGhostTiles()
+        tegnet = true
+        await nextTick()
+        panTo(geom.panPoint.x, geom.panPoint.y, {
+          vbWidth: m.widthM, vbHeight: m.heightM,
+          targetScale: scale.value, keepRotation: true,
+        })
+        // Kapp auto-flis-cachen til bruker-valgt grense. Vernet dekker HELE arket
+        // og ikke bare aktiv flis + det vi nettopp bygde — se arkVernIds.
+        await kappCachen(geom.panPoint, builtIds)
+        showAutoMapToast(feilet
+          ? `Utvidet kartet mot ${EXTEND_DIR_WORD[direction]} — ${feilet} av ${toBuild.length} utsnitt feilet`
+          : `Utvidet kartet mot ${EXTEND_DIR_WORD[direction]}`)
+        avslorHandtak()
       }
+    } catch (e) {
+      // Per-flis-feil er alt fanget i utfallet; hit kommer bare det som ligger
+      // ETTER byggingen (tegning, kapping).
+      console.error('Kant-sone-utvidelse feilet:', e)
+      showAutoMapToast('Kunne ikke lage nytt utsnitt')
     } finally {
       byggAvbryter = null
       // Feilet løkka, rakk vi aldri å tegne det som FAKTISK ble bygd — og
@@ -1039,36 +1066,42 @@ export function useMapExtend({
     closeSearch()
     const builtIds = []
     let failed = 0
+    let avbrutt = 0
     byggAvbryter = new AbortController()
+    const framdrift = lagFramdrift({
+      ord: { stor: 'Flis', liten: 'flis', en: 'Bygger flis …' },
+      total: cells.length,
+      vis: (tekst) => { buildingProgress.value = tekst },
+    })
     try {
       // Per-flis feilhåndtering: én flis som feiler (f.eks. Overpass nede) skal
       // ikke forkaste flisene som lyktes — vi bygger så mange som mulig og
-      // tegner mosaikken på nytt uansett i finally.
-      for (let i = 0; i < cells.length; i++) {
-        if (byggAvbryter.signal.aborted) break
-        const prefix = cells.length > 1 ? `Flis ${i + 1}/${cells.length}` : ''
-        buildingProgress.value = cells.length > 1
-          ? `Bygger flis ${i + 1} av ${cells.length} …`
-          : 'Bygger flis …'
-        try {
-          const { id } = await buildMapFromCenter({
-            ...cells[i].opts,
-            utmBbox: cells[i].utmBbox,
-            terrainFirst: false,
-            signal: byggAvbryter.signal,
-            onProgress: (msg) => {
-              buildingProgress.value = prefix ? `${prefix}: ${msg}` : msg
-            },
-          })
-          if (id) {
-            builtIds.push(id)
-            fjernVentende(cells[i].utmBbox)
-          } else failed++
-        } catch (e) {
-          if (e?.name !== 'AbortError') console.error('Flis feilet:', e)
+      // tegner mosaikken på nytt uansett i finally. To i flukt (v7.8.8), se
+      // BYGG_SAMTIDIG.
+      const utfall = await kjorMedTak(
+        cells.map((c, i) => () => buildMapFromCenter({
+          ...c.opts,
+          utmBbox: c.utmBbox,
+          terrainFirst: false,
+          signal: byggAvbryter.signal,
+          onProgress: (msg) => framdrift.onProgress(i, msg),
+        })),
+        {
+          tak: BYGG_SAMTIDIG, signal: byggAvbryter.signal,
+          onStart: framdrift.onStart, onSlutt: framdrift.onSlutt,
+        },
+      )
+      utfall.forEach((u, i) => {
+        if (u.status === 'ok' && u.verdi?.id) {
+          builtIds.push(u.verdi.id)
+          fjernVentende(cells[i].utmBbox)
+        } else if (u.status === 'avbrutt') {
+          avbrutt++
+        } else {
           failed++
+          if (u.status === 'feil') console.error('Flis feilet:', u.feil)
         }
-      }
+      })
     } finally {
       byggAvbryter = null
       // Tegn mosaikken på nytt så det som FAKTISK ble bygd vises (også ved delvis
@@ -1085,7 +1118,11 @@ export function useMapExtend({
       autoMapArmed = true
       extendingMap = false
       refreshMosaicGaps()
-      if (builtIds.length && !failed) {
+      if (avbrutt) {
+        showAutoMapToast(builtIds.length
+          ? `Avbrutt — bygde ${builtIds.length} ${ord.flertall}, ${cells.length - builtIds.length} gjenstår`
+          : 'Avbrutt')
+      } else if (builtIds.length && !failed) {
         showAutoMapToast(builtIds.length === 1
           ? `Bygde ${ord.ting}` : `Bygde ${builtIds.length} ${ord.flertall}`)
       } else if (builtIds.length && failed) {

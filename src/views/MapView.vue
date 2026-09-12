@@ -3612,8 +3612,8 @@ onUnmounted(() => {
         <span v-else class="w-3.5 h-3.5 rounded-full border-2 border-ink/25 border-t-ink/80 animate-spin shrink-0"></span>
         <span class="truncate" :style="{ zoom: uiTextScale }">{{ buildingProgress || 'Oppretter kart …' }}</span>
         <!-- Chippen er ikke-blokkerende, men byggingen kan ta et halvminutt per
-             flis. X-en stopper løkka mellom fliser og aborterer den som er
-             under arbeid; det som alt er bygd beholdes. Derfor er
+             flis. X-en aborterer flisene som er under arbeid (to i flukt,
+             v7.8.8) og starter ingen nye; det som alt er bygd beholdes. Derfor er
              pointer-events tilbake på chippen (den er 12 px høy og står midt
              oppe — den stjeler ikke kartflate). -->
         <button type="button" @click="avbrytUtvidelse"
