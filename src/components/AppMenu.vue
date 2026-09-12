@@ -4,7 +4,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAppMenu } from '../composables/useAppMenu.js'
 import { useUiTextScale, UI_TEXT_MIN, UI_TEXT_MAKS } from '../composables/useUiTextScale.js'
 import { useUiTheme } from '../composables/useUiTheme.js'
-import { useMapTheme } from '../composables/useMapTheme.js'
 import { useHoldVaken } from '../composables/useHoldVaken.js'
 import { MAKS_MINUTTER } from '../lib/holdVaken.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
@@ -34,9 +33,6 @@ import { useFokusFelle } from '../composables/useFokusFelle.js'
 const { menuOpen, close } = useAppMenu()
 const { uiTextScale, setTextScale } = useUiTextScale()
 const { theme, setTheme } = useUiTheme()
-// Snarvei til kartets mørke tema — samme tilstand som «Mørk» under
-// Innstillinger → Tema. Av som default (ISOM-paletten kartene er tegnet for).
-const { isDarkMap, setDarkMap } = useMapTheme()
 const { openChat } = useLendeChat()
 
 // ── Hold skjermen våken ──────────────────────────────────────────────────────
@@ -113,7 +109,14 @@ const PRIMARY = [
   {
     id: 'plan', label: 'Mine ruter', sheet: 'rute',
     to: '/rute', last: 'rute', goLabel: 'Gå til Turplanlegger',
-    d: 'M6.5 8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm11 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm-11-4v-3m0 3a3 3 0 0 0 3 3h5a3 3 0 0 1 3 3',
+    // STREKEN MÅ RØRE BEGGE SIRKLENE (v7.8.6). Den gamle bar to `m`-hopp
+    // relativt til det lukkede sirkel-subpathet, og landet dermed nede til
+    // venstre for den nederste sirkelen: stammen sluttet i løse lufta 5 enheter
+    // under den øverste, og halen gikk forbi den nederste. Ruta er nå ett eget
+    // subpath i ABSOLUTTE koordinater, fra nedre kant av sirkel 1 (6,5 · 8,5)
+    // til venstre kant av sirkel 2 (15 · 18) — to kvartsvinger om en rett strekk.
+    d: 'M6.5 8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm11 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z'
+     + 'M6.5 8.5v4a3 3 0 0 0 3 3h3a2.5 2.5 0 0 1 2.5 2.5',
   },
 ]
 // REKKEFØLGEN ER FAST: Turkart øverst, alltid (v6.5.35). Den fulgte modusen —
@@ -376,14 +379,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               </svg>{{ t.label }}
             </button>
           </div>
-          <!-- Snarvei til kartets mørke tema. Styrer samme tilstand som
-               Tema-fanen i Innstillinger; de tre knappene over gjelder appens
-               chrome, denne gjelder kartflaten. -->
-          <label class="am-switch-row">
-            <span class="am-switch-label">Turkart i mørkt tema</span>
-            <input type="checkbox" class="am-switch" role="switch"
-                   :checked="isDarkMap" @change="setDarkMap($event.target.checked)" />
-          </label>
+          <!-- «TURKART I MØRKT TEMA» ER BORTE HERFRA (v7.8.6). Den sto under
+               de tre tema-knappene, som gjelder APPENS chrome, og gjaldt selv
+               KARTFLATA — to nivåer i samme blokk, og det ene av dem var det
+               eneste valget i menyen som ikke handlet om appen. Vekselen bor nå
+               som snarveien «Natt»/«Dag» over kartet, altså på flata den
+               endrer, og hele tema-familien står fortsatt i Innstillinger →
+               Stemning. -->
           <!-- Tallet står OVER sporet (se kommentaren ved TEXT_MIN_PST), og
                rendres i sin EGEN størrelse: valget er lesbart som seg selv,
                slik de fire knappene var. -->
@@ -644,45 +646,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .am-line-dim { color: var(--am-dim); font-size: 0.92em; padding: 12px 4px; }
 
 /* ── Tekststørrelse ── */
-/* Bryter-rad: samme rytme som tekststørrelse-raden under. `appearance: none`
-   + egen bakgrunn/knott, så bryteren følger meny-tokenene i begge UI-temaer i
-   stedet for nettleserens systemfarge. Hele raden er en <label>, altså er
-   teksten også trykkflate. */
-.am-switch-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 4px;
-  min-height: 44px;
-  cursor: pointer;
-}
-.am-switch-label { font-size: 0.95em; flex: 1; }
-.am-switch {
-  appearance: none;
-  -webkit-appearance: none;
-  flex: 0 0 auto;
-  width: 46px;
-  height: 28px;
-  border-radius: 999px;
-  background: var(--am-surface);
-  position: relative;
-  transition: background 0.18s;
-  cursor: pointer;
-}
-.am-switch::after {
-  content: '';
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  background: var(--am-dim);
-  transition: transform 0.18s, background 0.18s;
-}
-.am-switch:checked { background: var(--am-accent); }
-.am-switch:checked::after { transform: translateX(18px); background: var(--am-on-accent); }
-.am-switch:focus-visible { outline: 2px solid var(--am-accent); outline-offset: 2px; }
 
 /* Etiketten står på sin egen linje og knappene fyller bredden under (v6.5.32).
    Med tre valg på 52 px lå raden allerede på grensen i en 360 px skuff — med et

@@ -168,8 +168,12 @@ const stiler = computed(() => KARTSTILER.map((s) => ({
          hverandre — og den effektive verdien ved hver slider er produktet, så
          tallet man leser er det kartet faktisk tegner. Grov-knotten er global
          og huskes for alle kart; per-element er per kart, med global standard
-         som fallback. «Angi som standard» er broen mellom de to. -->
-    <div class="mt-5 pt-4 border-t border-ink/10">
+         som fallback. «Angi som standard» er broen mellom de to.
+
+         `data-stil-seksjon` er ANKERET tannhjulet ved snarvei-knotten ruller
+         til (v7.8.6) — MapView leser det med `offsetTop`. Det er en krok og
+         ikke en id, så den ikke kolliderer med noe annet i dokumentet. -->
+    <div data-stil-seksjon="strek" class="mt-5 pt-4 border-t border-ink/10">
       <div class="text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1.5">
         Strek
       </div>
@@ -221,8 +225,8 @@ const stiler = computed(() => KARTSTILER.map((s) => ({
     <!-- ── Relieff (v7.4.0) ─────────────────────────────────────────────
          Av/på og stil er per kart; styrken er den globale knotten. Styrke-
          slideren står bare når relieffet er PÅ — en slider som ikke gjør noe
-         er verre enn ingen slider. -->
-    <div class="mt-5 pt-4 border-t border-ink/10">
+         er verre enn ingen slider. Se «Strek» over om `data-stil-seksjon`. -->
+    <div data-stil-seksjon="relieff" class="mt-5 pt-4 border-t border-ink/10">
       <div class="text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1.5">
         Relieff
       </div>

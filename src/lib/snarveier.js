@@ -103,6 +103,13 @@ export const SNARVEIER = [
   { id: 'annotering', label: 'Merk',  aria: 'Annotering', kunEgne: true },
   { id: 'sporing',    label: 'Spor',  aria: 'Sporing',    kunEgne: true },
   { id: 'info',       label: 'Info',  aria: 'Informasjon om stedet' },
+  // NATT ER EN VEKSEL, OG DEN VISER HANDLINGEN OG IKKE TILSTANDEN (v7.8.6):
+  // står kartet lyst heter den «Natt» med en måne, står det mørkt heter den
+  // «Dag» med en sol. Derfor bærer den ingen `aktiv`/`aria-pressed` — ordet og
+  // ikonet ER svaret, og en grønn «på»-flate ved siden av dem ville sagt det
+  // samme en gang til med motsatt fortegn. Etiketten her er den lyse
+  // stillingen; kallstedet bytter begge deler (`label`/`ikon`).
+  { id: 'natt',       label: 'Natt',  aria: 'Mørkt turkart' },
   { id: 'innstillinger', label: 'Valg', aria: 'Valg' },
 ]
 
@@ -110,8 +117,20 @@ export const STANDARD_REKKEFOLGE = SNARVEIER.map(s => s.id)
 
 /**
  * Normaliserer en lagret rekkefølge mot katalogen: ukjente ider droppes (en
- * funksjon kan ha blitt fjernet), og nye legges BAKERST i katalogens egen
- * rekkefølge. Å legge dem først ville flyttet på noe brukeren har sortert.
+ * funksjon kan ha blitt fjernet), og nye settes inn ETTER NABOEN SIN.
+ *
+ * NYE IDER LÅ BAKERST FRAM TIL v7.8.6, og begrunnelsen var riktig så langt den
+ * rakk: en ny funksjon skal ikke flytte på noe brukeren har sortert. Men
+ * «bakerst» er ikke bare fravær av et valg — det ER et valg om plassering, og
+ * det var feil for «Natt», som hører hjemme foran «Valg» og ikke bak den. Den
+ * nye id-en settes nå inn rett ETTER den nærmeste FORGJENGEREN fra katalogen
+ * som brukeren faktisk har i lista si. Ingen eksisterende id bytter plass med
+ * en annen: det eneste som skjer er en innsetting.
+ *
+ * FORGJENGER OG IKKE ETTERFØLGER, og forskjellen er målt i testene: med
+ * etterfølger-regelen ville en liste som BEGYNTE med «Info» fått hele katalogen
+ * dyttet inn foran den, altså nøyaktig det brukerens sortering ikke tåler. Uten
+ * en forgjenger i lista legges id-en bakerst, som før.
  */
 export function normaliserRekkefolge(lagret) {
   const kjente = new Set(STANDARD_REKKEFOLGE)
@@ -120,7 +139,17 @@ export function normaliserRekkefolge(lagret) {
   for (const id of Array.isArray(lagret) ? lagret : []) {
     if (kjente.has(id) && !sett.has(id)) { ut.push(id); sett.add(id) }
   }
-  for (const id of STANDARD_REKKEFOLGE) if (!sett.has(id)) ut.push(id)
+  for (let i = 0; i < STANDARD_REKKEFOLGE.length; i++) {
+    const id = STANDARD_REKKEFOLGE[i]
+    if (sett.has(id)) continue
+    let inn = ut.length
+    for (let j = i - 1; j >= 0; j--) {
+      const k = ut.indexOf(STANDARD_REKKEFOLGE[j])
+      if (k >= 0) { inn = k + 1; break }
+    }
+    ut.splice(inn, 0, id)
+    sett.add(id)
+  }
   return ut
 }
 

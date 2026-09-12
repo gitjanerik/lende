@@ -290,12 +290,16 @@ export function useKartKnotter({
   // Relieff-stil bytte: fjern eksisterende relieff-lag (kan være feil element-type),
   // nullstill bånd-cachen, bygg på nytt, og re-render mosaikken (spøkelses-relieff
   // gates på modus i buildGhostSvg).
+  //
+  // INGEN HINT-BOBLE HER (v7.8.6). Boblene finnes fordi et hakk på en knott
+  // over kartet ellers er en usynlig endring — men stilen velges nå BARE i
+  // Kartstil-fana, der valget står som to knapper man ser skifte selv. En boble
+  // under snarvei-raden ville svart på et trykk som skjedde et helt annet sted.
   watch(reliefMode, () => {
     svgHostRef.value?.querySelector('svg #hillshade-layer')?.remove()
     hooks.invalidateReliefBands()
     hooks.applyHillshade()
     void hooks.renderGhostTiles()
-    flashKnobHint(reliefMode.value === 'vektor' ? 'Skarpt relieff (vektor)' : 'Mjukt relieff (bilde)')
   })
 
   // ---- seksjons-handlinger: standard og nullstill ------------------

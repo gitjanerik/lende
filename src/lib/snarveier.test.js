@@ -26,7 +26,7 @@ describe('katalogen', () => {
     // de er det man går til når man har satt seg ned.
     expect(STANDARD_REKKEFOLGE).toEqual(
       ['posisjon', 'stifinner', 'runde', 'maaling', 'tre-d', 'annotering',
-       'sporing', 'info', 'innstillinger'])
+       'sporing', 'info', 'natt', 'innstillinger'])
     expect(STANDARD_REKKEFOLGE.at(-1)).toBe('innstillinger')
     expect(STANDARD_REKKEFOLGE).not.toContain('sok')
     expect(STANDARD_REKKEFOLGE).not.toContain('chat')
@@ -75,8 +75,12 @@ describe('katalogen', () => {
 
 describe('normaliserRekkefolge', () => {
   it('beholder brukerens rekkefølge', () => {
-    expect(normaliserRekkefolge(['info', 'tre-d'])[0]).toBe('info')
-    expect(normaliserRekkefolge(['info', 'tre-d'])[1]).toBe('tre-d')
+    // Målt RELATIVT og ikke på indeks: en ny katalog-id kan lande MELLOM to
+    // lagrede (se testen under), og det er ikke en omsortering av brukerens
+    // valg. Det som må holde, er at «info» fortsatt kommer før «tre-d».
+    const ut = normaliserRekkefolge(['info', 'tre-d'])
+    expect(ut[0]).toBe('info')
+    expect(ut.indexOf('info')).toBeLessThan(ut.indexOf('tre-d'))
   })
   it('dropper ukjente ider og dubletter', () => {
     const ut = normaliserRekkefolge(['info', 'finnesikke', 'info'])
@@ -87,6 +91,20 @@ describe('normaliserRekkefolge', () => {
     const ut = normaliserRekkefolge(['info'])
     expect(ut[0]).toBe('info')
     expect(ut).toHaveLength(STANDARD_REKKEFOLGE.length)
+  })
+  it('setter en ny id ved NABOEN sin, ikke bakerst (v7.8.6)', () => {
+    // «Natt» kom inn på plass #9, foran «Valg». En bruker med en lagret liste
+    // fra før ville fått den bakerst — altså ETTER innstillingene — og da er
+    // plasseringen i katalogen en påstand som bare gjelder ferske brukere.
+    // Regelen er FORGJENGEREN: den nye id-en legges rett bak den nærmeste
+    // katalog-naboen FØR seg som brukeren faktisk har. Varianten med
+    // ETTERFØLGER ble prøvd og målt feil: en liste som starter med «Info» fikk
+    // hele resten av katalogen dyttet inn foran seg.
+    const lagret = STANDARD_REKKEFOLGE.filter(id => id !== 'natt')
+    const ut = normaliserRekkefolge(lagret)
+    expect(ut.indexOf('natt')).toBe(ut.indexOf('info') + 1)
+    expect(ut.indexOf('natt')).toBe(ut.indexOf('innstillinger') - 1)
+    expect(ut).toEqual(STANDARD_REKKEFOLGE)
   })
   it('tåler søppel', () => {
     expect(normaliserRekkefolge(null)).toEqual(STANDARD_REKKEFOLGE)
