@@ -1381,8 +1381,86 @@ const SJEKKER = [
       if (slutt.tekst !== før.tekst) {
         throw new Error(`etiketten kom ikke tilbake til «${før.tekst}»`)
       }
+
+      // OG BUDSJETTET SKAL STÅ I PERF-LOGGEN (v7.8.8). Eieren leser den i en
+      // modal med kopier-knapp, og den er hele grunnen til at vi kan svare på
+      // «tregt» fra en telefon vi ikke kan måle på. En linje som aldri skrives
+      // er en måling som ikke finnes — og fordi den skrives SIST i etterspillet,
+      // beviser den samtidig at etterspillet kjørte helt ut.
+      const budsjett = await page.evaluate(() => {
+        try {
+          const arr = JSON.parse(localStorage.getItem('lende-perflog') || '[]')
+          return (arr.filter(r => String(r?.msg || '').startsWith('[tema]')).pop() || {}).msg || ''
+        } catch { return '' }
+      })
+      if (!/^\[tema\].*palett .* lag .* relieff /.test(budsjett)) {
+        throw new Error(`perf-loggen mangler tema-budsjettet (fant «${budsjett}»)`)
+      }
+
       await lukkSnarveiRad(page)
-      return `«${før.tekst}» (${før.bg}) → «${etter.tekst}» (${etter.bg}, tema «${etter.tema}») og tilbake`
+      return `«${før.tekst}» (${før.bg}) → «${etter.tekst}» (${etter.bg}, tema «${etter.tema}») og tilbake; ${budsjett}`
+    },
+  },
+  {
+    // ET TAPP MED TOMMEL-VINGLING SKAL UTLØSE SNARVEIEN (v7.8.8).
+    //
+    // Draget tok tak ved 6 px, og NØYAKTIG der ble trykket avlyst — så et helt
+    // vanlig tapp med litt loddrett vingling ble spist av skuffa. Fordi `velg`
+    // returnerer FØR den legger raden sammen, sto raden stille og uendret, og
+    // eieren meldte at han måtte trykke to ganger på «Natt».
+    //
+    // SJEKKEN MÅ SYNTETISERE PEKEREN. Playwrights `click()` og `tap()` beveger
+    // seg ikke, så de går rett gjennom uten å måle noe — det er nettopp den
+    // rene varianten som ALLTID virket. Her sendes `pointerdown` → to
+    // `pointermove` (+4 px, +9 px) → `pointerup` → `click`, altså en tommel som
+    // vipper forbi slop-en uten å mene et drag.
+    navn: 'et tapp med 9 px vingling utløser snarveien, ikke skuffa',
+    domene: 'SnarveiRad (SLOP_PX vs TAPP_PX)',
+    async kjør(page) {
+      await lukkDrawer(page)
+      const bg = () => page.evaluate(() => {
+        const inner = document.querySelector('[data-map-inner]')
+        return inner ? getComputedStyle(inner).getPropertyValue('--bg').trim() : ''
+      })
+      const vingletTapp = () => page.evaluate(() => {
+        const el = document.querySelector('[data-snarvei-id="natt"]')
+        if (!el) throw new Error('fant ingen snarvei «natt»')
+        const r = el.getBoundingClientRect()
+        const x = Math.round(r.x + r.width / 2)
+        const y = Math.round(r.y + r.height / 2)
+        const pek = (type, cy) => new PointerEvent(type, {
+          bubbles: true, cancelable: true, pointerId: 1, pointerType: 'touch',
+          clientX: x, clientY: cy, button: 0,
+        })
+        el.dispatchEvent(pek('pointerdown', y))
+        window.dispatchEvent(pek('pointermove', y + 4))
+        window.dispatchEvent(pek('pointermove', y + 9))
+        window.dispatchEvent(pek('pointerup', y + 9))
+        el.dispatchEvent(new MouseEvent('click', {
+          bubbles: true, cancelable: true, clientX: x, clientY: y + 9,
+        }))
+      })
+
+      await apneSnarveiRad(page)
+      const før = await bg()
+      await vingletTapp()
+      await page.waitForTimeout(400)
+      const etter = await bg()
+      if (etter === før) {
+        throw new Error(`det vinglete tappet ble spist — kartflata står fortsatt på «${etter}»`)
+      }
+
+      // TILBAKE IGJEN, med samme gest: sjekken skal forlate appen nøytral, og
+      // veien tilbake måler i tillegg at flagget ikke blir stående sant.
+      await apneSnarveiRad(page)
+      await vingletTapp()
+      await page.waitForTimeout(400)
+      const slutt = await bg()
+      if (slutt !== før) {
+        throw new Error(`kom ikke tilbake til «${før}» (står på «${slutt}»)`)
+      }
+      await lukkSnarveiRad(page)
+      return `vinglet tapp: ${før} → ${etter} → ${slutt}`
     },
   },
   {

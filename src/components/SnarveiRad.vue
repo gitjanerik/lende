@@ -452,11 +452,11 @@ function velg(id) {
 // knappene inkludert, og håndtaket er igjen det det ser ut som: streken som
 // SIER at boksen kan dras.
 //
-// ET DRAG ER IKKE ET TRYKK, og skillet er en SLOP og ikke en tidtaking. Under
-// terskelen skjer ingenting — `click` går sin gang til knappen under fingeren —
-// og over den er draget i gang og trykket avlyst (`sluk`, lest og nullstilt av
-// `velg`). Uten avlysningen ville hvert drag som startet på en snarvei også
-// utløst den ved slipp.
+// ET DRAG ER IKKE ET TRYKK, og skillet er TO SLOPER og ikke en tidtaking.
+// Under den første skjer ingenting; over den følger skuffa fingeren. Over den
+// ANDRE er trykket i tillegg avlyst (`sluk`, lest og nullstilt av `velg`) —
+// uten avlysningen ville hvert drag som startet på en snarvei også utløst den
+// ved slipp. Se `TAPP_PX` under for hvorfor de to ikke kan være samme tall.
 //
 // AKSEN AVGJØR OGSÅ. Bare et overveiende LODRETT drag griper: et sidelengs
 // drag over pilla hører til kartet under, og en skuff som åpner seg fordi man
@@ -472,6 +472,28 @@ function velg(id) {
 // for å skyte forbi det: grensa er synlig mens fingeren er nede, ikke en
 // overraskelse ved slipp.
 const SLOP_PX = 6
+// TAPP_PX ER IKKE SLOP_PX, OG DET VAR EN MÅLT FEIL (v7.8.8).
+//
+// De to tallene svarte på hvert sitt spørsmål, men var ett tall: draget tok tak
+// ved 6 px, og NØYAKTIG DER ble trykket avlyst. En tommel på en telefon vingler
+// mer enn seks piksler i et helt vanlig tapp, så det første trykket på «Natt»
+// ble spist — og fordi `velg` returnerer FØR den legger skuffa sammen, ble raden
+// stående åpen og så uendret ut. Eieren meldte det som «jeg må trykke to ganger».
+// Målt i Chromium: et tapp med 9 px loddrett vingling byttet ikke tema, et rent
+// tapp gjorde det.
+//
+// Skillet er nå: skuffa TAR TAK ved 6 px, så den følger fingeren like kvikt som
+// før, men trykket avlyses først ved 16 px. Mellom de to følger skuffa fingeren
+// noen piksler og spretter tilbake av seg selv — dokkingen krever 25 % av et
+// nivå, altså minst 18 px — så et tapp som vinglet gjør nøyaktig ingenting med
+// skuffa og alt med knappen. Og et drag som FAKTISK endte på et annet nivå
+// avlyser trykket uansett hvor kort det var (se `onDraSlutt`): regelen er sann
+// ved konstruksjon, ikke ved at de to tallene tilfeldigvis står riktig.
+//
+// SORTERINGS-DRAGET BEHOLDER SLOP_PX, med vilje: der løftes cella under fingeren
+// og et spøkelse blir igjen, så et spist trykk er ikke et mysterium — det er en
+// bevegelse man ser.
+const TAPP_PX = 16
 const start = ref(null)
 // Satt av et drag som passerte slop-en, og avlyser det ene `click`-et som
 // følger pekeren. Den nullstilles på TRE steder med vilje: av `velg` som leser
@@ -537,7 +559,6 @@ function onDraFlytt(e) {
     const dx = e.clientX - s.x
     if (Math.abs(dy) < SLOP_PX || Math.abs(dx) > Math.abs(dy)) return
     s.tatt = true
-    sluk = true
     drar.value = true
     // Spennet låses av RETNINGEN, og den er først kjent her. Pikselveien er
     // avstanden mellom de to endene i ekte høyde, med samme gulv som før: står
@@ -549,6 +570,7 @@ function onDraFlytt(e) {
     s.niva = Math.max(1e-6, sp.hi - sp.lo)
     s.lengde = Math.max(DRA_MIN_PX, nivaPiksler(sp.hi) - nivaPiksler(sp.lo))
   }
+  if (Math.abs(dy) >= TAPP_PX) sluk = true
   if (e.cancelable) e.preventDefault()
   dra.value = Math.max(s.lo, Math.min(s.hi, s.dra + (dy / s.lengde) * s.niva))
 }
@@ -562,6 +584,8 @@ function onDraSlutt() {
   // spennets to ender — derfor lander et sveip oppover fra nivå 2 på 0 og ikke
   // på 1: mellomnivået er ikke et hakk i DETTE draget.
   dra.value = pickSnapTarget(dra.value, s.dra, [s.lo, s.hi], COMMIT)
+  // Flyttet skuffa seg faktisk, var det et drag — uansett hvor kort.
+  if (dra.value !== s.dra) sluk = true
   drar.value = false
   setTimeout(() => { sluk = false }, 0)
 }
