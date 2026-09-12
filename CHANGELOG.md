@@ -1,3 +1,11 @@
+## 2026-09-12 — v7.7.15: røyktestens ekte kart kom aldri fram til delene
+
+Delingen av røyktesten i v7.7.12 la kart-byggingen i en egen forjobb som kjører `--lagkart` ALENE — ingen `npm run build`, altså ingen `dist/`. Men byggestien i `byggEkteKart` kopierte kartet til `dist/maps/vardasen.svg` uten å lage katalogen først; bare cache-stien gjorde det. Resultatet var `ENOENT` rett etter et vellykket bygg, `har=0`, og alle tre delene som kjørte på demo-kartet med de 22 `krever: 'ektekart'`-sjekkene hoppet over.
+
+Feilmodusen er den stille sorten: byggingen lykkes, kartet er riktig (670 kB, konturer 49–348 m), og det eneste sporet er en advarsel midt i en logg ingen leser — jobben er grønn. Og den traff bare ved cache-BOM, altså nøyaktig på de PR-ene som endrer kart-pipelinen og dermed trenger sjekkene mest; en PR som ikke rører pipelinen treffer cachen og går den stien som virker. Én linje `mkdirSync`, og en kommentar som sier hvorfor katalogen ikke kan antas.
+
+---
+
 ## 2026-09-12 — v7.7.14: kortere vei til første kart
 
 Tolv tiltak fra ytelsesanalysen, i rekkefølgen eieren satte. Ingen av dem endrer hva kartet VISER; de endrer hva vi venter på.
