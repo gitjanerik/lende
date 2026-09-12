@@ -1,3 +1,36 @@
+## 2026-09-12 — v7.8.8: ett trykk på «Natt», og lag-sveipet ut av kvitteringsbildet
+
+«Jeg må trykke to ganger på snarvei dag/natt før det skjer noe.» Det var ikke
+temaet, det var skuffa: draget tok tak ved seks piksler, og nøyaktig der ble
+trykket avlyst — så et helt vanlig tapp med litt tommel-vingling ble spist, og
+fordi avlysningen returnerer før raden legges sammen, sto alt stille og så
+uendret ut. Målt i Chromium: et rent tapp byttet tema, et tapp med ni piksler
+loddrett vingling gjorde ingenting. De to tallene svarte på hvert sitt spørsmål
+og var likevel ett tall. Skuffa tar nå tak ved seks piksler som før, men trykket
+avlyses først ved seksten — mellom dem følger skuffa fingeren noen piksler og
+spretter tilbake av seg selv, siden dokkingen krever en fjerdedel av et nivå.
+Og et drag som faktisk endte på et annet nivå avlyser trykket uansett hvor kort
+det var, så regelen er sann ved konstruksjon og ikke ved at to tall tilfeldigvis
+står riktig.
+
+Den andre halvdelen er at byttet fortsatt kjentes tregt. `applyLayerVisibility`
+sto igjen i den synkrone blokka fra v7.8.7 med begrunnelsen «garanterer at
+DOM-en er i synk» — men den koster tjue `querySelectorAll` over hele kart-SVG-en
+og hver spøkelsesflis, et `[data-label]`-sveip over det samme, en
+upright-passering som tvinger layout, og fire lag-injeksjoner. På et
+lys↔mørke-bytte gjør den ingenting i det hele tatt: lag-settet er urørt med
+mindre man går inn i eller ut av et `autoHideLayers`-tema. Den står nå bak
+`etterMaling` sammen med relieffet. Prisen er ett bilde med gamle lag på vei inn
+i «Skisse»; gevinsten er at kvitteringsbildet bare inneholder paletten.
+
+Og fordi «tregt» meldes fra en telefon vi ikke kan måle på herfra, skriver
+tema-byttet nå sitt eget budsjett til perf-loggen — palett, lag, relieff og
+spøkelses-riving hver for seg — i den modalen som allerede har kopier-knapp.
+En røyk-sjekk måler at linja faktisk skrives, og en annen at et vinglete tapp
+utløser snarveien.
+
+---
+
 ## 2026-09-12 — v7.8.7: Natt kvitterer med en gang, og skriften settes ved slipp
 
 «Natt» brukte 2–3 sekunder på å svare. Ingenting var tregt i seg selv — alt lå
