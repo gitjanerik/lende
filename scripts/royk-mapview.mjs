@@ -5891,6 +5891,16 @@ async function byggEkteKart() {
   try {
     console.log('→ bygger ekte Vardåsen-kart (nett) …')
     await kjør('node', ['scripts/build-vardasen-svg.js'])
+    // dist/maps/ må lages her, ikke antas. Cache-stien over gjør det allerede;
+    // byggestien gjorde det ikke, og det gikk bra så lenge røyktesten var ÉN
+    // jobb som kjørte `npm run build` (og dermed lagde dist/) før kartet. Etter
+    // delingen i v7.7.12 kjører forjobben `--lagkart` ALENE — ingen build, ingen
+    // dist/ — så copyFileSync feilet med ENOENT og hele PR-en falt tilbake på
+    // demo-kartet. Feilmodusen er den stille: byggingen lykkes, kartet er
+    // riktig, og de 22 ektekart-sjekkene hoppes over med en advarsel ingen
+    // leser. Den traff bare ved cache-BOM, altså nøyaktig på de PR-ene som
+    // endrer kart-pipelinen og trenger sjekkene mest.
+    mkdirSync(dirname(EKTE_KART_UT), { recursive: true })
     copyFileSync(DEMO_KART, EKTE_KART_UT)
     if (KARTCACHE) {
       const bygd = readFileSync(EKTE_KART_UT)
