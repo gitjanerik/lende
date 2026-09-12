@@ -3,6 +3,7 @@ import {
   SNARVEIER, STANDARD_REKKEFOLGE, normaliserRekkefolge, snarveierIRekkefolge,
   flyttSnarvei, antallKolonner, antallRader,
   gitterIndeks, gitterForskyvning, flettSynligRekkefolge, SNARVEI_MIN_H,
+  SNARVEI_NIVAER, draSpenn,
 } from './snarveier.js'
 
 describe('cellas minstehøyde', () => {
@@ -223,5 +224,38 @@ describe('flettSynligRekkefolge', () => {
   it('holder en skjult id først når den lå først', () => {
     const ny = flettSynligRekkefolge(['sporing', ...synlig], synlig)
     expect(ny[0]).toBe('sporing')
+  })
+})
+
+describe('draSpenn — skuffas tre nivåer', () => {
+  it('har tre nivåer: sammenlagt, radene, knottene', () => {
+    expect(SNARVEI_NIVAER).toBe(2)
+  })
+
+  it('åpner ETT nivå per drag nedover', () => {
+    expect(draSpenn(0, true)).toEqual({ lo: 0, hi: 1 })
+    expect(draSpenn(1, true)).toEqual({ lo: 1, hi: 2 })
+  })
+
+  it('minimerer i ETT steg oppover, uansett nivå', () => {
+    // Dette er hele asymmetrien: fra knottene skal ett sveip opp gi kartet
+    // tilbake. Hakkene i draget er spennets to ender, så `pickSnapTarget`
+    // kan per konstruksjon ikke dokke på mellomnivået.
+    expect(draSpenn(2, false)).toEqual({ lo: 0, hi: 2 })
+    expect(draSpenn(1, false)).toEqual({ lo: 0, hi: 1 })
+  })
+
+  it('gir et tomt spenn i endene, så draget ikke kan skyte forbi', () => {
+    expect(draSpenn(2, true)).toEqual({ lo: 2, hi: 2 })
+    expect(draSpenn(0, false)).toEqual({ lo: 0, hi: 0 })
+  })
+
+  it('tåler en halvveis posisjon og et tall utenfor rekkevidde', () => {
+    // Slippes fingeren midt i en animasjon og et nytt drag starter, er `fra`
+    // ikke et helt tall. Ned skal fortsatt sikte på NESTE hakk.
+    expect(draSpenn(0.4, true)).toEqual({ lo: 0.4, hi: 1 })
+    expect(draSpenn(1.6, true)).toEqual({ lo: 1.6, hi: 2 })
+    expect(draSpenn(9, true)).toEqual({ lo: 2, hi: 2 })
+    expect(draSpenn(-3, false)).toEqual({ lo: 0, hi: 0 })
   })
 })

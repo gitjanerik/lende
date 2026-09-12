@@ -29,6 +29,37 @@
 // samme retnings-baserte regel som hvert bunn-ark i appen: ett svakt drag i en
 // retning committer, man må ikke forbi midtpunktet.
 //
+// ─────────────────────────────────────────────────────────────────────────────
+// SKUFFA HAR TRE NIVÅER FRA v7.8.0, som infopanelet har det.
+//
+//   0  sammenlagt — første rad med funksjoner, og ingenting annet.
+//   1  alle radene, pluss «Sorter snarveier».
+//   2  KART-KNOTTENE: strek og relieff, de to innstillingene man rører MENS
+//      man går, og som ellers ligger et tannhjul og en fane unna.
+//
+// NIVÅ 2 ER EN SNARVEI TIL KARTSTIL-FANA, IKKE EN ANDRE BOLIG FOR DEN. Strek
+// og relieff flyttet ut av denne raden i v7.4.0 nettopp fordi kartets uttrykk
+// ikke skal stilles inn to steder, og den beslutningen står: fana eier fortsatt
+// per-element-strek, relieff-stilens forklaring, «angi som standard» og
+// «nullstill». Her står bare de to GROV-knottene og valget mellom skarpt og
+// mjukt — det man vil ha i hånda på en sti, ikke det man setter opp hjemme.
+// Forskjellen fra v7.0.0-pillene er at knottene ikke er blandet INN blant
+// funksjonene: de bor bak et eget drag, og koster ingen kartflate før man har
+// dratt to ganger.
+//
+// NED ÅPNER ETT NIVÅ, OPP MINIMERER I ETT STEG (`draSpenn` i lib/snarveier.js).
+// Å åpne er et valg man tar ett hakk om gangen og ser resultatet av; å legge
+// sammen er å bli ferdig, og da skal man ikke måtte dra to ganger for å få
+// kartet tilbake. Spennet klemmes MENS fingeren er nede og ikke bare ved
+// slipp — et langt sveip ned fra sammenlagt skal stoppe på nivå 1 og VISE at
+// det stopper der.
+//
+// «SORTER SNARVEIER» ER SKJULT PÅ NIVÅ 2. Den handler om raden, knottene om
+// kartet, og en knapp som står igjen under et panel den ikke hører til leses
+// som en del av panelet. Den toner ut med det samme draget som toner panelet
+// inn, så det er én bevegelse og ikke et bytte.
+// ─────────────────────────────────────────────────────────────────────────────
+//
 // KLIKK ÅPNER IKKE (v7.5.0). Håndtaket er et håndtak: man drar i det. Et
 // klikk-toggle på samme flate gjorde at et lite drag og et tapp gjorde helt
 // ulike ting på samme piksel. **Piltastene står igjen** — de er ikke et klikk,
@@ -161,7 +192,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import SnarveiIkon from './SnarveiIkon.vue'
 import {
-  antallKolonner, antallRader, SNARVEI_MIN_H,
+  antallKolonner, antallRader, SNARVEI_MIN_H, SNARVEI_NIVAER, draSpenn,
   gitterIndeks, gitterForskyvning, flyttSnarvei,
 } from '../lib/snarveier.js'
 import { pickSnapTarget } from '../composables/useDraggableDrawer.js'
@@ -170,6 +201,19 @@ const props = defineProps({
   // [{ id, label, aria }] i brukerens rekkefølge.
   snarveier: { type: Array, required: true },
   uiTextScale: { type: Number, default: 1 },
+
+  // ── Nivå 2: kart-knottene ────────────────────────────────────────────────
+  // Rådata, ikke tilstand: komponenten viser trinnet den får og sier fra når
+  // brukeren drar. Hvem som eier verdien, hva den betyr for kartet, og hva
+  // «relieff på trinn 0» skal gjøre med av/på-bryteren, er kallstedets — se
+  // MapView. En skuff som selv bestemte det ville vært et tredje sted relieffet
+  // stilles inn.
+  strekTrinn: { type: Number, default: 0 },
+  strekTrinnAntall: { type: Number, default: 1 },
+  strekSkala: { type: Number, default: 1 },
+  reliefTrinn: { type: Number, default: 0 },
+  reliefTrinnAntall: { type: Number, default: 1 },
+  reliefProsent: { type: Number, default: 0 },
 })
 // `apen` går UT igjen fordi den utfoldede skuffa er flere linjer høy på en
 // telefon og da dekker navigasjonssøyla, som står i sin egen `--ovl-nav`-slot
@@ -178,7 +222,14 @@ const props = defineProps({
 // sjelden drar ut. Kallstedet løfter i stedet raden over søyla mens den er ute.
 // Radens egen z-index duger ikke: innpakningen i MapView er `z-20 absolute`,
 // altså sin egen stacking context, og et barn kan ikke klatre ut av den.
-const emit = defineEmits(['velg', 'flytt', 'tilbakestill', 'apen'])
+const emit = defineEmits([
+  'velg', 'flytt', 'tilbakestill', 'apen',
+  'set-strek-trinn', 'set-relief-trinn',
+])
+// 'vektor' = skarpe tone-bånd, 'mjuk' = gradient-bilde. Samme to verdier som
+// Kartstil-fana binder; navnene er kortet ned til ett ord hver her, fordi pilla
+// står i en boks som skal tåle 200 % tekst.
+const reliefMode = defineModel('reliefMode', { type: String, default: 'vektor' })
 
 // Margin til hver skjermkant. Raden er sentrert, så halve verdien per side.
 const KANT_PX = 24
@@ -189,19 +240,22 @@ const DOKK_KURVE = 'cubic-bezier(0.2, 0.8, 0.2, 1)'
 // Hvor stor del av gapet mot neste hakk et drag må passere før det committer.
 // Samme verdi som drawer-ens `commitFraction`.
 const COMMIT = 0.25
-// Hvor langt fingeren minst må flytte seg for å gå hele veien. Skuffa følger
-// fingeren 1:1 når den HAR noe å vokse med, men vokse-rommet kan være null: får
-// alle snarveiene plass på én rad OG navnene står alltid, er sammenlagt og
-// utfoldet nøyaktig like høye — det eneste draget avdekker da er «Sorter
-// snarveier» under raden. En divisor på 0 ville gjort hvert drag til et hopp
-// rett til enden. Divisoren er derfor det STØRSTE av vokse-rommet og dette.
+// Hvor langt fingeren minst må flytte seg for å gå hele veien i ETT segment.
+// Skuffa følger fingeren 1:1 når segmentet HAR noe å vokse med, men rommet kan
+// være null: får alle snarveiene plass på én rad, er nivå 0 og nivå 1 nøyaktig
+// like høye, og det eneste det første draget avdekker er «Sorter snarveier»
+// under raden. En divisor på 0 ville gjort hvert drag til et hopp rett til
+// enden. Divisoren er derfor det STØRSTE av segmentets vokse-rom og dette.
 const DRA_MIN_PX = 72
 
-// Dra-posisjonen: 0 = sammenlagt (første rad), 1 = utfoldet (alle rader). Alt
-// annet i komponenten avledes av den.
+// Dra-posisjonen: 0 = sammenlagt (første rad), 1 = alle radene, 2 = knottene.
+// Alt annet i komponenten avledes av den, og den er kontinuerlig — mellom-
+// verdiene er bildene mellom to hakk.
 const dra = ref(0)
 const drar = ref(false)
 const gitterRef = ref(null)
+const panelRef = ref(null)
+const hPanel = ref(0)
 const kolonner = ref(1)
 const gapPx = ref(4)
 const hLukket = ref(0)
@@ -222,7 +276,21 @@ const draNaa = computed(() => maalTvang.value ?? dra.value)
 const apen = computed(() => dra.value > 0.5)
 const rader = computed(() => antallRader(props.snarveier.length, kolonner.value))
 const hoydeSpenn = computed(() => Math.max(0, hApen.value - hLukket.value))
-const draLengde = computed(() => Math.max(DRA_MIN_PX, hoydeSpenn.value))
+
+// De to halvdelene av draget, hver klemt til [0, 1]: den første avdekker
+// radene, den andre panelet. De leses hver for seg av høyde og opasitet, så
+// panelet ikke begynner å gli opp før radene står framme.
+function klem01(v) { return Math.max(0, Math.min(1, v)) }
+const radAndel = computed(() => klem01(draNaa.value))
+const panelAndel = computed(() => klem01(draNaa.value - 1))
+// «Sorter snarveier» hører til nivå 1 alene: den toner inn med radene og ut
+// igjen med panelet, i én og samme bevegelse.
+const sorterAndel = computed(() => klem01(dra.value) * (1 - klem01(dra.value - 1)))
+
+/** Hvor mange piksler skuffa har vokst ved nivå `n`. Draget måles i disse. */
+function nivaPiksler(n) {
+  return hoydeSpenn.value * klem01(n) + hPanel.value * klem01(n - 1)
+}
 
 // LUFTA UNDER SISTE RAD ER POLSTRING, IKKE ET MODUS-TILLEGG (v7.7.5).
 // Gitteret hadde polstring på tre sider og ingen under: cellene hadde bare en
@@ -239,12 +307,25 @@ const draLengde = computed(() => Math.max(DRA_MIN_PX, hoydeSpenn.value))
 // under den første ligger og venter rett utenfor kanten.
 const gitterStil = computed(() => ({
   height: maalt.value && !maaler.value
-    ? `${hLukket.value + hoydeSpenn.value * dra.value}px`
+    ? `${hLukket.value + hoydeSpenn.value * radAndel.value}px`
     : 'auto',
   gridTemplateColumns: maalt.value
     ? `repeat(${kolonner.value}, minmax(0, 1fr))`
     : '',
   transition: drar.value ? 'none' : `height ${DOKK_MS}ms ${DOKK_KURVE}`,
+}))
+
+// KNOTT-PANELET ANIMERES FOR SEG. Det kunne vært én høyde for hele pilla, men
+// da måtte gitteret og panelet delt på ett `overflow: hidden` — og gitteret
+// KLIPPER med vilje (rad to og ned ligger og venter utenfor kanten), mens
+// panelet skal stå helt eller ikke i det hele tatt. To bokser, to høyder, ett
+// drag som mater begge.
+const panelStil = computed(() => ({
+  height: maalt.value && !maaler.value ? `${hPanel.value * panelAndel.value}px` : 'auto',
+  opacity: maalt.value && !maaler.value ? panelAndel.value : 1,
+  transition: drar.value
+    ? 'none'
+    : `height ${DOKK_MS}ms ${DOKK_KURVE}, opacity ${DOKK_MS}ms ${DOKK_KURVE}`,
 }))
 
 // ── Måling ─────────────────────────────────────────────────────────────────
@@ -281,6 +362,10 @@ async function maal() {
   maalt.value = true
   await nextTick()
   hApen.value = g.offsetHeight
+  // Panelet står med `height: auto` så lenge `maaler` er på — samme grep som
+  // for gitteret, og av samme grunn: en boks med bundet høyde måler bare
+  // tallet den selv nettopp skrev.
+  hPanel.value = panelRef.value?.offsetHeight || 0
 
   // SAMMENLAGT ER ÉN RAD, og den kan ikke leses av gitteret: med `height: auto`
   // står ALLE radene der, og `offsetHeight` ville gitt full høyde også ved
@@ -346,6 +431,13 @@ function velg(id) {
 //
 // Retningen er den samme som i et bunn-ark, bare speilvendt: skuffa henger fra
 // toppen av skjermen, så NED er «vis mer» og OPP er «legg sammen».
+//
+// OG RETNINGEN AVGJØR HVOR LANGT DRAGET REKKER (v7.8.0). Spennet hentes av
+// `draSpenn` i det draget tar tak — ned gir [nivå, nivå+1], opp gir [0, nivå] —
+// og både klemmingen underveis og dokkingen ved slipp bruker det samme paret.
+// Det er derfor et langt sveip ned fra sammenlagt STOPPER på nivå 1 i stedet
+// for å skyte forbi det: grensa er synlig mens fingeren er nede, ikke en
+// overraskelse ved slipp.
 const SLOP_PX = 6
 const start = ref(null)
 // Satt av et drag som passerte slop-en, og avlyser det ene `click`-et som
@@ -387,6 +479,12 @@ function onDraStart(e) {
   // står låst åpen, og en skuff som legger seg sammen midt i en flytting ville
   // klippet bort nettopp plassen man siktet på.
   if (!maalt.value || sorterer.value || e.button > 0) return
+  // KNOTT-PANELET SLIPPER IKKE DRAGET VIDERE (v7.8.0). Pilla er gripeflate
+  // overalt ellers, men to skyveknapper og en pille er kontroller man sikter
+  // på — og en skuff som legger seg sammen fordi man dro litt skjevt på
+  // relieff-slideren tar med seg nettopp det man holdt på med. Håndtaket
+  // ligger rett under panelet, så veien ut er en piksel unna.
+  if (e.target?.closest?.('[data-snarvei-knotter]')) return
   start.value = { x: e.clientX, y: e.clientY, dra: dra.value, tatt: false }
   lyttPaaVinduet()
   // INGEN `preventDefault` HER: den ville tatt `click` fra snarvei-knappene,
@@ -402,9 +500,18 @@ function onDraFlytt(e) {
     s.tatt = true
     sluk = true
     drar.value = true
+    // Spennet låses av RETNINGEN, og den er først kjent her. Pikselveien er
+    // avstanden mellom de to endene i ekte høyde, med samme gulv som før: står
+    // ikke skuffa til å vokse, ville en divisor på 0 gjort hvert drag til et
+    // hopp rett til enden.
+    const sp = draSpenn(s.dra, dy > 0, SNARVEI_NIVAER)
+    s.lo = sp.lo
+    s.hi = sp.hi
+    s.niva = Math.max(1e-6, sp.hi - sp.lo)
+    s.lengde = Math.max(DRA_MIN_PX, nivaPiksler(sp.hi) - nivaPiksler(sp.lo))
   }
   if (e.cancelable) e.preventDefault()
-  dra.value = Math.max(0, Math.min(1, s.dra + dy / draLengde.value))
+  dra.value = Math.max(s.lo, Math.min(s.hi, s.dra + (dy / s.lengde) * s.niva))
 }
 function onDraSlutt() {
   const s = start.value
@@ -412,15 +519,22 @@ function onDraSlutt() {
   losne?.()
   if (!s?.tatt) return
   // Retnings-basert dokking, samme regel som hvert bunn-ark i appen: et svakt
-  // drag i én retning committer, man må ikke forbi midtpunktet.
-  dra.value = pickSnapTarget(dra.value, s.dra, [0, 1], COMMIT)
+  // drag i én retning committer, man må ikke forbi midtpunktet. Hakkene er
+  // spennets to ender — derfor lander et sveip oppover fra nivå 2 på 0 og ikke
+  // på 1: mellomnivået er ikke et hakk i DETTE draget.
+  dra.value = pickSnapTarget(dra.value, s.dra, [s.lo, s.hi], COMMIT)
   drar.value = false
   setTimeout(() => { sluk = false }, 0)
 }
 function settDra(v) {
   drar.value = false
-  dra.value = v
+  dra.value = Math.max(0, Math.min(SNARVEI_NIVAER, v))
 }
+// Tastaturet speiler gesten, og det er en bevisst asymmetri: ned åpner ETT
+// nivå, opp legger sammen helt. En pil som gikk ett hakk ned igjen ville vært
+// en annen modell enn den fingeren møter (SC 2.1.1 krever en vei, ikke en
+// annen vei).
+function tastHandtak(ned) { settDra(ned ? Math.floor(dra.value) + 1 : 0) }
 
 // ── Sortering ──────────────────────────────────────────────────────────────
 // Se filhodet for hvorfor dette er en MODUS og ikke en alltid-på-gest, og for
@@ -642,7 +756,7 @@ function celleTransform(i) {
                   : (s.ariaTekst || s.aria)"
                 :style="[{ zoom: uiTextScale,
                            minHeight: `${SNARVEI_MIN_H}px`,
-                           opacity: maalt && i >= kolonner ? dra : 1 },
+                           opacity: maalt && i >= kolonner ? radAndel : 1 },
                          celleTransform(i)]"
                 class="shortcut-btn"
                 :class="[s.aktiv && !sorterer ? 'shortcut-btn--pa' : '',
@@ -657,6 +771,67 @@ function celleTransform(i) {
         </button>
       </div>
 
+      <!-- ── NIVÅ 2: KART-KNOTTENE (v7.8.0) ──────────────────────────────
+           Strek og relieff, de to man rører mens man går. Panelet står ALLTID
+           i DOM-en: høyden er målt av den ekte layouten, og en boks som ikke
+           er der kan ikke måles. `inert` er derfor ikke pynt — uten den ligger
+           to skyveknapper og en pille i tab-rekka bak en skuff som er lukket.
+
+           ETIKETTEN STÅR OVER INPUTEN, og verdien på samme linje som
+           etiketten. Ved 200 % tekst er en etikett ved siden av en slider det
+           første som bryter: slideren klemmes til ingenting eller dytter
+           tallet ut av pilla. Over/under koster fjorten piksler og kan ikke
+           brekke. `min-w-0` på ordet og `shrink-0` på tallet er det samme
+           grepet én gang til — tallet er kort og skal aldri deles. -->
+      <div ref="panelRef" data-snarvei-knotter
+           class="snarvei-knotter overflow-hidden"
+           :inert="panelAndel < 0.5 || undefined"
+           :style="panelStil">
+        <div class="mx-2 pb-1 pt-2 border-t border-ink/10 flex flex-col gap-2"
+             :style="{ zoom: uiTextScale }">
+          <div class="knott-boks">
+            <div class="flex items-baseline justify-between gap-2">
+              <span id="snarvei-strek-navn" class="min-w-0 truncate font-medium">Strek</span>
+              <span class="shrink-0 tabular-nums text-ink-3">{{ strekSkala.toFixed(2) }}×</span>
+            </div>
+            <input type="range" min="0" :max="strekTrinnAntall - 1" step="1"
+                   :value="strekTrinn"
+                   @input="emit('set-strek-trinn', Number($event.target.value))"
+                   aria-labelledby="snarvei-strek-navn"
+                   class="w-full accent-sky-400" />
+          </div>
+
+          <div class="knott-boks">
+            <div class="flex items-baseline justify-between gap-2">
+              <span id="snarvei-relieff-navn" class="min-w-0 truncate font-medium">Relieff</span>
+              <span class="shrink-0 tabular-nums text-ink-3">
+                {{ reliefProsent === 0 ? 'av' : `${reliefProsent} %` }}
+              </span>
+            </div>
+            <input type="range" min="0" :max="reliefTrinnAntall - 1" step="1"
+                   :value="reliefTrinn"
+                   @input="emit('set-relief-trinn', Number($event.target.value))"
+                   aria-labelledby="snarvei-relieff-navn"
+                   class="w-full accent-amber-400" />
+            <!-- PILLA ER STILEN, IKKE STYRKEN. Den står under slideren den
+                 hører til, og ordene er ett hvert: den fulle forklaringen
+                 («tone-bånd som vektor» mot «gradient-bilde») bor i Kartstil-
+                 fana, der det er plass til å lese den. `aria-label` bærer
+                 parentesen så skjermleseren ikke sitter igjen med «Mjuk». -->
+            <div class="knott-pille" role="group" aria-label="Relieff-stil">
+              <button type="button" @click="reliefMode = 'vektor'"
+                      :aria-pressed="reliefMode === 'vektor'"
+                      aria-label="Skarpt relieff (vektor)"
+                      :class="reliefMode === 'vektor' ? 'knott-pille__pa' : ''">Skarp</button>
+              <button type="button" @click="reliefMode = 'mjuk'"
+                      :aria-pressed="reliefMode === 'mjuk'"
+                      aria-label="Mjukt relieff (bilde)"
+                      :class="reliefMode === 'mjuk' ? 'knott-pille__pa' : ''">Mjuk</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- HÅNDTAKET: appens grå drawer-håndtak, bunnplassert og midtstilt, med
            SAMME luft rundt seg som i punkt-arket og funksjons-skuffene.
            Fra v7.6.0 eier det ikke draget lenger — hele pilla gjør det — men
@@ -668,9 +843,11 @@ function celleTransform(i) {
               class="snarvei-handle shrink-0 w-full cursor-grab
                      active:cursor-grabbing py-3 flex justify-center"
               :aria-expanded="apen"
-              :aria-label="apen ? 'Legg sammen snarveiene' : 'Dra ned for flere snarveier og sortering'"
-              @keydown.down.prevent="settDra(1)"
-              @keydown.up.prevent="settDra(0)">
+              :aria-label="dra >= SNARVEI_NIVAER - 0.5
+                ? 'Legg sammen snarveiene'
+                : (apen ? 'Dra ned for strek og relieff' : 'Dra ned for flere snarveier og sortering')"
+              @keydown.down.prevent="tastHandtak(true)"
+              @keydown.up.prevent="tastHandtak(false)">
         <span class="w-12 h-1.5 rounded-full bg-ink/40"
               :style="{ opacity: drar ? 0.6 : 1 }"></span>
       </button>
@@ -699,12 +876,15 @@ function celleTransform(i) {
     <!-- UNDER PILLA: «Sorter snarveier», den ene knotten som handler om RADEN og ikke om
          kartet. Den toner inn med draget, som alt annet det avdekker, og
          `pointer-events` følger med — en usynlig knapp skal ikke ta trykk.
-         Den er SKJULT i sorterings-modus: der er man alt inne i den.
+         Den er SKJULT i sorterings-modus: der er man alt inne i den, og på
+         NIVÅ 2 (v7.8.0): der handler skuffa om kartet, ikke om raden, og en
+         knapp som blir stående under et panel den ikke hører til leses som en
+         del av det. Den toner ut med det samme draget som toner panelet inn.
 
          NAVNE-BRYTEREN STO HER FRAM TIL v7.7.6 og er fjernet — se filhodet. -->
-    <div v-if="dra > 0 && !sorterer" class="pointer-events-auto flex items-center gap-2"
-         :style="{ zoom: uiTextScale, opacity: dra,
-                   pointerEvents: apen ? 'auto' : 'none' }">
+    <div v-if="sorterAndel > 0.01 && !sorterer" class="pointer-events-auto flex items-center gap-2"
+         :style="{ zoom: uiTextScale, opacity: sorterAndel,
+                   pointerEvents: sorterAndel > 0.99 ? 'auto' : 'none' }">
       <button type="button" class="rad-knott" @click="startSortering">
         Sorter snarveier
       </button>
@@ -853,6 +1033,51 @@ function celleTransform(i) {
 @media (prefers-reduced-motion: reduce) {
   .shortcut-btn--sorter { transition: none; }
 }
+
+/* ── NIVÅ 2: KART-KNOTTENE (v7.8.0) ─────────────────────────────────────────
+   Boksene er radens egen form i lavere profil: samme avrunding og samme
+   ton-i-ton-flate som en snarvei-celle, så panelet leses som en del av pilla og
+   ikke som et ark som har lagt seg oppå den. */
+.knott-boks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--color-ink) 10%, transparent);
+  color: var(--color-ink);
+  font-size: 12px;
+  line-height: 1.2;
+}
+/* Skyveknappen får en ekte trykkflate uten å gjøre boksen høy: sporet er tynt,
+   men `input[type=range]` gir tommelen hele elementhøyden å treffe innenfor. */
+.knott-boks input[type='range'] { height: 22px; }
+
+/* Stil-pilla: to like halvdeler i ETT spor, så valget leses som én bryter med
+   to stillinger og ikke som to knapper som tilfeldigvis står ved siden av
+   hverandre. `1fr 1fr` og ikke flex: ordene er ulikt lange («Skarp», «Mjuk»),
+   og en pille der den ene halvdelen er bredere ser ut som om den ene er valgt. */
+.knott-pille {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--color-ink) 12%, transparent);
+}
+.knott-pille button {
+  padding: 4px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--color-ink-2, var(--color-ink));
+  transition: background 0.15s ease, color 0.15s ease;
+}
+/* Emerald-700 av samme grunn som cellene bruker -600: hvitt skal ha kontrast
+   nok til å leses (WCAG 1.4.3) på en flate som er liten fra før. */
+.knott-pille__pa { background: #047857; color: #fff; }
 
 /* Håndtaket har ingen egen flate — det er streken som er knappen — men
    trykkflata skal svare, så hover/aktiv tar streken og ikke boksen. */

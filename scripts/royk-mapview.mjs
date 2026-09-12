@@ -1044,6 +1044,94 @@ const SJEKKER = [
     },
   },
   {
+    // SKUFFA HAR TRE NIVÅER (v7.8.0), og hele mekanikken er geometri i en ekte
+    // nettleser: høydene er MÅLT av layouten, spennet klemmes mens fingeren er
+    // nede, og dokkingen leser retningen. Ingen del av det finnes i en
+    // enhetstest — `draSpenn` er testet for seg, men den sier ingenting om at
+    // panelet faktisk står der eller at «Sorter snarveier» forsvinner.
+    //
+    // FIRE TING MÅLES:
+    //   • at ETT drag ned fra sammenlagt stopper på nivå 1 selv om draget er
+    //     langt. Klemmingen skjer underveis, så et sveip som holder fram skal
+    //     ikke skyte forbi radene og lande i knottene;
+    //   • at nivå 2 faktisk viser de to skyveknappene og stil-pilla;
+    //   • at «Sorter snarveier» er BORTE der — den handler om raden, ikke om
+    //     kartet;
+    //   • at ETT sveip opp fra nivå 2 gir kartet tilbake, altså hopper over
+    //     nivå 1. Det er asymmetrien hele modellen står og faller på.
+    navn: 'snarvei-skuffas tredje nivå: strek og relieff bak et drag til',
+    domene: 'SnarveiRad (nivå 2) + lib/snarveier.draSpenn',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await lukkSnarveiRad(page)
+
+      const les = () => page.evaluate(() => {
+        const panel = document.querySelector('[data-snarvei-knotter]')
+        const skyv = [...document.querySelectorAll('[data-snarvei-knotter] input[type=range]')]
+        return {
+          apen: document.querySelector('.snarvei-handle')?.getAttribute('aria-expanded'),
+          panelHoyde: panel ? Math.round(panel.getBoundingClientRect().height) : -1,
+          skyvNavn: skyv.map((e) => {
+            const id = e.getAttribute('aria-labelledby')
+            return id ? (document.getElementById(id)?.textContent || '').trim() : ''
+          }),
+          pille: [...document.querySelectorAll('[data-snarvei-knotter] .knott-pille button')]
+            .map((b) => b.textContent.trim()),
+          sorter: [...document.querySelectorAll('.rad-knott')]
+            .some((b) => /Sorter/.test(b.textContent)),
+        }
+      })
+
+      // ETT DRAG NED, OG DET ER LANGT MED VILJE: 400 px er langt forbi det
+      // nivå 1 koster, og skuffa skal likevel stoppe der.
+      await draSnarveiHandle(page, 400)
+      const niva1 = await les()
+      if (niva1.apen !== 'true') throw new Error('draget åpnet ikke skuffa')
+      if (niva1.panelHoyde > 2) {
+        throw new Error(`ett langt drag ned landet i knottene (panel ${niva1.panelHoyde} px) `
+          + '— ned skal åpne ETT nivå om gangen')
+      }
+      if (!niva1.sorter) throw new Error('«Sorter snarveier» mangler på nivå 1')
+
+      // ETT DRAG TIL: nå skal knottene fram.
+      await draSnarveiHandle(page, 400)
+      const niva2 = await les()
+      if (!(niva2.panelHoyde > 40)) {
+        throw new Error(`det andre draget ga ingen knotter (panel ${niva2.panelHoyde} px)`)
+      }
+      if (niva2.skyvNavn.join(',') !== 'Strek,Relieff') {
+        throw new Error(`nivå 2 viser «${niva2.skyvNavn.join(', ')}», ikke Strek + Relieff`)
+      }
+      if (niva2.pille.join('/') !== 'Skarp/Mjuk') {
+        throw new Error(`relieff-stilpilla viser «${niva2.pille.join('/')}»`)
+      }
+      if (niva2.sorter) {
+        throw new Error('«Sorter snarveier» står igjen under knott-panelet — '
+          + 'den handler om raden, ikke om kartet')
+      }
+      // SKYVEKNAPPENE MÅ VÆRE TREFFBARE, ikke bare synlige: panelet er
+      // `inert` når det er lukket, og et flagg som blir stående gjør hele
+      // nivået til et bilde.
+      const strek = page.locator('[data-snarvei-knotter] input[type=range]').first()
+      await strek.focus()
+      if (!(await page.evaluate(() => document.activeElement?.type === 'range'))) {
+        throw new Error('strek-skyven tar ikke fokus — står panelet igjen som inert?')
+      }
+
+      // ETT SVEIP OPP, HELE VEIEN NED. Hopper over nivå 1.
+      await draSnarveiHandle(page, -400)
+      const slutt = await les()
+      if (slutt.apen !== 'false') {
+        throw new Error(`ett sveip opp fra nivå 2 endte på «${slutt.apen}» — `
+          + 'opp skal minimere i ett steg')
+      }
+      if (slutt.panelHoyde > 2) throw new Error('knott-panelet ble stående etter sveipet opp')
+      return `nivå 1 stoppet på ${niva1.panelHoyde} px panel, nivå 2 ga `
+        + `${niva2.skyvNavn.join(' + ')} + ${niva2.pille.join('/')} `
+        + `(${niva2.panelHoyde} px), ett sveip opp la alt sammen`
+    },
+  },
+  {
     // DE FASTE IKONENE FØLGER TEKSTSTØRRELSEN (v7.6.0). Hamburgeren, søket,
     // kompassnåla og Lende-chatten er de fire runde knappene som ikke bærer en
     // etikett, og et ikon «leses» som tekst: den som skrur opp til 200 % fordi
@@ -5735,8 +5823,19 @@ async function startSortering(page) {
   await klikkTekst(page, /^Sorter snarveier$/)
 }
 
+// «ÅPEN» BETYR NIVÅ 1, IKKE «ikke sammenlagt» (v7.8.0). Skuffa har tre
+// stillinger, og `aria-expanded` er sann i begge de to øverste — så en sjekk som
+// bare leste den kunne stå på nivå 2, der «Sorter snarveier» ikke finnes, og
+// `startSortering` ville ventet 30 sekunder på en knapp som aldri kommer. Står
+// knottene framme, minimeres det først (ett sveip opp, som i appen) og åpnes så
+// ett nivå.
 async function apneSnarveiRad(page) {
   await avsluttSortering(page)
+  const knotterFramme = await page.evaluate(() => {
+    const p = document.querySelector('[data-snarvei-knotter]')
+    return !!p && p.getBoundingClientRect().height > 2
+  })
+  if (knotterFramme) await draSnarveiHandle(page, -400)
   const handle = page.locator('.snarvei-handle')
   if ((await handle.getAttribute('aria-expanded')) === 'false') {
     await draSnarveiHandle(page, 120)

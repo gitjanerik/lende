@@ -132,6 +132,44 @@ export function snarveierIRekkefolge(rekkefolge, { egetKart = true } = {}) {
     .filter(s => s && (egetKart || !s.kunEgne))
 }
 
+/**
+ * Snarvei-skuffas ØVERSTE nivå. Skuffa har tre: 0 = sammenlagt (første rad),
+ * 1 = alle radene, 2 = kart-innstillingene (strek og relieff).
+ *
+ * TO NIVÅER BLE TRE I v7.8.0, og grunnen er at strek og relieff er de to
+ * innstillingene man rører MENS man går. De bor i Innstillinger → Kartstil
+ * (v7.4.0), og det står fast — fana er fortsatt det ene stedet der hele
+ * uttrykket stilles inn, med per-element-strek, relieff-stil og «angi som
+ * standard». Det nye nivået er en SNARVEI til de to knottene i den fana, ikke
+ * en andre bolig for dem: den bærer grov-knotten og ingenting som lagres som
+ * standard. Skillet mellom funksjon og innstilling er derfor ikke rørt — det
+ * er lagt et eget nivå BAK funksjonene, ikke en knott inn blant dem, og det
+ * koster ingen kartflate før man har dratt to ganger.
+ */
+export const SNARVEI_NIVAER = 2
+
+/**
+ * Spennet et drag får bevege seg i, gitt hvor skuffa sto og hvilken vei
+ * fingeren går.
+ *
+ * NED ÅPNER ETT NIVÅ OM GANGEN, OPP MINIMERER I ETT STEG. Asymmetrien er
+ * bestilt, og den er den samme som i et hvilket som helst ark man drar fram:
+ * å åpne er et valg man tar ett hakk av gangen og ser resultatet av, mens å
+ * legge sammen er å bli ferdig — og da skal man ikke måtte dra to ganger for
+ * å få kartet tilbake. Konsekvensen for draget er at spennet må klemmes MENS
+ * fingeren er nede og ikke bare ved slipp: et langt sveip ned fra sammenlagt
+ * skal stoppe på nivå 1 og vise at det stopper der.
+ *
+ * @param {number} fra   nivået skuffa sto i da draget startet
+ * @param {boolean} ned  true = fingeren går nedover (åpne)
+ * @param {number} maks  øverste nivå
+ * @returns {{lo: number, hi: number}} spennet draget klemmes til
+ */
+export function draSpenn(fra, ned, maks = SNARVEI_NIVAER) {
+  const f = Math.max(0, Math.min(maks, Number(fra) || 0))
+  return ned ? { lo: f, hi: Math.min(maks, Math.floor(f) + 1) } : { lo: 0, hi: f }
+}
+
 /** Flytter ett element fra `fra` til `til`. Utenfor rekkevidde = uendret. */
 export function flyttSnarvei(rekkefolge, fra, til) {
   const ut = [...rekkefolge]

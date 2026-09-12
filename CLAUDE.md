@@ -439,6 +439,35 @@ Knott-buen (`knobArc`) som viste nivået er slettet med dem: et tall ved en
 slider leses, en bue tolkes — og hele skalaen er synlig på én gang i stedet for
 ett hakk med wrap. Kommer det en fjerde knott, er den en seksjon her.
 
+**MEN RADEN HAR DEM SOM ET EGET NIVÅ IGJEN FRA v7.8.0, og det motsier ikke
+avsnittet over — det er nettopp det som gjør at det ikke gjør det.** Skuffa har
+tre stillinger: sammenlagt, alle radene, og KNOTTENE (strek + relieff-styrke +
+skarp/mjuk-pille). Forskjellen fra v7.0.0-pillene er hele poenget: de sto som en
+TREDJE KLASSE KONTROLL midt inne i funksjons-raden, med sin egen form, sitt eget
+bunn-ark og sitt eget hint — nå er det et eget dra-nivå BAK funksjonene, og det
+koster ingen kartflate før man har dratt to ganger. Nivået er en SNARVEI til
+Kartstil-fana og ikke en andre bolig for den: fana eier fortsatt per-element-
+strek, relieff-stilens forklaring, «angi som standard» og «nullstill», og strek-
+trinnet er den samme globale verdien begge steder. Kommer det en femte knott, er
+spørsmålet fortsatt om den er en funksjon eller en innstilling — og svaret
+«innstilling» betyr Kartstil-fana. Bare de to man rører MENS man går har en
+snarvei her.
+
+**NED ÅPNER ETT NIVÅ, OPP MINIMERER I ETT STEG** (`draSpenn`, ren og testet i
+`lib/snarveier.js`). Asymmetrien er bestilt: å åpne er et valg man tar ett hakk
+om gangen og ser resultatet av, å legge sammen er å bli ferdig. Spennet klemmes
+MENS fingeren er nede og ikke bare ved slipp — et langt sveip ned fra sammenlagt
+skal stoppe på nivå 1 og VISE at det stopper der. «Sorter snarveier» toner ut med
+det samme draget som toner knottene inn: den handler om raden, knottene om
+kartet.
+
+**RELIEFF-SLIDEREN I RADEN SKRIVER TO TING, og det er kallstedets ansvar
+(MapView, `settSnarveiRelieff`).** Kartstil-fana har en av/på-bryter (per kart)
+VED SIDEN AV styrke-knotten (global), og det er riktig der: to ting som lagres to
+steder. I raden er det ÉN skyv, og da MÅ «0» bety av — ellers drar den som har
+skrudd relieffet av i fana slideren opp og ser ingenting skje. Komponenten er
+dum med vilje: den viser trinnet den får og sier fra når brukeren drar.
+
 **RADEN ER ET GITTER, OG DEN ER EN EKTE SKUFF (v7.5.0)** (`SnarveiRad.vue`).
 Fram til v7.5.0 var den en flex-rad som målte hver knapp for seg. To ting fulgte
 av det, og begge ble meldt fra felt: antallet per linje endret seg med
