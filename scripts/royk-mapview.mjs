@@ -5560,6 +5560,220 @@ const SJEKKER = [
       return `satt til magenta, «Følg tema» ga ${tilbake}`
     },
   },
+  {
+    // KARTNAVNET FÅR HELE STRIPA MELLOM HAMBURGEREN OG SØKET (v7.8.1), og
+    // rename-arket følger tekststørrelsen som alle andre paneler.
+    //
+    // Navnet sto på `max-w-[42%]` av topprada — under halvparten av den ledige
+    // plassen — så «Skålsjøen, Lørenskog (Skålsjøhytta)» ble klippet til
+    // «Skålsjøen, L…» med tomrom på begge sider. Ingenting av dette finnes i
+    // en enhetstest: DOM-en er identisk enten pilla får 42 % eller 100 %, og
+    // prosjektet kan ikke montere en Vue-komponent i vitest.
+    //
+    // FEM TING MÅLES, og sjekken seeder sitt eget kart fordi demokartene er
+    // BUILTIN — der kan navnet ikke endres, så verken pilla eller arket finnes:
+    //   • innpakningen SPENNER stripa mellom de to faste ikonene;
+    //   • det er LUFT igjen på begge sider (gap-en, ikke marger);
+    //   • et langt navn bruker mer enn det gamle 42 %-taket;
+    //   • pilla holder seg innenfor stripa OGSÅ ved 200 %, altså at
+    //     `max-w-full` løses mot forelderens ekte bredde inne i `zoom`-laget
+    //     (til forskjell fra `vw`/`vh`, v6.3.12);
+    //   • rename-arket har A-knappen, og innholdet vokser mens X-en står.
+    navn: 'kartnavnet fyller stripa, og rename-arket følger tekststørrelsen',
+    domene: 'MapView (topprada) + RenameMapDialog',
+    async kjør(page) {
+      const ID = 'royk-kartnavn'
+      const NAVN = 'Skålsjøen, Lørenskog (Skålsjøhytta) — østre løype'
+      const seed = () => evalMedTak(page, async ([id, navn]) => {
+        const svg = await fetch(`${location.pathname.split('/kart/')[0]}/maps/vardasen.svg`)
+          .then((r) => r.text())
+        const post = {
+          id, navn, svg, opprettet: Date.now(),
+          bbox: { south: 59.79, north: 59.84, west: 10.37, east: 10.46 },
+          equidistanceM: 20, isAuto: false, partial: false, annotations: [], tracks: [],
+        }
+        const db = await new Promise((ok, nei) => {
+          const r = indexedDB.open('lende-maps', 3)
+          r.onsuccess = () => ok(r.result)
+          r.onerror = () => nei(r.error)
+        })
+        await new Promise((ok, nei) => {
+          const t = db.transaction(['maps', 'meta'], 'readwrite')
+          t.objectStore('maps').put(post)
+          const { svg: _s, annotations: _a, tracks: _t, ...lett } = post
+          t.objectStore('meta').put({ ...lett, hasDem: false, sizeBytes: svg.length })
+          t.oncomplete = ok
+          t.onerror = () => nei(t.error)
+        })
+        db.close()
+      }, [ID, NAVN])
+
+      const mål = () => page.evaluate(() => {
+        const boks = (v) => {
+          const e = document.querySelector(v)
+          if (!e) return null
+          const r = e.getBoundingClientRect()
+          return {
+            v: Math.round(r.left), h: Math.round(r.right),
+            b: Math.round(r.width), y: Math.round(r.height),
+          }
+        }
+        const rad = document.querySelector('[data-kartnavn-plass]')?.parentElement
+        return {
+          meny: boks('[data-hovedmeny-knapp]'),
+          sok: boks('[data-sok-knapp]'),
+          plass: boks('[data-kartnavn-plass]'),
+          navn: boks('[data-kartnavn]'),
+          radBredde: rad ? Math.round(rad.getBoundingClientRect().width) : 0,
+        }
+      })
+
+      const settSkala = async (v) => {
+        await page.evaluate((x) => { localStorage.setItem('lende-ui-text-scale', String(x)) }, v)
+        await page.reload({ waitUntil: 'domcontentloaded' })
+        await page.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+        await lukkDrawer(page)
+        await lukkSnarveiRad(page)
+      }
+
+      try {
+        await seed()
+        await page.goto(`${BASE}/kart/${ID}`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await page.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+        await lukkDrawer(page)
+        await lukkSnarveiRad(page)
+
+        const ved100 = await mål()
+        for (const [id, m] of [['hamburgeren', ved100.meny], ['søket', ved100.sok],
+                               ['navne-innpakningen', ved100.plass], ['kartnavnet', ved100.navn]]) {
+          if (!m || m.b <= 0) throw new Error(`fant ingen synlig ${id}`)
+        }
+        const stripe = ved100.sok.v - ved100.meny.h
+        // SPENNET: innpakningen skal ta hele stripa minus de to gapene. Er den
+        // smalere, er `flex-1` borte og pilla har et tak igjen.
+        if (ved100.plass.b < stripe - 24) {
+          throw new Error(`navne-innpakningen er ${ved100.plass.b} px av en stripe på `
+            + `${stripe} px — har den mistet flex-1?`)
+        }
+        // LUFTA: gap-2 på rada, ikke marger på delene. Uten den klistrer pilla
+        // seg til ikonene ved et langt navn.
+        const luftV = ved100.plass.v - ved100.meny.h
+        const luftH = ved100.sok.v - ved100.plass.h
+        if (luftV < 4 || luftH < 4) {
+          throw new Error(`for lite luft rundt navnet (${luftV} px mot hamburgeren, `
+            + `${luftH} px mot søket)`)
+        }
+        // DET GAMLE TAKET: et navn på 50 tegn skal bruke mer enn 42 % av rada.
+        const andel = ved100.navn.b / Math.max(1, ved100.radBredde)
+        if (andel <= 0.45) {
+          throw new Error(`kartnavnet bruker bare ${Math.round(andel * 100)} % av topprada `
+            + 'med et langt navn — står max-w-[42%] tilbake?')
+        }
+        if (ved100.navn.h > ved100.plass.h + 1) {
+          throw new Error('kartnavnet renner ut av sin egen innpakning')
+        }
+
+        // 200 %: `max-w-full` inne i zoom-laget skal fortsatt stoppe på kanten.
+        await settSkala(2)
+        const ved200 = await mål()
+        if (!ved200.navn || !ved200.sok) throw new Error('kartnavnet kom ikke tilbake ved 200 %')
+        // VEKSTEN MÅLES I HØYDE, ikke i bredde. Med et langt navn er pilla alt
+        // klemt mot stripa ved 100 %, og stripa KRYMPER ved 200 % fordi
+        // hamburgeren og søket vokser — så bredden går ned selv når teksten blir
+        // dobbelt så stor. Første utgave målte bredde og feilet på 310 → 230 px.
+        if (!(ved200.navn.y > ved100.navn.y * 1.4)) {
+          throw new Error(`kartnavnet vokste ikke med tekststørrelsen `
+            + `(${ved100.navn.y} → ${ved200.navn.y} px høyt)`)
+        }
+        if (ved200.navn.h > ved200.sok.v) {
+          throw new Error(`kartnavnet går ${ved200.navn.h - ved200.sok.v} px inn i søket ved `
+            + '200 % — løses max-w-full mot forelderens ekte bredde?')
+        }
+        if (ved200.navn.v < ved200.meny.h) {
+          throw new Error('kartnavnet går inn i hamburgeren ved 200 %')
+        }
+
+        // RENAME-ARKET: A-knappen står, innholdet vokser, X-en blir stående.
+        await page.locator('[data-kartnavn]').click()
+        await page.waitForTimeout(400)
+        const ark = await page.evaluate(() => {
+          const felt = document.querySelector('input[placeholder="Navn på kart"]')
+          if (!felt) return null
+          const a = [...document.querySelectorAll('button')]
+            .find((b) => b.offsetParent
+              && /^Tekststørrelse i grensesnittet/.test(b.getAttribute('aria-label') || ''))
+          const x = [...document.querySelectorAll('button')]
+            .find((b) => b.offsetParent && b.getAttribute('aria-label') === 'Lukk')
+          const r = felt.getBoundingClientRect()
+          return {
+            feltHoyde: Math.round(r.height),
+            feltHoyre: Math.round(r.right),
+            harA: !!a,
+            aHoyde: a ? Math.round(a.getBoundingClientRect().height) : 0,
+            xHoyre: x ? Math.round(x.getBoundingClientRect().right) : 0,
+            vindu: window.innerWidth,
+          }
+        })
+        if (!ark) throw new Error('rename-arket åpnet ikke')
+        if (!ark.harA) throw new Error('rename-arket mangler tekststørrelse-knappen')
+        if (ark.aHoyde > 40) {
+          throw new Error(`A-knappen er ${ark.aHoyde} px høy — den skal beholde sine 32 px `
+            + 'og ikke vokse med sin egen effekt')
+        }
+        if (ark.xHoyre > ark.vindu) {
+          throw new Error('X-en i rename-arket er dyttet utenfor skjermen ved 200 %')
+        }
+        if (ark.feltHoyre > ark.vindu + 1) {
+          throw new Error('tekstfeltet renner utenfor skjermen ved 200 %')
+        }
+        await page.keyboard.press('Escape')
+        await page.waitForTimeout(200)
+
+        await settSkala(1)
+        await page.locator('[data-kartnavn]').click()
+        await page.waitForTimeout(400)
+        const felt100 = await page.evaluate(() => {
+          const f = document.querySelector('input[placeholder="Navn på kart"]')
+          return f ? Math.round(f.getBoundingClientRect().height) : 0
+        })
+        await page.keyboard.press('Escape')
+        await page.waitForTimeout(200)
+        if (!(ark.feltHoyde > felt100 * 1.4)) {
+          throw new Error(`tekstfeltet fulgte ikke tekststørrelsen (${felt100} → `
+            + `${ark.feltHoyde} px) — ligger zoomen på kroppen?`)
+        }
+
+        return `stripa ${stripe} px, navnet ${ved100.navn.b} px bredt `
+          + `(${Math.round(andel * 100)} % av rada) og ${ved100.navn.y} → ${ved200.navn.y} px `
+          + `høyt, innenfor søket ved 200 %; rename-arket ${felt100} → ${ark.feltHoyde} px `
+          + `med A-knappen i ${ark.aHoyde} px`
+      } finally {
+        await page.evaluate(() => { localStorage.setItem('lende-ui-text-scale', '1') }).catch(() => {})
+        await evalMedTak(page, async (id) => {
+          const db = await new Promise((ok, nei) => {
+            const r = indexedDB.open('lende-maps', 3)
+            r.onsuccess = () => ok(r.result)
+            r.onerror = () => nei(r.error)
+          })
+          await new Promise((ok) => {
+            const t = db.transaction(['maps', 'meta'], 'readwrite')
+            t.objectStore('maps').delete(id)
+            t.objectStore('meta').delete(id)
+            t.oncomplete = ok
+            t.onerror = ok
+          })
+          db.close()
+        }, ID).catch(() => {})
+        await page.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await page.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+        await lukkDrawer(page)
+        await lukkSnarveiRad(page)
+      }
+    },
+  },
 ]
 
 // ---- små hjelpere ---------------------------------------------------------

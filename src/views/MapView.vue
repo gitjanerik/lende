@@ -2713,34 +2713,50 @@ onUnmounted(() => {
          her er de to FASTE ikonene: hamburgeren og søket. De er de eneste to
          kontrollene i turkartet som verken er en funksjon eller en innstilling,
          og de trenger ingen etikett — men de SKALERER med tekststørrelsen, for
-         et ikon leses som tekst. Kartnavnet er tekst og gjør det samme. -->
-    <div class="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-3 pb-3
+         et ikon leses som tekst. Kartnavnet er tekst og gjør det samme.
+
+         KARTNAVNET FÅR HELE PLASSEN MELLOM DE TO (v7.8.1). Det sto på
+         `max-w-[42%]` av rada, altså ~150 px på en 360 px-telefon — mindre enn
+         halvparten av den ledige stripa — så «Skålsjøen, Lørenskog
+         (Skålsjøhytta)» ble til «Skålsjøen, L…» med tomrom på begge sider.
+         Navnet ligger nå i en `flex-1 min-w-0`-innpakning mellom de to faste
+         ikonene, og pilla vokser bare til sitt eget innhold (`w-max` +
+         `max-w-full`), så et kort navn er fortsatt en kort pille. Lufta er
+         `gap-2` på rada og ikke marger på hver del, så de tre delene kan aldri
+         komme i utakt.
+
+         `max-w-full` er målt og virker inne i `zoom`-laget: prosenten løses mot
+         forelderens EKTE skjermbredde, i motsetning til `vw`/`vh` (v6.3.12).
+         Derfor kan pilla beholde sin egen zoom og likevel stoppe på kanten. -->
+    <div class="absolute top-0 left-0 right-0 z-30 flex items-center justify-between gap-2 px-3 pb-3
                 pointer-events-none transition-[right] duration-200"
          :style="{ right: panelOffsetPx + 'px',
                    paddingTop: 'max(env(safe-area-inset-top, 0px), 0.75rem)' }">
-      <div class="flex items-center gap-2 pointer-events-auto">
+      <div class="shrink-0 flex items-center gap-2 pointer-events-auto">
         <AppMenuButton variant="float" />
       </div>
 
-      <button v-if="canRenameMap" @click="openRename" data-kartnavn
-              aria-label="Gi kart nytt navn" :style="{ zoom: uiTextScale }"
-              class="pointer-events-auto px-3 py-1.5 rounded-full bg-overlay
-                     text-[12px] text-ink font-medium shadow-lg max-w-[42%]
-                     flex items-center gap-1.5 active:scale-95 transition">
-        <span class="truncate">{{ mapTitle }}</span>
-        <svg viewBox="0 0 24 24" class="w-3 h-3 shrink-0 text-ink-4" fill="none"
-             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 20h9"/>
-          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
-        </svg>
-      </button>
-      <div v-else data-kartnavn :style="{ zoom: uiTextScale }"
-                  class="pointer-events-none px-3 py-1.5 rounded-full bg-overlay
-                  text-[12px] text-ink font-medium shadow-lg max-w-[42%] truncate">
-        {{ mapTitle }}
+      <div data-kartnavn-plass class="flex-1 min-w-0 flex justify-center pointer-events-none">
+        <button v-if="canRenameMap" @click="openRename" data-kartnavn
+                aria-label="Gi kart nytt navn" :style="{ zoom: uiTextScale }"
+                class="pointer-events-auto w-max max-w-full px-3 py-1.5 rounded-full bg-overlay
+                       text-[12px] text-ink font-medium shadow-lg
+                       flex items-center gap-1.5 active:scale-95 transition">
+          <span class="truncate">{{ mapTitle }}</span>
+          <svg viewBox="0 0 24 24" class="w-3 h-3 shrink-0 text-ink-4" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"/>
+            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+          </svg>
+        </button>
+        <div v-else data-kartnavn :style="{ zoom: uiTextScale }"
+             class="w-max max-w-full px-3 py-1.5 rounded-full bg-overlay
+                    text-[12px] text-ink font-medium shadow-lg truncate">
+          {{ mapTitle }}
+        </div>
       </div>
 
-      <div class="flex items-center gap-2 pointer-events-auto">
+      <div class="shrink-0 flex items-center gap-2 pointer-events-auto">
         <button @click="openSearch" aria-label="Søk i kart" data-sok-knapp
                 :style="{ zoom: uiTextScale }"
                 class="rounded-full w-10 h-10 flex items-center justify-center

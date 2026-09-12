@@ -1076,8 +1076,13 @@ function celleTransform(i) {
   transition: background 0.15s ease, color 0.15s ease;
 }
 /* Emerald-700 av samme grunn som cellene bruker -600: hvitt skal ha kontrast
-   nok til å leses (WCAG 1.4.3) på en flate som er liten fra før. */
-.knott-pille__pa { background: #047857; color: #fff; }
+   nok til å leses (WCAG 1.4.3) på en flate som er liten fra før.
+   SELEKTOREN MÅ VÆRE LIKE SPESIFIKK SOM REGELEN OVER (v7.8.1). En bar
+   `.knott-pille__pa` er (0,1,0) og taper mot `.knott-pille button` (0,1,1), så
+   `color: #fff` ble aldri brukt: i lyst tema sto den valgte halvdelen med mørk
+   ink-tekst på mørkegrønt, altså det ene stedet kontrasten var for lav. Mørkt
+   tema skjulte feilen, fordi ink-2 der er lys fra før. */
+.knott-pille button.knott-pille__pa { background: #047857; color: #fff; }
 
 /* Håndtaket har ingen egen flate — det er streken som er knappen — men
    trykkflata skal svare, så hover/aktiv tar streken og ikke boksen. */
