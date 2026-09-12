@@ -229,11 +229,26 @@ try {
   const fab200 = await fabMaal()
   sjekk('Fritt lende: hovedknappen dobler seg ved 200 % tekst, margen med',
     fab100 && fab200
-      && Math.abs(fab100.bredde - 56) <= 2 && Math.abs(fab200.bredde - 112) <= 3
+      && Math.abs(fab100.bredde - 48) <= 2 && Math.abs(fab200.bredde - 96) <= 3
       && Math.abs(fab200.marg - fab100.marg * 2) <= 3,
     fab100 && fab200
       ? `${fab100.bredde} px / ${fab100.marg} px marg → ${fab200.bredde} px / ${fab200.marg} px`
       : 'fant ikke hovedknappen')
+
+  // … og den skal ikke være STØRRE enn resten av UI-et i noe trinn (v7.8.3).
+  // Det var feilen eieren meldte: 56 px mot hamburgerens 40 er åtte piksler
+  // stille, men `zoom` gjør differansen til en faktor, og ved 200 % sto den på
+  // 112 mot 80. Måles mot hamburgeren fordi den er den andre faste kontrollen
+  // på samme skjerm — et tall her ville bare gjentatt sizeClass.
+  const hamburger200 = await s4.evaluate(() => {
+    // Knappen er `<Teleport to="body">`-et ut av `[data-hovedmeny-plass]`, så
+    // en selektor via plassholderen treffer ingenting.
+    const b = document.querySelector('[data-hovedmeny-knapp]')
+    return b ? Math.round(b.getBoundingClientRect().width) : null
+  })
+  sjekk('Fritt lende: hovedknappen er ikke større enn hamburgeren ved 200 %',
+    !!(fab200 && hamburger200) && fab200.bredde <= hamburger200 * 1.25,
+    fab200 && hamburger200 ? `knapp ${fab200.bredde} px mot meny ${hamburger200} px` : 'fant ikke begge')
 
   await s4.evaluate(() => localStorage.removeItem('lende-ui-text-scale'))
   await s4.setViewportSize({ width: 430, height: 900 })

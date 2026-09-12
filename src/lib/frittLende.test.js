@@ -8,6 +8,9 @@ import {
   frittLendeTema,
   frittLendeUtmBbox,
   knappeHandling,
+  etterFix,
+  skalTilbyAngre,
+  ANGRE_MAKS_M,
   skalAutostarte,
   knappeEtikett,
   avstandFraSenter,
@@ -186,7 +189,7 @@ describe('skalAutostarte', () => {
 })
 
 describe('knappeHandling', () => {
-  const grunn = { harArk: true, gpsPaa: true, ferskLast: false, bygger: false, avstandM: 0 }
+  const grunn = { harArk: true, gpsPaa: true, bygger: false, avstandM: 0 }
   const h = (over = {}) => knappeHandling({ ...grunn, ...over })
 
   it('uten ark: knappen lager ett, uansett avstand', () => {
@@ -195,12 +198,19 @@ describe('knappeHandling', () => {
     expect(h({ harArk: false, gpsPaa: true, avstandM: null })).toBe('bygg')
   })
 
-  // INVARIANT 1 — dette er svaret på «GPS-en min er et helt annet sted nå».
-  // Åpner du appen hjemme med et ark fra fjellet, gjør første trykk ingen skade.
-  it('INVARIANT: første tap etter fersk last bygger aldri', () => {
-    expect(h({ gpsPaa: false, ferskLast: true })).toBe('start-gps')
-    expect(h({ gpsPaa: false, ferskLast: true, avstandM: 30000 })).toBe('start-gps')
-    expect(h({ gpsPaa: true, ferskLast: true, avstandM: 30000 })).toBe('sentrer')
+  // ETT TRYKK (v7.8.3). `ferskLast` er borte: den kostet et trykk på nøyaktig
+  // de gangene den ikke var nødvendig — er du 7,9 km fra senteret, er det ingen
+  // tvil om hva du vil. Med GPS-en av forplikter trykket seg til å bygge, og
+  // porten prøves i `etterFix` når avstanden endelig finnes.
+  it('ETT TRYKK: GPS-av starter posisjonen OG bygger', () => {
+    expect(h({ gpsPaa: false })).toBe('start-gps-og-bygg')
+    expect(h({ gpsPaa: false, avstandM: 30000 })).toBe('start-gps-og-bygg')
+    expect(h({ gpsPaa: false, avstandM: null })).toBe('start-gps-og-bygg')
+  })
+
+  it('kjenner ikke lenger `ferskLast` — porten er det eneste som beskytter arket', () => {
+    expect(h({ ferskLast: true, avstandM: 30000 })).toBe('bygg')
+    expect(h({ ferskLast: true, avstandM: 10 })).toBe('for-naer')
   })
 
   // AVSTANDSPORTEN (v6.5.27). Den avløste «tap kan aldri bygge mens du står på
@@ -229,7 +239,7 @@ describe('knappeHandling', () => {
 })
 
 describe('knappeEtikett', () => {
-  const grunn = { harArk: true, gpsPaa: true, ferskLast: false, bygger: false, avstandM: 0 }
+  const grunn = { harArk: true, gpsPaa: true, bygger: false, avstandM: 0 }
   const e = (over = {}) => knappeEtikett({ ...grunn, ...over })
 
   // Etiketten er avledet av SAMME tilstand som handlingen, så den kan ikke
@@ -239,7 +249,7 @@ describe('knappeEtikett', () => {
       { harArk: false, gpsPaa: false }, { harArk: false, gpsPaa: true },
       { avstandM: 0 }, { avstandM: NYTT_KART_M - 1 }, { avstandM: NYTT_KART_M },
       { avstandM: 3000 },
-      { gpsPaa: false }, { ferskLast: true, avstandM: 3000 },
+      { gpsPaa: false }, { gpsPaa: false, avstandM: 3000 },
       { avstandM: null },
     ]
     for (const t of tilstander) {
@@ -252,6 +262,59 @@ describe('knappeEtikett', () => {
 
   it('sier fra mens den bygger', () => {
     expect(e({ bygger: true })).toMatch(/bygger/i)
+  })
+})
+
+describe('etterFix', () => {
+  // Porten prøves PÅ NYTT når fixen lander, fordi avstanden ikke finnes før da.
+  // Uten den ville ett trykk med GPS-en av bygget uansett hvor nær man sto —
+  // altså gått rundt den ene regelen som beskytter arket.
+  it('uten ark bygger den alltid', () => {
+    expect(etterFix({ harArk: false, avstandM: null })).toBe('bygg')
+    expect(etterFix({ harArk: false, avstandM: 0 })).toBe('bygg')
+  })
+
+  it('med ark er den SAMME port som knappen', () => {
+    expect(etterFix({ harArk: true, avstandM: 0 })).toBe('for-naer')
+    expect(etterFix({ harArk: true, avstandM: NYTT_KART_M - 1 })).toBe('for-naer')
+    expect(etterFix({ harArk: true, avstandM: NYTT_KART_M })).toBe('bygg')
+  })
+
+  // En god fix uten målbar avstand er ikke grunnlag for noen av påstandene.
+  it('sentrerer når avstanden ikke er målbar', () => {
+    expect(etterFix({ harArk: true, avstandM: null })).toBe('sentrer')
+    expect(etterFix({ harArk: true, avstandM: NaN })).toBe('sentrer')
+  })
+})
+
+describe('skalTilbyAngre', () => {
+  // Bboksene er UTM32-meter. Senteret ligger midt i, så en forskyvning på d
+  // meter i øst gir nøyaktig d meters senteravstand.
+  const bbox = (e, n) => ({ minE: e - 1000, maxE: e + 1000, minN: n - 1000, maxN: n + 1000 })
+
+  it('tilbyr angring så lenge det gamle arket er innen grensa', () => {
+    expect(skalTilbyAngre(bbox(0, 0), bbox(0, 0))).toBe(true)
+    expect(skalTilbyAngre(bbox(0, 0), bbox(ANGRE_MAKS_M - 1, 0))).toBe(true)
+    expect(skalTilbyAngre(bbox(0, 0), bbox(ANGRE_MAKS_M, 0))).toBe(true)
+  })
+
+  // «Hva skal jeg med det?» — et kart over et sted du nettopp forlot.
+  it('lar være når du har gått forbi grensa', () => {
+    expect(skalTilbyAngre(bbox(0, 0), bbox(ANGRE_MAKS_M + 1, 0))).toBe(false)
+    expect(skalTilbyAngre(bbox(0, 0), bbox(0, 7900))).toBe(false)
+  })
+
+  it('måler i to dimensjoner og ikke bare i én akse', () => {
+    // 800 m øst + 800 m nord = 1 131 m, altså over grensa selv om hver akse er under.
+    expect(skalTilbyAngre(bbox(0, 0), bbox(800, 800))).toBe(false)
+  })
+
+  // Et ark lagret før `utmBbox` kom inn i entryen har ikke noe senter å måle
+  // mot. Da tilbys angringen som før — vi vet ikke at den er unødvendig.
+  it('tilbyr angring når senteret er ukjent', () => {
+    expect(skalTilbyAngre(null, bbox(0, 0))).toBe(true)
+    expect(skalTilbyAngre(bbox(0, 0), undefined)).toBe(true)
+    expect(skalTilbyAngre({ minE: 0, maxE: NaN, minN: 0, maxN: 0 }, bbox(0, 0))).toBe(true)
   })
 })
 

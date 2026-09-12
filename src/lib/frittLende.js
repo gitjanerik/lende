@@ -164,50 +164,102 @@ export function avstandTekst(m) {
 }
 
 // ── Knappens tilstandsmaskin ────────────────────────────────────────────────
-// Én knapp, ett begrep: «hent meg hit». Den bruker det billigste midlet som
-// finnes i situasjonen — panorere hvis mulig, bygge hvis ikke.
+// Én knapp, ett begrep: «hent meg hit» — og fra v7.8.3 ETT TRYKK. Den bruker
+// det billigste midlet situasjonen tillater: panorere hvis mulig, bygge hvis
+// ikke, og starte GPS-en først når den er av.
 //
-// TO INVARIANTER SOM IKKE MÅ FORENKLES BORT. De er grunnen til at modusen kan
-// ha en destruktiv handling uten en eneste bekreftelsesdialog:
+// AVSTANDSPORTEN ER DET ENESTE SOM BESKYTTER ARKET, og det er nå bokstavelig
+// ment. Den avløste to eldre regler, én om gangen, og begge var bygget rundt
+// samme frykt — «et uhell erstatter arket mitt» — men målte noe annet enn det:
 //
-//   1. FØRSTE TAP ETTER EN FERSK LAST STARTER BARE GPS. Det bygger aldri.
-//      Ved kald start er GPS alltid av, så det er alltid nøyaktig ETT trykk
-//      mellom å åpne modusen og å erstatte arket. Dette er svaret på «GPS-en
-//      min er et helt annet sted nå enn da jeg bygget arket»: åpner du appen
-//      hjemme med et ark fra fjellet, gjør første trykk ingen skade.
+//   • «Tap kan aldri bygge mens du står på arket» (til v6.5.27). Målte en
+//     ARKKANT, altså en grense man krysser én gang, mens spørsmålet man stiller
+//     på tur er «har jeg nok kart foran meg?». Lang-trykket som var eneste vei
+//     rundt den døde med den: en gest som gjør det tapet allerede gjør er verre
+//     enn ingen gest.
+//   • «Første tap etter en fersk last starter bare GPS» (til v7.8.3, `ferskLast`).
+//     Målte ØKTA og ikke stedet. Den kostet et trykk hver gang den IKKE var
+//     nødvendig — er du 7,9 km fra senteret, er det ingen tvil om hva du vil, og
+//     regelen svarte med å sentrere kartet og be deg trykke en gang til. Eieren
+//     strøk den: «Klikk på knappen er kun tillatt når jeg har beveget meg minst
+//     250 m. Det er ok. Når klikk er tillatt: hent nytt kart.»
 //
-//   2. (håndheves av kalleren) DET GAMLE ARKET SLETTES ALDRI FØR DET NYE ER
-//      FERDIG BYGGET OG TEGNET. Det er dette som faktisk gjør et feiltrykk
-//      ufarlig — ikke gestespråket.
+// PRISEN ER BETALT OG KJENT: åpner du modusen hjemme med et ark fra fjellet,
+// erstatter ETT trykk nå det arket. Det er nettopp den situasjonen `ferskLast`
+// fantes for. Den er akseptert fordi porten dekker det som faktisk er verdt å
+// beskytte — et ark du står PÅ — og fordi et ark 60 km unna ikke er verdt et
+// trykk å bevare (se ANGRE_MAKS_M under, som er den andre halvdelen av samme
+// beslutning).
 //
-// AVSTANDSPORTEN AVLØSTE INVARIANT 2 (v6.5.27), og det er en BESTILT endring.
-// Den gamle regelen var «tap kan aldri bygge mens du står på arket», med et
-// lang-trykk som eneste vei til et nytt ark der man sto. Den var bygget rundt
-// samme frykt som denne, men målte det gale: «utenfor arket» er en grense man
-// krysser én gang, mens spørsmålet man faktisk stiller på tur er «har jeg nok
-// kart foran meg?». Nå avgjør avstanden fra senter det, med samme tall som står
-// på linjalen — og lang-trykket er borte, fordi en gest som gjør det tapet
-// allerede gjør er verre enn ingen gest. Det er avstanden som beskytter arket,
-// ikke gestespråket.
+// DEN ENE INVARIANTEN SOM STÅR (håndheves av kalleren): DET GAMLE ARKET
+// SLETTES ALDRI FØR DET NYE ER FERDIG BYGGET OG TEGNET. Det er dette som gjør
+// en mislykket bygging ufarlig — ikke gestespråket, og ikke lenger noen
+// tilstand i økta.
 //
-// KALLERENS ANSVAR: `ferskLast` skal settes false ved FØRSTE tap. Uten det
-// står invariant 1 for alltid, og andre trykk ville også bare sentrert — man
-// ville aldri fått bygget et nytt ark etter en reload.
-//
-// Returnerer 'start-gps' | 'start-gps-og-bygg' | 'sentrer' | 'bygg' |
-// 'for-naer' | null. null = knappen er deaktivert (byggingen pågår; «Avbryt»
-// ligger i chipen).
+// Returnerer 'start-gps-og-bygg' | 'sentrer' | 'bygg' | 'for-naer' | null.
+// null = knappen er deaktivert (byggingen pågår; «Avbryt» ligger i chipen).
 export function knappeHandling({
-  harArk, gpsPaa, ferskLast, bygger, avstandM = null,
+  harArk, gpsPaa, bygger, avstandM = null,
 }) {
   if (bygger) return null
   // Uten ark er det ingenting å beskytte, og porten gjelder ikke: det er den
   // ENE stien der modusen ikke har noe å vise fram.
   if (!harArk) return gpsPaa ? 'bygg' : 'start-gps-og-bygg'
-  if (!gpsPaa) return 'start-gps'            // invariant 1 ved kald start
-  if (ferskLast) return 'sentrer'            // invariant 1
+  // GPS av: ett trykk starter den OG forplikter seg til å bygge. Porten kan
+  // ikke avgjøres her — avstanden finnes ikke før fixen lander — så den prøves
+  // på nytt i `etterFix`. Fram til v7.8.3 sto 'start-gps' her, og det var det
+  // andre av de to trykkene eieren meldte fra om.
+  if (!gpsPaa) return 'start-gps-og-bygg'
   if (avstandM == null) return 'sentrer'     // GPS på, men ingen fix ennå
   return avstandM >= NYTT_KART_M ? 'bygg' : 'for-naer'
+}
+
+// Hva ventingen på en fix skal ENDE i. Fram til v7.8.3 endte den alltid i et
+// bygg, fordi 'start-gps-og-bygg' bare fantes på stien «ingen ark» — der det
+// ikke er noe å beskytte. Nå starter ETHVERT trykk GPS-en når den er av, så
+// porten må prøves på nytt her: det er først når fixen lander at avstanden
+// finnes i det hele tatt.
+//
+// Uten et ark bygger vi uansett. Er avstanden fortsatt ukjent med en god fix i
+// hånda, sentrerer vi — å bygge ville brutt porten, og å si «for nær» ville
+// vært en påstand vi ikke har.
+export function etterFix({ harArk, avstandM = null }) {
+  if (!harArk) return 'bygg'
+  if (!Number.isFinite(avstandM)) return 'sentrer'
+  return avstandM >= NYTT_KART_M ? 'bygg' : 'for-naer'
+}
+
+// ── Angre-sloten ────────────────────────────────────────────────────────────
+// Angringen finnes fordi byggingen er destruktiv og modusen ikke har en
+// bekreftelsesdialog. Men den er bare verdt noe når det gamle arket fortsatt er
+// et sted du kan komme til å ville stå: har du gått langt nok til at det ligger
+// bak deg, er «Angre» en knapp som tilbyr deg et kart over et sted du forlot.
+//
+// 1 000 m = arkets halve bredde, altså grensa der det gamle senteret er på vei
+// ut av det nye arket. Eieren: «Jeg trenger ikke angremulighet dersom nytt kart
+// og min posisjon har flyttet seg mer enn 1 km fra opprinnelig flis-senter.
+// Hva skal jeg med det?»
+//
+// Dette er den andre halvdelen av at `ferskLast` falt (se over): begge sier at
+// et ark langt unna ikke er verdt å bevare. Under grensa står angringen som før
+// — der er det gamle arket fortsatt lende du har foran deg.
+export const ANGRE_MAKS_M = 1000
+
+function senterAv(bbox) {
+  if (!bbox) return null
+  const { minE, maxE, minN, maxN } = bbox
+  if (![minE, maxE, minN, maxN].every(Number.isFinite)) return null
+  return { e: (minE + maxE) / 2, n: (minN + maxN) / 2 }
+}
+
+// Begge bboksene er UTM32-meter, så dette er en rett euklidsk avstand.
+// Mangler den ene et senter — et ark lagret før `utmBbox` kom inn i entryen —
+// tilbys angringen som før: vi vet ikke at den er unødvendig.
+export function skalTilbyAngre(forrigeUtmBbox, nyUtmBbox) {
+  const a = senterAv(forrigeUtmBbox)
+  const b = senterAv(nyUtmBbox)
+  if (!a || !b) return true
+  return Math.hypot(b.e - a.e, b.n - a.n) <= ANGRE_MAKS_M
 }
 
 // ── Autostart ───────────────────────────────────────────────────────────────
@@ -237,13 +289,16 @@ export function skalAutostarte({ harArk, tillatelse, offline = false }) {
 // Hva knappen skal SI at den gjør. Avledet av samme tilstand som handlingen, så
 // etiketten kan ikke komme i utakt med oppførselen.
 export function knappeEtikett(tilstand) {
-  const { harArk, gpsPaa, bygger } = tilstand
+  const { harArk, bygger } = tilstand
   if (bygger) return 'Bygger kart …'
   if (!harArk) return 'Lag kart her'
-  if (!gpsPaa) return 'Start posisjon'
-  return knappeHandling(tilstand) === 'bygg'
-    ? 'Lag nytt kart her'
-    : 'Sentrer på min posisjon'
+  // «Start posisjon» sto her til v7.8.3, da GPS-av var et trykk som BARE
+  // startet GPS-en. Nå forplikter det samme trykket seg til å bygge, og en
+  // etikett som bare lover posisjon ville underdrevet hva knappen gjør.
+  const h = knappeHandling(tilstand)
+  return h === 'sentrer' || h === 'for-naer'
+    ? 'Sentrer på min posisjon'
+    : 'Lag nytt kart her'
 }
 
 // Meldingen når porten er stengt. Den sier BÅDE grensa og hvor man står, fordi

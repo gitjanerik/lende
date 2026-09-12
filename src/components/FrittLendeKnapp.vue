@@ -16,8 +16,14 @@ import { useUiTextScale } from '../composables/useUiTextScale.js'
 // lover noe nytt og leverer det samme er verre enn ingen ring. Legger du den
 // tilbake, må den ha en egen betydning porten ikke alt dekker.
 //
-// 56 px og ikke appens vanlige 48: dette er den ENESTE kontrollen på skjermen,
-// og den brukes med kalde eller behanskede fingre.
+// 48 px — appens vanlige kontrollstørrelse. Den sto på 56 fra v6.5.0, med
+// begrunnelsen «modusens ENESTE kontroll, brukt med kalde eller behanskede
+// fingre», og det argumentet holdt så lenge knappen var en fast størrelse.
+// Da den fikk `zoom` (v7.8.2) ble de åtte pikslene en FAKTOR: ved 200 % sto
+// den på 112 px mot hamburgerens 80, og eieren meldte at den var «nokså mye
+// større» enn resten av UI-et. En kontroll som er større enn alt annet ved
+// hvert eneste trinn leses ikke som mer treffsikker, men som ute av takt.
+// 48 px er fortsatt over 44 px-minstemålet (SC 2.5.8) i hvert trinn.
 const props = defineProps({
   etikett: { type: String, required: true },
   // 'bygg' | 'sentrer' | 'start-gps' | 'start-gps-og-bygg' | 'for-naer' | null
@@ -76,31 +82,27 @@ const ringStil = computed(() => ({
           :aria-label="etikett"
           :disabled="bygger"
           @click="!bygger && emit('tap')"
-          class="absolute bottom-4 right-4 z-30 w-14 h-14 rounded-full
+          class="absolute bottom-4 right-4 z-30 w-12 h-12 rounded-full
                  bg-overlay shadow-lg touch-none transition
                  active:scale-95 disabled:opacity-50"
           :class="byggerNytt || fremhev ? '' : 'ring-1 ring-ink/15'"
           :style="ringStil">
-    <!-- Siktekors: prikk, ring og fire streker. Kan et trykk hente et nytt ark,
-         får det et pluss-merke, så knappen SIER at den lager noe nytt.
+    <!-- RENT SIKTEKORS: ring og fire streker, og ingenting inni (v7.8.3).
+         Fram til nå lå det en fylt prikk og en liten bue der — logoens
+         høydekurve-motiv i det små (v6.5.31) — og de to sammen leste eieren
+         som et ØYE: en pupill med et lokk over. Et øye sier «se hvor jeg er»,
+         som er nøyaktig den halvparten av knappen som IKKE er poenget. Tomt
+         midtfelt sier «sikt her», og gjør dessuten plass til plusset uten at
+         merket blir grøt i 22 px.
 
-         Kurvene mellom sikteringen og krysset (v6.5.31) er logoens motiv i det
-         små — to buer som ligger som høydekurver innenfor ringen. De er
-         `stroke-linecap="round"` og korte med vilje: et helt kurvesett i 28 px
-         blir grøt, mens to buer leses som terreng og gjør merket til Lendes og
-         ikke en hvilken som helst siktekors-knapp. -->
-    <svg viewBox="0 0 34 34" class="absolute inset-0 m-auto w-7 h-7 text-ink"
-         fill="none" :stroke="aksent" stroke-width="2" stroke-linecap="round"
+         Kan et trykk hente et nytt ark, får ringen et pluss — den ENE
+         forskjellen på de to tilstandene, og da må den stå alene for å ses. -->
+    <svg viewBox="0 0 34 34" class="absolute inset-0 m-auto w-[22px] h-[22px] text-ink"
+         fill="none" :stroke="aksent" stroke-width="2.4" stroke-linecap="round"
          aria-hidden="true">
-      <path d="M17 2 V8 M17 26 V32 M2 17 H8 M26 17 H32" />
+      <path d="M17 2.5 V8 M17 26 V31.5 M2.5 17 H8 M26 17 H31.5" />
       <circle cx="17" cy="17" r="7" :class="venterPaaFix ? 'animate-pulse' : ''" />
-      <template v-if="byggerNytt">
-        <path d="M17 13.5 V20.5 M13.5 17 H20.5" stroke-width="2.4" />
-      </template>
-      <template v-else>
-        <path d="M13.4 18.6 a4.2 4.2 0 0 1 7.2 -2.6" stroke-width="1.5" opacity="0.75" />
-        <circle cx="17" cy="17" r="1.9" :fill="aksent" stroke="none" />
-      </template>
+      <path v-if="byggerNytt" d="M17 13.5 V20.5 M13.5 17 H20.5" />
     </svg>
 
     <!-- Sky med strek: nettleseren sier offline. Et varsel, ikke en sperre —

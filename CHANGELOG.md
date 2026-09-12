@@ -1,3 +1,24 @@
+## 2026-09-12 — v7.8.3: Fritt lende — ett trykk, mindre knapp, betinget angre
+
+Hovedknappen i Fritt lende krevde to trykk når man hadde gått ut av arket: ved
+kald start er GPS alltid av, så første trykk startet bare posisjonen og svarte
+med den gule «7,9 km fra …», og først det andre hentet kartet. Invarianten bak
+det — «første tap etter en fersk last starter bare GPS» — målte ØKTA og ikke
+STEDET, og er nå fjernet på bestilling. Et trykk med GPS av forplikter seg til å
+bygge, og avstandsporten på 250 m prøves på nytt i den nye, rene `etterFix` når
+fixen lander: samme port, stilt når svaret finnes. Prisen er akseptert og
+skrevet ned — åpner du modusen hjemme med et ark fra fjellet, erstatter ett
+trykk nå det arket. Knappen selv er 56 → 48 px med et rent siktekors uten prikk
+og bue i midten: de to leste eieren som et øye, og etter at knappene fikk
+tekstskalering i v7.8.2 gjorde `zoom` de åtte pikslene mot hamburgeren til en
+faktor (112 mot 80 ved 200 %). 48 px klarer 44 px-minstemålet i alle fire
+trinn. Angre-toasten er til slutt blitt betinget: over én kilometer mellom det
+gamle og det nye arkets senter skrives angre-sloten ikke i det hele tatt, og en
+gammel slot slettes — toasten er den eneste veien til `angre()`, så en skjult
+slot ville vært megabyte ingen kan nå.
+
+---
+
 ## 2026-09-12 — v7.8.2: kirkegård blir et eget kartlag, og Fritt lende-knappen følger tekststørrelsen
 
 Østenstad kirkegård i Asker sto på arket uten verken markering eller bakgrunn:

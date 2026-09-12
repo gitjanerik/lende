@@ -349,19 +349,38 @@ verdt noe spesielt; kan ett av dem være det du ville beholde, blir en utilsikte
 rebygging dyr igjen og dialogen må tilbake — i hovedsløyfa, der den blir
 blindtrykket. Den som vil ha et kart som varer, har allerede `/nytt`.
 
-**Tre invarianter gjør bygging trygt uten dialog. Alle tre er lette å
-«forenkle» bort:**
-1. *Første tap etter en fersk last starter bare GPS.* Ved kald start er GPS
-   alltid av, så det er alltid nøyaktig ETT trykk mellom å åpne modusen og å
-   erstatte arket. Dette er svaret på at posisjonen din er et helt annet sted i
-   dag enn da arket ble bygget.
-2. *Ingenting bygger før du er 250 m fra arkets senter* (`NYTT_KART_M`). Se
+**TO invarianter gjør bygging trygt uten dialog. Begge er lette å «forenkle»
+bort:**
+1. *Ingenting bygger før du er 250 m fra arkets senter* (`NYTT_KART_M`). Se
    avstandsporten under — den avløste «tap kan aldri bygge mens du står på
-   arket» i v6.5.27.
-3. *Det gamle arket slettes aldri før det nye er ferdig bygget og tegnet.* Det er
+   arket» i v6.5.27, og fra v7.8.3 er den DEN ENESTE som beskytter arket.
+2. *Det gamle arket slettes aldri før det nye er ferdig bygget og tegnet.* Det er
    dette som gjør et feiltrykk ufarlig, ikke gestespråket. `saveMap` er en put,
-   så overskrivingen ER slettingen — ingen `deleteMap`, som ville etterlatt
-   brukeren uten kart hvis byggingen feilet.
+   så overskrivingen ER slettingen — ingen `deleteMap` på den AKTIVE sloten, som
+   ville etterlatt brukeren uten kart hvis byggingen feilet. (Angre-sloten er en
+   annen sak, se under.)
+
+**DEN TREDJE INVARIANTEN ER FJERNET PÅ BESTILLING (v7.8.3), og det kostet ett
+trykk for mye.** Den lød «første tap etter en fersk last starter bare GPS», og
+begrunnelsen var at posisjonen din er et helt annet sted i dag enn da arket ble
+bygget. Men den målte ØKTA og ikke STEDET: ved kald start er GPS alltid av, så
+den som hadde gått sju kilometer måtte trykke to ganger — først for gul tekst
+(«7,9 km fra …»), så for kartet. Eieren: «Klikk på knappen er kun tillatt når
+jeg har beveget meg minst 250m. Det er ok. Når klikk er tillatt: hent nytt
+kart.» Et trykk med GPS av gir derfor `start-gps-og-bygg`, og porten prøves på
+nytt i `etterFix` når fixen lander — samme port, stilt når svaret finnes.
+**Prisen er akseptert og skal ikke «rettes» tilbake:** åpner du modusen hjemme
+med et ark fra fjellet, erstatter ETT trykk nå det arket.
+
+**ANGRE-TOASTEN ER BETINGET (`ANGRE_MAKS_M` = 1 km, v7.8.3).** Den tilbys bare
+når det nye arkets senter ligger innenfor én kilometer av det gamle — eieren:
+«Jeg trenger ikke angremulighet dersom nytt kart og min posisjon har flyttet seg
+mer enn 1km fra opprinnelig flis senter. Hva skal jeg med det?» Over grensa
+SKRIVES angre-sloten ikke i det hele tatt, og en gammel slot slettes: toasten er
+den eneste veien til `angre()`, så en skjult slot ville vært megabyte ingen kan
+nå. Det sparer også en 1–5 MB IndexedDB-skriving rett før arket tegnes.
+Mangler en av bboksene et endelig senter (ark lagret før `utmBbox`), tilbys
+angre — en ukjent avstand er ikke et argument for å ta bort utveien.
 
 **AVSTANDSPORTEN ER MODUSENS ENE TALL, OG DEN AVLØSTE ARKKANTEN (v6.5.27).**
 Linjalen bærer «N m fra senter» så snart en posisjon er kjent, og ved
@@ -393,8 +412,8 @@ kunne komme. Teksten er den samme som «Lag kart der jeg er» viser, fra ÉN kil
 sin kopi av kodetabellen). Alerten fyres på ENDRET feilkode og ikke per
 feil-callback — `watchPosition` kaller handleren for hvert forsøk, og en dialog
 per forsøk er en dialog man ikke slipper unna. Kode 1 (tillatelse) stopper
-watchen, så knappen faller tilbake til «Start posisjon»; kode 2/3 er forbigående
-og lar den prøve videre.
+watchen, så neste trykk på knappen forsøker GPS-en på nytt; kode 2/3 er
+forbigående og lar den prøve videre.
 
 **To faste id-er (`fritt`, `fritt-forrige`), filtrert i `listMaps()` og ikke hos
 kallerne** — «Mine kart» leses to steder som allerede filtrerer `isAuto` hver for
