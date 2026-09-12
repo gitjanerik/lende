@@ -109,6 +109,7 @@ import MapSearchOverlay from '../components/MapSearchOverlay.vue'
 import MapEdgeHandles from '../components/MapEdgeHandles.vue'
 import MapStatusOverlays from '../components/MapStatusOverlays.vue'
 import MapScaleAttribution from '../components/MapScaleAttribution.vue'
+import KompassKnapp from '../components/KompassKnapp.vue'
 import KulturminneSheet from '../components/KulturminneSheet.vue'
 import TekstStorrelseKnapp from '../components/TekstStorrelseKnapp.vue'
 import HydroStationSheet from '../components/HydroStationSheet.vue'
@@ -2049,12 +2050,16 @@ const snarveiApen = ref(false)
 // samme globale trinn begge steder, og fana eier fortsatt per-element-strek,
 // «angi som standard» og forklaringene.
 //
-// RELIEFF ER TO BRYTERE OG ÉN SLIDER, og sammenhengen bor HER og ikke i
-// komponenten. Fana har en av/på-bryter (per kart) ved siden av styrke-knotten
-// (global), og det er riktig der: det er to ulike ting som lagres to steder.
-// I raden er det ÉN skyveknapp, og da må «0» bety av — ellers ville en bruker
-// som hadde skrudd relieffet av i fana dratt slideren opp og ikke sett noe
-// skje. Slideren SKRIVER derfor begge: trinnet, og av/på som `trinn > 0`.
+// RELIEFF ER TO TILSTANDER OG ÉN SLIDER, og sammenhengen bor HER og ikke i
+// komponenten. Av/på lagres PER KART, styrken er GLOBAL — to ulike ting på to
+// ulike steder — men brukeren stiller dem med ÉN skyveknapp, der «0» betyr av.
+// Slideren SKRIVER derfor begge: trinnet, og av/på som `trinn > 0`.
+//
+// OG NÅ GJELDER DET BEGGE FLATENE (v7.8.4). Fram til nå hadde Kartstil-fana en
+// egen av/på-bryter ved siden av styrke-slideren, mens raden hadde bare
+// slideren. To flater med hver sin modell for det samme spørsmålet er én for
+// mye: den som skrudde relieffet av i fana og siden dro radens knott opp, fikk
+// ingenting å se. Fana bruker nå samme setter, og bryteren er borte.
 // Temaets auto-av ryddes av samme grunn — en knott man rører er en uttalelse
 // om relieffet, og den skal vinne over et monokromt tema (samme regel som
 // av/på-bryteren i fana har hatt siden v7.4.0).
@@ -2788,7 +2793,7 @@ onUnmounted(() => {
                && !buildingOnTheFly && !fillingInDetails && !highlightedFeature"
          class="absolute left-0 top-[var(--ovl-top)] flex justify-center
                 pointer-events-none transition-[right] duration-200"
-         :class="snarveiApen ? 'z-30' : 'z-20'"
+         :class="snarveiApen ? 'z-50' : 'z-20'"
          :style="snarveiRadStyle">
       <div class="flex flex-col items-center gap-1 w-full">
         <SnarveiRad :snarveier="synligeSnarveier"
@@ -3126,25 +3131,33 @@ onUnmounted(() => {
     <!-- Linjal + OSM-kreditt — trekt ut til MapScaleAttribution (v1.0.8).
          Målestokk/ekvidistanse (v2.4.20) og ISOM/DEM/dybde-provenens (v2.4.26)
          står i punkt-skuffen, ikke her. -->
-    <!-- KOMPASSET STÅR NEDE TIL VENSTRE (v7.3.0), fristilt fra linjal-boksen
-         igjen i v7.3.2: egen halvgjennomsiktig skive rett på arket, med
-         linjalen under, på SAMME BUNNLINJE som Lende-FAB-en. Det var en fast
-         knapp i snarvei-raden fram til v7.3.0; her koster det ingen radplass.
-         Bare med berøring: uten rotasjon finnes ingen azimut å nullstille, og
-         desktop har retningsrosa i søyla.
-         `mork` er ARKETS valør og ikke UI-temaet — skiva ligger på kartet.
-
-         BUNNEN OG SYNLIGHETEN ER FAB-ENS (v7.7.6): samme `bunnFloat`, samme
+    <!-- BUNNEN OG SYNLIGHETEN ER FAB-ENS (v7.7.6): samme `bunnFloat`, samme
          `bunnSkjult`. Boksen hadde en fast bunn og ble liggende halvt bak et
          minimert ark mens FAB-en lå over det. -->
     <MapScaleAttribution
       :visible="!loading && !bunnSkjult"
       :bottom="bunnFloat.bottomStyle.value"
       :scale-bar="scaleBar"
-      :kompass="hasTouch"
+      :ui-text-scale="uiTextScale" />
+
+    <!-- KOMPASSNÅLA STÅR NEDE TIL HØYRE, RETT OVER LENDE-KNAPPEN (v7.8.4).
+         Den bodde over linjalen nede til venstre fra v7.3.2, og flyttet fordi
+         venstre kant da bar to ting som vokser med tekststørrelsen — nåla og
+         linjalens meterangivelse — mens høyre kant hadde én knapp og ellers
+         ingenting. Er chatten ikke aktivert, finnes ikke den knappen, og nåla
+         står alene nederst til høyre (`over-chat`).
+         Bare med berøring: uten rotasjon finnes ingen azimut å nullstille, og
+         desktop har retningsrosa i søyla.
+         `mork` er ARKETS valør og ikke UI-temaet — skiva ligger på kartet.
+         Bunnen og synligheten er FAB-ens, som linjalens. -->
+    <KompassKnapp
+      :visible="hasTouch && !loading && !bunnSkjult"
       :azimut="rotationSliderDeg"
       :mork="isDark"
       :ui-text-scale="uiTextScale"
+      :bottom="bunnFloat.bottomStyle.value"
+      :right-style="floatRightStyle"
+      :over-chat="lendeChatEnabled"
       @nord="onResetAndRefreshGps" />
 
     <!-- Kontrollpanel (drawer). Desktop (≥768px): høyrestilt fullhøyde side-
@@ -3293,15 +3306,14 @@ onUnmounted(() => {
             :set-trail-color="(role, v) => trailColors.setColor(role, v)"
             :strek-trinn="strokeStepIndex" :strek-trinn-antall="STROKE_STEPS.length"
             :strek-skala="strokeScale" :stroke-effective="strokeEffective"
-            :relief-trinn="reliefStepIndex" :relief-trinn-antall="RELIEF_STEPS.length"
-            :relief-prosent="Math.round(reliefOpacity * 100)"
+            :relief-trinn="snarveiReliefTrinn" :relief-trinn-antall="RELIEF_STEPS.length"
+            :relief-prosent="snarveiReliefProsent"
             :relief-auto-av="reliefAutoOff"
-            v-model:relief-enabled="reliefEnabled"
             v-model:relief-mode="reliefMode"
             @set-strek-trinn="strokeStepIndex = $event"
             @set-stroke-group="(id, v) => strokeTuning.setGroup(id, v)"
             @strek-standard="strokePanelSaveDefault" @strek-nullstill="strokePanelReset"
-            @set-relief-trinn="reliefStepIndex = $event"
+            @set-relief-trinn="settSnarveiRelieff"
             @relieff-standard="reliefPanelSaveDefault" @relieff-nullstill="reliefPanelReset" />
 
           <DrawerLayersTab v-show="activeTab === 'lag'"

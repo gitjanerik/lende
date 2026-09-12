@@ -1,6 +1,13 @@
 <script setup>
 // Tekststørrelse-knapp for infopanelene (v6.5.43). Ett trykk = neste hakk i
-// hovedmenyens egen liste (100/125/150/200), med runding tilbake til 100.
+// lista 100/125/150/200, med runding tilbake til 100.
+//
+// HAKKENE ER KNAPPENS, IKKE SKALAENS (v7.8.4). Hovedmenyen setter nå en FRI
+// verdi mellom 100 og 200 %, og knappen VISER den nøyaktig — står skalaen på
+// 137, sier flata 137. Trykket flytter til første hakk OVER den (150), fordi
+// plassen her er ett trykk og ikke et spenn. Å runde visningen til nærmeste
+// hakk ville løyet om hva som er satt; å gi knappen sitt eget spenn ville
+// krevd en slider det ikke er plass til i en ark-header.
 //
 // TRE TING SOM MÅ STÅ:
 //
@@ -8,7 +15,7 @@
 //    tilstanden var skjult. Tallet på flata er svaret på den innvendingen —
 //    fjerner du det, er vi tilbake til en knapp som gjør noe man må gjette.
 // 2. SKALAEN ER GLOBAL. `useUiTextScale` er en modulnivå-singleton, så knappen
-//    her og segmentbryteren i hovedmenyen skrur på SAMME verdi, og den
+//    her og slideren i hovedmenyen skrur på SAMME verdi, og den
 //    persisteres. Det er med vilje: den som gjør teksten større i ett panel vil
 //    ha den større i neste også.
 // 3. NAVNET SKILLER DEN FRA KART-ETIKETTENE. FAB-knotten som skalerer

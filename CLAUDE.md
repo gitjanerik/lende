@@ -489,12 +489,18 @@ ingen ville sett i en rask sjekk. Selektoren er nå
 `.knott-pille button.knott-pille__pa`. Gjør du noe likt et annet sted: en
 tilstands-klasse må være minst like spesifikk som grunnregelen den overstyrer.
 
-**RELIEFF-SLIDEREN I RADEN SKRIVER TO TING, og det er kallstedets ansvar
-(MapView, `settSnarveiRelieff`).** Kartstil-fana har en av/på-bryter (per kart)
-VED SIDEN AV styrke-knotten (global), og det er riktig der: to ting som lagres to
-steder. I raden er det ÉN skyv, og da MÅ «0» bety av — ellers drar den som har
-skrudd relieffet av i fana slideren opp og ser ingenting skje. Komponenten er
-dum med vilje: den viser trinnet den får og sier fra når brukeren drar.
+**RELIEFF-SLIDEREN SKRIVER TO TING, og det er kallstedets ansvar (MapView,
+`settSnarveiRelieff`).** Av/på lagres PER KART og styrken er GLOBAL — to ting på
+to steder — men brukeren stiller dem med ÉN skyv, der «0» betyr av. Komponentene
+er dumme med vilje: de viser trinnet de får og sier fra når brukeren drar.
+
+**OG FRA v7.8.4 GJELDER DET BEGGE FLATENE.** Kartstil-fana hadde en av/på-bryter
+(per kart) VED SIDEN AV styrke-slideren (global), mens raden hadde bare slideren.
+Begrunnelsen var at bryteren og knotten er to ulike ting som lagres to steder —
+sant, men det er en implementasjonsdetalj, og brukeren stiller ett spørsmål: skal
+det være relieff her, og hvor mye? To flater med hver sin modell for det samme
+spørsmålet er én for mye: den som skrudde relieffet av i fana og siden dro radens
+knott opp, så ingenting skje. Fana bruker nå samme setter, og bryteren er borte.
 
 **RADEN ER ET GITTER, OG DEN ER EN EKTE SKUFF (v7.5.0)** (`SnarveiRad.vue`).
 Fram til v7.5.0 var den en flex-rad som målte hver knapp for seg. To ting fulgte
@@ -634,6 +640,49 @@ punkt-arkets med vilje: 45 dvh starthøyde, dra-håndtak som er en EKTE knapp
 (v6.5.48), tekststørrelse og lukk i headeren. En funksjon som ser ut som noe
 annet leses som noe annet. Kommer det en fjerde funksjon som trenger et panel,
 er den en INSTANS her og ikke en ny komponent.
+
+**TEKSTSTØRRELSEN ER ET SPENN, IKKE FIRE KNAPPER (v7.8.4).** Hovedmenyen hadde
+fire samtidige valg — 100/125/150/200 — og `setTextScale` godtok bare de fire
+verdiene. Eieren ba om fri justering, og det er en bedre modell for nettopp denne
+innstillingen: den som må ha 135 % for å lese uten briller, har ikke 125 og 150 å
+velge mellom. Menyen er nå én slider (100–200 %, hele prosent), og
+`useUiTextScale` KLEMMER til spennet i stedet for å slå opp i en liste.
+
+**MEN A-KNAPPEN I ARKENE BEHOLDER DE FIRE HAKKENE, og det er ikke en rest.**
+Plassen i en ark-header er ETT trykk, ikke et spenn, og «litt større, takk» er
+fortsatt fire stasjoner. Knappen VISER den satte prosenten nøyaktig — står
+skalaen på 137, sier flata 137 — og flytter til første hakk OVER den. Det er hele
+forskjellen fra før: lista er KNAPPENS trinn, ikke skalaens lovlige verdier.
+Merk at den gamle regelen «en ukjent verdi faller til første hakk» måtte snus av
+samme grunn: den fantes fordi ingenting kunne SETTE en verdi mellom hakkene, og
+en knapp som kastet brukeren fra 137 til 100 ville lest som en nullstilling.
+
+**KOMPASSNÅLA BOR NEDE TIL HØYRE, RETT OVER LENDE-KNAPPEN (v7.8.4)**
+(`KompassKnapp.vue`). Den har flyttet tre ganger: FAB (til v1.0.77), fast knapp i
+snarvei-raden (til v7.3.0), linjal-boksen nede til venstre (v7.3.2–v7.8.3). Det
+siste stedet var riktig i seg selv, men etterlot venstre kant med TO ting som
+vokser med tekststørrelsen — nåla og linjalens meterangivelse — mens høyre kant
+hadde én knapp og ellers ingenting. Løftet over Lende-knappen er `3rem ×
+tekstskalaen`, ikke et fast tall: den knappen bærer `zoom` og er 96 px høy ved
+200 %, så et fast løft ville lagt nåla midt oppå den på nøyaktig den
+innstillingen som trenger plassen mest. Er chatten ikke aktivert, finnes ikke
+knappen, og nåla står alene nederst til høyre.
+
+**SNARVEI-SKUFFA HAR ET TAK, OG HÅNDTAKET STÅR UTENFOR RULLEFLATA (v7.8.4).**
+Pilla hadde ingen max-høyde: den ble så høy som gitteret og knott-panelet MÅLTE,
+og ved 200 % tekst er den summen høyere enn skjermen — håndtaket, altså den ene
+kontrollen som legger skuffa sammen igjen, havnet under nederste skjermkant.
+Taket regnes av VIEWPORTEN (`100dvh − --ovl-top − 3.5rem × --ui-skala − 2rem`),
+og innholdet ruller inne i pilla. **Håndtaket er siste barn av PILLA og ikke av
+rulleflata** — en `overflow: auto` rundt hele pilla ville bare flyttet problemet
+inn i en rulleflate man må finne. `min-h-0` på rulleflata er ikke valgfri: en
+flex-boks har `min-height: auto` og nekter å krympe under sitt eget innhold, så
+uten den klipper taket håndtaket bort igjen. Og fordi pilla har `touch-none` for
+dra-gesten, må rulleflata få `touch-action: pan-y` NÅR den faktisk ruller — og et
+pekertrykk inne i den starter da ikke et drag. De to følges ad i `rullbar`; faller
+de fra hverandre, får man enten en rulleflate man ikke kan rulle eller en skuff
+som legger seg sammen hver gang man prøver. **Åpen ligger raden på z-50**, over
+Lende-knappen og kompassnåla (begge z-40).
 
 **Tekststørrelse-knappen gjør nå det samme i alle ark** (`SkuffHeader.vue`).
 Den gjorde det ikke: punkt-arket zoomet etikett og tittel, innstillings-skuffen
