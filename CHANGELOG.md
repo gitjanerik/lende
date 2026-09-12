@@ -1,3 +1,24 @@
+## 2026-09-12 — v7.8.7: Natt kvitterer med en gang, og skriften settes ved slipp
+
+«Natt» brukte 2–3 sekunder på å svare. Ingenting var tregt i seg selv — alt lå
+bare i samme synkrone watch-flush, og en nettleser maler ikke midt i en
+oppgave. Tungvekteren er relieffet: blend-modusen snur på hvert lys↔mørke-bytte,
+så båndene bygges om med d3-contour over hele DEM-et, og toppen av det rev
+tema-byttet hele spøkelses-mosaikken og leste den inn igjen fra IndexedDB.
+Paletten og lag-synligheten males nå først, i det trykket skjer, og relieffet
+kommer etter at det bildet er på skjermen (`lib/etterMaling.js`, to
+requestAnimationFrame-er). Et nytt bytte avbryter et ventende etterspill.
+Spøkelsesflisene re-tones i stedet for å rives — temaets CSS-variabler arves ned
+i dem av seg selv — og relieff-båndene caches per blend-modus, så en vipp
+tilbake er gratis. Ingen spinner: arbeidet er ikke borte, det er flyttet bak
+kvitteringen på at trykket ble registrert. Tekststørrelse-slideren i hovedmenyen
+setter skalaen ved SLIPP og ikke per piksel under draget: hele appen reflowet
+mens fingeren sto på håndtaket, så sporet flyttet seg under tommelen. Prosenten
+over sporet følger likevel fingeren, og plassen den står i er reservert for den
+største verdien, så ingenting rikker seg mens tallet vokser.
+
+---
+
 ## 2026-09-12 — v7.8.6: Tannhjul i stedet for Skarp/Mjuk, ny «Natt»-snarvei
 
 Skarp/Mjuk-pilla nederst i snarvei-skuffa er fjernet, og med den hint-boblen

@@ -12,7 +12,8 @@
 // OSM-relation eller polygon-clipping-merge. Den finnes for én arbeidsflyt:
 // kjør, ta skjermbilde, del med Claude når en wedge dukker opp.
 
-import { watch } from 'vue'
+import { watch, onScopeDispose } from 'vue'
+import { etterMaling } from '../lib/etterMaling.js'
 import { themeVarEntries, allThemeVarNames } from '../lib/mapSettingsApply.js'
 import isomCatalog from '../lib/isomCatalog.json'
 import { DEFAULT_VISIBLE_LAYER_KEYS } from '../lib/mapLayerCatalog.js'
@@ -25,7 +26,7 @@ import { DEFAULT_VISIBLE_LAYER_KEYS } from '../lib/mapLayerCatalog.js'
  *   currentTheme: import('vue').Ref, diagnose: import('vue').Ref,
  *   reliefAutoOff: () => import('vue').Ref,   // getter: eies av useKartKnotter
  *   hooks: {
- *     applyHillshade: () => void, renderGhostTiles: () => Promise|void,
+ *     applyHillshade: () => void, retoneGhostRelieff: () => void,
  *     applyLayerVisibility: () => void,
  *   },
  * }} deps
@@ -67,6 +68,23 @@ export function useTemaBytte({
   // applyLayerVisibility kalles ubetinget på slutten så DOM er garantert
   // i sync med state — fjerner mulighet for stuck display=none fra forrige
   // art-mode.
+  // PALETTEN MALES FØRST, RELIEFFET KOMMER ETTER ET BILDE (v7.8.7).
+  //
+  // Alt under sto én synkron blokk, og en Vue-watch flushes i ÉN oppgave — så
+  // nettleseren fikk ikke male noe før hele blokka var ferdig. Tungvekteren er
+  // relieffet: blend-modusen snur på hvert lys↔mørke-bytte, så både aktiv flis
+  // og hver spøkelsesflis bygger bånd på nytt (d3-contour over DEM-et), og det
+  // eneste brukeren så av «Natt» var en knapp som hang i 2–3 sekunder.
+  //
+  // Det som er GRATIS — CSS-variablene og lag-synligheten — står igjen her og
+  // males i det trykket skjer. Det som er DYRT står bak `etterMaling`, altså
+  // etter at det bildet er på skjermen. Ingen spinner: arbeidet er ikke borte,
+  // det er bare flyttet bak kvitteringen på at trykket ble registrert.
+  //
+  // Et nytt bytte AVBRYTER et ventende etterspill. Uten det ville en bruker som
+  // vipper fram og tilbake stable opp relieff-bygginger for temaer som allerede
+  // er forlatt.
+  let avbrytEtterspill = null
   function onThemeChange(newTheme, oldTheme) {
     applyTheme()
     const newT = isomCatalog.themes?.[newTheme]
@@ -80,14 +98,22 @@ export function useTemaBytte({
     // Monokrom-temaene vil ha rene flater — slå relieffet av automatisk, og på
     // igjen når man går ut. Flagget er ikke persistert (se reliefAutoOff), så
     // brukerens egen relieff-innstilling er urørt og gjelder straks temaet
-    // forlates. Watchen på [storedDem, currentTheme] kaller hooks.applyHillshade().
+    // forlates. Selve re-renderingen skjer i etterspillet under.
     reliefAutoOff().value = !!newT?.monochrome
-    // Tema-bytte endrer relieff-blend-modus → spøkelses-relieffet må re-tones
-    // (ny data-URL pr modus). Sjelden operasjon; hillshade-compute er cachet.
-    void hooks.renderGhostTiles()
+    avbrytEtterspill?.()
+    avbrytEtterspill = etterMaling(() => {
+      avbrytEtterspill = null
+      hooks.applyHillshade()
+      // Tema-bytte endrer relieff-blend-modus → spøkelses-relieffet må bygges om.
+      // RE-TONING og ikke en full renderGhostTiles: temaets CSS-variabler arves
+      // ned i spøkelsene av seg selv, så en teardown + ny IndexedDB-lesing +
+      // DOMParser på inntil tolv multi-MB-fliser betalte for ingenting.
+      hooks.retoneGhostRelieff()
+    })
   }
 
   watch(currentTheme, onThemeChange)
+  onScopeDispose(() => { avbrytEtterspill?.(); avbrytEtterspill = null })
 
   // Diagnose-modus: fargelegg polygoner etter data-src så vi visuelt kan
   // se om wedger kommer fra N50, OSM-way, OSM-relation, eller polygon-

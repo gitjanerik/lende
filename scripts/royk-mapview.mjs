@@ -1386,6 +1386,81 @@ const SJEKKER = [
     },
   },
   {
+    // PALETTEN MALES FØRST, RELIEFFET KOMMER ETTER ET BILDE (v7.8.7).
+    //
+    // Eieren meldte at «Natt» brukte 2–3 sekunder. Ingenting var tregt i seg
+    // selv — alt lå bare i SAMME synkrone watch-flush, og en nettleser maler
+    // ikke midt i en oppgave. Relieffet snur blend-modus på hvert lys↔mørke-
+    // bytte og bygger båndene på nytt (d3-contour over hele DEM-et), så trykket
+    // ga ingen kvittering før den jobben var ferdig.
+    //
+    // MÅLINGEN ER REKKEFØLGE I FRAMES, ikke en terskel i millisekunder: et tall
+    // som «under 200 ms» ville vært en påstand om runnerens fart, mens det som
+    // faktisk er rettet er at bakgrunnen skifter i FØRSTE bilde etter trykket og
+    // relieffet i et SENERE. Var de i samme bilde, sto vi tilbake der vi startet.
+    navn: 'tema-byttet maler paletten før relieffet bygges om',
+    domene: 'useTemaBytte + lib/etterMaling + useReliefRender',
+    krever: 'ektekart',
+    async kjør(page) {
+      await lukkDrawer(page)
+      // RELIEFFET SLÅS PÅ AV SJEKKEN SELV. Det er tungvekteren vi måler mot, og
+      // hvilken tilstand det står i når vi kommer hit avhenger av hvilken DEL av
+      // den delte kjøringen vi er i — altså av noe denne sjekken ikke eier.
+      await åpneDrawer(page)
+      await klikkTekst(page, /^KARTSTIL$/)
+      await settSkyv(page, 'Relieff-styrke for alle kart — helt til venstre er av', 4)
+      await page.waitForTimeout(1200)
+      await lukkDrawer(page)
+      await apneSnarveiRad(page)
+      const ut = await page.evaluate(async () => {
+        const inner = document.querySelector('[data-map-inner]')
+        const knapp = document.querySelector('[data-snarvei-id="natt"]')
+        if (!inner || !knapp) return { feil: 'fant ikke kartflata eller «natt»-snarveien' }
+        const bg = () => getComputedStyle(inner).getPropertyValue('--bg').trim()
+        // Signaturen må fange BEGGE relieff-stilene: vektor bytter fyllfarge med
+        // blend-modusen (#000000 ↔ #ffffff), raster bytter hele data-URL-en.
+        const relieff = () => {
+          const el = document.querySelector('#hillshade-layer')
+          if (!el) return 'borte'
+          const p = el.querySelector('path')
+          return `${el.tagName}|${el.childElementCount}|`
+            + `${p?.getAttribute('fill') ?? String(el.getAttribute('href') ?? '').length}`
+        }
+        const bg0 = bg(), r0 = relieff()
+        if (r0 === 'borte') return { feil: 'kartet har ikke relieff — ingenting å måle rekkefølgen mot' }
+        let bgFrame = 0, relieffFrame = 0
+        knapp.click()
+        await new Promise((ferdig) => {
+          let n = 0
+          const steg = () => {
+            n++
+            if (!bgFrame && bg() !== bg0) bgFrame = n
+            if (!relieffFrame && relieff() !== r0) relieffFrame = n
+            if (n >= 120 || (bgFrame && relieffFrame)) ferdig()
+            else requestAnimationFrame(steg)
+          }
+          requestAnimationFrame(steg)
+        })
+        knapp.click()   // tilbake til lyst kart — sjekken forlater nøytral tilstand
+        return { bg0, bg1: bg(), bgFrame, relieffFrame }
+      })
+      if (ut.feil) throw new Error(ut.feil)
+      if (ut.bgFrame !== 1) {
+        throw new Error(`kartbakgrunnen skiftet først i bilde ${ut.bgFrame || '>120'} `
+          + '— paletten skal males i det første bildet etter trykket')
+      }
+      if (!ut.relieffFrame) throw new Error('relieffet ble aldri bygget om — blend-modusen snudde ikke')
+      if (ut.relieffFrame <= ut.bgFrame) {
+        throw new Error(`relieffet ble bygget om i samme bilde som paletten (${ut.relieffFrame}) `
+          + '— da blokkerer det kvitteringen på trykket igjen')
+      }
+      // Ett bilde til så det lyse temaet er malt før neste sjekk måler noe.
+      await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))
+      await lukkSnarveiRad(page)
+      return `paletten i bilde ${ut.bgFrame}, relieffet i bilde ${ut.relieffFrame}`
+    },
+  },
+  {
     // SKUFFA HAR ET TAK, OG HÅNDTAKET ER ALDRI UTENFOR DET (v7.8.4).
     //
     // Pilla hadde ingen max-høyde: den ble så høy som gitteret og knott-panelet
@@ -5220,6 +5295,68 @@ const SJEKKER = [
       await lukkNatt3d(page, h.startSteg)
       return `igjen sto ${i.labels.length} knapper; kompasset gikk «${forDrag}» → «${etterDrag}»`
         + `, trykk ga nord på ${grader}°`
+    },
+  },
+  {
+    // TEKSTSTØRRELSEN SETTES VED SLIPP, MEN TALLET FØLGER FINGEREN (v7.8.7).
+    //
+    // Slideren skrev skalaen på `input`, altså per piksel under draget — og
+    // skalaen speiles som `--ui-skala` på rota, så hele appen (menyen selv
+    // inkludert) reflowet mens fingeren sto på håndtaket. Eieren meldte at
+    // sporet flyttet seg under tommelen og at det var forvirrende å sikte på et
+    // mål som beveget seg.
+    //
+    // DE TO HALVDELENE MÅ MÅLES HVER FOR SEG, og bare en ekte hendelse skiller
+    // dem: Playwrights `fill()` fyrer BÅDE `input` og `change`, så et drag må
+    // spilles av for hånd. Uten den halvdelen ville en tilbakeføring til `input`
+    // gått rett gjennom en «virker fortsatt»-test.
+    navn: 'tekststørrelse-slideren viser tallet under draget og setter skalaen ved slipp',
+    domene: 'AppMenu (am-size-range) + useUiTextScale',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await page.locator('button[aria-label^="Åpne meny"]').click({ timeout: 10_000 })
+      const meny = page.locator('aside[aria-label="Hovedmeny"]')
+      await meny.waitFor({ state: 'visible', timeout: 10_000 })
+      const slider = meny.locator('.am-size-range')
+      if (!await slider.count()) throw new Error('fant ingen tekststørrelse-slider i hovedmenyen')
+
+      const skala = () => page.evaluate(() =>
+        getComputedStyle(document.documentElement).getPropertyValue('--ui-skala').trim())
+      const tall = async () => (await meny.locator('.am-size-verdi').innerText()).trim()
+
+      const før = await skala()
+      // DRAG: bare `input`, som en finger på vei over sporet.
+      await slider.evaluate((el) => {
+        el.value = '160'
+        el.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      const underDrag = await skala()
+      if (underDrag !== før) {
+        throw new Error(`skalaen endret seg mens fingeren sto på håndtaket (${før} → ${underDrag})`)
+      }
+      const visning = await tall()
+      if (!visning.startsWith('160')) {
+        throw new Error(`tallet over slideren fulgte ikke draget — står på «${visning}»`)
+      }
+
+      // SLIPP: `change`, som fyrer ved slipp på både berøring og mus, og med én
+      // gang på piltastene.
+      await slider.evaluate((el) => el.dispatchEvent(new Event('change', { bubbles: true })))
+      const etter = await skala()
+      if (Number(etter) !== 1.6) throw new Error(`slippet satte skalaen til «${etter}», ikke 1.6`)
+
+      // NØYTRAL TILSTAND: 100 % igjen, ellers måler de neste sjekkene et
+      // forstørret grensesnitt.
+      await slider.evaluate((el) => {
+        el.value = '100'
+        el.dispatchEvent(new Event('input', { bubbles: true }))
+        el.dispatchEvent(new Event('change', { bubbles: true }))
+      })
+      const slutt = await skala()
+      if (Number(slutt) !== 1) throw new Error(`kom ikke tilbake til 100 % (står på «${slutt}»)`)
+      await page.keyboard.press('Escape')
+      await meny.waitFor({ state: 'hidden', timeout: 8000 })
+      return `draget viste «${visning}» uten å røre skalaen, slippet satte ${etter}`
     },
   },
   {

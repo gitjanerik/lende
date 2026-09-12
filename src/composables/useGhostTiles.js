@@ -359,6 +359,23 @@ export function useGhostTiles({
     }
   }
 
+  // Bygg spøkelses-relieffet om UTEN å rive mosaikken (v7.8.7). Et tema-bytte
+  // snur blend-modusen, så båndene må tegnes på nytt — men flisene selv er
+  // uendret, og temaets CSS-variabler arves ned i dem av seg selv. Fram til nå
+  // kalte tema-byttet `renderGhostTiles`, altså teardown + ny IndexedDB-lesing +
+  // DOMParser på inntil tolv multi-MB-fliser, for å oppnå nettopp dette.
+  //
+  // Båndene er cachet på `id:blend:bands`, så en vipp tilbake til forrige tema
+  // treffer cachen og koster bare DOM-en.
+  function retoneGhostRelieff() {
+    if (!ghostNoder.size) return
+    for (const node of ghostNoder.values()) {
+      for (const g of node.el.querySelectorAll('[data-ghost-relief]')) g.remove()
+      node.relieffPaa = false
+    }
+    planleggRelieffPass({ fade: false })
+  }
+
   // Kø som tar én flis per ledige stund. Hopper helt over mens brukeren
   // gestikulerer — d3-contour på hovedtråden midt i en pinch er nøyaktig den
   // janken alt annet her går ut på å unngå.
@@ -800,7 +817,7 @@ export function useGhostTiles({
 
   return {
     ghostRects, GHOST_TRIGGER_SUPPRESS_FRAC, mosaikkStats,
-    renderGhostTiles, updateGhostReliefOpacity,
+    renderGhostTiles, updateGhostReliefOpacity, retoneGhostRelieff,
     leggTilSpokelse, scheduleGhostFeste, anvendGhostFeste,
     medAlleSpokelserFestet, medAlleSpokelserFestetAsync,
     teardownGhostTiles,

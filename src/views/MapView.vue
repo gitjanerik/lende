@@ -1535,7 +1535,7 @@ const { applyHillshade, reliefBlendMode, invalidateReliefBands } = useReliefRend
 // Spøkelses-fliser — flyttet til useGhostTiles.
 const {
   ghostRects, GHOST_TRIGGER_SUPPRESS_FRAC, mosaikkStats,
-  renderGhostTiles, updateGhostReliefOpacity,
+  renderGhostTiles, updateGhostReliefOpacity, retoneGhostRelieff,
   leggTilSpokelse, scheduleGhostFeste, anvendGhostFeste,
   medAlleSpokelserFestet, medAlleSpokelserFestetAsync, teardownGhostTiles,
 } = useGhostTiles({
@@ -1552,9 +1552,11 @@ const {
   onFesteEndret: () => applyViewportCull(true),
 })
 
-// Re-render relieffet når DEM-en lastes eller temaet byttes (blend-modus
-// avhenger av tema). Selve nivå-endringer håndteres av reliefStepIndex-watch.
-watch([storedDem, currentTheme], () => { applyHillshade() })
+// Re-render relieffet når DEM-en lastes. Tema-byttet endrer også blend-modusen,
+// men står IKKE her lenger (v7.8.7): useTemaBytte kaller applyHillshade ETTER at
+// den nye paletten er malt, så knappen kvitterer med det samme. Nivå-endringer
+// håndteres av reliefStepIndex-watchen.
+watch(storedDem, () => { applyHillshade() })
 
 // Må stå ETTER useGhostTiles: restore-timingen venter på at spøkelsesflisene
 // dekker turens punkter, og leser `ghostRects` derfra.
@@ -2588,7 +2590,7 @@ const { applyTheme, applyDiagnoseMode } = useTemaBytte({
   reliefAutoOff: () => reliefAutoOff,
   hooks: {
     applyHillshade: () => applyHillshade(),
-    renderGhostTiles: () => renderGhostTiles(),
+    retoneGhostRelieff: () => retoneGhostRelieff(),
     applyLayerVisibility: () => applyLayerVisibility(),
   },
 })

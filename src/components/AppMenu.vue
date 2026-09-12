@@ -188,6 +188,26 @@ const THEMES = [
 const TEXT_MIN_PST = Math.round(UI_TEXT_MIN * 100)
 const TEXT_MAKS_PST = Math.round(UI_TEXT_MAKS * 100)
 const tekstProsent = computed(() => Math.round(uiTextScale.value * 100))
+
+// SKALAEN SETTES VED SLIPP, IKKE UNDER DRAGET (v7.8.7).
+// `input` fyrer per piksel, og hver verdi skrev rot-fonten på nytt — så hele
+// menyen (og appen bak den) reflowet mens fingeren sto på håndtaket: sporet
+// flyttet seg under tommelen, og man siktet på et mål som beveget seg. `change`
+// fyrer ved SLIPP på berøring og mus, og med én gang på piltastene — altså
+// nøyaktig når valget er tatt, i begge betjeningsformene.
+//
+// TALLET FØLGER LIKEVEL FINGEREN. Det er hele tilbakemeldingen man har mens man
+// drar, og det koster ingen reflow utenfor sin egen boks: plassen over sporet er
+// reservert for den STØRSTE prosenten (se .am-size-verdi-plass), så verken
+// slideren eller menyen under den rikker seg.
+const draProsent = ref(null)
+const visProsent = computed(() => draProsent.value ?? tekstProsent.value)
+function tekstDra(e) { draProsent.value = e.target.valueAsNumber }
+function tekstSlipp(e) {
+  draProsent.value = null
+  setTextScale(e.target.valueAsNumber / 100)
+}
+
 // Menyens egen rot-font: alt innhold er i em, så et valg skalerer hele skuffen
 // umiddelbart — brukeren ser resultatet der og da.
 const rootFontSize = computed(() => `${16 * uiTextScale.value}px`)
@@ -392,16 +412,18 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <div class="am-size-row">
             <span class="am-size-label">Tekststørrelse</span>
             <div class="am-size-slider">
-              <div class="am-size-verdi" role="status" aria-live="polite"
-                   :style="{ fontSize: `${0.7 + (tekstProsent - TEXT_MIN_PST) / 125}em` }">
-                {{ tekstProsent }} %
+              <div class="am-size-verdi-plass">
+                <div class="am-size-verdi" role="status" aria-live="polite"
+                     :style="{ fontSize: `${0.7 + (visProsent - TEXT_MIN_PST) / 125}em` }">
+                  {{ visProsent }} %
+                </div>
               </div>
               <input type="range" class="am-size-range"
                      :min="TEXT_MIN_PST" :max="TEXT_MAKS_PST" step="1"
-                     :value="tekstProsent"
+                     :value="visProsent"
                      aria-label="Tekststørrelse i grensesnittet, prosent"
-                     :aria-valuetext="`${tekstProsent} prosent`"
-                     @input="setTextScale($event.target.valueAsNumber / 100)" />
+                     :aria-valuetext="`${visProsent} prosent`"
+                     @input="tekstDra" @change="tekstSlipp" />
             </div>
           </div>
         </div>
@@ -665,13 +687,23 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .am-size-range:focus-visible { outline: 2px solid var(--am-accent); outline-offset: 2px; }
 /* Tallet vokser med valget, så prosenten er et eksempel på seg selv.
    `tabular-nums` holder sporet i ro mens man drar — uten den hopper linja
-   hver gang sifferbredden endrer seg. */
+   hver gang sifferbredden endrer seg.
+
+   PLASSEN ER RESERVERT FOR DEN STØRSTE PROSENTEN, og det er det som gjør at
+   tallet kan følge fingeren uten at noe flytter seg: høyden står på PLASSEN,
+   som har menyens egen rot-font, mens tallet inni bærer den valgte størrelsen.
+   En min-height på tallet selv ville vært em av dets EGEN font — altså vokst
+   med det, og dyttet slideren nedover under draget. */
+.am-size-verdi-plass {
+  min-height: 2.2em;
+  display: flex;
+  align-items: flex-end;
+}
 .am-size-verdi {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   color: var(--am-accent);
   line-height: 1.2;
-  min-height: 1.6em;
 }
 
 /* ── Dempet bunn ── */

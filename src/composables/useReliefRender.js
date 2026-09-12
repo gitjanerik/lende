@@ -19,7 +19,14 @@ export function useReliefRender({
   let cachedHillshadeDem = null
   let cachedShade = null          // rå grayscale-skygge — re-tones ved tema-bytte uten DEM-rekalk
   let cachedHillshadeMode = null
-  let cachedBandsKey = null       // vektor-relieff: `${blend}|${bands}`; nullstilles ved DEM-bytte
+  let cachedBandsKey = null       // vektor-relieff: hva som STÅR i DOM-en akkurat nå
+  // Bygde bånd pr `${blend}|${bands}`, nullstilt ved DEM-bytte (v7.8.7). Fram til
+  // nå husket vi bare NØKKELEN til det som sto i DOM-en, så en vipp mellom dag og
+  // natt bygde båndene på nytt i BEGGE retninger — d3-contour over hele DEM-et,
+  // 130–170 ms på en rask maskin og det mangedobbelte på en telefon. To modi
+  // ganger ett båndtall er et par tusen path-strenger; det er relieff-PNG-en som
+  // er megabyte, og den beholder sin ene slot.
+  const bandsCache = new Map()
 
   // Relieff-blend velges per tema: lyse bakgrunner mørkner naturlig med
   // `multiply`, mens mørke/art-tema (Curves) får `screen` så terrenget lyser
@@ -93,12 +100,16 @@ export function useReliefRender({
     if (g && g.tagName.toLowerCase() !== 'g') { g.remove(); g = null }
     const key = `${mode}|${RELIEF_BANDS}`
     if (!g || cachedBandsKey !== key) {
-      const bands = buildReliefBands(cachedShade, {
-        bands: RELIEF_BANDS,
-        blend: mode,
-        widthM: meta.value.widthM,
-        heightM: meta.value.heightM,
-      })
+      let bands = bandsCache.get(key)
+      if (!bands) {
+        bands = buildReliefBands(cachedShade, {
+          bands: RELIEF_BANDS,
+          blend: mode,
+          widthM: meta.value.widthM,
+          heightM: meta.value.heightM,
+        })
+        bandsCache.set(key, bands)
+      }
       if (!g) {
         g = document.createElementNS(ns, 'g')
         g.setAttribute('id', 'hillshade-layer')
@@ -139,6 +150,7 @@ export function useReliefRender({
       cachedHillshadeDem = storedDem.value
       cachedHillshadeUrl = null   // tving re-toning
       cachedBandsKey = null       // tving re-banding
+      bandsCache.clear()          // båndene hører til DEM-et de ble bygget av
     }
     const mode = reliefBlendMode()
     if (reliefMode.value === 'vektor') applyReliefVector(svg, mode)

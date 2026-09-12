@@ -516,6 +516,35 @@ ville sagt det samme en gang til med motsatt fortegn. Tilstanden er
 `useMapTheme`-singletonen, altså nøyaktig den bryteren eide, så Stemning-fana
 følger med av seg selv.
 
+**TEMA-BYTTET MALER PALETTEN FØRST OG RELIEFFET ETTERPÅ (v7.8.7), og det er
+IKKE en spinner-sak.** Eieren meldte at «Natt» brukte 2–3 sekunder. Ingenting
+var tregt i seg selv — alt lå i SAMME synkrone watch-flush, og en nettleser
+maler ikke midt i en oppgave, så trykket ga ingen kvittering før hele jobben var
+ferdig. Tungvekteren er relieffet: blend-modusen snur på hvert lys↔mørke-bytte
+(`reliefBlendMode` leser bakgrunnens luminans), så båndene bygges om med
+d3-contour over hele DEM-et — 130–170 ms på en rask maskin, det mangedobbelte på
+en telefon — og på toppen rev tema-byttet HELE spøkelses-mosaikken og leste den
+inn igjen fra IndexedDB. `useTemaBytte` gjør nå det GRATIS synkront (CSS-vars,
+lag-synlighet) og legger det DYRE bak `lib/etterMaling.js`, som er to
+`requestAnimationFrame` — den første kalles før neste bilde males, den andre
+etter. `nextTick` duger ikke: den venter på Vues kø, ikke på et bilde. Tre ting
+henger i det, og alle tre er lette å «rydde» bort:
+1. **Et nytt bytte AVBRYTER et ventende etterspill.** Uten det stabler den som
+   vipper fram og tilbake opp relieff-bygginger for temaer som alt er forlatt.
+2. **Spøkelsene RE-TONES, de rives ikke** (`retoneGhostRelieff` i
+   `useGhostTiles`). Temaets CSS-variabler arves ned i flisene av seg selv; det
+   eneste som må bygges om er båndene. En `renderGhostTiles` betalte for
+   teardown + ny IndexedDB-lesing + DOMParser på inntil tolv multi-MB-fliser for
+   å oppnå nettopp det.
+3. **Båndene caches PER BLEND-MODUS**, ikke bare som «nøkkelen til det som står
+   i DOM-en» — ellers bygges de om i BEGGE retninger av en vipp. Relieff-PNG-en
+   beholder sin ene slot: den er megabyte, båndene er path-strenger.
+Watchen i MapView er derfor `watch(storedDem, …)` og ikke lenger
+`watch([storedDem, currentTheme], …)` — kaller begge applyHillshade, er den ene
+tilbake i den synkrone flushen. Røyk-sjekken måler REKKEFØLGE I FRAMES og ikke
+en terskel i millisekunder: bakgrunnen skal skifte i FØRSTE bilde etter trykket
+og relieffet i et senere. Et tall i ms ville vært en påstand om runnerens fart.
+
 **EN NY ID I KATALOGEN LEGGES VED NABOEN SIN, IKKE BAKERST (v7.8.6).** «Natt»
 kom inn på plass #9, foran «Valg» — og for alle som hadde en lagret rekkefølge
 ville den gamle regelen lagt den ETTER innstillingene, altså gjort
@@ -692,6 +721,22 @@ forskjellen fra før: lista er KNAPPENS trinn, ikke skalaens lovlige verdier.
 Merk at den gamle regelen «en ukjent verdi faller til første hakk» måtte snus av
 samme grunn: den fantes fordi ingenting kunne SETTE en verdi mellom hakkene, og
 en knapp som kastet brukeren fra 137 til 100 ville lest som en nullstilling.
+
+**OG SPENNET SETTES VED SLIPP, IKKE PER PIKSEL (v7.8.7).** Slideren skrev
+skalaen på `input`, altså for hver verdi fingeren passerte — og skalaen speiles
+som `--ui-skala` på ROTA, så hele appen (menyen selv inkludert) reflowet mens
+fingeren sto på håndtaket: sporet flyttet seg under tommelen, og man siktet på
+et mål som beveget seg. `change` er den riktige hendelsen og ikke `mouseup`: den
+fyrer ved slipp på BÅDE berøring og mus, og med én gang på piltastene, altså i
+alle tre betjeningsformene. **Tallet over sporet følger likevel fingeren** — det
+er hele tilbakemeldingen man har mens man drar — og det koster ingen reflow
+utenfor sin egen boks fordi plassen er RESERVERT for den største prosenten.
+Høyden må stå på PLASSEN og ikke på tallet: tallet bærer den valgte
+skriftstørrelsen, så en `min-height` i `em` der ville vokst med seg selv og
+dyttet slideren nedover under draget. En røyk-sjekk spiller av `input` og
+`change` HVER FOR SEG — Playwrights `fill()` fyrer begge, så et drag må spilles
+av for hånd, og uten den halvdelen ville en tilbakeføring til `input` gått rett
+gjennom.
 
 **KOMPASSNÅLA BOR NEDE TIL HØYRE, RETT OVER LENDE-KNAPPEN (v7.8.4)**
 (`KompassKnapp.vue`). Den har flyttet tre ganger: FAB (til v1.0.77), fast knapp i
