@@ -1,32 +1,29 @@
 import { ref } from 'vue'
 
 // Global UI-tekststørrelse. Modulnivå-singleton (som useAppMenu): settes fra
-// hovedmenyens 100/125/150/200-segmentbryter og konsumeres som `zoom`-style på
-// tekst-flatene (hjem-listene, Om-siden, Innstillinger-skuffen, infodrawerens
-// tekstblokk) — hovedmenyen selv skalerer via sin egen em-baserte rot-font.
-// Bevisst IKKE på knapper/chrome eller stedsnavn i selve kartet. Persisteres i
-// localStorage; leser den gamle per-kart-nøkkelen («map-ui-text-scale», v12-æra)
-// som fallback ved første kjøring.
+// hovedmenyens slider og konsumeres som `zoom`-style på tekst-flatene
+// (hjem-listene, Om-siden, Innstillinger-skuffen, infodrawerens tekstblokk) —
+// hovedmenyen selv skalerer via sin egen em-baserte rot-font. Bevisst IKKE på
+// knapper/chrome eller stedsnavn i selve kartet. Persisteres i localStorage;
+// leser den gamle per-kart-nøkkelen («map-ui-text-scale», v12-æra) som
+// fallback ved første kjøring.
 //
-// v2.4.13: syklus-knappen er erstattet av samtidige valg — ingen skjult
-// tilstand, og man kan gå rett tilbake. Derfor setTextScale i stedet for
-// cycleTextScale.
+// SKALAEN ER ET SPENN, IKKE EN LISTE (v7.8.4). Fram til nå var de fire hakkene
+// 100/125/150/200 de ENESTE lovlige verdiene: `setTextScale` avviste alt annet,
+// og `load()` falt til 100 % for en verdi utenfor lista. Eieren ba om fri
+// justering, og det er en bedre modell for nettopp denne innstillingen — den
+// som må ha 135 % for å lese uten briller, har ikke 125 og 150 å velge mellom.
+// Spennet er 100–200 %: under 100 er ikke en tilgjengelighets-innstilling, og
+// 200 er taket flatene er MÅLT på å tåle (se snarvei-raden og værraden).
 //
-// v6.5.43: `cycleTextScale` kommer tilbake — men BARE for infopanelene, ikke
-// for hovedmenyen. Innvendingen fra v2.4.13 står fortsatt, og knappen svarer på
-// den på to måter: den bærer den gjeldende verdien i klartekst på sin egen
-// flate (ingen skjult tilstand), og den RUNDER (200 → 100), så veien tilbake er
-// tre trykk og ikke en blindvei. Hovedmenyen beholder samtidige valg — der er
-// det plass til fire knapper, og det er der man går for å velge en størrelse.
-// I et infopanel er plassen én knapp, og spørsmålet er «litt større, takk».
-//
-// v6.5.32: 200 % kom til. Lista er den ENE kilden — `load()` validerer mot den,
-// og hovedmenyens knapperad utledes av den — så et nytt hakk er én linje her.
-// Tallet er ikke et rundt hopp fra 150: det er der en tekst blir lesbar for den
-// som ellers må dra opp systemets egen skalering, og skuffen er testet på at den
-// ikke renner over ved det.
-
+// DE FIRE HAKKENE STÅR LIKEVEL, og det er ikke en rest: A-knappen i arkene har
+// plass til ETT trykk, ikke et spenn, og «litt større, takk» er fortsatt fire
+// stasjoner. Knappen VISER den satte prosenten nøyaktig — også 137 — men
+// flytter til neste hakk OVER den. Det er hele forskjellen fra før: lista er
+// knappens trinn, ikke skalaens lovlige verdier.
 export const UI_TEXT_SCALES = [1, 1.25, 1.5, 2]
+export const UI_TEXT_MIN = 1
+export const UI_TEXT_MAKS = 2
 
 /**
  * Skalaen speiles som `--ui-skala` på ROT-ELEMENTET (v7.6.0), og «rot» er ikke
@@ -45,31 +42,53 @@ function speilTilRot(v) {
 const LS_KEY = 'lende-ui-text-scale'
 const LEGACY_LS_KEY = 'map-ui-text-scale'
 
+/**
+ * Klemmer til spennet og runder til hele prosent. Rundingen er ikke pynt:
+ * slideren gir hele prosenter, og en flyttall-hale ville gjort «er dette
+ * hakket valgt?» til en tilnærming — og skrevet en ny verdi til localStorage
+ * for hver piksel brukeren dro.
+ */
+export function klemTextScale(v, min = UI_TEXT_MIN, maks = UI_TEXT_MAKS) {
+  const n = Number(v)
+  if (!Number.isFinite(n)) return min
+  return Math.round(Math.min(maks, Math.max(min, n)) * 100) / 100
+}
+
 function load() {
   try {
-    const v = Number(localStorage.getItem(LS_KEY) ?? localStorage.getItem(LEGACY_LS_KEY))
-    return UI_TEXT_SCALES.includes(v) ? v : 1
-  } catch { return 1 }
+    const raa = localStorage.getItem(LS_KEY) ?? localStorage.getItem(LEGACY_LS_KEY)
+    const v = Number(raa)
+    return Number.isFinite(v) && v > 0 ? klemTextScale(v) : UI_TEXT_MIN
+  } catch { return UI_TEXT_MIN }
 }
 
 const uiTextScale = ref(load())
 speilTilRot(uiTextScale.value)
 
-// Neste hakk i lista, med runding. Ren funksjon, så regelen kan testes uten
-// hverken localStorage eller en Vue-komponent. En verdi som ikke er i lista
-// (skrevet av en eldre utgave, eller for hånd i localStorage) faller til
-// første hakk framfor å låse knappen.
+/**
+ * Neste hakk i A-knappens liste, med runding. Ren funksjon, så regelen kan
+ * testes uten hverken localStorage eller en Vue-komponent.
+ *
+ * FRA EN VERDI MELLOM HAKKENE GÅR DEN TIL DET FØRSTE OVER (v7.8.4) — 137 %
+ * blir 150 %, ikke 100 %. Tidligere falt en ukjent verdi til første hakk, og
+ * den regelen fantes fordi ingenting kunne SETTE en verdi mellom hakkene:
+ * bare en eldre utgave eller en håndskrevet localStorage-nøkkel. Nå gjør
+ * slideren nettopp det, og en knapp som kastet brukeren fra 137 til 100 ville
+ * lest som at den nullstilte innstillingen.
+ */
 export function nesteTextScale(v, skalaer = UI_TEXT_SCALES) {
-  const i = skalaer.indexOf(v)
-  return i < 0 ? skalaer[0] : skalaer[(i + 1) % skalaer.length]
+  const n = Number(v)
+  if (!Number.isFinite(n)) return skalaer[0]
+  return skalaer.find(s => s > n + 1e-9) ?? skalaer[0]
 }
 
 export function useUiTextScale() {
   function setTextScale(v) {
-    if (!UI_TEXT_SCALES.includes(v) || v === uiTextScale.value) return
-    uiTextScale.value = v
-    speilTilRot(v)
-    try { localStorage.setItem(LS_KEY, String(v)) } catch { /* ignorer */ }
+    const n = klemTextScale(v)
+    if (n === uiTextScale.value) return
+    uiTextScale.value = n
+    speilTilRot(n)
+    try { localStorage.setItem(LS_KEY, String(n)) } catch { /* ignorer */ }
   }
   function cycleTextScale() {
     setTextScale(nesteTextScale(uiTextScale.value))

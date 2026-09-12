@@ -233,6 +233,16 @@ const reliefMode = defineModel('reliefMode', { type: String, default: 'vektor' }
 
 // Margin til hver skjermkant. Raden er sentrert, så halve verdien per side.
 const KANT_PX = 24
+// TAK PÅ HØYDEN, OG DET ER MÅLT MOT VIEWPORTEN (v7.8.4). Pilla hadde ingen:
+// høyden var summen av det gitteret og knott-panelet MÅLTE, og ved 200 % tekst
+// på en telefon er den summen høyere enn skjermen — håndtaket havnet under
+// nederste skjermkant, altså den ene kontrollen som legger skuffa sammen igjen.
+// Reserven under pilla skalerer med teksten, fordi det som står der (kompasset
+// og Lende-knappen nede til høyre) gjør det: `3.5rem × --ui-skala` er den ene
+// runde knappen, pluss 2rem luft. `dvh` og ikke `vh`: på mobil-Safari er `vh`
+// den STØRSTE viewporten, altså den uten adresselinje, og et tak regnet av den
+// er ikke et tak på skjermen man faktisk har.
+const PILLE_MAKS_H = 'calc(100dvh - var(--ovl-top, 4rem) - 3.5rem * var(--ui-skala, 1) - 2rem)'
 // Fjærkurven skuffa dokker med. Samme tall og samme kurve som
 // useDraggableDrawer bruker på hvert bunn-ark — «magneten» skal kjennes lik.
 const DOKK_MS = 220
@@ -254,6 +264,17 @@ const DRA_MIN_PX = 72
 const dra = ref(0)
 const drar = ref(false)
 const gitterRef = ref(null)
+const skrollRef = ref(null)
+// Er innholdet høyere enn taket akkurat nå? Styrer to ting som må følges ad:
+// om skroll-boksen slipper touch til å rulle (`touch-action`), og om et
+// pekertrykk inne i den starter et DRAG eller ikke. Faller de fra hverandre,
+// får man enten en rulleflate man ikke kan rulle, eller en skuff som legger
+// seg sammen hver gang man prøver.
+const rullbar = ref(false)
+function sjekkRull() {
+  const el = skrollRef.value
+  rullbar.value = !!el && el.scrollHeight - el.clientHeight > 1
+}
 const panelRef = ref(null)
 const hPanel = ref(0)
 const kolonner = ref(1)
@@ -383,6 +404,8 @@ async function maal() {
   hLukket.value = Math.round(padTopp + padBunn + celler[0].getBoundingClientRect().height)
   maalTvang.value = null
   maaler.value = false
+  await nextTick()
+  sjekkRull()
 }
 
 let ro = null
@@ -395,6 +418,9 @@ onMounted(() => {
 })
 onBeforeUnmount(() => { ro?.disconnect(); losne?.() })
 
+// Taket biter først når skuffa er dratt ut, så spørsmålet «ruller dette?» må
+// stilles på nytt for hver høyde draget passerer.
+watch(dra, () => { void nextTick(sjekkRull) })
 watch(apen, v => emit('apen', v))
 // SETTET, IKKE REKKEFØLGEN (v7.7.0). Målingen leter etter den BREDESTE cella,
 // og den er den samme uansett hvilken rekkefølge de står i — mens en ommåling
@@ -485,6 +511,12 @@ function onDraStart(e) {
   // relieff-slideren tar med seg nettopp det man holdt på med. Håndtaket
   // ligger rett under panelet, så veien ut er en piksel unna.
   if (e.target?.closest?.('[data-snarvei-knotter]')) return
+  // OG NÅR INNHOLDET FAKTISK RULLER, EIER SKROLL-BOKSEN PEKEREN (v7.8.4).
+  // Ved 200 % tekst er den åpne skuffa høyere enn taket, og da er et sveip
+  // nedover inne i den en RULLING — ellers er knott-panelet under siste
+  // snarvei-rad ikke til å nå. Håndtaket ligger utenfor boksen, så veien ut av
+  // skuffa er der den alltid er.
+  if (rullbar.value && e.target?.closest?.('[data-snarvei-skroll]')) return
   start.value = { x: e.clientX, y: e.clientY, dra: dra.value, tatt: false }
   lyttPaaVinduet()
   // INGEN `preventDefault` HER: den ville tatt `click` fra snarvei-knappene,
@@ -565,11 +597,19 @@ function avsluttSortering() {
   settDra(0)
 }
 
+// HINTET ER USYNLIG FRA v7.8.4, IKKE FJERNET. «Dra en knapp dit du vil ha den»
+// og «Spor flyttet til plass 8 av 9» sto som en linje under gitteret, og eieren
+// strøk den: draget er selvforklarende i det man tar tak — cella løftes, et
+// stiplet spøkelse blir igjen, naboene glir til side — og en bruksanvisning
+// under en gest man allerede holder på med er ord man leser i stedet for å se.
+// Meldingen blir stående som et `sr-only` live-felt, fordi en flytting med
+// piltastene eller med to trykk ellers ikke har NOEN tilbakemelding for den som
+// ikke ser gitteret (SC 4.1.3). Den koster ingen piksler.
 const sorterHint = computed(() => {
   if (valgtCelle.value >= 0) {
     return `Trykk der «${props.snarveier[valgtCelle.value]?.label}» skal stå`
   }
-  return sisteFlytting.value || 'Dra en knapp dit du vil ha den, eller trykk to'
+  return sisteFlytting.value
 })
 
 /** Flytter en snarvei og sier fra hva som skjedde. `fokus` følger piltastene. */
@@ -721,10 +761,22 @@ function celleTransform(i) {
          `touch-none` er ikke valgfritt: uten den ruller/panorerer nettleseren
          på første piksel og `pointermove` slutter å komme. -->
     <div class="pointer-events-auto flex flex-col items-stretch rounded-2xl
-                bg-overlay/90 backdrop-blur shadow-lg touch-none"
+                bg-overlay/90 backdrop-blur shadow-lg touch-none overflow-hidden"
          @pointerdown="onDraStart"
-         :style="{ maxWidth: `calc(100vw - ${KANT_PX}px)`,
+         :style="{ maxWidth: `calc(100vw - ${KANT_PX}px)`, maxHeight: PILLE_MAKS_H,
                    visibility: maalt ? 'visible' : 'hidden' }">
+      <!-- SKROLL-BOKSEN (v7.8.4). Taket over står på PILLA, og innholdet ruller
+           inne i den — men bare det som TÅLER å rulle. Håndtaket står UTENFOR,
+           som siste barn av pilla, nettopp fordi det var det som forsvant: en
+           `overflow: auto` rundt hele pilla ville flyttet håndtaket ned i en
+           rulleflate man må finne før man kan legge skuffa sammen.
+           `min-h-0` er ikke valgfri — en flex-boks har `min-height: auto` og
+           nekter å krympe under sitt eget innhold, så uten den ville taket på
+           pilla bare klippet håndtaket bort igjen. `overscroll-contain` holder
+           rullingen inne: uten den forplanter den seg til kartet under. -->
+      <div ref="skrollRef" data-snarvei-skroll
+           class="min-h-0 overflow-y-auto overscroll-contain"
+           :style="{ touchAction: rullbar ? 'pan-y' : 'none' }">
       <!-- GITTERET. Sammenlagt viser det første rad; høyden følger draget, og
            `overflow: hidden` lar de neste radene ligge og vente rett utenfor
            kanten. Før målingen er det en flex-rad med etikettene på, så
@@ -787,7 +839,7 @@ function celleTransform(i) {
            class="snarvei-knotter overflow-hidden"
            :inert="panelAndel < 0.5 || undefined"
            :style="panelStil">
-        <div class="mx-2 pb-1 pt-2 border-t border-ink/10 flex flex-col gap-2"
+        <div class="mx-2 pb-1 pt-2 flex flex-col gap-2"
              :style="{ zoom: uiTextScale }">
           <div class="knott-boks">
             <div class="flex items-baseline justify-between gap-2">
@@ -832,6 +884,8 @@ function celleTransform(i) {
         </div>
       </div>
 
+      </div>
+
       <!-- HÅNDTAKET: appens grå drawer-håndtak, bunnplassert og midtstilt, med
            SAMME luft rundt seg som i punkt-arket og funksjons-skuffene.
            Fra v7.6.0 eier det ikke draget lenger — hele pilla gjør det — men
@@ -856,10 +910,9 @@ function celleTransform(i) {
            felt: det sier både hva man kan gjøre og hva som NETTOPP skjedde, og
            en flytting med piltastene eller med to trykk har ellers ingen
            tilbakemelding for den som ikke ser gitteret. -->
-      <div v-else data-sorter-footer class="px-2 pt-1 pb-2 flex flex-col items-center gap-1.5">
-        <p role="status" aria-live="polite"
-           class="text-[11px] leading-snug text-center text-ink/70"
-           :style="{ zoom: uiTextScale }">{{ sorterHint }}</p>
+      <div v-else data-sorter-footer
+           class="shrink-0 px-2 pt-1 pb-2 flex flex-col items-center gap-1.5">
+        <p role="status" aria-live="polite" class="sr-only">{{ sorterHint }}</p>
         <div class="flex flex-wrap items-center justify-center gap-1.5"
              :style="{ zoom: uiTextScale }">
           <button type="button" class="sorter-knapp" @click="emit('tilbakestill')">

@@ -2,7 +2,7 @@
 import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppMenu } from '../composables/useAppMenu.js'
-import { useUiTextScale, UI_TEXT_SCALES } from '../composables/useUiTextScale.js'
+import { useUiTextScale, UI_TEXT_MIN, UI_TEXT_MAKS } from '../composables/useUiTextScale.js'
 import { useUiTheme } from '../composables/useUiTheme.js'
 import { useMapTheme } from '../composables/useMapTheme.js'
 import { useHoldVaken } from '../composables/useHoldVaken.js'
@@ -28,8 +28,8 @@ import { useFokusFelle } from '../composables/useFokusFelle.js'
 //   1. primærvalgene er kort med antall/undertekst, kontekst og visning er rader
 //   2. Om appen + versjon er dempet under en skillelinje
 // Modus-segmentet som lå øverst er fjernet i v6.5.35 — se «Modus» under.
-// Tekststørrelsen er fire samtidige valg (100/125/150/200) som skalerer menyen live:
-// rot-fonten er 16 px × faktor, og alt innhold er i em.
+// Tekststørrelsen er én slider (100–200 %) som skalerer menyen live: rot-fonten
+// er 16 px × faktor, og alt innhold er i em.
 
 const { menuOpen, close } = useAppMenu()
 const { uiTextScale, setTextScale } = useUiTextScale()
@@ -172,13 +172,19 @@ const THEMES = [
   { value: 'mørkt', label: 'Mørkt', d: 'M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z' },
   { value: 'auto', label: 'Auto', d: 'M13 3 5 14h6l-1 7 8-11h-6l1-7Z' },
 ]
-// Hvert valg rendres i SIN EGEN størrelse så valget er lesbart som seg selv.
-// Utledet fra UI_TEXT_SCALES, som er den ene lista setTextScale godtar — en
-// hardkodet kopi her ville stilltiende sluttet å virke om lista endres.
-const TEXT_SIZE_PX = { 1: 11, 1.25: 13, 1.5: 15, 2: 18 }
-const TEXT_SIZES = UI_TEXT_SCALES.map((s) => ({
-  scale: s, label: `${Math.round(s * 100)} %`, px: TEXT_SIZE_PX[s] ?? 13,
-}))
+// TEKSTSTØRRELSEN ER ET SPENN, IKKE FIRE KNAPPER (v7.8.4). Fire samtidige valg
+// var riktig så lenge skalaen HADDE fire lovlige verdier; nå er den fri mellom
+// 100 og 200 %, og en knapperad kan ikke uttrykke 137. Prosenten står over
+// sporet og ikke ved siden av, samme grep som «Hold skjermen våken» (v6.6.5):
+// menyens egen rot-font vokser MED valget, så en etikett ved siden av ville
+// spist mer av slideren jo større man dro den.
+//
+// A-KNAPPEN I ARKENE BEHOLDER SINE FIRE HAKK, og det er ikke en inkonsekvens:
+// der er plassen ett trykk, og hakkene er stasjonene «litt større, takk»
+// stopper på. Den viser den satte prosenten nøyaktig — se TekstStorrelseKnapp.
+const TEXT_MIN_PST = Math.round(UI_TEXT_MIN * 100)
+const TEXT_MAKS_PST = Math.round(UI_TEXT_MAKS * 100)
+const tekstProsent = computed(() => Math.round(uiTextScale.value * 100))
 // Menyens egen rot-font: alt innhold er i em, så et valg skalerer hele skuffen
 // umiddelbart — brukeren ser resultatet der og da.
 const rootFontSize = computed(() => `${16 * uiTextScale.value}px`)
@@ -378,15 +384,22 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             <input type="checkbox" class="am-switch" role="switch"
                    :checked="isDarkMap" @change="setDarkMap($event.target.checked)" />
           </label>
+          <!-- Tallet står OVER sporet (se kommentaren ved TEXT_MIN_PST), og
+               rendres i sin EGEN størrelse: valget er lesbart som seg selv,
+               slik de fire knappene var. -->
           <div class="am-size-row">
             <span class="am-size-label">Tekststørrelse</span>
-            <div class="am-sizes" role="group" aria-label="Tekststørrelse">
-              <button v-for="z in TEXT_SIZES" :key="z.scale" type="button"
-                      class="am-size-btn" :class="{ 'is-on': uiTextScale === z.scale }"
-                      :style="{ fontSize: z.px + 'px' }"
-                      :aria-pressed="uiTextScale === z.scale" @click="setTextScale(z.scale)">
-                {{ z.label }}
-              </button>
+            <div class="am-size-slider">
+              <div class="am-size-verdi" role="status" aria-live="polite"
+                   :style="{ fontSize: `${0.7 + (tekstProsent - TEXT_MIN_PST) / 125}em` }">
+                {{ tekstProsent }} %
+              </div>
+              <input type="range" class="am-size-range"
+                     :min="TEXT_MIN_PST" :max="TEXT_MAKS_PST" step="1"
+                     :value="tekstProsent"
+                     aria-label="Tekststørrelse i grensesnittet, prosent"
+                     :aria-valuetext="`${tekstProsent} prosent`"
+                     @input="setTextScale($event.target.valueAsNumber / 100)" />
             </div>
           </div>
         </div>
@@ -676,27 +689,27 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
    fjerde ville den rent over, og skuffens egen rot-font vokser dessuten MED
    valget, så etiketten blir bredere jo større valget er. `flex: 1` på knappene
    deler bredden likt uansett hvor mange hakk lista får. */
-.am-size-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 2px 4px; }
+.am-size-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 2px 4px; }
 .am-size-label { font-size: 0.95em; flex: 1 1 auto; }
-.am-sizes {
-  display: flex;
-  flex: 1 1 100%;
-  gap: 4px;
-  padding: 4px;
-  background: var(--am-surface);
-  border-radius: 12px;
-}
-.am-size-btn {
-  flex: 1 1 0;
-  min-width: 0;
-  min-height: 44px;
-  border-radius: 9px;
+.am-size-slider { flex: 1 1 100%; display: flex; flex-direction: column; gap: 2px; }
+.am-size-range {
+  width: 100%;
+  height: 28px;
   background: transparent;
-  color: var(--am-dim);
-  font-weight: 600;
-  transition: background 0.18s, color 0.18s;
+  accent-color: var(--am-accent);
+  cursor: pointer;
 }
-.am-size-btn.is-on { background: var(--am-accent); color: var(--am-on-accent); }
+.am-size-range:focus-visible { outline: 2px solid var(--am-accent); outline-offset: 2px; }
+/* Tallet vokser med valget, så prosenten er et eksempel på seg selv.
+   `tabular-nums` holder sporet i ro mens man drar — uten den hopper linja
+   hver gang sifferbredden endrer seg. */
+.am-size-verdi {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--am-accent);
+  line-height: 1.2;
+  min-height: 1.6em;
+}
 
 /* ── Dempet bunn ── */
 .am-foot {

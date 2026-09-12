@@ -38,7 +38,13 @@
 // v6.5.67 — halvgjennomsiktig hvit (mørk grå på et mørkt ark), så kartet
 // skinner svakt gjennom og knappen ikke blir en klistrelapp.
 //
-// v7.6.0: NÅLA STÅR PÅ RADEN OVER LINJALEN, OG LINJALEN HELT TIL VENSTRE.
+// v7.8.4: NÅLA ER FLYTTET UT AV DENNE FILA. Den bor nå i KompassKnapp.vue,
+// nede til HØYRE, rett over Lende-knappen — venstre kant hadde to ting som
+// vokser med tekststørrelsen, høyre kant hadde én knapp og ellers ingenting.
+// Avsnittet under beskriver det som var, og står som begrunnelse for at
+// linjalen begynner helt ute i venstrekanten.
+//
+// v7.6.0: NÅLA STO PÅ RADEN OVER LINJALEN, OG LINJALEN HELT TIL VENSTRE.
 // De sto side om side på samme bunnlinje, og det holdt så lenge begge var faste
 // i størrelse. Fra v7.6.0 følger kompass-knappen tekststørrelsen — et ikon
 // «leses» som tekst, og ved 200 % er nåla 96 px bred — mens linjalen samtidig
@@ -64,35 +70,18 @@
 // `scaleBar.label` meter i terrenget, og en zoomet strek ville løyet om
 // avstanden.
 //
-// Kolonnen er `pointer-events-none` fordi den er en avlesning; kompass-knappen
-// tar derfor sin egen `pointer-events-auto`.
-import { computed } from 'vue'
-import SnarveiIkon from './SnarveiIkon.vue'
+// Kolonnen er `pointer-events-none` fordi den er en avlesning.
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
   scaleBar: { type: Object, default: () => ({ px: 0, ticks: [], label: '' }) },
   avstandTekst: { type: String, default: '' },
   avstandNaadd: { type: Boolean, default: false },
-  // Kompasset: `azimut` er hvor nord ligger på skjermen, i grader med klokka.
-  // `kompass` er porten — uten rotasjon (desktop har retningsrosa i søyla)
-  // finnes det ingen retning å nullstille.
-  kompass: { type: Boolean, default: false },
-  azimut: { type: Number, default: 0 },
-  // Er KARTET mørkt? Ikke UI-temaet — skiva ligger rett på arket, så det er
-  // arkets valør den må lese mot (samme kontrakt som NavKnapper hadde).
-  mork: { type: Boolean, default: false },
   // Hovedmenyens 100/125/150/200. Se filhodet for hva den gjelder og ikke.
   uiTextScale: { type: Number, default: 1 },
   // Bunnlinja, delt med Lende-FAB-en — se filhodet.
   bottom: { type: String, default: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' },
 })
-defineEmits(['nord'])
-
-// Skiva og blekket fra v6.5.67. Alfaen er ikke pynt: en ugjennomsiktig skive
-// blir en klistrelapp på kartet, og nåla skal leses som en del av arket.
-const skive = computed(() => (props.mork ? 'rgba(63,63,70,0.82)' : 'rgba(255,255,255,0.82)'))
-const blekk = computed(() => (props.mork ? '#e4e4e7' : '#1c1917'))
 </script>
 
 <template>
@@ -101,21 +90,6 @@ const blekk = computed(() => (props.mork ? '#e4e4e7' : '#1c1917'))
        class="absolute left-3 z-20 pointer-events-none flex flex-col items-start gap-2
               transition-[bottom] duration-200"
        :style="{ bottom }">
-    <!-- FRISTILT NÅL PÅ EGEN SKIVE (v7.3.2), på RADEN OVER LINJALEN fra v7.6.0.
-         48 px som resten av kart-knappene, og `place-items-center` fordi ikonet
-         er kvadratisk i en sirkel. `zoom` og ikke en større `w-*`: et ikon leses
-         som tekst, og da skal det følge tekststørrelsen som all annen chrome. -->
-    <button v-if="kompass" type="button" @click="$emit('nord')"
-            data-kompass-knapp
-            class="pointer-events-auto shrink-0 w-12 h-12 rounded-full grid place-items-center
-                   select-none active:scale-95 transition-transform"
-            :style="{ background: skive, color: blekk, zoom: uiTextScale,
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.35)' }"
-            :aria-label="`Vend kartet mot nord. Nå ${Math.round(azimut)} grader.`">
-      <SnarveiIkon id="kompass" class="w-8 h-8"
-                   :style="{ transform: `rotate(${azimut}deg)`,
-                             transition: 'transform 0.2s linear' }" />
-    </button>
     <div class="flex items-stretch gap-2 px-3 py-1.5 rounded-lg bg-overlay text-ink
                 text-[11px] font-medium shadow-lg">
       <div class="min-w-0">

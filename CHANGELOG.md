@@ -1,3 +1,28 @@
+## 2026-09-12 — v7.8.4: fri tekststørrelse, nåla til høyre og et tak på snarvei-skuffa
+
+Tekststørrelsen i hovedmenyen er ikke lenger fire knapper, men én slider fra 100
+til 200 % i hele prosent — den som må ha 135 % for å lese uten briller, har ikke
+125 og 150 å velge mellom. A-knappen i arkene beholder de fire hakkene, fordi
+plassen der er ett trykk og ikke et spenn, men den VISER den satte prosenten
+nøyaktig og flytter til første hakk over den. Kompassnåla har flyttet fra
+venstre kant til det nedre HØYRE hjørnet, rett over Lende-knappen: venstre kant
+bar to ting som vokser med tekststørrelsen, høyre kant hadde én knapp og ellers
+ingenting. Løftet er en knapphøyde ganget med tekstskalaen, så nåla ikke lander
+oppå Lende-knappen ved 200 %, og er chatten ikke aktivert står nåla alene.
+
+Snarvei-skuffa har fått et tak regnet av viewporten, og innholdet ruller inne i
+pilla mens håndtaket står utenfor rulleflata. Uten taket ble pilla så høy som
+gitteret og knott-panelet målte, og ved 200 % tekst betød det at håndtaket —
+den ene kontrollen som legger skuffa sammen igjen — havnet under nederste
+skjermkant. Åpen ligger raden nå over både kompasset og Lende-knappen.
+Sorteringens forklarende tekst er borte (draget forklarer seg selv; meldingen
+blir stående som et usynlig live-felt for skjermlesere), og det samme er streken
+over strek-slideren. I Kartstil er av/på-bryteren for relieff fjernet: null på
+slideren betyr av, akkurat som knotten i snarvei-raden — to flater med hver sin
+modell for det samme spørsmålet var én for mye.
+
+---
+
 ## 2026-09-12 — v7.8.3: Fritt lende — ett trykk, mindre knapp, betinget angre
 
 Hovedknappen i Fritt lende krevde to trykk når man hadde gått ut av arket: ved

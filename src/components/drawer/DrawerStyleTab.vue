@@ -46,8 +46,9 @@ const props = defineProps({
   reliefTrinnAntall: { type: Number, default: 1 },
   reliefProsent: { type: Number, default: 0 },
   // Relieffet kan være slått av av TEMAET (monokrom) uten at brukerens egen
-  // innstilling er rørt. Da er bryteren fortsatt «på», og seksjonen må si
-  // hvorfor det likevel ikke vises — ellers ser det ut som en feil.
+  // innstilling er rørt. Da står slideren fortsatt på et trinn over null, og
+  // seksjonen må si hvorfor det likevel ikke vises — ellers ser det ut som en
+  // feil.
   reliefAutoAv: { type: Boolean, default: false },
 })
 
@@ -55,7 +56,14 @@ const emit = defineEmits([
   'set-strek-trinn', 'set-stroke-group', 'strek-standard', 'strek-nullstill',
   'set-relief-trinn', 'relieff-standard', 'relieff-nullstill',
 ])
-const reliefEnabled = defineModel('reliefEnabled', { type: Boolean, default: false })
+// AV/PÅ-BRYTEREN ER BORTE — «0» PÅ SLIDEREN ER AV (v7.8.4). Fana hadde en
+// vippebryter (per kart) ved SIDEN AV styrke-slideren (global), og snarvei-
+// radens knott hadde bare slideren, der null alt betydde av. To flater med
+// hver sin modell for det samme spørsmålet er én flate for mye: eieren ba om
+// at fana gjør det raden gjør. Sammenhengen bor fortsatt på KALLSTEDET
+// (MapView, `settSnarveiRelieff`) og ikke her — det er MapView som vet at
+// av/på lagres per kart mens trinnet er globalt, og komponenten er dum med
+// vilje: den viser trinnet den får og sier fra når brukeren drar.
 const reliefMode = defineModel('reliefMode', { type: String, default: 'vektor' })
 
 const stiler = computed(() => KARTSTILER.map((s) => ({
@@ -218,46 +226,37 @@ const stiler = computed(() => KARTSTILER.map((s) => ({
       <div class="text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1.5">
         Relieff
       </div>
-      <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-2 flex items-center gap-3">
-        <div class="flex-1 min-w-0">
-          <div class="text-[13px] text-ink font-medium">Relieff (terrengskygge)</div>
-          <div class="text-[11px] text-ink-3 leading-snug">
-            Gjelder dette kartet. Bruker mer minne/GPU — slå av på svake enheter.
-          </div>
-        </div>
-        <button @click="reliefEnabled = !reliefEnabled"
-                :aria-pressed="reliefEnabled"
-                :aria-label="reliefEnabled ? 'Slå av relieff for dette kartet' : 'Slå på relieff for dette kartet'"
-                class="relative w-11 h-6 rounded-full transition-colors shrink-0"
-                :class="reliefEnabled ? 'bg-emerald-500' : 'bg-ink/15'">
-          <span class="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
-                :class="reliefEnabled ? 'left-5' : 'left-0.5'" />
-        </button>
-      </div>
-
       <!-- Temaets auto-av er ikke brukerens valg, og uten denne linja ser en
-           bryter som står på PÅ mens kartet er flatt ut som en feil. -->
-      <div v-if="reliefEnabled && reliefAutoAv"
+           slider som står på et trinn mens kartet er flatt ut som en feil. -->
+      <div v-if="reliefTrinn > 0 && reliefAutoAv"
            class="rounded-lg bg-amber-400/10 border border-amber-300/30 px-3 py-2 mb-2
                   text-[11px] text-amber-100 leading-snug">
         Kartstilen du står i er monokrom, og slår relieffet av for å holde
         flatene rene. Bytt kartstil eller stemning for å få det tilbake.
       </div>
 
-      <template v-if="reliefEnabled">
-        <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-2">
-          <div class="flex items-center justify-between gap-3 mb-1.5">
-            <div class="text-[13px] text-ink font-medium">Styrke</div>
-            <span class="text-ink-3 text-[12px] tabular-nums">
-              {{ reliefProsent === 0 ? 'av' : `${reliefProsent} %` }}
-            </span>
-          </div>
-          <input type="range" min="0" :max="reliefTrinnAntall - 1" step="1"
-                 :value="reliefTrinn"
-                 @input="emit('set-relief-trinn', Number($event.target.value))"
-                 aria-label="Relieff-styrke for alle kart"
-                 class="w-full accent-amber-400"/>
+      <!-- ÉN SLIDER, OG NULL ER AV (v7.8.4) — samme modell som knotten i
+           snarvei-raden. Underteksten sier det bryteren sa, for kostnaden er
+           fortsatt verdt å vite på en svak telefon. -->
+      <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-2">
+        <div class="flex items-center justify-between gap-3 mb-1.5">
+          <div class="text-[13px] text-ink font-medium">Relieff (terrengskygge)</div>
+          <span class="text-ink-3 text-[12px] tabular-nums">
+            {{ reliefTrinn === 0 ? 'av' : `${reliefProsent} %` }}
+          </span>
         </div>
+        <input type="range" min="0" :max="reliefTrinnAntall - 1" step="1"
+               :value="reliefTrinn"
+               @input="emit('set-relief-trinn', Number($event.target.value))"
+               aria-label="Relieff-styrke for alle kart — helt til venstre er av"
+               :aria-valuetext="reliefTrinn === 0 ? 'av' : `${reliefProsent} prosent`"
+               class="w-full accent-amber-400"/>
+        <div class="text-[11px] text-ink-3 leading-snug mt-1.5">
+          Helt til venstre er av. Relieff bruker mer minne/GPU — dra ned på svake enheter.
+        </div>
+      </div>
+
+      <template v-if="reliefTrinn > 0">
         <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-2">
           <div class="text-[13px] text-ink font-medium mb-2">Relieff-stil</div>
           <div class="flex gap-2" role="group" aria-label="Relieff-stil for dette kartet">

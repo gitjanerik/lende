@@ -789,7 +789,10 @@ const SJEKKER = [
       // samme kode hakket kjørte.
       await åpneDrawer(page)
       await klikkTekst(page, /^KARTSTIL$/)
-      await settSkyv(page, 'Relieff-styrke for alle kart', 0)
+      // NULL ER AV FRA v7.8.4 — slideren er hele modellen, og trinn 0 slår
+      // relieffet av. Sjekken skal kjøre render- og relieff-passet, så den må
+      // dra til et EKTE nivå; 0 ville målt at laget forsvant.
+      await settSkyv(page, 'Relieff-styrke for alle kart — helt til venstre er av', 4)
       await page.waitForTimeout(1200)
       await lukkDrawer(page)
       const etter = await synlig()
@@ -1129,6 +1132,99 @@ const SJEKKER = [
       return `nivå 1 stoppet på ${niva1.panelHoyde} px panel, nivå 2 ga `
         + `${niva2.skyvNavn.join(' + ')} + ${niva2.pille.join('/')} `
         + `(${niva2.panelHoyde} px), ett sveip opp la alt sammen`
+    },
+  },
+  {
+    // SKUFFA HAR ET TAK, OG HÅNDTAKET ER ALDRI UTENFOR DET (v7.8.4).
+    //
+    // Pilla hadde ingen max-høyde: den ble så høy som gitteret og knott-panelet
+    // MÅLTE. Ved 200 % tekst på en vanlig telefon er den summen høyere enn
+    // skjermen, og eieren meldte det med et skjermbilde — håndtaket, altså den
+    // ene kontrollen som legger skuffa sammen igjen, lå under nederste
+    // skjermkant. Pilla har nå et tak regnet av viewporten, innholdet ruller
+    // inne i den, og HÅNDTAKET STÅR UTENFOR RULLEFLATA.
+    //
+    // TRE TING MÅLES, og alle tre er geometri ingen enhetstest ser:
+    //   • hele pilla er innenfor viewporten på nivå 2 ved 200 %;
+    //   • håndtaket er synlig og treffbart der — `elementFromPoint` på midten
+    //     av det skal gi håndtaket selv, ikke noe som ligger over;
+    //   • den ÅPNE skuffa ligger over Lende-knappen og kompassnåla. De er z-40;
+    //     en skuff som havner under dem taper trykk til knapper den dekker.
+    navn: 'snarvei-skuffa holder seg innenfor skjermen ved 200 % tekst',
+    domene: 'SnarveiRad (taket) + MapView (z-index)',
+    maksMs: 120_000,
+    async kjør(page) {
+      const ctx = await egenKontekst(page, {
+        viewport: { width: 412, height: 780 },
+        hasTouch: true,
+      })
+      await ctx.addInitScript(() => {
+        try {
+          localStorage.setItem('lende-ai-token', 'royk-token')
+          localStorage.setItem('lende-ui-text-scale', '2')
+        } catch { /* tom */ }
+      })
+      const p2 = await ctx.newPage()
+      try {
+        await p2.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await p2.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+        await lukkDrawer(p2)
+        await lukkSnarveiRad(p2)
+
+        // Helt ut: to drag ned gir nivå 2, der pilla er på sitt høyeste.
+        await draSnarveiHandle(p2, 400)
+        await draSnarveiHandle(p2, 400)
+
+        const m = await p2.evaluate(() => {
+          const h = document.querySelector('.snarvei-handle')
+          const pille = h?.parentElement
+          if (!h || !pille) return null
+          const pr = pille.getBoundingClientRect()
+          const hr = h.getBoundingClientRect()
+          const x = hr.x + hr.width / 2
+          const y = hr.y + hr.height / 2
+          const truffet = document.elementFromPoint(x, y)
+          const fab = document.querySelector('button[aria-label="Spør Lende"]')
+          // Z-INDEKSEN LESES AV DET NÆRMESTE LAGET SOM FAKTISK HAR EN, ikke av
+          // elementet selv: både pilla og FAB-knappen ligger inne i bokser
+          // uten `z-index`, og en `.absolute`-klasse er ingen garanti for at
+          // det er DEN som stabler. Vi går oppover til et tall dukker opp.
+          const zTall = (e) => {
+            for (let n = e; n && n !== document.documentElement; n = n.parentElement) {
+              const v = getComputedStyle(n).zIndex
+              if (v !== 'auto' && Number.isFinite(Number(v))) return Number(v)
+            }
+            return 0
+          }
+          return {
+            vh: window.innerHeight,
+            pilleBunn: Math.round(pr.bottom),
+            pilleHoyde: Math.round(pr.height),
+            handleSynlig: hr.height > 0 && hr.bottom <= window.innerHeight + 1,
+            handleTruffet: !!(truffet && (truffet === h || h.contains(truffet))),
+            zRad: zTall(pille),
+            zFab: zTall(fab),
+          }
+        })
+        if (!m) throw new Error('fant ingen snarvei-skuff å måle')
+        if (m.pilleBunn > m.vh) {
+          throw new Error(`skuffa slutter ${m.pilleBunn - m.vh} px under skjermkanten `
+            + `(${m.pilleHoyde} px høy i et vindu på ${m.vh}) — biter taket?`)
+        }
+        if (!m.handleSynlig) throw new Error('dra-håndtaket er utenfor skjermen ved 200 %')
+        if (!m.handleTruffet) {
+          throw new Error('noe ligger over dra-håndtaket — det skal være det man treffer')
+        }
+        if (!(m.zRad > m.zFab)) {
+          throw new Error(`den åpne skuffa ligger på z-${m.zRad} og Lende-knappen på `
+            + `z-${m.zFab} — skuffa skal ligge over både den og kompassnåla`)
+        }
+        return `skuffa ${m.pilleHoyde} px i et vindu på ${m.vh} px, håndtaket treffbart, `
+          + `z-${m.zRad} over z-${m.zFab}`
+      } finally {
+        await ctx.close()
+      }
     },
   },
   {
@@ -2465,8 +2561,8 @@ const SJEKKER = [
     // EGEN KONTEKST MED `hasTouch`, fordi zoom-søyla er berøringens kontroll:
     // standard-konteksten rapporterer `pointer: fine` og får desktop-søyla i
     // stedet, så sjekken ville hoppet stille over det den finnes for.
-    navn: 'kompassnåla nede til venstre står i hvile og følger arket',
-    domene: 'MapScaleAttribution (kompass)',
+    navn: 'kompassnåla nede til høyre står i hvile og følger arket',
+    domene: 'KompassKnapp',
     krever: 'ektekart',
     maksMs: 120_000,
     async kjør(page) {
@@ -2571,7 +2667,7 @@ const SJEKKER = [
     //
     // Raden hadde en FAST venstregruppe — posisjon + «nord opp» — foran en
     // skillestrek. Den er borte: posisjonen er en vanlig, sorterbar snarvei
-    // med plass #1 i standarden, og kompasset har flyttet ned i linjal-boksen.
+    // med plass #1 i standarden, og kompasset har flyttet ned i høyre hjørne.
     // Fire invarianter som ingen enhetstest ser:
     //
     //   1. POSISJONEN ER EN VANLIG SNARVEI — den har `data-snarvei` som de
@@ -2581,12 +2677,12 @@ const SJEKKER = [
     //   3. POSISJONEN BÆRER EN TILSTAND: på er en AKSENTFLATE med hvitt
     //      innhold, ikke en fargeforskjell i ikonet. Hvitt på flaten må bestå
     //      WCAG 1.4.11 sitt 3:1.
-    //   4. KOMPASSET STÅR I LINJAL-BOKSEN, til VENSTRE for målestokken — ikke
-    //      i raden.
+    //   4. KOMPASSET STÅR NEDE TIL HØYRE (v7.8.4) — ikke i raden, og ikke
+    //      inne i linjal-boksen.
     //
     // EGEN KONTEKST MED `hasTouch` — kompasset gis bare til berøring, så
     // standard-konteksten ville hoppet stille over punkt 4.
-    navn: 'posisjonen er en vanlig snarvei, og nåla står over linjalen',
+    navn: 'posisjonen er en vanlig snarvei, og nåla står nede til høyre',
     domene: 'SnarveiRad',
     maksMs: 120_000,
     async kjør(page) {
@@ -2634,12 +2730,12 @@ const SJEKKER = [
         }
 
         // KOMPASSET ER FRISTILT (v7.3.2): egen rund, halvgjennomsiktig skive
-        // utenfor linjal-boksen. Fra v7.6.0 står den på RADEN OVER linjalen og
-        // deler VENSTREKANT med den, ikke bunnlinje: begge to skalerer nå med
-        // tekststørrelsen, og side om side ville de spist bredden av hverandre
-        // og dyttet linjalen inn mot midten av kartet. Egenskapene er lette å
-        // miste i en opprydning, og ingen av dem gir en JS-feil når de
-        // forsvinner. Kreditten måles samtidig: den skal IKKE skalere.
+        // utenfor linjal-boksen. Fra v7.8.4 står den NEDE TIL HØYRE, ikke til
+        // venstre over linjalen: venstre kant bar to ting som vokser med
+        // tekststørrelsen (nåla og meterangivelsen), høyre kant hadde én knapp.
+        // Egenskapene er lette å miste i en opprydning, og ingen av dem gir en
+        // JS-feil når de forsvinner. Kreditten måles samtidig: den skal IKKE
+        // skalere, og linjalen skal fortsatt stå til venstre.
         const kompass = await p2.evaluate(() => {
           const knapp = document.querySelector('button[aria-label^="Vend kartet mot nord"]')
           if (!knapp) return { mangler: true }
@@ -2654,13 +2750,12 @@ const SJEKKER = [
           return {
             iRaden: !!knapp.closest('.snarvei-rad'),
             iBoksen: boks ? boks.contains(knapp) : null,
-            // Linjalen skal ligge HELT til venstre, altså med samme venstrekant
-            // som nåla over den. Målestokk-SVG-en er der bare for å bekrefte at
-            // boksen vi måler faktisk er linjalen.
             harStrek: !!svgLinjal,
-            overLinjalen: br ? Math.round(br.top - kr.bottom) : null,
-            venstreAvvik: br ? Math.round(Math.abs(br.left - kr.left)) : null,
             nede: kr.top > window.innerHeight / 2,
+            // HØYRE KANT: nåla skal ligge nærmere høyre skjermkant enn venstre,
+            // og linjalen skal fortsatt begynne helt ute til venstre.
+            tilHoyre: Math.round(window.innerWidth - kr.right),
+            linjalVenstre: br ? Math.round(br.left) : null,
             bredde: Math.round(kr.width),
             rund: parseFloat(st.borderRadius) >= kr.width / 2 - 1,
             // rgba(...) med alfa < 1 — skiva skal slippe kartet gjennom.
@@ -2676,13 +2771,13 @@ const SJEKKER = [
         if (kompass.iBoksen) throw new Error('kompasset ligger inne i linjal-boksen igjen')
         if (!kompass.nede) throw new Error('kompasset står ikke i nedre halvdel av skjermen')
         if (!kompass.harStrek) throw new Error('fant ingen målestokk-strek i linjal-boksen')
-        if (!(kompass.overLinjalen > 0)) {
-          throw new Error(`nåla står ${kompass.overLinjalen} px over linjal-boksen `
-            + '— den skal stå på raden OVER, med luft imellom (v7.6.0)')
+        if (!(kompass.tilHoyre >= 0 && kompass.tilHoyre < 40)) {
+          throw new Error(`nåla står ${kompass.tilHoyre} px fra høyre skjermkant `
+            + '— den skal ligge i det nedre HØYRE hjørnet (v7.8.4)')
         }
-        if (kompass.venstreAvvik > 2) {
-          throw new Error(`nåla og linjalen står ${kompass.venstreAvvik} px fra hverandre `
-            + 'til venstre — de skal dele venstrekant')
+        if (!(kompass.linjalVenstre !== null && kompass.linjalVenstre < 40)) {
+          throw new Error(`linjalen står ${kompass.linjalVenstre} px fra venstrekanten `
+            + '— den skal begynne helt ute til venstre')
         }
         if (!['1', 'normal'].includes(kompass.kredittZoom)) {
           throw new Error(`ODbL-kreditten er zoomet (${kompass.kredittZoom}) — `
@@ -2743,9 +2838,10 @@ const SJEKKER = [
         // Nøytral tilstand: posisjonen skrur seg ikke av selv.
         await p2.locator('[data-snarvei-id="posisjon"]').click()
         await p2.waitForTimeout(300)
-        return `én linje ved 360 px, nåla ${kompass.bredde} px over linjalen `
-          + `(${kompass.overLinjalen} px luft, venstreavvik ${kompass.venstreAvvik} px), `
-          + `av→på bytter flate (${pa.flate}), ikon ${k ? k.toFixed(1) : '?'}:1`
+        return `én linje ved 360 px, nåla ${kompass.bredde} px i høyre hjørne `
+          + `(${kompass.tilHoyre} px fra kanten, linjalen ${kompass.linjalVenstre} px `
+          + `fra venstre), av→på bytter flate (${pa.flate}), `
+          + `ikon ${k ? k.toFixed(1) : '?'}:1`
       } finally {
         await ctx.close()
       }
@@ -2886,8 +2982,8 @@ const SJEKKER = [
     // Tre tilstander, og alle tre er i bestillingen: uten ark står begge
     // nederst, over et MINIMERT ark står begge like høyt over peek-kanten, og
     // med arket dratt opp er begge borte.
-    navn: 'kompasset og Lende-FAB-en står på samme bunnlinje over et minimert ark',
-    domene: 'MapView (bunnlinja) + MapScaleAttribution + FabCluster',
+    navn: 'linjalen og Lende-FAB-en deler bunnlinje, med nåla rett over FAB-en',
+    domene: 'MapView (bunnlinja) + MapScaleAttribution + KompassKnapp + FabCluster',
     maksMs: 150_000,
     async kjør(page) {
       const resultat = []
@@ -2917,12 +3013,20 @@ const SJEKKER = [
             const vh = innerHeight
             const fab = document.querySelector('button[aria-label="Spør Lende"]')
             const sk = document.querySelector('[data-osm-kreditt]')?.closest('div.absolute')
+            const nal = document.querySelector('[data-kompass-knapp]')
             const ark = [...document.querySelectorAll('.drawer-shell')]
               .filter((e) => e.offsetParent)
             const bunn = (e) => (e ? Math.round(vh - e.getBoundingClientRect().bottom) : null)
+            const fr = fab?.getBoundingClientRect()
+            const nr = nal?.getBoundingClientRect()
             return {
               fab: bunn(fab),
               linjal: sk ? Math.round(vh - sk.getBoundingClientRect().bottom) : null,
+              // NÅLA STÅR OVER LENDE-KNAPPEN (v7.8.4), ikke oppå den: luft
+              // mellom, og samme høyrekant. Ved 200 % er FAB-en 96 px høy, så
+              // et fast løft ville lagt nåla midt i den.
+              nalOverFab: (fr && nr) ? Math.round(fr.top - nr.bottom) : null,
+              nalHoyreAvvik: (fr && nr) ? Math.round(Math.abs(fr.right - nr.right)) : null,
               arkHoyde: ark.length
                 ? Math.round(vh - Math.max(...ark.map((a) => a.getBoundingClientRect().top)))
                 : 0,
@@ -2941,6 +3045,17 @@ const SJEKKER = [
 
           const fritt = await les()
           like(fritt, 'uten ark')
+          if (fritt.nalOverFab === null) {
+            throw new Error(`ved ${skala * 100} %: fant ingen kompassnål over Lende-knappen`)
+          }
+          if (!(fritt.nalOverFab > 0 && fritt.nalOverFab < 32 * skala)) {
+            throw new Error(`ved ${skala * 100} % står nåla ${fritt.nalOverFab} px over `
+              + 'Lende-knappen — den skal stå rett over den, med litt luft')
+          }
+          if (fritt.nalHoyreAvvik > 2) {
+            throw new Error(`ved ${skala * 100} % står nåla ${fritt.nalHoyreAvvik} px fra `
+              + 'Lende-knappens høyrekant — de skal stå i samme kolonne')
+          }
 
           // Punkt-arket åpner MIDTSTORT av et hold i kartet; peek nås med et
           // drag ned i håndtaket. Begge tilstandene er i bestillingen.
@@ -2978,7 +3093,8 @@ const SJEKKER = [
             throw new Error(`ved ${skala * 100} % står de ${peek.fab - peek.arkHoyde} px `
               + 'over arkets peek-kant — skalerer zoomen plasseringen igjen?')
           }
-          resultat.push(`${skala * 100} %: ${fritt.fab} px fritt, `
+          resultat.push(`${skala * 100} %: ${fritt.fab} px fritt, nåla `
+            + `${fritt.nalOverFab} px over FAB-en, `
             + `${peek.fab} px over en peek på ${peek.arkHoyde} px`)
         } finally {
           await ctx.close()
@@ -4909,6 +5025,72 @@ const SJEKKER = [
       await page.keyboard.press('Escape')
       await meny.waitFor({ state: 'hidden', timeout: 8000 })
       return 'slider → 30 min ga gul ring, merke «30» og aria-label; 0 ryddet dem bort'
+    },
+  },
+  {
+    // TEKSTSTØRRELSEN ER EN SLIDER (v7.8.4), og «fritt valg» er en påstand som
+    // må måles. Fire knapper ble til ett spenn fra 100 til 200 %, og
+    // invarianten eieren ba om er at en verdi MELLOM hakkene overlever hele
+    // veien ut: menyen setter 137, og A-knappen i et ark viser 137 — ikke 125
+    // eller 150. Enhetstesten dekker regnestykket (`klemTextScale`), men ikke
+    // at slideren er koblet til den globale singletonen eller at panelene
+    // leser den uavrundet.
+    //
+    // OG HAKKENE ER FORTSATT KNAPPENS: et trykk fra 137 skal gå til 150, ikke
+    // tilbake til 100. Det var den gamle regelen for en «ukjent» verdi, og med
+    // en fri slider ville den lest som at knappen nullstilte innstillingen.
+    navn: 'tekststørrelsen er en fri slider, og A-knappen viser den nøyaktig',
+    domene: 'AppMenu + useUiTextScale',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await page.locator('button[aria-label^="Åpne meny"]').click({ timeout: 10_000 })
+      const meny = page.locator('aside[aria-label="Hovedmeny"]')
+      await meny.waitFor({ state: 'visible', timeout: 10_000 })
+
+      const slider = meny.locator('.am-size-range')
+      if (!(await slider.count())) {
+        throw new Error('fant ingen tekststørrelse-slider i hovedmenyen — '
+          + 'står de fire knappene der igjen?')
+      }
+      const spenn = await slider.evaluate((e) => [e.min, e.max, e.step].join('/'))
+      if (spenn !== '100/200/1') {
+        throw new Error(`slideren spenner «${spenn}», ikke 100/200 i hele prosent`)
+      }
+      await slider.fill('137')
+      await page.waitForTimeout(250)
+      const lagret = await page.evaluate(() => localStorage.getItem('lende-ui-text-scale'))
+      if (Number(lagret) !== 1.37) {
+        throw new Error(`menyen lagret «${lagret}», ikke 1.37 — klemmes verdien til et hakk?`)
+      }
+      const verdi = (await meny.locator('.am-size-verdi').innerText()).trim()
+      if (!/137\s*%/.test(verdi)) throw new Error(`menyen viser «${verdi}», ikke 137 %`)
+
+      await page.keyboard.press('Escape')
+      await meny.waitFor({ state: 'hidden', timeout: 8000 })
+
+      // A-KNAPPEN I ET ARK: viser 137, men trykker seg til 150.
+      await åpneDrawer(page)
+      const A = page.locator('button[aria-label^="Tekststørrelse i grensesnittet"]').first()
+      if (!(await A.count())) throw new Error('fant ingen A-knapp i skuffens hode')
+      const før = await A.getAttribute('aria-label')
+      if (!/137 prosent/.test(før || '')) {
+        throw new Error(`A-knappen viser ikke den satte prosenten: «${før}»`)
+      }
+      await A.click()
+      await page.waitForTimeout(300)
+      const etter = await A.getAttribute('aria-label')
+      if (!/150 prosent/.test(etter || '')) {
+        throw new Error(`et trykk fra 137 % endte på «${etter}» — det skal gå til `
+          + 'FØRSTE hakk over, ikke tilbake til start')
+      }
+
+      // NØYTRAL TILSTAND: skalaen er global og persistert.
+      await page.evaluate(() => { localStorage.setItem('lende-ui-text-scale', '1') })
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+        null, { timeout: 30_000 })
+      await lukkDrawer(page)
+      return 'slider 100–200 % satte 1.37, A-knappen viste 137 % og trykket seg til 150 %'
     },
   },
   {
