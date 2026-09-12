@@ -9,7 +9,7 @@ import { useNettStatus } from '../composables/useNettStatus.js'
 import { useMapTheme } from '../composables/useMapTheme.js'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
-import { loadMap, saveMap, FRITT_LENDE_ID, FRITT_LENDE_FORRIGE_ID } from '../lib/mapStorage.js'
+import { loadMap, saveMap, deleteMap, FRITT_LENDE_ID, FRITT_LENDE_FORRIGE_ID } from '../lib/mapStorage.js'
 import { byggVertSvg } from '../lib/kartVert.js'
 import { sannNordRotasjonForMeta } from '../lib/utm.js'
 import { tegnBrukerPrikk } from '../lib/brukerPrikk.js'
@@ -20,7 +20,7 @@ import isomCatalog from '../lib/isomCatalog.json'
 import {
   HALV_KM, ASPEKT, EKVIDISTANSE_M, DEM_OPPLOSNING_M, STREK_IDX, BREDDE_M,
   FRITT_LENDE_LAG, frittLendeTema, frittLendeUtmBbox,
-  knappeHandling, knappeEtikett, fixVurdering, arkErGammelt,
+  knappeHandling, knappeEtikett, etterFix, fixVurdering, arkErGammelt, skalTilbyAngre,
   FIX_VENT_MS, dekningsSkala,
   avstandFraSenter, avstandTekst, forNaerTekst, NYTT_KART_M, skalAutostarte,
 } from '../lib/frittLende.js'
@@ -58,17 +58,11 @@ const bygger = ref(false)
 const fremdrift = ref('')
 const feil = ref('')
 const feilForsok = ref(0)
-// Invariant 1: settes false ved FØRSTE tap. Så lenge den står, kan et tap bare
-// starte GPS — aldri bygge. Det er svaret på «GPS-en min er et helt annet sted
-// nå enn da jeg bygget arket»: åpner du modusen hjemme med et ark fra fjellet,
-// gjør første trykk ingen skade.
-const ferskLast = ref(true)
 const venterPaaFix = ref(false)
 // ENGANGS, ikke en «følg meg»-modus. Kartet skal legge seg om deg når fixen
 // kommer, men så bli liggende — panorerer du bort, skal ikke neste GPS-oppdatering
 // rykke kartet tilbake under fingeren din.
 const sentrerPaaNesteFix = ref(false)
-const harAngre = ref(false)
 const angreSynlig = ref(false)
 const gammeltArk = ref(false)
 // Kort beskjed nederst — brukes av avstandsporten. Ikke `feil`: den har en
@@ -144,7 +138,6 @@ const avstandNaadd = computed(() => (avstandM.value ?? 0) >= NYTT_KART_M)
 const knappeTilstand = computed(() => ({
   harArk: !!meta.value,
   gpsPaa: userPos.isWatching,
-  ferskLast: ferskLast.value,
   bygger: bygger.value,
   avstandM: avstandM.value,
 }))
@@ -154,9 +147,7 @@ const handling = computed(() => knappeHandling(knappeTilstand.value))
 function onTap() { kvitterTips(); utfor(handling.value) }
 
 function utfor(h) {
-  ferskLast.value = false
   if (h === 'sentrer') return sentrer()
-  if (h === 'start-gps') return startGps()
   if (h === 'start-gps-og-bygg') { startGps(); return byggNaarFix() }
   if (h === 'bygg') return byggHer()
   // Porten er stengt. Kartet sentreres likevel — det er den nyttige halvdelen
@@ -243,8 +234,17 @@ function byggNaarFix() {
     if (dom === 'vent') return
     clearInterval(fixVent); fixVent = null
     venterPaaFix.value = false
-    if (dom === 'bygg') byggHer()
-    else feil.value = `Usikker posisjon (±${Math.round(userPos.accuracyM)} m). Prøv igjen ute.`
+    if (dom !== 'bygg') {
+      feil.value = `Usikker posisjon (±${Math.round(userPos.accuracyM)} m). Prøv igjen ute.`
+      return
+    }
+    // Avstandsporten prøves HER og ikke bare i knappen: fra v7.8.3 starter et
+    // trykk GPS-en OG forplikter seg til å bygge, og avstanden finnes ikke før
+    // fixen har landet. `etterFix` er den samme porten, stilt når svaret finnes.
+    const e = etterFix({ harArk: !!meta.value, avstandM: avstandM.value })
+    if (e === 'bygg') byggHer()
+    else if (e === 'for-naer') { sentrer(); visMelding(forNaerTekst(avstandM.value)) }
+    else sentrer()
   }, 500)
 }
 
@@ -252,11 +252,22 @@ async function byggHer() {
   if (bygger.value) return
   if (userPos.latRaw == null) { byggNaarFix(); return }
 
-  // INVARIANT 3: det gamle arket slettes ALDRI før det nye er ferdig bygget og
-  // tegnet. Det er dette som gjør et feiltrykk ufarlig — ikke gestespråket.
-  // Angre-sloten skrives FØR byggingen, mens vi ennå har arket; selve
-  // overskrivingen av gjeldende slot skjer i saveMap inne i byggingen.
+  // INVARIANTEN: det gamle arket slettes ALDRI før det nye er ferdig bygget og
+  // tegnet. Det er dette som gjør en mislykket bygging ufarlig — ikke
+  // gestespråket. Angre-sloten skrives FØR byggingen, mens vi ennå har arket;
+  // selve overskrivingen av gjeldende slot skjer i saveMap inne i byggingen.
+  //
+  // … men bare når angringen er verdt noe. Har du gått mer enn ANGRE_MAKS_M fra
+  // det gamle senteret, ligger arket bak deg, og «Angre» ville tilbudt deg et
+  // kart over et sted du nettopp forlot. Da hoppes både skrivingen og toasten
+  // over — og skrivingen er en IndexedDB-runde på 1–5 MB rett før byggingen.
+  // Posisjonen leses ÉN gang. Bboksen og `center` må beskrive samme punkt, og
+  // `await loadMap` under gir GPS-en rikelig rom til å levere en ny fix.
+  const lat = userPos.latRaw
+  const lon = userPos.lonRaw
+  const nyBbox = frittLendeUtmBbox(lat, lon)
   const forrige = meta.value ? await loadMap(FRITT_LENDE_ID).catch(() => null) : null
+  const tilbyAngre = !!forrige && skalTilbyAngre(forrige.utmBbox, nyBbox)
 
   bygger.value = true
   feil.value = ''
@@ -264,8 +275,6 @@ async function byggHer() {
   byggAvbryter = new AbortController()
 
   try {
-    const lat = userPos.latRaw
-    const lon = userPos.lonRaw
     const { entry } = await buildMapFromCenter({
       center: { lat, lon, name: 'Fritt lende' },
       halfKm: HALV_KM,
@@ -276,7 +285,7 @@ async function byggHer() {
       // Eksakt 2 × 2 km på DEM-rutenettet. Uten dette avrunder bboxFromCenter
       // og grid-snappingen arket til noe som er 2 000–2 040 m og litt ulikt
       // hver gang — for en modus hvis identitet ER «fast 2 × 2 km» er det feil.
-      utmBbox: frittLendeUtmBbox(lat, lon),
+      utmBbox: nyBbox,
       demResolutionM: DEM_OPPLOSNING_M,
       ignorerTetthet: true,
       klampBredde: false,
@@ -284,10 +293,13 @@ async function byggHer() {
       onProgress: (msg) => { fremdrift.value = faseTekst(msg) },
     })
     // Først NÅ er det nye arket et faktum. Legg det gamle i angre-sloten.
-    if (forrige) {
+    if (tilbyAngre) {
       await saveMap({ ...forrige, id: FRITT_LENDE_FORRIGE_ID }).catch(() => {})
-      harAngre.value = true
       visAngre()
+    } else {
+      // En slot fra et tidligere, nærmere bygg ville ellers blitt liggende som
+      // megabyte ingen kan nå — toasten er den eneste veien til `angre()`.
+      await deleteMap(FRITT_LENDE_FORRIGE_ID).catch(() => {})
     }
     await visArk(entry)
     feilForsok.value = 0
@@ -341,7 +353,6 @@ async function angre() {
   const forrige = await loadMap(FRITT_LENDE_FORRIGE_ID).catch(() => null)
   if (!forrige) return
   await saveMap({ ...forrige, id: FRITT_LENDE_ID }).catch(() => {})
-  harAngre.value = false
   await visArk(forrige)
 }
 
@@ -452,8 +463,8 @@ watch(() => userPos.errorCode, (kode) => {
   venterPaaFix.value = false
   sentrerPaaNesteFix.value = false
   // Kode 1 er tillatelsen: den kommer ikke av seg selv, så vi slutter å se
-  // etter en posisjon og knappen faller tilbake til «Start posisjon». Kode 2/3
-  // er forbigående — der lar vi watchPosition prøve videre.
+  // etter en posisjon. Knappen står da i GPS-av og et nytt trykk forsøker på
+  // nytt. Kode 2/3 er forbigående — der lar vi watchPosition prøve videre.
   if (kode === 1) userPos.stop()
   alert(gpsFeilTekst(kode))
 })
@@ -484,7 +495,6 @@ onMounted(async () => {
   // mens du sto på fjellet uten dekning.
   const lagret = await loadMap(FRITT_LENDE_ID).catch(() => null)
   if (lagret) await visArk(lagret)
-  harAngre.value = !!(await loadMap(FRITT_LENDE_FORRIGE_ID).catch(() => null))
 
   // Har du alt sagt ja til posisjon, og har du ikke noe ark, henter modusen
   // kartet uten et trykk (v6.5.34). Beslutningen bor i `skalAutostarte` — se
