@@ -206,6 +206,15 @@ noen gate så det. Land-mask (union av alt
 vann) hindrer konturer/vegetasjon over vann. OSM multipolygon-relations MÅ
 ring-sys via `assembleRelationRings` i `mapBuilder.js` (ellers wedge-artefakter).
 
+**N50-INNSJØ SOM BAKTE FLISER ER VURDERT PÅ NYTT (2026-09-12) OG SATT PÅ VENT —
+en MIDDELS jobb, ikke en stor.** Funn, plan i tre steg og det åpne valget om
+innsjønavn står øverst i `docs/VANN_VURDERING.md`; start der, ikke på en ny
+kartlegging. Kortversjon: areal-baken leser alt laget som bærer Innsjø og
+InnsjøRegulert, formatet koder flater med hull, og `slaaSammenVann` har alt en
+`n50Water`-plass. Det som mangler er en MÅLING (workflowen med `bare_mal` og
+`typer=innsjo`), en klient-deling av flisene etter type, og at innsjøene settes
+på KRITISK sti med NVE-query som fallback. Havflate skal fortsatt komme fra DEM.
+
 ## Viktig arkitektur-merknad — arealdekke: N50 bærer det den blir bedt om
 
 Samme regel som for vann gjelder her: **en kilde er autoritativ for DET DEN
