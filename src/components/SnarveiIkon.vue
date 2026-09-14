@@ -5,7 +5,7 @@
 // kommer i utakt.
 // STREK- OG RELIEFF-IKONENE ER UTE (v7.4.0), og med dem `bue`-propen: den bar
 // knott-gaugens geometri for de to gruppe-pillene, og pillene er slettet. Strek
-// og relieff er innstillinger og bor i Innstillinger → Kartstil.
+// og relieff er innstillinger og bor i Innstillinger → Stil.
 defineProps({
   id: { type: String, required: true },
 })
@@ -94,7 +94,8 @@ defineProps({
     </template>
     <!-- NATT/DAG (v7.8.6). To ider og ikke ett ikon med en tilstand: snarveien
          VISER handlingen, så cella ber om «natt» når kartet er lyst og «dag»
-         når det er mørkt. Månen er samme sigd som Stemning-fanens «Mørkt». -->
+         når det er mørkt. Månen er samme sigd som den gamle Stemning-fanens
+         «Mørkt» (fana er borte fra v7.8.12 — stemningene bor nederst i Stil). -->
     <path v-else-if="id === 'natt'"
           d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/>
     <template v-else-if="id === 'dag'">

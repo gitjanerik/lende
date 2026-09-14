@@ -16,8 +16,26 @@
 // slettet med pillene: et tall ved en slider leses, en bue tolkes.
 import { computed } from 'vue'
 import { KARTSTILER, STI_PALETTER } from '../../lib/kartStiler.js'
-import { kartStilForhandsvisning } from '../../lib/mapSettingsApply.js'
+import { kartStilForhandsvisning, THEME_GROUPS } from '../../lib/mapSettingsApply.js'
 import { STROKE_GROUPS } from '../../lib/strokeOverrides.js'
+import { FONT_PAIRS } from '../../composables/useLabelFonts.js'
+
+// FANA VISER FIRE AV NI STREK-GRUPPER (v7.8.12), og lista i `strokeOverrides`
+// er MED VILJE ikke rørt: den er kontrakten MCP-verktøyet `juster_kart`
+// validerer mot, den kartstilene setter sine egne vekter i (Print ganger
+// `bygg`), og den `buildStrokeOverrideCss` bygger CSS av. Det som ble skrellet
+// bort er en RAD MED SKYVEKNAPPER, ikke en funksjon: stup, naturreservat-
+// omriss, store bygninger, idrettsbaner og båtruter er detaljer man ikke
+// vekter på et turkart, og fem slidere ingen drar er fem man må rulle forbi
+// for å komme til relieffet. Vil du vise en til, legg id-en her.
+const SYNLIGE_STREK = ['kurve', 'sti', 'litenVei', 'storVei']
+
+// «KARTSTIL»-GRUPPA HOPPES OVER, og det er den ene regelen som må stå: light,
+// dark, turkart, padling og print ER kartstiler, og de velges øverst i denne
+// samme fana. Sto de begge steder, ville to kontroller styrt samme utseende.
+// Temaer med ukjent gruppe faller inn under den første SYNLIGE gruppa, så et
+// nytt tema aldri forsvinner helt; tomme seksjoner droppes.
+const SKJULTE_TEMAGRUPPER = new Set(['kartstil'])
 
 const props = defineProps({
   aktivStil: { type: String, default: null },
@@ -30,6 +48,16 @@ const props = defineProps({
   // hverandre. «Følg tema» er nå den ene — den tømmer overstyringen.
   trailSwatches: { type: Object, default: () => ({ fg: '#000000', bg: '#fbf7ec' }) },
   setTrailColor: { type: Function, default: null },
+
+  // Font-parets to familier, til prøven under nedtrekket (v7.8.12).
+  landFont: { type: String, default: '' },
+  waterFont: { type: String, default: '' },
+
+  // Stemningene — den monokrome familien, flyttet hit fra sin egen fane i
+  // v7.8.12. Se seksjonen nederst i malen om hvorfor de står SIST.
+  themes: { type: Array, default: () => [] },
+  currentTheme: { type: String, default: null },
+  onThemeTap: { type: Function, default: null },
 
   // ── Strek og relieff (v7.4.0) ───────────────────────────────────────────
   // De to bodde i snarvei-raden som gruppe-piller med tannhjul, med et delt
@@ -66,9 +94,34 @@ const emit = defineEmits([
 // vilje: den viser trinnet den får og sier fra når brukeren drar.
 const reliefMode = defineModel('reliefMode', { type: String, default: 'vektor' })
 
+// SKRIFTEN PÅ KART-NAVN KOM HIT FRA «STEMNING» (v7.8.12). Nedtrekket sto i en
+// fane som ellers bare var tema-knapper, og det er ikke en stemning — det er
+// hvordan kartet SER UT, altså nøyaktig det denne fana eier. Prøven under er
+// ikke pynt: font-par leses ikke av navnet sitt.
+const fontPairId = defineModel('fontPairId', { type: String, default: '' })
+
 const stiler = computed(() => KARTSTILER.map((s) => ({
   ...s, farger: kartStilForhandsvisning(s.key),
 })))
+
+// Rekkefølgen er katalogens, ikke lokal: `SYNLIGE_STREK` sier HVILKE, og
+// STROKE_GROUPS sier i hvilken orden de står.
+const strekGrupper = computed(() => STROKE_GROUPS.filter((g) => SYNLIGE_STREK.includes(g.id)))
+
+const temaSeksjoner = computed(() => {
+  const grupper = THEME_GROUPS.filter((g) => !SKJULTE_TEMAGRUPPER.has(g.key))
+  const kjente = new Set(THEME_GROUPS.map((g) => g.key))
+  const fallback = grupper[0]?.key
+  return grupper
+    .map((g) => ({
+      ...g,
+      temaer: props.themes.filter((t) => {
+        if (SKJULTE_TEMAGRUPPER.has(t.group)) return false
+        return (kjente.has(t.group) ? t.group : fallback) === g.key
+      }),
+    }))
+    .filter((g) => g.temaer.length)
+})
 </script>
 
 <template>
@@ -111,7 +164,7 @@ const stiler = computed(() => KARTSTILER.map((s) => ({
          ENESTE nullstilling: den tømmer overstyringen på begge nivåer, og et
          eget «Nullstill farger» ved siden av ville sagt det samme en gang til. -->
     <div class="text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1.5">
-      Tilpass — sti-farge
+      Tilpass sti
     </div>
     <div class="flex flex-wrap gap-2">
       <button v-for="p in STI_PALETTER" :key="p.key"
@@ -162,6 +215,32 @@ const stiler = computed(() => KARTSTILER.map((s) => ({
       har ingen bakgrunnslinje og påvirkes bare av strek-fargen.
     </div>
 
+    <!-- ── Skrift (v7.8.12, flyttet hit fra «Stemning») ─────────────────
+         Land = sans (bebyggelse/topp/område), vann = kursiv serif. Byttes
+         live. Prøven under står i parets EGNE familier: et font-par leses ikke
+         av id-en sin, og et nedtrekk med seks navn uten form er seks gjetninger. -->
+    <div class="mt-5 pt-4 border-t border-ink/10">
+      <div class="text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1.5">
+        Skrift på kart-navn
+      </div>
+      <div class="rounded-lg bg-ink/5 px-3 py-2.5">
+        <select v-model="fontPairId" aria-label="Font-par for kart-navn"
+                class="w-full rounded-md bg-ink/10 text-ink text-[12px] px-2 py-1.5
+                       border border-ink/10 focus:outline-none focus:ring-1 focus:ring-emerald-400
+                       [&>option]:text-zinc-900 [&>option]:bg-white">
+          <option v-for="p in FONT_PAIRS" :key="p.id" :value="p.id">{{ p.id }}</option>
+        </select>
+        <div class="mt-2 flex items-baseline gap-2" aria-hidden="true">
+          <span class="text-ink text-[14px]" :style="{ fontFamily: landFont }">Stubdalskampen</span>
+          <span class="text-sky-300 text-[14px] italic" :style="{ fontFamily: waterFont }">Damtjern</span>
+        </div>
+        <div class="text-[11px] text-ink-3 leading-snug mt-1.5">
+          Bebyggelse, topp og område settes i sans; vann-navn i kursiv serif.
+          Gjelder kart bygd etter denne oppdateringen — eldre kart må regenereres.
+        </div>
+      </div>
+    </div>
+
     <!-- ── Strek (v7.4.0) ───────────────────────────────────────────────
          Grov-knotten øverst, per-element under. Det er to nivåer, ikke to
          innstillinger: den øverste ganger ALT, de nederste vekter gruppene mot
@@ -196,7 +275,7 @@ const stiler = computed(() => KARTSTILER.map((s) => ({
       <div class="text-[11px] text-ink-3 leading-snug mb-2">
         Per element for DETTE kartet. Ganges med knotten over.
       </div>
-      <div v-for="g in STROKE_GROUPS" :key="g.id"
+      <div v-for="g in strekGrupper" :key="g.id"
            class="rounded-lg bg-ink/5 px-3 py-2.5 mb-2">
         <div class="flex items-center justify-between gap-3 mb-1.5">
           <div class="text-[13px] text-ink font-medium">{{ g.label }}</div>
@@ -296,6 +375,37 @@ const stiler = computed(() => KARTSTILER.map((s) => ({
           Nullstill relieff
         </button>
       </div>
+    </div>
+
+    <!-- ── Stemninger (v7.8.12, flyttet hit fra sin egen fane) ────────────
+         Den monokrome familien hadde en fane ved siden av «Stil», altså to
+         faner for det samme spørsmålet — hvordan skal kartet SE UT. Den er nå
+         en seksjon her, og den står SIST med vilje: kartstilen øverst er
+         valget man tar, stemningen er finpussen på det, og skuffa er ellers
+         sortert grovest først. Mørkt kart nås fortsatt raskest med «Natt»-
+         snarveien over kartet — det er samme tilstand, ikke en kopi. -->
+    <div v-if="temaSeksjoner.length" data-stil-seksjon="stemning"
+         class="mt-5 pt-4 border-t border-ink/10">
+      <div class="text-[11px] font-semibold text-ink-3 uppercase tracking-wide mb-1.5">
+        Stemning
+      </div>
+      <section v-for="s in temaSeksjoner" :key="s.key" class="mb-3">
+        <h3 class="text-[11px] uppercase tracking-wide text-ink-4 mb-1.5">{{ s.label }}</h3>
+        <div class="grid grid-cols-3 gap-2" role="group" :aria-label="`Stemning: ${s.label}`">
+          <button v-for="t in s.temaer" :key="t.key"
+                  @click="onThemeTap && onThemeTap(t.key)"
+                  :aria-pressed="currentTheme === t.key"
+                  class="px-3 py-2 rounded-lg border text-[11px] active:scale-[0.98] transition text-center"
+                  :class="currentTheme === t.key
+                          ? 'bg-slate-400/25 border-slate-300/50 text-ink font-medium'
+                          : 'bg-ink/5 border-ink/10 text-ink-3'">
+            {{ t.label }}
+          </button>
+        </div>
+        <p v-if="s.beskrivelse" class="text-[11px] text-ink-4 leading-snug mt-1.5">
+          {{ s.beskrivelse }}
+        </p>
+      </section>
     </div>
   </div>
 </template>

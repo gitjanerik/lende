@@ -404,8 +404,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                KARTFLATA — to nivåer i samme blokk, og det ene av dem var det
                eneste valget i menyen som ikke handlet om appen. Vekselen bor nå
                som snarveien «Natt»/«Dag» over kartet, altså på flata den
-               endrer, og hele tema-familien står fortsatt i Innstillinger →
-               Stemning. -->
+               endrer. Stemning-fana er siden borte (v7.8.12) — både kartstilene
+               og stemningene velges i Innstillinger → Stil. -->
           <!-- Tallet står OVER sporet (se kommentaren ved TEXT_MIN_PST), og
                rendres i sin EGEN størrelse: valget er lesbart som seg selv,
                slik de fire knappene var. -->
