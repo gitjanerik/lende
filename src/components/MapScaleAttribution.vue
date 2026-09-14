@@ -12,17 +12,12 @@
 // og dybde-provenens er oppslags-fakta, ikke noe du leser mens du går — de står
 // i punkt-skuffen sammen med målestokk og ekvidistanse. Selve ODbL-kreditten må
 // stå på kartet, og ligger nå som en linje under linjalen.
-// v6.5.0: valgfri ekvidistanse-linje for Fritt lende, som ikke har en
-// punkt-skuffe å legge tallet i.
-//
-// v6.5.27: linja bærer AVSTAND FRA SENTER i stedet, og bare når en posisjon er
-// kjent. Ekvidistansen er fast 10 m i den modusen og leses én gang; avstanden er
-// tallet man trenger MENS man går, fordi det er det som sier når arket tar slutt
-// og et nytt utsnitt er tilgjengelig. Begge prop-ene er valgfrie, så MapView er
-// uendret.
-//
-// `avstandNaadd` er en TILSTAND og ikke en farge på kallstedet: linjalen eier
-// sitt eget uttrykk, og porten (NYTT_KART_M) bor i lib/frittLende.js.
+// v6.5.0–v6.5.27: en valgfri ekvidistanse-linje, og siden en AVSTAND FRA
+// SENTER, ble lagt til for Fritt lende, som verken hadde punkt-skuff eller en
+// annen plass å si det. Modusen er slettet (v7.8.14), men BEGGE prop-ene står
+// igjen — de er valgfrie, MapView sender dem ikke, og de er den eneste måten en
+// visning uten skuff kan få et tall på linjalen. `avstandNaadd` er fortsatt en
+// TILSTAND og ikke en farge på kallstedet: linjalen eier sitt eget uttrykk.
 //
 // v7.3.0: KOMPASSET BOR HER. Det sto som en fast knapp i snarvei-raden (med
 // posisjonen) foran en skillestrek, og var den ene tingen som gjorde radens

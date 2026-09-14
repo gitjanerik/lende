@@ -10,9 +10,12 @@ import { usePwaInstall } from '../composables/usePwaInstall.js'
 import { useEksterneLenker } from '../composables/useEksterneLenker.js'
 import { listMaps, listGravelRoutes } from '../lib/mapStorage.js'
 import { mapsSummary, routesSummary } from '../lib/menuSummary.js'
+import { gpsFeilTekst, GPS_IKKE_STOTTET } from '../lib/gpsFeil.js'
+import { useMapSizePreference, DEFAULT_MAP_WIDTH_KM } from '../composables/useMapSizePreference.js'
 import AppModal from './AppModal.vue'
 import AboutContent from './AboutContent.vue'
 import MapLibrary from './MapLibrary.vue'
+import GpsFeilVarsel from './GpsFeilVarsel.vue'
 import MapPickerContent from './MapPickerContent.vue'
 import VersjonSjekk from './VersjonSjekk.vue'
 import { useFokusFelle } from '../composables/useFokusFelle.js'
@@ -36,7 +39,7 @@ const { theme, setTheme } = useUiTheme()
 // Bryteren bor i HOVEDMENYEN og ikke i kartets innstillings-skuff, fordi den
 // gjelder hele appen: ut.no og Google Maps fra infopanelet, kulturminnesok.no,
 // NVEs stasjonssider, Naturbase-faktaark og leksikon-lenkene i 3D-himmelen —
-// og Fritt lende og Turplanleggeren har ingen slik skuff i det hele tatt.
+// og Turplanleggeren har ingen slik skuff i det hele tatt.
 // Begrunnelsen for at AV er standard står i useEksterneLenker.
 const { nyFane, settNyFane } = useEksterneLenker()
 
@@ -126,35 +129,51 @@ const primaryRows = computed(() => PRIMARY.map((p) => ({
   meta: p.id === 'kart' ? mapsSummary(maps.value) : routesSummary(routes.value),
 })))
 
-// ── Fritt lende ──────────────────────────────────────────────────────────────
-// Egen rad SIST i am-primary, ikke et tredje segment i modus-bryteren: den er
-// appens to HALVDELER, og CSS-kommentaren lenger nede sier at «Turplanlegger»
-// alt er bredere enn halve skuffen ved 150 % tekst. Tre segmenter får ikke
-// plass. Raden har heller ingen «+»-knapp og ingen meta-tall — Fritt lende har
-// verken bibliotek eller antall, og ville løyet om sin egen form som et
-// primærkort.
+// ── «Nytt turkart» ───────────────────────────────────────────────────────────
+// TREDJE RAD I am-primary, der Fritt lende sto til v7.8.14. Modusen er slettet,
+// og plassen er gitt til det den egentlig lovte: ETT kart, der du står, uten et
+// skjema først. Forskjellen er at arket nå er et vanlig turkart — det får navn,
+// havner i «Mine kart» og kan deles — så løftet om «ingen innstillinger» kan
+// holdes uten at prisen er et ark som forsvinner.
 //
-// Fast plass, som de to over (v6.5.35): raden var gatet på modus `kart`, med
-// begrunnelsen at en Turkart-variant er støy i Turplanleggeren. Da rekkefølgen
-// ble fast, ble den gaten det samme problemet i mindre — en rad som er borte
-// halve tida er en rad man ikke kan lære hvor er.
-const iFrittLende = computed(() => route.name === 'fritt-lende')
+// Raden er den eneste i menyen med en «+» og ikke en pil: de to over GÅR et
+// sted, denne LAGER noe. Underteksten sier hva man får før man trykker —
+// bredden er brukerens egen standard (`mapSizeKm`, default 8 km), ikke en
+// konstant, ellers ville den løyet for alle som har dratt slideren.
+//
+// POSISJONEN HENTES HER, BYGGINGEN SKJER I «Mine kart». En avvist tillatelse
+// skal sies der knappen står — derfor `getCurrentPosition` i denne fila — men
+// fremdrifts-chipen, avbryt-knappen og navigasjonen til det ferdige kartet bor
+// alt i MapLibrary, og en andre kopi av den flyten her ville vært to steder å
+// holde i takt. Vi åpner altså «Mine kart»-modalen med koordinatene i
+// `byggFra`, og den gjør nøyaktig det dens egen pin-knapp gjør.
+const { mapSizeKm } = useMapSizePreference()
+const nyttKartBredde = computed(() => mapSizeKm.value ?? DEFAULT_MAP_WIDTH_KM)
+const nyttKartMeta = computed(() =>
+  `${nyttKartBredde.value} × ${nyttKartBredde.value} km · fra din posisjon`)
 
-// «Kun mobil» er en PRODUKTBESLUTNING, ikke en runtime-sjekk. Raden er derfor
-// synlig overalt — en desktop-bruker som åpner den får et fungerende kart, og
-// modusen forblir prøvbar og testbar. Forklaringen står i underteksten.
-function goFrittLende() {
-  close()
-  // Modalen ryddes HER og ikke bare av rute-watchen under: står du allerede i
-  // Fritt lende, er navigasjonen en no-op og `route.fullPath` endrer seg aldri.
-  // Snarveien i «Mine kart» ender i denne funksjonen, og uten dette ble panelet
-  // stående oppå arket (v6.5.33).
-  sheet.value = null
-  // replace og ikke push: ellers lander nettleserens tilbake-knapp i det
-  // vanlige kartet, altså en modus-veksling uten om hovedmenyen — som er
-  // nettopp det som ikke skal være mulig. En modus-bryter er ikke en
-  // drill-down. IKKE «rett» dette til push.
-  router.replace({ name: 'fritt-lende' })
+const gpsLeter = ref(false)
+const gpsFeil = ref('')          // '' = ingen boks. X-en setter den tilbake hit.
+const byggFraPos = ref(null)     // { lat, lon } — sendes inn i MapLibrary
+
+function nyttTurkart() {
+  if (gpsLeter.value) return
+  gpsFeil.value = ''
+  if (!('geolocation' in navigator)) { gpsFeil.value = GPS_IKKE_STOTTET; return }
+  gpsLeter.value = true
+  navigator.geolocation.getCurrentPosition((pos) => {
+    gpsLeter.value = false
+    byggFraPos.value = { lat: pos.coords.latitude, lon: pos.coords.longitude }
+    // openSheet lukker menyen. Rekkefølgen spiller ingen rolle for byggingen —
+    // MapLibrary leser propen med `immediate` når den monteres.
+    openSheet('kart')
+  }, (err) => {
+    gpsLeter.value = false
+    // Etiketten alene, uten rådet: samme valg som i «Mine kart» (se
+    // GpsFeilVarsel). Menyen er en smal skuff, og tre linjer om låsikonet i
+    // adressefeltet dytter alt under seg ut av syne.
+    gpsFeil.value = gpsFeilTekst(err.code)
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 })
 }
 
 // ── HJELP-BLOKKA ER BORTE (v7.8.13) ─────────────────────────────────────────
@@ -262,13 +281,19 @@ function apnePicker() {
 // Lukk ved rute-endring (f.eks. maskinvare-tilbake) og på Escape. Modalen kan
 // nå stå åpen uten menyen, så den må ryddes her også.
 // Merk hva denne watchen IKKE dekker: en push til ruta man allerede står i.
-// `MapLibrary` melder derfor navigasjonen sin selv (`@navigert`), og Fritt
-// lende-snarveien rydder i `goFrittLende`. Watchen er nettet under dem — den
-// fanger tilbake-knappen og navigasjon utenfra.
+// `MapLibrary` melder derfor navigasjonen sin selv (`@navigert`). Watchen er
+// nettet under den — den fanger tilbake-knappen og navigasjon utenfra.
 watch(() => route.fullPath, () => {
   sheet.value = null
   if (menuOpen.value) close()
 })
+
+// POSISJONEN ER EN ENGANGS-NYTTELAST. Lukkes «Mine kart» på hvilken som helst
+// måte — X, Escape, tilbake-knappen eller `@navigert` fra et ferdig kart — skal
+// fixen være borte. Uten dette ville neste trykk på «Mine kart» montert
+// MapLibrary på nytt med den gamle posisjonen i propen og bygget kartet én gang
+// til, på et sted brukeren forlot for en time siden.
+watch(sheet, (v) => { if (!v) byggFraPos.value = null })
 
 // Escape lukker ØVERSTE lag først. Håndteres her, ikke i AboutModal: to
 // uavhengige lyttere ville lukket både modalen og menyen på samme tastetrykk.
@@ -335,33 +360,46 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             </button>
           </div>
 
-          <!-- Fritt lende: tredje LIKEVERDIGE rad (v6.5.35), med samme pil som
-               de to over. Den sto med full bredde og uten knapp for å leses som
-               noe annet enn bibliotek-radene — men den er ikke noe annet i
-               menyen: den er appens tredje inngang, og en rad uten den grønne
-               pila leses som en overskrift framfor et sted å gå. Den har
-               fortsatt ingen meta-TALL, for modusen har verken bibliotek eller
-               antall; underteksten sier hva den er i stedet. -->
-          <div class="am-row" :class="{ 'is-card': iFrittLende }">
+          <!-- «NYTT TURKART» — tredje rad, der Fritt lende sto (v7.8.14).
+               Den bryter med de to over på ett punkt med vilje: knappen til
+               høyre er en PLUSS og ikke en pil. «Mine kart» og «Mine ruter»
+               går et sted man kan bli; denne lager noe og forsvinner. Samme
+               grønne `am-add`-flate, så de tre radene fortsatt leses som ett
+               nivå — det er glyfen som sier forskjellen, ikke formen.
+
+               Ikonet til venstre er en kart-nål og ikke et kompass: raden
+               handler om STEDET (der du står), mens Fritt lende-kompasset
+               handlet om en modus. Meta-linja bærer brukerens egen
+               standardbredde, ikke en konstant — se `nyttKartMeta`.
+
+               Ingen `is-card`: raden er ikke et sted man KAN stå. -->
+          <div class="am-row">
             <span class="am-row-icon">
               <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor"
                    stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="8.5" />
-                <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M14.5 9.5l-2 5-5 2 2-5 5-2Z" />
+                <path d="M12 21.5s7-6.2 7-11.5a7 7 0 1 0-14 0c0 5.3 7 11.5 7 11.5Z" />
+                <circle cx="12" cy="10" r="2.6" />
               </svg>
             </span>
-            <button type="button" class="am-row-main" @click="goFrittLende">
-              <span class="am-row-title">Fritt lende</span>
-              <span class="am-row-meta">Ett kart, én knapp · krever nett · laget for mobil</span>
+            <button type="button" class="am-row-main" @click="nyttTurkart">
+              <span class="am-row-title">Nytt turkart</span>
+              <span class="am-row-meta">{{ gpsLeter ? 'Finner posisjonen din …' : nyttKartMeta }}</span>
             </button>
-            <button type="button" class="am-add" aria-label="Gå til Fritt lende"
-                    @click="goFrittLende">
+            <button type="button" class="am-add" aria-label="Lag nytt turkart der du er"
+                    :disabled="gpsLeter" @click="nyttTurkart">
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
-                   stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M5 12h13m-5.5-6 6 6-6 6" />
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 5.5v13M5.5 12h13" />
               </svg>
             </button>
           </div>
+
+          <!-- Varselet står RETT UNDER raden det gjelder, ikke øverst i menyen:
+               en avvist tillatelse er svaret på det trykket, og et svar et annet
+               sted enn spørsmålet leses ikke. X-en er den eneste veien ut —
+               boksen skal ikke forsvinne av seg selv, for da rekker man ikke å
+               lese hvorfor knappen ikke gjorde noe. -->
+          <GpsFeilVarsel v-if="gpsFeil" :tekst="gpsFeil" @lukk="gpsFeil = ''" />
         </div>
 
         <!-- Appens utseende. LEDETEKSTEN «Visning» ER BORTE (v7.8.13): med
@@ -489,8 +527,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             :title="sheet === 'rute' ? 'Mine ruter' : 'Mine kart'" @close="sheet = null">
     <div class="px-4 py-4">
       <MapLibrary :tab="sheet === 'rute' ? 'rute' : 'kart'" :show-install="false"
-                  :show-tabs="false"
-                  @open-picker="apnePicker" @fritt-lende="goFrittLende"
+                  :show-tabs="false" :bygg-fra="byggFraPos"
+                  @open-picker="apnePicker"
                   @navigert="sheet = null" />
     </div>
   </AppModal>

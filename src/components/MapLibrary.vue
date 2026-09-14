@@ -23,6 +23,7 @@ function stjerneTittel(n) {
   return n === 1 ? '1 stjernemerket kulturminne' : `${n} stjernemerkede kulturminner`
 }
 import RenameMapDialog from './RenameMapDialog.vue'
+import GpsFeilVarsel from './GpsFeilVarsel.vue'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { useMapSizePreference, effectiveEquidistanceForWidthKm, defaultMapDims, aspectForFormat } from '../composables/useMapSizePreference.js'
 import { useNominatim } from '../composables/useNominatim.js'
@@ -30,7 +31,7 @@ import { useSpeechInput } from '../composables/useSpeechInput.js'
 import { useSearchKeyboard } from '../composables/useSearchKeyboard.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
 import { reverseGeocode } from '../lib/geocode.js'
-import { gpsFeilForklaring, GPS_IKKE_STOTTET } from '../lib/gpsFeil.js'
+import { gpsFeilTekst, GPS_IKKE_STOTTET } from '../lib/gpsFeil.js'
 import { mikrofonFeilForklaring } from '../lib/mikrofonFeil.js'
 
 // Fanen eies av VERTEN: forsiden speiler den mot ?tab=, modalen setter den fra
@@ -42,13 +43,22 @@ const props = defineProps({
   // Forsiden viser PWA-install-CTA-en nederst; i modalen ville den bare
   // konkurrert med menyens egen «Installer som app».
   showInstall: { type: Boolean, default: true },
+  // POSISJON VERTEN ALLEREDE HAR (v7.8.14) — `{ lat, lon }` eller null.
+  // Hovedmenyens «Nytt turkart» spør om GPS SELV, fordi en avvist tillatelse
+  // skal sies der knappen står. Men BYGGINGEN hører hjemme her: det er denne
+  // komponenten som eier fremdrifts-chipen, avbryt-knappen og navigasjonen til
+  // det ferdige kartet, og en andre kopi av den flyten i menyen ville vært to
+  // steder å holde i takt. Verten åpner altså modalen og sender koordinatene
+  // inn; vi gjør nøyaktig det den grønne pin-knappen her gjør etter sin egen
+  // fix. Nullstilles av verten når byggingen er meldt (`@navigert`).
+  byggFra: { type: Object, default: null },
 })
 // open-picker: verten bestemmer HVORDAN «Flere valg» åpnes — forsiden navigerer
 // til /nytt, hovedmenyen åpner Nytt turkart som modal oppå seg selv. Uten dette
 // navigerte knappen alltid, så i modalen forsvant både menyen og modalen.
 // v6.5.45: nyttelasten { gps: true } er borte. Den grønne knappen i søkefeltet
 // BYGGER nå her — se onGpsBygg — så «Flere valg» åpnes bare av «Flere valg».
-const emit = defineEmits(['update:tab', 'open-picker', 'fritt-lende', 'navigert'])
+const emit = defineEmits(['update:tab', 'open-picker', 'navigert'])
 
 const router = useRouter()
 
@@ -101,7 +111,8 @@ function formatRouteInfo(r) {
 }
 
 // ALL navigasjon ut av dette panelet går her, og `navigert` fyres FØR pushen.
-// Samme lærdom som Fritt lende-snarveien (v6.5.33): verten lukker modalen sin på
+// Samme lærdom som den slettede Fritt lende-snarveien (v6.5.33): verten lukker
+// modalen sin på
 // en rute-watch, og en push til ruta man ALLEREDE står i er en no-op —
 // `route.fullPath` endrer seg aldri, watchen fyrer aldri, og «Mine kart» blir
 // stående oppå kartet. Det traff hardest med ETT lagret kart: boot-gjenopptaket
@@ -506,7 +517,7 @@ const showResults = computed(() =>
 // brukeren gjør resten av innstillingene selv.
 // Byggingen tar 5–30 sekunder mot Overpass og Kartverket, og overlegget som
 // dekker skjerma imens hadde ingen vei ut. Avbryteren er den samme
-// AbortController-en Ruteplanleggeren og Fritt lende bruker — `buildMapFromCenter`
+// AbortController-en Ruteplanleggeren bruker — `buildMapFromCenter`
 // videresender signalet helt ned i hver enkelt henting.
 let byggAvbryter = null
 
@@ -553,11 +564,29 @@ function onSelectSearchResult(r) {
 }
 
 // ── GPS → bygg direkte ──────────────────────────────────────────────────
-// Feilen MÅ sies, og med en forklaring: en nektet posisjon var stille her, og
-// knappen så da ut som om den var i stuss. Teksten kommer fra `lib/gpsFeil.js`
-// — ÉN kilde, delt med «Flere valg» og Fritt lende.
+// Feilen MÅ sies: en nektet posisjon var stille her, og knappen så da ut som om
+// den var i stuss. Teksten kommer fra `lib/gpsFeil.js` — ÉN kilde, delt med
+// «Flere valg» og hovedmenyens «Nytt turkart».
+//
+// v7.8.14: ETIKETTEN ALENE, ikke `gpsFeilForklaring`. Rådet («Trykk på
+// låsikonet i adressefeltet …») var tre linjer nettleser-instruksjon rett over
+// kart-lista, på et panel der det som skal leses er kartene. Boksen har i
+// stedet fått en X (se GpsFeilVarsel), så den som har lest den blir kvitt den.
+// Utsnitts-velgeren beholder rådet: der står boksen alene på en tom flate.
 const gpsLeter = ref(false)
 const gpsFeil = ref('')
+
+// Alt etter at koordinatene er kjent — delt av den grønne pin-knappen her og av
+// `byggFra`-propen, som er hovedmenyens fix. Reverse-geokodingen er beste
+// forsøk: uten navn er kartet like brukbart.
+async function byggFraPosisjon(lat, lon) {
+  let navn = 'Min posisjon'
+  try {
+    const g = await reverseGeocode(lat, lon)
+    navn = g?.placeLabel || g?.shortName || navn
+  } catch { /* uten navn er kartet like brukbart */ }
+  await byggKartFra({ lat, lon, navn })
+}
 
 function onGpsBygg() {
   if (buildingOnTheFly.value || gpsLeter.value) return
@@ -566,18 +595,20 @@ function onGpsBygg() {
   gpsLeter.value = true
   navigator.geolocation.getCurrentPosition(async (pos) => {
     gpsLeter.value = false
-    const lat = pos.coords.latitude, lon = pos.coords.longitude
-    let navn = 'Min posisjon'
-    try {
-      const g = await reverseGeocode(lat, lon)
-      navn = g?.placeLabel || g?.shortName || navn
-    } catch { /* uten navn er kartet like brukbart */ }
-    await byggKartFra({ lat, lon, navn })
+    await byggFraPosisjon(pos.coords.latitude, pos.coords.longitude)
   }, (err) => {
     gpsLeter.value = false
-    gpsFeil.value = gpsFeilForklaring(err.code)
+    gpsFeil.value = gpsFeilTekst(err.code)
   }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 })
 }
+
+// Hovedmenyen har alt en fix når den åpner oss (se `byggFra`-propen).
+// `immediate` fordi propen er satt FØR modalen monteres — en watch uten den
+// ville aldri fyrt på det første trykket, som er det eneste som teller.
+watch(() => props.byggFra, (p) => {
+  if (!p || buildingOnTheFly.value) return
+  void byggFraPosisjon(p.lat, p.lon)
+}, { immediate: true })
 
 // ── Tastaturnavigasjon (desktop) ────────────────────────────────────────
 // Samme combobox-mønster som MapPickerView/GravelPlannerView: pil ned/opp
@@ -792,9 +823,7 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
        knapp som nå gjør det samme som lista over den, og den sto i veien for
        nettopp den lista ved stor tekst. Det som ER verdt plass er en NEKTET
        tillatelse: begge knappene var helt stille når nettleseren sa nei. -->
-  <div v-if="gpsFeil" role="alert"
-       class="mb-4 px-3 py-2.5 rounded-lg bg-amber-500/[0.12] border border-amber-400/35
-              text-amber-100 text-[13px] leading-snug">{{ gpsFeil }}</div>
+  <GpsFeilVarsel v-if="gpsFeil" :tekst="gpsFeil" class="mb-4" @lukk="gpsFeil = ''" />
   <div v-if="micError" role="alert"
        class="mb-4 px-3 py-2.5 rounded-lg bg-amber-500/[0.12] border border-amber-400/35
               text-amber-100 text-[13px] leading-snug">{{ mikrofonFeilForklaring(micError) }}</div>
@@ -979,62 +1008,6 @@ onDeactivated(() => window.removeEventListener('keydown', onWindowKeydown))
       Søk opp et sted øverst for å lage ditt første turkart.
     </div>
 
-    <!-- Snarvei til Fritt lende (v6.5.31). Modusen bor bare i hovedmenyen, og
-         en tom liste er nøyaktig der noen står som ville hatt et kart uten
-         skjemaet over. Den står UNDER teksten: skjemaet er fortsatt hovedveien.
-
-         v6.5.37 — INGEN AKSENTFARGE, og det er målt. Flata var
-         `bg-amber-400/[0.08]`, som mot kortet under gir 1,02:1 i lyst tema:
-         den kostet en fjerde betydning for gult i denne fila (valgt fane,
-         FAB-ring, varselpanelet hundre linjer opp, favoritt-stjerna) og
-         leverte nesten ingen flate-kontrast. Grønt er utelukket av samme grunn
-         som v6.5.28 over: Fritt lende ER «lag kart der jeg står», og en andre
-         grønn ting med den handlingen er ikke et valg, det er en gjetning.
-         Nøytralt `ink/[0.06]` inni kortets `ink/[0.03]` leses som et hevet
-         element i SAMME kort — gjenkjennelsen bæres nå av kompass-glyfen fra
-         hovedmenyens rad, ikke av fargen.
-
-         TEKSTEN SOLGTE MOT SEG SELV. «Vil du bare ha et turkart uten noe mer
-         fuzz?» påstår at hovedveien er tungvint, mens hele grunnen til at
-         knappen er tonet og ikke grønn er at hovedveien skal stå. Overskriften
-         sier nå forskjellen — ingen innstillinger — og ikke stedet, for «der du
-         står» er nøyaktig hva den grønne pin-knappen tre centimeter over gjør.
-         De to gamle småtekstene lå dessuten på 4,08 og 2,70 mot AAs 4,5.
-         «Krever nett» blir stående: dette er det ene stedet i appen der
-         premisset snus, og en bruker i den tomme lista har aldri sett
-         hovedmenyens rad som sier det.
-
-         v6.5.33: den navigerte SELV, med `router.push('/fritt')`, og lot
-         eieren om å rydde. Det så riktig ut fordi rute-byttet uansett river
-         panelet med seg — men står du ALLEREDE i Fritt lende, er navigasjonen
-         en no-op: `route.fullPath` endrer seg ikke, watchen i AppMenu som
-         nullstiller `sheet` fyrer aldri, og «Mine kart» blir stående oppå
-         arket. Nå eier KALLEREN både lukkingen og ruta — AppMenu gjennom
-         `goFrittLende`, som også er den ene som kjenner `replace`-regelen. -->
-    <button type="button" @click="emit('fritt-lende')"
-            class="mt-6 w-full max-w-[20rem] min-h-11 px-4 py-3 rounded-xl border text-left
-                   flex items-center gap-3 transition
-                   bg-ink/[0.06] border-ink/15
-                   active:bg-ink/[0.11] active:scale-[0.99]
-                   focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink/40">
-      <!-- Samme kompass-glyf som Fritt lende-raden i hovedmenyen (am-row-icon),
-           så de to inngangene til modusen leses som samme sted. -->
-      <svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0 text-ink-3" fill="none" stroke="currentColor"
-           stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <circle cx="12" cy="12" r="8.5"/>
-        <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M14.5 9.5l-2 5-5 2 2-5 5-2Z"/>
-      </svg>
-      <span class="flex-1 min-w-0">
-        <span class="block text-[14px] font-semibold text-ink">Ett kart, ingen innstillinger</span>
-        <span class="block mt-0.5 text-[12px] leading-snug text-ink-2">
-          Fritt lende — ett ark der du står, én knapp. Krever nett.
-        </span>
-      </span>
-      <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0 text-ink-3" fill="none" stroke="currentColor"
-           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="m9 6 6 6-6 6"/>
-      </svg>
-    </button>
   </div>
 
   <!-- Slett alle (vises kun når brukeren har lagrede kart). Linje 2 er

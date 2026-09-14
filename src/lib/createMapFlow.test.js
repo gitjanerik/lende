@@ -120,8 +120,9 @@ describe('demProbeOpplosning', () => {
     expect(demProbeOpplosning()).toBe(20)
   })
 
-  // Fritt lende: 10 m ekvidistanse på et 2 km-ark. Regelen alene ville gitt
-  // 20 m DEM, og da ligger kotene drøyt én celle fra hverandre i bratt terreng.
+  // Et lite ark med fin ekvidistanse — 10 m på 2 km — er tilfellet regelen
+  // bommer på: 20 m DEM legger kotene drøyt én celle fra hverandre i bratt
+  // terreng. Ingen kaller sender overstyringen i dag, men seamen er testet.
   it('lar kalleren overstyre', () => {
     expect(demProbeOpplosning(10)).toBe(10)
     expect(demProbeOpplosning(5)).toBe(5)

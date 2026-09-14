@@ -289,7 +289,23 @@ describe('plassIArket — porten som hindrer bygg-og-slett', () => {
     expect(plassIArket({ arkFliser: 15, nye: 2, max: 16 }).ok).toBe(false)
   })
 
-  it('Kirkenes-sekvensen: 1 → +3 → +5 → +7 stopper på det fjerde steget ved 16', () => {
+  // FLIS-TAKET ER NI FRA v7.8.15 (`maxTiles` i MapView), og fra samme versjon er
+  // det også taket lende-pilene SKJULES ved: `arketErFullt` i useMapExtend
+  // spør DENNE funksjonen med `nye: 1` og leser `ledig === 0`. Derfor står
+  // sekvensen her — den er kontrakten pilene og porten deler, og en endring i
+  // gulvet under (`MAX_AUTO_TILES` som fallback) ville ellers flyttet begge
+  // uten at noe sa fra.
+  it('ni-taket: 1 → +3 → +5 fyller arket, og da er det ingenting ledig igjen', () => {
+    expect(plassIArket({ arkFliser: 1, nye: 3, max: 9 }).ok).toBe(true)   // 1 → 4
+    expect(plassIArket({ arkFliser: 4, nye: 5, max: 9 }).ok).toBe(true)   // 4 → 9
+    // Fullt: `ledig === 0` er nøyaktig det `arketErFullt` leser.
+    expect(plassIArket({ arkFliser: 9, nye: 1, max: 9 }).ledig).toBe(0)
+    expect(plassIArket({ arkFliser: 9, nye: 1, max: 9 }).ok).toBe(false)
+    // Og under taket er det IKKE fullt — pilene skal stå så lenge én flis får plass.
+    expect(plassIArket({ arkFliser: 8, nye: 1, max: 9 }).ledig).toBe(1)
+  })
+
+    it('Kirkenes-sekvensen: 1 → +3 → +5 → +7 stopper på det fjerde steget ved 16', () => {
     // Arket vokser 1 → 4 → 9 → 16 → 25; taket er 16.
     const steg = [{ har: 1, nye: 3 }, { har: 4, nye: 5 }, { har: 9, nye: 7 }, { har: 16, nye: 9 }]
     expect(steg.map(s => plassIArket({ arkFliser: s.har, nye: s.nye, max: 16 }).ok))

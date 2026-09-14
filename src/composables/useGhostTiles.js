@@ -51,12 +51,18 @@ export function useGhostTiles({
   const GHOST_OPACITY = 1.0            // opake spøkelser: ingen dobbel-mørkning/bånd i overlapp-soner
   const GHOST_RENDER_RADIUS_TILES = 3  // hvor mange flis-bredder unna vi modellerer
   // Tak på PARSEDE noder i minnet — GULVET, og budsjettet for den FØRSTE
-  // parse-runden i renderGhostTiles. Selve taket er `flisTak()`: brukerens
-  // «Maks kartfliser» (4–36), fordi et ark på 25 fliser som bare kan tegne 13
-  // celler er et ark med halve innholdet borte (v6.5.74). Første runde står
-  // fortsatt på tolv så en kart-last ikke betaler 24 sekvensielle multi-MB-
+  // parse-runden i renderGhostTiles. Selve taket er `flisTak()`: det STØRSTE av
+  // dette gulvet og arkets flis-tak, fordi et ark som bare kan tegne halvparten
+  // av flisene sine er et ark med halve innholdet borte (v6.5.74). Første runde
+  // står fortsatt på tolv så en kart-last ikke betaler 24 sekvensielle multi-MB-
   // parser før første maling; resten fylles av feste-passet, i den rekkefølgen
   // utsnittet faktisk trenger dem.
+  //
+  // Fra v7.8.15 er arkets tak NI (`maxTiles` i MapView), altså under dette
+  // gulvet — så `flisTak()` er i praksis tolv, og modellen rekker lenger enn
+  // arket noen gang kan bli. Det er den riktige veien: modellen skal aldri være
+  // det som begrenser. Ikke «forenkle» maks-en bort fordi den ene siden vinner
+  // i dag.
   const MAX_GHOST_NODER = 12
   // Modell og noder deler tak. Fram til v6.5.74 var node-taket fast 12 mens
   // modellen fulgte maxTiles, og DA var invarianten øverst halvsann: modellen

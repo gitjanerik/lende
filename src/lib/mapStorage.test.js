@@ -64,11 +64,13 @@ describe('generateGravelRouteId', () => {
   })
 })
 
-// ── Fritt lende-slotene ─────────────────────────────────────────────────────
+// ── De gamle Fritt lende-slotene ────────────────────────────────────────────
+// Modusen er slettet (v7.8.14), men id-ene ligger igjen i IndexedDB hos alle som
+// brukte den, og lista MÅ fortsatt skjule dem — se FRITT_LENDE_ID i kilden.
 // Modusen eier to faste id-er og har ikke kart-identitet: ingen navngiving,
 // ingen liste, ett ark som erstattes. Filteret bor HER og ikke hos kallerne,
 // fordi «Mine kart» leses to steder som allerede filtrerer isAuto hver for seg.
-describe('Fritt lende-slotene', () => {
+describe('gamle Fritt lende-slot-ider', () => {
   it('kjenner igjen begge de reserverte id-ene, og ingen andre', () => {
     expect(erFrittLendeId(FRITT_LENDE_ID)).toBe(true)
     expect(erFrittLendeId(FRITT_LENDE_FORRIGE_ID)).toBe(true)
@@ -95,7 +97,7 @@ describe('Fritt lende-slotene', () => {
 describe('synligeKart', () => {
   const kart = (id, opprettet) => ({ id, opprettet })
 
-  it('skjuler begge Fritt lende-slotene fra lista', () => {
+  it('skjuler begge de gamle slotene fra lista', () => {
     const ut = synligeKart([
       kart('kart_a', 3), kart(FRITT_LENDE_ID, 2), kart(FRITT_LENDE_FORRIGE_ID, 1),
     ])
@@ -107,7 +109,7 @@ describe('synligeKart', () => {
     expect(ut.map((m) => m.id)).toEqual(['c', 'b', 'a'])
   })
 
-  it('gir tom liste når brukeren bare har Fritt lende-ark', () => {
+  it('gir tom liste når brukeren bare har gamle Fritt lende-ark', () => {
     expect(synligeKart([kart(FRITT_LENDE_ID, 1)])).toEqual([])
   })
 })

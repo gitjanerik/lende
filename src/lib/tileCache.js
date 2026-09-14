@@ -324,7 +324,8 @@ export function findRectangleGaps(activeRect, ghostRects, { tolFrac = 0.25 } = {
 }
 
 /**
- * Har arket plass til `nye` fliser innenfor bruker-grensa «Maks kartfliser»?
+ * Har arket plass til `nye` fliser innenfor flis-taket (`maxTiles` i MapView,
+ * ni fra v7.8.15)?
  *
  * Grunnen til at dette er en PORT og ikke bare et tak på utkastingen: fram til
  * v6.5.75 bygde utvidelsen så mange fliser den ble bedt om, og lot
@@ -335,7 +336,7 @@ export function findRectangleGaps(activeRect, ghostRects, { tolFrac = 0.25 } = {
  * byggingen koster ingenting og er til å forstå.
  *
  * @param {object} p arkFliser = fliser arket ALT består av (aktiv flis med),
- *   nye = fliser vi vil bygge, max = bruker-grensa.
+ *   nye = fliser vi vil bygge, max = flis-taket.
  * @returns {{ ok:boolean, ledig:number, tak:number, mangler:number }}
  */
 export function plassIArket({ arkFliser, nye, max } = {}) {

@@ -326,6 +326,40 @@ De sier hvor, de sier hva det koster (`+N fliser` i pilla), og de bygger
 ingenting uten et trykk. «Gjør arket firkantet» og «Fyll hullene» er fortsatt
 BANNERE med kostnaden skrevet på, aldri automatikk — se `findRectangleGaps`.
 
+**ET FULLT ARK HAR INGEN PILER (v7.8.15), og flis-taket er NI.** Taket
+(`maxTiles` i MapView) gikk fra 25 til 9 — et 3 × 3-ark er den største mosaikken
+en dagstur trenger, og med 25 kunne man bygge seg til et 5 × 5 der de ytterste
+flisene lå så langt unna at neste promotering kappet dem igjen, altså arbeid
+brukeren ventet på og så mistet. Fordi ni er et tak man FAKTISK når, må pilene
+forholde seg til det: på et fullt ark kan de verken si hvor eller hva det
+koster — `plassIArket` avviser trykket, og alt brukeren får er en toast.
+`extendZonesVisible` er derfor false når arket er fullt.
+
+**Pilene og porten spør SAMME funksjon** (`arketErFullt` → `plassIArket` med
+`nye: 1`, `ledig === 0`). Skriver du `antall >= maxTiles` i den ene, er «fullt»
+to uavhengige uttrykk, og den dagen den ene får et gulv eller en avrunding den
+andre ikke har, får du enten piler som ikke virker eller et ark som ikke kan
+fylles — to feil som begge ser ut som en bug i den andre halvdelen. Regelen er
+ren og enhetstestet i `tileCache.test.js`.
+
+**Dette skjuler IKKE «Fyll hullene» / «Gjør arket firkantet».** Et hull inne i
+arket kan tettes så lenge det finnes plass, og de bannerne bærer kostnaden sin
+selv og går gjennom samme port.
+
+**Merk at `useGhostTiles`' node-tak er `max(MAX_GHOST_NODER = 12, maxTiles)`**,
+altså tolv i praksis nå. Modellen skal rekke lenger enn arket noen gang kan bli
+— den skal aldri være det som begrenser. Ikke «forenkle» maks-en bort fordi den
+ene siden vinner i dag.
+
+**«Maks kartfliser» finnes ikke som kontroll, og står ikke lenger i Format-fana
+heller (v7.8.15).** Den var en slider med trinn 4/9/16/25/36 til v7.0.0, så et
+fast tall vist som opplysning, og nå ingenting — et tall man verken kan endre
+eller gjøre noe med er en linje man leser forbi, og underteksten («blir det
+flere, kappes de som ligger lengst fra der du er») beskrev en oppførsel man ikke
+møter når pilene stopper ved taket. Tallet står i Utvikler-fana som
+`autoTileCount / maxTiles`, der det er diagnostikk. Toast-tekstene som ba om å
+«øke «Maks kartfliser» i Innstillinger» sier nå hva grensa ER.
+
 **Det ene som overlevde er flis-ikonet** (`lib/flisIkon.js` +
 `components/FlisIkon.vue`): arket i miniatyr, med rutene som bygges blinkende.
 Det ble laget for automatikken og hørte hele tida hjemme i den manuelle
@@ -355,105 +389,84 @@ følger, og alle tre er lette å «forenkle» bort:
    avbrutt og ikke som feil (AbortError normaliseres i `kjorMedTak`), så toasten
    sier «Avbrutt» med det som ble beholdt — i begge løkkene.
 
-## Viktig arkitektur-merknad — Fritt lende er FERSKVARE, og det er forutsetningen
+## Viktig arkitektur-merknad — Fritt lende er SLETTET (v7.8.14)
 
-`/fritt` (v6.5.0) er den avkledde turkartmodusen: ett fast 2 × 2 km ISOM-ark der
-du står, hovedmenyknappen, linjalen og én knapp. Alt av beslutninger bor i
-`lib/frittLende.js` — komponenten er kabling, fordi prosjektet ikke kan
-enhetsteste en Vue-komponent (se «Arkitektur-gjeld» under).
+`/fritt` (v6.5.0–v7.8.14) var den avkledde turkartmodusen: ett fast 2 × 2 km
+ISOM-ark der du sto, hovedmenyknappen, linjalen og én knapp. Arket var
+FERSKVARE med vilje — uten navn, uten deling, erstattet av det neste — og hele
+modusen var bygget rundt den forutsetningen: angre-toasten i stedet for en
+dialog, avstandsporten på 250 m, de to faste id-ene.
 
-**Arket er ferskvare, og de andre valgene henger i det.** Det har ikke navn, det
-neste erstatter det, og det kan ikke tas med videre til «Mine kart».
-**«Behold dette kartet» er VURDERT OG FORKASTET** — ikke ta det opp igjen uten
-nye argumenter. Angre-toasten avløser en bekreftelsesdialog FORDI ingen ark er
-verdt noe spesielt; kan ett av dem være det du ville beholde, blir en utilsiktet
-rebygging dyr igjen og dialogen må tilbake — i hovedsløyfa, der den blir
-blindtrykket. Den som vil ha et kart som varer, har allerede `/nytt`.
+**Modusen er borte, og det er en BESTILLING fra eieren, ikke en opprydning.**
+`docs/YTELSE_TURKART.md` punkt 5 varslet den: «Fritt lende vurderes fjernet
+SENERE». Løftet — ett kart der du står, uten et skjema først — er beholdt, men
+prisen er ikke: hovedmenyens rad **«Nytt turkart»** (se AppMenu) henter
+posisjonen og bygger et HELT VANLIG turkart, som får navn, havner i «Mine kart»
+og kan deles. Ikke gjenopprett modusen fordi du finner et spor av den; sporet er
+historikk.
 
-**TO invarianter gjør bygging trygt uten dialog. Begge er lette å «forenkle»
-bort:**
-1. *Ingenting bygger før du er 250 m fra arkets senter* (`NYTT_KART_M`). Se
-   avstandsporten under — den avløste «tap kan aldri bygge mens du står på
-   arket» i v6.5.27, og fra v7.8.3 er den DEN ENESTE som beskytter arket.
-2. *Det gamle arket slettes aldri før det nye er ferdig bygget og tegnet.* Det er
-   dette som gjør et feiltrykk ufarlig, ikke gestespråket. `saveMap` er en put,
-   så overskrivingen ER slettingen — ingen `deleteMap` på den AKTIVE sloten, som
-   ville etterlatt brukeren uten kart hvis byggingen feilet. (Angre-sloten er en
-   annen sak, se under.)
+**Det som ble stående igjen, og hvorfor:**
 
-**DEN TREDJE INVARIANTEN ER FJERNET PÅ BESTILLING (v7.8.3), og det kostet ett
-trykk for mye.** Den lød «første tap etter en fersk last starter bare GPS», og
-begrunnelsen var at posisjonen din er et helt annet sted i dag enn da arket ble
-bygget. Men den målte ØKTA og ikke STEDET: ved kald start er GPS alltid av, så
-den som hadde gått sju kilometer måtte trykke to ganger — først for gul tekst
-(«7,9 km fra …»), så for kartet. Eieren: «Klikk på knappen er kun tillatt når
-jeg har beveget meg minst 250m. Det er ok. Når klikk er tillatt: hent nytt
-kart.» Et trykk med GPS av gir derfor `start-gps-og-bygg`, og porten prøves på
-nytt i `etterFix` når fixen lander — samme port, stilt når svaret finnes.
-**Prisen er akseptert og skal ikke «rettes» tilbake:** åpner du modusen hjemme
-med et ark fra fjellet, erstatter ETT trykk nå det arket.
+- **De to id-ene (`fritt`, `fritt-forrige`) i `mapStorage.js`.** Radene finnes i
+  IndexedDB hos alle som brukte modusen, 1–5 MB hver. `listMaps()` filtrerer dem
+  fortsatt bort — uten det ville to navnløse ark dukket opp i «Mine kart» i det
+  brukeren oppdaterte appen — og `ryddFrittLendeArk()` sletter dem for godt, kalt
+  én gang ved oppstart fra `App.vue` bak et localStorage-flagg. Flagget er for
+  YTELSE, ikke sikkerhet: funksjonen er trygg å kjøre om igjen. Slettingen bor
+  IKKE i `listMaps` — det ville gjort lese-stien til en funksjon med bivirkning.
+- **`/fritt` som redirect til forsiden** (`router.js`). Stien kan stå i et
+  bokmerke eller på en hjemskjerm. Ingen framtid — den kan fjernes når ingen
+  lenger har den liggende.
+- **`MapScaleAttribution`s to valgfrie props** (ekvidistanse-linja og «N m fra
+  senter»). De ble laget for modusen, men de er den eneste måten en visning UTEN
+  punkt-skuff kan få et tall på linjalen. MapView sender dem ikke.
+- **`demProbeOpplosning(overstyring)` i `createMapFlow`.** Ingen kaller sender
+  overstyringen i dag. Seamen står fordi den er den ene knotten et lite ark har
+  mot en regel skrevet for store, og spørsmålet kommer tilbake.
+- **`lib/brukerPrikk.js`, `lib/kartVert.js`, `lib/maalestokk.js`,
+  `lib/strekSkala.js`, `components/KartLaster.vue`.** Alle ble trukket ut AV
+  MapView/useKartKnotter/useMapLoadPipeline fordi Fritt lende trengte det samme.
+  De er nå vanlige delte moduler med én kaller; uttrekket var riktig uansett.
 
-**ANGRE-TOASTEN ER BETINGET (`ANGRE_MAKS_M` = 1 km, v7.8.3).** Den tilbys bare
-når det nye arkets senter ligger innenfor én kilometer av det gamle — eieren:
-«Jeg trenger ikke angremulighet dersom nytt kart og min posisjon har flyttet seg
-mer enn 1km fra opprinnelig flis senter. Hva skal jeg med det?» Over grensa
-SKRIVES angre-sloten ikke i det hele tatt, og en gammel slot slettes: toasten er
-den eneste veien til `angre()`, så en skjult slot ville vært megabyte ingen kan
-nå. Det sparer også en 1–5 MB IndexedDB-skriving rett før arket tegnes.
-Mangler en av bboksene et endelig senter (ark lagret før `utmBbox`), tilbys
-angre — en ukjent avstand er ikke et argument for å ta bort utveien.
+**Det som ble slettet med den:** `views/FrittLendeView.vue`,
+`components/FrittLendeKnapp.vue`, `lib/frittLende.js` (+ test),
+`@fritt-lende`-eventen i `MapLibrary` og snarveien i den tomme lista, fana i «Om
+appen», opsjonen `id` i `buildMapFromCenter` (en eksplisitt id overskriver et
+eksisterende kart — uten Fritt lende har den ingen lovlig avsender, og en slik
+opsjon liggende er en stille datatap-vei), og hele Fritt lende-blokka i
+`scripts/ruter-royk.mjs`.
 
-**AVSTANDSPORTEN ER MODUSENS ENE TALL, OG DEN AVLØSTE ARKKANTEN (v6.5.27).**
-Linjalen bærer «N m fra senter» så snart en posisjon er kjent, og ved
-`NYTT_KART_M` = 250 m skifter tallet til aksentfarge. Det er SAMME grense
-knappen står bak: over den bygger et trykk et nytt ark, under den sentrerer det
-og svarer med `forNaerTekst`. Den gamle regelen — «tap kan aldri bygge mens du
-står på arket», med et lang-trykk som eneste vei ut — var bygget rundt samme
-frykt, men målte det gale: «utenfor arket» er en grense man krysser én gang,
-mens spørsmålet man stiller på tur er «har jeg nok kart foran meg?». Tre ting
-følger, og alle tre er lette å «rydde» bort:
-1. **Porten gjelder ikke uten ark.** Det er den ene stien der modusen ikke har
-   noe å miste; ellers ville en tom skjerm vært en blindvei.
-2. **Er avstanden ukjent (GPS på, ingen fix ennå), sentreres det.** Å bygge der
-   ville brutt porten; å si «for nær» ville vært en påstand vi ikke har.
-3. **LANG-TRYKKET ER BORTE, og det er en konsekvens.** Med porten på plass gjør
-   et hold nøyaktig det tapet gjør, eller nøyaktig ingenting — og en fyllring
-   som lover noe nytt og leverer det samme er verre enn ingen ring. Legger du
-   den tilbake, må den ha en betydning porten ikke alt dekker.
+## Viktig arkitektur-merknad — «Nytt turkart» spør om GPS, «Mine kart» bygger
 
-**Ekvidistansen står IKKE lenger på linjalen** (v6.5.27) — den er fast 10 m i
-denne modusen og leses én gang, og plassen er avstandstellerens. Merk at
-`MapScaleAttribution` derfor ikke har noen ekvidistanse-prop igjen; MapView har
-tallet i punkt-skuffen.
+Raden i hovedmenyen (v7.8.14) er delt på tvers av to komponenter, og delingen er
+et valg som er lett å «rydde» bort i begge retninger:
 
-**EN NEKTET POSISJON MÅ SIES, og det med en alert (v6.5.27).** Modusen var helt
-stille når tillatelsen ble avvist: chipen sto og lette etter en fix som aldri
-kunne komme. Teksten er den samme som «Lag kart der jeg er» viser, fra ÉN kilde
-(`lib/gpsFeil.js`, delt med `MapLibrary` og `MapPickerContent` som hadde hver
-sin kopi av kodetabellen). Alerten fyres på ENDRET feilkode og ikke per
-feil-callback — `watchPosition` kaller handleren for hvert forsøk, og en dialog
-per forsøk er en dialog man ikke slipper unna. Kode 1 (tillatelse) stopper
-watchen, så neste trykk på knappen forsøker GPS-en på nytt; kode 2/3 er
-forbigående og lar den prøve videre.
+**`AppMenu` henter POSISJONEN.** En avvist tillatelse skal sies der knappen står
+— et svar et annet sted enn spørsmålet leses ikke — så `getCurrentPosition` bor
+i menyen, og feilen blir en gul `GpsFeilVarsel` rett under raden.
 
-**To faste id-er (`fritt`, `fritt-forrige`), filtrert i `listMaps()` og ikke hos
-kallerne** — «Mine kart» leses to steder som allerede filtrerer `isAuto` hver for
-seg, og en tredje kaller ville glemt det. De gjenbruker bevisst IKKE `isAuto`:
-det leses av `promoteView` og `useGhostTiles`' gitter-kompatibilitet, og ville
-gjort arket til kandidat for mosaikk-promotering.
+**`MapLibrary` gjør BYGGINGEN.** Fremdrifts-chipen, avbryt-knappen og
+navigasjonen til det ferdige kartet bor alt der. Menyen åpner derfor
+«Mine kart»-modalen med koordinatene i propen `byggFra`, og MapLibrary gjør
+nøyaktig det dens egen grønne pin-knapp gjør etter sin egen fix. En andre kopi
+av byggeflyten i menyen ville vært to steder å holde i takt.
 
-**`lende-last-mode` får aldri verdien `fritt`.** Modusen velges alltid bevisst fra
-hovedmenyen, og inngangen bruker `router.replace` og ikke `push` — ellers lander
-tilbake-knappen i det vanlige kartet, altså en modus-veksling uten om menyen.
+**`byggFra` er en ENGANGS-NYTTELAST.** `watch(sheet)` i AppMenu nullstiller den
+når modalen lukkes på hvilken som helst måte. Uten det ville neste trykk på
+«Mine kart» montert MapLibrary på nytt med den gamle posisjonen i propen og
+bygget kartet én gang til, på et sted brukeren forlot for en time siden. Watchen
+i MapLibrary er `immediate` fordi propen er satt FØR modalen monteres.
 
-**Relieff er av ved KONSTRUKSJON** (`useReliefRender` kalles aldri), ikke ved å
-skrus av. Rotasjonen er låst til nord fordi kompasset er borte, og et rotert kart
-uten kompass og uten noen kontroll som nullstiller er en navigasjonsfelle.
+**Meta-linja bærer brukerens EGEN standardbredde** (`mapSizeKm`, default
+`DEFAULT_MAP_WIDTH_KM` = 8 km), ikke konstanten. En rad som lover 8 × 8 km til
+en som har dratt slideren til 14 er en rad som lyver.
 
-**Modusen krever nett for å LAGE et ark, men ikke for å vise det den har.** Det er
-det ene stedet i Lende der premisset snus, og det må stå i UI-et. Etter at arket
-er bygget varsles det IKKE om tapt dekning: arket er ferdig rendret SVG, og et
-falskt alarmerende banner på et fjell er verre enn ingen.
+**GPS-TEKSTEN HAR TO LENGDER, og det er ikke en inkonsekvens** (`lib/gpsFeil.js`).
+`gpsFeilTekst` er etiketten alene, `gpsFeilForklaring` er etiketten pluss rådet
+om låsikonet i adressefeltet. Hovedmenyen og «Mine kart» bruker den korte og har
+en X i stedet (`GpsFeilVarsel`); utsnitts-velgeren bruker den lange, fordi boksen
+der står alene på en tom flate. Forskjellen er hvor mye plass flata har, ikke hvor
+viktig feilen er. Ikke slå dem sammen igjen.
 
 ## Viktig arkitektur-merknad — FUNKSJON og INNSTILLING er to ulike ting
 

@@ -138,8 +138,19 @@ export const BREDDE_STEG_KM = 0.5   // pickerens slider-steg (halfKm-steg 0,25)
 // v6.5.76: spennet er 2–20 km. Nedre grense hevet fra 1 km fordi et 1 km-ark
 // er mindre enn én mosaikk-flis og aldri var et turkart; øvre hevet fra 16 km
 // etter at mosaikken ble rettet (v6.5.74–75) og store ark faktisk bærer.
+//
+// v7.8.15: TAKET ER TILBAKE PÅ 16 KM. At store ark BÆRER var sant og er det
+// fortsatt — men det er ikke det samme som at de er verdt å vente på. Et
+// 20 km-ark er 400 km², altså 56 % mer Overpass-respons og DEM enn 16 km, på
+// den ene stien der brukeren står og ser på en tom skjerm. Grensa er dessuten
+// den samme størrelsesordenen som mosaikken nå tillater (ni fliser), så et
+// enkelt-ark og et fullt utbygd ark lander på samme skala.
+//
+// EN LAGRET PREFERANSE OVER TAKET FALLER TIL DEFAULT AV SEG SELV (`load()` i
+// useMapSizePreference klamper til [MIN, MAKS]), så den som sto på 20 km får
+// standard-arket og ikke en ugyldig slider-posisjon.
 export const BREDDE_MIN_KM = 2
-export const BREDDE_MAKS_KM = 20
+export const BREDDE_MAKS_KM = 16
 
 /** Kostnaden for et utsnitt på et gitt detaljnivå. */
 export function kostnad(indeks, arealKm2, nivaa = 'full') {

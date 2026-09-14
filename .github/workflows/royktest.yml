@@ -42,10 +42,10 @@ on:
   pull_request:
     branches: [master]
     paths:
-      # v6.5.0: hele src/views/, ikke bare MapView. En PR som bare rørte
-      # FrittLendeView.vue ville ikke kjørt røyktesten i det hele tatt —
-      # samme klasse luke som src/lib/** var fram til v6.0.0. Dekker nå
-      # også Gravel/Home/Picker, som var udekket.
+      # v6.5.0: hele src/views/, ikke bare MapView. En PR som bare rørte en
+      # annen view ville ikke kjørt røyktesten i det hele tatt — samme klasse
+      # luke som src/lib/** var fram til v6.0.0. Dekker Gravel/Home/Picker, som
+      # var udekket.
       - 'src/views/**'
       - 'src/composables/**'
       - 'src/components/**'

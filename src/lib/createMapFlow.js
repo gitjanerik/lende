@@ -167,9 +167,11 @@ function withHardTimeout(promise, ms, fallback, label) {
 
 // DEM-probe-oppløsning: 20 m. Regelen er en avveining for kart i VANLIG
 // størrelse — den ser ikke på hvor stort arket er, så et lite ark får unødig
-// grov DEM. Derfor kan kalleren overstyre (v6.5.0): Fritt lende ber om 10 m til
-// sin 10 m ekvidistanse, fordi kotene ellers ligger drøyt én celle fra
-// hverandre i bratt terreng og trapper seg synlig.
+// grov DEM. Overstyringen kom i v6.5.0 for Fritt lende, som ba om 10 m til sin
+// 10 m ekvidistanse fordi kotene ellers lå drøyt én celle fra hverandre i bratt
+// terreng og trappet seg synlig. INGEN KALLER SENDER DEN I DAG (modusen er
+// slettet i v7.8.14), men seamen står: den er den ene knotten et lite ark har
+// mot en regel skrevet for store, og det er et spørsmål som kommer tilbake.
 //
 // Egen eksportert funksjon fordi den ER en beslutning, og en beslutning som
 // bare finnes inne i en nettverksavhengig pipeline kan ikke enhetstestes.
@@ -190,7 +192,6 @@ export function demProbeOpplosning(overstyring = undefined) {
  * @param {number} opts.equidistanceM  — kontur-intervall
  * @param {string} opts.navn  — kartets navn
  * @param {(msg:string)=>void} [opts.onProgress]  — status-callback for UI
- * @param {string} [opts.id]  — eksplisitt kart-id; overskriver et eksisterende ark
  * @param {number} [opts.demResolutionM]  — overstyr DEM-probe-oppløsningen
  */
 export async function buildMapFromCenter({
@@ -214,10 +215,6 @@ export async function buildMapFromCenter({
   // detaljnivået justeres. Snarvei-flyten (søk/GPS/«Bygg om») bruker en lagret
   // preferanse på et sted brukeren ikke har vurdert, og får begge trinnene.
   klampBredde = true,
-  // Eksplisitt kart-id (v6.5.0). Fritt lende bygger alltid til det SAMME id-et,
-  // så `saveMap`-put-en overskriver forrige ark — det ER «forrige kart slettes».
-  // `undefined` ⇒ nytt tilfeldig id, som før.
-  id: eksplisittId = undefined,
   // Overstyr DEM-probe-oppløsningen (v6.5.0). Regelen under er en avveining for
   // kart i vanlig størrelse; et lite ark har råd til finere DEM enn
   // ekvidistansen alene tilsier. `undefined` ⇒ regelen, som før.
@@ -228,8 +225,8 @@ export async function buildMapFromCenter({
   // at kartet er ferdig — altså hundrevis av ms til sekunder rett foran det
   // første kartet på første besøk eller etter en ny service-worker-versjon.
   // Gaten er `terrainFirst`, som er nøyaktig de flytene som navigerer TIL
-  // MapView: Fritt lende har sin egen visning, og kant-utvidelsen står allerede
-  // i MapView. Rein prefetch — feiler den, laster router-en chunken som før.
+  // MapView — kant-utvidelsen står allerede der. Rein prefetch: feiler den,
+  // laster router-en chunken som før.
   if (terrainFirst) import('../views/MapView.vue').catch(() => {})
 
   const throwIfAborted = () => {
@@ -591,7 +588,13 @@ export async function buildMapFromCenter({
     })
   }).catch(() => ({ ...EMPTY_SJOKART, failed: true })))
 
-  const id = eksplisittId ?? generateMapId()
+  // ALLTID ET NYTT ID. Opsjonen `id` fantes fra v6.5.0 til v7.8.14 fordi Fritt
+  // lende bygde til det SAMME id-et hver gang — `saveMap` er en put, så put-en
+  // var «forrige ark slettes». Med modusen borte har et bygg som overskriver et
+  // eksisterende kart ingen lovlig avsender igjen, og en slik opsjon liggende er
+  // en stille datatap-vei: én kaller som sender feil id, og brukerens kart er
+  // borte uten en dialog.
+  const id = generateMapId()
   // Marker som ferskt kart så MapView gir det en garantert «litt kontur + litt
   // relieff»-baseline (relieff persisteres globalt — er det skrudd til 0 ville
   // ellers ALLE nye kart blitt blast). Felles knutepunkt → dekker picker,

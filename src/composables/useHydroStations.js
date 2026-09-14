@@ -12,7 +12,7 @@
 import { ref } from 'vue'
 import { wgs84ToSvg, wgs84BboxFromMeta } from '../lib/utm.js'
 import { fetchStationsForBbox, fetchStationLatest, sildreStationUrl, pickStationInfo } from '../lib/nveHydApi.js'
-import { cacheGet, cacheSet, hydroBboxKey, hydroLatestKey, TTL } from '../lib/protectedAreaCache.js'
+import { cacheGet, cacheGetStale, cacheSet, hydroBboxKey, hydroLatestKey, TTL } from '../lib/protectedAreaCache.js'
 
 export function useHydroStations({
   svgHostRef, visibleLayers, meta, applyUprightLabels,
@@ -147,9 +147,16 @@ export function useHydroStations({
     hydroLoading.value = true
     const reqId = ++detailSeq
     try {
-      // Samme cache-før-nett som stasjonslista. Målingen er ferskvare (24 t),
-      // men en dagsfersk verdi med synlig måletidspunkt er langt bedre enn et
-      // tomt ark på et kart uten dekning.
+      // CACHE (1 t) → NETT → GAMMEL CACHE. Målingen er appens ferskeste
+      // NVE-data: HydAPI oppdaterer hver time, og fram til v7.8.14 holdt vi den
+      // i 24 t — en verdi hentet kl. 23 ble stående som «siste måling» hele
+      // neste dag, mens sildre.nve.no forlengst hadde nyere tall.
+      //
+      // SISTE LEDD ER OFFLINE-VEIEN, og det er derfor TTL-en kunne kortes ned
+      // uten å ofre den: uten dekning svarer `fetchStationLatest` tomt, og da er
+      // en gammel rad med synlig måletidspunkt fortsatt langt bedre enn et tomt
+      // ark på et fjell. Den leses KUN når nettet kom tomhendt tilbake — ellers
+      // ville vi vært tilbake til å vise gårsdagen med full dekning.
       const latestKey = hydroLatestKey(stationId)
       let latest = stationId ? await cacheGet(latestKey) : null
       if (!latest) {
@@ -158,6 +165,8 @@ export function useHydroStations({
         ] }, { apiKey: HYDAPI_KEY })
         if (stationId && latest && Object.keys(latest).length) {
           cacheSet(latestKey, latest, TTL.hydroMaaling)
+        } else if (stationId) {
+          latest = await cacheGetStale(latestKey)
         }
       }
       // Skuffen kan være lukket / byttet til en annen stasjon mens vi hentet.

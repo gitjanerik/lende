@@ -57,18 +57,21 @@ export function generateMapId() {
   return 'kart_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
 }
 
-// Fritt lende eier to faste id-er (v6.5.0). Modusen har ikke kart-identitet:
-// arket har ikke navn, kan ikke deles, og et nytt erstatter det forrige — så
-// det er ÉN slot pluss én angre-slot, ikke en voksende liste.
+// ARV ETTER FRITT LENDE (v6.5.0–v7.8.14). Modusen eide to faste id-er, fordi
+// arket ikke hadde kart-identitet: ett ark pluss én angre-slot, ikke en voksende
+// liste. Modusen er slettet, men RADENE finnes fortsatt i IndexedDB hos alle som
+// har brukt den — og de er 1–5 MB hver.
 //
-// De filtreres ut av listMaps() og ikke hos kallerne, fordi «Mine kart» leses
-// to steder (AppMenu.loadCounts og MapLibrary.refresh) som allerede filtrerer
-// isAuto hver for seg — en tredje kaller ville glemt det. loadMap() på id-ene
-// virker fortsatt; det er BARE lista som skjuler dem.
+// Derfor to ting, og begge må stå til vi kan regne med at ingen har dem igjen:
+//   1. De filtreres fortsatt ut av lista. Uten filteret ville to navnløse ark
+//      dukket opp i «Mine kart» i det brukeren oppdaterte appen — en modus som
+//      er borte skal ikke etterlate seg søppel man må rydde selv.
+//   2. `ryddFrittLendeArk()` sletter dem for godt, og kalles én gang ved
+//      oppstart (App.vue). Å slette dem HER, i lese-stien, ville gjort listMaps
+//      til en funksjon med bivirkning; det er en egen, uttalt operasjon.
 //
-// Merk at de bevisst IKKE gjenbruker isAuto-flagget: det leses av promoteView,
-// currentMapIsAuto og useGhostTiles' gitter-kompatibilitet, og ville gjort
-// Fritt lende-arket til kandidat for mosaikk-promotering.
+// Navnet beholdes med vilje: id-ene ER strengene 'fritt' og 'fritt-forrige' i
+// hver eneste installasjon, og et «nøytralt» navn ville skjult hva de kom fra.
 export const FRITT_LENDE_ID = 'fritt'
 export const FRITT_LENDE_FORRIGE_ID = 'fritt-forrige'
 const SKJULTE_IDER = new Set([FRITT_LENDE_ID, FRITT_LENDE_FORRIGE_ID])
@@ -131,14 +134,14 @@ export async function listMaps() {
   const projected = all.map(projectMetaEntry)
   const wt = await tx('readwrite', META_STORE)
   const ws = wt.objectStore(META_STORE)
-  // Backfillen skriver ALLE, Fritt lende-arkene inkludert — meta-storet skal
-  // speile maps-storet. Det er visningen som skjuler dem, ikke lagringen.
+  // Backfillen skriver ALLE, de gamle Fritt lende-arkene inkludert — meta-storet
+  // skal speile maps-storet. Det er visningen som skjuler dem, ikke lagringen.
   for (const p of projected) ws.put(p)
   return synligeKart(projected)
 }
 
-// Hva «Mine kart» faktisk viser: alt som ikke er en Fritt lende-slot, nyeste
-// først. Eksportert fordi det er en beslutning, ikke en detalj — og fordi
+// Hva «Mine kart» faktisk viser: alt som ikke er en gammel Fritt lende-slot,
+// nyeste først. Eksportert fordi det er en beslutning, ikke en detalj — og fordi
 // listMaps() selv krever IndexedDB og derfor ikke kan enhetstestes her.
 export function synligeKart(entries) {
   return entries
@@ -239,6 +242,46 @@ export async function deleteMap(id) {
     t.onabort = () => reject(t.error)
   })
   meldSlettet(id)
+}
+
+/**
+ * Slett de to gamle Fritt lende-slotene (se FRITT_LENDE_ID over). Kalles én
+ * gang per installasjon fra App.vue; flagget der er for at en ren app ikke skal
+ * betale for en IndexedDB-transaksjon ved hver oppstart — ikke fordi slettingen
+ * er farlig å gjenta. Feiler stille: en bruker som ikke får ryddet skal fortsatt
+ * få appen sin.
+ *
+ * TELLINGEN SKJER I EN EGEN, LESENDE TRANSAKSJON. Å `await`-e en `count` MIDT I
+ * den skrivende ville vært å satse på at IndexedDB ikke rekker å committe mens
+ * mikrotask-køen tømmes — den gjør det så snart det ikke står forespørsler igjen.
+ * To transaksjoner er ikke dyrere her, og den ene kan ikke avbryte den andre.
+ *
+ * @returns {Promise<number>} antall rader som faktisk ble slettet
+ */
+export async function ryddFrittLendeArk() {
+  const ider = [...SKJULTE_IDER]
+  try {
+    const lest = await tx('readonly', STORE)
+    const store = lest.objectStore(STORE)
+    const antall = await Promise.all(ider.map((id) => asPromise(store.count(id))))
+    const finnes = ider.filter((_, i) => antall[i] > 0)
+    if (!finnes.length) return 0
+
+    const t = await tx('readwrite', [STORE, META_STORE])
+    for (const id of finnes) {
+      t.objectStore(STORE).delete(id)
+      t.objectStore(META_STORE).delete(id)
+    }
+    await new Promise((resolve, reject) => {
+      t.oncomplete = resolve
+      t.onerror = () => reject(t.error)
+      t.onabort = () => reject(t.error)
+    })
+    for (const id of finnes) meldSlettet(id)
+    return finnes.length
+  } catch {
+    return 0
+  }
 }
 
 export async function clearAll() {

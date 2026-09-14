@@ -24,12 +24,15 @@ const RUTER = [
   ['/',               '/lende/',               'body'],
   ['/nytt',           '/lende/nytt',           'body'],
   ['/rute',           '/lende/rute',           'body'],
-  ['/fritt',          '/lende/fritt',          'text=Fritt lende'],
   ['/tegnforklaring', '/lende/tegnforklaring',  'body'],
   ['/om',             '/lende/om',             'text=Om Så i lende'],
   // Redirectene. /about er den viktigste: den er den offentlige lenka utenfra.
   ['/about',          '/lende/om',             'text=Om Så i lende'],
   ['/kart',           '/lende/',               'body'],
+  // Fritt lende (v6.5.0–v7.8.14). Modusen er slettet, og stien er en redirect
+  // til forsiden — den kan stå i et bokmerke eller på en hjemskjerm, og en
+  // modus som er borte skal lande et sted og ikke på ingenting.
+  ['/fritt',          '/lende/',               'body'],
   // Query MÅ bevares gjennom funksjons-redirecten — den er skrevet som
   // `redirect: to => ({ name, query: to.query })`, og det er den formen en
   // major-oppgradering av ruteren typisk rører.
@@ -121,409 +124,67 @@ try {
   sjekk('boot-gjenopptak: «/» → forrige modus', bootUrl === '/lende/rute',
     bootUrl === '/lende/rute' ? 'sendt til /rute' : `ble stående på ${bootUrl}`)
 
-  // Fritt lende skriver bevisst ALDRI `lende-last-mode`, så boot-hooken kan
-  // ikke lande der: modusen velges alltid bevisst fra hovedmenyen. Sjekken
-  // fanger at noen senere legger til en 'fritt'-gren i god tro.
-  const s4 = await ctx.newPage()
-  s4.on('pageerror', (e) => jsFeil.push(e.message))
-  await s4.goto(`${BASE}/fritt`, { waitUntil: 'domcontentloaded' })
+  // «NYTT TURKART» I HOVEDMENYEN (v7.8.14), raden som avløste Fritt lende.
+  // Tre ting måles, og alle tre er nettverksfrie — byggingen som følger etter
+  // en vellykket fix er MapLibrarys og hører ikke hjemme i en ruting-røyktest.
+  //
+  //   1. Raden finnes og sier hva man får FØR man trykker. Meta-linja er
+  //      brukerens egen standardbredde, ikke en konstant, så sjekken matcher
+  //      formen («N × N km · fra din posisjon») og ikke tallet.
+  //   2. En NEKTET tillatelse sier fra, RETT UNDER raden. Det var hele
+  //      bestillingen: en knapp som ikke gjør noe og ikke sier hvorfor er
+  //      identisk med en ødelagt knapp.
+  //   3. Varselet kan X-es ut. Uten det blir boksen stående til man lukker
+  //      hele menyen — og den dytter alt under seg nedover imens.
+  //
+  // `getCurrentPosition` overstyres i sida framfor å nekte tillatelsen i
+  // konteksten: Playwright har ingen «avslå»-tilstand, bare «ikke gitt», og den
+  // gir en prompt som aldri besvares i stedet for kode 1.
+  const sM = await ctx.newPage()
+  sM.on('pageerror', (e) => jsFeil.push(e.message))
+  await sM.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' })
   await sov(900)
-  const skrevet = await s4.evaluate(() => localStorage.getItem('lende-last-mode'))
-  sjekk('Fritt lende skriver ikke lende-last-mode', skrevet !== 'fritt',
-    skrevet === null ? 'ikke satt' : `satt til ${skrevet}`)
+  await sM.locator('button[aria-label="Åpne meny"]').click()
+  await sov(500)
+  const menyRader = await sM.evaluate(() => [...document.querySelectorAll('.am-row-main')]
+    .map((b) => b.innerText.replace(/\n/g, ' · ')))
+  const nyttRad = menyRader.find((t) => /^Nytt turkart/.test(t)) ?? ''
+  sjekk('hovedmenyen har «Nytt turkart» med størrelse og kilde',
+    /^Nytt turkart · \d+ × \d+ km · fra din posisjon$/.test(nyttRad),
+    nyttRad || menyRader.join(' / ') || 'fant ingen rader')
+  sjekk('hovedmenyen har ingen Fritt lende-rad igjen',
+    !menyRader.some((t) => /Fritt lende/.test(t)), menyRader.length + ' rader')
 
-  // Tom-tilstanden er den ENESTE skjermen som møter en ny bruker, og den er
-  // usynlig for de andre Fritt lende-sjekkene: de kjører med et seedet ark, så
-  // `meta` er sann og hele denne grenen rendres aldri. Tre ting måles.
-  //
-  // 1. Teksten skal kunne MARKERES (v6.5.31). `select-none` lå på roten og
-  //    arvet ned i hver eneste tekstflate; den hører hjemme på kart-flata, som
-  //    er den som har en gest å beskytte. En bruker som vil ha teksten lest
-  //    høyt må kunne ta tak i den, og regresjonen er én klasse på feil element.
-  // 2. Boblen ved knappen vises til første trykk og aldri igjen.
-  // 3. Trykket kvitterer den ut — og sjekken RYDDER etter seg (nøkkelen
-  //    slettes), så neste kjøring møter en fersk bruker.
-  const tom = await s4.evaluate(() => {
-    const el = [...document.querySelectorAll('p')].find((n) => /God tur/i.test(n.textContent))
-    return {
-      tekst: document.body.innerText,
-      markerbar: el ? getComputedStyle(el).userSelect !== 'none' : false,
-    }
+  await sM.evaluate(() => {
+    navigator.geolocation.getCurrentPosition = (_ok, feil) => feil({ code: 1, message: 'denied' })
   })
-  sjekk('Fritt lende: tom-tilstanden ber om nøyaktig posisjon og ønsker god tur',
-    /nøyaktig posisjon/i.test(tom.tekst) && /God tur/i.test(tom.tekst),
-    'nevner nøyaktig posisjon og god tur')
-  sjekk('Fritt lende: tom-tilstandens tekst kan markeres', tom.markerbar,
-    tom.markerbar ? 'user-select arves ikke fra roten' : 'select-none arves ned i teksten')
-  sjekk('Fritt lende: førstegangs-boblen peker på knappen',
-    /GPS på\?/.test(tom.tekst), 'boblen vises før første trykk')
-
-  // AUTOSTARTEN (v6.5.34) og porten under den. Uten tillatelse skal skjermen
-  // stå stille — den ovenfor beviser halvparten; her måles at oppslaget i seg
-  // selv ikke reiser nettleserens dialog og ikke setter i gang noe.
-  sjekk('Fritt lende: uten tillatelse starter ingenting av seg selv',
-    !/Finner posisjonen|Bygger kart/i.test(tom.tekst),
-    'ingen fremdriftschip på en tom skjerm')
-
-  // 200 % TEKST MÅ KUNNE RULLES (v6.5.34). Roten er `overflow-hidden`, så en
-  // blokk som er høyere enn skjermen ble klippet i BEGGE ender — og med
-  // `place-items-center` var toppen dessuten unåbar. Sjekken måler det som
-  // faktisk brakk: at overskriften står innenfor viewporten etter at flata er
-  // rullet til topps, og at siste linje nås ved å rulle til bunns.
-  // Viewporten settes LAV med vilje: med den trimmede teksten (v6.5.34) er
-  // blokka kort nok til å få plass selv på 200 % på en vanlig telefonhøyde, og
-  // en sjekk som bare måler «den fikk plass» måler ingenting. 380 px tvinger
-  // fram overflyten sjekken finnes for.
-  await s4.setViewportSize({ width: 430, height: 380 })
-  await s4.evaluate(() => localStorage.setItem('lende-ui-text-scale', '2'))
-  await s4.reload({ waitUntil: 'domcontentloaded' })
-  await sov(700)
-  const rull = await s4.evaluate(async () => {
-    const boks = [...document.querySelectorAll('div')]
-      .find((n) => n.scrollHeight > n.clientHeight + 4 && /God tur/i.test(n.innerText))
-    if (!boks) return { fant: false }
-    const synlig = (re) => {
-      // `h1, p`: overskrifta er en h1 (v6.5.34) og resten avsnitt.
-      const el = [...boks.querySelectorAll('h1, p')].find((n) => re.test(n.textContent))
-      if (!el) return false
-      const r = el.getBoundingClientRect()
-      return r.top >= -1 && r.bottom <= innerHeight + 1
-    }
-    boks.scrollTop = 0
-    await new Promise((r) => requestAnimationFrame(r))
-    const topp = synlig(/^\s*Fritt lende\s*$/)
-    boks.scrollTop = boks.scrollHeight
-    await new Promise((r) => requestAnimationFrame(r))
-    const bunn = synlig(/God tur/)
-    return { fant: true, topp, bunn }
-  })
-  sjekk('Fritt lende: tom-tilstanden ruller ved 200 % tekst',
-    rull.fant && rull.topp && rull.bunn,
-    rull.fant ? `topp ${rull.topp}, bunn ${rull.bunn}` : 'fant ingen rullbar tekstblokk')
-
-  // HOVEDKNAPPEN FØLGER TEKSTSTØRRELSEN (v7.8.2). Den var modusens eneste flate
-  // som IKKE gjorde det: linjalen, boblen, meldingen og angre-toasten bar alle
-  // viewets `zoom`, så ved 200 % vokste alt rundt knappen mens den selv sto
-  // igjen som den minste tingen på skjermen. Måles i EKTE skjermpiksler
-  // (`getBoundingClientRect`), som er det eneste `zoom` er til å lese av på —
-  // `offsetWidth` er i elementets eget, uskalerte rom.
-  //
-  // Margen måles med: `bottom-4 right-4` er Tailwind-avstander som skaleres
-  // SAMMEN med knappen, i motsetning til hamburgerens målte fixed-koordinat som
-  // må deles på skalaen. Blir margen stående på 16 px mens knappen dobler seg,
-  // er det den fella som har smelt igjen.
-  await s4.setViewportSize({ width: 430, height: 900 })
-  const fabMaal = async () => s4.evaluate(() => {
-    const b = document.querySelector('button[data-hovedknapp]')
-    if (!b) return null
-    const r = b.getBoundingClientRect()
-    return { bredde: Math.round(r.width), marg: Math.round(innerWidth - r.right) }
-  })
-  await s4.evaluate(() => localStorage.removeItem('lende-ui-text-scale'))
-  await s4.reload({ waitUntil: 'domcontentloaded' })
-  await sov(600)
-  const fab100 = await fabMaal()
-  await s4.evaluate(() => localStorage.setItem('lende-ui-text-scale', '2'))
-  await s4.reload({ waitUntil: 'domcontentloaded' })
-  await sov(600)
-  const fab200 = await fabMaal()
-  sjekk('Fritt lende: hovedknappen dobler seg ved 200 % tekst, margen med',
-    fab100 && fab200
-      && Math.abs(fab100.bredde - 48) <= 2 && Math.abs(fab200.bredde - 96) <= 3
-      && Math.abs(fab200.marg - fab100.marg * 2) <= 3,
-    fab100 && fab200
-      ? `${fab100.bredde} px / ${fab100.marg} px marg → ${fab200.bredde} px / ${fab200.marg} px`
-      : 'fant ikke hovedknappen')
-
-  // … og den skal ikke være STØRRE enn resten av UI-et i noe trinn (v7.8.3).
-  // Det var feilen eieren meldte: 56 px mot hamburgerens 40 er åtte piksler
-  // stille, men `zoom` gjør differansen til en faktor, og ved 200 % sto den på
-  // 112 mot 80. Måles mot hamburgeren fordi den er den andre faste kontrollen
-  // på samme skjerm — et tall her ville bare gjentatt sizeClass.
-  const hamburger200 = await s4.evaluate(() => {
-    // Knappen er `<Teleport to="body">`-et ut av `[data-hovedmeny-plass]`, så
-    // en selektor via plassholderen treffer ingenting.
-    const b = document.querySelector('[data-hovedmeny-knapp]')
-    return b ? Math.round(b.getBoundingClientRect().width) : null
-  })
-  sjekk('Fritt lende: hovedknappen er ikke større enn hamburgeren ved 200 %',
-    !!(fab200 && hamburger200) && fab200.bredde <= hamburger200 * 1.25,
-    fab200 && hamburger200 ? `knapp ${fab200.bredde} px mot meny ${hamburger200} px` : 'fant ikke begge')
-
-  await s4.evaluate(() => localStorage.removeItem('lende-ui-text-scale'))
-  await s4.setViewportSize({ width: 430, height: 900 })
-  await s4.reload({ waitUntil: 'domcontentloaded' })
-  await sov(600)
-
-  await s4.locator('button[data-hovedknapp]').first().click()
+  await sM.locator('.am-row-main').nth(2).click()
   await sov(400)
-  const etterTrykk = await s4.evaluate(() => ({
-    boble: /GPS på\?/.test(document.body.innerText),
-    sett: localStorage.getItem('lende-fritt-tips-sett'),
-  }))
-  sjekk('Fritt lende: boblen kvitteres ut av første trykk',
-    !etterTrykk.boble && etterTrykk.sett === '1',
-    etterTrykk.boble ? 'boblen står igjen' : 'skjult og husket')
-  // Nøytral tilstand: neste kjøring — og neste sjekk i denne — skal møte en
-  // bruker som ikke har trykket ennå.
-  await s4.evaluate(() => localStorage.removeItem('lende-fritt-tips-sett'))
-
-  // Snarveien til Fritt lende i den tomme «Mine kart»-lista, TATT HERFRA med
-  // vilje: står du allerede i modusen, er navigasjonen en no-op, og fram til
-  // v6.5.33 lot snarveien rute-watchen i AppMenu om lukkingen — en watch på
-  // `route.fullPath` som da aldri fyrer. Panelet ble stående oppå arket.
-  await s4.locator('button[aria-label="Åpne meny"]').click()
-  await sov(400)
-  await s4.locator('.am-row-main').first().click()          // «Mine kart»
-  await sov(600)
-  const modalKom = await s4.locator('[role="dialog"]').count()
-  // Treffes på MODUSNAVNET og ikke på en oppfordring: teksten er smak og ble
-  // skrevet om i v6.5.37, navnet er kontrakten.
-  await s4.locator('[role="dialog"] button:has-text("Fritt lende")').click()
-  await sov(900)
-  const etterSnarvei = {
-    modal: await s4.locator('[role="dialog"]').count(),
-    meny: await s4.locator('.am-row-main').count(),
-    url: new URL(s4.url()).pathname,
-  }
-  sjekk('Fritt lende: snarveien lukker «Mine kart» når du alt står i modusen',
-    modalKom === 1 && etterSnarvei.modal === 0 && etterSnarvei.meny === 0
-      && etterSnarvei.url === '/lende/fritt',
-    modalKom !== 1 ? 'fikk ikke opp panelet i det hele tatt'
-      : `panel ${etterSnarvei.modal}, meny ${etterSnarvei.meny}, ${etterSnarvei.url}`)
-
-  // AUTOSTARTEN, den andre halvdelen: har brukeren ALT gitt posisjonstillatelse
-  // og finnes det ikke noe ark, skal modusen hente kartet uten et trykk
-  // (v6.5.34). Egen kontekst, fordi tillatelsen gis per kontekst — og den kan
-  // ikke gis i `ctx`, som resten av kjøringen bruker til å måle at ingenting
-  // starter av seg selv.
-  //
-  // Sjekken måler at modusen SETTER I GANG, ikke at kartet blir ferdig: chipen
-  // står i det GPS-en starter, altså før første nettkall. Vi avbryter straks —
-  // en røyktest for RUTING skal ikke bygge et ekte ark fra Overpass, og et bygg
-  // som får løpe ville tatt titalls sekunder på en kilde som kan ha en dårlig
-  // dag.
-  const ctxGps = await browser.newContext({
-    viewport: { width: 430, height: 900 },
-    permissions: ['geolocation'],
-    geolocation: { latitude: 59.8425, longitude: 10.4076 },   // Vardåsen
-  })
-  const sGps = await ctxGps.newPage()
-  sGps.on('pageerror', (e) => jsFeil.push(e.message))
-  await sGps.goto(`${BASE}/fritt`, { waitUntil: 'domcontentloaded' })
-  let startetSelv = false
-  for (let i = 0; i < 20 && !startetSelv; i++) {
-    await sov(200)
-    startetSelv = await sGps.evaluate(() => /Finner posisjonen|Bygger kart/i.test(document.body.innerText))
-  }
-  sjekk('Fritt lende: gitt tillatelse henter modusen kartet uten et trykk',
-    startetSelv, startetSelv ? 'fremdriftschipen kom av seg selv' : 'skjermen ble stående tom')
-  // Boblen peker på et trykk som allerede er gjort for brukeren.
-  const bobleEtterAutostart = await sGps.evaluate(() => /GPS på\?/.test(document.body.innerText))
-  sjekk('Fritt lende: autostarten kvitterer ut førstegangs-boblen',
-    !bobleEtterAutostart, bobleEtterAutostart ? 'boblen står igjen' : 'skjult')
-  await sGps.locator('button:has-text("Avbryt")').first().click().catch(() => {})
-  await ctxGps.close()
-
-  // Modusens VIKTIGSTE invariant: arket kommer opp fra IndexedDB uten et
-  // eneste eksternt kall. Telefonen kan ha drept appen mens du sto på fjellet
-  // uten dekning, og da skal kartet være der når du åpner den igjen.
-  //
-  // Seedingen skjer fra /tegnforklaring og IKKE fra «/», og det er ikke smak:
-  // sjekken over satte `lende-last-mode` til 'rute', og konteksten deles — en
-  // fersk last av «/» ville derfor blitt boot-gjenopptatt til /rute, der
-  // GravelPlannerView henter OSM-fliser. De flisene er fortsatt i lufta når
-  // rute-avskjæringen under settes opp, og lander som «eksterne kall» i en
-  // sjekk som handler om noe helt annet. Nøyaktig den forurensningen fila
-  // allerede advarer mot lenger oppe, bare et hakk senere i sløyfa: den ga
-  // rødt i CI på tre OSM-fliser mens testen var grønn lokalt.
-  // /tegnforklaring har verken boot-hook eller fliser, og IndexedDB er per
-  // opphav — så seedingen virker like godt derfra.
-  const s5 = await ctx.newPage()
-  s5.on('pageerror', (e) => jsFeil.push(e.message))
-  await s5.goto(`${BASE}/tegnforklaring`, { waitUntil: 'domcontentloaded' })
-  await s5.evaluate(() => localStorage.removeItem('lende-last-mode'))
-  await s5.evaluate(async () => {
-    const SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 2000" class="isom-map">`
-      + `<g data-layer="kontur"><path d="M0 0 L100 100" data-iso="101"/></g>`
-      + `<g data-layer="sti"><path d="M0 0 L50 50" data-iso="505"/></g>`
-      + `<g data-layer="bygning"><rect width="8" height="8"/></g>`
-      + `<g data-layer="skog"><rect width="20" height="20"/></g>`
-      + `<g data-layer="bymasse"><rect width="10" height="10"/></g>`
-      + `<g data-layer="parkering"><rect width="5" height="5"/></g>`
-      + `<g data-layer="holdeplass"><rect width="5" height="5"/></g>`
-      + `<g data-layer="kulturminne"><circle r="3"/></g></svg>`
-    const entry = {
-      id: 'fritt', navn: 'Fritt lende', equidistanceM: 10,
-      utmBbox: { minE: 250000, maxE: 252000, minN: 6630000, maxN: 6632000 },
-      opprettet: Date.now(), svg: SVG, annotations: [], dem: null,
-    }
-    const db = await new Promise((ok, nei) => {
-      const r = indexedDB.open('lende-maps'); r.onsuccess = () => ok(r.result); r.onerror = () => nei(r.error)
-    })
-    await new Promise((ok, nei) => {
-      const t = db.transaction(['maps', 'meta'], 'readwrite')
-      t.objectStore('maps').put(entry)
-      const { svg, dem, annotations, ...rest } = entry
-      t.objectStore('meta').put({ ...rest, hasDem: false, sizeBytes: svg.length })
-      t.oncomplete = ok; t.onerror = () => nei(t.error)
-    })
-  })
-  // Samler URL-ene og ikke bare antallet: «1 eksterne kall forsøkt» er en
-  // opplysning man ikke kan gjøre noe med, og feilen dukket opp i CI mens den
-  // var grønn lokalt. En sjekk som ikke sier HVA som gikk galt koster en runde
-  // gjetting hver gang den slår ut.
-  const eksterneUrler = []
-  await s5.route('**', (r) => {
-    const url = r.request().url()
-    if (url.startsWith(BASE.replace('/lende', ''))) return r.continue()
-    eksterneUrler.push(`${r.request().resourceType()} ${url}`)
-    return r.abort()
-  })
-  await s5.goto(`${BASE}/fritt`, { waitUntil: 'domcontentloaded' })
-  let arket = null
-  try {
-    await s5.waitForSelector('svg.isom-map', { timeout: 15_000 })
-    await sov(500)
-    arket = await s5.evaluate(() => {
-      const svg = document.querySelector('svg.isom-map')
-      const lag = [...svg.querySelectorAll('[data-layer]')]
-      const vis = (k) => lag.find((g) => g.getAttribute('data-layer') === k)?.style.display
-      return {
-        // Navn-LOD kjøres ikke her, så klassen MÅ være av — ellers er hvert
-        // stedsnavn usynlig for alltid, og navn er halve poenget med kartet.
-        lodPending: svg.classList.contains('lod-pending'),
-        // Relieff er av ved KONSTRUKSJON: useReliefRender kalles aldri.
-        hillshade: !!svg.querySelector('#hillshade-layer'),
-        // Uten dette laget tegner GPS-prikken seg stille bort.
-        userLayer: !!svg.querySelector('#user-layer'),
-        strokeScale: svg.style.getPropertyValue('--stroke-scale'),
-        skjulte: ['bymasse', 'parkering', 'holdeplass', 'kulturminne'].filter((k) => vis(k) === 'none').length,
-        synlige: ['kontur', 'sti', 'bygning', 'skog'].filter((k) => vis(k) !== 'none').length,
-        // Ekvidistansen er BYTTET UT med avstand fra senter (v6.5.27), og
-        // avstanden vises først når GPS er på — så her skal ingen av dem stå.
-        ekvidistanse: /Ekvidistanse/.test(document.body.innerText),
-        avstand: /fra senter/.test(document.body.innerText),
-        // Negativ UI-telling som et KRAV OM ANTALL, ikke «finnes ikke X» — da
-        // fanger den også en femte knapp noen legger til i god tro.
-        knapper: document.querySelectorAll('button').length,
-        maalestokk: !!document.querySelector('svg line'),
-      }
-    })
-  } catch { /* arket = null */ }
-
-  sjekk('Fritt lende: lagret ark lastes UTEN nettverk',
-    !!arket && eksterneUrler.length === 0,
-    arket
-      ? (eksterneUrler.length ? eksterneUrler.slice(0, 3).join(' | ') : 'ingen eksterne kall')
-      : 'arket kom aldri opp')
-  sjekk('Fritt lende: navn er synlige (lod-pending fjernet)', arket?.lodPending === false)
-  sjekk('Fritt lende: relieff er av', arket?.hillshade === false)
-  sjekk('Fritt lende: #user-layer finnes', arket?.userLayer === true)
-  // Tallet er flyttall (0.6 × 0.933…), så det sammenliknes numerisk — en
-  // streng-sjekk her ville feilet på 0.5599999999999999.
-  const strek = Number.parseFloat(arket?.strokeScale ?? 'NaN')
-  sjekk('Fritt lende: strek er låst til default-hakket', Math.abs(strek - 0.56) < 1e-6,
-    arket?.strokeScale)
-  sjekk('Fritt lende: de fire lagene er skjult', arket?.skjulte === 4, `${arket?.skjulte ?? 0}/4`)
-  sjekk('Fritt lende: terreng og stier er synlige', arket?.synlige === 4, `${arket?.synlige ?? 0}/4`)
-  sjekk('Fritt lende: ekvidistansen er borte fra linjalen', arket?.ekvidistanse === false)
-  sjekk('Fritt lende: avstanden vises ikke før GPS er på', arket?.avstand === false)
-  // To fra v6.5.68: hovedmenyen og hovedknappen. Zoom-knappene kom inn i
-  // v6.5.49 som enkeltpeker-alternativ til pinch (WCAG 2.5.1), og er tatt ut
-  // igjen etter en bevisst avveining fra eieren: pilla var støy over kartet i
-  // hovedsløyfa, og zoom med to fingre er så innarbeidet at den ikke ble brukt.
-  // PRISEN ER REELL og skal ikke bortforklares: i Fritt lende finnes det nå
-  // ingen enkeltpeker-vei til å zoome UT. Tallet står som et KRAV OM ANTALL og
-  // ikke som «finnes ikke X», så det fanger også en tredje knapp noen legger
-  // til i god tro.
-  sjekk('Fritt lende: nøyaktig to knapper på skjermen', arket?.knapper === 2,
-    `${arket?.knapper ?? 0} knapper`)
-  sjekk('Fritt lende: målestokken vises', arket?.maalestokk === true)
-
-  // Åpningsvisningen (v6.5.2). Arket er kvadratisk og telefonen høy, så
-  // «se hele arket» fylte bare bredden og la kartet bunn-nært med et tomt felt
-  // over. Kartet skal DEKKE viewporten, og det man sentrerer på skal ligge i
-  // midten — letterboxingen inni SVG-en er lett å glemme igjen.
-  const visning = await s5.evaluate(() => {
-    const svg = document.querySelector('svg.isom-map')
-    const vb = svg.viewBox.baseVal
-    const pt = (x, y) => {
-      const p = svg.createSVGPoint(); p.x = x; p.y = y
-      return p.matrixTransform(svg.getScreenCTM())
-    }
-    const a = pt(0, 0), b = pt(vb.width, vb.height), midt = pt(vb.width / 2, vb.height / 2)
+  const varsel = await sM.evaluate(() => {
+    const el = document.querySelector('[role="alert"]')
+    if (!el) return null
+    const rader = [...document.querySelectorAll('.am-row')]
+    const sisteRad = rader[rader.length - 1].getBoundingClientRect()
     return {
-      bredde: b.x - a.x, hoyde: b.y - a.y,
-      vpB: window.innerWidth, vpH: window.innerHeight,
-      midtAvvikX: Math.abs(midt.x - window.innerWidth / 2),
-      midtAvvikY: Math.abs(midt.y - window.innerHeight / 2),
+      tekst: el.innerText.trim(),
+      underRaden: el.getBoundingClientRect().top >= sisteRad.top,
+      harX: !!el.querySelector('button'),
     }
   })
-  sjekk('Fritt lende: kartet dekker hele viewporten',
-    !!visning && visning.bredde >= visning.vpB && visning.hoyde >= visning.vpH,
-    visning ? `kart ${Math.round(visning.bredde)}×${Math.round(visning.hoyde)} mot skjerm ${visning.vpB}×${visning.vpH}` : '')
-  // Fremdrifts-chipen MÅ forsvinne når fixen lander (v6.5.3). Fram til da ble
-  // flagget bare nullstilt av bygge-stien, så et trykk som bare startet GPS lot
-  // «Finner posisjonen din …» stå for alltid — med posisjonen tydelig markert i
-  // kartet bak. Sjekken trykker på ekte knapp og venter på ekte posisjon.
-  await ctx.grantPermissions(['geolocation'])
-  // Arkets EGET senter (utm32ToWgs84(251000, 6631000) for den seedede bboxen).
-  // Fram til v6.5.27 sto punktet 315 km unna: prikken ble tegnet, så sjekken
-  // over var grønn, men avstandsporten ville lest det som «langt utenfor arket»
-  // og bygget et nytt kart mot en avskåret rute. Senteret er dessuten det
-  // ærligste stedet å måle sentreringen fra.
-  await ctx.setGeolocation({ latitude: 59.741969744969, longitude: 4.568121301687335 })
-  await s5.locator('button[data-hovedknapp]').first().click()
-  await sov(2500)
-  const etterFix = await s5.evaluate(() => ({
-    chipStårIgjen: [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Avbryt'),
-    prikk: !!document.querySelector('#user-layer circle'),
-    // Avstandsteller (v6.5.27): linjalen skal bære «N m fra senter» så snart en
-    // posisjon er kjent. Den er modusens ene tall og porten knappen står bak.
-    avstand: (document.body.innerText.match(/[\d,.]+ (?:m|km) fra senter/) ?? [''])[0],
-  }))
-  sjekk('Fritt lende: fremdrifts-chipen forsvinner når fixen kommer',
-    etterFix.prikk && !etterFix.chipStårIgjen,
-    etterFix.prikk ? (etterFix.chipStårIgjen ? 'chipen står igjen' : 'borte') : 'fikk ingen posisjon')
-  sjekk('Fritt lende: avstandstelleren står på linjalen når posisjonen er kjent',
-    /fra senter/.test(etterFix.avstand), etterFix.avstand || 'ingen avstandslinje')
+  sjekk('avvist GPS gir et varsel rett under raden, med en X',
+    varsel?.tekst === 'GPS-tillatelse avvist' && varsel.underRaden && varsel.harX,
+    varsel ? `«${varsel.tekst}», under=${varsel.underRaden}, X=${varsel.harX}` : 'ingen boks')
 
-  // AVSTANDSPORTEN (v6.5.27). Posisjonen over ligger på arkets senter, altså
-  // godt under grensa — et trykk skal da IKKE bygge, men si når det blir mulig.
-  // Sjekken trykker på ekte knapp; ruta er avskåret, så en bygging her ville
-  // dessuten blitt en feilmelding og ikke et nytt ark.
-  //
-  // Meldingen matches uten hensyn til STORE og små bokstaver og uten tallet i
-  // seg: grensa er flyttet én gang (500 → 250 i v6.5.29), og setningen ble
-  // samtidig skrevet om slik at «nytt utsnitt først» havnet midt i den. En
-  // sjekk med versalen eller tallet bakt inn blir rød av en tekstendring og
-  // grønn av feil grunn når grensa flyttes.
-  await s5.locator('button[data-hovedknapp]').first().click()
-  await sov(600)
-  const porten = await s5.evaluate(() => ({
-    melding: /nytt utsnitt først/i.test(document.body.innerText),
-    // Avstanden må navngi hva den måles FRA (v6.5.29) — «du er 10 m unna»
-    // leses som «10 m fra å kunne bygge», altså stikk motsatt av tallet.
-    fraSenter: /fra midten av kartet/i.test(document.body.innerText),
-    // Etiketten er avledet av samme tilstand som handlingen og skal ikke love
-    // et nytt kart under porten.
-    etikett: document.querySelector('button[data-hovedknapp]')?.getAttribute('aria-label') ?? '',
-    bygger: [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Avbryt'),
-  }))
-  sjekk('Fritt lende: porten stopper nytt ark på senteret og sier hvorfor',
-    porten.melding && porten.fraSenter && !porten.bygger,
-    porten.bygger ? 'bygde likevel' : (porten.melding ? (porten.fraSenter ? 'melding vist' : 'meldingen sier ikke hva avstanden måles fra') : 'ingen melding'))
-  sjekk('Fritt lende: knappen lover ikke nytt kart under porten',
-    !/lag .*kart/i.test(porten.etikett), porten.etikett)
+  await sM.locator('[role="alert"] button').click().catch(() => {})
+  await sov(300)
+  const borte = await sM.evaluate(() => !document.querySelector('[role="alert"]'))
+  sjekk('X-en skjuler varselet', borte, borte ? 'borte' : 'står igjen')
+  await sM.close()
 
-  sjekk('Fritt lende: sentreringen treffer viewportens midte',
-    !!visning && visning.midtAvvikX < 2 && visning.midtAvvikY < 2,
-    visning ? `avvik ${Math.round(visning.midtAvvikX)}, ${Math.round(visning.midtAvvikY)} px` : '')
-
-  // /om har tre faner fra v6.5.1. Fritt lende-fanen er den eneste dokumentasjonen
-  // av modusen som finnes, og en fane er lett å miste i en refaktorering av
-  // v-if/v-else-kjeden. Sjekken er nettverksfri.
+  // /om har TO faner fra v7.8.14 (Fritt lende-fana falt med modusen). En fane
+  // er lett å miste i en refaktorering av v-if/v-else-kjeden, og den som blir
+  // stående må fortsatt kunne velges — en `v-else` som aldri nås ser helt
+  // normal ut i koden. Sjekken er nettverksfri.
   const s6 = await ctx.newPage()
   s6.on('pageerror', (e) => jsFeil.push(e.message))
   await s6.goto(`${BASE}/om`, { waitUntil: 'domcontentloaded' })
@@ -531,18 +192,15 @@ try {
   const faner = await s6.evaluate(() => [...document.querySelectorAll('button')]
     .map((b) => b.textContent.trim())
     .filter((t) => ['Turkart', 'Fritt lende', 'Ruteplanlegger'].includes(t)))
-  sjekk('/om har alle tre fanene', faner.length === 3, faner.join(', ') || 'fant ingen')
+  sjekk('/om har begge fanene, og ingen Fritt lende-fane',
+    faner.length === 2 && !faner.includes('Fritt lende'),
+    faner.join(', ') || 'fant ingen')
 
-  await s6.locator('button', { hasText: 'Fritt lende' }).first().click()
+  await s6.locator('button', { hasText: 'Ruteplanlegger' }).first().click()
   await sov(300)
-  const frittTekst = await s6.evaluate(() => document.body.innerText)
-  sjekk('/om: Fritt lende-fanen forklarer modusen',
-    // Ankeret er hva fanen SIER om modusen, ikke hvilken versjon den kom i.
-    // Versjonsnummeret sto her og ble fjernet fra teksten i v6.5.31: en fane
-    // som forklarer modusen er poenget, og et årstall i en assertion gjør
-    // sjekken rød av en helt vanlig redigering.
-    /supplement/i.test(frittTekst) && /2 × 2 km/.test(frittTekst),
-    'nevner supplement og arkstørrelsen')
+  const ruteTekst = await s6.evaluate(() => document.body.innerText)
+  sjekk('/om: Ruteplanlegger-fanen kan velges og forklarer seg',
+    /grus/i.test(ruteTekst), 'fanen byttet innhold')
 
   // TEGNFORKLARINGEN MÅ TÅLE 200 % TEKST (v6.5.43). Raden var en fast
   // 120 px-prøve med `shrink-0` og en tekstspalte som fikk resten: ved 200 % på

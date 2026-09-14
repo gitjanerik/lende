@@ -1,3 +1,74 @@
+## 2026-09-14 — v7.8.15: Mindre ark, færre fliser, og piler som ikke lover for mye
+
+Maksbredden for et kart er ned fra 20 til 16 km. At store ark BÆRER var sant og
+er det fortsatt, men det er ikke det samme som at de er verdt å vente på: et
+20 km-ark er 400 km², altså 56 % mer Overpass-respons og DEM enn 16 km, på den
+ene stien der man står og ser på en tom skjerm. En lagret preferanse over taket
+faller til standarden av seg selv.
+
+Flis-taket for mosaikken er ned fra 25 til 9 — et 3 × 3-ark, som er den største
+mosaikken en dagstur trenger. Med 25 kunne man bygge seg til et 5 × 5 der de
+ytterste flisene lå så langt unna at de ble kappet igjen ved neste promotering,
+altså arbeid man ventet på og så mistet.
+
+Og fordi ni er et tak man faktisk når, skjules nå de åtte lende-pilene når arket
+er fullt. Pilene er hele kontrakten for hvordan arket vokser — de sier HVOR, og
+de sier HVA DET KOSTER («+N fliser» i pilla) — og på et fullt ark kan de ikke
+holde noen av delene: trykket avvises av porten, og alt man får er en toast. En
+knapp som lover noe og så nekter er verre enn ingen knapp, og verst nettopp her,
+der pilene dokker langs skjermkanten og leses som eneste vei videre. Pilene og
+porten spør samme funksjon (`plassIArket`), så de kan ikke bli uenige om hva
+«fullt» betyr. «Fyll hullene» og «Gjør arket firkantet» står som før: et hull
+inne i arket kan tettes så lenge det finnes plass.
+
+«Maks kartfliser» er ute av Format-fana. Tallet har vært fast siden v7.0.0 og sto
+der som ren opplysning, med en undertekst om at de fjerneste flisene kappes —
+en oppførsel man ikke møter lenger. Det står fortsatt i Utvikler-fana, der det er
+diagnostikk. To toast-tekster som ba brukeren «øke «Maks kartfliser» i
+Innstillinger» sier nå hva grensa er i stedet for å peke på en knott som ikke
+finnes.
+
+---
+
+## 2026-09-14 — v7.8.14: Fritt lende slettet, «Nytt turkart» i stedet
+
+Fritt lende er borte — viewen, knappen, `lib/frittLende.js`, ruta, fana i «Om
+appen» og røyk-sjekkene. Modusen lovte ett kart der du står uten et skjema
+først, og prisen var et ark som ikke hadde navn, ikke kunne deles og forsvant
+med det neste. Plassen i hovedmenyen er gitt til det løftet uten den prisen:
+raden «Nytt turkart» med en grønn pluss, en kart-nål og en undertekst som sier
+hva du får før du trykker — «8 × 8 km · fra din posisjon», med DIN lagrede
+bredde hvis du har dratt slideren. Ett trykk henter posisjonen og bygger et
+helt vanlig turkart, som havner i «Mine kart» og kan deles. `/fritt` er en
+redirect til forsiden, og de to gamle arkene (1–5 MB hver) slettes fra
+IndexedDB én gang ved oppstart.
+
+Nekter nettleseren oss posisjonen, står det nå en gul boks rett under knappen:
+«GPS-tillatelse avvist», med en X. Den samme boksen i «Mine kart» bar tidligere
+hele rådet om låsikonet i adressefeltet — tre linjer nettleser-instruksjon over
+kart-lista, uten noen vei ut. Etiketten alene holder der; rådet blir stående i
+utsnitts-velgeren, som har plassen.
+
+Standardbredden for nye kart er tilbake på 8 km fra 10. Et 10 × 10 km-ark er
+56 % mer areal, altså mer Overpass og flere DEM-celler på nøyaktig det steget
+der man ennå ikke har noe å se på. Auto-ekvidistansen følger med ned til 20 m,
+som er FINERE høydekurver enn 25 — 8 km-arket taper bare kantene. Den som vil ha
+N50-arket drar slideren til 10.
+
+Vanntemperaturen fra NVE kunne vise gårsdagen. Målingen ble cachet i 24 timer,
+så en verdi hentet kl. 23 sto som «siste måling» hele neste dag mens
+sildre.nve.no forlengst hadde nyere tall. Taket er nå én time, som er HydAPIs
+egen oppdateringstakt. Offline-bruken er ikke ofret: svarer ikke nettet, leses
+den gamle raden uansett alder — og målingen har alltid stått med sitt eget
+måletidspunkt.
+
+Søke-overlayet i kartet ble klippet nederst ved 150 % tekst og større. Taket var
+et fast tall mens boksen henger i en slot som vokser med tekststørrelsen, så
+marginen krympet for hvert hakk og ble negativ ved 200 %. Høyden regnes nå fra
+samme slot, og siste trefferad er innenfor skjermen på alle innstillinger.
+
+---
+
 ## 2026-09-14 — v7.8.13: Hjelpen flyttet til kartet den forklarer
 
 Sletter man kartet man står i — fra «Mine kart» i hovedmenyen — ble det ikke
