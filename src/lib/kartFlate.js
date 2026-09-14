@@ -26,10 +26,41 @@
  * Ren modul: ingen DOM, ingen Vue, ingen farge-logikk utenfor tabellen.
  */
 
-/** Skiva — flata som legger seg på arket. Alfaen er bakt inn. */
+/**
+ * Skiva — flata som legger seg på arket. Alfaen er bakt inn.
+ *
+ * DEN MØRKE VALØREN ER DYPERE FRA v7.8.20, og det er en bestilling: zink-700
+ * (`#3f3f46`) er en MIDTGRÅ, og en midtgrå flate med off-white blekk på leses
+ * som en avslått kontroll — eieren meldte at «alt ser disabled ut». Grått er
+ * fargen appen bruker på det som ikke virker. Flata er nå zink-900-nær og
+ * blekket nær hvitt: samme materiale, men som MØRKT GLASS framfor grå plast,
+ * og kontrasten mellom flate og innhold er større, ikke mindre.
+ */
 export const KART_SKIVE = {
   lys:  'rgba(255,255,255,0.82)',
-  mork: 'rgba(63,63,70,0.82)',
+  mork: 'rgba(26,26,30,0.82)',
+}
+
+/**
+ * Samme materiale, LETTERE — til de STORE flatene.
+ *
+ * Hvorfor to vekter av én farge: alfa oppleves etter AREAL. 0,82 på en 48 px
+ * kompassnål er en skive man knapt merker; den samme alfaen over snarvei-raden
+ * er turkartets største overlegg, midt i toppen av arket der man leser, og da
+ * er den tung. Eieren ba om «et par knepp» mer gjennomsiktighet på raden, og
+ * det er nettopp den forskjellen: nåla skal fortsatt kunne leses som en egen
+ * ting i hjørnet, raden skal la kartet komme igjennom.
+ *
+ * PRISEN ER MÅLT OG BEVISST. Jo lettere flata er, jo mer av kontrasten under
+ * teksten kommer fra ARKET og ikke fra skiva — og arket kan ha en høydekurve
+ * eller en sjø der som helst. `kartFlate.test.js` måler mot hver kart-BUNN
+ * katalogen har, altså den dominerende flata, men den kan ikke måle en strek
+ * som tilfeldigvis ligger under en etikett. Går man lettere enn dette, er det
+ * lesbarheten som betaler.
+ */
+export const KART_SKIVE_LETT = {
+  lys:  'rgba(255,255,255,0.55)',
+  mork: 'rgba(26,26,30,0.55)',
 }
 
 /**
@@ -42,7 +73,7 @@ export const KART_SKIVE = {
  */
 export const KART_SKIVE_OPAK = {
   lys:  '#ffffff',
-  mork: '#3f3f46',
+  mork: '#1a1a1e',
 }
 
 /**
@@ -59,7 +90,10 @@ export const KART_SKIVE_OPAK = {
  */
 export const KART_BLEKK = {
   lys:  { ink: '#1c1917', ink2: '#443f3b', ink3: '#5c554f' },
-  mork: { ink: '#e4e4e7', ink2: '#c2c2c8', ink3: '#a6a6ae' },
+  // NÆR HVITT OG IKKE OFF-WHITE (v7.8.20). `#e4e4e7` på en midtgrå flate var
+  // halvparten av «disabled»-inntrykket: to nabotoner i samme grå familie
+  // leses som nedtonet innhold, uansett hvor mye kontrast tallene sier det er.
+  mork: { ink: '#f4f4f5', ink2: '#d4d4d8', ink3: '#b0b0b8' },
 }
 
 /** Skiva for arkets valør. `mork` er KARTETS tone, ikke UI-temaets. */
@@ -70,6 +104,11 @@ export function kartSkive(mork) {
 /** Skivas ugjennomsiktige kjerne — til tekst som står på blekket. */
 export function kartSkiveOpak(mork) {
   return mork ? KART_SKIVE_OPAK.mork : KART_SKIVE_OPAK.lys
+}
+
+/** Den lette skiva, til store flater. Se `KART_SKIVE_LETT`. */
+export function kartSkiveLett(mork) {
+  return mork ? KART_SKIVE_LETT.mork : KART_SKIVE_LETT.lys
 }
 
 /** Blekk-nivåene for arkets valør. `mork` er KARTETS tone, ikke UI-temaets. */

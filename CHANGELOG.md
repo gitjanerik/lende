@@ -1,3 +1,41 @@
+## 2026-09-14 — v7.8.20: Lettere glass i snarvei-raden, og grået er borte
+
+To ting eieren meldte om ramma fra v7.8.19: den var fortsatt for tung, og den
+var grå på en måte som fikk alt til å se avslått ut. Begge er rettet, og de har
+hver sin årsak.
+
+TYNGDEN ER ET AREAL-SPØRSMÅL. Skiva fra kompassnåla er 0,82, og den alfaen er
+riktig på en 48 px rundskive i et hjørne — man knapt merker den. Den samme
+alfaen over snarvei-raden er turkartets største overlegg, midt i toppen av
+arket der man leser. `KART_SKIVE_LETT` er derfor samme materiale i en annen
+vekt (0,55), og raden bruker den mens nåla beholder sin. De to spriker ikke av
+det: kulør og valør-regel er den samme, og en test krever at de deler kulør og
+at den lette faktisk ER lettere — blir de like, har den ingen jobb og kan
+slettes. Prisen er målt og bevisst: jo lettere flata er, jo mer av kontrasten
+under teksten kommer fra ARKET. Testen måler mot hver kart-bunn katalogen har,
+men den kan ikke måle en høydekurve som tilfeldigvis ligger under en etikett.
+Går man lettere enn dette, er det lesbarheten som betaler.
+
+GRÅET HADDE TO KILDER, og ingen av dem var et kontrast-tall. Den ene var den
+mørke valøren: zink-700 (`#3f3f46`) er en MIDTGRÅ, og med off-white blekk
+(`#e4e4e7`) på er det to nabotoner i samme grå familie — det leses som nedtonet
+innhold uansett hvor mye kontrast tallene sier det er, og grått er nettopp
+fargen appen ellers bruker på det som ikke virker. Flata er nå zink-900-nær og
+blekket nær hvitt: mørkt glass framfor grå plast, og kontrasten mellom flate og
+innhold gikk OPP, ikke ned (8,8:1 → 15,5:1 på blekket). Den andre kilden var
+strekene: en grå kant rundt hver lyse brikke, pluss en 40 % ramme rundt det
+hele. Cellekanten er nå `transparent` i hvile — den MÅ stå i boksmodellen, ellers
+vokser cella 2 px per rad i det sorterings-modus setter farge på den (v7.7.5),
+men den trenger ikke ha en farge — og ramma er nede på 26 %. Ikonene og
+etikettene står i fullt blekk og bærer raden alene.
+
+En ny test holder de to fra hverandre der det faktisk skjedde: blekket i mørk
+valør skal ligge nær hvitt og flata nær svart, ikke midt imellom. Et
+kontrast-tall alene ville ikke fanget dette — `#e4e4e7` på `#3f3f46` besto med
+god margin og så likevel avslått ut.
+
+---
+
 ## 2026-09-14 — v7.8.19: Snarvei-raden er en ramme, og håndtaket er en bule i den
 
 Raden fikk kompassnålas skive i v7.8.18, og da ble det tydelig hva den egentlig

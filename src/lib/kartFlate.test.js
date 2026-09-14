@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { KART_SKIVE, KART_BLEKK, kartSkive, kartBlekk } from './kartFlate.js'
-import { overBunn, kontrast } from './uiKontrast.js'
+import {
+  KART_SKIVE, KART_SKIVE_LETT, KART_BLEKK, kartSkive, kartSkiveLett, kartBlekk,
+} from './kartFlate.js'
+import { overBunn, kontrast, relativLuminans } from './uiKontrast.js'
 import { erMorktTema } from './mapSettingsApply.js'
 import isomCatalog from './isomCatalog.json'
 
@@ -38,14 +40,42 @@ describe('kartFlate', () => {
     expect(kartBlekk(true)).toBe(KART_BLEKK.mork)
   })
 
-  it('holder på kompassnålas verdier fra v6.5.67', () => {
-    // Paret ble flyttet UT av KompassKnapp og inn hit da snarvei-raden skulle
-    // bruke det samme (v7.8.18). Flyttingen skulle ikke endre noe man ser, så
-    // verdiene står her som en fasit — endres de, er det et bevisst valg.
+  it('holder verdiene som fasit — de endres bare med vilje', () => {
+    // Paret ble flyttet UT av KompassKnapp og inn hit i v7.8.18, og den
+    // flyttingen skulle ikke endre noe man ser. Den MØRKE valøren er siden
+    // endret bevisst (v7.8.20): zink-700 med off-white blekk var to nabotoner i
+    // samme grå familie, og det leses som en avslått kontroll uansett hva
+    // kontrasttallene sier. Flata er dypere og blekket nær hvitt.
     expect(KART_SKIVE.lys).toBe('rgba(255,255,255,0.82)')
-    expect(KART_SKIVE.mork).toBe('rgba(63,63,70,0.82)')
+    expect(KART_SKIVE.mork).toBe('rgba(26,26,30,0.82)')
     expect(KART_BLEKK.lys.ink).toBe('#1c1917')
-    expect(KART_BLEKK.mork.ink).toBe('#e4e4e7')
+    expect(KART_BLEKK.mork.ink).toBe('#f4f4f5')
+  })
+
+  it('gir den LETTE skiva mer gjennomsiktighet enn nålas, i begge valører', () => {
+    // Hele grunnen til at det finnes to vekter: alfa oppleves etter AREAL.
+    // Blir de like, er den store flata tung igjen — og da har `kartSkiveLett`
+    // ingen jobb og kan like gjerne slettes.
+    for (const valor of ['lys', 'mork']) {
+      expect(delSkive(KART_SKIVE_LETT[valor]).alfa)
+        .toBeLessThan(delSkive(KART_SKIVE[valor]).alfa)
+      // SAMME KULØR, bare lettere. To ulike toner ville vært to materialer, og
+      // da ville raden og nåla sprike igjen — det v7.8.18 nettopp ryddet.
+      expect(delSkive(KART_SKIVE_LETT[valor]).hex).toBe(delSkive(KART_SKIVE[valor]).hex)
+    }
+    expect(kartSkiveLett(false)).toBe(KART_SKIVE_LETT.lys)
+    expect(kartSkiveLett(true)).toBe(KART_SKIVE_LETT.mork)
+  })
+
+  it('holder blekket UNNA flatas egen tone i mørk valør (v7.8.20)', () => {
+    // «Disabled»-inntrykket er ikke et kontrast-tall, det er en FAMILIE-likhet:
+    // en midtgrå flate med en litt lysere grå tekst leses som nedtonet innhold.
+    // Testen holder de to fra hverandre der det faktisk skjedde — blekket skal
+    // ligge nær hvitt, ikke midt imellom.
+    const flate = relativLuminans(delSkive(KART_SKIVE.mork).hex)
+    const blekk = relativLuminans(KART_BLEKK.mork.ink)
+    expect(blekk).toBeGreaterThan(0.8)
+    expect(flate).toBeLessThan(0.05)
   })
 
   it('lar skiva være GJENNOMSIKTIG — en opak flate er en klistrelapp', () => {
@@ -56,20 +86,25 @@ describe('kartFlate', () => {
     }
   })
 
-  it('gir hvert blekk-nivå minst 4,5:1 mot den VERSTE kart-bunnen', () => {
+  it('gir hvert blekk-nivå minst 4,5:1 mot den VERSTE kart-bunnen — BEGGE vektene', () => {
     // Skiva er halvgjennomsiktig, så kontrasten avhenger av arket under. Målt
     // mot alle bunnene katalogen har — den mørkeste av de lyse (turkart,
     // #dbe8c2) og den lyseste av de mørke (mocha, #39210e) er de som biter.
     const bunner = bunnerPerValor()
     expect(bunner.lys.length).toBeGreaterThan(0)
     expect(bunner.mork.length).toBeGreaterThan(0)
-    for (const valor of ['lys', 'mork']) {
-      const { hex, alfa } = delSkive(KART_SKIVE[valor])
-      for (const bunn of bunner[valor]) {
-        const flate = overBunn(hex, alfa, bunn)
-        for (const [niva, farge] of Object.entries(KART_BLEKK[valor])) {
-          const k = kontrast(farge, flate)
-          expect(k, `${valor}/${niva} på ${flate} (ark ${bunn})`).toBeGreaterThanOrEqual(4.5)
+    // BEGGE vektene måles: den lette slipper mer av arket igjennom, så det er
+    // DEN som først kommer i klem — og den er den store flata folk leser.
+    for (const [vekt, tab] of [['nål', KART_SKIVE], ['lett', KART_SKIVE_LETT]]) {
+      for (const valor of ['lys', 'mork']) {
+        const { hex, alfa } = delSkive(tab[valor])
+        for (const bunn of bunner[valor]) {
+          const flate = overBunn(hex, alfa, bunn)
+          for (const [niva, farge] of Object.entries(KART_BLEKK[valor])) {
+            const k = kontrast(farge, flate)
+            expect(k, `${vekt}/${valor}/${niva} på ${flate} (ark ${bunn})`)
+              .toBeGreaterThanOrEqual(4.5)
+          }
         }
       }
     }
@@ -95,7 +130,7 @@ describe('kartFlate', () => {
       const kilde = readFileSync(new URL(fil, import.meta.url), 'utf8')
       expect(kilde, fil).toContain('kartFlate.js')
       expect(kilde, fil).not.toMatch(/rgba\(\s*255\s*,\s*255\s*,\s*255\s*,\s*0\.82\s*\)/)
-      expect(kilde, fil).not.toMatch(/rgba\(\s*63\s*,\s*63\s*,\s*70\s*,\s*0\.82\s*\)/)
+      expect(kilde, fil).not.toMatch(/rgba\(\s*26\s*,\s*26\s*,\s*30\s*,/)
     }
   })
 })

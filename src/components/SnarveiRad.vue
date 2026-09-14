@@ -210,7 +210,7 @@ import {
   gitterIndeks, gitterForskyvning, flyttSnarvei,
 } from '../lib/snarveier.js'
 import { pickSnapTarget } from '../composables/useDraggableDrawer.js'
-import { kartSkive, kartSkiveOpak, kartBlekk } from '../lib/kartFlate.js'
+import { kartSkiveLett, kartSkiveOpak, kartBlekk } from '../lib/kartFlate.js'
 
 const props = defineProps({
   // [{ id, label, aria }] i brukerens rekkefølge.
@@ -276,7 +276,10 @@ const emit = defineEmits([
 const flateStil = computed(() => {
   const b = kartBlekk(props.mork)
   return {
-    '--color-overlay': kartSkive(props.mork),
+    // DEN LETTE SKIVA, ikke nålas (v7.8.20). Alfa oppleves etter AREAL: 0,82 på
+    // en 48 px nål er en skive man knapt merker, den samme over raden er
+    // turkartets største overlegg. Se `KART_SKIVE_LETT`.
+    '--color-overlay': kartSkiveLett(props.mork),
     // Til tekst som står PÅ blekket («Ferdig»), altså motsatt vei: en
     // halvgjennomsiktig tekstfarge slipper flata under gjennom bokstavene.
     '--kart-skive-opak': kartSkiveOpak(props.mork),
@@ -1107,7 +1110,10 @@ function celleTransform(i) {
    en footer i full bredde, og en bule uten en knapp i ville vært en utbuling
    rundt ingenting. */
 .snarvei-pille {
-  --ramme: color-mix(in oklab, var(--color-ink) 40%, transparent);
+  /* RAMMA ER SVAKERE FRA v7.8.20. Den holder cellene sammen; den skal ikke
+     tegne en boks. En 40 % strek rundt et sett lyse brikker er den samme
+     grå-på-grå-en som fikk cellene til å se avslåtte ut. */
+  --ramme: color-mix(in oklab, var(--color-ink) 26%, transparent);
   --hjorne: 16px;
   /* MÅLENE PÅ BULA SETTES AV `flateStil` PÅ YTTERSTE BOKS, og fallbacken står
      som andre argument i hver `var()` — ikke som en deklarasjon her. En
@@ -1223,13 +1229,19 @@ function celleTransform(i) {
      det man trykket «Sorter», cellene bærer `zoom`, og ved 200 % var gitteret
      12 px for lavt for sitt eget innhold. Står kanten i begge modusene, er det
      ingenting å måle om og ingenting å kompensere for. */
-  border: 1px solid color-mix(in oklab, var(--color-ink) 18%, transparent);
+  /* KANTEN STÅR, MEN DEN ER USYNLIG I HVILE (v7.8.20). Den MÅ stå i begge
+     modusene — se avsnittet under om geometrien — men en grå strek rundt hver
+     lyse brikke er nettopp det som gjorde at raden så avslått ut: grått er
+     fargen appen ellers bruker på det som ikke virker. `transparent` beholder
+     hver eneste piksel av boksmodellen og fjerner streken. Sorterings-modus
+     setter farge på den samme kanten. */
+  border: 1px solid transparent;
   box-sizing: border-box;
-  /* CELLA BÆRER SKIVA NÅ (v7.8.19). Fram til nå var flata her et ton-i-ton
-     blekk-lag oppå pillas fyll; med pilla tom ville det lagt en svak tone rett
-     på kartet, og en 10 px etikett over høydekurver er ikke til å lese. Cella
-     er derfor kompassnålas egen skive — samme materiale, bare firkantet — og
-     det er den som gjør at rammen KAN være tom. */
+  /* CELLA BÆRER SKIVA (v7.8.19), i den LETTE vekten (v7.8.20). Med pilla tom
+     ville et ton-i-ton blekk-lag lagt en svak tone rett på kartet, og en 10 px
+     etikett over høydekurver er ikke til å lese. Brikka er derfor samme
+     materiale som kompassnåla, bare firkantet og lettere — og det er den som
+     gjør at rammen KAN være tom. */
   background: var(--color-overlay, transparent);
   color: var(--color-ink);
   font-size: 10px;
@@ -1314,7 +1326,6 @@ function celleTransform(i) {
   white-space: nowrap;
   color: var(--color-ink);
   background: var(--color-overlay, transparent);
-  border: 1px solid color-mix(in oklab, var(--color-ink) 18%, transparent);
   transition: background 0.15s ease, transform 0.1s ease;
 }
 .sorter-knapp:active { transform: scale(0.94); }
@@ -1378,7 +1389,6 @@ function celleTransform(i) {
   border-radius: 12px;
   /* Samme begrunnelse som cellene: pilla har ikke lenger et fyll å tone mot. */
   background: var(--color-overlay, transparent);
-  border: 1px solid color-mix(in oklab, var(--color-ink) 18%, transparent);
   color: var(--color-ink);
   font-size: 12px;
   line-height: 1.2;
