@@ -211,6 +211,7 @@ import {
 } from '../lib/snarveier.js'
 import { pickSnapTarget } from '../composables/useDraggableDrawer.js'
 import { kartSkiveLett, kartSkiveOpak, kartBlekk } from '../lib/kartFlate.js'
+import { rammeBane, rammeHoyde, RAMME } from '../lib/snarveiRamme.js'
 
 const props = defineProps({
   // [{ id, label, aria }] i brukerens rekkefølge.
@@ -283,14 +284,16 @@ const flateStil = computed(() => {
     // Til tekst som står PÅ blekket («Ferdig»), altså motsatt vei: en
     // halvgjennomsiktig tekstfarge slipper flata under gjennom bokstavene.
     '--kart-skive-opak': kartSkiveOpak(props.mork),
-    // BULA OG BUNNRAMMEN SKALERER MED TEKSTEN, som cellene gjør (v7.8.19) —
+    // BULA OG BUNN-STRIPA SKALERER MED TEKSTEN, som cellene gjør (v7.8.19) —
     // men gjennom MÅLENE og ikke gjennom `zoom`. Cellene bærer `zoom` hver for
-    // seg; la bula gjøre det samme, ville også dens 1 px ramme blitt 2 px ved
-    // 200 %, og da møter en dobbel strek en enkel i skjøten mot kant-stumpene.
-    // Streken er 1 px i alle skalaer; det er bare formen som vokser.
+    // seg; lot bula gjøre det samme, ville streken blitt dobbelt så tykk ved
+    // 200 % og møtt en enkel strek der banen fortsetter. Streken er den samme i
+    // alle skalaer; det er bare formen som vokser. Tallene her MÅ være de samme
+    // som `RAMME` i lib/snarveiRamme.js — banen og trykkflata skal ligge oppå
+    // hverandre, og en test holder dem sammen.
     '--bunn-h': `${13 * (props.uiTextScale || 1)}px`,
-    '--bule-h': `${26 * (props.uiTextScale || 1)}px`,
-    '--bule-b': `${76 * (props.uiTextScale || 1)}px`,
+    '--bule-d': `${RAMME.buleDybde * (props.uiTextScale || 1)}px`,
+    '--bule-b': `${RAMME.buleBredde * (props.uiTextScale || 1)}px`,
     '--color-ink': b.ink,
     '--color-ink-2': b.ink2,
     '--color-ink-3': b.ink3,
@@ -345,6 +348,24 @@ function sjekkRull() {
   const el = skrollRef.value
   rullbar.value = !!el && el.scrollHeight - el.clientHeight > 1
 }
+// RAMMA ER ÉN SVG-BANE (v7.8.21). Se lib/snarveiRamme.js for hvorfor den ikke
+// kan være en `border`. Her måles bare boksen banen skal legge seg rundt:
+// `viewBox` settes til de samme pikslene, så én brukerenhet ER én piksel og
+// ingenting strekkes. Høyden endrer seg hvert bilde under et drag, så
+// observeren står på PILLA og ikke på gitteret — det er pillas ytterkant banen
+// følger, og en måling av gitteret ville mistet knott-panelet.
+const pilleRef = ref(null)
+const rammeB = ref(0)
+const rammeH = ref(0)
+let rammeRo = null
+const buleBredde = computed(() => (sorterer.value ? 0 : RAMME.buleBredde))
+const rammeSvgH = computed(() =>
+  rammeHoyde(rammeH.value, { bule: buleBredde.value, skala: props.uiTextScale || 1 }))
+const rammeD = computed(() => rammeBane({
+  w: rammeB.value, h: rammeH.value,
+  bule: buleBredde.value, skala: props.uiTextScale || 1,
+}))
+
 const panelRef = ref(null)
 const hPanel = ref(0)
 const kolonner = ref(1)
@@ -481,12 +502,18 @@ async function maal() {
 let ro = null
 onMounted(() => {
   void maal()
+  rammeRo = new ResizeObserver(([e]) => {
+    const r = e.contentRect
+    rammeB.value = Math.round(r.width + (e.target.offsetWidth - r.width))
+    rammeH.value = e.target.offsetHeight
+  })
+  if (pilleRef.value) rammeRo.observe(pilleRef.value)
   ro = new ResizeObserver(() => { void maal() })
   ro.observe(document.documentElement)
   // Fonten avgjør etikettbredden, og den er ikke nødvendigvis lastet ennå.
   document.fonts?.ready?.then(() => { void maal() }).catch(() => {})
 })
-onBeforeUnmount(() => { ro?.disconnect(); losne?.() })
+onBeforeUnmount(() => { ro?.disconnect(); rammeRo?.disconnect(); losne?.() })
 
 // Taket biter først når skuffa er dratt ut, så spørsmålet «ruller dette?» må
 // stilles på nytt for hver høyde draget passerer.
@@ -882,11 +909,24 @@ function celleTransform(i) {
          kan ikke svare med `preventDefault`, for den ville tatt `click` fra
          snarvei-knappene. En flate som ER en gripeflate skal uansett aldri
          kunne markeres. -->
-    <div class="snarvei-pille pointer-events-auto flex flex-col items-stretch touch-none select-none"
-         :class="sorterer ? 'snarvei-pille--hel' : ''"
+    <div ref="pilleRef"
+         class="snarvei-pille pointer-events-auto flex flex-col items-stretch touch-none select-none"
+         :class="sorterer ? 'snarvei-pille--utenbule' : ''"
          @pointerdown="onDraStart"
          :style="{ maxWidth: `calc(100vw - ${KANT_PX}px)`, maxHeight: PILLE_MAKS_H,
                    visibility: maalt ? 'visible' : 'hidden' }">
+      <!-- RAMMA. Ligger UNDER innholdet (`z-0` mot cellenes egen stabling) og
+           tar ingen trykk. `overflow: visible` er ikke nok alene — SVG-en er
+           høy nok til å romme bula, og den henger derfor ut av pilla nedover.
+           `non-scaling-stroke` trengs IKKE her, siden viewBox er 1:1 med
+           pikslene; den ville bare skjult en dag der noen satte på en skalering
+           uten å oppdage det. -->
+      <svg v-if="rammeD" class="snarvei-ramme" aria-hidden="true" focusable="false"
+           :width="rammeB" :height="rammeSvgH"
+           :viewBox="`0 0 ${rammeB} ${rammeSvgH}`">
+        <path :d="rammeD" fill="none" :stroke-width="RAMME.strek"
+              stroke-linejoin="round" />
+      </svg>
       <!-- SKROLL-BOKSEN (v7.8.4). Taket over står på PILLA, og innholdet ruller
            inne i den — men bare det som TÅLER å rulle. Håndtaket står UTENFOR,
            som siste barn av pilla, nettopp fordi det var det som forsvant: en
@@ -1013,29 +1053,22 @@ function celleTransform(i) {
            kan dras, og det er den eneste veien inn i skuffa fra tastatur
            (pil ned folder ut, pil opp legger sammen, SC 2.1.1). Et KLIKK gjør
            fortsatt ingenting (v7.5.0). -->
-      <!-- BUNNRAMMEN, MED HÅNDTAKET SOM EN BULE I DEN (v7.8.19). Rammen har
-           ingen bunnkant av seg selv — den tegnes her, i tre deler: to
-           kant-stumper med hvert sitt hjørne, og bula imellom. Bula er dypere
-           enn stumpene, så streken buler NED rundt håndtaket i stedet for å gå
-           rett forbi det. Det er derfor pilla ikke bare kunne fått en tab
-           hengende under en hel ramme: da ville streken gått tvers over toppen
-           av bula, og det leses som en knapp KLISTRET på en boks framfor som en
-           utbuling AV den. -->
-      <div v-if="!sorterer" class="snarvei-bunn shrink-0">
-        <span class="snarvei-bunn__kant snarvei-bunn__kant--v" aria-hidden="true"></span>
-        <button type="button" data-snarvei-handle
-                class="snarvei-handle cursor-grab active:cursor-grabbing"
-                :aria-expanded="apen"
-                :aria-label="dra >= SNARVEI_NIVAER - 0.5
-                  ? 'Legg sammen snarveiene'
-                  : (apen ? 'Dra ned for strek og relieff' : 'Dra ned for flere snarveier og sortering')"
-                @keydown.down.prevent="tastHandtak(true)"
-                @keydown.up.prevent="tastHandtak(false)">
-          <span class="snarvei-handle__strek"
-                :style="{ opacity: drar ? 0.6 : 1 }"></span>
-        </button>
-        <span class="snarvei-bunn__kant snarvei-bunn__kant--h" aria-hidden="true"></span>
-      </div>
+      <!-- HÅNDTAKET LIGGER I BULA (v7.8.21). Bula er nå en del av SVG-banen, og
+           knappen er derfor bare en trykkflate og en strek — den tegner ingen
+           kant selv. Absolutt plassert og midtstilt, med `top: 100%` så den
+           henger nøyaktig der banen buler ut. Bunn-stripa over den er
+           polstring på pilla (`--bunn-h`), ikke et element. -->
+      <button v-if="!sorterer" type="button" data-snarvei-handle
+              class="snarvei-handle cursor-grab active:cursor-grabbing"
+              :aria-expanded="apen"
+              :aria-label="dra >= SNARVEI_NIVAER - 0.5
+                ? 'Legg sammen snarveiene'
+                : (apen ? 'Dra ned for strek og relieff' : 'Dra ned for flere snarveier og sortering')"
+              @keydown.down.prevent="tastHandtak(true)"
+              @keydown.up.prevent="tastHandtak(false)">
+        <span class="snarvei-handle__strek"
+              :style="{ opacity: drar ? 0.6 : 1 }"></span>
+      </button>
 
       <!-- SORTERINGS-FOOTEREN står der håndtaket sto. Hintet er et `status`-
            felt: det sier både hva man kan gjøre og hva som NETTOPP skjedde, og
@@ -1089,32 +1122,42 @@ function celleTransform(i) {
 
 <style scoped>
 /* ─────────────────────────────────────────────────────────────────────────
-   PILLA ER EN RAMME, IKKE EN FLATE (v7.8.19).
+   PILLA ER EN RAMME, IKKE EN FLATE (v7.8.19), OG RAMMA ER ÉN SVG-BANE (v7.8.21).
 
    Fram til v7.8.18 var raden en fylt boks: først UI-temaets nesten-svarte
    overlay, så kompassnålas skive. Begge dekket kartet der de lå, og raden er
    det STØRSTE overlegget i turkartet — den ligger midt i toppen av arket, der
-   man leser. Nå bærer bare CELLENE en flate, og rammen holder dem sammen:
-   kartet er synlig mellom knappene, og raden leses som et verktøy PÅ kartet
-   framfor et panel foran det.
+   man leser. Nå bærer bare CELLENE en flate, og ramma holder dem sammen.
 
-   RAMMEN HAR INGEN BUNNKANT AV SEG SELV — den tegnes av `.snarvei-bunn`, som
-   buler ned rundt håndtaket. Derfor `border-bottom: none` og null radius i
-   bunnen: hjørnearken hører til kant-stumpene der nede, og en radius her ville
-   gitt en halv bue som ender i løse lufta.
+   HVORFOR BANEN IKKE ER EN `border`: se lib/snarveiRamme.js. Kort sagt kan en
+   `border` ikke gå UT av rektangelet, så bula måtte settes sammen av tre
+   elementer med to skjøter — og i hver skjøt gikk en rett strek rett inn i en
+   annen. Banen svinger ut i en konkav bue i stedet, og det er den som gjør at
+   bula leses som en utbuling AV kanten framfor en knapp hengt under den.
 
-   `--ramme` er blekket på 34 %: nok til å lese som en strek mot både en lys og
-   en mørk kart-bunn, lite nok til at rammen ikke konkurrerer med cellene.
+   PILLA MÅ DERFOR IKKE KLIPPE. SVG-en er høyere enn pilla — bula henger under —
+   så en `overflow: hidden` her ville klippet nettopp den. Rulleboksen inni har
+   sin egen, og den er den som skal klippe.
 
-   SORTERINGS-MODUS FÅR EN HEL RAMME (`--hel`). Der er håndtaket byttet ut med
-   en footer i full bredde, og en bule uten en knapp i ville vært en utbuling
-   rundt ingenting. */
+   `--ramme` er blekket på 30 %: nok til å lese som en strek mot både en lys og
+   en mørk kart-bunn, lite nok til at ramma ikke konkurrerer med cellene. Den
+   var 40 % til v7.8.20, og en 40 % strek rundt et sett lyse brikker er den
+   samme grå-på-grå-en som fikk cellene til å se avslåtte ut.
+
+   SORTERINGS-MODUS HAR INGEN BULE. Der er håndtaket byttet ut med en footer i
+   full bredde, og en utbuling rundt ingenting er bare en bulk. `buleBredde`
+   settes til 0, og banen blir et rent avrundet rektangel. */
 .snarvei-pille {
-  /* RAMMA ER SVAKERE FRA v7.8.20. Den holder cellene sammen; den skal ikke
-     tegne en boks. En 40 % strek rundt et sett lyse brikker er den samme
-     grå-på-grå-en som fikk cellene til å se avslåtte ut. */
-  --ramme: color-mix(in oklab, var(--color-ink) 26%, transparent);
-  --hjorne: 16px;
+  position: relative;
+  /* Bunn-stripa mellom siste rad og bunnlinja. Var et element (kant-stumpene)
+     fram til v7.8.21; nå tegner banen streken, og dette er bare luft. */
+  padding-bottom: var(--bunn-h, 13px);
+  /* BULA HENGER UTENFOR BOKSEN, og layouten vet det ikke. Uten denne margen
+     regner flex-kolonnen med at pilla slutter ved bunnlinja, og «Sorter
+     snarveier» / «Stil» legger seg oppå bula — målt, ikke antatt. Margen er
+     nøyaktig bulas dybde; `gap-2` på innpakningen kommer i tillegg. */
+  margin-bottom: var(--bule-d, 22px);
+  --ramme: color-mix(in oklab, var(--color-ink) 30%, transparent);
   /* MÅLENE PÅ BULA SETTES AV `flateStil` PÅ YTTERSTE BOKS, og fallbacken står
      som andre argument i hver `var()` — ikke som en deklarasjon her. En
      `--bunn-h: 13px` på denne regelen ville VUNNET over den arvede verdien
@@ -1123,80 +1166,58 @@ function celleTransform(i) {
      ingenting med skaleringen å gjøre. */
   /* Ingen `backdrop-blur` og ingen `shadow`: begge er måter å skille en FLATE
      fra bunnen på, og det er nettopp flata som er borte. En skygge under en
-     ramme uten fyll leses som en dobbel strek.
-
-     RAMMEN TEGNES AV BARNA, IKKE AV PILLA, og det er ikke en omvei. En
-     `border` her ville løpt langs HELE høyden — også forbi bunnrammen — så
-     bunnhjørnene måtte enten stått rette, eller fått en bue med pillas egen
-     rette kant synlig inni. Med sidekantene på rulleboksen og på kant-stumpene
-     stopper de der buen begynner, og hjørnet blir ett strøk. */
-}
-[data-snarvei-skroll] {
-  border: 1px solid var(--ramme);
-  border-bottom: none;
-  border-radius: var(--hjorne) var(--hjorne) 0 0;
-}
-.snarvei-pille--hel [data-snarvei-skroll] {
-  border-radius: var(--hjorne) var(--hjorne) 0 0;
-}
-/* Sorterings-modus: hel ramme rundt footeren i stedet for en bule. */
-.snarvei-pille--hel [data-sorter-footer] {
-  border: 1px solid var(--ramme);
-  border-top: none;
-  border-radius: 0 0 var(--hjorne) var(--hjorne);
+     ramme uten fyll leses som en dobbel strek. */
 }
 
-/* Bunnrammen: to kant-stumper med hvert sitt hjørne, og bula imellom. Alle tre
-   tegner sin del av den samme streken, så den er sammenhengende. */
-.snarvei-bunn {
+/* Banen ligger under innholdet og tar ingen trykk. Den forankres i TOPPEN og
+   får vokse ned forbi pillas bunn — derfor ikke `inset: 0`. */
+.snarvei-ramme {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+.snarvei-ramme path { stroke: var(--ramme); }
+
+/* Sorterings-modus har ingen bule, og da er det ingenting å holde av plass til. */
+.snarvei-pille--utenbule { margin-bottom: 0; }
+
+/* HÅNDTAKET SITTER I BULA OG TEGNER INGENTING AV DEN (v7.8.21). Banen har
+   overtatt kanten; dette er trykkflata og streken inni. `top: 100%` er pillas
+   bunnlinje, altså nøyaktig der banen buler ut. Draget kan uansett startes hvor
+   som helst i pilla (v7.6.0); dette er knappen man SIKTER på. */
+.snarvei-handle {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: flex-start;
-}
-/* Stumpene bærer bunnstreken OG bunnhjørnene. De er søsken av rulleboksen, så
-   sidekantene deres står i nøyaktig samme pikselkolonne som dens — streken går
-   ubrutt ned og svinger inn, uten et hakk i skjøten. */
-.snarvei-bunn__kant {
-  flex: 1;
-  height: var(--bunn-h, 13px);
-  border-bottom: 1px solid var(--ramme);
-}
-.snarvei-bunn__kant--v {
-  border-left: 1px solid var(--ramme);
-  border-bottom-left-radius: var(--hjorne);
-}
-.snarvei-bunn__kant--h {
-  border-right: 1px solid var(--ramme);
-  border-bottom-right-radius: var(--hjorne);
-}
-
-/* BULA. Dypere enn kant-stumpene, med åpen topp: streken går ned rundt
-   håndtaket og opp igjen. Trykkflata er hele bula — den er 26 px høy og 76 px
-   bred, altså et mål man treffer med en tommel, selv om DRAGET uansett kan
-   startes hvor som helst i pilla (v7.6.0). */
-.snarvei-handle {
-  position: relative;
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
   justify-content: center;
+  padding-top: calc(var(--bule-d, 22px) * 0.3);
   width: var(--bule-b, 76px);
-  height: var(--bule-h, 26px);
-  border: 1px solid var(--ramme);
-  border-top: none;
-  border-radius: 0 0 var(--hjorne) var(--hjorne);
+  height: var(--bule-d, 22px);
 }
-/* TRYKKFLATA ER STØRRE ENN BULA. Bula er 26 px høy fordi det er så dypt en
-   strek kan bule ned uten å bli en boks — men 26 px er under WCAG 2.5.5, og
-   knappen er den eneste tastatur-inngangen til skuffa. `::after` gir den 44 px
-   uten å endre streken. Draget kan uansett startes hvor som helst i pilla
-   (v7.6.0); dette gjelder TRYKKET. */
+/* TRYKKFLATA ER STØRRE ENN BULA, OG DEN VOKSER BARE OPPOVER (v7.8.21).
+   Bula er 22 px dyp fordi det er så dypt en strek kan bule ned uten å bli en
+   boks — men 22 px er under WCAG 2.5.5, og knappen er eneste tastatur-inngang
+   til skuffa. `::after` gir den 44 px.
+   RETNINGEN ER IKKE VALGFRI: en flate som også vokste NEDOVER la seg over
+   nordpila i lende-pilenes dokkebånd (målt av røyktesten, ikke gjettet) — bula
+   henger alt utenfor pilla, og hver piksel til under den er en piksel inn i
+   noen andres flate. Oppover er det bare pillas egen bunn-stripe, der ingenting
+   annet står. */
 .snarvei-handle::after {
   content: '';
   position: absolute;
-  inset: -9px -10px;
+  top: calc(var(--bule-d, 22px) * -1);
+  bottom: 0;
+  left: -10px;
+  right: -10px;
 }
 .snarvei-handle__strek {
-  width: 45%;
+  width: 42%;
   height: 3px;
   border-radius: 999px;
   background: color-mix(in oklab, var(--color-ink) 45%, transparent);

@@ -1,3 +1,48 @@
+## 2026-09-14 — v7.8.21: Ramma rundt snarvei-raden er én SVG-bane
+
+Ramma satt sammen fra v7.8.19, men den var SATT SAMMEN: en boks med
+`border-radius` på toppen, to kant-stumper som tegnet bunnstreken, og en bule
+med egne kanter imellom. Tre elementer som møttes i to skjøter, og i hver skjøt
+gikk en rett strek rett inn i en annen rett strek. Der linja skulle svinge ned
+rundt håndtaket, ble det et hjørne.
+
+En `border` kan per definisjon ikke gå UT av rektangelet sitt, og det var hele
+grunnen til oppdelingen. En bane kan. `lib/snarveiRamme.js` tegner nå omrisset i
+ett strøk, og overgangen inn til bula er en KONKAV bue — streken bøyer seg
+utover før den bøyer innover. Det er den som gjør at bula leses som en utbuling
+AV kanten framfor en knapp hengt under den. Fire radier er i spill: arkets
+hjørner, bulas hjørner, og de to overgangene. `buleHjorne + overgang` er
+nøyaktig `buleDybde`, slik at den konkave buen går rett over i det konvekse
+hjørnet uten et rett stykke imellom — profilen er én sammenhengende S, og en
+test holder de tre tallene i forhold.
+
+Banen regnes i EKTE PIKSLER, og det er det som gjør at modulen kan være ren.
+Alternativet — én SVG strukket med `preserveAspectRatio="none"` — ville dratt
+hjørnebuene og streken ut av form i det raden ble bredere enn høy. Kallstedet
+måler pilla med en ResizeObserver og setter `viewBox` til de samme tallene, så
+én brukerenhet ER én piksel og ingenting skaleres. Streken er 2 px i alle
+tekststørrelser; det er bare formen som vokser. Sorterings-modus setter
+bulebredden til 0 og får et rent avrundet rektangel — en utbuling rundt
+ingenting er bare en bulk.
+
+**Bula henger UTENFOR pillas boks, og layouten visste det ikke.** «Sorter
+snarveier» og «Stil» la seg rett oppå den, fordi flex-kolonna regner med at
+pilla slutter ved bunnlinja. Pilla har nå en `margin-bottom` lik bulas dybde.
+Røyksjekken måler det direkte: en overlapp mellom håndtaket og de to knappene
+er en feil, og sjekken drar raden ut først — de finnes bare da, og en
+overlapp-sjekk mot et tomt DOM er en sjekk som alltid består.
+
+Enhetstestene leser banen som TALL og ikke som en streng. De holder fast at den
+ikke folder seg (den konkave buen kan ende dypere enn der bulas hjørne
+begynner, og da snur `V` oppover — et hakk i streken som er umulig å se i en
+`d`-streng man bare kikker på), at bula er midtstilt, at bare de to overgangene
+har `sweep-flag: 0`, og at en smal rad klemmer radiene framfor å krysse seg
+selv. Hjelperen måtte tokenisere banen: første utgave plukket «to tall etter
+hverandre» og traff radiene i hver `A` som om de var et punkt, så testene ble
+røde på en riktig bane.
+
+---
+
 ## 2026-09-14 — v7.8.20: Lettere glass i snarvei-raden, og grået er borte
 
 To ting eieren meldte om ramma fra v7.8.19: den var fortsatt for tung, og den

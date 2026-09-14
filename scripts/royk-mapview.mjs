@@ -2120,11 +2120,27 @@ const SJEKKER = [
     async kjør(page) {
       await lukkDrawer(page)
       await lukkSnarveiRad(page)
-      // «Valg» åpner en skuff vi kan se; drar vi fra den og skuffa likevel
-      // dukker opp, har slop-en sviktet. Den ligger i første rad på et bredt
-      // vindu — sjekken kjører i suitens vanlige viewport.
-      const boks = await page.locator('[data-snarvei-id="innstillinger"]').boundingBox()
-      if (!boks) throw new Error('fant ingen «Valg»-snarvei å dra fra')
+      // CELLA MÅ VÆRE SYNLIG, OG DET MÅ SJEKKES (v7.8.21). Sjekken dro fra
+      // «Valg», med kommentaren «den ligger i første rad på et bredt vindu» —
+      // og det stemte ikke: «Valg» er sist av ni, og på 430 px gir gitteret sju
+      // kolonner, så den ligger i rad TO, som er klippet bort når skuffa er
+      // sammenlagt. Sjekken traff derfor pillas tomme bunn-stripe og ikke cella
+      // i det hele tatt. Den besto likevel — helt til pilla ble 14 px lavere
+      // (v7.8.21) og det samme punktet havnet på kartet under. En sjekk som
+      // sikter på noe den ikke kan se, måler noe annet enn den tror.
+      //
+      // «Info» ligger i rad én og åpner et ark vi kan se; drar vi fra den og
+      // arket likevel dukker opp, har slop-en sviktet. Posisjonen VERIFISERES
+      // mot gitterets klippekant, så feilen ikke kan komme tilbake i stillhet.
+      const ID = 'info'
+      const boks = await page.locator(`[data-snarvei-id="${ID}"]`).boundingBox()
+      if (!boks) throw new Error(`fant ingen «${ID}»-snarvei å dra fra`)
+      const klipp = await page.locator('.snarvei-rad').boundingBox()
+      if (boks.y + boks.height > klipp.y + klipp.height + 1) {
+        throw new Error(`«${ID}» ligger i en rad som er klippet bort (celle `
+          + `${Math.round(boks.y)}–${Math.round(boks.y + boks.height)}, gitteret slutter `
+          + `${Math.round(klipp.y + klipp.height)}) — sjekken ville siktet på ingenting`)
+      }
       const x = boks.x + boks.width / 2
       const y = boks.y + boks.height / 2
 
@@ -2134,12 +2150,29 @@ const SJEKKER = [
       await page.mouse.up()
       await page.waitForTimeout(600)
 
-      const etter = await page.evaluate(() => ({
-        apen: document.querySelector('.snarvei-handle')?.getAttribute('aria-expanded'),
-        skuff: !!document.querySelector('[role="dialog"][aria-label="Valg"]'),
-      }))
-      if (etter.skuff) {
-        await lukkDrawer(page)
+      // Punkt-arket er en `.drawer-shell` som faktisk er montert. Det finnes
+      // ingen egen `aria-label` på arket å gå på — X-en heter bare «Lukk», og
+      // det gjør hver eneste skuff i appen.
+      const arkÅpent = () => page.evaluate(() =>
+        [...document.querySelectorAll('.drawer-shell')].some((e) => e.offsetParent))
+      const lukkArk = async () => {
+        await page.keyboard.press('Escape').catch(() => {})
+        await page.waitForTimeout(400)
+        if (await arkÅpent()) {
+          await page.evaluate(() => {
+            const b = [...document.querySelectorAll('.drawer-shell button')]
+              .find((e) => e.getAttribute('aria-label') === 'Lukk')
+            b?.click()
+          })
+          await page.waitForTimeout(400)
+        }
+      }
+      const etter = {
+        apen: await page.locator('.snarvei-handle').getAttribute('aria-expanded'),
+        ark: await arkÅpent(),
+      }
+      if (etter.ark) {
+        await lukkArk()
         await lukkSnarveiRad(page)
         throw new Error('draget utløste snarveien det startet på — slop-en avlyser ikke trykket')
       }
@@ -2151,14 +2184,12 @@ const SJEKKER = [
       // OG ET TRYKK SKAL FORTSATT VÆRE ET TRYKK: uten et drag imellom må
       // knappen virke som før. Ett svakt drag under slop-en teller som trykk.
       await lukkSnarveiRad(page)
-      await page.locator('[data-snarvei-id="innstillinger"]').click()
+      await page.locator(`[data-snarvei-id="${ID}"]`).click()
       await page.waitForTimeout(600)
-      const aapnet = await page.evaluate(() =>
-        !!document.querySelector('[role="dialog"][aria-label="Valg"]'))
-      if (!aapnet) throw new Error('et vanlig trykk på «Valg» åpnet ingen skuff')
-      await lukkDrawer(page)
+      if (!(await arkÅpent())) throw new Error(`et vanlig trykk på «${ID}» åpnet ingenting`)
+      await lukkArk()
       await lukkSnarveiRad(page)
-      return 'sveip fra en snarvei åpner skuffa uten å utløse den, og trykket virker'
+      return 'sveip fra en synlig snarvei åpner skuffa uten å utløse den, og trykket virker'
     },
   },
   {
@@ -2234,16 +2265,25 @@ const SJEKKER = [
     // ikke matchet. Den gjelder fortsatt for arkene, og måles her.
     //
     // SNARVEI-RADEN ER UTE AV DEN, og det er ikke en glipp: raden er ikke
-    // lenger en fylt boks med en strek nederst i, den er en RAMME der
-    // håndtaket er en BULE i bunnkanten. En «luft over og under» finnes ikke i
-    // en bule — den har en dybde, ikke en polstring. Det som måles i stedet er
-    // de to tingene som gjør den til en bule og ikke en knapp klistret under
-    // en boks: at den henger LENGER NED enn bunnstreken den sitter i, og at
-    // den er midtstilt i ramma.
+    // lenger en fylt boks med en strek nederst i, den er en RAMME tegnet som ÉN
+    // SVG-BANE (v7.8.21), der håndtaket sitter i en BULE i bunnkanten. En «luft
+    // over og under» finnes ikke i en bule — den har en dybde, ikke en
+    // polstring.
+    //
+    // Det som måles i stedet er de tingene som gjør den til en bule og ikke en
+    // knapp klistret under en boks: at BANEN faktisk buler ned under pillas
+    // bunnlinje, at håndtaket ligger i bula og er midtstilt, og at bula har
+    // plass under seg så «Sorter snarveier» ikke legger seg oppå den. Det siste
+    // er en ekte feil som ble målt: bula henger UTENFOR boksen, og flex-kolonna
+    // vet ikke om den.
     navn: 'dra-håndtaket: luft i punkt-arket, bule i snarvei-ramma',
     domene: 'SnarveiRad + ContextMenuSheet',
     async kjør(page) {
       await lukkDrawer(page)
+      // RADEN MÅ VÆRE UTE. «Sorter snarveier» og «Stil» finnes bare da, og det
+      // er de to som kan legge seg oppå bula — en overlapp-sjekk mot et tomt
+      // DOM er en sjekk som alltid består.
+      await apneSnarveiRad(page)
       await page.evaluate(() => {
         const el = document.querySelector('svg.isom-map')
         const r = el.getBoundingClientRect()
@@ -2258,28 +2298,41 @@ const SJEKKER = [
         const ark = [...document.querySelectorAll('.cursor-grab')]
           .find((e) => e.offsetParent && e !== snar && e.querySelector('.rounded-full'))
         const cs = ark && getComputedStyle(ark)
-        const kanter = [...document.querySelectorAll('.snarvei-bunn__kant')]
         const pille = document.querySelector('.snarvei-pille')
+        const bane = document.querySelector('.snarvei-ramme path')
         const b = snar?.getBoundingClientRect()
         const p = pille?.getBoundingClientRect()
+        // Banens dypeste punkt, lest av SVG-en selv og ikke av `d`-strengen:
+        // `getBBox` tar med streken slik den faktisk tegnes.
+        const bb = bane?.getBBox?.()
+        const svg = bane?.ownerSVGElement?.getBoundingClientRect()
         return {
           punktark: cs
             ? [Math.round(parseFloat(cs.paddingTop)), Math.round(parseFloat(cs.paddingBottom))]
             : null,
-          kanter: kanter.length,
-          // Hvor mye bula stikker ned under bunnstreken kant-stumpene tegner.
-          dybde: (b && kanter.length)
-            ? Math.round(b.bottom - kanter[0].getBoundingClientRect().bottom)
-            : null,
-          // Avviket mellom bulas midtpunkt og rammas.
+          // Hvor mye banen buler ned under pillas bunnlinje.
+          dybde: (bb && svg && p) ? Math.round(svg.top + bb.y + bb.height - p.bottom) : null,
+          strek: bane ? Math.round(parseFloat(getComputedStyle(bane).strokeWidth) * 10) / 10 : null,
+          // Avviket mellom håndtakets midtpunkt og pillas.
           avvikMidt: (b && p)
             ? Math.round(Math.abs((b.left + b.right) / 2 - (p.left + p.right) / 2))
             : null,
+          // Ligger håndtaket i bula, altså UNDER pillas bunnlinje?
+          handtakUnder: (b && p) ? Math.round(b.bottom - p.bottom) : null,
           // Trykkflata, `::after` medregnet — WCAG 2.5.5.
           trykkH: snar
             ? Math.round(snar.getBoundingClientRect().height
                 + Math.abs(parseFloat(getComputedStyle(snar, '::after').top || '0')) * 2)
             : null,
+          // Står det noe oppå bula? «Sorter snarveier» er den ene kandidaten,
+          // og den lå der til margen kom på plass.
+          radKnotter: document.querySelectorAll('.rad-knott').length,
+          overlapp: (b && [...document.querySelectorAll('.rad-knott')]
+            .filter((k) => k.offsetParent && k.getBoundingClientRect().height > 1)
+            .some((k) => {
+              const r = k.getBoundingClientRect()
+              return r.top < b.bottom - 1 && r.bottom > b.top + 1
+            })) || false,
         }
       })
       if (!m.punktark) throw new Error('fant ikke punkt-arkets håndtak')
@@ -2287,25 +2340,37 @@ const SJEKKER = [
         throw new Error(`punkt-arkets håndtak har ulik luft over og under `
           + `(${m.punktark.join('/')}) — da er den ikke den samme når arket snus`)
       }
-      if (m.kanter !== 2) {
-        throw new Error(`snarvei-ramma har ${m.kanter} kant-stumper i bunnen, ikke 2 `
-          + '— da tegnes ikke bunnstreken rundt bula')
-      }
-      if (!(m.dybde > 4)) {
-        throw new Error(`bula stikker ${m.dybde} px ned under bunnstreken — `
+      if (m.dybde === null) throw new Error('fant ingen SVG-bane rundt snarvei-raden')
+      if (!(m.dybde > 8)) {
+        throw new Error(`banen buler ${m.dybde} px ned under pillas bunnlinje — `
           + 'den skal BULE, ikke ligge flatt i kanten')
       }
+      if (!(m.strek >= 1.5)) {
+        throw new Error(`ramma er tegnet med ${m.strek} px strek — den skal være tykkere`)
+      }
       if (m.avvikMidt > 2) {
-        throw new Error(`bula står ${m.avvikMidt} px fra rammas midte`)
+        throw new Error(`håndtaket står ${m.avvikMidt} px fra pillas midte`)
+      }
+      if (!(m.handtakUnder > 0)) {
+        throw new Error(`håndtaket ligger ${m.handtakUnder} px under bunnlinja — `
+          + 'det skal sitte i bula, ikke over den')
       }
       if (!(m.trykkH >= 44)) {
         throw new Error(`håndtakets trykkflate er ${m.trykkH} px høy — `
           + 'under WCAG 2.5.5, og den er eneste tastatur-inngang til skuffa')
       }
+      if (!m.radKnotter) {
+        throw new Error('fant ingen «Sorter snarveier» / «Stil» — sto raden ute?')
+      }
+      if (m.overlapp) {
+        throw new Error('«Sorter snarveier» / «Stil» ligger oppå bula — bula henger '
+          + 'UTENFOR pillas boks, og layouten må holde av plassen selv')
+      }
       await page.locator('[aria-label="Lukk punktinfo"]').first().click().catch(() => {})
       await page.waitForTimeout(400)
-      return `punkt-arket ${m.punktark[0]} px over og under; bula ${m.dybde} px `
-        + `dypere enn bunnstreken, trykkflate ${m.trykkH} px`
+      await lukkSnarveiRad(page)
+      return `punkt-arket ${m.punktark[0]} px over og under; banen buler ${m.dybde} px `
+        + `med ${m.strek} px strek, trykkflate ${m.trykkH} px, ingen overlapp`
     },
   },
   {
