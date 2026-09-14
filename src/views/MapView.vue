@@ -101,9 +101,12 @@ import { listThemes, erMorktTema } from '../lib/mapSettingsApply.js'
 import { SNARVEI_REKKEFOLGE_KEY, STANDARD_REKKEFOLGE, normaliserRekkefolge,
          flettSynligRekkefolge, snarveierIRekkefolge } from '../lib/snarveier.js'
 import { norwegianName } from '../lib/placeName.js'
+import { useEksterneLenker } from '../composables/useEksterneLenker.js'
 import AnnotationIcon from '../components/AnnotationIcon.vue'
 import TrackElevationSheet from '../components/TrackElevationSheet.vue'
 import PerfLogModal from '../components/PerfLogModal.vue'
+import AppModal from '../components/AppModal.vue'
+import LegendContent from '../components/LegendContent.vue'
 import RenameMapDialog from '../components/RenameMapDialog.vue'
 import MapSearchOverlay from '../components/MapSearchOverlay.vue'
 import MapEdgeHandles from '../components/MapEdgeHandles.vue'
@@ -137,7 +140,8 @@ import { fetchDEM } from '../lib/demFetcher.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { setBuildBusy } from '../lib/swUpdate.js'
 import { pruneAutoTiles, countAutoTiles } from '../lib/tileCache.js'
-import { renameMap } from '../lib/mapStorage.js'
+import { renameMap, onKartSlettet } from '../lib/mapStorage.js'
+import { useAppMenu } from '../composables/useAppMenu.js'
 import { svgToWgs84, wgs84ToSvg, nordavvikForMeta, sannNordRotasjonForMeta } from '../lib/utm.js'
 import { naermesteMarkor } from '../lib/markorTreff.js'
 import { utNoZoomForMPerPx, UTNO_DEFAULT_ZOOM, buildUtNoUrl } from '../lib/utNoLink.js'
@@ -1219,6 +1223,31 @@ const mapId = computed(() => route.params.id ?? 'vardasen')
 // ── Gi kart nytt navn ─────────────────────────────────────────────────────
 // Innebygde kart (Vardåsen) ligger ikke i lagringen og kan ikke gis nytt navn.
 const canRenameMap = computed(() => !BUILTIN[mapId.value])
+
+// ── Kartet ble slettet under føttene på oss (v7.8.13) ───────────────────────
+// «Mine kart» kan slette det kartet man STÅR i, og fram til nå skjedde det
+// ingenting på skjermen: SVG-en var alt rendret, spøkelsesflisene lå rundt, og
+// visningen oppførte seg som et kart helt til neste last. Eieren meldte det som
+// at «Lende har kartet i minnet fortsatt», og det er en presis beskrivelse.
+//
+// VI NAVIGERER IKKE BORT AV OSS SELV. Et kart som forsvinner og en visning som
+// samtidig hopper et annet sted er to ting på én gang, og den som nettopp
+// ryddet i lista skal få se hva som skjedde. Overlayet dekker flata og bærer de
+// to veiene videre.
+//
+// Innebygde demokart kan ikke slettes, så de trenger ingen sjekk — men `null`
+// (Slett alle) tar med seg alt som IKKE er innebygd, og det er nettopp det
+// `BUILTIN`-porten her sier.
+const kartSlettet = ref(false)
+const { openMenuSheet } = useAppMenu()
+const stoppSlettLytter = onKartSlettet((id) => {
+  if (BUILTIN[mapId.value]) return
+  if (id === null || id === mapId.value) kartSlettet.value = true
+})
+onUnmounted(() => stoppSlettLytter())
+// En navigasjon til et annet kart rydder meldinga: `mapId` er ruta, så et bytte
+// er per definisjon et annet kart enn det som ble slettet.
+watch(mapId, () => { kartSlettet.value = false })
 const renameOpen = ref(false)
 function openRename() {
   if (canRenameMap.value) renameOpen.value = true
@@ -2069,7 +2098,24 @@ const SNARVEI_HANDLING = {
   // over kartet. `setDarkMap(false)` gir kartets standardpalett tilbake — også
   // fra et monokrom-tema — nøyaktig som bryteren gjorde.
   natt: () => setDarkMap(!isDark.value),
+  // TEGNFORKLARINGEN (v7.8.13). Den lå i hovedmenyen, altså bak hamburgeren og
+  // vekk fra kartet den forklarer. Samme modal-skall som menyen brukte, åpnet
+  // her — innholdet (`LegendContent`) er uendret, og ruta /tegnforklaring
+  // består for deep-lenker.
+  hjelp: () => { closeContextMenu(); lukkFunksjonsSkuffer(); visTegnforklaring.value = true },
 }
+
+// Tegnforklaringen som modal over kartet. Escape lukker den: AppModal har en
+// fokusfelle, så uten en tast er X-en den eneste veien ut for et tastatur.
+const visTegnforklaring = ref(false)
+function onTegnforklaringKey(e) {
+  if (e.key === 'Escape' && visTegnforklaring.value) {
+    e.stopPropagation()
+    visTegnforklaring.value = false
+  }
+}
+onMounted(() => window.addEventListener('keydown', onTegnforklaringKey))
+onUnmounted(() => window.removeEventListener('keydown', onTegnforklaringKey))
 
 // DE EKSTERNE KARTENE BOR I INFOPANELET (v7.2.0). De var chips i hovedmenyen
 // (til v6.6.5) og så snarveier (v6.6.5–v7.1.1), og begge stedene var feil av
@@ -2089,12 +2135,15 @@ const EKSTERNT_KART = {
   utno: buildUtNoUrl,
   gmaps: (p) => gmapsUrl(p.lat, p.lon),
 }
+// Bryteren «Åpne eksterne lenker i ny fane» (hovedmenyen). Default er samme
+// fane — se useEksterneLenker for hvorfor.
+const { apneEkstern } = useEksterneLenker()
 function onApneEksterntKart(id) {
   const p = eksternPunktFraContext()
   const byggUrl = EKSTERNT_KART[id]
   if (!p || !byggUrl) return
   const url = byggUrl(p)
-  if (url) window.open(url, '_blank', 'noopener')
+  if (url) apneEkstern(url)
 }
 function onSnarvei(id) { SNARVEI_HANDLING[id]?.() }
 
@@ -3172,6 +3221,9 @@ onUnmounted(() => {
       :load-pill-visible="loadPillVisible"
       :load-error="loadError"
       :position-error="userPos.error"
+      :kart-slettet="kartSlettet"
+      @apne-mine-kart="openMenuSheet('kart')"
+      @apne-nytt-kart="openMenuSheet('nytt')"
       :band-style="snarveiRadStyle"
       :show-outside-map="showOutsideMapBanner"
       :details-failed="detailsFailed"
@@ -3581,6 +3633,13 @@ onUnmounted(() => {
       :show-info-tip="showInfoTip"
       :info-tip-minimized="infoTipMinimized"
       :toggle-info-tip="toggleInfoTip" />
+
+    <!-- Tegnforklaring (v7.8.13): «Hjelp»-snarveien. Samme skall og samme
+         innhold som hovedmenyen hadde, nå over kartet det gjelder. -->
+    <AppModal :open="visTegnforklaring" title="Tegnforklaring"
+              @close="visTegnforklaring = false">
+      <LegendContent />
+    </AppModal>
 
     <!-- Perf-logg-modal: byggetider fra localStorage (kun utvikler).
          Trekt ut til PerfLogModal (v1.0.5). -->

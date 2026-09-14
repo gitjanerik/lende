@@ -5,6 +5,7 @@
 // hentes lazy av forelderen (useHydroStations) og fylles inn i `detail`.
 import { computed } from 'vue'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
+import { useEksterneLenker } from '../composables/useEksterneLenker.js'
 import TekstStorrelseKnapp from './TekstStorrelseKnapp.vue'
 
 const { uiTextScale } = useUiTextScale()
@@ -54,8 +55,9 @@ const infoRows = computed(() => {
   return r
 })
 
+const { eksternTarget, apneEkstern } = useEksterneLenker()
 function onOpenNve() {
-  if (props.detail?.link) window.open(props.detail.link, '_blank', 'noopener')
+  if (props.detail?.link) apneEkstern(props.detail.link)
 }
 </script>
 
@@ -159,7 +161,7 @@ function onOpenNve() {
 
           <p class="mt-3 text-[10px] text-ink-4 leading-relaxed">
             Sanntidsdata: NVE HydAPI ·
-            <a href="https://hydapi.nve.no/UserDocumentation/" target="_blank" rel="noopener" class="underline">dokumentasjon</a>.
+            <a href="https://hydapi.nve.no/UserDocumentation/" :target="eksternTarget" rel="noopener" class="underline">dokumentasjon</a>.
             Verdiene er foreløpige og ikke kvalitetssikret.
           </p>
         </div>

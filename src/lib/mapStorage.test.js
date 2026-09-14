@@ -4,7 +4,7 @@
 // hver saveMap — kontrakten låses her (IndexedDB selv testes ikke i jsdom-løs
 // vitest; 'maps'-storet forblir source of truth og meta er gjenoppbyggbart).
 import { describe, it, expect } from 'vitest'
-import { projectMetaEntry, generateGravelRouteId, erFrittLendeId, FRITT_LENDE_ID, FRITT_LENDE_FORRIGE_ID, synligeKart, generateMapId } from './mapStorage.js'
+import { projectMetaEntry, generateGravelRouteId, erFrittLendeId, FRITT_LENDE_ID, FRITT_LENDE_FORRIGE_ID, synligeKart, generateMapId, onKartSlettet } from './mapStorage.js'
 
 const entry = {
   id: 'kart_abc123',
@@ -109,5 +109,25 @@ describe('synligeKart', () => {
 
   it('gir tom liste når brukeren bare har Fritt lende-ark', () => {
     expect(synligeKart([kart(FRITT_LENDE_ID, 1)])).toEqual([])
+  })
+})
+
+// SLETTE-VARSELET (v7.8.13). IndexedDB testes ikke her (se filhodet), så det
+// som låses er KONTRAKTEN rundt lytterne: at man kan melde seg på og av, at en
+// lytter som kaster ikke stopper de andre, og at abonnementet er idempotent.
+// Selve utløsningen fra deleteMap/clearAll dekkes av røyktesten, der det er en
+// ekte database.
+describe('onKartSlettet', () => {
+  it('melder på og av, og tåler søppel', () => {
+    const sett = []
+    const av = onKartSlettet((id) => sett.push(id))
+    expect(typeof av).toBe('function')
+    // Ikke-funksjoner avvises stille og gir en no-op tilbake, slik at et
+    // kallsted alltid kan kalle returverdien i onUnmounted.
+    expect(typeof onKartSlettet(null)).toBe('function')
+    expect(() => onKartSlettet(null)()).not.toThrow()
+    av()
+    expect(() => av()).not.toThrow()
+    expect(sett).toEqual([])
   })
 })

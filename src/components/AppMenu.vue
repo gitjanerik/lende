@@ -7,13 +7,11 @@ import { useUiTheme } from '../composables/useUiTheme.js'
 import { useHoldVaken } from '../composables/useHoldVaken.js'
 import { MAKS_MINUTTER } from '../lib/holdVaken.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
-import { useLendeChat } from '../composables/useLendeChat.js'
-import { hasAiToken } from '../lib/lendeAi.js'
+import { useEksterneLenker } from '../composables/useEksterneLenker.js'
 import { listMaps, listGravelRoutes } from '../lib/mapStorage.js'
 import { mapsSummary, routesSummary } from '../lib/menuSummary.js'
 import AppModal from './AppModal.vue'
 import AboutContent from './AboutContent.vue'
-import LegendContent from './LegendContent.vue'
 import MapLibrary from './MapLibrary.vue'
 import MapPickerContent from './MapPickerContent.vue'
 import VersjonSjekk from './VersjonSjekk.vue'
@@ -30,10 +28,17 @@ import { useFokusFelle } from '../composables/useFokusFelle.js'
 // Tekststørrelsen er én slider (100–200 %) som skalerer menyen live: rot-fonten
 // er 16 px × faktor, og alt innhold er i em.
 
-const { menuOpen, close } = useAppMenu()
+const { menuOpen, close, onsketSheet } = useAppMenu()
 const { uiTextScale, setTextScale } = useUiTextScale()
 const { theme, setTheme } = useUiTheme()
-const { openChat } = useLendeChat()
+
+// ── Eksterne lenker ──────────────────────────────────────────────────────────
+// Bryteren bor i HOVEDMENYEN og ikke i kartets innstillings-skuff, fordi den
+// gjelder hele appen: ut.no og Google Maps fra infopanelet, kulturminnesok.no,
+// NVEs stasjonssider, Naturbase-faktaark og leksikon-lenkene i 3D-himmelen —
+// og Fritt lende og Turplanleggeren har ingen slik skuff i det hele tatt.
+// Begrunnelsen for at AV er standard står i useEksterneLenker.
+const { nyFane, settNyFane } = useEksterneLenker()
 
 // ── Hold skjermen våken ──────────────────────────────────────────────────────
 // Flyttet hit fra Innstillinger → Format (v6.6.4). Den lå fire trykk unna, i en
@@ -81,14 +86,6 @@ function go(to, last) {
   if (last) { try { localStorage.setItem('lende-last-mode', last) } catch { /* ignorer */ } }
   router.push(to)
 }
-// Lende-chat fra menyen (v4.8.2): samme invitasjons-gate som FAB-en, så
-// uinviterte ser ikke at funksjonen finnes.
-const harChat = hasAiToken()
-function onAskLende() {
-  close()
-  openChat()
-}
-
 // ── Primærvalg ───────────────────────────────────────────────────────────────
 // Antall lagrede kart/ruter hentes ved hver åpning — menyen er den ene flaten
 // der tallene skal stemme, og lesingen går mot det lette meta-storet.
@@ -160,15 +157,15 @@ function goFrittLende() {
   router.replace({ name: 'fritt-lende' })
 }
 
-// ── Hjelp ────────────────────────────────────────────────────────────────────
-// Ledeteksten er FAST (v6.5.35). Den sa «På kartet» / «Ruteplanlegging» etter
-// hvilken modus du sto i, altså hvor du var — men de to radene under er
-// Tegnforklaring og Spør Lende, og de er hjelp i begge halvdeler. En overskrift
-// som skifter uten at innholdet gjør det, får leseren til å tro at innholdet
-// gjorde det.
-const HJELP_LEDETEKST = 'Hjelp i lende'
+// ── HJELP-BLOKKA ER BORTE (v7.8.13) ─────────────────────────────────────────
+// Den bar to rader under ledeteksten «Hjelp i lende»: Tegnforklaring og Spør
+// Lende. Begge svarer på noe man har foran seg PÅ KARTET, og hovedmenyen er det
+// ene stedet i appen der kartet ikke er synlig. Tegnforklaringen er nå snarveien
+// «Hjelp» over kartet (se lib/snarveier.js), og chatten nås fra Lende-knappen
+// nede til høyre — der den alt har bodd siden v7.2.0. Med begge radene ute har
+// ledeteksten ingenting å lede, så den er slettet med dem.
 
-// ── Visning ──────────────────────────────────────────────────────────────────
+// ── Utseende ─────────────────────────────────────────────────────────────────
 const THEMES = [
   { value: 'lyst', label: 'Lyst',
     d: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10ZM12 2.5v2m0 15v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2.5 12h2m15 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4' },
@@ -239,12 +236,20 @@ async function onInstall() {
 // øverst til høyre) — uklart hvilket som gjorde hva. Nå lukker menyen seg når
 // en modal åpnes: ett lag, ett kryss. Gjelder alle menyens modaler, ikke bare
 // «Mine kart» — ellers ville halvparten oppført seg på den ene måten.
-const sheet = ref(null)   // 'kart' | 'rute' | 'nytt' | 'tegnforklaring' | 'om' | null
+const sheet = ref(null)   // 'kart' | 'rute' | 'nytt' | 'om' | null
 
 // «Nytt kart»-skjemaet har to innganger — menyens «+» og «Flere valg».
 // v6.5.45: den tredje er borte. Søkefeltets grønne pin bygger nå kartet der den
 // står, så flagget som ba dette skjemaet hente posisjonen hadde ingen avsender
 // igjen.
+// Et ønske utenfra (kart-visningen uten kart) åpner samme modal som menyen
+// selv gjør — og kvitteres ut, så to trykk på samme lenke virker begge ganger.
+watch(onsketSheet, (navn) => {
+  if (!navn) return
+  openSheet(navn)
+  onsketSheet.value = null
+})
+
 function openSheet(name) {
   sheet.value = name
   close()
@@ -359,36 +364,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           </div>
         </div>
 
-        <!-- Nivå 2: hjelp — gjelder begge halvdeler av appen. -->
-        <div class="am-block">
-          <div class="am-eyebrow">{{ HJELP_LEDETEKST }}</div>
-          <button type="button" class="am-line" @click="openSheet('tegnforklaring')">
-            <span class="am-line-icon">
-              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
-                   stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" />
-              </svg>
-            </span>Tegnforklaring
-          </button>
-
-          <!-- Spør Lende (v4.8.2): chatten nås ellers bare med lang-trykk på
-               Lende-knappen — en gest uten tastatur-ekvivalent, og den ruten en
-               skjermleser-bruker faktisk finner. Samme token-gate som FAB-en,
-               så uinviterte ser ingenting. -->
-          <button v-if="harChat" type="button" class="am-line" @click="onAskLende">
-            <span class="am-line-icon">
-              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
-                   stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 12a8 8 0 0 1-8 8H7l-4 3v-6.5A8 8 0 0 1 11 4h2a8 8 0 0 1 8 8z" />
-              </svg>
-            </span>Spør Lende
-          </button>
-
-        </div>
-
-        <!-- Visning: tema + tekststørrelse. -->
+        <!-- Appens utseende. LEDETEKSTEN «Visning» ER BORTE (v7.8.13): med
+             hjelp-blokka over slettet er dette den første blokka i menyen, og
+             tre tema-knapper med sol, måne og lyn sier hva de er uten en
+             overskrift som gjentar det. Tekst-slideren har fått sin egen blokk
+             under, med ledetekst — den er ikke selvforklarende på samme måte. -->
         <div class="am-block am-block-wide">
-          <div class="am-eyebrow">Visning</div>
           <div class="am-seg" role="group" aria-label="Utseende">
             <button v-for="t in THEMES" :key="t.value" type="button"
                     class="am-seg-btn am-seg-col" :class="{ 'is-on': theme === t.value }"
@@ -406,11 +387,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                som snarveien «Natt»/«Dag» over kartet, altså på flata den
                endrer. Stemning-fana er siden borte (v7.8.12) — både kartstilene
                og stemningene velges i Innstillinger → Stil. -->
+        </div>
+
+        <!-- TEKST I LENDE (v7.8.13). Etiketten var en `am-size-label` INNE i
+             Visning-blokka — altså en tredje slags overskrift ved siden av
+             ledetekstene, på en innstilling som er like selvstendig som «Hold
+             skjermen våken». Den er nå en ledetekst i sin egen blokk, med samme
+             form som den: versaler, samme farge, samme avstand. Navnet sier
+             dessuten HVOR den gjelder — appens egen tekst, ikke kartets. -->
+        <div class="am-block am-block-wide">
+          <div class="am-eyebrow">Tekst i Lende</div>
           <!-- Tallet står OVER sporet (se kommentaren ved TEXT_MIN_PST), og
                rendres i sin EGEN størrelse: valget er lesbart som seg selv,
                slik de fire knappene var. -->
           <div class="am-size-row">
-            <span class="am-size-label">Tekststørrelse</span>
             <div class="am-size-slider">
               <div class="am-size-verdi-plass">
                 <div class="am-size-verdi" role="status" aria-live="polite"
@@ -447,6 +437,26 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                    :aria-valuetext="vakenTekst"
                    @input="holdVaken.settMinutter($event.target.valueAsNumber)" />
           </div>
+        </div>
+
+        <!-- Eksterne lenker (v7.8.13). Se useEksterneLenker for hvorfor AV er
+             standard: en `_blank`-åpning fra en installert PWA legger seg i et
+             minimalt nettleser-lag oppå appen, og URL-stripa blir stående nede
+             i hjørnet etterpå. Etiketten sier hva PÅ gjør, ikke hva bryteren
+             heter — det er handlingen man velger. -->
+        <div class="am-block am-block-wide">
+          <div class="am-eyebrow">Eksterne lenker</div>
+          <label class="am-bryter-rad">
+            <span class="am-bryter-tekst">
+              Åpne i ny nettleser
+              <span class="am-bryter-meta">ut.no, kulturminnesøk, NVE, leksika …</span>
+            </span>
+            <button type="button" role="switch" class="am-bryter"
+                    :class="{ 'is-on': nyFane }" :aria-checked="nyFane"
+                    @click="settNyFane(!nyFane)">
+              <span class="am-bryter-knott" />
+            </button>
+          </label>
         </div>
 
         <!-- Dempet bunn under skillelinja. -->
@@ -489,10 +499,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   </AppModal>
   <AppModal :open="sheet === 'om'" title="Om Så i lende" @close="sheet = null">
     <div class="px-4 py-5"><AboutContent /></div>
-  </AppModal>
-  <AppModal :open="sheet === 'tegnforklaring'" title="Tegnforklaring"
-            @close="sheet = null">
-    <LegendContent />
   </AppModal>
 </template>
 
@@ -675,7 +681,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
    valget, så etiketten blir bredere jo større valget er. `flex: 1` på knappene
    deler bredden likt uansett hvor mange hakk lista får. */
 .am-size-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 2px 4px; }
-.am-size-label { font-size: 0.95em; flex: 1 1 auto; }
 .am-size-slider { flex: 1 1 100%; display: flex; flex-direction: column; gap: 2px; }
 .am-size-range {
   width: 100%;
@@ -721,6 +726,44 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 .menu-slide-enter-active, .menu-slide-leave-active { transition: transform 0.28s ease; }
 .menu-slide-enter-from, .menu-slide-leave-to { transform: translateX(-100%); }
+
+/* ── Bryter (eksterne lenker) ──
+   Samme form som vippebryterne i skuffene — grønn flate på, grå av, en hvit
+   knott som glir — men i menyens egen palett og i em, så den følger
+   tekststørrelsen som alt annet her. */
+.am-bryter-rad {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 2px 4px;
+  cursor: pointer;
+  user-select: none;
+}
+.am-bryter-tekst { flex: 1 1 auto; min-width: 0; font-size: 0.95em; }
+.am-bryter-meta { display: block; font-size: 0.78em; color: var(--am-dim); }
+.am-bryter {
+  position: relative;
+  flex: 0 0 auto;
+  width: 2.6em;
+  height: 1.5em;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  transition: background 0.15s ease;
+}
+.am-bryter.is-on { background: var(--am-accent); }
+.am-bryter-knott {
+  position: absolute;
+  top: 0.15em;
+  left: 0.15em;
+  width: 1.2em;
+  height: 1.2em;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  transition: left 0.15s ease;
+}
+.am-bryter.is-on .am-bryter-knott { left: 1.25em; }
+.am-bryter:focus-visible { outline: 2px solid var(--am-accent); outline-offset: 2px; }
 
 /* ── Hold skjermen våken ──
    Sporet er gult (samme #ffd84a som ringen rundt hamburgeren og FAB-ens

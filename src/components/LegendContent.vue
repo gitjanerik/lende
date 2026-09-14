@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import isomCatalog from '../lib/isomCatalog.json'
 import { buildIsomDefs, buildIsomCss } from '../lib/symbolizer.js'
 import { listThemes, THEME_GROUPS } from '../lib/mapSettingsApply.js'
+import { useMapTheme } from '../composables/useMapTheme.js'
 
 
 // Bygg pattern-defs + CSS som mapBuilder gjør, så samples i tegnforklaringen
@@ -19,7 +20,21 @@ const sections = computed(() => THEME_GROUPS
   .map((g) => ({ ...g, themes: THEMES.filter((t) => (t.group ?? 'hoved') === g.key) }))
   .filter((g) => g.themes.length))
 
-const currentTheme = ref('light')
+// TEMAET STARTER PÅ KARTETS EGET (v7.8.13). Det sto fast på 'light', og med
+// tegnforklaringen som snarvei over kartet — der «Natt» er ett trykk unna — var
+// det første man så en lys prøveflate mot et mørkt kart, altså en forklaring på
+// noe annet enn det man har foran seg. `useMapTheme` er singletonen både
+// Stil-fana og «Natt»-snarveien skriver til, så «natt» gir «Mørk» av seg selv.
+//
+// VELGEREN BLIR STÅENDE, og valget her skriver IKKE tilbake: tegnforklaringen
+// er et oppslagsverk, og den som vil se hvordan myr ser ut i Sepia skal ikke
+// måtte bytte kartets tema for å få vite det. Ukjent nøkkel (et tema som er
+// fjernet fra katalogen) faller til det første i lista.
+const { mapTheme } = useMapTheme()
+const startTema = THEMES.some((t) => t.key === mapTheme.value)
+  ? mapTheme.value
+  : (THEMES[0]?.key ?? 'light')
+const currentTheme = ref(startTema)
 const themeObj = computed(() => isomCatalog.themes?.[currentTheme.value])
 const bgColor = computed(() => themeObj.value?.background ?? isomCatalog.background.color)
 

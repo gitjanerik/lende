@@ -1259,6 +1259,100 @@ const SJEKKER = [
     },
   },
   {
+    // EKSTERNE LENKER (v7.8.13). Bryteren i hovedmenyen styrer `target` på hver
+    // utgående lenke i appen. To ting måles, og begge er kabling som ingen
+    // enhetstest ser: at bryteren finnes og lagrer valget, og at en EKTE lenke
+    // i punkt-arket faktisk følger den. Default er AV, altså `_self`.
+    navn: 'bryteren for eksterne lenker styrer target på lenkene i arket',
+    domene: 'AppMenu + useEksterneLenker',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await page.evaluate(() => localStorage.removeItem('lende-ekstern-ny-fane'))
+
+      // En lenke som alltid står i punkt-arket: NLOD-lenka i kulturminne-arket
+      // krever et treff, mens Tips-stripa ikke har noen. Vi leser i stedet ALLE
+      // utgående lenker som er i DOM-en, og krever at ingen av dem er _blank.
+      const targets = () => page.evaluate(() => [...document.querySelectorAll('a[href^="http"]')]
+        .map((a) => a.getAttribute('target')))
+
+      await page.locator('[data-hovedmeny-knapp]').first().click()
+      await page.waitForTimeout(400)
+      const bryter = page.locator('button[role="switch"].am-bryter')
+      if (!(await bryter.count())) throw new Error('fant ingen bryter for eksterne lenker')
+      if ((await bryter.getAttribute('aria-checked')) !== 'false') {
+        throw new Error('bryteren sto PÅ uten at noe var lagret — default skal være av')
+      }
+      await bryter.click()
+      await page.waitForTimeout(250)
+      const lagret = await page.evaluate(() => localStorage.getItem('lende-ekstern-ny-fane'))
+      if (lagret !== '1') throw new Error(`valget ble ikke lagret (${lagret})`)
+
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(300)
+      const på = await targets()
+      if (på.some((t) => t !== '_blank')) {
+        throw new Error(`en lenke fulgte ikke bryteren PÅ: ${på.join(', ')}`)
+      }
+      // At `<a>`-ene følger brytera er ikke alltid MÅLT her: lenkene til NVE og
+      // kulturminnesok.no står i ark som krever et treff, så på et ark uten dem
+      // er lista tom. UT.no-sjekken over måler den andre halvdelen — `_self` som
+      // standard — på en knapp som alltid er der, og `target`-bindingen er den
+      // samme `eksternTarget` begge steder.
+
+      // NØYTRAL TILSTAND: tilbake til av, som er standarden.
+      await page.locator('[data-hovedmeny-knapp]').first().click()
+      await page.waitForTimeout(400)
+      await page.locator('button[role="switch"].am-bryter').click()
+      await page.waitForTimeout(250)
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(300)
+      const av = await targets()
+      if (av.some((t) => t === '_blank')) {
+        throw new Error(`en lenke ble stående på _blank etter at bryteren ble slått av`)
+      }
+      return `bryteren lagrer valget, og ${av.length} lenke(r) følger den`
+    },
+  },
+  {
+    // HJELP-SNARVEIEN (v7.8.13). Tegnforklaringen lå som en rad i hovedmenyen
+    // og er nå en snarvei over kartet. To ting måles, og ingen av dem finnes i
+    // en enhetstest — prosjektet monterer ikke Vue-komponenter:
+    //   • at snarveien faktisk åpner modalen;
+    //   • at tema-velgeren står på KARTETS tema og ikke på «light». Sjekken
+    //     slår på «Natt» først, nettopp fordi det er den stillingen der en
+    //     fastlåst lys tegnforklaring forklarer noe annet enn det man ser.
+    navn: 'Hjelp-snarveien åpner tegnforklaringen i kartets eget tema',
+    domene: 'MapView (SNARVEI_HANDLING.hjelp) + LegendContent',
+    async kjør(page) {
+      await lukkDrawer(page)
+      const kartTema = () => page.evaluate(() => localStorage.getItem('lende-map-theme'))
+      const før = await kartTema()
+      await klikkSnarvei(page, 'natt')
+      await page.waitForTimeout(500)
+      const mørkt = await kartTema()
+      if (mørkt !== 'dark') throw new Error(`«Natt» ga tema «${mørkt}», ikke dark`)
+
+      await klikkSnarvei(page, 'hjelp')
+      const velger = page.locator('select[aria-label="Tema for tegnforklaringen"]')
+      if (!(await velger.count())) throw new Error('tegnforklaringen åpnet ikke')
+      const valgt = await velger.inputValue()
+      if (valgt !== 'dark') {
+        throw new Error(`tegnforklaringen sto på «${valgt}» mens kartet var mørkt`)
+      }
+
+      // NØYTRAL TILSTAND: modalen lukkes og kartet får tilbake temaet det sto i.
+      await page.locator('button[aria-label="Lukk"]').last().click()
+      await page.waitForTimeout(300)
+      if (await velger.count()) throw new Error('modalen ble stående etter Lukk')
+      if (før !== 'dark') {
+        await klikkSnarvei(page, 'natt')
+        await page.waitForTimeout(400)
+      }
+      await lukkSnarveiRad(page)
+      return 'snarveien åpner tegnforklaringen, og tema-velgeren står på dark'
+    },
+  },
+  {
     // SKUFFA HAR TRE NIVÅER (v7.8.0), og hele mekanikken er geometri i en ekte
     // nettleser: høydene er MÅLT av layouten, spennet klemmes mens fingeren er
     // nede, og dokkingen leser retningen. Ingen del av det finnes i en
@@ -2553,9 +2647,20 @@ const SJEKKER = [
       // Sjekken målte da nettverket og ikke koblingen. Stubben fanger nøyaktig
       // URL-en knappen ber om, og trykket er fortsatt et ekte klikk gjennom den
       // ekte handleren.
+      //
+      // MÅLET ER OGSÅ HVOR DEN ÅPNES (v7.8.13): begge stillingene av bryteren
+      // «Åpne eksterne lenker i ny nettleser» går gjennom `window.open`, og
+      // standarden er samme fane (`_self`). Gikk av-stillingen via
+      // `location.assign` i stedet, ville siden navigert, stubben forsvunnet
+      // med den, og sjekken lest en undefined — som er nøyaktig det som skjedde
+      // første gang.
       await page.evaluate(() => {
+        localStorage.removeItem('lende-ekstern-ny-fane')
         window.__roykUrler = []
-        window.open = (url) => { window.__roykUrler.push(String(url)); return null }
+        window.open = (url, mal) => {
+          window.__roykUrler.push({ url: String(url), mal: String(mal ?? '') })
+          return null
+        }
       })
 
       await klikkSnarvei(page, 'info')
@@ -2573,13 +2678,17 @@ const SJEKKER = [
         ['gmaps', /^Google Maps$/, /google\.[a-z.]+\/maps/i],
       ]) {
         await klikkTekst(page, etikett)
-        const url = await page.evaluate(() => window.__roykUrler.at(-1) ?? '')
-        if (!url) throw new Error(`«${id}» åpnet ingenting`)
+        const siste = await page.evaluate(() => window.__roykUrler.at(-1) ?? null)
+        if (!siste) throw new Error(`«${id}» åpnet ingenting`)
+        const { url, mal } = siste
         if (!monster.test(url)) throw new Error(`«${id}» åpnet ${url}`)
+        if (mal !== '_self') {
+          throw new Error(`«${id}» åpnet i «${mal}» — standarden er samme fane`)
+        }
         // Koordinatene skal være punktets, ikke en default et sted i Norge.
         const tall = url.match(/-?\d+\.\d+/g) || []
         if (tall.length < 2) throw new Error(`«${id}» fikk ingen koordinater: ${url}`)
-        funn.push(`${id} → ${tall.slice(0, 2).join(',')}`)
+        funn.push(`${id} → ${tall.slice(0, 2).join(',')} (${mal})`)
       }
 
       // NØYTRAL TILSTAND: punkt-arket ligger over kartet til det lukkes.
@@ -5814,6 +5923,113 @@ const SJEKKER = [
         // Modalen skal være borte. Uten fiksen står den her for alltid.
         await modal.waitFor({ state: 'hidden', timeout: 8000 })
         return 'ett kart, samme rute — modalen lukket'
+      } finally {
+        await rydd().catch(() => {})
+      }
+    },
+  },
+  {
+    // SLETTER MAN KARTET MAN STÅR I (v7.8.13), ble det ikke borte: SVG-en lå
+    // ferdig rendret i DOM-en, og visningen oppførte seg som et kart helt til
+    // neste last. Kjeden som retter det — deleteMap → onKartSlettet → MapView →
+    // MapStatusOverlays — går gjennom en ekte IndexedDB og en ekte modal, så
+    // ingen enhetstest ser den. Sjekken seeder sitt eget kart, står i det, og
+    // sletter det fra «Mine kart» slik en bruker gjør det.
+    //
+    // `confirm` MÅ håndteres: MapLibrary spør før den sletter, og en dialog
+    // ingen svarer på blokkerer hele sjekken.
+    navn: 'sletter man kartet man står i, sier visningen fra',
+    domene: 'mapStorage.onKartSlettet + MapView + MapStatusOverlays',
+    async kjør(page) {
+      const ID = 'royk-slettet-kart'
+      const rydd = async () => {
+        page.removeAllListeners('dialog')
+        await evalMedTak(page, async (id) => {
+          const db = await new Promise((ok, nei) => {
+            const r = indexedDB.open('lende-maps', 3)
+            r.onsuccess = () => ok(r.result)
+            r.onerror = () => nei(r.error)
+          })
+          await new Promise((ok) => {
+            const t = db.transaction(['maps', 'meta'], 'readwrite')
+            t.objectStore('maps').delete(id)
+            t.objectStore('meta').delete(id)
+            t.oncomplete = ok
+            t.onerror = ok
+          })
+          db.close()
+        }, ID).catch(() => {})
+        await page.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await page.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+      }
+
+      try {
+        await evalMedTak(page, async (id) => {
+          const svg = await fetch(`${location.pathname.split('/kart/')[0]}/maps/vardasen.svg`)
+            .then((r) => r.text())
+          const post = {
+            id, navn: 'Slette-arket', svg, opprettet: Date.now(),
+            bbox: { south: 59.79, north: 59.84, west: 10.37, east: 10.46 },
+            equidistanceM: 20, isAuto: false, partial: false, annotations: [], tracks: [],
+          }
+          const db = await new Promise((ok, nei) => {
+            const r = indexedDB.open('lende-maps', 3)
+            r.onsuccess = () => ok(r.result)
+            r.onerror = () => nei(r.error)
+          })
+          await new Promise((ok, nei) => {
+            const t = db.transaction(['maps', 'meta'], 'readwrite')
+            t.objectStore('maps').put(post)
+            const { svg: _s, annotations: _a, tracks: _t, ...lett } = post
+            t.objectStore('meta').put({ ...lett, hasDem: false, sizeBytes: svg.length })
+            t.oncomplete = ok
+            t.onerror = () => nei(t.error)
+          })
+          db.close()
+        }, ID)
+
+        await page.goto(`${BASE}/kart/${ID}`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await page.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+
+        page.on('dialog', (d) => d.accept())
+        await page.locator('button[aria-label="Åpne meny"]').click({ timeout: 10_000 })
+        await page.locator('aside[aria-label="Hovedmeny"]')
+          .waitFor({ state: 'visible', timeout: 10_000 })
+        await page.locator('button.am-row-main', { hasText: 'Mine kart' })
+          .click({ timeout: 10_000 })
+        const modal = page.locator('[role="dialog"][aria-label="Mine kart"]')
+        await modal.waitFor({ state: 'visible', timeout: 10_000 })
+        const rad = modal.locator('div.font-medium', { hasText: 'Slette-arket' })
+        await rad.first().waitFor({ state: 'visible', timeout: 10_000 })
+        // EKSAKT aria-label: «Slett alle kart» står i samme modal, og en
+        // prefiks-treffer ville tømt hele basen for de andre sjekkene.
+        await modal.locator('button[aria-label="Slett Slette-arket"]')
+          .first().click({ timeout: 10_000 })
+
+        // Meldinga står BAK modalen — den lukkes ikke av en sletting — så vi
+        // leser den direkte og ikke via synlighet.
+        const melding = page.locator('[role="alert"]', { hasText: 'Kartet er slettet' })
+        await melding.waitFor({ timeout: 10_000 })
+          .catch(() => { throw new Error('visningen sa ikke fra at kartet var slettet') })
+
+        // DE TO VEIENE VIDERE MÅ VÆRE DER, og «Nytt turkart» må faktisk åpne
+        // menyens modal — den har ingen rute, så koblingen er hele poenget.
+        for (const navn of ['Mine kart', 'Nytt turkart']) {
+          if (!(await melding.locator('button', { hasText: navn }).count())) {
+            throw new Error(`meldinga manglet veien videre: «${navn}»`)
+          }
+        }
+        await page.locator('button[aria-label="Lukk"]').first().click({ timeout: 10_000 })
+        await page.waitForTimeout(400)
+        await melding.locator('button', { hasText: 'Nytt turkart' }).click({ timeout: 10_000 })
+        const nytt = page.locator('[role="dialog"][aria-label="Nytt turkart"]')
+        await nytt.waitFor({ state: 'visible', timeout: 10_000 })
+          .catch(() => { throw new Error('«Nytt turkart» åpnet ingen modal') })
+        await page.locator('button[aria-label="Lukk"]').first().click({ timeout: 10_000 })
+        await page.waitForTimeout(300)
+        return 'sletting gir melding med begge veiene videre, og «Nytt turkart» åpner'
       } finally {
         await rydd().catch(() => {})
       }

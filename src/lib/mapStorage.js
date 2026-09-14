@@ -206,6 +206,29 @@ export async function updateMap(id, patch) {
   return next
 }
 
+// EN SLETTING MELDES FRA (v7.8.13), og hooken står HER og ikke hos kalleren.
+// Grunnen er at kalleren er fire steder — «Mine kart», Fritt lende, tileCache
+// og spøkelses-ryddingen — mens den som trenger beskjeden er ÉN: kart-visningen
+// som kanskje står med nettopp det kartet på skjermen. En sletting fra menyen
+// tok ikke bort kartet man så på: det lå ferdig rendret i DOM-en, med
+// nabofliser rundt, og fortsatte å oppføre seg som et kart helt til man lastet
+// på nytt. Lytterne er et rent Set og ingen DOM-hendelse, så modulen kan
+// fortsatt kjøres i node (MCP-serveren og fasiten importerer den).
+const slettLyttere = new Set()
+
+/** Abonner på slettinger. Returnerer avmeldings-funksjonen. */
+export function onKartSlettet(fn) {
+  if (typeof fn !== 'function') return () => {}
+  slettLyttere.add(fn)
+  return () => slettLyttere.delete(fn)
+}
+
+function meldSlettet(id) {
+  for (const fn of [...slettLyttere]) {
+    try { fn(id) } catch { /* en lytter som kaster skal ikke stoppe de andre */ }
+  }
+}
+
 export async function deleteMap(id) {
   const t = await tx('readwrite', [STORE, META_STORE])
   t.objectStore(STORE).delete(id)
@@ -215,6 +238,7 @@ export async function deleteMap(id) {
     t.onerror = () => reject(t.error)
     t.onabort = () => reject(t.error)
   })
+  meldSlettet(id)
 }
 
 export async function clearAll() {
@@ -226,6 +250,9 @@ export async function clearAll() {
     t.onerror = () => reject(t.error)
     t.onabort = () => reject(t.error)
   })
+  // `null` betyr ALLE: en lytter som bare sammenlikner id-er ville sett «Slett
+  // alle» som en sletting av et annet kart enn sitt eget.
+  meldSlettet(null)
 }
 
 // ---------- Ruteplanleggerens lagrede grusruter (gravelRoutes, v3) ----------

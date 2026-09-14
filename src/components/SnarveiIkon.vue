@@ -102,6 +102,16 @@ defineProps({
       <circle cx="12" cy="12" r="4"/>
       <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
     </template>
+    <!-- HJELP (v7.8.13): sirkel med spørsmålstegn. Samme ring som «Info», og
+         det er med vilje — de to står ved siden av hverandre og svarer på hver
+         sin halvdel av samme spørsmål. Krøllen er tegnet og ikke satt som
+         tekst: en <text> ville arvet appens fontstack og blitt et annet tegn på
+         hver plattform, mens strekbredden her følger de andre ikonene. -->
+    <template v-else-if="id === 'hjelp'">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="M9.3 9.2a2.8 2.8 0 0 1 5.4.9c0 1.9-2.7 2.3-2.7 4"/>
+      <circle cx="12" cy="17.2" r="0.6" fill="currentColor"/>
+    </template>
     <template v-else-if="id === 'info'">
       <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/>
       <circle cx="12" cy="8" r="0.6" fill="currentColor"/>

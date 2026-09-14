@@ -29,6 +29,7 @@ import { kompass } from '../../lib/tour3d/himmelObjekter.js'
 import TekstStorrelseKnapp from '../TekstStorrelseKnapp.vue'
 import { GLOBE_TEKST } from '../../lib/tour3d/himmellegemer.js'
 import { faktaFor, manerLinje } from '../../lib/tour3d/himmelFakta.js'
+import { useEksterneLenker } from '../../composables/useEksterneLenker.js'
 
 const props = defineProps({
   // Objektet fra himmelObjekter().
@@ -45,6 +46,9 @@ const props = defineProps({
   maksHoyde: { type: String, default: '58vh' },
 })
 const emit = defineEmits(['lukk', 'velg', 'minimer', 'utvid', 'fokus'])
+
+// SNL- og Wikipedia-lenkene følger hovedmenyens bryter — se useEksterneLenker.
+const { eksternTarget } = useEksterneLenker()
 
 const GRAD = 180 / Math.PI
 const komma = (n, d = 1) => (Number.isFinite(n) ? n.toFixed(d).replace('.', ',') : '–')
@@ -407,7 +411,7 @@ const faseNavn = computed(() => {
              Stjernebildene har bare Wikipedia — SNL har ikke en artikkel per
              stjernebilde, så en pille dit ville vært et løfte vi ikke kan holde. -->
         <div v-if="objekt.info.wikipedia" class="mt-2 flex flex-wrap gap-1">
-          <a :href="objekt.info.wikipedia" target="_blank" rel="noopener noreferrer"
+          <a :href="objekt.info.wikipedia" :target="eksternTarget" rel="noopener noreferrer"
              class="rounded-full bg-white/10 px-2 py-1 text-[0.625rem] text-white/75
                     active:scale-95">Wikipedia ↗</a>
         </div>
@@ -452,10 +456,10 @@ const faseNavn = computed(() => {
              lenkene er veien videre for den som vil lese mer hjemme igjen. SNL
              først: redaksjonelt og på bokmål. -->
         <div class="mt-2 flex flex-wrap gap-1">
-          <a :href="fakta.snl" target="_blank" rel="noopener noreferrer"
+          <a :href="fakta.snl" :target="eksternTarget" rel="noopener noreferrer"
              class="rounded-full bg-white/10 px-2 py-1 text-[0.625rem] text-white/75
                     active:scale-95">Store norske leksikon ↗</a>
-          <a :href="fakta.wikipedia" target="_blank" rel="noopener noreferrer"
+          <a :href="fakta.wikipedia" :target="eksternTarget" rel="noopener noreferrer"
              class="rounded-full bg-white/10 px-2 py-1 text-[0.625rem] text-white/75
                     active:scale-95">Wikipedia ↗</a>
         </div>

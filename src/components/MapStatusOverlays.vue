@@ -47,10 +47,14 @@ const props = defineProps({
   // tilbake. Det er samme felle snarvei-raden gikk i (v6.6.1), og den er hele
   // grunnen til at GPS-toasten brøt til fire linjer på en telefon.
   bandStyle: { type: Object, default: () => ({}) },
+  // Kartet man står i ble slettet mens det lå på skjermen (v7.8.13) — se
+  // overlayet nederst i lasting-kjeden.
+  kartSlettet: { type: Boolean, default: false },
 })
 defineEmits([
   'retryLoad', 'dismissOutside', 'dismissDetails', 'retryDetails', 'dismissLowAccuracy',
   'retryGps', 'completePartial', 'repairMosaic', 'squareMosaic',
+  'apneMineKart', 'apneNyttKart',
 ])
 
 // Rå-meldingen fra pipelinen er nettleserens egen, og i den vanligste
@@ -91,11 +95,59 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
 </script>
 
 <template>
+  <!-- KARTET BLE SLETTET MENS DET LÅ PÅ SKJERMEN (v7.8.13). Sletter man fra
+       «Mine kart» det kartet man står i, tok ingenting det bort: SVG-en lå
+       ferdig rendret i DOM-en med nabofliser rundt, og fortsatte å oppføre seg
+       som et kart helt til man lastet på nytt — altså et kart som ikke finnes.
+       Overlayet er OPAKT og dekker hele flata: et halvgjennomsiktig lag over et
+       kart man ikke lenger har, ville vært nettopp den tvetydigheten det skal
+       fjerne. Det står FØRST i kjeden fordi det er den sterkeste påstanden av
+       dem — en lasting eller en last-feil på et slettet kart er uten mening.
+       De to veiene videre er menyens egne modaler og ikke ruter: «Mine kart»
+       HAR ingen rute, og et anker til hamburgeren ville vært en blindvei.
+       z-[70] ER NØDVENDIG: snarvei-raden ligger på z-50 når den er åpen og
+       Lende-knappen på z-40, så et lavere lag ville latt brukeren måle avstander
+       og be om en rute i et kart som ikke finnes. Bare menyen og byggeoverlegget
+       (z-[219] og oppover) skal kunne legge seg over dette. -->
+  <div v-if="kartSlettet" role="alert"
+       class="absolute inset-0 z-[70] flex flex-col items-center justify-center px-6 text-center"
+       :class="isDark ? 'bg-[#1b1d1a] text-ink-2' : 'bg-[#f6f4ea] text-zinc-700'">
+    <svg viewBox="0 0 24 24" class="w-8 h-8 mb-3 opacity-45" fill="none" stroke="currentColor"
+         stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M9 4 3 6.2v13.6L9 17.6l6 2.2 6-2.2V4l-6 2.2z"/>
+      <path d="M9 4v13.6M15 6.2v13.6"/>
+      <path d="M4 4l16 16"/>
+    </svg>
+    <div class="text-lg font-semibold mb-2" :style="{ zoom: uiTextScale }">
+      Kartet er slettet
+    </div>
+    <div class="text-sm opacity-80 mb-5 max-w-[22rem] leading-snug"
+         :style="{ zoom: uiTextScale }">
+      Du har slettet kartet du sist brukte. Velg et annet, eller lag et nytt.
+    </div>
+    <div class="flex flex-wrap items-center justify-center gap-2">
+      <button type="button" @click="$emit('apneMineKart')"
+              class="px-4 py-2 rounded-lg border text-sm active:scale-95"
+              :class="isDark
+                      ? 'bg-ink/10 border-ink/20 text-ink'
+                      : 'bg-white border-zinc-300 text-zinc-800'">
+        <span :style="{ zoom: uiTextScale }">Mine kart</span>
+      </button>
+      <button type="button" @click="$emit('apneNyttKart')"
+              class="px-4 py-2 rounded-lg border text-sm active:scale-95"
+              :class="isDark
+                      ? 'bg-emerald-500/20 border-emerald-400/35 text-emerald-100'
+                      : 'bg-emerald-600 border-emerald-700 text-white'">
+        <span :style="{ zoom: uiTextScale }">Nytt turkart</span>
+      </button>
+    </div>
+  </div>
+
   <!-- Lasting / feil. Kart-aktig skjelett ved FØRSTE last (ingen kart ennå).
        Når et kart allerede vises (bytte/promotering av flis) dekker vi IKKE
        kartet med et opakt skjelett — da ville «Laster kart»-teksten bli nesten
        usynlig oppå kremgult kart. Vis i stedet en liten lesbar pille i hjørnet. -->
-  <div v-if="loading && !hasMeta && skeletonVisible" class="absolute inset-0 z-10 overflow-hidden">
+  <div v-if="!kartSlettet && loading && !hasMeta && skeletonVisible" class="absolute inset-0 z-10 overflow-hidden">
     <div class="cb-skeleton absolute inset-0" :class="isDark ? 'cb-skeleton-dark' : 'cb-skeleton-light'">
       <div class="cb-skeleton-shimmer absolute inset-0"/>
     </div>
