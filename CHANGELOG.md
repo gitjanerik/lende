@@ -1,3 +1,14 @@
+## 2026-09-14 — v7.8.9: tannhjulet i knott-panelet legger raden sammen
+
+Tannhjulene ved «Strek» og «Relieff» i snarvei-skuffa åpnet Innstillinger →
+Kartstil, men lot selve raden stå utfoldet bak skuffa — så den lå der og tok
+kartflate når man lukket innstillingene igjen. Et trykk på et tannhjul fører ut
+av raden på samme måte som et trykk på en snarvei, og legger den derfor sammen
+med den samme regelen (`dra = 0`), inkludert `sluk`-vakta som svelger klikket
+etter et drag.
+
+---
+
 ## 2026-09-12 — v7.8.8: flisene bygges to og to
 
 Punkt 22 fra ytelsesanalysen (`docs/YTELSE_TURKART.md`), det ene som ikke var med i v7.7.14: både kant-utvidelsen (`extendMap`, hjørnepilene) og «Fyll hullene» / «Gjør arket firkantet» (`byggCeller`) bygde flisene SERIELT med `for … await`, så et trykk på en hjørnepil med tre nye fliser var tre fulle pipeliner etter hverandre — og Overpass er 81–97 % av hver. Nå kjøres høyst to i flukt gjennom `lib/parallellBygg.js` (`kjorMedTak`, ren og enhetstestet: tak, rekkefølge, isolerte feil, abort). Taket er to fordi det er Overpass sin grense og ikke vår: hvert bygg kappløper alt to speil, så to bygg er fire samtidige forespørsler, og speilene svarer 429 per IP — hver 429 spiser ett av tre forsøk med backoff. Prisen på telefonen er to workere og to DEM-er i minnet samtidig; gevinsten ligger i nettventinga, som dominerer.
