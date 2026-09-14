@@ -2226,11 +2226,21 @@ const SJEKKER = [
     },
   },
   {
-    // LUFTA RUNDT DRA-HÅNDTAKET ER DEN SAMME OVERALT (v7.5.0). Eieren hadde
-    // snarvei-skuffa og punkt-arket åpne samtidig og så at de ikke matchet.
-    // Verdien er dessuten LIK over og under, så «lufta rundt håndtaket» er ett
-    // tall enten arket henger fra toppen eller fra bunnen.
-    navn: 'dra-håndtaket har samme luft i snarvei-skuffa og punkt-arket',
+    // LUFTA RUNDT DRA-HÅNDTAKET (v7.5.0), OG DEN ENE FLATA SOM HAR FORLATT
+    // REGELEN (v7.8.19).
+    //
+    // Regelen var at håndtaket har samme luft OVERALT, og lik over og under —
+    // eieren hadde snarvei-skuffa og punkt-arket åpne samtidig og så at de
+    // ikke matchet. Den gjelder fortsatt for arkene, og måles her.
+    //
+    // SNARVEI-RADEN ER UTE AV DEN, og det er ikke en glipp: raden er ikke
+    // lenger en fylt boks med en strek nederst i, den er en RAMME der
+    // håndtaket er en BULE i bunnkanten. En «luft over og under» finnes ikke i
+    // en bule — den har en dybde, ikke en polstring. Det som måles i stedet er
+    // de to tingene som gjør den til en bule og ikke en knapp klistret under
+    // en boks: at den henger LENGER NED enn bunnstreken den sitter i, og at
+    // den er midtstilt i ramma.
+    navn: 'dra-håndtaket: luft i punkt-arket, bule i snarvei-ramma',
     domene: 'SnarveiRad + ContextMenuSheet',
     async kjør(page) {
       await lukkDrawer(page)
@@ -2243,31 +2253,59 @@ const SJEKKER = [
         }))
       })
       await page.waitForTimeout(700)
-      const luft = await page.evaluate(() => {
-        const les = (el) => {
-          if (!el) return null
-          const cs = getComputedStyle(el)
-          return [Math.round(parseFloat(cs.paddingTop)), Math.round(parseFloat(cs.paddingBottom))]
-        }
+      const m = await page.evaluate(() => {
         const snar = document.querySelector('.snarvei-handle')
         const ark = [...document.querySelectorAll('.cursor-grab')]
           .find((e) => e.offsetParent && e !== snar && e.querySelector('.rounded-full'))
-        return { snarvei: les(snar), punktark: les(ark) }
+        const cs = ark && getComputedStyle(ark)
+        const kanter = [...document.querySelectorAll('.snarvei-bunn__kant')]
+        const pille = document.querySelector('.snarvei-pille')
+        const b = snar?.getBoundingClientRect()
+        const p = pille?.getBoundingClientRect()
+        return {
+          punktark: cs
+            ? [Math.round(parseFloat(cs.paddingTop)), Math.round(parseFloat(cs.paddingBottom))]
+            : null,
+          kanter: kanter.length,
+          // Hvor mye bula stikker ned under bunnstreken kant-stumpene tegner.
+          dybde: (b && kanter.length)
+            ? Math.round(b.bottom - kanter[0].getBoundingClientRect().bottom)
+            : null,
+          // Avviket mellom bulas midtpunkt og rammas.
+          avvikMidt: (b && p)
+            ? Math.round(Math.abs((b.left + b.right) / 2 - (p.left + p.right) / 2))
+            : null,
+          // Trykkflata, `::after` medregnet — WCAG 2.5.5.
+          trykkH: snar
+            ? Math.round(snar.getBoundingClientRect().height
+                + Math.abs(parseFloat(getComputedStyle(snar, '::after').top || '0')) * 2)
+            : null,
+        }
       })
-      if (!luft.snarvei || !luft.punktark) {
-        throw new Error(`fant ikke begge håndtakene: ${JSON.stringify(luft)}`)
+      if (!m.punktark) throw new Error('fant ikke punkt-arkets håndtak')
+      if (m.punktark[0] !== m.punktark[1]) {
+        throw new Error(`punkt-arkets håndtak har ulik luft over og under `
+          + `(${m.punktark.join('/')}) — da er den ikke den samme når arket snus`)
       }
-      if (luft.snarvei.join() !== luft.punktark.join()) {
-        throw new Error(`ulik luft rundt dra-håndtaket: snarvei ${luft.snarvei.join('/')} `
-          + `mot punkt-ark ${luft.punktark.join('/')}`)
+      if (m.kanter !== 2) {
+        throw new Error(`snarvei-ramma har ${m.kanter} kant-stumper i bunnen, ikke 2 `
+          + '— da tegnes ikke bunnstreken rundt bula')
       }
-      if (luft.snarvei[0] !== luft.snarvei[1]) {
-        throw new Error(`håndtaket har ulik luft over og under (${luft.snarvei.join('/')}) `
-          + '— da er den ikke den samme når arket snus')
+      if (!(m.dybde > 4)) {
+        throw new Error(`bula stikker ${m.dybde} px ned under bunnstreken — `
+          + 'den skal BULE, ikke ligge flatt i kanten')
+      }
+      if (m.avvikMidt > 2) {
+        throw new Error(`bula står ${m.avvikMidt} px fra rammas midte`)
+      }
+      if (!(m.trykkH >= 44)) {
+        throw new Error(`håndtakets trykkflate er ${m.trykkH} px høy — `
+          + 'under WCAG 2.5.5, og den er eneste tastatur-inngang til skuffa')
       }
       await page.locator('[aria-label="Lukk punktinfo"]').first().click().catch(() => {})
       await page.waitForTimeout(400)
-      return `begge håndtakene har ${luft.snarvei[0]} px luft over og under`
+      return `punkt-arket ${m.punktark[0]} px over og under; bula ${m.dybde} px `
+        + `dypere enn bunnstreken, trykkflate ${m.trykkH} px`
     },
   },
   {

@@ -1,3 +1,48 @@
+## 2026-09-14 — v7.8.19: Snarvei-raden er en ramme, og håndtaket er en bule i den
+
+Raden fikk kompassnålas skive i v7.8.18, og da ble det tydelig hva den egentlig
+koster: den er det STØRSTE overlegget i turkartet, den ligger midt i toppen av
+arket der man leser, og den dekket det. Nå bærer bare CELLENE en flate. Rammen
+holder dem sammen, kartet er synlig mellom knappene, og raden leses som et
+verktøy PÅ kartet framfor et panel foran det. Cellene har fått skiva i stedet —
+uten en flate under seg er en 10 px etikett over høydekurver ikke til å lese, og
+det er nettopp cellenes flate som gjør at rammen KAN være tom. Det samme gjelder
+knott-boksene og de to sorterings-knappene.
+
+Håndtaket er ikke lenger en strek nederst inne i en boks; det er en BULE i
+bunnrammen. Rammen har derfor ingen bunnkant av seg selv — den tegnes av to
+kant-stumper med hvert sitt hjørne, og bula imellom, som er dypere enn stumpene.
+Det er grunnen til at bula ikke bare kunne vært en tab hengende under en hel
+ramme: da ville streken gått tvers over toppen av den, og det leses som en knapp
+klistret på en boks framfor som en utbuling av den. Av samme grunn tegnes
+sidekantene av rulleboksen og kant-stumpene og ikke av pilla: en `border` på
+pilla ville løpt langs hele høyden, også forbi bunnrammen, og bunnhjørnene måtte
+enten stått rette eller fått en bue med pillas egen rette kant synlig inni.
+
+Bula og bunnrammen skalerer med tekststørrelsen gjennom MÅLENE og ikke gjennom
+`zoom`: en zoomet bule ville fått 2 px ramme ved 200 %, og da møter en dobbel
+strek en enkel i skjøten mot kant-stumpene. Streken er 1 px i alle skalaer, det
+er bare formen som vokser. Trykkflata er 44 px via `::after` — bula selv er
+26 px, fordi det er så dypt en strek kan bule ned uten å bli en boks, og knappen
+er eneste tastatur-inngang til skuffa.
+
+`select-none` på pilla er ikke pynt, og den kostet en feilsøking. Uten den kan et
+pekertrykk i pilla starte nettleserens egen dra-og-slipp (`dragstart`), og den
+sender `pointercancel` — som river hele drawer-draget etter én eneste
+`pointermove`. Symptomet er at skuffa «ikke følger fingeren» i noen situasjoner
+og gjør det fint i andre, avhengig av hva som lå i markeringen fra forrige
+trykk, og `onDraStart` kan ikke svare med `preventDefault` fordi den ville tatt
+`click` fra snarvei-knappene.
+
+Røyksjekken «dra-håndtaket har samme luft i snarvei-skuffa og punkt-arket» måler
+nå det den kan måle: arkene beholder regelen om lik luft over og under, mens
+raden har forlatt den — en bule har en DYBDE, ikke en polstring. Det som måles
+der i stedet er de to tingene som gjør den til en bule og ikke en knapp klistret
+under en boks: at den henger lenger ned enn bunnstreken den sitter i, og at den
+er midtstilt i ramma. Trykkflata måles med.
+
+---
+
 ## 2026-09-14 — v7.8.18: Snarvei-raden har fått kompassnålas flate
 
 Raden lå på `bg-overlay/90` — UI-temaets token, altså nesten svart i mørkt

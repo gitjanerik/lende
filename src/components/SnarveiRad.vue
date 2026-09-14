@@ -280,6 +280,14 @@ const flateStil = computed(() => {
     // Til tekst som står PÅ blekket («Ferdig»), altså motsatt vei: en
     // halvgjennomsiktig tekstfarge slipper flata under gjennom bokstavene.
     '--kart-skive-opak': kartSkiveOpak(props.mork),
+    // BULA OG BUNNRAMMEN SKALERER MED TEKSTEN, som cellene gjør (v7.8.19) —
+    // men gjennom MÅLENE og ikke gjennom `zoom`. Cellene bærer `zoom` hver for
+    // seg; la bula gjøre det samme, ville også dens 1 px ramme blitt 2 px ved
+    // 200 %, og da møter en dobbel strek en enkel i skjøten mot kant-stumpene.
+    // Streken er 1 px i alle skalaer; det er bare formen som vokser.
+    '--bunn-h': `${13 * (props.uiTextScale || 1)}px`,
+    '--bule-h': `${26 * (props.uiTextScale || 1)}px`,
+    '--bule-b': `${76 * (props.uiTextScale || 1)}px`,
     '--color-ink': b.ink,
     '--color-ink-2': b.ink2,
     '--color-ink-3': b.ink3,
@@ -857,11 +865,22 @@ function celleTransform(i) {
          håndtaket, så et sveip ned hvor som helst i boksen åpner skuffa.
          `touch-none` er ikke valgfritt: uten den ruller/panorerer nettleseren
          på første piksel og `pointermove` slutter å komme. -->
-    <!-- `bg-overlay` UTEN `/90`: alfaen ligger alt i skiva (0,82), og en
-         opasitet oppå den ville gjort raden gjennomsiktigere enn nåla den
-         skal matche. -->
-    <div class="pointer-events-auto flex flex-col items-stretch rounded-2xl
-                bg-overlay backdrop-blur shadow-lg touch-none overflow-hidden"
+    <!-- PILLA ER EN RAMME, IKKE EN FLATE (v7.8.19). Se `.snarvei-pille`.
+         `overflow-hidden` er BORTE herfra og flyttet til rulleboksen: med en
+         bule som stikker ned under bunnrammen ville pilla klippet nettopp det
+         som skal stikke ut.
+
+         `select-none` ER IKKE PYNT, OG DEN KOSTET EN FEILSØKING. Uten den kan
+         et pekertrykk i pilla starte nettleserens EGEN dra-og-slipp
+         (`dragstart`) — og den sender `pointercancel`, som river hele
+         drawer-draget etter én eneste `pointermove`. Symptomet er at skuffa
+         «ikke følger fingeren» i noen situasjoner og gjør det fint i andre,
+         avhengig av hva som lå i markeringen fra forrige trykk; `onDraStart`
+         kan ikke svare med `preventDefault`, for den ville tatt `click` fra
+         snarvei-knappene. En flate som ER en gripeflate skal uansett aldri
+         kunne markeres. -->
+    <div class="snarvei-pille pointer-events-auto flex flex-col items-stretch touch-none select-none"
+         :class="sorterer ? 'snarvei-pille--hel' : ''"
          @pointerdown="onDraStart"
          :style="{ maxWidth: `calc(100vw - ${KANT_PX}px)`, maxHeight: PILLE_MAKS_H,
                    visibility: maalt ? 'visible' : 'hidden' }">
@@ -875,7 +894,7 @@ function celleTransform(i) {
            pilla bare klippet håndtaket bort igjen. `overscroll-contain` holder
            rullingen inne: uten den forplanter den seg til kartet under. -->
       <div ref="skrollRef" data-snarvei-skroll
-           class="min-h-0 overflow-y-auto overscroll-contain"
+           class="min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain"
            :style="{ touchAction: rullbar ? 'pan-y' : 'none' }">
       <!-- GITTERET. Sammenlagt viser det første rad; høyden følger draget, og
            `overflow: hidden` lar de neste radene ligge og vente rett utenfor
@@ -991,18 +1010,29 @@ function celleTransform(i) {
            kan dras, og det er den eneste veien inn i skuffa fra tastatur
            (pil ned folder ut, pil opp legger sammen, SC 2.1.1). Et KLIKK gjør
            fortsatt ingenting (v7.5.0). -->
-      <button v-if="!sorterer" type="button" data-snarvei-handle
-              class="snarvei-handle shrink-0 w-full cursor-grab
-                     active:cursor-grabbing py-3 flex justify-center"
-              :aria-expanded="apen"
-              :aria-label="dra >= SNARVEI_NIVAER - 0.5
-                ? 'Legg sammen snarveiene'
-                : (apen ? 'Dra ned for strek og relieff' : 'Dra ned for flere snarveier og sortering')"
-              @keydown.down.prevent="tastHandtak(true)"
-              @keydown.up.prevent="tastHandtak(false)">
-        <span class="w-12 h-1.5 rounded-full bg-ink/40"
-              :style="{ opacity: drar ? 0.6 : 1 }"></span>
-      </button>
+      <!-- BUNNRAMMEN, MED HÅNDTAKET SOM EN BULE I DEN (v7.8.19). Rammen har
+           ingen bunnkant av seg selv — den tegnes her, i tre deler: to
+           kant-stumper med hvert sitt hjørne, og bula imellom. Bula er dypere
+           enn stumpene, så streken buler NED rundt håndtaket i stedet for å gå
+           rett forbi det. Det er derfor pilla ikke bare kunne fått en tab
+           hengende under en hel ramme: da ville streken gått tvers over toppen
+           av bula, og det leses som en knapp KLISTRET på en boks framfor som en
+           utbuling AV den. -->
+      <div v-if="!sorterer" class="snarvei-bunn shrink-0">
+        <span class="snarvei-bunn__kant snarvei-bunn__kant--v" aria-hidden="true"></span>
+        <button type="button" data-snarvei-handle
+                class="snarvei-handle cursor-grab active:cursor-grabbing"
+                :aria-expanded="apen"
+                :aria-label="dra >= SNARVEI_NIVAER - 0.5
+                  ? 'Legg sammen snarveiene'
+                  : (apen ? 'Dra ned for strek og relieff' : 'Dra ned for flere snarveier og sortering')"
+                @keydown.down.prevent="tastHandtak(true)"
+                @keydown.up.prevent="tastHandtak(false)">
+          <span class="snarvei-handle__strek"
+                :style="{ opacity: drar ? 0.6 : 1 }"></span>
+        </button>
+        <span class="snarvei-bunn__kant snarvei-bunn__kant--h" aria-hidden="true"></span>
+      </div>
 
       <!-- SORTERINGS-FOOTEREN står der håndtaket sto. Hintet er et `status`-
            felt: det sier både hva man kan gjøre og hva som NETTOPP skjedde, og
@@ -1055,6 +1085,118 @@ function celleTransform(i) {
 </template>
 
 <style scoped>
+/* ─────────────────────────────────────────────────────────────────────────
+   PILLA ER EN RAMME, IKKE EN FLATE (v7.8.19).
+
+   Fram til v7.8.18 var raden en fylt boks: først UI-temaets nesten-svarte
+   overlay, så kompassnålas skive. Begge dekket kartet der de lå, og raden er
+   det STØRSTE overlegget i turkartet — den ligger midt i toppen av arket, der
+   man leser. Nå bærer bare CELLENE en flate, og rammen holder dem sammen:
+   kartet er synlig mellom knappene, og raden leses som et verktøy PÅ kartet
+   framfor et panel foran det.
+
+   RAMMEN HAR INGEN BUNNKANT AV SEG SELV — den tegnes av `.snarvei-bunn`, som
+   buler ned rundt håndtaket. Derfor `border-bottom: none` og null radius i
+   bunnen: hjørnearken hører til kant-stumpene der nede, og en radius her ville
+   gitt en halv bue som ender i løse lufta.
+
+   `--ramme` er blekket på 34 %: nok til å lese som en strek mot både en lys og
+   en mørk kart-bunn, lite nok til at rammen ikke konkurrerer med cellene.
+
+   SORTERINGS-MODUS FÅR EN HEL RAMME (`--hel`). Der er håndtaket byttet ut med
+   en footer i full bredde, og en bule uten en knapp i ville vært en utbuling
+   rundt ingenting. */
+.snarvei-pille {
+  --ramme: color-mix(in oklab, var(--color-ink) 40%, transparent);
+  --hjorne: 16px;
+  /* MÅLENE PÅ BULA SETTES AV `flateStil` PÅ YTTERSTE BOKS, og fallbacken står
+     som andre argument i hver `var()` — ikke som en deklarasjon her. En
+     `--bunn-h: 13px` på denne regelen ville VUNNET over den arvede verdien
+     (en egen deklarasjon slår arv), og bula ville stått på 13 px uansett
+     tekststørrelse. Den feilen ser ut som «skaleringen virker ikke» og har
+     ingenting med skaleringen å gjøre. */
+  /* Ingen `backdrop-blur` og ingen `shadow`: begge er måter å skille en FLATE
+     fra bunnen på, og det er nettopp flata som er borte. En skygge under en
+     ramme uten fyll leses som en dobbel strek.
+
+     RAMMEN TEGNES AV BARNA, IKKE AV PILLA, og det er ikke en omvei. En
+     `border` her ville løpt langs HELE høyden — også forbi bunnrammen — så
+     bunnhjørnene måtte enten stått rette, eller fått en bue med pillas egen
+     rette kant synlig inni. Med sidekantene på rulleboksen og på kant-stumpene
+     stopper de der buen begynner, og hjørnet blir ett strøk. */
+}
+[data-snarvei-skroll] {
+  border: 1px solid var(--ramme);
+  border-bottom: none;
+  border-radius: var(--hjorne) var(--hjorne) 0 0;
+}
+.snarvei-pille--hel [data-snarvei-skroll] {
+  border-radius: var(--hjorne) var(--hjorne) 0 0;
+}
+/* Sorterings-modus: hel ramme rundt footeren i stedet for en bule. */
+.snarvei-pille--hel [data-sorter-footer] {
+  border: 1px solid var(--ramme);
+  border-top: none;
+  border-radius: 0 0 var(--hjorne) var(--hjorne);
+}
+
+/* Bunnrammen: to kant-stumper med hvert sitt hjørne, og bula imellom. Alle tre
+   tegner sin del av den samme streken, så den er sammenhengende. */
+.snarvei-bunn {
+  display: flex;
+  align-items: flex-start;
+}
+/* Stumpene bærer bunnstreken OG bunnhjørnene. De er søsken av rulleboksen, så
+   sidekantene deres står i nøyaktig samme pikselkolonne som dens — streken går
+   ubrutt ned og svinger inn, uten et hakk i skjøten. */
+.snarvei-bunn__kant {
+  flex: 1;
+  height: var(--bunn-h, 13px);
+  border-bottom: 1px solid var(--ramme);
+}
+.snarvei-bunn__kant--v {
+  border-left: 1px solid var(--ramme);
+  border-bottom-left-radius: var(--hjorne);
+}
+.snarvei-bunn__kant--h {
+  border-right: 1px solid var(--ramme);
+  border-bottom-right-radius: var(--hjorne);
+}
+
+/* BULA. Dypere enn kant-stumpene, med åpen topp: streken går ned rundt
+   håndtaket og opp igjen. Trykkflata er hele bula — den er 26 px høy og 76 px
+   bred, altså et mål man treffer med en tommel, selv om DRAGET uansett kan
+   startes hvor som helst i pilla (v7.6.0). */
+.snarvei-handle {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--bule-b, 76px);
+  height: var(--bule-h, 26px);
+  border: 1px solid var(--ramme);
+  border-top: none;
+  border-radius: 0 0 var(--hjorne) var(--hjorne);
+}
+/* TRYKKFLATA ER STØRRE ENN BULA. Bula er 26 px høy fordi det er så dypt en
+   strek kan bule ned uten å bli en boks — men 26 px er under WCAG 2.5.5, og
+   knappen er den eneste tastatur-inngangen til skuffa. `::after` gir den 44 px
+   uten å endre streken. Draget kan uansett startes hvor som helst i pilla
+   (v7.6.0); dette gjelder TRYKKET. */
+.snarvei-handle::after {
+  content: '';
+  position: absolute;
+  inset: -9px -10px;
+}
+.snarvei-handle__strek {
+  width: 45%;
+  height: 3px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--color-ink) 45%, transparent);
+  transition: background 0.15s ease;
+}
+
 /* Snarvei-cella: ikon over etikett, med sin EGEN mørkegrå flate (v7.5.0).
    Fram til nå var flata usynlig til man holdt musa over — knappene fløt som
    løse ikoner i én svart boks, og bare den aktive posisjonen hadde en form.
@@ -1083,7 +1225,12 @@ function celleTransform(i) {
      ingenting å måle om og ingenting å kompensere for. */
   border: 1px solid color-mix(in oklab, var(--color-ink) 18%, transparent);
   box-sizing: border-box;
-  background: color-mix(in oklab, var(--color-ink) 12%, transparent);
+  /* CELLA BÆRER SKIVA NÅ (v7.8.19). Fram til nå var flata her et ton-i-ton
+     blekk-lag oppå pillas fyll; med pilla tom ville det lagt en svak tone rett
+     på kartet, og en 10 px etikett over høydekurver er ikke til å lese. Cella
+     er derfor kompassnålas egen skive — samme materiale, bare firkantet — og
+     det er den som gjør at rammen KAN være tom. */
+  background: var(--color-overlay, transparent);
   color: var(--color-ink);
   font-size: 10px;
   line-height: 1;
@@ -1094,7 +1241,10 @@ function celleTransform(i) {
   white-space: nowrap;
 }
 .shortcut-btn:active { transform: scale(0.94); }
-.shortcut-btn:hover { background: color-mix(in oklab, var(--color-ink) 20%, transparent); }
+.shortcut-btn:hover {
+  background: var(--color-overlay, transparent);
+  box-shadow: inset 0 0 0 999px color-mix(in oklab, var(--color-ink) 12%, transparent);
+}
 
 /* Fast `line-height` og ikke `normal`: cella er en gitter-celle, og et
    linjehøyde-tall som følger fonten gjør radhøyden avhengig av hvilken font som
@@ -1139,7 +1289,9 @@ function celleTransform(i) {
 .shortcut-btn--loftet {
   z-index: 20;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
-  background: color-mix(in oklab, var(--color-ink) 28%, transparent);
+  background: var(--color-overlay, transparent);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4),
+              inset 0 0 0 999px color-mix(in oklab, var(--color-ink) 16%, transparent);
   border-style: solid;
 }
 
@@ -1161,11 +1313,14 @@ function celleTransform(i) {
   font-weight: 500;
   white-space: nowrap;
   color: var(--color-ink);
-  background: color-mix(in oklab, var(--color-ink) 12%, transparent);
+  background: var(--color-overlay, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-ink) 18%, transparent);
   transition: background 0.15s ease, transform 0.1s ease;
 }
 .sorter-knapp:active { transform: scale(0.94); }
-.sorter-knapp:hover { background: color-mix(in oklab, var(--color-ink) 20%, transparent); }
+.sorter-knapp:hover {
+  box-shadow: inset 0 0 0 999px color-mix(in oklab, var(--color-ink) 12%, transparent);
+}
 .sorter-knapp--pa { background: #059669; color: #fff; }
 .sorter-knapp--pa:hover { background: #047857; }
 /* «Ferdig» er veien ut, og den eneste knappen her som avslutter noe. */
@@ -1221,7 +1376,9 @@ function celleTransform(i) {
   gap: 4px;
   padding: 6px 8px;
   border-radius: 12px;
-  background: color-mix(in oklab, var(--color-ink) 10%, transparent);
+  /* Samme begrunnelse som cellene: pilla har ikke lenger et fyll å tone mot. */
+  background: var(--color-overlay, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-ink) 18%, transparent);
   color: var(--color-ink);
   font-size: 12px;
   line-height: 1.2;
@@ -1256,8 +1413,12 @@ function celleTransform(i) {
 
 /* Håndtaket har ingen egen flate — det er streken som er knappen — men
    trykkflata skal svare, så hover/aktiv tar streken og ikke boksen. */
-.snarvei-handle:hover span { background: color-mix(in oklab, var(--color-ink) 62%, transparent); }
-.snarvei-handle:active span { background: color-mix(in oklab, var(--color-ink) 75%, transparent); }
+.snarvei-handle:hover .snarvei-handle__strek {
+  background: color-mix(in oklab, var(--color-ink) 68%, transparent);
+}
+.snarvei-handle:active .snarvei-handle__strek {
+  background: color-mix(in oklab, var(--color-ink) 80%, transparent);
+}
 
 /* SIKKERHETSNETT i den umålte tilstanden: der er raden en flex-rad med
    etikettene på, og den skal BRYTE framfor å klippe en knapp ut over
