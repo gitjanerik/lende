@@ -487,6 +487,16 @@ function apneKartstil(seksjon) {
 // for å skyte forbi det: grensa er synlig mens fingeren er nede, ikke en
 // overraskelse ved slipp.
 const SLOP_PX = 6
+// ET DRAG SOM ALDRI KOM NOEN VEI ER ET TRYKK (v7.8.11). Fingeren står aldri
+// helt stille på en knapp: nettleserens egen tapp-slop er rundt femten piksler,
+// og under den leverer den et `click` som om trykket var rent. Vår slop er seks
+// — den skal være liten, ellers føles skuffa treg å få tak i — så et vanlig
+// tommeltrykk passerte den, tok draget, og spiste klikket. Skuffa dokket
+// tilbake der den sto (COMMIT ligger på en fjerdedel av nivået), så det eneste
+// man SÅ var at snarveien ikke gjorde noe og at man måtte trykke en gang til.
+// Ved slippet avgjør derfor STREKNINGEN om gesten var et drag: kom den aldri
+// forbi `TAPP_PX`, legges dra-posisjonen tilbake og klikket får gå.
+const TAPP_PX = 16
 const start = ref(null)
 // Satt av et drag som passerte slop-en, og avlyser det ene `click`-et som
 // følger pekeren. Den nullstilles på TRE steder med vilje: av `velg` som leser
@@ -494,7 +504,8 @@ const start = ref(null)
 // klikket ikke ALLTID kommer — når draget har tatt pekerfangst, retargetes
 // `click` til pilla og treffer aldri knappen — og et flagg som blir stående
 // sant ville spist det NESTE ekte trykket. Makrotasken kjører etter at et
-// eventuelt klikk er levert, så den kan ikke avlyse feil trykk.
+// eventuelt klikk er levert, så den kan ikke avlyse feil trykk. Et drag som
+// aldri kom forbi `TAPP_PX` nullstiller den synkront i stedet — se der.
 let sluk = false
 
 // BEVEGELSEN LYTTES PÅ VINDUET, IKKE PÅ PILLA, og alternativet er verre.
@@ -564,6 +575,7 @@ function onDraFlytt(e) {
     s.niva = Math.max(1e-6, sp.hi - sp.lo)
     s.lengde = Math.max(DRA_MIN_PX, nivaPiksler(sp.hi) - nivaPiksler(sp.lo))
   }
+  s.maks = Math.max(s.maks || 0, Math.abs(dy))
   if (e.cancelable) e.preventDefault()
   dra.value = Math.max(s.lo, Math.min(s.hi, s.dra + (dy / s.lengde) * s.niva))
 }
@@ -576,6 +588,17 @@ function onDraSlutt() {
   // drag i én retning committer, man må ikke forbi midtpunktet. Hakkene er
   // spennets to ender — derfor lander et sveip oppover fra nivå 2 på 0 og ikke
   // på 1: mellomnivået er ikke et hakk i DETTE draget.
+  // Under tapp-avstanden er dette et trykk og ikke et drag: posisjonen legges
+  // tilbake uendret, og avlysningen oppheves MED EN GANG. Makrotasken under er
+  // for sen: nettleseren leverer `click` i samme omgang som `pointerup`, altså
+  // FØR en `setTimeout(…, 0)` rekker å kjøre — målt i Chromium, og det er
+  // nettopp derfor det vaklete trykket ble spist.
+  if ((s.maks || 0) <= TAPP_PX) {
+    dra.value = s.dra
+    drar.value = false
+    sluk = false
+    return
+  }
   dra.value = pickSnapTarget(dra.value, s.dra, [s.lo, s.hi], COMMIT)
   drar.value = false
   setTimeout(() => { sluk = false }, 0)
