@@ -210,11 +210,17 @@ import {
   gitterIndeks, gitterForskyvning, flyttSnarvei,
 } from '../lib/snarveier.js'
 import { pickSnapTarget } from '../composables/useDraggableDrawer.js'
+import { kartSkive, kartSkiveOpak, kartBlekk } from '../lib/kartFlate.js'
 
 const props = defineProps({
   // [{ id, label, aria }] i brukerens rekkefølge.
   snarveier: { type: Array, required: true },
   uiTextScale: { type: Number, default: 1 },
+  /**
+   * Er KARTET mørkt? Ikke UI-temaet — raden ligger rett på arket, som
+   * kompassnåla nede til høyre.
+   */
+  mork: { type: Boolean, default: false },
 
   // ── Nivå 2: kart-knottene ────────────────────────────────────────────────
   // Rådata, ikke tilstand: komponenten viser trinnet den får og sier fra når
@@ -243,6 +249,45 @@ const emit = defineEmits([
   // til seksjonen. Raden vet ikke hva en fane er, og skal ikke vite det.
   'apne-kartstil',
 ])
+
+/**
+ * RADEN BRUKER KOMPASSNÅLAS FLATE (v7.8.18), og det er ikke bare en farge.
+ *
+ * Pilla var `bg-overlay/90` — UI-temaets token, altså nesten svart i mørkt
+ * tema — mens nåla nede til høyre er en halvgjennomsiktig skive som følger
+ * ARKET. To flater over det samme kartet, med hver sin regel, og forskjellen
+ * er verst i det ene tilfellet ingen tenker på: et LYST kart lest i MØRKT
+ * UI-tema ga en hvit nål og en svart rad.
+ *
+ * Overstyringen settes som CSS-VARIABLER på ytterste boks og ikke som farger
+ * på hver flate. Grunnen er at nesten alt i raden alt er avledet av
+ * `--color-ink` og `--color-overlay` — cellenes ton-i-ton-flate, kanten,
+ * håndtakets strek, knott-boksene, «Stil»-knappen under pilla — så ÉN
+ * omdefinering flytter dem alle, og en ny flate som følger tokenene blir med
+ * av seg selv. Samme grep som `.on-accent` i style.css.
+ *
+ * `--color-ink-2/-3` må med: de er FASTE farger per UI-tema (v6.5.48), så en
+ * lys ink-3 ville blitt stående på en hvit skive. `--color-ink-4` er ikke i
+ * bruk her, og en verdi ingen flate leser er en verdi ingen måler.
+ *
+ * Kontrasten på hvert nivå er målt mot hver eneste kart-bunn katalogen har,
+ * i `kartFlate.test.js`.
+ */
+const flateStil = computed(() => {
+  const b = kartBlekk(props.mork)
+  return {
+    '--color-overlay': kartSkive(props.mork),
+    // Til tekst som står PÅ blekket («Ferdig»), altså motsatt vei: en
+    // halvgjennomsiktig tekstfarge slipper flata under gjennom bokstavene.
+    '--kart-skive-opak': kartSkiveOpak(props.mork),
+    '--color-ink': b.ink,
+    '--color-ink-2': b.ink2,
+    '--color-ink-3': b.ink3,
+    // Fokusringen er hvit i mørkt UI-tema og ville forsvunnet på en lys skive.
+    '--color-focus-ring': b.ink,
+    color: b.ink,
+  }
+})
 
 // Margin til hver skjermkant. Raden er sentrert, så halve verdien per side.
 const KANT_PX = 24
@@ -807,13 +852,16 @@ function celleTransform(i) {
 </script>
 
 <template>
-  <div class="flex flex-col items-center gap-2 w-full">
+  <div class="flex flex-col items-center gap-2 w-full" :style="flateStil">
     <!-- GRIPEFLATA ER HELE PILLA (v7.6.0). Pekerhandlerne står her og ikke på
          håndtaket, så et sveip ned hvor som helst i boksen åpner skuffa.
          `touch-none` er ikke valgfritt: uten den ruller/panorerer nettleseren
          på første piksel og `pointermove` slutter å komme. -->
+    <!-- `bg-overlay` UTEN `/90`: alfaen ligger alt i skiva (0,82), og en
+         opasitet oppå den ville gjort raden gjennomsiktigere enn nåla den
+         skal matche. -->
     <div class="pointer-events-auto flex flex-col items-stretch rounded-2xl
-                bg-overlay/90 backdrop-blur shadow-lg touch-none overflow-hidden"
+                bg-overlay backdrop-blur shadow-lg touch-none overflow-hidden"
          @pointerdown="onDraStart"
          :style="{ maxWidth: `calc(100vw - ${KANT_PX}px)`, maxHeight: PILLE_MAKS_H,
                    visibility: maalt ? 'visible' : 'hidden' }">
@@ -1123,7 +1171,7 @@ function celleTransform(i) {
 /* «Ferdig» er veien ut, og den eneste knappen her som avslutter noe. */
 .sorter-knapp--ferdig {
   background: var(--color-ink);
-  color: var(--color-overlay, #111);
+  color: var(--kart-skive-opak, var(--color-overlay, #111));
 }
 .sorter-knapp--ferdig:hover { background: color-mix(in oklab, var(--color-ink) 85%, transparent); }
 
@@ -1142,13 +1190,22 @@ function celleTransform(i) {
   font-weight: 500;
   white-space: nowrap;
   color: var(--color-ink);
-  background: color-mix(in oklab, var(--color-overlay, #111) 90%, transparent);
+  /* Full skive, som pilla over: alfaen bor i `--color-overlay` (se
+     `flateStil`), så en ekstra opasitet her ville gjort knappen lysere enn
+     raden den hører til. */
+  background: var(--color-overlay, #111);
   backdrop-filter: blur(8px);
   box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
   transition: background 0.15s ease, transform 0.1s ease;
 }
 .rad-knott:active { transform: scale(0.95); }
-.rad-knott:hover { background: var(--color-overlay, #111); }
+/* Hover kan ikke lenger være «full overlay» — flata ER full overlay nå. Et
+   ton-i-ton blekk-lag oppå er den samme tilbakemeldingen snarvei-cellene gir. */
+.rad-knott:hover {
+  background: var(--color-overlay, #111);
+  box-shadow: inset 0 0 0 999px color-mix(in oklab, var(--color-ink) 10%, transparent),
+              0 4px 12px rgb(0 0 0 / 0.25);
+}
 
 @media (prefers-reduced-motion: reduce) {
   .shortcut-btn--sorter { transition: none; }

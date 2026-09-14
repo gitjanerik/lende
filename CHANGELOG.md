@@ -1,3 +1,50 @@
+## 2026-09-14 — v7.8.18: Snarvei-raden har fått kompassnålas flate
+
+Raden lå på `bg-overlay/90` — UI-temaets token, altså nesten svart i mørkt
+tema — mens kompassnåla rett under er en halvgjennomsiktig skive som følger
+ARKET. To flater side om side over det samme kartet, med hver sin regel, og
+eieren så at de ikke matchet. De gjør det nå.
+
+To ting skilte dem, og bare den ene var fargen. Den andre er den viktige: nåla
+spør om KARTET er mørkt (`mork`), raden spurte om UI-TEMAET er det — og det er
+to ulike spørsmål, for man kan godt lese et lyst kart i mørkt UI-tema. Å bare
+kopiere hex-en over ville altså latt de to sprike igjen i nøyaktig den
+situasjonen `mork`-propen finnes for. Paret bor derfor i én ren modul,
+`lib/kartFlate.js`, og begge flatene spør den; raden har fått en `mork`-prop
+som MapView mater med samme `isDark` nåla får.
+
+Overstyringen settes som CSS-VARIABLER på radens ytterste boks og ikke som
+farger på hver enkelt flate. Nesten alt i raden er allerede avledet av
+`--color-ink` og `--color-overlay` — cellenes ton-i-ton-flate, kanten,
+håndtakets strek, knott-boksene, «Stil»-knappen under pilla — så én
+omdefinering flytter dem alle, og en ny flate som følger tokenene blir med av
+seg selv. Samme grep som `.on-accent` i style.css. `--color-ink-2/-3` må med:
+de er faste farger per UI-tema (v6.5.48), så en lys ink-3 ville blitt stående
+på en hvit skive. Det samme gjelder fokusringen, som er hvit i mørkt tema.
+`bg-overlay/90` er blitt `bg-overlay` uten opasitet, siden alfaen nå ligger i
+skiva selv — en opasitet oppå ville gjort raden gjennomsiktigere enn nåla den
+skal matche.
+
+Ett unntak går motsatt vei: «Ferdig» i sorterings-modus har blekket som
+BAKGRUNN og skiva som tekst, og en halvgjennomsiktig tekstfarge slipper flata
+under gjennom bokstavene. `KART_SKIVE_OPAK` er skivas egen kjerne uten alfa,
+til akkurat det.
+
+`kartFlate.test.js` måler hvert blekk-nivå mot hver eneste kart-bunn katalogen
+har — klassifisert med `erMorktTema`, altså den SAMME regelen som avgjør
+hvilken skive som brukes, så et nytt tema med en ytterligere bunn måles av seg
+selv. Gulvet er 4,5:1; det strammeste tilfellet i dag er ink3 på mocha-arket
+med 4,6. Testen holder også nivåene monotone, og at verken nåla eller raden
+skriver fargene selv — en gjeninnført literal i én av dem er nettopp den
+drivingen modulen finnes for å hindre.
+
+Merk at topprada og linjal-boksen fortsatt er den svarte overlay-flata. Det er
+med vilje her og nå — bestillingen gjaldt snarveiene og nåla — men de to
+flatene som ligger i kartplanet er nå én familie, og resten er et eget
+spørsmål.
+
+---
+
 ## 2026-09-14 — v7.8.17: Lende-chatten er radens siste snarvei, og nåla har rykket ned i hjørnet
 
 Chat-knappen nede til høyre i turkartet er borte, og chatten er i stedet den

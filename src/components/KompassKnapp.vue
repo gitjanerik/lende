@@ -25,6 +25,7 @@
 // hjørnet så knappen vokser OPP og INN.
 import { computed } from 'vue'
 import SnarveiIkon from './SnarveiIkon.vue'
+import { kartSkive, kartBlekk } from '../lib/kartFlate.js'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -41,8 +42,13 @@ defineEmits(['nord'])
 
 // Skiva og blekket fra v6.5.67. Alfaen er ikke pynt: en ugjennomsiktig skive
 // blir en klistrelapp på kartet, og nåla skal leses som en del av arket.
-const skive = computed(() => (props.mork ? 'rgba(63,63,70,0.82)' : 'rgba(255,255,255,0.82)'))
-const blekk = computed(() => (props.mork ? '#e4e4e7' : '#1c1917'))
+//
+// VERDIENE BOR I `lib/kartFlate.js` FRA v7.8.18, ikke her. Snarvei-raden rett
+// over bruker nå det samme paret, og to flater som ligger side om side over
+// det samme arket kan ikke ha hver sin kopi av fargen — det var nettopp slik
+// de spriket før (raden fulgte UI-temaet, nåla følger ARKET).
+const skive = computed(() => kartSkive(props.mork))
+const blekk = computed(() => kartBlekk(props.mork).ink)
 </script>
 
 <template>

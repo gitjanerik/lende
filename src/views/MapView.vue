@@ -2937,8 +2937,12 @@ onUnmounted(() => {
          :class="snarveiApen ? 'z-50' : 'z-20'"
          :style="snarveiRadStyle">
       <div class="flex flex-col items-center gap-1 w-full">
+        <!-- `mork` er ARKETS valør og ikke UI-temaet, nøyaktig som på
+             kompassnåla (v7.8.18): raden ligger på kartet, og de to skal lese
+             som samme materiale. Se lib/kartFlate.js. -->
         <SnarveiRad :snarveier="synligeSnarveier"
                     :ui-text-scale="uiTextScale"
+                    :mork="isDark"
                     :strek-trinn="strokeStepIndex" :strek-trinn-antall="STROKE_STEPS.length"
                     :strek-skala="strokeScale"
                     :relief-trinn="snarveiReliefTrinn"
