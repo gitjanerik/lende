@@ -62,6 +62,12 @@
 // slipp — et langt sveip ned fra sammenlagt skal stoppe på nivå 1 og VISE at
 // det stopper der.
 //
+// «STIL» ER DEN SYNLIGE VEIEN TIL NIVÅ 2 (v7.8.10). Draget er selvforklarende
+// bare for den som alt drar, og nivå 2 kunne derfor stå uoppdaget bak et andre
+// hakk. Knappen står ved siden av «Sorter snarveier» — begge handler om
+// SKUFFA — og deler dens synlighet: den toner ut med det samme draget som
+// toner knottene inn, så den er borte i det panelet er framme.
+//
 // «SORTER SNARVEIER» ER SKJULT PÅ NIVÅ 2. Den handler om raden, knottene om
 // kartet, og en knapp som står igjen under et panel den ikke hører til leses
 // som en del av panelet. Den toner ut med det samme draget som toner panelet
@@ -574,6 +580,12 @@ function onDraSlutt() {
   drar.value = false
   setTimeout(() => { sluk = false }, 0)
 }
+// Hele veien til nivå 2 i ett trykk. `settDra` klemmer til spennet, så
+// SNARVEI_NIVAER er «helt åpen» uansett hvor mange nivåer skuffa får senere.
+function apneKnotter() {
+  if (sluk) { sluk = false; return }
+  settDra(SNARVEI_NIVAER)
+}
 function settDra(v) {
   drar.value = false
   dra.value = Math.max(0, Math.min(SNARVEI_NIVAER, v))
@@ -954,6 +966,17 @@ function celleTransform(i) {
                    pointerEvents: sorterAndel > 0.99 ? 'auto' : 'none' }">
       <button type="button" class="rad-knott" @click="startSortering">
         Sorter snarveier
+      </button>
+      <!-- «STIL» ER VEIEN TIL NIVÅ 2 UTEN ET ANDRE DRAG (v7.8.10). Knottene
+           ligger ett hakk lenger ned, og det hakket er den eneste veien dit
+           for den som ikke vet at skuffa har to nivåer — draget avdekker seg
+           selv bare når man alt drar. Knappen står ved siden av «Sorter
+           snarveier» fordi begge handler om SKUFFA og ikke om kartet, og den
+           deler dens skjebne: toner ut med det samme draget som toner
+           knottene inn, og er borte i sorterings-modus. -->
+      <button type="button" class="rad-knott" data-snarvei-stil
+              @click="apneKnotter">
+        Stil
       </button>
     </div>
   </div>

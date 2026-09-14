@@ -1,3 +1,15 @@
+## 2026-09-14 — v7.8.10: «Stil» åpner snarvei-skuffa helt
+
+Kart-knottene — strek og relieff — lå bak et ANDRE drag i snarvei-skuffa, og et
+drag avdekker seg selv bare for den som allerede drar. «Stil» står nå ved siden
+av «Sorter snarveier» på nivå 1 og tar skuffa helt ut i ett trykk, med begge
+skyveknappene framme. Den deler skjebne med naboen: begge handler om SKUFFA og
+ikke om kartet, så begge toner ut med det samme draget som toner knottene inn,
+og begge er borte i sorterings-modus. En røyk-sjekk måler alle tre delene —
+borte sammenlagt, ett trykk gir Strek + Relieff, borte igjen på nivå 2.
+
+---
+
 ## 2026-09-14 — v7.8.9: tannhjulet i knott-panelet legger raden sammen
 
 Tannhjulene ved «Strek» og «Relieff» i snarvei-skuffa åpnet Innstillinger →

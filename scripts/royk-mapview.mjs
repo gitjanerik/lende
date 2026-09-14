@@ -1325,6 +1325,65 @@ const SJEKKER = [
     },
   },
   {
+    // «STIL» ER ETT TRYKK TIL NIVÅ 2 (v7.8.10). Knottene lå bak et ANDRE drag,
+    // og et drag avdekker seg selv bare for den som alt drar — knappen er den
+    // synlige veien dit. Den står ved siden av «Sorter snarveier», altså på
+    // nivå 1, og ingen del av dette finnes i en enhetstest: både høydene og
+    // uttoningen er ekte layout.
+    //
+    // TRE TING MÅLES:
+    //   • at knappen IKKE finnes når raden er sammenlagt — den hører til nivå
+    //     1 og skal ikke ta kartflate;
+    //   • at ETT trykk gir knott-panelet med begge skyvene, altså hopper over
+    //     draget;
+    //   • at den er borte etterpå. Den deler skjebne med «Sorter snarveier»:
+    //     på nivå 2 handler skuffa om kartet, ikke om raden.
+    navn: '«Stil» åpner snarvei-skuffa helt og viser strek + relieff',
+    domene: 'SnarveiRad (apneKnotter) + lib/snarveier.SNARVEI_NIVAER',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await lukkSnarveiRad(page)
+
+      const les = () => page.evaluate(() => {
+        const panel = document.querySelector('[data-snarvei-knotter]')
+        const stil = document.querySelector('[data-snarvei-stil]')
+        return {
+          stil: !!stil && stil.getBoundingClientRect().height > 0,
+          panelHoyde: panel ? Math.round(panel.getBoundingClientRect().height) : -1,
+          skyvNavn: [...document.querySelectorAll('[data-snarvei-knotter] input[type=range]')]
+            .map((e) => {
+              const id = e.getAttribute('aria-labelledby')
+              return id ? (document.getElementById(id)?.textContent || '').trim() : ''
+            }),
+        }
+      })
+
+      const lukket = await les()
+      if (lukket.stil) throw new Error('«Stil» står framme på sammenlagt rad')
+
+      await draSnarveiHandle(page, 400)
+      const niva1 = await les()
+      if (!niva1.stil) throw new Error('«Stil» mangler ved siden av «Sorter snarveier»')
+
+      await page.locator('[data-snarvei-stil]').click()
+      await page.waitForTimeout(500)
+      const niva2 = await les()
+      if (!(niva2.panelHoyde > 40)) {
+        throw new Error(`«Stil» ga ingen knotter (panel ${niva2.panelHoyde} px)`)
+      }
+      if (niva2.skyvNavn.join(',') !== 'Strek,Relieff') {
+        throw new Error(`«Stil» viste «${niva2.skyvNavn.join(', ')}», ikke Strek + Relieff`)
+      }
+      if (niva2.stil) {
+        throw new Error('«Stil» står igjen under knott-panelet — den hører til nivå 1')
+      }
+
+      await lukkSnarveiRad(page)
+      return `«Stil» hoppet fra nivå 1 rett til ${niva2.skyvNavn.join(' + ')} `
+        + `(${niva2.panelHoyde} px panel) og tonet ut selv`
+    },
+  },
+  {
     // «NATT» ER EN VEKSEL SOM VISER HANDLINGEN, IKKE TILSTANDEN (v7.8.6).
     // Snarveien byttet ut bryteren «Turkart i mørkt tema» i hovedmenyen, og
     // etiketten er derfor «Natt» i lyst kart og «Dag» i mørkt — med sol-ikonet
