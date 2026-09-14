@@ -1,3 +1,35 @@
+## 2026-09-14 — v7.8.15: Mindre ark, færre fliser, og piler som ikke lover for mye
+
+Maksbredden for et kart er ned fra 20 til 16 km. At store ark BÆRER var sant og
+er det fortsatt, men det er ikke det samme som at de er verdt å vente på: et
+20 km-ark er 400 km², altså 56 % mer Overpass-respons og DEM enn 16 km, på den
+ene stien der man står og ser på en tom skjerm. En lagret preferanse over taket
+faller til standarden av seg selv.
+
+Flis-taket for mosaikken er ned fra 25 til 9 — et 3 × 3-ark, som er den største
+mosaikken en dagstur trenger. Med 25 kunne man bygge seg til et 5 × 5 der de
+ytterste flisene lå så langt unna at de ble kappet igjen ved neste promotering,
+altså arbeid man ventet på og så mistet.
+
+Og fordi ni er et tak man faktisk når, skjules nå de åtte lende-pilene når arket
+er fullt. Pilene er hele kontrakten for hvordan arket vokser — de sier HVOR, og
+de sier HVA DET KOSTER («+N fliser» i pilla) — og på et fullt ark kan de ikke
+holde noen av delene: trykket avvises av porten, og alt man får er en toast. En
+knapp som lover noe og så nekter er verre enn ingen knapp, og verst nettopp her,
+der pilene dokker langs skjermkanten og leses som eneste vei videre. Pilene og
+porten spør samme funksjon (`plassIArket`), så de kan ikke bli uenige om hva
+«fullt» betyr. «Fyll hullene» og «Gjør arket firkantet» står som før: et hull
+inne i arket kan tettes så lenge det finnes plass.
+
+«Maks kartfliser» er ute av Format-fana. Tallet har vært fast siden v7.0.0 og sto
+der som ren opplysning, med en undertekst om at de fjerneste flisene kappes —
+en oppførsel man ikke møter lenger. Det står fortsatt i Utvikler-fana, der det er
+diagnostikk. To toast-tekster som ba brukeren «øke «Maks kartfliser» i
+Innstillinger» sier nå hva grensa er i stedet for å peke på en knott som ikke
+finnes.
+
+---
+
 ## 2026-09-14 — v7.8.14: Fritt lende slettet, «Nytt turkart» i stedet
 
 Fritt lende er borte — viewen, knappen, `lib/frittLende.js`, ruta, fana i «Om

@@ -355,10 +355,38 @@ export function useMapExtend({
   )
   // Bevisst sti.active (ikke sti.blocking): kartutvidelse bygger ny SVG med
   // nytt koordinat-origo og ville invalidert en rute i bruk (following).
+  // Hvor mange fliser arket består av NÅ — aktiv flis pluss spøkelsene. Samme
+  // uttrykk som portene i extendMap/byggCeller bruker; her er det bare lest ett
+  // sted til, så pilene og porten aldri kan være uenige om hva «fullt» er.
+  const arkFlisAntall = computed(() => ghostRects.value.length + 1)
+
+  // ET FULLT ARK HAR INGEN PILER (v7.8.15). De åtte lende-pilene er hele
+  // kontrakten for hvordan arket vokser: de sier HVOR, og de sier HVA DET
+  // KOSTER («+N fliser» i pilla). På et ark som har nådd taket kan de ikke
+  // holde noen av delene — `plassIArket` avviser trykket, og alt brukeren får
+  // er en toast om at arket er fullt. En knapp som lover noe og så nekter er
+  // verre enn ingen knapp, og verst nettopp her: pilene dokker langs
+  // skjermkanten og leses som appens eneste vei videre.
+  //
+  // SPØRSMÅLET STILLES TIL `plassIArket`, samme funksjon som porten i extendMap
+  // og byggCeller. Det er ikke pynt: skrev vi `antall >= maxTiles` her, ville
+  // pilene og porten vært to uavhengige uttrykk for «fullt», og den dagen den
+  // ene får en avrunding eller et gulv den andre ikke har, får man enten piler
+  // som ikke virker eller et ark som ikke kan fylles — to feil som begge ser ut
+  // som en bug i den andre halvdelen. Regelen er ren og enhetstestet i
+  // tileCache.test.js; her er det bare ÉN kaller til.
+  //
+  // Merk at dette IKKE skjuler «Fyll hullene» / «Gjør arket firkantet»: et hull
+  // inne i arket kan tettes så lenge det finnes plass, og de bannerne bærer
+  // kostnaden sin selv og går gjennom samme port.
+  const arketErFullt = computed(() => plassIArket({
+    arkFliser: arkFlisAntall.value, nye: 1, max: maxTiles?.value,
+  }).ledig === 0)
+
   const extendZonesVisible = computed(() =>
     !loading.value && !loadError.value && !!meta.value &&
     !buildingOnTheFly.value && !fillingInDetails.value &&
-    !annot.isAnnotateMode.value &&
+    !annot.isAnnotateMode.value && !arketErFullt.value &&
     !measureMode.value && !sti.active.value && !searchOpen.value && !drawerCoversCanvas.value
   )
 
@@ -838,12 +866,17 @@ export function useMapExtend({
     // Fliser vi ikke har plass til bygges IKKE. Se plassIArket: alternativet er
     // å bygge dem og la kappingen slette dem igjen i samme operasjon.
     const plass = plassIArket({
-      arkFliser: ghostRects.value.length + 1, nye: toBuild.length, max: maxTiles.value,
+      arkFliser: arkFlisAntall.value, nye: toBuild.length, max: maxTiles.value,
     })
     if (!plass.ok) {
       showAutoMapToast(plass.ledig
-        ? `Bare plass til ${plass.ledig} av ${toBuild.length} fliser — øk «Maks kartfliser» i Innstillinger`
-        : `Arket er på grensa (${plass.tak} fliser) — øk «Maks kartfliser» i Innstillinger`)
+        // TEKSTEN LOVER INGEN UTVEI (v7.8.15). Den sa «øk «Maks kartfliser» i
+        // Innstillinger», og den knotten har ikke fantes siden v7.0.0 — tallet
+        // sto som ren opplysning i Format-fana, og er nå tatt ut derfra også.
+        // En melding som ber brukeren gjøre noe som ikke lar seg gjøre er verre
+        // enn å si hva grensa er.
+        ? `Bare plass til ${plass.ledig} av ${toBuild.length} fliser — arket rommer ${plass.tak}`
+        : `Arket er fullt (${plass.tak} fliser)`)
       return
     }
     extendingMap = true
@@ -1050,12 +1083,12 @@ export function useMapExtend({
     // arket vernet mot kapping ville en reparasjon over grensa bare vokst
     // cachen forbi taket i stillhet i stedet for å tredemølle.
     const plass = plassIArket({
-      arkFliser: ghostRects.value.length + 1, nye: cells.length, max: maxTiles.value,
+      arkFliser: arkFlisAntall.value, nye: cells.length, max: maxTiles.value,
     })
     if (!plass.ok) {
       showAutoMapToast(plass.ledig
-        ? `Bare plass til ${plass.ledig} av ${cells.length} — øk «Maks kartfliser» i Innstillinger`
-        : `Arket er på grensa (${plass.tak} fliser) — øk «Maks kartfliser» i Innstillinger`)
+        ? `Bare plass til ${plass.ledig} av ${cells.length} — arket rommer ${plass.tak}`
+        : `Arket er fullt (${plass.tak} fliser)`)
       return
     }
     extendingMap = true

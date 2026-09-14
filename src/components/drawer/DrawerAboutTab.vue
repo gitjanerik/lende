@@ -19,7 +19,6 @@ defineProps({
   rebuildAtChosenSize: { type: Function, required: true },
   building: { type: Boolean, default: false },
   canRebuild: { type: Boolean, default: false },
-  maxTiles: { type: Number, default: 0 },
 })
 const mapSizeSlider = defineModel('mapSizeSlider', { type: Number, default: 10 })
 const showFullNames = defineModel('showFullNames', { type: Boolean, default: false })
@@ -169,21 +168,6 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
         <span class="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
               :class="showFullNames ? 'left-5' : 'left-0.5'" />
       </button>
-    </div>
-    <!-- MAKS KARTFLISER ER ET FAST TALL (v7.0.0). Skyven sto her med trinnene
-         4/9/16/25/36, og valget var vanskelig å ta og lett å angre for sent:
-         setter man det ned, kappes de fjerneste flisene med én gang. 25 er det
-         nest største trinnet — et 5 × 5-ark er mer enn en dagstur trenger — og
-         tallet står som opplysning framfor som en knott. -->
-    <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-3">
-      <div class="flex items-center justify-between gap-3">
-        <div class="text-[13px] text-ink font-medium">Maks kartfliser</div>
-        <span class="text-ink-3 text-[12px] tabular-nums">{{ maxTiles }}</span>
-      </div>
-      <div class="text-[11px] text-ink-3 leading-snug mt-1.5">
-        Så mange kart-utsnitt beholdes i mosaikken. Blir det flere, kappes de
-        som ligger lengst fra der du er.
-      </div>
     </div>
     <!-- Relieff av/på (GLOBAL standard — per-kart-overstyring gjøres bak
          tannhjulet i Relieff-snarveien): hillshade lages som ett bilde per

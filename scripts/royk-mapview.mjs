@@ -2894,6 +2894,46 @@ const SJEKKER = [
     },
   },
   {
+    navn: 'Format-fana er kvitt flis-tallet, og bredden topper på 16 km',
+    domene: 'DrawerAboutTab',
+    // TO TALL SOM BLE ENDRET SAMMEN (v7.8.15), og som begge er lette å miste.
+    //
+    // «Maks kartfliser» sto som en ren OPPLYSNING i fana — et tall man verken
+    // kunne endre eller gjøre noe med, med en undertekst om at «blir det flere,
+    // kappes de som ligger lengst fra der du er». Med taket nede på ni, og
+    // lende-pilene skjult når arket er fullt, beskriver den setningen en
+    // oppførsel man ikke møter lenger. Linja er ute; tallet står i Utvikler-fana,
+    // der det er diagnostikk.
+    //
+    // Bredde-slideren toppet på 20 km. Sjekken leser `max` fra selve inputen og
+    // ikke fra en tekst: grensa bor i `BREDDE_MAKS_KM`, og det er attributtet som
+    // avgjør hvor langt fingeren kommer.
+    //
+    // Demokartet duger til begge — verken fana eller slideren kjenner innholdet.
+    async kjør(page) {
+      await åpneDrawer(page)
+      await page.locator('#drawer-fane-om').first().click()
+      await page.waitForTimeout(500)
+      const f = await page.evaluate(() => {
+        const panel = document.querySelector('#drawer-panel-om')
+        if (!panel) return null
+        const slider = [...panel.querySelectorAll('input[type="range"]')]
+          .find((i) => Number(i.max) > 2 && Number(i.max) <= 40)
+        return {
+          nevnerFliser: /kartfliser/i.test(panel.innerText),
+          maks: slider ? Number(slider.max) : null,
+          min: slider ? Number(slider.min) : null,
+        }
+      })
+      if (!f) throw new Error('fant ikke Format-panelet')
+      if (f.nevnerFliser) throw new Error('Format-fana nevner fortsatt kartfliser')
+      if (f.maks == null) throw new Error('fant ingen bredde-slider i Format-fana')
+      if (f.maks !== 16) throw new Error(`bredde-slideren topper på ${f.maks} km, ikke 16`)
+      await lukkDrawer(page)
+      return `ingen flis-linje, slider ${f.min}–${f.maks} km`
+    },
+  },
+  {
     navn: 'søke-overlayet holder seg innenfor skjermen ved 200 % tekst',
     domene: 'MapSearchOverlay',
     // SØKETAKET MÅLES FRA `--ovl-top` (v7.8.14), og dette er sjekken som ser

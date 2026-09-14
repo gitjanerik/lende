@@ -22,9 +22,9 @@ describe('defaultMapDims — Standard-kartet er et fast 8 km kvadrat (v7.8.14)',
 })
 
 describe('slider-grenser', () => {
-  it('2–20 km (v6.5.76)', () => {
+  it('2–16 km (v7.8.15 — taket ned fra 20)', () => {
     expect(MAP_SIZE_MIN_KM).toBe(2)
-    expect(MAP_SIZE_MAX_KM).toBe(20)
+    expect(MAP_SIZE_MAX_KM).toBe(16)
   })
   it('er de samme endene som tetthets-reglene måler mot', () => {
     expect(MAP_SIZE_MIN_KM).toBe(BREDDE_MIN_KM)

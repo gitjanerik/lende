@@ -41,7 +41,7 @@ const DEFAULT_CENTER = { lat: 59.9139, lon: 10.7522, name: 'Oslo' }
 
 const center = ref({ ...DEFAULT_CENTER })
 // Halv-bredde av bbox i km (E/V). Kart blir 2*halfKm bredt. Spennet er
-// BREDDE_MIN_KM–BREDDE_MAKS_KM = 2–20 km, altså halfKm 1–10 — pinch og hjul
+// BREDDE_MIN_KM–BREDDE_MAKS_KM = 2–16 km, altså halfKm 1–8 — pinch og hjul
 // klampes til de samme endene som slideren.
 const HALV_MIN = BREDDE_MIN_KM / 2
 const HALV_MAKS = BREDDE_MAKS_KM / 2

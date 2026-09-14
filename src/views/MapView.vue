@@ -1138,19 +1138,34 @@ async function rebuildAtChosenSize(km = mapSizeKm.value) {
   }
 }
 
-// MAKS KARTFLISER ER ET FAST TALL (v7.0.0): 25, altså et 5×5-ark.
+// MAKS KARTFLISER ER ET FAST TALL: 9 fra v7.8.15, altså et 3×3-ark.
 //
 // Det var en slider med trinn 4/9/16/25/36, og den sto TO steder — i Format-
 // fanen og i «Zoom og kartutsnitt» bak lang-trykket. To kontroller for samme
 // tall er en kontroll for mye, og spørsmålet den stilte er ikke et brukeren
-// har: den handler om hvor mye plass mosaikken får bruke i IndexedDB, og 25
-// er taket appen uansett tegner mot (`useGhostTiles`' node-tak er
-// max(MAX_GHOST_NODER, maxTiles)). pruneAutoTiles kapper de fjerneste flisene
-// til grensa som før.
+// har: den handler om hvor mye plass mosaikken får bruke i IndexedDB.
+// pruneAutoTiles kapper de fjerneste flisene til grensa som før.
+//
+// v7.0.0 gjorde det til et fast 25 og lot tallet stå som OPPLYSNING i
+// Format-fana. v7.8.15 tok bort også den linja: et tall man verken kan endre
+// eller gjøre noe med er en linje man leser forbi, og teksten under den
+// («blir det flere, kappes de som ligger lengst fra der du er») beskrev en
+// oppførsel man nå aldri møter — se neste avsnitt. Tallet står fortsatt i
+// Utvikler-fana som `autoTileCount / maxTiles`, der det er diagnostikk.
+//
+// NI OG IKKE 25, og de to endringene henger sammen: et 3 × 3-ark er den
+// største mosaikken en dagstur trenger, og det er nå også taket
+// lende-pilene SKJULES ved (`extendZonesVisible` i useMapExtend). Med 25
+// kunne man bygge seg til et 5 × 5 der de ytterste flisene lå så langt unna
+// at de ble kappet igjen ved neste promotering — altså arbeid brukeren ventet
+// på og så mistet. Med ni er «fullt» en tilstand man ser, ikke en man snubler
+// i. Merk at `useGhostTiles`' node-tak er max(MAX_GHOST_NODER = 12, maxTiles),
+// så modellen rekker fortsatt lenger enn arket: den skal aldri være det som
+// begrenser.
 //
 // Ref og ikke en bar konstant: `useMapExtend` og `useGhostTiles` leser
 // `maxTiles.value`, og en getter der ville vært en tredje måte å si det samme.
-const maxTiles = ref(25)
+const maxTiles = ref(9)
 
 // Flerspråklige navn (norsk - samisk - finsk) i Nord-Norge. Default AV = vis
 // kun det norske leddet for et renere kart; PÅ = vis hele det flerspråklige
@@ -3471,8 +3486,7 @@ onUnmounted(() => {
             v-model:density-id="densityId"
             v-model:density-apply-to-all="densityApplyToAll"
             :rebuild-at-chosen-size="rebuildAtChosenSize"
-            :building="buildingOnTheFly" :can-rebuild="!!meta?.bbox"
-            :max-tiles="maxTiles" />
+            :building="buildingOnTheFly" :can-rebuild="!!meta?.bbox" />
 
           <DrawerDevTab v-show="activeTab === 'utvikler'"
             id="drawer-panel-utvikler" role="tabpanel" aria-labelledby="drawer-fane-utvikler"

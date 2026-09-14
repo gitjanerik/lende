@@ -326,6 +326,40 @@ De sier hvor, de sier hva det koster (`+N fliser` i pilla), og de bygger
 ingenting uten et trykk. «Gjør arket firkantet» og «Fyll hullene» er fortsatt
 BANNERE med kostnaden skrevet på, aldri automatikk — se `findRectangleGaps`.
 
+**ET FULLT ARK HAR INGEN PILER (v7.8.15), og flis-taket er NI.** Taket
+(`maxTiles` i MapView) gikk fra 25 til 9 — et 3 × 3-ark er den største mosaikken
+en dagstur trenger, og med 25 kunne man bygge seg til et 5 × 5 der de ytterste
+flisene lå så langt unna at neste promotering kappet dem igjen, altså arbeid
+brukeren ventet på og så mistet. Fordi ni er et tak man FAKTISK når, må pilene
+forholde seg til det: på et fullt ark kan de verken si hvor eller hva det
+koster — `plassIArket` avviser trykket, og alt brukeren får er en toast.
+`extendZonesVisible` er derfor false når arket er fullt.
+
+**Pilene og porten spør SAMME funksjon** (`arketErFullt` → `plassIArket` med
+`nye: 1`, `ledig === 0`). Skriver du `antall >= maxTiles` i den ene, er «fullt»
+to uavhengige uttrykk, og den dagen den ene får et gulv eller en avrunding den
+andre ikke har, får du enten piler som ikke virker eller et ark som ikke kan
+fylles — to feil som begge ser ut som en bug i den andre halvdelen. Regelen er
+ren og enhetstestet i `tileCache.test.js`.
+
+**Dette skjuler IKKE «Fyll hullene» / «Gjør arket firkantet».** Et hull inne i
+arket kan tettes så lenge det finnes plass, og de bannerne bærer kostnaden sin
+selv og går gjennom samme port.
+
+**Merk at `useGhostTiles`' node-tak er `max(MAX_GHOST_NODER = 12, maxTiles)`**,
+altså tolv i praksis nå. Modellen skal rekke lenger enn arket noen gang kan bli
+— den skal aldri være det som begrenser. Ikke «forenkle» maks-en bort fordi den
+ene siden vinner i dag.
+
+**«Maks kartfliser» finnes ikke som kontroll, og står ikke lenger i Format-fana
+heller (v7.8.15).** Den var en slider med trinn 4/9/16/25/36 til v7.0.0, så et
+fast tall vist som opplysning, og nå ingenting — et tall man verken kan endre
+eller gjøre noe med er en linje man leser forbi, og underteksten («blir det
+flere, kappes de som ligger lengst fra der du er») beskrev en oppførsel man ikke
+møter når pilene stopper ved taket. Tallet står i Utvikler-fana som
+`autoTileCount / maxTiles`, der det er diagnostikk. Toast-tekstene som ba om å
+«øke «Maks kartfliser» i Innstillinger» sier nå hva grensa ER.
+
 **Det ene som overlevde er flis-ikonet** (`lib/flisIkon.js` +
 `components/FlisIkon.vue`): arket i miniatyr, med rutene som bygges blinkende.
 Det ble laget for automatikken og hørte hele tida hjemme i den manuelle
