@@ -251,8 +251,9 @@ const KANT_PX = 24
 // på en telefon er den summen høyere enn skjermen — håndtaket havnet under
 // nederste skjermkant, altså den ene kontrollen som legger skuffa sammen igjen.
 // Reserven under pilla skalerer med teksten, fordi det som står der (kompasset
-// og Lende-knappen nede til høyre) gjør det: `3.5rem × --ui-skala` er den ene
-// runde knappen, pluss 2rem luft. `dvh` og ikke `vh`: på mobil-Safari er `vh`
+// nede til høyre, linjalen nede til venstre) gjør det: `3.5rem × --ui-skala` er
+// den ene runde knappen, pluss 2rem luft. Lende-knappen sto der til v7.8.16;
+// tallet er uendret, for kompasset er like høyt som den var. `dvh` og ikke `vh`: på mobil-Safari er `vh`
 // den STØRSTE viewporten, altså den uten adresselinje, og et tak regnet av den
 // er ikke et tak på skjermen man faktisk har.
 const PILLE_MAKS_H = 'calc(100dvh - var(--ovl-top, 4rem) - 3.5rem * var(--ui-skala, 1) - 2rem)'

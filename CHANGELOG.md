@@ -1,3 +1,44 @@
+## 2026-09-14 — v7.8.17: Lende-chatten er radens siste snarvei, og nåla har rykket ned i hjørnet
+
+Chat-knappen nede til høyre i turkartet er borte, og chatten er i stedet den
+siste snarveien i raden over kartet — plass #12, bak «Hjelp» og «Valg», fordi et
+spørsmål til Lende er noe man skriver når man har stoppet og ikke noe man rekker
+etter mens man går. Porten er nøyaktig den samme som knappen hadde: snarveien
+bærer `kunChat`, og uten invitasjonstoken finnes den ikke i det hele tatt —
+uinviterte ser fortsatt ikke at funksjonen er der, verken i raden eller i
+sorteringen. Mekanismen er den `snarveierIRekkefolge` hadde i v7.1.0 og som ble
+rullet tilbake med resten i v7.2.0; forskjellen denne gangen er at det er ÉN
+snarvei som flytter inn og ikke syv, så raden ikke vokser til den fire linjer
+høye svarte boksen felttesten den gang svarte med. De to portene holdes fra
+hverandre i katalogen og i testene: `kunEgne` gjelder KARTET (et demokart har
+verken egne markeringer eller GPS-spor), `kunChat` gjelder BRUKEREN.
+
+Kompassnåla har med det rykket ned i hjørnet knappen etterlot. Løftet fra v7.8.4
+— «3rem × tekstskalaen», altså Lende-knappens egen høyde med `zoom` — fantes
+bare fordi den knappen sto under; et løft over ingenting er en nål som svever,
+så propen `overChat` er slettet framfor å bli stående på `false` hos hver kaller.
+Nåla deler nå bunnlinje med linjalen nede til venstre, fra den samme
+`useFloatAboveSheets`: ett tall, to kanter. Ruteplanleggeren og innholdssidene
+beholder sin egen Lende-FAB — `kart-vis` blir stående i `UTEN_GLOBAL_CHAT`, men
+grunnen er en annen enn før: en global knapp her ville vært en andre inngang til
+det samme, og den ville dessuten lagt seg oppå nåla.
+
+Røyktesten som målte «linjalen og Lende-FAB-en deler bunnlinje, med nåla rett
+over FAB-en» måler nå nåla der den før målte FAB-en, og krever i tillegg at
+FAB-en faktisk er borte fra turkartet — et kart med begge ville hatt to knapper
+i samme hjørne. Sjekken av FAB-en selv er slettet, men de to lærdommene den bar
+er ARVET av den nye chat-sjekken og ikke mistet: at tappet må gjøres med
+FINGEREN og modalen bli stående etterpå (kompatibilitets-klikket ~25 ms etter
+`touchend` traff bakteppet og lukket chatten igjen fram til v7.3.3 — en måling
+med musa sto grønn hele veien), og at snakkebobla må være symmetrisk om 12/12 i
+viewBoxen (v7.7.3). Den siste måles nå mot ikonets EGEN boks og ikke mot
+knappen, altså på glyfen framfor på hvilken flate som tilfeldigvis bærer den —
+samme ikon står fortsatt i FAB-en på forsiden og i ruteplanleggeren. Sjekken
+måler i tillegg porten i begge retninger: ingen av delene finnes i en
+enhetstest, siden prosjektet ikke monterer Vue-komponenter.
+
+---
+
 ## 2026-09-14 — v7.8.16: Samme GPS-varsel på alle tre flatene
 
 Utsnitts-velgeren sto igjen med den lange varianten av GPS-feilen — etiketten
