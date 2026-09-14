@@ -444,6 +444,15 @@ function velg(id) {
   emit('velg', id)
 }
 
+// Tannhjulet fører ut av raden og inn i Kartstil-fana, så skuffa legges sammen
+// på samme måte som ved et trykk på en snarvei: den ville ellers blitt stående
+// åpen over kartet bak innstillings-skuffa, og ligget der når man lukker den.
+function apneKartstil(seksjon) {
+  if (sluk) { sluk = false; return }
+  dra.value = 0
+  emit('apne-kartstil', seksjon)
+}
+
 // ── Draget ─────────────────────────────────────────────────────────────────
 // HELE PILLA ER GRIPEFLATE (v7.6.0), ikke bare håndtaket. Håndtaket er 44 px
 // høyt og ligger nederst i en boks som er dobbelt så høy — man måtte treffe
@@ -857,7 +866,7 @@ function celleTransform(i) {
               <span class="shrink-0 tabular-nums text-ink-3">{{ strekSkala.toFixed(2) }}×</span>
               <button type="button" class="knott-tannhjul shrink-0"
                       aria-label="Åpne Kartstil og gå til Strek"
-                      @click="emit('apne-kartstil', 'strek')">
+                      @click="apneKartstil('strek')">
                 <SnarveiIkon id="innstillinger" class="w-4 h-4" />
               </button>
             </div>
@@ -876,7 +885,7 @@ function celleTransform(i) {
               </span>
               <button type="button" class="knott-tannhjul shrink-0"
                       aria-label="Åpne Kartstil og gå til Relieff"
-                      @click="emit('apne-kartstil', 'relieff')">
+                      @click="apneKartstil('relieff')">
                 <SnarveiIkon id="innstillinger" class="w-4 h-4" />
               </button>
             </div>
