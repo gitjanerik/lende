@@ -179,7 +179,66 @@ try {
   await sov(300)
   const borte = await sM.evaluate(() => !document.querySelector('[role="alert"]'))
   sjekk('X-en skjuler varselet', borte, borte ? 'borte' : 'står igjen')
+
+  // TEKSTEN I VARSELET MÅ FØLGE TEKSTSKALAEN (v7.8.16). Boksen sto med
+  // `text-[13px]`, altså en ABSOLUTT piksel-verdi, og hovedmenyen skalerer ved å
+  // sette en rot-font på `16px × skalaen` og måle alt annet i `em` — så varselet
+  // var det ene i menyen som IKKE vokste. Den er nå `em`, og det er nettopp den
+  // typen verdi som «ryddes» tilbake til px av en som måler den i modalen, der
+  // `zoom` skjuler forskjellen. Sjekken måler derfor i MENYEN, og måler
+  // FORHOLDET mellom to skalaer i stedet for et tall: et tall ville vært en
+  // påstand om nettleserens rot-font.
+  const fontVed = async (skala) => {
+    await sM.evaluate((v) => localStorage.setItem('lende-ui-text-scale', String(v)), skala)
+    await sM.reload({ waitUntil: 'domcontentloaded' })
+    await sov(700)
+    await sM.locator('button[aria-label="Åpne meny"]').click()
+    await sov(400)
+    await sM.evaluate(() => {
+      navigator.geolocation.getCurrentPosition = (_ok, feil) => feil({ code: 1, message: 'denied' })
+    })
+    await sM.locator('.am-row-main').nth(2).click()
+    await sov(400)
+    return sM.evaluate(() => {
+      const el = document.querySelector('[role="alert"] span')
+      return el ? parseFloat(getComputedStyle(el).fontSize) : 0
+    })
+  }
+  const font100 = await fontVed(1)
+  const font150 = await fontVed(1.5)
+  const vekst = font100 ? font150 / font100 : 0
+  sjekk('varselteksten vokser med tekstskalaen i hovedmenyen',
+    font100 > 0 && Math.abs(vekst - 1.5) < 0.06,
+    `${font100.toFixed(1)} px → ${font150.toFixed(1)} px (×${vekst.toFixed(2)})`)
+  await sM.evaluate(() => localStorage.removeItem('lende-ui-text-scale'))
   await sM.close()
+
+  // UTSNITTS-VELGEREN VISER SAMME BOKS (v7.8.16). Den sto igjen med den lange
+  // varianten — etikett PLUSS «Trykk på låsikonet i adressefeltet …» — og uten
+  // X, med den begrunnelsen at flata der har plass. Eieren ba om den korte
+  // overalt. Sjekken måler nøyaktig det som var forskjellen: teksten er
+  // etiketten alene, og boksen har en vei ut.
+  const sV = await ctx.newPage()
+  sV.on('pageerror', (e) => jsFeil.push(e.message))
+  await sV.goto(`${BASE}/nytt`, { waitUntil: 'domcontentloaded' })
+  await sov(900)
+  await sV.evaluate(() => {
+    navigator.geolocation.getCurrentPosition = (_ok, feil) => feil({ code: 1, message: 'denied' })
+  })
+  await sV.locator('button[aria-label*="GPS"]').first().click().catch(() => {})
+  await sov(500)
+  const vVarsel = await sV.evaluate(() => {
+    const el = document.querySelector('[role="alert"]')
+    return el ? { tekst: el.innerText.trim(), harX: !!el.querySelector('button') } : null
+  })
+  sjekk('utsnitts-velgeren viser etiketten alene, med X',
+    vVarsel?.tekst === 'GPS-tillatelse avvist' && vVarsel.harX,
+    vVarsel ? `«${vVarsel.tekst}», X=${vVarsel.harX}` : 'ingen boks')
+  await sV.locator('[role="alert"] button').click().catch(() => {})
+  await sov(300)
+  const vBorte = await sV.evaluate(() => !document.querySelector('[role="alert"]'))
+  sjekk('X-en skjuler varselet i utsnitts-velgeren', vBorte, vBorte ? 'borte' : 'står igjen')
+  await sV.close()
 
   // /om har TO faner fra v7.8.14 (Fritt lende-fana falt med modusen). En fane
   // er lett å miste i en refaktorering av v-if/v-else-kjeden, og den som blir

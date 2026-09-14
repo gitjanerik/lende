@@ -568,11 +568,11 @@ function onSelectSearchResult(r) {
 // den var i stuss. Teksten kommer fra `lib/gpsFeil.js` — ÉN kilde, delt med
 // «Flere valg» og hovedmenyens «Nytt turkart».
 //
-// v7.8.14: ETIKETTEN ALENE, ikke `gpsFeilForklaring`. Rådet («Trykk på
-// låsikonet i adressefeltet …») var tre linjer nettleser-instruksjon rett over
-// kart-lista, på et panel der det som skal leses er kartene. Boksen har i
-// stedet fått en X (se GpsFeilVarsel), så den som har lest den blir kvitt den.
-// Utsnitts-velgeren beholder rådet: der står boksen alene på en tom flate.
+// v7.8.14: ETIKETTEN ALENE. Rådet («Trykk på låsikonet i adressefeltet …») var
+// tre linjer nettleser-instruksjon rett over kart-lista, på et panel der det som
+// skal leses er kartene. Boksen har i stedet fått en X (se GpsFeilVarsel), så
+// den som har lest den blir kvitt den. Fra v7.8.16 gjelder det ALLE tre flatene
+// — rådet finnes ikke lenger, og `gpsFeil.js` har bare etiketten.
 const gpsLeter = ref(false)
 const gpsFeil = ref('')
 

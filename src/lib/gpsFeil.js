@@ -20,25 +20,14 @@ export function gpsFeilTekst(code, fallback = 'GPS-feil') {
   return GPS_FEIL_TEKST[code] ?? fallback
 }
 
-// Rådet under etiketten. Etiketten sier HVA som skjedde, rådet sier hva
-// brukeren kan gjøre med det — og for kode 1 er det hele poenget: en avvist
-// tillatelse spørres ikke om på nytt, så knappen blir stum til man finner
-// innstillingen selv.
+// RÅDET ER BORTE (v7.8.16). `GPS_FEIL_RAAD` og `gpsFeilForklaring` bar en andre,
+// lengre variant av de samme tre feilene — «Trykk på låsikonet i adressefeltet og
+// sett Posisjon til «Tillat» — eller søk opp stedet i stedet.» og to søsken — og
+// levde fra v7.8.14 på ÉN kaller: utsnitts-velgeren, med den begrunnelsen at
+// boksen der har mer plass. Eieren ba om den korte overalt, og begrunnelsen holdt
+// ikke: plass er ikke et argument for å si mer, og to lengder på samme feil leses
+// som to ulike feil. Alle tre flatene bruker nå `GpsFeilVarsel`, som viser
+// etiketten og har en X.
 //
-// FRA v7.8.14 BRUKES RÅDET BARE ÉTT STED: utsnitts-velgeren, der boksen står
-// alene på en tom flate og har plassen. «Mine kart» og hovedmenyen viser
-// ETIKETTEN alene og har fått en X i stedet (se GpsFeilVarsel) — tre linjer
-// nettleser-instruksjon over en kart-liste, uten noen vei ut, kostet mer skjerm
-// enn rådet var verdt. Ikke slå de to sammen igjen: forskjellen er hvor mye
-// plass flata har, ikke hvor viktig feilen er.
-export const GPS_FEIL_RAAD = Object.freeze({
-  1: 'Trykk på låsikonet i adressefeltet og sett Posisjon til «Tillat» — eller søk opp stedet i stedet.',
-  2: 'Telefonen får ikke fatt i satellittene akkurat nå. Prøv igjen ute, eller søk opp stedet.',
-  3: 'Posisjonen kom ikke i tide. Prøv igjen, eller søk opp stedet.',
-})
-
-// Etikett + råd som én lesbar setning, til feilboksene under søkefeltene.
-export function gpsFeilForklaring(code, fallback = 'GPS-feil') {
-  const raad = GPS_FEIL_RAAD[code]
-  return raad ? `${gpsFeilTekst(code, fallback)}. ${raad}` : gpsFeilTekst(code, fallback)
-}
+// Skal rådet tilbake, hører det hjemme BAK X-en eller i en egen hjelp — ikke som
+// tre linjer nettleser-instruksjon over lista man kom for å lese.
