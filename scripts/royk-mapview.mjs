@@ -974,9 +974,12 @@ const SJEKKER = [
     //     ingen informasjon i en rad som uansett bare handler om kartet, og de
     //     to gamle navnene var like på de seks første tegnene i en rad der
     //     bredden er knapp.
-    //   • «Stemning» er BORTE. Den var en andre kontroll for det uttrykket
-    //     Stil-fana eier, og det ene i den som ikke var et tema — nedtrekket
-    //     for skrift på kart-navn — er flyttet dit det hører hjemme.
+    //   • «Stemning» er ikke lenger en FANE. Den var en andre fane for det
+    //     samme spørsmålet Stil-fana eier — hvordan kartet skal se ut — og
+    //     både stemningene og font-nedtrekket er flyttet inn i Stil.
+    //     Stemningene står NEDERST der, under relieff; sjekken måler at de
+    //     faktisk rendres og at et trykk slår gjennom på kart-temaet, for en
+    //     seksjon bak `v-if` kan dø stille når en prop ikke kobles.
     //   • Strek-seksjonen viser FIRE skyveknapper, ikke ni. Stup,
     //     naturreservat-omriss, store bygninger, idrettsbaner og båtruter er
     //     ikke borte fra `STROKE_GROUPS` (MCP-verktøyet og kartstilene bruker
@@ -1008,11 +1011,18 @@ const SJEKKER = [
             .filter((n) => n.startsWith('Strekbredde '))
           : []
         const font = document.querySelector('select[aria-label="Font-par for kart-navn"]')
+        const stemning = document.querySelector('[data-stil-seksjon="stemning"]')
         return {
           skyv,
           font: font && font.offsetParent !== null ? font.options.length : 0,
-          tilpass: /Tilpass sti/.test(document.body.innerText),
-          gammelTilpass: /Tilpass — sti-farge/.test(document.body.innerText),
+          // textContent OG IKKE innerText: seksjons-overskriftene er
+          // `uppercase` i CSS, og innerText gir teksten slik den RENDRES —
+          // «Tilpass sti» kommer tilbake som «TILPASS STI».
+          tilpass: /Tilpass sti/.test(document.body.textContent),
+          gammelTilpass: /Tilpass — sti-farge/.test(document.body.textContent),
+          stemninger: stemning && stemning.offsetParent !== null
+            ? [...stemning.querySelectorAll('button')].map((b) => b.innerText.trim())
+            : [],
         }
       })
       const ventet = ['Strekbredde Høydekurver', 'Strekbredde Stier',
@@ -1027,10 +1037,35 @@ const SJEKKER = [
       if (stil.font < 2) throw new Error('font-nedtrekket står ikke synlig i Stil-fana')
       if (!stil.tilpass) throw new Error('sti-seksjonen heter ikke «Tilpass sti»')
       if (stil.gammelTilpass) throw new Error('«Tilpass — sti-farge» står igjen')
+      // STEMNINGENE MÅ VÆRE DER OG VIRKE. Seksjonen står bak en `v-if` på en
+      // prop MapView sender inn: kobles den fra, forsvinner hele den monokrome
+      // familien uten en feilmelding noe sted.
+      if (stil.stemninger.length < 3) {
+        throw new Error(`stemning-seksjonen har ${stil.stemninger.length} knapper `
+          + '— den monokrome familien mangler')
+      }
 
+      const temaFør = await page.evaluate(() =>
+        localStorage.getItem('lende-map-theme') || '')
+      // Klikkes INNENFOR seksjonen: etiketten er katalogens egen, og en
+      // uankret tekst-match kunne truffet en kartstil-knapp lenger opp.
+      await klikkTekst(page, /\S/, '[data-stil-seksjon="stemning"]')
+      await page.waitForTimeout(900)
+      const temaEtter = await page.evaluate(() =>
+        localStorage.getItem('lende-map-theme') || '')
+      if (temaFør === temaEtter) {
+        throw new Error(`stemning «${stil.stemninger[0]}» endret ikke `
+          + `kart-temaet ("${temaFør}")`)
+      }
+
+      // NØYTRAL TILSTAND: neste sjekk skal ikke arve en monokrom stemning.
+      // Kartstil-knappene har en beskrivelse under navnet — derfor uankret.
+      await klikkTekst(page, /^Turkart/)
+      await page.waitForTimeout(700)
       await lukkDrawer(page)
       return `faner: ${faner.join(', ')}; ${stil.skyv.length} strek-skyv, `
-        + `font-nedtrekk med ${stil.font} par`
+        + `font-nedtrekk med ${stil.font} par, ${stil.stemninger.length} stemninger `
+        + `(${temaFør} → ${temaEtter})`
     },
   },
   {

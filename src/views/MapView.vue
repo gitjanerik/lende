@@ -97,7 +97,7 @@ import { useMapLoadPipeline } from '../composables/useMapLoadPipeline.js'
 import { buildStrokeOverrideCss } from '../lib/strokeOverrides.js'
 import { buildTrailColorCss, normalizeHex } from '../lib/trailColors.js'
 import { DEFAULT_VISIBLE_LAYER_KEYS } from '../lib/mapLayerCatalog.js'
-import { erMorktTema } from '../lib/mapSettingsApply.js'
+import { listThemes, erMorktTema } from '../lib/mapSettingsApply.js'
 import { SNARVEI_REKKEFOLGE_KEY, STANDARD_REKKEFOLGE, normaliserRekkefolge,
          flettSynligRekkefolge, snarveierIRekkefolge } from '../lib/snarveier.js'
 import { norwegianName } from '../lib/placeName.js'
@@ -309,16 +309,24 @@ const {
 })
 
 // Tema: 'turkart' (default), 'light' (ISOM), 'padling', 'natt'/'dark', 'print'
-// + den monokrome familien (som fra v7.8.12 ikke har noen egen fane — se
-// ALL_TABS; kartstilene velges i Stil, mørkt kart av «Natt»-snarveien).
+// + den monokrome familien, som fra v7.8.12 ikke har noen egen fane: den bor
+// som en seksjon NEDERST i Stil, under strek og relieff. Rekkefølgen er
+// skuffas vanlige grovest-først — kartstilen er valget man tar, stemningen er
+// finpussen på det — og mørkt kart nås fortsatt raskest med «Natt»-snarveien.
 // isDark er derivert for steder som styrer UI-farger (toppbar, drawer-bg).
 // Tilstanden bor i useMapTheme (delt singleton, lagret i localStorage) så
 // alle inngangene styrer det samme — og valget overlever at appen lukkes.
-const { mapTheme: currentTheme, setDarkMap } = useMapTheme()
+const { mapTheme: currentTheme, setMapTheme, setDarkMap } = useMapTheme()
 // v5.23.0: 'light' er ikke lenger det eneste lyse temaet — turkart, padling
 // og print er også lyse. Avled av temaets egen bakgrunn i stedet for å liste
 // nøkler, ellers ville hvert nye lyse tema måttet huskes her.
 const isDark = computed(() => erMorktTema(currentTheme.value, isomCatalog))
+// Stemningene i Stil-fana. Lista er katalogens egen, og DrawerStyleTab
+// filtrerer bort «kartstil»-gruppa: de temaene ER kartstiler og velges øverst
+// i samme fane, så to kontroller for samme utseende ville vært nøyaktig
+// forvirringen kartstil-begrepet ble innført for å fjerne.
+const THEMES = computed(() => listThemes(isomCatalog))
+function onThemeTap(key) { setMapTheme(key) }
 const diagnose = ref(false)
 
 // Terreng-først: kartet ble vist med konturer+relieff straks, og OSM/detaljer
@@ -380,11 +388,11 @@ const showControls = ref(false)
 // ingen informasjon og spiste den knappe bredden i fane-rada; «Detaljer» og
 // «Stil» skiller seg dessuten fra hverandre på FØRSTE tegn.
 //
-// «STEMNING» ER BORTE (v7.8.12). Fana var den monokrome tema-familien pluss
-// font-nedtrekket, og de to hørte ikke sammen: skriften på kart-navn er en del
-// av kartets STIL, mens stemningene var en andre kontroll for det samme
-// uttrykket Stil-fana alt eier. Nedtrekket bor nå i Stil; mørkt kart er
-// «Natt»-snarveien over kartet, som er der man er når man vil ha det.
+// «STEMNING» ER IKKE LENGER EN FANE (v7.8.12). Den var en andre fane for det
+// samme spørsmålet Stil-fana alt eier — hvordan kartet skal se ut — og begge
+// tingene i den er flyttet dit: font-nedtrekket over Strek, den monokrome
+// familien nederst, under relieff. Rekkefølgen er skuffas vanlige
+// grovest-først. Mørkt kart nås fortsatt raskest med «Natt»-snarveien.
 const ACTIVE_TAB_KEY = 'lende-mapview-active-tab'
 const ALL_TABS = [
   { key: 'lag',      label: 'Detaljer' },
@@ -3368,6 +3376,7 @@ onUnmounted(() => {
             :set-trail-color="(role, v) => trailColors.setColor(role, v)"
             :land-font="landFont" :water-font="waterFont"
             v-model:font-pair-id="fontPairId"
+            :themes="THEMES" :current-theme="currentTheme" :on-theme-tap="onThemeTap"
             :strek-trinn="strokeStepIndex" :strek-trinn-antall="STROKE_STEPS.length"
             :strek-skala="strokeScale" :stroke-effective="strokeEffective"
             :relief-trinn="snarveiReliefTrinn" :relief-trinn-antall="RELIEF_STEPS.length"

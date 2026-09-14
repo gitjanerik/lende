@@ -3,10 +3,13 @@
 Innstillinger-skuffa het «Kartlag» og «Kartstil» på de to første fanene — samme
 prefiks, i en rad som uansett bare handler om kartet, og med de seks første
 tegnene felles på nøyaktig den flata der bredden er knappest. De heter nå
-«Detaljer» og «Stil». «Stemning» er fjernet helt: den var en andre kontroll for
-det uttrykket Stil-fana alt eier, og det ene i den som ikke var et tema —
-nedtrekket for skrift på kart-navn — er flyttet til Stil, der det hører hjemme.
-Mørkt kart er «Natt»-snarveien over kartet, altså på flata den endrer.
+«Detaljer» og «Stil». «Stemning» er ikke lenger en FANE: den var en andre fane
+for det samme spørsmålet Stil-fana alt eier — hvordan kartet skal se ut — så
+begge tingene i den er flyttet dit. Nedtrekket for skrift på kart-navn står nå
+over Strek, og den monokrome familien nederst, under relieff: kartstilen øverst
+er valget man tar, stemningen er finpussen på det, og skuffa er ellers sortert
+grovest først. Mørkt kart nås fortsatt raskest med «Natt»-snarveien over
+kartet — samme tilstand, ikke en kopi.
 Sti-seksjonen heter «Tilpass sti», og strek-seksjonen viser de fire
 skyveknappene man faktisk drar — høydekurver, stier, liten vei og stor vei.
 Stup, naturreservat-omriss, store bygninger, idrettsbaner og båtruter er borte
