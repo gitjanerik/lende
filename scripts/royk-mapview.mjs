@@ -1384,6 +1384,44 @@ const SJEKKER = [
     },
   },
   {
+    // ET VAKLETE TRYKK ER ET TRYKK (v7.8.11). Hele pilla er gripeflate, og
+    // draget tar tak etter seks piksler — men en tommel står aldri helt stille
+    // på en knapp. Nettleseren leverer likevel et `click` (dens egen tapp-slop
+    // er rundt femten piksler), og fram til v7.8.11 avlyste raden nettopp det
+    // klikket: skuffa dokket tilbake der den sto, og snarveien gjorde ingenting
+    // før man trykket en gang til.
+    //
+    // Dette kan ikke enhetstestes: både klikket og avlysningen er ekte
+    // hendelser i en ekte nettleser. Musa brukes med vilje — Chromium sender
+    // `click` etter et musedrag uansett lengde, så den er den strengeste av de
+    // to pekerne her.
+    navn: 'Et vaklete trykk på en snarvei utfører handlingen med én gang',
+    domene: 'SnarveiRad (TAPP_PX)',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await apneSnarveiRad(page)
+
+      const VAKL_PX = 8
+      const boks = await page.locator('[data-snarvei-id="innstillinger"]').first().boundingBox()
+      if (!boks) throw new Error('fant ikke snarveien «innstillinger»')
+      const x = boks.x + boks.width / 2
+      const y = boks.y + boks.height / 2
+      await page.mouse.move(x, y)
+      await page.mouse.down()
+      await page.mouse.move(x, y + VAKL_PX, { steps: 4 })
+      await page.mouse.up()
+      await page.waitForTimeout(500)
+
+      if (!(await erDrawerÅpen(page))) {
+        throw new Error(`et trykk med ${VAKL_PX} px vandring ble spist av draget`)
+      }
+
+      await lukkDrawer(page)
+      await lukkSnarveiRad(page)
+      return `snarveien svarte på FØRSTE trykk selv med ${VAKL_PX} px vandring`
+    },
+  },
+  {
     // «NATT» ER EN VEKSEL SOM VISER HANDLINGEN, IKKE TILSTANDEN (v7.8.6).
     // Snarveien byttet ut bryteren «Turkart i mørkt tema» i hovedmenyen, og
     // etiketten er derfor «Natt» i lyst kart og «Dag» i mørkt — med sol-ikonet

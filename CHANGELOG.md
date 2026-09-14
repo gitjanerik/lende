@@ -1,3 +1,21 @@
+## 2026-09-14 — v7.8.11: Et vaklete trykk på en snarvei er et trykk
+
+Hele snarvei-pilla er gripeflate, og draget tar tak etter seks piksler — men en
+tommel står aldri helt stille på en knapp. Nettleseren leverer likevel et klikk
+i slike tilfeller (dens egen tapp-slop ligger rundt femten piksler), og raden
+avlyste nettopp det klikket: skuffa dokket tilbake der den sto, snarveien eller
+tannhjulet gjorde ingenting, og man måtte trykke en gang til. Symptomet ble
+meldt som «etter at jeg har dratt baren ned må jeg klikke to ganger», men
+draget var bare veien dit — feilen satt i trykket etterpå. Nå avgjør
+STREKNINGEN ved slippet om gesten var et drag: kom fingeren aldri forbi seksten
+piksler, legges dra-posisjonen tilbake uendret og klikket får gå. Avlysningen
+oppheves da synkront og ikke i en makrotask: nettleseren leverer klikket i
+samme omgang som `pointerup`, altså før en `setTimeout(…, 0)` rekker å kjøre. En røyk-sjekk trykker på en snarvei med åtte pikslers vandring og
+krever at handlingen skjer på første trykk; den er verifisert i begge
+retninger.
+
+---
+
 ## 2026-09-14 — v7.8.10: «Stil» åpner snarvei-skuffa helt
 
 Kart-knottene — strek og relieff — lå bak et ANDRE drag i snarvei-skuffa, og et
