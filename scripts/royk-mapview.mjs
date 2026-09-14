@@ -546,7 +546,7 @@ const SJEKKER = [
     domene: 'useKartStil',
     async kjør(page) {
       await åpneDrawer(page)
-      await klikkTekst(page, /^KARTSTIL$/)
+      await klikkTekst(page, /^STIL$/)
 
       // Tema-variablene settes på [data-map-inner] (mapInnerRef), ikke på
       // .isom-map — samme sted tema-sjekken lenger ned leser.
@@ -566,10 +566,10 @@ const SJEKKER = [
         return b ? b.getAttribute('aria-pressed') === 'true' : null
       }, etikett)
       const lagTilstand = async () => {
-        await klikkTekst(page, /^KARTLAG$/)
+        await klikkTekst(page, /^DETALJER$/)
         const marint = await paa('Sjø & padling')
         const gjerde = await paa('Gjerde')
-        await klikkTekst(page, /^KARTSTIL$/)
+        await klikkTekst(page, /^STIL$/)
         return { marint, gjerde }
       }
 
@@ -603,7 +603,7 @@ const SJEKKER = [
         // Kartstil-fanen, kjører alle senere sjekker på et annet kart enn de
         // ble skrevet for. En feilende sjekk skal koste ÉN sjekk, ikke resten.
         await klikkTekst(page, /^Turkart/).catch(() => {})
-        await klikkTekst(page, /^KARTLAG$/).catch(() => {})
+        await klikkTekst(page, /^DETALJER$/).catch(() => {})
       }
     },
   },
@@ -898,7 +898,7 @@ const SJEKKER = [
       // relieff-pass-stien (renderGhostTiles → planleggRelieffPass), altså
       // samme kode hakket kjørte.
       await åpneDrawer(page)
-      await klikkTekst(page, /^KARTSTIL$/)
+      await klikkTekst(page, /^STIL$/)
       // NULL ER AV FRA v7.8.4 — slideren er hele modellen, og trinn 0 slår
       // relieffet av. Sjekken skal kjøre render- og relieff-passet, så den må
       // dra til et EKTE nivå; 0 ville målt at laget forsvant.
@@ -923,7 +923,7 @@ const SJEKKER = [
     // fortsatt virker derfra — den globale knotten (--stroke-scale) og
     // per-element-tuningen (override-CSS-en i kart-SVG-en) — for de har hver
     // sin kode-sti og en av dem kan dø alene uten at noe sier fra.
-    navn: 'strek-seksjonen i Kartstil endrer --stroke-scale og per-element',
+    navn: 'strek-seksjonen i Stil endrer --stroke-scale og per-element',
     domene: 'useKartKnotter + DrawerStyleTab',
     async kjør(page) {
       const skala = () => page.evaluate(() =>
@@ -932,7 +932,7 @@ const SJEKKER = [
         document.querySelector('svg.isom-map #stroke-override-style')?.textContent || '')
 
       await åpneDrawer(page)
-      await klikkTekst(page, /^KARTSTIL$/)
+      await klikkTekst(page, /^STIL$/)
 
       const førSkala = await skala()
       await settSkyv(page, 'Strektykkelse for alle kart', 0)
@@ -964,6 +964,73 @@ const SJEKKER = [
       await lukkDrawer(page)
       return `--stroke-scale ${Number(førSkala).toFixed(3)} → ${Number(etterSkala).toFixed(3)}, `
         + `override-CSS skrevet om (${etterOverride.length} tegn), hint vist`
+    },
+  },
+  {
+    // SKUFFA ER FIRE FANER OG ETT NAVN PER TING (v7.8.12). Tre endringer som
+    // hver for seg er små og til sammen er hele fane-rada:
+    //
+    //   • «Kartlag» heter «Detaljer» og «Kartstil» heter «Stil». Prefikset bar
+    //     ingen informasjon i en rad som uansett bare handler om kartet, og de
+    //     to gamle navnene var like på de seks første tegnene i en rad der
+    //     bredden er knapp.
+    //   • «Stemning» er BORTE. Den var en andre kontroll for det uttrykket
+    //     Stil-fana eier, og det ene i den som ikke var et tema — nedtrekket
+    //     for skrift på kart-navn — er flyttet dit det hører hjemme.
+    //   • Strek-seksjonen viser FIRE skyveknapper, ikke ni. Stup,
+    //     naturreservat-omriss, store bygninger, idrettsbaner og båtruter er
+    //     ikke borte fra `STROKE_GROUPS` (MCP-verktøyet og kartstilene bruker
+    //     dem fortsatt) — de er borte fra FANA.
+    //
+    // Ingen av de tre finnes i en enhetstest: prosjektet monterer ikke Vue-
+    // komponenter, så etiketter, fane-lista og hvilke slidere som faktisk
+    // RENDRES kan bare måles i en nettleser.
+    navn: 'skuffa har Detaljer + Stil, ingen Stemning, og fire strek-skyv',
+    domene: 'MapView (ALL_TABS) + DrawerStyleTab',
+    async kjør(page) {
+      await åpneDrawer(page)
+      const faner = await page.evaluate(() =>
+        [...document.querySelectorAll('[role="tab"]')]
+          .filter((b) => b.offsetParent !== null)
+          .map((b) => b.innerText.trim()))
+      if (!faner.includes('DETALJER')) throw new Error(`fane-rada er «${faner.join(', ')}» — ingen «Detaljer»`)
+      if (!faner.includes('STIL')) throw new Error(`fane-rada er «${faner.join(', ')}» — ingen «Stil»`)
+      if (faner.some((f) => /STEMNING|KARTLAG|KARTSTIL/.test(f))) {
+        throw new Error(`gamle fane-navn står igjen: «${faner.join(', ')}»`)
+      }
+
+      await klikkTekst(page, /^STIL$/)
+      const stil = await page.evaluate(() => {
+        const seksjon = document.querySelector('[data-stil-seksjon="strek"]')
+        const skyv = seksjon
+          ? [...seksjon.querySelectorAll('input[type=range]')]
+            .map((e) => e.getAttribute('aria-label') || '')
+            .filter((n) => n.startsWith('Strekbredde '))
+          : []
+        const font = document.querySelector('select[aria-label="Font-par for kart-navn"]')
+        return {
+          skyv,
+          font: font && font.offsetParent !== null ? font.options.length : 0,
+          tilpass: /Tilpass sti/.test(document.body.innerText),
+          gammelTilpass: /Tilpass — sti-farge/.test(document.body.innerText),
+        }
+      })
+      const ventet = ['Strekbredde Høydekurver', 'Strekbredde Stier',
+        'Strekbredde Liten vei', 'Strekbredde Stor vei']
+      if (stil.skyv.join(' | ') !== ventet.join(' | ')) {
+        throw new Error(`strek-seksjonen viser «${stil.skyv.join(', ')}», venter `
+          + `«${ventet.join(', ')}»`)
+      }
+      // FONT-NEDTREKKET MÅ VÆRE SYNLIG HER, ikke bare finnes i DOM-en: fana det
+      // kom fra er slettet, så et nedtrekk som havnet i en skjult gren ville
+      // vært en innstilling ingen lenger kan nå.
+      if (stil.font < 2) throw new Error('font-nedtrekket står ikke synlig i Stil-fana')
+      if (!stil.tilpass) throw new Error('sti-seksjonen heter ikke «Tilpass sti»')
+      if (stil.gammelTilpass) throw new Error('«Tilpass — sti-farge» står igjen')
+
+      await lukkDrawer(page)
+      return `faner: ${faner.join(', ')}; ${stil.skyv.length} strek-skyv, `
+        + `font-nedtrekk med ${stil.font} par`
     },
   },
   {
@@ -1269,7 +1336,7 @@ const SJEKKER = [
     //     `scrollTop` flyttet seg, for et tall som bommer er like galt som null;
     //   • at de to tannhjulene lander på HVER SIN seksjon. Ett anker som treffer
     //     begge ville sett riktig ut i den ene halvdelen av sjekken.
-    navn: 'tannhjulene i knott-panelet åpner Kartstil på riktig seksjon',
+    navn: 'tannhjulene i knott-panelet åpner Stil på riktig seksjon',
     domene: 'SnarveiRad (apne-kartstil) + MapView.apneKartstilSeksjon + DrawerStyleTab',
     async kjør(page) {
       await lukkDrawer(page)
@@ -1504,7 +1571,7 @@ const SJEKKER = [
       // hvilken tilstand det står i når vi kommer hit avhenger av hvilken DEL av
       // den delte kjøringen vi er i — altså av noe denne sjekken ikke eier.
       await åpneDrawer(page)
-      await klikkTekst(page, /^KARTSTIL$/)
+      await klikkTekst(page, /^STIL$/)
       await settSkyv(page, 'Relieff-styrke for alle kart — helt til venstre er av', 4)
       await page.waitForTimeout(1200)
       await lukkDrawer(page)
@@ -2626,9 +2693,10 @@ const SJEKKER = [
       if (!/data-iso=/.test(tekst)) throw new Error('SVG-en mangler ISOM-lag — tom eksport?')
       if (/id="ghost-tiles"/.test(tekst)) throw new Error('spøkelses-flisene ble med i eksporten')
       const navn = fil.suggestedFilename()
-      // Tema: bytt til et annet tema og se at kart-variablene faktisk endres.
-      await klikkTekst(page, /^STEMNING$/)
-      await page.waitForTimeout(500)
+      // TEMA-BYTTET GÅR VIA «NATT»-SNARVEIEN (v7.8.12). Stemning-fana er borte,
+      // og snarveien er nå den ENESTE veien til et mørkt kart fra grensesnittet
+      // — altså den stien som faktisk må virke.
+      await lukkDrawer(page)
       // Tema-variablene settes på [data-map-inner] (mapInnerRef). Lys tema setter
       // INGEN vars — det er default — så «tomt → farge» er det forventede
       // utfallet ved bytte til et mørkt tema, ikke et tegn på at noe mangler.
@@ -2638,19 +2706,16 @@ const SJEKKER = [
         return getComputedStyle(el).getPropertyValue('--bg').trim()
       })
       const før = await les()
-      const byttet = await page.evaluate(() => {
-        const b = [...document.querySelectorAll('button')].find((e) =>
-          e.offsetParent && /^(Natt|Mørk|Dark|Curves|Skisse)$/i.test(e.innerText.trim()))
-        if (!b) return ''
-        b.click(); return b.innerText.trim()
-      })
-      if (!byttet) throw new Error('fant ingen tema-knapp å bytte til')
+      await klikkSnarvei(page, 'natt')
       await page.waitForTimeout(900)
       const etter = await les()
-      if (før === etter) throw new Error(`tema «${byttet}» endret ikke --bg ("${før}")`)
-      if (!etter) throw new Error(`tema «${byttet}» satte ingen --bg`)
-      await lukkDrawer(page)      // nøytral tilstand for neste sjekk
-      return `${(tekst.length / 1024).toFixed(0)} kB SVG (${navn}), tema «${byttet}»: --bg "${før}" → "${etter}"`
+      if (før === etter) throw new Error(`«Natt» endret ikke --bg ("${før}")`)
+      if (!etter) throw new Error('«Natt» satte ingen --bg')
+      // NØYTRAL TILSTAND: samme snarvei tilbake, og raden legges sammen.
+      await klikkSnarvei(page, 'natt')
+      await page.waitForTimeout(700)
+      await lukkSnarveiRad(page)
+      return `${(tekst.length / 1024).toFixed(0)} kB SVG (${navn}), «Natt»: --bg "${før}" → "${etter}"`
     },
   },
   {
@@ -5886,14 +5951,13 @@ const SJEKKER = [
       }
 
       // Sjekken SETTER begge temaene selv i stedet for å måle det den arver.
-      // Sjekken over slutter på Curves (mørkt), og da ville «lyst kart» målt et
-      // mørkt kart og bestått uten å ha sett den feilen den finnes for.
-      // Merk hvor de to bor: kartstilene (Turkart, Orientering, Padling) i
-      // KARTSTIL-fanen, stemningene (Curves m.fl.) i STEMNING. Kartstil-knappene
-      // har en beskrivelse under navnet, derfor uankret regex.
+      // Kommer vi hit fra et mørkt kart, ville «lyst kart» målt et mørkt og
+      // bestått uten å ha sett den feilen den finnes for.
+      // Kartstilene (Turkart, Orientering, Padling) bor i STIL-fana, og
+      // knappene har en beskrivelse under navnet — derfor uankret regex.
       const settKartstil = async (re) => {
         await åpneDrawer(page)
-        await klikkTekst(page, /^KARTSTIL$/)
+        await klikkTekst(page, /^STIL$/)
         await klikkTekst(page, re)
         await page.waitForTimeout(700)
         await lukkDrawer(page)
@@ -5903,20 +5967,14 @@ const SJEKKER = [
       await settKartstil(/^Turkart/)
       const lyst = await vurder('lyst kart (Turkart)')
 
-      // Mørkt kart: en stemning oppå. Nå skal streken ha snudd til hvit.
-      await åpneDrawer(page)
-      await klikkTekst(page, /^STEMNING$/)
-      const morkt = await page.evaluate(() => {
-        const b = [...document.querySelectorAll('button')].find((e) =>
-          e.offsetParent && /^(Mørk|Curves|Forest|Indigo|Petrol|Mocha)$/i.test(e.innerText.trim()))
-        if (!b) return ''
-        b.click(); return b.innerText.trim()
-      })
-      if (!morkt) throw new Error('fant ingen mørk stemning å bytte til')
+      // MØRKT KART VIA «NATT»-SNARVEIEN (v7.8.12). Stemning-fana er borte, og
+      // snarveien er den ene veien dit fra grensesnittet. Nå skal streken ha
+      // snudd til hvit.
+      await klikkSnarvei(page, 'natt')
       await page.waitForTimeout(900)
-      await lukkDrawer(page)
+      await lukkSnarveiRad(page)
       await page.waitForTimeout(250)
-      const morkResultat = await vurder(`mørkt kart («${morkt}»)`)
+      const morkResultat = await vurder('mørkt kart («Natt»)')
 
       // Nøytral tilstand for neste sjekk: tilbake til det lyse utgangspunktet.
       await settKartstil(/^Turkart/)
@@ -5952,7 +6010,7 @@ const SJEKKER = [
       // fanene ut av flata er verre enn ingen knapp.
       const rull = await page.evaluate(() => {
         const el = [...document.querySelectorAll('div')]
-          .find((n) => n.offsetParent && n.scrollHeight > n.clientHeight + 4 && /KARTLAG/.test(n.innerText))
+          .find((n) => n.offsetParent && n.scrollHeight > n.clientHeight + 4 && /DETALJER/.test(n.innerText))
         if (!el) return null
         el.scrollTop = el.scrollHeight
         return el.scrollTop > 0
@@ -6014,7 +6072,7 @@ const SJEKKER = [
         // fane-knappen finnes, er synlig, og ligger innenfor viewporten.
         const skuff = await page.evaluate(() => {
           const b = [...document.querySelectorAll('button')]
-            .find((n) => n.offsetParent && /^KARTLAG$/.test(n.innerText.trim()))
+            .find((n) => n.offsetParent && /^DETALJER$/.test(n.innerText.trim()))
           if (!b) return null
           const r = b.getBoundingClientRect()
           const treff = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
@@ -6188,7 +6246,7 @@ const SJEKKER = [
     // ikke at velgeren står i den nye fanen, treffer den samme singletonen, og
     // at «Følg tema» — seksjonens ENESTE nullstilling — faktisk rydder etter
     // seg. Sjekken SETTER en farge og LESER den ut av kartet.
-    navn: 'sti-fargevelgeren bor i Kartstil-fanen, og «Følg tema» nullstiller',
+    navn: 'sti-fargevelgeren bor i Stil-fanen, og «Følg tema» nullstiller',
     domene: 'DrawerStyleTab',
     // KREVER ET EKTE KART (v7.1.1). Sjekken LESER fargen ut av en sti-path i
     // kart-SVG-en, og demokartet suiten ellers står i har ingen — den svarte
@@ -6202,7 +6260,7 @@ const SJEKKER = [
         return el ? getComputedStyle(el).stroke : null
       })
       await åpneDrawer(page)
-      await klikkTekst(page, /^KARTSTIL$/)
+      await klikkTekst(page, /^STIL$/)
       const velger = page.locator('input[aria-label="Egen farge på sti-strek"]')
       if (!(await velger.count())) throw new Error('fant ingen fri sti-fargevelger i Kartstil-fanen')
       const før = await strekFarge()
@@ -6790,7 +6848,7 @@ async function lukkFunksjonsSkuff(page, etikett) {
 
 function erDrawerÅpen(page) {
   return page.evaluate(() =>
-    [...document.querySelectorAll('button')].some((b) => b.offsetParent && /^KARTLAG$/.test(b.innerText.trim())))
+    [...document.querySelectorAll('button')].some((b) => b.offsetParent && /^DETALJER$/.test(b.innerText.trim())))
 }
 
 function ventPå(url, maksMs = 60_000) {

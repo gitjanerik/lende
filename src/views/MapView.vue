@@ -97,7 +97,7 @@ import { useMapLoadPipeline } from '../composables/useMapLoadPipeline.js'
 import { buildStrokeOverrideCss } from '../lib/strokeOverrides.js'
 import { buildTrailColorCss, normalizeHex } from '../lib/trailColors.js'
 import { DEFAULT_VISIBLE_LAYER_KEYS } from '../lib/mapLayerCatalog.js'
-import { listThemes, erMorktTema } from '../lib/mapSettingsApply.js'
+import { erMorktTema } from '../lib/mapSettingsApply.js'
 import { SNARVEI_REKKEFOLGE_KEY, STANDARD_REKKEFOLGE, normaliserRekkefolge,
          flettSynligRekkefolge, snarveierIRekkefolge } from '../lib/snarveier.js'
 import { norwegianName } from '../lib/placeName.js'
@@ -118,7 +118,6 @@ import SnarveiRad from '../components/SnarveiRad.vue'
 import FunksjonDrawer from '../components/FunksjonDrawer.vue'
 import FlisIkon from '../components/FlisIkon.vue'
 import DrawerLayersTab from '../components/drawer/DrawerLayersTab.vue'
-import DrawerThemeTab from '../components/drawer/DrawerThemeTab.vue'
 import DrawerStyleTab from '../components/drawer/DrawerStyleTab.vue'
 import DrawerAnnotateTab from '../components/drawer/DrawerAnnotateTab.vue'
 import DrawerMeasureTab from '../components/drawer/DrawerMeasureTab.vue'
@@ -310,17 +309,16 @@ const {
 })
 
 // Tema: 'turkart' (default), 'light' (ISOM), 'padling', 'natt'/'dark', 'print'
-// + den monokrome stemnings-familien.
+// + den monokrome familien (som fra v7.8.12 ikke har noen egen fane — se
+// ALL_TABS; kartstilene velges i Stil, mørkt kart av «Natt»-snarveien).
 // isDark er derivert for steder som styrer UI-farger (toppbar, drawer-bg).
 // Tilstanden bor i useMapTheme (delt singleton, lagret i localStorage) så
-// Tema-fanen her og «Turkart i mørkt tema»-bryteren i hovedmenyen styrer det
-// samme — og valget overlever at appen lukkes.
-const { mapTheme: currentTheme, setMapTheme, setDarkMap } = useMapTheme()
+// alle inngangene styrer det samme — og valget overlever at appen lukkes.
+const { mapTheme: currentTheme, setDarkMap } = useMapTheme()
 // v5.23.0: 'light' er ikke lenger det eneste lyse temaet — turkart, padling
 // og print er også lyse. Avled av temaets egen bakgrunn i stedet for å liste
 // nøkler, ellers ville hvert nye lyse tema måttet huskes her.
 const isDark = computed(() => erMorktTema(currentTheme.value, isomCatalog))
-const THEMES = computed(() => listThemes(isomCatalog))
 const diagnose = ref(false)
 
 // Terreng-først: kartet ble vist med konturer+relieff straks, og OSM/detaljer
@@ -368,19 +366,29 @@ const showPerfLog = ref(false)
 const showControls = ref(false)
 
 // Drawer-faner — BARE INNSTILLINGER (v6.6.0). Fram til nå sto Annotering,
-// Måling og Sporing i samme fane-rad som Kartlag og Eksport, og det er to helt
+// Måling og Sporing i samme fane-rad som Detaljer og Eksport, og det er to helt
 // ulike ting: en fane som STILLER INN kartet, og en fane som GJØR noe med det.
 // Skillet er nå ryddet — alt man gjør er en snarvei over kartet (se
 // `lib/snarveier.js`), og denne skuffen er bare innstillinger. Rekkefølgen går
-// fra det groveste valget til det smaleste: Kartlag og Kartstil setter hva som
-// vises og hvordan, Stemning og Format finjusterer, Eksport tar det ut.
+// fra det groveste valget til det smaleste: Detaljer og Stil setter hva som
+// vises og hvordan, Format finjusterer, Eksport tar det ut.
 // «Utvikler» (v11.0.32) er en debug-fane lengst til høyre.
 // Aktiv fane huskes i localStorage så drawer åpner tilbake i samme kontekst.
+//
+// NAVNENE SIER HVA FANA GJØR (v7.8.12). «Kartlag» og «Kartstil» begynte begge
+// på samme ord i en rad som uansett bare handler om kartet, så prefikset bar
+// ingen informasjon og spiste den knappe bredden i fane-rada; «Detaljer» og
+// «Stil» skiller seg dessuten fra hverandre på FØRSTE tegn.
+//
+// «STEMNING» ER BORTE (v7.8.12). Fana var den monokrome tema-familien pluss
+// font-nedtrekket, og de to hørte ikke sammen: skriften på kart-navn er en del
+// av kartets STIL, mens stemningene var en andre kontroll for det samme
+// uttrykket Stil-fana alt eier. Nedtrekket bor nå i Stil; mørkt kart er
+// «Natt»-snarveien over kartet, som er der man er når man vil ha det.
 const ACTIVE_TAB_KEY = 'lende-mapview-active-tab'
 const ALL_TABS = [
-  { key: 'lag',      label: 'Kartlag' },
-  { key: 'kartstil', label: 'Kartstil' },
-  { key: 'tema',     label: 'Stemning' },
+  { key: 'lag',      label: 'Detaljer' },
+  { key: 'kartstil', label: 'Stil' },
   { key: 'om',       label: 'Format' },
   { key: 'eksport',  label: 'Eksport' },
   // userOnly: Utvikler-fanen er LOD-terskler, vær-demo og himmel-tvang —
@@ -682,10 +690,6 @@ function onSkuffKey(e) {
   if (e.key !== 'Escape' || !showControls.value) return
   e.stopPropagation()
   closeDrawer()
-}
-
-function onThemeTap(key) {
-  setMapTheme(key)
 }
 
 // Kartstil-styringen: ett trykk setter tema, lag, strek og sti-farger.
@@ -3362,6 +3366,8 @@ onUnmounted(() => {
             :aktiv-sti-palett="aktivStiPalett" :velg-sti-palett="velgStiPalett"
             :trail-swatches="trailColorSwatches"
             :set-trail-color="(role, v) => trailColors.setColor(role, v)"
+            :land-font="landFont" :water-font="waterFont"
+            v-model:font-pair-id="fontPairId"
             :strek-trinn="strokeStepIndex" :strek-trinn-antall="STROKE_STEPS.length"
             :strek-skala="strokeScale" :stroke-effective="strokeEffective"
             :relief-trinn="snarveiReliefTrinn" :relief-trinn-antall="RELIEF_STEPS.length"
@@ -3383,12 +3389,6 @@ onUnmounted(() => {
             :kulturminne-status="kulturminneStatus"
             :fredet-loading="fredetLoading" :fredet-count="fredetCount"
             :hydro-loading="hydroLoadingLayer" :hydro-count="hydroCount" :meta="meta" />
-
-          <DrawerThemeTab v-show="activeTab === 'tema'"
-            id="drawer-panel-tema" role="tabpanel" aria-labelledby="drawer-fane-tema"
-            :themes="THEMES" :current-theme="currentTheme" :on-theme-tap="onThemeTap"
-            :land-font="landFont" :water-font="waterFont"
-            v-model:font-pair-id="fontPairId" />
 
           <DrawerExportTab v-show="activeTab === 'eksport'"
             id="drawer-panel-eksport" role="tabpanel" aria-labelledby="drawer-fane-eksport"

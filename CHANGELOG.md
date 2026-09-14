@@ -1,3 +1,20 @@
+## 2026-09-14 — v7.8.12: Fire faner, og ett navn per ting
+
+Innstillinger-skuffa het «Kartlag» og «Kartstil» på de to første fanene — samme
+prefiks, i en rad som uansett bare handler om kartet, og med de seks første
+tegnene felles på nøyaktig den flata der bredden er knappest. De heter nå
+«Detaljer» og «Stil». «Stemning» er fjernet helt: den var en andre kontroll for
+det uttrykket Stil-fana alt eier, og det ene i den som ikke var et tema —
+nedtrekket for skrift på kart-navn — er flyttet til Stil, der det hører hjemme.
+Mørkt kart er «Natt»-snarveien over kartet, altså på flata den endrer.
+Sti-seksjonen heter «Tilpass sti», og strek-seksjonen viser de fire
+skyveknappene man faktisk drar — høydekurver, stier, liten vei og stor vei.
+Stup, naturreservat-omriss, store bygninger, idrettsbaner og båtruter er borte
+fra FANA, ikke fra `STROKE_GROUPS`: den lista er kontrakten MCP-verktøyet
+`juster_kart` validerer mot og den kartstilene setter sine egne vekter i.
+
+---
+
 ## 2026-09-14 — v7.8.11: Et vaklete trykk på en snarvei er et trykk
 
 Hele snarvei-pilla er gripeflate, og draget tar tak etter seks piksler — men en

@@ -50,7 +50,7 @@
 // den tredje tingen i en boks som ellers stiller ETT tall, og den viste hvilken
 // relieff-stil som var i bruk — men stilen er ikke noe man bytter mens man går:
 // den er valgt én gang, og raden trenger ikke rapportere den. Hver slider har
-// nå et lite tannhjul som åpner Innstillinger → Kartstil rullet til «Strek» og
+// nå et lite tannhjul som åpner Innstillinger → Stil rullet til «Strek» og
 // «Relieff», altså veien til alt det raden bevisst ikke bærer. Verdien følger
 // det brukeren har valgt før (eller «vektor», standarden) — den leses og settes
 // bare der nå.
@@ -148,7 +148,7 @@
 //
 // STREK OG RELIEFF ER UTE (v7.4.0). De sto som gruppe-piller med tannhjul på
 // linja raden åpnet, hver med sitt eget bunn-ark og sitt eget hint. De er ikke
-// funksjoner, de er innstillinger — og de bor nå i Innstillinger → Kartstil,
+// funksjoner, de er innstillinger — og de bor nå i Innstillinger → Stil,
 // nederst, sammen med tema, lag og sti-farge. Se lib/snarveier.js.
 //
 // «SORTER» ER FRISTILT (v7.4.0, kortet ned i v7.7.1): sin egen midtstilte knapp
@@ -239,7 +239,7 @@ const props = defineProps({
 const emit = defineEmits([
   'velg', 'flytt', 'tilbakestill', 'apen',
   'set-strek-trinn', 'set-relief-trinn',
-  // 'strek' | 'relieff' — kallstedet åpner Innstillinger → Kartstil og ruller
+  // 'strek' | 'relieff' — kallstedet åpner Innstillinger → Stil og ruller
   // til seksjonen. Raden vet ikke hva en fane er, og skal ikke vite det.
   'apne-kartstil',
 ])
@@ -450,7 +450,7 @@ function velg(id) {
   emit('velg', id)
 }
 
-// Tannhjulet fører ut av raden og inn i Kartstil-fana, så skuffa legges sammen
+// Tannhjulet fører ut av raden og inn i Stil-fana, så skuffa legges sammen
 // på samme måte som ved et trykk på en snarvei: den ville ellers blitt stående
 // åpen over kartet bak innstillings-skuffa, og ligget der når man lukker den.
 function apneKartstil(seksjon) {
@@ -900,7 +900,7 @@ function celleTransform(i) {
               <span id="snarvei-strek-navn" class="min-w-0 truncate font-medium">Strek</span>
               <span class="shrink-0 tabular-nums text-ink-3">{{ strekSkala.toFixed(2) }}×</span>
               <button type="button" class="knott-tannhjul shrink-0"
-                      aria-label="Åpne Kartstil og gå til Strek"
+                      aria-label="Åpne Stil og gå til Strek"
                       @click="apneKartstil('strek')">
                 <SnarveiIkon id="innstillinger" class="w-4 h-4" />
               </button>
@@ -919,7 +919,7 @@ function celleTransform(i) {
                 {{ reliefProsent === 0 ? 'av' : `${reliefProsent} %` }}
               </span>
               <button type="button" class="knott-tannhjul shrink-0"
-                      aria-label="Åpne Kartstil og gå til Relieff"
+                      aria-label="Åpne Stil og gå til Relieff"
                       @click="apneKartstil('relieff')">
                 <SnarveiIkon id="innstillinger" class="w-4 h-4" />
               </button>
@@ -1175,7 +1175,7 @@ function celleTransform(i) {
 /* TANNHJULET VED HVER SLIDER (v7.8.6). Det avløser Skarp/Mjuk-pilla, som var
    en TREDJE ting i en boks som ellers stiller ett tall: den viste hvilken
    relieff-stil som var i bruk, og stilen er ikke noe man endrer mens man går.
-   Knappen GJØR ingenting med kartet — den åpner Innstillinger → Kartstil på
+   Knappen GJØR ingenting med kartet — den åpner Innstillinger → Stil på
    den seksjonen sliderens verdi hører hjemme i, altså veien til alt det raden
    bevisst ikke bærer. Derfor ton i ton og ikke en aksentfarge: den er en
    henvisning, ikke et valg. */
