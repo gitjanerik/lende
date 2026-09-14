@@ -8,6 +8,7 @@
 import { computed, ref, watch } from 'vue'
 import { buildKulturminnesokUrl } from '../lib/externalMapLinks.js'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
+import { useEksterneLenker } from '../composables/useEksterneLenker.js'
 import TekstStorrelseKnapp from './TekstStorrelseKnapp.vue'
 
 const { uiTextScale } = useUiTextScale()
@@ -78,8 +79,9 @@ const link = computed(() => {
   if (!d) return null
   return d.link || buildKulturminnesokUrl(d.id)
 })
+const { eksternTarget, apneEkstern } = useEksterneLenker()
 function onOpenKulturminnesok() {
-  if (link.value) window.open(link.value, '_blank', 'noopener')
+  if (link.value) apneEkstern(link.value)
 }
 </script>
 
@@ -206,7 +208,7 @@ function onOpenKulturminnesok() {
 
           <p class="mt-3 text-[10px] text-ink-4 leading-relaxed">
             Data: Kulturminnesøk (Riksantikvaren) ·
-            <a href="https://data.norge.no/nlod" target="_blank" rel="noopener" class="underline">NLOD</a>
+            <a href="https://data.norge.no/nlod" :target="eksternTarget" rel="noopener" class="underline">NLOD</a>
           </p>
         </div>
       </div>

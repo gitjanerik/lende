@@ -110,6 +110,12 @@ export const SNARVEIER = [
   // samme en gang til med motsatt fortegn. Etiketten her er den lyse
   // stillingen; kallstedet bytter begge deler (`label`/`ikon`).
   { id: 'natt',       label: 'Natt',  aria: 'Mørkt turkart' },
+  // TEGNFORKLARINGEN ER EN SNARVEI (v7.8.13). Den lå som en rad i hovedmenyen,
+  // under ledeteksten «Hjelp i lende» — altså det ene stedet i appen der kartet
+  // den forklarer ikke er synlig, og fire trykk unna symbolet man lurer på.
+  // NEST SIST, rett foran «Valg», av samme grunn som «Valg» er sist: det er noe
+  // man slår opp i når man har stoppet, ikke noe man rekker etter mens man går.
+  { id: 'hjelp',      label: 'Hjelp', aria: 'Tegnforklaring' },
   { id: 'innstillinger', label: 'Valg', aria: 'Valg' },
 ]
 

@@ -1,3 +1,50 @@
+## 2026-09-14 — v7.8.13: Hjelpen flyttet til kartet den forklarer
+
+Sletter man kartet man står i — fra «Mine kart» i hovedmenyen — ble det ikke
+borte: SVG-en lå ferdig rendret på skjermen med nabofliser rundt, og visningen
+oppførte seg som et kart helt til man lastet på nytt. Nå melder `deleteMap` fra,
+og visningen dekker flata med «Kartet er slettet» og de to veiene videre: «Mine
+kart» og «Nytt turkart», begge menyens egne modaler. Meldinga ligger over
+snarvei-raden og Lende-knappen med vilje — man skal ikke kunne måle en avstand
+i et kart som ikke finnes — og vi navigerer bevisst ikke bort av oss selv: den
+som nettopp ryddet i lista skal få se hva som skjedde.
+
+Ny bryter i hovedmenyen: «Åpne eksterne lenker i ny nettleser», av som standard.
+Bakgrunnen er et feltfunn som ser ut som en feil i Lende: åpner man ut.no fra
+infopanelet, blir nettleserens egen URL-stripe stående nede i venstre hjørne
+etterpå — tydeligst i Fritt lende, der det ellers ikke er noe chrome over
+kartet. Stripa er nettleserens: en `_blank`-åpning fra en installert PWA legger
+seg i et minimalt nettleser-lag oppå appen. Med brytera av navigerer lenkene i
+samme fane, og telefonens tilbake-knapp fører rett hjem til kartet. Brytera
+gjelder ALLE utgående lenker — ut.no og Google Maps fra infopanelet,
+kulturminnesok.no, NVEs stasjonssider, Naturbase-faktaark og leksikon-lenkene i
+3D-himmelen — og reglene bor i én composable, slik at en ny lenke ikke kan bli
+et unntak uten at noen har gjort den til det.
+
+Tegnforklaringen lå som en rad i hovedmenyen, under ledeteksten «Hjelp i lende»
+— altså bak hamburgeren, på det ene stedet i appen der kartet ikke er synlig, og
+fire trykk unna symbolet man lurer på. Den er nå snarveien «Hjelp» over kartet,
+med et spørsmålstegn som ikon, nest sist i raden — rett foran «Valg», av samme
+grunn som «Valg» er sist: det er noe man slår opp i når man har stoppet.
+Tema-velgeren i tegnforklaringen starter dessuten på kartets eget tema — slår du
+på «Natt», er prøvene mørke — men valget der skriver ikke tilbake, for den som vil se hvordan myr ser ut i Sepia skal slippe
+å bytte kartets tema for å få vite det. «Spør Lende» er ute av menyen med samme
+begrunnelse: chatten har bodd i Lende-knappen nede til høyre siden v7.2.0, og
+med begge radene borte har ledeteksten ingenting å lede.
+
+I menyen er ledeteksten «Visning» borte — den var overskrift for tre tema-knapper
+med sol, måne og lyn — og «Tekststørrelse» har fått sin egen blokk med
+ledeteksten «Tekst i Lende», i samme versal-form som «Hold skjermen våken».
+Navnet sier hvor den gjelder: appens egen tekst, ikke kartets.
+
+Tips-teksten i infopanelet viste til «Mer»-knappen og til strek og relieff som
+piller i snarvei-raden. Begge deler er borte: «Mer» ble appens grå drawer-håndtak
+i v7.4.0, og knott-pillene ble et eget dra-nivå med skyvere i v7.8.0. Teksten
+peker nå på håndtaket under raden — og på «Stil»-knappen, som er den korte
+veien til de samme to knottene.
+
+---
+
 ## 2026-09-14 — v7.8.12: Fire faner, og ett navn per ting
 
 Innstillinger-skuffa het «Kartlag» og «Kartstil» på de to første fanene — samme

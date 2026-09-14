@@ -11,10 +11,14 @@ import TekstStorrelseKnapp from '../TekstStorrelseKnapp.vue'
 import VaerIkon from '../VaerIkon.vue'
 import { formatDistanceM, bearingToCompass } from '../../lib/mapContext.js'
 import { hasAiToken } from '../../lib/lendeAi.js'
+import { useEksterneLenker } from '../../composables/useEksterneLenker.js'
 
 // Chat-avsnittet i oppdagbarhets-tipset vises kun for inviterte (samme
 // token-gate som LendeChatFab) — uinviterte skal ikke se funksjonen.
 const harChat = hasAiToken()
+// Faktaark, Wikipedia og SNL herfra følger hovedmenyens bryter for eksterne
+// lenker — se useEksterneLenker.
+const { eksternTarget } = useEksterneLenker()
 const props = defineProps({
   contextMenuOpen: { type: Boolean, default: false },
   contextMenuInfo: { type: Object, default: null },
@@ -299,9 +303,8 @@ function formatDistance(m) {
           <div class="px-3 pb-2.5 pl-[2.375rem]">
             <p>
               Du kan trykke-og-holde et par sekunder i kartet for å åpne infopanelet
-              du ser her. Vil du finjustere kantlinjer eller relieff, åpner du
-              snarvei-raden øverst med «Mer» — der står de to som piller, med et
-              tannhjul hver.
+              du ser her. Vil du finjustere strek eller relieff, drar du håndtaket
+              under snarvei-raden øverst helt ned — eller trykker på knappen «Stil».
             </p>
             <!-- Kun for inviterte (chat-token i localStorage) — uinviterte skal
                  ikke se at funksjonen finnes, som for FAB-en. -->
@@ -568,7 +571,7 @@ function formatDistance(m) {
               <span class="text-emerald-50/90 truncate">{{ park.forvaltning }}</span>
             </div>
           </div>
-          <a v-if="park.faktaarkUrl" :href="park.faktaarkUrl" target="_blank" rel="noopener"
+          <a v-if="park.faktaarkUrl" :href="park.faktaarkUrl" :target="eksternTarget" rel="noopener"
              class="inline-block text-[11px] text-emerald-300 underline underline-offset-2">
             Naturbase faktaark ↗
           </a>
@@ -666,12 +669,12 @@ function formatDistance(m) {
 
           <!-- Lenker -->
           <div class="flex flex-wrap gap-2 pt-0.5">
-            <a v-if="verneQuery.area.faktaarkUrl" :href="verneQuery.area.faktaarkUrl" target="_blank" rel="noopener"
+            <a v-if="verneQuery.area.faktaarkUrl" :href="verneQuery.area.faktaarkUrl" :target="eksternTarget" rel="noopener"
                class="px-2.5 py-1.5 rounded-lg border border-emerald-400/30 bg-emerald-500/10 text-emerald-100 text-[11px]">
               Naturbase faktaark ↗
             </a>
             <a v-if="verneQuery.wiki && verneQuery.wiki !== 'loading'" :href="verneQuery.wiki.url"
-               target="_blank" rel="noopener"
+               :target="eksternTarget" rel="noopener"
                class="px-2.5 py-1.5 rounded-lg border border-emerald-400/30 bg-emerald-500/10 text-emerald-100 text-[11px]">
               {{ sourceLabel(verneQuery.wiki.source) }} ↗
             </a>
@@ -708,7 +711,7 @@ function formatDistance(m) {
             {{ placeWikiCard.extract }}
           </div>
           <div v-if="placeWikiCard.url" class="pt-0.5 flex flex-wrap items-center gap-2">
-            <a :href="placeWikiCard.url" target="_blank" rel="noopener"
+            <a :href="placeWikiCard.url" :target="eksternTarget" rel="noopener"
                class="inline-block px-2.5 py-1.5 rounded-lg border border-sky-400/30 bg-sky-500/10 text-sky-100 text-[11px]">
               {{ sourceLabel(placeWikiCard.source) }} ↗
             </a>
@@ -716,7 +719,7 @@ function formatDistance(m) {
                  (selve stedet) når den har et eget oppslag. Ofte vil man lese
                  begge — f.eks. både «Hjerkinn stasjon» og «Hjerkinn». -->
             <a v-if="placeWikiCard.secondary?.url" :href="placeWikiCard.secondary.url"
-               target="_blank" rel="noopener"
+               :target="eksternTarget" rel="noopener"
                class="inline-block px-2.5 py-1.5 rounded-lg border border-sky-400/20 bg-ink/5 text-sky-100/80 text-[11px]">
               {{ placeWikiCard.secondary.title }} ({{ sourceLabel(placeWikiCard.secondary.source) }}) ↗
             </a>

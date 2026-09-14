@@ -27,6 +27,7 @@ import { parseRouteToken, MAX_SHARE_ROUTES } from '../lib/routeShare.js'
 import { useGravelPlanner } from '../composables/useGravelPlanner.js'
 import { loadGravelRoute } from '../lib/mapStorage.js'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
+import { useEksterneLenker } from '../composables/useEksterneLenker.js'
 import AppMenuButton from '../components/AppMenuButton.vue'
 import { useLendeChat } from '../composables/useLendeChat.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
@@ -43,6 +44,8 @@ import { useNettStatus } from '../composables/useNettStatus.js'
 const router = useRouter()
 const currentRoute = useRoute()
 const { uiTextScale } = useUiTextScale()
+// ut.no-lenka følger hovedmenyens bryter — se useEksterneLenker.
+const { eksternTarget } = useEksterneLenker()
 const planner = useGravelPlanner()
 const {
   pointA, pointB, route, proposals, selectedId, routeState, routeError, savedRoutes,
@@ -1391,7 +1394,7 @@ onUnmounted(() => {
             <div class="mt-1.5 text-[9px] uppercase tracking-wide text-ink-4">Åpne i</div>
             <div class="mt-1 space-y-1">
               <a v-for="l in pinLinks" :key="l.label" :href="l.href"
-                 target="_blank" rel="noopener noreferrer" @click="utNoPin = null"
+                 :target="eksternTarget" rel="noopener noreferrer" @click="utNoPin = null"
                  class="flex items-center justify-between gap-3 px-3 py-1.5 rounded-lg text-[12px]
                         font-medium border bg-ink/[0.06] border-ink/15 text-ink
                         active:scale-[0.98] transition">

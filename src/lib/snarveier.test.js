@@ -26,7 +26,7 @@ describe('katalogen', () => {
     // de er det man går til når man har satt seg ned.
     expect(STANDARD_REKKEFOLGE).toEqual(
       ['posisjon', 'stifinner', 'runde', 'maaling', 'tre-d', 'annotering',
-       'sporing', 'info', 'natt', 'innstillinger'])
+       'sporing', 'info', 'natt', 'hjelp', 'innstillinger'])
     expect(STANDARD_REKKEFOLGE.at(-1)).toBe('innstillinger')
     expect(STANDARD_REKKEFOLGE).not.toContain('sok')
     expect(STANDARD_REKKEFOLGE).not.toContain('chat')
@@ -103,7 +103,17 @@ describe('normaliserRekkefolge', () => {
     const lagret = STANDARD_REKKEFOLGE.filter(id => id !== 'natt')
     const ut = normaliserRekkefolge(lagret)
     expect(ut.indexOf('natt')).toBe(ut.indexOf('info') + 1)
-    expect(ut.indexOf('natt')).toBe(ut.indexOf('innstillinger') - 1)
+    expect(ut.indexOf('natt')).toBe(ut.indexOf('hjelp') - 1)
+    expect(ut).toEqual(STANDARD_REKKEFOLGE)
+  })
+  it('setter «Hjelp» nest sist hos den som har sortert (v7.8.13)', () => {
+    // Tegnforklaringen kom inn på plass #10, mellom «Natt» og «Valg». Samme
+    // regel som «Natt» fikk i v7.8.6 — forgjengeren avgjør — og her er det den
+    // som holder den foran «Valg» i stedet for bakerst.
+    const lagret = STANDARD_REKKEFOLGE.filter(id => id !== 'hjelp')
+    const ut = normaliserRekkefolge(lagret)
+    expect(ut.indexOf('hjelp')).toBe(ut.indexOf('natt') + 1)
+    expect(ut.at(-1)).toBe('innstillinger')
     expect(ut).toEqual(STANDARD_REKKEFOLGE)
   })
   it('tåler søppel', () => {
