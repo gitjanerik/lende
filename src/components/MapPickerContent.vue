@@ -22,8 +22,9 @@ import { reverseGeocode } from '../lib/geocode.js'
 import { tileMosaic, zoomForKm, metersPerPixel } from '../lib/tileBackground.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
 import { t } from '../lib/i18n.js'
-import { gpsFeilForklaring, GPS_IKKE_STOTTET } from '../lib/gpsFeil.js'
+import { gpsFeilTekst, GPS_IKKE_STOTTET } from '../lib/gpsFeil.js'
 import { mikrofonFeilForklaring } from '../lib/mikrofonFeil.js'
+import GpsFeilVarsel from './GpsFeilVarsel.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -103,7 +104,7 @@ async function onCenterOnMe() {
       navigator.geolocation.getCurrentPosition(resolve, reject,
         { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }))
   } catch (err) {
-    gpsState.value = { status: 'error', error: gpsFeilForklaring(err.code) }
+    gpsState.value = { status: 'error', error: gpsFeilTekst(err.code) }
     return
   }
   const lat = pos.coords.latitude
@@ -748,11 +749,14 @@ onMounted(() => {
          Fritt lende) — uten den sto skjemaet igjen med Oslo som senter uten å
          si hvorfor. Egen boks i lesbar størrelse: 11 px grå nederst ble ikke
          lest. Teksten kommer fra `lib/gpsFeil.js` og `lib/mikrofonFeil.js`,
-         ÉN kilde hver, delt med «Mine kart». -->
-    <div v-if="gpsState.error"
-         role="alert"
-         class="mt-2 px-3 py-2.5 rounded-lg bg-amber-500/[0.12] border border-amber-400/35
-                text-amber-100 text-[13px] leading-snug">{{ gpsState.error }}</div>
+         ÉN kilde hver, delt med «Mine kart».
+         v7.8.16: GPS-boksen er ETIKETTEN ALENE og har en X, altså nøyaktig den
+         samme komponenten som hovedmenyen og «Mine kart» bruker. Den sto igjen
+         med det lange rådet fordi flata her har plass til det — men plass er
+         ikke en grunn til å si mer, og X-en manglet, så en lest melding ble
+         stående over trefflista helt til man lukket panelet. -->
+    <GpsFeilVarsel v-if="gpsState.error" :tekst="gpsState.error" class="mt-2"
+                   @lukk="gpsState = { status: 'idle', error: null }" />
     <div v-if="micError"
          role="alert"
          class="mt-2 px-3 py-2.5 rounded-lg bg-amber-500/[0.12] border border-amber-400/35

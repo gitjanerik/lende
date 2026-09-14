@@ -1,3 +1,27 @@
+## 2026-09-14 — v7.8.16: Samme GPS-varsel på alle tre flatene
+
+Utsnitts-velgeren sto igjen med den lange varianten av GPS-feilen — etiketten
+pluss «Trykk på låsikonet i adressefeltet og sett Posisjon til «Tillat» — eller
+søk opp stedet i stedet.» — og uten noen X, mens hovedmenyen og «Mine kart» fikk
+den korte med en vei ut i v7.8.14. Begrunnelsen den gang var at boksen i
+velgeren står alene på en tom flate og har plassen til rådet, men plass er ikke
+et argument for å si mer: samme feil i to lengder leses som to ulike feil. Alle
+tre bruker nå `GpsFeilVarsel`, og `GPS_FEIL_RAAD`/`gpsFeilForklaring` er slettet
+framfor å bli liggende som en andre tekst ingen kaller. Teksten er dessuten
+loddrett midtstilt i boksen, som den skulle vært fra starten når linja er én.
+
+Størrelsen er samtidig flyttet fra `text-[13px]` til `em`, og det var en ekte
+feil: boksen står i to ulike skalerings-regimer — hovedmenyen setter en rot-font
+på `16px × tekstskalaen` og måler alt annet i `em`, mens AppModal legger `zoom`
+på kroppen — og en absolutt piksel-verdi følger bare det siste. Varselet var
+derfor det ene i menyen som ikke vokste med brukerens skriftstørrelse. X-en
+beholder sine 28 px, som A-knappen og lukkeknappen i hver ark-header: den er
+veien tilbake fra et valg som nettopp gjorde alt større. Røyktesten måler
+forholdet mellom to skalaer i menyen, ikke et pikseltall, og har fått en sjekk
+på at velgerens boks er kort og lar seg lukke.
+
+---
+
 ## 2026-09-14 — v7.8.15: Mindre ark, færre fliser, og piler som ikke lover for mye
 
 Maksbredden for et kart er ned fra 20 til 16 km. At store ark BÆRER var sant og

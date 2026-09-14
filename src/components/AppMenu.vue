@@ -169,9 +169,9 @@ function nyttTurkart() {
     openSheet('kart')
   }, (err) => {
     gpsLeter.value = false
-    // Etiketten alene, uten rådet: samme valg som i «Mine kart» (se
+    // Etiketten alene: samme boks som «Mine kart» og utsnitts-velgeren (se
     // GpsFeilVarsel). Menyen er en smal skuff, og tre linjer om låsikonet i
-    // adressefeltet dytter alt under seg ut av syne.
+    // adressefeltet dyttet alt under seg ut av syne.
     gpsFeil.value = gpsFeilTekst(err.code)
   }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 })
 }
