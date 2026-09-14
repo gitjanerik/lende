@@ -2894,6 +2894,62 @@ const SJEKKER = [
     },
   },
   {
+    navn: 'søke-overlayet holder seg innenfor skjermen ved 200 % tekst',
+    domene: 'MapSearchOverlay',
+    // SØKETAKET MÅLES FRA `--ovl-top` (v7.8.14), og dette er sjekken som ser
+    // det. Overlayet HENGER i den sloten, som vokser med tekststørrelsen
+    // (`2.5rem * var(--ui-skala) + 1.5rem + safe-top`) — mens taket sto på
+    // `100dvh - 6rem - safe-top`, altså en konstant. Marginen krympet derfor
+    // med hvert hakk: 2rem ved 100 %, 0,75rem ved 150 %, og ved 200 % lå
+    // underkanten UNDER skjermen, så siste trefferad var utenfor.
+    //
+    // MÅLT PÅ `maxHeight` OG IKKE PÅ DEN FAKTISKE HØYDEN, og det er poenget:
+    // med få treff er boksen kortere enn taket sitt, og en måling av
+    // `getBoundingClientRect().bottom` ville stått grønn uten å si noe om
+    // taket i det hele tatt. Det er taket som brekker, ikke innholdet.
+    //
+    // Demokartet duger: taket er ren CSS og kjenner verken treff eller lag.
+    async kjør(page) {
+      await lukkDrawer(page)
+      const mål = async () => {
+        await klikkTekst(page, /^Søk i kart$/)
+        await page.waitForTimeout(500)
+        const r = await page.evaluate(() => {
+          const boks = document.querySelector('#mapsearch-results')?.closest('.absolute')
+          if (!boks) return null
+          const topp = boks.getBoundingClientRect().top
+          const maks = parseFloat(getComputedStyle(boks).maxHeight)
+          if (!Number.isFinite(maks)) return null
+          return { topp: Math.round(topp), maks: Math.round(maks), vh: innerHeight }
+        })
+        await page.keyboard.press('Escape')
+        await page.waitForTimeout(300)
+        return r
+      }
+      const ut = []
+      for (const skala of [1, 2]) {
+        await page.evaluate((v) => { localStorage.setItem('lende-ui-text-scale', String(v)) }, skala)
+        await page.reload({ waitUntil: 'domcontentloaded' })
+        await page.waitForTimeout(1500)
+        await lukkDrawer(page)
+        const m = await mål()
+        if (!m) throw new Error(`fant ikke søke-overlayet ved ${skala * 100} % tekst`)
+        const stikkerUt = m.topp + m.maks - m.vh
+        if (stikkerUt > 0) {
+          throw new Error(`ved ${skala * 100} % tekst rekker taket ${stikkerUt} px under skjermkanten `
+            + `(topp ${m.topp} + maks ${m.maks} > ${m.vh})`)
+        }
+        ut.push(`${skala * 100} %: ${-stikkerUt} px klaring`)
+      }
+      // NØYTRAL TILSTAND: skalaen er global og persistert, så en sjekk som lar
+      // den stå på 200 % måler neste sjekk på en helt annen layout.
+      await page.evaluate(() => { localStorage.setItem('lende-ui-text-scale', '1') })
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForTimeout(1500)
+      return ut.join(', ')
+    },
+  },
+  {
     navn: 'søk highlighter et treff og panorerer dit',
     domene: 'useKartSok',
     // Demo-kartet har sju navn; et ekte kart har ~200. Vi trenger et navn å

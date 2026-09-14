@@ -1,8 +1,8 @@
 // Teksten brukeren får når nettleseren nekter oss en posisjon.
 //
 // Én kilde, fordi den vises fra tre steder: «Lag kart der jeg er» (MapLibrary),
-// «Sentrer på GPS» i utsnitts-velgeren og Fritt lendes ene knapp. Fram til
-// v6.5.27 hadde de hver sin kopi av kodetabellen, og Fritt lende hadde ingen —
+// «Nytt turkart» i hovedmenyen og «Sentrer på GPS» i utsnitts-velgeren. Fram til
+// v6.5.27 hadde de hver sin kopi av kodetabellen, og ett av stedene hadde ingen —
 // et avvist tillatelses-spørsmål der var helt stille, med en chip som lette
 // etter en posisjon som aldri kunne komme.
 //
@@ -24,6 +24,13 @@ export function gpsFeilTekst(code, fallback = 'GPS-feil') {
 // brukeren kan gjøre med det — og for kode 1 er det hele poenget: en avvist
 // tillatelse spørres ikke om på nytt, så knappen blir stum til man finner
 // innstillingen selv.
+//
+// FRA v7.8.14 BRUKES RÅDET BARE ÉTT STED: utsnitts-velgeren, der boksen står
+// alene på en tom flate og har plassen. «Mine kart» og hovedmenyen viser
+// ETIKETTEN alene og har fått en X i stedet (se GpsFeilVarsel) — tre linjer
+// nettleser-instruksjon over en kart-liste, uten noen vei ut, kostet mer skjerm
+// enn rådet var verdt. Ikke slå de to sammen igjen: forskjellen er hvor mye
+// plass flata har, ikke hvor viktig feilen er.
 export const GPS_FEIL_RAAD = Object.freeze({
   1: 'Trykk på låsikonet i adressefeltet og sett Posisjon til «Tillat» — eller søk opp stedet i stedet.',
   2: 'Telefonen får ikke fatt i satellittene akkurat nå. Prøv igjen ute, eller søk opp stedet.',

@@ -1,7 +1,7 @@
 // Kirkegård / gravplass (516) — fra OSM-tagg til eget lag i SVG-en.
 //
-// Sporet finnes fordi eieren så en gravplass (Østenstad i Asker) på et
-// Fritt lende-ark uten «verken markering eller bakgrunn»: OSM-flata var der,
+// Sporet finnes fordi eieren så en gravplass (Østenstad i Asker) på et ark
+// uten «verken markering eller bakgrunn»: OSM-flata var der,
 // men ingen kode plukket den opp, og `landuse=grass` under den gjorde den til
 // åpen mark. Testene her holder hele kjeden fast, for hvert ledd kan brytes
 // alene uten at noe annet feiler.
@@ -9,7 +9,6 @@ import { describe, it, expect } from 'vitest'
 import { buildSvg, buildOverpassQuery } from './mapBuilder.js'
 import { classifyToIsom } from './symbolizer.js'
 import { ALL_LAYER_KEYS, DEFAULT_VISIBLE_LAYER_KEYS } from './mapLayerCatalog.js'
-import { FRITT_LENDE_LAG } from './frittLende.js'
 import { KARTSTILER } from './kartStiler.js'
 import katalog from './isomCatalog.json'
 
@@ -74,10 +73,6 @@ describe('kirkegård — laget er delt og default PÅ', () => {
     for (const stil of KARTSTILER) {
       expect(stil.lag, stil.key).toContain('kirkegard')
     }
-  })
-
-  it('er med i Fritt lende', () => {
-    expect(FRITT_LENDE_LAG).toContain('kirkegard')
   })
 })
 

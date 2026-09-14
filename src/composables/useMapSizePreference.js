@@ -55,7 +55,14 @@ export const MAP_SIZE_MAX_KM = BREDDE_MAKS_KM
 // Fast kvadrat — IKKE skjerm-skalert (se v11.0.59-merknaden over).
 // v6.5.76: 8 → 10 km. Sammen med ekvidistanse-tabellen (≥ 10 km → 25 m) gir
 // det et standardkart i norsk N50-manér: 10 × 10 km med 25 m høydekurver.
-export const DEFAULT_MAP_WIDTH_KM = 10
+// v7.8.14: 10 → 8 km igjen. N50-manéren var riktig for et kart man SITTER med,
+// men standarden er utgangspunktet for et kart man BER om — og 10 × 10 km er
+// 56 % mer areal enn 8 × 8, altså mer Overpass, flere DEM-celler og lengre
+// venting på nøyaktig det steget der brukeren ikke har noe å se på ennå.
+// Ekvidistansen følger med ned til 20 m (tabellen: 6–10 km → 20 m), som er
+// FINERE høydekurver — 8 km-arket taper altså ingenting annet enn kantene.
+// Den som vil ha N50-arket drar slideren til 10; taket er fortsatt 20 km.
+export const DEFAULT_MAP_WIDTH_KM = 8
 
 // Format-valg for nye kart — samme trippel som «Flere valg» i pickeren.
 //   'square'   → kvadrat (aspect = 1) — standard
@@ -183,9 +190,9 @@ export function effectiveEquidistanceForWidthKm(km) {
   return Math.max(chosen, min)
 }
 
-// Felles «Nullstill»-standard: 10 km bredde + 25 m ekvidistanse + kvadratisk.
-// (null-verdiene ER standarden: 10 km-default og auto-ekvidistanse for 10 km
-// = 25 m, altså N50.)
+// Felles «Nullstill»-standard: 8 km bredde + 20 m ekvidistanse + kvadratisk.
+// (null-verdiene ER standarden: 8 km-default og auto-ekvidistanse for 8 km
+// = 20 m.)
 export function resetMapPreferences() {
   mapSizeKm.value = null
   mapFormat.value = DEFAULT_MAP_FORMAT

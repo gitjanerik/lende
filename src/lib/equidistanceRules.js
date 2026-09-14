@@ -30,10 +30,14 @@ export const EQUIDISTANSE_M = Object.freeze(EQUIDISTANSE_VALG.map(o => o.value))
 //   6 ≤ bredde < 10 → min 20 m
 //   bredde ≥ 10 km  → min 25 m
 //
-// Grensa går ved 10 km fordi det ER standard-bredden (DEFAULT_MAP_WIDTH_KM):
-// standardkartet skal komme ut som et norsk turkart i N50-manér, altså 25 m.
-// Tabellen topper der — 50 m er alltid valgbart, aldri påtvunget, også for
-// MCP-kart bredere enn appens egen slider rekker.
+// Grensa gikk ved 10 km fordi det VAR standard-bredden; fra v7.8.14 er
+// standarden 8 km (se DEFAULT_MAP_WIDTH_KM), og tabellen står urørt med vilje.
+// Den beskriver hvor fine høydekurver et ark TÅLER, ikke hvilket ark man får:
+// et 10 km-ark har like mange kurvemeter uansett hvorfor det ble bygget, og en
+// grense som følger standard-bredden ville flyttet seg hver gang standarden
+// gjorde det. 8 km-standarden lander dermed på 20 m — finere enn før, ikke
+// grovere. Tabellen topper på 25 — 50 m er alltid valgbart, aldri påtvunget,
+// også for MCP-kart bredere enn appens egen slider rekker.
 export function minEquidistanceForWidthKm(km) {
   if (km >= 10) return 25
   if (km >= 6) return 20

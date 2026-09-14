@@ -26,13 +26,6 @@ watch(activeTab, (t) => {
 function apnePicker() {
   router.push('/nytt')
 }
-
-// Snarveien til Fritt lende i den tomme lista. `replace` og ikke `push`, samme
-// regel som hovedmenyens egen rad: modusen er en bryter og ikke en drill-down,
-// så tilbake-knappen skal ikke lande i det vanlige kartet.
-function goFrittLende() {
-  router.replace({ name: 'fritt-lende' })
-}
 </script>
 
 <template>
@@ -63,8 +56,7 @@ function goFrittLende() {
          Siden scroller selv (ingen indre overflow-container), så mobil-nettleserens
          adressefelt oppfører seg normalt. Global tekststørrelse skalerer flaten. -->
     <main class="mx-auto w-full max-w-[700px] px-4 pt-4 pb-32" :style="{ zoom: uiTextScale }">
-      <MapLibrary v-model:tab="activeTab" @open-picker="apnePicker"
-                  @fritt-lende="goFrittLende" />
+      <MapLibrary v-model:tab="activeTab" @open-picker="apnePicker" />
     </main>
   </div>
 </template>

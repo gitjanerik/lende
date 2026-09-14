@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { RouterView } from 'vue-router'
 import { updateAvailable, applyUpdate, buildBusy, updateDeferred } from './lib/swUpdate.js'
 import { usePwaInstall } from './composables/usePwaInstall.js'
+import { ryddFrittLendeArk } from './lib/mapStorage.js'
 import AppMenu from './components/AppMenu.vue'
 import LendeChat from './components/LendeChat.vue'
 import LendeChatFab from './components/LendeChatFab.vue'
@@ -36,6 +37,25 @@ function maybeShowFirstVisitPrompt() {
   }
 }
 watch([canInstall, isIOS, isStandalone], maybeShowFirstVisitPrompt, { immediate: true })
+
+// ── Engangs-opprydding etter Fritt lende (v7.8.14) ─────────────────────────
+// Modusen er slettet, men de to arkene den eide (id-ene 'fritt' og
+// 'fritt-forrige') ligger fortsatt i IndexedDB hos alle som har brukt den — 1–5
+// MB hver, uten noen vei til dem lenger. `listMaps` skjuler dem allerede, så
+// dette er ren plass, ikke noe brukeren kan se.
+//
+// FLAGGET ER FOR YTELSE, IKKE FOR SIKKERHET: ryddFrittLendeArk er trygg å kjøre
+// om igjen, men en app som aldri har hatt modusen skal ikke åpne en
+// IndexedDB-transaksjon ved hver eneste oppstart. Kjøres uten await og feiler
+// stille — en opprydding er aldri viktigere enn at appen starter.
+const FRITT_RYDDET_KEY = 'lende-fritt-ryddet'
+try {
+  if (!localStorage.getItem(FRITT_RYDDET_KEY)) {
+    void ryddFrittLendeArk().then(() => {
+      try { localStorage.setItem(FRITT_RYDDET_KEY, '1') } catch { /* privat modus */ }
+    }).catch(() => { /* prøver igjen neste oppstart */ })
+  }
+} catch { /* privat modus — hopp over, ryddingen er ikke kritisk */ }
 
 const updating = ref(false)
 // Trykk «Oppdater»: pågår en bygging setter applyUpdate updateDeferred i stedet

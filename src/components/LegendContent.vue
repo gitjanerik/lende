@@ -76,8 +76,8 @@ const SECTIONS = [
     note: '516 er ikke en ISOM-kode — orienteringsløp går ikke på gravplass, så ISOM 2017-2 '
       + 'har ingen. Norske turkart har den alltid hatt, og konvensjonen er en egen dempet '
       + 'flate med et glissent kors-raster: en flate alene leses som en park. Hentes fra OSM '
-      + '(landuse=cemetery og det eldre amenity=grave_yard). Eget lag, default på — også i '
-      + 'Fritt lende. Kirkebygget inne på flata beholder sitt eget kors (532).' },
+      + '(landuse=cemetery og det eldre amenity=grave_yard). Eget lag, default på i alle '
+      + 'kartstiler. Kirkebygget inne på flata beholder sitt eget kors (532).' },
   { title: 'Parkering & service', codes: ['534', '534u', '560'], category: 'manmade',
     note: 'Utfartsparkering (P med sti eller skogsbilvei innen 50 m) får fire sorte hjørne-braketter rundt det blå P-skiltet — en sannsynlig god kandidat for turstart. Vanlig/privat parkering er blå uten braketter. (Sorte braketter framfor grønn ramme: grønt mot blått er vanskelig for fargeblinde.) I kart-søket dukker disse opp som «Utfartsparkering ‹sted›» med en * etter navnet, der ‹sted› er nærmeste fjelltopp/ås/elv/vann (f.eks. «Utfartsparkering Knivåsen»). * betyr at navnet er utledet fra kart-data — ikke et offisielt navn eller en garantert turstart.' },
   { title: 'Verneområder', codes: ['520'], category: 'manmade',

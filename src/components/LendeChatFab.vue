@@ -28,11 +28,11 @@ import FabCluster from './FabCluster.vue'
 //     lista igjen.
 //   ruteplanlegger         — har sin egen FabCluster nede til høyre, og
 //     ankeret eier chatten der. Fjernes klyngen, skal ruta ut av lista igjen.
-//   fritt-lende             — HAR INGEN CHAT I DET HELE TATT. Modusen er
-//     bevisst funksjonsløs, og det står fast selv om knappen nede til høyre
-//     skulle endre seg eller forsvinne. Ikke fjern denne fordi Fritt lende
-//     «ikke har en klynge» — den er her fordi chatten ikke hører hjemme der.
-const UTEN_GLOBAL_CHAT = ['kart-vis', 'ruteplanlegger', 'fritt-lende']
+//
+// `fritt-lende` sto her til v7.8.14 med en TREDJE grunn — modusen var bevisst
+// funksjonsløs og skulle ikke ha chat i det hele tatt. Ruta er slettet, og med
+// den den eneste oppføringen som ikke handlet om en FabCluster.
+const UTEN_GLOBAL_CHAT = ['kart-vis', 'ruteplanlegger']
 
 const { openChat } = useLendeChat()
 const { uiTextScale } = useUiTextScale()

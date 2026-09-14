@@ -11,7 +11,7 @@
 1. **Død kode skal bort** — hele seksjon E under.
 2. **Sovende kode for ekvidistanse < 5 m skal bort** — alle grener som krever
    `equidistanceM <= 5`, `contourIntervalM === 5` eller DEM ≤ 3,5 m. Gyldige
-   ekvidistanser er 10/20/25/50 (`equidistanceRules.js`), Fritt lende er 10, MCP
+   ekvidistanser er 10/20/25/50 (`equidistanceRules.js`), MCP
    håndhever minimum. Eldre lagrede kart kan ha 5 m i `meta.equidistance`; klem
    dem til minst 10 der de leses inn i et nytt bygg (`useMapExtend.js:684`,
    `equidistanceM: m.equidistance ?? 20`), så ingen gren trengs.
@@ -22,7 +22,10 @@
    kartapper. De eneste raster-unntakene er de som alt finnes — det røde
    crosshair-ikonet ved lang-trykk og det mjuke relieffet (hillshade). Ikke
    foreslå hybrid igjen.
-5. Fritt lende vurderes fjernet SENERE, hvis 1–6 gir det eieren håper. Ikke rør
+5. ~~Fritt lende vurderes fjernet SENERE, hvis 1–6 gir det eieren håper.~~
+   GJORT i v7.8.14: modusen er slettet, og plassen i hovedmenyen er «Nytt
+   turkart» — ett trykk, kart der du står, men et ARK SOM VARER. Resten av
+   punktet er historikk. Ikke rør
    modusen i denne leveransen.
 6. **Punkt 22 (parallell kant-utvidelse) — bestilt og levert i v7.8.8**
    (`lib/parallellBygg.js`, tak på to). Var ikke med i v7.7.14.
@@ -52,7 +55,8 @@ tilhørende tester. Kjente feller: `computeTPI` (`dem.js:395`) brukes av
 `detectKnauser` (`dem.js:418`) — sjekk om noe annet bruker den før begge går.
 `smoothGridGaussian` (`dem.js:116`) er bare konturglattingen (`mapBuilder.js:1175`).
 `demProbeOpplosning` (`createMapFlow.js:178`) skal BEHOLDE `overstyring`-stien —
-Fritt lende sender `DEM_OPPLOSNING_M` — men 10 m-grenen for `equidistanceM <= 5`
+Fritt lende sendte `DEM_OPPLOSNING_M` (modusen er slettet i v7.8.14; seamen
+står, se `demProbeOpplosning`) — men 10 m-grenen for `equidistanceM <= 5`
 går. `scripts/build-vardasen-stub.js` slettes sammen med `knownArea`/`KNOWN_AREAS`/
 `useReal: false` i `demFetcher.js`; `buildSyntheticDEM`-fallbacken ved WCS-feil
 skal STÅ (den er en annen sti). `fetchDEM`-importen i `createMapFlow.js` blir død
@@ -67,7 +71,8 @@ når `DEM_TILE_CACHE_ENABLED`-grenen går. `n50ArealStatus` fjernes fra
 `demCorePromise` (L777). `coastalPromise` (L484–489) skal starte
 `probeCoastline(bbox)` med en gang og bare bruke `hasNearSeaLevelPixels(probeDem)`
 som et kortslutnings-nei; Sjøkart (L584) gates fortsatt på den. Behold
-`skipDemSea: true` i previewen. Invariant for Fritt lende: det gamle arket
+`skipDemSea: true` i previewen. Invarianten var Fritt lendes (slettet v7.8.14):
+det gamle arket
 slettes aldri før det nye er bygget (`saveMap` er en put).
 
 **Tiltak 17 — forhåndslast MapView-chunken.** `router.js:15` lazy-importerer
@@ -200,7 +205,7 @@ Bare brukt i egen testfil eller ingen steder:
 - `createMapFlow.js`: `DEM_TILE_CACHE_ENABLED` er konstant `true` (L47) — AV-grenen (L362–364) og `fetchDEM`-importen er døde. `n50ArealStatus` sendes inn til `buildSvg` «→ meta» (L745) men leses aldri i `mapBuilder.js`.
 - `buildSvg`-opsjoner ingen kaller varierer: `includeCliffs`, `includeKnauser`, `includeBuildingMass`, `skipContoursIfSynthetic` (alltid true).
 
-Sovende — uoppnåelig med dagens ekvidistanse-liste (10/20/25/50 i `equidistanceRules.js`; MCP håndhever minimum; Fritt lende er 10):
+Sovende — uoppnåelig med dagens ekvidistanse-liste (10/20/25/50 i `equidistanceRules.js`; MCP håndhever minimum):
 - Fin-DEM-trappa: `fineDemResFor`, `FINE_DEM_STEPS_M`, `fineInlandTargetResM` (krever ≤ 5 m) og 10 m-grenen i `demProbeOpplosning`.
 - `detectKnauser` (krever `contourIntervalM === 5`, `mapBuilder.js:1186`).
 - Gaussisk konturglatting (krever DEM ≤ 3,5 m, `mapBuilder.js:1175`) — kyst-oppgraderingen stopper på 5 m.

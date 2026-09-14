@@ -35,10 +35,19 @@ const { isSupported: micSupported, isListening: micListening, toggle: toggleMic 
 
 <template>
   <Transition name="search-fade">
+    <!-- TAKET MÅLES FRA `--ovl-top`, IKKE FRA ET FAST TALL (v7.8.14). Boksen
+         HENGER i den sloten, og sloten VOKSER med tekststørrelsen
+         (`2.5rem * var(--ui-skala) + 1.5rem + safe-top`) — mens taket sto på
+         `100dvh - 6rem - safe-top`, altså en konstant. Ved 100 % gikk det opp
+         med 2rem til overs; ved 150 % var marginen 0,75rem, og ved 200 % lå
+         underkanten 0,5rem UNDER skjermen, så siste treff ble klippet bort
+         uten at noe kunne rulles til. Nå er det samme tall ved 100 % og
+         riktig ved alle de andre. `safe-area-inset-bottom` er med fordi
+         gesture-stripa på iOS spiser av nettopp den kanten. -->
     <div v-if="open"
          class="absolute top-[var(--ovl-top)] left-3 right-3 z-40 rounded-2xl bg-overlay/95 backdrop-blur
                 border border-ink/10 shadow-2xl overflow-hidden flex flex-col"
-         style="max-height: calc(100dvh - 6rem - var(--safe-top));">
+         style="max-height: calc(100dvh - var(--ovl-top) - 2rem - env(safe-area-inset-bottom, 0px));">
       <!-- zoom skalerer tekst + ikoner opp ved 125/150 % tekststørrelse. For at
            input-feltet skal kunne krympe (flex) og ikke skyve kontroll-ikonene
            ut av raden, MÅ det ha min-w-0 — ellers holder input sin innholds-

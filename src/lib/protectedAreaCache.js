@@ -21,7 +21,17 @@ export const TTL = {
   // modul-lokalt minne — den overlevde ikke en reload, og kunne derfor ikke
   // pakkes med i en offline-fil.
   hydro: 7 * 24 * 60 * 60 * 1000,
-  hydroMaaling: 24 * 60 * 60 * 1000,
+  // MÅLINGEN ER FERSKVARE, OG 24 t VAR EN DAG FOR MYE (v7.8.14). HydAPI leverer
+  // timesoppløsning, så en verdi hentet kl. 23 sto som «siste måling» helt til
+  // kl. 23 dagen etter — eieren så 13.09 23:00 i skuffen mens sildre.nve.no
+  // hadde 14.09 18:00. Én time er kildens egen takt: ingen oppdatering går tapt,
+  // og en stasjon man trykker på to ganger i samme økt koster fortsatt ett kall.
+  //
+  // OFFLINE-BRUKEN ER IKKE OFRET: `cacheGetStale` leser raden UANSETT alder, og
+  // vannstasjon-skuffen faller tilbake på den når nettet ikke svarer. Målingen
+  // vises alltid med sitt eget måletidspunkt, så en gammel verdi er lesbar som
+  // gammel — i motsetning til værvarselet, som derfor fortsatt ikke pakkes.
+  hydroMaaling: 60 * 60 * 1000,
   // Værvarsel er appens klart ferskeste data: MET oppdaterer Locationforecast
   // hver time. 30 min er også debouncingen — to trykk i samme område innen
   // halvtimen koster MET ingenting.
@@ -74,10 +84,13 @@ function asPromise(req) {
 export async function cacheGet(key) {
   const now = Date.now()
   const hit = mem.get(key)
-  if (hit) {
-    if (hit.expires > now) return hit.data
-    mem.delete(key)
-  }
+  // EN UTLØPT RAD BLIR LIGGENDE I MINNET, den slettes ikke (v7.8.14). Den ble
+  // det fram til `cacheGetStale` kom: uten IndexedDB — privat modus, en
+  // nettleser som nekter oss lagring, eller en enhetstest — var minnet den
+  // ENESTE kopien, og en `mem.delete` her gjorde siste utvei tom nøyaktig når
+  // den trengtes. Raden koster ingenting ekstra: `cacheSet` overskriver den ved
+  // neste vellykkede henting, og gaten står på `expires`, ikke på tilstedeværelse.
+  if (hit && hit.expires > now) return hit.data
   const db = await open()
   if (!db) return null
   try {
@@ -112,6 +125,30 @@ export async function cacheSet(key, data, ttlMs) {
   } catch {
     /* degrader stille */
   }
+}
+
+/**
+ * Les en rad UTEN å bry deg om TTL-en. Til kilder der en gammel verdi fortsatt
+ * er nyttig når nettet ikke svarer — vannstasjons-målingen vises med sitt eget
+ * måletidspunkt, så brukeren kan lese alderen selv. Brukes ALDRI som førstevalg:
+ * kalleren skal prøve `cacheGet` og nettet først, og falle hit bare når begge
+ * kom tomhendt tilbake.
+ * @param {string} key
+ * @returns {Promise<any|null>}
+ */
+export async function cacheGetStale(key) {
+  const hit = mem.get(key)
+  if (hit) return hit.data
+  const db = await open()
+  if (!db) return null
+  try {
+    const store = db.transaction(STORE, 'readonly').objectStore(STORE)
+    const row = await asPromise(store.get(key))
+    if (row) return row.data
+  } catch {
+    /* degrader stille */
+  }
+  return null
 }
 
 /** Nøkkel for verne-oppslag på et grid (~100 m) så nære klikk treffer samme. */

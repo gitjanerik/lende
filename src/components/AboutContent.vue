@@ -176,7 +176,7 @@ async function onInstallClick() {
 
     <!-- Nord er nord: meridiankonvergensen, hvorfor arket står litt på skrå og
          hva bryteren i Eksport-fanen gjør. Står som egen seksjon fordi den
-         gjelder ALLE modusene — kart, Fritt lende og fila du deler.
+         gjelder BÅDE kartet på skjermen og fila du deler.
          Sone-avsnittene svarer på det spørsmålet tallene reiser av seg selv:
          hvorfor nullinja ligger på 9° øst og ikke på Greenwich, og hvorfor
          fortegnet snur. Uten dem leser Bergens «mot øst» og Oslos «mot vest»
@@ -261,19 +261,16 @@ async function onInstallClick() {
 
     <!-- Faner: én per hovedfunksjon. -->
     <section class="space-y-4">
-      <!-- flex-wrap fra v6.5.1: med tre faner er «Ruteplanlegger» for bred til
-           at raden holder på én linje ved 150 % tekstskalering. Da er det bedre
-           at raden brytes enn at etikettene forkortes. -->
+      <!-- flex-wrap sto her fra v6.5.1 fordi TRE faner ikke holdt på én linje
+           ved 150 % tekst. Fritt lende-fana er borte (v7.8.14), og to faner
+           får plass — men wrappen blir stående: «Ruteplanlegger» er fortsatt
+           det lengste ordet i appen, og en rad som brytes er bedre enn en
+           etikett som forkortes hvis en tredje fane kommer tilbake. -->
       <div class="flex flex-wrap gap-1 p-1 rounded-xl bg-ink/5 border border-ink/10">
         <button @click="tab = 'turkart'"
                 class="flex-1 min-w-[6rem] py-2 rounded-lg text-[13px] font-medium transition"
                 :class="tab === 'turkart' ? 'bg-[#ffd84a] text-zinc-900' : 'text-ink-3 active:text-ink'">
           Turkart
-        </button>
-        <button @click="tab = 'fritt'"
-                class="flex-1 min-w-[6rem] py-2 rounded-lg text-[13px] font-medium transition"
-                :class="tab === 'fritt' ? 'bg-[#ffd84a] text-zinc-900' : 'text-ink-3 active:text-ink'">
-          Fritt lende
         </button>
         <button @click="tab = 'rute'"
                 class="flex-1 min-w-[6rem] py-2 rounded-lg text-[13px] font-medium transition"
@@ -474,66 +471,6 @@ async function onInstallClick() {
               som før — har du åpnet et kart på nett, ligger den klar også uten
               dekning.</li>
           </ul>
-        </div>
-      </div>
-
-      <!-- Fritt lende-fanen (v6.5.1). -->
-      <div v-else-if="tab === 'fritt'" class="space-y-4">
-        <div class="space-y-2">
-          <h3 class="text-sm font-semibold text-ink">Hva det er</h3>
-          <p class="text-[13px] leading-relaxed text-ink-2">
-            En avkledd turkartmodus, et <strong class="text-ink">supplement</strong>
-            til turkartet — ikke en
-            erstatning. Små, kvadratiske ark på 2 × 2 km som lages på farta: nærtur i
-            skog og mark, der du har dekning og bare vil se et kart. Ett kart, én
-            knapp, ingen innstillinger.
-          </p>
-          <p class="text-[13px] leading-relaxed text-ink-2">
-            Alt annet er borte fra skjermen. Ingen faner, ingen søk, ingen måling,
-            ingen 3D — bare menyknappen øverst og knappen nede til høyre. Kartet er
-            alltid nord opp, i ISOM-uttrykk, tegnet for
-            <strong class="text-ink">1:10 000</strong> med
-            <strong class="text-ink">10 meters ekvidistanse</strong>. Begge deler
-            er faste i denne modusen — det er ingenting å stille på. Nede til venstre
-            står avstanden fra midten av arket så snart posisjonen din er kjent:
-            arket rekker en kilometer ut til hver kant, så tallet sier hvor mye kart
-            du har igjen foran deg.
-          </p>
-        </div>
-        <div class="space-y-2">
-          <h3 class="text-sm font-semibold text-ink">Knappen og «deg i sentrum»</h3>
-          <ul class="text-[13px] leading-relaxed text-ink-2 space-y-1.5 list-disc pl-5">
-            <li>Første trykk etter at du har åpnet modusen <strong class="text-ink">starter
-              bare GPS</strong>. Da er det alltid ett trykk mellom å komme inn og å
-              bytte ark — nyttig, siden du som regel står et helt annet sted i dag
-              enn da forrige ark ble laget.</li>
-            <li>Nærmere enn <strong class="text-ink">250 meter</strong> fra midten
-              sentrerer et trykk kartet på deg, og sier når et nytt utsnitt blir
-              tilgjengelig. Der ville et nytt ark vært nesten det samme arket, hentet
-              på nytt.</li>
-            <li>Har du gått <strong class="text-ink">250 meter eller mer</strong> —
-              tallet nede til venstre skifter farge — lager neste trykk et nytt ark
-              med deg i midten, og telleren starter på null igjen. Det gamle blir
-              liggende til det nye er ferdig tegnet, så et feiltrykk kan ikke
-              etterlate deg uten kart.</li>
-            <li><strong class="text-ink">Angre</strong> henter forrige ark tilbake, og
-              trenger ikke nett.</li>
-          </ul>
-        </div>
-        <div class="space-y-2">
-          <h3 class="text-sm font-semibold text-ink">Ferskvare — med vilje</h3>
-          <p class="text-[13px] leading-relaxed text-ink-2">
-            Arket har ikke navn, det neste erstatter det, og det havner aldri i
-            «Mine kart». Det er ikke en mangel: det er nettopp fordi ingen ark er
-            verdt å ta vare på at modusen slipper å spørre deg om noe som helst.
-            Vil du ha et kart som varer, lager du det under
-            <strong class="text-ink">Turkart</strong>.
-          </p>
-          <p class="text-[13px] leading-relaxed text-ink-2">
-            Modusen trenger dekning for å <em>lage</em> et ark, men ikke for å vise
-            det den har. Går nettet mens du er ute, ligger kartet der fortsatt — du
-            kan bare ikke bytte det før du har dekning igjen.
-          </p>
         </div>
       </div>
 

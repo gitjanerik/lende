@@ -9,12 +9,12 @@ import {
 import { PRINT_ASPECT } from '../lib/mapBuilder.js'
 import { BREDDE_MIN_KM, BREDDE_MAKS_KM } from '../lib/mapDensityRules.js'
 
-describe('defaultMapDims — Standard-kartet er et fast 10 km kvadrat (v6.5.76)', () => {
-  it('er 10 km bredt (ikke skjerm-skalert)', () => {
-    expect(DEFAULT_MAP_WIDTH_KM).toBe(10)
+describe('defaultMapDims — Standard-kartet er et fast 8 km kvadrat (v7.8.14)', () => {
+  it('er 8 km bredt (ikke skjerm-skalert)', () => {
+    expect(DEFAULT_MAP_WIDTH_KM).toBe(8)
     const d = defaultMapDims()
-    expect(d.halfKm).toBe(5)        // 10 km bredde
-    expect(2 * d.halfKm).toBe(10)
+    expect(d.halfKm).toBe(4)        // 8 km bredde
+    expect(2 * d.halfKm).toBe(8)
   })
   it('er et kvadrat (aspect = 1), uavhengig av skjermformat', () => {
     expect(defaultMapDims().aspect).toBe(1)
@@ -37,10 +37,10 @@ describe('slider-grenser', () => {
 })
 
 describe('equidistanceForWidthKm — fineste tillatte (samme gulv som «Flere valg»)', () => {
-  it('Standard (null → 10 km) → 25 m, altså N50', () => {
-    expect(equidistanceForWidthKm(null)).toBe(25)
-    expect(equidistanceForWidthKm(0)).toBe(25)         // 0 = «ikke valgt», ikke 0 km
-    expect(equidistanceForWidthKm(DEFAULT_MAP_WIDTH_KM)).toBe(25)
+  it('Standard (null → 8 km) → 20 m', () => {
+    expect(equidistanceForWidthKm(null)).toBe(20)
+    expect(equidistanceForWidthKm(0)).toBe(20)         // 0 = «ikke valgt», ikke 0 km
+    expect(equidistanceForWidthKm(DEFAULT_MAP_WIDTH_KM)).toBe(20)
   })
   it('< 6 km → 10 m (fineste valg etter at 2,5 og 5 m falt bort)', () => {
     expect(equidistanceForWidthKm(2)).toBe(10)
@@ -105,16 +105,16 @@ describe('effektiv ekvidistanse + Nullstill', () => {
     expect(effectiveEquidistanceForWidthKm(3)).toBe(50)   // grovere enn min er alltid lov
     resetMapPreferences()
   })
-  it('Nullstill setter 10 km + auto (25 m) + kvadratisk', () => {
+  it('Nullstill setter 8 km + auto (20 m) + kvadratisk', () => {
     const { mapSizeKm, mapFormat, mapEquidistance } = useMapSizePreference()
     mapSizeKm.value = 7
     mapFormat.value = 'liggende'
     mapEquidistance.value = 50
     resetMapPreferences()
-    expect(mapSizeKm.value).toBeNull()                       // null = 10 km-default
+    expect(mapSizeKm.value).toBeNull()                       // null = 8 km-default
     expect(mapFormat.value).toBe('square')
     expect(mapEquidistance.value).toBeNull()                 // null = auto
-    expect(effectiveEquidistanceForWidthKm(DEFAULT_MAP_WIDTH_KM)).toBe(25)
+    expect(effectiveEquidistanceForWidthKm(DEFAULT_MAP_WIDTH_KM)).toBe(20)
     expect(MAP_EQ_OPTIONS).toEqual([10, 20, 25, 50])
   })
 })
