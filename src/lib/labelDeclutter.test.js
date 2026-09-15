@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { declutter, hindringsBoks, makeMinZoomOf, underHindring } from './labelDeclutter.js'
+import {
+  declutter, heltUnderHindring, hindringsBoks, makeMinZoomOf, underHindring,
+} from './labelDeclutter.js'
 
 // Hjelper: kandidat med fornuftige defaults.
 const cand = (o) => ({
@@ -271,5 +273,47 @@ describe('underHindring — høydetall mot overlegg', () => {
 
   it('hopper over null-hindringer i stedet for å kaste', () => {
     expect(underHindring({ minX: 100, minY: 40, maxX: 130, maxY: 55 }, [null, ...rad])).toBe(true)
+  })
+})
+
+// Bygningene merges av mapBuilder til én path per rutenett-celle, så en
+// overlapp-test ville tatt bort opptil en kvadratkilometer med hus fordi ett
+// hjørne lå under raden. Full dekning er den ene regelen der det som forsvinner
+// per definisjon ikke kan være synlig utenfor overlegget.
+describe('heltUnderHindring — bygg mot overlegg', () => {
+  const rad = [{ minX: 80, minY: 0, maxX: 280, maxY: 60 }]
+
+  it('sier ja bare når boksen ligger helt inne i hindringen', () => {
+    expect(heltUnderHindring({ minX: 100, minY: 10, maxX: 130, maxY: 50 }, rad)).toBe(true)
+  })
+
+  it('sier nei på delvis overlapp — der ville halve cella blitt borte', () => {
+    expect(heltUnderHindring({ minX: 100, minY: 40, maxX: 130, maxY: 200 }, rad)).toBe(false)
+    expect(heltUnderHindring({ minX: 40, minY: 10, maxX: 130, maxY: 50 }, rad)).toBe(false)
+  })
+
+  it('godtar en boks som deler kant med hindringen', () => {
+    expect(heltUnderHindring({ minX: 80, minY: 0, maxX: 280, maxY: 60 }, rad)).toBe(true)
+  })
+
+  it('en boks som er større enn hindringen er aldri dekket', () => {
+    expect(heltUnderHindring({ minX: 0, minY: -10, maxX: 400, maxY: 100 }, rad)).toBe(false)
+  })
+
+  it('krever dekning av ÉN hindring, ikke av unionen', () => {
+    const to = [
+      { minX: 0, minY: 0, maxX: 100, maxY: 60 },
+      { minX: 100, minY: 0, maxX: 200, maxY: 60 },
+    ]
+    expect(heltUnderHindring({ minX: 50, minY: 10, maxX: 150, maxY: 50 }, to)).toBe(false)
+    expect(heltUnderHindring({ minX: 110, minY: 10, maxX: 150, maxY: 50 }, to)).toBe(true)
+  })
+
+  it('uten hindringer, og på null-inndata, er svaret nei', () => {
+    const b = { minX: 100, minY: 10, maxX: 130, maxY: 50 }
+    expect(heltUnderHindring(b, [])).toBe(false)
+    expect(heltUnderHindring(b, null)).toBe(false)
+    expect(heltUnderHindring(null, rad)).toBe(false)
+    expect(heltUnderHindring(b, [null, ...rad])).toBe(true)
   })
 })

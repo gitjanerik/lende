@@ -2196,6 +2196,33 @@ function onSnarvei(id) { SNARVEI_HANDLING[id]?.() }
 // Løftet over navigasjonssøyla mens raden er åpen — se malen.
 const snarveiApen = ref(false)
 
+// ── ET ARK SOM ÅPNES LEGGER SNARVEI-RADEN SAMMEN (v7.8.25) ──────────────────
+// Raden svever i `--ovl-top`-sloten midt over kartet, og utfoldet er den flere
+// linjer høy. Et ark som åpnes DEKKER den nedenfra: overlappet ble meldt fra
+// felt med PUNKT-arket, der koordinat-headeren og snarvei-gitteret sto oppå
+// hverandre og begge var uleselige.
+//
+// Halve regelen fantes alt, men bodde i RADEN: et trykk på en snarvei eller på
+// et tannhjul legger den sammen, fordi begge fører bort fra raden. Arkene som
+// åpnes fra KARTET — long-trykk, et kulturminne, en målestasjon — går aldri
+// gjennom raden, og for dem fantes ingen regel. Den bor nå her, ETT sted for
+// alle arkene, av samme grunn som `bunnFloat`: en liste over arkene inne i
+// raden ville vært en andre kopi som kommer i utakt første gang noen legger til
+// et ark.
+//
+// LISTA ER ÅPNINGER, IKKE TILSTAND: watchen fyrer bare på falsk → sann, så et
+// ark som lukkes lar raden være der brukeren etterlot den, og et ark som
+// minimeres eller maksimeres rører den ikke.
+const snarveiRadRef = ref(null)
+const apneArk = computed(() => [
+  showControls.value, contextMenuOpen.value, kulturminneOpen.value,
+  hydroOpen.value, maalingOpen.value, sporingOpen.value, annoteringOpen.value,
+  visTegnforklaring.value, !!expandedTrack.value,
+])
+watch(apneArk, (na, for_) => {
+  if (na.some((v, i) => v && !for_[i])) snarveiRadRef.value?.leggSammen()
+})
+
 // ── Snarvei-radens nivå 2: strek og relieff (v7.8.0) ────────────────────────
 // Raden har fått et tredje dra-nivå med de to knottene man rører mens man går.
 // Den er en SNARVEI til Kartstil-fana og ikke en andre bolig for den: strek er
@@ -2961,7 +2988,8 @@ onUnmounted(() => {
         <!-- `mork` er ARKETS valør og ikke UI-temaet, nøyaktig som på
              kompassnåla (v7.8.18): raden ligger på kartet, og de to skal lese
              som samme materiale. Se lib/kartFlate.js. -->
-        <SnarveiRad :snarveier="synligeSnarveier"
+        <SnarveiRad ref="snarveiRadRef"
+                    :snarveier="synligeSnarveier"
                     :ui-text-scale="uiTextScale"
                     :mork="isDark"
                     :strek-trinn="strokeStepIndex" :strek-trinn-antall="STROKE_STEPS.length"

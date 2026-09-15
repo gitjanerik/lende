@@ -742,6 +742,22 @@ function avsluttSortering() {
   settDra(0)
 }
 
+// LEGG SAMMEN UTENFRA (v7.8.25). Raden lukker seg selv når man trykker på en
+// snarvei eller på et tannhjul, fordi begge fører BORT fra raden — men et
+// long-trykk i kartet, et kulturminne eller en målestasjon åpner et ark uten å
+// gå gjennom raden i det hele tatt, og da ble den stående utfoldet oppå arket.
+// Kallstedet eier regelen «et ark som åpnes legger raden sammen» (se MapView):
+// raden vet ikke hva et ark er, og en liste over arkene her ville vært en
+// andre kopi av den lista som alt finnes der.
+//
+// Står sorteringen på, avsluttes den — den er en MODUS i raden, og en modus man
+// ikke kan se er en modus man ikke kommer ut av.
+function leggSammen() {
+  if (sorterer.value) { avsluttSortering(); return }
+  settDra(0)
+}
+defineExpose({ leggSammen })
+
 // HINTET ER USYNLIG FRA v7.8.4, IKKE FJERNET. «Dra en knapp dit du vil ha den»
 // og «Spor flyttet til plass 8 av 9» sto som en linje under gitteret, og eieren
 // strøk den: draget er selvforklarende i det man tar tak — cella løftes, et

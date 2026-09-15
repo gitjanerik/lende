@@ -173,6 +173,35 @@ export function underHindring(boks, hindringer) {
   return false
 }
 
+/**
+ * Ligger boksen HELT inne i en av hindringene? Samme rom som `underHindring`.
+ *
+ * Skillet er GEOMETRIENS, ikke smakens (v7.8.25). Et punkt-symbol — et P-skilt,
+ * en holdeplass, et veinummer-skilt — er ETT element med sin egen lille boks, og
+ * for det er «rører den overlegget?» riktig spørsmål: hele symbolet hører til
+ * det ene punktet, og et halvt symbol under en rad-kant er verre enn ingen.
+ *
+ * Bygningene er ikke slik. `mapBuilder` slår umerkede bygg sammen til ÉN path
+ * per stil × rutenett-celle (`spatialBucket.CELL_M` = 1024 m), fordi et
+ * bygnings-tungt utsnitt ellers er tusenvis av noder. Den pathen er ett element
+ * i DOM-en og mange hus på kartet, så en overlapp-test ville tatt bort hele
+ * cella — altså opptil en kvadratkilometer med hus — fordi ett hjørne lå under
+ * raden. Derfor kreves full dekning for dem: da kan det som forsvinner per
+ * definisjon ikke være synlig utenfor overlegget.
+ *
+ * @param {{minX:number,minY:number,maxX:number,maxY:number}} boks
+ * @param {Array<{minX:number,minY:number,maxX:number,maxY:number}>} hindringer
+ */
+export function heltUnderHindring(boks, hindringer) {
+  if (!boks || !hindringer || !hindringer.length) return false
+  for (const h of hindringer) {
+    if (!h) continue
+    if (boks.minX >= h.minX && boks.maxX <= h.maxX &&
+        boks.minY >= h.minY && boks.maxY <= h.maxY) return true
+  }
+  return false
+}
+
 // Score→minZoom-bånd. Bevisst LØS: tetthet styres primært av kollisjon +
 // rutenett-kvote i skjermrom (naturlig stabilt — flere navn får plass når man
 // zoomer inn). minZoom gater bare så vidt det minst viktige ved lav zoom, så

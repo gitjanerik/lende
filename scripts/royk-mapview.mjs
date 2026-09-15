@@ -1347,6 +1347,57 @@ const SJEKKER = [
     },
   },
   {
+    // ET ARK SOM ÅPNES LEGGER RADEN SAMMEN (v7.8.25). Halve regelen fantes fra
+    // før og bodde i RADEN: et trykk på en snarvei legger den sammen, fordi det
+    // fører bort fra raden. Et long-trykk i kartet går aldri gjennom raden, og
+    // der ble den stående utfoldet oppå PUNKT-arket — begge uleselige, meldt
+    // fra felt. Regelen bor nå i MapView, ETT sted for alle arkene.
+    //
+    // Kan ikke enhetstestes: prosjektet monterer ingen Vue-komponenter, og både
+    // raden og arket er montering. Måles på DOM-en, ikke på piksler — det er
+    // ikke overlappet som er kontrakten, det er at raden legger seg sammen.
+    navn: 'et ark som åpnes fra kartet legger snarvei-raden sammen',
+    domene: 'MapView (snarveiRadRef) + SnarveiRad.leggSammen',
+    async kjør(page) {
+      const ARK = 'button[aria-label="Kopier koordinater"]'
+      const utfoldet = () => page.locator('.snarvei-handle').getAttribute('aria-expanded')
+
+      await lukkDrawer(page)
+      await apneSnarveiRad(page)
+      if ((await utfoldet()) !== 'true') throw new Error('fikk ikke dratt raden ut')
+
+      // Samme vei som et hold i kartet tar (se «hold på en lende-pil»):
+      // nettleserens `contextmenu` bobler opp til kart-wrapperen og åpner arket.
+      await page.evaluate(() => {
+        const mål = document.querySelector('svg.isom-map')
+        const r = mål.getBoundingClientRect()
+        mål.dispatchEvent(new MouseEvent('contextmenu', {
+          bubbles: true, cancelable: true,
+          clientX: r.left + r.width / 2, clientY: r.top + r.height / 2,
+        }))
+      })
+      await page.waitForTimeout(600)
+      if (!(await page.locator(ARK).count())) {
+        throw new Error('long-trykket åpnet ikke punkt-arket — sjekken måler ingenting')
+      }
+      const etter = await utfoldet()
+      if (etter !== 'false') {
+        throw new Error('raden står fortsatt utfoldet over punkt-arket '
+          + `(aria-expanded=${etter})`)
+      }
+
+      // OG ET ARK SOM LUKKES LAR RADEN VÆRE: watchen fyrer på ÅPNINGER, ikke på
+      // tilstand. Uten det ville en lukking dratt raden sammen en gang til —
+      // usynlig her, men det ville gjort regelen til «raden er alltid sammen».
+      await page.locator('button[aria-label="Lukk"]').first().click()
+      await page.waitForTimeout(400)
+      if ((await utfoldet()) !== 'false') {
+        throw new Error('raden foldet seg ut igjen da arket ble lukket')
+      }
+      return 'long-trykk i kartet la raden sammen, lukkingen rørte den ikke'
+    },
+  },
+  {
     // NAVNET STÅR ALLTID (v7.6.0). Draget avdekket etikettene fra v7.4.0; det
     // ble målt i felt og forkastet — gevinsten var fjorten piksler, prisen at
     // ikonene måtte bære betydningen alene. Fire ting måles, og ingen av dem
@@ -2457,24 +2508,15 @@ const SJEKKER = [
     domene: 'SnarveiRad + ContextMenuSheet',
     async kjør(page) {
       await lukkDrawer(page)
-      // RADEN MÅ VÆRE UTE. «Sorter snarveier» og «Stil» finnes bare da, og det
-      // er de to som kan legge seg oppå bula — en overlapp-sjekk mot et tomt
-      // DOM er en sjekk som alltid består.
+      // DE TO MÅLES HVER FOR SEG, og det er ikke en oppdeling for ryddighetens
+      // skyld: fra v7.8.25 legger et ark som åpnes raden sammen, så de to
+      // tilstandene KAN ikke lenger stå samtidig. Først raden ute og alene —
+      // «Sorter snarveier» og «Stil» finnes bare da, og det er de to som kan
+      // legge seg oppå bula, så en overlapp-sjekk mot et tomt DOM ville alltid
+      // bestått. Så punkt-arket, som legger raden sammen på vei inn.
       await apneSnarveiRad(page)
-      await page.evaluate(() => {
-        const el = document.querySelector('svg.isom-map')
-        const r = el.getBoundingClientRect()
-        el.dispatchEvent(new MouseEvent('contextmenu', {
-          bubbles: true, cancelable: true,
-          clientX: r.left + r.width / 2, clientY: r.top + r.height / 2,
-        }))
-      })
-      await page.waitForTimeout(700)
       const m = await page.evaluate(() => {
         const snar = document.querySelector('.snarvei-handle')
-        const ark = [...document.querySelectorAll('.cursor-grab')]
-          .find((e) => e.offsetParent && e !== snar && e.querySelector('.rounded-full'))
-        const cs = ark && getComputedStyle(ark)
         const pille = document.querySelector('.snarvei-pille')
         const bane = document.querySelector('.snarvei-ramme path')
         const b = snar?.getBoundingClientRect()
@@ -2484,9 +2526,6 @@ const SJEKKER = [
         const bb = bane?.getBBox?.()
         const svg = bane?.ownerSVGElement?.getBoundingClientRect()
         return {
-          punktark: cs
-            ? [Math.round(parseFloat(cs.paddingTop)), Math.round(parseFloat(cs.paddingBottom))]
-            : null,
           // Hvor mye banen buler ned under pillas bunnlinje.
           dybde: (bb && svg && p) ? Math.round(svg.top + bb.y + bb.height - p.bottom) : null,
           strek: bane ? Math.round(parseFloat(getComputedStyle(bane).strokeWidth) * 10) / 10 : null,
@@ -2516,11 +2555,6 @@ const SJEKKER = [
             })) || false,
         }
       })
-      if (!m.punktark) throw new Error('fant ikke punkt-arkets håndtak')
-      if (m.punktark[0] !== m.punktark[1]) {
-        throw new Error(`punkt-arkets håndtak har ulik luft over og under `
-          + `(${m.punktark.join('/')}) — da er den ikke den samme når arket snus`)
-      }
       if (m.dybde === null) throw new Error('fant ingen SVG-bane rundt snarvei-raden')
       if (!(m.dybde > 8)) {
         throw new Error(`banen buler ${m.dybde} px ned under pillas bunnlinje — `
@@ -2547,10 +2581,35 @@ const SJEKKER = [
         throw new Error('«Sorter snarveier» / «Stil» ligger oppå bula — bula henger '
           + 'UTENFOR pillas boks, og layouten må holde av plassen selv')
       }
+
+      // SÅ ARKET, som legger raden sammen på vei inn. Håndtaket er derfor det
+      // ENESTE i DOM-en nå, og luft-regelen måles på det alene.
+      await page.evaluate(() => {
+        const el = document.querySelector('svg.isom-map')
+        const r = el.getBoundingClientRect()
+        el.dispatchEvent(new MouseEvent('contextmenu', {
+          bubbles: true, cancelable: true,
+          clientX: r.left + r.width / 2, clientY: r.top + r.height / 2,
+        }))
+      })
+      await page.waitForTimeout(700)
+      const punktark = await page.evaluate(() => {
+        const snar = document.querySelector('.snarvei-handle')
+        const ark = [...document.querySelectorAll('.cursor-grab')]
+          .find((e) => e.offsetParent && e !== snar && e.querySelector('.rounded-full'))
+        if (!ark) return null
+        const cs = getComputedStyle(ark)
+        return [Math.round(parseFloat(cs.paddingTop)), Math.round(parseFloat(cs.paddingBottom))]
+      })
+      if (!punktark) throw new Error('fant ikke punkt-arkets håndtak')
+      if (punktark[0] !== punktark[1]) {
+        throw new Error(`punkt-arkets håndtak har ulik luft over og under `
+          + `(${punktark.join('/')}) — da er den ikke den samme når arket snus`)
+      }
       await page.locator('[aria-label="Lukk punktinfo"]').first().click().catch(() => {})
       await page.waitForTimeout(400)
       await lukkSnarveiRad(page)
-      return `punkt-arket ${m.punktark[0]} px over og under; banen buler ${m.dybde} px `
+      return `punkt-arket ${punktark[0]} px over og under; banen buler ${m.dybde} px `
         + `med ${m.strek} px strek, trykkflate ${m.trykkH} px, ingen overlapp`
     },
   },

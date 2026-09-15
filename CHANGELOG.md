@@ -1,3 +1,40 @@
+## 2026-09-15 — v7.8.25: Arkene legger snarvei-raden sammen, og skilt viker som navn
+
+Snarvei-raden svever i `--ovl-top`-sloten midt over kartet, og utfoldet er den
+flere linjer høy — så et PUNKT-ark som åpnes med et long-trykk la seg rett oppå
+den, med koordinat-headeren og snarvei-gitteret i hverandre og begge uleselige.
+Halve regelen fantes fra før, men bodde i RADEN: et trykk på en snarvei eller på
+et tannhjul legger den sammen, fordi begge fører bort fra raden. Arkene som
+åpnes fra KARTET — long-trykket, et kulturminne, en NVE-målestasjon — går aldri
+gjennom raden, og for dem fantes ingen regel. Den bor nå i MapView, ett sted for
+alle arkene, av samme grunn som `useFloatAboveSheets`: en liste over arkene inne
+i raden ville vært en andre kopi som kommer i utakt første gang noen legger til
+et ark. Watchen fyrer på ÅPNINGER og ikke på tilstand, så et ark som lukkes lar
+raden stå der brukeren etterlot den. Står sorteringen på, avsluttes den — den er
+en modus i raden, og en modus man ikke kan se er en modus man ikke kommer ut av.
+
+Den andre halvdelen gjelder det som ligger UNDER raden mens den står. Cellene er
+halvgjennomsiktige, så et hvitt veinummer-skilt, et blått P og en holdeplass
+leses tvers gjennom knappeteksten — meldt fra felt med skjermbilde. De tre har
+det høydetallene har (v7.8.24): ingen plass i søkeindeksen, altså verken score,
+budsjett eller rutenett-kvote, og spørsmålet for dem er bare «står den under
+overlegget?». De går derfor inn i samme pass, med skiltet som ETT element — bare
+teksten skjult ville latt det hvite rektangelet stå igjen. Bygg (ISOM 521, ikke
+bymassen) er med, men med en strengere regel: `mapBuilder` slår umerkede bygg
+sammen til én path per rutenett-celle på 1024 m, så en overlapp-test ville tatt
+bort opptil en kvadratkilometer med hus fordi ett hjørne lå under raden. De
+krever full dekning (`heltUnderHindring`), og konsekvensen er ærlig: på et kart
+der bygningene er merget viker de først når hele cella ligger under raden. Skal
+de vike hus for hus, må baken dele dem finere — en endring i BYGGET som bare
+treffer nye kart.
+
+En røyk-sjekk måler at et ark legger raden sammen og at en lukking ikke rører
+den; en enhetstest bygger et ekte ark og holder velgerne fast mot det
+`mapBuilder` faktisk emitterer, fordi en velger som slutter å matche feiler
+stille.
+
+---
+
 ## 2026-09-15 — v7.8.24: Høydetallene viker for snarvei-raden, som navnene gjorde
 
 Et stort hvitt «472» sto igjen under snarvei-raden på et mørkt turkart etter at
