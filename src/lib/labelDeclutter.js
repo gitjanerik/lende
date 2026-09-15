@@ -150,6 +150,29 @@ export function hindringsBoks(rect, wrap, krymp = 0) {
   return (b.maxX > b.minX && b.maxY > b.minY) ? b : null
 }
 
+/**
+ * Ligger boksen under en av hindringene? Samme rom som `hindringsBoks`.
+ *
+ * Declutteren løser dette selv for navn — hindringene sås inn i R-treet. Denne
+ * finnes for etikettene declutteren IKKE eier: høydetallene på navnløse topper
+ * står ikke i søkeindeksen (`SKIP_LABELS` + `NUMERIC_RE` i useMapSearch), så de
+ * har verken score, budsjett eller rutenett-kvote. Spørsmålet for dem er ikke
+ * «er det plass?», men bare «står den under overlegget?», og det er en ren
+ * rektangel-overlapp uten noe R-tre.
+ *
+ * @param {{minX:number,minY:number,maxX:number,maxY:number}} boks
+ * @param {Array<{minX:number,minY:number,maxX:number,maxY:number}>} hindringer
+ */
+export function underHindring(boks, hindringer) {
+  if (!boks || !hindringer || !hindringer.length) return false
+  for (const h of hindringer) {
+    if (!h) continue
+    if (boks.minX < h.maxX && boks.maxX > h.minX &&
+        boks.minY < h.maxY && boks.maxY > h.minY) return true
+  }
+  return false
+}
+
 // Score→minZoom-bånd. Bevisst LØS: tetthet styres primært av kollisjon +
 // rutenett-kvote i skjermrom (naturlig stabilt — flere navn får plass når man
 // zoomer inn). minZoom gater bare så vidt det minst viktige ved lav zoom, så

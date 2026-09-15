@@ -766,6 +766,99 @@ const SJEKKER = [
     },
   },
   {
+    // SAMME REGEL, ANNEN VEI (v7.8.24). Et høydetall på en navnløs topp —
+    // `<text data-label="peak-ele">472</text>` — står ikke i søkeindeksen, så
+    // declutteren eier det ikke og hindringen over nådde det aldri. Sjekken
+    // over kan derfor per konstruksjon ikke se dette; den HOPPER eksplisitt
+    // over `peak-ele`.
+    //
+    // Den kan heller ikke vente på at et slikt tall tilfeldigvis lander i
+    // radens felt: navnløse topper er få. Derfor DRAS kartet, så et tall vi vet
+    // er synlig havner under raden. Det gir samtidig motretningen gratis —
+    // kandidaten må stå SYNLIG før draget, ellers måler vi ingenting.
+    navn: 'snarvei-raden skjuler høydetall (moh)',
+    domene: 'useNavnLod + labelDeclutter',
+    krever: 'ektekart',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await apneSnarveiRad(page)
+      await zoomInn(page, 6)
+      await page.waitForTimeout(600)
+
+      const før = await page.evaluate(() => {
+        const pille = document.querySelector('.snarvei-pille')
+        if (!pille) return { feil: 'fant ikke snarvei-pilla' }
+        const p = pille.getBoundingClientRect()
+        // BARE `<text>`: på en navngitt topp er høyden en inline <tspan> inni
+        // navne-teksten, og den eies allerede av navn-LOD-en.
+        const alle = [...document.querySelectorAll('svg.isom-map text[data-label="peak-ele"]')]
+          .filter(el => !el.closest('#ghost-tiles'))
+        if (!alle.length) return { ingen: true }
+        for (const el of alle) {
+          if (el.classList.contains('name-lod-off')) continue
+          const r = el.getBoundingClientRect()
+          if (!(r.width > 0) || !(r.height > 0)) continue
+          return {
+            tall: (el.textContent || '').trim(),
+            dx: (p.left + p.right) / 2 - (r.left + r.right) / 2,
+            dy: (p.top + p.bottom) / 2 - (r.top + r.bottom) / 2,
+            antall: alle.length,
+          }
+        }
+        return { ingenSynlige: true, antall: alle.length }
+      })
+      if (før.feil) throw new Error(før.feil)
+      if (før.ingen || før.ingenSynlige) {
+        await lukkSnarveiRad(page)
+        return 'Kan ikke sjekke her: arket har ingen synlige høydetall på navnløse topper'
+      }
+
+      await draKart(page, før.dx, før.dy)
+      const etter = await page.evaluate(() => {
+        const pille = document.querySelector('.snarvei-pille')
+        const p = pille.getBoundingClientRect()
+        const k = 4   // samme krymp som HINDRING_KRYMP_PX
+        const boks = { l: p.left + k, t: p.top + k, r: p.right - k, b: p.bottom - k }
+        // Et skjult tall har ingen boks (display:none), så feltet må avdekkes
+        // for å kunne måles i det hele tatt.
+        const stil = document.createElement('style')
+        stil.textContent = '.isom-map .name-lod-off { display: inline !important; }'
+        document.head.appendChild(stil)
+        let under = 0, synlige = 0, verste = null
+        try {
+          for (const el of document.querySelectorAll('svg.isom-map text[data-label="peak-ele"]')) {
+            if (el.closest('#ghost-tiles')) continue
+            const r = el.getBoundingClientRect()
+            if (!(r.width > 0) || !(r.height > 0)) continue
+            if (r.left >= boks.r || r.right <= boks.l) continue
+            if (r.top >= boks.b || r.bottom <= boks.t) continue
+            under++
+            if (!el.classList.contains('name-lod-off')) {
+              synlige++
+              if (!verste) verste = (el.textContent || '').trim()
+            }
+          }
+        } finally {
+          stil.remove()
+        }
+        return { under, synlige, verste }
+      })
+
+      await draKart(page, -før.dx, -før.dy)   // nøytral tilstand: legg kartet tilbake
+      await lukkSnarveiRad(page)
+
+      if (!etter.under) {
+        throw new Error(`draget la ikke «${før.tall}» under raden — sjekken målte `
+          + 'ingenting, og «null synlige» ville vært en gratis grønn')
+      }
+      if (etter.synlige) {
+        throw new Error(`${etter.synlige} av ${etter.under} høydetall står SYNLIG under `
+          + `snarvei-raden (f.eks. «${etter.verste}») — hindringen nådde ikke høyde-passet`)
+      }
+      return `${etter.under} av ${før.antall} høydetall dratt under raden, alle skjult`
+    },
+  },
+  {
     navn: 'dyp zoom culler vektorer',
     domene: 'useViewportCull',
     krever: 'ektekart',
@@ -7274,6 +7367,24 @@ async function zoomInn(page, tikk) {
     await page.waitForTimeout(140)
   }
   await page.waitForTimeout(1000)
+}
+
+// Panorering med ekte peker-sekvens. Startpunktet ligger i NEDRE del av
+// kartflata: snarvei-raden og bygge-chipene bor øverst, og et drag som starter
+// på et overlegg panorerer ingenting. Stegene er mange nok til at gesten leses
+// som et drag og ikke som et tapp (som ville åpnet punkt-arket).
+async function draKart(page, dx, dy) {
+  const vp = page.viewportSize()
+  const x0 = Math.round(vp.width / 2)
+  const y0 = Math.round(vp.height * 0.72)
+  await page.mouse.move(x0, y0)
+  await page.mouse.down()
+  for (let i = 1; i <= 12; i++) {
+    await page.mouse.move(Math.round(x0 + (dx * i) / 12), Math.round(y0 + (dy * i) / 12))
+    await page.waitForTimeout(16)
+  }
+  await page.mouse.up()
+  await page.waitForTimeout(700)
 }
 
 // INNGANGEN TIL SKUFFEN ER EN SNARVEI IGJEN (v7.6.0), sist i raden og under

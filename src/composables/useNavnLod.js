@@ -23,9 +23,20 @@
 //      Prisen er at navn under raden FORSVINNER framfor å flytte seg. De er
 //      fortsatt søkbare (punkt 1), og et valgt søketreff er `forced` og står
 //      over budsjettet — altså kan et treff fortsatt havne under raden.
+//   5. HØYDETALLENE FØLGER SAMME REGEL, men gjennom en EGEN, enklere vei
+//      (v7.8.24). En navnløs topp rendres som `<text data-label="peak-ele">472`,
+//      og den teksten står ikke i søkeindeksen i det hele tatt: `SKIP_LABELS`
+//      og `NUMERIC_RE` i useMapSearch kaster den, og toppens egen indeks-rad
+//      får `el = null` fordi det ikke finnes noen navne-tekst å toggle. Derfor
+//      sto «472» igjen under raden i full størrelse etter at navnene begynte å
+//      vike — meldt fra felt. De er IKKE tatt inn i budsjettet: et høydetall
+//      har verken score, rutenett-kvote eller hysterese å bli målt mot, og å
+//      gi det en ville endret hvilke NAVN som får plass. Spørsmålet for dem er
+//      bare «står den under overlegget?».
 
 import { ref, watch, onUnmounted } from 'vue'
-import { declutter, hindringsBoks, makeMinZoomOf } from '../lib/labelDeclutter.js'
+import { declutter, hindringsBoks, makeMinZoomOf, underHindring } from '../lib/labelDeclutter.js'
+import { elementPosition } from './useMapSearch.js'
 
 const DEBOUNCE_MS = 120
 const MARGIN_PX = 80        // slingringsmonn så navn rett utenfor kanten teller med
@@ -36,6 +47,13 @@ const MARGIN_PX = 80        // slingringsmonn så navn rett utenfor kanten telle
 // felt enn det man ser. Negativ verdi ville gitt luft rundt — det er ikke det
 // samme problemet, og skal i så fall begrunnes for seg.
 const HINDRING_KRYMP_PX = 4
+
+// Høydetall på navnløse topper. BARE `<text>`: på en NAVNGITT topp ligger
+// høyden som en inline `<tspan data-label="peak-ele">` inni navne-teksten, og
+// den teksten eies allerede av navn-LOD-en — skjules navnet, følger tallet med.
+// Kontur-tallene er bevisst utenfor: de er små, røde og står langs kurvene, og
+// et hull i ekvidistanse-lesingen er et annet problem enn det som ble meldt.
+const HOYDE_SELEKTOR = 'text[data-label="peak-ele"]'
 
 // Klassegruppe for tetthets-budsjettet: topp/vann/område er PRIORITET (utenom
 // rutenett-kvoten, men kollisjonssjekkes); bebyggelse/hytte er kvote-styrt.
@@ -105,6 +123,9 @@ export function useNavnLod({
   // Re-måles ved kart-load, tekst-skala- og font-bytte (alle endrer boks-bredden).
   const labelBoxCache = new Map()
   function measureLabelBoxes() {
+    hoyder = null   // samme livssyklus: kart-load, tekst-skala, font-bytte.
+                    // Står FØR idx-guarden — et tomt søkeindeks-svar skal ikke
+                    // etterlate høydetallene målt mot forrige kart.
     const idx = searchIndex()
     if (!idx) return
     labelBoxCache.clear()
@@ -117,6 +138,30 @@ export function useNavnLod({
         bw = Math.max(8, (e.name?.length || 4) * 4); bh = 6
       }
       labelBoxCache.set(e.el, { bw, bh })
+    }
+  }
+
+  // Høydetallene måles én gang per kart, som navnene. Posisjonen leses med
+  // `elementPosition` — den samme funksjonen søkeindeksen bruker, så tallet og
+  // et navn på samme topp havner i nøyaktig samme punkt. For en <text> er den
+  // rene attributt-lesing pluss forfedrenes translate; ingen layout.
+  let hoyder = null
+  let hoyderSvg = null
+  function maalHoyder(svg) {
+    hoyder = []
+    hoyderSvg = svg
+    for (const el of svg.querySelectorAll(HOYDE_SELEKTOR)) {
+      if (el.closest('#ghost-tiles')) continue   // naboflisene har ingen navn-LOD
+      const pos = elementPosition(svg, el)
+      if (!pos) continue
+      let bw = 0, bh = 0
+      try { const bb = el.getBBox(); bw = bb.width; bh = bb.height } catch { /* skjult → 0 */ }
+      if (!(bw > 0) && !(bh > 0)) {
+        // Skjult ved måletid (vår egen klasse er display:none). Et høydetall er
+        // 2–4 sifre, så estimatet er nær nok til en hindrings-test.
+        bw = Math.max(6, (el.textContent || '').trim().length * 4); bh = 6
+      }
+      hoyder.push({ el, x: pos.x, y: pos.y, bw, bh })
     }
   }
 
@@ -167,6 +212,7 @@ export function useNavnLod({
     const wrap = wrapperRef.value?.getBoundingClientRect()
     if (!wrap || !wrap.width || !wrap.height) return
     if (!labelBoxCache.size) measureLabelBoxes()
+    if (!hoyder || hoyderSvg !== svg) maalHoyder(svg)
 
     // Forward-transform viewBox-koordinat → wrapper-lokal skjermpiksel, samme
     // matte som usePinchZoom.panTo: SVG-en fyller wrapperen med
@@ -216,6 +262,8 @@ export function useNavnLod({
       })
     }
 
+    const hindringer = hindringsBokser(wrap)
+
     const visible = declutter(candidates, {
       cellPx: nameCellPx.value,
       K: nameK.value,
@@ -223,8 +271,28 @@ export function useNavnLod({
       minZoomOf: nameMinZoomOf,
       prevShown: prevShownNames,
       maxVisible: nameBudgetForZoom(),   // globalt tak (Utvikler-budsjett)
-      hindringer: hindringsBokser(wrap),
+      hindringer,
     })
+
+    // Høydetallene: ingen kø, ingen kvote — bare hindrings-testen. Uten
+    // hindringer er svaret nei for alle, og da skal klassen likevel FJERNES:
+    // raden kan nettopp ha blitt lagt sammen, og et tall som ble stående skjult
+    // ville vært et hull i kartet ingen mekanisme lenger eier.
+    for (const hp of hoyder) {
+      const px = offX + hp.x * fit
+      const py = offY + hp.y * fit
+      const sx = tx + s * (px * cos - py * sin)
+      const sy = ty + s * (px * sin + py * cos)
+      const hw = (hp.bw * px2) / 2
+      const hh = (hp.bh * px2) / 2
+      const halfW = Math.abs(hw * cos) + Math.abs(hh * sin)
+      const halfH = Math.abs(hw * sin) + Math.abs(hh * cos)
+      const under = hindringer.length && underHindring(
+        { minX: sx - halfW, minY: sy - halfH, maxX: sx + halfW, maxY: sy + halfH },
+        hindringer,
+      )
+      hp.el.classList.toggle('name-lod-off', !!under)
+    }
 
     for (const c of candidates) {
       c.el.classList.toggle('name-lod-off', !visible.has(c.id))

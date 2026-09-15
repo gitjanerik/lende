@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { declutter, hindringsBoks, makeMinZoomOf } from './labelDeclutter.js'
+import { declutter, hindringsBoks, makeMinZoomOf, underHindring } from './labelDeclutter.js'
 
 // Hjelper: kandidat med fornuftige defaults.
 const cand = (o) => ({
@@ -237,5 +237,39 @@ describe('declutter — stickiness (ingen «kommer og går»)', () => {
     const vis = declutter(cs, { ...allVisibleZoom, cellPx: 240, K: 1, prevShown: new Set(['s1']) })
     expect(vis.has('s1')).toBe(true)
     expect(vis.has('ny')).toBe(false)   // cellen er allerede «brukt opp» av sticky
+  })
+})
+
+// Høydetallene på navnløse topper eies ikke av declutteren — de har verken
+// score eller kvote — så hindrings-testen deres er denne ene funksjonen.
+describe('underHindring — høydetall mot overlegg', () => {
+  const rad = [{ minX: 80, minY: 0, maxX: 280, maxY: 60 }]
+
+  it('sier ja når boksene overlapper', () => {
+    expect(underHindring({ minX: 100, minY: 40, maxX: 130, maxY: 55 }, rad)).toBe(true)
+  })
+
+  it('sier nei når tallet står under raden på skjermen', () => {
+    expect(underHindring({ minX: 100, minY: 80, maxX: 130, maxY: 95 }, rad)).toBe(false)
+  })
+
+  it('sier nei når tallet står ved siden av raden', () => {
+    expect(underHindring({ minX: 10, minY: 20, maxX: 40, maxY: 35 }, rad)).toBe(false)
+  })
+
+  it('teller berøring i kanten som utenfor — en boks som så vidt tangerer dekker ingenting', () => {
+    expect(underHindring({ minX: 280, minY: 20, maxX: 310, maxY: 35 }, rad)).toBe(false)
+    expect(underHindring({ minX: 100, minY: 60, maxX: 130, maxY: 75 }, rad)).toBe(false)
+  })
+
+  it('uten hindringer er svaret alltid nei', () => {
+    const b = { minX: 100, minY: 40, maxX: 130, maxY: 55 }
+    expect(underHindring(b, [])).toBe(false)
+    expect(underHindring(b, null)).toBe(false)
+    expect(underHindring(null, rad)).toBe(false)
+  })
+
+  it('hopper over null-hindringer i stedet for å kaste', () => {
+    expect(underHindring({ minX: 100, minY: 40, maxX: 130, maxY: 55 }, [null, ...rad])).toBe(true)
   })
 })
