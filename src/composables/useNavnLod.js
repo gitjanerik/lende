@@ -33,9 +33,22 @@
 //      har verken score, rutenett-kvote eller hysterese å bli målt mot, og å
 //      gi det en ville endret hvilke NAVN som får plass. Spørsmålet for dem er
 //      bare «står den under overlegget?».
+//   6. OG DEN VEIEN BÆRER TRE TING TIL FRA v7.8.25: veinummer-skilt,
+//      parkerings-P og holdeplass-symboler. Cellene i raden er
+//      HALVGJENNOMSIKTIGE, så et hvitt skilt og et blått P leses tvers gjennom
+//      knappeteksten — meldt fra felt med skjermbilde. De har verken navn eller
+//      indeks-rad, altså nøyaktig høydetallets situasjon. BYGG (ISOM 521, ikke
+//      bymassen) er med i samme pass, men med en STRENGERE regel: de merges av
+//      `mapBuilder` til én path per rutenett-celle, så de må være HELT dekket —
+//      se `heltUnderHindring`. Konsekvensen er ærlig og verdt å kjenne: på et
+//      kart der bygningene er merget, viker de først når hele cella ligger under
+//      raden, altså i praksis sjelden. Skal de vike hus for hus, må `mapBuilder`
+//      dele dem finere — det er en endring i BYGGET og treffer bare nye kart.
 
 import { ref, watch, onUnmounted } from 'vue'
-import { declutter, hindringsBoks, makeMinZoomOf, underHindring } from '../lib/labelDeclutter.js'
+import {
+  declutter, heltUnderHindring, hindringsBoks, makeMinZoomOf, underHindring,
+} from '../lib/labelDeclutter.js'
 import { elementPosition } from './useMapSearch.js'
 
 const DEBOUNCE_MS = 120
@@ -53,7 +66,59 @@ const HINDRING_KRYMP_PX = 4
 // den teksten eies allerede av navn-LOD-en — skjules navnet, følger tallet med.
 // Kontur-tallene er bevisst utenfor: de er små, røde og står langs kurvene, og
 // et hull i ekvidistanse-lesingen er et annet problem enn det som ble meldt.
-const HOYDE_SELEKTOR = 'text[data-label="peak-ele"]'
+// TING SOM IKKE ER NAVN, MEN SOM VIKER SOM OM DE VAR DET (v7.8.25).
+//
+// Høydetallene var den første (v7.8.24), og de tre neste kom av samme melding
+// fra felt med et skjermbilde: raden er en RAMME med halvgjennomsiktige celler,
+// så et hvitt veinummer-skilt, et blått P og en holdeplass leses TVERS GJENNOM
+// knappeteksten. De har det høydetallet har — ingen plass i søkeindeksen, altså
+// verken score, budsjett eller rutenett-kvote — og spørsmålet for dem er bare
+// «står den under overlegget?».
+//
+// `helt` skiller de to reglene, og skillet er GEOMETRIENS: se `heltUnderHindring`
+// i labelDeclutter.js for hvorfor bygningene må ha full dekning og punkt-
+// symbolene ikke skal ha det.
+//
+// BYGG ER 521 OG IKKE 522: «tett bebyggelse» er bymassens egen flate, og den er
+// bakgrunn i samme forstand som skogen — tar man den bort under raden, får man
+// et hull i arket i stedet for et renere overlegg. (På kart bygget før v9.1.31
+// ligger 522 under `data-layer="bygning"`, så koden i selektoren er det som
+// skiller dem der også.)
+// ET SYMBOL SOM ER SKJULT VED MÅLETID HAR INGEN BOKS, og da må vi gjette.
+// Målingen skjer én gang per kart, mens BÅDE våre egne klasser og Kartlag-fanas
+// lag-brytere kan ha et lag slått av akkurat da — så «ingen boks» betyr ikke
+// «ingenting her». Punkt-symbolene er alle ~6–7 mm i katalogen, og 7 mm er
+// 26 user-units (mm er en CSS-absolutt enhet; se enhets-merknaden i CLAUDE.md).
+// Bygningene har ingenting å gjette fra og hoppes over i stedet: en gjettet
+// boks der ville med full-dekning-regelen skjult en hel rutenett-celle.
+const SYMBOL_RESERVE_M = 26
+
+// Punkt-symbolenes egen translate i `transform`, med mellomrom eller komma. Samme
+// form som `TRANSLATE_RE` i useMapSearch, men den er ikke eksportert — og her
+// leses BARE elementets eget attributt, ikke forfedrenes kjede, fordi lag-
+// gruppene over dem ikke har transform.
+const EGEN_TRANSLATE_RE = /translate\s*\(\s*([-0-9.eE]+)[\s,]+([-0-9.eE]+)\s*\)/
+function egenTranslate(el) {
+  const m = EGEN_TRANSLATE_RE.exec(el.getAttribute('transform') || '')
+  if (!m) return null
+  const x = parseFloat(m[1]); const y = parseFloat(m[2])
+  return (Number.isFinite(x) && Number.isFinite(y)) ? { x, y } : null
+}
+
+const SKJUL_VELGERE = [
+  // BARE `<text>`: på en NAVNGITT topp ligger høyden som en inline
+  // `<tspan data-label="peak-ele">` inni navne-teksten, og den teksten eies
+  // allerede av navn-LOD-en — skjules navnet, følger tallet med. Kontur-tallene
+  // er bevisst utenfor: de er små, røde og står langs kurvene, og et hull i
+  // ekvidistanse-lesingen er et annet problem enn det som ble meldt.
+  { sel: 'text[data-label="peak-ele"]', helt: false, reserve: null },
+  // Skiltet er `<g transform>` med rect + tekst; skjuler man bare teksten står
+  // det hvite rektangelet igjen og er verre enn før.
+  { sel: 'g[data-layer="veinummer"] > g', helt: false, reserve: SYMBOL_RESERVE_M },
+  { sel: 'g[data-layer="parkering"] > g', helt: false, reserve: SYMBOL_RESERVE_M },
+  { sel: 'g[data-layer="holdeplass"] > g', helt: false, reserve: SYMBOL_RESERVE_M },
+  { sel: 'g[data-layer="bygning"][data-iso="521"] > path', helt: true, reserve: null },
+]
 
 // Klassegruppe for tetthets-budsjettet: topp/vann/område er PRIORITET (utenom
 // rutenett-kvoten, men kollisjonssjekkes); bebyggelse/hytte er kvote-styrt.
@@ -123,9 +188,9 @@ export function useNavnLod({
   // Re-måles ved kart-load, tekst-skala- og font-bytte (alle endrer boks-bredden).
   const labelBoxCache = new Map()
   function measureLabelBoxes() {
-    hoyder = null   // samme livssyklus: kart-load, tekst-skala, font-bytte.
-                    // Står FØR idx-guarden — et tomt søkeindeks-svar skal ikke
-                    // etterlate høydetallene målt mot forrige kart.
+    skjulbare = null  // samme livssyklus: kart-load, tekst-skala, font-bytte.
+                      // Står FØR idx-guarden — et tomt søkeindeks-svar skal
+                      // ikke etterlate dem målt mot forrige kart.
     const idx = searchIndex()
     if (!idx) return
     labelBoxCache.clear()
@@ -141,27 +206,39 @@ export function useNavnLod({
     }
   }
 
-  // Høydetallene måles én gang per kart, som navnene. Posisjonen leses med
-  // `elementPosition` — den samme funksjonen søkeindeksen bruker, så tallet og
+  // De måles én gang per kart, som navnene. Posisjonen leses med
+  // `elementPosition` — den samme funksjonen søkeindeksen bruker, så et tall og
   // et navn på samme topp havner i nøyaktig samme punkt. For en <text> er den
   // rene attributt-lesing pluss forfedrenes translate; ingen layout.
-  let hoyder = null
-  let hoyderSvg = null
-  function maalHoyder(svg) {
-    hoyder = []
-    hoyderSvg = svg
-    for (const el of svg.querySelectorAll(HOYDE_SELEKTOR)) {
-      if (el.closest('#ghost-tiles')) continue   // naboflisene har ingen navn-LOD
-      const pos = elementPosition(svg, el)
-      if (!pos) continue
-      let bw = 0, bh = 0
-      try { const bb = el.getBBox(); bw = bb.width; bh = bb.height } catch { /* skjult → 0 */ }
-      if (!(bw > 0) && !(bh > 0)) {
-        // Skjult ved måletid (vår egen klasse er display:none). Et høydetall er
-        // 2–4 sifre, så estimatet er nær nok til en hindrings-test.
-        bw = Math.max(6, (el.textContent || '').trim().length * 4); bh = 6
+  let skjulbare = null
+  let skjulbareSvg = null
+  function maalSkjulbare(svg) {
+    skjulbare = []
+    skjulbareSvg = svg
+    for (const { sel, helt, reserve } of SKJUL_VELGERE) {
+      for (const el of svg.querySelectorAll(sel)) {
+        if (el.closest('#ghost-tiles')) continue   // naboflisene har ingen navn-LOD
+        // `elementPosition` gir null for en DEGENERERT boks, og et lag som er
+        // slått av i Kartlag-fana er nettopp det ved måletid. Punkt-symbolene
+        // bærer hele posisjonen sin i sin EGEN transform-translate, så
+        // for dem kan den leses uten layout i det hele tatt — og da overlever
+        // målingen at laget var av akkurat da kartet ble lastet.
+        const pos = elementPosition(svg, el)
+          ?? (reserve ? egenTranslate(el) : null)
+        if (!pos) continue
+        let bw = 0, bh = 0
+        try { const bb = el.getBBox(); bw = bb.width; bh = bb.height } catch { /* skjult → 0 */ }
+        if (!(bw > 0) && !(bh > 0)) {
+          // Skjult ved måletid. Et høydetall er 2–4 sifre, så et estimat fra
+          // teksten er nær nok til en hindrings-test; et symbol får sin
+          // katalog-størrelse, og et bygg hoppes over (se SYMBOL_RESERVE_M).
+          const txt = (el.textContent || '').trim()
+          if (txt) { bw = Math.max(6, txt.length * 4); bh = 6 }
+          else if (reserve) { bw = reserve; bh = reserve }
+          else continue
+        }
+        skjulbare.push({ el, x: pos.x, y: pos.y, bw, bh, helt })
       }
-      hoyder.push({ el, x: pos.x, y: pos.y, bw, bh })
     }
   }
 
@@ -212,7 +289,7 @@ export function useNavnLod({
     const wrap = wrapperRef.value?.getBoundingClientRect()
     if (!wrap || !wrap.width || !wrap.height) return
     if (!labelBoxCache.size) measureLabelBoxes()
-    if (!hoyder || hoyderSvg !== svg) maalHoyder(svg)
+    if (!skjulbare || skjulbareSvg !== svg) maalSkjulbare(svg)
 
     // Forward-transform viewBox-koordinat → wrapper-lokal skjermpiksel, samme
     // matte som usePinchZoom.panTo: SVG-en fyller wrapperen med
@@ -274,11 +351,12 @@ export function useNavnLod({
       hindringer,
     })
 
-    // Høydetallene: ingen kø, ingen kvote — bare hindrings-testen. Uten
-    // hindringer er svaret nei for alle, og da skal klassen likevel FJERNES:
-    // raden kan nettopp ha blitt lagt sammen, og et tall som ble stående skjult
-    // ville vært et hull i kartet ingen mekanisme lenger eier.
-    for (const hp of hoyder) {
+    // Høydetall, skilt, symboler og bygg: ingen kø, ingen kvote — bare
+    // hindrings-testen. Uten hindringer er svaret nei for alle, og da skal
+    // klassen likevel FJERNES: raden kan nettopp ha blitt lagt sammen, og et
+    // element som ble stående skjult ville vært et hull i kartet ingen
+    // mekanisme lenger eier.
+    for (const hp of skjulbare) {
       const px = offX + hp.x * fit
       const py = offY + hp.y * fit
       const sx = tx + s * (px * cos - py * sin)
@@ -287,10 +365,9 @@ export function useNavnLod({
       const hh = (hp.bh * px2) / 2
       const halfW = Math.abs(hw * cos) + Math.abs(hh * sin)
       const halfH = Math.abs(hw * sin) + Math.abs(hh * cos)
-      const under = hindringer.length && underHindring(
-        { minX: sx - halfW, minY: sy - halfH, maxX: sx + halfW, maxY: sy + halfH },
-        hindringer,
-      )
+      const boks = { minX: sx - halfW, minY: sy - halfH, maxX: sx + halfW, maxY: sy + halfH }
+      const test = hp.helt ? heltUnderHindring : underHindring
+      const under = hindringer.length && test(boks, hindringer)
       hp.el.classList.toggle('name-lod-off', !!under)
     }
 
@@ -326,5 +403,9 @@ export function useNavnLod({
 }
 
 // Eksponert for test: budsjett-gruppering og score-fallback er de to stedene en
-// endring i katalogen kan gi stille feil valg av navn.
-export const _internals = { nameGroup, nameScore, PRIORITY_NAME_KINDS }
+// endring i katalogen kan gi stille feil valg av navn — og `SKJUL_VELGERE` er
+// et tredje, av en annen grunn: en velger som slutter å matche det `mapBuilder`
+// emitterer feiler STILLE. Ingenting kaster, ingenting ser rart ut, symbolet blir
+// bare stående under raden igjen. Testen bygger derfor et ekte ark og spør om
+// velgerne treffer.
+export const _internals = { nameGroup, nameScore, PRIORITY_NAME_KINDS, SKJUL_VELGERE }
