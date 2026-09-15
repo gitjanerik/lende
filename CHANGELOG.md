@@ -1,3 +1,27 @@
+## 2026-09-15 — v7.8.23: Snarvei-raden skyver stedsnavn unna, og skiva er ett knepp tettere
+
+Eieren meldte fra felt, med skjermbilder fra Søndre Krokvannet: et stort mørkt
+stedsnavn som glir inn under snarvei-raden slår knappeteksten nesten ut. To grep
+mot to ulike problemer, og ingen av dem er en uskarphet — en `backdrop-filter`
+eller en `blur` ville gjort uttrykket tyngre enn begge feilene til sammen, og de
+ble forkastet. Det STORE svarte er tatt der det hører hjemme, i kartet: radens
+boks måles i skjermrom og sås inn i navne-declutterens R-tre som en opptatt
+flate, så et stedsnavn ikke plasseres under raden i det hele tatt. Det koster
+null per navn — kollisjonen spørres allerede én gang per kandidat — og gjelder
+BÅDE ferske og sticky navn, ellers ville hysteresen holdt fast nettopp det
+navnet som sto der da raden ble foldet ut. Bakgrunnsstøyen som blir igjen —
+høydekurver og skravur — tas av at den lette skiva går fra 0,55 til 0,68.
+Prisen er dokumentert: navn under raden forsvinner framfor å flytte seg, de er
+fortsatt søkbare, og et valgt søketreff står over hele budsjettet og kan derfor
+fortsatt havne der. En ResizeObserver mater boksen på nytt når raden endrer
+størrelse (draget, tekstskalaen, sorterings-modus), og en watch i MapView fanger
+at den forsvinner helt ut av DOM-en i en modus man går inn i uten å panorere.
+Røyk-sjekken nøytraliserer `display: none` for å kunne måle i det hele tatt, og
+kaster om den ikke finner navn i radens felt — «null synlige» ville vært en
+gratis grønn.
+
+---
+
 ## 2026-09-15 — v7.8.22: Snarvei-pilla knepet inn — grunnere bule, kortere bunn-stripe
 
 Eieren så ramma i felt og ba om noen piksler tilbake: raden var raus med lufta

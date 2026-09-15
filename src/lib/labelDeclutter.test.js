@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { declutter, makeMinZoomOf } from './labelDeclutter.js'
+import { declutter, hindringsBoks, makeMinZoomOf } from './labelDeclutter.js'
 
 // Hjelper: kandidat med fornuftige defaults.
 const cand = (o) => ({
@@ -25,6 +25,68 @@ describe('declutter — kollisjon', () => {
     const vis = declutter([a, b], { ...allVisibleZoom, cellPx: 9999, K: 99 })
     expect(vis.has('A')).toBe(true)
     expect(vis.has('B')).toBe(true)
+  })
+})
+
+describe('declutter — hindringer (overlegg på arket)', () => {
+  // Snarvei-raden ligger oppå arket, og et stort stedsnavn under den slår
+  // knappeteksten ut (v7.8.23). Hindringen sås i R-treet før alt annet.
+  const rad = { minX: 80, minY: 0, maxX: 280, maxY: 60 }
+
+  it('plasserer ikke et navn under en hindring', () => {
+    const c = cand({ id: 'Søndre Krokvannet', score: 90, sx: 180, sy: 30 })
+    expect(declutter([c], { ...allVisibleZoom }).has('Søndre Krokvannet')).toBe(true)
+    expect(declutter([c], { ...allVisibleZoom, hindringer: [rad] })
+      .has('Søndre Krokvannet')).toBe(false)
+  })
+
+  it('rører ikke navn utenfor hindringen', () => {
+    const c = cand({ id: 'Fri', score: 90, sx: 500, sy: 400 })
+    expect(declutter([c], { ...allVisibleZoom, hindringer: [rad] }).has('Fri')).toBe(true)
+  })
+
+  it('gjelder også STICKY navn — hysteresen skal ikke holde et navn fast der', () => {
+    // Raden foldes ut over et navn som allerede sto der. Uten dette ville
+    // sticky-passet plassert det først og hindringen aldri bitt.
+    const c = cand({ id: 'Morterudkoia', score: 90, sx: 180, sy: 30 })
+    const vis = declutter([c], {
+      ...allVisibleZoom, hindringer: [rad], prevShown: new Set(['Morterudkoia']),
+    })
+    expect(vis.has('Morterudkoia')).toBe(false)
+  })
+
+  it('lar et SØKETREFF stå — forced går over hele budsjettet', () => {
+    // Dokumentert pris: et valgt treff kan fortsatt havne under raden. Endres
+    // det, er det et bevisst valg og ikke en forglemmelse.
+    const c = cand({ id: 'Treff', score: 10, sx: 180, sy: 30, forced: true })
+    expect(declutter([c], { ...allVisibleZoom, hindringer: [rad] }).has('Treff')).toBe(true)
+  })
+
+  it('ignorerer tomme og ugyldige bokser', () => {
+    const c = cand({ id: 'A', score: 90, sx: 180, sy: 30 })
+    const tulle = [null, { minX: 0, minY: 0, maxX: 0, maxY: 0 },
+      { minX: 300, minY: 300, maxX: 100, maxY: 100 }]
+    expect(declutter([c], { ...allVisibleZoom, hindringer: tulle }).has('A')).toBe(true)
+  })
+})
+
+describe('hindringsBoks — overleggets boks i wrapper-rom', () => {
+  const wrap = { left: 20, top: 100 }
+
+  it('trekker fra kartflatas origo', () => {
+    expect(hindringsBoks({ left: 40, top: 160, right: 300, bottom: 220 }, wrap))
+      .toEqual({ minX: 20, minY: 60, maxX: 280, maxY: 120 })
+  })
+
+  it('krymper inn mot midten, ikke ut', () => {
+    const b = hindringsBoks({ left: 40, top: 160, right: 300, bottom: 220 }, wrap, 4)
+    expect(b).toEqual({ minX: 24, minY: 64, maxX: 276, maxY: 116 })
+  })
+
+  it('gir null for en boks krympen spiser opp, og for manglende input', () => {
+    expect(hindringsBoks({ left: 0, top: 0, right: 6, bottom: 40 }, wrap, 4)).toBe(null)
+    expect(hindringsBoks(null, wrap)).toBe(null)
+    expect(hindringsBoks({ left: 0, top: 0, right: 9, bottom: 9 }, null)).toBe(null)
   })
 })
 

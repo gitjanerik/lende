@@ -1448,6 +1448,13 @@ const {
   zoomNearThreshold, zoomedInThreshold: ZOOMED_IN_THRESHOLD,
   nameBudgetFar, nameBudgetMid, nameBudgetNear,
   nameCellPx, nameK,
+  // SNARVEI-RADEN ER EN HINDRING FOR NAVN (v7.8.23). Den er arkets største
+  // overlegg, og et stort mørkt stedsnavn under den slår knappeteksten ut.
+  // Boksen er PILLA og ikke innpakningen rundt: innpakningen er full bredde med
+  // `justify-center`, så den ville ryddet hele toppen av arket. Se punkt 4 i
+  // useNavnLod. Står raden i en modus som skjuler den, finner selektoren
+  // ingenting, og hindringen forsvinner av seg selv.
+  hindringSelektorer: ['.snarvei-pille'],
 })
 
 // Viewport-culling (skjul vektorer utenfor utsnittet) — flyttet til
@@ -1683,6 +1690,20 @@ const {
   currentTheme, visibleLayers, userPos, maxTiles, refreshAutoTileCount,
   closeDrawer, closeSearch,
 })
+
+// SNARVEI-RADEN KOM ELLER GIKK → navnene under den skal vike eller komme
+// tilbake (v7.8.23). ResizeObserveren i useNavnLod ser at pilla ENDRER
+// størrelse — draget, tekstskalaen, sorterings-modus — men den ser ikke at
+// elementet forsvinner ut av DOM-en, og en modus man går inn i uten å panorere
+// ville da beholdt et hull i navnene der raden nettopp sto. Watchen står her og
+// ikke i composablen fordi kildene destruktureres fra composables LENGER NED i
+// fila; en watch på dem inne i useNavnLod-kallet ville lest dem i TDZ-en.
+watch(
+  () => !sti.active.value && !measureMode.value && !searchOpen.value
+        && !annot.isAnnotateMode.value && !buildingOnTheFly.value
+        && !fillingInDetails.value && !highlightedFeature.value,
+  scheduleNameLOD,
+)
 
 // Mosaikken endret seg (ny flis bygd / scroll-tilbake) → re-tell hull (C) så
 // «Reparer»-banneret dukker opp/forsvinner i takt. Kanthåndtakene re-ankrer seg
