@@ -154,7 +154,8 @@ async function onInstallClick() {
       <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Skjermen</h3>
       <p class="text-[13px] leading-relaxed text-ink-2">
         Lende kan brukes både <strong class="text-ink">stående og liggende</strong>,
-        også som installert app. Kartarket er kvadratisk (2 × 2 km), så liggende
+        også som installert app. Kartarket er kvadratisk som standard — 8 × 8 km,
+        og du kan velge alt fra 2 til 16 km i Format-fana — så liggende
         gir deg mer av det i bredden — nyttig på sykkelstyret, i bilholderen, i
         3D-visningen og på høydeprofilen. Stående gir mest plass til lange
         infokort og til tastaturet når du søker.
@@ -201,10 +202,36 @@ async function onInstallClick() {
         nede til høyre</strong> deg tilbake hit: arket zoomes ut og legges med
         nord opp igjen — og «opp» er sann nord, ikke rutenettets.
       </p>
+
+      <!-- Spørsmålet står HER fordi det er avsnittet over som reiser det: har
+           man nettopp lest at «Lende gjør ikke det», er den nærmeste tanken at
+           telefonen jo alltid har hatt nord opp. Svaret er at appene bruker en
+           annen projeksjon, ikke at de har løst noe — og det er verdt å si før
+           tallene kommer, ellers leses de som en kuriositet. -->
       <p class="text-[13px] leading-relaxed text-ink-2">
-        Det er en ren rotasjon av hele arket — ikke en forvrengning. Over 2 × 2 km
-        er konvergensen praktisk talt konstant, så ingen koordinat er rørt; kartet
-        er bare snudd de få gradene det skal.
+        <strong class="text-ink">«Men har ikke alle kartapper nord opp?»</strong>
+        Jo — og de slipper unna dette fordi de bruker en <em>annen projeksjon</em>,
+        ikke fordi de har løst noe. Google Maps, Apple Maps og alt annet som ruller
+        fliser bruker <em>Web Mercator</em>, der hver meridian er en rett, loddrett
+        linje. Rutenettets nord <em>er</em> sann nord, overalt, så avviket kan ikke
+        oppstå. Prisen er at målestokken vokser med breddegraden: et slikt kart kan
+        ikke skrives ut i én målestokk, og areal blir mer galt jo lenger nord du er.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        Lende bruker UTM fordi et turkart skal være et <em>ark med fast
+        målestokk</em> — samme grunn som Kartverket og o-kartene. Der krummer
+        meridianene, og da finnes konvergensen.
+        <strong class="text-ink">Det er altså projeksjonen som lager skjevheten,
+        ikke papiret</strong> — og et norsk papirturkart har den i fullt monn, for
+        det trykkes med <em>rutenettets</em> nord opp: i Finnmark peker «opp» på
+        arket nesten 20° fra sann nord. Lende gir deg papirkartets geometri uten
+        papirkartets skjevhet.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        Det er en ren rotasjon av hele arket — ikke en forvrengning. Over ett ark
+        er konvergensen praktisk talt konstant — selv på det største, 16 × 16 km,
+        varierer den under 0,4° fra kant til kant — så ingen koordinat er rørt;
+        kartet er bare snudd de få gradene det skal.
       </p>
       <p class="text-[13px] leading-relaxed text-ink-2">
         Hvor mye det utgjør, avhenger av hvor du står:
