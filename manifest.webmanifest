@@ -1,0 +1,88 @@
+{
+  "name": "Så i lende",
+  "short_name": "Så i lende",
+  "description": "Turkart og ruteplanlegging — ISOM-inspirerte sportskart fra ekte norske kartdata",
+  "lang": "no",
+  "dir": "ltr",
+  "start_url": "/lende/",
+  "scope": "/lende/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1b1e24",
+  "theme_color": "#0e1116",
+  "categories": [
+    "navigation",
+    "sports",
+    "travel"
+  ],
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Lag turkart",
+      "short_name": "Turkart",
+      "description": "ISOM-symbolisert kart fra Kartverket og OSM",
+      "url": "/lende/nytt",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Planlegg rute",
+      "short_name": "Ruteplanlegger",
+      "description": "Ruteplanlegger for grus og sti",
+      "url": "/lende/rute",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "/lende/",
+      "accept": {
+        "application/gzip": [
+          ".lendekart"
+        ]
+      },
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ],
+      "launch_type": "single-client"
+    }
+  ]
+}

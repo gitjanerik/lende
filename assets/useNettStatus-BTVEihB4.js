@@ -1,0 +1,36 @@
+import{G as e,K as t,W as n,X as r,k as i,p as a}from"./_plugin-vue_export-helper-CAeij1wr.js";import{f as o,o as s}from"./utm-BL8vruiP.js";function c(e,t){if(!Number.isFinite(e)||e<=0||!Number.isFinite(t))return 14;let n=Math.log2(156543.03392*Math.cos(t*Math.PI/180)/e);return Number.isFinite(n)?Math.min(16,Math.max(4,Math.round(n))):14}function l({lat:e,lon:t,zoom:n=14}){return![e,t,n].every(Number.isFinite)||Math.abs(e)>90||Math.abs(t)>180?null:`https://ut.no/kart#${Math.min(16,Math.max(4,Math.round(n)))}/${e.toFixed(5)}/${t.toFixed(5)}`}function u(e,t){return`https://www.google.com/maps?q=${e.toFixed(6)},${t.toFixed(6)}`}function d(e,t){return`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${e.toFixed(6)},${t.toFixed(6)}`}function f({lat:e,lon:t,zoom:n=14}){if(![e,t,n].every(Number.isFinite)||Math.abs(e)>90||Math.abs(t)>180)return null;let r=Math.min(16,Math.max(3,Math.round(n))),{e:i,n:a}=o(e,t);return`https://vegkart.atlas.vegvesen.no/#kartlag:geodata/@${Math.round(i)},${Math.round(a)},${r}`}function p(e){return e?`https://www.kulturminnesok.no/kart/?id=${encodeURIComponent(e)}`:null}function m(e){return String(e).replace(/[&<>"']/g,e=>({"&":`&amp;`,"<":`&lt;`,">":`&gt;`,'"':`&quot;`,"'":`&apos;`})[e])}function h(e,t,n=`Lende tur`){if(!e?.points?.length)return``;let r=new Date(e.opprettet??Date.now()).toISOString(),i=m(e.navn||`Tur `+new Date(e.opprettet??Date.now()).toLocaleString(`no-NO`)),a=e.points.map(e=>{let n=s(e.x,e.y,t),r=new Date(e.t).toISOString(),i=e.accM==null?``:`\n        <hdop>${(e.accM/5).toFixed(1)}</hdop>`;return`      <trkpt lat="${n.lat.toFixed(7)}" lon="${n.lon.toFixed(7)}">
+        <time>${r}</time>${i}
+      </trkpt>`}).join(`
+`);return`<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Lende"
+     xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>${m(n)}</name>
+    <time>${r}</time>
+  </metadata>
+  <trk>
+    <name>${i}</name>
+    <trkseg>
+${a}
+    </trkseg>
+  </trk>
+</gpx>
+`}function g(e){if(!e?.points?.length)return``;let t=new Date(e.opprettet??Date.now()).toISOString(),n=m(e.navn||`Grusrute`);return`<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Lende Ruteplanlegger"
+     xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>${n}</name>
+    <time>${t}</time>
+  </metadata>
+  <rte>
+    <name>${n}</name>
+${e.points.map(([e,t,n])=>{let r=Number.isFinite(n)?`\n      <ele>${n.toFixed(1)}</ele>`:``;return`    <rtept lat="${t.toFixed(7)}" lon="${e.toFixed(7)}">${r}
+    </rtept>`}).join(`
+`)}
+  </rte>
+</gpx>
+`}function _(e,t){let n=g(e);if(!n)return;let r=new Blob([n],{type:`application/gpx+xml`}),i=URL.createObjectURL(r),a=document.createElement(`a`);a.href=i,a.download=t??`${(e.navn||`grusrute`).replace(/[^a-z0-9æøå]+/gi,`-`).toLowerCase()}.gpx`,document.body.appendChild(a),a.click(),document.body.removeChild(a),setTimeout(()=>URL.revokeObjectURL(i),1e3)}function v(e,t,n,r){let i=h(e,t,n);if(!i)return;let a=new Blob([i],{type:`application/gpx+xml`}),o=URL.createObjectURL(a),s=document.createElement(`a`);s.href=o,s.download=r??`${(n||`tur`).replace(/[^a-z0-9æøå]+/gi,`-`).toLowerCase()}.gpx`,document.body.appendChild(s),s.click(),document.body.removeChild(s),setTimeout(()=>URL.revokeObjectURL(o),1e3)}function y(e){let t=e?.points;if(!t||t.length<2)return 0;let n=0;for(let e=1;e<t.length;e++){let r=t[e].x-t[e-1].x,i=t[e].y-t[e-1].y;n+=Math.hypot(r,i)}return n}function b(e){let t=e?.points;return!t||t.length<2?0:t[t.length-1].t-t[0].t}function x(e,t,n,r=.25){if(!n||n.length===0)return t;let i=n[0],a=1/0;for(let e of n){let n=Math.abs(t-e);n<a&&(a=n,i=e)}let o=e-i;if(o===0)return i;let s=o<0?-1:1,c=n.filter(e=>s<0?e<i:e>i).sort((e,t)=>s<0?t-e:e-t),l=i,u=i;for(let t of c){let n=u+s*r*Math.abs(t-u);if(!(s<0?e<=n:e>=n))break;l=t,u=t}return l}function S({expandedHeight:n=.45,minimizedPeek:r=28,maxHeight:o=null,maxTopGapPx:s=null,allowMinimize:c=!0,commitFraction:l=.25,springMs:u=220}={}){let d=t(0),f=t(!1),p=t(!1),m=t(!1),h=t(0),g=t(0),_=t(0),v=e({startY:0,startTranslate:0}),y=a(()=>_.value>0?-(_.value-g.value):0),b=a(()=>c?h.value:0),S=a(()=>{let e=[0];return _.value>0&&e.push(y.value),c&&e.push(h.value),e.sort((e,t)=>e-t)});function C(){let e=window.innerHeight||800;g.value=Math.max(r+100,e*n),h.value=g.value-r,_.value=s==null?o?Math.max(g.value,e*o):0:Math.max(g.value,e-s)}C(),window.addEventListener(`resize`,C,{passive:!0}),i(()=>window.removeEventListener(`resize`,C));let w=a(()=>h.value<=0?0:Math.max(0,Math.min(1,d.value/h.value))),T=a(()=>Math.max(0,g.value-d.value)),E=a(()=>m.value?.6:1),D=a(()=>({height:Math.max(r,g.value-d.value)+`px`,transition:m.value?`none`:`height ${u}ms cubic-bezier(0.2, 0.8, 0.2, 1)`}));function O(e){m.value=!0,v.startY=e.clientY??e.touches?.[0]?.clientY??0,v.startTranslate=d.value;try{e.currentTarget.setPointerCapture?.(e.pointerId)}catch{}e.preventDefault()}function k(e){if(!m.value)return;let t=(e.clientY??e.touches?.[0]?.clientY??0)-v.startY;d.value=Math.max(y.value,Math.min(b.value,v.startTranslate+t))}function A(){if(m.value){if(m.value=!1,Math.abs(d.value-v.startTranslate)<4){j(v.startTranslate);return}j(x(d.value,v.startTranslate,S.value,l))}}function j(e){d.value=e,f.value=c&&Math.abs(e-h.value)<1,p.value=_.value>0&&Math.abs(e-y.value)<1}function M(e){j(e?h.value:0)}function N(e){j(e&&_.value>0?y.value:0)}function P(e){let t=S.value;if(t.length<2)return!1;let n=0;for(let e=1;e<t.length;e++)Math.abs(t[e]-d.value)<Math.abs(t[n]-d.value)&&(n=e);let r=n+(e<0?-1:1);return r<0||r>=t.length?!1:(j(t[r]),!0)}function F(){d.value=0,f.value=!1,p.value=!1,m.value=!1}return{translateY:d,progress:w,isMinimized:f,isMaximized:p,isDragging:m,dragRangePx:h,expandedPx:g,minimizedPeek:r,visibleHeightPx:T,drawerHeightStyle:D,handleOpacity:E,onPointerDown:O,onPointerMove:k,onPointerUp:A,setMinimized:M,setMaximized:N,stegSnap:P,snapPoints:S,reset:F}}var C=e=>typeof e==`function`?e():r(e);function w(e,t={}){let{basePx:n=12,needPx:r=132,mapWidthPx:i=null,panelMode:o=null}=t,s=`calc(env(safe-area-inset-bottom, 0px) + ${n}px)`,c=a(()=>(C(e)||[]).filter(e=>e&&e.drawer&&!!C(e.open))),l=a(()=>{let e=C(i);return e?Math.max(0,(e-700)/2)>=r:!1}),u=a(()=>!!C(o)||l.value),d=a(()=>{let e=0;for(let t of c.value){let n=C(t.drawer.visibleHeightPx)||0;if(n>(C(t.drawer.minimizedPeek)||0)+8)return null;n>e&&(e=n)}return e}),f=a(()=>!u.value&&c.value.length>0&&d.value===null);return{bottomStyle:a(()=>{if(u.value)return s;let e=d.value;return e?`${e+n}px`:s}),hidden:f,roomy:l}}function T(){let e=t(navigator.onLine!==!1),r=()=>{e.value=navigator.onLine!==!1};return window.addEventListener(`online`,r),window.addEventListener(`offline`,r),n(()=>{window.removeEventListener(`online`,r),window.removeEventListener(`offline`,r)}),{erPaaNett:a(()=>e.value),erOffline:a(()=>!e.value)}}export{v as a,y as c,u as d,d as f,S as i,p as l,c as m,w as n,_ as o,l as p,x as r,b as s,T as t,f as u};
