@@ -2319,10 +2319,14 @@ const SJEKKER = [
             : null,
           // Ligger håndtaket i bula, altså UNDER pillas bunnlinje?
           handtakUnder: (b && p) ? Math.round(b.bottom - p.bottom) : null,
-          // Trykkflata, `::after` medregnet — WCAG 2.5.5.
+          // Trykkflata, `::after` medregnet — WCAG 2.5.5. Flata har `bottom: 0`
+          // og vokser BARE oppover, så høyden er knappen pluss `top`. Den sto
+          // med `* 2` til v7.8.22 og målte 66 der den ekte flata var 44: det
+          // var ren flaks at den ikke slapp gjennom en for grunn bule, for med
+          // dobbelttellingen kunne en 18 px knapp «bestå» på 36.
           trykkH: snar
             ? Math.round(snar.getBoundingClientRect().height
-                + Math.abs(parseFloat(getComputedStyle(snar, '::after').top || '0')) * 2)
+                + Math.abs(parseFloat(getComputedStyle(snar, '::after').top || '0')))
             : null,
           // Står det noe oppå bula? «Sorter snarveier» er den ene kandidaten,
           // og den lå der til margen kom på plass.

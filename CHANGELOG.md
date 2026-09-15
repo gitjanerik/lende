@@ -1,3 +1,19 @@
+## 2026-09-15 — v7.8.22: Snarvei-pilla knepet inn — grunnere bule, kortere bunn-stripe
+
+Eieren så ramma i felt og ba om noen piksler tilbake: raden var raus med lufta
+under knappene, og den konkave bula hang dypere enn den trengte. Bunn-stripa er
+13 → 9 px, bula 76 × 22 → 68 × 18 px, og bulas to radier følger med så
+`buleHjorne + overgang` fortsatt er nøyaktig `buleDybde` (11 + 7) — ellers får
+S-en et rett stykke midt i svingen. Trykkflata er IKKE knepet inn med formen:
+den var «to ganger bula», altså et UU-mål som fulgte et rent estetisk tall, og
+ville stille falt fra 44 til 36 px. Den leses nå av `--trykk-opp`, som er
+avstanden opp til 44 regnet av bulas faktiske dybde. Røyktestens måling av
+samme flate talte `top` to ganger og rapporterte 66 der den ekte flata var 44 —
+den dobbelttellingen ville sluppet nettopp denne regresjonen gjennom, og er
+rettet i samme slengen.
+
+---
+
 ## 2026-09-14 — v7.8.21: Ramma rundt snarvei-raden er én SVG-bane
 
 Ramma satt sammen fra v7.8.19, men den var SATT SAMMEN: en boks med
