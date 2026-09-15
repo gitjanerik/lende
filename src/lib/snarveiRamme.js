@@ -27,9 +27,15 @@
 export const RAMME = {
   /** Arkets egne hjørner. Skalerer IKKE — det er pillas form, ikke tekstens. */
   hjorne: 16,
-  /** Bulas bredde og hvor dypt den henger under bunnstreken. */
-  buleBredde: 76,
-  buleDybde: 22,
+  /**
+   * Bulas bredde og hvor dypt den henger under bunnstreken. Tallene var 76 × 22
+   * til v7.8.22 og er knepet inn til 68 × 18: en grunnere bule leses som en
+   * myk sving i streken, mens en dyp leses som en pose hengt under raden — og
+   * det er det siste som gjorde pilla tung. Trykkflata er IKKE knepet inn med
+   * den (se `--trykk-opp` i SnarveiRad).
+   */
+  buleBredde: 68,
+  buleDybde: 18,
   /**
    * Bulas egne hjørner, nede. Tallet er valgt slik at `buleHjorne + overgang`
    * er NØYAKTIG `buleDybde`: da går den konkave overgangen rett over i det
@@ -38,9 +44,9 @@ export const RAMME = {
    * klemmer så banen aldri kan folde seg, men en klemt verdi gir et lite rett
    * stykke midt i svingen, og det er nettopp det denne formen ikke skal ha.
    */
-  buleHjorne: 13,
+  buleHjorne: 11,
   /** Overgangen: den konkave buen der streken forlater bunnlinja. */
-  overgang: 9,
+  overgang: 7,
   /**
    * Strekbredde. CSS-ramma var 1 px; en bane som skal LESES som en strek rundt
    * et sett brikker tåler mer, og eieren ba om litt tykkere. 2 px er der den

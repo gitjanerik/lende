@@ -291,9 +291,19 @@ const flateStil = computed(() => {
     // alle skalaer; det er bare formen som vokser. Tallene her MÅ være de samme
     // som `RAMME` i lib/snarveiRamme.js — banen og trykkflata skal ligge oppå
     // hverandre, og en test holder dem sammen.
-    '--bunn-h': `${13 * (props.uiTextScale || 1)}px`,
+    // Bunn-stripa var 13 px til v7.8.22. Ni er nok til at siste rad ikke ligger
+    // klemt mot streken, og de fire pikslene var det tydeligste sløseriet i
+    // pilla: luft uten innhold, midt der øyet forventer at boksen slutter.
+    '--bunn-h': `${9 * (props.uiTextScale || 1)}px`,
     '--bule-d': `${RAMME.buleDybde * (props.uiTextScale || 1)}px`,
     '--bule-b': `${RAMME.buleBredde * (props.uiTextScale || 1)}px`,
+    // TRYKKFLATA ER 44 PX UANSETT HVOR GRUNN BULA ER (v7.8.22). Da bula ble
+    // knepet fra 22 til 18, ville en trykkflate på «to ganger bula» falt til
+    // 36 — altså en stille UU-regresjon som følge av et rent estetisk valg.
+    // Dette tallet er hvor langt flata må vokse OPPOVER for å nå 44, og det er
+    // regnet av de to som faktisk bestemmer det. Endrer bula seg igjen, følger
+    // trykkflata etter av seg selv.
+    '--trykk-opp': `${Math.max(0, SNARVEI_MIN_H - RAMME.buleDybde) * (props.uiTextScale || 1)}px`,
     '--color-ink': b.ink,
     '--color-ink-2': b.ink2,
     '--color-ink-3': b.ink3,
@@ -1151,17 +1161,17 @@ function celleTransform(i) {
   position: relative;
   /* Bunn-stripa mellom siste rad og bunnlinja. Var et element (kant-stumpene)
      fram til v7.8.21; nå tegner banen streken, og dette er bare luft. */
-  padding-bottom: var(--bunn-h, 13px);
+  padding-bottom: var(--bunn-h, 9px);
   /* BULA HENGER UTENFOR BOKSEN, og layouten vet det ikke. Uten denne margen
      regner flex-kolonnen med at pilla slutter ved bunnlinja, og «Sorter
      snarveier» / «Stil» legger seg oppå bula — målt, ikke antatt. Margen er
      nøyaktig bulas dybde; `gap-2` på innpakningen kommer i tillegg. */
-  margin-bottom: var(--bule-d, 22px);
+  margin-bottom: var(--bule-d, 18px);
   --ramme: color-mix(in oklab, var(--color-ink) 30%, transparent);
   /* MÅLENE PÅ BULA SETTES AV `flateStil` PÅ YTTERSTE BOKS, og fallbacken står
      som andre argument i hver `var()` — ikke som en deklarasjon her. En
-     `--bunn-h: 13px` på denne regelen ville VUNNET over den arvede verdien
-     (en egen deklarasjon slår arv), og bula ville stått på 13 px uansett
+     `--bunn-h: 9px` på denne regelen ville VUNNET over den arvede verdien
+     (en egen deklarasjon slår arv), og stripa ville stått på 9 px uansett
      tekststørrelse. Den feilen ser ut som «skaleringen virker ikke» og har
      ingenting med skaleringen å gjøre. */
   /* Ingen `backdrop-blur` og ingen `shadow`: begge er måter å skille en FLATE
@@ -1195,14 +1205,17 @@ function celleTransform(i) {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding-top: calc(var(--bule-d, 22px) * 0.3);
-  width: var(--bule-b, 76px);
-  height: var(--bule-d, 22px);
+  padding-top: calc(var(--bule-d, 18px) * 0.3);
+  width: var(--bule-b, 68px);
+  height: var(--bule-d, 18px);
 }
 /* TRYKKFLATA ER STØRRE ENN BULA, OG DEN VOKSER BARE OPPOVER (v7.8.21).
-   Bula er 22 px dyp fordi det er så dypt en strek kan bule ned uten å bli en
-   boks — men 22 px er under WCAG 2.5.5, og knappen er eneste tastatur-inngang
-   til skuffa. `::after` gir den 44 px.
+   Bula er 18 px dyp fordi det er så dypt en strek kan bule ned uten å bli en
+   boks — men 18 px er langt under WCAG 2.5.5, og knappen er eneste tastatur-
+   inngang til skuffa. `::after` gir den 44 px, og veksten leses av
+   `--trykk-opp` i stedet for å være «to ganger bula»: da fulgte trykkflata
+   bulas dybde, og en ren smaks-endring på formen kunne krympe et UU-mål uten
+   at noen så det (v7.8.22).
    RETNINGEN ER IKKE VALGFRI: en flate som også vokste NEDOVER la seg over
    nordpila i lende-pilenes dokkebånd (målt av røyktesten, ikke gjettet) — bula
    henger alt utenfor pilla, og hver piksel til under den er en piksel inn i
@@ -1211,7 +1224,7 @@ function celleTransform(i) {
 .snarvei-handle::after {
   content: '';
   position: absolute;
-  top: calc(var(--bule-d, 22px) * -1);
+  top: calc(var(--trykk-opp, 26px) * -1);
   bottom: 0;
   left: -10px;
   right: -10px;
