@@ -130,7 +130,6 @@ import DrawerAboutTab from '../components/drawer/DrawerAboutTab.vue'
 import DrawerDevTab from '../components/drawer/DrawerDevTab.vue'
 import ContextMenuSheet from '../components/context-menu/ContextMenuSheet.vue'
 import AppMenuButton from '../components/AppMenuButton.vue'
-import FabCluster from '../components/FabCluster.vue'
 import { useLendeChat } from '../composables/useLendeChat.js'
 import { hasAiToken } from '../lib/lendeAi.js'
 import { isomCatalog, buildPointSymbolDef } from '../lib/symbolizer.js'
@@ -1196,9 +1195,12 @@ watch([densityId, densityApplyToAll], () => scheduleNameLOD())
 // og «Zoom og kartutsnitt» er slettet: alt den bar sto allerede i
 // Innstillinger, eller er nå et fast tall.
 //
-// Chatten er en snarvei helt sist, gatet på invitasjonstoken som før.
+// Chatten er en snarvei helt sist, gatet på invitasjonstoken som før — og fra
+// v7.8.17 er det igjen bokstavelig sant: den runde chat-knappen nede til høyre
+// er borte, og `lendeChatEnabled` gater nå SNARVEIEN (`chat` inn i
+// `snarveierIRekkefolge`). Logo-URL-en gikk med knappen: raden tegner sin egen
+// snakkeboble fra SnarveiIkon.
 const lendeChatEnabled = hasAiToken()
-const lendeLogoUrl = `${import.meta.env.BASE_URL}icon.svg`
 
 // Unified transform: translate ∘ rotate ∘ scale med transform-origin 0 0.
 // Én enkelt transform-matrise lar oss rotere rundt vilkårlig pivot (finger-
@@ -2062,7 +2064,8 @@ function settSnarveiRekkefolge(ny) {
 // markeringer eller GPS-spor, så Annotering og Sporing står ikke i raden.
 const egetKart = computed(() => !(route.params.id ?? 'vardasen').startsWith('vardasen'))
 const synligeSnarveier = computed(() =>
-  snarveierIRekkefolge(snarveiRekkefolge.value, { egetKart: egetKart.value })
+  snarveierIRekkefolge(snarveiRekkefolge.value,
+    { egetKart: egetKart.value, chat: lendeChatEnabled })
     .map(s => {
       if (s.id === 'posisjon') {
         return { ...s, aktiv: userPos.isWatching,
@@ -2118,6 +2121,13 @@ const SNARVEI_HANDLING = {
   // her — innholdet (`LegendContent`) er uendret, og ruta /tegnforklaring
   // består for deep-lenker.
   hjelp: () => { closeContextMenu(); lukkFunksjonsSkuffer(); visTegnforklaring.value = true },
+  // LENDE-CHATTEN (v7.8.17). Den lå bak en egen rund knapp nede til høyre
+  // (v7.2.0–v7.8.16) og er nå raden sin siste snarvei. Ingen `lukkFunksjonsSkuffer`
+  // her: chat-modalen bor i App.vue og legger seg over alt uansett, og en modus
+  // brukeren står i skal ikke ryke av at hen stilte et spørsmål om kartet.
+  // Snarveien FINNES ikke uten invitasjonstoken — porten står i katalogen
+  // (`kunChat`), så handleren trenger ingen egen sjekk.
+  chat: () => openChat(),
 }
 
 // Tegnforklaringen som modal over kartet. Escape lukker den: AppModal har en
@@ -2927,8 +2937,12 @@ onUnmounted(() => {
          :class="snarveiApen ? 'z-50' : 'z-20'"
          :style="snarveiRadStyle">
       <div class="flex flex-col items-center gap-1 w-full">
+        <!-- `mork` er ARKETS valør og ikke UI-temaet, nøyaktig som på
+             kompassnåla (v7.8.18): raden ligger på kartet, og de to skal lese
+             som samme materiale. Se lib/kartFlate.js. -->
         <SnarveiRad :snarveier="synligeSnarveier"
                     :ui-text-scale="uiTextScale"
+                    :mork="isDark"
                     :strek-trinn="strokeStepIndex" :strek-trinn-antall="STROKE_STEPS.length"
                     :strek-skala="strokeScale"
                     :relief-trinn="snarveiReliefTrinn"
@@ -3037,25 +3051,14 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- LENDE-FAB-EN ER TILBAKE, SOM REN CHAT-INNGANG (v7.2.0). Ankeret bar
-         tre knotter og en lang-trykk-gest til chatten fram til v7.0.0; knottene
-         er nå innstillinger, og det som ble igjen er ETT trykk = spør Lende.
-         Ingen gest å gjette på, og samme plass som i ruteplanleggeren.
-         IKONET ER EN SNAKKEBOBLE (v7.6.0), ikke Lende-logoen: uten knotter ER
-         knappen chatten, og logoen sa «hjem». Den skalerer med tekststørrelsen
-         som de to andre faste runde knappene — se FabCluster.vue.
-         Tom `satellites` er FabClusters egen rene chat-modus.
-         Uten invitasjonstoken finnes knappen ikke: et anker uten knotter og
-         uten chat ville vært en knapp som ikke gjør noe. -->
-    <FabCluster
-      v-if="lendeChatEnabled"
-      :chat-enabled="true"
-      :bottom="bunnFloat.bottomStyle.value"
-      :right-style="floatRightStyle"
-      :hidden="bunnSkjult"
-      :logo-url="lendeLogoUrl"
-      :ui-text-scale="uiTextScale"
-      @chat="openChat" />
+    <!-- LENDE-FAB-EN ER BORTE HERFRA (v7.8.17). Den var appens siste runde
+         knapp i turkartet: ETT trykk = spør Lende, nede til høyre siden
+         v7.2.0. Chatten er nå radens siste snarvei (lib/snarveier.js), og da
+         er knappen en andre inngang til det samme — den samme dobbeltboligen
+         som strek og relieff hadde i v7.4.0. Porten er uendret: uten
+         invitasjonstoken finnes snarveien ikke, som knappen ikke gjorde.
+         Hjørnet den etterlot er kompassnålas nå — se lenger ned.
+         Ruteplanleggeren og innholdssidene beholder sin FAB (LendeChatFab). -->
 
     <!-- Kart-flate. Unified transform (translate ∘ rotate ∘ scale) på ett
          enkelt indre div. Lar finger-pivot styre rotasjons-/zoom-senter
@@ -3274,16 +3277,17 @@ onUnmounted(() => {
       :scale-bar="scaleBar"
       :ui-text-scale="uiTextScale" />
 
-    <!-- KOMPASSNÅLA STÅR NEDE TIL HØYRE, RETT OVER LENDE-KNAPPEN (v7.8.4).
-         Den bodde over linjalen nede til venstre fra v7.3.2, og flyttet fordi
-         venstre kant da bar to ting som vokser med tekststørrelsen — nåla og
-         linjalens meterangivelse — mens høyre kant hadde én knapp og ellers
-         ingenting. Er chatten ikke aktivert, finnes ikke den knappen, og nåla
-         står alene nederst til høyre (`over-chat`).
+    <!-- KOMPASSNÅLA STÅR NEDERST TIL HØYRE (v7.8.17), i selve hjørnet.
+         Historikken er kort: FAB (til v1.0.77), fast knapp i snarvei-raden
+         (til v7.3.0), over linjalen nede til venstre (v7.3.2–v7.8.3), og så
+         RETT OVER Lende-knappen (v7.8.4). Det siste løftet fantes bare fordi
+         den knappen sto under; nå som chatten er en snarvei, er hjørnet ledig
+         og nåla har rykket ned i det. Den deler dermed bunnlinje med linjalen
+         nede til venstre, som er den samme `useFloatAboveSheets` — ett tall,
+         to kanter.
          Bare med berøring: uten rotasjon finnes ingen azimut å nullstille, og
          desktop har retningsrosa i søyla.
-         `mork` er ARKETS valør og ikke UI-temaet — skiva ligger på kartet.
-         Bunnen og synligheten er FAB-ens, som linjalens. -->
+         `mork` er ARKETS valør og ikke UI-temaet — skiva ligger på kartet. -->
     <KompassKnapp
       :visible="hasTouch && !loading && !bunnSkjult"
       :azimut="rotationSliderDeg"
@@ -3291,7 +3295,6 @@ onUnmounted(() => {
       :ui-text-scale="uiTextScale"
       :bottom="bunnFloat.bottomStyle.value"
       :right-style="floatRightStyle"
-      :over-chat="lendeChatEnabled"
       @nord="onResetAndRefreshGps" />
 
     <!-- Kontrollpanel (drawer). Desktop (≥768px): høyrestilt fullhøyde side-

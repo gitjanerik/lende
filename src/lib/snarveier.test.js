@@ -20,16 +20,15 @@ describe('katalogen', () => {
     expect(new Set(ider).size).toBe(ider.length)
     expect(SNARVEIER.every(s => s.label && s.aria)).toBe(true)
   })
-  it('bærer funksjonene pluss «Valg» sist (v7.6.0)', () => {
-    // Søket og de eksterne kartene er fortsatt ute (v7.2.0), og chatten bor i
-    // Lende-FAB-en. Innstillingene er derimot tilbake som snarvei — sist, fordi
-    // de er det man går til når man har satt seg ned.
+  it('bærer funksjonene, «Valg», og chatten HELT sist (v7.8.17)', () => {
+    // Søket og de eksterne kartene er fortsatt ute (v7.2.0). Innstillingene kom
+    // tilbake som snarvei i v7.6.0, og chatten i v7.8.17 — den siste bak «Valg»,
+    // fordi et spørsmål til Lende er noe man skriver når man har stoppet.
     expect(STANDARD_REKKEFOLGE).toEqual(
       ['posisjon', 'stifinner', 'runde', 'maaling', 'tre-d', 'annotering',
-       'sporing', 'info', 'natt', 'hjelp', 'innstillinger'])
-    expect(STANDARD_REKKEFOLGE.at(-1)).toBe('innstillinger')
+       'sporing', 'info', 'natt', 'hjelp', 'innstillinger', 'chat'])
+    expect(STANDARD_REKKEFOLGE.at(-1)).toBe('chat')
     expect(STANDARD_REKKEFOLGE).not.toContain('sok')
-    expect(STANDARD_REKKEFOLGE).not.toContain('chat')
   })
   it('holder etikettene korte — de setter kolonnebredden (v7.6.0)', () => {
     // Alle cellene er like brede, så den LENGSTE etiketten koster for alle ni.
@@ -106,14 +105,24 @@ describe('normaliserRekkefolge', () => {
     expect(ut.indexOf('natt')).toBe(ut.indexOf('hjelp') - 1)
     expect(ut).toEqual(STANDARD_REKKEFOLGE)
   })
-  it('setter «Hjelp» nest sist hos den som har sortert (v7.8.13)', () => {
+  it('setter «Hjelp» mellom «Natt» og «Valg» hos den som har sortert (v7.8.13)', () => {
     // Tegnforklaringen kom inn på plass #10, mellom «Natt» og «Valg». Samme
     // regel som «Natt» fikk i v7.8.6 — forgjengeren avgjør — og her er det den
     // som holder den foran «Valg» i stedet for bakerst.
     const lagret = STANDARD_REKKEFOLGE.filter(id => id !== 'hjelp')
     const ut = normaliserRekkefolge(lagret)
     expect(ut.indexOf('hjelp')).toBe(ut.indexOf('natt') + 1)
-    expect(ut.at(-1)).toBe('innstillinger')
+    expect(ut.indexOf('hjelp')).toBe(ut.indexOf('innstillinger') - 1)
+    expect(ut).toEqual(STANDARD_REKKEFOLGE)
+  })
+  it('setter chatten bakerst hos den som har sortert (v7.8.17)', () => {
+    // Her faller forgjenger-regelen sammen med den gamle «bakerst»-regelen,
+    // fordi chatten ER katalogens siste. Testen finnes likevel: flyttes den
+    // fram i katalogen en dag, skal en lagret liste følge etter og ikke bli
+    // hengende igjen med chatten sist.
+    const lagret = STANDARD_REKKEFOLGE.filter(id => id !== 'chat')
+    const ut = normaliserRekkefolge(lagret)
+    expect(ut.indexOf('chat')).toBe(ut.indexOf('innstillinger') + 1)
     expect(ut).toEqual(STANDARD_REKKEFOLGE)
   })
   it('tåler søppel', () => {
@@ -129,8 +138,29 @@ describe('snarveierIRekkefolge', () => {
     expect(ider).not.toContain('sporing')
     expect(ider).toContain('maaling')
   })
-  it('gir alle på egne kart', () => {
-    expect(snarveierIRekkefolge(STANDARD_REKKEFOLGE)).toHaveLength(SNARVEIER.length)
+  it('gir alle på egne kart, når chatten også er invitert', () => {
+    expect(snarveierIRekkefolge(STANDARD_REKKEFOLGE, { chat: true }))
+      .toHaveLength(SNARVEIER.length)
+  })
+  it('skjuler chatten uten invitasjonstoken (v7.8.17)', () => {
+    // Samme port som Lende-FAB-en hadde: uinviterte skal ikke se at funksjonen
+    // finnes. Default er AV — en kaller som glemmer flagget viser den ikke,
+    // som er den trygge retningen å feile i.
+    expect(snarveierIRekkefolge(STANDARD_REKKEFOLGE).map(s => s.id)).not.toContain('chat')
+    expect(snarveierIRekkefolge(STANDARD_REKKEFOLGE, { chat: true }).map(s => s.id))
+      .toContain('chat')
+  })
+  it('holder de to portene fra hverandre — kartet og brukeren (v7.8.17)', () => {
+    // `kunEgne` gjelder KARTET, `kunChat` gjelder BRUKEREN. Et demokart hos en
+    // invitert bruker skal ha chatten men ikke sporet, og motsatt.
+    const demoInvitert = snarveierIRekkefolge(STANDARD_REKKEFOLGE,
+      { egetKart: false, chat: true }).map(s => s.id)
+    expect(demoInvitert).toContain('chat')
+    expect(demoInvitert).not.toContain('sporing')
+    const egetUinvitert = snarveierIRekkefolge(STANDARD_REKKEFOLGE,
+      { egetKart: true, chat: false }).map(s => s.id)
+    expect(egetUinvitert).toContain('sporing')
+    expect(egetUinvitert).not.toContain('chat')
   })
 })
 

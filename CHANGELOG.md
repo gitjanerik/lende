@@ -1,3 +1,219 @@
+## 2026-09-14 — v7.8.21: Ramma rundt snarvei-raden er én SVG-bane
+
+Ramma satt sammen fra v7.8.19, men den var SATT SAMMEN: en boks med
+`border-radius` på toppen, to kant-stumper som tegnet bunnstreken, og en bule
+med egne kanter imellom. Tre elementer som møttes i to skjøter, og i hver skjøt
+gikk en rett strek rett inn i en annen rett strek. Der linja skulle svinge ned
+rundt håndtaket, ble det et hjørne.
+
+En `border` kan per definisjon ikke gå UT av rektangelet sitt, og det var hele
+grunnen til oppdelingen. En bane kan. `lib/snarveiRamme.js` tegner nå omrisset i
+ett strøk, og overgangen inn til bula er en KONKAV bue — streken bøyer seg
+utover før den bøyer innover. Det er den som gjør at bula leses som en utbuling
+AV kanten framfor en knapp hengt under den. Fire radier er i spill: arkets
+hjørner, bulas hjørner, og de to overgangene. `buleHjorne + overgang` er
+nøyaktig `buleDybde`, slik at den konkave buen går rett over i det konvekse
+hjørnet uten et rett stykke imellom — profilen er én sammenhengende S, og en
+test holder de tre tallene i forhold.
+
+Banen regnes i EKTE PIKSLER, og det er det som gjør at modulen kan være ren.
+Alternativet — én SVG strukket med `preserveAspectRatio="none"` — ville dratt
+hjørnebuene og streken ut av form i det raden ble bredere enn høy. Kallstedet
+måler pilla med en ResizeObserver og setter `viewBox` til de samme tallene, så
+én brukerenhet ER én piksel og ingenting skaleres. Streken er 2 px i alle
+tekststørrelser; det er bare formen som vokser. Sorterings-modus setter
+bulebredden til 0 og får et rent avrundet rektangel — en utbuling rundt
+ingenting er bare en bulk.
+
+**Bula henger UTENFOR pillas boks, og layouten visste det ikke.** «Sorter
+snarveier» og «Stil» la seg rett oppå den, fordi flex-kolonna regner med at
+pilla slutter ved bunnlinja. Pilla har nå en `margin-bottom` lik bulas dybde.
+Røyksjekken måler det direkte: en overlapp mellom håndtaket og de to knappene
+er en feil, og sjekken drar raden ut først — de finnes bare da, og en
+overlapp-sjekk mot et tomt DOM er en sjekk som alltid består.
+
+Enhetstestene leser banen som TALL og ikke som en streng. De holder fast at den
+ikke folder seg (den konkave buen kan ende dypere enn der bulas hjørne
+begynner, og da snur `V` oppover — et hakk i streken som er umulig å se i en
+`d`-streng man bare kikker på), at bula er midtstilt, at bare de to overgangene
+har `sweep-flag: 0`, og at en smal rad klemmer radiene framfor å krysse seg
+selv. Hjelperen måtte tokenisere banen: første utgave plukket «to tall etter
+hverandre» og traff radiene i hver `A` som om de var et punkt, så testene ble
+røde på en riktig bane.
+
+---
+
+## 2026-09-14 — v7.8.20: Lettere glass i snarvei-raden, og grået er borte
+
+To ting eieren meldte om ramma fra v7.8.19: den var fortsatt for tung, og den
+var grå på en måte som fikk alt til å se avslått ut. Begge er rettet, og de har
+hver sin årsak.
+
+TYNGDEN ER ET AREAL-SPØRSMÅL. Skiva fra kompassnåla er 0,82, og den alfaen er
+riktig på en 48 px rundskive i et hjørne — man knapt merker den. Den samme
+alfaen over snarvei-raden er turkartets største overlegg, midt i toppen av
+arket der man leser. `KART_SKIVE_LETT` er derfor samme materiale i en annen
+vekt (0,55), og raden bruker den mens nåla beholder sin. De to spriker ikke av
+det: kulør og valør-regel er den samme, og en test krever at de deler kulør og
+at den lette faktisk ER lettere — blir de like, har den ingen jobb og kan
+slettes. Prisen er målt og bevisst: jo lettere flata er, jo mer av kontrasten
+under teksten kommer fra ARKET. Testen måler mot hver kart-bunn katalogen har,
+men den kan ikke måle en høydekurve som tilfeldigvis ligger under en etikett.
+Går man lettere enn dette, er det lesbarheten som betaler.
+
+GRÅET HADDE TO KILDER, og ingen av dem var et kontrast-tall. Den ene var den
+mørke valøren: zink-700 (`#3f3f46`) er en MIDTGRÅ, og med off-white blekk
+(`#e4e4e7`) på er det to nabotoner i samme grå familie — det leses som nedtonet
+innhold uansett hvor mye kontrast tallene sier det er, og grått er nettopp
+fargen appen ellers bruker på det som ikke virker. Flata er nå zink-900-nær og
+blekket nær hvitt: mørkt glass framfor grå plast, og kontrasten mellom flate og
+innhold gikk OPP, ikke ned (8,8:1 → 15,5:1 på blekket). Den andre kilden var
+strekene: en grå kant rundt hver lyse brikke, pluss en 40 % ramme rundt det
+hele. Cellekanten er nå `transparent` i hvile — den MÅ stå i boksmodellen, ellers
+vokser cella 2 px per rad i det sorterings-modus setter farge på den (v7.7.5),
+men den trenger ikke ha en farge — og ramma er nede på 26 %. Ikonene og
+etikettene står i fullt blekk og bærer raden alene.
+
+En ny test holder de to fra hverandre der det faktisk skjedde: blekket i mørk
+valør skal ligge nær hvitt og flata nær svart, ikke midt imellom. Et
+kontrast-tall alene ville ikke fanget dette — `#e4e4e7` på `#3f3f46` besto med
+god margin og så likevel avslått ut.
+
+---
+
+## 2026-09-14 — v7.8.19: Snarvei-raden er en ramme, og håndtaket er en bule i den
+
+Raden fikk kompassnålas skive i v7.8.18, og da ble det tydelig hva den egentlig
+koster: den er det STØRSTE overlegget i turkartet, den ligger midt i toppen av
+arket der man leser, og den dekket det. Nå bærer bare CELLENE en flate. Rammen
+holder dem sammen, kartet er synlig mellom knappene, og raden leses som et
+verktøy PÅ kartet framfor et panel foran det. Cellene har fått skiva i stedet —
+uten en flate under seg er en 10 px etikett over høydekurver ikke til å lese, og
+det er nettopp cellenes flate som gjør at rammen KAN være tom. Det samme gjelder
+knott-boksene og de to sorterings-knappene.
+
+Håndtaket er ikke lenger en strek nederst inne i en boks; det er en BULE i
+bunnrammen. Rammen har derfor ingen bunnkant av seg selv — den tegnes av to
+kant-stumper med hvert sitt hjørne, og bula imellom, som er dypere enn stumpene.
+Det er grunnen til at bula ikke bare kunne vært en tab hengende under en hel
+ramme: da ville streken gått tvers over toppen av den, og det leses som en knapp
+klistret på en boks framfor som en utbuling av den. Av samme grunn tegnes
+sidekantene av rulleboksen og kant-stumpene og ikke av pilla: en `border` på
+pilla ville løpt langs hele høyden, også forbi bunnrammen, og bunnhjørnene måtte
+enten stått rette eller fått en bue med pillas egen rette kant synlig inni.
+
+Bula og bunnrammen skalerer med tekststørrelsen gjennom MÅLENE og ikke gjennom
+`zoom`: en zoomet bule ville fått 2 px ramme ved 200 %, og da møter en dobbel
+strek en enkel i skjøten mot kant-stumpene. Streken er 1 px i alle skalaer, det
+er bare formen som vokser. Trykkflata er 44 px via `::after` — bula selv er
+26 px, fordi det er så dypt en strek kan bule ned uten å bli en boks, og knappen
+er eneste tastatur-inngang til skuffa.
+
+`select-none` på pilla er ikke pynt, og den kostet en feilsøking. Uten den kan et
+pekertrykk i pilla starte nettleserens egen dra-og-slipp (`dragstart`), og den
+sender `pointercancel` — som river hele drawer-draget etter én eneste
+`pointermove`. Symptomet er at skuffa «ikke følger fingeren» i noen situasjoner
+og gjør det fint i andre, avhengig av hva som lå i markeringen fra forrige
+trykk, og `onDraStart` kan ikke svare med `preventDefault` fordi den ville tatt
+`click` fra snarvei-knappene.
+
+Røyksjekken «dra-håndtaket har samme luft i snarvei-skuffa og punkt-arket» måler
+nå det den kan måle: arkene beholder regelen om lik luft over og under, mens
+raden har forlatt den — en bule har en DYBDE, ikke en polstring. Det som måles
+der i stedet er de to tingene som gjør den til en bule og ikke en knapp klistret
+under en boks: at den henger lenger ned enn bunnstreken den sitter i, og at den
+er midtstilt i ramma. Trykkflata måles med.
+
+---
+
+## 2026-09-14 — v7.8.18: Snarvei-raden har fått kompassnålas flate
+
+Raden lå på `bg-overlay/90` — UI-temaets token, altså nesten svart i mørkt
+tema — mens kompassnåla rett under er en halvgjennomsiktig skive som følger
+ARKET. To flater side om side over det samme kartet, med hver sin regel, og
+eieren så at de ikke matchet. De gjør det nå.
+
+To ting skilte dem, og bare den ene var fargen. Den andre er den viktige: nåla
+spør om KARTET er mørkt (`mork`), raden spurte om UI-TEMAET er det — og det er
+to ulike spørsmål, for man kan godt lese et lyst kart i mørkt UI-tema. Å bare
+kopiere hex-en over ville altså latt de to sprike igjen i nøyaktig den
+situasjonen `mork`-propen finnes for. Paret bor derfor i én ren modul,
+`lib/kartFlate.js`, og begge flatene spør den; raden har fått en `mork`-prop
+som MapView mater med samme `isDark` nåla får.
+
+Overstyringen settes som CSS-VARIABLER på radens ytterste boks og ikke som
+farger på hver enkelt flate. Nesten alt i raden er allerede avledet av
+`--color-ink` og `--color-overlay` — cellenes ton-i-ton-flate, kanten,
+håndtakets strek, knott-boksene, «Stil»-knappen under pilla — så én
+omdefinering flytter dem alle, og en ny flate som følger tokenene blir med av
+seg selv. Samme grep som `.on-accent` i style.css. `--color-ink-2/-3` må med:
+de er faste farger per UI-tema (v6.5.48), så en lys ink-3 ville blitt stående
+på en hvit skive. Det samme gjelder fokusringen, som er hvit i mørkt tema.
+`bg-overlay/90` er blitt `bg-overlay` uten opasitet, siden alfaen nå ligger i
+skiva selv — en opasitet oppå ville gjort raden gjennomsiktigere enn nåla den
+skal matche.
+
+Ett unntak går motsatt vei: «Ferdig» i sorterings-modus har blekket som
+BAKGRUNN og skiva som tekst, og en halvgjennomsiktig tekstfarge slipper flata
+under gjennom bokstavene. `KART_SKIVE_OPAK` er skivas egen kjerne uten alfa,
+til akkurat det.
+
+`kartFlate.test.js` måler hvert blekk-nivå mot hver eneste kart-bunn katalogen
+har — klassifisert med `erMorktTema`, altså den SAMME regelen som avgjør
+hvilken skive som brukes, så et nytt tema med en ytterligere bunn måles av seg
+selv. Gulvet er 4,5:1; det strammeste tilfellet i dag er ink3 på mocha-arket
+med 4,6. Testen holder også nivåene monotone, og at verken nåla eller raden
+skriver fargene selv — en gjeninnført literal i én av dem er nettopp den
+drivingen modulen finnes for å hindre.
+
+Merk at topprada og linjal-boksen fortsatt er den svarte overlay-flata. Det er
+med vilje her og nå — bestillingen gjaldt snarveiene og nåla — men de to
+flatene som ligger i kartplanet er nå én familie, og resten er et eget
+spørsmål.
+
+---
+
+## 2026-09-14 — v7.8.17: Lende-chatten er radens siste snarvei, og nåla har rykket ned i hjørnet
+
+Chat-knappen nede til høyre i turkartet er borte, og chatten er i stedet den
+siste snarveien i raden over kartet — plass #12, bak «Hjelp» og «Valg», fordi et
+spørsmål til Lende er noe man skriver når man har stoppet og ikke noe man rekker
+etter mens man går. Porten er nøyaktig den samme som knappen hadde: snarveien
+bærer `kunChat`, og uten invitasjonstoken finnes den ikke i det hele tatt —
+uinviterte ser fortsatt ikke at funksjonen er der, verken i raden eller i
+sorteringen. Mekanismen er den `snarveierIRekkefolge` hadde i v7.1.0 og som ble
+rullet tilbake med resten i v7.2.0; forskjellen denne gangen er at det er ÉN
+snarvei som flytter inn og ikke syv, så raden ikke vokser til den fire linjer
+høye svarte boksen felttesten den gang svarte med. De to portene holdes fra
+hverandre i katalogen og i testene: `kunEgne` gjelder KARTET (et demokart har
+verken egne markeringer eller GPS-spor), `kunChat` gjelder BRUKEREN.
+
+Kompassnåla har med det rykket ned i hjørnet knappen etterlot. Løftet fra v7.8.4
+— «3rem × tekstskalaen», altså Lende-knappens egen høyde med `zoom` — fantes
+bare fordi den knappen sto under; et løft over ingenting er en nål som svever,
+så propen `overChat` er slettet framfor å bli stående på `false` hos hver kaller.
+Nåla deler nå bunnlinje med linjalen nede til venstre, fra den samme
+`useFloatAboveSheets`: ett tall, to kanter. Ruteplanleggeren og innholdssidene
+beholder sin egen Lende-FAB — `kart-vis` blir stående i `UTEN_GLOBAL_CHAT`, men
+grunnen er en annen enn før: en global knapp her ville vært en andre inngang til
+det samme, og den ville dessuten lagt seg oppå nåla.
+
+Røyktesten som målte «linjalen og Lende-FAB-en deler bunnlinje, med nåla rett
+over FAB-en» måler nå nåla der den før målte FAB-en, og krever i tillegg at
+FAB-en faktisk er borte fra turkartet — et kart med begge ville hatt to knapper
+i samme hjørne. Sjekken av FAB-en selv er slettet, men de to lærdommene den bar
+er ARVET av den nye chat-sjekken og ikke mistet: at tappet må gjøres med
+FINGEREN og modalen bli stående etterpå (kompatibilitets-klikket ~25 ms etter
+`touchend` traff bakteppet og lukket chatten igjen fram til v7.3.3 — en måling
+med musa sto grønn hele veien), og at snakkebobla må være symmetrisk om 12/12 i
+viewBoxen (v7.7.3). Den siste måles nå mot ikonets EGEN boks og ikke mot
+knappen, altså på glyfen framfor på hvilken flate som tilfeldigvis bærer den —
+samme ikon står fortsatt i FAB-en på forsiden og i ruteplanleggeren. Sjekken
+måler i tillegg porten i begge retninger: ingen av delene finnes i en
+enhetstest, siden prosjektet ikke monterer Vue-komponenter.
+
+---
+
 ## 2026-09-14 — v7.8.16: Samme GPS-varsel på alle tre flatene
 
 Utsnitts-velgeren sto igjen med den lange varianten av GPS-feilen — etiketten

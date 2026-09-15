@@ -2120,11 +2120,27 @@ const SJEKKER = [
     async kjør(page) {
       await lukkDrawer(page)
       await lukkSnarveiRad(page)
-      // «Valg» åpner en skuff vi kan se; drar vi fra den og skuffa likevel
-      // dukker opp, har slop-en sviktet. Den ligger i første rad på et bredt
-      // vindu — sjekken kjører i suitens vanlige viewport.
-      const boks = await page.locator('[data-snarvei-id="innstillinger"]').boundingBox()
-      if (!boks) throw new Error('fant ingen «Valg»-snarvei å dra fra')
+      // CELLA MÅ VÆRE SYNLIG, OG DET MÅ SJEKKES (v7.8.21). Sjekken dro fra
+      // «Valg», med kommentaren «den ligger i første rad på et bredt vindu» —
+      // og det stemte ikke: «Valg» er sist av ni, og på 430 px gir gitteret sju
+      // kolonner, så den ligger i rad TO, som er klippet bort når skuffa er
+      // sammenlagt. Sjekken traff derfor pillas tomme bunn-stripe og ikke cella
+      // i det hele tatt. Den besto likevel — helt til pilla ble 14 px lavere
+      // (v7.8.21) og det samme punktet havnet på kartet under. En sjekk som
+      // sikter på noe den ikke kan se, måler noe annet enn den tror.
+      //
+      // «Info» ligger i rad én og åpner et ark vi kan se; drar vi fra den og
+      // arket likevel dukker opp, har slop-en sviktet. Posisjonen VERIFISERES
+      // mot gitterets klippekant, så feilen ikke kan komme tilbake i stillhet.
+      const ID = 'info'
+      const boks = await page.locator(`[data-snarvei-id="${ID}"]`).boundingBox()
+      if (!boks) throw new Error(`fant ingen «${ID}»-snarvei å dra fra`)
+      const klipp = await page.locator('.snarvei-rad').boundingBox()
+      if (boks.y + boks.height > klipp.y + klipp.height + 1) {
+        throw new Error(`«${ID}» ligger i en rad som er klippet bort (celle `
+          + `${Math.round(boks.y)}–${Math.round(boks.y + boks.height)}, gitteret slutter `
+          + `${Math.round(klipp.y + klipp.height)}) — sjekken ville siktet på ingenting`)
+      }
       const x = boks.x + boks.width / 2
       const y = boks.y + boks.height / 2
 
@@ -2134,12 +2150,29 @@ const SJEKKER = [
       await page.mouse.up()
       await page.waitForTimeout(600)
 
-      const etter = await page.evaluate(() => ({
-        apen: document.querySelector('.snarvei-handle')?.getAttribute('aria-expanded'),
-        skuff: !!document.querySelector('[role="dialog"][aria-label="Valg"]'),
-      }))
-      if (etter.skuff) {
-        await lukkDrawer(page)
+      // Punkt-arket er en `.drawer-shell` som faktisk er montert. Det finnes
+      // ingen egen `aria-label` på arket å gå på — X-en heter bare «Lukk», og
+      // det gjør hver eneste skuff i appen.
+      const arkÅpent = () => page.evaluate(() =>
+        [...document.querySelectorAll('.drawer-shell')].some((e) => e.offsetParent))
+      const lukkArk = async () => {
+        await page.keyboard.press('Escape').catch(() => {})
+        await page.waitForTimeout(400)
+        if (await arkÅpent()) {
+          await page.evaluate(() => {
+            const b = [...document.querySelectorAll('.drawer-shell button')]
+              .find((e) => e.getAttribute('aria-label') === 'Lukk')
+            b?.click()
+          })
+          await page.waitForTimeout(400)
+        }
+      }
+      const etter = {
+        apen: await page.locator('.snarvei-handle').getAttribute('aria-expanded'),
+        ark: await arkÅpent(),
+      }
+      if (etter.ark) {
+        await lukkArk()
         await lukkSnarveiRad(page)
         throw new Error('draget utløste snarveien det startet på — slop-en avlyser ikke trykket')
       }
@@ -2151,14 +2184,12 @@ const SJEKKER = [
       // OG ET TRYKK SKAL FORTSATT VÆRE ET TRYKK: uten et drag imellom må
       // knappen virke som før. Ett svakt drag under slop-en teller som trykk.
       await lukkSnarveiRad(page)
-      await page.locator('[data-snarvei-id="innstillinger"]').click()
+      await page.locator(`[data-snarvei-id="${ID}"]`).click()
       await page.waitForTimeout(600)
-      const aapnet = await page.evaluate(() =>
-        !!document.querySelector('[role="dialog"][aria-label="Valg"]'))
-      if (!aapnet) throw new Error('et vanlig trykk på «Valg» åpnet ingen skuff')
-      await lukkDrawer(page)
+      if (!(await arkÅpent())) throw new Error(`et vanlig trykk på «${ID}» åpnet ingenting`)
+      await lukkArk()
       await lukkSnarveiRad(page)
-      return 'sveip fra en snarvei åpner skuffa uten å utløse den, og trykket virker'
+      return 'sveip fra en synlig snarvei åpner skuffa uten å utløse den, og trykket virker'
     },
   },
   {
@@ -2226,14 +2257,33 @@ const SJEKKER = [
     },
   },
   {
-    // LUFTA RUNDT DRA-HÅNDTAKET ER DEN SAMME OVERALT (v7.5.0). Eieren hadde
-    // snarvei-skuffa og punkt-arket åpne samtidig og så at de ikke matchet.
-    // Verdien er dessuten LIK over og under, så «lufta rundt håndtaket» er ett
-    // tall enten arket henger fra toppen eller fra bunnen.
-    navn: 'dra-håndtaket har samme luft i snarvei-skuffa og punkt-arket',
+    // LUFTA RUNDT DRA-HÅNDTAKET (v7.5.0), OG DEN ENE FLATA SOM HAR FORLATT
+    // REGELEN (v7.8.19).
+    //
+    // Regelen var at håndtaket har samme luft OVERALT, og lik over og under —
+    // eieren hadde snarvei-skuffa og punkt-arket åpne samtidig og så at de
+    // ikke matchet. Den gjelder fortsatt for arkene, og måles her.
+    //
+    // SNARVEI-RADEN ER UTE AV DEN, og det er ikke en glipp: raden er ikke
+    // lenger en fylt boks med en strek nederst i, den er en RAMME tegnet som ÉN
+    // SVG-BANE (v7.8.21), der håndtaket sitter i en BULE i bunnkanten. En «luft
+    // over og under» finnes ikke i en bule — den har en dybde, ikke en
+    // polstring.
+    //
+    // Det som måles i stedet er de tingene som gjør den til en bule og ikke en
+    // knapp klistret under en boks: at BANEN faktisk buler ned under pillas
+    // bunnlinje, at håndtaket ligger i bula og er midtstilt, og at bula har
+    // plass under seg så «Sorter snarveier» ikke legger seg oppå den. Det siste
+    // er en ekte feil som ble målt: bula henger UTENFOR boksen, og flex-kolonna
+    // vet ikke om den.
+    navn: 'dra-håndtaket: luft i punkt-arket, bule i snarvei-ramma',
     domene: 'SnarveiRad + ContextMenuSheet',
     async kjør(page) {
       await lukkDrawer(page)
+      // RADEN MÅ VÆRE UTE. «Sorter snarveier» og «Stil» finnes bare da, og det
+      // er de to som kan legge seg oppå bula — en overlapp-sjekk mot et tomt
+      // DOM er en sjekk som alltid består.
+      await apneSnarveiRad(page)
       await page.evaluate(() => {
         const el = document.querySelector('svg.isom-map')
         const r = el.getBoundingClientRect()
@@ -2243,31 +2293,84 @@ const SJEKKER = [
         }))
       })
       await page.waitForTimeout(700)
-      const luft = await page.evaluate(() => {
-        const les = (el) => {
-          if (!el) return null
-          const cs = getComputedStyle(el)
-          return [Math.round(parseFloat(cs.paddingTop)), Math.round(parseFloat(cs.paddingBottom))]
-        }
+      const m = await page.evaluate(() => {
         const snar = document.querySelector('.snarvei-handle')
         const ark = [...document.querySelectorAll('.cursor-grab')]
           .find((e) => e.offsetParent && e !== snar && e.querySelector('.rounded-full'))
-        return { snarvei: les(snar), punktark: les(ark) }
+        const cs = ark && getComputedStyle(ark)
+        const pille = document.querySelector('.snarvei-pille')
+        const bane = document.querySelector('.snarvei-ramme path')
+        const b = snar?.getBoundingClientRect()
+        const p = pille?.getBoundingClientRect()
+        // Banens dypeste punkt, lest av SVG-en selv og ikke av `d`-strengen:
+        // `getBBox` tar med streken slik den faktisk tegnes.
+        const bb = bane?.getBBox?.()
+        const svg = bane?.ownerSVGElement?.getBoundingClientRect()
+        return {
+          punktark: cs
+            ? [Math.round(parseFloat(cs.paddingTop)), Math.round(parseFloat(cs.paddingBottom))]
+            : null,
+          // Hvor mye banen buler ned under pillas bunnlinje.
+          dybde: (bb && svg && p) ? Math.round(svg.top + bb.y + bb.height - p.bottom) : null,
+          strek: bane ? Math.round(parseFloat(getComputedStyle(bane).strokeWidth) * 10) / 10 : null,
+          // Avviket mellom håndtakets midtpunkt og pillas.
+          avvikMidt: (b && p)
+            ? Math.round(Math.abs((b.left + b.right) / 2 - (p.left + p.right) / 2))
+            : null,
+          // Ligger håndtaket i bula, altså UNDER pillas bunnlinje?
+          handtakUnder: (b && p) ? Math.round(b.bottom - p.bottom) : null,
+          // Trykkflata, `::after` medregnet — WCAG 2.5.5.
+          trykkH: snar
+            ? Math.round(snar.getBoundingClientRect().height
+                + Math.abs(parseFloat(getComputedStyle(snar, '::after').top || '0')) * 2)
+            : null,
+          // Står det noe oppå bula? «Sorter snarveier» er den ene kandidaten,
+          // og den lå der til margen kom på plass.
+          radKnotter: document.querySelectorAll('.rad-knott').length,
+          overlapp: (b && [...document.querySelectorAll('.rad-knott')]
+            .filter((k) => k.offsetParent && k.getBoundingClientRect().height > 1)
+            .some((k) => {
+              const r = k.getBoundingClientRect()
+              return r.top < b.bottom - 1 && r.bottom > b.top + 1
+            })) || false,
+        }
       })
-      if (!luft.snarvei || !luft.punktark) {
-        throw new Error(`fant ikke begge håndtakene: ${JSON.stringify(luft)}`)
+      if (!m.punktark) throw new Error('fant ikke punkt-arkets håndtak')
+      if (m.punktark[0] !== m.punktark[1]) {
+        throw new Error(`punkt-arkets håndtak har ulik luft over og under `
+          + `(${m.punktark.join('/')}) — da er den ikke den samme når arket snus`)
       }
-      if (luft.snarvei.join() !== luft.punktark.join()) {
-        throw new Error(`ulik luft rundt dra-håndtaket: snarvei ${luft.snarvei.join('/')} `
-          + `mot punkt-ark ${luft.punktark.join('/')}`)
+      if (m.dybde === null) throw new Error('fant ingen SVG-bane rundt snarvei-raden')
+      if (!(m.dybde > 8)) {
+        throw new Error(`banen buler ${m.dybde} px ned under pillas bunnlinje — `
+          + 'den skal BULE, ikke ligge flatt i kanten')
       }
-      if (luft.snarvei[0] !== luft.snarvei[1]) {
-        throw new Error(`håndtaket har ulik luft over og under (${luft.snarvei.join('/')}) `
-          + '— da er den ikke den samme når arket snus')
+      if (!(m.strek >= 1.5)) {
+        throw new Error(`ramma er tegnet med ${m.strek} px strek — den skal være tykkere`)
+      }
+      if (m.avvikMidt > 2) {
+        throw new Error(`håndtaket står ${m.avvikMidt} px fra pillas midte`)
+      }
+      if (!(m.handtakUnder > 0)) {
+        throw new Error(`håndtaket ligger ${m.handtakUnder} px under bunnlinja — `
+          + 'det skal sitte i bula, ikke over den')
+      }
+      if (!(m.trykkH >= 44)) {
+        throw new Error(`håndtakets trykkflate er ${m.trykkH} px høy — `
+          + 'under WCAG 2.5.5, og den er eneste tastatur-inngang til skuffa')
+      }
+      if (!m.radKnotter) {
+        throw new Error('fant ingen «Sorter snarveier» / «Stil» — sto raden ute?')
+      }
+      if (m.overlapp) {
+        throw new Error('«Sorter snarveier» / «Stil» ligger oppå bula — bula henger '
+          + 'UTENFOR pillas boks, og layouten må holde av plassen selv')
       }
       await page.locator('[aria-label="Lukk punktinfo"]').first().click().catch(() => {})
       await page.waitForTimeout(400)
-      return `begge håndtakene har ${luft.snarvei[0]} px luft over og under`
+      await lukkSnarveiRad(page)
+      return `punkt-arket ${m.punktark[0]} px over og under; banen buler ${m.dybde} px `
+        + `med ${m.strek} px strek, trykkflate ${m.trykkH} px, ingen overlapp`
     },
   },
   {
@@ -3576,142 +3679,33 @@ const SJEKKER = [
     },
   },
   {
-    // LENDE-FAB-EN ER TILBAKE NEDE TIL HØYRE (v7.2.0), OG ET TAPP ÅPNER
-    // CHATTEN.
-    //
-    // Chatten var en snarvei i raden i v7.0.0–7.1.0. Den er nå den samme
-    // FAB-en som i ruteplanleggeren: samme anker, samme hjørne —
-    // og uten knotter rundt seg gjør `anchorPress.onTap` rett `emit('chat')`,
-    // altså ingen lang-trykk-ring å vente ut. To ting kan brekke stille: at
-    // FAB-en ikke rendres i det hele tatt (den er portet på et AI-token), og
-    // at tappet åpner knotte-klyngen i stedet for chatten.
-    //
-    // EGEN KONTEKST med tokenet lagt inn FØR appen monterer — `hasAiToken()`
-    // leses én gang i oppsettet, så en localStorage-skriving etterpå kommer
-    // for sent.
-    navn: 'Lende-FAB-en står nede til høyre og åpner chatten med ett tapp',
-    domene: 'MapView (FabCluster)',
-    maksMs: 120_000,
-    async kjør(page) {
-      const ctx = await egenKontekst(page, {
-        viewport: { width: 430, height: 900 },
-        hasTouch: true,
-        isMobile: false,
-      })
-      await ctx.addInitScript(() => {
-        try { localStorage.setItem('lende-ai-token', 'royk-token') } catch { /* tom */ }
-      })
-      const p2 = await ctx.newPage()
-      try {
-        await p2.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
-        await p2.waitForFunction(() => !!document.querySelector('svg.isom-map'),
-          null, { timeout: 30_000 })
-        await lukkDrawer(p2)
-
-        const fab = p2.locator('button[aria-label="Spør Lende"]')
-        if (!(await fab.count())) {
-          throw new Error('fant ingen Lende-FAB — rendres FabCluster med tokenet på plass?')
-        }
-        const boks = await fab.boundingBox()
-        const vp = p2.viewportSize()
-        if (!boks) throw new Error('Lende-FAB-en har ingen boks')
-        if (boks.x + boks.width / 2 < vp.width / 2 || boks.y + boks.height / 2 < vp.height / 2) {
-          throw new Error(`Lende-FAB-en står på ${Math.round(boks.x)},${Math.round(boks.y)} `
-            + '— den hører hjemme nede til høyre, som i ruteplanleggeren')
-        }
-        // IKONET ER EN SNAKKEBOBLE (v7.6.0), ikke Lende-logoen. Uten knotter
-        // ER knappen chatten, og logoen sa «hjem». Den ene måten å se det på i
-        // DOM-en er at `img`-en er borte og en SVG står i stedet — begge ser ut
-        // som «et ikon i en rund knapp» for alt annet.
-        if (await fab.locator('img').count()) {
-          throw new Error('FAB-en viser Lende-logoen igjen — den rene chat-inngangen '
-            + 'skal ha en snakkeboble')
-        }
-        if (!(await fab.locator('svg').count())) {
-          throw new Error('FAB-en har verken logo eller ikon')
-        }
-
-        // OG BOBLA MÅ VÆRE MIDTSTILT I KNAPPEN (v7.7.3). Knappen midtstiller
-        // ikon-BOKSEN (`grid place-items-center`), ikke tegningen inni den — så
-        // en glyf med tyngdepunktet utenfor viewBoxens midte står skjevt uansett
-        // hvor riktig knappen er plassert. Den gamle snakkebobla lå 2,24 px for
-        // lavt (hale ned mot venstre), og FAB-en zoomer hele knappen, så på
-        // 200 % tekst var det 4,5 px. Måles som blekkets union mot knappens
-        // boks; 1,5 px slingring for avrunding og strek-asymmetri.
-        const skjev = await fab.evaluate((knapp) => {
-          const svg = knapp.querySelector('svg')
-          const deler = [...svg.children]
-          if (!deler.length) return null
-          const r = deler.map((e) => e.getBoundingClientRect())
-          const boks = {
-            left: Math.min(...r.map((b) => b.left)),
-            right: Math.max(...r.map((b) => b.right)),
-            top: Math.min(...r.map((b) => b.top)),
-            bottom: Math.max(...r.map((b) => b.bottom)),
-          }
-          const k = knapp.getBoundingClientRect()
-          return {
-            dx: (boks.left + boks.right) / 2 - (k.left + k.right) / 2,
-            dy: (boks.top + boks.bottom) / 2 - (k.top + k.bottom) / 2,
-          }
-        })
-        if (!skjev) throw new Error('snakkebobla har ingen tegning å måle')
-        if (Math.abs(skjev.dx) > 1.5 || Math.abs(skjev.dy) > 1.5) {
-          throw new Error(`snakkebobla står ${skjev.dx.toFixed(1)},${skjev.dy.toFixed(1)} px `
-            + 'fra knappens midte — glyfen må være symmetrisk om 12/12 i viewBoxen')
-        }
-
-        // ETT TAPP MED FINGEREN, ikke et hold og ikke musa. FabCluster er
-        // drevet av pointerdown/-up via useLongPress, så `el.click()` gjør
-        // ingenting. Og TOUCH er ikke et strengere mus-trykk: den sender en
-        // kompatibilitets-`click` ~25 ms etter `touchend`, som fram til v7.3.3
-        // traff bakteppet modalen nettopp la under fingeren og lukket chatten
-        // igjen. Musa gjør ikke det — derfor sto denne sjekken grønn mens
-        // chatten i praksis bare kunne åpnes med lang-trykk på telefon.
-        const midtX = boks.x + boks.width / 2
-        const midtY = boks.y + boks.height / 2
-        await p2.touchscreen.tap(midtX, midtY)
-        const seChat = () => p2.evaluate(() =>
-          [...document.querySelectorAll('h1, h2, h3, [role="dialog"]')]
-            .some((e) => e.offsetParent !== null && /Lende-chat/.test(e.textContent || '')))
-        await p2.waitForTimeout(120)
-        if (!(await seChat())) throw new Error('ett tapp på FAB-en åpnet ikke chatten')
-        // ETTER spøkelsesklikket, ikke før: åpner og lukker den i samme
-        // øyeblikk, er en måling på 120 ms grønn og brukeren uten chat.
-        await p2.waitForTimeout(700)
-        if (!(await seChat())) {
-          throw new Error('chatten åpnet, men lukket seg igjen — spøkelsesklikket '
-            + 'fra touchend traff bakteppet (AppModal.bakteppeKlikk)')
-        }
-        return `FAB nede til høyre (${Math.round(boks.x)},${Math.round(boks.y)}), `
-          + `snakkebobla ${skjev.dx.toFixed(1)},${skjev.dy.toFixed(1)} px fra midten, `
-          + 'ett finger-tapp åpnet chatten og den ble stående'
-      } finally {
-        await ctx.close()
-      }
-    },
-  },
-  {
-    // KOMPASSET OG LENDE-FAB-EN DELER BUNNLINJE (v7.7.6).
+    // LINJALEN OG KOMPASSNÅLA DELER BUNNLINJE (v7.7.6, ny høyrekant i v7.8.17).
     //
     // De to flytende elementene i hver sin nedre kant hadde hver sin regel:
     // FAB-en gikk gjennom useFloatAboveSheets og dokket over et minimert ark,
     // mens linjal-boksen med kompass-nåla sto på en FAST bunn og ble liggende
-    // halvt bak arkets peek-kant. To knapper i samme kant som svarer ulikt på
+    // halvt bak arkets peek-kant. To ting i samme kant som svarer ulikt på
     // det samme arket leses som en feil i den ene. Nå mates begge av ÉN
     // `useFloatAboveSheets`.
     //
+    // HØYREKANTEN BYTTET BEBOER I v7.8.17. Lende-FAB-en er borte fra turkartet
+    // — chatten er radens siste snarvei — og kompassnåla har rykket ned i
+    // hjørnet den etterlot, altså ut av løftet `over-chat` ga den i v7.8.4.
+    // Sjekken måler derfor nåla der den før målte FAB-en, PLUSS at FAB-en
+    // faktisk er borte: et kart med begge ville hatt to knapper oppå hverandre,
+    // og det er nøyaktig det ingen enhetstest kan se.
+    //
     // MÅLES VED 200 % OGSÅ, og det er der den andre halvdelen av feilen satt:
-    // `zoom` lå på FAB-ens PLASSERTE boks, og zoom skalerer et elements egne
+    // `zoom` lå på den PLASSERTE boksen, og zoom skalerer et elements egne
     // offsets — så den dokkede verdien (`peek + 12`) ble dobbelt så høy og
-    // FAB-en fløt hundre piksler over arket. Zoomen bor nå på en indre boks
+    // knappen fløt hundre piksler over arket. Zoomen bor nå på en indre boks
     // forankret i hjørnet, så plasseringen er i ekte skjermpiksler.
     //
     // Tre tilstander, og alle tre er i bestillingen: uten ark står begge
     // nederst, over et MINIMERT ark står begge like høyt over peek-kanten, og
     // med arket dratt opp er begge borte.
-    navn: 'linjalen og Lende-FAB-en deler bunnlinje, med nåla rett over FAB-en',
-    domene: 'MapView (bunnlinja) + MapScaleAttribution + KompassKnapp + FabCluster',
+    navn: 'linjalen og kompassnåla deler bunnlinje, og turkartet har ingen Lende-FAB',
+    domene: 'MapView (bunnlinja) + MapScaleAttribution + KompassKnapp',
     maksMs: 150_000,
     async kjør(page) {
       const resultat = []
@@ -3720,6 +3714,8 @@ const SJEKKER = [
           viewport: { width: 430, height: 900 },
           hasTouch: true,
         })
+        // Token PÅ med vilje: det er den tilstanden der FAB-en fantes, altså
+        // den eneste der en tilbakevendt knapp ville vist seg.
         await ctx.addInitScript((s) => {
           try {
             localStorage.setItem('lende-ai-token', 'royk-token')
@@ -3739,50 +3735,39 @@ const SJEKKER = [
           // skal dele, og høydene deres er ulike.
           const les = () => p2.evaluate(() => {
             const vh = innerHeight
-            const fab = document.querySelector('button[aria-label="Spør Lende"]')
-            const sk = document.querySelector('[data-osm-kreditt]')?.closest('div.absolute')
             const nal = document.querySelector('[data-kompass-knapp]')
+            const sk = document.querySelector('[data-osm-kreditt]')?.closest('div.absolute')
             const ark = [...document.querySelectorAll('.drawer-shell')]
               .filter((e) => e.offsetParent)
             const bunn = (e) => (e ? Math.round(vh - e.getBoundingClientRect().bottom) : null)
-            const fr = fab?.getBoundingClientRect()
-            const nr = nal?.getBoundingClientRect()
             return {
-              fab: bunn(fab),
+              nal: bunn(nal),
               linjal: sk ? Math.round(vh - sk.getBoundingClientRect().bottom) : null,
-              // NÅLA STÅR OVER LENDE-KNAPPEN (v7.8.4), ikke oppå den: luft
-              // mellom, og samme høyrekant. Ved 200 % er FAB-en 96 px høy, så
-              // et fast løft ville lagt nåla midt i den.
-              nalOverFab: (fr && nr) ? Math.round(fr.top - nr.bottom) : null,
-              nalHoyreAvvik: (fr && nr) ? Math.round(Math.abs(fr.right - nr.right)) : null,
+              // FAB-en er borte fra turkartet (v7.8.17). Aria-etiketten er
+              // FabClusters egen rene chat-modus, altså nøyaktig den knappen
+              // som ble slettet her.
+              fab: document.querySelectorAll('button[aria-label="Spør Lende"]').length,
               arkHoyde: ark.length
                 ? Math.round(vh - Math.max(...ark.map((a) => a.getBoundingClientRect().top)))
                 : 0,
             }
           })
           const like = (m, hva) => {
-            if (m.fab === null || m.linjal === null) {
+            if (m.nal === null || m.linjal === null) {
               throw new Error(`ved ${skala * 100} %, ${hva}: `
-                + `${m.fab === null ? 'FAB-en' : 'linjalen'} er borte — begge skal stå`)
+                + `${m.nal === null ? 'nåla' : 'linjalen'} er borte — begge skal stå`)
             }
-            if (Math.abs(m.fab - m.linjal) > 2) {
-              throw new Error(`ved ${skala * 100} %, ${hva}: FAB-en står ${m.fab} px `
+            if (Math.abs(m.nal - m.linjal) > 2) {
+              throw new Error(`ved ${skala * 100} %, ${hva}: nåla står ${m.nal} px `
                 + `over skjermkanten og linjalen ${m.linjal} px — de skal dele bunnlinje`)
             }
           }
 
           const fritt = await les()
           like(fritt, 'uten ark')
-          if (fritt.nalOverFab === null) {
-            throw new Error(`ved ${skala * 100} %: fant ingen kompassnål over Lende-knappen`)
-          }
-          if (!(fritt.nalOverFab > 0 && fritt.nalOverFab < 32 * skala)) {
-            throw new Error(`ved ${skala * 100} % står nåla ${fritt.nalOverFab} px over `
-              + 'Lende-knappen — den skal stå rett over den, med litt luft')
-          }
-          if (fritt.nalHoyreAvvik > 2) {
-            throw new Error(`ved ${skala * 100} % står nåla ${fritt.nalHoyreAvvik} px fra `
-              + 'Lende-knappens høyrekant — de skal stå i samme kolonne')
+          if (fritt.fab) {
+            throw new Error(`ved ${skala * 100} % står Lende-FAB-en igjen i turkartet `
+              + '— chatten er en snarvei i raden, og hjørnet er nålas')
           }
 
           // Punkt-arket åpner MIDTSTORT av et hold i kartet; peek nås med et
@@ -3795,9 +3780,9 @@ const SJEKKER = [
           await p2.waitForTimeout(1200)
           const midt = await les()
           if (!midt.arkHoyde) throw new Error('holdet åpnet ikke punkt-arket')
-          if (midt.fab !== null || midt.linjal !== null) {
+          if (midt.nal !== null || midt.linjal !== null) {
             throw new Error(`ved ${skala * 100} % står `
-              + `${midt.fab !== null ? 'FAB-en' : 'linjalen'} igjen under et `
+              + `${midt.nal !== null ? 'nåla' : 'linjalen'} igjen under et `
               + 'oppslått ark — begge skal være borte')
           }
 
@@ -3812,23 +3797,161 @@ const SJEKKER = [
             throw new Error(`arket ble ikke minimert (${peek.arkHoyde} px)`)
           }
           like(peek, 'over et minimert ark')
-          if (!(peek.fab > peek.arkHoyde)) {
-            throw new Error(`ved ${skala * 100} % ligger begge ${peek.fab} px over kanten, `
+          if (!(peek.nal > peek.arkHoyde)) {
+            throw new Error(`ved ${skala * 100} % ligger begge ${peek.nal} px over kanten, `
               + `men arkets peek er ${peek.arkHoyde} px — de står bak arket`)
           }
           // OG IKKE SVEVENDE HØYT OVER DET: zoom-fella ga dobbelt avstand.
-          if (peek.fab > peek.arkHoyde + 40) {
-            throw new Error(`ved ${skala * 100} % står de ${peek.fab - peek.arkHoyde} px `
+          if (peek.nal > peek.arkHoyde + 40) {
+            throw new Error(`ved ${skala * 100} % står de ${peek.nal - peek.arkHoyde} px `
               + 'over arkets peek-kant — skalerer zoomen plasseringen igjen?')
           }
-          resultat.push(`${skala * 100} %: ${fritt.fab} px fritt, nåla `
-            + `${fritt.nalOverFab} px over FAB-en, `
-            + `${peek.fab} px over en peek på ${peek.arkHoyde} px`)
+          resultat.push(`${skala * 100} %: ${fritt.nal} px fritt, ingen FAB, `
+            + `${peek.nal} px over en peek på ${peek.arkHoyde} px`)
         } finally {
           await ctx.close()
         }
       }
       return resultat.join('; ')
+    },
+  },
+  {
+    // LENDE-CHATTEN ER RADENS SISTE SNARVEI, OG PORTEN ER TOKENET (v7.8.17).
+    //
+    // Knappen nede til høyre er borte, og snarveien er den eneste inngangen til
+    // chatten i turkartet. To ting måles, og ingen av dem finnes i en enhetstest:
+    // prosjektet monterer ikke Vue-komponenter, så både katalog-porten og at
+    // trykket faktisk åpner modalen kan bare ses på skjermen.
+    //
+    // BEGGE RETNINGER MÅLES I SAMME SJEKK. En port som slipper alle gjennom ser
+    // helt normal ut for den som har token — og det er de uinviterte som ikke
+    // skal se at funksjonen finnes. Konteksten uten token kjøres derfor først,
+    // så en feil der ikke kan forveksles med at raden ennå ikke var målt.
+    //
+    // SNARVEIEN LIGGER SIST og er dermed den som først havner bak håndtaket på
+    // en smal skjerm. Sjekken drar derfor raden helt ut før den leter — den vet
+    // ikke hvor mange kolonner viewporten ga.
+    //
+    // TO LÆRDOMMER ER ARVET FRA FAB-SJEKKEN DENNE AVLØSER (v7.8.17), og begge
+    // gjelder uendret nå som chatten er en snarvei:
+    //
+    //   • ETT TAPP MED FINGEREN, og modalen må BLI STÅENDE. Touch er ikke et
+    //     strengere mus-trykk: nettleseren sender en kompatibilitets-`click`
+    //     ~25 ms etter `touchend`, og fram til v7.3.3 traff den bakteppet
+    //     modalen nettopp la under fingeren og lukket chatten igjen. Musa gjør
+    //     ikke det, så en måling med `click()` sto grønn mens chatten i praksis
+    //     ikke kunne åpnes på telefon. Derfor `touchscreen.tap` og en andre
+    //     måling ETTER spøkelsesklikket.
+    //   • SNAKKEBOBLA MÅ VÆRE SYMMETRISK OM 12/12 I VIEWBOXEN (v7.7.3). Den
+    //     gamle glyfen lå 2,24 px for lavt (hale ned mot venstre), og en
+    //     zoomet flate ganger opp skjevheten. Målt her mot SVG-ens EGEN boks,
+    //     altså på glyfen og ikke på hvilken knapp som tilfeldigvis bærer den —
+    //     samme ikon står i FAB-en på forsiden og i ruteplanleggeren.
+    navn: 'Lende-chatten er siste snarvei, og bare med invitasjonstoken',
+    domene: 'lib/snarveier (kunChat) + MapView SNARVEI_HANDLING',
+    maksMs: 120_000,
+    async kjør(page) {
+      const ider = async (token) => {
+        const ctx = await egenKontekst(page, {
+          viewport: { width: 430, height: 900 },
+          hasTouch: true,
+        })
+        if (token) {
+          await ctx.addInitScript(() => {
+            try { localStorage.setItem('lende-ai-token', 'royk-token') } catch { /* tom */ }
+          })
+        }
+        const p2 = await ctx.newPage()
+        try {
+          await p2.goto(`${BASE}/kart/vardasen`,
+            { waitUntil: 'domcontentloaded', timeout: 60_000 })
+          await p2.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+            null, { timeout: 30_000 })
+          await lukkDrawer(p2)
+          // Raden helt ut: sammenlagt er den klippet til første rad, og chatten
+          // er sist i lista.
+          const h = await p2.locator('.snarvei-handle').boundingBox()
+          if (h) {
+            await p2.mouse.move(h.x + h.width / 2, h.y + h.height / 2)
+            await p2.mouse.down()
+            await p2.mouse.move(h.x + h.width / 2, h.y + 220, { steps: 12 })
+            await p2.mouse.up()
+            await p2.waitForTimeout(500)
+          }
+          const liste = await p2.evaluate(() =>
+            [...document.querySelectorAll('[data-snarvei-id]')]
+              .map((e) => e.getAttribute('data-snarvei-id')))
+          let apnet = null
+          let staarIgjen = null
+          let skjev = null
+          if (liste.includes('chat')) {
+            const celle = p2.locator('[data-snarvei-id="chat"]').first()
+            skjev = await celle.evaluate((knapp) => {
+              const svg = knapp.querySelector('svg')
+              const deler = [...svg.children]
+              if (!deler.length) return null
+              const r = deler.map((e) => e.getBoundingClientRect())
+              const ink = {
+                left: Math.min(...r.map((b) => b.left)),
+                right: Math.max(...r.map((b) => b.right)),
+                top: Math.min(...r.map((b) => b.top)),
+                bottom: Math.max(...r.map((b) => b.bottom)),
+              }
+              const k = svg.getBoundingClientRect()
+              return {
+                dx: (ink.left + ink.right) / 2 - (k.left + k.right) / 2,
+                dy: (ink.top + ink.bottom) / 2 - (k.top + k.bottom) / 2,
+              }
+            })
+            const boks = await celle.boundingBox()
+            await p2.touchscreen.tap(boks.x + boks.width / 2, boks.y + boks.height / 2)
+            // Modalen bor i App.vue og kjennes på skrivefeltet sitt — teksten
+            // i placeholderen er dens egen og finnes ikke ellers i kartet.
+            const seChat = () => p2.evaluate(() =>
+              [...document.querySelectorAll('textarea')]
+                .some((t) => /Spør om kartet/i.test(t.placeholder || '')))
+            await p2.waitForTimeout(200)
+            apnet = await seChat()
+            await p2.waitForTimeout(700)
+            staarIgjen = await seChat()
+          }
+          return { liste, apnet, staarIgjen, skjev }
+        } finally {
+          await ctx.close()
+        }
+      }
+
+      const uten = await ider(false)
+      if (!uten.liste.length) throw new Error('fant ingen snarveier uten token')
+      if (uten.liste.includes('chat')) {
+        throw new Error('chat-snarveien vises UTEN invitasjonstoken — '
+          + 'uinviterte skal ikke se at funksjonen finnes')
+      }
+
+      const med = await ider(true)
+      if (!med.liste.includes('chat')) {
+        throw new Error(`chat-snarveien mangler MED token — raden viser ${med.liste.join(', ')}`)
+      }
+      if (med.liste.at(-1) !== 'chat') {
+        throw new Error(`chatten står som nr. ${med.liste.indexOf('chat') + 1} av `
+          + `${med.liste.length} — den skal være helt sist`)
+      }
+      if (!med.apnet) throw new Error('ett finger-tapp på chat-snarveien åpnet ikke chatten')
+      if (!med.staarIgjen) {
+        throw new Error('chatten åpnet, men lukket seg igjen — spøkelsesklikket '
+          + 'fra touchend traff bakteppet (AppModal.bakteppeKlikk)')
+      }
+      if (!med.skjev) throw new Error('snakkebobla har ingen tegning å måle')
+      if (Math.abs(med.skjev.dx) > 1.5 || Math.abs(med.skjev.dy) > 1.5) {
+        throw new Error(`snakkebobla står ${med.skjev.dx.toFixed(1)},`
+          + `${med.skjev.dy.toFixed(1)} px fra ikonets midte — glyfen må være `
+          + 'symmetrisk om 12/12 i viewBoxen')
+      }
+
+      return `uten token: ${uten.liste.length} snarveier uten chat; `
+        + `med token: ${med.liste.length}, chatten sist, bobla `
+        + `${med.skjev.dx.toFixed(1)},${med.skjev.dy.toFixed(1)} px fra midten, `
+        + 'og ett finger-tapp åpnet modalen uten at den lukket seg igjen'
     },
   },
   {

@@ -50,6 +50,7 @@ export const SNARVEI_MIN_H = 44
 //   sok, innstillinger  → topprada, der de lå (MapView)
 //   utno, gmaps         → øverst i infopanelet (ContextMenuSheet)
 //   chat                → Lende-FAB-en nede til høyre, som i ruteplanleggeren
+//                         (og TILBAKE hit i v7.8.17, sist i lista — se under)
 //   strek, relieff      → Innstillinger → Kartstil (v7.4.0)
 //
 // STREK OG RELIEFF ER INNSTILLINGER, OG DE ENDTE DER (v7.4.0). De sto som to
@@ -117,6 +118,16 @@ export const SNARVEIER = [
   // man slår opp i når man har stoppet, ikke noe man rekker etter mens man går.
   { id: 'hjelp',      label: 'Hjelp', aria: 'Tegnforklaring' },
   { id: 'innstillinger', label: 'Valg', aria: 'Valg' },
+  // LENDE-CHATTEN ER EN SNARVEI IGJEN (v7.8.17), og den er den ENESTE som
+  // ikke finnes for alle: `kunChat` er samme port som Lende-FAB-en hadde —
+  // uten invitasjonstoken skal funksjonen ikke engang vises. Den sto her i
+  // v7.1.0, gikk ut med resten i v7.2.0 og fikk sin egen runde knapp nede til
+  // høyre; nå er den tilbake i raden, HELT SIST. Sist fordi de to foran den —
+  // «Hjelp» og «Valg» — er det man slår opp i når man har stoppet, og et
+  // spørsmål til Lende er det samme slaget: man skriver ikke en setning mens
+  // man går. Knappen nede til høyre er borte med den, og kompassnåla har rykket
+  // ned i hjørnet den etterlot (KompassKnapp.vue).
+  { id: 'chat',       label: 'Lende', aria: 'Spør Lende om kartet', kunChat: true },
 ]
 
 export const STANDARD_REKKEFOLGE = SNARVEIER.map(s => s.id)
@@ -159,12 +170,22 @@ export function normaliserRekkefolge(lagret) {
   return ut
 }
 
-/** Katalog-oppslagene i brukerens rekkefølge, filtrert på kart-typen. */
-export function snarveierIRekkefolge(rekkefolge, { egetKart = true } = {}) {
+/**
+ * Katalog-oppslagene i brukerens rekkefølge, filtrert på kart-typen OG på
+ * hvem brukeren er.
+ *
+ * De to portene er ulike, og forskjellen er verdt å holde: `kunEgne` gjelder
+ * KARTET (på et demokart finnes verken egne markeringer eller GPS-spor), mens
+ * `kunChat` gjelder BRUKEREN (uten invitasjonstoken skal chatten ikke vises i
+ * det hele tatt). Begge lar id-en bli stående i den lagrede rekkefølgen — se
+ * `flettSynligRekkefolge` — så en snarvei som er skjult i dag ikke mister
+ * plassen sin av at man sorterte raden mens den var borte.
+ */
+export function snarveierIRekkefolge(rekkefolge, { egetKart = true, chat = false } = {}) {
   const kat = new Map(SNARVEIER.map(s => [s.id, s]))
   return normaliserRekkefolge(rekkefolge)
     .map(id => kat.get(id))
-    .filter(s => s && (egetKart || !s.kunEgne))
+    .filter(s => s && (egetKart || !s.kunEgne) && (chat || !s.kunChat))
 }
 
 /**
