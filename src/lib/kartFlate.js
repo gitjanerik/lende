@@ -57,10 +57,21 @@ export const KART_SKIVE = {
  * katalogen har, altså den dominerende flata, men den kan ikke måle en strek
  * som tilfeldigvis ligger under en etikett. Går man lettere enn dette, er det
  * lesbarheten som betaler.
+ *
+ * OG DET ER NØYAKTIG DET SOM SKJEDDE PÅ 0,55 (v7.8.23). Eieren meldte fra felt,
+ * med skjermbilder fra Søndre Krokvannet: et stort stedsnavn som glir inn under
+ * raden slår knappeteksten nesten ut. Testen kunne ikke se det — et stedsnavn ER
+ * en strek som tilfeldigvis ligger under en etikett, altså nøyaktig unntaket
+ * avsnittet over beskriver. Ett knepp tettere (0,68) tar bakgrunnsstøyen —
+ * kurver og skravur — mens det STORE svarte er tatt der det hører hjemme, i
+ * kartet: `useNavnLod` mater raden inn som en hindring i navne-declutteren, så
+ * et navn ikke plasseres under den i det hele tatt. To grep mot to ulike
+ * problemer; ingen av dem er en uskarphet, som ville gjort uttrykket tyngre enn
+ * begge.
  */
 export const KART_SKIVE_LETT = {
-  lys:  'rgba(255,255,255,0.55)',
-  mork: 'rgba(26,26,30,0.55)',
+  lys:  'rgba(255,255,255,0.68)',
+  mork: 'rgba(26,26,30,0.68)',
 }
 
 /**

@@ -13,12 +13,29 @@
 //      navnet. Se guarden på `path` under.
 //   3. Skjulingen skjer med klassen `name-lod-off` (CSS i MapView, IKKE i
 //      symbolizer-CSS-en inni SVG-en) — så eksport og print alltid viser alt.
+//   4. OVERLEGG SOM LIGGER PÅ ARKET ER HINDRINGER (v7.8.23). Snarvei-raden er
+//      turkartets største overlegg, og et stort mørkt stedsnavn som glir inn
+//      under den slår knappeteksten ut — meldt fra felt med skjermbilder. Raden
+//      måles i skjermrom og sås inn i declutterens R-tre som en opptatt boks, så
+//      navnet ikke plasseres der i det hele tatt. Det er KARTET som viker, ikke
+//      raden som blir tyngre: alternativene var en uskarphet eller en tettere
+//      flate, og begge koster det luftige uttrykket raden nettopp fikk.
+//      Prisen er at navn under raden FORSVINNER framfor å flytte seg. De er
+//      fortsatt søkbare (punkt 1), og et valgt søketreff er `forced` og står
+//      over budsjettet — altså kan et treff fortsatt havne under raden.
 
 import { ref, watch, onUnmounted } from 'vue'
-import { declutter, makeMinZoomOf } from '../lib/labelDeclutter.js'
+import { declutter, hindringsBoks, makeMinZoomOf } from '../lib/labelDeclutter.js'
 
 const DEBOUNCE_MS = 120
 const MARGIN_PX = 80        // slingringsmonn så navn rett utenfor kanten teller med
+
+// Hindringene krymper litt inn mot sin egen midte: raden er en RAMME med
+// gjennomsiktig innmat, så et navn som så vidt stikker under ytterkanten er
+// fortsatt lesbart, og en boks på nøyaktig ytterkanten ville ryddet et bredere
+// felt enn det man ser. Negativ verdi ville gitt luft rundt — det er ikke det
+// samme problemet, og skal i så fall begrunnes for seg.
+const HINDRING_KRYMP_PX = 4
 
 // Klassegruppe for tetthets-budsjettet: topp/vann/område er PRIORITET (utenom
 // rutenett-kvoten, men kollisjonssjekkes); bebyggelse/hytte er kvote-styrt.
@@ -60,6 +77,7 @@ function nameScore(e) {
  *   nameBudgetFar: import('vue').Ref, nameBudgetMid: import('vue').Ref,
  *   nameBudgetNear: import('vue').Ref,
  *   nameCellPx: import('vue').Ref, nameK: import('vue').Ref,
+ *   hindringSelektorer?: string[],   // overlegg navn ikke skal havne under
  * }} deps
  */
 export function useNavnLod({
@@ -69,6 +87,7 @@ export function useNavnLod({
   zoomNearThreshold, zoomedInThreshold,
   nameBudgetFar, nameBudgetMid, nameBudgetNear,
   nameCellPx, nameK,
+  hindringSelektorer = [],
 }) {
   // v11.0.34: budsjettet er zoom-trappet — få navn på oversikt (ren bakgrunn),
   // gradvis flere når man zoomer inn. Tidligere var det fast 200 uansett zoom.
@@ -108,6 +127,34 @@ export function useNavnLod({
   // ikke gjøres gjennom en destrukturert dep.
   function resetPrevShownNames() { prevShownNames = new Set() }
   const nameMinZoomOf = (score) => makeMinZoomOf(zoomNearThreshold.value)(score)
+
+  // Overleggene måles i WRAPPER-LOKALE piksler, samme rom som kandidatenes
+  // sx/sy. `getBoundingClientRect` leser den EKTE skjermboksen, altså inklusive
+  // `zoom` på knappene og hva enn draget har gjort med høyden — det er hele
+  // grunnen til at boksen leses av DOM-en og ikke regnes ut av tilstanden.
+  // Selektorene slås opp på nytt hvert pass: overlegget står bak en `v-if`, så
+  // et element-referanse ville vært foreldet i det modusen byttet.
+  const hindringObs = typeof ResizeObserver !== 'undefined'
+    ? new ResizeObserver(() => scheduleNameLOD())
+    : null
+  onUnmounted(() => hindringObs?.disconnect())
+
+  function hindringsBokser(wrap) {
+    if (!hindringSelektorer.length || typeof document === 'undefined') return []
+    const ut = []
+    for (const sel of hindringSelektorer) {
+      for (const el of document.querySelectorAll(sel)) {
+        const r = el.getBoundingClientRect()
+        if (!(r.width > 0) || !(r.height > 0)) continue
+        // Draget endrer høyden uten at noe annet fyrer — observeren er det som
+        // gjør at navnene viker mens skuffa åpnes. `observe` er idempotent.
+        hindringObs?.observe(el)
+        const b = hindringsBoks(r, wrap, HINDRING_KRYMP_PX)
+        if (b) ut.push(b)
+      }
+    }
+    return ut
+  }
 
   // Tetthets-budsjett: score → LOD (m/hysterese) → grådig kollisjon (rbush) +
   // rutenett-kvote → synlig-sett. Ren algoritme i lib/labelDeclutter.js; her står
@@ -176,6 +223,7 @@ export function useNavnLod({
       minZoomOf: nameMinZoomOf,
       prevShown: prevShownNames,
       maxVisible: nameBudgetForZoom(),   // globalt tak (Utvikler-budsjett)
+      hindringer: hindringsBokser(wrap),
     })
 
     for (const c of candidates) {

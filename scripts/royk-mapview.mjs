@@ -682,6 +682,90 @@ const SJEKKER = [
     },
   },
   {
+    // SNARVEI-RADEN ER EN HINDRING FOR NAVN (v7.8.23).
+    //
+    // Eieren meldte fra felt, med skjermbilder fra Søndre Krokvannet: et stort
+    // mørkt stedsnavn som glir inn under raden slår knappeteksten ut. Det er
+    // KARTET som viker — raden sås inn i declutterens R-tre som en opptatt boks
+    // — og alternativene (en uskarphet, eller en tettere flate) ble forkastet
+    // fordi begge koster det luftige uttrykket raden nettopp fikk.
+    //
+    // SJEKKEN MÅ NØYTRALISERE `display: none` FOR Å MÅLE I DET HELE TATT.
+    // Et skjult navn har ingen boks, så uten det er svaret alltid «ingen navn
+    // under raden» — også med hindringen fjernet. Stilen tas inn, alt måles i
+    // ETT pass, og stilen fjernes igjen.
+    //
+    // OG DEN MÅ BEVISE AT DEN MÅLTE NOE. Finner den ingen navn i radens felt i
+    // det hele tatt, er «null synlige» en gratis grønn — da kaster den heller
+    // enn å påstå noe. Derfor zoomes det inn først: på oversikt er
+    // navnetettheten lav, og toppen av arket kan være tom.
+    navn: 'snarvei-raden skyver stedsnavn unna',
+    domene: 'useNavnLod + labelDeclutter',
+    krever: 'ektekart',
+    async kjør(page) {
+      await lukkDrawer(page)
+      await apneSnarveiRad(page)   // størst mulig hindring — flere rader
+      await zoomInn(page, 8)
+      await page.waitForTimeout(600)   // declutteren er debouncet 120 ms
+      const m = await page.evaluate(() => {
+        const pille = document.querySelector('.snarvei-pille')
+        if (!pille) return { feil: 'fant ikke snarvei-pilla' }
+        const p = pille.getBoundingClientRect()
+        // Samme krymp som `HINDRING_KRYMP_PX` i useNavnLod: raden er en ramme,
+        // og et navn som så vidt stikker under ytterkanten er ikke problemet.
+        const k = 4
+        const boks = { l: p.left + k, t: p.top + k, r: p.right - k, b: p.bottom - k }
+
+        const stil = document.createElement('style')
+        stil.textContent = '.isom-map .name-lod-off { display: inline !important; }'
+        document.head.appendChild(stil)
+        let under = 0, synlige = 0, verste = null
+        try {
+          // KANDIDATSETTET MÅ SPEILE SØKEINDEKSEN, ikke navne-laget. Navn-LOD-en
+          // toggler nøyaktig de elementene `buildSearchIndex` la inn — og den
+          // hopper over mer enn man tror. Målt lokalt: et drag av «100» (et
+          // kontur-tall) under pilla ga «synlig navn under raden», men tallet er
+          // aldri i indeksen, så ingen mekanisme eier det. En sjekk som krever at
+          // et element skjules av noe som ikke eier det er en sjekk som feiler på
+          // et grønt kart. Reglene under er `buildSearchIndex`s egne:
+          // spøkelses-fliser hører til nabo-indeksen, SKIP_LABELS er tall-etiketter
+          // (kontur, høyde, dybde), og NUMERIC_RE kaster rene tall uansett etikett.
+          const HOPP = new Set(['kontur-tall', 'peak-ele', 'vann-tall', 'dybde-tall'])
+          const TALL = /^[\s-]*\d+([.,]\d+)?(\s*(m|moh|km))?$/i
+          for (const el of document.querySelectorAll('svg.isom-map text[data-label]')) {
+            if (el.closest('#ghost-tiles')) continue
+            if (HOPP.has(el.getAttribute('data-label') ?? '')) continue
+            const navn = (el.getAttribute('data-name-full') ?? el.textContent ?? '').trim()
+            if (!navn || TALL.test(navn)) continue
+            const r = el.getBoundingClientRect()
+            if (!(r.width > 0) || !(r.height > 0)) continue
+            if (r.left >= boks.r || r.right <= boks.l) continue
+            if (r.top >= boks.b || r.bottom <= boks.t) continue
+            under++
+            if (!el.classList.contains('name-lod-off')) {
+              synlige++
+              if (!verste) verste = (el.textContent || '').trim().slice(0, 40)
+            }
+          }
+        } finally {
+          stil.remove()
+        }
+        return { under, synlige, verste, radH: Math.round(p.height) }
+      })
+      if (m.feil) throw new Error(m.feil)
+      if (!m.under) {
+        throw new Error('fant ingen stedsnavn i radens felt — sjekken målte '
+          + 'ingenting, og «null synlige» ville vært en gratis grønn')
+      }
+      if (m.synlige) {
+        throw new Error(`${m.synlige} av ${m.under} stedsnavn står SYNLIG under `
+          + `snarvei-raden (f.eks. «${m.verste}») — hindringen nådde ikke declutteren`)
+      }
+      await lukkSnarveiRad(page)
+      return `${m.under} navn i radens felt (${m.radH} px høy), alle skjult`
+    },
+  },
+  {
     navn: 'dyp zoom culler vektorer',
     domene: 'useViewportCull',
     krever: 'ektekart',

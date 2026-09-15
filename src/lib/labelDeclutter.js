@@ -25,7 +25,17 @@ import RBush from 'rbush'
 //   group:  'priority' (topp/vann/område — utenom kvote) | 'quota' (bebyggelse/hytte)
 //   forced: true ⇒ søke-pin: vises alltid, tegnes over, uten kollisjons-fotavtrykk
 // }
-// opts: { cellPx, K, scale, minZoomOf(score)->number, prevShown:Set, pad, maxVisible }
+// opts: { cellPx, K, scale, minZoomOf(score)->number, prevShown:Set, pad, maxVisible,
+//         hindringer: [{minX,minY,maxX,maxY}] }
+//
+// HINDRINGER er flater som ligger OPPÅ arket og som et navn ikke skal havne
+// under (snarvei-raden i dag). De såes i det samme R-treet som navnene, FØR
+// noen kandidat plasseres, så de koster nøyaktig null per navn: kollisjonen
+// spørres allerede én gang per kandidat. Merk at de gjelder NAVN og ingenting
+// annet — kurver, skravur og geometri ligger fortsatt under overlegget, og et
+// søketreff (`forced`) står over hele budsjettet og kan derfor fortsatt havne
+// der. Boksene er i SKJERMROM, samme rom som `sx/sy`, og kallstedet må derfor
+// mate dem på nytt når overlegget endrer størrelse.
 //
 // Returnerer Set<id> som skal være synlige.
 
@@ -41,6 +51,7 @@ export function declutter(candidates = [], opts = {}) {
     prevShown = new Set(),
     pad = 2,
     maxVisible = Infinity,   // global tak (Utvikler-budsjett) — rutenett-kvote er primær
+    hindringer = [],         // overlegg navn ikke skal plasseres under (skjermrom)
   } = opts
   const minZoomOf = typeof opts.minZoomOf === 'function' ? opts.minZoomOf : () => 0
 
@@ -75,6 +86,13 @@ export function declutter(candidates = [], opts = {}) {
     placed++
   }
 
+  // 0. Overlegg som opptar plass. Sås før alt annet, så BÅDE sticky og ferske
+  //    navn møter dem — et navn som var synlig da raden ble foldet ut skal vike,
+  //    ellers ville hysteresen holdt nettopp det navnet fast under raden.
+  for (const h of hindringer) {
+    if (h && h.maxX > h.minX && h.maxY > h.minY) tree.insert({ ...h })
+  }
+
   // 1. Søke-pin: alltid synlig, tegnes over. Får IKKE kollisjons-fotavtrykk.
   for (const c of candidates) {
     if (c.forced) visible.add(c.id)
@@ -101,6 +119,35 @@ export function declutter(candidates = [], opts = {}) {
   for (const c of fresh) tryPlace(c, true)
 
   return visible
+}
+
+/**
+ * Et overleggs skjermboks → hindring i WRAPPER-LOKALE piksler.
+ *
+ * Skilt ut som ren funksjon fordi den er den ene biten av hindrings-veien som
+ * kan regne feil uten at noe ser rart ut: en boks i feil rom rydder navn et
+ * annet sted enn der overlegget står, og det er umulig å se forskjell på det og
+ * «declutteren tok bare de navnene».
+ *
+ * `krymp` trekker boksen inn mot sin egen midte. Snarvei-raden er en RAMME med
+ * gjennomsiktig innmat, så et navn som så vidt stikker under ytterkanten er
+ * fortsatt lesbart. En boks som kollapser av krympen er ingen hindring og gis
+ * tilbake som null — en invertert boks ville ryddet ingenting, men også skjult
+ * at tallet var for stort.
+ *
+ * @param {{left:number,top:number,right:number,bottom:number}} rect overleggets skjermboks
+ * @param {{left:number,top:number}} wrap kartflatas skjermboks
+ * @param {number} krymp piksler inn fra hver kant
+ */
+export function hindringsBoks(rect, wrap, krymp = 0) {
+  if (!rect || !wrap) return null
+  const b = {
+    minX: rect.left - wrap.left + krymp,
+    minY: rect.top - wrap.top + krymp,
+    maxX: rect.right - wrap.left - krymp,
+    maxY: rect.bottom - wrap.top - krymp,
+  }
+  return (b.maxX > b.minX && b.maxY > b.minY) ? b : null
 }
 
 // Score→minZoom-bånd. Bevisst LØS: tetthet styres primært av kollisjon +

@@ -50,6 +50,11 @@ describe('kartFlate', () => {
     expect(KART_SKIVE.mork).toBe('rgba(26,26,30,0.82)')
     expect(KART_BLEKK.lys.ink).toBe('#1c1917')
     expect(KART_BLEKK.mork.ink).toBe('#f4f4f5')
+    // Den LETTE gikk fra 0,55 til 0,68 i v7.8.23. Testen under måler bare mot
+    // kart-BUNNEN, og et stort stedsnavn er nettopp unntaket den ikke ser — så
+    // verdien er valgt i felt og står som fasit her, ikke som et resultat.
+    expect(KART_SKIVE_LETT.lys).toBe('rgba(255,255,255,0.68)')
+    expect(KART_SKIVE_LETT.mork).toBe('rgba(26,26,30,0.68)')
   })
 
   it('gir den LETTE skiva mer gjennomsiktighet enn nålas, i begge valører', () => {
