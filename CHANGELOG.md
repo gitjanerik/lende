@@ -1,3 +1,33 @@
+## 2026-09-15 — v7.8.27: Arkstørrelsen rettet, og et spørsmål «Nord er nord» reiste selv
+
+Tallet var arvet fra den gang arket var fast. Bredden har vært en slider lenge —
+2 til 16 km, med 8 som standard (`BREDDE_MIN_KM`/`BREDDE_MAKS_KM` i
+`mapDensityRules.js`, `DEFAULT_MAP_WIDTH_KM` i `useMapSizePreference.js`) — og
+formatet kan i tillegg være stående eller liggende, så «kvadratisk (2 × 2 km)»
+var feil på begge halvdeler. Avsnittet om skjermretning sier nå at arket er
+kvadratisk SOM STANDARD, på 8 × 8 km, og at bredden velges i Format-fana.
+
+Den andre forekomsten sto i «Nord er nord», der 2 × 2 km bar et ekte argument:
+konvergensen er praktisk talt konstant over ett ark, så rotasjonen er ren og
+ingen koordinat er rørt. Argumentet holder fortsatt på det STØRSTE arket — målt
+gjennom projeksjonen varierer avviket 0,25° fra kant til kant over 16 km i
+Bergen og 0,39° i Kirkenes, altså under en halv grad der et kompass leser to og
+en halv. Teksten sier nå det tallet i stedet for en arkstørrelse som ikke
+finnes.
+
+Samme seksjon har fått et spørsmål den reiste av seg selv og aldri svarte på:
+har ikke alle kartapper nord opp? Jo — men de slipper unna fordi de bruker en
+annen projeksjon, ikke fordi de har løst noe. Web Mercator har rette, loddrette
+meridianer, så rutenettets nord ER sann nord overalt, og prisen er at
+målestokken vokser med breddegraden. UTM er valgt fordi et turkart skal være et
+ark med fast målestokk, og der krummer meridianene. Poenget er at skjevheten er
+PROJEKSJONENS og ikke papirets — et norsk papirturkart trykkes med rutenettets
+nord opp og har den i fullt monn. Spørsmålet står rett etter avsnittet som
+reiser det, og bruker seksjonens etablerte form: spørsmålet i halvfett, svaret
+etter (som «Hvorfor 9° øst, og ikke Greenwich?»).
+
+---
+
 ## 2026-09-15 — v7.8.26: UTM skrevet helt ut, og en figur som tegner regelen
 
 «Nord er nord» i «Om appen» hadde en setning som ikke gikk opp («Lende gjør sitt
