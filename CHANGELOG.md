@@ -1,3 +1,22 @@
+## 2026-09-15 — v7.8.24: Høydetallene viker for snarvei-raden, som navnene gjorde
+
+Et stort hvitt «472» sto igjen under snarvei-raden på et mørkt turkart etter at
+stedsnavnene begynte å vike i v7.8.23 — meldt fra felt. Grunnen er at et
+høydetall på en navnløs topp ikke er et navn i appens forstand: `SKIP_LABELS` og
+`NUMERIC_RE` i søkeindeksen kaster `peak-ele`, og toppens egen indeks-rad får
+`el = null` fordi det ikke finnes noen navne-tekst å skjule. Ingen mekanisme
+eide altså tallet, og hindringen nådde det aldri. Navn-LOD-en har nå et eget,
+enklere pass for dem: posisjonen leses med den samme `elementPosition`
+søkeindeksen bruker, og det eneste spørsmålet som stilles er om tallet står
+under et overlegg — de tas bevisst ikke inn i tetthets-budsjettet, for et
+høydetall har verken score, rutenett-kvote eller hysterese å måles mot, og å gi
+det en ville endret hvilke NAVN som får plass. Høyden på en navngitt topp ligger
+som en inline `<tspan>` inni navne-teksten og var dekket fra før; kontur-tallene
+står bevisst utenfor. Regelen selv er ren og enhetstestet (`underHindring`), og
+en ny røyk-sjekk drar kartet så et tall vi vet er synlig havner under raden.
+
+---
+
 ## 2026-09-15 — v7.8.23: Snarvei-raden skyver stedsnavn unna, og skiva er ett knepp tettere
 
 Eieren meldte fra felt, med skjermbilder fra Søndre Krokvannet: et stort mørkt
