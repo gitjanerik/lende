@@ -7209,6 +7209,97 @@ const SJEKKER = [
       }
     },
   },
+  {
+    // UTM-figuren i «Om appen» TEGNER REGELEN og ikke et bilde av den: båndene
+    // kommer fra `sonebaand`, så grensene skal FLYTTE seg når breddegraden
+    // krysser et unntak. Enhetstestene holder regnestykket; det ingen av dem
+    // kan se er om figuren faktisk monteres, om chipene setter begge
+    // koordinatene, og om SVG-en tegner de båndene regelen gir. En figur som
+    // kastet ved montering ville stått som et tomt hull i teksten.
+    //
+    // EGEN KONTEKST OG EGEN SIDE: sjekken bor på `/om` og skal ikke etterlate
+    // hovedsida på en annen rute enn den neste sjekk forventer.
+    navn: 'UTM-figuren i Om appen flytter sonegrensene med breddegraden',
+    domene: 'UtmSoneFigur + lib/utmSoner',
+    maksMs: 60_000,
+    async kjør(page) {
+      const ctx = await egenKontekst(page, { viewport: { width: 430, height: 900 } })
+      const p2 = await ctx.newPage()
+      try {
+        await p2.goto(`${BASE}/om`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await p2.waitForFunction(() => !!document.querySelector('[data-utm-figur]'),
+          null, { timeout: 30_000 })
+
+        const les = () => p2.evaluate(() => {
+          const f = document.querySelector('[data-utm-figur]')
+          if (!f) return null
+          return {
+            baand: [...f.querySelectorAll('[data-utm-baand]')]
+              .map(el => `${el.dataset.sone}:${el.dataset.fra}`),
+            avvik: f.querySelector('[data-utm-avvik]')?.textContent?.trim() || '',
+            rotasjon: Number(f.querySelector('[data-utm-rutenett]')?.dataset.rotasjon),
+            merket: f.querySelector('svg[aria-label]')?.getAttribute('aria-label') || '',
+          }
+        })
+
+        const trykk = async (navn) => {
+          const knapp = p2.locator('[data-utm-figur] button', { hasText: navn })
+          if (!await knapp.count()) throw new Error(`fant ingen «${navn}»-knapp i UTM-figuren`)
+          await knapp.first().click()
+          await p2.waitForTimeout(80)
+        }
+
+        const start = await les()
+        if (!start) throw new Error('UTM-figuren monterte ikke på /om')
+        if (!start.merket.includes('UTM-sone')) {
+          throw new Error(`sonefiguren mangler en lesbar aria-label — fikk «${start.merket}»`)
+        }
+
+        // Bergen ligger i Sørvestlands-unntaket: sone 32 skal begynne på 3° og
+        // ikke på 6°, og sann nord skal ligge mot ØST.
+        await trykk('Bergen')
+        const bergen = await les()
+        if (!bergen.baand.includes('32:3')) {
+          throw new Error('Bergen ga ingen sone 32 fra 3° — falt Sørvestlands-unntaket ut? '
+            + `Bånd: ${bergen.baand.join(' ')}`)
+        }
+        if (!/mot øst/.test(bergen.avvik)) {
+          throw new Error(`Bergen skal ligge mot øst, figuren sier «${bergen.avvik}»`)
+        }
+
+        // Tromsø er øst for 9°, så fortegnet skal snu — og nord for 64° faller
+        // grensa tilbake til 6°.
+        await trykk('Tromsø')
+        const tromso = await les()
+        if (!tromso.baand.includes('32:6')) {
+          throw new Error('grensa mot sone 31 flyttet seg ikke tilbake til 6° nord for 64° — '
+            + `bånd: ${tromso.baand.join(' ')}`)
+        }
+        if (!/mot vest/.test(tromso.avvik)) {
+          throw new Error(`Tromsø skal ligge mot vest, figuren sier «${tromso.avvik}»`)
+        }
+        if (!(Math.abs(tromso.rotasjon - bergen.rotasjon) > 5)) {
+          throw new Error('rutenettet i kompasset dreide seg ikke da stedet byttet — '
+            + `${bergen.rotasjon} → ${tromso.rotasjon}`)
+        }
+
+        // Svalbard: fire brede soner, og ingen sone 32 i det hele tatt.
+        await trykk('Longyearbyen')
+        const sval = await les()
+        const soner = sval.baand.map(b => b.split(':')[0])
+        if (soner.join(',') !== '31,33,35,37') {
+          throw new Error(`Svalbard skal gi sonene 31/33/35/37, figuren gir ${soner.join('/')}`)
+        }
+
+        return `figuren gir ${bergen.baand.length} bånd i Bergen (32 fra 3°, ${bergen.avvik}), `
+          + `${tromso.baand.length} i Tromsø (32 fra 6°, ${tromso.avvik}) `
+          + `og ${sval.baand.length} på Svalbard`
+      } finally {
+        await p2.close().catch(() => {})
+        await ctx.close().catch(() => {})
+      }
+    },
+  },
 ]
 
 // ---- små hjelpere ---------------------------------------------------------

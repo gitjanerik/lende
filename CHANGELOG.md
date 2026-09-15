@@ -1,3 +1,29 @@
+## 2026-09-15 — v7.8.26: UTM skrevet helt ut, og en figur som tegner regelen
+
+«Nord er nord» i «Om appen» hadde en setning som ikke gikk opp («Lende gjør sitt
+eget slike valg») og en forkortelse som aldri ble forklart. Setningen er rettet,
+og UTM er nå skrevet helt ut første gang den nevnes — Universal Transverse
+Mercator, sone 32 nord. På toppen står en interaktiv figur: sonebåndene fra 0° til
+36° øst på den breddegraden du velger, sentralmeridianene som stiplede midtlinjer,
+og et kompass som viser hvor rutenettets nord ligger i forhold til sann nord.
+Figuren TEGNER REGELEN framfor et bilde av den — båndene kommer fra `sonebaand` i
+den nye, rene `lib/utmSoner.js`, som spør sonelogikken for hver kvarte grad, så
+Sørvestlands-unntaket er ikke en strek noen har tegnet inn på 3°, det er grensa som
+faktisk flytter seg i det man drar breddegraden inn i 56–64°, og Svalbards fire
+brede soner dukker opp av seg selv over 72°. Tallene går gjennom projeksjonen og
+ikke gjennom tilnærmingen γ ≈ (λ − λ0)·sin φ: `nordavvikISoneDeg` i `utm.js` er
+samme kropp som `nordavvikDeg`, bare med en valgfri sentralmeridian, slik at
+sammenlikningen mellom Lendes sone 32 og sonen du står i er to soner og ikke to
+regnestykker. Betjeningen er to ekte `<input type="range">` med stedsknapper over;
+draget i SVG-en er en snarvei oppå dem, ikke kontrollen selv. 21 enhetstester holder
+sonereglene, og en røyk-sjekk på `/om` måler at grensene faktisk flytter seg.
+
+Samme seksjon lovet dessuten en knapp som ikke finnes: «Sentrer» er absorbert av
+kompassnåla nede til høyre, og den gjør to ting på ett trykk — zoomer ut til hele
+arket og legger sann nord opp igjen. Teksten sier nå det knappen gjør.
+
+---
+
 ## 2026-09-15 — v7.8.25: Arkene legger snarvei-raden sammen, og skilt viker som navn
 
 Snarvei-raden svever i `--ovl-top`-sloten midt over kartet, og utfoldet er den

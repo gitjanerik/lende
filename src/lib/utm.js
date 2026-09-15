@@ -219,10 +219,22 @@ const NORD_STEG_DEG = 0.0005   // ~55 m; sentraldifferansen gjør steget uviktig
  * Rotasjonen kartet skal legges i er den motsatte; se `sannNordRotasjonForMeta`.
  */
 export function nordavvikDeg(lat, lon) {
-  const la = Number(lat), lo = Number(lon)
-  if (!Number.isFinite(la) || !Number.isFinite(lo)) return 0
-  const a = wgs84ToUtm32(la - NORD_STEG_DEG, lo)
-  const b = wgs84ToUtm32(la + NORD_STEG_DEG, lo)
+  return nordavvikISoneDeg(lat, lon, 32)
+}
+
+/**
+ * Samme tall for en VALGFRI sone. Finnes fordi «Om appen» skal kunne vise hva
+ * Lendes sone 32 koster mot sonen Kartverket ville brukt — og et sammenlikningstall
+ * regnet med en annen METODE (den vanlige tilnærmingen γ ≈ (λ − λ0)·sin φ) ville
+ * vært en sammenlikning av to regnestykker og ikke av to soner. Derfor én kropp,
+ * og `nordavvikDeg` er den med sone 32 satt inn.
+ */
+export function nordavvikISoneDeg(lat, lon, sone) {
+  const la = Number(lat), lo = Number(lon), s = Number(sone)
+  if (!Number.isFinite(la) || !Number.isFinite(lo) || !Number.isFinite(s)) return 0
+  const lon0 = ((s * 6) - 183) * Math.PI / 180
+  const a = wgs84ToUtmZone(la - NORD_STEG_DEG, lo, lon0)
+  const b = wgs84ToUtmZone(la + NORD_STEG_DEG, lo, lon0)
   // Kartrommet har y NEDOVER, så en vektor mot nord er (ΔE, −ΔN) på skjermen.
   // Vinkelen fra «opp» med klokka er da atan2(ΔE, ΔN).
   const t = Math.atan2(b.e - a.e, b.n - a.n) * 180 / Math.PI

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import VersjonSjekk from './VersjonSjekk.vue'
+import UtmSoneFigur from './UtmSoneFigur.vue'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
 
 // Innholdet i «Om Så i lende» — delt mellom ruten /om (AboutView, som holder
@@ -184,7 +185,8 @@ async function onInstallClick() {
     <section class="space-y-2">
       <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Nord er nord</h3>
       <p class="text-[13px] leading-relaxed text-ink-2">
-        Et Lende-kart er projisert i <strong class="text-ink">UTM 32N</strong>, og
+        Et Lende-kart er projisert i <strong class="text-ink">UTM 32N</strong>
+        — <em>Universal Transverse Mercator</em>, sone 32 nord — og
         i en projeksjon peker rutenettets nord ikke helt der sann nord er. Avviket
         heter <em>meridiankonvergens</em> og er null bare på sentralmeridianen
         (9° øst, omtrent gjennom Sunnmøre). Det vokser jo lenger unna du er — og
@@ -194,9 +196,10 @@ async function onInstallClick() {
         De fleste turkart lever med det. Lende gjør ikke det:
         <strong class="text-ink">arket lastes ferdig rotert, så sann nord er
         opp.</strong> To ting som ligger rett nord–sør i terrenget gjør det da
-        også på skjermen, og kompasset i handa er enig med kartet. Nord-knappen
-        på kompassrosa og «Sentrer» tar deg tilbake hit, ikke til rutenettets
-        nord.
+        også på skjermen, og kompasset i handa er enig med kartet. Har du dreid
+        eller zoomet deg bort, tar et trykk på <strong class="text-ink">kompassnåla
+        nede til høyre</strong> deg tilbake hit: arket zoomes ut og legges med
+        nord opp igjen — og «opp» er sann nord, ikke rutenettets.
       </p>
       <p class="text-[13px] leading-relaxed text-ink-2">
         Det er en ren rotasjon av hele arket — ikke en forvrengning. Over 2 × 2 km
@@ -239,13 +242,18 @@ async function onInstallClick() {
         ligget i sone 31.
       </p>
       <p class="text-[13px] leading-relaxed text-ink-2">
-        <strong class="text-ink">Lende gjør sitt eget slike valg:</strong> hele
+        <strong class="text-ink">Lende gjør et slikt valg selv:</strong> hele
         landet projiseres i sone 32, også der Kartverket ville brukt 33 eller 35.
         Det er derfor arket står så tydelig på skrå i nord — Tromsø får 9,4° i
         stedet for 3,7°, Vardø 20,9° i stedet for 3,9°. Til gjengjeld ligger hele
         landet i ett og samme rutenett, så to nabofliser alltid passer sammen,
         også tvers over et sted der Kartverket ville byttet sone.
       </p>
+
+      <!-- Figuren står HER og ikke før sone-avsnittene: den viser både
+           inndelingen og prisen Lende betaler for å bli i sone 32, og begge
+           delene må være lest før man kan dra i den. -->
+      <UtmSoneFigur />
       <p class="text-[13px] leading-relaxed text-ink-2">
         <strong class="text-ink">Det samme gjelder eksport og utskrift.</strong>
         En fil har ingen app rundt seg til å rotere den, så der roteres selve
