@@ -1,3 +1,28 @@
+## 2026-09-16 — v7.8.30: Naboflisenes navn viker for snarvei-raden
+
+Spøkelsesflisene beholder navnene sine — en nybygd naboflis skal vise stedsnavn
+med én gang — men de holdes bevisst utenfor søkeindeksen, og indeksen er hele
+inngangen til navne-budsjettet. Regelen «naboflisene har ingen navn-LOD» var
+derfor sann i to betydninger der bare den ene var ment: de skal ikke ta plass i
+budsjettet, men de skal vike for et overlegg som ligger oppå dem. På et
+mosaikk-ark leste naboflisens navn tvers gjennom snarvei-raden, meldt fra felt
+med et brenavn ved Illåbrean.
+
+De hører hjemme i den enkle hindrings-veien, sammen med høydetallene og
+punkt-symbolene, og av samme grunn: uten en indeks-rad har de verken score,
+rutenett-kvote eller hysterese å bli målt mot, og spørsmålet for dem er bare om
+de står under overlegget. To ting skiller dem fra resten av det passet.
+Koordinatene er flis-lokale, så posisjonen legges sammen med `nestedSvgOffset`
+— det samme regnestykket Stifinneren og 3D bruker. Og `useGhostTiles` døper om
+`data-layer` til `data-ghost-layer` ved kloning, så velgerne må skrives om i
+takt; den omskrivingen avledes av `SKJUL_VELGERE` framfor å stå som en andre
+liste, for en kopi ville stått stille neste gang noen legger til et symbol.
+Målingen caches som før per kart, men nå også mot antall fliser i
+spøkelses-containeren: naboflisene kommer og går mens SVG-en står, og en ny
+flis uten ommåling er en flis med navn som aldri viker.
+
+---
+
 ## 2026-09-16 — v7.8.29: «Installer som app» øverst, og gul
 
 Raden lå nederst i hovedmenyen, under skillelinja, i samme dempede grå som «Om

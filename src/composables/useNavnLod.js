@@ -59,12 +59,31 @@
 //      rank=minor utenfor `.zoom-near`), og et kart kan lastes i begge
 //      tilstandene. Å tømme cachen fra hvert kallsted som kan endre dem er å
 //      holde en liste vedlike; å måle på nytt når det er noe å måle er ikke.
+//   8. NABOFLISENES NAVN VEK IKKE I DET HELE TATT (v7.8.30). Spøkelsesflisene
+//      BEHOLDER navnene sine siden v12.0.11 — en nybygd naboflis skal vise
+//      stedsnavn med én gang — men de holdes bevisst UTENFOR søkeindeksen, og
+//      indeksen er hele inngangen til budsjettet. Regelen over
+//      («naboflisene har ingen navn-LOD») var derfor sann i to betydninger der
+//      bare den ene var ment: de skal ikke ta plass i budsjettet, men de skal
+//      vike for et overlegg som ligger oppå dem. På et mosaikk-ark leste
+//      nabofliseens navn tvers gjennom snarvei-raden — meldt fra felt med et
+//      brenavn ved Illåbrean.
+//      De hører hjemme i den ENKLE veien (punkt 5–6), og av nøyaktig samme
+//      grunn som høydetallene: uten indeks-rad har de verken score, kvote eller
+//      hysterese å bli målt mot, og spørsmålet for dem er bare «står den under
+//      overlegget?». To ting skiller dem fra alt annet i det passet:
+//      koordinatene er FLIS-LOKALE (`nestedSvgOffset` — samme regnestykke
+//      Stifinneren og 3D bruker), og `useGhostTiles` døper om `data-layer` til
+//      `data-ghost-layer` ved kloning, så velgerne må skrives om i takt. Den
+//      omskrivingen er derfor AVLEDET av `SKJUL_VELGERE` og ikke en andre liste
+//      — en kopi ville stått stille neste gang noen legger til et symbol.
 
 import { ref, watch, onUnmounted } from 'vue'
 import {
   declutter, heltUnderHindring, hindringsBoks, makeMinZoomOf, underHindring,
 } from '../lib/labelDeclutter.js'
 import { elementPosition } from './useMapSearch.js'
+import { nestedSvgOffset } from '../lib/svgNestedOffset.js'
 
 const DEBOUNCE_MS = 120
 const MARGIN_PX = 80        // slingringsmonn så navn rett utenfor kanten teller med
@@ -169,6 +188,35 @@ const SKJUL_VELGERE = [
   { sel: 'g[data-layer="bygning"][data-iso="521"] > path', helt: true, reserve: null },
 ]
 
+// NABOFLISENE: SAMME SPØRSMÅL, ANNET KOORDINATROM (se punkt 8 i filhodet).
+const GHOST_ROT = '#ghost-tiles'
+
+/**
+ * Skriv en aktiv-flis-velger om til den samme tingen i en naboflis. Ren.
+ *
+ * `useGhostTiles` døper om `data-layer` → `data-ghost-layer` på hver klonet
+ * flis (så lag-toggling når dem, men perf-regelen `[data-layer] path` ikke
+ * gjør det). En velger på `data-layer` treffer derfor ALDRI inne i en naboflis,
+ * og det feiler stille: symbolet blir bare stående. Avledningen står her, i ÉN
+ * funksjon, i stedet for som en parallell liste — en kopi ville stått stille
+ * neste gang noen legger til et symbol i `SKJUL_VELGERE`.
+ */
+export function spokelsesVelger(sel) {
+  return `${GHOST_ROT} ${sel.split('data-layer=').join('data-ghost-layer=')}`
+}
+
+// NAVNENE i en naboflis. Ett bredt uttrykk og ikke en liste over `data-label`-
+// verdier: de rene tall-etikettene (kontur-, vann-, dybde-tall, dem-topp) er
+// alt fjernet av `useGhostTiles` ved kloning, så det som står igjen ER navn —
+// og en liste her ville vært et tredje sted å huske en ny etikett-type.
+// Veinummeret er unntaket, og det er geometriens: skiltet er `<g>` med rect +
+// tekst, så skjules bare teksten står det hvite rektangelet igjen. Det tas av
+// den avledede `data-ghost-layer`-velgeren, som eier hele skiltet.
+const GHOST_NAVN = {
+  sel: `${GHOST_ROT} text[data-label]:not([data-label="veinummer"])`,
+  helt: false, reserve: null,
+}
+
 // Klassegruppe for tetthets-budsjettet: topp/vann/område er PRIORITET (utenom
 // rutenett-kvoten, men kollisjonssjekkes); bebyggelse/hytte er kvote-styrt.
 const PRIORITY_NAME_KINDS = new Set(['vann-navn', 'peak', 'omrade-navn', 'naturreservat-navn'])
@@ -260,12 +308,33 @@ export function useNavnLod({
   // rene attributt-lesing pluss forfedrenes translate; ingen layout.
   let skjulbare = null
   let skjulbareSvg = null
+  let skjulbareGhostN = -1
+  // Aktiv flis + de samme tingene i hver naboflis (punkt 8). Spøkelses-jobbene
+  // AVLEDES av lista over; bare de `data-layer`-baserte, siden GHOST_NAVN alt
+  // dekker all tekst og en andre peak-ele-velger bare ville målt den to ganger.
+  const SKJUL_JOBBER = [
+    ...SKJUL_VELGERE.map((v) => ({ ...v, spokelse: false })),
+    ...SKJUL_VELGERE
+      .filter((v) => v.sel.includes('data-layer='))
+      .map((v) => ({ ...v, sel: spokelsesVelger(v.sel), spokelse: true })),
+    { ...GHOST_NAVN, spokelse: true },
+  ]
+
+  // Hvor mange fliser ligger i spøkelses-containeren nå? Målingen caches per
+  // kart, men naboflisene kommer og går mens SVG-en står — en ny flis som ikke
+  // utløser en ommåling er en flis med navn som aldri viker. Tellingen er ett
+  // DOM-oppslag per pass og trenger ingen ny kontrakt mot `useGhostTiles`.
+  const ghostAntall = (svg) => svg.querySelector(GHOST_ROT)?.childElementCount ?? 0
+
   function maalSkjulbare(svg) {
     skjulbare = []
     skjulbareSvg = svg
-    for (const { sel, helt, reserve } of SKJUL_VELGERE) {
+    skjulbareGhostN = ghostAntall(svg)
+    for (const { sel, helt, reserve, spokelse } of SKJUL_JOBBER) {
       for (const el of svg.querySelectorAll(sel)) {
-        if (el.closest('#ghost-tiles')) continue   // naboflisene har ingen navn-LOD
+        // Aktiv-flis-jobbene skal ikke plukke opp en naboflis på veien:
+        // `text[data-label="peak-ele"]` har ingen `data-layer` å skille på.
+        if (!spokelse && el.closest(GHOST_ROT)) continue
         // `elementPosition` gir null for en DEGENERERT boks, og et lag som er
         // slått av i Kartlag-fana er nettopp det ved måletid. Punkt-symbolene
         // bærer hele posisjonen sin i sin EGEN transform-translate, så
@@ -284,7 +353,11 @@ export function useNavnLod({
           else if (reserve) { bw = reserve; bh = reserve }
           else continue
         }
-        skjulbare.push({ el, x: pos.x, y: pos.y, bw, bh, helt })
+        // Koordinatene inne i en naboflis er FLIS-LOKALE — se
+        // lib/svgNestedOffset.js. (Flisas halvmeters bleed tas ikke med; den er
+        // under én meter og hindringene krympes alt fire piksler.)
+        const { dx, dy } = spokelse ? nestedSvgOffset(el, svg) : { dx: 0, dy: 0 }
+        skjulbare.push({ el, x: pos.x + dx, y: pos.y + dy, bw, bh, helt })
       }
     }
   }
@@ -336,7 +409,9 @@ export function useNavnLod({
     const wrap = wrapperRef.value?.getBoundingClientRect()
     if (!wrap || !wrap.width || !wrap.height) return
     if (!labelBoxCache.size) measureLabelBoxes()
-    if (!skjulbare || skjulbareSvg !== svg) maalSkjulbare(svg)
+    if (!skjulbare || skjulbareSvg !== svg || skjulbareGhostN !== ghostAntall(svg)) {
+      maalSkjulbare(svg)
+    }
 
     // Forward-transform viewBox-koordinat → wrapper-lokal skjermpiksel, samme
     // matte som usePinchZoom.panTo: SVG-en fyller wrapperen med
@@ -464,4 +539,6 @@ export function useNavnLod({
 // emitterer feiler STILLE. Ingenting kaster, ingenting ser rart ut, symbolet blir
 // bare stående under raden igjen. Testen bygger derfor et ekte ark og spør om
 // velgerne treffer.
-export const _internals = { nameGroup, nameScore, PRIORITY_NAME_KINDS, SKJUL_VELGERE }
+export const _internals = {
+  nameGroup, nameScore, PRIORITY_NAME_KINDS, SKJUL_VELGERE, GHOST_NAVN,
+}

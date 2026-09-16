@@ -9,13 +9,17 @@
 import { describe, it, expect } from 'vitest'
 import { DOMParser } from 'linkedom'
 import { buildSvg } from '../lib/mapBuilder.js'
-import { _internals } from './useNavnLod.js'
+import { _internals, spokelsesVelger } from './useNavnLod.js'
 
 const BBOX = { south: 59.83, west: 10.44, north: 59.85, east: 10.48 }
 
 // Ett av hvert: P-plass, holdeplass, en vei lang nok til å få skilt (>60 m), et
-// hus, og en bymasse-flate som IKKE skal treffes av bygg-velgeren.
+// hus, og en bymasse-flate som IKKE skal treffes av bygg-velgeren. Pluss et
+// brenavn — den navne-typen som ble meldt fra felt (v7.8.30), og den eneste
+// TEKSTEN i arket som ikke er et veinummer-skilt.
 const ELEMENTER = [
+  { type: 'node', id: 'bre1', lat: 59.8425, lon: 10.462,
+    tags: { natural: 'glacier', name: 'Illåbrean', 'lende:n50navn': 'isbre' } },
   { type: 'node', id: 'p1', lat: 59.840, lon: 10.456, tags: { amenity: 'parking' } },
   { type: 'node', id: 'b1', lat: 59.8405, lon: 10.457, tags: { highway: 'bus_stop' } },
   {
@@ -99,5 +103,66 @@ describe('reglene per velger', () => {
     expect(velger('text[data-label="peak-ele"]').reserve).toBeNull()
     expect(velger('g[data-layer="bygning"][data-iso="521"] > path').reserve).toBeNull()
     expect(velger('g[data-layer="parkering"] > g').reserve).toBeGreaterThan(0)
+  })
+})
+
+// NABOFLISENES VELGERE (v7.8.30).
+//
+// `useGhostTiles` kloner arket, døper om `data-layer` → `data-ghost-layer` og
+// nester det som et `<svg x y>` inne i `#ghost-tiles`. Det gjør at hver velger
+// over treffer NULL elementer i en naboflis — stille, som alltid her. Testen
+// bygger derfor den samme kloningen og spør om de avledede velgerne treffer.
+describe('spøkelsesfliser', () => {
+  function medNaboflis() {
+    const doc = arket()
+    const rot = doc.querySelector('svg')
+    const flis = rot.cloneNode(true)
+    // Nøyaktig det useGhostTiles gjør med lag-attributtet.
+    for (const el of flis.querySelectorAll('[data-layer]')) {
+      el.setAttribute('data-ghost-layer', el.getAttribute('data-layer'))
+      el.removeAttribute('data-layer')
+    }
+    flis.setAttribute('x', '2000')
+    flis.setAttribute('y', '0')
+    const boks = doc.createElementNS('http://www.w3.org/2000/svg', 'g')
+    boks.setAttribute('id', 'ghost-tiles')
+    boks.appendChild(flis)
+    rot.insertBefore(boks, rot.firstChild)
+    return doc
+  }
+
+  const doc = medNaboflis()
+
+  it.each(_internals.SKJUL_VELGERE.filter((v) => v.sel.includes('data-layer=')))(
+    'den avledede velgeren for %o finner elementet i naboflisa',
+    ({ sel }) => {
+      const ghost = spokelsesVelger(sel)
+      expect(ghost).toContain('data-ghost-layer=')
+      expect(ghost).not.toContain('data-layer=')
+      expect(doc.querySelectorAll(ghost).length).toBeGreaterThan(0)
+      // Og den skal IKKE plukke opp aktiv flis — den har fortsatt data-layer.
+      expect(doc.querySelectorAll(sel).length)
+        .toBe(arket().querySelectorAll(sel).length)
+    })
+
+  it('navne-velgeren tar naboflisas tekst, men ikke veinummer-teksten', () => {
+    const tekst = [...doc.querySelectorAll(_internals.GHOST_NAVN.sel)]
+    expect(tekst.length).toBeGreaterThan(0)
+    for (const t of tekst) {
+      expect(t.closest('#ghost-tiles')).toBeTruthy()
+      // Skiltet eies av `data-ghost-layer`-velgeren, som tar rect-en med.
+      expect(t.getAttribute('data-label')).not.toBe('veinummer')
+    }
+    // Og veinummeret finnes faktisk i flisa — ellers måler ikke testen noe.
+    expect(doc.querySelectorAll(
+      '#ghost-tiles text[data-label="veinummer"]').length).toBeGreaterThan(0)
+  })
+
+  it('navne-velgeren rører ikke aktiv flis', () => {
+    for (const t of doc.querySelectorAll('#ghost-tiles text[data-label]')) {
+      expect(t.closest('#ghost-tiles')).toBeTruthy()
+    }
+    const utenNabo = arket()
+    expect(utenNabo.querySelectorAll(_internals.GHOST_NAVN.sel).length).toBe(0)
   })
 })
