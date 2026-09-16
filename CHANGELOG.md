@@ -1,3 +1,19 @@
+## 2026-09-16 — v7.8.29: «Installer som app» øverst, og gul
+
+Raden lå nederst i hovedmenyen, under skillelinja, i samme dempede grå som «Om
+appen» — altså formet som det man leser til slutt. Men den er det ene valget i
+menyen som endrer hva Lende ER for brukeren: installert får appen egen plass på
+hjemskjermen, full skjerm og en start uten URL-stripe. Den er nå menyens første
+rad, med appens egen gule aksent (#ffd84a, samme som hamburger-ringen og
+våken-sporet) — en farge som ikke finnes noe annet sted i menyen, så raden kan
+ikke forveksles med de grønne som navigerer. Ikonet er byttet fra en
+nedlastings-pil, som er noe en nettleser gjør, til en telefon med pluss, og
+undertittelen «Fritt lende på tur!» er et løfte og ikke en forklaring av
+knappen. Raden vises som før bare når appen ikke alt kjører installert; da er
+menyens første rad «Mine kart», uendret.
+
+---
+
 ## 2026-09-16 — v7.8.28: «Grend / gård» viker for snarvei-raden
 
 Stedsnavnene ble stående og lese tvers gjennom knappeteksten mens alt annet vek,

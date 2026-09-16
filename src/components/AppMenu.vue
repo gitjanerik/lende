@@ -332,6 +332,35 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       </div>
 
       <div class="am-scroll">
+        <!-- «INSTALLER SOM APP» ER MENYENS FØRSTE RAD OG DEN ENESTE GULE
+             (v7.8.29). Den lå nederst under skillelinja, i samme dempede grå
+             som «Om appen» — altså formet som det man leser til slutt, mens den
+             er det ene valget i menyen som endrer hva Lende ER for brukeren:
+             installert får man egen ikon på hjemskjermen, full skjerm og en
+             app som starter uten URL-stripe. Gult er appens egen aksent fra før
+             (hamburger-ringen, våken-sporet) og finnes ingen andre steder i
+             menyen, så raden kan ikke forveksles med de grønne som navigerer.
+             Undertittelen er et LØFTE og ikke en forklaring av knappen — det er
+             det gult gjør her.
+             Raden vises bare når appen ikke alt kjører installert; se
+             `showInstall`. Da er menyens første rad «Mine kart», som før. -->
+        <button v-if="showInstall" type="button" class="am-install" @click="onInstall">
+          <span class="am-install-icon">
+            <!-- Telefon med pluss: «legg den på hjemskjermen». Nedlastings-
+                 pilen den hadde er handlingen en NETTLESER gjør, og det er
+                 ikke det som skjer her. -->
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor"
+                 stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5" y="2.5" width="14" height="19" rx="2.6" />
+              <path d="M12 8.5v6M9 11.5h6" />
+            </svg>
+          </span>
+          <span class="am-install-tekst">
+            <span class="am-install-tittel">Installer som app</span>
+            <span class="am-install-meta">Fritt lende på tur!</span>
+          </span>
+        </button>
+
         <!-- Nivå 1: primærvalgene. Øverste rad (aktiv modus) er kortet. -->
         <div class="am-primary">
           <!-- `is-card` markerer HVOR DU ER og ikke hvilken rad som er øverst
@@ -499,14 +528,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
         <!-- Dempet bunn under skillelinja. -->
         <div class="am-foot">
-          <button v-if="showInstall" type="button" class="am-line am-line-dim" @click="onInstall">
-            <span class="am-line-icon">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
-                   stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 3.5v12M7.5 11 12 15.5 16.5 11M5 19.5h14" />
-              </svg>
-            </span>Installer som app
-          </button>
           <button type="button" class="am-line am-line-dim" @click="openSheet('om')">
             <span class="am-line-icon">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
@@ -638,6 +659,31 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   gap: 22px;
   padding-bottom: max(env(safe-area-inset-bottom, 0px), 18px);
 }
+
+/* ── «Installer som app» ──
+   Menyens eneste gule flate. #ffd84a er appens egen aksent (hamburger-ringen,
+   våken-sporet), og den er lys i BEGGE temaer — derfor er teksten hardkodet
+   mørk her og ikke `var(--am-text)`, som ville blitt hvit-på-gult i mørkt tema.
+   Den står utenfor `.am-primary` fordi den ikke er et sted man går, og lufta
+   ned til «Mine kart» er derfor rullefeltets BLOKK-gap (22 px) og ikke
+   `.am-primary`s rad-gap (10 px). Ingen egen marg her — to kilder til samme
+   avstand kommer i utakt første gang noen rører den ene. */
+.am-install {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 15px 16px;
+  border-radius: 16px;
+  background: #ffd84a;
+  color: #1a1d16;
+  text-align: left;
+}
+.am-install:active { transform: scale(0.985); }
+.am-install-icon { display: grid; place-items: center; flex: 0 0 auto; }
+.am-install-tekst { display: flex; flex-direction: column; min-width: 0; }
+.am-install-tittel { font-size: 1.05em; font-weight: 600; }
+.am-install-meta { font-size: 0.78em; color: rgba(26, 29, 22, 0.72); }
 
 /* ── Nivå 1: primærkort ── */
 /* Kunngjøring. Aksentkant til venstre og ingen bilde — den skal leses på ett
