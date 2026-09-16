@@ -128,7 +128,7 @@ export function useKartEksport({ svgHostRef, meta, mapTitle, currentTheme, autoM
       clone.appendChild(style)
     }
     // Kolofon nederst til venstre (v2.4.20): linjal, målestokk, ekvidistanse og
-    // «Så i lende · <kart> · <dato>». Ligger HER, i den delte eksport-markupen,
+    // «Lende · <kart> · <dato>». Ligger HER, i den delte eksport-markupen,
     // så alle fire utgangene (SVG/PNG/PDF/print) får den — en fil eller et ark
     // har ingen app rundt seg til å vise tallene.
     if (rotert) roterTilSannNord(clone, nordRot, bg)

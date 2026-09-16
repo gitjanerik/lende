@@ -237,7 +237,7 @@ const showInstall = computed(() => !isStandalone.value && (canInstall.value || i
 async function onInstall() {
   if (isIOS.value) {
     close()
-    alert('Slik installerer du «Så i lende» på iPhone/iPad:\n\n1. Trykk Del-ikonet nederst i Safari.\n2. Velg «Legg til på Hjem-skjerm».')
+    alert('Slik installerer du Lende på iPhone/iPad:\n\n1. Trykk Del-ikonet nederst i Safari.\n2. Velg «Legg til på Hjem-skjerm».')
     return
   }
   if (!canInstall.value) return
@@ -328,7 +328,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
              skuffen, og animerer streker→kryss uten å flytte seg. Plassholderen
              her holder tittelen klar av knappen. -->
         <span class="am-trigger-slot" aria-hidden="true" />
-        <div class="am-title">Så i lende</div>
+        <div class="am-title">Lende</div>
       </div>
 
       <div class="am-scroll">
@@ -558,7 +558,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   <AppModal :open="sheet === 'nytt'" title="Nytt turkart" @close="sheet = null">
     <MapPickerContent />
   </AppModal>
-  <AppModal :open="sheet === 'om'" title="Om Så i lende" @close="sheet = null">
+  <AppModal :open="sheet === 'om'" title="Om Lende" @close="sheet = null">
     <div class="px-4 py-5"><AboutContent /></div>
   </AppModal>
 </template>

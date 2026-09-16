@@ -12,6 +12,7 @@ import VaerIkon from '../VaerIkon.vue'
 import { formatDistanceM, bearingToCompass } from '../../lib/mapContext.js'
 import { hasAiToken } from '../../lib/lendeAi.js'
 import { useEksterneLenker } from '../../composables/useEksterneLenker.js'
+import { useLiggende } from '../../composables/useLiggende.js'
 
 // Chat-avsnittet i oppdagbarhets-tipset vises kun for inviterte (samme
 // token-gate som LendeChatFab) — uinviterte skal ikke se funksjonen.
@@ -19,6 +20,7 @@ const harChat = hasAiToken()
 // Faktaark, Wikipedia og SNL herfra følger hovedmenyens bryter for eksterne
 // lenker — se useEksterneLenker.
 const { eksternTarget } = useEksterneLenker()
+const { erLiggende } = useLiggende()
 const props = defineProps({
   contextMenuOpen: { type: Boolean, default: false },
   contextMenuInfo: { type: Object, default: null },
@@ -325,8 +327,14 @@ function formatDistance(m) {
            detaljer (dybdetall, dybdekurver, sjø-POI) avslørt. Pan + zoom,
            ingen rotasjon. Fungerer uten GPS. Vises KUN når skuffen er
            maksimert — ellers ser man samme utsnitt/crosshair dobbelt (kartet
-           bak + minikartet). -->
-      <div v-if="contextDrawer.isMaximized.value" class="px-4 pt-3">
+           bak + minikartet).
+
+           OG ALDRI I LIGGENDE (v7.8.32). Der er maksimert den ENESTE stillingen
+           (se useLiggende.js), så «kun maksimert» ville betydd «alltid» — og
+           insetet er en kvadratisk boks på 90 % av bredden i en skuff som har
+           355 px å gi. Det er nettopp den dobbelt-visningen regelen over finnes
+           for å unngå, bare uten en stilling å vike til. -->
+      <div v-if="contextDrawer.isMaximized.value && !erLiggende" class="px-4 pt-3">
         <!-- Etikettene skalerer, selve insetet gjør det ikke: det er et kart,
              ikke tekst, og har sin egen `aspect`-boks. -->
         <!-- `flex-wrap` (v6.5.77): ved 200 % får ikke «Detaljer · 500 × 500 m»

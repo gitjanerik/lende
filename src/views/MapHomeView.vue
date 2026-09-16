@@ -46,7 +46,7 @@ function apnePicker() {
                 bg-surface/80 backdrop-blur border-b border-ink/10">
       <div class="relative mx-auto w-full max-w-[700px] px-3 py-2.5 flex items-center gap-2">
         <AppMenuButton variant="header" />
-        <h1 class="flex-1 text-[15px] font-semibold text-ink">Så i lende</h1>
+        <h1 class="flex-1 text-[15px] font-semibold text-ink">Lende</h1>
       </div>
     </div>
 

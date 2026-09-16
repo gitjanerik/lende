@@ -1,3 +1,22 @@
+## 2026-09-16 — v7.8.32: Appen heter Lende
+
+Appnavnet var «Så i lende» overalt — i hovedmenyen, i PWA-manifestet (altså på
+skrivebordsikonet), i fanetittelen, i iOS-hjemskjermnavnet, i kolofonen på hvert
+eksporterte ark og i chat-assistentens systemprompt. Appen heter Lende.
+Uttrykket lever videre der det hører hjemme: «Navnet»-seksjonen i «Om Lende»
+leder nå med ordet LENDE — terreng, landstrekning, beslektet med norrønt
+*lendi* — og forteller så at det lever videre i «så i lende», *så langt øyet
+rekker*. Vi kan fortsatt si «så i lende»; det er bare ikke det appen heter.
+
+Og i liggende format er punkt-arkets detalj-inset borte. Gaten var «kun når
+skuffa er maksimert» — den finnes for at man ikke skal se samme utsnitt og
+krysshår dobbelt, kartet bak og minikartet oppå — men i liggende er maksimert
+den ENESTE stillingen (v7.8.31), så «kun maksimert» betyr «alltid». Et
+kvadratisk minikart på 90 % av bredden i en skuff som har 355 px å gi er
+nettopp den dobbelt-visningen, uten en stilling å vike til.
+
+---
+
 ## 2026-09-16 — v7.8.31: Liggende format er en egen layout
 
 Lende ble testet på tvers for første gang, og i liggende er det HØYDEN som er

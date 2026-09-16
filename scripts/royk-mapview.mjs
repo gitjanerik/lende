@@ -6881,7 +6881,7 @@ const SJEKKER = [
     // EGEN KONTEKST OG IKKE `setViewportSize`, med vilje: tekstskalaen må stå i
     // localStorage FØR appen laster, og en kontekst som lukkes etterpå kan per
     // konstruksjon ikke etterlate hverken vindu eller skala til neste sjekk.
-    navn: 'liggende: én snarvei-rad, knotter på linje og skuffer uten håndtak',
+    navn: 'liggende: én snarvei-rad, knotter på linje, skuffer uten håndtak og uten inset',
     domene: 'useLiggende + SnarveiRad + useDraggableDrawer',
     maksMs: 120_000,
     async kjør(page) {
@@ -6979,6 +6979,33 @@ const SJEKKER = [
         })
         await lukkSnarveiRad(p2)
 
+        // OG PUNKT-ARKETS DETALJ-INSET SKAL VÆRE BORTE (v7.8.32). Gaten var
+        // «kun når skuffa er maksimert», og i liggende er maksimert den eneste
+        // stillingen — altså «alltid». Et kvadratisk minikart på 90 % av
+        // bredden i en skuff som har 355 px å gi er nettopp den dobbelt-
+        // visningen gaten fantes for å unngå.
+        await klikkSnarvei(p2, 'info')
+        await p2.waitForTimeout(500)
+        const punkt = await p2.evaluate(() => {
+          const lukk = [...document.querySelectorAll('button')].find((b) =>
+            b.offsetParent && b.getAttribute('aria-label') === 'Lukk')
+          if (!lukk) return null
+          const inset = [...document.querySelectorAll('span')].filter((e) =>
+            e.offsetParent && /^Detaljer · \d+ × \d+ m$/.test(e.textContent.trim()))
+          return { inset: inset.length, tekst: document.body.innerText.length }
+        })
+        if (!punkt) throw new Error('punkt-arket åpnet ikke i liggende')
+        if (punkt.inset) {
+          throw new Error('detalj-insetet står i punkt-arket i liggende — '
+            + 'gaten leser «maksimert», som der betyr «alltid»')
+        }
+        if (punkt.tekst < 200) throw new Error('punkt-arket åpnet uten innhold i liggende')
+        await p2.evaluate(() => {
+          [...document.querySelectorAll('button')]
+            .find((b) => b.offsetParent && b.getAttribute('aria-label') === 'Lukk')?.click()
+        })
+        await p2.waitForTimeout(300)
+
         // SKUFFA: ingen håndtak, men en kropp. Måling er den letteste
         // funksjons-skuffa å åpne og lukke igjen.
         await klikkSnarvei(p2, 'maaling')
@@ -7026,9 +7053,17 @@ const SJEKKER = [
           throw new Error(`skuffa er ${skuff.høyde} px av ${skuff.vh} — i liggende er `
             + 'maksimert den eneste stillingen')
         }
+        // Å LUKKE SKUFFA AVSLUTTER IKKE MÅLINGEN, og måle-modus bytter ut
+        // snarvei-raden — en sjekk etter denne ville ikke funnet håndtaket.
         await lukkFunksjonsSkuff(p2, 'Måling')
+        await p2.evaluate(() => {
+          [...document.querySelectorAll('[aria-label="Avslutt måling"]')][0]?.click()
+        })
+        await p2.waitForTimeout(300)
+
         return `${rad.antall} snarveier på én rad ved 200 %, knottene side om side på `
-          + `hver sin linje, måle-skuffa ${skuff.høyde}/${skuff.vh} px uten håndtak`
+          + `hver sin linje, måle-skuffa ${skuff.høyde}/${skuff.vh} px uten håndtak, `
+          + 'punkt-arket uten detalj-inset'
       } finally {
         await ctx.close()
       }

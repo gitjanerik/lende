@@ -22,7 +22,7 @@ const { uiTextScale } = useUiTextScale()
           <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
                stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
-        <h1 class="text-lg font-semibold flex-1">Om Så i lende</h1>
+        <h1 class="text-lg font-semibold flex-1">Om Lende</h1>
         <TekstStorrelseKnapp />
       </div>
     </header>

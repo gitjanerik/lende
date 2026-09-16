@@ -29,10 +29,10 @@ function maybeShowFirstVisitPrompt() {
   // om brukeren installerer eller avviser.
   try { localStorage.setItem(INSTALL_PROMPT_KEY, '1') } catch { /* ignorer */ }
   if (isIOS.value) {
-    alert('Så i lende fungerer best som app.\n\nSlik installerer du på iPhone/iPad:\n1. Trykk Del-ikonet nederst i Safari.\n2. Velg «Legg til på Hjem-skjerm».')
+    alert('Lende fungerer best som app.\n\nSlik installerer du på iPhone/iPad:\n1. Trykk Del-ikonet nederst i Safari.\n2. Velg «Legg til på Hjem-skjerm».')
     return
   }
-  if (confirm('Så i lende fungerer best som installert app – raskere start og full offline-tilgang.\n\nInstaller som app nå?')) {
+  if (confirm('Lende fungerer best som installert app – raskere start og full offline-tilgang.\n\nInstaller som app nå?')) {
     promptInstall().catch(() => { /* avvist eller utilgjengelig — ingen handling */ })
   }
 }
