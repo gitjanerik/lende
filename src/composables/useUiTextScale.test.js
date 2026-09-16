@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   UI_TEXT_SCALES, UI_TEXT_MIN, UI_TEXT_MAKS, nesteTextScale, klemTextScale,
+  OVERLEGG_TAK_LIGGENDE, overleggSkalaFor,
 } from './useUiTextScale.js'
 
 describe('nesteTextScale', () => {
@@ -58,5 +59,38 @@ describe('klemTextScale', () => {
 
   it('hvert av A-knappens hakk er en lovlig verdi', () => {
     for (const s of UI_TEXT_SCALES) expect(klemTextScale(s)).toBe(s)
+  })
+})
+
+describe('overleggSkalaFor', () => {
+  it('lar brukerens skala stå urørt i portrett', () => {
+    for (const v of UI_TEXT_SCALES) expect(overleggSkalaFor(v, false)).toBe(v)
+    expect(overleggSkalaFor(1.37, false)).toBe(1.37)
+  })
+
+  it('klemmer chromet til taket i liggende', () => {
+    expect(overleggSkalaFor(2, true)).toBe(OVERLEGG_TAK_LIGGENDE)
+    expect(overleggSkalaFor(1.5, true)).toBe(OVERLEGG_TAK_LIGGENDE)
+  })
+
+  it('rører ikke en skala som alt er under taket', () => {
+    expect(overleggSkalaFor(1, true)).toBe(1)
+    expect(overleggSkalaFor(1.1, true)).toBe(1.1)
+    expect(overleggSkalaFor(OVERLEGG_TAK_LIGGENDE, true)).toBe(OVERLEGG_TAK_LIGGENDE)
+  })
+
+  it('taket er et av A-knappens hakk — en stasjon brukeren kjenner', () => {
+    expect(UI_TEXT_SCALES).toContain(OVERLEGG_TAK_LIGGENDE)
+  })
+
+  it('et tull-tall gir 1 og ikke NaN — en zoom på NaN skjuler chromet', () => {
+    expect(overleggSkalaFor(NaN, true)).toBe(1)
+    expect(overleggSkalaFor(undefined, false)).toBe(1)
+    expect(overleggSkalaFor(0, true)).toBe(1)
+  })
+
+  it('taket ligger innenfor det lovlige spennet', () => {
+    expect(OVERLEGG_TAK_LIGGENDE).toBeGreaterThanOrEqual(UI_TEXT_MIN)
+    expect(OVERLEGG_TAK_LIGGENDE).toBeLessThan(UI_TEXT_MAKS)
   })
 })

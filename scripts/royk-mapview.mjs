@@ -6877,6 +6877,11 @@ const SJEKKER = [
     //     stilling), men kroppen skal fortsatt stå der. Det siste er hele
     //     grunnen til at `isMinimized` er en computed: uten den ville en
     //     dra-vei på null lest som «minimert», og kroppen forsvunnet.
+    //   • CHROMET HAR ET TAK PÅ 1,25 (v7.8.33), mens alt man LESER beholder
+    //     brukerens 200 %. Måles i BEGGE retninger — knappenes rendrede høyde
+    //     og `--ovl-top` mot taket, skuff-kroppens `zoom` mot brukerens verdi.
+    //     Bare den ene halvdelen ville vært grønn for en fiks som skrudde
+    //     tekststørrelsen av i liggende.
     //
     // EGEN KONTEKST OG IKKE `setViewportSize`, med vilje: tekstskalaen må stå i
     // localStorage FØR appen laster, og en kontekst som lukkes etterpå kan per
@@ -6904,6 +6909,55 @@ const SJEKKER = [
         if (!påSkjenen) {
           throw new Error('data-liggende står ikke på rota — matchMedia-regelen i '
             + 'useLiggende.js traff ikke 891 × 411')
+        }
+
+        // CHROMET HAR ET TAK I LIGGENDE (v7.8.33). Tekstskalaen står på 200 %,
+        // og den skal fortsatt gjelde alt man LESER — men ikke knappene som
+        // ligger oppå kartet. Ved 200 % var topprada og snarvei-raden til
+        // sammen over halve skjermhøyden på en telefon på tvers.
+        //
+        // MÅLES I EKTE PIKSLER OG IKKE PÅ `zoom`-verdien: `zoom` er nettopp
+        // det som kan settes på feil element, og en rendret høyde er svaret på
+        // spørsmålet brukeren stilte («ikke så stort»).
+        const chrome = await p2.evaluate(() => {
+          const h = (sel) => {
+            const el = document.querySelector(sel)
+            return el ? Math.round(el.getBoundingClientRect().height) : null
+          }
+          return {
+            skala: getComputedStyle(document.documentElement)
+              .getPropertyValue('--ui-skala').trim(),
+            lagret: localStorage.getItem('lende-ui-text-scale'),
+            hamburger: h('[data-hovedmeny-knapp]'),
+            sok: h('[data-sok-knapp]'),
+            ovlTop: Math.round(parseFloat(getComputedStyle(document.documentElement)
+              .getPropertyValue('--ovl-top'))),
+          }
+        })
+        if (chrome.lagret !== '2') {
+          throw new Error(`tekstskalaen sto på «${chrome.lagret}» og ikke 2 — `
+            + 'sjekken måler ikke det den tror')
+        }
+        if (Number(chrome.skala) !== 1.25) {
+          throw new Error(`--ui-skala er ${chrome.skala} i liggende, ventet 1.25 — `
+            + 'overlay-slottene reserverer da plass til et chrome som er klemt, '
+            + 'eller taket i useUiTextScale.js er ikke i bruk')
+        }
+        // De to faste knappene er 40 px ved 100 %. Taket gir 50; 200 % ga 80.
+        for (const [navn, px] of [['hamburgeren', chrome.hamburger], ['søket', chrome.sok]]) {
+          if (px == null) throw new Error(`fant ikke ${navn} i toppraden i liggende`)
+          if (px > 52) {
+            throw new Error(`${navn} er ${px} px høy i liggende ved 200 % tekst — `
+              + 'taket i useUiTextScale.js biter ikke')
+          }
+          if (px < 40) {
+            throw new Error(`${navn} er ${px} px høy — taket skal KLEMME og ikke `
+              + 'skru av skaleringen; under 100 % er ingen tilgjengelighets-innstilling')
+          }
+        }
+        if (chrome.ovlTop > 80) {
+          throw new Error(`--ovl-top er ${chrome.ovlTop} px i liggende — `
+            + 'stabelen under toppraden følger ikke taket')
         }
 
         // ÉN RAD. Raden må dras ut først: sammenlagt KLIPPER gitteret alt under
@@ -7034,6 +7088,14 @@ const SJEKKER = [
               e !== topp && e.getBoundingClientRect().height > 10),
             // Lufta over headeren skal være i behold selv om håndtaket er borte.
             luft: Math.round(parseFloat(getComputedStyle(topp).paddingTop)),
+            // OG TEKSTEN I ARKET SKAL FORTSATT VÆRE 200 % (v7.8.33). Taket
+            // gjelder chromet, ikke det man leser — klemmes begge, er
+            // innstillingen i praksis borte i liggende.
+            kroppZoom: (() => {
+              const kropp = [...skall.children].find((e) =>
+                e !== topp && e.getBoundingClientRect().height > 10)
+              return kropp ? getComputedStyle(kropp).zoom : null
+            })(),
           }
         })
         if (!skuff) throw new Error('måle-skuffa åpnet ikke i liggende')
@@ -7044,6 +7106,14 @@ const SJEKKER = [
         if (!skuff.kropp) {
           throw new Error('skuffa åpnet uten kropp i liggende — leses en dra-vei på '
             + 'null som «minimert»?')
+        }
+        // OG DEN ANDRE HALVDELEN AV TAKET (v7.8.33): chromet er klemt til
+        // 1,25, men det man LESER står fortsatt på brukerens 200 %. Klemmes
+        // begge, er tekststørrelsen i praksis borte i liggende — og da er
+        // fiksen en regresjon i tilgjengelighet.
+        if (Math.abs(parseFloat(skuff.kroppZoom) - 2) > 0.01) {
+          throw new Error(`skuff-kroppen har zoom ${skuff.kroppZoom} og ikke 2 — `
+            + 'taket i useUiTextScale.js har tatt med seg lese-flatene')
         }
         if (skuff.luft < 8) {
           throw new Error(`headeren har ${skuff.luft} px luft over seg — håndtakets `

@@ -1,10 +1,12 @@
-import { ref } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { useLiggende } from './useLiggende.js'
 
 // Global UI-tekststørrelse. Modulnivå-singleton (som useAppMenu): settes fra
 // hovedmenyens slider og konsumeres som `zoom`-style på tekst-flatene
 // (hjem-listene, Om-siden, Innstillinger-skuffen, infodrawerens tekstblokk) —
-// hovedmenyen selv skalerer via sin egen em-baserte rot-font. Bevisst IKKE på
-// knapper/chrome eller stedsnavn i selve kartet. Persisteres i localStorage;
+// hovedmenyen selv skalerer via sin egen em-baserte rot-font. Chromet over
+// kartet skalerer også (v7.6.0), men gjennom `overleggSkala` under — se taket
+// i liggende. Stedsnavnene i selve kartet gjør det aldri. Persisteres i localStorage;
 // leser den gamle per-kart-nøkkelen («map-ui-text-scale», v12-æra) som
 // fallback ved første kjøring.
 //
@@ -24,6 +26,40 @@ import { ref } from 'vue'
 export const UI_TEXT_SCALES = [1, 1.25, 1.5, 2]
 export const UI_TEXT_MIN = 1
 export const UI_TEXT_MAKS = 2
+
+// OVERLEGGET OVER KARTET HAR SITT EGET TAK I LIGGENDE (v7.8.33).
+//
+// Tekstskalaen er en LESE-innstilling: den som setter 200 % gjør det for å
+// lese navnene i punkt-arket og linjene i menyen. Men den samme verdien
+// zoomer også CHROMET som ligger oppå kartet — hamburgeren, kartnavn-pilla,
+// søket, snarvei-raden, linjalen, kompasset og hver chip. I portrett er det
+// riktig: en telefon er 800+ px høy, og en stor knapp koster en stripe.
+//
+// I LIGGENDE ER DET SAMME REGNESTYKKET EN HELT ANNEN PRIS. Skjermen er ~411 px
+// høy, og ved 200 % tar topprada (2,5rem × skala + 1,5rem = 104 px) og
+// snarvei-raden (3,5rem × skala = 112 px) til sammen 216 px — over halve
+// kartet, før noe ark er åpnet. Med taket er de 74 + 70 = 144 px.
+//
+// TAKET GJELDER BARE OVERLEGGET, ikke det man LESER. Skuffene, hovedmenyen,
+// «Om Lende» og søkelista beholder brukerens egen skala — der er hele poenget
+// med innstillingen at teksten blir større, og de flatene har sin egen
+// rulling. Det er derfor dette er en EGEN verdi og ikke en klemming inne i
+// `setTextScale`: skrur brukeren til 200 % i liggende, skal arket fortsatt
+// vise 200 % tekst.
+//
+// Verdien er et av hakkene i `UI_TEXT_SCALES` med vilje — taket er en stasjon
+// brukeren kjenner fra A-knappen, ikke et tall vi fant på.
+export const OVERLEGG_TAK_LIGGENDE = 1.25
+
+/**
+ * Skalaen kart-overlegget skal bruke. Ren, så regelen kan testes uten en
+ * skjermrotasjon.
+ */
+export function overleggSkalaFor(skala, liggende, tak = OVERLEGG_TAK_LIGGENDE) {
+  const n = Number(skala)
+  if (!Number.isFinite(n) || n <= 0) return 1
+  return liggende ? Math.min(n, tak) : n
+}
 
 /**
  * Skalaen speiles som `--ui-skala` på ROT-ELEMENTET (v7.6.0), og «rot» er ikke
@@ -63,7 +99,17 @@ function load() {
 }
 
 const uiTextScale = ref(load())
-speilTilRot(uiTextScale.value)
+
+// `--ui-skala` mater BARE overlay-slottene (`--ovl-top`, `--ovl-nav` i
+// style.css) og snarvei-pillas max-høyde — altså nøyaktig det chromet taket
+// over gjelder for. Speiles den fra brukerens skala, ville slottene reservert
+// 200 %-høyde til et overlegg som står på 125 %, og raden hadde hengt i lufta.
+// `flush: 'sync'` fordi speilingen var synkron før watchen fantes: en leser
+// rett etter `setTextScale` skal se den nye verdien.
+const { erLiggende } = useLiggende()
+const overleggSkala = computed(() => overleggSkalaFor(uiTextScale.value, erLiggende.value))
+speilTilRot(overleggSkala.value)
+watch(overleggSkala, speilTilRot, { flush: 'sync' })
 
 /**
  * Neste hakk i A-knappens liste, med runding. Ren funksjon, så regelen kan
@@ -87,11 +133,10 @@ export function useUiTextScale() {
     const n = klemTextScale(v)
     if (n === uiTextScale.value) return
     uiTextScale.value = n
-    speilTilRot(n)
     try { localStorage.setItem(LS_KEY, String(n)) } catch { /* ignorer */ }
   }
   function cycleTextScale() {
     setTextScale(nesteTextScale(uiTextScale.value))
   }
-  return { uiTextScale, setTextScale, cycleTextScale }
+  return { uiTextScale, overleggSkala, setTextScale, cycleTextScale }
 }
