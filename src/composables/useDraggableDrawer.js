@@ -17,11 +17,15 @@
  * It does NOT know anything about the drawer's actual content height, colour
  * or tab bar — the caller wires those up.
  *
+ * I LIGGENDE format (se useLiggende.js) faller alt dette bort: skuffa har ett
+ * snap-punkt, maksimert, og `enTilstand` ber skallet skjule dra-håndtaket.
+ *
  * Backwards compatible: callers that pass no `maxHeight` get the original
  * two-state behaviour (expanded ↔ minimized) unchanged.
  */
 
-import { ref, reactive, computed, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, watch, onBeforeUnmount } from 'vue'
+import { useLiggende } from './useLiggende.js'
 
 // Retnings-basert snap-valg. I stedet for å lande på nærmeste snap (krever drag
 // forbi 50 %-midtpunktet) committer vi til neste snap i dra-retningen så snart
@@ -68,9 +72,26 @@ export function useDraggableDrawer({
   // translateY in pixels. 0 = expanded position; positive = pushed down
   // (toward minimized); negative = pulled up (toward maximized).
   const translateY = ref(0)
-  const isMinimized = ref(false)
-  const isMaximized = ref(false)
+  const minimertRef = ref(false)
+  const maksimertRef = ref(false)
   const isDragging = ref(false)
+
+  // LIGGENDE: ÉN TILSTAND, OG DEN ER MAKSIMERT (v7.8.31).
+  //
+  // På en telefon i liggende er viewporten ~411 px høy. Standard-stillingen på
+  // 45 dvh gir da 185 px innhold — mindre enn headeren og håndtaket til
+  // sammen — og peek-en er ren kartflate med en tittel over. Skuffa har derfor
+  // bare ett snap-punkt her: kart-stripa i toppen og resten innhold.
+  //
+  // Merk at `isMinimized`/`isMaximized` er COMPUTEDS og ikke refs: skallene
+  // leser dem for å bestemme bakteppe (`isMaximized` → `bg-black/60`) og om
+  // kroppen vises (`v-show="!isMinimized"`). Med dragRangePx = 0 ville snapTo
+  // sett `Math.abs(0 - 0) < 1` og markert skuffa som MINIMERT — altså en skuff
+  // uten innhold. Fortegnene tvinges derfor her, ett sted.
+  const { erLiggende } = useLiggende()
+  const kanMinimere = computed(() => allowMinimize && !erLiggende.value)
+  const isMinimized = computed(() => !erLiggende.value && minimertRef.value)
+  const isMaximized = computed(() => erLiggende.value || maksimertRef.value)
 
   // Drag range downward: from expanded (0) to minimized (expandedPx - peek)
   const dragRangePx = ref(0)
@@ -91,26 +112,39 @@ export function useDraggableDrawer({
   const minTranslate = computed(() =>
     maxPx.value > 0 ? -(maxPx.value - expandedPx.value) : 0
   )
-  const maxTranslate = computed(() => (allowMinimize ? dragRangePx.value : 0))
+  const maxTranslate = computed(() => (kanMinimere.value ? dragRangePx.value : 0))
 
   // Snap points in translateY space, smallest (most negative / tallest) first.
   const snapPoints = computed(() => {
     const pts = [0] // expanded (default) always available
     if (maxPx.value > 0) pts.push(minTranslate.value) // maximized
-    if (allowMinimize) pts.push(dragRangePx.value)    // minimized
+    if (kanMinimere.value) pts.push(dragRangePx.value)    // minimized
     return pts.sort((a, b) => a - b)
   })
 
   // Compute the effective drag range based on viewport
   function computeRange() {
     const vh = window.innerHeight || 800
-    expandedPx.value = Math.max(minimizedPeek + 100, vh * expandedHeight)
-    dragRangePx.value = expandedPx.value - minimizedPeek
-    maxPx.value = maxTopGapPx != null
-      ? Math.max(expandedPx.value, vh - maxTopGapPx)
-      : (maxHeight ? Math.max(expandedPx.value, vh * maxHeight) : 0)
+    const utvidet = Math.max(minimizedPeek + 100, vh * expandedHeight)
+    const maks = maxTopGapPx != null
+      ? Math.max(utvidet, vh - maxTopGapPx)
+      : (maxHeight ? Math.max(utvidet, vh * maxHeight) : 0)
+    if (erLiggende.value) {
+      // Maksimert ER hvilestillingen: ingen dra-vei, ingen andre snap-punkter.
+      expandedPx.value = maks > 0 ? maks : utvidet
+      dragRangePx.value = 0
+      maxPx.value = 0
+      return
+    }
+    expandedPx.value = utvidet
+    dragRangePx.value = utvidet - minimizedPeek
+    maxPx.value = maks
   }
   computeRange()
+  // En rotasjon endrer BÅDE regimet og viewport-høyden. snapTo(0) er ikke
+  // valgfri: står skuffa minimert når telefonen vris, er translateY lik den
+  // gamle dra-veien og skuffa ville fått negativ høyde i det nye regimet.
+  watch(erLiggende, () => { computeRange(); snapTo(0) })
   window.addEventListener('resize', computeRange, { passive: true })
   onBeforeUnmount(() => window.removeEventListener('resize', computeRange))
 
@@ -185,12 +219,12 @@ export function useDraggableDrawer({
 
   function snapTo(t) {
     translateY.value = t
-    isMinimized.value = allowMinimize && Math.abs(t - dragRangePx.value) < 1
-    isMaximized.value = maxPx.value > 0 && Math.abs(t - minTranslate.value) < 1
+    minimertRef.value = kanMinimere.value && Math.abs(t - dragRangePx.value) < 1
+    maksimertRef.value = maxPx.value > 0 && Math.abs(t - minTranslate.value) < 1
   }
 
   function setMinimized(min) {
-    snapTo(min ? dragRangePx.value : 0)
+    snapTo(min && kanMinimere.value ? dragRangePx.value : 0)
   }
 
   function setMaximized(max) {
@@ -220,14 +254,18 @@ export function useDraggableDrawer({
   // next mount starts in a known state.
   function reset() {
     translateY.value = 0
-    isMinimized.value = false
-    isMaximized.value = false
+    minimertRef.value = false
+    maksimertRef.value = false
     isDragging.value = false
   }
 
   return {
     translateY,
     progress,
+    // Skallene skjuler dra-håndtaket på dette flagget: i liggende finnes det
+    // ingen annen stilling å dra til, og et håndtak som ikke gjør noe er en
+    // affordanse som lyver (og 24 px av en 411 px høy skjerm).
+    enTilstand: erLiggende,
     isMinimized,
     isMaximized,
     isDragging,

@@ -3382,7 +3382,7 @@ onUnmounted(() => {
                ikke lenger eneste vei), pil opp/ned flytter ett hakk i snap-rekka.
                Ingen `pointerdown.stop`: draget hører fortsatt til hele stripa, og
                det er nettopp her man tar tak. -->
-          <button v-if="!isDesktop" type="button"
+          <button v-if="!isDesktop && !drawer.enTilstand.value" type="button"
                   class="w-full py-3 flex justify-center"
                   :aria-label="drawer.isMinimized.value ? 'Utvid Valg' : 'Minimer Valg'"
                   :aria-expanded="!drawer.isMinimized.value"
@@ -3392,7 +3392,7 @@ onUnmounted(() => {
             <span class="w-12 h-1.5 rounded-full bg-ink/40"
                   :style="{ opacity: drawer.handleOpacity.value }"></span>
           </button>
-          <div class="px-4 pb-2 flex items-center justify-between"
+          <div data-skuff-topp class="px-4 pb-2 flex items-center justify-between"
                :class="isDesktop ? 'pt-3' : ''">
             <!-- Tittelen ZOOMES med resten av innholdet (v6.6.0): fram til nå
                  sto den fast mens kroppen vokste, og A-knappen gjorde dermed noe

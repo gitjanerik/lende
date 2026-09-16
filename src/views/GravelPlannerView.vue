@@ -1746,12 +1746,12 @@ onUnmounted(() => {
            @pointermove="drawer.onPointerMove($event)"
            @pointerup="drawer.onPointerUp($event)"
            @pointercancel="drawer.onPointerUp($event)">
-        <div class="py-3 flex justify-center">
+        <div v-if="!drawer.enTilstand.value" class="py-3 flex justify-center">
           <div class="w-12 h-1.5 rounded-full bg-ink/40"
                :style="{ opacity: drawer.handleOpacity.value }"></div>
         </div>
         <!-- Header i drag-sonen: synlig også minimert -->
-        <div class="px-4 pb-2 w-full max-w-[560px] mx-auto flex items-center gap-2">
+        <div data-skuff-topp class="px-4 pb-2 w-full max-w-[560px] mx-auto flex items-center gap-2">
           <div class="flex-1 min-w-0">
             <template v-if="route && routeState !== 'routing'">
               <div class="text-[10px] uppercase tracking-wide text-ink-4">Grusrute</div>

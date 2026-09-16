@@ -93,7 +93,8 @@ function onOpenKulturminnesok() {
          @click.self="$emit('close')">
       <div class="drawer-shell bg-surface border-t border-ink/10 rounded-t-2xl flex flex-col pointer-events-auto"
            :style="drawer.drawerHeightStyle.value">
-        <div class="shrink-0 touch-none cursor-grab active:cursor-grabbing py-3 flex justify-center"
+        <div v-if="!drawer.enTilstand.value"
+             class="shrink-0 touch-none cursor-grab active:cursor-grabbing py-3 flex justify-center"
              @pointerdown="drawer.onPointerDown($event)"
              @pointermove="drawer.onPointerMove($event)"
              @pointerup="drawer.onPointerUp($event)"
@@ -108,7 +109,8 @@ function onOpenKulturminnesok() {
              linjer mot en tom høyrekant. Kategori-merket og -navnet flytter opp
              i kontrollraden — den sier hva slags minne dette er, og den er kort
              nok til å dele linje med tre knapper. -->
-        <div class="shrink-0 px-4 pb-2.5 bg-surface/95 border-b border-ink/8">
+        <div data-skuff-topp
+             class="shrink-0 px-4 pb-2.5 bg-surface/95 border-b border-ink/8">
           <div class="flex items-center justify-between gap-2">
             <div class="min-w-0 flex items-center gap-2" :style="{ zoom: uiTextScale }">
               <span class="w-3.5 h-3.5 shrink-0 rounded-sm" :style="{ background: katColor }"></span>

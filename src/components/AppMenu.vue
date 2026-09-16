@@ -412,7 +412,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             </span>
             <button type="button" class="am-row-main" @click="nyttTurkart">
               <span class="am-row-title">Nytt turkart</span>
-              <span class="am-row-meta">{{ gpsLeter ? 'Finner posisjonen din …' : nyttKartMeta }}</span>
+              <!-- `is-svar` er ikke pynt: i liggende skjules meta-linjene for
+                   å spare høyde, men «Finner posisjonen din …» er SVARET på
+                   trykket man nettopp gjorde — skjules det, ser raden ut til å
+                   ikke gjøre noe mens GPS-en jobber. -->
+              <span class="am-row-meta" :class="{ 'is-svar': gpsLeter }">{{
+                gpsLeter ? 'Finner posisjonen din …' : nyttKartMeta }}</span>
             </button>
             <button type="button" class="am-add" aria-label="Lag nytt turkart der du er"
                     :disabled="gpsLeter" @click="nyttTurkart">
@@ -514,10 +519,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <div class="am-block am-block-wide">
           <div class="am-eyebrow">Eksterne lenker</div>
           <label class="am-bryter-rad">
-            <span class="am-bryter-tekst">
-              Åpne i ny nettleser
-              <span class="am-bryter-meta">ut.no, kulturminnesøk, NVE, leksika …</span>
-            </span>
+            <span class="am-bryter-tekst">Åpne i ny nettleser</span>
             <button type="button" role="switch" class="am-bryter"
                     :class="{ 'is-on': nyFane }" :aria-checked="nyFane"
                     @click="settNyFane(!nyFane)">
@@ -611,8 +613,23 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   padding: 18px 18px 14px;
   flex: 0 0 auto;
 }
-.am-trigger-slot { width: 44px; height: 44px; flex: 0 0 auto; }
-.am-title { font-size: 1.25em; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
+/* PLASSHOLDEREN MÅ SKALERE MED KNAPPEN DEN HOLDER PLASS TIL (v7.8.31).
+   Hamburgeren/X-en er `w-10 h-10` med `zoom: tekstskala`, altså 40 px ganger
+   skalaen — 80 px ved 200 % — mens denne sto på faste 44 px. Differansen er
+   hele kollisjonen: ved 150 % og oppover la den runde knappen seg oppå «Så i
+   lende». Menyen setter selv `font-size: 16 px × skala` på rota si, så 2.75em
+   ER 44 px ved 100 % og følger knappen resten av veien. */
+.am-trigger-slot { width: 2.75em; height: 2.75em; flex: 0 0 auto; }
+.am-title {
+  font-size: 1.25em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  /* Tittelen skal vike for plassholderen, ikke dytte den ut av boksen. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* ── Segmentbryter (tema) ──
    Modus-segmentet er borte fra v6.5.35; `.am-seg-modes`, `.am-seg-row` og
@@ -719,6 +736,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .am-row-main:active { opacity: 0.7; }
 .am-row-title { font-size: 1.05em; font-weight: 600; }
 .am-row-meta { font-size: 0.78em; color: var(--am-dim); }
+/* LIGGENDE: META-LINJENE ER BORTE (v7.8.31). Menyen har alle valgene sine i
+   behold — det var bestillingen — men «11 lagrede · sist Galdhøpiggen, Lom i
+   dag» er tre linjer ved 200 % tekst, og på en 411 px høy skjerm er det tre
+   linjer som dytter en knapp ut av rullefeltet. Tittelen sier hva raden gjør;
+   meta-linja sier hvor mye som ligger der, og det tallet står uansett inne i
+   arket raden åpner. */
+:root[data-liggende] .am-row-meta:not(.is-svar) { display: none; }
 .am-add {
   width: 42px;
   height: 42px;
@@ -817,17 +841,28 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
    tekststørrelsen som alt annet her. */
 .am-bryter-rad {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   padding: 2px 4px;
   cursor: pointer;
   user-select: none;
 }
-.am-bryter-tekst { flex: 1 1 auto; min-width: 0; font-size: 0.95em; }
-.am-bryter-meta { display: block; font-size: 0.78em; color: var(--am-dim); }
+.am-bryter-tekst {
+  /* ETIKETTEN FÅR HELE RADEN OG BRYTER ALDRI (v7.8.31). Den sto som et
+     krympbart flex-element ved siden av en bryter med fast bredde, så ved
+     200 % tekst delte «Åpne i ny nettleser» seg på to linjer mens det var
+     god plass på linja under. `flex: 1 0 auto` lar den beholde sin egen
+     bredde; da er det BRYTEREN som ikke får plass, og med `flex-wrap` på
+     raden legger den seg pent under i stedet. */
+  flex: 1 0 auto;
+  white-space: nowrap;
+  font-size: 0.95em;
+}
 .am-bryter {
   position: relative;
   flex: 0 0 auto;
+  margin-left: auto;
   width: 2.6em;
   height: 1.5em;
   border-radius: 999px;

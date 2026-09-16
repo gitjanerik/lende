@@ -197,6 +197,12 @@ html { background: var(--color-app); }
   margin-inline: auto;
 }
 
+/* LIGGENDE FORMAT: skuffene har ingen håndtak (se useLiggende.js), og
+   headeren arvet lufta over seg fra det. Verdien er py-3-ens 12 px, altså
+   nøyaktig det håndtakets øvre polstring ga — de 18 px som var selve grepet
+   og lufta under det spares, og det er poenget på en 411 px høy skjerm. */
+:root[data-liggende] [data-skuff-topp] { padding-top: 0.75rem; }
+
 /* Først når skuffen er smalere enn viewporten finnes det sidekanter å tegne —
    på mobil ville de blitt hårstreker helt ute i skjermkanten. Bredden settes
    her, fargen arves fra skuffens egen `border-<farge>`-klasse. */

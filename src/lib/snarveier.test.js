@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   SNARVEIER, STANDARD_REKKEFOLGE, normaliserRekkefolge, snarveierIRekkefolge,
-  flyttSnarvei, antallKolonner, antallRader,
+  flyttSnarvei, antallKolonner, antallRader, passSkala,
   gitterIndeks, gitterForskyvning, flettSynligRekkefolge, SNARVEI_MIN_H,
   SNARVEI_NIVAER, draSpenn,
 } from './snarveier.js'
@@ -315,5 +315,38 @@ describe('draSpenn — skuffas tre nivåer', () => {
     expect(draSpenn(1.6, true)).toEqual({ lo: 1.6, hi: 2 })
     expect(draSpenn(9, true)).toEqual({ lo: 2, hi: 2 })
     expect(draSpenn(-3, false)).toEqual({ lo: 0, hi: 0 })
+  })
+})
+
+// LIGGENDE-KLEMMEN (v7.8.31). Den er det motsatte spørsmålet av
+// `antallKolonner`: antallet er gitt, og cellene må gi etter.
+describe('passSkala', () => {
+  it('lar cellene stå urørt når de får plass', () => {
+    // 6 × 50 + 5 × 4 = 320, og det er under budsjettet.
+    expect(passSkala(50, 400, 4, 6)).toBe(1)
+    // Akkurat på grensa teller som plass.
+    expect(passSkala(50, 320, 4, 6)).toBe(1)
+  })
+
+  it('blåser aldri opp en rad som alt har plass', () => {
+    // Halve budsjettet brukt — svaret er fortsatt 1, ikke 2.
+    expect(passSkala(30, 800, 4, 6)).toBe(1)
+  })
+
+  it('klemmer akkurat nok til at raden går opp', () => {
+    // 6 × 60 + 5 × 4 = 380 mot 320 ledig. Gapene er FASTE (de bæres ikke av
+    // cellenes zoom), så rommet cellene deler på er 320 − 20 = 300.
+    expect(passSkala(60, 320, 4, 6)).toBeCloseTo(300 / 360, 6)
+  })
+
+  it('har et gulv — en uleselig etikett er ingen løsning', () => {
+    expect(passSkala(400, 320, 4, 6)).toBe(0.35)
+    // Gapene alene sprenger budsjettet: ingen faktor redder det.
+    expect(passSkala(40, 10, 4, 6)).toBe(0.35)
+  })
+
+  it('svarer 1 på tomme eller ugyldige mål', () => {
+    expect(passSkala(0, 320, 4, 6)).toBe(1)
+    expect(passSkala(50, 320, 4, 0)).toBe(1)
   })
 })

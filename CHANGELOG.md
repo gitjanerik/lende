@@ -1,3 +1,32 @@
+## 2026-09-16 — v7.8.31: Liggende format er en egen layout
+
+Lende ble testet på tvers for første gang, og i liggende er det HØYDEN som er
+knapp — motsatt av alt appen er bygget for. Fire ting følger av det.
+Regelen har ÉN definisjon, `useLiggende.js`, og den bor i JS fordi flere enn CSS
+må kjenne den: `(orientation: landscape) and (max-height: 600px)`, der høyden
+bærer regelen — en stor skjerm er også «landscape», men har ingen av problemene.
+Flagget speiles til `data-liggende` på rota, så CSS gater på `:root[data-liggende]`.
+Skuffene har ÉN stilling, maksimert: `useDraggableDrawer` får ett snap-punkt,
+og `enTilstand` ber hvert skall skjule dra-håndtaket — en affordanse som ikke
+gjør noe er en affordanse som lyver, og den koster 24 av 411 piksler. Merk at
+`isMinimized` og `isMaximized` måtte bli COMPUTEDS: med en dra-vei på null ville
+`snapTo` lest 0 som «minimert» og slått av kroppen i skuffa. Snarvei-raden står
+på én rad uansett tekststørrelse — kolonnetallet ER antallet snarveier, og det
+som gir etter er cellene (`passSkala`, ren og enhetstestet) — mens knott-boksene
+deler linja med etikett, skyv, verdi og tannhjul på samme linje, gjort med et
+gitter med navngitte områder framfor en andre mal. Hovedmenyen har alle valgene
+sine i behold, men meta-linjene («11 lagrede · sist Galdhøpiggen, Lom i dag») er
+skjult i liggende, med GPS-ens «Finner posisjonen din …» unntatt fordi den er
+SVARET på trykket man nettopp gjorde; kildelista nederst er fjernet helt.
+To ting til, som ikke er liggende-spesifikke: plassholderen for hamburgeren sto
+på faste 44 px mens knappen den holder plass til er 40 px × tekstskalaen, så ved
+150 % og oppover la X-en seg oppå «Så i lende» — den er nå `2.75em` og følger
+knappen. Og «Åpne i ny nettleser» brøt over to linjer ved 200 % mens det var god
+plass under: etiketten beholder nå sin egen bredde og bryteren legger seg under
+i stedet.
+
+---
+
 ## 2026-09-16 — v7.8.30: Naboflisenes navn viker for snarvei-raden
 
 Spøkelsesflisene beholder navnene sine — en nybygd naboflis skal vise stedsnavn

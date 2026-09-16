@@ -124,7 +124,8 @@ function formatDistance(m) {
          :style="contextDrawer.drawerHeightStyle.value">
       <!-- Dra-håndtak: dra opp for å maksimere (~85dvh), ned for standard.
            Romslig hit-flate (py-3) så tappen er lett å treffe. -->
-      <div class="shrink-0 touch-none cursor-grab active:cursor-grabbing py-3 flex justify-center"
+      <div v-if="!contextDrawer.enTilstand.value"
+           class="shrink-0 touch-none cursor-grab active:cursor-grabbing py-3 flex justify-center"
            @pointerdown="contextDrawer.onPointerDown($event)"
            @pointermove="contextDrawer.onPointerMove($event)"
            @pointerup="contextDrawer.onPointerUp($event)"
@@ -146,7 +147,8 @@ function formatDistance(m) {
            felle som 3D-overlegget gikk i, v6.3.12), så knappene står utenfor og
            beholder sine 32 px. Kopier-knappen står derimot inne i tekst-
            kolonnen og vokser med linja si — den hører til koordinatene. -->
-      <div class="shrink-0 px-4 pb-2.5 bg-surface/95 border-b border-ink/8">
+      <div data-skuff-topp
+             class="shrink-0 px-4 pb-2.5 bg-surface/95 border-b border-ink/8">
         <div class="flex items-center justify-between gap-2">
           <div class="min-w-0 truncate text-[10px] uppercase tracking-wide text-ink-4"
                :style="{ zoom: uiTextScale }">Punkt</div>
