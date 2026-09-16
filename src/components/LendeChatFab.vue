@@ -38,7 +38,10 @@ import FabCluster from './FabCluster.vue'
 const UTEN_GLOBAL_CHAT = ['kart-vis', 'ruteplanlegger']
 
 const { openChat } = useLendeChat()
-const { uiTextScale } = useUiTextScale()
+// `overleggSkala`: knappen svever oppå innholdet, altså chrome — og i liggende
+// har chromet et tak (se useUiTextScale.js). Sida under beholder brukerens
+// egen skala.
+const { overleggSkala } = useUiTextScale()
 const visible = hasAiToken()
 const route = useRoute()
 
@@ -49,5 +52,5 @@ const logoUrl = `${import.meta.env.BASE_URL}icon.svg`
 
 <template>
   <FabCluster v-if="show" positioning="fixed" chat-enabled :logo-url="logoUrl"
-              :ui-text-scale="uiTextScale" @chat="openChat" />
+              :ui-text-scale="overleggSkala" @chat="openChat" />
 </template>

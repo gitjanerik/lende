@@ -1,3 +1,26 @@
+## 2026-09-16 — v7.8.33: Chromet over kartet har et tak i liggende
+
+Tekstskalaen er en LESE-innstilling, men den samme verdien zoomer også chromet
+som ligger oppå kartet — hamburgeren, kartnavn-pilla, søket, snarvei-raden,
+linjalen, kompasset og hver chip. I portrett er det riktig. I liggende er det
+samme regnestykket en helt annen pris: skjermen er ~411 px høy, og ved 200 %
+tok topprada og snarvei-raden til sammen 216 px av den, over halve kartet før
+noe ark var åpnet. `useUiTextScale` har derfor en ny verdi, `overleggSkala`,
+som er brukerens egen skala klemt til 1,25 i liggende — et av hakkene i
+A-knappen, altså en stasjon brukeren kjenner, og ikke et tall vi fant på. Den
+er det `--ui-skala` speiles fra, siden den variabelen bare mater
+overlay-slottene (`--ovl-top`, `--ovl-nav`, snarvei-pillas max-høyde): speilet
+vi brukerens skala dit, ville slottene reservert 200 %-høyde til et chrome på
+125 % og raden hengt i lufta. Taket gjelder BARE overlegget. Skuffene,
+hovedmenyen, «Om Lende», søkelista og punkt-arket beholder brukerens egen
+skala — der er hele poenget med innstillingen at teksten blir større, og de
+flatene har sin egen rulling. Røyk-sjekken for liggende måler derfor begge
+halvdelene: knappenes rendrede høyde og `--ovl-top` mot taket, og
+måle-skuffas `zoom` mot brukerens 200 %. Bare den ene ville vært grønn for en
+«fiks» som i praksis skrudde tekststørrelsen av i liggende.
+
+---
+
 ## 2026-09-16 — v7.8.32: Appen heter Lende
 
 Appnavnet var «Så i lende» overalt — i hovedmenyen, i PWA-manifestet (altså på

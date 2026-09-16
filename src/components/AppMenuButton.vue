@@ -59,11 +59,14 @@ const { menuOpen, toggle } = useAppMenu()
 // divisjonen havner knappen dobbelt så langt ned og inn ved 200 %.
 // Plassholderen zoomes også, så toppraden reserverer den plassen knappen
 // faktisk tar.
-const { uiTextScale } = useUiTextScale()
+// `overleggSkala` og ikke `uiTextScale`: knappen ER kart-chrome, og i liggende
+// har chromet sitt eget tak (se useUiTextScale.js). `header`-varianten står
+// ikke over et kart og skalerer uansett ikke.
+const { overleggSkala } = useUiTextScale()
 // TDZ-regelen (se CLAUDE.md): `const` er ikke hoistet, og `watch(skala, …)`
 // under leser den ved oppsett — derfor står den her og ikke nede ved
 // `isFloat`, der den ellers ville hørt hjemme.
-const skala = computed(() => (props.variant === 'float' ? uiTextScale.value || 1 : 1))
+const skala = computed(() => (props.variant === 'float' ? overleggSkala.value || 1 : 1))
 
 // «Hold skjermen våken» har ingen egen knapp og ingen tekst — den vises som en
 // gul ring rundt hamburgeren, og ringen ER indikatoren (v6.6.4). Den ligger her

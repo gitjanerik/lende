@@ -602,7 +602,14 @@ function closeKulturminneDetail() {
 // «Tekststørrelse»-knapp (useUiTextScale). CSS `zoom` skalerer hele blokken —
 // nødvendig fordi UI bruker faste Tailwind-px-størrelser som ikke arver
 // container-font-size.
-const { uiTextScale } = useUiTextScale()
+//
+// TO SKALAER, OG SKILLET ER «LESER MAN DET, ELLER LIGGER DET OPPÅ KARTET?»
+// (v7.8.33). `uiTextScale` er brukerens egen og går til det man LESER —
+// skuff-kroppen, fane-raden, punkt-arket, søkelista. `overleggSkala` går til
+// CHROMET: topprada, snarvei-raden, chipene, bannerne, linjalen og kompasset.
+// De to er samme tall i portrett; i liggende har overlegget et tak, fordi en
+// 411 px høy skjerm ikke har 216 px å gi til knapper. Se useUiTextScale.js.
+const { uiTextScale, overleggSkala } = useUiTextScale()
 // Desktop: drawer er et høyrestilt side-panel med dra-bar venstrekant
 // (min 360px, maks 50vw, bredde lagret i localStorage per spor).
 const panel = useResizablePanel('map-panel-width')
@@ -2932,7 +2939,7 @@ onUnmounted(() => {
 
       <div data-kartnavn-plass class="flex-1 min-w-0 flex justify-center pointer-events-none">
         <button v-if="canRenameMap" @click="openRename" data-kartnavn
-                aria-label="Gi kart nytt navn" :style="{ zoom: uiTextScale }"
+                aria-label="Gi kart nytt navn" :style="{ zoom: overleggSkala }"
                 class="pointer-events-auto w-max max-w-full px-3 py-1.5 rounded-full bg-overlay
                        text-[12px] text-ink font-medium shadow-lg
                        flex items-center gap-1.5 active:scale-95 transition">
@@ -2943,7 +2950,7 @@ onUnmounted(() => {
             <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
           </svg>
         </button>
-        <div v-else data-kartnavn :style="{ zoom: uiTextScale }"
+        <div v-else data-kartnavn :style="{ zoom: overleggSkala }"
              class="w-max max-w-full px-3 py-1.5 rounded-full bg-overlay
                     text-[12px] text-ink font-medium shadow-lg truncate">
           {{ mapTitle }}
@@ -2952,7 +2959,7 @@ onUnmounted(() => {
 
       <div class="shrink-0 flex items-center gap-2 pointer-events-auto">
         <button @click="openSearch" aria-label="Søk i kart" data-sok-knapp
-                :style="{ zoom: uiTextScale }"
+                :style="{ zoom: overleggSkala }"
                 class="rounded-full w-10 h-10 flex items-center justify-center
                        bg-overlay text-ink shadow-lg active:scale-95 transition">
           <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.4"
@@ -2990,7 +2997,7 @@ onUnmounted(() => {
              som samme materiale. Se lib/kartFlate.js. -->
         <SnarveiRad ref="snarveiRadRef"
                     :snarveier="synligeSnarveier"
-                    :ui-text-scale="uiTextScale"
+                    :ui-text-scale="overleggSkala"
                     :mork="isDark"
                     :strek-trinn="strokeStepIndex" :strek-trinn-antall="STROKE_STEPS.length"
                     :strek-skala="strokeScale"
@@ -3012,7 +3019,7 @@ onUnmounted(() => {
                class="px-3 py-1.5 rounded-lg bg-overlay/95 text-ink text-[11px] font-medium
                       leading-tight shadow-lg whitespace-nowrap pointer-events-none
                       border border-ink/10"
-               :style="{ zoom: uiTextScale }">
+               :style="{ zoom: overleggSkala }">
             {{ knobHint }}
           </div>
         </Transition>
@@ -3247,7 +3254,7 @@ onUnmounted(() => {
          alert) — trekt ut til MapModeChips (v1.0.8). -->
     <MapModeChips
       :auto-map-toast="autoMapToast"
-      :ui-text-scale="uiTextScale"
+      :ui-text-scale="overleggSkala"
       :search-open="searchOpen"
       :map-center-style="mapCenterStyle"
       :band-style="snarveiRadStyle"
@@ -3299,7 +3306,7 @@ onUnmounted(() => {
       :is-offline="isOffline"
       :show-low-accuracy="showLowAccuracyBanner"
       :accuracy-m="userPos.accuracyM ?? 0"
-      :ui-text-scale="uiTextScale"
+      :ui-text-scale="overleggSkala"
       :fredet-truncated="showFredetToast"
       :fredet-count="fredetCount ?? 0"
       :fredet-shown="fredetShown ?? 0"
@@ -3324,7 +3331,7 @@ onUnmounted(() => {
       :visible="!loading && !bunnSkjult"
       :bottom="bunnFloat.bottomStyle.value"
       :scale-bar="scaleBar"
-      :ui-text-scale="uiTextScale" />
+      :ui-text-scale="overleggSkala" />
 
     <!-- KOMPASSNÅLA STÅR NEDERST TIL HØYRE (v7.8.17), i selve hjørnet.
          Historikken er kort: FAB (til v1.0.77), fast knapp i snarvei-raden
@@ -3341,7 +3348,7 @@ onUnmounted(() => {
       :visible="hasTouch && !loading && !bunnSkjult"
       :azimut="rotationSliderDeg"
       :mork="isDark"
-      :ui-text-scale="uiTextScale"
+      :ui-text-scale="overleggSkala"
       :bottom="bunnFloat.bottomStyle.value"
       :right-style="floatRightStyle"
       @nord="onResetAndRefreshGps" />
@@ -3744,7 +3751,7 @@ onUnmounted(() => {
            :style="mapCenterStyle" role="status" aria-live="polite">
         <FlisIkon v-if="byggerFlisRetning" :retning="byggerFlisRetning" :ark="arkRutenett" />
         <span v-else class="w-3.5 h-3.5 rounded-full border-2 border-ink/25 border-t-ink/80 animate-spin shrink-0"></span>
-        <span class="truncate" :style="{ zoom: uiTextScale }">{{ buildingProgress || 'Oppretter kart …' }}</span>
+        <span class="truncate" :style="{ zoom: overleggSkala }">{{ buildingProgress || 'Oppretter kart …' }}</span>
         <!-- Chippen er ikke-blokkerende, men byggingen kan ta et halvminutt per
              flis. X-en aborterer flisene som er under arbeid (to i flukt,
              v7.8.8) og starter ingen nye; det som alt er bygd beholdes. Derfor er
@@ -3788,7 +3795,7 @@ onUnmounted(() => {
       <div v-if="tour3dError"
            class="absolute bottom-24 left-1/2 -translate-x-1/2 z-[60] px-3 py-2 rounded-xl
                   bg-red-600/95 text-white text-[12px] font-medium shadow-lg max-w-[85%]"
-           :style="{ zoom: uiTextScale }">
+           :style="{ zoom: overleggSkala }">
         {{ tour3dError }}
       </div>
     </Transition>
