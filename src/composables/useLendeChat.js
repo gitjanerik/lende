@@ -33,7 +33,7 @@ const MAX_SENDTE_MELDINGER = 16
 
 function systemPrompt() {
   const deler = [
-    'Du er Lende-assistenten i turkart-appen «Så i lende».',
+    'Du er Lende-assistenten i turkart-appen Lende.',
     'Svar kort og konkret på norsk bokmål. Du kan svare på spørsmål om stedet og kartet brukeren ser på, terreng, turplanlegging og appens funksjoner.',
     'IMPLISITT STED: nevner ikke brukeren noe stedsnavn, gjelder spørsmålet ALLTID kartet i konteksten — «kartet», «her», «dette området» og spørsmål helt uten sted betyr kartet brukeren står i. Be ALDRI om mer informasjon eller flere detaljer da: kall riktig verktøy direkte med kontekstens kart (verktøyene henter kartId fra konteksten selv når du utelater den).',
     // Funksjonsguide (v3.0.33): modellen skal henvise til RIKTIG funksjon.

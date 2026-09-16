@@ -4,7 +4,7 @@ import VersjonSjekk from './VersjonSjekk.vue'
 import UtmSoneFigur from './UtmSoneFigur.vue'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
 
-// Innholdet i «Om Så i lende» — delt mellom ruten /om (AboutView, som holder
+// Innholdet i «Om Lende» — delt mellom ruten /om (AboutView, som holder
 // deep-lenker og offline-kravet i live) og AboutModal, som hovedmenyen åpner
 // oppå seg selv. Verten eier ramme, padding og tekst-skalering; her ligger bare
 // seksjonene.
@@ -52,7 +52,7 @@ async function onInstallClick() {
           <circle cx="272" cy="231" r="13" fill="#ffd84a"/>
         </svg>
       </div>
-      <h2 class="text-2xl font-semibold text-ink">Så i lende</h2>
+      <h2 class="text-2xl font-semibold text-ink">Lende</h2>
       <p class="text-[13px] leading-relaxed text-ink-3">
         Turkart og ruteplanlegging bygget fra
         <strong class="font-semibold text-ink-2">ymse kartdata</strong>.
@@ -96,16 +96,17 @@ async function onInstallClick() {
     <section class="rounded-2xl bg-ink/5 border border-ink/10 p-4 space-y-3">
       <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Navnet</h3>
       <p class="text-[13px] leading-relaxed text-ink-2">
-        «Så i lende» er et gammelt norsk uttrykk som betyr omtrent
-        <em>så langt øyet rekker</em> eller <em>vidt omkring</em> — brukt i
-        landskapsskildringer, som i «det var skog så i lende».
-      </p>
-      <p class="text-[13px] leading-relaxed text-ink-2">
         <strong class="text-ink">Lende</strong>
         betyr terreng eller landstrekning, beslektet med norrønt <em>lendi</em> —
-        «land», «jordstykke». Opprinnelig beskrev uttrykket noe som strakte seg
-        utover landskapet; etter hvert ble det et fast idiom for <em>overalt</em>,
-        <em>så langt man kan se</em>.
+        «land», «jordstykke». Det er selve ordet for det appen handler om: formen
+        på bakken du går på.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        Ordet lever videre i det gamle uttrykket «så i lende», som betyr omtrent
+        <em>så langt øyet rekker</em> eller <em>vidt omkring</em> — brukt i
+        landskapsskildringer, som i «det var skog så i lende». Opprinnelig
+        beskrev det noe som strakte seg utover landskapet; etter hvert ble det et
+        fast idiom for <em>overalt</em>, <em>så langt man kan se</em>.
       </p>
       <blockquote class="border-l-2 border-[#ffd84a]/70 pl-3 text-[13px] leading-relaxed
                          text-ink-2 italic">

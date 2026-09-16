@@ -6857,6 +6857,219 @@ const SJEKKER = [
     },
   },
   {
+    // LIGGENDE FORMAT ER EN EGEN LAYOUT, OG DEN ER REN GEOMETRI (v7.8.31).
+    //
+    // Tre regler ble innført for liggende, og ingen av dem er synlig for en
+    // enhetstest: de er posisjoner i en nettleser ved en tekstskala prosjektet
+    // ikke monterer Vue i. Sjekken kjører derfor i sin EGEN kontekst på
+    // 891 × 411 — målene til en vanlig telefon på tvers — med tekstskalaen på
+    // 200 %, som er den innstillingen alle tre reglene er strengest på.
+    //
+    //   • Snarvei-raden står på ÉN linje. Kolonnetallet er ikke lenger noe som
+    //     regnes fram av plassen; det ER antallet snarveier, og cellene klemmes
+    //     i stedet (`passSkala`). Måles som at hver celle deler `top` med den
+    //     første — en rad som brøt ville gitt to ulike verdier.
+    //   • Knott-boksene deler linja, og hver av dem har etikett, skyv, verdi og
+    //     tannhjul på SAMME linje. Måles som to bokser med lik `top` og ulik
+    //     `left`, og som at skyven ligger til HØYRE for etiketten i stedet for
+    //     under den.
+    //   • En skuff som åpner har ingen dra-håndtak (det finnes bare én
+    //     stilling), men kroppen skal fortsatt stå der. Det siste er hele
+    //     grunnen til at `isMinimized` er en computed: uten den ville en
+    //     dra-vei på null lest som «minimert», og kroppen forsvunnet.
+    //
+    // EGEN KONTEKST OG IKKE `setViewportSize`, med vilje: tekstskalaen må stå i
+    // localStorage FØR appen laster, og en kontekst som lukkes etterpå kan per
+    // konstruksjon ikke etterlate hverken vindu eller skala til neste sjekk.
+    navn: 'liggende: én snarvei-rad, knotter på linje, skuffer uten håndtak og uten inset',
+    domene: 'useLiggende + SnarveiRad + useDraggableDrawer',
+    maksMs: 120_000,
+    async kjør(page) {
+      const ctx = await egenKontekst(page, {
+        viewport: { width: 891, height: 411 },
+        hasTouch: true,
+      })
+      await ctx.addInitScript(() => {
+        try { localStorage.setItem('lende-ui-text-scale', '2') } catch { /* tom */ }
+      })
+      const p2 = await ctx.newPage()
+      try {
+        await p2.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await p2.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+        await lukkDrawer(p2)
+
+        const påSkjenen = await p2.evaluate(() =>
+          document.documentElement.dataset.liggende !== undefined)
+        if (!påSkjenen) {
+          throw new Error('data-liggende står ikke på rota — matchMedia-regelen i '
+            + 'useLiggende.js traff ikke 891 × 411')
+        }
+
+        // ÉN RAD. Raden må dras ut først: sammenlagt KLIPPER gitteret alt under
+        // første rad, og en måling der ville vært grønn uansett hva kolonne-
+        // tallet sa.
+        await apneSnarveiRad(p2)
+        const rad = await p2.evaluate(() => {
+          const celler = [...document.querySelectorAll('[data-snarvei]')]
+          if (!celler.length) return null
+          const topper = celler.map((c) => Math.round(c.getBoundingClientRect().top))
+          const gitter = document.querySelector('[data-snarvei-gitter]')
+          return {
+            antall: celler.length,
+            linjer: [...new Set(topper)].length,
+            ut: Math.round(gitter.getBoundingClientRect().right - innerWidth),
+          }
+        })
+        if (!rad) throw new Error('fant ingen snarvei-celler i liggende')
+        if (rad.linjer !== 1) {
+          throw new Error(`snarvei-raden brøt på ${rad.linjer} linjer i liggende ved 200 % `
+            + `tekst (${rad.antall} celler) — klemmer ikke passSkala?`)
+        }
+        if (rad.ut > 1) {
+          throw new Error(`snarvei-gitteret stikker ${rad.ut} px utenfor skjermkanten — `
+            + 'én rad er ikke nok om den renner ut')
+        }
+
+        // KNOTTENE: ett drag til avdekker dem.
+        await draSnarveiHandle(p2, 400)
+        const knott = await p2.evaluate(() => {
+          const bokser = [...document.querySelectorAll('.knott-boks')]
+          if (bokser.length !== 2) return { antall: bokser.length }
+          const r = bokser.map((b) => b.getBoundingClientRect())
+          const del = bokser.map((b) => {
+            const navn = b.querySelector('.knott-boks__navn').getBoundingClientRect()
+            const skyv = b.querySelector('.knott-boks__skyv').getBoundingClientRect()
+            const hjul = b.querySelector('.knott-tannhjul').getBoundingClientRect()
+            return {
+              // «På samme linje» måles som overlappende loddrette spenn, ikke
+              // som lik `top`: en 22 px skyv og en 40 px knapp har ulik topp
+              // selv når de står midtstilt på samme rad.
+              påLinje: skyv.top < navn.bottom && navn.top < skyv.bottom
+                && hjul.top < skyv.bottom && skyv.top < hjul.bottom,
+              // Og at skyven er til HØYRE for etiketten — er den under, er vi
+              // tilbake i den stående oppstillingen.
+              tilHøyre: skyv.left >= navn.right - 1,
+            }
+          })
+          return {
+            antall: 2,
+            sammeRad: Math.abs(r[0].top - r[1].top) <= 1 && r[1].left >= r[0].right - 1,
+            del,
+          }
+        })
+        if (knott.antall !== 2) {
+          throw new Error(`fant ${knott.antall} knott-bokser, ventet 2 — `
+            + 'kom ikke knott-nivået fram?')
+        }
+        if (!knott.sammeRad) {
+          throw new Error('strek og relieff står ikke side om side i liggende — '
+            + 'flex-retningen på .snarvei-knotter__rad?')
+        }
+        knott.del.forEach((d, i) => {
+          const hvem = i === 0 ? 'Strek' : 'Relieff'
+          if (!d.påLinje) {
+            throw new Error(`${hvem}: etikett, skyv og tannhjul står ikke på samme linje `
+              + 'i liggende — gitter-områdene i .knott-boks?')
+          }
+          if (!d.tilHøyre) {
+            throw new Error(`${hvem}: skyven ligger under etiketten og ikke ved siden av — `
+              + 'den stående oppstillingen er i bruk i liggende')
+          }
+        })
+        await lukkSnarveiRad(p2)
+
+        // OG PUNKT-ARKETS DETALJ-INSET SKAL VÆRE BORTE (v7.8.32). Gaten var
+        // «kun når skuffa er maksimert», og i liggende er maksimert den eneste
+        // stillingen — altså «alltid». Et kvadratisk minikart på 90 % av
+        // bredden i en skuff som har 355 px å gi er nettopp den dobbelt-
+        // visningen gaten fantes for å unngå.
+        await klikkSnarvei(p2, 'info')
+        await p2.waitForTimeout(500)
+        const punkt = await p2.evaluate(() => {
+          const lukk = [...document.querySelectorAll('button')].find((b) =>
+            b.offsetParent && b.getAttribute('aria-label') === 'Lukk')
+          if (!lukk) return null
+          const inset = [...document.querySelectorAll('span')].filter((e) =>
+            e.offsetParent && /^Detaljer · \d+ × \d+ m$/.test(e.textContent.trim()))
+          return { inset: inset.length, tekst: document.body.innerText.length }
+        })
+        if (!punkt) throw new Error('punkt-arket åpnet ikke i liggende')
+        if (punkt.inset) {
+          throw new Error('detalj-insetet står i punkt-arket i liggende — '
+            + 'gaten leser «maksimert», som der betyr «alltid»')
+        }
+        if (punkt.tekst < 200) throw new Error('punkt-arket åpnet uten innhold i liggende')
+        await p2.evaluate(() => {
+          [...document.querySelectorAll('button')]
+            .find((b) => b.offsetParent && b.getAttribute('aria-label') === 'Lukk')?.click()
+        })
+        await p2.waitForTimeout(300)
+
+        // SKUFFA: ingen håndtak, men en kropp. Måling er den letteste
+        // funksjons-skuffa å åpne og lukke igjen.
+        await klikkSnarvei(p2, 'maaling')
+        const skuff = await p2.evaluate(() => {
+          // ANKRET I MÅLE-SKUFFAS EGEN LUKKEKNAPP og ikke i første
+          // `[data-skuff-topp]` i dokumentet: attributtet bæres av alle fem
+          // arkene OG av innstillings-skuffa, som på 891 px bredde er et
+          // sidepanel. Et treff på feil skuff ville målt riktig og svart om noe
+          // annet.
+          const x = [...document.querySelectorAll('button')].find((b) =>
+            b.offsetParent && b.getAttribute('aria-label') === 'Lukk Måling')
+          if (!x) return null
+          const topp = x.closest('[data-skuff-topp]')
+          if (!topp) return null
+          const skall = topp.parentElement
+          const håndtak = [...skall.querySelectorAll('button, div')].filter((e) =>
+            /^(Minimer|Utvid) /.test(e.getAttribute('aria-label') || ''))
+          const r = skall.getBoundingClientRect()
+          return {
+            håndtak: håndtak.length,
+            høyde: Math.round(r.height),
+            vh: window.innerHeight,
+            // Kroppen skal stå der. `v-show="!isMinimized"` er det som slår den
+            // av, og en dra-vei på null leste én gang som minimert.
+            kropp: [...skall.children].some((e) =>
+              e !== topp && e.getBoundingClientRect().height > 10),
+            // Lufta over headeren skal være i behold selv om håndtaket er borte.
+            luft: Math.round(parseFloat(getComputedStyle(topp).paddingTop)),
+          }
+        })
+        if (!skuff) throw new Error('måle-skuffa åpnet ikke i liggende')
+        if (skuff.håndtak) {
+          throw new Error(`skuffa har ${skuff.håndtak} dra-håndtak i liggende — `
+            + 'det finnes bare én stilling å dra til')
+        }
+        if (!skuff.kropp) {
+          throw new Error('skuffa åpnet uten kropp i liggende — leses en dra-vei på '
+            + 'null som «minimert»?')
+        }
+        if (skuff.luft < 8) {
+          throw new Error(`headeren har ${skuff.luft} px luft over seg — håndtakets `
+            + 'polstring skulle vært erstattet av data-skuff-topp-regelen')
+        }
+        if (skuff.høyde < skuff.vh * 0.7) {
+          throw new Error(`skuffa er ${skuff.høyde} px av ${skuff.vh} — i liggende er `
+            + 'maksimert den eneste stillingen')
+        }
+        // Å LUKKE SKUFFA AVSLUTTER IKKE MÅLINGEN, og måle-modus bytter ut
+        // snarvei-raden — en sjekk etter denne ville ikke funnet håndtaket.
+        await lukkFunksjonsSkuff(p2, 'Måling')
+        await p2.evaluate(() => {
+          [...document.querySelectorAll('[aria-label="Avslutt måling"]')][0]?.click()
+        })
+        await p2.waitForTimeout(300)
+
+        return `${rad.antall} snarveier på én rad ved 200 %, knottene side om side på `
+          + `hver sin linje, måle-skuffa ${skuff.høyde}/${skuff.vh} px uten håndtak, `
+          + 'punkt-arket uten detalj-inset'
+      } finally {
+        await ctx.close()
+      }
+    },
+  },
+  {
     // v6.5.48: kartflata var en ren peker-kontroll — drag for å panorere, hjul
     // for å zoome — altså appens kjernefunksjon uten en eneste tastatur-inngang.
     // Enhetstester ser ikke dette: regnestykket i onKartKeydown er trivielt,

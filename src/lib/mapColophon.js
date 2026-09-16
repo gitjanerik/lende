@@ -11,7 +11,7 @@
 // oppgitt i «mm»-enheter i SVG-en selv: alt er ferdig omregnede tall, så
 // resultatet er identisk i nettleser, canvas-rasterisering og headless.
 
-const APP_NAME = 'Så i lende'
+const APP_NAME = 'Lende'
 
 // Linjal-lengder i meter bakke. Største som gir en strek innenfor
 // BAR_MIN_MM–BAR_MAX_MM (skalert, se colophonScale) på papiret velges.

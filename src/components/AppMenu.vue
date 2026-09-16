@@ -237,7 +237,7 @@ const showInstall = computed(() => !isStandalone.value && (canInstall.value || i
 async function onInstall() {
   if (isIOS.value) {
     close()
-    alert('Slik installerer du «Så i lende» på iPhone/iPad:\n\n1. Trykk Del-ikonet nederst i Safari.\n2. Velg «Legg til på Hjem-skjerm».')
+    alert('Slik installerer du Lende på iPhone/iPad:\n\n1. Trykk Del-ikonet nederst i Safari.\n2. Velg «Legg til på Hjem-skjerm».')
     return
   }
   if (!canInstall.value) return
@@ -328,10 +328,39 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
              skuffen, og animerer streker→kryss uten å flytte seg. Plassholderen
              her holder tittelen klar av knappen. -->
         <span class="am-trigger-slot" aria-hidden="true" />
-        <div class="am-title">Så i lende</div>
+        <div class="am-title">Lende</div>
       </div>
 
       <div class="am-scroll">
+        <!-- «INSTALLER SOM APP» ER MENYENS FØRSTE RAD OG DEN ENESTE GULE
+             (v7.8.29). Den lå nederst under skillelinja, i samme dempede grå
+             som «Om appen» — altså formet som det man leser til slutt, mens den
+             er det ene valget i menyen som endrer hva Lende ER for brukeren:
+             installert får man egen ikon på hjemskjermen, full skjerm og en
+             app som starter uten URL-stripe. Gult er appens egen aksent fra før
+             (hamburger-ringen, våken-sporet) og finnes ingen andre steder i
+             menyen, så raden kan ikke forveksles med de grønne som navigerer.
+             Undertittelen er et LØFTE og ikke en forklaring av knappen — det er
+             det gult gjør her.
+             Raden vises bare når appen ikke alt kjører installert; se
+             `showInstall`. Da er menyens første rad «Mine kart», som før. -->
+        <button v-if="showInstall" type="button" class="am-install" @click="onInstall">
+          <span class="am-install-icon">
+            <!-- Telefon med pluss: «legg den på hjemskjermen». Nedlastings-
+                 pilen den hadde er handlingen en NETTLESER gjør, og det er
+                 ikke det som skjer her. -->
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor"
+                 stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5" y="2.5" width="14" height="19" rx="2.6" />
+              <path d="M12 8.5v6M9 11.5h6" />
+            </svg>
+          </span>
+          <span class="am-install-tekst">
+            <span class="am-install-tittel">Installer som app</span>
+            <span class="am-install-meta">Fritt lende på tur!</span>
+          </span>
+        </button>
+
         <!-- Nivå 1: primærvalgene. Øverste rad (aktiv modus) er kortet. -->
         <div class="am-primary">
           <!-- `is-card` markerer HVOR DU ER og ikke hvilken rad som er øverst
@@ -383,7 +412,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             </span>
             <button type="button" class="am-row-main" @click="nyttTurkart">
               <span class="am-row-title">Nytt turkart</span>
-              <span class="am-row-meta">{{ gpsLeter ? 'Finner posisjonen din …' : nyttKartMeta }}</span>
+              <!-- `is-svar` er ikke pynt: i liggende skjules meta-linjene for
+                   å spare høyde, men «Finner posisjonen din …» er SVARET på
+                   trykket man nettopp gjorde — skjules det, ser raden ut til å
+                   ikke gjøre noe mens GPS-en jobber. -->
+              <span class="am-row-meta" :class="{ 'is-svar': gpsLeter }">{{
+                gpsLeter ? 'Finner posisjonen din …' : nyttKartMeta }}</span>
             </button>
             <button type="button" class="am-add" aria-label="Lag nytt turkart der du er"
                     :disabled="gpsLeter" @click="nyttTurkart">
@@ -485,10 +519,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <div class="am-block am-block-wide">
           <div class="am-eyebrow">Eksterne lenker</div>
           <label class="am-bryter-rad">
-            <span class="am-bryter-tekst">
-              Åpne i ny nettleser
-              <span class="am-bryter-meta">ut.no, kulturminnesøk, NVE, leksika …</span>
-            </span>
+            <span class="am-bryter-tekst">Åpne i ny nettleser</span>
             <button type="button" role="switch" class="am-bryter"
                     :class="{ 'is-on': nyFane }" :aria-checked="nyFane"
                     @click="settNyFane(!nyFane)">
@@ -499,14 +530,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
         <!-- Dempet bunn under skillelinja. -->
         <div class="am-foot">
-          <button v-if="showInstall" type="button" class="am-line am-line-dim" @click="onInstall">
-            <span class="am-line-icon">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
-                   stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 3.5v12M7.5 11 12 15.5 16.5 11M5 19.5h14" />
-              </svg>
-            </span>Installer som app
-          </button>
           <button type="button" class="am-line am-line-dim" @click="openSheet('om')">
             <span class="am-line-icon">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
@@ -535,7 +558,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   <AppModal :open="sheet === 'nytt'" title="Nytt turkart" @close="sheet = null">
     <MapPickerContent />
   </AppModal>
-  <AppModal :open="sheet === 'om'" title="Om Så i lende" @close="sheet = null">
+  <AppModal :open="sheet === 'om'" title="Om Lende" @close="sheet = null">
     <div class="px-4 py-5"><AboutContent /></div>
   </AppModal>
 </template>
@@ -590,8 +613,23 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   padding: 18px 18px 14px;
   flex: 0 0 auto;
 }
-.am-trigger-slot { width: 44px; height: 44px; flex: 0 0 auto; }
-.am-title { font-size: 1.25em; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
+/* PLASSHOLDEREN MÅ SKALERE MED KNAPPEN DEN HOLDER PLASS TIL (v7.8.31).
+   Hamburgeren/X-en er `w-10 h-10` med `zoom: tekstskala`, altså 40 px ganger
+   skalaen — 80 px ved 200 % — mens denne sto på faste 44 px. Differansen er
+   hele kollisjonen: ved 150 % og oppover la den runde knappen seg oppå «Så i
+   lende». Menyen setter selv `font-size: 16 px × skala` på rota si, så 2.75em
+   ER 44 px ved 100 % og følger knappen resten av veien. */
+.am-trigger-slot { width: 2.75em; height: 2.75em; flex: 0 0 auto; }
+.am-title {
+  font-size: 1.25em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  /* Tittelen skal vike for plassholderen, ikke dytte den ut av boksen. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* ── Segmentbryter (tema) ──
    Modus-segmentet er borte fra v6.5.35; `.am-seg-modes`, `.am-seg-row` og
@@ -639,6 +677,31 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   padding-bottom: max(env(safe-area-inset-bottom, 0px), 18px);
 }
 
+/* ── «Installer som app» ──
+   Menyens eneste gule flate. #ffd84a er appens egen aksent (hamburger-ringen,
+   våken-sporet), og den er lys i BEGGE temaer — derfor er teksten hardkodet
+   mørk her og ikke `var(--am-text)`, som ville blitt hvit-på-gult i mørkt tema.
+   Den står utenfor `.am-primary` fordi den ikke er et sted man går, og lufta
+   ned til «Mine kart» er derfor rullefeltets BLOKK-gap (22 px) og ikke
+   `.am-primary`s rad-gap (10 px). Ingen egen marg her — to kilder til samme
+   avstand kommer i utakt første gang noen rører den ene. */
+.am-install {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 15px 16px;
+  border-radius: 16px;
+  background: #ffd84a;
+  color: #1a1d16;
+  text-align: left;
+}
+.am-install:active { transform: scale(0.985); }
+.am-install-icon { display: grid; place-items: center; flex: 0 0 auto; }
+.am-install-tekst { display: flex; flex-direction: column; min-width: 0; }
+.am-install-tittel { font-size: 1.05em; font-weight: 600; }
+.am-install-meta { font-size: 0.78em; color: rgba(26, 29, 22, 0.72); }
+
 /* ── Nivå 1: primærkort ── */
 /* Kunngjøring. Aksentkant til venstre og ingen bilde — den skal leses på ett
    blikk og så være ferdig. */
@@ -673,6 +736,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .am-row-main:active { opacity: 0.7; }
 .am-row-title { font-size: 1.05em; font-weight: 600; }
 .am-row-meta { font-size: 0.78em; color: var(--am-dim); }
+/* LIGGENDE: META-LINJENE ER BORTE (v7.8.31). Menyen har alle valgene sine i
+   behold — det var bestillingen — men «11 lagrede · sist Galdhøpiggen, Lom i
+   dag» er tre linjer ved 200 % tekst, og på en 411 px høy skjerm er det tre
+   linjer som dytter en knapp ut av rullefeltet. Tittelen sier hva raden gjør;
+   meta-linja sier hvor mye som ligger der, og det tallet står uansett inne i
+   arket raden åpner. */
+:root[data-liggende] .am-row-meta:not(.is-svar) { display: none; }
 .am-add {
   width: 42px;
   height: 42px;
@@ -771,17 +841,28 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
    tekststørrelsen som alt annet her. */
 .am-bryter-rad {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   padding: 2px 4px;
   cursor: pointer;
   user-select: none;
 }
-.am-bryter-tekst { flex: 1 1 auto; min-width: 0; font-size: 0.95em; }
-.am-bryter-meta { display: block; font-size: 0.78em; color: var(--am-dim); }
+.am-bryter-tekst {
+  /* ETIKETTEN FÅR HELE RADEN OG BRYTER ALDRI (v7.8.31). Den sto som et
+     krympbart flex-element ved siden av en bryter med fast bredde, så ved
+     200 % tekst delte «Åpne i ny nettleser» seg på to linjer mens det var
+     god plass på linja under. `flex: 1 0 auto` lar den beholde sin egen
+     bredde; da er det BRYTEREN som ikke får plass, og med `flex-wrap` på
+     raden legger den seg pent under i stedet. */
+  flex: 1 0 auto;
+  white-space: nowrap;
+  font-size: 0.95em;
+}
 .am-bryter {
   position: relative;
   flex: 0 0 auto;
+  margin-left: auto;
   width: 2.6em;
   height: 1.5em;
   border-radius: 999px;

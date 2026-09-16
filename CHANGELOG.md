@@ -1,3 +1,110 @@
+## 2026-09-16 — v7.8.32: Appen heter Lende
+
+Appnavnet var «Så i lende» overalt — i hovedmenyen, i PWA-manifestet (altså på
+skrivebordsikonet), i fanetittelen, i iOS-hjemskjermnavnet, i kolofonen på hvert
+eksporterte ark og i chat-assistentens systemprompt. Appen heter Lende.
+Uttrykket lever videre der det hører hjemme: «Navnet»-seksjonen i «Om Lende»
+leder nå med ordet LENDE — terreng, landstrekning, beslektet med norrønt
+*lendi* — og forteller så at det lever videre i «så i lende», *så langt øyet
+rekker*. Vi kan fortsatt si «så i lende»; det er bare ikke det appen heter.
+
+Og i liggende format er punkt-arkets detalj-inset borte. Gaten var «kun når
+skuffa er maksimert» — den finnes for at man ikke skal se samme utsnitt og
+krysshår dobbelt, kartet bak og minikartet oppå — men i liggende er maksimert
+den ENESTE stillingen (v7.8.31), så «kun maksimert» betyr «alltid». Et
+kvadratisk minikart på 90 % av bredden i en skuff som har 355 px å gi er
+nettopp den dobbelt-visningen, uten en stilling å vike til.
+
+---
+
+## 2026-09-16 — v7.8.31: Liggende format er en egen layout
+
+Lende ble testet på tvers for første gang, og i liggende er det HØYDEN som er
+knapp — motsatt av alt appen er bygget for. Fire ting følger av det.
+Regelen har ÉN definisjon, `useLiggende.js`, og den bor i JS fordi flere enn CSS
+må kjenne den: `(orientation: landscape) and (max-height: 600px)`, der høyden
+bærer regelen — en stor skjerm er også «landscape», men har ingen av problemene.
+Flagget speiles til `data-liggende` på rota, så CSS gater på `:root[data-liggende]`.
+Skuffene har ÉN stilling, maksimert: `useDraggableDrawer` får ett snap-punkt,
+og `enTilstand` ber hvert skall skjule dra-håndtaket — en affordanse som ikke
+gjør noe er en affordanse som lyver, og den koster 24 av 411 piksler. Merk at
+`isMinimized` og `isMaximized` måtte bli COMPUTEDS: med en dra-vei på null ville
+`snapTo` lest 0 som «minimert» og slått av kroppen i skuffa. Snarvei-raden står
+på én rad uansett tekststørrelse — kolonnetallet ER antallet snarveier, og det
+som gir etter er cellene (`passSkala`, ren og enhetstestet) — mens knott-boksene
+deler linja med etikett, skyv, verdi og tannhjul på samme linje, gjort med et
+gitter med navngitte områder framfor en andre mal. Hovedmenyen har alle valgene
+sine i behold, men meta-linjene («11 lagrede · sist Galdhøpiggen, Lom i dag») er
+skjult i liggende, med GPS-ens «Finner posisjonen din …» unntatt fordi den er
+SVARET på trykket man nettopp gjorde; kildelista nederst er fjernet helt.
+To ting til, som ikke er liggende-spesifikke: plassholderen for hamburgeren sto
+på faste 44 px mens knappen den holder plass til er 40 px × tekstskalaen, så ved
+150 % og oppover la X-en seg oppå «Så i lende» — den er nå `2.75em` og følger
+knappen. Og «Åpne i ny nettleser» brøt over to linjer ved 200 % mens det var god
+plass under: etiketten beholder nå sin egen bredde og bryteren legger seg under
+i stedet.
+
+---
+
+## 2026-09-16 — v7.8.30: Naboflisenes navn viker for snarvei-raden
+
+Spøkelsesflisene beholder navnene sine — en nybygd naboflis skal vise stedsnavn
+med én gang — men de holdes bevisst utenfor søkeindeksen, og indeksen er hele
+inngangen til navne-budsjettet. Regelen «naboflisene har ingen navn-LOD» var
+derfor sann i to betydninger der bare den ene var ment: de skal ikke ta plass i
+budsjettet, men de skal vike for et overlegg som ligger oppå dem. På et
+mosaikk-ark leste naboflisens navn tvers gjennom snarvei-raden, meldt fra felt
+med et brenavn ved Illåbrean.
+
+De hører hjemme i den enkle hindrings-veien, sammen med høydetallene og
+punkt-symbolene, og av samme grunn: uten en indeks-rad har de verken score,
+rutenett-kvote eller hysterese å bli målt mot, og spørsmålet for dem er bare om
+de står under overlegget. To ting skiller dem fra resten av det passet.
+Koordinatene er flis-lokale, så posisjonen legges sammen med `nestedSvgOffset`
+— det samme regnestykket Stifinneren og 3D bruker. Og `useGhostTiles` døper om
+`data-layer` til `data-ghost-layer` ved kloning, så velgerne må skrives om i
+takt; den omskrivingen avledes av `SKJUL_VELGERE` framfor å stå som en andre
+liste, for en kopi ville stått stille neste gang noen legger til et symbol.
+Målingen caches som før per kart, men nå også mot antall fliser i
+spøkelses-containeren: naboflisene kommer og går mens SVG-en står, og en ny
+flis uten ommåling er en flis med navn som aldri viker.
+
+---
+
+## 2026-09-16 — v7.8.29: «Installer som app» øverst, og gul
+
+Raden lå nederst i hovedmenyen, under skillelinja, i samme dempede grå som «Om
+appen» — altså formet som det man leser til slutt. Men den er det ene valget i
+menyen som endrer hva Lende ER for brukeren: installert får appen egen plass på
+hjemskjermen, full skjerm og en start uten URL-stripe. Den er nå menyens første
+rad, med appens egen gule aksent (#ffd84a, samme som hamburger-ringen og
+våken-sporet) — en farge som ikke finnes noe annet sted i menyen, så raden kan
+ikke forveksles med de grønne som navigerer. Ikonet er byttet fra en
+nedlastings-pil, som er noe en nettleser gjør, til en telefon med pluss, og
+undertittelen «Fritt lende på tur!» er et løfte og ikke en forklaring av
+knappen. Raden vises som før bare når appen ikke alt kjører installert; da er
+menyens første rad «Mine kart», uendret.
+
+---
+
+## 2026-09-16 — v7.8.28: «Grend / gård» viker for snarvei-raden
+
+Stedsnavnene ble stående og lese tvers gjennom knappeteksten mens alt annet vek,
+og grunnen lå i målingen og ikke i declutteren: navn-LOD-en måler hver navne-boks
+ÉN gang per kart, mens stedsnavn-lagene ligger `display:none` i arket til
+Kartlag-fana slår dem på. `getBBox()` svarer 0 × 0 på et skjult element, og
+gjetningen som tok over — navnelengde × 4 i bredden, 6 i høyden — var så mye
+mindre enn den ekte boksen at den ikke rørte radens hindring i det hele tatt.
+Nettopp navnene med størst skrift på hele kartet (4,8–7,2 mm mot områdenavnets
+3,0) var altså de som ble målt minst. Gjetningen leser nå den beregnede
+skriftstørrelsen — `getComputedStyle` svarer også for et skjult element, og inne
+i viewBoxen er 1 CSS-px = 1 user-unit — og en gjettet boks oppgraderes til den
+ekte i det elementet blir målbart. Den siste er den generelle: et lag kan være av
+i Kartlag-fana, men et grend-navn er også CSS-gatet på zoom-trinn, og et kart kan
+lastes i begge tilstandene.
+
+---
+
 ## 2026-09-15 — v7.8.27: Arkstørrelsen rettet, og et spørsmål «Nord er nord» reiste selv
 
 Tallet var arvet fra den gang arket var fast. Bredden har vært en slider lenge —

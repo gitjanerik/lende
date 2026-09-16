@@ -141,6 +141,15 @@
 // målingen trenger. Ved 200 % blir det færre kolonner og flere rader, og det er
 // meningen: resten ligger ett drag unna.
 //
+// LIGGENDE: ALLE KNAPPENE PÅ ÉN RAD, UANSETT TEKSTSTØRRELSE (v7.8.31).
+// I liggende er det HØYDEN som er knapp og bredden som er rikelig — motsatt av
+// alt over. Kolonnetallet er derfor ikke lenger noe som regnes fram; det ER
+// antallet snarveier, og det som gir etter er cellene: `passFaktor` klemmer
+// per-celle-zoomen til akkurat det som får dem til å stå på linja. Merk at den
+// regnes av en måling gjort på BASE-zoomen — måler man med faktoren alt
+// påført, får man en ny faktor av den nye bredden, og de to jager hverandre i
+// annenhver passering. Derfor nullstilles den FØR bredden leses.
+//
 // RADEN SPISTE TOPPRADA I v7.1.0, OG SPYTTET DEN UT IGJEN I v7.2.0. Ett forsøk
 // samlet hamburgeren, kartnavnet, søket og innstillingene her inne sammen med
 // alt annet; felttesten ga en fire linjer høy svart boks over kartet. Topprada
@@ -206,10 +215,11 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import SnarveiIkon from './SnarveiIkon.vue'
 import {
-  antallKolonner, antallRader, SNARVEI_MIN_H, SNARVEI_NIVAER, draSpenn,
+  antallKolonner, antallRader, passSkala, SNARVEI_MIN_H, SNARVEI_NIVAER, draSpenn,
   gitterIndeks, gitterForskyvning, flyttSnarvei,
 } from '../lib/snarveier.js'
 import { pickSnapTarget } from '../composables/useDraggableDrawer.js'
+import { useLiggende } from '../composables/useLiggende.js'
 import { kartSkiveLett, kartSkiveOpak, kartBlekk } from '../lib/kartFlate.js'
 import { rammeBane, rammeHoyde, RAMME } from '../lib/snarveiRamme.js'
 
@@ -376,6 +386,12 @@ const rammeD = computed(() => rammeBane({
   bule: buleBredde.value, skala: props.uiTextScale || 1,
 }))
 
+const { erLiggende } = useLiggende()
+// Per-celle-klemmen i liggende. 1 i alle andre tilfeller — cellene bærer da
+// nøyaktig brukerens tekstskala, som før.
+const passFaktor = ref(1)
+const celleZoom = computed(() => (props.uiTextScale || 1) * passFaktor.value)
+
 const panelRef = ref(null)
 const hPanel = ref(0)
 const kolonner = ref(1)
@@ -466,6 +482,9 @@ async function maal() {
   // smalere, og da ville raden stokket om på seg selv i det man vippet
   // bryteren — nøyaktig det v7.5.0-gitteret finnes for å unngå.
   maalTvang.value = 1
+  // Se filhodet: bredden skal leses på BASE-zoomen, ellers jager klemmen seg
+  // selv fra passering til passering.
+  passFaktor.value = 1
   await nextTick()
 
   const cs = getComputedStyle(g)
@@ -476,7 +495,15 @@ async function maal() {
   const celler = [...g.querySelectorAll('[data-snarvei]')]
   if (celler.length !== props.snarveier.length) { maaler.value = false; return }
   const bredest = celler.reduce((m, e) => Math.max(m, e.getBoundingClientRect().width), 0)
-  kolonner.value = antallKolonner(bredest, ledig, gapPx.value, props.snarveier.length)
+  const n = props.snarveier.length
+  if (erLiggende.value) {
+    // Én rad, alltid. Krever plassen mer enn det er, klemmes cellene — og bare
+    // NED: en faktor over 1 ville blåst opp en rad som alt hadde plass.
+    kolonner.value = n
+    passFaktor.value = passSkala(bredest, ledig, gapPx.value, n)
+  } else {
+    kolonner.value = antallKolonner(bredest, ledig, gapPx.value, n)
+  }
 
   // Gitteret er nå på plass; les de to høydene av den ekte layouten, med
   // `height: auto` (se `maaler`). `offsetHeight` og ikke `scrollHeight`: det er
@@ -537,6 +564,8 @@ watch(apen, v => emit('apen', v))
 // ville fått transformene sine nullstilt midt i seg selv.
 watch(() => [...props.snarveier.map(s => s.id)].sort().join(','), () => { void maal() })
 watch(() => props.uiTextScale, () => { void maal() })
+// En rotasjon bytter hele regelen for kolonnetallet — mål på nytt.
+watch(erLiggende, () => { void maal() })
 
 function velg(id) {
   if (sluk) { sluk = false; return }
@@ -994,7 +1023,7 @@ function celleTransform(i) {
                 :aria-label="sorterer
                   ? `Flytt ${s.aria}. Plass ${i + 1} av ${snarveier.length}. Bruk piltastene.`
                   : (s.ariaTekst || s.aria)"
-                :style="[{ zoom: uiTextScale,
+                :style="[{ zoom: celleZoom,
                            minHeight: `${SNARVEI_MIN_H}px`,
                            opacity: maalt && i >= kolonner ? radAndel : 1 },
                          celleTransform(i)]"
@@ -1030,42 +1059,38 @@ function celleTransform(i) {
            class="snarvei-knotter overflow-hidden"
            :inert="panelAndel < 0.5 || undefined"
            :style="panelStil">
-        <div class="mx-2 pb-1 pt-2 flex flex-col gap-2"
+        <div class="snarvei-knotter__rad mx-2 pb-1 pt-2 flex flex-col gap-2"
              :style="{ zoom: uiTextScale }">
           <div class="knott-boks">
-            <div class="flex items-center justify-between gap-2">
-              <span id="snarvei-strek-navn" class="min-w-0 truncate font-medium">Strek</span>
-              <span class="shrink-0 tabular-nums text-ink-3">{{ strekSkala.toFixed(2) }}×</span>
-              <button type="button" class="knott-tannhjul shrink-0"
-                      aria-label="Åpne Stil og gå til Strek"
-                      @click="apneKartstil('strek')">
-                <SnarveiIkon id="innstillinger" class="w-4 h-4" />
-              </button>
-            </div>
+            <span id="snarvei-strek-navn" class="knott-boks__navn">Strek</span>
             <input type="range" min="0" :max="strekTrinnAntall - 1" step="1"
                    :value="strekTrinn"
                    @input="emit('set-strek-trinn', Number($event.target.value))"
                    aria-labelledby="snarvei-strek-navn"
-                   class="w-full accent-sky-400" />
+                   class="knott-boks__skyv accent-sky-400" />
+            <span class="knott-boks__verdi tabular-nums text-ink-3">{{ strekSkala.toFixed(2) }}×</span>
+            <button type="button" class="knott-tannhjul"
+                    aria-label="Åpne Stil og gå til Strek"
+                    @click="apneKartstil('strek')">
+              <SnarveiIkon id="innstillinger" class="w-4 h-4" />
+            </button>
           </div>
 
           <div class="knott-boks">
-            <div class="flex items-center justify-between gap-2">
-              <span id="snarvei-relieff-navn" class="min-w-0 truncate font-medium">Relieff</span>
-              <span class="shrink-0 tabular-nums text-ink-3">
-                {{ reliefProsent === 0 ? 'av' : `${reliefProsent} %` }}
-              </span>
-              <button type="button" class="knott-tannhjul shrink-0"
-                      aria-label="Åpne Stil og gå til Relieff"
-                      @click="apneKartstil('relieff')">
-                <SnarveiIkon id="innstillinger" class="w-4 h-4" />
-              </button>
-            </div>
+            <span id="snarvei-relieff-navn" class="knott-boks__navn">Relieff</span>
             <input type="range" min="0" :max="reliefTrinnAntall - 1" step="1"
                    :value="reliefTrinn"
                    @input="emit('set-relief-trinn', Number($event.target.value))"
                    aria-labelledby="snarvei-relieff-navn"
-                   class="w-full accent-amber-400" />
+                   class="knott-boks__skyv accent-amber-400" />
+            <span class="knott-boks__verdi tabular-nums text-ink-3">
+              {{ reliefProsent === 0 ? 'av' : `${reliefProsent} %` }}
+            </span>
+            <button type="button" class="knott-tannhjul"
+                    aria-label="Åpne Stil og gå til Relieff"
+                    @click="apneKartstil('relieff')">
+              <SnarveiIkon id="innstillinger" class="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>
@@ -1432,9 +1457,17 @@ function celleTransform(i) {
    ton-i-ton-flate som en snarvei-celle, så panelet leses som en del av pilla og
    ikke som et ark som har lagt seg oppå den. */
 .knott-boks {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  /* GITTER MED NAVNGITTE OMRÅDER, ikke to nestede flex-rader. Innholdet er det
+     samme i stående og liggende — bare oppstillingen skifter — og et gitter
+     kan flytte skyven inn MELLOM etiketten og verdien uten at markupen rører
+     seg. Med nestede bokser måtte den ene formen ha vært en egen mal. */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    'navn verdi tannhjul'
+    'skyv skyv skyv';
+  align-items: center;
+  gap: 4px 8px;
   padding: 6px 8px;
   border-radius: 12px;
   /* Samme begrunnelse som cellene: pilla har ikke lenger et fyll å tone mot. */
@@ -1443,9 +1476,32 @@ function celleTransform(i) {
   font-size: 12px;
   line-height: 1.2;
 }
+.knott-boks__navn {
+  grid-area: navn;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.knott-boks__verdi { grid-area: verdi; }
+.knott-boks .knott-tannhjul { grid-area: tannhjul; }
 /* Skyveknappen får en ekte trykkflate uten å gjøre boksen høy: sporet er tynt,
    men `input[type=range]` gir tommelen hele elementhøyden å treffe innenfor. */
-.knott-boks input[type='range'] { height: 22px; }
+.knott-boks__skyv { grid-area: skyv; width: 100%; min-width: 0; height: 22px; }
+
+/* LIGGENDE: DE TO BOKSENE DELER LINJA, og hver av dem legger seg på ÉN LINJE
+   (v7.8.31). Etiketten over skyven koster fjorten piksler per boks, og i
+   liggende er de fjorten pikslene dyre — der er det høyden som er knapp.
+   `flex: 1 1 0` og ikke `width: 50%`: gapet mellom dem er lufta, og en
+   prosent ville lagt den utenpå de to halvdelene i stedet for imellom. */
+:root[data-liggende] .snarvei-knotter__rad { flex-direction: row; }
+:root[data-liggende] .knott-boks {
+  flex: 1 1 0;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-areas: 'navn skyv verdi tannhjul';
+}
 
 /* TANNHJULET VED HVER SLIDER (v7.8.6). Det avløser Skarp/Mjuk-pilla, som var
    en TREDJE ting i en boks som ellers stiller ett tall: den viste hvilken

@@ -25,9 +25,9 @@ const RUTER = [
   ['/nytt',           '/lende/nytt',           'body'],
   ['/rute',           '/lende/rute',           'body'],
   ['/tegnforklaring', '/lende/tegnforklaring',  'body'],
-  ['/om',             '/lende/om',             'text=Om Så i lende'],
+  ['/om',             '/lende/om',             'text=Om Lende'],
   // Redirectene. /about er den viktigste: den er den offentlige lenka utenfra.
-  ['/about',          '/lende/om',             'text=Om Så i lende'],
+  ['/about',          '/lende/om',             'text=Om Lende'],
   ['/kart',           '/lende/',               'body'],
   // Fritt lende (v6.5.0–v7.8.14). Modusen er slettet, og stien er en redirect
   // til forsiden — den kan stå i et bokmerke eller på en hjemskjerm, og en

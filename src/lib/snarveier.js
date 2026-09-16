@@ -268,6 +268,26 @@ export function antallKolonner(cellePx, ledigPx, gapPx, maks) {
 }
 
 /** Hvor mange rader gitteret får. */
+// LIGGENDE: ALLE CELLENE PÅ ÉN RAD, UANSETT TEKSTSTØRRELSE (v7.8.31).
+//
+// Motsatt spørsmål av `antallKolonner`: der er kolonnetallet det ukjente og
+// cellebredden gitt, her er antallet gitt og cellene må gi etter. Svaret er
+// faktoren man ganger per-celle-zoomen med.
+//
+// To ting den IKKE gjør, og begge er med vilje. Den går aldri OVER 1: er det
+// god plass, skal cellene stå i brukerens egen tekststørrelse og ikke blåses
+// opp til å fylle linja. Og den har et GULV (`minSkala`) — under det er
+// etiketten uleselig uansett hvor pent den står, og da er en rad som stikker
+// litt utenfor det minste onde.
+export function passSkala(cellePx, ledigPx, gapPx, antall, minSkala = 0.35) {
+  if (!(cellePx > 0) || !(antall > 0)) return 1
+  const behov = antall * cellePx + (antall - 1) * gapPx
+  if (behov <= ledigPx) return 1
+  const rom = ledigPx - (antall - 1) * gapPx
+  if (!(rom > 0)) return minSkala
+  return Math.max(minSkala, Math.min(1, rom / (antall * cellePx)))
+}
+
 export function antallRader(antall, kolonner) {
   if (!(kolonner > 0) || !(antall > 0)) return 0
   return Math.ceil(antall / kolonner)

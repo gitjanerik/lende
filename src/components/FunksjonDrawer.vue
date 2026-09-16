@@ -54,7 +54,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
          @click.self="$emit('lukk')">
       <div class="drawer-shell bg-surface border-t border-ink/10 rounded-t-2xl flex flex-col pointer-events-auto"
            :style="drawer.drawerHeightStyle.value">
-        <button type="button"
+        <button v-if="!drawer.enTilstand.value" type="button"
                 class="shrink-0 w-full touch-none cursor-grab active:cursor-grabbing
                        py-3 flex justify-center"
                 :aria-label="drawer.isMinimized.value ? `Utvid ${etikett}` : `Minimer ${etikett}`"
@@ -70,7 +70,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                 :style="{ opacity: drawer.handleOpacity.value }"></span>
         </button>
 
-        <SkuffHeader :etikett="etikett" :tittel="tittel" :ui-text-scale="uiTextScale"
+        <SkuffHeader data-skuff-topp
+                     :etikett="etikett" :tittel="tittel" :ui-text-scale="uiTextScale"
                      :lukk-tekst="`Lukk ${etikett}`" @lukk="$emit('lukk')">
           <template #under><slot name="under" /></template>
         </SkuffHeader>

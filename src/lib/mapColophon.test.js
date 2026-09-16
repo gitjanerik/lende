@@ -79,7 +79,7 @@ describe('buildColophonSvg', () => {
     expect(g).toContain('500 m')                       // linjal-etikett
     expect(g).toContain('1:10 000')               // størrelsesforhold
     expect(g).toContain('Ekvidistanse 5 m')
-    expect(g).toContain('Så i lende')
+    expect(g).toContain('Lende')
     expect(g).toContain('Vardåsen')
     expect(g).toMatch(/\d{2}\.\d{2}\.2026/)
   })

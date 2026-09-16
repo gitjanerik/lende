@@ -153,7 +153,14 @@ export function useGhostTiles({
     // matematikken ikke håndterer. Fra v5.19.x leses de derimot av en EGEN
     // nabo-indeks (useMapSearch.buildNaboSearchIndex via lib/kartNavn), så søket
     // dekker hele arket uten at LOD-en ser dem. Rører du tekst-strippingen her,
-    // blir naboflisene usøkbare. Rene tall-/detalj-labels fjernes
+    // blir naboflisene usøkbare.
+    // MEN DE VIKER LIKEVEL FOR OVERLEGG (v7.8.30): «utenfor budsjettet» og
+    // «leser tvers gjennom snarvei-raden» er to ulike ting, og fram til nå var
+    // de det samme. useNavnLod tar dem gjennom den ENKLE hindrings-veien (punkt
+    // 8 i filhodet der) — ingen score, ingen kvote, bare «står den under
+    // overlegget?» — med `nestedSvgOffset` for flis-offsetet. Renavningen til
+    // `data-ghost-layer` under er det velgerne der må skrives om etter.
+    // Rene tall-/detalj-labels fjernes
     // (kontur-/vann-/dybde-tall, skjult dem-topp) for å holde naboflisene rene.
     for (const det of gsvg.querySelectorAll(
       '[data-label="kontur-tall"], [data-label="vann-tall"], [data-label="dybde-tall"], [data-label="dem-topp"]'

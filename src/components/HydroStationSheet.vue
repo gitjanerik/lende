@@ -69,7 +69,8 @@ function onOpenNve() {
          @click.self="$emit('close')">
       <div class="drawer-shell bg-surface border-t border-sky-400/20 rounded-t-2xl flex flex-col pointer-events-auto"
            :style="drawer.drawerHeightStyle.value">
-        <div class="shrink-0 touch-none cursor-grab active:cursor-grabbing py-3 flex justify-center"
+        <div v-if="!drawer.enTilstand.value"
+             class="shrink-0 touch-none cursor-grab active:cursor-grabbing py-3 flex justify-center"
              @pointerdown="drawer.onPointerDown($event)"
              @pointermove="drawer.onPointerMove($event)"
              @pointerup="drawer.onPointerUp($event)"
@@ -83,7 +84,8 @@ function onOpenNve() {
              knappene tok ~80 px av linja de trengte. «Målestasjon · NVE» sto
              der fra før og deler nå linje med dem, så raden koster ingen
              høyde. -->
-        <div class="shrink-0 px-4 pb-2.5 bg-surface/95 border-b border-ink/8">
+        <div data-skuff-topp
+             class="shrink-0 px-4 pb-2.5 bg-surface/95 border-b border-ink/8">
           <div class="flex items-center justify-between gap-2">
             <div class="min-w-0 truncate text-[10px] uppercase tracking-wide text-sky-300/60"
                  :style="{ zoom: uiTextScale }">
