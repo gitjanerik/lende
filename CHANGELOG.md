@@ -1,3 +1,21 @@
+## 2026-09-16 — v7.8.28: «Grend / gård» viker for snarvei-raden
+
+Stedsnavnene ble stående og lese tvers gjennom knappeteksten mens alt annet vek,
+og grunnen lå i målingen og ikke i declutteren: navn-LOD-en måler hver navne-boks
+ÉN gang per kart, mens stedsnavn-lagene ligger `display:none` i arket til
+Kartlag-fana slår dem på. `getBBox()` svarer 0 × 0 på et skjult element, og
+gjetningen som tok over — navnelengde × 4 i bredden, 6 i høyden — var så mye
+mindre enn den ekte boksen at den ikke rørte radens hindring i det hele tatt.
+Nettopp navnene med størst skrift på hele kartet (4,8–7,2 mm mot områdenavnets
+3,0) var altså de som ble målt minst. Gjetningen leser nå den beregnede
+skriftstørrelsen — `getComputedStyle` svarer også for et skjult element, og inne
+i viewBoxen er 1 CSS-px = 1 user-unit — og en gjettet boks oppgraderes til den
+ekte i det elementet blir målbart. Den siste er den generelle: et lag kan være av
+i Kartlag-fana, men et grend-navn er også CSS-gatet på zoom-trinn, og et kart kan
+lastes i begge tilstandene.
+
+---
+
 ## 2026-09-15 — v7.8.27: Arkstørrelsen rettet, og et spørsmål «Nord er nord» reiste selv
 
 Tallet var arvet fra den gang arket var fast. Bredden har vært en slider lenge —

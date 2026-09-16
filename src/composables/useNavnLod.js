@@ -44,6 +44,21 @@
 //      kart der bygningene er merget, viker de først når hele cella ligger under
 //      raden, altså i praksis sjelden. Skal de vike hus for hus, må `mapBuilder`
 //      dele dem finere — det er en endring i BYGGET og treffer bare nye kart.
+//   7. EN BOKS MÅLT PÅ ET SKJULT ELEMENT ER NULL, OG GJETNINGEN VAR FOR LITEN
+//      (v7.8.28). Målingen skjer ÉN gang per kart, og stedsnavn-lagene ligger
+//      `display:none` i arket til Kartlag-fana slår dem på — så navnene med
+//      STØRST skrift på hele kartet (4,8–7,2 mm mot områdenavnets 3,0) var
+//      nettopp de som fikk en gjettet boks på seks user-units i høyden. Den
+//      rørte ikke snarvei-radens hindring i det hele tatt, og «Grend / gård»
+//      ble stående og lese tvers gjennom knappeteksten mens alt annet vek.
+//      To ting følger, og de løser hver sin halvdel: gjetningen leser den
+//      BEREGNEDE skriftstørrelsen i stedet for å gange navnelengden med fire,
+//      og en gjettet boks OPPGRADERES til den ekte i det elementet blir
+//      målbart. Den siste er den generelle: et lag kan være av i Kartlag-fana,
+//      men et stedsnavn kan også være CSS-gatet på zoom-trinn (`stedsnavn`
+//      rank=minor utenfor `.zoom-near`), og et kart kan lastes i begge
+//      tilstandene. Å tømme cachen fra hvert kallsted som kan endre dem er å
+//      holde en liste vedlike; å måle på nytt når det er noe å måle er ikke.
 
 import { ref, watch, onUnmounted } from 'vue'
 import {
@@ -103,6 +118,40 @@ function egenTranslate(el) {
   if (!m) return null
   const x = parseFloat(m[1]); const y = parseFloat(m[2])
   return (Number.isFinite(x) && Number.isFinite(y)) ? { x, y } : null
+}
+
+// GJETNINGEN NÅR DET IKKE ER NOE Å MÅLE (se punkt 7 i filhodet).
+//
+// `getComputedStyle` svarer også for et `display:none`-element — den løser opp
+// mm og calc() uten å rendre noe — og inne i viewBoxen er 1 CSS-px = 1
+// user-unit, så tallet er i arkets eget rom uten omregning (se enhets-
+// merknaden i CLAUDE.md). Det er hele grunnen til at skriftstørrelsen kan
+// leses der boksen ikke kan.
+const TEGNBREDDE = 0.55    // middels tegnbredde delt på skriftstørrelse
+const FALLBACK_PX = 12     // ≈ 3,2 mm — områdenavnets størrelse, brukt når selv
+                           // den beregnede stilen ikke er å få tak i (test/SSR).
+
+/** Boks-estimat i user-units fra skriftstørrelse og tekstlengde. Ren. */
+export function gjettetBoks(fontPx, tekstLengde) {
+  const fs = fontPx > 0 ? fontPx : FALLBACK_PX
+  const n = Math.max(1, tekstLengde || 0)
+  return { bw: n * fs * TEGNBREDDE, bh: fs }
+}
+
+function skriftPx(el) {
+  try {
+    if (typeof getComputedStyle !== 'function') return 0
+    const px = parseFloat(getComputedStyle(el).fontSize)
+    return Number.isFinite(px) && px > 0 ? px : 0
+  } catch { return 0 }
+}
+
+/** Den EKTE boksen hvis elementet rendres nå, ellers null. */
+function maaltBoks(el) {
+  if (typeof el?.getBBox !== 'function') return null
+  let bw = 0, bh = 0
+  try { const bb = el.getBBox(); bw = bb.width; bh = bb.height } catch { /* display:none → 0 */ }
+  return (bw > 0 || bh > 0) ? { bw, bh } : null
 }
 
 const SKJUL_VELGERE = [
@@ -196,13 +245,12 @@ export function useNavnLod({
     labelBoxCache.clear()
     for (const e of idx) {
       if (!e.el || typeof e.el.getBBox !== 'function') continue
-      let bw = 0, bh = 0
-      try { const bb = e.el.getBBox(); bw = bb.width; bh = bb.height } catch { /* display:none → 0 */ }
-      if (!(bw > 0) && !(bh > 0)) {
-        // Skjult ved måletid → grovt estimat fra navnlengde (kun eldre/skjulte).
-        bw = Math.max(8, (e.name?.length || 4) * 4); bh = 6
-      }
-      labelBoxCache.set(e.el, { bw, bh })
+      // Skjult ved måletid → estimat fra skrift og navnlengde, MERKET som
+      // gjettet så et senere pass kan bytte det ut med den ekte boksen.
+      const maalt = maaltBoks(e.el)
+      labelBoxCache.set(e.el, maalt ?? {
+        ...gjettetBoks(skriftPx(e.el), e.name?.length || 4), gjettet: true,
+      })
     }
   }
 
@@ -226,14 +274,13 @@ export function useNavnLod({
         const pos = elementPosition(svg, el)
           ?? (reserve ? egenTranslate(el) : null)
         if (!pos) continue
-        let bw = 0, bh = 0
-        try { const bb = el.getBBox(); bw = bb.width; bh = bb.height } catch { /* skjult → 0 */ }
+        // Skjult ved måletid. Et høydetall er 2–4 sifre, så et estimat fra
+        // teksten er nær nok til en hindrings-test; et symbol får sin
+        // katalog-størrelse, og et bygg hoppes over (se SYMBOL_RESERVE_M).
+        let { bw, bh } = maaltBoks(el) ?? { bw: 0, bh: 0 }
         if (!(bw > 0) && !(bh > 0)) {
-          // Skjult ved måletid. Et høydetall er 2–4 sifre, så et estimat fra
-          // teksten er nær nok til en hindrings-test; et symbol får sin
-          // katalog-størrelse, og et bygg hoppes over (se SYMBOL_RESERVE_M).
           const txt = (el.textContent || '').trim()
-          if (txt) { bw = Math.max(6, txt.length * 4); bh = 6 }
+          if (txt) ({ bw, bh } = gjettetBoks(skriftPx(el), txt.length))
           else if (reserve) { bw = reserve; bh = reserve }
           else continue
         }
@@ -323,7 +370,16 @@ export function useNavnLod({
       if (sx < -MARGIN_PX || sx > w + MARGIN_PX || sy < -MARGIN_PX || sy > h + MARGIN_PX) {
         continue   // utenfor synlig utsnitt — teller ikke, rør ikke klassen
       }
-      const box = labelBoxCache.get(e.el) || { bw: 8, bh: 6 }
+      let box = labelBoxCache.get(e.el)
+      if (!box || box.gjettet) {
+        // Gjettet boks: elementet var skjult da kartet ble målt — et lag som
+        // sto av i Kartlag-fana, eller et zoom-trinn som ennå ikke var nådd.
+        // Nå kan det være synlig, og da er den ekte boksen å foretrekke. Det
+        // som fortsatt er skjult svarer 0 og beholder gjetningen.
+        const ferskt = maaltBoks(e.el)
+        if (ferskt) { box = ferskt; labelBoxCache.set(e.el, ferskt) }
+      }
+      if (!box) box = { bw: 8, bh: 6 }
       // Skjerm-AABB av (kart-rotert) label-boks.
       const hw = (box.bw * px2) / 2
       const hh = (box.bh * px2) / 2
