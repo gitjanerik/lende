@@ -3276,8 +3276,10 @@ const SJEKKER = [
     // 2. RESTEN SKAL HA ET TALL, og merket skal ha en setning for skjermleser
     //    og mus — tegnet alene («parentes åttifire parentes») sier ikke hva
     //    tallet gjelder.
-    // 3. TALLET SKAL VÆRE ARKETS. Sjekken brancher på om arket har feltet, og
-    //    det er ikke slapphet — det er de to ekte tilstandene:
+    // 3. TALLET SKAL VÆRE ARKETS — lest av ARKFILA, ikke av DOM-en (se
+    //    kommentaren i `evaluate`: `data-meta` står ikke på den monterte
+    //    SVG-en). Sjekken brancher på om arket har feltet, og det er ikke
+    //    slapphet — det er de to ekte tilstandene:
     //      • EKTE KART (alltid i CI, siden src/lib står på MAA_HA_EKTEKART):
     //        feltet finnes, flere lag må være > 0, og et merke må stemme
     //        EKSAKT med meta.
@@ -3303,13 +3305,30 @@ const SJEKKER = [
       await page.locator('#drawer-fane-lag').first().click()
       await page.waitForTimeout(400)
 
-      const f = await page.evaluate(() => {
+      const f = await page.evaluate(async () => {
         const panel = document.querySelector('#drawer-panel-lag')
         if (!panel) return { mangler: 'Detaljer-panelet' }
-        const svg = document.querySelector('svg.isom-map')
+        // TELLINGENE LESES AV FILA OG IKKE AV DOM-EN, og det er en MÅLT
+        // rettelse: `data-meta` finnes IKKE på den monterte `svg.isom-map`.
+        // MapView beholder bare render-attributtene (viewBox, class, width,
+        // height, preserveAspectRatio, style) — meta leses én gang under
+        // lasting og lever videre som et JS-objekt. Første utgave av denne
+        // sjekken spurte DOM-en, fikk null på BEGGE kart, og var derfor grønn
+        // lokalt av en ren tilfeldighet: det sporede demo-kartet mangler
+        // tellingene, så «ingen tellinger» var riktig svar der. På det ekte
+        // arket var det galt, og CI fanget det.
+        //
+        // Fila er dessuten den rette kilden her: `/kart/vardasen` LASTER
+        // nettopp den, og i en ektekart-kjøring er `dist/maps/vardasen.svg`
+        // byttet ut med det ferske arket.
         let tellinger = null
-        try { tellinger = JSON.parse(svg?.getAttribute('data-meta') || '{}').lagTellinger ?? null }
-        catch { /* ugyldig meta — behandles som «ingen tellinger» */ }
+        try {
+          const rot = `${location.pathname.split('/kart/')[0]}/maps/vardasen.svg`
+          const tekst = await fetch(rot).then((r) => r.text())
+          const doc = new DOMParser().parseFromString(tekst, 'image/svg+xml')
+          const raa = doc.documentElement.getAttribute('data-meta')
+          tellinger = raa ? (JSON.parse(raa).lagTellinger ?? null) : null
+        } catch { /* uleselig meta — behandles som «ingen tellinger» */ }
         // Merkene leses av KNAPPENE, så et merke uten knapp (eller omvendt)
         // faller ut av seg selv.
         const merker = []

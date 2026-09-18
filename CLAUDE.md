@@ -2217,6 +2217,20 @@ uten at et enkelt kart må bygges om. Konsekvensen er at `(0)` heller ikke vises
 for de åtte, og det er akseptert: for et lag som er overalt er «tomt» ikke det
 tvetydige tilfellet tallene ble innført for.
 
+**`data-meta` STÅR IKKE PÅ DEN MONTERTE SVG-EN, og det kostet en rød CI.**
+MapView leser attributtet ÉN gang under lasting (`metaFromSvgMeta`) og lar det
+leve videre som et JS-objekt; den monterte `svg.isom-map` beholder bare
+render-attributtene (`viewBox`, `class`, `width`, `height`,
+`preserveAspectRatio`, `style`). Trenger en røyk-sjekk arkets meta, må den
+hente ARKFILA (`/maps/<id>.svg`) og parse den — som flere sjekker alt gjør.
+Første utgave av lag-tellings-sjekken spurte DOM-en, fikk null på BEGGE kart,
+og var grønn lokalt av en ren tilfeldighet: det sporede demo-kartet mangler
+tellingene, så «ingen tellinger» var riktig svar der. På det ekte arket var det
+galt. **Lærdommen er den generelle: en sjekk som er grønn fordi to feil er
+enige, er ingen sjekk** — og en branchende sjekk må kjøres i BEGGE grenene før
+man tror på den (her ved å injisere `lagTellinger` i `dist`-arket og kjøre med
+`--hoppbygg`).
+
 **`metaFromSvgMeta` ER EN HVITELISTE.** `lagTellinger` måtte legges inn der. Den
 fella har bitt fem ganger (appVersion, nveInnsjoStatus, tetthet + detaljNivaa,
 turruteStatus), og symptomet ser ut som et dataproblem: feltet er tomt på ALLE
