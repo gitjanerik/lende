@@ -1487,12 +1487,19 @@ const SJEKKER = [
     },
   },
   {
-    // EKSTERNE LENKER (v7.8.13). Bryteren i hovedmenyen styrer `target` på hver
-    // utgående lenke i appen. To ting måles, og begge er kabling som ingen
-    // enhetstest ser: at bryteren finnes og lagrer valget, og at en EKTE lenke
-    // i punkt-arket faktisk følger den. Default er AV, altså `_self`.
+    // EKSTERNE LENKER (v7.8.13, flyttet til Preferanse-fana i v7.8.34).
+    // Bryteren styrer `target` på hver utgående lenke i appen. To ting måles,
+    // og begge er kabling som ingen enhetstest ser: at bryteren finnes DER DEN
+    // NÅ BOR og lagrer valget, og at en EKTE lenke i arket faktisk følger den.
+    // Default er AV, altså `_self`.
+    //
+    // Sjekken sto i hovedmenyen til v7.8.34 og leste `button.am-bryter`. Den
+    // klassen finnes ikke lenger — bryteren er en vanlig skuff-vippe — så
+    // markøren er `aria-checked` inne i `#drawer-panel-pref`, altså panelet og
+    // ikke et klassenavn: én bryter per innstilling i den fana, og de plukkes
+    // på `aria-label`.
     navn: 'bryteren for eksterne lenker styrer target på lenkene i arket',
-    domene: 'AppMenu + useEksterneLenker',
+    domene: 'DrawerPrefsTab + useEksterneLenker',
     async kjør(page) {
       await lukkDrawer(page)
       await page.evaluate(() => localStorage.removeItem('lende-ekstern-ny-fane'))
@@ -1503,19 +1510,24 @@ const SJEKKER = [
       const targets = () => page.evaluate(() => [...document.querySelectorAll('a[href^="http"]')]
         .map((a) => a.getAttribute('target')))
 
-      await page.locator('[data-hovedmeny-knapp]').first().click()
+      const bryter = () => page.locator(
+        '#drawer-panel-pref button[role="switch"][aria-label*="eksterne lenker"]')
+
+      await åpneDrawer(page)
+      await page.locator('#drawer-fane-pref').first().click()
       await page.waitForTimeout(400)
-      const bryter = page.locator('button[role="switch"].am-bryter')
-      if (!(await bryter.count())) throw new Error('fant ingen bryter for eksterne lenker')
-      if ((await bryter.getAttribute('aria-checked')) !== 'false') {
+      if (!(await bryter().count())) {
+        throw new Error('fant ingen bryter for eksterne lenker i Preferanse-fana')
+      }
+      if ((await bryter().getAttribute('aria-checked')) !== 'false') {
         throw new Error('bryteren sto PÅ uten at noe var lagret — default skal være av')
       }
-      await bryter.click()
+      await bryter().click()
       await page.waitForTimeout(250)
       const lagret = await page.evaluate(() => localStorage.getItem('lende-ekstern-ny-fane'))
       if (lagret !== '1') throw new Error(`valget ble ikke lagret (${lagret})`)
 
-      await page.keyboard.press('Escape')
+      await lukkDrawer(page)
       await page.waitForTimeout(300)
       const på = await targets()
       if (på.some((t) => t !== '_blank')) {
@@ -1527,12 +1539,15 @@ const SJEKKER = [
       // standard — på en knapp som alltid er der, og `target`-bindingen er den
       // samme `eksternTarget` begge steder.
 
-      // NØYTRAL TILSTAND: tilbake til av, som er standarden.
-      await page.locator('[data-hovedmeny-knapp]').first().click()
+      // NØYTRAL TILSTAND: tilbake til av, og tilbake til standard-fana.
+      await åpneDrawer(page)
+      await page.locator('#drawer-fane-pref').first().click()
       await page.waitForTimeout(400)
-      await page.locator('button[role="switch"].am-bryter').click()
+      await bryter().click()
       await page.waitForTimeout(250)
-      await page.keyboard.press('Escape')
+      await page.locator('#drawer-fane-lag').first().click()
+      await page.waitForTimeout(250)
+      await lukkDrawer(page)
       await page.waitForTimeout(300)
       const av = await targets()
       if (av.some((t) => t === '_blank')) {
@@ -3731,6 +3746,227 @@ const SJEKKER = [
       } finally {
         await ctx.close()
       }
+    },
+  },
+  {
+    // KOMPASSTRYKKET HAR TO MODUSER (v7.8.34), OG STANDARDEN RØRER IKKE ZOOMEN.
+    //
+    // Knappen het `onResetAndRefreshGps` og gjorde det navnet sier: den vred
+    // arket mot nord OG zoomet ut til dekning OG satte tekstskalaen tilbake.
+    // Etiketten sier bare «Vend kartet mot nord», så den som hadde mistet
+    // retningen i et nærbilde mistet nærbildet med. Standarden er nå rotasjonen
+    // alene; zoom-ut er et valg i Preferanse-fana, og AV som standard.
+    //
+    // TO TALL FRA SAMME TRANSFORM, og det er hele poenget: rotasjonen SKAL
+    // endres og skalaen SKAL stå. En sjekk som bare leste rotasjonen ville vært
+    // grønn på den gamle oppførselen. Begge moduser måles, og bryteren settes
+    // gjennom sin EGEN nøkkel i localStorage — ikke gjennom fana — fordi det er
+    // kartets lesing av flagget som er under måling her; fana har sin egen
+    // sjekk under.
+    //
+    // EGEN KONTEKST MED `hasTouch`: kompassknappen gis bare til berøring, så
+    // standard-konteksten ville hoppet stille over sjekken.
+    navn: 'kompasstrykket vender mot nord, og zoom-ut er et valg',
+    domene: 'MapView (onResetAndRefreshGps) + useKompassNord',
+    krever: 'ektekart',
+    maksMs: 150_000,
+    async kjør(page) {
+      const ctx = await egenKontekst(page, {
+        viewport: { width: 430, height: 900 },
+        hasTouch: true,
+        isMobile: false,
+      })
+      const p2 = await ctx.newPage()
+      try {
+        // Skala OG rotasjon fra den ENE transformen kartet faktisk bærer.
+        const les = () => p2.evaluate(() => {
+          const el = document.querySelector('[data-map-inner]')
+          const m = new DOMMatrixReadOnly(getComputedStyle(el).transform)
+          return {
+            skala: Math.hypot(m.a, m.b),
+            grader: Math.atan2(m.b, m.a) * 180 / Math.PI,
+          }
+        })
+        const norm = (v) => ((((v % 360) + 540) % 360) - 180)
+        // To-finger-rotasjon: kartflata lytter med { passive: false }, så en
+        // syntetisk TouchEvent er den eneste veien inn. Samme koreografi som
+        // nåle-sjekken over.
+        const dreiArket = () => p2.evaluate(async () => {
+          const inner = document.querySelector('[data-map-inner]')
+          const el = inner?.parentElement
+          if (!el) return { feil: 'fant ikke kart-wrapperen' }
+          const r = el.getBoundingClientRect()
+          const cx = r.left + r.width / 2
+          const cy = r.top + r.height / 2
+          const R = 120
+          const finger = (deg, i) => {
+            const a = (deg + i * 180) * Math.PI / 180
+            return new Touch({
+              identifier: i, target: el,
+              clientX: cx + R * Math.cos(a), clientY: cy + R * Math.sin(a),
+            })
+          }
+          const send = (type, deg) => {
+            const t = deg == null ? [] : [finger(deg, 0), finger(deg, 1)]
+            el.dispatchEvent(new TouchEvent(type, {
+              bubbles: true, cancelable: true, touches: t, targetTouches: t, changedTouches: t,
+            }))
+          }
+          const frame = () => new Promise((res) => requestAnimationFrame(res))
+          send('touchstart', 0)
+          for (let d = 6; d <= 60; d += 6) { send('touchmove', d); await frame(); await frame() }
+          send('touchend', null)
+          return {}
+        })
+
+        // ── Runde 1: standarden (ingen nøkkel lagret) ─────────────────────
+        await p2.goto(`${BASE}/kart/vardasen`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await p2.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+        await lukkDrawer(p2)
+        const lagret = await p2.evaluate(() => localStorage.getItem('lende-kompass-nord-zoom'))
+        if (lagret) throw new Error(`zoom-ut sto lagret som «${lagret}» — standarden skal være av`)
+
+        // ROMMET SJEKKEN MÅLER I MÅ LAGES FØRST. Et nylastet ark fyller
+        // skjermen, og da er dekningsskalaen omtrent den kartet alt står i:
+        // et zoom-ut ville ikke flyttet tallet, og begge moduser hadde sett
+        // like ut. Zoomen inn er derfor en forutsetning, ikke pynt.
+        await zoomInn(p2, 4)
+        await dreiArket()
+        await p2.waitForTimeout(700)
+        const før = await les()
+        if (Math.abs(norm(før.grader)) < 15) {
+          throw new Error(`arket dreide bare ${før.grader.toFixed(1)}° — `
+            + 'uten en dreining måler sjekken ingenting')
+        }
+
+        const knapp = p2.locator('button[aria-label^="Vend kartet mot nord"]')
+        if (!(await knapp.count())) throw new Error('fant ingen kompassknapp')
+        await knapp.click()
+        await p2.waitForTimeout(900)
+        const av = await les()
+        if (Math.abs(norm(av.grader)) > 1.5) {
+          throw new Error(`trykket vendte ikke arket mot nord (står på ${av.grader.toFixed(1)}°)`)
+        }
+        // Toleransen er relativ: skalaen er et desimaltall som følger arket.
+        if (Math.abs(av.skala - før.skala) / før.skala > 0.02) {
+          throw new Error(`standarden zoomet kartet (${før.skala.toFixed(3)} → `
+            + `${av.skala.toFixed(3)}) — den skal bare rotere`)
+        }
+
+        // ── Runde 2: bryteren PÅ ──────────────────────────────────────────
+        await p2.evaluate(() => localStorage.setItem('lende-kompass-nord-zoom', '1'))
+        await p2.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 })
+        await p2.waitForFunction(() => !!document.querySelector('svg.isom-map'),
+          null, { timeout: 30_000 })
+        await lukkDrawer(p2)
+        await zoomInn(p2, 4)
+        await p2.waitForTimeout(500)
+        const før2 = await les()
+        await p2.locator('button[aria-label^="Vend kartet mot nord"]').click()
+        await p2.waitForTimeout(900)
+        const på = await les()
+        if (Math.abs(norm(på.grader)) > 1.5) {
+          throw new Error(`trykket vendte ikke arket mot nord med bryteren på `
+            + `(står på ${på.grader.toFixed(1)}°)`)
+        }
+        if (!(på.skala < før2.skala * 0.9)) {
+          throw new Error(`bryteren PÅ zoomet ikke ut (${før2.skala.toFixed(3)} → `
+            + `${på.skala.toFixed(3)})`)
+        }
+        return `av: ${før.skala.toFixed(2)}× uendret, ${før.grader.toFixed(0)}° → 0°; `
+          + `på: ${før2.skala.toFixed(2)}× → ${på.skala.toFixed(2)}×`
+      } finally {
+        // NØYTRAL TILSTAND er gratis her: konteksten lukkes, og med den både
+        // localStorage-nøkkelen og zoomen. Det er nettopp derfor runde 2 tør å
+        // skrive flagget.
+        await ctx.close()
+      }
+    },
+  },
+  {
+    // PREFERANSE-FANA ER FØRST, OG DEN BÆRER DE FIRE FLYTTEDE VALGENE (v7.8.34).
+    //
+    // Fire innstillinger som handler om BRUKEREN og ikke om arket lå fire ulike
+    // steder: «Åpne i ny nettleser» i hovedmenyen, «Vis fulle navn» og
+    // «Navnetetthet» i Format-fana, og himmel-tvangen bak Utvikler-fana — som
+    // er `userOnly`, altså skjult på demokartet. Sjekken måler flyttingen i
+    // BEGGE ender, og det er den halvdelen som er lett å miste: en kopi som
+    // blir stående igjen gir to flater med hver sin mening om samme verdi.
+    //
+    // Ingen enhetstest kan se dette — prosjektet monterer ikke Vue-komponenter
+    // — og et bygg er grønt med innstillingen på begge steder.
+    //
+    // Demokartet duger, og det er med vilje: fana skal finnes NETTOPP der
+    // Utvikler-fana ikke gjør det.
+    navn: 'Preferanser er første fane og har samlet de flyttede valgene',
+    domene: 'DrawerPrefsTab + DrawerAboutTab + DrawerDevTab + AppMenu',
+    async kjør(page) {
+      await åpneDrawer(page)
+      const faner = await page.evaluate(() => [...document.querySelectorAll('[role="tab"]')]
+        .map((b) => b.textContent.trim()))
+      if (faner[0] !== 'Preferanser') {
+        throw new Error(`første fane er «${faner[0]}», ikke «Preferanser» (${faner.join(' · ')})`)
+      }
+      if (faner[1] !== 'Detaljer') {
+        throw new Error(`«Preferanser» står ikke foran «Detaljer» (${faner.join(' · ')})`)
+      }
+      // STANDARD-FANA ER FORTSATT «Detaljer», og det er en beslutning: man
+      // åpner skuffa for å gjøre noe med kartet, ikke for å sette valg man
+      // setter én gang. Første fane i rada ≠ første fane i bruk.
+      const valgt = await page.evaluate(() => document.querySelector('[role="tab"][aria-selected="true"]')
+        ?.textContent.trim())
+      if (valgt === 'Preferanser') {
+        throw new Error('skuffa åpner på Preferanser — standarden skal være Detaljer')
+      }
+
+      await page.locator('#drawer-fane-pref').first().click()
+      await page.waitForTimeout(400)
+      const pref = await page.evaluate(() => {
+        const p = document.querySelector('#drawer-panel-pref')
+        if (!p) return null
+        return {
+          tekst: p.innerText,
+          brytere: [...p.querySelectorAll('button[role="switch"]')].length,
+        }
+      })
+      if (!pref) throw new Error('fant ikke Preferanse-panelet')
+      for (const [navn, re] of [
+        ['kompass-zoomen', /vender mot nord/i],
+        ['«Vis fulle navn»', /Vis fulle navn/],
+        ['«Navnetetthet»', /Navnetetthet/],
+        ['«Åpne i ny nettleser»', /Åpne i ny nettleser/],
+        ['himmel-tvangen', /Tvungne himmellegemer/],
+      ]) {
+        if (!re.test(pref.tekst)) throw new Error(`Preferanse-fana mangler ${navn}`)
+      }
+
+      // ANDRE ENDEN: ingen av dem står igjen der de kom fra.
+      await page.locator('#drawer-fane-om').first().click()
+      await page.waitForTimeout(400)
+      const om = await page.evaluate(() =>
+        document.querySelector('#drawer-panel-om')?.innerText ?? '')
+      if (/Vis fulle navn/.test(om)) throw new Error('«Vis fulle navn» står fortsatt i Format-fana')
+      if (/Navnetetthet/.test(om)) throw new Error('«Navnetetthet» står fortsatt i Format-fana')
+
+      // Hovedmenyen: bryteren skal være borte, og ingen tom «Eksterne
+      // lenker»-overskrift skal stå igjen.
+      await page.locator('#drawer-fane-lag').first().click()
+      await page.waitForTimeout(250)
+      await lukkDrawer(page)
+      await page.locator('[data-hovedmeny-knapp]').first().click()
+      await page.waitForTimeout(500)
+      const meny = await page.evaluate(() => {
+        const a = document.querySelector('aside')
+        return { tekst: a?.innerText ?? '', bryter: !!a?.querySelector('.am-bryter') }
+      })
+      if (meny.bryter) throw new Error('hovedmenyen har fortsatt en am-bryter')
+      if (/ny nettleser|Eksterne lenker/i.test(meny.tekst)) {
+        throw new Error('hovedmenyen nevner fortsatt eksterne lenker')
+      }
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(400)
+      return `faner: ${faner.join(' · ')}, ${pref.brytere} brytere i Preferanser`
     },
   },
   {

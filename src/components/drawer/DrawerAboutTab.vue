@@ -1,9 +1,15 @@
 <script setup>
-// Drawer-fane «Om» (innstillinger), skilt ut fra MapView v1.0.8. Kartstørrelse/
-// format/høydekurver for nye kart, fulle navn, maks fliser,
-// global relieff-standard og navnetetthet. Størrelsen bindes toveis via
-// v-model (MapView eier slider-computeden); format- og ekvidistanse-refene er
-// modul-singletons og hentes rett fra composablen.
+// Drawer-fane «Format» (innstillinger), skilt ut fra MapView v1.0.8.
+// Kartstørrelse/format/høydekurver for NYE kart, pluss den globale
+// relieff-standarden. Størrelsen bindes toveis via v-model (MapView eier
+// slider-computeden); format- og ekvidistanse-refene er modul-singletons og
+// hentes rett fra composablen.
+//
+// «Vis fulle navn» og «Navnetetthet» sto her til v7.8.34 og bor nå i
+// Preferanser. De handlet aldri om formatet på neste kart — de handler om hvor
+// mye tekst DU vil lese på et ark — og navnetettheten har i tillegg sin egen
+// «bruk på alle kart», altså nettopp det skillet Preferanse-fana er tegnet
+// rundt. Se DrawerPrefsTab.vue.
 import { computed } from 'vue'
 import {
   useMapSizePreference, resetMapPreferences,
@@ -12,7 +18,6 @@ import {
   MAP_FORMAT_OPTIONS, MAP_EQ_OPTIONS,
 } from '../../composables/useMapSizePreference.js'
 import { breddeHintFor } from '../../lib/equidistanceRules.js'
-import { DENSITY_PRESETS } from '../../composables/useLabelDensity.js'
 import { APP_VERSION } from '../../version.js'
 
 defineProps({
@@ -21,7 +26,6 @@ defineProps({
   canRebuild: { type: Boolean, default: false },
 })
 const mapSizeSlider = defineModel('mapSizeSlider', { type: Number, default: 10 })
-const showFullNames = defineModel('showFullNames', { type: Boolean, default: false })
 
 // Format- og høydekurve-standard for nye kart (delte singleton-refs).
 const { mapFormat, mapEquidistance } = useMapSizePreference()
@@ -46,8 +50,6 @@ const isAtDefaults = computed(() =>
 )
 const globalReliefEnabled = defineModel('globalReliefEnabled', { type: Boolean, default: true })
 const globalReliefMode = defineModel('globalReliefMode', { type: String, default: 'vektor' })
-const densityId = defineModel('densityId', { type: String, default: 'normal' })
-const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, default: true })
 </script>
 
 <template>
@@ -147,28 +149,6 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
         Bygg om dette området med valgte innstillinger
       </button>
     </div>
-    <!-- Flerspråklige navn (norsk - samisk - finsk) i Nord-Norge.
-         Default AV = vis kun det norske navnet for et renere kart.
-         PÅ = vis hele det flerspråklige navnet. Søk finner alle språk
-         uansett. -->
-    <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-3 flex items-center gap-3">
-      <div class="flex-1 min-w-0">
-        <div class="text-[13px] text-ink font-medium">Vis fulle navn</div>
-        <div class="text-[11px] text-ink-3 leading-snug">
-          I Nord-Norge har mange steder navn på norsk, samisk og kvensk.
-          Av: vis kun det norske navnet (renere kart). På: vis hele det
-          flerspråklige navnet. Søk finner alle språk uansett.
-        </div>
-      </div>
-      <button @click="showFullNames = !showFullNames"
-              :aria-pressed="showFullNames"
-              :aria-label="showFullNames ? 'Vis kun norske navn' : 'Vis fulle navn'"
-              class="relative w-11 h-6 rounded-full transition-colors shrink-0"
-              :class="showFullNames ? 'bg-emerald-500' : 'bg-ink/15'">
-        <span class="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
-              :class="showFullNames ? 'left-5' : 'left-0.5'" />
-      </button>
-    </div>
     <!-- Relieff av/på (GLOBAL standard — per-kart-overstyring gjøres bak
          tannhjulet i Relieff-snarveien): hillshade lages som ett bilde per
          kartflis og bruker minne/GPU. -->
@@ -212,40 +192,6 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
         Skarp = tone-bånd som vektor: liten fil, knivskarpt ved zoom og print.
         Mjuk = myk gradient (foto-relieff), men gir et tungt bilde i kart-fila.
       </div>
-    </div>
-    <!-- Navnetetthet: rutenett-kvoten i tetthets-budsjettet. Lavere =
-         roligere kart, høyere = flere navn. Byttes live (vrakes på nytt). -->
-    <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-3">
-      <div class="text-[13px] text-ink font-medium mb-2">Navnetetthet</div>
-      <div class="flex gap-2" role="group" aria-label="Navnetetthet">
-        <button v-for="p in DENSITY_PRESETS" :key="p.id" @click="densityId = p.id"
-                :aria-pressed="densityId === p.id"
-                class="flex-1 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors"
-                :class="densityId === p.id ? 'bg-emerald-700 text-white' : 'bg-ink/10 text-ink-2'">
-          {{ p.label }}
-        </button>
-      </div>
-      <div class="text-[11px] text-ink-3 leading-snug mt-1.5">
-        Hvor mange navn som vises samtidig. Kartet avdekker flere når du zoomer inn;
-        topp, vann og område prioriteres, og et søketreff vises alltid.
-      </div>
-      <!-- PÅ: tettheten gjelder konsekvent for alle kart. AV: valget over
-           gjelder kun kartet du ser på nå (per-kart-overstyring). -->
-      <label class="flex items-center justify-between gap-3 mt-3 cursor-pointer">
-        <span class="text-[12px] text-ink-2 leading-snug">
-          Bruk på alle kart
-          <span class="block text-[11px] text-ink-4">
-            {{ densityApplyToAll ? 'Samme tetthet overalt' : 'Gjelder kun dette kartet' }}
-          </span>
-        </span>
-        <button type="button" role="switch" :aria-checked="densityApplyToAll"
-                @click="densityApplyToAll = !densityApplyToAll"
-                class="relative w-11 h-6 rounded-full transition-colors shrink-0"
-                :class="densityApplyToAll ? 'bg-emerald-500' : 'bg-ink/15'">
-          <span class="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
-                :class="densityApplyToAll ? 'left-5' : 'left-0.5'" />
-        </button>
-      </label>
     </div>
     <p class="text-ink-4 text-[10px] mt-1">v{{ APP_VERSION }}</p>
   </div>

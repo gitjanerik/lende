@@ -7,7 +7,6 @@ import { useUiTheme } from '../composables/useUiTheme.js'
 import { useHoldVaken } from '../composables/useHoldVaken.js'
 import { MAKS_MINUTTER } from '../lib/holdVaken.js'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
-import { useEksterneLenker } from '../composables/useEksterneLenker.js'
 import { listMaps, listGravelRoutes } from '../lib/mapStorage.js'
 import { mapsSummary, routesSummary } from '../lib/menuSummary.js'
 import { gpsFeilTekst, GPS_IKKE_STOTTET } from '../lib/gpsFeil.js'
@@ -35,13 +34,14 @@ const { menuOpen, close, onsketSheet } = useAppMenu()
 const { uiTextScale, setTextScale } = useUiTextScale()
 const { theme, setTheme } = useUiTheme()
 
-// ── Eksterne lenker ──────────────────────────────────────────────────────────
-// Bryteren bor i HOVEDMENYEN og ikke i kartets innstillings-skuff, fordi den
-// gjelder hele appen: ut.no og Google Maps fra infopanelet, kulturminnesok.no,
-// NVEs stasjonssider, Naturbase-faktaark og leksikon-lenkene i 3D-himmelen —
-// og Turplanleggeren har ingen slik skuff i det hele tatt.
-// Begrunnelsen for at AV er standard står i useEksterneLenker.
-const { nyFane, settNyFane } = useEksterneLenker()
+// «ÅPNE I NY NETTLESER» BOR I PREFERANSE-FANA FRA v7.8.34, ikke her.
+// Bryteren sto i hovedmenyen fordi den gjelder hele appen, og det argumentet
+// holder — men prisen var at menyen bar ÉN innstilling som ikke handler om
+// menyen selv (tema, tekststørrelse, skjermen våken), og som lå i en egen
+// blokk nederst uten naboer. Den har nå naboer: Innstillinger →
+// Preferanser, som er fana for det som gjelder DEG og ikke arket.
+// Tilstanden er den samme singletonen (useEksterneLenker), så hver utgående
+// lenke i appen — Turplanleggeren inkludert — følger valget som før.
 
 // ── Hold skjermen våken ──────────────────────────────────────────────────────
 // Flyttet hit fra Innstillinger → Format (v6.6.4). Den lå fire trykk unna, i en
@@ -511,23 +511,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           </div>
         </div>
 
-        <!-- Eksterne lenker (v7.8.13). Se useEksterneLenker for hvorfor AV er
-             standard: en `_blank`-åpning fra en installert PWA legger seg i et
-             minimalt nettleser-lag oppå appen, og URL-stripa blir stående nede
-             i hjørnet etterpå. Etiketten sier hva PÅ gjør, ikke hva bryteren
-             heter — det er handlingen man velger. -->
-        <div class="am-block am-block-wide">
-          <div class="am-eyebrow">Eksterne lenker</div>
-          <label class="am-bryter-rad">
-            <span class="am-bryter-tekst">Åpne i ny nettleser</span>
-            <button type="button" role="switch" class="am-bryter"
-                    :class="{ 'is-on': nyFane }" :aria-checked="nyFane"
-                    @click="settNyFane(!nyFane)">
-              <span class="am-bryter-knott" />
-            </button>
-          </label>
-        </div>
-
         <!-- Dempet bunn under skillelinja. -->
         <div class="am-foot">
           <button type="button" class="am-line am-line-dim" @click="openSheet('om')">
@@ -834,55 +817,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 .menu-slide-enter-active, .menu-slide-leave-active { transition: transform 0.28s ease; }
 .menu-slide-enter-from, .menu-slide-leave-to { transform: translateX(-100%); }
-
-/* ── Bryter (eksterne lenker) ──
-   Samme form som vippebryterne i skuffene — grønn flate på, grå av, en hvit
-   knott som glir — men i menyens egen palett og i em, så den følger
-   tekststørrelsen som alt annet her. */
-.am-bryter-rad {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  padding: 2px 4px;
-  cursor: pointer;
-  user-select: none;
-}
-.am-bryter-tekst {
-  /* ETIKETTEN FÅR HELE RADEN OG BRYTER ALDRI (v7.8.31). Den sto som et
-     krympbart flex-element ved siden av en bryter med fast bredde, så ved
-     200 % tekst delte «Åpne i ny nettleser» seg på to linjer mens det var
-     god plass på linja under. `flex: 1 0 auto` lar den beholde sin egen
-     bredde; da er det BRYTEREN som ikke får plass, og med `flex-wrap` på
-     raden legger den seg pent under i stedet. */
-  flex: 1 0 auto;
-  white-space: nowrap;
-  font-size: 0.95em;
-}
-.am-bryter {
-  position: relative;
-  flex: 0 0 auto;
-  margin-left: auto;
-  width: 2.6em;
-  height: 1.5em;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
-  transition: background 0.15s ease;
-}
-.am-bryter.is-on { background: var(--am-accent); }
-.am-bryter-knott {
-  position: absolute;
-  top: 0.15em;
-  left: 0.15em;
-  width: 1.2em;
-  height: 1.2em;
-  border-radius: 999px;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-  transition: left 0.15s ease;
-}
-.am-bryter.is-on .am-bryter-knott { left: 1.25em; }
-.am-bryter:focus-visible { outline: 2px solid var(--am-accent); outline-offset: 2px; }
 
 /* ── Hold skjermen våken ──
    Sporet er gult (samme #ffd84a som ringen rundt hamburgeren og FAB-ens
