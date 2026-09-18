@@ -1,3 +1,9 @@
+## 2026-09-18 — v7.8.38: Underlag for Stifinner og Runde — sti eller skogsveg
+
+Stifinneren og Runde har fått en preferanse i Preferanser-fana: skal ruter foretrekke sti eller skogsveg og småveg — vegen i marka, som er det de fleste vil ha under seg på terreng- eller stisykkel. Valget kan skjerpes til et strengt krav, og en egen skyv setter hvor nær start, mål og hvert vendepunkt preferansen slutter å gjelde. Modellen er en kostnad og aldri et forbud: Dijkstra er hukommelsesløs, så «maks så og så langt på feil underlag» kan ikke uttrykkes som en kantvekt, men straffen er proporsjonal med lengden, og det gir nøyaktig den slakken som trengs der sti og skogsveg går på kryss og tvers — korte forbindelsesstumper overlever, en halv kilometer omvei gjør det ikke. Et ekte forbud ville i stedet gitt «fant ingen rute». Valget er én singleton, så Lende-chatten og MCP-serveren ruter etter det samme: chatten kan settes til sykkelrute med ett spørsmål, MCP-verktøyene har fått underlags-parametre, og begge svarer med hvor mye av ruta som faktisk ble det ønskede underlaget i stedet for å love at kravet ble oppfylt. Standarden er uendret — sti uten krav gir bit for bit den samme grafen som før.
+
+---
+
 ## 2026-09-18 — v7.8.37: Skogsvegen er sitt eget lag, sin egen slider og sin egen strek
 
 Vegen i marka — skogsbilveg, traktorveg og OSM `highway=track`, ISOM 504 — lå

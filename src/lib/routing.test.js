@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest'
 import {
   buildRoutingGraph, kShortestRoutes, planRoutes, planRoutesThrough, planLoop,
   projectPointOnSegment, gapSlopePct, segmentsCross, BARRIER_CODES,
+  medEndepunktSlakk, meterPerKode, ISOM_COST,
 } from './routing.js'
+import { kostnadsFaktorer } from './rutePreferanse.js'
 
 // Lite rutenett i SVG-meter-rom (coordinates allerede projisert).
 // Et 2x2-grid med ekstra diagonal-snarvei, alt som ISOM 505 (sti):
@@ -744,5 +746,185 @@ describe('segmentsCross', () => {
 
   it('regner ikke parallelle segmenter som kryssende', () => {
     expect(segmentsCross([0, 0], [10, 0], [0, 5], [10, 5])).toBe(false)
+  })
+})
+
+// ── Underlags-preferanse (v7.8.38) ────────────────────────────────────────
+//
+// Nettet under er to parallelle korridorer fra start til mål, og det er
+// bevisst laget for å vise det eierens spørsmål handler om: sti og skogsveg
+// som går på kryss og tvers.
+//
+//   START(0,0) ──────── sti (505), 1000 m rett fram ──────── MÅL(1000,0)
+//        └── skogsveg (504) via (0,200)-(1000,200), 1400 m ──┘
+//
+// Sti er kortest. Med veg-preferanse skal ruteren likevel velge skogsvegen —
+// den er 40 % lenger, altså godt innenfor den proporsjonale straffen.
+function toKorridorer() {
+  return [
+    { coordinates: [[0, 0], [1000, 0]], isomCode: '505' },
+    { coordinates: [[0, 0], [0, 200], [1000, 200], [1000, 0]], isomCode: '504' },
+  ]
+}
+
+const kodeneI = (rg, r) => new Set(Object.keys(meterPerKode(rg, r.nodeIds)))
+
+describe('buildRoutingGraph — kostnad', () => {
+  it('bygger IDENTISKE vekter uten kostnad og med tom kostnad', () => {
+    const uten = buildRoutingGraph(toKorridorer(), { snapM: 2 })
+    const med = buildRoutingGraph(toKorridorer(), { snapM: 2, kostnad: {} })
+    const vekter = (rg) => {
+      const ut = []
+      rg.graph.forEachEdge((e, a) => ut.push([a.isomCode, a.cost, a.costNoMw, a.baseCost]))
+      return ut.sort()
+    }
+    expect(vekter(med)).toEqual(vekter(uten))
+  })
+
+  it('baker baseCost ustraffet ved siden av den straffede cost', () => {
+    const rg = buildRoutingGraph(toKorridorer(), { snapM: 2, kostnad: { '505': 9 } })
+    rg.graph.forEachEdge((e, a) => {
+      if (a.isomCode !== '505') return
+      expect(a.cost).toBeCloseTo(a.baseCost * 9, 6)
+      expect(a.baseCost).toBeCloseTo(a.length * ISOM_COST['505'], 6)
+    })
+  })
+
+  it('blokkerer motorvei i costNoMw, som i lengthNoMw', () => {
+    const rg = buildRoutingGraph([
+      { coordinates: [[0, 0], [100, 0]], isomCode: '501' },
+    ], { snapM: 2, kostnad: { '501': 0.1 } })
+    rg.graph.forEachEdge((e, a) => {
+      expect(a.costNoMw).toBeGreaterThan(1e8)
+      expect(a.lengthNoMw).toBeGreaterThan(1e8)
+    })
+  })
+
+  it('lar broer stå uberørt av preferansen', () => {
+    // To fragmenter med 20 m mellom seg → komponent-bro.
+    const rg = buildRoutingGraph([
+      { coordinates: [[0, 0], [100, 0]], isomCode: '505' },
+      { coordinates: [[120, 0], [220, 0]], isomCode: '505' },
+    ], { snapM: 2, componentBridgeM: 80, kostnad: { '505': 5 } })
+    let broer = 0
+    rg.graph.forEachEdge((e, a) => {
+      if (a.isomCode !== 'bridge') return
+      broer++
+      expect(a.cost).toBe(a.baseCost)
+    })
+    expect(broer).toBeGreaterThan(0)
+  })
+
+  it('velger skogsvegen framfor den kortere stien når veg foretrekkes', () => {
+    const nøytral = buildRoutingGraph(toKorridorer(), { snapM: 2 })
+    const medVeg = buildRoutingGraph(toKorridorer(), {
+      snapM: 2, kostnad: kostnadsFaktorer({ underlag: 'veg' }),
+    })
+    const ab = (rg) => [rg.nearestNode([0, 0]).id, rg.nearestNode([1000, 0]).id]
+
+    const rNøytral = nøytral.route(...ab(nøytral))
+    expect(kodeneI(nøytral, rNøytral)).toEqual(new Set(['505']))
+
+    const rVeg = medVeg.route(...ab(medVeg))
+    expect(kodeneI(medVeg, rVeg)).toEqual(new Set(['504']))
+  })
+})
+
+describe('medEndepunktSlakk', () => {
+  it('lar cost stå som den var etterpå — også når fn kaster', () => {
+    const rg = buildRoutingGraph(toKorridorer(), {
+      snapM: 2, kostnad: kostnadsFaktorer({ underlag: 'veg' }),
+    })
+    const før = []
+    rg.graph.forEachEdge((e, a) => før.push([e, a.cost, a.costNoMw]))
+    const anker = [rg.nearestNode([0, 0]).id]
+
+    medEndepunktSlakk(rg, anker, 300, () => 1)
+    expect(() => medEndepunktSlakk(rg, anker, 300, () => { throw new Error('nei') }))
+      .toThrow('nei')
+
+    const etter = []
+    rg.graph.forEachEdge((e, a) => etter.push([e, a.cost, a.costNoMw]))
+    expect(etter).toEqual(før)
+  })
+
+  it('løfter preferansen bare innenfor sonen', () => {
+    // Sti-korridoren må være OPPDELT her: sonen måles per KANT, og én kant på
+    // tvers av hele arket ville vært enten helt inne eller helt ute.
+    const stiPunkter = []
+    for (let x = 0; x <= 1000; x += 100) stiPunkter.push([x, 0])
+    const rg = buildRoutingGraph([
+      { coordinates: stiPunkter, isomCode: '505' },
+      { coordinates: [[0, 0], [0, 200], [1000, 200], [1000, 0]], isomCode: '504' },
+    ], { snapM: 2, kostnad: kostnadsFaktorer({ underlag: 'veg' }) })
+    const start = rg.nearestNode([0, 0]).id
+    // Med 100 m slakk rundt start skal en 505-kant som starter DER være
+    // ustraffet, mens den som ligger 1 km unna fortsatt bærer straffen.
+    medEndepunktSlakk(rg, [start], 100, () => {
+      let iSonen = 0, utenfor = 0
+      rg.graph.forEachEdge((e, a, s, t) => {
+        if (a.isomCode !== '505') return
+        const x = Math.min(rg.graph.getNodeAttribute(s, 'pos')[0],
+                           rg.graph.getNodeAttribute(t, 'pos')[0])
+        if (x < 100) { expect(a.cost).toBeCloseTo(a.baseCost, 6); iSonen++ }
+        else if (x > 500) { expect(a.cost).toBeGreaterThan(a.baseCost); utenfor++ }
+      })
+      expect(iSonen).toBeGreaterThan(0)
+      expect(utenfor).toBeGreaterThan(0)
+    })
+  })
+
+  it('er en ren gjennomkjøring uten slakk og uten ankre', () => {
+    const rg = buildRoutingGraph(toKorridorer(), { snapM: 2 })
+    expect(medEndepunktSlakk(rg, [rg.nearestNode([0, 0]).id], 0, () => 'x')).toBe('x')
+    expect(medEndepunktSlakk(rg, [], 300, () => 'y')).toBe('y')
+  })
+
+  it('tåler å bli nestet rundt kShortestRoutes', () => {
+    const rg = buildRoutingGraph(gridFeatures(), { snapM: 2 })
+    const før = []
+    rg.graph.forEachEdge((e, a) => før.push([e, a.cost]))
+    const a = rg.nearestNode([0, 0]).id, b = rg.nearestNode([200, 100]).id
+    const ruter = medEndepunktSlakk(rg, [a, b], 60, () => kShortestRoutes(rg, a, b, { k: 3 }))
+    expect(ruter.length).toBeGreaterThan(0)
+    const etter = []
+    rg.graph.forEachEdge((e, a2) => etter.push([e, a2.cost]))
+    expect(etter).toEqual(før)
+  })
+})
+
+describe('meterPerKode', () => {
+  it('summerer meter per ISOM-kode langs ruta', () => {
+    const rg = buildRoutingGraph(toKorridorer(), { snapM: 2 })
+    const r = rg.route(rg.nearestNode([0, 0]).id, rg.nearestNode([1000, 0]).id)
+    const m = meterPerKode(rg, r.nodeIds)
+    expect(m['505']).toBeCloseTo(1000, 0)
+    expect(Object.values(m).reduce((s, v) => s + v, 0)).toBeCloseTo(r.lengthM, 0)
+  })
+
+  it('svarer tomt på tull', () => {
+    const rg = buildRoutingGraph(toKorridorer(), { snapM: 2 })
+    expect(meterPerKode(rg, null)).toEqual({})
+    expect(meterPerKode(null, ['a', 'b'])).toEqual({})
+  })
+})
+
+describe('vektAttr', () => {
+  // Uten vektAttr rutes via-leddet på ren lengde, og preferansen blir i
+  // stillhet ignorert på nettopp det leddet.
+  it('lar prefiks-leddet følge preferansen når den bes om det', () => {
+    const rg = buildRoutingGraph(toKorridorer(), {
+      snapM: 2, kostnad: kostnadsFaktorer({ underlag: 'veg' }),
+    })
+    const a = rg.nearestNode([0, 0]).id
+    const via = rg.nearestNode([1000, 0]).id
+    const b = rg.nearestNode([500, 0]).id
+
+    const påLengde = planRoutesThrough(rg, [a, via, b])
+    const påKost = planRoutesThrough(rg, [a, via, b], { vektAttr: 'costNoMw' })
+    expect(påLengde.length).toBeGreaterThan(0)
+    expect(påKost.length).toBeGreaterThan(0)
+    // Prefiks-leddet a→via: 1000 m på sti mot 1400 m på skogsveg.
+    expect(påKost[0].lengthM).toBeGreaterThan(påLengde[0].lengthM)
   })
 })

@@ -225,12 +225,13 @@ function pathUsesCode(g, nodeIds, code) {
  * @param {{ snapM?: number, projectFn?: Function, bridgeM?: number,
  *          gapBridgeM?: number, componentBridgeM?: number,
  *          gapMaxSlopePct?: number, gapObstacleMinM?: number,
+ *          kostnad?: Record<string, number>,
  *          elevationAt?: (x:number,y:number)=>number,
  *          barriers?: Array<{coordinates: Array<[number,number]>, isomCode: string}> }} opts
  * @returns {RoutingGraph}
  */
 export function buildRoutingGraph(features, opts = {}) {
-  const { snapM = 2, projectFn } = opts
+  const { snapM = 2, projectFn, kostnad = null } = opts
   const g = new Graph({ multi: false, type: 'undirected' })
   const nodeIndex = new RBush()
 
@@ -252,14 +253,25 @@ export function buildRoutingGraph(features, opts = {}) {
   // Legg til en kant u→v med vekter avledet av ISOM-koden. lengthNoMw =
   // ekte lengde, unntatt motorvei som blokkeres (MOTORWAY_BLOCK) så
   // «kortest mulig» aldri går der.
+  //
+  // FIRE VEKTER OG IKKE TO, fra v7.8.38. `baseCost` er kostnaden UTEN
+  // brukerens underlags-preferanse, og den er ikke en luksus: `medEndepunktSlakk`
+  // må kunne løfte preferansen i en sone rundt endepunktene, og uten en lagret
+  // ustraffet verdi måtte den regne `ISOM_COST` om igjen per kant — altså to
+  // steder som begge må vite hvordan en kant koster. `costNoMw` er `cost` med
+  // motorveien blokkert, og den finnes fordi prefiks- og uttur-leddene
+  // (planRoutesThrough, planLoop) ruter på ren lengde: uten en preferanse-bærende
+  // variant ville et via-ledd i stillhet ignorert valget brukeren nettopp tok.
   function linkNodes(u, v, code) {
     if (u === v || g.hasEdge(u, v)) return false
     const pu = g.getNodeAttribute(u, 'pos'), pv = g.getNodeAttribute(v, 'pos')
     const length = Math.hypot(pu[0] - pv[0], pu[1] - pv[1])
     if (length === 0) return false
-    const cost = ISOM_COST[code] ?? 1
+    const baseCost = length * (ISOM_COST[code] ?? 1)
+    const cost = baseCost * (kostnad?.[code] ?? 1)
     g.addEdge(u, v, {
-      length, cost: length * cost, isomCode: code,
+      length, baseCost, cost, isomCode: code,
+      costNoMw: code === '501' ? MOTORWAY_BLOCK : cost,
       lengthNoMw: code === '501' ? MOTORWAY_BLOCK : length,
     })
     return true
@@ -392,9 +404,16 @@ export function buildRoutingGraph(features, opts = {}) {
     }
   }
 
+  // Broer følger ALDRI preferansen: de er ikke kartlagt underlag i det hele
+  // tatt, bare en erkjennelse av at nettet er brutt her. Å gi dem
+  // skogsveg-rabatt ville gjort et hull attraktivt.
   function addBridgeEdge(u, v, length) {
     if (u === v || length === 0 || g.hasEdge(u, v)) return false
-    g.addEdge(u, v, { length, cost: length * BRIDGE_COST, isomCode: 'bridge', lengthNoMw: length })
+    const baseCost = length * BRIDGE_COST
+    g.addEdge(u, v, {
+      length, baseCost, cost: baseCost, costNoMw: baseCost,
+      isomCode: 'bridge', lengthNoMw: length,
+    })
     return true
   }
 
@@ -827,6 +846,97 @@ export function kShortestRoutes(rg, fromId, toId, opts = {}) {
 }
 
 /**
+ * Kjør `fn` med brukerens underlags-preferanse LØFTET i en sone rundt
+ * `ankerIds` — start, mål og hvert vendepunkt.
+ *
+ * DETTE ER EIERENS ANDRE SPØRSMÅL, og det er et ANNET spørsmål enn straffen.
+ * Kostnadsfaktorene (`lib/rutePreferanse.js`) sier hvor mye en meter på feil
+ * underlag koster; de er proporsjonale, så en kort forbindelses-stump overlever
+ * og en lang avstikker gjør det ikke. Men et endepunkt ligger der det ligger:
+ * hytta nås med sti uansett hva man ønsker seg, og den siste stien fram til den
+ * er ingen innvending mot ruta. Slakken er derfor GEOMETRISK — innenfor
+ * `slakkM` fra et anker gjelder `baseCost`, altså rangeringen Lende hadde før
+ * preferansen fantes.
+ *
+ * SONEN MÅLES I GRAFEN OG IKKE LANGS RUTA, og det er en bevisst forenkling:
+ * en node innenfor `slakkM` i luftlinje kan ligge lenger unna å gå. Alternativet
+ * ville vært et Dijkstra-pass per anker før hvert rute-søk, og prisen er ikke
+ * verdt det — slakken er en slakk, ikke en grense noen leser av.
+ *
+ * Mutasjonen reverseres i `finally`, samme mønster som `kShortestRoutes` og
+ * `planLoop`. De kan trygt NESTES inni denne: de leser og skriver tilbake den
+ * verdien de fant, ikke en de regnet ut.
+ *
+ * @param {ReturnType<typeof buildRoutingGraph>} rg
+ * @param {string[]} ankerIds  node-id'er (start, via, mål)
+ * @param {number} slakkM
+ * @param {() => T} fn
+ * @returns {T}
+ * @template T
+ */
+export function medEndepunktSlakk(rg, ankerIds, slakkM, fn) {
+  const { graph: g, nodesWithin } = rg
+  if (!(slakkM > 0) || !Array.isArray(ankerIds) || !ankerIds.length) return fn()
+
+  const iSonen = new Set()
+  for (const id of ankerIds) {
+    if (!id || !g.hasNode(id)) continue
+    for (const n of nodesWithin(g.getNodeAttribute(id, 'pos'), slakkM)) iSonen.add(n.id)
+  }
+  if (!iSonen.size) return fn()
+
+  const lagret = new Map()   // edgeId → [cost, costNoMw]
+  try {
+    for (const node of iSonen) {
+      g.forEachEdge(node, (e, attr) => {
+        if (lagret.has(e)) return
+        const base = attr.baseCost
+        if (!Number.isFinite(base)) return
+        lagret.set(e, [attr.cost, attr.costNoMw])
+        g.setEdgeAttribute(e, 'cost', base)
+        g.setEdgeAttribute(e, 'costNoMw', attr.isomCode === '501' ? MOTORWAY_BLOCK : base)
+      })
+    }
+    return fn()
+  } finally {
+    for (const [e, [cost, costNoMw]] of lagret) {
+      g.setEdgeAttribute(e, 'cost', cost)
+      g.setEdgeAttribute(e, 'costNoMw', costNoMw)
+    }
+  }
+}
+
+/**
+ * Hvor mange meter av en rute gikk på hver ISOM-kode?
+ *
+ * POST-HOC, og det er hele poenget: vektene styrer hva ruteren VELGER, dette
+ * forteller hva den faktisk fant. Sprik mellom de to er ikke en feil — det er
+ * geografien som ikke hadde noe å tilby — og det er nettopp da brukeren skal
+ * få vite det. `lib/rutePreferanse.js` slår tallene sammen til én setning.
+ *
+ * `bro`-kanter beholder sin egen nøkkel (`bridge`): de er ikke kartlagt
+ * underlag, og å telle dem som sti eller veg ville vært å finne på noe.
+ *
+ * @param {ReturnType<typeof buildRoutingGraph>} rg
+ * @param {string[]} nodeIds
+ * @returns {Record<string, number>} meter per ISOM-kode
+ */
+export function meterPerKode(rg, nodeIds) {
+  const g = rg?.graph
+  const ut = {}
+  if (!g || !Array.isArray(nodeIds)) return ut
+  for (let i = 0; i + 1 < nodeIds.length; i++) {
+    const e = g.edge(nodeIds[i], nodeIds[i + 1])
+    if (e == null) continue
+    const kode = g.getEdgeAttribute(e, 'isomCode') ?? 'ukjent'
+    const m = g.getEdgeAttribute(e, 'length')
+    if (!Number.isFinite(m)) continue
+    ut[kode] = (ut[kode] ?? 0) + m
+  }
+  return ut
+}
+
+/**
  * Rute-forslag for Stifinner. GARANTERER alltid en «kortest mulig»-rute
  * (ren geometrisk korteste vei, uavhengig av sti-/veitype), og fyller på
  * med flate-vektede alternativer som foretrekker natur-korridoren
@@ -897,24 +1007,36 @@ export function planRoutes(rg, fromId, toId, opts = {}) {
  *
  * @param {ReturnType<typeof buildRoutingGraph>} rg
  * @param {string[]} nodeIds  [startNode, ...viaNodes, maalNode]
- * @param {object} opts        videresendes til planRoutes for siste ledd
- * @returns {Array<{coordinates:Array<[number,number]>, lengthM:number, costM:number, shortest?:boolean}>}
+ * @param {object} opts        videresendes til planRoutes for siste ledd.
+ *   `vektAttr` (default 'lengthNoMw') er vekten prefiks-leddene rutes på —
+ *   'costNoMw' når brukeren har en underlags-preferanse, ellers ville et
+ *   via-ledd i stillhet ignorert valget.
+ * `nodeIds` er SISTE LEDDS noder, som før — flere kallesteder leser den som
+ * «det variable strekket». `alleNodeIds` er hele kjeden, og den finnes fordi
+ * `meterPerKode` ellers bare hadde sett siste ledd og meldt feil underlags-
+ * fordeling for hver rute med et via-punkt.
+ *
+ * @returns {Array<{coordinates:Array<[number,number]>, lengthM:number, costM:number,
+ *          shortest?:boolean, nodeIds:string[], alleNodeIds:string[]}>}
  */
 export function planRoutesThrough(rg, nodeIds, opts = {}) {
   if (!Array.isArray(nodeIds) || nodeIds.length < 2) return []
   const { route } = rg
+  const vektAttr = opts.vektAttr ?? 'lengthNoMw'
 
   let prefix = []
   let prefixLen = 0
+  let prefixNoder = []
   for (let i = 0; i < nodeIds.length - 2; i++) {
-    const leg = route(nodeIds[i], nodeIds[i + 1], 'lengthNoMw')
+    const leg = route(nodeIds[i], nodeIds[i + 1], vektAttr)
     if (!leg) return []   // et via-ledd er ikke naabart → ingen gjennomgående rute
     prefix = prefix.concat(i === 0 ? leg.coordinates : leg.coordinates.slice(1))
+    prefixNoder = prefixNoder.concat(i === 0 ? leg.nodeIds : leg.nodeIds.slice(1))
     prefixLen += leg.lengthM
   }
 
   const last = planRoutes(rg, nodeIds[nodeIds.length - 2], nodeIds[nodeIds.length - 1], opts)
-  if (!prefix.length) return last
+  if (!prefix.length) return last.map(r => ({ ...r, alleNodeIds: r.nodeIds }))
 
   return last.map(r => ({
     coordinates: prefix.concat(r.coordinates.slice(1)),
@@ -922,6 +1044,7 @@ export function planRoutesThrough(rg, nodeIds, opts = {}) {
     costM: r.costM,
     shortest: r.shortest,
     nodeIds: r.nodeIds,
+    alleNodeIds: prefixNoder.concat(r.nodeIds.slice(1)),
   }))
 }
 
@@ -947,13 +1070,20 @@ const LOOP_OUTBOUND_PENALTY = 4
  * @param {ReturnType<typeof buildRoutingGraph>} rg
  * @param {string} originId  start = mål (sløyfens origo)
  * @param {string[]} viaIds  ≥1 vendepunkt, i rekkefølge
- * @param {{ k?: number, penalty?: number, minShare?: number, maxLengthRatio?: number }} opts
- * @returns {Array<{coordinates:Array<[number,number]>, lengthM:number, costM:number, loop:true, shortest?:boolean}>}
- *          sortert på lengthM stigende
+ * @param {{ k?: number, penalty?: number, minShare?: number, maxLengthRatio?: number,
+ *          vektAttr?: string }} opts  `vektAttr` styrer UTTURENS vekt (se
+ *   planRoutesThrough); hjemveien går alltid på 'cost', som bærer både
+ *   preferansen og uttur-straffen.
+ * @returns {Array<{coordinates:Array<[number,number]>, lengthM:number, costM:number,
+ *          loop:true, shortest?:boolean, nodeIds:string[], alleNodeIds:string[]}>}
+ *          sortert på lengthM stigende. `nodeIds` er HJEMVEIENS noder (det er
+ *          den `shareOf`-filteret og kallestedene mener); `alleNodeIds` er
+ *          uttur + hjemvei, som er det `meterPerKode` må ha.
  */
 export function planLoop(rg, originId, viaIds, opts = {}) {
   const { k = 3 } = opts
   const { graph: g, route } = rg
+  const vektAttr = opts.vektAttr ?? 'lengthNoMw'
   if (!originId || !g.hasNode(originId)) return []
   const vias = (viaIds || []).filter(id => id && g.hasNode(id))
   if (!vias.length) return []
@@ -961,13 +1091,15 @@ export function planLoop(rg, originId, viaIds, opts = {}) {
   // Uttur: kjed korteste-vei-ledd origin → via1 → … → viaN (motorvei blokkert).
   let outCoords = []
   let outLen = 0
+  let outNoder = []
   const outEdges = new Set()
   let prev = originId
   for (const v of vias) {
-    const leg = route(prev, v, 'lengthNoMw')
+    const leg = route(prev, v, vektAttr)
     if (!leg) return []   // et vendepunkt er ikke naabart → ingen sløyfe
     for (const e of routeEdgeSet(g, leg.nodeIds)) outEdges.add(e)
     outCoords = outCoords.length ? outCoords.concat(leg.coordinates.slice(1)) : leg.coordinates.slice()
+    outNoder = outNoder.length ? outNoder.concat(leg.nodeIds.slice(1)) : leg.nodeIds.slice()
     outLen += leg.lengthM
     prev = v
   }
@@ -996,7 +1128,7 @@ export function planLoop(rg, originId, viaIds, opts = {}) {
   // Blindvei-fallback: ingen distinkt hjemvei → retrace utturen (tur/retur er
   // bedre enn ingen rute). Foretrekk korteste kandidat; ellers ren korteste vei.
   if (!chosen.length) {
-    const back = returns[0] ?? route(lastVia, originId, 'lengthNoMw')
+    const back = returns[0] ?? route(lastVia, originId, vektAttr)
     if (back && !pathUsesCode(g, back.nodeIds, '501')) chosen = [back]
   }
   if (!chosen.length) return []
@@ -1007,6 +1139,7 @@ export function planLoop(rg, originId, viaIds, opts = {}) {
     costM: r.costM,
     loop: true,
     nodeIds: r.nodeIds,
+    alleNodeIds: outNoder.concat(r.nodeIds.slice(1)),
   }))
   loops.sort((a, b) => a.lengthM - b.lengthM)
   if (loops[0]) loops[0].shortest = true

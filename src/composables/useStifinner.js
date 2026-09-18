@@ -24,14 +24,15 @@
 
 import { ref, computed } from 'vue'
 import {
-  buildRoutingGraph, planRoutesThrough, planLoop, MAX_SNAP_M, FAR_SNAP_M, RUTE_GRAF_OPTS,
-  ROUTABLE_CODES, BARRIER_CODES,
+  buildRoutingGraph, planRoutesThrough, planLoop, medEndepunktSlakk,
+  MAX_SNAP_M, FAR_SNAP_M, RUTE_GRAF_OPTS, ROUTABLE_CODES, BARRIER_CODES,
 } from '../lib/routing.js'
 import { parsePathSubpaths } from '../lib/pathUtils.js'
 // Nabofliser er nestede <svg x y> med flis-lokale koordinater — se
 // lib/svgNestedOffset.js for hvorfor det er en delt fil og ikke tre kopier.
 import { nestedSvgOffset } from '../lib/svgNestedOffset.js'
 import { realElevationAt } from '../lib/demSampling.js'
+import { useRutePreferanse } from './useRutePreferanse.js'
 
 // Snap-tersklene bor i routing.js (delt med chattens forhåndsberegning):
 //  ≤ MAX_SNAP_M  — stille treff (punktet ligger praktisk talt på stien).
@@ -108,6 +109,12 @@ export function useStifinner(opts = {}) {
   let cachedRg = null
   let cachedSvg = null
   let cachedDem = null
+  // Preferansen inngår i cache-nøkkelen: vektene er BAKT inn i grafen, så uten
+  // den ville en bryter i Preferanser ikke slått gjennom før kartet ble lastet
+  // på nytt — og brukeren ville lest det som at bryteren ikke virker.
+  let cachedPrefNokkel = null
+  const { pref: rutePref, kostnad: ruteKostnad, nokkel: ruteNokkel, noytral: ruteNoytral } =
+    useRutePreferanse()
   // Sist brukte SVG-element, så recompute() kan reberegne når via endres.
   let lastSvg = null
 
@@ -233,6 +240,7 @@ export function useStifinner(opts = {}) {
     cachedRg = null
     cachedSvg = null
     cachedDem = null
+    cachedPrefNokkel = null
     lastSvg = null
   }
 
@@ -279,14 +287,28 @@ export function useStifinner(opts = {}) {
   // broer hull der nettet er brutt i praksis. Stinett-diagnosen
   // (lib/stinettBrudd.js) bygger samme graf, så det den rapporterer er det
   // Stifinneren faktisk ser.
+  // Opsjonene begge planleggerne kjører med. `vektAttr` er det ene som ikke er
+  // opplagt: prefiks-leddene i `planRoutesThrough` og utturs-leddene i
+  // `planLoop` ruter på REN LENGDE som default, så et via-punkt ville i
+  // stillhet ignorert underlaget brukeren nettopp valgte. Med den nøytrale
+  // preferansen holder vi 'lengthNoMw' — da er `costNoMw` ekvivalent, men
+  // ren lengde er den etablerte og billigste veien.
+  function ruteOpts() {
+    return ruteNoytral.value ? { k: 3 } : { k: 3, vektAttr: 'costNoMw' }
+  }
+
   function graphFor(svgElement) {
     const dem = demGetter()
-    if (cachedRg && cachedSvg === svgElement && cachedDem === dem) return cachedRg
+    const prefNokkel = ruteNokkel.value
+    if (cachedRg && cachedSvg === svgElement && cachedDem === dem
+        && cachedPrefNokkel === prefNokkel) return cachedRg
     const { features, barriers } = medAlleFliser(() => featuresFromSvg(svgElement))
     if (!features.length) return null
     cachedRg = buildRoutingGraph(features, {
       ...RUTE_GRAF_OPTS, elevationAt: elevationAtFor(dem), barriers,
+      kostnad: ruteKostnad.value,
     })
+    cachedPrefNokkel = prefNokkel
     if (lastGraphStats) {
       lastGraphStats.noder = cachedRg.nodes
       lastGraphStats.kanter = cachedRg.edges
@@ -356,7 +378,10 @@ export function useStifinner(opts = {}) {
       destSnap.value = { x: snapped[0].pos[0], y: snapped[0].pos[1] }
       viaSnaps.value = snapped.slice(1).map(n => ({ x: n.pos[0], y: n.pos[1] }))
 
-      const found = planLoop(rg, snapped[0].id, snapped.slice(1).map(n => n.id), { k: 3 })
+      const found = medEndepunktSlakk(
+        rg, snapped.map(n => n.id), rutePref.value.slakkM,
+        () => planLoop(rg, snapped[0].id, snapped.slice(1).map(n => n.id), ruteOpts()),
+      )
       if (!found.length) {
         error.value = 'Fant ingen rundtur innom vendepunktet'
         return
@@ -380,7 +405,10 @@ export function useStifinner(opts = {}) {
     destSnap.value = { x: snapped[snapped.length - 1].pos[0], y: snapped[snapped.length - 1].pos[1] }
     viaSnaps.value = snapped.slice(1, -1).map(n => ({ x: n.pos[0], y: n.pos[1] }))
 
-    const found = planRoutesThrough(rg, snapped.map(n => n.id), { k: 3 })
+    const found = medEndepunktSlakk(
+      rg, snapped.map(n => n.id), rutePref.value.slakkM,
+      () => planRoutesThrough(rg, snapped.map(n => n.id), ruteOpts()),
+    )
     if (!found.length) {
       error.value = 'Fant ingen rute mellom punktene'
       return
