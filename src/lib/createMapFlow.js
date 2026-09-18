@@ -23,7 +23,7 @@ import { fetchNveLakePolygons } from './nveLakeFetcher.js'
 import { fetchKulturminner } from './kulturminneFetcher.js'
 import { fetchTurruteRoutes, turruteElementsFrom } from './turrutebasenFetcher.js'
 import { fetchN50StiLinjer, n50StiElementerFra } from './n50StiFetcher.js'
-import { fetchN50Areal } from './n50ArealFetcher.js'
+import { fetchN50Areal, fetchN50Vann } from './n50ArealFetcher.js'
 import { slaaSammenAreal, arealKildeFlagg } from './arealMerge.js'
 import { fetchSjokart, sjokartToElements, sjokartTimeoutForBbox, summarizeSjokartStatus } from './sjokartFetcher.js'
 // Vann-sammenslåingen bor i vannMerge.js — delt med mcp/headless.js, som
@@ -447,6 +447,22 @@ export async function buildMapFromCenter({
     n50ArealStatus = { state: 'feil', message: String(e?.message ?? e) }
     return []
   }))
+  // N50-elveflater fra egne fliser (v7.9.0). 21 313 flater over 1 239 km² som
+  // OSM bare har sporadisk — elveløp bredere enn en strek, som er nettopp det
+  // en fisker og en som skal krysse trenger å se formen på.
+  //
+  // IKKE på kritisk sti, og det er et valg: innsjøene kommer fortsatt fra NVE,
+  // så et ark uten elveflatene er fortsatt et lesbart turkart. Flisene ligger
+  // dessuten på vårt eget opphav og er cachet av service workeren, så de er
+  // normalt inne lenge før Overpass — budsjettet biter bare hvis noe henger.
+  let n50VannStatus = null
+  const n50VannP = timeAsync('n50vann', fetchN50Vann(bbox, {
+    signal, onStatus: s => { n50VannStatus = s },
+  }).catch(e => {
+    console.warn('N50-vann ikke tilgjengelig:', e?.message ?? e)
+    n50VannStatus = { state: 'feil', message: String(e?.message ?? e) }
+    return []
+  }))
   // Kulturminner (Kulturminnesøk brukerminner) — klikkbare tema-ikoner. Hentes
   // alltid ved bygging, så laget kan slås på uten ombygging. Cachet pr
   // kvantisert bbox (30 d). Feiler aldri hardt → [].
@@ -681,7 +697,7 @@ export async function buildMapFromCenter({
       if (v === fallback) settStatus?.()
       return v
     })
-    const [sjokart, kulturminner, turruteRoutes, n50StiLinjer, n50Areal] = await Promise.all([
+    const [sjokart, kulturminner, turruteRoutes, n50StiLinjer, n50Areal, n50Rivers] = await Promise.all([
       budsjett(sjokartPromise, { ...EMPTY_SJOKART, timedOut: true }, 'Sjøkart (restbudsjett)'),
       budsjett(kulturminneP, [], 'Kulturminner (restbudsjett)'),
       budsjett(turruteP, [], 'Turrutebasen (restbudsjett)',
@@ -690,6 +706,8 @@ export async function buildMapFromCenter({
         () => { n50StiStatus = { state: 'feil', message: 'svarte ikke innen restbudsjettet' } }),
       budsjett(n50ArealP, [], 'N50-areal (restbudsjett)',
         () => { n50ArealStatus = { state: 'feil', message: 'svarte ikke innen restbudsjettet' } }),
+      budsjett(n50VannP, [], 'N50-vann (restbudsjett)',
+        () => { n50VannStatus = { state: 'feil', message: 'svarte ikke innen restbudsjettet' } }),
     ])
     const sjokartElements = sjokartToElements(sjokart)
     // Merkede fotruter, tynnet mot OSM-ferdselslinjene: ~72 % av Turrutebasen
@@ -711,7 +729,7 @@ export async function buildMapFromCenter({
     // avgjøre dekning, og myr er ikke vann — men rekkefølgen holder listene
     // forutsigbare, og arealMerge rører kun `natural=wetland`.
     const osmElements = slaaSammenAreal({ osm: osmData.elements, n50Areal })
-    const elements = slaaSammenVann({ osm: osmElements, n50Water, nveLakes })
+    const elements = slaaSammenVann({ osm: osmElements, n50Water, nveLakes, n50Rivers })
     if (sjokartElements.length > 0) elements.push(...sjokartElements)
     if (turruteElements.length > 0) elements.push(...turruteElements)
     if (n50StiElements.length > 0) elements.push(...n50StiElements)
@@ -719,6 +737,7 @@ export async function buildMapFromCenter({
     const sourceParts = ['OSM']
     if (n50Water.length > 0) sourceParts.push(`N50/NVE-innsjø (${n50Water.length} vann${n50HasSea ? ', m/sjø' : ''})`)
     if (nveLakes.length > 0) sourceParts.push(`NVE (${nveLakes.length} innsjø)`)
+    if (n50Rivers.length > 0) sourceParts.push(`N50-elv (${n50Rivers.length} elveflater)`)
     if (sjokartElements.length > 0) sourceParts.push(`Sjøkart (${sjokartElements.length} dybde-features)`)
     if (turruteElements.length > 0) sourceParts.push(`Turrutebasen (${turruteElements.length} rutestrekk)`)
     if (n50StiElements.length > 0) sourceParts.push(`N50-sti (${n50StiElements.length} strekk)`)
@@ -764,6 +783,7 @@ export async function buildMapFromCenter({
       nveInnsjoStatus,               // NVE-innsjø-utfall → meta (Utvikler-fanen)
       turruteStatus,                 // Turrutebasen-utfall → meta (Utvikler-fanen)
       n50StiStatus,                  // N50-sti-utfall → meta (Utvikler-fanen)
+      n50VannStatus,                 // N50-elveflate-utfall → meta (Utvikler-fanen)
       kulturminner,
       // Tetthets-beslutningen: styrer klynge-avstander, hvilke støy-lag som
       // droppes og navne-takene. 'full' = byte-identisk med før.

@@ -92,8 +92,15 @@ export function ytreRinger(elementer, { inkluderWays = true } = {}) {
 /**
  * Hva inneholder den autoritative kilden faktisk?
  *
+ * `harElveflate` kom til i v7.9.0 med N50-elveflatene, og den er avledet på
+ * nøyaktig samme måte som de tre andre — av INNHOLDET, ikke av at kilden
+ * svarte. Det er hele lærdommen fra v5.18.3: da kilden ble lagt om fra hele
+ * N50-vannstacken til NVE Innsjødatabasen, beholdt flaggene navnene sine og
+ * konsumentene sin oppførsel, og OSM-bekkene ble undertrykt av en kilde uten
+ * én eneste bekk å erstatte dem med.
+ *
  * @param {Array} kilde  elementene kilden leverte (N50-vann / NVE-innsjø)
- * @returns {{harSjo: boolean, harInnsjo: boolean, harBekk: boolean}}
+ * @returns {{harSjo: boolean, harInnsjo: boolean, harBekk: boolean, harElveflate: boolean}}
  */
 export function vannKildeFlagg(kilde) {
   const els = kilde ?? []
@@ -101,6 +108,7 @@ export function vannKildeFlagg(kilde) {
     harSjo: els.some(el => el.tags?.water === 'sea' || el.tags?.salt === 'yes'),
     harInnsjo: els.some(el => el.tags?.natural === 'water' && el.tags?.salt !== 'yes'),
     harBekk: els.some(el => el.tags?.waterway === 'stream' || el.tags?.waterway === 'ditch'),
+    harElveflate: els.some(el => isFlowingWaterArea(el.tags ?? {})),
   }
 }
 
@@ -116,10 +124,16 @@ const dekketAv = (el, ringer) => {
 // innsjø-flater, Sjøkart) er foretrukket der de finnes, men de dekker bare
 // deler av vann-stacken:
 //   • Saltvann → behold kun hvis kilden ikke har sjø (ellers er den autoritativ).
-//   • Elve-/kanal-/bekke-FLATER (isFlowingWaterArea) → behold ALLTID. Dette er
-//     regresjons-vakten: uten den droppes brede elver (Drammenselva, tagget
-//     natural=water+water=river) så snart NVE/N50 returnerer ferskvann, og det
-//     som står igjen er bare den hårtynne waterway=river-senterlinja (304).
+//   • Elve-/kanal-/bekke-FLATER (isFlowingWaterArea) → behold, UNNTATT der en
+//     kilde med ekte elveflater dekker dem (`n50ElvRings`). Fram til v7.9.0 sto
+//     det «behold ALLTID», og det var riktig så lenge: NVE Innsjødatabasen har
+//     ingen elver, så en undertrykkelse der ville droppet brede elver
+//     (Drammenselva, tagget natural=water+water=river) og latt bare den
+//     hårtynne waterway=river-senterlinja (304) stå igjen. Regelen var aldri
+//     «elveflater er hellige» — den var «kilden er autoritativ for DET DEN
+//     LEVERER». N50 Arealdekke leverer 21 313 elveflater, og da gjelder samme
+//     per-flate-dekningstest som for innsjøene. Uten ringene oppfører den seg
+//     nøyaktig som før.
 //   • Innsjø-flate → undertrykk KUN der kilden faktisk har en innsjø som dekker
 //     flata (sentroiden ligger i en kilde-ring). NVEs respons er ofte
 //     UFULLSTENDIG (ArcGIS-record-cap returnerer bare de første N flatene i
@@ -136,10 +150,11 @@ const dekketAv = (el, ringer) => {
 export function filterOsmWaterElements(elements, flags = {}) {
   const {
     n50HasSea = false, n50HasStreams = false,
-    nveLakeRings = null, n50WaterRings = null,
+    nveLakeRings = null, n50WaterRings = null, n50ElvRings = null,
   } = flags
   const nveRings = Array.isArray(nveLakeRings) ? nveLakeRings : null
   const n50Rings = Array.isArray(n50WaterRings) ? n50WaterRings : null
+  const elvRings = Array.isArray(n50ElvRings) ? n50ElvRings : null
   return (elements ?? []).filter(el => {
     const tags = el.tags ?? {}
     const isWaterPolygon = tags.natural === 'water' || !!tags.water ||
@@ -147,8 +162,9 @@ export function filterOsmWaterElements(elements, flags = {}) {
                            tags.place === 'sea' || tags.place === 'ocean'
     if (isWaterPolygon) {
       if (isOsmWaterSalty(tags)) return !n50HasSea
-      // Elveløp som flate — verken NVE eller N50 har den, så aldri undertrykk.
-      if (isFlowingWaterArea(tags)) return true
+      // Elveløp som flate: undertrykk KUN der en kilde med ekte elveflater
+      // dekker den. Uten `n50ElvRings` er dette «behold alltid», som før.
+      if (isFlowingWaterArea(tags)) return !dekketAv(el, elvRings)
       // N50 (FGB) er autoritativ DER den har innsjøen, og har de riktige øy-
       // hullene. Overlappende OSM-innsjø (også NAVNGITT, f.eks. Setten) droppes
       // så den hull-løse OSM-kopien ikke males opakt over øya (Kolstadøya).
@@ -174,17 +190,25 @@ export function filterOsmWaterElements(elements, flags = {}) {
  * Slå sammen OSM-vann med de autoritative kildene. ÉN funksjon for begge
  * pipelinene — appen og headless skal produsere samme vann av samme data.
  *
- * @param {{osm: Array, n50Water?: Array, nveLakes?: Array}} arg
- *   osm       alle OSM-elementer (ikke bare vann — resten passerer uberørt)
- *   n50Water  N50/NVE-innsjø-flater (fetchN50Water)
- *   nveLakes  NVE-innsjøer fra identify-fallbacken (fetchNveLakePolygons)
+ * @param {{osm: Array, n50Water?: Array, nveLakes?: Array, n50Rivers?: Array}} arg
+ *   osm        alle OSM-elementer (ikke bare vann — resten passerer uberørt)
+ *   n50Water   N50/NVE-innsjø-flater (fetchN50Water)
+ *   nveLakes   NVE-innsjøer fra identify-fallbacken (fetchNveLakePolygons)
+ *   n50Rivers  N50-elveflater fra de bakte flisene (fetchN50Vann)
  * @returns {Array} elementlista, klar for buildSvg
  */
-export function slaaSammenVann({ osm = [], n50Water = [], nveLakes = [] }) {
+export function slaaSammenVann({ osm = [], n50Water = [], nveLakes = [], n50Rivers = [] }) {
   const flagg = vannKildeFlagg(n50Water)
   const n50WaterRings = ytreRinger(n50Water)
   // Se ytreRinger: NVE-ringene hentes bare fra relations, som i appen.
   const nveLakeRings = ytreRinger(nveLakes, { inkluderWays: false })
+  // Elveringene er EGNE og blandes ikke inn i n50WaterRings. De to
+  // undertrykker hver sin ting — elveflater mot innsjøflater — og en felles
+  // liste ville latt en elv drepe en innsjø ved sitt eget utløp, og omvendt.
+  // `harElveflate` er porten: har kilden ingen elveflater, sendes ingen ringer,
+  // og «behold alltid»-oppførselen fra før v7.9.0 står.
+  const elvFlagg = vannKildeFlagg(n50Rivers)
+  const n50ElvRings = elvFlagg.harElveflate ? ytreRinger(n50Rivers) : null
 
   // `harInnsjo` mates BEVISST ikke inn: for innsjø-flater er det DEKNINGEN
   // (ringene) som avgjør, ikke om kilden har innsjøer i det hele tatt.
@@ -193,6 +217,7 @@ export function slaaSammenVann({ osm = [], n50Water = [], nveLakes = [] }) {
     n50HasStreams: flagg.harBekk,
     nveLakeRings,
     n50WaterRings,
+    n50ElvRings,
   })
   if (n50Water.length) ut.push(...n50Water)
   // NVE-innsjøer som N50 alt dekker droppes (N50 har de korrekte øy-hullene).
@@ -200,5 +225,9 @@ export function slaaSammenVann({ osm = [], n50Water = [], nveLakes = [] }) {
     ? nveLakes.filter(l => !dekketAv(l, n50WaterRings))
     : nveLakes
   if (nveBeholdt.length) ut.push(...nveBeholdt)
+  // Elveflatene legges til SIST, og de filtreres ikke mot innsjø-kildene:
+  // bekke- og elveLINJENE fra OSM står urørt uansett (de er 304, ikke flater),
+  // og det er nettopp de smale løpene N50 ikke har som flate.
+  if (n50Rivers.length) ut.push(...n50Rivers)
   return ut
 }

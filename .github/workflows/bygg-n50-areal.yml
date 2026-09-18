@@ -1,7 +1,13 @@
 name: Bygg N50-arealdekke
 
-# Baker N50 arealdekke (myr, skog, isbre) til statiske fliser i
-# public/data/n50-areal/ og committer dem tilbake til branchen.
+# Baker N50-flater til statiske fliser og committer dem tilbake til branchen.
+# TO GRUPPER MED HVER SIN KATALOG, og én kjøring kan ikke blande dem:
+#   myr, skog, isbre  → public/data/n50-areal/
+#   innsjo, elv       → public/data/n50-vann/
+# Scriptet kaster på en blandet «typer». Grunnen er at manifestet er klientens
+# cache-nøkkel: en felles katalog ville gitt hver areal-flis ny nøkkel hver
+# gang vannet ble bakt, og sendt alle brukere ut i 117 MB nedlasting for
+# flater som ikke hadde endret seg.
 #
 # «typer» ER GRUNNEN TIL AT SKOGEN MANGLET. Bake-scriptet kunne bære skog fra
 # første dag, men `--typer` sto på sin default `myr` og denne workflowen hadde
@@ -50,7 +56,7 @@ on:
         required: false
         default: ''
       typer:
-        description: 'Hvilke arealtyper: myr, skog, isbre (komma­separert). Tomt = alle tre. Bare med «bare mål»: innsjo, elv (vann måles, bakes aldri).'
+        description: 'Areal: myr, skog, isbre (tomt = alle tre). Vann: innsjo, elv — egen katalog, kan IKKE blandes med areal i samme kjøring.'
         required: false
         default: ''
       minareal:
@@ -115,9 +121,17 @@ jobs:
       - name: Vis resultatet
         if: inputs.bare_mal != true
         run: |
-          du -sh public/data/n50-areal
-          ls public/data/n50-areal | head -5
-          echo "… $(ls public/data/n50-areal | wc -l) filer totalt"
+          # Samme regel som scriptet: nevner «typer» en vann-type, er det en
+          # vann-bake. Scriptet har alt kastet på en blandet liste, så det
+          # finnes ikke et tredje svar her.
+          case "${{ inputs.typer }}" in
+            *innsjo*|*elv*) KAT=n50-vann ;;
+            *)              KAT=n50-areal ;;
+          esac
+          echo "KAT=$KAT" >> "$GITHUB_ENV"
+          du -sh "public/data/$KAT"
+          ls "public/data/$KAT" | head -5
+          echo "… $(ls "public/data/$KAT" | wc -l) filer totalt"
 
       - name: Commit hvis endret
         if: inputs.bare_mal != true
@@ -125,14 +139,14 @@ jobs:
           set -e
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add public/data/n50-areal
+          git add "public/data/$KAT"
           # Bare commit ved REELL endring — en tom commit ville tvunget alle
           # brukere til å laste ned flisene på nytt uten grunn.
           if git diff --staged --quiet; then
-            echo "Ingen endring i N50-arealflisene"
+            echo "Ingen endring i N50-flisene ($KAT)"
           else
             git -c commit.gpgsign=false commit \
               --author="Deploy <deploy@lende>" \
-              -m "N50-arealdekke (auto-generert fra Kartverket N50 Arealdekke)"
+              -m "N50 $KAT (auto-generert fra Kartverket N50 Arealdekke)"
             git push origin HEAD:${GITHUB_REF_NAME}
           fi

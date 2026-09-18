@@ -1,6 +1,13 @@
 #!/usr/bin/env node
-// Baker N50 arealdekke-FLATER (myr, skog, isbre) til statiske fliser i
-// public/data/n50-areal/, og isbre-NAVN til isbrenavn.json ved siden av dem.
+// Baker N50 arealdekke-FLATER til statiske fliser, og isbre-NAVN til
+// isbrenavn.json ved siden av dem.
+//
+// TO GRUPPER MED HVER SIN KATALOG (v7.9.0), og kjøringen kan ikke blande dem:
+//   myr, skog, isbre   → public/data/n50-areal/
+//   innsjo, elv        → public/data/n50-vann/
+// Begrunnelsen står ved VANN_TYPER under — kort: manifestet er klientens
+// cache-nøkkel, så en blandet bake ville sendt hver bruker ut i en full
+// nedlasting av flater som ikke hadde endret seg.
 //
 // ── Hvorfor dette finnes ───────────────────────────────────────────────────
 // Samme diagnose som stinettet, bare for arealdekke: OSM er tynt i norsk
@@ -38,6 +45,7 @@
 //
 // Kjør:  node scripts/bygg-n50-areal.mjs [--fylke 33] [--typer myr,skog,isbre]
 //                                        [--toleranse 4] [--minareal 2500] [--mal]
+//        node scripts/bygg-n50-areal.mjs [--fylke 33] --typer elv
 
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, statSync, statfsSync, createReadStream, readdirSync, existsSync } from 'node:fs'
 import { createInterface } from 'node:readline'
@@ -65,24 +73,35 @@ const BARE_MAL = args.includes('--mal')
 // stående etter at spørsmålet var besvart — det er den ene grunnen til at
 // skogen aldri kom med. En default som representerer et ferdig avklart
 // mellomsteg er en felle; nå må man be om mindre, ikke om mer.
-// MÅLE-TYPER — vann. Innsjø og Elv ligger i SAMME lag og samme nedlasting som
+// VANN-TYPER — innsjø og elv. De ligger i SAMME lag og samme nedlasting som
 // myr og skog (N50_Arealdekke_omrade er en flatedeling: innsjøen er hullet i
-// myra rundt), så baken kan MÅLE dem uten én linje ny henting. Men de har
-// ingen plass i flis-formatet (TYPER) og ingen klient som leser dem, og godtas
-// derfor BARE med --mal. En bake som skrev dem ville lagt «annet»-flater i
-// public/ som ingen tegner. Tallene er hele leveransen — se
-// docs/VANN_VURDERING.md.
-export const MAL_TYPER = Object.freeze(['innsjo', 'elv'])
-const ALLE_TYPER = [...TYPER, ...MAL_TYPER]
+// myra rundt), så baken bærer dem uten én linje ny henting. Fram til v7.9.0 var
+// de MÅLE-typer som bare `--mal` godtok; nå bakes de, men til SIN EGEN KATALOG.
+//
+// TO GRUPPER, TO KATALOGER, OG EN KJØRING KAN IKKE BLANDE DEM. Grunnen er
+// manifestet: det er ÉN fil per katalog, det lister hvilke typer flisene der
+// bærer, og det er samtidig klientens cache-nøkkel (n50FlisNokkel). En bake som
+// skrev vann inn i n50-areal/ ville derfor gitt hver eneste areal-flis en ny
+// nøkkel — og sendt hver bruker ut i 117 MB nedlasting for flater som ikke
+// hadde endret seg. Skillet står her, i valideringen, og ikke som en kommentar
+// den som kjører jobben må huske.
+export const VANN_TYPER = Object.freeze(['innsjo', 'elv'])
+const ALLE_TYPER = [...TYPER]
+const erVannType = (t) => VANN_TYPER.includes(t)
 
 const TYPER_VALGT = new Set(
   (argVal('--typer') ?? 'myr,skog,isbre').split(',').map(t => t.trim()).filter(Boolean))
 for (const t of TYPER_VALGT) {
-  if (MAL_TYPER.includes(t)) {
-    if (!BARE_MAL) throw new Error(`«${t}» kan bare MÅLES (--mal): flis-formatet har ingen plass til vann, og ingen klient leser det`)
-    continue
-  }
-  if (!TYPER.includes(t)) throw new Error(`Ukjent type «${t}» — gyldige: ${TYPER.join(', ')} (bare måling: ${MAL_TYPER.join(', ')})`)
+  if (!TYPER.includes(t)) throw new Error(`Ukjent type «${t}» — gyldige: ${TYPER.join(', ')}`)
+}
+const valgteTyper = [...TYPER_VALGT]
+const ER_VANN = valgteTyper.some(erVannType)
+if (ER_VANN && valgteTyper.some(t => !erVannType(t))) {
+  throw new Error(
+    `Kan ikke bake vann og arealdekke i samme kjøring: ${valgteTyper.join(', ')}. `
+    + 'De skriver hver sin katalog med hvert sitt manifest, og manifestet er '
+    + 'klientens cache-nøkkel — en blandet bake ville gitt alle areal-flisene '
+    + 'ny nøkkel uten at innholdet endret seg. Kjør dem hver for seg.')
 }
 
 /**
@@ -133,7 +152,11 @@ const TOLERANSE = medStandard(argVal('--toleranse'), STANDARD_TOLERANSE)
 const MIN_AREAL = medStandard(argVal('--minareal'), STANDARD_MINAREAL)
 
 const ROT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const UT_KATALOG = join(ROT, 'public', 'data', 'n50-areal')
+// Katalogen følger GRUPPA, ikke et flagg: valideringen over har alt slått fast
+// at kjøringen er enten vann eller arealdekke, så det finnes ikke et tredje
+// svar her.
+const KATALOG = ER_VANN ? 'n50-vann' : 'n50-areal'
+const UT_KATALOG = join(ROT, 'public', 'data', KATALOG)
 const NAVN_FIL = 'isbrenavn.json'
 
 const log = (...a) => console.log(...a)
@@ -176,9 +199,10 @@ const OBJTYPE = {
   snoisbre: 'isbre',
   isbre: 'isbre',
   bre: 'isbre',
-  // Vann — BARE MÅLING (MAL_TYPER), og klassifiseres bare når de er bedt om.
-  // Havflate og FerskvannTørrfall står bevisst utenfor: sjøen kommer fra
-  // DEM/Sjøkart, og et tørrfall er ikke vann.
+  // Vann (VANN_TYPER) — klassifiseres bare når de er bedt om, og bakes til sin
+  // egen katalog. Havflate og FerskvannTørrfall står bevisst utenfor: sjøen
+  // kommer fra DEM-en og Sjøkart og er FINERE der enn N50 i 1:50 000, og et
+  // tørrfall er ikke vann.
   innsjø: 'innsjo',
   innsjøregulert: 'innsjo',
   elv: 'elv',
@@ -500,7 +524,7 @@ if (import.meta.url === (process.argv[1] ? `file://${process.argv[1]}` : '')) {
     const navnListe = [...breNavn.values()].sort((a, b) => a.navn.localeCompare(b.navn, 'no'))
 
     log('')
-    log('── N50-arealdekke ─────────────────────────')
+    log(`── N50-${ER_VANN ? 'vann' : 'arealdekke'} ─────────────────────────`)
     for (const t of valgte) {
       const s = perType[t]
       log(`  ${t.padEnd(6)} ${s.n.toLocaleString('no').padStart(9)} flater, `
@@ -538,7 +562,7 @@ if (import.meta.url === (process.argv[1] ? `file://${process.argv[1]}` : '')) {
         isbreNavn: navnListe.length,
         fliser: [...pakket.keys()].sort(),
       }))
-      log(`\n  Skrev ${pakket.size} fliser${navnListe.length ? ` + ${navnListe.length} isbre-navn` : ''} til public/data/n50-areal/`)
+      log(`\n  Skrev ${pakket.size} fliser${navnListe.length ? ` + ${navnListe.length} isbre-navn` : ''} til public/data/${KATALOG}/`)
     }
     if (feilet && feilet === fylker.length) process.exit(1)
     // En gate som ikke kan feile er verre enn ingen gate. Første kjøring

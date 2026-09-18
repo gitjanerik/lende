@@ -42,7 +42,20 @@ export const KVANT = 1e5
 // 'apen' står fortsatt ubrukt med vilje: når Turkart-bakgrunnen ER den åpne
 // tonen, er åpenhet standardtilstanden, og 112 020 flater som maler bakgrunnen
 // på nytt er ren datamengde. Plassen koster ingenting; baken bestemmer.
-export const TYPER = Object.freeze(['myr', 'skog', 'apen', 'annet', 'isbre'])
+//
+// 'innsjo' og 'elv' kom til i v7.9.0 og ligger derfor bakerst, etter samme
+// regel. De to hører til en ANNEN katalog enn de fem over (public/data/n50-vann/
+// mot n50-areal/) og deler likevel dette formatet — en flate med hull er en
+// flate med hull, og to nesten like kodinger ville vært nøyaktig den gjelden
+// arkitektur-seksjonen i CLAUDE.md finnes for å unngå. Det er BAKEN som
+// bestemmer hvilken katalog en type havner i, og manifestet i hver katalog
+// sier hvilke typer flisene der faktisk bærer.
+//
+// Bare 'elv' bakes i dag. 'innsjo' står her fordi plassen er gratis og
+// rekkefølgen er uopprettelig: skulle innsjøene bakes senere, ville de ellers
+// måttet legges til BAK en type som kom imellom, og en klient fra i dag ville
+// lest dem som noe annet. Formatet er lukket for omordning, ikke for framtid.
+export const TYPER = Object.freeze(['myr', 'skog', 'apen', 'annet', 'isbre', 'innsjo', 'elv'])
 
 export function typeIndeks(navn) {
   const i = TYPER.indexOf(navn)

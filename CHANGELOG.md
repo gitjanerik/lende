@@ -1,3 +1,32 @@
+## 2026-09-18 — v7.9.0: N50-elveflater — 1 239 km² elv OSM bare har sporadisk
+
+Kartverkets N50 Arealdekke bærer 21 313 elveflater, og de er nå bakt til
+statiske fliser i `public/data/n50-vann/` med sitt eget manifest. Elveløp bredere
+enn en strek er det OSM er tynnest på i norsk utmark, og det er samtidig det en
+fisker og en som skal krysse trenger å se formen på. Prisen er målt og lav: 3,9
+MB på disk (3,5 gzip), 185 fliser, største flis 71 KB — mot 2,4 MB for den
+største areal-flisen. Innsjøene er BEVISST utelatt fra baken selv om de har fått
+plass i formatet: de ville tatt 89 % av kostnaden uten å gi ny informasjon, siden
+NVE live allerede ER N50-geometrien.
+
+Den ene regelen i `vannMerge` som sto som absolutt måtte snus. «Elveflater
+beholdes ALLTID» var regresjons-vakten fra v5.18.3 — uten den forsvant
+Drammenselva så snart NVE svarte. Men regelen var egentlig den samme som alt
+annet i fila: en kilde er autoritativ for DET DEN LEVERER, og NVE leverer ingen
+elver. N50 gjør det, så der gjelder nå samme per-flate-dekningstest som for
+innsjøene. Elveringene holdes atskilt fra innsjøringene, ellers ville en elv
+drept innsjøen ved sitt eget utløp. Bekke- og elvelinjene fra OSM står urørt.
+
+Baken har dermed to grupper med hver sin katalog, og en kjøring kan ikke blande
+dem — manifestet er klientens cache-nøkkel, så en felles katalog ville sendt hver
+bruker ut i 117 MB nedlasting hver gang vannet ble bakt. Samme skille avdekket en
+landmine på klientsiden: manifest-løftet i `n50ArealFetcher` var én modul-global
+slot, så den andre katalogen ville fått den førstes flisliste tilbake, uten å
+kaste og med et symptom som ser ut som manglende data. Den er nøklet på
+`basePath` nå, og testen er verifisert i begge retninger.
+
+---
+
 ## 2026-09-18 — v7.8.39: Saturns ringer var usynlige — en enhetsfeil i shaderen
 
 Ringene rundt Saturn-globen har aldri vært synlige, og årsaken var verken geometrien, orienteringen eller materialet — de var alle riktige, og `harRinger` sto sann hele veien. Fragmentshaderen sammenliknet avstanden fra sentrum, som er i scene-enheter (rundt 1 500–2 800 med den radien 3D-scenen bygger globen med), mot innerkant og ytterkant oppgitt i planetradier (1,24 og 2,27). Det gjorde den normaliserte radien rundt 1 471 i stedet for mellom 0 og 1, ytterkanten av tetthets-rampa slo inn i hvert eneste fragment, og alfa ble null overalt. Symptomet er identisk med feilen som ble rettet i v6.5.4 — Saturn uten ringer — men årsaken er en helt annen, og den forrige fiksen var riktig. Planetradien er nå en uniform shaderen deler på. To tester dekker det: at geometriens radier delt på den lander nøyaktig på tallene shaderen sammenlikner dem med, og at linja som regner radien faktisk nevner uniformen — uten den siste halvdelen er testen grønn også når normaliseringen fjernes igjen. I «Om Lende» sto det dessuten at nordlysvarselet er det ene laget som ikke pakkes med i en offline-fil; værvarselet pakkes heller ikke, og teksten sier nå at begge trenger dekning der og da. Samme leveranse bærer målingene bak N50-vann-spørsmålet i `docs/VANN_VURDERING.md`, uten å røre kartet: `scripts/probe-n50-vann.mjs` (workflow `probe-n50-vann.yml`) måler i CI hvor NVE-innsjøen ligger mot rå N50 og mot DTM-ens flate innsjøspeil, om N50-vannet deler hjørner med myr- og skogflatene i samme leveranse, hva Innsjø og Elv koster pakket i appens eget flis-format per toleranse, og hva mer detalj i OSM-lagene koster i byte per hjørne på et ekte ark. Areal-baken har fått måle-typene `innsjo` og `elv`, som bare godtas sammen med «bare mål» — vann skal måles, ikke bakes, før tallene er lest.

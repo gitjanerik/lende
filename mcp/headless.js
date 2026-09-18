@@ -12,7 +12,7 @@ import { slaaSammenVann } from '../src/lib/vannMerge.js'
 import { slaaSammenAreal } from '../src/lib/arealMerge.js'
 import { fetchTurruteRoutes, turruteElementsFrom } from '../src/lib/turrutebasenFetcher.js'
 import { fetchN50StiLinjer, n50StiElementerFra } from '../src/lib/n50StiFetcher.js'
-import { fetchN50Areal } from '../src/lib/n50ArealFetcher.js'
+import { fetchN50Areal, fetchN50Vann } from '../src/lib/n50ArealFetcher.js'
 import { utm32BboxFromWgs84 } from '../src/lib/utm.js'
 import { parsePathSubpaths } from '../src/lib/pathUtils.js'
 import { ROUTABLE_CODES, BARRIER_CODES } from '../src/lib/routing.js'
@@ -92,13 +92,29 @@ export function n50StiKilde(eksplisitt) {
  * så uten en eksplisitt URL fra kalleren bygges kartet uten N50-myr. Stille.
  */
 export function n50ArealKilde(eksplisitt) {
+  return n50FlisKilde(eksplisitt, 'n50-areal')
+}
+
+/**
+ * Samme tre-trinns valg mot VANN-flisene (elveflater). Egen katalog fordi
+ * manifestet er klientens cache-nøkkel — se VANN_TYPER i
+ * scripts/bygg-n50-areal.mjs.
+ */
+export function n50VannKilde(eksplisitt) {
+  return n50FlisKilde(eksplisitt, 'n50-vann')
+}
+
+// Delt mekanikk for begge katalogene. Den lå i to nesten like kopier for sti og
+// areal; en tredje kopi for vann ville vært den dupliseringen CLAUDE.md sin
+// gjeld-seksjon ber om å stoppe FØR den skrives.
+function n50FlisKilde(eksplisitt, katalog) {
   let basePath = eksplisitt
   if (!basePath) {
     try {
       const her = import.meta.url
       if (her) {
         basePath = pathToFileURL(
-          join(dirname(fileURLToPath(her)), '..', 'public', 'data', 'n50-areal') + '/').href
+          join(dirname(fileURLToPath(her)), '..', 'public', 'data', katalog) + '/').href
       }
     } catch { basePath = null }
   }
@@ -149,13 +165,14 @@ export function demResolutionForArea(utmBbox, maxCells = DEM_MAX_CELLS) {
  *          detaljNivaa?:string, tetthetAv?:boolean, n50StiBase?:string}} opts
  *   n50StiBase — hvor N50-sti-flisene ligger. Uten filsystem (Cloudflare-
  *   Workeren) MÅ denne settes, ellers bygges kartet uten N50-stier. Se
- *   n50StiKilde. `n50ArealBase` gjør det samme for myr-flisene.
+ *   n50StiKilde. `n50ArealBase` og `n50VannBase` gjør det samme for
+ *   areal-flisene (myr, skog, isbre) og vann-flisene (elveflater).
  * @returns {Promise<{svg:string, counts:object, meta:object, dem:object, bbox:object,
  *                    halfKm:number, tetthet:object|null}>}
  */
 export async function buildMapHeadless({
   lat, lon, halfKm, equidistanceM, detaljNivaa: eksplisittNivaa, tetthetAv = false,
-  n50StiBase, n50ArealBase,
+  n50StiBase, n50ArealBase, n50VannBase,
 }) {
   let effHalfKm = halfKm
   let bbox = bboxFromCenter(lat, lon, effHalfKm)
@@ -195,7 +212,8 @@ export async function buildMapHeadless({
   let n50StiStatus = null
 
   let n50ArealStatus = null
-  const [overpass, n50Water, dem, turruteRoutes, n50StiLinjer, n50Areal] = await Promise.all([
+  let n50VannStatus = null
+  const [overpass, n50Water, dem, turruteRoutes, n50StiLinjer, n50Areal, n50Rivers] = await Promise.all([
     fetchOverpass(bbox),
     fetchN50Water(bbox).catch(() => []),
     // DEM + samme hull-reparasjon som appen gjør (createMapFlow →
@@ -244,6 +262,15 @@ export async function buildMapHeadless({
       return fetchN50Areal(bbox, { ...kilde, onStatus: s => { n50ArealStatus = s } })
         .catch(() => [])
     })(),
+    // N50-elveflater. Samme kilde-regel og samme stillhets-felle: uten en
+    // eksplisitt base fra kalleren har Workeren ingen vei til flisene, og
+    // MCP-bygde kart ville mistet elveflatene uten et ord i loggen.
+    (() => {
+      const kilde = n50VannKilde(n50VannBase)
+      if (!kilde) return Promise.resolve([])
+      return fetchN50Vann(bbox, { ...kilde, onStatus: s => { n50VannStatus = s } })
+        .catch(() => [])
+    })(),
   ])
 
   // Vann-stacken slås sammen med SAMME kode som appen (lib/vannMerge.js).
@@ -258,7 +285,7 @@ export async function buildMapHeadless({
   // Arealdekke slås sammen med SAMME kode som appen (lib/arealMerge.js) — delt
   // fra første linje, nettopp fordi vann-stacken viste hva to varianter koster.
   const osmElements = slaaSammenAreal({ osm: overpass.elements, n50Areal })
-  const elements = slaaSammenVann({ osm: osmElements, n50Water })
+  const elements = slaaSammenVann({ osm: osmElements, n50Water, n50Rivers })
   const turruteEls = turruteElementsFrom(turruteRoutes, overpass.elements)
   elements.push(...turruteEls)
   elements.push(...n50StiElementerFra(n50StiLinjer, [...overpass.elements, ...turruteEls], n50StiStatus))
@@ -271,6 +298,7 @@ export async function buildMapHeadless({
     // beholdt Turkarts skog-påstand mens appens ikke gjorde det — nøyaktig den
     // typen sprik mellom app og headless som vann-stacken brukte månedsvis på.
     arealDekning: n50ArealStatus?.dekning === true,
+    n50VannStatus,
     detaljNivaa,
     tetthet,
     n50StiStatus,

@@ -24,7 +24,7 @@ const osmFlate = (tags, inni = true) => ({
 describe('vannKildeFlagg — hva kilden faktisk inneholder', () => {
   it('NVE Innsjødatabasen: innsjøer, ingen bekker, ingen sjø', () => {
     expect(vannKildeFlagg([nveInnsjo()])).toEqual({
-      harSjo: false, harInnsjo: true, harBekk: false,
+      harSjo: false, harInnsjo: true, harBekk: false, harElveflate: false,
     })
   })
 
@@ -34,12 +34,22 @@ describe('vannKildeFlagg — hva kilden faktisk inneholder', () => {
       el({ natural: 'water', salt: 'yes' }),
       el({ waterway: 'stream' }),
     ]
-    expect(vannKildeFlagg(kilde)).toEqual({ harSjo: true, harInnsjo: true, harBekk: true })
+    expect(vannKildeFlagg(kilde)).toEqual({
+      harSjo: true, harInnsjo: true, harBekk: true, harElveflate: false,
+    })
+  })
+
+  // Flagget skal komme av INNHOLDET. En kilde som leverer elveflater melder
+  // det selv; en som ikke gjør det, melder det ikke — uansett hva den heter.
+  it('en kilde med elveflater melder harElveflate', () => {
+    expect(vannKildeFlagg([el({ natural: 'water', water: 'river' })]).harElveflate).toBe(true)
+    expect(vannKildeFlagg([el({ natural: 'water', water: 'lake' })]).harElveflate).toBe(false)
   })
 
   it('tom kilde melder ingenting — da er OSM alene autoritativ', () => {
-    expect(vannKildeFlagg([])).toEqual({ harSjo: false, harInnsjo: false, harBekk: false })
-    expect(vannKildeFlagg(null)).toEqual({ harSjo: false, harInnsjo: false, harBekk: false })
+    const ingenting = { harSjo: false, harInnsjo: false, harBekk: false, harElveflate: false }
+    expect(vannKildeFlagg([])).toEqual(ingenting)
+    expect(vannKildeFlagg(null)).toEqual(ingenting)
   })
 })
 
@@ -143,5 +153,54 @@ describe('slaaSammenVann — kilden er autoritativ der den har DEKNING', () => {
     const ut = slaaSammenVann({ osm: [under, utenfor], n50Water: [nveInnsjo()] })
     expect(ut).not.toContain(under)
     expect(ut).toContain(utenfor)
+  })
+})
+
+describe('slaaSammenVann — N50-elveflater (v7.9.0)', () => {
+  // Elveflate fra de bakte flisene: samme form som fetchN50Vann gir dem.
+  const n50Elv = (id = 'n50vann-0') => ({
+    type: 'way', id, _source: 'n50',
+    tags: { natural: 'water', water: 'river', 'lende:n50vann': 'elv' },
+    geometry: ringGeom(10, 60, 10.01, 60.01),
+  })
+
+  it('OSM-elveflata kilden DEKKER droppes — ellers får elva dobbeltkant', () => {
+    const osmElv = osmFlate({ natural: 'water', water: 'river', name: 'Glomma' })
+    const kilde = n50Elv()
+    const ut = slaaSammenVann({ osm: [osmElv], n50Rivers: [kilde] })
+    expect(ut).not.toContain(osmElv)
+    expect(ut).toContain(kilde)
+  })
+
+  it('OSM-elveflater UTENFOR dekningen beholdes — N50 er ikke komplett', () => {
+    const fjern = osmFlate({ natural: 'water', water: 'river' }, false)
+    expect(slaaSammenVann({ osm: [fjern], n50Rivers: [n50Elv()] })).toContain(fjern)
+  })
+
+  // Regresjons-vakten fra v5.18.3, snudd: elveFLATER kan nå undertrykkes, men
+  // bare av en kilde som HAR dem. En innsjø-kilde skal fortsatt ikke røre dem.
+  it('en innsjø-kilde undertrykker fortsatt ingen elveflate', () => {
+    const osmElv = osmFlate({ natural: 'water', water: 'river' })
+    expect(slaaSammenVann({ osm: [osmElv], n50Water: [nveInnsjo()] })).toContain(osmElv)
+  })
+
+  // Det som gjør N50-elvene verdt å ha: de smale løpene finnes bare i OSM, og
+  // en flate-kilde har ingen bekker å erstatte dem med.
+  it('bekke- og elveLINJER står urørt av elveflatene', () => {
+    const bekk = el({ waterway: 'stream' })
+    const elvelinje = el({ waterway: 'river', name: 'Lågen' })
+    const ut = slaaSammenVann({ osm: [bekk, elvelinje], n50Rivers: [n50Elv()] })
+    expect(ut).toContain(bekk)
+    expect(ut).toContain(elvelinje)
+  })
+
+  it('innsjøer røres ikke av en elve-ring som tilfeldigvis dekker dem', () => {
+    const innsjo = osmFlate({ natural: 'water', name: 'Øyeren' })
+    expect(slaaSammenVann({ osm: [innsjo], n50Rivers: [n50Elv()] })).toContain(innsjo)
+  })
+
+  it('uten elveflater i kilden er oppførselen nøyaktig som før v7.9.0', () => {
+    const osm = [osmFlate({ natural: 'water', water: 'river' }), el({ waterway: 'stream' })]
+    expect(slaaSammenVann({ osm, n50Rivers: [] })).toEqual(osm)
   })
 })
