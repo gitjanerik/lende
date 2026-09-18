@@ -54,11 +54,19 @@ ${points}
  * Bygg GPX 1.1 for en PLANLAGT rute (Ruteplanleggeren, v12.1.0) — lat/lon-
  * native, `<rte><rtept>` (semantisk riktig for planlagt tur, i motsetning til
  * `<trk>` som er logget spor; støttes av Garmin/OsmAnd/Calimoto m.fl.).
+ *
+ * `<copyright>` står BARE her og ikke i `buildGpx`: en planlagt rute er avledet
+ * av OSM-data (BRouter ruter på OSM, og Stifinneren på et nett der OSM er en av
+ * kildene), altså et ODbL-verk som skal bære henvisningen videre til klokka det
+ * lastes inn i. Et GPS-spor er brukerens egen måling og har ingenting å
+ * attribuere. Elementet MÅ stå mellom `<name>` og `<time>` — GPX 1.1 sin
+ * metadataType er en `xsd:sequence`, så feil rekkefølge gjør fila ugyldig.
  * @param {{ points: Array<[lon:number, lat:number, ele?:number]>, navn?: string, opprettet?: number }} route
  */
 export function buildRouteGpx(route) {
   if (!route?.points?.length) return ''
-  const created = new Date(route.opprettet ?? Date.now()).toISOString()
+  const opprettet = new Date(route.opprettet ?? Date.now())
+  const created = opprettet.toISOString()
   const name = escapeXml(route.navn || 'Grusrute')
   const pts = route.points.map(([lon, lat, ele]) => {
     const eleTag = Number.isFinite(ele) ? `\n      <ele>${ele.toFixed(1)}</ele>` : ''
@@ -73,6 +81,10 @@ export function buildRouteGpx(route) {
      xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
   <metadata>
     <name>${name}</name>
+    <copyright author="OpenStreetMap contributors">
+      <year>${opprettet.getUTCFullYear()}</year>
+      <license>https://opendatacommons.org/licenses/odbl/1-0/</license>
+    </copyright>
     <time>${created}</time>
   </metadata>
   <rte>

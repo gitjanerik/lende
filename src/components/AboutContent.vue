@@ -333,12 +333,18 @@ async function onInstallClick() {
             <li><strong class="text-ink">Høydekurver</strong> beregnes fra Kartverkets
               høydemodell (WCS DTM) med d3-contour, glattet med Chaikin og forenklet
               med Douglas–Peucker.</li>
-            <li><strong class="text-ink">Vegetasjon</strong> klassifiseres fra
-              canopy-høyden (DOM − DTM) — skog, åpen mark og tett vegetasjon skilles
-              ut av selve trehøyden, ikke bare av kart-tags.</li>
-            <li><strong class="text-ink">Stier, veier og bygg</strong> hentes fra
-              OpenStreetMap (Overpass), <strong class="text-ink">vann og kyst</strong>
-              fra DEM-en, N50 og Sjøkart.</li>
+            <li><strong class="text-ink">Vegetasjon</strong> kommer fra
+              <strong class="text-ink">N50 Arealdekke</strong> — skog, myr og isbre
+              bakt til statiske fliser — supplert med OpenStreetMap. Bærer arket
+              ekte N50-skog, males bakgrunnen som åpen mark; ellers hevder
+              Turkart-temaet skog i bakgrunnen.</li>
+            <li><strong class="text-ink">Stier og veier</strong> hentes fra tre
+              kilder: OpenStreetMap (Overpass, live), Kartverkets
+              <strong class="text-ink">Turrutebasen</strong> for merkede fotruter,
+              og <strong class="text-ink">N50 Samferdsel</strong>, som er bakt til
+              statiske fliser fordi OSM er tynt i norsk utmark. Bygg kommer fra
+              OpenStreetMap; <strong class="text-ink">vann og kyst</strong> fra
+              DEM-en, NVE Innsjødatabasen, N50 og Sjøkart.</li>
             <li>Alt symboliseres via en datadrevet ISOM-katalog og rendres som ett
               skalerbart SVG med zoom-trappet detaljnivå og togglebare kartlag.</li>
           </ul>
@@ -527,7 +533,11 @@ async function onInstallClick() {
             <li>Sti- og veinettet bygges til en graf med <strong class="text-ink">graphology</strong>
               og korteste vei beregnes over den.</li>
             <li><strong class="text-ink">BRouter</strong> gir grus-vennlig ruting der
-              nettet er godt kartlagt, med et grus-overlegg som farger underlaget.</li>
+              nettet er godt kartlagt, med et grus-overlegg som farger underlaget.
+              Dette er den ene funksjonen i appen som spør en tredjepart: start-,
+              via- og målpunktene sendes til <em>brouter.de</em> når du ber om en
+              rute. Selve profilen (hvor gjerne ruten velger grus) er vår egen og
+              lastes opp med forespørselen.</li>
             <li>Høydeprofilen leses ut av samme DEM som turkartet, og hele ruten kan
               gjøres om til et turkart sentrert på strekket.</li>
           </ul>
@@ -544,10 +554,18 @@ async function onInstallClick() {
         Bygget med <strong class="text-ink">Vue 3</strong>, <strong class="text-ink">Vite</strong>
         og <strong class="text-ink">Tailwind CSS</strong>. Kartgeometri behandles med
         d3-contour, polygon-clipping og graphology. Appen kjører fullt og helt i
-        nettleseren som en installerbar PWA — ingen egen server, ingen konto.
+        nettleseren som en installerbar PWA — ingen konto og ingen database hos oss.
+        Kartdata hentes direkte fra kildene, og ruteberegningen i Ruteplanleggeren
+        går til BRouter (brouter.de); en liten Cloudflare-Worker står foran NVE,
+        Kulturminnesøk og MET fordi de krever nøkkel, CORS eller en identifiserende
+        klient.
       </p>
       <div class="text-[12px] leading-relaxed text-ink-3 space-y-1 pt-1 border-t border-ink/10">
-        <p>Kartdata © <strong class="text-ink-2">OpenStreetMap</strong>-bidragsytere (ODbL).</p>
+        <p>Kartdata © <strong class="text-ink-2">OpenStreetMap</strong>-bidragsytere (ODbL).
+          Ruter fra Ruteplanleggeren er avledet av de samme dataene og deles på
+          samme vilkår — GPX-filene bærer henvisningen.</p>
+        <p>Ruteberegning: <strong class="text-ink-2">BRouter</strong> (brouter.de),
+          MIT-lisens, drevet på donasjoner.</p>
         <p>Høydemodell, N50 og sjøkart: <strong class="text-ink-2">Kartverket</strong> (NLOD / CC BY 4.0).</p>
         <p>Værvarsel: <strong class="text-ink-2">MET Norway</strong> (NLOD 2.0 / CC BY 4.0).</p>
         <p>Nordlysvarsel, Kp-indeks og solvind:

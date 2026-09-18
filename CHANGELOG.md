@@ -1,3 +1,32 @@
+## 2026-09-18 — v7.8.36: «Om appen» sa feil om vegetasjon og kilder, og rute-GPX-en manglet ODbL
+
+Tre linjer i «Om appen» beskrev en app som ikke finnes lenger. Den verste var
+vegetasjonen: «klassifiseres fra canopy-høyden (DOM − DTM) … ut av selve
+trehøyden». `canopyHeight.js` ble slettet i v2.3.0 med begrunnelsen «ga aldri
+synlig skog-nyanse», og vegetasjonen har siden kommet fra N50 Arealdekke-baken
+pluss OSM. Den andre var kildelinja for stier og veier, som bare nevnte
+OpenStreetMap — Turrutebasen kom inn i v5.0.2 og N50 Samferdsel-baken like
+etter, nettopp fordi OSM er tynt i norsk utmark, og en bruker som lurer på hvor
+den prikkete stien kommer fra fikk feil svar. Den tredje var «ingen egen
+server»: appen har ingen konto og ingen database, men ruteberegningen sender
+faktisk punktene til brouter.de, og en Cloudflare-Worker står foran NVE,
+Kulturminnesøk og MET. Det står nå som det er.
+
+BRouter er dessuten lagt til i lisenslista, på linje med Yr-ikonene og
+HYG-katalogen: MIT-lisensiert programvare, drevet på donasjoner. Selve
+programvaren har vi ingen distribusjonsplikt for — vi kjører den ikke og sender
+den ikke videre — men det RUTEN er laget av, er OSM-data, og der er ODbL en ekte
+forpliktelse. Den er oppfylt på skjermen (bunnlinja i Ruteplanleggeren og «Om
+appen»), men ikke i fila som forlater appen: `buildRouteGpx` skrev bare `<name>`
+og `<time>`. En planlagt rute er et avledet verk som lastes inn i en klokke og
+sendes videre til turkameraten, så den bærer nå `<copyright author="OpenStreetMap
+contributors">` med ODbL-lenka. `buildGpx` — brukerens eget GPS-spor — får den
+IKKE: det er en egen måling, og det er ingenting å attribuere. Elementet må stå
+mellom `<name>` og `<time>`, for GPX 1.1 sin `metadataType` er en `xsd:sequence`,
+og en test holder både rekkefølgen og skillet mellom de to funksjonene på plass.
+
+---
+
 ## 2026-09-18 — v7.8.35: Lag-tall i Detaljer, lang-trykk på kompasset, og demoene i Preferanser
 
 Detaljer-fana var en liste med førti brytere og ingen tall. Slo man av
