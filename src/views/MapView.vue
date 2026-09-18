@@ -760,7 +760,13 @@ const { zoomUt: kompassZoomUt } = useKompassNord()
 // Trykk på kompassnåla. BEGGE moduser tvinger en fersk GPS-fix hvis GPS er
 // aktivert (v8.5.2): på toget kan watchPosition henge på en cached koordinat,
 // og getCurrentPosition med maximumAge=0 gir alltid ny måling.
-function onResetAndRefreshGps() {
+//
+// `motsatt` KOMMER FRA ET LANG-TRYKK (v7.8.35) og snur valget for dette ene
+// trykket, uten å endre innstillingen. Knappen vet ikke hva de to oppførslene
+// ER — den sier bare om trykket var det vanlige eller det motsatte — så
+// regelen for hva «motsatt» betyr bor HER, ved siden av innstillingen den
+// snur. En XOR i knappen ville vært et andre sted å holde den i takt.
+function onResetAndRefreshGps({ motsatt = false } = {}) {
   // Kompass-FØLGE roterer kartet etter enhetens retning — å «nullstille til
   // nord» mens den er på gir ingen mening, så den slås av først (samme
   // semantikk som den gamle kompass-FAB-en, som denne knappen har absorbert).
@@ -777,7 +783,8 @@ function onResetAndRefreshGps() {
   // skala og forskyvning stå, så det man leste blir stående på skjermen mens
   // det retter seg opp. `nordRotasjon` og ikke 0 — arkets hvilevinkel er sann
   // nord og ikke kartnord (se avsnittet over nordRotasjon).
-  if (!kompassZoomUt.value) {
+  const zoomUtNaa = motsatt ? !kompassZoomUt.value : kompassZoomUt.value
+  if (!zoomUtNaa) {
     rotateTo(nordRotasjon.value, { animer: true })
     if (userPos.isWatching) userPos.refresh()
     return
@@ -3388,7 +3395,8 @@ onUnmounted(() => {
       :ui-text-scale="overleggSkala"
       :bottom="bunnFloat.bottomStyle.value"
       :right-style="floatRightStyle"
-      @nord="onResetAndRefreshGps" />
+      :zoom-ut="kompassZoomUt"
+      @nord="onResetAndRefreshGps($event)" />
 
     <!-- Kontrollpanel (drawer). Desktop (≥768px): høyrestilt fullhøyde side-
          panel (som illustrasjons-sporet). Mobil: dragbart bunn-ark. -->
@@ -3560,7 +3568,9 @@ onUnmounted(() => {
             :visible-layers="visibleLayers" :kulturminne-count="kulturminneCount"
             :kulturminne-status="kulturminneStatus"
             :fredet-loading="fredetLoading" :fredet-count="fredetCount"
-            :hydro-loading="hydroLoadingLayer" :hydro-count="hydroCount" :meta="meta" />
+            :hydro-loading="hydroLoadingLayer" :hydro-count="hydroCount"
+            :lag-tellinger="meta?.lagTellinger ?? null"
+            :spor-count="tracker.tracks.value.length" :meta="meta" />
 
           <DrawerExportTab v-show="activeTab === 'eksport'"
             id="drawer-panel-eksport" role="tabpanel" aria-labelledby="drawer-fane-eksport"

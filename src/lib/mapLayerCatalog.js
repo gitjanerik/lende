@@ -87,6 +87,63 @@ export const LAYERS = [
   { key: 'sjo-navn',   label: 'Sjønavn' },
 ]
 
+/**
+ * ISOM-kode → lag-nøkkel. FLYTTET HIT FRA `mapBuilder.categoryFor` i v7.8.35,
+ * og flyttingen er grunnen til at den er verdt et blikk: kommentaren over
+ * `LAYERS` sa «lag-kategorier som matcher mapBuilder.js sin categoryFor()», og
+ * «matcher» er nettopp den formen på gjeld denne fila finnes for å unngå — to
+ * lister som må holdes i takt for hånd. Lag-tellingen (`lib/lagTelling.js`)
+ * trengte dessuten den samme oversettelsen fra klient-siden, og en tredje kopi
+ * ville betydd at et nytt lag måtte legges inn tre steder.
+ *
+ * Flere koder ender i samme lag med vilje: skog samler 406–409, stein samler
+ * 210/213/215/216. `'other'` er svaret for en kode uten lag — den rendres
+ * fortsatt, men har ingen bryter.
+ *
+ * @param {string} code ISOM-kode, som streng («406», ikke 406)
+ * @returns {string} lag-nøkkel, eller 'other'
+ */
+export function kategoriForIsomKode(code) {
+  switch (code) {
+    case '001':                                  return 'land'
+    case '401': case '403':                     return 'aapen'
+    case '404':                                  return 'aker'
+    case '406': case '407': case '408': case '409': return 'skog'
+    case '410':                                  return 'isbre'
+    case '308': case '309':                     return 'myr'
+    case '301': case '302': case '303': case '307': return 'vann'
+    case '304': case '305':                     return 'bekk'
+    case '520':                                  return 'naturreservat'
+    case '521':                                  return 'bygning'
+    case '522':                                  return 'bymasse'
+    case '501': case '502':                     return 'vei-stor'
+    case '503': case '504':                     return 'vei-liten'
+    case '505': case '506': case '507':         return 'sti'
+    case '510':                                  return 'lysloype'
+    case '511':                                  return 'heistrase'
+    case '512':                                  return 'slalombakke'
+    case '513':                                  return 'idrettsanlegg'
+    case '514':                                  return 'flyplass'
+    case '516':                                  return 'kirkegard'
+    case '515':                                  return 'tog'
+    case '201': case '203':                     return 'stupkant'
+    case '210': case '213':
+    case '215': case '216':                     return 'stein'
+    case '525':                                  return 'linje'
+    case '528':                                  return 'kraftlinje'
+    case '509':                                  return 'bro'
+    case '526':                                  return 'bom'
+    case '534':                                  return 'parkering'
+    case '560':                                  return 'holdeplass'
+    case '561':                                  return 'batrute'
+    case '551':                                  return 'kai'
+    case '552':                                  return 'sjo-poi'
+    case '556':                                  return 'strand'
+    case '101': case '102': case '103': case '104': return 'kontur'
+    default:                                     return 'other'
+  }
+}
+
 // Lag som hører til den marine «Sjø & padling»-seksjonen i drawer-en.
 export const MARINE_LAYER_KEYS = new Set(['batrute', 'kai', 'sjo-poi', 'sjo-navn'])
 

@@ -1,3 +1,81 @@
+## 2026-09-18 — v7.8.35: Lag-tall i Detaljer, lang-trykk på kompasset, og demoene i Preferanser
+
+Detaljer-fana var en liste med førti brytere og ingen tall. Slo man av
+«Holdeplass» og ingenting endret seg på kartet, var det to helt ulike ting som
+så identiske ut: laget er tomt her, eller bryteren virker ikke. Kulturminner,
+arkeologiske kulturminner og vannmålestasjoner har hatt et tall siden v4.8.6 —
+de hentes live, så antallet fantes allerede på klienten. De øvrige lagene bakes
+inn i arket, og der lå tallet i byggerens `counts` og ble kastet. Nå står det
+bak hver bryter, og det svarer samtidig på spørsmålet man egentlig har på et
+ukjent ark: hva ER det her?
+
+Tallet er BYGGERENS og ikke DOM-ens, og det er ikke en smakssak. En telling av
+elementer i den ferdige SVG-en er feil i to retninger samtidig: geometri
+bucketes per stil × rutenett-celle, så tjue stier i samme celle er ETT element,
+og linjer tegnes to ganger — en base-strek pluss en `.overlay`. Å telle
+`M`-kommandoer i `d` løser den første og ikke den andre, og for en flate med
+øy-hull teller den hvert hull som et objekt. Byggeren, derimot, VET hvor mange
+features den klassifiserte. Tallene bakes i `data-meta`, altså i arket selv, så
+de følger med en delt `.lendekart`-fil og et kart som åpnes offline.
+
+Høydekurver, stupkanter og DEM-sjøen er DEM-derivert og finnes ikke i `counts`
+i det hele tatt; uten et eksplisitt bidrag ville et høyfjellsark meldt
+«Høydekurver (0)» med tusen kurver på skjermen. Veinummer og sjønavn er ren
+tekst og har ingen ISOM-kode, og stedsnavn-nodene måtte deles i sine tre
+viktighets-lag der delingen faktisk skjer — `counts.place` teller dem før de er
+fordelt, og ett samlet tall på tre brytere ville vært feil på alle tre.
+
+Tre utfall, tre tegn, og konvensjonen er kulturminne-lagets fra v4.8.6: «(N)»,
+«(0)» for sett-etter-og-fant-ingenting, og «(–)» for vet-ikke. Den siste er
+svaret på et kart bygget før tellingen fantes, og fana sier da hva tegnet betyr
+i stedet for å gjenta det førti ganger uten forklaring. Bygg kartet om, og
+tallene kommer.
+
+Åtte lag bærer bevisst INGEN teller, etter en gjennomgang av den første
+utgaven: sti, høydekurver og navn er på hvert eneste ark i tusener, så «Sti
+(417)» svarer ikke på et spørsmål noen har — og tre firesifrede tall øverst i
+lista trekker øyet vekk fra de lagene tallet faktisk betyr noe for
+(holdeplasser, kirker, bommer, broer). Veinummer, GPS-spor og de tre
+stedsnavn-nivåene er tekst-overlegg man slår på for uttrykket, ikke for
+innholdet. Tallene finnes fortsatt i `meta.lagTellinger` — det er visningen som
+utelater dem, så et lag kan få tallet tilbake med én linje og uten at et enkelt
+kart må bygges om.
+
+Kompassnåla har samtidig fått lang-trykk, som gjør DET MOTSATTE av et vanlig
+trykk: står standarden på «bare roter», zoomer holdet ut i tillegg, og står den
+på «roter og zoom ut», roterer holdet bare. Den andre oppførselen var ellers
+fire trykk unna — åpne skuffa, finn Preferanser, vipp bryteren, tilbake — og
+holdet er snarveien til den uten å endre innstillingen. Knappen vet ikke hva de
+to oppførslene ER; den sier bare om trykket var det vanlige eller det motsatte,
+så regelen bor der innstillingen bor og kan ikke komme i utakt med den. En gul
+ring fyller seg over hold-terskelen, samme grep som FAB-ankeret, for uten den er
+holdet en gest ingen kan finne. Fordi knappen nå er peker-drevet, måtte Enter,
+mellomrom og Meny-tasten legges inn for hånd (SC 2.1.1) — samme luke
+FabCluster lukket i v6.5.48.
+
+Preferanse-fana har fått en «Demo i 3D»-seksjon nederst, og alle bryterne har
+nå SAMME form. Vær-demoen og nordlys-demoen er flyttet dit fra Utvikler-fana —
+samme begrunnelse som himmel-tvangen fikk: begge finnes for å PRØVE noe man
+ellers må vente på (været er det været er, og et synlig nordlys over Sør-Norge
+er noen netter i året), men Utvikler-fana er `userOnly` og altså skjult på
+demokartet, som er det ene kartet en fersk bruker har. Alle tre kom med
+Utvikler-fanas form: en full-bredde flate med «… : PÅ» i etiketten og en
+forklaring som bare sto når den var på. I en liste med vippebrytere leses det
+som noe annet enn det er, og en tekst man først ser ETTER at man har trykket,
+kan ikke leses før man bestemmer seg. Radene er nå én komponent
+(`PrefBryterRad`), så «samme utforming» er strukturelt framfor en konvensjon
+man må huske, og forklaringen står alltid. De tre localStorage-flaggene delte
+seks identiske linjer hver; de bor nå i `useDemoFlagg`, som cacher refen per
+nøkkel slik at to kallsteder ikke kan sprike. Nøklene er uendret, så et valg
+gjort før flyttinga står.
+
+ISO-kode-til-lag-tabellen er samtidig flyttet fra `mapBuilder.categoryFor` til
+`mapLayerCatalog.js`, der `LAYERS` bor. Kommentaren over `LAYERS` sa
+«lag-kategorier som matcher mapBuilder.js sin categoryFor()», og «matcher» er
+nettopp den formen på gjeld den fila finnes for å unngå.
+
+---
+
 ## 2026-09-18 — v7.8.34: Kompasset roterer bare, og Preferanser er fana for det som gjelder deg
 
 Kompassnåla nede til høyre het «Vend kartet mot nord», men handleren bak den

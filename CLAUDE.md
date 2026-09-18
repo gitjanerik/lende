@@ -492,6 +492,27 @@ kartet en fersk bruker har. Alle fire bor nå i `DrawerPrefsTab.vue`, sammen med
 kompass-zoomen. Spørsmålet for noe nytt er derfor ikke lenger bare «funksjon
 eller innstilling», men også: gjelder den ARKET eller MEG?
 
+**ALLE PREFERANSENE HAR SAMME FORM, OG DET ER ÉN KOMPONENT (v7.8.35).**
+`PrefBryterRad.vue` er raden: tittel, forklaring, vippebryter. Grunnen er at de
+tre 3D-flaggene (himmel-tvang, vær-demo, nordlys-demo) kom hit fra
+Utvikler-fana med DENS form — en full-bredde flate med «… : PÅ» i etiketten og
+en forklaring gated på at bryteren var på — og i en liste med vippebrytere
+leses det som noe annet enn det er. **Forklaringen står ALLTID:** en tekst man
+først ser etter at man har trykket, kan ikke leses før man bestemmer seg, og
+raden hopper i høyde hvert trykk. Kommer det en syvende preferanse, er den en
+INSTANS her. Navnetettheten er unntaket og skal være det: den bærer et VALG av
+tre, ikke av/på, og har sin egen bryter inni.
+
+**DE TRE 3D-FLAGGENE GÅR GJENNOM LOCALSTORAGE, ikke gjennom en prop-kjede**
+(`useDemoFlagg`, med nøklene i `DEMO_NOKLER`). Det er den opprinnelige
+begrunnelsen, uendret: 3D-viseren er den som LESER flagget, og den monteres
+først etterpå. Viewer3D leser nøklene direkte ved MONTERING — en reaktiv kilde
+ville lovet et bytte midt i en 3D-økt — så navnene står på to steder, og en
+test holder de to settene like. **Refen caches PER NØKKEL** i helperen, ellers
+får to kallsteder hver sin og spriker i det den ene endres.
+`lende-myk-rotasjon` bruker den bevisst IKKE: den leser `'0'` som «på», og et
+flagg med motsatt fortegn hører ikke inn under en felles «er den på?».
+
 **Fana er FØRST i rada og IKKE først i bruk.** `activeTab` er fortsatt `lag`:
 man åpner skuffa for å gjøre noe med kartet man ser på, og å lande på en fane
 med valg man setter én gang ville kostet et trykk hver gang. Plasseringen
@@ -507,6 +528,21 @@ nærbilde, mistet nærbildet med. Standarden er `rotateTo(nordRotasjon)`, som vr
 rundt VIEWPORT-SENTER og lar skala og forskyvning stå. Zoom-ut er beholdt som et
 valg i Preferanser (`useKompassNord`, default AV) fordi det var oppførselen til
 v7.8.33 og noen brukte den som en «tilbake til hele arket»-knapp.
+**LANG-TRYKK GJØR DET MOTSATTE AV ET TRYKK (v7.8.35).** Står standarden på
+«bare roter», zoomer holdet ut i tillegg; står den på «roter og zoom ut»,
+roterer holdet bare. Den andre oppførselen var ellers fire trykk unna — åpne
+skuffa, finn Preferanser, vipp bryteren, tilbake. **Knappen vet ikke hva de to
+oppførslene ER:** den emitter `nord` med `{ motsatt }` og lar MapView avgjøre
+(`motsatt ? !kompassZoomUt : kompassZoomUt`), så regelen bor der innstillingen
+bor og kan ikke komme i utakt med den. En XOR i komponenten ville vært et andre
+sted å holde i takt. Den gule ringen over hold-terskelen er ikke pynt — samme
+grep som FAB-ankeret, og uten den er holdet en gest ingen seende bruker kan
+finne. Og fordi knappen nå er PEKER-DREVET (`useLongPress`), gjør Enter og
+mellomrom ingenting av seg selv: tastaturet måtte legges inn for hånd, med
+`contextmenu` (Meny-tasten / Shift+F10) som holdets ekvivalent — nøyaktig den
+luka FabCluster lukket i v6.5.48. **Et programmatisk `el.click()` gjør heller
+ingenting på den nå**, så en røyk-sjekk må bruke en ekte peker-sekvens.
+
 **`rotateTo`s `animer` er opt-in med vilje:** `panTo` og `reset()` animerer selv
 fordi de alltid er ETT hopp, men `rotateTo` kalles også per `input` mens en
 finger drar desktop-rotasjons-slideren, og en 200 ms transition som settes på
@@ -2151,6 +2187,86 @@ så `node scripts/fasit-kart.js` på en maskin der en kilde er blokkert vil vise
 avvik i vann-tallene. Det er ikke en regresjon — sjekk loggen for
 «NVE-innsjøer utilgjengelig» før du feilsøker noe annet. Advarsler (⚠) er datakvalitet i kildene — f.eks. en
 Strava-sporet isrute over Rondvatnet — og feiler ikke bygget.
+
+## Viktig arkitektur-merknad — lag-tellingen kommer fra BYGGEREN, ikke DOM-en
+
+**Hvert lag i Detaljer-fana bærer antall kartobjekter fra v7.8.35**
+(`lib/lagTelling.js` → `meta.lagTellinger` → `DrawerLayersTab`). Fana var førti
+brytere uten tall, og da ser «laget er tomt her» og «bryteren virker ikke»
+identiske ut.
+
+**EN TELLING AV ELEMENTER I SVG-EN ER FEIL, OG FEIL I TO RETNINGER SAMTIDIG.**
+Det er den nærliggende løsningen, så les dette før du «forenkler» tallet dit:
+`mapBuilder` BUCKETER geometri per stil × rutenett-celle for å holde fila liten,
+så tjue stier i samme celle er ETT `<path>` — og linjer tegnes TO ganger, en
+base-strek pluss en `.overlay` (jernbane: fire paths for to strekninger). Å
+telle `M`-kommandoer i `d` løser den første og ikke den andre, og for en flate
+med øy-hull teller den hvert hull som et objekt. Byggeren VET hvor mange
+features den klassifiserte; tallet bakes i `data-meta`, altså i arket, så det
+følger en delt `.lendekart`-fil og et kart som åpnes offline.
+
+**TRE KILDER MÅ HOLDES I HODET, og to av dem er lette å glemme:**
+1. `counts[isomKode]` — klassifiseringen. Dekker alt som kommer fra OSM, N50 og
+   NVE. Merk at punkt-symbolene (kirke, parkering, holdeplass, bro, bom, hule,
+   gruve, topp) plukkes ut av hovedløkka og `continue`-r, så deres ISOM-kode blir
+   stående på **0** og må ikke leses — `NAVNGITTE_TELLINGER` peker på de riktige
+   nøklene.
+2. `ekstra` — DEM-derivert (høydekurver, stupkanter, DEM-sjø) og ren tekst
+   (veinummer, sjønavn). Disse finnes IKKE i `counts`. Uten dem melder et
+   høyfjellsark «Høydekurver (0)» med tusen kurver på skjermen.
+3. Stedsnavn-rangene. `counts.place` teller nodene FØR de fordeles på
+   `stedsnavn-major/mid/minor`, så ett samlet tall på tre brytere ville vært
+   feil på alle tre. `stedsnavnTelling` skrives ut av closuren der delingen
+   faktisk skjer.
+
+**«(0)» OG «(–)» ER TO ULIKE SVAR.** Sett-etter-og-fant-ingenting mot
+ingen-har-sett-etter. Konvensjonen er kulturminne-lagets fra v4.8.6, og den ble
+innført for å rette en ekte lesefeil: begge var «(0)», som leses som at
+funksjonen er borte. Et kart bygget før v7.8.35 har ikke feltet og skal vise
+«(–)» — ikke 0.
+
+**ÅTTE LAG BÆRER BEVISST INGEN TELLER** (`UTEN_TELLING` i `lagTelling.js`):
+sti, høydekurver, navn, veinummer, GPS-spor og de tre stedsnavn-nivåene. To
+slags lag, og skillet er verdt å kjenne før noen «fullfører» lista: de tre
+første er på HVERT ark i tusener, så tallet svarer ikke på et spørsmål noen har,
+og tre firesifrede tall øverst i lista trekker øyet vekk fra de lagene tallet
+faktisk betyr noe for (holdeplasser, kirker, bommer, broer); de øvrige er
+tekst-overlegg man slår på for uttrykket og ikke for innholdet.
+**Tallene beregnes fortsatt og ligger i `meta.lagTellinger`** — det er
+VISNINGEN som utelater dem, så et lag kan få tallet tilbake med én linje og
+uten at et enkelt kart må bygges om. Konsekvensen er at `(0)` heller ikke vises
+for de åtte, og det er akseptert: for et lag som er overalt er «tomt» ikke det
+tvetydige tilfellet tallene ble innført for.
+
+**`data-meta` STÅR IKKE PÅ DEN MONTERTE SVG-EN, og det kostet en rød CI.**
+MapView leser attributtet ÉN gang under lasting (`metaFromSvgMeta`) og lar det
+leve videre som et JS-objekt; den monterte `svg.isom-map` beholder bare
+render-attributtene (`viewBox`, `class`, `width`, `height`,
+`preserveAspectRatio`, `style`). Trenger en røyk-sjekk arkets meta, må den
+hente ARKFILA (`/maps/<id>.svg`) og parse den — som flere sjekker alt gjør.
+Første utgave av lag-tellings-sjekken spurte DOM-en, fikk null på BEGGE kart,
+og var grønn lokalt av en ren tilfeldighet: det sporede demo-kartet mangler
+tellingene, så «ingen tellinger» var riktig svar der. På det ekte arket var det
+galt. **Lærdommen er den generelle: en sjekk som er grønn fordi to feil er
+enige, er ingen sjekk** — og en branchende sjekk må kjøres i BEGGE grenene før
+man tror på den (her ved å injisere `lagTellinger` i `dist`-arket og kjøre med
+`--hoppbygg`).
+
+**`metaFromSvgMeta` ER EN HVITELISTE.** `lagTellinger` måtte legges inn der. Den
+fella har bitt fem ganger (appVersion, nveInnsjoStatus, tetthet + detaljNivaa,
+turruteStatus), og symptomet ser ut som et dataproblem: feltet er tomt på ALLE
+kart, også ferske. Testen i `useMapLoadPipeline.test.js` fanger neste felt
+automatisk.
+
+**ISO-kode → lag bor i `mapLayerCatalog.js` fra v7.8.35**
+(`kategoriForIsomKode`), ikke i `mapBuilder`. Kommentaren over `LAYERS` sa
+«lag-kategorier som matcher mapBuilder.js sin categoryFor()», og «matcher» er
+nettopp den gjelden den fila finnes for å unngå. `mapBuilder.categoryFor` er en
+tynn, HOISTET innpakning — den brukes 40 steder over deklarasjonen.
+
+**De fire lagene uten tall fra arket er de som ikke ligger i arket:**
+kulturminner, arkeologiske kulturminner og vannmålestasjoner hentes live, og
+GPS-sporet er brukerens eget. De mates av forelderen gjennom sine egne props.
 
 ## Zoom-trappet detalj-LOD
 

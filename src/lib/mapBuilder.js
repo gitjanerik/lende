@@ -7,6 +7,8 @@
 
 import { wgs84ToUtm32, utm32BboxFromWgs84 } from './utm.js'
 import { APP_VERSION } from '../version.js'
+import { kategoriForIsomKode } from './mapLayerCatalog.js'
+import { lagTellinger } from './lagTelling.js'
 import {
   classifyToIsom,
   isMaritimeNameFeature,
@@ -1819,6 +1821,11 @@ export function buildSvg(elements, bbox, options = {}) {
   // overlegg uten å rote til hovedkartet. Inkluderer ALLE place=*-noder
   // (locality, hamlet, village, town, city, suburb, neighbourhood,
   // quarter, isolated_dwelling, farm).
+  // Rangene skrives ut hit så lag-tellingen kan se dem (v7.8.35). `byRank`
+  // lever inne i closuren, og de tre stedsnavn-lagene er den ene delingen
+  // `counts.place` IKKE bærer — den teller nodene før de er fordelt. Ett
+  // samlet tall på tre brytere ville vært feil på alle tre.
+  const stedsnavnTelling = { 'stedsnavn-major': 0, 'stedsnavn-mid': 0, 'stedsnavn-minor': 0 }
   const stedsnavnSvg = () => {
     // v9.1.20 — Tre viktighets-nivåer, hvert sitt lag (data-layer) så brukeren
     // kan toggle dem hver for seg (f.eks. landsby av, by på). Tekstene beholder
@@ -1838,6 +1845,9 @@ export function buildSvg(elements, bbox, options = {}) {
       if (!claimLabelName(el.tags.name, 'sted', p.x, p.y)) continue
       const rank = placeRank(el.tags.place)
       byRank[rank].push(`    <text x="${fmt(p.x)}" y="${fmt(p.y)}" dy="-0.5mm" text-anchor="middle" data-label="stedsnavn" data-rank="${rank}" data-score="${labelScore('stedsnavn', { rank })}">${xmlEscape(el.tags.name)}</text>`)
+    }
+    for (const rank of ['major', 'mid', 'minor']) {
+      stedsnavnTelling[`stedsnavn-${rank}`] = byRank[rank].length
     }
     const group = (rank) => byRank[rank].length
       ? `  <g data-layer="stedsnavn-${rank}" style="display:none">\n${byRank[rank].join('\n')}\n  </g>\n`
@@ -3197,6 +3207,38 @@ export function buildSvg(elements, bbox, options = {}) {
   const harN50Skog = options.arealDekning === true
     || elements.some(el => el?.tags?.['lende:n50areal'] === 'skog')
 
+  // ── Antall kartobjekter per lag (v7.8.35) ──────────────────────────────
+  // Detaljer-fana viste en liste brytere uten tall, så «laget er tomt her» og
+  // «bryteren virker ikke» så helt likt ut. Tallet bakes i `data-meta` og
+  // følger dermed arket — også inn i en delt `.lendekart`-fil og et kart som
+  // åpnes offline.
+  //
+  // TALLET ER BYGGERENS OG IKKE DOM-ENS, og begrunnelsen står i `lagTelling.js`:
+  // geometri buckets per stil × rutenett-celle, og linjer tegnes to ganger, så
+  // en telling av elementer i den ferdige SVG-en er feil i BEGGE retninger.
+  //
+  // SATT HER, RETT FØR SERIALISERINGEN, og ikke i `meta`-literalen: kontur-,
+  // stupkant- og områdenavn-tallene finnes ikke ennå der oppe. `meta`
+  // stringifies på vei inn i `<svg>`, så en mutasjon her er med.
+  meta.lagTellinger = lagTellinger(counts, {
+    // DEM-derivert, altså aldri i `counts`: uten disse ville et høyfjellsark
+    // meldt «Høydekurver (0)» med tusen kurver på skjermen.
+    kontur: demFeatures.contours.features.length,
+    stupkant: demFeatures.cliffs.length,
+    // DEM-sjøen kommer i tillegg til N50/OSM-vannet, som ER i `counts`.
+    vann: demSeaPolygons.length,
+    // Navne-laget er topper (`counts.peak`) PLUSS områdenavn. Innsjø- og
+    // elvenavn er bevisst ikke med: de ligger i vann- og bekke-lagene, og et
+    // tall som blander flater og etiketter svarer ikke på noe spørsmål.
+    navn: omradenavnRows.length,
+    // Disse to lagene er REN TEKST og har derfor ingen kode i `counts` i det
+    // hele tatt. Uten dem ville to brytere man faktisk bruker stått på «(–)»
+    // for alltid.
+    veinummer: roadRefRows.length,
+    'sjo-navn': seaNameRows.length,
+    ...stedsnavnTelling,
+  })
+
   const isomCss = buildIsomCss(isomCatalog, patternIds, { widthM, usedCodes, harN50Skog })
 
   // Patterns refereres fra CSS (url(#iso-pat-X)) og evt inline; symboler fra
@@ -3321,45 +3363,10 @@ export function labelScore(kind, { rank, ele, areaM2, isStream, isNatRes } = {})
   return Math.round(clamp(base + extra, 0, 100))
 }
 
-function categoryFor(code) {
-  // Mapping fra ISOM-kode til UI-kategori (for lag-toggling i MapView).
-  // Flere koder kan ende i samme kategori (skog samler 406-409 osv).
-  switch (code) {
-    case '001':                                  return 'land'
-    case '401': case '403':                     return 'aapen'
-    case '404':                                  return 'aker'
-    case '406': case '407': case '408': case '409': return 'skog'
-    case '410':                                  return 'isbre'
-    case '308': case '309':                     return 'myr'
-    case '301': case '302': case '303': case '307': return 'vann'
-    case '304': case '305':                     return 'bekk'
-    case '520':                                  return 'naturreservat'
-    case '521':                                  return 'bygning'
-    case '522':                                  return 'bymasse'
-    case '501': case '502':                     return 'vei-stor'
-    case '503': case '504':                     return 'vei-liten'
-    case '505': case '506': case '507':         return 'sti'
-    case '510':                                  return 'lysloype'
-    case '511':                                  return 'heistrase'
-    case '512':                                  return 'slalombakke'
-    case '513':                                  return 'idrettsanlegg'
-    case '514':                                  return 'flyplass'
-    case '516':                                  return 'kirkegard'
-    case '515':                                  return 'tog'
-    case '201': case '203':                     return 'stupkant'
-    case '210': case '213':
-    case '215': case '216':                          return 'stein'
-    case '525':                                  return 'linje'
-    case '528':                                  return 'kraftlinje'
-    case '509':                                  return 'bro'
-    case '526':                                  return 'bom'
-    case '534':                                  return 'parkering'
-    case '560':                                  return 'holdeplass'
-    case '561':                                  return 'batrute'
-    case '551':                                  return 'kai'
-    case '552':                                  return 'sjo-poi'
-    case '556':                                  return 'strand'
-    case '101': case '102': case '103': case '104': return 'kontur'
-    default:                                     return 'other'
-  }
-}
+// ISOM-kode → lag-nøkkel. Tabellen bor i `mapLayerCatalog.js` fra v7.8.35,
+// sammen med `LAYERS` den må stemme med — og med lag-tellingen, som trenger
+// den samme oversettelsen. Navnet står igjen fordi det er brukt på 40 steder
+// i denne fila.
+// Fortsatt en FUNKSJONS-DEKLARASJON og ikke en `const`: den er hoistet, og
+// den brukes 40 steder over her (TDZ-regelen i CLAUDE.md).
+function categoryFor(code) { return kategoriForIsomKode(code) }
