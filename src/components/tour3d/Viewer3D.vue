@@ -1207,7 +1207,7 @@ function applyUserPos(p) {
 watch(() => props.userPos, applyUserPos)
 
 const ISOM_LABEL = {
-  505: 'Sti', 506: 'Sti (uklar)', 507: 'Stitråkk', 504: 'Skogsbilvei',
+  505: 'Sti', 506: 'Sti (uklar)', 507: 'Stitråkk', 504: 'Skogsvei',
   503: 'Småveg', 502: 'Hovedvei', 501: 'Motorvei', 509: 'Bro',
 }
 

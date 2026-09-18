@@ -50,3 +50,25 @@ describe('buildStrokeOverrideCss', () => {
     expect(buildStrokeOverrideCss({ kurve: 'abc', sti: NaN })).toBe('')
   })
 })
+
+// v7.8.37: skogsvegen (504) fikk sin egen slider. Var den fortsatt i samme
+// gruppe som småvegen (503), kunne man ikke løfte vegen i marka uten å løfte
+// bilvegen med — og det er nettopp de to man vekter ulikt på et turkart.
+describe('skogsveg har sin egen strek-gruppe', () => {
+  const gruppe = (id) => STROKE_GROUPS.find((g) => g.id === id)
+
+  it('504 ligger i skogsVei og INGEN annen gruppe', () => {
+    expect(gruppe('skogsVei').codes).toEqual(['504'])
+    expect(gruppe('litenVei').codes).toEqual(['503'])
+    for (const g of STROKE_GROUPS) {
+      if (g.id !== 'skogsVei') expect(g.codes).not.toContain('504')
+    }
+  })
+
+  it('slideren treffer både strek og casing på 504', () => {
+    const css = buildStrokeOverrideCss({ skogsVei: 1.5 })
+    expect(css).toContain('.isom-map [data-iso="504"] { stroke-width: calc(0.16mm * var(--stroke-scale, 1) * 1.5) !important; }')
+    expect(css).toContain('.isom-map [data-iso="504"] path.casing { stroke-width: calc(0.3mm * var(--stroke-scale, 1) * 1.5) !important; }')
+    expect(css).not.toContain('data-iso="503"')
+  })
+})

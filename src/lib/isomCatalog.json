@@ -329,10 +329,17 @@
         }
       },
       "504": {
-        "label": "Skogsbilvei",
+        "label": "Skogsvei",
+        "$comment": "v7.8.37: 504 er vegen I MARKA — skogsbilveg, traktorveg og OSM highway=track — og fram til nå var den en 0,1 mm sort strek uten casing, altså NØYAKTIG samme vekt som den stiplede stien (505), men uten stiens lyse underlinje. Vegen leste derfor SVAKERE enn stien den skulle skille seg fra. Nå: heltrukken 0,16 mm med en 0,30 mm lys casing under (samme mekanikk som stien, se 505). Forskjellen mot sti er dermed BÅDE rytme (heltrukken vs. stiplet) og vekt, og mot småveg (503) er den fargen: 503 har et oransje overlay-fyll, 504 har ingen. Casing-fargen faller tilbake på var(--bg) i CSS, så ingen tema-blokk trenger å sette den.",
+        "casingStroke": {
+          "color": "#fbf7ec",
+          "widthMm": 0.3,
+          "linecap": "round",
+          "linejoin": "round"
+        },
         "stroke": {
-          "color": "#000",
-          "widthMm": 0.1,
+          "color": "#1a1a1a",
+          "widthMm": 0.16,
           "linecap": "round",
           "linejoin": "round"
         }
@@ -1802,7 +1809,7 @@
         "505": {
           "stroke": {
             "color": "#1a1a1a",
-            "dash": [0.12, 0.11]
+            "dash": [0.12, 0.09]
           },
           "casingStroke": {
             "color": "#ffffff"
@@ -1811,7 +1818,7 @@
         "506": {
           "stroke": {
             "color": "#1f1f1f",
-            "dash": [0.1, 0.1]
+            "dash": [0.09, 0.14]
           },
           "casingStroke": {
             "color": "#ffffff"
@@ -2098,7 +2105,7 @@
         "505": {
           "stroke": {
             "color": "#6b6355",
-            "dash": [0.12, 0.11]
+            "dash": [0.12, 0.09]
           },
           "casingStroke": {
             "color": "#f7f4ea"
@@ -2107,7 +2114,7 @@
         "506": {
           "stroke": {
             "color": "#7a7263",
-            "dash": [0.1, 0.1]
+            "dash": [0.09, 0.14]
           },
           "casingStroke": {
             "color": "#f7f4ea"
@@ -2394,7 +2401,7 @@
         "505": {
           "stroke": {
             "color": "#000000",
-            "dash": [0.12, 0.11]
+            "dash": [0.12, 0.09]
           },
           "casingStroke": {
             "color": "#fcfbf7"
@@ -2403,7 +2410,7 @@
         "506": {
           "stroke": {
             "color": "#111111",
-            "dash": [0.1, 0.1]
+            "dash": [0.09, 0.14]
           },
           "casingStroke": {
             "color": "#fcfbf7"
@@ -2702,13 +2709,13 @@
         "505": {
           "stroke": {
             "color": "#eee1c4",
-            "dash": [0.12, 0.11]
+            "dash": [0.12, 0.09]
           }
         },
         "506": {
           "stroke": {
             "color": "#cab482",
-            "dash": [0.1, 0.1]
+            "dash": [0.09, 0.14]
           }
         },
         "507": {

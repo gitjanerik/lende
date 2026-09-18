@@ -43,6 +43,13 @@ export const LAYERS = [
   { key: 'bom',        label: 'Bom / barriere' },
   { key: 'vei-stor',   label: 'Storveg' },
   { key: 'vei-liten',  label: 'Småveg' },
+  // Skogsveg (ISOM 504) — skogsbilveg, traktorveg og OSM highway=track. Eget
+  // lag fra v7.8.37: den lå sammen med småveg (503), men det er en annen slags
+  // veg. 503 er offentlig bilveg med oransje fyll; 504 er vegen i marka, ofte
+  // bak bom, og den er det man vil ha PÅ når man planlegger tur og AV når man
+  // vil se bilvegnettet alene. Bommen (526) er sitt eget lag og filtreres ikke
+  // bort av noe: en bomma veg tegnes som før.
+  { key: 'vei-skogs',  label: 'Skogsveg' },
   { key: 'veinummer',  label: 'Veinummer' },
   { key: 'tog',        label: 'Jernbane' },
   { key: 'flyplass',   label: 'Flyplass' },
@@ -117,7 +124,8 @@ export function kategoriForIsomKode(code) {
     case '521':                                  return 'bygning'
     case '522':                                  return 'bymasse'
     case '501': case '502':                     return 'vei-stor'
-    case '503': case '504':                     return 'vei-liten'
+    case '503':                                  return 'vei-liten'
+    case '504':                                  return 'vei-skogs'
     case '505': case '506': case '507':         return 'sti'
     case '510':                                  return 'lysloype'
     case '511':                                  return 'heistrase'

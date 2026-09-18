@@ -910,6 +910,15 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
       rules.push(`${root} [data-iso="${code}"] path.overlay[data-tunnel="yes"] { ${dashRule} }`)
     } else {
       rules.push(`${root} [data-iso="${code}"] path[data-tunnel="yes"] { ${dashRule} }`)
+      // Casingen skjules i tunnel av samme grunn som den sorte casingen gjør
+      // det på 501–503: den lyse underlinja er det som løfter veien OVER
+      // terrenget, og en trasé under bakken skal ikke løftes. Uten dette ville
+      // regelen over også stiplet casingen, og de to stiplene ville ligget i
+      // fase som en bred, lys strek. Gjelder 504 fra v7.8.37, som er den ene
+      // koden her uten overlay.
+      if (def.casingStroke) {
+        rules.push(`${root} [data-iso="${code}"] path.casing[data-tunnel="yes"] { display: none }`)
+      }
     }
   }
 

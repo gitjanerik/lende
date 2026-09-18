@@ -28,7 +28,7 @@ import { FONT_PAIRS } from '../../composables/useLabelFonts.js'
 // omriss, store bygninger, idrettsbaner og båtruter er detaljer man ikke
 // vekter på et turkart, og fem slidere ingen drar er fem man må rulle forbi
 // for å komme til relieffet. Vil du vise en til, legg id-en her.
-const SYNLIGE_STREK = ['kurve', 'sti', 'litenVei', 'storVei']
+const SYNLIGE_STREK = ['kurve', 'sti', 'skogsVei', 'litenVei', 'storVei']
 
 // «KARTSTIL»-GRUPPA HOPPES OVER, og det er den ene regelen som må stå: light,
 // dark, turkart, padling og print ER kartstiler, og de velges øverst i denne

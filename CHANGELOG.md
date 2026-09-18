@@ -1,3 +1,25 @@
+## 2026-09-18 — v7.8.37: Skogsvegen er sitt eget lag, sin egen slider og sin egen strek
+
+Vegen i marka — skogsbilveg, traktorveg og OSM `highway=track`, ISOM 504 — lå
+til nå i samme lag og samme strek-gruppe som småvegen (503), og tegnet som en
+0,1 mm sort strek uten casing. Det er nøyaktig samme vekt som den stiplede
+stien (505), men uten stiens lyse underlinje, så vegen leste SVAKERE enn stien
+den skulle skille seg fra. Den er nå heltrukken 0,16 mm med en 0,30 mm lys
+casing under: forskjellen mot sti er både rytme og vekt, og mot småveg er den
+fargen — 503 har oransje fyll, 504 har ingen. Laget heter «Skogsveg» og står
+rett under «Småveg» i Detaljer; strek-slideren heter det samme og står i Stil →
+Strek, mellom «Stier» og «Småveg». Slidernavnene «Liten vei» og «Stor vei» er
+samtidig rettet til lag-katalogens ord, «Småveg» og «Storveg», så bryteren og
+skyven heter det samme. Bommen (526) er som før sitt eget lag og filtrerer
+ingenting bort: en bomma veg tegnes som før. Samtidig er sti-stigen gjort
+monoton i de fire temaene som setter den: 506 «uklar» var TETTERE enn 505
+«godt løp» ([0.1, 0.1] mot [0.12, 0.11]), altså leste den utydelige stien
+fastere enn den gode. Nå krymper streken og vokser lufta hele veien ned —
+505 [0.12, 0.09], 506 [0.09, 0.14], 507 uendret [0.06, 0.2] — innenfor de
+invariantene testene alt håndhever.
+
+---
+
 ## 2026-09-18 — v7.8.36: «Om appen» sa feil om vegetasjon og kilder, og rute-GPX-en manglet ODbL
 
 Tre linjer i «Om appen» beskrev en app som ikke finnes lenger. Den verste var
