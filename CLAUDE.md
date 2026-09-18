@@ -507,6 +507,21 @@ nærbilde, mistet nærbildet med. Standarden er `rotateTo(nordRotasjon)`, som vr
 rundt VIEWPORT-SENTER og lar skala og forskyvning stå. Zoom-ut er beholdt som et
 valg i Preferanser (`useKompassNord`, default AV) fordi det var oppførselen til
 v7.8.33 og noen brukte den som en «tilbake til hele arket»-knapp.
+**LANG-TRYKK GJØR DET MOTSATTE AV ET TRYKK (v7.8.35).** Står standarden på
+«bare roter», zoomer holdet ut i tillegg; står den på «roter og zoom ut»,
+roterer holdet bare. Den andre oppførselen var ellers fire trykk unna — åpne
+skuffa, finn Preferanser, vipp bryteren, tilbake. **Knappen vet ikke hva de to
+oppførslene ER:** den emitter `nord` med `{ motsatt }` og lar MapView avgjøre
+(`motsatt ? !kompassZoomUt : kompassZoomUt`), så regelen bor der innstillingen
+bor og kan ikke komme i utakt med den. En XOR i komponenten ville vært et andre
+sted å holde i takt. Den gule ringen over hold-terskelen er ikke pynt — samme
+grep som FAB-ankeret, og uten den er holdet en gest ingen seende bruker kan
+finne. Og fordi knappen nå er PEKER-DREVET (`useLongPress`), gjør Enter og
+mellomrom ingenting av seg selv: tastaturet måtte legges inn for hånd, med
+`contextmenu` (Meny-tasten / Shift+F10) som holdets ekvivalent — nøyaktig den
+luka FabCluster lukket i v6.5.48. **Et programmatisk `el.click()` gjør heller
+ingenting på den nå**, så en røyk-sjekk må bruke en ekte peker-sekvens.
+
 **`rotateTo`s `animer` er opt-in med vilje:** `panTo` og `reset()` animerer selv
 fordi de alltid er ETT hopp, men `rotateTo` kalles også per `input` mens en
 finger drar desktop-rotasjons-slideren, og en 200 ms transition som settes på
@@ -2188,6 +2203,19 @@ ingen-har-sett-etter. Konvensjonen er kulturminne-lagets fra v4.8.6, og den ble
 innført for å rette en ekte lesefeil: begge var «(0)», som leses som at
 funksjonen er borte. Et kart bygget før v7.8.35 har ikke feltet og skal vise
 «(–)» — ikke 0.
+
+**ÅTTE LAG BÆRER BEVISST INGEN TELLER** (`UTEN_TELLING` i `lagTelling.js`):
+sti, høydekurver, navn, veinummer, GPS-spor og de tre stedsnavn-nivåene. To
+slags lag, og skillet er verdt å kjenne før noen «fullfører» lista: de tre
+første er på HVERT ark i tusener, så tallet svarer ikke på et spørsmål noen har,
+og tre firesifrede tall øverst i lista trekker øyet vekk fra de lagene tallet
+faktisk betyr noe for (holdeplasser, kirker, bommer, broer); de øvrige er
+tekst-overlegg man slår på for uttrykket og ikke for innholdet.
+**Tallene beregnes fortsatt og ligger i `meta.lagTellinger`** — det er
+VISNINGEN som utelater dem, så et lag kan få tallet tilbake med én linje og
+uten at et enkelt kart må bygges om. Konsekvensen er at `(0)` heller ikke vises
+for de åtte, og det er akseptert: for et lag som er overalt er «tomt» ikke det
+tvetydige tilfellet tallene ble innført for.
 
 **`metaFromSvgMeta` ER EN HVITELISTE.** `lagTellinger` måtte legges inn der. Den
 fella har bitt fem ganger (appVersion, nveInnsjoStatus, tetthet + detaljNivaa,

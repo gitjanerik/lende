@@ -31,6 +31,32 @@
 import { kategoriForIsomKode } from './mapLayerCatalog.js'
 
 /**
+ * Lag som IKKE skal vise et tall, etter eierens gjennomgang av den første
+ * utgaven (v7.8.35).
+ *
+ * BEGRUNNELSEN ER LESBARHET OG IKKE MANGLENDE DATA — tallene finnes fortsatt i
+ * `meta.lagTellinger`, det er visningen som utelater dem. To slags lag havnet
+ * her, og skillet er verdt å kjenne før noen «fullfører» lista:
+ *
+ *   • DE SOM ER OVERALT. Sti, høydekurver og navn finnes på hvert eneste ark,
+ *     i hundrer eller tusener. «Sti (417)» svarer ikke på et spørsmål noen
+ *     har — man ser at det er stier — og tre firesifrede tall øverst i lista
+ *     trekker øyet vekk fra de lagene tallet faktisk betyr noe for
+ *     (holdeplasser, kirker, bommer, broer).
+ *   • DE DER TALLET IKKE ER DET MAN LURER PÅ. Veinummer, GPS-spor og de tre
+ *     stedsnavn-nivåene er tekst-overlegg man slår på for uttrykket, ikke for
+ *     innholdet.
+ *
+ * Merk at `(0)` dermed heller ikke vises for disse. Det er akseptert: for et
+ * lag som er overalt er «tomt» ikke det tvetydige tilfellet tallene ble
+ * innført for.
+ */
+export const UTEN_TELLING = new Set([
+  'sti', 'kontur', 'navn', 'veinummer', 'spor',
+  'stedsnavn-major', 'stedsnavn-mid', 'stedsnavn-minor',
+])
+
+/**
  * Nøkler i `counts` som IKKE er ISOM-koder. De finnes fordi klassifiseringen
  * plukker dem ut av hovedløkka og `continue`-r — punkt-symbolene får sin egen
  * liste — så deres ISOM-kode blir stående på 0 og må ikke brukes.

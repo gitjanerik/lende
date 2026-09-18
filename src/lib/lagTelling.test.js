@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { lagTellinger, tellingMerke, NAVNGITTE_TELLINGER } from './lagTelling.js'
+import { lagTellinger, tellingMerke, NAVNGITTE_TELLINGER, UTEN_TELLING } from './lagTelling.js'
 import { LAYERS } from './mapLayerCatalog.js'
 
 describe('lagTellinger', () => {
@@ -60,6 +60,37 @@ describe('lagTellinger', () => {
     for (const lag of Object.values(NAVNGITTE_TELLINGER)) {
       expect(nokler.has(lag), `${lag} finnes ikke i LAYERS`).toBe(true)
     }
+  })
+})
+
+describe('UTEN_TELLING', () => {
+  // Lista er en LESBARHETS-beslutning og ikke manglende data: tallene ligger
+  // fortsatt i meta, det er visningen som utelater dem. Testene her holder
+  // lista ærlig — en nøkkel som ikke er et lag skjuler ingenting, den er bare
+  // en skrivefeil ingen merker.
+  it('nevner bare EKTE lag', () => {
+    const nokler = new Set(LAYERS.map((l) => l.key))
+    // `spor` er et klient-side syntetisk lag, men det står i LAYERS.
+    for (const lag of UTEN_TELLING) {
+      expect(nokler.has(lag), `${lag} finnes ikke i LAYERS`).toBe(true)
+    }
+  })
+
+  it('utelater de åtte eieren ba om, og ingen flere', () => {
+    // Eksplisitt liste og ikke `size`: en test på antallet ville vært grønn
+    // etter at noen byttet ut ett lag med et annet.
+    expect([...UTEN_TELLING].sort()).toEqual([
+      'kontur', 'navn', 'spor', 'sti',
+      'stedsnavn-major', 'stedsnavn-mid', 'stedsnavn-minor', 'veinummer',
+    ].sort())
+  })
+
+  it('rører ikke selve tellingen — den regner fortsatt ut tallene', () => {
+    // Skillet er hele poenget: skulle et lag få tallet tilbake, er det én
+    // linje her og ingen kart som må bygges om.
+    const ut = lagTellinger({ 505: 9 }, { kontur: 903 })
+    expect(ut.sti).toBe(9)
+    expect(ut.kontur).toBe(903)
   })
 })
 

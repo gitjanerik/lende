@@ -19,12 +19,17 @@
 // at funksjonen var borte. Se `lib/lagTelling.js` for hvorfor tallet kommer
 // fra BYGGEREN og ikke fra en telling av elementer i SVG-en.
 //
-// DE FIRE LAGENE SOM IKKE FÅR TALLET FRA ARKET er de som ikke ligger i arket:
-// kulturminner, arkeologiske kulturminner og vannmålestasjoner hentes live og
-// har hatt sitt eget tall i tre år, og GPS-sporet er brukerens eget. De får
-// tallet fra forelderen i stedet, gjennom sine egne props.
+// TRE LAG FÅR TALLET FRA ET ANNET STED enn arket, fordi de ikke ligger i
+// arket: kulturminner, arkeologiske kulturminner og vannmålestasjoner hentes
+// live og har hatt sitt eget tall i tre år. De mates av forelderen gjennom
+// sine egne props.
+//
+// OG ÅTTE LAG VISER IKKE TALL I DET HELE TATT — `UTEN_TELLING`, se
+// `lib/lagTelling.js` for hvilke og hvorfor. Kort: sti, høydekurver og navn er
+// på hvert ark i tusener, så tallet svarer ikke på noe, og tre firesifrede tall
+// øverst i lista trekker øyet vekk fra de lagene tallet faktisk betyr noe for.
 import { computed } from 'vue'
-import { tellingMerke } from '../../lib/lagTelling.js'
+import { tellingMerke, UTEN_TELLING } from '../../lib/lagTelling.js'
 
 const props = defineProps({
   resetLayers: { type: Function, required: true },
@@ -63,9 +68,11 @@ const EGEN_KILDE = new Set(['kulturminne', 'fredet-kulturminne', 'vannstasjon', 
  * og ikke markup.
  *
  * @param {string} key lag-nøkkel
- * @returns {{ tekst: string, tone: string, tittel: string }}
+ * @returns {{ tekst: string, tone: string, tittel: string }|null} null = laget
+ *   skal ikke ha noe merke
  */
 function merkeFor(key) {
+  if (UTEN_TELLING.has(key)) return null
   // Kulturminner: tre utfall der hentingen også kan FEILE, som er et fjerde
   // svar ingen av de andre lagene kan gi.
   if (key === 'kulturminne') {
@@ -112,7 +119,10 @@ const alleLag = computed(() => [...props.landLayerButtons, ...props.marineLayerB
 // tre = hundre og tjue kall for hver render av fana.
 const merker = computed(() => {
   const ut = {}
-  for (const l of alleLag.value) ut[l.key] = merkeFor(l.key)
+  for (const l of alleLag.value) {
+    const m = merkeFor(l.key)
+    if (m) ut[l.key] = m
+  }
   return ut
 })
 
@@ -121,8 +131,8 @@ const merker = computed(() => {
 // står det en linje under lista som sier HVA «(–)» betyr. Uten den er tegnet
 // bare støy gjentatt førti ganger.
 const noeUkjent = computed(() =>
-  alleLag.value.some((l) =>
-    !EGEN_KILDE.has(l.key) && !Number.isFinite(props.lagTellinger?.[l.key])))
+  alleLag.value.some((l) => !EGEN_KILDE.has(l.key) && !UTEN_TELLING.has(l.key)
+    && !Number.isFinite(props.lagTellinger?.[l.key])))
 </script>
 
 <template>
@@ -155,10 +165,12 @@ const noeUkjent = computed(() =>
              `aria-hidden`, og den samme setningen musa får i `title` ligger
              som `sr-only` inne i knappen, så etiketten leses «Sti, 84
              objekter i dette laget». -->
-        <span class="ml-1 text-[10px] tabular-nums" aria-hidden="true"
-              :class="merker[lay.key]?.tone"
-              :title="merker[lay.key]?.tittel">{{ merker[lay.key]?.tekst }}</span>
-        <span class="sr-only">, {{ merker[lay.key]?.tittel }}</span>
+        <template v-if="merker[lay.key]">
+          <span class="ml-1 text-[10px] tabular-nums" aria-hidden="true"
+                :class="merker[lay.key].tone"
+                :title="merker[lay.key].tittel">{{ merker[lay.key].tekst }}</span>
+          <span class="sr-only">, {{ merker[lay.key].tittel }}</span>
+        </template>
       </button>
     </div>
     <!-- Gruppert seksjon: Sjø & padling -->
@@ -174,10 +186,12 @@ const noeUkjent = computed(() =>
                       ? 'bg-sky-400/25 border-sky-300/50 text-ink'
                       : 'bg-ink/5 border-ink/10 text-ink-4'">
         <span class="text-[12px]">{{ lay.label }}</span>
-        <span class="ml-1 text-[10px] tabular-nums" aria-hidden="true"
-              :class="merker[lay.key]?.tone"
-              :title="merker[lay.key]?.tittel">{{ merker[lay.key]?.tekst }}</span>
-        <span class="sr-only">, {{ merker[lay.key]?.tittel }}</span>
+        <template v-if="merker[lay.key]">
+          <span class="ml-1 text-[10px] tabular-nums" aria-hidden="true"
+                :class="merker[lay.key].tone"
+                :title="merker[lay.key].tittel">{{ merker[lay.key].tekst }}</span>
+          <span class="sr-only">, {{ merker[lay.key].tittel }}</span>
+        </template>
       </button>
       <!-- Dybde-lag: kun når kartet har ekte Sjøkart-dybde. Default av —
            løfter soundings + dybdekurver fra long-press-inset til hovedkartet. -->

@@ -1,4 +1,4 @@
-## 2026-09-18 — v7.8.35: Hvert lag i Detaljer sier hvor mange objekter det har
+## 2026-09-18 — v7.8.35: Lag-tall i Detaljer, og lang-trykk på kompasset gjør det motsatte
 
 Detaljer-fana var en liste med førti brytere og ingen tall. Slo man av
 «Holdeplass» og ingenting endret seg på kartet, var det to helt ulike ting som
@@ -30,6 +30,28 @@ Tre utfall, tre tegn, og konvensjonen er kulturminne-lagets fra v4.8.6: «(N)»,
 svaret på et kart bygget før tellingen fantes, og fana sier da hva tegnet betyr
 i stedet for å gjenta det førti ganger uten forklaring. Bygg kartet om, og
 tallene kommer.
+
+Åtte lag bærer bevisst INGEN teller, etter en gjennomgang av den første
+utgaven: sti, høydekurver og navn er på hvert eneste ark i tusener, så «Sti
+(417)» svarer ikke på et spørsmål noen har — og tre firesifrede tall øverst i
+lista trekker øyet vekk fra de lagene tallet faktisk betyr noe for
+(holdeplasser, kirker, bommer, broer). Veinummer, GPS-spor og de tre
+stedsnavn-nivåene er tekst-overlegg man slår på for uttrykket, ikke for
+innholdet. Tallene finnes fortsatt i `meta.lagTellinger` — det er visningen som
+utelater dem, så et lag kan få tallet tilbake med én linje og uten at et enkelt
+kart må bygges om.
+
+Kompassnåla har samtidig fått lang-trykk, som gjør DET MOTSATTE av et vanlig
+trykk: står standarden på «bare roter», zoomer holdet ut i tillegg, og står den
+på «roter og zoom ut», roterer holdet bare. Den andre oppførselen var ellers
+fire trykk unna — åpne skuffa, finn Preferanser, vipp bryteren, tilbake — og
+holdet er snarveien til den uten å endre innstillingen. Knappen vet ikke hva de
+to oppførslene ER; den sier bare om trykket var det vanlige eller det motsatte,
+så regelen bor der innstillingen bor og kan ikke komme i utakt med den. En gul
+ring fyller seg over hold-terskelen, samme grep som FAB-ankeret, for uten den er
+holdet en gest ingen kan finne. Fordi knappen nå er peker-drevet, måtte Enter,
+mellomrom og Meny-tasten legges inn for hånd (SC 2.1.1) — samme luke
+FabCluster lukket i v6.5.48.
 
 ISO-kode-til-lag-tabellen er samtidig flyttet fra `mapBuilder.categoryFor` til
 `mapLayerCatalog.js`, der `LAYERS` bor. Kommentaren over `LAYERS` sa

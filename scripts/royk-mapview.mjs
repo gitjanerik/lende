@@ -616,12 +616,13 @@ const SJEKKER = [
         .filter((g) => g.style.display !== 'none').length)
       const før = await synlige()
       if (!før) throw new Error('fant ingen synlige sti-grupper å slå av')
-      // `/^Sti\b/` og ikke `/^Sti$/` (v7.8.35): lag-knappen bærer nå antall
-      // kartobjekter etter etiketten («Sti (84)»), pluss den samme setningen
-      // som `sr-only` for skjermlesere — og begge er med i `innerText`. Et
-      // anker i enden av strengen matcher derfor ingenting. `\b` holder
-      // presisjonen der den betyr noe: den treffer ikke «Stiblokkering» eller
-      // en framtidig «Sti-farge».
+      // `/^Sti\b/` og ikke `/^Sti$/` (v7.8.35). Sti er ETT av de åtte lagene
+      // som bevisst IKKE bærer et tall (`UTEN_TELLING`), så et anker i enden
+      // ville tilfeldigvis virket i dag — men de lagene som HAR tall bærer
+      // dem i `innerText`, sammen med den samme setningen som `sr-only`, og
+      // en sjekk som brekker den dagen et lag får eller mister et tall er en
+      // sjekk som brekker på noe annet enn den måler. `\b` holder presisjonen
+      // der den betyr noe: den treffer ikke «Stiblokkering».
       await klikkTekst(page, /^Sti\b/, SKUFF)
       const av = await synlige()
       if (av !== 0) throw new Error(`Sti-laget ble ikke skjult (${før} → ${av})`)
@@ -3258,32 +3259,46 @@ const SJEKKER = [
     },
   },
   {
-    // HVERT LAG BÆRER ET TALL (v7.8.35), OG SJEKKEN MÅ MÅLE TO ULIKE ARK.
+    // TALLET PER LAG (v7.8.35), OG SJEKKEN MÅ MÅLE TRE TING.
     //
-    // Fana var en liste brytere uten tall, så «laget er tomt her» og «bryteren
+    // Fana var førti brytere uten tall, så «laget er tomt her» og «bryteren
     // virker ikke» så identiske ut. Tallet kommer fra BYGGEREN og ligger i
     // arkets `data-meta` (`meta.lagTellinger`) — ikke fra en telling av
     // elementer i SVG-en, som ville vært feil i to retninger samtidig
     // (geometri buckets, linjer tegnes to ganger). Se `lib/lagTelling.js`.
     //
-    // SJEKKEN BRANCHER PÅ HVA ARKET FAKTISK SIER, og det er ikke slapphet —
-    // det er de to ekte tilstandene, og begge er verdt å holde fast:
-    //
-    //   • EKTE KART (--ektekart, og alltid i CI siden src/lib står på
-    //     MAA_HA_EKTEKART): feltet finnes, og da skal tallene være EKTE. Et
-    //     Vardåsen-ark har stier og høydekurver, så de to må være > 0 — uten
-    //     den grensa ville en telling som ga null overalt stått grønn.
-    //   • SPORET DEMO-KART: bygget før tellingen fantes, altså uten feltet, og
-    //     da skal ALLE ikke-live lag vise «(–)» og forklaringslinja si hva
-    //     tegnet betyr. Det er fallbacken, og den er den brukerne med gamle
-    //     kart i IndexedDB møter.
+    // 1. ÅTTE LAG SKAL IKKE HA TALL I DET HELE TATT (`UTEN_TELLING`). Sti,
+    //    høydekurver og navn er på hvert ark i tusener, så tallet svarer ikke
+    //    på noe; veinummer, GPS-spor og de tre stedsnavn-nivåene er
+    //    tekst-overlegg man slår på for uttrykket. Dette er den halvdelen en
+    //    enhetstest IKKE kan se: `UTEN_TELLING` er testet, men at MALEN
+    //    faktisk lar merket være er bare å måle på skjermen.
+    // 2. RESTEN SKAL HA ET TALL, og merket skal ha en setning for skjermleser
+    //    og mus — tegnet alene («parentes åttifire parentes») sier ikke hva
+    //    tallet gjelder.
+    // 3. TALLET SKAL VÆRE ARKETS. Sjekken brancher på om arket har feltet, og
+    //    det er ikke slapphet — det er de to ekte tilstandene:
+    //      • EKTE KART (alltid i CI, siden src/lib står på MAA_HA_EKTEKART):
+    //        feltet finnes, flere lag må være > 0, og et merke må stemme
+    //        EKSAKT med meta.
+    //      • SPORET DEMO-KART, bygget før tellingen fantes: ingen felt, alle
+    //        tall-lag viser «(–)», og fana forklarer tegnet. Det er
+    //        fallbacken brukere med gamle kart i IndexedDB møter.
     //
     // «(0)» og «(–)» er to ULIKE svar — sett etter og fant ingenting, mot
     // ingen har sett etter — og at de ikke kollapser til ett tegn er hele
     // lærdommen fra kulturminne-laget i v4.8.6.
-    navn: 'hvert lag i Detaljer viser antall kartobjekter',
+    navn: 'lagene i Detaljer viser antall, unntatt de åtte som ikke skal',
     domene: 'DrawerLayersTab + lib/lagTelling + mapBuilder (meta.lagTellinger)',
     async kjør(page) {
+      // Eierens liste, skrevet ut her framfor importert: sjekken skal si fra
+      // om `UTEN_TELLING` endres UTEN at noen mente det, og en import ville
+      // fulgt endringen lydløst.
+      const UTEN_TALL = ['Sti', 'Høydekurver', 'Navn', 'Veinummer', 'GPS-spor',
+        'By / tettsted', 'Landsby / bydel', 'Grend / gård']
+      // Lagene som mates av forelderen og ikke av arket (live-hentinger).
+      const LIVE = /Kultur|arkeolog|Vannmåle/i
+
       await åpneDrawer(page)
       await page.locator('#drawer-fane-lag').first().click()
       await page.waitForTimeout(400)
@@ -3295,14 +3310,14 @@ const SJEKKER = [
         let tellinger = null
         try { tellinger = JSON.parse(svg?.getAttribute('data-meta') || '{}').lagTellinger ?? null }
         catch { /* ugyldig meta — behandles som «ingen tellinger» */ }
-        // Merkene er `aria-hidden`-spennene med tabulære tall. Vi leser dem av
-        // KNAPPENE, så et merke uten knapp (eller omvendt) faller ut av seg selv.
+        // Merkene leses av KNAPPENE, så et merke uten knapp (eller omvendt)
+        // faller ut av seg selv.
         const merker = []
         for (const b of panel.querySelectorAll('button[aria-pressed]')) {
           const m = b.querySelector('span[aria-hidden="true"]')
           const sr = b.querySelector('span.sr-only')
           merker.push({
-            etikett: b.querySelector('span')?.textContent.trim() ?? '',
+            etikett: b.querySelector('span')?.textContent.replace(/­/g, '').trim() ?? '',
             tekst: m ? m.textContent.trim() : null,
             tittel: m ? (m.getAttribute('title') ?? '') : '',
             srTekst: sr ? sr.textContent.trim() : null,
@@ -3312,66 +3327,78 @@ const SJEKKER = [
           tellinger,
           merker,
           forklaring: /antall kartobjekter/.test(panel.innerText),
-          forklarerStrek: /ble bygget\s+før tellingen fantes/.test(panel.innerText.replace(/\s+/g, ' ')),
+          forklarerStrek: /ble bygget\s+før tellingen fantes/
+            .test(panel.innerText.replace(/\s+/g, ' ')),
         }
       })
       if (f.mangler) throw new Error(`fant ikke ${f.mangler}`)
       if (!f.merker.length) throw new Error('fant ingen lag-knapper i Detaljer-fana')
+      const finn = (etikett) => f.merker.find((m) => m.etikett === etikett)
 
-      // FELLES FOR BEGGE ARK: hver lag-knapp har et merke, og merket har en
-      // setning for skjermleseren. Tegnet alene («parentes åttifire parentes»,
-      // «utropstegn») sier ikke hva tallet gjelder.
-      const uten = f.merker.filter((m) => !m.tekst)
+      // ── 1. De åtte skal være TOMME for merke ────────────────────────────
+      for (const etikett of UTEN_TALL) {
+        const m = finn(etikett)
+        if (!m) throw new Error(`fant ingen lag-knapp «${etikett}» — er etiketten endret?`)
+        if (m.tekst !== null) {
+          throw new Error(`«${etikett}» viser «${m.tekst}», men skal ikke ha noe tall `
+            + '(UTEN_TELLING i lib/lagTelling.js)')
+        }
+      }
+
+      // ── 2. Resten skal HA et merke, med setning ─────────────────────────
+      const skalHa = f.merker.filter((m) => !UTEN_TALL.includes(m.etikett))
+      const uten = skalHa.filter((m) => !m.tekst)
       if (uten.length) {
         throw new Error(`${uten.length} lag-knapp(er) mangler tallet, bl.a. `
           + `«${uten.slice(0, 3).map((m) => m.etikett).join('», «')}»`)
       }
-      const utenSr = f.merker.filter((m) => !m.srTekst || !m.tittel)
+      const utenSr = skalHa.filter((m) => !m.srTekst || !m.tittel)
       if (utenSr.length) {
         throw new Error(`${utenSr.length} merke(r) mangler setningen for skjermleser/mus, `
           + `bl.a. «${utenSr[0].etikett}»`)
       }
       if (!f.forklaring) throw new Error('fana forklarer ikke hva tallet er')
 
-      const finn = (re) => f.merker.find((m) => re.test(m.etikett))
+      // ── 3. Tallet skal være arkets ──────────────────────────────────────
       if (f.tellinger) {
-        // EKTE KART. Et Vardåsen-ark HAR stier og høydekurver.
-        for (const [navn, nokkel] of [['Sti', 'sti'], ['Høydekurver', 'kontur']]) {
-          const n = f.tellinger[nokkel]
-          if (!Number.isFinite(n) || n <= 0) {
-            throw new Error(`${navn} teller ${n} på et ekte Vardåsen-ark — `
-              + 'tellingen fanger ikke det laget')
-          }
+        // EKTE KART. Et 4 km Asker-ark har innhold i flere lag; å kreve ETT
+        // navngitt lag > 0 er en geografi-påstand, mens «flere enn to» er en
+        // påstand om at tellingen virker.
+        const positive = Object.entries(f.tellinger).filter(([, n]) => n > 0)
+        if (positive.length < 3) {
+          throw new Error(`bare ${positive.length} lag teller over null på et ekte ark — `
+            + 'tellingen fanger nesten ingenting')
         }
-        const sti = finn(/^Sti$/)
-        if (sti?.tekst !== `(${f.tellinger.sti})`) {
-          throw new Error(`Sti-knappen viser «${sti?.tekst}», men arket sier `
-            + `(${f.tellinger.sti}) — merket leser ikke meta`)
+        // Ett merke måles EKSAKT mot meta: det er den ene tråden fra byggeren
+        // til skjermen, og den kan ikke verifiseres av en enhetstest.
+        const målt = skalHa.find((m) => !LIVE.test(m.etikett) && /^\(\d+\)$/.test(m.tekst))
+        if (!målt) throw new Error('fant ingen ark-basert merke med et tall å måle mot meta')
+        const svar = Object.entries(f.tellinger)
+          .filter(([, n]) => `(${n})` === målt.tekst)
+        if (!svar.length) {
+          throw new Error(`«${målt.etikett}» viser ${målt.tekst}, men ingen lag i meta `
+            + 'har det tallet — merket leser ikke meta')
         }
-        if (f.merker.some((m) => m.tekst === '(–)' && !/Kultur|arkeolog|Vannmåle|GPS/i.test(m.etikett))) {
+        if (skalHa.some((m) => m.tekst === '(–)' && !LIVE.test(m.etikett))) {
           throw new Error('et lag som ligger i arket viser «(–)» selv om arket har tellinger')
         }
         await lukkDrawer(page)
-        return `${Object.keys(f.tellinger).length} lag talt, Sti ${sti.tekst}, `
-          + `Høydekurver (${f.tellinger.kontur})`
+        return `${UTEN_TALL.length} lag uten tall, ${skalHa.length} med, `
+          + `${positive.length} over null, «${målt.etikett}» ${målt.tekst} = meta`
       }
 
       // SPORET DEMO-KART: bygget før tellingen fantes.
       if (!f.forklarerStrek) {
         throw new Error('arket mangler tellinger, men fana forklarer ikke «(–)»')
       }
-      const strek = f.merker.filter((m) => m.tekst === '(–)')
+      const strek = skalHa.filter((m) => m.tekst === '(–)')
       if (!strek.length) {
         throw new Error('arket har ingen tellinger, men ingen lag viser «(–)» — '
           + 'blir «vet ikke» vist som «tomt»?')
       }
-      const sti = finn(/^Sti$/)
-      if (sti && sti.tekst !== '(–)') {
-        throw new Error(`Sti viser «${sti.tekst}» på et ark uten tellinger`)
-      }
       await lukkDrawer(page)
-      return `${f.merker.length} lag-merker, ${strek.length} står på «(–)» `
-        + '(ark bygget før tellingen)'
+      return `${UTEN_TALL.length} lag uten tall, ${skalHa.length} med, `
+        + `${strek.length} på «(–)» (ark bygget før tellingen)`
     },
   },
   {
@@ -3889,10 +3916,23 @@ const SJEKKER = [
     //
     // EGEN KONTEKST MED `hasTouch`: kompassknappen gis bare til berøring, så
     // standard-konteksten ville hoppet stille over sjekken.
-    navn: 'kompasstrykket vender mot nord, og zoom-ut er et valg',
-    domene: 'MapView (onResetAndRefreshGps) + useKompassNord',
-    krever: 'ektekart',
-    maksMs: 150_000,
+    // OG LANG-TRYKK GJØR DET MOTSATTE (v7.8.35). Den andre oppførselen var
+    // fire trykk unna — åpne skuffa, finn fana, vipp bryteren, tilbake — så
+    // holdet er snarveien til den, uten å endre innstillingen. Sjekken måler
+    // BEGGE veier av det motsatte, for en XOR er like lett å skrive feil som
+    // riktig, og et snudd fortegn ser ut som «holdet virker ikke».
+    //
+    // HOLDET MÅ SPILLES MED `page.mouse` OG IKKE `.click()`: knappen er
+    // peker-drevet (useLongPress), og et programmatisk klikk gjør ingenting —
+    // samme felle FAB-ene har, og den står i CLAUDE.md.
+    navn: 'kompasset: trykk vender mot nord, hold gjør det motsatte',
+    domene: 'MapView (onResetAndRefreshGps) + KompassKnapp + useKompassNord',
+    // INGEN `krever: 'ektekart'`, og det er en bevisst nedgradering: sjekken
+    // måler SKALA og ROTASJON i arkets transform, ikke innhold. Det sporede
+    // demo-kartet er et ekte 4,9 km ark med data-meta — det er bare tomt for
+    // features — så alt her virker på det, og sjekken kjører dermed i HVER
+    // kjøring i stedet for bare i de som betaler for Overpass.
+    maksMs: 200_000,
     async kjør(page) {
       const ctx = await egenKontekst(page, {
         viewport: { width: 430, height: 900 },
@@ -3965,6 +4005,17 @@ const SJEKKER = [
 
         const knapp = p2.locator('button[aria-label^="Vend kartet mot nord"]')
         if (!(await knapp.count())) throw new Error('fant ingen kompassknapp')
+        // Lang-trykk med ekte peker-sekvens. `holdMs` er 600 i useLongPress;
+        // 950 ms gir margin uten å være en påstand om runnerens fart.
+        const hold = async () => {
+          const b = await knapp.boundingBox()
+          if (!b) throw new Error('kompassknappen har ingen boks å holde på')
+          await p2.mouse.move(b.x + b.width / 2, b.y + b.height / 2)
+          await p2.mouse.down()
+          await p2.waitForTimeout(950)
+          await p2.mouse.up()
+          await p2.waitForTimeout(900)
+        }
         await knapp.click()
         await p2.waitForTimeout(900)
         const av = await les()
@@ -3975,6 +4026,24 @@ const SJEKKER = [
         if (Math.abs(av.skala - før.skala) / før.skala > 0.02) {
           throw new Error(`standarden zoomet kartet (${før.skala.toFixed(3)} → `
             + `${av.skala.toFixed(3)}) — den skal bare rotere`)
+        }
+
+        // HOLD MED BRYTEREN AV → det motsatte, altså zoom ut. Vi må inn igjen
+        // først: forrige trykk lot zoomen stå, men et hold fra dekningsskalaen
+        // har ingenting å zoome ut fra.
+        await zoomInn(p2, 4)
+        await p2.waitForTimeout(500)
+        const førHold = await les()
+        await hold()
+        const avHold = await les()
+        if (!(avHold.skala < førHold.skala * 0.9)) {
+          throw new Error(`lang-trykk med bryteren AV zoomet ikke ut `
+            + `(${førHold.skala.toFixed(3)} → ${avHold.skala.toFixed(3)}) — `
+            + 'gjør holdet det samme som trykket?')
+        }
+        if (Math.abs(norm(avHold.grader)) > 1.5) {
+          throw new Error(`lang-trykk vendte ikke arket mot nord `
+            + `(står på ${avHold.grader.toFixed(1)}°)`)
         }
 
         // ── Runde 2: bryteren PÅ ──────────────────────────────────────────
@@ -3997,8 +4066,34 @@ const SJEKKER = [
           throw new Error(`bryteren PÅ zoomet ikke ut (${før2.skala.toFixed(3)} → `
             + `${på.skala.toFixed(3)})`)
         }
-        return `av: ${før.skala.toFixed(2)}× uendret, ${før.grader.toFixed(0)}° → 0°; `
-          + `på: ${før2.skala.toFixed(2)}× → ${på.skala.toFixed(2)}×`
+
+        // HOLD MED BRYTEREN PÅ → det motsatte, altså BARE rotasjonen. Dette er
+        // retningen et snudd fortegn i XOR-en ville sluppet gjennom: uten den
+        // ville «holdet zoomer alltid ut» stått grønt.
+        await zoomInn(p2, 4)
+        await dreiArket()
+        await p2.waitForTimeout(700)
+        const førHold2 = await les()
+        if (Math.abs(norm(førHold2.grader)) < 15) {
+          throw new Error(`arket dreide bare ${førHold2.grader.toFixed(1)}° før holdet — `
+            + 'uten en dreining måler denne halvdelen ingenting')
+        }
+        await hold()
+        const påHold = await les()
+        if (Math.abs(norm(påHold.grader)) > 1.5) {
+          throw new Error(`lang-trykk med bryteren PÅ vendte ikke mot nord `
+            + `(står på ${påHold.grader.toFixed(1)}°)`)
+        }
+        if (Math.abs(påHold.skala - førHold2.skala) / førHold2.skala > 0.02) {
+          throw new Error(`lang-trykk med bryteren PÅ zoomet kartet `
+            + `(${førHold2.skala.toFixed(3)} → ${påHold.skala.toFixed(3)}) — `
+            + 'holdet skal gjøre det MOTSATTE av trykket')
+        }
+
+        return `av: trykk ${før.skala.toFixed(2)}× uendret, hold `
+          + `${førHold.skala.toFixed(2)}→${avHold.skala.toFixed(2)}×; `
+          + `på: trykk ${før2.skala.toFixed(2)}→${på.skala.toFixed(2)}×, hold `
+          + `${førHold2.skala.toFixed(2)}× uendret`
       } finally {
         // NØYTRAL TILSTAND er gratis her: konteksten lukkes, og med den både
         // localStorage-nøkkelen og zoomen. Det er nettopp derfor runde 2 tør å
