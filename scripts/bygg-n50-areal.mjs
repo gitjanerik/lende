@@ -65,10 +65,24 @@ const BARE_MAL = args.includes('--mal')
 // stående etter at spørsmålet var besvart — det er den ene grunnen til at
 // skogen aldri kom med. En default som representerer et ferdig avklart
 // mellomsteg er en felle; nå må man be om mindre, ikke om mer.
+// MÅLE-TYPER — vann. Innsjø og Elv ligger i SAMME lag og samme nedlasting som
+// myr og skog (N50_Arealdekke_omrade er en flatedeling: innsjøen er hullet i
+// myra rundt), så baken kan MÅLE dem uten én linje ny henting. Men de har
+// ingen plass i flis-formatet (TYPER) og ingen klient som leser dem, og godtas
+// derfor BARE med --mal. En bake som skrev dem ville lagt «annet»-flater i
+// public/ som ingen tegner. Tallene er hele leveransen — se
+// docs/VANN_VURDERING.md.
+export const MAL_TYPER = Object.freeze(['innsjo', 'elv'])
+const ALLE_TYPER = [...TYPER, ...MAL_TYPER]
+
 const TYPER_VALGT = new Set(
   (argVal('--typer') ?? 'myr,skog,isbre').split(',').map(t => t.trim()).filter(Boolean))
 for (const t of TYPER_VALGT) {
-  if (!TYPER.includes(t)) throw new Error(`Ukjent type «${t}» — gyldige: ${TYPER.join(', ')}`)
+  if (MAL_TYPER.includes(t)) {
+    if (!BARE_MAL) throw new Error(`«${t}» kan bare MÅLES (--mal): flis-formatet har ingen plass til vann, og ingen klient leser det`)
+    continue
+  }
+  if (!TYPER.includes(t)) throw new Error(`Ukjent type «${t}» — gyldige: ${TYPER.join(', ')} (bare måling: ${MAL_TYPER.join(', ')})`)
 }
 
 /**
@@ -81,7 +95,7 @@ for (const t of TYPER_VALGT) {
  * på et kart i 1:10 000. Én felles skrue måtte valgt mellom å ødelegge myra
  * eller å bære skogen dyrere enn public/ tåler.
  */
-export function lesSkrue(rå, standard, typer = TYPER) {
+export function lesSkrue(rå, standard, typer = ALLE_TYPER) {
   const ut = Object.fromEntries(typer.map(t => [t, standard]))
   const tekst = String(rå ?? '').trim()
   if (!tekst) return ut
@@ -104,14 +118,17 @@ export function lesSkrue(rå, standard, typer = TYPER) {
 // Standardene per type. Myrens tall står NØYAKTIG som i v5.25.0 — en bake som
 // endrer dem ville skrevet 206 fliser på nytt og sendt alle brukere ut i en
 // full nedlasting for en forskjell ingen kan se.
-const STANDARD_TOLERANSE = { myr: 4, skog: 8, apen: 8, annet: 8, isbre: 4 }
-const STANDARD_MINAREAL = { myr: 2500, skog: 5000, apen: 5000, annet: 5000, isbre: 2500 }
+// Vann-tallene er MÅLE-standarder: 4 m er myrens toleranse (strandlinja
+// deles med myra, så en annen toleranse ville åpnet en søm der), og 400 m² er
+// et tjern på 20 × 20 m — det minste som er en flate og ikke en prikk i 1:10 000.
+const STANDARD_TOLERANSE = { myr: 4, skog: 8, apen: 8, annet: 8, isbre: 4, innsjo: 4, elv: 4 }
+const STANDARD_MINAREAL = { myr: 2500, skog: 5000, apen: 5000, annet: 5000, isbre: 2500, innsjo: 400, elv: 400 }
 
 // `null` som standard betyr «ikke nevnt på kommandolinja» — da gjelder typens
 // egen verdi over. En felles standard her ville visket ut hele poenget: en
 // `--toleranse skog=12` skal treffe skogen og la myra stå.
 const medStandard = (rå, standard) => Object.fromEntries(
-  TYPER.map(t => [t, lesSkrue(rå, null)[t] ?? standard[t]]))
+  ALLE_TYPER.map(t => [t, lesSkrue(rå, null)[t] ?? standard[t]]))
 const TOLERANSE = medStandard(argVal('--toleranse'), STANDARD_TOLERANSE)
 const MIN_AREAL = medStandard(argVal('--minareal'), STANDARD_MINAREAL)
 
@@ -159,6 +176,12 @@ const OBJTYPE = {
   snoisbre: 'isbre',
   isbre: 'isbre',
   bre: 'isbre',
+  // Vann — BARE MÅLING (MAL_TYPER), og klassifiseres bare når de er bedt om.
+  // Havflate og FerskvannTørrfall står bevisst utenfor: sjøen kommer fra
+  // DEM/Sjøkart, og et tørrfall er ikke vann.
+  innsjø: 'innsjo',
+  innsjøregulert: 'innsjo',
+  elv: 'elv',
   // ÅpentOmråde bæres BEVISST IKKE. Når Turkart-bakgrunnen er den nøytrale
   // åpen-tonen, ER åpenhet standardtilstanden — å bake 112 020 flater som
   // bare maler bakgrunnen på nytt er ren datamengde uten et eneste nytt

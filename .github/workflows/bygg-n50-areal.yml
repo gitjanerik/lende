@@ -50,7 +50,7 @@ on:
         required: false
         default: ''
       typer:
-        description: 'Hvilke arealtyper: myr, skog, isbre (komma­separert). Tomt = alle tre.'
+        description: 'Hvilke arealtyper: myr, skog, isbre (komma­separert). Tomt = alle tre. Bare med «bare mål»: innsjo, elv (vann måles, bakes aldri).'
         required: false
         default: ''
       minareal:

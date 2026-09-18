@@ -1,0 +1,102 @@
+name: Probe — hva koster N50-vann, og hvor ligger innsjøen?
+
+# EN MÅLING, IKKE EN GATE. Den finnes fordi Geonorge, NVE Innsjødatabasen,
+# Overpass og Kartverkets WCS ALLE er sperret fra utviklings-sandkassene —
+# spørsmålet «ligger NVE-innsjøen der terrenget sier den ligger, og hva koster
+# N50-vann pakket i vårt eget flis-format?» kan ikke stilles der svaret skal
+# skrives. Se docs/VANN_VURDERING.md for spørsmålene den svarer på.
+#
+# Skriver bare til probe-ut/ (lastes opp som artefakt), endrer INGENTING i
+# repoet, feiler ALDRI på et trinn som ikke får svar. LES UTSKRIFTEN — den er
+# hele leveransen.
+#
+# Kjør den IKKE samtidig med en nasjonal areal-bake: begge laster ned fra
+# Geonorge, og to samtidige nedlastinger kvelte hverandre (v5.24.x).
+
+on:
+  workflow_dispatch:
+    inputs:
+      lat:
+        description: 'Breddegrad for probepunktet (standard: Uhcit Vuoksajávri ved Varangerbotn)'
+        required: false
+        default: '70.14522'
+      lon:
+        description: 'Lengdegrad'
+        required: false
+        default: '28.45329'
+      radius_m:
+        description: 'Halv sidekant i meter for utsnittet som måles'
+        required: false
+        default: '1500'
+      fylke:
+        description: 'Fylkesnummer for N50-nedlastingen (56 = Finnmark). Må dekke probepunktet.'
+        required: false
+        default: '56'
+      reg_halv_km:
+        description: 'Halv sidekant i km for registrerings-arket (WCS-raster mot bestilt bbox, beste skift per innsjø)'
+        required: false
+        default: '4'
+      ekstra:
+        description: 'Andre steder registreringen måles på: «Navn@lat,lon;Navn@lat,lon». Tom = ingen.'
+        required: false
+        default: 'Vardåsen@59.813746,10.414616;Gjendesheim@61.4937,8.8003;Tromsø@69.6489,18.9551'
+      hytter:
+        description: 'Hytteområde for bygnings-målingen: «Navn@lat,lon#fylkesnr». Fylket må dekke punktet.'
+        required: false
+        default: 'Norefjell@60.2250,9.5300#33'
+      hopp:
+        description: 'Trinn som skal hoppes over (komma­separert): nve, osm, fliser, geonorge, dem, reg, ekstra, sammenlign, kart, kurve, bygg, hytter, fylke, svg'
+        required: false
+        default: ''
+  # Også på push når proben selv endres. En workflow_dispatch registreres først
+  # når fila står på default-branch, så første kjøring må komme på en annen
+  # måte — samme grep som probe-svalbard-dem.yml. Ingen andre stier trigger den.
+  push:
+    paths:
+      - 'scripts/probe-n50-vann.mjs'
+      - '.github/workflows/probe-n50-vann.yml'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      # GDAL leser Geonorges FGDB-nedlasting — samme verktøy som areal-baken.
+      - name: Installer GDAL
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gdal-bin unzip
+          ogr2ogr --version
+
+      # Proben måler gjennom appens EGNE fetchere og headless-byggeren, så den
+      # trenger hele avhengighetstreet.
+      - run: npm ci
+
+      - name: Mål
+        env:
+          PROBE_LAT: ${{ inputs.lat || '70.14522' }}
+          PROBE_LON: ${{ inputs.lon || '28.45329' }}
+          PROBE_RADIUS_M: ${{ inputs.radius_m || '1500' }}
+          PROBE_FYLKE: ${{ inputs.fylke || '56' }}
+          PROBE_REG_HALV_KM: ${{ inputs.reg_halv_km || '4' }}
+          # Tom streng betyr «ingen», så dispatch sendes VERBATIM (også tom) —
+          # `inputs.ekstra || standard` ville gjort tom til standard igjen.
+          # Bare push-utløseren, som ikke har inputs, får standardlista.
+          PROBE_EKSTRA: ${{ github.event_name == 'push' && 'Vardåsen@59.813746,10.414616;Gjendesheim@61.4937,8.8003;Tromsø@69.6489,18.9551' || inputs.ekstra }}
+          PROBE_HYTTER: ${{ inputs.hytter || 'Norefjell@60.2250,9.5300#33' }}
+          PROBE_HOPP: ${{ inputs.hopp || '' }}
+        run: npm run probe:n50vann
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: probe-n50-vann
+          path: probe-ut/
+          if-no-files-found: warn

@@ -1,6 +1,198 @@
-# Vann-stacken — foreløpige funn og problemstilling
+# Vann-stacken — funn og problemstilling
 
-**Status: ikke besluttet. Ingen kode er endret på grunnlag av dette notatet.**
+**Status: MÅLT 2026-09-18, ikke besluttet. Ingen klientkode er endret på
+grunnlag av dette notatet.** Målingen står øverst; notatet fra 2026-08-09 står
+uendret under den, fordi spørsmålene der fortsatt er de riktige.
+
+Samme innhold som lesestoff for mobil: https://claude.ai/artifact/XeTnaf2M6asAPr1eUdtLQX
+
+## Målt 2026-09-18 — det som var gjetning i august, med tall
+
+Skrevet på gren `claude/n50-vann-saturn-ringer-gyxpsp` etter to kjøringer av
+`.github/workflows/probe-n50-vann.yml` (`npm run probe:n50vann`; skriver bare
+til `probe-ut/`, endrer ingenting, siste kjøring run 35388440273) og én nasjonal
+`--mal`-bake i «Bygg N50 arealdekke» med `typer = innsjo,elv` (run 35385801997).
+Alt under er lest av CI-logger: Geonorge, NVE, Overpass og Kartverkets WCS er
+sperret fra sandkassene, så ingenting av det kan måles der notatet skrives.
+
+Utløseren var et skjermbilde fra Varangerbotn (Uhcit Vuoksajávri, 70.14522 N
+28.45329 Ø): innsjøen så forskjøvet ut mot terrenget under, og eieren spurte om
+N50-vann gir et mer enhetlig uttrekk, om det fjerner overgangsproblemer, om en
+bake koster ~115 MB historikk for alltid — og hva mer detalj i SVG-en koster.
+
+### 1. Registreringen er eksakt — også i Finnmark
+
+Proben ber om et 8 × 8 km-ark rundt hvert punkt gjennom appens egne
+WCS-endepunkter og leser GeoTIFF-hodet MOT den bestilte bboksen — noe
+`fetchWCSDtm` aldri gjør; den strekker rasteret over bboksen den ba om.
+
+| Sted | Endepunkt | bbox-avvik | CRS i hodet | pikselstørrelse |
+|---|---|---|---|---|
+| Nesseby | NHM_DTM_25833 (`RESPONSE_CRS` 25832) | 0,00 m på alle fire kanter | EPSG:25832 | 10,0030 × 9,9991 m |
+| Vardåsen | NHM_DTM_25832 og _25833 | 0,00 m | EPSG:25832 | 10,0000 × 9,9959 m |
+| Gjendesheim | begge | 0,00 m | EPSG:25832 | 9,9940 × 10,0036 m |
+| Tromsø | _25833 | 0,00 m | EPSG:25832 | 9,9984 × 10,0034 m |
+
+I Finnmark og Troms svarer 25832-endepunktet ServiceExceptionReport (HTTP 200,
+`application/vnd.ogc.se_xml`), så de arkene går ALLTID via 25833-stien — og den
+respekterer `RESPONSE_CRS`: hodet er identisk med et 25832-hode (PixelIsArea,
+avvik i pikselstørrelse ≤ 0,03 %). Hadde rasteret kommet med sone 33-akser,
+ville det stått −5,70° dreid ved Nesseby. Det gjør det ikke.
+
+Så ble hver innsjø flyttet mot DTM-en: beste skift per innsjø er der andelen
+flatt terreng INNE i ringen minus andelen i et bånd UTENFOR er størst (±100 m i
+4 m-steg, så ±3 m i 1 m-steg; «sikker» = minst 60 % flatt inne), og en
+similarity-transform (tx, ty, θ, skala) ble tilpasset over de sikre innsjøene:
+
+| Sted | oppl. | skift (ΔE, ΔN) | rotasjon | RMS | median \|skift\| per innsjø |
+|---|---|---|---|---|---|
+| Nesseby (23 sikre) | 10 m | (−2,5, −7,1) m | −0,053° | 15,5 m | 5,8 m |
+| Nesseby | 5 m | (−1,7, −8,5) m | −0,050° | 15,3 m | 8,2 m |
+| Vardåsen, 25832 | 10 m | (1,0, −1,2) m | −0,037° | 4,7 m | 5,8 m |
+| Vardåsen, 25833 | 10 m | (1,5, −0,8) m | – | 4,2 m | 7,1 m |
+| Gjendesheim | 10 / 5 m | – | – | – | 7,3 / 6,1 m |
+| Tromsø | 10 m | – | – | – | 3,6 m |
+
+Alt ligger innenfor én DTM-celle, nord som sør. **Det finnes ingen
+projeksjons- eller registreringsfeil i pipelinen, og N50-vann ville ikke flyttet
+innsjøen én meter:** NVE-ringen ER N50-geometrien (IoU 0,92–0,97 mot rå N50,
+4–8 m ringavstand — N50s egen generalisering), og OSM ligger 0,5 m fra NVE her.
+
+### 2. Det eieren så, er flatt terreng — ikke en forskjøvet innsjø
+
+DTM-en har et sammenhengende flatt speil på 35,02 m over 267 daa rundt en
+innsjø på 59 daa: innsjøen er 22 % av flata, og strandlinja ligger på
+34,9–35,1 m hele veien rundt. De tre innsjøene med store «beste skift»
+(Vuoksajávri −83/−45 m, Uhcit +12/−23 m, en navnløs på 29 daa +4/−42 m)
+beholder alle 36–63 % flatt terreng i båndet UTENFOR ringen — kriteriet finner
+ingen kant fordi det ikke er noen. Myr og våtmark på innsjønivå ser ut som
+«innsjøen ligger et annet sted enn terrenget sier» i relieff og kurver, og det
+er nøyaktig det UT.no dekker med myrsymboler rundt vannet.
+
+Én kandidat gjenstår på eierens egen enhet og kunne ikke måles herfra: et kart
+bygget på syntetisk DEM (`source: 'synthetic (generic)'` når begge WCS-ene
+feilet) eller med Terrarium-fyll i hull (`… + Terrarium-fyll`; Terrarium er
+Web Mercator og registreres uavhengig av WCS). «Mine kart» viser «syntetisk
+DEM» i info-linja, og punkt-skuffens kildelinje viser `DEM: <kilde> · <oppl.> m`.
+Står det noe annet enn ren `NHM_DTM_…`, er forskyvningen DEM-ens, ikke
+vannstackens.
+
+### 3. En bake koster ~35 MB, ikke 115 — og går i sin egen katalog
+
+Nasjonal `--mal`-bake (15 fylker, 16,5 min, 4 m forenkling, 400 m² gulv):
+
+| Type | Flater | km² | Forkastet |
+|---|---|---|---|
+| innsjo | 772 480 | 18 715 | 252 218 (< 400 m² eller kollapset) |
+| elv | 21 313 | 1 239 | 1 276 |
+
+**210 fliser, 35,6 MB på disk (31,3 MB gzip), største flis 903 KB (59.0_6.0).**
+Finnmark alene: 181 248 innsjøer, 17,70 MB rå → 6,83 MB ved 4 m (29 % av
+hjørnene beholdes), gzip 6,02 MB. Per fylke: Finnmark 181k, Trøndelag 167k,
+Nordland 145k, Vestland 140k.
+
+De 115 MB i spørsmålet er AREAL-baken (myr + skog + isbre, 117 MB). Vann skal
+ikke inn i den: i en egen `public/data/n50-vann/` med eget manifest er
+areal-flisene urørte, ingen bruker laster dem om igjen, og hver vann-bake legger
+≈ 31–35 MB i master-historikken — ikke 115. Målt referanse: to areal-baker er
+171 MB rå men 103,4 MB pakket, fordi git delta-komprimerer flater som ikke
+endret seg; en enkelt flis gzipper bare ~11 %.
+
+### 4. «Enhetlig uttrekk» er sant for sømmen mot myra — og uten betydning for nøyaktigheten
+
+N50-vann ligger i SAMME lag som myr og skog (`N50_Arealdekke_omrade`), og
+partisjonen er ekte: 1 089 av 1 089 hjørner på vannflatene i probe-bboksen
+finnes eksakt igjen i en naboflate (100 %). Tre ting demper det:
+
+- **Sømmen er 5 m i dag.** Ved Uhcit er myr-hullet i den bakte flisen 58 daa
+  mot NVE-ringens 59 (IoU 0,917, ringavstand snitt 5,4 m, p95 8,9 m). Det er
+  sliveren av kremgul bakgrunn mellom vann og myr — 0,5–0,9 mm i 1:10 000.
+  Bakt vann med myras 4 m ville lukket den; mot skog (8 m) ville den bestått,
+  for toleransen er per type.
+- **Hullene er ikke innsjøformede.** Gávpotláttu: skog-hull 31 daa mot innsjø
+  14 daa (IoU 0,467). Hullet er «alt som ikke er skog», og ÅpentOmråde bakes
+  bevisst ikke — så et bakt vann fyller ikke hullet, det ligger i det.
+- **Nøyaktigheten er den samme.** NVE live ER N50 (IoU 0,92; 28 hjørner mot
+  128 rå er N50s generalisering på vei inn i NVE). Baken ville i tillegg
+  forenklet til 4 m og beholdt 29 % av hjørnene.
+
+Sjøen er upåvirket: Havflate bakes ikke (Funn 4 under), så overgangen sjø–land
+er DEM-ens som før.
+
+### 5. Detalj koster lite — konturene eier arket
+
+3 km-ark over probepunktet, headless: **242,1 KB (gzip 97,6 KB)**, 9,3–10,4 byte
+per hjørne uansett lag.
+
+| Lag | KB | andel | hjørner |
+|---|---|---|---|
+| kontur | 123,2 | 50,9 % | 12 844 |
+| myr (N50, 4 m) | 56,1 | 23,2 % | 5 560 |
+| style | 16,8 | 6,9 % | – |
+| vann | 15,2 | 6,3 % | 825 |
+| skog (N50, 8 m) | 13,0 | 5,4 % | 1 288 |
+| sti | 3,1 | 1,3 % | 293 |
+| bekk | 2,4 | 1,0 % | 219 |
+| stupkant | 2,4 | 1,0 % | 133 |
+
+OSM-forenklingen (`simpScale` 0,84 → toleranse 1,25–2,09 m) fjerner bare
+2–17 % av hjørnene: vann 670 → 658, myr 392 → 325, skog 128 → 105, bekk
+223 → 219. **Full OSM-detalj koster ≈ +1–4 KB per 3 km-ark.** Den ene knotten
+som koster, er bakens toleranse: 2 m i stedet for 4 gir ~+50 % hjørner (målt på
+Finnmark-innsjøene: 3 558k mot 2 334k), altså ~+28 KB på dette arket og en ny
+nasjonal bake med full nedlasting for alle — for en forskjell under 4 m, 0,4 mm
+i 1:10 000.
+
+### 6. Hytter: OSM har omrissene, N50 har dem ikke
+
+Norefjell 3 × 3 km (fylke 33): OSM har **319 bygninger, alle med omriss**
+(0 punkt-bygninger; cabin 215, shed 28, apartments 26, farm_auxiliary 17),
+grunnflate p10/p50/p90 32/100/218 m², 10,9 hjørner per bygning. I det bygde
+arket er `bygning`-laget **12,4 KB av 393,4 KB (3,2 %)**; kontur 147,8,
+kraftlinje 80,5, skog 22,9, myr 19,6, vei-liten 17,6, sti 12,9 KB.
+
+N50 kan ikke legge til noe her: `_omrade` 2 objekter, `_posisjon` 244 punkter
+(211 fritidsbygg), `_senterlinje` 13 (luftledning, skitrekk), `_grense` 3.
+Kobling innen 10 m: 180 av 246 N50-bygninger (73 %) har et OSM-omriss, 66 har
+ingenting i OSM; 132 OSM-omriss har ingen N50-bygning. Den eneste rikere kilden
+er FKB-Bygning (Geonorge `8b4304ea-4fb0-479c-a24d-fa225e2c6e97`, Geovekst,
+`GEONORGE:DOWNLOAD`, capabilities svarer 200) — lisens og åpen tilgang er IKKE
+verifisert.
+
+### Standpunkt etter målingen
+
+1. **N50-vann er ikke fiksen for det eieren så**, og den øker ikke
+   nøyaktigheten: NVE live er allerede N50-geometrien og ligger der DTM-en sier.
+2. Det den gir: **robusthet** (NVE av kritisk sti — MCP, Worker og sandkasser
+   der NVE gir 403 får innsjøer), en lukket **4 m-søm mot myra**, og mulige
+   **elveflater** (21 313 flater, 1 239 km² — OSM har dem sporadisk). Prisen er
+   35,6 MB i `public/`, ~31–35 MB historikk per bake, og klientjobben i planen
+   i artifacten (middels).
+3. **Anbefaling: la ligge** til robusthets-argumentet har et tall. Det som
+   mangler er ikke en måling av N50, men av NVE: hvor ofte feiler query-en i
+   felt? `nveInnsjoStatus` ligger i `data-meta` på hvert bygd kart og er
+   stedet å telle.
+4. Vil man ha «mer detalj», er den billige gevinsten å skru OSM-forenklingen
+   ned (+1–4 KB per ark), og hytteomrissene finnes alt fra OSM. Konturene er
+   halve arket; en flis-bake med finere toleranse er den ene detalj-knotten som
+   koster brukerne noe.
+
+### Verktøyet
+
+`scripts/probe-n50-vann.mjs` (`npm run probe:n50vann`) og
+`.github/workflows/probe-n50-vann.yml`. Inputs: `lat`/`lon`/`radius_m`/`fylke`
+(probepunktet), `reg_halv_km` (registrerings-arket), `ekstra`
+(`Navn@lat,lon;…` — flere steder for registreringen, tom = ingen), `hytter`
+(`Navn@lat,lon#fylkesnr`), `hopp` (trinn som hoppes over: nve, osm, fliser,
+geonorge, dem, reg, ekstra, sammenlign, kart, kurve, bygg, hytter, fylke, svg).
+Trigger også på push når proben selv endres. Kjør den ikke samtidig med en
+nasjonal bake — begge laster fra Geonorge. `MAL_TYPER` (`innsjo`, `elv`) i
+`bygg-n50-areal.mjs` er BARE måling: `TYPER` i `n50ArealPakke.js` er ikke
+utvidet, og ingen flis skrives med vann.
+
+---
+
+*Notatet fra 2026-08-09 følger uendret.*
 
 Skrevet 2026-08-09 (v5.0.16), rett etter at N50-stiløftet ble ferdig. Spørsmålet
 kom opp underveis og ble utsatt bevisst — notatet finnes så utgangspunktet ikke

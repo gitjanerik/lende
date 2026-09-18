@@ -33,3 +33,6 @@ __pycache__/
 
 # Røyktestens cache av det bygde Vardåsen-kartet (se scripts/kartcache-nokkel.mjs)
 .royk-kart/
+
+# Utskrift fra scripts/probe-n50-vann.mjs (CI-artefakt, aldri i git)
+probe-ut/
