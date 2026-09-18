@@ -1,3 +1,38 @@
+## 2026-09-18 — v7.8.34: Kompasset roterer bare, og Preferanser er fana for det som gjelder deg
+
+Kompassnåla nede til høyre het «Vend kartet mot nord», men handleren bak den
+gjorde tre ting: den vred arket mot nord, zoomet ut til hele arket og satte
+tekstskalaen tilbake. Den som bare hadde mistet retningen mens de leste et
+nærbilde, mistet nærbildet også — og det er ikke noe en etikett kan advare om,
+for det er to handlinger på samme piksel. Standarden er nå rotasjonen alene:
+`rotateTo` vrir rundt viewport-senter og lar skala og forskyvning stå, så det
+man leste blir stående på skjermen mens det retter seg opp. Zoom-ut er beholdt
+som et VALG, fordi det var oppførselen til nå og noen brukte den som en
+«tilbake til hele arket»-knapp, men det er av som standard.
+
+Bryteren måtte bo et sted, og det stedet fantes ikke. Skuffa har bare vært
+innstillinger siden v6.6.0, men fanene etter den delingen er alle ARK-faner:
+Detaljer velger lagene, Stil uttrykket, Format neste kart, Eksport utgangen.
+Det som gjelder DEG og ikke arket hadde ingen adresse og endte der det
+tilfeldigvis var plass — «Åpne i ny nettleser» i hovedmenyen sammen med
+tekststørrelsen, «Vis fulle navn» og «Navnetetthet» i en fane om formatet på
+neste kart, og «Tvungne himmellegemer i 3D» bak Utvikler-fana, som er skjult på
+demokartet og altså på det ene kartet en fersk bruker har. Alle fire er samlet i
+en ny FØRSTE fane, «Preferanser», sammen med kompass-zoomen. Den er et hakk
+grovere enn de fire andre og bryter derfor ikke skuffas grovest-først-rekkefølge
+— den fortsetter den. Standard-fana er likevel fortsatt Detaljer: man åpner
+skuffa for å gjøre noe med kartet man ser på, ikke for å sette valg man setter
+én gang.
+
+`rotateTo` fikk samtidig en `animer`-opsjon, og den er opt-in med vilje.
+`panTo` og `reset()` animerer selv fordi de alltid er ett hopp, men `rotateTo`
+kalles også per `input`-event mens en finger drar desktop-rotasjons-slideren, og
+en 200 ms transition som settes på nytt for hver verdi fingeren passerer ville
+lagt kartet ett steg bak håndtaket hele veien. Den som gjør ETT sprang —
+kompassnåla, dobbeltklikk på retningsrosa — ber om animasjonen.
+
+---
+
 ## 2026-09-16 — v7.8.33: Chromet over kartet har et tak i liggende
 
 Tekstskalaen er en LESE-innstilling, men den samme verdien zoomer også chromet

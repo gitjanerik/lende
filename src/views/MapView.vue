@@ -102,6 +102,7 @@ import { SNARVEI_REKKEFOLGE_KEY, STANDARD_REKKEFOLGE, normaliserRekkefolge,
          flettSynligRekkefolge, snarveierIRekkefolge } from '../lib/snarveier.js'
 import { norwegianName } from '../lib/placeName.js'
 import { useEksterneLenker } from '../composables/useEksterneLenker.js'
+import { useKompassNord } from '../composables/useKompassNord.js'
 import AnnotationIcon from '../components/AnnotationIcon.vue'
 import TrackElevationSheet from '../components/TrackElevationSheet.vue'
 import PerfLogModal from '../components/PerfLogModal.vue'
@@ -126,6 +127,7 @@ import DrawerAnnotateTab from '../components/drawer/DrawerAnnotateTab.vue'
 import DrawerMeasureTab from '../components/drawer/DrawerMeasureTab.vue'
 import DrawerTracksTab from '../components/drawer/DrawerTracksTab.vue'
 import DrawerExportTab from '../components/drawer/DrawerExportTab.vue'
+import DrawerPrefsTab from '../components/drawer/DrawerPrefsTab.vue'
 import DrawerAboutTab from '../components/drawer/DrawerAboutTab.vue'
 import DrawerDevTab from '../components/drawer/DrawerDevTab.vue'
 import ContextMenuSheet from '../components/context-menu/ContextMenuSheet.vue'
@@ -396,8 +398,21 @@ const showControls = ref(false)
 // tingene i den er flyttet dit: font-nedtrekket over Strek, den monokrome
 // familien nederst, under relieff. Rekkefølgen er skuffas vanlige
 // grovest-først. Mørkt kart nås fortsatt raskest med «Natt»-snarveien.
+// «PREFERANSER» ER FØRST, OG DEN BRYTER IKKE grovest-først-regelen — den
+// fortsetter den. De fire andre fanene er alle ARK-faner: Detaljer velger
+// lagene, Stil uttrykket, Format neste kart, Eksport utgangen. Preferanser er
+// et hakk GROVERE enn dem alle: den gjelder appen og ikke arket. Den samler det
+// som hadde havnet der det tilfeldigvis var plass — «Åpne i ny nettleser» i
+// hovedmenyen, «Vis fulle navn» og «Navnetetthet» i Format, himmel-tvangen bak
+// den `userOnly`-skjulte Utvikler-fana — pluss kompass-zoomen, som er ny.
+//
+// MEN STANDARD-FANA ER FORTSATT `lag`, og det er med vilje: man åpner skuffa
+// for å gjøre noe med kartet man ser på, og å lande på en fane med valg man
+// setter én gang ville kostet et trykk hver gang. Preferanser er FØRST i rada,
+// ikke først i bruk.
 const ACTIVE_TAB_KEY = 'lende-mapview-active-tab'
 const ALL_TABS = [
+  { key: 'pref',     label: 'Preferanser' },
   { key: 'lag',      label: 'Detaljer' },
   { key: 'kartstil', label: 'Stil' },
   { key: 'om',       label: 'Format' },
@@ -738,14 +753,36 @@ async function ensureDem() {
 // faktisk svarer på «fyller kartet skjermen?». Et gulv over den ville dessuten
 // zoomet forbi arket på en liten skjerm.
 
-// v8.5.2: «Nord opp» resetter pinch/zoom OG tvinger en fersk GPS-fix
-// hvis GPS er aktivert. På toget kan watchPosition henge på en cached
-// koordinat — getCurrentPosition med maximumAge=0 gir alltid ny måling.
+// Kompassnålas modus (v7.8.34). Modulnivå-singleton, så Preferanse-fana og
+// kartet leser SAMME tilstand uten en prop-kjede gjennom MapView.
+const { zoomUt: kompassZoomUt } = useKompassNord()
+
+// Trykk på kompassnåla. BEGGE moduser tvinger en fersk GPS-fix hvis GPS er
+// aktivert (v8.5.2): på toget kan watchPosition henge på en cached koordinat,
+// og getCurrentPosition med maximumAge=0 gir alltid ny måling.
 function onResetAndRefreshGps() {
   // Kompass-FØLGE roterer kartet etter enhetens retning — å «nullstille til
   // nord» mens den er på gir ingen mening, så den slås av først (samme
   // semantikk som den gamle kompass-FAB-en, som denne knappen har absorbert).
   if (compass.isActive) compass.stop()
+
+  // KNAPPEN HAR TO MODUSER FRA v7.8.34, OG STANDARDEN ER BARE ROTASJONEN.
+  // Nåla er et kompass: den viser hvor nord ligger, og trykket vender arket
+  // dit. Alt annet under her — dekning, tekstskala, kanthåndtak — er
+  // «nullstill visningen», altså en ANDRE handling på samme piksel, og den
+  // kostet nærbildet til den som bare hadde mistet retningen. Se
+  // useKompassNord for hele begrunnelsen og for hvor bryteren bor.
+  //
+  // `rotateTo` og ikke `reset`/`panTo`: den vrir rundt VIEWPORT-SENTER og lar
+  // skala og forskyvning stå, så det man leste blir stående på skjermen mens
+  // det retter seg opp. `nordRotasjon` og ikke 0 — arkets hvilevinkel er sann
+  // nord og ikke kartnord (se avsnittet over nordRotasjon).
+  if (!kompassZoomUt.value) {
+    rotateTo(nordRotasjon.value, { animer: true })
+    if (userPos.isWatching) userPos.refresh()
+    return
+  }
+
   const m = meta.value
   // Skalaen er den STØRSTE av brukerens standard-zoom og DEKNING (v6.5.46).
   // `reset()` alene er meet-tilpasningen: hele arket i letterbox. Det er samme
@@ -3072,7 +3109,7 @@ onUnmounted(() => {
                   @broek="settZoom"/>
         <div class="w-8 h-px bg-ink/15"></div>
         <RetningsRose modus="kart" :azimut="rotationSliderDeg"
-                      @retning="rotateTo($event.azimut + nordRotasjon)" @nord="rotateTo(nordRotasjon)"/>
+                      @retning="rotateTo($event.azimut + nordRotasjon)" @nord="rotateTo(nordRotasjon, { animer: true })"/>
         <span class="text-[10px] text-ink-4 tabular-nums leading-none">{{ rotationSliderDeg }}°</span>
       </div>
 
@@ -3536,14 +3573,17 @@ onUnmounted(() => {
             :on-export-svg="onExportSvg" :on-export-png="onExportPng"
             :on-export-pdf="onExportPdf" :on-print="onPrint" />
 
+          <DrawerPrefsTab v-show="activeTab === 'pref'"
+            id="drawer-panel-pref" role="tabpanel" aria-labelledby="drawer-fane-pref"
+            v-model:show-full-names="showFullNames"
+            v-model:density-id="densityId"
+            v-model:density-apply-to-all="densityApplyToAll" />
+
           <DrawerAboutTab v-show="activeTab === 'om'"
             id="drawer-panel-om" role="tabpanel" aria-labelledby="drawer-fane-om"
             v-model:map-size-slider="mapSizeSlider"
-            v-model:show-full-names="showFullNames"
             v-model:global-relief-enabled="globalReliefEnabled"
             v-model:global-relief-mode="globalReliefMode"
-            v-model:density-id="densityId"
-            v-model:density-apply-to-all="densityApplyToAll"
             :rebuild-at-chosen-size="rebuildAtChosenSize"
             :building="buildingOnTheFly" :can-rebuild="!!meta?.bbox" />
 

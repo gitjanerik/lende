@@ -298,11 +298,19 @@ export function usePinchZoom(elementRef, options = {}) {
   // Roter kartet til en absolutt vinkel (grader) rundt elementets SENTER. Brukes
   // av desktop-rotasjons-slideren (touch bruker to-finger-rotasjon). Pivot =
   // viewport-senter (ikke transform-origin 0,0) så kartet ikke svinger ut av syne.
-  function rotateTo(deg) {
+  //
+  // `animer` ER OPT-IN, OG DET ER SLIDERENS SKYLD (v7.8.34). `panTo` og
+  // `reset()` kaller `animate()` selv, fordi de alltid er ETT hopp. Denne
+  // kalles også per `input`-event mens en finger drar rotasjons-slideren, og
+  // en 200 ms transition som settes på nytt for hver verdi fingeren passerer
+  // ville lagt kartet ett steg bak håndtaket hele veien. Den som gjør ETT
+  // sprang — kompassnåla, dobbeltklikk på retningsrosa — ber om animasjonen.
+  function rotateTo(deg, { animer = false } = {}) {
     const el = elementRef.value
     if (!el || !rotateEnabled) return
     const r = el.getBoundingClientRect()
     const c = { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+    if (animer) animate()
     applyDelta(c, c, 1, deg - rotation.value)
   }
 

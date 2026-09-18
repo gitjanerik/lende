@@ -481,6 +481,38 @@ snarvei**, katalogisert i `lib/snarveier.js`: Posisjon, Stifinner, Runde, Målin
 3D, Annotering, Sporing, Info. Legger du til noe nytt, er spørsmålet hvilken av
 de to det er — ikke hvilken fane som har plass.
 
+**«PREFERANSER» ER FØRSTE FANE FRA v7.8.34, og den er et TREDJE nivå i skillet
+over.** Fanene etter v6.6.0-delingen er alle ARK-faner: Detaljer velger lagene,
+Stil uttrykket, Format neste kart, Eksport utgangen. Det som gjelder BRUKEREN og
+ikke arket hadde ingen adresse, og endte derfor der det tilfeldigvis var plass —
+«Åpne i ny nettleser» i hovedmenyen sammen med tekststørrelsen, «Vis fulle navn»
+og «Navnetetthet» i en fane om formatet på NESTE kart, og «Tvungne
+himmellegemer» bak Utvikler-fana, som er `userOnly` og altså skjult på det ene
+kartet en fersk bruker har. Alle fire bor nå i `DrawerPrefsTab.vue`, sammen med
+kompass-zoomen. Spørsmålet for noe nytt er derfor ikke lenger bare «funksjon
+eller innstilling», men også: gjelder den ARKET eller MEG?
+
+**Fana er FØRST i rada og IKKE først i bruk.** `activeTab` er fortsatt `lag`:
+man åpner skuffa for å gjøre noe med kartet man ser på, og å lande på en fane
+med valg man setter én gang ville kostet et trykk hver gang. Plasseringen
+bryter ikke grovest-først — den fortsetter den, for «gjelder appen» er et hakk
+grovere enn «gjelder dette arket».
+
+**KOMPASSNÅLA HAR TO MODUSER, OG STANDARDEN ER BARE ROTASJONEN (v7.8.34).**
+Knappens etikett er «Vend kartet mot nord», men handleren
+(`onResetAndRefreshGps`) gjorde tre ting: vred arket mot nord, zoomet ut til
+dekning og satte tekstskalaen tilbake. Det er to handlinger på samme piksel, og
+den ene står ikke på etiketten — den som bare hadde mistet retningen i et
+nærbilde, mistet nærbildet med. Standarden er `rotateTo(nordRotasjon)`, som vrir
+rundt VIEWPORT-SENTER og lar skala og forskyvning stå. Zoom-ut er beholdt som et
+valg i Preferanser (`useKompassNord`, default AV) fordi det var oppførselen til
+v7.8.33 og noen brukte den som en «tilbake til hele arket»-knapp.
+**`rotateTo`s `animer` er opt-in med vilje:** `panTo` og `reset()` animerer selv
+fordi de alltid er ETT hopp, men `rotateTo` kalles også per `input` mens en
+finger drar desktop-rotasjons-slideren, og en 200 ms transition som settes på
+nytt for hver verdi fingeren passerer legger kartet ett steg bak håndtaket hele
+veien.
+
 **STREK OG RELIEFF ER INNSTILLINGER, og de endte der (v7.4.0).** De hadde tre
 bærere etter hverandre: et FAB-anker med tap/lang-trykk (til v7.0.0), to
 gruppe-piller med tannhjul på snarvei-radens åpen-linje (v7.0.0–v7.3.3), og et

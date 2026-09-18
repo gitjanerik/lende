@@ -75,34 +75,14 @@ function toggleNordlysDemo() {
   } catch { /* privat modus */ }
 }
 
-// Tvungne himmellegemer i 3D. Samme mønster som vær-demoen, og av samme grunn:
-// 3D-viseren er den som leser flagget, og den monteres etterpå.
-//
-// Finnes fordi legemene er UNDER HORISONTEN store deler av tida — månen store
-// deler av døgnet, Mars, Jupiter og Saturn store deler av året — og da er både
-// globen og trykk-plukkingen umulig å prøve; man må vente på at himmelen selv
-// stiller seg riktig. Med flagget på løftes de fire opp i himmelen. Merkur og
-// Venus følger de ekte reglene: de har ingen globe å prøve.
-//
-// SOLA (v6.5.6) HAR GLOBE MEN LØFTES IKKE. Bryteren finnes for legemer man må
-// VENTE på; sola er alltid i lista og alltid til å åpne. Og en tvunget sol ville
-// vært selvmotsigende: hele poenget med den er at den står der den står, og om
-// natta er det under terrengarket — som er nettopp da man vil se på den.
-//
-// Alt annet er fortsatt ekte — azimut, fase, lysside, avstand og lysstyrke. Bare
-// høyden er løftet, og bare for dem som sto lavere enn sin egen verdi.
-//
-// Nøkkelen het `lende-3d-maane-tvang` til v6.3.1. Den er byttet framfor migrert:
-// bryteren er utvikler-bare, og et navn som lyver om hva flagget gjør er verre
-// enn å slå den på én gang til.
-const HIMMEL_TVANG_KEY = 'lende-3d-himmel-tvang'
-const himmelTvang = ref((() => {
-  try { return localStorage.getItem(HIMMEL_TVANG_KEY) === '1' } catch { return false }
-})())
-function toggleHimmelTvang() {
-  himmelTvang.value = !himmelTvang.value
-  try { localStorage.setItem(HIMMEL_TVANG_KEY, himmelTvang.value ? '1' : '0') } catch { /* privat modus */ }
-}
+// TVUNGNE HIMMELLEGEMER BOR I PREFERANSE-FANA FRA v7.8.34, ikke her.
+// Bryteren løfter månen, Mars, Jupiter og Saturn over horisonten så de fire
+// globene kan prøves når som helst. Den sto her fordi den ble laget for å
+// TESTE globene — men denne fana er `userOnly`, altså skjult på demokartet, og
+// det er nettopp det kartet en fersk bruker har. En bryter som bare finnes for
+// den som alt har bygget sitt eget kart er en bryter ingen finner.
+// Nøkkelen er uendret (`lende-3d-himmel-tvang`), så et valg gjort før flyttinga
+// står. Se DrawerPrefsTab.vue.
 const metaAppVersionText = computed(() => props.meta?.appVersion ?? null)
 
 // Tetthets-linja: «915 /km² · svært tett → sparsom · bredde 8 → 6 km».
@@ -357,27 +337,6 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
       svakt slør lavt i nord til et som fyller himmelen. Siste steg viser samme
       styrke lenger nord, så du ser at høyden over horisonten faktisk regnes ut.
       Overstyrer det ekte varselet så lenge den står på.
-    </div>
-    <!-- Tvungne himmellegemer i 3D: månen, Mars, Jupiter og Saturn er under
-         horisonten store deler av tida, og da kan ikke globene prøves. -->
-    <button @click="toggleHimmelTvang"
-            class="w-full px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98] mb-1"
-            :class="himmelTvang
-                    ? 'bg-amber-300/25 border-amber-300/50 text-ink'
-                    : 'bg-ink/5 border-ink/10 text-ink-2'">
-      {{ himmelTvang ? 'Tvungne himmellegemer i 3D: PÅ' : 'Tvungne himmellegemer i 3D' }}
-    </button>
-    <div v-if="himmelTvang" class="text-[10px] text-ink-3 leading-relaxed mb-3 px-1">
-      Nattmodus viser månen, Mars, Jupiter og Saturn selv når de står under
-      horisonten, så de fire globene kan prøves når som helst. De står i en
-      stige — Mars 30°, månen 35°, Jupiter 40°, Saturn 45° — så de ikke lander
-      oppå hverandre. Trykk på et av dem for nærbildet. Merkur og Venus følger de
-      ekte reglene; de har ingen globe. Azimut, fase, avstand og lysstyrke er
-      fortsatt de ekte — bare høyden er løftet.
-      <strong class="text-ink-2">Sola løftes ikke</strong>, og det er med vilje:
-      den er alltid i lista og alltid til å åpne, og står den under horisonten er
-      det nettopp da den er verdt å se — under terrengarket, der den faktisk er.
-      Bryteren finnes for legemer man ellers må vente på.
     </div>
     <!-- Byggetider (perf): viser localStorage-loggen så den kan kopieres
          og deles — mobil-konsollen er upraktisk. -->
