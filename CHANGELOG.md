@@ -1,3 +1,43 @@
+## 2026-09-18 — v7.8.35: Hvert lag i Detaljer sier hvor mange objekter det har
+
+Detaljer-fana var en liste med førti brytere og ingen tall. Slo man av
+«Holdeplass» og ingenting endret seg på kartet, var det to helt ulike ting som
+så identiske ut: laget er tomt her, eller bryteren virker ikke. Kulturminner,
+arkeologiske kulturminner og vannmålestasjoner har hatt et tall siden v4.8.6 —
+de hentes live, så antallet fantes allerede på klienten. De øvrige lagene bakes
+inn i arket, og der lå tallet i byggerens `counts` og ble kastet. Nå står det
+bak hver bryter, og det svarer samtidig på spørsmålet man egentlig har på et
+ukjent ark: hva ER det her?
+
+Tallet er BYGGERENS og ikke DOM-ens, og det er ikke en smakssak. En telling av
+elementer i den ferdige SVG-en er feil i to retninger samtidig: geometri
+bucketes per stil × rutenett-celle, så tjue stier i samme celle er ETT element,
+og linjer tegnes to ganger — en base-strek pluss en `.overlay`. Å telle
+`M`-kommandoer i `d` løser den første og ikke den andre, og for en flate med
+øy-hull teller den hvert hull som et objekt. Byggeren, derimot, VET hvor mange
+features den klassifiserte. Tallene bakes i `data-meta`, altså i arket selv, så
+de følger med en delt `.lendekart`-fil og et kart som åpnes offline.
+
+Høydekurver, stupkanter og DEM-sjøen er DEM-derivert og finnes ikke i `counts`
+i det hele tatt; uten et eksplisitt bidrag ville et høyfjellsark meldt
+«Høydekurver (0)» med tusen kurver på skjermen. Veinummer og sjønavn er ren
+tekst og har ingen ISOM-kode, og stedsnavn-nodene måtte deles i sine tre
+viktighets-lag der delingen faktisk skjer — `counts.place` teller dem før de er
+fordelt, og ett samlet tall på tre brytere ville vært feil på alle tre.
+
+Tre utfall, tre tegn, og konvensjonen er kulturminne-lagets fra v4.8.6: «(N)»,
+«(0)» for sett-etter-og-fant-ingenting, og «(–)» for vet-ikke. Den siste er
+svaret på et kart bygget før tellingen fantes, og fana sier da hva tegnet betyr
+i stedet for å gjenta det førti ganger uten forklaring. Bygg kartet om, og
+tallene kommer.
+
+ISO-kode-til-lag-tabellen er samtidig flyttet fra `mapBuilder.categoryFor` til
+`mapLayerCatalog.js`, der `LAYERS` bor. Kommentaren over `LAYERS` sa
+«lag-kategorier som matcher mapBuilder.js sin categoryFor()», og «matcher» er
+nettopp den formen på gjeld den fila finnes for å unngå.
+
+---
+
 ## 2026-09-18 — v7.8.34: Kompasset roterer bare, og Preferanser er fana for det som gjelder deg
 
 Kompassnåla nede til høyre het «Vend kartet mot nord», men handleren bak den

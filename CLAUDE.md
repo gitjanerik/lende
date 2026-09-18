@@ -2152,6 +2152,59 @@ avvik i vann-tallene. Det er ikke en regresjon — sjekk loggen for
 «NVE-innsjøer utilgjengelig» før du feilsøker noe annet. Advarsler (⚠) er datakvalitet i kildene — f.eks. en
 Strava-sporet isrute over Rondvatnet — og feiler ikke bygget.
 
+## Viktig arkitektur-merknad — lag-tellingen kommer fra BYGGEREN, ikke DOM-en
+
+**Hvert lag i Detaljer-fana bærer antall kartobjekter fra v7.8.35**
+(`lib/lagTelling.js` → `meta.lagTellinger` → `DrawerLayersTab`). Fana var førti
+brytere uten tall, og da ser «laget er tomt her» og «bryteren virker ikke»
+identiske ut.
+
+**EN TELLING AV ELEMENTER I SVG-EN ER FEIL, OG FEIL I TO RETNINGER SAMTIDIG.**
+Det er den nærliggende løsningen, så les dette før du «forenkler» tallet dit:
+`mapBuilder` BUCKETER geometri per stil × rutenett-celle for å holde fila liten,
+så tjue stier i samme celle er ETT `<path>` — og linjer tegnes TO ganger, en
+base-strek pluss en `.overlay` (jernbane: fire paths for to strekninger). Å
+telle `M`-kommandoer i `d` løser den første og ikke den andre, og for en flate
+med øy-hull teller den hvert hull som et objekt. Byggeren VET hvor mange
+features den klassifiserte; tallet bakes i `data-meta`, altså i arket, så det
+følger en delt `.lendekart`-fil og et kart som åpnes offline.
+
+**TRE KILDER MÅ HOLDES I HODET, og to av dem er lette å glemme:**
+1. `counts[isomKode]` — klassifiseringen. Dekker alt som kommer fra OSM, N50 og
+   NVE. Merk at punkt-symbolene (kirke, parkering, holdeplass, bro, bom, hule,
+   gruve, topp) plukkes ut av hovedløkka og `continue`-r, så deres ISOM-kode blir
+   stående på **0** og må ikke leses — `NAVNGITTE_TELLINGER` peker på de riktige
+   nøklene.
+2. `ekstra` — DEM-derivert (høydekurver, stupkanter, DEM-sjø) og ren tekst
+   (veinummer, sjønavn). Disse finnes IKKE i `counts`. Uten dem melder et
+   høyfjellsark «Høydekurver (0)» med tusen kurver på skjermen.
+3. Stedsnavn-rangene. `counts.place` teller nodene FØR de fordeles på
+   `stedsnavn-major/mid/minor`, så ett samlet tall på tre brytere ville vært
+   feil på alle tre. `stedsnavnTelling` skrives ut av closuren der delingen
+   faktisk skjer.
+
+**«(0)» OG «(–)» ER TO ULIKE SVAR.** Sett-etter-og-fant-ingenting mot
+ingen-har-sett-etter. Konvensjonen er kulturminne-lagets fra v4.8.6, og den ble
+innført for å rette en ekte lesefeil: begge var «(0)», som leses som at
+funksjonen er borte. Et kart bygget før v7.8.35 har ikke feltet og skal vise
+«(–)» — ikke 0.
+
+**`metaFromSvgMeta` ER EN HVITELISTE.** `lagTellinger` måtte legges inn der. Den
+fella har bitt fem ganger (appVersion, nveInnsjoStatus, tetthet + detaljNivaa,
+turruteStatus), og symptomet ser ut som et dataproblem: feltet er tomt på ALLE
+kart, også ferske. Testen i `useMapLoadPipeline.test.js` fanger neste felt
+automatisk.
+
+**ISO-kode → lag bor i `mapLayerCatalog.js` fra v7.8.35**
+(`kategoriForIsomKode`), ikke i `mapBuilder`. Kommentaren over `LAYERS` sa
+«lag-kategorier som matcher mapBuilder.js sin categoryFor()», og «matcher» er
+nettopp den gjelden den fila finnes for å unngå. `mapBuilder.categoryFor` er en
+tynn, HOISTET innpakning — den brukes 40 steder over deklarasjonen.
+
+**De fire lagene uten tall fra arket er de som ikke ligger i arket:**
+kulturminner, arkeologiske kulturminner og vannmålestasjoner hentes live, og
+GPS-sporet er brukerens eget. De mates av forelderen gjennom sine egne props.
+
 ## Zoom-trappet detalj-LOD
 
 `.zoomed-in`/`.zoom-near`-klasser settes av MapView (`applyZoomTierClasses`);

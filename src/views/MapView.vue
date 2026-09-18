@@ -3560,7 +3560,9 @@ onUnmounted(() => {
             :visible-layers="visibleLayers" :kulturminne-count="kulturminneCount"
             :kulturminne-status="kulturminneStatus"
             :fredet-loading="fredetLoading" :fredet-count="fredetCount"
-            :hydro-loading="hydroLoadingLayer" :hydro-count="hydroCount" :meta="meta" />
+            :hydro-loading="hydroLoadingLayer" :hydro-count="hydroCount"
+            :lag-tellinger="meta?.lagTellinger ?? null"
+            :spor-count="tracker.tracks.value.length" :meta="meta" />
 
           <DrawerExportTab v-show="activeTab === 'eksport'"
             id="drawer-panel-eksport" role="tabpanel" aria-labelledby="drawer-fane-eksport"

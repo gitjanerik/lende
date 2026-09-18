@@ -67,6 +67,11 @@ export function metaFromSvgMeta(m) {
     // begge) var derfor tom på ALLE kart siden tetthets-automatikken kom.
     tetthet: m.tetthet ?? null,             // tetthets-beslutningen (Utvikler-fanen)
     detaljNivaa: m.detaljNivaa ?? null,     // 'full' | 'lett' | 'sparsom'
+    // Antall kartobjekter per lag (v7.8.35) — Detaljer-fanas «(N)»-merker.
+    // `null` på kart bygget før tellingen fantes, og det leses som «(–)»:
+    // «vet ikke», ikke «tomt». Feltet MÅ stå her, for denne funksjonen er en
+    // HVITELISTE — se tetthet-notatet over, som var nøyaktig denne feilen.
+    lagTellinger: m.lagTellinger ?? null,
   }
 }
 

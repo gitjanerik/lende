@@ -616,10 +616,16 @@ const SJEKKER = [
         .filter((g) => g.style.display !== 'none').length)
       const før = await synlige()
       if (!før) throw new Error('fant ingen synlige sti-grupper å slå av')
-      await klikkTekst(page, /^Sti$/, SKUFF)
+      // `/^Sti\b/` og ikke `/^Sti$/` (v7.8.35): lag-knappen bærer nå antall
+      // kartobjekter etter etiketten («Sti (84)»), pluss den samme setningen
+      // som `sr-only` for skjermlesere — og begge er med i `innerText`. Et
+      // anker i enden av strengen matcher derfor ingenting. `\b` holder
+      // presisjonen der den betyr noe: den treffer ikke «Stiblokkering» eller
+      // en framtidig «Sti-farge».
+      await klikkTekst(page, /^Sti\b/, SKUFF)
       const av = await synlige()
       if (av !== 0) throw new Error(`Sti-laget ble ikke skjult (${før} → ${av})`)
-      await klikkTekst(page, /^Sti$/, SKUFF)
+      await klikkTekst(page, /^Sti\b/, SKUFF)
       const på = await synlige()
       if (på !== før) throw new Error(`Sti-laget kom ikke tilbake (${før} → ${av} → ${på})`)
       return `${før} → 0 → ${på} grupper`
@@ -3249,6 +3255,123 @@ const SJEKKER = [
       } finally {
         await page.unroute(blokker)
       }
+    },
+  },
+  {
+    // HVERT LAG BÆRER ET TALL (v7.8.35), OG SJEKKEN MÅ MÅLE TO ULIKE ARK.
+    //
+    // Fana var en liste brytere uten tall, så «laget er tomt her» og «bryteren
+    // virker ikke» så identiske ut. Tallet kommer fra BYGGEREN og ligger i
+    // arkets `data-meta` (`meta.lagTellinger`) — ikke fra en telling av
+    // elementer i SVG-en, som ville vært feil i to retninger samtidig
+    // (geometri buckets, linjer tegnes to ganger). Se `lib/lagTelling.js`.
+    //
+    // SJEKKEN BRANCHER PÅ HVA ARKET FAKTISK SIER, og det er ikke slapphet —
+    // det er de to ekte tilstandene, og begge er verdt å holde fast:
+    //
+    //   • EKTE KART (--ektekart, og alltid i CI siden src/lib står på
+    //     MAA_HA_EKTEKART): feltet finnes, og da skal tallene være EKTE. Et
+    //     Vardåsen-ark har stier og høydekurver, så de to må være > 0 — uten
+    //     den grensa ville en telling som ga null overalt stått grønn.
+    //   • SPORET DEMO-KART: bygget før tellingen fantes, altså uten feltet, og
+    //     da skal ALLE ikke-live lag vise «(–)» og forklaringslinja si hva
+    //     tegnet betyr. Det er fallbacken, og den er den brukerne med gamle
+    //     kart i IndexedDB møter.
+    //
+    // «(0)» og «(–)» er to ULIKE svar — sett etter og fant ingenting, mot
+    // ingen har sett etter — og at de ikke kollapser til ett tegn er hele
+    // lærdommen fra kulturminne-laget i v4.8.6.
+    navn: 'hvert lag i Detaljer viser antall kartobjekter',
+    domene: 'DrawerLayersTab + lib/lagTelling + mapBuilder (meta.lagTellinger)',
+    async kjør(page) {
+      await åpneDrawer(page)
+      await page.locator('#drawer-fane-lag').first().click()
+      await page.waitForTimeout(400)
+
+      const f = await page.evaluate(() => {
+        const panel = document.querySelector('#drawer-panel-lag')
+        if (!panel) return { mangler: 'Detaljer-panelet' }
+        const svg = document.querySelector('svg.isom-map')
+        let tellinger = null
+        try { tellinger = JSON.parse(svg?.getAttribute('data-meta') || '{}').lagTellinger ?? null }
+        catch { /* ugyldig meta — behandles som «ingen tellinger» */ }
+        // Merkene er `aria-hidden`-spennene med tabulære tall. Vi leser dem av
+        // KNAPPENE, så et merke uten knapp (eller omvendt) faller ut av seg selv.
+        const merker = []
+        for (const b of panel.querySelectorAll('button[aria-pressed]')) {
+          const m = b.querySelector('span[aria-hidden="true"]')
+          const sr = b.querySelector('span.sr-only')
+          merker.push({
+            etikett: b.querySelector('span')?.textContent.trim() ?? '',
+            tekst: m ? m.textContent.trim() : null,
+            tittel: m ? (m.getAttribute('title') ?? '') : '',
+            srTekst: sr ? sr.textContent.trim() : null,
+          })
+        }
+        return {
+          tellinger,
+          merker,
+          forklaring: /antall kartobjekter/.test(panel.innerText),
+          forklarerStrek: /ble bygget\s+før tellingen fantes/.test(panel.innerText.replace(/\s+/g, ' ')),
+        }
+      })
+      if (f.mangler) throw new Error(`fant ikke ${f.mangler}`)
+      if (!f.merker.length) throw new Error('fant ingen lag-knapper i Detaljer-fana')
+
+      // FELLES FOR BEGGE ARK: hver lag-knapp har et merke, og merket har en
+      // setning for skjermleseren. Tegnet alene («parentes åttifire parentes»,
+      // «utropstegn») sier ikke hva tallet gjelder.
+      const uten = f.merker.filter((m) => !m.tekst)
+      if (uten.length) {
+        throw new Error(`${uten.length} lag-knapp(er) mangler tallet, bl.a. `
+          + `«${uten.slice(0, 3).map((m) => m.etikett).join('», «')}»`)
+      }
+      const utenSr = f.merker.filter((m) => !m.srTekst || !m.tittel)
+      if (utenSr.length) {
+        throw new Error(`${utenSr.length} merke(r) mangler setningen for skjermleser/mus, `
+          + `bl.a. «${utenSr[0].etikett}»`)
+      }
+      if (!f.forklaring) throw new Error('fana forklarer ikke hva tallet er')
+
+      const finn = (re) => f.merker.find((m) => re.test(m.etikett))
+      if (f.tellinger) {
+        // EKTE KART. Et Vardåsen-ark HAR stier og høydekurver.
+        for (const [navn, nokkel] of [['Sti', 'sti'], ['Høydekurver', 'kontur']]) {
+          const n = f.tellinger[nokkel]
+          if (!Number.isFinite(n) || n <= 0) {
+            throw new Error(`${navn} teller ${n} på et ekte Vardåsen-ark — `
+              + 'tellingen fanger ikke det laget')
+          }
+        }
+        const sti = finn(/^Sti$/)
+        if (sti?.tekst !== `(${f.tellinger.sti})`) {
+          throw new Error(`Sti-knappen viser «${sti?.tekst}», men arket sier `
+            + `(${f.tellinger.sti}) — merket leser ikke meta`)
+        }
+        if (f.merker.some((m) => m.tekst === '(–)' && !/Kultur|arkeolog|Vannmåle|GPS/i.test(m.etikett))) {
+          throw new Error('et lag som ligger i arket viser «(–)» selv om arket har tellinger')
+        }
+        await lukkDrawer(page)
+        return `${Object.keys(f.tellinger).length} lag talt, Sti ${sti.tekst}, `
+          + `Høydekurver (${f.tellinger.kontur})`
+      }
+
+      // SPORET DEMO-KART: bygget før tellingen fantes.
+      if (!f.forklarerStrek) {
+        throw new Error('arket mangler tellinger, men fana forklarer ikke «(–)»')
+      }
+      const strek = f.merker.filter((m) => m.tekst === '(–)')
+      if (!strek.length) {
+        throw new Error('arket har ingen tellinger, men ingen lag viser «(–)» — '
+          + 'blir «vet ikke» vist som «tomt»?')
+      }
+      const sti = finn(/^Sti$/)
+      if (sti && sti.tekst !== '(–)') {
+        throw new Error(`Sti viser «${sti.tekst}» på et ark uten tellinger`)
+      }
+      await lukkDrawer(page)
+      return `${f.merker.length} lag-merker, ${strek.length} står på «(–)» `
+        + '(ark bygget før tellingen)'
     },
   },
   {
