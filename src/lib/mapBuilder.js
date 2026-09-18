@@ -32,6 +32,7 @@ import {
 } from './marineTopology.js'
 import { fetchDEM } from './demFetcher.js'
 import { polylineToPath, simplifyDP, isPointNearPolylines } from './pathUtils.js'
+import { orientertRektangel } from './byggRektangel.js'
 import { thinParkering, PARKERING_MIN_SEP_M } from './parkingRules.js'
 import { separasjonerFor, erDroppet, konturTallTakFor } from './mapDensityRules.js'
 import { bboxOfPoints, unionBbox, cellKeyFor, bboxAttr } from './spatialBucket.js'
@@ -97,6 +98,20 @@ export function overpassTimeoutForBbox(bbox) {
  * @param {Record<string, string>|undefined} tags
  * @returns {'hytte'|'uthus'|'bolig'}
  */
+// GULVET for det normaliserte bygg-symbolet, i bakke-meter. Ingen side blir
+// kortere enn dette; er bygget større, tegnes det som det står.
+//
+// 10 m = 1,0 mm i 1:10 000. Det gamle faste kvadratet var 13 m (1,3 mm), og
+// gulvet er bevisst litt lavere: et vanlig hus på 100 m² treffer nøyaktig
+// gulvet, og alt større tegnes i sin ekte størrelse — så symbolene får en
+// innbyrdes rangering de ikke hadde. Går det lavere enn dette, begynner
+// hyttene å forsvinne under en sti som krysser dem, som er hele grunnen til
+// at normaliseringen finnes.
+const BYGG_GULV_M = 10
+// Uthus og garasjer er støy, ikke navigasjon (se klassifiserSmaabygg), og
+// tegnes mindre — 7 m mot det gamle faste 9 m.
+const BYGG_GULV_UTHUS_M = 7
+
 export function klassifiserSmaabygg(tags) {
   const t = tags ?? {}
   const turisme = String(t.tourism ?? '').toLowerCase()
@@ -961,35 +976,45 @@ export function buildSvg(elements, bbox, options = {}) {
   const sizeFactor = Math.max(0.7, Math.min(2.5, widthM / 5000))
   const simpScale = Math.sqrt(sizeFactor)
   const areaScale = sizeFactor
-  // Fast vegetasjons-DP i bakke-meter (se POLYGON_FILTER under). 3.0 m =
-  // 0,3 mm @ 1:10 000 — skarpe nok grenser, uavhengig av kart-størrelse.
-  const VEG_SIMPLIFY_M = 3.0
   const POLYGON_FILTER = {
-    // v8.9.30: senket bygning-terskelene så hytter (typisk 20–60 m²) ikke
-    // forsvinner. 80 m² filtrerte bort hele kategorier av småhytter i
-    // marka, og simplifyM 3.0 kollapset korner på små rektangler
-    // (4×4 m polygon med DP 3.0 → degenerert). 10 m² + 1.5 m DP bevarer
-    // hytter og spikertelt, mens skur < 10 m² fortsatt filtreres bort.
-    // v11.0.47: vegetasjons-FORENKLING bindes til BAKKE-METER (fast 3.0 m),
-    // ikke kart-areal. Tidligere vokste den med √(sizeFactor) → opptil ~6,3 m
-    // DP på et 20 km-kart, som blobbet vegetasjonsgrensene mens konturene (fast
-    // DP i dem.js) holdt seg skarpe — en mismatch som leses som «feil».
-    // Vegetasjonsgrenser er navigasjons-håndtak (kanten av en lysning/grønntunge),
-    // så formtroskap teller mer enn de få ekstra bytene. minAreaM2 beholder
-    // areal-skaleringen — å DROPPE hele små polygoner er den legitime perf-leveren.
-    bygning: { simplifyM: 1.5 * simpScale, minAreaM2: 10 * areaScale },
-    skog:    { simplifyM: VEG_SIMPLIFY_M, minAreaM2: 300 * areaScale },
-    eng:     { simplifyM: VEG_SIMPLIFY_M, minAreaM2: 300 * areaScale },
-    aker:    { simplifyM: VEG_SIMPLIFY_M, minAreaM2: 300 * areaScale },
-    myr:     { simplifyM: 2.5 * simpScale, minAreaM2: 150 * areaScale },
-    vann:    { simplifyM: 2.0 * simpScale, minAreaM2: 50 * areaScale },
-    aapen:   { simplifyM: VEG_SIMPLIFY_M, minAreaM2: 300 * areaScale },
+    // FLATENE FORENKLES IKKE (v7.9.1). `simplifyM: 0` overalt her er et valg,
+    // ikke en glemsel.
+    //
+    // Historikken gikk én vei hele tida. v8.9.30 senket bygnings-toleransen
+    // fordi DP 3.0 kollapset hjørnene på små rektangler; v11.0.47 bandt
+    // vegetasjonen til bakke-meter i stedet for kart-areal, fordi en
+    // toleranse som vokste med arket blobbet vegetasjonsgrensene mens
+    // konturene (fast DP i dem.js) holdt seg skarpe — en mismatch som leses
+    // som «feil». Begge gangene var svaret mindre forenkling, og begge
+    // gangene var begrunnelsen den samme: en vegetasjonsgrense er et
+    // NAVIGASJONS-HÅNDTAK (kanten av en lysning, en grønntunge, en myrkant),
+    // og formtroskap teller mer enn noen få byte.
+    //
+    // Nå er kostnaden målt i stedet for antatt: full OSM-detalj i vann, myr,
+    // skog og bekk er 2–17 % flere hjørner, altså +1–4 KB på et 3 km-ark.
+    // Til sammenlikning er høydekurvene 50,9 % av arket. Prisen er for lav
+    // til å forsvare at kartet er mindre nøyaktig enn kilden.
+    //
+    // `minAreaM2` beholder areal-skaleringen med kartstørrelsen. Å DROPPE
+    // hele små polygoner er den legitime perf-leveren — den fjerner ting som
+    // uansett ikke er synlige i 1:10 000, mens forenklingen gjorde de
+    // synlige tingene feil.
+    //
+    // LINJENE beholder sin (se LINE_SIMPLIFY under): en kraftlinje er nesten
+    // rette spenn mellom master og var 232 KB i Oslo uten forenkling.
+    bygning: { simplifyM: 0, minAreaM2: 10 * areaScale },
+    skog:    { simplifyM: 0, minAreaM2: 300 * areaScale },
+    eng:     { simplifyM: 0, minAreaM2: 300 * areaScale },
+    aker:    { simplifyM: 0, minAreaM2: 300 * areaScale },
+    myr:     { simplifyM: 0, minAreaM2: 150 * areaScale },
+    vann:    { simplifyM: 0, minAreaM2: 50 * areaScale },
+    aapen:   { simplifyM: 0, minAreaM2: 300 * areaScale },
     // Gravplass: lavere areal-terskel enn vegetasjon. En gravplass ved en
     // bygdekirke er ofte 1–3 dekar, og den er et landemerke nettopp der det
     // er få andre — å filtrere den bort på størrelse ville tatt den der den
     // betyr mest. Forenklingen er mild fordi kanten er et gjerde, ikke en
     // vegetasjonsgrense: rette linjer og skarpe hjørner.
-    kirkegard: { simplifyM: 1.5 * simpScale, minAreaM2: 150 * areaScale },
+    kirkegard: { simplifyM: 0, minAreaM2: 150 * areaScale },
     // Naturreservat: maxAreaM2 = 200 km² er forsvar mot OSM-mistags. Norges
     // største naturreservat (Mølen) er ~7 km²; største landskapsvernområde
     // (Trillemarka-Rollagsfjell) er 147 km². 200 km² catcher alle ekte
@@ -1003,7 +1028,10 @@ export function buildSvg(elements, bbox, options = {}) {
     'vei-liten': 2.5 * simpScale,
     'vei-skogs': 2.5 * simpScale,
     sti:         2.5 * simpScale,
-    bekk:        2.0 * simpScale,
+    // Bekken er en FLATE-nabo i praksis: den følger samme terrengdetalj som
+    // myrkanten den renner gjennom, og en forenklet bekk mot en uforenklet
+    // myr leses som to ulike kart. Målt kostnad: 223 → 219 hjørner.
+    bekk:        0,
     tog:         2.0 * simpScale,
     // Kraftlinjer er lange, nesten rette spenn mellom master — de tålte aldri
     // å stå uten forenkling (232 KB i Oslo, 18 KB selv i Lierne).
@@ -1430,24 +1458,41 @@ export function buildSvg(elements, bbox, options = {}) {
             if (!isClosedRing) continue
           }
           // ISOM 521: små bygg (< 500 m², typisk hytter/uthus inkludert
-          // turisthytter) erstattes med standardisert kvadrat-symbol
-          // (13 m × 13 m = 1.3 mm @ 1:10k) sentrert på OSM-bygnings-
-          // centroid. Faktiske små OSM-polygoner er ofte irregulære og
-          // masketes lett av nærliggende stier; et rent, lett over-
-          // dimensjonert kvadrat med tynt omriss leses klart på alle
-          // zoom-nivåer (Kartverket-konvensjon). v8.10.9: terskelen er
-          // hevet fra 70 → 500 m² så også turisthytter (Sjusjøstua,
-          // Glitterheim osv.) får hytte-symbol istedenfor å forsvinne.
+          // turisthytter) tegnes som et NORMALISERT rektangel — bygningens
+          // egen retning og egne mål, med et GULV på hver side.
+          //
+          // v7.9.1: dette var et fast, AKSE-JUSTERT 13 × 13 m kvadrat på
+          // centroiden. Terskelen på 500 m² høres liten ut, men et vanlig hus
+          // er 100–200 m² og ei hytte 32–100 — så i praksis fikk hver eneste
+          // frittliggende bygning i marka samme symbol, uansett retning,
+          // proporsjon og størrelse. Et langt naust langs stranda så ut som en
+          // firkantet hytte som så ut som en garasje.
+          //
+          // Normaliseringen er BEHOLDT, og det er med vilje: ei hytte på
+          // 32 m² er 5,7 × 5,7 m = 0,57 mm i 1:10 000, altså under en
+          // millimeter og lett maskert av en sti som går forbi. Kvadratet var
+          // bevisst overdimensjonert for lesbarhet, samme slag valg som
+          // symbolstørrelsene i ISOM-katalogen. Det som er borte er at
+          // normaliseringen også kastet informasjon vi HADDE. Nå er den bare
+          // et gulv: er bygget stort nok, tegnes det som det står.
+          //
+          // Retningen finnes ved minste omsluttende areal, ikke ved lengste
+          // kant — se byggRektangel.js for hvorfor det siste bommer på et
+          // bygg med utbygg.
           if (code === '521' && areaM2 < 500) {
-            const c = polygonCentroid(el.geometry)
-            if (!c) continue
-            // v5.23.0: kvadratene er ikke lenger alle like. Uthus og garasjer
-            // tegnes mindre og dempet, hytter fylt som landemerke, bolig som
-            // før — se byggKlasse() for hvorfor.
+            // v5.23.0: symbolene er ikke alle like. Uthus og garasjer tegnes
+            // mindre og dempet, hytter fylt som landemerke, bolig som før —
+            // se klassifiserSmaabygg() for hvorfor.
             byggKlasse = klassifiserSmaabygg(el.tags)
-            const half = byggKlasse === 'uthus' ? 4.5 : 6.5
-            d = `M${fmt(c.x - half)},${fmt(c.y - half)}L${fmt(c.x + half)},${fmt(c.y - half)}L${fmt(c.x + half)},${fmt(c.y + half)}L${fmt(c.x - half)},${fmt(c.y + half)}Z`
-            bbox = { minX: c.x - half, minY: c.y - half, maxX: c.x + half, maxY: c.y + half }
+            const gulvM = byggKlasse === 'uthus' ? BYGG_GULV_UTHUS_M : BYGG_GULV_M
+            const rekt = orientertRektangel(
+              el.geometry.map(g => { const p = project(g.lat, g.lon); return [p.x, p.y] }),
+              { gulvM })
+            if (!rekt) continue
+            const h = rekt.hjorner
+            d = `M${fmt(h[0][0])},${fmt(h[0][1])}L${fmt(h[1][0])},${fmt(h[1][1])}`
+              + `L${fmt(h[2][0])},${fmt(h[2][1])}L${fmt(h[3][0])},${fmt(h[3][1])}Z`
+            bbox = bboxOfPoints(h)
             isSmall = true
           } else if (code === '551') {
             // Kai/brygge/molo (Sjøkart-havnestruktur). Sjøkart leverer to

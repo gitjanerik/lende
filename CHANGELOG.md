@@ -1,3 +1,34 @@
+## 2026-09-18 — v7.9.1: Full OSM-detalj, og bygg som står rett vei
+
+Kartet har forenklet flategeometrien fra OSM siden starten, og hver gang
+spørsmålet har kommet opp har svaret vært mindre forenkling — v8.9.30 senket
+bygnings-toleransen fordi DP 3,0 kollapset hjørnene på små rektangler, v11.0.47
+bandt vegetasjonen til bakke-meter fordi en toleranse som vokste med arket
+blobbet grensene mens konturene holdt seg skarpe. Nå er kostnaden målt i stedet
+for antatt: full OSM-detalj i vann, myr, skog, eng, aker, åpen, bygning,
+kirkegård og bekk er 2–17 % flere hjørner, altså 1–4 KB på et 3 km-ark, mot
+høydekurvenes 50,9 % av det samme arket. Forenklingen er derfor av for alle
+flatene og for bekken. Linjene beholder sin: en kraftlinje er nesten rette
+spenn mellom master og var 232 KB i Oslo uten. Minstearealet står urørt — å
+droppe hele flater som uansett ikke er synlige i 1:10 000 er den legitime
+perf-leveren, mens forenklingen gjorde de synlige tingene feil.
+
+Bygg under 500 m² ble tegnet som et fast, akse-justert 13 × 13 m kvadrat på
+centroiden. Terskelen høres liten ut, men et vanlig hus er 100–200 m² og ei
+hytte 32–100, så i praksis gjaldt det hver eneste frittliggende bygning i
+marka: retning, proporsjon og innbyrdes størrelse ble kastet, og et langt naust
+langs stranda så ut som en firkantet hytte som så ut som en garasje. Symbolet er
+nå bygningens eget rektangel — egen retning, egne mål — med et gulv på 10 m
+(7 m for uthus) på hver side. Normaliseringen er beholdt med vilje: ei hytte på
+32 m² er 0,57 mm i 1:10 000 og maskeres av en sti som går forbi, og kvadratet
+var bevisst overdimensjonert for lesbarhet. Forskjellen er at gulvet bare
+løfter det som er for lite, mens alt som er stort nok tegnes som det står.
+Retningen finnes ved minste omsluttende areal og ikke ved lengste kant, fordi
+et bygg med utbygg har sin lengste enkeltkant på skrå av huskroppen. Tett
+bebyggelse (ISOM 522) er ikke rørt — dette gjelder de spredte byggene.
+
+---
+
 ## 2026-09-18 — v7.9.0: N50-elveflater — 1 239 km² elv OSM bare har sporadisk
 
 Kartverkets N50 Arealdekke bærer 21 313 elveflater, og de er nå bakt til
