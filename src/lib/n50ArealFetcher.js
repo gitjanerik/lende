@@ -23,6 +23,15 @@ const BASE =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_N50_AREAL_URL) ||
   `${(typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || '/'}data/n50-areal/`
 
+// Vann-flisene (elveflater; innsjø har plass i formatet, men bakes ikke i dag)
+// ligger i SIN EGEN katalog med sitt eget manifest. Se VANN_TYPER i
+// scripts/bygg-n50-areal.mjs for hvorfor de to ikke kan dele katalog: manifestet
+// er klientens cache-nøkkel, og en felles katalog ville gitt areal-flisene ny
+// nøkkel hver gang vannet ble bakt.
+export const VANN_BASE =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_N50_VANN_URL) ||
+  `${(typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || '/'}data/n50-vann/`
+
 const FLIS_TIMEOUT_MS = 15000
 
 /**
@@ -47,12 +56,22 @@ async function hentBytesViaFetch(url, signal) {
 
 // Manifestet lister hvilke fliser som FINNES. Uten det ville hvert kart bedt
 // om fliser over hav og utland og fylt konsollen med 404.
-let manifestLover = null
-export function nullstillManifestCache() { manifestLover = null; navnLover = null; nullstillFlisNokler() }
+//
+// LOVENE ER NØKLET PÅ basePath, og det er ikke en detalj. Fram til v7.9.0 var
+// dette ÉN modul-global slot, som var riktig så lenge det fantes én katalog.
+// Med vann-flisene i sin egen (public/data/n50-vann/) ville den første
+// katalogen som ble spurt eid slotten, og den andre fått den førstes manifest
+// tilbake: vann-kallet ville lest areal-manifestets flisliste, funnet at
+// «flisene finnes» og bedt om .bin-filer fra feil katalog — eller, verre, fått
+// `dekning: true` på et grunnlag som ikke gjaldt. Feilen ville ikke kastet én
+// gang, og den ville sett ut som manglende data.
+const manifestLover = new Map()   // basePath → Promise<manifest|null>
+let navnLover = null
+export function nullstillManifestCache() { manifestLover.clear(); navnLover = null; nullstillFlisNokler() }
 
 async function hentManifest(basePath, hentBytes, signal) {
-  if (!manifestLover) {
-    manifestLover = (async () => {
+  if (!manifestLover.has(basePath)) {
+    manifestLover.set(basePath, (async () => {
       try {
         const { bytes } = await hentBytes(`${basePath}manifest.json`, signal)
         if (!bytes) return null
@@ -66,16 +85,16 @@ async function hentManifest(basePath, hentBytes, signal) {
         // for å finne det ut.
         return { fliser: new Set(m.fliser), isbreNavn: Number(m.isbreNavn) || 0 }
       } catch { return null }
-    })()
+    })())
   }
-  return manifestLover
+  return manifestLover.get(basePath)
 }
 
 // Isbre-navnene er ÉN liten fil for hele landet, ikke en flis per rute: N50
 // har noen få tusen breer, navnene er korte, og en flis-inndeling ville kostet
 // mer i manifest-oppslag enn hele fila veier. Den hentes derfor én gang og
-// filtreres på bbox lokalt.
-let navnLover = null
+// filtreres på bbox lokalt. (`navnLover` deklareres sammen med manifest-lovene
+// over, siden nullstillingen må se begge.)
 
 async function hentIsbreNavn(basePath, hentBytes, signal) {
   if (!navnLover) {
@@ -262,4 +281,63 @@ export async function fetchN50Areal(bbox, opts = {}) {
     fetchIsbreNavn(bbox, opts).catch(() => []),
   ])
   return [...n50ArealTilElementer(flater), ...navn]
+}
+
+// ── Vann ───────────────────────────────────────────────────────────────────
+
+// OSM-taggen hver vann-type skal bære. Merk at dette IKKE er TAGG_FOR_TYPE
+// over: arealtypene skal gjennom `n50ArealTilElementer`, som henger
+// `lende:n50areal` på alt den lager, og et vann-element med den taggen ville
+// blitt lest som arealdekke av `arealMerge`.
+//
+// `water=river` er ikke pynt. Uten undertypen klassifiserer symbolizer flata
+// som en innsjø (`isFlowingWaterArea` er false), og da kaller søket og chatten
+// Glomma «Innsjø uten navn (~3,4 km²)» — nøyaktig feilen den funksjonen ble
+// skrevet for å hindre. Den avgjør i tillegg hvilken OSM-flate N50 får lov til
+// å undertrykke i vannMerge.
+const VANN_TAGG_FOR_TYPE = Object.freeze({
+  innsjo: { natural: 'water', water: 'lake' },
+  elv: { natural: 'water', water: 'river' },
+})
+
+/**
+ * N50-vannflater → OSM-aktige elementer, i SAMME form som `polygonToElement`
+ * i n50Fetcher.js gir dem: `_source: 'n50'`, hull som relation(outer+inner).
+ *
+ * Formen er ikke valgfri. `vannMerge` skiller kildene på `_source`, og
+ * mapBuilder ring-syr hull via `assembleRelationRings` — en flate med øy som
+ * kommer inn som en enkelt `way` mister hullet og males opakt over øya.
+ */
+export function n50VannTilElementer(flater) {
+  // Ukjent type → INGEN flate, samme regel som arealdekket. En klient som ikke
+  // kjenner en framtidig type skal droppe den, ikke gjette.
+  return (flater ?? []).filter(f => VANN_TAGG_FOR_TYPE[f.type]).map((f, i) => {
+    const tags = { ...VANN_TAGG_FOR_TYPE[f.type], 'lende:n50vann': f.type }
+    const id = `n50vann-${i}`
+    if (f.ringer.length === 1) {
+      return { type: 'way', id, geometry: f.ringer[0], tags, _source: 'n50' }
+    }
+    return {
+      type: 'relation',
+      id,
+      members: f.ringer.map((ring, j) => ({
+        type: 'way', role: j === 0 ? 'outer' : 'inner', geometry: ring,
+      })),
+      tags,
+      _source: 'n50',
+    }
+  })
+}
+
+/**
+ * Hent N50-vannflatene for et bbox. Én dør for app, headless og Worker, samme
+ * grep som `fetchN50Areal` — og av samme grunn: to kallsteder med hver sin
+ * oppførsel er nøyaktig feilen vann-stacken brukte månedsvis på (v5.18.3).
+ *
+ * Feiler aldri hardt. Er flisene ikke bakt, eller er man offline, får kartet
+ * OSM-vannet sitt som før.
+ */
+export async function fetchN50Vann(bbox, opts = {}) {
+  const flater = await fetchN50ArealFlater(bbox, { ...opts, basePath: opts.basePath ?? VANN_BASE })
+  return n50VannTilElementer(flater)
 }

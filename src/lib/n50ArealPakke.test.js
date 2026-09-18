@@ -44,11 +44,22 @@ describe('n50ArealPakke — koding', () => {
 
   it('typene har faste plasser — nye kommer BAKERST, aldri i midten', () => {
     // Rekkefølgen ER kodingen. Endres den, leses gamle fliser med feil type.
-    // `isbre` kom til i v5.26.0 og ligger sist nettopp derfor: de fire første
-    // indeksene står som de sto, så en flis bakt i dag leses riktig av en
-    // klient fra v5.25 for alt den kjenner fra før.
-    expect(TYPER).toEqual(['myr', 'skog', 'apen', 'annet', 'isbre'])
-    expect(TYPER.slice(0, 4)).toEqual(['myr', 'skog', 'apen', 'annet'])
+    // `isbre` kom til i v5.26.0 og `innsjo`/`elv` i v7.9.0, alle tre BAKERST
+    // nettopp derfor: prefikset står som det sto, så en flis bakt i dag leses
+    // riktig av en klient fra v5.25 for alt den kjenner fra før.
+    //
+    // PREFIKSET er den harde delen av denne testen. Skal formatet utvides
+    // igjen, legges navnet til i den fulle lista under — men flytter noen på
+    // en av de sju som alt står der, er hver eneste bakte flis feil-lest uten
+    // at noe kaster.
+    expect(TYPER.slice(0, 5)).toEqual(['myr', 'skog', 'apen', 'annet', 'isbre'])
+    expect(TYPER).toEqual(['myr', 'skog', 'apen', 'annet', 'isbre', 'innsjo', 'elv'])
+  })
+
+  it('vann-typene koder og dekoder som seg selv', () => {
+    for (const t of ['innsjo', 'elv']) {
+      expect(lesFlis(kodeFlis([{ type: t, ringer: [KVADRAT] }]))[0].type).toBe(t)
+    }
   })
 
   it('isbre koder og dekoder som seg selv', () => {

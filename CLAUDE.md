@@ -189,7 +189,7 @@ detalj-inset, bakte mm→meter-konverteringer og `meta.widthM`-konsumenter).
 
 **Bakgrunnen ER land** (ISOM 001 kremgul). Vann males oppå i lag:
 DEM-sjø (`seaFromDem.js`, primær, CORS-trygg) → Sjøkart Dybdeareal (307) →
-N50/NVE-innsjø → OSM-vann. `marineTopology.js` bygger ÉN
+N50/NVE-innsjø → N50-elveflater → OSM-vann. `marineTopology.js` bygger ÉN
 autoritativ sjø-geometri; ISOM 307 klippes mot den.
 
 **Sammenslåingen bor i `lib/vannMerge.js` — ÉN fil, delt av appen
@@ -206,6 +206,43 @@ noen gate så det. Land-mask (union av alt
 vann) hindrer konturer/vegetasjon over vann. OSM multipolygon-relations MÅ
 ring-sys via `assembleRelationRings` i `mapBuilder.js` (ellers wedge-artefakter).
 
+**N50-ELVEFLATENE KOM I v7.9.0, OG DE SNUDDE DEN ENE REGELEN SOM STO SOM
+ABSOLUTT.** `filterOsmWaterElements` sa «elveFLATER (`isFlowingWaterArea`)
+beholdes ALLTID», og det var regresjons-vakten fra v5.18.3: uten den forsvant
+Drammenselva (`natural=water` + `water=river`) så snart NVE svarte, og igjen sto
+bare den hårtynne `waterway=river`-senterlinja. Men regelen var aldri «elveflater
+er hellige» — den var den samme som alt annet her: **kilden er autoritativ for
+DET DEN LEVERER**, og NVE Innsjødatabasen leverer ingen elver. N50 Arealdekke
+leverer 21 313 av dem, så der gjelder nå samme per-flate-dekningstest som for
+innsjøene (`n50ElvRings`). Uten ringene er oppførselen byte-identisk med før.
+
+**ELVERINGENE BLANDES IKKE INN I `n50WaterRings`, og det er med vilje.** De to
+undertrykker hver sin ting — elveflater mot innsjøflater. Én felles liste ville
+latt en elv drepe innsjøen ved sitt eget utløp, og omvendt. `harElveflate` er
+porten, og den avledes av INNHOLD som de tre andre flaggene.
+
+**BEKKE- OG ELVELINJENE FRA OSM STÅR URØRT.** Det er de smale løpene N50 ikke
+har som flate, og de er halve grunnen til at elveflatene er verdt å ha: flata
+viser hvor elva er bred nok til å bety noe, linja viser resten.
+
+**FLISENE HAR SIN EGEN KATALOG** (`public/data/n50-vann/`, `fetchN50Vann` i
+`n50ArealFetcher.js`), ikke en delt med arealdekket. Formatet (`n50ArealPakke`)
+er derimot DELT — en flate med hull er en flate med hull. Grunnen til at
+katalogene ikke er det, står under «arealdekke». **Elementene må ha samme form
+som `polygonToElement` i `n50Fetcher.js` gir dem** (`_source: 'n50'`, hull som
+relation(outer+inner)) og MÅ IKKE gå gjennom `n50ArealTilElementer`, som henger
+`lende:n50areal` på alt den lager — en elveflate med den taggen leses som
+arealdekke av `arealMerge`. `water=river` er heller ikke pynt: uten undertypen
+er `isFlowingWaterArea` false, og da kaller søket og chatten Glomma «Innsjø uten
+navn (~3,4 km²)».
+
+**INNSJØENE ER FORTSATT NVE, OG DET ER MÅLT.** `innsjo` har plass i flis-formatet
+(bakerst, sammen med `elv`), men bakes ikke. Elv alene er 3,9 MB; elv pluss
+innsjø er 35,6 MB — innsjøene er 89 % av kostnaden, og de gir ingen ny
+informasjon, siden NVE live ER N50-geometrien (IoU 0,92–0,97 mot rå N50, målt på
+fire ark inkludert Finnmark). Skal de likevel bakes en dag, er det ett
+workflow-trykk: klienten leser dem alt. Se `docs/VANN_VURDERING.md`.
+
 ## Viktig arkitektur-merknad — arealdekke: N50 bærer det den blir bedt om
 
 Samme regel som for vann gjelder her: **en kilde er autoritativ for DET DEN
@@ -214,6 +251,20 @@ LEVERER.** Forskjellen er at for arealdekke er kilden noe man må BE om.
 OSM er tynt i norsk utmark — samme diagnose `n50StiFetcher.js` åpner med for
 stier, der løsningen ble å bake N50 til statiske fliser. Den baken finnes nå
 også for arealdekke: `scripts/bygg-n50-areal.mjs` → `public/data/n50-areal/`.
+
+**BAKEN HAR TO GRUPPER MED HVER SIN KATALOG FRA v7.9.0, og en kjøring kan ikke
+blande dem** (`VANN_TYPER`; scriptet kaster på `--typer elv,myr`). Grunnen er at
+manifestet er ÉN fil per katalog OG samtidig klientens cache-nøkkel
+(`n50FlisNokkel`): en bake som skrev vann inn i `n50-areal/` ville gitt hver
+eneste areal-flis en ny nøkkel, og sendt hver bruker ut i 117 MB nedlasting for
+flater som ikke hadde endret seg. Skillet står i valideringen og ikke som en
+kommentar den som kjører jobben må huske.
+
+**Og `manifestLover` i `n50ArealFetcher` MÅ være nøklet på `basePath`.** Den var
+én modul-global slot fram til v7.9.0 — riktig så lenge det fantes én katalog. Med
+to ville den første som ble spurt eid slotten, og den andre fått den førstes
+flisliste tilbake: ingen kast, og et symptom som ser ut som manglende data.
+Testen i `n50ArealFetcher.test.js` er verifisert i begge retninger.
 
 **Baken bærer det den blir BEDT om, og det er en felle som har smelt én gang.**
 `--typer` sto på sin default `myr` fra v5.24.0 til v5.26.0, og workflowen hadde

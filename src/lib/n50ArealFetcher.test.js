@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
   fetchN50ArealFlater, n50ArealTilElementer, berorerBbox, nullstillManifestCache,
+  fetchN50Vann, n50VannTilElementer,
 } from './n50ArealFetcher.js'
 import { kodeFlis } from './n50ArealPakke.js'
 
@@ -101,5 +102,68 @@ describe('n50ArealTilElementer', () => {
     expect(el.type).toBe('relation')
     expect(el.members.map((m) => m.role)).toEqual(['outer', 'inner'])
     expect(el.members[1].geometry).toHaveLength(3)
+  })
+})
+
+describe('N50-vann — egen katalog, eget manifest (v7.9.0)', () => {
+  const ELV = ring([[59.81, 10.12], [59.83, 10.12], [59.83, 10.16], [59.81, 10.16]])
+
+  it('henter elveflater og gir dem formen vannMerge venter', async () => {
+    const els = await fetchN50Vann(BBOX, {
+      basePath: '/vann/',
+      hentBytes: server({
+        'manifest.json': manifest('59.5_10.0'),
+        '59.5_10.0.bin': kodeFlis([{ type: 'elv', ringer: [ELV] }]),
+      }),
+    })
+    expect(els).toHaveLength(1)
+    expect(els[0].tags).toMatchObject({ natural: 'water', water: 'river' })
+    expect(els[0]._source).toBe('n50')
+    // IKKE lende:n50areal — den taggen ville fått arealMerge til å lese
+    // elveflata som arealdekke.
+    expect(els[0].tags['lende:n50areal']).toBeUndefined()
+  })
+
+  it('hull blir relation(outer+inner) — ellers males øya opak over', async () => {
+    const els = await fetchN50Vann(BBOX, {
+      basePath: '/vann/',
+      hentBytes: server({
+        'manifest.json': manifest('59.5_10.0'),
+        '59.5_10.0.bin': kodeFlis([{ type: 'elv', ringer: [ELV, HULL] }]),
+      }),
+    })
+    expect(els[0].type).toBe('relation')
+    expect(els[0].members.map(m => m.role)).toEqual(['outer', 'inner'])
+  })
+
+  // LANDMINA. Fram til v7.9.0 var manifest-løftet ÉN modul-global slot. Med to
+  // kataloger ville den første som ble spurt eid slotten, og den andre fått den
+  // førstes flisliste tilbake — uten å kaste, og med et symptom som ser ut som
+  // manglende data. Testen spør areal FØRST og vann ETTERPÅ, i samme økt.
+  it('to kataloger i samme økt får HVERT SITT manifest', async () => {
+    // Areal-manifestet er TOMT, vann-manifestet har flisa. Lekker slotten, ser
+    // vann-kallet det tomme areal-manifestet, tror det ikke finnes fliser her
+    // og gir [] — altså nøyaktig «ingen elveflater», stille.
+    const hentBytes = async (url) => {
+      if (url === '/areal/manifest.json') return { status: 200, bytes: manifest() }
+      if (url === '/vann/manifest.json') return { status: 200, bytes: manifest('59.5_10.0') }
+      if (url.startsWith('/vann/59.5_10.0.bin')) {
+        return { status: 200, bytes: kodeFlis([{ type: 'elv', ringer: [ELV] }]) }
+      }
+      return { status: 404, bytes: null }
+    }
+    const myr = await fetchN50ArealFlater(BBOX, { basePath: '/areal/', hentBytes })
+    const elv = await fetchN50Vann(BBOX, { basePath: '/vann/', hentBytes })
+    expect(myr).toEqual([])
+    expect(elv).toHaveLength(1)
+    expect(elv[0].tags.water).toBe('river')
+  })
+
+  it('ukjent type droppes i stedet for å gjettes', () => {
+    expect(n50VannTilElementer([{ type: 'myr', ringer: [MYR] }])).toEqual([])
+  })
+
+  it('ingen fliser bakt ennå → tom liste, ikke feil', async () => {
+    expect(await fetchN50Vann(BBOX, { basePath: '/vann/', hentBytes: server({}) })).toEqual([])
   })
 })

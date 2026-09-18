@@ -186,9 +186,18 @@ verifisert.
 (`Navn@lat,lon#fylkesnr`), `hopp` (trinn som hoppes over: nve, osm, fliser,
 geonorge, dem, reg, ekstra, sammenlign, kart, kurve, bygg, hytter, fylke, svg).
 Trigger også på push når proben selv endres. Kjør den ikke samtidig med en
-nasjonal bake — begge laster fra Geonorge. `MAL_TYPER` (`innsjo`, `elv`) i
-`bygg-n50-areal.mjs` er BARE måling: `TYPER` i `n50ArealPakke.js` er ikke
-utvidet, og ingen flis skrives med vann.
+nasjonal bake — begge laster fra Geonorge.
+
+**Oppdatert v7.9.0:** `MAL_TYPER` heter nå `VANN_TYPER` og er ikke lenger bare
+måling. `elv` BAKES — til `public/data/n50-vann/`, med eget manifest — mens
+`innsjo` har fått plass i formatet uten å bli bakt. En kjøring kan ikke blande
+vann og arealdekke; scriptet kaster, fordi manifestet er klientens cache-nøkkel.
+
+**Og elv alene ble målt til 3,9 MB** (3,5 gzip, 185 fliser, største flis 71 KB —
+kjøring 35399655501). De 35,6 MB i tabellen over er elv PLUSS innsjø: innsjøene
+er 89 % av kostnaden, og de er den halvdelen som ikke gir ny informasjon, siden
+NVE live alt ER N50-geometrien. Elveflatene er 1 239 km² OSM bare har
+sporadisk.
 
 ---
 

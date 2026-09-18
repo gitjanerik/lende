@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { lesSkrue, klassifiser, erBreNavnType, punktFra, NAVN_FELT, MAL_TYPER } from './bygg-n50-areal.mjs'
+import { lesSkrue, klassifiser, erBreNavnType, punktFra, NAVN_FELT, VANN_TYPER } from './bygg-n50-areal.mjs'
 import { TYPER } from '../src/lib/n50ArealPakke.js'
 
 const ALLE = new Set(['myr', 'skog', 'isbre'])
@@ -39,8 +39,8 @@ describe('klassifisering — det som avgjorde om skogen kom med', () => {
   })
 })
 
-describe('vann — måles, bakes aldri', () => {
-  const MED_VANN = new Set([...ALLE, ...MAL_TYPER])
+describe('vann — egen gruppe, egen katalog', () => {
+  const MED_VANN = new Set([...ALLE, ...VANN_TYPER])
 
   it('Innsjø, InnsjøRegulert og Elv kjennes igjen når de er bedt om', () => {
     expect(klassifiser({ objtype: 'Innsjø' }, MED_VANN)).toBe('innsjo')
@@ -58,11 +58,17 @@ describe('vann — måles, bakes aldri', () => {
     expect(klassifiser({ objtype: 'FerskvannTørrfall' }, MED_VANN)).toBe(null)
   })
 
-  it('måle-typene har ingen plass i flis-formatet, og skal ikke få det ved et uhell', () => {
-    for (const t of MAL_TYPER) expect(TYPER, t).not.toContain(t)
+  // Vann-typene DELER flis-formatet med arealdekket — en flate med hull er en
+  // flate med hull — men ikke katalog. Det er baken som skiller dem, og skillet
+  // er testet der det bor: en blandet `--typer` kaster (se ER_VANN i
+  // bygg-n50-areal.mjs). Her holdes bare den uopprettelige halvdelen fast:
+  // plassene i TYPER.
+  it('vann-typene har faste plasser BAKERST i flis-formatet', () => {
+    for (const t of VANN_TYPER) expect(TYPER, t).toContain(t)
+    expect(TYPER.slice(-VANN_TYPER.length)).toEqual([...VANN_TYPER])
   })
 
-  it('skruene kan stilles per måle-type', () => {
+  it('skruene kan stilles per vann-type', () => {
     expect(lesSkrue('innsjo=2,elv=8', null).innsjo).toBe(2)
     expect(lesSkrue('innsjo=2,elv=8', null).elv).toBe(8)
     expect(lesSkrue('innsjo=2', null).myr).toBe(null)
@@ -71,7 +77,7 @@ describe('vann — måles, bakes aldri', () => {
 
 describe('lesSkrue — ett tall for alt, eller ett per type', () => {
   it('tomt gir standarden til alle typer', () => {
-    expect(lesSkrue('', 4)).toEqual(Object.fromEntries([...TYPER, ...MAL_TYPER].map((t) => [t, 4])))
+    expect(lesSkrue('', 4)).toEqual(Object.fromEntries(TYPER.map((t) => [t, 4])))
     expect(lesSkrue(null, 7).myr).toBe(7)
   })
 
