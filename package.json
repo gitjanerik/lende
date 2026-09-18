@@ -17,6 +17,7 @@
     "probe:lenker": "node scripts/probe-himmellenker.mjs",
     "probe:nordlys": "node scripts/probe-nordlys.mjs",
     "probe:svalbard": "node scripts/probe-svalbard-dem.mjs",
+    "probe:n50vann": "node scripts/probe-n50-vann.mjs",
     "mcp:protokoll": "node scripts/mcp-protokoll.mjs",
     "navnediff": "node scripts/navnediff.mjs",
     "frie": "node scripts/frie-variabler.mjs",

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { lesSkrue, klassifiser, erBreNavnType, punktFra, NAVN_FELT } from './bygg-n50-areal.mjs'
+import { lesSkrue, klassifiser, erBreNavnType, punktFra, NAVN_FELT, MAL_TYPER } from './bygg-n50-areal.mjs'
 import { TYPER } from '../src/lib/n50ArealPakke.js'
 
 const ALLE = new Set(['myr', 'skog', 'isbre'])
@@ -39,9 +39,39 @@ describe('klassifisering — det som avgjorde om skogen kom med', () => {
   })
 })
 
+describe('vann — måles, bakes aldri', () => {
+  const MED_VANN = new Set([...ALLE, ...MAL_TYPER])
+
+  it('Innsjø, InnsjøRegulert og Elv kjennes igjen når de er bedt om', () => {
+    expect(klassifiser({ objtype: 'Innsjø' }, MED_VANN)).toBe('innsjo')
+    expect(klassifiser({ objtype: 'InnsjøRegulert' }, MED_VANN)).toBe('innsjo')
+    expect(klassifiser({ objtype: 'Elv' }, MED_VANN)).toBe('elv')
+  })
+
+  it('en vanlig bake ser dem ikke — vann havner aldri i en flis ved et uhell', () => {
+    expect(klassifiser({ objtype: 'Innsjø' }, ALLE)).toBe(null)
+    expect(klassifiser({ objtype: 'Elv' }, ALLE)).toBe(null)
+  })
+
+  it('Havflate og tørrfall er ikke vann-flater her — sjøen kommer fra DEM/Sjøkart', () => {
+    expect(klassifiser({ objtype: 'Havflate' }, MED_VANN)).toBe(null)
+    expect(klassifiser({ objtype: 'FerskvannTørrfall' }, MED_VANN)).toBe(null)
+  })
+
+  it('måle-typene har ingen plass i flis-formatet, og skal ikke få det ved et uhell', () => {
+    for (const t of MAL_TYPER) expect(TYPER, t).not.toContain(t)
+  })
+
+  it('skruene kan stilles per måle-type', () => {
+    expect(lesSkrue('innsjo=2,elv=8', null).innsjo).toBe(2)
+    expect(lesSkrue('innsjo=2,elv=8', null).elv).toBe(8)
+    expect(lesSkrue('innsjo=2', null).myr).toBe(null)
+  })
+})
+
 describe('lesSkrue — ett tall for alt, eller ett per type', () => {
   it('tomt gir standarden til alle typer', () => {
-    expect(lesSkrue('', 4)).toEqual(Object.fromEntries(TYPER.map((t) => [t, 4])))
+    expect(lesSkrue('', 4)).toEqual(Object.fromEntries([...TYPER, ...MAL_TYPER].map((t) => [t, 4])))
     expect(lesSkrue(null, 7).myr).toBe(7)
   })
 
