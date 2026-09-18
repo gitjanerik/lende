@@ -335,6 +335,15 @@ export function buildHimmelGlobe({
         uIndre: { value: indre },
         uYtre: { value: ytre },
         uDeling: { value: deling },
+        // PLANETRADIEN I SCENE-ENHETER. Uten den er ringene HELT usynlige, og
+        // det er ikke til å se på noe annet enn en tom skjerm: geometrien,
+        // orienteringen og materialet er alle riktige, og `harRinger` er sann.
+        // Vertekskoordinatene er i scene-enheter (radius ~1223 her), mens
+        // tallene over er i planetradier — så `t` kom ut rundt 1471 i stedet
+        // for 0, ytterkanten av tetthets-rampa slo inn overalt, og alfa ble
+        // null i hvert eneste fragment. En shader kan ikke enhetstestes her,
+        // så dette er den ene tingen i globen som må leses for å bli sett.
+        uRadius: { value: radius },
         uFarge: { value: new Color('#e8ddc4') },
       },
       vertexShader: `
@@ -348,12 +357,14 @@ export function buildHimmelGlobe({
         uniform float uIndre;
         uniform float uYtre;
         uniform float uDeling;
+        uniform float uRadius;
         uniform vec3 uFarge;
         varying vec3 vLokal;
         void main() {
           // Avstand fra sentrum i PLANETRADIER. RingGeometry legger uv-en langs
-          // ringen, ikke radielt, så vi regner den ut selv.
-          float rr = length(vLokal.xy);
+          // ringen, ikke radielt, så vi regner den ut selv — og deler på
+          // planetradien, siden posisjonene er i scene-enheter.
+          float rr = length(vLokal.xy) / max(0.0001, uRadius);
           float t = (rr - uIndre) / max(0.0001, uYtre - uIndre);
           // Cassini-delingen: et mørkt gap. Det er det ENE trekket ved ringene
           // som er synlig i en liten kikkert, og derfor det som gjør dem ekte.

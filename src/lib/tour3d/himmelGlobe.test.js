@@ -478,3 +478,56 @@ describe('buildHimmelGlobe — aksehellingen åpner ringene', () => {
     g.dispose()
   })
 })
+
+describe('buildHimmelGlobe — ringshaderen måler i samme enhet som geometrien', () => {
+  const ringMesh = (g) => g.mesh.parent.children.find((c) => c.geometry?.type === 'RingGeometry')
+
+  it('ringradiene normaliseres til planetradier, så alfa ikke blir null overalt', () => {
+    // FEILEN SOM BLE RETTET: shaderen sammenliknet `length(vLokal.xy)` — som er
+    // i SCENE-ENHETER, altså rundt 1500–2800 med den radien sceneCore bygger
+    // med — mot uIndre/uYtre i PLANETRADIER (1,24 og 2,27). `t` kom ut rundt
+    // 1471, ytterkanten av tetthets-rampa slo inn i hvert fragment, og alfa ble
+    // null overalt. Saturn sto altså uten ringer mens harRinger var sann,
+    // orienteringen riktig og shaderen kjørte — samme symptom som v6.5.4, helt
+    // annen årsak.
+    //
+    // En shader kan ikke kjøres her, så testen måler det som ER målbart: at
+    // geometriens radier delt på uRadius lander nøyaktig på tallene shaderen
+    // sammenlikner dem med. Det er hele enhetsspørsmålet.
+    const radius = 1222.9
+    const g = buildHimmelGlobe({ legeme: 'saturn', radius })
+    const { uniforms } = ringMesh(g).material
+    const { innerRadius, outerRadius } = ringMesh(g).geometry.parameters
+    expect(uniforms.uRadius.value).toBeCloseTo(radius, 6)
+
+    const tVed = (r) => (r / uniforms.uRadius.value - uniforms.uIndre.value)
+      / (uniforms.uYtre.value - uniforms.uIndre.value)
+    expect(tVed(innerRadius)).toBeCloseTo(0, 6)
+    expect(tVed(outerRadius)).toBeCloseTo(1, 6)
+    // Cassini-delingen må ligge INNE i ringen, ellers tegnes ingen deling.
+    const tDeling = tVed(uniforms.uDeling.value * uniforms.uRadius.value)
+    expect(tDeling).toBeGreaterThan(0)
+    expect(tDeling).toBeLessThan(1)
+
+    // OG AT SHADEREN FAKTISK DELER. Uten denne halvdelen er testen over grønn
+    // også med normaliseringen fjernet igjen — den måler uniformene, ikke bruken
+    // av dem. Linja som regner `rr` MÅ nevne uRadius; hva den heter og hvordan
+    // den klemmes mot null er fritt.
+    const rrLinje = ringMesh(g).material.fragmentShader
+      .split('\n').find((l) => l.includes('length(vLokal.xy)'))
+    expect(rrLinje).toBeTruthy()
+    expect(rrLinje).toContain('uRadius')
+    g.dispose()
+  })
+
+  it('hver uniform fragmentshaderen leser finnes i uniforms', () => {
+    // Billig dekning mot neste glemte uniform: en uniform som ikke er satt er
+    // null i GLSL, og resultatet er en usynlig ring uten en eneste feilmelding.
+    const g = buildHimmelGlobe({ legeme: 'saturn' })
+    const mat = ringMesh(g).material
+    const lest = [...mat.fragmentShader.matchAll(/uniform\s+\w+\s+(\w+)\s*;/g)].map((m) => m[1])
+    expect(lest.length).toBeGreaterThan(0)
+    for (const navn of lest) expect(mat.uniforms, navn).toHaveProperty(navn)
+    g.dispose()
+  })
+})

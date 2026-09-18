@@ -444,12 +444,12 @@ async function onInstallClick() {
             deg ut i kulda for ingenting.
           </p>
           <p class="text-[12px] leading-relaxed text-ink-3">
-            Nordlysvarselet er det ene datalaget som
+            Nordlysvarselet og værvarselet er de to datalagene som
             <strong class="text-ink-2">ikke</strong> pakkes med i en offline-fil,
-            og det er med vilje — samme regel som for værvarselet. For alt annet
-            betyr et gammelt tall bare «litt mindre presist»; for et varsel betyr
-            det feil. Modellen ser dessuten omtrent en time fram, så panelet
-            oppgir hvor gammel målingen er.
+            og det er med vilje. Begge trenger altså dekning der og da. For alt
+            annet betyr et gammelt tall bare «litt mindre presist»; for et varsel
+            betyr det feil. Nordlysmodellen ser dessuten omtrent en time fram, så
+            panelet oppgir hvor gammel målingen er.
           </p>
           <p class="text-[13px] leading-relaxed text-ink-2">
             Nede til høyre står et <strong class="text-ink">himmelkompass</strong>:
