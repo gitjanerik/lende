@@ -492,6 +492,27 @@ kartet en fersk bruker har. Alle fire bor nå i `DrawerPrefsTab.vue`, sammen med
 kompass-zoomen. Spørsmålet for noe nytt er derfor ikke lenger bare «funksjon
 eller innstilling», men også: gjelder den ARKET eller MEG?
 
+**ALLE PREFERANSENE HAR SAMME FORM, OG DET ER ÉN KOMPONENT (v7.8.35).**
+`PrefBryterRad.vue` er raden: tittel, forklaring, vippebryter. Grunnen er at de
+tre 3D-flaggene (himmel-tvang, vær-demo, nordlys-demo) kom hit fra
+Utvikler-fana med DENS form — en full-bredde flate med «… : PÅ» i etiketten og
+en forklaring gated på at bryteren var på — og i en liste med vippebrytere
+leses det som noe annet enn det er. **Forklaringen står ALLTID:** en tekst man
+først ser etter at man har trykket, kan ikke leses før man bestemmer seg, og
+raden hopper i høyde hvert trykk. Kommer det en syvende preferanse, er den en
+INSTANS her. Navnetettheten er unntaket og skal være det: den bærer et VALG av
+tre, ikke av/på, og har sin egen bryter inni.
+
+**DE TRE 3D-FLAGGENE GÅR GJENNOM LOCALSTORAGE, ikke gjennom en prop-kjede**
+(`useDemoFlagg`, med nøklene i `DEMO_NOKLER`). Det er den opprinnelige
+begrunnelsen, uendret: 3D-viseren er den som LESER flagget, og den monteres
+først etterpå. Viewer3D leser nøklene direkte ved MONTERING — en reaktiv kilde
+ville lovet et bytte midt i en 3D-økt — så navnene står på to steder, og en
+test holder de to settene like. **Refen caches PER NØKKEL** i helperen, ellers
+får to kallsteder hver sin og spriker i det den ene endres.
+`lende-myk-rotasjon` bruker den bevisst IKKE: den leser `'0'` som «på», og et
+flagg med motsatt fortegn hører ikke inn under en felles «er den på?».
+
 **Fana er FØRST i rada og IKKE først i bruk.** `activeTab` er fortsatt `lag`:
 man åpner skuffa for å gjøre noe med kartet man ser på, og å lande på en fane
 med valg man setter én gang ville kostet et trykk hver gang. Plasseringen

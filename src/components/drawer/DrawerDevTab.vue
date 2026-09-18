@@ -31,21 +31,13 @@ const props = defineProps({
   openPerfLog: { type: Function, required: true },
 })
 
-// Vær-demo i 3D. Flagget bor i localStorage framfor å gå gjennom MapView, fordi
-// 3D-viseren er den som skal lese det, og den monteres først etterpå — en prop
-// gjennom hele kjeden for en utviklerbryter er ikke verdt seks ekstra ledd.
-const VAERDEMO_KEY = 'lende-3d-vaerdemo'
-const vaerDemo = ref((() => {
-  try { return localStorage.getItem(VAERDEMO_KEY) === '1' } catch { return false }
-})())
-function toggleVaerDemo() {
-  vaerDemo.value = !vaerDemo.value
-  try { localStorage.setItem(VAERDEMO_KEY, vaerDemo.value ? '1' : '0') } catch { /* privat modus */ }
-}
-
-// Myk tekstrotasjon i kartet. Samme localStorage-mønster som demoene under, men
-// motsatt polaritet: den er PÅ som standard, og bryteren finnes for å slå den AV
-// i felt. Grunnen er at effekten er en YTELSES-avveining (se lib/mykRotasjon.js)
+// Myk tekstrotasjon i kartet. Samme localStorage-mønster som 3D-demoene hadde,
+// men MOTSATT POLARITET: den er PÅ som standard, og bryteren finnes for å slå
+// den AV i felt. Det er derfor den ikke bruker `useDemoFlagg` — den leser
+// `'0'` som «på», mens helperen leser `'1'`, og et flagg som betyr det motsatte
+// av de andre hører ikke inn under en felles «er den på?».
+// Den blir dessuten STÅENDE her: dette er en ren ytelses-knott for feilsøking,
+// ikke noe man viser fram. Grunnen er at effekten er en YTELSES-avveining (se lib/mykRotasjon.js)
 // — kjennes en rotasjons-gest hakkete på en gammel telefon, er dette den ene
 // tingen å prøve å skru av for å vite om det er stedsnavnene som koster.
 // Budsjettet slår seg av selv når det MÅLER at det ikke går; denne bryteren er
@@ -59,22 +51,13 @@ function toggleMykRot() {
   try { localStorage.setItem(MYKROT_KEY, mykRotAv.value ? '0' : '1') } catch { /* privat modus */ }
 }
 
-// Nordlys-demo i 3D. Samme mønster som vær-demoen, og grunnen er en sterkere
-// utgave av den samme: et synlig nordlys over Sør-Norge er noe som skjer noen
-// netter i året, så uten demoen kan laget i praksis ikke prøves i det hele tatt.
-// Foldene, strålenes drift og pulseringen er dessuten ren BEVEGELSE, som
-// vinddriften og lyn-blinket.
-const NORDLYSDEMO_KEY = 'lende-3d-nordlysdemo'
-const nordlysDemo = ref((() => {
-  try { return localStorage.getItem(NORDLYSDEMO_KEY) === '1' } catch { return false }
-})())
-function toggleNordlysDemo() {
-  nordlysDemo.value = !nordlysDemo.value
-  try {
-    localStorage.setItem(NORDLYSDEMO_KEY, nordlysDemo.value ? '1' : '0')
-  } catch { /* privat modus */ }
-}
-
+// VÆR- OG NORDLYS-DEMOEN BOR I PREFERANSE-FANA FRA v7.8.35, sammen med
+// himmel-tvangen under. Alle tre sto her fordi de ble laget for å PRØVE noe
+// man ellers må vente på — været er det været er, og et synlig nordlys over
+// Sør-Norge er noen netter i året — men denne fana er `userOnly`, altså
+// skjult på demokartet, og det er det ene kartet en fersk bruker har.
+// Nøklene er uendret (`lende-3d-vaerdemo`, `lende-3d-nordlysdemo`), så et
+// valg gjort før flyttinga står. Se DrawerPrefsTab.vue og useDemoFlagg.js.
 // TVUNGNE HIMMELLEGEMER BOR I PREFERANSE-FANA FRA v7.8.34, ikke her.
 // Bryteren løfter månen, Mars, Jupiter og Saturn over horisonten så de fire
 // globene kan prøves når som helst. Den sto her fordi den ble laget for å
@@ -307,36 +290,6 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
         Stedsnavn står vannrett hele veien mens du roterer. Slår seg av selv om
         passene sprenger frame-budsjettet — se perf-loggen.
       </template>
-    </div>
-    <!-- Vær-demo i 3D: går gjennom værtypene, 10 s hver. Finnes fordi flere av
-         uttrykkene er ren BEVEGELSE (vinddrift, lyn-blink, fallende nedbør) og
-         ikke kan vurderes på et stillbilde. -->
-    <button @click="toggleVaerDemo"
-            class="w-full px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98] mb-1"
-            :class="vaerDemo
-                    ? 'bg-sky-400/20 border-sky-300/50 text-ink'
-                    : 'bg-ink/5 border-ink/10 text-ink-2'">
-      {{ vaerDemo ? 'Vær-demo i 3D: PÅ' : 'Vær-demo i 3D' }}
-    </button>
-    <div v-if="vaerDemo" class="text-[10px] text-ink-3 leading-relaxed mb-3 px-1">
-      Åpne 3D: værtypene spilles i rekkefølge, 10 s hver, med «neste» for å hoppe
-      videre. Overstyrer det ekte varselet så lenge den står på.
-    </div>
-    <!-- Nordlys-demo i 3D: går gjennom styrkene, 14 s hver. Finnes fordi et
-         synlig nordlys over Sør-Norge er noen netter i året — uten demoen kan
-         laget i praksis ikke prøves. -->
-    <button @click="toggleNordlysDemo"
-            class="w-full px-3 py-2 rounded-lg border text-[12px] active:scale-[0.98] mb-1"
-            :class="nordlysDemo
-                    ? 'bg-emerald-400/20 border-emerald-300/50 text-ink'
-                    : 'bg-ink/5 border-ink/10 text-ink-2'">
-      {{ nordlysDemo ? 'Nordlys-demo i 3D: PÅ' : 'Nordlys-demo i 3D' }}
-    </button>
-    <div v-if="nordlysDemo" class="text-[10px] text-ink-3 leading-relaxed mb-3 px-1">
-      Åpne 3D og slå på NATT: styrkene spilles i rekkefølge, 14 s hver, fra et
-      svakt slør lavt i nord til et som fyller himmelen. Siste steg viser samme
-      styrke lenger nord, så du ser at høyden over horisonten faktisk regnes ut.
-      Overstyrer det ekte varselet så lenge den står på.
     </div>
     <!-- Byggetider (perf): viser localStorage-loggen så den kan kopieres
          og deles — mobil-konsollen er upraktisk. -->

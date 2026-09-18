@@ -1,4 +1,4 @@
-## 2026-09-18 — v7.8.35: Lag-tall i Detaljer, og lang-trykk på kompasset gjør det motsatte
+## 2026-09-18 — v7.8.35: Lag-tall i Detaljer, lang-trykk på kompasset, og demoene i Preferanser
 
 Detaljer-fana var en liste med førti brytere og ingen tall. Slo man av
 «Holdeplass» og ingenting endret seg på kartet, var det to helt ulike ting som
@@ -52,6 +52,22 @@ ring fyller seg over hold-terskelen, samme grep som FAB-ankeret, for uten den er
 holdet en gest ingen kan finne. Fordi knappen nå er peker-drevet, måtte Enter,
 mellomrom og Meny-tasten legges inn for hånd (SC 2.1.1) — samme luke
 FabCluster lukket i v6.5.48.
+
+Preferanse-fana har fått en «Demo i 3D»-seksjon nederst, og alle bryterne har
+nå SAMME form. Vær-demoen og nordlys-demoen er flyttet dit fra Utvikler-fana —
+samme begrunnelse som himmel-tvangen fikk: begge finnes for å PRØVE noe man
+ellers må vente på (været er det været er, og et synlig nordlys over Sør-Norge
+er noen netter i året), men Utvikler-fana er `userOnly` og altså skjult på
+demokartet, som er det ene kartet en fersk bruker har. Alle tre kom med
+Utvikler-fanas form: en full-bredde flate med «… : PÅ» i etiketten og en
+forklaring som bare sto når den var på. I en liste med vippebrytere leses det
+som noe annet enn det er, og en tekst man først ser ETTER at man har trykket,
+kan ikke leses før man bestemmer seg. Radene er nå én komponent
+(`PrefBryterRad`), så «samme utforming» er strukturelt framfor en konvensjon
+man må huske, og forklaringen står alltid. De tre localStorage-flaggene delte
+seks identiske linjer hver; de bor nå i `useDemoFlagg`, som cacher refen per
+nøkkel slik at to kallsteder ikke kan sprike. Nøklene er uendret, så et valg
+gjort før flyttinga står.
 
 ISO-kode-til-lag-tabellen er samtidig flyttet fra `mapBuilder.categoryFor` til
 `mapLayerCatalog.js`, der `LAYERS` bor. Kommentaren over `LAYERS` sa

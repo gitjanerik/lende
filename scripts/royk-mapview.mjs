@@ -4134,10 +4134,19 @@ const SJEKKER = [
     // Ingen enhetstest kan se dette — prosjektet monterer ikke Vue-komponenter
     // — og et bygg er grønt med innstillingen på begge steder.
     //
+    // FRA v7.8.35 MÅLES OGSÅ FORMEN. Vær- og nordlys-demoen flyttet hit fra
+    // Utvikler-fana, og alle tre 3D-flaggene kom med DENS form: en full-bredde
+    // flate med «… : PÅ» i etiketten og en forklaring som bare sto når den var
+    // på. I en liste med vippebrytere leses det som noe annet enn det er, og en
+    // tekst man først ser ETTER at man har trykket, kan ikke leses før man
+    // bestemmer seg. Sjekken krever derfor vippebryter og en forklaring som
+    // står uansett — ellers er «samme utforming» bare en konvensjon noen må
+    // huske.
+    //
     // Demokartet duger, og det er med vilje: fana skal finnes NETTOPP der
     // Utvikler-fana ikke gjør det.
-    navn: 'Preferanser er første fane og har samlet de flyttede valgene',
-    domene: 'DrawerPrefsTab + DrawerAboutTab + DrawerDevTab + AppMenu',
+    navn: 'Preferanser er første fane, har de flyttede valgene og samme form',
+    domene: 'DrawerPrefsTab + PrefBryterRad + DrawerAboutTab + DrawerDevTab + AppMenu',
     async kjør(page) {
       await åpneDrawer(page)
       const faner = await page.evaluate(() => [...document.querySelectorAll('[role="tab"]')]
@@ -4162,9 +4171,32 @@ const SJEKKER = [
       const pref = await page.evaluate(() => {
         const p = document.querySelector('#drawer-panel-pref')
         if (!p) return null
+        // ALLE PREFERANSENE HAR SAMME FORM (v7.8.35): en rad med tittel,
+        // forklaring og en vippebryter. Vi leser radene som PAR av tittel og
+        // bryter, så en rad som kom hit i en annen form — en full-bredde flate
+        // med «… : PÅ» i etiketten, slik himmel-tvangen kom fra Utvikler-fana
+        // — faller ut av seg selv.
+        const rader = [...p.querySelectorAll('div.rounded-lg')].map((rad) => ({
+          tittel: rad.querySelector('.font-medium')?.textContent.trim() ?? '',
+          harBryter: !!rad.querySelector('button[role="switch"]'),
+          // Forklaringen skal stå ALLTID, ikke bare når bryteren er på.
+          forklaring: (rad.querySelector('.text-\\[11px\\]')?.textContent ?? '').trim().length,
+          av: rad.querySelector('button[role="switch"]')?.getAttribute('aria-checked') === 'false',
+        }))
         return {
           tekst: p.innerText,
           brytere: [...p.querySelectorAll('button[role="switch"]')].length,
+          // Flate knapper i Utvikler-fanas stil: full bredde, ingen
+          // switch-rolle. Ingen skal være igjen her.
+          flateKnapper: [...p.querySelectorAll('button:not([role="switch"])')]
+            .filter((b) => /: PÅ$|demo|himmellegemer/i.test(b.textContent))
+            .map((b) => b.textContent.trim()),
+          rader,
+          // `/i` er ikke slurv: seksjons-overskriften er `uppercase` i CSS, og
+          // Chromes `innerText` speiler `text-transform` — teksten kommer
+          // tilbake som «DEMO I 3D». Samme grunn som fane-rada leses i
+          // versaler ett sted og i blandet skrift et annet.
+          demoSeksjon: /Demo i 3D/i.test(p.innerText),
         }
       })
       if (!pref) throw new Error('fant ikke Preferanse-panelet')
@@ -4174,8 +4206,28 @@ const SJEKKER = [
         ['«Navnetetthet»', /Navnetetthet/],
         ['«Åpne i ny nettleser»', /Åpne i ny nettleser/],
         ['himmel-tvangen', /Tvungne himmellegemer/],
+        ['vær-demoen', /Vær-demo/],
+        ['nordlys-demoen', /Nordlys-demo/],
       ]) {
         if (!re.test(pref.tekst)) throw new Error(`Preferanse-fana mangler ${navn}`)
+      }
+      if (!pref.demoSeksjon) throw new Error('Preferanse-fana mangler «Demo i 3D»-seksjonen')
+      // INGEN FLATE «… : PÅ»-KNAPPER. Det er den formen de tre 3D-flaggene kom
+      // med fra Utvikler-fana, og eieren ba om vippebryter som de andre.
+      if (pref.flateKnapper.length) {
+        throw new Error(`${pref.flateKnapper.length} flat(e) Utvikler-knapp(er) står igjen: `
+          + `«${pref.flateKnapper.join('», «')}»`)
+      }
+      // De tre demo-radene: vippebryter OG en forklaring som står selv om
+      // bryteren er AV. Fram til v7.8.35 var himmel-tvangens tekst gated på at
+      // den var på, altså umulig å lese før man bestemte seg.
+      for (const tittel of ['Tvungne himmellegemer', 'Vær-demo', 'Nordlys-demo']) {
+        const rad = pref.rader.find((r) => r.tittel === tittel)
+        if (!rad) throw new Error(`fant ingen rad med tittelen «${tittel}»`)
+        if (!rad.harBryter) throw new Error(`«${tittel}» har ingen vippebryter`)
+        if (!rad.forklaring) {
+          throw new Error(`«${tittel}» mangler forklaringen — står den bare når bryteren er på?`)
+        }
       }
 
       // ANDRE ENDEN: ingen av dem står igjen der de kom fra.
@@ -4203,7 +4255,8 @@ const SJEKKER = [
       }
       await page.keyboard.press('Escape')
       await page.waitForTimeout(400)
-      return `faner: ${faner.join(' · ')}, ${pref.brytere} brytere i Preferanser`
+      return `faner: ${faner.join(' · ')}, ${pref.brytere} vippebrytere i Preferanser, `
+        + `${pref.rader.length} rader, ingen flate Utvikler-knapper`
     },
   },
   {
