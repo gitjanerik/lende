@@ -32,8 +32,20 @@ on:
         description: 'Fylkesnummer for N50-nedlastingen (56 = Finnmark). Må dekke probepunktet.'
         required: false
         default: '56'
+      reg_halv_km:
+        description: 'Halv sidekant i km for registrerings-arket (WCS-raster mot bestilt bbox, beste skift per innsjø)'
+        required: false
+        default: '4'
+      ekstra:
+        description: 'Andre steder registreringen måles på: «Navn@lat,lon;Navn@lat,lon». Tom = ingen.'
+        required: false
+        default: 'Vardåsen@59.813746,10.414616;Gjendesheim@61.4937,8.8003;Tromsø@69.6489,18.9551'
+      hytter:
+        description: 'Hytteområde for bygnings-målingen: «Navn@lat,lon#fylkesnr». Fylket må dekke punktet.'
+        required: false
+        default: 'Norefjell@60.2250,9.5300#33'
       hopp:
-        description: 'Trinn som skal hoppes over (komma­separert): nve, osm, fliser, geonorge, dem, sammenlign, kart, kurve, bygg, fylke, svg'
+        description: 'Trinn som skal hoppes over (komma­separert): nve, osm, fliser, geonorge, dem, reg, ekstra, sammenlign, kart, kurve, bygg, hytter, fylke, svg'
         required: false
         default: ''
   # Også på push når proben selv endres. En workflow_dispatch registreres først
@@ -73,6 +85,12 @@ jobs:
           PROBE_LON: ${{ inputs.lon || '28.45329' }}
           PROBE_RADIUS_M: ${{ inputs.radius_m || '1500' }}
           PROBE_FYLKE: ${{ inputs.fylke || '56' }}
+          PROBE_REG_HALV_KM: ${{ inputs.reg_halv_km || '4' }}
+          # Tom streng betyr «ingen», så dispatch sendes VERBATIM (også tom) —
+          # `inputs.ekstra || standard` ville gjort tom til standard igjen.
+          # Bare push-utløseren, som ikke har inputs, får standardlista.
+          PROBE_EKSTRA: ${{ github.event_name == 'push' && 'Vardåsen@59.813746,10.414616;Gjendesheim@61.4937,8.8003;Tromsø@69.6489,18.9551' || inputs.ekstra }}
+          PROBE_HYTTER: ${{ inputs.hytter || 'Norefjell@60.2250,9.5300#33' }}
           PROBE_HOPP: ${{ inputs.hopp || '' }}
         run: npm run probe:n50vann
 

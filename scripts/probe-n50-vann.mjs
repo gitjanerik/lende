@@ -25,13 +25,14 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gzipSync } from 'node:zlib'
 import { parseHTML } from 'linkedom'
+import { fromArrayBuffer } from 'geotiff'
 
 import { buildMapHeadless } from '../mcp/headless.js'
 import { fetchOverpass, bboxFromCenter } from '../src/lib/mapBuilder.js'
 import { fetchN50Water } from '../src/lib/n50Fetcher.js'
 import { fetchDEM } from '../src/lib/demFetcher.js'
 import { sampleElevation } from '../src/lib/demSampling.js'
-import { wgs84ToUtm32, wgs84ToUtm33, utm32BboxFromWgs84, utm32ToWgs84 } from '../src/lib/utm.js'
+import { wgs84ToUtm32, wgs84ToUtm33, utm32BboxFromWgs84, utm32ToWgs84, nordavvikISoneDeg } from '../src/lib/utm.js'
 import { lesFlis, kodeFlis, forenkleRinger, fliserForBbox, arealM2 } from '../src/lib/n50ArealPakke.js'
 import { forenkleLinje } from '../src/lib/n50StiPakke.js'
 import { finnOmrader, velgFormat, lastNed, finnGdb, lagNavn, krevGdal } from './geonorgeN50.mjs'
@@ -41,6 +42,22 @@ const LON = Number(process.env.PROBE_LON || 28.45329)
 const RADIUS_M = Number(process.env.PROBE_RADIUS_M || 1500)
 const FYLKE = String(process.env.PROBE_FYLKE || '56')
 const HOPP = new Set(String(process.env.PROBE_HOPP || '').split(',').map(s => s.trim()).filter(Boolean))
+// Registreringen måles på et STORT ark (standard 8 km): en rotasjon om senteret er
+// usynlig i én innsjø midt på arket og tydelig på kanten.
+const REG_HALV_KM = Number(process.env.PROBE_REG_HALV_KM || 4)
+// «Navn@lat,lon;…» — steder der samme registrering måles, for å se om feilen
+// vokser nordover. Standard: sør (25832-dekning), fjell, nord.
+const EKSTRA = String(process.env.PROBE_EKSTRA ?? 'Vardåsen@59.813746,10.414616;Gjendesheim@61.4937,8.8003;Tromsø@69.6489,18.9551')
+  .split(';').map(s => s.trim()).filter(Boolean).map(s => {
+    const m = s.match(/^(.*?)@(-?[\d.]+),(-?[\d.]+)$/)
+    return m ? { navn: m[1].trim() || 'sted', lat: Number(m[2]), lon: Number(m[3]) } : null
+  }).filter(Boolean)
+// «Navn@lat,lon#fylke» — et hytteområde for bygnings-spørsmålet. Probepunktet
+// er ubebodd, så det spørsmålet må stilles et annet sted.
+const HYTTER = (() => {
+  const m = String(process.env.PROBE_HYTTER || 'Norefjell@60.2250,9.5300#33').match(/^(.*?)@(-?[\d.]+),(-?[\d.]+)#(\d+)$/)
+  return m ? { navn: m[1].trim() || 'hytteområdet', lat: Number(m[2]), lon: Number(m[3]), fylke: m[4] } : null
+})()
 const NVE_BASE = 'https://kart.nve.no/enterprise/rest/services/Innsjodatabase2/MapServer/5'
 
 const ROT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -224,19 +241,28 @@ const hull = await trinn('Hull i de bakte N50-arealflisene (public/data/n50-area
 })
 
 // ── 4. Rå N50 fra Geonorge (samme leveranse som areal-baken) ───────────────
-let n50Raa = null, n50Land = null, fylkeDir = null, kilde = null, arealLag = null
-await trinn(`Rå N50 Kartdata fra Geonorge (fylke ${FYLKE})`, 'geonorge', async () => {
+const fylkeDirer = []
+// Én fylkesnedlasting fra Geonorge, lest med GDAL. Katalogen ryddes til slutt.
+async function hentFylke(nr) {
   krevGdal()
   const { omrader, formater, projeksjoner } = await finnOmrader()
-  const omrade = omrader.find(o => String(o.code) === FYLKE)
-  if (!omrade) throw new Error(`fant ikke område ${FYLKE} — har ${omrader.filter(o => o.type === 'fylke').map(o => `${o.code}=${o.name}`).join(', ')}`)
+  const omrade = omrader.find(o => String(o.code) === String(nr))
+  if (!omrade) throw new Error(`fant ikke område ${nr} — har ${omrader.filter(o => o.type === 'fylke').map(o => `${o.code}=${o.name}`).join(', ')}`)
   log(`  ${omrade.name}`)
-  fylkeDir = mkdtempSync(join(tmpdir(), 'n50vann-'))
+  const dir = mkdtempSync(join(tmpdir(), 'n50vann-'))
+  fylkeDirer.push(dir)
   const { format, proj } = velgFormat(omrade, formater, projeksjoner)
-  const kilder = finnGdb(await lastNed(omrade, format, proj, fylkeDir, log))
+  const kilder = finnGdb(await lastNed(omrade, format, proj, dir, log))
   if (!kilder.length) throw new Error('ingen lesbar kilde i nedlastingen')
-  kilde = kilder[0]
-  const alleLag = lagNavn(kilde, /./)
+  return { omrade, dir, kilde: kilder[0], alleLag: lagNavn(kilder[0], /./) }
+}
+
+let n50Raa = null, n50Land = null, fylkeDir = null, kilde = null, arealLag = null
+await trinn(`Rå N50 Kartdata fra Geonorge (fylke ${FYLKE})`, 'geonorge', async () => {
+  const hentet = await hentFylke(FYLKE)
+  fylkeDir = hentet.dir
+  kilde = hentet.kilde
+  const alleLag = hentet.alleLag
   arealLag = lagNavn(kilde, /arealdekke.*(omrade|område|flate|polygon)/i)[0]
   if (!arealLag) throw new Error(`ingen arealdekke-flatelag; lag: ${alleLag.join(', ')}`)
 
@@ -396,6 +422,252 @@ const dem = await trinn('Kartverket DTM 10 m — innsjøspeilet i terrenget', 'd
   return d
 })
 
+// ── Rutenett-registrering: ligger DTM-rasteret der appen ANTAR at det ligger? ─
+// fetchWCSDtm leser aldri GeoTIFF-ens egen georeferanse: den setter
+// transform = {0, 0, widthM/cols, heightM/rows} og antar at rasteret dekker
+// NØYAKTIG den bestilte bboksen. Nord for 25832-tjenestens dekning kommer alle
+// DEM-er fra 25833-tjenesten REPROJISERT — en sti ingen har målt. Her leses
+// hodene, og innsjøene brukes som fasit: et flatt speil i DTM-en skal ligge
+// under NVE-polygonet. Skiftet søkes per innsjø (±100 m) som kontrasten
+// «flatt inne i polygonet minus flatt i et bånd 8–30 m utenfor», og alle
+// skiftene på ett ark tilpasses en likhetstransform — en rotasjon om
+// senteret er usynlig i én innsjø midt på arket og tydelig på kanten.
+const WCS_PROBE = [
+  { navn: 'NHM_DTM_25832 (UTM 32 native, primær)', url: 'https://wcs.geonorge.no/skwms1/wcs.hoyde-dtm-nhm-25832', coverage: 'NHM_DTM_25832' },
+  { navn: 'NHM_DTM_25833 (UTM 33 reprojisert, fallback)', url: 'https://wcs.geonorge.no/skwms1/wcs.hoyde-dtm-nhm-25833', coverage: 'NHM_DTM_25833', responseCrs: 'EPSG:25832' },
+  { navn: 'NHM_DTM_25833 (native, uten RESPONSE_CRS — bare hodet)', url: 'https://wcs.geonorge.no/skwms1/wcs.hoyde-dtm-nhm-25833', coverage: 'NHM_DTM_25833', bareHode: true },
+]
+
+async function hentGeoTiff(ep, ub, resM) {
+  const widthM = ub.maxE - ub.minE, heightM = ub.maxN - ub.minN
+  const params = new URLSearchParams({
+    SERVICE: 'WCS', VERSION: '1.0.0', REQUEST: 'GetCoverage', COVERAGE: ep.coverage, CRS: 'EPSG:25832',
+    BBOX: `${ub.minE},${ub.minN},${ub.maxE},${ub.maxN}`, FORMAT: 'GeoTIFF',
+    WIDTH: String(Math.round(widthM / resM)), HEIGHT: String(Math.round(heightM / resM)),
+  })
+  if (ep.responseCrs) params.set('RESPONSE_CRS', ep.responseCrs)
+  const res = await fetch(`${ep.url}?${params}`, { signal: AbortSignal.timeout(120000) })
+  const ct = res.headers.get('content-type') ?? ''
+  if (!res.ok || /xml|html/i.test(ct)) throw new Error(`HTTP ${res.status} ${ct}: ${(await res.text()).replace(/\s+/g, ' ').slice(0, 200)}`)
+  const buf = await res.arrayBuffer()
+  const tiff = await fromArrayBuffer(buf)
+  const img = await tiff.getImage()
+  const fd = img.fileDirectory
+  const tag = (n) => { try { const v = fd.getValue ? fd.getValue(n) : fd[n]; return v == null ? null : Array.from(v) } catch { return null } }
+  const hode = { bytes: buf.byteLength, cols: img.getWidth(), rows: img.getHeight(), modelTransformation: tag('ModelTransformation'), tiepoint: tag('ModelTiepoint'), pixelScale: tag('ModelPixelScale') }
+  try { hode.geoKeys = img.getGeoKeys() } catch { hode.geoKeys = null }
+  try { hode.bbox = img.getBoundingBox() } catch { hode.bbox = null }
+  try { hode.res = img.getResolution() } catch { hode.res = null }
+  try { hode.noData = img.getGDALNoData() } catch { hode.noData = null }
+  let data = null
+  if (!ep.bareHode) { const r = await img.readRasters(); data = r[0] instanceof Float32Array ? r[0] : Float32Array.from(r[0]) }
+  return { hode, data }
+}
+
+// Invers av wgs84ToUtm33 — samme iterasjon som utm32ToWgs84 i utm.js.
+function utm33TilWgs84(e, n) {
+  let lat = n / 111132, lon = 15 + (e - 500000) / (111320 * Math.cos(lat * Math.PI / 180))
+  for (let i = 0; i < 40; i++) {
+    const p = wgs84ToUtm33(lat, lon)
+    const dE = e - p.e, dN = n - p.n
+    if (Math.abs(dE) < 1e-3 && Math.abs(dN) < 1e-3) break
+    const g = (lon - 15) * Math.PI / 180 * Math.sin(lat * Math.PI / 180)
+    const cg = Math.cos(g), sg = Math.sin(g)
+    lat += (dN * cg - dE * sg) / 111132
+    lon += (dE * cg + dN * sg) / (111320 * Math.cos(lat * Math.PI / 180))
+  }
+  return { lat, lon }
+}
+
+function rapporterHode(h, ub, resM) {
+  const epsg = h.geoKeys?.ProjectedCSTypeGeoKey
+  const rt = h.geoKeys?.GTRasterTypeGeoKey
+  log(`    ${h.cols} × ${h.rows} px, ${kb(h.bytes)}, EPSG ${epsg ?? '?'}, ${rt === 2 ? 'PixelIsPoint' : rt === 1 ? 'PixelIsArea' : 'rastertype ukjent'}, noData ${h.noData ?? '–'}`)
+  if (h.bbox) {
+    const [x0, y0, x1, y1] = h.bbox
+    if (epsg === 25833) {
+      const hj = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(([e, n]) => { const g = utm33TilWgs84(e, n); return wgs84ToUtm32(g.lat, g.lon) })
+      log(`    bbox i UTM 33: E ${x0.toFixed(1)}–${x1.toFixed(1)}, N ${y0.toFixed(1)}–${y1.toFixed(1)}`)
+      log(`    hjørnene i UTM 32 (SV, SØ, NØ, NV): ${hj.map(p => `(${p.e.toFixed(0)}, ${p.n.toFixed(0)})`).join(' ')} — bestilt E ${ub.minE.toFixed(0)}–${ub.maxE.toFixed(0)}, N ${ub.minN.toFixed(0)}–${ub.maxN.toFixed(0)}`)
+    } else {
+      log(`    bbox: E ${x0.toFixed(2)}–${x1.toFixed(2)}, N ${y0.toFixed(2)}–${y1.toFixed(2)}`)
+      log(`    avvik fra bestilt bbox: ΔminE ${(x0 - ub.minE).toFixed(2)} m, ΔmaxE ${(x1 - ub.maxE).toFixed(2)} m, ΔminN ${(y0 - ub.minN).toFixed(2)} m, ΔmaxN ${(y1 - ub.maxN).toFixed(2)} m`)
+    }
+  }
+  if (h.res) log(`    pikselstørrelse i fila: ${Math.abs(h.res[0]).toFixed(4)} × ${Math.abs(h.res[1]).toFixed(4)} m (bestilt ${resM}); appen antar ${((ub.maxE - ub.minE) / h.cols).toFixed(4)} × ${((ub.maxN - ub.minN) / h.rows).toFixed(4)} m`)
+  if (h.modelTransformation) log(`    ModelTransformation: [${h.modelTransformation.slice(0, 8).map(v => Number(v.toFixed(4))).join(', ')} …] — rotasjonsledd ${Number(h.modelTransformation[1].toFixed(6))} / ${Number(h.modelTransformation[4].toFixed(6))}`)
+  if (h.tiepoint) log(`    ModelTiepoint: ${h.tiepoint.slice(0, 6).map(v => Number(v.toFixed(3))).join(', ')}; ModelPixelScale: ${h.pixelScale?.map(v => Number(v.toFixed(4))).join(', ') ?? '–'}`)
+}
+
+// Punkter i et bånd 8–30 m UTENFOR ringen, plassert langs normalen til hvert segment.
+function baandPunkter(ring, avstander = [10, 20, 30], maalAntall = 1500) {
+  let omkrets = 0
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) omkrets += Math.hypot(ring[i].x - ring[j].x, ring[i].y - ring[j].y)
+  const steg = Math.max(4, omkrets * avstander.length / maalAntall)
+  const ut = []
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[j], b = ring[i]
+    const L = Math.hypot(b.x - a.x, b.y - a.y)
+    if (L < 1e-6) continue
+    const nx = -(b.y - a.y) / L, ny = (b.x - a.x) / L
+    for (let t = steg / 2; t < L; t += steg) {
+      const px = a.x + (b.x - a.x) * t / L, py = a.y + (b.y - a.y) * t / L
+      for (const d of avstander) {
+        const p1 = { x: px + nx * d, y: py + ny * d }, p2 = { x: px - nx * d, y: py - ny * d }
+        const p = !punktIRing(p1, ring) ? p1 : !punktIRing(p2, ring) ? p2 : null
+        if (p && avstandTilRing(p, ring) >= d * 0.7) ut.push(p)
+      }
+    }
+  }
+  return ut
+}
+
+function losLineaert(A, b) {
+  const n = b.length
+  const M = A.map((rad, i) => [...rad, b[i]])
+  for (let k = 0; k < n; k++) {
+    let p = k
+    for (let i = k + 1; i < n; i++) if (Math.abs(M[i][k]) > Math.abs(M[p][k])) p = i
+    ;[M[k], M[p]] = [M[p], M[k]]
+    if (Math.abs(M[k][k]) < 1e-12) return null
+    for (let i = k + 1; i < n; i++) { const f = M[i][k] / M[k][k]; for (let j = k; j <= n; j++) M[i][j] -= f * M[k][j] }
+  }
+  const x = new Array(n).fill(0)
+  for (let i = n - 1; i >= 0; i--) { let s = M[i][n]; for (let j = i + 1; j < n; j++) s -= M[i][j] * x[j]; x[i] = s / M[i][i] }
+  return x
+}
+
+// Beste skift per innsjø i APPENS ramme (raster antatt = bestilt bbox).
+function skiftPerInnsjo(dem, ub, innsjoer) {
+  const { data, cols, rows } = dem
+  const pw = (ub.maxE - ub.minE) / cols, ph = (ub.maxN - ub.minN) / rows
+  const z = (x, y) => {
+    const c = Math.floor(x / pw), r = Math.floor(y / ph)
+    if (c < 0 || r < 0 || c >= cols || r >= rows) return NaN
+    const v = data[r * cols + c]
+    return v < -1000 ? NaN : v
+  }
+  const tilSvg = (p) => { const u = wgs84ToUtm32(p.lat, p.lon); return { x: u.e - ub.minE, y: ub.maxN - u.n } }
+  const cx = (ub.maxE - ub.minE) / 2, cy = (ub.maxN - ub.minN) / 2
+  const kandidater = innsjoer.map(f => ({ ...f, xy: f.ring.map(tilSvg) })).map(f => ({ ...f, A: areal(f.xy) }))
+    .filter(f => f.A >= 20000).sort((a, b) => b.A - a.A)
+  const rader = []
+  for (const f of kandidater) {
+    if (rader.length >= 40) break
+    const ring = f.xy
+    const b = bboxXY(ring)
+    if (b.x0 < 130 || b.y0 < 130 || b.x1 > cols * pw - 130 || b.y1 > rows * ph - 130) continue
+    const steg = Math.max(4, Math.sqrt(f.A / 2500))
+    const indre = []
+    for (let y = b.y0 + steg / 2; y < b.y1; y += steg) for (let x = b.x0 + steg / 2; x < b.x1; x += steg) {
+      const p = { x, y }
+      if (punktIRing(p, ring) && avstandTilRing(p, ring) >= 4) indre.push(p)
+    }
+    const baand = baandPunkter(ring)
+    if (indre.length < 30 || baand.length < 30) continue
+    const zi = indre.map(p => z(p.x, p.y)).filter(Number.isFinite).sort((a, b) => a - b)
+    if (zi.length < 30) continue
+    const nivaa = zi[Math.floor(zi.length / 2)]
+    const flat = (p, dx, dy) => { const v = z(p.x + dx, p.y + dy); return Number.isFinite(v) && Math.abs(v - nivaa) <= 0.3 }
+    const score = (dx, dy) => {
+      let a = 0, bb = 0
+      for (const p of indre) if (flat(p, dx, dy)) a++
+      for (const p of baand) if (flat(p, dx, dy)) bb++
+      return { s: a / indre.length - bb / baand.length, inne: a / indre.length, baand: bb / baand.length }
+    }
+    const null0 = score(0, 0)
+    let best = { dx: 0, dy: 0, ...null0 }
+    for (let dy = -100; dy <= 100; dy += 4) for (let dx = -100; dx <= 100; dx += 4) { const s = score(dx, dy); if (s.s > best.s + 1e-9) best = { dx, dy, ...s } }
+    for (let dy = best.dy - 3; dy <= best.dy + 3; dy++) for (let dx = best.dx - 3; dx <= best.dx + 3; dx++) { const s = score(dx, dy); if (s.s > best.s + 1e-9) best = { dx, dy, ...s } }
+    const sk = sentroide(ring)
+    rader.push({ navn: f.navn, arealDaa: f.A / 1000, nivaa, posE: sk.x - cx, posN: cy - sk.y, null0, best: { ...best, dE: best.dx, dN: -best.dy } })
+  }
+  for (const r of rader) {
+    log(`    «${r.navn || '(uten navn)'}» ${tall(r.arealDaa)} daa, ${r.nivaa.toFixed(1)} m, ${r.posE >= 0 ? '+' : ''}${tall(r.posE)} m Ø / ${r.posN >= 0 ? '+' : ''}${tall(r.posN)} m N fra senter: `
+      + `flatt inne ${(100 * r.null0.inne).toFixed(0)} % / bånd ${(100 * r.null0.baand).toFixed(0)} % uten skift; beste skift ΔE ${r.best.dE >= 0 ? '+' : ''}${r.best.dE} m, ΔN ${r.best.dN >= 0 ? '+' : ''}${r.best.dN} m → inne ${(100 * r.best.inne).toFixed(0)} % / bånd ${(100 * r.best.baand).toFixed(0)} %`)
+  }
+  const sikre = rader.filter(r => r.best.inne >= 0.6)
+  const ut = { rader, sikre: sikre.length }
+  if (sikre.length) {
+    const abs = sikre.map(r => Math.hypot(r.best.dE, r.best.dN)).sort((a, b) => a - b)
+    ut.medianSkift = abs[Math.floor(abs.length / 2)]
+    log(`    ${sikre.length} innsjøer med sikkert speil (≥ 60 % flatt inne): median |skift| ${ut.medianSkift.toFixed(1)} m, maks ${abs[abs.length - 1].toFixed(1)} m`)
+  }
+  if (sikre.length >= 4) {
+    // d = t + M·p, M = [[a, −b], [b, a]] — lineært i (tx, ty, a, b).
+    const A = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], bv = [0, 0, 0, 0]
+    const legg = (rad, y) => { for (let i = 0; i < 4; i++) { bv[i] += rad[i] * y; for (let j = 0; j < 4; j++) A[i][j] += rad[i] * rad[j] } }
+    for (const r of sikre) { legg([1, 0, r.posE, -r.posN], r.best.dE); legg([0, 1, r.posN, r.posE], r.best.dN) }
+    const x = losLineaert(A, bv)
+    if (x) {
+      const [tx, ty, a, b] = x
+      const theta = Math.atan2(b, 1 + a) * 180 / Math.PI, s = Math.hypot(1 + a, b)
+      let rss = 0
+      for (const r of sikre) { const eE = tx + a * r.posE - b * r.posN - r.best.dE, eN = ty + b * r.posE + a * r.posN - r.best.dN; rss += eE * eE + eN * eN }
+      ut.tilpasning = { tx, ty, thetaDeg: theta, skala: s, rms: Math.sqrt(rss / (2 * sikre.length)) }
+      log(`    likhetstransform terreng ← vektor: forskyvning (ΔE ${tx.toFixed(1)}, ΔN ${ty.toFixed(1)}) m, rotasjon ${theta.toFixed(3)}° (+ = mot klokka), skala ${((s - 1) * 1e6).toFixed(0)} ppm, RMS-rest ${ut.tilpasning.rms.toFixed(1)} m`)
+    }
+  }
+  return ut
+}
+
+function skalaForhold(lat, lon) {
+  const d = 0.001
+  const a32 = wgs84ToUtm32(lat - d, lon), b32 = wgs84ToUtm32(lat + d, lon)
+  const a33 = wgs84ToUtm33(lat - d, lon), b33 = wgs84ToUtm33(lat + d, lon)
+  return Math.hypot(b33.e - a33.e, b33.n - a33.n) / Math.hypot(b32.e - a32.e, b32.n - a32.n)
+}
+
+async function maalRegistrering(sted, halvKm, opplosninger) {
+  const b = bboxFromCenter(sted.lat, sted.lon, halvKm)
+  const ub = utm32BboxFromWgs84(b)
+  log(`  ${sted.navn} (${sted.lat}, ${sted.lon}): ark ${(2 * halvKm).toFixed(0)} km — UTM 32 E ${ub.minE.toFixed(0)}–${ub.maxE.toFixed(0)}, N ${ub.minN.toFixed(0)}–${ub.maxN.toFixed(0)}`)
+  const g32 = nordavvikISoneDeg(sted.lat, sted.lon, 32), g33 = nordavvikISoneDeg(sted.lat, sted.lon, 33)
+  log(`  meridiankonvergens sone 32 ${g32.toFixed(2)}°, sone 33 ${g33.toFixed(2)}° → et raster med sone-33-akser ville stått ${(g32 - g33).toFixed(2)}° dreid mot arket; skalaforhold k33/k32 ${skalaForhold(sted.lat, sted.lon).toFixed(6)}`)
+  const resultat = { sted, halvKm, konvergens: { g32, g33, skala33mot32: skalaForhold(sted.lat, sted.lon) }, endepunkter: {} }
+  let innsjoer = []
+  try {
+    const el = await fetchN50Water(b)
+    for (const e of el) {
+      const navn = e.tags?.navn ?? ''
+      if (e.type === 'way' && e.geometry?.length >= 4) innsjoer.push({ navn, ring: e.geometry })
+      else if (e.type === 'relation') for (const m of e.members ?? []) if (m.role === 'outer' && m.geometry?.length >= 4) innsjoer.push({ navn, ring: m.geometry })
+    }
+    log(`  NVE: ${innsjoer.length} innsjø-ringer i arket`)
+  } catch (e) { log(`  NVE feilet: ${e?.message ?? e}`) }
+  resultat.innsjoer = innsjoer.length
+  for (const ep of WCS_PROBE) {
+    for (const resM of (ep.bareHode ? [opplosninger[0]] : opplosninger)) {
+      const navn = `${ep.navn} @ ${resM} m`
+      const t0 = Date.now()
+      try {
+        const { hode, data } = await hentGeoTiff(ep, ub, resM)
+        log(`  ── ${navn} (${((Date.now() - t0) / 1000).toFixed(1)} s)`)
+        rapporterHode(hode, ub, resM)
+        const r = { hode: { ...hode, geoKeys: hode.geoKeys ? { ...hode.geoKeys } : null } }
+        if (data && innsjoer.length) r.skift = skiftPerInnsjo({ data, cols: hode.cols, rows: hode.rows }, ub, innsjoer)
+        resultat.endepunkter[navn] = r
+      } catch (e) {
+        log(`  ── ${navn}: ${String(e?.message ?? e).split('\n')[0]}`)
+        resultat.endepunkter[navn] = { feil: String(e?.message ?? e).slice(0, 300) }
+      }
+    }
+  }
+  return resultat
+}
+
+// ── 5b. Registrering på probestedet (8 km-ark) ─────────────────────────────
+await trinn(`DTM-registrering ved probepunktet — GeoTIFF-hoder og beste skift per innsjø`, 'reg', async () => {
+  rapport.registrering = [await maalRegistrering({ navn: 'probepunktet', lat: LAT, lon: LON }, REG_HALV_KM, [10, 5])]
+})
+
+// ── 5c. Samme måling andre steder — vokser feilen nordover? ────────────────
+await trinn(`DTM-registrering andre steder (${EKSTRA.map(s => s.navn).join(', ') || 'ingen'})`, 'ekstra', async () => {
+  if (!EKSTRA.length) throw new Error('PROBE_EKSTRA er tom')
+  rapport.registrering ??= []
+  for (const sted of EKSTRA) rapport.registrering.push(await maalRegistrering(sted, REG_HALV_KM, [10]))
+})
+
 // ── 6. Kilde mot kilde, per innsjø ──────────────────────────────────────────
 await trinn('NVE mot N50 rå, myr-hull og OSM — per innsjø', 'sammenlign', async () => {
   if (!nve?.length) throw new Error('ingen NVE-flater å sammenligne')
@@ -540,6 +812,110 @@ await trinn('Bygninger: hva N50 har som OSM ikke har', 'bygg', async () => {
   rapport.n50Bygninger = ut
 })
 
+// ── 9b. Hytter i marka: formen på bygningene, og hva den koster ────────────
+// Probepunktet er ubebodd, så bygnings-spørsmålet stilles i et hytteområde.
+// Tre svar: hva OSM HAR der (omriss mot punkt), hva N50 har som OSM mangler
+// (N50 Bygning er punkter for det meste — ingen form å hente), og hva
+// omrissene faktisk koster på et ekte ark bygget headless på samme sted.
+await trinn(`Hytter i marka ved ${HYTTER?.navn ?? '?'} — omriss i OSM, punkter i N50, byte på arket`, 'hytter', async () => {
+  if (!HYTTER) throw new Error('PROBE_HYTTER kunne ikke tolkes (Navn@lat,lon#fylke)')
+  const hb = bboxFromCenter(HYTTER.lat, HYTTER.lon, RADIUS_M / 1000)
+  const cosH = Math.cos(HYTTER.lat * Math.PI / 180)
+  const xyH = (p) => ({ x: (p.lon - HYTTER.lon) * 111320 * cosH, y: (p.lat - HYTTER.lat) * 111320 })
+  log(`  ${HYTTER.navn} (${HYTTER.lat}, ${HYTTER.lon}), ${(RADIUS_M * 2 / 1000).toFixed(1)} × ${(RADIUS_M * 2 / 1000).toFixed(1)} km, fylke ${HYTTER.fylke}`)
+  const ut = { sted: HYTTER }
+
+  // OSM: omriss mot punkt, grunnflater, hjørner.
+  const el = (await fetchOverpass(hb)).elements ?? []
+  const erBygg = (e) => e.tags?.building && e.tags.building !== 'no'
+  const omriss = el.filter(e => erBygg(e) && e.type === 'way' && Array.isArray(e.geometry) && e.geometry.length >= 4).map(e => ({ tag: e.tags.building, ring: e.geometry.map(xyH) }))
+  const osmPunkt = el.filter(e => erBygg(e) && e.type === 'node').map(e => ({ tag: e.tags.building, p: xyH(e) }))
+  const perTag = {}
+  for (const b of [...omriss, ...osmPunkt]) perTag[b.tag] = (perTag[b.tag] ?? 0) + 1
+  const arealer = omriss.map(o => areal(o.ring)).sort((a, b) => a - b)
+  const pct = (q) => arealer.length ? arealer[Math.min(arealer.length - 1, Math.floor(arealer.length * q))] : 0
+  const hjorner = omriss.reduce((s, o) => s + o.ring.length, 0)
+  const bph = bytePerHjorne.bygning ?? 9
+  log(`  OSM: ${omriss.length} bygninger med omriss, ${osmPunkt.length} bare som punkt; building=${Object.entries(perTag).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([k, v]) => `${k}=${v}`).join(', ') || '(ingen)'}`)
+  if (omriss.length) log(`  grunnflate p10/p50/p90: ${tall(pct(0.1))} / ${tall(pct(0.5))} / ${tall(pct(0.9))} m²; ${tall(hjorner)} hjørner (${(hjorner / omriss.length).toFixed(1)} per bygning) → ≈ ${kb(hjorner * bph)} anslått med ${bph.toFixed(1)} B/hjørne`)
+  ut.osm = { omriss: omriss.length, punkter: osmPunkt.length, perTag, hjorner, arealP10: pct(0.1), arealP50: pct(0.5), arealP90: pct(0.9) }
+
+  // Ekte ark på samme sted — det faktiske bygnings-laget i byte.
+  try {
+    const t0 = Date.now()
+    const { svg } = await buildMapHeadless({ lat: HYTTER.lat, lon: HYTTER.lon, halfKm: RADIUS_M / 1000, detaljNivaa: 'full', tetthetAv: true })
+    const { document } = parseHTML(`<html><body>${svg}</body></html>`)
+    const lagKb = {}
+    for (const g of document.querySelector('svg').children) {
+      const navn = g.getAttribute('data-layer')
+      if (navn) lagKb[navn] = (lagKb[navn] ?? 0) + g.outerHTML.length
+    }
+    const b = lagKb.bygning ?? 0
+    log(`  headless ark på ${((Date.now() - t0) / 1000).toFixed(0)} s: ${kb(svg.length)} (gzip ${kb(gzipSync(svg).length)}); bygning-laget ${kb(b)} = ${(100 * b / svg.length).toFixed(1)} % av arket`)
+    log(`  største lag: ${Object.entries(lagKb).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, v]) => `${k} ${kb(v)}`).join(', ')}`)
+    writeFileSync(join(UT, 'ark-hytter.svg'), svg)
+    ut.ark = { bytes: svg.length, gzip: gzipSync(svg).length, bygningBytes: b, lag: lagKb }
+  } catch (e) { log(`  headless ark feilet: ${String(e?.message ?? e).split('\n')[0]}`) }
+
+  // N50: hva slags geometri bygningene har, og hvor mange OSM alt dekker.
+  const hentet = (kilde && String(HYTTER.fylke) === FYLKE) ? { kilde, dir: fylkeDir } : await hentFylke(HYTTER.fylke)
+  const lag = lagNavn(hentet.kilde, /bygning/i)
+  if (!lag.length) throw new Error('ingen bygningslag i N50-nedlastingen')
+  const spat = [hb.west, hb.south, hb.east, hb.north].map(String)
+  const n50 = []
+  for (const l of lag) {
+    const fil = join(hentet.dir, `hytter_${l.replace(/[^\w]/g, '_')}.json`)
+    try { execFileSync('ogr2ogr', ['-f', 'GeoJSON', fil, hentet.kilde, l, '-t_srs', 'EPSG:4326', '-spat', ...spat, '-spat_srs', 'EPSG:4326'], { stdio: 'pipe' }) }
+    catch (e) { log(`  N50 ${l}: ogr2ogr feilet (${String(e.message).split('\n')[0]})`); continue }
+    const feats = JSON.parse(readFileSync(fil, 'utf8')).features ?? []
+    const geomTyper = {}, typer = {}
+    for (const f of feats) {
+      const g = f.geometry
+      if (!g) continue
+      geomTyper[g.type] = (geomTyper[g.type] ?? 0) + 1
+      const k = [f.properties?.objtype, f.properties?.bygningstype].filter(v => v != null).join('/')
+      typer[k] = (typer[k] ?? 0) + 1
+      const tilXY = ([lon, lat]) => xyH({ lat, lon })
+      let p = null
+      if (g.type === 'Point') p = tilXY(g.coordinates)
+      else if (g.type === 'Polygon') p = sentroide(g.coordinates[0].map(tilXY))
+      else if (g.type === 'MultiPolygon') p = sentroide(g.coordinates[0][0].map(tilXY))
+      else if (g.type === 'LineString') p = tilXY(g.coordinates[0])
+      if (p) n50.push({ lag: l, type: k, p, geom: g.type })
+    }
+    log(`  N50 ${l}: ${feats.length} objekter — geometri ${Object.entries(geomTyper).map(([k, v]) => `${k}=${v}`).join(', ') || '(ingen)'}`)
+    if (feats.length) log(`    typer: ${Object.entries(typer).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, v]) => `${k}=${v}`).join(', ')}`)
+    ut[l] = { antall: feats.length, geometri: geomTyper, typer }
+  }
+  const naerOmriss = (p) => omriss.some(o => punktIRing(p, o.ring) || avstandTilRing(p, o.ring) <= 10)
+  const naerPunkt = (p) => osmPunkt.some(q => Math.hypot(q.p.x - p.x, q.p.y - p.y) <= 10)
+  let medOmriss = 0, medPunkt = 0, uten = 0
+  for (const b of n50) { if (naerOmriss(b.p)) medOmriss++; else if (naerPunkt(b.p)) medPunkt++; else uten++ }
+  const osmUtenN50 = omriss.filter(o => { const c = sentroide(o.ring); return !n50.some(b => punktIRing(b.p, o.ring) || Math.hypot(b.p.x - c.x, b.p.y - c.y) <= 10) }).length
+  if (n50.length) log(`  av ${n50.length} N50-bygninger: ${medOmriss} har et OSM-omriss innen 10 m (${(100 * medOmriss / n50.length).toFixed(0)} %), ${medPunkt} bare et OSM-punkt, ${uten} ingenting i OSM; ${osmUtenN50} OSM-omriss har ingen N50-bygning`)
+  ut.kobling = { n50: n50.length, medOsmOmriss: medOmriss, medOsmPunkt: medPunkt, utenOsm: uten, osmOmrissUtenN50: osmUtenN50 }
+
+  // FKB-Bygning i kartkatalogen — finnes formen å hente, og er den åpen?
+  try {
+    const r = await fetch('https://kartkatalog.geonorge.no/api/search?text=FKB-Bygning&limit=8', { signal: AbortSignal.timeout(30000) })
+    const j = await r.json()
+    const treff = (j.Results ?? []).filter(t => /bygning/i.test(t.Title ?? ''))
+    log(`  kartkatalog «FKB-Bygning»: ${treff.length} treff`)
+    const felt = (t) => Object.entries(t).filter(([k, v]) => /access|restrict|open|protocol|distribution|licen|organi|owner/i.test(k) && v != null && v !== '' && typeof v !== 'object').map(([k, v]) => `${k}=${v}`).join(', ')
+    for (const t of treff.slice(0, 5)) log(`    ${t.Title} — uuid ${t.Uuid} — ${felt(t) || Object.keys(t).join(',')}`)
+    const fkb = treff.find(t => /^fkb-bygning$/i.test(t.Title ?? '')) ?? treff[0]
+    if (fkb?.Uuid) {
+      const c = await fetch(`https://nedlasting.geonorge.no/api/capabilities/${fkb.Uuid}`, { signal: AbortSignal.timeout(30000) })
+      const kropp = await c.text()
+      let rel = ''
+      try { rel = (JSON.parse(kropp)._links ?? []).map(l => l.rel).join(', ') } catch { rel = kropp.replace(/\s+/g, ' ').slice(0, 160) }
+      log(`    nedlasting.geonorge.no/api/capabilities/${fkb.Uuid} → HTTP ${c.status}: ${rel}`)
+    }
+    ut.fkb = treff.slice(0, 5).map(t => ({ tittel: t.Title, uuid: t.Uuid, felt: felt(t) }))
+  } catch (e) { log(`  kartkatalog: ${String(e?.message ?? e).split('\n')[0]}`) }
+  rapport.hytter = ut
+})
+
 // ── 10. Hele fylket: N50 Innsjø/Elv pakket med appens format, per toleranse ─
 await trinn(`Hele fylket pakket — Innsjø, InnsjøRegulert og Elv`, 'fylke', async () => {
   if (!kilde) throw new Error('ingen N50-kilde')
@@ -616,5 +992,5 @@ ${deler.join('\n')}
 })
 
 writeFileSync(join(UT, 'rapport.json'), JSON.stringify(rapport, (k, v) => (typeof v === 'number' && !Number.isInteger(v) ? Number(v.toFixed(4)) : v), 2))
-if (fylkeDir) rmSync(fylkeDir, { recursive: true, force: true })
+for (const d of fylkeDirer) rmSync(d, { recursive: true, force: true })
 log(`\nSkrev probe-ut/rapport.json. Ingenting annet er endret.`)
