@@ -9,8 +9,14 @@ import isomCatalogDefault from './isomCatalog.json' with { type: 'json' }
 export const STROKE_GROUPS = Object.freeze([
   { id: 'kurve',    label: 'Høydekurver',          codes: ['101', '102', '103'] },
   { id: 'sti',      label: 'Stier',                codes: ['505', '506', '507'] },
-  { id: 'litenVei', label: 'Liten vei',            codes: ['503', '504'] },
-  { id: 'storVei',  label: 'Stor vei',             codes: ['501', '502'] },
+  // Skogsveg (504) skilt ut av 'litenVei' i v7.8.37, samtidig som den fikk sitt
+  // eget kartlag: det er de to vegtypene man vekter ulikt på et turkart, og med
+  // dem i samme gruppe kunne man ikke løfte skogsvegen uten å løfte bilvegen.
+  // ID-ene er nøkler i localStorage (useStrokeTuning) — de skal IKKE endres;
+  // etikettene følger lag-katalogens ord, så slideren og bryteren heter det samme.
+  { id: 'skogsVei', label: 'Skogsveg',             codes: ['504'] },
+  { id: 'litenVei', label: 'Småveg',               codes: ['503'] },
+  { id: 'storVei',  label: 'Storveg',              codes: ['501', '502'] },
   { id: 'stup',     label: 'Stup',                 codes: ['201', '203'] },
   { id: 'verne',    label: 'Naturreservat-omriss', codes: ['520'] },
   { id: 'bygg',     label: 'Store bygninger',      codes: ['521'] },

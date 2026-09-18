@@ -1164,15 +1164,21 @@ const SJEKKER = [
     //     Stemningene står NEDERST der, under relieff; sjekken måler at de
     //     faktisk rendres og at et trykk slår gjennom på kart-temaet, for en
     //     seksjon bak `v-if` kan dø stille når en prop ikke kobles.
-    //   • Strek-seksjonen viser FIRE skyveknapper, ikke ni. Stup,
+    //   • Strek-seksjonen viser FEM skyveknapper, ikke ni. Stup,
     //     naturreservat-omriss, store bygninger, idrettsbaner og båtruter er
     //     ikke borte fra `STROKE_GROUPS` (MCP-verktøyet og kartstilene bruker
     //     dem fortsatt) — de er borte fra FANA.
     //
+    //     FIRE TIL v7.8.37, FEM ETTER. Skogsvegen (ISOM 504) fikk sin egen
+    //     strek-gruppe da den ble skilt ut av «Liten vei», og eieren ba
+    //     uttrykkelig om en egen tykkelse-skyv for den. Rekkefølgen er
+    //     `STROKE_GROUPS` sin og ikke alfabetisk, så en ny gruppe havner der
+    //     den er definert — listen under er den fasiten.
+    //
     // Ingen av de tre finnes i en enhetstest: prosjektet monterer ikke Vue-
     // komponenter, så etiketter, fane-lista og hvilke slidere som faktisk
     // RENDRES kan bare måles i en nettleser.
-    navn: 'skuffa har Detaljer + Stil, ingen Stemning, og fire strek-skyv',
+    navn: 'skuffa har Detaljer + Stil, ingen Stemning, og fem strek-skyv',
     domene: 'MapView (ALL_TABS) + DrawerStyleTab',
     async kjør(page) {
       await åpneDrawer(page)
@@ -1210,7 +1216,7 @@ const SJEKKER = [
         }
       })
       const ventet = ['Strekbredde Høydekurver', 'Strekbredde Stier',
-        'Strekbredde Liten vei', 'Strekbredde Stor vei']
+        'Strekbredde Skogsveg', 'Strekbredde Småveg', 'Strekbredde Storveg']
       if (stil.skyv.join(' | ') !== ventet.join(' | ')) {
         throw new Error(`strek-seksjonen viser «${stil.skyv.join(', ')}», venter `
           + `«${ventet.join(', ')}»`)
@@ -4257,6 +4263,87 @@ const SJEKKER = [
       await page.waitForTimeout(400)
       return `faner: ${faner.join(' · ')}, ${pref.brytere} vippebrytere i Preferanser, `
         + `${pref.rader.length} rader, ingen flate Utvikler-knapper`
+    },
+  },
+  {
+    // UNDERLAGS-VALGET ER ØVERST I PREFERANSER, OG DET SKRIVER EN SINGLETON.
+    //
+    // Valget styrer hva Stifinneren og Runde FORESLÅR — og fra samme
+    // localStorage-nøkkel også Lende-chatten og MCP-siden. Tre ting kan bare
+    // ses i en nettleser, og alle tre er stille feil:
+    //
+    //   1. At det står ØVERST. Den som åpner fana fordi Stifinneren foreslo
+    //      feil slags rute, skal ikke rulle forbi sju vippebrytere først.
+    //   2. At et trykk FAKTISK skriver nøkkelen. Preferansen er en
+    //      modul-singleton med en watch mot localStorage; en glemt watch ser
+    //      helt normal ut i DOM-en og gir en bryter som glemmer seg selv ved
+    //      neste last.
+    //   3. At forklaringene FØLGER valget. «Strengt krav» og slakk-slideren
+    //      hører til valget, og teksten under skal si hva ruteren gjør nå.
+    //
+    // Sjekken setter valget tilbake til «Sti» til slutt — standarden er den
+    // nøytrale, og en sjekk som etterlater «Skogsveg» ville rutet hver senere
+    // sjekk etter et annet underlag.
+    navn: 'Underlag for Stifinner og Runde står øverst i Preferanser og lagres',
+    domene: 'DrawerPrefsTab (underlag) + useRutePreferanse',
+    async kjør(page) {
+      await åpneDrawer(page)
+      await page.locator('#drawer-fane-pref').first().click()
+      await page.waitForTimeout(400)
+
+      const plass = await page.evaluate(() => {
+        const p = document.querySelector('#drawer-panel-pref')
+        if (!p) return null
+        const kort = [...p.querySelectorAll('div.rounded-lg')]
+        const første = kort[0]?.querySelector('.font-medium')?.textContent.trim() ?? ''
+        const knapper = [...p.querySelectorAll('[aria-label="Foretrukket underlag"] button')]
+          .map((b) => ({ tekst: b.textContent.trim(), valgt: b.getAttribute('aria-pressed') === 'true' }))
+        return { første, knapper, harSlider: !!p.querySelector('#rute-slakk') }
+      })
+      if (!plass) throw new Error('fant ikke Preferanse-panelet')
+      if (!/^Underlag for Stifinner og Runde/.test(plass.første)) {
+        throw new Error(`øverste kort i Preferanser er «${plass.første}», ikke underlags-valget`)
+      }
+      if (plass.knapper.length !== 2) {
+        throw new Error(`underlags-gruppa har ${plass.knapper.length} knapper, ventet 2`)
+      }
+      if (plass.knapper[0].tekst !== 'Sti' || !plass.knapper[0].valgt) {
+        throw new Error('standarden er ikke «Sti» — den nøytrale skal være valgt fra start')
+      }
+      if (!plass.harSlider) throw new Error('slakk-slideren (#rute-slakk) mangler')
+
+      // Trykk «Skogsveg»: aria-pressed skal flytte seg, teksten under skal
+      // nevne skogsveg, og nøkkelen skal ligge i localStorage.
+      await page.locator('[aria-label="Foretrukket underlag"] button', { hasText: 'Skogsveg' })
+        .first().click()
+      await page.waitForTimeout(300)
+      const etter = await page.evaluate(() => {
+        const p = document.querySelector('#drawer-panel-pref')
+        return {
+          valgt: [...p.querySelectorAll('[aria-label="Foretrukket underlag"] button')]
+            .filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.textContent.trim()),
+          tekst: p.innerText,
+          lagret: localStorage.getItem('lende-rute-underlag'),
+        }
+      })
+      if (etter.valgt.join() !== 'Skogsveg') {
+        throw new Error(`etter trykket er «${etter.valgt.join(' · ')}» valgt, ikke «Skogsveg»`)
+      }
+      if (!/skogsveg/i.test(etter.tekst)) {
+        throw new Error('forklaringen nevner ikke skogsveg etter byttet')
+      }
+      if (etter.lagret !== 'veg') {
+        throw new Error(`valget ble ikke lagret (lende-rute-underlag = ${etter.lagret})`)
+      }
+
+      // NØYTRAL TILSTAND: tilbake til «Sti» før neste sjekk.
+      await page.locator('[aria-label="Foretrukket underlag"] button', { hasText: 'Sti' })
+        .first().click()
+      await page.waitForTimeout(250)
+      await page.locator('#drawer-fane-lag').first().click()
+      await page.waitForTimeout(200)
+      await lukkDrawer(page)
+      return `underlag øverst, 2 valg, lagret som ${etter.lagret}, tilbakestilt til Sti`
     },
   },
   {

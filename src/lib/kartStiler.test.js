@@ -250,3 +250,50 @@ describe('høyfjellet skiller seg fra skogen når arket HAR skogdata', () => {
     }
   })
 })
+
+// v7.8.37: skogsvegen (504) og stien (505) leste nesten likt — begge 0,1 mm
+// sort strek, og bare stien hadde den lyse casingen som løfter den over
+// terrenget. Vegen var altså den SVAKESTE av de to. Testene under verner de
+// to endringene som rettet det, fordi begge er tall man lett «rydder» tilbake.
+describe('skogsveg (504) leses som veg, ikke som sti', () => {
+  const d = (kode) => katalog.categories.manmade[kode]
+
+  it('504 er heltrukken — rytmen er hele forskjellen mot stien', () => {
+    expect(d('504').stroke.dasharray).toBeUndefined()
+    expect(d('505').stroke.dasharray).toBeDefined()
+  })
+
+  it('504 har tyngre strek OG bredere casing enn 505', () => {
+    expect(d('504').stroke.widthMm).toBeGreaterThan(d('505').stroke.widthMm)
+    expect(d('504').casingStroke.widthMm).toBeGreaterThan(d('505').casingStroke.widthMm)
+  })
+
+  it('504 er lettere enn småvegen (503), som er den over den igjen', () => {
+    expect(d('504').stroke.widthMm).toBeLessThan(d('503').stroke.widthMm)
+    // ...og 503 er den eneste av de to som bærer farge.
+    expect(d('503').overlayStroke).toBeDefined()
+    expect(d('504').overlayStroke).toBeUndefined()
+  })
+})
+
+// Sti-stigen: 505 «godt løp» → 506 «uklar» → 507 «stitråkk». Fram til v7.8.37
+// var 506 TETTERE enn 505 i hvert tema ([0.1, 0.1] mot [0.12, 0.11]) — den
+// utydelige stien leste altså fastere enn den gode. Regelen er nå monoton:
+// streken krymper og lufta vokser hele veien ned.
+describe('sti-stigen er monoton — tydeligst sti er fastest', () => {
+  const dash = (tema, kode) =>
+    katalog.themes[tema]?.categories?.[kode]?.stroke?.dash
+      ?? katalog.categories.manmade[kode].stroke.dasharray
+
+  for (const tema of ['turkart', 'padling', 'dark', 'print']) {
+    it(`${tema}: strek krymper og luft vokser fra 505 via 506 til 507`, () => {
+      const [s5, l5] = dash(tema, '505')
+      const [s6, l6] = dash(tema, '506')
+      const [s7, l7] = dash(tema, '507')
+      expect(s5).toBeGreaterThan(s6)
+      expect(s6).toBeGreaterThan(s7)
+      expect(l5).toBeLessThan(l6)
+      expect(l6).toBeLessThan(l7)
+    })
+  }
+})

@@ -23,8 +23,12 @@ import {
 } from './stinettAnalyse.js'
 import {
   buildRoutingGraph, planRoutesThrough, planLoop, ROUTABLE_CODES, MAX_SNAP_M, FAR_SNAP_M,
-  RUTE_GRAF_OPTS, BARRIER_CODES,
+  RUTE_GRAF_OPTS, BARRIER_CODES, medEndepunktSlakk, meterPerKode,
 } from './routing.js'
+import {
+  kostnadsFaktorer, erNoytral, prefTekst, oppsummerUnderlag, UNDERLAG,
+  normaliserRutePref,
+} from './rutePreferanse.js'
 import { sampleProfile } from './elevationProfile.js'
 import { listThemes } from './mapSettingsApply.js'
 import { LAYERS } from './mapLayerCatalog.js'
@@ -34,6 +38,7 @@ import { useHoldVaken } from '../composables/useHoldVaken.js'
 import { MAKS_MINUTTER, klemMinutter } from './holdVaken.js'
 import { useMapLayerControl, sendLagKommando } from '../composables/useMapLayerControl.js'
 import { useMapHighlight, sendMerkeKommando } from '../composables/useMapHighlight.js'
+import { useRutePreferanse } from '../composables/useRutePreferanse.js'
 
 // Router lastes lat: da kan testene importere de rene delene (buildTourQuery,
 // projectForModel) uten å evaluere hele router→view-treet.
@@ -306,6 +311,17 @@ export const AI_TOOLS = [
           origoLon: { type: 'number', description: 'Startpunkt = målpunkt (lengdegrad)' },
           viaLat: { type: 'number', description: 'Vendepunkt turen skal innom (kun nødvendig uten viaNavn), f.eks. en topp' },
           viaLon: { type: 'number', description: 'Vendepunkt (lengdegrad)' },
+          underlag: {
+            type: 'string',
+            enum: ['sti', 'veg'],
+            description:
+              'Underlag ruten skal foretrekke — OPPGI BARE når brukeren sier det i denne ' +
+              'meldingen, ellers brukes preferansen hen har satt i Innstillinger → ' +
+              'Preferanser. «veg» = skogsveg/småveg i marka, som er det man vil ha på ' +
+              'terrengsykkel («sykkelrute», «sykkeltur», «kjørbar», «grus»); «sti» = ' +
+              'stinettet, som er standard for fottur. Valget LAGRES, og verktøysvaret ' +
+              'sier fra — nevn det da i ett kort ledd.',
+          },
           navn: { type: 'string', description: 'Turnavn, f.eks. «Rundtur Konnerudkollen»' },
           vis3d: { type: 'boolean', description: 'Åpne 3D-visningen automatisk (KUN når brukeren har bedt om 3D — ruten tegnes uansett)' },
         },
@@ -336,10 +352,57 @@ export const AI_TOOLS = [
           fraLon: { type: 'number' },
           tilLat: { type: 'number', description: 'Målpunkt (kun nødvendig uten tilNavn)' },
           tilLon: { type: 'number' },
+          underlag: {
+            type: 'string',
+            enum: ['sti', 'veg'],
+            description:
+              'Underlag ruten skal foretrekke — OPPGI BARE når brukeren sier det i denne ' +
+              'meldingen, ellers brukes preferansen hen har satt i Innstillinger → ' +
+              'Preferanser. «veg» = skogsveg/småveg i marka, som er det man vil ha på ' +
+              'terrengsykkel («sykkelrute», «sykkeltur», «kjørbar», «grus»); «sti» = ' +
+              'stinettet, som er standard for fottur. Valget LAGRES, og verktøysvaret ' +
+              'sier fra — nevn det da i ett kort ledd.',
+          },
           navn: { type: 'string', description: 'Turnavn, f.eks. «Stormoen–Konnerudkollen»' },
           vis3d: { type: 'boolean', description: 'Åpne 3D-visningen automatisk (KUN når brukeren har bedt om 3D)' },
         },
         required: ['kartId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'sett_rutepreferanse',
+      description:
+        'Les eller endre hvilket UNDERLAG Stifinneren og Runde skal foretrekke — det samme ' +
+        'valget som står i Innstillinger → Preferanser, og som gjelder både i kartet og for ' +
+        'turene du foreslår. Kall den UTEN argumenter for bare å lese hva som gjelder nå. ' +
+        'Bruk «veg» når brukeren snakker om sykkeltur, terrengsykkel, sykkelrute, grus eller ' +
+        'kjørbar veg, og «sti» når hen vil gå. «krav» strammer valget til: da brukes det ' +
+        'andre underlaget bare der det ønskede er brutt. Dette er en MULTIPLIKATOR og ikke ' +
+        'et forbud — ruter finnes fortsatt, de legges bare om — så lov aldri at en rute blir ' +
+        '100 % på ønsket underlag. Bekreft endringen i ett kort ledd og tilby å tegne turen.',
+      parameters: {
+        type: 'object',
+        properties: {
+          underlag: {
+            type: 'string',
+            enum: ['sti', 'veg'],
+            description: '«veg» = skogsveg og småveg i marka (terrengsykkel), «sti» = stinettet (fottur)',
+          },
+          krav: {
+            type: 'boolean',
+            description: 'Strengt krav (true) eller bare en preferanse (false). Utelat for å la den stå.',
+          },
+          slakkM: {
+            type: 'number',
+            description:
+              'Fri sone i meter rundt start, mål og vendepunkt der korteste vei velges uansett ' +
+              'underlag — hytta ligger der den ligger. 0–1000, trinn 50. Utelat for å la den stå.',
+          },
+        },
+        required: [],
       },
     },
   },
@@ -742,7 +805,7 @@ async function losKart(args, kontekst) {
 //  • kartet mangler geodata (data-meta)
 //  • et punkt ligger UTENFOR kartets egen flis (kartvisningen ruter da via
 //    spøkelses-flisene, som ikke finnes i den lagrede SVG-en)
-function forhaandsberegnFraKart(kart, punkter, isLoop) {
+function forhaandsberegnFraKart(kart, punkter, isLoop, pref = null) {
   try {
     if (punkter.some((p) => !Number.isFinite(p.lat) || !Number.isFinite(p.lon))) return null
     if (punkter.some((p) => kmUtenforBbox(kart.bbox, p) > 0)) return null
@@ -751,11 +814,50 @@ function forhaandsberegnFraKart(kart, punkter, isLoop) {
     const meta = metaFraSvgEl(svgEl)
     if (!meta) return null
     return forhaandsberegnTur({
-      svgEl, meta, dem: kart.dem ? unpackDem(kart.dem) : null, punkter, isLoop,
+      svgEl, meta, dem: kart.dem ? unpackDem(kart.dem) : null, punkter, isLoop, pref,
     })
   } catch {
     return null
   }
+}
+
+// UNDERLAGS-VALGET FRA CHATTEN SKRIVES INN I PREFERANSEN, det holdes ikke som
+// et engangs-argument — og det er et bevisst valg.
+//
+// Chatten BEREGNER ruten her og lar KARTVISNINGEN tegne den. De to må rute likt,
+// ellers svarer chatten med tall fra en annen rute enn den brukeren ser, og det
+// er nøyaktig feilen `forhaandsberegnTur` finnes for å unngå. Kartvisningens
+// Stifinner leser preferanse-singletonen; et argument som bare gjaldt
+// beregningen ville derfor sprikt fra tegningen i det sekundet det ble brukt.
+//
+// «Finn meg en sykkelrute hit» ER dessuten et valg om underlag, ikke en
+// engangs-parameter — så det hører hjemme i Preferanser, der brukeren finner
+// det igjen og kan skru det av. Verktøysvaret sier fra at det ble endret, slik
+// at modellen kan nevne det.
+function prefSvar(pref, endret) {
+  return {
+    underlag: pref.underlag,
+    krav: pref.krav,
+    slakkM: pref.slakkM,
+    endret,
+    tekst: prefTekst(pref),
+  }
+}
+
+function brukUnderlagsvalg(args) {
+  const { underlag, krav, slakkM, pref } = useRutePreferanse()
+  const før = underlag.value
+  const ønsket = args?.underlag === UNDERLAG.VEG || args?.underlag === UNDERLAG.STI
+    ? args.underlag
+    : null
+  if (ønsket && ønsket !== før) underlag.value = ønsket
+  if (typeof args?.krav === 'boolean') krav.value = args.krav
+  // Klem gjennom normaliseringen: et fritt tall fra modellen skal ikke kunne
+  // legge en verdi utenfor sliderens trinn inn i Preferanser.
+  if (Number.isFinite(Number(args?.slakkM))) {
+    slakkM.value = normaliserRutePref({ slakkM: Number(args.slakkM) }).slakkM
+  }
+  return { pref: pref.value, endret: ønsket != null && ønsket !== før }
 }
 
 export async function runTool(name, args, { onNavigate, kontekst } = {}) {
@@ -1177,6 +1279,22 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
           ...formatStinettSvar(analyse, { toWgs84: (x, y) => svgToWgs84(x, y, m) }),
         }
       }
+      case 'sett_rutepreferanse': {
+        const { pref, endret } = brukUnderlagsvalg(args)
+        const rørt = endret
+          || typeof args?.krav === 'boolean'
+          || Number.isFinite(Number(args?.slakkM))
+        return {
+          ok: true,
+          ...prefSvar(pref, endret),
+          merknad: rørt
+            ? 'Valget er lagret og gjelder Stifinneren, Runde og turene du foreslår — ' +
+              'det står i Innstillinger → Preferanser. Bekreft i ett kort ledd og tilby å ' +
+              'tegne en tur. Straffen er en KOSTNAD og ikke et forbud, så lov aldri at ruten ' +
+              'blir ren: bruk «underlag» i rute-svaret for å si hvor mye som faktisk ble det.'
+            : 'Dette er valget som gjelder nå — ingenting ble endret.',
+        }
+      }
       case 'foreslaa_rundtur': {
         const løst = await losKart(args, kontekst)
         if (!løst) return { feil: `Fant ikke kart med id «${args?.kartId}». Bruk mine_kart_og_ruter.` }
@@ -1211,10 +1329,11 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         }
         // Forhåndsberegn mot kartets egen SVG: gir ekte tall å svare med, og
         // fanger «ingen sti i nærheten» FØR vi navigerer til en feilmelding.
+        const { pref, endret } = brukUnderlagsvalg(args)
         const forh = forhaandsberegnFraKart(kart, [
           { lat: Number(args?.origoLat), lon: Number(args?.origoLon) },
           { lat: Number(args?.viaLat), lon: Number(args?.viaLon) },
-        ], true)
+        ], true, pref)
         if (forh?.feil) return { feil: `${forh.feil} Ingen rundtur ble startet.` }
 
         const q = buildRundturQuery(args ?? {})
@@ -1223,6 +1342,7 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         return {
           ok: true,
           rute: forh?.rute,
+          underlagsvalg: prefSvar(pref, endret),
           merknad: forh?.rute
             ? `Rundturen er beregnet på kartets stier og tegnes inn i «${kart.navn ?? id}» nå. ` +
               'Tallene i «rute» er de kartet viser — bruk dem, ikke gjett.'
@@ -1272,10 +1392,11 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         }
         // Forhåndsberegn mot kartets egen SVG: gir ekte tall å svare med, og
         // fanger «ingen sti i nærheten» FØR vi navigerer til en feilmelding.
+        const { pref, endret } = brukUnderlagsvalg(args)
         const forh = forhaandsberegnFraKart(kart, [
           { lat: Number(args?.fraLat), lon: Number(args?.fraLon) },
           { lat: Number(args?.tilLat), lon: Number(args?.tilLon) },
-        ], false)
+        ], false, pref)
         if (forh?.feil) return { feil: `${forh.feil} Ingen tur ble startet.` }
 
         const q = buildTourQuery(args ?? {})
@@ -1284,6 +1405,7 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
         return {
           ok: true,
           rute: forh?.rute,
+          underlagsvalg: prefSvar(pref, endret),
           merknad: (forh?.rute
             ? `Turen er beregnet på kartets stier og tegnes inn i «${kart.navn ?? id}» nå. ` +
               'Tallene i «rute» er de kartet viser — bruk dem, ikke gjett.'
@@ -1357,10 +1479,17 @@ export function stinettSvarTekst(a) {
  * rute-valg (indeks 0) som Stifinneren bruker i kartvisningen, så tallene i
  * chatten er de samme brukeren ser når ruten er tegnet inn.
  *
- * @returns {{rute: {lengdeKm:number, stigningM?:number, fallM?:number, gangtidMin:number, snapMerknad?:string}}
+ * UNDERLAGS-PREFERANSEN MÅ MED, og det er ikke en ekstrafunksjon her: står
+ * brukeren på «skogsveg», ruter Stifinneren i kartvisningen etter den, og en
+ * forhåndsberegning uten den ville svart med tallene til en helt annen rute enn
+ * den som tegnes. Samme faktorer, samme `vektAttr` og samme endepunkt-slakk
+ * som `useStifinner`.
+ *
+ * @returns {{rute: {lengdeKm:number, stigningM?:number, fallM?:number, gangtidMin:number,
+ *   snapMerknad?:string, underlag?:{andel:number, oppfylt:boolean, tekst:string}}}
  *   | {feil: string} | {ingenRute: true}}
  */
-export function forhaandsberegnTur({ svgEl, meta, dem = null, punkter, isLoop = false }) {
+export function forhaandsberegnTur({ svgEl, meta, dem = null, punkter, isLoop = false, pref = null }) {
   const features = stinettFeaturesFromSvgEl(svgEl, ROUTABLE_CODES)
   if (!features.length) return { ingenRute: true }
   // Samme terreng- og barriere-regler som Stifinneren, ellers spriker tallene i
@@ -1369,7 +1498,9 @@ export function forhaandsberegnTur({ svgEl, meta, dem = null, punkter, isLoop = 
     ...RUTE_GRAF_OPTS,
     elevationAt: realElevationAt(dem),
     barriers: stinettFeaturesFromSvgEl(svgEl, new Set(Object.keys(BARRIER_CODES))),
+    kostnad: kostnadsFaktorer(pref),
   })
+  const ruteOpts = erNoytral(pref) ? { k: 3 } : { k: 3, vektAttr: 'costNoMw' }
 
   const navnFor = (i) => (
     isLoop ? (i === 0 ? 'startpunktet' : `vendepunkt ${i}`)
@@ -1391,9 +1522,11 @@ export function forhaandsberegnTur({ svgEl, meta, dem = null, punkter, isLoop = 
   }
 
   const ids = snapped.map((n) => n.id)
-  const funnet = isLoop
-    ? planLoop(rg, ids[0], ids.slice(1), { k: 3 })
-    : planRoutesThrough(rg, ids, { k: 3 })
+  const funnet = medEndepunktSlakk(rg, ids, pref?.slakkM ?? 0, () => (
+    isLoop
+      ? planLoop(rg, ids[0], ids.slice(1), ruteOpts)
+      : planRoutesThrough(rg, ids, ruteOpts)
+  ))
   // Kartvisningen velger indeks 0 (ri=0 i dyplenken), og planRoutes sorterer
   // stigende på lengde — samme rute her.
   const r = funnet[0]
@@ -1408,6 +1541,14 @@ export function forhaandsberegnTur({ svgEl, meta, dem = null, punkter, isLoop = 
     rute.fallM = Math.round(profil.totalDescent)
   }
   rute.gangtidMin = estGangtidMin(r.lengthM, rute.stigningM ?? 0, rute.fallM ?? 0)
+  // Hva ruteren FANT, ikke hva den lette etter. De to spriker når geografien
+  // ikke har noe å tilby, og det er nettopp da brukeren skal få vite det.
+  if (!erNoytral(pref)) {
+    const sum = oppsummerUnderlag(meterPerKode(rg, r.alleNodeIds ?? r.nodeIds), pref)
+    if (sum.totalM > 0) {
+      rute.underlag = { andel: +sum.andel.toFixed(2), oppfylt: sum.oppfylt, tekst: sum.tekst }
+    }
+  }
   if (fjerne.length) {
     rute.snapMerknad = `Ruten går så nær som stinettet kommer — ${fjerne.join(', ')} fra nærmeste sti.`
   }

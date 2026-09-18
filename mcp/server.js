@@ -16,7 +16,13 @@ import {
 } from './headless.js'
 import { filterPoi, POI_LABELS } from '../src/lib/mapPoi.js'
 import { formatAreaShort } from '../src/composables/useMapSearch.js'
-import { buildRoutingGraph, planRoutes, planRoutesThrough, planLoop, RUTE_GRAF_OPTS } from '../src/lib/routing.js'
+import {
+  buildRoutingGraph, planRoutes, planRoutesThrough, planLoop, RUTE_GRAF_OPTS,
+  medEndepunktSlakk, meterPerKode,
+} from '../src/lib/routing.js'
+import {
+  normaliserRutePref, kostnadsFaktorer, erNoytral, prefNokkel, prefTekst, oppsummerUnderlag,
+} from '../src/lib/rutePreferanse.js'
 import { analyserStinett, formatStinettSvar } from '../src/lib/stinettAnalyse.js'
 import { finnStinettBrudd, formatBruddSvar } from '../src/lib/stinettBrudd.js'
 import { wgs84ToSvg, svgToWgs84, utm32BboxFromWgs84 } from '../src/lib/utm.js'
@@ -46,6 +52,10 @@ import { buildTour3dUrl } from '../src/lib/tour3dLink.js'
 const state = {
   map: null,        // { svg, dem, meta, counts, bbox, navn, svgPath }
   routingGraph: null,
+  // Underlags-preferansen grafen i `routingGraph` er bygget MED. Faktorene
+  // bakes inn i kantvektene, så to kall med ulikt underlag kan ikke dele graf —
+  // uten denne ville det andre kallet i stillhet svart med det førstes valg.
+  routingPref: null,
   routes: [],       // siste planlegg_rute-resultat, refereres av eksporter_gpx
   // Visnings-innstillinger (juster_kart) — MCP-ens motstykke til drawer-
   // tilstanden i appen (Kartlag-fanen + Strek-knott/-panel). Holdes på tvers
@@ -123,8 +133,9 @@ function extentInfo(bbox) {
 
 // Bygg (eller gjenbruk) routing-grafen for sist bygde kart. componentBridgeM=80
 // kobler frakoblede sti-/vei-fragmenter til hovednettet (se lib/routing.js).
-function ensureRoutingGraph() {
-  if (!state.routingGraph) {
+function ensureRoutingGraph(pref = null) {
+  const nokkel = prefNokkel(pref)
+  if (!state.routingGraph || state.routingPref !== nokkel) {
     // Én SVG-gjennomgang gir både stinettet og barriere-geometrien.
     const { features, barriers } = graphInputFromSvg(state.map.svg)
     if (!features.length) throw new Error('Kartet inneholder ingen stier eller veier å rute på.')
@@ -135,16 +146,34 @@ function ensureRoutingGraph() {
       ...RUTE_GRAF_OPTS,
       elevationAt: realElevationAt(state.map.dem),
       barriers,
+      kostnad: kostnadsFaktorer(pref),
     })
+    state.routingPref = nokkel
   }
   return state.routingGraph
+}
+
+// Rute-opsjonene preferansen krever. Prefiks-/uttur-leddene rutes på ren lengde
+// som default, så uten dette ville et via-punkt i stillhet ignorert valget.
+function ruteOpts(pref) {
+  return erNoytral(pref) ? {} : { vektAttr: 'costNoMw' }
+}
+
+// Underlags-fasit for ÉN rute: hva ruteren faktisk fant, ikke hva den lette
+// etter. Utelates for den nøytrale preferansen — der er det ingen påstand å
+// måle mot.
+function underlagFor(rg, r, pref) {
+  if (erNoytral(pref)) return undefined
+  const sum = oppsummerUnderlag(meterPerKode(rg, r.alleNodeIds ?? r.nodeIds), pref)
+  if (!(sum.totalM > 0)) return undefined
+  return { andel: +sum.andel.toFixed(2), oppfylt: sum.oppfylt, tekst: sum.tekst }
 }
 
 // Snap start/mål (WGS84) til grafen og planlegg ruter. Delt av planlegg_rute
 // og tegn_rute_svg. Returnerer ruter + snappede noder (SVG-meter) + meta.
 const MAX_SNAP_M = 150
-function planBetween(start, maal) {
-  const rg = ensureRoutingGraph()
+function planBetween(start, maal, pref = null) {
+  const rg = ensureRoutingGraph(pref)
   const meta = svgMeta()
   const a = wgs84ToSvg(start.lat, start.lon, meta)
   const b = wgs84ToSvg(maal.lat, maal.lon, meta)
@@ -155,9 +184,12 @@ function planBetween(start, maal) {
   const bNode = rg.nearestNode([b.x, b.y])
   if (!aNode || aNode.distM > MAX_SNAP_M) throw new Error('Ingen sti/vei nær startpunktet (>150 m).')
   if (!bNode || bNode.distM > MAX_SNAP_M) throw new Error('Ingen sti/vei nær målpunktet (>150 m).')
-  const found = planRoutes(rg, aNode.id, bNode.id)
+  const found = medEndepunktSlakk(
+    rg, [aNode.id, bNode.id], pref?.slakkM ?? 0,
+    () => planRoutes(rg, aNode.id, bNode.id, ruteOpts(pref)),
+  )
   if (!found.length) throw new Error('Fant ingen rute mellom punktene (frakoblede sti-nett?).')
-  return { found, meta, a, b, aNode, bNode }
+  return { found, meta, a, b, aNode, bNode, rg }
 }
 
 // Rute gjennom en liste punkter [start, ...via, maal] (WGS84). Leddene før det
@@ -165,8 +197,8 @@ function planBetween(start, maal) {
 // siste ledd gir 1–3 alternativer (planRoutes), så hvert forslag deler samme
 // vei innom via-punktene men kan variere på siste strekk. Uten via-punkter
 // oppfører den seg identisk med planBetween. Koordinater er i SVG-meter.
-function planThrough(points) {
-  const rg = ensureRoutingGraph()
+function planThrough(points, pref = null) {
+  const rg = ensureRoutingGraph(pref)
   const meta = svgMeta()
   const snaps = points.map((ll, i) => {
     const p = wgs84ToSvg(ll.lat, ll.lon, meta)
@@ -176,9 +208,12 @@ function planThrough(points) {
     return { p, node }
   })
 
-  const found = planRoutesThrough(rg, snaps.map(s => s.node.id))
+  const ids = snaps.map(s => s.node.id)
+  const found = medEndepunktSlakk(
+    rg, ids, pref?.slakkM ?? 0, () => planRoutesThrough(rg, ids, ruteOpts(pref)),
+  )
   if (!found.length) throw new Error('Fant ingen gjennomgående rute (frakoblet sti-nett eller via-punkt uten stiforbindelse?).')
-  return { found, meta, snaps }
+  return { found, meta, snaps, rg }
 }
 
 function insideMap(p) {
@@ -377,6 +412,7 @@ server.registerTool(
 
     state.map = { ...built, navn, svgPath }
     state.routingGraph = null
+    state.routingPref = null
     state.routes = []
 
     const { meta, counts } = built
@@ -422,6 +458,25 @@ server.registerTool(
   },
 )
 
+// UNDERLAGS-PARAMETRENE, delt av planlegg_rute, planlegg_rundtur og
+// tegn_rute_svg. De er det MCP-siden har av eierens «foretrekk sti ELLER
+// skogsveg»-valg: appen leser det fra Preferanser, men MCP-serveren har ingen
+// bruker å lese fra, så kalleren må si det. Standarden er den nøytrale — sti
+// uten krav — altså nøyaktig oppførselen fra før parametrene fantes.
+const UNDERLAG_FELT = {
+  underlag: z.enum(['sti', 'veg']).optional().describe(
+    'Underlag ruten skal foretrekke: «sti» (fottur, standard) eller «veg» = skogsveg og ' +
+    'småveg i marka — det man vil ha på terrengsykkel («sykkelrute», grus, kjørbar). ' +
+    'Utelates: sti, som før.'),
+  underlagKrav: z.boolean().optional().describe(
+    'Strengt krav: det andre underlaget brukes bare der det ønskede er brutt. Dette er en ' +
+    'KOSTNAD og ikke et forbud — ruter finnes fortsatt, de legges bare om — så lov aldri ' +
+    'at ruten blir 100 % på ønsket underlag. Se «underlag» per rute i svaret.'),
+  underlagSlakkM: z.number().min(0).max(1000).optional().describe(
+    'Fri sone i meter rundt start, mål og vendepunkt der korteste vei velges uansett ' +
+    'underlag (default 250). Hytta ligger der den ligger.'),
+}
+
 server.registerTool(
   'planlegg_rute',
   {
@@ -440,20 +495,22 @@ server.registerTool(
         .optional().describe('Via-punkter ruten må innom, i rekkefølge'),
       maalNavn: z.string().optional()
         .describe('Navn på målet — gir turen (og mottakerens kart via tur3dUrl) navnet «Tur til <navn>»'),
+      ...UNDERLAG_FELT,
     },
   },
-  async ({ start, maal, via, maalNavn }) => {
+  async ({ start, maal, via, maalNavn, underlag, underlagKrav, underlagSlakkM }) => {
     requireMap()
+    const pref = normaliserRutePref({ underlag, krav: underlagKrav, slakkM: underlagSlakkM })
     const viaPts = via ?? []
-    let found, meta, startDist, maalDist
+    let found, meta, startDist, maalDist, rg
     if (viaPts.length) {
-      const r = planThrough([start, ...viaPts, maal])
-      found = r.found; meta = r.meta
+      const r = planThrough([start, ...viaPts, maal], pref)
+      found = r.found; meta = r.meta; rg = r.rg
       startDist = r.snaps[0].node.distM
       maalDist = r.snaps[r.snaps.length - 1].node.distM
     } else {
-      const r = planBetween(start, maal)
-      found = r.found; meta = r.meta
+      const r = planBetween(start, maal, pref)
+      found = r.found; meta = r.meta; rg = r.rg
       startDist = r.aNode.distM; maalDist = r.bNode.distM
     }
 
@@ -463,6 +520,7 @@ server.registerTool(
         ? `Tur om ${viaPts.find(v => v.navn?.trim()).navn.trim()}` : null
     return jsonResult({
       status: 'ok',
+      underlagsvalg: erNoytral(pref) ? undefined : { ...pref, tekst: prefTekst(pref) },
       tur3dUrl: tour3dUrlFor({ origin: start, dest: maal, via: viaPts, routeIdx: 0, name: turNavn }),
       snappingM: { start: Math.round(startDist), maal: Math.round(maalDist) },
       ruter: found.map((r, i) => {
@@ -470,6 +528,7 @@ server.registerTool(
         return {
           indeks: i,
           type: r.shortest ? 'kortest' : 'sti-foretrukket',
+          underlag: underlagFor(rg, r, pref),
           lengdeM: Math.round(r.lengthM),
           stigningM: climb?.ascent ?? null,
           fallM: climb?.descent ?? null,
@@ -508,11 +567,14 @@ server.registerTool(
         .describe('Skalerer rutestrekens bredde (1 = appens standard)'),
       navn: z.string().default('mcp-kart-rundtur').describe('Kartnavn, brukes i filnavn'),
       filsti: z.string().optional().describe('Hvor SVG-en skrives (default: tmp)'),
+      ...UNDERLAG_FELT,
     },
   },
-  async ({ origo, via, tegnSvg, ruteIndeks, visAlle, origoNavn, rutebreddeFaktor, navn, filsti }) => {
+  async ({ origo, via, tegnSvg, ruteIndeks, visAlle, origoNavn, rutebreddeFaktor, navn, filsti,
+           underlag, underlagKrav, underlagSlakkM }) => {
     requireMap()
-    const rg = ensureRoutingGraph()
+    const pref = normaliserRutePref({ underlag, krav: underlagKrav, slakkM: underlagSlakkM })
+    const rg = ensureRoutingGraph(pref)
     const meta = svgMeta()
     // Snap origo + vendepunkt til grafen (samme mønster som planThrough).
     const snaps = [origo, ...via].map((ll, i) => {
@@ -522,7 +584,11 @@ server.registerTool(
       if (!node || node.distM > MAX_SNAP_M) throw new Error(`Ingen sti/vei nær punkt ${i + 1} (>150 m).`)
       return { p, node }
     })
-    const loops = planLoop(rg, snaps[0].node.id, snaps.slice(1).map(s => s.node.id))
+    const ids = snaps.map(s => s.node.id)
+    const loops = medEndepunktSlakk(
+      rg, ids, pref.slakkM,
+      () => planLoop(rg, ids[0], ids.slice(1), ruteOpts(pref)),
+    )
     if (!loops.length) throw new Error('Fant ingen rundtur (vendepunkt uten stiforbindelse eller blindvei?).')
     state.routes = loops
 
@@ -534,6 +600,7 @@ server.registerTool(
 
     const svar = {
       status: 'ok',
+      underlagsvalg: erNoytral(pref) ? undefined : { ...pref, tekst: prefTekst(pref) },
       tur3dUrl: tour3dUrlFor({ origin: origo, via, routeIdx: ruteIndeks ?? 0, name: turNavn }),
       snappingM: { origo: Math.round(snaps[0].node.distM) },
       ruter: loops.map((r, i) => {
@@ -541,6 +608,7 @@ server.registerTool(
         return {
           indeks: i,
           type: r.shortest ? 'korteste sløyfe' : 'sløyfe',
+          underlag: underlagFor(rg, r, pref),
           lengdeM: Math.round(r.lengthM),
           stigningM: climb?.ascent ?? null,
           fallM: climb?.descent ?? null,
@@ -806,13 +874,16 @@ server.registerTool(
         .describe('Skalerer rutestrekens bredde (1 = appens standard, 0.33 = tredjedel)'),
       navn: z.string().default('mcp-kart-rute').describe('Kartnavn, brukes i filnavn'),
       filsti: z.string().optional().describe('Hvor SVG-en skrives (default: tmp)'),
+      ...UNDERLAG_FELT,
     },
   },
-  async ({ start, maal, via, visAlle, ruteIndeks, startNavn, maalNavn, rutebreddeFaktor, navn, filsti }) => {
+  async ({ start, maal, via, visAlle, ruteIndeks, startNavn, maalNavn, rutebreddeFaktor, navn, filsti,
+           underlag, underlagKrav, underlagSlakkM }) => {
     requireMap()
+    const pref = normaliserRutePref({ underlag, krav: underlagKrav, slakkM: underlagSlakkM })
     const viaPts = via ?? []
     const points = [start, ...viaPts, maal]
-    const { found, meta, snaps } = planThrough(points)
+    const { found, meta, snaps, rg } = planThrough(points, pref)
     state.routes = found
 
     const sel = Math.min(ruteIndeks, found.length - 1)
@@ -859,9 +930,11 @@ server.registerTool(
       svgPath,
       svgKb: Math.round(svg.length / 1024),
       antallRuterTegnet: routes.length,
+      underlagsvalg: erNoytral(pref) ? undefined : { ...pref, tekst: prefTekst(pref) },
       valgtRute: {
         indeks: sel,
         type: valgt.shortest ? 'kortest' : 'sti-foretrukket',
+        underlag: underlagFor(rg, valgt, pref),
         lengdeM: Math.round(valgt.lengthM),
         stigningM: climb?.ascent ?? null,
         fallM: climb?.descent ?? null,

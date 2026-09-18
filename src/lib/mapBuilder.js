@@ -1000,6 +1000,7 @@ export function buildSvg(elements, bbox, options = {}) {
   const LINE_SIMPLIFY = {
     'vei-stor':  1.5 * simpScale,
     'vei-liten': 2.5 * simpScale,
+    'vei-skogs': 2.5 * simpScale,
     sti:         2.5 * simpScale,
     bekk:        2.0 * simpScale,
     tog:         2.0 * simpScale,

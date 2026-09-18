@@ -1,3 +1,60 @@
+## 2026-09-18 — v7.8.38: Underlag for Stifinner og Runde — sti eller skogsveg
+
+Stifinneren og Runde har fått en preferanse i Preferanser-fana: skal ruter foretrekke sti eller skogsveg og småveg — vegen i marka, som er det de fleste vil ha under seg på terreng- eller stisykkel. Valget kan skjerpes til et strengt krav, og en egen skyv setter hvor nær start, mål og hvert vendepunkt preferansen slutter å gjelde. Modellen er en kostnad og aldri et forbud: Dijkstra er hukommelsesløs, så «maks så og så langt på feil underlag» kan ikke uttrykkes som en kantvekt, men straffen er proporsjonal med lengden, og det gir nøyaktig den slakken som trengs der sti og skogsveg går på kryss og tvers — korte forbindelsesstumper overlever, en halv kilometer omvei gjør det ikke. Et ekte forbud ville i stedet gitt «fant ingen rute». Valget er én singleton, så Lende-chatten og MCP-serveren ruter etter det samme: chatten kan settes til sykkelrute med ett spørsmål, MCP-verktøyene har fått underlags-parametre, og begge svarer med hvor mye av ruta som faktisk ble det ønskede underlaget i stedet for å love at kravet ble oppfylt. Standarden er uendret — sti uten krav gir bit for bit den samme grafen som før.
+
+---
+
+## 2026-09-18 — v7.8.37: Skogsvegen er sitt eget lag, sin egen slider og sin egen strek
+
+Vegen i marka — skogsbilveg, traktorveg og OSM `highway=track`, ISOM 504 — lå
+til nå i samme lag og samme strek-gruppe som småvegen (503), og tegnet som en
+0,1 mm sort strek uten casing. Det er nøyaktig samme vekt som den stiplede
+stien (505), men uten stiens lyse underlinje, så vegen leste SVAKERE enn stien
+den skulle skille seg fra. Den er nå heltrukken 0,16 mm med en 0,30 mm lys
+casing under: forskjellen mot sti er både rytme og vekt, og mot småveg er den
+fargen — 503 har oransje fyll, 504 har ingen. Laget heter «Skogsveg» og står
+rett under «Småveg» i Detaljer; strek-slideren heter det samme og står i Stil →
+Strek, mellom «Stier» og «Småveg». Slidernavnene «Liten vei» og «Stor vei» er
+samtidig rettet til lag-katalogens ord, «Småveg» og «Storveg», så bryteren og
+skyven heter det samme. Bommen (526) er som før sitt eget lag og filtrerer
+ingenting bort: en bomma veg tegnes som før. Samtidig er sti-stigen gjort
+monoton i de fire temaene som setter den: 506 «uklar» var TETTERE enn 505
+«godt løp» ([0.1, 0.1] mot [0.12, 0.11]), altså leste den utydelige stien
+fastere enn den gode. Nå krymper streken og vokser lufta hele veien ned —
+505 [0.12, 0.09], 506 [0.09, 0.14], 507 uendret [0.06, 0.2] — innenfor de
+invariantene testene alt håndhever.
+
+---
+
+## 2026-09-18 — v7.8.36: «Om appen» sa feil om vegetasjon og kilder, og rute-GPX-en manglet ODbL
+
+Tre linjer i «Om appen» beskrev en app som ikke finnes lenger. Den verste var
+vegetasjonen: «klassifiseres fra canopy-høyden (DOM − DTM) … ut av selve
+trehøyden». `canopyHeight.js` ble slettet i v2.3.0 med begrunnelsen «ga aldri
+synlig skog-nyanse», og vegetasjonen har siden kommet fra N50 Arealdekke-baken
+pluss OSM. Den andre var kildelinja for stier og veier, som bare nevnte
+OpenStreetMap — Turrutebasen kom inn i v5.0.2 og N50 Samferdsel-baken like
+etter, nettopp fordi OSM er tynt i norsk utmark, og en bruker som lurer på hvor
+den prikkete stien kommer fra fikk feil svar. Den tredje var «ingen egen
+server»: appen har ingen konto og ingen database, men ruteberegningen sender
+faktisk punktene til brouter.de, og en Cloudflare-Worker står foran NVE,
+Kulturminnesøk og MET. Det står nå som det er.
+
+BRouter er dessuten lagt til i lisenslista, på linje med Yr-ikonene og
+HYG-katalogen: MIT-lisensiert programvare, drevet på donasjoner. Selve
+programvaren har vi ingen distribusjonsplikt for — vi kjører den ikke og sender
+den ikke videre — men det RUTEN er laget av, er OSM-data, og der er ODbL en ekte
+forpliktelse. Den er oppfylt på skjermen (bunnlinja i Ruteplanleggeren og «Om
+appen»), men ikke i fila som forlater appen: `buildRouteGpx` skrev bare `<name>`
+og `<time>`. En planlagt rute er et avledet verk som lastes inn i en klokke og
+sendes videre til turkameraten, så den bærer nå `<copyright author="OpenStreetMap
+contributors">` med ODbL-lenka. `buildGpx` — brukerens eget GPS-spor — får den
+IKKE: det er en egen måling, og det er ingenting å attribuere. Elementet må stå
+mellom `<name>` og `<time>`, for GPX 1.1 sin `metadataType` er en `xsd:sequence`,
+og en test holder både rekkefølgen og skillet mellom de to funksjonene på plass.
+
+---
+
 ## 2026-09-18 — v7.8.35: Lag-tall i Detaljer, lang-trykk på kompasset, og demoene i Preferanser
 
 Detaljer-fana var en liste med førti brytere og ingen tall. Slo man av

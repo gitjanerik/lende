@@ -29,6 +29,7 @@ import { DENSITY_PRESETS } from '../../composables/useLabelDensity.js'
 import { useEksterneLenker } from '../../composables/useEksterneLenker.js'
 import { useKompassNord } from '../../composables/useKompassNord.js'
 import { useDemoFlagg, DEMO_NOKLER } from '../../composables/useDemoFlagg.js'
+import { useRutePreferanse } from '../../composables/useRutePreferanse.js'
 import PrefBryterRad from './PrefBryterRad.vue'
 
 const showFullNames = defineModel('showFullNames', { type: Boolean, default: false })
@@ -39,6 +40,21 @@ const densityApplyToAll = defineModel('densityApplyToAll', { type: Boolean, defa
 // som kartet og hver utgående lenke. Ingen props, ingen kabling i MapView.
 const { zoomUt: kompassZoomUt } = useKompassNord()
 const { nyFane } = useEksterneLenker()
+
+// Underlag for Stifinneren og Runde. Også en singleton, så valget her er det
+// samme valget Stifinneren, Lende-chatten og MCP-serveren ruter etter.
+const {
+  underlag: ruteUnderlag, krav: ruteKrav, slakkM: ruteSlakk,
+  tekst: ruteTekst, UNDERLAG: RUTE_UNDERLAG,
+  SLAKK_MIN_M, SLAKK_MAKS_M, SLAKK_STEG_M,
+} = useRutePreferanse()
+
+// De to valgene, i rekkefølgen de skal stå i: standarden først.
+const UNDERLAG_VALG = [
+  { id: RUTE_UNDERLAG.STI, label: 'Sti' },
+  { id: RUTE_UNDERLAG.VEG, label: 'Skogsveg' },
+]
+const vilHaVeg = computed(() => ruteUnderlag.value === RUTE_UNDERLAG.VEG)
 
 // De tre 3D-flaggene. Flyttet hit fra Utvikler-fana (v7.8.34/35), som er
 // `userOnly` og derfor usynlig på demokartet — altså skjult for den som nettopp
@@ -57,6 +73,77 @@ const demoAktiv = computed(() => vaerDemo.value || nordlysDemo.value)
 
 <template>
   <div>
+    <!-- ── Stifinner og Runde: hvilket underlag? ────────────────────
+         ØVERST fordi den endrer hva to funksjoner FORESLÅR, mens resten av
+         fana endrer hvordan appen ser ut for deg. Den som åpner Preferanser
+         fordi Stifinneren foreslo feil slags rute, skal se den uten å rulle.
+
+         IKKE `PrefBryterRad`: den bærer et VALG av to pluss to knotter, ikke
+         av/på — samme unntak som Navnetetthet, og samme form. -->
+    <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-3">
+      <div class="text-[13px] text-ink font-medium mb-2">Underlag for Stifinner og Runde</div>
+      <div class="flex gap-2" role="group" aria-label="Foretrukket underlag">
+        <button v-for="v in UNDERLAG_VALG" :key="v.id" @click="ruteUnderlag = v.id"
+                :aria-pressed="ruteUnderlag === v.id"
+                class="flex-1 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors"
+                :class="ruteUnderlag === v.id ? 'bg-emerald-700 text-white' : 'bg-ink/10 text-ink-2'">
+          {{ v.label }}
+        </button>
+      </div>
+      <div class="text-[11px] text-ink-3 leading-snug mt-1.5">
+        Sti er standard og passer den som går. Skogsveg foretrekker vegen i marka
+        — skogsbilveg, traktorveg og småveg, ofte bak bom — som er det de fleste
+        vil ha under seg på terreng- eller stisykkel.
+      </div>
+
+      <!-- Krav. Ordet er eierens, men modellen er en STRAFF og ikke et forbud:
+           en rute som ikke finnes er det verste svaret, så en kort stump på
+           feil underlag slipper alltid gjennom. Det står i forklaringen. -->
+      <label class="flex items-center justify-between gap-3 mt-3 cursor-pointer">
+        <span class="text-[12px] text-ink-2 leading-snug">
+          Strengt krav
+          <span class="block text-[11px] text-ink-4">
+            {{ ruteKrav
+              ? 'Avvik fra underlaget koster mye'
+              : 'Et kortere alternativ kan vinne' }}
+          </span>
+        </span>
+        <button type="button" role="switch" :aria-checked="ruteKrav"
+                @click="ruteKrav = !ruteKrav"
+                class="relative w-11 h-6 rounded-full transition-colors shrink-0"
+                :class="ruteKrav ? 'bg-emerald-500' : 'bg-ink/15'">
+          <span class="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
+                :class="ruteKrav ? 'left-5' : 'left-0.5'" />
+        </button>
+      </label>
+
+      <!-- Slakken: hvor nær start, mål og vendepunkt preferansen slutter å
+           gjelde. Hytta ligger der den ligger, og den siste stien fram til den
+           er ingen innvending mot ruta. -->
+      <div class="mt-3">
+        <label class="flex items-center justify-between gap-3 text-[12px] text-ink-2"
+               for="rute-slakk">
+          <span>Fri sone ved start og mål</span>
+          <span class="tabular-nums text-ink font-medium shrink-0">{{ ruteSlakk }} m</span>
+        </label>
+        <input id="rute-slakk" type="range" v-model.number="ruteSlakk"
+               :min="SLAKK_MIN_M" :max="SLAKK_MAKS_M" :step="SLAKK_STEG_M"
+               class="w-full mt-1.5 accent-emerald-600" />
+        <div class="text-[11px] text-ink-3 leading-snug mt-0.5">
+          Så nær start, mål og hvert vendepunkt velges korteste vei uansett
+          underlag. Går sti og skogsveg om hverandre, gir dette ruten rom til å
+          finne fram til døra uten å slå en sløyfe.
+        </div>
+      </div>
+
+      <p class="text-[11px] text-ink-4 leading-snug mt-2.5">{{ ruteTekst }}</p>
+      <p v-if="vilHaVeg" class="text-[11px] text-ink-4 leading-snug mt-1.5">
+        Kravet er en kostnad og ikke et forbud: en kort stump på sti tas fortsatt
+        når vegen er brutt, så du får en rute i stedet for ingenting. Lende-chatten
+        svarer etter det samme valget når du ber om en sykkelrute.
+      </p>
+    </div>
+
     <!-- Kompassnåla nede til høyre. Default: trykket vender arket mot nord og
          rører ikke zoomen — se useKompassNord for hvorfor. -->
     <PrefBryterRad v-model="kompassZoomUt"
