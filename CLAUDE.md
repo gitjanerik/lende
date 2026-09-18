@@ -355,6 +355,55 @@ er 2,4 MB, god margin), **5 GB repo** er der GitHub tar kontakt, og
 **1 GB for det publiserte Pages-nettstedet** er hard grense — `dist/` er 133 MB
 i dag, og med én commit er det også alt gh-pages veier.
 
+## Viktig arkitektur-merknad — OSM-detalj og bygg-symbolet
+
+**FLATENE FORENKLES IKKE LENGER (v7.9.1).** `POLYGON_FILTER.simplifyM` i
+`mapBuilder` er 0 for vann, myr, skog, eng, aker, åpen, bygning og kirkegård,
+og `LINE_SIMPLIFY.bekk` likeså. **LINJENE beholder sin** — en kraftlinje er
+nesten rette spenn mellom master og var 232 KB i Oslo uten forenkling, og vei,
+sti og tog står også urørt.
+
+Historikken gikk hele tida samme vei: v8.9.30 senket bygnings-toleransen fordi
+DP 3,0 kollapset hjørnene på små rektangler, v11.0.47 bandt vegetasjonen til
+bakke-meter fordi en toleranse som vokste med arket blobbet
+vegetasjonsgrensene mens konturene holdt seg skarpe. Begge ganger var svaret
+mindre forenkling, og begrunnelsen den samme: en vegetasjonsgrense er et
+NAVIGASJONS-HÅNDTAK. Nå er kostnaden målt i stedet for antatt — full
+OSM-detalj er 2–17 % flere hjørner, altså **+1–4 KB på et 3 km-ark**, mot
+konturenes 50,9 % av arket. **`minAreaM2` beholder areal-skaleringen**: å
+DROPPE hele små flater er den legitime perf-leveren, mens forenklingen gjorde
+de synlige tingene feil.
+
+**BYGG UNDER 500 m² ER ET ORIENTERT REKTANGEL, IKKE ET FAST KVADRAT (v7.9.1)**
+(`lib/byggRektangel.js`, ren og testet). Fram til v7.9.1 fikk hvert bygg under
+terskelen et akse-justert 13 × 13 m kvadrat på centroiden. Terskelen høres
+liten ut, men et vanlig hus er 100–200 m² og ei hytte 32–100 — så i praksis
+gjaldt det **hver eneste frittliggende bygning i marka**, og et langt naust så
+ut som en firkantet hytte som så ut som en garasje.
+
+**NORMALISERINGEN ER BEHOLDT, og det er ikke en halv løsning.** Ei hytte på
+32 m² er 5,7 × 5,7 m = 0,57 mm i 1:10 000 — under en millimeter, og lett
+maskert av en sti som går forbi. Kvadratet var bevisst overdimensjonert for
+lesbarhet, samme slag valg som symbolstørrelsene i ISOM-katalogen. Det som er
+fjernet er at normaliseringen også kastet informasjon vi HADDE. Nå er den bare
+et GULV (`BYGG_GULV_M` = 10 m, `BYGG_GULV_UTHUS_M` = 7 m): er bygget stort nok,
+tegnes det som det står. **Gulvet må være en `Math.max`** — uten den krymper
+det store bygg ned til gulvet, som er stikk motsatt av hensikten, og feilen
+ville sett ut som om alle bygg ble like igjen.
+
+**RETNINGEN FINNES VED MINSTE AREAL, IKKE VED LENGSTE KANT.** Lengste kant er
+det nærliggende valget og riktig for et rent rektangel, men et bygg med utbygg
+har sin lengste ENKELTKANT på skrå av huskroppen — og da står symbolet feil
+vei. Vi prøver hver kant som kandidat-retning og tar den som gir minst
+omsluttende areal (den klassiske MABR-egenskapen). Ringene har ~11 punkter, så
+O(n²) er noen hundre operasjoner per bygg.
+
+**522-BYMASSEN ER URØRT.** Klyngeregelen (`classifyBuildings`,
+`neighborRadiusM` 15, `minClusterSize` 5) er ikke endret — dette gjelder de
+SPREDTE byggene, som er de eneste man navigerer etter. `klassifiserSmaabygg`
+og `data-bygg` er også uendret: geometrien har gjort uthuset mindre, CSS-en
+setter vekten.
+
 ## Viktig arkitektur-merknad — arket utvides BARE på bestilling
 
 **Automatisk påfyll av nabofliser er VURDERT, BYGD, PRØVD I FELT OG FJERNET

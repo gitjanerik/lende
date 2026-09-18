@@ -687,3 +687,77 @@ describe('klassifiserSmaabygg — små bygg er ikke lenger alle like', () => {
     expect(klassifiserSmaabygg({ building: 'GARAGE' })).toBe('uthus')
   })
 })
+
+describe('ISOM 521 — små bygg er orienterte rektangler, ikke faste kvadrater (v7.9.1)', () => {
+  const BBOX = { south: 59.830, west: 10.055, north: 59.848, east: 10.110 }
+  const LAT = 59.839, LON = 10.08
+  const M_PER_LAT = 111320
+  const M_PER_LON = 111320 * Math.cos(LAT * Math.PI / 180)
+
+  // Et bygg wM × hM, dreid `deg` grader, sentrert i kartet.
+  const bygg = (wM, hM, deg, tags = { building: 'cabin' }) => {
+    const t = deg * Math.PI / 180
+    const ring = [[-wM / 2, -hM / 2], [wM / 2, -hM / 2], [wM / 2, hM / 2], [-wM / 2, hM / 2]]
+      .map(([x, y]) => {
+        const rx = x * Math.cos(t) - y * Math.sin(t)
+        const ry = x * Math.sin(t) + y * Math.cos(t)
+        return { lat: LAT + ry / M_PER_LAT, lon: LON + rx / M_PER_LON }
+      })
+    return { type: 'way', id: 1, tags, geometry: [...ring, ring[0]] }
+  }
+
+  // Sidene av det tegnede symbolet, lengste først.
+  const sider = (el) => {
+    const { svg } = buildSvg([el], BBOX, { scaleDenom: 10000 })
+    const path = svg.match(/<path[^>]*data-small="yes"[^>]*\/>/)?.[0]
+    if (!path) return null
+    const d = path.match(/d="([^"]+)"/)[1]
+    const p = [...d.matchAll(/[ML](-?[\d.]+),(-?[\d.]+)/g)].map(a => [+a[1], +a[2]])
+    const len = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1])
+    return [len(p[0], p[1]), len(p[1], p[2])].sort((a, b) => b - a).map(v => Math.round(v))
+  }
+
+  it('et avlangt bygg tegnes avlangt — ikke som et kvadrat', () => {
+    // Fram til v7.9.1 ga dette 13 × 13 uansett.
+    expect(sider(bygg(18, 6, 0))).toEqual([18, 10])
+  })
+
+  it('… også når det står på skrå', () => {
+    for (const deg of [20, 45, 70]) expect(sider(bygg(18, 6, deg)), `${deg}°`).toEqual([18, 10])
+  })
+
+  it('gulvet løfter ei lita hytte til lesbar størrelse', () => {
+    // 5,7 × 5,7 m = 0,57 mm i 1:10 000 — under en millimeter.
+    expect(sider(bygg(5.7, 5.7, 0))).toEqual([10, 10])
+  })
+
+  it('et bygg som alt er stort nok krympes ikke', () => {
+    expect(sider(bygg(28, 16, 0))).toEqual([28, 16])
+  })
+
+  it('uthus har et lavere gulv enn hytta', () => {
+    expect(sider(bygg(4, 4, 0, { building: 'garage' }))).toEqual([7, 7])
+    expect(sider(bygg(4, 4, 0, { building: 'cabin' }))).toEqual([10, 10])
+  })
+
+  // Over 500 m² er det ingen normalisering i det hele tatt — der er det
+  // POLYGON_FILTER.simplifyM som avgjør nøyaktigheten, og den er 0 fra
+  // v7.9.1. Et hakk på 1,2 m i veggen er akkurat det en DP på 1,5 m spiste.
+  it('bygg over 500 m² beholder hvert hjørne — DP-en er av', () => {
+    const t = (dx, dy) => ({ lat: LAT + dy / M_PER_LAT, lon: LON + dx / M_PER_LON })
+    const ring = [
+      t(-20, -10), t(20, -10), t(20, 10),
+      t(2, 10), t(2, 11.2), t(-2, 11.2), t(-2, 10),   // hakk på 1,2 m
+      t(-20, 10), t(-20, -10),
+    ]
+    const el = { type: 'way', id: 7, tags: { building: 'yes' }, geometry: ring }
+    const { svg } = buildSvg([el], BBOX, { scaleDenom: 10000 })
+    const path = svg.match(/<path[^>]*data-iso="521"[^>]*\/>/)?.[0]
+      ?? svg.match(/data-iso="521"[^>]*>\s*<path[^>]*\/>/)?.[0]
+    expect(path, 'fant ingen 521-path').toBeTruthy()
+    expect(path).not.toMatch(/data-small="yes"/)
+    // Åtte unike hjørner. Med DP 1,5 m ble hakket spist og det ble fire.
+    const n = [...path.matchAll(/[ML]-?[\d.]+,-?[\d.]+/g)].length
+    expect(n).toBeGreaterThanOrEqual(8)
+  })
+})
