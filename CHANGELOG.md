@@ -1,3 +1,34 @@
+## 2026-09-19 — v7.9.2: En måling for kystark uten sjø
+
+Hamningberg på Varangerhalvøya tegnes uten hav: terreng, relieff og
+høydekurver er riktige og stopper der kysten skal være, men det som skal være
+Barentshavet er kremgul åpen mark helt ut til arkkanten. Det peker på ett
+sted. Sjøen males av DEM-sjøen, og den er gatet i createMapFlow på
+`coastal = hasNearSeaLevelPixels(probeDem) && saltvann`; er den usann, settes
+`skipDemSea` og ingenting annet tar over — Sjøkart-WFS spørres aldri, og åpent
+hav finnes ikke som flate i OSM, bare som `natural=coastline`-LINJE. Så
+nøyaktig én av de to halvdelene har svart nei, og fra en sandkasse der
+Kartverkets WCS, Overpass og Sjøkart-WFS alle er sperret kan vi ikke vite
+hvilken.
+
+`npm run probe:sjo` (workflow «Probe — hvorfor får et kystark ingen sjø?»)
+stiller spørsmålet der svaret finnes. Den måler begge halvdelene hver for seg,
+per sted, gjennom appens egne fetchere — ikke gjennom en kopi av regelen — og
+den svarer ikke bare ja/nei. Histogrammet «kumulativt under terskel» skiller
+de to måtene et hav kan forsvinne på: står ≤0.5 m på null mens ≤2 m er stort,
+ligger havflaten i DEM-et over gatens terskel og sjøen er på feil høyde;
+er hele den lave enden null mens noData henger sammen med bbox-kanten, leverer
+WCS-en hull der havet er — og da kan ikke `findSeaConnectedVoids` redde det
+heller, for den sås bare av celler under samme terskel. Terskel-sveipen viser
+hvilken verdi som HADDE funnet havet, endepunktene måles hver for seg i
+tilfelle de to DTM-ene er uenige, og Henningsvær og Kirkenes er med som
+kystark vi vet tegner sjø: «ingen celle ≤ 0.5 m» betyr noe helt annet hvis det
+også gjelder et ark som virker. `WCS_ENDPOINTS` er eksportert for at proben
+skal kunne spørre hvert endepunkt for seg. Ingenting i kart-pipelinen er
+endret.
+
+---
+
 ## 2026-09-18 — v7.9.1: Full OSM-detalj, og bygg som står rett vei
 
 Kartet har forenklet flategeometrien fra OSM siden starten, og hver gang

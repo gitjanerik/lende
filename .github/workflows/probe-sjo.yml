@@ -1,0 +1,74 @@
+name: Probe — hvorfor får et kystark ingen sjø?
+
+# EN MÅLING, IKKE EN GATE. Kartverkets WCS, Overpass og Sjøkart-WFS er ALLE
+# sperret fra utviklings-sandkassene, så spørsmålet «hva leser DEM-et over
+# havet på dette stedet?» kan bare stilles her. Se filhodet i
+# scripts/probe-sjo.mjs for gaten den måler.
+#
+# Skriver bare til probe-ut/ (lastes opp som artefakt), endrer INGENTING i
+# repoet, feiler ALDRI. LES UTSKRIFTEN — den er hele leveransen.
+
+on:
+  workflow_dispatch:
+    inputs:
+      steder:
+        description: 'Steder som måles: «Navn@lat,lon;…». Ta alltid med et kystark som VIRKER som kontroll.'
+        required: false
+        default: 'Hamningberg@70.53900,30.58000;Henningsvær@68.15600,14.20400;Kirkenes@69.72700,30.04500'
+      halv_km:
+        description: 'Halv sidekant i km (4 = et vanlig 8 km-ark)'
+        required: false
+        default: '4'
+      res_m:
+        description: 'Probe-DEM-oppløsning. 20 m er det gaten faktisk leser.'
+        required: false
+        default: '20'
+      fine_res:
+        description: 'Finere trinn som også måles (kyst-oppgraderingens). Tom = hopp over.'
+        required: false
+        default: '10,5'
+      hopp:
+        description: 'Trinn som hoppes over (kommaseparert): dem, endepunkt, fin, osm, sveip, sjokart'
+        required: false
+        default: ''
+  # Også på push når proben selv endres: en workflow_dispatch registreres først
+  # når fila står på default-branch, så første kjøring må komme en annen vei —
+  # samme grep som probe-n50-vann.yml. Ingen andre stier trigger den.
+  push:
+    paths:
+      - 'scripts/probe-sjo.mjs'
+      - '.github/workflows/probe-sjo.yml'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      # Proben måler gjennom appens EGNE fetchere — ikke en kopi av dem.
+      - run: npm ci
+
+      - name: Mål
+        env:
+          # Tom streng sendes VERBATIM: `inputs.x || standard` ville gjort
+          # «ingen» om til standardlista igjen. Bare push, som ikke har
+          # inputs, får standarden.
+          PROBE_STEDER: ${{ github.event_name == 'push' && 'Hamningberg@70.53900,30.58000;Henningsvær@68.15600,14.20400;Kirkenes@69.72700,30.04500' || inputs.steder }}
+          PROBE_HALV_KM: ${{ inputs.halv_km || '4' }}
+          PROBE_RES_M: ${{ inputs.res_m || '20' }}
+          PROBE_FINE_RES: ${{ github.event_name == 'push' && '10,5' || inputs.fine_res }}
+          PROBE_HOPP: ${{ inputs.hopp || '' }}
+        run: npm run probe:sjo
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: probe-sjo
+          path: probe-ut/
+          if-no-files-found: warn

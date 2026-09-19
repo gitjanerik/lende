@@ -1,7 +1,7 @@
 {
   "name": "lende",
   "private": true,
-  "version": "7.9.1",
+  "version": "7.9.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -18,6 +18,7 @@
     "probe:nordlys": "node scripts/probe-nordlys.mjs",
     "probe:svalbard": "node scripts/probe-svalbard-dem.mjs",
     "probe:n50vann": "node scripts/probe-n50-vann.mjs",
+    "probe:sjo": "node scripts/probe-sjo.mjs",
     "mcp:protokoll": "node scripts/mcp-protokoll.mjs",
     "navnediff": "node scripts/navnediff.mjs",
     "frie": "node scripts/frie-variabler.mjs",
