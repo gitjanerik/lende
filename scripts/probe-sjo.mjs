@@ -54,6 +54,10 @@ const STEDER = String(process.env.PROBE_STEDER ||
 
 const TERSKLER = [0, 0.25, 0.5, 1, 1.5, 2, 3, 5, 10]
 
+// `fetchSjokart` legger disse ved siden av kategoriene, og to av tre er
+// arrays. Uten settet teller steg 6 dem som om de var sjøkart-kategorier.
+const SJOKART_META = new Set(['fetchErrors', 'debugSamples', 'trunkert', 'source'])
+
 const linjer = []
 const log = (s = '') => { console.log(s); linjer.push(s) }
 const n = (v, d = 2) => Number.isFinite(v) ? v.toFixed(d) : '–'
@@ -222,13 +226,39 @@ async function malSted(sted) {
   }
 
   // ── 6. Sjøkart 307 — det gaten aldri rekker å spørre om ────────────────
+  //
+  // v7.9.4: steget TALTE FEIL, og det talte bare. `fetchSjokart` gir
+  // kategoriene som RENE ARRAYS — filteret leste `v?.features`, som ingen av
+  // dem har, så lista var tom uansett hva serveren svarte og «ingen
+  // kategorier» betydde ingenting. Tre av nøklene ER arrays uten å være
+  // kategorier (`fetchErrors`, `debugSamples`, `trunkert`), så de må ut.
+  //
+  // Og et blankt «0 features» er ikke en måling. Fetcheren samler allerede
+  // HVORFOR — `fetchErrors` med `kind` (CORS, HTTP, non-JSON, zero-features)
+  // per endepunkt og typename, `debugSamples` med de første bytene av det
+  // serveren faktisk sendte, `trunkert` der COUNT-taket kuttet — og alt ble
+  // kastet her. Forskjellen på «utdaterte typenames» (sist rettet i v7.1.9),
+  // «snudd bbox-akserekkefølge» og «utenfor dekning» står i de feltene.
   if (!HOPP.has('sjokart')) {
     try {
-      const sj = await fetchSjokart(bbox)
-      const tall = Object.entries(sj ?? {})
-        .filter(([, v]) => Array.isArray(v?.features))
-        .map(([k, v]) => `${k}:${v.features.length}`)
+      const sj = (await fetchSjokart(bbox)) ?? {}
+      const tall = Object.entries(sj)
+        .filter(([k, v]) => Array.isArray(v) && !SJOKART_META.has(k))
+        .map(([k, v]) => `${k}:${v.length}`)
       log(`  [6] Sjøkart-WFS: ${tall.length ? tall.join('  ') : 'ingen kategorier'}`)
+      log(`      kilde: ${sj.source ?? '– (ingen endepunkt ga data)'}`)
+      for (const e of sj.fetchErrors ?? []) {
+        const ep = String(e.endpoint ?? '').replace('https://wfs.geonorge.no/skwms1/', '')
+        log(`      ✗ ${ep}${e.typeName ? ` [${e.typeName}]` : ''} — ${e.kind ?? '?'}: ${String(e.message ?? '').slice(0, 160)}`)
+      }
+      for (const t of sj.trunkert ?? []) {
+        log(`      ⚠ COUNT-taket kuttet ${t.typeName}: ${t.returned} av ${t.matched}`)
+      }
+      // Det serveren FAKTISK sendte. Uten dette er «0 features» en gjetning.
+      for (const d of (sj.debugSamples ?? []).slice(0, 6)) {
+        const pre = typeof d === 'string' ? d : (d?.sample ?? JSON.stringify(d))
+        log(`      prøve: ${String(pre).replace(/\s+/g, ' ').slice(0, 200)}`)
+      }
     } catch (e) { log(`  [6] Sjøkart-WFS feilet: ${e?.message ?? e}`) }
   }
 

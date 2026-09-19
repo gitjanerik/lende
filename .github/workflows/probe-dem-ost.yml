@@ -1,0 +1,72 @@
+name: Probe — hvor langt øst lever NHM_DTM_25832?
+
+# EN MÅLING, IKKE EN GATE. Kartverkets WCS er sperret fra utviklings-
+# sandkassene, så spørsmålet «svarer primær-endepunktet her?» kan bare stilles
+# her. Se filhodet i scripts/probe-dem-ost.mjs for hva den svarer på og hvorfor
+# braketten — ikke ett punkt — er det en region-gate må bygges på.
+#
+# Skriver bare til probe-ut/ (lastes opp som artefakt), endrer INGENTING i
+# repoet, feiler ALDRI. LES UTSKRIFTEN — den er hele leveransen.
+
+on:
+  workflow_dispatch:
+    inputs:
+      steder:
+        description: 'Steder som måles: «Navn@lat,lon;…». Ta alltid med et par på Vestlandet som kontroll — nekter primæren DER, er tjenesten nede og ikke en dekningskant.'
+        required: false
+        default: 'Bergen@60.3900,5.3200;Vardåsen@59.8390,10.0820;Trondheim@63.4300,10.3950;Bodø@67.2800,14.4000;Tromsø@69.6500,18.9600;Alta@69.9700,23.2700;Lakselv@70.0500,24.9700;Berlevåg@70.8600,29.0900;Kirkenes@69.7270,30.0450;Hamningberg@70.5390,30.5800;Vardø@70.3700,31.1100'
+      halv_km:
+        description: 'Halv sidekant i km. Lite med vilje — vi spør om endepunktet svarer, ikke om terrenget.'
+        required: false
+        default: '0.5'
+      res_m:
+        description: 'Oppløsning i meter.'
+        required: false
+        default: '20'
+      runder:
+        description: 'Forsøk per endepunkt og sted. Ett avslag kan være en dårlig dag; to like er en grense.'
+        required: false
+        default: '2'
+
+  # Også på push når proben selv endres: en workflow_dispatch registreres først
+  # når fila står på default-branch, så første kjøring må komme en annen vei —
+  # samme grep som probe-sjo.yml. Ingen andre stier trigger den.
+  push:
+    paths:
+      - 'scripts/probe-dem-ost.mjs'
+      - '.github/workflows/probe-dem-ost.yml'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      # Proben måler gjennom appens EGEN fetcher og EGEN endepunkt-liste —
+      # ikke en kopi av dem. En probe mot en avskrift måler avskriften.
+      - run: npm ci
+
+      - name: Mål
+        env:
+          # Tom streng sendes VERBATIM: `inputs.x || standard` ville gjort
+          # «ingen» om til standardlista igjen. Bare push, som ikke har
+          # inputs, får standarden — der er tom streng riktig, siden scriptet
+          # da bruker sin egen.
+          PROBE_STEDER: ${{ github.event_name == 'push' && '' || inputs.steder }}
+          PROBE_HALV_KM: ${{ inputs.halv_km || '0.5' }}
+          PROBE_RES_M: ${{ inputs.res_m || '20' }}
+          PROBE_RUNDER: ${{ inputs.runder || '2' }}
+        run: npm run probe:demost
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: probe-dem-ost
+          path: probe-ut/
+          if-no-files-found: warn
