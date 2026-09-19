@@ -26,7 +26,7 @@ import { syntheticDEM } from './dem.js'
 // betalte en round-trip og et 15 s klient-tak for ingenting. Merk hva det betyr
 // for lista under — et endepunkt er ikke sant fordi det var sant en gang.
 // Trimmes eller legges det til et til, skal det MÅLES først; proben er verktøyet.
-const WCS_ENDPOINTS = [
+export const WCS_ENDPOINTS = [
   // ── DTM 10m UTM 32 native (verifisert virker, primær) ────────────────
   {
     url: 'https://wcs.geonorge.no/skwms1/wcs.hoyde-dtm-nhm-25832',

@@ -120,6 +120,49 @@ function hasNearSeaLevelPixels(dem) {
   return false
 }
 
+/**
+ * Samme spørsmål som hasNearSeaLevelPixels, men den SVARER MED ET TALL.
+ *
+ * Boolsken alene gjør et kystark uten sjø til en blindvei: gaten sa nei, og
+ * ingenting sier om den bommet med to centimeter eller med tretti meter. Det
+ * var nøyaktig situasjonen i Hamningberg-saken (v7.9.2) — CI målte −0,22 m
+ * som laveste celle, altså et ja med to centimeters margin, mens telefonen
+ * viste et ark uten hav og ikke kunne si hvorfor.
+ *
+ * `minM` er derfor hele poenget, og den koster et fullt sveip der boolsken
+ * kortslutter på første treff. Den kjøres ÉN gang per bygg, på probe-DEM-et
+ * (~271 k celler på et 8 km-ark i 20 m) — under et millisekund.
+ *
+ * `kilde` er probe-DEM-ets egen, og den er ikke det samme som `meta.demSource`:
+ * den siste er DEM-et arket ble TEGNET med, etter en eventuell kyst-
+ * oppgradering. Gaten leser proben, så det er probens kilde som forklarer
+ * den. Starter den med «synthetic», har WCS feilet, og da er alt annet i
+ * raden oppdiktet.
+ *
+ * @param {{data?: ArrayLike<number>, noData?: number, source?: string}|null} dem
+ * @returns {{lave: boolean, minM: number|null, celler: number, kilde: string|null}}
+ */
+export function kystSignalFraDem(dem) {
+  const tomt = { lave: false, minM: null, celler: 0, kilde: dem?.source ?? null }
+  if (!dem?.data) return tomt
+  const { data, noData } = dem
+  let min = Infinity
+  let celler = 0
+  for (let i = 0; i < data.length; i++) {
+    const v = data[i]
+    if (v === noData || !Number.isFinite(v)) continue
+    celler++
+    if (v < min) min = v
+  }
+  if (!celler) return tomt
+  return {
+    lave: min <= 0.5,
+    minM: Math.round(min * 100) / 100,
+    celler,
+    kilde: dem.source ?? null,
+  }
+}
+
 // Finnes det ekte SALTVANN i OSM-dataene? NHM_DTM kan ikke skille sjø fra en
 // innlands-vannflate (begge leser ~0 m), så «havflate-piksler» alene er ikke
 // nok til å kalle et kart kystnært. Store innsjøer (Mjøsa ~123 m, Tyrifjorden
@@ -502,9 +545,27 @@ export async function buildMapFromCenter({
     const probeP = probeCoastline(bbox, { signal }).catch(() => fullP)
     return Promise.race([probeP, fullP]).catch(() => false)
   })()
+  //
+  // v7.9.3: gaten SKRIVER NED hva hver halvdel svarte. Et kystark uten sjø
+  // ser identisk ut uansett hvilken av de to som sa nei — DEM-en som ikke
+  // fant havflate, eller OSM som ikke fant saltvann — og fram til nå fantes
+  // svaret ingen steder etter at byggingen var over. Hamningberg-saken gikk
+  // en full runde i CI for å måle det Utvikler-fanen nå leser av på stedet.
+  // `saltvann` blir stående null når DEM-halvdelen kortslutter: vi SPURTE
+  // aldri, og «false» ville vært en påstand vi ikke har dekning for.
+  let kystStatus = null
   const coastalPromise = probeDemPromise.then(async (probeDem) => {
-    if (!hasNearSeaLevelPixels(probeDem)) return false
-    return saltvannPromise
+    // IKKE `signal` — det navnet er AbortSignal-en i ytre scope.
+    const demSignal = kystSignalFraDem(probeDem)
+    kystStatus = {
+      kyst: false, laveCeller: demSignal.lave, minM: demSignal.minM,
+      celler: demSignal.celler, demKilde: demSignal.kilde, saltvann: null,
+    }
+    if (!demSignal.lave) return false
+    const salt = await saltvannPromise
+    kystStatus.saltvann = salt
+    kystStatus.kyst = salt
+    return salt
   })
 
   // Grense-kart: fyll celler utenfor norsk WCS-dekning (noData, eller en
@@ -777,6 +838,7 @@ export async function buildMapFromCenter({
       arealDekning: n50ArealStatus?.dekning === true,
       skipDemSea: !coastal,
       coastal,                       // kyst vs innland → meta.coastal (MapView høyde-ærlighet)
+      kystStatus,                    // HVILKEN halvdel av gaten som svarte hva (Utvikler-fanen)
       // Sjøkart-utfall → meta.sjokartStatus (Utvikler-fanen): gjør den stille
       // WFS-fallbacken synlig — hvorfor dybdetall/kai mangler.
       sjokartStatus: summarizeSjokartStatus(sjokart, sjokartElements.length),

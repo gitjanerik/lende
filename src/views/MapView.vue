@@ -271,6 +271,37 @@ const n50StiStatusText = computed(() => {
   return `FEILET: ${s.message ?? 'ukjent feil'} — N50-stier mangler`
 })
 
+// Kyst-gaten (Utvikler-fanen, v7.9.3). Et kystark uten sjø ser identisk ut
+// uansett hvilken av de to halvdelene som sa nei, og gaten styrer TRE ting på
+// en gang: DEM-sjøen, Sjøkart-WFS og 5/10 m-oppgraderingen. Raden sier hvilken
+// halvdel som svarte hva, så spørsmålet kan besvares fra telefonen i stedet for
+// med en CI-kjøring (Hamningberg-saken, v7.9.2).
+//
+// `minM` er tallet som betyr noe: terskelen er 0,5 m, og en DEM som bommer med
+// to centimeter er en helt annen sak enn en som ligger tretti meter over.
+const kystStatusText = computed(() => {
+  if (!meta.value) return null
+  const s = meta.value.kystStatus
+  if (!s) {
+    return meta.value.coastal == null
+      ? 'ingen status — kartet er bygd før v7.9.3; bygg kartet på nytt'
+      : `${meta.value.coastal ? 'kyst' : 'innland'} — kartet er bygd før v7.9.3, så halvdelene mangler`
+  }
+  // Syntetisk probe-DEM betyr at WCS feilet, og da er både havflate-svaret og
+  // konklusjonen oppdiktet. Det er hele diagnosen — si det først.
+  const syntetisk = (s.demKilde ?? '').startsWith('synthetic')
+  const dem = s.laveCeller ? 'havflate JA' : 'havflate NEI'
+  const min = Number.isFinite(s.minM) ? `${s.minM.toFixed(2)} m lavest` : 'ingen celler'
+  const salt = s.saltvann == null
+    ? 'saltvann ikke spurt (DEM sa nei)'
+    : (s.saltvann ? 'saltvann JA' : 'saltvann NEI')
+  const konklusjon = s.kyst ? 'KYST' : 'INNLAND — ingen DEM-sjø, ingen Sjøkart'
+  const advarsel = syntetisk
+    ? ` · SYNTETISK probe-DEM (${s.demKilde}) — WCS feilet, svaret over er oppdiktet`
+    : ''
+  return `${konklusjon} · ${dem} (${min}, terskel 0,50) · ${salt}${advarsel}`
+})
+
 // Nasjonalparker som dekker kartet helt eller delvis. Slås opp lokalt mot det
 // bundlede park-datasettet (ingen nettverk, virker offline) — derfor gjelder
 // faktaboksen også kart som allerede er bygget. Parken tegnes aldri i kartet.
@@ -3612,7 +3643,8 @@ onUnmounted(() => {
             :sjokart-status-text="sjokartStatusText"
             :nve-innsjo-status-text="nveInnsjoStatusText"
             :turrute-status-text="turruteStatusText"
-            :n50-sti-status-text="n50StiStatusText" :meta="meta"
+            :n50-sti-status-text="n50StiStatusText"
+            :kyst-status-text="kystStatusText" :meta="meta"
             :open-vardasen="() => router.push({ name: 'kart-vis', params: { id: 'vardasen' } })"
             :open-perf-log="() => { showPerfLog = true }" />
         </div>

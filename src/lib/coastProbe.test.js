@@ -6,7 +6,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { buildCoastProbeQuery, probeCoastline } from './mapBuilder.js'
 import { isOsmWaterSalty } from './symbolizer.js'
-import { coastalTargetResFor } from './createMapFlow.js'
+import { coastalTargetResFor, kystSignalFraDem } from './createMapFlow.js'
 
 const bbox = { south: 59, north: 59.05, west: 10, east: 10.05 }
 
@@ -95,3 +95,40 @@ describe('coastalTargetResFor — celletak i stedet for bredde-trapp', () => {
   })
 })
 
+describe('kystSignalFraDem — DEM-halvdelen av kyst-gaten, med et TALL', () => {
+  const dem = (verdier, noData = -9999, source = 'NHM_DTM_25833') =>
+    ({ data: Float32Array.from(verdier), noData, source })
+
+  it('sier ja når en celle ligger på eller under terskelen (0,5 m)', () => {
+    expect(kystSignalFraDem(dem([12, 3, 0.5])).lave).toBe(true)
+    expect(kystSignalFraDem(dem([12, 3, 0.51])).lave).toBe(false)
+  })
+
+  it('rapporterer laveste finite celle — tallet raden faktisk leser av', () => {
+    // Hamningberg målte −0,22 m: et ja med to centimeters margin. Uten tallet
+    // er «gaten sa nei» en blindvei, og det var hele grunnen til CI-runden.
+    const s = kystSignalFraDem(dem([220.94, -0.22, 14]))
+    expect(s.minM).toBe(-0.22)
+    expect(s.lave).toBe(true)
+    expect(s.celler).toBe(3)
+  })
+
+  it('hopper over noData og ikke-endelige celler i BÅDE min og telling', () => {
+    // En noData-sentinel på -9999 ville ellers gjort hvert eneste ark til kyst.
+    const s = kystSignalFraDem(dem([-9999, NaN, 40, 18]))
+    expect(s.minM).toBe(18)
+    expect(s.lave).toBe(false)
+    expect(s.celler).toBe(2)
+  })
+
+  it('gir null-tall og ikke Infinity når ingen celle er brukbar', () => {
+    const s = kystSignalFraDem(dem([-9999, -9999]))
+    expect(s).toEqual({ lave: false, minM: null, celler: 0, kilde: 'NHM_DTM_25833' })
+  })
+
+  it('bærer probe-DEM-ets egen kilde, også når DEM-et mangler helt', () => {
+    // «synthetic…» er hele diagnosen: WCS feilet, og da er svaret oppdiktet.
+    expect(kystSignalFraDem(dem([3], -9999, 'synthetic-fallback')).kilde).toBe('synthetic-fallback')
+    expect(kystSignalFraDem(null)).toEqual({ lave: false, minM: null, celler: 0, kilde: null })
+  })
+})

@@ -57,6 +57,10 @@ export function metaFromSvgMeta(m) {
     depthSource: m.depthSource ?? null, // 'sjokart' | 'dem-estimat' | 'ingen' | null (eldre kart)
     contoursSkipped: m.contoursSkipped ?? null,
     coastal: m.coastal ?? null,        // true=kyst, false=innland, null=ukjent (eldre kart)
+    // De to halvdelene bak `coastal` (v7.9.3): DEM-havflate og OSM-saltvann.
+    // Konklusjonen alene sier ikke hvilken som sa nei, og det er nettopp det
+    // spørsmålet et kystark uten sjø stiller. `null` på eldre kart.
+    kystStatus: m.kystStatus ?? null,
     sjokartStatus: m.sjokartStatus ?? null, // utfall av Sjøkart-WFS ved bygging (Utvikler-fanen)
     appVersion: m.appVersion ?? null,       // app-versjonen arket ble bygd med
     nveInnsjoStatus: m.nveInnsjoStatus ?? null, // NVE-innsjø-utfall ved bygging
