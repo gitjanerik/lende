@@ -28,7 +28,7 @@ on:
         required: false
         default: '10,5'
       hopp:
-        description: 'Trinn som hoppes over (kommaseparert): dem, endepunkt, fin, osm, sveip, sjokart'
+        description: 'Trinn som hoppes over (kommaseparert): dem, endepunkt, fin, osm, sveip, sjokart, bygg'
         required: false
         default: ''
   # Også på push når proben selv endres: en workflow_dispatch registreres først

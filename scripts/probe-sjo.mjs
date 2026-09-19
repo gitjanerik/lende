@@ -25,6 +25,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { buildMapHeadless } from '../mcp/headless.js'
 import { fetchDEM, fetchWCSDtm, WCS_ENDPOINTS } from '../src/lib/demFetcher.js'
 import { fetchOverpass, probeCoastline, bboxFromCenter } from '../src/lib/mapBuilder.js'
 import { buildSeaFromDem } from '../src/lib/seaFromDem.js'
@@ -230,6 +231,29 @@ async function malSted(sted) {
       log(`  [6] Sjøkart-WFS: ${tall.length ? tall.join('  ') : 'ingen kategorier'}`)
     } catch (e) { log(`  [6] Sjøkart-WFS feilet: ${e?.message ?? e}`) }
   }
+
+  // ── 7. Hele arket, ende til ende ───────────────────────────────────────
+  // Steg 1–5 måler GATEN. Består arket gaten og likevel mangler sjø, er
+  // eteren lenger nede: ferskvanns-fratrekket («vektor-vann er autoritativt»)
+  // eller den autoritative sjø-geometrien. Bare et ekte ark kan skille dem —
+  // og forskjellen mellom sveipets tall og `vann` her ER svaret.
+  //
+  // Merk at headless IKKE sender skipDemSea, altså alltid bygger DEM-sjøen.
+  // Det er med vilje: her spør vi hva mapBuilder gjør med en sjø den FÅR.
+  if (!HOPP.has('bygg')) {
+    try {
+      const { svg, meta } = await buildMapHeadless({ lat: sted.lat, lon: sted.lon, halfKm: HALV_KM })
+      const demSjoLag = /data-src="dem-sea"/.test(svg)
+      const demSjoBaner = (svg.match(/data-src="dem-sea"[\s\S]*?<\/g>/)?.[0]?.match(/<path/g) ?? []).length
+      const alle303 = (svg.match(/data-iso="303"/g) ?? []).length
+      log(`  [7] Headless-bygg: ${Math.round(svg.length / 1024)} KB SVG`)
+      log(`      dem-sea-lag i arket: ${demSjoLag ? `JA (${demSjoBaner} baner)` : 'NEI'}`)
+      log(`      meta.lagTellinger.vann (DEM-sjøflater etter ferskvanns-fratrekk): ${meta?.lagTellinger?.vann ?? '–'}`)
+      log(`      data-iso="303"-grupper totalt: ${alle303}`)
+      log(`      meta.n50VannStatus: ${JSON.stringify(meta?.n50VannStatus ?? null)}`)
+      log(`      meta.dybdeKilde: ${meta?.dybdeKilde ?? '–'}`)
+    } catch (e) { log(`  [7] Headless-bygg feilet: ${e?.message ?? e}`) }
+  }
 }
 
 async function main() {
@@ -246,6 +270,10 @@ async function main() {
     catch (e) { log(`══ ${sted.navn}: hele stedet feilet (${e?.message ?? e})`) }
   }
 
+  log('')
+  log('Sammenlikn [5] terskel 0.5 m med [7] «vann»: like tall = mapBuilder')
+  log('beholder sjøen, og et ark uten sjø er da gatet bort på klienten. Sprik')
+  log('= ferskvanns-fratrekket spiser en ekte kyst-sjø.')
   log('')
   log('Les kolonnen «kumulativt under terskel». Er ≤0.5m lik 0 men ≤2m stor,')
   log('ligger havflaten i DEM-et OVER gatens terskel — da er ikke sjøen borte,')
