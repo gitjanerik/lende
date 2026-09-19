@@ -2295,6 +2295,87 @@ avvik i vann-tallene. Det er ikke en regresjon — sjekk loggen for
 «NVE-innsjøer utilgjengelig» før du feilsøker noe annet. Advarsler (⚠) er datakvalitet i kildene — f.eks. en
 Strava-sporet isrute over Rondvatnet — og feiler ikke bygget.
 
+## Viktig arkitektur-merknad — systemets aksentfarge toner KULØR, aldri lyshet
+
+**Lende følger brukerens temafarge i operativsystemet fra v7.9.9** — mørkeblå i
+mørkt tema, lyseblå i lyst, om systemet står på blått. Regnestykket og tabellene
+bor i `lib/systemAksent.js` (ren, testet); CSS-en er to `@supports`-blokker, én i
+`style.css` (flate-tokenene) og én i `AppMenu.vue` (menyens egen `--am-*`-palett).
+
+**CHROMIUM STØTTER IKKE `AccentColor`, og det er MÅLT.**
+`CSS.supports('color', 'AccentColor')` er false i Chromium 141 — altså i Chrome
+på Android, som er der eieren er — mens Firefox og Safari har den. Android
+eksponerer heller ikke Material You mot nettet på noen annen måte. Tonen er
+derfor en PROGRESSIV FORBEDRING, og fallbacken er dagens design byte-identisk,
+ikke en degradert utgave av det. Ikke «rett» dette som en manglende
+implementasjon: det finnes ingen annen vei til fargen.
+
+**MODELLEN ER «BARE KULØREN», OG DET ER HELE GRUNNEN TIL AT DEN KAN TESTES.**
+Hvert flate-token beholder sin EGEN lyshet (dagens hex omregnet til OKLCH) og får
+aksentens kulør med et klemt metningstak:
+
+```css
+--color-app: oklch(from AccentColor 0.1767 min(c, 0.028) h);
+```
+
+Fordi L står fast, er luminansen — og dermed kontrasten mot teksten, som IKKE
+tones — bundet uansett hvilken farge brukeren har valgt. `systemAksent.test.js`
+sveiper alle 360 kulører mot hvert tekstnivå på hver flate og krever AA. **En
+`color-mix(in oklab, <base>, AccentColor N%)` ville flyttet L med fargen**, og da
+er kontrasten en gjetning per bruker. Tones et nytt token, hører det hjemme i
+`AKSENT_FLATER`/`AKSENT_MENY` — ikke som en linje bare i CSS-en, for da måles den
+ikke.
+
+**`min(c, tak)` OG IKKE ET FAST METNINGSTALL.** En grå aksent har c ≈ 0 og skal
+gi en grå app. Et fast tall ville tvunget kulør 0 på en akromatisk aksent, altså
+farget UI-en RØD for den som har slått fargen av i systemet. Konsekvensen er
+tilsiktet og verdt å kjenne: en grå systemfarge tar også den varme papirtonen ut
+av lyst tema. Å matche et fargeløst system er en fargeløs app.
+
+**METNINGSTAKET ER PER TOKEN, ikke per tema, fordi sRGB er en kjegle.** Jo
+nærmere hvitt eller svart, jo mindre metning får plass — ved L = 1 (lyst
+`--color-surface-2`/`--color-overlay`) er taket 0,0002, så de to står bevisst
+UTEN tone. Settes taket for høyt, havner fargen utenfor sRGB, og DA SPRIKER
+NETTLESERNE: Chromium klipper per kanal (`oklch(1 0.022 255.5)` males som
+#f6ffff, ikke hvitt), mens CSS Color 4 foreskriver metnings-reduksjon. Testen
+krever at hver kulør ligger innenfor sRGB, så spørsmålet ikke finnes.
+
+**PORTEN TESTER DEN FAKTISKE VERDIEN**
+(`@supports (color: oklch(from AccentColor 0.5 min(c, 0.02) h))`) og ikke
+`(color: AccentColor)`: Firefox har hatt aksentfargen siden 103, men relativ
+fargesyntaks først fra 128, og en port på nøkkelordet alene ville sluppet gjennom
+en deklarasjon nettleseren ikke kan lese.
+
+**HOVEDMENYEN TONES MED, og den er ikke en glemt kopi.** `--am-*` i `AppMenu.vue`
+er en egen, bevisst palett — men menyen er den STØRSTE flata i appen, og
+`--am-bg` er nøyaktig samme tone som lyst `--color-modal` (modalene matcher
+menyens papir), så en utonet meny ville gitt én blå halvdel og én grå med to
+toner som skal være LIKE side om side. Bare flatene tones. `--am-text`, `--am-dim`
+og den grønne `--am-accent` står — tekst må stå fast for at kontrasten skal være
+målbar, og grønn betyr «gjør noe» uansett hvilken farge systemet har.
+
+**`--am-line` er med i toningen og UTE av kontrast-sveipen**, fordi den er en
+`border-top` og aldri bærer tekst. En tekstkontrast mot en skillelinje måler noe
+som ikke finnes — og den var det eneste «bruddet» en naiv sveip fant.
+
+**Lyst `--am-dim` ble senket i samme slengen (#6d7164 → #616558), og det er en
+UU-retting og ikke smak.** Den målte 4,54:1 mot papirtonen og 3,89:1 mot
+`--am-surface` — under AA på den ene — og en marginal på 0,04 tåler ingen kulør i
+det hele tatt: enhver tone kostet nøyaktig de hundredelene. Senkingen er ett hakk
+i OKLCH med samme kulør og metning, og den klarer nå AA mot alle tre
+menyflatene i alle 360 kulører.
+
+**`<meta name="theme-color">` LESER DEN MALTE BAKGRUNNEN** (`useUiTheme.apply`)
+og ikke lenger `APP_BG`-tabellen, som er blitt en fallback. Uten det får en tonet
+app en status-bar i en annen farge enn seg selv. Veien om et 1 × 1-lerret er ikke
+omstendelighet: er flata tonet, serialiserer `getComputedStyle().backgroundColor`
+den i sitt EGET fargerom — `oklch(…)` og ikke `rgb(…)` — og status-baren leses av
+operativsystemet, ikke av CSS-motoren. **Anti-flash-scriptets inline-bakgrunn må
+også ryddes bort der**, ellers slår den `html { background: var(--color-app) }`
+og tonen blir aldri malt; den ryddes bare når stilarket FAKTISK er lastet
+(`--color-app` er lesbar), ellers fjerner vi anti-flashen og får blinken den
+finnes for å hindre.
+
 ## Viktig arkitektur-merknad — lag-tellingen kommer fra BYGGEREN, ikke DOM-en
 
 **Hvert lag i Detaljer-fana bærer antall kartobjekter fra v7.8.35**

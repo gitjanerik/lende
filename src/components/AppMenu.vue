@@ -582,8 +582,41 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   --am-card: #fffdf5;
   --am-ring: rgba(0, 0, 0, 0.08);
   --am-text: #1a1d16;
-  --am-dim: #6d7164;
+  /* #6d7164 til v7.9.9. Den målte 4,54:1 mot papirtonen og 3,89:1 mot
+     `--am-surface`, altså UNDER AA på den ene — en gammel marginal som ble
+     synlig da systemaksenten fikk tone flatene: enhver kulør koster de siste
+     0,04 mot papiret. Den er nå senket ett hakk i OKLCH (samme kulør og
+     metning, L 0,541 → 0,500), og klarer AA mot alle tre menyflatene i alle
+     360 kulører. Sveipen står i systemAksent.test.js. */
+  --am-dim: #616558;
   --am-line: #dcd8c8;
+}
+
+/* SYSTEMETS AKSENTFARGE TONER OGSÅ MENYEN (v7.9.9). Den er den største flata i
+   appen, og `--am-bg` er dessuten nøyaktig samme tone som lyst `--color-modal`
+   (modalene matcher menyens papir) — sto menyen utonet, ville en blå Lende hatt
+   én blå halvdel og én grå, med to toner som skal være like side om side.
+
+   Samme modell som flate-tokenene i style.css: hver flate beholder sin EGEN
+   lyshet og får aksentens kulør med et klemt metningstak. Tallene, hvorfor de
+   er som de er og kontrast-sveipen står i lib/systemAksent.js (`AKSENT_MENY`),
+   som testen måler denne blokka mot. Bare FLATENE tones — `--am-text`,
+   `--am-dim` og den grønne `--am-accent` står, av samme grunn som
+   `--color-ink-*`: det er det som gjør kontrasten målbar, og grønn betyr «gjør
+   noe» uansett hvilken farge systemet har. */
+@supports (color: oklch(from AccentColor 0.5 min(c, 0.02) h)) {
+  .app-menu {
+    --am-bg: oklch(from AccentColor 0.2012 min(c, 0.028) h);
+    --am-surface: oklch(from AccentColor 0.2592 min(c, 0.028) h);
+    --am-card: oklch(from AccentColor 0.2382 min(c, 0.028) h);
+    --am-line: oklch(from AccentColor 0.3018 min(c, 0.028) h);
+  }
+  :root[data-theme="light"] .app-menu {
+    --am-bg: oklch(from AccentColor 0.966 min(c, 0.015) h);
+    --am-surface: oklch(from AccentColor 0.9144 min(c, 0.022) h);
+    --am-card: oklch(from AccentColor 0.9934 min(c, 0.003) h);
+    --am-line: oklch(from AccentColor 0.881 min(c, 0.022) h);
+  }
 }
 
 .app-menu button { font: inherit; border: 0; cursor: pointer; }

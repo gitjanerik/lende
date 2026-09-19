@@ -1,3 +1,48 @@
+## 2026-09-19 — v7.9.9: Lende tar farge etter systemet
+
+Velger du blått som temafarge i operativsystemet, er Lende nå mørkeblå i mørkt
+tema og lyseblå i lyst. CSS-en kan lese fargen (`AccentColor`), men bare der
+nettleseren støtter den — Firefox og Safari gjør det, Chromium gjør det ikke, og
+det er målt og ikke antatt: `CSS.supports('color', 'AccentColor')` er false i
+Chromium 141, altså også i Chrome på Android, og Android eksponerer ikke
+Material You mot nettet på noen annen måte. Tonen er derfor en progressiv
+forbedring bak en @supports-port, og der porten er stengt er UI-en
+byte-identisk med i dag.
+
+Modellen er «bare kuløren» og ikke «bland inn aksenten», og det er hele grunnen
+til at den kan testes. Hvert flate-token beholder sin EGEN lyshet og får
+aksentens kulør med et klemt metningstak — `oklch(from AccentColor 0.1767
+min(c, 0.028) h)`. Fordi lysheten står fast, er kontrasten mot teksten, som ikke
+tones, bundet uansett hvilken farge brukeren har valgt: `systemAksent.test.js`
+sveiper alle 360 kulører mot hvert tekstnivå på hver flate og krever AA. En
+color-mix-variant ville flyttet lysheten med fargen, og da er kontrasten en
+gjetning per bruker. `min(c, tak)` og ikke et fast tall, slik at en grå
+systemfarge gir en grå app og ikke en rød.
+
+Takene er per token og ikke per tema, fordi sRGB er en kjegle: jo nærmere hvitt
+eller svart, jo mindre metning får plass. Lyst `--color-surface-2` og
+`--color-overlay` er rent hvitt, der taket er 0,0002, og står derfor uten tone.
+Holder vi oss innenfor sRGB, maler alle motorer likt — utenfor klipper Chromium
+per kanal mens CSS Color 4 foreskriver metnings-reduksjon, og da spriker de.
+
+Hovedmenyen har sin egen palett og tones med. Den er den største flata i appen,
+og `--am-bg` er dessuten nøyaktig samme tone som lyst `--color-modal`, så en
+utonet meny ville gitt én blå halvdel og én grå med to toner som skal være like
+side om side. Bare flatene tones; `--am-text`, `--am-dim` og den grønne
+`--am-accent` står. Menyens `--am-dim` i lyst tema er senket ett hakk i OKLCH
+(#6d7164 → #616558, samme kulør og metning): den målte 4,54:1 mot papirtonen og
+3,89:1 mot `--am-surface`, altså under AA på den ene, og enhver kulør kostet de
+siste hundredelene mot papiret. Den klarer nå AA mot alle tre menyflatene i alle
+360 kulører.
+
+Til slutt følger `<meta name="theme-color">` den MALTE bakgrunnen i stedet for et
+hardkodet hex, ellers ville en tonet app fått en status-bar i en annen farge enn
+seg selv. Veien om et lerret er ikke omstendelighet: er flata tonet,
+serialiserer `getComputedStyle().backgroundColor` den i sitt eget fargerom, og
+status-baren leses av operativsystemet og ikke av CSS-motoren.
+
+---
+
 ## 2026-09-19 — v7.9.8: «Om Lende» — fem påstander til, og to foreldede notater
 
 Runde to av gjennomgangen av «Om Lende», nå utenfor «Nord er nord». Fire

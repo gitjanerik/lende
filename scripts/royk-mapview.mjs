@@ -8196,6 +8196,133 @@ const SJEKKER = [
       }
     },
   },
+  {
+    // SYSTEMAKSENTEN (v7.9.9). To ting måles, og begge er usynlige for
+    // enhetstesten: at @supports-porten ikke LEKKER der nettleseren ikke kan
+    // levere `AccentColor`, og at deklarasjonene bak den faktisk maler det
+    // tabellen i lib/systemAksent.js sier.
+    //
+    // Chromium støtter ikke `AccentColor` i det hele tatt, så mekanismen kan
+    // ikke prøves med brukerens egen farge her. Den prøves med en LITERAL blå i
+    // aksentens sted — samme deklarasjoner, samme tall, samme relative syntaks.
+    // Det er den eneste halvdelen en Chromium-runner kan se, og den er verdt å
+    // se: uten den ville en skrivefeil i `oklch(from … min(c, …) h)` vært
+    // usynlig helt til noen åpnet appen i Safari.
+    navn: 'systemaksenten toner flatene, og porten lekker ikke',
+    domene: 'systemAksent',
+    async kjør(page) {
+      const r = await page.evaluate(() => {
+        const root = document.documentElement
+        const før = root.dataset.theme
+        const TOKENS = ['app', 'surface', 'surface-2', 'overlay', 'modal']
+        // Tokenene er CUSTOM PROPERTIES, og de computer til sin egen tekst —
+        // ikke til en farge. Vi må derfor male dem for å se hva de blir.
+        const prøver = TOKENS.map((t) => {
+          const d = document.createElement('div')
+          d.style.cssText = 'position:fixed;left:-99px;top:-99px;width:1px;height:1px;'
+            + `background:var(--color-${t})`
+          document.body.append(d)
+          return [t, d]
+        })
+        // Males flata av systemaksenten, serialiserer `backgroundColor` den i
+        // sitt EGET fargerom («oklch(…)», ikke «rgb(…)»). Vi maler den derfor
+        // på et lerret og leser pikselen — samme grep som useUiTheme.
+        const lerret = document.createElement('canvas')
+        lerret.width = 1; lerret.height = 1
+        const ctx = lerret.getContext('2d')
+        const piksel = (farge) => {
+          ctx.clearRect(0, 0, 1, 1)
+          ctx.fillStyle = '#000000'
+          ctx.fillStyle = farge
+          ctx.fillRect(0, 0, 1, 1)
+          const d = ctx.getImageData(0, 0, 1, 1).data
+          return `${d[0]},${d[1]},${d[2]}`
+        }
+        const les = (tema) => {
+          root.dataset.theme = tema
+          return Object.fromEntries(prøver.map(([t, d]) =>
+            [t, piksel(getComputedStyle(d).backgroundColor)]))
+        }
+        const utonet = { dark: les('dark'), light: les('light') }
+
+        const st = document.createElement('style')
+        st.textContent = ':root,:root[data-theme="dark"]{'
+          + '--color-app:oklch(from #0a84ff 0.1767 min(c, 0.028) h);'
+          + '--color-surface:oklch(from #0a84ff 0.2103 min(c, 0.028) h);'
+          + '--color-surface-2:oklch(from #0a84ff 0.2739 min(c, 0.028) h);'
+          + '--color-overlay:oklch(from #0a84ff 0.1408 min(c, 0.022) h);'
+          + '--color-modal:oklch(from #0a84ff 0.1408 min(c, 0.022) h)}'
+          + ':root[data-theme="light"]{'
+          + '--color-app:oklch(from #0a84ff 0.9382 min(c, 0.022) h);'
+          + '--color-surface:oklch(from #0a84ff 0.9793 min(c, 0.008) h);'
+          + '--color-modal:oklch(from #0a84ff 0.966 min(c, 0.015) h)}'
+        document.head.append(st)
+        const tonet = { dark: les('dark'), light: les('light') }
+        st.remove()
+
+        root.dataset.theme = før
+        const bg = piksel(getComputedStyle(root).backgroundColor)
+        const meta = document.querySelector('meta[name="theme-color"]')?.getAttribute('content') || ''
+        for (const [, d] of prøver) d.remove()
+        return { utonet, tonet, bg, meta, støtter: CSS.supports('color', 'AccentColor') }
+      })
+
+      const rgb = (s) => (s.match(/\d+/g) || []).slice(0, 3).join(',')
+      const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).join(',')
+      // `r.utonet`/`r.tonet` er alt «r,g,b» fra lerretet; bare meta-taggen er rå.
+      // Tonede flater sammenliknes med ÉN kanal-enhets slingring: regnestykket
+      // lander av og til på en avrundingsgrense (lyst --color-modal ligger på
+      // 244,5 i grønn), og en eksakt sammenlikning ville gjort sjekken avhengig
+      // av hvilken vei Chromiums egen konvertering runder i dag. Er linja i
+      // style.css feil, bommer den med langt mer enn én enhet.
+      const nær = (a, b) => {
+        const x = a.split(',').map(Number); const y = hex(b).split(',').map(Number)
+        return x.every((v, i) => Math.abs(v - y[i]) <= 1)
+      }
+
+      if (!r.støtter) {
+        // Porten er stengt her, så flatene skal være NØYAKTIG dagens.
+        const FASIT = {
+          dark: { app: '#0e1116', surface: '#18181b', 'surface-2': '#27272a', overlay: '#09090b', modal: '#09090b' },
+          light: { app: '#efeae0', surface: '#faf8f3', 'surface-2': '#ffffff', overlay: '#ffffff', modal: '#f6f4ea' },
+        }
+        for (const [tema, flater] of Object.entries(FASIT)) {
+          for (const [t, h] of Object.entries(flater)) {
+            if (!nær(r.utonet[tema][t], h)) {
+              throw new Error(`@supports-porten lekker: ${tema}/--color-${t} ble `
+                + `${r.utonet[tema][t]}, skulle vært ${h}`)
+            }
+          }
+        }
+      }
+
+      // Og med en farge i aksentens sted skal flatene lande der
+      // lib/systemAksent.js sier. Tallene er malt i Chromium og bakt inn, av
+      // samme grunn som fasiten i systemAksent.test.js.
+      const TONET = {
+        dark: { app: '#08111d', surface: '#101925', 'surface-2': '#1e2835', overlay: '#040a12', modal: '#040a12' },
+        light: { app: '#e1ecfa', surface: '#f5f9fe', modal: '#edf4fe' },
+      }
+      for (const [tema, flater] of Object.entries(TONET)) {
+        for (const [t, h] of Object.entries(flater)) {
+          if (!nær(r.tonet[tema][t], h)) {
+            throw new Error(`tonet ${tema}/--color-${t} ble ${r.tonet[tema][t]}, ventet ${h} — `
+              + 'stemmer oklch-linja i style.css med tabellen i lib/systemAksent.js?')
+          }
+        }
+      }
+
+      // Status-baren skal følge den MALTE bakgrunnen og ikke et hardkodet hex,
+      // ellers får en tonet app en status-bar i en annen farge (useUiTheme).
+      if (!r.meta) throw new Error('ingen <meta name="theme-color">')
+      if (rgb(r.meta) !== r.bg && hex(r.meta) !== r.bg) {
+        throw new Error(`theme-color «${r.meta}» følger ikke den malte bakgrunnen «${r.bg}»`)
+      }
+
+      return `porten ${r.støtter ? 'ÅPEN (nettleseren har AccentColor)' : 'stengt i Chromium'}, `
+        + `ti tonede flater malt som ventet, theme-color = ${r.meta}`
+    },
+  },
 ]
 
 // ---- små hjelpere ---------------------------------------------------------
