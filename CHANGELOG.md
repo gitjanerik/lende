@@ -1,3 +1,42 @@
+## 2026-09-19 — v7.9.4: To sidefunn gjøres om til målinger
+
+Hamningberg-undersøkelsen la igjen to observasjoner ingen kunne handle på, og
+denne leveransen gjør begge om til noe som kan måles. Ingen kode i bunten er
+rørt — dette er to scripts og en workflow.
+
+Det første er `NHM_DTM_25832`, som svarer `ServiceExceptionReport` i
+Øst-Finnmark. En retting følger med: kostnaden er ikke fire sekunders
+hedge-forsinkelse, slik det først ble antatt. `hedgedWCSDtm` starter
+fallbacken enten på timeren eller UMIDDELBART når primæren avviser, og en
+ServiceException avvises raskt — `fetchWCSDtm` sjekker content-type rett etter
+hodene og kaster der, altså før `onForsteByte` rekker å avlyse hedgen. Prisen
+er én bortkastet round-trip. Det som faktisk koster er at redundansen er borte:
+der primæren er død, er 25833 eneste kilde for alle tre DEM-hentingene et
+kystkart gjør, og faller den ut et øyeblikk er neste steg `buildSyntheticDEM` —
+som alltid ligger over 0,5 m, og dermed gir `coastal = false` og et kystark uten
+hav. Nøyaktig symptomet som ble meldt. `scripts/probe-dem-ost.mjs`
+(`npm run probe:demost`) spør begge endepunktene direkte på elleve steder fra
+Bergen til Vardø, med Vestlandet som kontroll, og legger ut en BRAKETT: østligste
+sted som virker, vestligste som nekter. To punkter er ikke en grense, og
+CLAUDE.md er tydelig på at `WCS_ENDPOINTS` ikke endres på antakelse. Proben
+måler også den bortkastede round-trippen, så kostnadstallet slutter å være et
+resonnement.
+
+Det andre er Sjøkart-WFS, som rapporterte null features overalt — også i
+Henningsvær. Det funnet var for tynt til å handle på, og grunnen var en luke i
+proben og ikke i koden: steg 6 i `probe-sjo.mjs` filtrerte på `v?.features`,
+mens `fetchSjokart` gir kategoriene som rene arrays. Filteret traff altså aldri
+noe, uansett hva serveren svarte, og «ingen kategorier» betydde ingenting. Tre
+av nøklene er dessuten arrays uten å være kategorier og måtte ut. Verre var at
+steget bare TALTE: fetcheren samler allerede `fetchErrors` med `kind` per
+endepunkt og typename, `debugSamples` med de første bytene av det serveren
+faktisk sendte, og `trunkert` der COUNT-taket kuttet — og alt ble kastet. Det er
+i de feltene forskjellen står mellom utdaterte typenames, snudd
+bbox-akserekkefølge og manglende dekning. Neste kjøring blir dermed en måling i
+stedet for en observasjon.
+
+---
+
 ## 2026-09-19 — v7.9.3: Kyst-gaten kan leses av fra telefonen
 
 Målingen fra v7.9.2 svarte: byggepipelinen lager sjø for Hamningberg. Gaten
