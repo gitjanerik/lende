@@ -14,10 +14,21 @@ const KANDIDATER = [50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100, 50, 20
 
 const TOM = { px: 0, label: '', ticks: [] }
 
-export function beregnMaalestokk({ w, h, widthM, heightM, scale }) {
+/**
+ * `punktSkala` er rutemeter per bakkemeter (`utm.punktSkalaForMeta`). Linjalen
+ * lover BAKKEMETER — «1 km» skal være en kilometer man kan gå — mens `widthM`
+ * og dermed `fit` er i rutemeter. Baren må derfor være k ganger så mange
+ * rutemeter lang som etiketten sier. Uten den leste linjalen 0,77 % for kort i
+ * Øst-Finnmark, altså samme feil som måleverktøyet hadde.
+ *
+ * Default 1 er ikke en bekvemmelighet: et kart uten meta har ingen posisjon å
+ * regne k av, og da er uskalert riktigere enn gjettet.
+ */
+export function beregnMaalestokk({ w, h, widthM, heightM, scale, punktSkala = 1 }) {
   if (!w || !h || !widthM || !heightM) return { ...TOM, ticks: [] }
+  const k = Number.isFinite(punktSkala) && punktSkala > 0 ? punktSkala : 1
   const fit = Math.min(w / widthM, h / heightM)
-  const pxPerMeter = fit * scale
+  const pxPerMeter = fit * scale * k
   for (const m of KANDIDATER) {
     const px = m * pxPerMeter
     if (px <= SCALE_BAR_MAX_PX && px >= 30) {

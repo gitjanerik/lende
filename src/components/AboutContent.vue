@@ -215,8 +215,20 @@ async function onInstallClick() {
         ikke fordi de har løst noe. Google Maps, Apple Maps og alt annet som ruller
         fliser bruker <em>Web Mercator</em>, der hver meridian er en rett, loddrett
         linje. Rutenettets nord <em>er</em> sann nord, overalt, så avviket kan ikke
-        oppstå. Prisen er at målestokken vokser med breddegraden: et slikt kart kan
-        ikke skrives ut i én målestokk, og areal blir mer galt jo lenger nord du er.
+        oppstå. Prisen betales i <em>målestokk</em> i stedet: den vokser med
+        breddegraden, og ett ark har derfor ikke én målestokk å trykke.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        <strong class="text-ink">Det gjør dem ikke ute av stand til å måle.</strong>
+        Enhver projeksjon har en skalafaktor, og et måleverktøy som kjenner sin
+        egen kan dele den ut igjen — Web Mercator ganger med
+        <em>cosinus av breddegraden</em>, UTM deler på sin
+        <em>punktskala&nbsp;k</em>. Forskjellen er hvor mye som blir igjen etterpå:
+        i Web Mercator endrer faktoren seg med 0,35&nbsp;% over et 8&nbsp;km-ark i
+        Finnmark, mens den i UTM32 endrer seg med 0,02&nbsp;% over det samme arket.
+        Det er derfor Lende kan bruke <em>ett</em> tall for hele arket og likevel
+        ligge rundt en meter på fem kilometer — og derfor et rullende verdenskart
+        må regne på nytt for hver piksel.
       </p>
       <p class="text-[13px] leading-relaxed text-ink-2">
         Lende bruker UTM fordi et turkart skal være et <em>ark med fast
@@ -276,6 +288,22 @@ async function onInstallClick() {
         stedet for 3,7°, Vardø 20,9° i stedet for 3,9°. Til gjengjeld ligger hele
         landet i ett og samme rutenett, så to nabofliser alltid passer sammen,
         også tvers over et sted der Kartverket ville byttet sone.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        <strong class="text-ink">Valget koster i målestokk også</strong>, og den
+        prisen er lettere å overse enn den skrå nålen. En rutemeter i UTM er ikke
+        en bakkemeter: faktoren er 0,9996 på sentralmeridianen og vokser utover.
+        I Oslo og Trondheim er den 0,03&nbsp;% for lav, i Tromsø 0,14&nbsp;% for
+        høy, i Vardø <strong class="text-ink">0,77&nbsp;% for høy</strong> — en
+        femkilometer målt på arket ville vært 38 meter for lang. Hadde Vardø fått
+        sin egen sone, ville avviket vært 0,01&nbsp;%.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        <strong class="text-ink">Derfor regner Lende det bort.</strong> Linjalen og
+        målestokk-streken deler på arkets egen punktskala, så tallene du leser er
+        bakkemeter og ikke rutemeter. Over ett ark varierer faktoren så lite — under
+        0,04&nbsp;% fra hjørne til hjørne på det største — at ett tall for hele arket
+        holder. Koordinatene er urørt: det er bare tallene som vises som er regnet om.
       </p>
 
       <!-- Figuren står HER og ikke før sone-avsnittene: den viser både

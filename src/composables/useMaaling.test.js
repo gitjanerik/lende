@@ -13,9 +13,10 @@ function lagDem() {
   }
 }
 
-function lagDeps(dem) {
+function lagDeps(dem, punktSkala) {
   return {
     scale: ref(1),
+    ...(punktSkala ? { punktSkala } : {}),
     dem: () => dem,
     annot: { selectedSymbol: ref(null), isAnnotateMode: ref(false) },
     sti: { blocking: ref(false), cancel: vi.fn() },
@@ -55,6 +56,29 @@ describe('useMaaling — høyde A/B og differanse', () => {
     expect(s.eleA).toBe(null)
     expect(s.eleDiffM).toBe(null)
     expect(s.distM).toBe(50)
+  })
+
+  it('regner bakkemeter når UTM-skalaen er over 1 (v7.9.5)', () => {
+    const k = 1.00769   // Vardø
+    const m = useMaaling(lagDeps(null, () => k))
+    m.measureVertices.value = [{ x: 0, y: 0 }, { x: 30, y: 40 }, { x: 30, y: 0 }]
+    // 50 m + 40 m i rutemeter; bakken er kortere.
+    expect(m.measureStats.value.distM).toBeCloseTo(90 / k, 6)
+    expect(m.measureStats.value.distM).toBeLessThan(90)
+  })
+
+  it('deler arealet på k², ikke på k', () => {
+    const k = 1.005
+    const m = useMaaling(lagDeps(null, () => k))
+    m.measureVertices.value = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }]
+    m.measureClosed.value = true
+    expect(m.measureStats.value.areaM2).toBeCloseTo(10000 / (k * k), 4)
+  })
+
+  it('står uendret uten punktSkala-getter', () => {
+    const m = useMaaling(lagDeps(null))
+    m.measureVertices.value = [{ x: 0, y: 0 }, { x: 30, y: 40 }]
+    expect(m.measureStats.value.distM).toBe(50)
   })
 
   it('henter DEM når målingen starter', () => {

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   wgs84ToUtm32, wgs84ToUtm33, utm32ToWgs84, utm32BboxFromWgs84, wgs84BboxFromMeta, svgToWgs84,
   nordavvikDeg, nordavvikForMeta, sannNordRotasjonForMeta, nordavvikTekst,
+  punktSkala, punktSkalaISone, punktSkalaForMeta, bakkeMeter, bakkeAreal,
 } from './utm.js'
 
 // v12.1.64: forward-projeksjonen er 6. ordens Krüger (Karney/etmerc-ekvivalent).
@@ -191,5 +192,117 @@ describe('nordavvik — sann nord vs kartnord', () => {
   it('skriver retningen med ord og komma', () => {
     expect(nordavvikTekst(3.2)).toBe('3,2° mot øst')
     expect(nordavvikTekst(-19.85)).toBe('19,9° mot vest')
+  })
+})
+
+// ── Punktskala ─────────────────────────────────────────────────────────────
+describe('punktSkala — rutemeter per bakkemeter', () => {
+  it('er sekantfaktoren 0,9996 på sentralmeridianen', () => {
+    expect(punktSkala(60, 9)).toBeCloseTo(0.9996, 6)
+    expect(punktSkala(70, 9)).toBeCloseTo(0.9996, 6)
+  })
+
+  it('vokser med avstanden fra sentralmeridianen', () => {
+    const k = [9, 15, 21, 27, 31].map(lon => punktSkala(70, lon))
+    for (let i = 1; i < k.length; i++) expect(k[i]).toBeGreaterThan(k[i - 1])
+  })
+
+  it('gir 0,77 % i Vardø — tallet «Om appen» oppgir', () => {
+    expect((punktSkala(70.3705, 31.1107) - 1) * 100).toBeCloseTo(0.769, 2)
+  })
+
+  // Regresjonsvakt for feilen som ble gjort da funksjonen ble skrevet: målt mot
+  // en haversine (kule) kom Vardø ut på 1,18 %. Ligger tallet over 1 %, er
+  // nevneren blitt sfærisk igjen.
+  it('ligger IKKE på kule-verdien 1,18 %', () => {
+    expect((punktSkala(70.3705, 31.1107) - 1) * 100).toBeLessThan(1)
+  })
+
+  it('er nær 1 i den sonen Kartverket ville brukt', () => {
+    expect(Math.abs(punktSkalaISone(70.3705, 31.1107, 35) - 1)).toBeLessThan(0.0005)
+    expect(Math.abs(punktSkalaISone(69.6492, 18.9553, 33) - 1)).toBeLessThan(0.0005)
+    // ... og at sone 32 koster vesentlig mer der er hele poenget med figuren.
+    expect(Math.abs(punktSkala(70.3705, 31.1107) - 1))
+      .toBeGreaterThan(10 * Math.abs(punktSkalaISone(70.3705, 31.1107, 35) - 1))
+  })
+
+  // Konformitet: er k den samme i alle retninger, holder ett nord–sør-steg som
+  // måling. Sjekkes mot et øst–vest-steg gjennom samme projeksjon.
+  //
+  // MERK at de to stegene må deles på HVER SIN bakkelengde: en breddegrad
+  // spenner meridianbuen M, en lengdegrad parallellen N·cos φ, og M ≠ N på en
+  // ellipsoide (0,17 % på 60°N). Sammenlikner man de rå rutelengdene, måler man
+  // den forskjellen og ikke konformiteten — samme klasse feil som haversinen.
+  it('er retningsuavhengig — ett steg holder', () => {
+    const d = 0.0005
+    const rad = Math.PI / 180
+    const A = 6378137, E2 = 0.00669437999014
+    for (const [lat, lon] of [[60, 10], [70, 31]]) {
+      const sphi = Math.sin(lat * rad)
+      const W = Math.sqrt(1 - E2 * sphi * sphi)
+      const M = A * (1 - E2) / (W * W * W)     // krumningsradius i meridianen
+      const N = A / W                          // i normalen
+      const dLon = d / Math.cos(lat * rad)
+      const a = wgs84ToUtm32(lat, lon - dLon)
+      const b = wgs84ToUtm32(lat, lon + dLon)
+      const kOst = Math.hypot(b.e - a.e, b.n - a.n) / (N * Math.cos(lat * rad) * 2 * dLon * rad)
+      const c = wgs84ToUtm32(lat - d, lon), e = wgs84ToUtm32(lat + d, lon)
+      const kNord = Math.hypot(e.e - c.e, e.n - c.n) / (M * 2 * d * rad)
+      expect(kOst / kNord).toBeCloseTo(1, 4)
+      expect(kNord).toBeCloseTo(punktSkala(lat, lon), 6)
+    }
+  })
+
+  it('faller til 1 på tull i stedet for å kaste', () => {
+    expect(punktSkala(NaN, 10)).toBe(1)
+    expect(punktSkala(60, undefined)).toBe(1)
+    expect(punktSkalaISone(60, 10, NaN)).toBe(1)
+  })
+})
+
+describe('punktSkalaForMeta — ett tall for hele arket', () => {
+  // Øst-Finnmark, 16 × 16 km — det største arket på det verste stedet.
+  const stort = { minE: 1305000, minN: 7800000, widthM: 16000, heightM: 16000 }
+
+  it('bruker arkets senter', () => {
+    const c = svgToWgs84(stort.widthM / 2, stort.heightM / 2, stort)
+    expect(punktSkalaForMeta(stort)).toBeCloseTo(punktSkala(c.lat, c.lon), 10)
+  })
+
+  // Påstanden i utm.js: variasjonen over arket er under en tjuedel av nivået,
+  // og det er dét som gjør ÉN faktor for hele flata lovlig.
+  it('spriker under 0,05 % fra hjørne til hjørne', () => {
+    const ks = [[0, 0], [stort.widthM, 0], [0, stort.heightM], [stort.widthM, stort.heightM]]
+      .map(([x, y]) => svgToWgs84(x, y, stort))
+      .map(c => punktSkala(c.lat, c.lon))
+    const spredning = Math.max(...ks) / Math.min(...ks) - 1
+    expect(spredning).toBeLessThan(0.0005)
+    expect(spredning).toBeLessThan((punktSkalaForMeta(stort) - 1) / 20)
+  })
+
+  it('gir 1 uten brukbar meta — uskalert slår gjettet', () => {
+    expect(punktSkalaForMeta(null)).toBe(1)
+    expect(punktSkalaForMeta({ widthM: 0, heightM: 0 })).toBe(1)
+  })
+})
+
+describe('bakkeMeter / bakkeAreal', () => {
+  it('deler lengde på k og areal på k²', () => {
+    expect(bakkeMeter(1000, 1.0077)).toBeCloseTo(1000 / 1.0077, 9)
+    expect(bakkeAreal(1e6, 1.0077)).toBeCloseTo(1e6 / (1.0077 ** 2), 6)
+  })
+
+  // Fortegnet er den ene tingen som kan bli snudd i en opprydning: k > 1 betyr
+  // at arket TEGNER for mange meter, så bakkeavstanden er KORTERE.
+  it('gir kortere bakkeavstand når k > 1', () => {
+    expect(bakkeMeter(1000, 1.0077)).toBeLessThan(1000)
+    expect(bakkeMeter(1000, 0.9996)).toBeGreaterThan(1000)
+  })
+
+  it('lar tallet stå på ugyldig k', () => {
+    expect(bakkeMeter(500, 0)).toBe(500)
+    expect(bakkeMeter(500, NaN)).toBe(500)
+    expect(bakkeAreal(500, -1)).toBe(500)
+    expect(bakkeMeter(NaN, 1.01)).toBe(0)
   })
 })

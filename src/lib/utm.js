@@ -268,3 +268,100 @@ export function nordavvikTekst(avvikDeg) {
   const grader = Math.abs(v).toFixed(1).replace('.', ',')
   return `${grader}° mot ${v >= 0 ? 'øst' : 'vest'}`
 }
+
+// ── Målestokksforvrengning (punktskala) ────────────────────────────────────
+//
+// Konvergensen over er den ene prisen for å projisere; dette er den andre. En
+// transversal Mercator er KONFORM — vinkler og former er riktige — men lengder
+// er det bare langs to linjer. Overalt ellers er en rutemeter ikke en
+// bakkemeter, og forholdet mellom dem er punktskalaen k.
+//
+// k = 0,9996 på sentralmeridianen (sekantfaktoren, som sprer feilen ut over
+// sonen i stedet for å la den bare vokse) og stiger med avstanden dit. I sone
+// 32: −0,03 % i Oslo, +0,14 % i Tromsø, +0,77 % i Vardø — det siste fordi Lende
+// blir i sone 32 over hele landet (se `nordavvikISoneDeg` for den andre
+// halvparten av det valget; i sone 35 ville Vardø hatt −0,01 %).
+//
+// MÅL ALDRI k MOT EN HAVERSINE. Det ble gjort én gang under arbeidet med denne
+// funksjonen og ga 1,18 % i Vardø — 0,4 prosentpoeng for høyt, fordi haversine
+// ligger på en KULE (R = 6 371 km) mens UTM ligger på ellipsoiden, og
+// breddesirkelens radius skiller seg med nettopp det på 70°N. Feilen er stor nok
+// til å snu en konklusjon og liten nok til å se riktig ut. Nevneren her er
+// meridianbuen på ellipsoiden.
+//
+// FORSKJELLEN FRA KONVERGENSEN ER HVA MAN KAN GJØRE MED DEN. Konvergensen er en
+// ren rotasjon, så den fjernes ved å dreie arket. Skalaen er en FAKTOR, og over
+// ett ark er den praktisk talt konstant — så den fjernes ved å dele. Det er
+// derfor målinger kan være eksakte uten at en eneste koordinat røres: geometrien
+// blir liggende i sanne rutemeter (den MÅ det, den deler rom med DEM-rasteret
+// fra WCS), og bare tallene som vises til brukeren regnes om.
+//
+// TALLET MÅLES GJENNOM VÅR EGEN PROJEKSJON, av samme grunn som nordavviket: en
+// lukket formel ville vært en ANDRE mening om hvor langt kartet tegner en meter.
+// Nevneren er meridianbuen, som er eksakt for et rent nord–sør-steg — og siden
+// projeksjonen er konform, er k den samme i alle retninger, så ett steg holder.
+
+const SKALA_STEG_DEG = 0.0005  // ~55 m, som nordavviket
+
+/**
+ * Punktskala i sone 32: RUTEMETER PER BAKKEMETER. > 1 vekk fra sentral-
+ * meridianen, 0,9996 på den.
+ *
+ * Bakkeavstand = rutemeteravstand / punktSkala. Areal deles på k².
+ */
+export function punktSkala(lat, lon) {
+  return punktSkalaISone(lat, lon, 32)
+}
+
+/**
+ * Samme tall for en VALGFRI sone — finnes for at «Om appen» skal kunne vise hva
+ * sone 32 koster mot sonen Kartverket ville brukt, med samme metode på begge
+ * sider av sammenlikningen. Se `nordavvikISoneDeg`, som gjør det samme for nord.
+ */
+export function punktSkalaISone(lat, lon, sone) {
+  const la = Number(lat), lo = Number(lon), s = Number(sone)
+  if (!Number.isFinite(la) || !Number.isFinite(lo) || !Number.isFinite(s)) return 1
+  const lon0 = ((s * 6) - 183) * Math.PI / 180
+  const a = wgs84ToUtmZone(la - SKALA_STEG_DEG, lo, lon0)
+  const b = wgs84ToUtmZone(la + SKALA_STEG_DEG, lo, lon0)
+  const rute = Math.hypot(b.e - a.e, b.n - a.n)
+  // Meridianens krumningsradius i midtpunktet — steget er sentrert om `la`, så
+  // dette er buen til andre orden.
+  const sphi = Math.sin(la * Math.PI / 180)
+  const M = A * (1 - E2) / Math.pow(1 - E2 * sphi * sphi, 1.5)
+  const bakke = M * (2 * SKALA_STEG_DEG * Math.PI / 180)
+  const k = rute / bakke
+  return Number.isFinite(k) && k > 0 ? k : 1
+}
+
+/**
+ * Punktskalaen i arkets SENTER — den som gjelder hele flata.
+ *
+ * Variasjonen over et ark er liten nok til å ignoreres, og det er nettopp det
+ * som gjør ett tall lovlig: på et 16 × 16 km-ark i Øst-Finnmark spriker k 0,04 %
+ * fra hjørne til hjørne, mot de 0,77 % selve nivået utgjør — altså under en
+ * tjuedel. Testen i utm.test.js holder den påstanden fast.
+ */
+export function punktSkalaForMeta(meta) {
+  if (!meta || !(meta.widthM > 0) || !(meta.heightM > 0)) return 1
+  const c = svgToWgs84(meta.widthM / 2, meta.heightM / 2, meta)
+  return punktSkala(c.lat, c.lon)
+}
+
+/**
+ * Rutemeter → bakkemeter. Egen funksjon og ikke en divisjon på kallstedet, av
+ * samme grunn som `sannNordRotasjonForMeta`: en deling som skrives ut for hånd
+ * fem steder er fem steder den kan bli en multiplikasjon i en opprydning.
+ */
+export function bakkeMeter(ruteM, k) {
+  const m = Number(ruteM), s = Number(k)
+  if (!Number.isFinite(m)) return 0
+  return Number.isFinite(s) && s > 0 ? m / s : m
+}
+
+/** Rutemeter² → bakkemeter². Arealet deles på k², ikke på k. */
+export function bakkeAreal(ruteM2, k) {
+  const m = Number(ruteM2), s = Number(k)
+  if (!Number.isFinite(m)) return 0
+  return Number.isFinite(s) && s > 0 ? m / (s * s) : m
+}

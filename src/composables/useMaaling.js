@@ -9,12 +9,20 @@
 // Enhetene er meter fordi koordinatrommet er meter (se CLAUDE.md: viewBox er
 // `0 0 widthM heightM`). Ingen projeksjon her — shoelace direkte på svg-punkter.
 //
+// MEN RUTEMETER ER IKKE BAKKEMETER, og det er `punktSkala` som lukker gapet
+// (v7.9.5). Arket ligger i UTM 32 over hele landet, så målestokksforvrengningen
+// er 0,77 % i Øst-Finnmark — og fram til nå leste linjalen dét for mye, mens
+// Stifinner og Runde regnet haversine på WGS84 og hadde rett. To verktøy på
+// samme kart var uenige om lengden av samme strek. Geometrien blir liggende i
+// rutemeter (den deler rom med DEM-rasteret); bare tallene vi VISER regnes om.
+//
 // Måling er gjensidig utelukkende med annotering og med Stifinner mens den
 // BLOKKERER (punktvalg). En rute i bruk (`following`) beholdes: å måle noe langs
 // en rute man går er en rimelig ting å gjøre.
 
 import { ref, computed, watch } from 'vue'
 import { sampleElevation } from '../lib/demSampling.js'
+import { bakkeMeter, bakkeAreal } from '../lib/utm.js'
 
 /**
  * @param {{
@@ -24,7 +32,7 @@ import { sampleElevation } from '../lib/demSampling.js'
  *   hooks: { renderMeasure: () => void, renderRoutes: () => void, ensureDem: () => Promise<boolean> },
  * }} deps
  */
-export function useMaaling({ scale, dem, annot, sti, hooks }) {
+export function useMaaling({ scale, dem, annot, sti, hooks, punktSkala }) {
   const measureMode = ref(false)
   const measureVertices = ref([])
   const measureClosed = ref(false)
@@ -85,6 +93,9 @@ export function useMaaling({ scale, dem, annot, sti, hooks }) {
     const v = measureVertices.value
     const ele = measureElevation.value
     if (v.length < 2) return { distM: 0, areaM2: 0, ...ele }
+    // Getter og ikke verdi: arket kan byttes under en åpen måling (naboflis,
+    // nytt kart), og k følger arkets senter. Se TDZ-regelen i CLAUDE.md.
+    const k = punktSkala?.() ?? 1
     let distM = 0
     for (let i = 1; i < v.length; i++) {
       distM += Math.hypot(v[i].x - v[i - 1].x, v[i].y - v[i - 1].y)
@@ -100,7 +111,7 @@ export function useMaaling({ scale, dem, annot, sti, hooks }) {
       }
       areaM2 = Math.abs(sum) / 2
     }
-    return { distM, areaM2, ...ele }
+    return { distM: bakkeMeter(distM, k), areaM2: bakkeAreal(areaM2, k), ...ele }
   })
 
   // Strekbredden på måle-linja er skjerm-konstant, så et zoom må tegne om.
