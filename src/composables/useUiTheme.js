@@ -18,6 +18,12 @@ const VALID = new Set(UI_THEME_OPTIONS.map((o) => o.value))
 
 // App-bakgrunnen pr resolved tema — holdes i sync med style.css --color-app.
 // Brukes til <meta name="theme-color"> så mobil-status-baren matcher.
+//
+// DEN ER EN FALLBACK FRA v7.9.9, IKKE FASITEN. Systemets aksentfarge toner
+// --color-app (se style.css + lib/systemAksent.js), og et hardkodet hex ville
+// da gitt en status-bar i en annen farge enn appen under den. Vi LESER derfor
+// den malte bakgrunnen når stilarket er på plass, og faller tilbake hit når det
+// ikke er det (første kjøring før CSS-en er lastet i dev).
 const APP_BG = { light: '#efeae0', dark: '#0e1116' }
 
 function load() {
@@ -41,11 +47,46 @@ function resolve(pref) {
 const theme = ref(load())
 const resolved = computed(() => resolve(theme.value))
 
+// Den malte bakgrunnen → #rrggbb. Veien om et lerret er ikke omstendelig for
+// omstendelighetens skyld: er flata tonet av systemaksenten, serialiserer
+// `getComputedStyle().backgroundColor` den i sitt EGET fargerom —
+// `oklch(0.1767 0.028 255.5)` og ikke `rgb(…)` — og `<meta name="theme-color">`
+// leses av operativsystemets status-bar, ikke av CSS-motoren. Lerretet maler
+// fargen og vi leser pikselen, altså nøyaktig det brukeren ser.
+function malt(farge) {
+  try {
+    const c = document.createElement('canvas')
+    c.width = 1; c.height = 1
+    const ctx = c.getContext('2d')
+    if (!ctx) return ''
+    ctx.fillStyle = '#000000'
+    ctx.fillStyle = farge
+    ctx.fillRect(0, 0, 1, 1)
+    const d = ctx.getImageData(0, 0, 1, 1).data
+    if (!d[3]) return ''
+    return `#${[d[0], d[1], d[2]].map((x) => x.toString(16).padStart(2, '0')).join('')}`
+  } catch { return '' }
+}
+
 function apply(name) {
   if (typeof document === 'undefined') return
-  document.documentElement.dataset.theme = name
+  const root = document.documentElement
+  root.dataset.theme = name
+
+  // Anti-flash-scriptet i index.html setter en LITERAL bakgrunn som inline-stil
+  // på <html>, fordi det kjører før stilarket finnes. Den må vike her: en
+  // inline-stil slår `html { background: var(--color-app) }`, og systemtonen
+  // ville aldri blitt malt. Vi rører den bare når stilarket FAKTISK er på plass
+  // (tokenet er lesbart) — ellers ville vi fjernet anti-flashen og fått den
+  // hvite blinken den finnes for å hindre.
+  const stil = getComputedStyle(root)
+  const klart = !!stil.getPropertyValue('--color-app').trim()
+  if (klart && root.style.background) root.style.background = ''
+
   const meta = document.querySelector('meta[name="theme-color"]')
-  if (meta) meta.setAttribute('content', APP_BG[name] ?? APP_BG.dark)
+  if (!meta) return
+  const hex = klart ? malt(stil.backgroundColor) : ''
+  meta.setAttribute('content', hex || APP_BG[name] || APP_BG.dark)
 }
 
 // Følg OS-endringer mens «auto» er valgt.

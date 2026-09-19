@@ -113,6 +113,49 @@
   --color-border-strong: #57534e;
 }
 
+/* ── Systemets aksentfarge (v7.9.9) ──────────────────────────────────────────
+   Velger brukeren blått som temafarge i operativsystemet, skal Lende være
+   mørkeblå i mørkt tema og lyseblå i lyst. `AccentColor` er CSS-ens vei til
+   den; regnestykket, tallene under og hvorfor de er som de er står i
+   lib/systemAksent.js, som testen måler CSS-en mot.
+
+   KORT: hvert flate-token beholder sin EGEN lyshet og får aksentens KULØR med
+   et klemt metningstak. Lysheten står fast, så kontrasten mot teksten — som
+   ikke tones — er bundet uansett hvilken farge brukeren har valgt.
+   `min(c, tak)` og ikke et fast tall, så en grå systemfarge gir en grå app og
+   ikke en rød.
+
+   PORTEN TESTER DEN FAKTISKE VERDIEN og ikke `(color: AccentColor)`: Firefox
+   har hatt aksentfargen siden 103, men relativ fargesyntaks først fra 128, og
+   en port på nøkkelordet alene ville sluppet gjennom en deklarasjon den ikke
+   kan lese.
+
+   CHROMIUM STØTTER IKKE `AccentColor` I DET HELE TATT — målt, ikke antatt:
+   `CSS.supports('color', 'AccentColor')` er false i Chromium 141, altså også i
+   Chrome på Android, og Android eksponerer ikke Material You mot nettet på noen
+   annen måte. Der faller hele blokka bort og UI-en er byte-identisk med før.
+   Det er hele grunnen til at dette er en @supports-blokk og ikke en omskriving
+   av tokenene: fallbacken er dagens design, ikke en degradert utgave av det.
+
+   Lyst `--color-surface-2` og `--color-overlay` står bevisst UTEN tone: de er
+   rent hvitt, og ved L = 1 er metningstaket 0,0002 — en tone der ville havnet
+   utenfor sRGB, der nettleserne spriker. */
+@supports (color: oklch(from AccentColor 0.5 min(c, 0.02) h)) {
+  :root, :root[data-theme="dark"] {
+    --color-app: oklch(from AccentColor 0.1767 min(c, 0.028) h);
+    --color-surface: oklch(from AccentColor 0.2103 min(c, 0.028) h);
+    --color-surface-2: oklch(from AccentColor 0.2739 min(c, 0.028) h);
+    --color-overlay: oklch(from AccentColor 0.1408 min(c, 0.022) h);
+    --color-modal: oklch(from AccentColor 0.1408 min(c, 0.022) h);
+  }
+
+  :root[data-theme="light"] {
+    --color-app: oklch(from AccentColor 0.9382 min(c, 0.022) h);
+    --color-surface: oklch(from AccentColor 0.9793 min(c, 0.008) h);
+    --color-modal: oklch(from AccentColor 0.966 min(c, 0.015) h);
+  }
+}
+
 html { background: var(--color-app); }
 
 /* Paneler med SOLID aksentbakgrunn (grønne toast/banner, pinke/slate chips):
