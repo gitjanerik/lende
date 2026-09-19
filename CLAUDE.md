@@ -1496,9 +1496,12 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   **Sola har INGEN faste trekk** — en solflekk lever noen uker og driver med
   rotasjonen — så de navngitte stedene er BREDDEGRADER: flekkbeltene på ±16°,
   ekvator og polområdene. Det er der differensiell rotasjon er å se, altså det
-  ene en kule kan vise og en skive ikke kan. **Fotografiet mangler med vilje**:
-  kilde-URL-er skal måles og ikke gjettes (v6.3.0), og hostene er sperret herfra.
-  Av samme grunn er sola sine SNL-/Wikipedia-lenker et FORSLAG — «Sola» er også
+  ene en kule kan vise og en skive ikke kan. **Teksturen kom i v6.5.7, og den
+  ble MÅLT fram** — ikke gjettet (v6.3.0): proben fant et STILISERT solkart fra
+  Solar System Scope på Commons (213 kB, CC BY 4.0). Et fotografi finnes ikke i
+  kilden, og det er ikke et hull: Commons' SDO-/SOHO-opptak er SKIVEBILDER av
+  sola sett forfra, altså ubrukelige som globe-tekstur. Sola sine
+  SNL-/Wikipedia-lenker er derimot fortsatt et FORSLAG — «Sola» er også
   en kommune i Rogaland — og `probe-himmellenker` bærer kandidatene til CI kan
   avgjøre.
 - **Globene er OBJEKT-INSPEKTØRER, ikke reiser (v6.0.0, utvidet i v6.2.0 og
@@ -1998,15 +2001,19 @@ Kjent gjeld, oppdatert etter hver leveranse som rører den:
   fortsatt lys. Det er den offisielle grensa som ble bestilt.
 - **Himmelkompasset er REN MATTE OG SVG, ikke en andre 3D-scene (v6.1.0).**
   `lib/tour3d/himmelKompass.js` + `Tour3dHimmelKompass.vue`, nede til høyre i
-  nattmodus. To ringer i omriss — jordas plan med øst–vest-aksen, og en loddrett
-  ring med N og S — pluss en rød prikk for blikket. Tre ting er verdt å vite:
-  1. **Gizmo-kameraets azimut er 158° og ikke 180°.** Står det i nord–sør-planet,
-     blir meridianringen EDGE-ON: en strek. Egen test holder det fast, så ingen
-     «retter» det til 180.
-  2. **Ringene står stille, prikken flytter seg.** N blir liggende samme sted på
-     skjermen, så kompasset er noe man LESER framfor noe man må tolke. Snurret
-     ringene i stedet, ville bokstavene vandret rundt i mørket.
-  3. **Blikkretningen leses av KAMERAETS verdensmatrise** (`camera.getWorldDirection`
+  nattmodus. ÉN ring i omriss — jordas plan, med N, Ø, S og V — pluss en rød
+  markør fast på toppen. Tre ting er verdt å vite:
+  1. **SKIVA DREIER, MARKØREN STÅR STILLE — og det er snudd siden v6.1.0.**
+     Første utgave gjorde det motsatte: ringene sto stille, N lå alltid samme
+     sted på skjermen, og en rød prikk vandret rundt for å si hvor man så.
+     Begrunnelsen var at bokstaver som står stille er lettere å lese i mørket.
+     Eieren prøvde den og forsto den ikke, og det er den avgjørende
+     observasjonen: **en gizmo man må tolke er ingen gizmo.** Nå følger den
+     konvensjonen ethvert kompass og kartprogram bruker, og trenger ingen
+     forklaring. Den loddrette meridianringen falt bort med det samme —
+     den viste blikkets HØYDE, men gjorde bildet til en armillarsfære; høyden
+     står i infokortet og er dessuten åpenbar av hva man ser.
+  2. **Blikkretningen leses av KAMERAETS verdensmatrise** (`camera.getWorldDirection`
      i `scene3d.blikkNaa`), ikke av riggens vipp-tall. Det er den eneste kilden
      som er sann uansett hva riggen holder på med, og et kompass som viser noe
      annet enn det man ser er verre enn ingen. Emittes som `blikk` hver 120 ms,

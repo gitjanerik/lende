@@ -1,3 +1,27 @@
+## 2026-09-19 — v7.9.8: «Om Lende» — fem påstander til, og to foreldede notater
+
+Runde to av gjennomgangen av «Om Lende», nå utenfor «Nord er nord». Fire
+påstander var faktisk gale. Stjernene ble oppgitt å stemme «til under ett
+buesekund» mot en uavhengig implementasjon — det finnes ingen slik
+sammenlikning i repoet; bare planetene og soltidene er ankret mot en fasit,
+mens presesjonstesten er ankret i geometri. BRouter sto som «den ene funksjonen
+i appen som spør en tredjepart», og det er usant i begge lesninger: Overpass,
+Kartverket, SNL, Wikipedia, GBIF og NOAA spørres direkte, og et langtrykk sender
+allerede koordinater ut av enheten — en personvern-påstand skal ikke være for
+raus. «Hele kartet er vektor» hoppet over relieffet, som er en PNG. Og
+globe-kulepunktet krediterte NASA og USGS alene, mens sola, Mars og Saturn
+kommer fra Solar System Scope under CC BY 4.0, altså et vilkår. I tillegg er én
+setning skrevet om fordi den forklarte vårt eget valg ved å si hva andre apper
+utelukker, og 3D-knappen står ikke bare ved startpunktet — stifinneren viser den
+i begge ender.
+
+To notater i CLAUDE.md var dessuten utdaterte, og begge pekte motsatt vei av
+koden: himmelkompasset snudde om etter v6.1.0 slik at skiva dreier og markøren
+står stille, og sola fikk en tekstur i v6.5.7. «Om Lende» hadde rett i begge; det
+var dokumentasjonen som lå etter.
+
+---
+
 ## 2026-09-19 — v7.9.7: «Om Lende» — to gale tall, én foreldet påstand og fire som skrøt
 
 Teksten om «Nord er nord» i «Om appen» hadde to tall som var gale nettopp i Finnmark, som er stedet avsnittene rundt bruker som eksempel: konvergensen over et 16 × 16 km-ark sto som «under 0,4°» (målt 0,427° i Vardø, 0,412° i Kirkenes) og punktskalaens spredning fra hjørne til hjørne som «under 0,04 %» (målt 0,0416 %). Begge er nå oppgitt med en margin som holder overalt, og begge har en kommentar i kildefila med målingen, så neste runde ikke strammer dem tilbake på slump. Påstanden om at «linjalen og målestokk-streken» deler på punktskalaen ble foreldet av v7.9.6 og underslo det vi faktisk gjør — fra og med den versjonen deler ALT som rapporterer en lengde, og lista nevner nå stifinneren, runden, GPX-filene, høydeprofilene, nærhetsvarselet, stinett-analysen, chatten og MCP-verktøyene.
