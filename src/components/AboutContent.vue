@@ -195,7 +195,7 @@ async function onInstallClick() {
         jo lenger nord.
       </p>
       <p class="text-[13px] leading-relaxed text-ink-2">
-        De fleste turkart lever med det. Lende gjør ikke det:
+        Et papirturkart trykkes med rutenettets nord opp. Lende roterer det bort:
         <strong class="text-ink">arket lastes ferdig rotert, så sann nord er
         opp.</strong> To ting som ligger rett nord–sør i terrenget gjør det da
         også på skjermen, og kompasset i handa er enig med kartet. Har du dreid
@@ -205,14 +205,16 @@ async function onInstallClick() {
       </p>
 
       <!-- Spørsmålet står HER fordi det er avsnittet over som reiser det: har
-           man nettopp lest at «Lende gjør ikke det», er den nærmeste tanken at
+           man nettopp lest at Lende roterer arket, er den nærmeste tanken at
            telefonen jo alltid har hatt nord opp. Svaret er at appene bruker en
-           annen projeksjon, ikke at de har løst noe — og det er verdt å si før
-           tallene kommer, ellers leses de som en kuriositet. -->
+           projeksjon der avviket ikke kan oppstå — og det er verdt å si før
+           tallene kommer, ellers leses de som en kuriositet.
+           v7.9.7: sto «ikke fordi de har løst noe». Det er en nedsettelse, og
+           den er dessuten gal: valget av projeksjon ER en løsning. -->
       <p class="text-[13px] leading-relaxed text-ink-2">
         <strong class="text-ink">«Men har ikke alle kartapper nord opp?»</strong>
-        Jo — og de slipper unna dette fordi de bruker en <em>annen projeksjon</em>,
-        ikke fordi de har løst noe. Google Maps, Apple Maps og alt annet som ruller
+        Jo — og de har ikke dette problemet, rett og slett fordi de bruker en
+        <em>annen projeksjon</em>. Google Maps, Apple Maps og alt annet som ruller
         fliser bruker <em>Web Mercator</em>, der hver meridian er en rett, loddrett
         linje. Rutenettets nord <em>er</em> sann nord, overalt, så avviket kan ikke
         oppstå. Prisen betales i <em>målestokk</em> i stedet: den vokser med
@@ -227,8 +229,8 @@ async function onInstallClick() {
         i Web Mercator endrer faktoren seg med 0,35&nbsp;% over et 8&nbsp;km-ark i
         Finnmark, mens den i UTM32 endrer seg med 0,02&nbsp;% over det samme arket.
         Det er derfor Lende kan bruke <em>ett</em> tall for hele arket og likevel
-        ligge rundt en meter på fem kilometer — og derfor et rullende verdenskart
-        må regne på nytt for hver piksel.
+        ligge rundt en meter på fem kilometer, mens et rullende verdenskart må ta
+        hensyn til at faktoren endrer seg underveis langs strekket.
       </p>
       <p class="text-[13px] leading-relaxed text-ink-2">
         Lende bruker UTM fordi et turkart skal være et <em>ark med fast
@@ -237,13 +239,20 @@ async function onInstallClick() {
         <strong class="text-ink">Det er altså projeksjonen som lager skjevheten,
         ikke papiret</strong> — og et norsk papirturkart har den i fullt monn, for
         det trykkes med <em>rutenettets</em> nord opp: i Finnmark peker «opp» på
-        arket nesten 20° fra sann nord. Lende gir deg papirkartets geometri uten
-        papirkartets skjevhet.
+        arket nesten 20° fra sann nord. Det er et fornuftig valg på papir, for da
+        er rutelinjene parallelle med arkkanten og lette å legge en linjal langs.
+        Lende tegner ikke noe rutenett, og har derfor råd til å bytte den fordelen
+        mot sann nord.
       </p>
+      <!-- v7.9.7: sto «under 0,4°». Målt med appens egen nordavvikDeg over et
+           16 × 16 km-ark er spredningen 0,427° i Vardø og 0,412° i Kirkenes —
+           altså gal nettopp i Finnmark, som avsnittene rundt bruker som
+           eksempel. «En halv grad» er sant overalt. Skru du tallet tilbake til
+           en desimal, mål først. -->
       <p class="text-[13px] leading-relaxed text-ink-2">
         Det er en ren rotasjon av hele arket — ikke en forvrengning. Over ett ark
         er konvergensen praktisk talt konstant — selv på det største, 16 × 16 km,
-        varierer den under 0,4° fra kant til kant — så ingen koordinat er rørt;
+        varierer den under en halv grad fra kant til kant — så ingen koordinat er rørt;
         kartet er bare snudd de få gradene det skal.
       </p>
       <p class="text-[13px] leading-relaxed text-ink-2">
@@ -298,12 +307,20 @@ async function onInstallClick() {
         femkilometer målt på arket ville vært 38 meter for lang. Hadde Vardø fått
         sin egen sone, ville avviket vært 0,01&nbsp;%.
       </p>
+      <!-- v7.9.7, to rettinger. (1) Lista er hele måleflaten, ikke bare
+           linjalen: fra v7.9.6 deler ALT som rapporterer en lengde på k — se
+           «rapporteringsgrensa» i routing.js. Legger du til et måleverktøy,
+           hører det hjemme her. (2) Spredningen sto som «under 0,04 %»; målt er
+           den 0,0416 % i Vardø på det største arket. -->
       <p class="text-[13px] leading-relaxed text-ink-2">
-        <strong class="text-ink">Derfor regner Lende det bort.</strong> Linjalen og
-        målestokk-streken deler på arkets egen punktskala, så tallene du leser er
-        bakkemeter og ikke rutemeter. Over ett ark varierer faktoren så lite — under
-        0,04&nbsp;% fra hjørne til hjørne på det største — at ett tall for hele arket
-        holder. Koordinatene er urørt: det er bare tallene som vises som er regnet om.
+        <strong class="text-ink">Derfor regner Lende det bort.</strong> Alt som
+        oppgir en lengde deler på arkets egen punktskala — linjalen og
+        målestokk-streken, stifinneren og runden, GPX-filene, høydeprofilene,
+        nærhetsvarselet, stinett-analysen, Lende-chatten og MCP-verktøyene — så
+        tallene du leser er bakkemeter og ikke rutemeter. Over ett ark varierer
+        faktoren så lite — under 0,05&nbsp;% fra hjørne til hjørne på det største —
+        at ett tall for hele arket holder. Koordinatene er urørt: det er bare
+        tallene som vises som er regnet om.
       </p>
 
       <!-- Figuren står HER og ikke før sone-avsnittene: den viser både

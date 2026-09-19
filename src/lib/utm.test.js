@@ -306,3 +306,51 @@ describe('bakkeMeter / bakkeAreal', () => {
     expect(bakkeMeter(NaN, 1.01)).toBe(0)
   })
 })
+
+// v7.9.7: «Om Lende» oppgir hvor lite konvergensen og punktskalaen varierer
+// OVER ETT ARK — det er hele begrunnelsen for at arket kan roteres med ett
+// tall og måles med ett tall. Marginene sto som «0,4°» og «0,04 %» og var
+// begge gale i Finnmark (0,427° / 0,0416 % i Vardø på det største arket).
+// Testen holder de nye marginene, så en framtidig innstramming må måles.
+describe('ark-spredning — marginene «Om Lende» oppgir (v7.9.7)', () => {
+  const STEDER = [
+    ['Oslo', 59.9139, 10.7522],
+    ['Bergen', 60.3913, 5.3221],
+    ['Trondheim', 63.4305, 10.3951],
+    ['Tromsø', 69.6492, 18.9553],
+    ['Kirkenes', 69.7273, 30.0453],
+    ['Vardø', 70.3705, 31.1107],
+  ]
+
+  // De fire hjørnene av et kvadratisk ark på `km` sider rundt (lat, lon).
+  function hjorner(lat, lon, km) {
+    const dLat = km / 2 / 111.32
+    const dLon = km / 2 / (111.32 * Math.cos((lat * Math.PI) / 180))
+    return [
+      [lat - dLat, lon - dLon], [lat - dLat, lon + dLon],
+      [lat + dLat, lon - dLon], [lat + dLat, lon + dLon],
+    ]
+  }
+
+  const spenn = (v) => Math.max(...v) - Math.min(...v)
+
+  it('konvergensen varierer under en halv grad over det største arket', () => {
+    for (const [navn, lat, lon] of STEDER) {
+      const v = spenn(hjorner(lat, lon, 16).map(([la, lo]) => nordavvikDeg(la, lo)))
+      expect(v, navn).toBeLessThan(0.5)
+      expect(v, navn).toBeGreaterThan(0) // en null-spredning ville betydd at målingen ikke måler
+    }
+  })
+
+  it('punktskalaen varierer under 0,05 % over det største arket', () => {
+    for (const [navn, lat, lon] of STEDER) {
+      const v = spenn(hjorner(lat, lon, 16).map(([la, lo]) => punktSkala(la, lo)))
+      expect(v * 100, navn).toBeLessThan(0.05)
+    }
+  })
+
+  it('over et 8 km-ark er UTM32-spredningen rundt 0,02 % i Finnmark', () => {
+    const v = spenn(hjorner(70.3705, 31.1107, 8).map(([la, lo]) => punktSkala(la, lo)))
+    expect(v * 100).toBeCloseTo(0.021, 2)
+  })
+})
