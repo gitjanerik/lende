@@ -26,6 +26,7 @@ const props = defineProps({
   nveInnsjoStatusText: { type: String, default: '' },
   turruteStatusText: { type: String, default: '' },
   n50StiStatusText: { type: String, default: '' },
+  kystStatusText: { type: String, default: '' },
   meta: { type: Object, default: null },
   openVardasen: { type: Function, required: true },
   openPerfLog: { type: Function, required: true },
@@ -254,6 +255,23 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
         <span class="text-[11px] text-right break-all"
               :class="meta?.n50StiStatus?.state === 'ok' ? 'text-ink-3' : 'text-amber-300/80'">
           {{ n50StiStatusText }}
+        </span>
+      </div>
+    </div>
+    <!-- Kyst-gaten (v7.9.3): DEM-havflate OG OSM-saltvann, begge må si ja.
+         Gaten styrer DEM-sjøen, Sjøkart-WFS og 5/10 m-oppgraderingen på én
+         gang, så et kystark uten hav er nesten alltid denne — og fram til nå
+         sto det ingen steder HVILKEN halvdel som sa nei. `minM` er tallet som
+         betyr noe: terskelen er 0,50 m, og to centimeters bom er en annen sak
+         enn tretti meters. Gul når gaten sier innland: det er ikke en feil i
+         seg selv (de fleste kart ER innland), men det er alltid svaret når
+         sjøen mangler. -->
+    <div v-if="kystStatusText" class="mb-2 px-1">
+      <div class="flex items-baseline justify-between gap-2">
+        <span class="text-ink-4 text-[11px]">Kyst-gate</span>
+        <span class="text-[11px] text-right break-all"
+              :class="meta?.kystStatus?.kyst ? 'text-ink-3' : 'text-amber-300/80'">
+          {{ kystStatusText }}
         </span>
       </div>
     </div>

@@ -45,7 +45,8 @@ describe('metaFromSvgMeta — hvitelisten', () => {
 describe('metaFromSvgMeta — diagnose-feltene Utvikler-fanen leser', () => {
   const DIAGNOSE = [
     'appVersion', 'nveInnsjoStatus', 'sjokartStatus', 'turruteStatus', 'n50VannStatus',
-    'tetthet', 'detaljNivaa', 'coastal', 'demSource', 'demResolutionM', 'depthSource',
+    'tetthet', 'detaljNivaa', 'coastal', 'kystStatus', 'demSource', 'demResolutionM',
+    'depthSource',
   ]
 
   it('bevarer verdiene i stedet for å strippe dem til null', () => {
@@ -58,9 +59,14 @@ describe('metaFromSvgMeta — diagnose-feltene Utvikler-fanen leser', () => {
       n50VannStatus: { state: 'ok', fliser: 2, flater: 41, dekning: true },
       tetthet: { indeks: 255, klasse: 'middels', fraBreddeKm: 8, tilBreddeKm: 8 },
       detaljNivaa: 'lett',
+      kystStatus: { kyst: false, laveCeller: true, minM: -0.22, celler: 271441, demKilde: 'NHM_DTM_25833', saltvann: false },
     }
     const ut = metaFromSvgMeta(raw)
     expect(ut.appVersion).toBe('5.0.3')
+    expect(ut.kystStatus).toEqual({
+      kyst: false, laveCeller: true, minM: -0.22, celler: 271441,
+      demKilde: 'NHM_DTM_25833', saltvann: false,
+    })
     expect(ut.nveInnsjoStatus).toEqual({ state: 'ok', features: 12 })
     expect(ut.turruteStatus).toEqual({ state: 'ok', ruter: 8, nye: 4 })
     expect(ut.tetthet).toEqual({ indeks: 255, klasse: 'middels', fraBreddeKm: 8, tilBreddeKm: 8 })
@@ -76,6 +82,16 @@ describe('metaFromSvgMeta — diagnose-feltene Utvikler-fanen leser', () => {
     for (const k of DIAGNOSE) {
       expect(ut[k], `${k} skal være null, ikke undefined`).toBeNull()
     }
+  })
+
+  it('kystStatus overlever hele veien fra buildSvg til meta (v7.9.3)', () => {
+    // Samme vakt som turruteStatus under. Raden i Utvikler-fanen er hele
+    // grunnen til at feltet finnes, og hvitelisten har strippet fem felter
+    // før dette uten at noe annet enn fanen merket det.
+    const status = { kyst: false, laveCeller: false, minM: 12.4, celler: 271441, demKilde: 'NHM_DTM_25832', saltvann: null }
+    const { meta } = buildSvg([], BBOX, { scaleDenom: 10000, kystStatus: status })
+    expect(meta.kystStatus).toEqual(status)
+    expect(metaFromSvgMeta(meta).kystStatus).toEqual(status)
   })
 
   it('turruteStatus overlever hele veien fra buildSvg til meta (v5.0.3)', () => {

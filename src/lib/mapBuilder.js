@@ -817,6 +817,9 @@ export function buildSvg(elements, bbox, options = {}) {
                                    // Settes av createMapFlow (DEM-havflate + OSM-kystlinje/
                                    // saltvann). Brukes av MapView til å være ærlig om at
                                    // ~0 m over en innlands-vannflate er en DEM-artefakt.
+    kystStatus = null,             // HVILKEN halvdel av kyst-gaten som svarte hva (Utvikler-
+                                   // fanen). `coastal` over er konklusjonen; denne er
+                                   // regnestykket bak den. Se createMapFlow.kystSignalFraDem.
     sjokartStatus = null,          // utfall av Sjøkart-WFS-hentingen (summarizeSjokartStatus)
     nveInnsjoStatus = null,        // utfall av NVE-innsjø-hentingen (n50Fetcher onStatus)
     turruteStatus = null,          // utfall av Turrutebasen-hentingen (turrutebasenFetcher onStatus)
@@ -2690,6 +2693,7 @@ export function buildSvg(elements, bbox, options = {}) {
       ? 'sjokart'
       : (demSeaPolygons.length > 0 ? 'dem-estimat' : 'ingen'),
     coastal,                       // kyst vs innland (se options). MapView leser denne.
+    kystStatus,                    // de to halvdelene bak `coastal` (Utvikler-fanen)
     sjokartStatus,                 // ok/tom/timeout/feil/innlands + evt. WFS-feil (Utvikler-fanen)
     nveInnsjoStatus,               // ok (N innsjøer) / feil + melding (Utvikler-fanen)
     turruteStatus,                 // ok (N ruter / M nye strekk) / feil (Utvikler-fanen)

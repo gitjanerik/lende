@@ -1,3 +1,36 @@
+## 2026-09-19 — v7.9.3: Kyst-gaten kan leses av fra telefonen
+
+Målingen fra v7.9.2 svarte: byggepipelinen lager sjø for Hamningberg. Gaten
+passerer i CI (−0,22 m laveste celle, 61 % av arket på eller under havnivå,
+59 `natural=coastline`), `seaFromDem` gir én sjøflate på hver eneste terskel
+fra 0,25 til 10 m, og et headless bygg legger `data-src="dem-sea"` i arket på
+alle tre kontrollstedene. Arket på telefonen mistet altså havet på enheten —
+et WCS- eller Overpass-glipp som gjorde `coastal` usann for det ene bygget.
+
+Det tok en full CI-runde å finne ut, og det skulle det ikke ha gjort.
+`meta.coastal` har ligget i hvert eneste ark hele tida, men vises ingen
+steder, og den bærer uansett bare KONKLUSJONEN. Gaten er to uavhengige
+halvdeler — havflate-piksler i DEM-en OG saltvann i OSM — og et kystark uten
+sjø ser nøyaktig likt ut uansett hvilken av dem som sa nei. Utvikler-fanen har
+nå raden «Kyst-gate», som sier begge deler: konklusjonen, om DEM-en fant
+havflate og hvor lavt den faktisk kom, om OSM ble spurt om saltvann og hva den
+svarte, og om probe-DEM-et var syntetisk — for da har WCS feilet, og resten av
+raden er oppdiktet.
+
+`minM` er tallet som gjør raden verdt å ha. Terskelen er 0,50 m, og en DEM som
+bommer med to centimeter er en helt annen sak enn en som ligger tretti meter
+over; boolsken alene skiller dem ikke. Den koster et fullt sveip over
+probe-DEM-et der den gamle kortsluttet på første treff — én gang per bygg, på
+~271 000 celler, altså under et millisekund. `saltvann` blir stående null når
+DEM-halvdelen kortslutter: vi spurte aldri, og «nei» ville vært en påstand vi
+ikke har dekning for. Regelen bor i `kystSignalFraDem`, som er ren og testet.
+
+Feltet må inn i hvitelisten i `metaFromSvgMeta` for å overleve fram til fanen
+— den har strippet fem felter før dette — så det står der, med en egen
+regresjonstest ved siden av den for `turruteStatus`.
+
+---
+
 ## 2026-09-19 — v7.9.2: En måling for kystark uten sjø
 
 Hamningberg på Varangerhalvøya tegnes uten hav: terreng, relieff og
