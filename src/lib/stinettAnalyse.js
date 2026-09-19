@@ -19,6 +19,7 @@
 import { buildRoutingGraph } from './routing.js'
 import { parsePathSubpaths, polylineLength } from './pathUtils.js'
 import { sampleProfile } from './elevationProfile.js'
+import { bakkeMeter } from './utm.js'
 import { nestedSvgOffset } from './svgNestedOffset.js'
 
 export const STI_KODER = new Set(['505', '506', '507', '504'])
@@ -285,12 +286,18 @@ function movingAverage(arr, window) {
  * mcp/headless.routableFeaturesFromSvg — koder utenfor STI/KOBLER ignoreres).
  *
  * @param {Array<{coordinates: Array<[number,number]>, isomCode: string}>} features
+ * v7.9.6: alle MÅLTE lengder rapporteres i bakkemeter (`punktSkala`). Selve
+ * grafen, Dijkstra-vektene og tersklene blir stående i UTM-RUTEmeter — de
+ * sammenliknes mot geometrien. Tersklene som ECHOES tilbake (`minTurM`,
+ * `minKomponentM`) er kallerens egne tall og regnes derfor ikke om: et ekko
+ * som ikke er lik det som ble sendt inn, er verre enn et ekko i «feil» enhet.
+ *
  * @param {{ dem?: object|null, arealKm2: number, minTurM?: number,
- *           maksKoblerM?: number, snapM?: number }} opts
+ *           maksKoblerM?: number, snapM?: number, punktSkala?: number }} opts
  * @returns {{ stinett: object, lengsteVandringM: number, turer: Array<object> }}
  */
 export function analyserStinett(features, opts = {}) {
-  const { dem = null, arealKm2 = 0, minTurM = 500, maksKoblerM = 300, snapM = 6 } = opts
+  const { dem = null, arealKm2 = 0, minTurM = 500, maksKoblerM = 300, snapM = 6, punktSkala = 1 } = opts
 
   const brukbare = (features ?? []).filter(
     (f) => STI_KODER.has(f.isomCode) || KOBLER_KODER.has(f.isomCode),
@@ -472,16 +479,19 @@ export function analyserStinett(features, opts = {}) {
   kandidatTurer.sort((x, y) => y.lengdeM - x.lengdeM)
   const turer = kandidatTurer.slice(0, MAKS_TURER).map((t) => {
     const c = t.coordinates
+    // MERK: `pointAtDistance` interpolerer i SVG-koordinater, altså rutemeter,
+    // så den MÅ fôres med den uomregnede halvlengden. Omregningen skjer i
+    // feltet som rapporteres, etterpå.
     const tur = {
       type: t.type,
-      lengdeM: t.lengdeM,
+      lengdeM: bakkeMeter(t.lengdeM, punktSkala),
       coordinates: c,
       startXY: c[0],
       sluttXY: c[c.length - 1],
       viaXY: pointAtDistance(c, t.lengdeM / 2),
     }
     if (dem) {
-      const profil = sampleProfile({ points: c.map(([x, y]) => ({ x, y })) }, dem)
+      const profil = sampleProfile({ points: c.map(([x, y]) => ({ x, y })) }, dem, punktSkala)
       if (profil) {
         tur.stigningM = Math.round(profil.totalAscent)
         tur.fallM = Math.round(profil.totalDescent)
@@ -497,16 +507,16 @@ export function analyserStinett(features, opts = {}) {
 
   return {
     stinett: {
-      totalStiM,
-      koblerM,
+      totalStiM: bakkeMeter(totalStiM, punktSkala),
+      koblerM: bakkeMeter(koblerM, punktSkala),
       inkluderteKomponenter: inkluderte.size,
       ekskluderteKomponenter: ekskluderte,
-      ekskludertM,
+      ekskludertM: bakkeMeter(ekskludertM, punktSkala),
       minKomponentM: terskelM,
-      tetthetKmPerKm2: arealKm2 > 0 ? altStiM / 1000 / arealKm2 : null,
+      tetthetKmPerKm2: arealKm2 > 0 ? bakkeMeter(altStiM, punktSkala) / 1000 / arealKm2 : null,
       arealKm2: arealKm2 > 0 ? arealKm2 : null,
     },
-    lengsteVandringM,
+    lengsteVandringM: bakkeMeter(lengsteVandringM, punktSkala),
     minTurM,
     turer,
   }

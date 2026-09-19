@@ -15,7 +15,7 @@
 import { geocodePlace } from './geocode.js'
 import { listMaps, loadMap, listGravelRoutes } from './mapStorage.js'
 import { buildSearchIndex, filterIndex, formatAreaShort, foldName } from '../composables/useMapSearch.js'
-import { svgToWgs84, wgs84ToSvg } from './utm.js'
+import { svgToWgs84, wgs84ToSvg, punktSkalaForMeta } from './utm.js'
 import { tilesAreGridCompatible, tileOffset } from './tileCache.js'
 import { unpackDem, realElevationAt } from './demSampling.js'
 import {
@@ -1271,6 +1271,7 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
           minTurM: Number.isFinite(minTurKm)
             ? Math.min(Math.max(minTurKm, 0.5), 20) * 1000
             : 500,
+          punktSkala: punktSkalaForMeta(m),
         })
         return {
           kart: kart.navn ?? id,
@@ -1499,6 +1500,10 @@ export function forhaandsberegnTur({ svgEl, meta, dem = null, punkter, isLoop = 
     elevationAt: realElevationAt(dem),
     barriers: stinettFeaturesFromSvgEl(svgEl, new Set(Object.keys(BARRIER_CODES))),
     kostnad: kostnadsFaktorer(pref),
+    // v7.9.6: `r.lengthM` under er dermed bakkemeter, som Stifinnerens egen
+    // graf og linjalen. Snap-avstandene (`n.distM`, MAX_SNAP_M, FAR_SNAP_M) er
+    // bevisst IKKE omregnet — de måles mot geometrien, som er rutemeter.
+    punktSkala: punktSkalaForMeta(meta),
   })
   const ruteOpts = erNoytral(pref) ? { k: 3 } : { k: 3, vektAttr: 'costNoMw' }
 
@@ -1534,7 +1539,7 @@ export function forhaandsberegnTur({ svgEl, meta, dem = null, punkter, isLoop = 
 
   const rute = { lengdeKm: +(r.lengthM / 1000).toFixed(1) }
   const profil = dem
-    ? sampleProfile({ points: r.coordinates.map(([x, y]) => ({ x, y })) }, dem)
+    ? sampleProfile({ points: r.coordinates.map(([x, y]) => ({ x, y })) }, dem, punktSkalaForMeta(meta))
     : null
   if (profil) {
     rute.stigningM = Math.round(profil.totalAscent)

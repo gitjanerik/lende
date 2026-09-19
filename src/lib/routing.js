@@ -12,6 +12,7 @@ import Graph from 'graphology'
 import { dijkstra } from 'graphology-shortest-path'
 import RBush from 'rbush'
 import { polylineLength } from './pathUtils.js'
+import { bakkeMeter } from './utm.js'
 
 // Kostnadsfaktor pr ISOM-kode. Større = mindre attraktiv som rute.
 //
@@ -226,12 +227,13 @@ function pathUsesCode(g, nodeIds, code) {
  *          gapBridgeM?: number, componentBridgeM?: number,
  *          gapMaxSlopePct?: number, gapObstacleMinM?: number,
  *          kostnad?: Record<string, number>,
+ *          punktSkala?: number,
  *          elevationAt?: (x:number,y:number)=>number,
  *          barriers?: Array<{coordinates: Array<[number,number]>, isomCode: string}> }} opts
  * @returns {RoutingGraph}
  */
 export function buildRoutingGraph(features, opts = {}) {
-  const { snapM = 2, projectFn, kostnad = null } = opts
+  const { snapM = 2, projectFn, kostnad = null, punktSkala = 1 } = opts
   const g = new Graph({ multi: false, type: 'undirected' })
   const nodeIndex = new RBush()
 
@@ -743,6 +745,18 @@ export function buildRoutingGraph(features, opts = {}) {
     return best ? { id: best.id, pos: best.pos, distM: Math.sqrt(bestD) } : null
   }
 
+  // v7.9.6: `route()` er GRAFENS ENESTE RAPPORTERINGSGRENSE, og derfor det
+  // eneste stedet punktskalaen slår inn. Alt annet her — kantvektene,
+  // snapM/MAX_SNAP_M, gapBridgeM, gapObstacleMinM, `distanceWithin` — blir
+  // stående i UTM-RUTEmeter, fordi de sammenliknes mot GEOMETRIEN, som er i
+  // rutemeter. En terskel i bakkemeter mot en geometri i rutemeter er to
+  // enheter i samme ulikhet, og den feilen ville flyttet hvilke hull som
+  // brolegges i Finnmark.
+  //
+  // Rutevalget er PER KONSTRUKSJON urørt: k er én konstant over hele arket, og
+  // en konstant faktor på alle kandidater endrer ikke hvilken som er minst.
+  // `coordinates` er også urørt — de er SVG-koordinater, og en forbruker som
+  // tegner dem eller slår opp i DEM-et trenger rutemeter.
   function route(fromId, toId, weight = 'cost') {
     if (!fromId || !toId || !g.hasNode(fromId) || !g.hasNode(toId)) return null
     const path = dijkstra.bidirectional(g, fromId, toId, weight)
@@ -753,7 +767,12 @@ export function buildRoutingGraph(features, opts = {}) {
     for (let i = 0; i + 1 < path.length; i++) {
       costM += g.getEdgeAttribute(path[i], path[i + 1], 'cost')
     }
-    return { coordinates: coords, lengthM, costM, nodeIds: path }
+    return {
+      coordinates: coords,
+      lengthM: bakkeMeter(lengthM, punktSkala),
+      costM: bakkeMeter(costM, punktSkala),
+      nodeIds: path,
+    }
   }
 
   return {
@@ -765,6 +784,10 @@ export function buildRoutingGraph(features, opts = {}) {
     // Norsk grunn, eller null. Delt med sti-vandringens hull-hopp.
     gapObstacle,
     edges: g.size, nodes: g.order,
+    // Punktskalaen grafen ble bygd med. Kallere som rapporterer EGNE
+    // avstander (stinett-analysen, brudd-diagnosen) leser den herfra, så de
+    // ikke kan komme i utakt med `route()`.
+    punktSkala,
   }
 }
 

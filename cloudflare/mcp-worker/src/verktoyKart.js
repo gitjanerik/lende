@@ -13,7 +13,7 @@ import {
 import { buildRoutingGraph, planRoutes, planRoutesThrough, planLoop, RUTE_GRAF_OPTS } from '../../../src/lib/routing.js'
 import { analyserStinett, formatStinettSvar } from '../../../src/lib/stinettAnalyse.js'
 import { finnStinettBrudd, formatBruddSvar } from '../../../src/lib/stinettBrudd.js'
-import { wgs84ToSvg, svgToWgs84 } from '../../../src/lib/utm.js'
+import { wgs84ToSvg, svgToWgs84, punktSkalaForMeta } from '../../../src/lib/utm.js'
 import { sampleProfile } from '../../../src/lib/elevationProfile.js'
 import { sampleElevation, realElevationAt } from '../../../src/lib/demSampling.js'
 import { buildRouteGpx } from '../../../src/lib/gpxExport.js'
@@ -40,12 +40,20 @@ export function svgMeta(meta) {
   return { minE: meta.utmBbox.minE, minN: meta.utmBbox.minN, widthM: meta.widthM, heightM: meta.heightM }
 }
 
+// v7.9.6: UTM-punktskalaen for arkets senter — rutemeter per bakkemeter.
+// SVG-rommet er UTM32-RUTEmeter, og i Øst-Finnmark leser det 0,77 % for langt.
+// Alle AVSTANDER verktøyene rapporterer deles på denne, så remote-flaten svarer
+// identisk med stdio-serveren og med linjalen i appen. Geometrien er urørt.
+export function kartSkala(meta) {
+  return punktSkalaForMeta(svgMeta(meta))
+}
+
 function insideMap(meta, p) {
   return p.x >= 0 && p.y >= 0 && p.x <= meta.widthM && p.y <= meta.heightM
 }
 
-export function climbFor(dem, coordinates) {
-  const profile = sampleProfile({ points: coordinates.map(([x, y]) => ({ x, y })) }, dem)
+export function climbFor(dem, coordinates, punktSkala = 1) {
+  const profile = sampleProfile({ points: coordinates.map(([x, y]) => ({ x, y })) }, dem, punktSkala)
   return profile
     ? { ascent: Math.round(profile.totalAscent), descent: Math.round(profile.totalDescent) }
     : null
@@ -74,11 +82,11 @@ function tour3dUrlFor(kart, tour) {
 
 // `dem` er valgfri, men bør sendes: uten den mister hull-broingen terreng-
 // regelen og kan dikte seg over et stup (v5.6.0). Syntetisk DEM ignoreres.
-export function byggGraf(svg, dem = null) {
+export function byggGraf(svg, dem = null, punktSkala = 1) {
   const { features, barriers } = graphInputFromSvg(svg)
   if (!features.length) throw new Error('Kartet inneholder ingen stier eller veier å rute på.')
   return buildRoutingGraph(features, {
-    ...RUTE_GRAF_OPTS, elevationAt: realElevationAt(dem), barriers,
+    ...RUTE_GRAF_OPTS, elevationAt: realElevationAt(dem), barriers, punktSkala,
   })
 }
 
@@ -108,8 +116,12 @@ export async function svgForOutput(env, kartRef, svg) {
 }
 
 function ruteSvar(found, meta, dem) {
+  // `r.lengthM` er alt bakkemeter (grafen ble bygd med punktskalaen), så
+  // høydeprofilen må måles med den SAMME — ellers ville gangtiden her blandet
+  // en bakkelengde med en rutelengde.
+  const k = punktSkalaForMeta(meta)
   return found.map((r, i) => {
-    const climb = climbFor(dem, r.coordinates)
+    const climb = climbFor(dem, r.coordinates, k)
     const min = r.lengthM / (4000 / 60) + (climb?.ascent ?? 0) / 10 + (climb?.descent ?? 0) / 30
     return {
       indeks: i,
@@ -233,7 +245,7 @@ export function registerKartVerktoy(server, ctx) {
     async ({ kartRef, start, maal, via, maalNavn }) => {
       const kart = await kreveKart(env, kartRef)
       const meta = svgMeta(kart.meta)
-      const rg = byggGraf(kart.svg, kart.dem)
+      const rg = byggGraf(kart.svg, kart.dem, kartSkala(kart.meta))
       const viaPts = via ?? []
       const snaps = snapPunkter(rg, { ...meta, widthM: kart.meta.widthM, heightM: kart.meta.heightM },
         [start, ...viaPts, maal])
@@ -279,7 +291,7 @@ export function registerKartVerktoy(server, ctx) {
     async ({ kartRef, origo, via, tegnSvg, ruteIndeks, origoNavn }) => {
       const kart = await kreveKart(env, kartRef)
       const meta = svgMeta(kart.meta)
-      const rg = byggGraf(kart.svg, kart.dem)
+      const rg = byggGraf(kart.svg, kart.dem, kartSkala(kart.meta))
       const snaps = snapPunkter(rg, { ...meta, widthM: kart.meta.widthM, heightM: kart.meta.heightM },
         [origo, ...via])
       const loops = planLoop(rg, snaps[0].node.id, snaps.slice(1).map(s => s.node.id))
@@ -356,6 +368,7 @@ export function registerKartVerktoy(server, ctx) {
         arealKm2: (kart.meta.widthM * kart.meta.heightM) / 1e6,
         minTurM: minTurKm * 1000,
         maksKoblerM,
+        punktSkala: kartSkala(kart.meta),
       })
       return jsonResult({
         status: 'ok',
@@ -398,6 +411,7 @@ export function registerKartVerktoy(server, ctx) {
       const res = finnStinettBrudd(features, {
         maksHullM, minOmveiM, maksTreff, barriers,
         elevationAt: realElevationAt(kart.dem),
+        punktSkala: kartSkala(kart.meta),
       })
       return jsonResult({
         status: 'ok',
@@ -430,7 +444,7 @@ export function registerKartVerktoy(server, ctx) {
         return { x: s.x, y: s.y }
       })
       if (!points.every(p => insideMap(kart.meta, p))) throw new Error('Minst ett punkt ligger utenfor kartet.')
-      const profile = sampleProfile({ points }, kart.dem)
+      const profile = sampleProfile({ points }, kart.dem, kartSkala(kart.meta))
       if (!profile) throw new Error('Klarte ikke å sample profil (mangler DEM?).')
       return jsonResult({
         status: 'ok',

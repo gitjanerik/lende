@@ -41,7 +41,7 @@ import ZoomSkyv from '../kontroller/ZoomSkyv.vue'
 import { blikkHoydeGrenserFullt } from '../../lib/tour3d/freeRig.js'
 import { zoomBroek, zoomFraBroek } from '../../lib/navKontroller.js'
 import { lesPinPrefs, skrivPinPrefs, paaGrupper } from '../../lib/tour3d/pinPrefs.js'
-import { svgToWgs84 } from '../../lib/utm.js'
+import { svgToWgs84, punktSkalaForMeta } from '../../lib/utm.js'
 import { fetchVarsel, naaVarsel } from '../../lib/vaerFetcher.js'
 import { vaerTilHimmel } from '../../lib/tour3d/vaerHimmel.js'
 import { DEMO_STEG, DEMO_SEKUNDER, demoMaling } from '../../lib/tour3d/vaerDemo.js'
@@ -517,9 +517,13 @@ async function byggMotor() {
     const t = props.tour ? toRaw(props.tour) : null
     if (t?.route?.coordinates?.length >= 2) {
       const via = (t.via ?? []).map(v => ({ svgX: v.svgX, svgY: v.svgY }))
+      // v7.9.6: `t.route.lengthM` er bakkemeter (grafen ble bygd med
+      // punktskalaen), så profilen MÅ samples med den samme — ellers ville
+      // koreografien blandet en bakkelengde med en profil i rutemeter.
       const profile = sampleProfile(
         { points: t.route.coordinates.map(c => ({ x: c[0], y: c[1] })) },
         dem,
+        punktSkalaForMeta(props.meta),
       )
       tourOpts = {
         route: { coordinates: t.route.coordinates, lengthM: t.route.lengthM },

@@ -1,4 +1,5 @@
 import { ref, reactive, watch, onUnmounted } from 'vue'
+import { bakkeMeter } from '../lib/utm.js'
 
 const KEY = 'lende-proximity'
 const ACTIVE_KEY = 'lende-proximity-active'
@@ -51,7 +52,13 @@ export function shouldFire(dist, distanceM) {
  *
  * @param {() => ({ svgX, svgY, isWatching }|null)} getUserPos
  */
-export function useProximityAlert(getUserPos) {
+// v7.9.6: `getPunktSkala` er en GETTER og ikke en verdi — arket kan byttes mens
+// et varsel står armet (naboflis, nytt kart), og k følger arkets senter.
+// DISTANCE_OPTIONS er BAKKEmeter (det er slik brukeren leser «10 m»), mens
+// svgX/svgY er UTM-RUTEmeter, så avlesningen MÅ regnes om før den møter
+// terskelen. Uten omregningen gikk alarmen for tidlig: i Vardø er 10 rutemeter
+// 9,92 bakkemeter.
+export function useProximityAlert(getUserPos, getPunktSkala) {
   const prefsRaw = loadPrefs()
   const prefs = reactive({
     distanceM: DISTANCE_OPTIONS.includes(prefsRaw.distanceM) ? prefsRaw.distanceM : 10,
@@ -162,7 +169,8 @@ export function useProximityAlert(getUserPos) {
     if (!a) return
     const pos = getUserPos?.()
     if (pos && pos.isWatching && pos.svgX != null && pos.svgY != null) {
-      currentDistanceM.value = Math.hypot(a.svgX - pos.svgX, a.svgY - pos.svgY)
+      const rute = Math.hypot(a.svgX - pos.svgX, a.svgY - pos.svgY)
+      currentDistanceM.value = bakkeMeter(rute, getPunktSkala?.() ?? 1)
     } else {
       currentDistanceM.value = null
     }

@@ -20,6 +20,9 @@ defineProps({
   copyState: { type: String, default: 'idle' },
   showGpsTip: { type: Boolean, default: false },
   dismissGpsTip: { type: Function, required: true },
+  // v7.9.6: rutemeter per bakkemeter for arket. Sporene er lagret i SVG-rom,
+  // altså rutemeter, og uten denne leser lista 0,77 % for langt i Øst-Finnmark.
+  punktSkala: { type: Number, default: 1 },
 })
 const expandedTrackId = defineModel('expandedTrackId', { default: null })
 
@@ -127,7 +130,7 @@ function formatDuration(ms) {
                   class="ml-1 text-pink-300 text-[10px] uppercase">● opptak</span>
           </div>
           <div class="text-[10px] text-ink-4 tabular-nums">
-            {{ formatDistance(trackLengthM(tr)) }} ·
+            {{ formatDistance(trackLengthM(tr, punktSkala)) }} ·
             {{ formatDuration(trackDurationMs(tr)) }} ·
             {{ tr.points.length }} punkter
           </div>

@@ -23,6 +23,7 @@ import RBush from 'rbush'
 import {
   buildRoutingGraph, projectPointOnSegment, gapSlopePct, RUTE_GRAF_OPTS,
 } from './routing.js'
+import { bakkeMeter } from './utm.js'
 
 // Over dette taket slutter vi å lete etter den EKTE omveien og rapporterer
 // «ingen praktisk vei» — en omvei på 20 km er uansett ikke en rute noen går.
@@ -49,7 +50,15 @@ export function finnStinettBrudd(features, opts = {}) {
     elevationAt,
     barriers,
     grafOpts = RUTE_GRAF_OPTS,
+    punktSkala = 1,
   } = opts
+
+  // v7.9.6: `maksHullM`, `minOmveiM` og `MAKS_MAALT_OMVEI_M` blir stående i
+  // UTM-RUTEmeter — de sammenliknes mot geometrien, som er i rutemeter, og er
+  // dessuten de samme tersklene ruteren selv bruker. Det er `hullM` og
+  // `omveiM` som RAPPORTERES, og de MÅ havne i SAMME enhet: et hull i
+  // bakkemeter ved siden av en omvei i rutemeter er et forholdstall som lyver.
+  // `forholdstall` regnes derfor av de urørte rutemeterne — k stryker mot k.
 
   // elevationAt og barriers sendes videre til grafen, så bratte hull og hull
   // over hovedvei/jernbane/vann står igjen som brudd her (det er nettopp de vi
@@ -110,8 +119,8 @@ export function finnStinettBrudd(features, opts = {}) {
     const stortNok = bestD >= (grafOpts.gapObstacleMinM ?? RUTE_GRAF_OPTS.gapObstacleMinM)
     brudd.push({
       barriere: stortNok ? rg.barrierCrossed(d.pos, best.proj.point) : null,
-      hullM: rund(bestD, 1),
-      omveiM: Number.isFinite(ekte) ? Math.round(ekte) : null,
+      hullM: rund(bakkeMeter(bestD, punktSkala), 1),
+      omveiM: Number.isFinite(ekte) ? Math.round(bakkeMeter(ekte, punktSkala)) : null,
       forholdstall: Number.isFinite(ekte) && bestD > 0 ? Math.round(ekte / bestD) : null,
       hellingPct: helling === null ? null : Math.round(helling),
       x: d.pos[0], y: d.pos[1],
