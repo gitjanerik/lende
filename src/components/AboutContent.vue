@@ -165,9 +165,8 @@ async function onInstallClick() {
         Prisen for at rotasjon er skrudd på, er at telefonen kan snu når du ikke
         vil — typisk når du går med den i hånda. Vil du unngå det, lås
         skjermretningen i telefonens egne hurtiginnstillinger; Lende følger
-        låsen. Vi lar altså <em>deg</em> bestemme framfor å bestemme for deg:
-        en app som er låst til én retning stenger ute den som ikke kan holde
-        telefonen den veien.
+        låsen. Vi lar altså <em>deg</em> bestemme: kan du ikke holde
+        telefonen den ene veien, skal appen følge deg.
       </p>
       <p class="text-[13px] leading-relaxed text-ink-2">
         <strong class="text-ink">Tekststørrelse</strong> settes i hovedmenyen
@@ -368,8 +367,9 @@ async function onInstallClick() {
             Et ISOM 2017-2-inspirert sportskart som bygges på sekunder for et
             hvilket som helst punkt i Norge. Terreng, vann, vegetasjon, stier og
             veier settes sammen til ett lesbart turkart i print-kvalitet — og
-            hele kartet er <strong class="text-ink">vektor</strong> (SVG),
-            så det er knivskarpt uansett zoom og klar for utskrift i 1:10 000.
+            hele kartet er <strong class="text-ink">vektor</strong> (SVG) —
+            alt unntatt det mjuke relieffet, som er et bilde — så det er
+            knivskarpt uansett zoom og klar for utskrift i 1:10 000.
           </p>
         </div>
         <div class="space-y-2">
@@ -512,15 +512,22 @@ async function onInstallClick() {
               bakt katalog på 191 av de klareste fra
               <strong class="text-ink">HYG</strong> (Hipparcos + Yale), flyttet
               fra J2000 til i kveld med presesjon.</li>
+            <!-- v7.9.8: sto «stjernene til under ett buesekund». Det finnes ingen
+                 uavhengig stjerne-fasit i repoet — bare planetene (25 punkter mot
+                 astronomy-engine, planeter.test.js) og soltidene (mot Yr) er ankret
+                 mot en annen implementasjon. Presesjonstesten er ankret i GEOMETRI,
+                 ikke i en fasit. Skal tallet tilbake, må fasiten bakes inn først. -->
             <li>Sol, måne, månefase og lyssidens retning kommer fra Meeus'
               <em>Astronomical Algorithms</em>; planetene fra
               <strong class="text-ink">JPL</strong>s baneelementer løst med
-              Keplers likning. Alt er sammenliknet mot uavhengige
-              implementasjoner — stjernene til under ett buesekund, planetene til
-              noen få bueminutter.</li>
+              Keplers likning. Planetene er sammenliknet mot en uavhengig
+              implementasjon og stemmer til noen få bueminutter. Stjernene er
+              HYGs egne koordinater, flyttet til i kveld med Meeus' rigorøse
+              presesjonsformel.</li>
             <li>Globene bruker overflatekart fra
-              <strong class="text-ink">NASA</strong> og
-              <strong class="text-ink">USGS</strong>, og lyses opp av et ekte
+              <strong class="text-ink">NASA</strong>,
+              <strong class="text-ink">USGS</strong> og
+              <strong class="text-ink">Solar System Scope</strong>, og lyses opp av et ekte
               lys fra solas virkelige retning, så skyggelinja ikke er en tegning.
               Mangler et bilde, tegnes kula i legemets egen farge med samme lys og
               samme stedsnavn — og gassplanetenes bånd tegnes lokalt, så Jupiter
@@ -531,7 +538,7 @@ async function onInstallClick() {
           <h3 class="text-sm font-semibold text-ink">3D-visning av tur</h3>
           <p class="text-[13px] leading-relaxed text-ink-2">
             Velg en rute med stifinneren eller en rundtur, og trykk
-            <strong class="text-ink">3D-knappen ved startpunktet</strong>:
+            <strong class="text-ink">3D-knappen i kartet</strong>:
             turen spilles av som en flytur over ekte terreng. Det er samme
             3D-visning som kartet åpner — turen står bare klar i kameraet fra
             start. Kameraet følger turpunktet mens den ruller, og du styrer
@@ -579,10 +586,10 @@ async function onInstallClick() {
               og korteste vei beregnes over den.</li>
             <li><strong class="text-ink">BRouter</strong> gir grus-vennlig ruting der
               nettet er godt kartlagt, med et grus-overlegg som farger underlaget.
-              Dette er den ene funksjonen i appen som spør en tredjepart: start-,
-              via- og målpunktene sendes til <em>brouter.de</em> når du ber om en
-              rute. Selve profilen (hvor gjerne ruten velger grus) er vår egen og
-              lastes opp med forespørselen.</li>
+              Punktene du setter — start, via og mål — sendes til
+              <em>brouter.de</em> når du ber om en rute. Selve profilen (hvor
+              gjerne ruten velger grus) er vår egen og lastes opp med
+              forespørselen.</li>
             <li>Høydeprofilen leses ut av samme DEM som turkartet, og hele ruten kan
               gjøres om til et turkart sentrert på strekket.</li>
           </ul>
