@@ -4,7 +4,7 @@
 // GPX-spec: https://www.topografix.com/GPX/1/1/ — standardisert XML-format
 // støttet av Strava, Komoot, Garmin, Suunto m.fl.
 
-import { svgToWgs84 } from './utm.js'
+import { svgToWgs84, bakkeMeter } from './utm.js'
 
 function escapeXml(s) {
   return String(s).replace(/[&<>"']/g, c => ({
@@ -130,10 +130,17 @@ export function downloadGpx(track, meta, mapName, fileName) {
 }
 
 /**
- * Beregn total løpelengde i meter (sum av segment-distanser i SVG-rom,
- * der 1 unit = 1 m).
+ * Beregn total løpelengde i BAKKEmeter (v7.9.6).
+ *
+ * Summen gjøres i SVG-rom, som er UTM-RUTEmeter (1 unit = 1 rutemeter), og
+ * deles så på punktskalaen k. Se `punktSkala` i utm.js: koordinatrommet er
+ * urørt, bare tallet som vises er regnet om. Uten k er svaret rutemeter, som
+ * før — et spor uten ark å måle mot skal ikke gjette.
+ *
+ * @param {{points: Array<{x:number,y:number}>}} track
+ * @param {number} [punktSkala=1] rutemeter per bakkemeter for arkets senter
  */
-export function trackLengthM(track) {
+export function trackLengthM(track, punktSkala = 1) {
   const pts = track?.points
   if (!pts || pts.length < 2) return 0
   let sum = 0
@@ -142,7 +149,7 @@ export function trackLengthM(track) {
     const dy = pts[i].y - pts[i - 1].y
     sum += Math.hypot(dx, dy)
   }
-  return sum
+  return bakkeMeter(sum, punktSkala)
 }
 
 /**

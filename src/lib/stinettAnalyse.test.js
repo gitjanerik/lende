@@ -396,3 +396,47 @@ describe('fjernIsolerteStumper', () => {
     expect(fjernIsolerteStumper(alle, { minKomponentM: 0 })).toHaveLength(2)
   })
 })
+
+describe('analyserStinett — punktskala (v7.9.6)', () => {
+  const K = 1.00769
+  // En Y med to lange armer, så det blir både en vandring og en tur å måle.
+  const nett = () => [
+    sti([[0, 0], [2000, 0]]),
+    sti([[2000, 0], [4000, 0]]),
+    sti([[2000, 0], [2000, 1500]]),
+  ]
+
+  it('rapporterer sti-meterne i bakkemeter', () => {
+    const raa = analyserStinett(nett(), { arealKm2: 25 })
+    const res = analyserStinett(nett(), { arealKm2: 25, punktSkala: K })
+    expect(res.stinett.totalStiM).toBeCloseTo(raa.stinett.totalStiM / K, 3)
+    expect(res.lengsteVandringM).toBeCloseTo(raa.lengsteVandringM / K, 3)
+    expect(res.stinett.tetthetKmPerKm2).toBeCloseTo(raa.stinett.tetthetKmPerKm2 / K, 6)
+  })
+
+  it('turene måles i bakkemeter, men hand-off-koordinatene er urørt', () => {
+    const raa = analyserStinett(nett(), { arealKm2: 25 })
+    const res = analyserStinett(nett(), { arealKm2: 25, punktSkala: K })
+    expect(res.turer.length).toBe(raa.turer.length)
+    expect(res.turer[0].lengdeM).toBeCloseTo(raa.turer[0].lengdeM / K, 3)
+    // `pointAtDistance` interpolerer i SVG-rom — via-punktet skal ikke flytte seg.
+    expect(res.turer[0].viaXY).toEqual(raa.turer[0].viaXY)
+    expect(res.turer[0].startXY).toEqual(raa.turer[0].startXY)
+    expect(res.turer[0].coordinates).toEqual(raa.turer[0].coordinates)
+  })
+
+  it('uten punktskala er svaret identisk med før', () => {
+    expect(analyserStinett(nett(), { arealKm2: 25, punktSkala: 1 }))
+      .toEqual(analyserStinett(nett(), { arealKm2: 25 }))
+  })
+
+  it('minTurM og minKomponentM er TERSKLER og blir stående i rutemeter', () => {
+    // Samme nett, samme terskel: en terskel omregnet til bakkemeter ville
+    // sluppet gjennom eller kuttet en annen tur med k = 1,00769.
+    const raa = analyserStinett(nett(), { arealKm2: 25 })
+    const res = analyserStinett(nett(), { arealKm2: 25, punktSkala: K })
+    expect(res.minTurM).toBe(raa.minTurM)
+    expect(res.stinett.minKomponentM).toBe(raa.stinett.minKomponentM)
+    expect(res.stinett.inkluderteKomponenter).toBe(raa.stinett.inkluderteKomponenter)
+  })
+})

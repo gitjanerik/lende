@@ -13,6 +13,9 @@ const { uiTextScale } = useUiTextScale()
 defineProps({
   track: { type: Object, default: null },     // { id, navn, opprettet, points }
   profile: { type: Object, default: null },   // profileFor(track)-resultat; null → utilgjengelig
+  // v7.9.6: rutemeter per bakkemeter. MÅ være den samme som `profile` ble
+  // samplet med, ellers spriker overskriftens lengde fra profilens x-akse.
+  punktSkala: { type: Number, default: 1 },
 })
 defineEmits(['close'])
 
@@ -70,7 +73,7 @@ function formatDuration(ms) {
           {{ track.navn || new Date(track.opprettet).toLocaleDateString('no-NO', { day: '2-digit', month: 'short', year: 'numeric' }) }}
         </div>
         <div class="text-[11px] text-ink-3 tabular-nums">
-          {{ formatDistance(trackLengthM(track)) }} ·
+          {{ formatDistance(trackLengthM(track, punktSkala)) }} ·
           {{ formatDuration(trackDurationMs(track)) }} ·
           {{ track.points.length }} punkter
         </div>

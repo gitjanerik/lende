@@ -27,7 +27,7 @@ import {
 import { extractMapPoiFromSvg } from '../../../mcp/headless.js'
 import redListLookup from '../../../public/data/redlist-no.json' with { type: 'json' }
 import {
-  jsonResult, svgMeta, climbFor, byggGraf, snapPunkter, kreveKart, svgForOutput,
+  jsonResult, svgMeta, climbFor, byggGraf, snapPunkter, kreveKart, svgForOutput, kartSkala,
 } from './verktoyKart.js'
 import { lagreUtdata, lagreInnstillinger, lastInnstillinger } from './kartlager.js'
 
@@ -89,7 +89,7 @@ function mapHydroStation(st, { distM, alongM, latest }) {
 // Rute gjennom [start, ...via, maal] på et lastet kart. Som stdio-serverens
 // planThrough, men grafen bygges per kall (tilstandsløst).
 function planGjennom(kart, punkter) {
-  const rg = byggGraf(kart.svg, kart.dem)
+  const rg = byggGraf(kart.svg, kart.dem, kartSkala(kart.meta))
   const meta = svgMeta(kart.meta)
   const snaps = snapPunkter(rg, meta, punkter)
   const found = planRoutesThrough(rg, snaps.map(s => s.node.id))
@@ -156,7 +156,7 @@ export function registerRapportVerktoy(server, ctx) {
       const kart = await kreveKart(env, kartRef)
       const { found, sel, route, enrichment } = await planOgBerik(
         kart, [start, ...(via ?? []), maal], { bufferM })
-      const climb = climbFor(kart.dem, route)
+      const climb = climbFor(kart.dem, route, kartSkala(kart.meta))
       return jsonResult({
         status: 'ok',
         kartRef,
@@ -228,13 +228,13 @@ export function registerRapportVerktoy(server, ctx) {
       // Høydeprofil + sti-kryss-varsler. POI-ene har transform-korrekte
       // posisjoner (bedre kryss-anker enn rå <text>-x/y); faller tilbake til
       // alle tekst-etiketter om ingen POI finnes.
-      const profile = sampleProfile({ points: route.map(([x, y]) => ({ x, y })) }, kart.dem)
+      const profile = sampleProfile({ points: route.map(([x, y]) => ({ x, y })) }, kart.dem, kartSkala(kart.meta))
       const poi = extractMapPoiFromSvg(kart.svg).map(p => ({ x: p.x, y: p.y, name: p.navn }))
       const namedPoints = poi.length ? poi : extractNamedPointsFromSvg(kart.svg)
       const junctionAt = ([x, y]) => { const id = rg.nodeAt([x, y], 5); return id ? rg.graph.degree(id) >= 3 : false }
       const cues = routeCues(route, { junctionAt, namedPoints })
 
-      const climb = climbFor(kart.dem, route)
+      const climb = climbFor(kart.dem, route, kartSkala(kart.meta))
       const lengthM = found[sel].lengthM
       const reportArgs = {
         title: tittel ?? `${startNavn ?? 'Start'} → ${maalNavn ?? 'Mål'}`,

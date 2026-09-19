@@ -928,3 +928,51 @@ describe('vektAttr', () => {
     expect(påKost[0].lengthM).toBeGreaterThan(påLengde[0].lengthM)
   })
 })
+
+describe('punktskala — rapporteringsgrensa i route() (v7.9.6)', () => {
+  const K = 1.00769   // Vardø: 0,769 % for mye i UTM32
+
+  it('deler lengthM og costM på k, og lar coordinates stå', () => {
+    const rg = buildRoutingGraph(gridFeatures(), { snapM: 2, punktSkala: K })
+    const r = rg.route(rg.nodeAt([0, 0]), rg.nodeAt([200, 0]))
+    expect(r.lengthM).toBeCloseTo(200 / K, 6)
+    expect(r.costM).toBeCloseTo(200 / K, 6)
+    // SVG-koordinatene er rutemeter — en forbruker som tegner dem eller slår
+    // opp i DEM-et trenger dem urørt.
+    expect(r.coordinates[0]).toEqual([0, 0])
+    expect(r.coordinates.at(-1)).toEqual([200, 0])
+  })
+
+  it('uten punktskala er svaret byte-identisk med før', () => {
+    const a = buildRoutingGraph(gridFeatures(), { snapM: 2 })
+    const b = buildRoutingGraph(gridFeatures(), { snapM: 2, punktSkala: 1 })
+    const ra = a.route(a.nodeAt([0, 0]), a.nodeAt([200, 100]))
+    const rb = b.route(b.nodeAt([0, 0]), b.nodeAt([200, 100]))
+    expect(rb.lengthM).toBe(ra.lengthM)
+    expect(rb.costM).toBe(ra.costM)
+    expect(rb.nodeIds).toEqual(ra.nodeIds)
+  })
+
+  it('RUTEVALGET er urørt — k er én konstant over hele arket', () => {
+    const a = buildRoutingGraph(gridFeatures(), { snapM: 2 })
+    const b = buildRoutingGraph(gridFeatures(), { snapM: 2, punktSkala: K })
+    const ra = a.route(a.nodeAt([100, 0]), a.nodeAt([100, 100]))
+    const rb = b.route(b.nodeAt([100, 0]), b.nodeAt([100, 100]))
+    expect(rb.coordinates).toEqual(ra.coordinates)
+    expect(rb.lengthM).toBeCloseTo(ra.lengthM / K, 6)
+  })
+
+  it('KANTVEKTENE blir stående i rutemeter — tersklene måles mot geometrien', () => {
+    const rg = buildRoutingGraph(gridFeatures(), { snapM: 2, punktSkala: K })
+    let sett = null
+    rg.graph.forEachEdge((key, attr, u, v) => {
+      if (sett == null && attr.length > 90 && attr.length < 110) sett = attr.length
+    })
+    expect(sett).toBeCloseTo(100, 6)   // ikke 100/k
+  })
+
+  it('grafen bærer skalaen den ble bygd med, så kallere ikke kan komme i utakt', () => {
+    expect(buildRoutingGraph(gridFeatures(), { snapM: 2, punktSkala: K }).punktSkala).toBe(K)
+    expect(buildRoutingGraph(gridFeatures(), { snapM: 2 }).punktSkala).toBe(1)
+  })
+})

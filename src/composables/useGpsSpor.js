@@ -17,6 +17,7 @@ import { ref, computed, watch, onUnmounted } from 'vue'
 import { useTrackRecorder } from './useTrackRecorder.js'
 import { trackLengthM, downloadGpx } from '../lib/gpxExport.js'
 import { sampleProfile } from '../lib/elevationProfile.js'
+import { punktSkalaForMeta } from '../lib/utm.js'
 
 /**
  * @param {{
@@ -32,6 +33,14 @@ export function useGpsSpor({
   bekreft = (spm) => confirm(spm),
 }) {
   const tracker = useTrackRecorder(mapId.value, userPos)
+
+  // v7.9.6: sporene lagres i SVG-rom, altså UTM-RUTEmeter. Punktskalaen gjør
+  // avlesningene til bakkemeter, så et GPS-spor og linjalen sier det samme om
+  // den samme streken. Den regnes her og i MapView av SAMME rene funksjon av
+  // SAMME `meta` — ikke to meninger, men to lesninger av én. De to visningene
+  // som måler sporene selv (DrawerTracksTab, TrackElevationSheet) får
+  // MapViews, siden det er den som eier malen.
+  const punktSkala = computed(() => punktSkalaForMeta(meta.value))
 
   // ---- posisjonering -------------------------------------------------------
 
@@ -100,7 +109,7 @@ export function useGpsSpor({
     const t = tracker.activeTrack.value
     if (!t) return null
     void tracksNow.value      // forcer re-eval på hver tikk
-    const meters = trackLengthM(t)
+    const meters = trackLengthM(t, punktSkala.value)
     const ms = t.points.length > 0 ? Date.now() - t.points[0].t : 0
     return { meters, ms, points: t.points.length }
   })
@@ -130,9 +139,11 @@ export function useGpsSpor({
   const profileCache = new Map()  // trackId+pointCount → profileObj
   function profileFor(track) {
     if (!track?.points?.length || !storedDem.value) return null
-    const key = `${track.id}-${track.points.length}`
+    // k er med i nøkkelen: en flis-forfremmelse flytter arkets senter litt, og
+    // en cachet profil fra forrige senter ville rapportert forrige omregning.
+    const key = `${track.id}-${track.points.length}-${punktSkala.value}`
     if (profileCache.has(key)) return profileCache.get(key)
-    const prof = sampleProfile(track, storedDem.value)
+    const prof = sampleProfile(track, storedDem.value, punktSkala.value)
     if (prof) profileCache.set(key, prof)
     return prof
   }

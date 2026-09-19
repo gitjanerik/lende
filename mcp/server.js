@@ -25,7 +25,7 @@ import {
 } from '../src/lib/rutePreferanse.js'
 import { analyserStinett, formatStinettSvar } from '../src/lib/stinettAnalyse.js'
 import { finnStinettBrudd, formatBruddSvar } from '../src/lib/stinettBrudd.js'
-import { wgs84ToSvg, svgToWgs84, utm32BboxFromWgs84 } from '../src/lib/utm.js'
+import { wgs84ToSvg, svgToWgs84, utm32BboxFromWgs84, punktSkalaForMeta } from '../src/lib/utm.js'
 import { sampleProfile } from '../src/lib/elevationProfile.js'
 import { sampleElevation, realElevationAt } from '../src/lib/demSampling.js'
 import { buildRouteGpx } from '../src/lib/gpxExport.js'
@@ -98,6 +98,15 @@ function svgMeta() {
   }
 }
 
+// v7.9.6: UTM-punktskalaen for arkets senter — rutemeter per bakkemeter.
+// SVG-rommet er UTM32-RUTEmeter, og i Øst-Finnmark er det 0,77 % for mye.
+// Verktøyene her brukes til felt-testing og feilsøking av Lende, så et svar
+// som ikke stemmer med linjalen i appen er verre enn intet svar. Alle
+// AVSTANDER som rapporteres deles på denne; koordinater og geometri er urørt.
+function kartPunktSkala() {
+  return punktSkalaForMeta(svgMeta())
+}
+
 function requireMap() {
   if (!state.map) {
     throw new Error('Ingen kart bygget ennå — kall bygg_kart først.')
@@ -147,6 +156,7 @@ function ensureRoutingGraph(pref = null) {
       elevationAt: realElevationAt(state.map.dem),
       barriers,
       kostnad: kostnadsFaktorer(pref),
+      punktSkala: kartPunktSkala(),
     })
     state.routingPref = nokkel
   }
@@ -251,6 +261,7 @@ function climbFor(coordinates) {
   const profile = sampleProfile(
     { points: coordinates.map(([x, y]) => ({ x, y })) },
     state.map.dem,
+    kartPunktSkala(),
   )
   return profile
     ? { ascent: Math.round(profile.totalAscent), descent: Math.round(profile.totalDescent) }
@@ -685,6 +696,7 @@ server.registerTool(
       arealKm2: (meta.widthM * meta.heightM) / 1e6,
       minTurM: minTurKm * 1000,
       maksKoblerM,
+      punktSkala: kartPunktSkala(),
     })
     return jsonResult({
       status: 'ok',
@@ -725,6 +737,7 @@ server.registerTool(
     const res = finnStinettBrudd(features, {
       maksHullM, minOmveiM, maksTreff, barriers,
       elevationAt: realElevationAt(state.map.dem),
+      punktSkala: kartPunktSkala(),
     })
     return jsonResult({
       status: 'ok',
@@ -757,7 +770,7 @@ server.registerTool(
       return { x: s.x, y: s.y }
     })
     if (!points.every(insideMap)) throw new Error('Minst ett punkt ligger utenfor kartet.')
-    const profile = sampleProfile({ points }, state.map.dem)
+    const profile = sampleProfile({ points }, state.map.dem, kartPunktSkala())
     if (!profile) throw new Error('Klarte ikke å sample profil (mangler DEM?).')
     return jsonResult({
       status: 'ok',
@@ -1033,7 +1046,7 @@ server.registerTool(
     const mapSvg = injectOverlay(svgForOutput(state.map.svg), overlay)
 
     // Høydeprofil + sti-kryss-varsler.
-    const profile = sampleProfile({ points: route.map(([x, y]) => ({ x, y })) }, state.map.dem)
+    const profile = sampleProfile({ points: route.map(([x, y]) => ({ x, y })) }, state.map.dem, kartPunktSkala())
     const rg = ensureRoutingGraph()
     // POI-ene har transform-korrekte posisjoner (bedre kryss-anker enn rå
     // <text>-x/y); faller tilbake til alle tekst-etiketter om ingen POI finnes.

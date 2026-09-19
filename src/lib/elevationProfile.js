@@ -11,17 +11,28 @@
 // Buildes som ren JS så funksjonen kan testes uten DOM.
 
 import { sampleElevation } from './demSampling.js'
+import { bakkeMeter } from './utm.js'
 
 const MAX_SAMPLES = 200
 const TARGET_SAMPLE_INTERVAL_M = 5
 
 /**
+ * v7.9.6: AVSTANDENE rapporteres i bakkemeter, høydene er urørt. Samplingen
+ * skjer fortsatt i SVG-rom (UTM-RUTEmeter) fordi det er DEM-ets eget rom — det
+ * er bare `distM` og `totalDistM` som deles på punktskalaen k, helt til slutt.
+ * Regner man om FØR samplingen, bommer oppslaget i DEM-et.
+ *
+ * Høyde, stigning og fall rører k ikke: de er loddrette, og k er en skala i
+ * planet. Merk at profilens stigning i PROSENT dermed blir marginalt brattere
+ * — og det er riktigere, for nevneren var for stor.
+ *
  * @param {{points: Array<{x:number,y:number}>}} track
  * @param {{data: Float32Array, cols: number, rows: number, transform: any, noData: number}} dem
+ * @param {number} [punktSkala=1] rutemeter per bakkemeter for arkets senter
  * @returns {null | { samples: Array<{distM:number, elev:number|null}>, totalDistM:number,
  *                    totalAscent:number, totalDescent:number, minElev:number, maxElev:number }}
  */
-export function sampleProfile(track, dem) {
+export function sampleProfile(track, dem, punktSkala = 1) {
   const pts = track?.points
   if (!pts || pts.length < 2 || !dem) return null
 
@@ -48,7 +59,7 @@ export function sampleProfile(track, dem) {
     const x = a.x + (b.x - a.x) * t
     const y = a.y + (b.y - a.y) * t
     const elev = sampleElevation(dem, x, y)
-    samples.push({ distM: d, elev: Number.isFinite(elev) ? elev : null })
+    samples.push({ distM: bakkeMeter(d, punktSkala), elev: Number.isFinite(elev) ? elev : null })
   }
 
   // Stats: stigning/fall regnes på "smoothed" elevasjon for å unngå at
@@ -72,7 +83,11 @@ export function sampleProfile(track, dem) {
   }
   if (!Number.isFinite(minElev)) { minElev = 0; maxElev = 0 }
 
-  return { samples, totalDistM, totalAscent, totalDescent, minElev, maxElev }
+  return {
+    samples,
+    totalDistM: bakkeMeter(totalDistM, punktSkala),
+    totalAscent, totalDescent, minElev, maxElev,
+  }
 }
 
 function movingAverage(arr, window) {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildRouteGpx, buildGpx } from './gpxExport.js'
+import { buildRouteGpx, buildGpx, trackLengthM } from './gpxExport.js'
 
 describe('buildRouteGpx — planlagt rute som GPX <rte>', () => {
   const route = {
@@ -58,5 +58,24 @@ describe('buildGpx — eget GPS-spor', () => {
     const xml = buildGpx(track, meta, 'Tur')
     expect(xml).toContain('<trk>')
     expect(xml).not.toContain('<copyright')
+  })
+})
+
+describe('trackLengthM — punktskala (v7.9.6)', () => {
+  const spor = { points: [{ x: 0, y: 0 }, { x: 300, y: 400 }, { x: 300, y: 1400 }] }
+
+  it('uten punktskala er svaret rutemeter, som før', () => {
+    expect(trackLengthM(spor)).toBeCloseTo(1500, 9)
+  })
+
+  it('deler på k — 1 500 rutemeter i Vardø er 1 488,5 bakkemeter', () => {
+    const k = 1.00769
+    expect(trackLengthM(spor, k)).toBeCloseTo(1500 / k, 9)
+    expect(trackLengthM(spor, k)).toBeLessThan(1500)
+  })
+
+  it('et spor uten to punkter er 0 uansett skala', () => {
+    expect(trackLengthM({ points: [{ x: 0, y: 0 }] }, 1.00769)).toBe(0)
+    expect(trackLengthM(null, 1.00769)).toBe(0)
   })
 })

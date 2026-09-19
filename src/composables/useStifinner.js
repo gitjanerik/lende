@@ -75,6 +75,10 @@ export function useStifinner(opts = {}) {
     ? opts.medAlleFliser
     : (fn) => fn()
   const elevationAtFor = (dem) => (dem ? realElevationAt(dem) : undefined)
+  // v7.9.6: GETTER og ikke verdi — arket byttes under en åpen Stifinner-økt
+  // (naboflis, nytt kart), og punktskalaen følger arkets senter. Den gjør at
+  // rutelengdene her leser bakkemeter, altså det samme som linjalen.
+  const punktSkalaFor = typeof opts.punktSkala === 'function' ? opts.punktSkala : () => 1
 
   // Snarvei-inngangen (beginPickStart) sikter inn startpunktet FØRST og målet
   // (B) etterpå — begge med kikkertsikte. Long-press-inngangen (begin/beginLoop)
@@ -113,6 +117,7 @@ export function useStifinner(opts = {}) {
   // den ville en bryter i Preferanser ikke slått gjennom før kartet ble lastet
   // på nytt — og brukeren ville lest det som at bryteren ikke virker.
   let cachedPrefNokkel = null
+  let cachedSkala = 1
   const { pref: rutePref, kostnad: ruteKostnad, nokkel: ruteNokkel, noytral: ruteNoytral } =
     useRutePreferanse()
   // Sist brukte SVG-element, så recompute() kan reberegne når via endres.
@@ -300,14 +305,17 @@ export function useStifinner(opts = {}) {
   function graphFor(svgElement) {
     const dem = demGetter()
     const prefNokkel = ruteNokkel.value
+    const k = punktSkalaFor()
     if (cachedRg && cachedSvg === svgElement && cachedDem === dem
-        && cachedPrefNokkel === prefNokkel) return cachedRg
+        && cachedPrefNokkel === prefNokkel && cachedSkala === k) return cachedRg
     const { features, barriers } = medAlleFliser(() => featuresFromSvg(svgElement))
     if (!features.length) return null
     cachedRg = buildRoutingGraph(features, {
       ...RUTE_GRAF_OPTS, elevationAt: elevationAtFor(dem), barriers,
       kostnad: ruteKostnad.value,
+      punktSkala: k,
     })
+    cachedSkala = k
     cachedPrefNokkel = prefNokkel
     if (lastGraphStats) {
       lastGraphStats.noder = cachedRg.nodes

@@ -159,3 +159,36 @@ describe('finnStinettBrudd – barrierer', () => {
     expect(svar.treff[0].hellingPct).toBeGreaterThan(60)
   })
 })
+
+describe('finnStinettBrudd — punktskala (v7.9.6)', () => {
+  const K = 1.00769
+
+  it('rapporterer hull og omvei i bakkemeter, og lar forholdstallet stå', () => {
+    const raa = finnStinettBrudd(bruddNett(25), { grafOpts: RAA_GRAF })
+    const res = finnStinettBrudd(bruddNett(25), { grafOpts: RAA_GRAF, punktSkala: K })
+    const a = raa.treff[0], b = res.treff[0]
+    expect(b.hullM).toBeCloseTo(a.hullM / K, 1)
+    expect(b.omveiM).toBe(Math.round(a.omveiM / K))
+    // k stryker mot k: forholdet mellom to lengder er skala-uavhengig.
+    expect(b.forholdstall).toBe(a.forholdstall)
+  })
+
+  it('koordinatene er SVG-rom og blir stående', () => {
+    const res = finnStinettBrudd(bruddNett(25), { grafOpts: RAA_GRAF, punktSkala: K })
+    const b = res.treff[0]
+    expect([b.x, b.y]).toEqual([1000, 25])
+    expect([b.naboX, b.naboY]).toEqual([1000, 0])
+  })
+
+  it('maksHullM er en TERSKEL mot geometrien — samme brudd finnes med og uten k', () => {
+    const raa = finnStinettBrudd(bruddNett(25), { grafOpts: RAA_GRAF })
+    const res = finnStinettBrudd(bruddNett(25), { grafOpts: RAA_GRAF, punktSkala: K })
+    expect(res.antallBrudd).toBe(raa.antallBrudd)
+    expect(res.komponenter).toBe(raa.komponenter)
+  })
+
+  it('uten punktskala er svaret identisk med før', () => {
+    expect(finnStinettBrudd(bruddNett(25), { grafOpts: RAA_GRAF, punktSkala: 1 }))
+      .toEqual(finnStinettBrudd(bruddNett(25), { grafOpts: RAA_GRAF }))
+  })
+})

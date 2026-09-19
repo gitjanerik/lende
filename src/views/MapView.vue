@@ -1318,7 +1318,7 @@ const mapTransformStyle = computed(() => {
 // aktiv flis alene — ellers varsler vi om at brukeren er utenfor et kart hen
 // står midt i. extendZonesBounds eies av useMapExtend lenger ned; derfor getter.
 const userPos = useUserPosition(() => meta.value, () => extendZonesBounds())
-const proximity = useProximityAlert(() => userPos)
+const proximity = useProximityAlert(() => userPos, () => punktSkala.value)
 const compass = useCompass()
 
 // Kompass-FAB-en (pointNorth) er fjernet (v1.0.77): «Sentrer»-knappen i FAB-
@@ -1384,6 +1384,7 @@ const annot = useMapAnnotations(mapId.value)
 const sti = useStifinner({
   dem: () => storedDem.value,
   medAlleFliser: (fn) => medAlleSpokelserFestet(fn),
+  punktSkala: () => punktSkala.value,
 })
 // Settes ved setupHostSvg: har kartet routbare sti-/vei-lag? Styrer om
 // «Naviger hit» vises.
@@ -2425,7 +2426,7 @@ const stiRouteClimbs = computed(() => {
   if ((sti.mode.value !== 'showing' && sti.mode.value !== 'following') || !dem) return []
   return sti.routes.value.map((r) => {
     if (!r?.coordinates?.length) return null
-    const prof = sampleProfile({ points: r.coordinates.map(c => ({ x: c[0], y: c[1] })) }, dem)
+    const prof = sampleProfile({ points: r.coordinates.map(c => ({ x: c[0], y: c[1] })) }, dem, punktSkala.value)
     return prof ? { ascent: prof.totalAscent, descent: prof.totalDescent } : null
   })
 })
@@ -3703,7 +3704,7 @@ onUnmounted(() => {
         v-model:expanded-track-id="expandedTrackId"
         :gps-debug-line="gpsDebugLine" :copy-gps-coords="copyGpsCoords"
         :copy-state="copyState" :show-gps-tip="showGpsTip"
-        :dismiss-gps-tip="dismissGpsTip" />
+        :dismiss-gps-tip="dismissGpsTip" :punkt-skala="punktSkala" />
     </FunksjonDrawer>
 
     <FunksjonDrawer :open="annoteringOpen" :drawer="annoteringDrawer" etikett="Annotering"
@@ -3823,6 +3824,7 @@ onUnmounted(() => {
     <TrackElevationSheet
       :track="expandedTrack"
       :profile="expandedTrack ? profileFor(expandedTrack) : null"
+      :punkt-skala="punktSkala"
       @close="expandedTrackId = null" />
 
     <!-- On-the-fly kart-bygging: IKKE-blokkerende chip (pointer-events-none).
