@@ -31,6 +31,25 @@ describe('beregnMaalestokk', () => {
     expect(inn.ticks[4].m).toBeLessThan(ut.ticks[4].m)
   })
 
+  // v7.9.5: punktSkala er RUTEmeter per BAKKEmeter, og etiketten er bakkemeter.
+  // Én bakkemeter er derfor k rutemeter, og baren for samme tall blir LENGER —
+  // ikke kortere. Fortegnet er den ene tingen som er lett å snu her.
+  it('strekker baren når UTM-skalaen er over 1', () => {
+    const rett = beregnMaalestokk({ w: 430, h: 900, widthM: 8000, heightM: 8000, scale: 1 })
+    const vardo = beregnMaalestokk({ w: 430, h: 900, widthM: 8000, heightM: 8000, scale: 1, punktSkala: 1.00769 })
+    expect(vardo.label).toBe(rett.label)
+    expect(vardo.px).toBeGreaterThan(rett.px)
+    expect(vardo.px / rett.px).toBeCloseTo(1.00769, 5)
+  })
+
+  it('står uendret uten punktSkala — et ark uten posisjon skal ikke gjette', () => {
+    const uten = beregnMaalestokk({ w: 430, h: 900, widthM: 8000, heightM: 8000, scale: 1 })
+    for (const k of [undefined, 1, 0, -1, NaN]) {
+      expect(beregnMaalestokk({ w: 430, h: 900, widthM: 8000, heightM: 8000, scale: 1, punktSkala: k }).px)
+        .toBe(uten.px)
+    }
+  })
+
   it('returnerer tom bar uten meta eller uten målt wrapper', () => {
     const tom = { px: 0, label: '', ticks: [] }
     expect(beregnMaalestokk({ w: 0, h: 0, widthM: 2000, heightM: 2000, scale: 1 })).toEqual(tom)

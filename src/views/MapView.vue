@@ -143,7 +143,7 @@ import { setBuildBusy } from '../lib/swUpdate.js'
 import { pruneAutoTiles, countAutoTiles } from '../lib/tileCache.js'
 import { renameMap, onKartSlettet } from '../lib/mapStorage.js'
 import { useAppMenu } from '../composables/useAppMenu.js'
-import { svgToWgs84, wgs84ToSvg, nordavvikForMeta, sannNordRotasjonForMeta } from '../lib/utm.js'
+import { svgToWgs84, wgs84ToSvg, nordavvikForMeta, sannNordRotasjonForMeta, punktSkalaForMeta } from '../lib/utm.js'
 import { naermesteMarkor } from '../lib/markorTreff.js'
 import { utNoZoomForMPerPx, UTNO_DEFAULT_ZOOM, buildUtNoUrl } from '../lib/utNoLink.js'
 import { gmapsUrl } from '../lib/externalMapLinks.js'
@@ -983,6 +983,16 @@ const {
 const nordRotasjon = computed(() => sannNordRotasjonForMeta(meta.value))
 const nordavvik = computed(() => nordavvikForMeta(meta.value))
 
+// Konvergensens tvillingpris: punktskalaen. Nordavviket over fjernes ved å DREIE
+// arket; denne fjernes ved å DELE, og bare i tallene vi viser — geometrien må bli
+// liggende i rutemeter fordi den deler rom med DEM-rasteret fra WCS. Ett tall for
+// hele arket, av samme grunn som nordavviket er det (se utm.js).
+//
+// Den bor her og ikke i hver forbruker fordi det er MapView som eier `meta`, og
+// fordi et kryss mellom domener er lettere å se når det står samlet i det
+// sentrale viewet (CLAUDE.md, v5.16.0).
+const punktSkala = computed(() => punktSkalaForMeta(meta.value))
+
 // Desktop uten touch: vis en rotasjons-slider (touch bruker to-finger-rotasjon).
 // Detekteres på mount (touch-evner endrer seg ikke i en sesjon i praksis).
 const hasTouch = ref(false)
@@ -1721,6 +1731,7 @@ const {
 } = useMaaling({
   scale, annot, sti,
   dem: () => storedDem.value,
+  punktSkala: () => punktSkala.value,
   hooks: {
     renderMeasure: () => renderMeasure(),
     renderRoutes: () => renderRoutes(),
@@ -2877,6 +2888,7 @@ const scaleBar = computed(() => {
   const { w, h } = wrapperSize.value
   return beregnMaalestokk({
     w, h, widthM: meta.value?.widthM, heightM: meta.value?.heightM, scale: scale.value,
+    punktSkala: punktSkala.value,
   })
 })
 

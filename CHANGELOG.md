@@ -1,3 +1,9 @@
+## 2026-09-19 — v7.9.5: Linjalen og målestokken måler bakkemeter, ikke rutemeter
+
+Lende projiserer hele landet i UTM-sone 32, og en rutemeter der er ikke en bakkemeter: faktoren er 0,9996 på sentralmeridianen og vokser utover — 0,03 % for lav i Oslo, 0,14 % for høy i Tromsø, 0,77 % for høy i Vardø. Linjalen (`useMaaling`) og målestokk-streken (`beregnMaalestokk`) regnet begge i rutemeter og leste derfor 38 meter for mye på en femkilometer i Finnmark, mens Stifinneren, Runde og høydeprofilene bruker haversine på WGS84 og hele tida har vært riktige — to verktøy på samme ark svarte altså ulikt. `punktSkala(lat, lon)` i `utm.js` måler faktoren gjennom vår egen projeksjon i stedet for å skrive av en formel, på samme måte som nordavviket, og `bakkeMeter`/`bakkeAreal` deler den ut igjen (arealet på k², ikke på k). Koordinatrommet er urørt — arket deler rutenett med DEM-rasteret fra Kartverket — så det er bare tallene brukeren leser som er regnet om. Avsnittet om Web Mercator i «Nord er nord» er samtidig skrevet om: påstanden om at slike kart ikke kan måle var feil, og er byttet med den ærlige forskjellen, at faktoren der endrer seg 0,35 % over et 8 km-ark i Finnmark mot UTM32s 0,02 %, som er grunnen til at ett tall per ark holder her. Nærhetsvarselet, GPX-lengden og høydeprofilene leser fortsatt rutemeter; de rører rute-pipelinen og MCP-verktøyene og står igjen som egen leveranse.
+
+---
+
 ## 2026-09-19 — v7.9.4: To sidefunn gjøres om til målinger
 
 Hamningberg-undersøkelsen la igjen to observasjoner ingen kunne handle på, og
