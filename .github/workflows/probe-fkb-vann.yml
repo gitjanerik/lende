@@ -16,6 +16,13 @@ name: Probe — finnes Askerelva som flate i FKB-Vann, og hva koster den?
 #
 # Kjør den IKKE samtidig med en nasjonal areal-bake: begge laster ned fra
 # Geonorge, og to samtidige nedlastinger kvelte hverandre (v5.24.x).
+#
+# LAGT DØD v7.9.13 — les CLAUDE.md («SMALE ELVER MANGLER SOM FLATE») før du
+# kjører den. Tre kjøringer nådde aldri fram til data: filnavnet er ikke til å
+# gjette (18 forsøk, alle 404, og ingen kataloglisting å speide i), ordre-API-et
+# svarer 500 ved siden av en `can-download`-lenke, og FKB deles per KOMMUNE —
+# 373 bestillinger å holde i live for én elv. Push-utløseren er derfor fjernet:
+# den skal bare fyres for hånd, og bare med et nytt argument i hånda.
 
 on:
   workflow_dispatch:
@@ -47,11 +54,6 @@ on:
   # Også på push når proben selv endres. En workflow_dispatch registreres først
   # når fila står på default-branch, så første kjøring må komme på en annen
   # måte — samme grep som probe-n50-vann.yml. Ingen andre stier trigger den.
-  push:
-    paths:
-      - 'scripts/probe-fkb-vann.mjs'
-      - '.github/workflows/probe-fkb-vann.yml'
-
 jobs:
   probe:
     runs-on: ubuntu-latest

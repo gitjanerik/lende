@@ -26,6 +26,25 @@
 // Den skriver INGENTING i public/ og avslutter ALLTID med 0. Rapporten går til
 // probe-ut/. LES UTSKRIFTEN — den er hele leveransen.
 //
+// ── Og her stoppet det (v7.9.13) ───────────────────────────────────────────
+// Tre CI-kjøringer nådde ALDRI fram til en nedlasting, og eieren la sporet
+// dødt. Det som ble målt, så ingen prøver det om igjen:
+//   • Katalogen svarer: FKB-Vann finnes, uuid 595e47d9-d201-479c-a77d-
+//     cbc1f573a76b, 373 områder (357 kommuner + 15 fylker + 1 landsdekkende),
+//     formater FGDB/GML/SOSI, projeksjoner 5972/5973/5975.
+//   • Filnavnet er IKKE til å gjette. 18 kandidater over tre kjøringer (base ×
+//     slug × prefiks × projeksjon) ga 404 hver eneste gang, og blob-lageret
+//     serverer ingen kataloglisting — de seks katalog-URL-ene svarte også 404.
+//     Et 404 herfra sier aldri hvilken dimensjon som var feil.
+//   • Ordre-API-et (POST /api/order) svarer HTTP 500 på kroppen under, mens
+//     capabilities bærer `can-download` ved siden av `order`. FKB er Geovekst-
+//     produsert, og alt peker mot et samtykke-/sjekk-steg N50 ikke har.
+//   • Prisen er uansett gal: FKB deles per KOMMUNE, så en nasjonal bake er 373
+//     bestillinger å automatisere og holde i live — mot N50-arealets fylkesvise
+//     kjøring. Mye maskineri for én elv.
+// Trinnene under er altså verifisert til og med `katalog`; `last` og alt etter
+// den er aldri sett med ekte data i hendene.
+//
 // ── Seks trinn ─────────────────────────────────────────────────────────────
 //   1. katalog   Geonorges kartkatalog + capabilities: finnes «FKB-Vann», og
 //                hvilke OMRÅDER, formater og projeksjoner har den? FKB deles

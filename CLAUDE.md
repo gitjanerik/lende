@@ -257,8 +257,29 @@ smale løp til senterlinje; OSM har bare linja der. Kandidaten er FKB-Vann
 `scripts/probe-fkb-vann.mjs` (`npm run probe:fkbvann`, workflow
 `probe-fkb-vann.yml`) — i CI, fordi Geonorge er sperret fra
 utviklings-sandkassene. Den er en MÅLING: skriver bare til `probe-ut/`, rører
-ingenting i `public/`, feiler aldri. Ingenting er bakt ennå — les utskriften
-før du bygger på den.
+ingenting i `public/`, feiler aldri.
+
+**OG SVARET ER AT VI IKKE GÅR VIDERE MED FKB (v7.9.13). Det er en beslutning
+fra eieren, ikke et åpent spor.** Tre CI-kjøringer nådde aldri fram til data,
+og det som stoppet dem er ikke en feil i proben:
+
+1. **Filnavnet er ikke til å gjette.** Atten forsøk over tre kjøringer — base ×
+   slug × filnavn-prefiks × projeksjon — svarte alle 404, og blob-lageret gir
+   ingen kataloglisting å speide i (seks katalog-URL-er, alle 404). Et 404 fra
+   Geonorge sier heller aldri HVILKEN dimensjon som var feil.
+2. **Ordre-API-et svarer HTTP 500** på kroppen vår, mens capabilities bærer en
+   `can-download`-lenke ved siden av `order`. FKB er Geovekst-produsert, og alt
+   peker mot at nedlastingen krever et samtykke-/sjekk-steg N50 ikke har.
+3. **Og prisen er gal uansett hvordan det steget ser ut.** FKB deles per
+   KOMMUNE: 357 kommuner + 15 fylker = 373 bestillinger å automatisere og holde
+   i live, mot N50-arealets fylkesvise bake. Det er mye maskineri for én elv.
+
+Askerelva blir derfor stående som en blå strek, og det er målestokken som sier
+det — ikke et filter vi kan skru på. Kommer spørsmålet tilbake, er det to andre
+veier enn en nasjonal FKB-bake: en WFS mot FKB der brukeren står (ingen bake,
+men nett i felt), eller å tegne `waterway=river`-linja bredere der OSM har
+`width`. Proben står igjen som `workflow_dispatch` alene — den fyrer ikke på
+push lenger, nettopp fordi ingen skal kjøre den om igjen uten et nytt argument.
 
 
 ## Viktig arkitektur-merknad — arealdekke: N50 bærer det den blir bedt om

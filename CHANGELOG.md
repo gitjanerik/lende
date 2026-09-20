@@ -1,3 +1,9 @@
+## 2026-09-20 — v7.9.13: FKB-Vann legges dødt — filnavnet og prisen svarer nei
+
+Tre CI-kjøringer av FKB-proben nådde aldri fram til en nedlasting, og sporet er lagt dødt etter eierens vurdering. Katalogen svarer greit — FKB-Vann finnes, med 373 områder, tre formater og tre projeksjoner — men filnavnet er ikke til å gjette: atten kandidater over tre kjøringer (base × slug × filnavn-prefiks × projeksjon) ga 404 hver eneste gang, og blob-lageret serverer ingen kataloglisting å speide i. Ordre-API-et svarer HTTP 500 ved siden av en `can-download`-lenke, så alt peker mot et samtykke-steg N50 ikke har. Og prisen er gal uansett hvordan det steget ser ut: FKB deles per kommune, altså 373 bestillinger å automatisere og holde i live for én elv. Askerelva blir stående som en blå strek, og det er målestokken som sier det. Proben og workflowen står igjen som dokumentasjon, men push-utløseren er fjernet slik at ingen kjører dem om igjen uten et nytt argument.
+
+---
+
 ## 2026-09-20 — v7.9.12: FKB-filnavnet er ikke til å gjette — spør Geonorge i stedet
 
 Andre kjøring uttømte gjettingen. Alle tolv filnavn-kandidatene bommet — base,
