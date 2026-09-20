@@ -1,0 +1,93 @@
+name: Probe — finnes Askerelva som flate i FKB-Vann, og hva koster den?
+
+# EN MÅLING, IKKE EN GATE. Den finnes fordi Geonorge er sperret fra
+# utviklings-sandkassene: spørsmålet «er det et hull i N50, eller er elva
+# smalere enn 1:50 000 kan bære?» kan ikke stilles der svaret skal skrives.
+#
+# Målt fra før: flisa 59.5_10.0 dekker Asker, men har NULL elveflater i
+# utsnittet 59,81–59,86 N / 10,40–10,48 Ø. Nærmeste ligger 4,1 km unna, og
+# flisas minste flate er 382 m² mot en terskel på 400 — så en 5 × 200 m elv
+# ville sluppet gjennom med god margin. N50 generaliserer altså smale løp til
+# senterlinje, og FKB-Vann (1:1 000) er kandidaten som kan bære dem.
+#
+# Skriver bare til probe-ut/ (lastes opp som artefakt), endrer INGENTING i
+# repoet, feiler ALDRI på et trinn som ikke får svar. LES UTSKRIFTEN — den er
+# hele leveransen.
+#
+# Kjør den IKKE samtidig med en nasjonal areal-bake: begge laster ned fra
+# Geonorge, og to samtidige nedlastinger kvelte hverandre (v5.24.x).
+
+on:
+  workflow_dispatch:
+    inputs:
+      datasett:
+        description: 'Katalogtittel å slå opp (må treffe eksakt)'
+        required: false
+        default: 'FKB-Vann'
+      omrader:
+        description: 'Områder å laste ned, kommaseparert. Navn eller kommunenummer.'
+        required: false
+        default: 'Asker'
+      punkt:
+        description: 'Utgangsspørsmålet: «Navn@sør,vest,nord,øst»'
+        required: false
+        default: 'Askerelva@59.81,10.40,59.86,10.48'
+      toleranser:
+        description: 'Forenklings-toleranser i meter som sveipes'
+        required: false
+        default: '1,2,4,8'
+      minarealer:
+        description: 'Minsteareal i m² som sveipes'
+        required: false
+        default: '100,400,1000'
+      hopp:
+        description: 'Trinn som skal hoppes over (kommaseparert): katalog, last, mal, jamfor, punkt'
+        required: false
+        default: ''
+  # Også på push når proben selv endres. En workflow_dispatch registreres først
+  # når fila står på default-branch, så første kjøring må komme på en annen
+  # måte — samme grep som probe-n50-vann.yml. Ingen andre stier trigger den.
+  push:
+    paths:
+      - 'scripts/probe-fkb-vann.mjs'
+      - '.github/workflows/probe-fkb-vann.yml'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      # GDAL leser Geonorges FGDB-nedlasting — samme verktøy som areal-baken.
+      - name: Installer GDAL
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gdal-bin unzip
+          ogr2ogr --version
+
+      # Proben pakker gjennom vårt eget flis-format (src/lib/n50ArealPakke.js),
+      # så den trenger avhengighetstreet.
+      - run: npm ci
+
+      - name: Mål
+        env:
+          PROBE_DATASETT: ${{ inputs.datasett || 'FKB-Vann' }}
+          PROBE_OMRADER: ${{ inputs.omrader || 'Asker' }}
+          PROBE_PUNKT: ${{ inputs.punkt || 'Askerelva@59.81,10.40,59.86,10.48' }}
+          PROBE_TOLERANSER: ${{ inputs.toleranser || '1,2,4,8' }}
+          PROBE_MINAREALER: ${{ inputs.minarealer || '100,400,1000' }}
+          PROBE_HOPP: ${{ inputs.hopp || '' }}
+        run: npm run probe:fkbvann
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: probe-fkb-vann
+          path: probe-ut/
+          if-no-files-found: warn

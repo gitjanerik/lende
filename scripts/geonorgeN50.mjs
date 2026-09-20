@@ -28,15 +28,26 @@ async function hentJson(url, init = {}, timeoutMs = HTTP_TIMEOUT_MS) {
   return JSON.parse(tekst)
 }
 
-export async function finnOmrader() {
-  const d = await hentJson(`${KATALOG_SOK}?text=N50%20Kartdata&limit=20`)
-  const ds = (d.Results ?? []).find(r => /^n50 kartdata$/i.test(r.Title ?? ''))
-  if (!ds) throw new Error('Fant ikke N50 Kartdata i katalogen')
+// Datasettet er en PARAMETER fra v7.9.10, med N50 som standard. FKB-Vann går
+// gjennom nøyaktig samme tre kall — katalogsøk, capabilities, så område-,
+// format- og projeksjonsliste — og en egen kopi av dem ville vært den gjelden
+// denne fila ble trukket ut for å unngå. Standarden gjør hvert N50-kallsted
+// byte-identisk med før.
+export async function finnOmrader(tittel = 'N50 Kartdata') {
+  const d = await hentJson(`${KATALOG_SOK}?text=${encodeURIComponent(tittel)}&limit=20`)
+  const norm = (s) => String(s ?? '').trim().toLowerCase()
+  const ds = (d.Results ?? []).find(r => norm(r.Title) === norm(tittel))
+  if (!ds) {
+    const sett = (d.Results ?? []).map(r => r.Title).slice(0, 20)
+    throw new Error(`Fant ikke «${tittel}» i katalogen. Katalogen svarte med:\n  ${sett.join('\n  ') || '(ingenting)'}`)
+  }
   const cap = await hentJson(`${NEDLASTING}/capabilities/${ds.Uuid}`)
   const lenke = (rel) => (cap._links ?? []).find(l => l.rel?.endsWith(rel))?.href
   const [omrader, formater, projeksjoner] = await Promise.all(
     ['area', 'format', 'projection'].map(r => hentJson(lenke(r))))
-  return { omrader, formater, projeksjoner }
+  // uuid og tittel følger med fordi en probe må kunne SI hva den fant. Å legge
+  // til et felt er trygt: hvert kallsted destrukturerer de tre det trenger.
+  return { omrader, formater, projeksjoner, uuid: ds.Uuid, tittel: ds.Title }
 }
 
 // Format og projeksjon MÅ velges fra områdets EGEN liste: den globale lista er
@@ -56,17 +67,26 @@ export function velgFormat(omrade, formater, projeksjoner) {
 // Geonorge staver fylkesnavn ulikt: «Vestland» går rett inn, mens
 // «Trøndelag» og «Østfold» må translittereres. Vi prøver variantene i tur —
 // første bake feilet nettopp fordi vi bare erstattet mellomrom.
-export function filnavnKandidater(omrade, format, proj) {
+export function filnavnKandidater(omrade, format, proj, slug = 'N50Kartdata', base = DIREKTE_BASE) {
   return navnevarianter(omrade.name).map(navn =>
-    `${DIREKTE_BASE}/N50Kartdata/${format.name}/Basisdata_${omrade.code}_${navn}_${proj.code}_N50Kartdata_${format.name}.zip`)
+    `${base}/${slug}/${format.name}/Basisdata_${omrade.code}_${navn}_${proj.code}_${slug}_${format.name}.zip`)
 }
 
-export async function lastNed(omrade, format, proj, dir, log = console.log) {
-  const kandidater = filnavnKandidater(omrade, format, proj)
+// Geonorge legger ikke alt under /Basisdata: Geovekst-produserte datasett
+// (FKB) har sin egen gren. Eksporteres slik at en probe kan krysse basene med
+// slug-skrivemåter i stedet for å gjette ÉN URL — samme grunn som at
+// `navnevarianter` finnes.
+export const BASER = Object.freeze([DIREKTE_BASE, 'https://nedlasting.geonorge.no/geonorge/Geovekst'])
+
+export async function lastNed(omrade, format, proj, dir, log = console.log, opts = {}) {
+  // `kandidater` lar en kaller med et annet datasett bygge sin egen liste
+  // (FKB krysser baser, slug-skrivemåter og projeksjoner). Uten den er
+  // oppførselen nøyaktig som før.
+  const kandidater = opts.kandidater ?? filnavnKandidater(omrade, format, proj)
   let res = null
   for (const url of kandidater) {
     const r = await fetch(url, { signal: AbortSignal.timeout(20 * 60 * 1000) })
-    if (r.ok) { res = r; break }
+    if (r.ok) { res = r; opts.pa?.(url); break }
     // 404 = feil skrivemåte, prøv neste. Alt annet er en ekte feil.
     if (r.status !== 404) throw new Error(`HTTP ${r.status} for ${url}`)
   }
@@ -74,7 +94,7 @@ export async function lastNed(omrade, format, proj, dir, log = console.log) {
     throw new Error(`Ingen av ${kandidater.length} filnavn-varianter fantes:\n  ` +
       kandidater.map(u => u.split('/').pop()).join('\n  '))
   }
-  const zip = join(dir, 'n50.zip')
+  const zip = join(dir, opts.zipNavn ?? 'n50.zip')
   writeFileSync(zip, Buffer.from(await res.arrayBuffer()))
   log(`    ${(statSync(zip).size / 1e6).toFixed(0)} MB`)
   const ut = join(dir, 'utpakket')

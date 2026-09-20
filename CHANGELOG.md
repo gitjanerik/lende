@@ -1,3 +1,24 @@
+## 2026-09-20 — v7.9.10: Måling — finnes Askerelva som flate i FKB-Vann?
+
+Askerelva tegnes som en hårtynn blå strek der UT.no viser en fylt vannflate, og
+målingen viser at det ikke er en feil i filtreringen vår: flisa `59.5_10.0`
+dekker Asker, men har NULL elveflater i utsnittet 59,81–59,86 N / 10,40–10,48 Ø,
+nærmeste ligger 4,1 km unna, og flisas minste flate er 382 m² mot en terskel på
+400 — en 5 × 200 m elv ville sluppet gjennom med god margin. N50 er 1:50 000 og
+generaliserer smale løp til senterlinje. `scripts/probe-fkb-vann.mjs` (`npm run
+probe:fkbvann`, workflow `probe-fkb-vann.yml`) stiller spørsmålet til FKB-Vann
+(1:1 000) i seks trinn: katalog, nedlasting, laginnhold, pakking gjennom vårt
+eget flis-format, jamføring mot de bakte N50-flisene i SAMME utsnitt med SAMME
+skruer, og selve utgangsspørsmålet — finnes elva som flate, og hvor bred er den?
+Den kjøres i CI fordi Geonorge er sperret fra utviklings-sandkassene, skriver
+bare til `probe-ut/`, rører ingenting i `public/` og feiler aldri. Det nasjonale
+anslaget forankres i forholdet FKB/N50 målt lokalt framfor i kommunetall eller
+bbox-areal, som begge er en gjetning med et tall på. `geonorgeN50.mjs` tok
+datasettittel, slug og base som parametre i samme slengen — N50-kallstedene er
+byte-identiske, og en test holder URL-en fast i begge retninger.
+
+---
+
 ## 2026-09-19 — v7.9.9: Lende tar farge etter systemet
 
 Velger du blått som temafarge i operativsystemet, er Lende nå mørkeblå i mørkt

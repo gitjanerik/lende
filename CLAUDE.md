@@ -60,6 +60,9 @@ npm run bygg:stjerner  # Baker stjernekatalogen for 3D-natthimmelen fra HYG.
                        # Kjør bare når utvalget eller stjernebildene endres.
 npm run boot:workers   # Starter Cloudflare-Workerne i workerd. Rører du src/lib
                        # eller mcp/headless.js, kjør denne — se «Workerne» under.
+npm run probe:fkbvann  # Måling (CI): bærer FKB-Vann de smale elvene N50
+                       # generaliserer bort, og hva koster de? Skriver bare
+                       # til probe-ut/ — se vann-seksjonen under.
 npm run mcp:protokoll  # Kjører MCP-protokollen mot lende-mcp i workerd:
                        # initialize → tools/list → tools/call. Rører du et
                        # verktøys skjema eller MCP-SDK-en, kjør denne.
@@ -242,6 +245,21 @@ innsjø er 35,6 MB — innsjøene er 89 % av kostnaden, og de gir ingen ny
 informasjon, siden NVE live ER N50-geometrien (IoU 0,92–0,97 mot rå N50, målt på
 fire ark inkludert Finnmark). Skal de likevel bakes en dag, er det ett
 workflow-trykk: klienten leser dem alt. Se `docs/VANN_VURDERING.md`.
+
+**SMALE ELVER MANGLER SOM FLATE, OG DET ER MÅLESTOKKEN — IKKE ET FILTER
+(v7.9.10).** Askerelva tegnes som en hårtynn blå strek der UT.no viser en fylt
+flate, og det er målt hvor det stopper: flisa `59.5_10.0` dekker Asker, men har
+NULL elveflater i utsnittet 59,81–59,86 N / 10,40–10,48 Ø, nærmeste ligger 4,1
+km unna, og flisas minste flate er 382 m² mot en terskel på 400 — en 5 × 200 m
+elv ville sluppet gjennom med god margin. N50 er 1:50 000 og generaliserer
+smale løp til senterlinje; OSM har bare linja der. Kandidaten er FKB-Vann
+(1:1 000), og spørsmålet «hva koster den, og bærer den elva?» stilles av
+`scripts/probe-fkb-vann.mjs` (`npm run probe:fkbvann`, workflow
+`probe-fkb-vann.yml`) — i CI, fordi Geonorge er sperret fra
+utviklings-sandkassene. Den er en MÅLING: skriver bare til `probe-ut/`, rører
+ingenting i `public/`, feiler aldri. Ingenting er bakt ennå — les utskriften
+før du bygger på den.
+
 
 ## Viktig arkitektur-merknad — arealdekke: N50 bærer det den blir bedt om
 
