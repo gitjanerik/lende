@@ -1,3 +1,28 @@
+## 2026-09-20 — v7.9.12: FKB-filnavnet er ikke til å gjette — spør Geonorge i stedet
+
+Andre kjøring uttømte gjettingen. Alle tolv filnavn-kandidatene bommet — base,
+slug, prefiks og projeksjon krysset — og katalog-speidingen ga HTTP 404 på alle
+seks base × slug-katalogene, altså serverer blob-lagringen ingen liste. Til
+sammen 18 forsøk over to kjøringer, uten at ett eneste av dem sier hvilken
+dimensjon som var feil.
+
+Derfor snus retningen: proben BESTILLER nå nedlastingen gjennom Geonorges
+ordre-API og får de ekte fil-URL-ene tilbake, med de gjettede kandidatene som
+fallback etterpå. Advarselen i toppen av geonorgeN50.mjs mot ordre-API-et står
+fortsatt — den gjelder å bestille et format et område ikke har, som gir en
+ordre som aldri blir klar — men for FKB er ordren den eneste veien, siden
+filnavnet ikke er kjent. E-postfeltet i ordren er et varslingsfelt hos
+Geonorge og settes bevisst til en nøytral adresse: en måling skal ikke sende en
+personlig e-postadresse til en tredjepart for å laste ned en offentlig fil.
+
+Katalogtrinnet skriver i tillegg ut capabilities' egne _links, som er den
+autoritative lista over hva Geonorge tilbyr for datasettet, og hver ordre
+dumpes rått til probe-ut/. `lastNed` fikk `taalAlt`: en ordre-URL kan svare 403
+mens fila gjøres klar, og et kast der er å kaste bort hele kjøringen. Bakene
+står urørt — uten flagget er oppførselen som før.
+
+---
+
 ## 2026-09-20 — v7.9.11: Første FKB-kjøring svarte — katalogen finnes, filnavnet var feil gjettet
 
 Proben kjørte i CI og fikk halve svaret. Katalogtrinnet fant FKB-Vann

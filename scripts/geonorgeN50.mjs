@@ -47,7 +47,54 @@ export async function finnOmrader(tittel = 'N50 Kartdata') {
     ['area', 'format', 'projection'].map(r => hentJson(lenke(r))))
   // uuid og tittel følger med fordi en probe må kunne SI hva den fant. Å legge
   // til et felt er trygt: hvert kallsted destrukturerer de tre det trenger.
-  return { omrader, formater, projeksjoner, uuid: ds.Uuid, tittel: ds.Title }
+  // `lenker` er capabilities' egne _links — den eneste AUTORITATIVE lista over
+  // hva Geonorge tilbyr for datasettet. FKB-kjøringene brukte 12 gjettede
+  // filnavn og 6 katalog-URL-er på å slå fast at ingen av dem fantes; den
+  // riktige veien er å SPØRRE, ikke å finne på.
+  return {
+    omrader, formater, projeksjoner, uuid: ds.Uuid, tittel: ds.Title,
+    lenker: (cap._links ?? []).map(l => ({ rel: l.rel, href: l.href })),
+  }
+}
+
+/**
+ * Bestill nedlasting gjennom Geonorges ordre-API og få de EKTE fil-URL-ene.
+ *
+ * N50-bakene bruker direkte URL-er fordi filnavn-konvensjonen der er kjent, og
+ * kommentaren i toppen av fila advarer mot ordre-API-et — den advarselen gjelder
+ * å bestille et format et område ikke har, som gir en ordre som aksepteres og
+ * aldri blir klar. For FKB er ordren den ENESTE veien: filnavnet er ikke til å
+ * gjette, og to CI-kjøringer med til sammen 18 forsøk viste nøyaktig det.
+ *
+ * E-posten er et VARSLINGSFELT hos Geonorge og settes bevisst til en nøytral
+ * adresse — en probe skal ikke sende en personlig e-postadresse til en
+ * tredjepart for å laste ned en offentlig fil.
+ */
+export const ORDRE_EPOST = 'lende-probe@example.invalid'
+
+export async function bestill(uuid, omrade, format, proj, epost = ORDRE_EPOST) {
+  const kropp = {
+    email: epost,
+    orderLines: [{
+      metadataUuid: uuid,
+      areas: [{ code: omrade.code, type: omrade.type, name: omrade.name }],
+      formats: [{ name: format.name }],
+      projections: [{ code: String(proj.code), name: proj.name ?? String(proj.code), codespace: proj.codespace ?? '' }],
+    }],
+  }
+  const svar = await hentJson(`${NEDLASTING}/order`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(kropp),
+  })
+  // Feltnavnene varierer mellom Geonorges egne klienter, så vi plukker bredt
+  // og lar kalleren SE det rå svaret om ingenting traff.
+  const filer = (svar.files ?? svar.Files ?? []).map(f => ({
+    navn: f.name ?? f.Name,
+    url: f.downloadUrl ?? f.DownloadUrl ?? f.url ?? f.Url,
+    status: f.status ?? f.Status,
+  })).filter(f => f.url)
+  return { filer, ra: svar }
 }
 
 // Format og projeksjon MÅ velges fra områdets EGEN liste: den globale lista er
@@ -98,15 +145,19 @@ export async function lastNed(omrade, format, proj, dir, log = console.log, opts
   // oppførselen nøyaktig som før.
   const kandidater = opts.kandidater ?? filnavnKandidater(omrade, format, proj)
   let res = null
+  const avslag = []
   for (const url of kandidater) {
     const r = await fetch(url, { signal: AbortSignal.timeout(20 * 60 * 1000) })
     if (r.ok) { res = r; opts.pa?.(url); break }
-    // 404 = feil skrivemåte, prøv neste. Alt annet er en ekte feil.
-    if (r.status !== 404) throw new Error(`HTTP ${r.status} for ${url}`)
+    avslag.push(`HTTP ${r.status}  ${url.split('/').pop()}`)
+    // 404 = feil skrivemåte, prøv neste. Alt annet er en ekte feil — MEN en
+    // ordre-URL kan svare 403 mens Geonorge fortsatt gjør fila klar, og da er
+    // et kast det samme som å kaste bort kjøringen. `taalAlt` lar en probe
+    // prøve videre og RAPPORTERE hver status; bakene står urørt.
+    if (r.status !== 404 && !opts.taalAlt) throw new Error(`HTTP ${r.status} for ${url}`)
   }
   if (!res) {
-    throw new Error(`Ingen av ${kandidater.length} filnavn-varianter fantes:\n  ` +
-      kandidater.map(u => u.split('/').pop()).join('\n  '))
+    throw new Error(`Ingen av ${kandidater.length} URL-er svarte:\n  ` + avslag.join('\n  '))
   }
   const zip = join(dir, opts.zipNavn ?? 'n50.zip')
   writeFileSync(zip, Buffer.from(await res.arrayBuffer()))

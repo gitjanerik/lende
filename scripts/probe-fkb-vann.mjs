@@ -77,7 +77,7 @@ import {
 } from '../src/lib/n50ArealPakke.js'
 import {
   finnOmrader, velgFormat, lastNed, finnGdb, lagNavn, feltNavn, krevGdal,
-  filnavnKandidater, BASER, katalogUrl,
+  filnavnKandidater, BASER, katalogUrl, bestill,
 } from './geonorgeN50.mjs'
 
 // ── Rene hjelpere (enhetstestet i probe-fkb-vann.test.js) ──────────────────
@@ -318,7 +318,7 @@ if (ER_HOVED) {
   // ── 1. Katalog ────────────────────────────────────────────────────────────
 
   const katalog = await trinn(`Katalog — finnes «${DATASETT}», og hvilke områder har den?`, 'katalog', async () => {
-    const { omrader, formater, projeksjoner, uuid, tittel } = await finnOmrader(DATASETT)
+    const { omrader, formater, projeksjoner, uuid, tittel, lenker } = await finnOmrader(DATASETT)
     log(`  ${tittel} — ${uuid}`)
     log(`  ${omrader.length} områder, ${formater.length} formater, ${projeksjoner.length} projeksjoner`)
     const typer = new Map()
@@ -327,10 +327,13 @@ if (ER_HOVED) {
     log(`  formater: ${formater.map(f => f.name).join(', ')}`)
     log(`  projeksjoner: ${projeksjoner.map(p => p.code).join(', ')}`)
     log(`  første 10 områder: ${omrader.slice(0, 10).map(o => `${o.code}:${o.name}`).join(', ')}`)
-    writeFileSync(join(UT, 'omrader.json'), JSON.stringify({ uuid, tittel, omrader, formater, projeksjoner }, null, 2))
+    // De autoritative lenkene. Gjettede filnavn bommet 12 ganger og katalog-
+    // URL-ene ga 404 — dette er hva Geonorge SELV sier finnes.
+    log(`  capabilities-lenker: ${lenker.map(l => l.rel.split('/').pop()).join(', ') || '(ingen)'}`)
+    writeFileSync(join(UT, 'omrader.json'), JSON.stringify({ uuid, tittel, omrader, formater, projeksjoner, lenker }, null, 2))
     log('  → hele lista i probe-ut/omrader.json')
-    rapport.katalog = { uuid, tittel, antallOmrader: omrader.length, typer: Object.fromEntries(typer) }
-    return { omrader, formater, projeksjoner }
+    rapport.katalog = { uuid, tittel, antallOmrader: omrader.length, typer: Object.fromEntries(typer), lenker }
+    return { omrader, formater, projeksjoner, uuid }
   })
 
   // ── 2–3. Nedlasting + laginnhold ──────────────────────────────────────────
@@ -398,10 +401,27 @@ if (ER_HOVED) {
       try {
         const { format } = velgFormat(omrade, katalog.formater, katalog.projeksjoner)
         const projeksjoner = omrade.projections?.length ? omrade.projections : katalog.projeksjoner
-        const kandidater = fkbKandidater(omrade, format, projeksjoner)
-        log(`    prøver ${kandidater.length} URL-kandidater (${format.name}, proj ${projeksjoner.map(p => p.code).join('/')})`)
+        // ORDREN FØRST, gjetningene etter. To CI-kjøringer brukte 18 forsøk på
+        // å slå fast at FKB-filnavnet ikke er til å gjette; ordre-API-et svarer
+        // med det EKTE navnet. Feiler ordren, faller vi tilbake på kandidatene
+        // — de koster lite, og en fallback som allerede er skrevet er billigere
+        // enn en kjøring til.
+        let bestilte = []
+        for (const proj of projeksjoner) {
+          try {
+            const { filer, ra } = await bestill(katalog.uuid, omrade, format, proj)
+            writeFileSync(join(UT, `ordre-${omrade.code}-${proj.code}.json`), JSON.stringify(ra, null, 2))
+            log(`    ordre (proj ${proj.code}): ${filer.length} fil(er)${filer.length ? ` — ${filer[0].url}` : ''}`)
+            if (filer.length) { bestilte = filer.map(f => f.url); break }
+          } catch (e) {
+            log(`    ordre (proj ${proj.code}) feilet: ${e.message.split('\n')[0]}`)
+          }
+        }
+        const kandidater = [...bestilte, ...fkbKandidater(omrade, format, projeksjoner)]
+        log(`    prøver ${kandidater.length} URL-er (${bestilte.length} fra ordre, ${format.name}, proj ${projeksjoner.map(p => p.code).join('/')})`)
         const utpakket = await lastNed(omrade, format, null, fdir, (...a) => log(...a), {
           kandidater,
+          taalAlt: true,
           zipNavn: 'fkb.zip',
           pa: (url) => { log(`    ✓ ${url}`); rapport.nedlastingsUrl = url },
         })
