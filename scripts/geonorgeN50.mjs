@@ -67,9 +67,23 @@ export function velgFormat(omrade, formater, projeksjoner) {
 // Geonorge staver fylkesnavn ulikt: «Vestland» går rett inn, mens
 // «Trøndelag» og «Østfold» må translittereres. Vi prøver variantene i tur —
 // første bake feilet nettopp fordi vi bare erstattet mellomrom.
-export function filnavnKandidater(omrade, format, proj, slug = 'N50Kartdata', base = DIREKTE_BASE) {
+// Filnavn-PREFIKSET er en parameter fra v7.9.11, og det er ikke kosmetikk:
+// Geonorge navngir fila etter PRODUSENTEN, ikke etter katalogen. Basisdata-
+// datasettene heter «Basisdata_…», mens Geovekst-produserte (FKB) heter
+// «Geovekst_…». Første FKB-kjøring brukte 6 URL-er på å finne ut nettopp det —
+// alle seks krysset base og slug, og alle seks bar prefikset «Basisdata_».
+export function filnavnKandidater(omrade, format, proj, slug = 'N50Kartdata', base = DIREKTE_BASE, prefiks = 'Basisdata') {
   return navnevarianter(omrade.name).map(navn =>
-    `${base}/${slug}/${format.name}/Basisdata_${omrade.code}_${navn}_${proj.code}_${slug}_${format.name}.zip`)
+    `${base}/${slug}/${format.name}/${prefiks}_${omrade.code}_${navn}_${proj.code}_${slug}_${format.name}.zip`)
+}
+
+// Katalog-URL-en for ett datasett-format. Geonorge serverer den som en
+// XML-liste over blobene (eller 404/403). Den er en SISTE UTVEI når alle
+// filnavn-kandidatene bommet: en 404 fra Geonorge ser nøyaktig ut som
+// «datasettet finnes ikke», og da er det eneste som hjelper å SE hva som
+// faktisk ligger der. Brukes bare av proben, aldri av en bake.
+export function katalogUrl(base, slug, format) {
+  return `${base}/${slug}/${format.name}/`
 }
 
 // Geonorge legger ikke alt under /Basisdata: Geovekst-produserte datasett

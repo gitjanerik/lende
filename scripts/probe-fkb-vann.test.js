@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  SLUGGER, FKB_OBJTYPE, fkbKandidater, klassifiserFkb, bboxOverlapper,
+  SLUGGER, FKB_OBJTYPE, fkbKandidater, PREFIKSER, speidKatalog, klassifiserFkb, bboxOverlapper,
   ringBredde, nasjonaltAnslag, lesLagTyper, erFlateLag, velgOmrader, malFlater,
 } from './probe-fkb-vann.mjs'
 import { filnavnKandidater, BASER } from './geonorgeN50.mjs'
@@ -28,6 +28,45 @@ describe('fkbKandidater', () => {
 
   it('gir ingenting uten projeksjoner', () => {
     expect(fkbKandidater(OMRADE, FORMAT, [])).toEqual([])
+  })
+
+  // Første CI-kjøring bommet på ALLE seks kandidatene, og fellesnevneren var
+  // prefikset: hver eneste var «Basisdata_». Geonorge navngir fila etter
+  // produsenten, og FKB er Geovekst.
+  it('krysser filnavn-prefikset, med Geovekst først', () => {
+    const ut = fkbKandidater(OMRADE, FORMAT, [P32])
+    expect(ut.some(u => u.includes('/Geovekst_3203_'))).toBe(true)
+    expect(ut.some(u => u.includes('/Basisdata_3203_'))).toBe(true)
+    expect(PREFIKSER[0]).toBe('Geovekst')
+    const iGeovekst = ut.findIndex(u => u.includes('/Geovekst_3203_'))
+    const iBasis = ut.findIndex(u => u.includes('/Basisdata_3203_'))
+    expect(iGeovekst).toBeLessThan(iBasis)
+  })
+})
+
+describe('speidKatalog', () => {
+  it('spør hver base × slug og bærer status og utdrag videre', async () => {
+    const sett = []
+    const hent = async (url) => {
+      sett.push(url)
+      return { status: 404, text: async () => 'x'.repeat(4000) }
+    }
+    const ut = await speidKatalog(FORMAT, ['FKB-Vann'], ['https://a', 'https://b'], hent)
+    expect(sett).toEqual([
+      'https://a/FKB-Vann/FGDB/',
+      'https://b/FKB-Vann/FGDB/',
+    ])
+    expect(ut.map(r => r.status)).toEqual([404, 404])
+    expect(ut[0].utdrag.length).toBe(1500)
+  })
+
+  // Den kjøres når noe ALLEREDE har feilet. Kaster den selv, mister vi den
+  // ene utskriften som kunne løst saken.
+  it('kaster aldri — en død host blir status 0 med meldingen', async () => {
+    const hent = async () => { throw new Error('getaddrinfo ENOTFOUND') }
+    const ut = await speidKatalog(FORMAT, ['FKB-Vann'], ['https://a'], hent)
+    expect(ut[0].status).toBe(0)
+    expect(ut[0].utdrag).toContain('ENOTFOUND')
   })
 })
 

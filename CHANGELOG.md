@@ -1,3 +1,24 @@
+## 2026-09-20 — v7.9.11: Første FKB-kjøring svarte — katalogen finnes, filnavnet var feil gjettet
+
+Proben kjørte i CI og fikk halve svaret. Katalogtrinnet fant FKB-Vann
+(595e47d9-d201-479c-a77d-cbc1f573a76b) med 357 kommuner, 15 fylker og ett
+landsdekkende område, i FGDB, GML og SOSI, projeksjonene 5972/5973/5975 — så
+datasettet finnes og er bestillbart per kommune. Nedlastingen bommet derimot på
+alle seks URL-kandidatene, og fellesnevneren var ikke base eller slug, som var
+det vi krysset: hver eneste kandidat bar filnavn-prefikset «Basisdata_».
+Geonorge navngir fila etter PRODUSENTEN, og FKB er Geovekst.
+
+Prefikset er nå en egen krysset dimensjon med «Geovekst» først, og
+`filnavnKandidater` tar det som parameter — N50-kallstedene er byte-identiske,
+og testen holder URL-en fast. I tillegg speider proben katalogen når ALLE
+kandidatene bommer: den henter base × slug × format-katalogen og dumper status
+og de første 1 500 tegnene til probe-ut/speid.json. Grunnen er at en 404 fra
+Geonorge ser nøyaktig ut som «datasettet finnes ikke» og ikke sier hvilken av
+base, slug, prefiks eller projeksjon som var feil — uten et blikk på hva som
+faktisk ligger der, koster hver gjetning en ny CI-kjøring.
+
+---
+
 ## 2026-09-20 — v7.9.10: Måling — finnes Askerelva som flate i FKB-Vann?
 
 Askerelva tegnes som en hårtynn blå strek der UT.no viser en fylt vannflate, og

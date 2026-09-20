@@ -77,7 +77,7 @@ import {
 } from '../src/lib/n50ArealPakke.js'
 import {
   finnOmrader, velgFormat, lastNed, finnGdb, lagNavn, feltNavn, krevGdal,
-  filnavnKandidater, BASER,
+  filnavnKandidater, BASER, katalogUrl,
 } from './geonorgeN50.mjs'
 
 // ── Rene hjelpere (enhetstestet i probe-fkb-vann.test.js) ──────────────────
@@ -88,6 +88,12 @@ import {
 // koster tre HEAD-forespørsler mot å koste en CI-kjøring.
 export const SLUGGER = Object.freeze(['FKB-Vann', 'FKBVann', 'FKB_Vann'])
 
+// Filnavn-prefiksene. MÅLT i første CI-kjøring: alle seks kandidater bommet,
+// og fellesnevneren var at de bar «Basisdata_». Geonorge navngir fila etter
+// PRODUSENTEN, og FKB er Geovekst. «Geovekst» står først fordi det er den
+// forklaringen målingen peker på.
+export const PREFIKSER = Object.freeze(['Geovekst', 'Basisdata'])
+
 /**
  * Alle URL-kandidater for ett område, i prøve-rekkefølge.
  *
@@ -97,16 +103,45 @@ export const SLUGGER = Object.freeze(['FKB-Vann', 'FKBVann', 'FKB_Vann'])
  * på halve landet, og 404 fra Geonorge ser nøyaktig ut som «datasettet finnes
  * ikke».
  */
-export function fkbKandidater(omrade, format, projeksjoner, slugger = SLUGGER, baser = BASER) {
+export function fkbKandidater(omrade, format, projeksjoner, slugger = SLUGGER, baser = BASER,
+                              prefikser = PREFIKSER) {
   const ut = []
   for (const base of baser) {
     for (const slug of slugger) {
       for (const proj of projeksjoner) {
-        for (const url of filnavnKandidater(omrade, format, proj, slug, base)) ut.push(url)
+        for (const prefiks of prefikser) {
+          for (const url of filnavnKandidater(omrade, format, proj, slug, base, prefiks)) ut.push(url)
+        }
       }
     }
   }
   return [...new Set(ut)]
+}
+
+/**
+ * Siste utvei når hver eneste filnavn-kandidat bommet: SE hva som ligger i
+ * katalogen i stedet for å gjette en runde til.
+ *
+ * Dumper rå svar fra hver base × slug × format — en blob-liste, en 404-side,
+ * hva som helst — for en 404 fra Geonorge ser nøyaktig ut som «datasettet
+ * finnes ikke», og det er det den første kjøringen gikk på. Kaster ALDRI:
+ * dette er en måling som kjøres når noe allerede har feilet.
+ */
+export async function speidKatalog(format, slugger = SLUGGER, baser = BASER, hent = fetch) {
+  const ut = []
+  for (const base of baser) {
+    for (const slug of slugger) {
+      const url = katalogUrl(base, slug, format)
+      try {
+        const r = await hent(url, { signal: AbortSignal.timeout(30000) })
+        const tekst = (await r.text()).slice(0, 1500)
+        ut.push({ url, status: r.status, utdrag: tekst })
+      } catch (e) {
+        ut.push({ url, status: 0, utdrag: String(e?.message ?? e) })
+      }
+    }
+  }
+  return ut
 }
 
 // FKB-Vann sine flate-objekttyper. Nøklene er små bokstaver; verdien fra kilden
@@ -354,6 +389,7 @@ if (ER_HOVED) {
   await trinn('Nedlasting + laginnhold', 'last', async () => {
     if (!katalog) throw new Error('katalog-trinnet ga ingenting — ingenting å laste ned')
     krevGdal()
+    let speidBehov = null
     const valgte = velgOmrader(katalog.omrader, OMRADER)
     for (const { onske, omrade } of valgte) {
       if (!omrade) { log(`  ⚠ «${onske}»: ingen treff i område-lista (se probe-ut/omrader.json)`); continue }
@@ -378,12 +414,26 @@ if (ER_HOVED) {
         }
       } catch (e) {
         log(`    ⚠ ${omrade.name} feilet: ${e.message}`)
+        speidBehov ??= velgFormat(omrade, katalog.formater, katalog.projeksjoner).format
       } finally {
         rmSync(fdir, { recursive: true, force: true })
       }
     }
     log(`\n  til sammen ${tall(raFlater.length)} vannflater`)
     rapport.flaterRa = raFlater.length
+
+    // Bommet ALLE kandidatene, er neste spørsmål ikke «hvilken skrivemåte nå?»
+    // men «hva ligger der egentlig?». Uten dette koster hver gjetning en ny
+    // CI-kjøring — og en 404 sier ingenting om hvilken av base, slug, prefiks
+    // eller projeksjon som var feil.
+    if (!raFlater.length && speidBehov) {
+      log('\n  ingen treff — speider katalogen for å se hva som FAKTISK ligger der:')
+      const speid = await speidKatalog(speidBehov)
+      rapport.speid = speid
+      for (const s of speid) log(`    HTTP ${s.status}  ${s.url}`)
+      writeFileSync(join(UT, 'speid.json'), JSON.stringify(speid, null, 2))
+      log('    → hele svarene i probe-ut/speid.json')
+    }
   })
 
 
