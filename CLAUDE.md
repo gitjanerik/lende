@@ -374,14 +374,22 @@ konturenes 50,9 % av arket. **`minAreaM2` beholder areal-skaleringen**: å
 DROPPE hele små flater er den legitime perf-leveren, mens forenklingen gjorde
 de synlige tingene feil.
 
-**EN GROV OSM-STI VIKER FOR EN DETALJERT RUTE (v7.9.10)** (`fjernGrovOsm` i
-`lib/linjeDedup.js`, delt av app og headless). Uttynningen av Turrutebasen/N50
-mot OSM spør bare om ruta ligger NÆR en linje vi tegner, ikke om linja er god
-nok — og en OSM-sti med 400 m mellom punktene svelget DNT-ruta som buktet seg
-rundt den ved Sandtjern. Portene er smale med vilje: bare stier (ikke veger),
-bare med et spenn over 150 m, bare når ruta selv er fin (ingen spenn over
-100 m) og dekker minst 85 % av streken innenfor 80 m. Løsnes én av dem, kan en
-god OSM-sti forsvinne for en rute som bare deler en bit av den.
+**EN GROV OSM-STI VIKER FOR EN DETALJERT RUTE (v7.9.10, per strekk fra
+v7.9.11)** (`fjernGrovOsm` i `lib/linjeDedup.js`, delt av app og headless).
+Uttynningen av Turrutebasen/N50 mot OSM spør bare om ruta ligger NÆR en linje
+vi tegner, ikke om linja er god nok — og en OSM-sti med 400 m mellom punktene
+svelget DNT-ruta som buktet seg rundt den ved Sandtjern. Portene: bare stier
+(ikke veger), bare med et spenn over 150 m, og bare de SEGMENTENE av OSM-stien
+som ligger minst 85 % innenfor 80 m av en rutes KORTE spenn (≤ 100 m).
+**Begge sider vurderes strekk for strekk, og det er målt:** v7.9.10 krevde at
+hele stien var dekket og hele ruta fin, og ved Sandtjern dekket N50 bare den
+nordre halvdelen — så regelen slo aldri inn, og streken sør for tjernet sto.
+En delvis dekket sti kappes derfor til bitene som står igjen (id `<id>:<n>`).
+**Et grovt mellomstrekk DEKKET I BEGGE ENDER faller også** (`GROV_BRO_TOL_M` =
+250 m, bare spenn over 100 m): ved Sandtjern lå segment 5–7 110–215 m fra
+DNT-ruta, og uten den regelen sto streken igjen mellom to kappede biter. Porten
+er innkapslingen — en forskjøvet bit i ENDEN kan være en parallell sti, et
+strekk inne i samme way som ruta følger før og etter kan ikke det.
 
 **BYGG UNDER 500 m² ER ET ORIENTERT REKTANGEL, IKKE ET FAST KVADRAT (v7.9.1)**
 (`lib/byggRektangel.js`, ren og testet). Fram til v7.9.1 fikk hvert bygg under

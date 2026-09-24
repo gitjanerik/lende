@@ -154,21 +154,32 @@ export function dedupeRoutesAgainstLines(routes, lines, {
 // merkede N50-stien bukter seg rundt den med 19 m i snitt, altså nesten hele
 // tida innenfor toleransen, så de ble tynnet bort og streken sto igjen.
 //
-// Regelen er derfor snudd for nøyaktig det tilfellet: en OSM-STI som er GROV
-// (har et spenn over GROV_SPENN_M) og som i hovedsak DEKKES av en DETALJERT
-// rute (ingen spenn over DETALJERT_SPENN_M), fjernes — og ruta tegnes i sin
-// helhet i stedet, fordi den nå ikke har noe å tynnes mot der. Kjøreveger er
-// bevisst utenfor: der er OSM-geometrien tegnet fra flyfoto og aldri grov på
-// denne måten, og en veg som byttes mot en sti ville skiftet symbol.
+// Regelen er derfor snudd for nøyaktig det tilfellet: der en OSM-STI er GROV
+// (har spenn over GROV_SPENN_M) og en DETALJERT rute følger den, viker OSM.
+// Begge sider vurderes STREKK FOR STREKK og ikke som helhet (v7.9.11):
+// - OSM-stien kappes per segment. Et segment som dekkes (GROV_DEKNING_ANDEL av
+//   det innen GROV_DEKNING_TOL_M av detaljert rute) faller bort; resten står.
+//   v7.9.10 krevde 85 % av HELE stien, og ved Sandtjern dekker N50 bare den
+//   nordre halvdelen — den rette streken sør for tjernet ble stående.
+// - Ruta teller bare med sine korte spenn (≤ DETALJERT_SPENN_M). En N50-sti på
+//   1,5 km med ett spenn på 128 m et sted er detaljert overalt ellers.
+// Kjøreveger er bevisst utenfor: der er OSM-geometrien tegnet fra flyfoto og
+// aldri grov på denne måten, og en veg som byttes mot en sti ville skiftet symbol.
 export const GROV_SPENN_M = 150
 export const DETALJERT_SPENN_M = 100
 // Hvor nær den detaljerte ruta OSM-streken må ligge. Romsligere enn
 // DEDUP_TOLERANCE_M med vilje: en korde over et 400 m-spenn skjærer gjennom
 // svingene ruta tar, og det er nettopp de strekene som skal fanges.
 export const GROV_DEKNING_TOL_M = 80
-// Andel av OSM-streken som må dekkes. Uten et høyt krav ville en lang, grov
-// sti som bare deler sin første bit med en rute forsvunnet i sin helhet.
+// Andel av et OSM-segment som må dekkes før det faller bort.
 export const GROV_DEKNING_ANDEL = 0.85
+// Et grovt mellomstrekk som er DEKKET I BEGGE ENDER av samme sti, er samme sti
+// tegnet feil — ikke en parallell sti. Ved Sandtjern ligger OSM-
+// segmentene 5–7 110–215 m vest for DNT-ruta, altså utenfor 80 m, og uten denne
+// regelen står den rette streken igjen mellom to dekkede biter. Portene: bare
+// spenn over DETALJERT_SPENN_M (et detaljert tegnet stykke er noen som har gått
+// der), og hvert punkt innen GROV_BRO_TOL_M av detaljert rute.
+export const GROV_BRO_TOL_M = 250
 const STI_TYPER = new Set(['path', 'footway', 'bridleway'])
 
 function maksSpenn(geometry) {
@@ -177,31 +188,70 @@ function maksSpenn(geometry) {
   return maks
 }
 
+function detaljertePunkter(ruter) {
+  const out = []
+  for (const r of ruter ?? []) {
+    const g = r?.geometry
+    if (!Array.isArray(g)) continue
+    for (let i = 0; i < g.length - 1; i++) {
+      if (metersBetween(g[i], g[i + 1]) > DETALJERT_SPENN_M) continue
+      out.push(...densify([g[i], g[i + 1]], DENSIFY_M))
+    }
+  }
+  return out
+}
+
 /**
- * Fjern grove OSM-stier som en detaljert rute (Turrutebasen/N50) følger.
- * Returnerer OSM-elementene uten dem, og id-ene som ble fjernet.
+ * Kapp bort de strekkene av grove OSM-stier som en detaljert rute
+ * (Turrutebasen/N50) følger. En sti som er dekket overalt fjernes; en delvis
+ * dekket sti erstattes av bitene som står igjen (id `<id>:<n>`).
+ * Returnerer elementene og id-ene til stiene som ble rørt.
  *
  * @param {Array} osmElements
  * @param {Array} ruter  [{geometry}] — råe ruter FØR uttynning
  */
 export function fjernGrovOsm(osmElements, ruter) {
-  const detaljerte = (ruter ?? []).filter(r =>
-    Array.isArray(r?.geometry) && r.geometry.length >= 2 && maksSpenn(r.geometry) <= DETALJERT_SPENN_M)
-  if (!detaljerte.length || !osmElements?.length) return { elementer: osmElements ?? [], fjernet: [] }
-  const dense = []
-  for (const r of detaljerte) dense.push(...densify(r.geometry, DENSIFY_M))
+  const dense = detaljertePunkter(ruter)
+  if (!dense.length || !osmElements?.length) return { elementer: osmElements ?? [], fjernet: [] }
   const index = buildGrid(dense, GROV_DEKNING_TOL_M)
+  let broIndex = null
+  const erGrovBro = (g, fra, til) => {
+    for (let t = fra; t < til; t++) if (metersBetween(g[t], g[t + 1]) <= DETALJERT_SPENN_M) return false
+    broIndex ??= buildGrid(dense, GROV_BRO_TOL_M)
+    for (const p of densify(g.slice(fra, til + 1), DENSIFY_M)) if (!hasNeighbourWithin(broIndex, p, GROV_BRO_TOL_M)) return false
+    return true
+  }
   const fjernet = []
-  const elementer = osmElements.filter(el => {
+  const elementer = []
+  for (const el of osmElements) {
     const g = el?.geometry
-    if (el?.type !== 'way' || !STI_TYPER.has(el.tags?.highway) || !Array.isArray(g) || g.length < 2) return true
-    if (maksSpenn(g) <= GROV_SPENN_M) return true
-    const pts = densify(g, DENSIFY_M)
-    let dekket = 0
-    for (const p of pts) if (hasNeighbourWithin(index, p, GROV_DEKNING_TOL_M)) dekket++
-    if (dekket / pts.length < GROV_DEKNING_ANDEL) return true
+    if (el?.type !== 'way' || !STI_TYPER.has(el.tags?.highway) || !Array.isArray(g) || g.length < 2
+      || maksSpenn(g) <= GROV_SPENN_M) { elementer.push(el); continue }
+    const dekket = []
+    for (let i = 0; i < g.length - 1; i++) {
+      const pts = densify([g[i], g[i + 1]], DENSIFY_M)
+      let n = 0
+      for (const p of pts) if (hasNeighbourWithin(index, p, GROV_DEKNING_TOL_M)) n++
+      dekket.push(n / pts.length >= GROV_DEKNING_ANDEL)
+    }
+    if (!dekket.some(Boolean)) { elementer.push(el); continue }
+    for (let i = 1; i < dekket.length - 1; i++) {
+      if (dekket[i] || !dekket[i - 1]) continue
+      let j = i
+      while (j < dekket.length && !dekket[j]) j++
+      if (j < dekket.length && erGrovBro(g, i, j)) for (let t = i; t < j; t++) dekket[t] = true
+      i = j
+    }
     fjernet.push(el.id)
-    return false
-  })
+    let bit = null, k = 0
+    for (let i = 0; i < dekket.length; i++) {
+      if (dekket[i]) { bit = null; continue }
+      if (!bit) {
+        bit = { ...el, id: `${el.id}:${k++}`, geometry: [g[i]] }
+        elementer.push(bit)
+      }
+      bit.geometry.push(g[i + 1])
+    }
+  }
   return { elementer, fjernet }
 }
