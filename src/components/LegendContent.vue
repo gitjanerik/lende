@@ -51,6 +51,8 @@ const isDark = computed(() => hexLuminance(bgColor.value) < 0.4)
 
 // Grupper koder i tematiske seksjoner for hjelp til lesing
 const SECTIONS = [
+  // Stiene først: det er det man slår opp oftest på et turkart.
+  { title: 'Veier & stier', codes: ['501', '502', '503', '504', '505', '506', '507'], category: 'manmade' },
   { title: 'Høydekurver', codes: ['101', '102'], category: 'contour' },
   { title: 'Stupkanter & blokker', codes: ['201', '203', '210', '213', '215', '216'], category: 'rock' },
   { title: 'Innlandsvann', codes: ['301', '302', '303', '304', '305', '308', '309'], category: 'water',
@@ -63,7 +65,6 @@ const SECTIONS = [
       + 'blågrå kant. Flatene kommer fra Kartverkets N50 Arealdekke, navnene fra N50 Stedsnavn '
       + 'og OSM. Merk at ISOM har omvendt vegetasjonslogikk av andre norske kart: 405 løpbar '
       + 'skog er HVIT og 401 åpen mark er GUL. Turkart-stilen snur det tilbake.' },
-  { title: 'Veier & stier', codes: ['501', '502', '503', '504', '505', '506', '507'], category: 'manmade' },
   { title: 'Jernbane', codes: ['515'], category: 'manmade' },
   { title: 'Vinter & ski', codes: ['510', '511', '512'], category: 'manmade' },
   { title: 'Bygninger', codes: ['521', '522', '532', '525', '528'], category: 'manmade',

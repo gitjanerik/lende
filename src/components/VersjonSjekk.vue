@@ -30,6 +30,34 @@ const TEKST = {
   // ville vært en påstand vi ikke har dekning for.
   unsupported: 'Kan ikke sjekke her.',
   feil: 'Fikk ikke kontakt. Prøv igjen.',
+  kopiert: 'Versjonen er kopiert.',
+  'kopi-feil': 'Kunne ikke kopiere.',
+}
+
+// Et trykk på versjonsteksten kopierer den, så den kan limes inn i en
+// feilmelding. execCommand er fallbacken for http og eldre WebView, der
+// navigator.clipboard mangler.
+async function kopier() {
+  const tekst = `Lende v${APP_VERSION}`
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(tekst)
+    } else {
+      const ta = document.createElement('textarea')
+      ta.value = tekst
+      ta.setAttribute('readonly', '')
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      const ok = document.execCommand('copy')
+      ta.remove()
+      if (!ok) throw new Error('copy')
+    }
+    status.value = 'kopiert'
+  } catch {
+    status.value = 'kopi-feil'
+  }
 }
 
 async function sjekk() {
@@ -46,7 +74,15 @@ async function sjekk() {
 <template>
   <div class="vs">
     <div class="vs-rad">
-      <span>Versjon {{ APP_VERSION }}</span>
+      <button type="button" class="vs-kopier" @click="kopier"
+              :aria-label="`Versjon ${APP_VERSION} – trykk for å kopiere`">
+        Versjon {{ APP_VERSION }}
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="9" y="9" width="11" height="11" rx="2" />
+          <path d="M5 15V6a2 2 0 0 1 2-2h9" />
+        </svg>
+      </button>
       <button type="button" class="vs-knapp" @click="sjekk"
               :disabled="status === 'sjekker'">
         Se etter oppdatering
@@ -87,6 +123,12 @@ async function sjekk() {
   padding: 4px 0; text-decoration: underline; text-underline-offset: 2px;
   cursor: pointer; min-height: 24px;
 }
+.vs-kopier {
+  font: inherit; color: inherit; background: none; border: 0;
+  padding: 4px 0; min-height: 24px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.vs-kopier svg { opacity: 0.7; }
 .vs-knapp:disabled { opacity: 0.6; cursor: default; text-decoration: none; }
 .vs-status { font-size: inherit; color: inherit; opacity: 0.85; }
 .vs-oppdater {

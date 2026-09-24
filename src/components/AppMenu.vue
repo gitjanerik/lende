@@ -690,7 +690,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   display: flex;
   flex-direction: column;
   gap: 22px;
-  padding-bottom: max(env(safe-area-inset-bottom, 0px), 18px);
+  padding-bottom: calc(max(env(safe-area-inset-bottom, 0px), 18px) + 32px);
 }
 
 /* ── «Installer som app» ──
