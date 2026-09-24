@@ -19,6 +19,7 @@ import {
   buildIsomDefs,
   buildIsomCss,
   getIsomDef,
+  erSkiloype,
   isomCatalog,
 } from './symbolizer.js'
 import { buildContours, detectCliffs, detectSummits } from './dem.js'
@@ -852,6 +853,9 @@ export function buildSvg(elements, bbox, options = {}) {
     const t = el?.tags
     if (!t) return true
     if (el.type === 'way' && t.route === 'ferry' && !t.type) return true
+    // Løype-relasjoner (route=piste) er unntak nummer to (v7.9.18): i norsk
+    // OSM er lysløypa ofte BARE relasjonen, lagt over skogsveier og stier.
+    if (el.type === 'relation' && t.route === 'piste' && erSkiloype(t)) return true
     return !(t.route || t.type === 'route' || t.type === 'route_master')
   })
 
@@ -1052,6 +1056,7 @@ export function buildSvg(elements, bbox, options = {}) {
   const parkeringer = []   // ISOM 534-derivert (amenity=parking)
   const holdeplasser = []  // ISOM 560-derivert (buss/tog-holdeplass)
   const broer = []         // ISOM 509-derivert (bridge=yes på highway/path)
+  const loypeRelasjoner = [] // route=piste-relasjoner (510), flates ut til medlems-ways
   const bommer = []        // ISOM 526-derivert (barrier=gate/lift_gate/...)
   const marinePoints = []  // Fase 3: { el, code } for marine/padle-POI-symboler
   const soundings = []     // Sjøkart dybdepunkt — skjult detalj-lag (inset-only)
@@ -1134,9 +1139,30 @@ export function buildSvg(elements, bbox, options = {}) {
     // Isbre-NAVNEPUNKT bærer bare navnet. De har ingen flate å tegne, og ville
     // ellers blåst opp 410-tellingen med features som ikke gir én piksel.
     if (cls.code === '410' && el.type === 'node') continue
+    // Løype-relasjoner (route=piste) har ingen egen geometri — medlemmene
+    // tegnes som 510 etter løkka, når vi vet hvilke ways som alt er med.
+    if (cls.code === '510' && el.type === 'relation') {
+      if (el.members) loypeRelasjoner.push(el)
+      continue
+    }
     if (buckets[cls.code]) {
       buckets[cls.code].push(el)
       counts[cls.code]++
+    }
+    // En veg eller sti som også er skiløype tegnes begge steder: sommerens
+    // turveg er vinterens lysløype, og én kode ville skjult den ene.
+    if (cls.code !== '510' && el.type === 'way' && erSkiloype(el.tags)) {
+      buckets['510'].push(el)
+      counts['510']++
+    }
+  }
+  const loypeWays = new Set(buckets['510'].map(el => el.id))
+  for (const rel of loypeRelasjoner) {
+    for (const m of rel.members) {
+      if (m.type !== 'way' || !m.geometry?.length || loypeWays.has(m.ref)) continue
+      loypeWays.add(m.ref)
+      buckets['510'].push({ type: 'way', id: m.ref, tags: rel.tags, geometry: m.geometry })
+      counts['510']++
     }
   }
 

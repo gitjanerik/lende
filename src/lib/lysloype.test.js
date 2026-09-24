@@ -32,3 +32,31 @@ describe('Lysløype (510) — gule prikker på gul linje, ett omriss', () => {
     expect(def.underlag.widthMm).toBeLessThan(def.stroke.widthMm)
   })
 })
+
+describe('Lysløype (510) — løypa vises også der den er en veg eller en relasjon', () => {
+  const g = loype.geometry
+  const koder = (els) => {
+    const { svg } = buildSvg(els, bbox, { visibleLayers: ['lysloype', 'vei-skog', 'sti'] })
+    return [...svg.matchAll(/data-iso="(\d+)">\s*<path/g)].map(m => m[1])
+  }
+
+  it('en skogsvei med piste:type=nordic tegnes både som vei og som lysløype', () => {
+    expect(koder([{ type: 'way', id: 2, tags: { highway: 'track', 'piste:type': 'nordic', lit: 'yes' }, geometry: g }]))
+      .toEqual(expect.arrayContaining(['504', '510']))
+  })
+
+  it('en route=piste-relasjon tegnes av medlemmenes geometri', () => {
+    const rel = { type: 'relation', id: 9, tags: { type: 'route', route: 'piste', 'piste:type': 'nordic' },
+      members: [{ type: 'way', ref: 1, role: '', geometry: g }] }
+    expect(koder([rel])).toEqual(['510'])
+  })
+
+  it('et medlem som selv er løype-tagget tegnes ikke to ganger', () => {
+    const way = { type: 'way', id: 1, tags: { highway: 'track', 'piste:type': 'nordic' }, geometry: g }
+    const rel = { type: 'relation', id: 9, tags: { type: 'route', route: 'piste', 'piste:type': 'nordic' },
+      members: [{ type: 'way', ref: 1, role: '', geometry: g }] }
+    const { svg } = buildSvg([rel, way], bbox, { visibleLayers: ['lysloype', 'vei-skog'] })
+    const gruppe = svg.match(/data-iso="510">([\s\S]*?)<\/g>/)[1]
+    expect(gruppe.match(/<path[^>]*\/>/g).length).toBe(4)
+  })
+})
