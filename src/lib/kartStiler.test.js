@@ -174,11 +174,11 @@ describe('sti-stiplingen er tett nok til å leses som stiplet', () => {
       expect(dash(tema, '505')[0]).toBeLessThanOrEqual(0.36 / 3 + 1e-9)
     })
 
-    it(`${tema} tegner stitråkk (507) som dobbelstrek og vanlig sti (505) som enkel strek`, () => {
-      // v7.9.13: skillet bæres av FORMEN — to streker med kort luft mellom,
-      // så lang luft. Fra v7.9.14 er formen ALENE om det: casingen er lik.
-      expect(dash(tema, '507')).toHaveLength(4)
-      expect(dash(tema, '505')).toHaveLength(2)
+    it(`${tema}: alle tre stiene har samme stiplingsmønster`, () => {
+      // v7.9.16: dobbelstreken (v7.9.13) leste som en liten veg inne i
+      // casingen. Mønsteret er nå likt, og bare strekbredden skiller.
+      expect(dash(tema, '506')).toEqual(dash(tema, '505'))
+      expect(dash(tema, '507')).toEqual(dash(tema, '505'))
     })
   }
 
@@ -292,49 +292,33 @@ describe('skogsveg (504) leses som veg, ikke som sti', () => {
 // Sti-stigen: 505 «godt løp» → 506 «uklar» → 507 «stitråkk». Fram til v7.8.37
 // var 506 TETTERE enn 505 i hvert tema ([0.1, 0.1] mot [0.12, 0.11]) — den
 // utydelige stien leste altså fastere enn den gode. Regelen er monoton.
-// Fra v7.9.13 måles den i BLEKK per mm linje og lengste luft, ikke i strek-
-// lengde: 507 er en dobbelstrek med lengre streker enn 505, og det er formen
-// som skiller dem. Med ISOM-ens gruppegap hadde 507 mer blekk enn begge de
-// andre — det er grunnen til at gapet er økt.
-describe('sti-stigen er monoton — tydeligst sti er fastest', () => {
-  // Temaets mønster (mm eller faktorer) erstatter basens; bredden er basens.
-  const dash = (tema, kode) => {
-    const b = katalog.categories.manmade[kode].stroke
-    const t = katalog.themes[tema]?.categories?.[kode]?.stroke
-    const s = t?.dash ? { dash: t.dash } : t?.dashFaktor ? { dashFaktor: t.dashFaktor } : b
-    return dashMm(s, b.widthMm)
-  }
+// v7.9.16: stigen bæres av strekbredden alene — mønsteret er likt, så den
+// tydeligste stien er den med tykkest strek.
+describe('sti-stigen er monoton — tydeligst sti er tykkest', () => {
+  it('strekbredden avtar fra 505 via 506 til 507', () => {
+    const w = (k) => katalog.categories.manmade[k].stroke.widthMm
+    expect(w('505')).toBeGreaterThan(w('506'))
+    expect(w('506')).toBeGreaterThan(w('507'))
+  })
 
-  for (const tema of ['turkart', 'padling', 'dark', 'print']) {
-    it(`${tema}: blekket avtar og lufta vokser fra 505 via 506 til 507`, () => {
-      const bredde = (k) => katalog.themes[tema]?.categories?.[k]?.stroke?.widthMm
-        ?? katalog.categories.manmade[k].stroke.widthMm
-      const sum = (a) => a.reduce((x, y) => x + y, 0)
-      // Strekene står i partalls-plassene, lufta i oddetallene.
-      const blekk = (k) => {
-        const d = dash(tema, k)
-        return bredde(k) * sum(d.filter((_, i) => i % 2 === 0)) / sum(d)
-      }
-      const luft = (k) => Math.max(...dash(tema, k).filter((_, i) => i % 2 === 1))
-      expect(blekk('505')).toBeGreaterThan(blekk('506'))
-      expect(blekk('506')).toBeGreaterThan(blekk('507'))
-      expect(luft('505')).toBeLessThan(luft('506'))
-      expect(luft('506')).toBeLessThan(luft('507'))
-    })
-  }
+  it('forskjellen er liten — 507 er minst to tredjedeler av 505', () => {
+    const w = (k) => katalog.categories.manmade[k].stroke.widthMm
+    expect(w('507') / w('505')).toBeGreaterThanOrEqual(2 / 3)
+  })
 })
 
 // v7.9.14: stiene var et lappverk — tre bredder, og 507 uten casing, så den
 // minste stien var en løs grå stump ved siden av de hvit-kantede. Nå har alle
-// tre SAMME form utenpå, og bare stiplingen inne i casingen skiller dem.
+// tre SAMME form utenpå, og bare den svarte streken inne i casingen skiller dem.
 describe('alle stier har samme ytre form', () => {
   const d = (kode) => katalog.categories.manmade[kode]
   const STIER = ['505', '506', '507']
 
-  it('lik casing-bredde og lik strekbredde på 505/506/507', () => {
+  it('lik casing-bredde og likt mønster i faste mm på 505/506/507', () => {
     for (const k of STIER) {
       expect(d(k).casingStroke?.widthMm, k).toBe(d('505').casingStroke.widthMm)
-      expect(d(k).stroke.widthMm, k).toBe(d('505').stroke.widthMm)
+      expect(d(k).stroke.dasharray, k).toEqual(d('505').stroke.dasharray)
+      expect(d(k).stroke.dashFast, k).toBe(true)
     }
   })
 

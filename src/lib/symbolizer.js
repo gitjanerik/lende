@@ -857,7 +857,13 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
         // Turkart vil ha kortere strek og tettere luft enn ISOM-spec-en, som
         // er regnet for trykk i 1:10 000 og leses som heltrukket på skjerm.
         const faktorer = dashFaktorer(def.stroke)
-        if (faktorer) {
+        // dashFast (stiene, v7.9.16): mønsteret står i faste mm, så de tre
+        // stitypene har samme rytme og skilles på strekbredden alene.
+        if (faktorer && def.stroke.dashFast) {
+          props.push(`--w: ${effektivBredde(def.stroke.widthMm, code)}`)
+          props.push('stroke-width: var(--w)')
+          props.push(`stroke-dasharray: var(--iso-${code}-dash, ${dashMm(def.stroke).map((d) => `${d}mm`).join(' ')})`)
+        } else if (faktorer) {
           props.push(`--w: ${effektivBredde(def.stroke.widthMm, code)}`)
           props.push('stroke-width: var(--w)')
           props.push(`stroke-dasharray: ${dashCss(faktorer, 'var(--w)', code)}`)

@@ -397,65 +397,29 @@ describe('punktsymbol-farger — hva som themes og hva som er konstant', () => {
   })
 })
 
-// ── Stitråkk som dobbelstrek (507, v7.9.13) ─────────────────────────────────
-// 507 «stitråkk — vanskelig» er den vanligste stien i norsk utmark. Den var
-// prikker i v7.9.12, og prikkene ble «kampesteiner i et steingjerde» så snart
-// strek-skalaen gikk opp: bredden fulgte --stroke-scale, mønsteret sto i faste
-// mm, og lufta ble spist opp. Nå er mønsteret ISOM-ens dobbelstrek regnet som
-// FAKTORER av den effektive bredden (lib/strekMonster.js).
-//
-// Enhetene: `1mm` i en SVG med viewBox i METER er 3.7795 brukerenheter, altså
-// 3,78 m på bakken ved nøytral skala.
-describe('507 dobbelstrek — mønsteret følger strekbredden', () => {
-  const base = isomCatalog.categories.manmade['507'].stroke
+// ── Stiene: samme mønster, ulik bredde (v7.9.16) ───────────────────────────
+// 505/506/507 har samme casing og samme stipling i FASTE mm; bare den svarte
+// strekens bredde skiller dem. Bredden følger fortsatt --stroke-scale og
+// «Stier»-slideren gjennom --w, mønsteret gjør det ikke.
+describe('stiene — samme mønster, bare strekbredden skiller', () => {
   const css = buildIsomCss(isomCatalog, new Map(), {})
-  const regel = /\[data-iso="507"\] \{[^}]*\}/.exec(css)[0]
-
-  const temaFaktor = Object.entries(isomCatalog.themes)
-    .map(([navn, t]) => [navn, t.categories?.['507']?.stroke?.dashFaktor])
-    .filter(([, df]) => df)
-
-  it('strek og indre gap er ISOM-forholdet (1,0 / 0,25 relativt til 0,18 mm)', () => {
-    expect(base.dashFaktor.strek).toBeCloseTo(1.0 / 0.18, 0)
-    expect(base.dashFaktor.gapIndre).toBeCloseTo(0.25 / 0.18, 0)
-    for (const [navn, df] of temaFaktor) {
-      expect(df.strek, navn).toBe(base.dashFaktor.strek)
-      expect(df.gapIndre, navn).toBe(base.dashFaktor.gapIndre)
-    }
-  })
+  const regel = (k) => new RegExp(`\\[data-iso="${k}"\\] \\{[^}]*\\}`).exec(css)[0]
 
   it('--w er grunnbredde × strek-skala × «Stier»-slideren', () => {
-    expect(regel).toContain('--w: calc(0.1mm * var(--stroke-scale, 1) * var(--strek-sti, 1))')
-    expect(regel).toContain('stroke-width: var(--w)')
+    expect(regel('505')).toContain('--w: calc(0.1mm * var(--stroke-scale, 1) * var(--strek-sti, 1))')
+    expect(regel('506')).toContain('--w: calc(0.085mm * var(--stroke-scale, 1) * var(--strek-sti, 1))')
+    expect(regel('507')).toContain('--w: calc(0.07mm * var(--stroke-scale, 1) * var(--strek-sti, 1))')
   })
 
-  it('dasharray regnes av --w, ikke av faste mm', () => {
-    const dash = /stroke-dasharray: ([^;}]+)/.exec(regel)[1]
-    expect(dash).not.toMatch(/\dmm/)
-    expect(dash.match(/calc\(var\(--w\) \* /g)).toHaveLength(4)
-    expect(dash).toContain('var(--iso-507-dash-faktor, 5.5)')
-    expect(dash).toContain('var(--iso-507-gap-indre-faktor, 1.4)')
-    expect(dash).toContain('var(--iso-507-gap-gruppe-faktor, 24)')
-  })
-
-  it('butt cap — round ville lagt en halv bredde på hver strek og spist det indre gapet', () => {
-    expect(base.linecap).toBe('butt')
-    expect(regel).toContain('stroke-linecap: butt')
-  })
-
-  it('hvert kartstil-tema setter sitt eget gruppegap', () => {
-    expect(temaFaktor.map(([n]) => n).sort()).toEqual(['dark', 'padling', 'print', 'turkart'])
-  })
-
-  it('to hele dobbelstreker får plass på en kort stibit (≤ 20 m ved nøytral skala)', () => {
-    // Gruppegapet er ØKT fra ISOM for å holde sti-stigen, men ikke så mye at en
-    // kort bit ender med én dobbelstrek. To hele = én periode + strek-luft-strek.
-    const M_PER_MM = 96 / 25.4
-    for (const [navn, df] of [['base', base.dashFaktor], ...temaFaktor]) {
-      const periode = 2 * df.strek + df.gapIndre + df.gapGruppe
-      const toHele = (periode + 2 * df.strek + df.gapIndre) * base.widthMm * M_PER_MM
-      expect(toHele, navn).toBeLessThanOrEqual(20)
+  it('dasharray er en tema-variabel med faste mm, uten calc', () => {
+    for (const k of ['505', '506', '507']) {
+      expect(regel(k)).toContain(`stroke-dasharray: var(--iso-${k}-dash, 0.36mm 0.3mm)`)
+      expect(regel(k)).not.toMatch(/stroke-dasharray:[^;]*calc/)
     }
+  })
+
+  it('butt cap — rette ender på strekene', () => {
+    expect(regel('507')).toContain('stroke-linecap: butt')
   })
 })
 

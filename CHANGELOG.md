@@ -1,3 +1,9 @@
+## 2026-09-24 — v7.9.16: Stitypene skilles bare på strekbredden
+
+Med v7.9.14 fikk alle stiene samme hvite casing, men stitråkket (507) beholdt dobbelstreken med lang luft — og inne i hvit casing leste den som en liten veg. Nå er 505, 506 og 507 samme symbol: samme casing (0,18 mm), samme stiplingsmønster og samme farge. Det eneste som skiller dem er bredden på den svarte, stiplede streken: 0,10 mm for godt løp (505), 0,085 mm for uklar sti (506) og 0,07 mm for stitråkk (507). Mønsteret står i faste mm og ikke lenger som calc()-faktorer av strekbredden, fordi faktorer ville gitt tre ulike rytmer for tre bredder — nettopp det som ikke skal skille dem. Strekbredden følger fortsatt strek-skalaen og «Stier»-slideren. Kart må bygges på nytt for å få den nye formen.
+
+---
+
 ## 2026-09-24 — v7.9.15: Stiene øverst i tegnforklaringen, og versjonen kan kopieres
 
 «Veier & stier» er flyttet til første seksjon i tegnforklaringen, fordi det er den man slår opp oftest på et turkart. I hovedmenyen er det mer luft under bunnen, så versjonslinja ikke ligger klemt mot skjermkanten. Et trykk på «Versjon x.y.z» kopierer nå «Lende vx.y.z» til utklippstavla og sier fra i statuslinja. Det virker både i menyen og på Om-siden, siden de deler komponenten. Fallbacken er execCommand der navigator.clipboard mangler (http, eldre WebView).
