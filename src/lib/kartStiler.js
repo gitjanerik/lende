@@ -33,7 +33,8 @@ import { ALL_LAYER_KEYS } from './mapLayerCatalog.js'
 // mapLayerCatalog, blir det med i stilene av seg selv. Det motsatte (eksplisitte
 // lister) betyr at nye lag blir usynlige i alle stiler til noen husker dem.
 
-// Vinter-ting er sjelden ønsket i oversikt og har ofte ingen data.
+// Vinter-ting er sjelden ønsket i oversikt og har ofte ingen data — de er
+// derfor PÅ bare i Vinter-stilen.
 const VINTER = ['lysloype', 'heistrase', 'slalombakke']
 // Marine POI — hører til Padling, ikke til et landkart.
 const MARINE = ['kai', 'sjo-poi', 'sjo-navn']
@@ -154,9 +155,31 @@ export const KARTSTILER = Object.freeze([
     stiPalett: 'blekk',
     relieff: false,
   },
+  {
+    // v7.9.19: Print-uttrykket med vinter-lagene PÅ. Relieffet står av som i
+    // Print — en snøhvit flate med gråtone-skygge leses som skitten snø.
+    key: 'vinter',
+    label: 'Vinter',
+    beskrivelse: 'Mye hvitt, røde ski- og lysløyper, heiser og slalombakker. Prikket linje er lysløype.',
+    tema: 'vinter',
+    lag: med(uten(MARINE, OVERLEGG, ['idrettsanlegg', 'stedsnavn-minor', 'spor']), VINTER),
+    strek: { kurve: 1.0, sti: 1.2, skogsVei: 1.1, litenVei: 1.1, storVei: 1.1, bygg: 1.1 },
+    stiPalett: 'blekk',
+    relieff: false,
+  },
 ])
 
 export const KARTSTIL_KEYS = KARTSTILER.map((s) => s.key)
+
+// Delt av begge MCP-flatene (stdio + Worker), så ski-svaret ikke spriker.
+export const SKI_VEILEDNING =
+  'Skiløyper: spør brukeren om skiløyper, lysløyper, langrenn, slalåm eller skiheis, eller ' +
+  'skal hen på ski, velg kartstil «vinter» (røde løyper, heistraseer og slalåmbakker på). ' +
+  'Vil hen bare se løypene i en annen stil: lag {"lysloype": true} (+ "heistrase"/"slalombakke" ' +
+  'for alpint) — laget er av som standard. Laget viser både lysløyper og løyper uten lys: ' +
+  'prikkene langs streken er lyset, en strek uten prikker er en løype uten lys. Kildene er OSM ' +
+  'og Turrutebasen; ingen av dem sier noe om føre eller preparering, så påstå aldri at en løype ' +
+  'er preparert — henvis til skisporet.no for live føremelding.'
 export const DEFAULT_KARTSTIL = 'turkart'
 
 export function kartStil(key) {

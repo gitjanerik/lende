@@ -184,7 +184,7 @@ export const AI_TOOLS = [
           vis: { type: 'array', items: { type: 'string' }, description: 'Lag som skal slås PÅ, f.eks. ["parkering","vann"]' },
           skjul: { type: 'array', items: { type: 'string' }, description: 'Lag som skal slås AV, f.eks. ["navn"]' },
           bare: { type: 'array', items: { type: 'string' }, description: 'Vis KUN disse lagene (alt annet av) — «vis bare stier og høydekurver»' },
-          kartstil: { type: 'string', description: 'turkart | orientering | padling | natt | print — bytter farger, lag, strek og sti-farger samlet' },
+          kartstil: { type: 'string', description: 'turkart | orientering | padling | natt | print | vinter — bytter farger, lag, strek og sti-farger samlet' },
           nullstill: { type: 'boolean', description: 'Sett alle lag tilbake til standard' },
         },
         required: [],
@@ -1761,6 +1761,14 @@ export function losTemaNokkel(onske, temaer) {
  * lag-nøkler. Brukeren og modellen sier etiketter eller omtrentligheter, ikke
  * katalognøkler. Returnerer { nokler, ukjente }.
  */
+// Ord brukere sier om vinter-lagene som ikke står i etikettene: «skiløyper»
+// finnes ikke i «Ski- og lysløyper» som delstreng, og «slalåm» ikke i «Slalombakke».
+const LAG_SYNONYMER = [
+  [/^(ski(løyp|spor)|lysløyp|løyp|langrenn)/, 'lysloype'],
+  [/^(ski)?heis|^skitrekk|^stolheis/, 'heistrase'],
+  [/^(slal[aå]m|alpin|skibakke)/, 'slalombakke'],
+]
+
 export function losLagNokler(onsker, lag) {
   const nokler = []
   const ukjente = []
@@ -1773,6 +1781,7 @@ export function losLagNokler(onsker, lag) {
       ?? lag.find((l) => rens(l.label) === s)
       ?? lag.find((l) => rens(l.label).startsWith(s) || l.key.startsWith(s))
       ?? lag.find((l) => rens(l.label).includes(s) || l.key.includes(s))
+      ?? lag.find((l) => LAG_SYNONYMER.some(([re, k]) => k === l.key && re.test(s)))
     if (treff) { if (!nokler.includes(treff.key)) nokler.push(treff.key) }
     else ukjente.push(String(raa))
   }

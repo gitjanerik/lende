@@ -427,7 +427,7 @@
         }
       },
       "510": {
-        "label": "Lysløype",
+        "label": "Skiløype / lysløype",
         "$comment": "Lysløype (v7.9.17): gule prikker på en heltrukket gul linje, med ETT tynt sort omriss rundt begge. widthMm gir punkt-diameter og dasharray [0, gap] med linecap=round gir ekte sirkler. mapBuilder emitterer fire tvillinger i rekkefølge omriss-linje → omriss-prikk → underlag → prikkene, så omrisset rundt hver sirkel ligger UNDER den gule linja og aldri tegnes over den.",
         "underlag": {
           "color": "#f5c518",
@@ -2524,6 +2524,329 @@
       "symbols": {
         "ink": "#000000",
         "paper": "#fcfbf7"
+      },
+      "patterns": {
+        "myr": {
+          "stroke": "#3a7fa3",
+          "fill": "#eef6fa"
+        },
+        "myr-utrygg": {
+          "stroke": "#3a7fa3",
+          "fill": "#eef6fa"
+        },
+        "kirkegard": {
+          "stroke": "#4a4a44",
+          "fill": "#eeeeea"
+        }
+      },
+      "artMode": false,
+      "fillOpacity": 1,
+      "autoHideLayers": false
+    },
+    "vinter": {
+      "$comment": "Vinter (v7.9.19): Print-temaets blekk på hvitt, med en kald snøtone (#fbfdfe) i stedet for papirtone — ikke rent hvitt, for glorien rundt navnene skal smelte inn i bakgrunnen og en hvit glorie er det tema-testene forbyr. Skiløypene er røde fordi det er den ene fargen resten av arket ikke bruker — kurvene er brune, veiene svarte, vannet blått — og fordi det er konvensjonen på norske vinterkart. Belyste løyper beholder prikkene (i samme rødt), ubelyste er bare linja. Vannflatene er blekere enn i Print: om vinteren er innsjøen is løypa går over, og en mettet blå flate under en rød løype trekker øyet feil vei. Skogen er tilsvarende dempet, så løypenettet er det som står fram.",
+      "label": "Vinter",
+      "group": "kartstil",
+      "monochrome": false,
+      "background": "#fbfdfe",
+      "depthScale": ["#e2eef4", "#d2e5ee", "#c2dce8", "#b2d3e2", "#a2cadc"],
+      "categories": {
+        "561": {
+          "stroke": {
+            "color": "#14568c"
+          },
+          "casingStroke": {
+            "color": "#fbfdfe"
+          }
+        },
+        "001": {
+          "fill": {
+            "color": "#fbfdfe"
+          }
+        },
+        "101": {
+          "stroke": {
+            "color": "#8a6034"
+          }
+        },
+        "102": {
+          "stroke": {
+            "color": "#6b4522"
+          }
+        },
+        "103": {
+          "stroke": {
+            "color": "#a37f57"
+          }
+        },
+        "104": {
+          "stroke": {
+            "color": "#8a6034"
+          }
+        },
+        "201": {
+          "stroke": {
+            "color": "#3d3830"
+          }
+        },
+        "203": {
+          "stroke": {
+            "color": "#1c1a16"
+          }
+        },
+        "210": {
+          "fill": {
+            "color": "#e4e0d8"
+          }
+        },
+        "301": {
+          "fill": {
+            "color": "#e9f2f7"
+          },
+          "stroke": {
+            "color": "#2b6f91"
+          }
+        },
+        "302": {
+          "fill": {
+            "color": "#e9f2f7"
+          },
+          "stroke": {
+            "color": "#2b6f91"
+          }
+        },
+        "303": {
+          "fill": {
+            "color": "#dfecf3"
+          },
+          "stroke": {
+            "color": "#2b6f91"
+          }
+        },
+        "304": {
+          "stroke": {
+            "color": "#2b6f91"
+          }
+        },
+        "305": {
+          "stroke": {
+            "color": "#357da0"
+          }
+        },
+        "306": {
+          "stroke": {
+            "color": "#3f87aa"
+          }
+        },
+        "307": {
+          "fill": {
+            "color": "#e9f2f7"
+          }
+        },
+        "401": {
+          "fill": {
+            "color": "#fbfdfe"
+          }
+        },
+        "403": {
+          "fill": {
+            "color": "#f5f7ef"
+          }
+        },
+        "404": {
+          "fill": {
+            "color": "#f1f5e9"
+          }
+        },
+        "405": {
+          "fill": {
+            "color": "#f7faf1"
+          }
+        },
+        "406": {
+          "fill": {
+            "color": "#e9f1de"
+          }
+        },
+        "407": {
+          "fill": {
+            "color": "#dce9cb"
+          }
+        },
+        "408": {
+          "fill": {
+            "color": "#cde0b6"
+          }
+        },
+        "409": {
+          "fill": {
+            "color": "#c4dbab"
+          }
+        },
+        "410": {
+          "fill": {
+            "color": "#ffffff"
+          },
+          "stroke": {
+            "color": "#8a9aa6"
+          }
+        },
+        "501": {
+          "stroke": {
+            "color": "#111111"
+          },
+          "overlayStroke": {
+            "color": "#f0c25a"
+          }
+        },
+        "502": {
+          "stroke": {
+            "color": "#111111"
+          },
+          "overlayStroke": {
+            "color": "#f7d888"
+          }
+        },
+        "503": {
+          "stroke": {
+            "color": "#1c1c1c"
+          },
+          "overlayStroke": {
+            "color": "#fbfdfe"
+          }
+        },
+        "504": {
+          "stroke": {
+            "color": "#2b2b2b"
+          }
+        },
+        "505": {
+          "stroke": {
+            "color": "#000000",
+            "dash": [0.12, 0.09]
+          },
+          "casingStroke": {
+            "color": "#fbfdfe"
+          }
+        },
+        "506": {
+          "stroke": {
+            "color": "#000000",
+            "dash": [0.12, 0.09]
+          },
+          "casingStroke": {
+            "color": "#fbfdfe"
+          }
+        },
+        "507": {
+          "stroke": {
+            "color": "#000000",
+            "dash": [0.12, 0.09]
+          },
+          "casingStroke": {
+            "color": "#fbfdfe"
+          }
+        },
+        "516": {
+          "stroke": {
+            "color": "#4a4a44"
+          }
+        },
+        "520": {
+          "stroke": {
+            "color": "#2f6d32"
+          }
+        },
+        "521": {
+          "fill": {
+            "color": "#4a4038"
+          },
+          "stroke": {
+            "color": "#000000"
+          }
+        },
+        "521-small": {
+          "fill": {
+            "color": "#ffffff"
+          },
+          "stroke": {
+            "color": "#000000"
+          }
+        },
+        "510": {
+          "stroke": {
+            "color": "#d7191c"
+          },
+          "underlag": {
+            "color": "#d7191c"
+          },
+          "omriss": {
+            "color": "#6e0a0c"
+          }
+        },
+        "511": {
+          "stroke": {
+            "color": "#b3141a"
+          }
+        },
+        "512": {
+          "fill": {
+            "color": "#fde8e6"
+          },
+          "stroke": {
+            "color": "#d7191c"
+          }
+        }
+      },
+      "labels": {
+        "place": {
+          "color": "#111111",
+          "haloColor": "#fbfdfe"
+        },
+        "peak": {
+          "color": "#3d2b16",
+          "haloColor": "#fbfdfe"
+        },
+        "peak-ele": {
+          "color": "#3d2b16",
+          "haloColor": "#fbfdfe"
+        },
+        "kontur-tall": {
+          "color": "#6b4522",
+          "haloColor": "#fbfdfe"
+        },
+        "vann-navn": {
+          "color": "#14566f",
+          "haloColor": "#eaf4f9"
+        },
+        "vann-tall": {
+          "color": "#14566f",
+          "haloColor": "#eaf4f9"
+        },
+        "dybde-tall": {
+          "color": "#14566f",
+          "haloColor": "#eaf4f9"
+        },
+        "stedsnavn": {
+          "color": "#111111",
+          "haloColor": "#fbfdfe"
+        },
+        "omrade-navn": {
+          "color": "#5a5348",
+          "haloColor": "#fbfdfe"
+        },
+        "hytte-navn": {
+          "color": "#111111",
+          "haloColor": "#fbfdfe"
+        },
+        "naturreservat-navn": {
+          "color": "#2f6d32",
+          "haloColor": "#fbfdfe"
+        }
+      },
+      "symbols": {
+        "ink": "#000000",
+        "paper": "#fbfdfe"
       },
       "patterns": {
         "myr": {

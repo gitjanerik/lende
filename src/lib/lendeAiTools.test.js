@@ -441,6 +441,15 @@ describe('losLagNokler', () => {
     expect(losLagNokler(['kulturminner'], LAG).nokler).toEqual(['kulturminne'])
     expect(losLagNokler(['hus'], LAG).nokler).toEqual(['bygning'])
   })
+  it('forstår vinter-ord som ikke står i etikettene', () => {
+    const VINTER = [
+      { key: 'lysloype', label: 'Ski- og lysløyper' },
+      { key: 'heistrase', label: 'Heistrasé' },
+      { key: 'slalombakke', label: 'Slalombakke' },
+    ]
+    expect(losLagNokler(['skiløyper', 'langrenn', 'lysløypa'], VINTER)).toEqual({ nokler: ['lysloype'], ukjente: [] })
+    expect(losLagNokler(['skiheis', 'slalåmbakker', 'alpin'], VINTER)).toEqual({ nokler: ['heistrase', 'slalombakke'], ukjente: [] })
+  })
   it('deduplikerer og rapporterer ukjente', () => {
     const r = losLagNokler(['sti', 'Sti', 'enhjørninger'], LAG)
     expect(r.nokler).toEqual(['sti'])

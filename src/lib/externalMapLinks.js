@@ -1,6 +1,7 @@
 // Eksterne kart-lenker for et punkt (v12.1.17): Google Maps, Street View og
 // Vegvesenets Vegkart. Delt mellom turkartets long-press-ark (MapView) og
 // Ruteplanleggerens long-press-pin. UT.no-lenken bor i utNoLink.js.
+// Skisporet (v7.9.19) står i turkartets infopanel.
 
 import { wgs84ToUtm33 } from './utm.js'
 
@@ -41,4 +42,20 @@ export function buildVegkartUrl({ lat, lon, zoom = VEGKART_DEFAULT_ZOOM }) {
  */
 export function buildKulturminnesokUrl(id) {
   return id ? `https://www.kulturminnesok.no/kart/?id=${encodeURIComponent(id)}` : null
+}
+
+// Skisporet.no: live føremelding for skiløypene. Formatet er
+// /setView/<lat>/<lon>/<zoom>/<bakgrunnskart>, hentet fra sidens egne delte
+// lenker — ikke verifisert live herfra (tjenesten er sperret fra sandkassen).
+// Skisporet er avløst av Sporet (sporet.no, nov. 2025); når den nye
+// dyplenke-formen er kjent, byttes den her og ingen andre steder.
+export const SKISPORET_ZOOM_MIN = 5
+export const SKISPORET_ZOOM_MAX = 17
+
+/** @returns {string|null} null hvis punktet ikke er gyldige tall */
+export function buildSkisporetUrl({ lat, lon, zoom = 14 }) {
+  if (![lat, lon, zoom].every(Number.isFinite)) return null
+  if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return null
+  const z = Math.min(SKISPORET_ZOOM_MAX, Math.max(SKISPORET_ZOOM_MIN, Math.round(zoom)))
+  return `https://skisporet.no/setView/${lat.toFixed(5)}/${lon.toFixed(5)}/${z}/norges_grunnkart`
 }

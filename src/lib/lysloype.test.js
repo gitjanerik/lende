@@ -5,7 +5,7 @@ import { buildIsomCss } from './symbolizer.js'
 
 const bbox = { south: 59.00, west: 10.00, north: 59.05, east: 10.09 }
 const loype = {
-  type: 'way', id: 1, tags: { leisure: 'track', sport: 'skiing' },
+  type: 'way', id: 1, tags: { leisure: 'track', sport: 'skiing', lit: 'yes' },
   geometry: [{ lat: 59.01, lon: 10.01 }, { lat: 59.02, lon: 10.04 }, { lat: 59.03, lon: 10.07 }],
 }
 
@@ -57,6 +57,33 @@ describe('Lysløype (510) — løypa vises også der den er en veg eller en rela
       members: [{ type: 'way', ref: 1, role: '', geometry: g }] }
     const { svg } = buildSvg([rel, way], bbox, { visibleLayers: ['lysloype', 'vei-skog'] })
     const gruppe = svg.match(/data-iso="510">([\s\S]*?)<\/g>/)[1]
-    expect(gruppe.match(/<path[^>]*\/>/g).length).toBe(4)
+    const underlag = gruppe.match(/<path d="([^"]*)" class="underlag"/)[1]
+    expect(underlag.match(/M/g).length).toBe(1)
+  })
+})
+
+describe('Lysløype (510) — belyst mot ubelyst (v7.9.19)', () => {
+  const klasser = (tags) => {
+    const { svg } = buildSvg([{ ...loype, tags }], bbox, { visibleLayers: ['lysloype'] })
+    const gruppe = svg.match(/data-iso="510">([\s\S]*?)<\/g>/)[1]
+    return (gruppe.match(/<path[^>]*\/>/g) ?? []).map(p => p.match(/class="([^"]+)"/)?.[1] ?? 'prikk')
+  }
+
+  it('en løype uten lys får linja med omriss, men ingen prikker', () => {
+    expect(klasser({ 'piste:type': 'nordic' })).toEqual(['omriss-linje', 'underlag'])
+    expect(klasser({ 'piste:type': 'nordic', 'piste:lit': 'no' })).toEqual(['omriss-linje', 'underlag'])
+  })
+
+  it('piste:lit og lit gir begge prikkene', () => {
+    expect(klasser({ 'piste:type': 'nordic', 'piste:lit': 'yes' })).toEqual(['omriss-linje', 'omriss-prikk', 'underlag', 'prikk'])
+    expect(klasser({ 'piste:type': 'nordic', lit: 'yes' })).toContain('prikk')
+  })
+
+  it('en løype over et vann tegnes likevel', () => {
+    const vann = { type: 'way', id: 50, tags: { natural: 'water' }, geometry: [
+      { lat: 59.005, lon: 10.005 }, { lat: 59.005, lon: 10.08 }, { lat: 59.04, lon: 10.08 },
+      { lat: 59.04, lon: 10.005 }, { lat: 59.005, lon: 10.005 }] }
+    const { svg } = buildSvg([vann, { ...loype, tags: { 'piste:type': 'nordic' } }], bbox, { visibleLayers: ['lysloype', 'vann'] })
+    expect(svg).toMatch(/data-iso="510">\s*<path/)
   })
 })

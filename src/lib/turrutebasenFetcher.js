@@ -27,9 +27,11 @@ const WFS_BASE =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_TURRUTEBASEN_WFS_URL) ||
   'https://wfs.geonorge.no/skwms1/wfs.turogfriluftsruter'
 const CRS = 'urn:ogc:def:crs:EPSG::4258'
-// Kun Fotrute. Skiløype/Sykkelrute/AnnenRute finnes i samme WFS, men hører
-// hjemme i egne lag (en skiløype er ikke en sti om sommeren) — eget løft.
+// Fotrute er stinettet. Skiløype hentes i en EGEN spørring (v7.9.19) og går
+// til lysløype-laget (510), ikke til stiene: en skiløype er ikke en sti om
+// sommeren. Sykkelrute/AnnenRute står fortsatt ute.
 const TYPE = 'app:Fotrute'
+const TYPE_SKI = 'app:Skiløype'
 
 // Tak på antall ruter vi henter. Et 16 km-kart i et turtett område (Jotunheimen,
 // Nordmarka) kan ha mange hundre; 800 er godt over det uten å risikere en
@@ -40,12 +42,12 @@ export const TURRUTE_FETCH_CAP = 800
  * WFS GetFeature-URL for et bbox. bbox-parameteren tar `sør,vest,nord,øst` +
  * CRS-urn — EPSG:4258 har lat,lon-akserekkefølge.
  */
-export function buildTurruteUrl(bbox, { count = TURRUTE_FETCH_CAP } = {}) {
+export function buildTurruteUrl(bbox, { count = TURRUTE_FETCH_CAP, type = TYPE } = {}) {
   const p = new URLSearchParams({
     service: 'WFS',
     version: '2.0.0',
     request: 'GetFeature',
-    typeNames: TYPE,
+    typeNames: type,
     srsName: CRS,
     bbox: `${bbox.south},${bbox.west},${bbox.north},${bbox.east},${CRS}`,
     count: String(count),
@@ -101,6 +103,36 @@ export function parseFotruter(gml) {
   return out
 }
 
+// Skiløypene har samme GML-form som fotrutene. Elementnavnet kan komme med
+// ø, som tegnreferanse eller translitterert — regexen tar alle tre, for et
+// navn vi ikke kjente igjen ville gitt null løyper og ingen feilmelding.
+const SKI_EL = 'app:Skil(?:ø|&#248;|&#xf8;|o|oe)ype'
+
+/**
+ * Parse GML 3.2 → skiløype-objekter. `belysning` = JA/NEI/tom; alt annet enn
+ * JA regnes som uten lys, samme regel som `erBelystLoype` for OSM.
+ */
+export function parseSkiloyper(gml) {
+  if (!gml || typeof gml !== 'string') return []
+  const out = []
+  const blockRe = new RegExp(`<${SKI_EL}\\b[\\s\\S]*?<\\/${SKI_EL}>`, 'gi')
+  let m
+  while ((m = blockRe.exec(gml))) {
+    const block = m[0]
+    const id = (block.match(/gml:id="([^"]+)"/) || [])[1] || tagIn(block, 'lokalId')
+    const belysning = (tagIn(block, 'belysning') || '').toUpperCase()
+    const navn = tagIn(block, 'rutenavn')
+    const posRe = /<gml:posList[^>]*>([^<]+)<\/gml:posList>/g
+    let p, i = 0
+    while ((p = posRe.exec(block))) {
+      const geometry = posListToGeometry(p[1])
+      if (geometry.length < 2) continue
+      out.push({ id: `${id ?? 'skiloype'}-${i++}`, belysning, navn, geometry })
+    }
+  }
+  return out
+}
+
 // Turrutebasens `ruteFølger` sier hva strekket FØLGER — sti, veg, trapp, bru …
 // og båt/ferge der ruta krysser vann med rutebåt. De siste er det som tegnet
 // «stier» tvers over Oslofjorden: en stiplet sti over sjøen leses som et tråkk
@@ -123,6 +155,7 @@ export function erBatStrekk(ruteFolger) {
 // alene binder ikke navnet lokalt, så modulens egen bruk av
 // dedupeRoutesAgainstLines lenger nede ble en ReferenceError ved kjøring —
 // usynlig for enhetstestene, som importerer funksjonene direkte.
+import { erSkiloype } from './symbolizer.js'
 import {
   travelLineGeometries, dedupeRoutesAgainstLines,
   DEDUP_TOLERANCE_M, MIN_NEW_SEGMENT_M,
@@ -159,6 +192,42 @@ export function turruterToElements(routes) {
       _source: 'turrutebasen',
     }
   })
+}
+
+/**
+ * Skiløype-objekter → way-elementer med OSM-ens egne løype-tagger, så
+ * symbolizer og lysløype-regelen behandler dem likt med OSM-løypene.
+ *
+ * Ingen båt-sjekk og ingen vann-klipping: en skiløype over et islagt vann er
+ * normalen, ikke en feil (jf. båtstrekkene i fotrutene, som ER en feil der).
+ */
+export function skiloyperToElements(routes) {
+  return (routes ?? []).map((r, i) => ({
+    type: 'way',
+    id: `turrute-ski-${r.id ?? i}`,
+    geometry: r.geometry,
+    tags: {
+      'piste:type': 'nordic',
+      'piste:lit': r.belysning === 'JA' ? 'yes' : 'no',
+      ...(r.navn ? { 'lende:rutenavn': r.navn } : {}),
+    },
+    _source: 'turrutebasen',
+  }))
+}
+
+// Løypene OSM allerede har — veier og relasjons-medlemmer med løype-tagger.
+// Skiløypene tynnes BARE mot disse og ikke mot stier og veier: at en løype
+// følger en skogsvei er nettopp tilfellet der den skal tegnes i tillegg.
+function skiLinjer(elements) {
+  const out = []
+  for (const el of elements ?? []) {
+    if (!erSkiloype(el?.tags)) continue
+    if (Array.isArray(el.geometry) && el.geometry.length >= 2) out.push(el.geometry)
+    for (const m of el.members ?? []) {
+      if (Array.isArray(m.geometry) && m.geometry.length >= 2) out.push(m.geometry)
+    }
+  }
+  return out
 }
 
 async function safeFetchText(url, { signal, timeoutMs = 15000, retries = 1 } = {}) {
@@ -223,3 +292,34 @@ export function turruteElementsFrom(routes, osmElements, status = null) {
   return elements
 }
 
+
+/**
+ * Hent og parse skiløyper i bbox. Samme kontrakt som fetchTurruteRoutes:
+ * nettverk bare, feiler aldri hardt → [].
+ */
+export async function fetchSkiloyper(bbox, opts = {}) {
+  const onStatus = typeof opts.onStatus === 'function' ? opts.onStatus : () => {}
+  if (!bbox || ![bbox.south, bbox.west, bbox.north, bbox.east].every(Number.isFinite)) {
+    onStatus({ state: 'feil', message: 'ugyldig bbox' })
+    return []
+  }
+  const txt = await safeFetchText(buildTurruteUrl(bbox, { type: TYPE_SKI }), opts)
+  if (txt == null) {
+    onStatus({ state: 'feil', message: 'WFS svarte ikke' })
+    return []
+  }
+  const routes = parseSkiloyper(txt)
+  onStatus({ state: 'ok', ruter: routes.length })
+  return routes
+}
+
+/** Tynn skiløyper mot OSM-løypene og gjør dem om til kart-elementer. */
+export function skiloypeElementsFrom(routes, osmElements, status = null) {
+  const kept = dedupeRoutesAgainstLines(routes, skiLinjer(osmElements))
+  const elements = skiloyperToElements(kept)
+  if (routes?.length) {
+    console.log(`[Turrutebasen] ${routes.length} skiløyper → ${elements.length} nye strekk (resten dekkes av OSM)`)
+  }
+  if (status && status.state === 'ok') status.nye = elements.length
+  return elements
+}

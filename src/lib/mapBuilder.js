@@ -19,7 +19,7 @@ import {
   buildIsomDefs,
   buildIsomCss,
   getIsomDef,
-  erSkiloype,
+  erSkiloype, erBelystLoype,
   isomCatalog,
 } from './symbolizer.js'
 import { buildContours, detectCliffs, detectSummits } from './dem.js'
@@ -1809,9 +1809,11 @@ export function buildSvg(elements, bbox, options = {}) {
           continue
         }
         const tunnel = isTunnelAware && !!el.tags?.tunnel && el.tags.tunnel !== 'no'
-        const key = `${tunnel ? 't' : 'n'}|${cellKeyFor(bbox)}`
+        // Skiløype uten lys (v7.9.19) får bare linja — prikkene ER lyset.
+        const utenLys = code === '510' && !erBelystLoype(el.tags)
+        const key = `${tunnel ? 't' : 'n'}${utenLys ? 'u' : ''}|${cellKeyFor(bbox)}`
         let b = cellBuckets.get(key)
-        if (!b) { b = { ds: [], bbox: null, tunnel }; cellBuckets.set(key, b) }
+        if (!b) { b = { ds: [], bbox: null, tunnel, utenLys }; cellBuckets.set(key, b) }
         b.ds.push(d)
         b.bbox = unionBbox(b.bbox, bbox)
       }
@@ -1855,8 +1857,10 @@ export function buildSvg(elements, bbox, options = {}) {
       // gule, så sirkel-omrisset aldri krysser den gule linja.
       const lagKlasser = getIsomDef(code)?.underlag ? ['omriss-linje', 'omriss-prikk', 'underlag'] : []
       const underlagLines = lagKlasser.flatMap(k =>
-        lineBuckets.map(b => `    <path d="${b.ds.join(' ')}" class="${k}"${tunnelAttr(b)}${bboxAttr(b.bbox, fmt)}/>`))
-      const pathLines = lineBuckets.map(b => `    <path d="${b.ds.join(' ')}"${tunnelAttr(b)}${bboxAttr(b.bbox, fmt)}/>`)
+        lineBuckets.filter(b => !(b.utenLys && k === 'omriss-prikk'))
+          .map(b => `    <path d="${b.ds.join(' ')}" class="${k}"${tunnelAttr(b)}${bboxAttr(b.bbox, fmt)}/>`))
+      const pathLines = lineBuckets.filter(b => !b.utenLys)
+        .map(b => `    <path d="${b.ds.join(' ')}"${tunnelAttr(b)}${bboxAttr(b.bbox, fmt)}/>`)
       const allLinePaths = [...casingLines, ...underlagLines, ...pathLines, ...namedLinePaths]
       return `  <g data-layer="${cat}" data-iso="${code}">\n${allLinePaths.join('\n')}\n  </g>\n`
     }

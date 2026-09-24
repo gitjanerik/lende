@@ -21,7 +21,7 @@ import { apneByggeOkt } from './buildSvgClient.js'
 import { fetchN50Water } from './n50Fetcher.js'
 import { fetchNveLakePolygons } from './nveLakeFetcher.js'
 import { fetchKulturminner } from './kulturminneFetcher.js'
-import { fetchTurruteRoutes, turruteElementsFrom } from './turrutebasenFetcher.js'
+import { fetchTurruteRoutes, turruteElementsFrom, fetchSkiloyper, skiloypeElementsFrom } from './turrutebasenFetcher.js'
 import { fetchN50StiLinjer, n50StiElementerFra } from './n50StiFetcher.js'
 import { fjernGrovOsm } from './linjeDedup.js'
 import { fetchN50Areal, fetchN50Vann } from './n50ArealFetcher.js'
@@ -469,6 +469,13 @@ export async function buildMapFromCenter({
     turruteStatus = { state: 'feil', message: String(e?.message ?? e) }
     return []
   }))
+  // Skiløypene fra samme WFS (v7.9.19) — egen spørring, samme restbudsjett.
+  // Hentes uansett om lysløype-laget er på: laget er en visnings-bryter, og et
+  // kart bygget uten løypene kunne ikke fått dem ved å slå laget på etterpå.
+  const skiloypeP = timeAsync('turrute-ski', fetchSkiloyper(bbox, { signal }).catch(e => {
+    console.warn('Turrutebasen-skiløyper ikke tilgjengelig:', e?.message ?? e)
+    return []
+  }))
   // N50-stinettet fra statiske fliser. Fyres parallelt; uttynningen mot OSM
   // OG Turrutebasen skjer i assembleAndBuildFull når alt er inne. Feiler aldri
   // hardt — er flisene ikke bakt, blir kartet som før.
@@ -759,7 +766,7 @@ export async function buildMapFromCenter({
       if (v === fallback) settStatus?.()
       return v
     })
-    const [sjokart, kulturminner, turruteRoutes, n50StiLinjer, n50Areal, n50Rivers] = await Promise.all([
+    const [sjokart, kulturminner, turruteRoutes, n50StiLinjer, n50Areal, n50Rivers, skiloyper] = await Promise.all([
       budsjett(sjokartPromise, { ...EMPTY_SJOKART, timedOut: true }, 'Sjøkart (restbudsjett)'),
       budsjett(kulturminneP, [], 'Kulturminner (restbudsjett)'),
       budsjett(turruteP, [], 'Turrutebasen (restbudsjett)',
@@ -770,6 +777,7 @@ export async function buildMapFromCenter({
         () => { n50ArealStatus = { state: 'feil', message: 'svarte ikke innen restbudsjettet' } }),
       budsjett(n50VannP, [], 'N50-vann (restbudsjett)',
         () => { n50VannStatus = { state: 'feil', message: 'svarte ikke innen restbudsjettet' } }),
+      budsjett(skiloypeP, [], 'Turrutebasen-ski (restbudsjett)'),
     ])
     const sjokartElements = sjokartToElements(sjokart)
     // Merkede fotruter, tynnet mot OSM-ferdselslinjene: ~72 % av Turrutebasen
@@ -784,6 +792,7 @@ export async function buildMapFromCenter({
     // Turrutebasen alt har tegnet ikke tegnes en gang til av N50.
     const n50StiElements = n50StiElementerFra(
       n50StiLinjer, [...osmStier, ...turruteElements], n50StiStatus)
+    const skiElements = skiloypeElementsFrom(skiloyper, osmData.elements)
 
     // Vann-stacken: OSM + N50/NVE-innsjø + NVE-fallback, slått sammen etter
     // reglene i vannMerge.js. Kilden er autoritativ for DET DEN LEVERER —
@@ -799,6 +808,7 @@ export async function buildMapFromCenter({
     if (sjokartElements.length > 0) elements.push(...sjokartElements)
     if (turruteElements.length > 0) elements.push(...turruteElements)
     if (n50StiElements.length > 0) elements.push(...n50StiElements)
+    if (skiElements.length > 0) elements.push(...skiElements)
 
     const sourceParts = ['OSM']
     if (n50Water.length > 0) sourceParts.push(`N50/NVE-innsjø (${n50Water.length} vann${n50HasSea ? ', m/sjø' : ''})`)
@@ -807,6 +817,7 @@ export async function buildMapFromCenter({
     if (sjokartElements.length > 0) sourceParts.push(`Sjøkart (${sjokartElements.length} dybde-features)`)
     if (turruteElements.length > 0) sourceParts.push(`Turrutebasen (${turruteElements.length} rutestrekk)`)
     if (n50StiElements.length > 0) sourceParts.push(`N50-sti (${n50StiElements.length} strekk)`)
+    if (skiElements.length > 0) sourceParts.push(`Turrutebasen (${skiElements.length} skiløype-strekk)`)
     if (n50Areal.length > 0) {
       // Kilde-strengen sier hva vi FIKK, ikke hva baken kan levere: den er det
       // eneste stedet en bruker ser at et ark mangler skog fordi flisene ikke
