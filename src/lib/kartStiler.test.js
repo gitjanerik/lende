@@ -176,10 +176,9 @@ describe('sti-stiplingen er tett nok til å leses som stiplet', () => {
 
     it(`${tema} tegner stitråkk (507) som dobbelstrek og vanlig sti (505) som enkel strek`, () => {
       // v7.9.13: skillet bæres av FORMEN — to streker med kort luft mellom,
-      // så lang luft — pluss casingen 505 har og 507 ikke har.
+      // så lang luft. Fra v7.9.14 er formen ALENE om det: casingen er lik.
       expect(dash(tema, '507')).toHaveLength(4)
       expect(dash(tema, '505')).toHaveLength(2)
-      expect(katalog.categories.manmade['507'].casingStroke).toBeUndefined()
     })
   }
 
@@ -271,9 +270,15 @@ describe('skogsveg (504) leses som veg, ikke som sti', () => {
     expect(d('505').stroke.dasharray).toBeDefined()
   })
 
-  it('504 har tyngre strek OG bredere casing enn 505', () => {
+  it('504 har tyngre strek enn 505, og casingen er aldri smalere', () => {
     expect(d('504').stroke.widthMm).toBeGreaterThan(d('505').stroke.widthMm)
-    expect(d('504').casingStroke.widthMm).toBeGreaterThan(d('505').casingStroke.widthMm)
+    expect(d('504').casingStroke.widthMm).toBeGreaterThanOrEqual(d('505').casingStroke.widthMm)
+  })
+
+  // v7.9.14: med 0,30 mm casing var skogsvegen dobbelt så bred som småvegen,
+  // og småvegens tynne svarte kant så ut som stumper ved siden av den.
+  it('504 har SAMME totalbredde som småvegen (503)', () => {
+    expect(d('504').casingStroke.widthMm).toBe(d('503').stroke.widthMm)
   })
 
   it('504 er lettere enn småvegen (503), som er den over den igjen', () => {
@@ -315,6 +320,35 @@ describe('sti-stigen er monoton — tydeligst sti er fastest', () => {
       expect(blekk('506')).toBeGreaterThan(blekk('507'))
       expect(luft('505')).toBeLessThan(luft('506'))
       expect(luft('506')).toBeLessThan(luft('507'))
+    })
+  }
+})
+
+// v7.9.14: stiene var et lappverk — tre bredder, og 507 uten casing, så den
+// minste stien var en løs grå stump ved siden av de hvit-kantede. Nå har alle
+// tre SAMME form utenpå, og bare stiplingen inne i casingen skiller dem.
+describe('alle stier har samme ytre form', () => {
+  const d = (kode) => katalog.categories.manmade[kode]
+  const STIER = ['505', '506', '507']
+
+  it('lik casing-bredde og lik strekbredde på 505/506/507', () => {
+    for (const k of STIER) {
+      expect(d(k).casingStroke?.widthMm, k).toBe(d('505').casingStroke.widthMm)
+      expect(d(k).stroke.widthMm, k).toBe(d('505').stroke.widthMm)
+    }
+  })
+
+  it('casingen er ikke bredere enn småvegen — stien skal aldri veie mer enn vegen', () => {
+    expect(d('505').casingStroke.widthMm).toBeLessThanOrEqual(d('503').stroke.widthMm)
+  })
+
+  for (const tema of ['turkart', 'padling', 'print']) {
+    it(`${tema}: samme strekfarge og casing-farge på alle tre`, () => {
+      const t = katalog.themes[tema].categories
+      for (const k of STIER) {
+        expect(t[k].stroke.color, k).toBe(t['505'].stroke.color)
+        expect(t[k].casingStroke?.color, k).toBe(t['505'].casingStroke.color)
+      }
     })
   }
 })

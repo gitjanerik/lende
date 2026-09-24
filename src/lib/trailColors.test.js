@@ -20,12 +20,12 @@ describe('trailColors', () => {
     expect(css).not.toContain('path.casing')
   })
 
-  it('bakgrunn treffer kun casing på 505/506 — 507 har ingen underlinje', () => {
+  it('bakgrunn treffer casingen på alle tre stiene', () => {
     const css = buildTrailColorCss({ bg: '#ffee88' })
-    expect(TRAIL_BG_CODES).toEqual(['505', '506'])
+    expect(TRAIL_BG_CODES).toEqual(['505', '506', '507'])
     expect(css).toContain('[data-iso="505"] path.casing')
     expect(css).toContain('[data-iso="506"] path.casing')
-    expect(css).not.toContain('[data-iso="507"] path.casing')
+    expect(css).toContain('[data-iso="507"] path.casing')
   })
 
   it('begge farger gir to regler', () => {
