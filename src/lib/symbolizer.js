@@ -629,6 +629,17 @@ export function erSkiloype(t) {
 }
 
 /**
+ * Er skiløypa belyst? `piste:lit` er løypas egen tag, `lit` er den generelle.
+ * En løype uten noen av dem regnes som uten lys (v7.9.19) — prikkene i 510 er
+ * lyset, så en løype vi ikke VET er belyst skal ikke love det.
+ */
+export function erBelystLoype(t) {
+  if (!t) return false
+  const lys = t['piste:lit'] ?? t.lit
+  return lys === 'yes' || lys === 'JA'
+}
+
+/**
  * Bygg <defs> for ISOM-katalog: alle patterns + alle pointSymbols.
  * Returnerer { defs: string, patternIds: Map, symbolIds: Map }.
  */

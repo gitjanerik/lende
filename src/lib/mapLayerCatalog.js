@@ -76,7 +76,7 @@ export const LAYERS = [
   { key: 'spor',       label: 'GPS-spor' },
   // Sære vinter-ting — aller sist (lysløype er lite relevant for de fleste
   // turkart og default AV).
-  { key: 'lysloype',   label: 'Lysløype' },
+  { key: 'lysloype',   label: 'Ski- og lysløyper' },
   { key: 'heistrase',  label: 'Heistrasé' },
   { key: 'slalombakke', label: 'Slalombakke' },
   { key: 'idrettsanlegg', label: 'Idrettsanlegg' },

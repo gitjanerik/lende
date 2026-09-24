@@ -146,7 +146,7 @@ import { useAppMenu } from '../composables/useAppMenu.js'
 import { svgToWgs84, wgs84ToSvg, nordavvikForMeta, sannNordRotasjonForMeta, punktSkalaForMeta } from '../lib/utm.js'
 import { naermesteMarkor } from '../lib/markorTreff.js'
 import { utNoZoomForMPerPx, UTNO_DEFAULT_ZOOM, buildUtNoUrl } from '../lib/utNoLink.js'
-import { gmapsUrl } from '../lib/externalMapLinks.js'
+import { gmapsUrl, buildSkisporetUrl } from '../lib/externalMapLinks.js'
 import { useUiTextScale } from '../composables/useUiTextScale.js'
 import { useFloatAboveSheets } from '../composables/useFloatAboveSheets.js'
 import { fetchKulturminneById } from '../lib/kulturminneFetcher.js'
@@ -2274,6 +2274,7 @@ function eksternPunktFraContext() {
 const EKSTERNT_KART = {
   utno: buildUtNoUrl,
   gmaps: (p) => gmapsUrl(p.lat, p.lon),
+  skisporet: buildSkisporetUrl,
 }
 // Bryteren «Åpne eksterne lenker i ny fane» (hovedmenyen). Default er samme
 // fane — se useEksterneLenker for hvorfor.

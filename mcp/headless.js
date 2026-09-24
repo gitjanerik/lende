@@ -10,7 +10,7 @@ import { fetchN50Water } from '../src/lib/n50Fetcher.js'
 // Vann-sammenslåingen er DELT med appen (createMapFlow) — se lib/vannMerge.js.
 import { slaaSammenVann } from '../src/lib/vannMerge.js'
 import { slaaSammenAreal } from '../src/lib/arealMerge.js'
-import { fetchTurruteRoutes, turruteElementsFrom } from '../src/lib/turrutebasenFetcher.js'
+import { fetchTurruteRoutes, turruteElementsFrom, fetchSkiloyper, skiloypeElementsFrom } from '../src/lib/turrutebasenFetcher.js'
 import { fetchN50StiLinjer, n50StiElementerFra } from '../src/lib/n50StiFetcher.js'
 import { fjernGrovOsm } from '../src/lib/linjeDedup.js'
 import { fetchN50Areal, fetchN50Vann } from '../src/lib/n50ArealFetcher.js'
@@ -214,7 +214,7 @@ export async function buildMapHeadless({
 
   let n50ArealStatus = null
   let n50VannStatus = null
-  const [overpass, n50Water, dem, turruteRoutes, n50StiLinjer, n50Areal, n50Rivers] = await Promise.all([
+  const [overpass, n50Water, dem, turruteRoutes, skiloyper, n50StiLinjer, n50Areal, n50Rivers] = await Promise.all([
     fetchOverpass(bbox),
     fetchN50Water(bbox).catch(() => []),
     // DEM + samme hull-reparasjon som appen gjør (createMapFlow →
@@ -238,6 +238,8 @@ export async function buildMapHeadless({
     // Merkede fotruter (Turrutebasen) — samme kilde som appen, så MCP-bygde
     // kart ikke mangler stier appen har. Tynnes mot OSM under.
     fetchTurruteRoutes(bbox).catch(() => []),
+    // Skiløypene fra samme WFS (v7.9.19), som i appen.
+    fetchSkiloyper(bbox).catch(() => []),
     // N50-stinettet. Kilden velges av n50StiKilde(): kallerens URL (Workeren
     // sender GitHub Pages-adressen), ellers repoets public/-katalog, ellers
     // ingenting. Se notatet ved n50StiKilde for hvorfor protokollen bestemmer
@@ -292,6 +294,7 @@ export async function buildMapHeadless({
   const turruteEls = turruteElementsFrom(turruteRoutes, osmStier)
   elements.push(...turruteEls)
   elements.push(...n50StiElementerFra(n50StiLinjer, [...osmStier, ...turruteEls], n50StiStatus))
+  elements.push(...skiloypeElementsFrom(skiloyper, overpass.elements))
 
   const { svg, counts, meta } = buildSvg(elements, bbox, {
     dem,

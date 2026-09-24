@@ -9,8 +9,8 @@ import { dashMm } from './strekMonster.js'
 
 describe('kartstil-modellen', () => {
   it('har fem stiler med unike nøkler, etiketter og beskrivelser', () => {
-    expect(KARTSTILER).toHaveLength(5)
-    expect(new Set(KARTSTIL_KEYS).size).toBe(5)
+    expect(KARTSTILER).toHaveLength(6)
+    expect(new Set(KARTSTIL_KEYS).size).toBe(6)
     for (const s of KARTSTILER) {
       expect(s.label, s.key).toBeTruthy()
       expect(s.beskrivelse, s.key).toBeTruthy()

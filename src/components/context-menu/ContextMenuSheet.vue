@@ -257,6 +257,20 @@ function formatDistance(m) {
           </svg>
           Google Maps
         </button>
+        <!-- Skisporet (v7.9.19): live føremelding for løypene rundt punktet.
+             Samme knapp-form som de to over; den forlater appen på samme måte. -->
+        <button type="button" @click="onApneEksterntKart('skisporet')"
+                class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-ink/8
+                       text-[12px] text-ink font-medium active:scale-95 transition
+                       hover:bg-ink/12">
+          <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0 text-ink-3" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round"
+               stroke-linejoin="round" aria-hidden="true">
+            <path d="M15 3h6v6"/><path d="M10 14 21 3"/>
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+          </svg>
+          Skisporet
+        </button>
       </div>
 
       <!-- Blått oppdagbarhets-tips: vises kun når arket åpnes via Info-snarveien

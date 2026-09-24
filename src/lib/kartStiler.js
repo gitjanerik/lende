@@ -33,7 +33,8 @@ import { ALL_LAYER_KEYS } from './mapLayerCatalog.js'
 // mapLayerCatalog, blir det med i stilene av seg selv. Det motsatte (eksplisitte
 // lister) betyr at nye lag blir usynlige i alle stiler til noen husker dem.
 
-// Vinter-ting er sjelden ønsket i oversikt og har ofte ingen data.
+// Vinter-ting er sjelden ønsket i oversikt og har ofte ingen data — de er
+// derfor PÅ bare i Vinter-stilen.
 const VINTER = ['lysloype', 'heistrase', 'slalombakke']
 // Marine POI — hører til Padling, ikke til et landkart.
 const MARINE = ['kai', 'sjo-poi', 'sjo-navn']
@@ -151,6 +152,18 @@ export const KARTSTILER = Object.freeze([
     tema: 'print',
     lag: uten(MARINE, VINTER, OVERLEGG, ['idrettsanlegg', 'stedsnavn-minor', 'spor']),
     strek: { kurve: 1.1, sti: 1.45, skogsVei: 1.2, litenVei: 1.2, storVei: 1.15, bygg: 1.2 },
+    stiPalett: 'blekk',
+    relieff: false,
+  },
+  {
+    // v7.9.19: Print-uttrykket med vinter-lagene PÅ. Relieffet står av som i
+    // Print — en snøhvit flate med gråtone-skygge leses som skitten snø.
+    key: 'vinter',
+    label: 'Vinter',
+    beskrivelse: 'Mye hvitt, røde ski- og lysløyper, heiser og slalombakker. Prikket linje er lysløype.',
+    tema: 'vinter',
+    lag: med(uten(MARINE, OVERLEGG, ['idrettsanlegg', 'stedsnavn-minor', 'spor']), VINTER),
+    strek: { kurve: 1.0, sti: 1.2, skogsVei: 1.1, litenVei: 1.1, storVei: 1.1, bygg: 1.1 },
     stiPalett: 'blekk',
     relieff: false,
   },

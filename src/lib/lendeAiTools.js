@@ -184,7 +184,7 @@ export const AI_TOOLS = [
           vis: { type: 'array', items: { type: 'string' }, description: 'Lag som skal slås PÅ, f.eks. ["parkering","vann"]' },
           skjul: { type: 'array', items: { type: 'string' }, description: 'Lag som skal slås AV, f.eks. ["navn"]' },
           bare: { type: 'array', items: { type: 'string' }, description: 'Vis KUN disse lagene (alt annet av) — «vis bare stier og høydekurver»' },
-          kartstil: { type: 'string', description: 'turkart | orientering | padling | natt | print — bytter farger, lag, strek og sti-farger samlet' },
+          kartstil: { type: 'string', description: 'turkart | orientering | padling | natt | print | vinter — bytter farger, lag, strek og sti-farger samlet' },
           nullstill: { type: 'boolean', description: 'Sett alle lag tilbake til standard' },
         },
         required: [],

@@ -66,7 +66,11 @@ const SECTIONS = [
       + 'og OSM. Merk at ISOM har omvendt vegetasjonslogikk av andre norske kart: 405 løpbar '
       + 'skog er HVIT og 401 åpen mark er GUL. Turkart-stilen snur det tilbake.' },
   { title: 'Jernbane', codes: ['515'], category: 'manmade' },
-  { title: 'Vinter & ski', codes: ['510', '511', '512'], category: 'manmade' },
+  { title: 'Vinter & ski', codes: ['510', '511', '512'], category: 'manmade',
+    note: 'Prøven viser en lysløype: prikkene på linja ER lyset (OSM piste:lit/lit=yes eller '
+      + 'Turrutebasens belysning=JA). En løype uten lys tegnes som linja alene. Løypene hentes '
+      + 'fra OSM og Turrutebasen og tegnes også over vann — om vinteren går de over isen. '
+      + 'Laget er av i alle kartstiler unntatt Vinter, der de er røde.' },
   { title: 'Bygninger', codes: ['521', '522', '532', '525', '528'], category: 'manmade',
     note: 'Bygg under 500 m² tegnes som et standardisert kvadrat på bygningens sentrum — '
       + 'faktiske småpolygoner er irregulære og forsvinner mot nærliggende stier. Fra v5.23.0 '
