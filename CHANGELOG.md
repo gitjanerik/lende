@@ -1,3 +1,9 @@
+## 2026-09-24 — v7.9.15: Stiene øverst i tegnforklaringen, og versjonen kan kopieres
+
+«Veier & stier» er flyttet til første seksjon i tegnforklaringen, fordi det er den man slår opp oftest på et turkart. I hovedmenyen er det mer luft under bunnen, så versjonslinja ikke ligger klemt mot skjermkanten. Et trykk på «Versjon x.y.z» kopierer nå «Lende vx.y.z» til utklippstavla og sier fra i statuslinja. Det virker både i menyen og på Om-siden, siden de deler komponenten. Fallbacken er execCommand der navigator.clipboard mangler (http, eldre WebView).
+
+---
+
 ## 2026-09-24 — v7.9.14: Alle stier har samme form, og skogsvegen er like bred som småvegen
 
 Stiene var et lappverk: 505 hadde 0,22 mm hvit casing, 506 0,18 mm, og stitråkket (507) ingen i det hele tatt — så den minste stien var en løs grå stump ved siden av de hvit-kantede, og tre stityper så ut som tre ulike ting. Nå har alle tre SAMME ytre form: 0,18 mm lys casing og 0,1 mm strek, og i Turkart, Padling og Print samme strek- og casing-farge. Det eneste som skiller dem er stiplingen INNE i casingen — tett strek (505), kortere strek med mer luft (506), dobbelstrek med lang luft (507). Casingen er ikke bredere enn småvegen (503, 0,18 mm), så en sti aldri veier mer enn vegen. Brukervalgt sti-bakgrunn treffer nå også 507. Skogsvegen (504 — skogsbilveg, traktorveg og N50-traktorveg; det er den mørke streken med lys kant, gang- og sykkelveger tegnes ikke) var 0,16 mm strek i 0,30 mm casing, altså dobbelt så bred som småvegen den er et trinn under. Den har nå samme totalbredde som småvegen: 0,12 mm strek i 0,18 mm casing. Kart må bygges på nytt for å få den nye formen.

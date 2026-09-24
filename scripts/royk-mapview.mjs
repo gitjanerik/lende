@@ -6899,6 +6899,11 @@ const SJEKKER = [
       ]
       if (!kjente.includes(svar)) throw new Error(`ukjent svar fra versjonssjekken: «${svar}»`)
 
+      // v7.9.15: et trykk på versjonsteksten kopierer den. Headless kan nekte
+      // utklippstavla, så begge svarene godtas — det som måles er at den svarer.
+      await meny.locator('button.vs-kopier').first().click({ timeout: 10_000 })
+      await status.filter({ hasText: /kopier/i }).waitFor({ state: 'visible', timeout: 8000 })
+
       // NØYTRAL TILSTAND: menyen lukkes igjen, ellers står den over kartet og
       // neste sjekk finner ingenting å trykke på.
       await page.keyboard.press('Escape')
