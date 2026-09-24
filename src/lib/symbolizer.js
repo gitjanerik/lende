@@ -9,6 +9,7 @@
 import isomCatalogDefault from './isomCatalog.json' with { type: 'json' }
 import { depthBandFills } from './sjokartFetcher.js'
 import { brukerminneColorRules } from './poiColors.js'
+import { dashFaktorer, dashMm, dashCss, effektivBredde } from './strekMonster.js'
 
 const ISOM_CATEGORY_BY_CODE = (() => {
   const map = {}
@@ -38,7 +39,8 @@ function strokeAttrs(s) {
   if (s.widthMm) parts.push(`stroke-width="${s.widthMm}mm"`)
   if (s.linecap) parts.push(`stroke-linecap="${s.linecap}"`)
   if (s.linejoin) parts.push(`stroke-linejoin="${s.linejoin}"`)
-  if (s.dasharray) parts.push(`stroke-dasharray="${s.dasharray.map(d => `${d}mm`).join(' ')}"`)
+  const dash = dashMm(s)
+  if (dash) parts.push(`stroke-dasharray="${dash.map(d => `${d}mm`).join(' ')}"`)
   if (s.opacity != null) parts.push(`stroke-opacity="${s.opacity}"`)
   return parts.join(' ')
 }
@@ -848,13 +850,20 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
       }
       if (def.stroke) {
         if (def.stroke.color) props.push(`stroke: var(--iso-${code}-stroke, ${def.stroke.color})`)
-        if (def.stroke.widthMm) props.push(`stroke-width: ${sw(def.stroke.widthMm)}`)
+        // Et mønster i faktorer (v7.9.13) regnes av --w, den effektive bredden,
+        // så stiplingen vokser med streken i stedet for å fylles igjen.
+        const faktorer = def.stroke.dashFaktor ? dashFaktorer(def.stroke) : null
+        if (faktorer) {
+          props.push(`--w: ${effektivBredde(def.stroke.widthMm, code)}`)
+          props.push('stroke-width: var(--w)')
+          props.push(`stroke-dasharray: ${dashCss(faktorer, 'var(--w)', code)}`)
+        } else if (def.stroke.widthMm) props.push(`stroke-width: ${sw(def.stroke.widthMm)}`)
         if (def.stroke.linecap) props.push(`stroke-linecap: ${def.stroke.linecap}`)
         if (def.stroke.linejoin) props.push(`stroke-linejoin: ${def.stroke.linejoin}`)
         // Stiplingen er themebar på samme måte som fargen: Turkart vil ha
         // kortere strek og tettere mellomrom enn ISOM-spec-en, som er
         // regnet for trykk i 1:10 000 og leses som heltrukket på skjerm.
-        if (def.stroke.dasharray) {
+        if (!faktorer && def.stroke.dasharray) {
           const baked = def.stroke.dasharray.map(d => `${d}mm`).join(' ')
           props.push(`stroke-dasharray: var(--iso-${code}-dash, ${baked})`)
         }

@@ -393,66 +393,64 @@ describe('punktsymbol-farger — hva som themes og hva som er konstant', () => {
   })
 })
 
-// ── Sti-prikkene (507) ───────────────────────────────────────────────────────
-// 507 «stitråkk — vanskelig» er den vanligste stien i norsk utmark: umerket
-// N50-sti og umerket turrute havner der. Den rendres som prikker (round linecap
-// på en kort dash), og lufta mellom dem er hele lesbarheten.
+// ── Stitråkk som dobbelstrek (507, v7.9.13) ─────────────────────────────────
+// 507 «stitråkk — vanskelig» er den vanligste stien i norsk utmark. Den var
+// prikker i v7.9.12, og prikkene ble «kampesteiner i et steingjerde» så snart
+// strek-skalaen gikk opp: bredden fulgte --stroke-scale, mønsteret sto i faste
+// mm, og lufta ble spist opp. Nå er mønsteret ISOM-ens dobbelstrek regnet som
+// FAKTORER av den effektive bredden (lib/strekMonster.js).
 //
-// Enhetene er ikke opplagte, så de er MÅLT i nettleseren, ikke utledet: `1mm` i
-// en SVG med viewBox i METER blir 96/25.4 = 3.7795 brukerenheter, altså 3.78 m
-// på bakken. Stiplingen har dermed fast bakke-størrelse, og FORHOLDET dash:gap
-// er det samme ved enhver zoom. Det er forholdet, ikke tallene, som bestemmer om
-// linja leses som en sti eller som spredte flekker.
-//
-// Målet vi håndhever er BLEKK-ANDELEN — hvor stor del av linja som er mark:
-//   mark   = dash + widthMm   (round cap legger en halv bredde i hver ende)
-//   andel  = mark / (dash + gap)
-// Under ~50 % leses linja som flekker. Før v5.25.4 var andelen 45 % i basen og
-// 33 % i temaene; 505 og 506 ble strammet i v12.0.15 mens 507 ble stående, så
-// landets vanligste sti var den svakeste på kartet.
-//
-// Fra v7.9.12 er 507 PRIKKER også i temaene (marken er cap-en alene), og
-// skillet mot 505 er formen — prikk mot strek — pluss at 505 har casing.
-// kartStiler.test.js håndhever formen i hvert tema.
-describe('507 sti-prikker — blekk-andelen i prikkelinja', () => {
-  const MIN_ANDEL = 0.5
+// Enhetene: `1mm` i en SVG med viewBox i METER er 3.7795 brukerenheter, altså
+// 3,78 m på bakken ved nøytral skala.
+describe('507 dobbelstrek — mønsteret følger strekbredden', () => {
   const base = isomCatalog.categories.manmade['507'].stroke
-  const andel = (dash, width) => (dash[0] + width) / (dash[0] + dash[1])
+  const css = buildIsomCss(isomCatalog, new Map(), {})
+  const regel = /\[data-iso="507"\] \{[^}]*\}/.exec(css)[0]
 
-  const temaDash = Object.entries(isomCatalog.themes)
-    .map(([navn, t]) => [navn, t.categories?.['507']?.stroke?.dash])
-    .filter(([, dash]) => Array.isArray(dash))
+  const temaFaktor = Object.entries(isomCatalog.themes)
+    .map(([navn, t]) => [navn, t.categories?.['507']?.stroke?.dashFaktor])
+    .filter(([, df]) => df)
 
-  it('basen (ISOM/Orientering) har minst halve linja som blekk', () => {
-    expect(andel(base.dasharray, base.widthMm)).toBeGreaterThanOrEqual(MIN_ANDEL)
-  })
-
-  it('hvert tema som overstyrer 507 gjør det samme', () => {
-    // Vakt mot at testen stille slutter å dekke noe: overstyringene FINNES.
-    expect(temaDash.length).toBeGreaterThan(0)
-    for (const [navn, dash] of temaDash) {
-      expect(andel(dash, base.widthMm), `tema «${navn}»`).toBeGreaterThanOrEqual(MIN_ANDEL)
+  it('strek og indre gap er ISOM-forholdet (1,0 / 0,25 relativt til 0,18 mm)', () => {
+    expect(base.dashFaktor.strek).toBeCloseTo(1.0 / 0.18, 0)
+    expect(base.dashFaktor.gapIndre).toBeCloseTo(0.25 / 0.18, 0)
+    for (const [navn, df] of temaFaktor) {
+      expect(df.strek, navn).toBe(base.dashFaktor.strek)
+      expect(df.gapIndre, navn).toBe(base.dashFaktor.gapIndre)
     }
   })
 
-  it('temaene tegner også prikker — marken er kortere enn en halv bredde', () => {
-    for (const [navn, dash] of temaDash) {
-      expect(dash[0], `tema «${navn}»`).toBeLessThan(base.widthMm / 2)
-    }
+  it('--w er grunnbredde × strek-skala × «Stier»-slideren', () => {
+    expect(regel).toContain('--w: calc(0.1mm * var(--stroke-scale, 1) * var(--strek-sti, 1))')
+    expect(regel).toContain('stroke-width: var(--w)')
   })
 
-  it('prikkene forutsetter round linecap i basen — butt ville skjult dem', () => {
-    // Base-dashen er kortere enn en halv strekbredde, så marken ER cap-en.
-    expect(base.linecap).toBe('round')
-    expect(base.dasharray[0]).toBeLessThan(base.widthMm / 2)
+  it('dasharray regnes av --w, ikke av faste mm', () => {
+    const dash = /stroke-dasharray: ([^;}]+)/.exec(regel)[1]
+    expect(dash).not.toMatch(/\dmm/)
+    expect(dash.match(/calc\(var\(--w\) \* /g)).toHaveLength(4)
+    expect(dash).toContain('var(--iso-507-dash-faktor, 5.5)')
+    expect(dash).toContain('var(--iso-507-gap-indre-faktor, 1.4)')
+    expect(dash).toContain('var(--iso-507-gap-gruppe-faktor, 24)')
   })
 
-  it('rytmen er tettere enn før v5.25.4 — regresjonsvakt', () => {
-    // De gamle periodene var 0.22 mm (basen) og 0.33 mm (temaene). Vokter mot at
-    // noen «rydder» tallene tilbake til det som så ISOM-riktig ut på papiret.
-    expect(base.dasharray[0] + base.dasharray[1]).toBeLessThan(0.22)
-    for (const [navn, dash] of temaDash) {
-      expect(dash[0] + dash[1], `tema «${navn}»`).toBeLessThan(0.33)
+  it('butt cap — round ville lagt en halv bredde på hver strek og spist det indre gapet', () => {
+    expect(base.linecap).toBe('butt')
+    expect(regel).toContain('stroke-linecap: butt')
+  })
+
+  it('hvert kartstil-tema setter sitt eget gruppegap', () => {
+    expect(temaFaktor.map(([n]) => n).sort()).toEqual(['dark', 'padling', 'print', 'turkart'])
+  })
+
+  it('to hele dobbelstreker får plass på en kort stibit (≤ 20 m ved nøytral skala)', () => {
+    // Gruppegapet er ØKT fra ISOM for å holde sti-stigen, men ikke så mye at en
+    // kort bit ender med én dobbelstrek. To hele = én periode + strek-luft-strek.
+    const M_PER_MM = 96 / 25.4
+    for (const [navn, df] of [['base', base.dashFaktor], ...temaFaktor]) {
+      const periode = 2 * df.strek + df.gapIndre + df.gapGruppe
+      const toHele = (periode + 2 * df.strek + df.gapIndre) * base.widthMm * M_PER_MM
+      expect(toHele, navn).toBeLessThanOrEqual(20)
     }
   })
 })
