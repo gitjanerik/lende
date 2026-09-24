@@ -1,3 +1,9 @@
+## 2026-09-24 — v7.9.18: Lysløyper vises også der de er skogsvei eller sti om sommeren
+
+En lysløype som også er en skogsvei eller sti — som «åttetallet» vest for MIF-hytta ved Bremsåsen — ble bare tegnet som vei. Klassifiseringen gir hvert OSM-objekt ÉN kode, og vei-reglene står først, så en `highway=track` med `piste:type=nordic` havnet aldri i lysløype-laget. Nå får en vei eller sti som også er skiløype en ekstra 510-kopi, og lysløypa tegnes oppå veien. I tillegg er løyper som bare er kartlagt som en `route=piste`-relasjon over eksisterende veier nå med: relasjonene ble hentet fra Overpass, men filtrert bort sammen med buss- og turrute-relasjonene, og selv om de kom gjennom hadde de ingen egen geometri. Medlems-veiene tegnes nå som lysløype, uten dobbelttegning når en vei alt er løype-tagget selv. Laget «Lysløype» er fortsatt av som standard, og kart må bygges på nytt.
+
+---
+
 ## 2026-09-24 — v7.9.17: Lysløypa er en gul linje med gule forhøyninger
 
 Lysløypa (510) var oransje prikker med luft imellom, og i en tett stadion-rundløype som på Konnerud var det vanskelig å se hvor løypa svingte — særlig i mørke temaer der prikkene ble mørke. Nå tegnes den som en heltrukket gul linje (0,22 mm) med gule prikker (0,55 mm) oppå, og hele symbolet har ett tynt sort omriss. Omrisset rundt hver prikk tegnes ikke over den gule linja: kartet legger fire tvillinger i rekkefølgen omriss-linje, omriss-prikk, gul linje, gule prikker, så begge de sorte ligger under begge de gule og omrisset blir en kant rundt det samlede symbolet. Prikk-omrisset arver prikkenes egen stipling, så rytmen er alltid den samme. Under et drag, der stiplingen skrus av, blir løypa et gult bånd med sort kant i stedet for en svart strek. Mørkt tema har fått en gul variant; monokrom-temaene beholder sin egen tone. Tegnforklaringen viser det samme symbolet. Kart må bygges på nytt for å få den nye formen.

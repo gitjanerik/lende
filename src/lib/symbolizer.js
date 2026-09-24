@@ -611,13 +611,21 @@ export function classifyToIsom(el) {
   if (piste === 'downhill' || piste === 'sled' || piste === 'snow_park') {
     return { code: '512', cat: 'manmade' }
   }
-  if (piste === 'nordic' || piste === 'hike' || piste === 'skitour' || piste === 'classic' || piste === 'skating') {
-    return { code: '510', cat: 'manmade' }
-  }
-  if (t.leisure === 'track' && t.sport === 'skiing') {
-    return { code: '510', cat: 'manmade' }
-  }
+  if (erSkiloype(t)) return { code: '510', cat: 'manmade' }
   return null
+}
+
+const SKILOYPE_PISTER = new Set(['nordic', 'hike', 'skitour', 'classic', 'skating'])
+
+/**
+ * Er objektet en skiløype (510)? Delt av klassifiseringen og av mapBuilder,
+ * som gir en veg eller sti som OGSÅ er løype en 510-kopi (v7.9.18): én way
+ * får én kode, og highway-reglene står først, så en lysløype tagget på en
+ * skogsvei ble bare skogsvei.
+ */
+export function erSkiloype(t) {
+  if (!t) return false
+  return SKILOYPE_PISTER.has(t['piste:type']) || (t.leisure === 'track' && t.sport === 'skiing')
 }
 
 /**
