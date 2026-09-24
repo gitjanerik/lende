@@ -16,6 +16,7 @@ import {
 import { KARTSTILER, kartStil, STI_PALETTER, stiPalett, utvidKartStil } from './kartStiler.js'
 import { buildStrokeOverrideCss, STROKE_GROUPS } from './strokeOverrides.js'
 import { buildTrailColorCss, isTrailColor } from './trailColors.js'
+import { dashFaktorer, faktorVar } from './strekMonster.js'
 import isomCatalogDefault from './isomCatalog.json' with { type: 'json' }
 
 export const SETTINGS_STYLE_ID = 'kart-innstillinger'
@@ -43,6 +44,36 @@ export const THEME_GROUPS = Object.freeze([
   { key: 'kartstil', label: 'Kartstiler', beskrivelse: 'Velges under Kartstil.' },
   { key: 'monokrom', label: 'Monokrom', beskrivelse: '' },
 ])
+
+function basisDef(catalog, code) {
+  for (const defs of Object.values(catalog.categories ?? {})) {
+    if (defs[code]) return defs[code]
+  }
+  return null
+}
+
+// Temaets stipling som FAKTORER av strekbredden (v7.9.13, lib/strekMonster.js)
+// — det kart bygget fra v7.9.13 leser. `--iso-<kode>-dash` i mm settes i
+// tillegg for kart bygget før det: de har `var(--iso-<kode>-dash, …)` bakt inn
+// og kjenner ikke faktorene. Uten mm-varianten ville de stått med
+// katalogens bakte mønster i hvert tema; med faktor-verdien i det gamle navnet
+// ville de lest 5,5 som 5,5 meter.
+function temaDashVars(code, stroke, catalog) {
+  if (!stroke || (!stroke.dashFaktor && !Array.isArray(stroke.dash))) return []
+  const bredde = stroke.widthMm ?? basisDef(catalog, code)?.stroke?.widthMm
+  const faktorer = dashFaktorer(stroke, bredde)
+  if (!faktorer) return []
+  const ut = []
+  const sett = new Set()
+  for (const { navn, f } of faktorer) {
+    if (sett.has(navn)) continue
+    sett.add(navn)
+    ut.push([faktorVar(code, navn), String(f)])
+  }
+  const mm = faktorer.map(({ f }) => `${Number((f * bredde).toFixed(4))}mm`).join(' ')
+  ut.push([`--iso-${code}-dash`, mm])
+  return ut
+}
 
 /**
  * CSS-variablene et tema setter, som [navn, verdi]-par — kilden både for
@@ -85,9 +116,7 @@ export function themeVarEntries(temaKey, catalog = isomCatalogDefault) {
       // grønn casing under en grønn skog gjør stien usynlig. Da må temaet få
       // si «hvit» eksplisitt.
       if (def.casingStroke?.color) vars.push([`--iso-${code}-casing-stroke`, def.casingStroke.color])
-      if (Array.isArray(def.stroke?.dash)) {
-        vars.push([`--iso-${code}-dash`, def.stroke.dash.map((d) => `${d}mm`).join(' ')])
-      }
+      vars.push(...temaDashVars(code, def.stroke, catalog))
     }
     if (Array.isArray(t.depthScale)) {
       t.depthScale.forEach((c, i) => vars.push([`--iso-depth-${i + 1}`, c]))

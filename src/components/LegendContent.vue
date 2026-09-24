@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import isomCatalog from '../lib/isomCatalog.json'
 import { buildIsomDefs, buildIsomCss } from '../lib/symbolizer.js'
 import { listThemes, THEME_GROUPS } from '../lib/mapSettingsApply.js'
+import { dashMm } from '../lib/strekMonster.js'
 import { useMapTheme } from '../composables/useMapTheme.js'
 
 
@@ -126,7 +127,8 @@ function sampleSvg(category, code) {
     const parts = [`stroke="${s.color}"`, `stroke-width="${s.widthMm ?? 0.2}mm"`]
     if (s.linecap) parts.push(`stroke-linecap="${s.linecap}"`)
     if (s.linejoin) parts.push(`stroke-linejoin="${s.linejoin}"`)
-    if (s.dasharray) parts.push(`stroke-dasharray="${s.dasharray.map(d => `${d}mm`).join(' ')}"`)
+    const dash = dashMm(s)
+    if (dash) parts.push(`stroke-dasharray="${dash.map(d => `${d}mm`).join(' ')}"`)
     return parts.join(' ')
   }
 

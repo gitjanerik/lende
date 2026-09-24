@@ -55,6 +55,11 @@ export function buildStrokeOverrideCss(multipliers, catalog = isomCatalogDefault
     const mult = Number.isFinite(raw) ? raw : NEUTRAL_MULTIPLIER
     if (Math.abs(mult - NEUTRAL_MULTIPLIER) < EPSILON) continue
     const m = Number(mult.toFixed(3))
+    // Multiplikatoren også som variabel (v7.9.13): kart bygget fra v7.9.13
+    // regner stiplingen av den effektive bredden (lib/strekMonster.js), så
+    // mønsteret følger bredden slideren setter. Bredde-reglene under står for
+    // eldre kart, som ikke kjenner variabelen.
+    rules.push(`.isom-map { --strek-${group.id}: ${m}; }`)
     for (const code of group.codes) {
       const def = findDef(catalog, code)
       if (!def) continue

@@ -5,6 +5,7 @@ import {
 } from './kartStiler.js'
 import { kartStilForhandsvisning, erMorktTema } from './mapSettingsApply.js'
 import katalog from './isomCatalog.json'
+import { dashMm } from './strekMonster.js'
 
 describe('kartstil-modellen', () => {
   it('har fem stiler med unike nøkler, etiketter og beskrivelser', () => {
@@ -148,9 +149,13 @@ describe('utvidKartStil', () => {
 // og rytmen måles i periode (strek + luft) — ikke i strekfarge. Testene her
 // verner tettheten mot å drive tilbake mot ISOM-spec-en ved neste finpuss.
 describe('sti-stiplingen er tett nok til å leses som stiplet', () => {
-  const dash = (tema, kode) =>
-    katalog.themes[tema]?.categories?.[kode]?.stroke?.dash
-      ?? katalog.categories.manmade[kode].stroke.dasharray
+  // Temaets mønster (mm eller faktorer) erstatter basens; bredden er basens.
+  const dash = (tema, kode) => {
+    const b = katalog.categories.manmade[kode].stroke
+    const t = katalog.themes[tema]?.categories?.[kode]?.stroke
+    const s = t?.dash ? { dash: t.dash } : t?.dashFaktor ? { dashFaktor: t.dashFaktor } : b
+    return dashMm(s, b.widthMm)
+  }
 
   const periode = (d) => d[0] + d[1]
 
@@ -169,14 +174,12 @@ describe('sti-stiplingen er tett nok til å leses som stiplet', () => {
       expect(dash(tema, '505')[0]).toBeLessThanOrEqual(0.36 / 3 + 1e-9)
     })
 
-    it(`${tema} holder stitråkk (507) som prikker og vanlig sti (505) som streker`, () => {
-      // v7.9.12: skillet bæres av FORMEN, ikke av lufta. 507 var glisnere enn
-      // 505 fram til nå, og i temaene ga det 0,14 mm lange streker som leste
-      // som en stiplet sti — samme form som 505, bare uten underlinje.
-      const b507 = katalog.categories.manmade['507'].stroke.widthMm
-      const b505 = katalog.categories.manmade['505'].stroke.widthMm
-      expect(dash(tema, '507')[0]).toBeLessThan(b507 / 2)
-      expect(dash(tema, '505')[0]).toBeGreaterThan(b505)
+    it(`${tema} tegner stitråkk (507) som dobbelstrek og vanlig sti (505) som enkel strek`, () => {
+      // v7.9.13: skillet bæres av FORMEN — to streker med kort luft mellom,
+      // så lang luft — pluss casingen 505 har og 507 ikke har.
+      expect(dash(tema, '507')).toHaveLength(4)
+      expect(dash(tema, '505')).toHaveLength(2)
+      expect(katalog.categories.manmade['507'].casingStroke).toBeUndefined()
     })
   }
 
@@ -283,22 +286,35 @@ describe('skogsveg (504) leses som veg, ikke som sti', () => {
 
 // Sti-stigen: 505 «godt løp» → 506 «uklar» → 507 «stitråkk». Fram til v7.8.37
 // var 506 TETTERE enn 505 i hvert tema ([0.1, 0.1] mot [0.12, 0.11]) — den
-// utydelige stien leste altså fastere enn den gode. Regelen er nå monoton:
-// streken krymper og lufta vokser hele veien ned.
+// utydelige stien leste altså fastere enn den gode. Regelen er monoton.
+// Fra v7.9.13 måles den i BLEKK per mm linje og lengste luft, ikke i strek-
+// lengde: 507 er en dobbelstrek med lengre streker enn 505, og det er formen
+// som skiller dem. Med ISOM-ens gruppegap hadde 507 mer blekk enn begge de
+// andre — det er grunnen til at gapet er økt.
 describe('sti-stigen er monoton — tydeligst sti er fastest', () => {
-  const dash = (tema, kode) =>
-    katalog.themes[tema]?.categories?.[kode]?.stroke?.dash
-      ?? katalog.categories.manmade[kode].stroke.dasharray
+  // Temaets mønster (mm eller faktorer) erstatter basens; bredden er basens.
+  const dash = (tema, kode) => {
+    const b = katalog.categories.manmade[kode].stroke
+    const t = katalog.themes[tema]?.categories?.[kode]?.stroke
+    const s = t?.dash ? { dash: t.dash } : t?.dashFaktor ? { dashFaktor: t.dashFaktor } : b
+    return dashMm(s, b.widthMm)
+  }
 
   for (const tema of ['turkart', 'padling', 'dark', 'print']) {
-    it(`${tema}: strek krymper og luft vokser fra 505 via 506 til 507`, () => {
-      const [s5, l5] = dash(tema, '505')
-      const [s6, l6] = dash(tema, '506')
-      const [s7, l7] = dash(tema, '507')
-      expect(s5).toBeGreaterThan(s6)
-      expect(s6).toBeGreaterThan(s7)
-      expect(l5).toBeLessThan(l6)
-      expect(l6).toBeLessThan(l7)
+    it(`${tema}: blekket avtar og lufta vokser fra 505 via 506 til 507`, () => {
+      const bredde = (k) => katalog.themes[tema]?.categories?.[k]?.stroke?.widthMm
+        ?? katalog.categories.manmade[k].stroke.widthMm
+      const sum = (a) => a.reduce((x, y) => x + y, 0)
+      // Strekene står i partalls-plassene, lufta i oddetallene.
+      const blekk = (k) => {
+        const d = dash(tema, k)
+        return bredde(k) * sum(d.filter((_, i) => i % 2 === 0)) / sum(d)
+      }
+      const luft = (k) => Math.max(...dash(tema, k).filter((_, i) => i % 2 === 1))
+      expect(blekk('505')).toBeGreaterThan(blekk('506'))
+      expect(blekk('506')).toBeGreaterThan(blekk('507'))
+      expect(luft('505')).toBeLessThan(luft('506'))
+      expect(luft('506')).toBeLessThan(luft('507'))
     })
   }
 })
