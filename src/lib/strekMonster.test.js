@@ -58,15 +58,10 @@ describe('«Stier»-slideren når stiplingen', () => {
 describe('temaet setter faktorer, og mm for kart bygget før v7.9.13', () => {
   const vars = Object.fromEntries(themeVarEntries('turkart'))
 
-  it('507: tre navngitte faktorer — gruppegapet kan finjusteres alene', () => {
-    expect(vars['--iso-507-dash-faktor']).toBe('5.5')
-    expect(vars['--iso-507-gap-indre-faktor']).toBe('1.4')
-    expect(vars['--iso-507-gap-gruppe-faktor']).toBe('24')
-  })
-
   it('det gamle mm-navnet får mm, aldri en faktor (et gammelt kart ville lest 5,5 som meter)', () => {
-    expect(vars['--iso-507-dash']).toBe('0.55mm 0.14mm 0.55mm 2.4mm')
     expect(vars['--iso-505-dash']).toBe('0.12mm 0.09mm')
+    expect(vars['--iso-506-dash']).toBe('0.12mm 0.09mm')
+    expect(vars['--iso-507-dash']).toBe('0.12mm 0.09mm')
   })
 
   it('505 beholder dagens mønster, nå også som faktorer', () => {
@@ -75,14 +70,17 @@ describe('temaet setter faktorer, og mm for kart bygget før v7.9.13', () => {
   })
 })
 
-describe('ingen stipling i faste mm i det bakte stilarket', () => {
-  it('hvert stroke-dasharray er none eller regnet av en bredde', async () => {
+// Unntaket er stiene (dashFast, v7.9.16): de skal ha SAMME rytme med ulik
+// bredde, og det kan bare faste mm gi.
+describe('ingen stipling i faste mm i det bakte stilarket — utenom stiene', () => {
+  it('hvert stroke-dasharray er none, regnet av en bredde eller en sti-variabel', async () => {
     const { buildIsomCss } = await import('./symbolizer.js')
     const css = buildIsomCss(undefined, new Map(), {})
     const verdier = [...css.matchAll(/stroke-dasharray:\s*([^;}]+)/g)].map(m => m[1].trim())
     expect(verdier.length).toBeGreaterThan(10)
     for (const v of verdier) {
       if (v === 'none') continue
+      if (/^var\(--iso-50[567]-dash, [\d.]+mm [\d.]+mm\)$/.test(v)) continue
       // Hvert ledd er calc(<bredde> * faktor) — et løst «0.36mm» er feilen.
       expect(v, v).not.toMatch(/(^|\s)[\d.]+mm/)
       expect(v, v).toMatch(/var\(--(w|stroke-scale)/)

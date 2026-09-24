@@ -346,7 +346,7 @@
       },
       "505": {
         "label": "Sti — godt løp",
-        "$comment": "v7.9.14: ALLE TRE STITYPENE (505/506/507) HAR SAMME FORM — samme lyse casing (0,18 mm) og samme strekbredde (0,09 mm) — og bare stiplingen INNE i casingen skiller dem: 505 tett strek, 506 kort strek med mer luft, 507 dobbelstrek med lang luft. Fram til nå hadde hver sin bredde og 507 ingen casing, og kartet ble et lappverk av stier som så ut som tre ulike ting. Casingen er ikke bredere enn småvegen (503), så stien aldri leses tyngre enn vegen. casingStroke = kontinuerlig lys underlinje UNDER stiplingen; fargen faller tilbake på var(--bg) i CSS, og Turkart/Padling/Print setter den eksplisitt.",
+        "$comment": "v7.9.16: ALLE TRE STITYPENE (505/506/507) ER SAMME SYMBOL — samme lyse casing (0,18 mm), samme stiplingsmønster og samme farge — og det ENESTE som skiller dem er bredden på den svarte, stiplede streken inni: 505 0,10 mm, 506 0,085 mm, 507 0,07 mm. v7.9.14 skilte dem på mønsteret, og 507-dobbelstreken med lang luft leste som en liten veg. Mønsteret står i FASTE mm (dashFast) og ikke som faktorer av bredden: med faktorer ville de tre breddene gitt tre ulike rytmer, og det er nettopp det som ikke skal skille dem. casingStroke = kontinuerlig lys underlinje UNDER stiplingen; fargen faller tilbake på var(--bg) i CSS, og Turkart/Padling/Print setter den eksplisitt.",
         "casingStroke": {
           "color": "#fbf7ec",
           "widthMm": 0.18,
@@ -360,6 +360,7 @@
             0.36,
             0.3
           ],
+          "dashFast": true,
           "linecap": "butt",
           "linejoin": "round"
         }
@@ -374,18 +375,19 @@
         },
         "stroke": {
           "color": "#000",
-          "widthMm": 0.1,
+          "widthMm": 0.085,
           "dasharray": [
-            0.3,
-            0.25
+            0.36,
+            0.3
           ],
+          "dashFast": true,
           "linecap": "butt",
           "linejoin": "round"
         }
       },
       "507": {
         "label": "Stitråkk — vanskelig",
-        "$comment": "v7.9.13: DOBBELSTREK etter ISOM 507 — strek, kort luft, strek, lang luft. Mønsteret er FAKTORER av den effektive strekbredden (--w = 0,1 mm × --stroke-scale × «Stier»-slideren), ikke faste mm, så det vokser og krymper med streken (se lib/strekMonster.js). Strek og indre gap er ISOM-forholdet (1,0 / 0,25 relativt til 0,18 mm → 5,5 / 1,4 × bredden). Gruppegapet er ØKT fra ISOM-ens 4,4 til 24 med vilje: med ISOM-gapet får 507 mer blekk per mm enn både 506 og 505, og sti-stigen (tydeligst sti er fastest) snus. Butt cap: strekene skal ha rette ender. v7.9.14: 507 har fått SAMME casing som 505/506 — uten den var den en løs grå stump ved siden av de hvit-kantede stiene, og skillet bæres nå av formen inne i casingen alene.",
+        "$comment": "v7.9.16: samme mønster og casing som 505/506, bare den tynneste streken (0,07 mm) — se 505. Dobbelstreken fra v7.9.13 er borte: inne i hvit casing leste den som en liten veg.",
         "casingStroke": {
           "color": "#fbf7ec",
           "widthMm": 0.18,
@@ -394,8 +396,12 @@
         },
         "stroke": {
           "color": "#000",
-          "widthMm": 0.1,
-          "dashFaktor": { "strek": 5.5, "gapIndre": 1.4, "gapGruppe": 24 },
+          "widthMm": 0.07,
+          "dasharray": [
+            0.36,
+            0.3
+          ],
+          "dashFast": true,
           "linecap": "butt",
           "linejoin": "round"
         }
@@ -1821,7 +1827,7 @@
         "506": {
           "stroke": {
             "color": "#1a1a1a",
-            "dash": [0.09, 0.14]
+            "dash": [0.12, 0.09]
           },
           "casingStroke": {
             "color": "#ffffff"
@@ -1830,7 +1836,7 @@
         "507": {
           "stroke": {
             "color": "#1a1a1a",
-            "dashFaktor": { "strek": 5.5, "gapIndre": 1.4, "gapGruppe": 24 }
+            "dash": [0.12, 0.09]
           },
           "casingStroke": {
             "color": "#ffffff"
@@ -2120,7 +2126,7 @@
         "506": {
           "stroke": {
             "color": "#6b6355",
-            "dash": [0.09, 0.14]
+            "dash": [0.12, 0.09]
           },
           "casingStroke": {
             "color": "#f7f4ea"
@@ -2129,7 +2135,7 @@
         "507": {
           "stroke": {
             "color": "#6b6355",
-            "dashFaktor": { "strek": 5.5, "gapIndre": 1.4, "gapGruppe": 24 }
+            "dash": [0.12, 0.09]
           },
           "casingStroke": {
             "color": "#f7f4ea"
@@ -2419,7 +2425,7 @@
         "506": {
           "stroke": {
             "color": "#000000",
-            "dash": [0.09, 0.14]
+            "dash": [0.12, 0.09]
           },
           "casingStroke": {
             "color": "#fcfbf7"
@@ -2428,7 +2434,7 @@
         "507": {
           "stroke": {
             "color": "#000000",
-            "dashFaktor": { "strek": 5.5, "gapIndre": 1.4, "gapGruppe": 24 }
+            "dash": [0.12, 0.09]
           },
           "casingStroke": {
             "color": "#fcfbf7"
@@ -2727,13 +2733,13 @@
         "506": {
           "stroke": {
             "color": "#cab482",
-            "dash": [0.09, 0.14]
+            "dash": [0.12, 0.09]
           }
         },
         "507": {
           "stroke": {
             "color": "#ac9664",
-            "dashFaktor": { "strek": 5.5, "gapIndre": 1.4, "gapGruppe": 24 }
+            "dash": [0.12, 0.09]
           }
         },
         "508": {

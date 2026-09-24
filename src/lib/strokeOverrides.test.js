@@ -27,7 +27,7 @@ describe('buildStrokeOverrideCss', () => {
     expect(css).toContain('.isom-map [data-iso="505"] path.casing { stroke-width: calc(0.18mm * var(--stroke-scale, 1) * 2) !important; }')
     expect(css).toContain('.isom-map [data-iso="506"] path.casing { stroke-width: calc(0.18mm * var(--stroke-scale, 1) * 2) !important; }')
     expect(css).toContain('.isom-map [data-iso="507"] path.casing { stroke-width: calc(0.18mm * var(--stroke-scale, 1) * 2) !important; }')
-    expect(css).toContain('.isom-map [data-iso="507"] { stroke-width: calc(0.1mm')
+    expect(css).toContain('.isom-map [data-iso="507"] { stroke-width: calc(0.07mm')
   })
 
   it('emitterer overlay-regel for stor vei (501/502)', () => {
