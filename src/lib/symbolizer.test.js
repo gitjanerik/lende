@@ -245,6 +245,9 @@ describe('buildPointSymbolDef', () => {
 
 describe('buildIsomCss — veitunnel stiplet i veifargen, uten casing (v2.4.22)', () => {
   const css = buildIsomCss(undefined, new Map(), { usedCodes: new Set(['501', '502', '503', '504']) })
+  // Fra v7.9.13 er ledd = calc(<effektiv bredde> * faktor); mm ved nøytral skala.
+  const leddMm = (rule) => [...rule.matchAll(/calc\(calc\(([\d.]+)mm \* var\(--stroke-scale, 1\)[^)]*\)\) \* ([\d.]+)\)/g)]
+    .map(m => Number((Number(m[1]) * Number(m[2])).toFixed(3)))
 
   it('casing-pathen skjules for tunnel-segmenter på veier med overlay', () => {
     for (const code of ['501', '502', '503']) {
@@ -254,7 +257,8 @@ describe('buildIsomCss — veitunnel stiplet i veifargen, uten casing (v2.4.22)'
 
   it('overlay-pathen (veifargen) får stiplet strek', () => {
     const rule = css.match(/\[data-iso="502"\] path\.overlay\[data-tunnel="yes"\] \{ ([^}]*)\}/)?.[1] ?? ''
-    expect(rule).toMatch(/stroke-dasharray: [\d.]+mm [\d.]+mm/)
+    expect(leddMm(rule)).toHaveLength(2)
+    expect(rule).toContain('var(--strek-storVei, 1)')
     expect(rule).toContain('stroke-linecap: butt')
   })
 
@@ -264,8 +268,8 @@ describe('buildIsomCss — veitunnel stiplet i veifargen, uten casing (v2.4.22)'
   })
 
   it('tunnel-dashen er tydelig lengre enn sti-stiplingen (505 = 0.36mm)', () => {
-    const dash = Number(css.match(/\[data-iso="502"\] path\.overlay\[data-tunnel="yes"\] \{ stroke-dasharray: ([\d.]+)mm/)?.[1])
-    expect(dash).toBeGreaterThan(0.6)
+    const rule = css.match(/\[data-iso="502"\] path\.overlay\[data-tunnel="yes"\] \{ ([^}]*)\}/)?.[1] ?? ''
+    expect(leddMm(rule)[0]).toBeGreaterThan(0.6)
   })
 
   it('koder som ikke er i bruk gir ingen tunnel-regler', () => {

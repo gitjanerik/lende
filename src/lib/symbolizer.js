@@ -850,9 +850,13 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
       }
       if (def.stroke) {
         if (def.stroke.color) props.push(`stroke: var(--iso-${code}-stroke, ${def.stroke.color})`)
-        // Et mønster i faktorer (v7.9.13) regnes av --w, den effektive bredden,
-        // så stiplingen vokser med streken i stedet for å fylles igjen.
-        const faktorer = def.stroke.dashFaktor ? dashFaktorer(def.stroke) : null
+        // Stiplingen regnes av --w, den effektive bredden (v7.9.13), så den
+        // vokser med streken i stedet for å fylles igjen. Mønstre i mm er
+        // regnet om til faktorer av grunnbredden og er uendret ved nøytral
+        // skala. Temaet overstyrer faktorene (--iso-<kode>-<ledd>-faktor):
+        // Turkart vil ha kortere strek og tettere luft enn ISOM-spec-en, som
+        // er regnet for trykk i 1:10 000 og leses som heltrukket på skjerm.
+        const faktorer = dashFaktorer(def.stroke)
         if (faktorer) {
           props.push(`--w: ${effektivBredde(def.stroke.widthMm, code)}`)
           props.push('stroke-width: var(--w)')
@@ -860,13 +864,6 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
         } else if (def.stroke.widthMm) props.push(`stroke-width: ${sw(def.stroke.widthMm)}`)
         if (def.stroke.linecap) props.push(`stroke-linecap: ${def.stroke.linecap}`)
         if (def.stroke.linejoin) props.push(`stroke-linejoin: ${def.stroke.linejoin}`)
-        // Stiplingen er themebar på samme måte som fargen: Turkart vil ha
-        // kortere strek og tettere mellomrom enn ISOM-spec-en, som er
-        // regnet for trykk i 1:10 000 og leses som heltrukket på skjerm.
-        if (!faktorer && def.stroke.dasharray) {
-          const baked = def.stroke.dasharray.map(d => `${d}mm`).join(' ')
-          props.push(`stroke-dasharray: var(--iso-${code}-dash, ${baked})`)
-        }
       }
       if (!def.fill) props.push('fill: none')
       if (props.length) rules.push(`${sel} { ${props.join('; ')} }`)
@@ -893,7 +890,8 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
         if (ov.widthMm) ovProps.push(`stroke-width: ${sw(ov.widthMm)}`)
         if (ov.linecap) ovProps.push(`stroke-linecap: ${ov.linecap}`)
         if (ov.linejoin) ovProps.push(`stroke-linejoin: ${ov.linejoin}`)
-        if (ov.dasharray) ovProps.push(`stroke-dasharray: ${ov.dasharray.map(d => `${d}mm`).join(' ')}`)
+        const ovFaktorer = dashFaktorer(ov)
+        if (ovFaktorer) ovProps.push(`stroke-dasharray: ${dashCss(ovFaktorer, effektivBredde(ov.widthMm, code))}`)
         rules.push(`${sel} path.overlay { ${ovProps.join('; ')} }`)
       }
     }
@@ -913,7 +911,9 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
     const w = (ov ?? def.stroke)?.widthMm ?? 0.15
     const dash = Math.max(0.7, Number((w * 3.2).toFixed(2)))
     const gap = Math.max(0.45, Number((w * 2.1).toFixed(2)))
-    const dashRule = `stroke-dasharray: ${dash}mm ${gap}mm; stroke-linecap: butt`
+    // Samme mm som før ved nøytral skala, men regnet av den effektive bredden.
+    const tunnelDash = dashCss(dashFaktorer({ widthMm: w, dasharray: [dash, gap] }), effektivBredde(w, code))
+    const dashRule = `stroke-dasharray: ${tunnelDash}; stroke-linecap: butt`
     if (ov) {
       rules.push(`${root} [data-iso="${code}"] path[data-tunnel="yes"]:not(.overlay) { display: none }`)
       rules.push(`${root} [data-iso="${code}"] path.overlay[data-tunnel="yes"] { ${dashRule} }`)
@@ -936,7 +936,7 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
   // Overlay skjules; base får ny stroke. Tunnel-portal: tverrstrek ved
   // start/slutt av tunnel-way.
   if (codeUsed('515')) {
-    rules.push(`${root} [data-iso="515"] path[data-tunnel="yes"] { stroke: #555; stroke-width: ${sw(0.18)}; stroke-dasharray: 1mm 0.4mm; fill: none; opacity: 0.5 }`)
+    rules.push(`${root} [data-iso="515"] path[data-tunnel="yes"] { stroke: #555; stroke-width: ${sw(0.18)}; stroke-dasharray: ${dashCss(dashFaktorer({ widthMm: 0.18, dasharray: [1, 0.4] }), sw(0.18))}; fill: none; opacity: 0.5 }`)
     rules.push(`${root} [data-iso="515"] path.overlay[data-tunnel="yes"] { display: none }`)
     rules.push(`${root} [data-iso="515"] line.tunnel-portal { stroke: #000; stroke-width: ${sw(0.3)}; stroke-linecap: square; fill: none }`)
   }

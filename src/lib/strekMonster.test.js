@@ -74,3 +74,18 @@ describe('temaet setter faktorer, og mm for kart bygget før v7.9.13', () => {
     expect(vars['--iso-505-gap-faktor']).toBe('0.9')
   })
 })
+
+describe('ingen stipling i faste mm i det bakte stilarket', () => {
+  it('hvert stroke-dasharray er none eller regnet av en bredde', async () => {
+    const { buildIsomCss } = await import('./symbolizer.js')
+    const css = buildIsomCss(undefined, new Map(), {})
+    const verdier = [...css.matchAll(/stroke-dasharray:\s*([^;}]+)/g)].map(m => m[1].trim())
+    expect(verdier.length).toBeGreaterThan(10)
+    for (const v of verdier) {
+      if (v === 'none') continue
+      // Hvert ledd er calc(<bredde> * faktor) — et løst «0.36mm» er feilen.
+      expect(v, v).not.toMatch(/(^|\s)[\d.]+mm/)
+      expect(v, v).toMatch(/var\(--(w|stroke-scale)/)
+    }
+  })
+})
