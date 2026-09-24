@@ -22,10 +22,11 @@ describe('buildStrokeOverrideCss', () => {
     expect(css).not.toContain('data-iso="505"')
   })
 
-  it('emitterer casing-regel for stier (505/506)', () => {
+  it('emitterer casing-regel for alle tre stiene (505/506/507)', () => {
     const css = buildStrokeOverrideCss({ sti: 2 })
-    expect(css).toContain('.isom-map [data-iso="505"] path.casing { stroke-width: calc(0.22mm * var(--stroke-scale, 1) * 2) !important; }')
+    expect(css).toContain('.isom-map [data-iso="505"] path.casing { stroke-width: calc(0.18mm * var(--stroke-scale, 1) * 2) !important; }')
     expect(css).toContain('.isom-map [data-iso="506"] path.casing { stroke-width: calc(0.18mm * var(--stroke-scale, 1) * 2) !important; }')
+    expect(css).toContain('.isom-map [data-iso="507"] path.casing { stroke-width: calc(0.18mm * var(--stroke-scale, 1) * 2) !important; }')
     expect(css).toContain('.isom-map [data-iso="507"] { stroke-width: calc(0.1mm')
   })
 
@@ -67,8 +68,8 @@ describe('skogsveg har sin egen strek-gruppe', () => {
 
   it('slideren treffer både strek og casing på 504', () => {
     const css = buildStrokeOverrideCss({ skogsVei: 1.5 })
-    expect(css).toContain('.isom-map [data-iso="504"] { stroke-width: calc(0.16mm * var(--stroke-scale, 1) * 1.5) !important; }')
-    expect(css).toContain('.isom-map [data-iso="504"] path.casing { stroke-width: calc(0.3mm * var(--stroke-scale, 1) * 1.5) !important; }')
+    expect(css).toContain('.isom-map [data-iso="504"] { stroke-width: calc(0.12mm * var(--stroke-scale, 1) * 1.5) !important; }')
+    expect(css).toContain('.isom-map [data-iso="504"] path.casing { stroke-width: calc(0.18mm * var(--stroke-scale, 1) * 1.5) !important; }')
     expect(css).not.toContain('data-iso="503"')
   })
 })

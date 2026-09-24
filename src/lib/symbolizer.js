@@ -867,7 +867,7 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
       }
       if (!def.fill) props.push('fill: none')
       if (props.length) rules.push(`${sel} { ${props.join('; ')} }`)
-      // Casing-stroke (v12.0.15, stier 505/506): kontinuerlig lys underlinje
+      // Casing-stroke (v12.0.15, stier 505/506/507, 504): kontinuerlig lys underlinje
       // UNDER den stiplede streken (motsatt av overlayStroke som ligger over).
       // Fargen faller tilbake på var(--bg) slik at mørke temaer automatisk
       // visker til sin egen bakgrunn — ingen tema-blokker trenger casing-farge.

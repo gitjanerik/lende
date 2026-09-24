@@ -1816,7 +1816,7 @@ export function buildSvg(elements, bbox, options = {}) {
         }
         return `  <g data-layer="${cat}" data-iso="${code}">\n${lines.join('\n')}\n  </g>\n`
       }
-      // v12.0.15: koder med casingStroke (stier 505/506) får en kontinuerlig
+      // v12.0.15: koder med casingStroke (stier 505–507 og 504) får en kontinuerlig
       // lys underlinje-tvilling FØRST i gruppen (samme d/bbox, class="casing")
       // så den stiplede streken tegnes oppå. CSS-regelen for `.casing` settes
       // i symbolizer.js (farge faller tilbake på var(--bg)).

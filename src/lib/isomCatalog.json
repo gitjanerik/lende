@@ -330,26 +330,26 @@
       },
       "504": {
         "label": "Skogsvei",
-        "$comment": "v7.8.37: 504 er vegen I MARKA — skogsbilveg, traktorveg og OSM highway=track — og fram til nå var den en 0,1 mm sort strek uten casing, altså NØYAKTIG samme vekt som den stiplede stien (505), men uten stiens lyse underlinje. Vegen leste derfor SVAKERE enn stien den skulle skille seg fra. Nå: heltrukken 0,16 mm med en 0,30 mm lys casing under (samme mekanikk som stien, se 505). Forskjellen mot sti er dermed BÅDE rytme (heltrukken vs. stiplet) og vekt, og mot småveg (503) er den fargen: 503 har et oransje overlay-fyll, 504 har ingen. Casing-fargen faller tilbake på var(--bg) i CSS, så ingen tema-blokk trenger å sette den.",
+        "$comment": "v7.9.14: SAMME TOTALBREDDE SOM SMÅVEGEN (503, 0,18 mm). v7.8.37 ga skogsvegen 0,16 mm strek i 0,30 mm casing for å skille den fra stien — men på kartet ble den dobbelt så bred som bilvegen den er et trinn under, og småvegens svarte kant så ut som stumper ved siden av. Nå: 0,12 mm heltrukken strek i 0,18 mm lys casing. Skillet mot 503 er fargen (503 har et lyst/oransje overlay-fyll med sort kant, 504 er mørk med lys kant), skillet mot stien er rytmen (heltrukken mot stiplet) og at vegstreken er tyngre. Casing-fargen faller tilbake på var(--bg) i CSS, så ingen tema-blokk trenger å sette den.",
         "casingStroke": {
           "color": "#fbf7ec",
-          "widthMm": 0.3,
+          "widthMm": 0.18,
           "linecap": "round",
           "linejoin": "round"
         },
         "stroke": {
           "color": "#1a1a1a",
-          "widthMm": 0.16,
+          "widthMm": 0.12,
           "linecap": "round",
           "linejoin": "round"
         }
       },
       "505": {
         "label": "Sti — godt løp",
-        "$comment": "v12.0.15 sti-restyling: tynnere strek, tettere ~6:5-stipling og butt-caps (runde caps på tusenvis av korte stipler er dyrt å tessellere) så stien slutter å lese som stup-hakk. casingStroke = kontinuerlig lys underlinje UNDER stiplingen (motsatt av overlayStroke) som løfter stien over terreng/høydekurver; fargen faller tilbake på var(--bg) i CSS så mørke temaer visker til sin egen bakgrunn.",
+        "$comment": "v7.9.14: ALLE TRE STITYPENE (505/506/507) HAR SAMME FORM — samme lyse casing (0,18 mm) og samme strekbredde (0,09 mm) — og bare stiplingen INNE i casingen skiller dem: 505 tett strek, 506 kort strek med mer luft, 507 dobbelstrek med lang luft. Fram til nå hadde hver sin bredde og 507 ingen casing, og kartet ble et lappverk av stier som så ut som tre ulike ting. Casingen er ikke bredere enn småvegen (503), så stien aldri leses tyngre enn vegen. casingStroke = kontinuerlig lys underlinje UNDER stiplingen; fargen faller tilbake på var(--bg) i CSS, og Turkart/Padling/Print setter den eksplisitt.",
         "casingStroke": {
           "color": "#fbf7ec",
-          "widthMm": 0.22,
+          "widthMm": 0.18,
           "linecap": "round",
           "linejoin": "round"
         },
@@ -374,7 +374,7 @@
         },
         "stroke": {
           "color": "#000",
-          "widthMm": 0.08,
+          "widthMm": 0.1,
           "dasharray": [
             0.3,
             0.25
@@ -385,7 +385,13 @@
       },
       "507": {
         "label": "Stitråkk — vanskelig",
-        "$comment": "v7.9.13: DOBBELSTREK etter ISOM 507 — strek, kort luft, strek, lang luft. Mønsteret er FAKTORER av den effektive strekbredden (--w = 0,1 mm × --stroke-scale × «Stier»-slideren), ikke faste mm, så det vokser og krymper med streken (se lib/strekMonster.js). Strek og indre gap er ISOM-forholdet (1,0 / 0,25 relativt til 0,18 mm → 5,5 / 1,4 × bredden). Gruppegapet er ØKT fra ISOM-ens 4,4 til 24 med vilje: med ISOM-gapet får 507 mer blekk per mm enn både 506 og 505, og sti-stigen (tydeligst sti er fastest) snus. 24 er det minste runde tallet som holder 507 under 506. Butt cap: strekene skal ha rette ender. Ingen casing — skillet mot 505/506 er underlinja pluss formen. Temaene setter gapGruppe selv, så det kan finjusteres per tema. v7.9.12-prikkene er borte: de fulgte ikke strek-skalaen og ble kampestein.",
+        "$comment": "v7.9.13: DOBBELSTREK etter ISOM 507 — strek, kort luft, strek, lang luft. Mønsteret er FAKTORER av den effektive strekbredden (--w = 0,1 mm × --stroke-scale × «Stier»-slideren), ikke faste mm, så det vokser og krymper med streken (se lib/strekMonster.js). Strek og indre gap er ISOM-forholdet (1,0 / 0,25 relativt til 0,18 mm → 5,5 / 1,4 × bredden). Gruppegapet er ØKT fra ISOM-ens 4,4 til 24 med vilje: med ISOM-gapet får 507 mer blekk per mm enn både 506 og 505, og sti-stigen (tydeligst sti er fastest) snus. Butt cap: strekene skal ha rette ender. v7.9.14: 507 har fått SAMME casing som 505/506 — uten den var den en løs grå stump ved siden av de hvit-kantede stiene, og skillet bæres nå av formen inne i casingen alene.",
+        "casingStroke": {
+          "color": "#fbf7ec",
+          "widthMm": 0.18,
+          "linecap": "round",
+          "linejoin": "round"
+        },
         "stroke": {
           "color": "#000",
           "widthMm": 0.1,
@@ -1814,7 +1820,7 @@
         },
         "506": {
           "stroke": {
-            "color": "#1f1f1f",
+            "color": "#1a1a1a",
             "dash": [0.09, 0.14]
           },
           "casingStroke": {
@@ -1823,8 +1829,11 @@
         },
         "507": {
           "stroke": {
-            "color": "#4a4a4a",
+            "color": "#1a1a1a",
             "dashFaktor": { "strek": 5.5, "gapIndre": 1.4, "gapGruppe": 24 }
+          },
+          "casingStroke": {
+            "color": "#ffffff"
           }
         },
         "516": {
@@ -2110,7 +2119,7 @@
         },
         "506": {
           "stroke": {
-            "color": "#7a7263",
+            "color": "#6b6355",
             "dash": [0.09, 0.14]
           },
           "casingStroke": {
@@ -2119,8 +2128,11 @@
         },
         "507": {
           "stroke": {
-            "color": "#8d8577",
+            "color": "#6b6355",
             "dashFaktor": { "strek": 5.5, "gapIndre": 1.4, "gapGruppe": 24 }
+          },
+          "casingStroke": {
+            "color": "#f7f4ea"
           }
         },
         "516": {
@@ -2406,7 +2418,7 @@
         },
         "506": {
           "stroke": {
-            "color": "#111111",
+            "color": "#000000",
             "dash": [0.09, 0.14]
           },
           "casingStroke": {
@@ -2415,8 +2427,11 @@
         },
         "507": {
           "stroke": {
-            "color": "#333333",
+            "color": "#000000",
             "dashFaktor": { "strek": 5.5, "gapIndre": 1.4, "gapGruppe": 24 }
+          },
+          "casingStroke": {
+            "color": "#fcfbf7"
           }
         },
         "516": {

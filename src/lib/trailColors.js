@@ -9,9 +9,8 @@
 // kart-SVG-en, så den følger med i SVG/PNG/PDF/print.
 
 export const TRAIL_FG_CODES = Object.freeze(['505', '506', '507'])
-// 507 (stitråkk) har bevisst ingen casingStroke i katalogen — en utydelig sti
-// skal ikke løftes over terrenget — så bakgrunnsfargen gjelder kun 505/506.
-export const TRAIL_BG_CODES = Object.freeze(['505', '506'])
+// Alle tre stiene har casing fra v7.9.14, så bakgrunnsfargen treffer alle tre.
+export const TRAIL_BG_CODES = Object.freeze(['505', '506', '507'])
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/
 const SHORT_HEX_RE = /^#([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])$/
