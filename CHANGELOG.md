@@ -1,3 +1,9 @@
+## 2026-09-24 — v7.9.17: Lysløypa er en gul linje med gule forhøyninger
+
+Lysløypa (510) var oransje prikker med luft imellom, og i en tett stadion-rundløype som på Konnerud var det vanskelig å se hvor løypa svingte — særlig i mørke temaer der prikkene ble mørke. Nå tegnes den som en heltrukket gul linje (0,22 mm) med gule prikker (0,55 mm) oppå, og hele symbolet har ett tynt sort omriss. Omrisset rundt hver prikk tegnes ikke over den gule linja: kartet legger fire tvillinger i rekkefølgen omriss-linje, omriss-prikk, gul linje, gule prikker, så begge de sorte ligger under begge de gule og omrisset blir en kant rundt det samlede symbolet. Prikk-omrisset arver prikkenes egen stipling, så rytmen er alltid den samme. Under et drag, der stiplingen skrus av, blir løypa et gult bånd med sort kant i stedet for en svart strek. Mørkt tema har fått en gul variant; monokrom-temaene beholder sin egen tone. Tegnforklaringen viser det samme symbolet. Kart må bygges på nytt for å få den nye formen.
+
+---
+
 ## 2026-09-24 — v7.9.16: Stitypene skilles bare på strekbredden
 
 Med v7.9.14 fikk alle stiene samme hvite casing, men stitråkket (507) beholdt dobbelstreken med lang luft — og inne i hvit casing leste den som en liten veg. Nå er 505, 506 og 507 samme symbol: samme casing (0,18 mm), samme stiplingsmønster og samme farge. Det eneste som skiller dem er bredden på den svarte, stiplede streken: 0,10 mm for godt løp (505), 0,085 mm for uklar sti (506) og 0,07 mm for stitråkk (507). Mønsteret står i faste mm og ikke lenger som calc()-faktorer av strekbredden, fordi faktorer ville gitt tre ulike rytmer for tre bredder — nettopp det som ikke skal skille dem. Strekbredden følger fortsatt strek-skalaen og «Stier»-slideren. Kart må bygges på nytt for å få den nye formen.

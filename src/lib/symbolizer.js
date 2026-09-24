@@ -886,6 +886,18 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
         caProps.push('stroke-dasharray: none')
         rules.push(`${sel} path.casing { ${caProps.join('; ')} }`)
       }
+      // Underlag + omriss (v7.9.17, lysløype 510). Prikk-omrisset arver
+      // stiplingen fra gruppa og legger bare omrisset til --w, så rytmen er
+      // prikkenes egen. Underlaget faller tilbake på temaets prikkfarge.
+      if (def.underlag) {
+        const ul = def.underlag
+        const om = def.omriss ?? { color: '#1a1a1a', widthMm: 0 }
+        const omFarge = `var(--iso-${code}-omriss-stroke, ${om.color})`
+        const heltrukket = 'fill: none; stroke-dasharray: none; stroke-linecap: round; stroke-linejoin: round'
+        rules.push(`${sel} path.omriss-linje { ${heltrukket}; stroke: ${omFarge}; stroke-width: ${sw(ul.widthMm + 2 * om.widthMm)} }`)
+        rules.push(`${sel} path.omriss-prikk { fill: none; stroke: ${omFarge}; stroke-width: calc(var(--w, ${sw(def.stroke?.widthMm ?? 0)}) + ${sw(2 * om.widthMm)}) }`)
+        rules.push(`${sel} path.underlag { ${heltrukket}; stroke: var(--iso-${code}-underlag-stroke, var(--iso-${code}-stroke, ${ul.color})); stroke-width: ${sw(ul.widthMm)} }`)
+      }
       // Overlay-stroke (f.eks. jernbane-sviller). Kun strokes som har
       // overlayStroke får dette ekstra path-laget — selektor matcher
       // path med klasse "overlay" inni samme data-iso.

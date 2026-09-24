@@ -150,8 +150,22 @@ function sampleSvg(category, code) {
     const overlayLine = overlay
       ? `<line x1="4" y1="${H/2}" x2="${W-4}" y2="${H/2}" fill="none" ${strokeAttrs(overlay)}/>`
       : ''
+    // Lysløype: samme fire lag som kartet — begge omrissene under begge de gule.
+    let underlagLines = ''
+    if (def.underlag) {
+      const om = themedStroke(code, def, 'omriss') ?? { color: '#1a1a1a', widthMm: 0 }
+      const t = themeObj.value?.categories?.[code]
+      const ul = { ...def.underlag, color: t?.underlag?.color ?? t?.stroke?.color ?? def.underlag.color }
+      const ln = (s) => `<line x1="4" y1="${H/2}" x2="${W-4}" y2="${H/2}" fill="none" ${strokeAttrs(s)}/>`
+      underlagLines = [
+        ln({ color: om.color, widthMm: ul.widthMm + 2 * om.widthMm, linecap: 'round' }),
+        ln({ ...stroke, color: om.color, widthMm: stroke.widthMm + 2 * om.widthMm }),
+        ln({ color: ul.color, widthMm: ul.widthMm, linecap: 'round' }),
+      ].join('\n      ')
+    }
     return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="background:${bg}">
       <rect width="${W}" height="${H}" fill="${bg}"/>
+      ${underlagLines}
       <line x1="4" y1="${H/2}" x2="${W-4}" y2="${H/2}" fill="none" ${strokeAttrs(stroke)}/>
       ${overlayLine}
     </svg>`
