@@ -1,3 +1,9 @@
+## 2026-09-24 — v7.9.12: De minste stiene er prikker, ikke streker
+
+Stitråkket (ISOM 507, umerket N50-sti og de svakeste OSM-stiene) er den eneste stien uten lys underlinje, og i Turkart, Padling, Print og Mørk ble den tegnet med 0,14 mm lange streker og 0,12 mm luft — altså samme form som de større stiene, bare uten casing, og eieren så den som en svart stiplet strek. Nå er den tette prikker i basen og i hvert tema: 0,10 mm brede (fra 0,08), 0,01 mm dash med rund cap og 0,16 mm periode, så det står 0,06 mm luft mellom prikkene. Skillet mot 505/506 er beholdt og tydeligere enn før: de har streker på lys underlinje, 507 har prikker rett på kartet. Regelen i `kartStiler.test.js` om at 507 skulle ha lengre periode enn 505 er byttet mot en regel om formen (prikk mot strek), og sti-prikker-testen krever nå prikk-formen også i temaene.
+
+---
+
 ## 2026-09-24 — v7.9.11: Grove OSM-stier kappes strekk for strekk
 
 v7.9.10 rettet ikke stien sør for Sandtjern. Regelen krevde at 85 % av HELE den
