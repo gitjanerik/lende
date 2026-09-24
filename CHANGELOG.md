@@ -1,3 +1,20 @@
+## 2026-09-24 — v7.9.11: Grove OSM-stier kappes strekk for strekk
+
+v7.9.10 rettet ikke stien sør for Sandtjern. Regelen krevde at 85 % av HELE den
+grove OSM-stien (way/781269559) lå nær en detaljert rute, og at ruta var fin
+over hele lengden. Den merkede N50-stien dekker bare den nordre halvdelen av
+streken, og mange N50-stier har ett spenn på over 100 m et sted, så regelen slo
+aldri inn. Nå vurderes begge sider strekk for strekk: hvert segment av en grov
+OSM-sti som ligger innenfor 80 m av en rutes korte spenn (≤ 100 m) kappes bort,
+og resten av stien står igjen som egne biter. Det holdt ikke alene: tre av
+segmentene ligger 110–215 m vest for DNT-ruta, altså utenfor 80 m. Et grovt
+mellomstrekk som er dekket i BEGGE ender av samme sti, bare har spenn over
+100 m og ligger innenfor 250 m av ruta, er derfor samme sti tegnet feil og
+faller også bort. En forskjøvet bit i enden av en sti, eller et strekk som er
+tegnet detaljert, står. Kjøreveger røres fortsatt ikke.
+
+---
+
 ## 2026-09-24 — v7.9.10: Grove OSM-stier viker for detaljerte ruter
 
 Øst for Sandtjern og Gamledammen i Finnemarka tegnet Lende stien som en rett
