@@ -12,6 +12,7 @@ import { slaaSammenVann } from '../src/lib/vannMerge.js'
 import { slaaSammenAreal } from '../src/lib/arealMerge.js'
 import { fetchTurruteRoutes, turruteElementsFrom } from '../src/lib/turrutebasenFetcher.js'
 import { fetchN50StiLinjer, n50StiElementerFra } from '../src/lib/n50StiFetcher.js'
+import { fjernGrovOsm } from '../src/lib/linjeDedup.js'
 import { fetchN50Areal, fetchN50Vann } from '../src/lib/n50ArealFetcher.js'
 import { utm32BboxFromWgs84 } from '../src/lib/utm.js'
 import { parsePathSubpaths } from '../src/lib/pathUtils.js'
@@ -284,11 +285,13 @@ export async function buildMapHeadless({
   // dekningstester og beholdt elveløp; nå gjør begge det, fordi det er én kode.
   // Arealdekke slås sammen med SAMME kode som appen (lib/arealMerge.js) — delt
   // fra første linje, nettopp fordi vann-stacken viste hva to varianter koster.
-  const osmElements = slaaSammenAreal({ osm: overpass.elements, n50Areal })
+  // Grove OSM-stier viker for detaljerte ruter med SAMME regel som appen.
+  const { elementer: osmStier } = fjernGrovOsm(overpass.elements, [...turruteRoutes, ...n50StiLinjer])
+  const osmElements = slaaSammenAreal({ osm: osmStier, n50Areal })
   const elements = slaaSammenVann({ osm: osmElements, n50Water, n50Rivers })
-  const turruteEls = turruteElementsFrom(turruteRoutes, overpass.elements)
+  const turruteEls = turruteElementsFrom(turruteRoutes, osmStier)
   elements.push(...turruteEls)
-  elements.push(...n50StiElementerFra(n50StiLinjer, [...overpass.elements, ...turruteEls], n50StiStatus))
+  elements.push(...n50StiElementerFra(n50StiLinjer, [...osmStier, ...turruteEls], n50StiStatus))
 
   const { svg, counts, meta } = buildSvg(elements, bbox, {
     dem,

@@ -1,3 +1,20 @@
+## 2026-09-24 — v7.9.10: Grove OSM-stier viker for detaljerte ruter
+
+Øst for Sandtjern og Gamledammen i Finnemarka tegnet Lende stien som en rett
+strek, mens ut.no viste den buktende DNT-ruta over Hovlandsfjellet. Streken var
+OSM (way/781269559, merket `fixme=resurvey;N50`): ni punkter over 1,9 km, med
+opptil 437 m mellom to av dem. Turrutebasen og den merkede N50-stien har den
+ekte geometrien, men uttynningen i `linjeDedup.js` spør bare om en rute ligger
+nær en linje vi alt tegner — og DNT-ruta slynger seg rundt den rette streken med
+19 m i snitt, så av 2,5 km sto to stumper på 86 og 93 m igjen. Nå fjernes en
+OSM-sti (path/footway/bridleway) som har et spenn over 150 m, og som for minst
+85 % av lengden ligger innenfor 80 m av en detaljert rute (ingen spenn over
+100 m), før uttynningen kjører; ruta tegnes da i sin helhet der streken lå.
+Kjøreveger røres ikke. Appen og headless (MCP/fasit) bruker samme
+`fjernGrovOsm`, og probe-scriptet som fant årsaken er fjernet.
+
+---
+
 ## 2026-09-19 — v7.9.9: Lende tar farge etter systemet
 
 Velger du blått som temafarge i operativsystemet, er Lende nå mørkeblå i mørkt

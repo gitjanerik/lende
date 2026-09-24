@@ -23,6 +23,7 @@ import { fetchNveLakePolygons } from './nveLakeFetcher.js'
 import { fetchKulturminner } from './kulturminneFetcher.js'
 import { fetchTurruteRoutes, turruteElementsFrom } from './turrutebasenFetcher.js'
 import { fetchN50StiLinjer, n50StiElementerFra } from './n50StiFetcher.js'
+import { fjernGrovOsm } from './linjeDedup.js'
 import { fetchN50Areal, fetchN50Vann } from './n50ArealFetcher.js'
 import { slaaSammenAreal, arealKildeFlagg } from './arealMerge.js'
 import { fetchSjokart, sjokartToElements, sjokartTimeoutForBbox, summarizeSjokartStatus } from './sjokartFetcher.js'
@@ -774,11 +775,15 @@ export async function buildMapFromCenter({
     // Merkede fotruter, tynnet mot OSM-ferdselslinjene: ~72 % av Turrutebasen
     // ligger oppå stier vi allerede tegner, og uten uttynning ville hver av dem
     // blitt tegnet dobbelt med et par meters forskyvning.
-    const turruteElements = turruteElementsFrom(turruteRoutes, osmData.elements, turruteStatus)
+    // En grov OSM-sti som en detaljert rute følger, viker for ruta (v7.9.10) —
+    // ellers tynnes den buktede ruta bort mot en rett strek. Se linjeDedup.js.
+    const { elementer: osmStier, fjernet: grovOsm } = fjernGrovOsm(osmData.elements, [...turruteRoutes, ...n50StiLinjer])
+    if (grovOsm.length) console.log(`[Stier] ${grovOsm.length} grove OSM-stier erstattet av detaljerte ruter: ${grovOsm.join(', ')}`)
+    const turruteElements = turruteElementsFrom(turruteRoutes, osmStier, turruteStatus)
     // N50 tynnes mot OSM **og** Turrutebasen: rekkefølgen betyr at en sti
     // Turrutebasen alt har tegnet ikke tegnes en gang til av N50.
     const n50StiElements = n50StiElementerFra(
-      n50StiLinjer, [...osmData.elements, ...turruteElements], n50StiStatus)
+      n50StiLinjer, [...osmStier, ...turruteElements], n50StiStatus)
 
     // Vann-stacken: OSM + N50/NVE-innsjø + NVE-fallback, slått sammen etter
     // reglene i vannMerge.js. Kilden er autoritativ for DET DEN LEVERER —
@@ -789,7 +794,7 @@ export async function buildMapFromCenter({
     // Arealdekke slås sammen FØR vann: vann-stacken leser OSM-elementene for å
     // avgjøre dekning, og myr er ikke vann — men rekkefølgen holder listene
     // forutsigbare, og arealMerge rører kun `natural=wetland`.
-    const osmElements = slaaSammenAreal({ osm: osmData.elements, n50Areal })
+    const osmElements = slaaSammenAreal({ osm: osmStier, n50Areal })
     const elements = slaaSammenVann({ osm: osmElements, n50Water, nveLakes, n50Rivers })
     if (sjokartElements.length > 0) elements.push(...sjokartElements)
     if (turruteElements.length > 0) elements.push(...turruteElements)
