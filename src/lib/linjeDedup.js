@@ -144,3 +144,64 @@ export function dedupeRoutesAgainstLines(routes, lines, {
   return out
 }
 
+
+// ── Grov OSM viker for en detaljert rute (v7.9.10) ──────────────────────────
+//
+// Uttynningen over spør bare «ligger ruta nær en linje vi alt tegner?», ikke
+// «er den linja god nok?». Ved Sandtjern i Finnemarka er OSM-stien
+// (way/781269559, `fixme=resurvey;N50`) ni punkter over 1,9 km med opptil
+// 437 m mellom to av dem — en rett strek. DNT-ruta i Turrutebasen og den
+// merkede N50-stien bukter seg rundt den med 19 m i snitt, altså nesten hele
+// tida innenfor toleransen, så de ble tynnet bort og streken sto igjen.
+//
+// Regelen er derfor snudd for nøyaktig det tilfellet: en OSM-STI som er GROV
+// (har et spenn over GROV_SPENN_M) og som i hovedsak DEKKES av en DETALJERT
+// rute (ingen spenn over DETALJERT_SPENN_M), fjernes — og ruta tegnes i sin
+// helhet i stedet, fordi den nå ikke har noe å tynnes mot der. Kjøreveger er
+// bevisst utenfor: der er OSM-geometrien tegnet fra flyfoto og aldri grov på
+// denne måten, og en veg som byttes mot en sti ville skiftet symbol.
+export const GROV_SPENN_M = 150
+export const DETALJERT_SPENN_M = 100
+// Hvor nær den detaljerte ruta OSM-streken må ligge. Romsligere enn
+// DEDUP_TOLERANCE_M med vilje: en korde over et 400 m-spenn skjærer gjennom
+// svingene ruta tar, og det er nettopp de strekene som skal fanges.
+export const GROV_DEKNING_TOL_M = 80
+// Andel av OSM-streken som må dekkes. Uten et høyt krav ville en lang, grov
+// sti som bare deler sin første bit med en rute forsvunnet i sin helhet.
+export const GROV_DEKNING_ANDEL = 0.85
+const STI_TYPER = new Set(['path', 'footway', 'bridleway'])
+
+function maksSpenn(geometry) {
+  let maks = 0
+  for (let i = 0; i < geometry.length - 1; i++) maks = Math.max(maks, metersBetween(geometry[i], geometry[i + 1]))
+  return maks
+}
+
+/**
+ * Fjern grove OSM-stier som en detaljert rute (Turrutebasen/N50) følger.
+ * Returnerer OSM-elementene uten dem, og id-ene som ble fjernet.
+ *
+ * @param {Array} osmElements
+ * @param {Array} ruter  [{geometry}] — råe ruter FØR uttynning
+ */
+export function fjernGrovOsm(osmElements, ruter) {
+  const detaljerte = (ruter ?? []).filter(r =>
+    Array.isArray(r?.geometry) && r.geometry.length >= 2 && maksSpenn(r.geometry) <= DETALJERT_SPENN_M)
+  if (!detaljerte.length || !osmElements?.length) return { elementer: osmElements ?? [], fjernet: [] }
+  const dense = []
+  for (const r of detaljerte) dense.push(...densify(r.geometry, DENSIFY_M))
+  const index = buildGrid(dense, GROV_DEKNING_TOL_M)
+  const fjernet = []
+  const elementer = osmElements.filter(el => {
+    const g = el?.geometry
+    if (el?.type !== 'way' || !STI_TYPER.has(el.tags?.highway) || !Array.isArray(g) || g.length < 2) return true
+    if (maksSpenn(g) <= GROV_SPENN_M) return true
+    const pts = densify(g, DENSIFY_M)
+    let dekket = 0
+    for (const p of pts) if (hasNeighbourWithin(index, p, GROV_DEKNING_TOL_M)) dekket++
+    if (dekket / pts.length < GROV_DEKNING_ANDEL) return true
+    fjernet.push(el.id)
+    return false
+  })
+  return { elementer, fjernet }
+}
