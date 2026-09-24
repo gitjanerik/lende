@@ -428,9 +428,17 @@
       },
       "510": {
         "label": "Lysløype",
-        "$comment": "Lysløype rendres som oransje prikker (preparert/oppmerket skiløype-konvensjon, matcher Skiforeningens kart). widthMm gir punkt-diameter og dasharray [0, gap] med linecap=round genererer ekte sirkler — null-lengde-dash blir til en sirkel via round-cap.",
+        "$comment": "Lysløype (v7.9.17): gule prikker på en heltrukket gul linje, med ETT tynt sort omriss rundt begge. widthMm gir punkt-diameter og dasharray [0, gap] med linecap=round gir ekte sirkler. mapBuilder emitterer fire tvillinger i rekkefølge omriss-linje → omriss-prikk → underlag → prikkene, så omrisset rundt hver sirkel ligger UNDER den gule linja og aldri tegnes over den.",
+        "underlag": {
+          "color": "#f5c518",
+          "widthMm": 0.22
+        },
+        "omriss": {
+          "color": "#1a1a1a",
+          "widthMm": 0.045
+        },
         "stroke": {
-          "color": "#f57000",
+          "color": "#f5c518",
           "widthMm": 0.55,
           "dasharray": [
             0,
@@ -2749,7 +2757,7 @@
         },
         "510": {
           "stroke": {
-            "color": "#ef973f"
+            "color": "#f2c94c"
           }
         },
         "511": {

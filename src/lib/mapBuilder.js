@@ -1824,8 +1824,14 @@ export function buildSvg(elements, bbox, options = {}) {
       const casingLines = hasCasing
         ? lineBuckets.map(b => `    <path d="${b.ds.join(' ')}" class="casing"${tunnelAttr(b)}${bboxAttr(b.bbox, fmt)}/>`)
         : []
+      // v7.9.17: koder med underlag (lysløype 510) får tre tvillinger foran
+      // prikkene. Rekkefølgen ER omrisset: begge de sorte ligger under begge de
+      // gule, så sirkel-omrisset aldri krysser den gule linja.
+      const lagKlasser = getIsomDef(code)?.underlag ? ['omriss-linje', 'omriss-prikk', 'underlag'] : []
+      const underlagLines = lagKlasser.flatMap(k =>
+        lineBuckets.map(b => `    <path d="${b.ds.join(' ')}" class="${k}"${tunnelAttr(b)}${bboxAttr(b.bbox, fmt)}/>`))
       const pathLines = lineBuckets.map(b => `    <path d="${b.ds.join(' ')}"${tunnelAttr(b)}${bboxAttr(b.bbox, fmt)}/>`)
-      const allLinePaths = [...casingLines, ...pathLines, ...namedLinePaths]
+      const allLinePaths = [...casingLines, ...underlagLines, ...pathLines, ...namedLinePaths]
       return `  <g data-layer="${cat}" data-iso="${code}">\n${allLinePaths.join('\n')}\n  </g>\n`
     }
     return ''

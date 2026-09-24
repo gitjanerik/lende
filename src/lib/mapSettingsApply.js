@@ -116,6 +116,8 @@ export function themeVarEntries(temaKey, catalog = isomCatalogDefault) {
       // grønn casing under en grønn skog gjør stien usynlig. Da må temaet få
       // si «hvit» eksplisitt.
       if (def.casingStroke?.color) vars.push([`--iso-${code}-casing-stroke`, def.casingStroke.color])
+      if (def.underlag?.color) vars.push([`--iso-${code}-underlag-stroke`, def.underlag.color])
+      if (def.omriss?.color) vars.push([`--iso-${code}-omriss-stroke`, def.omriss.color])
       vars.push(...temaDashVars(code, def.stroke, catalog))
     }
     if (Array.isArray(t.depthScale)) {
