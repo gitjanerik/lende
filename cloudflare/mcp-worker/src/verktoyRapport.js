@@ -12,7 +12,7 @@ import { sampleProfile } from '../../../src/lib/elevationProfile.js'
 import { buildRouteOverlaySvg, injectOverlay, DEFAULT_OVERLAY_STYLE } from '../../../src/lib/routeOverlay.js'
 import { resolveVisibleLayers, buildSettingsCss, listThemes } from '../../../src/lib/mapSettingsApply.js'
 import { LAYERS } from '../../../src/lib/mapLayerCatalog.js'
-import { KARTSTILER } from '../../../src/lib/kartStiler.js'
+import { KARTSTILER, SKI_VEILEDNING } from '../../../src/lib/kartStiler.js'
 import { STROKE_GROUPS } from '../../../src/lib/strokeOverrides.js'
 import { enrichRoute } from '../../../src/lib/routeEnrichment.js'
 import { routeCues, extractNamedPointsFromSvg } from '../../../src/lib/routeCues.js'
@@ -291,6 +291,7 @@ export function registerRapportVerktoy(server, ctx) {
         `Kartstiler (ETT valg som setter tema, lag, strek og sti-farger samtidig — start her): ${KARTSTIL_DOC} ` +
       `Temaer (finjustering av fargene alene): ${TEMA_DOC} ` +
         `Lag-nøkler: ${LAG_DOC}, dybde (Sjøkart-dybde på hovedkartet). ` +
+        `${SKI_VEILEDNING} ` +
         `Strek-grupper: ${STREK_DOC}.`,
       inputSchema: {
         kartRef: z.string().describe('Kart-referansen fra bygg_kart'),

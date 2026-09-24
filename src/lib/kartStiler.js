@@ -170,6 +170,16 @@ export const KARTSTILER = Object.freeze([
 ])
 
 export const KARTSTIL_KEYS = KARTSTILER.map((s) => s.key)
+
+// Delt av begge MCP-flatene (stdio + Worker), så ski-svaret ikke spriker.
+export const SKI_VEILEDNING =
+  'Skiløyper: spør brukeren om skiløyper, lysløyper, langrenn, slalåm eller skiheis, eller ' +
+  'skal hen på ski, velg kartstil «vinter» (røde løyper, heistraseer og slalåmbakker på). ' +
+  'Vil hen bare se løypene i en annen stil: lag {"lysloype": true} (+ "heistrase"/"slalombakke" ' +
+  'for alpint) — laget er av som standard. Laget viser både lysløyper og løyper uten lys: ' +
+  'prikkene langs streken er lyset, en strek uten prikker er en løype uten lys. Kildene er OSM ' +
+  'og Turrutebasen; ingen av dem sier noe om føre eller preparering, så påstå aldri at en løype ' +
+  'er preparert — henvis til skisporet.no for live føremelding.'
 export const DEFAULT_KARTSTIL = 'turkart'
 
 export function kartStil(key) {

@@ -34,7 +34,7 @@ import { minEquidistanceForWidthKm, DEFAULT_EQUIDISTANCE_M } from '../src/lib/eq
 import { buildRouteOverlaySvg, injectOverlay, DEFAULT_OVERLAY_STYLE } from '../src/lib/routeOverlay.js'
 import { applyMapSettings, resolveVisibleLayers, buildSettingsCss, listThemes } from '../src/lib/mapSettingsApply.js'
 import { LAYERS } from '../src/lib/mapLayerCatalog.js'
-import { KARTSTILER } from '../src/lib/kartStiler.js'
+import { KARTSTILER, SKI_VEILEDNING } from '../src/lib/kartStiler.js'
 import { STROKE_GROUPS } from '../src/lib/strokeOverrides.js'
 import { enrichRoute } from '../src/lib/routeEnrichment.js'
 import { routeCues, extractNamedPointsFromSvg } from '../src/lib/routeCues.js'
@@ -1124,6 +1124,7 @@ server.registerTool(
       `Kartstiler (ETT valg som setter tema, lag, strek og sti-farger samtidig — start her): ${KARTSTIL_DOC} ` +
       `Temaer (finjustering av fargene alene): ${TEMA_DOC} ` +
       `Lag-nøkler: ${LAG_DOC}, dybde (Sjøkart-dybde på hovedkartet). ` +
+      `${SKI_VEILEDNING} ` +
       `Strek-grupper: ${STREK_DOC}.`,
     inputSchema: {
       tema: z.enum(TEMA_KEYS).optional()
