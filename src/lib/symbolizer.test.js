@@ -411,11 +411,9 @@ describe('punktsymbol-farger — hva som themes og hva som er konstant', () => {
 // 33 % i temaene; 505 og 506 ble strammet i v12.0.15 mens 507 ble stående, så
 // landets vanligste sti var den svakeste på kartet.
 //
-// Merk hva vi IKKE gjør: 507 er ikke satt like tett som 505. kartStiler.test.js
-// håndhever at periode(507) > periode(505) i hvert tema, fordi 507 skal LESE
-// glisnere — «vanskelig å følge» er betydningen dens. Tettheten er derfor hentet
-// ut ved å gjøre marken lengre samtidig som lufta ble kortere, innenfor det
-// taket.
+// Fra v7.9.12 er 507 PRIKKER også i temaene (marken er cap-en alene), og
+// skillet mot 505 er formen — prikk mot strek — pluss at 505 har casing.
+// kartStiler.test.js håndhever formen i hvert tema.
 describe('507 sti-prikker — blekk-andelen i prikkelinja', () => {
   const MIN_ANDEL = 0.5
   const base = isomCatalog.categories.manmade['507'].stroke
@@ -434,6 +432,12 @@ describe('507 sti-prikker — blekk-andelen i prikkelinja', () => {
     expect(temaDash.length).toBeGreaterThan(0)
     for (const [navn, dash] of temaDash) {
       expect(andel(dash, base.widthMm), `tema «${navn}»`).toBeGreaterThanOrEqual(MIN_ANDEL)
+    }
+  })
+
+  it('temaene tegner også prikker — marken er kortere enn en halv bredde', () => {
+    for (const [navn, dash] of temaDash) {
+      expect(dash[0], `tema «${navn}»`).toBeLessThan(base.widthMm / 2)
     }
   })
 

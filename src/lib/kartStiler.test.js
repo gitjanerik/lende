@@ -169,9 +169,14 @@ describe('sti-stiplingen er tett nok til å leses som stiplet', () => {
       expect(dash(tema, '505')[0]).toBeLessThanOrEqual(0.36 / 3 + 1e-9)
     })
 
-    it(`${tema} holder stitråkk (507) tydelig glisnere enn vanlig sti (505)`, () => {
-      // Blir de like tette, mister 507 sin betydning: «vanskelig å følge».
-      expect(periode(dash(tema, '507'))).toBeGreaterThan(periode(dash(tema, '505')))
+    it(`${tema} holder stitråkk (507) som prikker og vanlig sti (505) som streker`, () => {
+      // v7.9.12: skillet bæres av FORMEN, ikke av lufta. 507 var glisnere enn
+      // 505 fram til nå, og i temaene ga det 0,14 mm lange streker som leste
+      // som en stiplet sti — samme form som 505, bare uten underlinje.
+      const b507 = katalog.categories.manmade['507'].stroke.widthMm
+      const b505 = katalog.categories.manmade['505'].stroke.widthMm
+      expect(dash(tema, '507')[0]).toBeLessThan(b507 / 2)
+      expect(dash(tema, '505')[0]).toBeGreaterThan(b505)
     })
   }
 
