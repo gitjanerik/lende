@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  defaultMapDims, equidistanceForWidthKm, minEquidistanceForWidthKm,
+  defaultMapDims, equidistanceForWidthKm, minEquidistanceForWidthKm, AUTO_EQ_GULV_M,
   effectiveEquidistanceForWidthKm, aspectForFormat, resetMapPreferences,
   useMapSizePreference,
   DEFAULT_MAP_WIDTH_KM, MAP_SIZE_MIN_KM, MAP_SIZE_MAX_KM,
@@ -42,23 +42,24 @@ describe('equidistanceForWidthKm — fineste tillatte (samme gulv som «Flere va
     expect(equidistanceForWidthKm(0)).toBe(20)         // 0 = «ikke valgt», ikke 0 km
     expect(equidistanceForWidthKm(DEFAULT_MAP_WIDTH_KM)).toBe(20)
   })
-  it('< 6 km → 10 m (fineste valg etter at 2,5 og 5 m falt bort)', () => {
+  it('≤ 6 km → 10 m — auto går aldri under 10 m, selv der 5 m er lov', () => {
     expect(equidistanceForWidthKm(2)).toBe(10)
-    expect(equidistanceForWidthKm(5.5)).toBe(10)
+    expect(equidistanceForWidthKm(4)).toBe(10)
+    expect(equidistanceForWidthKm(6)).toBe(10)
   })
-  it('6–10 km → 20 m, fra 10 km → 25 m', () => {
-    expect(equidistanceForWidthKm(6)).toBe(20)
-    expect(equidistanceForWidthKm(9.5)).toBe(20)
-    expect(equidistanceForWidthKm(10)).toBe(25)
+  it('opp til og med 10 km → 20 m, over 10 km → 25 m', () => {
+    expect(equidistanceForWidthKm(6.5)).toBe(20)
+    expect(equidistanceForWidthKm(10)).toBe(20)
+    expect(equidistanceForWidthKm(10.5)).toBe(25)
     expect(equidistanceForWidthKm(20)).toBe(25)
   })
-  it('auto har ikke lenger et eget gulv — den ER fineste tillatte', () => {
+  it('auto = fineste tillatte, med 10 m-gulvet (v7.9.21)', () => {
     for (const km of [2, 4, 6, 8, 10, 20]) {
-      expect(equidistanceForWidthKm(km)).toBe(minEquidistanceForWidthKm(km))
+      expect(equidistanceForWidthKm(km)).toBe(Math.max(AUTO_EQ_GULV_M, minEquidistanceForWidthKm(km)))
     }
   })
-  it('MAP_EQ_OPTIONS er 10/20/25/50 — 2,5 og 5 m er borte (v6.5.76)', () => {
-    expect(MAP_EQ_OPTIONS).toEqual([10, 20, 25, 50])
+  it('MAP_EQ_OPTIONS er 5/10/20/25/50 — 5 m er tilbake (v7.9.21)', () => {
+    expect(MAP_EQ_OPTIONS).toEqual([5, 10, 20, 25, 50])
   })
 })
 
@@ -89,18 +90,22 @@ describe('format-preferansen', () => {
 })
 
 describe('effektiv ekvidistanse + Nullstill', () => {
-  it('auto (null-valg) følger fineste tillatte', () => {
+  it('auto (null-valg) følger fineste tillatte, men gir aldri 5 m', () => {
     resetMapPreferences()
     expect(effectiveEquidistanceForWidthKm(4)).toBe(10)
     expect(effectiveEquidistanceForWidthKm(8)).toBe(20)
-    expect(effectiveEquidistanceForWidthKm(10)).toBe(25)
+    expect(effectiveEquidistanceForWidthKm(10)).toBe(20)
+    expect(effectiveEquidistanceForWidthKm(11)).toBe(25)
   })
   it('eksplisitt valg brukes når lovlig, klampes opp når bredden er for stor', () => {
     const { mapEquidistance } = useMapSizePreference()
+    mapEquidistance.value = 5
+    expect(effectiveEquidistanceForWidthKm(4)).toBe(5)    // lovlig (til og med 4 km)
+    expect(effectiveEquidistanceForWidthKm(5)).toBe(10)   // klampet (min 10)
     mapEquidistance.value = 10
     expect(effectiveEquidistanceForWidthKm(3)).toBe(10)   // lovlig
     expect(effectiveEquidistanceForWidthKm(8)).toBe(20)   // klampet (min 20)
-    expect(effectiveEquidistanceForWidthKm(10)).toBe(25)  // klampet (min 25)
+    expect(effectiveEquidistanceForWidthKm(11)).toBe(25)  // klampet (min 25)
     mapEquidistance.value = 50
     expect(effectiveEquidistanceForWidthKm(3)).toBe(50)   // grovere enn min er alltid lov
     resetMapPreferences()
@@ -115,6 +120,6 @@ describe('effektiv ekvidistanse + Nullstill', () => {
     expect(mapFormat.value).toBe('square')
     expect(mapEquidistance.value).toBeNull()                 // null = auto
     expect(effectiveEquidistanceForWidthKm(DEFAULT_MAP_WIDTH_KM)).toBe(20)
-    expect(MAP_EQ_OPTIONS).toEqual([10, 20, 25, 50])
+    expect(MAP_EQ_OPTIONS).toEqual([5, 10, 20, 25, 50])
   })
 })

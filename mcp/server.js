@@ -384,8 +384,8 @@ server.registerTool(
       halfKm: z.number().min(0.5).max(MAX_HALF_KM).optional()
         .describe('Halv kartbredde i km (0.5–20). Utelates: auto fra stedets utstrekning, ellers 2 km'),
       equidistanceM: z.number().optional()
-        .describe('Ekvidistanse i meter (10/20/25/50). Utelatt = 20 (turkart-standard). ' +
-          'Appens bredde-regler håndheves: bredde ≥ 6 km → min 20 m, ≥ 10 km → min 25 m ' +
+        .describe('Ekvidistanse i meter (5/10/20/25/50). Utelatt = 20 (turkart-standard). ' +
+          'Appens bredde-regler håndheves: bredde > 4 km → min 10 m, > 6 km → min 20 m, > 10 km → min 25 m ' +
           '(for fine verdier justeres opp).'),
       navn: z.string().default('mcp-kart').describe('Kartnavn, brukes i filnavn'),
       filsti: z.string().optional().describe('Hvor SVG-en skrives (default: tmp)'),

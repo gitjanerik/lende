@@ -163,7 +163,7 @@ export function registerKartVerktoy(server, ctx) {
         halfKm: z.number().min(0.5).max(MAX_HALF_KM_REMOTE).optional()
           .describe(`Halv kartbredde i km (0.5–${MAX_HALF_KM_REMOTE}). Utelates: auto fra stedets utstrekning, ellers 2 km`),
         equidistanceM: z.number().optional()
-          .describe('Ekvidistanse i meter. Utelatt = 20. Bredde-regler håndheves (bredde > 2 km → min 5 m, ≥ 4 km → min 10 m, ≥ 6 km → min 20 m).'),
+          .describe('Ekvidistanse i meter. Utelatt = 20. Bredde-regler håndheves (bredde > 4 km → min 10 m, > 6 km → min 20 m, > 10 km → min 25 m).'),
         navn: z.string().default('mcp-kart').describe('Kartnavn'),
       },
     },
