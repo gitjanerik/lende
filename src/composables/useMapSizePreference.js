@@ -149,12 +149,13 @@ export function minEquidistanceForWidthKm(km) {
   return minEqFraBredde(km || DEFAULT_MAP_WIDTH_KM)
 }
 
-// Auto-ekvidistanse for snarvei-kart (søk/GPS): den FINESTE tillatte for
-// bredden. Fram til v6.5.76 hadde denne et eget 5 m-gulv, fordi 2,5 m var et
-// bevisst manuelt valg ingen snarvei skulle få uoppfordret. Med 2,5 og 5 m ute
-// av lista er fineste tillatte 10 m, og gulvet har ingenting å gjøre.
+// Auto-ekvidistanse for snarvei-kart (søk/GPS) og for «auto» i Innstillinger:
+// den fineste tillatte for bredden, men aldri under 10 m. 5 m (v7.9.21) er et
+// orienterings-valg man tar BEVISST — et lite snarvei-kart skal ikke få
+// ISOM-tette kurver uoppfordret.
+export const AUTO_EQ_GULV_M = 10
 export function equidistanceForWidthKm(km) {
-  return minEquidistanceForWidthKm(km)
+  return Math.max(AUTO_EQ_GULV_M, minEquidistanceForWidthKm(km))
 }
 
 const mapSizeKm = ref(load())
@@ -181,13 +182,13 @@ watch(mapEquidistance, (v) => {
 })
 
 // Effektiv ekvidistanse for en bredde: brukerens valg hvis lovlig, ellers
-// klampet opp til minste tillatte. null-valg (auto) = fineste tillatte.
+// klampet opp til minste tillatte. null-valg (auto) = equidistanceForWidthKm.
 // Lagret valg beholdes urørt — velger man 5 m ved 3 km og drar slideren til
 // 8 km, bygges 20 m nå, men 5 m gjelder igjen om man drar tilbake.
 export function effectiveEquidistanceForWidthKm(km) {
   const min = minEquidistanceForWidthKm(km)
   const chosen = mapEquidistance.value
-  if (chosen == null) return min
+  if (chosen == null) return equidistanceForWidthKm(km)
   return Math.max(chosen, min)
 }
 

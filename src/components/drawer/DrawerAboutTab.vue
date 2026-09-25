@@ -36,6 +36,11 @@ const effectiveEq = computed(() => effectiveEquidistanceForWidthKm(mapSizeSlider
 // Samme forklaring som pickeren viser — én kilde, så teksten ikke kan si noe
 // annet enn tabellen gjør.
 const eqHintFor = breddeHintFor
+// «5 m», «5 og 10 m», «5, 10 og 20 m» — valgene bredden sperrer.
+const tetteSperret = computed(() => {
+  const v = MAP_EQ_OPTIONS.filter(eq => eq < minEq.value).map(eq => `${eq}`)
+  return v.length > 1 ? `${v.slice(0, -1).join(', ')} og ${v.at(-1)} m` : `${v[0]} m`
+})
 // Felles «Nullstill»: default-bredde + auto-ekvidistanse + kvadratisk. Slider-
 // modellen settes via MapView-computeden (som lagrer null når verdien er default).
 const defaultEq = computed(() => minEquidistanceForWidthKm(DEFAULT_MAP_WIDTH_KM))
@@ -112,7 +117,7 @@ const globalReliefMode = defineModel('globalReliefMode', { type: String, default
         </button>
       </div>
       <!-- Høydekurver: samme valg og bredde-gating som «Flere valg»
-           (< 6 km: alle; 6–10 km: min 20 m; ≥ 10 km: min 25 m). -->
+           (≤ 4 km: alle; ≤ 6 km: min 10 m; ≤ 10 km: min 20 m; ellers min 25 m). -->
       <div class="flex items-baseline justify-between mt-3 mb-1.5">
         <div class="text-[13px] text-ink font-medium">Høydekurver</div>
         <div class="text-[12px] text-ink-3 tabular-nums">hver {{ effectiveEq }} m</div>
@@ -129,8 +134,8 @@ const globalReliefMode = defineModel('globalReliefMode', { type: String, default
           {{ eq }} m
         </button>
       </div>
-      <div v-if="minEq > 10" class="text-[10px] text-ink-4 leading-snug mt-1">
-        Tette kurver ({{ minEq === 25 ? '10 og 20 m' : '10 m' }}) krever smalere kart
+      <div v-if="minEq > 5" class="text-[10px] text-ink-4 leading-snug mt-1">
+        Tette kurver ({{ tetteSperret }}) krever smalere kart
         — dra slideren ned for å låse opp.
       </div>
       <!-- Felles standard: default-bredde + auto-ekvidistanse + kvadratisk. -->

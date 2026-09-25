@@ -47,7 +47,7 @@ const center = ref({ ...DEFAULT_CENTER })
 const HALV_MIN = BREDDE_MIN_KM / 2
 const HALV_MAKS = BREDDE_MAKS_KM / 2
 const halfKm = ref(DEFAULT_MAP_WIDTH_KM / 2)
-// Høydekurve-intervall, 10/20/25/50 m. Startverdien utledes av standard-bredden
+// Høydekurve-intervall, 5/10/20/25/50 m. Startverdien utledes av standard-bredden
 // framfor å stå som et tall her: skrevet av hånd ble den stående på 20 m da
 // standarden ble 10 km, og watch(minEquidistance) fyrer bare når minimumet
 // ENDRES — altså aldri, ved mount.
@@ -948,16 +948,16 @@ onMounted(() => {
       <!-- Knapperad som SER ut som et valg må også være det for en skjermleser:
            uten radiogroup/aria-checked annonseres fire uavhengige knapper og
            ingenting sier hvilken som gjelder. -->
-      <!-- To kolonner: med fire valg gir det to rader med brede trykkflater,
-           og «25 m» står helt også ved 200 % tekst. -->
-      <div class="grid grid-cols-2 gap-1.5" role="radiogroup" aria-labelledby="mappicker-ekvi-etikett">
+      <!-- Flex-wrap med `min-w`, som Format-raden: fem valg i et fast rutenett
+           gir en ensom knapp nederst, og raden bryter pent ved 200 % tekst. -->
+      <div class="flex flex-wrap gap-1.5" role="radiogroup" aria-labelledby="mappicker-ekvi-etikett">
         <button v-for="opt in EQUIDISTANCE_OPTIONS" :key="opt.value"
                 role="radio" :aria-checked="equidistanceM === opt.value"
                 :disabled="controlsLocked || opt.value < minEquidistance"
                 :title="opt.value < minEquidistance ? widthHintFor(opt.value) : opt.desc"
                 @click="equidistanceM = opt.value"
-                class="px-2 py-1.5 rounded-md border text-[11px] font-medium active:scale-95 transition
-                       disabled:cursor-not-allowed disabled:opacity-40"
+                class="flex-1 min-w-[3.25rem] px-2 py-1.5 rounded-md border text-[11px] font-medium
+                       active:scale-95 transition disabled:cursor-not-allowed disabled:opacity-40"
                 :class="equidistanceM === opt.value
                         ? 'bg-slate-400/20 border-slate-300/60 text-slate-100'
                         : 'bg-ink/5 border-ink/10 text-ink-3'">

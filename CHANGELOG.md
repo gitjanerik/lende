@@ -1,3 +1,9 @@
+## 2026-09-25 — v7.9.21: Høydekurver hver 5 m er tilbake, og trappen er rettet
+
+Orienteringsfolket har talt: 5 m ekvidistanse er igjen et valg, både i «Flere valg» og i Innstillinger, for ark opp til og med 4 km. Resten av trappen i `equidistanceRules.js` er rettet til inklusive grenser: 10 m opp til og med 6 km, 20 m opp til og med 10 km, og 25 og 50 m uten sperre som før. Auto (ingen eget valg, og snarvei-kart fra søk/GPS) går aldri under 10 m (`AUTO_EQ_GULV_M`) — 5 m er et valg man tar bevisst. En naboflis arver nå 5 m fra en 5 m-flis i stedet for å klemmes til 10, så sømmen ikke møter to kurvetettheter. Knapperaden i pickeren er flex-wrap som Format-raden, og hinttekstene og MCP-skjemaene beskriver den nye trappen.
+
+---
+
 ## 2026-09-25 — v7.9.20: Skisporet-lenken er fjernet
 
 Knappen «Skisporet» i turkartets infopanel er borte, sammen med `buildSkisporetUrl` og testen dens. Eieren ønsker ikke å sende brukere til en tjeneste som stengte inne løypedata som tidligere var fritt tilgjengelige, og dyplenken åpnet dessuten ikke valgt posisjon. Ski-instruksen i Lende-chat og MCP (`SKI_VEILEDNING`) henviser ikke lenger videre for føremelding — den sier fortsatt at kildene ikke vet noe om føre eller preparering, og at en løype aldri skal påstås preparert. UT.no og Google Maps står som før.

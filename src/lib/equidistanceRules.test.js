@@ -6,17 +6,19 @@ import {
 
 describe('minEquidistanceForWidthKm', () => {
   it('følger terskel-tabellen fra pickeren', () => {
-    expect(minEquidistanceForWidthKm(2)).toBe(10)
-    expect(minEquidistanceForWidthKm(5.9)).toBe(10)
-    expect(minEquidistanceForWidthKm(6)).toBe(20)
-    expect(minEquidistanceForWidthKm(9.5)).toBe(20)
-    expect(minEquidistanceForWidthKm(10)).toBe(25)
+    expect(minEquidistanceForWidthKm(2)).toBe(5)
+    expect(minEquidistanceForWidthKm(4.5)).toBe(10)
+    expect(minEquidistanceForWidthKm(8)).toBe(20)
     expect(minEquidistanceForWidthKm(20)).toBe(25)
   })
 
-  it('standard-bredden gir N50-ekvidistansen 25 m (v6.5.76)', () => {
-    expect(minEquidistanceForWidthKm(10)).toBe(25)
-    expect(minEquidistanceForWidthKm(9.999)).toBe(20)
+  it('grensene er inklusive — «opp til og med» (v7.9.21)', () => {
+    expect(minEquidistanceForWidthKm(4)).toBe(5)
+    expect(minEquidistanceForWidthKm(4.001)).toBe(10)
+    expect(minEquidistanceForWidthKm(6)).toBe(10)
+    expect(minEquidistanceForWidthKm(6.001)).toBe(20)
+    expect(minEquidistanceForWidthKm(10)).toBe(20)
+    expect(minEquidistanceForWidthKm(10.001)).toBe(25)
   })
 
   it('MCP kan bygge bredere enn appens 20 km-tak — regelen topper på 25 m', () => {
@@ -38,10 +40,9 @@ describe('minEquidistanceForWidthKm', () => {
 })
 
 describe('valglista', () => {
-  it('er 10/20/25/50 m — 2,5 og 5 m er fjernet (v6.5.76)', () => {
-    expect(EQUIDISTANSE_M).toEqual([10, 20, 25, 50])
+  it('er 5/10/20/25/50 m — 5 m er tilbake (v7.9.21), 2,5 m er fortsatt ute', () => {
+    expect(EQUIDISTANSE_M).toEqual([5, 10, 20, 25, 50])
     expect(EQUIDISTANSE_M).not.toContain(2.5)
-    expect(EQUIDISTANSE_M).not.toContain(5)
   })
   it('hvert valg har etikett og forklaring, og verdiene står i stigende orden', () => {
     for (const o of EQUIDISTANSE_VALG) {
@@ -57,7 +58,8 @@ describe('valglista', () => {
 })
 
 describe('breddeHintFor', () => {
-  it('forklarer de to valgene som kan bli utelukket', () => {
+  it('forklarer de tre valgene som kan bli utelukket', () => {
+    expect(breddeHintFor(5)).toContain('4 km')
     expect(breddeHintFor(10)).toContain('6 km')
     expect(breddeHintFor(20)).toContain('10 km')
   })
