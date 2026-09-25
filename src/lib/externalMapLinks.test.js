@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   gmapsUrl, streetViewUrl, buildVegkartUrl,
-  VEGKART_ZOOM_MIN, VEGKART_ZOOM_MAX, VEGKART_DEFAULT_ZOOM, buildSkisporetUrl,
+  VEGKART_ZOOM_MIN, VEGKART_ZOOM_MAX, VEGKART_DEFAULT_ZOOM,
 } from './externalMapLinks.js'
 import { wgs84ToUtm33 } from './utm.js'
 
@@ -49,17 +49,5 @@ describe('buildVegkartUrl', () => {
     expect(buildVegkartUrl({ lat: NaN, lon: 10 })).toBe(null)
     expect(buildVegkartUrl({ lat: 60, lon: Infinity })).toBe(null)
     expect(buildVegkartUrl({ lat: 91, lon: 10 })).toBe(null)
-  })
-})
-
-describe('buildSkisporetUrl', () => {
-  it('bygger setView-lenke med senter og zoom', () => {
-    expect(buildSkisporetUrl({ lat: 59.75, lon: 10.02, zoom: 14 }))
-      .toBe('https://skisporet.no/setView/59.75000/10.02000/14/norges_grunnkart')
-  })
-  it('klemmer zoom og avviser ugyldig senter', () => {
-    expect(buildSkisporetUrl({ lat: 60, lon: 10, zoom: 22 })).toContain('/17/')
-    expect(buildSkisporetUrl({ lat: 60, lon: 10, zoom: 1 })).toContain('/5/')
-    expect(buildSkisporetUrl({ lat: NaN, lon: 10 })).toBeNull()
   })
 })

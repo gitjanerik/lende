@@ -179,7 +179,7 @@ export const SKI_VEILEDNING =
   'for alpint) — laget er av som standard. Laget viser både lysløyper og løyper uten lys: ' +
   'prikkene langs streken er lyset, en strek uten prikker er en løype uten lys. Kildene er OSM ' +
   'og Turrutebasen; ingen av dem sier noe om føre eller preparering, så påstå aldri at en løype ' +
-  'er preparert — henvis til skisporet.no for live føremelding.'
+  'er preparert eller kjørbar.'
 export const DEFAULT_KARTSTIL = 'turkart'
 
 export function kartStil(key) {
