@@ -97,8 +97,9 @@ const globalReliefMode = defineModel('globalReliefMode', { type: String, default
         </summary>
         <div class="text-[11px] text-ink-3 leading-snug mt-1">
           Bredde på nye kart fra søk/GPS, {{ MAP_SIZE_MIN_KM }}–{{ MAP_SIZE_MAX_KM }} km.
-          Større kart tar lengre tid å bygge, og fra 6 km krever de 20 m høydekurver
-          (fra 10 km: 25 m). I svært datatette områder (bykjerner) bygges kartet
+          Større kart tar lengre tid å bygge, og grovere høydekurver: 5 m opp til
+          og med 4 km, 10 m til og med 6 km, 20 m til og med 10 km — 25 og 50 m
+          går alltid. I svært datatette områder (bykjerner) bygges kartet
           enklere og om nødvendig mindre, så det holder seg responsivt — «Flere valg»
           viser grensen på stedet, og Utvikler-fanen hva som ble justert.
         </div>

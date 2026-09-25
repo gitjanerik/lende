@@ -1,3 +1,9 @@
+## 2026-09-25 — v7.9.22: «Om Lende» og Innstillinger forteller om den nye høydekurve-trappen
+
+Høydekurve-punktet under «Teknikken» i «Om Lende» sier nå hvilke ekvidistanser som finnes (5/10/20/25/50 m) og hvilke kartbredder de krever: 5 m opp til og med 4 km, 10 m til og med 6 km, 20 m til og med 10 km, mens 25 og 50 m alltid går. Info-teksten under kartbredden i Innstillinger sto igjen med den gamle trappen fra før v7.9.21 («fra 6 km krever de 20 m») og er rettet til den samme.
+
+---
+
 ## 2026-09-25 — v7.9.21: Høydekurver hver 5 m er tilbake, og trappen er rettet
 
 Orienteringsfolket har talt: 5 m ekvidistanse er igjen et valg, både i «Flere valg» og i Innstillinger, for ark opp til og med 4 km. Resten av trappen i `equidistanceRules.js` er rettet til inklusive grenser: 10 m opp til og med 6 km, 20 m opp til og med 10 km, og 25 og 50 m uten sperre som før. Auto (ingen eget valg, og snarvei-kart fra søk/GPS) går aldri under 10 m (`AUTO_EQ_GULV_M`) — 5 m er et valg man tar bevisst. En naboflis arver nå 5 m fra en 5 m-flis i stedet for å klemmes til 10, så sømmen ikke møter to kurvetettheter. Knapperaden i pickeren er flex-wrap som Format-raden, og hinttekstene og MCP-skjemaene beskriver den nye trappen.
