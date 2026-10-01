@@ -156,10 +156,9 @@ export function useGpsSpor({
 
   // ---- tegning -------------------------------------------------------------
 
-  // Spor-lista, stilen og synligheten kan endres fra drawer-en; kartet må
+  // Spor-lista og synligheten kan endres fra drawer-en; kartet må
   // følge etter.
   watch(() => tracker.tracks.value, () => renderTracks(), { deep: true })
-  watch(() => tracker.trackStyle.value, () => renderTracks())
   watch(() => tracker.visibleTrackIds.value, () => renderTracks())
 
   return {

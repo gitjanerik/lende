@@ -3,7 +3,6 @@
 // stil-velger, spor-liste med sparkline (tap → stor profil via
 // v-model:expanded-track-id), GPS-debug og «Presis posisjon»-tips.
 // tracker/userPos-composablene sendes inn som objekter.
-import { TRACK_STYLES } from '../../composables/useTrackRecorder.js'
 import { trackLengthM, trackDurationMs } from '../../lib/gpxExport.js'
 import { buildProfilePath } from '../../lib/elevationProfile.js'
 
@@ -65,19 +64,6 @@ function formatDuration(ms) {
       </span>
     </button>
 
-    <!-- Stil-velger: linje / fotspor / brødsmuler. Påvirker
-         alle synlige spor med en gang. -->
-    <div class="grid grid-cols-3 gap-1.5">
-      <button v-for="s in TRACK_STYLES" :key="s.key"
-              @click="tracker.setStyle(s.key)"
-              :title="s.desc"
-              class="px-2 py-1.5 rounded-md border text-[11px] active:scale-[0.98] transition"
-              :class="tracker.trackStyle.value === s.key
-                      ? 'bg-pink-400/20 border-pink-300/50 text-ink'
-                      : 'bg-ink/5 border-ink/10 text-ink-3'">
-        {{ s.label }}
-      </button>
-    </div>
     <div class="text-[10px] text-ink-4 leading-snug">
       Punkter samples ned til hver 5. m. Lave-nøyaktighets-fixer (over
       50 m) ignoreres så støy ikke blir sti. Spor lagres med kartet.
