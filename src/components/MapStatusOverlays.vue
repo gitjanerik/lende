@@ -54,7 +54,7 @@ const props = defineProps({
 defineEmits([
   'retryLoad', 'dismissOutside', 'dismissDetails', 'retryDetails', 'dismissLowAccuracy',
   'retryGps', 'completePartial', 'repairMosaic', 'squareMosaic',
-  'apneMineKart', 'apneNyttKart',
+  'apneMineKart', 'apneNyttKart', 'byggHer',
 ])
 
 // Rå-meldingen fra pipelinen er nettleserens egen, og i den vanligste
@@ -252,6 +252,11 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
                      text-[12px] font-medium active:scale-[0.98] transition">
         <span :style="{ zoom: uiTextScale }">Prøv igjen</span>
       </button>
+      <button @click="$emit('byggHer')"
+              class="mb-0.5 w-full px-3 py-1 rounded-md bg-ink/20 border border-ink/30 text-ink
+                     text-[12px] font-medium active:scale-[0.98] transition">
+        <span :style="{ zoom: uiTextScale }">Opprett nytt kart der du er</span>
+      </button>
     </div>
   </div>
   <div v-else-if="!loading && showOutsideMap"
@@ -261,16 +266,23 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
     <div role="status" aria-live="polite" :style="toastMaks"
          class="pointer-events-auto
                 rounded-lg backdrop-blur on-accent bg-amber-800/95 border border-slate-300/40
-                text-ink text-[12px] shadow-lg flex items-center gap-1.5 pl-3 pr-1 py-2">
-      <span class="min-w-0 leading-snug" :style="{ zoom: uiTextScale }">Du er utenfor dette kartet.</span>
-      <button @click="$emit('dismissOutside')" aria-label="Greit, skjønner"
-              :style="{ zoom: uiTextScale }"
-              class="w-6 h-6 -my-0.5 flex items-center justify-center rounded-md
-                     text-ink active:scale-90 active:bg-ink/10 shrink-0">
-        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
-             stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-        </svg>
+                text-ink text-[12px] shadow-lg pl-3 pr-1 py-2">
+      <div class="flex items-center gap-1.5">
+        <span class="min-w-0 leading-snug" :style="{ zoom: uiTextScale }">Du er utenfor dette kartet.</span>
+        <button @click="$emit('dismissOutside')" aria-label="Greit, skjønner"
+                :style="{ zoom: uiTextScale }"
+                class="w-6 h-6 -my-0.5 flex items-center justify-center rounded-md
+                       text-ink active:scale-90 active:bg-ink/10 shrink-0">
+          <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+               stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <button @click="$emit('byggHer')"
+              class="mt-1.5 mb-0.5 mr-1 w-[calc(100%-0.25rem)] px-3 py-1 rounded-md bg-ink/20 border border-ink/30
+                     text-ink text-[12px] font-medium active:scale-[0.98] transition">
+        <span :style="{ zoom: uiTextScale }">Opprett nytt kart der du er</span>
       </button>
     </div>
   </div>

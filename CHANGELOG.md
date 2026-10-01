@@ -1,3 +1,13 @@
+## 2026-10-01 — v7.9.24: Navnetvillinger skjules under snarvei-raden, GPS av fjerner prikken, Sporing starter direkte
+
+**Navn under snarvei-raden.** Declutteren nøklet hvert navn på navnet alene, så gården «Åsli» og fjellet «Åsli» delte synlighet: vant den ene plass, ble den andre stående også der den lå under snarvei-raden. Nøkkelen er nå navn + posisjon (`kandidatId`), som er unik og stabil mellom pass.
+
+**Blå prikk.** Å slå av Posisjon stoppet GPS-en, men `useUserPosition.stop()` lot siste fix stå, så prikken ble hengende. `stop()` nullstiller nå posisjonen.
+
+**Sporing.** Snarveien starter GPS og opptak med én gang (et nytt trykk under opptak åpner bare skuffa). GPS-feil- og «utenfor kartet»-varslene har fått knappen «Opprett nytt kart der du er», som henter posisjonen og bygger via «Mine kart».
+
+---
+
 ## 2026-10-01 — v7.9.23: Sporing tegner alltid linje
 
 Valgknappene Linje / Fotspor / Brødsmuler i Sporing er fjernet. Spor tegnes alltid som linje med marsjerende prikker; fotspor- og brødsmule-tegningen, `setStyle` og den lagrede stilen (`lende:track-style`, `trackStyle` per kart) er tatt ut. Gamle kart med en lagret stil tegnes som linje, og feltet ignoreres.

@@ -30,7 +30,7 @@ import { useFokusFelle } from '../composables/useFokusFelle.js'
 // Tekststørrelsen er én slider (100–200 %) som skalerer menyen live: rot-fonten
 // er 16 px × faktor, og alt innhold er i em.
 
-const { menuOpen, close, onsketSheet } = useAppMenu()
+const { menuOpen, close, onsketSheet, onsketNyttTurkart } = useAppMenu()
 const { uiTextScale, setTextScale } = useUiTextScale()
 const { theme, setTheme } = useUiTheme()
 
@@ -156,10 +156,13 @@ const gpsLeter = ref(false)
 const gpsFeil = ref('')          // '' = ingen boks. X-en setter den tilbake hit.
 const byggFraPos = ref(null)     // { lat, lon } — sendes inn i MapLibrary
 
-function nyttTurkart() {
+function nyttTurkart({ apneVedFeil = false } = {}) {
   if (gpsLeter.value) return
   gpsFeil.value = ''
-  if (!('geolocation' in navigator)) { gpsFeil.value = GPS_IKKE_STOTTET; return }
+  // Feilboksen bor i menyen. Utløses det utenfra (varsel på kartet) står menyen
+  // lukket, og en feil ingen ser er en knapp som ikke gjør noe.
+  const feil = (tekst) => { gpsFeil.value = tekst; if (apneVedFeil) menuOpen.value = true }
+  if (!('geolocation' in navigator)) { feil(GPS_IKKE_STOTTET); return }
   gpsLeter.value = true
   navigator.geolocation.getCurrentPosition((pos) => {
     gpsLeter.value = false
@@ -172,7 +175,7 @@ function nyttTurkart() {
     // Etiketten alene: samme boks som «Mine kart» og utsnitts-velgeren (se
     // GpsFeilVarsel). Menyen er en smal skuff, og tre linjer om låsikonet i
     // adressefeltet dyttet alt under seg ut av syne.
-    gpsFeil.value = gpsFeilTekst(err.code)
+    feil(gpsFeilTekst(err.code))
   }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 })
 }
 
@@ -267,6 +270,12 @@ watch(onsketSheet, (navn) => {
   if (!navn) return
   openSheet(navn)
   onsketSheet.value = null
+})
+
+watch(onsketNyttTurkart, (v) => {
+  if (!v) return
+  onsketNyttTurkart.value = false
+  nyttTurkart({ apneVedFeil: true })
 })
 
 function openSheet(name) {
@@ -410,7 +419,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                 <circle cx="12" cy="10" r="2.6" />
               </svg>
             </span>
-            <button type="button" class="am-row-main" @click="nyttTurkart">
+            <button type="button" class="am-row-main" @click="nyttTurkart()">
               <span class="am-row-title">Nytt turkart</span>
               <!-- `is-svar` er ikke pynt: i liggende skjules meta-linjene for
                    å spare høyde, men «Finner posisjonen din …» er SVARET på
@@ -420,7 +429,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                 gpsLeter ? 'Finner posisjonen din …' : nyttKartMeta }}</span>
             </button>
             <button type="button" class="am-add" aria-label="Lag nytt turkart der du er"
-                    :disabled="gpsLeter" @click="nyttTurkart">
+                    :disabled="gpsLeter" @click="nyttTurkart()">
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 5.5v13M5.5 12h13" />

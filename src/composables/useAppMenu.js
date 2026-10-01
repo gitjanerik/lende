@@ -18,11 +18,17 @@ const menuOpen = ref(false)
 // endring å reagere på.
 const onsketSheet = ref(null)
 
+// «Opprett nytt kart der du er» fra et varsel på kartet (v7.9.24). Samme
+// engangs-ønske som onsketSheet: AppMenu eier GPS-oppslaget og byggeflyten
+// (nyttTurkart), og kvitterer ut ønsket.
+const onsketNyttTurkart = ref(false)
+
 export function useAppMenu() {
   const open = () => { menuOpen.value = true }
   const close = () => { menuOpen.value = false }
   const toggle = () => { menuOpen.value = !menuOpen.value }
   // 'kart' | 'rute' | 'nytt' | 'om' — samme navn som AppMenus egne.
   const openMenuSheet = (navn) => { onsketSheet.value = navn }
-  return { menuOpen, open, close, toggle, onsketSheet, openMenuSheet }
+  const byggNyttTurkartHer = () => { onsketNyttTurkart.value = true }
+  return { menuOpen, open, close, toggle, onsketSheet, openMenuSheet, onsketNyttTurkart, byggNyttTurkartHer }
 }

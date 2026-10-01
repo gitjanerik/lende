@@ -1348,7 +1348,7 @@ const canRenameMap = computed(() => !BUILTIN[mapId.value])
 // (Slett alle) tar med seg alt som IKKE er innebygd, og det er nettopp det
 // `BUILTIN`-porten her sier.
 const kartSlettet = ref(false)
-const { openMenuSheet } = useAppMenu()
+const { openMenuSheet, byggNyttTurkartHer } = useAppMenu()
 const stoppSlettLytter = onKartSlettet((id) => {
   if (BUILTIN[mapId.value]) return
   if (id === null || id === mapId.value) kartSlettet.value = true
@@ -1677,7 +1677,7 @@ function gjenskapTur(tour, svg) {
 const {
   tracker,
   startPositioning, stopPositioning, onRetryGps, gpsNow,
-  liveTrackStats, onToggleRecording, onDeleteTrack, onExportTrackGpx,
+  liveTrackStats, onToggleRecording, startSporing, onDeleteTrack, onExportTrackGpx,
   expandedTrackId, expandedTrack, profileFor,
 } = useGpsSpor({
   mapId, meta, mapTitle, storedDem, userPos, compass,
@@ -2133,6 +2133,7 @@ function onShortcutMeasure() {
 // Sporing var en snarvei til v5.1.0, ble en fane i innstillinger, og er nå en
 // snarvei igjen (v6.6.0) — den hører hjemme sammen med det man GJØR.
 function onShortcutSporing() {
+  startSporing()
   closeDrawer()
   lukkFunksjonsSkuffer()
   sporingDrawer.reset()
@@ -3407,7 +3408,8 @@ onUnmounted(() => {
       :firkant-antall="firkantAntall"
       @square-mosaic="gjorArketFirkantet"
       @dismiss-low-accuracy="dismissLowAccuracy"
-      @retry-gps="onRetryGps" />
+      @retry-gps="onRetryGps"
+      @bygg-her="byggNyttTurkartHer" />
 
     <!-- Linjal + OSM-kreditt — trekt ut til MapScaleAttribution (v1.0.8).
          Målestokk/ekvidistanse (v2.4.20) og ISOM/DEM/dybde-provenens (v2.4.26)
