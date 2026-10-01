@@ -114,6 +114,15 @@ export function useGpsSpor({
     return { meters, ms, points: t.points.length }
   })
 
+  // SPORING-SNARVEIEN STARTER OPPTAKET DIREKTE (v7.9.24). Sportypene er borte,
+  // så skuffa har ingenting å velge før opptak — et trykk på snarveien er
+  // bestillingen. Idempotent med vilje: et nytt trykk mens opptaket går skal
+  // åpne skuffa, ikke avslutte sporet (stopp bor i skuffas egen knapp).
+  function startSporing() {
+    if (!userPos.isWatching) startPositioning()
+    if (!tracker.isRecording.value) tracker.startRecording()
+  }
+
   function onToggleRecording() {
     if (!userPos.isWatching) { startPositioning(); return }
     if (tracker.isRecording.value) tracker.stopRecording()
@@ -164,7 +173,7 @@ export function useGpsSpor({
   return {
     tracker,
     startPositioning, stopPositioning, onRetryGps, gpsNow,
-    liveTrackStats, onToggleRecording, onDeleteTrack, onExportTrackGpx,
+    liveTrackStats, onToggleRecording, startSporing, onDeleteTrack, onExportTrackGpx,
     expandedTrackId, expandedTrack, profileFor,
   }
 }

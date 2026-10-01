@@ -11,7 +11,7 @@
 // kommer fra. Feilen den finnes for er stille: en for liten boks ser ut som at
 // «declutteren bare valgte det navnet».
 import { describe, it, expect } from 'vitest'
-import { gjettetBoks } from './useNavnLod.js'
+import { gjettetBoks, kandidatId } from './useNavnLod.js'
 import { isomCatalog } from '../lib/symbolizer.js'
 
 // mm er en CSS-absolutt enhet, og inne i viewBoxen er 1 CSS-px = 1 user-unit.
@@ -54,5 +54,14 @@ describe('gjettetBoks', () => {
     const b = gjettetBoks(px(GREND_MM), 0)
     expect(b.bw).toBeGreaterThan(0)
     expect(b.bh).toBeGreaterThan(0)
+  })
+})
+
+describe('kandidatId', () => {
+  it('skiller navnetvillinger på posisjon, men er stabil for samme navn', () => {
+    const gard = { name: 'Åsli', kind: 'sted', x: 100.4, y: 200.2 }
+    const fjell = { name: 'Åsli', kind: 'topp', x: 900, y: 50 }
+    expect(kandidatId(gard)).not.toBe(kandidatId(fjell))
+    expect(kandidatId(gard)).toBe(kandidatId({ ...gard, x: 100.1 }))
   })
 })

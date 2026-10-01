@@ -150,6 +150,17 @@ const TEGNBREDDE = 0.55    // middels tegnbredde delt på skriftstørrelse
 const FALLBACK_PX = 12     // ≈ 3,2 mm — områdenavnets størrelse, brukt når selv
                            // den beregnede stilen ikke er å få tak i (test/SSR).
 
+/**
+ * Declutter-nøkkelen for ett navn. Navnet ALENE duger ikke: gården og bygda
+ * som deler navn med fjellet er ekte navnetvillinger (se claimLabelName i
+ * mapBuilder), og med lik id deler de synlighet — vinner den ene plass, blir
+ * den andre stående også der den ligger under et overlegg. Posisjonen gjør
+ * nøkkelen unik og er stabil mellom pass, så hysteresen virker som før.
+ */
+export function kandidatId(e) {
+  return `${e.name || e.kind}@${Math.round(e.x)},${Math.round(e.y)}`
+}
+
 /** Boks-estimat i user-units fra skriftstørrelse og tekstlengde. Ren. */
 export function gjettetBoks(fontPx, tekstLengde) {
   const fs = fontPx > 0 ? fontPx : FALLBACK_PX
@@ -459,7 +470,7 @@ export function useNavnLod({
       const hw = (box.bw * px2) / 2
       const hh = (box.bh * px2) / 2
       candidates.push({
-        id: e.name || `${e.kind}@${Math.round(e.x)},${Math.round(e.y)}`,
+        id: kandidatId(e),
         el: e.el,
         score: nameScore(e),
         sx, sy,

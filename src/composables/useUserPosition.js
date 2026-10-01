@@ -152,6 +152,18 @@ export function useUserPosition(getMeta, getBounds = null) {
       pollTimer = null
     }
     state.isWatching = false
+    // Posisjonen følger GPS-en: av betyr at den blå prikken skal bort
+    lastCoords = null
+    state.svgX = null
+    state.svgY = null
+    state.latRaw = null
+    state.lonRaw = null
+    state.accuracyM = null
+    state.headingDeg = null
+    state.speedMs = null
+    state.isOutsideMap = false
+    state.lastFixAt = null
+    state.lastFixSource = null
   }
 
   onUnmounted(stop)
