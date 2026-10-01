@@ -179,9 +179,26 @@ function skriftPx(el) {
 /** Den EKTE boksen hvis elementet rendres nå, ellers null. */
 function maaltBoks(el) {
   if (typeof el?.getBBox !== 'function') return null
-  let bw = 0, bh = 0
-  try { const bb = el.getBBox(); bw = bb.width; bh = bb.height } catch { /* display:none → 0 */ }
-  return (bw > 0 || bh > 0) ? { bw, bh } : null
+  let bw = 0, bh = 0, cx = 0, cy = 0
+  try {
+    const bb = el.getBBox()
+    bw = bb.width; bh = bb.height
+    cx = bb.x + bb.width / 2; cy = bb.y + bb.height / 2
+  } catch { /* display:none → 0 */ }
+  return (bw > 0 || bh > 0) ? { bw, bh, cx, cy } : null
+}
+
+/**
+ * Hvor teksten FAKTISK ligger i forhold til indeks-punktet (user-units).
+ * Indekspunktet er ankeret (x/y-attributtet, eller toppens <g>), men en
+ * start-forankret tekst — toppnavn har x = 2mm — strekker seg HELT til høyre for
+ * det. Uten forskyvningen sto kandidat-boksen halve teksten for langt til
+ * venstre, og et stort navn nær snarvei-raden ble aldri regnet som under den.
+ */
+export function senterForskyvning(box, el, kind) {
+  if (!box || !Number.isFinite(box.cx) || !Number.isFinite(box.cy)) return { dx: 0, dy: 0 }
+  const attr = (n) => (kind === 'peak' ? 0 : parseFloat(el.getAttribute?.(n) ?? '') || 0)
+  return { dx: box.cx - attr('x'), dy: box.cy - attr('y') }
 }
 
 const SKJUL_VELGERE = [
@@ -466,6 +483,12 @@ export function useNavnLod({
         if (ferskt) { box = ferskt; labelBoxCache.set(e.el, ferskt) }
       }
       if (!box) box = { bw: 8, bh: 6 }
+      // Boksens senter, ikke ankeret (se senterForskyvning).
+      const { dx: fx, dy: fy } = senterForskyvning(box, e.el, e.kind)
+      const qx = offX + (e.x + fx) * fit
+      const qy = offY + (e.y + fy) * fit
+      const bx = tx + s * (qx * cos - qy * sin)
+      const by = ty + s * (qx * sin + qy * cos)
       // Skjerm-AABB av (kart-rotert) label-boks.
       const hw = (box.bw * px2) / 2
       const hh = (box.bh * px2) / 2
@@ -473,7 +496,7 @@ export function useNavnLod({
         id: kandidatId(e),
         el: e.el,
         score: nameScore(e),
-        sx, sy,
+        sx: bx, sy: by,
         halfW: Math.abs(hw * cos) + Math.abs(hh * sin),
         halfH: Math.abs(hw * sin) + Math.abs(hh * cos),
         group: nameGroup(e),

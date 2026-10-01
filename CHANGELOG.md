@@ -1,3 +1,9 @@
+## 2026-10-01 — v7.9.25: Toppnavn skjules riktig under snarvei-raden
+
+Et stort navn som «Åsli» ble aldri skjult under snarvei-raden. Toppnavn er start-forankret (x = 2 mm), så teksten strekker seg helt til høyre for toppens punkt, men declutteren la boksen sentrert på punktet — halve teksten for langt til venstre, og ved nærbilde nok til at den ikke traff raden. Kandidatboksen sentreres nå på tekstens egen bbox (`senterForskyvning`). Rettingen i v7.9.24 (unike id-er) traff ikke årsaken.
+
+---
+
 ## 2026-10-01 — v7.9.24: Navnetvillinger skjules under snarvei-raden, GPS av fjerner prikken, Sporing starter direkte
 
 **Navn under snarvei-raden.** Declutteren nøklet hvert navn på navnet alene, så gården «Åsli» og fjellet «Åsli» delte synlighet: vant den ene plass, ble den andre stående også der den lå under snarvei-raden. Nøkkelen er nå navn + posisjon (`kandidatId`), som er unik og stabil mellom pass.
