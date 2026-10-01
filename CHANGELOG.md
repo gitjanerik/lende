@@ -1,3 +1,11 @@
+## 2026-10-01 — v7.9.26: Sporing sentrerer kartet på deg, grend/gård-navn viker for snarvei-raden
+
+**Sporing.** Trykk på snarveien flytter nå utsnittet så blå prikk står 30 % ned fra toppen — midt i den delen av kartet sporingsskuffa (ca. 40 % nedenfra) ikke dekker — og zoomer godt inn (minst 12×, aldri ut). Kommer første GPS-fix først etter trykket, sentreres det når den kommer; lukkes skuffa før det, droppes ønsket.
+
+**Navn under snarvei-raden.** Declutteren regnet med et estimert navneformat (gjettet boks, foreldet cache), og et stort grend/gård-navn kunne strekke seg inn under raden uten at estimatet merket det. Navn nær raden sjekkes nå mot sin EKTE skjermboks før de får stå.
+
+---
+
 ## 2026-10-01 — v7.9.25: Toppnavn skjules riktig under snarvei-raden
 
 Et stort navn som «Åsli» ble aldri skjult under snarvei-raden. Toppnavn er start-forankret (x = 2 mm), så teksten strekker seg helt til høyre for toppens punkt, men declutteren la boksen sentrert på punktet — halve teksten for langt til venstre, og ved nærbilde nok til at den ikke traff raden. Kandidatboksen sentreres nå på tekstens egen bbox (`senterForskyvning`). Rettingen i v7.9.24 (unike id-er) traff ikke årsaken.

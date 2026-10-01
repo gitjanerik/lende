@@ -536,6 +536,26 @@ export function useNavnLod({
       hp.el.classList.toggle('name-lod-off', !!under)
     }
 
+    // Siste skanse: boksen declutteren regnet med er et estimat (gjettet boks,
+    // foreldet cache, tekstskala), og ei stor tekst kan strekke seg inn under
+    // raden uten at estimatet merker det. For navn som ligger NÆR en hindring
+    // leses derfor den EKTE skjermboksen.
+    if (hindringer.length) {
+      for (const c of candidates) {
+        if (c.forced || !visible.has(c.id)) continue
+        const nær = hindringer.some(h =>
+          c.sy + c.halfH * 3 + 200 > h.minY && c.sy - c.halfH * 3 - 200 < h.maxY &&
+          c.sx + c.halfW * 3 + 200 > h.minX && c.sx - c.halfW * 3 - 200 < h.maxX)
+        if (!nær) continue
+        c.el.classList.remove('name-lod-off')   // et skjult navn måler 0×0
+        const r = c.el.getBoundingClientRect?.()
+        if (!r || !(r.width > 0) || !(r.height > 0)) continue
+        const ekte = { minX: r.left - wrap.left, minY: r.top - wrap.top,
+          maxX: r.right - wrap.left, maxY: r.bottom - wrap.top }
+        if (underHindring(ekte, hindringer)) visible.delete(c.id)
+      }
+    }
+
     for (const c of candidates) {
       c.el.classList.toggle('name-lod-off', !visible.has(c.id))
     }
